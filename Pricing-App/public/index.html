@@ -2859,29 +2859,56 @@ let API_ERR = '';        // why that read failed, carried to whichever tab repor
  * GROUP: src/app/research/
  * #################################################################################################### */
 /* ============================== FILE: src/app/research/costing-maths.js ============================== */
+/* ================= RESEARCH · COSTING MATHS: the reverse costing the costing screens share =================
+ * Screens: New Product (Calculate) and Settings (the "Landed = product cost × …" note under the fee tables)
+ * use baseDivisor and landedMult. No screen calls computeTarget at the moment — New Product has its own
+ * version of it, which also allows a flat $ per unit for shipping and duty.
+ * Does: turns the Settings percentages into the two multipliers of the reverse costing — baseDivisor
+ * (product cost ÷ it = base cost, i.e. P.M × factory overhead) and landedMult (product cost × it = landed
+ * cost, i.e. shipping and duty) — and holds the original one-shot costing, computeTarget: from a selling
+ * price, the two Amazon fees and the settings to every expense, the landed cost and the product and
+ * factory costs.
+ * Main functions: baseDivisor, landedMult, computeTarget. */
+
 /* ---------- the reverse costing maths (mirrors the Apps Script / their sheet) ---------- */
 // Shipping is a % of PRODUCT cost, but duty is a % of BASE cost (before ×factory-OH and ×P.M),
 // so duty must be re-expressed against product cost before the two can be added. With their
 // defaults this gives 1 + .30 + .15/1.375 = 1.409091 — the exact multiplier in their own sheet.
-function baseDivisor(s) { const d = (s.pm || 1) * (1 + s.factoh / 100); return d > 0 ? d : 1; }
-function landedMult(s) { return 1 + s.ship / 100 + (s.duty / 100) / baseDivisor(s); }
+// Divide the product cost by this to get the base (factory) cost: P.M (markup ×, 1 when blank) × (1 + factory
+// overhead %). 1 when that is not a positive number.
+function baseDivisor(settings) {
+  const divisor = (settings.pm || 1) * (1 + settings.factoh / 100);
+  return divisor > 0 ? divisor : 1;
+}
+// Multiply the product cost by this to get the landed cost: 1 + shipping % + duty % (duty re-expressed
+// against the product cost, see the note above).
+function landedMult(settings) {
+  return 1 + settings.ship / 100 + (settings.duty / 100) / baseDivisor(settings);
+}
 
-function computeTarget(price, referral, fba, s) {
-  const tacos = price * s.tacos / 100;
-  const ret = price * s.return / 100;
-  const oh = price * s.oh / 100;
-  const sal = price * s.salary / 100;
-  const profit = price * s.profit / 100;
+// The original one-shot reverse costing: the selling price, Amazon's referral and FBA fees and the settings
+// in; every expense, the landed cost and the product and factory costs out. Every % here is a % of the
+// selling price (New Product charges the return loss on the landed cost instead), and shipping and duty are
+// the Settings percentages only. Not called by any screen today.
+function computeTarget(price, referral, fba, settings) {
+  // --- the expenses that are a % of the selling price ---
+  const tacos = price * settings.tacos / 100;     // advertising (TACoS)
+  const ret = price * settings.return / 100;      // return loss
+  const oh = price * settings.oh / 100;           // Amazon OH (overheads)
+  const sal = price * settings.salary / 100;      // employee salaries
+  const profit = price * settings.profit / 100;   // the profit wanted
+  // --- what is left for the goods ---
   const totalExp = referral + fba + tacos + ret + oh + sal;
   const landed = price - totalExp - profit;
-  const bd = baseDivisor(s);
-  const productUsd = landed / landedMult(s);
+  const bd = baseDivisor(settings);
+  const productUsd = landed / landedMult(settings);
   return {
     tacos, ret, oh, sal, profit, totalExp, landed,
-    shipping: productUsd * s.ship / 100,
-    duty: productUsd * (s.duty / 100) / bd,
-    productUsd, productInr: productUsd * s.fx,
-    factoryInr: (productUsd * s.fx) / bd,
+    shipping: productUsd * settings.ship / 100,      // shipping, a % of the product cost
+    duty: productUsd * (settings.duty / 100) / bd,   // duty & tax, a % of the base cost
+    productUsd,
+    productInr: productUsd * settings.fx,            // the product cost in rupees
+    factoryInr: (productUsd * settings.fx) / bd,     // the base (factory) cost in rupees
     marginPct: price > 0 ? profit / price : 0,
     roiPct: landed > 0 ? profit / landed : 0,
   };
@@ -3906,38 +3933,76 @@ function readSettings() {
  * GROUP: src/app/research/
  * #################################################################################################### */
 /* ============================== FILE: src/app/research/fee-tables.js ============================== */
+/* ================= RESEARCH · FEE TABLES: the category and size-tier tables, and the Save settings button =================
+ * Screens: Settings (the two editable tables, the "Landed = product cost × …" note and the Save settings
+ * button) and New Product (its category dropdown is filled from the category table; the tier lookup gives
+ * its FBA fee when there is no reference ASIN).
+ * Does: draws and reads back the referral-% per category table (catRow, drawCats, readCats) and the FBA
+ * size-tier table (tierRow, drawTiers, readTiers), and adds a blank row on + Add; keeps New Product's
+ * category dropdown in step with the table (syncCatSelect); finds the first tier a product fits inside
+ * (fbaTierFor); shows the landed-cost multiplier under the tables (noteMult); and saves the Settings fields
+ * and tables to Firestore settings/default (the saveSettings handler). loadSettings in core/settings.js
+ * draws both tables after sign-in.
+ * Main functions: catRow, drawCats, readCats, tierRow, drawTiers, readTiers, syncCatSelect, fbaTierFor,
+ * noteMult. */
+
 /* ---------- editable fee tables (New product tab only) ---------- */
-function catRow(c) {
+
+/* ---- referral % by category ---- */
+// One row of the category table: name, referral %, and a ✕ that removes the row. Every edit refreshes
+// New Product's category dropdown.
+function catRow(cat) {
   const tr = document.createElement('tr');
-  tr.innerHTML = `<td><input class="c-name" value="${c.name}"></td>
-    <td><input class="c-pct" type="number" step="0.1" value="${c.pct}"></td>
+  tr.innerHTML = `<td><input class="c-name" value="${cat.name}"></td>
+    <td><input class="c-pct" type="number" step="0.1" value="${cat.pct}"></td>
     <td><button class="xbtn">✕</button></td>`;
-  tr.querySelector('button').onclick = () => { tr.remove(); syncCatSelect(); };
+  tr.querySelector('button').onclick = () => {
+    tr.remove();
+    syncCatSelect();
+  };
   tr.querySelector('.c-name').addEventListener('input', syncCatSelect);
   return tr;
 }
-function drawCats(cats) { $('catRows').innerHTML = ''; cats.forEach(c => $('catRows').appendChild(catRow(c))); syncCatSelect(); }
+// Redraw the category table from a list of { name, pct }, then refresh New Product's dropdown.
+function drawCats(cats) {
+  $('catRows').innerHTML = '';
+  cats.forEach(cat => $('catRows').appendChild(catRow(cat)));
+  syncCatSelect();
+}
+// The category table as drawn → [{ name, pct }]; rows without a name are skipped.
 function readCats() {
   return [...$('catRows').querySelectorAll('tr')].map(tr => ({
     name: tr.querySelector('.c-name').value.trim(),
     pct: parseFloat(tr.querySelector('.c-pct').value) || 0,
-  })).filter(c => c.name);
+  })).filter(cat => cat.name);
 }
-$('addCat').onclick = () => { $('catRows').appendChild(catRow({ name: '', pct: 15 })); syncCatSelect(); };
+// + Add category: a blank row at 15 %.
+$('addCat').onclick = () => {
+  $('catRows').appendChild(catRow({ name: '', pct: 15 }));
+  syncCatSelect();
+};
 
-function tierRow(t) {
+/* ---- FBA fee by size tier ---- */
+// One row of the size-tier table: name, max length / width / height (inches), max weight (lb), FBA fee ($),
+// and a ✕ that removes the row.
+function tierRow(tier) {
   const tr = document.createElement('tr');
-  tr.innerHTML = `<td><input class="t-name" value="${t.name}"></td>
-    <td><input class="t-maxL" type="number" step="0.1" value="${t.maxL}"></td>
-    <td><input class="t-maxW" type="number" step="0.1" value="${t.maxW}"></td>
-    <td><input class="t-maxH" type="number" step="0.1" value="${t.maxH}"></td>
-    <td><input class="t-maxWt" type="number" step="0.01" value="${t.maxWt}"></td>
-    <td><input class="t-fee" type="number" step="0.01" value="${t.fee}"></td>
+  tr.innerHTML = `<td><input class="t-name" value="${tier.name}"></td>
+    <td><input class="t-maxL" type="number" step="0.1" value="${tier.maxL}"></td>
+    <td><input class="t-maxW" type="number" step="0.1" value="${tier.maxW}"></td>
+    <td><input class="t-maxH" type="number" step="0.1" value="${tier.maxH}"></td>
+    <td><input class="t-maxWt" type="number" step="0.01" value="${tier.maxWt}"></td>
+    <td><input class="t-fee" type="number" step="0.01" value="${tier.fee}"></td>
     <td><button class="xbtn">✕</button></td>`;
   tr.querySelector('button').onclick = () => tr.remove();
   return tr;
 }
-function drawTiers(tiers) { $('tierRows').innerHTML = ''; tiers.forEach(t => $('tierRows').appendChild(tierRow(t))); }
+// Redraw the size-tier table from a list of tiers.
+function drawTiers(tiers) {
+  $('tierRows').innerHTML = '';
+  tiers.forEach(tier => $('tierRows').appendChild(tierRow(tier)));
+}
+// The size-tier table as drawn → [{ name, maxL, maxW, maxH, maxWt, fee }]; rows without a name are skipped.
 function readTiers() {
   return [...$('tierRows').querySelectorAll('tr')].map(tr => ({
     name: tr.querySelector('.t-name').value.trim(),
@@ -3946,9 +4011,13 @@ function readTiers() {
     maxH: parseFloat(tr.querySelector('.t-maxH').value) || 0,
     maxWt: parseFloat(tr.querySelector('.t-maxWt').value) || 0,
     fee: parseFloat(tr.querySelector('.t-fee').value) || 0,
-  })).filter(t => t.name);
+  })).filter(tier => tier.name);
 }
-$('addTier').onclick = () => $('tierRows').appendChild(tierRow({ name: '', maxL: 0, maxW: 0, maxH: 0, maxWt: 0, fee: 0 }));
+// + Add tier: a blank row, every number 0.
+$('addTier').onclick = () =>
+  $('tierRows').appendChild(tierRow({ name: '', maxL: 0, maxW: 0, maxH: 0, maxWt: 0, fee: 0 }));
+
+/* ---- what New Product takes from the tables ---- */
 
 /**
  * Keep the New-product category dropdown in step with the Settings table. When a reference product
@@ -3957,12 +4026,14 @@ $('addTier').onclick = () => $('tierRows').appendChild(tierRow({ name: '', maxL:
  */
 function syncCatSelect() {
   const cur = $('n_cat').value;
-  const opts = readCats().map(c => `<option value="${c.pct}">${c.name} — ${c.pct}%</option>`);
+  const opts = readCats().map(cat => `<option value="${cat.pct}">${cat.name} — ${cat.pct}%</option>`);
   if (NREF && NREF.refPct != null) {
-    opts.unshift(`<option value="${NREF.refPct}">🔄 Auto — ${NREF.category || 'reference ASIN'} · ${NREF.refPct.toFixed(1)}%</option>`);
+    opts.unshift(`<option value="${NREF.refPct}">🔄 Auto — ${NREF.category || 'reference ASIN'}`
+      + ` · ${NREF.refPct.toFixed(1)}%</option>`);
   }
   $('n_cat').innerHTML = opts.join('');
-  if (cur && [...$('n_cat').options].some(o => o.value === cur)) $('n_cat').value = cur;
+  // keep what was selected when that option still exists
+  if (cur && [...$('n_cat').options].some(opt => opt.value === cur)) $('n_cat').value = cur;
 }
 
 /**
@@ -3970,22 +4041,34 @@ function syncCatSelect() {
  * side, not on which one you called length — so sort the three dimensions before comparing.
  */
 function fbaTierFor(tiers, wt, dims) {
-  const [a, b, c] = dims.slice().sort((x, y) => y - x);
-  return tiers.find(t => wt <= t.maxWt && a <= t.maxL && b <= t.maxW && c <= t.maxH) || null;
+  const [longest, median, shortest] = dims.slice().sort((x, y) => y - x);
+  return tiers.find(tier =>
+    wt <= tier.maxWt && longest <= tier.maxL && median <= tier.maxW && shortest <= tier.maxH) || null;
 }
+
+/* ---- the multiplier note and the Save button (Settings screen) ---- */
+// The grey note under the tables: the landed-cost multiplier the Settings fields give right now, and how
+// the duty % is re-expressed against the product cost.
 function noteMult() {
-  const s = readSettings();
+  const settings = readSettings();
   $('multNote').textContent =
-    `Landed = product cost × ${landedMult(s).toFixed(6)}  ·  shipping ${s.ship}% of product cost, duty ${s.duty}% of base cost (≈${(s.duty / baseDivisor(s)).toFixed(2)}% of product cost at P.M ${s.pm}).`;
+    `Landed = product cost × ${landedMult(settings).toFixed(6)}  ·  shipping ${settings.ship}% of product cost, `
+    + `duty ${settings.duty}% of base cost (≈${(settings.duty / baseDivisor(settings)).toFixed(2)}% of product cost `
+    + `at P.M ${settings.pm}).`;
 }
+// Every Settings field refreshes the note as it is typed in.
 KEYS.forEach(k => $('s_' + k).addEventListener('input', noteMult));
 
+// Save settings: read the fields and both tables into SET, write them to Firestore settings/default, and show
+// "Saved" (or why it failed) for 2.5 seconds.
 $('saveSettings').onclick = async () => {
   SET = readSettings();
   try {
     await setDoc(doc(db, 'settings', 'default'), SET);
     $('setMsg').textContent = 'Saved ✅';
-  } catch (e) { $('setMsg').textContent = 'Save failed: ' + e.message; }
+  } catch (e) {
+    $('setMsg').textContent = 'Save failed: ' + e.message;
+  }
   setTimeout(() => $('setMsg').textContent = '', 2500);
 };
 
@@ -7967,95 +8050,153 @@ $('bCsv').onclick = () => {
  * GROUP: src/app/research/
  * #################################################################################################### */
 /* ============================== FILE: src/app/research/keywords.js ============================== */
+/* ================= RESEARCH · KEYWORDS: the DataDive keyword list for one niche =================
+ * Screens: Keywords (hidden from the sidebar — see HIDDEN_TABS in core/nav.js; everything stays wired up).
+ * Does: calls DataDive through the backend (ddGet); fills the niche dropdown the first time the screen is
+ * opened (loadNiches, called from showTab); on Show keywords pulls the niche's keywords, works out which
+ * fields hold the keyword, the search volume and the organic rank (firstArrayOfObjects, pickKey) and lists
+ * them biggest volume first with a page number (renderKeywords). Show raw fields reveals the first row as
+ * DataDive sent it, so the field mapping can be checked.
+ * Main functions: ddGet, loadNiches, firstArrayOfObjects, pickKey, num, renderKeywords. */
+
 /* ---------- Keywords tab (DataDive) ---------- */
 // The backend proxies any GET /v1/… DataDive path with the server-held x-api-key.
+// One DataDive GET through the backend (?dd=<path>): throws when the backend is not configured or answers
+// ok:false, otherwise returns the reply's data.
 async function ddGet(path) {
   if (!API || !API.url) throw new Error('Backend not configured — ' + (API_ERR || 'config/api was not read'));
-  const u = new URL(API.url);
-  u.searchParams.set('key', API.key);
-  u.searchParams.set('dd', path);
-  const r = await fetch(u, { redirect: 'follow' });
-  const d = await r.json();
-  if (!d.ok) throw new Error(d.error || 'DataDive call failed');
-  return d.data;
+  const url = new URL(API.url);
+  url.searchParams.set('key', API.key);
+  url.searchParams.set('dd', path);
+  const res = await fetch(url, { redirect: 'follow' });
+  const data = await res.json();
+  if (!data.ok) throw new Error(data.error || 'DataDive call failed');
+  return data.data;
 }
 
-let NICHES_LOADED = false, KW_RAW = null;
+let NICHES_LOADED = false;   // the niche dropdown has been filled once
+let KW_RAW = null;           // the last keywords reply as DataDive sent it, for "Show raw fields"
+// Fill the niche dropdown from DataDive, once (showTab calls this every time the Keywords screen opens).
 async function loadNiches() {
   if (NICHES_LOADED) return;
   try {
-    const d = await ddGet('/v1/niches?pageSize=50');
-    const list = (d && d.data) || [];
-    if (!list.length) { $('kwNiche').innerHTML = '<option value="">No niches in your DataDive account</option>'; return; }
-    $('kwNiche').innerHTML = list.map(n =>
-      `<option value="${n.nicheId}">${(n.nicheLabel || n.heroKeyword || n.nicheId)} · ${n.marketplace || ''}</option>`).join('');
+    const reply = await ddGet('/v1/niches?pageSize=50');
+    const list = (reply && reply.data) || [];
+    if (!list.length) {
+      $('kwNiche').innerHTML = '<option value="">No niches in your DataDive account</option>';
+      return;
+    }
+    $('kwNiche').innerHTML = list.map(niche =>
+      `<option value="${niche.nicheId}">${(niche.nicheLabel || niche.heroKeyword || niche.nicheId)} · ${niche.marketplace || ''}</option>`).join('');
     NICHES_LOADED = true;
   } catch (e) {
     $('kwNiche').innerHTML = '<option value="">—</option>';
-    $('kwMsg').textContent = e.message || String(e); $('kwMsg').className = 'err';
+    $('kwMsg').textContent = e.message || String(e);
+    $('kwMsg').className = 'err';
   }
 }
 
 // The keyword list's exact field names aren't documented, so detect them from the data: find the
 // array of keyword objects, then the keyword / volume / rank keys by name pattern. A "raw" view
 // exposes the first row so the mapping can be confirmed.
-function firstArrayOfObjects(o, depth) {
-  if (depth > 6 || o == null) return null;
-  if (Array.isArray(o)) return o.some(x => x && typeof x === 'object' && !Array.isArray(x)) ? o : null;
-  if (typeof o === 'object') {
-    for (const k of ['keywords', 'data', 'result', 'items', 'rows', 'mkl']) {
-      if (o[k] != null) { const a = firstArrayOfObjects(o[k], depth + 1); if (a) return a; }
+// Walk a reply (at most 6 levels deep, the likely keys first) and return the first array that holds objects,
+// or null when there is none.
+function firstArrayOfObjects(obj, depth) {
+  if (depth > 6 || obj == null) return null;
+  if (Array.isArray(obj)) return obj.some(x => x && typeof x === 'object' && !Array.isArray(x)) ? obj : null;
+  if (typeof obj === 'object') {
+    for (const key of ['keywords', 'data', 'result', 'items', 'rows', 'mkl']) {
+      if (obj[key] != null) {
+        const found = firstArrayOfObjects(obj[key], depth + 1);
+        if (found) return found;
+      }
     }
-    for (const k in o) { const a = firstArrayOfObjects(o[k], depth + 1); if (a) return a; }
+    for (const key in obj) {
+      const found = firstArrayOfObjects(obj[key], depth + 1);
+      if (found) return found;
+    }
   }
   return null;
 }
+// The first key of item that matches one of the patterns, trying the patterns in order; null when none does.
 function pickKey(item, pats) {
-  for (const p of pats) for (const k in item) if (p.test(k)) return k;
+  for (const pat of pats) {
+    for (const key in item) {
+      if (pat.test(key)) return key;
+    }
+  }
   return null;
 }
-function num(v) { const n = parseFloat(v); return isNaN(n) ? null : n; }
+// A number from any value, or null when it is not one. (Top-level: other files shadow it with their own num.)
+function num(v) {
+  const n = parseFloat(v);
+  return isNaN(n) ? null : n;
+}
 
+// Show keywords: pull the chosen niche's keyword list, keep the raw reply for "Show raw fields", draw the table.
 $('kwGo').onclick = async () => {
   const id = $('kwNiche').value;
   if (!id) return;
-  $('kwGo').disabled = true; $('kwGo').innerHTML = '<span class="spin"></span>…';
-  $('kwMsg').textContent = 'Pulling keywords from DataDive…'; $('kwMsg').className = 'muted';
+  // --- busy ---
+  $('kwGo').disabled = true;
+  $('kwGo').innerHTML = '<span class="spin"></span>…';
+  $('kwMsg').textContent = 'Pulling keywords from DataDive…';
+  $('kwMsg').className = 'muted';
+  // --- pull and draw ---
   try {
-    const d = await ddGet('/v1/niches/' + id + '/keywords');
-    KW_RAW = d;
-    renderKeywords(d);
+    const data = await ddGet('/v1/niches/' + id + '/keywords');
+    KW_RAW = data;
+    renderKeywords(data);
     $('kwMsg').textContent = '';
-  } catch (e) { $('kwMsg').textContent = e.message || String(e); $('kwMsg').className = 'err'; $('kwResult').classList.add('hide'); }
-  $('kwGo').disabled = false; $('kwGo').textContent = 'Show keywords';
+  } catch (e) {
+    $('kwMsg').textContent = e.message || String(e);
+    $('kwMsg').className = 'err';
+    $('kwResult').classList.add('hide');
+  }
+  // --- back to normal ---
+  $('kwGo').disabled = false;
+  $('kwGo').textContent = 'Show keywords';
 };
 
-function renderKeywords(d) {
-  const arr = firstArrayOfObjects(d, 0) || [];
+// Draw the keyword table from one reply: find the rows and their fields, sort by search volume (biggest
+// first) and turn each organic rank into a page number.
+function renderKeywords(data) {
+  // --- the rows, and the heading ---
+  const arr = firstArrayOfObjects(data, 0) || [];
   $('kwResult').classList.remove('hide');
   const sel = $('kwNiche').options[$('kwNiche').selectedIndex];
   $('kwHead').textContent = sel ? sel.textContent : 'Keywords';
-  if (!arr.length) { $('kwSub').textContent = 'No keyword rows found — click “Show raw fields”.'; $('kwRows').innerHTML = ''; return; }
+  if (!arr.length) {
+    $('kwSub').textContent = 'No keyword rows found — click “Show raw fields”.';
+    $('kwRows').innerHTML = '';
+    return;
+  }
 
-  const it = arr[0];
-  const kKey = pickKey(it, [/^keyword$/i, /keyword.?(phrase|text)/i, /keyword/i, /phrase/i, /search.?term/i, /^term$/i]);
-  const vKey = pickKey(it, [/search.?volume/i, /monthly.?search/i, /^volume$/i, /^sv$/i, /searches/i]);
-  const rKey = pickKey(it, [/organic.?rank/i, /^rank$/i, /position/i]);
-  $('kwSub').innerHTML = `${arr.length} keywords &nbsp;·&nbsp; mapped: keyword=<b>${kKey || '?'}</b>, volume=<b>${vKey || '?'}</b>, rank=<b>${rKey || '?'}</b>`;
+  // --- which field is the keyword, the volume, the rank (read off the first row) ---
+  const first = arr[0];
+  const kKey = pickKey(first, [/^keyword$/i, /keyword.?(phrase|text)/i, /keyword/i, /phrase/i, /search.?term/i,
+    /^term$/i]);
+  const vKey = pickKey(first, [/search.?volume/i, /monthly.?search/i, /^volume$/i, /^sv$/i, /searches/i]);
+  const rKey = pickKey(first, [/organic.?rank/i, /^rank$/i, /position/i]);
+  $('kwSub').innerHTML = `${arr.length} keywords &nbsp;·&nbsp; mapped: keyword=<b>${kKey || '?'}</b>, `
+    + `volume=<b>${vKey || '?'}</b>, rank=<b>${rKey || '?'}</b>`;
 
+  // --- the table, biggest volume first ---
   const rows = arr.slice().sort((a, b) => (num(b[vKey]) || 0) - (num(a[vKey]) || 0));
   const dash = '<span class="muted">—</span>';
-  $('kwRows').innerHTML = rows.map(r => {
-    const rank = rKey ? num(r[rKey]) : null;
+  $('kwRows').innerHTML = rows.map(row => {
+    const rank = rKey ? num(row[rKey]) : null;
     const page = rank && rank > 0 ? Math.ceil(rank / 48) : null;   // ~48 organic results per page (derived)
     return `<tr>
-      <td>${kKey ? (r[kKey] ?? dash) : dash}</td>
-      <td style="text-align:right">${vKey && num(r[vKey]) != null ? num(r[vKey]).toLocaleString('en-US') : dash}</td>
+      <td>${kKey ? (row[kKey] ?? dash) : dash}</td>
+      <td style="text-align:right">${vKey && num(row[vKey]) != null ? num(row[vKey]).toLocaleString('en-US') : dash}</td>
       <td style="text-align:right">${rank != null ? rank : dash}</td>
       <td style="text-align:right">${page != null ? page : dash}</td>
     </tr>`;
   }).join('');
 }
+// Show raw fields: toggle the box that shows the first keyword row (or the whole reply) as JSON, cut at
+// 4000 characters, so the field mapping above can be checked.
 $('kwRawBtn').onclick = () => {
   const raw = $('kwRaw');
   raw.classList.toggle('hide');
@@ -8066,53 +8207,79 @@ $('kwRawBtn').onclick = () => {
 };
 
 /* ============================== FILE: src/app/research/by-amazon-link.js ============================== */
+/* ================= RESEARCH · BY AMAZON LINK: the variation explorer =================
+ * Screens: By Amazon Link (hidden from the sidebar — see HIDDEN_TABS in core/nav.js; everything stays wired
+ * up). Its message line, msg, is written by showMsg in core/backend.js.
+ * Does: Explore listings sends the pasted link or ASIN to the backend (?children=) and lists the parent's
+ * variations — ASIN, colour, size, price, your units and sales over 30 days, BSR — with a 30-day total row
+ * when sales figures came back (renderExplorer). Enter in the box presses the button.
+ * Main functions: renderExplorer, and the go (Explore listings) handler. */
+
 /* ---------- By Amazon link: variation explorer ---------- */
+// Explore listings: ask the backend for the family of the pasted link or ASIN and draw it.
 $('go').onclick = async () => {
-  const v = $('link').value.trim();
-  if (!v) return showMsg('Paste an Amazon link or ASIN first.', true);
+  const linkOrAsin = $('link').value.trim();
+  if (!linkOrAsin) return showMsg('Paste an Amazon link or ASIN first.', true);
   if (!API || !API.url) return showMsg('Backend not configured (Firestore config/api).', true);
 
+  // --- busy ---
   $('go').disabled = true;
   $('go').innerHTML = '<span class="spin"></span>…';
   showMsg('Finding the variations & pulling your sales… (this can take a bit for large families)');
+  // --- ask the backend and draw ---
   try {
-    const u = new URL(API.url);
-    u.searchParams.set('key', API.key);
-    u.searchParams.set('children', v);
-    const r = await fetch(u, { redirect: 'follow' });
-    const d = await r.json();
-    if (!d.ok) throw new Error(d.error || 'Lookup failed');
-    renderExplorer(d);
+    const url = new URL(API.url);
+    url.searchParams.set('key', API.key);
+    url.searchParams.set('children', linkOrAsin);
+    const res = await fetch(url, { redirect: 'follow' });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || 'Lookup failed');
+    renderExplorer(data);
     showMsg('');
   } catch (e) {
     showMsg(e.message || String(e), true);
     $('exResult').classList.add('hide');
   }
+  // --- back to normal ---
   $('go').disabled = false;
   $('go').textContent = 'Explore listings';
 };
-$('link').addEventListener('keydown', e => { if (e.key === 'Enter') $('go').click(); });
+// Enter in the box presses Explore listings.
+$('link').addEventListener('keydown', e => {
+  if (e.key === 'Enter') $('go').click();
+});
 
-function renderExplorer(d) {
+// Draw one family: the heading, one row per child listing, and the 30-day total row when sales came back.
+function renderExplorer(data) {
+  // --- heading ---
   $('exResult').classList.remove('hide');
-  $('exHead').textContent = d.title || d.parent;
-  $('exSub').innerHTML = `Parent <b>${d.parent}</b> &nbsp;·&nbsp; ${d.count} listing${d.count === 1 ? '' : 's'}`
-    + (d.theme ? ` &nbsp;·&nbsp; varies by ${d.theme}` : '') + (d.truncated ? ' &nbsp;·&nbsp; (showing first 60)' : '');
+  $('exHead').textContent = data.title || data.parent;
+  $('exSub').innerHTML = `Parent <b>${data.parent}</b> &nbsp;·&nbsp; ${data.count} listing${data.count === 1 ? '' : 's'}`
+    + (data.theme ? ` &nbsp;·&nbsp; varies by ${data.theme}` : '')
+    + (data.truncated ? ' &nbsp;·&nbsp; (showing first 60)' : '');
 
+  // --- one row per child, adding up your sales on the way ---
   const dash = '<span class="muted">—</span>';
-  let totQty = 0, totAmt = 0, haveSales = false;
-  $('exRows').innerHTML = d.children.map(c => {
-    if (c.qty30 != null) { totQty += c.qty30; totAmt += c.amt30; haveSales = true; }
+  let totQty = 0;          // your units over 30 days, across the children that have sales figures
+  let totAmt = 0;          // your sales amount over 30 days
+  let haveSales = false;   // at least one child came with sales figures
+  $('exRows').innerHTML = data.children.map(child => {
+    if (child.qty30 != null) {
+      totQty += child.qty30;
+      totAmt += child.amt30;
+      haveSales = true;
+    }
     return `<tr>
-      <td style="font-family:monospace">${c.asin}</td>
-      <td>${c.color || dash}</td>
-      <td>${c.size || dash}</td>
-      <td style="text-align:right">${c.price > 0 ? money(c.price) : dash}</td>
-      <td style="text-align:right">${c.qty30 != null ? c.qty30.toLocaleString('en-IN') : dash}</td>
-      <td style="text-align:right">${c.amt30 != null ? money(c.amt30) : dash}</td>
-      <td style="text-align:right">${c.bsr > 0 ? '#' + c.bsr.toLocaleString('en-US') : dash}</td>
+      <td style="font-family:monospace">${child.asin}</td>
+      <td>${child.color || dash}</td>
+      <td>${child.size || dash}</td>
+      <td style="text-align:right">${child.price > 0 ? money(child.price) : dash}</td>
+      <td style="text-align:right">${child.qty30 != null ? child.qty30.toLocaleString('en-IN') : dash}</td>
+      <td style="text-align:right">${child.amt30 != null ? money(child.amt30) : dash}</td>
+      <td style="text-align:right">${child.bsr > 0 ? '#' + child.bsr.toLocaleString('en-US') : dash}</td>
     </tr>`;
   }).join('');
+  // --- the total row, only when sales figures came back ---
   $('exTotal').innerHTML = haveSales
     ? `<td colspan="4" style="text-align:right">Your 30-day total</td>
        <td style="text-align:right">${totQty.toLocaleString('en-IN')}</td>
@@ -8121,6 +8288,18 @@ function renderExplorer(d) {
 }
 
 /* ============================== FILE: src/app/research/new-product.js ============================== */
+/* ================= RESEARCH · NEW PRODUCT: reverse costing for a product that has no ASIN yet =================
+ * Screens: New Product.
+ * Does: fills the form's defaults from Settings (fillNewDefaults, freightHints). Fetch details pulls a
+ * reference product from Amazon through callApi and fills the price, weight, size and Amazon's own referral
+ * rate from it (kept in NREF). Calculate works backwards from the target selling price — the referral fee
+ * from the category picked, the FBA fee from the reference ASIN or else from the size-tier table, then
+ * TACOS, Amazon OH, salary, profit and return loss — to the landed cost, the product cost in $ and ₹ and
+ * the maximum factory quote, and fills the result card (the nGo handler). suggestPrice gives the nearest
+ * .99 price point.
+ * Main functions: fillNewDefaults, freightHints, suggestPrice, and the n_fetch (Fetch details) and nGo
+ * (Calculate) handlers. */
+
 /* ---------- New product tab ---------- */
 // Same reverse costing as the link tab — the only difference is WHERE the two Amazon fees come from.
 // There is no ASIN here, and Amazon's Fees API only quotes against an ASIN/SKU, so referral comes
@@ -8128,9 +8307,14 @@ function renderExplorer(d) {
 
 let NREF = null;   // reference product fetched from Amazon: { asin, title, category, weight, dims, fba, refPct }
 
+// Fill the form's percentages, freight and P.M from SET (loadSettings calls this after sign-in), then the
+// freight hints.
 function fillNewDefaults() {
-  $('n_margin').value = SET.profit; $('n_sal').value = SET.salary; $('n_ret').value = SET.return;
-  $('n_ship').value = SET.ship; $('n_duty').value = SET.duty;
+  $('n_margin').value = SET.profit;
+  $('n_sal').value = SET.salary;
+  $('n_ret').value = SET.return;
+  $('n_ship').value = SET.ship;
+  $('n_duty').value = SET.duty;
   $('n_tacos').value = String(SET.tacos);
   $('n_oh').value = String(SET.oh);
   $('n_pm').value = String(SET.pm);
@@ -8141,6 +8325,7 @@ function freightHints() {
   $('n_shipHint').textContent = $('n_shipMode').value === 'usd' ? '($ per unit)' : '(% of product cost)';
   $('n_dutyHint').textContent = $('n_dutyMode').value === 'usd' ? '($ per unit)' : '(% of base cost)';
 }
+// Each freight mode dropdown (% / $) refreshes its hint.
 $('n_shipMode').addEventListener('change', freightHints);
 $('n_dutyMode').addEventListener('change', freightHints);
 
@@ -8150,113 +8335,161 @@ $('n_dutyMode').addEventListener('change', freightHints);
  * because the referral fee — and some FBA weight/price bands — move with the price.
  */
 $('n_fetch').onclick = async () => {
-  const v = $('n_ref').value.trim();
+  const linkOrAsin = $('n_ref').value.trim();
   const info = $('n_refInfo');
   const price = parseFloat($('n_price').value);   // may be blank → we auto-fill it from the product's live price
-  if (!v) { info.className = 'err'; info.classList.remove('hide'); info.textContent = 'Paste a reference ASIN or Amazon link first.'; return; }
+  if (!linkOrAsin) {
+    info.className = 'err';
+    info.classList.remove('hide');
+    info.textContent = 'Paste a reference ASIN or Amazon link first.';
+    return;
+  }
 
+  // --- busy ---
   $('n_fetch').disabled = true;
   $('n_fetch').innerHTML = '<span class="spin" style="border-top-color:currentColor"></span>…';
-  info.classList.remove('hide'); info.className = 'muted'; info.textContent = 'Asking Amazon…';
+  info.classList.remove('hide');
+  info.className = 'muted';
+  info.textContent = 'Asking Amazon…';
+  // --- ask Amazon and fill the form ---
   try {
-    const d = await callApi(v, price);          // price>0 → quote at it; blank → backend quotes at buyBox
-    const r2 = x => Math.round(x * 100) / 100;  // Amazon's catalog dims carry float junk (15.15999998…) — clamp to 2dp
+    const data = await callApi(linkOrAsin, price);   // price>0 → quote at it; blank → backend quotes at buyBox
+    const round2 = x => Math.round(x * 100) / 100;   // Amazon's catalog dims carry float junk (15.15999998…) — clamp to 2dp
     // Auto-fill the target price from the product's own live price when the field is blank. It stays a
     // normal input, so the user can overwrite it (Calculate re-checks the fees at the final price).
-    if (!(price > 0) && d.price > 0) $('n_price').value = r2(d.price);
+    if (!(price > 0) && data.price > 0) $('n_price').value = round2(data.price);
     NREF = {
-      asin: d.asin, title: d.title, category: d.category, weight: d.weight, dims: d.dims || null, fba: d.fba,
-      atPrice: d.price,                    // the price the fees were actually quoted at (buyBox if none was given)
-      refPct: d.price > 0 && d.referral > 0 ? (d.referral / d.price) * 100 : null,
+      asin: data.asin,
+      title: data.title,
+      category: data.category,
+      weight: data.weight,
+      dims: data.dims || null,
+      fba: data.fba,
+      atPrice: data.price,                 // the price the fees were actually quoted at (buyBox if none was given)
+      refPct: data.price > 0 && data.referral > 0 ? (data.referral / data.price) * 100 : null,
     };
-    if (d.weight > 0) $('n_wt').value = r2(d.weight);
+    if (data.weight > 0) $('n_wt').value = round2(data.weight);
     // Package size — for the seller's reference only (with a ref ASIN the fee comes from Amazon, so the
     // tier table is skipped). Fill L/W/H so the numbers show where dimensions live.
-    if (d.dims && d.dims.l > 0) { $('n_l').value = r2(d.dims.l); $('n_w').value = r2(d.dims.w); $('n_h').value = r2(d.dims.h); }
+    if (data.dims && data.dims.l > 0) {
+      $('n_l').value = round2(data.dims.l);
+      $('n_w').value = round2(data.dims.w);
+      $('n_h').value = round2(data.dims.h);
+    }
     syncCatSelect();                       // adds + selects the Auto option
     if (NREF.refPct != null) $('n_cat').selectedIndex = 0;
-    const dimTxt = d.dims && d.dims.l > 0
-      ? `${r2(d.dims.l)}×${r2(d.dims.w)}×${r2(d.dims.h)} ${d.dims.unit || 'in'}` : 'size unknown';
+    // --- the green summary line ---
+    const dimTxt = data.dims && data.dims.l > 0
+      ? `${round2(data.dims.l)}×${round2(data.dims.w)}×${round2(data.dims.h)} ${data.dims.unit || 'in'}` : 'size unknown';
     info.className = 'ok';
-    info.innerHTML = `✅ <b>${(d.title || d.asin).slice(0, 70)}</b><br>` +
-      `${d.price > 0 ? 'priced ' + money(d.price) + ' &nbsp;·&nbsp; ' : ''}` +
-      `${d.category || 'category unknown'} &nbsp;·&nbsp; referral ${NREF.refPct != null ? NREF.refPct.toFixed(1) + '%' : '—'} ` +
-      `&nbsp;·&nbsp; FBA ${money(d.fba)} &nbsp;·&nbsp; ${d.weight ? d.weight + ' lb' : 'weight unknown'} ` +
+    info.innerHTML = `✅ <b>${(data.title || data.asin).slice(0, 70)}</b><br>` +
+      `${data.price > 0 ? 'priced ' + money(data.price) + ' &nbsp;·&nbsp; ' : ''}` +
+      `${data.category || 'category unknown'} &nbsp;·&nbsp; referral ` +
+      `${NREF.refPct != null ? NREF.refPct.toFixed(1) + '%' : '—'} ` +
+      `&nbsp;·&nbsp; FBA ${money(data.fba)} &nbsp;·&nbsp; ${data.weight ? data.weight + ' lb' : 'weight unknown'} ` +
       `&nbsp;·&nbsp; pkg ${dimTxt}`;
   } catch (e) {
-    NREF = null; syncCatSelect();
-    info.className = 'err'; info.textContent = String(e.message || e);
+    NREF = null;
+    syncCatSelect();
+    info.className = 'err';
+    info.textContent = String(e.message || e);
   }
+  // --- back to normal ---
   $('n_fetch').disabled = false;
   $('n_fetch').textContent = 'Fetch details';
 };
 // Editing the ASIN invalidates whatever was fetched for the old one.
 $('n_ref').addEventListener('input', () => {
   if (NREF && $('n_ref').value.trim().toUpperCase().indexOf(NREF.asin) < 0) {
-    NREF = null; syncCatSelect(); $('n_refInfo').classList.add('hide');
+    NREF = null;
+    syncCatSelect();
+    $('n_refInfo').classList.add('hide');
   }
 });
 // Changing the price makes the fetched fees stale (referral scales, FBA can cross a price band).
 // Say so rather than quietly costing on the old numbers — Calculate re-fetches anyway.
 $('n_price').addEventListener('input', () => {
   if (!NREF) return;
-  const p = parseFloat($('n_price').value);
-  const stale = NREF.atPrice !== p;
+  const price = parseFloat($('n_price').value);
+  const stale = NREF.atPrice !== price;
   $('n_refInfo').className = stale ? 'warn' : 'ok';
   if (stale) $('n_refInfo').textContent =
     `⚠️ Fees above were quoted at ${money(NREF.atPrice)} — Calculate will re-check them at the new price.`;
 });
 
 /** Nearest .99 price point to the target — the price you'd actually list at (34.99, not 35.00). */
-function suggestPrice(p) {
-  const cands = [Math.floor(p) - 1 + 0.99, Math.floor(p) + 0.99].filter(x => x >= 0.99);
+function suggestPrice(price) {
+  const cands = [Math.floor(price) - 1 + 0.99, Math.floor(price) + 0.99].filter(cand => cand >= 0.99);
   if (!cands.length) return 0.99;
-  return cands.reduce((best, x) => Math.abs(x - p) < Math.abs(best - p) ? x : best);
+  return cands.reduce((best, cand) => Math.abs(cand - price) < Math.abs(best - price) ? cand : best);
 }
 
+// Calculate: the reverse costing from the target selling price to the product and factory cost, filling the
+// result card. Any missing input stops it with a red message.
 $('nGo').onclick = async () => {
+  // --- the inputs ---
   const price = parseFloat($('n_price').value);
   const wt = parseFloat($('n_wt').value);
   const dims = [parseFloat($('n_l').value), parseFloat($('n_w').value), parseFloat($('n_h').value)];
   const refAsin = $('n_ref').value.trim();
-  const nm = t => { const m = $('nMsg'); m.textContent = t; m.className = 'err'; };
-  if (!(price > 0)) return nm('Enter a target selling price.');
+  // a red message under the button
+  const showErr = text => {
+    const msg = $('nMsg');
+    msg.textContent = text;
+    msg.className = 'err';
+  };
+  if (!(price > 0)) return showErr('Enter a target selling price.');
 
-  const s = { ...readSettings() };
-  s.pm = parseFloat($('n_pm').value) || s.pm;
+  const settings = { ...readSettings() };
+  settings.pm = parseFloat($('n_pm').value) || settings.pm;
   const refPct = parseFloat($('n_cat').value);
-  if (!(refPct >= 0)) return nm('Pick a category (add one in Settings if the list is empty).');
+  if (!(refPct >= 0)) return showErr('Pick a category (add one in Settings if the list is empty).');
 
+  // --- the FBA fee ---
   // FBA fee — two sources, reference ASIN wins. A reference ASIN is EXACT (it's Amazon's own quote
   // for a product of that size, surcharges and all), so it beats any hand-maintained rate table.
   // The tier table is the offline fallback for when there's no comparable product to point at.
-  let fba, fbaSrc;
+  let fba, fbaSrc;   // the fee, and where it came from (shown in the result card)
   $('nGo').disabled = true;
   try {
     if (refAsin) {
       // Reuse what "Fetch details" already pulled — but ONLY if it was quoted at the price we're
       // costing at now. FBA fees have price bands, so a fee fetched at $20 can be wrong at $60.
-      let d = (NREF && NREF.atPrice === price) ? NREF : null;
-      if (!d) {
-        $('nMsg').textContent = 'Asking Amazon for the fee…'; $('nMsg').className = 'muted';
+      let ref = (NREF && NREF.atPrice === price) ? NREF : null;
+      if (!ref) {
+        $('nMsg').textContent = 'Asking Amazon for the fee…';
+        $('nMsg').className = 'muted';
         $('nGo').innerHTML = '<span class="spin"></span>…';
-        try { d = await callApi(refAsin, price); }
-        catch (e) { return nm('Reference ASIN: ' + (e.message || e)); }
+        try {
+          ref = await callApi(refAsin, price);
+        } catch (e) {
+          return showErr('Reference ASIN: ' + (e.message || e));
+        }
       }
-      fba = d.fba;
-      fbaSrc = `Amazon, via ${d.asin}`;
-      if (!(fba > 0)) return nm(`Amazon returned no FBA fee for ${d.asin} — is it an FBA product? Try another reference ASIN.`);
+      fba = ref.fba;
+      fbaSrc = `Amazon, via ${ref.asin}`;
+      if (!(fba > 0)) {
+        return showErr(`Amazon returned no FBA fee for ${ref.asin} — is it an FBA product? `
+          + `Try another reference ASIN.`);
+      }
     } else {
-      if (!(wt > 0)) return nm('Enter the weight, or give a reference ASIN.');
-      if (dims.some(d => !(d > 0))) return nm('Enter all three package dimensions, or give a reference ASIN.');
-      const tier = fbaTierFor(s.tiers, wt, dims);
-      if (!tier) return nm(`No size tier fits ${dims.join('×')}" at ${wt} lb — add a bigger tier in Settings.`);
-      if (!(tier.fee > 0)) return nm(`The "${tier.name}" tier has no fee yet — either fill it in from Amazon's rate card (Settings), or give a reference ASIN above and skip the table entirely.`);
+      if (!(wt > 0)) return showErr('Enter the weight, or give a reference ASIN.');
+      if (dims.some(dim => !(dim > 0))) return showErr('Enter all three package dimensions, or give a reference ASIN.');
+      const tier = fbaTierFor(settings.tiers, wt, dims);
+      if (!tier) return showErr(`No size tier fits ${dims.join('×')}" at ${wt} lb — add a bigger tier in Settings.`);
+      if (!(tier.fee > 0)) {
+        return showErr(`The "${tier.name}" tier has no fee yet — either fill it in from Amazon's rate card (Settings), `
+          + `or give a reference ASIN above and skip the table entirely.`);
+      }
       fba = tier.fee;
       fbaSrc = `tier: ${tier.name}`;
     }
-  } finally { $('nGo').disabled = false; $('nGo').textContent = 'Calculate'; }
+  } finally {
+    $('nGo').disabled = false;
+    $('nGo').textContent = 'Calculate';
+  }
 
+  // --- the other expenses, all a % of the selling price ---
   // Referral always comes from the category YOU picked — not from the reference product, which may
   // well sit in a different category.
   const referral = price * refPct / 100;
@@ -8274,20 +8507,25 @@ $('nGo').onclick = async () => {
   const landed = base / (1 + retPct / 100);             // all that's left for goods + freight + duty
   const ret = landed * retPct / 100;
   const totalExp = otherExp + ret;
-  const bd = baseDivisor(s);
+  const bd = baseDivisor(settings);
 
+  // --- shipping and duty, then the product cost ---
   // Shipping & duty can each be a % (rides on the product cost, folded into the multiplier) OR a
   // flat $/unit (a fixed subtraction). Solve landed = productUsd × mult + fixed for productUsd.
-  const shipMode = $('n_shipMode').value, dutyMode = $('n_dutyMode').value;
-  const shipVal = parseFloat($('n_ship').value) || 0, dutyVal = parseFloat($('n_duty').value) || 0;
+  const shipMode = $('n_shipMode').value;
+  const dutyMode = $('n_dutyMode').value;
+  const shipVal = parseFloat($('n_ship').value) || 0;
+  const dutyVal = parseFloat($('n_duty').value) || 0;
   const mult = 1 + (shipMode === 'pct' ? shipVal / 100 : 0) + (dutyMode === 'pct' ? (dutyVal / 100) / bd : 0);
   const fixed = (shipMode === 'usd' ? shipVal : 0) + (dutyMode === 'usd' ? dutyVal : 0);
   const productUsd = (landed - fixed) / mult;
   const shipping = shipMode === 'usd' ? shipVal : productUsd * shipVal / 100;
   const duty = dutyMode === 'usd' ? dutyVal : productUsd * (dutyVal / 100) / bd;
-  const productInr = productUsd * s.fx;
+  const productInr = productUsd * settings.fx;
 
-  $('nMsg').textContent = ''; $('nMsg').className = 'muted';
+  // --- the result card: the hero figure ---
+  $('nMsg').textContent = '';
+  $('nMsg').className = 'muted';
   $('nResult').classList.remove('hide');
   const viable = productUsd > 0;
   $('nHero').className = 'hero' + (viable ? '' : ' bad');
@@ -8296,6 +8534,7 @@ $('nGo').onclick = async () => {
     ? `= ${money(productUsd)} landed-ready · max factory quote ${money(productInr / bd, '₹')}`
     : `At ${money(price)} this cannot carry the fees + ${$('n_margin').value}% profit.`;
 
+  // --- the result card: the breakdown ---
   $('n_r_sugg').textContent = money(suggestPrice(price));
   $('n_r_ref').textContent = money(referral);
   $('n_r_refpct').textContent = `(${refPct}%)`;
@@ -8321,73 +8560,115 @@ $('nGo').onclick = async () => {
 };
 
 /* ============================== FILE: src/app/research/product-research.js ============================== */
-/* ---------- Product research (keyword → market) ---------- */
-function prMsg(t, bad) { const m = $('prMsg'); m.textContent = t; m.className = bad ? 'err' : 'muted'; }
+/* ================= RESEARCH · PRODUCT RESEARCH: an Amazon keyword search as a market table =================
+ * Screens: Product Research.
+ * Does: Search Amazon sends the product name, the outer and inner material (which also filter the hits) and
+ * the row count to the backend (?research=) and lists what came back — ASIN link, brand, size, pack,
+ * materials, weight, price, BSR, variations, estimated monthly sales (prSearch, renderPr). Export CSV
+ * downloads the same rows as a UTF-8 CSV that Excel opens cleanly (the prExport handler). Enter in the
+ * search box presses the button.
+ * Main functions: prMsg, prSearch, renderPr, and the prExport handler. */
 
+/* ---------- Product research (keyword → market) ---------- */
+// The message line beside the Search button: grey normally, red when bad is true.
+function prMsg(text, bad) {
+  const msg = $('prMsg');
+  msg.textContent = text;
+  msg.className = bad ? 'err' : 'muted';
+}
+
+// Search Amazon: send the product name, the materials and the row count to the backend and draw the results.
 async function prSearch() {
-  const q = $('pr_q').value.trim();
-  if (!q) { prMsg('Enter a product name to search.', true); return; }
+  // --- the inputs ---
+  const name = $('pr_q').value.trim();
+  if (!name) {
+    prMsg('Enter a product name to search.', true);
+    return;
+  }
   // Materials both narrow the keyword search AND filter the results: only hits that actually match
   // the outer/inner material you entered are returned (fo/fi). Each kept hit's own materials still
   // show in the columns.
-  const outer = $('pr_outer').value.trim(), inner = $('pr_inner').value.trim();
-  const query = [q, outer, inner].filter(Boolean).join(' ');
+  const outer = $('pr_outer').value.trim();
+  const inner = $('pr_inner').value.trim();
+  const query = [name, outer, inner].filter(Boolean).join(' ');
   const count = Math.min(Math.max(parseInt($('pr_count').value, 10) || 20, 1), 100);
-  $('prGo').disabled = true; $('prGo').innerHTML = '<span class="spin"></span>…';
+  // --- busy ---
+  $('prGo').disabled = true;
+  $('prGo').innerHTML = '<span class="spin"></span>…';
   prMsg('Searching Amazon…');
+  // --- ask the backend and draw ---
   try {
     if (!API || !API.url) throw new Error('Backend not configured — ' + (API_ERR || 'config/api was not read'));
-    const u = new URL(API.url);
-    u.searchParams.set('key', API.key);
-    u.searchParams.set('research', query);
-    u.searchParams.set('count', count);
-    if (outer) u.searchParams.set('fo', outer);
-    if (inner) u.searchParams.set('fi', inner);
-    const r = await fetch(u, { redirect: 'follow' });
-    const d = await r.json();
-    if (!d.ok) throw new Error(d.error || 'Search failed');
-    renderPr(d);
+    const url = new URL(API.url);
+    url.searchParams.set('key', API.key);
+    url.searchParams.set('research', query);
+    url.searchParams.set('count', count);
+    if (outer) url.searchParams.set('fo', outer);
+    if (inner) url.searchParams.set('fi', inner);
+    const res = await fetch(url, { redirect: 'follow' });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || 'Search failed');
+    renderPr(data);
     prMsg('');
-  } catch (e) { prMsg(e.message || String(e), true); $('prResult').classList.add('hide'); }
-  $('prGo').disabled = false; $('prGo').textContent = 'Search Amazon';
+  } catch (e) {
+    prMsg(e.message || String(e), true);
+    $('prResult').classList.add('hide');
+  }
+  // --- back to normal ---
+  $('prGo').disabled = false;
+  $('prGo').textContent = 'Search Amazon';
 }
+// The button, and Enter in the search box.
 $('prGo').onclick = prSearch;
-$('pr_q').addEventListener('keydown', e => { if (e.key === 'Enter') prSearch(); });
+$('pr_q').addEventListener('keydown', e => {
+  if (e.key === 'Enter') prSearch();
+});
 
-let PR_ROWS = [], PR_QUERY = '';
-function renderPr(d) {
-  const rows = d.rows || [];
-  PR_ROWS = rows; PR_QUERY = d.query || '';
-  const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+let PR_ROWS = [];     // the rows on view, for Export CSV
+let PR_QUERY = '';    // the query they came from, for the CSV file name
+// Draw one search reply: the heading (with the backend's counts when it sent them) and the table; keep the
+// rows for Export CSV.
+function renderPr(data) {
+  const rows = data.rows || [];
+  PR_ROWS = rows;
+  PR_QUERY = data.query || '';
+  const esc = str => String(str == null ? '' : str)
+    .replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
+  // --- heading ---
   $('prResult').classList.remove('hide');
-  let headTxt = `${rows.length} result${rows.length === 1 ? '' : 's'} for "${d.query}"`;
-  const g = d.dbg;
-  if (g) {
-    if (g.filtered) headTxt += ` · ${rows.length} matched the material filter (of ${g.scanned} scanned)`;
-    headTxt += ` · ${g.priced}/${rows.length} priced`;
-    if (g.pageErr) headTxt += ` · note: ${g.pageErr}`;
-    if (g.priceErr) headTxt += ` · ${g.priceErr}`;
+  let headTxt = `${rows.length} result${rows.length === 1 ? '' : 's'} for "${data.query}"`;
+  const dbg = data.dbg;
+  if (dbg) {
+    if (dbg.filtered) headTxt += ` · ${rows.length} matched the material filter (of ${dbg.scanned} scanned)`;
+    headTxt += ` · ${dbg.priced}/${rows.length} priced`;
+    if (dbg.pageErr) headTxt += ` · note: ${dbg.pageErr}`;
+    if (dbg.priceErr) headTxt += ` · ${dbg.priceErr}`;
   }
   $('prHead').textContent = headTxt;
   $('prExport').style.display = rows.length ? '' : 'none';
-  if (!rows.length) { $('prTable').innerHTML = '<tr><td class="muted">No products found — try broader keywords.</td></tr>'; return; }
+  if (!rows.length) {
+    $('prTable').innerHTML = '<tr><td class="muted">No products found — try broader keywords.</td></tr>';
+    return;
+  }
+  // --- the table ---
   const head = '<thead><tr><th>Link</th><th>Brand</th><th>Size</th><th>Pack</th><th>Outer Material</th>' +
     '<th>Inner Material</th><th>Weight (lb)</th><th>Selling Price</th><th>BSR</th>' +
     '<th>Variations</th><th>Sale Qty <span class="muted">(est/mo)</span></th></tr></thead>';
-  const body = rows.map(r => {
+  const body = rows.map(row => {
     // Show only the ASIN as the link (short, no wrapping → smaller rows, less lag); the full product
     // name lives in the hover tooltip and still exports to CSV.
-    const prod = r.asin
-      ? `<a href="https://www.amazon.com/dp/${r.asin}" target="_blank" rel="noopener" title="${esc(r.title)}">${r.asin}</a>`
-      : (esc((r.title || '').slice(0, 40)) || '—');
-    return `<tr><td>${prod}</td><td>${esc(r.brand) || '—'}</td><td>${esc(r.size) || '—'}</td>` +
-      `<td>${r.pack > 0 ? r.pack : '—'}</td>` +
-      `<td>${esc(r.outer) || '—'}</td><td>${esc(r.inner) || '—'}</td>` +
-      `<td>${r.weight > 0 ? r.weight : '—'}</td>` +
-      `<td>${r.price > 0 ? money(r.price) : '—'}</td>` +
-      `<td>${r.bsr > 0 ? '#' + r.bsr.toLocaleString() : '—'}</td>` +
-      `<td>${r.variations > 0 ? r.variations : '—'}</td>` +
-      `<td>${r.saleQtyEst != null ? '~' + r.saleQtyEst.toLocaleString() : '—'}</td></tr>`;
+    const prod = row.asin
+      ? `<a href="https://www.amazon.com/dp/${row.asin}" target="_blank" rel="noopener" `
+        + `title="${esc(row.title)}">${row.asin}</a>`
+      : (esc((row.title || '').slice(0, 40)) || '—');
+    return `<tr><td>${prod}</td><td>${esc(row.brand) || '—'}</td><td>${esc(row.size) || '—'}</td>` +
+      `<td>${row.pack > 0 ? row.pack : '—'}</td>` +
+      `<td>${esc(row.outer) || '—'}</td><td>${esc(row.inner) || '—'}</td>` +
+      `<td>${row.weight > 0 ? row.weight : '—'}</td>` +
+      `<td>${row.price > 0 ? money(row.price) : '—'}</td>` +
+      `<td>${row.bsr > 0 ? '#' + row.bsr.toLocaleString() : '—'}</td>` +
+      `<td>${row.variations > 0 ? row.variations : '—'}</td>` +
+      `<td>${row.saleQtyEst != null ? '~' + row.saleQtyEst.toLocaleString() : '—'}</td></tr>`;
   }).join('');
   $('prTable').innerHTML = head + '<tbody>' + body + '</tbody>';
 }
@@ -8395,23 +8676,30 @@ function renderPr(d) {
 // Export the current results to a CSV Excel opens cleanly (UTF-8 BOM + CRLF, quoted fields).
 $('prExport').onclick = () => {
   if (!PR_ROWS.length) return;
-  const q = s => '"' + String(s == null ? '' : s).replace(/"/g, '""') + '"';
+  // --- the rows as CSV text ---
+  const quote = str => '"' + String(str == null ? '' : str).replace(/"/g, '""') + '"';
   const cols = ['Product', 'ASIN', 'Brand', 'Size', 'Pack', 'Outer Material', 'Inner Material',
     'Weight (lb)', 'Selling Price', 'BSR', 'Variations', 'Sale Qty (est/mo)'];
-  const lines = [cols.map(q).join(',')];
-  PR_ROWS.forEach(r => lines.push([
-    r.title || '', r.asin || '', r.brand || '', r.size || '', r.pack > 0 ? r.pack : '',
-    r.outer || '', r.inner || '',
-    r.weight > 0 ? r.weight : '', r.price > 0 ? r.price : '', r.bsr > 0 ? r.bsr : '',
-    r.variations > 0 ? r.variations : '', r.saleQtyEst != null ? r.saleQtyEst : '',
-  ].map(q).join(',')));
+  const lines = [cols.map(quote).join(',')];
+  PR_ROWS.forEach(row => lines.push([
+    row.title || '', row.asin || '', row.brand || '', row.size || '', row.pack > 0 ? row.pack : '',
+    row.outer || '', row.inner || '',
+    row.weight > 0 ? row.weight : '', row.price > 0 ? row.price : '', row.bsr > 0 ? row.bsr : '',
+    row.variations > 0 ? row.variations : '', row.saleQtyEst != null ? row.saleQtyEst : '',
+  ].map(quote).join(',')));
+  // The string below starts with an invisible character: the UTF-8 byte-order mark (U+FEFF), which makes
+  // Excel read the file as UTF-8.
   const csv = '﻿' + lines.join('\r\n');
+  // --- download it, named after the query ---
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
+  const anchor = document.createElement('a');
   const slug = (PR_QUERY || 'products').replace(/[^a-z0-9]+/gi, '-').slice(0, 40).replace(/^-|-$/g, '');
-  a.href = url; a.download = `product-research-${slug || 'results'}.csv`;
-  document.body.appendChild(a); a.click(); a.remove();
+  anchor.href = url;
+  anchor.download = `product-research-${slug || 'results'}.csv`;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 };
 
