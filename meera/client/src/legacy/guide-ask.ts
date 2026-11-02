@@ -1119,14 +1119,16 @@ function gaBankFind(means, words, q) {
  *   4. a question that names another screen ("Job Work mein kaise…") is left to that screen.
  * The winning answer goes first and the other screens' answers are put just below it, so it is given outright; the
  * screen's own other answers keep their scores (two close ones on the same screen still get "which one do you mean"). */
-let GA_SF_MARGIN = MEERA_CONFIG.screenFirstMargin;   // config.ts
+let GA_SF_MARGIN = MEERA_CONFIG.screenFirstMargin, GA_SF_NAMED = MEERA_CONFIG.screenFirstNamed;   // config.ts
 function gaScreenFirst(hits, q) {
   if (!meeraOn('screenfirst') || !hits.length) return hits;
-  const tab = gaHere();
-  if (!tab) return hits;
+  let tab = gaHere(), margin = GA_SF_MARGIN;
   const said = gaTabsSaid(q), low = ' ' + String(q || '').toLowerCase().replace(/\s+/g, ' ') + ' ';
   Object.entries(GA_TAB_TITLE).forEach(([t, n]) => { if (low.includes(' ' + n.toLowerCase() + ' screen') || low.includes(' ' + n.toLowerCase() + ' page')) said.add(t); });   // "in production screen …"
-  if (said.size && !said.has(tab)) return hits;   // 4. another screen named
+  /* 4. another screen named ("Job Work mein …"): that screen's answers come first, the same way, with a limit of their own
+   * (two screens named: left as it is) */
+  if (said.size && !said.has(tab)) { if (said.size !== 1 || !GA_SF_NAMED) return hits; tab = [...said][0]; margin = GA_SF_NAMED; }
+  if (!tab) return hits;
   const mine = hits.filter(h => h.e.tab === tab);
   const h0 = mine[0], h1 = mine[1];
   if (!h0 || h0 === hits[0]) return hits;   // nothing here, or the open screen's answer is already first
@@ -1138,7 +1140,7 @@ function gaScreenFirst(hits, q) {
   if (hits.filter(h => h.e.tab !== tab && hits[0].s - h.s < GA_BANK_GAP).length > 1) return hits;   // several other answers as close: still asked
   /* "clearly sure" here but far behind another screen's answer is not enough: measured 2 Nov, without this limit 3 more
    * questions got a wrong answer on the first test set — the open screen wins only when it is nearly as good */
-  if (!(close || (clear && hits[0].s - h0.s <= GA_SF_MARGIN))) return hits;
+  if (!(close || (clear && hits[0].s - h0.s <= margin))) return hits;
   const cap = h0.s - GA_BANK_GAP - 0.001;
   return [h0, ...hits.filter(h => h !== h0).map(h => (h.e.tab === tab ? h : { ...h, s: Math.min(h.s, cap) }))].sort((a, b) => b.s - a.s);
 }

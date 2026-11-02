@@ -7,12 +7,15 @@ const { classify, typoSet } = require('./measure.cjs');
 const frozen = require('./typo-sets.cjs');
 const ROOT = path.join(__dirname, '..', '..');
 const ev = n => JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'bank', 'evals', n + '.json'), 'utf8'));
-const sets = { eval: ev('eval'), eval2: ev('eval2'), parts: ev('eval-parts'), typos: typoSet(), ...frozen.load(), screens: ev('screens') };
+const half = (process.argv.find(a => a.startsWith('--half=')) || '').slice(7);   // tune: the even questions of the screens set, score: the odd ones (never tuned on)
+const sets = { eval: ev('eval'), eval2: ev('eval2'), parts: ev('eval-parts'), typos: typoSet(), ...frozen.load(), screens: ev('screens').filter((x, i) => !half || (half === 'tune' ? i % 2 === 0 : i % 2 === 1)) };
 (async () => {
   const run = async switches => {
     const M = await load({ root: ROOT, switches });
     const mg = (process.argv.find(a => a.startsWith('--margin=')) || '').slice(9);
     if (mg) M.run('GA_SF_MARGIN = ' + Number(mg));   // trying another limit (tests only)
+    const nm = (process.argv.find(a => a.startsWith('--named=')) || '').slice(8);
+    if (nm) M.run('GA_SF_NAMED = ' + Number(nm));
     const res = {};
     for (const [k, list] of Object.entries(sets)) {
       const per = list.map(x => { const h = M.find(x.q, x.tab || 'shop'); return { x, k: classify(h, x), top: h[0] && h[0].id }; });

@@ -76924,6 +76924,8 @@ const MEERA_CONFIG = {
   // the best must be this far ahead of the next to answer outright
   screenFirstMargin: 0.04,
   // switch "screenfirst": the open screen's clearly-sure answer wins when at most this far behind another screen's best
+  screenFirstNamed: 0.04,
+  // switch "screenfirst": the same for a screen the question names (tuned 2 Nov on half the screens set)
   ask: 0.5,
   // a close answer worth offering when nothing is sure
   meaningWeight: 0.5,
@@ -80122,16 +80124,20 @@ function gaBankFind(means, words, q) {
   }
   return gaSpellCap(gaScreenFirst(out.sort((a, b) => b.s - a.s), q).slice(0, GA_TOPK));
 }
-let GA_SF_MARGIN = MEERA_CONFIG.screenFirstMargin;
+let GA_SF_MARGIN = MEERA_CONFIG.screenFirstMargin, GA_SF_NAMED = MEERA_CONFIG.screenFirstNamed;
 function gaScreenFirst(hits, q) {
   if (!meeraOn("screenfirst") || !hits.length) return hits;
-  const tab = gaHere();
-  if (!tab) return hits;
+  let tab = gaHere(), margin = GA_SF_MARGIN;
   const said = gaTabsSaid(q), low = " " + String(q || "").toLowerCase().replace(/\s+/g, " ") + " ";
   Object.entries(GA_TAB_TITLE).forEach(([t, n]) => {
     if (low.includes(" " + n.toLowerCase() + " screen") || low.includes(" " + n.toLowerCase() + " page")) said.add(t);
   });
-  if (said.size && !said.has(tab)) return hits;
+  if (said.size && !said.has(tab)) {
+    if (said.size !== 1 || !GA_SF_NAMED) return hits;
+    tab = [...said][0];
+    margin = GA_SF_NAMED;
+  }
+  if (!tab) return hits;
   const mine = hits.filter((h) => h.e.tab === tab);
   const h0 = mine[0], h1 = mine[1];
   if (!h0 || h0 === hits[0]) return hits;
@@ -80140,7 +80146,7 @@ function gaScreenFirst(hits, q) {
   const clear = !h1 || h1.e.id === h0.e.id || h0.s - h1.s >= GA_BANK_GAP;
   const close = hits[0].s - h0.s < GA_BANK_GAP;
   if (hits.filter((h) => h.e.tab !== tab && hits[0].s - h.s < GA_BANK_GAP).length > 1) return hits;
-  if (!(close || clear && hits[0].s - h0.s <= GA_SF_MARGIN)) return hits;
+  if (!(close || clear && hits[0].s - h0.s <= margin)) return hits;
   const cap = h0.s - GA_BANK_GAP - 1e-3;
   return [h0, ...hits.filter((h) => h !== h0).map((h) => h.e.tab === tab ? h : { ...h, s: Math.min(h.s, cap) })].sort((a, b) => b.s - a.s);
 }
