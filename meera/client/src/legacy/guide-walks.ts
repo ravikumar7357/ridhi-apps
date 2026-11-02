@@ -35,7 +35,7 @@ function gaWalkAdd(w) {
   if (old && Array.isArray(w.steps) && w.steps.length) { old.steps = w.steps; if (w.title) old.title = w.title; }
   const id = old ? old.id : w.existing && GUIDE_TASKS.some(t => t.id === w.existing) ? w.existing : w.id;
   if (id === w.id && Array.isArray(w.steps) && w.steps.length && !GUIDE_TASKS.some(t => t.id === w.id))
-    GUIDE_TASKS.push({ id: w.id, k: [], need: ['-'], title: w.title, steps: w.steps, admin: !!w.admin, walk: true });
+    (GUIDE_TASKS as any[]).push({ id: w.id, k: [], need: ['-'], title: w.title, steps: w.steps, admin: !!w.admin, walk: true });
   (w.from || []).forEach(b => { if (!GA_WALK_OF.has(b)) GA_WALK_OF.set(b, id); });
   const go = (w.steps || []).find(s => s.sel && s.wait === 'click');
   if (go && /^#[\w-]+$/.test(go.sel) && !GA_WALK_SEL.has(go.sel)) GA_WALK_SEL.set(go.sel, id);
@@ -118,7 +118,7 @@ function gaWalkCheck(t) {
   }, 1600);
 }
 /** Start a job's walk: 'do' (with me, from the start), 'show' (a look round), 'resume' (from where the form has got to). */
-function gaWalkStart(id, mode, q) {
+function gaWalkStart(id, mode, q?) {
   const t = GUIDE_TASKS.find(x => x.id === id); if (!t) return;
   if (mode !== 'resume') { const miss = gaWalkMissing(t); if (miss) { gaWalkSayMissing(miss); return; } }   // its first button is not on this screen
   guideAskClose();
@@ -213,7 +213,7 @@ function gaNudgeWatch() {
       if (h && h.next) gaNudgeShow('idle:' + h.t.id + ':' + gaHere(), 'idle');
     }
   }, 4000);
-  if (iv && iv.unref) iv.unref();   // a test run of the page in node is not kept open by it
+  if (iv && (iv as any).unref) (iv as any).unref();   // a test run of the page in node is not kept open by it
 }
 /* started here, not from guideBuild (guide.js runs first, before this file's own values exist) */
 if (meeraHere()) gaNudgeWatch();   // she starts where she lives (meeraHere, bridge)
@@ -224,13 +224,13 @@ if (meeraHere()) gaNudgeWatch();   // she starts where she lives (meeraHere, bri
  * the browser is idle — downloaded only, into the browser's cache: nothing is read or worked out on the page until Ask
  * Meera opens (building her search index takes about a second, more on a phone, and must not slow anyone's work). Not
  * for a printer's sign-in, nor on a phone saving data. On later visits the browser only asks whether they changed. */
-const gaLater = (fn, ms) => { const t = setTimeout(fn, ms); if (t && t.unref) t.unref(); };   // never keeps a test run open
+const gaLater = (fn, ms) => { const t: any = setTimeout(fn, ms); if (t && t.unref) t.unref(); };   // never keeps a test run open
 function gaPreload(tries) {
   let signedIn = false;
   try { signedIn = ERP_MEERA.signedIn(); } catch (e) { /* not signed in yet */ }
   if (!signedIn) { if (tries < 30) gaLater(() => gaPreload(tries + 1), 10000); return; }   // waits for the sign-in (up to 5 min)
   try { if (ERP_MEERA.user().vendor) return; } catch (e) { /* not known: go on */ }
-  try { if (navigator.connection && navigator.connection.saveData) return; } catch (e) { /* not known: go on */ }
+  try { const c = (navigator as any).connection; if (c && c.saveData) return; } catch (e) { /* not known: go on */ }
   const go = () => ['/guide/meera-bank.json', '/guide/meera-walks.json', '/guide/meera-words.bin']
     .forEach(u => fetch(u, { cache: 'no-cache' }).then(r => r.arrayBuffer()).catch(() => null));
   if (typeof requestIdleCallback === 'function') requestIdleCallback(go, { timeout: 8000 }); else gaLater(go, 1000);

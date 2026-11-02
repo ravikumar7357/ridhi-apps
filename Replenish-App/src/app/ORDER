@@ -164,5 +164,5 @@ core/meera-bridge.js
 @meera/legacy/guide-errors.js
 @meera/legacy/guide-ask.js
 @meera/legacy/guide-fill.ts
-@meera/legacy/guide-walks.js
+@meera/legacy/guide-walks.ts
 @meera/legacy/guide-ai.js
