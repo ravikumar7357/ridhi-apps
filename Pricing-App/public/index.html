@@ -16695,6 +16695,10 @@ function pxPlan(lo, hi) {
   const after = sdShift(hi, 1);
   if (wKeyOfDate(lo) === lo && wKeyOfDate(after) === after) {
     const keys = []; for (let w = lo; w <= hi; w = sdShift(w, 7)) keys.push(w);
+    // Only the weeks the nightly keeps (26): an older week can still hold a stray cell from an earlier pull
+    // (sessions, ads) with no sales in it, which added up to Units "0" beside real orders (2 Nov, April).
+    const kept = new Set(WEEKLY.weeks.length ? WEEKLY.weeks : wWeeksList(26));
+    if (keys.some(k => !kept.has(k))) return { src: 'none', why: 'old', lo, hi, id: 'o' + lo + hi };
     return { src: 'week', keys, lo, hi, id: 'w' + lo + hi };
   }
   return { src: 'none', lo, hi, id: 'n' + lo + hi };
@@ -17229,7 +17233,12 @@ function pxRender(focusSel) {
   let warn = '';
   const nonePlans = cm ? ctx.cols.filter(c => c.src === 'none') : (ctx.span.src === 'none' ? [ctx.span] : []);
   if (!empty && nonePlans.length) {
-    warn = `<div class="px-warn">${cm ? nonePlans.length + ' column' + (nonePlans.length === 1 ? '' : 's') + ' fall' + (nonePlans.length === 1 ? 's' : '') : 'These dates fall'} before ${WDAY.from ? '<b>' + pxEsc(pxFmtRange(WDAY.from, WDAY.from)) + '</b>, where the day-by-day figures start' : 'the day-by-day figures'}. Earlier dates can only be shown as whole Sunday–Saturday weeks.</div>`;
+    const old = nonePlans.some(c => c.why === 'old');
+    const kept = WEEKLY.weeks.length ? WEEKLY.weeks : wWeeksList(26);
+    warn = `<div class="px-warn">${cm ? nonePlans.length + ' column' + (nonePlans.length === 1 ? '' : 's') + ' fall' + (nonePlans.length === 1 ? 's' : '') : 'These dates fall'} `
+      + (old ? `before <b>${pxEsc(pxFmtRange(kept[0], kept[0]))}</b>: the nightly keeps the last 26 weeks.`
+        : `before ${WDAY.from ? '<b>' + pxEsc(pxFmtRange(WDAY.from, WDAY.from)) + '</b>, where the day-by-day figures start' : 'the day-by-day figures'}. Earlier dates can only be shown as whole Sunday–Saturday weeks.`)
+      + '</div>';
   }
   const n = filtered.length;
   const more = n > shown.length ? `<button class="px-btn" data-px="more">Show ${Math.min(PX_PAGE, n - shown.length)} more</button>` : '';
