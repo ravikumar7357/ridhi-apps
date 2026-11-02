@@ -76857,6 +76857,10 @@ const MEERA_SWITCHES = {
   /* answer from the open screen first (Ravi, 2 Nov): its own answers before every other screen's; another screen's
    * answer says which screen it is for. Works in the page and in meera.js: ?meera=screenfirst */
   screenfirst: false,
+  /* her answers keep up with the screens by themselves (Ravi, 2 Nov): on every push, meera/tools/autobank.cjs adds an
+   * answer for a new part (its label and help text only), follows a renamed one, takes out a removed one; a new screen or
+   * job becomes a draft on the admin page. Off: it only reports what it would do. Read by the build, not the browser. */
+  autobank: false,
 };
 function meeraOn(name) {
   try {
@@ -79994,7 +79998,7 @@ function gaSemScores(q) {
   }
   return best;
 }
-const GA_PART_KIND = { button: ["button", "\u092C\u091F\u0928", "button"], column: ["column", "\u0915\u0949\u0932\u092E", "column"], box: ["box", "\u092C\u0949\u0915\u094D\u0938", "box"], option: ["option", "\u0935\u093F\u0915\u0932\u094D\u092A", "option"], note: ["note", "\u091C\u093E\u0928\u0915\u093E\u0930\u0940", "note"] };
+const GA_PART_KIND = { button: ["button", "\u092C\u091F\u0928", "button"], column: ["column", "\u0915\u0949\u0932\u092E", "column"], box: ["box", "\u092C\u0949\u0915\u094D\u0938", "box"], option: ["option", "\u0935\u093F\u0915\u0932\u094D\u092A", "option"], note: ["note", "\u091C\u093E\u0928\u0915\u093E\u0930\u0940", "note"], tab: ["tab", "\u091F\u0948\u092C", "tab"] };
 function gaPartOpen(e) {
   const [L, kind, en, hi, hg, sel] = e.p, K = GA_PART_KIND[kind] || ["part", "\u0939\u093F\u0938\u094D\u0938\u093E", "part"], scr = e.tab ? gaTabName(e.tab) : "";
   e.q = {

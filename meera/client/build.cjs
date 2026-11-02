@@ -69,6 +69,9 @@ function build() {
     const ws = t === '_' ? walks.filter(w => w.replaces || w.existing) : walks.filter(w => (w.steps || []).some(s => s.tab === t) || (w.from || []).some(id => list.some(e => e.id === id)));
     lists['backup/' + t + '.json'] = Buffer.from(JSON.stringify({ answers: list, walks: ws }));
   }
+  /* switch "autobank": the drafts for the admin page (new screens, new jobs, parts with no help text) */
+  const dr = path.join(ROOT, 'meera', 'bank', 'drafts.json');
+  lists['drafts.json'] = Buffer.from(fs.existsSync(dr) ? JSON.stringify(JSON.parse(fs.readFileSync(dr, 'utf8'))) : '[]');
   return { ...lists, 'meera.js': file, [`meera.${version}.js`]: file, 'meera.version.json': Buffer.from(JSON.stringify({ v: version }) + '\n'),
     'meera.webp': Buffer.from(m[1], 'base64'), version };
 }

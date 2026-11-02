@@ -161,8 +161,11 @@ interface MlView {
   /* Phase 5: her router's switches, and how its search compares with the browser's (last 7 days) */
   cfg?: { meera: boolean; ai: boolean; search: boolean } | null;
   cmp?: { asked: number; same: number; differ: { created: string; question: string; screen: string; browser: string; server: string }[] } | null;
+  /* switch "autobank": what is new on the screens that she may not answer by herself — a new screen, a new job, a part
+   * with no help text (meera/tools/autobank.cjs → /meera/drafts.json) */
+  drafts?: { key: string; kind: string; tab: string; at: string; made: string; what: string; answer?: any; walk?: any; note?: string }[];
 }
-const ML_ADMIN = { tab: 'unanswered', view: null as MlView | null, form: null as null | { q: string; screen: string; lang: string; learnIds?: number[]; ticketId?: number } };
+const ML_ADMIN = { tab: 'unanswered', view: null as MlView | null, form: null as null | { q: string; screen: string; lang: string; a?: string; learnIds?: number[]; ticketId?: number } };
 const ML_CSS = `
 #mlAdmin{position:fixed;inset:0;z-index:2147483000;background:rgba(20,24,31,.35);display:flex;align-items:flex-start;justify-content:center;padding:5vh 16px;
   font:14px/1.45 "Plus Jakarta Sans",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;color:#14181F;box-sizing:border-box}
@@ -230,6 +233,7 @@ async function mlAdminLoad(): Promise<void> {
   const v = r.body as MlView;
   try { const c = await mlCall('/config', null, 'GET'); v.cfg = c.status === 200 ? c.body : null; } catch (e) { v.cfg = null; }
   try { const c = await mlCall('/admin/search', null, 'GET'); v.cmp = c.status === 200 ? c.body : null; } catch (e) { v.cmp = null; }
+  try { const d = await fetch('/meera/drafts.json', { cache: 'no-cache' }); v.drafts = d.ok ? await d.json() : []; } catch (e) { v.drafts = []; }
   ML_ADMIN.view = v;
   mlAdminDraw('');
 }
@@ -237,7 +241,7 @@ function mlAdminDraw(msg: string): void {
   const host: HTMLElement | null = $('mlAdmin'); if (!host) return;
   const v = ML_ADMIN.view, n = (k: string) => (v && Array.isArray((v as any)[k]) ? String((v as any)[k].length) : '');
   const tabs: [string, string][] = [['unanswered', mlL('Unanswered this week', 'इस हफ़्ते अनुत्तरित')], ['spellings', mlL('Suggested spellings', 'सुझाई स्पेलिंग')],
-    ['down', mlL('👎 Not helpful', '👎 काम नहीं आया')], ['tickets', mlL('Open tickets', 'खुले टिकट')], ['switches', mlL('Switches', 'स्विच')]];
+    ['down', mlL('👎 Not helpful', '👎 काम नहीं आया')], ['tickets', mlL('Open tickets', 'खुले टिकट')], ['drafts', mlL('New on the screens', 'स्क्रीन पर नया')], ['switches', mlL('Switches', 'स्विच')]];
   const answerName = (id: string) => { const e = (GA_BANK ? GA_BANK.list : []).find(x => x.id === id); return e ? ((e.q && (e.q.en || [])[0]) || id) : id; };
   const when = (s: string) => esc(String(s || '').slice(0, 16).replace('T', ' '));
   const btn = (cls: string, act: string, data: string, label: string) => `<button type="button" class="${cls}" data-ml="${act}" ${data}>${label}</button>`;
@@ -255,6 +259,14 @@ function mlAdminDraw(msg: string): void {
       + v.down.map((x, i) => `<tr><td>${esc(x.question)}</td><td>${esc(answerName(x.answer))} <code>${esc(x.answer)}</code></td><td>${esc(x.note || '—')}</td><td>${when(x.created)}</td>`
         + `<td class="act">${btn('ml-b', 'adddown', `data-i="${i}"`, mlL('Add answer', 'जवाब जोड़ें'))}${btn('ml-g', 'reject', `data-ids="${x.id}"`, mlL('Reject', 'हटाएँ'))}</td></tr>`).join('') + '</table>'
     : `<div class="ml-empty">${mlL('No 👎 waiting.', 'कोई 👎 बाकी नहीं।')}</div>`;
+  else if (ML_ADMIN.tab === 'drafts') {
+    const d = v.drafts || [], plain = (h: string) => esc(String(h || '').replace(/<[^>]+>/g, ''));
+    body = d.length ? `<div class="ml-msg">${mlL('New screens, new jobs and new parts with no help text — drafts made from the screen\'s own labels only. Nothing here is in her answers until you write and save it.', 'नई स्क्रीन, नए काम और बिना जानकारी वाले नए हिस्से — सिर्फ़ स्क्रीन के अपने नामों से बने ड्राफ़्ट। आप लिखकर सेव न करें, तब तक इनमें से कुछ भी उसके जवाबों में नहीं है।')}</div>`
+      + `<table><tr><th>${mlL('What is new', 'क्या नया है')}</th><th>${mlL('Draft answer', 'ड्राफ़्ट जवाब')}</th><th>${mlL('Walk-through', 'वॉक-थ्रू')}</th><th>${mlL('Seen', 'कब')}</th><th></th></tr>`
+      + d.map((x, i) => `<tr><td>${esc(x.what)}</td><td>${x.answer && x.answer.a ? plain(x.answer.a.en) : '—'}</td><td>${x.walk && x.walk.steps ? x.walk.steps.map((s: any) => plain(s.en)).join(' → ') : '—'}</td><td>${esc(x.made)}</td>`
+        + `<td class="act">${btn('ml-b', 'draft', `data-i="${i}"`, mlL('Write answer', 'जवाब लिखें'))}</td></tr>`).join('') + '</table>'
+      : `<div class="ml-empty">${mlL('Nothing new on the screens.', 'स्क्रीन पर कुछ नया नहीं।')}</div>`;
+  }
   else if (ML_ADMIN.tab === 'switches') {
     const c = v.cfg, row = (k: string, name: string, what: string) => {
       const on = !!c && (c as any)[k] !== false;
@@ -279,7 +291,7 @@ function mlAdminDraw(msg: string): void {
   const form = f ? `<form class="ml-form"><label>${mlL('Question', 'सवाल')}</label><input name="q" value="${esc(f.q)}" required>`
     + `<label>${mlL('Screen', 'स्क्रीन')}</label><input name="screen" value="${esc(f.screen)}" placeholder="pbase, shop, qc…">`
     + `<label>${mlL('Language', 'भाषा')}</label><select name="lang">${[['en', 'English'], ['hi', 'हिंदी'], ['hg', 'Hinglish']].map(([k, t]) => `<option value="${k}"${f.lang === k ? ' selected' : ''}>${t}</option>`).join('')}</select>`
-    + `<label>${mlL('Answer', 'जवाब')}</label><textarea name="a" required placeholder="${mlL('One or two sentences. Button names in **bold**.', 'एक-दो वाक्य। बटन के नाम **बोल्ड** में।')}"></textarea>`
+    + `<label>${mlL('Answer', 'जवाब')}</label><textarea name="a" required placeholder="${mlL('One or two sentences. Button names in **bold**.', 'एक-दो वाक्य। बटन के नाम **बोल्ड** में।')}">${esc(f.a || '')}</textarea>`
     + `<label>${mlL('Why (optional)', 'क्यों (ज़रूरी नहीं)')}</label><input name="why">`
     + `<label>${mlL('Steps (one a line)', 'स्टेप (हर लाइन एक)')}</label><textarea name="steps"></textarea>`
     + `<div class="ml-btns"><button type="submit" class="ml-b">${mlL('Save answer', 'जवाब सेव करें')}</button>${btn('ml-g', 'cancel', '', mlL('Cancel', 'रद्द करें'))}</div></form>` : '';
@@ -301,6 +313,7 @@ async function mlAdminClick(ev: Event): Promise<void> {
   if (!v) return;
   if (act === 'add') { const x = v.unanswered[i]; ML_ADMIN.form = { q: x.question, screen: x.screen, lang: x.lang || 'en', learnIds: x.ids }; mlAdminDraw(''); return; }
   if (act === 'adddown') { const x = v.down[i]; ML_ADMIN.form = { q: x.question, screen: x.screen, lang: x.lang || 'en', learnIds: [x.id] }; mlAdminDraw(''); return; }
+  if (act === 'draft') { const x = (v.drafts || [])[i]; const a = x.answer || {}; ML_ADMIN.form = { q: (a.q && a.q.en && a.q.en[0]) || x.what, screen: x.tab, lang: 'en', a: String((a.a && a.a.en) || '').replace(/<\/?b>/g, '**') }; mlAdminDraw(''); return; }
   if (act === 'ticket') { const x = v.tickets[i]; ML_ADMIN.form = { q: x.question, screen: x.screen, lang: 'en', ticketId: x.id }; mlAdminDraw(''); return; }
   if (act === 'sw') {   // Phase 5: one of her router's switches
     const r = await mlCall('/admin/config', { key: b.dataset.key, value: b.dataset.value });

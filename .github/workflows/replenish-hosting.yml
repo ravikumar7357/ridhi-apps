@@ -62,6 +62,16 @@ jobs:
       - name: The page is what src/ makes
         run: node tests/assemble.js --check
 
+      # MEERA KEEPS UP WITH THE SCREENS (switch "autobank", 2 Nov 2026): compares the screens with her answers. Off: a report
+      # in this run's summary of what it would add, rename or take out. On: it does it here, before her gate, so the gate
+      # checks the result and the deploy carries it; the same list is in the summary (run it with --apply on the office
+      # computer and commit, to bring the repository in step).
+      - name: Meera — her answers and the screens
+        run: |
+          node ../meera/tools/autobank.cjs --ci --apply
+          node ../meera/client/build.cjs
+          node tests/assemble.js --force
+
       # prod-test is not here: it reads a backup of the live production data (C:/AMAZON/backups/…), which never goes to
       # GitHub — this repository is public. It is run on the office computer before every push to main.
       - name: Tests

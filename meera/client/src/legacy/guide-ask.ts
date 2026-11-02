@@ -1013,7 +1013,7 @@ function gaSemScores(q) {
 /** Each answer's ways of asking, as meanings; and how rare each meaning is across the bank (a rare one decides more). */
 /* Every part of the app (a button, column, box, option or hover note) comes compact — [label, kind, en, hi, hg, sel] —
  * and is opened out here: its ways of asking made from its own label, its answer from its one line. */
-const GA_PART_KIND = { button: ['button', 'बटन', 'button'], column: ['column', 'कॉलम', 'column'], box: ['box', 'बॉक्स', 'box'], option: ['option', 'विकल्प', 'option'], note: ['note', 'जानकारी', 'note'] };
+const GA_PART_KIND = { button: ['button', 'बटन', 'button'], column: ['column', 'कॉलम', 'column'], box: ['box', 'बॉक्स', 'box'], option: ['option', 'विकल्प', 'option'], note: ['note', 'जानकारी', 'note'], tab: ['tab', 'टैब', 'tab'] };
 function gaPartOpen(e) {
   const [L, kind, en, hi, hg, sel] = e.p, K = GA_PART_KIND[kind] || ['part', 'हिस्सा', 'part'], scr = e.tab ? gaTabName(e.tab) : '';
   e.q = { en: [L, `what is ${L}`, `what does ${L} do`, `${L} meaning`, `${L} ${K[0]}`], hi: [`${L} क्या है`, `${L} का मतलब`, `${L} क्या करता है`],

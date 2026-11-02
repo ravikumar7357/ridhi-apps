@@ -84,6 +84,10 @@ const MEERA_SWITCHES = {
   /* answer from the open screen first (Ravi, 2 Nov): its own answers before every other screen's; another screen's
    * answer says which screen it is for. Works in the page and in meera.js: ?meera=screenfirst */
   screenfirst: false,
+  /* her answers keep up with the screens by themselves (Ravi, 2 Nov): on every push, meera/tools/autobank.cjs adds an
+   * answer for a new part (its label and help text only), follows a renamed one, takes out a removed one; a new screen or
+   * job becomes a draft on the admin page. Off: it only reports what it would do. Read by the build, not the browser. */
+  autobank: false,
 };
 function meeraOn(name) {
   try {

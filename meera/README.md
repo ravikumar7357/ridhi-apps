@@ -39,6 +39,8 @@ meera-words.bin). With the "serveruse" switch the router searches them instead o
 | learn | missed / not sure / 👎 / spellings go, cleaned, to her router; "Meera's learning" page for admins | lazy |
 | server | her router searches side by side (she still answers as before; differences are kept for an admin) | lazy |
 | serveruse | her router's search answers; her own copy is the fallback | lazy, router deployed |
+| screenfirst | the open screen's own answers first; another screen's answer says which screen it is for | — |
+| autobank | on every push her answers follow the screens: new part → answer from its label and help text, renamed → reworded, removed → taken out; new screen or job → a draft on the admin page (meera/tools/autobank.cjs, list in meera/bank/CHANGES.md) | — (read by the build) |
 
 Try one for a single visit with `?meera=lazy,spell` at the end of the address, or for one browser with
 `localStorage['meera.spell'] = '1'`. Turning one on for everyone is a change in `MEERA_SWITCHES` — only on Ravi's
