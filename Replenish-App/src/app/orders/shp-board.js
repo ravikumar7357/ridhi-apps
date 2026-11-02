@@ -173,11 +173,22 @@ const SHPB_STAGES = [['plan', 'To plan', 'plan', 'planW', 'planD', 'planA'], ['p
   ['receive', 'Receive', 'receive', 'recW', 'recD', 'recA'], ['qc', 'QC pass', 'qc', 'qcW', 'qcD', 'qcA'], ['press', 'Press', 'press', 'prsW', 'prsD', 'prsA'],
   ['hand', 'Shipping to accept', 'accept', 'handW', 'handD', 'handA']];
 /** One stage cell: "waiting − (done moved)", and the button for the work that is waiting. */
+/* EACH BUTTON TO THOSE WHO HOLD ITS WORK (Ravi, 2 Nov: "jiske pas access h wo hi cut issue receive kar pay — abhi cutting wala issue receive ki
+ * entry kar pa rha h"). The board lets a person do from the row only what their rights let them do on the register itself: [the rights, any one
+ * of them]. An admin does everything. The figures stay for everybody; only the buttons go. */
+const SHPB_RIGHT = { plan: ['flppc'], print: ['flppc'], prcv: ['flchl'], cut: ['pcut', 'flcut'], issue: ['pbase', 'flraw'], receive: ['pbase', 'flwip'],
+  qc: ['qc'], press: ['ppress', 'qc'], stock: ['fgi'] };
+function shpbMay(act) {
+  if (ME.admin) return true;
+  const need = SHPB_RIGHT[act];
+  if (!need) return true;   // accept / not received: shpCanReceive decides
+  return need.some(t => (ME.tabs || []).includes(t));
+}
 function shpbCell(a, w, d, act, label, key, title) {
   if (!a && !d) return '<td class="num" style="' + SHPB_STAGE_BG + ';' + SHPB_PAD + '"><span class="muted">—</span></td>';
   return '<td class="num" style="' + SHPB_STAGE_BG + ';' + SHPB_PAD + 'white-space:nowrap;line-height:1.25" title="' + esc(title || '') + '">'
     + (w ? '<b style="color:#b45309">' + nf(w) + '</b>' : '<b style="color:#166534">0</b>') + '<span class="muted" style="font-size:11px"> − (' + nf(d) + ' moved)</span>'
-    + (w ? '<div><button type="button" class="ghost" data-shpb-act="' + act + '" data-key="' + esc(key) + '" style="width:auto;padding:0 7px;font-size:10.5px;line-height:18px">' + esc(label) + '</button></div>' : '') + '</td>';
+    + (w && shpbMay(act) ? '<div><button type="button" class="ghost" data-shpb-act="' + act + '" data-key="' + esc(key) + '" style="width:auto;padding:0 7px;font-size:10.5px;line-height:18px">' + esc(label) + '</button></div>' : '') + '</td>';
 }
 const shpbLineOf = key => { const [o, k] = String(key).split('__'); return ordLines().find(r => r.orderNo === obUC(o) && r.sku === obUC(k)) || null; };
 const shpbPlanOf = r => ((typeof FLOW !== 'undefined' && FLOW && FLOW.ppc) || {})[typeof flowKey === 'function' ? flowKey(r.orderNo, r.sku) : ''] || null;
@@ -218,7 +229,7 @@ function shpbRow(r) {
     + shpbItem(r)
     + `<td class="num" style="${SHPB_PAD}"><b>${nf(r.qty)}</b></td>`
     + `<td style="${SHPB_PAD}text-align:left;font-size:11.5px;white-space:nowrap;line-height:1.25">${prn ? '<b>' + esc(prn) + '</b>' : (shpbPlanOf(r) ? '<span class="muted">no printer</span>' : '<b style="color:#b91c1c">not planned</b>')}`
-    + `<div><button type="button" class="ghost" data-shpb-act="print" data-key="${esc(k)}" style="width:auto;padding:0 7px;font-size:10.5px;line-height:18px" title="${shpbIsShp() ? 'The plan of this line: printer, fabric, accessories, dates — planned here, not in PPC' : 'The plan of this line — the same plan PPC raises; the line stays in PPC too'}">${shpbPlanOf(r) ? (prn ? 'Change' : 'Plan') : 'Plan'}</button></div></td>`
+    + (!shpbMay('print') ? '' : `<div><button type="button" class="ghost" data-shpb-act="print" data-key="${esc(k)}" style="width:auto;padding:0 7px;font-size:10.5px;line-height:18px" title="${shpbIsShp() ? 'The plan of this line: printer, fabric, accessories, dates — planned here, not in PPC' : 'The plan of this line — the same plan PPC raises; the line stays in PPC too'}">${shpbPlanOf(r) ? (prn ? 'Change' : 'Plan') : 'Plan'}</button></div>`) + '</td>'
     + shpbCell(s.prcA, s.prcW, s.prcD, 'prcv', 'Receive', k, tips.prcv)
     + (!r.cutReq ? `<td class="num" style="${SHPB_STAGE_BG};${SHPB_PAD}"><span class="muted" style="font-size:11px">not needed</span></td>` : shpbCell(s.cutA, s.cutW, s.cutD, 'cut', 'Cut', k, tips.cut))
     + shpbCell(s.issA, s.issW, s.issD, 'issue', 'Issue', k, tips.issue)
@@ -239,7 +250,7 @@ function shpbStatusCell(r, k, rd, late, edit) {
         : '<span style="font-size:11.5px">' + esc(shpbDmy(rd.date) || '—') + '</span>')
       + (rd.how ? ' <span class="muted" style="font-size:10px">' + (rd.how === 'set' ? 'set' + (rd.by ? ' · ' + esc(rd.by) : '') : esc(rd.how)) + '</span>' : '') + '</div>'
     + (stk ? '<div><span class="pill" style="background:#dcfce7;color:#166534" title="Completed from the ready stock in the India store, handed to shipping">' + nf(stk) + ' from stock</span></div>' : '')
-    + (edit && left > 0 && have !== 0 && shpbIsShp() ? '<div><button type="button" class="ghost" data-shpb-act="stock" data-key="' + esc(k) + '" style="width:auto;padding:0 7px;font-size:10.5px;line-height:18px" title="Complete this order from pieces already made and held in the India store">From stock' + (have ? ' (' + nf(have) + ')' : '') + '</button></div>' : '')
+    + (edit && left > 0 && have !== 0 && shpbIsShp() && shpbMay('stock') ? '<div><button type="button" class="ghost" data-shpb-act="stock" data-key="' + esc(k) + '" style="width:auto;padding:0 7px;font-size:10.5px;line-height:18px" title="Complete this order from pieces already made and held in the India store">From stock' + (have ? ' (' + nf(have) + ')' : '') + '</button></div>' : '')
     + '</td>';
 }
 
@@ -281,7 +292,7 @@ function renderShpBoard() {
   $('odKpis').innerHTML = ME.shpAccOnly ? `<div style="margin:2px 0 8px;font-weight:700;font-size:15px">Shipping to accept · ${nf(done.filter(r => r.open && shpbStages([r]).handW > 0).length)} line(s)</div>`
     : `<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:2px 0 8px">${shpbStagesShown().map(bucket).join('')}`
     + `<div style="display:flex;gap:8px;margin-left:auto">${tabBtn('pending', 'Order pending · ' + nf(pend.length))}${tabBtn('done', 'Complete · ' + nf(done.length))}</div></div>`
-    + (tab === 'pending' && shpbCanEdit() ? (() => {
+    + (tab === 'pending' && shpbMay('plan') ? (() => {
       const can = shpbToPlan(pend).length, left = typeof FLOW_XL_IMP !== 'undefined' && FLOW_XL_IMP.length ? flowXlLeft().length : 0;
       const b = 'height:34px;padding:0 14px;border-radius:12px;font:inherit;font-weight:700;cursor:pointer;box-shadow:none;transform:none;width:auto;';
       return can || left ? `<div style="display:flex;gap:8px;align-items:center;margin:0 0 8px">`
@@ -425,6 +436,7 @@ const shpbAfter = () => { try { renderOrd(); } catch (e) { /* the next draw show
 
 function shpbDialog(act, key) {
   const r = shpbLineOf(key); if (!r) return;
+  if (!shpbMay(act)) { $('odMsg').className = 'err'; $('odMsg').textContent = 'You do not have the right for this step — ask an admin.'; return; }
   const s = shpbStages([r]), who = (r.shopOrderNo || r.orderNo) + ' · ' + r.sku;
   if (act === 'print' || act === 'plan') { if (typeof flowPpcOpen === 'function') flowPpcOpen(r.orderNo, r.sku); return; }
   if (act === 'stock') {
