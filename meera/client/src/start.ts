@@ -8,7 +8,6 @@
  * of its own (meera.webp, kept by the browser, not 80 KB inside every page), her look, and a safety net: an error from
  * her file hides her button and stops her; the ERP carries on. */
 
-/// <reference path="../../shared/bridge.d.ts" />
 /* the bridge the ERP gives her: its contract is meera/shared/bridge.d.ts */
 declare const __MEERA_CSS__: string;
 

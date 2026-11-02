@@ -1,6 +1,7 @@
-# MEERA'S CODE CHECKS (v2 rebuild, 29 Oct 2026). The TypeScript type check of her new files, on every push that touches
-# meera/. It never deploys anything and does not hold up the ERP's deploy: her no-worse gate (replenish-hosting.yml) does
-# that. npm is blocked on the office PC, so this is where the type check runs.
+# MEERA'S CODE CHECKS (v2 rebuild; Phase 6, 2 Nov 2026). On every push that touches meera/: her TypeScript checks (both,
+# blocking — they are clean), ESLint (blocking: 0 errors; warnings shown) and Prettier (a report only, for now: her files
+# were never formatted by it, and formatting them all at once is a change of its own). npm is blocked on the office PC,
+# so this is where these tools are installed. Her deploy gate (replenish-hosting.yml) runs the type checks too.
 name: Meera — code checks
 
 on:
@@ -12,7 +13,7 @@ permissions:
   contents: read
 
 jobs:
-  types:
+  checks:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -20,5 +21,17 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: TypeScript type check (meera/client)
-        run: npx --yes -p typescript@5.6.3 tsc -p meera/client/tsconfig.json
+      - name: TypeScript — her new files (strict)
+        run: npx --yes -p typescript@5.9.3 tsc -p meera/client/tsconfig.json
+      - name: TypeScript — all her files together
+        run: npx --yes -p typescript@5.9.3 tsc -p meera/client/tsconfig.legacy.json
+      - name: ESLint and Prettier for the run
+        working-directory: meera/client
+        run: npm install --no-save --no-package-lock --no-audit --no-fund eslint@9.39.4 @eslint/js@9.39.4 typescript-eslint@8.62.0 typescript@5.9.3 globals@14.0.0 prettier@3.3.3
+      - name: ESLint (0 errors)
+        working-directory: meera/client
+        run: npx eslint .
+      - name: Prettier (a report only)
+        working-directory: meera/client
+        continue-on-error: true
+        run: npx prettier --check "src/**/*.ts" | tail -40

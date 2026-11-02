@@ -49,6 +49,7 @@ function scope(base) {
 
 const CHECKS = [
   /* Phase 6 */
+  { name: 'her type checks (strict new files; all files together)', cmd: ['meera/tests/type-check.cjs'], fix: 'run the type check (meera/tests/type-check.cjs) and fix what it names' },
   { name: 'her answers are well-formed', cmd: ['meera/tests/answers-check.cjs'], fix: 'fix the answers named above in Replenish-App/public/guide/' },
   { name: 'guide-errors is up to date with the screens', cmd: ['meera/tools/make-errors.cjs', '--check'], fix: 'run: node meera/tools/make-errors.cjs, then her gate, and commit meera/client/src/legacy/guide-errors.ts', warnOnly: true },
   { name: 'her router\'s tests', cmd: ['meera/router/test/router.test.mjs'], fix: 'a router test failed (see the FAIL lines)' },
