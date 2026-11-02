@@ -184,7 +184,28 @@ if (SHUB_ON && $('secShopify') && $('paneShop')) {
    * told which in the hello below and keeps its changes "held" until then. */
   const shubWrites = () => !!(window.__TEST_ERP && window.__TEST_ERP.hubShopifyWrites);
   const shubCsv = v => (Array.isArray(v) ? v : []).map(String).join(',');
+  /* THE PRODUCTION BUCKET, asked for by the hub's "Production bucket" button (Ravi, 2 Nov: "get the bucket ready in our
+   * Shopify hub"). The ERP's own bucket (bucket-excel.js shpBucketOpen), not a copy: it is worked out from the Shopify
+   * Orders tab's orders, notes and stock, so those are read first if this page has not read them yet (ensureShop — the
+   * same read as opening Shopify Orders), and India stock is waited for, since the bucket judges stock. Then the bucket
+   * opens over the hub; what it does (open production lines, take goods from production) it does exactly as from the
+   * Shopify Orders page. Whatever it would have said on that page comes back to the hub as a message. */
+  async function shubBucket() {
+    if (typeof shpBucketOpen !== 'function' || typeof ensureShop !== 'function') throw new Error('This ERP has no production bucket.');
+    const said = () => (($('soMsg') && $('soMsg').textContent) || '').trim();
+    if (!Object.keys(SHOP_META || {}).length || !SHOP_STOCK_LOADED) {
+      $('shubState').textContent = 'Reading the Shopify orders and stock for the bucket…';
+      await ensureShop();
+    }
+    if (typeof loadShopIndia === 'function') { try { await loadShopIndia(); } catch (e) { /* the bucket says so */ } }
+    const before = said();
+    await shpBucketOpen();
+    $('shubState').textContent = 'Production bucket opened';
+    const now = said();
+    return now && now !== before ? { msg: now, bad: /could not|not been read|refused|denied/i.test(now) } : {};
+  }
   async function shubAnswer(kind, a) {
+    if (kind === 'prodBucket') return shubBucket();
     const shop = a.store === 'CPC' ? 'CPC' : '';
     if (kind === 'order') return prGet({ shopify: 'orders', shop, ids: String(a.id || ''), open: '0', nophoto: '1' }, { timeoutMs: 120000 });
     if (kind === 'track') return prGet({ shopify: 'tracking', shop, ids: shubCsv(a.ids) }, { timeoutMs: 120000 });
