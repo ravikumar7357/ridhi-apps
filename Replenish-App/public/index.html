@@ -73037,8 +73037,11 @@ if ($('soRetPanel') && $('soRetPanel').addEventListener) {
  * The orders and the stock are still read (the bucket is worked out from them), but the orders table, export, import and
  * the automatic production sync are not there for this account.
  * An account that also holds Shopify Orders ('shop'), and an admin, get the full screen as before. */
-const SHOP_BKT_ONLY = () => !!(typeof ME !== 'undefined' && ME && ME.tabs && ME.tabs.includes('shopbkt') && !ME.tabs.includes('shop') && !ME.admin);
-let BKT = { opened: false };
+let BKT = { opened: false, forced: false };
+/* FOR EVERYONE, FOR NOW (Ravi, 2 Nov: "don't build for just admin, build for everyone"): "Production bucket" is also an item
+ * in the Shopify menu that anybody who sees that menu can open — admins and the Shopify team included. Opened from it, the
+ * screen is the bucket form (BKT.forced); Shopify Orders from the menu gives the full screen back. */
+const SHOP_BKT_ONLY = () => BKT.forced || !!(typeof ME !== 'undefined' && ME && ME.tabs && ME.tabs.includes('shopbkt') && !ME.tabs.includes('shop') && !ME.admin);
 
 function renderShopBkt() {
   const pane = $('paneShop'), box = $('soBktPanel'); if (!pane || !box) return;
@@ -73057,6 +73060,36 @@ function renderShopBkt() {
     ${msg ? `<div class="muted" id="bktMsg" style="margin-top:2px">${esc(msg)}</div>` : ''}`;
   /* The bucket opens by itself the first time everything it needs is read — this page is only for it. */
   if (stockOk && !BKT.opened) { BKT.opened = true; shpBucketOpen(); }
+}
+/* The menu item, and the way back to the full Shopify Orders screen. */
+if ($('secShopify') && $('paneShop') && typeof showTab === 'function') {
+  const link = document.createElement('a');
+  link.id = 'tabShopBkt'; link.className = 'nav'; link.href = '#shopbkt'; link.textContent = 'Production bucket';
+  $('secShopify').appendChild(link);
+  const leaveBkt = () => {
+    BKT.forced = false;
+    const pane = $('paneShop'), box = $('soBktPanel');
+    if (pane) pane.classList.remove('so-bkt');
+    if (box) box.classList.add('hide');
+  };
+  const showTabBefore = showTab;
+  showTab = function (which) {
+    if (which !== 'shopbkt' || (typeof ME !== 'undefined' && ME && ME.tabs && ME.tabs.includes('shopbkt') && !ME.tabs.includes('shop') && !ME.admin)) {
+      /* anything else, or a production-only account (its Shopify Orders IS the bucket already) */
+      if (BKT.forced) { leaveBkt(); link.classList.remove('on'); const r = showTabBefore(which === 'shopbkt' ? 'shop' : which); if (which === 'shop') { try { renderShop(); } catch (e) { /* not drawn yet */ } } return r; }
+      return showTabBefore(which);
+    }
+    BKT.forced = true; BKT.opened = false;
+    const r = showTabBefore('shop');
+    document.querySelectorAll('.side a.nav.on, #secShopify a.nav.on').forEach(el => el.classList.remove('on'));
+    link.classList.add('on');
+    if ($('pageTitle')) $('pageTitle').textContent = 'Production bucket';
+    try { document.title = 'Production bucket · Ridhi Home & Living'; if (location.hash !== '#shopbkt') history.pushState(null, '', '#shopbkt'); } catch (e) { /* only the address */ }
+    try { renderShop(); } catch (e) { /* drawn when the orders arrive */ }
+    return r;
+  };
+  link.onclick = e => { e.preventDefault(); showTab('shopbkt'); };
+  window.addEventListener('hashchange', () => { if (location.hash === '#shopbkt' && !BKT.forced && typeof ME !== 'undefined' && ME && ME.tabs) showTab('shopbkt'); });
 }
 if ($('soBktPanel') && $('soBktPanel').addEventListener) {
   $('soBktPanel').addEventListener('click', e => {
