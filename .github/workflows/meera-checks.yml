@@ -30,7 +30,7 @@ jobs:
         run: npm install --no-save --no-package-lock --no-audit --no-fund eslint@9.39.4 @eslint/js@9.39.4 typescript-eslint@8.62.0 typescript@5.9.3 globals@14.0.0 prettier@3.3.3
       - name: ESLint (0 errors)
         working-directory: meera/client
-        run: npx eslint .
+        run: npx eslint "src/**/*.ts"   # her code only, as meera/tools/lint.cjs does (the build scripts are Node files, not hers)
       - name: Prettier (a report only)
         working-directory: meera/client
         continue-on-error: true
