@@ -26,7 +26,7 @@ const GUIDE_FOOT = 300;                    // the bottom of the screen Meera and
 const GUIDE_ACT_MS = 8000;                  // a red line this soon after a click or key is the person's doing
 const GUIDE_TYPE_MS = 12;                  // the bubble's words appear a few letters at a time, like a game…
 const GUIDE_TYPE_STEP = 4;                 // …four a tick: a long sentence is out in about half a second
-const GUIDE = { tour: null, i: 0, typing: 0, miss: {}, field: null, btn: null, seenErr: new Map(), built: false };
+const GUIDE: any = { tour: null, i: 0, typing: 0, miss: {}, field: null, btn: null, seenErr: new Map(), built: false };   // el, live, wait, paused, ring… are added as she works
 
 /** Kept per person, so two people sharing a computer each get their own walk-rounds. */
 function guideKey(k) { return k + ':' + (ERP_MEERA.user().email || 'anon'); }
@@ -85,7 +85,7 @@ function guideBuild() {
   $('gdTry').onclick = () => guideTry();
   $('gdOff').onclick = () => guideGo(1);   // Skip this step (the Helper switch is in her round button's menu)
   $('gdText').onclick = () => guideTypeAll();
-  root.querySelectorAll('[data-gd-lang]').forEach(b => b.onclick = () => {
+  root.querySelectorAll<HTMLElement>('[data-gd-lang]').forEach(b => b.onclick = () => {
     try { localStorage.setItem('guideLang', b.dataset.gdLang); } catch (e) { /* this visit only */ }
     guideShow();
   });
@@ -138,7 +138,7 @@ function guideBuild() {
   };
   go.onclick = e => { e.stopPropagation(); if (menu.classList.contains('hide')) { draw(); if (typeof meeraLearnMenu === 'function') menu.insertAdjacentHTML('beforeend', meeraLearnMenu()); menu.classList.remove('hide'); } else shut(); };
   menu.onclick = e => {
-    const b = e.target.closest('[data-m]'); if (!b) return;
+    const b = (e.target as HTMLElement).closest<HTMLElement>('[data-m]'); if (!b) return;
     if (b.dataset.m === 'help') { guideSwitch(!guideIsOn()); draw(); if (typeof meeraLearnMenu === 'function') menu.insertAdjacentHTML('beforeend', meeraLearnMenu()); return; }
     if (b.dataset.m === 'learn') { shut(); if (typeof meeraLearnAdmin === 'function') meeraLearnAdmin(); return; }   // Phase 4: admins only
     shut();
@@ -196,7 +196,7 @@ function guideScreen(tab) {
 }
 /** A window, a dialog or the scanner is open: not the time to start talking. */
 function guideBusy() {
-  return [...document.querySelectorAll('.ptmodal, .modal, .pks')].some(el => !el.classList.contains('hide') && el.offsetParent !== null && el.getBoundingClientRect().width > 0);
+  return [...document.querySelectorAll<HTMLElement>('.ptmodal, .modal, .pks')].some(el => !el.classList.contains('hide') && el.offsetParent !== null && el.getBoundingClientRect().width > 0);
 }
 
 /** The steps for a screen: its own (GUIDE_TOURS) or, for a screen nobody has written one for yet, a plain one read
@@ -218,7 +218,7 @@ function guideSteps(tab) {
     return st;
   }
   const title = ($('pageTitle') && $('pageTitle').textContent.trim()) || 'this screen';
-  const st = [{ en: `This is <b>${esc(title)}</b>. Let me show you round it — it takes half a minute.`,
+  const st: any[] = [{ en: `This is <b>${esc(title)}</b>. Let me show you round it — it takes half a minute.`,
                 hi: `यह <b>${esc(title)}</b> है। चलिए, आधे मिनट में यह स्क्रीन समझ लेते हैं।` }];
   if (pane) {
     const tb = pane.querySelector('.toolbar');
@@ -601,14 +601,14 @@ function guideWatch() {
   }, true);
   /* A box the browser itself refuses (a required box left empty, a number out of range). */
   document.addEventListener('invalid', e => {
-    const el = e.target;
+    const el = e.target as HTMLInputElement;
     guideStrike('invalid:' + (el.id || el.name || 'box'), el.validationMessage || 'This box is not filled in correctly.', el);
   }, true);
   /* Every screen's message line turning red. Only the line itself is looked at, so a whole table redrawing costs
    * nothing more than a glance at what changed. */
   const mo = new MutationObserver(list => {
     for (const m of list) {
-      const el = m.target.nodeType === 1 ? m.target : m.target.parentElement;
+      const el = (m.target.nodeType === 1 ? m.target : m.target.parentElement) as HTMLElement | null;
       if (!el || !el.classList) continue;
       if (el.id && (el.classList.contains('err') || el.classList.contains('pks-say-bad'))) guideSaw(el, el.id, (el.textContent || '').trim());
     }
