@@ -31,7 +31,7 @@ function d1() {
 const PEOPLE = [[1, 'Ramesh Kumar'], [2, 'Raju Singh'], [3, 'Salma Bano']];
 const USERS = { 'tok-staff': { uid: 'uid-staff-7Q2', email: 'karan@company.in', admin: false }, 'tok-admin': { uid: 'uid-admin-1A', email: 'ravi@thefabricrush.com', admin: true } };
 
-async function run(switches, tokenName) {
+async function run(switches, tokenName, ai = false) {
   const db = d1(), env = { ENABLED: 'true', ALLOWED_ORIGINS: ORIGIN, ADMIN_EMAILS: 'ravi@thefabricrush.com', LEARN_DAILY: '30', DB: db };
   const M = await load({ root: ROOT, bundle: true, switches, handle: true });
   const T = c => M.ctx.__meeraTest(c);
@@ -39,7 +39,8 @@ async function run(switches, tokenName) {
   M.ctx.PTG = { masters: { vendor: { v1: { code: 'SHP', name: 'Shree Printers' } } }, mdb: [{ sku: 'RCN148', brand: 'Ridhi' }] };   // a party the ERP knows
   M.ctx.ME.admin = tokenName === 'tok-admin';   // what the ERP knows about this person
   M.ctx.auth = { currentUser: { getIdToken: async () => tokenName } };
-  M.ctx.localStorage.setItem('guideAiFull', new Date().toISOString().slice(0, 10));   // no AI in this test: learning only
+  /* no AI in this part: learning only — "full for today" on HER clock (the bench's fixed day), not this computer's */
+  if (!ai) M.ctx.localStorage.setItem('guideAiFull', T('gaAiDay()'));
   const sent = [];
   const pageFetch = M.ctx.fetch;
   M.ctx.fetch = async (url, opt = {}) => {
@@ -113,5 +114,11 @@ console.log('\n=== switch ON but nobody signed in ===');
 const anon = await run(['learn'], null);
 ok(anon.sent.length === 0, 'nothing sent without a sign-in');
 
+console.log('\n=== the AI (Phase 6): what reaches it — questions she cannot answer, AI on ===');
+const withAi = await run(['learn', 'spell'], 'tok-staff', true);
+const asks = withAi.sent.filter(x => x.path === '/ask');
+asks.forEach(x => console.log('  /ask  ' + JSON.stringify({ ...x.body, names: '[' + (x.body.names || []).length + ' names, for cleaning only]' })));
+ok(asks.length > 0, asks.length + ' questions went to the AI');
+ok(!asks.some(x => PRIVATE.test(String(x.body.q))), 'only cleaned questions reach the AI: no name (on a list or not), phone, order number, amount or email');
 console.log(`\nphase4-privacy: ${fail ? fail + ' FAILED' : 'all passed'}`);
 process.exit(fail ? 1 : 0);

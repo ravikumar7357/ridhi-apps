@@ -56,7 +56,10 @@ async function gaAiAsk(q, own?) {
   gaSay(L('Asking… one moment.', 'पूछ रही हूँ… एक पल।', 'Poochh rahi hoon… ek pal.'), []);
   const wait = $('gaLog').lastElementChild;
   let r;
-  try { r = await gaAiCall('/ask', { q: gaClean(q, gaNames()), lang, screen: gaHere(), ids, names: gaNames() }); }
+  /* Phase 6: in meera.js, the same second net for names as learning uses (learn.ts mlClean — a name on no list, written
+   * before ko / ke / ne… or with a capital letter, a party's name): only cleaned questions reach the AI */
+  const cleanQ = typeof mlClean === 'function' ? mlClean(q) : gaClean(q, gaNames());
+  try { r = await gaAiCall('/ask', { q: cleanQ, lang, screen: gaHere(), ids, names: gaNames() }); }
   catch (e) { r = { status: 0, body: {} }; }
   if (wait) wait.remove();
   const b = r.body || {};

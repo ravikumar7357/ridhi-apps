@@ -80388,8 +80388,9 @@ async function gaAiAsk(q, own) {
   gaSay(L("Asking\u2026 one moment.", "\u092A\u0942\u091B \u0930\u0939\u0940 \u0939\u0942\u0901\u2026 \u090F\u0915 \u092A\u0932\u0964", "Poochh rahi hoon\u2026 ek pal."), []);
   const wait = $("gaLog").lastElementChild;
   let r;
+  const cleanQ = typeof mlClean === "function" ? mlClean(q) : gaClean(q, gaNames());
   try {
-    r = await gaAiCall("/ask", { q: gaClean(q, gaNames()), lang, screen: gaHere(), ids, names: gaNames() });
+    r = await gaAiCall("/ask", { q: cleanQ, lang, screen: gaHere(), ids, names: gaNames() });
   } catch (e) {
     r = { status: 0, body: {} };
   }

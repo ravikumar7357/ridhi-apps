@@ -15,6 +15,9 @@ const esbuild = require(path.join(APP, 'node_modules', 'esbuild'));
 const OUT = path.join(APP, 'public', 'meera');
 
 function build() {
+  /* Phase 6: a broken answer stops the build, in plain words (meera/tests/answers-check.cjs) */
+  const bad = require(path.join(ROOT, 'meera', 'tests', 'answers-check.cjs')).check();
+  if (bad.length) { console.log(`meera.js NOT BUILT — her answers have ${bad.length} problem(s):`); bad.slice(0, 30).forEach(b => console.log('  • ' + b)); process.exit(1); }
   const order = fs.readFileSync(path.join(APP, 'src', 'app', 'ORDER'), 'utf8').split(/\r?\n/).map(s => s.trim()).filter(s => s.startsWith('@meera/'));
   const art = order.find(f => /guide-art\.(js|ts)$/.test(f));   // her picture file (TypeScript since Phase 6)
   const files = order.filter(f => f !== art).map(f => path.join(__dirname, 'src', f.slice(7)));
