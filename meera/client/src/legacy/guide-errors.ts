@@ -1,7 +1,8 @@
-/* EVERY ERROR THE ERP CAN SHOW (2026-10-22), for Meera: [the message's longest fixed piece, lower case; the screen it
- * belongs to]. Read off the screens' own code (every red message line, and every rule a form checks before it saves), so
- * when someone pastes or asks about a message, Meera knows which screen it is from and why it happens (gaWhy in
- * guide-ask.js). 586 messages. Made by a script from the source; when screens change, it is made again. */
+/* EVERY ERROR THE ERP CAN SHOW, for Meera: [the message's longest fixed piece, lower case; the screen it belongs to].
+ * Read off the screens' own code (every red message line, and every rule a form checks before it saves), so when
+ * someone pastes or asks about a message, Meera knows which screen it is from and why it happens (gaWhy in
+ * guide-ask.ts). 606 messages. MADE BY meera/tools/make-errors.cjs — do not edit; when screens change, it is
+ * made again (her gate says so on every push). */
 const GUIDE_ERRS = [
   ["⚠️ backend not configured — create firestore doc config/replapi with {url, key}.", ""],
   ["not deleted", ""],
@@ -66,6 +67,7 @@ const GUIDE_ERRS = [
   ["which printer? the print order goes to them now — pick it for", "flow"],
   ["who makes it? type the outsource vendor for", "flow"],
   ["which fabric? type it for", "flow"],
+  ["when is it ready? pick the ready date for", "flow"],
   ["not saved — no vendor order was placed or changed.", "flow"],
   ["this browser would not keep the drafts (storage blocked) — nothing imported.", "flow"],
   ["that print order is not here — press refresh.", "flow"],
@@ -92,6 +94,7 @@ const GUIDE_ERRS = [
   ["pieces are whole", "flow"],
   ["more came back than was given for", "flow"],
   ["say why it is closed short.", "flow"],
+  ["nothing to download for these days.", "flow"],
   ["that test line is gone — press refresh.", "flow"],
   ["pick a sales order, or type at least one sku and its quantity.", "flow"],
   ["how many pieces were cut?", "flow"],
@@ -335,6 +338,22 @@ const GUIDE_ERRS = [
   ["pick the printer it is going to.", "so"],
   ["that is the printer it is already with.", "so"],
   ["that order is cancelled. raise a new one for the other printer.", "so"],
+  ["this order is not yours to change.", "so"],
+  ["that sku is not on this order.", "so"],
+  ["pick the delivery date.", "so"],
+  ["type how many pieces come from stock.", ""],
+  ["handing pieces to shipping needs the shopify tab.", ""],
+  ["piece(s) of this line still need to be made.", ""],
+  ["type how many pieces were cut.", ""],
+  ["pick the cloth this was cut from.", ""],
+  ["pick the karigar.", ""],
+  ["type how many pieces are being issued.", ""],
+  ["\" is not on the employee list.", ""],
+  ["pick the pressman.", ""],
+  ["type how many pieces were pressed.", ""],
+  ["piece(s) have passed qc and are not pressed yet.", ""],
+  ["type how many pieces pass.", ""],
+  ["type how many pieces shipping received.", ""],
   ["name the print direction.", "hr"],
   ["name the subtype.", "hr"],
   ["name the size — a 60x60 rate is not a 70x108 rate.", "hr"],
@@ -375,6 +394,7 @@ const GUIDE_ERRS = [
   ["you asked for this change — somebody else has to approve it.", "pbase"],
   ["it changes the sku or a date, which only an admin may change — an admin has to approve it.", "pbase"],
   ["the entry it is about has been deleted — reject the request.", "pbase"],
+  ["piece(s) of this entry — received cannot be less than that.", "pbase"],
   ["say why it is refused — the person who asked will see it.", "pbase"],
   ["enter the employee name.", "pbase"],
   ["issue pieces must be at least 1.", "pbase"],
@@ -386,6 +406,7 @@ const GUIDE_ERRS = [
   ["somebody has already asked for this one.", "pbase"],
   ["only an admin can answer a deletion request.", "pbase"],
   ["that entry is already gone. the request has been cleared.", "pbase"],
+  ["piece(s) of this entry — it cannot be deleted. correct its figures instead.", "pbase"],
   ["type the order id, or pick etsy / shopify / b2b / online.", "pbase"],
   ["select the article subtype.", "pbase"],
   ["no sku — pick the item, or type the sku directly.", "pbase"],
