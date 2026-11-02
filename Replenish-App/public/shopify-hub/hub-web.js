@@ -2618,6 +2618,47 @@ window.HUB_SYNC = (function () {
         .then(r => { box.remove(); done(r.user); }, e => { err.hidden = false; err.textContent = e.message; }));
     });
   }
+  /* SUPABASE (Ravi, 2 Nov: "Supabase now"): the Shopify OS database, through the ERP page around the hub. The ERP gives
+   * the address, its publishable key and the signed-in person's Firebase sign-in (window.parent.SHOS, same site); the
+   * database checks the person on every call (shopify-os/supabase/28_hub_docs.sql: hub_doc_get / hub_doc_put /
+   * hub_doc_revs). A save lands only if the document's revision has not moved; otherwise it is read again and the hub's
+   * own merge (fn) runs on the newer copy — the same promise Firestore's transactions give. Others' changes are noticed
+   * by asking only for revision numbers every 15 seconds. */
+  async function supabaseFs(S) {
+    const cfg = await S.config(), email = await S.email();
+    async function rpc(fn, args) {
+      const token = await S.token();
+      const r = await fetch(cfg.url.replace(/\/+$/, '') + '/rest/v1/rpc/' + fn, {
+        method: 'POST', body: JSON.stringify(args),
+        headers: { apikey: cfg.key, Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' } });
+      const t = await r.text(); let j = null; try { j = t ? JSON.parse(t) : null; } catch (e) { /* not JSON */ }
+      if (!r.ok) throw new Error((j && (j.message || j.hint)) || ('Shopify database said ' + r.status));
+      return j;
+    }
+    const rev = {};
+    const getOne = async p => { const d = (await rpc('hub_doc_get', { p_paths: [p] }))[p]; rev[p] = d ? d.rev : 0; return d ? d.data : null; };
+    const subs = {};
+    async function poll() {
+      const paths = Object.keys(subs); if (!paths.length) return;
+      let now; try { now = await rpc('hub_doc_revs', { p_paths: paths }); } catch (e) { return; }
+      for (const p of paths) if ((now[p] || 0) !== (rev[p] || 0)) { const d = await getOne(p).catch(() => undefined); if (d !== undefined) subs[p].forEach(cb => cb(d)); }
+    }
+    setInterval(poll, 15000);
+    return {
+      name: 'Shopify OS database (Supabase)', user: () => email || '',
+      get: getOne,
+      tx: async (p, fn) => {
+        for (let i = 0; i < 8; i++) {
+          const cur = await getOne(p), r = fn(cur);
+          const res = await rpc('hub_doc_put', { p_path: p, p_rev: rev[p] || 0, p_data: r.data });
+          if (res && res.ok) { rev[p] = res.rev; return r.out; }
+          await new Promise(ok => setTimeout(ok, 150 * (i + 1)));      // someone saved in between: read again, merge again
+        }
+        throw new Error('the shared database stayed busy — try again');
+      },
+      listen: (p, cb) => { (subs[p] = subs[p] || []).push(cb); getOne(p).then(cb, e => console.warn('Shopify hub: cannot read', p, '—', e.message)); },
+    };
+  }
   /* For testing only (?fakefs=1): the same calls, kept in this browser's localStorage, shared between windows of it. */
   function fakeFs() {
     const K = p => 'fakefs:' + p, read = p => parse(localStorage.getItem(K(p))), subs = {};
@@ -2628,7 +2669,7 @@ window.HUB_SYNC = (function () {
       tx: async (p, fn) => { const r = fn(read(p)); localStorage.setItem(K(p), JSON.stringify(r.data)); tell(p); return r.out; },
       listen: (p, cb) => { (subs[p] = subs[p] || []).push(cb); setTimeout(() => cb(read(p))); } };
   }
-  return { make, firebaseFs, fakeFs };
+  return { make, firebaseFs, supabaseFs, fakeFs };
 })();
 
 /* THE HUB ON THE TEST SITE — start it, and answer the page's /api/... calls with the server's own api(). */
@@ -2675,8 +2716,10 @@ window.HUB_SYNC = (function () {
   const ready = (async () => {
     let sync = null;
     const cfg = window.SHUB_FIREBASE, fake = /[?&]fakefs=1\b/.test(location.search);
-    if (cfg || fake) {
-      try { sync = HUB_SYNC.make(fake ? HUB_SYNC.fakeFs() : await HUB_SYNC.firebaseFs(cfg)); }
+    /* Inside the ERP's Shopify pages: the ERP hands over the Shopify OS database (Supabase) and the person's sign-in. */
+    let sb = null; try { sb = window.parent !== window && window.parent.SHOS ? window.parent.SHOS : null; } catch (e) { /* another site */ }
+    if (sb || cfg || fake) {
+      try { sync = HUB_SYNC.make(fake ? HUB_SYNC.fakeFs() : sb ? await HUB_SYNC.supabaseFs(sb) : await HUB_SYNC.firebaseFs(cfg)); }
       catch (e) { HUB_WEB.syncError = 'The shared database could not be opened (' + (e && e.message) + ') — working in this browser only.'; console.warn('Shopify hub:', HUB_WEB.syncError); }
     }
     if (sync) {

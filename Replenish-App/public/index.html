@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <!-- ================================================================================================
-     GENERATED FILE. DO NOT READ OR EDIT THE CODE HERE — it is the 172 files of src/ joined into one page.
+     GENERATED FILE. DO NOT READ OR EDIT THE CODE HERE — it is the 171 files of src/ joined into one page.
      The real, grouped source: Replenish-App/src/   (map and workflow: src/README.md)
        src/index.html   page markup        src/styles.css   stylesheet        src/app/ORDER   join order
        src/app/<group>/ the code, by group: core, replenishment, masters, production, vendors, orders, shopify, flow, dashboard, people-pay, inventory, reports, shared, meera
@@ -77347,49 +77347,105 @@ mobBuild();
  * GROUP: src/app/shopify/
  * #################################################################################################### */
 /* ============================== FILE: src/app/shopify/shopify-hub-local.js ============================== */
-/* ================= SHOPIFY HUB — LOCAL TEST PAGE (2026-10-23) =================
+/* ================= SHOPIFY · SALES / SHIPPING / PRODUCTION — TEST PAGES (2026-11-02) =================
  *
- * Ravi, 23 Oct: "integrate this in my ERP locally … make an extra page just to check the things". The new Shopify
- * section runs from Ridhihome/shopify-hub (its own small backend on http://localhost:8790). This file puts it inside
- * the ERP as one more page under the Shopify menu — "Shopify hub (test)" — shown in a frame.
+ * Ravi, 2 Nov: three Shopify pages, one per team — Sales, Shipping, Production — identical to the Shopify hub, in the
+ * ERP's look, nothing repeated between them, data in Supabase. They replace "Shopify hub (test)" and "Shopify OS (test)".
+ * Each menu item opens the hub (public/shopify-hub/, made by Ridhihome/shopify-hub/tools/build-web.js) in one frame, as
+ * ?page=sales|shipping|production: the hub then shows only that team's tabs and filters.
  *
- * ONLY ON THE LOCAL PAGE AND THE TEST ERP. Everything below runs only when the page is opened from localhost
- * (VS Code button 1) or from the test ERP (ravikumar7357.github.io, Ravi 23 Oct: "push this to test"). On the real
- * ERP it does nothing at all: no menu item, no page. Either way the frame shows the hub running on the computer
- * the page is opened on (localhost:8790) — on the test ERP, Chrome asks once to allow the local network.
+ * ONLY ON THE LOCAL PAGE AND THE TEST ERP. On the real ERP this file does nothing at all: no menu items, no page.
  *
- * SELF-CONTAINED ON PURPOSE. The menu item and the page are made here, at load, instead of being added to
- * src/index.html and nav.js: prod-test counts the menu's links and nav.js keeps fixed maps of every page, and a
- * test page must not change either. showTab is wrapped so it knows this one extra page; every other page opens
- * exactly as before. Remove this file (and its line in ORDER) and nothing of it is left.
+ * THE SHARED DATA (Supabase): window.SHOS gives the hub the Shopify OS database's address, its publishable key and the
+ * signed-in person's Firebase sign-in (the ERP's own: no second password). The database checks the person on every call
+ * (shopify-os/supabase/26 and 28). Where the database is: Firestore config/shopifyos { url, key } when an admin has put it
+ * there, else the Connection box on this page (kept in this browser). A secret key is refused.
  *
- * NOTHING TO START (Ravi, 26 Oct: "why i have to start shopify hub … just upload this to test site"). The hub now
- * also comes as plain files beside this page (public/shopify-hub/, made by Ridhihome/shopify-hub/tools/build-web.js):
- * its server code runs inside the frame and keeps its data in that browser. That copy is used whenever it is there;
- * the hub on this computer (localhost:8790) only when it is not.
+ * SHOPIFY through the Pricing API, read only, exactly as before: the hub asks, this page reads ?shopify=orders for both
+ * stores with the signed-in person's access and hands the orders over, with the ERP's own stock figures. Writes to Shopify
+ * and real MCF stay behind the test ERP's switches (build-test-erp.js), which are off.
+ *
+ * SELF-CONTAINED ON PURPOSE: the menu items and the page are made here, showTab is wrapped for these pages only. Remove
+ * this file (and its line in ORDER) and nothing of it is left.
  */
 const SHUB_ON = typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1|\[::1\]|ravikumar7357\.github\.io)$/.test(location.hostname);
 const SHUB_WEB = SHUB_ON ? new URL('shopify-hub/index.html', location.href).href : '';
 const SHUB_LOCAL = 'http://localhost:8790/';
 let SHUB_URL = SHUB_WEB;
+const SHUB_PAGES = [['sales', 'Sales'], ['shipping', 'Shipping'], ['production', 'Production']];
+let SHUB_PAGE = 'shipping';
 if (SHUB_ON && $('secShopify') && $('paneShop')) {
-  const link = document.createElement('a');
-  link.id = 'tabShub'; link.className = 'nav'; link.href = '#shub';
-  link.innerHTML = 'Shopify hub (test) <span class="navbadge" style="background:#7c3aed">TEST</span>';
-  $('secShopify').appendChild(link);
+  const links = {};
+  SHUB_PAGES.forEach(([k, name]) => {
+    const a = document.createElement('a');
+    a.id = 'tabShub_' + k; a.className = 'nav'; a.href = '#shub-' + k;
+    a.innerHTML = `Shopify · ${name} <span class="navbadge" style="background:#7c3aed">TEST</span>`;
+    $('secShopify').appendChild(a);
+    links[k] = a;
+  });
 
   const pane = document.createElement('div');
   pane.id = 'paneShub'; pane.className = 'hide';
   pane.innerHTML = `<div class="card" style="padding:12px 16px;display:flex;gap:12px;align-items:center;flex-wrap:wrap">
-      <span style="font-weight:700">Shopify hub</span>
-      <span class="muted" style="font-size:12.5px">Test · Shopify read through the Pricing API · kept in this browser · nothing is saved to the ERP or sent to Shopify</span>
+      <span style="font-weight:700" id="shubName">Shopify</span>
+      <span class="muted" style="font-size:12.5px">Test · shared by the team in the Shopify OS database · Shopify read through the Pricing API · nothing is sent to Shopify or Amazon</span>
       <span id="shubState" class="muted" style="font-size:12.5px;margin-left:auto"></span>
+      <button type="button" class="ghost" id="shosSetup" style="padding:7px 13px;font-size:12.5px">Connection</button>
       <button type="button" class="ghost" id="shubReload" style="padding:7px 13px;font-size:12.5px">Reload</button>
     </div>
-    <div id="shubDown" class="warn hide" style="margin-bottom:12px">The Shopify hub could not be opened: this copy of the ERP has no
+    <div id="shosForm" class="card hide" style="padding:14px 16px;display:grid;gap:8px;max-width:640px">
+      <b>Connect this browser to the Shopify OS database</b>
+      <span class="muted" style="font-size:12.5px">Supabase → Project Settings → API Keys. Use the <b>publishable</b> key (starts with sb_publishable_). Never the secret key.</span>
+      <input id="shosUrl" placeholder="https://xxxx.supabase.co" autocomplete="off" spellcheck="false">
+      <input id="shosKey" placeholder="sb_publishable_…" autocomplete="off" spellcheck="false">
+      <div style="display:flex;gap:8px;align-items:center"><button type="button" id="shosSave">Save in this browser</button><span id="shosFormMsg" class="muted" style="font-size:12.5px"></span></div>
+    </div>
+    <div id="shubDown" class="warn hide" style="margin-bottom:12px">The Shopify pages could not be opened: this copy of the ERP has no
       shopify-hub folder, and no hub is running on this computer. Run <b>Ridhihome\\shopify-hub\\start-hub.cmd</b>, then press Reload.</div>
-    <iframe id="shubFrame" title="Shopify hub" style="width:100%;height:calc(100vh - 150px);min-height:560px;border:0;border-radius:18px;background:var(--bg)"></iframe>`;
+    <iframe id="shubFrame" title="Shopify" style="width:100%;height:calc(100vh - 150px);min-height:560px;border:0;border-radius:18px;background:var(--bg)"></iframe>`;
   $('paneShop').after(pane);
+
+  /* ---------------- the Shopify OS database (Supabase) ---------------- */
+  let SHOS_CFG = null;
+  const shosUrlOk = u => /^https:\/\/[a-z0-9-]+\.supabase\.co\/?$/i.test(String(u || '').trim());
+  /* Only a key that can do no more than the browser may: sb_publishable_…, or an old-style JWT whose role is anon. */
+  function shosKeyOk(k) {
+    k = String(k || '').trim();
+    if (/^sb_publishable_[A-Za-z0-9_-]{10,}$/.test(k)) return true;
+    if (/^sb_secret_/.test(k)) return false;
+    const p = k.split('.');
+    if (p.length !== 3) return false;
+    try { return JSON.parse(atob(p[1].replace(/-/g, '+').replace(/_/g, '/'))).role === 'anon'; } catch (e) { return false; }
+  }
+  async function shosConfig() {
+    if (SHOS_CFG) return SHOS_CFG;
+    try {
+      const s = await getDoc(doc(db, 'config', 'shopifyos'));
+      const d = s.exists() ? s.data() : null;
+      if (d && shosUrlOk(d.url) && shosKeyOk(d.key)) return (SHOS_CFG = { url: d.url.trim(), key: d.key.trim(), from: 'ERP settings' });
+    } catch (e) { /* not readable for this account: the browser's own setting below */ }
+    try {
+      const l = JSON.parse(localStorage.getItem('shos_cfg') || 'null');
+      if (l && shosUrlOk(l.url) && shosKeyOk(l.key)) return (SHOS_CFG = { url: l.url, key: l.key, from: 'this browser' });
+    } catch (e) { /* nothing saved */ }
+    $('shosForm').classList.remove('hide');
+    throw new Error('the Shopify OS database is not connected in this browser yet (Connection)');
+  }
+  $('shosSetup').onclick = () => $('shosForm').classList.toggle('hide');
+  $('shosSave').onclick = () => {
+    const url = $('shosUrl').value.trim().replace(/\/+$/, ''), key = $('shosKey').value.trim();
+    if (!shosUrlOk(url)) { $('shosFormMsg').textContent = 'The address should look like https://xxxx.supabase.co'; return; }
+    if (/^sb_secret_/.test(key)) { $('shosFormMsg').textContent = 'That is the SECRET key. Never put it in a browser: use the publishable one.'; return; }
+    if (!shosKeyOk(key)) { $('shosFormMsg').textContent = 'That does not look like the publishable key (sb_publishable_…).'; return; }
+    try { localStorage.setItem('shos_cfg', JSON.stringify({ url, key })); } catch (e) { $('shosFormMsg').textContent = 'This browser would not save it.'; return; }
+    SHOS_CFG = null; $('shosKey').value = ''; $('shosForm').classList.add('hide'); shubLoad(true);
+  };
+  /* What the hub frame (same site) takes from this page: the database, and who is signed in. */
+  window.SHOS = {
+    config: shosConfig,
+    async token() { const u = auth.currentUser; if (!u) throw new Error('Sign in to the ERP first.'); return u.getIdToken(); },
+    async email() { return (auth.currentUser && auth.currentUser.email) || ''; },
+  };
 
   /* Which hub: the copy beside this page if it is there, else the one on this computer. For the local one a cross-site
    * read is not allowed, but whether the request goes through at all is enough. */
@@ -77399,20 +77455,24 @@ if (SHUB_ON && $('secShopify') && $('paneShop')) {
     if (up) SHUB_URL = SHUB_LOCAL;
     return up;
   }
+  let shubShown = '';
   async function shubLoad(force) {
     const up = await shubCheck();
     $('shubDown').classList.toggle('hide', up);
     $('shubFrame').classList.toggle('hide', !up);
-    $('shubState').textContent = !up ? 'Hub not found' : SHUB_URL === SHUB_WEB ? 'Hub ready' : 'Hub on this computer';
-    if (up && (force || !$('shubFrame').src)) $('shubFrame').src = SHUB_URL + '?embed=1#orders';
+    $('shubName').textContent = 'Shopify · ' + (SHUB_PAGES.find(p => p[0] === SHUB_PAGE) || ['', ''])[1];
+    let db = 'kept in this browser only';
+    try { const c = await shosConfig(); db = 'shared database (' + c.from + ')'; } catch (e) { db = e.message; }
+    $('shubState').textContent = !up ? 'Hub not found' : (SHUB_URL === SHUB_WEB ? 'Ready' : 'Hub on this computer') + ' · ' + db;
+    if (up && (force || shubShown !== SHUB_PAGE)) { shubShown = SHUB_PAGE; $('shubFrame').src = SHUB_URL + '?embed=1&page=' + SHUB_PAGE + '#orders'; }
   }
   $('shubReload').onclick = () => shubLoad(true);
 
   /* Shopify through the Pricing API (Ravi, 26 Oct: "pricing api has shopify access also … make this read that access").
-   * The hub on this computer has no ERP keys; this page reads ?shopify=orders for both stores — the same read the
-   * Shopify tab makes, with the signed-in user's access — and hands the orders to the hub frame. Read only: nothing is
-   * written to Shopify from here. When the frame loads it is told the ERP can do this, and the orders are sent once;
-   * after that the hub's "Fetch orders" asks for them again. Messages go only to, and are taken only from, the hub. */
+   * The hub has no ERP keys; this page reads ?shopify=orders for both stores — the same read the Shopify tab makes, with
+   * the signed-in user's access — and hands the orders to the hub frame. Read only. When the frame loads it is told the
+   * ERP can do this, and the orders are sent once; after that the hub's "Fetch orders" asks for them again. Messages go
+   * only to, and are taken only from, the hub. */
   const shubOrigin = () => new URL(SHUB_URL).origin;
   let shubBusy = false;
   /* `want` = { Ridhi: [order ids], CPC: [...] }: the orders the hub is still working on. They are read again by id (any
@@ -77525,185 +77585,34 @@ if (SHUB_ON && $('secShopify') && $('paneShop')) {
     }
   });
 
-  /* The one extra page: showTab opens it itself, and hands every other page to the real showTab. */
+  /* The three pages: showTab opens them itself (one pane, the frame told which page), and hands every other page to the
+   * real showTab. Keys: shub-sales, shub-shipping, shub-production. */
+  const isShub = w => /^shub-(sales|shipping|production)$/.test(String(w || ''));
   const showTabReal = showTab;
   showTab = function (which) {
-    if (which !== 'shub') {
-      pane.classList.add('hide'); link.classList.remove('on');
+    if (!isShub(which)) {
+      pane.classList.add('hide'); Object.values(links).forEach(l => l.classList.remove('on'));
       return showTabReal(which);
     }
+    SHUB_PAGE = which.slice(5);
+    const name = (SHUB_PAGES.find(p => p[0] === SHUB_PAGE) || ['', ''])[1];
     document.querySelectorAll('[id^="pane"]').forEach(el => el.classList.toggle('hide', el !== pane));
     document.querySelectorAll('.side a.nav.on').forEach(el => el.classList.remove('on'));
-    link.classList.add('on');
-    if (TAB_NOW && TAB_NOW !== 'shub' && typeof tabShed === 'function') tabShed(TAB_NOW);
-    TAB_NOW = 'shub';
-    $('pageTitle').textContent = 'Shopify hub (test)';
-    try { document.title = 'Shopify hub (test) · Ridhi Home & Living'; if (location.hash !== '#shub') history.pushState(null, '', '#shub'); } catch (e) { /* only the address */ }
+    links[SHUB_PAGE].classList.add('on');
+    if (TAB_NOW && !isShub(TAB_NOW) && typeof tabShed === 'function') tabShed(TAB_NOW);
+    TAB_NOW = which;
+    $('pageTitle').textContent = 'Shopify · ' + name + ' (test)';
+    try { document.title = 'Shopify · ' + name + ' (test) · Ridhi Home & Living'; if (location.hash !== '#' + which) history.pushState(null, '', '#' + which); } catch (e) { /* only the address */ }
     if (typeof navOpenFor === 'function') navOpenFor('shop');
     if (typeof topbarSync === 'function') topbarSync();
     shubLoad(false);
   };
-  link.onclick = e => { e.preventDefault(); showTab('shub'); };
-  /* Back / Forward to #shub, which nav.js does not know. */
-  window.addEventListener('hashchange', () => { if (location.hash === '#shub' && TAB_NOW !== 'shub' && ME && ME.tabs) showTab('shub'); });
-}
-/* ============================== FILE: src/app/shopify/shopify-os-test.js ============================== */
-/* ================= SHOPIFY OS — OPS PAGE IN THE ERP, TEST ONLY (2026-11-02) =================
- *
- * Ravi, 02 Nov: "do everything we can right now … push them into test and don't change anything in main". One more page
- * under the Shopify menu — "Shopify OS (test)" — showing the Shopify OS ops page (public/shopify-os/ops.html, from
- * Ridhihome/shopify-os/hub/ops.html): problems board, morning numbers, route suggestions, production batches, feed status.
- *
- * ONLY ON THE LOCAL PAGE AND THE TEST ERP, exactly like "Shopify hub (test)": on the real ERP this file does nothing.
- *
- * SIGN-IN: the ERP's own. The page asks this file for the signed-in person's Firebase ID token; Supabase trusts this
- * Firebase project (third-party auth), and every database function checks the person (verified email, on the Shopify OS
- * people list) before it reads or changes anything. No second password, no key with powers in the browser.
- *
- * WHERE THE DATABASE IS: Firestore config/shopifyos { url, key } when an admin has put it there, else the box on this
- * page (saved in this browser). key = Supabase's PUBLISHABLE key (made to be public). A secret key is refused.
- *
- * STOCK (step F): stock() reads FBA (what Amazon will ship today, per account) and India sellable stock with the Shopify
- * Orders tab's own reads (loadShopStock / loadShopIndia / the Amazon SKU mapping) and hands the figures to the page,
- * which saves them in Shopify OS. Read only on the ERP side: nothing in the ERP, Shopify or Amazon is changed.
- *
- * SELF-CONTAINED ON PURPOSE (same reasons as shopify-hub-local.js): the menu item and pane are made here, showTab is
- * wrapped for this one page. Remove this file (and its line in ORDER) and nothing of it is left.
- */
-const SHOS_ON = typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1|\[::1\]|ravikumar7357\.github\.io)$/.test(location.hostname);
-if (SHOS_ON && $('secShopify') && $('paneShop')) {
-  const link = document.createElement('a');
-  link.id = 'tabShos'; link.className = 'nav'; link.href = '#shos';
-  link.innerHTML = 'Shopify OS (test) <span class="navbadge" style="background:#0f7a5f">TEST</span>';
-  $('secShopify').appendChild(link);
-
-  const pane = document.createElement('div');
-  pane.id = 'paneShos'; pane.className = 'hide';
-  pane.innerHTML = `<div class="card" style="padding:12px 16px;display:flex;gap:12px;align-items:center;flex-wrap:wrap">
-      <span style="font-weight:700">Shopify OS</span>
-      <span class="muted" style="font-size:12.5px">Test · alerts, morning numbers, routes, batches · signed in with your ERP account · nothing is sent to Shopify or Amazon</span>
-      <span id="shosState" class="muted" style="font-size:12.5px;margin-left:auto"></span>
-      <button type="button" class="ghost" id="shosSetup" style="padding:7px 13px;font-size:12.5px">Connection</button>
-      <button type="button" class="ghost" id="shosReload" style="padding:7px 13px;font-size:12.5px">Reload</button>
-    </div>
-    <div id="shosForm" class="card hide" style="padding:14px 16px;display:grid;gap:8px;max-width:640px">
-      <b>Connect this browser to the Shopify OS database</b>
-      <span class="muted" style="font-size:12.5px">Supabase → Project Settings → API Keys. Use the <b>publishable</b> key (starts with sb_publishable_). Never the secret key.</span>
-      <input id="shosUrl" placeholder="https://xxxx.supabase.co" autocomplete="off" spellcheck="false">
-      <input id="shosKey" placeholder="sb_publishable_…" autocomplete="off" spellcheck="false">
-      <div style="display:flex;gap:8px;align-items:center"><button type="button" id="shosSave">Save in this browser</button><span id="shosFormMsg" class="muted" style="font-size:12.5px"></span></div>
-    </div>
-    <iframe id="shosFrame" title="Shopify OS" style="width:100%;height:calc(100vh - 150px);min-height:560px;border:0;border-radius:18px;background:var(--bg)"></iframe>`;
-  $('paneShop').after(pane);
-
-  /* ---------------- where the database is ---------------- */
-  let SHOS_CFG = null;
-  const shosUrlOk = u => /^https:\/\/[a-z0-9-]+\.supabase\.co\/?$/i.test(String(u || '').trim());
-  /* Only a key that can do no more than the browser may: sb_publishable_…, or an old-style JWT whose role is anon. */
-  function shosKeyOk(k) {
-    k = String(k || '').trim();
-    if (/^sb_publishable_[A-Za-z0-9_-]{10,}$/.test(k)) return true;
-    if (/^sb_secret_/.test(k)) return false;
-    const p = k.split('.');
-    if (p.length !== 3) return false;
-    try { return JSON.parse(atob(p[1].replace(/-/g, '+').replace(/_/g, '/'))).role === 'anon'; } catch (e) { return false; }
-  }
-  async function shosConfig() {
-    if (SHOS_CFG) return SHOS_CFG;
-    try {
-      const s = await getDoc(doc(db, 'config', 'shopifyos'));
-      const d = s.exists() ? s.data() : null;
-      if (d && shosUrlOk(d.url) && shosKeyOk(d.key)) return (SHOS_CFG = { url: d.url.trim(), key: d.key.trim(), from: 'ERP settings' });
-    } catch (e) { /* not readable for this account: the browser's own setting below */ }
-    try {
-      const l = JSON.parse(localStorage.getItem('shos_cfg') || 'null');
-      if (l && shosUrlOk(l.url) && shosKeyOk(l.key)) return (SHOS_CFG = { url: l.url, key: l.key, from: 'this browser' });
-    } catch (e) { /* nothing saved */ }
-    $('shosForm').classList.remove('hide');
-    throw new Error('Shopify OS is not connected in this browser yet: fill in the box above (Connection).');
-  }
-  $('shosSetup').onclick = () => $('shosForm').classList.toggle('hide');
-  $('shosSave').onclick = () => {
-    const url = $('shosUrl').value.trim().replace(/\/+$/, ''), key = $('shosKey').value.trim();
-    if (!shosUrlOk(url)) { $('shosFormMsg').textContent = 'The address should look like https://xxxx.supabase.co'; return; }
-    if (/^sb_secret_/.test(key)) { $('shosFormMsg').textContent = 'That is the SECRET key. Never put it in a browser: use the publishable one.'; return; }
-    if (!shosKeyOk(key)) { $('shosFormMsg').textContent = 'That does not look like the publishable key (sb_publishable_…).'; return; }
-    try { localStorage.setItem('shos_cfg', JSON.stringify({ url, key })); } catch (e) { $('shosFormMsg').textContent = 'This browser would not save it.'; return; }
-    SHOS_CFG = null; $('shosKey').value = ''; $('shosForm').classList.add('hide'); shosLoad(true);
-  };
-
-  /* ---------------- what the ops page may ask this page for ---------------- */
-  const shosDate = v => { const d = v instanceof Date ? v : v ? new Date(v) : null; return d && !isNaN(d) ? d : null; };
-  window.SHOS = {
-    config: shosConfig,
-    /* The signed-in person's Firebase ID token (refreshed by Firebase when it is old). */
-    async token() {
-      const u = auth.currentUser;
-      if (!u) throw new Error('Sign in to the ERP first.');
-      return u.getIdToken();
-    },
-    /* list = [{ store: 'RBP' | 'CPC', sku }] → { rows: [{ store, sku, fba, india }], as_of, why }. Reads only. */
-    async stock(list) {
-      await Promise.all([
-        typeof loadShopStock === 'function' ? loadShopStock().catch(() => {}) : null,
-        typeof loadShopIndia === 'function' ? loadShopIndia().catch(() => {}) : null,
-        typeof loadShopSku === 'function' && !Object.keys(SHOP_SKU || {}).length ? loadShopSku().catch(() => {}) : null,
-      ]);
-      const up = s => String(s == null ? '' : s).trim().toUpperCase();
-      const rows = []; let fbaHit = 0, indHit = 0;
-      (Array.isArray(list) ? list : []).forEach(x => {
-        const brand = x.store === 'CPC' ? 'CPC' : 'SP', sku = up(x.sku);
-        if (!sku || !/^(RBP|CPC)$/.test(x.store)) return;
-        let amz = ''; try { amz = up(soAmzSku(sku)); } catch (e) { /* no mapping */ }
-        const by = (SHOP_STOCK_BY && SHOP_STOCK_BY[brand]) || {};
-        const f = by[sku] != null ? by[sku] : amz && by[amz] != null ? by[amz] : null;
-        const read = !!(SHOP_STOCK_AT && SHOP_STOCK_AT[brand]);
-        const ind = typeof soIndiaOf === 'function' ? soIndiaOf(sku) : null;
-        const fba = f != null ? Number(f) || 0 : read ? 0 : null;        // account read, SKU not in it = 0
-        const india = ind ? Number(ind[0]) || 0 : null;                  // sellable sets, not loose pieces
-        if (fba == null && india == null) return;
-        if (f != null) fbaHit++;
-        if (ind && Number(ind[0])) indHit++;
-        rows.push({ store: x.store, sku: String(x.sku).trim(), fba, india });
-      });
-      /* The OLDEST of the readings used, so a newer reading already in Shopify OS is never replaced by this one. */
-      const times = [SHOP_STOCK_AT && SHOP_STOCK_AT.SP, SHOP_STOCK_AT && SHOP_STOCK_AT.CPC, SHOP_INDIA_AT].map(shosDate).filter(Boolean);
-      const asOf = times.length ? new Date(Math.min(...times.map(d => d.getTime()))) : new Date();
-      const fmt = d => d ? d.toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'not read';
-      const why = `FBA Ridhi ${fmt(shosDate(SHOP_STOCK_AT && SHOP_STOCK_AT.SP))} · CPC ${fmt(shosDate(SHOP_STOCK_AT && SHOP_STOCK_AT.CPC))} · India ${fmt(shosDate(SHOP_INDIA_AT))}`
-        + ` · ${fbaHit} SKUs found in FBA, ${indHit} with India stock, of ${(list || []).length} still to ship`
-        + (SHOP_INDIA_ERR ? ` · India not read: ${SHOP_INDIA_ERR}` : '');
-      return { rows, as_of: asOf.toISOString(), why };
-    },
-  };
-
-  function shosLoad(force) {
-    const fr = $('shosFrame');
-    shosConfig().then(c => { $('shosState').textContent = 'Database: ' + c.from; }, e => { $('shosState').textContent = e.message; });
-    if (force || !fr.src) fr.src = new URL('shopify-os/ops.html', location.href).href + '?v=' + Date.now();
-  }
-  $('shosReload').onclick = () => shosLoad(true);
-
-  /* The one extra page: showTab opens it itself, and hands every other page to the showTab it found. */
-  const showTabBefore = showTab;
-  showTab = function (which) {
-    if (which !== 'shos') {
-      pane.classList.add('hide'); link.classList.remove('on');
-      return showTabBefore(which);
-    }
-    document.querySelectorAll('[id^="pane"]').forEach(el => el.classList.toggle('hide', el !== pane));
-    document.querySelectorAll('.side a.nav.on').forEach(el => el.classList.remove('on'));
-    link.classList.add('on');
-    if (TAB_NOW && TAB_NOW !== 'shos' && typeof tabShed === 'function') tabShed(TAB_NOW);
-    TAB_NOW = 'shos';
-    $('pageTitle').textContent = 'Shopify OS (test)';
-    try { document.title = 'Shopify OS (test) · Ridhi Home & Living'; if (location.hash !== '#shos') history.pushState(null, '', '#shos'); } catch (e) { /* only the address */ }
-    if (typeof navOpenFor === 'function') navOpenFor('shop');
-    if (typeof topbarSync === 'function') topbarSync();
-    shosLoad(false);
-  };
-  link.onclick = e => { e.preventDefault(); showTab('shos'); };
-  window.addEventListener('hashchange', () => { if (location.hash === '#shos' && TAB_NOW !== 'shos' && ME && ME.tabs) showTab('shos'); });
+  Object.entries(links).forEach(([k, a]) => { a.onclick = e => { e.preventDefault(); showTab('shub-' + k); }; });
+  /* Back / Forward to #shub-…, which nav.js does not know (and the old #shub link goes to Shipping). */
+  window.addEventListener('hashchange', () => {
+    const h = location.hash === '#shub' ? 'shub-shipping' : location.hash.slice(1);
+    if (isShub(h) && TAB_NOW !== h && ME && ME.tabs) showTab(h);
+  });
 }
 
 /* ####################################################################################################

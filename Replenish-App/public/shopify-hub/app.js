@@ -175,10 +175,21 @@ const daysLeft = s => s.sold ? Math.floor(s.shop / (s.sold / 30)) : 999;
 const lowStock = () => S.stock.filter(s => (!STORE || s.store === STORE) && daysLeft(s) < 14);
 /* No Production or Shipments page (Ravi, 24 Oct: "move this into every order page, like Shopify does"): where a part
  * is in production and where its parcel is are shown on its order; the Orders filters list them across orders. */
-const TABS = [['orders', 'Orders', 'orders'], ['csb', 'Dispatch', 'csb'], ['returns', 'Returns', 'ret'], ['stock', 'Stock', 'stock'], ['setup', 'Setup', 'setup']];
+const TABS_ALL = [['orders', 'Orders', 'orders'], ['csb', 'Dispatch', 'csb'], ['returns', 'Returns', 'ret'], ['stock', 'Stock', 'stock'], ['setup', 'Setup', 'setup']];
+/* THE THREE TEAM PAGES (Ravi, 2 Nov: Sales, Shipping, Production — "nothing should be repeated"). Opened as
+ * ?page=sales|shipping|production (the ERP's three Shopify menu items), the hub shows only that team's tabs and that
+ * team's order filters; every filter and tab belongs to exactly one page. No page = the whole hub, as before. */
+const PAGES = {
+  sales:      { name: 'Sales',      tabs: ['orders', 'returns'], buckets: ['act', 'done'],                     first: '' },
+  shipping:   { name: 'Shipping',   tabs: ['orders', 'csb'],     buckets: ['decide', 'ready', 'carrier', 'late'], first: 'decide' },
+  production: { name: 'Production', tabs: ['orders'],            buckets: ['make'],                             first: 'make' },
+};
+const PAGE = PAGES[new URLSearchParams(location.search).get('page')] || null;
+const TABS = PAGE ? TABS_ALL.filter(t => PAGE.tabs.includes(t[0])) : TABS_ALL;
+if (PAGE) document.documentElement.dataset.team = PAGE.name.toLowerCase();
 function counts() {
   return {
-    orders: vis().filter(o => needsAction(o)).length,
+    orders: !PAGE || PAGE.name === 'Sales' ? vis().filter(o => needsAction(o)).length : 0,   // "needs action" is Sales' count
     returns: allRet().filter(x => J.retAction(x.r)).length,
     stock: lowStock().length,
     csb: allPk().filter(x => x.pk.booked && !x.pk.route).length || CD.ships.length,
@@ -193,9 +204,13 @@ function figures() {
   const tod = on(a, a + DAY), yes = on(y, a);
   const u = l => l.reduce((s, o) => s + units(o), 0);
   const waiting = allPk().filter(x => x.pk.src === 'make' && phaseOf(x.pk) === 0).reduce((s, x) => s + x.pk.items.length, 0);
-  return [[usd(tod.reduce((s, o) => s + orderVal(o), 0)), `Today · ${tod.length} orders · ${u(tod)} units`],
-    [usd(yes.reduce((s, o) => s + orderVal(o), 0)), `Yesterday · ${yes.length} orders · ${u(yes)} units`],
-    [waiting, 'waiting on production'], [SHOWN.n, `of ${vis().length} orders shown`]];
+  const money = [[usd(tod.reduce((s, o) => s + orderVal(o), 0)), `Today · ${tod.length} orders · ${u(tod)} units`],
+    [usd(yes.reduce((s, o) => s + orderVal(o), 0)), `Yesterday · ${yes.length} orders · ${u(yes)} units`]];
+  /* Each figure on one page only: sales money on Sales, production waiting on Production. */
+  if (PAGE && PAGE.name === 'Sales') return money.concat([[SHOWN.n, `of ${vis().length} orders shown`]]);
+  if (PAGE && PAGE.name === 'Production') return [[waiting, 'lines waiting on production'], [SHOWN.n, 'orders shown']];
+  if (PAGE) return [[readyOrders().length, 'orders ready to ship'], [SHOWN.n, 'orders shown']];
+  return money.concat([[waiting, 'waiting on production'], [SHOWN.n, `of ${vis().length} orders shown`]]);
 }
 function shell(active) {
   const c = counts();
@@ -203,7 +218,10 @@ function shell(active) {
   const tab = (t, ic) => `<a href="#${t[0]}" class="${active === t[0] ? 'on' : ''}">${ic ? ICON[t[2]] : ''}${t[1]}${c[t[0]] ? `<b>${c[t[0]]}</b>` : ''}</a>`;
   $('tabs').innerHTML = TABS.map(t => tab(t)).join('');
   $('bottom').innerHTML = TABS.filter(t => t[0] !== 'setup').map(t => tab(t, 1)).join('');
-  $('ptitle').textContent = (TABS.find(t => t[0] === active) || TABS[0])[1];
+  $('ptitle').textContent = (PAGE ? PAGE.name + ' · ' : '') + (TABS.find(t => t[0] === active) || TABS[0])[1];
+  /* The Bucket (lines not routed yet) is Shipping's work: shown on Shipping and on the whole hub only. */
+  const notShip = !!PAGE && PAGE.name !== 'Shipping';
+  $('bucketBtn').style.display = $('bulkBtn').style.display = notShip ? 'none' : '';
   const seg = [['', 'Both'], ['Ridhi', 'Ridhi'], ['CPC', 'CPC']].map(s => `<button class="segbtn ${STORE === s[0] ? 'on' : ''}" type="button" data-s="${s[0]}">${s[1]}</button>`).join('');
   $('storeBand').innerHTML = seg; $('storeBar').innerHTML = seg;
   $('bucketN').textContent = vis().reduce((s, o) => s + undecided(o).length, 0);
@@ -349,16 +367,21 @@ const BUCKETS = [
 const inBucket = (o, b) => b[0] === 'act' ? needsAction(o) : b[0] === 'decide' ? undecided(o).length > 0 : o.pkgs.some(b[2]);
 function pageOrders() {
   const match = o => !Q || [o.no, o.cust.n, o.cust.e, ...o.items.map(i => i.sku + ' ' + i.t), ...o.pkgs.flatMap(p => p.trk)].join(' ').toLowerCase().includes(Q);
-  const b = BUCKETS.find(x => x[0] === FILTER);
+  /* On a team page only that team's filters; one is always chosen, except on Sales where "All" is the order search. */
+  const BK = PAGE ? BUCKETS.filter(x => PAGE.buckets.includes(x[0])) : BUCKETS;
+  if (PAGE && !PAGE.buckets.includes(FILTER) && !(FILTER === '' && PAGE.first === '')) FILTER = PAGE.first;
+  const b = BK.find(x => x[0] === FILTER);
   const urg = o => (nextAction(o) || { urg: -1 }).urg;
   const rows = vis().filter(match).filter(o => !b || inBucket(o, b)).sort((x, y) => (FILTER === 'act' ? urg(y) - urg(x) : 0) || y.at - x.at);
   SHOWN.n = rows.length;
   SEL = new Set([...SEL].filter(no => rows.some(o => o.no === no)));
   const cnt = x => vis().filter(o => inBucket(o, x)).length;
-  const steps = `<div class="s-steps" id="pipe"><button class="s-st ${!FILTER ? 'on' : ''}" type="button" data-f="">All <b>${vis().length}</b></button>${BUCKETS.map(x => { const n = cnt(x); return `<button class="s-st ${n ? '' : 'zero'} ${x[0] === 'act' && n ? 'act' : ''} ${FILTER === x[0] ? 'on' : ''}" type="button" data-f="${x[0]}">${x[1]} <b>${n}</b></button>`; }).join('')}
-    ${FILTER || Q ? `<span class="s-kept">Showing ${esc([b && b[1], Q && '“' + Q + '”'].filter(Boolean).join(' · '))} <button type="button" data-showall>Show all</button></span>` : ''}</div>`;
+  const allChip = !PAGE || PAGE.first === '' ? `<button class="s-st ${!FILTER ? 'on' : ''}" type="button" data-f="">All <b>${vis().length}</b></button>` : '';
+  const steps = `<div class="s-steps" id="pipe">${allChip}${BK.map(x => { const n = cnt(x); return `<button class="s-st ${n ? '' : 'zero'} ${x[0] === 'act' && n ? 'act' : ''} ${FILTER === x[0] ? 'on' : ''}" type="button" data-f="${x[0]}">${x[1]} <b>${n}</b></button>`; }).join('')}
+    ${(FILTER && (!PAGE || PAGE.first === '')) || Q ? `<span class="s-kept">Showing ${esc([b && b[1], Q && '“' + Q + '”'].filter(Boolean).join(' · '))} <button type="button" data-showall>Show all</button></span>` : ''}</div>`;
   /* With orders ticked, the things done to many at once. Every one does real work. */
-  const bulk = SEL.size ? `<div class="s-bulk" id="bulk"><b>${SEL.size} selected</b>
+  /* Shipping's bulk jobs (files, tracking, pick sheets) only on Shipping and on the whole hub. */
+  const bulk = SEL.size && (!PAGE || PAGE.name === 'Shipping') ? `<div class="s-bulk" id="bulk"><b>${SEL.size} selected</b>
       <button class="s-btn" type="button" data-bulk="ship">Ship selected (DHL / FedEx files)</button>
       <button class="s-btn ghost" type="button" data-bulk="check">Check tracking now</button>
       <button class="s-btn ghost" type="button" data-bulk="print">Print pick sheets</button>
@@ -1461,6 +1484,8 @@ function render() {
   const h = (location.hash || '#orders').slice(1), [r, a] = h.split('/').map(decodeURIComponent);
   if (r === 'track') return location.replace('#order/' + encodeURIComponent(a));
   if (r === 'production' || r === 'shipments') { FILTER = r === 'production' ? 'make' : 'carrier'; return location.replace('#orders'); }
+  /* A team page opens only its own tabs; anything else goes to its Orders. */
+  if (PAGE && r !== 'order' && r !== 'orders' && !PAGE.tabs.includes(r)) return location.replace('#orders');
   let html, tab = r;
   if (r === 'order') { html = pageOrders() + pageOrder(a); tab = 'orders'; }   // as live: the order opens over the list
   else if (r === 'returns') html = pageReturns();
