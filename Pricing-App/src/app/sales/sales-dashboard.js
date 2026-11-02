@@ -1,19 +1,38 @@
+/* ================= SALES · SALES DASHBOARD: today, this month and this year against last year, from the nightly cache =================
+ * Screens: Sales Dashboard (ensureSales runs when the tab opens — core/nav.js). Also home to ensureTiktok and
+ * ensureCarousel, which only point the TikTok Toolkit and Carousel Builder iframes at their pages, and to the
+ * date helpers sdToday and sdShift, which the ads screens and the other sales screens use too.
+ * Does: paints the cards (today, yesterday, last 7 days, MTD, YTD, where this month lands), the period and
+ * monthly comparison tables, two SVG charts and the free date range, for one channel (Ridhi, CPC, Shopify)
+ * or all three. The figures come from the nightly cache, kept in localStorage so a reopen paints with no
+ * network; a live top-up then overwrites the last few days (today first, then the month so far). Every date
+ * boundary is the marketplace's day (PT).
+ * Main functions: ensureSales, sdTopUp, sdSum, sdSeries, renderSales, sdRange, sdChartDaily, sdChartMonthly;
+ * helpers sdMsg, sdLoadLocal, sdSaveLocal, sdDefaults, sdPT, sdToday, sdShift, soStamp, sdLastYear, sdMoney,
+ * sdNum, sdShort, sdDelta; ensureTiktok, ensureCarousel. */
+
 /* ================= SALES DASHBOARD =================
  * Reads the nightly cache and nothing else — no scanning, no waiting. Three channels side by side:
  * the two Amazon accounts and Shopify, each stored as [sales, units, orders] per day, so "All" is a
  * plain sum and no part of this file needs a special case for Shopify.
  */
 let SD = { at: '', d: {} };            // { SP: {date:[sales,units,orders]}, CPC: {…}, SHOP: {…} }
-let SD_CH = 'SP';
+let SD_CH = 'SP';                      // the channel on view: SP (Ridhi), CPC, SHOP or ALL
 // State several functions here share, kept at the top of the section rather than beside the one
 // function that fills it — a `let` read above its own line is a ReferenceError that kills the whole
 // module, and this file has already been taken down that way twice.
-let SD_LIVE = '', SD_LIVE_MS = 0;
+let SD_LIVE = '';        // when the live top-up last ran, as the backend stamps it (shown beside "Last synced")
+let SD_LIVE_MS = 0;      // the same moment as a timestamp, for the ten-minute freshness check
 // How long each leg of the load actually took, printed beside the stamps. Guessing at which of the
 // three round trips is the slow one costs a deploy per guess; the screen can just say.
 let SD_MS = {};
 
-function sdMsg(t, bad) { const m = $('sdMsg'); m.textContent = t || ''; m.className = bad ? 'err' : 'muted'; }
+// The message line above the cards: grey normally, red when bad is true; blank text clears it.
+function sdMsg(text, bad) {
+  const msg = $('sdMsg');
+  msg.textContent = text || '';
+  msg.className = bad ? 'err' : 'muted';
+}
 
 /* Re-opening the tab must not re-read a month of orders. The top-up is a server read of the tail of
  * both Orders books plus a walk through Shopify — seconds, not milliseconds — and nothing on this
@@ -32,17 +51,22 @@ let SD_BUSY = null;
  * than it is. */
 const SD_LS = 'sd.daily.v1';
 
+// Read the saved copy from localStorage into SD, SD_LIVE and SD_LIVE_MS; false when there is none or it is
+// unusable.
 function sdLoadLocal() {
   try {
-    const o = JSON.parse(localStorage.getItem(SD_LS) || 'null');
-    if (!o || !o.at || !o.d) return false;
-    SD = { at: o.at, d: o.d };
-    SD_LIVE = o.live || '';
-    SD_LIVE_MS = Number(o.liveMs) || 0;
+    const saved = JSON.parse(localStorage.getItem(SD_LS) || 'null');
+    if (!saved || !saved.at || !saved.d) return false;
+    SD = { at: saved.at, d: saved.d };
+    SD_LIVE = saved.live || '';
+    SD_LIVE_MS = Number(saved.liveMs) || 0;
     return true;
-  } catch (e) { return false; }
+  } catch (e) {
+    return false;
+  }
 }
 
+// Save SD and the live stamps to localStorage (quietly skipped when storage is not available).
 function sdSaveLocal() {
   try {
     localStorage.setItem(SD_LS, JSON.stringify({ at: SD.at, d: SD.d, live: SD_LIVE, liveMs: SD_LIVE_MS }));
@@ -52,23 +76,30 @@ function sdSaveLocal() {
 /** Sensible default range: this month so far. Set BEFORE any render, since renderSales reads them. */
 function sdDefaults() {
   if ($('sdFrom').value) return;
-  const n = new Date();
-  $('sdFrom').value = new Date(Date.UTC(n.getFullYear(), n.getMonth(), 1)).toISOString().slice(0, 10);
+  const now = new Date();
+  $('sdFrom').value = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1)).toISOString().slice(0, 10);
   $('sdTo').value = sdToday();
 }
 
+// Opening the tab: paint from the saved copy (or fetch the history once), then, behind the painted screen,
+// check whether the nightly run moved on and top up the recent days.
 async function ensureSales() {
   // PAINT FIRST, FETCH AFTER. Nothing on this screen is worth a blank page: last night's figures are
   // true for every day but the last few, and the line above always says what is still on its way.
+  // --- 1. paint what is already here ---
   const fromDisk = !SD.at && sdLoadLocal();
-  if (SD.at) { sdDefaults(); renderSales(); }
+  if (SD.at) {
+    sdDefaults();
+    renderSales();
+  }
 
+  // --- 2. nothing saved yet: fetch the nightly history now ---
   if (!SD.at) {
     sdMsg('Loading…');
     const t0 = Date.now();
     try {
-      const r = await baCall({ cache: 'daily' });
-      SD = { at: (r.data && r.data.at) || '', d: (r.data && r.data.d) || {} };
+      const reply = await baCall({ cache: 'daily' });
+      SD = { at: (reply.data && reply.data.at) || '', d: (reply.data && reply.data.d) || {} };
       SD_MS.history = Date.now() - t0;
       sdMsg('');
       sdSaveLocal();
@@ -79,6 +110,7 @@ async function ensureSales() {
     renderSales();
   }
 
+  // --- 3. behind the painted screen: a newer nightly run?, then the live top-up ---
   if (SD_BUSY) return;                                  // already working from an earlier visit
   SD_BUSY = (async () => {
     try {
@@ -87,16 +119,19 @@ async function ensureSales() {
       let replaced = false;
       if (fromDisk) {
         try {
-          const r = await baCall({ cache: 'daily' });
-          const at = (r.data && r.data.at) || '';
+          const reply = await baCall({ cache: 'daily' });
+          const at = (reply.data && reply.data.at) || '';
           if (at && at !== SD.at) {
-            SD = { at, d: (r.data && r.data.d) || {} };
+            SD = { at, d: (reply.data && reply.data.d) || {} };
             replaced = true;
             renderSales();
           }
         } catch (e) { /* the saved copy is still good; the top-up below is what matters */ }
       }
-      if (!replaced && SD_LIVE_MS && Date.now() - SD_LIVE_MS < SD_FRESH_MS) { sdSaveLocal(); return; }
+      if (!replaced && SD_LIVE_MS && Date.now() - SD_LIVE_MS < SD_FRESH_MS) {
+        sdSaveLocal();
+        return;
+      }
 
       // Today first: it is the figure being watched, and three days is a cheap read. Then the rest
       // of the month, which is the part that keeps MTD honest but costs the most.
@@ -104,7 +139,9 @@ async function ensureSales() {
       const full = Math.min(40, Math.max(8, Number(sdToday().slice(8, 10)) + 7));
       if (full > 3) await sdTopUp(full, 'Today is live — correcting the month so far…');
       sdSaveLocal();
-    } finally { SD_BUSY = null; }
+    } finally {
+      SD_BUSY = null;
+    }
   })();
 }
 
@@ -131,16 +168,18 @@ async function sdTopUp(days, note) {
     // by the date rather than fixed, so it is one day's work on the 2nd and a fortnight's on the
     // 15th, and it stops at the backend's 40-day ceiling.
     const want = days || Math.min(40, Math.max(8, Number(sdToday().slice(8, 10)) + 7));
-    const r = await baCall({ daily: 'recent', days: want });
-    Object.entries(r.d || {}).forEach(([ch, byDay]) => {
+    const reply = await baCall({ daily: 'recent', days: want });
+    Object.entries(reply.d || {}).forEach(([ch, byDay]) => {
       if (ch === 'shopError') return;
       const into = SD.d[ch] || (SD.d[ch] = {});
-      Object.entries(byDay).forEach(([day, v]) => { into[day] = v; });
+      Object.entries(byDay).forEach(([day, figures]) => {
+        into[day] = figures;
+      });
     });
-    SD_LIVE = r.at || '';
+    SD_LIVE = reply.at || '';
     SD_LIVE_MS = Date.now();
     SD_MS[want <= 3 ? 'today' : 'month'] = Date.now() - t0;
-    sdMsg(r.d && r.d.shopError ? 'Live top-up done, but Shopify did not answer: ' + r.d.shopError : '');
+    sdMsg(reply.d && reply.d.shopError ? 'Live top-up done, but Shopify did not answer: ' + reply.d.shopError : '');
   } catch (e) {
     // The cached figures are still on screen and still true for everything but today, so this is a
     // note rather than a failure.
@@ -153,9 +192,16 @@ async function sdTopUp(days, note) {
  * Every boundary is worked out in the MARKETPLACE's day (PT), not the viewer's. Someone opening
  * this in India at 9am is looking at a US trading day that has barely started, and "today" has to
  * mean the same thing here as it does in Seller Central. */
+// A Date whose year / month / day / hour fields read as the marketplace's (Pacific) clock for that moment.
 const sdPT = ms => new Date(new Date(ms).toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }));
-function sdToday() { const d = sdPT(Date.now()); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
-const sdShift = (iso, days) => new Date(new Date(iso + 'T00:00:00Z').getTime() + days * 86400000).toISOString().slice(0, 10);
+// Today's date in PT, as "YYYY-MM-DD".
+function sdToday() {
+  const date = sdPT(Date.now());
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+// An ISO date moved by `days` days (negative = earlier).
+const sdShift = (iso, days) =>
+  new Date(new Date(iso + 'T00:00:00Z').getTime() + days * 86400000).toISOString().slice(0, 10);
 /**
  * A timestamp in the MARKETPLACE's day, not UTC.
  *
@@ -167,9 +213,9 @@ const sdShift = (iso, days) => new Date(new Date(iso + 'T00:00:00Z').getTime() +
  * Same rule as the Amazon side and the Shopify side: pick ONE zone for a day and never mix.
  */
 function soStamp() {
-  const d = sdPT(Date.now());
-  const p = n => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+  const date = sdPT(Date.now());
+  const pad = n => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
 /** Same calendar day one year earlier — used for every "LY" column. */
@@ -178,42 +224,50 @@ const sdLastYear = iso => (Number(iso.slice(0, 4)) - 1) + iso.slice(4);
 /** Sum [sales, units, orders] across the chosen channel(s) between two dates, inclusive. */
 function sdSum(from, to) {
   const chans = SD_CH === 'ALL' ? ['SP', 'CPC', 'SHOP'] : [SD_CH];
-  const t = [0, 0, 0];
-  chans.forEach(c => {
-    const m = SD.d[c] || {};
-    Object.keys(m).forEach(day => {
+  const total = [0, 0, 0];
+  chans.forEach(chan => {
+    const byDay = SD.d[chan] || {};
+    Object.keys(byDay).forEach(day => {
       if (day < from || day > to) return;
-      const v = m[day];
-      t[0] += v[0] || 0; t[1] += v[1] || 0; t[2] += v[2] || 0;
+      const figures = byDay[day];
+      total[0] += figures[0] || 0;
+      total[1] += figures[1] || 0;
+      total[2] += figures[2] || 0;
     });
   });
-  t[0] = Math.round(t[0] * 100) / 100;
-  return t;
+  total[0] = Math.round(total[0] * 100) / 100;
+  return total;
 }
 /** Daily series for the chosen channel(s), oldest first. */
+// → [{ d: 'YYYY-MM-DD', v: sales }], the channels added together per day.
 function sdSeries(from, to) {
   const chans = SD_CH === 'ALL' ? ['SP', 'CPC', 'SHOP'] : [SD_CH];
   const by = {};
-  chans.forEach(c => Object.entries(SD.d[c] || {}).forEach(([day, v]) => {
+  chans.forEach(chan => Object.entries(SD.d[chan] || {}).forEach(([day, figures]) => {
     if (day < from || day > to) return;
-    by[day] = (by[day] || 0) + (v[0] || 0);
+    by[day] = (by[day] || 0) + (figures[0] || 0);
   }));
   return Object.keys(by).sort().map(d => ({ d, v: by[d] }));
 }
 
-const sdMoney = v => (v == null ? '—' : '$' + Math.round(v).toLocaleString('en-US'));
-const sdNum = v => (v == null ? '—' : Math.round(v).toLocaleString('en-US'));
+// Whole dollars with thousands separators ("$12,345"), and a plain count, both "—" for nothing.
+const sdMoney = value => (value == null ? '—' : '$' + Math.round(value).toLocaleString('en-US'));
+const sdNum = value => (value == null ? '—' : Math.round(value).toLocaleString('en-US'));
 /** "2026-08-04" → "4 Aug". Used where a card has to name the window it actually measured. */
 const sdShort = iso => String(Number(iso.slice(8, 10))) + ' ' + W_MON[Number(iso.slice(5, 7)) - 1];
+// The change from `was` to `now` as a coloured "▲12.3%" / "▼4.5%" span; "—" when there is no baseline.
 function sdDelta(now, was) {
   // No baseline means no percentage. Showing +100% against a zero last year reads as growth when it
   // really means "there is nothing to compare with".
   if (!was) return '<span class="muted">—</span>';
-  const p = (now - was) / was * 100;
-  return `<span class="${p < 0 ? 'sd-dn' : 'sd-up'}">${p < 0 ? '▼' : '▲'}${Math.abs(p).toFixed(1)}%</span>`;
+  const change = (now - was) / was * 100;
+  return `<span class="${change < 0 ? 'sd-dn' : 'sd-up'}">${change < 0 ? '▼' : '▲'}${Math.abs(change).toFixed(1)}%</span>`;
 }
 
+// Draw the whole screen from SD for the channel on view: cards, the two comparison tables, both charts, the
+// date range, and the "Last synced" stamps.
 function renderSales() {
+  // --- the dates every window is built from ---
   const today = sdToday();
   const yest = sdShift(today, -1);
   const d = new Date(today + 'T00:00:00Z');
@@ -235,15 +289,23 @@ function renderSales() {
    * percentage answers "how are we doing against last year" rather than "how far through today is
    * it". The dollar figure and the percentage are deliberately measured over different windows here,
    * and the card says which. */
-  const sevenTo = yest, sevenFrom = sdShift(yest, -6);
+  const sevenTo = yest;
+  const sevenFrom = sdShift(yest, -6);
 
-  const T = sdSum(today, today), Y = sdSum(yest, yest);
-  const W = sdSum(sevenFrom, sevenTo), Wl = sdSum(sdLastYear(sevenFrom), sdLastYear(sevenTo));
-  const M = sdSum(monthStart, today), Yr = sdSum(yearStart, today);
+  // --- the sums: each is [sales, units, orders] ---
+  const T = sdSum(today, today);                                  // today
+  const Y = sdSum(yest, yest);                                    // yesterday
+  const W = sdSum(sevenFrom, sevenTo);                            // the last 7 complete days
+  const Wl = sdSum(sdLastYear(sevenFrom), sdLastYear(sevenTo));   // … the same 7 days last year
+  const M = sdSum(monthStart, today);                             // month to date
+  const Yr = sdSum(yearStart, today);                             // year to date
   // Complete-day basis for the two "vs LY" percentages.
-  const Mc = sdSum(monthStart, yest), Ml = sdSum(sdLastYear(monthStart), sdLastYear(yest));
-  const Yrc = sdSum(yearStart, yest), Yrl = sdSum(sdLastYear(yearStart), sdLastYear(yest));
+  const Mc = sdSum(monthStart, yest);                             // month to date without today
+  const Ml = sdSum(sdLastYear(monthStart), sdLastYear(yest));     // … last year
+  const Yrc = sdSum(yearStart, yest);                             // year to date without today
+  const Yrl = sdSum(sdLastYear(yearStart), sdLastYear(yest));     // … last year
 
+  // --- the cards ---
   $('sdToday').textContent = sdMoney(T[0]);
   $('sdYest').textContent = sdMoney(Y[0]);
   $('sd7').textContent = sdMoney(W[0]);
@@ -284,12 +346,16 @@ function renderSales() {
   const prevWhole = sdSum(pm + '-01', pm + '-' + pmDays)[0];
   // Clamped: the 31st of a month compared against a February that stops at 28 would quietly measure
   // a shorter window on one side and call the difference growth.
-  const prevSame = doneDays > 0 ? sdSum(pm + '-01', pm + '-' + String(Math.min(doneDays, pmDays)).padStart(2, '0'))[0] : 0;
+  const prevSame = doneDays > 0
+    ? sdSum(pm + '-01', pm + '-' + String(Math.min(doneDays, pmDays)).padStart(2, '0'))[0]
+    : 0;
 
   const pmName = W_MON[pmM - 1];
   $('sdProj').textContent = rate7 ? sdMoney(projected) : '—';
   $('sdProjp').innerHTML = rate7
-    ? (prevWhole ? sdDelta(projected, prevWhole) + ' vs ' + pmName : '<span class="muted">no ' + pmName + ' to compare</span>')
+    ? (prevWhole
+        ? sdDelta(projected, prevWhole) + ' vs ' + pmName
+        : '<span class="muted">no ' + pmName + ' to compare</span>')
       + (prevSame ? ` · ${doneDays}d ${sdDelta(mtdDone, prevSame)}` : '')
     : '<span class="muted">—</span>';
 
@@ -305,7 +371,8 @@ function renderSales() {
   $('sdPeriodBody').innerHTML = row('Sales', 0, sdMoney) + row('Quantity', 1, sdNum) + row('Orders', 2, sdNum);
 
   /* Monthly comparison — this year's months against the same months last year. */
-  const yr = today.slice(0, 4), lyr = String(Number(yr) - 1);
+  const yr = today.slice(0, 4);
+  const lyr = String(Number(yr) - 1);
   const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   let mrows = '';
   for (let m = 0; m < 12; m++) {
@@ -314,60 +381,82 @@ function renderSales() {
     const ty = sdSum(`${yr}-${mm}-01`, last)[0];
     const ly = sdSum(`${lyr}-${mm}-01`, `${lyr}-${mm}-31`)[0];
     if (!ty && !ly) continue;                       // a month neither year has is just noise
-    mrows += `<tr><td>${MON[m]}</td><td>${sdMoney(ty)}</td><td class="sd-ly">${sdMoney(ly)}</td><td>${sdDelta(ty, ly)}</td></tr>`;
+    mrows += `<tr><td>${MON[m]}</td><td>${sdMoney(ty)}</td><td class="sd-ly">${sdMoney(ly)}</td>`
+      + `<td>${sdDelta(ty, ly)}</td></tr>`;
   }
   $('sdMonthlyBody').innerHTML = mrows || '<tr><td colspan="4" class="muted">Nothing yet.</td></tr>';
 
+  // --- charts, the date range, and the "Last synced" line ---
   sdChartDaily(sdSeries(sdShift(today, -89), today));
   sdChartMonthly(yr, lyr);
   sdRange();
   // Two timestamps, because they mean different things: the nightly run owns the history, the
   // top-up owns today. One combined "last synced" would hide which half is stale.
-  const legs = Object.entries(SD_MS).map(([k, v]) => `${k} ${(v / 1000).toFixed(1)}s`).join(', ');
+  const legs = Object.entries(SD_MS).map(([leg, took]) => `${leg} ${(took / 1000).toFixed(1)}s`).join(', ');
   $('sdSynced').textContent = (SD.at || '—') + (SD_LIVE ? ` · today refreshed ${SD_LIVE}` : '')
     + (legs ? ` · read: ${legs}` : ' · read from this browser');
 }
 
+// The free date range at the bottom: sales, quantity, items and the average per item between the two dates.
 function sdRange() {
-  const f = $('sdFrom').value, t = $('sdTo').value;
-  if (!f || !t) return;
-  const v = sdSum(f, t);
-  $('sdrSales').textContent = sdMoney(v[0]);
-  $('sdrQty').textContent = sdNum(v[1]);
-  $('sdrItems').textContent = sdNum(v[2]);
+  const from = $('sdFrom').value;
+  const to = $('sdTo').value;
+  if (!from || !to) return;
+  const sum = sdSum(from, to);
+  $('sdrSales').textContent = sdMoney(sum[0]);
+  $('sdrQty').textContent = sdNum(sum[1]);
+  $('sdrItems').textContent = sdNum(sum[2]);
   // Per ITEM, not per order — the label says item, and dividing by orders would quietly answer a
   // different question on a screen where both numbers are sitting side by side.
-  $('sdrAvg').textContent = v[1] ? '$' + (v[0] / v[1]).toFixed(2) : '—';
+  $('sdrAvg').textContent = sum[1] ? '$' + (sum[0] / sum[1]).toFixed(2) : '—';
 }
 
 /* ---------- charts, drawn as SVG so the page stays free of external scripts ---------- */
+// The daily sales line (with a filled area) for a series of { d, v } points: grid lines with $ labels, up to
+// 8 date labels, and an invisible circle per point that carries the hover title.
 function sdChartDaily(pts) {
-  if (!pts.length) { $('sdChartDaily').innerHTML = '<div class="muted" style="padding:20px">No data yet.</div>'; return; }
+  if (!pts.length) {
+    $('sdChartDaily').innerHTML = '<div class="muted" style="padding:20px">No data yet.</div>';
+    return;
+  }
+  // --- geometry ---
   const W = 640, H = 220, padL = 56, padR = 10, padT = 10, padB = 26;
   const iw = W - padL - padR, ih = H - padT - padB;
-  const max = Math.max(1, ...pts.map(p => p.v));
+  const max = Math.max(1, ...pts.map(pt => pt.v));
   const x = i => padL + (pts.length === 1 ? iw / 2 : (i / (pts.length - 1)) * iw);
   const y = v => padT + ih - (v / max) * ih;
+  // --- the line and the area under it ---
   let line = '', area = `M${padL} ${padT + ih}`;
-  pts.forEach((p, i) => { line += (i ? ' L' : 'M') + x(i) + ' ' + y(p.v); area += ` L${x(i)} ${y(p.v)}`; });
+  pts.forEach((pt, i) => {
+    line += (i ? ' L' : 'M') + x(i) + ' ' + y(pt.v);
+    area += ` L${x(i)} ${y(pt.v)}`;
+  });
   area += ` L${x(pts.length - 1)} ${padT + ih} Z`;
-  let g = '';
+  // --- the SVG: grid, line, date labels, hover titles ---
+  let svg = '';
   for (let i = 0; i <= 4; i++) {
     const yy = padT + ih - (i / 4) * ih;
-    g += `<line x1="${padL}" y1="${yy}" x2="${W - padR}" y2="${yy}" stroke="#eef2f6"/>`
-      + `<text x="${padL - 8}" y="${yy + 4}" text-anchor="end" font-size="10" fill="#94a3b8">$${Math.round(max * i / 4).toLocaleString('en-US')}</text>`;
+    svg += `<line x1="${padL}" y1="${yy}" x2="${W - padR}" y2="${yy}" stroke="#eef2f6"/>`
+      + `<text x="${padL - 8}" y="${yy + 4}" text-anchor="end" font-size="10" fill="#94a3b8">`
+      + `$${Math.round(max * i / 4).toLocaleString('en-US')}</text>`;
   }
-  g += `<path d="${area}" fill="#a855f7" opacity=".12"/><path d="${line}" fill="none" stroke="#7c3aed" stroke-width="1.8"/>`;
+  svg += `<path d="${area}" fill="#a855f7" opacity=".12"/>`
+    + `<path d="${line}" fill="none" stroke="#7c3aed" stroke-width="1.8"/>`;
   const step = Math.ceil(pts.length / 8);
-  pts.forEach((p, i) => {
+  pts.forEach((pt, i) => {
     if (i % step) return;
-    g += `<text x="${x(i)}" y="${H - 8}" text-anchor="middle" font-size="10" fill="#64748b">${p.d.slice(5)}</text>`;
+    svg += `<text x="${x(i)}" y="${H - 8}" text-anchor="middle" font-size="10" fill="#64748b">${pt.d.slice(5)}</text>`;
   });
-  pts.forEach((p, i) => { g += `<circle cx="${x(i)}" cy="${y(p.v)}" r="6" fill="transparent"><title>${p.d} — $${Math.round(p.v).toLocaleString('en-US')}</title></circle>`; });
-  $('sdChartDaily').innerHTML = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto">${g}</svg>`;
+  pts.forEach((pt, i) => {
+    svg += `<circle cx="${x(i)}" cy="${y(pt.v)}" r="6" fill="transparent">`
+      + `<title>${pt.d} — $${Math.round(pt.v).toLocaleString('en-US')}</title></circle>`;
+  });
+  $('sdChartDaily').innerHTML = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto">${svg}</svg>`;
 }
 
+// The monthly bars: this year (teal) beside last year (orange) for each month, with a legend.
 function sdChartMonthly(yr, lyr) {
+  // --- the twelve pairs of sums ---
   const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   const ty = [], ly = [];
   for (let m = 0; m < 12; m++) {
@@ -376,52 +465,68 @@ function sdChartMonthly(yr, lyr) {
     ty.push(sdSum(`${yr}-${mm}-01`, last)[0]);
     ly.push(sdSum(`${lyr}-${mm}-01`, `${lyr}-${mm}-31`)[0]);
   }
+  // --- geometry ---
   const max = Math.max(1, ...ty, ...ly);
   const W = 640, H = 220, padL = 56, padR = 10, padT = 10, padB = 30;
   const iw = W - padL - padR, ih = H - padT - padB;
   const slot = iw / 12, bw = Math.min(14, slot * 0.33);
   const y = v => padT + ih - (v / max) * ih;
-  let g = '';
+  // --- the SVG: grid, bars with hover titles, month labels, legend ---
+  let svg = '';
   for (let i = 0; i <= 4; i++) {
     const yy = padT + ih - (i / 4) * ih;
-    g += `<line x1="${padL}" y1="${yy}" x2="${W - padR}" y2="${yy}" stroke="#eef2f6"/>`
-      + `<text x="${padL - 8}" y="${yy + 4}" text-anchor="end" font-size="10" fill="#94a3b8">$${Math.round(max * i / 4).toLocaleString('en-US')}</text>`;
+    svg += `<line x1="${padL}" y1="${yy}" x2="${W - padR}" y2="${yy}" stroke="#eef2f6"/>`
+      + `<text x="${padL - 8}" y="${yy + 4}" text-anchor="end" font-size="10" fill="#94a3b8">`
+      + `$${Math.round(max * i / 4).toLocaleString('en-US')}</text>`;
   }
   for (let m = 0; m < 12; m++) {
     const cx = padL + slot * m + slot / 2;
-    g += `<rect x="${cx - bw - 1}" y="${y(ty[m])}" width="${bw}" height="${Math.max(0, padT + ih - y(ty[m]))}" fill="#0d9488" rx="1.5"><title>${MON[m]} ${yr} — $${Math.round(ty[m]).toLocaleString('en-US')}</title></rect>`
-      + `<rect x="${cx + 1}" y="${y(ly[m])}" width="${bw}" height="${Math.max(0, padT + ih - y(ly[m]))}" fill="#f97316" rx="1.5"><title>${MON[m]} ${lyr} — $${Math.round(ly[m]).toLocaleString('en-US')}</title></rect>`
+    svg += `<rect x="${cx - bw - 1}" y="${y(ty[m])}" width="${bw}" height="${Math.max(0, padT + ih - y(ty[m]))}" fill="#0d9488" rx="1.5">`
+      + `<title>${MON[m]} ${yr} — $${Math.round(ty[m]).toLocaleString('en-US')}</title></rect>`
+      + `<rect x="${cx + 1}" y="${y(ly[m])}" width="${bw}" height="${Math.max(0, padT + ih - y(ly[m]))}" fill="#f97316" rx="1.5">`
+      + `<title>${MON[m]} ${lyr} — $${Math.round(ly[m]).toLocaleString('en-US')}</title></rect>`
       + `<text x="${cx}" y="${H - 12}" text-anchor="middle" font-size="10" fill="#64748b">${MON[m]}</text>`;
   }
-  g += `<rect x="${padL}" y="${H - 8}" width="9" height="9" fill="#0d9488" rx="1"/><text x="${padL + 13}" y="${H - 1}" font-size="10" fill="#64748b">This Year</text>`
-    + `<rect x="${padL + 70}" y="${H - 8}" width="9" height="9" fill="#f97316" rx="1"/><text x="${padL + 83}" y="${H - 1}" font-size="10" fill="#64748b">Last Year</text>`;
-  $('sdChartMonthly').innerHTML = `<svg viewBox="0 0 ${W} ${H + 4}" style="width:100%;height:auto">${g}</svg>`;
+  svg += `<rect x="${padL}" y="${H - 8}" width="9" height="9" fill="#0d9488" rx="1"/>`
+    + `<text x="${padL + 13}" y="${H - 1}" font-size="10" fill="#64748b">This Year</text>`
+    + `<rect x="${padL + 70}" y="${H - 8}" width="9" height="9" fill="#f97316" rx="1"/>`
+    + `<text x="${padL + 83}" y="${H - 1}" font-size="10" fill="#64748b">Last Year</text>`;
+  $('sdChartMonthly').innerHTML = `<svg viewBox="0 0 ${W} ${H + 4}" style="width:100%;height:auto">${svg}</svg>`;
 }
 
+/* ---------- the controls ---------- */
+// The channel toggle (Ridhi / CPC / Shopify / All): mark the button pressed and redraw.
 $('sdBrand').addEventListener('click', e => {
-  const b = e.target.closest('[data-ch]'); if (!b) return;
-  SD_CH = b.dataset.ch;
-  [...$('sdBrand').querySelectorAll('button')].forEach(x => x.classList.toggle('on', x === b));
+  const btn = e.target.closest('[data-ch]');
+  if (!btn) return;
+  SD_CH = btn.dataset.ch;
+  [...$('sdBrand').querySelectorAll('button')].forEach(each => each.classList.toggle('on', each === btn));
   renderSales();
 });
+// Apply, for the free date range.
 $('sdApply').onclick = sdRange;
+// Refresh today: a forced live top-up of the last 7 days.
 $('sdRefresh').onclick = async () => {
-  const b = $('sdRefresh');
-  b.disabled = true; b.textContent = 'Refreshing…';
+  const btn = $('sdRefresh');
+  btn.disabled = true;
+  btn.textContent = 'Refreshing…';
   await sdTopUp(7);
   sdSaveLocal();                        // so the next open starts from what was just read
-  b.disabled = false; b.textContent = 'Refresh today';
+  btn.disabled = false;
+  btn.textContent = 'Refresh today';
 };
 
 /* Fetched only when somebody opens the tab. Nothing in there talks to the backend or to Firestore,
  * so there is no permission to check and nothing to load — which is why this is three lines rather
  * than an ensure() like the others. */
+// TikTok Toolkit: point its iframe at toolkit.html the first time the tab opens.
 function ensureTiktok() {
-  const f = $('tkFrame');
-  if (f && !f.src) f.src = 'toolkit.html';
+  const frame = $('tkFrame');
+  if (frame && !frame.src) frame.src = 'toolkit.html';
 }
+// Carousel Builder: point its iframe at carousel.html the first time the tab opens.
 function ensureCarousel() {
-  const f = $('carFrame');
-  if (f && !f.src) f.src = 'carousel.html';
+  const frame = $('carFrame');
+  if (frame && !frame.src) frame.src = 'carousel.html';
 }
 

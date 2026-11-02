@@ -1,3 +1,16 @@
+/* ================= SALES · PROFIT & MARGIN: what is left after a sale, per ASIN, over the last weeks =================
+ * Screens: Profit & Margin (ensureProfit runs when the tab opens — core/nav.js), its Cost model dialog and
+ * its Import costs dialog.
+ * Does: adds up units, sales and real ad spend per ASIN (or per parent) from the weekly cache for the weeks
+ * picked (pfRows), costs each row with the landed unit cost typed or imported for it and the model's
+ * percentages (pfMoney), and draws the KPI strip and the table (renderProfitKpis, renderProfit). A row
+ * without a unit cost gets no profit figure. Costs and the model live in one Firestore document,
+ * audit/costs (loadCosts, saveCosts); a cost is typed by clicking the Unit cost cell, or imported from a
+ * CSV (Download template, Choose CSV…, preview, Import), and the whole table exports as CSV.
+ * Main functions: ensureProfit, loadCosts, saveCosts, pfCostOf, pfMoney, pfWeeks, pfRows, renderProfitKpis,
+ * renderProfit, pfModelOpen, pfModelNote; the handlers of the cost click, the Cost model dialog, the Import
+ * costs dialog and Export. */
+
 /* ================= PROFIT & MARGIN =================
  *
  * What is actually left after a sale, per ASIN. Everything here comes from figures the app already
@@ -19,32 +32,39 @@
  * that strip says 3% for return loss and the sheet has never used it: every line computes return
  * loss as 10% of the LANDED cost. Taking the header at face value would have made every margin here
  * flatter than the sheet's by 7% of cost, and it would have looked perfectly reasonable. */
-const PF_DEFAULT_MODEL = { ref: 15, fba: 11, ret: 10, oh: 10, sal: 10 };
-let PF_MODEL = { ...PF_DEFAULT_MODEL };
+const PF_DEFAULT_MODEL = { ref: 15, fba: 11, ret: 10, oh: 10, sal: 10 };   // % of sales (ret: % of the landed cost)
+let PF_MODEL = { ...PF_DEFAULT_MODEL };   // the percentages in use, from audit/costs when saved there
 let COST = {};            // ASIN → { c: landed unit cost USD, note, at, by }
-let COST_AT = '';
-let PF_LOADED = false;
+let COST_AT = '';         // when the costs were last saved, "YYYY-MM-DD HH:MM" (UTC)
+let PF_LOADED = false;    // audit/costs has been read once
 let PF_EDIT = null;
 
-function pfMsg(t, bad) { const m = $('pfMsg'); m.textContent = t || ''; m.className = bad ? 'err' : 'muted'; }
+// The message line under the controls: grey normally, red when bad is true; blank text clears it.
+function pfMsg(text, bad) {
+  const msg = $('pfMsg');
+  msg.textContent = text || '';
+  msg.className = bad ? 'err' : 'muted';
+}
 
 /* ---------- storage ----------
  * One document. 3,600 ASINs at a cost and a short note is well inside Firestore's 1 MB, and it is
  * the ONLY copy of a number nothing can regenerate — so it is written whole, every time, rather
  * than patched field by field. */
+// Read audit/costs once into COST, COST_AT and PF_MODEL (the defaults stay when nothing is stored).
 async function loadCosts() {
   if (PF_LOADED) return;
   try {
     const snap = await getDoc(doc(db, 'audit', 'costs'));
     if (snap.exists()) {
-      const d = snap.data();
-      COST = d.c || {};
-      COST_AT = d.at || '';
-      if (d.model) PF_MODEL = { ...PF_DEFAULT_MODEL, ...d.model };
+      const data = snap.data();
+      COST = data.c || {};
+      COST_AT = data.at || '';
+      if (data.model) PF_MODEL = { ...PF_DEFAULT_MODEL, ...data.model };
     }
   } catch (e) { /* no access, or nothing stored yet — the tab says so when it draws */ }
   PF_LOADED = true;
 }
+// Write the whole of COST and the model to audit/costs, stamped with now and who saved it.
 async function saveCosts() {
   COST_AT = new Date().toISOString().slice(0, 16).replace('T', ' ');
   await setDoc(doc(db, 'audit', 'costs'), {
@@ -53,6 +73,7 @@ async function saveCosts() {
   });
 }
 
+// Opening the tab: load the parent names, the listings, the costs and the weekly cache, then draw.
 async function ensureProfit() {
   pfMsg('Loading…');
   await loadParentNames();
@@ -66,9 +87,9 @@ async function ensureProfit() {
 
 /** The landed unit cost recorded for an ASIN, or null. Never 0 — 0 is a cost somebody typed. */
 function pfCostOf(asin) {
-  const r = COST[asin];
-  const v = r && Number(r.c);
-  return (v > 0) ? v : null;
+  const rec = COST[asin];
+  const cost = rec && Number(rec.c);
+  return (cost > 0) ? cost : null;
 }
 
 /**
@@ -77,8 +98,10 @@ function pfCostOf(asin) {
  * Sales and ad spend are real. Referral, FBA, overhead and salary are the model's percentages of
  * sales; return loss is the model's percentage of the landed cost, exactly as the workbook has it.
  */
-function pfMoney(c, unitCost) {
-  const sales = c.rev || 0, units = c.u || 0, ads = c.spend || 0;
+function pfMoney(cell, unitCost) {
+  const sales = cell.rev || 0;
+  const units = cell.u || 0;
+  const ads = cell.spend || 0;
   if (!(unitCost > 0) || !units) return null;
   const cogs = unitCost * units;
   const referral = sales * PF_MODEL.ref / 100;
@@ -99,85 +122,108 @@ function pfMoney(c, unitCost) {
 
 /** The weeks being added up — the tail of the weekly cache, however many the picker asks for. */
 function pfWeeks() {
-  const n = Number($('pfWeeks').value) || 4;
-  return (WEEKLY.weeks.length ? WEEKLY.weeks : wWeeksList(26)).slice(-n);
+  const nWeeks = Number($('pfWeeks').value) || 4;
+  return (WEEKLY.weeks.length ? WEEKLY.weeks : wWeeksList(26)).slice(-nWeeks);
 }
 
+// The rows: one per ASIN (or per parent) with units, sales and ad spend over the weeks picked, its unit
+// cost and its money (m, from pfMoney — null when it has no cost), filtered and sorted as the controls say.
 function pfRows() {
+  // --- the controls ---
   const weeks = new Set(pfWeeks());
-  const brand = $('pfBrand').value, q = $('pfFilter').value.trim().toLowerCase();
+  const brand = $('pfBrand').value;
+  const search = $('pfFilter').value.trim().toLowerCase();
   const byParent = $('pfView').value === 'parent';
   const have = $('pfHave').value;
 
+  // --- add up the weekly cache per ASIN or per parent ---
   // Summed straight from WEEKLY.rows rather than through wRows(), because that one reads the PPC &
   // Organic tab's own brand and view pickers — this tab has its own, and sharing them would make
   // one tab silently change the other.
   const acc = new Map();
-  Object.entries(WEEKLY.rows).forEach(([asin, r]) => {
+  Object.entries(WEEKLY.rows).forEach(([asin, row]) => {
     const key = byParent ? wParentOf(asin) : asin;
-    let o = acc.get(key);
-    if (!o) {
-      o = { key, brand: r.brand || '', title: '', kids: 0, rev: 0, u: 0, spend: 0, costUnits: 0, costed: 0, kidsNoCost: 0 };
-      acc.set(key, o);
+    let entry = acc.get(key);
+    if (!entry) {
+      entry = {
+        key, brand: row.brand || '', title: '', kids: 0,
+        rev: 0, u: 0, spend: 0,
+        costUnits: 0, costed: 0, kidsNoCost: 0,
+      };
+      acc.set(key, entry);
     }
-    o.brand = o.brand || r.brand || '';
-    o.kids++;
-    if (!o.title) {
-      o.title = byParent
-        ? (PNAME[o.brand]?.[key]?.v || HEALTH[o.brand]?.parentNames?.[key] || (wTitle(asin) ? '~ ' + wTitle(asin) : ''))
+    entry.brand = entry.brand || row.brand || '';
+    entry.kids++;
+    if (!entry.title) {
+      entry.title = byParent
+        ? (PNAME[entry.brand]?.[key]?.v || HEALTH[entry.brand]?.parentNames?.[key]
+          || (wTitle(asin) ? '~ ' + wTitle(asin) : ''))
         : wTitle(asin);
     }
     let rev = 0, u = 0, spend = 0;
-    Object.entries(r.weeks || {}).forEach(([wk, c]) => {
+    Object.entries(row.weeks || {}).forEach(([wk, figures]) => {
       if (!weeks.has(wk)) return;
-      rev += c.rev || 0; u += c.u || 0; spend += c.spend || 0;
+      rev += figures.rev || 0;
+      u += figures.u || 0;
+      spend += figures.spend || 0;
     });
-    o.rev += rev; o.u += u; o.spend += spend;
+    entry.rev += rev;
+    entry.u += u;
+    entry.spend += spend;
     /* A PARENT IS COSTED CHILD BY CHILD. Two sizes of the same tablecloth do not cost the same, so
      * the parent's COGS is the sum of each child's own cost × that child's own units — and the
      * units belonging to children with no cost are counted separately, because a parent that is
      * half costed must not be drawn as if it were fully costed. */
-    const uc = pfCostOf(asin);
-    if (uc) { o.costUnits += u; o.costed += uc * u; }
-    else if (u) { o.kidsNoCost++; }
+    const cost = pfCostOf(asin);
+    if (cost) {
+      entry.costUnits += u;
+      entry.costed += cost * u;
+    } else if (u) {
+      entry.kidsNoCost++;
+    }
   });
 
-  let rows = [...acc.values()].map(o => {
+  // --- cost each row ---
+  let rows = [...acc.values()].map(entry => {
     // At child level the unit cost is the ASIN's own; at parent level it is the weighted average of
     // the children that HAVE one, which is the only average that means anything here.
     const unitCost = byParent
-      ? (o.costUnits > 0 ? o.costed / o.costUnits : null)
-      : pfCostOf(o.key);
+      ? (entry.costUnits > 0 ? entry.costed / entry.costUnits : null)
+      : pfCostOf(entry.key);
     // A parent with some children uncosted is costed on the units it CAN account for, and says so.
-    const cell = { rev: o.rev, u: byParent ? (o.costUnits || o.u) : o.u, spend: o.spend };
-    const m = pfMoney(byParent ? { ...cell, rev: o.rev } : cell, unitCost);
-    return { ...o, asin: o.key, unitCost, m, partial: byParent && o.kidsNoCost > 0 && o.costUnits > 0 };
+    const cell = { rev: entry.rev, u: byParent ? (entry.costUnits || entry.u) : entry.u, spend: entry.spend };
+    const m = pfMoney(byParent ? { ...cell, rev: entry.rev } : cell, unitCost);
+    return { ...entry, asin: entry.key, unitCost, m, partial: byParent && entry.kidsNoCost > 0 && entry.costUnits > 0 };
   });
 
-  if (brand !== 'ALL') rows = rows.filter(r => r.brand === brand);
-  if (q) rows = rows.filter(r => (r.asin + ' ' + r.title).toLowerCase().includes(q));
-  if (have === 'have') rows = rows.filter(r => r.m);
-  else if (have === 'none') rows = rows.filter(r => !r.m && r.rev > 0);
+  // --- filter and sort ---
+  if (brand !== 'ALL') rows = rows.filter(row => row.brand === brand);
+  if (search) rows = rows.filter(row => (row.asin + ' ' + row.title).toLowerCase().includes(search));
+  if (have === 'have') rows = rows.filter(row => row.m);
+  else if (have === 'none') rows = rows.filter(row => !row.m && row.rev > 0);
   // Biggest sellers first. Sorting by profit would bury the uncosted rows, which are the ones that
   // most need finding.
   rows.sort((a, b) => b.rev - a.rev);
   return rows;
 }
 
+// The KPI strip: the totals over the COSTED rows only, how much of the sales they cover, and a note when
+// that is not everything.
 function renderProfitKpis(rows) {
-  const money = v => (v < 0 ? '-$' : '$') + Math.round(Math.abs(v)).toLocaleString('en-US');
-  const costed = rows.filter(r => r.m);
-  const salesAll = rows.reduce((s, r) => s + r.rev, 0);
-  const salesCosted = costed.reduce((s, r) => s + r.m.sales, 0);
-  const profit = costed.reduce((s, r) => s + r.m.profit, 0);
-  const cogs = costed.reduce((s, r) => s + r.m.cogs, 0);
-  const ads = costed.reduce((s, r) => s + r.m.ads, 0);
+  const money = value => (value < 0 ? '-$' : '$') + Math.round(Math.abs(value)).toLocaleString('en-US');
+  const costed = rows.filter(row => row.m);
+  const salesAll = rows.reduce((acc, row) => acc + row.rev, 0);
+  const salesCosted = costed.reduce((acc, row) => acc + row.m.sales, 0);
+  const profit = costed.reduce((acc, row) => acc + row.m.profit, 0);
+  const cogs = costed.reduce((acc, row) => acc + row.m.cogs, 0);
+  const ads = costed.reduce((acc, row) => acc + row.m.ads, 0);
   const cover = salesAll > 0 ? salesCosted / salesAll * 100 : 0;
-  const tile = (label, val, colour) => `<div class="metric"><div class="v"${colour ? ` style="color:${colour}"` : ''}>${val}</div><div class="l">${label}</div></div>`;
-  const wk = pfWeeks();
+  const tile = (label, val, colour) => `<div class="metric"><div class="v"${colour ? ` style="color:${colour}"` : ''}>${val}</div>`
+    + `<div class="l">${label}</div></div>`;
+  const weeks = pfWeeks();
   $('pfKpis').innerHTML = `<div class="kpi" style="flex-basis:100%">
-    <div class="kpihead"><span class="kpiname">Profit — ${wk.length} week(s)</span>
-      <span class="kpiwhen">${wk.length ? wk[0] + ' → ' + wk[wk.length - 1] : 'no weekly data yet'}</span></div>
+    <div class="kpihead"><span class="kpiname">Profit — ${weeks.length} week(s)</span>
+      <span class="kpiwhen">${weeks.length ? weeks[0] + ' → ' + weeks[weeks.length - 1] : 'no weekly data yet'}</span></div>
     <div class="metrics">
       ${tile('Sales (costed rows)', money(salesCosted))}
       ${tile('COGS', money(cogs))}
@@ -193,49 +239,61 @@ function renderProfitKpis(rows) {
       not in them. Filter to <b>Missing a cost</b> to see what is left out; nothing is estimated on your behalf.</div>` : ''}`;
 }
 
+// Draw the screen: the KPI strip, the table (top 400 rows by sales) and the message line.
 function renderProfit() {
-  const esc = s => String(s == null ? '' : s).replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
-  const money = v => (v < 0 ? '-$' : '$') + Math.round(Math.abs(v)).toLocaleString('en-US');
-  const money2 = v => (v < 0 ? '-$' : '$') + Math.abs(v).toFixed(2);
+  // --- formatters ---
+  const esc = str => String(str == null ? '' : str)
+    .replace(/[<>&"]/g, ch => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[ch]));
+  const money = value => (value < 0 ? '-$' : '$') + Math.round(Math.abs(value)).toLocaleString('en-US');
+  const money2 = value => (value < 0 ? '-$' : '$') + Math.abs(value).toFixed(2);
+  // --- nothing to cost yet ---
   if (!WEEKLY.at && !Object.keys(WEEKLY.rows).length) {
     $('pfKpis').innerHTML = '';
     $('pfTable').innerHTML = '<tbody><tr><td class="muted" style="padding:14px">'
-      + 'No weekly sales data is cached yet. Open <b>PPC &amp; Organic</b> once and let it load — this tab costs the same figures.'
+      + 'No weekly sales data is cached yet. Open <b>PPC &amp; Organic</b> once and let it load — '
+      + 'this tab costs the same figures.'
       + '</td></tr></tbody>';
     return;
   }
+  // --- the rows, the KPIs ---
   const rows = pfRows();
   renderProfitKpis(rows);
 
+  // --- the table ---
   const head = '<thead><tr><th>ASIN</th><th>Product</th><th>Brand</th><th class="num">Units</th>'
     + '<th class="num">Sales</th><th class="num">Ad spend</th><th class="num">TACoS</th>'
     + '<th class="num">Unit cost</th><th class="num">COGS</th><th class="num">Fees (est.)</th>'
     + '<th class="num">Other (est.)</th><th class="num">Profit</th><th class="num">Margin</th>'
     + '<th class="num">ROI</th><th class="num">Per unit</th></tr></thead>';
 
-  const body = rows.slice(0, 400).map(r => {
-    const m = r.m;
-    const cell = v => `<td class="num">${v}</td>`;
-    const costCell = `<td class="num"><span class="pfcost" data-pf="${esc(r.asin)}" style="cursor:pointer;border-bottom:1px dashed var(--muted)"`
-      + ` title="${r.unitCost ? 'Landed cost of one unit. Click to change.' : 'No unit cost recorded — click to type one. Until then this row has no profit figure.'}">`
-      + `${r.unitCost ? money2(r.unitCost) : '<span class="muted">— set —</span>'}</span></td>`;
+  const body = rows.slice(0, 400).map(row => {
+    const m = row.m;   // the row's money (pfMoney), null when it has no unit cost
+    const cell = html => `<td class="num">${html}</td>`;
+    const costCell = `<td class="num"><span class="pfcost" data-pf="${esc(row.asin)}" `
+      + `style="cursor:pointer;border-bottom:1px dashed var(--muted)"`
+      + ` title="${row.unitCost ? 'Landed cost of one unit. Click to change.'
+        : 'No unit cost recorded — click to type one. Until then this row has no profit figure.'}">`
+      + `${row.unitCost ? money2(row.unitCost) : '<span class="muted">— set —</span>'}</span></td>`;
+    // an uncosted row: the real figures, the cost cell, and one wide note instead of the money columns
     if (!m) {
-      return `<tr><td style="font-family:ui-monospace,monospace">${esc(r.asin)}</td>`
-        + `<td title="${esc(r.title)}">${esc(String(r.title).slice(0, 40)) || '<span class="muted">—</span>'}</td>`
-        + `<td>${r.brand ? esc(BRAND_NAME[r.brand] || r.brand) : '<span class="muted">—</span>'}</td>`
-        + cell(Math.round(r.u).toLocaleString('en-US')) + cell(money(r.rev)) + cell(money(r.spend))
-        + cell(r.rev > 0 ? (r.spend / r.rev * 100).toFixed(1) + '%' : '<span class="muted">—</span>')
+      return `<tr><td style="font-family:ui-monospace,monospace">${esc(row.asin)}</td>`
+        + `<td title="${esc(row.title)}">${esc(String(row.title).slice(0, 40)) || '<span class="muted">—</span>'}</td>`
+        + `<td>${row.brand ? esc(BRAND_NAME[row.brand] || row.brand) : '<span class="muted">—</span>'}</td>`
+        + cell(Math.round(row.u).toLocaleString('en-US')) + cell(money(row.rev)) + cell(money(row.spend))
+        + cell(row.rev > 0 ? (row.spend / row.rev * 100).toFixed(1) + '%' : '<span class="muted">—</span>')
         + costCell
         + `<td class="num muted" colspan="7" style="text-align:left;font-size:12px">`
-        + (r.u ? 'no unit cost — nothing here is guessed' : 'nothing sold in this window')
+        + (row.u ? 'no unit cost — nothing here is guessed' : 'nothing sold in this window')
         + `</td></tr>`;
     }
     const good = m.profit >= 0;
-    return `<tr><td style="font-family:ui-monospace,monospace">${esc(r.asin)}</td>`
-      + `<td title="${esc(r.title)}">${esc(String(r.title).slice(0, 40)) || '<span class="muted">—</span>'}</td>`
-      + `<td>${r.brand ? esc(BRAND_NAME[r.brand] || r.brand) : '<span class="muted">—</span>'}</td>`
+    return `<tr><td style="font-family:ui-monospace,monospace">${esc(row.asin)}</td>`
+      + `<td title="${esc(row.title)}">${esc(String(row.title).slice(0, 40)) || '<span class="muted">—</span>'}</td>`
+      + `<td>${row.brand ? esc(BRAND_NAME[row.brand] || row.brand) : '<span class="muted">—</span>'}</td>`
       + cell(Math.round(m.units).toLocaleString('en-US')
-          + (r.partial ? ` <span class="muted" style="font-size:11px" title="${r.kidsNoCost} child ASIN(s) under this parent have no unit cost. Only the units that could be costed are counted here — the rest are left out rather than costed at a guess.">part</span>` : ''))
+          + (row.partial ? ` <span class="muted" style="font-size:11px" title="${row.kidsNoCost} child ASIN(s) under this parent `
+            + `have no unit cost. Only the units that could be costed are counted here — the rest are left out rather than `
+            + `costed at a guess.">part</span>` : ''))
       + cell(money(m.sales)) + cell(money(m.ads))
       + cell(m.tacos == null ? '<span class="muted">—</span>' : m.tacos.toFixed(1) + '%')
       + costCell
@@ -252,7 +310,8 @@ function renderProfit() {
   $('pfTable').innerHTML = head + '<tbody>' + (body
     || '<tr><td colspan="15" class="muted" style="padding:14px">Nothing matches these filters.</td></tr>')
     + '</tbody>';
-  const nCost = Object.keys(COST).filter(a => pfCostOf(a)).length;
+  // --- the message line ---
+  const nCost = Object.keys(COST).filter(asin => pfCostOf(asin)).length;
   pfMsg(`${rows.length} row(s)${rows.length > 400 ? ' · showing the top 400 by sales' : ''}`
     + ` · ${nCost.toLocaleString('en-US')} ASIN(s) have a unit cost`
     + (COST_AT ? ` · costs last saved ${COST_AT}` : '')
@@ -260,61 +319,87 @@ function renderProfit() {
 }
 
 /* ---------- typing a cost straight into the table ---------- */
+// A click on a Unit cost cell (child view only): ask for the landed cost of one unit, store it (or clear it
+// when left empty), redraw and save.
 $('pfTable').addEventListener('click', e => {
   const el = e.target.closest('[data-pf]');
   if (!el) return;
   const asin = el.dataset.pf;
   if ($('pfView').value === 'parent') {
-    pfMsg('A cost belongs to ONE child ASIN — two sizes of the same product do not cost the same. Switch to “By child ASIN” to type it.', true);
+    pfMsg('A cost belongs to ONE child ASIN — two sizes of the same product do not cost the same. '
+      + 'Switch to “By child ASIN” to type it.', true);
     return;
   }
   const cur = pfCostOf(asin);
-  const typed = prompt(`Landed cost of ONE unit of ${asin}, in USD.\n\nGoods + freight + duty — what it costs you to have one sitting in an Amazon warehouse. Leave empty to clear it.`,
+  const typed = prompt(`Landed cost of ONE unit of ${asin}, in USD.\n\nGoods + freight + duty — what it costs you to have one `
+    + `sitting in an Amazon warehouse. Leave empty to clear it.`,
     cur ? String(cur) : '');
   if (typed === null) return;
-  const t = typed.trim();
-  if (!t) { delete COST[asin]; }
-  else {
-    const v = Number(t.replace(/[^0-9.]/g, ''));
-    if (!(v > 0) || v > 100000) { pfMsg('A unit cost has to be a positive number of dollars.', true); return; }
-    COST[asin] = { ...(COST[asin] || {}), c: Math.round(v * 100) / 100, at: sdToday(), by: ME.email };
+  const text = typed.trim();
+  if (!text) {
+    delete COST[asin];
+  } else {
+    const value = Number(text.replace(/[^0-9.]/g, ''));
+    if (!(value > 0) || value > 100000) {
+      pfMsg('A unit cost has to be a positive number of dollars.', true);
+      return;
+    }
+    COST[asin] = { ...(COST[asin] || {}), c: Math.round(value * 100) / 100, at: sdToday(), by: ME.email };
   }
   renderProfit();
   saveCosts().then(() => pfMsg('Saved.')).catch(err => pfMsg('Could not save: ' + (err.message || err), true));
 });
 
+// The pickers redraw at once; the filter box waits a quarter of a second after the last keystroke.
 ['pfBrand', 'pfWeeks', 'pfView', 'pfHave'].forEach(id => $(id).addEventListener('change', renderProfit));
 let PF_FILTER_T = null;
-$('pfFilter').addEventListener('input', () => { clearTimeout(PF_FILTER_T); PF_FILTER_T = setTimeout(renderProfit, 250); });
+$('pfFilter').addEventListener('input', () => {
+  clearTimeout(PF_FILTER_T);
+  PF_FILTER_T = setTimeout(renderProfit, 250);
+});
 
 /* ---------- the cost model ---------- */
+// Cost model: fill the dialog's five fields from PF_MODEL and open it.
 function pfModelOpen() {
-  $('pmRef').value = PF_MODEL.ref; $('pmFba').value = PF_MODEL.fba;
-  $('pmRet').value = PF_MODEL.ret; $('pmOh').value = PF_MODEL.oh; $('pmSal').value = PF_MODEL.sal;
+  $('pmRef').value = PF_MODEL.ref;
+  $('pmFba').value = PF_MODEL.fba;
+  $('pmRet').value = PF_MODEL.ret;
+  $('pmOh').value = PF_MODEL.oh;
+  $('pmSal').value = PF_MODEL.sal;
   pfModelNote();
   $('pfModelModal').classList.remove('hide');
 }
+// The note under the fields: what the percentages add up to, with a warning at 100 % or more.
 function pfModelNote() {
-  const n = k => Number($(k).value) || 0;
-  const ofSales = n('pmRef') + n('pmFba') + n('pmOh') + n('pmSal');
+  const field = id => Number($(id).value) || 0;
+  const ofSales = field('pmRef') + field('pmFba') + field('pmOh') + field('pmSal');
   $('pmNote').innerHTML = `Together these take <b>${ofSales.toFixed(1)}%</b> of every dollar of sales,`
-    + ` plus ${n('pmRet').toFixed(1)}% of the landed cost, before ad spend and the goods themselves.`
-    + (ofSales >= 100 ? ' <span style="color:var(--bad)">That is all of it or more — every row will show a loss.</span>' : '');
+    + ` plus ${field('pmRet').toFixed(1)}% of the landed cost, before ad spend and the goods themselves.`
+    + (ofSales >= 100
+      ? ' <span style="color:var(--bad)">That is all of it or more — every row will show a loss.</span>' : '');
 }
 ['pmRef', 'pmFba', 'pmRet', 'pmOh', 'pmSal'].forEach(id => $(id).addEventListener('input', pfModelNote));
 $('pfModel').onclick = pfModelOpen;
 $('pmCancel').onclick = () => $('pfModelModal').classList.add('hide');
+// Workbook defaults: put the default percentages back into the fields (not saved until Save).
 $('pmReset').onclick = () => {
-  Object.entries(PF_DEFAULT_MODEL).forEach(([k, v]) => { $('pm' + k[0].toUpperCase() + k.slice(1)).value = v; });
+  Object.entries(PF_DEFAULT_MODEL).forEach(([key, value]) => {
+    $('pm' + key[0].toUpperCase() + key.slice(1)).value = value;
+  });
   pfModelNote();
 };
+// Save: the five fields become the model, the screen is redrawn on it, and it is saved with the costs.
 $('pmSave').onclick = async () => {
-  const n = id => Math.max(0, Number($(id).value) || 0);
-  PF_MODEL = { ref: n('pmRef'), fba: n('pmFba'), ret: n('pmRet'), oh: n('pmOh'), sal: n('pmSal') };
+  const field = id => Math.max(0, Number($(id).value) || 0);
+  PF_MODEL = { ref: field('pmRef'), fba: field('pmFba'), ret: field('pmRet'), oh: field('pmOh'), sal: field('pmSal') };
   $('pfModelModal').classList.add('hide');
   renderProfit();
-  try { await saveCosts(); pfMsg('Cost model saved — every row is costed on it.'); }
-  catch (err) { pfMsg('Could not save the model: ' + (err.message || err), true); }
+  try {
+    await saveCosts();
+    pfMsg('Cost model saved — every row is costed on it.');
+  } catch (err) {
+    pfMsg('Could not save the model: ' + (err.message || err), true);
+  }
 };
 
 /* ---------- importing unit costs ----------
@@ -323,11 +408,13 @@ $('pmSave').onclick = async () => {
  * would destroy months of typing that nothing can regenerate. */
 const PF_IMP_COLS = [
   { k: 'asin', t: 'ASIN', need: true, alias: ['child asin', 'product asin', 'asin1'] },
-  { k: 'c', t: 'Unit cost USD', need: true, alias: ['unit cost', 'landed cost', 'cost', 'cost usd', 'landed', 'landed cost usd'] },
+  { k: 'c', t: 'Unit cost USD', need: true,
+    alias: ['unit cost', 'landed cost', 'cost', 'cost usd', 'landed', 'landed cost usd'] },
   { k: 'note', t: 'Note', need: false, alias: ['notes', 'remark', 'remarks', 'comment', 'product'] },
 ];
-let PF_IMP_STAGED = null;
+let PF_IMP_STAGED = null;   // the rows read from the chosen file, waiting for Import
 
+// Import costs: open the dialog clean.
 $('pfImport').onclick = () => {
   PF_IMP_STAGED = null;
   $('pfImpPrev').classList.add('hide');
@@ -335,121 +422,190 @@ $('pfImport').onclick = () => {
   $('pfImpSave').disabled = true;
   $('pfImpModal').classList.remove('hide');
 };
+// Close it: Cancel, or a click on the backdrop. Choose CSV… opens the hidden file picker.
 $('pfImpCancel').onclick = () => $('pfImpModal').classList.add('hide');
-$('pfImpModal').onclick = e => { if (e.target === $('pfImpModal')) $('pfImpModal').classList.add('hide'); };
+$('pfImpModal').onclick = e => {
+  if (e.target === $('pfImpModal')) $('pfImpModal').classList.add('hide');
+};
 $('pfImpPick').onclick = () => $('pfImpFile').click();
 
+// Download template: a CSV with the three column names and two example rows.
 $('pfImpTemplate').onclick = () => {
-  const cell = v => { const t = String(v == null ? '' : v); return /[",\n]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t; };
+  const cell = value => {
+    const str = String(value == null ? '' : value);
+    return /[",\n]/.test(str) ? '"' + str.replace(/"/g, '""') + '"' : str;
+  };
   // The examples carry REAL landed costs out of the costing workbook, so the column is unmistakable:
   // it is dollars per single unit, not per set, not the selling price.
   const ex = [
     ['B0CR91CFCJ', '8.64', 'CLOTH_NAPKIN_EMBROIDER 18x18 set of 4 — goods + freight + duty'],
     ['B0C625C9RP', '4.57', 'CLOTH_NAPKIN 20x20 set of 4'],
   ];
-  const lines = [PF_IMP_COLS.map(c => c.t).map(cell).join(',')].concat(ex.map(r => r.map(cell).join(',')));
+  const lines = [PF_IMP_COLS.map(col => col.t).map(cell).join(',')]
+    .concat(ex.map(row => row.map(cell).join(',')));
   const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
-  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-  a.download = 'unit-costs-template.csv';
-  a.click(); URL.revokeObjectURL(a.href);
+  const anchor = document.createElement('a');
+  anchor.href = URL.createObjectURL(blob);
+  anchor.download = 'unit-costs-template.csv';
+  anchor.click();
+  URL.revokeObjectURL(anchor.href);
 };
 
+// A file was chosen: read it, find the columns (by name or alias), check every row, and show a preview of
+// what Import would do. Nothing is stored until Import is pressed.
 $('pfImpFile').onchange = async ev => {
-  const file = ev.target.files[0]; ev.target.value = ''; if (!file) return;
-  const esc = s => String(s == null ? '' : s).replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
-  const err = t => { $('pfImpErr').innerHTML = t; $('pfImpErr').classList.remove('hide'); $('pfImpSave').disabled = true; };
-  $('pfImpErr').classList.add('hide'); $('pfImpPrev').classList.add('hide'); PF_IMP_STAGED = null;
+  const file = ev.target.files[0];
+  ev.target.value = '';
+  if (!file) return;
+  const esc = str => String(str == null ? '' : str)
+    .replace(/[<>&"]/g, ch => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[ch]));
+  // a red note in the dialog, and Import stays disabled
+  const err = text => {
+    $('pfImpErr').innerHTML = text;
+    $('pfImpErr').classList.remove('hide');
+    $('pfImpSave').disabled = true;
+  };
+  $('pfImpErr').classList.add('hide');
+  $('pfImpPrev').classList.add('hide');
+  PF_IMP_STAGED = null;
   try {
+    // --- the columns ---
     const rows = dParseCsv(await file.text());
-    if (rows.length < 2) { err('That file has no rows under its header.'); return; }
-    const head = rows[0].map(h => String(h).trim().toLowerCase());
-    const at = {};
-    PF_IMP_COLS.forEach(c => {
-      let idx = head.indexOf(c.t.toLowerCase());
-      if (idx < 0) for (const a of c.alias) { const i = head.indexOf(a); if (i >= 0) { idx = i; break; } }
-      if (idx >= 0) at[c.k] = idx;
+    if (rows.length < 2) {
+      err('That file has no rows under its header.');
+      return;
+    }
+    const head = rows[0].map(heading => String(heading).trim().toLowerCase());
+    const at = {};   // column key → its index in the file
+    PF_IMP_COLS.forEach(col => {
+      let idx = head.indexOf(col.t.toLowerCase());
+      if (idx < 0) {
+        for (const alias of col.alias) {
+          const i = head.indexOf(alias);
+          if (i >= 0) {
+            idx = i;
+            break;
+          }
+        }
+      }
+      if (idx >= 0) at[col.k] = idx;
     });
-    const missing = PF_IMP_COLS.filter(c => c.need && at[c.k] == null).map(c => c.t);
+    const missing = PF_IMP_COLS.filter(col => col.need && at[col.k] == null).map(col => col.t);
     if (missing.length) {
       err('These columns are required and were not found: <b>' + esc(missing.join(', ')) + '</b>. '
         + 'The file has: ' + esc(head.filter(Boolean).slice(0, 18).join(', '))
         + '. Download the template to see the names it looks for.');
       return;
     }
-    const cellOf = (row, k) => (at[k] == null ? '' : String(row[at[k]] == null ? '' : row[at[k]]).trim());
+    // --- the rows: good ones become { asin, c, note }, bad ones a line of explanation ---
+    const cellOf = (row, key) => (at[key] == null ? '' : String(row[at[key]] == null ? '' : row[at[key]]).trim());
     const good = [], bad = [];
-    rows.slice(1).forEach((r, i) => {
-      if (!r.some(c => String(c || '').trim())) return;
+    rows.slice(1).forEach((row, i) => {
+      if (!row.some(field => String(field || '').trim())) return;
       const line = i + 2;
-      const asin = cellOf(r, 'asin').toUpperCase();
-      const raw = cellOf(r, 'c');
-      const v = Number(raw.replace(/[^0-9.\-]/g, ''));
-      if (!D_ASIN_RE.test(asin)) { bad.push(`line ${line}: “${cellOf(r, 'asin').slice(0, 14)}” is not an ASIN`); return; }
-      if (!(v > 0)) { bad.push(`line ${line}: “${raw.slice(0, 12)}” is not a cost`); return; }
-      if (v > 100000) { bad.push(`line ${line}: ${raw.slice(0, 12)} is too large to be one unit`); return; }
-      good.push({ asin, c: Math.round(v * 100) / 100, note: cellOf(r, 'note').slice(0, 120) });
+      const asin = cellOf(row, 'asin').toUpperCase();
+      const raw = cellOf(row, 'c');
+      const cost = Number(raw.replace(/[^0-9.\-]/g, ''));
+      if (!D_ASIN_RE.test(asin)) {
+        bad.push(`line ${line}: “${cellOf(row, 'asin').slice(0, 14)}” is not an ASIN`);
+        return;
+      }
+      if (!(cost > 0)) {
+        bad.push(`line ${line}: “${raw.slice(0, 12)}” is not a cost`);
+        return;
+      }
+      if (cost > 100000) {
+        bad.push(`line ${line}: ${raw.slice(0, 12)} is too large to be one unit`);
+        return;
+      }
+      good.push({ asin, c: Math.round(cost * 100) / 100, note: cellOf(row, 'note').slice(0, 120) });
     });
     if (!good.length) {
       err('Nothing in that file could be used.<br>' + esc(bad.slice(0, 8).join(' · ')) + (bad.length > 8 ? ' …' : ''));
       return;
     }
+    // --- what Import would do ---
     const byAsin = new Map();
     let dup = 0;
-    good.forEach(g => { if (byAsin.has(g.asin)) dup++; byAsin.set(g.asin, g); });
+    good.forEach(entry => {
+      if (byAsin.has(entry.asin)) dup++;
+      byAsin.set(entry.asin, entry);
+    });
     const list = [...byAsin.values()];
-    const changing = list.filter(g => pfCostOf(g.asin) && pfCostOf(g.asin) !== g.c);
-    const isNew = list.filter(g => !pfCostOf(g.asin));
+    const changing = list.filter(entry => pfCostOf(entry.asin) && pfCostOf(entry.asin) !== entry.c);
+    const isNew = list.filter(entry => !pfCostOf(entry.asin));
     // A cost against an ASIN that has never sold is not an error — it may sell next week — but it is
     // also the shape of a file keyed by the wrong column, so it is counted out loud.
-    const unsold = list.filter(g => !WEEKLY.rows[g.asin]);
+    const unsold = list.filter(entry => !WEEKLY.rows[entry.asin]);
 
+    // --- the preview ---
     PF_IMP_STAGED = list;
     $('pfImpPrev').classList.remove('hide');
     $('pfImpPrev').innerHTML =
       `<div><b>${list.length} ASIN(s)</b> ready — ${isNew.length} new, ${changing.length} changing a cost already stored.</div>`
-      + (dup ? `<div class="muted" style="font-size:12px;margin-top:4px">${dup} row(s) repeat an ASIN earlier in the file — the last one wins.</div>` : '')
-      + (changing.length ? `<div style="font-size:12px;margin-top:4px">Changing, for example: ${changing.slice(0, 3).map(g => `${esc(g.asin)} $${pfCostOf(g.asin).toFixed(2)} → $${g.c.toFixed(2)}`).join(', ')}${changing.length > 3 ? ' …' : ''}</div>` : '')
-      + (unsold.length ? `<div style="color:var(--bad);font-size:12px;margin-top:4px">${unsold.length} ASIN(s) have no sales in the weekly cache at all (${unsold.slice(0, 3).map(g => esc(g.asin)).join(', ')}${unsold.length > 3 ? '…' : ''}). Fine if they are new — but if most of the file is like this, check that the ASIN column is really ASINs.</div>` : '')
-      + (bad.length ? `<div style="color:var(--bad);font-size:12px;margin-top:4px">${bad.length} row(s) will be skipped — ${esc(bad.slice(0, 5).join(' · '))}${bad.length > 5 ? ' …' : ''}</div>` : '')
-      + `<div class="muted" style="font-size:12px;margin-top:6px">An ASIN this file does not mention keeps the cost it already has. Nothing is cleared.</div>`;
+      + (dup ? `<div class="muted" style="font-size:12px;margin-top:4px">${dup} row(s) repeat an ASIN earlier in the file — `
+        + `the last one wins.</div>` : '')
+      + (changing.length ? `<div style="font-size:12px;margin-top:4px">Changing, for example: `
+        + `${changing.slice(0, 3).map(entry => `${esc(entry.asin)} $${pfCostOf(entry.asin).toFixed(2)} → $${entry.c.toFixed(2)}`).join(', ')}`
+        + `${changing.length > 3 ? ' …' : ''}</div>` : '')
+      + (unsold.length ? `<div style="color:var(--bad);font-size:12px;margin-top:4px">${unsold.length} ASIN(s) have no sales `
+        + `in the weekly cache at all (${unsold.slice(0, 3).map(entry => esc(entry.asin)).join(', ')}${unsold.length > 3 ? '…' : ''}). `
+        + `Fine if they are new — but if most of the file is like this, check that the ASIN column is really ASINs.</div>` : '')
+      + (bad.length ? `<div style="color:var(--bad);font-size:12px;margin-top:4px">${bad.length} row(s) will be skipped — `
+        + `${esc(bad.slice(0, 5).join(' · '))}${bad.length > 5 ? ' …' : ''}</div>` : '')
+      + `<div class="muted" style="font-size:12px;margin-top:6px">An ASIN this file does not mention keeps the cost it already has. `
+      + `Nothing is cleared.</div>`;
     $('pfImpSave').disabled = false;
-  } catch (e2) { err('Could not read that file: ' + esc(e2.message || e2)); }
+  } catch (e2) {
+    err('Could not read that file: ' + esc(e2.message || e2));
+  }
 };
 
+// Import: the previewed rows go into COST (a note too, when the file had one), then redraw and save.
 $('pfImpSave').onclick = async () => {
   if (!PF_IMP_STAGED || !PF_IMP_STAGED.length) return;
   let added = 0, updated = 0;
-  PF_IMP_STAGED.forEach(g => {
-    if (pfCostOf(g.asin)) updated++; else added++;
-    COST[g.asin] = { ...(COST[g.asin] || {}), c: g.c, at: sdToday(), by: ME.email };
-    if (g.note) COST[g.asin].note = g.note;
+  PF_IMP_STAGED.forEach(entry => {
+    if (pfCostOf(entry.asin)) updated++; else added++;
+    COST[entry.asin] = { ...(COST[entry.asin] || {}), c: entry.c, at: sdToday(), by: ME.email };
+    if (entry.note) COST[entry.asin].note = entry.note;
   });
   PF_IMP_STAGED = null;
   $('pfImpModal').classList.add('hide');
   renderProfit();
-  try { await saveCosts(); pfMsg(`Imported — ${added} new, ${updated} updated.`); }
-  catch (err) { pfMsg('Could not save the import: ' + (err.message || err), true); }
+  try {
+    await saveCosts();
+    pfMsg(`Imported — ${added} new, ${updated} updated.`);
+  } catch (err) {
+    pfMsg('Could not save the import: ' + (err.message || err), true);
+  }
 };
 
+// Export: every row of pfRows (not just the 400 on screen) as CSV, with the fee estimates broken out.
 $('pfExport').onclick = () => {
-  const cell = v => { const t = String(v == null ? '' : v); return /[",\n]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t; };
-  const r2 = v => (v == null ? '' : Math.round(v * 100) / 100);
+  const cell = value => {
+    const str = String(value == null ? '' : value);
+    return /[",\n]/.test(str) ? '"' + str.replace(/"/g, '""') + '"' : str;
+  };
+  const round2 = value => (value == null ? '' : Math.round(value * 100) / 100);
   const lines = [['ASIN', 'Product', 'Brand', 'Units', 'Sales', 'Ad spend', 'TACoS %', 'Unit cost',
     'COGS', 'Referral (est.)', 'FBA (est.)', 'Return loss (est.)', 'Overhead (est.)', 'Salary (est.)',
     'Profit', 'Margin %', 'ROI %', 'Profit per unit', 'Costed'].map(cell).join(',')];
-  pfRows().forEach(r => {
-    const m = r.m;
-    lines.push([r.asin, r.title, r.brand ? (BRAND_NAME[r.brand] || r.brand) : '',
-      Math.round(r.u), r2(r.rev), r2(r.spend), r.rev > 0 ? r2(r.spend / r.rev * 100) : '',
-      r2(r.unitCost), m ? r2(m.cogs) : '', m ? r2(m.referral) : '', m ? r2(m.fba) : '',
-      m ? r2(m.ret) : '', m ? r2(m.oh) : '', m ? r2(m.sal) : '',
-      m ? r2(m.profit) : '', m ? r2(m.margin) : '', m ? Math.round(m.roi) : '', m ? r2(m.perUnit) : '',
+  pfRows().forEach(row => {
+    const m = row.m;
+    lines.push([row.asin, row.title, row.brand ? (BRAND_NAME[row.brand] || row.brand) : '',
+      Math.round(row.u), round2(row.rev), round2(row.spend), row.rev > 0 ? round2(row.spend / row.rev * 100) : '',
+      round2(row.unitCost), m ? round2(m.cogs) : '', m ? round2(m.referral) : '', m ? round2(m.fba) : '',
+      m ? round2(m.ret) : '', m ? round2(m.oh) : '', m ? round2(m.sal) : '',
+      m ? round2(m.profit) : '', m ? round2(m.margin) : '', m ? Math.round(m.roi) : '', m ? round2(m.perUnit) : '',
       m ? 'yes' : 'no unit cost'].map(cell).join(','));
   });
   const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
-  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-  a.download = `profit-${dToday()}.csv`;
-  a.click(); URL.revokeObjectURL(a.href);
+  const anchor = document.createElement('a');
+  anchor.href = URL.createObjectURL(blob);
+  anchor.download = `profit-${dToday()}.csv`;
+  anchor.click();
+  URL.revokeObjectURL(anchor.href);
 };
 
 
