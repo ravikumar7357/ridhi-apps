@@ -1328,6 +1328,9 @@
 /* SHOPIFY RETURNS TEAM (15 Oct): the Shopify Orders screen narrowed to returns, delivery days and FBA stock. */
 #paneShop.so-ret .so-find,#paneShop.so-ret #soLanes,#paneShop.so-ret #soPickMsg,#paneShop.so-ret #soToday,#paneShop.so-ret #soKpis,#paneShop.so-ret #soTableCard{display:none}
 #soRetPanel{margin-top:12px;display:flex;flex-direction:column;gap:14px}#soRetPanel.hide{display:none}
+/* the production team's one page (bucket-team.js): the same narrow form as the returns team's */
+#paneShop.so-bkt .so-find,#paneShop.so-bkt #soLanes,#paneShop.so-bkt #soPickMsg,#paneShop.so-bkt #soToday,#paneShop.so-bkt #soKpis,#paneShop.so-bkt #soTableCard{display:none}
+#soBktPanel{margin-top:12px;display:flex;flex-direction:column;gap:14px}#soBktPanel.hide{display:none}
 .srt-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(320px,100%),1fr));gap:12px}
 .srt-tile{width:auto;display:flex;flex-direction:column;align-items:flex-start;gap:4px;text-align:left;padding:16px 18px;border-radius:16px;border:1px solid var(--line);background:var(--soft);cursor:pointer}
 .srt-tile b{font-size:16px;color:var(--ink)}.srt-tile span{font-size:12.5px;color:var(--muted);font-weight:400}.srt-tile:hover{background:var(--brand-bg)}

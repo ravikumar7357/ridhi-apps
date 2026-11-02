@@ -350,7 +350,7 @@ function frWire(cards, bulk, ticked) {
  * in the menu's words. "View as" shows this page as that role. */
 const FR_TAB_NAMES = { flppc: 'PPC', fldem: 'Demand', flacc: 'Accessories (flow)', flchl: 'Challans', flcut: 'To cut', flraw: 'Raw cutting',
   flwip: 'WIP', gdesk: 'Greige Desk', gdled: 'Greige ledger', gdledit: 'Greige corrections', gdappr: 'Greige approvals',
-  qcalt: 'QC — alteration out', qcret: 'QC — alteration back', vend: 'Vendor portal', mst: 'Masters', shopret: 'Shopify returns' };
+  qcalt: 'QC — alteration out', qcret: 'QC — alteration back', vend: 'Vendor portal', mst: 'Masters', shopret: 'Shopify returns', shopbkt: 'Shopify production bucket' };
 function frRoles() {
   const menu = Object.fromEntries(frScreens().map(s => [s.tab, s.name]));
   const scr = t => FR_TAB_NAMES[t] || menu[t] || t;
