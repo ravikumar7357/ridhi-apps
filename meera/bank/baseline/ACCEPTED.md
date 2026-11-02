@@ -27,3 +27,15 @@ Each entry: when, why, and what it changed. Made by `node meera/tests/gate.cjs -
 
 - no score or answer changed (only the record refreshed)
 
+## 2026-11-02 09:49 — 2 Nov: four close answer pairs reworded (Cutting not-issued vs used/unused, Job Work filters vs SKU-not-in-master, Sales Orders approve vs locked, Order Console quantity approve) — 2 questions now answered right outright, 1 'did you mean' list changed; no score worse
+
+- answer `eval|shop|apna sales order edit nhi ho rha approve hone ke baad`
+  - before: - · Aapka sawaal ek se zyada jawaabon se milta hai. Aap kaunsa poochh rahe hain? sales order e
+  - after: or-so-locked · Apna order tabhi badal sakte hain jab woh Draft ya Returned ho. Place ya approve hone ke b
+- answer `eval|shop|kitna cut pada hai jo abhi karigar ko nhi gaya`
+  - before: - · Aapka sawaal ek se zyada jawaabon se milta hai. Aap kaunsa poochh rahe hain? used partly u
+  - after: pr-cut-not-issued · Pehle box mein Cut, not yet issued chuniye. Har order line par kate, issue hue aur baaki p
+- answer `eval2|shop|embroidery line got cut but never went to any karigar, where are those pieces now`
+  - before: - · I'm not fully sure what you mean. Is it one of these? embroidery cutting goes where how to
+  - after: - · I'm not fully sure what you mean. Is it one of these? embroidery cutting goes where cut no
+

@@ -76861,6 +76861,9 @@ const MEERA_SWITCHES = {
    * answer for a new part (its label and help text only), follows a renamed one, takes out a removed one; a new screen or
    * job becomes a draft on the admin page. Off: it only reports what it would do. Read by the build, not the browser. */
   autobank: false,
+  /* a button or column name typed in Hindi letters ("डमी एक्सपोर्ट" → Dummy export), by its sounds (Ravi, 2 Nov).
+   * Works in the page and in meera.js: ?meera=hindinames */
+  hindinames: false,
 };
 function meeraOn(name) {
   try {
@@ -79505,7 +79508,45 @@ function gaSpellCap(hits) {
   });
   return hits;
 }
+let GA_HN = null;
+function gaHiNames(q) {
+  if (!meeraOn("hindinames") || !/[ऀ-ॿ]/.test(q) || !GA_BANK) return q;
+  if (!GA_HN || GA_HN.n !== GA_BANK.list.length) {
+    GA_HN = { n: GA_BANK.list.length, by: /* @__PURE__ */ new Map() };
+    for (const e of GA_BANK.list) {
+      if (!e.p || !/^[A-Za-z][A-Za-z ]*$/.test(e.p[0])) continue;
+      const ws = e.p[0].trim().split(/\s+/), sk = ws.map((w) => gaSkel(w.toLowerCase()));
+      if (sk.some((s) => !s) || ws.length < 2) continue;
+      if (!GA_HN.by.has(sk[0])) GA_HN.by.set(sk[0], []);
+      GA_HN.by.get(sk[0]).push({ sk, ws });
+    }
+    GA_HN.by.forEach((l) => l.sort((a, b) => b.sk.length - a.sk.length));
+  }
+  const tok = String(q).split(/\s+/), bare = (t) => t.replace(/[?.,!।]+$/g, ""), dev = (t) => /^[ऀ-ॿ]+$/.test(bare(t));
+  const out = [];
+  let named = 0, other = 0;
+  for (let i = 0; i < tok.length; ) {
+    let hit = null;
+    if (dev(tok[i])) for (const c of GA_HN.by.get(gaSkel(bare(tok[i]))) || []) {
+      if (c.sk.every((s, j) => i + j < tok.length && dev(tok[i + j]) && gaSkel(bare(tok[i + j])) === s)) {
+        hit = c;
+        break;
+      }
+    }
+    if (hit) {
+      out.push(hit.ws.join(" ") + tok[i + hit.ws.length - 1].slice(bare(tok[i + hit.ws.length - 1]).length));
+      i += hit.ws.length;
+      named++;
+    } else {
+      const w = bare(tok[i]).toLowerCase();
+      if (w && !GA_PART_ASK.has(w) && !GUIDE_STOP.has(w)) other++;
+      out.push(tok[i++]);
+    }
+  }
+  return named === 1 && !other ? out.join(" ") : q;
+}
 function gaSpellFind(q) {
+  q = gaHiNames(q);
   const u = gaSpell(q);
   GA_SPELL_FIXED = u.changes.length > 0;
   try {
@@ -79715,6 +79756,10 @@ function gaRowAnswer(row, lang, L) {
 }
 async function gaAnswer(q) {
   let understood = null, served = null;
+  if (meeraOn("hindinames")) {
+    await gaBankLoad();
+    q = gaHiNames(q);
+  }
   if (typeof meeraServerFetch === "function" && meeraOn("serveruse")) {
     served = await meeraServerFetch(q, !!gaAnswer.asTyped);
     if (served && served.understood.changes.length && !gaAnswer.asTyped) {

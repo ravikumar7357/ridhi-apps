@@ -88,6 +88,9 @@ const MEERA_SWITCHES = {
    * answer for a new part (its label and help text only), follows a renamed one, takes out a removed one; a new screen or
    * job becomes a draft on the admin page. Off: it only reports what it would do. Read by the build, not the browser. */
   autobank: false,
+  /* a button or column name typed in Hindi letters ("डमी एक्सपोर्ट" → Dummy export), by its sounds (Ravi, 2 Nov).
+   * Works in the page and in meera.js: ?meera=hindinames */
+  hindinames: false,
 };
 function meeraOn(name) {
   try {

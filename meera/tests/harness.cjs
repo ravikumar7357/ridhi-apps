@@ -149,7 +149,8 @@ async function load(opts = {}) {
     find(q, tab) {
       if (tab) this.setTab(tab);
       ctx.__q = q;
-      return run('(() => { const r = gaRead(__q); return gaBankFind(r.means, r.words, __q).map(h => ({ id: h.e.id, s: h.s })); })()');
+      /* a name typed in Hindi letters is read first (switch "hindinames"; off: the question as typed) */
+      return run('(() => { const q = typeof gaHiNames === "function" ? gaHiNames(__q) : __q; const r = gaRead(q); return gaBankFind(r.means, r.words, q).map(h => ({ id: h.e.id, s: h.s })); })()');
     },
   };
 }

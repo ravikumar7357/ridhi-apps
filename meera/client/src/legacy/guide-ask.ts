@@ -622,8 +622,42 @@ function gaSpellCap(hits) {
   hits.forEach(h => { h.s = Math.min(h.s, bar); });
   return hits;
 }
+/* BUTTON AND COLUMN NAMES TYPED IN HINDI LETTERS (Ravi, 2 Nov; switch "hindinames", off): "डमी एक्सपोर्ट क्या है" is
+ * read as "Dummy export क्या है". A run of Hindi-letter words is taken for a part's name only when it sounds, word by
+ * word, like the WHOLE name (gaSkel: the sounds "प्रिंटर" → printer already uses) — so a short sound ("dm") is safe
+ * inside a name and never matched alone. Names of two words or more: a one-word name is read by her sounds already. */
+let GA_HN = null;
+function gaHiNames(q) {
+  if (!meeraOn('hindinames') || !/[ऀ-ॿ]/.test(q) || !GA_BANK) return q;
+  if (!GA_HN || GA_HN.n !== GA_BANK.list.length) {
+    GA_HN = { n: GA_BANK.list.length, by: new Map() };
+    for (const e of GA_BANK.list) {
+      if (!e.p || !/^[A-Za-z][A-Za-z ]*$/.test(e.p[0])) continue;
+      const ws = e.p[0].trim().split(/\s+/), sk = ws.map(w => gaSkel(w.toLowerCase()));
+      if (sk.some(s => !s) || ws.length < 2) continue;   // one word: her sound list already reads it (measured: taking it here made 2 Hindi questions worse)
+      if (!GA_HN.by.has(sk[0])) GA_HN.by.set(sk[0], []);
+      GA_HN.by.get(sk[0]).push({ sk, ws });
+    }
+    GA_HN.by.forEach(l => l.sort((a, b) => b.sk.length - a.sk.length));   // the longest name first
+  }
+  const tok = String(q).split(/\s+/), bare = t => t.replace(/[?.,!।]+$/g, ''), dev = t => /^[ऀ-ॿ]+$/.test(bare(t));
+  const out = [];
+  let named = 0, other = 0;
+  for (let i = 0; i < tok.length;) {
+    let hit = null;
+    if (dev(tok[i])) for (const c of GA_HN.by.get(gaSkel(bare(tok[i]))) || []) {
+      if (c.sk.every((s, j) => i + j < tok.length && dev(tok[i + j]) && gaSkel(bare(tok[i + j])) === s)) { hit = c; break; }
+    }
+    if (hit) { out.push(hit.ws.join(' ') + tok[i + hit.ws.length - 1].slice(bare(tok[i + hit.ws.length - 1]).length)); i += hit.ws.length; named++; }
+    else { const w = bare(tok[i]).toLowerCase(); if (w && !GA_PART_ASK.has(w) && !GUIDE_STOP.has(w)) other++; out.push(tok[i++]); }
+  }
+  /* only a question about the name itself ("… क्या है", "… क्या करता है", "… का मतलब"): inside an ordinary sentence two
+   * words can sound like a name by chance ("पेंडिंग से इन प्रोग्रेस" is not the "In progress" box) — measured 2 Nov */
+  return named === 1 && !other ? out.join(' ') : q;
+}
 /** the bank search on a question as she understood it (for her tests and window.MEERA.find) */
 function gaSpellFind(q) {
+  q = gaHiNames(q);
   const u = gaSpell(q);
   GA_SPELL_FIXED = u.changes.length > 0;
   try { const r = gaRead(u.text); return gaBankFind(r.means, r.words, u.text); } finally { GA_SPELL_FIXED = false; }
@@ -773,6 +807,7 @@ function gaRowAnswer(row, lang, L) {
 }
 async function gaAnswer(q) {
   let understood = null, served = null;
+  if (meeraOn('hindinames')) { await gaBankLoad(); q = gaHiNames(q); }   // a part's name typed in Hindi letters
   /* Phase 5, switch "serveruse": her router searches (and understands the spelling); without it, her small list here */
   if (typeof meeraServerFetch === 'function' && meeraOn('serveruse')) {
     served = await meeraServerFetch(q, !!(gaAnswer as any).asTyped);

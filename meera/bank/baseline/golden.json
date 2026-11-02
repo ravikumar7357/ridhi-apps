@@ -713,9 +713,11 @@
   "off": false
  },
  "eval|shop|apna sales order edit nhi ho rha approve hone ke baad": {
-  "text": "Aapka sawaal ek se zyada jawaabon se milta hai. Aap kaunsa poochh rahe hain? sales order edit nahi ho raha b2b order ka pura process kya h sales order approve hone pe kya hota hai",
-  "acts": [],
-  "bank": null,
+  "text": "Apna order tabhi badal sakte hain jab woh Draft ya Returned ho. Place ya approve hone ke baad admin se kahiye, ya quantity ke liye Change qty use kijiye.",
+  "acts": [
+   "open:so"
+  ],
+  "bank": "or-so-locked",
   "miss": null,
   "off": false
  },
@@ -772,9 +774,11 @@
   "off": false
  },
  "eval|shop|kitna cut pada hai jo abhi karigar ko nhi gaya": {
-  "text": "Aapka sawaal ek se zyada jawaabon se milta hai. Aap kaunsa poochh rahe hain? used partly unused ka matlab raw cutting in store kya hai ek karigar ki detail kaise dekhe",
-  "acts": [],
-  "bank": null,
+  "text": "Pehle box mein Cut, not yet issued chuniye. Har order line par kate, issue hue aur baaki pieces, aur aakhri cutting se din dikhte hain; 7+ din laal dikhte hain. Agar yeh option nahi hai to Job Work Register → Raw cutting in store dekhiye. Kyun Laal \"over\" ka matlab hai is order ki cutting se zyada karigaron ko issue hua hai.",
+  "acts": [
+   "open:pcut"
+  ],
+  "bank": "pr-cut-not-issued",
   "miss": null,
   "off": false
  },
@@ -2514,7 +2518,7 @@
   "off": false
  },
  "eval2|shop|embroidery line got cut but never went to any karigar, where are those pieces now": {
-  "text": "I'm not fully sure what you mean. Is it one of these? embroidery cutting goes where how to give job work to karigar send fabric to embroidery",
+  "text": "I'm not fully sure what you mean. Is it one of these? embroidery cutting goes where cut not yet issued how to give job work to karigar",
   "acts": [],
   "bank": null,
   "miss": "near",
