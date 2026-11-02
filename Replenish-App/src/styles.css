@@ -2058,3 +2058,15 @@ html.mob #frMeeraMenu{right:14px;bottom:144px}
 #p1Home table.p1t.p1g > thead > tr > th{padding:8px 10px}
 #p1Home table.p1g tr.p1l > td{color:var(--ink2,#344054)}
 #p1Home table.p1g a.p1-lotno.none{color:var(--muted);font-family:inherit;font-weight:600;font-size:12px}
+/* A lot's history as a card over the page (2 Nov) */
+#p1Home .p1-modal{position:fixed;inset:0;z-index:9000;background:rgba(20,24,31,.38);display:flex;align-items:flex-start;justify-content:center;padding:6vh 16px}
+#p1Home .p1-mcard{width:min(1180px,100%);max-height:88vh;overflow:auto;background:#fff;border-radius:16px;box-shadow:0 24px 64px rgba(20,24,31,.25)}
+#p1Home .p1-mcard .p1-hist{border:0;margin:0;padding:18px 20px 16px;border-radius:16px}
+#p1Home .p1-mcard .hgrid{max-height:58vh}
+#p1Home .p1-hist .hgrid th,#p1Home .p1-hist .hgrid td{text-align:left}
+#p1Home .p1-hist .hgrid th.num,#p1Home .p1-hist .hgrid td.num{text-align:right}
+#p1Home .p1-hist .hgrid tr.hd td{text-align:left}
+#p1Home .p1-hist .hgrid thead th{position:sticky;top:0;background:#F7F8FA;z-index:1}
+#p1Home .p1-hist .hfoot{padding:2px 2px 0}
+#p1Home table.p1g .p1-hbtn{height:30px;padding:0 10px;margin-right:6px;font-size:12px;border-radius:8px;border:1px solid var(--line);background:#fff;color:var(--muted);font-weight:600}
+#p1Home table.p1g .p1-hbtn:hover{color:var(--ink);background:var(--soft)}
