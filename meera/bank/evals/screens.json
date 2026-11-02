@@ -1,0 +1,980 @@
+[
+ {
+  "q": "what does Accept do",
+  "tab": "adj",
+  "id": "c-adj-903",
+  "kind": "part"
+ },
+ {
+  "q": "Accept kya karta hai",
+  "tab": "flow",
+  "id": "c-flow-1147",
+  "kind": "part"
+ },
+ {
+  "q": "Accept ticked ka matlab kya hai",
+  "tab": "fba",
+  "id": "c-fba-434",
+  "kind": "part"
+ },
+ {
+  "q": "Accept ticked क्या है",
+  "tab": "vlog",
+  "id": "c-vlog-352",
+  "kind": "part"
+ },
+ {
+  "q": "what is Accepted here",
+  "tab": "adj",
+  "id": "c-adj-895",
+  "kind": "part"
+ },
+ {
+  "q": "Accepted button kis kaam ka hai",
+  "tab": "vlog",
+  "id": "c-vlog-347",
+  "kind": "part"
+ },
+ {
+  "q": "what does Active do",
+  "tab": "gdesk",
+  "id": "c-gdesk-1431",
+  "kind": "part"
+ },
+ {
+  "q": "Active kya karta hai",
+  "tab": "pack",
+  "id": "c-pack-198",
+  "kind": "part"
+ },
+ {
+  "q": "Add ka matlab kya hai",
+  "tab": "adj",
+  "id": "c-adj-1032",
+  "kind": "part"
+ },
+ {
+  "q": "Add क्या है",
+  "tab": "pack",
+  "id": "c-pack-2021",
+  "kind": "part"
+ },
+ {
+  "q": "what is Air here",
+  "tab": "adj",
+  "id": "c-adj-1010",
+  "kind": "part"
+ },
+ {
+  "q": "air button kis kaam ka hai",
+  "tab": "repl",
+  "id": "c-repl-47",
+  "kind": "part"
+ },
+ {
+  "q": "what does All do",
+  "tab": "article",
+  "id": "c-article-89",
+  "kind": "part"
+ },
+ {
+  "q": "All kya karta hai",
+  "tab": "gdesk",
+  "id": "c-gdesk-1417",
+  "kind": "part"
+ },
+ {
+  "q": "All article types ka matlab kya hai",
+  "tab": "vend",
+  "id": "c-vend-271",
+  "kind": "part"
+ },
+ {
+  "q": "All article types क्या है",
+  "tab": "vord",
+  "id": "c-vord-295",
+  "kind": "part"
+ },
+ {
+  "q": "what is All articles here",
+  "tab": "ord",
+  "id": "c-ord-575",
+  "kind": "part"
+ },
+ {
+  "q": "All articles button kis kaam ka hai",
+  "tab": "pbase",
+  "id": "c-pbase-793",
+  "kind": "part"
+ },
+ {
+  "q": "what does All brands do",
+  "tab": "ord",
+  "id": "c-ord-593",
+  "kind": "part"
+ },
+ {
+  "q": "All brands kya karta hai",
+  "tab": "palloc",
+  "id": "c-palloc-2497",
+  "kind": "part"
+ },
+ {
+  "q": "All colors ka matlab kya hai",
+  "tab": "follow",
+  "id": "c-follow-120",
+  "kind": "part"
+ },
+ {
+  "q": "All colors क्या है",
+  "tab": "india",
+  "id": "c-india-148",
+  "kind": "part"
+ },
+ {
+  "q": "what is All colours here",
+  "tab": "fab",
+  "id": "c-fab-510",
+  "kind": "part"
+ },
+ {
+  "q": "All colours button kis kaam ka hai",
+  "tab": "vend",
+  "id": "c-vend-273",
+  "kind": "part"
+ },
+ {
+  "q": "what does All departments do",
+  "tab": "att",
+  "id": "c-att-678",
+  "kind": "part"
+ },
+ {
+  "q": "All departments kya karta hai",
+  "tab": "mst",
+  "id": "c-mst-1632",
+  "kind": "part"
+ },
+ {
+  "q": "All employees ka matlab kya hai",
+  "tab": "hr",
+  "id": "c-hr-541",
+  "kind": "part"
+ },
+ {
+  "q": "All employees क्या है",
+  "tab": "pbase",
+  "id": "c-pbase-790",
+  "kind": "part"
+ },
+ {
+  "q": "what is All fabrics here",
+  "tab": "fab",
+  "id": "c-fab-509",
+  "kind": "part"
+ },
+ {
+  "q": "All fabrics button kis kaam ka hai",
+  "tab": "rfd",
+  "id": "c-rfd-327",
+  "kind": "part"
+ },
+ {
+  "q": "what does All movements do",
+  "tab": "fab",
+  "id": "c-fab-508",
+  "kind": "part"
+ },
+ {
+  "q": "All movements kya karta hai",
+  "tab": "vord",
+  "id": "c-vord-2344",
+  "kind": "part"
+ },
+ {
+  "q": "All orders ka matlab kya hai",
+  "tab": "ord",
+  "id": "c-ord-574",
+  "kind": "part"
+ },
+ {
+  "q": "All orders क्या है",
+  "tab": "pcut",
+  "id": "c-pcut-822",
+  "kind": "part"
+ },
+ {
+  "q": "what is All printers here",
+  "tab": "palloc",
+  "id": "c-palloc-2498",
+  "kind": "part"
+ },
+ {
+  "q": "All printers button kis kaam ka hai",
+  "tab": "rfd",
+  "id": "c-rfd-326",
+  "kind": "part"
+ },
+ {
+  "q": "what does All priorities do",
+  "tab": "vend",
+  "id": "c-vend-275",
+  "kind": "part"
+ },
+ {
+  "q": "All priorities kya karta hai",
+  "tab": "vord",
+  "id": "c-vord-299",
+  "kind": "part"
+ },
+ {
+  "q": "All sizes ka matlab kya hai",
+  "tab": "ord",
+  "id": "c-ord-578",
+  "kind": "part"
+ },
+ {
+  "q": "All sizes क्या है",
+  "tab": "pbase",
+  "id": "c-pbase-796",
+  "kind": "part"
+ },
+ {
+  "q": "what is All subtypes here",
+  "tab": "ord",
+  "id": "c-ord-576",
+  "kind": "part"
+ },
+ {
+  "q": "All subtypes button kis kaam ka hai",
+  "tab": "pbase",
+  "id": "c-pbase-794",
+  "kind": "part"
+ },
+ {
+  "q": "what does All types do",
+  "tab": "att",
+  "id": "c-att-679",
+  "kind": "part"
+ },
+ {
+  "q": "All types kya karta hai",
+  "tab": "pbase",
+  "id": "c-pbase-789",
+  "kind": "part"
+ },
+ {
+  "q": "All vendors ka matlab kya hai",
+  "tab": "vord",
+  "id": "c-vord-279",
+  "kind": "part"
+ },
+ {
+  "q": "All vendors क्या है",
+  "tab": "vreq",
+  "id": "c-vreq-307",
+  "kind": "part"
+ },
+ {
+  "q": "what is Amount here",
+  "tab": "gdesk",
+  "id": "c-gdesk-1342",
+  "kind": "part"
+ },
+ {
+  "q": "Amount button kis kaam ka hai",
+  "tab": "hr",
+  "id": "c-hr-1868",
+  "kind": "part"
+ },
+ {
+  "q": "what does Any state do",
+  "tab": "fab",
+  "id": "c-fab-504",
+  "kind": "part"
+ },
+ {
+  "q": "Any state kya karta hai",
+  "tab": "shop",
+  "id": "c-shop-859",
+  "kind": "part"
+ },
+ {
+  "q": "Any status ka matlab kya hai",
+  "tab": "cx",
+  "id": "c-cx-356",
+  "kind": "part"
+ },
+ {
+  "q": "Any status क्या है",
+  "tab": "fgi",
+  "id": "c-fgi-372",
+  "kind": "part"
+ },
+ {
+  "q": "what is Approve here",
+  "tab": "fgi",
+  "id": "c-fgi-1497",
+  "kind": "part"
+ },
+ {
+  "q": "Approve button kis kaam ka hai",
+  "tab": "gdesk",
+  "id": "c-gdesk-1402",
+  "kind": "part"
+ },
+ {
+  "q": "what does Approved do",
+  "tab": "hr",
+  "id": "c-hr-555",
+  "kind": "part"
+ },
+ {
+  "q": "Approved kya karta hai",
+  "tab": "so",
+  "id": "c-so-233",
+  "kind": "part"
+ },
+ {
+  "q": "Article ka matlab kya hai",
+  "tab": "fgi",
+  "id": "c-fgi-1576",
+  "kind": "part"
+ },
+ {
+  "q": "Article क्या है",
+  "tab": "flow",
+  "id": "c-flow-614",
+  "kind": "part"
+ },
+ {
+  "q": "what is Article type here",
+  "tab": "hr",
+  "id": "c-hr-1866",
+  "kind": "part"
+ },
+ {
+  "q": "Article type button kis kaam ka hai",
+  "tab": "rep",
+  "id": "c-rep-2121",
+  "kind": "part"
+ },
+ {
+  "q": "what does Asked do",
+  "tab": "ord",
+  "id": "c-ord-2256",
+  "kind": "part"
+ },
+ {
+  "q": "Asked kya karta hai",
+  "tab": "vend",
+  "id": "c-vend-2478",
+  "kind": "part"
+ },
+ {
+  "q": "Asked by ka matlab kya hai",
+  "tab": "gdesk",
+  "id": "c-gdesk-1401",
+  "kind": "part"
+ },
+ {
+  "q": "Asked by क्या है",
+  "tab": "ord",
+  "id": "c-ord-2259",
+  "kind": "part"
+ },
+ {
+  "q": "what is Back here",
+  "tab": "gdesk",
+  "id": "c-gdesk-1399",
+  "kind": "part"
+ },
+ {
+  "q": "Back button kis kaam ka hai",
+  "tab": "pack",
+  "id": "c-pack-2035",
+  "kind": "part"
+ },
+ {
+  "q": "what does Balance do",
+  "tab": "flow",
+  "id": "c-flow-1129",
+  "kind": "part"
+ },
+ {
+  "q": "Balance kya karta hai",
+  "tab": "ord",
+  "id": "c-ord-2427",
+  "kind": "part"
+ },
+ {
+  "q": "Both ka matlab kya hai",
+  "tab": "repl",
+  "id": "c-repl-2055",
+  "kind": "part"
+ },
+ {
+  "q": "Both क्या है",
+  "tab": "shop",
+  "id": "c-shop-851",
+  "kind": "part"
+ },
+ {
+  "q": "what is Both brands here",
+  "tab": "article",
+  "id": "c-article-84",
+  "kind": "part"
+ },
+ {
+  "q": "Both brands button kis kaam ka hai",
+  "tab": "follow",
+  "id": "c-follow-114",
+  "kind": "part"
+ },
+ {
+  "q": "what does Brand do",
+  "tab": "adj",
+  "id": "c-adj-1005",
+  "kind": "part"
+ },
+ {
+  "q": "Brand kya karta hai",
+  "tab": "so",
+  "id": "c-so-1803",
+  "kind": "part"
+ },
+ {
+  "q": "Cancel ka matlab kya hai",
+  "tab": "ord",
+  "id": "c-ord-2388",
+  "kind": "part"
+ },
+ {
+  "q": "Cancel क्या है",
+  "tab": "vord",
+  "id": "c-vord-2363",
+  "kind": "part"
+ },
+ {
+  "q": "what is Cancelled here",
+  "tab": "adj",
+  "id": "c-adj-1020",
+  "kind": "part"
+ },
+ {
+  "q": "Cancelled button kis kaam ka hai",
+  "tab": "cx",
+  "id": "c-cx-361",
+  "kind": "part"
+ },
+ {
+  "q": "what does Checked do",
+  "tab": "gdesk",
+  "id": "c-gdesk-1351",
+  "kind": "part"
+ },
+ {
+  "q": "Checked kya karta hai",
+  "tab": "qc",
+  "id": "c-qc-656",
+  "kind": "part"
+ },
+ {
+  "q": "Clear ka matlab kya hai",
+  "tab": "acc",
+  "id": "c-acc-212",
+  "kind": "part"
+ },
+ {
+  "q": "Clear क्या है",
+  "tab": "fab",
+  "id": "c-fab-522",
+  "kind": "part"
+ },
+ {
+  "q": "what is Clear filters here",
+  "tab": "flow",
+  "id": "c-flow-626",
+  "kind": "part"
+ },
+ {
+  "q": "Clear filters button kis kaam ka hai",
+  "tab": "mst",
+  "id": "c-mst-1647",
+  "kind": "part"
+ },
+ {
+  "q": "what does Click to see only these do",
+  "tab": "india",
+  "id": "c-india-1969",
+  "kind": "part"
+ },
+ {
+  "q": "Click to see only these kya karta hai",
+  "tab": "prod",
+  "id": "c-prod-1963",
+  "kind": "part"
+ },
+ {
+  "q": "Close ka matlab kya hai",
+  "tab": "fba",
+  "id": "c-fba-1453",
+  "kind": "part"
+ },
+ {
+  "q": "Close क्या है",
+  "tab": "pack",
+  "id": "c-pack-2014",
+  "kind": "part"
+ },
+ {
+  "q": "what is Color here",
+  "tab": "adj",
+  "id": "c-adj-1023",
+  "kind": "part"
+ },
+ {
+  "q": "Color button kis kaam ka hai",
+  "tab": "article",
+  "id": "c-article-1912",
+  "kind": "part"
+ },
+ {
+  "q": "Ramesh se 40 piece wapas aaye, kaha chadhau",
+  "tab": "shop",
+  "id": "pr-jw-receive",
+  "kind": "other"
+ },
+ {
+  "q": "issue nhi ho rha bol rha at most itne hi allowed",
+  "tab": "ord",
+  "id": "pr-jw-over-order",
+  "kind": "other"
+ },
+ {
+  "q": "ek saath 10 entry receive krni hai, ek ek karke nhi",
+  "tab": "qc",
+  "id": "pr-jw-bulk-receive",
+  "kind": "other"
+ },
+ {
+  "q": "karigar se receive kiya, ab wo piece aage kis screen pe milenge",
+  "tab": "fgi",
+  "id": "pr-jw-after-receive",
+  "kind": "other"
+ },
+ {
+  "q": "fba bhejne ki entry kaha se kre finished goods me",
+  "tab": "pack",
+  "id": "in-fg-send-fba",
+  "kind": "other"
+ },
+ {
+  "q": "order se zyada piece aa gaye, save nhi ho rha reason maang rha",
+  "tab": "flow",
+  "id": "in-fg-over",
+  "kind": "other"
+ },
+ {
+  "q": "stock me low aur out ka mtlb kya hai",
+  "tab": "so",
+  "id": "in-fg-colours",
+  "kind": "other"
+ },
+ {
+  "q": "order console kis kaam aata hai",
+  "tab": "vord",
+  "id": "or-ord-what",
+  "kind": "other"
+ },
+ {
+  "q": "order book se line hatani hai, sales ko kaise bolu",
+  "tab": "pcut",
+  "id": "or-ord-del-ask",
+  "kind": "other"
+ },
+ {
+  "q": "shopify ke naye order kaise laye screen pe",
+  "tab": "att",
+  "id": "or-shop-fetch",
+  "kind": "other"
+ },
+ {
+  "q": "theres a small pencil icon beside the order number?",
+  "tab": "hr",
+  "id": "or-shop-pencil",
+  "kind": "other"
+ },
+ {
+  "q": "एमसीएफ से ऑर्डर अमेज़न से कैसे भेजें",
+  "tab": "dash",
+  "id": "or-shop-mcf-send",
+  "kind": "other"
+ },
+ {
+  "q": "dhl file nhi ban rhi, invoice number aur hs code maang rha",
+  "tab": "rep",
+  "id": "or-shop-dhl-refuse",
+  "kind": "other"
+ },
+ {
+  "q": "US zip code pe kitne din me delivery hogi kaise dekhe",
+  "tab": "ord",
+  "id": "or-shop-days",
+  "kind": "other"
+ },
+ {
+  "q": "amazon ke liye order daalna hai sales order wala, kaha se shuru kru",
+  "tab": "pbase",
+  "id": "or-so-new",
+  "kind": "other"
+ },
+ {
+  "q": "how much of my sales order has been cut and made so far",
+  "tab": "qc",
+  "id": "or-so-progress",
+  "kind": "other"
+ },
+ {
+  "q": "cutting me fabric list me nhi hai, fabric type master wala error",
+  "tab": "fgi",
+  "id": "pr-cut-fabric-master",
+  "kind": "other"
+ },
+ {
+  "q": "चेक हो गए पीस ठीक हैं, क्यूसी में ओके कैसे करूं",
+  "tab": "pack",
+  "id": "pr-qc-pass",
+  "kind": "other"
+ },
+ {
+  "q": "need a day wise qc summary",
+  "tab": "flow",
+  "id": "pr-qc-ledger",
+  "kind": "other"
+ },
+ {
+  "q": "PO ka ppc plan kaise raise kre",
+  "tab": "so",
+  "id": "pr-flow-ppc-plan",
+  "kind": "other"
+ },
+ {
+  "q": "printer sent back the printed fabric, where do i receive it",
+  "tab": "vord",
+  "id": "pr-flow-receive-printed",
+  "kind": "other"
+ },
+ {
+  "q": "greige bales arrived from the mill, how to enter them",
+  "tab": "pcut",
+  "id": "pr-gd-receive-greige",
+  "kind": "other"
+ },
+ {
+  "q": "how to put the shipment id on fba dispatch",
+  "tab": "att",
+  "id": "in-fba-ship",
+  "kind": "other"
+ },
+ {
+  "q": "carton pe lagane wale box label kaise print kre",
+  "tab": "hr",
+  "id": "in-pk-labels",
+  "kind": "other"
+ },
+ {
+  "q": "galti se ek extra piece scan ho gya",
+  "tab": "dash",
+  "id": "in-pk-undo",
+  "kind": "other"
+ },
+ {
+  "q": "fabric inventory balance is in minus and red, whats wrong",
+  "tab": "rep",
+  "id": "in-fab-red",
+  "kind": "other"
+ },
+ {
+  "q": "how does shopify stock work out the send quantity",
+  "tab": "shop",
+  "id": "in-sh-send",
+  "kind": "other"
+ },
+ {
+  "q": "सेंड कॉलम में Air और Sea का मतलब क्या है",
+  "tab": "ord",
+  "id": "pl-repl-send",
+  "kind": "other"
+ },
+ {
+  "q": "जिन एसकेयू को एयर चाहिए उनका परचेज़ ऑर्डर सीधे यहीं से बन सकता है?",
+  "tab": "pbase",
+  "id": "pl-repl-createpo",
+  "kind": "other"
+ },
+ {
+  "q": "a sku is missing from article review",
+  "tab": "qc",
+  "id": "pl-ar-missing",
+  "kind": "other"
+ },
+ {
+  "q": "सप्लायर से बात हुई, फॉलो-अप कैसे लिखें",
+  "tab": "fgi",
+  "id": "pl-fu-log",
+  "kind": "other"
+ },
+ {
+  "q": "sku pe wrong production kyu likha hai",
+  "tab": "pack",
+  "id": "pl-pd-wrong",
+  "kind": "other"
+ },
+ {
+  "q": "शॉपिफाई ऑर्डर डिस्पैच की रिपोर्ट कहाँ है",
+  "tab": "flow",
+  "id": "pl-rep-shpd",
+  "kind": "other"
+ },
+ {
+  "q": "ek karigar ki puri detail dekhni hai",
+  "tab": "so",
+  "id": "pl-ka-detail",
+  "kind": "other"
+ },
+ {
+  "q": "रनिंग और कट में से कौन सा चुनूं",
+  "tab": "pcut",
+  "id": "vm-vord-running-cut",
+  "kind": "other"
+ },
+ {
+  "q": "एक नया छपाई वाला वेंडर शुरू किया है, उसे प्रिंटर लिस्ट में कैसे डालें",
+  "tab": "att",
+  "id": "vm-vord-add-vendor",
+  "kind": "other"
+ },
+ {
+  "q": "how do i reject a vendor order request",
+  "tab": "hr",
+  "id": "vm-vreq-reject",
+  "kind": "other"
+ },
+ {
+  "q": "प्रिंटर ज़्यादा कपड़ा मांग रहा है, उसकी आरएफडी मांग ठुकरानी है",
+  "tab": "dash",
+  "id": "vm-rfd-refuse",
+  "kind": "other"
+ },
+ {
+  "q": "i want to see exactly what the printer sees on his portal",
+  "tab": "rep",
+  "id": "vm-vend-admin-view",
+  "kind": "other"
+ },
+ {
+  "q": "har printer mahine me kitna kar skta hai wo figure kaise aata hai",
+  "tab": "shop",
+  "id": "vm-pal-capacity",
+  "kind": "other"
+ },
+ {
+  "q": "can i delete an old sku from master",
+  "tab": "ord",
+  "id": "vm-pmdb-delete",
+  "kind": "other"
+ },
+ {
+  "q": "masters me naya colour add krna hai",
+  "tab": "pbase",
+  "id": "vm-mst-add",
+  "kind": "other"
+ },
+ {
+  "q": "सिलाई का प्रति पीस रेट कहाँ भरें",
+  "tab": "qc",
+  "id": "vm-hr-piece-rate",
+  "kind": "other"
+ },
+ {
+  "q": "ek order me 5 line likha hai, line ka kya matlab",
+  "tab": "fgi",
+  "id": "bs-order-line",
+  "kind": "other"
+ },
+ {
+  "q": "piece alteration me bheja, matlab kharab hai kya",
+  "tab": "pack",
+  "id": "bs-alteration",
+  "kind": "other"
+ },
+ {
+  "q": "Job Work mein Ramesh se 40 piece wapas aaye, kaha chadhau",
+  "tab": "shop",
+  "id": "pr-jw-receive",
+  "kind": "named"
+ },
+ {
+  "q": "Job Work mein सुरेश को 100 पीस सिलाई के लिए देने हैं, एंट्री कहाँ करूँ",
+  "tab": "shop",
+  "id": "pr-jw-issue",
+  "kind": "named"
+ },
+ {
+  "q": "Job Work mein naye karigar ka naam list me nhi aa rha issue krte time",
+  "tab": "shop",
+  "id": "pr-jw-emp-missing",
+  "kind": "named"
+ },
+ {
+  "q": "in job work, job work says sku not in master, what do i do",
+  "tab": "shop",
+  "id": "pr-jw-not-master",
+  "kind": "named"
+ },
+ {
+  "q": "QC mein चेक हो गए पीस ठीक हैं, क्यूसी में ओके कैसे करूं",
+  "tab": "shop",
+  "id": "pr-qc-pass",
+  "kind": "named"
+ },
+ {
+  "q": "in QC, daag wale piece spotting me kaise bheje",
+  "tab": "shop",
+  "id": "pr-qc-spot-touch",
+  "kind": "named"
+ },
+ {
+  "q": "QC mein received pieces from karigar but they are not in waiting for qc",
+  "tab": "shop",
+  "id": "pr-qc-not-waiting",
+  "kind": "named"
+ },
+ {
+  "q": "in QC, qc se alteration ke liye piece karigar ko dena hai",
+  "tab": "shop",
+  "id": "pr-qc-alt-issue",
+  "kind": "named"
+ },
+ {
+  "q": "Cutting mein आज टेबल पर 200 पीस कटे, कहाँ लिखूं",
+  "tab": "shop",
+  "id": "pr-cut-new",
+  "kind": "named"
+ },
+ {
+  "q": "in cutting, cutting me fabric list me nhi hai, fabric type master wala error",
+  "tab": "shop",
+  "id": "pr-cut-fabric-master",
+  "kind": "named"
+ },
+ {
+  "q": "Cutting mein waste % showing red in cutting data",
+  "tab": "shop",
+  "id": "pr-cut-waste-tiles",
+  "kind": "named"
+ },
+ {
+  "q": "in cutting, kitna cut pada hai jo abhi karigar ko nhi gaya",
+  "tab": "shop",
+  "id": "pr-cut-not-issued",
+  "kind": "named"
+ },
+ {
+  "q": "Order Console mein order console kis kaam aata hai",
+  "tab": "shop",
+  "id": "or-ord-what",
+  "kind": "named"
+ },
+ {
+  "q": "in order console, स्टेटस में 25 to make का मतलब क्या है",
+  "tab": "shop",
+  "id": "or-ord-status",
+  "kind": "named"
+ },
+ {
+  "q": "Order Console mein mera order kaha atka hai kaise pta kre",
+  "tab": "shop",
+  "id": "or-ord-journey",
+  "kind": "named"
+ },
+ {
+  "q": "in order console, sales changed the quantity, where do i approve it",
+  "tab": "shop",
+  "id": "or-ord-qty-approve",
+  "kind": "named"
+ },
+ {
+  "q": "Packing List mein make a packing list from a box sheet file",
+  "tab": "shop",
+  "id": "in-pk-new-file",
+  "kind": "named"
+ },
+ {
+  "q": "in packing list, carton pe lagane wale box label kaise print kre",
+  "tab": "shop",
+  "id": "in-pk-labels",
+  "kind": "named"
+ },
+ {
+  "q": "Packing List mein अमेज़न की बॉक्स कंटेंट फाइल कैसे भरें",
+  "tab": "shop",
+  "id": "in-pk-fba-file",
+  "kind": "named"
+ },
+ {
+  "q": "in packing list, scan to pack kaise chalu kre",
+  "tab": "shop",
+  "id": "in-pk-scan",
+  "kind": "named"
+ },
+ {
+  "q": "Finished goods mein AB-TBL-RED-M ka stock kitna hai kaise dekhu",
+  "tab": "shop",
+  "id": "gn-stock-check",
+  "kind": "named"
+ },
+ {
+  "q": "Finished goods mein स्टोर में तैयार माल कैसे चढ़ाएं",
+  "tab": "shop",
+  "id": "in-fg-receive",
+  "kind": "named"
+ },
+ {
+  "q": "Finished goods mein fba bhejne ki entry kaha se kre finished goods me",
+  "tab": "shop",
+  "id": "in-fg-send-fba",
+  "kind": "named"
+ },
+ {
+  "q": "in finished goods, scanning shows unknown code in scan in / out",
+  "tab": "shop",
+  "id": "in-fg-scan-unknown",
+  "kind": "named"
+ },
+ {
+  "q": "Sales order mein amazon ke liye order daalna hai sales order wala, kaha se shuru kru",
+  "tab": "shop",
+  "id": "or-so-new",
+  "kind": "named"
+ },
+ {
+  "q": "in sales orders, sales order wont save, its asking air or sea",
+  "tab": "shop",
+  "id": "or-so-airsea",
+  "kind": "named"
+ },
+ {
+  "q": "Sales order mein ड्राफ्ट सेव और प्लेस ऑर्डर में क्या फर्क है",
+  "tab": "shop",
+  "id": "or-so-draft",
+  "kind": "named"
+ },
+ {
+  "q": "in sales orders, apna sales order edit nhi ho rha approve hone ke baad",
+  "tab": "shop",
+  "id": "or-so-locked",
+  "kind": "named"
+ }
+]

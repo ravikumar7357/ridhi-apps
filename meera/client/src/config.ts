@@ -11,6 +11,7 @@ const MEERA_CONFIG = {
   sureMeaning: 0.75,        // …the same with the meaning table (scores run higher)
   near: 0.32,               // offer as "did you mean" from this score
   gap: 0.04,                // the best must be this far ahead of the next to answer outright
+  screenFirstMargin: 0.04,  // switch "screenfirst": the open screen's clearly-sure answer wins when at most this far behind another screen's best
   ask: 0.5,                 // a close answer worth offering when nothing is sure
   meaningWeight: 0.5,       // how much meaning counts next to the word match
   meaningSkipFillers: true, // filler words ("ko", "hai", "the") left out of a sentence's meaning

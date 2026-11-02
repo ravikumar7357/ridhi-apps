@@ -102,9 +102,10 @@ async function load(opts = {}) {
   /* opts.bundle (Phase 1): Meera as her own file — the ERP side is only its bridge (core/meera-bridge.js, which reads
    * the ERP's ME, TAB_NOW, showTab… given above); then public/meera/meera.js, which brings its own $ and esc and talks
    * to the ERP through the bridge alone. Her answers come out through window.MEERA. */
+  /* opts.switches: her switches on for this run, as one computer would have them (localStorage) — in meera.js and,
+   * for a switch that works there too (screenfirst), in the page */
+  for (const s of opts.switches || []) page.localStorage.setItem('meera.' + s, '1');
   if (opts.bundle) {
-    /* opts.switches: her switches on for this run, as one computer would have them (localStorage) */
-    for (const s of opts.switches || []) page.localStorage.setItem('meera.' + s, '1');
     delete sandbox.$; delete sandbox.esc;
     const bridge = path.join(app, 'src', 'app', 'core', 'meera-bridge.js'), file = path.join(app, 'public', 'meera', 'meera.js');
     vm.runInContext(fs.readFileSync(bridge, 'utf8'), ctx, { filename: 'meera-bridge.js' });

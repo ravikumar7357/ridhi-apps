@@ -81,6 +81,9 @@ const MEERA_SWITCHES = {
    * compared), "serveruse" answers from the router (no 1.9 MB download; a small list per screen when it is down). */
   server: false,
   serveruse: false,
+  /* answer from the open screen first (Ravi, 2 Nov): its own answers before every other screen's; another screen's
+   * answer says which screen it is for. Works in the page and in meera.js: ?meera=screenfirst */
+  screenfirst: false,
 };
 function meeraOn(name) {
   try {
