@@ -1,0 +1,471 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Shopify OS · Ops</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&family=Instrument+Serif&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Ridhi Shopify OS · the ops page: problems board, morning numbers, route suggestions, production batches, feed status.
+ * Two ways in:
+ *   · inside the TEST ERP (Shopify → Shopify OS): signed in with the ERP account, so people can ACT (answer alerts, accept routes, make batches)
+ *   · on this PC through the hub server (localhost:8850/ops.html): READ ONLY, nobody's name, nothing can be changed
+ * Every number comes from a database function (step 26); this page only shows it. Nothing here talks to Shopify or Amazon. */
+:root{
+  --bg:#f5f6f3; --paper:#ffffff; --ink:#18211d; --muted:#5b6862; --faint:#8b968f; --line:#dce2de; --hover:#f0f3f1;
+  --accent:#0f7a5f; --accent-soft:#dff0e9; --red:#a33030; --red-soft:#fbe7e7; --amber:#8a5a00; --amber-soft:#fbefd8; --blue:#2563a8; --blue-soft:#e3edf8;
+  --display:"Instrument Serif",Georgia,serif; --body:"Instrument Sans","Segoe UI",system-ui,sans-serif; --mono:"IBM Plex Mono",ui-monospace,Consolas,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#121614; --paper:#191f1c; --ink:#e4ebe7; --muted:#9aa8a1; --faint:#6f7c76; --line:#2a3430; --hover:#1f2723;
+  --accent:#4cc7a2; --accent-soft:#183129; --red:#f09a9a; --red-soft:#3a1e1e; --amber:#e8b95a; --amber-soft:#342913; --blue:#7fb2ea; --blue-soft:#18263a; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#121614; --paper:#191f1c; --ink:#e4ebe7; --muted:#9aa8a1; --faint:#6f7c76; --line:#2a3430; --hover:#1f2723;
+  --accent:#4cc7a2; --accent-soft:#183129; --red:#f09a9a; --red-soft:#3a1e1e; --amber:#e8b95a; --amber-soft:#342913; --blue:#7fb2ea; --blue-soft:#18263a; color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.5;
+  padding:20px max(16px,env(safe-area-inset-right,0px)) 60px max(16px,env(safe-area-inset-left,0px))}
+main{max-width:1240px;margin:0 auto;display:grid;gap:16px}
+h1{font-family:var(--display);font-weight:400;margin:0;line-height:1.1;font-size:clamp(30px,5vw,42px)}
+h2{font-size:15px;margin:0;font-weight:600}
+p{margin:0}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.eyebrow{font-size:12px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.muted{color:var(--muted)} .small{font-size:13px}
+.msg{border-radius:10px;padding:12px 14px;font-size:14px}
+.msg b{display:block;margin-bottom:2px}
+.msg.bad{background:var(--red-soft);color:var(--red)} .msg.amb{background:var(--amber-soft);color:var(--amber)} .msg.ok{background:var(--accent-soft);color:var(--accent)}
+.top{display:flex;justify-content:space-between;gap:12px;align-items:flex-end;flex-wrap:wrap}
+.who{font-size:13px;color:var(--muted);text-align:right}
+.bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:8px 10px;position:sticky;top:8px;z-index:3}
+.seg{display:flex;gap:2px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:2px;flex-wrap:wrap}
+.seg button{border:0;background:none;padding:5px 12px;border-radius:6px;font-size:13.5px;color:var(--muted);cursor:pointer}
+.seg button.on{background:var(--paper);color:var(--ink);font-weight:600;box-shadow:0 0 0 1px var(--line)}
+.grow{flex:1}
+.btn{border:1px solid var(--line);background:var(--paper);border-radius:8px;padding:6px 12px;cursor:pointer;font-size:13.5px;white-space:nowrap}
+.btn.pri{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.warn{color:var(--red)}
+.btn:disabled{opacity:.45;cursor:default}
+.card{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:16px 18px;display:grid;gap:12px}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,460px),1fr));gap:12px}
+.nums{display:grid;grid-template-columns:repeat(auto-fit,minmax(96px,1fr));gap:8px}
+.nums div{display:grid}
+.nums b{font-family:var(--display);font-size:30px;font-weight:400;line-height:1.1;font-variant-numeric:tabular-nums}
+.nums span{font-size:12px;color:var(--muted)}
+.nums .red b{color:var(--red)} .nums .amb b{color:var(--amber)} .nums .ok b{color:var(--accent)}
+.ages{display:grid;grid-template-columns:repeat(4,1fr);gap:4px}
+.ages div{border-radius:8px;padding:8px 10px;background:var(--bg);display:grid}
+.ages b{font-size:20px;font-variant-numeric:tabular-nums}
+.ages span{font-size:12px;color:var(--muted)}
+.ages .a3{background:var(--amber-soft)} .ages .a4{background:var(--red-soft)} .ages .a4 b{color:var(--red)}
+.list{background:var(--paper);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.wrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:13.5px}
+.list table{min-width:860px}
+th,td{text-align:left;padding:9px 12px;border-top:1px solid var(--line);vertical-align:top}
+thead th{border-top:0;background:var(--bg);font-size:12px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);font-weight:600;white-space:nowrap}
+tbody tr.row{cursor:pointer}
+tbody tr.row:hover td,tbody tr.row.open td{background:var(--hover)}
+td.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.mono{font-family:var(--mono);font-size:12.5px}
+.pill{display:inline-block;font-size:11.5px;font-weight:600;padding:2px 9px;border-radius:99px;background:var(--bg);color:var(--muted);border:1px solid var(--line);white-space:nowrap}
+.p-red{background:var(--red-soft);color:var(--red);border-color:transparent}
+.p-amber{background:var(--amber-soft);color:var(--amber);border-color:transparent}
+.p-ok{background:var(--accent-soft);color:var(--accent);border-color:transparent}
+.p-blue{background:var(--blue-soft);color:var(--blue);border-color:transparent}
+.detail td{background:var(--bg)}
+.detail .in{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:18px;padding:6px 4px 10px}
+@media (max-width:760px){.detail .in{grid-template-columns:1fr}}
+.tl{display:grid;gap:6px;font-size:13px;max-height:340px;overflow:auto}
+.tl div{display:grid;grid-template-columns:110px 1fr;gap:8px}
+.tl time{color:var(--muted);font-variant-numeric:tabular-nums}
+.form{display:grid;gap:8px;font-size:13.5px}
+.form label{display:grid;gap:3px;color:var(--muted);font-size:12.5px}
+.form select,.form input,.form textarea{border:1px solid var(--line);background:var(--paper);border-radius:8px;padding:6px 9px;color:var(--ink);font-size:13.5px;width:100%}
+.form .row2{display:flex;gap:8px;flex-wrap:wrap}
+.top5{display:grid;gap:4px;font-size:13px}
+.top5 div{display:flex;justify-content:space-between;gap:10px}
+.empty{padding:28px;text-align:center;color:var(--muted)}
+.foot{font-size:12.5px;color:var(--faint)}
+.hide{display:none!important}
+@media print{.bar,.top .who,.noprint{display:none!important} body{padding:0}}
+</style>
+</head>
+<body>
+<main>
+  <div class="top">
+    <div>
+      <p class="eyebrow">Ridhi Shopify OS · both stores</p>
+      <h1>Ops</h1>
+    </div>
+    <div class="who" id="who">Connecting…</div>
+  </div>
+
+  <div class="bar">
+    <div class="seg" id="tabs" role="tablist">
+      <button data-t="problems" class="on">Problems</button>
+      <button data-t="morning">Morning</button>
+      <button data-t="routes">Routes</button>
+      <button data-t="batches">Batches</button>
+      <button data-t="status">Status</button>
+    </div>
+    <div class="seg" id="stores">
+      <button data-s="" class="on">Both</button>
+      <button data-s="RBP">Ridhi</button>
+      <button data-s="CPC">CPC</button>
+    </div>
+    <span class="grow"></span>
+    <span class="small muted" id="stamp"></span>
+    <button class="btn" id="reload">Reload</button>
+  </div>
+
+  <div id="note" class="hide"></div>
+  <section id="view"></section>
+  <p class="foot">Reads only what the database works out (alerts every 15 minutes, morning numbers at 09:30). Marking shipped in Shopify and real MCF stay OFF.</p>
+</main>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s == null ? '' : s).replace(/[<>&"']/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&#39;' }[c]));
+  const nf = v => v == null ? '–' : Number(v).toLocaleString('en-US');
+  const IST = { timeZone: 'Asia/Kolkata' };
+  const when = t => t ? new Date(t).toLocaleString('en-GB', { ...IST, day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '–';
+  const day = t => t ? new Date(t).toLocaleDateString('en-GB', { ...IST, day: '2-digit', month: 'short' }) : '–';
+  const ago = t => {
+    if (!t) return '–';
+    const m = Math.round((Date.now() - new Date(t)) / 60000);
+    return m < 60 ? m + ' min' : m < 1440 ? Math.round(m / 60) + ' h' : Math.round(m / 1440) + ' d';
+  };
+
+  /* ---------------- how this page reaches the database ---------------- */
+  const LOCAL = /^(localhost|127\.0\.0\.1)$/.test(location.hostname) && location.port === '8850';
+  function erp() { try { return window.parent !== window && window.parent.SHOS ? window.parent.SHOS : null; } catch (e) { return null; } }
+  async function call(fn, args) {
+    const body = JSON.stringify(args || {});
+    if (LOCAL) {
+      const r = await fetch('/api/rpc/' + fn, { method: 'POST', body, headers: { 'Content-Type': 'application/json' } });
+      const j = await r.json();
+      if (j && j.error) throw new Error(String(j.error).replace(/^Supabase \d+: /, ''));
+      return j;
+    }
+    const S = erp();
+    if (!S) throw new Error('Open this page from the TEST ERP (Shopify → Shopify OS), or from the hub server on this PC (localhost:8850/ops.html).');
+    const cfg = await S.config();
+    const token = await S.token();
+    const r = await fetch(cfg.url.replace(/\/+$/, '') + '/rest/v1/rpc/' + fn, {
+      method: 'POST', body,
+      headers: { apikey: cfg.key, Authorization: 'Bearer ' + (token || cfg.key), 'Content-Type': 'application/json' },
+    });
+    const t = await r.text(); let j = null; try { j = t ? JSON.parse(t) : null; } catch (e) { /* not JSON */ }
+    if (!r.ok) throw new Error((j && (j.message || j.hint)) || t.slice(0, 200) || ('Database said ' + r.status));
+    return j;
+  }
+
+  let ME = null, TAB = 'problems', STORE = '', DATA = {};
+  const canAct = () => !LOCAL && ME && ME.on_list;
+  const isHead = () => canAct() && (ME.is_head || ['admin', 'corporate'].includes(ME.team));
+  const inTeam = (...t) => canAct() && (t.includes(ME.team) || ['admin', 'corporate'].includes(ME.team));
+  function note(kind, title, text) {
+    const n = $('note');
+    if (!kind) { n.className = 'hide'; n.innerHTML = ''; return; }
+    n.className = 'msg ' + kind; n.innerHTML = '<b>' + esc(title) + '</b>' + esc(text || '');
+  }
+  async function act(fn, args, done) {
+    try { await call(fn, args); note('ok', 'Saved.', ''); if (done) await done(); }
+    catch (e) { note('bad', 'Not saved.', e.message); }
+  }
+
+  /* ---------------- who ---------------- */
+  async function loadMe() {
+    try {
+      ME = await call('hub_me');
+      if (LOCAL) $('who').innerHTML = 'Read only · hub server on this PC';
+      else if (ME.on_list) $('who').innerHTML = esc(ME.name) + ' · ' + esc(ME.team) + (ME.is_head ? ' · head' : '');
+      else if (!ME.signed_in) $('who').innerHTML = '<span style="color:var(--red)">Not signed in</span>';
+      else if (!ME.verified) $('who').innerHTML = esc(ME.email) + ' · <span style="color:var(--red)">email not verified</span>';
+      else $('who').innerHTML = esc(ME.email) + ' · <span style="color:var(--red)">not on the Shopify OS people list</span>';
+    } catch (e) { $('who').textContent = 'Not connected'; throw e; }
+  }
+
+  /* ---------------- 1. problems board ---------------- */
+  let PF = { team: '', kind: '' }, OPEN_ALERT = null;
+  async function problems() {
+    const d = DATA.alerts = await call('hub_alerts', { p_store: STORE || null });
+    drawProblems();
+    return d;
+  }
+  function drawProblems() {
+    const d = DATA.alerts, all = d.alerts || [];
+    const rows = all.filter(a => (!PF.team || a.owner_team === PF.team) && (!PF.kind || a.alert_kind === PF.kind));
+    const teams = [...new Set(all.map(a => a.owner_team).filter(Boolean))].sort();
+    const kinds = [...new Set(all.map(a => a.alert_kind).filter(Boolean))].sort();
+    const red = all.filter(a => a.severity === 'red').length, amber = all.length - red;
+    const mine = canAct() ? all.filter(a => (a.assigned_to || '').toLowerCase() === ME.email.toLowerCase()).length : 0;
+    $('view').innerHTML = `
+      <div class="card">
+        <div class="nums">
+          <div class="red"><b>${nf(red)}</b><span>red</span></div>
+          <div class="amb"><b>${nf(amber)}</b><span>amber</span></div>
+          <div><b>${nf(all.filter(a => (a.level || 1) >= 2).length)}</b><span>escalated</span></div>
+          <div><b>${nf(all.filter(a => !a.reason).length)}</b><span>no answer yet</span></div>
+          ${canAct() ? `<div class="ok"><b>${nf(mine)}</b><span>given to me</span></div>` : ''}
+        </div>
+        <div class="row2" style="display:flex;gap:8px;flex-wrap:wrap">
+          <div class="seg" id="pTeam"><button data-v="" class="${PF.team ? '' : 'on'}">All teams</button>${teams.map(t => `<button data-v="${esc(t)}" class="${PF.team === t ? 'on' : ''}">${esc(t)}</button>`).join('')}</div>
+          <div class="seg" id="pKind"><button data-v="" class="${PF.kind ? '' : 'on'}">All kinds</button>${kinds.map(t => `<button data-v="${esc(t)}" class="${PF.kind === t ? 'on' : ''}">${esc(t.replace(/_/g, ' '))}</button>`).join('')}</div>
+        </div>
+      </div>
+      <div class="list"><div class="wrap"><table>
+        <thead><tr><th></th><th>Order</th><th>What is wrong</th><th>Since</th><th>Level</th><th>Team · who has it</th><th>Answer</th></tr></thead>
+        <tbody>${rows.length ? rows.map(a => `
+          <tr class="row${OPEN_ALERT === a.id ? ' open' : ''}" data-id="${a.id}">
+            <td><span class="pill p-${a.severity === 'red' ? 'red' : 'amber'}">${esc(a.severity)}</span></td>
+            <td><b>${esc(a.order_name || a.store)}</b><div class="small muted">${esc(a.store)}${a.placed_at ? ' · placed ' + day(a.placed_at) : ''}</div></td>
+            <td>${esc(a.title)}<div class="small muted">${esc((a.alert_kind || '').replace(/_/g, ' '))}${a.step ? ' · at ' + esc(a.step) : ''}</div></td>
+            <td class="n">${ago(a.opened_at)}</td>
+            <td><span class="pill ${(a.level || 1) >= 2 ? 'p-red' : ''}">L${a.level || 1}</span></td>
+            <td>${esc(a.owner_team || '–')}<div class="small muted">${esc(a.assigned_to || 'team')}</div></td>
+            <td>${a.reason ? esc(a.reason) + `<div class="small muted">by ${when(a.due_at)}</div>` : `<span class="small muted">due ${when(a.due_at)}</span>`}</td>
+          </tr>
+          ${OPEN_ALERT === a.id ? `<tr class="detail"><td colspan="7"><div class="in"><div><h2>Timeline</h2><div class="tl" id="tl">Loading…</div></div><div id="af"></div></div></td></tr>` : ''}`).join('')
+          : `<tr><td colspan="7" class="empty">No open problems${PF.team || PF.kind ? ' for this filter' : ''}. The engine checks every 15 minutes.</td></tr>`}
+        </tbody></table></div></div>`;
+    $('pTeam').onclick = e => { const b = e.target.closest('button'); if (b) { PF.team = b.dataset.v; drawProblems(); } };
+    $('pKind').onclick = e => { const b = e.target.closest('button'); if (b) { PF.kind = b.dataset.v; drawProblems(); } };
+    $('view').querySelectorAll('tr.row').forEach(tr => tr.onclick = () => { const id = Number(tr.dataset.id); OPEN_ALERT = OPEN_ALERT === id ? null : id; drawProblems(); });
+    if (OPEN_ALERT) openAlert(all.find(a => a.id === OPEN_ALERT));
+  }
+  async function openAlert(a) {
+    if (!a) return;
+    const reasons = (DATA.alerts.reasons || {})[a.owner_team] || ['Other'];
+    const people = DATA.alerts.people || [];
+    $('af').innerHTML = !canAct() ? `<div class="msg amb"><b>Read only here.</b>Answer alerts from the TEST ERP, signed in, on the people list.</div>` : `
+      <div class="form">
+        <h2>Answer</h2>
+        <label>Reason<select id="aReason">${reasons.map(r => `<option${a.reason === r ? ' selected' : ''}>${esc(r)}</option>`).join('')}</select></label>
+        <label>Next action<input id="aAction" maxlength="300" value="${esc(a.action || '')}" placeholder="What happens next"></label>
+        <label>New time (India)<input id="aDue" type="datetime-local"></label>
+        <div class="row2"><button class="btn pri" id="aSave">Save answer</button></div>
+        ${isHead() ? `<h2 style="margin-top:8px">Head</h2>
+          <div class="row2"><select id="aWho" style="flex:1">${people.map(p => `<option value="${esc(p.email)}"${p.email === a.assigned_to ? ' selected' : ''}>${esc(p.name)} · ${esc(p.team)}</option>`).join('')}</select><button class="btn" id="aGive">Give to</button></div>
+          <div class="row2"><input id="aNote" placeholder="Why it can be closed" style="flex:1"><button class="btn warn" id="aClose">Close</button></div>
+          <p class="small muted">Closing by hand only sticks if the problem is really gone. Otherwise the engine opens it again.</p>` : ''}
+      </div>`;
+    if (canAct()) {
+      const d = new Date(Date.now() + 4 * 3600000), ist = new Date(d.getTime() + 5.5 * 3600000);
+      $('aDue').value = ist.toISOString().slice(0, 16);
+      $('aSave').onclick = () => {
+        const v = $('aDue').value; if (!v) return note('bad', 'Pick the new time.');
+        act('act_answer_alert', { p_id: a.id, p_reason: $('aReason').value, p_action: $('aAction').value, p_due: v + ':00+05:30' }, refresh);
+      };
+      if (isHead()) {
+        $('aGive').onclick = () => act('act_reassign_alert', { p_id: a.id, p_email: $('aWho').value }, refresh);
+        $('aClose').onclick = () => act('act_close_alert', { p_id: a.id, p_note: $('aNote').value }, refresh);
+      }
+      if (!a.seen_at && (a.assigned_to || '').toLowerCase() === ME.email.toLowerCase()) call('act_seen_alert', { p_id: a.id }).catch(() => {});
+    }
+    if (!a.order_id) { $('tl').innerHTML = '<span class="muted">A store-wide alert: no order.</span>'; return; }
+    try {
+      const t = await call('hub_order_timeline', { p_order: a.order_id });
+      const o = t.order || {};
+      $('tl').innerHTML = `<div><time>${esc(o.store)}</time><span><b>${esc(o.name)}</b> · ${esc(o.customer_name || '')} · ${esc([o.ship_city, o.ship_country].filter(Boolean).join(', '))} · ${esc(o.financial_status || '')} / ${esc(o.fulfillment_status || '')}</span></div>`
+        + (t.items || []).map(i => `<div><time>${i.open_qty} open</time><span class="mono">${esc(i.sku || 'NO SKU')}</span> <span>${esc(i.title)}${i.variant_title ? ' · ' + esc(i.variant_title) : ''}${i.route ? ' → ' + esc(i.route.toUpperCase()) : ''}${i.batch_id ? ' · ' + esc(i.batch_id) : ''}</span></div>`).join('')
+        + (t.events || []).map(e => `<div><time>${when(e.at)}</time><span>${esc(e.title)} <span class="muted small">· ${esc(e.by)}</span></span></div>`).join('');
+    } catch (e) { $('tl').textContent = e.message; }
+  }
+
+  /* ---------------- 2. morning ---------------- */
+  let MDAY = '';
+  async function morning() {
+    const d = DATA.morning = await call('hub_morning', { p_day: MDAY || null });
+    const stores = (d.stores || []).filter(s => !STORE || s.store === STORE);
+    $('view').innerHTML = `
+      <div class="card"><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <h2>Morning numbers for ${esc(new Date(d.day + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' }))}</h2>
+        <span class="grow"></span>
+        <label class="small muted">Another day <input type="date" id="mDay" value="${esc(d.day)}" class="btn"></label>
+      </div></div>
+      <div class="cards">${stores.map(s => `
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:baseline"><h2>${esc(s.name || s.store)}</h2><span class="small muted">feed: ${s.feed_last_message ? 'last message ' + ago(s.feed_last_message) + ' ago' : 'no webhook yet'}</span></div>
+          <div class="nums">
+            <div><b>${nf(s.orders)}</b><span>orders</span></div>
+            <div class="ok"><b>${nf(s.shipped)}</b><span>shipped</span></div>
+            <div><b>${nf(s.cancelled)}</b><span>cancelled</span></div>
+            <div class="red"><b>${nf(s.late_red)}</b><span>red now</span></div>
+            <div class="amb"><b>${nf(s.late_amber)}</b><span>amber now</span></div>
+          </div>
+          <div><p class="small muted" style="margin-bottom:4px">Still to ship: <b style="color:var(--ink)">${nf(s.to_ship.total)}</b> orders, by days waiting</p>
+            <div class="ages"><div><b>${nf(s.to_ship.d0_1)}</b><span>0–1 day</span></div><div><b>${nf(s.to_ship.d2_3)}</b><span>2–3 days</span></div>
+              <div class="a3"><b>${nf(s.to_ship.d4_7)}</b><span>4–7 days</span></div><div class="a4"><b>${nf(s.to_ship.d7plus)}</b><span>7+ days</span></div></div></div>
+          <div class="nums"><div><b>${nf(s.waiting_production)}</b><span>lines for production</span></div><div class="${s.no_sku_lines ? 'amb' : ''}"><b>${nf(s.no_sku_lines)}</b><span>lines without SKU</span></div></div>
+          <div><p class="small muted" style="margin-bottom:4px">Most wanted, still to ship</p>
+            <div class="top5">${(s.top_waiting || []).map(t => `<div><span><span class="mono">${esc(t.sku)}</span> ${esc(t.title || '')}</span><span class="muted">${nf(t.pieces)} pcs · ${nf(t.orders)} orders</span></div>`).join('') || '<span class="muted">Nothing waiting.</span>'}</div></div>
+        </div>`).join('')}</div>
+      <p class="small muted">Saved mornings: ${(d.past || []).map(p => esc(p.day)).join(' · ') || 'none yet (the 09:30 job saves one each working day)'}</p>`;
+    $('mDay').onchange = e => { MDAY = e.target.value; refresh(); };
+    return d;
+  }
+
+  /* ---------------- 3. route suggestions ---------------- */
+  let RSEL = new Set();
+  const ROUTE_PILL = { mcf: 'p-ok', india: 'p-blue', make: 'p-amber', fix_sku: 'p-red' };
+  async function routes() {
+    const d = DATA.routes = await call('hub_routes', { p_store: STORE || null, p_limit: 600 });
+    RSEL = new Set([...RSEL].filter(id => (d.lines || []).some(l => l.item_id === id)));
+    drawRoutes();
+    return d;
+  }
+  function drawRoutes() {
+    const d = DATA.routes, lines = d.lines || [], tot = d.totals || {};
+    const can = inTeam('orders', 'shipment');
+    $('view').innerHTML = `
+      ${d.stock_as_of ? '' : '<div class="msg amb"><b>No stock copied yet.</b>Until FBA and India stock are copied from the ERP (Status tab), every line says Production.</div>'}
+      <div class="card">
+        <div class="nums">
+          <div class="ok"><b>${nf(tot['todo:mcf'])}</b><span>suggest MCF</span></div>
+          <div><b>${nf(tot['todo:india'])}</b><span>suggest India</span></div>
+          <div class="amb"><b>${nf(tot['todo:make'])}</b><span>suggest Production</span></div>
+          <div class="red"><b>${nf(tot['todo:fix_sku'])}</b><span>fix SKU first</span></div>
+          <div><b>${nf((tot.mcf || 0) + (tot.india || 0) + (tot.make || 0) + (tot.skip || 0))}</b><span>already routed</span></div>
+        </div>
+        <p class="small muted">Oldest order first, per SKU. Stock read ${d.stock_as_of ? when(d.stock_as_of) : 'never'}. A suggestion is only a suggestion: nothing is routed until someone accepts it.</p>
+        ${can ? `<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn pri" id="rAccept" ${RSEL.size ? '' : 'disabled'}>Accept ${RSEL.size} selected</button><button class="btn" id="rAllMcf">Select every MCF suggestion</button><button class="btn" id="rNone">Clear</button></div>`
+              : `<p class="small muted">${LOCAL ? 'Read only on this PC.' : 'Only the orders and shipment teams accept routes.'}</p>`}
+      </div>
+      <div class="list"><div class="wrap"><table>
+        <thead><tr>${can ? '<th></th>' : ''}<th>Order</th><th>Placed</th><th>SKU · item</th><th class="n">Qty</th><th>Suggested</th><th>Why</th></tr></thead>
+        <tbody>${lines.length ? lines.map(l => `<tr>
+          ${can ? `<td>${l.suggested === 'fix_sku' ? '' : `<input type="checkbox" data-id="${l.item_id}" ${RSEL.has(l.item_id) ? 'checked' : ''} aria-label="select">`}</td>` : ''}
+          <td><b>${esc(l.order_name)}</b><div class="small muted">${esc(l.store)}</div></td>
+          <td>${day(l.placed_at)}</td>
+          <td><span class="mono">${esc(l.sku || 'NO SKU')}</span><div class="small muted">${esc(l.title)}${l.variant_title ? ' · ' + esc(l.variant_title) : ''}</div></td>
+          <td class="n">${nf(l.open_qty)}</td>
+          <td><span class="pill ${ROUTE_PILL[l.suggested] || ''}">${esc(l.suggested === 'fix_sku' ? 'fix SKU' : l.suggested.toUpperCase())}</span></td>
+          <td class="small">${esc(l.reason)}</td></tr>`).join('') : '<tr><td colspan="7" class="empty">Every open line is routed.</td></tr>'}
+        </tbody></table></div></div>`;
+    if (!can) return;
+    $('view').querySelectorAll('input[type=checkbox]').forEach(c => c.onchange = () => { const id = Number(c.dataset.id); c.checked ? RSEL.add(id) : RSEL.delete(id); $('rAccept').disabled = !RSEL.size; $('rAccept').textContent = 'Accept ' + RSEL.size + ' selected'; });
+    $('rAllMcf').onclick = () => { lines.filter(l => l.suggested === 'mcf').forEach(l => RSEL.add(l.item_id)); drawRoutes(); };
+    $('rNone').onclick = () => { RSEL.clear(); drawRoutes(); };
+    $('rAccept').onclick = () => {
+      const pick = lines.filter(l => RSEL.has(l.item_id)).map(l => ({ item_id: l.item_id, route: l.suggested }));
+      if (!confirm(`Route ${pick.length} line(s) as suggested?`)) return;
+      act('act_accept_routes', { p_lines: pick }, async () => { RSEL.clear(); await refresh(); });
+    };
+  }
+
+  /* ---------------- 4. production batches ---------------- */
+  async function batches() {
+    const d = DATA.demand = await call('hub_demand', { p_store: STORE || null });
+    const can = inTeam('production');
+    const dem = d.demand || [], bs = d.batches || [];
+    $('view').innerHTML = `
+      <div class="card"><h2>What needs making</h2><p class="small muted">Open lines routed (or suggested) to Production, not in a batch yet, grouped by SKU. Due = oldest order + production days.</p></div>
+      <div class="list"><div class="wrap"><table>
+        <thead><tr><th>SKU · item</th><th>Route</th><th class="n">Pieces</th><th class="n">Orders</th><th>Oldest order</th><th>Due</th><th></th></tr></thead>
+        <tbody>${dem.length ? dem.map((x, i) => `<tr>
+          <td><span class="mono">${esc(x.sku)}</span><div class="small muted">${esc(x.store)} · ${esc(x.title || '')}${x.some_accepted ? '' : ' · <i>suggested only</i>'}</div></td>
+          <td>${esc(x.ppc_route || '–')}</td><td class="n"><b>${nf(x.pieces)}</b></td><td class="n">${nf(x.orders)}</td>
+          <td>${day(x.oldest_order_at)}</td><td>${new Date(x.due_at) < new Date() ? `<span class="pill p-red">${day(x.due_at)}</span>` : day(x.due_at)}</td>
+          <td>${can ? `<button class="btn pri" data-mk="${i}">Make batch</button>` : ''}</td></tr>`).join('') : '<tr><td colspan="7" class="empty">Nothing waiting for production.</td></tr>'}
+        </tbody></table></div></div>
+      <div class="card"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap"><h2>Batches</h2><button class="btn noprint" id="bPrint">Print batch sheet</button></div></div>
+      <div class="list"><div class="wrap"><table>
+        <thead><tr><th>Batch</th><th>SKU</th><th class="n">Qty</th><th>Status</th><th>Due</th><th>ERP order</th><th>Orders in it</th><th class="noprint"></th></tr></thead>
+        <tbody>${bs.length ? bs.map(b => `<tr>
+          <td class="mono">${esc(b.id)}</td><td><span class="mono">${esc(b.sku)}</span><div class="small muted">${esc(b.title || '')}</div></td><td class="n"><b>${nf(b.qty)}</b></td>
+          <td><span class="pill ${b.status === 'done' ? 'p-ok' : b.late ? 'p-red' : b.status === 'in_production' ? 'p-blue' : ''}">${esc(b.late ? 'late' : b.status.replace('_', ' '))}</span></td>
+          <td>${day(b.due_at)}</td><td class="mono">${esc(b.erp_order_no || '–')}</td><td class="small">${esc((b.orders || []).join(', '))}</td>
+          <td class="noprint">${can && b.status === 'open' ? `<button class="btn" data-st="in_production" data-b="${esc(b.id)}">Started</button> <button class="btn warn" data-st="cancelled" data-b="${esc(b.id)}">Cancel</button>` : ''}
+              ${can && b.status === 'in_production' ? `<button class="btn pri" data-st="done" data-b="${esc(b.id)}">Done</button>` : ''}</td></tr>`).join('') : '<tr><td colspan="8" class="empty">No batches yet.</td></tr>'}
+        </tbody></table></div></div>
+      ${can ? '' : `<p class="small muted">${LOCAL ? 'Read only on this PC.' : 'Only the production team makes and moves batches.'}</p>`}`;
+    $('bPrint').onclick = () => window.print();
+    if (!can) return d;
+    $('view').querySelectorAll('[data-mk]').forEach(b => b.onclick = () => {
+      const x = dem[Number(b.dataset.mk)];
+      const erpNo = prompt(`Batch of ${x.pieces} × ${x.sku} for ${x.orders} order(s).\nERP production order number (leave empty if not typed in the ERP yet):`, '');
+      if (erpNo === null) return;
+      act('act_make_batch', { p_store: x.store, p_sku: x.sku, p_items: x.item_ids, p_erp_order_no: erpNo, p_note: null }, refresh);
+    });
+    $('view').querySelectorAll('[data-st]').forEach(b => b.onclick = () => {
+      const st = b.dataset.st;
+      if (st !== 'in_production' && !confirm(`Batch ${b.dataset.b}: mark ${st === 'done' ? 'DONE (every order in it moves on)' : 'CANCELLED (its lines go back to waiting)'}?`)) return;
+      act('act_batch_status', { p_batch: b.dataset.b, p_status: st, p_erp_order_no: null }, refresh);
+    });
+    return d;
+  }
+
+  /* ---------------- 5. status ---------------- */
+  async function status() {
+    const d = DATA.status = await call('hub_status');
+    const S = erp();
+    const canCopy = isHead() && S && typeof S.stock === 'function';
+    $('view').innerHTML = `
+      <div class="cards">
+        <div class="card"><h2>Live orders from Shopify</h2>
+          ${(d.feed || []).map(f => `<div class="nums"><div><b>${esc(f.store)}</b><span>store</span></div>
+            <div><b>${f.last_message_at ? ago(f.last_message_at) : '–'}</b><span>since last message</span></div>
+            <div><b>${nf(f.messages_24h)}</b><span>messages, 24 h</span></div>
+            <div class="${f.failed_now ? 'red' : ''}"><b>${nf(f.failed_now)}</b><span>failed</span></div>
+            <div><b>${f.last_nightly_check ? day(f.last_nightly_check) : '–'}</b><span>nightly check</span></div></div>`).join('')}
+        </div>
+        <div class="card"><h2>Engine and stock</h2>
+          <div class="nums"><div><b>${nf(d.open_alerts)}</b><span>open alerts</span></div>
+            <div><b>${d.alert_job_last ? ago(d.alert_job_last) : '–'}</b><span>engine last acted</span></div>
+            <div><b>${nf(d.stock_rows)}</b><span>SKUs with stock</span></div>
+            <div><b>${d.stock_as_of ? ago(d.stock_as_of) : 'never'}</b><span>stock read</span></div></div>
+          ${canCopy ? `<div><button class="btn pri" id="sCopy">Copy stock from the ERP now</button><p class="small muted" style="margin-top:6px">Reads FBA and India stock the way the ERP already has them, and saves them here. Nothing in the ERP changes.</p></div>`
+                    : `<p class="small muted">${LOCAL ? 'Stock is copied from the TEST ERP by a team head.' : 'A team head can copy stock from the ERP here.'}</p>`}
+        </div>
+        <div class="card"><h2>Switches</h2>
+          <div class="nums">${Object.entries(d.switches || {}).map(([k, v]) => `<div class="${v ? 'red' : 'ok'}"><b>${v ? 'ON' : 'off'}</b><span>${esc(k.replace(/_/g, ' '))}</span></div>`).join('')}</div>
+          <p class="small muted">Mark shipped in Shopify and real MCF stay off on purpose.</p>
+        </div>
+      </div>
+      <div class="list"><div class="wrap"><table style="min-width:600px">
+        <thead><tr><th>Load</th><th>Store</th><th>Status</th><th>When</th><th class="n">Saved</th></tr></thead>
+        <tbody>${(d.runs || []).map(r => `<tr><td>${esc(r.kind)}</td><td>${esc(r.store || 'both')}</td><td><span class="pill ${r.status === 'ok' ? 'p-ok' : r.status === 'running' ? 'p-blue' : 'p-red'}">${esc(r.status)}</span></td><td>${when(r.started_at)}</td><td class="n">${nf(r.rows_written)}</td></tr>`).join('') || '<tr><td colspan="5" class="empty">No loads yet.</td></tr>'}</tbody>
+      </table></div></div>`;
+    if (canCopy) $('sCopy').onclick = async () => {
+      try {
+        const skus = await call('hub_open_skus');
+        const s = await S.stock(skus);
+        if (!s.rows.length) return note('amb', 'No stock in the ERP page yet.', s.why || 'Open Replenishment once so the ERP reads its stock, then try again.');
+        if (!confirm(`Copy stock for ${s.rows.length} SKUs (read ${when(s.as_of)}) into Shopify OS?\n${s.why || ''}`)) return;
+        const r = await call('act_copy_stock', { p_rows: s.rows, p_as_of: s.as_of });
+        note('ok', 'Stock copied.', `${r.saved} SKUs saved. ${s.why || ''}`); refresh();
+      } catch (e) { note('bad', 'Stock not copied.', e.message); }
+    };
+    return d;
+  }
+
+  /* ---------------- frame ---------------- */
+  const VIEWS = { problems, morning, routes, batches, status };
+  async function refresh() {
+    $('stamp').textContent = 'Loading…';
+    try {
+      if (!ME) await loadMe();
+      await VIEWS[TAB]();
+      $('stamp').textContent = 'Updated ' + new Date().toLocaleTimeString('en-GB', { ...IST, hour: '2-digit', minute: '2-digit' });
+    } catch (e) {
+      $('stamp').textContent = '';
+      $('view').innerHTML = '';
+      note('bad', 'Could not read the database.', e.message);
+    }
+  }
+  $('tabs').onclick = e => { const b = e.target.closest('button'); if (!b) return; TAB = b.dataset.t; note(); $('tabs').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); try { localStorage.setItem('shos_tab', TAB); } catch (x) {} refresh(); };
+  $('stores').onclick = e => { const b = e.target.closest('button'); if (!b) return; STORE = b.dataset.s; $('stores').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); refresh(); };
+  $('reload').onclick = () => { note(); refresh(); };
+  try { const t = localStorage.getItem('shos_tab'); if (t && VIEWS[t]) { TAB = t; $('tabs').querySelectorAll('button').forEach(x => x.classList.toggle('on', x.dataset.t === t)); } } catch (e) { /* no storage */ }
+  refresh();
+  setInterval(() => { if (document.visibilityState === 'visible' && TAB === 'problems' && !OPEN_ALERT) refresh(); }, 5 * 60000);
+})();
+</script>
+</body>
+</html>
