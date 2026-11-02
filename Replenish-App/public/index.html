@@ -26863,7 +26863,18 @@ function ordTrackRows() {
 const SHPB_ON = (() => { try { return localStorage.getItem('shpBoard') !== '0'; } catch (e) { return true; } })();   // on for everyone; shpBoard = '0' hides it on one computer
 const SHPB_NODE = 'pt_shpBoardTest', SHPB_PRESS = 'pt_shpBoardPress', SHPB_SHIP = 'pt_shpBoardShip';
 const SHPB_PRESSMEN = ['Keshav', 'Jagdish', 'Anokhi', 'Mangal', 'Om Prakash', 'Deepak', 'Chetram', 'Kuldeep', 'Shankar'];
-let SHPB = { tab: 'pending', stage: '', ready: {}, press: {}, ship: {}, pressBy: {}, readyAt: 0, busy: false, err: '' };
+let SHPB = { tab: 'pending', stage: '', ready: {}, press: {}, ship: {}, pressBy: {}, readyAt: 0, busy: false, err: '', pick: new Set() };
+/* BULK PLAN (Ravi, 2 Nov: "printer ko ham bulk me order place kar sake"): lines with no plan get a tick box beside Plan; "Plan the N ticked" opens
+ * ONE plan form for all of them (flowPpcOpen with keys — the form PPC's Excel import uses), each line ticked to raise its print order. 40 at a time. */
+const SHPB_BULK_MAX = 40;
+const shpbPickKey = r => (typeof flowKey === 'function' ? flowKey(r.orderNo, r.sku) : shpbKey(r.orderNo, r.sku));
+function shpbBulkPlan() {
+  const keys = [...SHPB.pick].slice(0, SHPB_BULK_MAX);
+  if (!keys.length || typeof flowPpcOpen !== 'function') return;
+  SHPB.pick = new Set([...SHPB.pick].slice(SHPB_BULK_MAX));
+  flowPpcOpen('', '', keys);
+  document.querySelectorAll('[data-fpick]').forEach(el => { el.checked = true; try { el.dispatchEvent(new Event('change')); } catch (e) { /* no events here */ } });
+}
 const shpbKey = (orderNo, sku) => obUC(orderNo) + '__' + obUC(sku);
 /* STATUS and READY DATE of a line, at the END of its row (Ravi, 29 Oct: "press ke end me status ka option chahiye like OOS, and ready date dal sake").
  * Both live on pt_shpBoardTest/<ORDER__SKU> with the pieces taken from ready stock (stockQty): { orderNo, sku, date, status, stockQty, by, at }. */
@@ -27054,7 +27065,7 @@ function shpbRow(r) {
     + shpbItem(r)
     + `<td class="num" style="${SHPB_PAD}"><b>${nf(r.qty)}</b></td>`
     + `<td style="${SHPB_PAD}text-align:left;font-size:11.5px;white-space:nowrap;line-height:1.25">${prn ? '<b>' + esc(prn) + '</b>' : (shpbPlanOf(r) ? '<span class="muted">no printer</span>' : '<b style="color:#b91c1c">not planned</b>')}`
-    + `<div><button type="button" class="ghost" data-shpb-act="print" data-key="${esc(k)}" style="width:auto;padding:0 7px;font-size:10.5px;line-height:18px" title="${shpbIsShp() ? 'The plan of this line: printer, fabric, accessories, dates — planned here, not in PPC' : 'The plan of this line — the same plan PPC raises; the line stays in PPC too'}">${shpbPlanOf(r) ? (prn ? 'Change' : 'Plan') : 'Plan'}</button></div></td>`
+    + `<div style="display:flex;gap:5px;align-items:center">${!shpbPlanOf(r) && shpbCanEdit() ? `<input type="checkbox" data-shpb-pick="${esc(shpbPickKey(r))}"${SHPB.pick.has(shpbPickKey(r)) ? ' checked' : ''} title="Tick to plan with others in one go" style="width:auto;margin:0">` : ''}<button type="button" class="ghost" data-shpb-act="print" data-key="${esc(k)}" style="width:auto;padding:0 7px;font-size:10.5px;line-height:18px" title="${shpbIsShp() ? 'The plan of this line: printer, fabric, accessories, dates — planned here, not in PPC' : 'The plan of this line — the same plan PPC raises; the line stays in PPC too'}">${shpbPlanOf(r) ? (prn ? 'Change' : 'Plan') : 'Plan'}</button></div></td>`
     + shpbCell(s.prcA, s.prcW, s.prcD, 'prcv', 'Receive', k, tips.prcv)
     + (!r.cutReq ? `<td class="num" style="${SHPB_STAGE_BG};${SHPB_PAD}"><span class="muted" style="font-size:11px">not needed</span></td>` : shpbCell(s.cutA, s.cutW, s.cutD, 'cut', 'Cut', k, tips.cut))
     + shpbCell(s.issA, s.issW, s.issD, 'issue', 'Issue', k, tips.issue)
@@ -27116,7 +27127,16 @@ function renderShpBoard() {
   /* ONE LINE: the stage buckets, and the two tabs at the right end (Ravi, 28 Oct: no "Waiting at:", no long note, the tabs up with the buckets). */
   $('odKpis').innerHTML = ME.shpAccOnly ? `<div style="margin:2px 0 8px;font-weight:700;font-size:15px">Shipping to accept · ${nf(done.filter(r => r.open && shpbStages([r]).handW > 0).length)} line(s)</div>`
     : `<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:2px 0 8px">${shpbStagesShown().map(bucket).join('')}`
-    + `<div style="display:flex;gap:8px;margin-left:auto">${tabBtn('pending', 'Order pending · ' + nf(pend.length))}${tabBtn('done', 'Complete · ' + nf(done.length))}</div></div>`;
+    + `<div style="display:flex;gap:8px;margin-left:auto">${tabBtn('pending', 'Order pending · ' + nf(pend.length))}${tabBtn('done', 'Complete · ' + nf(done.length))}</div></div>`
+    + (tab === 'pending' && shpbCanEdit() ? (() => {
+      const can = list.filter(r => !shpbPlanOf(r)).map(shpbPickKey), n = SHPB.pick.size;
+      const b = 'height:34px;padding:0 14px;border-radius:12px;font:inherit;font-weight:700;cursor:pointer;box-shadow:none;transform:none;width:auto;';
+      return can.length || n ? `<div style="display:flex;gap:8px;align-items:center;margin:0 0 8px">`
+        + `<button type="button" data-shpb-bulk="1" style="${b}"${n ? '' : ' disabled'} title="One plan form for every ticked line — printer, fabric, dates; each line's print order is raised on Save">Plan the ${nf(Math.min(n, SHPB_BULK_MAX))} ticked${n > SHPB_BULK_MAX ? ' (of ' + nf(n) + ')' : ''}</button>`
+        + (can.length ? `<button type="button" class="ghost" data-shpb-pickall="${esc(can.slice(0, SHPB_BULK_MAX).join(','))}" style="${b}">Tick the first ${nf(Math.min(can.length, SHPB_BULK_MAX))} not planned</button>` : '')
+        + (n ? `<button type="button" class="ghost" data-shpb-pickclear="1" style="${b}">Clear ticks</button>` : '')
+        + `<span class="muted" style="font-size:12px">${nf(can.length)} line(s) shown with no plan · up to ${SHPB_BULK_MAX} in one form</span></div>` : '';
+    })() : '');
   $('odMsg').className = SHPB.err ? 'err' : 'muted';
   $('odMsg').textContent = SHPB.err || '';
 
@@ -27407,6 +27427,8 @@ if ($('odTable') && $('odTable').addEventListener) {
   });
   $('odTable').addEventListener('change', async e => {
     if (typeof ordView !== 'function' || !shpbIsBoard(ordView())) return;
+    const pk = e.target.closest && e.target.closest('[data-shpb-pick]');
+    if (pk) { if (pk.checked) SHPB.pick.add(pk.dataset.shpbPick); else SHPB.pick.delete(pk.dataset.shpbPick); renderShpBoard(); return; }
     const sel = e.target.closest && e.target.closest('[data-shpb-status]');
     if (sel) { const err = await shpbSetReady(sel.dataset.shpbStatus, { status: sel.value }); if (err) { $('odMsg').className = 'err'; $('odMsg').textContent = err; } else renderShpBoard(); return; }
     const i = e.target.closest && e.target.closest('[data-shpb-ready]'); if (!i) return;
@@ -27420,6 +27442,9 @@ if ($('ptDlgBody') && $('ptDlgBody').addEventListener) $('ptDlgBody').addEventLi
 if ($('odKpis') && $('odKpis').addEventListener) $('odKpis').addEventListener('click', e => {
   if (!shpbIsBoard(ordView())) return;
   const t = e.target.closest && e.target.closest('[data-shpb-tab]'); if (t) { SHPB.tab = t.dataset.shpbTab; SHPB.stage = ''; renderShpBoard(); return; }
+  if (e.target.closest && e.target.closest('[data-shpb-bulk]')) { shpbBulkPlan(); renderShpBoard(); return; }
+  const pa = e.target.closest && e.target.closest('[data-shpb-pickall]'); if (pa) { pa.dataset.shpbPickall.split(',').filter(Boolean).forEach(k => SHPB.pick.add(k)); renderShpBoard(); return; }
+  if (e.target.closest && e.target.closest('[data-shpb-pickclear]')) { SHPB.pick = new Set(); renderShpBoard(); return; }
   const g = e.target.closest && e.target.closest('[data-shpb-stage]');
   if (g) { SHPB.stage = SHPB.stage === g.dataset.shpbStage ? '' : g.dataset.shpbStage; SHPB.tab = SHPB.stage === 'hand' ? 'done' : 'pending'; renderShpBoard(); }
 });
@@ -29153,7 +29178,8 @@ function flowMasterPatch(rows, plans, pick, need) {
 function flowPpcOpen(orderNo, onlySku, keys) {
   /* SAME SKU, SAME DAY, ONE PLAN (Ravi, 15 Oct: "1 SKU ka same day order aay to wo sare order combine hokar dikhe PPC team
    * ko"): `keys` names lines of several orders, planned in one go — each keeps its own plan, its own print order. */
-  const rows = flowRows().filter(x => keys && keys.length ? keys.includes(x.s.key) && x.s.bucket === 'ppc'
+  /* The SHP board's own lines (bucket 'board', never in PPC) come in too when the board names them — its bulk Plan (2 Nov). */
+  const rows = flowRows().filter(x => keys && keys.length ? keys.includes(x.s.key) && (x.s.bucket === 'ppc' || x.s.bucket === 'board')
     : x.r.orderNo === orderNo && (onlySku ? obUC(x.r.sku) === obUC(onlySku) : x.s.bucket === 'ppc'));
   if (!rows.length) return;
   if (keys && keys.length) orderNo = [...new Set(rows.map(x => x.r.orderNo))].join(', ');

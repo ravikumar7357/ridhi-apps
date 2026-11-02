@@ -355,7 +355,8 @@ function flowMasterPatch(rows, plans, pick, need) {
 function flowPpcOpen(orderNo, onlySku, keys) {
   /* SAME SKU, SAME DAY, ONE PLAN (Ravi, 15 Oct: "1 SKU ka same day order aay to wo sare order combine hokar dikhe PPC team
    * ko"): `keys` names lines of several orders, planned in one go — each keeps its own plan, its own print order. */
-  const rows = flowRows().filter(x => keys && keys.length ? keys.includes(x.s.key) && x.s.bucket === 'ppc'
+  /* The SHP board's own lines (bucket 'board', never in PPC) come in too when the board names them — its bulk Plan (2 Nov). */
+  const rows = flowRows().filter(x => keys && keys.length ? keys.includes(x.s.key) && (x.s.bucket === 'ppc' || x.s.bucket === 'board')
     : x.r.orderNo === orderNo && (onlySku ? obUC(x.r.sku) === obUC(onlySku) : x.s.bucket === 'ppc'));
   if (!rows.length) return;
   if (keys && keys.length) orderNo = [...new Set(rows.map(x => x.r.orderNo))].join(', ');
