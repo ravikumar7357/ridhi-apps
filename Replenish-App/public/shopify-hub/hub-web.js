@@ -1556,7 +1556,9 @@ function takeErpInfo(db, info) {
   if (!info || typeof info !== 'object' || info.error || !info.skus) return info && info.error ? `ERP stock not read (${String(info.error).slice(0, 80)})` : '';
   const old = db.erp || {};
   db.erp = { at: Number(info.at) || Date.now(), stockAt: info.stockAt || {}, indiaAt: String(info.indiaAt || ''), indiaErr: String(info.indiaErr || ''),
-    skus: Object.assign({}, old.skus, info.skus), lines: Object.assign({}, old.lines, info.lines) };
+    skus: Object.assign({}, old.skus, info.skus), lines: Object.assign({}, old.lines, info.lines),
+    /* the Shopify Orders page's own record per order (status, our note, MCF sent): shown in the order, warns on a clash */
+    orders: Object.assign({}, old.orders, info.orders || {}) };
   db.orders.forEach(o => { if (o.source !== 'shopify') return; o.items.forEach(it => {
     const e = db.erp.skus[o.store + '|' + String(it.sku || '').trim().toUpperCase()];
     if (e) { it.fba = e.fba == null ? 0 : e.fba; it.india = e.india == null ? 0 : e.india; }

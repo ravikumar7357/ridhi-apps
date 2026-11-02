@@ -419,7 +419,7 @@ function routeCol(o) {
   return (went ? went + '<br>' : '') + `<span class="s-sm">MCF ${stockWord(fba, lines)} · India ${stockWord(ind, lines)}</span>`;
 }
 /* Items with a small photo (the product's own, or its colour), two lines, then "+n more". */
-const itemsCol = o => o.items.slice(0, 2).map(it => `<div class="s-li">${it.img ? `<img class="od-th" src="${esc(it.img)}" alt="" loading="lazy">` : thumb(it)}<span title="${esc(it.t)}">${esc(it.sku || it.t)} <span class="s-faint">× ${it.q}</span></span></div>`).join('')
+const itemsCol = o => o.items.slice(0, 2).map(it => `<div class="s-li">${imgOf(o, it) ? `<img class="od-th" src="${esc(imgOf(o, it))}" alt="" loading="lazy">` : thumb(it)}<span title="${esc(it.t)}">${esc(it.sku || it.t)} <span class="s-faint">× ${it.q}</span></span></div>`).join('')
   + (o.items.length > 2 ? `<div class="s-faint s-sm">+${o.items.length - 2} more</div>` : '');
 /* Only the rows in sight are drawn (Ravi, 2 Nov: "no lag"): the first 60, then 60 more as the list is scrolled to its end.
  * Kept while the same filter, search and store are on; ROW_NOS is every order the list holds (for "tick all"). */
@@ -553,7 +553,7 @@ function itemRow(o, i, opt) {
     it.adj ? chip(`Adjustment: ${esc(it.adj)}`, 'warn') : '',
   ].filter(Boolean);
   const key = o.no + '|' + i, open = OPEN_ROW.has(key), waiting = it.pk == null;
-  const ph = it.img ? `<img class="od-th" src="${esc(it.img)}" alt="" loading="lazy">` : thumb(it);
+  const im = imgOf(o, it), ph = im ? `<a class="od-pic" href="${esc(im)}" target="_blank" rel="noopener" title="Open the photo"><img class="od-th" src="${esc(im)}" alt="" loading="lazy"></a>` : thumb(it);
   const sub = [it.v, it.sku || 'no SKU on Shopify', e && e.amz ? 'Amazon ' + e.amz : ''].filter(Boolean).join(' · ');
   return `<div class="od-item ${open ? 'open' : ''}">
     <div class="od-row">${ph}<div class="od-it"><div class="n">${esc(it.t)}</div><div class="s-sm s-muted">${esc(sub)}</div></div>
@@ -581,13 +581,17 @@ function linesCard(o) {
   const A = allocOf(o), P = planOf(o), secs = SECTIONS.map(s => ({ s, lines: u.filter(i => P[i] === s.k) })).filter(x => x.lines.length), many = secs.length > 1;
   const auto = !!(S.prefs && S.prefs.autoMcf), a = i => A[i] || { need: J.sendQty(o.items[i]), fba: 0, india: 0, fbaHeld: 0, indiaHeld: 0 };
   const heldNote = u.some(i => a(i).fbaHeld || a(i).indiaHeld) ? ' · older orders get the stock first' : '';
+  /* Locked while something written on the order says it is already dealt with (clashOf) — until somebody checks. */
+  const lock = locked(o) ? ' disabled title="Locked — check the red note above first"' : '';
+  /* The MCF card shows Amazon's fee and speed before anybody presses Send. */
+  const mcfLines = (secs.find(x => x.s.k === 'mcf') || {}).lines, q = mcfLines && !o.cancelled ? wantMcfQuote(o, mcfLines) : null;
   return `<div id="lines" class="od-plan">
-    ${many ? `<div class="od-acc" id="decide-bar"><span class="s-muted s-sm">Sorted by stock${heldNote} — change an item if you want</span><button class="s-btn" type="button" data-plan="accept">Accept all ${secs.length}</button></div>` : ''}
+    ${many ? `<div class="od-acc" id="decide-bar"><span class="s-muted s-sm">Sorted by stock${heldNote} — change an item if you want</span><button class="s-btn" type="button" data-plan="accept"${lock}>Accept all ${secs.length}</button></div>` : ''}
     ${secs.map(({ s, lines }) => `<section class="od-card" id="pl-${s.k}">
       <header class="od-h"><span class="od-badge b-${s.k}">${s.name} · ${lines.length}</span><span class="s-muted s-sm">${s.how}</span>
         ${s.k === 'mcf' ? `<label class="od-auto s-sm" title="New orders whose items Amazon FBA has go to MCF by themselves"><input type="checkbox" data-automcf ${auto ? 'checked' : ''}> Auto-send</label>` : ''}</header>
       ${lines.map(i => itemRow(o, i, { a: a(i), sec: s.k, end: itemMenu(o, i, s, a(i)) })).join('')}
-      <footer class="od-f"><span class="s-muted s-sm">${s.foot}</span><button class="s-btn ${many ? 'ghost' : ''}" type="button" data-go="${s.k}">${s.go}</button></footer></section>`).join('')}
+      <footer class="od-f"><span class="s-sm ${s.k === 'mcf' ? '' : 's-muted'}">${s.k === 'mcf' ? mcfQuoteText(q) : s.foot}</span><button class="s-btn ${many ? 'ghost' : ''}" type="button" data-go="${s.k}"${lock}>${s.go}</button></footer></section>`).join('')}
     ${off0.length ? `<section class="od-card od-off" id="pl-off"><header class="od-h"><span class="od-badge">Not being sent · ${off0.length}</span><span class="s-muted s-sm">send quantity 0 — stays on the order, nothing goes out</span></header>
       ${off0.map(i => itemRow(o, i, { end: o.items[i].gone ? '<span class="s-sm s-muted">removed in Shopify</span>' : `<button class="s-link" type="button" data-sendagain="${i}">Send it again</button>` })).join('')}</section>` : ''}</div>`;
 }
@@ -686,6 +690,87 @@ function returnRow(o, r, n) {
     <td class="s-nowrap">${day(r.at)}</td><td class="act">${a ? `<button class="s-btn" type="button" data-do="${a.k}" data-r="${n}">${esc(a.b)}</button>` : ''}</td></tr>`;
 }
 const activity = o => o.tl.slice().sort((a, b) => b.t - a.t);
+
+/* ============ THE ORDER WINDOW, CLEARER (Ravi, 2 Nov: "how can we enhance this page") ============ */
+const SHOP_ADMIN = { Ridhi: 'ridhiblockprint', CPC: 'liquidationfashion' };
+const adminUrl = o => o.source === 'shopify' && o.gid && SHOP_ADMIN[o.store] ? `https://admin.shopify.com/store/${SHOP_ADMIN[o.store]}/orders/${numId(o.gid)}` : '';
+/* 1 · What the ERP's Shopify Orders page already knows: its status box, our note, the carrier, Amazon's MCF id. */
+const erpOrd = o => (o.source === 'shopify' && o.gid && S.erp && S.erp.orders && S.erp.orders[numId(o.gid)]) || null;
+/* 2 · WRITTEN SOMEWHERE THAT IT IS DEALT WITH, while the hub still offers to send it. The same readings as the ERP's
+ * Shopify Orders page (soFlags): "MCF done", a chargeback, a cancel, or a whole segment saying done / ready / ready to
+ * ship — from Shopify's note, the tags, our note and the status box. Sending stays locked until somebody has checked. */
+const HANDLED_RE = /^(done|ready|ready\s*to\s*ship)$/i;
+const handledIn = t => String(t || '').split(/[\n\r,;§|]+/).some(s => HANDLED_RE.test(s.trim().replace(/^[\s"'“”\-–—:.]+|[\s"'“”\-–—:.!]+$/g, '')));
+function clashOf(o) {
+  if (o.cancelled || !undecided(o).length) return null;
+  const e = erpOrd(o) || {}, from = [['Shopify\'s note', o.note], ['the tags', o.tags], ['the ERP note', e.note], ['the ERP status', e.s]];
+  const said = test => from.filter(([, v]) => v && test(String(v))).map(([w, v]) => `${w} says “${esc(String(v).trim().slice(0, 50))}”`).join(' · ');
+  if (e.mcfId) return `The ERP already sent an MCF parcel for this order (<b>${esc(e.mcfId)}</b>${e.mcfAt ? ', ' + esc(e.mcfAt) : ''}) — check before sending anything more.`;
+  let w = said(v => /mcf\s*-?\s*done/i.test(v)); if (w) return `Already sent to MCF? ${w}.`;
+  w = said(v => /charge\s*-?\s*back|dispute/i.test(v)); if (w) return `Chargeback? ${w}.`;
+  w = said(v => /\bcancel/i.test(v)); if (w) return `Cancelled? ${w}.`;
+  w = said(handledIn); if (w) return `Already dealt with? ${w}.`;
+  return null;
+}
+const UNLOCKED = new Set();
+const locked = o => !!clashOf(o) && !UNLOCKED.has(o.no);
+/* 3 · Working time, India: 10:00–19:00 Monday to Saturday (the agreed limits count only these hours). */
+const IST = 5.5 * 3600000, Q15 = 15 * 60000;
+const workOpen = t => { const d = new Date(t + IST); return d.getUTCDay() !== 0 && d.getUTCHours() >= 10 && d.getUTCHours() < 19; };
+function addWork(t, h) { let left = h * 4, x = t - (t % Q15); for (let g = 0; left > 0 && g < 4000; g++) { if (workOpen(x)) left--; x += Q15; } return x; }
+function workBetween(a, b) { let n = 0; for (let x = a - (a % Q15), g = 0; x < b && g < 4000; x += Q15, g++) if (workOpen(x)) n++; return n / 4; }
+const hrs = h => h < 1 ? Math.max(1, Math.round(h * 60)) + ' min' : (Math.round(h * 10) / 10) + ' h';
+/* The order's road: Placed → Routed → Sent → Shipped → Delivered, with what the clock says about the step it is on. */
+function progressBar(o) {
+  const P = o.pkgs, u = undecided(o).length;
+  const routed = !u && P.length > 0, sent = routed && P.every(p => off(p) >= 1 || p.booked || (p.route && phaseOf(p) > 0));
+  const shipped = routed && P.every(p => p.route && off(p) >= (isMcf(p) ? 3 : 1)), done = routed && P.every(p => phaseOf(p) === 4);
+  const steps = [['Placed', true], ['Routed', routed], ['Sent', sent], ['Shipped', shipped], ['Delivered', done]];
+  const cur = steps.findIndex(s => !s[1]);
+  let clock = '';
+  if (o.cancelled) clock = st('Cancelled in Shopify', 'rejected');
+  else if (cur === 1) {
+    const due = addWork(o.at, 4), now0 = now();
+    clock = now0 < due ? st(`Route within ${hrs(workBetween(now0, due))}`, 'pending', 'Routing limit: 4 working hours from the order (10:00–19:00 India, Mon–Sat)')
+      : st(`Routing late by ${hrs(workBetween(due, now0))}`, 'rejected', 'Routing limit: 4 working hours from the order (10:00–19:00 India, Mon–Sat)');
+  } else if (cur === 3 || cur === 4) { const pk = P.find(p => p.eta && phaseOf(p) < 4); if (pk) clock = st((pk.late ? 'Was due ' : 'Arrives ') + pk.eta, pk.late ? 'rejected' : 'pending'); }
+  else if (cur === -1) clock = st('Delivered ' + day(Math.max(...P.map(p => p.ts[p.pos - 1] || 0))), 'approved');
+  return `<div class="od-prog"><ol>${steps.map((s, i) => `<li class="${s[1] ? 'd' : i === cur ? 'c' : ''}">${s[0]}</li>`).join('')}</ol>${clock}</div>`;
+}
+/* 4 · Tracking for the whole order, under its lines: every number with Copy and the carrier's page, or what comes next. */
+function trackingCard(o) {
+  const P = o.pkgs.filter(p => p.trk.length || p.mcfId);
+  const rows = P.map(pk => { const url = CARRIER_URL[carName(pk)];
+    return `<div class="od-trow"><b>${esc(carName(pk))}</b>${pk.trk.map(t => ` <span class="s-trk">${esc(t)}</span> <button class="s-link" type="button" data-copy="${esc(t)}">Copy</button>${url ? ` <a class="s-link" href="${esc(url(t))}" target="_blank" rel="noopener">Open ↗</a>` : ''}`).join('')}
+      ${!pk.trk.length && pk.mcfId ? ` <span class="s-muted">Amazon ${esc(pk.mcfId)} · number comes when Amazon ships</span>` : ''}<span class="s-muted s-sm"> · ${esc(stText(pk))}${pk.last && pk.last.at ? ' · last scan ' + fmt(pk.last.at) : ''}</span></div>`; });
+  return `<section class="od-card od-track"><header class="od-h"><b>Tracking</b></header><div class="od-tbody">${rows.join('') || '<span class="s-muted s-sm">The tracking number shows here once a part is sent.</span>'}</div></section>`;
+}
+/* 5 · Product photos: the list is read without them (speed), so an opened order asks the ERP for its own, once. */
+const PHOTOS = {}, PHOTO_ASKED = new Set();
+const imgOf = (o, it) => it.img || (PHOTOS[o.no] && PHOTOS[o.no][numId(it.lid)]) || '';
+function wantPhotos(o) {
+  const W = window.HUB_WEB;
+  if (!W || !W.erp || o.source !== 'shopify' || !o.gid || PHOTO_ASKED.has(o.no) || o.items.every(it => it.img)) return;
+  PHOTO_ASKED.add(o.no);
+  W.ask('orderPhotos', { store: o.store, id: numId(o.gid) }).then(r => {
+    const m = {}; (r && r.imgs || []).forEach(x => { if (x.img) m[numId(x.lid)] = x.img; });
+    if (Object.keys(m).length) { PHOTOS[o.no] = m; if (location.hash === '#order/' + encodeURIComponent(o.no) && !typing()) render(); }
+  }).catch(() => {});
+}
+/* 6 · MCF price and speed before sending: Amazon's preview for the MCF card's lines, asked once per order and lines. */
+const MCFQ = {};
+function wantMcfQuote(o, lines) {
+  const key = o.no + '|' + lines.join(','); if (MCFQ[key]) return MCFQ[key];
+  MCFQ[key] = { wait: true };
+  call('/api/mcf-preview', { no: o.no, lines }).then(p => { const ok = (p.options || []).filter(x => x.ok).sort((a, b) => a.fee - b.fee); MCFQ[key] = ok.length ? { opt: ok[0], n: ok.length } : { none: true }; })
+    .catch(e => { MCFQ[key] = { err: e.message }; })
+    .then(() => { if (location.hash === '#order/' + encodeURIComponent(o.no) && !typing() && !$('dlg').innerHTML) render(); });
+  return MCFQ[key];
+}
+const mcfQuoteText = q => !q || q.wait ? '<span class="s-muted">Asking Amazon for the fee…</span>' : q.opt ? `<b>${money(q.opt.fee)}</b> · ${esc(q.opt.speed)} · ${esc(q.opt.by)}${q.n > 1 ? ` <span class="s-muted">(cheapest of ${q.n})</span>` : ''}`
+  : q.none ? '<span class="s-bad">Amazon cannot ship these by MCF</span>' : `<span class="s-muted">Fee not read (${esc(String(q.err || '').slice(0, 60))})</span>`;
+/* 7 · One-click copy. */
+const cp = (v, label) => v ? `<button class="od-cp" type="button" data-copy="${esc(v)}" title="Copy ${esc(label)}">⧉</button>` : '';
 function pageOrder(no) {
   const o = S.orders.find(x => x.no === no); if (!o) return '';
   const sum = o.items.reduce((s, i) => s + i.price * i.q, 0);
@@ -693,29 +778,43 @@ function pageOrder(no) {
   const all = !undecided(o).length && o.pkgs.length && out.length === o.pkgs.length;
   const tags = [...new Set([...o.pkgs.filter(p => p.route === 'mcf').map(() => 'MCF'), ...o.pkgs.filter(p => phaseOf(p) === 0).map(() => 'In production'), ...o.pkgs.filter(p => p.src === 'make' && off(p) === 0).map(() => 'Ready to ship')])];
   const qn = S.queue.filter(q => q.orderNo === o.no), qc = k => qn.filter(q => q.status === k).length;
+  const e = erpOrd(o), clash = clashOf(o), url = adminUrl(o), addr = addrText(o), phone = o.cust.ph || o.addr.phone || '';
+  wantPhotos(o);
+  /* 8 · Previous / next in the list behind the window (the same filter and search), also with the ← → keys. */
+  const at = ROW_NOS.indexOf(o.no), prev = at > 0 ? ROW_NOS[at - 1] : '', next = at >= 0 && at < ROW_NOS.length - 1 ? ROW_NOS[at + 1] : '';
+  const hist = activity(o);
   return `<div class="s-omodal" id="omodal"><div class="s-odlg" role="dialog" aria-modal="true" aria-label="Order #${esc(o.no)}">
-    <div class="s-ohead" id="o-head"><div class="t"><h2>Order #${esc(o.no)}</h2>${testTag(o)}${o.cancelled ? st('Cancelled in Shopify', 'rejected') : ''}${o.fin ? st(o.fin.replace(/_/g, ' ').replace(/^./, c => c.toUpperCase()), /refund|void/i.test(o.fin) ? 'rejected' : /paid/i.test(o.fin) ? 'approved' : 'pending') : ''}${st(all ? 'Shipped' : out.length ? 'Part shipped' : 'Not shipped', all ? 'approved' : out.length ? 'pending' : 'draft')}
-        ${st(trk.length ? 'Tracking ' + trk[0] : 'No tracking yet', 'draft')}<a class="s-x" href="#orders" aria-label="Close">×</a></div>
-      <div class="m">${esc(o.cust.n)} · ${esc(addrText(o))} · ${isoDay(o.at)} · ${esc(o.store)}</div></div>
+    <div class="s-ohead" id="o-head"><div class="t"><h2>Order #${esc(o.no)}</h2>${cp('#' + o.no, 'order number')}${testTag(o)}${o.fin ? st(o.fin.replace(/_/g, ' ').replace(/^./, c => c.toUpperCase()), /refund|void/i.test(o.fin) ? 'rejected' : /paid/i.test(o.fin) ? 'approved' : 'pending') : ''}
+        ${url ? `<a class="s-link od-adm" href="${esc(url)}" target="_blank" rel="noopener">Open in Shopify ↗</a>` : ''}<a class="s-x" href="#orders" aria-label="Close">×</a></div>
+      <div class="m">${esc(o.cust.n)} · ${esc(addr)} · ${isoDay(o.at)} <span class="so-age">${ageOf(o)}d</span> · ${esc(o.store)}</div>
+      ${progressBar(o)}</div>
     <div class="s-obody od-grid">
       <div class="od-main">
+        ${clash ? `<div class="od-clash" id="clash"><div><b>${UNLOCKED.has(o.no) ? 'Checked — sending unlocked.' : 'Sending is locked.'}</b> ${clash}</div>${UNLOCKED.has(o.no) ? '' : '<button class="s-btn ghost" type="button" data-do="unlock">I checked — unlock sending</button>'}</div>` : ''}
         ${linesCard(o)}
         ${o.pkgs.map((pk, n) => partPanel(o, pk, n)).join('')}
+        ${trackingCard(o)}
         ${o.rets.length ? `<div class="s-panel" id="rets"><div class="s-ph">Returns</div>${table([['Lines'], ['Reason'], ['Outcome'], ['Status'], ['Return tracking'], ['Opened'], ['', 'act']], o.rets.map((r, n) => returnRow(o, r, n)))}</div>` : ''}
+        <section class="od-card od-histcard"><header class="od-h"><b>History</b><span class="s-muted s-sm">${hist.length} entr${hist.length === 1 ? 'y' : 'ies'}</span></header>
+          <div class="od-tbody"><div class="s-cmt"><input id="cmt" placeholder="Add a note for the team" aria-label="Note"><button class="s-btn ghost" type="button" data-do="cmt">Add</button></div>
+          <ul class="od-hist">${hist.slice(0, 12).map(x => `<li><span class="s-muted s-sm">${fmt(x.t)}</span>${x.who === 'BLOCKED' ? '<span class="s-bad"> hold</span>' : ''} ${esc(x.m)}</li>`).join('')}</ul></div></section>
         <datalist id="shelves">${SHELVES.map(x => `<option value="${x}">`).join('')}</datalist>
       </div>
       <aside class="od-side">
         ${o.note ? `<div class="od-card od-box od-note"><b>Note from Shopify</b><p>${esc(o.note)}</p></div>` : ''}
-        <div class="od-card od-box"><b>Customer</b><p>${esc(o.cust.n)}<span class="s-muted"> · ${o.cust.k > 1 ? o.cust.k + ' orders' : 'first order'}</span><br><span class="s-muted">${esc(o.cust.e || '')}${o.cust.e ? '<br>' : ''}${esc(o.cust.ph || o.addr.phone || '')}</span></p>
-          <b>Ship to</b><p class="s-muted">${esc(addrText(o))}</p></div>
+        ${e ? `<div class="od-card od-box od-erp"><b>In the ERP (Shopify Orders)</b><p class="s-sm">${[
+          e.mcfId ? `<span class="s-ok"><b>MCF sent</b></span> · ${esc(e.mcfId)}${e.mcfAt ? ' · ' + esc(e.mcfAt) : ''}${e.mcfSpeed ? ' · ' + esc(e.mcfSpeed) : ''}${e.mcfStatus ? ' · ' + esc(e.mcfStatus) : ''}${e.mcfSkus && e.mcfSkus.length ? `<br><span class="s-muted">${esc(e.mcfSkus.join(', '))}</span>` : ''}` : '',
+          e.s ? `Status: <b>${esc(e.s)}</b>` : '', e.note ? `Note: ${esc(e.note)}` : '', e.carrier ? `Carrier: ${esc(e.carrier)}` : ''].filter(Boolean).join('<br>')}</p></div>` : ''}
+        <div class="od-card od-box"><b>Customer</b><p>${esc(o.cust.n)}<span class="s-muted"> · ${o.cust.k > 1 ? o.cust.k + ' orders' : 'first order'}</span></p>
+          ${o.cust.e ? `<p class="od-line s-muted">${esc(o.cust.e)}${cp(o.cust.e, 'email')}</p>` : ''}${phone ? `<p class="od-line s-muted">${esc(phone)}${cp(phone, 'phone')}</p>` : ''}
+          <b>Ship to</b><p class="od-line s-muted">${esc(addr)}${cp(o.cust.n + '\n' + addr, 'address')}</p></div>
         <div class="od-card od-box"><div class="od-sum"><span class="s-muted">Items</span><span>${money(sum)}</span><span class="s-muted">Shipping</span><span>${money(o.ship)}</span><b>Paid</b><b>${money(sum + o.ship)}</b></div></div>
-        <div class="od-card od-box"><b>Shopify</b><p class="s-sm">${tags.length ? tags.map(t => `<span class="s-tag">${t}</span>`).join(' ') + '<br>' : ''}<span class="s-muted">${o.source === 'test' ? `Test order — nothing is sent (${qn.length} would be)` : qn.length ? `${qc('sent')} sent · ${qc('waiting')} waiting · ${qc('held')} held${qc('failed') ? ` · <span class="s-bad">${qc('failed')} failed</span>` : ''}` : 'Nothing sent yet'}</span></p></div>
-        <div class="od-card od-box"><b>History</b><div class="s-cmt"><input id="cmt" placeholder="Add a note" aria-label="Note"><button class="s-btn ghost" type="button" data-do="cmt">Add</button></div>
-          <ul class="od-hist">${activity(o).slice(0, 8).map(e => `<li><span class="s-muted s-sm">${fmt(e.t)}</span>${e.who === 'BLOCKED' ? '<span class="s-bad"> hold</span>' : ''} ${esc(e.m)}</li>`).join('')}</ul></div>
+        <div class="od-card od-box"><b>Shopify</b><p class="s-sm">${st(all ? 'Shipped' : out.length ? 'Part shipped' : 'Not shipped', all ? 'approved' : out.length ? 'pending' : 'draft')} ${tags.map(t => `<span class="s-tag">${t}</span>`).join(' ')}<br><span class="s-muted">${o.source === 'test' ? `Test order — nothing is sent (${qn.length} would be)` : qn.length ? `${qc('sent')} sent · ${qc('waiting')} waiting · ${qc('held')} held${qc('failed') ? ` · <span class="s-bad">${qc('failed')} failed</span>` : ''}` : 'Nothing sent to Shopify yet'}</span></p></div>
       </aside>
     </div>
-    <div class="s-ofoot"><span class="s-muted">${linesOf(o.items.length)} · ${units(o)} pc${units(o) > 1 ? 's' : ''}</span>
-      <a class="s-btn ghost" href="#orders">Close</a><button class="s-btn ghost" type="button" data-do="ret">Start return</button></div>
+    <div class="s-ofoot"><span class="od-nav">${prev ? `<a class="s-btn ghost" href="#order/${encodeURIComponent(prev)}" title="Previous order (←)">← Previous</a>` : ''}${next ? `<a class="s-btn ghost" href="#order/${encodeURIComponent(next)}" title="Next order (→)">Next →</a>` : ''}${at >= 0 ? `<span class="s-muted s-sm">${at + 1} of ${ROW_NOS.length}</span>` : ''}</span>
+      <span class="s-muted">${linesOf(o.items.length)} · ${units(o)} pc${units(o) > 1 ? 's' : ''}</span>
+      <button class="s-btn ghost" type="button" data-do="print">Print order</button><button class="s-btn ghost" type="button" data-do="ret">Start return</button><a class="s-btn" href="#orders">Close</a></div>
   </div></div>`;
 }
 
@@ -1709,6 +1808,8 @@ function render() {
         else if (k === 'unblock') act('unblock', { no: o.no, part: n });
         else if (k === 'cmt') { const v = $('cmt').value.trim(); if (v) act('comment', { no: o.no, text: v }); }
         else if (k === 'ret') startRetDlg(o);
+        else if (k === 'print') pickSheets([o]);
+        else if (k === 'unlock') { UNLOCKED.add(o.no); act('comment', { no: o.no, text: 'Checked the note (' + String(clashOf(o) || '').replace(/<[^>]+>/g, '').slice(0, 120) + ') — sending unlocked' }); }
         else if (k === 'rtrk') retTrkDlg(o, rn);
         else if (k === 'chase') chaseDlg(o, n);
         else if (k === 'awb') awbDlg(o, n);
@@ -1724,6 +1825,14 @@ function render() {
   document.title = (r === 'order' ? '#' + a : (TABS.find(t => t[0] === tab) || TABS[0])[1]) + ' · Shopify · Ridhi Home & Living';
   if (TI >= 0 && TSPOT) setTimeout(() => applySpot(false), 30);           // a redraw during Present keeps the highlight
 }
+/* In an open order, ← and → go to the previous and next order of the list behind it (not while typing or in a dialog). */
+document.addEventListener('keydown', e => {
+  if (!/^#order\//.test(location.hash) || e.altKey || e.ctrlKey || e.metaKey || $('dlg').innerHTML) return;
+  const a = document.activeElement; if (a && /^(INPUT|SELECT|TEXTAREA)$/.test(a.tagName)) return;
+  if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+  const no = decodeURIComponent(location.hash.slice(7)), i = ROW_NOS.indexOf(no), to = i < 0 ? '' : ROW_NOS[i + (e.key === 'ArrowLeft' ? -1 : 1)];
+  if (to) { e.preventDefault(); location.hash = 'order/' + encodeURIComponent(to); }
+});
 let last = location.hash;
 window.addEventListener('hashchange', () => { const moved = last !== location.hash; const wasOrder = /^#order\//.test(last); last = location.hash; if (moved && location.hash === '#csb') CSB = null; render(); if (moved && !wasOrder && !/^#order\//.test(location.hash)) window.scrollTo(0, 0); });
 window.addEventListener('focus', () => { if (!$('dlg').innerHTML && !typing()) fetch('/api/state').then(r => r.json()).then(d => { if (d.ok) { took(d, true); render(); FLASH.clear(); } }).catch(() => {}); });

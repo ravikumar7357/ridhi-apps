@@ -155,8 +155,18 @@ if (SHUB_ON && $('secShopify') && $('paneShop')) {
     ]);
     const up = s => String(s == null ? '' : s).trim().toUpperCase();
     const at = d => (d && d.toISOString ? d.toISOString() : '');
-    const out = { at: Date.now(), skus: {}, lines: {},
+    const out = { at: Date.now(), skus: {}, lines: {}, orders: {},
       stockAt: { Ridhi: at(SHOP_STOCK_AT.SP), CPC: at(SHOP_STOCK_AT.CPC) }, indiaAt: SHOP_INDIA_AT || '', indiaErr: SHOP_INDIA_ERR || '' };
+    /* WHAT THE SHOPIFY ORDERS PAGE ALREADY KNOWS ABOUT EACH ORDER (Ravi, 2 Nov: a "MCF DONE" order the hub still offered
+     * to send): its status box, our note, the carrier, and Amazon's MCF id with when, how fast and its state — read from
+     * the same records that page shows (SHOP_META), never written. The hub shows them in the order and warns on a clash. */
+    const str = v => String(v == null ? '' : v).slice(0, 300);
+    ['Ridhi', 'CPC'].forEach(store => ((got[store] || {}).orders || []).forEach(o => {
+      const m = (typeof SHOP_META === 'object' && SHOP_META && SHOP_META[o.id]) || null; if (!m) return;
+      const r = { s: str(m.s), note: str(m.note), carrier: str(m.carrier), mcfId: str(m.mcfId), mcfAt: str(m.mcfAt), mcfSpeed: str(m.mcfSpeed), mcfStatus: str(m.mcfStatus),
+        mcfSkus: Array.isArray(m.mcfSkus) ? m.mcfSkus.map(str) : null };
+      if (Object.keys(r).some(k => r[k] && (!Array.isArray(r[k]) || r[k].length))) out.orders[String(o.id)] = r;
+    }));
     [['Ridhi', 'SP'], ['CPC', 'CPC']].forEach(([store, brand]) => ((got[store] || {}).orders || []).forEach(o => (o.items || []).forEach(i => {
       const sku = up(i.sku); if (!sku) return;
       let amz = ''; try { amz = soAmzSku(sku) || ''; } catch (e) { /* no mapping */ }
@@ -208,6 +218,12 @@ if (SHUB_ON && $('secShopify') && $('paneShop')) {
     if (kind === 'prodBucket') return shubBucket();
     const shop = a.store === 'CPC' ? 'CPC' : '';
     if (kind === 'order') return prGet({ shopify: 'orders', shop, ids: String(a.id || ''), open: '0', nophoto: '1' }, { timeoutMs: 120000 });
+    /* One order WITH its product photos (the list is read without them, for speed): asked when that order is opened. */
+    if (kind === 'orderPhotos') {
+      const d = await prGet({ shopify: 'orders', shop, ids: String(a.id || '').replace(/\D/g, ''), open: '0' }, { timeoutMs: 60000 });
+      const o = (d.orders || [])[0] || {};
+      return { imgs: (o.items || []).map(i => ({ lid: String(i.lid || ''), img: String(i.img || '') })) };
+    }
     if (kind === 'track') return prGet({ shopify: 'tracking', shop, ids: shubCsv(a.ids) }, { timeoutMs: 120000 });
     if (kind === 'fulfilCheck') return prGet({ shopify: 'fulfilCheck', shop, orderId: a.orderId, lines: shubCsv(a.lines), company: a.company, numbers: shubCsv(a.numbers) }, { timeoutMs: 120000 });
     /* Amazon MCF through the Pricing API (Mcf.gs). Fees and status only read Amazon; the test ERP lets those two
