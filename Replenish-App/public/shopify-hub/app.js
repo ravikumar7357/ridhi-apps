@@ -238,6 +238,8 @@ function shell(active) {
   bar.innerHTML = S.settings.web ? `TEST SITE · Shopify read through the ERP's Pricing API${live.length ? '' : ' (open this from the ERP)'} · ${S.settings.shared ? 'shared: ' + esc(S.settings.shared) : 'kept in this browser only'} · marking orders shipped in Shopify ${S.settings.writes ? '<b>ON</b>' : 'off'} · Amazon and carriers simulated`
     : live.length ? `Local hub · live: ${esc(live.join(', '))} · sending to Shopify ${S.settings.writes ? '<b>ON</b>' : 'off'} · real MCF ${S.settings.realMcf ? '<b>ON</b>' : 'off'}${S.settings.fedexShip.on ? ' · FedEx labels ' + (S.settings.fedexShip.sandbox ? 'sandbox' : '<b>REAL</b>') : ''} · <a href="#setup">Setup</a>`
     : 'TEST MODE · temp orders, simulated MCF and tracking · nothing is sent anywhere · fill your keys on <a href="#setup">Setup</a>';
+  /* Inside the ERP the yellow strip is a small TEST badge by the title; its words are on the badge's tooltip. */
+  if (EMBED) { const tb = $('testBadge'); tb.hidden = false; tb.title = bar.textContent; }
   liveLabel();
 }
 document.addEventListener('click', e => {
@@ -257,7 +259,17 @@ window.addEventListener('message', e => {
   if (window.parent === window || e.source !== window.parent || !ERP_ORIGIN.test(e.origin) || !e.data || typeof e.data !== 'object') return;
   /* The ERP says hello when the frame loads: ask for the orders once, right away. */
   if (e.data.type === 'shub-erp') { ERP_OK = true; if (!ERP_ASKED) { ERP_ASKED = true; askErp(); } }
-  if (e.data.type === 'shub-orders' && e.data.got && typeof e.data.got === 'object') post('/api/shopify/import-pr', { got: e.data.got });
+  if (e.data.type === 'shub-orders' && e.data.got && typeof e.data.got === 'object') {
+    post('/api/shopify/import-pr', { got: e.data.got });
+    $('fetchAt').textContent = 'Orders read ' + fmt(Date.now());
+  }
+});
+/* Orders are read by themselves (Ravi, 2 Nov: fewer buttons): once when the ERP says hello, then every 10 minutes while
+ * the page is in sight and nobody is typing or in a dialog. "Fetch orders now" in the ⋯ menu still reads at once. */
+setInterval(() => { if (ERP_OK && S && !document.hidden && !$('dlg').innerHTML && !typing()) askErp(); }, 10 * 60 * 1000);
+/* The ⋯ menu (and the filters' More) close on a click outside them, and after one of their buttons is used. */
+document.addEventListener('click', e => {
+  document.querySelectorAll('details.s-moremenu[open]').forEach(d => { if (!d.contains(e.target) || e.target.closest('.s-menu button')) d.open = false; });
 });
 /* The ERP reads the last 14 days still to ship, AND every order the hub is still working on, by id — so an order the hub
  * already has is brought up to date even when it left the 14-day window or Shopify marked it shipped (refunds,
@@ -370,6 +382,49 @@ function nextAction(o) {
   return null;
 }
 const needsAction = o => { const a = nextAction(o); return !!(a && a.urg > 0); };
+/* ONE STATUS (Ravi, 2 Nov: "make the UI much better"): what was "Shopify" and "Where it is now" in one coloured status,
+ * the most pressing thing first, with Shopify's own state, the tracking or the last scan under it. */
+function statusOne(o) {
+  const P = o.pkgs, u = undecided(o).length;
+  const b = P.find(p => p.block), f = P.find(p => flagOf(p)), r = o.rets.find(x => x.pos < 3);
+  const out = P.filter(p => p.route && off(p) >= (isMcf(p) ? 3 : 1)), trk = out.flatMap(p => p.trk)[0];
+  const shop = sub((!out.length ? 'Not shipped in Shopify' : out.length === P.length && !u ? 'Shipped in Shopify' : 'Part shipped in Shopify') + (trk ? ` · <span class="s-trk">${esc(trk)}</span>` : ''));
+  if (o.cancelled) return st('Cancelled', 'rejected') + sub('in Shopify · nothing is sent');
+  if (b) return st('On hold', 'rejected', b.block.why) + sub(esc(b.block.why));
+  if (f) return st(J.FLAGS[flagOf(f)], 'rejected') + sub(esc(carName(f)) + (f.chased ? ' · followed up ' + fmt(f.chased) : f.eta ? ' · was due ' + esc(f.eta) : ''));
+  if (r) return st('Return open', 'pending') + sub(esc(RSTEPS[r.pos]));
+  if (u) return st(`Needs routing · ${linesOf(u)}`, 'rejected', 'Choose MCF, production or India for each line') + shop;
+  if (P.length && P.every(p => phaseOf(p) === 4)) return st('Delivered', 'approved') + sub(day(Math.max(...P.map(p => p.ts[p.pos - 1]))));
+  const made = P.filter(p => p.src === 'make');
+  if (made.some(p => phaseOf(p) === 0)) {
+    const ln = made.reduce((s, p) => s + p.items.length, 0), dn = made.filter(p => phaseOf(p) > 0).reduce((s, p) => s + p.items.length, 0);
+    return st(`In production · ${dn} of ${ln} done`, 'pending') + shop;
+  }
+  if (P.some(p => phaseOf(p) === 1 && off(p) === 0)) return st('Ready to ship', 'pending') + shop;
+  if (P.some(p => p.booked && !p.route)) return st('Packed', 'pending') + sub('waiting for the tracking number');
+  const pk = P.find(p => (phaseOf(p) === 1 && off(p) > 0) || phaseOf(p) === 2 || phaseOf(p) === 3);
+  if (pk) {
+    const L = pk.last, place = placeText(L ? L.place : pk.ev[pk.pos - 1] || ''), at = L ? L.at : pk.ts[pk.pos - 1];
+    return st(off(pk) === 5 ? 'Out for delivery' : 'In transit', 'pending') + sub([esc(carName(pk)), esc(place), at ? fmt(at) : ''].filter(Boolean).join(' · ')) + shop;
+  }
+  return st('Open', 'draft') + shop;
+}
+/* Route: where the lines go; while some are not routed, what the stock left for this order covers. */
+function routeCol(o) {
+  if (o.cancelled) return '<span class="s-faint">—</span>';
+  const srcs = [...new Set(o.pkgs.map(p => p.src === 'fba' && !p.rep ? 'MCF' : srcName(p)))], went = srcs.length ? `<b>${esc(srcs.join(' + '))}</b>` : '';
+  if (!undecided(o).length) return went || '<span class="s-faint">—</span>';
+  const A = allocOf(o), lines = o.items.length;
+  const fba = o.items.filter((it, i) => A[i] ? A[i].fba >= A[i].need : it.fba >= it.q).length, ind = o.items.filter((it, i) => A[i] ? A[i].india >= A[i].need : it.india >= it.q).length;
+  return (went ? went + '<br>' : '') + `<span class="s-sm">MCF ${stockWord(fba, lines)} · India ${stockWord(ind, lines)}</span>`;
+}
+/* Items with a small photo (the product's own, or its colour), two lines, then "+n more". */
+const itemsCol = o => o.items.slice(0, 2).map(it => `<div class="s-li">${it.img ? `<img class="od-th" src="${esc(it.img)}" alt="" loading="lazy">` : thumb(it)}<span title="${esc(it.t)}">${esc(it.sku || it.t)} <span class="s-faint">× ${it.q}</span></span></div>`).join('')
+  + (o.items.length > 2 ? `<div class="s-faint s-sm">+${o.items.length - 2} more</div>` : '');
+/* Only the rows in sight are drawn (Ravi, 2 Nov: "no lag"): the first 60, then 60 more as the list is scrolled to its end.
+ * Kept while the same filter, search and store are on; ROW_NOS is every order the list holds (for "tick all"). */
+const ROWS_STEP = 60;
+let LIMIT = ROWS_STEP, LIMIT_KEY = '', ROW_NOS = [], GROW = null;
 
 /* ============================== 1 · ORDERS ============================== */
 const BUCKETS = [
@@ -394,7 +449,14 @@ function pageOrders() {
   SEL = new Set([...SEL].filter(no => rows.some(o => o.no === no)));
   const cnt = x => vis().filter(o => inBucket(o, x)).length;
   const allChip = !PAGE || PAGE.first === '' ? `<button class="s-st ${!FILTER ? 'on' : ''}" type="button" data-f="">All <b>${vis().length}</b></button>` : '';
-  const steps = `<div class="s-steps" id="pipe">${allChip}${BK.map(x => { const n = cnt(x); return `<button class="s-st ${n ? '' : 'zero'} ${x[0] === 'act' && n ? 'act' : ''} ${FILTER === x[0] ? 'on' : ''}" type="button" data-f="${x[0]}">${x[1]} <b>${n}</b></button>`; }).join('')}
+  /* Five chips in sight, the rest under "More" (Ravi, 2 Nov); the chosen one always stays in sight, and delayed orders
+   * show their count on More in red. A team page has few chips and shows them all. */
+  const MAIN = ['act', 'decide', 'make', 'ready'];
+  const chip = x => { const n = cnt(x); return `<button class="s-st ${n ? '' : 'zero'} ${(x[0] === 'act' || x[0] === 'late') && n ? 'act' : ''} ${FILTER === x[0] ? 'on' : ''}" type="button" data-f="${x[0]}">${x[1]} <b>${n}</b></button>`; };
+  const inSight = PAGE ? BK : BK.filter(x => MAIN.includes(x[0]) || x[0] === FILTER), rest = BK.filter(x => !inSight.includes(x));
+  const late = rest.find(x => x[0] === 'late'), lateN = late ? cnt(late) : 0;
+  const more = rest.length ? `<details class="s-moremenu s-stmore"><summary>More${lateN ? ` <b class="s-bad">${lateN} delayed</b>` : ''} ▾</summary><div class="s-menu">${rest.map(chip).join('')}</div></details>` : '';
+  const steps = `<div class="s-steps" id="pipe">${allChip}${inSight.map(chip).join('')}${more}
     ${(FILTER && (!PAGE || PAGE.first === '')) || Q ? `<span class="s-kept">Showing ${esc([b && b[1], Q && '“' + Q + '”'].filter(Boolean).join(' · '))} <button type="button" data-showall>Show all</button></span>` : ''}</div>`;
   /* With orders ticked, the things done to many at once. Every one does real work. */
   /* Shipping's bulk jobs (files, tracking, pick sheets) only on Shipping and on the whole hub. */
@@ -405,23 +467,27 @@ function pageOrders() {
       ${S.settings.fedexShip.on ? '<button class="s-btn ghost" type="button" data-bulk="fedex">FedEx labels (API)</button>' : ''}
       <button class="s-btn ghost" type="button" data-bulk="note">Add a note</button>
       <button class="s-link" type="button" data-bulk="clear">Clear</button></div>` : '';
-  const tr = rows.map(o => {
+  const key = [FILTER, Q, STORE, PAGE ? PAGE.name : ''].join('|');
+  if (key !== LIMIT_KEY) { LIMIT_KEY = key; LIMIT = ROWS_STEP; }
+  ROW_NOS = rows.map(o => o.no);
+  const tr = rows.slice(0, LIMIT).map(o => {
     const a = nextAction(o);
     const btn = !a ? '<span class="s-faint">—</span>' : a.k === 'track'
       ? `<a class="s-btn ghost" href="#order/${esc(o.no)}">Track</a>${a.why ? sub(esc(a.why)) : ''}`
       : `<button class="s-btn ${a.ghost ? 'ghost' : a.bad ? 'bad' : ''}" type="button" data-act="${a.k}|${esc(o.no)}|${a.n == null ? '' : a.n}">${esc(a.label)}</button>${a.why ? sub(esc(a.why)) : ''}`;
     return `<tr data-row="${esc(o.no)}" tabindex="0" class="click ${FLASH.has(o.no) ? 's-flash' : ''} ${SEL.has(o.no) ? 'sel' : ''}">
       <td class="s-ck"><input type="checkbox" data-sel="${esc(o.no)}" ${SEL.has(o.no) ? 'checked' : ''} aria-label="Select order ${esc(o.no)}"></td>
-      <td class="tl b">#${esc(o.no)}${testTag(o)}${sub(`${isoDay(o.at)} <span class="so-age" title="${ageOf(o)} days since it was placed">${ageOf(o)}d</span>`)}</td>
+      <td class="tl b">#${esc(o.no)}${testTag(o)}${sub(`${isoDay(o.at)} <span class="so-age" title="${ageOf(o)} days since it was placed">${ageOf(o)}d</span> · ${esc(o.store)}`)}</td>
       <td class="tl" title="${esc(addrText(o))}">${esc(o.cust.n)}${sub(`${esc([o.addr.state, o.addr.country].filter(Boolean).join(', '))} · ${units(o)} unit${units(o) > 1 ? 's' : ''}`)}</td>
+      <td class="tl s-itemscol">${itemsCol(o)}</td>
       <td class="num">${usd(orderVal(o))}</td>
-      <td class="tl">${shipFrom(o)}</td><td class="tl">${shopifyCol(o)}</td><td class="tl s-wherecol">${whereNow(o)}</td><td class="tl">${statusCol(o)}</td>
-      <td><span class="s-muted">${esc(o.store)}</span></td><td class="tl wrap">${o.items.map(i => esc(i.sku || i.t) + ' × ' + i.q).join('<br>')}</td>
+      <td class="tl m-hide">${routeCol(o)}</td><td class="tl s-statuscol">${statusOne(o)}</td>
       <td class="s-actcol">${btn}</td></tr>`;
   });
+  if (rows.length > LIMIT) tr.push(`<tr class="s-morerows" id="moreRows"><td colspan="8">Showing ${LIMIT} of ${rows.length} orders · scroll for more</td></tr>`);
   const all = rows.length && rows.every(o => SEL.has(o.no));
-  return `${steps}${FILTER === 'make' || FILTER === 'late' ? bottleneck() : ''}${bulk}<section class="s-card">${table([[`<input type="checkbox" data-selall ${all ? 'checked' : ''} aria-label="Select every order shown">`, 's-ck'], ['Order'], ['Ship to'], ['Value', 'num'], ['Ship from'], ['Shopify'], ['Where it is now', 'tl'], ['Status'], ['Shop'], ['Items'], ['Next step', 's-actcol']], tr,
-    Q ? `No order matches “${esc(Q)}”.` : 'Nothing matches.', 'otbl', 'dense')}</section>`;
+  return `${steps}${FILTER === 'make' || FILTER === 'late' ? bottleneck() : ''}${bulk}<section class="s-card">${table([[`<input type="checkbox" data-selall ${all ? 'checked' : ''} aria-label="Select every order in the list">`, 's-ck'], ['Order', 'tl'], ['Ship to', 'tl'], ['Items', 'tl'], ['Value', 'num'], ['Route', 'tl m-hide'], ['Status', 'tl'], ['Next step', 's-actcol']], tr,
+    Q ? `No order matches “${esc(Q)}”.` : 'Nothing matches.', 'otbl', 'dense s-otbl').replace('<div class="s-scroll">', '<div class="s-scroll s-oscroll" id="oscroll">')}</section>`;
 }
 
 /* ============================== ONE ORDER (opens over the list, as live) ============================== */
@@ -1498,6 +1564,8 @@ document.addEventListener('keydown', e => {
  * Old links still land: #track/<no> opens the order, #production and #shipments open Orders filtered. */
 function render() {
   if (!S) return;
+  /* The order list scrolls in its own box (its header stays pinned): a redraw for the same list keeps its place. */
+  const sc0 = $('oscroll'), top0 = sc0 ? sc0.scrollTop : 0, key0 = LIMIT_KEY;
   const h = (location.hash || '#orders').slice(1), [r, a] = h.split('/').map(decodeURIComponent);
   if (r === 'track') return location.replace('#order/' + encodeURIComponent(a));
   if (r === 'production' || r === 'shipments') { FILTER = r === 'production' ? 'make' : 'carrier'; return location.replace('#orders'); }
@@ -1512,6 +1580,16 @@ function render() {
   else if (r === 'setup') html = pageSetup();
   else { html = pageOrders(); tab = 'orders'; }
   const page = $('page'); page.innerHTML = html; shell(tab);
+  const sc = $('oscroll');
+  if (sc && sc0 && key0 === LIMIT_KEY) sc.scrollTop = top0;
+  if (GROW) { removeEventListener('scroll', GROW); GROW = null; }
+  const mr = $('moreRows');
+  if (sc && mr) {
+    const inBox = sc.scrollHeight > sc.clientHeight + 1;
+    const near = () => inBox ? sc.scrollTop + sc.clientHeight > sc.scrollHeight - 500 : mr.getBoundingClientRect().top < innerHeight + 500;
+    GROW = () => { if (!near()) return; sc.removeEventListener('scroll', GROW); removeEventListener('scroll', GROW); GROW = null; LIMIT += ROWS_STEP; render(); };
+    sc.addEventListener('scroll', GROW, { passive: true }); addEventListener('scroll', GROW, { passive: true });
+  }
 
   const on = (sel, fn) => page.querySelectorAll(sel).forEach(el => el.addEventListener('click', e => fn(el, e)));
   const find = no => S.orders.find(x => x.no === no);
@@ -1552,7 +1630,8 @@ function render() {
   /* ticking orders, and what is done to the ticked ones */
   page.querySelectorAll('[data-sel]').forEach(c => c.addEventListener('change', () => { c.checked ? SEL.add(c.dataset.sel) : SEL.delete(c.dataset.sel); render(); }));
   page.querySelectorAll('[data-selall]').forEach(c => c.addEventListener('change', () => {
-    page.querySelectorAll('[data-sel]').forEach(x => { c.checked ? SEL.add(x.dataset.sel) : SEL.delete(x.dataset.sel); }); render();
+    /* every order in the list, also the ones not drawn yet */
+    (page.querySelector('#otbl') ? ROW_NOS : [...page.querySelectorAll('[data-sel]')].map(x => x.dataset.sel)).forEach(no => { c.checked ? SEL.add(no) : SEL.delete(no); }); render();
   }));
   on('[data-bulk]', b => {
     const k = b.dataset.bulk, list = [...SEL].map(find).filter(Boolean), many = `${list.length} order${list.length > 1 ? 's' : ''}`;
