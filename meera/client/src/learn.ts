@@ -82,7 +82,6 @@ function mlClean(text: string): string {
 }
 let ML_NAMES: Set<string> | null = null;
 let ML_IX: MeeraDictIndex | null = null;
-declare function gaDict(): { known: Set<string>; freq: Map<string, number>; names: Set<string> };
 
 /** one record: the question cleaned here first; the screen, the language and the role — nothing else about the person */
 async function mlSend(kind: string, q: string, answer: string | string[]): Promise<any> {

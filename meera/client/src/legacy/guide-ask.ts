@@ -266,7 +266,7 @@ const GUIDE_SCREENS = [
 ];
 
 /* ---------- jobs, start to finish ---------- */
-const GUIDE_TASKS = [
+const GUIDE_TASKS: any[] = [
   { id: 'jobwork', k: ['issue', 'job', 'karigar', 'order', 'make', 'pieces'], need: ['karigar', 'job'], all: ['issue'], avoid: ['receive'],
     title: { en: 'Give job work to a karigar', hi: 'कारीगर को काम देना', hg: 'Karigar ko kaam dena' },
     steps: [
@@ -592,7 +592,7 @@ function gaPeople() {
  * names and the ERP's own names (SKUs, brands, colours, parties: ERP_MEERA.words()). She never corrects into those. */
 let GA_DICT = null;
 function gaDict() {
-  const known = new Set(), pairs = new Set(), names = new Set(), freq = new Map(), add = (w, n) => { known.add(w); if (n) freq.set(w, (freq.get(w) || 0) + n); };
+  const known = new Set<string>(), pairs = new Set<string>(), names = new Set<string>(), freq = new Map<string, number>(), add = (w, n) => { known.add(w); if (n) freq.set(w, (freq.get(w) || 0) + n); };
   (GA_BANK ? GA_BANK.list : []).forEach(e => {
     const q = e.q || {};
     [].concat(q.en || [], q.hg || [], q.hi || []).forEach(t => { const ws = gaWords(t); ws.forEach((w, i) => { add(w, 2); if (i) pairs.add(ws[i - 1] + ' ' + w); }); });
@@ -601,7 +601,7 @@ function gaDict() {
   });
   Object.keys(GUIDE_SYN).forEach(w => add(w, 1));
   GUIDE_STOP.forEach(w => add(w, 0));
-  gaPeople().forEach(w => { add(w, 0); names.add(w); });
+  gaPeople().forEach((w: string) => { add(w, 0); names.add(w); });
   GUIDE_SCREENS.forEach(([, names]) => gaWords(names).forEach(w => add(w, 2)));
   try { [...document.querySelectorAll('button, a.nav, th, label, .navgrp')].slice(0, 4000).forEach(el => gaWords(el.textContent).forEach(w => add(w, 1))); } catch (e) { /* no page */ }
   try { (ERP_MEERA.words ? ERP_MEERA.words() : []).forEach(t => gaWords(t).forEach(w => { add(w, 0); if (!freq.get(w)) names.add(w); })); } catch (e) { /* an older ERP: no names */ }
@@ -775,10 +775,10 @@ async function gaAnswer(q) {
   let understood = null, served = null;
   /* Phase 5, switch "serveruse": her router searches (and understands the spelling); without it, her small list here */
   if (typeof meeraServerFetch === 'function' && meeraOn('serveruse')) {
-    served = await meeraServerFetch(q, !!gaAnswer.asTyped);
-    if (served && served.understood.changes.length && !gaAnswer.asTyped) { understood = served.understood; q = served.understood.text; }
+    served = await meeraServerFetch(q, !!(gaAnswer as any).asTyped);
+    if (served && served.understood.changes.length && !(gaAnswer as any).asTyped) { understood = served.understood; q = served.understood.text; }
   }
-  if (!served && typeof muUnderstand === 'function' && meeraOn('spell') && !gaAnswer.asTyped) { await gaBankLoad(); const u = gaSpell(q); if (u.changes.length) { understood = u; q = u.text; } }
+  if (!served && typeof muUnderstand === 'function' && meeraOn('spell') && !(gaAnswer as any).asTyped) { await gaBankLoad(); const u = gaSpell(q); if (u.changes.length) { understood = u; q = u.text; } }
   GA_SPELL_FIXED = !!understood;
   let r;
   try { r = await gaAnswer1(q); } finally { GA_SPELL_FIXED = false; }
@@ -1062,7 +1062,7 @@ const GA_TAB_SAY = [['ord', /order console/], ['pbase', /job ?work|jobwork|ज�
   ['qc', /\bqc\b|quality|क्यूसी/], ['att', /attendance|hajri|haziri|हाजिरी/], ['pcut', /cutting|कटिंग/], ['fgi', /finished goods|\bfg\b/], ['fba', /\bfba\b/],
   ['shop', /shopify order/], ['shopify', /shopify stock/], ['so', /sales order/], ['repl', /replenish/], ['fab', /fabric inventory/], ['hr', /salary|payout|finance|सैलरी/],
   ['pmdb', /master database/], ['dash', /dashboard/], ['top', /top asin/], ['flow', /\bppc\b|production flow/], ['gdesk', /greige desk/], ['vend', /vendor portal/], ['acc', /accessor/]];
-function gaTabsSaid(q) { const t = String(q || '').toLowerCase(); return new Set(GA_TAB_SAY.filter(([, re]) => re.test(t)).map(([tab]) => tab)); }
+function gaTabsSaid(q) { const t = String(q || '').toLowerCase(); return new Set(GA_TAB_SAY.filter(([, re]) => (re as RegExp).test(t)).map(([tab]) => tab as string)); }
 /** The answers that fit a question best, with how well (0–1): the closest way of asking, weighted by rare words.
  * The same word as asked (not only the same meaning) settles near-ties: "PIN bhool gaya" is the PIN answer. */
 function gaBankFind(means, words, q) {
@@ -1169,7 +1169,7 @@ function gaGo(tab) {
   if (tab === 'mywork' && typeof frHomeShow === 'function') frHomeShow(); else ERP_MEERA.openScreen(tab);
 }
 /* ---------- the chat box ---------- */
-let GA = { built: false, greeted: false };
+let GA: any = { built: false, greeted: false };   // her running state: lastQ, fix, tickets… are added as she works
 function guideAskBuild() {
   if (GA.built || typeof document === 'undefined' || !document.body) return;
   GA.built = true;
@@ -1188,13 +1188,13 @@ function guideAskBuild() {
   $('gaClose').onclick = guideAskClose;
   $('gaForm').onsubmit = e => { e.preventDefault(); const q = $('gaQ').value.trim(); if (q) { $('gaQ').value = ''; gaAsk(q); } };
   box.addEventListener('click', e => {
-    const a = e.target.closest('[data-ga]');
+    const a = (e.target as HTMLElement).closest<HTMLElement>('[data-ga]');
     if (a) { if (a.dataset.ga === 'fb' && a.closest('.ga-fb')) a.closest('.ga-fb').remove(); gaAct(a.dataset.ga, a.dataset.id || '', a.dataset.tab || ''); return; }
-    const c = e.target.closest('[data-gq]'); if (c) { if (typeof meeraLearnTap === 'function') meeraLearnTap(c.dataset.gq); gaAsk(c.dataset.gq); }
+    const c = (e.target as HTMLElement).closest<HTMLElement>('[data-gq]'); if (c) { if (typeof meeraLearnTap === 'function') meeraLearnTap(c.dataset.gq); gaAsk(c.dataset.gq); }
   });
   box.addEventListener('keydown', e => { if (e.key === 'Escape') guideAskClose(); });
 }
-function guideAskOpen(q) {
+function guideAskOpen(q?) {
   guideAskBuild();
   if (GUIDE.tour && GUIDE.tour.kind !== 'task') guideClose();   // a walk-round gives way to a question; a task guide stays
   $('gdAsk').classList.remove('hide');
@@ -1223,7 +1223,7 @@ function gaChipsDraw() {
 }
 function gaMine(t) { const d = document.createElement('div'); d.className = 'ga-msg ga-me'; d.textContent = t; $('gaLog').appendChild(d); $('gaLog').scrollTop = $('gaLog').scrollHeight; }
 /** One message from her. src: where the answer came from — 'guide' (her answers), 'ai', 'checked' (an AI answer an admin checked). */
-function gaSay(html, acts, after, src) {
+function gaSay(html, acts?, after?, src?) {
   const d = document.createElement('div');
   d.className = 'ga-msg ga-she';
   d.innerHTML = html + (acts && acts.length ? '<div class="ga-acts">' + acts.map(a => `<button type="button" class="ga-act" data-ga="${a.t}" data-id="${esc(a.id || '')}" data-tab="${esc(a.tab || '')}">${esc(a.label)}</button>`).join('') + '</div>' : '') + (after || '');
@@ -1266,7 +1266,7 @@ async function gaAsk(q) {
 }
 function gaAct(t, id, tab) {
   if (t === 'ai') { gaAiAsk(GA.lastQ || ''); return; }
-  if (t === 'astyped') { gaAnswer.asTyped = true; gaAsk(GA.lastQ || '').finally(() => { gaAnswer.asTyped = false; }); return; }
+  if (t === 'astyped') { (gaAnswer as any).asTyped = true; gaAsk(GA.lastQ || '').finally(() => { (gaAnswer as any).asTyped = false; }); return; }
   if (t === 'aifb') { gaAiFeedback(id); return; }
   if (t === 'aians') { gaAiAnswer(id); return; }
   if (t === 'fb') {

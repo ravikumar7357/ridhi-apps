@@ -49,7 +49,7 @@ const gaLL = lang => (en, hi, hg) => (lang === 'hi' ? hi : lang === 'hg' ? hg : 
 
 /** The question, cleaned, to the router; the answer, a ticket, or — when there is neither — `own`, Meera's own reply
  * ({html, acts}), shown as it would have been without AI. */
-async function gaAiAsk(q, own) {
+async function gaAiAsk(q, own?) {
   const { lang, means, words } = gaRead(q), L = gaLL(lang);
   await gaBankLoad();
   const ids = gaBankFind(means, words, q).map(h => h.e.id).filter(id => !/^learned-/.test(id)).slice(0, 5);

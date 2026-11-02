@@ -7,3 +7,4 @@ declare const GA_AI_URL: string;
 declare const GUIDE: { tour: unknown };
 declare const GUIDE_STOP: Set<string>;
 declare const guideLang: () => string;
+declare function gaDict(): { known: Set<string>; freq: Map<string, number>; names: Set<string>; pairs: Set<string> };
