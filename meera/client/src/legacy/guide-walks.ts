@@ -167,7 +167,7 @@ function gaWalkNext(lang, L) {
 
 /* ---------- the quiet offer when someone is stuck ---------- */
 const GA_NUDGE = { told: new Set(), red: new Map(), lastAct: Date.now(), shown: false };
-const GA_NUDGE_IDLE_MS = 75000;
+const GA_NUDGE_IDLE_MS = MEERA_CONFIG.nudgeIdleMs;   // config.ts
 function gaNudgeOff() { return (+guideGet('guideNudgeNo', '0') || 0) >= 3; }
 function gaNudgeShow(key, why) {
   if (GA_NUDGE.shown || GA_NUDGE.told.has(key) || gaNudgeOff() || !guideIsOn() || GUIDE.tour) return;

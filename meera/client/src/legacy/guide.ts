@@ -20,12 +20,12 @@
  * WHAT IT NEVER DOES: press a button, change a box, or save anything. It only dims, points and talks. While it is
  * open, clicks on the page are held back so a walk-round cannot set anything off by accident. */
 
-const GUIDE_STRIKES = 3;                    // the same mistake this many times → the lesson
-const GUIDE_WINDOW_MS = 15 * 60 * 1000;     // …inside this long; older strikes are forgotten
-const GUIDE_FOOT = 300;                    // the bottom of the screen Meera and her bubble stand in
-const GUIDE_ACT_MS = 8000;                  // a red line this soon after a click or key is the person's doing
-const GUIDE_TYPE_MS = 12;                  // the bubble's words appear a few letters at a time, like a game…
-const GUIDE_TYPE_STEP = 4;                 // …four a tick: a long sentence is out in about half a second
+const GUIDE_STRIKES = MEERA_CONFIG.strikes;   // the same mistake this many times → the lesson (config.ts)
+const GUIDE_WINDOW_MS = MEERA_CONFIG.strikeWindowMs;   // …inside this long; older strikes are forgotten
+const GUIDE_FOOT = MEERA_CONFIG.footPx;   // the bottom of the screen Meera and her bubble stand in
+const GUIDE_ACT_MS = MEERA_CONFIG.actMs;   // a red line this soon after a click or key is the person's doing
+const GUIDE_TYPE_MS = MEERA_CONFIG.typeMs;   // the bubble's words appear a few letters at a time, like a game…
+const GUIDE_TYPE_STEP = MEERA_CONFIG.typeStep;   // …four a tick: a long sentence is out in about half a second
 const GUIDE: any = { tour: null, i: 0, typing: 0, miss: {}, field: null, btn: null, seenErr: new Map(), built: false };   // el, live, wait, paused, ring… are added as she works
 
 /** Kept per person, so two people sharing a computer each get their own walk-rounds. */
@@ -291,7 +291,7 @@ function guideGo(d) {
   /* only a button that reads as opening something; one that saves, sends or changes anything is never pressed */
   const said = btn ? (btn.textContent || btn.value || btn.title || '').trim() : '';
   const opener = btn && /^\+|\b(new|open|edit|view|more|show|details|change|set up|correct)\b|▾/i.test(said) && !/\b(save|delete|remove|cancel|approve|reject|send|start|accept|receive|issue|pass|done|close|move|place|raise|upload|import|clear|undo|release|reserve|freeze|authori[sz]e|mark)\b/i.test(said) ? btn : null;
-  if (opener) { GUIDE.selfClick = true; try { opener.click(); } finally { GUIDE.selfClick = false; } const t = GUIDE.tour; setTimeout(() => { if (GUIDE.tour === t) { GUIDE.i = n; guideShow(); } }, 700); return; }
+  if (opener) { GUIDE.selfClick = true; try { opener.click(); } finally { GUIDE.selfClick = false; } const t = GUIDE.tour; setTimeout(() => { if (GUIDE.tour === t) { GUIDE.i = n; guideShow(); } }, MEERA_CONFIG.stepAgainMs); return; }
   if (n >= GUIDE.tour.steps.length) { const t = GUIDE.tour; guideClose(); if (t.kind === 'lesson' && t.steps[0].el && t.steps[0].el.focus) try { t.steps[0].el.focus(); } catch (e) { /* not a box */ } return; }
   GUIDE.i = n;
   guideShow();
@@ -328,7 +328,7 @@ function guideShow() {
     /* A step on another screen: that screen opens first (the menu's own access rule), then the step shows. */
     if (s.tab && ERP_MEERA.screen() !== s.tab) {
       if (!guideMayOpen(s.tab)) { guideTaskNoAccess(s.tab); return; }
-      if (!s._went) { s._went = true; ERP_MEERA.openScreen(s.tab); setTimeout(() => { if (GUIDE.tour === t) guideShow(); }, 650); return; }
+      if (!s._went) { s._went = true; ERP_MEERA.openScreen(s.tab); setTimeout(() => { if (GUIDE.tour === t) guideShow(); }, MEERA_CONFIG.stepOpenMs); return; }
     }
     /* Already done on the screen (the form is open), or its box is not there for this account: on to the next one. */
     const filledNow = GUIDE.fast && !GUIDE.note && s.wait === 'value' && guideTarget(s) && String(guideTarget(s).value || '').trim() !== '';
@@ -402,7 +402,7 @@ function guideWaitOn(s, el) {
     GUIDE.stepDone = true;
     guideDoDraw();
     const at = GUIDE.i, tour = GUIDE.tour;
-    setTimeout(() => { if (GUIDE.tour === tour && GUIDE.i === at) guideGo(1); }, 750);
+    setTimeout(() => { if (GUIDE.tour === tour && GUIDE.i === at) guideGo(1); }, MEERA_CONFIG.stepNextMs);
   };
   if (s.wait === 'click') {
     /* A Save: wait a moment for the ERP's answer. A red line means it did not save — go and fix that instead. */
@@ -424,7 +424,7 @@ function guideWaitOn(s, el) {
   if (s.wait === 'value') {
     const filled = () => String(el.value || '').trim() !== '';
     let tm = 0;
-    const typed = () => { clearTimeout(tm); tm = setTimeout(() => { if (filled()) done(); }, 1400); };
+    const typed = () => { clearTimeout(tm); tm = setTimeout(() => { if (filled()) done(); }, MEERA_CONFIG.valueCheckMs); };
     const chose = () => { clearTimeout(tm); if (filled()) done(); };
     el.addEventListener('input', typed);
     el.addEventListener('change', chose);
@@ -505,7 +505,7 @@ function guideRingOn(el) {
   el.addEventListener('change', done, { once: true });
   el.addEventListener('input', done, { once: true });
   if (el.matches('button')) el.addEventListener('click', done, { once: true });
-  GUIDE.ringT = setTimeout(done, 20000);
+  GUIDE.ringT = setTimeout(done, MEERA_CONFIG.ringMs);
 }
 function guideRingOff() {
   clearTimeout(GUIDE.ringT);

@@ -94,7 +94,7 @@ async function gaAiFeedback(id) {
 async function gaAiLearned(list) {
   if (!gaAiOn()) return list;
   try {
-    const r: any = await Promise.race([gaAiCall('/learned', null, 'GET'), new Promise((_, no) => setTimeout(() => no(new Error('slow')), 3000))]);
+    const r: any = await Promise.race([gaAiCall('/learned', null, 'GET'), new Promise((_, no) => setTimeout(() => no(new Error('slow')), MEERA_CONFIG.learnedWaitMs))]);
     const have = new Set(list.map(e => e.id));   // already in her file (the weekly build step, Phase 4): not twice
     const got = ((r.body && r.body.answers) || []).filter(x => !have.has('learned-' + x.id));
     return list.concat(got.map(x => {

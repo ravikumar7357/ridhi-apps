@@ -43,7 +43,7 @@ async function srvCall(path: string, body: object | null, ms: number): Promise<{
 }
 function srvAsk(q: string, extra: object): Promise<{ status: number; body: any }> {
   const u = ERP_MEERA.user();
-  return srvCall('/search', { q: srvClean(q), screen: gaHere(), lang: gaRead(q).lang, spell: meeraOn('spell'), names: gaNames(), tabs: u.tabs, admin: u.admin, ...extra }, 4000);
+  return srvCall('/search', { q: srvClean(q), screen: gaHere(), lang: gaRead(q).lang, spell: meeraOn('spell'), names: gaNames(), tabs: u.tabs, admin: u.admin, ...extra }, MEERA_CONFIG.routerWaitMs);
 }
 
 /* ---------- side by side ---------- */
@@ -120,7 +120,7 @@ try { if (MEERA_REMOTE) ERP_MEERA.on('screen', () => { if (gaHere() !== SRV.tab)
 /* read once her files have all started (the router's address is set further on) */
 setTimeout(async () => {
   if (!(MEERA_SIDE || MEERA_REMOTE)) return;
-  const r = await srvCall('/config', null, 4000);
+  const r = await srvCall('/config', null, MEERA_CONFIG.routerWaitMs);
   if (r.status !== 200) return;
   SRV.cfg = { meera: r.body.meera !== false, ai: r.body.ai !== false, search: r.body.search !== false };
   if (!SRV.cfg.meera) meeraStop('switched off on her router');

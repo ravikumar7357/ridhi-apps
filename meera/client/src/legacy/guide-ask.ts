@@ -613,7 +613,7 @@ function gaDict() {
  * outright only when clearly sure — the best answer high AND well ahead of the next; otherwise she offers the top
  * choices ("did you mean"). A guess on top of a guess is not an answer. Set on spelling set 1 and the normal test sets
  * only; the held-back sets are for scoring. */
-let GA_SPELL_FIXED = false, GA_SPELL_SURE = 0.8, GA_SPELL_GAP = 0.06;
+let GA_SPELL_FIXED = false, GA_SPELL_SURE = MEERA_CONFIG.spellSure, GA_SPELL_GAP = MEERA_CONFIG.spellGap;   // config.ts
 function gaSpellCap(hits) {
   if (!GA_SPELL_FIXED || !hits.length) return hits;
   const [a, b] = hits;
@@ -830,7 +830,7 @@ async function gaAnswer1(q) {
   await gaBankLoad();
   /* the first question waits for the meaning file (about 3 MB; on the live site it can take 2–3 s): answered on words
    * alone, "maal wapas aa gaya" got a QC answer (27 Oct). Up to 4 s, once — after that it is in. */
-  if (GA_W === null) await Promise.race([gaWordsLoad(), new Promise(ok => setTimeout(ok, 4000))]);
+  if (GA_W === null) await Promise.race([gaWordsLoad(), new Promise(ok => setTimeout(ok, MEERA_CONFIG.wordsWaitMs))]);
   const hits = gaBankFind(means, words, q);
   if (!(top && top.kind === 'talk' && top.s >= 1.4) && hits[0] && hits[0].s >= (GA_W || gaRemote() ? GA_BANK_SURE_SEM : GA_BANK_SURE)) {
     /* two answers fit almost equally ("short by kya hai": the screen, or its Short by column): ask which, never guess */
@@ -946,7 +946,7 @@ function gaBankLoad() {
 let GA_W = null, GA_W_P = null, GA_SEM = null;
 /* How much meaning counts next to the word match, and whether filler words ("ko", "hai", "the") are left out of a
  * sentence's meaning. Both set on 220 test questions (half to set, half to check). */
-let GA_SEM_W = 0.5, GA_SEM_SKIP = true;
+let GA_SEM_W = MEERA_CONFIG.meaningWeight, GA_SEM_SKIP = MEERA_CONFIG.meaningSkipFillers;   // config.ts
 function gaWordsLoad() {
   if (GA_W !== null) return Promise.resolve(GA_W);
   if (typeof meeraServerWords === 'function') { const p = meeraServerWords(); if (p) return p; }   // Phase 5: her router has the meaning table
@@ -1111,12 +1111,12 @@ function gaBankFind(means, words, q) {
 }
 /* How many answers a search returns; how sure she must be to answer outright (with the meaning table the scores run
  * higher, so the bar is higher); and how close an answer must be to be offered as "did you mean". */
-let GA_TOPK = 4;
-let GA_BANK_SURE = 0.65, GA_BANK_SURE_SEM = 0.75, GA_BANK_NEAR = 0.32;
+let GA_TOPK = MEERA_CONFIG.topK;   // config.ts
+let GA_BANK_SURE = MEERA_CONFIG.sure, GA_BANK_SURE_SEM = MEERA_CONFIG.sureMeaning, GA_BANK_NEAR = MEERA_CONFIG.near;   // config.ts
 /* how far ahead the best answer must be to be given outright (set on 389 test questions, 24 Oct: wrong answers halved) */
-let GA_BANK_GAP = 0.04;
+let GA_BANK_GAP = MEERA_CONFIG.gap;   // config.ts
 /* from here up, a not-sure question gets the bank's nearest answers to choose from rather than the older lists */
-let GA_BANK_ASK = 0.5;
+let GA_BANK_ASK = MEERA_CONFIG.ask;   // config.ts
 const gaL3 = (o, lang) => (o ? (lang === 'hi' ? o.hi : lang === 'hg' ? (o.hg || o.en) : o.en) || o.en || '' : '');
 const gaAskOf = (e, lang) => { const q = e.q || {}; return ((lang === 'hi' ? q.hi : lang === 'hg' ? q.hg : q.en) || q.en || [])[0] || ''; };
 /** One answer from the bank: the answer, why, what to do, and the buttons that do it. */

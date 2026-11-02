@@ -53,10 +53,10 @@ function guideFillOffer(s, el, task) {
      * if the person is still on this step */
     const tour = GUIDE.tour, at = GUIDE.i, since = Date.now();
     const again = () => {
-      if (GUIDE.tour !== tour || GUIDE.i !== at || !el.isConnected || Date.now() - since > 30000) return;
-      if (gfOptions(el).length) guideFillOffer(s, el, task); else setTimeout(again, 600);
+      if (GUIDE.tour !== tour || GUIDE.i !== at || !el.isConnected || Date.now() - since > MEERA_CONFIG.fillGiveUpMs) return;
+      if (gfOptions(el).length) guideFillOffer(s, el, task); else setTimeout(again, MEERA_CONFIG.fillRetryMs);
     };
-    setTimeout(again, 600);
+    setTimeout(again, MEERA_CONFIG.fillRetryMs);
     return;
   }
   if (el.tagName === 'SELECT' && opts.length === 1 && !el.value) {

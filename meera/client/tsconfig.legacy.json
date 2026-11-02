@@ -9,14 +9,11 @@
     ],
     "strict": false,
     "noEmit": true,
-    "skipLibCheck": true,
-    "allowJs": true,
-    "checkJs": false
+    "skipLibCheck": true
   },
   "include": [
     "src/*.ts",
     "src/legacy/*.ts",
-    "src/legacy/*.js",
     "../shared/*.d.ts"
   ],
   "exclude": [

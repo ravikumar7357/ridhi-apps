@@ -190,7 +190,7 @@ function mdReady(): void {
   head.insertAdjacentElement('afterend', line);
   const done = () => { line.remove(); gaChipsDraw(); };
   Promise.all([gaBankLoad(), gaWordsLoad()]).then(done, done);
-  setTimeout(() => { if (line.isConnected) line.remove(); }, 20000);   // never a line that stays
+  setTimeout(() => { if (line.isConnected) line.remove(); }, MEERA_CONFIG.readyLineMs);   // never a line that stays
 }
 /** a red message on the screen: she says she sees it, and offers to help with it */
 function mdSeen(): void {
