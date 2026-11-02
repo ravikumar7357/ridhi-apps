@@ -160,6 +160,7 @@ function replSnapRows_(b, debugSku) {
       inbReceiving: rsNum_(get(row, ['inbound_receiving', 'inbound receiving'])),
       awdAvail: rsNum_(get(row, ['awd available'])), awdTransit: rsNum_(get(row, ['awd transit'])),
       rec: rec,
+      last7: rsNum_(get(row, ['last 7 days'])), last14: rsNum_(get(row, ['last 14 days'])),
       last30: rsNum_(get(row, ['last 30 days'])), last90: rsNum_(get(row, ['last 90 days'])), l90amt: rsNum_(get(row, ['last 90 days $'])),
       airDos: rsNum_(get(row, ['air dos'])), airQty: rsNum_(get(row, ['air qty'])), airIndia: 0,
       seaDos: rsNum_(get(row, ['sea dos'])), seaQty: rsNum_(get(row, ['sea qty'])), seaIndia: 0,
