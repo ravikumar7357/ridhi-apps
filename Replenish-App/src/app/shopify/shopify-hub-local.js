@@ -9,8 +9,8 @@
  *
  * THE SHARED DATA (Supabase): window.SHOS gives the hub the Shopify OS database's address, its publishable key and the
  * signed-in person's Firebase sign-in (the ERP's own: no second password). The database checks the person on every call
- * (shopify-os/supabase/26 and 28). Where the database is: Firestore config/shopifyos { url, key } when an admin has put it
- * there, else the Connection box on this page (kept in this browser). A secret key is refused.
+ * (shopify-os/supabase/26 and 28). Where the database is: Firestore config/shopifyos { url, key } (an admin puts it there
+ * once; key = the PUBLISHABLE key). No box on the page. Until it is there, each browser keeps its own data. A secret key is refused.
  *
  * SHOPIFY through the Pricing API, read only, exactly as before: the hub asks, this page reads ?shopify=orders for both
  * stores with the signed-in person's access and hands the orders over, with the ERP's own stock figures. Writes to Shopify
@@ -41,15 +41,7 @@ if (SHUB_ON && $('secShopify') && $('paneShop')) {
       <span style="font-weight:700" id="shubName">Shopify</span>
       <span class="muted" style="font-size:12.5px">Test · shared by the team in the Shopify OS database · Shopify read through the Pricing API · nothing is sent to Shopify or Amazon</span>
       <span id="shubState" class="muted" style="font-size:12.5px;margin-left:auto"></span>
-      <button type="button" class="ghost" id="shosSetup" style="padding:7px 13px;font-size:12.5px">Connection</button>
       <button type="button" class="ghost" id="shubReload" style="padding:7px 13px;font-size:12.5px">Reload</button>
-    </div>
-    <div id="shosForm" class="card hide" style="padding:14px 16px;display:grid;gap:8px;max-width:640px">
-      <b>Connect this browser to the Shopify OS database</b>
-      <span class="muted" style="font-size:12.5px">Supabase → Project Settings → API Keys. Use the <b>publishable</b> key (starts with sb_publishable_). Never the secret key.</span>
-      <input id="shosUrl" placeholder="https://xxxx.supabase.co" autocomplete="off" spellcheck="false">
-      <input id="shosKey" placeholder="sb_publishable_…" autocomplete="off" spellcheck="false">
-      <div style="display:flex;gap:8px;align-items:center"><button type="button" id="shosSave">Save in this browser</button><span id="shosFormMsg" class="muted" style="font-size:12.5px"></span></div>
     </div>
     <div id="shubDown" class="warn hide" style="margin-bottom:12px">The Shopify pages could not be opened: this copy of the ERP has no
       shopify-hub folder, and no hub is running on this computer. Run <b>Ridhihome\\shopify-hub\\start-hub.cmd</b>, then press Reload.</div>
@@ -75,22 +67,9 @@ if (SHUB_ON && $('secShopify') && $('paneShop')) {
       const d = s.exists() ? s.data() : null;
       if (d && shosUrlOk(d.url) && shosKeyOk(d.key)) return (SHOS_CFG = { url: d.url.trim(), key: d.key.trim(), from: 'ERP settings' });
     } catch (e) { /* not readable for this account: the browser's own setting below */ }
-    try {
-      const l = JSON.parse(localStorage.getItem('shos_cfg') || 'null');
-      if (l && shosUrlOk(l.url) && shosKeyOk(l.key)) return (SHOS_CFG = { url: l.url, key: l.key, from: 'this browser' });
-    } catch (e) { /* nothing saved */ }
-    $('shosForm').classList.remove('hide');
-    throw new Error('the Shopify OS database is not connected in this browser yet (Connection)');
+    /* No box on the page (Ravi, 2 Nov: "remove this"): until config/shopifyos exists, each browser keeps its own data. */
+    throw new Error('kept in this browser only');
   }
-  $('shosSetup').onclick = () => $('shosForm').classList.toggle('hide');
-  $('shosSave').onclick = () => {
-    const url = $('shosUrl').value.trim().replace(/\/+$/, ''), key = $('shosKey').value.trim();
-    if (!shosUrlOk(url)) { $('shosFormMsg').textContent = 'The address should look like https://xxxx.supabase.co'; return; }
-    if (/^sb_secret_/.test(key)) { $('shosFormMsg').textContent = 'That is the SECRET key. Never put it in a browser: use the publishable one.'; return; }
-    if (!shosKeyOk(key)) { $('shosFormMsg').textContent = 'That does not look like the publishable key (sb_publishable_…).'; return; }
-    try { localStorage.setItem('shos_cfg', JSON.stringify({ url, key })); } catch (e) { $('shosFormMsg').textContent = 'This browser would not save it.'; return; }
-    SHOS_CFG = null; $('shosKey').value = ''; $('shosForm').classList.add('hide'); shubLoad(true);
-  };
   /* What the hub frame (same site) takes from this page: the database, and who is signed in. */
   window.SHOS = {
     config: shosConfig,
