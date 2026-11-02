@@ -1,3 +1,16 @@
+/* ================= ADS · ACCOUNT TRENDS: the Ad Console's data store and its nightly fill =================
+ * Screens: Ad Console (tab 'trends', pane paneTrends; tMsg is its message line). The screen itself — ensureTrends,
+ * the Refresh that scans the Orders sheets and asks Amazon for ad history, renderTrends, the granularity buttons
+ * and the CSV export — lives in ads/placement.js; this file holds what it works on. ads/deal-calendar.js also
+ * reads TREND, for its effect columns.
+ * Does: TREND is the whole-account snapshot — one row per day per brand, [sales, units, orders, impressions,
+ * clicks, spend, adOrders, adSales] (T_I names the slots) — cached in Firestore audit/trends (loadTrends,
+ * saveTrends) together with the window of days the ad figures really cover (adFrom/adTo, widened by
+ * tWidenAdWindow) and the ad reports still queued at Amazon (pending, adDone). tNightly folds last night's run
+ * (the backend's daily and ads caches) and the last five days read live into that snapshot when the tab opens,
+ * so nobody has to press Refresh.
+ * Main functions: tMsg, loadTrends, saveTrends, tWidenAdWindow, tNightly. */
+
 /* ================= ACCOUNT TRENDS =================
  * Whole-account, one row per DAY, stored per brand. Deliberately without the ASIN dimension: this
  * answers "how is the account doing", and dropping ASINs makes a year of days small enough to hold
@@ -6,6 +19,7 @@
  *
  * Per day, per brand: [sales, units, orders, impressions, clicks, spend, adOrders, adSales]
  */
+// Slot of each figure in a day's array, and the array's length.
 const T_I = { sales: 0, units: 1, orders: 2, impr: 3, clicks: 4, spend: 5, adOrders: 6, adSales: 7 };
 const T_LEN = 8;
 const T_DAYS = 400;            // how far back the Orders scan looks
@@ -13,6 +27,8 @@ const T_ADS_LOOKBACK = 95;     // Amazon keeps Sponsored Products data about thi
 // adFrom/adTo record WHICH DAYS the ad figures actually cover. Without them a day with no ad data
 // is indistinguishable from a day with genuinely zero spend, and the table then reports TACOS 0%
 // and Organic 100% for months Amazon will never have data for — a confident, wrong answer.
+// The snapshot: d = per brand { day → array }, at / adAt = when sales / ad figures were last written,
+// pending = ad reports still queued at Amazon, adDone = ad windows already fetched (see tSliceKey).
 let TREND = { d: { SP: {}, CPC: {} }, at: '', adAt: '', adFrom: '', adTo: '', pending: [], adDone: {} };
 
 /**
@@ -24,26 +40,48 @@ let TREND = { d: { SP: {}, CPC: {} }, at: '', adAt: '', adFrom: '', adTo: '', pe
  * Everything older than this really is settled, and re-fetching it is pure waiting.
  */
 const T_AD_SETTLE_DAYS = 32;                    // 30 + a couple of days of slack
+// Key of one fetched ad window in TREND.adDone (and WEEKLY.adDone): brand, first day, last day.
 const tSliceKey = (brand, s, e) => `${brand}|${s}|${e}`;
+// T_GRAN: the roll-up on screen (day / week / month / quarter). T_BUSY: a Refresh is running. T_STOP: Stop pressed.
 let T_GRAN = 'week', T_BUSY = false, T_STOP = false;
 
-function tMsg(t, bad) { const m = $('tMsg'); m.textContent = t || ''; m.className = bad ? 'err' : 'muted'; }
+// Write the Ad Console's message line; bad = true shows it in red (class err), otherwise muted.
+function tMsg(t, bad) {
+  const m = $('tMsg');
+  m.textContent = t || '';
+  m.className = bad ? 'err' : 'muted';
+}
 
+// Read the cached snapshot from Firestore audit/trends into TREND; nothing stored leaves TREND as it is.
 async function loadTrends() {
   try {
     const s = await getDoc(doc(db, 'audit', 'trends'));
     if (s.exists()) {
       const d = s.data();
-      TREND = { d: { SP: d.SP || {}, CPC: d.CPC || {} }, at: d.at || '', adAt: d.adAt || '',
-        adFrom: d.adFrom || '', adTo: d.adTo || '', pending: d.pending || [], adDone: d.adDone || {} };
+      TREND = {
+        d: { SP: d.SP || {}, CPC: d.CPC || {} },
+        at: d.at || '',
+        adAt: d.adAt || '',
+        adFrom: d.adFrom || '',
+        adTo: d.adTo || '',
+        pending: d.pending || [],
+        adDone: d.adDone || {} };
     }
   } catch (e) { /* nothing stored yet, or no read access */ }
 }
+// Write the whole of TREND to Firestore audit/trends, stamped with who saved it and when.
 async function saveTrends() {
   await setDoc(doc(db, 'audit', 'trends'), {
-    SP: TREND.d.SP, CPC: TREND.d.CPC, at: TREND.at, adAt: TREND.adAt,
-    adFrom: TREND.adFrom, adTo: TREND.adTo, pending: TREND.pending, adDone: TREND.adDone,
-    by: ME.email, saved: serverTimestamp(),
+    SP: TREND.d.SP,
+    CPC: TREND.d.CPC,
+    at: TREND.at,
+    adAt: TREND.adAt,
+    adFrom: TREND.adFrom,
+    adTo: TREND.adTo,
+    pending: TREND.pending,
+    adDone: TREND.adDone,
+    by: ME.email,
+    saved: serverTimestamp(),
   });
 }
 /**
@@ -57,8 +95,10 @@ async function saveTrends() {
  * on its own: showing a dash for figures we happen to hold is merely cautious, while showing a zero
  * for figures we do not hold is wrong.
  */
+// Widen TREND.adFrom/adTo over the unbroken run of days ending at the newest day given.
 function tWidenAdWindow(days) {
   if (!days.length) return;
+  // --- the unbroken run of days ending at the newest ---
   const uniq = [...new Set(days)].sort();
   const to = uniq[uniq.length - 1];
   let from = to;
@@ -66,6 +106,7 @@ function tWidenAdWindow(days) {
     if (uniq[i] !== sdShift(uniq[i + 1], -1)) break;
     from = uniq[i];
   }
+  // --- merge with the old window only if the two meet ---
   const meets = TREND.adFrom && TREND.adTo && TREND.adFrom <= sdShift(to, 1) && TREND.adTo >= sdShift(from, -1);
   TREND.adFrom = meets && TREND.adFrom < from ? TREND.adFrom : from;
   TREND.adTo = meets && TREND.adTo > to ? TREND.adTo : to;
@@ -87,6 +128,8 @@ function tWidenAdWindow(days) {
  * against Amazon-only ad spend and quietly bend TACOS, ACOS and organic share.
  */
 let T_NIGHT_RUN = 0;                            // when this last ran in this session
+// Merge the nightly caches (daily sales, ads) and the last five live days into TREND, save, and return the
+// nightly run's stamp ('' when nothing changed).
 async function tNightly() {
   const brands = tBrands();
   const today = sdToday();                      // the marketplace's day, never the viewer's
@@ -102,7 +145,9 @@ async function tNightly() {
     brands.forEach(b => Object.entries(d[b] || {}).forEach(([day, v]) => {
       if (day >= today) return;
       const c = tCell(b, day);
-      c[T_I.sales] = v[0] || 0; c[T_I.units] = v[1] || 0; c[T_I.orders] = v[2] || 0;
+      c[T_I.sales] = v[0] || 0;
+      c[T_I.units] = v[1] || 0;
+      c[T_I.orders] = v[2] || 0;
       changed = true;
     }));
   } catch (e) { /* nothing cached yet — whatever is already on screen stays */ }
@@ -114,11 +159,13 @@ async function tNightly() {
     const days = [];
     brands.forEach(b => Object.entries(d[b] || {}).forEach(([day, v]) => {
       const c = tCell(b, day);
-      c[T_I.impr] = v[0] || 0; c[T_I.clicks] = v[1] || 0;
+      c[T_I.impr] = v[0] || 0;
+      c[T_I.clicks] = v[1] || 0;
       c[T_I.spend] = Math.round((v[2] || 0) * 100) / 100;
       c[T_I.adOrders] = v[3] || 0;
       c[T_I.adSales] = Math.round((v[4] || 0) * 100) / 100;
-      days.push(day); changed = true;
+      days.push(day);
+      changed = true;
     }));
     tWidenAdWindow(days);
   } catch (e) { /* the ads phase may not have finished yet — yesterday's window stays */ }
@@ -132,12 +179,15 @@ async function tNightly() {
       if (!brands.includes(ch)) return;         // skips 'shopError' and Shopify in one test
       Object.entries(byDay).forEach(([day, v]) => {
         const c = tCell(ch, day);
-        c[T_I.sales] = v[0] || 0; c[T_I.units] = v[1] || 0; c[T_I.orders] = v[2] || 0;
+        c[T_I.sales] = v[0] || 0;
+        c[T_I.units] = v[1] || 0;
+        c[T_I.orders] = v[2] || 0;
         changed = true;
       });
     });
   } catch (e) { /* the cached days are still true; only today is missing */ }
 
+  // --- save and report ---
   if (changed) {
     TREND.at = new Date().toISOString().slice(0, 16).replace('T', ' ');
     // Shared, so the next person to open the tab gets it without the round trip. An account that may
@@ -147,4 +197,3 @@ async function tNightly() {
   T_NIGHT_RUN = Date.now();
   return changed ? (stamp || 'last night') : '';
 }
-
