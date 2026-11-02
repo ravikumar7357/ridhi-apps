@@ -150,18 +150,28 @@ function pxAcctOrders(p) {
 
 let PX_MEMO = new Map();
 const PX_ADD = ['o', 'adO', 'adU', 'cl', 'se'];
-/* Sessions come from Amazon's Sales & Traffic report, which is asked for one whole Sunday–Saturday week at a
- * time — there is no per-day figure. So a range has sessions only when it is made of whole weeks, and only
- * when every one of those weeks has its report; otherwise "—", never a part-total. */
+/* Sessions come from Amazon's Sales & Traffic report: ONE report per brand per whole Sunday–Saturday week —
+ * there is no per-day figure. So a range has sessions only when it is made of whole weeks, and only when the
+ * brand's report for EVERY one of those weeks has arrived; otherwise "—", never a part-total.
+ * Within a week whose report did arrive, a size with no row in it simply had no sessions recorded and counts
+ * 0 (2 Nov: treating that as "unknown" blanked 528 of 713 parents, a 374-size parent being bound to have one). */
 const pxWholeWeeks = p => p.src !== 'none' && wKeyOfDate(p.lo) === p.lo && wKeyOfDate(sdShift(p.hi, 1)) === sdShift(p.hi, 1);
+let PX_SESS = null;                            // 'brand|week' → the brand's traffic report for that week is in
+function pxSessWeeks() {
+  if (PX_SESS) return PX_SESS;
+  PX_SESS = new Set();
+  Object.values(WEEKLY.rows).forEach(r => Object.entries(r.weeks || {}).forEach(([w, c]) => {
+    if (c && c.sessions != null && r.brand) PX_SESS.add(r.brand + '|' + w);
+  }));
+  return PX_SESS;
+}
 function pxSessions(a, p) {
   if (!pxWholeWeeks(p)) return null;
-  const wks = (WEEKLY.rows[a] || {}).weeks || {};
-  let n = null;
+  const r = WEEKLY.rows[a] || {}, b = r.brand || (pxLookup()[a] || {}).brand, wks = r.weeks || {}, have = pxSessWeeks();
+  let n = 0;
   for (let w = p.lo; w <= p.hi; w = sdShift(w, 7)) {
-    const c = wks[w];
-    if (c && c.sessions != null) n = (n || 0) + c.sessions;
-    else if (c && (c.u || c.rev)) return null;                // sold that week but no traffic report yet
+    if (!have.has(b + '|' + w)) return null;                 // that brand's report for that week is not in
+    n += (wks[w] && wks[w].sessions) || 0;
   }
   return n;
 }
@@ -213,9 +223,9 @@ function pxStats(asins, p, withPrev) {
     if (s.spend != null) o.spend = (o.spend || 0) + s.spend;
     if (s.adSales != null) o.adSales = (o.adSales || 0) + s.adSales;
     PX_ADD.forEach(k => { if (s[k] != null) o[k] = (o[k] || 0) + s[k]; });
-    if (s.se == null && (s.u || s.rev)) seGap = true;
+    if (s.se == null && pxWholeWeeks(p)) seGap = true;
   });
-  if (seGap) o.se = null;                      // one size without its traffic report: no part-total
+  if (seGap) o.se = null;                      // one brand's weekly report missing: no part-total
   pxDerive(o);
   if (withPrev) {
     const q = pxStats(asins, pxPrevPlan(p), false);
@@ -531,7 +541,7 @@ function pxCards(asins) {
 
 function pxRender(focusSel) {
   const pane = $('panePpcn'); if (!pane) return;
-  PX_MEMO = new Map();
+  PX_MEMO = new Map(); PX_SESS = null;          // WEEKLY may have been refreshed since the last render
   const old = pane.querySelector('.px-tw'), sc = old ? [old.scrollLeft, old.scrollTop] : null;
   const cm = PX.mode === 'cols';
   const empty = !Object.keys(WEEKLY.rows).length && !Object.keys(WDAY.rows).length;
