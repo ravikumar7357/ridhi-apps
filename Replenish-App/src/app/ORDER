@@ -161,7 +161,7 @@ core/meera-bridge.js
 @meera/legacy/guide-art.js
 @meera/legacy/guide-tours.ts
 @meera/legacy/guide.js
-@meera/legacy/guide-errors.js
+@meera/legacy/guide-errors.ts
 @meera/legacy/guide-ask.js
 @meera/legacy/guide-fill.ts
 @meera/legacy/guide-walks.ts
