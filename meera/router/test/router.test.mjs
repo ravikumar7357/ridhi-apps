@@ -297,5 +297,19 @@ const sent = () => JSON.stringify(calls.map(c => c.body));
   ok((await call('/admin/config', { tok: admin, body: { key: 'other', value: 'off' } })).status === 400, 'only those three');
 }
 
+/* ---------- 10. the free plan: search parked (2 Nov) ---------- */
+{
+  const s = setup({ SEARCH: 'parked' }), admin = await token({ email: 'ravi@x.com' });
+  const cfg = await s.call('/config', { method: 'GET' });
+  ok(cfg.status === 200 && cfg.body.search === false && cfg.body.ai === true && cfg.body.meera === true, 'parked: /config says search off, AI and Meera on');
+  ok((await s.call('/search', { body: { q: 'how to give job work', screen: 'pbase', lang: 'en' } })).status === 503, 'parked: /search refuses (503), so the browser searches as before');
+  await s.call('/admin/config', { tok: admin, body: { key: 'search', value: 'on' } });
+  ok((await s.call('/config', { method: 'GET' })).body.search === false, 'parked: an admin switching search on does not start it');
+  ok((await s.call('/learn', { body: { kind: 'missed', q: 'packing list kya hai', screen: 'pack' } })).status === 200, 'parked: learning records still kept');
+  ok((await s.call('/ask', { body: { q: 'how do i give job work', lang: 'en', screen: 'pbase' } })).status === 200, 'parked: AI answers still work');
+  const { default: free } = await import('../src/free.js');
+  ok(typeof free.fetch === 'function', 'the free entry loads (no meaning table needed)');
+}
+
 console.log(`meera-router: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
