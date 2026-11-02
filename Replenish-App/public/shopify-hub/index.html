@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Libre+Caslon+Text:wght@400;700&display=swap">
 <link rel="stylesheet" href="look.css?v=fce6229dbd">
-<link rel="stylesheet" href="hub.css?v=e589f12cc4">
+<link rel="stylesheet" href="hub.css?v=b31a65b425">
 <!-- Inside the ERP's "Shopify hub (test)" page (?embed=1) the ERP already shows its own menu bar. -->
 <script>if (/[?&]embed=1\b/.test(location.search)) document.documentElement.classList.add('embed');</script>
 </head>
@@ -28,23 +28,31 @@
          filters under it in the same card. The other pages keep only the filter line. -->
     <div class="s-head">
       <div class="s-band">
-        <div class="s-title"><span>SHOPIFY</span><b id="ptitle">Orders</b></div>
+        <div class="s-title"><span>SHOPIFY <i class="s-testbadge" id="testBadge" hidden>TEST</i></span><b id="ptitle">Orders</b></div>
         <div class="seg" id="storeBand"></div>
         <div class="s-figs" id="figs"></div>
       </div>
+      <!-- One row (Ravi, 2 Nov: "make the UI much better"): pages left, search in the middle, the two team buttons, and
+           everything used now and then (live tracking, present, fetch now) in the ⋯ menu. -->
       <div class="s-tools">
         <nav class="s-tabs" id="tabs" aria-label="Shopify pages"></nav>
         <div class="seg s-barseg" id="storeBar"></div>
+        <label class="s-search s-searchwide">
+          <input id="q" type="search" placeholder="Search order, SKU, name or tracking" aria-label="Search" aria-keyshortcuts="/">
+        </label>
         <button class="s-ordonly s-bucket" id="bucketBtn" type="button" title="Lines not yet routed to MCF, production or India">To route <b id="bucketN"></b></button>
         <button class="s-ordonly s-bucket" id="prodBktBtn" type="button" title="The ERP's production bucket: need production, stock can fill, done, from production, handed over — open production lines (SHP-) in the Order Console">Production bucket</button>
         <button class="s-ordonly s-bulkbtn" id="bulkBtn" type="button" title="Every order with something ready to ship (made, or in India stock): tick, weigh, make the DHL / FedEx files">Bulk order <b id="bulkN"></b></button>
-        <label class="s-search">
-          <input id="q" type="search" placeholder="Filter order / SKU / name / tracking" aria-label="Search" aria-keyshortcuts="/">
-        </label>
-        <span class="s-ordonly s-stockat" id="trackAt"></span>
-        <button class="s-live on" id="liveBtn" type="button"><i></i>Live tracking · on</button>
-        <button class="s-tbtn" id="present" type="button" title="Plays the whole flow on a demo order, step by step, with captions (and voice if you turn it on)">▶ Present</button>
-        <button class="s-ordonly s-fetch" id="fetchBtn" type="button">Fetch orders</button>
+        <details class="s-moremenu" id="moreMenu">
+          <summary title="More" aria-label="More">⋯</summary>
+          <div class="s-menu">
+            <span class="s-ordonly s-stockat" id="trackAt"></span>
+            <span class="s-stockat" id="fetchAt"></span>
+            <button class="s-ordonly s-fetch" id="fetchBtn" type="button">Fetch orders now</button>
+            <button class="s-live on" id="liveBtn" type="button"><i></i>Live tracking · on</button>
+            <button class="s-tbtn" id="present" type="button" title="Plays the whole flow on a demo order, step by step, with captions (and voice if you turn it on)">▶ Present</button>
+          </div>
+        </details>
       </div>
     </div>
 
@@ -57,7 +65,7 @@
 <div id="dlg"></div>
 <div id="tourHost"></div>
 <script src="journey.js?v=1a5d07b5e0"></script>
-<script src="hub-web.js?v=a7d1a2f80b"></script>
-<script src="app.js?v=f44d19a5f2"></script>
+<script src="hub-web.js?v=6923330cd3"></script>
+<script src="app.js?v=05f9918076"></script>
 </body>
 </html>
