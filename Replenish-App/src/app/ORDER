@@ -149,6 +149,7 @@ shopify/returns.js
 shopify/delivery-days.js
 shopify/returns-team.js
 shopify/bucket-team.js
+shopify/shopify-hub-local.js
 replenishment/india-usa-express.js
 @shared/adjustments.js
 @shared/courier-templates.js
