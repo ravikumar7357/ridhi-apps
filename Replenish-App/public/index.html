@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <!-- ================================================================================================
-     GENERATED FILE. DO NOT READ OR EDIT THE CODE HERE — it is the 171 files of src/ joined into one page.
+     GENERATED FILE. DO NOT READ OR EDIT THE CODE HERE — it is the 172 files of src/ joined into one page.
      The real, grouped source: Replenish-App/src/   (map and workflow: src/README.md)
        src/index.html   page markup        src/styles.css   stylesheet        src/app/ORDER   join order
        src/app/<group>/ the code, by group: core, replenishment, masters, production, vendors, orders, shopify, flow, dashboard, people-pay, inventory, reports, shared, meera
@@ -1383,6 +1383,9 @@
 /* SHOPIFY RETURNS TEAM (15 Oct): the Shopify Orders screen narrowed to returns, delivery days and FBA stock. */
 #paneShop.so-ret .so-find,#paneShop.so-ret #soLanes,#paneShop.so-ret #soPickMsg,#paneShop.so-ret #soToday,#paneShop.so-ret #soKpis,#paneShop.so-ret #soTableCard{display:none}
 #soRetPanel{margin-top:12px;display:flex;flex-direction:column;gap:14px}#soRetPanel.hide{display:none}
+/* the production team's one page (bucket-team.js): the same narrow form as the returns team's */
+#paneShop.so-bkt .so-find,#paneShop.so-bkt #soLanes,#paneShop.so-bkt #soPickMsg,#paneShop.so-bkt #soToday,#paneShop.so-bkt #soKpis,#paneShop.so-bkt #soTableCard{display:none}
+#soBktPanel{margin-top:12px;display:flex;flex-direction:column;gap:14px}#soBktPanel.hide{display:none}
 .srt-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(320px,100%),1fr));gap:12px}
 .srt-tile{width:auto;display:flex;flex-direction:column;align-items:flex-start;gap:4px;text-align:left;padding:16px 18px;border-radius:16px;border:1px solid var(--line);background:var(--soft);cursor:pointer}
 .srt-tile b{font-size:16px;color:var(--ink)}.srt-tile span{font-size:12.5px;color:var(--muted);font-weight:400}.srt-tile:hover{background:var(--brand-bg)}
@@ -2296,7 +2299,7 @@ html.mob #gdNudge{right:14px;left:14px;max-width:none;bottom:144px}
       <a id="tabDash" class="nav" href="#dash">Management dashboard</a>
     </div></div>
 
-    <div class="navwrap"><button class="navgrp" id="grpShopify" type="button" data-grp="shopify" data-tabs="shop,adj,shopify,shopret">
+    <div class="navwrap"><button class="navgrp" id="grpShopify" type="button" data-grp="shopify" data-tabs="shop,adj,shopify,shopret,shopbkt">
       <span class="caret">&#9656;</span> Shopify</button>
     <div class="navsec" id="secShopify">
       <a id="tabShop" class="nav" href="#shop">Shopify Orders</a>
@@ -4047,6 +4050,7 @@ html.mob #gdNudge{right:14px;left:14px;max-width:none;bottom:144px}
       </div>
       <!-- THE RETURNS TEAM (15 Oct, shopify/returns-team.js): returns & replacements, delivery days, FBA stock by SKU — nothing else. -->
       <div id="soRetPanel" class="hide"></div>
+      <div id="soBktPanel" class="hide"></div>
       <div class="toolbar so-find">
         <input id="soFrom" type="date" style="flex:0 0 150px">
         <span class="muted" style="font-size:13px">to</span>
@@ -5522,7 +5526,7 @@ const REPL_TABS = ['repl', 'article', 'target', 'top', 'shopify', 'pack',
   /* Quality Control is three jobs, not one: 'qc' is the checks, 'qcalt' is sending rejects out for
    * alteration, 'qcret' is taking them back. One tab, three grants. */
   'pmdb', 'mst', 'att', 'pbase', 'pcut', 'ppress', 'qc', 'qcalt', 'qcret', 'ord', 'so', 'vord', 'vreq', 'rfd', 'vend', 'vlog', 'palloc', 'fgi', 'fgacc', 'shpacc', 'vpview', 'fba', 'fab', 'acc', 'rep', 'pa', 'ka', 'hr',
-  'shop', 'adj', 'shopprod', 'shopret', 'dash',
+  'shop', 'adj', 'shopprod', 'shopret', 'shopbkt', 'dash',
   /* Production flow (test, 2026-10-10): one right per bucket — the same keys as FLOW_BUCKETS in flow/flow-core.js. */
   'flppc', 'fldem', 'flacc', 'flchl', 'flcut', 'flraw', 'flwip',
   /* Greige Desk (2026-10-13; real since 15 Oct): open it, see the fabric ledger, add to / correct it, approve shrinkage over 5%. */
@@ -5729,6 +5733,11 @@ onAuthStateChanged(auth, async user => {
   if (typeof SHOP_RET_ONLY === 'function' && SHOP_RET_ONLY()) {
     const b = $('tabShop');
     if (b) { b.style.display = ''; const t = b.querySelector && b.querySelector('.nav-t'); (t || b).textContent = 'Returns & delivery'; }
+  }
+  /* THE SHOPIFY PRODUCTION BUCKET (2 Nov): the production team's one screen is Shopify Orders in the bucket form (bucket-team.js). */
+  if (typeof SHOP_BKT_ONLY === 'function' && SHOP_BKT_ONLY()) {
+    const b = $('tabShop');
+    if (b) { b.style.display = ''; const t = b.querySelector && b.querySelector('.nav-t'); (t || b).textContent = 'Production bucket'; }
   }
   syncNavGroups();
   /* The sidebar is now telling the truth, so it can be seen. The data loads below take their own
@@ -6219,14 +6228,17 @@ function showTab(which) {
   if (which === 'shopprod') which = 'ord';
   /* 'shopret' (the Shopify returns team, 15 Oct) is the Shopify Orders screen in its narrow form (returns-team.js). */
   if (which === 'shopret') which = 'shop';
+  /* 'shopbkt' (the Shopify production bucket, 2 Nov) is the same screen in the production team's narrow form (bucket-team.js). */
+  if (which === 'shopbkt') which = 'shop';
   /* A production-flow bucket right opens the one flow screen; the guard below lets it in for any bucket held. */
   if (FLOW_TABS.includes(which)) which = 'flow';
   if (ME.tabs && ME.tabs.length && !ME.tabs.includes(which)
       && !(which === 'ord' && ME.tabs.includes('shopprod'))
-      && !(which === 'shop' && ME.tabs.includes('shopret'))
+      && !(which === 'shop' && (ME.tabs.includes('shopret') || ME.tabs.includes('shopbkt')))
       && !(which === 'flow' && FLOW_ON && flowBucketsAllowed().length)
       && !(which === 'gdesk' && FLOW_ON && gdAllowed())) which = FLOW_TABS.includes(ME.tabs[0]) ? 'flow' : ME.tabs[0];
   if (which === 'shopret') which = 'shop';   // the returns team's only screen, when it is the first one they hold
+  if (which === 'shopbkt') which = 'shop';   // the production team's only screen, likewise
   if (which === 'shopprod') which = 'ord';
   const panes = { dash: 'paneDash', repl: 'paneRepl', article: 'paneArticle', target: 'paneTarget', follow: 'paneFollow', top: 'paneTop', india: 'paneIndia', shopify: 'paneShopify', prod: 'paneProd', pack: 'panePack', att: 'paneAtt', pmdb: 'panePmdb', mst: 'paneMst', pbase: 'panePbase', pcut: 'panePcut', ppress: 'panePpress', qc: 'paneQc', ord: 'paneOrd', so: 'paneSo', vord: 'paneVord', vreq: 'paneVreq', rfd: 'paneRfd', vend: 'paneVend', vlog: 'paneVlog', cx: 'paneCx', palloc: 'panePalloc', fgi: 'paneFgi', fba: 'paneFba', fab: 'paneFab', acc: 'paneAcc', rep: 'paneRep', pa: 'panePa', ka: 'paneKa', hr: 'paneHr', shop: 'paneShop', adj: 'paneAdj', flow: 'paneFlow', gdesk: 'paneGdesk' };
   const navs = { dash: 'tabDash', repl: 'tabRepl', article: 'tabArticle', target: 'tabTarget', follow: 'tabFollow', top: 'tabTop', india: 'tabIndia', shopify: 'tabShopify', prod: 'tabProd', pack: 'tabPack', att: 'tabAtt', pmdb: 'tabPmdb', mst: 'tabMst', pbase: 'tabPbase', pcut: 'tabPcut', ppress: 'tabPpress', qc: 'tabQc', ord: 'tabOrd', so: 'tabSo', vord: 'tabVord', vreq: 'tabVreq', rfd: 'tabRfd', vend: 'tabVend', vlog: 'tabVlog', cx: 'tabCx', palloc: 'tabPalloc', fgi: 'tabFgi', fba: 'tabFba', fab: 'tabFab', acc: 'tabAcc', rep: 'tabRep', pa: 'tabPa', ka: 'tabKa', hr: 'tabHr', shop: 'tabShop', adj: 'tabAdj', flow: 'tabFlow', gdesk: 'tabGdesk' };
@@ -70143,6 +70155,7 @@ function renderShop() {
   const pane = $('paneShop');
   if (pane && pane.classList && pane.classList.contains('hide')) { try { soRows(); } catch (e) { /* drawn on the way in */ } return; }
   /* The returns team (returns-team.js): its three tools, never the orders table. */
+  if (typeof SHOP_BKT_ONLY === 'function' && SHOP_BKT_ONLY()) { renderShopBkt(); return; }   // the production team: the bucket only
   if (typeof SHOP_RET_ONLY === 'function' && SHOP_RET_ONLY()) { renderShopRet(); return; }
   const esc = s => String(s == null ? '' : s).replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
   const money = v => '$' + Math.round(v || 0).toLocaleString('en-US');
@@ -72450,6 +72463,7 @@ let SHP_AGAIN = null;
 async function shpSyncSoon(where) {
   /* The returns team (returns-team.js) looks at orders; it never opens or closes production lines. */
   if (typeof SHOP_RET_ONLY === 'function' && SHOP_RET_ONLY()) return;
+  if (typeof SHOP_BKT_ONLY === 'function' && SHOP_BKT_ONLY()) return;   // nor from the production team's page: its lines open by hand
   if (SHP_BUSY) { SHP_AGAIN = where || SHP_AGAIN || ''; return; }
   if (!SHOP_STOCK_LOADED || !SHOP_INDIA_LOADED || SHOP_INDIA_ERR) return;
   if (!(SO_ALL_ROWS || []).length) return;
@@ -73009,6 +73023,319 @@ if ($('soRetPanel') && $('soRetPanel').addEventListener) {
     SRT.q = e.target.value; clearTimeout(SRT.t);
     SRT.t = setTimeout(() => { const pos = e.target.selectionStart; renderShopRet(); const q = $('srtQ'); if (q) { q.focus(); try { q.setSelectionRange(pos, pos); } catch (er) { /* search box */ } } }, 250);
   });
+}
+/* ============================== FILE: src/app/shopify/bucket-team.js ============================== */
+/* ================= SHOPIFY PRODUCTION BUCKET — the production team's one page =================
+ * Ravi, 2 Nov 2026: "production team will see production bucket and they see that only one page and everything should
+ * work on that like the existing ERP right now".
+ *
+ * One right, 'shopbkt' (Sellora → Access → Shopify → "Shopify production bucket"), made the way the returns team's right
+ * is (returns-team.js). It opens the Shopify Orders screen in a narrow form: the title band and the store switch, then the
+ * Production bucket only — the same bucket the Shopify team opens from its Bucket button (bucket-excel.js shpBucketOpen):
+ * Need production · Stock says it can fill · Done · From production (take what was made) · Handed over, Download Excel,
+ * Open from pending sheet, Open ticked production lines. Nothing of it is copied: the same code, the same saves.
+ * The orders and the stock are still read (the bucket is worked out from them), but the orders table, export, import and
+ * the automatic production sync are not there for this account.
+ * An account that also holds Shopify Orders ('shop'), and an admin, get the full screen as before. */
+let BKT = { opened: false };
+/* No menu item of its own any more (Ravi, 2 Nov, later: "remove production bucket and get the bucket ready in our Shopify
+ * hub"): the bucket is opened from the Shopify hub's "Production bucket" button (shopify-hub-local.js). This narrow form
+ * stays only for an account given the 'shopbkt' right alone. */
+const SHOP_BKT_ONLY = () => !!(typeof ME !== 'undefined' && ME && ME.tabs && ME.tabs.includes('shopbkt') && !ME.tabs.includes('shop') && !ME.admin);
+
+function renderShopBkt() {
+  const pane = $('paneShop'), box = $('soBktPanel'); if (!pane || !box) return;
+  pane.classList.add('so-bkt'); box.classList.remove('hide');
+  const stockOk = typeof SHOP_STOCK_LOADED !== 'undefined' && SHOP_STOCK_LOADED && SHOP_INDIA_LOADED && !SHOP_INDIA_ERR;
+  let list = []; try { list = stockOk ? shpBucket() : []; } catch (e) { list = []; }
+  const nMake = list.filter(x => x.kind === 'make').length, nCov = list.filter(x => x.kind === 'covered').length;
+  const nReady = (() => { try { return typeof shpReadyLines === 'function' ? shpReadyLines().length : 0; } catch (e) { return 0; } })();
+  const nToday = (() => { try { return typeof shbOpenedToday === 'function' ? shbOpenedToday().length : 0; } catch (e) { return 0; } })();
+  const msg = ($('soMsg') && $('soMsg').textContent) || '';
+  box.innerHTML = `<div class="srt-grid">
+      <button type="button" class="srt-tile" data-bkt="open"><b>Production bucket</b><span>${stockOk
+        ? `${nf(nMake)} need production · ${nf(nCov)} stock says it can fill · ${nf(nReady)} made, to take from production · ${nf(nToday)} opened today`
+        : 'Reading the Shopify orders and the stock…'} — open it to work through them</span></button>
+    </div>
+    ${msg ? `<div class="muted" id="bktMsg" style="margin-top:2px">${esc(msg)}</div>` : ''}`;
+  /* The bucket opens by itself the first time everything it needs is read — this page is only for it. */
+  if (stockOk && !BKT.opened) { BKT.opened = true; shpBucketOpen(); }
+}
+if ($('soBktPanel') && $('soBktPanel').addEventListener) {
+  $('soBktPanel').addEventListener('click', e => {
+    const t = e.target.closest && e.target.closest('[data-bkt]'); if (!t) return;
+    if (t.dataset.bkt === 'open' && typeof shpBucketOpen === 'function') shpBucketOpen();
+  });
+  /* The Shopify screen's own messages ("Opened 4 production lines…", "Stock has not been read yet…") sit in a part of the
+   * screen this form hides — they are shown under the tile instead. */
+  if ($('soMsg') && typeof MutationObserver === 'function') {
+    new MutationObserver(() => { if (SHOP_BKT_ONLY()) renderShopBkt(); }).observe($('soMsg'), { childList: true, characterData: true, subtree: true });
+  }
+}
+/* ============================== FILE: src/app/shopify/shopify-hub-local.js ============================== */
+/* ================= SHOPIFY HUB — ONE PAGE FOR THE SALES AND SHIPPING TEAMS, TEST (2026-11-02) =================
+ *
+ * Ravi, 2 Nov: "build a one page like the Shopify hub … the production bucket is for production, and the sales team and
+ * shipping team will see the Shopify hub page … with everything working". One menu item, "Shopify hub", opens the whole
+ * hub (public/shopify-hub/, made by Ridhihome/shopify-hub/tools/build-web.js) in a frame, in the ERP's look. Production
+ * has its own page, "Production bucket" (bucket-team.js).
+ *
+ * ONLY ON THE LOCAL PAGE AND THE TEST ERP. On the real ERP this file does nothing at all: no menu item, no page.
+ *
+ * THE SHARED DATA (Supabase): window.SHOS gives the hub the Shopify OS database's address, its publishable key and the
+ * signed-in person's Firebase sign-in (the ERP's own: no second password). The database checks the person on every call
+ * (shopify-os/supabase/26 and 28). Where the database is: Firestore config/shopifyos { url, key } (an admin puts it there
+ * once; key = the PUBLISHABLE key). No box on the page. Until it is there, each browser keeps its own data. A secret key is refused.
+ *
+ * SHOPIFY through the Pricing API, read only, exactly as before: the hub asks, this page reads ?shopify=orders for both
+ * stores with the signed-in person's access and hands the orders over, with the ERP's own stock figures. Writes to Shopify
+ * and real MCF stay behind the test ERP's switches (build-test-erp.js), which are off.
+ *
+ * SELF-CONTAINED ON PURPOSE: the menu items and the page are made here, showTab is wrapped for these pages only. Remove
+ * this file (and its line in ORDER) and nothing of it is left.
+ */
+const SHUB_ON = typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1|\[::1\]|ravikumar7357\.github\.io)$/.test(location.hostname);
+const SHUB_WEB = SHUB_ON ? new URL('shopify-hub/index.html', location.href).href : '';
+const SHUB_LOCAL = 'http://localhost:8790/';
+let SHUB_URL = SHUB_WEB;
+/* ONE PAGE (Ravi, 2 Nov, last word): "a one page like the Shopify hub is built … sales team and shipping team will see the
+ * Shopify hub page" — the whole hub on one page; production has its own Production bucket page (bucket-team.js). */
+const SHUB_PAGES = [['hub', 'Shopify hub']];
+let SHUB_PAGE = 'hub';
+if (SHUB_ON && $('secShopify') && $('paneShop')) {
+  const links = {};
+  SHUB_PAGES.forEach(([k, name]) => {
+    const a = document.createElement('a');
+    a.id = 'tabShub'; a.className = 'nav'; a.href = '#shub';
+    a.innerHTML = `${name} <span class="navbadge" style="background:#7c3aed">TEST</span>`;
+    $('secShopify').appendChild(a);
+    links[k] = a;
+  });
+
+  const pane = document.createElement('div');
+  pane.id = 'paneShub'; pane.className = 'hide';
+  pane.innerHTML = `<div class="card" style="padding:12px 16px;display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+      <span style="font-weight:700" id="shubName">Shopify</span>
+      <span class="muted" style="font-size:12.5px">Test · shared by the team in the Shopify OS database · Shopify read through the Pricing API · nothing is sent to Shopify or Amazon</span>
+      <span id="shubState" class="muted" style="font-size:12.5px;margin-left:auto"></span>
+      <button type="button" class="ghost" id="shubReload" style="padding:7px 13px;font-size:12.5px">Reload</button>
+    </div>
+    <div id="shubDown" class="warn hide" style="margin-bottom:12px">The Shopify pages could not be opened: this copy of the ERP has no
+      shopify-hub folder, and no hub is running on this computer. Run <b>Ridhihome\\shopify-hub\\start-hub.cmd</b>, then press Reload.</div>
+    <iframe id="shubFrame" title="Shopify" style="width:100%;height:calc(100vh - 150px);min-height:560px;border:0;border-radius:18px;background:var(--bg)"></iframe>`;
+  $('paneShop').after(pane);
+
+  /* ---------------- the Shopify OS database (Supabase) ---------------- */
+  let SHOS_CFG = null;
+  const shosUrlOk = u => /^https:\/\/[a-z0-9-]+\.supabase\.co\/?$/i.test(String(u || '').trim());
+  /* Only a key that can do no more than the browser may: sb_publishable_…, or an old-style JWT whose role is anon. */
+  function shosKeyOk(k) {
+    k = String(k || '').trim();
+    if (/^sb_publishable_[A-Za-z0-9_-]{10,}$/.test(k)) return true;
+    if (/^sb_secret_/.test(k)) return false;
+    const p = k.split('.');
+    if (p.length !== 3) return false;
+    try { return JSON.parse(atob(p[1].replace(/-/g, '+').replace(/_/g, '/'))).role === 'anon'; } catch (e) { return false; }
+  }
+  async function shosConfig() {
+    if (SHOS_CFG) return SHOS_CFG;
+    try {
+      const s = await getDoc(doc(db, 'config', 'shopifyos'));
+      const d = s.exists() ? s.data() : null;
+      if (d && shosUrlOk(d.url) && shosKeyOk(d.key)) return (SHOS_CFG = { url: d.url.trim(), key: d.key.trim(), from: 'ERP settings' });
+    } catch (e) { /* not readable for this account: the browser's own setting below */ }
+    /* No box on the page (Ravi, 2 Nov: "remove this"): until config/shopifyos exists, each browser keeps its own data. */
+    throw new Error('kept in this browser only');
+  }
+  /* What the hub frame (same site) takes from this page: the database, and who is signed in. */
+  window.SHOS = {
+    config: shosConfig,
+    async token() { const u = auth.currentUser; if (!u) throw new Error('Sign in to the ERP first.'); return u.getIdToken(); },
+    async email() { return (auth.currentUser && auth.currentUser.email) || ''; },
+  };
+
+  /* Which hub: the copy beside this page if it is there, else the one on this computer. For the local one a cross-site
+   * read is not allowed, but whether the request goes through at all is enough. */
+  async function shubCheck() {
+    try { if ((await fetch(SHUB_WEB, { method: 'HEAD', cache: 'no-store' })).ok) { SHUB_URL = SHUB_WEB; return true; } } catch (e) { /* not published here */ }
+    const up = await fetch(SHUB_LOCAL + 'api/state', { mode: 'no-cors', cache: 'no-store' }).then(() => true, () => false);
+    if (up) SHUB_URL = SHUB_LOCAL;
+    return up;
+  }
+  let shubShown = '';
+  async function shubLoad(force) {
+    const up = await shubCheck();
+    $('shubDown').classList.toggle('hide', up);
+    $('shubFrame').classList.toggle('hide', !up);
+    $('shubName').textContent = 'Shopify hub';
+    let db = 'kept in this browser only';
+    try { const c = await shosConfig(); db = 'shared database (' + c.from + ')'; } catch (e) { db = e.message; }
+    $('shubState').textContent = !up ? 'Hub not found' : (SHUB_URL === SHUB_WEB ? 'Ready' : 'Hub on this computer') + ' · ' + db;
+    /* Loaded once and kept: coming back to the page does not load the hub (or Shopify) again — Reload does. */
+    if (up && (force || shubShown !== SHUB_PAGE)) { shubShown = SHUB_PAGE; $('shubFrame').src = SHUB_URL + '?embed=1#orders'; }
+  }
+  $('shubReload').onclick = () => shubLoad(true);
+
+  /* Shopify through the Pricing API (Ravi, 26 Oct: "pricing api has shopify access also … make this read that access").
+   * The hub has no ERP keys; this page reads ?shopify=orders for both stores — the same read the Shopify tab makes, with
+   * the signed-in user's access — and hands the orders to the hub frame. Read only. When the frame loads it is told the
+   * ERP can do this, and the orders are sent once; after that the hub's "Fetch orders" asks for them again. Messages go
+   * only to, and are taken only from, the hub. */
+  const shubOrigin = () => new URL(SHUB_URL).origin;
+  let shubBusy = false;
+  /* `want` = { Ridhi: [order ids], CPC: [...] }: the orders the hub is still working on. They are read again by id (any
+   * status), so a cancellation, refund, edit or a shipment made outside the hub reaches the hub even after the order has
+   * left the 14-day window or is marked shipped — the window alone only brings orders still to ship. Read only. */
+  async function shubSendOrders(want) {
+    const fr = $('shubFrame');
+    if (shubBusy || !fr.contentWindow) return;
+    shubBusy = true; $('shubState').textContent = 'Reading Shopify through the Pricing API…';
+    const day = ms => new Date(ms).toISOString().slice(0, 10);
+    const win = { start: day(Date.now() - 14 * 86400000), end: day(Date.now()), open: '1', nophoto: '1' };
+    const ids = list => (Array.isArray(list) ? list : []).map(String).filter(x => /^\d+$/.test(x)).slice(0, 500);
+    const one = async (shop, store) => {
+      try {
+        const d = await prGet(Object.assign({ shopify: 'orders' }, shop ? { shop } : {}, win), { timeoutMs: 150000 });
+        const orders = d.orders || [], have = new Set(orders.map(o => String(o.id)));
+        const more = ids((want || {})[store]).filter(x => !have.has(x));
+        for (let i = 0; i < more.length; i += 100) {
+          const r = await prGet(Object.assign({ shopify: 'orders', ids: more.slice(i, i + 100).join(','), open: '0', nophoto: '1' }, shop ? { shop } : {}), { timeoutMs: 150000 });
+          orders.push(...(r.orders || []));
+        }
+        return { orders, more: !!d.more, rechecked: more.length };
+      } catch (e) { return { error: e.message || String(e) }; }
+    };
+    try {
+      const [Ridhi, CPC] = await Promise.all([one('', 'Ridhi'), one('CPC', 'CPC')]);
+      let info = null;
+      try { $('shubState').textContent = 'Reading stock from the ERP…'; info = await shubInfo({ Ridhi, CPC }); } catch (e) { info = { error: e.message || String(e) }; }
+      fr.contentWindow.postMessage({ type: 'shub-orders', got: { Ridhi, CPC, info } }, shubOrigin());
+      const n = x => x.error ? 'not read' : x.orders.length + ' open';
+      $('shubState').textContent = `Shopify via Pricing API · Ridhi ${n(Ridhi)} · CPC ${n(CPC)} · ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+    } finally { shubBusy = false; }
+  }
+  /* THE ERP'S OWN FIGURES FOR EACH ITEM (Ravi, 26 Oct: "I don't know MCF has how many and India inventory has how
+   * many"), sent with the orders. READ ONLY — the same reads the Shopify Orders tab makes, done only if that tab has not
+   * already done them, and nothing is written anywhere: FBA in the order's own account (loadShopStock / soFbaIn), India
+   * Finished Goods in sellable units (loadShopIndia / soIndiaOf), the Amazon code when it differs (soAmzSku), the shelf
+   * bin (loadShopSku / soLocOf), the same design in other sizes with stock (soSizeAlternatives), and an open production
+   * line for the order (the order book, PTG.ob, by Shopify order id and SKU — as the Orders tab's Production column). */
+  async function shubInfo(got) {
+    await Promise.all([
+      typeof loadShopStock === 'function' && !SHOP_STOCK_LOADED ? loadShopStock().catch(() => {}) : null,
+      typeof loadShopIndia === 'function' ? loadShopIndia().catch(() => {}) : null,
+      typeof loadShopSku === 'function' && !Object.keys(SHOP_SKU || {}).length ? loadShopSku().catch(() => {}) : null,
+      typeof loadShopMeta === 'function' && !SHOP_META_LOADED ? loadShopMeta().catch(() => {}) : null,
+      typeof ptLoadGates === 'function' ? ptLoadGates(false, true).catch(() => {}) : null,
+    ]);
+    const up = s => String(s == null ? '' : s).trim().toUpperCase();
+    const at = d => (d && d.toISOString ? d.toISOString() : '');
+    const out = { at: Date.now(), skus: {}, lines: {},
+      stockAt: { Ridhi: at(SHOP_STOCK_AT.SP), CPC: at(SHOP_STOCK_AT.CPC) }, indiaAt: SHOP_INDIA_AT || '', indiaErr: SHOP_INDIA_ERR || '' };
+    [['Ridhi', 'SP'], ['CPC', 'CPC']].forEach(([store, brand]) => ((got[store] || {}).orders || []).forEach(o => (o.items || []).forEach(i => {
+      const sku = up(i.sku); if (!sku) return;
+      let amz = ''; try { amz = soAmzSku(sku) || ''; } catch (e) { /* no mapping */ }
+      const amzKey = up(amz), key = store + '|' + sku;
+      if (!out.skus[key]) {
+        const fba = amzKey ? soFbaIn(brand, amzKey) : null, ind = soIndiaOf(sku);
+        let alts = []; try { alts = soSizeAlternatives(sku, brand).map(a => ({ sku: a.sku, size: a.size, shape: a.shape, fba: a.fba, india: a.india })); } catch (e) { /* no master yet */ }
+        out.skus[key] = { amz: amzKey && amzKey !== sku ? amz : '', fba: fba == null ? null : Number(fba) || 0,
+          india: ind ? Number(ind[0]) || 0 : null, pieces: ind ? Number(ind[1]) || 0 : null, pack: ind ? Number(ind[2]) || 0 : null,
+          shelf: soLocOf(sku) || '', alts };
+      }
+      const ks = [sku, amzKey].filter(Boolean);
+      const open = (PTG.ob || []).find(r => r && String(r.shopOrderId || '') === String(o.id) && ks.includes(up(r.sku)));
+      /* Sent to Amazon MCF from this ERP already (the Orders tab's "MCF done"): the hub must never send it again. */
+      const meta = (typeof SHOP_META === 'object' && SHOP_META && SHOP_META[o.id]) || {};
+      let mcf = ''; try { mcf = meta.mcfId && soMcfHas(o.id, i.sku) ? String(meta.mcfId) : ''; } catch (e) { mcf = meta.mcfId && !Array.isArray(meta.mcfSkus) ? String(meta.mcfId) : ''; }
+      if (open || mcf) out.lines[o.id + '|' + i.lid] = Object.assign(open ? { prod: String(open.orderNo || open.id || '') } : {}, mcf ? { mcf } : {});
+    })));
+    return out;
+  }
+  /* Tracking by Shopify (Ravi, 26 Oct): the hub asks this page to talk to Shopify for it, through the Pricing API
+   * (Pricing-API/ShopifyHub.gs) — Shopify's own tracking of each parcel, a dry run of "mark these lines shipped", and
+   * the real thing. The real thing is a write to the live stores, so it goes only when the test ERP lets it through
+   * (build-test-erp.js HUB_SHOPIFY_WRITES, off until the Shopify tokens have the fulfilment permissions); the hub is
+   * told which in the hello below and keeps its changes "held" until then. */
+  const shubWrites = () => !!(window.__TEST_ERP && window.__TEST_ERP.hubShopifyWrites);
+  const shubCsv = v => (Array.isArray(v) ? v : []).map(String).join(',');
+  /* THE PRODUCTION BUCKET, asked for by the hub's "Production bucket" button (Ravi, 2 Nov: "get the bucket ready in our
+   * Shopify hub"). The ERP's own bucket (bucket-excel.js shpBucketOpen), not a copy: it is worked out from the Shopify
+   * Orders tab's orders, notes and stock, so those are read first if this page has not read them yet (ensureShop — the
+   * same read as opening Shopify Orders), and India stock is waited for, since the bucket judges stock. Then the bucket
+   * opens over the hub; what it does (open production lines, take goods from production) it does exactly as from the
+   * Shopify Orders page. Whatever it would have said on that page comes back to the hub as a message. */
+  async function shubBucket() {
+    if (typeof shpBucketOpen !== 'function' || typeof ensureShop !== 'function') throw new Error('This ERP has no production bucket.');
+    const said = () => (($('soMsg') && $('soMsg').textContent) || '').trim();
+    if (!Object.keys(SHOP_META || {}).length || !SHOP_STOCK_LOADED) {
+      $('shubState').textContent = 'Reading the Shopify orders and stock for the bucket…';
+      await ensureShop();
+    }
+    if (typeof loadShopIndia === 'function') { try { await loadShopIndia(); } catch (e) { /* the bucket says so */ } }
+    const before = said();
+    await shpBucketOpen();
+    $('shubState').textContent = 'Production bucket opened';
+    const now = said();
+    return now && now !== before ? { msg: now, bad: /could not|not been read|refused|denied/i.test(now) } : {};
+  }
+  async function shubAnswer(kind, a) {
+    if (kind === 'prodBucket') return shubBucket();
+    const shop = a.store === 'CPC' ? 'CPC' : '';
+    if (kind === 'order') return prGet({ shopify: 'orders', shop, ids: String(a.id || ''), open: '0', nophoto: '1' }, { timeoutMs: 120000 });
+    if (kind === 'track') return prGet({ shopify: 'tracking', shop, ids: shubCsv(a.ids) }, { timeoutMs: 120000 });
+    if (kind === 'fulfilCheck') return prGet({ shopify: 'fulfilCheck', shop, orderId: a.orderId, lines: shubCsv(a.lines), company: a.company, numbers: shubCsv(a.numbers) }, { timeoutMs: 120000 });
+    /* Amazon MCF through the Pricing API (Mcf.gs). Fees and status only read Amazon; the test ERP lets those two
+     * through. A real parcel (mcfCreate) only when the test ERP allows MCF writes — it does not. */
+    if (kind === 'mcfPreview') return apiPost({ mcf: 'preview', order: a.order });
+    if (kind === 'mcfStatus') return apiPost({ mcf: 'status', mcfId: String(a.mcfId || ''), brand: a.brand === 'CPC' ? 'CPC' : 'SP' });
+    if (kind === 'mcfCreate') {
+      if (!(window.__TEST_ERP && window.__TEST_ERP.hubMcfWrites)) throw new Error('Real MCF parcels are not sent from the test ERP — send MCF from the ERP\'s Shopify tab.');
+      return apiPost({ mcf: 'create', order: a.order });
+    }
+    if (kind === 'fulfil') {
+      if (!shubWrites()) throw new Error('Sending to Shopify is switched off on the test ERP.');
+      return apiPost({ shopify: 'fulfilLines', shop, orderId: a.orderId, lines: a.lines, company: a.company, numbers: a.numbers, notify: a.notify !== false });
+    }
+    throw new Error('The ERP does not know the request "' + kind + '".');
+  }
+  $('shubFrame').addEventListener('load', () => {
+    const fr = $('shubFrame');
+    if (!fr.src || !fr.contentWindow) return;
+    /* The hub answers this hello by asking for the orders, with the ids it is still working on. */
+    fr.contentWindow.postMessage({ type: 'shub-erp', writes: shubWrites() }, shubOrigin());
+  });
+  window.addEventListener('message', e => {
+    if (e.origin !== shubOrigin() || e.source !== $('shubFrame').contentWindow || !e.data) return;
+    if (e.data.type === 'shub-want-orders') shubSendOrders(e.data.ids && typeof e.data.ids === 'object' ? e.data.ids : null);
+    if (e.data.type === 'shub-ask' && typeof e.data.kind === 'string') {
+      const { id, kind } = e.data, reply = m => { try { e.source.postMessage(Object.assign({ type: 'shub-answer', id }, m), shubOrigin()); } catch (x) { /* frame gone */ } };
+      shubAnswer(kind, e.data.args || {}).then(data => reply({ ok: true, data }), err => reply({ ok: false, error: err.message || String(err) }));
+    }
+  });
+
+  /* The one page: showTab opens it itself, and hands every other page to the real showTab. Key: shub. */
+  const isShub = w => w === 'shub';
+  const showTabReal = showTab;
+  showTab = function (which) {
+    if (!isShub(which)) {
+      pane.classList.add('hide'); Object.values(links).forEach(l => l.classList.remove('on'));
+      return showTabReal(which);
+    }
+    document.querySelectorAll('[id^="pane"]').forEach(el => el.classList.toggle('hide', el !== pane));
+    document.querySelectorAll('.side a.nav.on, #secShopify a.nav.on').forEach(el => el.classList.remove('on'));
+    links.hub.classList.add('on');
+    if (TAB_NOW && !isShub(TAB_NOW) && typeof tabShed === 'function') tabShed(TAB_NOW);
+    TAB_NOW = which;
+    $('pageTitle').textContent = 'Shopify hub (test)';
+    try { document.title = 'Shopify hub (test) · Ridhi Home & Living'; if (location.hash !== '#shub') history.pushState(null, '', '#shub'); } catch (e) { /* only the address */ }
+    if (typeof navOpenFor === 'function') navOpenFor('shop');
+    if (typeof topbarSync === 'function') topbarSync();
+    shubLoad(false);
+  };
+  links.hub.onclick = e => { e.preventDefault(); showTab('shub'); };
+  /* Back / Forward to #shub, which nav.js does not know. */
+  window.addEventListener('hashchange', () => { if (location.hash === '#shub' && TAB_NOW !== 'shub' && ME && ME.tabs) showTab('shub'); });
 }
 
 /* ####################################################################################################
@@ -75791,6 +76118,7 @@ function mobMay(t) {
   if (ME.tabs.includes(t)) return true;
   if (t === 'ord' && ME.tabs.includes('shopprod')) return true;
   if (t === 'shop' && ME.tabs.includes('shopret')) return true;
+  if (t === 'shop' && ME.tabs.includes('shopbkt')) return true;
   return false;
 }
 
@@ -77342,261 +77670,6 @@ const mobSkuOk = () => MOB_SKU_TABS.some(mobMay);
 const mobSearchOk = () => mobSkuOk() || ['ord', 'shop', 'pbase', 'vord', 'pack'].some(mobMay);
 
 mobBuild();
-
-/* ####################################################################################################
- * GROUP: src/app/shopify/
- * #################################################################################################### */
-/* ============================== FILE: src/app/shopify/shopify-hub-local.js ============================== */
-/* ================= SHOPIFY · SALES / SHIPPING / PRODUCTION — TEST PAGES (2026-11-02) =================
- *
- * Ravi, 2 Nov: three Shopify pages, one per team — Sales, Shipping, Production — identical to the Shopify hub, in the
- * ERP's look, nothing repeated between them, data in Supabase. They replace "Shopify hub (test)" and "Shopify OS (test)".
- * Each menu item opens the hub (public/shopify-hub/, made by Ridhihome/shopify-hub/tools/build-web.js) in one frame, as
- * ?page=sales|shipping|production: the hub then shows only that team's tabs and filters.
- *
- * ONLY ON THE LOCAL PAGE AND THE TEST ERP. On the real ERP this file does nothing at all: no menu items, no page.
- *
- * THE SHARED DATA (Supabase): window.SHOS gives the hub the Shopify OS database's address, its publishable key and the
- * signed-in person's Firebase sign-in (the ERP's own: no second password). The database checks the person on every call
- * (shopify-os/supabase/26 and 28). Where the database is: Firestore config/shopifyos { url, key } (an admin puts it there
- * once; key = the PUBLISHABLE key). No box on the page. Until it is there, each browser keeps its own data. A secret key is refused.
- *
- * SHOPIFY through the Pricing API, read only, exactly as before: the hub asks, this page reads ?shopify=orders for both
- * stores with the signed-in person's access and hands the orders over, with the ERP's own stock figures. Writes to Shopify
- * and real MCF stay behind the test ERP's switches (build-test-erp.js), which are off.
- *
- * SELF-CONTAINED ON PURPOSE: the menu items and the page are made here, showTab is wrapped for these pages only. Remove
- * this file (and its line in ORDER) and nothing of it is left.
- */
-const SHUB_ON = typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1|\[::1\]|ravikumar7357\.github\.io)$/.test(location.hostname);
-const SHUB_WEB = SHUB_ON ? new URL('shopify-hub/index.html', location.href).href : '';
-const SHUB_LOCAL = 'http://localhost:8790/';
-let SHUB_URL = SHUB_WEB;
-const SHUB_PAGES = [['sales', 'Sales'], ['shipping', 'Shipping'], ['production', 'Production']];
-let SHUB_PAGE = 'shipping';
-if (SHUB_ON && $('secShopify') && $('paneShop')) {
-  const links = {};
-  SHUB_PAGES.forEach(([k, name]) => {
-    const a = document.createElement('a');
-    a.id = 'tabShub_' + k; a.className = 'nav'; a.href = '#shub-' + k;
-    a.innerHTML = `Shopify · ${name} <span class="navbadge" style="background:#7c3aed">TEST</span>`;
-    $('secShopify').appendChild(a);
-    links[k] = a;
-  });
-
-  const pane = document.createElement('div');
-  pane.id = 'paneShub'; pane.className = 'hide';
-  pane.innerHTML = `<div class="card" style="padding:12px 16px;display:flex;gap:12px;align-items:center;flex-wrap:wrap">
-      <span style="font-weight:700" id="shubName">Shopify</span>
-      <span class="muted" style="font-size:12.5px">Test · shared by the team in the Shopify OS database · Shopify read through the Pricing API · nothing is sent to Shopify or Amazon</span>
-      <span id="shubState" class="muted" style="font-size:12.5px;margin-left:auto"></span>
-      <button type="button" class="ghost" id="shubReload" style="padding:7px 13px;font-size:12.5px">Reload</button>
-    </div>
-    <div id="shubDown" class="warn hide" style="margin-bottom:12px">The Shopify pages could not be opened: this copy of the ERP has no
-      shopify-hub folder, and no hub is running on this computer. Run <b>Ridhihome\\shopify-hub\\start-hub.cmd</b>, then press Reload.</div>
-    <iframe id="shubFrame" title="Shopify" style="width:100%;height:calc(100vh - 150px);min-height:560px;border:0;border-radius:18px;background:var(--bg)"></iframe>`;
-  $('paneShop').after(pane);
-
-  /* ---------------- the Shopify OS database (Supabase) ---------------- */
-  let SHOS_CFG = null;
-  const shosUrlOk = u => /^https:\/\/[a-z0-9-]+\.supabase\.co\/?$/i.test(String(u || '').trim());
-  /* Only a key that can do no more than the browser may: sb_publishable_…, or an old-style JWT whose role is anon. */
-  function shosKeyOk(k) {
-    k = String(k || '').trim();
-    if (/^sb_publishable_[A-Za-z0-9_-]{10,}$/.test(k)) return true;
-    if (/^sb_secret_/.test(k)) return false;
-    const p = k.split('.');
-    if (p.length !== 3) return false;
-    try { return JSON.parse(atob(p[1].replace(/-/g, '+').replace(/_/g, '/'))).role === 'anon'; } catch (e) { return false; }
-  }
-  async function shosConfig() {
-    if (SHOS_CFG) return SHOS_CFG;
-    try {
-      const s = await getDoc(doc(db, 'config', 'shopifyos'));
-      const d = s.exists() ? s.data() : null;
-      if (d && shosUrlOk(d.url) && shosKeyOk(d.key)) return (SHOS_CFG = { url: d.url.trim(), key: d.key.trim(), from: 'ERP settings' });
-    } catch (e) { /* not readable for this account: the browser's own setting below */ }
-    /* No box on the page (Ravi, 2 Nov: "remove this"): until config/shopifyos exists, each browser keeps its own data. */
-    throw new Error('kept in this browser only');
-  }
-  /* What the hub frame (same site) takes from this page: the database, and who is signed in. */
-  window.SHOS = {
-    config: shosConfig,
-    async token() { const u = auth.currentUser; if (!u) throw new Error('Sign in to the ERP first.'); return u.getIdToken(); },
-    async email() { return (auth.currentUser && auth.currentUser.email) || ''; },
-  };
-
-  /* Which hub: the copy beside this page if it is there, else the one on this computer. For the local one a cross-site
-   * read is not allowed, but whether the request goes through at all is enough. */
-  async function shubCheck() {
-    try { if ((await fetch(SHUB_WEB, { method: 'HEAD', cache: 'no-store' })).ok) { SHUB_URL = SHUB_WEB; return true; } } catch (e) { /* not published here */ }
-    const up = await fetch(SHUB_LOCAL + 'api/state', { mode: 'no-cors', cache: 'no-store' }).then(() => true, () => false);
-    if (up) SHUB_URL = SHUB_LOCAL;
-    return up;
-  }
-  let shubShown = '';
-  async function shubLoad(force) {
-    const up = await shubCheck();
-    $('shubDown').classList.toggle('hide', up);
-    $('shubFrame').classList.toggle('hide', !up);
-    $('shubName').textContent = 'Shopify · ' + (SHUB_PAGES.find(p => p[0] === SHUB_PAGE) || ['', ''])[1];
-    let db = 'kept in this browser only';
-    try { const c = await shosConfig(); db = 'shared database (' + c.from + ')'; } catch (e) { db = e.message; }
-    $('shubState').textContent = !up ? 'Hub not found' : (SHUB_URL === SHUB_WEB ? 'Ready' : 'Hub on this computer') + ' · ' + db;
-    if (up && (force || shubShown !== SHUB_PAGE)) { shubShown = SHUB_PAGE; $('shubFrame').src = SHUB_URL + '?embed=1&page=' + SHUB_PAGE + '#orders'; }
-  }
-  $('shubReload').onclick = () => shubLoad(true);
-
-  /* Shopify through the Pricing API (Ravi, 26 Oct: "pricing api has shopify access also … make this read that access").
-   * The hub has no ERP keys; this page reads ?shopify=orders for both stores — the same read the Shopify tab makes, with
-   * the signed-in user's access — and hands the orders to the hub frame. Read only. When the frame loads it is told the
-   * ERP can do this, and the orders are sent once; after that the hub's "Fetch orders" asks for them again. Messages go
-   * only to, and are taken only from, the hub. */
-  const shubOrigin = () => new URL(SHUB_URL).origin;
-  let shubBusy = false;
-  /* `want` = { Ridhi: [order ids], CPC: [...] }: the orders the hub is still working on. They are read again by id (any
-   * status), so a cancellation, refund, edit or a shipment made outside the hub reaches the hub even after the order has
-   * left the 14-day window or is marked shipped — the window alone only brings orders still to ship. Read only. */
-  async function shubSendOrders(want) {
-    const fr = $('shubFrame');
-    if (shubBusy || !fr.contentWindow) return;
-    shubBusy = true; $('shubState').textContent = 'Reading Shopify through the Pricing API…';
-    const day = ms => new Date(ms).toISOString().slice(0, 10);
-    const win = { start: day(Date.now() - 14 * 86400000), end: day(Date.now()), open: '1', nophoto: '1' };
-    const ids = list => (Array.isArray(list) ? list : []).map(String).filter(x => /^\d+$/.test(x)).slice(0, 500);
-    const one = async (shop, store) => {
-      try {
-        const d = await prGet(Object.assign({ shopify: 'orders' }, shop ? { shop } : {}, win), { timeoutMs: 150000 });
-        const orders = d.orders || [], have = new Set(orders.map(o => String(o.id)));
-        const more = ids((want || {})[store]).filter(x => !have.has(x));
-        for (let i = 0; i < more.length; i += 100) {
-          const r = await prGet(Object.assign({ shopify: 'orders', ids: more.slice(i, i + 100).join(','), open: '0', nophoto: '1' }, shop ? { shop } : {}), { timeoutMs: 150000 });
-          orders.push(...(r.orders || []));
-        }
-        return { orders, more: !!d.more, rechecked: more.length };
-      } catch (e) { return { error: e.message || String(e) }; }
-    };
-    try {
-      const [Ridhi, CPC] = await Promise.all([one('', 'Ridhi'), one('CPC', 'CPC')]);
-      let info = null;
-      try { $('shubState').textContent = 'Reading stock from the ERP…'; info = await shubInfo({ Ridhi, CPC }); } catch (e) { info = { error: e.message || String(e) }; }
-      fr.contentWindow.postMessage({ type: 'shub-orders', got: { Ridhi, CPC, info } }, shubOrigin());
-      const n = x => x.error ? 'not read' : x.orders.length + ' open';
-      $('shubState').textContent = `Shopify via Pricing API · Ridhi ${n(Ridhi)} · CPC ${n(CPC)} · ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
-    } finally { shubBusy = false; }
-  }
-  /* THE ERP'S OWN FIGURES FOR EACH ITEM (Ravi, 26 Oct: "I don't know MCF has how many and India inventory has how
-   * many"), sent with the orders. READ ONLY — the same reads the Shopify Orders tab makes, done only if that tab has not
-   * already done them, and nothing is written anywhere: FBA in the order's own account (loadShopStock / soFbaIn), India
-   * Finished Goods in sellable units (loadShopIndia / soIndiaOf), the Amazon code when it differs (soAmzSku), the shelf
-   * bin (loadShopSku / soLocOf), the same design in other sizes with stock (soSizeAlternatives), and an open production
-   * line for the order (the order book, PTG.ob, by Shopify order id and SKU — as the Orders tab's Production column). */
-  async function shubInfo(got) {
-    await Promise.all([
-      typeof loadShopStock === 'function' && !SHOP_STOCK_LOADED ? loadShopStock().catch(() => {}) : null,
-      typeof loadShopIndia === 'function' ? loadShopIndia().catch(() => {}) : null,
-      typeof loadShopSku === 'function' && !Object.keys(SHOP_SKU || {}).length ? loadShopSku().catch(() => {}) : null,
-      typeof loadShopMeta === 'function' && !SHOP_META_LOADED ? loadShopMeta().catch(() => {}) : null,
-      typeof ptLoadGates === 'function' ? ptLoadGates(false, true).catch(() => {}) : null,
-    ]);
-    const up = s => String(s == null ? '' : s).trim().toUpperCase();
-    const at = d => (d && d.toISOString ? d.toISOString() : '');
-    const out = { at: Date.now(), skus: {}, lines: {},
-      stockAt: { Ridhi: at(SHOP_STOCK_AT.SP), CPC: at(SHOP_STOCK_AT.CPC) }, indiaAt: SHOP_INDIA_AT || '', indiaErr: SHOP_INDIA_ERR || '' };
-    [['Ridhi', 'SP'], ['CPC', 'CPC']].forEach(([store, brand]) => ((got[store] || {}).orders || []).forEach(o => (o.items || []).forEach(i => {
-      const sku = up(i.sku); if (!sku) return;
-      let amz = ''; try { amz = soAmzSku(sku) || ''; } catch (e) { /* no mapping */ }
-      const amzKey = up(amz), key = store + '|' + sku;
-      if (!out.skus[key]) {
-        const fba = amzKey ? soFbaIn(brand, amzKey) : null, ind = soIndiaOf(sku);
-        let alts = []; try { alts = soSizeAlternatives(sku, brand).map(a => ({ sku: a.sku, size: a.size, shape: a.shape, fba: a.fba, india: a.india })); } catch (e) { /* no master yet */ }
-        out.skus[key] = { amz: amzKey && amzKey !== sku ? amz : '', fba: fba == null ? null : Number(fba) || 0,
-          india: ind ? Number(ind[0]) || 0 : null, pieces: ind ? Number(ind[1]) || 0 : null, pack: ind ? Number(ind[2]) || 0 : null,
-          shelf: soLocOf(sku) || '', alts };
-      }
-      const ks = [sku, amzKey].filter(Boolean);
-      const open = (PTG.ob || []).find(r => r && String(r.shopOrderId || '') === String(o.id) && ks.includes(up(r.sku)));
-      /* Sent to Amazon MCF from this ERP already (the Orders tab's "MCF done"): the hub must never send it again. */
-      const meta = (typeof SHOP_META === 'object' && SHOP_META && SHOP_META[o.id]) || {};
-      let mcf = ''; try { mcf = meta.mcfId && soMcfHas(o.id, i.sku) ? String(meta.mcfId) : ''; } catch (e) { mcf = meta.mcfId && !Array.isArray(meta.mcfSkus) ? String(meta.mcfId) : ''; }
-      if (open || mcf) out.lines[o.id + '|' + i.lid] = Object.assign(open ? { prod: String(open.orderNo || open.id || '') } : {}, mcf ? { mcf } : {});
-    })));
-    return out;
-  }
-  /* Tracking by Shopify (Ravi, 26 Oct): the hub asks this page to talk to Shopify for it, through the Pricing API
-   * (Pricing-API/ShopifyHub.gs) — Shopify's own tracking of each parcel, a dry run of "mark these lines shipped", and
-   * the real thing. The real thing is a write to the live stores, so it goes only when the test ERP lets it through
-   * (build-test-erp.js HUB_SHOPIFY_WRITES, off until the Shopify tokens have the fulfilment permissions); the hub is
-   * told which in the hello below and keeps its changes "held" until then. */
-  const shubWrites = () => !!(window.__TEST_ERP && window.__TEST_ERP.hubShopifyWrites);
-  const shubCsv = v => (Array.isArray(v) ? v : []).map(String).join(',');
-  async function shubAnswer(kind, a) {
-    const shop = a.store === 'CPC' ? 'CPC' : '';
-    if (kind === 'order') return prGet({ shopify: 'orders', shop, ids: String(a.id || ''), open: '0', nophoto: '1' }, { timeoutMs: 120000 });
-    if (kind === 'track') return prGet({ shopify: 'tracking', shop, ids: shubCsv(a.ids) }, { timeoutMs: 120000 });
-    if (kind === 'fulfilCheck') return prGet({ shopify: 'fulfilCheck', shop, orderId: a.orderId, lines: shubCsv(a.lines), company: a.company, numbers: shubCsv(a.numbers) }, { timeoutMs: 120000 });
-    /* Amazon MCF through the Pricing API (Mcf.gs). Fees and status only read Amazon; the test ERP lets those two
-     * through. A real parcel (mcfCreate) only when the test ERP allows MCF writes — it does not. */
-    if (kind === 'mcfPreview') return apiPost({ mcf: 'preview', order: a.order });
-    if (kind === 'mcfStatus') return apiPost({ mcf: 'status', mcfId: String(a.mcfId || ''), brand: a.brand === 'CPC' ? 'CPC' : 'SP' });
-    if (kind === 'mcfCreate') {
-      if (!(window.__TEST_ERP && window.__TEST_ERP.hubMcfWrites)) throw new Error('Real MCF parcels are not sent from the test ERP — send MCF from the ERP\'s Shopify tab.');
-      return apiPost({ mcf: 'create', order: a.order });
-    }
-    if (kind === 'fulfil') {
-      if (!shubWrites()) throw new Error('Sending to Shopify is switched off on the test ERP.');
-      return apiPost({ shopify: 'fulfilLines', shop, orderId: a.orderId, lines: a.lines, company: a.company, numbers: a.numbers, notify: a.notify !== false });
-    }
-    throw new Error('The ERP does not know the request "' + kind + '".');
-  }
-  $('shubFrame').addEventListener('load', () => {
-    const fr = $('shubFrame');
-    if (!fr.src || !fr.contentWindow) return;
-    /* The hub answers this hello by asking for the orders, with the ids it is still working on. */
-    fr.contentWindow.postMessage({ type: 'shub-erp', writes: shubWrites() }, shubOrigin());
-  });
-  window.addEventListener('message', e => {
-    if (e.origin !== shubOrigin() || e.source !== $('shubFrame').contentWindow || !e.data) return;
-    if (e.data.type === 'shub-want-orders') shubSendOrders(e.data.ids && typeof e.data.ids === 'object' ? e.data.ids : null);
-    if (e.data.type === 'shub-ask' && typeof e.data.kind === 'string') {
-      const { id, kind } = e.data, reply = m => { try { e.source.postMessage(Object.assign({ type: 'shub-answer', id }, m), shubOrigin()); } catch (x) { /* frame gone */ } };
-      shubAnswer(kind, e.data.args || {}).then(data => reply({ ok: true, data }), err => reply({ ok: false, error: err.message || String(err) }));
-    }
-  });
-
-  /* The three pages: showTab opens them itself (one pane, the frame told which page), and hands every other page to the
-   * real showTab. Keys: shub-sales, shub-shipping, shub-production. */
-  const isShub = w => /^shub-(sales|shipping|production)$/.test(String(w || ''));
-  const showTabReal = showTab;
-  showTab = function (which) {
-    if (!isShub(which)) {
-      pane.classList.add('hide'); Object.values(links).forEach(l => l.classList.remove('on'));
-      return showTabReal(which);
-    }
-    SHUB_PAGE = which.slice(5);
-    const name = (SHUB_PAGES.find(p => p[0] === SHUB_PAGE) || ['', ''])[1];
-    document.querySelectorAll('[id^="pane"]').forEach(el => el.classList.toggle('hide', el !== pane));
-    document.querySelectorAll('.side a.nav.on').forEach(el => el.classList.remove('on'));
-    links[SHUB_PAGE].classList.add('on');
-    if (TAB_NOW && !isShub(TAB_NOW) && typeof tabShed === 'function') tabShed(TAB_NOW);
-    TAB_NOW = which;
-    $('pageTitle').textContent = 'Shopify · ' + name + ' (test)';
-    try { document.title = 'Shopify · ' + name + ' (test) · Ridhi Home & Living'; if (location.hash !== '#' + which) history.pushState(null, '', '#' + which); } catch (e) { /* only the address */ }
-    if (typeof navOpenFor === 'function') navOpenFor('shop');
-    if (typeof topbarSync === 'function') topbarSync();
-    shubLoad(false);
-  };
-  Object.entries(links).forEach(([k, a]) => { a.onclick = e => { e.preventDefault(); showTab('shub-' + k); }; });
-  /* Back / Forward to #shub-…, which nav.js does not know (and the old #shub link goes to Shipping). */
-  window.addEventListener('hashchange', () => {
-    const h = location.hash === '#shub' ? 'shub-shipping' : location.hash.slice(1);
-    if (isShub(h) && TAB_NOW !== h && ME && ME.tabs) showTab(h);
-  });
-}
-
-/* ####################################################################################################
- * GROUP: src/app/core/
- * #################################################################################################### */
 /* ============================== FILE: src/app/core/meera-bridge.js ============================== */
 /* ================= THE DOOR BETWEEN THE ERP AND MEERA (v2 rebuild, 29 Oct 2026) =================
  *
@@ -81422,7 +81495,7 @@ function frWire(cards, bulk, ticked) {
  * in the menu's words. "View as" shows this page as that role. */
 const FR_TAB_NAMES = { flppc: 'PPC', fldem: 'Demand', flacc: 'Accessories (flow)', flchl: 'Challans', flcut: 'To cut', flraw: 'Raw cutting',
   flwip: 'WIP', gdesk: 'Greige Desk', gdled: 'Greige ledger', gdledit: 'Greige corrections', gdappr: 'Greige approvals',
-  qcalt: 'QC — alteration out', qcret: 'QC — alteration back', vend: 'Vendor portal', mst: 'Masters', shopret: 'Shopify returns' };
+  qcalt: 'QC — alteration out', qcret: 'QC — alteration back', vend: 'Vendor portal', mst: 'Masters', shopret: 'Shopify returns', shopbkt: 'Shopify production bucket' };
 function frRoles() {
   const menu = Object.fromEntries(frScreens().map(s => [s.tab, s.name]));
   const scr = t => FR_TAB_NAMES[t] || menu[t] || t;

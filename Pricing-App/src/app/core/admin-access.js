@@ -110,6 +110,9 @@ const REPL_SECTIONS = [
   /* THE SHOPIFY RETURNS TEAM (Ravi, 15 Oct): Shopify Orders narrowed to returns & replacements, delivery days by zip and
    * FBA stock by SKU — no orders table, no production. Tick this OR Shopify Orders: with both, the account has the full screen. */
   ['shopret', 'Shopify returns team — returns & replacements, delivery days, FBA stock'],
+  /* THE SHOPIFY PRODUCTION BUCKET (Ravi, 2 Nov): Shopify Orders narrowed to the Production bucket only, for the production
+   * team. Tick this OR Shopify Orders: with both, the account has the full screen. */
+  ['shopbkt', 'Shopify production bucket — the production bucket only'],
   ['pmdb', 'Master Database'],
   ['mst', 'Masters (article types, colours, sizes)'], ['pbase', 'Job Work Register'], ['pcut', 'Cutting Data'],
   ['ppress', 'Press Inventory'],
@@ -176,7 +179,7 @@ const REPL_SECTIONS = [
  * nowhere lands in "Other" — never without a checkbox, which is how a section once became impossible
  * to grant. */
 const ACCESS_GROUPS = [
-  { key: 'shopify', sellora: ['shop', 'adj'], repl: ['shop', 'adj', 'shopify', 'shopprod', 'shopret'] },
+  { key: 'shopify', sellora: ['shop', 'adj'], repl: ['shop', 'adj', 'shopify', 'shopprod', 'shopret', 'shopbkt'] },
   { key: 'plan', repl: ['repl', 'article', 'target', 'top', 'pack'] },
   /* The same order as the Replenishment app's sidebar, which is the order work moves through the floor. */
   { key: 'prod', repl: ['so', 'ord', 'pcut', 'pbase', 'ppress', 'qc', 'qcalt', 'qcret', 'fgi', 'fgacc', 'shpacc', 'vpview', 'fba', 'fab', 'acc', 'gdesk', 'gdled', 'gdledit', 'gdappr', 'flppc', 'fldem', 'flacc', 'flchl', 'flcut', 'flraw', 'flwip', 'pmdb', 'mst', 'cx'] },

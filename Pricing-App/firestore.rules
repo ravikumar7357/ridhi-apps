@@ -68,7 +68,7 @@ service cloud.firestore {
     function canReplShop() {
       return isAdmin() || (hasPerms() && permData().repl == true
         && (!('replTabs' in permData()) || !(permData().replTabs is list) || permData().replTabs.size() == 0
-            || permData().replTabs.hasAny(['shop', 'adj', 'shopify', 'shopret'])));
+            || permData().replTabs.hasAny(['shop', 'adj', 'shopify', 'shopret', 'shopbkt'])));
     }
     // One Replenishment section by name (perms.replTabs). Used for the Shopify returns team (15 Oct), whose right lives
     // only in the Replenishment app's list.
@@ -79,7 +79,7 @@ service cloud.firestore {
     // Same list as the app's SHOP_DATA_TABS (replenishment.js). A legacy grant with no section list is not this.
     function shopDataOnly() {
       return !isAdmin() && hasPerms() && ('replTabs' in permData()) && permData().replTabs is list
-        && permData().replTabs.size() > 0 && permData().replTabs.hasOnly(['shop', 'adj', 'shopify', 'shopprod', 'shopret']);
+        && permData().replTabs.size() > 0 && permData().replTabs.hasOnly(['shop', 'adj', 'shopify', 'shopprod', 'shopret', 'shopbkt']);
     }
     // Which repl/{doc} documents are planning data rather than shared lookups.
     function replPrivate(d) { return d in ['SP', 'CPC', 'projoverride', 'revtarget']; }
@@ -234,6 +234,8 @@ service cloud.firestore {
       allow read, write: if can('shop') || can('adj') || can('audit');
       // The Shopify returns team (15 Oct): returns & replacements are written on the order's own entry here.
       allow read, write: if canReplTab('shopret');
+      // The Shopify production bucket (2 Nov): opening lines and taking goods from production are noted on the order here.
+      allow read, write: if canReplTab('shopbkt');
     }
     // THE SHARED COPY OF THE SHOPIFY ORDERS (2026-10-15, Replenish-App docs/shopify-fast-orders/PLAN.md phase 3).
     // Written ONLY by the Pricing-API timer (ShopifyCache.gs), with its owner's own token — which the rules do not
@@ -287,16 +289,16 @@ service cloud.firestore {
 
     match /shop/imported {
       allow read, write: if can('shop');
-      allow read: if canReplTab('shopret');   // a return can be raised against an imported order too
+      allow read: if canReplTab('shopret') || canReplTab('shopbkt');   // a return can be raised against an imported order too; the bucket counts them
     }
     match /shopimp/{doc} {
       allow read, write: if can('shop');
-      allow read: if canReplTab('shopret');
+      allow read: if canReplTab('shopret') || canReplTab('shopbkt');
     }
 
     match /audit/skumeta {
       allow read, write: if can('shop') || can('adj') || can('audit');
-      allow read: if canReplTab('shopret');   // the returns team reads the SKU notes (Amazon code, pack), never writes them
+      allow read: if canReplTab('shopret') || canReplTab('shopbkt');   // the returns team and the production bucket read the SKU notes (Amazon code, pack), never write them
     }
     // The bin-only document this replaced. Still read once, to carry old entries over.
     match /audit/skuloc {
