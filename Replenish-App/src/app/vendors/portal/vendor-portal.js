@@ -532,12 +532,22 @@ function vpHistTable(rows) {
 
 /**
  * THE CUSTOM ORDERS SHEET (Ravi, 30 Oct: "custom order ka view aise chahiye — neat and clean, koi other information nahi"): one row per line,
- * eight columns and nothing else — Date, Order Number, Image, Article, Size, Ordered, Vendor Sent, Vendor Date. Vendor Sent is the printer's
+ * nine columns and nothing else — Date, Order Number, Image, Article, Size, Ordered, Vendor Sent, Received (by us, 2 Nov), Vendor Date. Vendor Sent is the printer's
  * own word (the same batches vpVsHtml keeps; the box to add one is theirs alone) and Vendor Date is the date they promise it — the same
  * promise date every other view writes (data-vpprom).
  */
+/** RECEIVED BY US (Ravi, 2 Nov: "yaha apna challan banda receive karta h uska column show nahi ho rha h"): what our challan man took in for
+ *  this line — a PPC line is received on its RFD challan (flowChIndex: what came back on every challan of the line), which the vendor order
+ *  never hears of; any other line by the vendor order's own deliveries (voDone). { qty, how } — how names the challan(s). */
+function vpRecvOf(l) {
+  const ix = l && l.flowKey && typeof flowChIndex === 'function' && typeof FLOW !== 'undefined' && FLOW && FLOW.ch ? flowChIndex() : null;
+  const e = ix ? ix[l.flowKey + (/\|ruffle$/.test(String(l.flowPart || '')) && typeof FLOW_RUF !== 'undefined' ? FLOW_RUF : '')] : null;
+  const vo = voDone(l) || 0;
+  if (e && e.recv > vo) return { qty: Math.round(e.recv * 100) / 100, how: 'on challan ' + (e.no || '') };
+  return { qty: vo, how: vo ? 'on the vendor order' : '' };
+}
 function vpCustomSheet(rows, f) {
-  const COLS = ['Date', 'Order Number', 'Image', 'Article', 'Size', 'Ordered', 'Vendor Sent', 'Vendor Date'];
+  const COLS = ['Date', 'Order Number', 'Image', 'Article', 'Size', 'Ordered', 'Vendor Sent', 'Received', 'Vendor Date'];
   const on = !!(f && vpLineOn(f)), seen = new Set(), items = [];
   /* ONE LIST, A TO Z BY COLOUR (Ravi, 30 Oct: "1 a-z series me dikhe color wise"): every line of every order in one run, colour A→Z, then
    * article and size, then the oldest order first; a line with no colour goes last. */
@@ -564,12 +574,13 @@ function vpCustomSheet(rows, f) {
       + `<td style="font-size:12.5px">${esc(run ? '' : (l.size || '')) || '<span class="muted">—</span>'}</td>`
       + `<td class="num" style="font-weight:700">${nf(ord)} <span class="muted" style="font-weight:400;font-size:10px">${unit}</span></td>`
       + vpVsHtml(o, l, i, ord, unit, 'td')
+      + (rc => `<td class="num" title="${esc(rc.how)}">${rc.qty > 0 ? `<b style="color:#166534">${nf(rc.qty)}</b> <span class="muted" style="font-size:10px">${unit}</span>` : '<span class="muted">—</span>'}</td>`)(vpRecvOf(l))
       + `<td>${vpViewAll() || flowVpViewOnly(o) || bal <= 0 ? `<span style="font-size:12px">${esc(voProm(l) ? dShow(voProm(l)) : '') || '<span class="muted">—</span>'}</span>`
           : `<input data-vpprom="${esc(o.id)}" data-i="${i}" type="date" value="${esc(voProm(l))}" style="width:146px">`}</td>`
       + '</tr>';
   });
   if (!out.length) return '<div class="card" style="padding:34px;text-align:center;color:var(--muted)">No custom order line to show.</div>';
-  return `<div class="card xlwrap" style="padding:0"><table class="xl"><thead><tr>${COLS.map(h => `<th${h === 'Ordered' ? ' class="num"' : ''}>${esc(h)}</th>`).join('')}</tr></thead><tbody>${out.join('')}</tbody></table></div>`;
+  return `<div class="card xlwrap" style="padding:0"><table class="xl"><thead><tr>${COLS.map(h => `<th${h === 'Ordered' || h === 'Received' ? ' class="num"' : ''}>${esc(h)}</th>`).join('')}</tr></thead><tbody>${out.join('')}</tbody></table></div>`;
 }
 
 function vpShopTable(rows, f) {
