@@ -305,15 +305,28 @@ button.od-cp:hover{background:var(--chip);color:var(--ink)}
 .s-ofoot .od-nav{display:flex;align-items:center;gap:6px;margin-right:auto}
 .s-ofoot > .s-muted{margin-right:0}
 @media (max-width:760px){ .od-prog li{font-size:10px} .s-ofoot{flex-wrap:wrap} }
-/* A clean item line (Ravi, 2 Nov): "Move to MCF →" only when that stock can take it; the rest behind ⋯ beside Details */
-.od-mvs{display:flex;flex-direction:column;align-items:flex-end;gap:2px}
-button.od-mv{font-size:12.5px;font-weight:700;white-space:nowrap}
+/* 2B choice cards (Ravi, 2 Nov): the item left, a card for each way it CAN go right; the one in use filled and ticked */
+.od-ships > .od-h b{display:inline;margin:0;font-size:14px}
+.od-row.od-row2{grid-template-columns:36px minmax(0,1fr) auto}
+.od-pr{color:var(--ink);font-weight:700;white-space:nowrap}
+.od-sub2{display:flex;align-items:center;flex-wrap:wrap;gap:0 4px}
+.od-sub2 .od-l2r{margin-left:6px}
+.od-ships .od-item .od-row2{padding-bottom:9px}
+.od-cks{display:flex;gap:6px;justify-content:flex-end}
+.od-ck{width:112px;min-height:44px;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:1px;padding:6px 10px;border-radius:9px;background:var(--card);box-shadow:inset 0 0 0 1px var(--line);color:var(--muted);font-size:12px;font-weight:500;text-align:left;line-height:1.25}
+.od-ck b{display:block;margin:0;font-size:12.5px;font-weight:700;color:var(--ink)}
+.od-ck > span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+button.od-ck{cursor:pointer;height:auto}
+button.od-ck:hover{box-shadow:inset 0 0 0 1.5px var(--ink);color:var(--ink)}
+.od-ck.on.ck-mcf{background:#FAEEDA;color:#854F0B;box-shadow:inset 0 0 0 1.5px #BA7517}.od-ck.on.ck-mcf b{color:#633806}
+.od-ck.on.ck-india{background:#E6F1FB;color:#185FA5;box-shadow:inset 0 0 0 1.5px #378ADD}.od-ck.on.ck-india b{color:#0C447C}
+.od-ck.on.ck-make{background:#EEEDFE;color:#534AB7;box-shadow:inset 0 0 0 1.5px #7F77DD}.od-ck.on.ck-make b{color:#3C3489}
+@media (max-width:700px){ .od-row.od-row2{grid-template-columns:36px minmax(0,1fr)} .od-row2 .od-cks{grid-column:1 / -1;justify-content:flex-start} .od-ck{flex:1;width:auto} }
 .od-l2r{margin-left:auto;display:inline-flex;align-items:center;gap:4px}
 .od-l2r .od-more{margin-left:0}
 .od-itmore > summary{height:24px;width:26px;display:grid;place-items:center;border-radius:6px;color:var(--muted);font-size:16px;font-weight:800;line-height:1}
 .od-itmore > summary:hover,.od-itmore[open] > summary{background:var(--chip);color:var(--ink)}
 .od-itmore .s-menu{min-width:240px}
-@media (max-width:600px){ .od-row .od-mvs{grid-column:2 / -1;align-items:flex-start} }
 
 @media (max-width:1050px){ .s-pbody{grid-template-columns:1fr} .s-pbody > div + div{border-left:0;border-top:1px solid var(--line)} .c-grid{grid-template-columns:1fr} .c-pick{position:static} .c-list{max-height:280px} .c-more{grid-template-columns:repeat(2,minmax(0,1fr))} }
 @media (max-width:760px){

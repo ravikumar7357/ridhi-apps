@@ -541,10 +541,11 @@ function itemRow(o, i, opt) {
     : chip(`${name} ${n}`, n <= 0 ? 'zero' : sec === (name === 'FBA' ? 'mcf' : 'india') ? 'on-' + sec : '', `${n} ${a ? 'left for this order' : 'in stock'}${held ? ` · ${held} held by older orders` : ''}${more || ''}`);
   const bin = it.shelf || (e && e.shelf) || '';
   const alts = e && e.alts && e.alts.length && (sec === 'make' || it.oos) ? e.alts : [];
+  /* With the choice cards (opt.cards) the stock is on the cards, so the FBA / India chips are not repeated. */
   const chips = [
-    fig('FBA', e && e.fba == null && !a ? null : fba, a && a.fbaHeld, ''),
-    fig('India', e && e.india == null && !a ? null : india, a && a.indiaHeld, e && e.pack > 1 ? ` · ${e.pieces} pieces, pack of ${e.pack}` : ''),
-    bin || it.shelfQty != null ? chip(`Shelf ${esc(bin || '—')}${it.shelfQty != null ? ' · ' + it.shelfQty : ''}`, it.shelfQty != null && it.shelfQty < J.sendQty(it) ? 'warn' : '', 'Bin, and how many are on that shelf') : '',
+    opt.cards ? '' : fig('FBA', e && e.fba == null && !a ? null : fba, a && a.fbaHeld, ''),
+    opt.cards ? '' : fig('India', e && e.india == null && !a ? null : india, a && a.indiaHeld, e && e.pack > 1 ? ` · ${e.pieces} pieces, pack of ${e.pack}` : ''),
+    !opt.cards && (bin || it.shelfQty != null) ? chip(`Shelf ${esc(bin || '—')}${it.shelfQty != null ? ' · ' + it.shelfQty : ''}`, it.shelfQty != null && it.shelfQty < J.sendQty(it) ? 'warn' : '', 'Bin, and how many are on that shelf') : '',
     it.oos ? chip('marked out of stock', 'oos') : '',
     it.rq ? chip(`${it.rq} refunded`, 'warn') : '',
     alts.length ? chip(`Other sizes: ${alts.slice(0, 2).map(x => `${esc(x.size || x.sku)}${x.shape ? ' ' + esc(x.shape) : ''} (${x.fba ? x.fba + ' FBA' : x.india + ' India'})`).join(', ')}${alts.length > 2 ? ' +' + (alts.length - 2) : ''}`, 'alt', alts.map(x => `${x.sku}: ${x.fba} FBA · ${x.india} India`).join('\n')) : '',
@@ -555,10 +556,15 @@ function itemRow(o, i, opt) {
   const key = o.no + '|' + i, open = OPEN_ROW.has(key), waiting = it.pk == null;
   const im = imgOf(o, it), ph = im ? `<a class="od-pic" href="${esc(im)}" target="_blank" rel="noopener" title="Open the photo"><img class="od-th" src="${esc(im)}" alt="" loading="lazy"></a>` : thumb(it);
   const sub = [it.v, it.sku || 'no SKU on Shopify', e && e.amz ? 'Amazon ' + e.amz : ''].filter(Boolean).join(' · ');
+  /* 2B (Ravi, 2 Nov): the item on the left (price, Details and ⋯ in its second line), its choice cards on the right. */
+  const moreBtns = `<span class="od-l2r"><button class="s-link od-more" type="button" data-row="${i}" aria-expanded="${open}">${open ? 'Hide details' : 'Details'}</button>${opt.more || ''}</span>`;
+  const head = opt.cards
+    ? `<div class="od-row od-row2">${ph}<div class="od-it"><div class="n">${esc(it.t)}</div><div class="s-sm s-muted od-sub2">${esc(sub)} · <b class="od-pr">${money(it.price)} ${qtyText(it)}</b>${moreBtns}</div></div>${opt.cards}</div>`
+    : `<div class="od-row">${ph}<div class="od-it"><div class="n">${esc(it.t)}</div><div class="s-sm s-muted">${esc(sub)}</div></div>
+      <span class="od-q"><span class="s-muted s-sm">${money(it.price)}</span> ${qtyText(it)}</span>${opt.end || '<span></span>'}</div>`;
   return `<div class="od-item ${open ? 'open' : ''}">
-    <div class="od-row">${ph}<div class="od-it"><div class="n">${esc(it.t)}</div><div class="s-sm s-muted">${esc(sub)}</div></div>
-      <span class="od-q"><span class="s-muted s-sm">${money(it.price)}</span> ${qtyText(it)}</span>${opt.end || '<span></span>'}</div>
-    <div class="od-l2">${chips.join('')}<span class="od-l2r"><button class="s-link od-more" type="button" data-row="${i}" aria-expanded="${open}">${open ? 'Hide details' : 'Details'}</button>${opt.more || ''}</span></div>
+    ${head}
+    ${opt.cards ? (chips.length ? `<div class="od-l2">${chips.join('')}</div>` : '') : `<div class="od-l2">${chips.join('')}${moreBtns}</div>`}
     ${open ? `<div class="od-drawer">
       ${waiting && it.q > 1 ? `<label>Send qty<input type="number" min="0" max="${it.q}" step="1" value="${J.sendQty(it)}" data-lf="sq" data-i="${i}"></label>` : `<label>Send qty<input value="${J.sendQty(it)} of ${it.q}" disabled></label>`}
       <label>Shelf<input list="shelves" value="${esc(it.shelf || '')}" placeholder="${esc((e && e.shelf) || 'bin')}" data-lf="shelf" data-i="${i}"></label>
@@ -572,12 +578,21 @@ function itemRow(o, i, opt) {
 /* Ravi, 2 Nov: the "Change…" menu was hard to read. The line stays clean: only when another card's stock can take the
  * item is there a quiet "Move to MCF →" (or India / Production) link — nothing when there is no choice. The rare things
  * (out of stock, send fewer, don't send) sit behind a small ⋯ beside Details. */
-const itemMove = (o, i, s, a) => { const it = o.items[i], to = SECTIONS.filter(x => x.k !== s.k && x.k !== 'make' && x.can(it, a));
-  return to.length ? `<span class="od-mvs">${to.map(x => `<button class="s-link od-mv" type="button" data-mv="${i}|${x.k}" title="${esc(x.how)}">Move to ${x.name} →</button>`).join('')}</span>` : '<span></span>'; };
-/* Production can always take an item, so "make it instead" lives in the ⋯, not on the line. */
-const itemMore = (o, i, s) => { const it = o.items[i];
+/* CHOICE CARDS (Ravi, 2 Nov: design 2B, "only the things that can be there"): a card for each way this item CAN go —
+ * MCF only when FBA has enough left for this order, India only when India has, Make always. The one in use is filled and
+ * ticked; click another to move the item. With only one way (nothing in stock), only the Make card shows. */
+const CARD_NAME = { mcf: 'MCF', india: 'India', make: 'Make' };
+function choiceCards(o, i, a, cur) {
+  const it = o.items[i], e = erpOf(o, it), bin = it.shelf || (e && e.shelf) || '';
+  const what = { mcf: `FBA ${a.fba}${a.fbaHeld ? ` · ${a.fbaHeld} held` : ''}`, india: `${a.india} left${bin ? ' · ' + bin : ''}`, make: 'about 6 days' };
+  const ways = SECTIONS.filter(x => x.k === cur || x.can(it, a)), one = ways.length === 1;
+  return `<div class="od-cks">${ways.map(x => { const on = x.k === cur, tip = `${x.name}: ${x.how}`;
+    const inner = `<b>${CARD_NAME[x.k]}${on ? ' <span aria-hidden="true">✓</span>' : ''}</b><span>${esc(what[x.k])}</span>`;
+    return one || on ? `<div class="od-ck ck-${x.k} on" title="${esc(tip)}">${inner}</div>`
+      : `<button class="od-ck ck-${x.k}" type="button" data-mv="${i}|${x.k}" title="${esc('Move to ' + tip)}">${inner}</button>`; }).join('')}</div>`;
+}
+const itemMore = (o, i) => { const it = o.items[i];
   return `<details class="s-moremenu od-itmore"><summary title="More for this item" aria-label="More for this item">⋯</summary><div class="s-menu">
-      ${s && s.k !== 'make' ? `<button class="s-btn ghost" type="button" data-mv="${i}|make">Make it in production instead</button>` : ''}
       <button class="s-btn ghost" type="button" data-im="${i}|oos:${it.oos ? 0 : 1}">${it.oos ? 'Clear "out of stock"' : 'Mark out of stock'}</button>
       ${it.q > 1 ? `<button class="s-btn ghost" type="button" data-im="${i}|sq">Send fewer than ${it.q}…</button>` : ''}
       <button class="s-btn ghost" type="button" data-im="${i}|sq:0">Don't send this item</button></div></details>`; };
@@ -592,13 +607,17 @@ function linesCard(o) {
   const lock = locked(o) ? ' disabled title="Locked — check the red note above first"' : '';
   /* The MCF card shows Amazon's fee and speed before anybody presses Send. */
   const mcfLines = (secs.find(x => x.s.k === 'mcf') || {}).lines, q = mcfLines && !o.cancelled ? wantMcfQuote(o, mcfLines) : null;
+  /* ONE card for every item still to route (2B), in the order's own item order; one Send at the bottom does all of it
+   * (one way → that way's own button; several → the Accept window that does each at once). */
+  const say = secs.map(({ s, lines }) => `${lines.length} to ${s.k === 'make' ? 'make' : s.name}`).join(' · ');
+  const go = many ? `<button class="s-btn" type="button" data-plan="accept"${lock}>Send all ${secs.length}</button>`
+    : `<button class="s-btn" type="button" data-go="${secs[0].s.k}"${lock}>${secs[0].s.go}</button>`;
   return `<div id="lines" class="od-plan">
-    ${many ? `<div class="od-acc" id="decide-bar"><span class="s-muted s-sm">Sorted by stock${heldNote} — change an item if you want</span><button class="s-btn" type="button" data-plan="accept"${lock}>Accept all ${secs.length}</button></div>` : ''}
-    ${secs.map(({ s, lines }) => `<section class="od-card" id="pl-${s.k}">
-      <header class="od-h"><span class="od-badge b-${s.k}">${s.name} · ${lines.length}</span><span class="s-muted s-sm">${s.how}</span>
-        ${s.k === 'mcf' ? `<label class="od-auto s-sm" title="New orders whose items Amazon FBA has go to MCF by themselves"><input type="checkbox" data-automcf ${auto ? 'checked' : ''}> Auto-send</label>` : ''}</header>
-      ${lines.map(i => itemRow(o, i, { a: a(i), sec: s.k, end: itemMove(o, i, s, a(i)), more: itemMore(o, i, s) })).join('')}
-      <footer class="od-f"><span class="s-sm ${s.k === 'mcf' ? '' : 's-muted'}">${s.k === 'mcf' ? mcfQuoteText(q) : s.foot}</span><button class="s-btn ${many ? 'ghost' : ''}" type="button" data-go="${s.k}"${lock}>${s.go}</button></footer></section>`).join('')}
+    <section class="od-card od-ships" id="pl-ships">
+      <header class="od-h"><b>How it ships</b><span class="s-muted s-sm">Sorted by stock${heldNote} — click a card to change</span>
+        ${mcfLines ? `<label class="od-auto s-sm" title="New orders whose items Amazon FBA has go to MCF by themselves"><input type="checkbox" data-automcf ${auto ? 'checked' : ''}> Auto-send MCF</label>` : ''}</header>
+      ${u.map(i => itemRow(o, i, { a: a(i), sec: P[i], cards: choiceCards(o, i, a(i), P[i]), more: itemMore(o, i) })).join('')}
+      <footer class="od-f"><span class="s-sm"><b>${esc(say)}</b>${mcfLines ? ` <span class="s-muted">·</span> MCF ${mcfQuoteText(q)}` : secs.length === 1 ? ` <span class="s-muted">· ${secs[0].s.foot}</span>` : ''}</span>${go}</footer></section>
     ${off0.length ? `<section class="od-card od-off" id="pl-off"><header class="od-h"><span class="od-badge">Not being sent · ${off0.length}</span><span class="s-muted s-sm">send quantity 0 — stays on the order, nothing goes out</span></header>
       ${off0.map(i => itemRow(o, i, { end: o.items[i].gone ? '<span class="s-sm s-muted">removed in Shopify</span>' : `<button class="s-link" type="button" data-sendagain="${i}">Send it again</button>` })).join('')}</section>` : ''}</div>`;
 }
