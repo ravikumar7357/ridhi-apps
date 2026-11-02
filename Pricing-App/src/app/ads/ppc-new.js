@@ -553,6 +553,18 @@ function pxRender(focusSel) {
   PX.anim = false;
   pxSave();
   if (focusSel) { const el = pane.querySelector(focusSel); if (el) { el.focus(); if (el.id === 'pxQ') el.setSelectionRange(el.value.length, el.value.length); } }
+  pxStick();
+}
+
+/* The toolbar sticks under Sellora's menu bar. The bar's height is measured, not assumed: it wraps onto a
+ * second line on narrower screens, and on phones it is a drawer (not sticky), so the toolbar goes to 0. */
+function pxStick() {
+  const pane = $('panePpcn'); if (!pane) return;
+  const side = document.querySelector('.side');
+  const top = side && getComputedStyle(side).position === 'sticky' ? Math.round(side.getBoundingClientRect().height) : 0;
+  pane.style.setProperty('--px-top', top + 'px');
+  const bar = pane.querySelector('.px-toolbar');
+  if (bar) bar.classList.toggle('px-stuck', Math.round(bar.getBoundingClientRect().top) <= top + 1 && window.scrollY > 0);
 }
 
 /* ---------- download ---------- */
@@ -666,6 +678,11 @@ function pxWire() {
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape' && PX.pop && TAB_NOW === 'ppcn') { PX.pop = null; pxRender(); }
   });
+  // The menu bar can change height (window resized, rotated) and the shadow follows scrolling.
+  let st = 0;
+  const restick = () => { if (TAB_NOW === 'ppcn' && !st) st = requestAnimationFrame(() => { st = 0; pxStick(); }); };
+  window.addEventListener('resize', restick);
+  window.addEventListener('scroll', restick, { passive: true });
 }
 
 async function ensurePpcn() {
