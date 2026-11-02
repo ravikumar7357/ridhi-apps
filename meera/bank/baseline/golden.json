@@ -298,7 +298,7 @@
   "off": false
  },
  "eval|shop|karigar se receive kiya, ab wo piece aage kis screen pe milenge": {
-  "text": "Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? karigar se maal wapas kaise le karigar kaun hota hai karigar ko kaam kaise de",
+  "text": "Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? hara button kya karta hai karigar se maal wapas kaise le karigar kaun hota hai",
   "acts": [],
   "bank": null,
   "miss": "near",
@@ -555,7 +555,7 @@
   "off": false
  },
  "eval|shop|date ke aage 8d laal kyu dikh rha": {
-  "text": "Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? low aur out ka matlab cell me dash ka matlab rfd kam hai laal dikh raha",
+  "text": "Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? low aur out ka matlab rfd kam hai laal dikh raha cell me dash ka matlab",
   "acts": [],
   "bank": null,
   "miss": "near",
@@ -740,7 +740,7 @@
   "off": false
  },
  "eval|shop|customer order line - how do i choose to send it from india stock": {
-  "text": "Your question fits more than one answer. Which one do you mean? fulfil customer order from amazon what is customer orders screen how customer orders decides amazon or india",
+  "text": "Your question fits more than one answer. Which one do you mean? fulfil customer order from amazon what is customer orders screen amazon can cover meaning",
   "acts": [],
   "bank": null,
   "miss": null,
@@ -948,7 +948,7 @@
   "off": false
  },
  "eval|shop|सिकुड़न 5% से ज़्यादा है, अप्रूव कैसे करें": {
-  "text": "मैं पक्का नहीं समझ पाई। क्या आप इनमें से कुछ पूछ रहे हैं? करेक्शन रिक्वेस्ट कैसे अप्रूव करें वेंडर ऑर्डर रिक्वेस्ट कैसे मंज़ूर करें correction request कैसे मंज़ूर करें",
+  "text": "मैं पक्का नहीं समझ पाई। क्या आप इनमें से कुछ पूछ रहे हैं? सब एक साथ अप्रूव कैसे करें करेक्शन रिक्वेस्ट कैसे अप्रूव करें My work today से अप्रूव कैसे करें",
   "acts": [],
   "bank": null,
   "miss": "near",
@@ -1267,7 +1267,7 @@
   "off": false
  },
  "eval|shop|goods came in, how to close the po as received": {
-  "text": "I'm not fully sure what you mean. Is it one of these? how to receive stock in store close greige po Close the PO",
+  "text": "I'm not fully sure what you mean. Is it one of these? close greige po Close the PO how to receive stock in store",
   "acts": [],
   "bank": null,
   "miss": "near",
@@ -1370,7 +1370,7 @@
   "off": false
  },
  "eval|shop|कौन सा आर्टिकल मुश्किल है ये लेवल कहाँ भरते हैं": {
-  "text": "मैं पक्का नहीं समझ पाई। क्या आप इनमें से कुछ पूछ रहे हैं? शॉपिफाई के कितने ऑर्डर गए आसान/कठिन आर्टिकल कैसे तय करें Level क्या है",
+  "text": "मैं पक्का नहीं समझ पाई। क्या आप इनमें से कुछ पूछ रहे हैं? आसान/कठिन आर्टिकल कैसे तय करें शॉपिफाई के कितने ऑर्डर गए Level क्या है",
   "acts": [],
   "bank": null,
   "miss": "near",
@@ -1458,11 +1458,9 @@
   "off": false
  },
  "eval|shop|वेंडर की रिक्वेस्ट अप्रूव करनी है, बटन कहाँ है": {
-  "text": "आपके अकाउंट में \"Can approve vendor order requests\" नहीं है; मंज़ूरी देना आपका काम हो तो एडमिन से इसे चालू करवाएँ।",
-  "acts": [
-   "open:vreq"
-  ],
-  "bank": "vm-vreq-no-permission",
+  "text": "वेंडर रिक्वेस्ट और RFD requirements न My work today पर हैं न किसी रोल में: उनकी स्क्रीनें 15 अक्टूबर से मेन्यू में नहीं हैं, और यह काम अब PPC में होता है।",
+  "acts": [],
+  "bank": "r1-no-vendor-rfd",
   "miss": null,
   "off": false
  },
@@ -1485,14 +1483,14 @@
   "off": false
  },
  "eval|shop|rfd requirements screen kha milegi": {
-  "text": "I'm not fully sure what you mean. Is it one of these? what is rfd where is rfd requirements how to update fnsku list",
+  "text": "Your question fits more than one answer. Which one do you mean? vendor requests not on my work today what is rfd where is rfd requirements",
   "acts": [],
   "bank": null,
-  "miss": "near",
+  "miss": null,
   "off": false
  },
  "eval|shop|mark rfd cloth as sent to the printer": {
-  "text": "Your question fits more than one answer. Which one do you mean? mark rfd sent answering an rfd requirement needs permission why some rfd requests approved automatically",
+  "text": "Your question fits more than one answer. Which one do you mean? mark rfd sent answering an rfd requirement needs permission vendor requests not on my work today",
   "acts": [],
   "bank": null,
   "miss": null,
@@ -1721,7 +1719,7 @@
   "off": false
  },
  "eval|shop|महीने की तनख्वाह की पर्ची निकालनी है": {
-  "text": "मैं पक्का नहीं समझ पाई। क्या आप इनमें से कुछ पूछ रहे हैं? सैलरी स्लिप कैसे प्रिंट करें महीने की हाज़िरी चालान क्या है",
+  "text": "मैं पक्का नहीं समझ पाई। क्या आप इनमें से कुछ पूछ रहे हैं? सैलरी स्लिप कैसे प्रिंट करें महीने की हाज़िरी रेवेन्यू टारगेट कैसे डालें",
   "acts": [],
   "bank": null,
   "miss": "near",
@@ -1845,7 +1843,7 @@
   "off": false
  },
  "eval|shop|कल कौन सा ट्रक आएगा": {
-  "text": "मैं पक्का नहीं समझ पाई। क्या आप इनमें से कुछ पूछ रहे हैं? Track क्या है Tracking क्या है To cut टैब क्या है",
+  "text": "मैं पक्का नहीं समझ पाई। क्या आप इनमें से कुछ पूछ रहे हैं? चालान पर अब भी Ridhi Home &amp; Living क्यों लिखा है Track क्या है Tracking क्या है",
   "acts": [],
   "bank": null,
   "miss": "near",
@@ -1940,9 +1938,9 @@
   "off": false
  },
  "eval2|shop|karigar matlab darzi hi na? ya koi aur": {
-  "text": "Your question fits more than one answer. Which one do you mean? how to filter Karigar Karigar",
+  "text": "Press Filters in the screen's toolbar, choose what you want in each box, then press Done . The number on the button shows how many filters are on, and each one shows as a chip under the toolbar. Why Filters only narrow what you see — they never change any entry.",
   "acts": [],
-  "bank": null,
+  "bank": "gn-filters-button",
   "miss": null,
   "off": false
  },
@@ -2002,7 +2000,7 @@
   "off": false
  },
  "eval2|shop|fba bolte h wo kaunsa godown h": {
-  "text": "I'm not fully sure what you mean. Is it one of these? what is fba pick which one these pieces are for what is fba dispatch",
+  "text": "I'm not fully sure what you mean. Is it one of these? what is fba what is fba dispatch pick which one these pieces are for",
   "acts": [],
   "bank": null,
   "miss": "near",
@@ -2133,7 +2131,7 @@
   "off": false
  },
  "eval2|shop|ye chhota arrow wala dabba kaise kholte h": {
-  "text": "Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? menu kaise band kare drop down kya hai phone par peeche kaise jaye",
+  "text": "Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? drop down kya hai menu kaise band kare phone par peeche kaise jaye",
   "acts": [],
   "bank": null,
   "miss": "near",
@@ -2243,7 +2241,7 @@
   "off": false
  },
  "eval2|shop|galti se tab band ho gaya, jo bhara tha sab gaya kya": {
-  "text": "Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? tab band karu to data jayega kya band line dobara kaise khole site nahi khul rahi",
+  "text": "Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? tab band karu to data jayega kya band line dobara kaise khole handover line dobara kyu nahi khulti",
   "acts": [],
   "bank": null,
   "miss": "near",
@@ -2271,7 +2269,7 @@
   "off": false
  },
  "eval2|shop|upar jo bade number wale dabbe h unpe click karne se kya hota h": {
-  "text": "Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? upar ke number kya hain upar number wale dibbe kya h upar ke card kya hai",
+  "text": "Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? upar ke number kya hain upar number wale dibbe kya h upar ke 4 box kya hai",
   "acts": [],
   "bank": null,
   "miss": "near",
@@ -2306,7 +2304,7 @@
   "off": false
  },
  "eval2|shop|naam aur remark dono hindi me type kar du? chalega": {
-  "text": "Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? kya hindi me likh sakte h karigar ka naam list mein nahi hai Name kya hai",
+  "text": "Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? kya hindi me likh sakte h karigar ka naam list mein nahi hai Remark kya hai",
   "acts": [],
   "bank": null,
   "miss": "near",
@@ -2411,7 +2409,7 @@
   "off": false
  },
  "eval2|shop|क्वांटिटी घटाने की रिक्वेस्ट मांगते वक्त ठीक थी, अप्रूव करते समय मना क्यों कर दिया": {
-  "text": "मैं पक्का नहीं समझ पाई। क्या आप इनमें से कुछ पूछ रहे हैं? क्वांटिटी बदलाव मना कैसे करें माँगते समय ठीक था अब मात्रा बदलाव रिजेक्ट क्यों रिक्वेस्ट रिजेक्ट कैसे करें",
+  "text": "मैं पक्का नहीं समझ पाई। क्या आप इनमें से कुछ पूछ रहे हैं? क्वांटिटी बदलाव मना कैसे करें रिक्वेस्ट रिजेक्ट कैसे करें माँगते समय ठीक था अब मात्रा बदलाव रिजेक्ट क्यों",
   "acts": [],
   "bank": null,
   "miss": "near",
@@ -2817,7 +2815,7 @@
   "off": false
  },
  "eval2|shop|after freezing a fortnight, if I change a rate does the payout move": {
-  "text": "Your question fits more than one answer. Which one do you mean? freeze payout what happens when i freeze payout which entries get frozen",
+  "text": "Your question fits more than one answer. Which one do you mean? freeze payout what happens when i freeze payout cannot freeze vendor payout no approved rate",
   "acts": [],
   "bank": null,
   "miss": null,
@@ -2923,7 +2921,7 @@
   "off": false
  },
  "eval2|shop|एक कटिंग एंट्री सेव करने से बाकी किन स्क्रीन पर फर्क पड़ता है": {
-  "text": "मैं पक्का नहीं समझ पाई। क्या आप इनमें से कुछ पूछ रहे हैं? कटिंग एंट्री सेव करने से और क्या बदलता है कटिंग की एंट्री कैसे करें कटिंग डेटा क्या है",
+  "text": "मैं पक्का नहीं समझ पाई। क्या आप इनमें से कुछ पूछ रहे हैं? कटिंग की एंट्री कैसे करें कटिंग एंट्री सेव करने से और क्या बदलता है कटिंग डेटा क्या है",
   "acts": [],
   "bank": null,
   "miss": "near",
@@ -2970,18 +2968,16 @@
   "off": false
  },
  "eval2|shop|printer typed 100 in his portal but we accepted 92, which one gets paid": {
-  "text": "I'm not fully sure what you mean. Is it one of these? print the print order vendor portal search sku printer says sent but we did not get",
+  "text": "I'm not fully sure what you mean. Is it one of these? print the print order printer says sent but we did not get vendor portal search sku",
   "acts": [],
   "bank": null,
   "miss": "near",
   "off": false
  },
  "eval2|shop|maine change maanga tha, ab khud approve kyu nahi kar pa raha": {
-  "text": "Koi bhi apna correction khud approve nahi kar sakta — kisi aur ko karna hoga — aur jo request SKU ya date badalti hai us par \"needs an admin\" dikhta hai, use sirf admin approve kar sakta hai. Kyun Approval row ko abhi ki haalat me padhta hai aur Edit jaise hi niyamon se phir jaanchta hai (receive + reject, issue se zyada nahi; order ki limit), kyunki beech me badli ho sakti hai. Finished Goods me request ke baad entry badli ho to approver ko bataya jata hai aur wo Approve phir dabata hai.",
-  "acts": [
-   "open:pbase"
-  ],
-  "bank": "dx-no-self-approve",
+  "text": "Approve nahi aata jab request aapki apni ho, ya usme SKU, issue date ya receiving date badal raha ho aur aap admin na hon; kisi dusre production entry badalne wale vyakti ya admin se kahiye. Kyun Koi apni hi request approve nahi karta, warna request se Edit box ki limits paar ho jayengi. Card phir bhi Open → ke saath dikhta hai.",
+  "acts": [],
+  "bank": "r1-jw-correction-no-approve",
   "miss": null,
   "off": false
  },
@@ -3057,7 +3053,7 @@
   "off": false
  },
  "eval2|shop|how to change the selling price of a listing on amazon from the erp": {
-  "text": "I'm not fully sure what you mean. Is it one of these? amazon order full process from start to dispatch can i type in hindi how do i sign in",
+  "text": "I'm not fully sure what you mean. Is it one of these? what is problems on my work today amazon order full process from start to dispatch can i type in hindi",
   "acts": [],
   "bank": null,
   "miss": "near",

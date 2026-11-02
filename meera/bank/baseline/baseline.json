@@ -1,5 +1,5 @@
 {
- "made": "2026-10-29",
+ "made": "2026-11-02",
  "scores": {
   "eval": {
    "right": 112,
@@ -8,10 +8,10 @@
    "none": 37
   },
   "eval2": {
-   "right": 54,
-   "offered": 66,
-   "wrong": 6,
-   "none": 34
+   "right": 53,
+   "offered": 67,
+   "wrong": 7,
+   "none": 33
   },
   "parts": {
    "right": 187,
@@ -22,31 +22,31 @@
  },
  "typos": {
   "count": 238,
-  "right": 83,
-  "offered": 116,
+  "right": 81,
+  "offered": 118,
   "wrong": 8,
   "none": 31
  },
  "extra": {
   "held": {
    "count": 447,
-   "right": 189,
-   "offered": 165,
+   "right": 188,
+   "offered": 166,
    "wrong": 12,
    "none": 81
   },
   "hindi": {
    "count": 114,
    "right": 50,
-   "offered": 40,
+   "offered": 39,
    "wrong": 0,
-   "none": 24
+   "none": 25
   }
  },
  "sizes": {
   "meera-bank.json": {
-   "raw": 3385462,
-   "gzip": 856694
+   "raw": 3516186,
+   "gzip": 889661
   },
   "meera-words.bin": {
    "raw": 1591833,
@@ -57,8 +57,8 @@
    "gzip": 118316
   },
   "code in the page": {
-   "raw": 399829,
-   "gzip": 174861,
+   "raw": 401158,
+   "gzip": 175391,
    "files": 9
   },
   "picture (guide-art.js)": {
@@ -67,7 +67,7 @@
   }
  },
  "timing": {
-  "loadMs": 1372,
-  "msPerAnswer": 40.7
+  "loadMs": 1543,
+  "msPerAnswer": 46.1
  }
 }
