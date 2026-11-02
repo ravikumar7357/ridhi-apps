@@ -159,7 +159,7 @@ core/version-check.js
 core/mobile.js
 core/meera-bridge.js
 @meera/legacy/guide-art.js
-@meera/legacy/guide-tours.js
+@meera/legacy/guide-tours.ts
 @meera/legacy/guide.js
 @meera/legacy/guide-errors.js
 @meera/legacy/guide-ask.js
