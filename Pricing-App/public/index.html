@@ -16742,11 +16742,26 @@ function pxAcctOrders(p) {
 }
 
 let PX_MEMO = new Map();
-const PX_ADD = ['o', 'adO', 'adU'];
+const PX_ADD = ['o', 'adO', 'adU', 'cl', 'se'];
+/* Sessions come from Amazon's Sales & Traffic report, which is asked for one whole Sunday–Saturday week at a
+ * time — there is no per-day figure. So a range has sessions only when it is made of whole weeks, and only
+ * when every one of those weeks has its report; otherwise "—", never a part-total. */
+const pxWholeWeeks = p => p.src !== 'none' && wKeyOfDate(p.lo) === p.lo && wKeyOfDate(sdShift(p.hi, 1)) === sdShift(p.hi, 1);
+function pxSessions(a, p) {
+  if (!pxWholeWeeks(p)) return null;
+  const wks = (WEEKLY.rows[a] || {}).weeks || {};
+  let n = null;
+  for (let w = p.lo; w <= p.hi; w = sdShift(w, 7)) {
+    const c = wks[w];
+    if (c && c.sessions != null) n = (n || 0) + c.sessions;
+    else if (c && (c.u || c.rev)) return null;                // sold that week but no traffic report yet
+  }
+  return n;
+}
 function pxSumAsin(a, p) {
   const k = a + '|' + p.id;
   if (PX_MEMO.has(k)) return PX_MEMO.get(k);
-  const o = { u: 0, rev: 0, spend: null, adSales: null, o: null, adO: null, adU: null, has: false };
+  const o = { u: 0, rev: 0, spend: null, adSales: null, o: null, adO: null, adU: null, cl: null, se: null, has: false };
   if (p.src !== 'none') {
     const store = p.src === 'day' ? (WDAY.rows[a] || {}).days : (WEEKLY.rows[a] || {}).weeks;
     const xs = (p.src === 'day' ? PXN.day : PXN.wk)[a] || {};
@@ -16756,6 +16771,7 @@ function pxSumAsin(a, p) {
       if (c.spend != null) o.spend = (o.spend || 0) + c.spend;
       if (c.adSales != null) o.adSales = (o.adSales || 0) + c.adSales;
       if (c.adOrders != null) o.adO = (o.adO || 0) + c.adOrders;
+      if (c.clicks != null) o.cl = (o.cl || 0) + c.clicks;
       const x = xs[key];
       if (x && x[0] != null) o.o = (o.o || 0) + x[0];
       if (x && x[1] != null) o.adU = (o.adU || 0) + x[1];
@@ -16764,13 +16780,16 @@ function pxSumAsin(a, p) {
     // would be short, so there is no ad-units figure for the range at all.
     const b = (WEEKLY.rows[a] || {}).brand || (pxLookup()[a] || {}).brand;
     if (o.adU != null && PXN.miss.some(m => m.brand === b && p.lo <= m.end && p.hi >= m.start)) o.adU = null;
+    o.se = pxSessions(a, p);
   }
   PX_MEMO.set(k, o);
   return o;
 }
 // Summed field by field, ratios worked out afterwards from the totals — never an average of ratios.
 function pxDerive(o) {
-  if (!o.has) return Object.assign(o, { os: null, op: null, acos: null, tacos: null, ou: null });
+  if (!o.has) return Object.assign(o, { os: null, op: null, acos: null, tacos: null, ou: null, cr: null });
+  // Conversion rate as in the design: ad orders ÷ clicks — the share of ad clicks that became an order.
+  o.cr = o.cl == null || !o.cl || o.adO == null ? null : o.adO / o.cl * 100;
   o.os = o.adSales == null ? null : Math.max(0, o.rev - o.adSales);
   o.ou = o.adU == null ? null : Math.max(0, o.u - o.adU);
   o.op = o.os == null || !o.rev ? null : o.os / o.rev * 100;
@@ -16779,14 +16798,17 @@ function pxDerive(o) {
   return o;
 }
 function pxStats(asins, p, withPrev) {
-  const o = { u: 0, rev: 0, spend: null, adSales: null, o: null, adO: null, adU: null, has: false };
+  const o = { u: 0, rev: 0, spend: null, adSales: null, o: null, adO: null, adU: null, cl: null, se: null, has: false };
+  let seGap = false;
   asins.forEach(a => {
     const s = pxSumAsin(a, p); if (!s.has) return;
     o.has = true; o.u += s.u; o.rev += s.rev;
     if (s.spend != null) o.spend = (o.spend || 0) + s.spend;
     if (s.adSales != null) o.adSales = (o.adSales || 0) + s.adSales;
     PX_ADD.forEach(k => { if (s[k] != null) o[k] = (o[k] || 0) + s[k]; });
+    if (s.se == null && (s.u || s.rev)) seGap = true;
   });
+  if (seGap) o.se = null;                      // one size without its traffic report: no part-total
   pxDerive(o);
   if (withPrev) {
     const q = pxStats(asins, pxPrevPlan(p), false);
@@ -16871,16 +16893,26 @@ const PX_FILTERS = {
   fall: ['Falling 30%+', o => o.vp != null && o.vp <= -30],
   grow: ['Growing', o => o.vp != null && o.vp > 0],
 };
-const PX_RCOLS = [['o', 'Total orders'], ['u', 'Units'], ['rev', 'Sales'],
-  ['spend', 'Ad spend'], ['adSales', 'Ad sales'], ['adO', 'Ad orders'], ['adU', 'Ad units'], ['acos', 'ACoS'], ['tacos', 'TACoS'],
+const PX_RCOLS = [['se', 'Sessions'], ['o', 'Total orders'], ['u', 'Units'], ['rev', 'Sales'],
+  ['spend', 'Ad spend'], ['adSales', 'Ad sales'], ['adO', 'Ad orders'], ['adU', 'Ad units'], ['cl', 'Clicks'], ['cr', 'Conv. rate'],
+  ['acos', 'ACoS'], ['tacos', 'TACoS'],
   ['ou', 'Organic units'], ['os', 'Organic sales'], ['op', 'Organic share'], ['vp', 'vs prev']];
 // The header groups over those columns, as in the design (Traffic · Ads · Organic).
-const PX_GROUPS = [['Traffic', ['o', 'u', 'rev']], ['Ads', ['spend', 'adSales', 'adO', 'adU', 'acos', 'tacos']],
+const PX_GROUPS = [['Traffic', ['se', 'o', 'u', 'rev']], ['Ads', ['spend', 'adSales', 'adO', 'adU', 'cl', 'cr', 'acos', 'tacos']],
   ['Organic', ['ou', 'os', 'op']], ['', ['vp']]];
+// Ready-made column sets, as in the design. 'all' shows everything; the others are what each view is for.
+const PX_SETS = [['all', 'All', null], ['overview', 'Overview', ['u', 'rev', 'spend', 'acos', 'tacos', 'op', 'vp']],
+  ['ads', 'Ads', ['spend', 'adSales', 'adO', 'adU', 'cl', 'cr', 'acos', 'tacos']],
+  ['organic', 'Organic', ['se', 'o', 'u', 'ou', 'os', 'op', 'vp']]];
+const pxSetNow = () => {
+  const on = PX_RCOLS.map(x => x[0]).filter(k => !PX.hide.includes(k)).join();
+  const s = PX_SETS.find(([, , ks]) => (ks ? PX_RCOLS.map(x => x[0]).filter(k => ks.includes(k)).join() : PX_RCOLS.map(x => x[0]).join()) === on);
+  return s ? s[0] : 'custom';
+};
 const PX_METRICS = { rev: 'Sales', u: 'Units', o: 'Orders', adU: 'Ad units', ou: 'Organic units',
-  spend: 'Ad spend', op: 'Organic %', acos: 'ACoS', tacos: 'TACoS' };
-const pxIsPct = m => m === 'op' || m === 'acos' || m === 'tacos';
-const pxIsCount = m => m === 'u' || m === 'o' || m === 'adO' || m === 'adU' || m === 'ou';
+  spend: 'Ad spend', cl: 'Clicks', cr: 'Conv. rate', op: 'Organic %', acos: 'ACoS', tacos: 'TACoS' };
+const pxIsPct = m => m === 'op' || m === 'acos' || m === 'tacos' || m === 'cr';
+const pxIsCount = m => m === 'u' || m === 'o' || m === 'adO' || m === 'adU' || m === 'ou' || m === 'cl' || m === 'se';
 const pxLowGood = m => m === 'acos' || m === 'tacos';
 const pxN = v => (v == null ? '—' : Math.round(v).toLocaleString('en-US'));
 const pxFmtM = (m, v) => (v == null ? '—' : pxIsPct(m) ? v.toFixed(1) + '%' : pxIsCount(m) ? pxN(v) : pxShort(v));
@@ -16956,6 +16988,9 @@ function pxRangeCells(o, tot) {
   const cnt = v => (v == null ? '<span class="px-dim">—</span>' : pxN(v));
   const c = {
     o: `<td>${cnt(o.o)}</td>`,
+    se: `<td>${cnt(o.se)}</td>`,
+    cl: `<td class="px-dim">${cnt(o.cl)}</td>`,
+    cr: `<td>${o.cr == null ? '<span class="px-dim">—</span>' : pxPct(o.cr)}</td>`,
     adO: `<td class="px-dim">${cnt(o.adO)}</td>`,
     adU: `<td>${cnt(o.adU)}</td>`,
     ou: `<td>${cnt(o.ou)}</td>`,
@@ -17110,8 +17145,11 @@ function pxRender(focusSel) {
   const lvl = `<div class="px-seg" role="group" aria-label="Parent or child"><button data-pxlevel="parent" aria-pressed="${PX.level === 'parent'}">Parent</button><button data-pxlevel="child" aria-pressed="${PX.level === 'child'}">Child</button></div>`;
   const search = '<label class="px-search px-grow"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="pxQ" placeholder="Search product, ASIN or SKU" autocomplete="off"></label>';
   const showBtn = cm ? '' : `<button class="px-btn${PX.hide.length ? ' px-on' : ''}" data-px="pop-show" aria-expanded="${PX.pop === 'show'}">${PX_IC_COLS}Columns${PX.hide.length ? ' · ' + (PX_RCOLS.length - PX.hide.length) : ''}</button>`;
+  const setNow = pxSetNow();
+  const sets = cm ? '' : '<span class="px-grow"></span><span class="px-lbl">Show</span><div class="px-seg px-segsm" role="group" aria-label="Column set">'
+    + PX_SETS.map(([k, l]) => `<button data-pxset="${k}" aria-pressed="${setNow === k}">${l}</button>`).join('') + '</div>';
   const chips = '<span class="px-lbl">Quick filters</span>' + Object.entries(PX_FILTERS).map(([k, v]) =>
-    `<button class="px-chipf" data-pxchip="${k}" aria-pressed="${PX.chip === k}">${v[0]} <b>${ctx.found.filter(e => v[1](e.st)).length}</b></button>`).join('');
+    `<button class="px-chipf" data-pxchip="${k}" aria-pressed="${PX.chip === k}">${v[0]} <b>${ctx.found.filter(e => v[1](e.st)).length}</b></button>`).join('') + sets;
 
   const strip = `${pxCards(allAsins)}<div class="px-card px-clip"><div class="px-strip">
     <div><small>Sales</small><b>${tot.has ? pxMoney(tot.rev) : '—'}</b><em class="${tot.vp == null ? 'px-dim' : tot.vp < 0 ? 'px-neg' : 'px-pos'}">${pxSgn(tot.vp)} vs prev</em></div>
@@ -17191,11 +17229,11 @@ function pxCsv() {
     head = ['ASIN', 'Title'].concat(sku ? ['SKU'] : []).concat(ctx.cols.map(c => PX_METRICS[PX.metric] + ' ' + c.lo + '..' + c.hi));
     rows = list.map(e => [e.key, e.title].concat(sku ? [e.sku] : []).concat(ctx.cols.map(c => num(pxStats(e.asins, c)[PX.metric], 2))));
   } else {
-    head = ['ASIN', 'Title'].concat(sku ? ['SKU'] : []).concat(['Total orders', 'Units', 'Sales', 'Ad spend', 'Ad sales', 'Ad orders', 'Ad units',
-      'Organic units', 'Organic sales', 'Organic %', 'ACoS %', 'TACoS %', 'vs prev %']);
+    head = ['ASIN', 'Title'].concat(sku ? ['SKU'] : []).concat(['Sessions', 'Total orders', 'Units', 'Sales', 'Ad spend', 'Ad sales', 'Ad orders', 'Ad units',
+      'Clicks', 'Conv. rate %', 'Organic units', 'Organic sales', 'Organic %', 'ACoS %', 'TACoS %', 'vs prev %']);
     rows = list.map(e => { const s = e.st; return [e.key, e.title].concat(sku ? [e.sku] : [])
-      .concat([num(s.o, 0), num(s.u, 0), num(s.rev, 2), num(s.spend, 2), num(s.adSales, 2), num(s.adO, 0), num(s.adU, 0),
-        num(s.ou, 0), num(s.os, 2), num(s.op, 1), num(s.acos, 1), num(s.tacos, 1), num(s.vp, 1)]); });
+      .concat([num(s.se, 0), num(s.o, 0), num(s.u, 0), num(s.rev, 2), num(s.spend, 2), num(s.adSales, 2), num(s.adO, 0), num(s.adU, 0),
+        num(s.cl, 0), num(s.cr, 1), num(s.ou, 0), num(s.os, 2), num(s.op, 1), num(s.acos, 1), num(s.tacos, 1), num(s.vp, 1)]); });
   }
   const csv = [head].concat(rows).map(r => r.map(q).join(',')).join('\n');
   const a = document.createElement('a');
@@ -17222,6 +17260,7 @@ function pxWire() {
     if (d.pxcard) { PX.mode = 'range'; PX.dkey = d.pxcard; PX.pop = null; if (PX.sk.startsWith('c:') || PX.sk === 'chg') PX.sk = 'rev'; return go(true); }
     if (d.pxchip) { PX.chip = d.pxchip; PX.show = PX_PAGE; return go(); }
     if (d.pxopen) { const k = d.pxopen; PX.open.has(k) ? PX.open.delete(k) : PX.open.add(k); return go(); }
+    if (d.pxset) { const s = PX_SETS.find(x => x[0] === d.pxset); PX.hide = s && s[2] ? PX_RCOLS.map(x => x[0]).filter(k => !s[2].includes(k)) : []; PX.pop = null; return go(true); }
     if (d.pxkn) { const cut = d.pxkn.lastIndexOf('|'); PX.kidN[d.pxkn.slice(0, cut)] = +d.pxkn.slice(cut + 1); return go(); }
     if (d.pxm) { PX.metric = d.pxm; if (PX.sk.startsWith('c:') || PX.sk === 'chg') PX.sk = 'rev'; return go(true); }
     if (d.pxsort) {
