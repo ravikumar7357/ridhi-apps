@@ -301,10 +301,19 @@ const sent = () => JSON.stringify(calls.map(c => c.body));
 {
   const s = setup({ SEARCH: 'parked' }), admin = await token({ email: 'ravi@x.com' });
   const cfg = await s.call('/config', { method: 'GET' });
-  ok(cfg.status === 200 && cfg.body.search === false && cfg.body.ai === true && cfg.body.meera === true, 'parked: /config says search off, AI and Meera on');
-  ok((await s.call('/search', { body: { q: 'how to give job work', screen: 'pbase', lang: 'en' } })).status === 503, 'parked: /search refuses (503), so the browser searches as before');
+  ok(cfg.status === 200 && cfg.body.search === true && cfg.body.ai === true && cfg.body.meera === true, 'parked: /config gives the admin switches (search = her search on Cloud Functions)');
+  ok((await s.call('/search', { body: { q: 'how to give job work', screen: 'pbase', lang: 'en' } })).status === 503, 'parked: the router\'s own /search refuses (503)');
+  await s.call('/admin/config', { tok: admin, body: { key: 'search', value: 'off' } });
+  ok((await s.call('/config', { method: 'GET' })).body.search === false, 'an admin can switch her search on the server off for everyone (no deploy)');
   await s.call('/admin/config', { tok: admin, body: { key: 'search', value: 'on' } });
-  ok((await s.call('/config', { method: 'GET' })).body.search === false, 'parked: an admin switching search on does not start it');
+  ok((await s.call('/search', { body: { q: 'how to give job work', screen: 'pbase', lang: 'en' } })).status === 503, 'parked: switched on, the router itself still does not search');
+  /* side by side with her search on Cloud Functions (D.2) */
+  const d1r = await s.call('/diff', { body: { q: 'Ramesh Kumar ko kaam kaise de', names: ['Ramesh Kumar'], screen: 'pbase', browser: [{ id: 'pr-jw-issue', s: 0.9 }], server: [{ id: 'pr-jw-issue', s: 0.91 }] } });
+  const d2r = await s.call('/diff', { body: { q: 'packing list kya hai', screen: 'pack', browser: [{ id: 'a', s: 0.9 }], server: [{ id: 'b', s: 0.9 }] } });
+  ok(d1r.status === 200 && d1r.body.same === true && d2r.body.same === false, '/diff keeps whether the two agreed');
+  const view = await s.call('/admin/search', { method: 'GET', tok: admin });
+  ok(view.body.asked === 2 && view.body.same === 1 && !JSON.stringify(view.body).includes('Ramesh'), 'the comparison is counted, with names cleaned out');
+  ok((await s.call('/diff', { tok: null, body: { q: 'x' } })).status === 401, '/diff only for signed-in staff');
   ok((await s.call('/learn', { body: { kind: 'missed', q: 'packing list kya hai', screen: 'pack' } })).status === 200, 'parked: learning records still kept');
   ok((await s.call('/ask', { body: { q: 'how do i give job work', lang: 'en', screen: 'pbase' } })).status === 200, 'parked: AI answers still work');
   const { default: free } = await import('../src/free.js');

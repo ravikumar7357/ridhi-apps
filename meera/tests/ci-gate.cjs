@@ -54,6 +54,7 @@ const CHECKS = [
   { name: 'her answers are well-formed', cmd: ['meera/tests/answers-check.cjs'], fix: 'fix the answers named above in Replenish-App/public/guide/' },
   { name: 'guide-errors is up to date with the screens', cmd: ['meera/tools/make-errors.cjs', '--check'], fix: 'run: node meera/tools/make-errors.cjs, then her gate, and commit meera/client/src/legacy/guide-errors.ts', warnOnly: true },
   { name: 'her router\'s tests', cmd: ['meera/router/test/router.test.mjs'], fix: 'a router test failed (see the FAIL lines)' },
+  { name: 'her search on Cloud Functions (D.2): same answers as her browser, only the ERP may ask, keeps nothing, at most 2 instances', cmd: ['meera/functions/test/service.test.mjs'], fix: 'a check of meera/functions failed (see the FAIL lines)' },
   { name: 'the page and the router clean questions alike', cmd: ['meera/router/test/same-cleaning.test.mjs'], fix: 'gaClean (guide-ai.ts) and clean (meera/router/src/redact.js) must change together' },
   { name: 'privacy: nothing personal is kept or sent', cmd: ['meera/tools/phase4-privacy.mjs'], fix: 'a privacy check failed (see the FAIL lines) — never ship this' },
   { name: 'figures answers (Phase 7): right on the sample factory, rights kept, read only', cmd: ['meera/tests/data-test.cjs'], fix: 'a Phase 7 check failed (see the FAIL lines) — never ship a save, a read or a figure shown without the right' },

@@ -27,14 +27,17 @@ const srvClean = (q: string): string => String(q || '').slice(0, 500)
   .replace(/\b\d{2}[A-Z]{5}\d{4}[A-Z][A-Z\d]Z[A-Z\d]\b/gi, '[TAX-ID]').replace(/\b[A-Z]{5}\d{4}[A-Z]\b/gi, '[TAX-ID]')
   .replace(/\+?\d[\d\s-]{8,}\d/g, (m, at: number, all: string) => (m.replace(/\D/g, '').length >= 10 && !/[A-Z]-?$/i.test(all.slice(Math.max(0, at - 4), at)) ? '[PHONE]' : m))   // AMZ-01092026-01 is an order, not a phone
   .replace(/(?:₹|\brs\.?|\binr)\s*\d[\d,]*(?:\.\d+)?|\b\d[\d,]*(?:\.\d+)?\s*(?:\/-|₹|(?:rs|inr|rupees?|rupaye|rupay|rupiya|rupiye)\b\.?)/gi, '[AMOUNT]');
-async function srvCall(path: string, body: object | null, ms: number): Promise<{ status: number; body: any }> {
-  if (!GA_AI_URL) return { status: 0, body: {} };
+/* where her search runs (master plan D.2): her search on Firebase Cloud Functions (config.ts searchUrl); her router
+ * (GA_AI_URL) keeps the AI, the learning records, her switches and the side-by-side records */
+const srvSearchBase = (): string => MEERA_CONFIG.searchUrl || GA_AI_URL;
+async function srvCall(path: string, body: object | null, ms: number, base: string = GA_AI_URL): Promise<{ status: number; body: any }> {
+  if (!base) return { status: 0, body: {} };
   const tok = await ERP_MEERA.token();
   if (!tok) return { status: 0, body: {} };
   const ctl = typeof AbortController === 'function' ? new AbortController() : null;
   const t = setTimeout(() => { try { ctl && ctl.abort(); } catch (e) { /* gone */ } }, ms);
   try {
-    const r = await fetch(GA_AI_URL.replace(/\/$/, '') + path, { method: body ? 'POST' : 'GET', signal: ctl ? ctl.signal : undefined,
+    const r = await fetch(base.replace(/\/$/, '') + path, { method: body ? 'POST' : 'GET', signal: ctl ? ctl.signal : undefined,
       headers: { authorization: 'Bearer ' + tok, 'content-type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
     let j: any = {};
     try { j = await r.json(); } catch (e) { /* not JSON */ }
@@ -43,17 +46,31 @@ async function srvCall(path: string, body: object | null, ms: number): Promise<{
 }
 function srvAsk(q: string, extra: object): Promise<{ status: number; body: any }> {
   const u = ERP_MEERA.user();
-  return srvCall('/search', { q: srvClean(q), screen: gaHere(), lang: gaRead(q).lang, spell: meeraOn('spell'), names: gaNames(), tabs: u.tabs, admin: u.admin, ...extra }, MEERA_CONFIG.routerWaitMs);
+  return srvCall('/search', { q: srvClean(q), screen: gaHere(), lang: gaRead(q).lang, spell: meeraOn('spell'), names: gaNames(), tabs: u.tabs, admin: u.admin, ...extra },
+    MEERA_CONFIG.searchUrl ? MEERA_CONFIG.searchWaitMs : MEERA_CONFIG.routerWaitMs, srvSearchBase());
+}
+/** Ask Meera opened (guide-ask.ts): her search on the server starts while the person types — a cold start is hidden.
+ * Only with "server" or "serveruse" on; at most every 5 minutes; nothing is waited for or sent but the call itself. */
+let SRV_WOKE = 0;
+function meeraServerWake(): void {
+  if (!(MEERA_SIDE || MEERA_REMOTE) || !MEERA_CONFIG.searchUrl || Date.now() - SRV_WOKE < 5 * 60e3) return;
+  SRV_WOKE = Date.now();
+  try { fetch(MEERA_CONFIG.searchUrl.replace(/\/$/, '') + '/wake').catch(() => { /* asleep: her own copy answers */ }); } catch (e) { /* no network */ }
 }
 
 /* ---------- side by side ---------- */
-/** after each answer: the router's search on the same question, with the browser's own top answers to compare */
+/** after each answer: her search on the server on the same question; the two top answers go to her router, which keeps
+ * whether they agree (the question cleaned again there) — for "Meera's learning → Switches" */
 function meeraServerAfter(q: string): void {
   if (!MEERA_SIDE || MEERA_REMOTE) return;
   try {
     const cq = srvClean(q);
     const mine = gaSpellFind(cq).slice(0, 3).map(h => ({ id: h.e.id, s: Math.round(h.s * 10000) / 10000 }));
-    srvAsk(q, { compare: mine });   // not waited for: the person already has her answer
+    srvAsk(q, MEERA_CONFIG.searchUrl ? {} : { compare: mine }).then(r => {   // not waited for: the person already has her answer
+      if (!MEERA_CONFIG.searchUrl || r.status !== 200 || !Array.isArray(r.body.hits)) return;
+      const server = r.body.hits.slice(0, 3).map((h: any) => ({ id: h.id, s: h.s }));
+      srvCall('/diff', { q: cq, names: gaNames(), screen: gaHere(), spell: meeraOn('spell'), browser: mine, server }, MEERA_CONFIG.routerWaitMs);
+    }, () => { /* skipped */ });
   } catch (e) { /* the comparison is skipped */ }
 }
 

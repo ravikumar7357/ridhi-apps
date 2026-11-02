@@ -39,4 +39,8 @@ const MEERA_CONFIG = {
   nudgeIdleMs: 75000,     // "Stuck?" — offered after this long with nothing done on a half-filled form
   readyLineMs: 20000,     // her new look's "Getting ready…" line, never longer than this
   routerWaitMs: 4000,     // a search or a switch read from her router (Phase 5)
+  /* her search on Firebase Cloud Functions (master plan D.2; asia-south1, max 2 instances, none warm) — used only with the
+   * switches "server" / "serveruse"; '' = her router, as before */
+  searchUrl: 'https://asia-south1-price-research-48ff3.cloudfunctions.net/meeraSearch',
+  searchWaitMs: 4000,     // a cold start is ~2 s (woken when Ask opens); longer than this: her own copy answers
 };

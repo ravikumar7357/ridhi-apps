@@ -103,14 +103,28 @@ export async function handle(req, env, deps = {}) {
   const cfg = await db.config();
   /* SEARCH PARKED (Ravi, 2 Nov: no Workers Paid — free plan): with SEARCH = "parked" (wrangler.toml) search is off whatever
    * the admin switch says; it needs 27–53 ms a question and the free plan allows 10 ms. Everything else is as before. */
-  const isOn = k => (k === 'search' && env.SEARCH === 'parked' ? false : cfg[k] !== 'off');
+  const isOn = k => cfg[k] !== 'off';
+  /* "search" is the admin's switch for her search ON THE SERVER — since D.2 that runs on Firebase Cloud Functions; the
+   * router's own search stays parked (below) */
   if (url.pathname === '/config' && req.method === 'GET') return reply({ meera: isOn('meera'), ai: isOn('ai'), search: isOn('search'), kbVersion: cfg.kb_version || '0' }, 200, h);
+
+  /* ---- SIDE BY SIDE with her search on Cloud Functions (D.2): the browser's and the function's top answers; kept with the
+   * question cleaned again here, for "Meera's learning → Switches" ("… of … the same") ---- */
+  if (url.pathname === '/diff' && req.method === 'POST') {
+    const top = l => (Array.isArray(l) ? l : []).slice(0, 3).map(x => ({ id: String((x && x.id) || '').slice(0, 80), s: +(x && x.s) || 0 }));
+    const mine = top(body.browser), srv = top(body.server);
+    const same = (mine[0] && srv[0] ? mine[0].id === srv[0].id : !mine[0] && !srv[0]) && sure(mine) === sure(srv);
+    const list = l => l.map(x => x.id + ':' + (+x.s).toFixed(3)).join(',');
+    if (now - DIFF_PURGED > 3600e3) { DIFF_PURGED = now; try { await db.diffPurge(now); } catch (e) { /* next time */ } }
+    await db.diffAdd({ question: clean(body.q, names), screen, spell: !!body.spell, browser: list(mine), server: list(srv), same }, now);
+    return reply({ ok: true, same }, 200, h);
+  }
 
   /* ---- SEARCH ON THE SERVER (Phase 5): her own search (search.js), on her answers in D1 ----
    * The question arrives with phone numbers, order numbers, amounts and emails already taken out by the browser; it is
    * never kept as asked. Side by side ("compare": the browser's own top answers): both are kept, the question cleaned. */
   if (url.pathname === '/search' && req.method === 'POST') {
-    if (!isOn('search')) return reply({ error: 'search-off' }, 503, h);
+    if (!isOn('search') || env.SEARCH === 'parked') return reply({ error: env.SEARCH === 'parked' ? 'search-parked' : 'search-off' }, 503, h);
     const E = await engine(db, deps.words || WORDS, cfg.kb_version || '0');
     const r = search(E, body);
     if (Array.isArray(body.compare)) {

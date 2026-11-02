@@ -1271,6 +1271,7 @@ function guideAskBuild() {
 }
 function guideAskOpen(q?) {
   guideAskBuild();
+  if (typeof meeraServerWake === 'function') meeraServerWake();   // D.2: her search on the server starts while the person types
   if (GUIDE.tour && GUIDE.tour.kind !== 'task') guideClose();   // a walk-round gives way to a question; a task guide stays
   $('gdAsk').classList.remove('hide');
   if ($('gdLaunch')) $('gdLaunch').classList.add('hide');   // the box opens where the launcher sits

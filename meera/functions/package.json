@@ -1,0 +1,9 @@
+{
+  "name": "meera-functions",
+  "private": true,
+  "description": "Meera's search on Firebase Cloud Functions (asia-south1, max 2 instances, none kept warm). Deployed by hand: meera/firebase/README.md",
+  "type": "module",
+  "main": "index.js",
+  "engines": { "node": "22" },
+  "dependencies": { "firebase-functions": "6.4.0" }
+}
