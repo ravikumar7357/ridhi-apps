@@ -558,7 +558,7 @@ function itemRow(o, i, opt) {
   return `<div class="od-item ${open ? 'open' : ''}">
     <div class="od-row">${ph}<div class="od-it"><div class="n">${esc(it.t)}</div><div class="s-sm s-muted">${esc(sub)}</div></div>
       <span class="od-q"><span class="s-muted s-sm">${money(it.price)}</span> ${qtyText(it)}</span>${opt.end || '<span></span>'}</div>
-    <div class="od-l2">${chips.join('')}<button class="s-link od-more" type="button" data-row="${i}" aria-expanded="${open}">${open ? 'Hide details' : 'Details'}</button></div>
+    <div class="od-l2">${chips.join('')}<span class="od-l2r"><button class="s-link od-more" type="button" data-row="${i}" aria-expanded="${open}">${open ? 'Hide details' : 'Details'}</button>${opt.more || ''}</span></div>
     ${open ? `<div class="od-drawer">
       ${waiting && it.q > 1 ? `<label>Send qty<input type="number" min="0" max="${it.q}" step="1" value="${J.sendQty(it)}" data-lf="sq" data-i="${i}"></label>` : `<label>Send qty<input value="${J.sendQty(it)} of ${it.q}" disabled></label>`}
       <label>Shelf<input list="shelves" value="${esc(it.shelf || '')}" placeholder="${esc((e && e.shelf) || 'bin')}" data-lf="shelf" data-i="${i}"></label>
@@ -569,11 +569,18 @@ function itemRow(o, i, opt) {
 }
 /* The item's quiet menu: move it to another card (only where the stock left for it allows), the ERP's out-of-stock
  * mark, its send quantity, or not sending it at all. */
-const itemMenu = (o, i, s, a) => { const it = o.items[i], to = SECTIONS.filter(x => x.k !== s.k && x.can(it, a));
-  return `<select class="od-move" data-move="${i}" aria-label="Change ${esc(it.t)}"><option value="">Change…</option>
-    ${to.map(x => `<option value="to:${x.k}">Move to ${x.name}</option>`).join('')}
-    <option value="oos:${it.oos ? 0 : 1}">${it.oos ? 'Clear out of stock' : 'Mark out of stock'}</option>
-    ${it.q > 1 ? '<option value="sq">Send quantity…</option>' : ''}<option value="sq:0">Don't send this item</option></select>`; };
+/* Ravi, 2 Nov: the "Change…" menu was hard to read. The line stays clean: only when another card's stock can take the
+ * item is there a quiet "Move to MCF →" (or India / Production) link — nothing when there is no choice. The rare things
+ * (out of stock, send fewer, don't send) sit behind a small ⋯ beside Details. */
+const itemMove = (o, i, s, a) => { const it = o.items[i], to = SECTIONS.filter(x => x.k !== s.k && x.k !== 'make' && x.can(it, a));
+  return to.length ? `<span class="od-mvs">${to.map(x => `<button class="s-link od-mv" type="button" data-mv="${i}|${x.k}" title="${esc(x.how)}">Move to ${x.name} →</button>`).join('')}</span>` : '<span></span>'; };
+/* Production can always take an item, so "make it instead" lives in the ⋯, not on the line. */
+const itemMore = (o, i, s) => { const it = o.items[i];
+  return `<details class="s-moremenu od-itmore"><summary title="More for this item" aria-label="More for this item">⋯</summary><div class="s-menu">
+      ${s && s.k !== 'make' ? `<button class="s-btn ghost" type="button" data-mv="${i}|make">Make it in production instead</button>` : ''}
+      <button class="s-btn ghost" type="button" data-im="${i}|oos:${it.oos ? 0 : 1}">${it.oos ? 'Clear "out of stock"' : 'Mark out of stock'}</button>
+      ${it.q > 1 ? `<button class="s-btn ghost" type="button" data-im="${i}|sq">Send fewer than ${it.q}…</button>` : ''}
+      <button class="s-btn ghost" type="button" data-im="${i}|sq:0">Don't send this item</button></div></details>`; };
 function linesCard(o) {
   const u = undecided(o), off0 = o.items.map((it, i) => i).filter(i => o.items[i].pk == null && !J.sendQty(o.items[i]));
   if (o.cancelled) return `<div id="lines" class="od-plan"><section class="od-card"><header class="od-h"><span class="od-badge b-bad">Cancelled in Shopify</span><span class="s-muted s-sm">nothing on this order is sent — parts already on their way are shown below</span></header></section></div>`;
@@ -590,7 +597,7 @@ function linesCard(o) {
     ${secs.map(({ s, lines }) => `<section class="od-card" id="pl-${s.k}">
       <header class="od-h"><span class="od-badge b-${s.k}">${s.name} · ${lines.length}</span><span class="s-muted s-sm">${s.how}</span>
         ${s.k === 'mcf' ? `<label class="od-auto s-sm" title="New orders whose items Amazon FBA has go to MCF by themselves"><input type="checkbox" data-automcf ${auto ? 'checked' : ''}> Auto-send</label>` : ''}</header>
-      ${lines.map(i => itemRow(o, i, { a: a(i), sec: s.k, end: itemMenu(o, i, s, a(i)) })).join('')}
+      ${lines.map(i => itemRow(o, i, { a: a(i), sec: s.k, end: itemMove(o, i, s, a(i)), more: itemMore(o, i, s) })).join('')}
       <footer class="od-f"><span class="s-sm ${s.k === 'mcf' ? '' : 's-muted'}">${s.k === 'mcf' ? mcfQuoteText(q) : s.foot}</span><button class="s-btn ${many ? 'ghost' : ''}" type="button" data-go="${s.k}"${lock}>${s.go}</button></footer></section>`).join('')}
     ${off0.length ? `<section class="od-card od-off" id="pl-off"><header class="od-h"><span class="od-badge">Not being sent · ${off0.length}</span><span class="s-muted s-sm">send quantity 0 — stays on the order, nothing goes out</span></header>
       ${off0.map(i => itemRow(o, i, { end: o.items[i].gone ? '<span class="s-sm s-muted">removed in Shopify</span>' : `<button class="s-link" type="button" data-sendagain="${i}">Send it again</button>` })).join('')}</section>` : ''}</div>`;
@@ -1776,16 +1783,15 @@ function render() {
         /* India items: picked now, and they wait in Bulk order for the next DHL / FedEx file. */
         if (k === 'mcf') mcfDlg(o, lines); else if (k === 'make') prodDlg(o, lines); else act('plan', { no: o.no, india: lines });
       });
-      page.querySelectorAll('[data-move]').forEach(sel => sel.addEventListener('change', () => {
-        const v = sel.value, i = +sel.dataset.move, it = o.items[i]; if (!v) return;
-        if (v.startsWith('to:')) { (CHOICE[o.no] || (CHOICE[o.no] = {}))[i] = v.slice(3); return render(); }
+      on('[data-mv]', b => { const [i, k] = b.dataset.mv.split('|'); (CHOICE[o.no] || (CHOICE[o.no] = {}))[i] = k; render(); });
+      on('[data-im]', b => {
+        const [is, v] = b.dataset.im.split('|'), i = +is, it = o.items[i];
         if (v.startsWith('oos:')) return act('lineSet', { no: o.no, i, oos: v === 'oos:1' });
         if (v === 'sq:0') return act('lineSet', { no: o.no, i, sq: 0 });
-        sel.value = '';
         dialog(`Send quantity · ${it.t}`, `<label>How many of the ${it.q} ordered go out<input id="sqN" type="number" min="1" max="${it.q}" step="1" value="${J.sendQty(it)}"></label>
           <span class="s-sm s-muted">The rest stay on the order and are not sent. Stock and the carrier files use this number.</span>`,
           '<button class="s-btn" type="button" id="go">Save</button>', () => $('go').addEventListener('click', () => act('lineSet', { no: o.no, i, sq: +$('sqN').value })));
-      }));
+      });
       on('[data-sendagain]', b => act('lineSet', { no: o.no, i: +b.dataset.sendagain, sq: o.items[+b.dataset.sendagain].q }));
       /* Details: open / close an item's fields; each field saves when it is changed. */
       on('[data-row]', b => { const k = o.no + '|' + b.dataset.row; OPEN_ROW.has(k) ? OPEN_ROW.delete(k) : OPEN_ROW.add(k); render(); });

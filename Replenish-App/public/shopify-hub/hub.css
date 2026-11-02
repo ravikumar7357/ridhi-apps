@@ -305,6 +305,15 @@ button.od-cp:hover{background:var(--chip);color:var(--ink)}
 .s-ofoot .od-nav{display:flex;align-items:center;gap:6px;margin-right:auto}
 .s-ofoot > .s-muted{margin-right:0}
 @media (max-width:760px){ .od-prog li{font-size:10px} .s-ofoot{flex-wrap:wrap} }
+/* A clean item line (Ravi, 2 Nov): "Move to MCF →" only when that stock can take it; the rest behind ⋯ beside Details */
+.od-mvs{display:flex;flex-direction:column;align-items:flex-end;gap:2px}
+button.od-mv{font-size:12.5px;font-weight:700;white-space:nowrap}
+.od-l2r{margin-left:auto;display:inline-flex;align-items:center;gap:4px}
+.od-l2r .od-more{margin-left:0}
+.od-itmore > summary{height:24px;width:26px;display:grid;place-items:center;border-radius:6px;color:var(--muted);font-size:16px;font-weight:800;line-height:1}
+.od-itmore > summary:hover,.od-itmore[open] > summary{background:var(--chip);color:var(--ink)}
+.od-itmore .s-menu{min-width:240px}
+@media (max-width:600px){ .od-row .od-mvs{grid-column:2 / -1;align-items:flex-start} }
 
 @media (max-width:1050px){ .s-pbody{grid-template-columns:1fr} .s-pbody > div + div{border-left:0;border-top:1px solid var(--line)} .c-grid{grid-template-columns:1fr} .c-pick{position:static} .c-list{max-height:280px} .c-more{grid-template-columns:repeat(2,minmax(0,1fr))} }
 @media (max-width:760px){
