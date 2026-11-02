@@ -1,3 +1,12 @@
+/* ================= LISTING · IMAGE MANAGER: every listing's pictures — the list of the whole brand, and the editor for one stack =================
+ * Screens: Image Manager (tab 'img'): the list (parent → child tiles with live pictures, swatch, chips and filters) and the
+ *          editor (one listing's MAIN / PT01–PT08 / SWATCH: reorder, upload, paste, check and send to Amazon). Listing Errors
+ *          and Listing Health read the saved list snapshot too (IML, imgsnap / imgrows).
+ * Does: imListLoad / imListBuild keep the brand snapshot; imListGroups and the im* checks drive the chips; imListRender draws
+ *       the page; imLoad / imRender / imSwap edit one stack; imUpload / imSend check and apply through imPost (the app's one
+ *       POST to the backend); the clipboard copies one stack into one or many listings.
+ * Main functions: imMsg, imEsc, imPost, imListEnsure, imListLoad, imListBuild, imListGroups, imKidRow, imTile, imListRender,
+ *                 imLoad, imRender, imSwap, imUpload, imSend, imHistory, imClipTake, imClipSave, imPasteMany, imWire. */
 /* ================= IMAGE MANAGER =================
  *
  * Sellora → Listing → Image Manager. Two screens in one tab:
@@ -38,59 +47,92 @@ let IM = null;          // what the backend answered
 let IM_START = {};      // slot -> url the stack started from
 let IM_NOW = {};        // slot -> url as edited (MAIN..PT08 + SWCH)
 let IM_DIMS = {};       // url -> {w,h}, measured in the browser
-let IM_DRAG = '';
+let IM_DRAG = '';       // the slot being dragged in the editor
 let IM_RESULT = '';     // the last answer from Amazon, kept across redraws
 
-let IM_SKU_CHOICES = null;
+let IM_SKU_CHOICES = null;   // the SKUs a typed search matched, while the person picks one
 
-let IM_FILE_SLOT = '';
+let IM_FILE_SLOT = '';  // the slot a chosen file goes into
 
 const IML = {};                 // brand -> {at, items}
-let IML_DIRTY = false, IML_PAGE = 0, IML_BUSY = false;
+let IML_DIRTY = false;          // the snapshot changed since it was drawn
+let IML_PAGE = 0;               // page of the list on screen (0-based)
+let IML_BUSY = false;           // a rebuild from Amazon is running
 const IML_PER = 40;             // listings per screen
-const IML_CHUNK = 500;
+const IML_CHUNK = 500;          // listings per Firestore chunk doc
 let IML_VIEW = 'mine';          // which picture a tile shows first: ours, or what Amazon serves
 let IM_OWNER = new Map();       // image file -> the listing of ours that submitted it
 
 let IM_CLIP = null;     // { brand, sku, asin, c, z, slots: {MAIN..PT08, SWCH}, n }
 const IM_SEL = new Set();   // SKUs ticked in the list, for pasting into several at once
-try { IM_CLIP = JSON.parse(localStorage.getItem('sellora.imgclip') || 'null'); } catch (e) { IM_CLIP = null; }
+try {
+  IM_CLIP = JSON.parse(localStorage.getItem('sellora.imgclip') || 'null');
+} catch (e) {
+  IM_CLIP = null;
+}
 
 /* ============================================================================================
  * 2. HELPERS — small functions used everywhere
  * imPost is the only POST to the backend (patch, upload). GETs go through baCall (brand-analytics.js).
  */
 
-function imMsg(t, bad) { const el = $('imMsg'); if (el) { el.textContent = t || ''; el.className = bad ? 'err' : 'muted'; } }
-const imEsc = s => String(s == null ? '' : s).replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
+// Status line under the toolbar: red for an error, grey otherwise. Does nothing if the pane is not on the page.
+function imMsg(text, bad) {
+  const el = $('imMsg');
+  if (el) {
+    el.textContent = text || '';
+    el.className = bad ? 'err' : 'muted';
+  }
+}
+// HTML-escape for everything this tab prints.
+const imEsc = str => String(str == null ? '' : str).replace(/[<>&"]/g, ch => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[ch]));
 
+// POST to the backend: the write key and the signed-in person's token go with the body; the answer is parsed as JSON.
 async function imPost(body) {
   if (!API || !API.url) throw new Error('Backend not configured — ' + (API_ERR || 'config/api was not read'));
   // text/plain keeps it a simple request: Apps Script cannot answer a CORS preflight.
   /* A write carries its own key (config/api writeKey, once set) and the signed-in person's token (2026-10-17). */
   let idToken = '';
-  try { if (auth.currentUser) idToken = await auth.currentUser.getIdToken(); } catch (e) { /* the backend says so if it needs it */ }
-  const r = await fetch(API.url, { method: 'POST', headers: { 'Content-Type': 'text/plain' },
+  try {
+    if (auth.currentUser) idToken = await auth.currentUser.getIdToken();
+  } catch (e) { /* the backend says so if it needs it */ }
+  const res = await fetch(API.url, { method: 'POST', headers: { 'Content-Type': 'text/plain' },
     body: JSON.stringify(Object.assign({ key: API.writeKey || API.key, idToken }, body)), redirect: 'follow' });
-  const text = await r.text();
-  try { return JSON.parse(text); } catch (e) { throw new Error('The backend did not answer with data: ' + text.slice(0, 120)); }
+  const text = await res.text();
+  try {
+    return JSON.parse(text);
+  } catch (e) {
+    throw new Error('The backend did not answer with data: ' + text.slice(0, 120));
+  }
 }
 
-const IM_PFX = 'https://m.media-amazon.com/images/I/';
-const imPackUrl = u => !u ? '' : (u.startsWith(IM_PFX) ? u.slice(IM_PFX.length) : u);
-const imUnUrl = u => !u ? '' : (/^https?:/.test(u) ? u : IM_PFX + u);
-const imPackMap = m => { const o = {}; Object.keys(m || {}).forEach(k => { o[k] = imPackUrl(m[k]); }); return o; };
-const imUnMap = m => { const o = {}; Object.keys(m || {}).forEach(k => { o[k] = imUnUrl(m[k]); }); return o; };
+const IM_PFX = 'https://m.media-amazon.com/images/I/';   // Amazon's image host; the snapshot stores only what follows it
+// Store an Amazon image URL as just its file name; put the prefix back when reading.
+const imPackUrl = url => !url ? '' : (url.startsWith(IM_PFX) ? url.slice(IM_PFX.length) : url);
+const imUnUrl = url => !url ? '' : (/^https?:/.test(url) ? url : IM_PFX + url);
+// The same for a whole { slot: url } map.
+const imPackMap = map => {
+  const out = {};
+  Object.keys(map || {}).forEach(key => { out[key] = imPackUrl(map[key]); });
+  return out;
+};
+const imUnMap = map => {
+  const out = {};
+  Object.keys(map || {}).forEach(key => { out[key] = imUnUrl(map[key]); });
+  return out;
+};
 /* Amazon serves any size of its own pictures from the same name: `._SL120_` asks for 120px, which is
  * what a 58px tile needs — the full 2,000px file for thousands of tiles would stall the page. */
-const imThumb = u => /m\.media-amazon\.com\/images\/I\/[^/]+\.(jpg|png)$/i.test(u) ? u.replace(/\.(jpg|png)$/i, '._SL120_.$1') : u;
+const imThumb = url => /m\.media-amazon\.com\/images\/I\/[^/]+\.(jpg|png)$/i.test(url) ? url.replace(/\.(jpg|png)$/i, '._SL120_.$1') : url;
 
 /* ============================================================================================
  * 3. SWITCHING VIEWS — tab entry, list ⇄ editor
  */
 
+// First visit to the tab (called from showTab).
 function ensureImg() { imListEnsure(); }
 
+// Show the editor (true) or the list (false).
 function imShowEditor(on) {
   $('imEditWrap').classList.toggle('hide', !on);
   $('imListWrap').classList.toggle('hide', on);
@@ -112,77 +154,102 @@ function imShowEditor(on) {
  * walk that was 77 of 800 Ridhi listings, so it is a filter of its own.
  */
 
+// Make sure the brand's snapshot is loaded and drawn; rebuild it from Amazon when there is none or it is a day old.
 async function imListEnsure() {
-  const b = $('imBrand').value;
-  if (!(b in IML)) await imListLoad(b);
-  if (!IML[b] || !IML[b].items.length) { imListRender(); if (!IML_BUSY) imListBuild(b); return; }
+  const brand = $('imBrand').value;
+  if (!(brand in IML)) await imListLoad(brand);
+  if (!IML[brand] || !IML[brand].items.length) {
+    imListRender();
+    if (!IML_BUSY) imListBuild(brand);
+    return;
+  }
   imListRender();
-  const age = IML[b].at ? Date.now() - IML[b].at.getTime() : Infinity;
-  if (age > 24 * 3600e3 && !IML_BUSY) imListBuild(b);
+  const age = IML[brand].at ? Date.now() - IML[brand].at.getTime() : Infinity;
+  if (age > 24 * 3600e3 && !IML_BUSY) imListBuild(brand);
 }
 
-async function imListLoad(b) {
+// Read one brand's saved snapshot (imgsnap/{brand} + its imgrows chunks) into IML[brand], URLs unpacked.
+async function imListLoad(brand) {
   try {
-    const m = await getDoc(doc(db, 'imgsnap', b));
-    if (!m.exists()) { IML[b] = null; return; }
-    const d = m.data(), n = d.chunks || 0;
-    const got = await Promise.all(Array.from({ length: n }, (_, i) => getDoc(doc(db, 'imgrows', b + '_' + i))));
+    const meta = await getDoc(doc(db, 'imgsnap', brand));
+    if (!meta.exists()) {
+      IML[brand] = null;
+      return;
+    }
+    const data = meta.data();
+    const nChunks = data.chunks || 0;
+    const got = await Promise.all(Array.from({ length: nChunks }, (_, i) => getDoc(doc(db, 'imgrows', brand + '_' + i))));
     let items = [];
-    got.forEach(g => { if (g.exists()) items = items.concat(g.data().r || []); });
-    IML[b] = { at: d.at && d.at.toDate ? d.at.toDate() : null,
-      items: items.map(x => Object.assign({}, x, { live: imUnMap(x.live), img: imUnMap(x.img) })) };
+    got.forEach(chunk => {
+      if (chunk.exists()) items = items.concat(chunk.data().r || []);
+    });
+    IML[brand] = { at: data.at && data.at.toDate ? data.at.toDate() : null,
+      items: items.map(item => Object.assign({}, item, { live: imUnMap(item.live), img: imUnMap(item.img) })) };
   } catch (e) {
-    IML[b] = null;
+    IML[brand] = null;
     imMsg('Could not read the saved snapshot: ' + (e.message || e), true);
   }
 }
 
-async function imListBuild(b) {
+// Rebuild one brand's snapshot from Amazon: count listings per created-date window, page through each, save in chunks.
+async function imListBuild(brandKey) {
   if (IML_BUSY) return;
-  IML_BUSY = true; $('imRefresh').disabled = true;
-  const name = b === 'CPC' ? 'CPC' : 'Ridhi';
+  IML_BUSY = true;
+  $('imRefresh').disabled = true;
+  const name = brandKey === 'CPC' ? 'CPC' : 'Ridhi';
   let items = [];
   try {
+    // --- windows small enough for Amazon's 1,000 cap ---
     /* AMAZON STOPS ONE SEARCH AT 1,000 LISTINGS (both brands came back as exactly 1,000 on 9 Oct).
      * So the catalogue is read in created-date windows, halved until each holds fewer. */
-    const iso = t => new Date(t).toISOString();
-    const wins = [], todo = [[Date.parse('2010-01-01T00:00:00Z'), Date.now() + 864e5]];
+    const iso = ms => new Date(ms).toISOString();
+    const wins = [];
+    const todo = [[Date.parse('2010-01-01T00:00:00Z'), Date.now() + 864e5]];
     imMsg('Counting ' + name + ' listings…');
     while (todo.length) {
-      const [a, z] = todo.shift();
-      const n = (await baCall({ limg: 'page', brand: b, count: 1, after: iso(a), before: iso(z) })).total || 0;
-      if (!n) continue;
-      if (n > 990 && z - a > 60e3) { const m = Math.floor((a + z) / 2); todo.unshift([a, m], [m, z]); continue; }
-      wins.push([a, z]);
+      const [from, to] = todo.shift();
+      const total = (await baCall({ limg: 'page', brand: brandKey, count: 1, after: iso(from), before: iso(to) })).total || 0;
+      if (!total) continue;
+      if (total > 990 && to - from > 60e3) {
+        const mid = Math.floor((from + to) / 2);
+        todo.unshift([from, mid], [mid, to]);
+        continue;
+      }
+      wins.push([from, to]);
     }
-    for (const [a, z] of wins) {
+    // --- read every window, page by page ---
+    for (const [from, to] of wins) {
       let token = '';
       do {
         imMsg('Reading ' + name + ' listings from Amazon… ' + items.length);
-        const r = await baCall({ limg: 'page', brand: b, token, pages: 40, after: iso(a), before: iso(z) });
-        items = items.concat(r.items || []);
-        token = r.next || '';
+        const reply = await baCall({ limg: 'page', brand: brandKey, token, pages: 40, after: iso(from), before: iso(to) });
+        items = items.concat(reply.items || []);
+        token = reply.next || '';
       } while (token);
     }
+    // --- one entry per SKU, URLs packed, empty fields dropped, saved in chunks ---
     const seen = new Set();
-    items = items.filter(x => !seen.has(x.sku) && seen.add(x.sku));
-    const packed = items.map(x => {
-      const o = Object.assign({}, x, { live: imPackMap(x.live), img: imPackMap(x.img) });
-      delete o.main;
-      Object.keys(o).forEach(k => { if (o[k] === undefined || o[k] === '') delete o[k]; });
-      return o;
+    items = items.filter(item => !seen.has(item.sku) && seen.add(item.sku));
+    const packed = items.map(item => {
+      const copy = Object.assign({}, item, { live: imPackMap(item.live), img: imPackMap(item.img) });
+      delete copy.main;
+      Object.keys(copy).forEach(key => { if (copy[key] === undefined || copy[key] === '') delete copy[key]; });
+      return copy;
     });
     const chunks = Math.ceil(packed.length / IML_CHUNK) || 1;
-    for (let i = 0; i < chunks; i++) await setDoc(doc(db, 'imgrows', b + '_' + i), { r: packed.slice(i * IML_CHUNK, (i + 1) * IML_CHUNK) });
-    await setDoc(doc(db, 'imgsnap', b), { chunks, n: packed.length, at: serverTimestamp(), by: ME.email });
-    IML[b] = { at: new Date(), items };
+    for (let i = 0; i < chunks; i++) {
+      await setDoc(doc(db, 'imgrows', brandKey + '_' + i), { r: packed.slice(i * IML_CHUNK, (i + 1) * IML_CHUNK) });
+    }
+    await setDoc(doc(db, 'imgsnap', brandKey), { chunks, n: packed.length, at: serverTimestamp(), by: ME.email });
+    IML[brandKey] = { at: new Date(), items };
     imMsg('');
   } catch (e) {
     imMsg('Reading from Amazon stopped after ' + items.length + ' listings: ' + (e.message || e), true);
-    if (items.length && !IML[b]) IML[b] = { at: new Date(), items };
+    if (items.length && !IML[brandKey]) IML[brandKey] = { at: new Date(), items };
   }
-  IML_BUSY = false; $('imRefresh').disabled = false;
-  if ($('imBrand').value === b) imListRender();
+  IML_BUSY = false;
+  $('imRefresh').disabled = false;
+  if ($('imBrand').value === brandKey) imListRender();
 }
 
 /* ============================================================================================
@@ -192,18 +259,19 @@ async function imListBuild(b) {
  */
 
 /** Parents with their children; a listing with no parent is a group of its own. */
+// Returns [{ parent, kids, psku }], in the order the items came.
 function imListGroups(items) {
-  const bySku = new Map(items.map(x => [x.sku, x]));
+  const bySku = new Map(items.map(item => [item.sku, item]));
   const groups = new Map();
-  items.forEach(x => {
-    if (x.lvl === 'parent') {
-      if (!groups.has(x.sku)) groups.set(x.sku, { parent: x, kids: [], psku: x.sku });
-      else groups.get(x.sku).parent = x;
+  items.forEach(item => {
+    if (item.lvl === 'parent') {
+      if (!groups.has(item.sku)) groups.set(item.sku, { parent: item, kids: [], psku: item.sku });
+      else groups.get(item.sku).parent = item;
       return;
     }
-    const key = x.psku || ('solo:' + x.sku);
-    if (!groups.has(key)) groups.set(key, { parent: x.psku ? (bySku.get(x.psku) || null) : null, kids: [], psku: x.psku || '' });
-    groups.get(key).kids.push(x);
+    const key = item.psku || ('solo:' + item.sku);
+    if (!groups.has(key)) groups.set(key, { parent: item.psku ? (bySku.get(item.psku) || null) : null, kids: [], psku: item.psku || '' });
+    groups.get(key).kids.push(item);
   });
   return [...groups.values()];
 }
@@ -211,54 +279,59 @@ function imListGroups(items) {
 /** Every picture we submitted, and which listing submitted it — so a borrowed slot can be named. */
 function imOwnerBuild(items) {
   IM_OWNER = new Map();
-  items.forEach(x => IM_SLOTS.forEach(s => {
-    const u = (x.img || {})[s];
-    if (!u) return;
-    if (!IM_OWNER.has(u)) IM_OWNER.set(u, []);
-    IM_OWNER.get(u).push(x);
+  items.forEach(item => IM_SLOTS.forEach(slot => {
+    const url = (item.img || {})[slot];
+    if (!url) return;
+    if (!IM_OWNER.has(url)) IM_OWNER.set(url, []);
+    IM_OWNER.get(url).push(item);
   }));
 }
 
 /** The listing whose MAIN picture Amazon serves on THIS one in place of its own, if any.
  *  Several listings often share one picture, so a sibling under the same parent is named first. */
-function imHijack(x) {
-  const live = x.live || {}, img = x.img || {};
+function imHijack(item) {
+  const live = item.live || {};
+  const img = item.img || {};
   if (!live.MAIN || !img.MAIN || live.MAIN === img.MAIN) return null;
-  const own = (IM_OWNER.get(live.MAIN) || []).filter(o => o.sku !== x.sku);
+  const own = (IM_OWNER.get(live.MAIN) || []).filter(other => other.sku !== item.sku);
   if (!own.length) return null;
-  return own.find(o => x.psku && o.psku === x.psku) || own[0];
+  return own.find(other => item.psku && other.psku === item.psku) || own[0];
 }
 
 /* WHAT AMAZON ACTUALLY SAYS ABOUT THIS LISTING.
  * BUYABLE WITHOUT DISCOVERABLE IS A SUPPRESSED LISTING — it can still be bought from a direct link
  * and cannot be found in search. RTC203-6060 sat like that under a green "Buyable" chip here while
  * Seller Central said "Search suppressed", because the chip only tested /BUYABLE/. */
-function imState(x) {
-  const st = String(x.st || '').toUpperCase();
-  const buy = st.includes('BUYABLE'), disc = st.includes('DISCOVERABLE');
+// The status chip for one listing: { k: short key, label, fill, ink }.
+function imState(item) {
+  const status = String(item.st || '').toUpperCase();
+  const buy = status.includes('BUYABLE');
+  const disc = status.includes('DISCOVERABLE');
   if (buy && !disc) return { k: 'sup', label: 'Search suppressed', fill: '#fee2e2', ink: '#991b1b' };
   if (buy && disc) return { k: 'ok', label: 'Buyable', fill: '#dcfce7', ink: '#166534' };
   if (disc && !buy) return { k: 'nooffer', label: 'No offer', fill: '#e2e8f0', ink: '#475569' };
-  return { k: 'none', label: x.st || 'Not buyable', fill: '#e2e8f0', ink: '#475569' };
+  return { k: 'none', label: item.st || 'Not buyable', fill: '#e2e8f0', ink: '#475569' };
 }
 
 /** True when the listing itself submitted no main image — what shows comes from the family. */
-const imNoOwnMain = x => !(x.img || {}).MAIN && !!(x.live || {}).MAIN;
+const imNoOwnMain = item => !(item.img || {}).MAIN && !!(item.live || {}).MAIN;
 
-function imKidMatch(x, f, q) {
-  const live = x.live || {}, img = x.img || {};
-  if (q) {
-    const hay = [x.sku, x.asin, x.pa, x.psku, x.t, x.c, x.z].join(' ').toLowerCase();
-    if (!q.split(/\s+/).every(w => hay.includes(w))) return false;
+// Does one listing pass the filter picker (`filter`) and the search box (`search`, lower case)?
+function imKidMatch(item, filter, search) {
+  const live = item.live || {};
+  const img = item.img || {};
+  if (search) {
+    const hay = [item.sku, item.asin, item.pa, item.psku, item.t, item.c, item.z].join(' ').toLowerCase();
+    if (!search.split(/\s+/).every(word => hay.includes(word))) return false;
   }
-  if (f === 'diff') return IM_SLOTS.some(s => img[s] && live[s] && img[s] !== live[s]);
-  if (f === 'few') return IM_SLOTS.filter(s => live[s] || img[s]).length < 7;
-  if (f === 'noswatch') return !img.SWCH && !live.SWCH;
-  if (f === 'other') return !!imHijack(x);
-  if (f === 'sup') return imState(x).k === 'sup';
-  if (f === 'amzerr') return (x.ie || 0) > 0;
-  if (f === 'noown') return imNoOwnMain(x);
-  if (f === 'nobuy') return !/BUYABLE/.test(x.st || '');
+  if (filter === 'diff') return IM_SLOTS.some(slot => img[slot] && live[slot] && img[slot] !== live[slot]);
+  if (filter === 'few') return IM_SLOTS.filter(slot => live[slot] || img[slot]).length < 7;
+  if (filter === 'noswatch') return !img.SWCH && !live.SWCH;
+  if (filter === 'other') return !!imHijack(item);
+  if (filter === 'sup') return imState(item).k === 'sup';
+  if (filter === 'amzerr') return (item.ie || 0) > 0;
+  if (filter === 'noown') return imNoOwnMain(item);
+  if (filter === 'nobuy') return !/BUYABLE/.test(item.st || '');
   return true;
 }
 
@@ -266,89 +339,105 @@ function imKidMatch(x, f, q) {
  * 6. LIST: DRAWING — tiles, one row per child, the page
  */
 
+// One thumbnail in a listing's strip; `sw` marks the swatch tile. An orange ring = live and submitted pictures differ.
 function imTile(slot, liveUrl, mineUrl, sw) {
   /* THE TILE SHOWS YOUR OWN PICTURE BY DEFAULT. Amazon's catalogue often serves another child's
    * pictures on a listing that has no offer of its own, so a live-first strip drew green tablecloths
    * under a Pink Coral SKU. The orange ring still says the two disagree; the view picker swaps them. */
-  const u = IML_VIEW === 'live' ? (liveUrl || mineUrl) : (mineUrl || liveUrl);
+  const url = IML_VIEW === 'live' ? (liveUrl || mineUrl) : (mineUrl || liveUrl);
   const diff = !!(liveUrl && mineUrl && liveUrl !== mineUrl);
-  const lab = slot === 'SWCH' ? 'SW' : slot === 'MAIN' ? 'M' : slot.slice(2);
-  if (!u) return `<div class="im-th im-empty${sw ? ' im-sw' : ''}" title="${slot}: empty">${lab}</div>`;
+  const label = slot === 'SWCH' ? 'SW' : slot === 'MAIN' ? 'M' : slot.slice(2);
+  if (!url) return `<div class="im-th im-empty${sw ? ' im-sw' : ''}" title="${slot}: empty">${label}</div>`;
   const tip = slot + (diff ? ' — Amazon is serving a different picture in this slot' : '')
     + (!liveUrl && mineUrl ? ' — from your listing, not live yet' : '')
     + (liveUrl && !mineUrl ? ' — live on Amazon, not in your listing' : '');
-  return `<a class="im-th${diff ? ' im-diff' : ''}${sw ? ' im-sw' : ''}" href="${imEsc(u)}" target="_blank" rel="noopener" title="${imEsc(tip)}"><img src="${imEsc(imThumb(u))}" loading="lazy" decoding="async" alt="${slot}">${sw ? '' : `<i>${lab}</i>`}</a>`;
+  return `<a class="im-th${diff ? ' im-diff' : ''}${sw ? ' im-sw' : ''}" href="${imEsc(url)}" target="_blank" rel="noopener" title="${imEsc(tip)}">`
+    + `<img src="${imEsc(imThumb(url))}" loading="lazy" decoding="async" alt="${slot}">${sw ? '' : `<i>${label}</i>`}</a>`;
 }
 
-function imKidRow(x) {
-  const live = x.live || {}, img = x.img || {};
-  const tiles = IM_SLOTS.map(s => imTile(s, live[s], img[s])).join('')
+// One child listing's row: SKU / ASIN, colour · size, the status chip, Edit / Copy, the warnings, and the strip of tiles.
+function imKidRow(item) {
+  const live = item.live || {};
+  const img = item.img || {};
+  const tiles = IM_SLOTS.map(slot => imTile(slot, live[slot], img[slot])).join('')
     + '<span style="width:8px"></span>' + imTile('SWCH', live.SWCH, img.SWCH, true);
-  const state = imState(x), hj = imHijack(x);
+  const state = imState(item);
+  const hijack = imHijack(item);
   const chip = (text, fill, ink, tip) => `<span class="st" style="background:${fill};color:${ink}"`
     + `${tip ? ` title="${imEsc(tip)}"` : ''}>${imEsc(text)}</span>`;
   return `<div class="im-kid">
     <div class="im-kid-info">
-      <div><b style="font-family:ui-monospace,monospace">${imEsc(x.sku)}</b> <span class="muted">${imEsc(x.asin)}</span></div>
-      <div class="muted">${imEsc([x.c, x.z].filter(Boolean).join(' · ') || String(x.t || '').slice(0, 60))}</div>
+      <div><b style="font-family:ui-monospace,monospace">${imEsc(item.sku)}</b> <span class="muted">${imEsc(item.asin)}</span></div>
+      <div class="muted">${imEsc([item.c, item.z].filter(Boolean).join(' · ') || String(item.t || '').slice(0, 60))}</div>
       <div style="margin-top:3px;display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-        <input type="checkbox" class="im-sel" data-sku="${imEsc(x.sku)}" ${IM_SEL.has(x.sku) ? 'checked' : ''}
+        <input type="checkbox" class="im-sel" data-sku="${imEsc(item.sku)}" ${IM_SEL.has(item.sku) ? 'checked' : ''}
           title="Tick to paste the copied stack into this listing" style="width:auto;margin:0">
         ${chip(state.label, state.fill, state.ink, state.k === 'sup'
           ? 'Amazon still allows a direct-link sale but has taken this listing out of search results.' : '')}
-        <button class="ghost im-b" data-edit="${imEsc(x.sku)}">Edit</button>
-        <button class="ghost im-b" data-copy="${imEsc(x.sku)}" title="Copy this listing's pictures">Copy</button></div>
-      ${x.ie ? `<div style="margin-top:3px">${chip('Amazon: ' + x.ie + ' error' + (x.ie > 1 ? 's' : ''), '#fee2e2', '#991b1b', x.im || '')}</div>
-        <div class="muted" style="font-size:10.5px;margin-top:2px">${imEsc(String(x.im || '').slice(0, 90))}${String(x.im || '').length > 90 ? '…' : ''}</div>` : ''}
-      ${imNoOwnMain(x) ? `<div style="margin-top:3px">${chip('No image of your own', '#fef3c7', '#92400e',
+        <button class="ghost im-b" data-edit="${imEsc(item.sku)}">Edit</button>
+        <button class="ghost im-b" data-copy="${imEsc(item.sku)}" title="Copy this listing's pictures">Copy</button></div>
+      ${item.ie ? `<div style="margin-top:3px">${chip('Amazon: ' + item.ie + ' error' + (item.ie > 1 ? 's' : ''), '#fee2e2', '#991b1b', item.im || '')}</div>
+        <div class="muted" style="font-size:10.5px;margin-top:2px">${imEsc(String(item.im || '').slice(0, 90))}${String(item.im || '').length > 90 ? '…' : ''}</div>` : ''}
+      ${imNoOwnMain(item) ? `<div style="margin-top:3px">${chip('No image of your own', '#fef3c7', '#92400e',
         'Your listing submitted no main image. What shows on Amazon comes from the family, and Amazon can suppress a listing for it.')}</div>` : ''}
-      ${hj ? `<div style="margin-top:3px">${chip('Amazon shows ' + hj.sku + (hj.c ? ' · ' + hj.c : ''), '#fef3c7', '#92400e',
-        'Amazon catalogue serves ' + hj.sku + ' pictures on this ASIN. The strip shows your own.')}</div>` : ''}
+      ${hijack ? `<div style="margin-top:3px">${chip('Amazon shows ' + hijack.sku + (hijack.c ? ' · ' + hijack.c : ''), '#fef3c7', '#92400e',
+        'Amazon catalogue serves ' + hijack.sku + ' pictures on this ASIN. The strip shows your own.')}</div>` : ''}
     </div>
     <div class="im-strip">${tiles}</div>
   </div>`;
 }
 
+// Draw the list: group by parent, apply the filter and the search, page by listing, then wire the buttons.
 function imListRender() {
-  const el = $('imList'); if (!el) return;
-  const b = $('imBrand').value, data = IML[b];
+  const el = $('imList');
+  if (!el) return;
+  const brand = $('imBrand').value;
+  const data = IML[brand];
   if (!data) {
-    el.innerHTML = `<div class="card" style="padding:14px"><span class="muted">${IML_BUSY ? 'Reading every listing from Amazon for the first time — about two minutes.' : 'No snapshot yet. Press Refresh from Amazon.'}</span></div>`;
+    el.innerHTML = `<div class="card" style="padding:14px"><span class="muted">${IML_BUSY
+      ? 'Reading every listing from Amazon for the first time — about two minutes.'
+      : 'No snapshot yet. Press Refresh from Amazon.'}</span></div>`;
     return;
   }
-  const f = $('imFilter').value, q = ($('imQ').value || '').trim().toLowerCase();
+  // --- which listings, in which groups ---
+  const filter = $('imFilter').value;
+  const search = ($('imQ').value || '').trim().toLowerCase();
   IML_VIEW = ($('imView') || {}).value || 'mine';
   imOwnerBuild(data.items);
   const groups = [];
-  imListGroups(data.items).forEach(g => {
-    let show = g.kids.filter(k => imKidMatch(k, f, q));
+  imListGroups(data.items).forEach(group => {
+    let show = group.kids.filter(kid => imKidMatch(kid, filter, search));
     // A search that names the PARENT shows the whole family.
-    if (!show.length && q && g.parent && imKidMatch(g.parent, 'all', q)) show = g.kids.filter(k => imKidMatch(k, f, ''));
-    if (show.length) groups.push(Object.assign({}, g, { show }));
+    if (!show.length && search && group.parent && imKidMatch(group.parent, 'all', search)) show = group.kids.filter(kid => imKidMatch(kid, filter, ''));
+    if (show.length) groups.push(Object.assign({}, group, { show }));
   });
   groups.sort((a, b) => (b.kids.length - a.kids.length)
     || String((a.parent || a.kids[0]).t || '').localeCompare(String((b.parent || b.kids[0]).t || '')));
-  const nKids = groups.reduce((n, g) => n + g.show.length, 0);
+  const nKids = groups.reduce((sum, group) => sum + group.show.length, 0);
+  // --- the page: IML_PER listings, a family may run over the page edge ---
   /* PAGED BY LISTING, not by parent: one Ridhi parent holds 455 children, and twenty groups a page
    * drew 6 MB of tiles. A family longer than a page carries on, its header repeated as "continued". */
   const pages = Math.max(1, Math.ceil(nKids / IML_PER));
   if (IML_PAGE >= pages) IML_PAGE = 0;
-  const from = IML_PAGE * IML_PER, to = from + IML_PER;
+  const from = IML_PAGE * IML_PER;
+  const to = from + IML_PER;
   const slice = [];
   let at = 0;
-  groups.forEach(g => {
-    const a = Math.max(from, at), b = Math.min(to, at + g.show.length);
-    if (a < b) slice.push(Object.assign({}, g, { show: g.show.slice(a - at, b - at), cont: a > at }));
-    at += g.show.length;
+  groups.forEach(group => {
+    const start = Math.max(from, at);
+    const end = Math.min(to, at + group.show.length);
+    if (start < end) slice.push(Object.assign({}, group, { show: group.show.slice(start - at, end - at), cont: start > at }));
+    at += group.show.length;
   });
   const pager = pages > 1 ? `<div style="display:flex;gap:6px;align-items:center;justify-content:flex-end;margin:6px 0">
       <button class="ghost im-b" data-pg="-1" ${IML_PAGE ? '' : 'disabled'}>◀ Prev</button>
       <span class="muted" style="font-size:12px">Page ${IML_PAGE + 1} of ${pages}</span>
       <button class="ghost im-b" data-pg="1" ${IML_PAGE < pages - 1 ? '' : 'disabled'}>Next ▶</button></div>` : '';
-  const kids0 = data.items.filter(x => x.lvl !== 'parent');
+  // --- the summary line, the clipboard bar, the groups ---
+  const kids0 = data.items.filter(item => item.lvl !== 'parent');
   const nHijack = kids0.filter(imHijack).length;
-  const nSup = kids0.filter(x => imState(x).k === 'sup').length;
-  const nErr = kids0.filter(x => (x.ie || 0) > 0).length;
+  const nSup = kids0.filter(item => imState(item).k === 'sup').length;
+  const nErr = kids0.filter(item => (item.ie || 0) > 0).length;
   el.innerHTML = `<div class="muted" style="font-size:12px;margin-bottom:6px">${groups.length} group(s), ${nKids} listing(s) of ${data.items.length}
       · snapshot ${data.at ? data.at.toLocaleString() : '—'}${IML_BUSY ? ' · refreshing…' : ''}
       · showing <b>${IML_VIEW === 'live' ? 'what Amazon serves' : 'the pictures you submitted'}</b>
@@ -358,59 +447,83 @@ function imListRender() {
       ${nErr ? `· <b style="color:#991b1b">${nErr}</b> with an error from Amazon` : ''}</div>
     ${imClipBar('list')}
     ${pager}
-    ${slice.map(g => {
-      const p = g.parent;
-      const head = p
-        ? `<div class="im-grp-h">${imTile('MAIN', (p.live || {}).MAIN, (p.img || {}).MAIN)}
-            <div style="min-width:0;flex:1"><div style="font-weight:600">${imEsc(p.t)}</div>
-            <div class="muted" style="font-size:12px">Parent ${imEsc(p.sku)} · ${imEsc(p.asin)} · ${g.kids.length} child listing(s)${g.show.length < g.kids.length ? ', ' + g.show.length + ' on this page' : ''}${g.cont ? ' · continued' : ''}</div></div></div>`
-        : g.psku
-          ? `<div class="im-grp-h"><div style="font-weight:600">Parent ${imEsc(g.psku)}</div><span class="muted" style="font-size:12px">${imEsc(g.kids[0].pa || '')} · ${g.kids.length} child listing(s) · the parent listing itself was not found${g.cont ? ' · continued' : ''}</span></div>`
-          : `<div class="im-grp-h"><div style="font-weight:600">${imEsc(g.kids[0].t)}</div><span class="muted" style="font-size:12px">No variation parent</span></div>`;
-      return `<div class="card im-grp">${head}${g.show.map(imKidRow).join('')}</div>`;
+    ${slice.map(group => {
+      const parent = group.parent;
+      const head = parent
+        ? `<div class="im-grp-h">${imTile('MAIN', (parent.live || {}).MAIN, (parent.img || {}).MAIN)}
+            <div style="min-width:0;flex:1"><div style="font-weight:600">${imEsc(parent.t)}</div>
+            <div class="muted" style="font-size:12px">Parent ${imEsc(parent.sku)} · ${imEsc(parent.asin)} · ${group.kids.length} child listing(s)`
+            + `${group.show.length < group.kids.length ? ', ' + group.show.length + ' on this page' : ''}${group.cont ? ' · continued' : ''}</div></div></div>`
+        : group.psku
+          ? `<div class="im-grp-h"><div style="font-weight:600">Parent ${imEsc(group.psku)}</div>`
+            + `<span class="muted" style="font-size:12px">${imEsc(group.kids[0].pa || '')} · ${group.kids.length} child listing(s) · the parent listing itself was not found${group.cont ? ' · continued' : ''}</span></div>`
+          : `<div class="im-grp-h"><div style="font-weight:600">${imEsc(group.kids[0].t)}</div><span class="muted" style="font-size:12px">No variation parent</span></div>`;
+      return `<div class="card im-grp">${head}${group.show.map(imKidRow).join('')}</div>`;
     }).join('')}
     ${pager}`;
+  // --- the buttons in what was just drawn ---
   el.querySelectorAll('[data-copy]').forEach(btn => btn.onclick = () => {
-    const x = (IML[$('imBrand').value] || { items: [] }).items.find(i => i.sku === btn.dataset.copy);
-    if (!x) return;
-    imClipTake({ brand: $('imBrand').value, sku: x.sku, asin: x.asin, c: x.c, z: x.z, own: x.img || {}, live: x.live || {} });
+    const item = (IML[$('imBrand').value] || { items: [] }).items.find(each => each.sku === btn.dataset.copy);
+    if (!item) return;
+    imClipTake({ brand: $('imBrand').value, sku: item.sku, asin: item.asin, c: item.c, z: item.z, own: item.img || {}, live: item.live || {} });
     imListRender();
     imMsg('Copied ' + IM_CLIP.n + ' picture(s) from ' + IM_CLIP.sku + '.');
   });
   el.querySelectorAll('.im-sel').forEach(cb => cb.onchange = () => {
-    if (cb.checked) IM_SEL.add(cb.dataset.sku); else IM_SEL.delete(cb.dataset.sku);
-    const b = $('imPasteSel');
-    if (b) { b.disabled = !IM_SEL.size; b.textContent = 'Paste into ' + IM_SEL.size + ' ticked listing(s)'; }
+    if (cb.checked) IM_SEL.add(cb.dataset.sku);
+    else IM_SEL.delete(cb.dataset.sku);
+    const pasteBtn = $('imPasteSel');
+    if (pasteBtn) {
+      pasteBtn.disabled = !IM_SEL.size;
+      pasteBtn.textContent = 'Paste into ' + IM_SEL.size + ' ticked listing(s)';
+    }
   });
-  if ($('imClipClear')) $('imClipClear').onclick = () => { imClipClear(); imListRender(); };
+  if ($('imClipClear')) $('imClipClear').onclick = () => {
+    imClipClear();
+    imListRender();
+  };
   if ($('imPasteSel')) $('imPasteSel').onclick = () => imPasteMany([...IM_SEL]);
   el.querySelectorAll('[data-edit]').forEach(btn => btn.onclick = () => {
-    $('imQ').value = btn.dataset.edit; IM_SKU_CHOICES = null; imLoad(btn.dataset.edit); window.scrollTo(0, 0);
+    $('imQ').value = btn.dataset.edit;
+    IM_SKU_CHOICES = null;
+    imLoad(btn.dataset.edit);
+    window.scrollTo(0, 0);
   });
-  el.querySelectorAll('[data-pg]').forEach(btn => btn.onclick = () => { IML_PAGE += Number(btn.dataset.pg); imListRender(); window.scrollTo(0, 0); });
+  el.querySelectorAll('[data-pg]').forEach(btn => btn.onclick = () => {
+    IML_PAGE += Number(btn.dataset.pg);
+    imListRender();
+    window.scrollTo(0, 0);
+  });
 }
 
 /* ============================================================================================
  * 7. EDITOR: THE STACK — load one listing, draw it, reorder and replace slots
  */
 
+// Open one listing in the editor: by the SKU picked from the choices, by ASIN, or by the SKU typed; then draw and load its history.
 async function imLoad(skuPick) {
-  const q = ($('imQ').value || '').trim();
-  if (!q) { imMsg('Type a SKU or an ASIN.', true); return; }
-  const isAsin = /^B0[A-Z0-9]{8}$/i.test(q) && !skuPick;
+  const typed = ($('imQ').value || '').trim();
+  if (!typed) {
+    imMsg('Type a SKU or an ASIN.', true);
+    return;
+  }
+  const isAsin = /^B0[A-Z0-9]{8}$/i.test(typed) && !skuPick;
   imShowEditor(true);
   $('imGo').disabled = true;
   imMsg('Reading the listing from Amazon…');
   try {
-    const p = { limg: 'get', brand: $('imBrand').value };
-    if (skuPick) p.sku = skuPick; else if (isAsin) p.asin = q.toUpperCase(); else p.sku = q;
-    const r = await baCall(p);
-    IM = r;
+    const params = { limg: 'get', brand: $('imBrand').value };
+    if (skuPick) params.sku = skuPick;
+    else if (isAsin) params.asin = typed.toUpperCase();
+    else params.sku = typed;
+    const reply = await baCall(params);
+    IM = reply;
     if (skuPick && IM_SKU_CHOICES) IM.skuChoices = IM_SKU_CHOICES;
-    IM_SKU_CHOICES = r.skuChoices || IM_SKU_CHOICES;
+    IM_SKU_CHOICES = reply.skuChoices || IM_SKU_CHOICES;
+    // --- the stack as it stands: the listing's own picture, else the catalogue's ---
     IM_START = {};
-    [...IM_SLOTS, 'SWCH'].forEach(s => {
-      IM_START[s] = (r.listing && r.listing[s]) || (r.catalog && r.catalog[s] && r.catalog[s].link) || '';
+    [...IM_SLOTS, 'SWCH'].forEach(slot => {
+      IM_START[slot] = (reply.listing && reply.listing[slot]) || (reply.catalog && reply.catalog[slot] && reply.catalog[slot].link) || '';
     });
     IM_NOW = Object.assign({}, IM_START);
     IM_RESULT = '';
@@ -428,32 +541,40 @@ async function imLoad(skuPick) {
 /** Slots whose address differs from where the stack started. '' = removed. */
 function imChanges() {
   const set = {};
-  [...IM_SLOTS, 'SWCH'].forEach(s => { if ((IM_NOW[s] || '') !== (IM_START[s] || '')) set[s] = IM_NOW[s] || ''; });
+  [...IM_SLOTS, 'SWCH'].forEach(slot => {
+    if ((IM_NOW[slot] || '') !== (IM_START[slot] || '')) set[slot] = IM_NOW[slot] || '';
+  });
   return set;
 }
 
+// Measure a picture once in the browser (IM_DIMS), then redraw so the size and "no zoom" show.
 function imMeasure(url) {
   if (!url || IM_DIMS[url]) return;
   IM_DIMS[url] = { w: 0, h: 0 };
-  const i = new Image();
-  i.onload = () => { IM_DIMS[url] = { w: i.naturalWidth, h: i.naturalHeight }; imRender(); };
-  i.src = url;
+  const img = new Image();
+  img.onload = () => {
+    IM_DIMS[url] = { w: img.naturalWidth, h: img.naturalHeight };
+    imRender();
+  };
+  img.src = url;
 }
 
+// One slot's card: the picture, its label and size, and — in the editable stack — the move / upload / URL / empty / undo buttons.
 function imCard(slot, url, opts) {
-  const o = opts || {};
-  const changed = o.edit && (IM_NOW[slot] || '') !== (IM_START[slot] || '');
+  const opt = opts || {};
+  const changed = opt.edit && (IM_NOW[slot] || '') !== (IM_START[slot] || '');
   let dim = '';
-  if (o.w) dim = o.w + '×' + o.h;
+  if (opt.w) dim = opt.w + '×' + opt.h;
   else if (url && IM_DIMS[url] && IM_DIMS[url].w) dim = IM_DIMS[url].w + '×' + IM_DIMS[url].h;
-  const dW = o.w || (IM_DIMS[url] && IM_DIMS[url].w) || 0, dH = o.h || (IM_DIMS[url] && IM_DIMS[url].h) || 0;
+  const dW = opt.w || (IM_DIMS[url] && IM_DIMS[url].w) || 0;
+  const dH = opt.h || (IM_DIMS[url] && IM_DIMS[url].h) || 0;
   const small = slot !== 'SWCH' && dW && Math.max(dW, dH) < 1000;
   const label = slot === 'SWCH' ? 'Swatch' : slot === 'MAIN' ? 'Main' : slot;
   const pic = url
     ? `<img src="${imEsc(url)}" alt="${label}" loading="lazy" draggable="false"
          style="width:100%;height:100%;object-fit:contain;background:#fff">`
     : `<div class="muted" style="font-size:11px">empty</div>`;
-  const tools = o.edit ? `<div style="display:flex;gap:4px;justify-content:center;margin-top:4px;flex-wrap:wrap">
+  const tools = opt.edit ? `<div style="display:flex;gap:4px;justify-content:center;margin-top:4px;flex-wrap:wrap">
       ${slot !== 'SWCH' && slot !== 'MAIN' ? `<button class="ghost im-b" data-act="left" data-slot="${slot}" title="Move left">◀</button>` : ''}
       ${slot !== 'SWCH' && slot !== 'PT08' ? `<button class="ghost im-b" data-act="right" data-slot="${slot}" title="Move right">▶</button>` : ''}
       <button class="ghost im-b" data-act="file" data-slot="${slot}" title="Upload a picture into this slot">Upload</button>
@@ -461,7 +582,7 @@ function imCard(slot, url, opts) {
       ${url && slot !== 'MAIN' ? `<button class="ghost im-b" data-act="del" data-slot="${slot}" title="Empty this slot">✕</button>` : ''}
       ${changed ? `<button class="ghost im-b" data-act="undo" data-slot="${slot}" title="Back to how it was">↺</button>` : ''}
     </div>` : '';
-  return `<div class="im-card${changed ? ' im-chg' : ''}" data-slot="${slot}" ${o.edit && slot !== 'SWCH' ? 'draggable="true"' : ''}>
+  return `<div class="im-card${changed ? ' im-chg' : ''}" data-slot="${slot}" ${opt.edit && slot !== 'SWCH' ? 'draggable="true"' : ''}>
       <div class="im-pic">${url ? `<a href="${imEsc(url)}" target="_blank" rel="noopener" draggable="false">${pic}</a>` : pic}</div>
       <div style="font-size:11px;font-weight:600;margin-top:3px">${label}${changed ? ' · changed' : ''}</div>
       <div class="muted" style="font-size:10.5px${small ? ';color:var(--bad)' : ''}">${dim || '&nbsp;'}${small ? ' · no zoom' : ''}</div>
@@ -469,44 +590,52 @@ function imCard(slot, url, opts) {
     </div>`;
 }
 
+// Draw the editor for the open listing: header, Amazon's issues, the live stack, your editable stack with Check / Apply, the history box.
 function imRender() {
-  const d = IM; if (!d) return;
-  [...IM_SLOTS, 'SWCH'].forEach(s => { if (IM_NOW[s]) imMeasure(IM_NOW[s]); });
-  const cat = d.catalog || {};
-  const live = IM_SLOTS.map(s => imCard(s, cat[s] && cat[s].link, cat[s] || {})).join('')
+  const listing = IM;
+  if (!listing) return;
+  [...IM_SLOTS, 'SWCH'].forEach(slot => {
+    if (IM_NOW[slot]) imMeasure(IM_NOW[slot]);
+  });
+  const cat = listing.catalog || {};
+  const live = IM_SLOTS.map(slot => imCard(slot, cat[slot] && cat[slot].link, cat[slot] || {})).join('')
     + `<div class="im-sep"></div>` + imCard('SWCH', cat.SWCH && cat.SWCH.link, cat.SWCH || {});
-  const mine = IM_SLOTS.map(s => imCard(s, IM_NOW[s], { edit: true })).join('')
+  const mine = IM_SLOTS.map(slot => imCard(slot, IM_NOW[slot], { edit: true })).join('')
     + `<div class="im-sep"></div>` + imCard('SWCH', IM_NOW.SWCH, { edit: true });
-  const ch = imChanges(), n = Object.keys(ch).length;
-  const choices = (d.skuChoices && d.skuChoices.length > 1)
-    ? `<select id="imSku" style="width:auto;padding:3px 6px;font-size:12px">${d.skuChoices.map(c =>
-        `<option value="${imEsc(c.sku)}"${c.sku === d.sku ? ' selected' : ''}>${imEsc(c.sku)}${c.status ? ' · ' + imEsc(c.status) : ''}</option>`).join('')}</select>`
-    : `<b>${imEsc(d.sku)}</b>`;
-  const issues = (d.issues || []).length
+  const changes = imChanges();
+  const nChanges = Object.keys(changes).length;
+  const choices = (listing.skuChoices && listing.skuChoices.length > 1)
+    ? `<select id="imSku" style="width:auto;padding:3px 6px;font-size:12px">${listing.skuChoices.map(choice =>
+        `<option value="${imEsc(choice.sku)}"${choice.sku === listing.sku ? ' selected' : ''}>${imEsc(choice.sku)}${
+          choice.status ? ' · ' + imEsc(choice.status) : ''}</option>`).join('')}</select>`
+    : `<b>${imEsc(listing.sku)}</b>`;
+  const issues = (listing.issues || []).length
     ? `<div class="card" style="padding:10px 14px;margin-bottom:12px"><div style="font-weight:600;font-size:13px;margin-bottom:4px">Amazon's open issues on this listing</div>
-        ${d.issues.map(i => `<div style="font-size:12px;margin:3px 0"><span class="st ${i.severity === 'ERROR' ? 'st-rejected' : 'st-draft'}">${imEsc(i.severity)}</span> ${imEsc(i.message)}</div>`).join('')}</div>` : '';
-  const onlyCatalog = [...IM_SLOTS, 'SWCH'].filter(s => !(d.listing || {})[s] && cat[s]);
+        ${listing.issues.map(issue => `<div style="font-size:12px;margin:3px 0"><span class="st ${issue.severity === 'ERROR' ? 'st-rejected' : 'st-draft'}">${
+          imEsc(issue.severity)}</span> ${imEsc(issue.message)}</div>`).join('')}</div>` : '';
+  const onlyCatalog = [...IM_SLOTS, 'SWCH'].filter(slot => !(listing.listing || {})[slot] && cat[slot]);
   /* The catalogue sometimes serves a sibling's whole stack on a listing of its own, most often one
    * with no offer. IM_OWNER, built for the list, can name that sibling. */
-  const liveMain = cat.MAIN && cat.MAIN.link, mineMain = (d.listing || {}).MAIN;
+  const liveMain = cat.MAIN && cat.MAIN.link;
+  const mineMain = (listing.listing || {}).MAIN;
   const hjOwn = liveMain && mineMain && liveMain !== mineMain ? IM_OWNER.get(liveMain) : null;
-  const hjThis = hjOwn && hjOwn.sku !== d.sku ? hjOwn : null;
+  const hjThis = hjOwn && hjOwn.sku !== listing.sku ? hjOwn : null;
 
   $('imBody').innerHTML = `
     <div class="card" style="padding:10px 14px;margin-bottom:12px;font-size:13px">
-      <div style="font-weight:600;margin-bottom:4px">${imEsc(d.title)}</div>
+      <div style="font-weight:600;margin-bottom:4px">${imEsc(listing.title)}</div>
       <div class="muted" style="display:flex;gap:14px;flex-wrap:wrap;font-size:12px;align-items:center">
-        <span>SKU ${choices}</span><span>ASIN <b>${imEsc(d.asin)}</b></span>
-        ${d.parent ? `<span>Parent ${imEsc(d.parent)}</span>` : ''}
-        ${d.color ? `<span>Colour ${imEsc(d.color)}</span>` : ''}${d.size ? `<span>Size ${imEsc(d.size)}</span>` : ''}
-        <span>Type ${imEsc(d.productType)}</span><span>${imEsc((d.status || []).join(', '))}</span>
-        <a href="https://www.amazon.com/dp/${imEsc(d.asin)}" target="_blank" rel="noopener">Open on Amazon ↗</a>
+        <span>SKU ${choices}</span><span>ASIN <b>${imEsc(listing.asin)}</b></span>
+        ${listing.parent ? `<span>Parent ${imEsc(listing.parent)}</span>` : ''}
+        ${listing.color ? `<span>Colour ${imEsc(listing.color)}</span>` : ''}${listing.size ? `<span>Size ${imEsc(listing.size)}</span>` : ''}
+        <span>Type ${imEsc(listing.productType)}</span><span>${imEsc((listing.status || []).join(', '))}</span>
+        <a href="https://www.amazon.com/dp/${imEsc(listing.asin)}" target="_blank" rel="noopener">Open on Amazon ↗</a>
       </div>
     </div>
     ${issues}
     <div class="card" style="padding:10px 14px;margin-bottom:12px">
       <div style="font-weight:600;font-size:13px">Live on Amazon now</div>
-      <div class="muted" style="font-size:11.5px;margin-bottom:6px">What shoppers see. ${d.catalogError ? imEsc(d.catalogError) : ''}
+      <div class="muted" style="font-size:11.5px;margin-bottom:6px">What shoppers see. ${listing.catalogError ? imEsc(listing.catalogError) : ''}
         ${hjThis ? `<b style="color:#92400e">Amazon is serving ${imEsc(hjThis.sku)}${hjThis.c ? ' (' + imEsc(hjThis.c) + ')' : ''} pictures on this ASIN — your own stack, below, is the right one.</b>` : ''}</div>
       <div class="im-row">${live}</div>
     </div>
@@ -514,7 +643,7 @@ function imRender() {
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
         <div style="font-weight:600;font-size:13px">Your stack</div>
         <button class="ghost im-b" id="imCopy" title="Hold these pictures so they can be put on another listing">Copy this stack</button>
-        ${IM_CLIP && IM_CLIP.sku !== d.sku ? `<button class="ghost im-b" id="imPaste" title="Put ${imEsc(IM_CLIP.sku)}'s pictures in every slot">Paste ${imEsc(IM_CLIP.sku)}</button>
+        ${IM_CLIP && IM_CLIP.sku !== listing.sku ? `<button class="ghost im-b" id="imPaste" title="Put ${imEsc(IM_CLIP.sku)}'s pictures in every slot">Paste ${imEsc(IM_CLIP.sku)}</button>
           <button class="ghost im-b" id="imPasteGaps" title="Only fill the slots that are empty">Fill the empty slots</button>
           <label class="muted" style="font-size:11.5px;display:flex;gap:4px;align-items:center"><input type="checkbox" id="imPasteSw" style="width:auto"> with its swatch</label>` : ''}
         <span class="muted" style="font-size:11.5px">Drag to reorder. Nothing reaches Amazon until Apply.</span>
@@ -523,9 +652,9 @@ function imRender() {
       <div class="im-row" id="imMine" style="margin-top:8px">${mine}</div>
       ${onlyCatalog.length ? `<div class="muted" style="font-size:11.5px;margin-top:6px">${onlyCatalog.join(', ')} come from the catalogue, not from your listing. Emptying one of those here may not remove it from Amazon if another contributor supplied it.</div>` : ''}
       <div style="display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap">
-        <button id="imCheck" class="ghost" style="width:auto;padding:6px 14px" ${n ? '' : 'disabled'}>Check with Amazon</button>
-        <button id="imApply" style="width:auto;padding:6px 14px" ${n ? '' : 'disabled'}>Apply to Amazon${n ? ' (' + n + ')' : ''}</button>
-        <button id="imReset" class="ghost" style="width:auto;padding:6px 14px" ${n ? '' : 'disabled'}>Discard changes</button>
+        <button id="imCheck" class="ghost" style="width:auto;padding:6px 14px" ${nChanges ? '' : 'disabled'}>Check with Amazon</button>
+        <button id="imApply" style="width:auto;padding:6px 14px" ${nChanges ? '' : 'disabled'}>Apply to Amazon${nChanges ? ' (' + nChanges + ')' : ''}</button>
+        <button id="imReset" class="ghost" style="width:auto;padding:6px 14px" ${nChanges ? '' : 'disabled'}>Discard changes</button>
         <span id="imSendMsg" class="muted" style="font-size:12px"></span>
       </div>
       <div id="imResult">${IM_RESULT}</div>
@@ -538,38 +667,76 @@ function imRender() {
   imWire();
 }
 
-function imSwap(a, b) { const t = IM_NOW[a]; IM_NOW[a] = IM_NOW[b]; IM_NOW[b] = t; imRender(); }
+// Swap the pictures of two slots in the editable stack and redraw.
+function imSwap(a, b) {
+  const tmp = IM_NOW[a];
+  IM_NOW[a] = IM_NOW[b];
+  IM_NOW[b] = tmp;
+  imRender();
+}
 
+// Wire the editor imRender just drew: the SKU picker, the card buttons, drag and drop, Copy / Paste, Check / Apply / Discard.
 function imWire() {
-  const sel = $('imSku'); if (sel) sel.onchange = () => imLoad(sel.value);
-  document.querySelectorAll('#imMine .im-b').forEach(b => b.onclick = () => {
-    const s = b.dataset.slot, i = IM_SLOTS.indexOf(s);
-    if (b.dataset.act === 'left') imSwap(s, IM_SLOTS[i - 1]);
-    else if (b.dataset.act === 'right') imSwap(s, IM_SLOTS[i + 1]);
-    else if (b.dataset.act === 'del') { IM_NOW[s] = ''; imRender(); }
-    else if (b.dataset.act === 'undo') { IM_NOW[s] = IM_START[s]; imRender(); }
-    else if (b.dataset.act === 'url') {
-      const u = prompt('Image address for ' + s + ' (https://…, JPEG/PNG):', IM_NOW[s] || '');
-      if (u == null) return;
-      if (u && !/^https:\/\//i.test(u.trim())) { alert('It must start with https://'); return; }
-      IM_NOW[s] = u.trim(); imRender();
-    } else if (b.dataset.act === 'file') { IM_FILE_SLOT = s; $('imFile').value = ''; $('imFile').click(); }
+  const sel = $('imSku');
+  if (sel) sel.onchange = () => imLoad(sel.value);
+  // --- the buttons under each card of your stack ---
+  document.querySelectorAll('#imMine .im-b').forEach(btn => btn.onclick = () => {
+    const slot = btn.dataset.slot;
+    const idx = IM_SLOTS.indexOf(slot);
+    if (btn.dataset.act === 'left') imSwap(slot, IM_SLOTS[idx - 1]);
+    else if (btn.dataset.act === 'right') imSwap(slot, IM_SLOTS[idx + 1]);
+    else if (btn.dataset.act === 'del') {
+      IM_NOW[slot] = '';
+      imRender();
+    } else if (btn.dataset.act === 'undo') {
+      IM_NOW[slot] = IM_START[slot];
+      imRender();
+    } else if (btn.dataset.act === 'url') {
+      const url = prompt('Image address for ' + slot + ' (https://…, JPEG/PNG):', IM_NOW[slot] || '');
+      if (url == null) return;
+      if (url && !/^https:\/\//i.test(url.trim())) {
+        alert('It must start with https://');
+        return;
+      }
+      IM_NOW[slot] = url.trim();
+      imRender();
+    } else if (btn.dataset.act === 'file') {
+      IM_FILE_SLOT = slot;
+      $('imFile').value = '';
+      $('imFile').click();
+    }
   });
-  $('imFile').onchange = () => { const f = $('imFile').files[0]; if (f) imUpload(IM_FILE_SLOT, f); };
-  document.querySelectorAll('#imMine .im-card[draggable]').forEach(c => {
-    c.ondragstart = e => { IM_DRAG = c.dataset.slot; e.dataTransfer.effectAllowed = 'move'; };
-    c.ondragover = e => { e.preventDefault(); c.classList.add('im-over'); };
-    c.ondragleave = () => c.classList.remove('im-over');
-    c.ondrop = e => {
-      e.preventDefault(); c.classList.remove('im-over');
+  $('imFile').onchange = () => {
+    const file = $('imFile').files[0];
+    if (file) imUpload(IM_FILE_SLOT, file);
+  };
+  // --- drag a card to reorder, or drop a file on it ---
+  document.querySelectorAll('#imMine .im-card[draggable]').forEach(card => {
+    card.ondragstart = e => {
+      IM_DRAG = card.dataset.slot;
+      e.dataTransfer.effectAllowed = 'move';
+    };
+    card.ondragover = e => {
+      e.preventDefault();
+      card.classList.add('im-over');
+    };
+    card.ondragleave = () => card.classList.remove('im-over');
+    card.ondrop = e => {
+      e.preventDefault();
+      card.classList.remove('im-over');
       // A dropped FILE goes into this slot; a dragged card moves here and the rest shift along.
-      const f = e.dataTransfer.files && e.dataTransfer.files[0];
-      if (f) { imUpload(c.dataset.slot, f); return; }
-      const from = IM_SLOTS.indexOf(IM_DRAG), to = IM_SLOTS.indexOf(c.dataset.slot);
+      const file = e.dataTransfer.files && e.dataTransfer.files[0];
+      if (file) {
+        imUpload(card.dataset.slot, file);
+        return;
+      }
+      const from = IM_SLOTS.indexOf(IM_DRAG);
+      const to = IM_SLOTS.indexOf(card.dataset.slot);
       if (from < 0 || to < 0 || from === to) return;
-      const list = IM_SLOTS.map(s => IM_NOW[s]);
-      const [m] = list.splice(from, 1); list.splice(to, 0, m);
-      IM_SLOTS.forEach((s, k) => IM_NOW[s] = list[k]);
+      const list = IM_SLOTS.map(slot => IM_NOW[slot]);
+      const [moved] = list.splice(from, 1);
+      list.splice(to, 0, moved);
+      IM_SLOTS.forEach((slot, k) => IM_NOW[slot] = list[k]);
       imRender();
     };
   });
@@ -578,89 +745,128 @@ function imWire() {
     sw.ondragover = e => e.preventDefault();
     sw.ondrop = e => {
       e.preventDefault();
-      const f = e.dataTransfer.files && e.dataTransfer.files[0];
-      if (f) imUpload('SWCH', f);
-      else if (IM_DRAG) { IM_NOW.SWCH = IM_NOW[IM_DRAG]; imRender(); }   // a stack picture used as the swatch
+      const file = e.dataTransfer.files && e.dataTransfer.files[0];
+      if (file) imUpload('SWCH', file);
+      else if (IM_DRAG) {                            // a stack picture used as the swatch
+        IM_NOW.SWCH = IM_NOW[IM_DRAG];
+        imRender();
+      }
     };
   }
+  // --- Copy this stack / Paste / Fill the empty slots ---
   const copyBtn = $('imCopy');
   if (copyBtn) copyBtn.onclick = () => {
     const cat = (IM && IM.catalog) || {};
-    const live = {}; [...IM_SLOTS, 'SWCH'].forEach(k => { if (cat[k] && cat[k].link) live[k] = cat[k].link; });
+    const live = {};
+    [...IM_SLOTS, 'SWCH'].forEach(slot => { if (cat[slot] && cat[slot].link) live[slot] = cat[slot].link; });
     imClipTake({ brand: IM.brand, sku: IM.sku, asin: IM.asin, c: IM.color, z: IM.size, own: IM_NOW, live });
     imRender();
     imMsg('Copied ' + IM_CLIP.n + ' picture(s) from ' + IM_CLIP.sku + '. Open another listing and press Paste.');
   };
   const paste = gapsOnly => {
     if (!IM_CLIP) return;
-    const sw = $('imPasteSw') && $('imPasteSw').checked;
-    let n = 0;
-    IM_SLOTS.forEach(k => {
-      const u = IM_CLIP.slots[k] || '';
-      if (!u || (gapsOnly && IM_NOW[k])) return;
-      if (IM_NOW[k] !== u) { IM_NOW[k] = u; n++; }
+    const withSw = $('imPasteSw') && $('imPasteSw').checked;
+    let nFilled = 0;
+    IM_SLOTS.forEach(slot => {
+      const url = IM_CLIP.slots[slot] || '';
+      if (!url || (gapsOnly && IM_NOW[slot])) return;
+      if (IM_NOW[slot] !== url) {
+        IM_NOW[slot] = url;
+        nFilled++;
+      }
     });
-    if (sw && IM_CLIP.slots.SWCH && IM_NOW.SWCH !== IM_CLIP.slots.SWCH) { IM_NOW.SWCH = IM_CLIP.slots.SWCH; n++; }
+    if (withSw && IM_CLIP.slots.SWCH && IM_NOW.SWCH !== IM_CLIP.slots.SWCH) {
+      IM_NOW.SWCH = IM_CLIP.slots.SWCH;
+      nFilled++;
+    }
     imRender();
-    imMsg(n ? n + ' slot(s) filled from ' + IM_CLIP.sku + '. Check them, then press Apply to Amazon.'
+    imMsg(nFilled ? nFilled + ' slot(s) filled from ' + IM_CLIP.sku + '. Check them, then press Apply to Amazon.'
             : 'Nothing to change — this listing already holds those pictures.');
   };
   if ($('imPaste')) $('imPaste').onclick = () => paste(false);
   if ($('imPasteGaps')) $('imPasteGaps').onclick = () => paste(true);
-  if ($('imClipClear')) $('imClipClear').onclick = () => { imClipClear(); imRender(); };
+  if ($('imClipClear')) $('imClipClear').onclick = () => {
+    imClipClear();
+    imRender();
+  };
+  // --- Check / Apply / Discard ---
   $('imCheck').onclick = () => imSend(false);
   $('imApply').onclick = () => imSend(true);
-  $('imReset').onclick = () => { IM_NOW = Object.assign({}, IM_START); imRender(); };
+  $('imReset').onclick = () => {
+    IM_NOW = Object.assign({}, IM_START);
+    imRender();
+  };
 }
 
 /* ============================================================================================
  * 8. EDITOR: SENDING — upload a picture, check / apply with Amazon, history
  */
 
+// Upload a picture for one slot: read it as base64, send it to the backend (which puts it on Drive), and point the slot at it.
 async function imUpload(slot, file) {
-  if (!/^image\/(jpeg|png|tiff|gif)$/.test(file.type)) { imMsg('Amazon takes JPEG, PNG, TIFF or GIF.', true); return; }
-  if (file.size > 10 * 1024 * 1024) { imMsg('Amazon refuses images over 10 MB.', true); return; }
+  if (!/^image\/(jpeg|png|tiff|gif)$/.test(file.type)) {
+    imMsg('Amazon takes JPEG, PNG, TIFF or GIF.', true);
+    return;
+  }
+  if (file.size > 10 * 1024 * 1024) {
+    imMsg('Amazon refuses images over 10 MB.', true);
+    return;
+  }
   imMsg('Uploading ' + file.name + '…');
   try {
-    const b64 = await new Promise((res, rej) => {
-      const fr = new FileReader();
-      fr.onload = () => res(String(fr.result).split(',')[1]);
-      fr.onerror = () => rej(new Error('Could not read the file'));
-      fr.readAsDataURL(file);
+    const b64 = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result).split(',')[1]);
+      reader.onerror = () => reject(new Error('Could not read the file'));
+      reader.readAsDataURL(file);
     });
-    const r = await imPost({ limg: 'upload', name: (IM && IM.sku ? IM.sku + '_' + slot + '_' : '') + file.name, mime: file.type, b64 });
-    if (!r.ok) throw new Error(r.error || 'Upload failed');
+    const reply = await imPost({ limg: 'upload', name: (IM && IM.sku ? IM.sku + '_' + slot + '_' : '') + file.name, mime: file.type, b64 });
+    if (!reply.ok) throw new Error(reply.error || 'Upload failed');
     // Measured from the local file: the Drive address can take a moment to serve.
-    const local = URL.createObjectURL(file), i = new Image();
-    i.onload = () => { IM_DIMS[r.url] = { w: i.naturalWidth, h: i.naturalHeight }; imRender(); };
-    i.src = local;
-    IM_NOW[slot] = r.url;
+    const local = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      IM_DIMS[reply.url] = { w: img.naturalWidth, h: img.naturalHeight };
+      imRender();
+    };
+    img.src = local;
+    IM_NOW[slot] = reply.url;
     imRender();
     imMsg('Uploaded into ' + slot + '. Not on Amazon yet — press Apply.');
-  } catch (e) { imMsg(String(e.message || e), true); }
+  } catch (e) {
+    imMsg(String(e.message || e), true);
+  }
 }
 
+// Check (apply = false) or Apply (apply = true) the changed slots through imPost, and show what Amazon answered.
 async function imSend(apply) {
-  const set = imChanges(), n = Object.keys(set).length;
-  if (!n) return;
-  if (apply && !confirm('Send ' + n + ' image change(s) for ' + IM.sku + ' to Amazon?\n\n'
-      + Object.entries(set).map(([s, u]) => s + ': ' + (u ? 'new picture' : 'remove')).join('\n')
+  const set = imChanges();
+  const nChanges = Object.keys(set).length;
+  if (!nChanges) return;
+  if (apply && !confirm('Send ' + nChanges + ' image change(s) for ' + IM.sku + ' to Amazon?\n\n'
+      + Object.entries(set).map(([slot, url]) => slot + ': ' + (url ? 'new picture' : 'remove')).join('\n')
       + '\n\nAmazon checks it first; if it reports an error nothing is sent.')) return;
   $('imCheck').disabled = $('imApply').disabled = true;
   $('imSendMsg').textContent = apply ? 'Sending to Amazon…' : 'Asking Amazon…';
-  let r;
+  // --- send ---
+  let reply;
   try {
-    r = await imPost({ limg: 'patch', brand: IM.brand, sku: IM.sku, productType: IM.productType, set, apply, by: ME.email });
-  } catch (e) { r = { ok: false, error: String(e.message || e) }; }
-  const iss = (r.issues || []).map(i => `<div style="font-size:12px;margin:3px 0"><span class="st ${i.severity === 'ERROR' ? 'st-rejected' : 'st-draft'}">${imEsc(i.severity)}</span> ${imEsc(i.message)}</div>`).join('');
+    reply = await imPost({ limg: 'patch', brand: IM.brand, sku: IM.sku, productType: IM.productType, set, apply, by: ME.email });
+  } catch (e) {
+    reply = { ok: false, error: String(e.message || e) };
+  }
+  // --- show the answer ---
+  const issuesHtml = (reply.issues || []).map(issue => `<div style="font-size:12px;margin:3px 0">`
+    + `<span class="st ${issue.severity === 'ERROR' ? 'st-rejected' : 'st-draft'}">${imEsc(issue.severity)}</span> ${imEsc(issue.message)}</div>`).join('');
   let head;
-  if (!r.ok) head = `<div class="err" style="font-size:12.5px">${imEsc(r.error || 'Failed')}</div>`;
-  else if (r.previewOnly) head = `<div style="font-size:12.5px;color:var(--accent)">Amazon has no objection. Press Apply to send it.</div>`;
-  else head = `<div style="font-size:12.5px;color:var(--accent)">Accepted by Amazon (submission ${imEsc(r.submissionId || '')}). It is queued, not live: the page usually changes within 15 minutes to a few hours. Reload this listing later to confirm.</div>`;
-  IM_RESULT = `<div style="margin-top:8px">${head}${iss}</div>`;
+  if (!reply.ok) head = `<div class="err" style="font-size:12.5px">${imEsc(reply.error || 'Failed')}</div>`;
+  else if (reply.previewOnly) head = `<div style="font-size:12.5px;color:var(--accent)">Amazon has no objection. Press Apply to send it.</div>`;
+  else head = `<div style="font-size:12.5px;color:var(--accent)">Accepted by Amazon (submission ${imEsc(reply.submissionId || '')}). `
+    + `It is queued, not live: the page usually changes within 15 minutes to a few hours. Reload this listing later to confirm.</div>`;
+  IM_RESULT = `<div style="margin-top:8px">${head}${issuesHtml}</div>`;
   $('imResult').innerHTML = IM_RESULT;
   $('imSendMsg').textContent = '';
-  if (r.ok && !r.previewOnly) {
+  if (reply.ok && !reply.previewOnly) {
     IM_START = Object.assign({}, IM_NOW);     // what we sent is now the baseline
     IML_DIRTY = true;
     imRender();
@@ -670,14 +876,19 @@ async function imSend(apply) {
   }
 }
 
+// The "Changes sent for this SKU" box: the last 20 sends from Sellora, from the backend's log.
 async function imHistory() {
-  const el = $('imHist'); if (!el || !IM) return;
+  const el = $('imHist');
+  if (!el || !IM) return;
   try {
-    const r = await baCall({ limg: 'history', sku: IM.sku });
-    const rows = r.rows || [];
-    el.innerHTML = rows.length ? rows.slice(0, 20).map(x => `<div style="margin:2px 0">${imEsc(new Date(x.at).toLocaleString())} · ${imEsc(x.by || '?')} · ${imEsc(Object.entries(x.set || {}).map(([s, u]) => s + (u ? ' replaced' : ' removed')).join(', '))} · <b>${imEsc(x.status)}</b></div>`).join('')
+    const reply = await baCall({ limg: 'history', sku: IM.sku });
+    const rows = reply.rows || [];
+    el.innerHTML = rows.length ? rows.slice(0, 20).map(entry => `<div style="margin:2px 0">${imEsc(new Date(entry.at).toLocaleString())} · ${imEsc(entry.by || '?')} · ${
+        imEsc(Object.entries(entry.set || {}).map(([slot, url]) => slot + (url ? ' replaced' : ' removed')).join(', '))} · <b>${imEsc(entry.status)}</b></div>`).join('')
       : 'None sent from Sellora yet.';
-  } catch (e) { el.textContent = 'Could not read the log: ' + (e.message || e); }
+  } catch (e) {
+    el.textContent = 'Could not read the log: ' + (e.message || e);
+  }
 }
 
 /* ============================================================================================
@@ -688,6 +899,7 @@ async function imHistory() {
  * first, then the real send) is still what reaches Amazon. imPasteMany sends to ticked listings.
  */
 
+// Keep the clipboard in localStorage so it outlives a reload.
 function imClipSave() {
   try {
     if (IM_CLIP) localStorage.setItem('sellora.imgclip', JSON.stringify(IM_CLIP));
@@ -697,27 +909,37 @@ function imClipSave() {
 
 /** Copy a stack. `own` first, because what WE submitted is the thing worth copying; the catalogue
  *  fills a slot we never sent, which is usually the family's picture and still better than nothing. */
+// src: { brand, sku, asin, c, z, own: { slot: url }, live: { slot: url } }.
 function imClipTake(src) {
   const slots = {};
-  [...IM_SLOTS, 'SWCH'].forEach(k => { const u = src.own[k] || src.live[k] || ''; if (u) slots[k] = u; });
+  [...IM_SLOTS, 'SWCH'].forEach(slot => {
+    const url = src.own[slot] || src.live[slot] || '';
+    if (url) slots[slot] = url;
+  });
   IM_CLIP = { brand: src.brand, sku: src.sku, asin: src.asin || '', c: src.c || '', z: src.z || '',
-    slots, n: IM_SLOTS.filter(k => slots[k]).length, at: Date.now() };
+    slots, n: IM_SLOTS.filter(slot => slots[slot]).length, at: Date.now() };
   imClipSave();
 }
 
-function imClipClear() { IM_CLIP = null; imClipSave(); }
+// Forget the copied stack.
+function imClipClear() {
+  IM_CLIP = null;
+  imClipSave();
+}
 
 /** The banner that says what is held. Shown in both views so a copy is never invisible. */
+// `where` is 'list' or 'editor': the list's banner also carries the swatch tick box and "Paste into N ticked listing(s)".
 function imClipBar(where) {
   if (!IM_CLIP) return '';
-  const c = IM_CLIP, main = c.slots.MAIN || '';
+  const clip = IM_CLIP;
+  const main = clip.slots.MAIN || '';
   const sel = where === 'list' ? IM_SEL.size : 0;
   return `<div class="card" style="padding:8px 12px;margin-bottom:10px;border-color:var(--accent);display:flex;gap:10px;align-items:center;flex-wrap:wrap">
     ${main ? `<img src="${imEsc(imThumb(main))}" alt="" style="width:40px;height:40px;object-fit:contain;background:#fff;border:1px solid var(--line);border-radius:4px">` : ''}
     <div style="min-width:0">
-      <div style="font-size:12.5px"><b>Copied:</b> <span style="font-family:ui-monospace,monospace">${imEsc(c.sku)}</span>
-        ${c.c ? '<span class="muted"> · ' + imEsc(c.c) + '</span>' : ''}
-        <span class="muted"> · ${c.n} picture(s)${c.slots.SWCH ? ' + swatch' : ''}</span></div>
+      <div style="font-size:12.5px"><b>Copied:</b> <span style="font-family:ui-monospace,monospace">${imEsc(clip.sku)}</span>
+        ${clip.c ? '<span class="muted"> · ' + imEsc(clip.c) + '</span>' : ''}
+        <span class="muted"> · ${clip.n} picture(s)${clip.slots.SWCH ? ' + swatch' : ''}</span></div>
       <div class="muted" style="font-size:11px">Nothing has been sent. Open a listing and paste, or tick listings below and paste into all of them.</div>
     </div>
     <span style="flex:1"></span>
@@ -732,43 +954,68 @@ function imClipBar(where) {
 /* PASTE INTO SEVERAL LISTINGS. One send per SKU, each previewed by Amazon first (the backend only
  * sends for real when the preview is clean), each reported on its own line. It stops after three
  * failures in a row, because the fourth will fail the same way and the rest can wait for a fix. */
+// Paste the copied stack into every ticked SKU: one send each, applied straight away (the backend previews first), reported line by line.
 async function imPasteMany(skus) {
   if (!IM_CLIP || !skus.length) return;
-  const b = $('imBrand').value;
-  const items = (IML[b] || { items: [] }).items;
-  const by = new Map(items.map(x => [x.sku, x]));
+  const brandKey = $('imBrand').value;
+  const items = (IML[brandKey] || { items: [] }).items;
+  const by = new Map(items.map(item => [item.sku, item]));
   const withSw = $('imClipSw') && $('imClipSw').checked;
-  const colours = [...new Set(skus.map(s => (by.get(s) || {}).c).filter(Boolean))];
-  const warn = colours.filter(c => c && IM_CLIP.c && c !== IM_CLIP.c);
+  // --- warn when the targets are a different colour from the copied listing ---
+  const colours = [...new Set(skus.map(each => (by.get(each) || {}).c).filter(Boolean))];
+  const warn = colours.filter(colour => colour && IM_CLIP.c && colour !== IM_CLIP.c);
   if (!confirm('Put ' + IM_CLIP.sku + "'s " + IM_CLIP.n + ' picture(s)' + (withSw ? ' and its swatch' : '')
       + ' on ' + skus.length + ' listing(s)?\n\n' + skus.slice(0, 12).join(', ') + (skus.length > 12 ? ' …' : '')
       + (warn.length ? '\n\nCAREFUL: ' + warn.length + ' of them are a different colour (' + warn.slice(0, 4).join(', ')
         + ') and ' + IM_CLIP.sku + ' is ' + IM_CLIP.c + '.' : '')
       + '\n\nAmazon checks each one first; any it objects to is skipped and named.')) return;
+  // --- one send per SKU: only the slots that differ, stop after three refusals in a row ---
   const out = $('imBulk');
   $('imPasteSel').disabled = true;
-  let done = 0, failed = 0, run = 0;
+  let done = 0;
+  let failed = 0;
+  let refusals = 0;     // refusals in a row
   const lines = [];
   for (const sku of skus) {
     const row = by.get(sku);
-    if (!row) { lines.push(sku + ' — not in this snapshot'); continue; }
+    if (!row) {
+      lines.push(sku + ' — not in this snapshot');
+      continue;
+    }
     const set = {};
-    IM_SLOTS.forEach(k => { const u = IM_CLIP.slots[k]; if (u && (row.img || {})[k] !== u) set[k] = u; });
+    IM_SLOTS.forEach(slot => {
+      const url = IM_CLIP.slots[slot];
+      if (url && (row.img || {})[slot] !== url) set[slot] = url;
+    });
     if (withSw && IM_CLIP.slots.SWCH && (row.img || {}).SWCH !== IM_CLIP.slots.SWCH) set.SWCH = IM_CLIP.slots.SWCH;
-    if (!Object.keys(set).length) { lines.push(sku + ' — already holds these'); continue; }
-    if (!row.pt) { lines.push(sku + ' — no product type in the snapshot; open it and paste there'); continue; }
+    if (!Object.keys(set).length) {
+      lines.push(sku + ' — already holds these');
+      continue;
+    }
+    if (!row.pt) {
+      lines.push(sku + ' — no product type in the snapshot; open it and paste there');
+      continue;
+    }
     out.innerHTML = 'Sending ' + (done + failed + 1) + ' of ' + skus.length + '…<br>' + lines.join('<br>');
-    let r;
-    try { r = await imPost({ limg: 'patch', brand: b, sku, productType: row.pt, set, apply: true, by: ME.email }); }
-    catch (e) { r = { ok: false, error: String(e.message || e) }; }
-    if (r.ok && !r.previewOnly) {
-      done++; run = 0;
+    let reply;
+    try {
+      reply = await imPost({ limg: 'patch', brand: brandKey, sku, productType: row.pt, set, apply: true, by: ME.email });
+    } catch (e) {
+      reply = { ok: false, error: String(e.message || e) };
+    }
+    if (reply.ok && !reply.previewOnly) {
+      done++;
+      refusals = 0;
       row.img = Object.assign({}, row.img, set);        // what was sent, so the strip stops lying
       lines.push('<span style="color:var(--accent)">' + sku + ' — accepted (' + Object.keys(set).length + ' slot(s))</span>');
     } else {
-      failed++; run++;
-      lines.push('<span class="err">' + sku + ' — ' + imEsc(r.error || 'refused') + '</span>');
-      if (run >= 3) { lines.push('<b>Stopped after three refusals in a row.</b>'); break; }
+      failed++;
+      refusals++;
+      lines.push('<span class="err">' + sku + ' — ' + imEsc(reply.error || 'refused') + '</span>');
+      if (refusals >= 3) {
+        lines.push('<b>Stopped after three refusals in a row.</b>');
+        break;
+      }
     }
   }
   out.innerHTML = '<b>' + done + ' sent, ' + failed + ' refused.</b> Amazon processes them in the background; '
@@ -784,15 +1031,46 @@ async function imPasteMany(skus) {
  * Buttons drawn inside the list or the editor are wired where they are drawn (imListRender, imWire).
  */
 
-$('imGo').onclick = () => { IM_SKU_CHOICES = null; imLoad(); };
+// Open: the typed SKU or ASIN in the editor.
+$('imGo').onclick = () => {
+  IM_SKU_CHOICES = null;
+  imLoad();
+};
 
-$('imBack').onclick = () => { imShowEditor(false); if (IML_DIRTY) { IML_DIRTY = false; imListRender(); } };
+// Back from the editor to the list, redrawing it if a send changed anything.
+$('imBack').onclick = () => {
+  imShowEditor(false);
+  if (IML_DIRTY) {
+    IML_DIRTY = false;
+    imListRender();
+  }
+};
 
-let IML_T = 0;
-const imListAgain = () => { IML_PAGE = 0; imShowEditor(false); imListRender(); };
-$('imQ').addEventListener('input', () => { clearTimeout(IML_T); IML_T = setTimeout(imListAgain, 250); });
-$('imQ').addEventListener('keydown', e => { if (e.key === 'Enter') { clearTimeout(IML_T); imListAgain(); } });
+let IML_T = 0;          // debounce timer for the search box
+// Redraw the list from page 1 (search, filter and view changes).
+const imListAgain = () => {
+  IML_PAGE = 0;
+  imShowEditor(false);
+  imListRender();
+};
+$('imQ').addEventListener('input', () => {
+  clearTimeout(IML_T);
+  IML_T = setTimeout(imListAgain, 250);
+});
+$('imQ').addEventListener('keydown', e => {
+  if (e.key === 'Enter') {
+    clearTimeout(IML_T);
+    imListAgain();
+  }
+});
 $('imFilter').onchange = imListAgain;
 $('imView').onchange = imListAgain;
-$('imBrand').onchange = () => { IML_PAGE = 0; IM_SEL.clear(); imShowEditor(false); imListEnsure(); };
+// Brand changed: page 1, nothing ticked, back to the list, that brand's snapshot.
+$('imBrand').onchange = () => {
+  IML_PAGE = 0;
+  IM_SEL.clear();
+  imShowEditor(false);
+  imListEnsure();
+};
+// Refresh from Amazon: rebuild this brand's snapshot.
 $('imRefresh').onclick = () => imListBuild($('imBrand').value);
