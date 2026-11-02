@@ -276,6 +276,19 @@ function fetchOrders() {
 }
 $('fetchBtn').addEventListener('click', fetchOrders);
 $('bulkBtn').addEventListener('click', () => bulkShipDlg(readyOrders(), 'Bulk order'));
+/* THE ERP'S PRODUCTION BUCKET, FROM THE HUB (Ravi, 2 Nov: "get the bucket ready in our Shopify hub"). Not a copy: the ERP
+ * page around the hub reads its Shopify orders and stock if it has not yet, and opens its own bucket over the hub — need
+ * production, stock can fill, done, from production, handed over, Excel, pending sheet, open ticked production lines
+ * (SHP- orders in the Order Console). Only inside the ERP; the hub on its own has no production order book. */
+$('prodBktBtn').addEventListener('click', async () => {
+  const W = window.HUB_WEB;
+  if (!W || !W.erp) return toast('The production bucket is the ERP\'s: open the hub from the ERP (Shopify → Shopify hub).', true);
+  const b = $('prodBktBtn'); if (b.disabled) return;
+  b.disabled = true; const was = b.textContent; b.textContent = 'Opening the bucket…';
+  try { const r = await W.ask('prodBucket', {}); if (r && r.msg) toast(r.msg, !!r.bad); }
+  catch (e) { toast(e.message, true); }
+  finally { b.disabled = false; b.textContent = was; }
+});
 
 /* ============================== ORDER COLUMNS ============================== */
 /* Ship from, in the live column's words: one answer for the order, with MCF and India stock under it. */

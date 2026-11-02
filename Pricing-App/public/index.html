@@ -3305,6 +3305,9 @@ const REPL_SECTIONS = [
   /* THE SHOPIFY RETURNS TEAM (Ravi, 15 Oct): Shopify Orders narrowed to returns & replacements, delivery days by zip and
    * FBA stock by SKU — no orders table, no production. Tick this OR Shopify Orders: with both, the account has the full screen. */
   ['shopret', 'Shopify returns team — returns & replacements, delivery days, FBA stock'],
+  /* THE SHOPIFY PRODUCTION BUCKET (Ravi, 2 Nov): Shopify Orders narrowed to the Production bucket only, for the production
+   * team. Tick this OR Shopify Orders: with both, the account has the full screen. */
+  ['shopbkt', 'Shopify production bucket — the production bucket only'],
   ['pmdb', 'Master Database'],
   ['mst', 'Masters (article types, colours, sizes)'], ['pbase', 'Job Work Register'], ['pcut', 'Cutting Data'],
   ['ppress', 'Press Inventory'],
@@ -3371,7 +3374,7 @@ const REPL_SECTIONS = [
  * nowhere lands in "Other" — never without a checkbox, which is how a section once became impossible
  * to grant. */
 const ACCESS_GROUPS = [
-  { key: 'shopify', sellora: ['shop', 'adj'], repl: ['shop', 'adj', 'shopify', 'shopprod', 'shopret'] },
+  { key: 'shopify', sellora: ['shop', 'adj'], repl: ['shop', 'adj', 'shopify', 'shopprod', 'shopret', 'shopbkt'] },
   { key: 'plan', repl: ['repl', 'article', 'target', 'top', 'pack'] },
   /* The same order as the Replenishment app's sidebar, which is the order work moves through the floor. */
   { key: 'prod', repl: ['so', 'ord', 'pcut', 'pbase', 'ppress', 'qc', 'qcalt', 'qcret', 'fgi', 'fgacc', 'shpacc', 'vpview', 'fba', 'fab', 'acc', 'gdesk', 'gdled', 'gdledit', 'gdappr', 'flppc', 'fldem', 'flacc', 'flchl', 'flcut', 'flraw', 'flwip', 'pmdb', 'mst', 'cx'] },
@@ -4131,103 +4134,160 @@ async function saveStockDoc(brand, map) {
  * GROUP: src/app/sales/
  * #################################################################################################### */
 /* ============================== FILE: src/app/sales/brand-analytics.js ============================== */
+/* ================= SALES · BRAND ANALYTICS: the Analytics screen, and baCall, the backend GET every screen uses =================
+ * Screens: Analytics (hidden from the sidebar — see HIDDEN_TABS in core/nav.js; everything stays wired up).
+ * baCall itself is called from almost every other screen: ads, listing, inventory and the other sales files
+ * all fetch through it (imPost in listing/image-manager.js is the one POST).
+ * Does: baCall is one GET to the backend (Apps Script) with any set of query parameters; it reads the answer
+ * as text first, so a Google sign-in page gets a clear message instead of a JSON error. On this screen,
+ * Run report asks Amazon for one of its Brand Analytics reports for the period chosen — "My product keywords"
+ * (Search Query Performance for one of your ASINs) or "Top search terms" — waits until it is built
+ * (baPollLoop) and draws the rows (renderBa). Show raw fields reveals the first row as Amazon sent it.
+ * Main functions: baCall, baMsg, baPollLoop, renderBa, and the baGo (Run report) handler. */
+
 /* ---------- Brand Analytics tab (Amazon reports, async) ---------- */
+// One GET to the backend: ?key=… plus every parameter given (null and blank ones left out). Throws when the
+// backend is not configured, answers with a web page, or says ok:false (unless its status is "processing").
+// Returns the parsed answer.
 async function baCall(params) {
   if (!API || !API.url) throw new Error('Backend not configured — ' + (API_ERR || 'config/api was not read'));
-  const u = new URL(API.url);
-  u.searchParams.set('key', API.key);
-  Object.entries(params).forEach(([k, v]) => { if (v != null && v !== '') u.searchParams.set(k, v); });
-  const r = await fetch(u, { redirect: 'follow' });
+  const url = new URL(API.url);
+  url.searchParams.set('key', API.key);
+  Object.entries(params).forEach(([key, value]) => {
+    if (value != null && value !== '') url.searchParams.set(key, value);
+  });
+  const res = await fetch(url, { redirect: 'follow' });
   // READ IT AS TEXT FIRST.
   //
   // When Apps Script will not run the script for this visitor it answers with a Google HTML page —
   // a sign-in screen or "you need permission" — not JSON. Calling .json() on that threw
   // `Unexpected token '<'`, which says nothing about the actual problem and sent everyone hunting
   // through the app instead of the deployment's access setting.
-  const text = await r.text();
-  let d;
-  try { d = JSON.parse(text); }
-  catch (e) {
+  const text = await res.text();
+  let data;
+  try {
+    data = JSON.parse(text);
+  } catch (e) {
     if (/^\s*</.test(text)) {
       throw new Error('The backend answered with a Google web page instead of data — this account '
         + 'is not allowed to run it. In the Apps Script editor: Deploy → Manage deployments '
         + '→ edit → "Who has access" must be Anyone, and "Execute as" must be Me. '
-        + '(HTTP ' + r.status + ')');
+        + '(HTTP ' + res.status + ')');
     }
     throw new Error('The backend sent something that is not data: ' + text.slice(0, 120));
   }
-  if (!d.ok && d.status !== 'processing') throw new Error(d.error || 'Report call failed');
-  return d;
+  if (!data.ok && data.status !== 'processing') throw new Error(data.error || 'Report call failed');
+  return data;
 }
+
+/* ---- the Analytics screen ---- */
 // The ASIN box only applies to the SQP (own products) report; the filter box only to Top terms.
 $('baType').addEventListener('change', () => {
   const terms = $('baType').value === 'terms';
   $('baAsinWrap').style.display = terms ? 'none' : '';
   $('baFilterWrap').style.display = terms ? '' : 'none';
 });
+// Run that once at start, so the boxes match the choice the page loads with.
 $('baType').dispatchEvent(new Event('change'));
 
-let BA_RAW = null, BA_KIND = null;
+let BA_RAW = null;    // the first raw row of the last report, for "Show raw fields"
+let BA_KIND = null;   // what the backend says the rows are: 'terms' = Top search terms; anything else draws the SQP columns
+// Run report: have Amazon build the chosen report, wait for it, draw it.
 $('baGo').onclick = async () => {
   const type = $('baType').value;
   const asin = $('baAsin').value.trim();
-  if (type === 'sqp' && !asin) { baMsg('Enter your ASIN for the product-keywords report.', true); return; }
-  $('baGo').disabled = true; $('baGo').innerHTML = '<span class="spin"></span>…';
+  if (type === 'sqp' && !asin) {
+    baMsg('Enter your ASIN for the product-keywords report.', true);
+    return;
+  }
+  // --- busy ---
+  $('baGo').disabled = true;
+  $('baGo').innerHTML = '<span class="spin"></span>…';
+  // --- create the report, wait for it, draw it ---
   try {
     baMsg('Asking Amazon to build the report…');
-    const c = await baCall({ ba: 'create', type, period: $('baPeriod').value, asin: type === 'sqp' ? asin : '' });
-    if (!c.reportId) throw new Error(c.error || 'Could not create report');
-    baMsg(`Report building for ${c.window}… this can take 1–5 minutes.`);
-    const rows = await baPollLoop(c.reportId);
+    const created = await baCall({ ba: 'create', type, period: $('baPeriod').value, asin: type === 'sqp' ? asin : '' });
+    if (!created.reportId) throw new Error(created.error || 'Could not create report');
+    baMsg(`Report building for ${created.window}… this can take 1–5 minutes.`);
+    const rows = await baPollLoop(created.reportId);
     renderBa(rows);
-  } catch (e) { baMsg(e.message || String(e), true); $('baResult').classList.add('hide'); }
-  $('baGo').disabled = false; $('baGo').textContent = 'Run report';
+  } catch (e) {
+    baMsg(e.message || String(e), true);
+    $('baResult').classList.add('hide');
+  }
+  // --- back to normal ---
+  $('baGo').disabled = false;
+  $('baGo').textContent = 'Run report';
 };
-function baMsg(t, bad) { const m = $('baMsg'); m.textContent = t; m.className = bad ? 'err' : 'muted'; }
+// The message line under the button: grey normally, red when bad is true.
+function baMsg(text, bad) {
+  const msg = $('baMsg');
+  msg.textContent = text;
+  msg.className = bad ? 'err' : 'muted';
+}
 
 // Poll every 15s for up to ~8 minutes.
+// Ask the backend about the report until it is done (8 s before the first ask, then 15 s between asks, 32 asks
+// at most): keep the sample row and the kind, return the rows. Throws when it is still not done after that.
 async function baPollLoop(id) {
   for (let i = 0; i < 32; i++) {
-    await new Promise(r => setTimeout(r, i === 0 ? 8000 : 15000));
-    const d = await baCall({ ba: 'poll', id });
-    if (d.status === 'done') { BA_RAW = d.sample; BA_KIND = d.kind; return d.rows || []; }
+    await new Promise(resolve => setTimeout(resolve, i === 0 ? 8000 : 15000));
+    const data = await baCall({ ba: 'poll', id });
+    if (data.status === 'done') {
+      BA_RAW = data.sample;
+      BA_KIND = data.kind;
+      return data.rows || [];
+    }
     baMsg(`Report building… (${Math.round((i * 15 + 8) / 6) / 10} min elapsed)`);
   }
   throw new Error('Report is taking too long — try again in a few minutes.');
 }
 
+// Draw the rows of one report: Top search terms (filtered to one ASIN when the filter box is filled) or
+// My product keywords.
 function renderBa(rows) {
+  // --- heading ---
   $('baResult').classList.remove('hide');
   const terms = BA_KIND === 'terms';
   const filt = $('baFilter').value.trim().toUpperCase();
-  if (terms && filt) rows = rows.filter(r => (r.asin || '').toUpperCase() === filt);
+  if (terms && filt) rows = rows.filter(row => (row.asin || '').toUpperCase() === filt);
   $('baHead').textContent = terms ? 'Top search terms' : 'My product keywords';
   $('baSub').textContent = `${rows.length} rows${terms && filt ? ' · filtered to ' + filt : ''}`;
 
+  // --- the table ---
   const dash = '<span class="muted">—</span>';
-  const n = v => (v == null ? dash : Number(v).toLocaleString('en-US'));
-  const pctv = v => (v == null ? dash : (v <= 1 ? (v * 100).toFixed(1) : Number(v).toFixed(1)) + '%');
+  // a count with thousands separators, or — ; a share: a fraction (≤ 1) becomes a %, a value already in % stays
+  const fmtNum = value => (value == null ? dash : Number(value).toLocaleString('en-US'));
+  const pctv = value => (value == null ? dash : (value <= 1 ? (value * 100).toFixed(1) : Number(value).toFixed(1)) + '%');
   let head, body;
   if (terms) {
     head = `<thead><tr><th>Search term</th><th style="text-align:right">Freq rank</th><th>Top ASIN</th>
-      <th style="text-align:right">Click rank</th><th style="text-align:right">Click share</th><th style="text-align:right">Conv share</th></tr></thead>`;
-    body = rows.map(r => `<tr><td>${r.searchTerm || dash}</td><td style="text-align:right">${n(r.freqRank)}</td>
-      <td style="font-family:monospace">${r.asin || dash}${r.title ? '<br><span class="muted">' + r.title.slice(0, 40) + '</span>' : ''}</td>
-      <td style="text-align:right">${n(r.clickRank)}</td><td style="text-align:right">${pctv(r.clickShare)}</td><td style="text-align:right">${pctv(r.convShare)}</td></tr>`).join('');
+      <th style="text-align:right">Click rank</th><th style="text-align:right">Click share</th>`
+      + `<th style="text-align:right">Conv share</th></tr></thead>`;
+    body = rows.map(row => `<tr><td>${row.searchTerm || dash}</td><td style="text-align:right">${fmtNum(row.freqRank)}</td>
+      <td style="font-family:monospace">${row.asin || dash}`
+      + `${row.title ? '<br><span class="muted">' + row.title.slice(0, 40) + '</span>' : ''}</td>
+      <td style="text-align:right">${fmtNum(row.clickRank)}</td><td style="text-align:right">${pctv(row.clickShare)}</td>`
+      + `<td style="text-align:right">${pctv(row.convShare)}</td></tr>`).join('');
   } else {
     head = `<thead><tr><th>Keyword</th><th style="text-align:right">Search volume</th>
       <th style="text-align:right">Impressions</th><th style="text-align:right">Impr. share</th>
       <th style="text-align:right">Clicks</th><th style="text-align:right">Purchases</th>
       <th style="text-align:right">Market share</th></tr></thead>`;
-    body = rows.map(r => `<tr><td>${r.query || dash}</td><td style="text-align:right">${n(r.volume)}</td>
-      <td style="text-align:right">${n(r.impressions)}</td><td style="text-align:right">${pctv(r.impShare)}</td>
-      <td style="text-align:right">${n(r.clicks)}</td><td style="text-align:right">${n(r.purchases)}</td>
-      <td style="text-align:right">${pctv(r.purShare)}</td></tr>`).join('');
+    body = rows.map(row => `<tr><td>${row.query || dash}</td><td style="text-align:right">${fmtNum(row.volume)}</td>
+      <td style="text-align:right">${fmtNum(row.impressions)}</td><td style="text-align:right">${pctv(row.impShare)}</td>
+      <td style="text-align:right">${fmtNum(row.clicks)}</td><td style="text-align:right">${fmtNum(row.purchases)}</td>
+      <td style="text-align:right">${pctv(row.purShare)}</td></tr>`).join('');
   }
-  $('baTable').innerHTML = head + '<tbody>' + (body || `<tr><td colspan="7" class="muted">No rows — data may not be published yet for this period; try Month, or an earlier one.</td></tr>`) + '</tbody>';
+  $('baTable').innerHTML = head + '<tbody>'
+    + (body || `<tr><td colspan="7" class="muted">No rows — data may not be published yet for this period; `
+      + `try Month, or an earlier one.</td></tr>`)
+    + '</tbody>';
 }
+// Show raw fields: toggle the box with the report's first raw row as JSON.
 $('baRawBtn').onclick = () => {
-  const raw = $('baRaw'); raw.classList.toggle('hide');
+  const raw = $('baRaw');
+  raw.classList.toggle('hide');
   if (!raw.classList.contains('hide')) raw.textContent = 'First raw row:\n' + JSON.stringify(BA_RAW, null, 2);
 };
 
@@ -8804,22 +8864,41 @@ $('prExport').onclick = () => {
  * GROUP: src/app/sales/
  * #################################################################################################### */
 /* ============================== FILE: src/app/sales/sales-dashboard.js ============================== */
+/* ================= SALES · SALES DASHBOARD: today, this month and this year against last year, from the nightly cache =================
+ * Screens: Sales Dashboard (ensureSales runs when the tab opens — core/nav.js). Also home to ensureTiktok and
+ * ensureCarousel, which only point the TikTok Toolkit and Carousel Builder iframes at their pages, and to the
+ * date helpers sdToday and sdShift, which the ads screens and the other sales screens use too.
+ * Does: paints the cards (today, yesterday, last 7 days, MTD, YTD, where this month lands), the period and
+ * monthly comparison tables, two SVG charts and the free date range, for one channel (Ridhi, CPC, Shopify)
+ * or all three. The figures come from the nightly cache, kept in localStorage so a reopen paints with no
+ * network; a live top-up then overwrites the last few days (today first, then the month so far). Every date
+ * boundary is the marketplace's day (PT).
+ * Main functions: ensureSales, sdTopUp, sdSum, sdSeries, renderSales, sdRange, sdChartDaily, sdChartMonthly;
+ * helpers sdMsg, sdLoadLocal, sdSaveLocal, sdDefaults, sdPT, sdToday, sdShift, soStamp, sdLastYear, sdMoney,
+ * sdNum, sdShort, sdDelta; ensureTiktok, ensureCarousel. */
+
 /* ================= SALES DASHBOARD =================
  * Reads the nightly cache and nothing else — no scanning, no waiting. Three channels side by side:
  * the two Amazon accounts and Shopify, each stored as [sales, units, orders] per day, so "All" is a
  * plain sum and no part of this file needs a special case for Shopify.
  */
 let SD = { at: '', d: {} };            // { SP: {date:[sales,units,orders]}, CPC: {…}, SHOP: {…} }
-let SD_CH = 'SP';
+let SD_CH = 'SP';                      // the channel on view: SP (Ridhi), CPC, SHOP or ALL
 // State several functions here share, kept at the top of the section rather than beside the one
 // function that fills it — a `let` read above its own line is a ReferenceError that kills the whole
 // module, and this file has already been taken down that way twice.
-let SD_LIVE = '', SD_LIVE_MS = 0;
+let SD_LIVE = '';        // when the live top-up last ran, as the backend stamps it (shown beside "Last synced")
+let SD_LIVE_MS = 0;      // the same moment as a timestamp, for the ten-minute freshness check
 // How long each leg of the load actually took, printed beside the stamps. Guessing at which of the
 // three round trips is the slow one costs a deploy per guess; the screen can just say.
 let SD_MS = {};
 
-function sdMsg(t, bad) { const m = $('sdMsg'); m.textContent = t || ''; m.className = bad ? 'err' : 'muted'; }
+// The message line above the cards: grey normally, red when bad is true; blank text clears it.
+function sdMsg(text, bad) {
+  const msg = $('sdMsg');
+  msg.textContent = text || '';
+  msg.className = bad ? 'err' : 'muted';
+}
 
 /* Re-opening the tab must not re-read a month of orders. The top-up is a server read of the tail of
  * both Orders books plus a walk through Shopify — seconds, not milliseconds — and nothing on this
@@ -8838,17 +8917,22 @@ let SD_BUSY = null;
  * than it is. */
 const SD_LS = 'sd.daily.v1';
 
+// Read the saved copy from localStorage into SD, SD_LIVE and SD_LIVE_MS; false when there is none or it is
+// unusable.
 function sdLoadLocal() {
   try {
-    const o = JSON.parse(localStorage.getItem(SD_LS) || 'null');
-    if (!o || !o.at || !o.d) return false;
-    SD = { at: o.at, d: o.d };
-    SD_LIVE = o.live || '';
-    SD_LIVE_MS = Number(o.liveMs) || 0;
+    const saved = JSON.parse(localStorage.getItem(SD_LS) || 'null');
+    if (!saved || !saved.at || !saved.d) return false;
+    SD = { at: saved.at, d: saved.d };
+    SD_LIVE = saved.live || '';
+    SD_LIVE_MS = Number(saved.liveMs) || 0;
     return true;
-  } catch (e) { return false; }
+  } catch (e) {
+    return false;
+  }
 }
 
+// Save SD and the live stamps to localStorage (quietly skipped when storage is not available).
 function sdSaveLocal() {
   try {
     localStorage.setItem(SD_LS, JSON.stringify({ at: SD.at, d: SD.d, live: SD_LIVE, liveMs: SD_LIVE_MS }));
@@ -8858,23 +8942,30 @@ function sdSaveLocal() {
 /** Sensible default range: this month so far. Set BEFORE any render, since renderSales reads them. */
 function sdDefaults() {
   if ($('sdFrom').value) return;
-  const n = new Date();
-  $('sdFrom').value = new Date(Date.UTC(n.getFullYear(), n.getMonth(), 1)).toISOString().slice(0, 10);
+  const now = new Date();
+  $('sdFrom').value = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1)).toISOString().slice(0, 10);
   $('sdTo').value = sdToday();
 }
 
+// Opening the tab: paint from the saved copy (or fetch the history once), then, behind the painted screen,
+// check whether the nightly run moved on and top up the recent days.
 async function ensureSales() {
   // PAINT FIRST, FETCH AFTER. Nothing on this screen is worth a blank page: last night's figures are
   // true for every day but the last few, and the line above always says what is still on its way.
+  // --- 1. paint what is already here ---
   const fromDisk = !SD.at && sdLoadLocal();
-  if (SD.at) { sdDefaults(); renderSales(); }
+  if (SD.at) {
+    sdDefaults();
+    renderSales();
+  }
 
+  // --- 2. nothing saved yet: fetch the nightly history now ---
   if (!SD.at) {
     sdMsg('Loading…');
     const t0 = Date.now();
     try {
-      const r = await baCall({ cache: 'daily' });
-      SD = { at: (r.data && r.data.at) || '', d: (r.data && r.data.d) || {} };
+      const reply = await baCall({ cache: 'daily' });
+      SD = { at: (reply.data && reply.data.at) || '', d: (reply.data && reply.data.d) || {} };
       SD_MS.history = Date.now() - t0;
       sdMsg('');
       sdSaveLocal();
@@ -8885,6 +8976,7 @@ async function ensureSales() {
     renderSales();
   }
 
+  // --- 3. behind the painted screen: a newer nightly run?, then the live top-up ---
   if (SD_BUSY) return;                                  // already working from an earlier visit
   SD_BUSY = (async () => {
     try {
@@ -8893,16 +8985,19 @@ async function ensureSales() {
       let replaced = false;
       if (fromDisk) {
         try {
-          const r = await baCall({ cache: 'daily' });
-          const at = (r.data && r.data.at) || '';
+          const reply = await baCall({ cache: 'daily' });
+          const at = (reply.data && reply.data.at) || '';
           if (at && at !== SD.at) {
-            SD = { at, d: (r.data && r.data.d) || {} };
+            SD = { at, d: (reply.data && reply.data.d) || {} };
             replaced = true;
             renderSales();
           }
         } catch (e) { /* the saved copy is still good; the top-up below is what matters */ }
       }
-      if (!replaced && SD_LIVE_MS && Date.now() - SD_LIVE_MS < SD_FRESH_MS) { sdSaveLocal(); return; }
+      if (!replaced && SD_LIVE_MS && Date.now() - SD_LIVE_MS < SD_FRESH_MS) {
+        sdSaveLocal();
+        return;
+      }
 
       // Today first: it is the figure being watched, and three days is a cheap read. Then the rest
       // of the month, which is the part that keeps MTD honest but costs the most.
@@ -8910,7 +9005,9 @@ async function ensureSales() {
       const full = Math.min(40, Math.max(8, Number(sdToday().slice(8, 10)) + 7));
       if (full > 3) await sdTopUp(full, 'Today is live — correcting the month so far…');
       sdSaveLocal();
-    } finally { SD_BUSY = null; }
+    } finally {
+      SD_BUSY = null;
+    }
   })();
 }
 
@@ -8937,16 +9034,18 @@ async function sdTopUp(days, note) {
     // by the date rather than fixed, so it is one day's work on the 2nd and a fortnight's on the
     // 15th, and it stops at the backend's 40-day ceiling.
     const want = days || Math.min(40, Math.max(8, Number(sdToday().slice(8, 10)) + 7));
-    const r = await baCall({ daily: 'recent', days: want });
-    Object.entries(r.d || {}).forEach(([ch, byDay]) => {
+    const reply = await baCall({ daily: 'recent', days: want });
+    Object.entries(reply.d || {}).forEach(([ch, byDay]) => {
       if (ch === 'shopError') return;
       const into = SD.d[ch] || (SD.d[ch] = {});
-      Object.entries(byDay).forEach(([day, v]) => { into[day] = v; });
+      Object.entries(byDay).forEach(([day, figures]) => {
+        into[day] = figures;
+      });
     });
-    SD_LIVE = r.at || '';
+    SD_LIVE = reply.at || '';
     SD_LIVE_MS = Date.now();
     SD_MS[want <= 3 ? 'today' : 'month'] = Date.now() - t0;
-    sdMsg(r.d && r.d.shopError ? 'Live top-up done, but Shopify did not answer: ' + r.d.shopError : '');
+    sdMsg(reply.d && reply.d.shopError ? 'Live top-up done, but Shopify did not answer: ' + reply.d.shopError : '');
   } catch (e) {
     // The cached figures are still on screen and still true for everything but today, so this is a
     // note rather than a failure.
@@ -8959,9 +9058,16 @@ async function sdTopUp(days, note) {
  * Every boundary is worked out in the MARKETPLACE's day (PT), not the viewer's. Someone opening
  * this in India at 9am is looking at a US trading day that has barely started, and "today" has to
  * mean the same thing here as it does in Seller Central. */
+// A Date whose year / month / day / hour fields read as the marketplace's (Pacific) clock for that moment.
 const sdPT = ms => new Date(new Date(ms).toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }));
-function sdToday() { const d = sdPT(Date.now()); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
-const sdShift = (iso, days) => new Date(new Date(iso + 'T00:00:00Z').getTime() + days * 86400000).toISOString().slice(0, 10);
+// Today's date in PT, as "YYYY-MM-DD".
+function sdToday() {
+  const date = sdPT(Date.now());
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+// An ISO date moved by `days` days (negative = earlier).
+const sdShift = (iso, days) =>
+  new Date(new Date(iso + 'T00:00:00Z').getTime() + days * 86400000).toISOString().slice(0, 10);
 /**
  * A timestamp in the MARKETPLACE's day, not UTC.
  *
@@ -8973,9 +9079,9 @@ const sdShift = (iso, days) => new Date(new Date(iso + 'T00:00:00Z').getTime() +
  * Same rule as the Amazon side and the Shopify side: pick ONE zone for a day and never mix.
  */
 function soStamp() {
-  const d = sdPT(Date.now());
-  const p = n => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+  const date = sdPT(Date.now());
+  const pad = n => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
 /** Same calendar day one year earlier — used for every "LY" column. */
@@ -8984,42 +9090,50 @@ const sdLastYear = iso => (Number(iso.slice(0, 4)) - 1) + iso.slice(4);
 /** Sum [sales, units, orders] across the chosen channel(s) between two dates, inclusive. */
 function sdSum(from, to) {
   const chans = SD_CH === 'ALL' ? ['SP', 'CPC', 'SHOP'] : [SD_CH];
-  const t = [0, 0, 0];
-  chans.forEach(c => {
-    const m = SD.d[c] || {};
-    Object.keys(m).forEach(day => {
+  const total = [0, 0, 0];
+  chans.forEach(chan => {
+    const byDay = SD.d[chan] || {};
+    Object.keys(byDay).forEach(day => {
       if (day < from || day > to) return;
-      const v = m[day];
-      t[0] += v[0] || 0; t[1] += v[1] || 0; t[2] += v[2] || 0;
+      const figures = byDay[day];
+      total[0] += figures[0] || 0;
+      total[1] += figures[1] || 0;
+      total[2] += figures[2] || 0;
     });
   });
-  t[0] = Math.round(t[0] * 100) / 100;
-  return t;
+  total[0] = Math.round(total[0] * 100) / 100;
+  return total;
 }
 /** Daily series for the chosen channel(s), oldest first. */
+// → [{ d: 'YYYY-MM-DD', v: sales }], the channels added together per day.
 function sdSeries(from, to) {
   const chans = SD_CH === 'ALL' ? ['SP', 'CPC', 'SHOP'] : [SD_CH];
   const by = {};
-  chans.forEach(c => Object.entries(SD.d[c] || {}).forEach(([day, v]) => {
+  chans.forEach(chan => Object.entries(SD.d[chan] || {}).forEach(([day, figures]) => {
     if (day < from || day > to) return;
-    by[day] = (by[day] || 0) + (v[0] || 0);
+    by[day] = (by[day] || 0) + (figures[0] || 0);
   }));
   return Object.keys(by).sort().map(d => ({ d, v: by[d] }));
 }
 
-const sdMoney = v => (v == null ? '—' : '$' + Math.round(v).toLocaleString('en-US'));
-const sdNum = v => (v == null ? '—' : Math.round(v).toLocaleString('en-US'));
+// Whole dollars with thousands separators ("$12,345"), and a plain count, both "—" for nothing.
+const sdMoney = value => (value == null ? '—' : '$' + Math.round(value).toLocaleString('en-US'));
+const sdNum = value => (value == null ? '—' : Math.round(value).toLocaleString('en-US'));
 /** "2026-08-04" → "4 Aug". Used where a card has to name the window it actually measured. */
 const sdShort = iso => String(Number(iso.slice(8, 10))) + ' ' + W_MON[Number(iso.slice(5, 7)) - 1];
+// The change from `was` to `now` as a coloured "▲12.3%" / "▼4.5%" span; "—" when there is no baseline.
 function sdDelta(now, was) {
   // No baseline means no percentage. Showing +100% against a zero last year reads as growth when it
   // really means "there is nothing to compare with".
   if (!was) return '<span class="muted">—</span>';
-  const p = (now - was) / was * 100;
-  return `<span class="${p < 0 ? 'sd-dn' : 'sd-up'}">${p < 0 ? '▼' : '▲'}${Math.abs(p).toFixed(1)}%</span>`;
+  const change = (now - was) / was * 100;
+  return `<span class="${change < 0 ? 'sd-dn' : 'sd-up'}">${change < 0 ? '▼' : '▲'}${Math.abs(change).toFixed(1)}%</span>`;
 }
 
+// Draw the whole screen from SD for the channel on view: cards, the two comparison tables, both charts, the
+// date range, and the "Last synced" stamps.
 function renderSales() {
+  // --- the dates every window is built from ---
   const today = sdToday();
   const yest = sdShift(today, -1);
   const d = new Date(today + 'T00:00:00Z');
@@ -9041,15 +9155,23 @@ function renderSales() {
    * percentage answers "how are we doing against last year" rather than "how far through today is
    * it". The dollar figure and the percentage are deliberately measured over different windows here,
    * and the card says which. */
-  const sevenTo = yest, sevenFrom = sdShift(yest, -6);
+  const sevenTo = yest;
+  const sevenFrom = sdShift(yest, -6);
 
-  const T = sdSum(today, today), Y = sdSum(yest, yest);
-  const W = sdSum(sevenFrom, sevenTo), Wl = sdSum(sdLastYear(sevenFrom), sdLastYear(sevenTo));
-  const M = sdSum(monthStart, today), Yr = sdSum(yearStart, today);
+  // --- the sums: each is [sales, units, orders] ---
+  const T = sdSum(today, today);                                  // today
+  const Y = sdSum(yest, yest);                                    // yesterday
+  const W = sdSum(sevenFrom, sevenTo);                            // the last 7 complete days
+  const Wl = sdSum(sdLastYear(sevenFrom), sdLastYear(sevenTo));   // … the same 7 days last year
+  const M = sdSum(monthStart, today);                             // month to date
+  const Yr = sdSum(yearStart, today);                             // year to date
   // Complete-day basis for the two "vs LY" percentages.
-  const Mc = sdSum(monthStart, yest), Ml = sdSum(sdLastYear(monthStart), sdLastYear(yest));
-  const Yrc = sdSum(yearStart, yest), Yrl = sdSum(sdLastYear(yearStart), sdLastYear(yest));
+  const Mc = sdSum(monthStart, yest);                             // month to date without today
+  const Ml = sdSum(sdLastYear(monthStart), sdLastYear(yest));     // … last year
+  const Yrc = sdSum(yearStart, yest);                             // year to date without today
+  const Yrl = sdSum(sdLastYear(yearStart), sdLastYear(yest));     // … last year
 
+  // --- the cards ---
   $('sdToday').textContent = sdMoney(T[0]);
   $('sdYest').textContent = sdMoney(Y[0]);
   $('sd7').textContent = sdMoney(W[0]);
@@ -9090,12 +9212,16 @@ function renderSales() {
   const prevWhole = sdSum(pm + '-01', pm + '-' + pmDays)[0];
   // Clamped: the 31st of a month compared against a February that stops at 28 would quietly measure
   // a shorter window on one side and call the difference growth.
-  const prevSame = doneDays > 0 ? sdSum(pm + '-01', pm + '-' + String(Math.min(doneDays, pmDays)).padStart(2, '0'))[0] : 0;
+  const prevSame = doneDays > 0
+    ? sdSum(pm + '-01', pm + '-' + String(Math.min(doneDays, pmDays)).padStart(2, '0'))[0]
+    : 0;
 
   const pmName = W_MON[pmM - 1];
   $('sdProj').textContent = rate7 ? sdMoney(projected) : '—';
   $('sdProjp').innerHTML = rate7
-    ? (prevWhole ? sdDelta(projected, prevWhole) + ' vs ' + pmName : '<span class="muted">no ' + pmName + ' to compare</span>')
+    ? (prevWhole
+        ? sdDelta(projected, prevWhole) + ' vs ' + pmName
+        : '<span class="muted">no ' + pmName + ' to compare</span>')
       + (prevSame ? ` · ${doneDays}d ${sdDelta(mtdDone, prevSame)}` : '')
     : '<span class="muted">—</span>';
 
@@ -9111,7 +9237,8 @@ function renderSales() {
   $('sdPeriodBody').innerHTML = row('Sales', 0, sdMoney) + row('Quantity', 1, sdNum) + row('Orders', 2, sdNum);
 
   /* Monthly comparison — this year's months against the same months last year. */
-  const yr = today.slice(0, 4), lyr = String(Number(yr) - 1);
+  const yr = today.slice(0, 4);
+  const lyr = String(Number(yr) - 1);
   const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   let mrows = '';
   for (let m = 0; m < 12; m++) {
@@ -9120,60 +9247,82 @@ function renderSales() {
     const ty = sdSum(`${yr}-${mm}-01`, last)[0];
     const ly = sdSum(`${lyr}-${mm}-01`, `${lyr}-${mm}-31`)[0];
     if (!ty && !ly) continue;                       // a month neither year has is just noise
-    mrows += `<tr><td>${MON[m]}</td><td>${sdMoney(ty)}</td><td class="sd-ly">${sdMoney(ly)}</td><td>${sdDelta(ty, ly)}</td></tr>`;
+    mrows += `<tr><td>${MON[m]}</td><td>${sdMoney(ty)}</td><td class="sd-ly">${sdMoney(ly)}</td>`
+      + `<td>${sdDelta(ty, ly)}</td></tr>`;
   }
   $('sdMonthlyBody').innerHTML = mrows || '<tr><td colspan="4" class="muted">Nothing yet.</td></tr>';
 
+  // --- charts, the date range, and the "Last synced" line ---
   sdChartDaily(sdSeries(sdShift(today, -89), today));
   sdChartMonthly(yr, lyr);
   sdRange();
   // Two timestamps, because they mean different things: the nightly run owns the history, the
   // top-up owns today. One combined "last synced" would hide which half is stale.
-  const legs = Object.entries(SD_MS).map(([k, v]) => `${k} ${(v / 1000).toFixed(1)}s`).join(', ');
+  const legs = Object.entries(SD_MS).map(([leg, took]) => `${leg} ${(took / 1000).toFixed(1)}s`).join(', ');
   $('sdSynced').textContent = (SD.at || '—') + (SD_LIVE ? ` · today refreshed ${SD_LIVE}` : '')
     + (legs ? ` · read: ${legs}` : ' · read from this browser');
 }
 
+// The free date range at the bottom: sales, quantity, items and the average per item between the two dates.
 function sdRange() {
-  const f = $('sdFrom').value, t = $('sdTo').value;
-  if (!f || !t) return;
-  const v = sdSum(f, t);
-  $('sdrSales').textContent = sdMoney(v[0]);
-  $('sdrQty').textContent = sdNum(v[1]);
-  $('sdrItems').textContent = sdNum(v[2]);
+  const from = $('sdFrom').value;
+  const to = $('sdTo').value;
+  if (!from || !to) return;
+  const sum = sdSum(from, to);
+  $('sdrSales').textContent = sdMoney(sum[0]);
+  $('sdrQty').textContent = sdNum(sum[1]);
+  $('sdrItems').textContent = sdNum(sum[2]);
   // Per ITEM, not per order — the label says item, and dividing by orders would quietly answer a
   // different question on a screen where both numbers are sitting side by side.
-  $('sdrAvg').textContent = v[1] ? '$' + (v[0] / v[1]).toFixed(2) : '—';
+  $('sdrAvg').textContent = sum[1] ? '$' + (sum[0] / sum[1]).toFixed(2) : '—';
 }
 
 /* ---------- charts, drawn as SVG so the page stays free of external scripts ---------- */
+// The daily sales line (with a filled area) for a series of { d, v } points: grid lines with $ labels, up to
+// 8 date labels, and an invisible circle per point that carries the hover title.
 function sdChartDaily(pts) {
-  if (!pts.length) { $('sdChartDaily').innerHTML = '<div class="muted" style="padding:20px">No data yet.</div>'; return; }
+  if (!pts.length) {
+    $('sdChartDaily').innerHTML = '<div class="muted" style="padding:20px">No data yet.</div>';
+    return;
+  }
+  // --- geometry ---
   const W = 640, H = 220, padL = 56, padR = 10, padT = 10, padB = 26;
   const iw = W - padL - padR, ih = H - padT - padB;
-  const max = Math.max(1, ...pts.map(p => p.v));
+  const max = Math.max(1, ...pts.map(pt => pt.v));
   const x = i => padL + (pts.length === 1 ? iw / 2 : (i / (pts.length - 1)) * iw);
   const y = v => padT + ih - (v / max) * ih;
+  // --- the line and the area under it ---
   let line = '', area = `M${padL} ${padT + ih}`;
-  pts.forEach((p, i) => { line += (i ? ' L' : 'M') + x(i) + ' ' + y(p.v); area += ` L${x(i)} ${y(p.v)}`; });
+  pts.forEach((pt, i) => {
+    line += (i ? ' L' : 'M') + x(i) + ' ' + y(pt.v);
+    area += ` L${x(i)} ${y(pt.v)}`;
+  });
   area += ` L${x(pts.length - 1)} ${padT + ih} Z`;
-  let g = '';
+  // --- the SVG: grid, line, date labels, hover titles ---
+  let svg = '';
   for (let i = 0; i <= 4; i++) {
     const yy = padT + ih - (i / 4) * ih;
-    g += `<line x1="${padL}" y1="${yy}" x2="${W - padR}" y2="${yy}" stroke="#eef2f6"/>`
-      + `<text x="${padL - 8}" y="${yy + 4}" text-anchor="end" font-size="10" fill="#94a3b8">$${Math.round(max * i / 4).toLocaleString('en-US')}</text>`;
+    svg += `<line x1="${padL}" y1="${yy}" x2="${W - padR}" y2="${yy}" stroke="#eef2f6"/>`
+      + `<text x="${padL - 8}" y="${yy + 4}" text-anchor="end" font-size="10" fill="#94a3b8">`
+      + `$${Math.round(max * i / 4).toLocaleString('en-US')}</text>`;
   }
-  g += `<path d="${area}" fill="#a855f7" opacity=".12"/><path d="${line}" fill="none" stroke="#7c3aed" stroke-width="1.8"/>`;
+  svg += `<path d="${area}" fill="#a855f7" opacity=".12"/>`
+    + `<path d="${line}" fill="none" stroke="#7c3aed" stroke-width="1.8"/>`;
   const step = Math.ceil(pts.length / 8);
-  pts.forEach((p, i) => {
+  pts.forEach((pt, i) => {
     if (i % step) return;
-    g += `<text x="${x(i)}" y="${H - 8}" text-anchor="middle" font-size="10" fill="#64748b">${p.d.slice(5)}</text>`;
+    svg += `<text x="${x(i)}" y="${H - 8}" text-anchor="middle" font-size="10" fill="#64748b">${pt.d.slice(5)}</text>`;
   });
-  pts.forEach((p, i) => { g += `<circle cx="${x(i)}" cy="${y(p.v)}" r="6" fill="transparent"><title>${p.d} — $${Math.round(p.v).toLocaleString('en-US')}</title></circle>`; });
-  $('sdChartDaily').innerHTML = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto">${g}</svg>`;
+  pts.forEach((pt, i) => {
+    svg += `<circle cx="${x(i)}" cy="${y(pt.v)}" r="6" fill="transparent">`
+      + `<title>${pt.d} — $${Math.round(pt.v).toLocaleString('en-US')}</title></circle>`;
+  });
+  $('sdChartDaily').innerHTML = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto">${svg}</svg>`;
 }
 
+// The monthly bars: this year (teal) beside last year (orange) for each month, with a legend.
 function sdChartMonthly(yr, lyr) {
+  // --- the twelve pairs of sums ---
   const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   const ty = [], ly = [];
   for (let m = 0; m < 12; m++) {
@@ -9182,53 +9331,69 @@ function sdChartMonthly(yr, lyr) {
     ty.push(sdSum(`${yr}-${mm}-01`, last)[0]);
     ly.push(sdSum(`${lyr}-${mm}-01`, `${lyr}-${mm}-31`)[0]);
   }
+  // --- geometry ---
   const max = Math.max(1, ...ty, ...ly);
   const W = 640, H = 220, padL = 56, padR = 10, padT = 10, padB = 30;
   const iw = W - padL - padR, ih = H - padT - padB;
   const slot = iw / 12, bw = Math.min(14, slot * 0.33);
   const y = v => padT + ih - (v / max) * ih;
-  let g = '';
+  // --- the SVG: grid, bars with hover titles, month labels, legend ---
+  let svg = '';
   for (let i = 0; i <= 4; i++) {
     const yy = padT + ih - (i / 4) * ih;
-    g += `<line x1="${padL}" y1="${yy}" x2="${W - padR}" y2="${yy}" stroke="#eef2f6"/>`
-      + `<text x="${padL - 8}" y="${yy + 4}" text-anchor="end" font-size="10" fill="#94a3b8">$${Math.round(max * i / 4).toLocaleString('en-US')}</text>`;
+    svg += `<line x1="${padL}" y1="${yy}" x2="${W - padR}" y2="${yy}" stroke="#eef2f6"/>`
+      + `<text x="${padL - 8}" y="${yy + 4}" text-anchor="end" font-size="10" fill="#94a3b8">`
+      + `$${Math.round(max * i / 4).toLocaleString('en-US')}</text>`;
   }
   for (let m = 0; m < 12; m++) {
     const cx = padL + slot * m + slot / 2;
-    g += `<rect x="${cx - bw - 1}" y="${y(ty[m])}" width="${bw}" height="${Math.max(0, padT + ih - y(ty[m]))}" fill="#0d9488" rx="1.5"><title>${MON[m]} ${yr} — $${Math.round(ty[m]).toLocaleString('en-US')}</title></rect>`
-      + `<rect x="${cx + 1}" y="${y(ly[m])}" width="${bw}" height="${Math.max(0, padT + ih - y(ly[m]))}" fill="#f97316" rx="1.5"><title>${MON[m]} ${lyr} — $${Math.round(ly[m]).toLocaleString('en-US')}</title></rect>`
+    svg += `<rect x="${cx - bw - 1}" y="${y(ty[m])}" width="${bw}" height="${Math.max(0, padT + ih - y(ty[m]))}" fill="#0d9488" rx="1.5">`
+      + `<title>${MON[m]} ${yr} — $${Math.round(ty[m]).toLocaleString('en-US')}</title></rect>`
+      + `<rect x="${cx + 1}" y="${y(ly[m])}" width="${bw}" height="${Math.max(0, padT + ih - y(ly[m]))}" fill="#f97316" rx="1.5">`
+      + `<title>${MON[m]} ${lyr} — $${Math.round(ly[m]).toLocaleString('en-US')}</title></rect>`
       + `<text x="${cx}" y="${H - 12}" text-anchor="middle" font-size="10" fill="#64748b">${MON[m]}</text>`;
   }
-  g += `<rect x="${padL}" y="${H - 8}" width="9" height="9" fill="#0d9488" rx="1"/><text x="${padL + 13}" y="${H - 1}" font-size="10" fill="#64748b">This Year</text>`
-    + `<rect x="${padL + 70}" y="${H - 8}" width="9" height="9" fill="#f97316" rx="1"/><text x="${padL + 83}" y="${H - 1}" font-size="10" fill="#64748b">Last Year</text>`;
-  $('sdChartMonthly').innerHTML = `<svg viewBox="0 0 ${W} ${H + 4}" style="width:100%;height:auto">${g}</svg>`;
+  svg += `<rect x="${padL}" y="${H - 8}" width="9" height="9" fill="#0d9488" rx="1"/>`
+    + `<text x="${padL + 13}" y="${H - 1}" font-size="10" fill="#64748b">This Year</text>`
+    + `<rect x="${padL + 70}" y="${H - 8}" width="9" height="9" fill="#f97316" rx="1"/>`
+    + `<text x="${padL + 83}" y="${H - 1}" font-size="10" fill="#64748b">Last Year</text>`;
+  $('sdChartMonthly').innerHTML = `<svg viewBox="0 0 ${W} ${H + 4}" style="width:100%;height:auto">${svg}</svg>`;
 }
 
+/* ---------- the controls ---------- */
+// The channel toggle (Ridhi / CPC / Shopify / All): mark the button pressed and redraw.
 $('sdBrand').addEventListener('click', e => {
-  const b = e.target.closest('[data-ch]'); if (!b) return;
-  SD_CH = b.dataset.ch;
-  [...$('sdBrand').querySelectorAll('button')].forEach(x => x.classList.toggle('on', x === b));
+  const btn = e.target.closest('[data-ch]');
+  if (!btn) return;
+  SD_CH = btn.dataset.ch;
+  [...$('sdBrand').querySelectorAll('button')].forEach(each => each.classList.toggle('on', each === btn));
   renderSales();
 });
+// Apply, for the free date range.
 $('sdApply').onclick = sdRange;
+// Refresh today: a forced live top-up of the last 7 days.
 $('sdRefresh').onclick = async () => {
-  const b = $('sdRefresh');
-  b.disabled = true; b.textContent = 'Refreshing…';
+  const btn = $('sdRefresh');
+  btn.disabled = true;
+  btn.textContent = 'Refreshing…';
   await sdTopUp(7);
   sdSaveLocal();                        // so the next open starts from what was just read
-  b.disabled = false; b.textContent = 'Refresh today';
+  btn.disabled = false;
+  btn.textContent = 'Refresh today';
 };
 
 /* Fetched only when somebody opens the tab. Nothing in there talks to the backend or to Firestore,
  * so there is no permission to check and nothing to load — which is why this is three lines rather
  * than an ensure() like the others. */
+// TikTok Toolkit: point its iframe at toolkit.html the first time the tab opens.
 function ensureTiktok() {
-  const f = $('tkFrame');
-  if (f && !f.src) f.src = 'toolkit.html';
+  const frame = $('tkFrame');
+  if (frame && !frame.src) frame.src = 'toolkit.html';
 }
+// Carousel Builder: point its iframe at carousel.html the first time the tab opens.
 function ensureCarousel() {
-  const f = $('carFrame');
-  if (f && !f.src) f.src = 'carousel.html';
+  const frame = $('carFrame');
+  if (frame && !frame.src) frame.src = 'carousel.html';
 }
 
 
@@ -13429,6 +13594,19 @@ $('wExport').onclick = () => {
  * GROUP: src/app/sales/
  * #################################################################################################### */
 /* ============================== FILE: src/app/sales/parent-listing-review.js ============================== */
+/* ================= SALES · PARENT LISTING REVIEW: one row per parent — last week against its 6-week average, stock, ad spend, action =================
+ * Screens: Parent Listing Review (ensurePlaudit runs when the tab opens — core/nav.js), and the card that
+ * opens when a parent ASIN is clicked.
+ * Does: fetches nothing of its own. It joins what other screens already load — the weekly per-ASIN figures
+ * of PPC & Organic (WEEKLY), the listings and quantities of Listing Health (HEALTH), the launch dates
+ * (LAUNCH), the BSR snapshot (BSR), the Deal Calendar's photos (D_IMG) and the parent names — into one
+ * row per parent (plRows) with a suggested action (plAction: stock first, then traffic, then spend), a
+ * TOTAL row that only adds up what can be added (plSubtotal), and draws the sortable, filterable table
+ * (renderPlaudit). Refresh stock & ranks pulls the FBA stock report and re-reads the rank snapshot;
+ * Export writes the table as CSV.
+ * Main functions: plAction, plRows, plSubtotal, renderPlaudit, plCardOpen, ensurePlaudit; helpers
+ * plExcludedWeek, plMsg, plThumb, plBsrWeek, plLaunchOf; the plRefresh and plExport handlers. */
+
 /* ============ Parent Listing Review ============
  *
  * One row per parent: how last week went against the parent's own recent average, how new the
@@ -13462,12 +13640,12 @@ const PL_EXCLUDE = [
 /** Does the Sun–Sat week starting `wk` touch any of the excluded ranges? */
 function plExcludedWeek(wk) {
   const end = sdShift(wk, 6);
-  return PL_EXCLUDE.find(e => wk <= e.to && end >= e.from) || null;
+  return PL_EXCLUDE.find(range => wk <= range.to && end >= range.from) || null;
 }
 const PL_WEEKS_PER_MONTH = 52 / 12;      // DOS is months of cover, not days — see plRows()
 
-let PL_SORT = { k: 'runRate', dir: -1 };
-let PL_RENDER = { rows: [], defs: [] };
+let PL_SORT = { k: 'runRate', dir: -1 };   // the column sorted on (k) and its direction (1 up, -1 down)
+let PL_RENDER = { rows: [], defs: [] };    // what is on screen: the rows, the column definitions and the total — for the card and the export
 
 /* Thresholds behind the suggested action. Named, because a bare 0.6 buried in a condition is a
  * number nobody can argue with — and these are all worth arguing with. */
@@ -13505,60 +13683,66 @@ const PL_ACT_TAG = {
  * pulled gets no advice about its budget, because "spend nothing on this" and "we never looked" are
  * not the same sentence.
  */
-function plAction(r) {
-  const sold = r.lwUnits > 0 || r.lwSales > 0;
-  const spendKnown = r.lwSpend != null;
-  const advertised = spendKnown && r.lwSpend > PL_TINY_SPEND;
-  const cvr = r.lwSess > 0 ? r.lwUnits / r.lwSess : null;
+// → { a: the action's name (a key of PL_ACT_TAG), why: one sentence for the tooltip }, from one row of plRows.
+function plAction(row) {
+  const sold = row.lwUnits > 0 || row.lwSales > 0;
+  const spendKnown = row.lwSpend != null;
+  const advertised = spendKnown && row.lwSpend > PL_TINY_SPEND;
+  const cvr = row.lwSess > 0 ? row.lwUnits / row.lwSess : null;
 
   /* --- stock first: nothing else is actionable if it cannot ship --- */
-  if (r.stock === 0 && sold) {
+  if (row.stock === 0 && sold) {
     return { a: 'Restock — out', why: 'Sold last week and there is no FBA stock left.'
-      + (advertised ? ` Ads are still spending $${Math.round(r.lwSpend)} a week on it.` : '') };
+      + (advertised ? ` Ads are still spending $${Math.round(row.lwSpend)} a week on it.` : '') };
   }
-  if (r.dos != null && r.dos < PL_LOW_COVER) {
-    return { a: 'Restock — low', why: `About ${r.dos.toFixed(1)} month of cover at last week's rate.` };
+  if (row.dos != null && row.dos < PL_LOW_COVER) {
+    return { a: 'Restock — low', why: `About ${row.dos.toFixed(1)} month of cover at last week's rate.` };
   }
 
   /* --- then traffic --- */
   // `r.lwSess != null` is not belt and braces. Last week's sessions can be UNKNOWN while the average
   // is known, and `null < number` is `0 < number` — so a week Amazon has not reported yet would have
   // been announced as "Sessions down 100%", from no data at all.
-  if (r.avgSess > 0 && r.lwSess != null && r.lwSess < r.avgSess * PL_TRAFFIC_DROP) {
-    const pct = Math.round((1 - r.lwSess / r.avgSess) * 100);
+  if (row.avgSess > 0 && row.lwSess != null && row.lwSess < row.avgSess * PL_TRAFFIC_DROP) {
+    const pct = Math.round((1 - row.lwSess / row.avgSess) * 100);
     return { a: 'Traffic drop', why: `Sessions down ${pct}% on the 6-week average. Check rank and`
       + ' impression share before touching price.' };
   }
-  if (cvr != null && r.lwSess >= PL_MIN_SESS && cvr < PL_CVR_POOR) {
-    return { a: 'Fix the page', why: `${r.lwSess.toLocaleString('en-US')} sessions converted at `
+  if (cvr != null && row.lwSess >= PL_MIN_SESS && cvr < PL_CVR_POOR) {
+    return { a: 'Fix the page', why: `${row.lwSess.toLocaleString('en-US')} sessions converted at `
       + `${(cvr * 100).toFixed(1)}%. The traffic is arriving and not buying — images, price and`
       + ' reviews, not budget.' };
   }
 
   /* --- then the money --- */
   if (advertised && !sold) {
-    return { a: 'Cut spend', why: `$${Math.round(r.lwSpend)} spent last week and nothing sold.` };
+    return { a: 'Cut spend', why: `$${Math.round(row.lwSpend)} spent last week and nothing sold.` };
   }
-  if (advertised && r.lwSales > 0 && r.lwSpend / r.lwSales > 0.5) {
-    return { a: 'Spend too high', why: `Ad spend is ${Math.round(r.lwSpend / r.lwSales * 100)}% of`
+  if (advertised && row.lwSales > 0 && row.lwSpend / row.lwSales > 0.5) {
+    return { a: 'Spend too high', why: `Ad spend is ${Math.round(row.lwSpend / row.lwSales * 100)}% of`
       + ' this parent\'s sales. Pull bids back before adding anything else.' };
   }
-  if (spendKnown && !advertised && sold && r.dos != null && r.dos > PL_HIGH_COVER) {
-    return { a: 'Add budget', why: `Selling with no ad spend and ${r.dos.toFixed(1)} months of stock`
+  if (spendKnown && !advertised && sold && row.dos != null && row.dos > PL_HIGH_COVER) {
+    return { a: 'Add budget', why: `Selling with no ad spend and ${row.dos.toFixed(1)} months of stock`
       + ' sitting there. This is the cheapest place to put money.' };
   }
-  if (r.dos != null && r.dos > PL_HIGH_COVER && r.diff != null && r.diff < 0) {
-    return { a: 'Overstocked', why: `${r.dos.toFixed(1)} months of cover and sales falling. Deal,`
+  if (row.dos != null && row.dos > PL_HIGH_COVER && row.diff != null && row.diff < 0) {
+    return { a: 'Overstocked', why: `${row.dos.toFixed(1)} months of cover and sales falling. Deal,`
       + ' price or budget — something has to move it.' };
   }
 
-  if (r.type === 'New') {
-    return { a: 'New — watch', why: `Live ${r.ageDays} days. Too early to judge; leave it running.` };
+  if (row.type === 'New') {
+    return { a: 'New — watch', why: `Live ${row.ageDays} days. Too early to judge; leave it running.` };
   }
   return { a: 'Steady', why: 'Nothing in stock, traffic or spend stands out this week.' };
 }
 
-function plMsg(t, bad) { const m = $('plMsg'); m.textContent = t || ''; m.className = bad ? 'err' : 'muted'; }
+// The message line under the controls: grey normally, red when bad is true; blank text clears it.
+function plMsg(text, bad) {
+  const msg = $('plMsg');
+  msg.textContent = text || '';
+  msg.className = bad ? 'err' : 'muted';
+}
 
 /**
  * The same Amazon media URL, asked for at a size this grid can actually use.
@@ -13566,28 +13750,46 @@ function plMsg(t, bad) { const m = $('plMsg'); m.textContent = t || ''; m.classN
  * The Deal Calendar draws 30px and asks for 80. These cells are 76px, so they ask for 160 — double,
  * for a sharp picture on a retina screen — rather than pulling the 500px original for every row.
  */
-function plThumb(u) {
-  const s = String(u || '');
-  const m = s.match(/^(https?:\/\/[^?#]*\/images\/[A-Za-z]\/[^./]+)(\._[A-Za-z0-9,_-]+_)?(\.(?:jpg|jpeg|png|gif|webp))(\?[^#]*)?$/i);
-  return m ? `${m[1]}._SL160_${m[3]}${m[4] || ''}` : s;
+function plThumb(url) {
+  const str = String(url || '');
+  const match = str.match(/^(https?:\/\/[^?#]*\/images\/[A-Za-z]\/[^./]+)(\._[A-Za-z0-9,_-]+_)?(\.(?:jpg|jpeg|png|gif|webp))(\?[^#]*)?$/i);
+  return match ? `${match[1]}._SL160_${match[3]}${match[4] || ''}` : str;
 }
 
+// Opening the tab: make sure everything the rows are built from is loaded (listings, parent names, launch
+// dates, ranks, photos, weekly figures, last night's merge), then draw.
 async function ensurePlaudit() {
-  if (!H_LOADED) { plMsg('Loading listings…'); await loadHealthCache(); }
+  if (!H_LOADED) {
+    plMsg('Loading listings…');
+    await loadHealthCache();
+  }
   if (!PNAME_LOADED) await loadParentNames();
-  try { await loadLaunch(); } catch (e) { /* manual launch dates are optional here */ }
-  if (!BSR_LOADED) { plMsg('Loading ranks…'); await loadBsrCache(); }
+  try {
+    await loadLaunch();
+  } catch (e) { /* manual launch dates are optional here */ }
+  if (!BSR_LOADED) {
+    plMsg('Loading ranks…');
+    await loadBsrCache();
+  }
   // Photos live with the Deal Calendar, fetched once for the whole account and shared. Loading the
   // document is cheap; it is only the catalogue fetch behind "Fetch images" that costs anything.
-  if (!Object.keys(D_IMG).length) { plMsg('Loading photos…'); try { await loadDeals(); } catch (e) {} }
+  if (!Object.keys(D_IMG).length) {
+    plMsg('Loading photos…');
+    try {
+      await loadDeals();
+    } catch (e) {}
+  }
   if (!WEEKLY.weeks.length && !Object.keys(WEEKLY.rows).length) {
-    plMsg('Loading weekly sales…'); await loadWeekly();
+    plMsg('Loading weekly sales…');
+    await loadWeekly();
   }
   // The same nightly merge the PPC tab does, sharing its throttle — so sales and sessions here are
   // last night's without anybody pressing anything, and opening both tabs does not read twice.
   if (!W_BUSY && Date.now() - W_NIGHT_RUN > 600000) {
     plMsg('Bringing in last night\'s figures…');
-    try { await wNightly(); } catch (e) { /* whatever is stored still renders */ }
+    try {
+      await wNightly();
+    } catch (e) { /* whatever is stored still renders */ }
   }
   plMsg('');
   renderPlaudit();
@@ -13595,11 +13797,12 @@ async function ensurePlaudit() {
 
 /** The newest BSR snapshot week that actually has readings, across both brands. */
 function plBsrWeek() {
-  const ws = allWeeks();
-  for (let i = ws.length - 1; i >= 0; i--) {
-    if (Object.keys(BSR.SP[ws[i]] || {}).length || Object.keys(BSR.CPC[ws[i]] || {}).length) return ws[i];
+  const weeks = allWeeks();
+  for (let i = weeks.length - 1; i >= 0; i--) {
+    if (Object.keys(BSR.SP[weeks[i]] || {}).length
+      || Object.keys(BSR.CPC[weeks[i]] || {}).length) return weeks[i];
   }
-  return ws[ws.length - 1] || '';
+  return weeks[weeks.length - 1] || '';
 }
 
 /**
@@ -13618,19 +13821,24 @@ function plLaunchOf(brand, parent, kids) {
   const manual = LAUNCH[brand] && LAUNCH[brand][parent] && LAUNCH[brand][parent].launch;
   if (manual) return { date: manual, sure: true };
   let earliest = '';
-  kids.forEach(r => {
-    const o = (r.opened || '').slice(0, 10);
-    if (/^\d{4}-\d{2}-\d{2}$/.test(o) && (!earliest || o < earliest)) earliest = o;
+  kids.forEach(row => {
+    const opened = (row.opened || '').slice(0, 10);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(opened) && (!earliest || opened < earliest)) earliest = opened;
   });
   return { date: earliest, sure: false };
 }
 
+// Build the rows: one per parent of the brands chosen, with last week, the 6-week average, stock, months of
+// cover, launch age, BSR and the suggested action; then filter and sort them as the controls say.
+// → { rows, lastWeek, avgWeeks, bsrWeek, skipped, weekly }.
 function plRows() {
+  // --- the controls ---
   const brandSel = $('plBrand').value;
   const brands = adBrands().filter(b => brandSel === 'ALL' || b === brandSel);
   const typeSel = $('plType').value;
-  const q = $('plFilter').value.trim().toLowerCase();
+  const search = $('plFilter').value.trim().toLowerCase();
 
+  // --- the weeks: last week, and the six the average is built from ---
   // Completed weeks only, newest last. The week in progress is excluded everywhere on this tab: on a
   // Monday it would otherwise show every listing collapsing against its own six-week average.
   const all = WEEKLY.weeks.length ? WEEKLY.weeks : wWeeksList(26);
@@ -13644,26 +13852,29 @@ function plRows() {
     .filter(w => w <= lastWeek && plExcludedWeek(w))
     .map(w => wLabel(w) + ' (' + plExcludedWeek(w).why + ')');
 
+  // --- the children of each parent (from the health snapshot) ---
   // Children grouped under their parent, from the health snapshot: it is the only place that knows
   // which SKU belongs to which ASIN belongs to which parent, and it carries the quantities too.
   const kidsOf = {};
-  brands.forEach(b => ((HEALTH[b] && HEALTH[b].rows) || []).forEach(r => {
-    const p = r.parent || r.asin || r.sku;
-    if (!p) return;
-    (kidsOf[b + '|' + p] || (kidsOf[b + '|' + p] = [])).push(r);
+  brands.forEach(b => ((HEALTH[b] && HEALTH[b].rows) || []).forEach(row => {
+    const parentId = row.parent || row.asin || row.sku;
+    if (!parentId) return;
+    (kidsOf[b + '|' + parentId] || (kidsOf[b + '|' + parentId] = [])).push(row);
   }));
 
+  // --- the weekly figures of each parent (from the weekly store, added up over its children) ---
   // Sales, units, sessions and page views roll up from the weekly store, which is keyed by CHILD
   // ASIN. Anything the health snapshot has never seen still gets a row of its own rather than being
   // dropped — a product missing from an audit is worse than one standing on its own.
   const weekly = {};
-  Object.entries(WEEKLY.rows).forEach(([asin, r]) => {
-    if (!brands.includes(r.brand)) return;
-    const key = r.brand + '|' + wParentOf(asin);
+  Object.entries(WEEKLY.rows).forEach(([asin, row]) => {
+    if (!brands.includes(row.brand)) return;
+    const key = row.brand + '|' + wParentOf(asin);
     const into = weekly[key] || (weekly[key] = {});
-    Object.entries(r.weeks || {}).forEach(([wk, c]) => wAddCell(into[wk] || (into[wk] = {}), c));
+    Object.entries(row.weeks || {}).forEach(([wk, cell]) => wAddCell(into[wk] || (into[wk] = {}), cell));
   });
 
+  // --- one row per parent ---
   const keys = new Set([...Object.keys(kidsOf), ...Object.keys(weekly)]);
   const today = sdToday();
   const bsrWeek = plBsrWeek();
@@ -13671,27 +13882,33 @@ function plRows() {
 
   keys.forEach(key => {
     const cut = key.indexOf('|');
-    const brand = key.slice(0, cut), parent = key.slice(cut + 1);
+    const brand = key.slice(0, cut);
+    const parent = key.slice(cut + 1);
     const kids = kidsOf[key] || [];
     const byWeek = weekly[key] || {};
 
+    // last week, and the averages
     const lw = byWeek[lastWeek] || {};
-    const sum = f => avgWeeks.reduce((s, w) => s + ((byWeek[w] || {})[f] || 0), 0);
-    const n = avgWeeks.length || 1;
-    const avgSales = sum('rev') / n, avgUnits = sum('u') / n;
+    const sum = field => avgWeeks.reduce((acc, w) => acc + ((byWeek[w] || {})[field] || 0), 0);
+    const nWeeks = avgWeeks.length || 1;
+    const avgSales = sum('rev') / nWeeks;
+    const avgUnits = sum('u') / nWeeks;
     // Averaged over the weeks that ACTUALLY have a session figure, not over all six. Dividing by six
     // when only two weeks were ever collected reports a third of the real traffic — and reports it
     // confidently. No week with a figure means no average at all.
     const sessWeeks = avgWeeks.filter(w => (byWeek[w] || {}).sessions != null);
     const avgSess = sessWeeks.length
-      ? sessWeeks.reduce((s, w) => s + (byWeek[w].sessions || 0), 0) / sessWeeks.length : null;
+      ? sessWeeks.reduce((acc, w) => acc + (byWeek[w].sessions || 0), 0) / sessWeeks.length : null;
     const avgPv = sessWeeks.length
-      ? sessWeeks.reduce((s, w) => s + (byWeek[w].pv || 0), 0) / sessWeeks.length : null;
-    const lwSales = lw.rev || 0, lwUnits = lw.u || 0;
+      ? sessWeeks.reduce((acc, w) => acc + (byWeek[w].pv || 0), 0) / sessWeeks.length : null;
+    const lwSales = lw.rev || 0;
+    const lwUnits = lw.u || 0;
     // The six weeks the average is built from, week by week. An average is impossible to argue with
     // until you can see its parts — one enormous week and six ordinary ones give the same number as
     // a steady decline, and they mean completely different things.
-    const parts = avgWeeks.map(w => wLabel(w) + ' $' + Math.round((byWeek[w] || {}).rev || 0).toLocaleString('en-US')).join(' · ');
+    const parts = avgWeeks
+      .map(w => wLabel(w) + ' $' + Math.round((byWeek[w] || {}).rev || 0).toLocaleString('en-US'))
+      .join(' · ');
 
     // UNKNOWN and ZERO stay apart. A week whose ad report was never pulled has no `spend` at all —
     // flattening that to 0 would report a parent as costing nothing to advertise, which is a much
@@ -13707,15 +13924,17 @@ function plRows() {
     // anybody can act on.
     const diff = avgSales > 0 ? (lwSales - avgSales) / avgSales : null;
 
-    const stock = kids.reduce((s, r) => s + (r.qty || 0), 0);
+    // stock and months of cover
+    const stock = kids.reduce((acc, row) => acc + (row.qty || 0), 0);
     // DOS means MONTHS of cover here, which is what the sheet this replaces has always meant by it:
     // stock over last week's units gives weeks, turned into months. No sales last week means no rate
     // to divide by, so the answer is unknown rather than infinite.
     const dos = lwUnits > 0 ? stock / lwUnits / PL_WEEKS_PER_MONTH : null;
 
-    const L = plLaunchOf(brand, parent, kids);
-    const ageDays = L.date
-      ? Math.floor((Date.parse(today + 'T00:00:00Z') - Date.parse(L.date + 'T00:00:00Z')) / 86400000)
+    // launch date → age → New / Old / unknown
+    const launchInfo = plLaunchOf(brand, parent, kids);
+    const ageDays = launchInfo.date
+      ? Math.floor((Date.parse(today + 'T00:00:00Z') - Date.parse(launchInfo.date + 'T00:00:00Z')) / 86400000)
       : null;
     const type = ageDays == null ? '?' : (ageDays < PL_NEW_DAYS ? 'New' : 'Old');
 
@@ -13723,7 +13942,7 @@ function plRows() {
     // the seller's own Amazon parent name, then a child's title marked "~". One product must not be
     // called three different things on three tabs.
     const title = parentName(brand, parent, (kids[0] && kids[0].title) || '');
-    const kidWithAsin = kids.find(r => r.asin);
+    const kidWithAsin = kids.find(row => row.asin);
 
     // BSR belongs to a child; the snapshot already stores the best rank in the family per parent.
     const bsrCell = (BSR[brand] && BSR[brand][bsrWeek] && BSR[brand][bsrWeek][parent]) || null;
@@ -13731,37 +13950,49 @@ function plRows() {
     out.push({
       brand, parent, child: kidWithAsin ? kidWithAsin.asin : '', title,
       img: D_IMG[parent] || '',
-      bsr: bsrCell && bsrCell.rank ? bsrCell.rank : null, bsrCat: (bsrCell && bsrCell.cat) || '',
-      type, launch: L.date, launchSure: L.sure, ageDays,
+      bsr: bsrCell && bsrCell.rank ? bsrCell.rank : null,
+      bsrCat: (bsrCell && bsrCell.cat) || '',
+      type, launch: launchInfo.date, launchSure: launchInfo.sure, ageDays,
       // Same rule as lwSpend above: a week whose Sales & Traffic report has not been collected has
       // no session figure, and 0 would say "nobody visited this listing" — a claim the data does not
       // make. It reads as a dead listing sitting next to real units and real sales.
-      runRate, lwSess: lw.sessions == null ? null : lw.sessions, lwPv: lw.pv == null ? null : lw.pv,
+      runRate,
+      lwSess: lw.sessions == null ? null : lw.sessions,
+      lwPv: lw.pv == null ? null : lw.pv,
       lwUnits, lwSales, lwSpend,
       avgSess, avgPv, avgUnits, avgSales, diff, stock, dos, parts,
     });
   });
 
+  // --- the action, then the filters, the budget share and the sort ---
   // Worked out before filtering, so the action dropdown has something to filter ON.
-  out.forEach(r => { const A = plAction(r); r.action = A.a; r.why = A.why; });
+  out.forEach(row => {
+    const act = plAction(row);
+    row.action = act.a;
+    row.why = act.why;
+  });
 
   let rows = out;
-  if (typeSel !== 'ALL') rows = rows.filter(r => r.type === typeSel);
+  if (typeSel !== 'ALL') rows = rows.filter(row => row.type === typeSel);
   const actSel = $('plAct').value;
-  if (actSel === 'TODO') rows = rows.filter(r => r.action !== 'Steady' && r.action !== 'New — watch');
-  else if (actSel !== 'ALL') rows = rows.filter(r => r.action === actSel);
-  if (q) rows = rows.filter(r => (r.parent + ' ' + r.child + ' ' + r.title).toLowerCase().includes(q));
+  if (actSel === 'TODO') rows = rows.filter(row => row.action !== 'Steady' && row.action !== 'New — watch');
+  else if (actSel !== 'ALL') rows = rows.filter(row => row.action === actSel);
+  if (search) rows = rows.filter(row => (row.parent + ' ' + row.child + ' ' + row.title).toLowerCase().includes(search));
 
-  const k = PL_SORT.k, dir = PL_SORT.dir;
+  const sortKey = PL_SORT.k;
+  const dir = PL_SORT.dir;
   // Budget share is each parent's slice of the ad spend ACROSS WHAT IS ON SCREEN, so it answers
   // "where is the money going" for the view you are looking at — not for a catalogue you have just
   // filtered away. Worked out after filtering, for that reason.
-  const totSpend = rows.reduce((s, r) => s + (r.lwSpend || 0), 0);
-  rows.forEach(r => { r.share = (r.lwSpend != null && totSpend > 0) ? r.lwSpend / totSpend : null; });
+  const totSpend = rows.reduce((acc, row) => acc + (row.lwSpend || 0), 0);
+  rows.forEach(row => {
+    row.share = (row.lwSpend != null && totSpend > 0) ? row.lwSpend / totSpend : null;
+  });
 
-  rows.sort((a, b) => (typeof a[k] === 'string')
-    ? String(a[k] || '').localeCompare(String(b[k] || '')) * dir
-    : ((a[k] == null ? -Infinity : a[k]) - (b[k] == null ? -Infinity : b[k])) * dir);
+  // text columns alphabetically, numbers numerically with unknowns at the bottom (or top, descending)
+  rows.sort((a, b) => (typeof a[sortKey] === 'string')
+    ? String(a[sortKey] || '').localeCompare(String(b[sortKey] || '')) * dir
+    : ((a[sortKey] == null ? -Infinity : a[sortKey]) - (b[sortKey] == null ? -Infinity : b[sortKey])) * dir);
   return { rows, lastWeek, avgWeeks, bsrWeek, skipped, weekly };
 }
 
@@ -13774,46 +14005,59 @@ function plRows() {
  * they are left blank rather than filled with a number that would only ever mislead.
  */
 function plSubtotal(rows, avgWeeks, weeklyByKey) {
-  const t = { lwSess: 0, lwPv: 0, lwUnits: 0, lwSales: 0, avgSess: 0, avgPv: 0, avgUnits: 0, avgSales: 0, stock: 0 };
-  rows.forEach(r => Object.keys(t).forEach(k => { t[k] += r[k] || 0; }));
+  // --- the plain sums ---
+  const total = {
+    lwSess: 0, lwPv: 0, lwUnits: 0, lwSales: 0,
+    avgSess: 0, avgPv: 0, avgUnits: 0, avgSales: 0,
+    stock: 0,
+  };
+  rows.forEach(row => Object.keys(total).forEach(key => {
+    total[key] += row[key] || 0;
+  }));
   // The session fields can be UNKNOWN rather than zero (see plRows). A total of nothing-known has to
   // be a dash: printing 0 there would announce that the whole brand got no traffic, which is exactly
   // the wrong conclusion to hand somebody looking at a screen full of dashes.
-  ['lwSess', 'lwPv', 'avgSess', 'avgPv'].forEach(k => {
-    if (!rows.some(r => r[k] != null)) t[k] = null;
+  ['lwSess', 'lwPv', 'avgSess', 'avgPv'].forEach(key => {
+    if (!rows.some(row => row[key] != null)) total[key] = null;
   });
+  // --- the week-by-week parts, the ratios, the spend ---
   // The same week-by-week breakdown for the total, so an odd average can be traced to the week that
   // caused it without opening a single row.
   // The `|| 0` MUST wrap only the value being added. Written as `acc + x.rev || 0` it binds as
   // `(acc + x.rev) || 0`, so the first parent with nothing that week turns the running total into
   // NaN and then into zero — which is exactly what it did, and every week read $0.
-  t.parts = (avgWeeks || []).map(w => {
-    const s = rows.reduce((acc, r) => {
-      const cell = ((weeklyByKey || {})[r.brand + '|' + r.parent] || {})[w];
+  total.parts = (avgWeeks || []).map(w => {
+    const weekSum = rows.reduce((acc, row) => {
+      const cell = ((weeklyByKey || {})[row.brand + '|' + row.parent] || {})[w];
       return acc + ((cell && cell.rev) || 0);
     }, 0);
-    return wLabel(w) + ' $' + Math.round(s).toLocaleString('en-US');
+    return wLabel(w) + ' $' + Math.round(weekSum).toLocaleString('en-US');
   }).join(' · ');
-  t.runRate = t.lwSales * 52;
-  t.diff = t.avgSales > 0 ? (t.lwSales - t.avgSales) / t.avgSales : null;
+  total.runRate = total.lwSales * 52;
+  total.diff = total.avgSales > 0 ? (total.lwSales - total.avgSales) / total.avgSales : null;
   // Spend totals only over the parents whose ad figures are actually known, and says so by staying
   // blank when none are. Adding the knowns and printing it beside a full parent count would read as
   // the whole account's spend when it is only part of it.
-  const known = rows.filter(r => r.lwSpend != null);
-  t.lwSpend = known.length ? known.reduce((s, r) => s + r.lwSpend, 0) : null;
-  t.share = t.lwSpend == null ? null : 1;             // the view's spend is 100% of itself
-  t.spendKnown = known.length;
-  t.n = rows.length;
-  return t;
+  const known = rows.filter(row => row.lwSpend != null);
+  total.lwSpend = known.length ? known.reduce((acc, row) => acc + row.lwSpend, 0) : null;
+  total.share = total.lwSpend == null ? null : 1;             // the view's spend is 100% of itself
+  total.spendKnown = known.length;
+  total.n = rows.length;
+  return total;
 }
 
+// Draw the table: the message line and its tooltip, the head with the TOTAL row pinned under it, one row
+// per parent, the sort clicks. Keeps what it drew in PL_RENDER for the card and the export.
 function renderPlaudit() {
-  const esc = s => String(s == null ? '' : s).replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
-  const money = v => (v == null ? '<span class="muted">—</span>' : '$' + Math.round(v).toLocaleString('en-US'));
-  const nf = v => (v == null ? '<span class="muted">—</span>' : Math.round(v).toLocaleString('en-US'));
-  const pct = v => (v == null ? '<span class="muted">—</span>'
-    : '<span class="' + (v < 0 ? 'sd-dn' : 'sd-up') + '">' + (v > 0 ? '+' : '') + (v * 100).toFixed(0) + '%</span>');
+  // --- formatters (a dash for unknown) ---
+  const esc = str => String(str == null ? '' : str)
+    .replace(/[<>&"]/g, ch => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[ch]));
+  const money = value => (value == null ? '<span class="muted">—</span>' : '$' + Math.round(value).toLocaleString('en-US'));
+  const nf = value => (value == null ? '<span class="muted">—</span>' : Math.round(value).toLocaleString('en-US'));
+  const pct = value => (value == null ? '<span class="muted">—</span>'
+    : '<span class="' + (value < 0 ? 'sd-dn' : 'sd-up') + '">' + (value > 0 ? '+' : '') + (value * 100).toFixed(0) + '%</span>');
 
+  // --- the rows ---
   wRenderCheck();
   const { rows, lastWeek, avgWeeks, bsrWeek, skipped, weekly } = plRows();
 
@@ -13824,23 +14068,24 @@ function renderPlaudit() {
     return;
   }
 
-  const T = plSubtotal(rows, avgWeeks, weekly);
-  const nNew = rows.filter(r => r.type === 'New').length;
-  const nUnk = rows.filter(r => r.type === '?').length;
+  // --- the message line: the week, with the details in its tooltip ---
+  const tot = plSubtotal(rows, avgWeeks, weekly);
+  const nNew = rows.filter(row => row.type === 'New').length;
+  const nUnk = rows.filter(row => row.type === '?').length;
   // Just the week. The parent count is already in the TOTAL row, and the rest — which rank snapshot,
   // how many are new, how many have no launch date — is worth having but not worth a line of prose
   // above every visit, so it moves into the tooltip.
-  const m = $('plMsg');
-  m.textContent = wLabel(lastWeek);
-  m.className = 'muted';
-  m.title = rows.length + ' parents · ' + avgWeeks.length + '-week average'
+  const msg = $('plMsg');
+  msg.textContent = wLabel(lastWeek);
+  msg.className = 'muted';
+  msg.title = rows.length + ' parents · ' + avgWeeks.length + '-week average'
     + (avgWeeks.length ? ' (' + wLabel(avgWeeks[0]) + ' onwards)' : '')
     + (skipped.length ? ' · skipping ' + skipped.join(', ') : '')
     + (bsrWeek ? ' · ranks from ' + bsrWeek : ' · no rank snapshot yet')
     + ' · ' + nNew + ' new (live under ' + PL_NEW_DAYS + ' days)'
     + (nUnk ? ' · ' + nUnk + ' with no launch date on record' : '');
   // A dropped week changes what the "6wk" columns mean, so it is said on screen, not only on hover.
-  if (skipped.length) m.textContent += ' · avg excl. ' + skipped.join(', ');
+  if (skipped.length) msg.textContent += ' · avg excl. ' + skipped.join(', ');
 
   /* ORDER HERE, THE SUBTOTAL ROW AND THE BODY BELOW ARE ALL WRITTEN BY HAND AND MUST MATCH.
    * Nothing compares them at runtime, so a column moved in one place and not the other two puts every
@@ -13858,7 +14103,9 @@ function renderPlaudit() {
     { k: 'lwPv', t: 'LW Page Views', num: 1 },
     { k: 'lwUnits', t: 'LW Units', num: 1 },
     { k: 'lwSales', t: 'LW Sales', num: 1 },
-    { k: 'lwSpend', t: 'LW Ad Spend', num: 1, tip: 'Sponsored Products spend last week. A dash means that week\'s ad report has not been pulled — not that nothing was spent.' },
+    { k: 'lwSpend', t: 'LW Ad Spend', num: 1,
+      tip: 'Sponsored Products spend last week. A dash means that week\'s ad report has not been pulled — '
+        + 'not that nothing was spent.' },
     { k: 'share', t: 'Budget Share %', num: 1, tip: 'This parent\'s slice of the ad spend across the rows on screen.' },
     { k: 'avgSess', t: '6wk Sessions', num: 1 },
     { k: 'avgPv', t: '6wk Page Views', num: 1 },
@@ -13868,31 +14115,34 @@ function renderPlaudit() {
     { k: 'stock', t: 'FBA Stock', num: 1 },
     { k: 'dos', t: 'DOS', num: 1, tip: 'Months of cover: stock ÷ last week&#39;s units.' },
     { k: 'type', t: 'Listing Type' },
-    { k: 'action', t: 'Action', tip: 'Stock is asked first, then traffic, then spend — there is no point changing a bid on something that ships next month. Hover a cell for the reason.' },
+    { k: 'action', t: 'Action',
+      tip: 'Stock is asked first, then traffic, then spend — there is no point changing a bid on something that '
+        + 'ships next month. Hover a cell for the reason.' },
   ];
 
-  const arrow = k => (PL_SORT.k === k ? (PL_SORT.dir > 0 ? ' ↑' : ' ↓') : '');
-  const head = '<thead><tr>' + COLS.map(c =>
-    '<th class="' + (c.num ? 'num' : '') + (c.frz ? ' ' + c.frz : '') + '"'
-    + (c.noSort ? '' : ' data-pl-sort="' + c.k + '" style="cursor:pointer"')
-    + (c.tip ? ' title="' + c.tip + '"' : '')
-    + '>' + c.t + (c.noSort ? '' : arrow(c.k)) + '</th>').join('') + '</tr>'
+  // --- the head: the title row, then the TOTAL row ---
+  const arrow = key => (PL_SORT.k === key ? (PL_SORT.dir > 0 ? ' ↑' : ' ↓') : '');
+  const head = '<thead><tr>' + COLS.map(col =>
+    '<th class="' + (col.num ? 'num' : '') + (col.frz ? ' ' + col.frz : '') + '"'
+    + (col.noSort ? '' : ' data-pl-sort="' + col.k + '" style="cursor:pointer"')
+    + (col.tip ? ' title="' + col.tip + '"' : '')
+    + '>' + col.t + (col.noSort ? '' : arrow(col.k)) + '</th>').join('') + '</tr>'
     // The subtotal sits in the HEAD so it stays put while the rows scroll under it — the whole point
     // of a total is being able to read it without going back to the top.
     + '<tr class="subtot">'
-    + '<th class="frz">TOTAL</th><th class="frz2">' + T.n + ' parent' + (T.n === 1 ? '' : 's') + '</th>'
+    + '<th class="frz">TOTAL</th><th class="frz2">' + tot.n + ' parent' + (tot.n === 1 ? '' : 's') + '</th>'
     + '<th class="frz3"></th><th class="frz4"></th>'      // image, title
     + '<th></th>'                                          // BSR has no meaningful total
-    + '<th class="num">' + money(T.runRate) + '</th>'
-    + '<th class="num">' + nf(T.lwSess) + '</th><th class="num">' + nf(T.lwPv) + '</th>'
-    + '<th class="num">' + nf(T.lwUnits) + '</th><th class="num">' + money(T.lwSales) + '</th>'
-    + '<th class="num">' + money(T.lwSpend) + '</th>'
-    + '<th class="num">' + (T.share == null ? '<span class="muted">—</span>' : '100%') + '</th>'
-    + '<th class="num">' + nf(T.avgSess) + '</th><th class="num">' + nf(T.avgPv) + '</th>'
-    + '<th class="num">' + nf(T.avgUnits) + '</th>'
-    + '<th class="num" title="' + esc(T.parts) + '">' + money(T.avgSales) + '</th>'
-    + '<th class="num">' + pct(T.diff) + '</th>'
-    + '<th class="num">' + nf(T.stock) + '</th><th></th>'   // stock, DOS
+    + '<th class="num">' + money(tot.runRate) + '</th>'
+    + '<th class="num">' + nf(tot.lwSess) + '</th><th class="num">' + nf(tot.lwPv) + '</th>'
+    + '<th class="num">' + nf(tot.lwUnits) + '</th><th class="num">' + money(tot.lwSales) + '</th>'
+    + '<th class="num">' + money(tot.lwSpend) + '</th>'
+    + '<th class="num">' + (tot.share == null ? '<span class="muted">—</span>' : '100%') + '</th>'
+    + '<th class="num">' + nf(tot.avgSess) + '</th><th class="num">' + nf(tot.avgPv) + '</th>'
+    + '<th class="num">' + nf(tot.avgUnits) + '</th>'
+    + '<th class="num" title="' + esc(tot.parts) + '">' + money(tot.avgSales) + '</th>'
+    + '<th class="num">' + pct(tot.diff) + '</th>'
+    + '<th class="num">' + nf(tot.stock) + '</th><th></th>'   // stock, DOS
     + '<th></th><th></th>'                                  // listing type, action
     + '</tr></thead>';
 
@@ -13902,46 +14152,50 @@ function renderPlaudit() {
     '?': '<span class="st st-draft">—</span>',
   };
 
-  const body = rows.map(r => '<tr>'
-    + '<td class="frz"><span class="pl-open" data-pl-parent="' + esc(r.parent) + '" tabindex="0"'
-      + ' role="button" title="Open everything known about this parent">' + esc(r.parent) + '</span></td>'
-    + '<td class="frz2">' + esc(r.child) + '</td>'
-    + '<td class="frz3" style="padding:4px 8px">' + (r.img
-        ? '<img src="' + esc(plThumb(r.img)) + '" loading="lazy" decoding="async" alt=""'
+  // --- the body: one row per parent, in the same column order ---
+  const body = rows.map(row => '<tr>'
+    + '<td class="frz"><span class="pl-open" data-pl-parent="' + esc(row.parent) + '" tabindex="0"'
+      + ' role="button" title="Open everything known about this parent">' + esc(row.parent) + '</span></td>'
+    + '<td class="frz2">' + esc(row.child) + '</td>'
+    + '<td class="frz3" style="padding:4px 8px">' + (row.img
+        ? '<img src="' + esc(plThumb(row.img)) + '" loading="lazy" decoding="async" alt=""'
           + ' style="width:76px;height:76px;object-fit:contain;border-radius:6px;background:#f8fafc">'
         : '<span class="muted" style="font-size:11px">—</span>') + '</td>'
     // Clipped rather than wrapped: a long product name was stretching the column past everything
     // worth reading. The full name stays in the tooltip.
     + '<td class="frz4" style="max-width:230px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"'
-      + ' title="' + esc(r.title) + '">' + esc(r.title) + '</td>'
-    + '<td class="num"' + (r.bsrCat ? ' title="' + esc(r.bsrCat) + '"' : '') + '>'
-      + (r.bsr ? r.bsr.toLocaleString('en-US') : '<span class="muted">—</span>') + '</td>'
-    + '<td class="num">' + money(r.runRate) + '</td>'
-    + '<td class="num">' + nf(r.lwSess) + '</td><td class="num">' + nf(r.lwPv) + '</td>'
-    + '<td class="num">' + nf(r.lwUnits) + '</td><td class="num">' + money(r.lwSales) + '</td>'
-    + '<td class="num">' + money(r.lwSpend) + '</td>'
-    + '<td class="num">' + (r.share == null ? '<span class="muted">—</span>' : (r.share * 100).toFixed(1) + '%') + '</td>'
-    + '<td class="num">' + nf(r.avgSess) + '</td><td class="num">' + nf(r.avgPv) + '</td>'
-    + '<td class="num">' + nf(r.avgUnits) + '</td>'
-    + '<td class="num" title="' + esc(r.parts) + '">' + money(r.avgSales) + '</td>'
-    + '<td class="num">' + pct(r.diff) + '</td>'
-    + '<td class="num">' + nf(r.stock) + '</td>'
-    + '<td class="num">' + (r.dos == null ? '<span class="muted">—</span>' : r.dos.toFixed(1)) + '</td>'
-    + '<td title="' + esc(r.launch
-        ? (r.launchSure ? 'Launched ' : 'Amazon open date ') + r.launch + ' · ' + r.ageDays + ' days ago'
+      + ' title="' + esc(row.title) + '">' + esc(row.title) + '</td>'
+    + '<td class="num"' + (row.bsrCat ? ' title="' + esc(row.bsrCat) + '"' : '') + '>'
+      + (row.bsr ? row.bsr.toLocaleString('en-US') : '<span class="muted">—</span>') + '</td>'
+    + '<td class="num">' + money(row.runRate) + '</td>'
+    + '<td class="num">' + nf(row.lwSess) + '</td><td class="num">' + nf(row.lwPv) + '</td>'
+    + '<td class="num">' + nf(row.lwUnits) + '</td><td class="num">' + money(row.lwSales) + '</td>'
+    + '<td class="num">' + money(row.lwSpend) + '</td>'
+    + '<td class="num">'
+      + (row.share == null ? '<span class="muted">—</span>' : (row.share * 100).toFixed(1) + '%') + '</td>'
+    + '<td class="num">' + nf(row.avgSess) + '</td><td class="num">' + nf(row.avgPv) + '</td>'
+    + '<td class="num">' + nf(row.avgUnits) + '</td>'
+    + '<td class="num" title="' + esc(row.parts) + '">' + money(row.avgSales) + '</td>'
+    + '<td class="num">' + pct(row.diff) + '</td>'
+    + '<td class="num">' + nf(row.stock) + '</td>'
+    + '<td class="num">' + (row.dos == null ? '<span class="muted">—</span>' : row.dos.toFixed(1)) + '</td>'
+    + '<td title="' + esc(row.launch
+        ? (row.launchSure ? 'Launched ' : 'Amazon open date ') + row.launch + ' · ' + row.ageDays + ' days ago'
         : 'No launch date recorded, and the listings report has no open date for it either') + '">'
-      + TYPE_TAG[r.type]
-      + (r.launch && !r.launchSure ? ' <span class="muted" style="font-size:11px">auto</span>' : '')
+      + TYPE_TAG[row.type]
+      + (row.launch && !row.launchSure ? ' <span class="muted" style="font-size:11px">auto</span>' : '')
     + '</td>'
-    + '<td title="' + esc(r.why) + '" style="white-space:nowrap">'
-      + (PL_ACT_TAG[r.action] || esc(r.action)) + '</td>'
+    + '<td title="' + esc(row.why) + '" style="white-space:nowrap">'
+      + (PL_ACT_TAG[row.action] || esc(row.action)) + '</td>'
     + '</tr>').join('');
 
   $('plTable').innerHTML = head + '<tbody>' + (body
-    || '<tr><td colspan="' + COLS.length + '" class="muted" style="padding:14px">Nothing matches that filter.</td></tr>')
+    || '<tr><td colspan="' + COLS.length + '" class="muted" style="padding:14px">'
+      + 'Nothing matches that filter.</td></tr>')
     + '</tbody>';
-  PL_RENDER = { rows, defs: COLS, total: T };
+  PL_RENDER = { rows, defs: COLS, total: tot };
 
+  // --- sort on a heading click: the same column flips the direction; a new one starts up (text) or down ---
   $('plTable').querySelectorAll('[data-pl-sort]').forEach(th => th.onclick = () => {
     const k = th.dataset.plSort;
     const text = (k === 'parent' || k === 'child' || k === 'title' || k === 'type');
@@ -13952,12 +14206,15 @@ function renderPlaudit() {
   // Pin the TOTAL row directly under the title row. Measured in rAF, not synchronously: reading a
   // height here would force a full layout of the table that was just inserted.
   requestAnimationFrame(() => {
-    const t = $('plTable').querySelector('thead tr:first-child th');
-    const top = (t ? Math.round(t.getBoundingClientRect().height) : 0) || 34;
-    $('plTable').querySelectorAll('thead tr.subtot th').forEach(th => { th.style.top = top + 'px'; });
+    const firstTh = $('plTable').querySelector('thead tr:first-child th');
+    const top = (firstTh ? Math.round(firstTh.getBoundingClientRect().height) : 0) || 34;
+    $('plTable').querySelectorAll('thead tr.subtot th').forEach(th => {
+      th.style.top = top + 'px';
+    });
   });
 }
 
+// Every control redraws as it changes.
 ['plBrand', 'plType', 'plAct', 'plFilter'].forEach(id => $(id).addEventListener('input', renderPlaudit));
 
 /* ---------- one parent, everything known about it ------------------------------------------
@@ -13970,56 +14227,63 @@ function renderPlaudit() {
  * the card says so rather than printing a zero, because "no ad report pulled yet" and "nothing was
  * spent" are different answers and only one of them is a reason to act.
  */
+// Open the card for one parent (by parent ASIN) from the rows on screen: photo, title, action, six tiles, and
+// last week against the 6-week average per metric.
 function plCardOpen(parent) {
-  const r = (PL_RENDER.rows || []).find(x => x.parent === parent);
-  if (!r) return;
-  const esc = s => String(s == null ? '' : s).replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
-  const money = v => (v == null ? '<span class="muted">—</span>' : '$' + Math.round(v).toLocaleString('en-US'));
-  const nf = v => (v == null ? '<span class="muted">—</span>' : Math.round(v).toLocaleString('en-US'));
+  const row = (PL_RENDER.rows || []).find(each => each.parent === parent);
+  if (!row) return;
+  // --- formatters ---
+  const esc = str => String(str == null ? '' : str)
+    .replace(/[<>&"]/g, ch => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[ch]));
+  const money = value => (value == null ? '<span class="muted">—</span>' : '$' + Math.round(value).toLocaleString('en-US'));
+  const nf = value => (value == null ? '<span class="muted">—</span>' : Math.round(value).toLocaleString('en-US'));
 
   // Last week against the six-week average, per metric. The percentage is worked out here rather
   // than taken from r.diff — that one is the SALES difference, and printing it beside sessions
   // would put one number under four headings.
   const cmp = (label, lw, avg, fmt) => {
-    const f = fmt || nf;
-    const d = (avg > 0 && lw != null) ? (lw - avg) / avg * 100 : null;
-    const cls = d == null ? 'muted' : (d >= 0 ? 'pl-up' : 'pl-dn');
-    return `<tr><td>${label}</td><td class="num">${f(lw)}</td><td class="num">${f(avg)}</td>`
-      + `<td class="num ${cls}">${d == null ? '<span class="muted">—</span>'
-          : (d >= 0 ? '+' : '') + d.toFixed(0) + '%'}</td></tr>`;
+    const format = fmt || nf;
+    const change = (avg > 0 && lw != null) ? (lw - avg) / avg * 100 : null;
+    const cls = change == null ? 'muted' : (change >= 0 ? 'pl-up' : 'pl-dn');
+    return `<tr><td>${label}</td><td class="num">${format(lw)}</td><td class="num">${format(avg)}</td>`
+      + `<td class="num ${cls}">${change == null ? '<span class="muted">—</span>'
+          : (change >= 0 ? '+' : '') + change.toFixed(0) + '%'}</td></tr>`;
   };
 
+  // one of the six tiles: a value over a label, with an optional tooltip
   const tile = (label, val, tip) => `<div class="pl-tile"${tip ? ` title="${esc(tip)}"` : ''}>`
     + `<div class="pl-tv">${val}</div><div class="pl-tl">${esc(label)}</div></div>`;
 
-  const launch = r.launch
-    ? (r.launchSure ? 'Launched ' : 'Amazon open date ') + r.launch + ' · ' + r.ageDays + ' days ago'
+  const launch = row.launch
+    ? (row.launchSure ? 'Launched ' : 'Amazon open date ') + row.launch + ' · ' + row.ageDays + ' days ago'
     : 'No launch date recorded';
 
+  // --- the card ---
   $('plCardBody').innerHTML =
     `<div class="pl-head">
-       ${r.img ? `<img src="${esc(plThumb(r.img))}" alt="" class="pl-img">`
+       ${row.img ? `<img src="${esc(plThumb(row.img))}" alt="" class="pl-img">`
                : '<div class="pl-img pl-noimg">no photo</div>'}
        <div style="min-width:0">
-         <div class="pl-title">${esc(r.title) || '<span class="muted">no title</span>'}</div>
-         <div class="pl-ids">${esc(r.parent)}${r.child ? ' · child ' + esc(r.child) : ''}</div>
+         <div class="pl-title">${esc(row.title) || '<span class="muted">no title</span>'}</div>
+         <div class="pl-ids">${esc(row.parent)}${row.child ? ' · child ' + esc(row.child) : ''}</div>
          <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
-           ${PL_ACT_TAG[r.action] || esc(r.action || '')}
-           <span class="muted" style="font-size:12px" title="${esc(launch)}">${esc(r.type === 'New' ? 'New listing' : r.type === 'Old' ? 'Old listing' : 'Listing age unknown')}</span>
+           ${PL_ACT_TAG[row.action] || esc(row.action || '')}
+           <span class="muted" style="font-size:12px" title="${esc(launch)}">${esc(row.type === 'New' ? 'New listing' : row.type === 'Old' ? 'Old listing' : 'Listing age unknown')}</span>
          </div>
-         ${r.why ? `<div class="pl-why">${esc(r.why)}</div>` : ''}
+         ${row.why ? `<div class="pl-why">${esc(row.why)}</div>` : ''}
        </div>
      </div>
 
      <div class="pl-tiles">
-       ${tile('BSR', r.bsr ? r.bsr.toLocaleString('en-US') : '<span class="muted">—</span>', r.bsrCat || '')}
-       ${tile('52wk run rate', money(r.runRate), 'Last week’s sales × 52.')}
-       ${tile('FBA stock', nf(r.stock))}
-       ${tile('Months of cover', r.dos == null ? '<span class="muted">—</span>' : r.dos.toFixed(1),
+       ${tile('BSR', row.bsr ? row.bsr.toLocaleString('en-US') : '<span class="muted">—</span>', row.bsrCat || '')}
+       ${tile('52wk run rate', money(row.runRate), 'Last week’s sales × 52.')}
+       ${tile('FBA stock', nf(row.stock))}
+       ${tile('Months of cover', row.dos == null ? '<span class="muted">—</span>' : row.dos.toFixed(1),
               'Stock ÷ last week’s units.')}
-       ${tile('LW ad spend', money(r.lwSpend),
-              'Sponsored Products, last week. A dash means that week’s ad report has not been pulled — not that nothing was spent.')}
-       ${tile('Budget share', r.share == null ? '<span class="muted">—</span>' : (r.share * 100).toFixed(1) + '%',
+       ${tile('LW ad spend', money(row.lwSpend),
+              'Sponsored Products, last week. A dash means that week’s ad report has not been pulled — '
+              + 'not that nothing was spent.')}
+       ${tile('Budget share', row.share == null ? '<span class="muted">—</span>' : (row.share * 100).toFixed(1) + '%',
               'This parent’s slice of the ad spend across the rows on screen.')}
      </div>
 
@@ -14027,24 +14291,28 @@ function plCardOpen(parent) {
      <table class="pl-cmp">
        <thead><tr><th></th><th class="num">Last week</th><th class="num">6wk avg</th><th class="num">Change</th></tr></thead>
        <tbody>
-         ${cmp('Sessions', r.lwSess, r.avgSess)}
-         ${cmp('Page views', r.lwPv, r.avgPv)}
-         ${cmp('Units', r.lwUnits, r.avgUnits)}
-         ${cmp('Sales', r.lwSales, r.avgSales, money)}
+         ${cmp('Sessions', row.lwSess, row.avgSess)}
+         ${cmp('Page views', row.lwPv, row.avgPv)}
+         ${cmp('Units', row.lwUnits, row.avgUnits)}
+         ${cmp('Sales', row.lwSales, row.avgSales, money)}
        </tbody>
      </table>
-     ${r.parts ? `<div class="pl-note">${esc(r.parts)}</div>` : ''}
+     ${row.parts ? `<div class="pl-note">${esc(row.parts)}</div>` : ''}
      <div class="pl-note">${esc(launch)}</div>`;
 
   $('plCardModal').classList.remove('hide');
   $('plCardClose').focus();
 }
 
+// Close the card: its Close button, a click on the backdrop, or Escape.
 $('plCardClose').onclick = () => $('plCardModal').classList.add('hide');
-$('plCardModal').onclick = e => { if (e.target === $('plCardModal')) $('plCardModal').classList.add('hide'); };
+$('plCardModal').onclick = e => {
+  if (e.target === $('plCardModal')) $('plCardModal').classList.add('hide');
+};
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape' && !$('plCardModal').classList.contains('hide')) $('plCardModal').classList.add('hide');
 });
+// Open the card: a click on a parent ASIN, or Enter / Space on it.
 // Delegated, because the table body is rebuilt on every sort and every filter keystroke.
 $('plTable').addEventListener('click', e => {
   const el = e.target.closest('[data-pl-parent]');
@@ -14053,7 +14321,10 @@ $('plTable').addEventListener('click', e => {
 $('plTable').addEventListener('keydown', e => {
   if (e.key !== 'Enter' && e.key !== ' ') return;
   const el = e.target.closest('[data-pl-parent]');
-  if (el) { e.preventDefault(); plCardOpen(el.dataset.plParent); }
+  if (el) {
+    e.preventDefault();
+    plCardOpen(el.dataset.plParent);
+  }
 });
 
 
@@ -14070,10 +14341,12 @@ $('plTable').addEventListener('keydown', e => {
  */
 $('plRefresh').onclick = async () => {
   const btn = $('plRefresh');
-  btn.disabled = true; btn.innerHTML = '<span class="spin"></span>…';
-  const failed = [];
-  const usedCol = new Set();
-  let n = 0;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin"></span>…';
+  const failed = [];             // what went wrong, one line per brand or step
+  const usedCol = new Set();     // which column of Amazon's report the quantities came from
+  let updated = 0;               // SKUs whose quantity changed on screen
+  // --- stock, brand by brand ---
   /* myBrands(), not adBrands(). This button refreshes FBA STOCK, which is not advertising data —
    * it was switched to adBrands() by mistake when the brand restriction was narrowed to the ad tabs
    * on 2026-08-23. An admin sees no difference, which is exactly why it went unnoticed; a
@@ -14081,74 +14354,113 @@ $('plRefresh').onclick = async () => {
   for (const brand of myBrands()) {
     try {
       plMsg(`${BRAND_NAME[brand]}: asking Amazon for the stock report…`);
-      const sd = await pollReport({ age: 'create', brand }, { age: 'poll', brand },
-        m => plMsg(`${BRAND_NAME[brand]}: stock report building… ${m}`));
+      const report = await pollReport({ age: 'create', brand }, { age: 'poll', brand },
+        progress => plMsg(`${BRAND_NAME[brand]}: stock report building… ${progress}`));
       const map = {};
-      (sd.rows || []).forEach(r => { if (r.sku) map[r.sku] = r.available || 0; });
+      (report.rows || []).forEach(row => {
+        if (row.sku) map[row.sku] = row.available || 0;
+      });
       // WHICH column Amazon's report gave us. MCF can only ship what is fulfillable today, and this
       // report carries a friendlier-sounding `available` column that counts more than that. Saying
       // the name on screen turns "why is it 13 when Seller Central says 7" into something readable
       // instead of something to be investigated. (2026-09-01)
-      if (sd.availCol) usedCol.add(sd.availCol);
+      if (report.availCol) usedCol.add(report.availCol);
       await saveStockDoc(brand, map);
       // Straight into the rows this tab reads, so the grid updates without a reload. A SKU missing
       // from the report is left alone rather than zeroed — absent from a report is not "sold out".
-      ((HEALTH[brand] || {}).rows || []).forEach(r => {
-        if (r.sku && Object.prototype.hasOwnProperty.call(map, r.sku)) { r.qty = map[r.sku]; n++; }
+      ((HEALTH[brand] || {}).rows || []).forEach(row => {
+        if (row.sku && Object.prototype.hasOwnProperty.call(map, row.sku)) {
+          row.qty = map[row.sku];
+          updated++;
+        }
       });
-    } catch (e) { failed.push(`${BRAND_NAME[brand]} stock: ${e.message || e}`); }
+    } catch (e) {
+      failed.push(`${BRAND_NAME[brand]} stock: ${e.message || e}`);
+    }
   }
-  try { BSR_LOADED = false; await loadBsrCache(); BSR_LOADED = true; }
-  catch (e) { failed.push(`ranks: ${e.message || e}`); }
+  // --- ranks: re-read the snapshot ---
+  try {
+    BSR_LOADED = false;
+    await loadBsrCache();
+    BSR_LOADED = true;
+  } catch (e) {
+    failed.push(`ranks: ${e.message || e}`);
+  }
 
+  // --- redraw, and say what happened ---
   renderPlaudit();
   // Amazon allows roughly one report a minute, so two brands back to back can hit a 429. Say that
   // rather than dumping the raw error — the figures on screen are still the last good ones.
   if (failed.length) {
-    const quota = failed.some(f => /429|QuotaExceeded/i.test(f));
+    const quota = failed.some(failure => /429|QuotaExceeded/i.test(failure));
     plMsg(quota
-      ? 'Amazon’s report quota is used up (about one report a minute). Wait ~10 minutes and try again — the stock below is the last successful pull.'
+      ? 'Amazon’s report quota is used up (about one report a minute). Wait ~10 minutes and try again — '
+        + 'the stock below is the last successful pull.'
       : failed.join('  ·  '), true);
   } else {
     const col = [...usedCol].join(', ');
-    plMsg(`Stock updated for ${n.toLocaleString('en-US')} SKUs · ranks re-read.`
+    plMsg(`Stock updated for ${updated.toLocaleString('en-US')} SKUs · ranks re-read.`
       + (col ? ` · quantities read from “${col}”`
           + (/fulfillable|sellable/i.test(col) ? ' — what Amazon can pick today, which is what MCF may use.'
              : ' — WARNING: this is not the fulfillable column, so it may count stock MCF cannot ship.')
         : '')
       + ' Take a new snapshot on BSR Audit if the ranks look stale.');
   }
-  btn.disabled = false; btn.textContent = 'Refresh stock & ranks';
+  btn.disabled = false;
+  btn.textContent = 'Refresh stock & ranks';
 };
 
+// Export: the table on screen as CSV — the headings, the TOTAL row, then one line per parent.
 $('plExport').onclick = () => {
   const { rows, defs, total } = PL_RENDER;
-  const cell = v => { const s = String(v == null ? '' : v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
-  const val = (r, k) => {
-    if (k === 'diff') return r.diff == null ? '' : (r.diff * 100).toFixed(0);
-    if (k === 'dos') return r.dos == null ? '' : r.dos.toFixed(1);
-    if (k === 'img') return r.img || '';                 // the URL, so the sheet can pull the picture
-    const v = r[k];
-    return typeof v === 'number' ? Math.round(v * 100) / 100 : v;
+  // --- the lines ---
+  // one CSV field: quoted when it holds a quote, a comma or a line break
+  const cell = value => {
+    const str = String(value == null ? '' : value);
+    return /[",\n]/.test(str) ? '"' + str.replace(/"/g, '""') + '"' : str;
   };
-  const lines = [defs.map(d => d.t).map(cell).join(',')];
+  // one row's value for one column, as the sheet should see it
+  const val = (row, key) => {
+    if (key === 'diff') return row.diff == null ? '' : (row.diff * 100).toFixed(0);
+    if (key === 'dos') return row.dos == null ? '' : row.dos.toFixed(1);
+    if (key === 'img') return row.img || '';                 // the URL, so the sheet can pull the picture
+    const value = row[key];
+    return typeof value === 'number' ? Math.round(value * 100) / 100 : value;
+  };
+  const lines = [defs.map(col => col.t).map(cell).join(',')];
   // The total goes at the TOP, where it is read, and where a sort or a filter in the sheet leaves it
   // alone rather than dragging it into the middle of the rows.
-  if (total) lines.push(defs.map(d => {
-    if (d.k === 'parent') return 'TOTAL';
-    if (d.k === 'child') return total.n + ' parents';
-    if (d.k === 'diff') return total.diff == null ? '' : (total.diff * 100).toFixed(0);
-    const v = total[d.k];
-    return typeof v === 'number' ? Math.round(v * 100) / 100 : '';
+  if (total) lines.push(defs.map(col => {
+    if (col.k === 'parent') return 'TOTAL';
+    if (col.k === 'child') return total.n + ' parents';
+    if (col.k === 'diff') return total.diff == null ? '' : (total.diff * 100).toFixed(0);
+    const value = total[col.k];
+    return typeof value === 'number' ? Math.round(value * 100) / 100 : '';
   }).map(cell).join(','));
-  rows.forEach(r => lines.push(defs.map(d => val(r, d.k)).map(cell).join(',')));
+  rows.forEach(row => lines.push(defs.map(col => val(row, col.k)).map(cell).join(',')));
+  // --- download; the string below starts with the invisible UTF-8 byte-order mark (U+FEFF) for Excel ---
   const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
-  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-  a.download = 'parent-listing-review-' + new Date().toISOString().slice(0, 10) + '.csv';
-  a.click(); URL.revokeObjectURL(a.href);
+  const anchor = document.createElement('a');
+  anchor.href = URL.createObjectURL(blob);
+  anchor.download = 'parent-listing-review-' + new Date().toISOString().slice(0, 10) + '.csv';
+  anchor.click();
+  URL.revokeObjectURL(anchor.href);
 };
 
 /* ============================== FILE: src/app/sales/profit-margin.js ============================== */
+/* ================= SALES · PROFIT & MARGIN: what is left after a sale, per ASIN, over the last weeks =================
+ * Screens: Profit & Margin (ensureProfit runs when the tab opens — core/nav.js), its Cost model dialog and
+ * its Import costs dialog.
+ * Does: adds up units, sales and real ad spend per ASIN (or per parent) from the weekly cache for the weeks
+ * picked (pfRows), costs each row with the landed unit cost typed or imported for it and the model's
+ * percentages (pfMoney), and draws the KPI strip and the table (renderProfitKpis, renderProfit). A row
+ * without a unit cost gets no profit figure. Costs and the model live in one Firestore document,
+ * audit/costs (loadCosts, saveCosts); a cost is typed by clicking the Unit cost cell, or imported from a
+ * CSV (Download template, Choose CSV…, preview, Import), and the whole table exports as CSV.
+ * Main functions: ensureProfit, loadCosts, saveCosts, pfCostOf, pfMoney, pfWeeks, pfRows, renderProfitKpis,
+ * renderProfit, pfModelOpen, pfModelNote; the handlers of the cost click, the Cost model dialog, the Import
+ * costs dialog and Export. */
+
 /* ================= PROFIT & MARGIN =================
  *
  * What is actually left after a sale, per ASIN. Everything here comes from figures the app already
@@ -14170,32 +14482,39 @@ $('plExport').onclick = () => {
  * that strip says 3% for return loss and the sheet has never used it: every line computes return
  * loss as 10% of the LANDED cost. Taking the header at face value would have made every margin here
  * flatter than the sheet's by 7% of cost, and it would have looked perfectly reasonable. */
-const PF_DEFAULT_MODEL = { ref: 15, fba: 11, ret: 10, oh: 10, sal: 10 };
-let PF_MODEL = { ...PF_DEFAULT_MODEL };
+const PF_DEFAULT_MODEL = { ref: 15, fba: 11, ret: 10, oh: 10, sal: 10 };   // % of sales (ret: % of the landed cost)
+let PF_MODEL = { ...PF_DEFAULT_MODEL };   // the percentages in use, from audit/costs when saved there
 let COST = {};            // ASIN → { c: landed unit cost USD, note, at, by }
-let COST_AT = '';
-let PF_LOADED = false;
+let COST_AT = '';         // when the costs were last saved, "YYYY-MM-DD HH:MM" (UTC)
+let PF_LOADED = false;    // audit/costs has been read once
 let PF_EDIT = null;
 
-function pfMsg(t, bad) { const m = $('pfMsg'); m.textContent = t || ''; m.className = bad ? 'err' : 'muted'; }
+// The message line under the controls: grey normally, red when bad is true; blank text clears it.
+function pfMsg(text, bad) {
+  const msg = $('pfMsg');
+  msg.textContent = text || '';
+  msg.className = bad ? 'err' : 'muted';
+}
 
 /* ---------- storage ----------
  * One document. 3,600 ASINs at a cost and a short note is well inside Firestore's 1 MB, and it is
  * the ONLY copy of a number nothing can regenerate — so it is written whole, every time, rather
  * than patched field by field. */
+// Read audit/costs once into COST, COST_AT and PF_MODEL (the defaults stay when nothing is stored).
 async function loadCosts() {
   if (PF_LOADED) return;
   try {
     const snap = await getDoc(doc(db, 'audit', 'costs'));
     if (snap.exists()) {
-      const d = snap.data();
-      COST = d.c || {};
-      COST_AT = d.at || '';
-      if (d.model) PF_MODEL = { ...PF_DEFAULT_MODEL, ...d.model };
+      const data = snap.data();
+      COST = data.c || {};
+      COST_AT = data.at || '';
+      if (data.model) PF_MODEL = { ...PF_DEFAULT_MODEL, ...data.model };
     }
   } catch (e) { /* no access, or nothing stored yet — the tab says so when it draws */ }
   PF_LOADED = true;
 }
+// Write the whole of COST and the model to audit/costs, stamped with now and who saved it.
 async function saveCosts() {
   COST_AT = new Date().toISOString().slice(0, 16).replace('T', ' ');
   await setDoc(doc(db, 'audit', 'costs'), {
@@ -14204,6 +14523,7 @@ async function saveCosts() {
   });
 }
 
+// Opening the tab: load the parent names, the listings, the costs and the weekly cache, then draw.
 async function ensureProfit() {
   pfMsg('Loading…');
   await loadParentNames();
@@ -14217,9 +14537,9 @@ async function ensureProfit() {
 
 /** The landed unit cost recorded for an ASIN, or null. Never 0 — 0 is a cost somebody typed. */
 function pfCostOf(asin) {
-  const r = COST[asin];
-  const v = r && Number(r.c);
-  return (v > 0) ? v : null;
+  const rec = COST[asin];
+  const cost = rec && Number(rec.c);
+  return (cost > 0) ? cost : null;
 }
 
 /**
@@ -14228,8 +14548,10 @@ function pfCostOf(asin) {
  * Sales and ad spend are real. Referral, FBA, overhead and salary are the model's percentages of
  * sales; return loss is the model's percentage of the landed cost, exactly as the workbook has it.
  */
-function pfMoney(c, unitCost) {
-  const sales = c.rev || 0, units = c.u || 0, ads = c.spend || 0;
+function pfMoney(cell, unitCost) {
+  const sales = cell.rev || 0;
+  const units = cell.u || 0;
+  const ads = cell.spend || 0;
   if (!(unitCost > 0) || !units) return null;
   const cogs = unitCost * units;
   const referral = sales * PF_MODEL.ref / 100;
@@ -14250,85 +14572,108 @@ function pfMoney(c, unitCost) {
 
 /** The weeks being added up — the tail of the weekly cache, however many the picker asks for. */
 function pfWeeks() {
-  const n = Number($('pfWeeks').value) || 4;
-  return (WEEKLY.weeks.length ? WEEKLY.weeks : wWeeksList(26)).slice(-n);
+  const nWeeks = Number($('pfWeeks').value) || 4;
+  return (WEEKLY.weeks.length ? WEEKLY.weeks : wWeeksList(26)).slice(-nWeeks);
 }
 
+// The rows: one per ASIN (or per parent) with units, sales and ad spend over the weeks picked, its unit
+// cost and its money (m, from pfMoney — null when it has no cost), filtered and sorted as the controls say.
 function pfRows() {
+  // --- the controls ---
   const weeks = new Set(pfWeeks());
-  const brand = $('pfBrand').value, q = $('pfFilter').value.trim().toLowerCase();
+  const brand = $('pfBrand').value;
+  const search = $('pfFilter').value.trim().toLowerCase();
   const byParent = $('pfView').value === 'parent';
   const have = $('pfHave').value;
 
+  // --- add up the weekly cache per ASIN or per parent ---
   // Summed straight from WEEKLY.rows rather than through wRows(), because that one reads the PPC &
   // Organic tab's own brand and view pickers — this tab has its own, and sharing them would make
   // one tab silently change the other.
   const acc = new Map();
-  Object.entries(WEEKLY.rows).forEach(([asin, r]) => {
+  Object.entries(WEEKLY.rows).forEach(([asin, row]) => {
     const key = byParent ? wParentOf(asin) : asin;
-    let o = acc.get(key);
-    if (!o) {
-      o = { key, brand: r.brand || '', title: '', kids: 0, rev: 0, u: 0, spend: 0, costUnits: 0, costed: 0, kidsNoCost: 0 };
-      acc.set(key, o);
+    let entry = acc.get(key);
+    if (!entry) {
+      entry = {
+        key, brand: row.brand || '', title: '', kids: 0,
+        rev: 0, u: 0, spend: 0,
+        costUnits: 0, costed: 0, kidsNoCost: 0,
+      };
+      acc.set(key, entry);
     }
-    o.brand = o.brand || r.brand || '';
-    o.kids++;
-    if (!o.title) {
-      o.title = byParent
-        ? (PNAME[o.brand]?.[key]?.v || HEALTH[o.brand]?.parentNames?.[key] || (wTitle(asin) ? '~ ' + wTitle(asin) : ''))
+    entry.brand = entry.brand || row.brand || '';
+    entry.kids++;
+    if (!entry.title) {
+      entry.title = byParent
+        ? (PNAME[entry.brand]?.[key]?.v || HEALTH[entry.brand]?.parentNames?.[key]
+          || (wTitle(asin) ? '~ ' + wTitle(asin) : ''))
         : wTitle(asin);
     }
     let rev = 0, u = 0, spend = 0;
-    Object.entries(r.weeks || {}).forEach(([wk, c]) => {
+    Object.entries(row.weeks || {}).forEach(([wk, figures]) => {
       if (!weeks.has(wk)) return;
-      rev += c.rev || 0; u += c.u || 0; spend += c.spend || 0;
+      rev += figures.rev || 0;
+      u += figures.u || 0;
+      spend += figures.spend || 0;
     });
-    o.rev += rev; o.u += u; o.spend += spend;
+    entry.rev += rev;
+    entry.u += u;
+    entry.spend += spend;
     /* A PARENT IS COSTED CHILD BY CHILD. Two sizes of the same tablecloth do not cost the same, so
      * the parent's COGS is the sum of each child's own cost × that child's own units — and the
      * units belonging to children with no cost are counted separately, because a parent that is
      * half costed must not be drawn as if it were fully costed. */
-    const uc = pfCostOf(asin);
-    if (uc) { o.costUnits += u; o.costed += uc * u; }
-    else if (u) { o.kidsNoCost++; }
+    const cost = pfCostOf(asin);
+    if (cost) {
+      entry.costUnits += u;
+      entry.costed += cost * u;
+    } else if (u) {
+      entry.kidsNoCost++;
+    }
   });
 
-  let rows = [...acc.values()].map(o => {
+  // --- cost each row ---
+  let rows = [...acc.values()].map(entry => {
     // At child level the unit cost is the ASIN's own; at parent level it is the weighted average of
     // the children that HAVE one, which is the only average that means anything here.
     const unitCost = byParent
-      ? (o.costUnits > 0 ? o.costed / o.costUnits : null)
-      : pfCostOf(o.key);
+      ? (entry.costUnits > 0 ? entry.costed / entry.costUnits : null)
+      : pfCostOf(entry.key);
     // A parent with some children uncosted is costed on the units it CAN account for, and says so.
-    const cell = { rev: o.rev, u: byParent ? (o.costUnits || o.u) : o.u, spend: o.spend };
-    const m = pfMoney(byParent ? { ...cell, rev: o.rev } : cell, unitCost);
-    return { ...o, asin: o.key, unitCost, m, partial: byParent && o.kidsNoCost > 0 && o.costUnits > 0 };
+    const cell = { rev: entry.rev, u: byParent ? (entry.costUnits || entry.u) : entry.u, spend: entry.spend };
+    const m = pfMoney(byParent ? { ...cell, rev: entry.rev } : cell, unitCost);
+    return { ...entry, asin: entry.key, unitCost, m, partial: byParent && entry.kidsNoCost > 0 && entry.costUnits > 0 };
   });
 
-  if (brand !== 'ALL') rows = rows.filter(r => r.brand === brand);
-  if (q) rows = rows.filter(r => (r.asin + ' ' + r.title).toLowerCase().includes(q));
-  if (have === 'have') rows = rows.filter(r => r.m);
-  else if (have === 'none') rows = rows.filter(r => !r.m && r.rev > 0);
+  // --- filter and sort ---
+  if (brand !== 'ALL') rows = rows.filter(row => row.brand === brand);
+  if (search) rows = rows.filter(row => (row.asin + ' ' + row.title).toLowerCase().includes(search));
+  if (have === 'have') rows = rows.filter(row => row.m);
+  else if (have === 'none') rows = rows.filter(row => !row.m && row.rev > 0);
   // Biggest sellers first. Sorting by profit would bury the uncosted rows, which are the ones that
   // most need finding.
   rows.sort((a, b) => b.rev - a.rev);
   return rows;
 }
 
+// The KPI strip: the totals over the COSTED rows only, how much of the sales they cover, and a note when
+// that is not everything.
 function renderProfitKpis(rows) {
-  const money = v => (v < 0 ? '-$' : '$') + Math.round(Math.abs(v)).toLocaleString('en-US');
-  const costed = rows.filter(r => r.m);
-  const salesAll = rows.reduce((s, r) => s + r.rev, 0);
-  const salesCosted = costed.reduce((s, r) => s + r.m.sales, 0);
-  const profit = costed.reduce((s, r) => s + r.m.profit, 0);
-  const cogs = costed.reduce((s, r) => s + r.m.cogs, 0);
-  const ads = costed.reduce((s, r) => s + r.m.ads, 0);
+  const money = value => (value < 0 ? '-$' : '$') + Math.round(Math.abs(value)).toLocaleString('en-US');
+  const costed = rows.filter(row => row.m);
+  const salesAll = rows.reduce((acc, row) => acc + row.rev, 0);
+  const salesCosted = costed.reduce((acc, row) => acc + row.m.sales, 0);
+  const profit = costed.reduce((acc, row) => acc + row.m.profit, 0);
+  const cogs = costed.reduce((acc, row) => acc + row.m.cogs, 0);
+  const ads = costed.reduce((acc, row) => acc + row.m.ads, 0);
   const cover = salesAll > 0 ? salesCosted / salesAll * 100 : 0;
-  const tile = (label, val, colour) => `<div class="metric"><div class="v"${colour ? ` style="color:${colour}"` : ''}>${val}</div><div class="l">${label}</div></div>`;
-  const wk = pfWeeks();
+  const tile = (label, val, colour) => `<div class="metric"><div class="v"${colour ? ` style="color:${colour}"` : ''}>${val}</div>`
+    + `<div class="l">${label}</div></div>`;
+  const weeks = pfWeeks();
   $('pfKpis').innerHTML = `<div class="kpi" style="flex-basis:100%">
-    <div class="kpihead"><span class="kpiname">Profit — ${wk.length} week(s)</span>
-      <span class="kpiwhen">${wk.length ? wk[0] + ' → ' + wk[wk.length - 1] : 'no weekly data yet'}</span></div>
+    <div class="kpihead"><span class="kpiname">Profit — ${weeks.length} week(s)</span>
+      <span class="kpiwhen">${weeks.length ? weeks[0] + ' → ' + weeks[weeks.length - 1] : 'no weekly data yet'}</span></div>
     <div class="metrics">
       ${tile('Sales (costed rows)', money(salesCosted))}
       ${tile('COGS', money(cogs))}
@@ -14344,49 +14689,61 @@ function renderProfitKpis(rows) {
       not in them. Filter to <b>Missing a cost</b> to see what is left out; nothing is estimated on your behalf.</div>` : ''}`;
 }
 
+// Draw the screen: the KPI strip, the table (top 400 rows by sales) and the message line.
 function renderProfit() {
-  const esc = s => String(s == null ? '' : s).replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
-  const money = v => (v < 0 ? '-$' : '$') + Math.round(Math.abs(v)).toLocaleString('en-US');
-  const money2 = v => (v < 0 ? '-$' : '$') + Math.abs(v).toFixed(2);
+  // --- formatters ---
+  const esc = str => String(str == null ? '' : str)
+    .replace(/[<>&"]/g, ch => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[ch]));
+  const money = value => (value < 0 ? '-$' : '$') + Math.round(Math.abs(value)).toLocaleString('en-US');
+  const money2 = value => (value < 0 ? '-$' : '$') + Math.abs(value).toFixed(2);
+  // --- nothing to cost yet ---
   if (!WEEKLY.at && !Object.keys(WEEKLY.rows).length) {
     $('pfKpis').innerHTML = '';
     $('pfTable').innerHTML = '<tbody><tr><td class="muted" style="padding:14px">'
-      + 'No weekly sales data is cached yet. Open <b>PPC &amp; Organic</b> once and let it load — this tab costs the same figures.'
+      + 'No weekly sales data is cached yet. Open <b>PPC &amp; Organic</b> once and let it load — '
+      + 'this tab costs the same figures.'
       + '</td></tr></tbody>';
     return;
   }
+  // --- the rows, the KPIs ---
   const rows = pfRows();
   renderProfitKpis(rows);
 
+  // --- the table ---
   const head = '<thead><tr><th>ASIN</th><th>Product</th><th>Brand</th><th class="num">Units</th>'
     + '<th class="num">Sales</th><th class="num">Ad spend</th><th class="num">TACoS</th>'
     + '<th class="num">Unit cost</th><th class="num">COGS</th><th class="num">Fees (est.)</th>'
     + '<th class="num">Other (est.)</th><th class="num">Profit</th><th class="num">Margin</th>'
     + '<th class="num">ROI</th><th class="num">Per unit</th></tr></thead>';
 
-  const body = rows.slice(0, 400).map(r => {
-    const m = r.m;
-    const cell = v => `<td class="num">${v}</td>`;
-    const costCell = `<td class="num"><span class="pfcost" data-pf="${esc(r.asin)}" style="cursor:pointer;border-bottom:1px dashed var(--muted)"`
-      + ` title="${r.unitCost ? 'Landed cost of one unit. Click to change.' : 'No unit cost recorded — click to type one. Until then this row has no profit figure.'}">`
-      + `${r.unitCost ? money2(r.unitCost) : '<span class="muted">— set —</span>'}</span></td>`;
+  const body = rows.slice(0, 400).map(row => {
+    const m = row.m;   // the row's money (pfMoney), null when it has no unit cost
+    const cell = html => `<td class="num">${html}</td>`;
+    const costCell = `<td class="num"><span class="pfcost" data-pf="${esc(row.asin)}" `
+      + `style="cursor:pointer;border-bottom:1px dashed var(--muted)"`
+      + ` title="${row.unitCost ? 'Landed cost of one unit. Click to change.'
+        : 'No unit cost recorded — click to type one. Until then this row has no profit figure.'}">`
+      + `${row.unitCost ? money2(row.unitCost) : '<span class="muted">— set —</span>'}</span></td>`;
+    // an uncosted row: the real figures, the cost cell, and one wide note instead of the money columns
     if (!m) {
-      return `<tr><td style="font-family:ui-monospace,monospace">${esc(r.asin)}</td>`
-        + `<td title="${esc(r.title)}">${esc(String(r.title).slice(0, 40)) || '<span class="muted">—</span>'}</td>`
-        + `<td>${r.brand ? esc(BRAND_NAME[r.brand] || r.brand) : '<span class="muted">—</span>'}</td>`
-        + cell(Math.round(r.u).toLocaleString('en-US')) + cell(money(r.rev)) + cell(money(r.spend))
-        + cell(r.rev > 0 ? (r.spend / r.rev * 100).toFixed(1) + '%' : '<span class="muted">—</span>')
+      return `<tr><td style="font-family:ui-monospace,monospace">${esc(row.asin)}</td>`
+        + `<td title="${esc(row.title)}">${esc(String(row.title).slice(0, 40)) || '<span class="muted">—</span>'}</td>`
+        + `<td>${row.brand ? esc(BRAND_NAME[row.brand] || row.brand) : '<span class="muted">—</span>'}</td>`
+        + cell(Math.round(row.u).toLocaleString('en-US')) + cell(money(row.rev)) + cell(money(row.spend))
+        + cell(row.rev > 0 ? (row.spend / row.rev * 100).toFixed(1) + '%' : '<span class="muted">—</span>')
         + costCell
         + `<td class="num muted" colspan="7" style="text-align:left;font-size:12px">`
-        + (r.u ? 'no unit cost — nothing here is guessed' : 'nothing sold in this window')
+        + (row.u ? 'no unit cost — nothing here is guessed' : 'nothing sold in this window')
         + `</td></tr>`;
     }
     const good = m.profit >= 0;
-    return `<tr><td style="font-family:ui-monospace,monospace">${esc(r.asin)}</td>`
-      + `<td title="${esc(r.title)}">${esc(String(r.title).slice(0, 40)) || '<span class="muted">—</span>'}</td>`
-      + `<td>${r.brand ? esc(BRAND_NAME[r.brand] || r.brand) : '<span class="muted">—</span>'}</td>`
+    return `<tr><td style="font-family:ui-monospace,monospace">${esc(row.asin)}</td>`
+      + `<td title="${esc(row.title)}">${esc(String(row.title).slice(0, 40)) || '<span class="muted">—</span>'}</td>`
+      + `<td>${row.brand ? esc(BRAND_NAME[row.brand] || row.brand) : '<span class="muted">—</span>'}</td>`
       + cell(Math.round(m.units).toLocaleString('en-US')
-          + (r.partial ? ` <span class="muted" style="font-size:11px" title="${r.kidsNoCost} child ASIN(s) under this parent have no unit cost. Only the units that could be costed are counted here — the rest are left out rather than costed at a guess.">part</span>` : ''))
+          + (row.partial ? ` <span class="muted" style="font-size:11px" title="${row.kidsNoCost} child ASIN(s) under this parent `
+            + `have no unit cost. Only the units that could be costed are counted here — the rest are left out rather than `
+            + `costed at a guess.">part</span>` : ''))
       + cell(money(m.sales)) + cell(money(m.ads))
       + cell(m.tacos == null ? '<span class="muted">—</span>' : m.tacos.toFixed(1) + '%')
       + costCell
@@ -14403,7 +14760,8 @@ function renderProfit() {
   $('pfTable').innerHTML = head + '<tbody>' + (body
     || '<tr><td colspan="15" class="muted" style="padding:14px">Nothing matches these filters.</td></tr>')
     + '</tbody>';
-  const nCost = Object.keys(COST).filter(a => pfCostOf(a)).length;
+  // --- the message line ---
+  const nCost = Object.keys(COST).filter(asin => pfCostOf(asin)).length;
   pfMsg(`${rows.length} row(s)${rows.length > 400 ? ' · showing the top 400 by sales' : ''}`
     + ` · ${nCost.toLocaleString('en-US')} ASIN(s) have a unit cost`
     + (COST_AT ? ` · costs last saved ${COST_AT}` : '')
@@ -14411,61 +14769,87 @@ function renderProfit() {
 }
 
 /* ---------- typing a cost straight into the table ---------- */
+// A click on a Unit cost cell (child view only): ask for the landed cost of one unit, store it (or clear it
+// when left empty), redraw and save.
 $('pfTable').addEventListener('click', e => {
   const el = e.target.closest('[data-pf]');
   if (!el) return;
   const asin = el.dataset.pf;
   if ($('pfView').value === 'parent') {
-    pfMsg('A cost belongs to ONE child ASIN — two sizes of the same product do not cost the same. Switch to “By child ASIN” to type it.', true);
+    pfMsg('A cost belongs to ONE child ASIN — two sizes of the same product do not cost the same. '
+      + 'Switch to “By child ASIN” to type it.', true);
     return;
   }
   const cur = pfCostOf(asin);
-  const typed = prompt(`Landed cost of ONE unit of ${asin}, in USD.\n\nGoods + freight + duty — what it costs you to have one sitting in an Amazon warehouse. Leave empty to clear it.`,
+  const typed = prompt(`Landed cost of ONE unit of ${asin}, in USD.\n\nGoods + freight + duty — what it costs you to have one `
+    + `sitting in an Amazon warehouse. Leave empty to clear it.`,
     cur ? String(cur) : '');
   if (typed === null) return;
-  const t = typed.trim();
-  if (!t) { delete COST[asin]; }
-  else {
-    const v = Number(t.replace(/[^0-9.]/g, ''));
-    if (!(v > 0) || v > 100000) { pfMsg('A unit cost has to be a positive number of dollars.', true); return; }
-    COST[asin] = { ...(COST[asin] || {}), c: Math.round(v * 100) / 100, at: sdToday(), by: ME.email };
+  const text = typed.trim();
+  if (!text) {
+    delete COST[asin];
+  } else {
+    const value = Number(text.replace(/[^0-9.]/g, ''));
+    if (!(value > 0) || value > 100000) {
+      pfMsg('A unit cost has to be a positive number of dollars.', true);
+      return;
+    }
+    COST[asin] = { ...(COST[asin] || {}), c: Math.round(value * 100) / 100, at: sdToday(), by: ME.email };
   }
   renderProfit();
   saveCosts().then(() => pfMsg('Saved.')).catch(err => pfMsg('Could not save: ' + (err.message || err), true));
 });
 
+// The pickers redraw at once; the filter box waits a quarter of a second after the last keystroke.
 ['pfBrand', 'pfWeeks', 'pfView', 'pfHave'].forEach(id => $(id).addEventListener('change', renderProfit));
 let PF_FILTER_T = null;
-$('pfFilter').addEventListener('input', () => { clearTimeout(PF_FILTER_T); PF_FILTER_T = setTimeout(renderProfit, 250); });
+$('pfFilter').addEventListener('input', () => {
+  clearTimeout(PF_FILTER_T);
+  PF_FILTER_T = setTimeout(renderProfit, 250);
+});
 
 /* ---------- the cost model ---------- */
+// Cost model: fill the dialog's five fields from PF_MODEL and open it.
 function pfModelOpen() {
-  $('pmRef').value = PF_MODEL.ref; $('pmFba').value = PF_MODEL.fba;
-  $('pmRet').value = PF_MODEL.ret; $('pmOh').value = PF_MODEL.oh; $('pmSal').value = PF_MODEL.sal;
+  $('pmRef').value = PF_MODEL.ref;
+  $('pmFba').value = PF_MODEL.fba;
+  $('pmRet').value = PF_MODEL.ret;
+  $('pmOh').value = PF_MODEL.oh;
+  $('pmSal').value = PF_MODEL.sal;
   pfModelNote();
   $('pfModelModal').classList.remove('hide');
 }
+// The note under the fields: what the percentages add up to, with a warning at 100 % or more.
 function pfModelNote() {
-  const n = k => Number($(k).value) || 0;
-  const ofSales = n('pmRef') + n('pmFba') + n('pmOh') + n('pmSal');
+  const field = id => Number($(id).value) || 0;
+  const ofSales = field('pmRef') + field('pmFba') + field('pmOh') + field('pmSal');
   $('pmNote').innerHTML = `Together these take <b>${ofSales.toFixed(1)}%</b> of every dollar of sales,`
-    + ` plus ${n('pmRet').toFixed(1)}% of the landed cost, before ad spend and the goods themselves.`
-    + (ofSales >= 100 ? ' <span style="color:var(--bad)">That is all of it or more — every row will show a loss.</span>' : '');
+    + ` plus ${field('pmRet').toFixed(1)}% of the landed cost, before ad spend and the goods themselves.`
+    + (ofSales >= 100
+      ? ' <span style="color:var(--bad)">That is all of it or more — every row will show a loss.</span>' : '');
 }
 ['pmRef', 'pmFba', 'pmRet', 'pmOh', 'pmSal'].forEach(id => $(id).addEventListener('input', pfModelNote));
 $('pfModel').onclick = pfModelOpen;
 $('pmCancel').onclick = () => $('pfModelModal').classList.add('hide');
+// Workbook defaults: put the default percentages back into the fields (not saved until Save).
 $('pmReset').onclick = () => {
-  Object.entries(PF_DEFAULT_MODEL).forEach(([k, v]) => { $('pm' + k[0].toUpperCase() + k.slice(1)).value = v; });
+  Object.entries(PF_DEFAULT_MODEL).forEach(([key, value]) => {
+    $('pm' + key[0].toUpperCase() + key.slice(1)).value = value;
+  });
   pfModelNote();
 };
+// Save: the five fields become the model, the screen is redrawn on it, and it is saved with the costs.
 $('pmSave').onclick = async () => {
-  const n = id => Math.max(0, Number($(id).value) || 0);
-  PF_MODEL = { ref: n('pmRef'), fba: n('pmFba'), ret: n('pmRet'), oh: n('pmOh'), sal: n('pmSal') };
+  const field = id => Math.max(0, Number($(id).value) || 0);
+  PF_MODEL = { ref: field('pmRef'), fba: field('pmFba'), ret: field('pmRet'), oh: field('pmOh'), sal: field('pmSal') };
   $('pfModelModal').classList.add('hide');
   renderProfit();
-  try { await saveCosts(); pfMsg('Cost model saved — every row is costed on it.'); }
-  catch (err) { pfMsg('Could not save the model: ' + (err.message || err), true); }
+  try {
+    await saveCosts();
+    pfMsg('Cost model saved — every row is costed on it.');
+  } catch (err) {
+    pfMsg('Could not save the model: ' + (err.message || err), true);
+  }
 };
 
 /* ---------- importing unit costs ----------
@@ -14474,11 +14858,13 @@ $('pmSave').onclick = async () => {
  * would destroy months of typing that nothing can regenerate. */
 const PF_IMP_COLS = [
   { k: 'asin', t: 'ASIN', need: true, alias: ['child asin', 'product asin', 'asin1'] },
-  { k: 'c', t: 'Unit cost USD', need: true, alias: ['unit cost', 'landed cost', 'cost', 'cost usd', 'landed', 'landed cost usd'] },
+  { k: 'c', t: 'Unit cost USD', need: true,
+    alias: ['unit cost', 'landed cost', 'cost', 'cost usd', 'landed', 'landed cost usd'] },
   { k: 'note', t: 'Note', need: false, alias: ['notes', 'remark', 'remarks', 'comment', 'product'] },
 ];
-let PF_IMP_STAGED = null;
+let PF_IMP_STAGED = null;   // the rows read from the chosen file, waiting for Import
 
+// Import costs: open the dialog clean.
 $('pfImport').onclick = () => {
   PF_IMP_STAGED = null;
   $('pfImpPrev').classList.add('hide');
@@ -14486,125 +14872,205 @@ $('pfImport').onclick = () => {
   $('pfImpSave').disabled = true;
   $('pfImpModal').classList.remove('hide');
 };
+// Close it: Cancel, or a click on the backdrop. Choose CSV… opens the hidden file picker.
 $('pfImpCancel').onclick = () => $('pfImpModal').classList.add('hide');
-$('pfImpModal').onclick = e => { if (e.target === $('pfImpModal')) $('pfImpModal').classList.add('hide'); };
+$('pfImpModal').onclick = e => {
+  if (e.target === $('pfImpModal')) $('pfImpModal').classList.add('hide');
+};
 $('pfImpPick').onclick = () => $('pfImpFile').click();
 
+// Download template: a CSV with the three column names and two example rows.
 $('pfImpTemplate').onclick = () => {
-  const cell = v => { const t = String(v == null ? '' : v); return /[",\n]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t; };
+  const cell = value => {
+    const str = String(value == null ? '' : value);
+    return /[",\n]/.test(str) ? '"' + str.replace(/"/g, '""') + '"' : str;
+  };
   // The examples carry REAL landed costs out of the costing workbook, so the column is unmistakable:
   // it is dollars per single unit, not per set, not the selling price.
   const ex = [
     ['B0CR91CFCJ', '8.64', 'CLOTH_NAPKIN_EMBROIDER 18x18 set of 4 — goods + freight + duty'],
     ['B0C625C9RP', '4.57', 'CLOTH_NAPKIN 20x20 set of 4'],
   ];
-  const lines = [PF_IMP_COLS.map(c => c.t).map(cell).join(',')].concat(ex.map(r => r.map(cell).join(',')));
+  const lines = [PF_IMP_COLS.map(col => col.t).map(cell).join(',')]
+    .concat(ex.map(row => row.map(cell).join(',')));
   const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
-  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-  a.download = 'unit-costs-template.csv';
-  a.click(); URL.revokeObjectURL(a.href);
+  const anchor = document.createElement('a');
+  anchor.href = URL.createObjectURL(blob);
+  anchor.download = 'unit-costs-template.csv';
+  anchor.click();
+  URL.revokeObjectURL(anchor.href);
 };
 
+// A file was chosen: read it, find the columns (by name or alias), check every row, and show a preview of
+// what Import would do. Nothing is stored until Import is pressed.
 $('pfImpFile').onchange = async ev => {
-  const file = ev.target.files[0]; ev.target.value = ''; if (!file) return;
-  const esc = s => String(s == null ? '' : s).replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
-  const err = t => { $('pfImpErr').innerHTML = t; $('pfImpErr').classList.remove('hide'); $('pfImpSave').disabled = true; };
-  $('pfImpErr').classList.add('hide'); $('pfImpPrev').classList.add('hide'); PF_IMP_STAGED = null;
+  const file = ev.target.files[0];
+  ev.target.value = '';
+  if (!file) return;
+  const esc = str => String(str == null ? '' : str)
+    .replace(/[<>&"]/g, ch => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[ch]));
+  // a red note in the dialog, and Import stays disabled
+  const err = text => {
+    $('pfImpErr').innerHTML = text;
+    $('pfImpErr').classList.remove('hide');
+    $('pfImpSave').disabled = true;
+  };
+  $('pfImpErr').classList.add('hide');
+  $('pfImpPrev').classList.add('hide');
+  PF_IMP_STAGED = null;
   try {
+    // --- the columns ---
     const rows = dParseCsv(await file.text());
-    if (rows.length < 2) { err('That file has no rows under its header.'); return; }
-    const head = rows[0].map(h => String(h).trim().toLowerCase());
-    const at = {};
-    PF_IMP_COLS.forEach(c => {
-      let idx = head.indexOf(c.t.toLowerCase());
-      if (idx < 0) for (const a of c.alias) { const i = head.indexOf(a); if (i >= 0) { idx = i; break; } }
-      if (idx >= 0) at[c.k] = idx;
+    if (rows.length < 2) {
+      err('That file has no rows under its header.');
+      return;
+    }
+    const head = rows[0].map(heading => String(heading).trim().toLowerCase());
+    const at = {};   // column key → its index in the file
+    PF_IMP_COLS.forEach(col => {
+      let idx = head.indexOf(col.t.toLowerCase());
+      if (idx < 0) {
+        for (const alias of col.alias) {
+          const i = head.indexOf(alias);
+          if (i >= 0) {
+            idx = i;
+            break;
+          }
+        }
+      }
+      if (idx >= 0) at[col.k] = idx;
     });
-    const missing = PF_IMP_COLS.filter(c => c.need && at[c.k] == null).map(c => c.t);
+    const missing = PF_IMP_COLS.filter(col => col.need && at[col.k] == null).map(col => col.t);
     if (missing.length) {
       err('These columns are required and were not found: <b>' + esc(missing.join(', ')) + '</b>. '
         + 'The file has: ' + esc(head.filter(Boolean).slice(0, 18).join(', '))
         + '. Download the template to see the names it looks for.');
       return;
     }
-    const cellOf = (row, k) => (at[k] == null ? '' : String(row[at[k]] == null ? '' : row[at[k]]).trim());
+    // --- the rows: good ones become { asin, c, note }, bad ones a line of explanation ---
+    const cellOf = (row, key) => (at[key] == null ? '' : String(row[at[key]] == null ? '' : row[at[key]]).trim());
     const good = [], bad = [];
-    rows.slice(1).forEach((r, i) => {
-      if (!r.some(c => String(c || '').trim())) return;
+    rows.slice(1).forEach((row, i) => {
+      if (!row.some(field => String(field || '').trim())) return;
       const line = i + 2;
-      const asin = cellOf(r, 'asin').toUpperCase();
-      const raw = cellOf(r, 'c');
-      const v = Number(raw.replace(/[^0-9.\-]/g, ''));
-      if (!D_ASIN_RE.test(asin)) { bad.push(`line ${line}: “${cellOf(r, 'asin').slice(0, 14)}” is not an ASIN`); return; }
-      if (!(v > 0)) { bad.push(`line ${line}: “${raw.slice(0, 12)}” is not a cost`); return; }
-      if (v > 100000) { bad.push(`line ${line}: ${raw.slice(0, 12)} is too large to be one unit`); return; }
-      good.push({ asin, c: Math.round(v * 100) / 100, note: cellOf(r, 'note').slice(0, 120) });
+      const asin = cellOf(row, 'asin').toUpperCase();
+      const raw = cellOf(row, 'c');
+      const cost = Number(raw.replace(/[^0-9.\-]/g, ''));
+      if (!D_ASIN_RE.test(asin)) {
+        bad.push(`line ${line}: “${cellOf(row, 'asin').slice(0, 14)}” is not an ASIN`);
+        return;
+      }
+      if (!(cost > 0)) {
+        bad.push(`line ${line}: “${raw.slice(0, 12)}” is not a cost`);
+        return;
+      }
+      if (cost > 100000) {
+        bad.push(`line ${line}: ${raw.slice(0, 12)} is too large to be one unit`);
+        return;
+      }
+      good.push({ asin, c: Math.round(cost * 100) / 100, note: cellOf(row, 'note').slice(0, 120) });
     });
     if (!good.length) {
       err('Nothing in that file could be used.<br>' + esc(bad.slice(0, 8).join(' · ')) + (bad.length > 8 ? ' …' : ''));
       return;
     }
+    // --- what Import would do ---
     const byAsin = new Map();
     let dup = 0;
-    good.forEach(g => { if (byAsin.has(g.asin)) dup++; byAsin.set(g.asin, g); });
+    good.forEach(entry => {
+      if (byAsin.has(entry.asin)) dup++;
+      byAsin.set(entry.asin, entry);
+    });
     const list = [...byAsin.values()];
-    const changing = list.filter(g => pfCostOf(g.asin) && pfCostOf(g.asin) !== g.c);
-    const isNew = list.filter(g => !pfCostOf(g.asin));
+    const changing = list.filter(entry => pfCostOf(entry.asin) && pfCostOf(entry.asin) !== entry.c);
+    const isNew = list.filter(entry => !pfCostOf(entry.asin));
     // A cost against an ASIN that has never sold is not an error — it may sell next week — but it is
     // also the shape of a file keyed by the wrong column, so it is counted out loud.
-    const unsold = list.filter(g => !WEEKLY.rows[g.asin]);
+    const unsold = list.filter(entry => !WEEKLY.rows[entry.asin]);
 
+    // --- the preview ---
     PF_IMP_STAGED = list;
     $('pfImpPrev').classList.remove('hide');
     $('pfImpPrev').innerHTML =
       `<div><b>${list.length} ASIN(s)</b> ready — ${isNew.length} new, ${changing.length} changing a cost already stored.</div>`
-      + (dup ? `<div class="muted" style="font-size:12px;margin-top:4px">${dup} row(s) repeat an ASIN earlier in the file — the last one wins.</div>` : '')
-      + (changing.length ? `<div style="font-size:12px;margin-top:4px">Changing, for example: ${changing.slice(0, 3).map(g => `${esc(g.asin)} $${pfCostOf(g.asin).toFixed(2)} → $${g.c.toFixed(2)}`).join(', ')}${changing.length > 3 ? ' …' : ''}</div>` : '')
-      + (unsold.length ? `<div style="color:var(--bad);font-size:12px;margin-top:4px">${unsold.length} ASIN(s) have no sales in the weekly cache at all (${unsold.slice(0, 3).map(g => esc(g.asin)).join(', ')}${unsold.length > 3 ? '…' : ''}). Fine if they are new — but if most of the file is like this, check that the ASIN column is really ASINs.</div>` : '')
-      + (bad.length ? `<div style="color:var(--bad);font-size:12px;margin-top:4px">${bad.length} row(s) will be skipped — ${esc(bad.slice(0, 5).join(' · '))}${bad.length > 5 ? ' …' : ''}</div>` : '')
-      + `<div class="muted" style="font-size:12px;margin-top:6px">An ASIN this file does not mention keeps the cost it already has. Nothing is cleared.</div>`;
+      + (dup ? `<div class="muted" style="font-size:12px;margin-top:4px">${dup} row(s) repeat an ASIN earlier in the file — `
+        + `the last one wins.</div>` : '')
+      + (changing.length ? `<div style="font-size:12px;margin-top:4px">Changing, for example: `
+        + `${changing.slice(0, 3).map(entry => `${esc(entry.asin)} $${pfCostOf(entry.asin).toFixed(2)} → $${entry.c.toFixed(2)}`).join(', ')}`
+        + `${changing.length > 3 ? ' …' : ''}</div>` : '')
+      + (unsold.length ? `<div style="color:var(--bad);font-size:12px;margin-top:4px">${unsold.length} ASIN(s) have no sales `
+        + `in the weekly cache at all (${unsold.slice(0, 3).map(entry => esc(entry.asin)).join(', ')}${unsold.length > 3 ? '…' : ''}). `
+        + `Fine if they are new — but if most of the file is like this, check that the ASIN column is really ASINs.</div>` : '')
+      + (bad.length ? `<div style="color:var(--bad);font-size:12px;margin-top:4px">${bad.length} row(s) will be skipped — `
+        + `${esc(bad.slice(0, 5).join(' · '))}${bad.length > 5 ? ' …' : ''}</div>` : '')
+      + `<div class="muted" style="font-size:12px;margin-top:6px">An ASIN this file does not mention keeps the cost it already has. `
+      + `Nothing is cleared.</div>`;
     $('pfImpSave').disabled = false;
-  } catch (e2) { err('Could not read that file: ' + esc(e2.message || e2)); }
+  } catch (e2) {
+    err('Could not read that file: ' + esc(e2.message || e2));
+  }
 };
 
+// Import: the previewed rows go into COST (a note too, when the file had one), then redraw and save.
 $('pfImpSave').onclick = async () => {
   if (!PF_IMP_STAGED || !PF_IMP_STAGED.length) return;
   let added = 0, updated = 0;
-  PF_IMP_STAGED.forEach(g => {
-    if (pfCostOf(g.asin)) updated++; else added++;
-    COST[g.asin] = { ...(COST[g.asin] || {}), c: g.c, at: sdToday(), by: ME.email };
-    if (g.note) COST[g.asin].note = g.note;
+  PF_IMP_STAGED.forEach(entry => {
+    if (pfCostOf(entry.asin)) updated++; else added++;
+    COST[entry.asin] = { ...(COST[entry.asin] || {}), c: entry.c, at: sdToday(), by: ME.email };
+    if (entry.note) COST[entry.asin].note = entry.note;
   });
   PF_IMP_STAGED = null;
   $('pfImpModal').classList.add('hide');
   renderProfit();
-  try { await saveCosts(); pfMsg(`Imported — ${added} new, ${updated} updated.`); }
-  catch (err) { pfMsg('Could not save the import: ' + (err.message || err), true); }
+  try {
+    await saveCosts();
+    pfMsg(`Imported — ${added} new, ${updated} updated.`);
+  } catch (err) {
+    pfMsg('Could not save the import: ' + (err.message || err), true);
+  }
 };
 
+// Export: every row of pfRows (not just the 400 on screen) as CSV, with the fee estimates broken out.
 $('pfExport').onclick = () => {
-  const cell = v => { const t = String(v == null ? '' : v); return /[",\n]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t; };
-  const r2 = v => (v == null ? '' : Math.round(v * 100) / 100);
+  const cell = value => {
+    const str = String(value == null ? '' : value);
+    return /[",\n]/.test(str) ? '"' + str.replace(/"/g, '""') + '"' : str;
+  };
+  const round2 = value => (value == null ? '' : Math.round(value * 100) / 100);
   const lines = [['ASIN', 'Product', 'Brand', 'Units', 'Sales', 'Ad spend', 'TACoS %', 'Unit cost',
     'COGS', 'Referral (est.)', 'FBA (est.)', 'Return loss (est.)', 'Overhead (est.)', 'Salary (est.)',
     'Profit', 'Margin %', 'ROI %', 'Profit per unit', 'Costed'].map(cell).join(',')];
-  pfRows().forEach(r => {
-    const m = r.m;
-    lines.push([r.asin, r.title, r.brand ? (BRAND_NAME[r.brand] || r.brand) : '',
-      Math.round(r.u), r2(r.rev), r2(r.spend), r.rev > 0 ? r2(r.spend / r.rev * 100) : '',
-      r2(r.unitCost), m ? r2(m.cogs) : '', m ? r2(m.referral) : '', m ? r2(m.fba) : '',
-      m ? r2(m.ret) : '', m ? r2(m.oh) : '', m ? r2(m.sal) : '',
-      m ? r2(m.profit) : '', m ? r2(m.margin) : '', m ? Math.round(m.roi) : '', m ? r2(m.perUnit) : '',
+  pfRows().forEach(row => {
+    const m = row.m;
+    lines.push([row.asin, row.title, row.brand ? (BRAND_NAME[row.brand] || row.brand) : '',
+      Math.round(row.u), round2(row.rev), round2(row.spend), row.rev > 0 ? round2(row.spend / row.rev * 100) : '',
+      round2(row.unitCost), m ? round2(m.cogs) : '', m ? round2(m.referral) : '', m ? round2(m.fba) : '',
+      m ? round2(m.ret) : '', m ? round2(m.oh) : '', m ? round2(m.sal) : '',
+      m ? round2(m.profit) : '', m ? round2(m.margin) : '', m ? Math.round(m.roi) : '', m ? round2(m.perUnit) : '',
       m ? 'yes' : 'no unit cost'].map(cell).join(','));
   });
   const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
-  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-  a.download = `profit-${dToday()}.csv`;
-  a.click(); URL.revokeObjectURL(a.href);
+  const anchor = document.createElement('a');
+  anchor.href = URL.createObjectURL(blob);
+  anchor.download = `profit-${dToday()}.csv`;
+  anchor.click();
+  URL.revokeObjectURL(anchor.href);
 };
 
 
 /* ============================== FILE: src/app/sales/sales-analysis.js ============================== */
+/* ================= SALES · SALES ANALYSIS: monthly sales by colour, article or SKU, back to the first order =================
+ * Screens: Sales Analysis (ensureSa runs when the tab opens — core/nav.js).
+ * Does: Rebuild from orders walks the brand's whole Orders workbook through the backend in chunks, adds up
+ * every SKU's units and sales per month, joins the Catalog tab for colour, article and size, builds the
+ * three views (by colour, by article, by SKU) ranked by the last two months' revenue, and saves the result
+ * to Firestore (salesanalysis/{brand}, the SKU rows in sarows/{brand}_{n}) so later visits only read it
+ * (saRebuild, loadSaCache). renderSa draws the chosen view as a month-by-month table, heat-mapped against
+ * each row's own average; Export writes the view as CSV.
+ * Main functions: ensureSa, loadSaCache, saRebuild, renderSa, saMsg; the handlers of the pickers, the filter
+ * box, Rebuild from orders and Export. */
+
 /* ================= SALES ANALYSIS =================
  *
  * Monthly sales by COLOUR, by ARTICLE or by SKU, back to the start of the order history — built
@@ -14620,31 +15086,49 @@ $('pfExport').onclick = () => {
  * The three exclusions are the backend's, so these totals and the Sales Dashboard's cannot disagree:
  * MCF orders, cancelled rows and other marketplaces are all left out.
  */
-const SA_CHUNK = 250;
+const SA_CHUNK = 250;   // SKU rows per sarows document
+// The screen's state: the brand, view and metric picked, the built matrix (null until read or built), a busy
+// flag and the last error.
 let SA = { brand: 'SP', view: 'color', metric: 'pct', data: null, loading: false, err: '' };
 const SA_MON = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-function saMsg(t, bad) { const m = $('saMsg'); m.innerHTML = t || ''; m.className = bad ? 'err' : 'muted'; }
+// The message line under the controls (HTML allowed): grey normally, red when bad is true; blank clears it.
+function saMsg(text, bad) {
+  const msg = $('saMsg');
+  msg.innerHTML = text || '';
+  msg.className = bad ? 'err' : 'muted';
+}
 
+// Opening the tab: read the saved matrix for the brand if it is not here yet, then draw.
 async function ensureSa() {
   if (!SA.data) await loadSaCache();
   renderSa();
 }
 
+// Read the brand's saved matrix: the summary document, then its SKU rows chunk by chunk. SA.data stays null
+// when nothing has been built yet (or the read failed — SA.err says why).
 async function loadSaCache() {
   SA.err = '';
   try {
     const meta = await getDoc(doc(db, 'salesanalysis', SA.brand));
-    if (!meta.exists()) { SA.data = null; return; }
-    const d = meta.data();
-    let sku = [];
-    for (let i = 0; i < (d.skuChunks || 0); i++) {
-      const c = await getDoc(doc(db, 'sarows', `${SA.brand}_${i}`));
-      if (c.exists()) sku = sku.concat(c.data().r || []);
+    if (!meta.exists()) {
+      SA.data = null;
+      return;
     }
-    SA.data = { months: d.months || [], labels: d.labels || [], at: d.at || '',
-      color: d.color || [], article: d.article || [], sku };
-  } catch (e) { SA.err = e.message || String(e); SA.data = null; }
+    const data = meta.data();
+    let sku = [];
+    for (let i = 0; i < (data.skuChunks || 0); i++) {
+      const chunk = await getDoc(doc(db, 'sarows', `${SA.brand}_${i}`));
+      if (chunk.exists()) sku = sku.concat(chunk.data().r || []);
+    }
+    SA.data = {
+      months: data.months || [], labels: data.labels || [], at: data.at || '',
+      color: data.color || [], article: data.article || [], sku,
+    };
+  } catch (e) {
+    SA.err = e.message || String(e);
+    SA.data = null;
+  }
 }
 
 /**
@@ -14656,81 +15140,99 @@ async function loadSaCache() {
  */
 async function saRebuild() {
   const btn = $('saRebuild');
-  btn.disabled = true; btn.textContent = 'Reading…';
-  SA.loading = true; SA.err = '';
+  btn.disabled = true;
+  btn.textContent = 'Reading…';
+  SA.loading = true;
+  SA.err = '';
   try {
+    // --- 1. walk the Orders workbook in chunks: units and sales per SKU per month ---
     const book = SA.brand === 'CPC' ? 1 : 0;
     const perSku = {};                       // sku → { 'YYYY-MM': [qty, amt] }
-    let start = 2, guard = 0, lastRow = 0;
+    let start = 2, guard = 0, lastRow = 0;   // the next row to read, the loop guard, the workbook's last row
     while (start && guard++ < 60) {          // a guard, not a limit: 60 × 20,000 is 1.2m rows
-      const r = await baCall({ sales: 'chunk', book, start, rows: 20000 });
-      if (!r.ok) throw new Error(r.error || 'The orders workbook could not be read.');
-      lastRow = r.lastRow || lastRow;
-      Object.entries(r.d || {}).forEach(([sku, months]) => {
-        const m = perSku[sku] || (perSku[sku] = {});
-        Object.entries(months).forEach(([k, v]) => {
-          const b = m[k] || (m[k] = [0, 0]);
-          b[0] += v[0] || 0; b[1] += v[1] || 0;
+      const reply = await baCall({ sales: 'chunk', book, start, rows: 20000 });
+      if (!reply.ok) throw new Error(reply.error || 'The orders workbook could not be read.');
+      lastRow = reply.lastRow || lastRow;
+      Object.entries(reply.d || {}).forEach(([sku, months]) => {
+        const skuMonths = perSku[sku] || (perSku[sku] = {});
+        Object.entries(months).forEach(([month, figures]) => {
+          const pair = skuMonths[month] || (skuMonths[month] = [0, 0]);
+          pair[0] += figures[0] || 0;
+          pair[1] += figures[1] || 0;
         });
       });
       saMsg(`Reading the orders workbook… ${Math.min(start + 20000, lastRow).toLocaleString('en-US')}`
         + ` of ${lastRow.toLocaleString('en-US')} rows`);
-      start = r.next;
+      start = reply.next;
     }
 
+    // --- 2. the catalogue: colour, article (sub-category), size and ASIN per SKU ---
     saMsg('Reading the catalogue…');
     const cat = await baCall({ sales: 'cat', brand: SA.brand });
     if (!cat.ok) throw new Error(cat.error || 'The Catalog tab could not be read.');
     const CAT = cat.map || {};
 
+    // --- 3. the months, their labels, and each month's grand total ---
     // Months, newest first — the order the report is read in.
-    const months = [...new Set(Object.values(perSku).flatMap(m => Object.keys(m)))].sort().reverse();
-    const labels = months.map(m => `${SA_MON[Number(m.slice(5, 7))]} '${m.slice(2, 4)}`);
+    const months = [...new Set(Object.values(perSku).flatMap(skuMonths => Object.keys(skuMonths)))].sort().reverse();
+    const labels = months.map(month => `${SA_MON[Number(month.slice(5, 7))]} '${month.slice(2, 4)}`);
 
     // Every month's total units, which is what "% share" is a share OF.
     const grand = {};
-    months.forEach(m => { grand[m] = 0; });
-    Object.values(perSku).forEach(mm => months.forEach(m => { if (mm[m]) grand[m] += mm[m][0]; }));
+    months.forEach(month => {
+      grand[month] = 0;
+    });
+    Object.values(perSku).forEach(skuMonths => months.forEach(month => {
+      if (skuMonths[month]) grand[month] += skuMonths[month][0];
+    }));
 
-    const cells = get => months.map(m => {
-      const v = get(m) || [0, 0];
-      return { qty: Math.round(v[0]), amt: Math.round(v[1]), pct: grand[m] ? v[0] / grand[m] : 0 };
+    // --- 4. the three views: one row per SKU, per colour, per article ---
+    // one cell per month, newest first: { qty, amt, pct of that month's units }
+    const cells = get => months.map(month => {
+      const figures = get(month) || [0, 0];
+      return { qty: Math.round(figures[0]), amt: Math.round(figures[1]), pct: grand[month] ? figures[0] / grand[month] : 0 };
     });
     // Ranked by the revenue of the LAST TWO months, so the order moves with the business instead of
     // being frozen on whatever sold best two years ago. months[0] is the current month.
-    const rank = ms => (ms[0] ? ms[0].amt : 0) + (ms[1] ? ms[1].amt : 0);
+    const rank = series => (series[0] ? series[0].amt : 0) + (series[1] ? series[1].amt : 0);
 
     const skuRows = Object.keys(perSku).map(sku => {
-      const c = CAT[sku] || {};
-      const m = cells(k => perSku[sku][k]);
-      return { name: sku, asin: c.asin || '', subcat: c.subcat || '', color: c.color || '',
-        size: c.size || '', m, _r: rank(m) };
+      const info = CAT[sku] || {};
+      const m = cells(month => perSku[sku][month]);
+      return { name: sku, asin: info.asin || '', subcat: info.subcat || '', color: info.color || '',
+        size: info.size || '', m, _r: rank(m) };
     }).sort((a, b) => b._r - a._r);
 
+    // the SKUs grouped by one catalogue field (colour or article), each group's months added up
     const aggBy = pick => {
       const agg = {};
       Object.keys(perSku).forEach(sku => {
         // A SKU the Catalog tab has never heard of is NOT dropped — its sales are real. It lands in
         // "(unknown)", where a growing number is itself the signal that the catalogue needs a row.
         const key = String(pick(CAT[sku] || {}) || '').trim() || '(unknown)';
-        const a = agg[key] || (agg[key] = { skus: new Set(), mm: {} });
-        a.skus.add(sku);
-        Object.entries(perSku[sku]).forEach(([k, v]) => {
-          const b = a.mm[k] || (a.mm[k] = [0, 0]);
-          b[0] += v[0]; b[1] += v[1];
+        const group = agg[key] || (agg[key] = { skus: new Set(), mm: {} });
+        group.skus.add(sku);
+        Object.entries(perSku[sku]).forEach(([month, figures]) => {
+          const pair = group.mm[month] || (group.mm[month] = [0, 0]);
+          pair[0] += figures[0];
+          pair[1] += figures[1];
         });
       });
-      return Object.entries(agg).map(([name, a]) => {
-        const m = cells(k => a.mm[k]);
-        return { name, skus: a.skus.size, m, _r: rank(m) };
+      return Object.entries(agg).map(([name, group]) => {
+        const m = cells(month => group.mm[month]);
+        return { name, skus: group.skus.size, m, _r: rank(m) };
       }).sort((x, y) => y._r - x._r);
     };
-    const color = aggBy(c => c.color), article = aggBy(c => c.subcat);
-    [skuRows, color, article].forEach(rs => rs.forEach(r => { delete r._r; }));
+    const color = aggBy(info => info.color);
+    const article = aggBy(info => info.subcat);
+    [skuRows, color, article].forEach(list => list.forEach(row => {
+      delete row._r;
+    }));
 
     const at = new Date().toISOString().slice(0, 16).replace('T', ' ');
     SA.data = { months, labels, at, color, article, sku: skuRows };
 
+    // --- 5. save it, then draw ---
     saMsg('Saving…');
     const chunks = Math.ceil(skuRows.length / SA_CHUNK) || 1;
     for (let i = 0; i < chunks; i++) {
@@ -14747,14 +15249,21 @@ async function saRebuild() {
     saMsg('Could not build it: ' + SA.err, true);
   }
   SA.loading = false;
-  btn.disabled = false; btn.textContent = 'Rebuild from orders';
+  btn.disabled = false;
+  btn.textContent = 'Rebuild from orders';
 }
 
+// Draw the chosen view: one row per colour, article or SKU, one column per month, each cell heat-mapped
+// against the row's own average (not for money). The first 400 rows only; Export covers them all.
 function renderSa() {
-  const esc = s => String(s == null ? '' : s).replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
-  const nf = v => Math.round(Number(v) || 0).toLocaleString('en-US');
+  // --- formatters ---
+  const esc = str => String(str == null ? '' : str)
+    .replace(/[<>&"]/g, ch => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[ch]));
+  const nf = value => Math.round(Number(value) || 0).toLocaleString('en-US');
+  // --- nothing to draw yet ---
   if (SA.err && !SA.data) {
-    $('saTable').innerHTML = '<tbody><tr><td class="muted" style="padding:14px">Nothing to show.</td></tr></tbody>';
+    $('saTable').innerHTML = '<tbody><tr><td class="muted" style="padding:14px">Nothing to show.'
+      + '</td></tr></tbody>';
     return;
   }
   if (!SA.data) {
@@ -14765,87 +15274,111 @@ function renderSa() {
     return;
   }
 
-  const D = SA.data, metric = SA.metric;
-  const rowsAll = D[SA.view] || [];
-  const q = $('saFilter').value.trim().toLowerCase();
-  const rows = rowsAll.filter(r => !q || String(r.name || '').toLowerCase().includes(q)
-    || (SA.view === 'sku' && (`${r.subcat} ${r.color} ${r.size}`).toLowerCase().includes(q)));
+  // --- the rows of the view, filtered by the search box ---
+  const data = SA.data;
+  const metric = SA.metric;
+  const rowsAll = data[SA.view] || [];
+  const search = $('saFilter').value.trim().toLowerCase();
+  const rows = rowsAll.filter(row => !search || String(row.name || '').toLowerCase().includes(search)
+    || (SA.view === 'sku' && (`${row.subcat} ${row.color} ${row.size}`).toLowerCase().includes(search)));
 
+  // --- the columns: the identifying ones first, then one per month ---
   const idCols = SA.view === 'sku'
     ? [['name', 'SKU'], ['subcat', 'Sub-Category'], ['color', 'Color'], ['size', 'Size']]
     : [['name', SA.view === 'color' ? 'Color' : 'Article'], ['skus', 'SKUs']];
 
-  const valOf = c => metric === 'amt' ? (c.amt || 0) : metric === 'pct' ? (c.pct || 0) : (c.qty || 0);
-  const fmt = c => metric === 'amt' ? '$' + nf(c.amt)
-    : metric === 'pct' ? ((c.pct || 0) * 100).toFixed(1) + '%' : nf(c.qty);
+  // a cell's value and its text, for the metric picked
+  const valOf = cell => metric === 'amt' ? (cell.amt || 0) : metric === 'pct' ? (cell.pct || 0) : (cell.qty || 0);
+  const fmt = cell => metric === 'amt' ? '$' + nf(cell.amt)
+    : metric === 'pct' ? ((cell.pct || 0) * 100).toFixed(1) + '%' : nf(cell.qty);
   // A floor, so a row selling three a month is not painted red for selling four. The heatmap answers
   // "when was THIS row's own peak", and on tiny numbers that question is noise.
   const floor = metric === 'pct' ? 0.03 : 1;
 
+  // --- head and body ---
   const head = '<thead><tr>'
-    + idCols.map((c, i) => `<th${i === 0 ? ' class="frz"' : ''}>${esc(c[1])}</th>`).join('')
-    + D.labels.map(m => `<th class="num">${esc(m)}</th>`).join('') + '</tr></thead>';
+    + idCols.map((col, i) => `<th${i === 0 ? ' class="frz"' : ''}>${esc(col[1])}</th>`).join('')
+    + data.labels.map(label => `<th class="num">${esc(label)}</th>`).join('') + '</tr></thead>';
 
-  const body = rows.slice(0, 400).map(r => {
-    const cs = r.m || [];
-    const vals = cs.map(valOf);
+  const body = rows.slice(0, 400).map(row => {
+    const cells = row.m || [];
+    const vals = cells.map(valOf);
     const mean = vals.reduce((a, b) => a + b, 0) / Math.max(1, vals.length);
-    const mx = vals.reduce((a, b) => Math.max(a, b), 0);
-    const ids = idCols.map(([k], i) => `<td${i === 0 ? ' class="frz"' : ''}${SA.view === 'sku' && k === 'name'
-      ? ' style="font-family:ui-monospace,monospace"' : ''}>${esc(r[k] == null ? '' : r[k])}</td>`).join('');
-    const ms = cs.map(c => {
-      const v = valOf(c);
+    const peak = vals.reduce((a, b) => Math.max(a, b), 0);
+    const ids = idCols.map(([key], i) => `<td${i === 0 ? ' class="frz"' : ''}${SA.view === 'sku' && key === 'name'
+      ? ' style="font-family:ui-monospace,monospace"' : ''}>${esc(row[key] == null ? '' : row[key])}</td>`).join('');
+    const monthCells = cells.map(cell => {
+      const value = valOf(cell);
       let cls = '';
       // Money is deliberately not heat-mapped: a row's own average means little against a price
       // that changed over the period.
-      if (metric !== 'amt' && mean > 0 && v >= floor) {
-        const ratio = v / mean;
-        if (ratio >= 2.5 || (v === mx && ratio >= 1.6)) cls = ' sa-hot';
+      if (metric !== 'amt' && mean > 0 && value >= floor) {
+        const ratio = value / mean;
+        if (ratio >= 2.5 || (value === peak && ratio >= 1.6)) cls = ' sa-hot';
         else if (ratio >= 1.8) cls = ' sa-warm';
         else if (ratio >= 1.3) cls = ' sa-mild';
       }
-      return `<td class="num${cls}">${fmt(c)}</td>`;
+      return `<td class="num${cls}">${fmt(cell)}</td>`;
     }).join('');
-    return `<tr>${ids}${ms}</tr>`;
+    return `<tr>${ids}${monthCells}</tr>`;
   }).join('');
 
   $('saTable').innerHTML = head + '<tbody>' + (body
-    || '<tr><td colspan="9" class="muted" style="padding:14px">Nothing matches that search.</td></tr>') + '</tbody>';
+    || '<tr><td colspan="9" class="muted" style="padding:14px">Nothing matches that search.</td></tr>')
+    + '</tbody>';
+  // --- the message line ---
   saMsg(`${nf(rows.length)} row(s)${rows.length > 400 ? ' · showing the first 400 · Export covers all of them' : ''}`
-    + ` · ${D.months.length} month(s) · built ${esc(D.at)}`
+    + ` · ${data.months.length} month(s) · built ${esc(data.at)}`
     + ' · MCF, cancelled orders and other marketplaces are excluded.');
 }
 
+// The pickers: a new brand reads that brand's saved matrix first; view and metric just redraw.
 ['saBrand', 'saView', 'saMetric'].forEach(id => $(id).addEventListener('change', async () => {
   const brand = $('saBrand').value;
-  SA.view = $('saView').value; SA.metric = $('saMetric').value;
-  if (brand !== SA.brand) { SA.brand = brand; SA.data = null; await loadSaCache(); }
+  SA.view = $('saView').value;
+  SA.metric = $('saMetric').value;
+  if (brand !== SA.brand) {
+    SA.brand = brand;
+    SA.data = null;
+    await loadSaCache();
+  }
   renderSa();
 }));
+// The search box waits a quarter of a second after the last keystroke.
 let SA_FILTER_T = null;
-$('saFilter').addEventListener('input', () => { clearTimeout(SA_FILTER_T); SA_FILTER_T = setTimeout(renderSa, 250); });
+$('saFilter').addEventListener('input', () => {
+  clearTimeout(SA_FILTER_T);
+  SA_FILTER_T = setTimeout(renderSa, 250);
+});
 $('saRebuild').onclick = saRebuild;
 
+// Export: the view on screen (every row that matches the search, not just 400) as CSV, one column per month.
 $('saExport').onclick = () => {
   if (!SA.data) return;
-  const D = SA.data, metric = SA.metric;
-  const cell = v => { const s = String(v == null ? '' : v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
-  const valOf = c => metric === 'amt' ? (c.amt || 0)
-    : metric === 'pct' ? Number(((c.pct || 0) * 100).toFixed(2)) : (c.qty || 0);
-  const q = $('saFilter').value.trim().toLowerCase();
-  const rows = (D[SA.view] || []).filter(r => !q || String(r.name || '').toLowerCase().includes(q)
-    || (SA.view === 'sku' && String(r.subcat || '').toLowerCase().includes(q)));
+  const data = SA.data;
+  const metric = SA.metric;
+  const cell = value => {
+    const str = String(value == null ? '' : value);
+    return /[",\n]/.test(str) ? '"' + str.replace(/"/g, '""') + '"' : str;
+  };
+  const valOf = figures => metric === 'amt' ? (figures.amt || 0)
+    : metric === 'pct' ? Number(((figures.pct || 0) * 100).toFixed(2)) : (figures.qty || 0);
+  const search = $('saFilter').value.trim().toLowerCase();
+  const rows = (data[SA.view] || []).filter(row => !search || String(row.name || '').toLowerCase().includes(search)
+    || (SA.view === 'sku' && String(row.subcat || '').toLowerCase().includes(search)));
   const idHdr = SA.view === 'sku' ? ['SKU', 'Sub-Category', 'Color', 'Size']
     : [SA.view === 'color' ? 'Color' : 'Article', 'SKUs'];
-  const lines = [idHdr.concat(D.labels).map(cell).join(',')];
-  rows.forEach(r => {
-    const idv = SA.view === 'sku' ? [r.name, r.subcat, r.color, r.size] : [r.name, r.skus];
-    lines.push(idv.concat((r.m || []).map(valOf)).map(cell).join(','));
+  const lines = [idHdr.concat(data.labels).map(cell).join(',')];
+  rows.forEach(row => {
+    const idv = SA.view === 'sku' ? [row.name, row.subcat, row.color, row.size] : [row.name, row.skus];
+    lines.push(idv.concat((row.m || []).map(valOf)).map(cell).join(','));
   });
   const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
-  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-  a.download = `sales-${SA.view}-${SA.brand}-${SA.metric}-${dToday()}.csv`;
-  a.click(); URL.revokeObjectURL(a.href);
+  const anchor = document.createElement('a');
+  anchor.href = URL.createObjectURL(blob);
+  anchor.download = `sales-${SA.view}-${SA.brand}-${SA.metric}-${dToday()}.csv`;
+  anchor.click();
+  URL.revokeObjectURL(anchor.href);
 };
 
 

@@ -1,11 +1,11 @@
-/* ================= SHOPIFY · SALES / SHIPPING / PRODUCTION — TEST PAGES (2026-11-02) =================
+/* ================= SHOPIFY HUB — ONE PAGE FOR THE SALES AND SHIPPING TEAMS, TEST (2026-11-02) =================
  *
- * Ravi, 2 Nov: three Shopify pages, one per team — Sales, Shipping, Production — identical to the Shopify hub, in the
- * ERP's look, nothing repeated between them, data in Supabase. They replace "Shopify hub (test)" and "Shopify OS (test)".
- * Each menu item opens the hub (public/shopify-hub/, made by Ridhihome/shopify-hub/tools/build-web.js) in one frame, as
- * ?page=sales|shipping|production: the hub then shows only that team's tabs and filters.
+ * Ravi, 2 Nov: "build a one page like the Shopify hub … the production bucket is for production, and the sales team and
+ * shipping team will see the Shopify hub page … with everything working". One menu item, "Shopify hub", opens the whole
+ * hub (public/shopify-hub/, made by Ridhihome/shopify-hub/tools/build-web.js) in a frame, in the ERP's look. Production
+ * has its own page, "Production bucket" (bucket-team.js).
  *
- * ONLY ON THE LOCAL PAGE AND THE TEST ERP. On the real ERP this file does nothing at all: no menu items, no page.
+ * ONLY ON THE LOCAL PAGE AND THE TEST ERP. On the real ERP this file does nothing at all: no menu item, no page.
  *
  * THE SHARED DATA (Supabase): window.SHOS gives the hub the Shopify OS database's address, its publishable key and the
  * signed-in person's Firebase sign-in (the ERP's own: no second password). The database checks the person on every call
@@ -23,14 +23,16 @@ const SHUB_ON = typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1|\[:
 const SHUB_WEB = SHUB_ON ? new URL('shopify-hub/index.html', location.href).href : '';
 const SHUB_LOCAL = 'http://localhost:8790/';
 let SHUB_URL = SHUB_WEB;
-const SHUB_PAGES = [['sales', 'Sales'], ['shipping', 'Shipping'], ['production', 'Production']];
-let SHUB_PAGE = 'shipping';
+/* ONE PAGE (Ravi, 2 Nov, last word): "a one page like the Shopify hub is built … sales team and shipping team will see the
+ * Shopify hub page" — the whole hub on one page; production has its own Production bucket page (bucket-team.js). */
+const SHUB_PAGES = [['hub', 'Shopify hub']];
+let SHUB_PAGE = 'hub';
 if (SHUB_ON && $('secShopify') && $('paneShop')) {
   const links = {};
   SHUB_PAGES.forEach(([k, name]) => {
     const a = document.createElement('a');
-    a.id = 'tabShub_' + k; a.className = 'nav'; a.href = '#shub-' + k;
-    a.innerHTML = `Shopify · ${name} <span class="navbadge" style="background:#7c3aed">TEST</span>`;
+    a.id = 'tabShub'; a.className = 'nav'; a.href = '#shub';
+    a.innerHTML = `${name} <span class="navbadge" style="background:#7c3aed">TEST</span>`;
     $('secShopify').appendChild(a);
     links[k] = a;
   });
@@ -90,11 +92,12 @@ if (SHUB_ON && $('secShopify') && $('paneShop')) {
     const up = await shubCheck();
     $('shubDown').classList.toggle('hide', up);
     $('shubFrame').classList.toggle('hide', !up);
-    $('shubName').textContent = 'Shopify · ' + (SHUB_PAGES.find(p => p[0] === SHUB_PAGE) || ['', ''])[1];
+    $('shubName').textContent = 'Shopify hub';
     let db = 'kept in this browser only';
     try { const c = await shosConfig(); db = 'shared database (' + c.from + ')'; } catch (e) { db = e.message; }
     $('shubState').textContent = !up ? 'Hub not found' : (SHUB_URL === SHUB_WEB ? 'Ready' : 'Hub on this computer') + ' · ' + db;
-    if (up && (force || shubShown !== SHUB_PAGE)) { shubShown = SHUB_PAGE; $('shubFrame').src = SHUB_URL + '?embed=1&page=' + SHUB_PAGE + '#orders'; }
+    /* Loaded once and kept: coming back to the page does not load the hub (or Shopify) again — Reload does. */
+    if (up && (force || shubShown !== SHUB_PAGE)) { shubShown = SHUB_PAGE; $('shubFrame').src = SHUB_URL + '?embed=1#orders'; }
   }
   $('shubReload').onclick = () => shubLoad(true);
 
@@ -181,7 +184,28 @@ if (SHUB_ON && $('secShopify') && $('paneShop')) {
    * told which in the hello below and keeps its changes "held" until then. */
   const shubWrites = () => !!(window.__TEST_ERP && window.__TEST_ERP.hubShopifyWrites);
   const shubCsv = v => (Array.isArray(v) ? v : []).map(String).join(',');
+  /* THE PRODUCTION BUCKET, asked for by the hub's "Production bucket" button (Ravi, 2 Nov: "get the bucket ready in our
+   * Shopify hub"). The ERP's own bucket (bucket-excel.js shpBucketOpen), not a copy: it is worked out from the Shopify
+   * Orders tab's orders, notes and stock, so those are read first if this page has not read them yet (ensureShop — the
+   * same read as opening Shopify Orders), and India stock is waited for, since the bucket judges stock. Then the bucket
+   * opens over the hub; what it does (open production lines, take goods from production) it does exactly as from the
+   * Shopify Orders page. Whatever it would have said on that page comes back to the hub as a message. */
+  async function shubBucket() {
+    if (typeof shpBucketOpen !== 'function' || typeof ensureShop !== 'function') throw new Error('This ERP has no production bucket.');
+    const said = () => (($('soMsg') && $('soMsg').textContent) || '').trim();
+    if (!Object.keys(SHOP_META || {}).length || !SHOP_STOCK_LOADED) {
+      $('shubState').textContent = 'Reading the Shopify orders and stock for the bucket…';
+      await ensureShop();
+    }
+    if (typeof loadShopIndia === 'function') { try { await loadShopIndia(); } catch (e) { /* the bucket says so */ } }
+    const before = said();
+    await shpBucketOpen();
+    $('shubState').textContent = 'Production bucket opened';
+    const now = said();
+    return now && now !== before ? { msg: now, bad: /could not|not been read|refused|denied/i.test(now) } : {};
+  }
   async function shubAnswer(kind, a) {
+    if (kind === 'prodBucket') return shubBucket();
     const shop = a.store === 'CPC' ? 'CPC' : '';
     if (kind === 'order') return prGet({ shopify: 'orders', shop, ids: String(a.id || ''), open: '0', nophoto: '1' }, { timeoutMs: 120000 });
     if (kind === 'track') return prGet({ shopify: 'tracking', shop, ids: shubCsv(a.ids) }, { timeoutMs: 120000 });
@@ -215,32 +239,26 @@ if (SHUB_ON && $('secShopify') && $('paneShop')) {
     }
   });
 
-  /* The three pages: showTab opens them itself (one pane, the frame told which page), and hands every other page to the
-   * real showTab. Keys: shub-sales, shub-shipping, shub-production. */
-  const isShub = w => /^shub-(sales|shipping|production)$/.test(String(w || ''));
+  /* The one page: showTab opens it itself, and hands every other page to the real showTab. Key: shub. */
+  const isShub = w => w === 'shub';
   const showTabReal = showTab;
   showTab = function (which) {
     if (!isShub(which)) {
       pane.classList.add('hide'); Object.values(links).forEach(l => l.classList.remove('on'));
       return showTabReal(which);
     }
-    SHUB_PAGE = which.slice(5);
-    const name = (SHUB_PAGES.find(p => p[0] === SHUB_PAGE) || ['', ''])[1];
     document.querySelectorAll('[id^="pane"]').forEach(el => el.classList.toggle('hide', el !== pane));
-    document.querySelectorAll('.side a.nav.on').forEach(el => el.classList.remove('on'));
-    links[SHUB_PAGE].classList.add('on');
+    document.querySelectorAll('.side a.nav.on, #secShopify a.nav.on').forEach(el => el.classList.remove('on'));
+    links.hub.classList.add('on');
     if (TAB_NOW && !isShub(TAB_NOW) && typeof tabShed === 'function') tabShed(TAB_NOW);
     TAB_NOW = which;
-    $('pageTitle').textContent = 'Shopify · ' + name + ' (test)';
-    try { document.title = 'Shopify · ' + name + ' (test) · Ridhi Home & Living'; if (location.hash !== '#' + which) history.pushState(null, '', '#' + which); } catch (e) { /* only the address */ }
+    $('pageTitle').textContent = 'Shopify hub (test)';
+    try { document.title = 'Shopify hub (test) · Ridhi Home & Living'; if (location.hash !== '#shub') history.pushState(null, '', '#shub'); } catch (e) { /* only the address */ }
     if (typeof navOpenFor === 'function') navOpenFor('shop');
     if (typeof topbarSync === 'function') topbarSync();
     shubLoad(false);
   };
-  Object.entries(links).forEach(([k, a]) => { a.onclick = e => { e.preventDefault(); showTab('shub-' + k); }; });
-  /* Back / Forward to #shub-…, which nav.js does not know (and the old #shub link goes to Shipping). */
-  window.addEventListener('hashchange', () => {
-    const h = location.hash === '#shub' ? 'shub-shipping' : location.hash.slice(1);
-    if (isShub(h) && TAB_NOW !== h && ME && ME.tabs) showTab(h);
-  });
+  links.hub.onclick = e => { e.preventDefault(); showTab('shub'); };
+  /* Back / Forward to #shub, which nav.js does not know. */
+  window.addEventListener('hashchange', () => { if (location.hash === '#shub' && TAB_NOW !== 'shub' && ME && ME.tabs) showTab('shub'); });
 }

@@ -1667,6 +1667,7 @@ function renderShop() {
   const pane = $('paneShop');
   if (pane && pane.classList && pane.classList.contains('hide')) { try { soRows(); } catch (e) { /* drawn on the way in */ } return; }
   /* The returns team (returns-team.js): its three tools, never the orders table. */
+  if (typeof SHOP_BKT_ONLY === 'function' && SHOP_BKT_ONLY()) { renderShopBkt(); return; }   // the production team: the bucket only
   if (typeof SHOP_RET_ONLY === 'function' && SHOP_RET_ONLY()) { renderShopRet(); return; }
   const esc = s => String(s == null ? '' : s).replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
   const money = v => '$' + Math.round(v || 0).toLocaleString('en-US');

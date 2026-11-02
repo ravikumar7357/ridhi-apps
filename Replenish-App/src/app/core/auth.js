@@ -197,6 +197,11 @@ onAuthStateChanged(auth, async user => {
     const b = $('tabShop');
     if (b) { b.style.display = ''; const t = b.querySelector && b.querySelector('.nav-t'); (t || b).textContent = 'Returns & delivery'; }
   }
+  /* THE SHOPIFY PRODUCTION BUCKET (2 Nov): the production team's one screen is Shopify Orders in the bucket form (bucket-team.js). */
+  if (typeof SHOP_BKT_ONLY === 'function' && SHOP_BKT_ONLY()) {
+    const b = $('tabShop');
+    if (b) { b.style.display = ''; const t = b.querySelector && b.querySelector('.nav-t'); (t || b).textContent = 'Production bucket'; }
+  }
   syncNavGroups();
   /* The sidebar is now telling the truth, so it can be seen. The data loads below take their own
    * time behind it. */

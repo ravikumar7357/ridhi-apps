@@ -148,6 +148,8 @@ shopify/bucket-excel.js
 shopify/returns.js
 shopify/delivery-days.js
 shopify/returns-team.js
+shopify/bucket-team.js
+shopify/shopify-hub-local.js
 replenishment/india-usa-express.js
 @shared/adjustments.js
 @shared/courier-templates.js
@@ -159,7 +161,6 @@ core/filter-by.js
 core/installed-app.js
 core/version-check.js
 core/mobile.js
-shopify/shopify-hub-local.js
 core/meera-bridge.js
 @meera/legacy/guide-art.js
 @meera/legacy/guide-tours.js

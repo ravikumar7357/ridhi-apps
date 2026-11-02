@@ -48,6 +48,7 @@ function mobMay(t) {
   if (ME.tabs.includes(t)) return true;
   if (t === 'ord' && ME.tabs.includes('shopprod')) return true;
   if (t === 'shop' && ME.tabs.includes('shopret')) return true;
+  if (t === 'shop' && ME.tabs.includes('shopbkt')) return true;
   return false;
 }
 
