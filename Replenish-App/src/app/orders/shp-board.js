@@ -154,8 +154,11 @@ function shpbStages(lines) {
     /* TO PLAN holds only what production sent to the printer (status Need from printer, or a tablecloth marked OOS) and nobody has planned yet; every other line sits at its own stage. */
     if (shpbGated(r)) { s.planA += q; s.planW += q; }
     /* A line that goes to a printer can be cut / issued only as far as the printed cloth has come back (flowState does the same). */
-    const fl = shpbFlowOf(r), base = shpbGated(r) ? 0 : (fl ? Math.min(q, fl.back) : q);
-    if (fl) { const back = Math.min(q, fl.back); s.prcA += q; s.prcD += back; s.prcW += q - back; }
+    /* WORK FURTHER ON SAYS THE CLOTH CAME (Ravi, 2 Nov: "kuch entry aise h jo issue press ho chuki but show kar rahi printer receive me"): a piece
+     * cut, issued, received, passed or pressed is past the printer whatever the challan says — the printer receive counts at least that many. */
+    const fl = shpbFlowOf(r), past = Math.max(r.cutReq ? cap(r.cut) : 0, iss, rec, qc, prs), flBack = fl ? Math.min(q, Math.max(+fl.back || 0, past)) : 0;
+    const base = shpbGated(r) ? 0 : (fl ? flBack : q);
+    if (fl) { s.prcA += q; s.prcD += flBack; s.prcW += q - flBack; }
     const cutDone = r.cutReq ? cap(r.cut) : base;
     if (r.cutReq) { s.cutA += base; s.cutD += cap(r.cut); s.cutW += Math.max(0, base - cap(r.cut)); }
     s.issA += cutDone; s.issD += iss; s.issW += Math.max(0, cutDone - iss);
