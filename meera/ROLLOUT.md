@@ -100,22 +100,30 @@ Compare with `?meera=lazy,spell` (today's look) on an office computer and on a p
   - switch the AI off for everyone: `ENABLED = "false"` in `meera/router/wrangler.toml`, push (Meera answers on her own);
   - or empty `GA_AI_URL` in `meera/client/src/legacy/guide-ai.js`, push.
 
-## 4. Phases 4 and 5 on her router — before anything reaches main (Ravi's OK first)
+## 4. Her router on Cloudflare's FREE plan (master plan B.1) — approved 2 Nov ("B.1 approved — live karo")
 
-Merging to main redeploys the router (`.github/workflows/meera-router.yml`). For Phases 4–5 that deploy also:
-- makes the new tables (`learn`, `kb`, `config`, `diffs`) — the old ones are untouched;
-- loads her answers and walk-throughs into `kb` (`kb-sql.cjs`), and bundles her meaning table (meera-words.bin) into the
-  router — so the account must be on **Workers Paid** first (30 s per request; the free plan's 10 ms is too little for her
-  search's first set-up, ~0.7 s);
-- needs no new secret for search; the weekly learning build needs `EXPORT_KEY` (GitHub and Cloudflare).
-Nothing changes for staff: every switch (learn, server, serveruse) stays off in the ERP, and the router's own switches
-(meera, ai, search) start "on" — they matter only to a browser with server or serveruse on.
+**What went up** (main 90d8b76; deployed BY HAND: GitHub → Actions → "Meera router — test, deploy" → Run workflow, on main):
+- the router from `meera/router`, entry `src/free.js` — AI answers (`/ask`) as before (with the better cleaning: amounts and
+  short order / invoice numbers taken out too), plus the learning records, the admin page's lists, her switches
+  (`/config`) and the weekly export (locked: no `EXPORT_KEY` set). Her search on the server is PARKED
+  (`SEARCH = "parked"` in wrangler.toml: off whatever the admin switch says). 58 KB compressed; 0.2–1.3 ms a request.
+- the database: 4 new, empty tables (`learn`, `kb`, `config`, `diffs`); the 3 old ones (`usage`, `answers`, `tickets`)
+  untouched — their layout is the same. Her answers are NOT loaded into `kb` (nothing reads them while search is parked).
+- No secret changes. Nothing changes for staff: every switch in the ERP stays off, so live Meera uses only `/ask`, as before.
 
-**Right after the deploy:** https://meera-router.erp-9a0.workers.dev/health → `{"ok":true,…}`; then on the test link with
-`?meera=lazy,server` ask five questions and see them counted in Meera's learning → Switches ("… of … the same").
+**Health check** (no sign-in, no data): https://meera-router.erp-9a0.workers.dev/health →
+`{"ok":true,"v":"learn-free-2026-11-02","search":"parked","groq":true,"workersAi":true,…}`. The deploy run checks it
+itself. Before 2 Nov it said `{"ok":true,"groq":true,"workersAi":true,"gemini":false}` (no "v").
 
-**Roll back** (any one): Cloudflare → Workers & Pages → meera-router → Deployments → previous → Rollback; or in Meera's
-learning → Switches, turn "Search on the server" off (every browser searches on its own, at once, no deploy).
+**Roll back** (seconds, nothing lost):
+1. Cloudflare dashboard (erp@ridhihome.com) → Workers & Pages → **meera-router** → **Deployments** (or Versions).
+2. Pick the one before 2 Nov (deployed 29 Oct, from main dc3aa15) → **Rollback** → confirm.
+3. Check /health shows no `"v"` again. Live Meera keeps asking `/ask`, which the old router has.
+4. The 4 new tables can stay (the old router never reads them); learning records kept in them stay for when the new router
+   comes back. On GitHub: revert 90d8b76 if the files should go too (the site is not affected either way).
+
+**Next (B.2–B.3):** the admin page ("Meera's learning" + "New on the screens", opening even when the router is down), then
+`learn` on for everyone — each on its own "live karo".
 
 ## 5. Server search (Phase 5) — PARKED (Ravi, 2 Nov 2026: "I'm not taking Workers Paid for now")
 
