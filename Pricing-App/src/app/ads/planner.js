@@ -1,3 +1,20 @@
+/* ================= ADS · PLANNER: the parents × weeks grid, its deal box, and the Events table =================
+ * Screens: Deal Calendar in Planner mode (D_MODE 'plan'): the weeks picker (dWeeks), the plan filter (dPlanFilter),
+ * Fetch images (dImgs), the summary card (dKpis) and the grid (dPlanTable); clicking a cell opens the deal box
+ * (dpModal: dpType, dpVal, dpBy, dpRepeat, dpStart, dpDays, dpSave, dpClear, dpCancel), which Completed and HDA
+ * open too (dPlanOpen). Also the Events mode table (dEventsTable) and its form (devName, devStart, devEnd, devSave).
+ * renderDealsAny in ads/hda.js calls renderPlanner and renderEvents.
+ * Does: D_PLAN is the plan, 'PARENT|week' → { t, v, by, s, d }, saved with the rest of the calendar (saveDeals in
+ * ads/deal-calendar.js); D_IMG holds the parents' photos, fetched from Amazon's catalog by dFetchImages (own brand,
+ * then the other brand's credentials, then deeper variants) and shrunk to thumbnails by dThumb. dPlanParents builds
+ * the rows from Listing Health and the BSR snapshot; dPlanWeeks the Sunday-start columns; renderPlanner draws the
+ * grid with a deal shown in every week it runs into (dPlanSpan), renderPlannerKpis the card, and dPinLeft freezes
+ * the first two columns. dPlanOpen and dPlanSave edit one cell (type, discount, owner, start day, length, repeat).
+ * renderEvents and the devSave handler date the named events Amazon leaves as "NA" (D_EVENTS).
+ * Main functions: dThumb, dFetchImages, dSunday, dPlanWeeks, dShortDate, dPlanParents, dPlanTypes,
+ * renderPlannerKpis, renderPlanner, dPinLeft, dPlanSpan, dPlanOpen, dPlanSpanNote, dPlanSave, renderEvents, and
+ * the grid, deal-box and events handlers. */
+
 /* ================= PLANNER =================
  * Parents down, weeks across, and a cell you fill in yourself — the shape the plan is already made
  * in on paper. The rows are not typed: parent ASIN, name and BSR all come from the BSR snapshot, so
@@ -16,11 +33,13 @@ let D_IMG = {};              // parent ASIN → MAIN photo url, fetched once and
  * and cuts the download and the decode by roughly the square of the ratio. The grid draws these at
  * 30px; pulling the 500px original for 300 rows is what made the tab crawl after the first fetch.
  */
+// Rewrite an Amazon image URL to its 80px version; anything that is not one comes back unchanged.
 function dThumb(u) {
   const s = String(u || '');
   const m = s.match(/^(https?:\/\/[^?#]*\/images\/[A-Za-z]\/[^./]+)(\._[A-Za-z0-9,_-]+_)?(\.(?:jpg|jpeg|png|gif|webp))(\?[^#]*)?$/i);
   return m ? `${m[1]}._SL80_${m[3]}${m[4] || ''}` : s;
 }
+// D_MODE: plan / events / done / hda. D_PLAN_EDIT: the 'PARENT|week' key open in the deal box. D_IMG_BUSY: a fetch runs.
 let D_MODE = 'plan';
 let D_PLAN_EDIT = null;
 let D_IMG_BUSY = false;
@@ -33,23 +52,34 @@ let D_IMG_BUSY = false;
  * come back without a photo are asked again through one of their CHILD ASINs — a parent record with
  * no image of its own is common and does not mean the product has no picture.
  */
+// Fetch images: every parent of both brands without a photo, in three passes (own brand, the other brand's
+// credentials, deeper variants); saves D_IMG, redraws once and reports what is still missing and why.
 async function dFetchImages() {
   if (D_IMG_BUSY) return;
+  // --- busy ---
   D_IMG_BUSY = true;
-  $('dImgs').disabled = true; $('dImgs').textContent = 'Fetching…';
+  $('dImgs').disabled = true;
+  $('dImgs').textContent = 'Fetching…';
   try {
+    // --- every parent without a photo, from Listing Health and the latest BSR snapshot ---
     // Deliberately ignores the brand and plan filters: "Fetch images" means the whole catalogue, and
     // fetching only what happens to be on screen is how CPC ended up with no pictures at all.
     const seen = new Set(), parents = [];
     ['SP', 'CPC'].forEach(b => {
       (HEALTH[b]?.rows || []).forEach(r => {
         const p = String(r.parent || r.asin || '').trim().toUpperCase();
-        if (D_ASIN_RE.test(p) && !seen.has(p)) { seen.add(p); if (!D_IMG[p]) parents.push({ parent: p, brand: b }); }
+        if (D_ASIN_RE.test(p) && !seen.has(p)) {
+          seen.add(p);
+          if (!D_IMG[p]) parents.push({ parent: p, brand: b });
+        }
       });
       const weeks = Object.keys(BSR[b] || {}).sort();
       Object.keys((BSR[b] || {})[weeks[weeks.length - 1]] || {}).forEach(p => {
         const k = String(p).trim().toUpperCase();
-        if (D_ASIN_RE.test(k) && !seen.has(k)) { seen.add(k); if (!D_IMG[k]) parents.push({ parent: k, brand: b }); }
+        if (D_ASIN_RE.test(k) && !seen.has(k)) {
+          seen.add(k);
+          if (!D_IMG[k]) parents.push({ parent: k, brand: b });
+        }
       });
     });
     if (!parents.length) { dMsg('Every parent already has a photo.'); }
@@ -64,6 +94,7 @@ async function dFetchImages() {
       (kidsOf[p] || (kidsOf[p] = [])).push(a);
     }));
 
+    // --- first pass: each brand under its own credentials, 20 at a time, then the first child ---
     let got = 0;
     // ASINs the catalog returned NO ITEM for, under any credentials we tried. Kept apart from
     // "returned an item but it has no photo" — the first is a listing this account cannot see, the
@@ -76,7 +107,11 @@ async function dFetchImages() {
         const chunk = list.slice(i, i + 20);
         try {
           const d = await tCall({ imgs: chunk.join(','), brand });
-          Object.entries(d.images || {}).forEach(([a, url]) => { D_IMG[a] = url; got++; perBrand[brand]++; });
+          Object.entries(d.images || {}).forEach(([a, url]) => {
+            D_IMG[a] = url;
+            got++;
+            perBrand[brand]++;
+          });
           // Children Amazon itself reports, merged in ahead of the ones inferred from the health
           // snapshot: a variation parent that is missing from health has no children there at all,
           // and these are the only ones it will ever get.
@@ -88,10 +123,18 @@ async function dFetchImages() {
           // A parent record with no image of its own is completely normal — Amazon keeps the photos
           // on the children. Ask the first child of each one that came back empty.
           const missing = chunk.filter(a => !D_IMG[a]);
-          const kids = missing.map(p => (kidsOf[p] || [])[0] ? { parent: p, asin: kidsOf[p][0] } : null).filter(Boolean);
+          const kids = missing.map(p => (kidsOf[p] || [])[0] ? { parent: p, asin: kidsOf[p][0] } : null)
+            .filter(Boolean);
           if (kids.length) {
             const d2 = await tCall({ imgs: kids.map(k => k.asin).join(','), brand });
-            kids.forEach(k => { const u = (d2.images || {})[k.asin]; if (u) { D_IMG[k.parent] = u; got++; perBrand[brand]++; } });
+            kids.forEach(k => {
+              const u = (d2.images || {})[k.asin];
+              if (u) {
+                D_IMG[k.parent] = u;
+                got++;
+                perBrand[brand]++;
+              }
+            });
           }
         } catch (e) {
           // Collected, not printed: the progress line on the next statement used to overwrite this
@@ -101,6 +144,7 @@ async function dFetchImages() {
         if (!fails.length) dMsg(`Fetching photos — ${BRAND_NAME[brand]}, ${got} of ${parents.length}…`);
       }
     }
+    // --- second pass: the other brand's credentials ---
     // LAST PASS — anything still without a photo is asked for again under the OTHER brand's
     // credentials. Amazon only returns a seller's own images under that seller's account, so a
     // parent filed against the wrong brand comes back empty and looks like a product with no
@@ -115,7 +159,13 @@ async function dFetchImages() {
           const chunk = list.slice(i, i + 20);
           try {
             const d = await tCall({ imgs: chunk.join(','), brand });
-            Object.entries(d.images || {}).forEach(([a, url]) => { if (!D_IMG[a]) { D_IMG[a] = url; got++; perBrand[brand]++; } });
+            Object.entries(d.images || {}).forEach(([a, url]) => {
+              if (!D_IMG[a]) {
+                D_IMG[a] = url;
+                got++;
+                perBrand[brand]++;
+              }
+            });
             Object.entries(d.kids || {}).forEach(([p, list]) => {
               kidsOf[p] = [...new Set([...(list || []), ...(kidsOf[p] || [])])];
             });
@@ -126,7 +176,14 @@ async function dFetchImages() {
               .map(p => (kidsOf[p] || [])[0] ? { parent: p, asin: kidsOf[p][0] } : null).filter(Boolean);
             if (kids.length) {
               const d2 = await tCall({ imgs: kids.map(k => k.asin).join(','), brand });
-              kids.forEach(k => { const u = (d2.images || {})[k.asin]; if (u) { D_IMG[k.parent] = u; got++; perBrand[brand]++; } });
+              kids.forEach(k => {
+                const u = (d2.images || {})[k.asin];
+                if (u) {
+                  D_IMG[k.parent] = u;
+                  got++;
+                  perBrand[brand]++;
+                }
+              });
             }
           } catch (e) { fails.push(`cross-brand ${BRAND_NAME[brand]}: ${e.message || e}`); }
           dMsg(`Retrying under ${BRAND_NAME[brand]} — ${got} found so far…`);
@@ -134,6 +191,7 @@ async function dFetchImages() {
       }
     }
 
+    // --- third pass: deeper down the children ---
     // DEEP CHILD PASS — for anything still blank, walk further down the children instead of giving
     // up after the first one. A parent's first child is often a colour that was discontinued, or a
     // variant Amazon never got a photo for; the second or third usually has one. Both brands are
@@ -153,13 +211,18 @@ async function dFetchImages() {
             const d = await tCall({ imgs: slice.map(r => kidsOf[r.parent][depth]).join(','), brand });
             slice.forEach(r => {
               const u = (d.images || {})[kidsOf[r.parent][depth]];
-              if (u && !D_IMG[r.parent]) { D_IMG[r.parent] = u; got++; perBrand[brand]++; }
+              if (u && !D_IMG[r.parent]) {
+                D_IMG[r.parent] = u;
+                got++;
+                perBrand[brand]++;
+              }
             });
           } catch (e) { fails.push(`variant ${depth + 1} ${BRAND_NAME[brand]}: ${e.message || e}`); }
         }
       }
     }
 
+    // --- save, redraw once, and report ---
     await saveDeals(false);
     renderPlanner();                       // once, at the end — not after every chunk
     const summary = `Photos — Ridhi ${perBrand.SP}, CPC ${perBrand.CPC} fetched · ${Object.keys(D_IMG).length} stored in total.`;
@@ -179,16 +242,20 @@ async function dFetchImages() {
     // The credentials message is worth saying once in plain words rather than three times as a raw
     // API error — it is a setup problem, not something retrying will ever fix.
     const credGap = fails.some(f => /credentials missing/i.test(f))
-      ? ['CPC has no SP-API credentials in Script Properties, so its own account cannot be asked at all — those photos came from Ridhi\'s credentials instead']
+      ? ['CPC has no SP-API credentials in Script Properties, so its own account cannot be asked at all — '
+        + 'those photos came from Ridhi\'s credentials instead']
       : [];
     dMsg([summary, ...note, ...credGap, ...fails.filter(f => !/credentials missing/i.test(f)).slice(0, 2)].join(' · '),
       (left || fails.length) > 0);
   } catch (e) {
     dMsg('Could not fetch photos: ' + (e.message || e), true);
   }
+  // --- back to normal ---
   D_IMG_BUSY = false;
-  $('dImgs').disabled = false; $('dImgs').textContent = 'Fetch images';
+  $('dImgs').disabled = false;
+  $('dImgs').textContent = 'Fetch images';
 }
+// The Fetch images button.
 $('dImgs').onclick = dFetchImages;
 
 /**
@@ -198,11 +265,13 @@ $('dImgs').onclick = dFetchImages;
  * the same calendar week was labelled 03-Aug here and 02-Aug everywhere else. One product, two
  * weeks, depending on which tab you were looking at.
  */
+// yyyy-MM-dd of the Sunday on or before the timestamp given (UTC).
 const dSunday = ms => {
   const d = new Date(ms);
   const u = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
   return new Date(u - new Date(u).getUTCDay() * 86400000).toISOString().slice(0, 10);
 };
+// The week columns: as many Sundays as the dWeeks picker says (26 by default), starting with this week.
 function dPlanWeeks() {
   const n = Number($('dWeeks').value) || 26;
   const first = new Date(dSunday(Date.now()) + 'T00:00:00Z').getTime();
@@ -210,6 +279,7 @@ function dPlanWeeks() {
   for (let i = 0; i < n; i++) out.push(new Date(first + i * 7 * 86400000).toISOString().slice(0, 10));
   return out;
 }
+// "2026-08-03" → "03-Aug", for the column headers.
 const dShortDate = k => {
   const d = new Date(k + 'T00:00:00Z');
   return String(d.getUTCDate()).padStart(2, '0') + '-' + W_MON[d.getUTCMonth()];
@@ -232,11 +302,14 @@ const dShortDate = k => {
 // photo in its chunk.
 const D_ASIN_RE = /^[A-Z0-9]{10}$/;
 
+// The grid's rows: every parent of the chosen brand(s) with name, rank and child count, filtered and sorted by rank.
 function dPlanParents() {
+  // --- the filters ---
   const brand = $('dBrand').value, q = $('dFilter').value.trim().toLowerCase();
   const brands = brand === 'ALL' ? myBrands() : [brand].filter(b => myBrands().includes(b));
   const byKey = new Map();
 
+  // --- every parent from Listing Health, then the rank from the latest BSR snapshot ---
   brands.forEach(b => {
     (HEALTH[b]?.rows || []).forEach(r => {
       const p = String(r.parent || r.asin || '').trim().toUpperCase();
@@ -256,6 +329,7 @@ function dPlanParents() {
     });
   });
 
+  // --- names, the text filter and the plan filter ---
   let rows = [...byKey.values()];
   rows.forEach(r => { r.name = parentName(r.brand, r.parent, '') || ''; });
   if (q) rows = rows.filter(r => (r.parent + ' ' + r.name).toLowerCase().includes(q));
@@ -265,6 +339,7 @@ function dPlanParents() {
   else if (pf === 'none') rows = rows.filter(r => dPlanTypes(r.parent).size === 0);
   else if (pf) rows = rows.filter(r => dPlanTypes(r.parent).has(pf));
 
+  // --- sort ---
   // Best-selling first. Rank 0 means "not ranked", which belongs at the bottom, not the top —
   // sorting it as zero would put every unranked parent above the best seller in the catalogue.
   rows.sort((a, b) => ((a.rank || 1e9) - (b.rank || 1e9)) || String(a.name).localeCompare(String(b.name)));
@@ -272,17 +347,29 @@ function dPlanParents() {
 }
 
 /** The plan types set on a parent anywhere in the visible horizon. */
+// Set of deal types (PED, COUPON, …) this parent has in any of the weeks on screen.
 function dPlanTypes(parent) {
   const out = new Set();
-  dPlanWeeks().forEach(w => { const p = D_PLAN[parent + '|' + w]; if (p && p.t) out.add(p.t); });
+  dPlanWeeks().forEach(w => {
+    const p = D_PLAN[parent + '|' + w];
+    if (p && p.t) out.add(p.t);
+  });
   return out;
 }
 
-const D_PLAN_COLOUR = { PED: '#dbeafe|#1e40af', COUPON: '#dcfce7|#166534', DEAL: '#fef9c3|#854d0e',
-  'BEST DEAL': '#fde68a|#92400e', LIGHTNING: '#ffedd5|#9a3412', 'PRICE DISC': '#ede9fe|#5b21b6' };
+// Deal type → 'background|text' colours of its cell and badge.
+const D_PLAN_COLOUR = {
+  PED: '#dbeafe|#1e40af',
+  COUPON: '#dcfce7|#166534',
+  DEAL: '#fef9c3|#854d0e',
+  'BEST DEAL': '#fde68a|#92400e',
+  LIGHTNING: '#ffedd5|#9a3412',
+  'PRICE DISC': '#ede9fe|#5b21b6' };
 
+// Draw the summary card (dKpis): parents per brand, how many have a plan in the weeks shown, and one tile per type.
 function renderPlannerKpis(rows, weeks) {
   const nf = v => Math.round(v || 0).toLocaleString('en-US');
+  // --- every parent of the account, by brand ---
   // Counted over EVERY parent, not the filtered view — otherwise filtering to "PED only" would
   // report that every parent has a PED, which is true of the filter and false of the business.
   const all = (() => {
@@ -293,15 +380,20 @@ function renderPlannerKpis(rows, weeks) {
         if (p && !m.has(p)) m.set(p, b);
       });
       Object.keys((BSR[b] || {})[Object.keys(BSR[b] || {}).sort().slice(-1)[0]] || {})
-        .forEach(p => { const k = String(p).toUpperCase(); if (!m.has(k)) m.set(k, b); });
+        .forEach(p => {
+          const k = String(p).toUpperCase();
+          if (!m.has(k)) m.set(k, b);
+        });
     });
     return m;
   })();
   const nSP = [...all.values()].filter(b => b === 'SP').length;
   const nCPC = [...all.values()].filter(b => b === 'CPC').length;
 
+  // --- the plans inside the weeks on screen, by type ---
   const wset = new Set(weeks);
-  const byType = {}; const parentsWith = new Set();
+  const byType = {};
+  const parentsWith = new Set();
   Object.entries(D_PLAN).forEach(([k, v]) => {
     if (!v || !v.t) return;
     const [p, w] = k.split('|');
@@ -309,7 +401,9 @@ function renderPlannerKpis(rows, weeks) {
     byType[v.t] = (byType[v.t] || new Set()).add(p);
     parentsWith.add(p);
   });
-  const tile = (label, val, colour) => `<div class="metric"><div class="v"${colour ? ` style="color:${colour}"` : ''}>${val}</div><div class="l">${label}</div></div>`;
+  // --- the card ---
+  const tile = (label, val, colour) =>
+    `<div class="metric"><div class="v"${colour ? ` style="color:${colour}"` : ''}>${val}</div><div class="l">${label}</div></div>`;
 
   $('dKpis').innerHTML = `<div class="kpi" style="flex-basis:100%">
     <div class="kpihead"><span class="kpiname">Deal planner — next ${weeks.length} weeks</span>
@@ -326,16 +420,21 @@ function renderPlannerKpis(rows, weeks) {
     </div></div>`;
 }
 
+// Draw the Planner: the card, then the grid of parents (first 300) × weeks, with every deal in each week it runs.
 function renderPlanner() {
-  const esc = s => String(s == null ? '' : s).replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
+  const esc = s => String(s == null ? '' : s)
+    .replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
+  // --- rows, columns and the card ---
   const weeks = dPlanWeeks();
   const rows = dPlanParents();
   renderPlannerKpis(rows, weeks);
   if (!rows.length) {
-    $('dPlanTable').innerHTML = '<tbody><tr><td class="muted" style="padding:14px">No parents yet — take a snapshot on the BSR Audit tab first. The rows here come from it, so nothing has to be typed.</td></tr></tbody>';
+    $('dPlanTable').innerHTML = '<tbody><tr><td class="muted" style="padding:14px">No parents yet — take a snapshot on the BSR Audit tab first. '
+      + 'The rows here come from it, so nothing has to be typed.</td></tr></tbody>';
     return;
   }
 
+  // --- build table: the two header rows ---
   // Two header rows, exactly like the sheet this replaces: the week's start over its end.
   const head = '<thead>'
     + '<tr class="phead1"><th class="frz pfz" data-pf="0" rowspan="2">Parent ASIN</th>'
@@ -345,9 +444,12 @@ function renderPlanner() {
     + '<th class="num" style="background:#e2e8f0">Start</th>'
     + weeks.map(w => `<th class="num" style="background:#fde4d3">${esc(dShortDate(w))}</th>`).join('') + '</tr>'
     + '<tr class="phead2"><th class="num" style="background:#fef08a">End</th>'
-    + weeks.map(w => `<th class="num" style="background:#fde4d3">${esc(dShortDate(new Date(new Date(w + 'T00:00:00Z').getTime() + 6 * 86400000).toISOString().slice(0, 10)))}</th>`).join('')
+    + weeks.map(w => `<th class="num" style="background:#fde4d3">${
+        esc(dShortDate(new Date(new Date(w + 'T00:00:00Z').getTime() + 6 * 86400000).toISOString().slice(0, 10)))
+      }</th>`).join('')
     + '</tr></thead>';
 
+  // --- build table: one row per parent ---
   const body = rows.slice(0, 300).map(r => {
     // A deal is stored against the week it STARTS in, but a ten-day run does not stop at Saturday.
     // Work out, per week column, whether a deal starts there or is still running from an earlier
@@ -363,6 +465,7 @@ function renderPlanner() {
       });
     });
 
+    // --- the week cells: empty, a continuation of an earlier week, or the deal itself ---
     const cells = weeks.map(w => {
       const p = D_PLAN[r.parent + '|' + w];
       const cont = !p || !p.t ? runsInto[w] : null;
@@ -393,6 +496,7 @@ function renderPlanner() {
         + (p.by ? `<div style="font-weight:600;font-size:9.5px;opacity:.75">${esc(String(p.by).slice(0, 12))}</div>` : '')
         + '</td>';
     }).join('');
+    // --- the frozen columns, image and BSR, then the cells ---
     const img = D_IMG[r.parent];
     return `<tr><td class="frz pfz" data-pf="0" style="font-family:ui-monospace,monospace">${esc(r.parent)}</td>`
       + `<td class="pfz pfz-last" data-pf="1" title="${esc(r.name)}">${esc(String(r.name).slice(0, 32)) || '<span class="muted">—</span>'}</td>`
@@ -403,6 +507,7 @@ function renderPlanner() {
       + `<td class="num muted"></td>${cells}</tr>`;
   }).join('');
 
+  // --- draw ---
   $('dPlanTable').innerHTML = head + '<tbody>' + body + '</tbody>';
   dPinLeft();
   dMsg(`${rows.length} parent(s) · ${weeks.length} weeks · click any cell to plan. Rows and names come from the BSR snapshot.`);
@@ -415,20 +520,24 @@ function renderPlanner() {
  * widths — so the offsets cannot be written into the CSS. Measured inside rAF because reading a
  * width right after setting innerHTML forces the browser to lay out the whole grid there and then.
  */
+// Pin the first two columns and the two header rows of the grid, measuring their sizes after layout.
 function dPinLeft() {
   requestAnimationFrame(() => {
     const tbl = $('dPlanTable');
     const first = tbl.querySelector('tbody tr');
     if (!first) return;
+    // --- the frozen columns' left offsets ---
     // Frozen columns: parent ASIN and product only. Their widths follow their content, so the
     // offsets are measured rather than written into the CSS.
-    const lefts = []; let x = 0;
+    const lefts = [];
+    let x = 0;
     for (let i = 0; i < 2; i++) {
       const td = first.querySelector(`[data-pf="${i}"]`);
       lefts.push(x);
       x += td ? td.getBoundingClientRect().width : 0;
     }
     tbl.querySelectorAll('[data-pf]').forEach(el => { el.style.left = lefts[Number(el.dataset.pf)] + 'px'; });
+    // --- the header rows' top offsets ---
     // The SECOND header row has to be pushed down by the height of the first, or the two pin on top
     // of each other and the End dates vanish under the Start dates.
     const h1 = tbl.querySelector('thead tr.phead1 th:last-child');
@@ -446,17 +555,20 @@ function dPinLeft() {
  * meant: the whole of its own week. Reading the default here rather than migrating the stored
  * documents keeps every old plan exactly as it was.
  */
+// { start, days, end } of one plan entry; a plain entry is its whole week (7 days from the week's Sunday).
 function dPlanSpan(week, p) {
   const start = (p && p.s) || week;
   const days = Math.max(1, Number(p && p.d) || 7);
   return { start, days, end: sdShift(start, days - 1) };
 }
 
+// Open the deal box for one 'PARENT|week' key, filled with what is planned there (or blank).
 function dPlanOpen(key) {
   D_PLAN_EDIT = key;
   const [parent, week] = key.split('|');
   const cur = D_PLAN[key] || {};
   const end = new Date(new Date(week + 'T00:00:00Z').getTime() + 6 * 86400000).toISOString().slice(0, 10);
+  // --- fill the box ---
   $('dpTitle').textContent = parent;
   $('dpWhen').textContent = `${week} → ${end}`;
   $('dpType').value = cur.t || '';
@@ -471,6 +583,7 @@ function dPlanOpen(key) {
   $('dpStart').min = week;
   $('dpStart').max = sdShift(week, 6);
   dPlanSpanNote();
+  // --- the "run by" suggestions, then show ---
   // Names already used become suggestions, so the same person is not spelt three ways.
   const names = [...new Set(Object.values(D_PLAN).map(p => p && p.by).filter(Boolean))].sort();
   $('dpByList').innerHTML = names.map(n => `<option value="${String(n).replace(/"/g, '&quot;')}">`).join('');
@@ -478,20 +591,27 @@ function dPlanOpen(key) {
   $('dpType').focus();
 }
 /** Say in words what the dates on screen add up to, so a 10-day run is not a surprise later. */
+// Write the deal box's span line (dpSpan) from the start date and length typed.
 function dPlanSpanNote() {
   const days = Math.max(1, Number($('dpDays').value) || 7);
   const start = $('dpStart').value;
-  if (!start) { $('dpSpan').textContent = ''; return; }
+  if (!start) {
+    $('dpSpan').textContent = '';
+    return;
+  }
   const end = sdShift(start, days - 1);
   const weeks = wKeyOfDate(start) === wKeyOfDate(end) ? 1 : 2;
   $('dpSpan').textContent = `${start} → ${end}`
     + (weeks > 1 ? ' · runs into the following week, and shows in both columns' : '')
     + (days !== 7 ? ' · repeat is ignored for a run that is not a whole week' : '');
 }
+// Typing a start date or a length updates the span line.
 ['dpStart', 'dpDays'].forEach(id => $(id).addEventListener('input', dPlanSpanNote));
 
+// Save (or, with clear, remove) the deal in the open box into D_PLAN, repeating weekly when asked, then redraw and save.
 async function dPlanSave(clear) {
   if (!D_PLAN_EDIT) return;
+  // --- read the box ---
   const [parent, week] = D_PLAN_EDIT.split('|');
   const t = clear ? '' : $('dpType').value;
   const v = clear ? 0 : (Number($('dpVal').value) || 0);
@@ -502,6 +622,7 @@ async function dPlanSave(clear) {
   let start = clear ? week : ($('dpStart').value || week);
   if (start < week) start = week;
   if (start > sdShift(week, 6)) start = sdShift(week, 6);
+  // --- write one entry per repeated week ---
   // Repeat steps a week at a time, so it only makes sense for a seven-day run. A 10-day deal
   // repeated weekly would overlap itself, which is never what anybody meant.
   const n = (clear || days !== 7) ? 1 : (Number($('dpRepeat').value) || 1);
@@ -509,7 +630,10 @@ async function dPlanSave(clear) {
   for (let i = 0; i < n; i++) {
     const wk = new Date(base + i * 7 * 86400000).toISOString().slice(0, 10);
     const key = parent + '|' + wk;
-    if (!t) { delete D_PLAN[key]; continue; }
+    if (!t) {
+      delete D_PLAN[key];
+      continue;
+    }
     const e = { t, v };
     if (by) e.by = by;
     // Only written when they say something the default does not, so ordinary weekly plans stay the
@@ -519,24 +643,38 @@ async function dPlanSave(clear) {
     if (days !== 7) e.d = days;
     D_PLAN[key] = e;
   }
-  $('dpModal').classList.add('hide'); D_PLAN_EDIT = null;
+  // --- close, redraw, save ---
+  $('dpModal').classList.add('hide');
+  D_PLAN_EDIT = null;
   // Whichever view is open, not always the planner — a deal edited from Completed must redraw there.
   renderDealsAny();
-  try { await saveDeals(false); dMsg('Saved.'); }
-  catch (e) { dMsg('Could not save: ' + (e.message || e), true); }
+  try {
+    await saveDeals(false);
+    dMsg('Saved.');
+  } catch (e) { dMsg('Could not save: ' + (e.message || e), true); }
 }
+// The deal box's buttons: Save, Clear (removes the deal) and Cancel.
 $('dpSave').onclick = () => dPlanSave(false);
 $('dpClear').onclick = () => dPlanSave(true);
-$('dpCancel').onclick = () => { $('dpModal').classList.add('hide'); D_PLAN_EDIT = null; };
+$('dpCancel').onclick = () => {
+  $('dpModal').classList.add('hide');
+  D_PLAN_EDIT = null;
+};
+// A click on a grid cell opens the deal box for it.
 $('dPlanTable').addEventListener('click', e => {
-  const td = e.target.closest('[data-dp]'); if (!td) return;
+  const td = e.target.closest('[data-dp]');
+  if (!td) return;
   dPlanOpen(td.dataset.dp);
 });
+// Changing the number of weeks redraws the grid.
 $('dWeeks').addEventListener('change', renderPlanner);
 
 /* ---------- event windows ---------- */
+// Draw the Events table: every named schedule from the recommendations plus the ones already dated, with Edit.
 function renderEvents() {
-  const esc = s => String(s == null ? '' : s).replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
+  const esc = s => String(s == null ? '' : s)
+    .replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
+  // --- the event names ---
   // Every named schedule Amazon gave no dates for, plus anything already filled in.
   const named = new Set(Object.keys(D_EVENTS));
   DEALS.recs.forEach(r => {
@@ -544,6 +682,7 @@ function renderEvents() {
     if (s && !D_DATE_RE.test(s)) named.add(s);
   });
   const list = [...named].sort();
+  // --- build table ---
   const head = '<thead><tr><th>Event</th><th>Starts</th><th>Ends</th><th>From the recommendations</th><th></th></tr></thead>';
   const body = list.map(n => {
     const ev = D_EVENTS[n] || {};
@@ -555,23 +694,39 @@ function renderEvents() {
       + `<td><button class="ghost" data-dev="${esc(n)}" style="padding:3px 10px;font-size:12px">Edit</button></td></tr>`;
   }).join('');
   $('dEventsTable').innerHTML = head + '<tbody>' + (body
-    || '<tr><td colspan="5" class="muted" style="padding:12px">Nothing to date yet — import the recommendations, or add an event below.</td></tr>')
+    || '<tr><td colspan="5" class="muted" style="padding:12px">Nothing to date yet — '
+    + 'import the recommendations, or add an event below.</td></tr>')
     + '</tbody>';
 }
+// Edit on an event row copies it into the form.
 $('dEventsTable').addEventListener('click', e => {
-  const b = e.target.closest('[data-dev]'); if (!b) return;
+  const b = e.target.closest('[data-dev]');
+  if (!b) return;
   const n = b.dataset.dev, ev = D_EVENTS[n] || {};
-  $('devName').value = n; $('devStart').value = ev.start || ''; $('devEnd').value = ev.end || '';
+  $('devName').value = n;
+  $('devStart').value = ev.start || '';
+  $('devEnd').value = ev.end || '';
   $('devName').focus();
 });
+// Save on the events form: both dates needed and in order; writes D_EVENTS, redraws and saves.
 $('devSave').onclick = async () => {
   const n = $('devName').value.trim(), s = $('devStart').value, e2 = $('devEnd').value;
-  if (!n) { $('devMsg').textContent = 'A name is needed.'; return; }
-  if (!s || !e2) { $('devMsg').textContent = 'Both dates are needed — that is the whole point of this table.'; return; }
-  if (e2 < s) { $('devMsg').textContent = 'The end date is before the start date.'; return; }
+  if (!n) {
+    $('devMsg').textContent = 'A name is needed.';
+    return;
+  }
+  if (!s || !e2) {
+    $('devMsg').textContent = 'Both dates are needed — that is the whole point of this table.';
+    return;
+  }
+  if (e2 < s) {
+    $('devMsg').textContent = 'The end date is before the start date.';
+    return;
+  }
   D_EVENTS[n] = { start: s, end: e2 };
   renderEvents();
-  try { await saveDeals(false); $('devMsg').textContent = `Saved — ${n} is now ${s} → ${e2}.`; }
-  catch (err) { $('devMsg').textContent = 'Could not save: ' + (err.message || err); }
+  try {
+    await saveDeals(false);
+    $('devMsg').textContent = `Saved — ${n} is now ${s} → ${e2}.`;
+  } catch (err) { $('devMsg').textContent = 'Could not save: ' + (err.message || err); }
 };
-
