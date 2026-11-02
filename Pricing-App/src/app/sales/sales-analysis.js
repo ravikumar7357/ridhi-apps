@@ -1,3 +1,14 @@
+/* ================= SALES · SALES ANALYSIS: monthly sales by colour, article or SKU, back to the first order =================
+ * Screens: Sales Analysis (ensureSa runs when the tab opens — core/nav.js).
+ * Does: Rebuild from orders walks the brand's whole Orders workbook through the backend in chunks, adds up
+ * every SKU's units and sales per month, joins the Catalog tab for colour, article and size, builds the
+ * three views (by colour, by article, by SKU) ranked by the last two months' revenue, and saves the result
+ * to Firestore (salesanalysis/{brand}, the SKU rows in sarows/{brand}_{n}) so later visits only read it
+ * (saRebuild, loadSaCache). renderSa draws the chosen view as a month-by-month table, heat-mapped against
+ * each row's own average; Export writes the view as CSV.
+ * Main functions: ensureSa, loadSaCache, saRebuild, renderSa, saMsg; the handlers of the pickers, the filter
+ * box, Rebuild from orders and Export. */
+
 /* ================= SALES ANALYSIS =================
  *
  * Monthly sales by COLOUR, by ARTICLE or by SKU, back to the start of the order history — built
@@ -13,31 +24,49 @@
  * The three exclusions are the backend's, so these totals and the Sales Dashboard's cannot disagree:
  * MCF orders, cancelled rows and other marketplaces are all left out.
  */
-const SA_CHUNK = 250;
+const SA_CHUNK = 250;   // SKU rows per sarows document
+// The screen's state: the brand, view and metric picked, the built matrix (null until read or built), a busy
+// flag and the last error.
 let SA = { brand: 'SP', view: 'color', metric: 'pct', data: null, loading: false, err: '' };
 const SA_MON = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-function saMsg(t, bad) { const m = $('saMsg'); m.innerHTML = t || ''; m.className = bad ? 'err' : 'muted'; }
+// The message line under the controls (HTML allowed): grey normally, red when bad is true; blank clears it.
+function saMsg(text, bad) {
+  const msg = $('saMsg');
+  msg.innerHTML = text || '';
+  msg.className = bad ? 'err' : 'muted';
+}
 
+// Opening the tab: read the saved matrix for the brand if it is not here yet, then draw.
 async function ensureSa() {
   if (!SA.data) await loadSaCache();
   renderSa();
 }
 
+// Read the brand's saved matrix: the summary document, then its SKU rows chunk by chunk. SA.data stays null
+// when nothing has been built yet (or the read failed — SA.err says why).
 async function loadSaCache() {
   SA.err = '';
   try {
     const meta = await getDoc(doc(db, 'salesanalysis', SA.brand));
-    if (!meta.exists()) { SA.data = null; return; }
-    const d = meta.data();
-    let sku = [];
-    for (let i = 0; i < (d.skuChunks || 0); i++) {
-      const c = await getDoc(doc(db, 'sarows', `${SA.brand}_${i}`));
-      if (c.exists()) sku = sku.concat(c.data().r || []);
+    if (!meta.exists()) {
+      SA.data = null;
+      return;
     }
-    SA.data = { months: d.months || [], labels: d.labels || [], at: d.at || '',
-      color: d.color || [], article: d.article || [], sku };
-  } catch (e) { SA.err = e.message || String(e); SA.data = null; }
+    const data = meta.data();
+    let sku = [];
+    for (let i = 0; i < (data.skuChunks || 0); i++) {
+      const chunk = await getDoc(doc(db, 'sarows', `${SA.brand}_${i}`));
+      if (chunk.exists()) sku = sku.concat(chunk.data().r || []);
+    }
+    SA.data = {
+      months: data.months || [], labels: data.labels || [], at: data.at || '',
+      color: data.color || [], article: data.article || [], sku,
+    };
+  } catch (e) {
+    SA.err = e.message || String(e);
+    SA.data = null;
+  }
 }
 
 /**
@@ -49,81 +78,99 @@ async function loadSaCache() {
  */
 async function saRebuild() {
   const btn = $('saRebuild');
-  btn.disabled = true; btn.textContent = 'Reading…';
-  SA.loading = true; SA.err = '';
+  btn.disabled = true;
+  btn.textContent = 'Reading…';
+  SA.loading = true;
+  SA.err = '';
   try {
+    // --- 1. walk the Orders workbook in chunks: units and sales per SKU per month ---
     const book = SA.brand === 'CPC' ? 1 : 0;
     const perSku = {};                       // sku → { 'YYYY-MM': [qty, amt] }
-    let start = 2, guard = 0, lastRow = 0;
+    let start = 2, guard = 0, lastRow = 0;   // the next row to read, the loop guard, the workbook's last row
     while (start && guard++ < 60) {          // a guard, not a limit: 60 × 20,000 is 1.2m rows
-      const r = await baCall({ sales: 'chunk', book, start, rows: 20000 });
-      if (!r.ok) throw new Error(r.error || 'The orders workbook could not be read.');
-      lastRow = r.lastRow || lastRow;
-      Object.entries(r.d || {}).forEach(([sku, months]) => {
-        const m = perSku[sku] || (perSku[sku] = {});
-        Object.entries(months).forEach(([k, v]) => {
-          const b = m[k] || (m[k] = [0, 0]);
-          b[0] += v[0] || 0; b[1] += v[1] || 0;
+      const reply = await baCall({ sales: 'chunk', book, start, rows: 20000 });
+      if (!reply.ok) throw new Error(reply.error || 'The orders workbook could not be read.');
+      lastRow = reply.lastRow || lastRow;
+      Object.entries(reply.d || {}).forEach(([sku, months]) => {
+        const skuMonths = perSku[sku] || (perSku[sku] = {});
+        Object.entries(months).forEach(([month, figures]) => {
+          const pair = skuMonths[month] || (skuMonths[month] = [0, 0]);
+          pair[0] += figures[0] || 0;
+          pair[1] += figures[1] || 0;
         });
       });
       saMsg(`Reading the orders workbook… ${Math.min(start + 20000, lastRow).toLocaleString('en-US')}`
         + ` of ${lastRow.toLocaleString('en-US')} rows`);
-      start = r.next;
+      start = reply.next;
     }
 
+    // --- 2. the catalogue: colour, article (sub-category), size and ASIN per SKU ---
     saMsg('Reading the catalogue…');
     const cat = await baCall({ sales: 'cat', brand: SA.brand });
     if (!cat.ok) throw new Error(cat.error || 'The Catalog tab could not be read.');
     const CAT = cat.map || {};
 
+    // --- 3. the months, their labels, and each month's grand total ---
     // Months, newest first — the order the report is read in.
-    const months = [...new Set(Object.values(perSku).flatMap(m => Object.keys(m)))].sort().reverse();
-    const labels = months.map(m => `${SA_MON[Number(m.slice(5, 7))]} '${m.slice(2, 4)}`);
+    const months = [...new Set(Object.values(perSku).flatMap(skuMonths => Object.keys(skuMonths)))].sort().reverse();
+    const labels = months.map(month => `${SA_MON[Number(month.slice(5, 7))]} '${month.slice(2, 4)}`);
 
     // Every month's total units, which is what "% share" is a share OF.
     const grand = {};
-    months.forEach(m => { grand[m] = 0; });
-    Object.values(perSku).forEach(mm => months.forEach(m => { if (mm[m]) grand[m] += mm[m][0]; }));
+    months.forEach(month => {
+      grand[month] = 0;
+    });
+    Object.values(perSku).forEach(skuMonths => months.forEach(month => {
+      if (skuMonths[month]) grand[month] += skuMonths[month][0];
+    }));
 
-    const cells = get => months.map(m => {
-      const v = get(m) || [0, 0];
-      return { qty: Math.round(v[0]), amt: Math.round(v[1]), pct: grand[m] ? v[0] / grand[m] : 0 };
+    // --- 4. the three views: one row per SKU, per colour, per article ---
+    // one cell per month, newest first: { qty, amt, pct of that month's units }
+    const cells = get => months.map(month => {
+      const figures = get(month) || [0, 0];
+      return { qty: Math.round(figures[0]), amt: Math.round(figures[1]), pct: grand[month] ? figures[0] / grand[month] : 0 };
     });
     // Ranked by the revenue of the LAST TWO months, so the order moves with the business instead of
     // being frozen on whatever sold best two years ago. months[0] is the current month.
-    const rank = ms => (ms[0] ? ms[0].amt : 0) + (ms[1] ? ms[1].amt : 0);
+    const rank = series => (series[0] ? series[0].amt : 0) + (series[1] ? series[1].amt : 0);
 
     const skuRows = Object.keys(perSku).map(sku => {
-      const c = CAT[sku] || {};
-      const m = cells(k => perSku[sku][k]);
-      return { name: sku, asin: c.asin || '', subcat: c.subcat || '', color: c.color || '',
-        size: c.size || '', m, _r: rank(m) };
+      const info = CAT[sku] || {};
+      const m = cells(month => perSku[sku][month]);
+      return { name: sku, asin: info.asin || '', subcat: info.subcat || '', color: info.color || '',
+        size: info.size || '', m, _r: rank(m) };
     }).sort((a, b) => b._r - a._r);
 
+    // the SKUs grouped by one catalogue field (colour or article), each group's months added up
     const aggBy = pick => {
       const agg = {};
       Object.keys(perSku).forEach(sku => {
         // A SKU the Catalog tab has never heard of is NOT dropped — its sales are real. It lands in
         // "(unknown)", where a growing number is itself the signal that the catalogue needs a row.
         const key = String(pick(CAT[sku] || {}) || '').trim() || '(unknown)';
-        const a = agg[key] || (agg[key] = { skus: new Set(), mm: {} });
-        a.skus.add(sku);
-        Object.entries(perSku[sku]).forEach(([k, v]) => {
-          const b = a.mm[k] || (a.mm[k] = [0, 0]);
-          b[0] += v[0]; b[1] += v[1];
+        const group = agg[key] || (agg[key] = { skus: new Set(), mm: {} });
+        group.skus.add(sku);
+        Object.entries(perSku[sku]).forEach(([month, figures]) => {
+          const pair = group.mm[month] || (group.mm[month] = [0, 0]);
+          pair[0] += figures[0];
+          pair[1] += figures[1];
         });
       });
-      return Object.entries(agg).map(([name, a]) => {
-        const m = cells(k => a.mm[k]);
-        return { name, skus: a.skus.size, m, _r: rank(m) };
+      return Object.entries(agg).map(([name, group]) => {
+        const m = cells(month => group.mm[month]);
+        return { name, skus: group.skus.size, m, _r: rank(m) };
       }).sort((x, y) => y._r - x._r);
     };
-    const color = aggBy(c => c.color), article = aggBy(c => c.subcat);
-    [skuRows, color, article].forEach(rs => rs.forEach(r => { delete r._r; }));
+    const color = aggBy(info => info.color);
+    const article = aggBy(info => info.subcat);
+    [skuRows, color, article].forEach(list => list.forEach(row => {
+      delete row._r;
+    }));
 
     const at = new Date().toISOString().slice(0, 16).replace('T', ' ');
     SA.data = { months, labels, at, color, article, sku: skuRows };
 
+    // --- 5. save it, then draw ---
     saMsg('Saving…');
     const chunks = Math.ceil(skuRows.length / SA_CHUNK) || 1;
     for (let i = 0; i < chunks; i++) {
@@ -140,14 +187,21 @@ async function saRebuild() {
     saMsg('Could not build it: ' + SA.err, true);
   }
   SA.loading = false;
-  btn.disabled = false; btn.textContent = 'Rebuild from orders';
+  btn.disabled = false;
+  btn.textContent = 'Rebuild from orders';
 }
 
+// Draw the chosen view: one row per colour, article or SKU, one column per month, each cell heat-mapped
+// against the row's own average (not for money). The first 400 rows only; Export covers them all.
 function renderSa() {
-  const esc = s => String(s == null ? '' : s).replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
-  const nf = v => Math.round(Number(v) || 0).toLocaleString('en-US');
+  // --- formatters ---
+  const esc = str => String(str == null ? '' : str)
+    .replace(/[<>&"]/g, ch => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[ch]));
+  const nf = value => Math.round(Number(value) || 0).toLocaleString('en-US');
+  // --- nothing to draw yet ---
   if (SA.err && !SA.data) {
-    $('saTable').innerHTML = '<tbody><tr><td class="muted" style="padding:14px">Nothing to show.</td></tr></tbody>';
+    $('saTable').innerHTML = '<tbody><tr><td class="muted" style="padding:14px">Nothing to show.'
+      + '</td></tr></tbody>';
     return;
   }
   if (!SA.data) {
@@ -158,86 +212,110 @@ function renderSa() {
     return;
   }
 
-  const D = SA.data, metric = SA.metric;
-  const rowsAll = D[SA.view] || [];
-  const q = $('saFilter').value.trim().toLowerCase();
-  const rows = rowsAll.filter(r => !q || String(r.name || '').toLowerCase().includes(q)
-    || (SA.view === 'sku' && (`${r.subcat} ${r.color} ${r.size}`).toLowerCase().includes(q)));
+  // --- the rows of the view, filtered by the search box ---
+  const data = SA.data;
+  const metric = SA.metric;
+  const rowsAll = data[SA.view] || [];
+  const search = $('saFilter').value.trim().toLowerCase();
+  const rows = rowsAll.filter(row => !search || String(row.name || '').toLowerCase().includes(search)
+    || (SA.view === 'sku' && (`${row.subcat} ${row.color} ${row.size}`).toLowerCase().includes(search)));
 
+  // --- the columns: the identifying ones first, then one per month ---
   const idCols = SA.view === 'sku'
     ? [['name', 'SKU'], ['subcat', 'Sub-Category'], ['color', 'Color'], ['size', 'Size']]
     : [['name', SA.view === 'color' ? 'Color' : 'Article'], ['skus', 'SKUs']];
 
-  const valOf = c => metric === 'amt' ? (c.amt || 0) : metric === 'pct' ? (c.pct || 0) : (c.qty || 0);
-  const fmt = c => metric === 'amt' ? '$' + nf(c.amt)
-    : metric === 'pct' ? ((c.pct || 0) * 100).toFixed(1) + '%' : nf(c.qty);
+  // a cell's value and its text, for the metric picked
+  const valOf = cell => metric === 'amt' ? (cell.amt || 0) : metric === 'pct' ? (cell.pct || 0) : (cell.qty || 0);
+  const fmt = cell => metric === 'amt' ? '$' + nf(cell.amt)
+    : metric === 'pct' ? ((cell.pct || 0) * 100).toFixed(1) + '%' : nf(cell.qty);
   // A floor, so a row selling three a month is not painted red for selling four. The heatmap answers
   // "when was THIS row's own peak", and on tiny numbers that question is noise.
   const floor = metric === 'pct' ? 0.03 : 1;
 
+  // --- head and body ---
   const head = '<thead><tr>'
-    + idCols.map((c, i) => `<th${i === 0 ? ' class="frz"' : ''}>${esc(c[1])}</th>`).join('')
-    + D.labels.map(m => `<th class="num">${esc(m)}</th>`).join('') + '</tr></thead>';
+    + idCols.map((col, i) => `<th${i === 0 ? ' class="frz"' : ''}>${esc(col[1])}</th>`).join('')
+    + data.labels.map(label => `<th class="num">${esc(label)}</th>`).join('') + '</tr></thead>';
 
-  const body = rows.slice(0, 400).map(r => {
-    const cs = r.m || [];
-    const vals = cs.map(valOf);
+  const body = rows.slice(0, 400).map(row => {
+    const cells = row.m || [];
+    const vals = cells.map(valOf);
     const mean = vals.reduce((a, b) => a + b, 0) / Math.max(1, vals.length);
-    const mx = vals.reduce((a, b) => Math.max(a, b), 0);
-    const ids = idCols.map(([k], i) => `<td${i === 0 ? ' class="frz"' : ''}${SA.view === 'sku' && k === 'name'
-      ? ' style="font-family:ui-monospace,monospace"' : ''}>${esc(r[k] == null ? '' : r[k])}</td>`).join('');
-    const ms = cs.map(c => {
-      const v = valOf(c);
+    const peak = vals.reduce((a, b) => Math.max(a, b), 0);
+    const ids = idCols.map(([key], i) => `<td${i === 0 ? ' class="frz"' : ''}${SA.view === 'sku' && key === 'name'
+      ? ' style="font-family:ui-monospace,monospace"' : ''}>${esc(row[key] == null ? '' : row[key])}</td>`).join('');
+    const monthCells = cells.map(cell => {
+      const value = valOf(cell);
       let cls = '';
       // Money is deliberately not heat-mapped: a row's own average means little against a price
       // that changed over the period.
-      if (metric !== 'amt' && mean > 0 && v >= floor) {
-        const ratio = v / mean;
-        if (ratio >= 2.5 || (v === mx && ratio >= 1.6)) cls = ' sa-hot';
+      if (metric !== 'amt' && mean > 0 && value >= floor) {
+        const ratio = value / mean;
+        if (ratio >= 2.5 || (value === peak && ratio >= 1.6)) cls = ' sa-hot';
         else if (ratio >= 1.8) cls = ' sa-warm';
         else if (ratio >= 1.3) cls = ' sa-mild';
       }
-      return `<td class="num${cls}">${fmt(c)}</td>`;
+      return `<td class="num${cls}">${fmt(cell)}</td>`;
     }).join('');
-    return `<tr>${ids}${ms}</tr>`;
+    return `<tr>${ids}${monthCells}</tr>`;
   }).join('');
 
   $('saTable').innerHTML = head + '<tbody>' + (body
-    || '<tr><td colspan="9" class="muted" style="padding:14px">Nothing matches that search.</td></tr>') + '</tbody>';
+    || '<tr><td colspan="9" class="muted" style="padding:14px">Nothing matches that search.</td></tr>')
+    + '</tbody>';
+  // --- the message line ---
   saMsg(`${nf(rows.length)} row(s)${rows.length > 400 ? ' · showing the first 400 · Export covers all of them' : ''}`
-    + ` · ${D.months.length} month(s) · built ${esc(D.at)}`
+    + ` · ${data.months.length} month(s) · built ${esc(data.at)}`
     + ' · MCF, cancelled orders and other marketplaces are excluded.');
 }
 
+// The pickers: a new brand reads that brand's saved matrix first; view and metric just redraw.
 ['saBrand', 'saView', 'saMetric'].forEach(id => $(id).addEventListener('change', async () => {
   const brand = $('saBrand').value;
-  SA.view = $('saView').value; SA.metric = $('saMetric').value;
-  if (brand !== SA.brand) { SA.brand = brand; SA.data = null; await loadSaCache(); }
+  SA.view = $('saView').value;
+  SA.metric = $('saMetric').value;
+  if (brand !== SA.brand) {
+    SA.brand = brand;
+    SA.data = null;
+    await loadSaCache();
+  }
   renderSa();
 }));
+// The search box waits a quarter of a second after the last keystroke.
 let SA_FILTER_T = null;
-$('saFilter').addEventListener('input', () => { clearTimeout(SA_FILTER_T); SA_FILTER_T = setTimeout(renderSa, 250); });
+$('saFilter').addEventListener('input', () => {
+  clearTimeout(SA_FILTER_T);
+  SA_FILTER_T = setTimeout(renderSa, 250);
+});
 $('saRebuild').onclick = saRebuild;
 
+// Export: the view on screen (every row that matches the search, not just 400) as CSV, one column per month.
 $('saExport').onclick = () => {
   if (!SA.data) return;
-  const D = SA.data, metric = SA.metric;
-  const cell = v => { const s = String(v == null ? '' : v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
-  const valOf = c => metric === 'amt' ? (c.amt || 0)
-    : metric === 'pct' ? Number(((c.pct || 0) * 100).toFixed(2)) : (c.qty || 0);
-  const q = $('saFilter').value.trim().toLowerCase();
-  const rows = (D[SA.view] || []).filter(r => !q || String(r.name || '').toLowerCase().includes(q)
-    || (SA.view === 'sku' && String(r.subcat || '').toLowerCase().includes(q)));
+  const data = SA.data;
+  const metric = SA.metric;
+  const cell = value => {
+    const str = String(value == null ? '' : value);
+    return /[",\n]/.test(str) ? '"' + str.replace(/"/g, '""') + '"' : str;
+  };
+  const valOf = figures => metric === 'amt' ? (figures.amt || 0)
+    : metric === 'pct' ? Number(((figures.pct || 0) * 100).toFixed(2)) : (figures.qty || 0);
+  const search = $('saFilter').value.trim().toLowerCase();
+  const rows = (data[SA.view] || []).filter(row => !search || String(row.name || '').toLowerCase().includes(search)
+    || (SA.view === 'sku' && String(row.subcat || '').toLowerCase().includes(search)));
   const idHdr = SA.view === 'sku' ? ['SKU', 'Sub-Category', 'Color', 'Size']
     : [SA.view === 'color' ? 'Color' : 'Article', 'SKUs'];
-  const lines = [idHdr.concat(D.labels).map(cell).join(',')];
-  rows.forEach(r => {
-    const idv = SA.view === 'sku' ? [r.name, r.subcat, r.color, r.size] : [r.name, r.skus];
-    lines.push(idv.concat((r.m || []).map(valOf)).map(cell).join(','));
+  const lines = [idHdr.concat(data.labels).map(cell).join(',')];
+  rows.forEach(row => {
+    const idv = SA.view === 'sku' ? [row.name, row.subcat, row.color, row.size] : [row.name, row.skus];
+    lines.push(idv.concat((row.m || []).map(valOf)).map(cell).join(','));
   });
   const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
-  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-  a.download = `sales-${SA.view}-${SA.brand}-${SA.metric}-${dToday()}.csv`;
-  a.click(); URL.revokeObjectURL(a.href);
+  const anchor = document.createElement('a');
+  anchor.href = URL.createObjectURL(blob);
+  anchor.download = `sales-${SA.view}-${SA.brand}-${SA.metric}-${dToday()}.csv`;
+  anchor.click();
+  URL.revokeObjectURL(anchor.href);
 };
 
