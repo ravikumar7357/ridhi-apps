@@ -440,7 +440,9 @@ const inBucket = (o, b) => b[0] === 'act' ? needsAction(o) : b[0] === 'decide' ?
 function pageOrders() {
   const match = o => !Q || [o.no, o.cust.n, o.cust.e, ...o.items.map(i => i.sku + ' ' + i.t), ...o.pkgs.flatMap(p => p.trk)].join(' ').toLowerCase().includes(Q);
   /* On a team page only that team's filters; one is always chosen, except on Sales where "All" is the order search. */
-  const BK = PAGE ? BUCKETS.filter(x => PAGE.buckets.includes(x[0])) : BUCKETS;
+  /* No "Needs routing" chip on the whole hub (Ravi, 2 Nov: "remove it") — every order to route is already in Needs action,
+   * first, since routing is its most urgent step. Kept only while something still asks for it (the standalone To route). */
+  const BK = PAGE ? BUCKETS.filter(x => PAGE.buckets.includes(x[0])) : BUCKETS.filter(x => x[0] !== 'decide' || FILTER === 'decide');
   if (PAGE && !PAGE.buckets.includes(FILTER) && !(FILTER === '' && PAGE.first === '')) FILTER = PAGE.first;
   const b = BK.find(x => x[0] === FILTER);
   const urg = o => (nextAction(o) || { urg: -1 }).urg;
@@ -451,7 +453,7 @@ function pageOrders() {
   const allChip = !PAGE || PAGE.first === '' ? `<button class="s-st ${!FILTER ? 'on' : ''}" type="button" data-f="">All <b>${vis().length}</b></button>` : '';
   /* Five chips in sight, the rest under "More" (Ravi, 2 Nov); the chosen one always stays in sight, and delayed orders
    * show their count on More in red. A team page has few chips and shows them all. */
-  const MAIN = ['act', 'decide', 'make', 'ready'];
+  const MAIN = ['act', 'make', 'ready', 'carrier'];
   const chip = x => { const n = cnt(x); return `<button class="s-st ${n ? '' : 'zero'} ${(x[0] === 'act' || x[0] === 'late') && n ? 'act' : ''} ${FILTER === x[0] ? 'on' : ''}" type="button" data-f="${x[0]}">${x[1]} <b>${n}</b></button>`; };
   const inSight = PAGE ? BK : BK.filter(x => MAIN.includes(x[0]) || x[0] === FILTER), rest = BK.filter(x => !inSight.includes(x));
   const late = rest.find(x => x[0] === 'late'), lateN = late ? cnt(late) : 0;
