@@ -43,4 +43,5 @@ listing/image-manager.js
 listing/listing-errors.js
 listing/listing-content.js
 listing/bought-together.js
+ads/ppc-new.js
 core/version-check.js
