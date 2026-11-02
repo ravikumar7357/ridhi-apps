@@ -1,3 +1,16 @@
+/* ================= ADS · COMPLETED DEALS: the Deal Calendar's "Completed" list =================
+ * Screens: Deal Calendar in its Completed mode (D_MODE === 'done'; ads/hda.js calls renderDone when the calendar
+ * redraws): the "how far back" picker (dDoneWeeks), the summary card (dDoneKpis) and the table (dDoneTable). The
+ * brand picker (dBrand) and the text filter (dFilter) are the calendar's own. The calendar's Export (hda.js) also
+ * uses dDoneRows.
+ * Does: lists every planned deal whose run has ENDED (span.end before today), straight from D_PLAN — nothing is
+ * stored here. dBrandOf maps parent ASIN → brand (Listing Health first, the latest BSR snapshot second) so the
+ * brand filter can work on a plan that only knows its parent; dDoneRows applies the window, brand and text
+ * filters and sorts most recently finished first; renderDoneKpis draws the summary card; renderDone the table
+ * (the 400 most recent rows), and a click on a row opens the same deal box as the planner (dPlanOpen).
+ * Main functions: dBrandOf, dDoneRows, renderDoneKpis, renderDone, and the dDoneTable click and dDoneWeeks
+ * change handlers. */
+
 /* ---------- completed deals ============================================================
  *
  * Nothing here is a new store. Every plan ever typed is ALREADY in `D_PLAN`, keyed by the week it
@@ -10,13 +23,16 @@
  */
 
 /** parent ASIN → brand, from Listing Health first and the latest BSR snapshot second. */
+// Build the parent ASIN → brand map; the first brand that knows a parent wins.
 function dBrandOf() {
   const m = new Map();
   myBrands().forEach(b => {
+    // --- Listing Health rows ---
     (HEALTH[b]?.rows || []).forEach(r => {
       const p = String(r.parent || r.asin || '').trim().toUpperCase();
       if (p && !m.has(p)) m.set(p, b);
     });
+    // --- the latest BSR snapshot ---
     const weeks = Object.keys(BSR[b] || {}).sort();
     Object.keys((BSR[b] || {})[weeks[weeks.length - 1]] || {}).forEach(p => {
       const k = String(p).trim().toUpperCase();
@@ -26,12 +42,15 @@ function dBrandOf() {
   return m;
 }
 
+// Every finished deal from D_PLAN that passes the window, brand and text filters, most recently finished first.
 function dDoneRows() {
+  // --- the filters ---
   const today = sdToday();
   const brand = $('dBrand').value, q = $('dFilter').value.trim().toLowerCase();
   const back = Number($('dDoneWeeks').value) || 0;          // 0 = no cut-off, show everything
   const from = back ? sdShift(dSunday(Date.now()), -back * 7) : '';
   const bmap = dBrandOf();
+  // --- walk every plan ---
   const out = [];
   Object.entries(D_PLAN).forEach(([k, p]) => {
     if (!p || !p.t) return;
@@ -50,22 +69,32 @@ function dDoneRows() {
     if (q && !(parent + ' ' + name).toLowerCase().includes(q)) return;
     out.push({ key: k, parent, week, brand: b, name, p, span });
   });
+  // --- sort ---
   // Most recently finished first — that is what somebody looking back wants at the top.
   out.sort((a, b2) => b2.span.end.localeCompare(a.span.end) || a.parent.localeCompare(b2.parent));
   return out;
 }
 
+// Draw the summary card (dDoneKpis): deals finished, parents, days of discount, average discount, and one
+// tile per deal type, all from the rows the table shows.
 function renderDoneKpis(rows) {
+  // --- add up ---
   const nf = v => Math.round(v || 0).toLocaleString('en-US');
-  const byType = {}; const parents = new Set();
+  const byType = {};
+  const parents = new Set();
   let discSum = 0, discN = 0;
   rows.forEach(r => {
     byType[r.p.t] = (byType[r.p.t] || 0) + 1;
     parents.add(r.parent);
-    if (r.p.v) { discSum += Number(r.p.v); discN++; }
+    if (r.p.v) {
+      discSum += Number(r.p.v);
+      discN++;
+    }
   });
   const days = rows.reduce((s, r) => s + r.span.days, 0);
-  const tile = (label, val, colour) => `<div class="metric"><div class="v"${colour ? ` style="color:${colour}"` : ''}>${val}</div><div class="l">${label}</div></div>`;
+  // --- the card ---
+  const tile = (label, val, colour) =>
+    `<div class="metric"><div class="v"${colour ? ` style="color:${colour}"` : ''}>${val}</div><div class="l">${label}</div></div>`;
   const window = Number($('dDoneWeeks').value) ? `last ${$('dDoneWeeks').value} weeks` : 'everything ever run';
   $('dDoneKpis').innerHTML = `<div class="kpi" style="flex-basis:100%">
     <div class="kpihead"><span class="kpiname">Completed deals — ${window}</span>
@@ -82,10 +111,14 @@ function renderDoneKpis(rows) {
     </div></div>`;
 }
 
+// Draw the Completed view: the summary card, then the table of the 400 most recent finished deals.
 function renderDone() {
-  const esc = s => String(s == null ? '' : s).replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
+  const esc = s => String(s == null ? '' : s)
+    .replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
+  // --- rows and the card ---
   const rows = dDoneRows();
   renderDoneKpis(rows);
+  // --- build table ---
   const head = '<thead><tr><th>Ran</th><th class="num">Days</th><th>Parent ASIN</th><th>Image</th>'
     + '<th>Product</th><th>Brand</th><th>Type</th><th class="num">Disc %</th><th>Run by</th></tr></thead>';
   const body = rows.slice(0, 400).map(r => {
@@ -105,16 +138,20 @@ function renderDone() {
       + `<td>${r.p.by ? esc(r.p.by) : '<span class="muted">nobody recorded</span>'}</td></tr>`;
   }).join('');
   $('dDoneTable').innerHTML = head + '<tbody>' + (body
-    || '<tr><td colspan="9" class="muted" style="padding:14px">Nothing has finished in this window yet. Plans are kept forever — widen the range, or clear the brand and text filters.</td></tr>')
+    || '<tr><td colspan="9" class="muted" style="padding:14px">Nothing has finished in this window yet. '
+    + 'Plans are kept forever — widen the range, or clear the brand and text filters.</td></tr>')
     + '</tbody>';
+  // --- the message line ---
   dMsg(rows.length > 400
     ? `${rows.length} finished deal(s) · showing the 400 most recent · Export covers all of them.`
     : `${rows.length} finished deal(s) · click a row to open it.`);
 }
 
+// A click on a row opens that deal in the planner's deal box.
 $('dDoneTable').addEventListener('click', e => {
-  const tr = e.target.closest('[data-dd]'); if (!tr) return;
+  const tr = e.target.closest('[data-dd]');
+  if (!tr) return;
   dPlanOpen(tr.dataset.dd);
 });
+// Changing "how far back" redraws the list.
 $('dDoneWeeks').addEventListener('change', renderDone);
-
