@@ -1,3 +1,17 @@
+/* ================= ADS · DEAL CALENDAR: the stores, their loading, and the recommendations import =================
+ * Screens: Deal Calendar (tab 'deals', pane paneDeals; core/nav.js calls ensureDeals when it opens). The screen
+ * has four modes — Planner (ads/planner.js), Events and HDA (ads/hda.js, which also holds renderDealsAny, the one
+ * redraw for every mode) and Completed (ads/completed-deals.js). This file holds what they share: the message
+ * line (dMsg), the Import button (dImport, dFile) and the stores.
+ * Does: DEALS.recs are Amazon's Deal Recommendations, imported from their CSV by the dFile handler (dParseCsv and
+ * csvDelimiter read the file, the header row is found by name, the machine row under it is dropped); D_ENTRIES,
+ * D_EVENTS, D_PLAN, D_IMG, D_HDA and D_HDA_MIN are what you typed. All of it is one Firestore document,
+ * audit/deals, with the recommendations in dealrows/0..n chunks of D_CHUNK rows (loadDeals, saveDeals).
+ * dWindowOf finds a recommendation's dates in its start/end, in its schedule name, or in the named events table.
+ * ensureDeals loads parent names, Listing Health, the BSR snapshot, the deals and TREND, then redraws.
+ * Main functions: dMsg, dWindowOf, loadDeals, saveDeals, ensureDeals, csvDelimiter, dParseCsv, dToday, and the
+ * Import (dImport, dFile) handlers. */
+
 /* ================= DEAL CALENDAR =================
  * Two sources, because Amazon only offers one of them.
  *
@@ -11,7 +25,9 @@
  * The two are kept visibly apart. A recommendation drawn like a live deal would have somebody
  * believing a discount is running when nobody ever submitted it.
  */
+// Recommendations per Firestore document (dealrows/0, dealrows/1, …), to stay under the 1 MB limit.
 const D_CHUNK = 300;
+// Amazon's recommendations: recs = the imported rows, at = when they were imported, chunks = documents used.
 let DEALS = { recs: [], at: '' };
 let D_ENTRIES = [];          // what is actually set up
 let D_EVENTS = {};           // named event → { start, end }, for schedules Amazon leaves as "NA"
@@ -22,10 +38,17 @@ let D_EDIT = null;
 let D_HDA = [];              // [{ id, asin, parent, brand, t, v, s, e, by, note, at }]
 let D_HDA_MIN = 30;          // the discount at which a PLANNER deal is considered high
 
-function dMsg(t, bad) { const m = $('dMsg'); m.textContent = t || ''; m.className = bad ? 'err' : 'muted'; }
+// Write the calendar's message line; bad = true shows it in red (class err), otherwise muted.
+function dMsg(t, bad) {
+  const m = $('dMsg');
+  m.textContent = t || '';
+  m.className = bad ? 'err' : 'muted';
+}
 
 /** Dates hide inside schedule names — "Mon (2026-08-03 - 2026-08-09)", "Custom - (…)". */
 const D_DATE_RE = /(\d{4}-\d{2}-\d{2})\s*[-–]\s*(\d{4}-\d{2}-\d{2})/;
+// The dates of one recommendation: { start, end, named } from its own start/end, else from its schedule name,
+// else from the named events table (dateless until somebody fills that in).
 function dWindowOf(rec) {
   const s = String(rec.start || '').trim(), e = String(rec.end || '').trim();
   if (/^\d{4}-\d{2}-\d{2}$/.test(s) && /^\d{4}-\d{2}-\d{2}$/.test(e)) return { start: s, end: e, named: '' };
@@ -40,10 +63,12 @@ function dWindowOf(rec) {
 }
 
 /* ---------- storage ---------- */
+// Read audit/deals (and the dealrows chunks it points to) into DEALS, D_ENTRIES, D_EVENTS, D_PLAN, D_IMG, D_HDA.
 async function loadDeals() {
   try {
     const meta = await getDoc(doc(db, 'audit', 'deals'));
     if (meta.exists()) {
+      // --- the one document: everything typed by hand ---
       const d = meta.data();
       DEALS.at = d.at || '';
       D_ENTRIES = d.entries || [];
@@ -53,16 +78,20 @@ async function loadDeals() {
       D_HDA = Array.isArray(d.hda) ? d.hda : [];
       // A stored 0 means "pull in every discount" and must survive; only a missing value defaults.
       D_HDA_MIN = (d.hdaMin === undefined || d.hdaMin === null) ? 30 : Number(d.hdaMin);
+      // --- the recommendations, in chunks ---
       let recs = [];
       if (d.chunks) {
-        const got = await Promise.all(Array.from({ length: d.chunks }, (_, i) => getDoc(doc(db, 'dealrows', String(i)))));
+        const got = await Promise.all(Array.from({ length: d.chunks },
+          (_, i) => getDoc(doc(db, 'dealrows', String(i)))));
         got.forEach(s => { if (s.exists()) recs = recs.concat(s.data().r || []); });
       }
       DEALS.recs = recs;
     }
   } catch (e) { /* nothing stored yet, or no read access */ }
 }
+// Write everything back: the recommendation chunks too when withRecs is set (an import), else only audit/deals.
 async function saveDeals(withRecs) {
+  // --- the recommendation chunks ---
   if (withRecs) {
     const chunks = Math.ceil(DEALS.recs.length / D_CHUNK) || 1;
     for (let i = 0; i < chunks; i++) {
@@ -70,13 +99,22 @@ async function saveDeals(withRecs) {
     }
     DEALS.chunks = chunks;
   }
+  // --- the one document ---
   await setDoc(doc(db, 'audit', 'deals'), {
     chunks: DEALS.chunks || Math.ceil(DEALS.recs.length / D_CHUNK) || 1,
-    n: DEALS.recs.length, at: DEALS.at, entries: D_ENTRIES, events: D_EVENTS, plan: D_PLAN, imgs: D_IMG,
-    hda: D_HDA, hdaMin: D_HDA_MIN,
-    by: ME.email, saved: serverTimestamp(),
+    n: DEALS.recs.length,
+    at: DEALS.at,
+    entries: D_ENTRIES,
+    events: D_EVENTS,
+    plan: D_PLAN,
+    imgs: D_IMG,
+    hda: D_HDA,
+    hdaMin: D_HDA_MIN,
+    by: ME.email,
+    saved: serverTimestamp(),
   });
 }
+// Called when the tab opens: load what the calendar depends on (names, health, BSR, deals, trends), then draw.
 async function ensureDeals() {
   dMsg('Loading…');
   await loadParentNames();
@@ -110,44 +148,81 @@ async function ensureDeals() {
  * cannot out-vote the real separator. A tie goes to the comma: that is what every file these apps
  * write uses, so nothing changes for a file that was always fine.
  */
+// Guess the field separator of a CSV text: ',', ';' or tab, whichever appears most outside quotes in the first lines.
 function csvDelimiter(text) {
   const n = { ',': 0, ';': 0, '\t': 0 };
   let inQ = false, lines = 0;
+  // --- count the candidates outside quotes, over the first five lines ---
   for (let i = 0; i < text.length && lines < 5; i++) {
     const c = text[i];
-    if (inQ) { if (c === '"') { if (text[i + 1] === '"') i++; else inQ = false; } continue; }
-    if (c === '"') { inQ = true; continue; }
-    if (c === '\n') { lines++; continue; }
+    if (inQ) {
+      if (c === '"') {
+        if (text[i + 1] === '"') i++;
+        else inQ = false;
+      }
+      continue;
+    }
+    if (c === '"') {
+      inQ = true;
+      continue;
+    }
+    if (c === '\n') {
+      lines++;
+      continue;
+    }
     if (n[c] != null) n[c]++;
   }
+  // --- the winner; a tie goes to the comma ---
   let best = ',';
   [';', '\t'].forEach(d => { if (n[d] > n[best]) best = d; });
   return best;
 }
+// Parse CSV text into an array of rows (arrays of strings); delim is guessed by csvDelimiter when not given.
 function dParseCsv(text, delim) {
-  const rows = []; let row = [], f = '', q = false;
+  const rows = [];
+  let row = [], f = '', q = false;
   // The byte-order mark Excel puts at the front lands inside the FIRST header cell, where it
   // stops "Box" being "Box". Every reader here trims, which hides it — dropped once, here.
   text = String(text).replace(/^\ufeff/, '');
   const D = delim || csvDelimiter(text);
+  // --- one character at a time: q = inside a quoted field, f = the field so far ---
   for (let i = 0; i < text.length; i++) {
     const c = text[i];
     if (q) {
-      if (c === '"') { if (text[i + 1] === '"') { f += '"'; i++; } else q = false; }
-      else f += c;
+      if (c === '"') {
+        if (text[i + 1] === '"') {
+          f += '"';
+          i++;
+        } else q = false;
+      } else f += c;
     } else if (c === '"') q = true;
-    else if (c === D) { row.push(f); f = ''; }
-    else if (c === '\n') { row.push(f); f = ''; rows.push(row); row = []; }
-    else if (c !== '\r') f += c;
+    else if (c === D) {
+      row.push(f);
+      f = '';
+    } else if (c === '\n') {
+      row.push(f);
+      f = '';
+      rows.push(row);
+      row = [];
+    } else if (c !== '\r') f += c;
   }
-  if (f !== '' || row.length) { row.push(f); rows.push(row); }
+  // --- the last row, when the file does not end in a newline ---
+  if (f !== '' || row.length) {
+    row.push(f);
+    rows.push(row);
+  }
   return rows;
 }
 
+// Import opens the hidden file picker.
 $('dImport').onclick = () => $('dFile').click();
+// A file was picked: read it, find the header row, build the recommendation rows, confirm, save and redraw.
 $('dFile').onchange = async e => {
-  const file = e.target.files[0]; e.target.value = ''; if (!file) return;
+  const file = e.target.files[0];
+  e.target.value = '';
+  if (!file) return;
   try {
+    // --- read and find the header row ---
     dMsg('Reading…');
     const rows = dParseCsv(await file.text());
     // The sheet starts with three banner rows and hides a machine row of "marketplace_id@…" DIRECTLY
@@ -155,35 +230,70 @@ $('dFile').onchange = async e => {
     // dropped if it is that machine row rather than data.
     let h = -1;
     for (let i = 0; i < Math.min(rows.length, 20); i++) {
-      if (rows[i].some(c => /parent\s*asin/i.test(c)) && rows[i].some(c => /deal\s*type/i.test(c))) { h = i; break; }
+      if (rows[i].some(c => /parent\s*asin/i.test(c)) && rows[i].some(c => /deal\s*type/i.test(c))) {
+        h = i;
+        break;
+      }
     }
     if (h < 0) throw new Error('Could not find the header row — is this the “Deal Recommendation Template” sheet?');
+    // --- which column is which ---
     const head = rows[h].map(c => String(c || '').trim().toLowerCase());
-    const ix = names => { for (const n of names) { const i = head.findIndex(x => x === n || x.startsWith(n)); if (i >= 0) return i; } return -1; };
+    const ix = names => {
+      for (const n of names) {
+        const i = head.findIndex(x => x === n || x.startsWith(n));
+        if (i >= 0) return i;
+      }
+      return -1;
+    };
     const C = {
-      parent: ix(['parent asin']), asin: ix(['deal asin', 'featured asin']), name: ix(['product name']),
-      type: ix(['deal type']), sku: ix(['sku']), part: ix(['participating']), sched: ix(['schedule']),
-      start: ix(['start date']), end: ix(['end date']), price: ix(['seller price']), deal: ix(['deal price']),
-      units: ix(['committed units']), img: ix(['image url']),
+      parent: ix(['parent asin']),
+      asin: ix(['deal asin', 'featured asin']),
+      name: ix(['product name']),
+      type: ix(['deal type']),
+      sku: ix(['sku']),
+      part: ix(['participating']),
+      sched: ix(['schedule']),
+      start: ix(['start date']),
+      end: ix(['end date']),
+      price: ix(['seller price']),
+      deal: ix(['deal price']),
+      units: ix(['committed units']),
+      img: ix(['image url']),
     };
     if (C.parent < 0 || C.sched < 0) throw new Error('That file has no Parent ASIN / Schedule columns.');
+    // --- one recommendation per data row ---
     const at = (r, i) => (i >= 0 && r[i] != null ? String(r[i]).trim() : '');
     const out = [];
     for (let i = h + 1; i < rows.length; i++) {
       const r = rows[i];
       const parent = at(r, C.parent).toUpperCase();
       if (!parent || /^marketplace_id@/i.test(parent) || parent === 'PARENT_ASIN') continue;
-      const num = v => { const n = Number(String(v).replace(/[^0-9.\-]/g, '')); return isFinite(n) ? n : null; };
+      const num = v => {
+        const n = Number(String(v).replace(/[^0-9.\-]/g, ''));
+        return isFinite(n) ? n : null;
+      };
       out.push({
-        parent, asin: at(r, C.asin).toUpperCase(), sku: at(r, C.sku), name: at(r, C.name),
-        type: at(r, C.type), part: /^y/i.test(at(r, C.part)), schedule: at(r, C.sched),
-        start: at(r, C.start), end: at(r, C.end),
-        price: num(at(r, C.price)), dealPrice: num(at(r, C.deal)), units: num(at(r, C.units)),
+        parent,
+        asin: at(r, C.asin).toUpperCase(),
+        sku: at(r, C.sku),
+        name: at(r, C.name),
+        type: at(r, C.type),
+        part: /^y/i.test(at(r, C.part)),
+        schedule: at(r, C.sched),
+        start: at(r, C.start),
+        end: at(r, C.end),
+        price: num(at(r, C.price)),
+        dealPrice: num(at(r, C.deal)),
+        units: num(at(r, C.units)),
         img: at(r, C.img),
       });
     }
     if (!out.length) throw new Error('No recommendation rows found.');
-    if (!confirm(`Replace the recommendations with ${out.length} row(s) from this file?\n\nThis is a full snapshot, not a merge. Your own calendar entries are not touched.`)) { dMsg(''); return; }
+    // --- confirm, replace, save, redraw ---
+    if (!confirm(`Replace the recommendations with ${out.length} row(s) from this file?\n\nThis is a full snapshot, not a merge. Your own calendar entries are not touched.`)) {
+      dMsg('');
+      return;
+    }
     DEALS.recs = out;
     DEALS.at = new Date().toISOString().slice(0, 16).replace('T', ' ');
     dMsg('Saving…');
