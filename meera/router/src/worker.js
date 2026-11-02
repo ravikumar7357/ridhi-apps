@@ -13,6 +13,11 @@ import { verify } from './auth.js';
 import { clean, questionKey } from './redact.js';
 import { store } from './store.js';
 import { askModels } from './providers.js';
+import { engine, search, sure } from './search.js';
+
+/* her meaning table (meera-words.bin): given by the router's entry (index.js, bundled with it) or by a test */
+let WORDS = null;
+export function setWords(buf) { WORDS = buf; }
 
 const LANGS = { en: 'English', hi: 'Hindi in Devanagari script, formal (आप)', hg: 'Hinglish — Hindi in Latin letters, respectful (aap: kholiye, dabaiye, chuniye; never kholo/dabao)' };
 
@@ -92,8 +97,32 @@ export async function handle(req, env, deps = {}) {
   const lang = LANGS[body.lang] ? body.lang : 'en';
   const screen = String(body.screen || '').slice(0, 40);
 
+  /* ---- her switches on the router (Phase 5): meera, ai, search — an admin changes them with no deploy ---- */
+  const cfg = await db.config();
+  const isOn = k => cfg[k] !== 'off';
+  if (url.pathname === '/config' && req.method === 'GET') return reply({ meera: isOn('meera'), ai: isOn('ai'), search: isOn('search'), kbVersion: cfg.kb_version || '0' }, 200, h);
+
+  /* ---- SEARCH ON THE SERVER (Phase 5): her own search (search.js), on her answers in D1 ----
+   * The question arrives with phone numbers, order numbers, amounts and emails already taken out by the browser; it is
+   * never kept as asked. Side by side ("compare": the browser's own top answers): both are kept, the question cleaned. */
+  if (url.pathname === '/search' && req.method === 'POST') {
+    if (!isOn('search')) return reply({ error: 'search-off' }, 503, h);
+    const E = await engine(db, deps.words || WORDS, cfg.kb_version || '0');
+    const r = search(E, body);
+    if (Array.isArray(body.compare)) {
+      const mine = body.compare.slice(0, 3).map(x => ({ id: String(x.id || '').slice(0, 80), s: +x.s || 0 }));
+      const same = (mine[0] && r.hits[0] ? mine[0].id === r.hits[0].id : !mine[0] && !r.hits[0]) && sure(mine) === sure(r.hits);
+      const list = l => l.map(x => x.id + ':' + (+x.s).toFixed(3)).join(',');
+      if (now - DIFF_PURGED > 3600e3) { DIFF_PURGED = now; try { await db.diffPurge(now); } catch (e) { /* next time */ } }
+      await db.diffAdd({ question: clean(body.q, names), screen, spell: !!body.spell, browser: list(mine), server: list(r.hits), same }, now);
+      r.same = same;
+    }
+    return reply({ ...r, v: E.version, n: E.n }, 200, h);
+  }
+
   /* ---- a question ---- */
   if (url.pathname === '/ask' && req.method === 'POST') {
+    if (!isOn('ai')) return reply({ error: 'ai-off' }, 503, h);
     const q = clean(body.q, names);
     if (!q) return reply({ error: 'empty' }, 400, h);
     const qkey = questionKey(q) + '|' + lang;
@@ -169,6 +198,7 @@ export async function handle(req, env, deps = {}) {
       /* approve or turn down a model's answer; or write one (for a ticket, or new) */
       if (body.answerId && (body.action === 'approve' || body.action === 'reject')) {
         await db.setStatus(+body.answerId, body.action === 'approve' ? 'approved' : 'rejected');
+        await db.kbBump();   // the server's search takes it in at once (Phase 5)
         return reply({ ok: true }, 200, h);
       }
       const q = clean(body.q, names), a = String(body.a || '').trim();
@@ -176,10 +206,18 @@ export async function handle(req, env, deps = {}) {
       const ans = { a: a.slice(0, 1200), why: String(body.why || '').slice(0, 600), steps: (Array.isArray(body.steps) ? body.steps : []).map(String).slice(0, 6) };
       const id = await db.addAnswer({ qkey: questionKey(q) + '|' + lang, question: q, lang, screen, answer: ans, source: 'admin', status: 'approved', email: who.email }, now);
       if (body.ticketId) await db.closeTicket(+body.ticketId, id);
+      await db.kbBump();   // the server's search takes it in at once (Phase 5)
       if (Array.isArray(body.learnIds)) await db.learnSet(body.learnIds, 'done');   // the questions this answers (Phase 4)
       return reply({ ok: true, answerId: id }, 200, h);
     }
     /* Phase 4: the learning page — this week's unanswered, suggested spellings, 👎s, open tickets; and decisions */
+    /* Phase 5: her switches, and how the server's search compares with the browser's */
+    if (url.pathname === '/admin/config' && req.method === 'POST') {
+      if (!['meera', 'ai', 'search'].includes(body.key) || !['on', 'off'].includes(body.value)) return reply({ error: 'key: meera / ai / search, value: on / off' }, 400, h);
+      await db.configSet(body.key, body.value);
+      return reply({ ok: true, [body.key]: body.value }, 200, h);
+    }
+    if (url.pathname === '/admin/search' && req.method === 'GET') return reply(await db.diffView(now - (Math.min(90, +url.searchParams.get('days') || 7)) * 864e5), 200, h);
     if (url.pathname === '/admin/learn' && req.method === 'GET') return reply({ ...(await db.learnView(now)), tickets: await db.tickets('open') }, 200, h);
     if (url.pathname === '/admin/learn' && req.method === 'POST') {
       const action = { approve: 'approved', reject: 'rejected', done: 'done' }[body.action];
@@ -192,7 +230,7 @@ export async function handle(req, env, deps = {}) {
 
 /* Phase 4 helpers: when old learning rows were last removed (once an hour at most), a one-way hash (a person's sign-in id
  * only ever counted, never kept), and a comparison of keys that takes the same time whatever they hold */
-let LEARN_PURGED = 0;
+let LEARN_PURGED = 0, DIFF_PURGED = 0;
 async function hash(s) {
   const d = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(String(s))));
   return Array.from(d, b => b.toString(16).padStart(2, '0')).join('');

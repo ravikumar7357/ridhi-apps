@@ -76346,6 +76346,10 @@ const MEERA_SWITCHES = {
   /* Phase 4 — learning from staff: missed / not sure / 👎 / spellings go (cleaned, role only) to her router for an
    * admin; "Meera's learning" page for admins. meera.js only: ?meera=lazy,learn */
   learn: false,
+  /* Phase 5 — her search on her router: "server" side by side (she answers as before; the router's answer is only
+   * compared), "serveruse" answers from the router (no 1.9 MB download; a small list per screen when it is down). */
+  server: false,
+  serveruse: false,
 };
 function meeraOn(name) {
   try {
@@ -78477,7 +78481,7 @@ function gaSpellCap(hits) {
   if (!GA_SPELL_FIXED || !hits.length) return hits;
   const [a, b] = hits;
   if (a.s >= GA_SPELL_SURE && (!b || b.e.id === a.e.id || a.s - b.s >= GA_SPELL_GAP)) return hits;
-  const bar = (GA_W ? GA_BANK_SURE_SEM : GA_BANK_SURE) - 0.001;   // just under "sure": still offered, never answered outright
+  const bar = (GA_W || gaRemote() ? GA_BANK_SURE_SEM : GA_BANK_SURE) - 0.001;   // just under "sure": still offered, never answered outright
   hits.forEach(h => { h.s = Math.min(h.s, bar); });
   return hits;
 }
@@ -78631,12 +78635,18 @@ function gaRowAnswer(row, lang, L) {
     acts: [{ t: 'fixel', id: '0', label: L('Show me the line', 'लाइन दिखाएँ', 'Line dikhaiye') }], row: true };
 }
 async function gaAnswer(q) {
-  let understood = null;
-  if (typeof muUnderstand === 'function' && meeraOn('spell') && !gaAnswer.asTyped) { await gaBankLoad(); const u = gaSpell(q); if (u.changes.length) { understood = u; q = u.text; } }
+  let understood = null, served = null;
+  /* Phase 5, switch "serveruse": her router searches (and understands the spelling); without it, her small list here */
+  if (typeof meeraServerFetch === 'function' && meeraOn('serveruse')) {
+    served = await meeraServerFetch(q, !!gaAnswer.asTyped);
+    if (served && served.understood.changes.length && !gaAnswer.asTyped) { understood = served.understood; q = served.understood.text; }
+  }
+  if (!served && typeof muUnderstand === 'function' && meeraOn('spell') && !gaAnswer.asTyped) { await gaBankLoad(); const u = gaSpell(q); if (u.changes.length) { understood = u; q = u.text; } }
   GA_SPELL_FIXED = !!understood;
   let r;
   try { r = await gaAnswer1(q); } finally { GA_SPELL_FIXED = false; }
   if (understood && r) r.understood = understood;
+  if (r && !served && meeraOn('serveruse')) r.offline = true;   // answered from her small list here
   return r;
 }
 async function gaAnswer1(q) {
@@ -78685,7 +78695,7 @@ async function gaAnswer1(q) {
    * alone, "maal wapas aa gaya" got a QC answer (27 Oct). Up to 4 s, once — after that it is in. */
   if (GA_W === null) await Promise.race([gaWordsLoad(), new Promise(ok => setTimeout(ok, 4000))]);
   const hits = gaBankFind(means, words, q);
-  if (!(top && top.kind === 'talk' && top.s >= 1.4) && hits[0] && hits[0].s >= (GA_W ? GA_BANK_SURE_SEM : GA_BANK_SURE)) {
+  if (!(top && top.kind === 'talk' && top.s >= 1.4) && hits[0] && hits[0].s >= (GA_W || gaRemote() ? GA_BANK_SURE_SEM : GA_BANK_SURE)) {
     /* two answers fit almost equally ("short by kya hai": the screen, or its Short by column): ask which, never guess */
     if (hits[1] && hits[0].s - hits[1].s < GA_BANK_GAP && hits[1].e.id !== hits[0].e.id)
       return { html: L('Your question fits more than one answer. Which one do you mean?', 'आपका सवाल एक से ज़्यादा जवाबों से मिलता है। आप कौन-सा पूछ रहे हैं?', 'Aapka sawaal ek se zyada jawaabon se milta hai. Aap kaunsa poochh rahe hain?')
@@ -78779,6 +78789,7 @@ function gaTabName(tab) {
 let GA_BANK = null, GA_BANK_P = null;
 function gaBankLoad() {
   if (GA_BANK) return Promise.resolve(GA_BANK);
+  if (!GA_BANK_P && typeof meeraServerBank === 'function') { const p = meeraServerBank(); if (p) GA_BANK_P = p; }   // Phase 5: her router searches; the small list for this screen only
   if (!GA_BANK_P) GA_BANK_P = fetch('/guide/meera-bank.json', { cache: 'no-cache' })
     .then(r => (r.ok ? r.json() : null)).catch(() => null)
     .then(list => { if (!Array.isArray(list)) { GA_BANK_P = null; throw new Error('bank not loaded'); } return list; })   // tried again next time
@@ -78801,6 +78812,7 @@ let GA_W = null, GA_W_P = null, GA_SEM = null;
 let GA_SEM_W = 0.5, GA_SEM_SKIP = true;
 function gaWordsLoad() {
   if (GA_W !== null) return Promise.resolve(GA_W);
+  if (typeof meeraServerWords === 'function') { const p = meeraServerWords(); if (p) return p; }   // Phase 5: her router has the meaning table
   if (!GA_W_P) GA_W_P = fetch('/guide/meera-words.bin', { cache: 'no-cache' })
     .then(r => (r.ok ? r.arrayBuffer() : null)).catch(() => null)
     .then(buf => { if (!buf) { GA_W_P = null; return null; } try { GA_W = gaWordsParse(buf); } catch (e) { GA_W = false; } return GA_W; });
@@ -78899,7 +78911,10 @@ const GA_PART_ASK = new Set(('what does do happens happen press click tap mean m
  * 11,335 made from every part's name: none of them refused; 12 of the 41 she cannot answer caught (the rest are
  * about the business — GST, Flipkart — and go on to the AI and a ticket). */
 const GA_OFF_IGNORE = new Set(["what","how","where","why","not","can","help","ok","date","time","tomorrow","yesterday","good","best","tell","give","make","want","need","see","show","new","one","all","more","last","week","month","day","year","name","you","who","hello","thanks","bye","joke","language","meera","about","writ","count","correct","open","find","screen","button","do","get","please","work","job","wala","wali","wale","वाली","वाला","kab","milega","aayegi","rahega","raha","kaisa","ऐसा","ऐसे","वैसा","जबकि","क्यों","kyu","kyun","bhai","yaar","sir","ji","madam","plz","acha","accha","theek","haan","nahi","किसलिए","किसलिये","kisliye","kislie","kisliy","किस","लिए","liye","क्यूँ","क्यूं","कैसा","कैसी","कौनसा","कौन","konsa","kaunsa","matlab","मतलब","बताओ","बताइए","batao","bataiye","samjhao","समझाओ","hota","होता","hoti","होती","karta","करता","karti","करती"]);
+/** Phase 5, switch "serveruse": her router searched (with meanings) — its scores are read with the meaning-search bar */
+const gaRemote = () => typeof meeraServerServed === 'function' && meeraServerServed();   // only when the router did answer this question
 function gaOffTopic(means) {
+  if (typeof meeraServerOffTopic === 'function') { const v = meeraServerOffTopic(); if (v !== null) return v; }   // Phase 5: the router, with all her answers, says
   const B = GA_BANK; if (!B || !B.list.length) return false;
   const ms = means.filter(m => !GA_OFF_IGNORE.has(m) && !/^\d+$/.test(m));
   const known = ms.filter(m => (B.df.get(m) || 0) >= 3).length, unknown = ms.filter(m => !B.df.has(m) && m.length >= 3).length;
@@ -78914,6 +78929,7 @@ function gaTabsSaid(q) { const t = String(q || '').toLowerCase(); return new Set
 /** The answers that fit a question best, with how well (0–1): the closest way of asking, weighted by rare words.
  * The same word as asked (not only the same meaning) settles near-ties: "PIN bhool gaya" is the PIN answer. */
 function gaBankFind(means, words, q) {
+  if (typeof meeraServerHits === 'function') { const h = meeraServerHits(q); if (h) return h; }   // Phase 5: her router's answer to this question
   const B = GA_BANK;
   if (!B || !B.list.length || !means.length) return [];
   const sem = GA_SEM_W ? gaSemScores(q) : null;
@@ -79094,7 +79110,8 @@ async function gaAsk(q) {
   const here = !rest.length && (/\b(this|is|yeh|ye|yah)\s+(screen|page)\b|यह स्क्रीन|ye screen|is screen/i.test(q)) && gaHere();
   const r = here && /what|kya|क्या|about|samjha|batao/i.test(q) ? gaScreenAnswer(here, gaRead(q).lang, (en, hi, hg) => { const l = gaRead(q).lang; return l === 'hi' ? hi : l === 'hg' ? (hg || en) : en; }) : await gaAnswer(q);
   if (r.miss) gaMissKeep(q, r.miss === true ? 'none' : r.miss);
-  if (typeof meeraLearnAnswered === 'function') meeraLearnAnswered(q, r);   // Phase 4, switch "learn": a miss or "not sure" kept (cleaned)
+  if (typeof meeraLearnAnswered === 'function') meeraLearnAnswered(q, r);
+  if (typeof meeraServerAfter === 'function') meeraServerAfter(q);   // Phase 5, switch "server": her router's search, side by side   // Phase 4, switch "learn": a miss or "not sure" kept (cleaned)
   const lg = gaRead(q).lang, LL = (en, hi, hg) => (lg === 'hi' ? hi : lg === 'hg' ? hg : en);
   const fb = r.bank ? `<div class="ga-fb"><span>${LL('Did this help?', 'क्या इससे मदद मिली?', 'Kya isse madad mili?')}</span><button type="button" class="ga-fbb" data-ga="fb" data-id="up:${esc(r.bank)}" aria-label="Yes">👍</button><button type="button" class="ga-fbb" data-ga="fb" data-id="down:${esc(r.bank)}" aria-label="No">👎</button></div>` : '';
   /* not sure: she asks the AI herself, within the day's limit (guide-ai.js) — no answer at all: the AI's alone; a few close
@@ -79104,7 +79121,9 @@ async function gaAsk(q) {
   /* spelling (Phase 2): she says how she read the question, with a way back to it as typed */
   const und = r.understood ? `<div class="ga-und">${LL('Showing results for', 'इसके नतीजे', 'Iske results')} <b>${esc(r.understood.text)}</b>${LL(' — did you mean something else?', ' — कुछ और पूछना था?', ' — kuch aur poochna tha?')}`
     + ` <button type="button" class="ga-und-b" data-ga="astyped">${LL('Search what I typed', 'जैसा लिखा वैसा खोजें', 'Jaisa likha waisa khojiye')}</button></div>` : '';
-  gaSay(und + r.html, r.acts || [], (r.after || '') + fb, r.bank ? 'guide' : '');
+  /* Phase 5: her router could not be reached (or its search is off) — said; answered on this computer (her own copy, or with no internet her small list) */
+  const off = r.offline ? `<div class="ga-und">${LL('My search on the server is not available right now — I answered on this computer.', 'सर्वर पर मेरी खोज अभी उपलब्ध नहीं — मैंने इसी कंप्यूटर पर जवाब दिया।', 'Server par meri khoj abhi available nahi — maine isi computer par jawaab diya.')}</div>` : '';
+  gaSay(off + und + r.html, r.acts || [], (r.after || '') + fb, r.bank ? 'guide' : '');
   if (auto) gaAiAsk(q);
   if (r.miss) gaChipsDraw();
 }
@@ -79361,21 +79380,23 @@ function gaWalksLoad() {
   if (!GA_WALKS_P) GA_WALKS_P = fetch('/guide/meera-walks.json', { cache: 'no-cache' })
     .then(r => (r.ok ? r.json() : [])).catch(() => [])
     .then(list => {
-      (Array.isArray(list) ? list : []).forEach(w => {
-        if (!w || !w.id) return;
-        /* a walk that takes the place of one of the eight keeps that one's id, so answers that name it get the new steps */
-        const old = w.replaces && GUIDE_TASKS.find(t => t.id === w.replaces);
-        if (old && Array.isArray(w.steps) && w.steps.length) { old.steps = w.steps; if (w.title) old.title = w.title; }
-        const id = old ? old.id : w.existing && GUIDE_TASKS.some(t => t.id === w.existing) ? w.existing : w.id;
-        if (id === w.id && Array.isArray(w.steps) && w.steps.length && !GUIDE_TASKS.some(t => t.id === w.id))
-          GUIDE_TASKS.push({ id: w.id, k: [], need: ['-'], title: w.title, steps: w.steps, admin: !!w.admin, walk: true });
-        (w.from || []).forEach(b => { if (!GA_WALK_OF.has(b)) GA_WALK_OF.set(b, id); });
-        const go = (w.steps || []).find(s => s.sel && s.wait === 'click');
-        if (go && /^#[\w-]+$/.test(go.sel) && !GA_WALK_SEL.has(go.sel)) GA_WALK_SEL.set(go.sel, id);
-      });
+      (Array.isArray(list) ? list : []).forEach(gaWalkAdd);
       return GA_WALK_OF;
     });
   return GA_WALKS_P;
+}
+/** One walk-through taken in (from meera-walks.json; or, searching on her router, one the router sends with an answer). */
+function gaWalkAdd(w) {
+  if (!w || !w.id) return;
+  /* a walk that takes the place of one of the eight keeps that one's id, so answers that name it get the new steps */
+  const old = w.replaces && GUIDE_TASKS.find(t => t.id === w.replaces);
+  if (old && Array.isArray(w.steps) && w.steps.length) { old.steps = w.steps; if (w.title) old.title = w.title; }
+  const id = old ? old.id : w.existing && GUIDE_TASKS.some(t => t.id === w.existing) ? w.existing : w.id;
+  if (id === w.id && Array.isArray(w.steps) && w.steps.length && !GUIDE_TASKS.some(t => t.id === w.id))
+    GUIDE_TASKS.push({ id: w.id, k: [], need: ['-'], title: w.title, steps: w.steps, admin: !!w.admin, walk: true });
+  (w.from || []).forEach(b => { if (!GA_WALK_OF.has(b)) GA_WALK_OF.set(b, id); });
+  const go = (w.steps || []).find(s => s.sel && s.wait === 'click');
+  if (go && /^#[\w-]+$/.test(go.sel) && !GA_WALK_SEL.has(go.sel)) GA_WALK_SEL.set(go.sel, id);
 }
 /** The walk for a bank answer, if it has one this account can follow. */
 function gaWalkFor(e) {

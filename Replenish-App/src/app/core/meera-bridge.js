@@ -77,6 +77,10 @@ const MEERA_SWITCHES = {
   /* Phase 4 — learning from staff: missed / not sure / 👎 / spellings go (cleaned, role only) to her router for an
    * admin; "Meera's learning" page for admins. meera.js only: ?meera=lazy,learn */
   learn: false,
+  /* Phase 5 — her search on her router: "server" side by side (she answers as before; the router's answer is only
+   * compared), "serveruse" answers from the router (no 1.9 MB download; a small list per screen when it is down). */
+  server: false,
+  serveruse: false,
 };
 function meeraOn(name) {
   try {

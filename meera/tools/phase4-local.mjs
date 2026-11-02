@@ -9,6 +9,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { handle } from '../router/src/worker.js';
 import { store } from '../router/src/store.js';
+import { execFileSync } from 'node:child_process';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PRE = path.join(HERE, '..', '.preview');
@@ -16,6 +17,10 @@ const PORT = +process.env.PORT || 8798, ORIGIN = `http://localhost:${PORT}`;
 
 const raw = new DatabaseSync(':memory:');
 raw.exec(readFileSync(path.join(HERE, '..', 'router', 'schema.sql'), 'utf8'));
+/* Phase 5: her answers loaded as a deploy loads them, and her meaning table, for the search on the server */
+raw.exec(execFileSync(process.execPath, [path.join(HERE, '..', 'router', 'kb-sql.cjs')], { maxBuffer: 1e9 }).toString('utf8'));
+const WB = readFileSync(path.join(HERE, '..', '..', 'Replenish-App', 'public', 'guide', 'meera-words.bin'));
+const WORDS = WB.buffer.slice(WB.byteOffset, WB.byteOffset + WB.byteLength);
 const stmt = (sql, args = []) => ({
   bind: (...a) => stmt(sql, a),
   first: async () => raw.prepare(sql).get(...args) || null,
@@ -51,7 +56,7 @@ http.createServer(async (req, res) => {
   if (u.pathname.startsWith('/__router/')) {
     const chunks = []; for await (const c of req) chunks.push(c);
     const r = await handle(new Request('https://router.local' + u.pathname.slice(9) + u.search, { method: req.method, headers: { ...req.headers, origin: ORIGIN }, body: ['GET', 'HEAD'].includes(req.method) ? undefined : Buffer.concat(chunks) }),
-      env, { store: store(DB), verify: async tok => (tok === 'local-admin' ? { uid: 'local-a', email: 'local@admin', admin: true } : tok === 'local-staff' ? { uid: 'local-s', email: 'local@staff', admin: false } : null) });
+      env, { store: store(DB), words: WORDS, verify: async tok => (tok === 'local-admin' ? { uid: 'local-a', email: 'local@admin', admin: true } : tok === 'local-staff' ? { uid: 'local-s', email: 'local@staff', admin: false } : null) });
     res.writeHead(r.status, Object.fromEntries(r.headers)); res.end(await r.text()); return;
   }
   let f = path.join(PRE, decodeURIComponent(u.pathname));

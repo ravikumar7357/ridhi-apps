@@ -251,5 +251,51 @@ const sent = () => JSON.stringify(calls.map(c => c.body));
   ok(clean('50 piece 16x16 cushion cover 10 days') === '50 piece 16x16 cushion cover 10 days', 'pieces, sizes and days stay');
 }
 
+/* ---------- 9. search on the server (Phase 5) ---------- */
+{
+  const { createRequire } = await import('node:module');
+  const require = createRequire(import.meta.url);
+  const { fingerprint } = require('../build-search.cjs');
+  const gen = readFileSync(path.join(HERE, '..', 'src', 'search.gen.js'), 'utf8');
+  ok(gen.includes(`export const SOURCES = "${fingerprint()}"`), 'search.gen.js is what her files make (run node meera/router/build-search.cjs)');
+  const { resetEngine } = await import('../src/search.js');
+  const words = readFileSync(path.join(HERE, '..', '..', '..', 'Replenish-App', 'public', 'guide', 'meera-words.bin'));
+  const WB = words.buffer.slice(words.byteOffset, words.byteOffset + words.byteLength);
+  const s = setup();
+  resetEngine();
+  await store(s.db).kbPut(BANK.map(e => ({ id: e.id, kind: 'answer', body: e })).concat([{ id: 'walk:jw', kind: 'walk', body: { id: 'jw-issue-walk', from: ['pr-jw-issue'], steps: [{ sel: '#jwNew', wait: 'click' }] } }]));
+  const call = async (p, o = {}) => { const r = await handle(new Request('https://router.example' + p, { method: o.method || 'POST', headers: { 'content-type': 'application/json', origin: ORIGIN, authorization: 'Bearer ' + (o.tok || await token()) }, body: o.body ? JSON.stringify(o.body) : undefined }), s.env, { fetch: fakeFetch, store: store(s.db), words: WB }); return { status: r.status, body: await r.json() }; };
+  const staff = await token(), admin = await token({ email: 'ravi@x.com', sub: 'a1' });
+  const r = await call('/search', { body: { q: 'how to give job work to a karigar', screen: 'pbase', lang: 'en' } });
+  ok(r.status === 200 && r.body.hits[0] && r.body.hits[0].id === 'pr-jw-issue', 'the server finds her answer: ' + (r.body.hits[0] && r.body.hits[0].id));
+  ok(r.body.hits[0].walk && r.body.hits[0].walk.id === 'jw-issue-walk', 'with the walk-through it offers');
+  ok(JSON.stringify(r.body).length < 4000, 'a small reply: ' + JSON.stringify(r.body).length + ' bytes');
+  ok(!('phr' in r.body.hits[0].e) && r.body.hits[0].e.a.en, 'the answer itself, not her search\'s working');
+  /* side by side: the browser's answer and the server's, kept with the question cleaned */
+  const c = await call('/search', { body: { q: 'Ramesh Kumar ko kaam kaise de, phone 98765 43210', screen: 'pbase', names: ['Ramesh Kumar'], compare: [{ id: 'pr-jw-issue', s: 0.9 }] } });
+  ok(c.status === 200 && typeof c.body.same === 'boolean', 'a side-by-side question is compared');
+  const row = s.db.raw.prepare('SELECT * FROM diffs ORDER BY id DESC').get();
+  ok(row && row.question === '[NAME] ko kaam kaise de, phone [PHONE]' && !/Ramesh|98765/.test(JSON.stringify(row)), 'kept cleaned: ' + (row && row.question));
+  ok((await call('/admin/search', { method: 'GET', tok: staff })).status === 403, 'staff cannot see the comparison');
+  const view = await call('/admin/search', { method: 'GET', tok: admin });
+  ok(view.status === 200 && view.body.asked === 1, 'an admin sees how often they agree');
+  /* an approved answer is searchable at once — no deploy */
+  ok(!(await call('/search', { body: { q: 'how do i export the qc report' } })).body.hits.some(x => /^learned-/.test(x.id)), 'not there before');
+  await call('/admin/answer', { tok: admin, body: { q: 'how do i export the qc report', a: 'Open **QC** and press **Export**.', lang: 'en', screen: 'qc' } });
+  const after = await call('/search', { body: { q: 'how do i export the qc report' } });
+  ok(after.body.hits[0] && /^learned-/.test(after.body.hits[0].id), 'an admin\'s answer is found straight away');
+  /* her switches on the router, with no deploy */
+  ok((await call('/admin/config', { tok: staff, body: { key: 'search', value: 'off' } })).status === 403, 'staff cannot change her switches');
+  ok((await call('/config', { method: 'GET' })).body.search === true, 'search on by default');
+  await call('/admin/config', { tok: admin, body: { key: 'search', value: 'off' } });
+  ok((await call('/search', { body: { q: 'karigar' } })).status === 503, 'search off: the browser answers on its own');
+  await call('/admin/config', { tok: admin, body: { key: 'ai', value: 'off' } });
+  ok((await call('/ask', { body: { q: 'anything new' } })).status === 503, 'AI off: no model is asked');
+  await call('/admin/config', { tok: admin, body: { key: 'meera', value: 'off' } });
+  const cf = (await call('/config', { method: 'GET' })).body;
+  ok(cf.meera === false && cf.ai === false && cf.search === false, 'all three switches read back');
+  ok((await call('/admin/config', { tok: admin, body: { key: 'other', value: 'off' } })).status === 400, 'only those three');
+}
+
 console.log(`meera-router: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

@@ -99,3 +99,31 @@ Compare with `?meera=lazy,spell` (today's look) on an office computer and on a p
     no push); or
   - switch the AI off for everyone: `ENABLED = "false"` in `meera/router/wrangler.toml`, push (Meera answers on her own);
   - or empty `GA_AI_URL` in `meera/client/src/legacy/guide-ai.js`, push.
+
+## 4. Phases 4 and 5 on her router — before anything reaches main (Ravi's OK first)
+
+Merging to main redeploys the router (`.github/workflows/meera-router.yml`). For Phases 4–5 that deploy also:
+- makes the new tables (`learn`, `kb`, `config`, `diffs`) — the old ones are untouched;
+- loads her answers and walk-throughs into `kb` (`kb-sql.cjs`), and bundles her meaning table (meera-words.bin) into the
+  router — so the account must be on **Workers Paid** first (30 s per request; the free plan's 10 ms is too little for her
+  search's first set-up, ~0.7 s);
+- needs no new secret for search; the weekly learning build needs `EXPORT_KEY` (GitHub and Cloudflare).
+Nothing changes for staff: every switch (learn, server, serveruse) stays off in the ERP, and the router's own switches
+(meera, ai, search) start "on" — they matter only to a browser with server or serveruse on.
+
+**Right after the deploy:** https://meera-router.erp-9a0.workers.dev/health → `{"ok":true,…}`; then on the test link with
+`?meera=lazy,server` ask five questions and see them counted in Meera's learning → Switches ("… of … the same").
+
+**Roll back** (any one): Cloudflare → Workers & Pages → meera-router → Deployments → previous → Rollback; or in Meera's
+learning → Switches, turn "Search on the server" off (every browser searches on its own, at once, no deploy).
+
+## 5. Server search (Phase 5) on the test link — after the router is deployed
+
+1. `?meera=lazy,server` (side by side): nothing looks different. Ask 10–20 everyday questions. Meera's learning →
+   Switches shows how many the server answered the same.
+2. `?meera=lazy,serveruse` (answers from the router): the same answers as before. Browser → F12 → Network: no
+   meera-bank.json (837 KB) and no meera-words.bin (1.3 MB) — only `backup/<screen>.json` (a few KB) and one `search`
+   (~2.6 KB) per question. First answer: under a second once the router is warm.
+3. Turn "Search on the server" off in Switches, ask again: she says her server search is not available and still answers.
+4. Phone: the same, on mobile data.
+

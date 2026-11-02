@@ -14,7 +14,10 @@ name: Meera router — test, deploy
 on:
   push:
     branches: [main]
-    paths: ['meera/router/**', 'meera/client/src/legacy/guide-ai.js', '.github/workflows/meera-router.yml']
+    # Phase 5: her search runs on the router too — a change to her answers or her search code redeploys it
+    paths: ['meera/router/**', 'meera/client/src/legacy/guide-ai.js', '.github/workflows/meera-router.yml',
+            'meera/client/src/understand.ts', 'meera/client/src/legacy/guide-ask.js', 'meera/client/src/legacy/guide-tours.js',
+            'Replenish-App/public/guide/meera-bank.json', 'Replenish-App/public/guide/meera-walks.json', 'Replenish-App/public/guide/meera-words.bin']
   workflow_dispatch:
 
 concurrency:
@@ -61,6 +64,18 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           workingDirectory: meera/router
           command: d1 execute meera --remote --file=schema.sql
+
+      # Phase 5: her answers and walk-throughs into the database (the server's search reads them; kb_version goes up)
+      - name: Her answers into D1
+        if: env.HAS_CF == 'true'
+        run: node kb-sql.cjs > kb.sql
+      - name: D1 answers (replaced)
+        if: env.HAS_CF == 'true'
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          workingDirectory: meera/router
+          command: d1 execute meera --remote --file=kb.sql
 
       # Wrangler run straight, so that on a failure its own error lines become notes on the run that anyone can read
       # (GitHub shows a step's full log only to someone signed in).

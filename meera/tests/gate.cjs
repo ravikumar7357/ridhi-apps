@@ -76,7 +76,11 @@ async function main() {
   const golden = JSON.parse(fs.readFileSync(f('golden.json'), 'utf8'));
   const ai = args.indexOf('--allow');
   const allowed = new Set(ai >= 0 ? fs.readFileSync(args[ai + 1], 'utf8').split(/\r?\n/).map(s => s.trim()).filter(Boolean) : []);
-  const { fails, notes } = compare(base, now);
+  /* with "serveruse" her search runs on her router: the browser holds only a small list, so its own search scores say
+   * nothing — the router's search is scored, set by set, by meera/tools/phase5-compare.mjs; here, her whole answers */
+  const remote = switches.includes('serveruse');
+  if (remote) console.log('switch "serveruse": search scores are the router\'s (meera/tools/phase5-compare.mjs); comparing her whole answers here');
+  const { fails, notes } = remote ? { fails: [], notes: [] } : compare(base, now);
   const g = goldenDiff(golden, now.golden, allowed);
   notes.forEach(l => console.log('  ok   ' + l));
   fails.forEach(x => console.log('  FAIL ' + x.line));

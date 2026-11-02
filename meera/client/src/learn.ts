@@ -20,6 +20,8 @@ declare const GUIDE: { tour: unknown };
 declare function guideClose(): void;
 
 const MEERA_LEARN: boolean = meeraOn('learn');
+/* the admin page ("Meera's learning", with her router's switches since Phase 5): with learning, or with search on her router */
+const MEERA_ADMIN: boolean = MEERA_LEARN || meeraOn('server') || meeraOn('serveruse');
 const ML = { last: null as null | { q: string; fixed: boolean; near: boolean } };
 const mlL = (en: string, hi: string): string => (guideLang() === 'hi' ? hi : en);
 
@@ -152,7 +154,7 @@ async function meeraLearnDown(q: string, bankId: string): Promise<void> {
 /* ---------- the admin page ---------- */
 /** her menu's extra line, for admins only */
 function meeraLearnMenu(): string {
-  if (!MEERA_LEARN || !ERP_MEERA.user().admin) return '';
+  if (!MEERA_ADMIN || !ERP_MEERA.user().admin) return '';
   return `<button type="button" data-m="learn">📋<span><b>${mlL('Meera\'s learning', 'मीरा की सीख')}</b><small>${mlL('Unanswered, spellings, 👎 — admins', 'अनुत्तरित, स्पेलिंग, 👎 — एडमिन')}</small></span></button>`;
 }
 interface MlView {
@@ -160,6 +162,9 @@ interface MlView {
   spellings: { question: string; answer: string; lang: string; n: number; last: string; ids: number[] }[];
   down: { id: number; created: string; question: string; screen: string; lang: string; answer: string; note: string }[];
   tickets: { id: number; created: string; screen: string; question: string; why: string }[];
+  /* Phase 5: her router's switches, and how its search compares with the browser's (last 7 days) */
+  cfg?: { meera: boolean; ai: boolean; search: boolean } | null;
+  cmp?: { asked: number; same: number; differ: { created: string; question: string; screen: string; browser: string; server: string }[] } | null;
 }
 const ML_ADMIN = { tab: 'unanswered', view: null as MlView | null, form: null as null | { q: string; screen: string; lang: string; learnIds?: number[]; ticketId?: number } };
 const ML_CSS = `
@@ -207,7 +212,7 @@ const ML_CSS = `
 #gdAsk .ml-note .ml-skip,.ml-note .ml-skip{background:#fff;color:#5A6472;border:1px solid #E8EDF3}`;
 
 async function meeraLearnAdmin(): Promise<void> {
-  if (!MEERA_LEARN) return;
+  if (!MEERA_ADMIN) return;
   try { if (GUIDE.tour) guideClose(); } catch (e) { /* no walk-round */ }   // a walk-round holds the page: it gives way, as for Ask
   let host: HTMLElement | null = $('mlAdmin');
   if (!host) {
@@ -226,14 +231,17 @@ async function mlAdminLoad(): Promise<void> {
   try { r = await mlCall('/admin/learn', null, 'GET'); } catch (e) { r = { status: 0, body: {} }; }
   if (r.status === 403) { mlAdminDraw(mlL('Only admins can open this page.', 'यह पेज सिर्फ़ एडमिन खोल सकते हैं।')); return; }
   if (r.status !== 200) { mlAdminDraw(mlL('Her router could not be reached — try again in a minute.', 'राउटर से जुड़ नहीं पाई — एक मिनट बाद फिर कोशिश करें।')); return; }
-  ML_ADMIN.view = r.body as MlView;
+  const v = r.body as MlView;
+  try { const c = await mlCall('/config', null, 'GET'); v.cfg = c.status === 200 ? c.body : null; } catch (e) { v.cfg = null; }
+  try { const c = await mlCall('/admin/search', null, 'GET'); v.cmp = c.status === 200 ? c.body : null; } catch (e) { v.cmp = null; }
+  ML_ADMIN.view = v;
   mlAdminDraw('');
 }
 function mlAdminDraw(msg: string): void {
   const host: HTMLElement | null = $('mlAdmin'); if (!host) return;
-  const v = ML_ADMIN.view, n = (k: keyof MlView) => (v ? v[k].length : 0);
+  const v = ML_ADMIN.view, n = (k: string) => (v && Array.isArray((v as any)[k]) ? String((v as any)[k].length) : '');
   const tabs: [string, string][] = [['unanswered', mlL('Unanswered this week', 'इस हफ़्ते अनुत्तरित')], ['spellings', mlL('Suggested spellings', 'सुझाई स्पेलिंग')],
-    ['down', mlL('👎 Not helpful', '👎 काम नहीं आया')], ['tickets', mlL('Open tickets', 'खुले टिकट')]];
+    ['down', mlL('👎 Not helpful', '👎 काम नहीं आया')], ['tickets', mlL('Open tickets', 'खुले टिकट')], ['switches', mlL('Switches', 'स्विच')]];
   const answerName = (id: string) => { const e = (GA_BANK ? GA_BANK.list : []).find(x => x.id === id); return e ? ((e.q && (e.q.en || [])[0]) || id) : id; };
   const when = (s: string) => esc(String(s || '').slice(0, 16).replace('T', ' '));
   const btn = (cls: string, act: string, data: string, label: string) => `<button type="button" class="${cls}" data-ml="${act}" ${data}>${label}</button>`;
@@ -251,6 +259,22 @@ function mlAdminDraw(msg: string): void {
       + v.down.map((x, i) => `<tr><td>${esc(x.question)}</td><td>${esc(answerName(x.answer))} <code>${esc(x.answer)}</code></td><td>${esc(x.note || '—')}</td><td>${when(x.created)}</td>`
         + `<td class="act">${btn('ml-b', 'adddown', `data-i="${i}"`, mlL('Add answer', 'जवाब जोड़ें'))}${btn('ml-g', 'reject', `data-ids="${x.id}"`, mlL('Reject', 'हटाएँ'))}</td></tr>`).join('') + '</table>'
     : `<div class="ml-empty">${mlL('No 👎 waiting.', 'कोई 👎 बाकी नहीं।')}</div>`;
+  else if (ML_ADMIN.tab === 'switches') {
+    const c = v.cfg, row = (k: string, name: string, what: string) => {
+      const on = !!c && (c as any)[k] !== false;
+      return `<tr><td><b>${name}</b><br><small>${what}</small></td><td>${c ? (on ? mlL('On', 'चालू') : mlL('Off', 'बंद')) : '?'}</td>`
+        + `<td class="act">${c ? btn(on ? 'ml-g' : 'ml-b', 'sw', `data-key="${k}" data-value="${on ? 'off' : 'on'}"`, on ? mlL('Turn off', 'बंद करें') : mlL('Turn on', 'चालू करें')) : ''}</td></tr>`;
+    };
+    const m = v.cmp;
+    body = `<table><tr><th>${mlL('Switch (for everyone, at once — no deploy)', 'स्विच (सबके लिए, तुरंत — बिना डिप्लॉय)')}</th><th>${mlL('Now', 'अभी')}</th><th></th></tr>`
+      + row('meera', 'Meera', mlL('Off: her round face does not appear for anyone', 'बंद: किसी को उसका गोल चेहरा नहीं दिखेगा'))
+      + row('ai', mlL('AI answers', 'AI जवाब'), mlL('Off: she answers only from her own answers; nothing goes to an AI', 'बंद: वह सिर्फ़ अपने जवाबों से जवाब देगी; AI को कुछ नहीं जाएगा'))
+      + row('search', mlL('Search on the server', 'सर्वर पर खोज'), mlL('Off: every browser searches on its own, as before', 'बंद: हर ब्राउज़र पहले की तरह खुद खोजेगा'))
+      + '</table>'
+      + `<div class="ml-msg">${m ? mlL(`Server search against the browser, last 7 days: <b>${m.same} of ${m.asked}</b> questions the same.`, `पिछले 7 दिन, सर्वर की खोज बनाम ब्राउज़र: <b>${m.asked} में से ${m.same}</b> सवाल एक जैसे।`) : mlL('No comparison yet.', 'अभी कोई तुलना नहीं।')}</div>`
+      + (m && m.differ.length ? `<table><tr><th>${mlL('Question (cleaned)', 'सवाल (साफ़ किया)')}</th><th>${mlL('Browser', 'ब्राउज़र')}</th><th>${mlL('Server', 'सर्वर')}</th><th>${mlL('When', 'कब')}</th></tr>`
+        + m.differ.slice(0, 50).map(x => `<tr><td>${esc(x.question)}</td><td><code>${esc(x.browser)}</code></td><td><code>${esc(x.server)}</code></td><td>${when(x.created)}</td></tr>`).join('') + '</table>' : '');
+  }
   else body = v.tickets.length ? `<table><tr><th>${mlL('Question (cleaned)', 'सवाल (साफ़ किया)')}</th><th>${mlL('Screen', 'स्क्रीन')}</th><th>${mlL('Why', 'क्यों')}</th><th>${mlL('When', 'कब')}</th><th></th></tr>`
       + v.tickets.map((x, i) => `<tr><td>${esc(x.question)}</td><td>${esc(x.screen ? gaTabName(x.screen) || x.screen : '-')}</td><td>${esc(x.why || '')}</td><td>${when(x.created)}</td>`
         + `<td class="act">${btn('ml-b', 'ticket', `data-i="${i}"`, mlL('Answer ticket', 'टिकट का जवाब'))}</td></tr>`).join('') + '</table>'
@@ -266,7 +290,7 @@ function mlAdminDraw(msg: string): void {
   host.innerHTML = `<style>${ML_CSS}</style><div class="ml-box" role="dialog" aria-label="Meera's learning">`
     + `<div class="ml-head"><span><b>${mlL('Meera\'s learning', 'मीरा की सीख')}</b><small>${mlL('Questions are cleaned of names, phones, order numbers and amounts. Nothing joins her answers until you approve it.', 'सवालों से नाम, फ़ोन, ऑर्डर नंबर और रकम हटाए गए हैं। आपकी मंज़ूरी के बिना कुछ भी उसके जवाबों में नहीं जुड़ता।')}</small></span>`
     + `${btn('ml-g ml-x', 'close', '', mlL('Close', 'बंद करें'))}</div>`
-    + (v ? `<div class="ml-tabs">${tabs.map(([k, t]) => `<button type="button" data-ml="tab" data-tab="${k}" class="${ML_ADMIN.tab === k ? 'on' : ''}">${t}<i>${n(k as keyof MlView)}</i></button>`).join('')}</div>` : '')
+    + (v ? `<div class="ml-tabs">${tabs.map(([k, t]) => `<button type="button" data-ml="tab" data-tab="${k}" class="${ML_ADMIN.tab === k ? 'on' : ''}">${t}${n(k) ? `<i>${n(k)}</i>` : ''}</button>`).join('')}</div>` : '')
     + form + `<div class="ml-body">${msg && v ? `<div class="ml-msg">${esc(msg)}</div>` : ''}${body}</div></div>`;
 }
 async function mlAdminClick(ev: Event): Promise<void> {
@@ -282,6 +306,12 @@ async function mlAdminClick(ev: Event): Promise<void> {
   if (act === 'add') { const x = v.unanswered[i]; ML_ADMIN.form = { q: x.question, screen: x.screen, lang: x.lang || 'en', learnIds: x.ids }; mlAdminDraw(''); return; }
   if (act === 'adddown') { const x = v.down[i]; ML_ADMIN.form = { q: x.question, screen: x.screen, lang: x.lang || 'en', learnIds: [x.id] }; mlAdminDraw(''); return; }
   if (act === 'ticket') { const x = v.tickets[i]; ML_ADMIN.form = { q: x.question, screen: x.screen, lang: 'en', ticketId: x.id }; mlAdminDraw(''); return; }
+  if (act === 'sw') {   // Phase 5: one of her router's switches
+    const r = await mlCall('/admin/config', { key: b.dataset.key, value: b.dataset.value });
+    await mlAdminLoad();
+    if (r.status !== 200) mlAdminDraw(mlL('That did not save — try again.', 'सेव नहीं हुआ — फिर कोशिश करें।'));
+    return;
+  }
   if (act === 'approve' || act === 'reject') {
     const ids = String(b.dataset.ids || '').split(',').map(Number).filter(Boolean);
     const r = await mlCall('/admin/learn', { ids, action: act });

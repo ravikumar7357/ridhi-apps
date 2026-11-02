@@ -100,6 +100,39 @@ export function store(db) {
       const r = await db.prepare("SELECT question, answer, lang FROM learn WHERE kind = 'spelling' AND status = 'approved' GROUP BY qkey, answer ORDER BY MAX(id) DESC LIMIT ?1").bind(limit).all();
       return r.results || [];
     },
+    /* ---- search on the server (Phase 5) ---- */
+    /** her answers and walk-throughs, as loaded at the last deploy */
+    async kbAll() {
+      const r = await db.prepare('SELECT id, kind, body FROM kb').all();
+      return (r.results || []).map(x => ({ id: x.id, kind: x.kind, body: safeJson(x.body) }));
+    },
+    async kbPut(rows) {
+      for (let i = 0; i < rows.length; i += 50)
+        await db.batch(rows.slice(i, i + 50).map(x => db.prepare('INSERT OR REPLACE INTO kb (id, kind, body) VALUES (?1, ?2, ?3)').bind(x.id, x.kind, JSON.stringify(x.body))));
+    },
+    /** the router's switches (meera, ai, search) and kb_version — one small read */
+    async config() {
+      const r = await db.prepare('SELECT key, value FROM config').all();
+      return Object.fromEntries((r.results || []).map(x => [x.key, x.value]));
+    },
+    async configSet(key, value) {
+      await db.prepare('INSERT INTO config (key, value) VALUES (?1, ?2) ON CONFLICT(key) DO UPDATE SET value = ?2').bind(key, String(value)).run();
+    },
+    /** her answers changed (an admin approved one, or a deploy loaded new ones): every router copy reloads */
+    async kbBump() {
+      await db.prepare("INSERT INTO config (key, value) VALUES ('kb_version', '1') ON CONFLICT(key) DO UPDATE SET value = CAST(value AS INTEGER) + 1").run();
+    },
+    async diffAdd({ question, screen, spell, browser, server, same }, now) {
+      await db.prepare('INSERT INTO diffs (created, question, screen, spell, browser, server, same) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)')
+        .bind(stamp(now), question, screen || '', spell ? 1 : 0, browser, server, same ? 1 : 0).run();
+    },
+    /** how often the two agree, since a day; and the latest differences */
+    async diffView(since, limit = 100) {
+      const n = await db.prepare('SELECT COUNT(*) AS n, SUM(same) AS same FROM diffs WHERE created >= ?1').bind(stamp(since)).first();
+      const list = await db.prepare('SELECT created, question, screen, browser, server FROM diffs WHERE same = 0 AND created >= ?1 ORDER BY id DESC LIMIT ?2').bind(stamp(since), limit).all();
+      return { asked: (n && n.n) || 0, same: (n && n.same) || 0, differ: list.results || [] };
+    },
+    async diffPurge(now) { await db.prepare('DELETE FROM diffs WHERE created < ?1').bind(stamp(now - 90 * 864e5)).run(); },
     /** Every approved answer: they join Meera's own list in every browser. */
     async learned(limit = 2000) {
       const r = await db.prepare("SELECT id, question, lang, screen, answer FROM answers WHERE status = 'approved' ORDER BY id DESC LIMIT ?1").bind(limit).all();

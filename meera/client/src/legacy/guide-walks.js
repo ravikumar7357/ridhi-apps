@@ -22,21 +22,23 @@ function gaWalksLoad() {
   if (!GA_WALKS_P) GA_WALKS_P = fetch('/guide/meera-walks.json', { cache: 'no-cache' })
     .then(r => (r.ok ? r.json() : [])).catch(() => [])
     .then(list => {
-      (Array.isArray(list) ? list : []).forEach(w => {
-        if (!w || !w.id) return;
-        /* a walk that takes the place of one of the eight keeps that one's id, so answers that name it get the new steps */
-        const old = w.replaces && GUIDE_TASKS.find(t => t.id === w.replaces);
-        if (old && Array.isArray(w.steps) && w.steps.length) { old.steps = w.steps; if (w.title) old.title = w.title; }
-        const id = old ? old.id : w.existing && GUIDE_TASKS.some(t => t.id === w.existing) ? w.existing : w.id;
-        if (id === w.id && Array.isArray(w.steps) && w.steps.length && !GUIDE_TASKS.some(t => t.id === w.id))
-          GUIDE_TASKS.push({ id: w.id, k: [], need: ['-'], title: w.title, steps: w.steps, admin: !!w.admin, walk: true });
-        (w.from || []).forEach(b => { if (!GA_WALK_OF.has(b)) GA_WALK_OF.set(b, id); });
-        const go = (w.steps || []).find(s => s.sel && s.wait === 'click');
-        if (go && /^#[\w-]+$/.test(go.sel) && !GA_WALK_SEL.has(go.sel)) GA_WALK_SEL.set(go.sel, id);
-      });
+      (Array.isArray(list) ? list : []).forEach(gaWalkAdd);
       return GA_WALK_OF;
     });
   return GA_WALKS_P;
+}
+/** One walk-through taken in (from meera-walks.json; or, searching on her router, one the router sends with an answer). */
+function gaWalkAdd(w) {
+  if (!w || !w.id) return;
+  /* a walk that takes the place of one of the eight keeps that one's id, so answers that name it get the new steps */
+  const old = w.replaces && GUIDE_TASKS.find(t => t.id === w.replaces);
+  if (old && Array.isArray(w.steps) && w.steps.length) { old.steps = w.steps; if (w.title) old.title = w.title; }
+  const id = old ? old.id : w.existing && GUIDE_TASKS.some(t => t.id === w.existing) ? w.existing : w.id;
+  if (id === w.id && Array.isArray(w.steps) && w.steps.length && !GUIDE_TASKS.some(t => t.id === w.id))
+    GUIDE_TASKS.push({ id: w.id, k: [], need: ['-'], title: w.title, steps: w.steps, admin: !!w.admin, walk: true });
+  (w.from || []).forEach(b => { if (!GA_WALK_OF.has(b)) GA_WALK_OF.set(b, id); });
+  const go = (w.steps || []).find(s => s.sel && s.wait === 'click');
+  if (go && /^#[\w-]+$/.test(go.sel) && !GA_WALK_SEL.has(go.sel)) GA_WALK_SEL.set(go.sel, id);
 }
 /** The walk for a bank answer, if it has one this account can follow. */
 function gaWalkFor(e) {

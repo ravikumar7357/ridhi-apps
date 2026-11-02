@@ -82,7 +82,7 @@ async function load(opts = {}) {
       const u = String(url).replace(/^https?:\/\/[^/]+/, '').split('?')[0];
       state.fetched.push(u);
       const f = path.join(app, 'public', u.replace(/^\//, ''));
-      if (!u.startsWith('/guide/') || !fs.existsSync(f)) return { ok: false, status: 404, json: async () => null, arrayBuffer: async () => null, text: async () => '' };
+      if (!(u.startsWith('/guide/') || u.startsWith('/meera/backup/')) || !fs.existsSync(f)) return { ok: false, status: 404, json: async () => null, arrayBuffer: async () => null, text: async () => '' };
       const buf = fs.readFileSync(f);
       return { ok: true, status: 200, json: async () => JSON.parse(buf.toString('utf8')), text: async () => buf.toString('utf8'),
         arrayBuffer: async () => buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) };

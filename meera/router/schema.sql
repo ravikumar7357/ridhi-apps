@@ -60,3 +60,29 @@ CREATE TABLE IF NOT EXISTS learn (
 );
 CREATE INDEX IF NOT EXISTS learn_kind ON learn (kind, status, created);
 CREATE INDEX IF NOT EXISTS learn_created ON learn (created);
+
+-- SEARCH ON THE SERVER (Phase 5, 2 Nov 2026). Her answers and walk-throughs, as in meera-bank.json and meera-walks.json,
+-- loaded at each deploy (kb-sql.cjs); answers an admin approves (table answers) join them at once, with no deploy.
+CREATE TABLE IF NOT EXISTS kb (
+  id   TEXT PRIMARY KEY,
+  kind TEXT NOT NULL,         -- answer / walk
+  body TEXT NOT NULL          -- the entry, JSON, exactly as in her files
+);
+-- Her switches on the router, changed by an admin with no deploy: meera, ai, search ('on' / 'off'); kb_version goes up
+-- whenever her answers change, so every router copy reloads them.
+CREATE TABLE IF NOT EXISTS config (
+  key   TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
+-- Side by side: the browser's answer and the server's to the same question (cleaned), while both run. Kept 90 days.
+CREATE TABLE IF NOT EXISTS diffs (
+  id      INTEGER PRIMARY KEY AUTOINCREMENT,
+  created TEXT NOT NULL,
+  question TEXT NOT NULL,     -- cleaned
+  screen  TEXT,
+  spell   INTEGER NOT NULL DEFAULT 0,
+  browser TEXT,               -- top answers with scores: id:score,id:score,…
+  server  TEXT,
+  same    INTEGER NOT NULL    -- 1 when both would say the same (same first answer, both sure or both not)
+);
+CREATE INDEX IF NOT EXISTS diffs_created ON diffs (created);
