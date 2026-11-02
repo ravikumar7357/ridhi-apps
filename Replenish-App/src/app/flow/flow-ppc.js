@@ -507,6 +507,15 @@ function flowPpcOpen(orderNo, onlySku, keys) {
          * both kept through every re-plan; a plan from before then starts from its last save. */
         const was = rows[i] && rows[i].s && rows[i].s.plan;
         const rec = Object.assign({}, p, { firstAt: (was && (was.firstAt || was.at)) || now, at: now, by: ME.email || '', lotAt: (was && (was.lotAt || was.at)) || now }); delete rec.gaps;
+        /* WHAT A RE-PLAN CHANGED (Ravi, 2 Nov: a lot's history on the PPC page): the ready date, the route, the printer, the
+         * fabric — each kept as [was, now] with who and when, the last 20 on the plan itself. */
+        if (was) { const pn = v => (v && typeof v === 'object' ? (v.name || v.code || '') : String(v || '')).trim(), ch = {};
+          const pair = (f, a, b) => { if (String(a || '') !== String(b || '')) ch[f] = [a || '', b || '']; };
+          pair('ready', was.dates && was.dates.ready, p.dates && p.dates.ready); pair('route', flowRouteOf(was), flowRouteOf(p));
+          pair('printer', pn(was.printer), pn(p.printer)); pair('fabric', was.fabric && was.fabric.name, p.fabric && p.fabric.name);
+          const prev = Array.isArray(was.changes) ? was.changes : [];
+          rec.changes = Object.keys(ch).length ? prev.concat([Object.assign({ at: now, by: ME.email || '' }, ch)]).slice(-20) : prev;
+          if (!rec.changes.length) delete rec.changes; }
         patch['pt_ppc/' + flowKey(p.orderNo, p.sku)] = rec;
       });
       /* A re-plan: what it undoes downstream, written in the same save and said. */
