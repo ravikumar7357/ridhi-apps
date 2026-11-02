@@ -204,7 +204,7 @@ const EXPORT = '\n;return {'
   + 'shpSyncAll, shpSyncOrder, shpSyncMsg, shpPlanOrder, shpNeeds, shpLineShipped, shpOldestOpen, shpUnseen, shpCloseShipped, SHP_REACH_MAX_DAYS, shpOrderNo, shpOrderOf, shpWorkDone, adjOpen, shpBucket, shpBucketAll, shpSheetMatch, shpBucketRun, shpDoneWhy, soProdStatus, soProdChip, shpBucketSheetRows, shpBucketXlRead, SHB_XL_COLS,'
   + 'setStockLoaded:v=>{SHOP_STOCK_LOADED=v},'
   + 'setIndia:(d,l,e)=>{SHOP_INDIA=d;SHOP_INDIA_LOADED=l;SHOP_INDIA_ERR=e}'
-  + ', setCustom:v=>{SHP_CUSTOM=v}'
+  + ', setCustom:v=>{SHP_CUSTOM=v}, shpNoSkuLines, shpNoSkuSave'
   + ', soIndexNames, soPackFit, shpSkuFromTitle, shpWords, shpSyncSoon, SHP_BUSY:()=>SHP_BUSY, SHP_AGAIN:()=>SHP_AGAIN, setSyncAll:v=>{shpSyncAll=v}'
   + ', soBulkPlan, soBulkApply, soBulkSheet, SO_LOC_OPTIONS, soLine, soLocOf, soBulkXlsx, soBinList, soCrc32'
   + '};';
@@ -1794,8 +1794,36 @@ console.log('\n== THE PRODUCTION BUCKET (Ravi, 2026-09-26) ==');
     A.setSHOP({ orders: [mk('b1', '#5001', [['RCNBMIX', 2], ['RCNBRED', 1]])], from: '', to: '', tz: '', at: 'x' });
     A.renderShop();
   }
+  /* Ravi, 2 Nov: "order without SKU button (inside production bucket)" and "add a feature of entering sku in these without
+   * sku orders" — the Without SKU tab lists every owed line Shopify sent with no SKU, and a SKU typed there is saved on the order. */
+  {
+    const nos = (id, no, extra) => Object.assign(mk(id, no, [['', 1]], extra), { items: [{ sku: '', name: 'Zqx Mystery Cloth', variant: 'Odd', qty: 2, ffl: 'unfulfilled', rq: 0 }] });
+    A.setMETA({});
+    A.setSHOP({ orders: [nos('n1', '#9101'), mk('n2', '#9102', [['RCNBMIX', 1]]), nos('n3', '#9103', { cancelledAt: '2026-09-21T10:00:00Z' })], from: '', to: '', tz: '', at: 'x' });
+    A.renderShop();
+    const L = A.shpNoSkuLines();
+    ok('without SKU: the line with no SKU is listed with its qty; a line with a SKU and a cancelled order are not',
+      L.length === 1 && L[0].id === 'n1' && L[0].qty === 2 && !L[0].guess && L[0].name === 'Zqx Mystery Cloth', JSON.stringify(L.map(x => [x.id, x.qty, x.guess])));
+    ok('without SKU: nothing typed, nothing saved', /Type a SKU/.test(await A.shpNoSkuSave({})));
+    const wasMdb = PTG.mdb, nSets = SETS.length; PTG.mdb = [{ sku: 'CPC777-04' }]; A.setCustom([]);
+    const bad = await A.shpNoSkuSave({ [L[0].key]: 'CPC999-99' });
+    ok('without SKU: a SKU the master does not know is refused, and nothing is written', /Not in the Master Database: CPC999-99 \(#9101\)/.test(bad)
+      && SETS.length === nSets && !(A.SHOP_META().n1 || {}).mk, bad);
+    const good = await A.shpNoSkuSave({ [L[0].key]: ' cpc777-04 ' });
+    PTG.mdb = wasMdb;
+    ok('without SKU: a known SKU is saved on the order, as the order dialog saves it (upper case, no spaces)',
+      good === '' && A.SHOP_META().n1.mk[L[0].k] === 'CPC777-04' && SETS.length === nSets + 1 && SETS[SETS.length - 1].path === 'audit/shoporders', good);
+    A.renderShop();
+    ok('…the line leaves Without SKU', A.shpNoSkuLines().length === 0, JSON.stringify(A.shpNoSkuLines().map(x => x.id)));
+    ok('…and waits in Needs production under that SKU', A.shpBucket().some(x => x.id === 'n1' && x.sku === 'CPC777-04' && x.kind === 'make'), JSON.stringify(A.shpBucket().map(x => [x.id, x.sku, x.kind])));
+    A.setMETA({});
+    A.setSHOP({ orders: [mk('b1', '#5001', [['RCNBMIX', 2], ['RCNBRED', 1]])], from: '', to: '', tz: '', at: 'x' });
+    A.renderShop();
+  }
   {
     const src = require('fs').readFileSync(APP, 'utf8');
+    ok('the bucket has Without SKU and no longer From production or Handed over (Ravi, 2 Nov)', /data-shbtab="nosku"/.test(src)
+      && !/data-shbtab="recv"/.test(src) && !/data-shbtab="hand"/.test(src) && /without SKU<\/span>/.test(src));
     ok('the bucket offers "FBA can fill" / "India can fill" on the stock-covered tab', /<select id="shbFrom"[^>]*><option value="">FBA or India<\/option><option value="fba">FBA can fill \(MCF\)<\/option><option value="india">India can fill<\/option>/.test(src)
        && /\(SHB\.tab !== 'covered' \|\| !SHB\.from \|\| x\.from === SHB\.from\)/.test(src));
   }

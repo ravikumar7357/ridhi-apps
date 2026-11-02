@@ -152,7 +152,7 @@ function renderOrdShopify(bySku, done) {
   $('odKpis').innerHTML = ordSrcChips() + sw + ordKpiCards(done ? NM + ', complete & handed over' : NM + ', made to order — due 5 working days after opening', [
     [nf(new Set(lines.map(r => r.orderNo)).size), NM + ' orders', 'doc', 'blue', 'read live' + (ORD.at ? ' · ' + esc(ORD.at) : '')],
     ...(done ? [] : [[nf(lateN), 'Late lines', 'alert', 'amber', 'past 5 working days, not handed over'],
-      [nf(readyN), 'Ready for shipping', 'box', 'green', 'QC passed — in From production']]),
+      [nf(readyN), 'Ready for shipping', 'box', 'green', 'QC passed — hand it over here']]),
     [nf(new Set(lines.map(r => r.sku)).size), 'SKUs', 'list', 'blue', done ? 'finished' : 'waiting on production'],
     [nf(s(r => r.qty)), 'Pieces', 'box', 'blue', 'pieces asked for'],
   ], s);
@@ -229,7 +229,7 @@ function renderOrdShopify(bySku, done) {
       /* HANDED TO SHIPPING: once shipping accepts all of a line, that line is complete by itself. */
       + `<td style="text-align:left;white-space:nowrap">${r.handed >= r.qty ? '<span class="jw-st done">Complete</span>'
           : `<b>${nf(r.handed)}</b> <span class="muted">of ${nf(r.qty)}</span>`
-            + (r.ready ? `<div style="font-size:11px;color:#166534;font-weight:700" title="Passed by QC, not handed over yet — the shipping team takes it in From production">${nf(r.ready)} available for handover</div>` : '')}</td></tr>`;
+            + (r.ready ? `<div style="font-size:11px;color:#166534;font-weight:700" title="Passed by QC, not handed over yet — hand it over with Handover">${nf(r.ready)} available for handover</div>` : '')}</td></tr>`;
   })() : (() => {
     /* HANDED OVER IS THE END OF A SHOPIFY LINE, and it says so by name — "Complete" on its own left
      * you wondering whether the goods had actually gone anywhere. */
