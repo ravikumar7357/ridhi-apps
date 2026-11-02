@@ -79706,132 +79706,148 @@ function gaPreload(tries) {
   else gaLater(go, 1e3);
 }
 if (meeraHere()) gaLater(() => gaPreload(0), 4e3);
-/* ============================== FILE: meera/client/src/legacy/guide-ai.js ============================== */
-/* ================= MEERA ASKS A MODEL — through her router (meera/router/, a Cloudflare Worker), 26 Oct =================
- *
- * OFF until GA_AI_URL is set. Then, when Meera is not sure of her own answer, she asks by herself (Ravi, 27 Oct: no button,
- * "until it hits our decided limit" — 10 a person, 500 the company, a day; over it, she answers on her own): the question is
- * cleaned here first (order numbers, phones, emails, tax numbers and the karigars' names taken out — the router cleans it
- * again), sent with this person's ERP sign-in, and the router asks a free model using only Meera's own nearest answers as
- * its notes. What no model can answer becomes a ticket for an admin; what an admin answers or approves comes back here
- * (GET /learned) and joins Meera's own answers. Nothing here reads or writes the ERP's data. */
-const GA_AI_URL = 'https://meera-router.erp-9a0.workers.dev';   // e.g. 'https://meera-router.<account>.workers.dev' — empty: Meera answers on her own, as before
-
+/* ============================== FILE: meera/client/src/legacy/guide-ai.ts ============================== */
+const GA_AI_URL = "https://meera-router.erp-9a0.workers.dev";
 function gaAiOn() {
-  try { return !!GA_AI_URL && ERP_MEERA.signedIn(); } catch (e) { return false; }
+  try {
+    return !!GA_AI_URL && ERP_MEERA.signedIn();
+  } catch (e) {
+    return false;
+  }
 }
-/* Over today's limit (the router said 429): no more asking from this device until tomorrow. */
-const gaAiDay = () => new Date().toISOString().slice(0, 10);
+const gaAiDay = () => (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
 function gaAiAuto() {
   if (!gaAiOn()) return false;
-  try { return localStorage.getItem('guideAiFull') !== gaAiDay(); } catch (e) { return true; }
+  try {
+    return localStorage.getItem("guideAiFull") !== gaAiDay();
+  } catch (e) {
+    return true;
+  }
 }
-/* The same cleaning as the router's (meera/router/src/redact.js): change one, change both. */
 function gaClean(text, names) {
-  let s = String(text || '').slice(0, 500);
-  s = s.replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '[EMAIL]')
-    .replace(/\b\d{2}[A-Z]{5}\d{4}[A-Z][A-Z\d]Z[A-Z\d]\b/gi, '[TAX-ID]').replace(/\b[A-Z]{5}\d{4}[A-Z]\b/gi, '[TAX-ID]')
-    .replace(/\b(?:SHP|AMZ|ORD|SPY|LEG|CUST|GPO|PO|SO|INV)-[A-Z0-9][A-Z0-9-]{2,}\b|#[A-Z]{2,4}\d{3,}\b/gi, '[ORDER]')
-    .replace(/\+?\d[\d\s-]{8,}\d/g, m => (m.replace(/\D/g, '').length >= 10 ? '[PHONE]' : m))
-    /* amounts of money and short order numbers (Phase 4, 29 Oct) */
-    .replace(/(?:₹|\brs\.?|\binr)\s*\d[\d,]*(?:\.\d+)?|\b\d[\d,]*(?:\.\d+)?\s*(?:\/-|₹|(?:rs|inr|rupees?|rupaye|rupay|rupiya|rupiye)\b\.?)/gi, '[AMOUNT]')
-    .replace(/\b(order|ordr|odr|ord|challan|invoice|bill|awb|po|so)(\s*(?:no\.?|number|num|nr)?\s*[:#.-]?\s*)\d{2,}\b/gi, (m, w, mid) => w + mid.replace(/\s+$/, '') + ' [ORDER]')
-    .replace(/\b\d{5,}\b/g, '[NUMBER]');
-  const list = [...new Set((names || []).filter(n => n && n.length >= 3))].sort((a, b) => b.length - a.length);
-  for (const n of list) s = s.replace(new RegExp('(^|[^\\p{L}])' + n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?=$|[^\\p{L}])', 'giu'), '$1[NAME]');
-  return s.replace(/\s+/g, ' ').trim();
+  let s = String(text || "").slice(0, 500);
+  s = s.replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, "[EMAIL]").replace(/\b\d{2}[A-Z]{5}\d{4}[A-Z][A-Z\d]Z[A-Z\d]\b/gi, "[TAX-ID]").replace(/\b[A-Z]{5}\d{4}[A-Z]\b/gi, "[TAX-ID]").replace(/\b(?:SHP|AMZ|ORD|SPY|LEG|CUST|GPO|PO|SO|INV)-[A-Z0-9][A-Z0-9-]{2,}\b|#[A-Z]{2,4}\d{3,}\b/gi, "[ORDER]").replace(/\+?\d[\d\s-]{8,}\d/g, (m) => m.replace(/\D/g, "").length >= 10 ? "[PHONE]" : m).replace(/(?:₹|\brs\.?|\binr)\s*\d[\d,]*(?:\.\d+)?|\b\d[\d,]*(?:\.\d+)?\s*(?:\/-|₹|(?:rs|inr|rupees?|rupaye|rupay|rupiya|rupiye)\b\.?)/gi, "[AMOUNT]").replace(/\b(order|ordr|odr|ord|challan|invoice|bill|awb|po|so)(\s*(?:no\.?|number|num|nr)?\s*[:#.-]?\s*)\d{2,}\b/gi, (m, w, mid) => w + mid.replace(/\s+$/, "") + " [ORDER]").replace(/\b\d{5,}\b/g, "[NUMBER]");
+  const list = (names || []).filter((n, i, all) => n && n.length >= 3 && all.indexOf(n) === i).sort((a, b) => b.length - a.length);
+  for (const n of list) s = s.replace(new RegExp("(^|[^\\p{L}])" + n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "(?=$|[^\\p{L}])", "giu"), "$1[NAME]");
+  return s.replace(/\s+/g, " ").trim();
 }
 function gaNames() {
-  try { return ERP_MEERA.people().filter(n => n.length >= 3); } catch (e) { return []; }
+  try {
+    return ERP_MEERA.people().filter((n) => n.length >= 3);
+  } catch (e) {
+    return [];
+  }
 }
-async function gaAiCall(path, body, method = 'POST') {
+async function gaAiCall(path, body, method = "POST") {
   const tok = await ERP_MEERA.token();
-  const r = await fetch(GA_AI_URL.replace(/\/$/, '') + path, { method, headers: { authorization: 'Bearer ' + tok, 'content-type': 'application/json' },
-    body: method === 'POST' ? JSON.stringify(body || {}) : undefined });
+  const r = await fetch(GA_AI_URL.replace(/\/$/, "") + path, {
+    method,
+    headers: { authorization: "Bearer " + tok, "content-type": "application/json" },
+    body: method === "POST" ? JSON.stringify(body || {}) : void 0
+  });
   let j = null;
-  try { j = await r.json(); } catch (e) { /* not JSON */ }
+  try {
+    j = await r.json();
+  } catch (e) {
+  }
   return { status: r.status, body: j || {} };
 }
-/* A model's or an admin's words are text: escaped, with **bold** for button names. */
-const gaMd = s => esc(String(s || '')).replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>');
-const gaLL = lang => (en, hi, hg) => (lang === 'hi' ? hi : lang === 'hg' ? hg : en);
-
-/** The question, cleaned, to the router; the answer, a ticket, or — when there is neither — `own`, Meera's own reply
- * ({html, acts}), shown as it would have been without AI. */
+const gaMd = (s) => esc(String(s || "")).replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>");
+const gaLL = (lang) => (en, hi, hg) => lang === "hi" ? hi : lang === "hg" ? hg : en;
 async function gaAiAsk(q, own) {
   const { lang, means, words } = gaRead(q), L = gaLL(lang);
   await gaBankLoad();
-  const ids = gaBankFind(means, words, q).map(h => h.e.id).filter(id => !/^learned-/.test(id)).slice(0, 5);
-  gaSay(L('Asking… one moment.', 'पूछ रही हूँ… एक पल।', 'Poochh rahi hoon… ek pal.'), []);
-  const wait = $('gaLog').lastElementChild;
+  const ids = gaBankFind(means, words, q).map((h) => h.e.id).filter((id) => !/^learned-/.test(id)).slice(0, 5);
+  gaSay(L("Asking\u2026 one moment.", "\u092A\u0942\u091B \u0930\u0939\u0940 \u0939\u0942\u0901\u2026 \u090F\u0915 \u092A\u0932\u0964", "Poochh rahi hoon\u2026 ek pal."), []);
+  const wait = $("gaLog").lastElementChild;
   let r;
-  try { r = await gaAiCall('/ask', { q: gaClean(q, gaNames()), lang, screen: gaHere(), ids, names: gaNames() }); }
-  catch (e) { r = { status: 0, body: {} }; }
+  try {
+    r = await gaAiCall("/ask", { q: gaClean(q, gaNames()), lang, screen: gaHere(), ids, names: gaNames() });
+  } catch (e) {
+    r = { status: 0, body: {} };
+  }
   if (wait) wait.remove();
   const b = r.body || {};
   if (r.status === 200 && b.answer) {
     const a = b.answer;
-    const html = `<div class="ga-a">${gaMd(a.a)}</div>`
-      + (a.why ? `<div class="ga-why"><b>${L('Why', 'क्यों', 'Kyun')}</b>${gaMd(a.why)}</div>` : '')
-      + (a.steps && a.steps.length ? `<div class="ga-do"><b>${L('What to do', 'क्या करें', 'Kya karein')}</b><ol>${a.steps.map(s => `<li>${gaMd(s)}</li>`).join('')}</ol></div>` : '')
-      + `<div class="ga-note">${b.source === 'saved' ? L('Answer checked by an admin.', 'एडमिन का जाँचा हुआ जवाब।', 'Admin ka jaancha hua jawaab.') : L('Written by AI from Meera\'s notes — not yet checked by an admin.', 'मीरा के नोट्स से AI का लिखा — एडमिन ने अभी जाँचा नहीं।', 'Meera ke notes se AI ka likha — admin ne abhi jaancha nahi.')}</div>`;
-    const fb = `<div class="ga-fb"><span>${L('Did this help?', 'क्या इससे मदद मिली?', 'Kya isse madad mili?')}</span><button type="button" class="ga-fbb" data-ga="aifb" data-id="up:${+b.answerId || 0}" aria-label="Yes">👍</button><button type="button" class="ga-fbb" data-ga="aifb" data-id="down:${+b.answerId || 0}" aria-label="No">👎</button></div>`;
-    gaSay(html, [], fb, b.source === 'saved' ? 'checked' : 'ai');
+    const html = `<div class="ga-a">${gaMd(a.a)}</div>` + (a.why ? `<div class="ga-why"><b>${L("Why", "\u0915\u094D\u092F\u094B\u0902", "Kyun")}</b>${gaMd(a.why)}</div>` : "") + (a.steps && a.steps.length ? `<div class="ga-do"><b>${L("What to do", "\u0915\u094D\u092F\u093E \u0915\u0930\u0947\u0902", "Kya karein")}</b><ol>${a.steps.map((s) => `<li>${gaMd(s)}</li>`).join("")}</ol></div>` : "") + `<div class="ga-note">${b.source === "saved" ? L("Answer checked by an admin.", "\u090F\u0921\u092E\u093F\u0928 \u0915\u093E \u091C\u093E\u0901\u091A\u093E \u0939\u0941\u0906 \u091C\u0935\u093E\u092C\u0964", "Admin ka jaancha hua jawaab.") : L("Written by AI from Meera's notes \u2014 not yet checked by an admin.", "\u092E\u0940\u0930\u093E \u0915\u0947 \u0928\u094B\u091F\u094D\u0938 \u0938\u0947 AI \u0915\u093E \u0932\u093F\u0916\u093E \u2014 \u090F\u0921\u092E\u093F\u0928 \u0928\u0947 \u0905\u092D\u0940 \u091C\u093E\u0901\u091A\u093E \u0928\u0939\u0940\u0902\u0964", "Meera ke notes se AI ka likha \u2014 admin ne abhi jaancha nahi.")}</div>`;
+    const fb = `<div class="ga-fb"><span>${L("Did this help?", "\u0915\u094D\u092F\u093E \u0907\u0938\u0938\u0947 \u092E\u0926\u0926 \u092E\u093F\u0932\u0940?", "Kya isse madad mili?")}</span><button type="button" class="ga-fbb" data-ga="aifb" data-id="up:${+b.answerId || 0}" aria-label="Yes">\u{1F44D}</button><button type="button" class="ga-fbb" data-ga="aifb" data-id="down:${+b.answerId || 0}" aria-label="No">\u{1F44E}</button></div>`;
+    gaSay(html, [], fb, b.source === "saved" ? "checked" : "ai");
     return;
   }
-  if (b.offTopic) { gaSay(L('Sorry, I can\'t answer that — it isn\'t about the ERP. Ask me about any screen, job or problem in the ERP.', 'माफ़ कीजिए, इसका जवाब मैं नहीं दे सकती — यह ERP के बारे में नहीं है। ERP की किसी भी स्क्रीन, काम या दिक्कत के बारे में पूछें।', 'Sorry, iska jawaab main nahi de sakti — ye ERP ke baare me nahi hai. ERP ki kisi bhi screen, kaam ya dikkat ke baare me poochiye.'), []); return; }
-  if (r.status === 429) { try { localStorage.setItem('guideAiFull', gaAiDay()); } catch (e) { /* asks again next time */ } }
+  if (b.offTopic) {
+    gaSay(L("Sorry, I can't answer that \u2014 it isn't about the ERP. Ask me about any screen, job or problem in the ERP.", "\u092E\u093E\u092B\u093C \u0915\u0940\u091C\u093F\u090F, \u0907\u0938\u0915\u093E \u091C\u0935\u093E\u092C \u092E\u0948\u0902 \u0928\u0939\u0940\u0902 \u0926\u0947 \u0938\u0915\u0924\u0940 \u2014 \u092F\u0939 ERP \u0915\u0947 \u092C\u093E\u0930\u0947 \u092E\u0947\u0902 \u0928\u0939\u0940\u0902 \u0939\u0948\u0964 ERP \u0915\u0940 \u0915\u093F\u0938\u0940 \u092D\u0940 \u0938\u094D\u0915\u094D\u0930\u0940\u0928, \u0915\u093E\u092E \u092F\u093E \u0926\u093F\u0915\u094D\u0915\u0924 \u0915\u0947 \u092C\u093E\u0930\u0947 \u092E\u0947\u0902 \u092A\u0942\u091B\u0947\u0902\u0964", "Sorry, iska jawaab main nahi de sakti \u2014 ye ERP ke baare me nahi hai. ERP ki kisi bhi screen, kaam ya dikkat ke baare me poochiye."), []);
+    return;
+  }
+  if (r.status === 429) {
+    try {
+      localStorage.setItem("guideAiFull", gaAiDay());
+    } catch (e) {
+    }
+  }
   if (b.ticket) {
-    gaSay(r.status === 429
-      ? L(`Today's AI questions are used up. I have sent your question to the admin team (ticket #${+b.ticket}).`, `आज के AI सवाल पूरे हो गए। मैंने आपका सवाल एडमिन टीम को भेज दिया है (टिकट #${+b.ticket})।`, `Aaj ke AI sawaal poore ho gaye. Maine aapka sawaal admin team ko bhej diya hai (ticket #${+b.ticket}).`)
-      : L(`I don't have a sure answer to this. I have sent it to the admin team (ticket #${+b.ticket}); they will answer when they are online, and I will know it next time.`, `इसका पक्का जवाब मेरे पास नहीं है। मैंने इसे एडमिन टीम को भेज दिया है (टिकट #${+b.ticket}); वे ऑनलाइन आकर जवाब देंगे, और अगली बार मुझे पता होगा।`, `Iska pakka jawaab mere paas nahi hai. Maine ise admin team ko bhej diya hai (ticket #${+b.ticket}); woh online aakar jawaab denge, aur agli baar mujhe pata hoga.`), []);
+    gaSay(r.status === 429 ? L(`Today's AI questions are used up. I have sent your question to the admin team (ticket #${+b.ticket}).`, `\u0906\u091C \u0915\u0947 AI \u0938\u0935\u093E\u0932 \u092A\u0942\u0930\u0947 \u0939\u094B \u0917\u090F\u0964 \u092E\u0948\u0902\u0928\u0947 \u0906\u092A\u0915\u093E \u0938\u0935\u093E\u0932 \u090F\u0921\u092E\u093F\u0928 \u091F\u0940\u092E \u0915\u094B \u092D\u0947\u091C \u0926\u093F\u092F\u093E \u0939\u0948 (\u091F\u093F\u0915\u091F #${+b.ticket})\u0964`, `Aaj ke AI sawaal poore ho gaye. Maine aapka sawaal admin team ko bhej diya hai (ticket #${+b.ticket}).`) : L(`I don't have a sure answer to this. I have sent it to the admin team (ticket #${+b.ticket}); they will answer when they are online, and I will know it next time.`, `\u0907\u0938\u0915\u093E \u092A\u0915\u094D\u0915\u093E \u091C\u0935\u093E\u092C \u092E\u0947\u0930\u0947 \u092A\u093E\u0938 \u0928\u0939\u0940\u0902 \u0939\u0948\u0964 \u092E\u0948\u0902\u0928\u0947 \u0907\u0938\u0947 \u090F\u0921\u092E\u093F\u0928 \u091F\u0940\u092E \u0915\u094B \u092D\u0947\u091C \u0926\u093F\u092F\u093E \u0939\u0948 (\u091F\u093F\u0915\u091F #${+b.ticket}); \u0935\u0947 \u0911\u0928\u0932\u093E\u0907\u0928 \u0906\u0915\u0930 \u091C\u0935\u093E\u092C \u0926\u0947\u0902\u0917\u0947, \u0914\u0930 \u0905\u0917\u0932\u0940 \u092C\u093E\u0930 \u092E\u0941\u091D\u0947 \u092A\u0924\u093E \u0939\u094B\u0917\u093E\u0964`, `Iska pakka jawaab mere paas nahi hai. Maine ise admin team ko bhej diya hai (ticket #${+b.ticket}); woh online aakar jawaab denge, aur agli baar mujhe pata hoga.`), []);
     return;
   }
-  gaMissKeep(q, 'ai-unavailable');
-  if (own) { if (own.html) gaSay(own.html, own.acts || []); return; }   // her own answer, as without AI
-  gaSay(L('AI is not available right now. I have noted your question here.', 'AI अभी उपलब्ध नहीं है। मैंने आपका सवाल यहाँ नोट कर लिया है।', 'AI abhi uplabdh nahi hai. Maine aapka sawaal yahan note kar liya hai.'), []);
+  gaMissKeep(q, "ai-unavailable");
+  if (own) {
+    if (own.html) gaSay(own.html, own.acts || []);
+    return;
+  }
+  gaSay(L("AI is not available right now. I have noted your question here.", "AI \u0905\u092D\u0940 \u0909\u092A\u0932\u092C\u094D\u0927 \u0928\u0939\u0940\u0902 \u0939\u0948\u0964 \u092E\u0948\u0902\u0928\u0947 \u0906\u092A\u0915\u093E \u0938\u0935\u093E\u0932 \u092F\u0939\u093E\u0901 \u0928\u094B\u091F \u0915\u0930 \u0932\u093F\u092F\u093E \u0939\u0948\u0964", "AI abhi uplabdh nahi hai. Maine aapka sawaal yahan note kar liya hai."), []);
 }
 async function gaAiFeedback(id) {
-  const up = id.startsWith('up:'), lang = gaRead(GA.lastQ || '').lang, L = gaLL(lang);
+  const up = id.startsWith("up:"), lang = gaRead(GA.lastQ || "").lang, L = gaLL(lang);
   let t = null;
-  try { const r = await gaAiCall('/feedback', { answerId: +id.slice(id.indexOf(':') + 1) || 0, up, q: gaClean(GA.lastQ || '', gaNames()), screen: gaHere(), lang }); t = r.body && r.body.ticket; } catch (e) { /* noted below */ }
-  gaSay(up ? L('Thank you! 🙏', 'धन्यवाद! 🙏', 'Dhanyavaad! 🙏')
-    : L(`Sorry. I have sent this to the admin team${t ? ` (ticket #${+t})` : ''}.`, `माफ़ कीजिए। मैंने इसे एडमिन टीम को भेज दिया है${t ? ` (टिकट #${+t})` : ''}।`, `Maaf kijiye. Maine ise admin team ko bhej diya hai${t ? ` (ticket #${+t})` : ''}.`), []);
+  try {
+    const r = await gaAiCall("/feedback", { answerId: +id.slice(id.indexOf(":") + 1) || 0, up, q: gaClean(GA.lastQ || "", gaNames()), screen: gaHere(), lang });
+    t = r.body && r.body.ticket;
+  } catch (e) {
+  }
+  gaSay(up ? L("Thank you! \u{1F64F}", "\u0927\u0928\u094D\u092F\u0935\u093E\u0926! \u{1F64F}", "Dhanyavaad! \u{1F64F}") : L(`Sorry. I have sent this to the admin team${t ? ` (ticket #${+t})` : ""}.`, `\u092E\u093E\u092B\u093C \u0915\u0940\u091C\u093F\u090F\u0964 \u092E\u0948\u0902\u0928\u0947 \u0907\u0938\u0947 \u090F\u0921\u092E\u093F\u0928 \u091F\u0940\u092E \u0915\u094B \u092D\u0947\u091C \u0926\u093F\u092F\u093E \u0939\u0948${t ? ` (\u091F\u093F\u0915\u091F #${+t})` : ""}\u0964`, `Maaf kijiye. Maine ise admin team ko bhej diya hai${t ? ` (ticket #${+t})` : ""}.`), []);
 }
-
-/** What admins answered or approved: joins Meera's own answers (as learned-<id>). Never holds up her own list. */
 async function gaAiLearned(list) {
   if (!gaAiOn()) return list;
   try {
-    const r = await Promise.race([gaAiCall('/learned', null, 'GET'), new Promise((_, no) => setTimeout(() => no(new Error('slow')), 3000))]);
-    const have = new Set(list.map(e => e.id));   // already in her file (the weekly build step, Phase 4): not twice
-    const got = ((r.body && r.body.answers) || []).filter(x => !have.has('learned-' + x.id));
-    return list.concat(got.map(x => {
-      const a = x.answer || {}, one = v => ({ en: v, hi: v, hg: v });
-      return { id: 'learned-' + x.id, tab: x.screen || '', q: { en: [x.question], hi: [x.question], hg: [x.question] }, a: one(gaMd(a.a)),
-        why: a.why ? one(gaMd(a.why)) : undefined, steps: a.steps && a.steps.length ? one(a.steps.map(gaMd)) : undefined };
+    const r = await Promise.race([gaAiCall("/learned", null, "GET"), new Promise((_, no) => setTimeout(() => no(new Error("slow")), 3e3))]);
+    const have = new Set(list.map((e) => e.id));
+    const got = (r.body && r.body.answers || []).filter((x) => !have.has("learned-" + x.id));
+    return list.concat(got.map((x) => {
+      const a = x.answer || {}, one = (v) => ({ en: v, hi: v, hg: v });
+      return {
+        id: "learned-" + x.id,
+        tab: x.screen || "",
+        q: { en: [x.question], hi: [x.question], hg: [x.question] },
+        a: one(gaMd(a.a)),
+        why: a.why ? one(gaMd(a.why)) : void 0,
+        steps: a.steps && a.steps.length ? one(a.steps.map(gaMd)) : void 0
+      };
     }));
-  } catch (e) { return list; }
+  } catch (e) {
+    return list;
+  }
 }
-
-/** For admins, in Ask Meera: "tickets" lists the open ones, each with a box to answer it. */
 async function gaAiCommand(q) {
   if (!/^\s*(meera\s+)?tickets?\s*$/i.test(q) || !gaAiOn()) return false;
-  const r = await gaAiCall('/admin/tickets', null, 'GET').catch(() => ({ status: 0, body: {} }));
-  if (r.status === 403) { gaSay('Only an admin can see tickets.', []); return true; }
-  const list = (r.body && r.body.tickets) || [];
-  GA.tickets = new Map(list.map(t => [String(t.id), t]));
-  gaSay(list.length ? `<b>${list.length} open ticket(s)</b>` + list.slice(0, 20).map(t => `<div class="ga-tk"><small>#${+t.id} · ${esc(t.screen || '-')} · ${esc(t.why || '')} · ${esc(String(t.created || '').slice(0, 16))}</small>`
-      + `<div>${esc(t.question)}</div><textarea id="gaTk${+t.id}" rows="2" placeholder="Write the answer (it joins Meera's answers)"></textarea>`
-      + `<button type="button" class="ga-act" data-ga="aians" data-id="${+t.id}">Save answer</button></div>`).join('')
-    : (r.status === 200 ? 'No open tickets.' : 'Could not read the tickets.'), []);
+  const r = await gaAiCall("/admin/tickets", null, "GET").catch(() => ({ status: 0, body: {} }));
+  if (r.status === 403) {
+    gaSay("Only an admin can see tickets.", []);
+    return true;
+  }
+  const list = r.body && r.body.tickets || [];
+  GA.tickets = new Map(list.map((t) => [String(t.id), t]));
+  gaSay(list.length ? `<b>${list.length} open ticket(s)</b>` + list.slice(0, 20).map((t) => `<div class="ga-tk"><small>#${+t.id} \xB7 ${esc(t.screen || "-")} \xB7 ${esc(t.why || "")} \xB7 ${esc(String(t.created || "").slice(0, 16))}</small><div>${esc(t.question)}</div><textarea id="gaTk${+t.id}" rows="2" placeholder="Write the answer (it joins Meera's answers)"></textarea><button type="button" class="ga-act" data-ga="aians" data-id="${+t.id}">Save answer</button></div>`).join("") : r.status === 200 ? "No open tickets." : "Could not read the tickets.", []);
   return true;
 }
 async function gaAiAnswer(id) {
-  const t = GA.tickets && GA.tickets.get(String(id)), box = $('gaTk' + id);
+  const t = GA.tickets && GA.tickets.get(String(id)), box = $("gaTk" + id);
   if (!t || !box || !box.value.trim()) return;
-  const r = await gaAiCall('/admin/answer', { ticketId: +id, q: t.question, screen: t.screen, lang: gaRead(t.question).lang, a: box.value.trim() }).catch(() => ({ status: 0 }));
-  if (r.status === 200) { box.closest('.ga-tk').innerHTML = `<small>#${+id} answered — it joins Meera's answers.</small>`; GA_BANK = null; GA_BANK_P = null; GA_SEM = null; }
-  else gaSay('Could not save that answer.', []);
+  const r = await gaAiCall("/admin/answer", { ticketId: +id, q: t.question, screen: t.screen, lang: gaRead(t.question).lang, a: box.value.trim() }).catch(() => ({ status: 0 }));
+  if (r.status === 200) {
+    box.closest(".ga-tk").innerHTML = `<small>#${+id} answered \u2014 it joins Meera's answers.</small>`;
+    GA_BANK = null;
+    GA_BANK_P = null;
+    GA_SEM = null;
+  } else gaSay("Could not save that answer.", []);
 }
 </script>

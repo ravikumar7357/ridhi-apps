@@ -28,7 +28,7 @@ function gaClean(text, names) {
     .replace(/(?:₹|\brs\.?|\binr)\s*\d[\d,]*(?:\.\d+)?|\b\d[\d,]*(?:\.\d+)?\s*(?:\/-|₹|(?:rs|inr|rupees?|rupaye|rupay|rupiya|rupiye)\b\.?)/gi, '[AMOUNT]')
     .replace(/\b(order|ordr|odr|ord|challan|invoice|bill|awb|po|so)(\s*(?:no\.?|number|num|nr)?\s*[:#.-]?\s*)\d{2,}\b/gi, (m, w, mid) => w + mid.replace(/\s+$/, '') + ' [ORDER]')
     .replace(/\b\d{5,}\b/g, '[NUMBER]');
-  const list = [...new Set((names || []).filter(n => n && n.length >= 3))].sort((a, b) => b.length - a.length);
+  const list = (names || []).filter((n, i, all) => n && n.length >= 3 && all.indexOf(n) === i).sort((a, b) => b.length - a.length);   // each name once
   for (const n of list) s = s.replace(new RegExp('(^|[^\\p{L}])' + n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?=$|[^\\p{L}])', 'giu'), '$1[NAME]');
   return s.replace(/\s+/g, ' ').trim();
 }
@@ -94,7 +94,7 @@ async function gaAiFeedback(id) {
 async function gaAiLearned(list) {
   if (!gaAiOn()) return list;
   try {
-    const r = await Promise.race([gaAiCall('/learned', null, 'GET'), new Promise((_, no) => setTimeout(() => no(new Error('slow')), 3000))]);
+    const r: any = await Promise.race([gaAiCall('/learned', null, 'GET'), new Promise((_, no) => setTimeout(() => no(new Error('slow')), 3000))]);
     const have = new Set(list.map(e => e.id));   // already in her file (the weekly build step, Phase 4): not twice
     const got = ((r.body && r.body.answers) || []).filter(x => !have.has('learned-' + x.id));
     return list.concat(got.map(x => {
