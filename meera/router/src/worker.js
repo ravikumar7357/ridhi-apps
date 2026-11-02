@@ -69,13 +69,15 @@ function cors(req, env) {
 }
 const reply = (body, status, h) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', ...(h || {}) } });
 
+/* which router this is, for the check after a deploy (GET /health) */
+export const ROUTER_VERSION = 'learn-free-2026-11-02';
 /** The whole router. deps: { fetch, store, verify, now } — the real ones by default; tests pass their own. */
 export async function handle(req, env, deps = {}) {
   const fetcher = deps.fetch || fetch;
   const url = new URL(req.url);
   const h = cors(req, env);
   if (req.method === 'OPTIONS') return h ? new Response(null, { status: 204, headers: h }) : new Response(null, { status: 403 });
-  if (url.pathname === '/health') return reply({ ok: true, groq: !!env.GROQ_API_KEY, workersAi: !!(env.AI && env.CF_AI_MODEL), gemini: !!env.GEMINI_API_KEY }, 200, h);
+  if (url.pathname === '/health') return reply({ ok: true, v: ROUTER_VERSION, search: env.SEARCH === 'parked' ? 'parked' : 'on', groq: !!env.GROQ_API_KEY, workersAi: !!(env.AI && env.CF_AI_MODEL), gemini: !!env.GEMINI_API_KEY }, 200, h);
   /* ---- the weekly build step (Phase 4): what admins approved, for meera-bank.json — GitHub's job only, with its own
    * key (secret EXPORT_KEY, in Cloudflare and in GitHub); no key set: closed ---- */
   if (url.pathname === '/export' && req.method === 'GET') {
@@ -99,7 +101,9 @@ export async function handle(req, env, deps = {}) {
 
   /* ---- her switches on the router (Phase 5): meera, ai, search — an admin changes them with no deploy ---- */
   const cfg = await db.config();
-  const isOn = k => cfg[k] !== 'off';
+  /* SEARCH PARKED (Ravi, 2 Nov: no Workers Paid — free plan): with SEARCH = "parked" (wrangler.toml) search is off whatever
+   * the admin switch says; it needs 27–53 ms a question and the free plan allows 10 ms. Everything else is as before. */
+  const isOn = k => (k === 'search' && env.SEARCH === 'parked' ? false : cfg[k] !== 'off');
   if (url.pathname === '/config' && req.method === 'GET') return reply({ meera: isOn('meera'), ai: isOn('ai'), search: isOn('search'), kbVersion: cfg.kb_version || '0' }, 200, h);
 
   /* ---- SEARCH ON THE SERVER (Phase 5): her own search (search.js), on her answers in D1 ----

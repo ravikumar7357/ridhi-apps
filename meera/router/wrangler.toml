@@ -1,7 +1,7 @@
 # Meera's router — a Cloudflare Worker (free plan). Deployed by GitHub (.github/workflows/meera-router.yml) when a
 # push to main changes meera-router/, and only once the Cloudflare secrets are in the repository's settings.
 name = "meera-router"
-main = "src/index.js"   # Phase 5: the entry bundles her meaning table (meera-words.bin) for the search
+main = "src/free.js"    # the FREE plan (2 Nov): no search on the server, no meaning table bundled. With Workers Paid: "src/index.js"
 # Ravi's Cloudflare account (erp@ridhihome.com). Not a secret: it only names the account; the token is the key.
 account_id = "9a01c041fd44e0d34dc483b6ada6c300"
 compatibility_date = "2026-10-01"
@@ -28,6 +28,9 @@ database_id = "eb3168f8-7da4-4f78-876f-07045d80712f"   # made by Ravi, 27 Oct
 [vars]
 # "true" to answer; anything else and the router says it is off (Meera then works on her own, as today).
 ENABLED = "true"
+# Her search on the server is parked (free plan: 10 ms a request; her search needs 27–53 ms). "parked" keeps it off
+# whatever the admin switch says. Remove with Workers Paid (and point main back to src/index.js).
+SEARCH = "parked"
 FIREBASE_PROJECT_ID = "price-research-48ff3"
 ALLOWED_ORIGINS = "https://fabricrush-replenish.web.app https://fabricrush-replenish.firebaseapp.com"
 # Meera's own answers, published with the ERP: the only notes a model is given.
