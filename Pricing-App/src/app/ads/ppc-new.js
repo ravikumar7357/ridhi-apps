@@ -32,6 +32,10 @@ try {
   if (s.pc) PX.pc = { n: s.pc.n || 4, len: s.pc.len || 7, end: '', preset: s.pc.preset || null };
   if (PX.dkey === 'custom') PX.dkey = 'd7';
 } catch (e) { /* storage off — defaults */ }
+// A remembered choice this version no longer has would break every render — fall back to the defaults.
+if (!['range', 'cols'].includes(PX.mode)) PX.mode = 'range';
+if (!['parent', 'child'].includes(PX.level)) PX.level = 'parent';
+if (!Array.isArray(PX.hide)) PX.hide = [];
 function pxSave() {
   try {
     localStorage.setItem(PX_KEY, JSON.stringify({ mode: PX.mode, level: PX.level, metric: PX.metric,
@@ -70,7 +74,7 @@ const PX_DATES = {
   month:  ['This month', t => [t.slice(0, 8) + '01', t]],
   lmonth: ['Last month', t => { const e = sdShift(t.slice(0, 8) + '01', -1); return [e.slice(0, 8) + '01', e]; }],
 };
-function pxRange() { return PX.dkey === 'custom' ? [PX.lo, PX.hi] : PX_DATES[PX.dkey][1](sdToday()); }
+function pxRange() { return PX.dkey === 'custom' ? [PX.lo, PX.hi] : (PX_DATES[PX.dkey] || PX_DATES.d7)[1](sdToday()); }
 
 // Column set-ups. A month splits into weeks of that month (1–7, 8–14 …); the rest are N × X days.
 const PX_COLP = [['d7x1', 'Last 7 days, day by day', 7, 1], ['month', 'This month'], ['lmonth', 'Last month'], ['m3', 'Last 3 months', 3, 30]];
@@ -109,7 +113,7 @@ const pxPrevPlan = p => { const L = pxLen(p.lo, p.hi); return pxPlan(sdShift(p.l
  * are untouched: orders per ASIN at [2] of 'v2_weekly' / 'v2_dailyAsin', ad units at [5] of 'v2_adsAsin' /
  * 'v2_adsAsinDay'. The account's UNIQUE orders come from [2] of the main 'daily' cache, as before.
  * A cache that is missing or lacks the position stores nothing, and the page shows "—", never 0. */
-let PXN = { wk: {}, day: {}, acct: {}, miss: [], run: 0 };
+let PXN = { wk: {}, day: {}, acct: {}, miss: [], cov: { oWk: '', oDay: '', ad: '' }, run: 0 };
 async function pxExtra() {
   const brands = adBrands(), wk = {}, day = {}, acct = {}, miss = [];
   const put = (store, a, key, i, v) => {
@@ -124,28 +128,46 @@ async function pxExtra() {
   // a week touching it included — so the page shows "—" there rather than a total that is quietly short.
   const gap = (d, b, lo, hi) => (d.missing || []).some(m => m.brand === b && lo <= m.end && hi >= m.start);
   const wkEnd = k => new Date(Date.parse(k + 'T00:00:00Z') + 6 * 86400000).toISOString().slice(0, 10);
+  // COVERAGE: the first date each figure exists for. A range starting earlier would add up only the part
+  // inside, so it gets no figure at all ("—"): orders begin at the oldest week / day the worker keeps, ad units
+  // at the ~93 days Amazon keeps (counted from the day the ad cache was written).
+  const cov = { oWk: '', oDay: '', ad: '' };
+  const minKey = src => { let m = ''; brands.forEach(b => Object.values(src[b] || {}).forEach(byK => Object.keys(byK || {}).forEach(k => { if (!m || k < m) m = k; }))); return m; };
   await Promise.all([
-    read('v2_weekly', d => each(d.rows || {}, (a, k, v) => put(wk, a, k, 0, v[2]))),
-    read('v2_dailyAsin', d => each(d.d || {}, (a, k, v) => put(day, a, k, 0, v[2]))),
-    read('v2_adsAsin', d => { miss.push(...(d.missing || [])); each(d.d || {}, (a, k, v, b) => { if (!gap(d, b, k, wkEnd(k))) put(wk, a, k, 1, v[5]); }); }),
+    read('v2_weekly', d => { cov.oWk = minKey(d.rows || {}); each(d.rows || {}, (a, k, v) => put(wk, a, k, 0, v[2])); }),
+    read('v2_dailyAsin', d => { cov.oDay = d.from || minKey(d.d || {}); each(d.d || {}, (a, k, v) => put(day, a, k, 0, v[2])); }),
+    read('v2_adsAsin', d => {
+      const at = String(d.at || '').slice(0, 10);
+      if (/^\d{4}-\d{2}-\d{2}$/.test(at)) cov.ad = sdShift(at, -92);
+      miss.push(...(d.missing || [])); each(d.d || {}, (a, k, v, b) => { if (!gap(d, b, k, wkEnd(k))) put(wk, a, k, 1, v[5]); });
+    }),
     read('v2_adsAsinDay', d => { miss.push(...(d.missing || [])); each(d.d || {}, (a, k, v, b) => { if (!gap(d, b, k, k)) put(day, a, k, 1, v[5]); }); }),
     read('daily', d => brands.forEach(b => {
       const o = acct[b] = {};
       Object.entries((d.d || {})[b] || {}).forEach(([k, v]) => { if (v && v[2] != null) o[k] = v[2]; });
     })),
   ]);
-  PXN = { wk, day, acct, miss, run: Date.now() };
+  PXN = { wk, day, acct, miss, cov, run: Date.now() };
 }
 /* The account's UNIQUE orders over a plan — never ASIN orders added up (an order holding two sizes is
  * one order). Only for whole brands: a searched list has no unique count to give, so "—". */
 function pxAcctOrders(p) {
   if (!p || p.src === 'none' || PX.q.trim()) return null;
   const bs = PX.brand === 'ALL' ? adBrands() : [PX.brand];
-  let n = null;
-  wDaysBetween(p.lo, p.hi).forEach(d => bs.forEach(b => {
-    const v = (PXN.acct[b] || {})[d]; if (v != null) n = (n || 0) + v;
-  }));
-  return n;
+  let n = 0;
+  // EVERY day of the range for every brand, or no figure: a day the nightly has not written yet (or one
+  // before its window) would otherwise be silently left out. Today is the exception — it is still running,
+  // and whatever the nightly has for it is all there is.
+  const today = sdToday();
+  let any = false;
+  for (const d of wDaysBetween(p.lo, p.hi)) {
+    for (const b of bs) {
+      const v = (PXN.acct[b] || {})[d];
+      if (v == null) { if (d >= today) continue; return null; }
+      n += v; any = true;
+    }
+  }
+  return any ? n : null;                       // nothing written yet (today, first thing) is "—", not 0
 }
 
 let PX_MEMO = new Map();
@@ -194,9 +216,14 @@ function pxSumAsin(a, p) {
       if (x && x[1] != null) o.adU = (o.adU || 0) + x[1];
     });
     // Any part of these dates inside a window Amazon did not deliver for this ASIN's brand: the total
-    // would be short, so there is no ad-units figure for the range at all.
+    // would be short, so there is no ad-units figure for the range at all — and the flag carries that to
+    // every total this ASIN is part of (a parent, "Both" brands), which would otherwise add up the rest.
     const b = (WEEKLY.rows[a] || {}).brand || (pxLookup()[a] || {}).brand;
-    if (o.adU != null && PXN.miss.some(m => m.brand === b && p.lo <= m.end && p.hi >= m.start)) o.adU = null;
+    if (PXN.miss.some(m => m.brand === b && p.lo <= m.end && p.hi >= m.start)) { o.adU = null; o.adGap = true; }
+    // Dates before the new figures begin: no part-totals (see `cov` in pxExtra).
+    const oStart = p.src === 'day' ? PXN.cov.oDay : PXN.cov.oWk;
+    if (!oStart || p.lo < oStart) o.o = null;
+    if (!PXN.cov.ad || p.lo < PXN.cov.ad) { o.adU = null; o.adGap = true; }
     o.se = pxSessions(a, p);
   }
   PX_MEMO.set(k, o);
@@ -216,20 +243,28 @@ function pxDerive(o) {
 }
 function pxStats(asins, p, withPrev) {
   const o = { u: 0, rev: 0, spend: null, adSales: null, o: null, adO: null, adU: null, cl: null, se: null, has: false };
-  let seGap = false;
+  let seGap = false, adGap = false;
   asins.forEach(a => {
-    const s = pxSumAsin(a, p); if (!s.has) return;
+    const s = pxSumAsin(a, p);
+    // Sessions and the gap flags count even for a size with no sales in the range: it can still have had
+    // visitors (and its brand's missing ad report still makes the total short).
+    if (s.se != null) o.se = (o.se || 0) + s.se;
+    else if (pxWholeWeeks(p)) seGap = true;
+    if (s.adGap) adGap = true;
+    if (!s.has) return;
     o.has = true; o.u += s.u; o.rev += s.rev;
     if (s.spend != null) o.spend = (o.spend || 0) + s.spend;
     if (s.adSales != null) o.adSales = (o.adSales || 0) + s.adSales;
-    PX_ADD.forEach(k => { if (s[k] != null) o[k] = (o[k] || 0) + s[k]; });
-    if (s.se == null && pxWholeWeeks(p)) seGap = true;
+    PX_ADD.forEach(k => { if (k !== 'se' && s[k] != null) o[k] = (o[k] || 0) + s[k]; });
   });
   if (seGap) o.se = null;                      // one brand's weekly report missing: no part-total
+  if (adGap) o.adU = null;                     // one brand's ad report missing, or dates before ~93 days
   pxDerive(o);
+  // "vs prev" only for finished periods: today or this month so far, set beside a whole period before
+  // them, reads as a collapse (and fills the "Falling" chip) when nothing has fallen.
   if (withPrev) {
-    const q = pxStats(asins, pxPrevPlan(p), false);
-    o.vp = o.has && q.has && q.rev ? (o.rev - q.rev) / q.rev * 100 : null;
+    const q = p.hi >= sdToday() ? null : pxStats(asins, pxPrevPlan(p), false);
+    o.vp = q && o.has && q.has && q.rev ? (o.rev - q.rev) / q.rev * 100 : null;
   }
   return o;
 }
@@ -291,8 +326,9 @@ function pxEntities() {
   const g = {};
   keep.forEach(([a, b]) => {
     const p = wParentOf(a);
-    const o = g[p] || (g[p] = { key: p, brand: b, asins: [], title: '' });
+    const o = g[p] || (g[p] = { key: p, brand: b, asins: [], title: '', find: '' });
     o.asins.push(a);
+    o.find += ' ' + a + ' ' + ((look[a] || {}).sku || '');    // a size's ASIN or SKU finds its parent
     if (!o.title) {
       const own = PNAME[b]?.[p]?.v || HEALTH[b]?.parentNames?.[p] || '';
       o.title = own || (wTitle(a) ? '~ ' + wTitle(a) : '');
@@ -343,7 +379,7 @@ function pxCtx() {
   // Everything one render needs, worked out once.
   const ents = pxEntities();
   const q = PX.q.trim().toLowerCase();
-  const found = q ? ents.filter(e => (e.title + ' ' + e.key + ' ' + (e.sku || '') + ' ' + (e.size || '')).toLowerCase().includes(q)) : ents;
+  const found = q ? ents.filter(e => (e.title + ' ' + e.key + ' ' + (e.sku || '') + ' ' + (e.size || '') + (e.find || '')).toLowerCase().includes(q)) : ents;
   let span, cols = null;
   if (PX.mode === 'cols') {
     cols = pxCols(PX.pc).map(([lo, hi]) => pxPlan(lo, hi));
@@ -374,13 +410,15 @@ function pxChange(e, ctx) {
   if (a == null || b == null) return null;
   return pxIsPct(PX.metric) ? { v: a - b, pt: true } : b ? { v: (a - b) / b * 100 } : null;
 }
+// Each row's sort value is worked out ONCE, not on every comparison: in columns mode at child level that
+// was ~6,000 rows × log n comparisons × two pxStats each.
 function pxSorted(list, ctx) {
-  return list.slice().sort((x, y) => {
-    const a = pxVal(x, PX.sk, ctx), b = pxVal(y, PX.sk, ctx);
+  return list.map(e => ({ e, v: pxVal(e, PX.sk, ctx) })).sort((x, y) => {
+    const a = x.v, b = y.v;
     if (a == null && b == null) return 0; if (a == null) return 1; if (b == null) return -1;
     const c = typeof a === 'string' ? a.localeCompare(b) : a - b;
     return c * PX.sd;
-  });
+  }).map(x => x.e);
 }
 
 const pxTh = (label, k, cls, sub) => `<th class="px-th ${cls || ''}" tabindex="0" data-pxsort="${k}"${PX.sk === k ? ` data-dir="${PX.sd > 0 ? 'asc' : 'desc'}"` : ''}>${label}${sub ? `<small>${sub}</small>` : ''}</th>`;
@@ -494,10 +532,11 @@ function pxColTable(rows, ctx) {
 }
 
 function pxDatePop() {
-  const d = PX.draft, min = WDAY.from || '', max = sdToday();
-  return `<div class="px-pop" style="left:16px" role="dialog" aria-label="Pick dates"><div class="px-pop-h"><b>Pick dates</b><span>${WDAY.from ? 'Day by day from ' + pxEsc(pxDM(WDAY.from)) : ''}</span></div>`
-    + `<div class="px-frow"><span>From</span><input class="px-inp" type="date" id="pxFrom" ${min ? `min="${min}"` : ''} max="${max}" value="${d.lo}"></div>`
-    + `<div class="px-frow"><span>To</span><input class="px-inp" type="date" id="pxTo" ${min ? `min="${min}"` : ''} max="${max}" value="${d.hi}"></div>`
+  // No lower limit: older dates work as whole Sunday–Saturday weeks, and the page says so when they are not.
+  const d = PX.draft, max = sdToday();
+  return `<div class="px-pop" style="left:16px" role="dialog" aria-label="Pick dates"><div class="px-pop-h"><b>Pick dates</b><span>${WDAY.from ? 'Any day from ' + pxEsc(pxDM(WDAY.from)) + ', whole weeks before' : ''}</span></div>`
+    + `<div class="px-frow"><span>From</span><input class="px-inp" type="date" id="pxFrom" max="${max}" value="${d.lo}"></div>`
+    + `<div class="px-frow"><span>To</span><input class="px-inp" type="date" id="pxTo" max="${max}" value="${d.hi}"></div>`
     + '<div class="px-note">Compared with the same number of days just before.</div>'
     + '<div class="px-pop-f"><button class="px-btn" data-px="cancel">Cancel</button><button class="px-btn px-dark" data-px="applydate">Apply</button></div></div>';
 }
@@ -639,7 +678,13 @@ function pxStick() {
 function pxCsv() {
   const ctx = pxCtx();
   const list = pxSorted(ctx.found.filter(e => PX_FILTERS[PX.chip][1](e.st)), ctx);
-  const sku = PX.level === 'child', q = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+  // A cell starting with = + - @ would be run as a formula by Excel / Sheets; a leading ' keeps it text.
+  // Numbers are left alone (a negative "vs prev" is a number, not a formula).
+  const sku = PX.level === 'child', q = v => {
+    let s = String(v == null ? '' : v);
+    if (/^[=+\-@]/.test(s) && isNaN(+s)) s = "'" + s;
+    return '"' + s.replace(/"/g, '""') + '"';
+  };
   const num = (v, d) => (v == null ? '' : (+v).toFixed(d));
   let head, rows;
   if (PX.mode === 'cols') {
@@ -724,8 +769,10 @@ function pxWire() {
     const t = e.target;
     if (t.id === 'pxFrom' && t.value) PX.draft.lo = t.value;
     if (t.id === 'pxTo' && t.value) PX.draft.hi = t.value;
-    if (t.id === 'pxLenIn') { PX.draft.len = Math.max(1, Math.min(90, Math.round(+t.value || 1))); PX.draft.preset = null; go(false, '#pxLenIn'); }
-    if (t.id === 'pxEndIn' && t.value) { PX.draft.end = t.value; PX.draft.preset = null; go(); }
+    // Draft only — no re-render here. Typing a number and then clicking Apply fires this change on blur, and a
+    // re-render at that moment replaced the Apply button under the mouse, so the click was lost.
+    if (t.id === 'pxLenIn') { PX.draft.len = Math.max(1, Math.min(90, Math.round(+t.value || 1))); PX.draft.preset = null; }
+    if (t.id === 'pxEndIn' && t.value) { PX.draft.end = t.value; PX.draft.preset = null; }
     if (t.dataset.pxhide) {
       const k = t.dataset.pxhide;
       PX.hide = t.checked ? PX.hide.filter(x => x !== k) : PX.hide.concat(k);
@@ -740,10 +787,14 @@ function pxWire() {
     qt = setTimeout(() => { PX.q = e.target.value; PX.show = PX_PAGE; pxRender('#pxQ'); }, 200);
   });
   // A panel closes on a click outside it, or on Escape — it hangs over the work, so it does not linger.
+  // Only the panel is taken away — no re-render: redrawing the pane on mousedown replaced whatever was under
+  // the mouse (a sort header, Download), so the click that closed the panel never reached it.
   document.addEventListener('mousedown', e => {
     if (!PX.pop || TAB_NOW !== 'ppcn') return;
     if (e.target.closest('.px-pop,[data-px^="pop-"],[data-px="split"]')) return;
-    PX.pop = null; pxRender();
+    PX.pop = null;
+    pane.querySelectorAll('.px-pop').forEach(el => el.remove());
+    pane.querySelectorAll('[data-px^="pop-"][aria-expanded="true"]').forEach(el => el.setAttribute('aria-expanded', 'false'));
   });
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape' && PX.pop && TAB_NOW === 'ppcn') { PX.pop = null; pxRender(); }
@@ -775,7 +826,6 @@ async function ensurePpcn() {
     let from = '';
     try { from = await wNightly(); } catch (e) { /* whatever is stored stays on screen */ }
     PX.msg = '';
-    if (from) WEEKLY.at = WEEKLY.at || from;
-    if (TAB_NOW === 'ppcn') pxRender();
+    if (TAB_NOW === 'ppcn') pxRender();          // (the old tab's WEEKLY.at is its own; not written here)
   }
 }
