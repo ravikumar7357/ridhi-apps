@@ -773,7 +773,8 @@ function flowPpcXlRead(sheet) {
   const H = sheet[0].map(h => String(h == null ? '' : h).replace(/^\uFEFF/, '').trim().toLowerCase());
   const at = n => H.indexOf(String(n).toLowerCase()), iK = at('Line ID'), iR = H.findIndex(h => /^raise/.test(h));
   if (iK < 0 || iR < 0) return { err: 'The file needs the "Line ID" and "Raise (yes/no)" columns — download the PPC list as Excel and fill that one.' };
-  const byKey = new Map(flowRows().filter(x => x.s.bucket === 'ppc').map(x => [x.s.key, x]));
+  /* the SHP board's own lines (bucket 'board') are planned from its sheet the same way (2 Nov) */
+  const byKey = new Map(flowRows().filter(x => x.s.bucket === 'ppc' || x.s.bucket === 'board').map(x => [x.s.key, x]));
   let vens = []; try { vens = flowChVendors(); } catch (e) { vens = []; }
   const venOf = s => { const t = String(s || '').trim().toLowerCase(); if (!t) return '';
     const v = vens.find(y => String(y.code).toLowerCase() === t) || vens.find(y => String(y.desc || y.name || '').trim().toLowerCase() === t); return v ? String(v.code) : null; };
@@ -811,7 +812,7 @@ function flowPpcXlRead(sheet) {
 /* The imported lines still in PPC, opened in the form a batch at a time. */
 let FLOW_XL_IMP = [];
 const FLOW_XL_BATCH = 40;
-const flowXlLeft = () => { const inPpc = new Set(flowRows().filter(x => x.s.bucket === 'ppc').map(x => x.s.key)); return FLOW_XL_IMP.filter(k => inPpc.has(k)); };
+const flowXlLeft = () => { const inPpc = new Set(flowRows().filter(x => x.s.bucket === 'ppc' || x.s.bucket === 'board').map(x => x.s.key)); return FLOW_XL_IMP.filter(k => inPpc.has(k)); };
 function flowXlOpenNext() {
   const left = flowXlLeft(); if (!left.length) { FLOW_XL_IMP = []; return; }
   const batch = left.slice(0, FLOW_XL_BATCH);
@@ -819,7 +820,7 @@ function flowXlOpenNext() {
   /* the imported lines are ticked "Raise now" — that is what the sheet said */
   document.querySelectorAll('[data-fpick]').forEach(el => { el.checked = true; try { el.dispatchEvent(new Event('change')); } catch (e) { /* no events here */ } });
 }
-function flowPpcXlOut(rows) {
+function flowPpcXlOut(rows, fileName) {
   const col = n => FLOW_XL_COLS.indexOf(n);
   let prn = []; try { prn = [...new Set(flowChVendors().map(v => v.desc || v.name || v.code).filter(Boolean))]; } catch (e) { prn = []; }
   let emb = []; try { emb = flowEmbVendors().map(v => v.dept ? v.name : (v.desc || v.name || v.code)); } catch (e) { emb = []; }
@@ -830,15 +831,16 @@ function flowPpcXlOut(rows) {
     { name: 'Embroiderers', values: emb, cols: [col('Embroidery by')] }] });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
-  a.download = 'ppc-plan-' + dToday() + '.xlsx';
+  a.download = (fileName || 'ppc-plan') + '-' + dToday() + '.xlsx';
   a.click(); URL.revokeObjectURL(a.href);
 }
-async function flowPpcXlIn(file) {
+async function flowPpcXlIn(file, msgId) {
   if (!file) return;
+  const msg = (typeof $ === 'function' && $(msgId || 'flMsg')) || $('flMsg');
   let sheet; try { sheet = /\.xlsx$/i.test(file.name) ? await pkReadXlsx(new Uint8Array(await file.arrayBuffer())) : parseCsv(await file.text()); }
-  catch (e) { $('flMsg').className = 'err'; $('flMsg').textContent = 'Could not read the file: ' + (e.message || e); return; }
+  catch (e) { msg.className = 'err'; msg.textContent = 'Could not read the file: ' + (e.message || e); return; }
   const rd = flowPpcXlRead(sheet);
-  if (rd.err) { $('flMsg').className = 'err'; $('flMsg').textContent = rd.err; return; }
+  if (rd.err) { msg.className = 'err'; msg.textContent = rd.err; return; }
   const list = (a, n) => a.length ? `<div style="margin-top:6px"><b>${nf(a.length)}</b> ${n}:<div class="muted" style="font-size:12px">${a.slice(0, 12).map(esc).join('<br>')}${a.length > 12 ? '<br>…' : ''}</div></div>` : '';
   const pos = new Set(rd.keys.map(k => k.split('__')[0]));
   ptOpenDialog({

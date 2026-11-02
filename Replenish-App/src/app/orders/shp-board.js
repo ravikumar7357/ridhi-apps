@@ -294,6 +294,11 @@ function renderShpBoard() {
         + `<button type="button" data-shpb-bulk="1" style="${b}"${n ? '' : ' disabled'} title="One plan form for every ticked line — printer, fabric, dates; each line's print order is raised on Save">Plan the ${nf(Math.min(n, SHPB_BULK_MAX))} ticked${n > SHPB_BULK_MAX ? ' (of ' + nf(n) + ')' : ''}</button>`
         + (can.length ? `<button type="button" class="ghost" data-shpb-pickall="${esc(can.slice(0, SHPB_BULK_MAX).join(','))}" style="${b}">Tick the first ${nf(Math.min(can.length, SHPB_BULK_MAX))} not planned</button>` : '')
         + (n ? `<button type="button" class="ghost" data-shpb-pickclear="1" style="${b}">Clear ticks</button>` : '')
+        /* PLAN FROM EXCEL (Ravi, 2 Nov: "excel se printer ko plan de saku"): the lines shown with no plan as PPC's sheet — fill Printer (and
+         * anything else), Raise = yes, upload; the plan form opens with those lines ticked, 40 at a time, and its Save raises the print orders. */
+        + (can.length ? `<button type="button" class="ghost" data-shpb-xlout="1" style="${b}" title="The ${nf(can.length)} line(s) shown with no plan, as the PPC sheet — fill Printer and Raise = yes">Excel (not planned)</button>` : '')
+        + `<button type="button" class="ghost" data-shpb-xlin="1" style="${b}" title="Upload the filled sheet — rows marked Raise = yes open in the plan form">Import plan</button><input type="file" accept=".xlsx,.csv" data-shpb-xlfile="1" class="hide">`
+        + (typeof FLOW_XL_IMP !== 'undefined' && FLOW_XL_IMP.length && flowXlLeft().length ? `<button type="button" data-shpb-xlnext="1" style="${b}">Open imported (${nf(flowXlLeft().length)})</button>` : '')
         + `<span class="muted" style="font-size:12px">${nf(can.length)} line(s) shown with no plan · up to ${SHPB_BULK_MAX} in one form</span></div>` : '';
     })() : '');
   $('odMsg').className = SHPB.err ? 'err' : 'muted';
@@ -598,12 +603,24 @@ if ($('odTable') && $('odTable').addEventListener) {
 if ($('ptDlgBody') && $('ptDlgBody').addEventListener) $('ptDlgBody').addEventListener('click', e => {
   const b = e.target.closest && e.target.closest('[data-shpb-recv]'); if (b) { const id = b.dataset.shpbRecv; ptDlgClose(); jwRecvOpen(id); }
 });
+if ($('odKpis') && $('odKpis').addEventListener) $('odKpis').addEventListener('change', e => {
+  const f = e.target.closest && e.target.closest('[data-shpb-xlfile]'); if (!f) return;
+  const file = f.files && f.files[0]; f.value = '';
+  if (file && typeof flowPpcXlIn === 'function') flowPpcXlIn(file, 'odMsg');
+});
 if ($('odKpis') && $('odKpis').addEventListener) $('odKpis').addEventListener('click', e => {
   if (!shpbIsBoard(ordView())) return;
   const t = e.target.closest && e.target.closest('[data-shpb-tab]'); if (t) { SHPB.tab = t.dataset.shpbTab; SHPB.stage = ''; renderShpBoard(); return; }
   if (e.target.closest && e.target.closest('[data-shpb-bulk]')) { shpbBulkPlan(); renderShpBoard(); return; }
   const pa = e.target.closest && e.target.closest('[data-shpb-pickall]'); if (pa) { pa.dataset.shpbPickall.split(',').filter(Boolean).forEach(k => SHPB.pick.add(k)); renderShpBoard(); return; }
   if (e.target.closest && e.target.closest('[data-shpb-pickclear]')) { SHPB.pick = new Set(); renderShpBoard(); return; }
+  if (e.target.closest && e.target.closest('[data-shpb-xlout]')) {
+    const keys = new Set(shpbView().list.filter(r => !shpbPlanOf(r)).map(shpbPickKey));
+    try { flowPpcXlOut(flowRows().filter(x => keys.has(x.s.key)), shpbKind() + '-board-plan'); } catch (x) { $('odMsg').className = 'err'; $('odMsg').textContent = 'Could not make the sheet: ' + (x.message || x); }
+    return;
+  }
+  if (e.target.closest && e.target.closest('[data-shpb-xlin]')) { const f = document.querySelector('[data-shpb-xlfile]'); if (f) f.click(); return; }
+  if (e.target.closest && e.target.closest('[data-shpb-xlnext]')) { flowXlOpenNext(); return; }
   const g = e.target.closest && e.target.closest('[data-shpb-stage]');
   if (g) { SHPB.stage = SHPB.stage === g.dataset.shpbStage ? '' : g.dataset.shpbStage; SHPB.tab = SHPB.stage === 'hand' ? 'done' : 'pending'; renderShpBoard(); }
 });
