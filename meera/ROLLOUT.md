@@ -117,7 +117,12 @@ Nothing changes for staff: every switch (learn, server, serveruse) stays off in 
 **Roll back** (any one): Cloudflare → Workers & Pages → meera-router → Deployments → previous → Rollback; or in Meera's
 learning → Switches, turn "Search on the server" off (every browser searches on its own, at once, no deploy).
 
-## 5. Server search (Phase 5) on the test link — after the router is deployed
+## 5. Server search (Phase 5) — PARKED (Ravi, 2 Nov 2026: "I'm not taking Workers Paid for now")
+
+Its search needs 27–53 ms of computer time per question; the free plan allows 10 ms. The code stays (switches `server`
+and `serveruse` off for everyone) and is not deployed; everything else on her router fits the free plan. To take it up
+again: Workers Paid, then the checks below.
+
 
 1. `?meera=lazy,server` (side by side): nothing looks different. Ask 10–20 everyday questions. Meera's learning →
    Switches shows how many the server answered the same.

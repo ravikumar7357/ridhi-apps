@@ -1,0 +1,93 @@
+# MEERA'S ANSWERS FOLLOW THE SCREENS — PROPOSED, NEVER PUT LIVE BY ITSELF (switch "autobank"; Ravi, 2 Nov 2026).
+#
+# After a push to main or a test link (preview/…) that changes the screens, meera/tools/autobank.cjs compares the screens
+# with her answers. When the switch is on in that branch (MEERA_SWITCHES.autobank in core/meera-bridge.js) and something
+# changed, its changes are written to a branch of their own — autobank/<branch> — and a pull request into the branch
+# that was pushed is opened (or brought up to date), listing every change in plain words with her gate's result.
+# Nothing reaches the live site until a person merges that pull request; the merge is an ordinary push to main, so her
+# gate runs again before the deploy. The deploy itself (replenish-hosting.yml) only ever REPORTS what autobank would do.
+#
+# Permission: this workflow alone may write — to push its autobank/* branch and open the pull request. It never pushes
+# to main or preview/*. Opening the pull request also needs the repository setting "Allow GitHub Actions to create and
+# approve pull requests" (Settings → Actions → General); without it the branch is pushed and the run's summary gives the
+# one-click link to open the pull request by hand.
+name: Meera — autobank proposal
+
+on:
+  push:
+    branches: [main, 'preview/**']
+    paths: ['Replenish-App/src/**', 'meera/tools/autobank.cjs', 'meera/tools/catalog.cjs', 'meera/bank/catalog.json']
+  workflow_dispatch:
+
+concurrency:
+  group: meera-autobank-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  propose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: Replenish-App/package-lock.json
+
+      - name: Her answers and the screens
+        id: ab
+        run: |
+          node meera/tools/autobank.cjs --ci --apply | tee /tmp/autobank.txt
+          if git diff --quiet -- Replenish-App/public/guide meera/bank; then echo "changed=no" >> "$GITHUB_OUTPUT"; else echo "changed=yes" >> "$GITHUB_OUTPUT"; fi
+
+      - name: Rebuild her files and run her gate
+        if: steps.ab.outputs.changed == 'yes'
+        id: gate
+        working-directory: Replenish-App
+        run: |
+          npm ci
+          node ../meera/client/build.cjs
+          node tests/assemble.js --force
+          if node ../meera/tests/ci-gate.cjs > /tmp/gate.txt 2>&1; then echo "result=passed" >> "$GITHUB_OUTPUT"; else echo "result=BLOCKED" >> "$GITHUB_OUTPUT"; fi
+          tail -25 /tmp/gate.txt
+
+      - name: Push the proposal and open the pull request
+        if: steps.ab.outputs.changed == 'yes'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BASE: ${{ github.ref_name }}
+          GATE: ${{ steps.gate.outputs.result }}
+        run: |
+          HEAD="autobank/${BASE//\//-}"
+          git config user.name "Meera autobank"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B "$HEAD"
+          git add -A Replenish-App/public meera/bank
+          git commit -q -m "Meera autobank: her answers follow the screens (proposed for ${BASE})" -m "$(head -c 60000 /tmp/autobank.txt)"
+          git push -f origin "HEAD:refs/heads/$HEAD"
+          {
+            echo "Meera's answers, brought in step with the screens by \`meera/tools/autobank.cjs\` after a push to \`${BASE}\`."
+            echo "Nothing here is live until this pull request is merged; merging runs her gate again before the deploy."
+            echo
+            echo "**Her gate on this proposal: ${GATE}**"
+            echo
+            echo '```'
+            head -c 50000 /tmp/autobank.txt
+            echo '```'
+            echo
+            echo "New screens and new jobs are never written by themselves: they are drafts on the admin page (Meera's learning → New on the screens)."
+          } > /tmp/body.md
+          if gh pr view "$HEAD" --json number > /dev/null 2>&1; then
+            gh pr edit "$HEAD" --body-file /tmp/body.md && echo "Pull request brought up to date." >> "$GITHUB_STEP_SUMMARY"
+          elif gh pr create --base "$BASE" --head "$HEAD" --title "Meera autobank: answers follow the screens (${BASE})" --body-file /tmp/body.md; then
+            echo "Pull request opened." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "The proposal is on branch \`$HEAD\`. GitHub would not let this workflow open the pull request (repository setting \"Allow GitHub Actions to create and approve pull requests\"). Open it here: https://github.com/${GITHUB_REPOSITORY}/compare/${BASE}...${HEAD}?expand=1" >> "$GITHUB_STEP_SUMMARY"
+          fi

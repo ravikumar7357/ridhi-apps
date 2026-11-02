@@ -161,6 +161,7 @@ function run() {
   console.log(report);
   if (has('--ci') && process.env.GITHUB_STEP_SUMMARY) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, '### ' + head + '\n\n' + lines.map(l => '- ' + l).join('\n') + (flags.length ? '\n\n**To check by hand**\n\n' + flags.map(f => '- ' + f).join('\n') : '') + '\n');
   if (!apply) return;
+  if (!d.added.length && !d.gone.length && !d.renamed.length && !d.screens.length && !d.jobs.length) return;   // nothing new: no files touched (no pull request)
 
   /* apply: her answers, the drafts, the screens as now seen, and the CHANGES list */
   const rm = new Set(plan.remove.map(e => e.id));
