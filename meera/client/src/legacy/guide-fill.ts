@@ -21,7 +21,7 @@ const gfWait = ms => new Promise(r => setTimeout(r, ms));
 function gfOptions(el) {
   if (!el) return [];
   if (el.tagName === 'SELECT') return [...el.options].filter(o => o.value && !o.disabled).map(o => ({ v: o.value, t: (o.textContent || o.value).trim() }));
-  const id = el.getAttribute('list'), dl = id && document.getElementById(id);
+  const id = el.getAttribute('list'), dl = id && (document.getElementById(id) as HTMLDataListElement | null);
   return dl ? [...dl.options].filter(o => o.value).map(o => ({ v: o.value, t: (o.label || o.textContent || o.value).trim() || o.value })) : [];
 }
 /** Fill a box the way a person would: the value, then the box's own events. */
@@ -118,7 +118,7 @@ const gfFromLast = last => (st, el) => { const x = (last || []).find(r => r[0] =
  * name or by a number in it (order 1234 → "ORD-1234"); pieces need a word for pieces after the number. */
 function gfFromSentence(text) {
   const s = ' ' + String(text).toLowerCase().replace(/[^\p{L}\p{M}\p{N}\s-]+/gu, ' ').replace(/\s+/g, ' ') + ' ';
-  const nums = s.match(/\d+/g) || [];
+  const nums: string[] = s.match(/\d+/g) || [];
   const pcs = (/(\d+)\s*(pcs|pc|piece|pieces|peace|pis|nag|nang|पीस|नग)(?=\s)/.exec(s) || [])[1];
   return (st, el) => {
     if (el.type === 'number') return /pcs|piece|checked|qty/i.test(el.id + ' ' + (el.placeholder || '')) && pcs ? pcs : null;
