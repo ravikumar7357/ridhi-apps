@@ -36,6 +36,15 @@ export function makeService({ files, env, fetcher = fetch }) {
     } catch (e) { /* her router not reachable: the approved answers she already had */ }
     return learned.list;
   }
+  async function ticket(auth) {
+    if (!env.ROUTER_URL) return { ok: false, why: 'no-router' };
+    try {
+      const r = await fetcher(env.ROUTER_URL.replace(/\/$/, '') + '/search-ticket', { method: 'POST', headers: { authorization: auth, origin: 'https://fabricrush-replenish.web.app', 'content-type': 'application/json' }, body: '{}' });
+      if (!r.ok) return { ok: false, why: 'router-' + r.status };
+      const j = await r.json();
+      return { ok: !!j.ok, why: j.why || '' };
+    } catch (e) { return { ok: false, why: 'router-down' }; }   // fail closed: no count, no search
+  }
   const ready = async auth => {
     const list = auth ? await readLearned(auth) : learned.list;
     return engine({ kbAll: async () => rows, learned: async () => list }, files.words, files.version + ':' + list.length);
@@ -45,7 +54,10 @@ export function makeService({ files, env, fetcher = fetch }) {
       const h = cors(req.origin);
       if (req.method === 'OPTIONS') return h ? { status: 204, headers: h, body: '' } : out(403, { error: 'origin' });
       if (!h) return out(403, { error: 'origin' });
-      if (req.path === '/wake' && req.method === 'GET') { const E = await ready(''); return out(200, { ok: true, n: E.n, loadMs: E.loadMs }, h); }
+      if (req.path === '/wake' && req.method === 'GET') {
+        if (!(await verify(String(req.authorization || '').replace(/^Bearer\s+/i, ''), env, fetcher))) return out(401, { error: 'sign-in' }, h);
+        const E = await ready(''); return out(200, { ok: true, n: E.n, loadMs: E.loadMs }, h);
+      }
       if (req.path === '/search' && req.method === 'POST') {
         const who = await verify(String(req.authorization || '').replace(/^Bearer\s+/i, ''), env, fetcher);
         if (!who) return out(401, { error: 'sign-in' }, h);
@@ -55,6 +67,10 @@ export function makeService({ files, env, fetcher = fetch }) {
         if (n > PER_DAY) return out(429, { error: 'too-many' }, h);
         let body = req.body;
         if (typeof body === 'string') { try { body = JSON.parse(body); } catch (e) { return out(400, { error: 'json' }, h); } }
+        /* the daily limit for all staff together (her router's shared count, 5,000): over it, or her router out of
+         * reach, no search here — the browser answers from her own copy (a firm limit: never more, whatever restarts) */
+        const t = await ticket(req.authorization);
+        if (!t.ok) return out(429, { error: t.why || 'daily-limit' }, h);
         const E = await ready(req.authorization);
         const r = search(E, { ...body, admin: who.admin });
         return out(200, { ...r, v: E.version, n: E.n }, h);

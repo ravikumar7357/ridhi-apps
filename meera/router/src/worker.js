@@ -108,6 +108,15 @@ export async function handle(req, env, deps = {}) {
    * router's own search stays parked (below) */
   if (url.pathname === '/config' && req.method === 'GET') return reply({ meera: isOn('meera'), ai: isOn('ai'), search: isOn('search'), kbVersion: cfg.kb_version || '0' }, 200, h);
 
+  /* ---- A TICKET for one search on Cloud Functions (D.2; Ravi: "a total daily limit for all staff together"): the function
+   * asks here before each search; over SEARCH_DAILY (5,000) today, or the admin switch off, it is refused — the browser
+   * then answers from her own copy. One shared count, so restarts of the function cannot reset it. ---- */
+  if (url.pathname === '/search-ticket' && req.method === 'POST') {
+    if (!isOn('search')) return reply({ ok: false, why: 'search-off' }, 200, h);
+    const t = await db.count('search:*', +env.SEARCH_DAILY || 5000, now);
+    return reply({ ok: t.ok, n: t.n, max: +env.SEARCH_DAILY || 5000, why: t.ok ? '' : 'daily-limit' }, 200, h);
+  }
+
   /* ---- SIDE BY SIDE with her search on Cloud Functions (D.2): the browser's and the function's top answers; kept with the
    * question cleaned again here, for "Meera's learning → Switches" ("… of … the same") ---- */
   if (url.pathname === '/diff' && req.method === 'POST') {

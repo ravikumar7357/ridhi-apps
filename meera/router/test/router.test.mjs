@@ -314,6 +314,13 @@ const sent = () => JSON.stringify(calls.map(c => c.body));
   const view = await s.call('/admin/search', { method: 'GET', tok: admin });
   ok(view.body.asked === 2 && view.body.same === 1 && !JSON.stringify(view.body).includes('Ramesh'), 'the comparison is counted, with names cleaned out');
   ok((await s.call('/diff', { tok: null, body: { q: 'x' } })).status === 401, '/diff only for signed-in staff');
+  /* the daily limit for all staff together */
+  const s2 = setup({ SEARCH: 'parked', SEARCH_DAILY: '3' }), a2 = await token({ email: 'ravi@x.com' }), got = [];
+  for (let i = 0; i < 4; i++) got.push((await s2.call('/search-ticket', { body: {} })).body.ok);
+  ok(got.join() === 'true,true,true,false', 'search tickets: 3 a day for everyone together, then refused (' + got.join() + ')');
+  await s2.call('/admin/config', { tok: a2, body: { key: 'search', value: 'off' } });
+  ok((await s2.call('/search-ticket', { body: {} })).body.why === 'search-off', 'the admin switch off: no tickets');
+  ok((await s2.call('/search-ticket', { tok: null, body: {} })).status === 401, 'tickets only for signed-in staff');
   ok((await s.call('/learn', { body: { kind: 'missed', q: 'packing list kya hai', screen: 'pack' } })).status === 200, 'parked: learning records still kept');
   ok((await s.call('/ask', { body: { q: 'how do i give job work', lang: 'en', screen: 'pbase' } })).status === 200, 'parked: AI answers still work');
   const { default: free } = await import('../src/free.js');

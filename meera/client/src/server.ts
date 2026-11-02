@@ -55,7 +55,7 @@ let SRV_WOKE = 0;
 function meeraServerWake(): void {
   if (!(MEERA_SIDE || MEERA_REMOTE) || !MEERA_CONFIG.searchUrl || Date.now() - SRV_WOKE < 5 * 60e3) return;
   SRV_WOKE = Date.now();
-  try { fetch(MEERA_CONFIG.searchUrl.replace(/\/$/, '') + '/wake').catch(() => { /* asleep: her own copy answers */ }); } catch (e) { /* no network */ }
+  srvCall('/wake', null, MEERA_CONFIG.searchWaitMs, MEERA_CONFIG.searchUrl).catch(() => { /* asleep: her own copy answers */ });   // with the person's sign-in
 }
 
 /* ---------- side by side ---------- */

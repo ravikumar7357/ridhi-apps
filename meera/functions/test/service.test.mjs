@@ -25,9 +25,10 @@ async function token(over = {}) {
   const body = b64u(JSON.stringify({ aud: PROJECT, iss: 'https://securetoken.google.com/' + PROJECT, sub: 'u1', email: 'staff@x.com', iat: now, exp: now + 3600, ...over }));
   return head + '.' + body + '.' + b64u(new Uint8Array(await crypto.subtle.sign('RSASSA-PKCS1-v1_5', kp.privateKey, new TextEncoder().encode(head + '.' + body))));
 }
-let routerCalls = 0;
+let routerCalls = 0, tickets = 0, LIMIT = 5000, routerDown = false;
 const fakeFetch = async url => {
   url = String(url);
+  if (url.endsWith('/search-ticket')) { if (routerDown) throw new Error('down'); tickets++; return { ok: true, json: async () => ({ ok: tickets <= LIMIT, n: tickets, why: tickets <= LIMIT ? '' : 'daily-limit' }) }; }
   if (url.includes('securetoken@system.gserviceaccount.com')) return { ok: true, json: async () => ({ keys: [jwk] }) };
   if (url.endsWith('/learned')) { routerCalls++; return { ok: true, json: async () => ({ answers: [{ id: 7, question: 'zebra pattern dupatta kaise banaye', screen: 'pbase', answer: { a: 'Press **Zebra**.' } }] }) }; }
   return { ok: false, status: 404, json: async () => ({}) };
@@ -48,7 +49,8 @@ ok((await call('/search', { auth: 'Bearer bad.token.x', body: { q: 'x' } })).sta
 ok((await call('/nothing', { auth: tok })).status === 404, 'nothing else is there');
 
 /* waking up */
-{ const t0 = Date.now(), w = await call('/wake', { method: 'GET' }), j = JSON.parse(w.body);
+ok((await call('/wake', { method: 'GET' })).status === 401, '/wake only for signed-in staff');
+{ const t0 = Date.now(), w = await call('/wake', { method: 'GET', auth: tok }), j = JSON.parse(w.body);
   ok(w.status === 200 && j.ok && j.n > 3000, `/wake starts her search (${j.n} answers, ${Date.now() - t0} ms)`); }
 
 /* the same answers as her browser */
@@ -73,6 +75,14 @@ ok((await call('/nothing', { auth: tok })).status === 404, 'nothing else is ther
 { const T = 'Bearer ' + await token({ sub: 'busy' }); let last;
   for (let i = 0; i < 401; i++) last = await call('/search', { auth: T, body: { q: 'packing list', screen: 'pack', lang: 'en' } });
   ok(last.status === 429, 'one person: at most 400 questions a day per instance'); }
+
+/* the daily limit for all staff together (her router's shared count) */
+{ LIMIT = tickets + 2; const T = 'Bearer ' + await token({ sub: 'u-limit' }), s = [];
+  for (let i = 0; i < 3; i++) s.push((await call('/search', { auth: T, body: { q: 'packing list', screen: 'pack', lang: 'en' } })).status);
+  ok(s.join() === '200,200,429', 'past the daily limit for all staff: refused (' + s.join() + ')');
+  LIMIT = 1e9; routerDown = true;
+  ok((await call('/search', { auth: T, body: { q: 'packing list', screen: 'pack', lang: 'en' } })).status === 429, 'her router out of reach: no search (fails closed)');
+  routerDown = false; }
 
 /* keeps nothing, writes nothing; the limits */
 { const src = ['service.js', 'index.js'].map(f => readFileSync(path.join(F, f), 'utf8')).join('\n').replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');   // the code, not its notes

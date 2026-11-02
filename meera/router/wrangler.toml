@@ -31,6 +31,8 @@ ENABLED = "true"
 # Her search on the server is parked (free plan: 10 ms a request; her search needs 27–53 ms). "parked" keeps it off
 # whatever the admin switch says. Remove with Workers Paid (and point main back to src/index.js).
 SEARCH = "parked"
+# Her search on Firebase Cloud Functions (D.2): questions a day for ALL staff together; past it, her own copy answers.
+SEARCH_DAILY = "5000"
 FIREBASE_PROJECT_ID = "price-research-48ff3"
 ALLOWED_ORIGINS = "https://fabricrush-replenish.web.app https://fabricrush-replenish.firebaseapp.com"
 # Meera's own answers, published with the ERP: the only notes a model is given.

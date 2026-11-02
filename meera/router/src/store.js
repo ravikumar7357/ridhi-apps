@@ -17,6 +17,12 @@ export function store(db) {
       const n1 = (mine.results && mine.results[0] || {}).n || 0, n2 = (all.results && all.results[0] || {}).n || 0;
       return { ok: n1 <= userMax && n2 <= companyMax, mine: n1, all: n2 };
     },
+    /** One more on a shared daily count (D.2: her search on Cloud Functions, all staff together): { ok, n } */
+    async count(who, max, now) {
+      const r = await db.prepare('INSERT INTO usage (day, who, n) VALUES (?1, ?2, 1) ON CONFLICT(day, who) DO UPDATE SET n = n + 1 RETURNING n').bind(today(now), who).first();
+      const n = (r && r.n) || 0;
+      return { ok: n <= max, n };
+    },
     /** The last approved answer for exactly this (cleaned) question, if any. */
     async saved(qkey) {
       return db.prepare("SELECT id, answer, source FROM answers WHERE qkey = ?1 AND status = 'approved' ORDER BY id DESC LIMIT 1").bind(qkey).first();
