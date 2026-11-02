@@ -22,18 +22,12 @@
 const SHPB_ON = (() => { try { return localStorage.getItem('shpBoard') !== '0'; } catch (e) { return true; } })();   // on for everyone; shpBoard = '0' hides it on one computer
 const SHPB_NODE = 'pt_shpBoardTest', SHPB_PRESS = 'pt_shpBoardPress', SHPB_SHIP = 'pt_shpBoardShip';
 const SHPB_PRESSMEN = ['Keshav', 'Jagdish', 'Anokhi', 'Mangal', 'Om Prakash', 'Deepak', 'Chetram', 'Kuldeep', 'Shankar'];
-let SHPB = { tab: 'pending', stage: '', ready: {}, press: {}, ship: {}, pressBy: {}, readyAt: 0, busy: false, err: '', pick: new Set() };
-/* BULK PLAN (Ravi, 2 Nov: "printer ko ham bulk me order place kar sake"): lines with no plan get a tick box beside Plan; "Plan the N ticked" opens
- * ONE plan form for all of them (flowPpcOpen with keys — the form PPC's Excel import uses), each line ticked to raise its print order. 40 at a time. */
-const SHPB_BULK_MAX = 40;
+let SHPB = { tab: 'pending', stage: '', ready: {}, press: {}, ship: {}, pressBy: {}, readyAt: 0, busy: false, err: '' };
+/* PLAN FROM EXCEL (Ravi, 2 Nov: "excel se printer ko plan de saku … sirf plan window ka data aay sara nahi and tick wala option remove"):
+ * the lines in the TO PLAN bucket as PPC's sheet — fill Printer (and anything else), Raise = yes, upload; the plan form opens with those lines
+ * ticked, 40 at a time (flowXlOpenNext), and its Save raises the print orders. */
 const shpbPickKey = r => (typeof flowKey === 'function' ? flowKey(r.orderNo, r.sku) : shpbKey(r.orderNo, r.sku));
-function shpbBulkPlan() {
-  const keys = [...SHPB.pick].slice(0, SHPB_BULK_MAX);
-  if (!keys.length || typeof flowPpcOpen !== 'function') return;
-  SHPB.pick = new Set([...SHPB.pick].slice(SHPB_BULK_MAX));
-  flowPpcOpen('', '', keys);
-  document.querySelectorAll('[data-fpick]').forEach(el => { el.checked = true; try { el.dispatchEvent(new Event('change')); } catch (e) { /* no events here */ } });
-}
+const shpbToPlan = pend => pend.filter(r => shpbStages([r]).planW > 0);
 const shpbKey = (orderNo, sku) => obUC(orderNo) + '__' + obUC(sku);
 /* STATUS and READY DATE of a line, at the END of its row (Ravi, 29 Oct: "press ke end me status ka option chahiye like OOS, and ready date dal sake").
  * Both live on pt_shpBoardTest/<ORDER__SKU> with the pieces taken from ready stock (stockQty): { orderNo, sku, date, status, stockQty, by, at }. */
@@ -224,7 +218,7 @@ function shpbRow(r) {
     + shpbItem(r)
     + `<td class="num" style="${SHPB_PAD}"><b>${nf(r.qty)}</b></td>`
     + `<td style="${SHPB_PAD}text-align:left;font-size:11.5px;white-space:nowrap;line-height:1.25">${prn ? '<b>' + esc(prn) + '</b>' : (shpbPlanOf(r) ? '<span class="muted">no printer</span>' : '<b style="color:#b91c1c">not planned</b>')}`
-    + `<div style="display:flex;gap:5px;align-items:center">${!shpbPlanOf(r) && shpbCanEdit() ? `<input type="checkbox" data-shpb-pick="${esc(shpbPickKey(r))}"${SHPB.pick.has(shpbPickKey(r)) ? ' checked' : ''} title="Tick to plan with others in one go" style="width:auto;margin:0">` : ''}<button type="button" class="ghost" data-shpb-act="print" data-key="${esc(k)}" style="width:auto;padding:0 7px;font-size:10.5px;line-height:18px" title="${shpbIsShp() ? 'The plan of this line: printer, fabric, accessories, dates — planned here, not in PPC' : 'The plan of this line — the same plan PPC raises; the line stays in PPC too'}">${shpbPlanOf(r) ? (prn ? 'Change' : 'Plan') : 'Plan'}</button></div></td>`
+    + `<div><button type="button" class="ghost" data-shpb-act="print" data-key="${esc(k)}" style="width:auto;padding:0 7px;font-size:10.5px;line-height:18px" title="${shpbIsShp() ? 'The plan of this line: printer, fabric, accessories, dates — planned here, not in PPC' : 'The plan of this line — the same plan PPC raises; the line stays in PPC too'}">${shpbPlanOf(r) ? (prn ? 'Change' : 'Plan') : 'Plan'}</button></div></td>`
     + shpbCell(s.prcA, s.prcW, s.prcD, 'prcv', 'Receive', k, tips.prcv)
     + (!r.cutReq ? `<td class="num" style="${SHPB_STAGE_BG};${SHPB_PAD}"><span class="muted" style="font-size:11px">not needed</span></td>` : shpbCell(s.cutA, s.cutW, s.cutD, 'cut', 'Cut', k, tips.cut))
     + shpbCell(s.issA, s.issW, s.issD, 'issue', 'Issue', k, tips.issue)
@@ -288,18 +282,13 @@ function renderShpBoard() {
     : `<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:2px 0 8px">${shpbStagesShown().map(bucket).join('')}`
     + `<div style="display:flex;gap:8px;margin-left:auto">${tabBtn('pending', 'Order pending · ' + nf(pend.length))}${tabBtn('done', 'Complete · ' + nf(done.length))}</div></div>`
     + (tab === 'pending' && shpbCanEdit() ? (() => {
-      const can = list.filter(r => !shpbPlanOf(r)).map(shpbPickKey), n = SHPB.pick.size;
+      const can = shpbToPlan(pend).length, left = typeof FLOW_XL_IMP !== 'undefined' && FLOW_XL_IMP.length ? flowXlLeft().length : 0;
       const b = 'height:34px;padding:0 14px;border-radius:12px;font:inherit;font-weight:700;cursor:pointer;box-shadow:none;transform:none;width:auto;';
-      return can.length || n ? `<div style="display:flex;gap:8px;align-items:center;margin:0 0 8px">`
-        + `<button type="button" data-shpb-bulk="1" style="${b}"${n ? '' : ' disabled'} title="One plan form for every ticked line — printer, fabric, dates; each line's print order is raised on Save">Plan the ${nf(Math.min(n, SHPB_BULK_MAX))} ticked${n > SHPB_BULK_MAX ? ' (of ' + nf(n) + ')' : ''}</button>`
-        + (can.length ? `<button type="button" class="ghost" data-shpb-pickall="${esc(can.slice(0, SHPB_BULK_MAX).join(','))}" style="${b}">Tick the first ${nf(Math.min(can.length, SHPB_BULK_MAX))} not planned</button>` : '')
-        + (n ? `<button type="button" class="ghost" data-shpb-pickclear="1" style="${b}">Clear ticks</button>` : '')
-        /* PLAN FROM EXCEL (Ravi, 2 Nov: "excel se printer ko plan de saku"): the lines shown with no plan as PPC's sheet — fill Printer (and
-         * anything else), Raise = yes, upload; the plan form opens with those lines ticked, 40 at a time, and its Save raises the print orders. */
-        + (can.length ? `<button type="button" class="ghost" data-shpb-xlout="1" style="${b}" title="The ${nf(can.length)} line(s) shown with no plan, as the PPC sheet — fill Printer and Raise = yes">Excel (not planned)</button>` : '')
+      return can || left ? `<div style="display:flex;gap:8px;align-items:center;margin:0 0 8px">`
+        + (can ? `<button type="button" class="ghost" data-shpb-xlout="1" style="${b}" title="The ${nf(can)} line(s) in To plan, as the PPC sheet — fill Printer and Raise = yes">Excel — To plan (${nf(can)})</button>` : '')
         + `<button type="button" class="ghost" data-shpb-xlin="1" style="${b}" title="Upload the filled sheet — rows marked Raise = yes open in the plan form">Import plan</button><input type="file" accept=".xlsx,.csv" data-shpb-xlfile="1" class="hide">`
-        + (typeof FLOW_XL_IMP !== 'undefined' && FLOW_XL_IMP.length && flowXlLeft().length ? `<button type="button" data-shpb-xlnext="1" style="${b}">Open imported (${nf(flowXlLeft().length)})</button>` : '')
-        + `<span class="muted" style="font-size:12px">${nf(can.length)} line(s) shown with no plan · up to ${SHPB_BULK_MAX} in one form</span></div>` : '';
+        + (left ? `<button type="button" data-shpb-xlnext="1" style="${b}">Open imported (${nf(left)})</button>` : '')
+        + `<span class="muted" style="font-size:12px">fill Printer and Raise = yes, then Import plan · the form opens 40 lines at a time</span></div>` : '';
     })() : '');
   $('odMsg').className = SHPB.err ? 'err' : 'muted';
   $('odMsg').textContent = SHPB.err || '';
@@ -591,8 +580,6 @@ if ($('odTable') && $('odTable').addEventListener) {
   });
   $('odTable').addEventListener('change', async e => {
     if (typeof ordView !== 'function' || !shpbIsBoard(ordView())) return;
-    const pk = e.target.closest && e.target.closest('[data-shpb-pick]');
-    if (pk) { if (pk.checked) SHPB.pick.add(pk.dataset.shpbPick); else SHPB.pick.delete(pk.dataset.shpbPick); renderShpBoard(); return; }
     const sel = e.target.closest && e.target.closest('[data-shpb-status]');
     if (sel) { const err = await shpbSetReady(sel.dataset.shpbStatus, { status: sel.value }); if (err) { $('odMsg').className = 'err'; $('odMsg').textContent = err; } else renderShpBoard(); return; }
     const i = e.target.closest && e.target.closest('[data-shpb-ready]'); if (!i) return;
@@ -611,11 +598,8 @@ if ($('odKpis') && $('odKpis').addEventListener) $('odKpis').addEventListener('c
 if ($('odKpis') && $('odKpis').addEventListener) $('odKpis').addEventListener('click', e => {
   if (!shpbIsBoard(ordView())) return;
   const t = e.target.closest && e.target.closest('[data-shpb-tab]'); if (t) { SHPB.tab = t.dataset.shpbTab; SHPB.stage = ''; renderShpBoard(); return; }
-  if (e.target.closest && e.target.closest('[data-shpb-bulk]')) { shpbBulkPlan(); renderShpBoard(); return; }
-  const pa = e.target.closest && e.target.closest('[data-shpb-pickall]'); if (pa) { pa.dataset.shpbPickall.split(',').filter(Boolean).forEach(k => SHPB.pick.add(k)); renderShpBoard(); return; }
-  if (e.target.closest && e.target.closest('[data-shpb-pickclear]')) { SHPB.pick = new Set(); renderShpBoard(); return; }
   if (e.target.closest && e.target.closest('[data-shpb-xlout]')) {
-    const keys = new Set(shpbView().list.filter(r => !shpbPlanOf(r)).map(shpbPickKey));
+    const keys = new Set(shpbToPlan(shpbView().pend).map(shpbPickKey));
     try { flowPpcXlOut(flowRows().filter(x => keys.has(x.s.key)), shpbKind() + '-board-plan'); } catch (x) { $('odMsg').className = 'err'; $('odMsg').textContent = 'Could not make the sheet: ' + (x.message || x); }
     return;
   }
