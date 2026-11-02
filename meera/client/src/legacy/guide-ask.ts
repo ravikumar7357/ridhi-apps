@@ -1066,7 +1066,7 @@ function gaTabsSaid(q) { const t = String(q || '').toLowerCase(); return new Set
 /** The answers that fit a question best, with how well (0–1): the closest way of asking, weighted by rare words.
  * The same word as asked (not only the same meaning) settles near-ties: "PIN bhool gaya" is the PIN answer. */
 function gaBankFind(means, words, q) {
-  if (typeof meeraServerHits === 'function') { const h = meeraServerHits(q); if (h) return h; }   // Phase 5: her router's answer to this question
+  if (typeof meeraServerHits === 'function') { const h = meeraServerHits(q); if (h) return gaScreenFirst(h, q); }   // Phase 5: her router's answer to this question
   const B = GA_BANK;
   if (!B || !B.list.length || !means.length) return [];
   const sem = GA_SEM_W ? gaSemScores(q) : null;
@@ -1107,7 +1107,40 @@ function gaBankFind(means, words, q) {
     if (sem) best = (best + GA_SEM_W * near) / (1 + GA_SEM_W * 0.6);
     out.push({ e, s: best + named });
   }
-  return gaSpellCap(out.sort((a, b) => b.s - a.s).slice(0, GA_TOPK));
+  return gaSpellCap(gaScreenFirst(out.sort((a, b) => b.s - a.s), q).slice(0, GA_TOPK));
+}
+/* THE OPEN SCREEN FIRST (Ravi, 2 Nov; switch "screenfirst", off for everyone). Many answers exist on several screens
+ * (Export is on 33 of them, Refresh on 26). With the switch on:
+ *   1. the open screen's own answers are looked at first — one that is clearly sure (sure, and ahead of the screen's
+ *      next answer) is the answer;
+ *   2. only if none fits, the other screens' answers are used (the answer then says which screen it is for, with an
+ *      Open button — gaBankAnswer);
+ *   3. an open-screen answer as good as (close to) another screen's best wins;
+ *   4. a question that names another screen ("Job Work mein kaise…") is left to that screen.
+ * The winning answer goes first and the other screens' answers are put just below it, so it is given outright; the
+ * screen's own other answers keep their scores (two close ones on the same screen still get "which one do you mean"). */
+let GA_SF_MARGIN = MEERA_CONFIG.screenFirstMargin;   // config.ts
+function gaScreenFirst(hits, q) {
+  if (!meeraOn('screenfirst') || !hits.length) return hits;
+  const tab = gaHere();
+  if (!tab) return hits;
+  const said = gaTabsSaid(q), low = ' ' + String(q || '').toLowerCase().replace(/\s+/g, ' ') + ' ';
+  Object.entries(GA_TAB_TITLE).forEach(([t, n]) => { if (low.includes(' ' + n.toLowerCase() + ' screen') || low.includes(' ' + n.toLowerCase() + ' page')) said.add(t); });   // "in production screen …"
+  if (said.size && !said.has(tab)) return hits;   // 4. another screen named
+  const mine = hits.filter(h => h.e.tab === tab);
+  const h0 = mine[0], h1 = mine[1];
+  if (!h0 || h0 === hits[0]) return hits;   // nothing here, or the open screen's answer is already first
+  const bar = GA_W || gaRemote() ? GA_BANK_SURE_SEM : GA_BANK_SURE;
+  if (h0.s < bar) return hits;   // 2. nothing on the open screen is sure: the other screens answer
+  const clear = !h1 || h1.e.id === h0.e.id || h0.s - h1.s >= GA_BANK_GAP;   // 1. clearly sure on this screen
+  /* 3. as good as the best elsewhere — one other answer close, not several (a three-way tie is still asked) */
+  const close = hits[0].s - h0.s < GA_BANK_GAP;
+  if (hits.filter(h => h.e.tab !== tab && hits[0].s - h.s < GA_BANK_GAP).length > 1) return hits;   // several other answers as close: still asked
+  /* "clearly sure" here but far behind another screen's answer is not enough: measured 2 Nov, without this limit 3 more
+   * questions got a wrong answer on the first test set — the open screen wins only when it is nearly as good */
+  if (!(close || (clear && hits[0].s - h0.s <= GA_SF_MARGIN))) return hits;
+  const cap = h0.s - GA_BANK_GAP - 0.001;
+  return [h0, ...hits.filter(h => h !== h0).map(h => (h.e.tab === tab ? h : { ...h, s: Math.min(h.s, cap) }))].sort((a, b) => b.s - a.s);
 }
 /* How many answers a search returns; how sure she must be to answer outright (with the meaning table the scores run
  * higher, so the bar is higher); and how close an answer must be to be offered as "did you mean". */
@@ -1128,6 +1161,8 @@ function gaBankAnswer(e, lang, L, near) {
   if (st && st.length) html += `<div class="ga-do"><b>${L('What to do', 'क्या करें', 'Kya karein')}</b><ol>${st.map(s => `<li>${s}</li>`).join('')}</ol></div>`;
   if (e.admin) html += `<div class="ga-note">${L('Only an admin can do this — please ask your admin.', 'यह काम सिर्फ़ एडमिन कर सकते हैं — कृपया अपने एडमिन से कहें।', 'Ye kaam sirf admin kar sakte hain — kripya apne admin se kahiye.')}</div>`;
   const here = gaHere();
+  /* switch "screenfirst": an answer from another screen says so (its Open button is below) */
+  if (meeraOn('screenfirst') && e.tab && here && e.tab !== here) { const n = esc(GA_TAB_TITLE[e.tab] || gaTabName(e.tab)); html = `<div class="ga-und">${L(`This is on <b>${n}</b>, not on this screen.`, `यह <b>${n}</b> पर है, इस स्क्रीन पर नहीं।`, `Ye <b>${n}</b> par hai, is screen par nahi.`)}</div>` + html; }
   const acts = [];
   const walk = typeof gaWalkFor === 'function' ? gaWalkFor(e) : null;   // a job with a walk-through: Do it with me, Show me
   if (walk) acts.push(...gaWalkActs(walk, L));
@@ -1140,6 +1175,9 @@ function gaBankAnswer(e, lang, L, near) {
   const after = near && near.length ? gaNearHtml(near, lang, L('Related', 'इससे जुड़े', 'Isse jude')) : '';
   return { html, acts, after, bank: e.id };
 }
+/* every screen's title as the ERP shows it at the top (core/nav.js, showTab) — for "This is on <screen>" */
+const GA_TAB_TITLE = { dash: 'Dashboard', repl: 'Replenishment', article: 'Article Review', target: 'Revenue Target', follow: 'Ongoing Purchase Order', top: 'Top ASIN Status', india: 'India Stock', shopify: 'Shopify Stock', prod: 'In Production', pack: 'Packing List', plan: 'Action Plan',
+  att: 'Attendance', pmdb: 'Master Database', mst: 'Masters', pbase: 'Job Work Register', pcut: 'Cutting Data', ppress: 'Press Inventory', qc: 'Quality Control', ord: 'Order Console', so: 'Sales Orders', vord: 'Vendor Orders', vreq: 'Vendor Order Requests', rfd: 'RFD Requirements', vend: 'Vendor Portal', vlog: 'History — what printers have sent', cx: 'Customer Orders', palloc: 'Printer Allocation', fgi: 'Finished Goods', fba: 'FBA Dispatch', fab: 'Fabric Inventory', acc: 'Accessories', rep: 'Reports', pa: 'Production Analysis', ka: 'Karigar Analysis', hr: 'Finance & HR', shop: 'Shopify Orders', adj: 'Adjustments', flow: 'Production flow', gdesk: 'Greige Desk' };
 function gaNearHtml(near, lang, head) {
   return `<div class="ga-rel"><span>${head}</span>${near.map(n => { const t = gaAskOf(n.e, lang); return t ? `<button type="button" class="ga-chip" data-gq="${esc(t)}">${esc(t)}</button>` : ''; }).join('')}</div>`;
 }
