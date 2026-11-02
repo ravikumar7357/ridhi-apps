@@ -16,15 +16,12 @@
  * The hooks are called from her files with `typeof meeraDesign… === 'function'`, so inside the page they are never there. */
 
 declare const __MEERA_DESIGN_CSS__: string;
-declare function guideLang(): string;
 declare function gaHere(): string;
 declare function gaTabName(tab: string): string;
 declare function gaRedLines(): HTMLElement[];
 declare function gaBankLoad(): Promise<unknown>;
 declare function gaWordsLoad(): Promise<unknown>;
 declare function gaChipsDraw(): void;
-declare let GA_BANK: { list: MdEntry[] } | null;
-declare let GA_W: unknown;
 interface MdEntry { id: string; tab?: string; q?: { en?: string[]; hi?: string[]; hg?: string[] } }
 
 const MEERA_DESIGN: boolean = meeraOn('design');

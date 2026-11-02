@@ -15,8 +15,8 @@ on:
   push:
     branches: [main]
     # Phase 5: her search runs on the router too — a change to her answers or her search code redeploys it
-    paths: ['meera/router/**', 'meera/client/src/legacy/guide-ai.js', '.github/workflows/meera-router.yml',
-            'meera/client/src/understand.ts', 'meera/client/src/legacy/guide-ask.js', 'meera/client/src/legacy/guide-tours.js',
+    paths: ['meera/router/**', 'meera/client/src/legacy/guide-ai.*', '.github/workflows/meera-router.yml',
+            'meera/client/src/understand.ts', 'meera/client/src/legacy/guide-ask.*', 'meera/client/src/legacy/guide-tours.*',
             'Replenish-App/public/guide/meera-bank.json', 'Replenish-App/public/guide/meera-walks.json', 'Replenish-App/public/guide/meera-words.bin']
   workflow_dispatch:
 

@@ -1,0 +1,27 @@
+{
+  "//": "Phase 6: ALL of her files together — the new ones and her older ones as they become TypeScript (src/legacy/*.ts), with the relaxed rules her older code is converted under first; tightened file by file. The strict check of her new files is tsconfig.json. Her picture file (guide-art) is left out: inside the page it defines GUIDE_IMG, which meera.js defines itself (start.ts).",
+  "compilerOptions": {
+    "target": "ES2020",
+    "lib": [
+      "ES2020",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "strict": false,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "allowJs": true,
+    "checkJs": false
+  },
+  "include": [
+    "src/*.ts",
+    "src/legacy/*.ts",
+    "src/legacy/*.js",
+    "../shared/*.d.ts"
+  ],
+  "exclude": [
+    "src/legacy-globals.d.ts",
+    "src/legacy/guide-art.js",
+    "src/legacy/guide-art.ts"
+  ]
+}

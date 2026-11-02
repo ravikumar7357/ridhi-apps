@@ -24,8 +24,8 @@ const MEERA_PATHS = [/^meera\//, /^Replenish-App\/public\/guide\//, /^Replenish-
 function meeraIds() {
   const ids = new Set();
   const add = s => { for (const m of String(s || '').replace(/\[[^\]]*\]/g, '').matchAll(/#([A-Za-z][\w-]*)/g)) ids.add(m[1]); };
-  for (const f of ['guide-tours.js', 'guide-ask.js']) {
-    const src = fs.readFileSync(path.join(ROOT, 'meera/client/src/legacy', f), 'utf8');
+  for (const f of ['guide-tours', 'guide-ask']) {
+    const base = path.join(ROOT, 'meera/client/src/legacy', f), src = fs.readFileSync(fs.existsSync(base + '.ts') ? base + '.ts' : base + '.js', 'utf8');
     for (const m of src.matchAll(/sel:\s*'([^']*)'/g)) add(m[1]);
   }
   const g = p => JSON.parse(fs.readFileSync(path.join(ROOT, 'Replenish-App/public/guide', p), 'utf8'));

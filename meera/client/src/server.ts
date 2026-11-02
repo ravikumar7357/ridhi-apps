@@ -10,7 +10,6 @@
  *                       saying so, when the router cannot be reached or its search is switched off.
  * Her router's own switches (meera / ai / search, GET /config) are read once at start: "meera off" hides her. */
 
-declare let GA_BANK_P: Promise<unknown> | null;
 declare function gaBankIndex(list: unknown[]): { list: MdEntry[] };
 declare function gaWalkAdd(w: unknown): void;
 declare function gaWalksLoad(): Promise<unknown>;

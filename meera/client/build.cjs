@@ -22,7 +22,9 @@ function build() {
   /* her new look (Phase 3): design.css with meera.css inside it, for her sealed box — the page's html.mob becomes the box's
    * own .mob (design.ts mirrors it) */
   const designCss = fs.readFileSync(path.join(__dirname, 'design.css'), 'utf8').replace('/*__MEERA_CSS__*/', () => css.replace(/html.mob /g, ':host(.mob) '));
-  const legacy = files.map(f => `/* ---- ${path.relative(ROOT, f).replace(/\\/g, '/')} ---- */\n` + fs.readFileSync(f, 'utf8').replace(/\r\n/g, '\n')).join('\n');
+  /* Phase 6: an older file already TypeScript (x.ts) is made JavaScript first (types removed, nothing renamed) */
+  const plain = f => { const s = fs.readFileSync(f, 'utf8').replace(/\r\n/g, '\n'); return f.endsWith('.ts') ? esbuild.transformSync(s, { loader: 'ts', legalComments: 'inline' }).code : s; };
+  const legacy = files.map(f => `/* ---- ${path.relative(ROOT, f).replace(/\\/g, '/')} ---- */\n` + plain(f)).join('\n');
   const ts = (name, define) => esbuild.transformSync(fs.readFileSync(path.join(__dirname, 'src', name), 'utf8'), { loader: 'ts', define, legalComments: 'none' }).code;
   /* the version: what the sources say, so the same sources always make the same file */
   const version = crypto.createHash('sha256').update(legacy + css + designCss + ['start.ts', 'understand.ts', 'design.ts', 'learn.ts', 'server.ts', 'finish.ts'].map(n => fs.readFileSync(path.join(__dirname, 'src', n), 'utf8')).join('')).digest('hex').slice(0, 12);

@@ -11,12 +11,10 @@
  * tickets, with Add answer / Approve spelling / Reject / Answer ticket. Nothing joins her answers until an admin
  * approves it (the router refuses anyone else, whatever this page shows). */
 
-declare const GA_AI_URL: string;
 declare function gaClean(text: string, names: string[]): string;
 declare function gaNames(): string[];
 declare function gaSpellFind(q: string): { e: { id: string }; s: number }[];
 declare function gaRead(q: string): { lang: string; means: string[]; words: string[] };
-declare const GUIDE: { tour: unknown };
 declare function guideClose(): void;
 
 const MEERA_LEARN: boolean = meeraOn('learn');
@@ -85,7 +83,6 @@ function mlClean(text: string): string {
 let ML_NAMES: Set<string> | null = null;
 let ML_IX: MeeraDictIndex | null = null;
 declare function gaDict(): { known: Set<string>; freq: Map<string, number>; names: Set<string> };
-declare const GUIDE_STOP: Set<string>;
 
 /** one record: the question cleaned here first; the screen, the language and the role — nothing else about the person */
 async function mlSend(kind: string, q: string, answer: string | string[]): Promise<any> {

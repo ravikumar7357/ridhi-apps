@@ -125,7 +125,8 @@ async function load(opts = {}) {
   }
   const files = opts.files || meeraFiles(app);
   for (const f of files) {
-    const code = fs.readFileSync(f, 'utf8');
+    let code = fs.readFileSync(f, 'utf8');
+    if (f.endsWith('.ts')) code = require(path.join(app, 'node_modules', 'esbuild')).transformSync(code.replace(/\r\n/g, '\n'), { loader: 'ts', legalComments: 'inline' }).code;   // Phase 6: her TypeScript files
     try { vm.runInContext(code, ctx, { filename: path.relative(root, f) }); }
     catch (e) { throw new Error('Meera did not start: ' + path.relative(root, f) + ': ' + e.message); }
   }
