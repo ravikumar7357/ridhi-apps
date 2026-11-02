@@ -23443,6 +23443,21 @@ function voStampOrders(lines, channel) {
 
 /** One order line's share — null when no vendor holds anything for it. */
 const ordVendorOf = (orderNo, sku) => ordVendorAlloc().get(obUC(orderNo) + '|' + obUC(sku)) || null;
+/** WHAT THE PRINTING COLUMNS SHOW (2 Nov, AMZ-15102026-01 · CPC008-06 said "0 back of 11" with all 11 received on RFD-202610-108): a line PPC
+ *  planned to a printer comes back on the RFD challan, and that receipt never reaches the vendor order — so the flow's own count (challan
+ *  receipts, all of it once the challan is closed) wins when it is the higher. Display only: flowState still reads ordVendorOf. */
+let ORD_VSH = { src: null, map: null };
+function ordVendorShown(r) {
+  const v = ordVendorOf(r.orderNo, r.sku);
+  const p = typeof FLOW !== 'undefined' && FLOW && FLOW.ppc && typeof flowKey === 'function' ? FLOW.ppc[flowKey(r.orderNo, r.sku)] : null;
+  if (!p || typeof flowRows !== 'function') return v;
+  let s = null;
+  try { const rows = flowRows(); if (ORD_VSH.src !== rows) ORD_VSH = { src: rows, map: new Map(rows.map(x => [x.r.orderNo + '|' + x.r.sku, x.s])) }; s = ORD_VSH.map.get(r.orderNo + '|' + r.sku) || null; } catch (e) { s = null; }
+  if (!s || !s.printed || s.fromStock || !(s.po || s.challan) || (v && v.back >= s.back)) return v;
+  const code = (p.printer && (p.printer.code || p.printer.name)) || '';
+  return Object.assign({ parts: code ? [{ vendorCode: code, vpo: 'RFD challan', qty: s.given, back: s.back, stamped: true }] : [], shared: false }, v || {},
+    { given: Math.max(v ? v.given : 0, s.given), back: s.back, onChallan: true });
+}
 
 /**
  * Where a line is waiting, in one word — the first stage that has not caught up with the one before.
@@ -24318,7 +24333,7 @@ function renderOrdShopify(bySku, done) {
           : (v => (v
             ? `<b>${nf(v.back)}</b> <span class="muted">back of ${nf(v.given)}</span>`
               + `<div class="muted" style="font-size:11px">${esc([...new Set(v.parts.map(p => voName(p.vendorCode)))].join(', '))}${v.shared ? ' · shared' : ''}</div>`
-            : '<span class="muted">not given to a vendor</span>'))(ordVendorOf(r.orderNo, r.sku))}</td>`
+            : '<span class="muted">not given to a vendor</span>'))(ordVendorShown(r))}</td>`
       + `<td class="num">${nf(r.cut)}</td><td class="num">${nf(r.issued)}</td>`
       + `<td class="num"${r.overRecv ? ' style="color:#7f6000;font-weight:700"' : ''}>${nf(r.received)}</td>`
       + (q => `<td class="num">` + (q
@@ -26096,8 +26111,8 @@ function renderOrd() {
                 + (v.shared ? '\n\nThis SKU is on more than one order, so the vendor\u2019s pieces are shared out between them once — open orders first, oldest first.' : ''))}">`
               + `<b>${nf(v.back)}</b> <span class="muted">back of ${nf(v.given)} given</span>`
               + (v.given < r.qty ? ` <span class="muted">· ${nf(r.qty - v.given)} not given</span>` : '')
-              + `<div class="muted" style="font-size:11px">${esc([...new Set(v.parts.map(p => voName(p.vendorCode)))].join(', '))}${v.shared ? ' · shared' : (v.parts.every(p => p.stamped) ? ' · for this order' : '')}</div></span>`
-            : '<span class="muted">not given to a vendor</span>'))(ordVendorOf(r.orderNo, r.sku))}</td>`)
+              + `<div class="muted" style="font-size:11px">${esc([...new Set(v.parts.map(p => voName(p.vendorCode)))].join(', '))}${v.shared ? ' · shared' : (v.parts.every(p => p.stamped) ? ' · for this order' : '')}${v.onChallan ? ' · back on the RFD challan' : ''}</div></span>`
+            : '<span class="muted">not given to a vendor</span>'))(ordVendorShown(r))}</td>`)
         /* THE ACTIONS CELL IS ALWAYS THERE, whether or not the Printing column is — its heading always is (2026-09-28). */
         /* ENTRY BELONGS ON EVERY ORDER, NOT ONLY SHOPIFY'S (Ravi, 2026-09-23: "jo hum shopify ke orders
          * ke liye yahi se karigar ko issue rec. karte h to wesa hi system B2B orders ke liye bana do").
@@ -27704,7 +27719,7 @@ function ordSheetRows() {
     let o = by.get(r.orderNo);
     if (!o) { o = { orderNo: r.orderNo, ref: r.shopOrderNo || '', date: r.orderDate || '', sku: r.sku, lines: 0, pcs: 0, step: 'done',
       given: 0, back: 0, cut: 0, cutOf: 0, issued: 0, received: 0, pressed: 0, printers: new Set(), addedMs: 0 }; by.set(r.orderNo, o); }
-    const v = ordVendorOf(r.orderNo, r.sku), cap = x => Math.min(r.qty, Number(x) || 0);
+    const v = ordVendorShown(r), cap = x => Math.min(r.qty, Number(x) || 0);
     o.lines++; o.pcs += r.qty; o.addedMs = Math.max(o.addedMs, r.addedMs || 0);
     o.given += cap(r.printer ? r.qty : (v ? v.given : 0)); o.back += cap(r.printer ? r.printed : (v ? v.back : 0));
     if (r.printer) o.printers.add(voName(r.printer)); else if (v) v.parts.forEach(pp => o.printers.add(voName(pp.vendorCode)));

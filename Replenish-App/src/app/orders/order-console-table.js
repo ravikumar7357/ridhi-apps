@@ -260,7 +260,7 @@ function renderOrdShopify(bySku, done) {
           : (v => (v
             ? `<b>${nf(v.back)}</b> <span class="muted">back of ${nf(v.given)}</span>`
               + `<div class="muted" style="font-size:11px">${esc([...new Set(v.parts.map(p => voName(p.vendorCode)))].join(', '))}${v.shared ? ' · shared' : ''}</div>`
-            : '<span class="muted">not given to a vendor</span>'))(ordVendorOf(r.orderNo, r.sku))}</td>`
+            : '<span class="muted">not given to a vendor</span>'))(ordVendorShown(r))}</td>`
       + `<td class="num">${nf(r.cut)}</td><td class="num">${nf(r.issued)}</td>`
       + `<td class="num"${r.overRecv ? ' style="color:#7f6000;font-weight:700"' : ''}>${nf(r.received)}</td>`
       + (q => `<td class="num">` + (q

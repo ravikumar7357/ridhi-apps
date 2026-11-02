@@ -39,7 +39,7 @@ function ordSheetRows() {
     let o = by.get(r.orderNo);
     if (!o) { o = { orderNo: r.orderNo, ref: r.shopOrderNo || '', date: r.orderDate || '', sku: r.sku, lines: 0, pcs: 0, step: 'done',
       given: 0, back: 0, cut: 0, cutOf: 0, issued: 0, received: 0, pressed: 0, printers: new Set(), addedMs: 0 }; by.set(r.orderNo, o); }
-    const v = ordVendorOf(r.orderNo, r.sku), cap = x => Math.min(r.qty, Number(x) || 0);
+    const v = ordVendorShown(r), cap = x => Math.min(r.qty, Number(x) || 0);
     o.lines++; o.pcs += r.qty; o.addedMs = Math.max(o.addedMs, r.addedMs || 0);
     o.given += cap(r.printer ? r.qty : (v ? v.given : 0)); o.back += cap(r.printer ? r.printed : (v ? v.back : 0));
     if (r.printer) o.printers.add(voName(r.printer)); else if (v) v.parts.forEach(pp => o.printers.add(voName(pp.vendorCode)));
