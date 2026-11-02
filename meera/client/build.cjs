@@ -30,7 +30,7 @@ function build() {
   const legacy = files.map(f => `/* ---- ${path.relative(ROOT, f).replace(/\\/g, '/')} ---- */\n` + plain(f)).join('\n');
   const ts = (name, define) => esbuild.transformSync(fs.readFileSync(path.join(__dirname, 'src', name), 'utf8'), { loader: 'ts', define, legalComments: 'none' }).code;
   /* the version: what the sources say, so the same sources always make the same file */
-  const version = crypto.createHash('sha256').update(legacy + css + designCss + ['start.ts', 'understand.ts', 'design.ts', 'learn.ts', 'server.ts', 'finish.ts'].map(n => fs.readFileSync(path.join(__dirname, 'src', n), 'utf8')).join('')).digest('hex').slice(0, 12);
+  const version = crypto.createHash('sha256').update(legacy + css + designCss + ['start.ts', 'understand.ts', 'design.ts', 'learn.ts', 'server.ts', 'data.ts', 'finish.ts'].map(n => fs.readFileSync(path.join(__dirname, 'src', n), 'utf8')).join('')).digest('hex').slice(0, 12);
   const whole = '(function () {\n"use strict";\n'
     + 'if (!window.ERP_MEERA || window.__MEERA_STARTED) return;   // no bridge (not the ERP), or already started\n'
     + 'window.__MEERA_STARTED = true;\n'
@@ -39,6 +39,7 @@ function build() {
     + ts('design.ts', { __MEERA_DESIGN_CSS__: JSON.stringify(designCss) }) + '\n'   // Phase 3: her new look (switch "design")
     + ts('learn.ts', {}) + '\n'   // Phase 4: learning from staff (switch "learn")
     + ts('server.ts', {}) + '\n'   // Phase 5: searching on her router (switches "server", "serveruse")
+    + ts('data.ts', {}) + '\n'   // Phase 7: answers from the ERP's own figures, read only (switch "data")
     + legacy + '\n'
     + ts('finish.ts', { __MEERA_VERSION__: JSON.stringify(version) })
     + '})();\n';

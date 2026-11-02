@@ -1309,6 +1309,9 @@ function gaSay(html, acts?, after?, src?) {
 async function gaAsk(q) {
   gaMine(q);
   if (typeof gaAiCommand === 'function' && await gaAiCommand(q)) return;
+  /* Phase 7, switch "data": a question about the ERP's own figures is answered here, from this page's memory — before
+   * anything is kept or sent (no AI, no learning record, no 👎 note) */
+  if (typeof meeraDataAsk === 'function' && await meeraDataAsk(q)) return;
   GA.lastQ = q;
   if (GA_WHEREAMI_RE.test(q) && gaHere()) {
     const lg = gaRead(q).lang, LL = (en, hi, hg) => (lg === 'hi' ? hi : lg === 'hg' ? (hg || en) : en), name = esc(gaTabName(gaHere()));
@@ -1340,6 +1343,7 @@ async function gaAsk(q) {
   if (r.miss) gaChipsDraw();
 }
 function gaAct(t, id, tab) {
+  if (t === 'dataopen') { if (typeof meeraDataOpen === 'function') { guideAskClose(); meeraDataOpen(id); } return; }   // Phase 7: a data answer's screen, on its line
   if (t === 'ai') { gaAiAsk(GA.lastQ || ''); return; }
   if (t === 'astyped') { (gaAnswer as any).asTyped = true; gaAsk(GA.lastQ || '').finally(() => { (gaAnswer as any).asTyped = false; }); return; }
   if (t === 'aifb') { gaAiFeedback(id); return; }

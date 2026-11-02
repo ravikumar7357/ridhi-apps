@@ -52,6 +52,124 @@ const ERP_MEERA = {
 };
 try { window.ERP_MEERA = ERP_MEERA; } catch (e) { /* no window: the page itself still has it */ }
 
+/* MEERA READS THE ERP'S OWN DATA — READ ONLY (v2 rebuild, Phase 7, 2 Nov 2026; used only with switch "data").
+ *
+ * Only what this page already holds in memory, worked out by the ERP's own rules (ordLines, ordWaitingAt, ordKarigarsOf,
+ * ordEvents, fgiOf, ORD_PIPE_STALE_DAYS). Nothing here reads the database, writes anything or opens a screen by itself:
+ * data a screen has not read yet is "not loaded" (she asks the person to open that screen), never fetched — the quota
+ * fix stands. Each answer says which screen it comes from and when that screen last read it. A screen the account
+ * cannot open answers "not allowed", with no data. open() is called only from a button the person presses. */
+const MEERA_DATA_SCREENS = { ord: 'Order Console', pbase: 'Job Work Register', fgi: 'Finished Goods', qc: 'Quality Control' };
+const mdMay = tab => (typeof mobMay === 'function' ? !!mobMay(tab) : true);
+const mdNum = v => Number(v) || 0;
+const mdLeft = r => mdNum(r.issuePieces) - mdNum(r.receivedPieces) - mdNum(r.rejectionPieces);
+const mdTime = ms => (ms ? new Date(ms).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '');
+const mdToday = () => { const d = new Date(), p = n => String(n).padStart(2, '0'); return p(d.getDate()) + '/' + p(d.getMonth() + 1) + '/' + d.getFullYear(); };
+const mdDayMs = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d.getTime(); };
+/* where an answer comes from: { tab, name, asOf } — or why there is none */
+function mdFrom(tab, loaded, asOf) {
+  if (!mdMay(tab)) return { tab, name: MEERA_DATA_SCREENS[tab] || tab, denied: true };
+  if (!loaded) return { tab, name: MEERA_DATA_SCREENS[tab] || tab, notLoaded: true };
+  return { tab, name: MEERA_DATA_SCREENS[tab] || tab, asOf: asOf || '' };
+}
+const mdOrdFrom = () => mdFrom('ord', typeof PTG !== 'undefined' && Array.isArray(PTG.ob) && typeof ordLines === 'function', typeof PTG !== 'undefined' ? mdTime(PTG.at) : '');
+const mdBaseFrom = () => mdFrom('pbase', typeof PT !== 'undefined' && Array.isArray(PT.base), typeof PT !== 'undefined' && PT.at ? PT.at.base : '');
+const mdOrdLines = () => { try { return ordLines() || []; } catch (e) { return []; } };
+ERP_MEERA.data = {
+  /** the order numbers on the Order Console (for finding the one meant) */
+  orders: () => meeraSafe(() => { const f = mdOrdFrom(); return f.denied || f.notLoaded ? [] : [...new Set(mdOrdLines().map(r => r.orderNo))]; }, []),
+  /** one order: each line's stage (the Order Console's "Waiting at"), who holds its pieces, its last work, late or not */
+  findOrder: no => meeraSafe(() => {
+    const from = mdOrdFrom();
+    if (from.denied || from.notLoaded) return { from };
+    const NO = String(no || '').toUpperCase(), rows = mdOrdLines().filter(r => r.orderNo === NO);
+    if (!rows.length) return { from, none: true };
+    const ev = typeof ordEvents === 'function' ? ordEvents() : null, last = ev && ev.last ? ev.last.get(NO) || null : null;
+    const placed = typeof ptDtMs === 'function' ? ptDtMs(rows[0].orderDate) || 0 : 0;
+    const idle = Math.floor((Date.now() - (last ? last.ms : placed || Date.now())) / 864e5);
+    const open = rows.some(r => r.open);
+    return { from, order: { orderNo: NO, lines: rows.map(r => ({ sku: r.sku, qty: mdNum(r.qty), at: typeof ordWaitingAt === 'function' ? ordWaitingAt(r) : '' })),
+      pcs: rows.reduce((a, r) => a + mdNum(r.qty), 0), open,
+      karigars: typeof ordKarigarsOf === 'function' ? [...ordKarigarsOf(NO).entries()].sort((a, b) => b[1] - a[1]) : [],
+      last: last ? { ms: last.ms, by: last.by || '', kind: last.kind || '' } : null, idle, late: open && idle >= (typeof ORD_PIPE_STALE_DAYS !== 'undefined' ? ORD_PIPE_STALE_DAYS : 5) } };
+  }, { from: { tab: 'ord', notLoaded: true } }),
+  /** the karigars this page knows (the employee list and the Job Work rows) */
+  karigars: () => meeraSafe(() => {
+    /* the names only (she already has them, to keep names out of questions): what each holds needs Job Work */
+    const s = new Set();
+    ((typeof PTE !== 'undefined' && PTE.emp) || []).forEach(e => { const n = String((e && e[1]) || '').trim(); if (n) s.add(n); });
+    ((typeof PT !== 'undefined' && PT.base) || []).forEach(r => { const n = String((r && r.empName) || '').trim(); if (n) s.add(n); });
+    return [...s];
+  }, []),
+  /** what one karigar holds: pieces given and not yet back, entry by entry */
+  karigarHolding: name => meeraSafe(() => {
+    const from = mdBaseFrom();
+    if (from.denied || from.notLoaded) return { from };
+    const rows = PT.base.filter(r => r && String(r.empName || '').trim() === name && mdLeft(r) > 0);
+    return { from, name, pieces: rows.reduce((a, r) => a + mdLeft(r), 0),
+      rows: rows.map(r => ({ orderNo: r.orderNo || '', sku: r.sku || '', pcs: mdLeft(r), given: String(r.issueDate || '').slice(0, 10) })).sort((a, b) => b.pcs - a.pcs) };
+  }, { from: { tab: 'pbase', notLoaded: true } }),
+  /** the SKU codes the Master Database has (for finding the one meant) */
+  skus: () => meeraSafe(() => ((typeof PTG !== 'undefined' && PTG.mdb) || []).map(r => String((r && r.sku) || '').toUpperCase()).filter(Boolean), []),
+  /** one SKU in the India store (Finished Goods' own count) */
+  skuStock: sku => meeraSafe(() => {
+    const from = mdFrom('fgi', typeof FGI !== 'undefined' && Array.isArray(FGI.rows) && typeof fgiOf === 'function', typeof FGI !== 'undefined' ? FGI.at : '');
+    if (from.denied || from.notLoaded) return { from };
+    const s = fgiOf(sku);
+    return { from, sku: String(sku).toUpperCase(), current: mdNum(s.current), pending: mdNum(s.pending) };
+  }, { from: { tab: 'fgi', notLoaded: true } }),
+  /** what is waiting at one stage, by the Order Console's "Waiting at" (Vendor, Cutting, Issue, Karigar, QC) */
+  waitingAt: stage => meeraSafe(() => {
+    const from = mdOrdFrom();
+    if (from.denied || from.notLoaded) return { from };
+    const lines = [];
+    mdOrdLines().forEach(r => {
+      if (!r.open || typeof ordWaitingAt !== 'function') return;
+      const at = String(ordWaitingAt(r) || ''), m = at.match(new RegExp('(?:^|· )' + stage + ' — ([\\d,]+)'));
+      if (m) lines.push({ orderNo: r.orderNo, sku: r.sku, pcs: Number(m[1].replace(/,/g, '')) || 0 });
+    });
+    return { from, stage, lines: lines.sort((a, b) => b.pcs - a.pcs), pcs: lines.reduce((a, x) => a + x.pcs, 0) };
+  }, { from: { tab: 'ord', notLoaded: true } }),
+  /** today so far: pieces issued and received (Job Work Register), pieces passed in QC (Quality Control) */
+  today: () => meeraSafe(() => {
+    const base = mdBaseFrom(), day = mdToday(), from0 = mdDayMs(), out = { base, qc: mdFrom('qc', typeof QC !== 'undefined' && Array.isArray(QC.checks), typeof QC !== 'undefined' ? QC.at : '') };
+    if (!base.denied && !base.notLoaded) {
+      const iss = PT.base.filter(r => r && String(r.issueDate || '').slice(0, 10) === day);
+      out.issued = { pcs: iss.reduce((a, r) => a + mdNum(r.issuePieces), 0), entries: iss.length };
+      let rec = 0, n = 0;
+      PT.base.forEach(r => { (typeof repRecvParts === 'function' ? repRecvParts(r) : []).forEach(p => { if (p.ms >= from0) { rec += mdNum(p.pcs); n++; } }); });
+      out.received = { pcs: rec, entries: n };
+    }
+    if (!out.qc.denied && !out.qc.notLoaded) {
+      const ok = QC.checks.filter(c => c && c.baseId && String(c.date || '').slice(0, 10) === day);
+      out.passed = { pcs: ok.reduce((a, c) => a + mdNum(c.ok), 0), checks: ok.length };
+    }
+    return out;
+  }, { base: { tab: 'pbase', notLoaded: true }, qc: { tab: 'qc', notLoaded: true } }),
+  /** late orders, by the Order Console's own rule: not done, and no work for ORD_PIPE_STALE_DAYS days or more */
+  late: () => meeraSafe(() => {
+    const from = mdOrdFrom();
+    if (from.denied || from.notLoaded) return { from };
+    const ev = typeof ordEvents === 'function' ? ordEvents() : null, by = new Map(), days = typeof ORD_PIPE_STALE_DAYS !== 'undefined' ? ORD_PIPE_STALE_DAYS : 5;
+    mdOrdLines().forEach(r => { if (!r.open) return; if (!by.has(r.orderNo)) by.set(r.orderNo, []); by.get(r.orderNo).push(r); });
+    const out = [];
+    by.forEach((rows, no) => {
+      const last = ev && ev.last ? ev.last.get(no) : null, placed = typeof ptDtMs === 'function' ? ptDtMs(rows[0].orderDate) || 0 : 0;
+      const idle = Math.floor((Date.now() - (last ? last.ms : placed || Date.now())) / 864e5);
+      if (idle >= days) out.push({ orderNo: no, idle, at: typeof ordWaitingAt === 'function' ? ordWaitingAt(rows[0]) : '' });
+    });
+    return { from, days, orders: out.sort((a, b) => b.idle - a.idle) };
+  }, { from: { tab: 'ord', notLoaded: true } }),
+  /** the person pressed the answer's button: the screen, on the line (an order's journey, a karigar's rows, a SKU) */
+  open: (kind, key) => meeraSafe(() => {
+    if (kind === 'order' && mdMay('ord') && typeof ordJourney === 'function') { ordJourney(key); return true; }
+    if (kind === 'karigar' && mdMay('pbase') && typeof mobSearchOpen === 'function') { mobSearchOpen('kar|' + key); return true; }
+    if (kind === 'sku' && typeof mobSkuSheet === 'function') { mobSkuSheet(key); return true; }
+    if (MEERA_DATA_SCREENS[kind] && mdMay(kind)) { showTab(kind); return true; }
+    return false;
+  }, false),
+};
+
 /* ================= MEERA'S SWITCHES (v2 rebuild, 29 Oct 2026) =================
  *
  * Plan section 2, rule 4: every new Meera behaviour ships switched OFF, is turned on for testing, and can be turned
@@ -91,6 +209,9 @@ const MEERA_SWITCHES = {
   /* a button or column name typed in Hindi letters ("डमी एक्सपोर्ट" → Dummy export), by its sounds (Ravi, 2 Nov).
    * Works in the page and in meera.js: ?meera=hindinames */
   hindinames: false,
+  /* Phase 7 — answers from the ERP's own figures (where is an order, what a karigar holds, a SKU's stock, what waits at
+   * a stage, today's counts, late orders), READ ONLY from this page's memory (ERP_MEERA.data). meera.js only: ?meera=lazy,data */
+  data: false,
 };
 function meeraOn(name) {
   try {

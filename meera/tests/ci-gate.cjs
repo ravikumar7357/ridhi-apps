@@ -55,6 +55,7 @@ const CHECKS = [
   { name: 'her router\'s tests', cmd: ['meera/router/test/router.test.mjs'], fix: 'a router test failed (see the FAIL lines)' },
   { name: 'the page and the router clean questions alike', cmd: ['meera/router/test/same-cleaning.test.mjs'], fix: 'gaClean (guide-ai.ts) and clean (meera/router/src/redact.js) must change together' },
   { name: 'privacy: nothing personal is kept or sent', cmd: ['meera/tools/phase4-privacy.mjs'], fix: 'a privacy check failed (see the FAIL lines) — never ship this' },
+  { name: 'figures answers (Phase 7): right on the sample factory, rights kept, read only', cmd: ['meera/tests/data-test.cjs'], fix: 'a Phase 7 check failed (see the FAIL lines) — never ship a save, a read or a figure shown without the right' },
   { name: 'meera.js is what her sources make', cmd: ['meera/client/build.cjs', '--check'], fix: 'run: node meera/client/build.cjs, and commit Replenish-App/public/meera/' },
   { name: 'never-break list', cmd: ['meera/tests/never-break.cjs'], fix: 'a never-break item failed (see the FAIL lines): fix it — these must always work' },
   { name: 'no-worse gate, Meera in the page', cmd: ['meera/tests/gate.cjs'], fix: 'if the change is meant: node meera/tests/gate.cjs --accept "why", commit meera/bank/baseline/' },
