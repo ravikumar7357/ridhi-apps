@@ -55,8 +55,12 @@ jobs:
           npm ci
           node ../meera/client/build.cjs
           node tests/assemble.js --force
+          # her FULL gate, here: a pull request opened by GitHub's own token starts no other workflow, so the proposal
+          # carries the gate's result itself (no MEERA_BASE: every check, as for a change to Meera)
+          node tests/assemble.js --check
           if node ../meera/tests/ci-gate.cjs > /tmp/gate.txt 2>&1; then echo "result=passed" >> "$GITHUB_OUTPUT"; else echo "result=BLOCKED" >> "$GITHUB_OUTPUT"; fi
-          tail -25 /tmp/gate.txt
+          grep -E "^---- |passed|failed|golden answers|GATE|FAIL|BLOCKED|  ok   |CHANGED" /tmp/gate.txt | grep -v "^  /" | head -80 > /tmp/gate-short.txt
+          cat /tmp/gate-short.txt
 
       - name: Push the proposal and open the pull request
         if: steps.ab.outputs.changed == 'yes'
@@ -66,6 +70,10 @@ jobs:
           GATE: ${{ steps.gate.outputs.result }}
         run: |
           HEAD="autobank/${BASE//\//-}"
+          # NEVER main, never a test link: this workflow may write only its own autobank/* branch (master plan C.1)
+          case "$HEAD" in autobank/*) ;; *) echo "::error::refusing to push $HEAD — autobank writes only autobank/* branches"; exit 1 ;; esac
+          TITLE="Meera autobank: answers follow the screens (${BASE})"
+          if [ "$GATE" != "passed" ]; then TITLE="BLOCKED by her gate — $TITLE"; fi
           git config user.name "Meera autobank"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git checkout -B "$HEAD"
@@ -77,16 +85,23 @@ jobs:
             echo "Nothing here is live until this pull request is merged; merging runs her gate again before the deploy."
             echo
             echo "**Her gate on this proposal: ${GATE}**"
+            if [ "$GATE" != "passed" ]; then echo; echo "Do not merge as it is: a check below failed. If an answer changed on purpose, accept it with \`node meera/tests/gate.cjs --accept \"why\"\` on this branch."; fi
             echo
+            echo "**What changed, in plain words**"
             echo '```'
-            head -c 50000 /tmp/autobank.txt
+            head -c 30000 /tmp/autobank.txt
+            echo '```'
+            echo
+            echo "**Her gate, check by check** (never-break list, 580 recorded answers, every test set, privacy, figures answers, the no-push-to-main rule)"
+            echo '```'
+            head -c 20000 /tmp/gate-short.txt
             echo '```'
             echo
             echo "New screens and new jobs are never written by themselves: they are drafts on the admin page (Meera's learning → New on the screens)."
           } > /tmp/body.md
           if gh pr view "$HEAD" --json number > /dev/null 2>&1; then
-            gh pr edit "$HEAD" --body-file /tmp/body.md && echo "Pull request brought up to date." >> "$GITHUB_STEP_SUMMARY"
-          elif gh pr create --base "$BASE" --head "$HEAD" --title "Meera autobank: answers follow the screens (${BASE})" --body-file /tmp/body.md; then
+            gh pr edit "$HEAD" --title "$TITLE" --body-file /tmp/body.md && echo "Pull request brought up to date (one open at a time)." >> "$GITHUB_STEP_SUMMARY"
+          elif gh pr create --base "$BASE" --head "$HEAD" --title "$TITLE" --body-file /tmp/body.md; then
             echo "Pull request opened." >> "$GITHUB_STEP_SUMMARY"
           else
             echo "The proposal is on branch \`$HEAD\`. GitHub would not let this workflow open the pull request (repository setting \"Allow GitHub Actions to create and approve pull requests\"). Open it here: https://github.com/${GITHUB_REPOSITORY}/compare/${BASE}...${HEAD}?expand=1" >> "$GITHUB_STEP_SUMMARY"
