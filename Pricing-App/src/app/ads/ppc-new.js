@@ -96,16 +96,31 @@ function pxColsDesc(pc) {
 }
 
 /* ---------- which store answers a range ---------- */
+let PX_SALEWK = null;                          // 'brand|week' → that brand has sales figures for that week
+function pxSaleWeeks() {
+  if (PX_SALEWK) return PX_SALEWK;
+  PX_SALEWK = new Set();
+  Object.values(WEEKLY.rows).forEach(r => Object.entries(r.weeks || {}).forEach(([w, c]) => {
+    if (c && (c.rev || c.u) && r.brand) PX_SALEWK.add(r.brand + '|' + w);
+  }));
+  return PX_SALEWK;
+}
+const pxOldestSaleWeek = () => {
+  const bs = PX.brand === 'ALL' ? adBrands() : [PX.brand];
+  // the oldest week EVERY brand in view has, since a range needs them all
+  return bs.map(b => [...pxSaleWeeks()].filter(k => k.startsWith(b + '|')).map(k => k.slice(b.length + 1)).sort()[0] || '').sort().reverse()[0] || '';
+};
 function pxPlan(lo, hi) {
   if (!lo || !hi || lo > hi) return { src: 'none', lo, hi, id: 'x' };
   if (WDAY.from && lo >= WDAY.from) return { src: 'day', keys: wDaysBetween(lo, hi), lo, hi, id: 'd' + lo + hi };
   const after = sdShift(hi, 1);
   if (wKeyOfDate(lo) === lo && wKeyOfDate(after) === after) {
     const keys = []; for (let w = lo; w <= hi; w = sdShift(w, 7)) keys.push(w);
-    // Only the weeks the nightly keeps (26): an older week can still hold a stray cell from an earlier pull
-    // (sessions, ads) with no sales in it, which added up to Units "0" beside real orders (2 Nov, April).
-    const kept = new Set(WEEKLY.weeks.length ? WEEKLY.weeks : wWeeksList(26));
-    if (keys.some(k => !kept.has(k))) return { src: 'none', why: 'old', lo, hi, id: 'o' + lo + hi };
+    // Only weeks that have SALES figures, for every brand in view: an older week can still hold a stray cell
+    // from an earlier pull (sessions, ads) with no sales in it, which added up to Units "0" beside real orders
+    // (2 Nov, April). Judged by the figures, not by "26 weeks from today": the stored weeks reach back past that.
+    const have = pxSaleWeeks(), bs = PX.brand === 'ALL' ? adBrands() : [PX.brand];
+    if (keys.some(k => bs.some(b => !have.has(b + '|' + k)))) return { src: 'none', why: 'old', lo, hi, id: 'o' + lo + hi };
     return { src: 'week', keys, lo, hi, id: 'w' + lo + hi };
   }
   return { src: 'none', lo, hi, id: 'n' + lo + hi };
@@ -584,7 +599,7 @@ function pxCards(asins) {
 
 function pxRender(focusSel) {
   const pane = $('panePpcn'); if (!pane) return;
-  PX_MEMO = new Map(); PX_SESS = null;          // WEEKLY may have been refreshed since the last render
+  PX_MEMO = new Map(); PX_SESS = null; PX_SALEWK = null;   // WEEKLY may have been refreshed since the last render
   const old = pane.querySelector('.px-tw'), sc = old ? [old.scrollLeft, old.scrollTop] : null;
   const cm = PX.mode === 'cols';
   const empty = !Object.keys(WEEKLY.rows).length && !Object.keys(WDAY.rows).length;
@@ -640,10 +655,9 @@ function pxRender(focusSel) {
   let warn = '';
   const nonePlans = cm ? ctx.cols.filter(c => c.src === 'none') : (ctx.span.src === 'none' ? [ctx.span] : []);
   if (!empty && nonePlans.length) {
-    const old = nonePlans.some(c => c.why === 'old');
-    const kept = WEEKLY.weeks.length ? WEEKLY.weeks : wWeeksList(26);
+    const old = nonePlans.some(c => c.why === 'old'), first = pxOldestSaleWeek();
     warn = `<div class="px-warn">${cm ? nonePlans.length + ' column' + (nonePlans.length === 1 ? '' : 's') + ' fall' + (nonePlans.length === 1 ? 's' : '') : 'These dates fall'} `
-      + (old ? `before <b>${pxEsc(pxFmtRange(kept[0], kept[0]))}</b>: the nightly keeps the last 26 weeks.`
+      + (old ? `on weeks with no stored sales figures${first ? ' — the oldest week there are figures for is <b>' + pxEsc(pxFmtRange(first, sdShift(first, 6))) + '</b>' : ''}.`
         : `before ${WDAY.from ? '<b>' + pxEsc(pxFmtRange(WDAY.from, WDAY.from)) + '</b>, where the day-by-day figures start' : 'the day-by-day figures'}. Earlier dates can only be shown as whole Sunday–Saturday weeks.`)
       + '</div>';
   }
