@@ -23,6 +23,11 @@ const SHPB_ON = (() => { try { return localStorage.getItem('shpBoard') !== '0'; 
 const SHPB_NODE = 'pt_shpBoardTest', SHPB_PRESS = 'pt_shpBoardPress', SHPB_SHIP = 'pt_shpBoardShip';
 const SHPB_PRESSMEN = ['Keshav', 'Jagdish', 'Anokhi', 'Mangal', 'Om Prakash', 'Deepak', 'Chetram', 'Kuldeep', 'Shankar'];
 let SHPB = { tab: 'pending', stage: '', ready: {}, press: {}, ship: {}, pressBy: {}, readyAt: 0, busy: false, err: '' };
+/* PLAN FROM EXCEL (Ravi, 2 Nov: "excel se printer ko plan de saku … sirf plan window ka data aay sara nahi and tick wala option remove"):
+ * the lines in the TO PLAN bucket as PPC's sheet — fill Printer (and anything else), Raise = yes, upload; the plan form opens with those lines
+ * ticked, 40 at a time (flowXlOpenNext), and its Save raises the print orders. */
+const shpbPickKey = r => (typeof flowKey === 'function' ? flowKey(r.orderNo, r.sku) : shpbKey(r.orderNo, r.sku));
+const shpbToPlan = pend => pend.filter(r => shpbStages([r]).planW > 0);
 const shpbKey = (orderNo, sku) => obUC(orderNo) + '__' + obUC(sku);
 /* STATUS and READY DATE of a line, at the END of its row (Ravi, 29 Oct: "press ke end me status ka option chahiye like OOS, and ready date dal sake").
  * Both live on pt_shpBoardTest/<ORDER__SKU> with the pieces taken from ready stock (stockQty): { orderNo, sku, date, status, stockQty, by, at }. */
@@ -275,7 +280,16 @@ function renderShpBoard() {
   /* ONE LINE: the stage buckets, and the two tabs at the right end (Ravi, 28 Oct: no "Waiting at:", no long note, the tabs up with the buckets). */
   $('odKpis').innerHTML = ME.shpAccOnly ? `<div style="margin:2px 0 8px;font-weight:700;font-size:15px">Shipping to accept · ${nf(done.filter(r => r.open && shpbStages([r]).handW > 0).length)} line(s)</div>`
     : `<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:2px 0 8px">${shpbStagesShown().map(bucket).join('')}`
-    + `<div style="display:flex;gap:8px;margin-left:auto">${tabBtn('pending', 'Order pending · ' + nf(pend.length))}${tabBtn('done', 'Complete · ' + nf(done.length))}</div></div>`;
+    + `<div style="display:flex;gap:8px;margin-left:auto">${tabBtn('pending', 'Order pending · ' + nf(pend.length))}${tabBtn('done', 'Complete · ' + nf(done.length))}</div></div>`
+    + (tab === 'pending' && shpbCanEdit() ? (() => {
+      const can = shpbToPlan(pend).length, left = typeof FLOW_XL_IMP !== 'undefined' && FLOW_XL_IMP.length ? flowXlLeft().length : 0;
+      const b = 'height:34px;padding:0 14px;border-radius:12px;font:inherit;font-weight:700;cursor:pointer;box-shadow:none;transform:none;width:auto;';
+      return can || left ? `<div style="display:flex;gap:8px;align-items:center;margin:0 0 8px">`
+        + (can ? `<button type="button" class="ghost" data-shpb-xlout="1" style="${b}" title="The ${nf(can)} line(s) in To plan, as the PPC sheet — fill Printer and Raise = yes">Excel — To plan (${nf(can)})</button>` : '')
+        + `<button type="button" class="ghost" data-shpb-xlin="1" style="${b}" title="Upload the filled sheet — rows marked Raise = yes open in the plan form">Import plan</button><input type="file" accept=".xlsx,.csv" data-shpb-xlfile="1" class="hide">`
+        + (left ? `<button type="button" data-shpb-xlnext="1" style="${b}">Open imported (${nf(left)})</button>` : '')
+        + `<span class="muted" style="font-size:12px">fill Printer and Raise = yes, then Import plan · the form opens 40 lines at a time</span></div>` : '';
+    })() : '');
   $('odMsg').className = SHPB.err ? 'err' : 'muted';
   $('odMsg').textContent = SHPB.err || '';
 
@@ -576,9 +590,21 @@ if ($('odTable') && $('odTable').addEventListener) {
 if ($('ptDlgBody') && $('ptDlgBody').addEventListener) $('ptDlgBody').addEventListener('click', e => {
   const b = e.target.closest && e.target.closest('[data-shpb-recv]'); if (b) { const id = b.dataset.shpbRecv; ptDlgClose(); jwRecvOpen(id); }
 });
+if ($('odKpis') && $('odKpis').addEventListener) $('odKpis').addEventListener('change', e => {
+  const f = e.target.closest && e.target.closest('[data-shpb-xlfile]'); if (!f) return;
+  const file = f.files && f.files[0]; f.value = '';
+  if (file && typeof flowPpcXlIn === 'function') flowPpcXlIn(file, 'odMsg');
+});
 if ($('odKpis') && $('odKpis').addEventListener) $('odKpis').addEventListener('click', e => {
   if (!shpbIsBoard(ordView())) return;
   const t = e.target.closest && e.target.closest('[data-shpb-tab]'); if (t) { SHPB.tab = t.dataset.shpbTab; SHPB.stage = ''; renderShpBoard(); return; }
+  if (e.target.closest && e.target.closest('[data-shpb-xlout]')) {
+    const keys = new Set(shpbToPlan(shpbView().pend).map(shpbPickKey));
+    try { flowPpcXlOut(flowRows().filter(x => keys.has(x.s.key)), shpbKind() + '-board-plan'); } catch (x) { $('odMsg').className = 'err'; $('odMsg').textContent = 'Could not make the sheet: ' + (x.message || x); }
+    return;
+  }
+  if (e.target.closest && e.target.closest('[data-shpb-xlin]')) { const f = document.querySelector('[data-shpb-xlfile]'); if (f) f.click(); return; }
+  if (e.target.closest && e.target.closest('[data-shpb-xlnext]')) { flowXlOpenNext(); return; }
   const g = e.target.closest && e.target.closest('[data-shpb-stage]');
   if (g) { SHPB.stage = SHPB.stage === g.dataset.shpbStage ? '' : g.dataset.shpbStage; SHPB.tab = SHPB.stage === 'hand' ? 'done' : 'pending'; renderShpBoard(); }
 });

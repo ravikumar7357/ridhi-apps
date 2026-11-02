@@ -26864,6 +26864,11 @@ const SHPB_ON = (() => { try { return localStorage.getItem('shpBoard') !== '0'; 
 const SHPB_NODE = 'pt_shpBoardTest', SHPB_PRESS = 'pt_shpBoardPress', SHPB_SHIP = 'pt_shpBoardShip';
 const SHPB_PRESSMEN = ['Keshav', 'Jagdish', 'Anokhi', 'Mangal', 'Om Prakash', 'Deepak', 'Chetram', 'Kuldeep', 'Shankar'];
 let SHPB = { tab: 'pending', stage: '', ready: {}, press: {}, ship: {}, pressBy: {}, readyAt: 0, busy: false, err: '' };
+/* PLAN FROM EXCEL (Ravi, 2 Nov: "excel se printer ko plan de saku … sirf plan window ka data aay sara nahi and tick wala option remove"):
+ * the lines in the TO PLAN bucket as PPC's sheet — fill Printer (and anything else), Raise = yes, upload; the plan form opens with those lines
+ * ticked, 40 at a time (flowXlOpenNext), and its Save raises the print orders. */
+const shpbPickKey = r => (typeof flowKey === 'function' ? flowKey(r.orderNo, r.sku) : shpbKey(r.orderNo, r.sku));
+const shpbToPlan = pend => pend.filter(r => shpbStages([r]).planW > 0);
 const shpbKey = (orderNo, sku) => obUC(orderNo) + '__' + obUC(sku);
 /* STATUS and READY DATE of a line, at the END of its row (Ravi, 29 Oct: "press ke end me status ka option chahiye like OOS, and ready date dal sake").
  * Both live on pt_shpBoardTest/<ORDER__SKU> with the pieces taken from ready stock (stockQty): { orderNo, sku, date, status, stockQty, by, at }. */
@@ -27116,7 +27121,16 @@ function renderShpBoard() {
   /* ONE LINE: the stage buckets, and the two tabs at the right end (Ravi, 28 Oct: no "Waiting at:", no long note, the tabs up with the buckets). */
   $('odKpis').innerHTML = ME.shpAccOnly ? `<div style="margin:2px 0 8px;font-weight:700;font-size:15px">Shipping to accept · ${nf(done.filter(r => r.open && shpbStages([r]).handW > 0).length)} line(s)</div>`
     : `<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:2px 0 8px">${shpbStagesShown().map(bucket).join('')}`
-    + `<div style="display:flex;gap:8px;margin-left:auto">${tabBtn('pending', 'Order pending · ' + nf(pend.length))}${tabBtn('done', 'Complete · ' + nf(done.length))}</div></div>`;
+    + `<div style="display:flex;gap:8px;margin-left:auto">${tabBtn('pending', 'Order pending · ' + nf(pend.length))}${tabBtn('done', 'Complete · ' + nf(done.length))}</div></div>`
+    + (tab === 'pending' && shpbCanEdit() ? (() => {
+      const can = shpbToPlan(pend).length, left = typeof FLOW_XL_IMP !== 'undefined' && FLOW_XL_IMP.length ? flowXlLeft().length : 0;
+      const b = 'height:34px;padding:0 14px;border-radius:12px;font:inherit;font-weight:700;cursor:pointer;box-shadow:none;transform:none;width:auto;';
+      return can || left ? `<div style="display:flex;gap:8px;align-items:center;margin:0 0 8px">`
+        + (can ? `<button type="button" class="ghost" data-shpb-xlout="1" style="${b}" title="The ${nf(can)} line(s) in To plan, as the PPC sheet — fill Printer and Raise = yes">Excel — To plan (${nf(can)})</button>` : '')
+        + `<button type="button" class="ghost" data-shpb-xlin="1" style="${b}" title="Upload the filled sheet — rows marked Raise = yes open in the plan form">Import plan</button><input type="file" accept=".xlsx,.csv" data-shpb-xlfile="1" class="hide">`
+        + (left ? `<button type="button" data-shpb-xlnext="1" style="${b}">Open imported (${nf(left)})</button>` : '')
+        + `<span class="muted" style="font-size:12px">fill Printer and Raise = yes, then Import plan · the form opens 40 lines at a time</span></div>` : '';
+    })() : '');
   $('odMsg').className = SHPB.err ? 'err' : 'muted';
   $('odMsg').textContent = SHPB.err || '';
 
@@ -27417,9 +27431,21 @@ if ($('odTable') && $('odTable').addEventListener) {
 if ($('ptDlgBody') && $('ptDlgBody').addEventListener) $('ptDlgBody').addEventListener('click', e => {
   const b = e.target.closest && e.target.closest('[data-shpb-recv]'); if (b) { const id = b.dataset.shpbRecv; ptDlgClose(); jwRecvOpen(id); }
 });
+if ($('odKpis') && $('odKpis').addEventListener) $('odKpis').addEventListener('change', e => {
+  const f = e.target.closest && e.target.closest('[data-shpb-xlfile]'); if (!f) return;
+  const file = f.files && f.files[0]; f.value = '';
+  if (file && typeof flowPpcXlIn === 'function') flowPpcXlIn(file, 'odMsg');
+});
 if ($('odKpis') && $('odKpis').addEventListener) $('odKpis').addEventListener('click', e => {
   if (!shpbIsBoard(ordView())) return;
   const t = e.target.closest && e.target.closest('[data-shpb-tab]'); if (t) { SHPB.tab = t.dataset.shpbTab; SHPB.stage = ''; renderShpBoard(); return; }
+  if (e.target.closest && e.target.closest('[data-shpb-xlout]')) {
+    const keys = new Set(shpbToPlan(shpbView().pend).map(shpbPickKey));
+    try { flowPpcXlOut(flowRows().filter(x => keys.has(x.s.key)), shpbKind() + '-board-plan'); } catch (x) { $('odMsg').className = 'err'; $('odMsg').textContent = 'Could not make the sheet: ' + (x.message || x); }
+    return;
+  }
+  if (e.target.closest && e.target.closest('[data-shpb-xlin]')) { const f = document.querySelector('[data-shpb-xlfile]'); if (f) f.click(); return; }
+  if (e.target.closest && e.target.closest('[data-shpb-xlnext]')) { flowXlOpenNext(); return; }
   const g = e.target.closest && e.target.closest('[data-shpb-stage]');
   if (g) { SHPB.stage = SHPB.stage === g.dataset.shpbStage ? '' : g.dataset.shpbStage; SHPB.tab = SHPB.stage === 'hand' ? 'done' : 'pending'; renderShpBoard(); }
 });
@@ -29153,7 +29179,8 @@ function flowMasterPatch(rows, plans, pick, need) {
 function flowPpcOpen(orderNo, onlySku, keys) {
   /* SAME SKU, SAME DAY, ONE PLAN (Ravi, 15 Oct: "1 SKU ka same day order aay to wo sare order combine hokar dikhe PPC team
    * ko"): `keys` names lines of several orders, planned in one go — each keeps its own plan, its own print order. */
-  const rows = flowRows().filter(x => keys && keys.length ? keys.includes(x.s.key) && x.s.bucket === 'ppc'
+  /* The SHP board's own lines (bucket 'board', never in PPC) come in too when the board names them — its bulk Plan (2 Nov). */
+  const rows = flowRows().filter(x => keys && keys.length ? keys.includes(x.s.key) && (x.s.bucket === 'ppc' || x.s.bucket === 'board')
     : x.r.orderNo === orderNo && (onlySku ? obUC(x.r.sku) === obUC(onlySku) : x.s.bucket === 'ppc'));
   if (!rows.length) return;
   if (keys && keys.length) orderNo = [...new Set(rows.map(x => x.r.orderNo))].join(', ');
@@ -29570,7 +29597,8 @@ function flowPpcXlRead(sheet) {
   const H = sheet[0].map(h => String(h == null ? '' : h).replace(/^\uFEFF/, '').trim().toLowerCase());
   const at = n => H.indexOf(String(n).toLowerCase()), iK = at('Line ID'), iR = H.findIndex(h => /^raise/.test(h));
   if (iK < 0 || iR < 0) return { err: 'The file needs the "Line ID" and "Raise (yes/no)" columns — download the PPC list as Excel and fill that one.' };
-  const byKey = new Map(flowRows().filter(x => x.s.bucket === 'ppc').map(x => [x.s.key, x]));
+  /* the SHP board's own lines (bucket 'board') are planned from its sheet the same way (2 Nov) */
+  const byKey = new Map(flowRows().filter(x => x.s.bucket === 'ppc' || x.s.bucket === 'board').map(x => [x.s.key, x]));
   let vens = []; try { vens = flowChVendors(); } catch (e) { vens = []; }
   const venOf = s => { const t = String(s || '').trim().toLowerCase(); if (!t) return '';
     const v = vens.find(y => String(y.code).toLowerCase() === t) || vens.find(y => String(y.desc || y.name || '').trim().toLowerCase() === t); return v ? String(v.code) : null; };
@@ -29608,7 +29636,7 @@ function flowPpcXlRead(sheet) {
 /* The imported lines still in PPC, opened in the form a batch at a time. */
 let FLOW_XL_IMP = [];
 const FLOW_XL_BATCH = 40;
-const flowXlLeft = () => { const inPpc = new Set(flowRows().filter(x => x.s.bucket === 'ppc').map(x => x.s.key)); return FLOW_XL_IMP.filter(k => inPpc.has(k)); };
+const flowXlLeft = () => { const inPpc = new Set(flowRows().filter(x => x.s.bucket === 'ppc' || x.s.bucket === 'board').map(x => x.s.key)); return FLOW_XL_IMP.filter(k => inPpc.has(k)); };
 function flowXlOpenNext() {
   const left = flowXlLeft(); if (!left.length) { FLOW_XL_IMP = []; return; }
   const batch = left.slice(0, FLOW_XL_BATCH);
@@ -29616,7 +29644,7 @@ function flowXlOpenNext() {
   /* the imported lines are ticked "Raise now" — that is what the sheet said */
   document.querySelectorAll('[data-fpick]').forEach(el => { el.checked = true; try { el.dispatchEvent(new Event('change')); } catch (e) { /* no events here */ } });
 }
-function flowPpcXlOut(rows) {
+function flowPpcXlOut(rows, fileName) {
   const col = n => FLOW_XL_COLS.indexOf(n);
   let prn = []; try { prn = [...new Set(flowChVendors().map(v => v.desc || v.name || v.code).filter(Boolean))]; } catch (e) { prn = []; }
   let emb = []; try { emb = flowEmbVendors().map(v => v.dept ? v.name : (v.desc || v.name || v.code)); } catch (e) { emb = []; }
@@ -29627,15 +29655,16 @@ function flowPpcXlOut(rows) {
     { name: 'Embroiderers', values: emb, cols: [col('Embroidery by')] }] });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
-  a.download = 'ppc-plan-' + dToday() + '.xlsx';
+  a.download = (fileName || 'ppc-plan') + '-' + dToday() + '.xlsx';
   a.click(); URL.revokeObjectURL(a.href);
 }
-async function flowPpcXlIn(file) {
+async function flowPpcXlIn(file, msgId) {
   if (!file) return;
+  const msg = (typeof $ === 'function' && $(msgId || 'flMsg')) || $('flMsg');
   let sheet; try { sheet = /\.xlsx$/i.test(file.name) ? await pkReadXlsx(new Uint8Array(await file.arrayBuffer())) : parseCsv(await file.text()); }
-  catch (e) { $('flMsg').className = 'err'; $('flMsg').textContent = 'Could not read the file: ' + (e.message || e); return; }
+  catch (e) { msg.className = 'err'; msg.textContent = 'Could not read the file: ' + (e.message || e); return; }
   const rd = flowPpcXlRead(sheet);
-  if (rd.err) { $('flMsg').className = 'err'; $('flMsg').textContent = rd.err; return; }
+  if (rd.err) { msg.className = 'err'; msg.textContent = rd.err; return; }
   const list = (a, n) => a.length ? `<div style="margin-top:6px"><b>${nf(a.length)}</b> ${n}:<div class="muted" style="font-size:12px">${a.slice(0, 12).map(esc).join('<br>')}${a.length > 12 ? '<br>…' : ''}</div></div>` : '';
   const pos = new Set(rd.keys.map(k => k.split('__')[0]));
   ptOpenDialog({
