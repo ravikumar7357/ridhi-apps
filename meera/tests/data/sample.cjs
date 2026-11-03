@@ -59,7 +59,17 @@ function waitingAt(l) {
   if (l.pressed < l.received) return 'QC — ' + (l.received - l.pressed).toLocaleString('en-IN') + ' to check';
   return 'Ready to hand over to shipping';
 }
-const RAW = { NOW, DAY, KARIGARS, SKUS, LINES, BASE, STOCK, CHECKS, LAST, left, open, waitingAt, stamp, ago, today: stamp(NOW).slice(0, 10) };
+/* the Master Database rows (made up) — with a cost value and a maker that Meera must never show */
+const MASTER = {
+  'CPC008-04': { brand: 'CPC', articleType: 'Cushion Cover', color: 'Beige', size: '16x16', packOf: 5, fabric: 'Cotton Duck', cuttingRequired: true, consumption: 0.45,
+    isZip: true, chainLength: '14 in', zipQty: 1, isPiping: true, pipingMeters: 1.6, pipingFabric: 'Cotton Duck', asin: 'B0CPC00804', parentAsin: 'B0CPC008PA', listingStatus: 'Active',
+    inventoryValuationPrice: 187.5, manufacturer: 'Shree Ganesh Textiles' },
+  'RTBX72': { brand: 'Ridhi', articleType: 'Table Runner', color: 'Red', size: '13x72', packOf: 1, fabric: 'Linen Blend', cuttingRequired: true, consumption: 0.6, isRuffle: true, ruffleMeters: 4, ruffleFabric: 'Linen Blend',
+    asin: 'B0RTBX7200', listingStatus: 'Inactive', inventoryValuationPrice: 240, manufacturer: 'Jai Ambe Prints' },
+  'RQL354-K': { brand: 'Ridhi', articleType: 'Quilt', size: 'King', fabric: 'Mulmul', consumption: 5.2, fillerFabricRequired: true, standardFillingQty: '1.8 kg', inventoryValuationPrice: 1450, manufacturer: 'Om Quilts' },
+};
+const FABRIC_WIDTHS = [{ fabric: 'Cotton Duck', widthIn: 58 }, { fabric: 'Linen Blend', widthIn: 54 }, { fabric: 'Mulmul', widthIn: 44 }];
+const RAW = { NOW, DAY, KARIGARS, SKUS, LINES, MASTER, FABRIC_WIDTHS, BASE, STOCK, CHECKS, LAST, left, open, waitingAt, stamp, ago, today: stamp(NOW).slice(0, 10) };
 
 /** the functions that save to the database, read it, or start a screen's own reading — each a counter here */
 const TOUCH = ['ptPut', 'ptPatch', 'ptCas', 'ptDelete', 'ptAuditWrite', 'setDoc', 'addDoc', 'deleteDoc', 'saveShopMeta', 'baseAutoMove', 'baseArchiveRun', 'flowGuard', 'flowClaim',
@@ -81,7 +91,9 @@ function install(M, o = {}) {
   c.PT = { base: miss.has('pbase') ? null : BASE.map(b => ({ id: b.id, empName: b.empName, empType: 'Karigar', sku: b.sku, orderNo: b.orderNo, issuePieces: b.issuePieces, issueDate: stamp(b.issueAt),
     receivedPieces: b.recv.reduce((a, r) => a + r[1], 0), rejectionPieces: b.rejection || 0, pendingPieces: left(b), receipts: b.recv.map(([ms, qty]) => ({ at: stamp(ms), qty })) })),
     at: { mdb: '', base: miss.has('pbase') ? '' : '29 Oct, 10:12', cut: '' } };
-  c.PTG = { mdb: SKUS.map(s => ({ sku: s })), ob: miss.has('ord') ? null : [], at: miss.has('ord') ? 0 : ago(0, 10, 20) };
+  c.PTG = { mdb: miss.has('pmdb') ? null : SKUS.map(s => ({ sku: s, ...(MASTER[s] || {}) })), ob: miss.has('ord') ? null : [], at: miss.has('ord') ? 0 : ago(0, 10, 20) };
+  c.mdbOf = s => (c.PTG.mdb || []).find(r => r.sku === String(s).toUpperCase()) || null;
+  c.ptFabricWidths = () => FABRIC_WIDTHS.slice();
   c.QC = { checks: miss.has('qc') ? null : CHECKS.slice(), at: miss.has('qc') ? '' : '29 Oct, 10:15' };
   c.FGI = { rows: miss.has('fgi') ? null : [], at: miss.has('fgi') ? '' : '29 Oct, 09:55' };
   c.ORD_PIPE_STALE_DAYS = 5;

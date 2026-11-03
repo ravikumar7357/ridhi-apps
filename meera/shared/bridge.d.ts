@@ -52,6 +52,10 @@ interface ErpMeeraData {
   waitingAt(stage: string): { from: ErpMeeraFrom; stage?: string; lines?: { orderNo: string; sku: string; pcs: number }[]; pcs?: number };
   today(): { base: ErpMeeraFrom; qc: ErpMeeraFrom; issued?: { pcs: number; entries: number }; received?: { pcs: number; entries: number }; passed?: { pcs: number; checks: number } };
   late(): { from: ErpMeeraFrom; days?: number; orders?: { orderNo: string; idle: number; at: string }[] };
+  /** one SKU from the Master Database — never its cost value or its maker */
+  skuInfo(sku: string): { from: ErpMeeraFrom; none?: boolean; row?: Record<string, string | number | boolean>; fabricWidthIn?: number | null };
+  /** one SKU's open order lines on the Order Console, with their stage */
+  skuOrders(sku: string): { from: ErpMeeraFrom; sku?: string; lines?: { orderNo: string; qty: number; at: string }[] };
   /** only from a button the person pressed: 'order' | 'karigar' | 'sku' | a screen */
   open(kind: string, key: string): boolean;
 }

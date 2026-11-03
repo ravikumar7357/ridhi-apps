@@ -1322,9 +1322,9 @@ async function gaAsk(q) {
   }
   /* "this screen" means the one open now — when that is all the question asks ("ye screen kya hai"), not "keyboard
    * shortcut kya hai is page ke", which has an answer of its own */
-  const rest = gaRead(q).means.filter(m => !['what', 'screen', 'show', 'help', 'about', 'how'].includes(m) && !/^(page|pej|पेज|about|samjha|samjhao|batao|bataiye|tell|explain)$/.test(m));
-  const here = !rest.length && (/\b(this|is|yeh|ye|yah)\s+(screen|page)\b|यह स्क्रीन|ye screen|is screen/i.test(q)) && gaHere();
-  const r = here && /what|kya|क्या|about|samjha|batao/i.test(q) ? gaScreenAnswer(here, gaRead(q).lang, (en, hi, hg) => { const l = gaRead(q).lang; return l === 'hi' ? hi : l === 'hg' ? (hg || en) : en; }) : await gaAnswer(q);
+  const rest = gaRead(q).means.filter(m => !['what', 'screen', 'show', 'help', 'about', 'how', 'job', 'why'].includes(m) && !/^(page|pej|पेज|about|samjha|samjhao|batao|bataiye|tell|explain|kaam|kam|work|purpose|use|kis|liye|lie|for|iss|isse|इस|काम|किस|लिए)$/.test(m));
+  const here = !rest.length && (/\b(this|is|iss|es|yeh|ye|yah)\s+(screen|page|pej)\b|(यह|इस) (स्क्रीन|पेज)|ye screen|is screen/i.test(q)) && gaHere();
+  const r = here && /what|kya|क्या|about|samjha|batao|kaam|liye|purpose|why|काम|लिए/i.test(q) ? gaScreenAnswer(here, gaRead(q).lang, (en, hi, hg) => { const l = gaRead(q).lang; return l === 'hi' ? hi : l === 'hg' ? (hg || en) : en; }) : await gaAnswer(q);
   if (r.miss) gaMissKeep(q, r.miss === true ? 'none' : r.miss);
   if (typeof meeraLearnAnswered === 'function') meeraLearnAnswered(q, r);
   if (typeof meeraServerAfter === 'function') meeraServerAfter(q);   // Phase 5, switch "server": her router's search, side by side   // Phase 4, switch "learn": a miss or "not sure" kept (cleaned)

@@ -59,7 +59,7 @@ try { window.ERP_MEERA = ERP_MEERA; } catch (e) { /* no window: the page itself 
  * data a screen has not read yet is "not loaded" (she asks the person to open that screen), never fetched — the quota
  * fix stands. Each answer says which screen it comes from and when that screen last read it. A screen the account
  * cannot open answers "not allowed", with no data. open() is called only from a button the person presses. */
-const MEERA_DATA_SCREENS = { ord: 'Order Console', pbase: 'Job Work Register', fgi: 'Finished Goods', qc: 'Quality Control' };
+const MEERA_DATA_SCREENS = { ord: 'Order Console', pbase: 'Job Work Register', fgi: 'Finished Goods', qc: 'Quality Control', pmdb: 'Master Database' };
 const mdMay = tab => (typeof mobMay === 'function' ? !!mobMay(tab) : true);
 const mdNum = v => Number(v) || 0;
 const mdLeft = r => mdNum(r.issuePieces) - mdNum(r.receivedPieces) - mdNum(r.rejectionPieces);
@@ -159,6 +159,32 @@ ERP_MEERA.data = {
       if (idle >= days) out.push({ orderNo: no, idle, at: typeof ordWaitingAt === 'function' ? ordWaitingAt(rows[0]) : '' });
     });
     return { from, days, orders: out.sort((a, b) => b.idle - a.idle) };
+  }, { from: { tab: 'ord', notLoaded: true } }),
+  /** ONE SKU FROM THE MASTER DATABASE (Ravi, 3 Nov: "all the knowledge of all the skus"): what the Master Database
+   * screen shows, for accounts that may open it — NEVER the cost value (inventoryValuationPrice) or the maker
+   * (manufacturer), to anyone. Fabric width from the fabric master (ptFabricWidths). */
+  skuInfo: sku => meeraSafe(() => {
+    const from = mdFrom('pmdb', typeof PTG !== 'undefined' && Array.isArray(PTG.mdb), typeof PTG !== 'undefined' ? mdTime(PTG.at) : '');
+    if (from.denied || from.notLoaded) return { from };
+    const m = typeof mdbOf === 'function' ? mdbOf(sku) : null;
+    if (!m) return { from, none: true };
+    const KEEP = ['sku', 'brand', 'articleType', 'subtype', 'color', 'size', 'packOf', 'fabric', 'cuttingRequired', 'consumption', 'isZip', 'chainLength', 'zipQty',
+      'isRuffle', 'ruffleMeters', 'ruffleFabric', 'isPiping', 'pipingMeters', 'pipingFabric', 'packType', 'packMaterial', 'fillerFabricRequired', 'standardFillingQty',
+      'asin', 'parentAsin', 'listingStatus', 'isCustom', 'mergedInto'];
+    const row = {};
+    KEEP.forEach(k => { if (m[k] !== undefined && m[k] !== null && m[k] !== '') row[k] = m[k]; });
+    let width = null;
+    try { const f = String(m.fabric || '').toLowerCase(), w = typeof ptFabricWidths === 'function' ? ptFabricWidths().find(x => String(x.fabric).toLowerCase() === f) : null; if (w) width = w.widthIn; } catch (e) { /* no fabric master */ }
+    return { from, row, fabricWidthIn: width };
+  }, { from: { tab: 'pmdb', notLoaded: true } }),
+  /** ONE SKU's OPEN ORDER LINES on the Order Console, each with its stage ("Waiting at") */
+  skuOrders: sku => meeraSafe(() => {
+    const from = mdOrdFrom();
+    if (from.denied || from.notLoaded) return { from };
+    const S = String(sku || '').toUpperCase();
+    const lines = mdOrdLines().filter(r => r.open && String(r.sku || '').toUpperCase() === S)
+      .map(r => ({ orderNo: r.orderNo, qty: mdNum(r.qty), at: typeof ordWaitingAt === 'function' ? ordWaitingAt(r) : '' }));
+    return { from, sku: S, lines };
   }, { from: { tab: 'ord', notLoaded: true } }),
   /** the person pressed the answer's button: the screen, on the line (an order's journey, a karigar's rows, a SKU) */
   open: (kind, key) => meeraSafe(() => {

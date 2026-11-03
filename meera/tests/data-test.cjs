@@ -18,7 +18,7 @@ const nf = n => Number(n).toLocaleString('en-IN');
 const plain = h => String(h || '').replace(/<[^>]+>/g, ' ').replace(/&amp;/g, '&').replace(/\s+/g, ' ');
 
 /* ---------- the right answers, from the plain data ---------- */
-const { LINES, BASE, STOCK, CHECKS, LAST, NOW, DAY, left, open, waitingAt, today } = RAW;
+const { LINES, BASE, STOCK, CHECKS, LAST, NOW, DAY, SKUS, left, open, waitingAt, today } = RAW;
 const placed = no => { const d = LINES.find(l => l.orderNo === no).orderDate.split('/'); return new Date(+d[2], +d[1] - 1, +d[0]).getTime(); };
 const idle = no => Math.floor((NOW - (LAST[no] ? LAST[no].ms : placed(no))) / DAY);
 const want = {
@@ -130,6 +130,46 @@ add('none', '', ['karigar ko kaam kaise de', 'Raju Kumar ko maal kaise issue kar
     const taken = Object.keys(g).map(k => k.split('|').slice(2).join('|')).filter(q => T('meeraDataTry(' + JSON.stringify(q) + ')'));
     console.log(`   taken as data questions: ${taken.length}` + (taken.length ? '\n     ' + taken.join('\n     ') : ''));
     ok(taken.length <= 5, 'at most a handful of recorded questions are taken as data questions'); }
+
+  console.log('7. one SKU\'s card (Ravi, 3 Nov: master details, cloth, Amazon, stock, open orders — never cost or maker)');
+  install(M);
+  const card = q => { const r = T('meeraDataTry(' + JSON.stringify(q) + ')'); return { kind: r && r.kind, t: plain(r && r.html), acts: (r && r.acts) || [] }; };
+  const SECRET = /187\.5|240|1450|1,450|Shree Ganesh|Jai Ambe|Om Quilts|valuation|manufacturer/i;
+  { const c = card('CPC008-04 ki details batao');
+    ok(c.kind === 'skucard' && ['CPC', 'Cushion Cover', 'Cotton Duck', '58', '0.45', 'B0CPC00804', 'B0CPC008PA', 'Active', '1.6'].every(s => c.t.includes(s)), 'the card shows the master details, cloth, width and Amazon: ' + c.t.slice(0, 200));
+    ok(c.t.includes(nf(STOCK['CPC008-04'].current)) && c.t.includes('AMZ-16092026-02'), 'and its stock and open order: ' + c.t.slice(0, 200));
+    ok(c.acts.includes('sku|CPC008-04') && c.acts.includes('ord|'), 'buttons: the SKU and the Order Console'); }
+  { const l = LINES.find(x => x.sku === 'CPC008-04'), c = card('CPC008-04 ka order open hai kya, kis stage pe hai');
+    ok(c.kind === 'skucard' && c.t.includes('AMZ-16092026-02') && c.t.includes(waitingAt(l)), 'is this SKU\'s order open, at what stage: ' + c.t.slice(0, 200));
+    ok(c.t.indexOf('Open orders') < c.t.indexOf('Master details'), 'an orders question puts its orders first'); }
+  { const c = card('RTBX72 me kitna kapda lagta hai'); ok(c.kind === 'skucard' && ['0.6', 'Linen Blend', '54', '4 m'].every(s => c.t.includes(s)), 'the cloth it takes: ' + c.t.slice(0, 200)); }
+  { const c = card('RTBX72 kis brand ka hai'); ok(c.kind === 'skucard' && c.t.includes('Ridhi'), 'its brand (CPC or Ridhi): ' + c.t.slice(0, 120)); }
+  { const c = card('RQL354-K ki chaudai kitni hai'); ok(c.kind === 'skucard' && ['Mulmul', '44', '5.2', '1.8 kg'].every(s => c.t.includes(s)), 'quilt: fabric, width, cloth, filling: ' + c.t.slice(0, 200)); }
+  { const c = card('CPC008 ki details batao'); ok(c.kind === 'sku-which', 'a SKU with several sizes: she asks which → ' + c.kind); }
+  { const c = card('CPC008-04 ka stock kitna hai'); ok(c.kind === 'sku', 'a stock question keeps its short stock answer'); }
+  { let bad = []; for (const s of SKUS) for (const q of [`${s} ki details batao`, `details of ${s}`, `${s} की पूरी जानकारी बताओ`, `${s} kis brand ka hai`, `${s} me kitna kapda lagta hai`]) { const c = card(q); if (c.kind && SECRET.test(c.t)) bad.push(q); }
+    ok(!bad.length, 'never the cost value or the maker, in any card: ' + bad.join(' | ')); }
+  install(M, { tabs: ['qc'] });
+  { const c = card('CPC008-04 ki details batao');
+    ok(c.kind === 'skucard' && (c.t.match(/Your account does not have this screen|Aapke account mein yeh screen nahi hai|आपके अकाउंट में यह स्क्रीन नहीं है/g) || []).length === 3 && !/Cotton Duck|B0CPC|AMZ-16092026/.test(c.t), 'Quality Control only: each part says "not in your account", no figure: ' + c.t.slice(0, 200)); }
+  install(M, { tabs: ['pmdb'] });
+  { const c = card('CPC008-04 ki details batao');
+    ok(/Cotton Duck/.test(c.t) && !/AMZ-16092026/.test(c.t) && /Your account does not have this screen|Aapke account mein yeh screen nahi hai/.test(c.t), 'Master Database only: details yes, orders and stock no: ' + c.t.slice(0, 200)); }
+  install(M, { missing: ['pmdb'] });
+  { const c = card('CPC008-04 ki details batao'); ok(c.kind === null || /not been opened yet/.test(c.t), 'Master Database not read yet: she says so (or leaves it)'); ok(!M.ctx.__touched.length, 'and reads nothing'); }
+  install(M);
+  console.log('8. order numbers typed short, and "what is this" questions');
+  { const c = card('AMZ -16092026 kahan hai'); ok(c.kind === 'order' && c.t.includes('AMZ-16092026-02'), 'the start of an order number finds it: ' + c.kind + ' ' + c.t.slice(0, 80)); }
+  { const c = card('amz 16092026-02 ka status'); ok(c.kind === 'order', 'an order number typed with a space'); }
+  for (const q of ['yeh jo upar chalti hui line hai LATE 49 days, yeh kya hai', 'ye late orders wala kya hai', 'what is this late list', 'यह लेट क्या है'])
+    ok(!T('meeraDataTry(' + JSON.stringify(q) + ')'), '"what is this" is not a figures question: ' + q);
+  /* the chat itself (gaAsk): "this page" is the screen open now */
+  const chat = q => M.ctx.__meeraTest(`(async () => { let o = ''; const s = gaSay; gaSay = h => { o += h; }; try { await gaAsk(${JSON.stringify(q)}); } finally { gaSay = s; } return o; })()`);
+  M.setTab('qc');
+  { const b = plain(await chat('ye screen kya hai'));
+    for (const q of ['iss page ka kaam kya hai', 'is page ka kya kaam hai', 'ye page kis liye hai', 'इस पेज का काम क्या है']) {
+      const a = plain(await chat(q)); ok(a === b || /क्वालिटी कंट्रोल/.test(a), `"${q}" explains the open screen: ${a.slice(0, 100)}`); }
+    ok(!/This is Quality Control/.test(plain(await chat('keyboard shortcut kya hai is page ke'))), '"keyboard shortcut kya hai is page ke" keeps its own answer'); }
 
   console.log('6. switch off');
   { const N = await load({ root: ROOT, bundle: true, handle: true, switches: ['lazy'], only: true }); install(N);

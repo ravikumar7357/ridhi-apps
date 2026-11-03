@@ -20,7 +20,8 @@ declare function muDistance(a: string, b: string, max: number): number;
 
 const MEERA_DATA: boolean = meeraOn('data');
 type MdLang = 'en' | 'hi' | 'hg';
-type MdAsk = { kind: 'order'; no: string } | { kind: 'order-missing'; text: string } | { kind: 'karigar'; name: string } | { kind: 'karigar-which'; said: string; names: string[] }
+type MdAsk = { kind: 'order'; no: string } | { kind: 'order-missing'; text: string } | { kind: 'order-which'; said: string; nos: string[] }
+  | { kind: 'skucard'; sku: string; focus: 'all' | 'cloth' | 'brand' | 'amazon' | 'orders' } | { kind: 'karigar'; name: string } | { kind: 'karigar-which'; said: string; names: string[] }
   | { kind: 'sku'; sku: string } | { kind: 'sku-which'; said: string; skus: string[] } | { kind: 'today'; focus: string } | { kind: 'late' } | { kind: 'wait'; stage: string };
 
 /* ---------- reading the question ---------- */
@@ -28,6 +29,14 @@ const MD_HOW = /\b(kaise|kese|kaisey|kaisay|how to|how do|how can|kaha likh\w*|k
 /* never a figures question: what a word or a box means, pay and money, the past (last week, yesterday), attendance — her
  * answers or the AI, as before (measured 2 Nov: without this, 25 of her 580 recorded questions were taken) */
 const MD_NOT = /\b(matlab|meaning|mean|means|stands for|what does|what is (this|that)|what's this|what happens|kya hota|kya karta|kya karti|button|column|press|dabane|payment|salary|hisab|hisaab|paisa|paise|rate|advance|attendance|hajri|haziri|tds|bill|last week|is hafte|pichhle|pichle|yesterday|kal|week|month|mahine|hafte)\b|मतलब|सैलरी|हाजिरी|पिछले|कल/;
+/* "yeh … kya hai", "what is this …": asking what something IS — her answers explain it, never a figures list (Ravi,
+ * 3 Nov: "yeh jo upar chalti hui line … late … kya hai" got the late-orders list) */
+const MD_WHATIS = /\b(ye|yeh|yah|yaha|this|that|wo|woh|jo)\b[^?.!]*\b(kya hai|kya h|kya he|kya hota|what is|what are|what's)\b|यह[^?.!]*क्या है/;
+/* a SKU: its orders, the cloth it takes, its brand, Amazon (Ravi, 3 Nov: "all the knowledge of all the skus") */
+const MD_ORDERQ = /\b(order|orders|ordr|ordar|stage|open|production|chal raha|chal rahi|ban raha|ban rahi|kahan tak)\b|ऑर्डर|स्टेज/;
+const MD_CLOTH = /\b(kapda|kapde|kapra|kapre|cloth|fabric|consumption|meter|metre|meters|metres|mtr|width|chaudai|chodai|panna|lagta|lagega|lagti)\b|कपड़ा|कपड़े|मीटर/;
+const MD_BRAND = /\b(brand|cpc|ridhi|company|kiska|kis brand)\b|ब्रांड/;
+const MD_AMAZON = /\b(asin|amazon|listing|listed|parent)\b|अमेज़न/;
 const MD_WHERE = /\b(kaha|kahan|kahaan|kha|kidhar|where|status|stage|haal|position|tak pahuncha|pahucha)\b|कहाँ|कहां|किधर|स्टेटस/;
 const MD_COUNT = /\b(kitne|kitna|kitni|kitane|kitnay|how many|how much|count|total|kul)\b|कितने|कितना|कितनी/;
 const MD_HOLD = /\b(paas|pass|holding|holds|has|have|ke yaha|ke yahan|pe|par)\b|पास/;
@@ -46,8 +55,10 @@ const mdBare = (s: string): string => s.toUpperCase().replace(/[^A-Z0-9]/g, '');
 const mdNf = (n: number): string => (Number(n) || 0).toLocaleString('en-IN');
 
 /** what the question asks for, or null when it is not about the ERP's figures (a how-to goes to her answers as before) */
-function mdParse(q: string, D: ErpMeeraData): MdAsk | null {
-  const low = ' ' + String(q || '').toLowerCase().replace(/\s+/g, ' ') + ' ', ws = mdWords(q);
+function mdParse(q0: string, D: ErpMeeraData): MdAsk | null {
+  /* "AMZ -30082026", "amz 30082026" → AMZ-30082026 (an order number typed with a space) */
+  const q = String(q0 || '').replace(/\b(amz|spy|shp|b2b|onl|adj|leg)\s*-\s*(?=\d)|\b(amz|spy|shp|b2b|onl|adj|leg)\s+(?=\d)/gi, (m: string, a: string, b: string) => (a || b) + '-');
+  const low = ' ' + q.toLowerCase().replace(/\s+/g, ' ') + ' ', ws = mdWords(q);
   if (MD_HOW.test(low) || MD_NOT.test(low)) return null;
   /* an order number ("AMZ-16092026-02", "amz1609202602", "RBP7620" for SHP-RBP7620) */
   const orderish = ws.filter(w => (MD_ORDERLIKE.test(w) && /\d{3,}/.test(w)) || (/^[a-z]{2,4}\d{3,}$/i.test(w) && MD_WHERE.test(low)));
@@ -56,11 +67,27 @@ function mdParse(q: string, D: ErpMeeraData): MdAsk | null {
     for (const w of orderish) {
       const b = mdBare(w), hit = byBare.get(b) || all.find(o => mdBare(o).endsWith(b) && o.toUpperCase().endsWith(w.toUpperCase()));
       if (hit) return { kind: 'order', no: hit };
+      /* only the start of a number ("AMZ-30082026"): the one order it names, or she asks which */
+      const pre = all.filter(o => o.toUpperCase().startsWith(w.toUpperCase() + '-'));
+      if (pre.length === 1) return { kind: 'order', no: pre[0] };
+      if (pre.length > 1) return { kind: 'order-which', said: w.toUpperCase(), nos: pre.slice(0, 8) };
     }
     const w0 = orderish.find(w => MD_ORDERLIKE.test(w));
     /* the Order Console cannot be read here (not allowed, or not opened yet): findOrder says which */
     if (w0) return all.length ? { kind: 'order-missing', text: w0.toUpperCase() } : { kind: 'order', no: w0.toUpperCase() };
   }
+  /* a SKU named in full ("RTC327-6060"): its stock when that is what is asked, else its card — master details, cloth,
+   * brand, Amazon, its open orders and their stage */
+  const skuSet = new Set(D.skus());
+  const skuW = ws.map(w => w.toUpperCase()).find(u => /\d/.test(u) && u.length >= 4 && skuSet.has(u));
+  const skuAsk = (sku: string): MdAsk => {
+    if ((MD_STOCK.test(low) || MD_COUNT.test(low)) && !MD_ORDERQ.test(low) && !MD_CLOTH.test(low)) return { kind: 'sku', sku };
+    const focus = MD_ORDERQ.test(low) ? 'orders' : MD_CLOTH.test(low) ? 'cloth' : MD_AMAZON.test(low) ? 'amazon' : MD_BRAND.test(low) ? 'brand' : 'all';
+    return { kind: 'skucard', sku, focus };
+  };
+  if (skuW) return skuAsk(skuW);
+  /* past here only her figures lists — never for "yeh … kya hai" */
+  if (MD_WHATIS.test(low)) return null;
   /* a karigar ("Raju Kumar", "Raju" — two Rajus: she asks which; one letter off in a longer name is still him) */
   const names = D.karigars(), lw = ws.map(w => w.toLowerCase());
   const full = names.filter(n => { const p = n.toLowerCase().split(/\s+/); return p.length > 1 && lw.some((w, i) => p.every((x, j) => lw[i + j] === x)); });
@@ -78,14 +105,14 @@ function mdParse(q: string, D: ErpMeeraData): MdAsk | null {
     return { kind: 'karigar-which', said: said || cand[0].split(/\s+/)[0], names: cand.slice(0, 6) };
   }
   /* a SKU ("CPC008-04"; "CPC008" when it has several sizes: she asks which) */
-  if (MD_STOCK.test(low) || MD_COUNT.test(low)) {
+  if (MD_STOCK.test(low) || MD_COUNT.test(low) || MD_ORDERQ.test(low) || MD_CLOTH.test(low) || /\b(details?|batao|bataiye|info|about|sab kuch|poori|puri)\b|बताओ|बताइए/.test(low)) {
     const set = new Set(D.skus());
     for (const w of ws) {
       const u = w.toUpperCase();
       if (!/\d/.test(u) || u.length < 4) continue;
-      if (set.has(u)) return { kind: 'sku', sku: u };
+      if (set.has(u)) return skuAsk(u);
       const pre = [...set].filter(s => s.startsWith(u + '-') || mdBare(s) === mdBare(u));
-      if (pre.length === 1) return { kind: 'sku', sku: pre[0] };
+      if (pre.length === 1) return skuAsk(pre[0]);
       if (pre.length > 1 && pre.length <= 8) return { kind: 'sku-which', said: u, skus: pre };
     }
   }
@@ -123,6 +150,60 @@ function mdCannot(f: ErpMeeraFrom, L: (en: string, hi: string, hg: string) => st
 const mdChips = (head: string, list: { label: string; q: string }[]): string =>
   `<div class="ga-rel"><span>${head}</span>${list.map(x => `<button type="button" class="ga-chip" data-gq="${esc(x.q)}">${esc(x.label)}</button>`).join('')}</div>`;
 
+/* ONE SKU'S CARD (Ravi, 3 Nov): what the Master Database says about it — never its cost value or its maker — the
+ * cloth it takes, Amazon, its stock and its open orders with their stage. Each part needs its own screen: an account
+ * without it is told so for that part only. */
+const MD_FIELDS: [string, string][] = [['brand', 'Brand'], ['articleType', 'Article'], ['subtype', 'Type'], ['color', 'Colour'], ['size', 'Size'], ['packOf', 'Pack of'],
+  ['packType', 'Pack type'], ['packMaterial', 'Pack material'], ['isCustom', 'Custom'], ['mergedInto', 'Merged into']];
+const mdYes = (v: unknown): boolean => v === true || /^(true|yes|y|1)$/i.test(String(v));
+function mdSkuCard(sku: string, focus: string, D: ErpMeeraData, L: (en: string, hi: string, hg: string) => string): { html: string; acts: { t: string; id: string; label: string }[] } {
+  const s = esc(sku), parts: string[] = [], acts: { t: string; id: string; label: string }[] = [];
+  const no = L('Your account does not have this screen.', 'आपके अकाउंट में यह स्क्रीन नहीं है।', 'Aapke account mein yeh screen nahi hai.');
+  const part = (head: string, body: string) => parts.push(`<div class="ga-a"><b>${head}</b></div>${body}`);
+  /* the Master Database */
+  const m = D.skuInfo(sku), mc = mdCannot(m.from, L);
+  if (mc) part(L('Master details', 'मास्टर डिटेल', 'Master details'), `<div>${m.from.denied ? no : mc.html}</div>`);
+  else if (m.none || !m.row) part(L('Master details', 'मास्टर डिटेल', 'Master details'), `<div>${L(`<b>${s}</b> is not in the Master Database.`, `<b>${s}</b> मास्टर डेटाबेस में नहीं है।`, `<b>${s}</b> Master Database mein nahi hai.`)}</div>`);
+  else {
+    const r = m.row, li = (k: string, label: string) => (r[k] !== undefined ? `<li>${label}: <b>${esc(String(r[k]))}</b></li>` : '');
+    const cloth: string[] = [];
+    if (r.fabric !== undefined) cloth.push(`<li>${L('Fabric', 'कपड़ा', 'Kapda')}: <b>${esc(String(r.fabric))}</b>${m.fabricWidthIn ? ` · ${L('width', 'चौड़ाई', 'width')} <b>${mdNf(m.fabricWidthIn)}"</b>` : ''}</li>`);
+    if (r.cuttingRequired !== undefined && !mdYes(r.cuttingRequired)) cloth.push(`<li>${L('No cutting needed', 'कटिंग नहीं चाहिए', 'Cutting nahi chahiye')}</li>`);
+    if (r.consumption !== undefined) cloth.push(`<li>${L('Cloth per piece', 'एक पीस में कपड़ा', 'Ek piece mein kapda')}: <b>${esc(String(r.consumption))} m</b></li>`);
+    if (mdYes(r.isZip)) cloth.push(`<li>${L('Zip', 'ज़िप', 'Zip')}: ${[r.chainLength !== undefined ? esc(String(r.chainLength)) + L(' chain', ' चेन', ' chain') : '', r.zipQty !== undefined ? '× ' + esc(String(r.zipQty)) : ''].filter(Boolean).join(' ') || L('yes', 'हाँ', 'haan')}</li>`);
+    if (mdYes(r.isRuffle)) cloth.push(`<li>${L('Ruffle', 'रफ़ल', 'Ruffle')}: ${r.ruffleMeters !== undefined ? esc(String(r.ruffleMeters)) + ' m' : ''}${r.ruffleFabric !== undefined ? ' ' + esc(String(r.ruffleFabric)) : ''}</li>`);
+    if (mdYes(r.isPiping)) cloth.push(`<li>${L('Piping', 'पाइपिंग', 'Piping')}: ${r.pipingMeters !== undefined ? esc(String(r.pipingMeters)) + ' m' : ''}${r.pipingFabric !== undefined ? ' ' + esc(String(r.pipingFabric)) : ''}</li>`);
+    if (mdYes(r.fillerFabricRequired) || r.standardFillingQty !== undefined) cloth.push(`<li>${L('Filling', 'फिलिंग', 'Filling')}: ${r.standardFillingQty !== undefined ? '<b>' + esc(String(r.standardFillingQty)) + '</b>' : L('yes', 'हाँ', 'haan')}</li>`);
+    const amz = [li('asin', 'ASIN'), li('parentAsin', L('Parent ASIN', 'पैरेंट ASIN', 'Parent ASIN')), li('listingStatus', L('Listing', 'लिस्टिंग', 'Listing'))].join('');
+    const det = MD_FIELDS.map(([k, label]) => li(k, label)).join('');
+    const order = focus === 'cloth' ? ['c', 'd', 'a'] : focus === 'amazon' ? ['a', 'd', 'c'] : ['d', 'c', 'a'];
+    for (const x of order) {
+      if (x === 'd' && det) part(L('Master details', 'मास्टर डिटेल', 'Master details'), `<ul>${det}</ul>`);
+      if (x === 'c' && cloth.length) part(L('Cloth', 'कपड़ा', 'Kapda'), `<ul>${cloth.join('')}</ul>`);
+      if (x === 'a' && amz) part('Amazon', `<ul>${amz}</ul>`);
+    }
+    parts.push(mdSource(m.from, L));
+    acts.push({ t: 'dataopen', id: 'sku|' + sku, label: L('Open this SKU', 'यह SKU खोलें', 'Ye SKU kholiye') });
+  }
+  /* stock (the India store) */
+  const st = D.skuStock(sku), sc = mdCannot(st.from, L);
+  const stock = sc ? `<div>${st.from.denied ? no : sc.html}</div>` : `<div>${L(`<b>${mdNf(st.current || 0)}</b> in the India store`, `इंडिया स्टोर में <b>${mdNf(st.current || 0)}</b>`, `India store mein <b>${mdNf(st.current || 0)}</b>`)}${st.pending ? L(` (${mdNf(st.pending)} more waiting to be confirmed)`, ` (${mdNf(st.pending)} और पुष्टि के इंतज़ार में)`, ` (${mdNf(st.pending)} aur confirm hone baaki)`) : ''}.</div>` + mdSource(st.from, L);
+  /* its open orders and their stage */
+  const o = D.skuOrders(sku), oc = mdCannot(o.from, L);
+  let ord: string;
+  if (oc) ord = `<div>${o.from.denied ? no : oc.html}</div>`;
+  else {
+    const ls = o.lines || [], pcs = ls.reduce((t, x) => t + (x.qty || 0), 0);
+    ord = (ls.length ? `<div>${L(`<b>${ls.length}</b> open order line(s), <b>${mdNf(pcs)}</b> pcs:`, `<b>${ls.length}</b> खुली ऑर्डर लाइन, <b>${mdNf(pcs)}</b> पीस:`, `<b>${ls.length}</b> open order line, <b>${mdNf(pcs)}</b> pcs:`)}</div><ul>${ls.slice(0, 8).map(x => `<li><b>${esc(x.orderNo)}</b> · ${mdNf(x.qty)} — ${esc(x.at || '—')}</li>`).join('')}</ul>`
+      : `<div>${L('No open order for this SKU right now.', 'अभी इस SKU का कोई खुला ऑर्डर नहीं है।', 'Abhi is SKU ka koi open order nahi hai.')}</div>`) + mdSource(o.from, L);
+    acts.push({ t: 'dataopen', id: 'ord|', label: L('Open Order Console', 'ऑर्डर कंसोल खोलें', 'Order Console kholiye') });
+  }
+  const oHead = L('Open orders', 'खुले ऑर्डर', 'Open orders'), sHead = L('Stock', 'स्टॉक', 'Stock');
+  const tail = focus === 'orders' ? [`<div class="ga-a"><b>${oHead}</b></div>${ord}`, `<div class="ga-a"><b>${sHead}</b></div>${stock}`] : [`<div class="ga-a"><b>${sHead}</b></div>${stock}`, `<div class="ga-a"><b>${oHead}</b></div>${ord}`];
+  const body = focus === 'orders' ? [...tail, ...parts] : [...parts, ...tail];
+  return { html: `<div class="ga-a"><b>${s}</b></div>` + body.join(''), acts };
+}
+
 function mdAnswer(a: MdAsk, q: string, D: ErpMeeraData, lang: MdLang): { html: string; acts: { t: string; id: string; label: string }[] } {
   const L = (en: string, hi: string, hg: string): string => (lang === 'hi' ? hi : lang === 'hg' ? hg : en);
   const open = (id: string, en: string, hi: string, hg: string) => ({ t: 'dataopen', id, label: L(en, hi, hg) });
@@ -132,6 +213,9 @@ function mdAnswer(a: MdAsk, q: string, D: ErpMeeraData, lang: MdLang): { html: s
     `Kaunsa ${esc(a.said)} — ${a.names.map(esc).join(' ya ')}?`) + mdChips('', a.names.map(n => ({ label: n, q: q.replace(new RegExp(a.said.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'), n) }))), acts: [] };
   if (a.kind === 'sku-which') return { html: L(`Which SKU — ${a.skus.map(esc).join(', ')}?`, `कौन-सा SKU — ${a.skus.map(esc).join(', ')}?`, `Kaunsa SKU — ${a.skus.map(esc).join(', ')}?`)
     + mdChips('', a.skus.map(s => ({ label: s, q: q.replace(new RegExp(a.said.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'), s) }))), acts: [] };
+  if (a.kind === 'order-which') return { html: L(`Which order — ${a.nos.map(esc).join(', ')}?`, `कौन-सा ऑर्डर — ${a.nos.map(esc).join(', ')}?`, `Kaunsa order — ${a.nos.map(esc).join(', ')}?`)
+    + mdChips('', a.nos.map(n => ({ label: n, q: n }))), acts: [] };
+  if (a.kind === 'skucard') return mdSkuCard(a.sku, a.focus, D, L);
   if (a.kind === 'order') {
     const r = D.findOrder(a.no), no = esc(a.no);
     const c = mdCannot(r.from, L); if (c) return c;
