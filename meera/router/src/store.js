@@ -17,6 +17,19 @@ export function store(db) {
       const n1 = (mine.results && mine.results[0] || {}).n || 0, n2 = (all.results && all.results[0] || {}).n || 0;
       return { ok: n1 <= userMax && n2 <= companyMax, mine: n1, all: n2 };
     },
+    /** THE MONTH'S METER (her search on Cloud Functions): add to this month's count of `who` (requests, or milliseconds of
+     * billed time); the month's totals back: { req, ms } */
+    async meterAdd(req, ms, now) {
+      const m = 'M:' + today(now).slice(0, 7), up = 'INSERT INTO usage (day, who, n) VALUES (?1, ?2, ?3) ON CONFLICT(day, who) DO UPDATE SET n = n + ?3 RETURNING n';
+      const [a, b] = await db.batch([db.prepare(up).bind(m, 'meter:req', Math.max(0, Math.round(req))), db.prepare(up).bind(m, 'meter:ms', Math.max(0, Math.round(ms)))]);
+      return { req: (a.results && a.results[0] || {}).n || 0, ms: (b.results && b.results[0] || {}).n || 0 };
+    },
+    async meterGet(now) {
+      const m = 'M:' + today(now).slice(0, 7);
+      const r = await db.prepare("SELECT who, n FROM usage WHERE day = ?1 AND who IN ('meter:req', 'meter:ms')").bind(m).all();
+      const o = Object.fromEntries((r.results || []).map(x => [x.who, x.n]));
+      return { req: o['meter:req'] || 0, ms: o['meter:ms'] || 0 };
+    },
     /** One more on a shared daily count (D.2: her search on Cloud Functions, all staff together): { ok, n } */
     async count(who, max, now) {
       const r = await db.prepare('INSERT INTO usage (day, who, n) VALUES (?1, ?2, 1) ON CONFLICT(day, who) DO UPDATE SET n = n + 1 RETURNING n').bind(today(now), who).first();

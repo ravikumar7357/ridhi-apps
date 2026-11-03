@@ -1,65 +1,107 @@
-# Meera's search on Firebase Cloud Functions — deploy by hand (master plan D.2)
+# Meera's search on Firebase Cloud Functions — "never even one cent" (master plan D.2, Ravi 2–3 Nov 2026)
 
 Only on Ravi's "live karo", from the office computer, with the Firebase tool (`C:\Users\User\tools\firebase\firebase.exe`,
 signed in as ravi@ — `firebase.exe login --no-localhost --reauth` if it asks). Never from GitHub.
 
-## What goes up
-One function, **meeraSearch**, in its own group ("codebase" `meera`), so nothing else in the project is touched:
-region asia-south1 (Mumbai), **max 2 instances, none kept warm**, 1 GiB / 1 CPU, 15 s limit. It holds her answers,
-walk-throughs and meaning table (copied in by `meera/functions/build.cjs`) and keeps nothing — no database, no file.
-Its address: https://asia-south1-price-research-48ff3.cloudfunctions.net/meeraSearch (`/wake`, `/search`).
-Nobody uses it until the switch `server` (side by side) or `serveruse` is on.
+## What goes up (codebase `meera`: nothing else in the project is touched)
+| | what | limits |
+|---|---|---|
+| **meeraSearch** | her search (`meera/functions/service.js`), https://asia-south1-price-research-48ff3.cloudfunctions.net/meeraSearch | Mumbai · at most **2** instances · **none kept warm** · 1 GiB / 1 CPU · **10 s** time-out |
+| **meeraCostAlarm** | the cent alarm (`alarm.js`), on the Pub/Sub topic `meera-budget` | at most **1** instance · none warm · 256 MiB · 30 s |
+Neither uses Firestore or the Realtime Database (the quota fix is untouched), and neither keeps any question.
+Nobody uses meeraSearch until the switch `server` (side by side) or `serveruse` is on.
 
-## Cost (Google's prices, read 2 Nov 2026 — meera/docs/decisions/server-search-firebase.md)
-- Questions: ~18,000 a month (40 staff × 15 a day — to be confirmed) ≈ 3,000 CPU-seconds with the cold starts, against
-  180,000 free → **$0**. Requests 18,000 against 2 million free → **$0**.
-- Building it (Cloud Build): a few minutes against 2,500 free → **$0**. Its image (Artifact Registry): a few hundred MB
-  against 0.5 GB free → **$0** if old images are cleaned (answer "yes" to the clean-up question, keep 1 day).
-- The free allowances are per billing account: anything else on it shares them (not checked — Ravi's billing page).
-- The most it could ever use: 2 instances busy without a stop ≈ $4.4 a day — only if something kept asking all day;
-  each signed-in person is capped at 400 questions a day per instance. The $1 budget alert below warns long before.
+## The guards, in layers (all tested — meera/functions/test/guards.test.mjs, meera/tests/search-stop.cjs, router tests §11)
+1. **Its own meter (works at once).** Every request meeraSearch receives — answered, refused or turned away — is counted
+   with its billed time, rounded UP to 0.1 s, and every cold start adds its start-up plus 3 s. Sent to her router every
+   20 requests or 15 s. The router keeps the month's totals and **stops her search at half of Google's free monthly
+   allowance**:
 
-## Before the first deploy — one gap
-The Firebase tool reads the function on this computer before sending it, and for that it needs Google's library
-`firebase-functions` in `meera/functions/node_modules`. This computer cannot reach the package registry (npm is blocked);
-the jsDelivr mirror can be reached. Choose one (Ravi):
-1. Allow a one-time download of `firebase-functions@6.4.0` and its few helpers from jsDelivr into
-   `meera/functions/node_modules` (only for that local read; Google installs its own copy when it builds) — or
-2. deploy once from a computer or network where `npm install` works.
+   | Google's free allowance a month (request-based, read 2 Nov) | half — where it stops |
+   |---|---|
+   | 2,000,000 requests | **1,000,000 requests** |
+   | 180,000 vCPU-seconds | **90,000 CPU-seconds** |
+   | 360,000 GiB-seconds | 90,000 CPU-seconds at 1 GiB = 90,000 GiB-seconds (a quarter) |
+
+   When it stops: meeraSearch shuts its own door (ingress "internal only" — Google then refuses outside requests before
+   they reach it, unbilled), every browser searches on its own as today (no note to staff), and the admin page says
+   **"Server search stopped to stay free — back on the 1st"**. It stays stopped for the rest of the month; on the 1st the
+   meter starts again at 0 (the door is opened by deploying again). The limits are `METER_REQ` / `METER_SEC` in
+   `meera/router/wrangler.toml`, to lower if the billing account's other use is found to share the allowance (step 4).
+   If her router cannot be reached while many requests go uncounted (3 tries, 200 requests), it stops too.
+   The daily limit for all staff (**5,000** a day) and the per-person cap (400 a day) stay.
+2. **Hard limits** above, and image clean-up: **keep 1 day** (`firebase.exe functions:artifacts:setpolicy --location
+   asia-south1 --days 1`, or answer the deploy's question with 1), so stored images stay inside the free 0.5 GB.
+3. **The cent alarm.** A Google Cloud budget for the project, with its messages sent to Pub/Sub topic `meera-budget`.
+   Each message carries the month's actual cost; on **any cost above 0** meeraCostAlarm turns her router's "Search on the
+   server" off (`/alarm`, with its key) and shuts meeraSearch's door. It acts on the cost in every message, not on an
+   alert threshold, so the budget amount itself does not matter (₹1 is fine). It touches ONLY her search — there is no
+   billing call anywhere in meera/functions (tested). The budget covers the whole project, so a cost from anything else
+   in the project also stops her search — on purpose.
+
+## Every cost line (with all guards)
+| | most it can use in a month | free allowance | cost |
+|---|---|---|---|
+| meeraSearch compute | 90,000 CPU-s and 90,000 GiB-s (the meter stops it there) | 180,000 / 360,000 | **$0** |
+| meeraSearch requests | 1,000,000 (the meter stops it there) | 2,000,000 | **$0** |
+| meeraCostAlarm | ~2,200 messages (one every ~20 min) × ≤0.5 s at 256 MiB ≈ 200 CPU-s, 300 GiB-s, 2,200 requests | same allowance | **$0** |
+| Pub/Sub (budget messages) | ~2 MB | 10 GiB | **$0** |
+| Eventarc (the alarm's trigger) | ~2,200 events | 50,000 | **$0** |
+| Cloud Build (each deploy) | a few minutes | 2,500 minutes | **$0** |
+| Artifact Registry (images, kept 1 day) | a few hundred MB | 0.5 GB | **$0** |
+| her router (Cloudflare free): tickets, meter, side-by-side | ≤ ~15,000 requests and writes a day | 100,000 a day | **$0** |
+| the budget itself | — | free | **$0** |
+
+**How late Google's figures can be:** its budget messages arrive several times a day, and cost data can lag by several
+hours (Google says only "a delay"; guides say several hours; up to about a day is possible). That is why guard 1 does
+not wait for Google: it counts itself, at once, and stops at HALF the free allowance — so even a full day's delay
+cannot reach a cost. The most it could cost in the delay, with guards 1 and 2: **$0** — provided nothing else on the
+billing account uses the same free allowance (step 4) and meeraSearch's own Google account may shut its door (step 5).
+
+## Before the first deploy — Ravi
+1. "live karo" for the router update (tickets, side-by-side, meter, alarm) — her router must have them first.
+2. The two keys: `C:\AMAZON\meera-deploy\keys.env` (made on this computer, never in the repository or chat). Put them in
+   GitHub → Settings → Secrets → Actions as **MEERA_METER_KEY** and **MEERA_STOP_KEY** (the router's deploy sends them to
+   Cloudflare), or type them into Cloudflare → meera-router → Settings → Variables and Secrets as METER_KEY / STOP_KEY.
+3. The budget: console.cloud.google.com → Billing → Budgets & alerts → Create budget → name "Meera — never a cent", scope
+   project price-research-48ff3, amount ₹1 (or the smallest it takes), thresholds as you like → **Manage notifications →
+   "Connect a Pub/Sub topic to this budget" → topic `meera-budget`** in project price-research-48ff3 (create it there if
+   asked) → Finish. Also tick email alerts to billing admins.
+4. **The shared allowance:** Billing → Reports, last 3 months, filtered to Cloud Run, Cloud Run functions / Cloud
+   Functions, Cloud Build and Artifact Registry, for the whole billing account — anything else using them? (Or let me
+   look, in the app's browser with your sign-in.) If yes, the meter's limits go down by that much.
+5. After the deploy, one check (no cost): that meeraSearch's own Google account may change its door — Cloud Run →
+   meerasearch → Permissions: its service account needs "Cloud Run Developer" (or Editor). If not, guard 1 still stops
+   her search in every browser, but the door stays open — tell me, and we add that one role.
 
 ## Deploy (after "live karo")
 ```
 node meera/functions/build.cjs
-cd meera/firebase
+copy C:\AMAZON\meera-deploy\keys.env meera\functions\.env
+mklink /J meera\functions\node_modules C:\AMAZON\meera-deploy\node_modules
+cd meera\firebase
 C:\Users\User\tools\firebase\firebase.exe deploy --only functions:meera --project price-research-48ff3
+C:\Users\User\tools\firebase\firebase.exe functions:artifacts:setpolicy --location asia-south1 --days 1 --project price-research-48ff3
+cd ..\.. & rmdir meera\functions\node_modules & del meera\functions\.env
 ```
-The first time, Google switches on Cloud Functions, Cloud Build, Artifact Registry and Cloud Run for the project (free to
-switch on). Then check (no sign-in, no data):
+Check (no data): `curl -H "Origin: https://fabricrush-replenish.web.app" https://asia-south1-price-research-48ff3.cloudfunctions.net/meeraSearch/wake` → 401
+(it wants a sign-in: it is up).
+
+## See the meter
+Meera's learning (admin page) → Switches: "This month's meter: N of 1,000,000 requests · S of 90,000 computer-seconds".
+
+## Turn her search off by hand (at once, for everyone, no deploy)
+Meera's learning → Switches → "Search on the server" → Turn off. (Or keep the ERP switches `server` / `serveruse` off —
+they are off.)
+
+## Undo the whole thing
 ```
-curl -H "Origin: https://fabricrush-replenish.web.app" https://asia-south1-price-research-48ff3.cloudfunctions.net/meeraSearch/wake
+C:\Users\User\tools\firebase\firebase.exe functions:delete meeraSearch meeraCostAlarm --region asia-south1 --project price-research-48ff3
 ```
-→ `{"ok":true,"n":3287,…}`.
+then delete the budget (Billing → Budgets & alerts) and the topic `meera-budget` (Pub/Sub → Topics). Every browser searches
+on its own, as before.
 
-## Undo
-- At once, for everyone, no deploy: Meera's learning → Switches → "Search on the server" off (her router's switch; every
-  browser searches on its own again). Or keep the ERP switches `server` / `serveruse` off (they are off).
-- Remove the function: `firebase.exe functions:delete meeraSearch --region asia-south1 --project price-research-48ff3`
-  (or Firebase console → Functions → meeraSearch → Delete).
-
-## A $1 budget alert (Ravi sets it)
-Google Cloud console (console.cloud.google.com, the Google account that owns billing) → **Billing** → pick the billing
-account of project price-research-48ff3 → **Budgets & alerts** → **Create budget**:
-1. Name: "Meera — 1 dollar". Scope: Projects → price-research-48ff3; Services → all (or Cloud Run Functions, Cloud Run,
-   Cloud Build, Artifact Registry).
-2. Amount: Budget type "Specified amount", **1** (in the account's currency: about ₹85 if it is in rupees).
-3. Actions: alert thresholds 50 %, 90 %, 100 % of **actual** spend (add 100 % of forecasted too); "Email alerts to billing
-   admins and users" ticked.
-4. Finish. A budget only WARNS by email; it does not stop anything — the max of 2 instances is the hard limit.
-
-## The download for the local read (approved by Ravi 2 Nov, with conditions)
-Exactly these 157 packages, pinned (firebase-functions 6.4.0 + firebase-admin 13.10.0 and what they need; firebase-admin's optional
-database and storage clients left out). Checked 2 Nov: all 2,896 files have the same SHA-256 at jsDelivr and unpkg (34.7 MB).
-`node meera/firebase/fetch-sdk.mjs C:\AMAZON\meera-deploy\node_modules` fetches them, checking every file, into a folder of their own
-(outside the repository and the ERP); for the deploy, meera/functions/node_modules is a link to it, removed afterwards.
-
-@fastify/busboy@3.2.4 · @firebase/app-check-interop-types@0.3.5 · @firebase/app-types@0.9.6 · @firebase/auth-interop-types@0.2.6 · @firebase/component@0.7.5 · @firebase/database-compat@2.1.7 · @firebase/database-types@1.0.22 · @firebase/database@1.1.5 · @firebase/logger@0.5.2 · @firebase/util@1.15.3 · @protobufjs/aspromise@1.1.2 · @protobufjs/base64@1.1.2 · @protobufjs/codegen@2.0.5 · @protobufjs/eventemitter@1.1.1 · @protobufjs/fetch@1.1.1 · @protobufjs/float@1.0.2 · @protobufjs/path@1.1.2 · @protobufjs/pool@1.1.0 · @protobufjs/utf8@1.1.2 · @types/body-parser@1.19.6 · @types/connect@3.4.38 · @types/cors@2.8.19 · @types/express-serve-static-core@4.19.9 · @types/express@4.17.25 · @types/http-errors@2.0.5 · @types/jsonwebtoken@9.0.10 · @types/mime@1.3.5 · @types/ms@2.1.0 · @types/node@26.6.6 · @types/qs@6.15.1 · @types/range-parser@1.2.7 · @types/send@0.17.6 (inside @types/serve-static) · @types/send@1.2.1 · @types/serve-static@1.15.10 · accepts@1.3.8 · agent-base@7.1.4 · array-flatten@1.1.1 · async-function@1.0.0 · async-generator-function@1.0.0 · base64-js@1.5.1 · bignumber.js@9.3.1 · body-parser@1.20.9 · buffer-equal-constant-time@1.0.1 · bytes@3.1.2 · call-bind-apply-helpers@1.0.2 · call-bound@1.0.4 · content-disposition@0.5.4 · content-type@1.0.5 · cookie-signature@1.0.7 · cookie@0.7.2 · cors@2.8.6 · data-uri-to-buffer@4.0.1 · debug@2.6.9 · debug@4.4.3 (inside https-proxy-agent) · depd@2.0.0 · destroy@1.2.0 · dunder-proto@1.0.1 · ecdsa-sig-formatter@1.0.11 · ee-first@1.1.1 · encodeurl@2.0.1 · es-define-property@1.0.1 · es-errors@1.3.0 · es-object-atoms@1.1.2 · escape-html@1.0.3 · etag@1.8.1 · express@4.22.3 · extend@3.0.2 · farmhash-modern@1.1.0 · fast-deep-equal@3.1.3 · faye-websocket@0.11.4 · fetch-blob@3.2.0 · finalhandler@1.3.2 · firebase-admin@13.10.0 · firebase-functions@6.4.0 · formdata-polyfill@4.0.10 · forwarded@0.2.0 · fresh@0.5.2 · function-bind@1.1.2 · gaxios@7.3.1 · gcp-metadata@8.1.2 · generator-function@2.0.1 · get-intrinsic@1.3.1 · get-proto@1.0.1 · google-auth-library@10.9.1 · google-logging-utils@1.1.3 (inside google-auth-library) · google-logging-utils@1.2.0 · gopd@1.2.0 · has-symbols@1.1.0 · hasown@2.0.4 · http-errors@2.0.1 · http-parser-js@0.5.10 · https-proxy-agent@7.0.6 · iconv-lite@0.4.24 · inherits@2.0.4 · ipaddr.js@1.9.1 · jose@4.15.9 · json-bigint@1.0.0 · jsonwebtoken@9.0.3 · jwa@2.0.1 · jwks-rsa@3.2.2 · jws@4.0.1 · limiter@1.1.5 · lodash.clonedeep@4.5.0 · lodash.includes@4.3.0 · lodash.isboolean@3.0.3 · lodash.isinteger@4.0.4 · lodash.isnumber@3.0.3 · lodash.isplainobject@4.0.6 · lodash.isstring@4.0.1 · lodash.once@4.1.1 · long@5.3.2 · lru-cache@6.0.0 · lru-memoizer@2.3.0 · math-intrinsics@1.1.0 · media-typer@0.3.0 · merge-descriptors@1.0.3 · methods@1.1.2 · mime-db@1.52.0 · mime-types@2.1.35 · mime@1.6.0 · ms@2.0.0 · ms@2.1.3 (inside send) · negotiator@0.6.3 · node-domexception@1.0.0 · node-fetch@3.3.2 · object-assign@4.1.1 · object-inspect@1.13.4 · on-finished@2.4.2 · parseurl@1.3.3 · path-to-regexp@0.1.13 · protobufjs@7.6.6 · proxy-addr@2.0.8 · qs@6.16.2 · range-parser@1.2.1 · raw-body@2.5.3 · safe-buffer@5.2.1 · safer-buffer@2.1.2 · semver@7.8.5 · send@0.19.2 · serve-static@1.16.3 · setprototypeof@1.2.0 · side-channel-list@1.0.1 · side-channel-map@1.0.1 · side-channel-weakmap@1.0.2 · side-channel@1.1.1 · statuses@2.0.2 · toidentifier@1.0.1 · tslib@2.9.1 · type-is@1.6.18 · undici-types@8.9.0 · unpipe@1.0.0 · utils-merge@1.0.1 · vary@1.1.2 · web-streams-polyfill@3.3.3 · websocket-driver@0.7.5 · websocket-extensions@0.1.4 · yallist@4.0.0
+## The library for the local read
+157 packages (firebase-functions 6.4.0 + firebase-admin 13.10.0 and what they need), every file checked against jsDelivr
+and unpkg — `meera/firebase/sdk-list.json`; fetched by `meera/firebase/fetch-sdk.mjs` into `C:\AMAZON\meera-deploy` (done
+3 Nov: 2,895 files matched; one `.cmd` benchmark script jsDelivr will not serve, left out). Never in the repository.

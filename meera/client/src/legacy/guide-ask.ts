@@ -818,7 +818,7 @@ async function gaAnswer(q) {
   let r;
   try { r = await gaAnswer1(q); } finally { GA_SPELL_FIXED = false; }
   if (understood && r) r.understood = understood;
-  if (r && !served && meeraOn('serveruse')) r.offline = true;   // answered from her small list here
+  if (r && !served && meeraOn('serveruse') && !(typeof meeraServerStopped === 'function' && meeraServerStopped())) r.offline = true;   // answered from her small list here (not said when stopped on purpose: she answers as before)
   return r;
 }
 async function gaAnswer1(q) {

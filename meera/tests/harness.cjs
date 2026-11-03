@@ -78,7 +78,9 @@ async function load(opts = {}) {
     setTimeout: (fn, ms) => { const t = { fn, ms, unref() {} }; timers.push(t); return t; }, clearTimeout() {},
     setInterval: () => ({ unref() {} }), clearInterval() {},
     /* her files, read from public/guide the way the page would fetch them */
-    fetch: async (url) => {
+    fetch: async (url, o) => {
+      /* opts.route: a test's own stand-in for an address (her router, her search function); null = as below */
+      if (opts.route) { const r = await opts.route(String(url), o || {}); if (r) return r; }
       const u = String(url).replace(/^https?:\/\/[^/]+/, '').split('?')[0];
       state.fetched.push(u);
       const f = path.join(app, 'public', u.replace(/^\//, ''));

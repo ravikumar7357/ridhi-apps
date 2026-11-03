@@ -16,7 +16,7 @@ declare function gaWalksLoad(): Promise<unknown>;
 
 const MEERA_SIDE: boolean = meeraOn('server');
 const MEERA_REMOTE: boolean = meeraOn('serveruse');
-const SRV = { down: false, full: false, last: null as null | { text: string; hits: { e: any; s: number }[]; offTopic: boolean }, cfg: null as null | { meera: boolean; ai: boolean; search: boolean }, tab: '' };
+const SRV = { down: false, full: false, last: null as null | { text: string; hits: { e: any; s: number }[]; offTopic: boolean }, cfg: null as null | { meera: boolean; ai: boolean; search: boolean; stopped: string }, tab: '' };
 
 /** what is personal out before the search sees it: emails, phone numbers (10+ digits), tax ids, amounts of money. Order
  * and document numbers and other numbers stay — her answers are found by them ("AMZ-… me kitna bacha", the "e.g. 07001"
@@ -53,7 +53,7 @@ function srvAsk(q: string, extra: object): Promise<{ status: number; body: any }
  * Only with "server" or "serveruse" on; at most every 5 minutes; nothing is waited for or sent but the call itself. */
 let SRV_WOKE = 0;
 function meeraServerWake(): void {
-  if (!(MEERA_SIDE || MEERA_REMOTE) || !MEERA_CONFIG.searchUrl || Date.now() - SRV_WOKE < 5 * 60e3) return;
+  if (!(MEERA_SIDE || MEERA_REMOTE) || !MEERA_CONFIG.searchUrl || (SRV.cfg && !SRV.cfg.search) || Date.now() - SRV_WOKE < 5 * 60e3) return;
   SRV_WOKE = Date.now();
   srvCall('/wake', null, MEERA_CONFIG.searchWaitMs, MEERA_CONFIG.searchUrl).catch(() => { /* asleep: her own copy answers */ });   // with the person's sign-in
 }
@@ -62,7 +62,7 @@ function meeraServerWake(): void {
 /** after each answer: her search on the server on the same question; the two top answers go to her router, which keeps
  * whether they agree (the question cleaned again there) — for "Meera's learning → Switches" */
 function meeraServerAfter(q: string): void {
-  if (!MEERA_SIDE || MEERA_REMOTE) return;
+  if (!MEERA_SIDE || MEERA_REMOTE || (SRV.cfg && !SRV.cfg.search)) return;
   try {
     const cq = srvClean(q);
     const mine = gaSpellFind(cq).slice(0, 3).map(h => ({ id: h.e.id, s: Math.round(h.s * 10000) / 10000 }));
@@ -79,7 +79,8 @@ function meeraServerAfter(q: string): void {
 async function meeraServerFetch(q: string, asTyped = false): Promise<null | { understood: { text: string; changes: { from: string; to: string }[] } }> {
   if (!MEERA_REMOTE) return null;
   SRV.last = null;
-  if (SRV.cfg && !SRV.cfg.search) return null;
+  /* switched off, or stopped to stay free (the month's meter, the cent alarm): her own full copy, as before Phase 5 */
+  if (SRV.cfg && !SRV.cfg.search) { if (!SRV.down) { SRV.down = true; GA_BANK = null; GA_BANK_P = null; if (GA_W === false) GA_W = null; } return null; }
   const r = await srvAsk(q, asTyped ? { spell: false } : {});
   if (r.status !== 200 || !Array.isArray(r.body.hits)) {
     /* her router cannot be reached (or its search is off): from now on, her own full copy, as before Phase 5 — fetched
@@ -98,6 +99,8 @@ function meeraServerHits(q: string): null | { e: any; s: number }[] {
 }
 /** did the router answer the question being answered now (its scores are read with the meaning-search bar) */
 function meeraServerServed(): boolean { return MEERA_REMOTE && !!SRV.last; }
+/** stopped on purpose (switched off, or to stay free): she searches on her own and says nothing about the server */
+function meeraServerStopped(): boolean { return !!SRV.cfg && !SRV.cfg.search; }
 /** "not about the ERP": the router's verdict (it has all her answers); with the router out of reach she never refuses —
  * her small list knows too few words to judge (null: the browser judges, as before) */
 function meeraServerOffTopic(): boolean | null {
@@ -139,6 +142,6 @@ setTimeout(async () => {
   if (!(MEERA_SIDE || MEERA_REMOTE)) return;
   const r = await srvCall('/config', null, MEERA_CONFIG.routerWaitMs);
   if (r.status !== 200) return;
-  SRV.cfg = { meera: r.body.meera !== false, ai: r.body.ai !== false, search: r.body.search !== false };
+  SRV.cfg = { meera: r.body.meera !== false, ai: r.body.ai !== false, search: r.body.search !== false, stopped: String(r.body.searchStopped || '') };
   if (!SRV.cfg.meera) meeraStop('switched off on her router');
 }, 0);

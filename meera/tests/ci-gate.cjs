@@ -55,6 +55,8 @@ const CHECKS = [
   { name: 'guide-errors is up to date with the screens', cmd: ['meera/tools/make-errors.cjs', '--check'], fix: 'run: node meera/tools/make-errors.cjs, then her gate, and commit meera/client/src/legacy/guide-errors.ts', warnOnly: true },
   { name: 'her router\'s tests', cmd: ['meera/router/test/router.test.mjs'], fix: 'a router test failed (see the FAIL lines)' },
   { name: 'her search on Cloud Functions (D.2): same answers as her browser, only the ERP may ask, keeps nothing, at most 2 instances', cmd: ['meera/functions/test/service.test.mjs'], fix: 'a check of meera/functions failed (see the FAIL lines)' },
+  { name: 'never a cent: the meter stops at half the free allowance, the cent alarm, never billing', cmd: ['meera/functions/test/guards.test.mjs'], fix: 'a cost guard failed (see the FAIL lines) — never deploy the function like this' },
+  { name: 'her search in use and stopped: 580 answers the same, admin message, never-break', cmd: ['meera/tests/search-stop.cjs'], fix: 'see the FAIL lines in meera/tests/search-stop.cjs' },
   { name: 'the page and the router clean questions alike', cmd: ['meera/router/test/same-cleaning.test.mjs'], fix: 'gaClean (guide-ai.ts) and clean (meera/router/src/redact.js) must change together' },
   { name: 'privacy: nothing personal is kept or sent', cmd: ['meera/tools/phase4-privacy.mjs'], fix: 'a privacy check failed (see the FAIL lines) — never ship this' },
   { name: 'figures answers (Phase 7): right on the sample factory, rights kept, read only', cmd: ['meera/tests/data-test.cjs'], fix: 'a Phase 7 check failed (see the FAIL lines) — never ship a save, a read or a figure shown without the right' },

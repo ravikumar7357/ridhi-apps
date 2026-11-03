@@ -23,7 +23,7 @@ const out = (status, body, h) => ({ status, headers: { 'content-type': 'applicat
 const PER_DAY = 400;
 
 /** files: { bank: [...], walks: [...], words: ArrayBuffer, version: 'abc' }; env: { FIREBASE_PROJECT_ID, ROUTER_URL } */
-export function makeService({ files, env, fetcher = fetch }) {
+export function makeService({ files, env, fetcher = fetch, deps = {} }) {
   let learned = { at: 0, list: [], n: -1 };
   const asked = new Map();
   const rows = files.bank.map(b => ({ kind: 'answer', body: b })).concat(files.walks.map(w => ({ kind: 'walk', body: w })));
@@ -49,17 +49,61 @@ export function makeService({ files, env, fetcher = fetch }) {
     const list = auth ? await readLearned(auth) : learned.list;
     return engine({ kbAll: async () => rows, learned: async () => list }, files.words, files.version + ':' + list.length);
   };
+  /* ---- THE METER (Ravi, 3 Nov: "it must never cost even one cent"): every request this copy received — answered,
+   * refused or turned away — and its billed time as Google counts it (rounded UP to 0.1 s; a cold start adds the time
+   * since the process began plus 3 s for Google starting the box). Sent to her router every 20 requests or 15 s; the
+   * router stops her search at half the free monthly allowance. When it says stop — or the alarm did — this copy shuts
+   * its own door (stop.js: outside requests are then refused by Google, unbilled) and refuses everything meanwhile. ---- */
+  const pending = { req: 0, ms: 0 };
+  let lastFlush = Date.now(), failed = 0, first = true, STOPPED = '';
+  async function flush(force) {
+    if (!env.ROUTER_URL || !env.METER_KEY) return;
+    if (!force && pending.req < 20 && Date.now() - lastFlush < 15e3) return;
+    const sent = { req: pending.req, ms: pending.ms };
+    try {
+      const r = await fetcher(env.ROUTER_URL.replace(/\/$/, '') + '/meter', { method: 'POST', headers: { 'x-meter-key': env.METER_KEY, 'content-type': 'application/json' }, body: JSON.stringify(sent) });
+      if (!r.ok) throw new Error('meter ' + r.status);
+      const j = await r.json();
+      pending.req -= sent.req; pending.ms -= sent.ms; lastFlush = Date.now(); failed = 0;
+      if (j.stop) await halt(j.why || 'free');
+    } catch (e) {
+      /* her router out of reach: the count is kept and sent later; a long silence with much uncounted — stop, to be safe */
+      if (++failed >= 3 && pending.req >= 200) await halt('meter-unreachable');
+    }
+  }
+  async function halt(why) {
+    if (STOPPED) return;
+    STOPPED = why;
+    /* every stop shuts the door — also when her router (the meter) cannot be reached: refused requests are still billed */
+    await (deps.stopServing || (async () => ({ ok: false })))();
+  }
+  const roundUp = ms => Math.ceil(Math.max(1, ms) / 100) * 100;
   return {
     async handle(req) {
+      const t0 = Date.now();
+      const r = STOPPED ? out(503, { error: 'stopped-' + STOPPED }, cors(req.origin) || undefined) : await answer(req);
+      pending.req++;
+      pending.ms += roundUp(Date.now() - t0) + (first ? roundUp((deps.uptimeMs ? deps.uptimeMs() : process.uptime() * 1000) + 3000) : 0);
+      first = false;
+      if (r.stopWhy) { await halt(r.stopWhy); delete r.stopWhy; }
+      await flush(false);
+      return r;
+    },
+    /** for her tests and the alarm: the meter now, and whether this copy has stopped */
+    state: () => ({ pending: { ...pending }, stopped: STOPPED }),
+    flushNow: () => flush(true),
+  };
+  async function answer(req) {
+    {
       const h = cors(req.origin);
       if (req.method === 'OPTIONS') return h ? { status: 204, headers: h, body: '' } : out(403, { error: 'origin' });
       if (!h) return out(403, { error: 'origin' });
       if (req.path === '/wake' && req.method === 'GET') {
-        if (!(await verify(String(req.authorization || '').replace(/^Bearer\s+/i, ''), env, fetcher))) return out(401, { error: 'sign-in' }, h);
+        if (!(await (deps.verify || verify)(String(req.authorization || '').replace(/^Bearer\s+/i, ''), env, fetcher))) return out(401, { error: 'sign-in' }, h);
         const E = await ready(''); return out(200, { ok: true, n: E.n, loadMs: E.loadMs }, h);
       }
       if (req.path === '/search' && req.method === 'POST') {
-        const who = await verify(String(req.authorization || '').replace(/^Bearer\s+/i, ''), env, fetcher);
+        const who = await (deps.verify || verify)(String(req.authorization || '').replace(/^Bearer\s+/i, ''), env, fetcher);
         if (!who) return out(401, { error: 'sign-in' }, h);
         const day = new Date().toISOString().slice(0, 10), k = who.uid + '|' + day, n = (asked.get(k) || 0) + 1;
         if (asked.size > 5000) asked.clear();
@@ -70,12 +114,12 @@ export function makeService({ files, env, fetcher = fetch }) {
         /* the daily limit for all staff together (her router's shared count, 5,000): over it, or her router out of
          * reach, no search here — the browser answers from her own copy (a firm limit: never more, whatever restarts) */
         const t = await ticket(req.authorization);
-        if (!t.ok) return out(429, { error: t.why || 'daily-limit' }, h);
+        if (!t.ok) { const o = out(429, { error: t.why || 'daily-limit' }, h); if (/^stopped-/.test(t.why)) o.stopWhy = t.why.slice(8); return o; }
         const E = await ready(req.authorization);
         const r = search(E, { ...body, admin: who.admin });
         return out(200, { ...r, v: E.version, n: E.n }, h);
       }
       return out(404, { error: 'not-found' }, h);
-    },
-  };
+    }
+  }
 }

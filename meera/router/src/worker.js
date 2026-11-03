@@ -11,7 +11,7 @@
  * Meera's own written answers. It never changes anything in the ERP: it has no key to it. */
 import { verify } from './auth.js';
 import { clean, questionKey } from './redact.js';
-import { store } from './store.js';
+import { store, today } from './store.js';
 import { askModels } from './providers.js';
 import { engine, search, sure } from './search.js';
 
@@ -69,6 +69,17 @@ function cors(req, env) {
 }
 const reply = (body, status, h) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', ...(h || {}) } });
 
+/* a server-to-server key: set (24+ characters) and the same */
+const keyOk = (key, got) => { key = String(key || ''); got = String(got || ''); return key.length >= 24 && got.length === key.length && timingSafeSame(got, key); };
+/* half of Google's free monthly allowance for request-based Cloud Run functions (2 million requests, 180,000 vCPU-seconds,
+ * 360,000 GiB-seconds — read 2 Nov 2026); lower with METER_REQ / METER_SEC when other things on the billing account use it */
+const meterLimits = env => ({ req: +env.METER_REQ || 1000000, sec: +env.METER_SEC || 90000 });
+/** why her search on the server is stopped now: 'free' (the meter, until the 1st), 'alarm' (the cent alarm, until an admin) */
+function searchStopped(cfg, now) {
+  if (cfg.search_alarm) return 'alarm';
+  if (cfg.search_stop && cfg.search_stop === today(now).slice(0, 7)) return 'free';
+  return '';
+}
 /* which router this is, for the check after a deploy (GET /health) */
 export const ROUTER_VERSION = 'learn-free-2026-11-02';
 /** The whole router. deps: { fetch, store, verify, now } — the real ones by default; tests pass their own. */
@@ -85,6 +96,28 @@ export async function handle(req, env, deps = {}) {
     if (key.length < 24 || got.length !== key.length || !timingSafeSame(got, key)) return reply({ error: 'key' }, 403);
     const db = deps.store || store(env.DB);
     return reply({ answers: await db.learned(), spellings: await db.spellings() }, 200);
+  }
+  /* ---- THE METER for her search on Cloud Functions (Ravi, 3 Nov: "it must never cost even one cent") ----
+   * The function reports here every request it received (answered or refused) and the billed time it counted (rounded
+   * up to 0.1 s, and its start-up). At HALF of Google's free monthly allowance — 1,000,000 requests or 90,000
+   * CPU-seconds (= 90,000 GiB-seconds at 1 GiB, half of 180,000) — her search on the server stops for the rest of the
+   * month: the function stops serving, and every browser searches on its own. Server to server, with its own key. */
+  if (url.pathname === '/meter' && req.method === 'POST') {
+    if (!keyOk(env.METER_KEY, req.headers.get('x-meter-key'))) return reply({ error: 'key' }, 403);
+    let b = {}; try { b = await req.json(); } catch (e) { return reply({ error: 'json' }, 400); }
+    const db = deps.store || store(env.DB), now = deps.now ? deps.now() : Date.now(), month = today(now).slice(0, 7);
+    const t = await db.meterAdd(+b.req || 0, +b.ms || 0, now), lim = meterLimits(env);
+    if (t.req >= lim.req || t.ms / 1000 >= lim.sec) await db.configSet('search_stop', month);
+    const cfg = await db.config();
+    return reply({ stop: !!searchStopped(cfg, now), why: searchStopped(cfg, now), req: t.req, sec: Math.round(t.ms / 1000), limits: lim }, 200);
+  }
+  /* ---- THE CENT ALARM (her budget's listener, meera/functions): any actual cost → her search on the server off until an
+   * admin turns it back on. It switches off ONLY her search — never billing, never anything else. ---- */
+  if (url.pathname === '/alarm' && req.method === 'POST') {
+    if (!keyOk(env.STOP_KEY, req.headers.get('x-stop-key'))) return reply({ error: 'key' }, 403);
+    const db = deps.store || store(env.DB), now = deps.now ? deps.now() : Date.now();
+    await db.configSet('search_alarm', new Date(now).toISOString());
+    return reply({ ok: true, stopped: 'alarm' }, 200);
   }
   if (!h) return reply({ error: 'origin' }, 403);
   if (String(env.ENABLED || '') !== 'true') return reply({ error: 'off' }, 503, h);
@@ -106,13 +139,17 @@ export async function handle(req, env, deps = {}) {
   const isOn = k => cfg[k] !== 'off';
   /* "search" is the admin's switch for her search ON THE SERVER — since D.2 that runs on Firebase Cloud Functions; the
    * router's own search stays parked (below) */
-  if (url.pathname === '/config' && req.method === 'GET') return reply({ meera: isOn('meera'), ai: isOn('ai'), search: isOn('search'), kbVersion: cfg.kb_version || '0' }, 200, h);
+  const stopped = searchStopped(cfg, now), searchOn = isOn('search') && !stopped;
+  /* searchStopped: 'free' (the month's meter reached half the free allowance — back on the 1st) or 'alarm' (the cent
+   * alarm — back when an admin turns it on); the browser then searches on its own, as before */
+  if (url.pathname === '/config' && req.method === 'GET') return reply({ meera: isOn('meera'), ai: isOn('ai'), search: searchOn, searchStopped: stopped,
+    backOn: stopped === 'free' ? nextMonth(now) : '', kbVersion: cfg.kb_version || '0' }, 200, h);
 
   /* ---- A TICKET for one search on Cloud Functions (D.2; Ravi: "a total daily limit for all staff together"): the function
    * asks here before each search; over SEARCH_DAILY (5,000) today, or the admin switch off, it is refused — the browser
    * then answers from her own copy. One shared count, so restarts of the function cannot reset it. ---- */
   if (url.pathname === '/search-ticket' && req.method === 'POST') {
-    if (!isOn('search')) return reply({ ok: false, why: 'search-off' }, 200, h);
+    if (!searchOn) return reply({ ok: false, why: stopped ? 'stopped-' + stopped : 'search-off' }, 200, h);
     const t = await db.count('search:*', +env.SEARCH_DAILY || 5000, now);
     return reply({ ok: t.ok, n: t.n, max: +env.SEARCH_DAILY || 5000, why: t.ok ? '' : 'daily-limit' }, 200, h);
   }
@@ -242,7 +279,14 @@ export async function handle(req, env, deps = {}) {
     if (url.pathname === '/admin/config' && req.method === 'POST') {
       if (!['meera', 'ai', 'search'].includes(body.key) || !['on', 'off'].includes(body.value)) return reply({ error: 'key: meera / ai / search, value: on / off' }, 400, h);
       await db.configSet(body.key, body.value);
+      /* an admin turning her search on again clears the cent alarm (after checking the bill); the month's meter stop stays */
+      if (body.key === 'search' && body.value === 'on') await db.configSet('search_alarm', '');
       return reply({ ok: true, [body.key]: body.value }, 200, h);
+    }
+    /* the month's meter, for the admin page */
+    if (url.pathname === '/admin/meter' && req.method === 'GET') {
+      const m = await db.meterGet(now), lim = meterLimits(env);
+      return reply({ month: today(now).slice(0, 7), req: m.req, sec: Math.round(m.ms / 1000), limits: lim, stopped: searchStopped(cfg, now), backOn: searchStopped(cfg, now) === 'free' ? nextMonth(now) : '' }, 200, h);
     }
     if (url.pathname === '/admin/search' && req.method === 'GET') return reply(await db.diffView(now - (Math.min(90, +url.searchParams.get('days') || 7)) * 864e5), 200, h);
     if (url.pathname === '/admin/learn' && req.method === 'GET') return reply({ ...(await db.learnView(now)), tickets: await db.tickets('open') }, 200, h);
@@ -262,6 +306,8 @@ async function hash(s) {
   const d = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(String(s))));
   return Array.from(d, b => b.toString(16).padStart(2, '0')).join('');
 }
+/** the 1st of next month (India time), when a meter stop ends */
+function nextMonth(now) { const d = new Date(now + 5.5 * 3600e3); return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1)).toISOString().slice(0, 10); }
 function timingSafeSame(a, b) { let x = 0; for (let i = 0; i < a.length; i++) x |= a.charCodeAt(i) ^ b.charCodeAt(i); return x === 0; }
 
 export default { fetch: (req, env) => handle(req, env) };

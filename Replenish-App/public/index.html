@@ -79938,7 +79938,7 @@ async function gaAnswer(q) {
     GA_SPELL_FIXED = false;
   }
   if (understood && r) r.understood = understood;
-  if (r && !served && meeraOn("serveruse")) r.offline = true;
+  if (r && !served && meeraOn("serveruse") && !(typeof meeraServerStopped === "function" && meeraServerStopped())) r.offline = true;
   return r;
 }
 async function gaAnswer1(q) {

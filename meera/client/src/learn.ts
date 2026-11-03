@@ -159,7 +159,9 @@ interface MlView {
   down: { id: number; created: string; question: string; screen: string; lang: string; answer: string; note: string }[];
   tickets: { id: number; created: string; screen: string; question: string; why: string }[];
   /* Phase 5: her router's switches, and how its search compares with the browser's (last 7 days) */
-  cfg?: { meera: boolean; ai: boolean; search: boolean } | null;
+  cfg?: { meera: boolean; ai: boolean; search: boolean; searchStopped?: string; backOn?: string } | null;
+  /* her search on Cloud Functions: this month's meter (requests and billed seconds) and its limits — half the free allowance */
+  meter?: { month: string; req: number; sec: number; limits: { req: number; sec: number }; stopped: string; backOn: string } | null;
   cmp?: { asked: number; same: number; differ: { created: string; question: string; screen: string; browser: string; server: string }[] } | null;
   /* switch "autobank": what is new on the screens that she may not answer by herself — a new screen, a new job, a part
    * with no help text (meera/tools/autobank.cjs → /meera/drafts.json) */
@@ -233,6 +235,7 @@ async function mlAdminLoad(): Promise<void> {
   const v = r.body as MlView;
   try { const c = await mlCall('/config', null, 'GET'); v.cfg = c.status === 200 ? c.body : null; } catch (e) { v.cfg = null; }
   try { const c = await mlCall('/admin/search', null, 'GET'); v.cmp = c.status === 200 ? c.body : null; } catch (e) { v.cmp = null; }
+  try { const c = await mlCall('/admin/meter', null, 'GET'); v.meter = c.status === 200 ? c.body : null; } catch (e) { v.meter = null; }
   try { const d = await fetch('/meera/drafts.json', { cache: 'no-cache' }); v.drafts = d.ok ? await d.json() : []; } catch (e) { v.drafts = []; }
   ML_ADMIN.view = v;
   mlAdminDraw('');
@@ -279,6 +282,11 @@ function mlAdminDraw(msg: string): void {
       + row('ai', mlL('AI answers', 'AI जवाब'), mlL('Off: she answers only from her own answers; nothing goes to an AI', 'बंद: वह सिर्फ़ अपने जवाबों से जवाब देगी; AI को कुछ नहीं जाएगा'))
       + row('search', mlL('Search on the server', 'सर्वर पर खोज'), mlL('Off: every browser searches on its own, as before', 'बंद: हर ब्राउज़र पहले की तरह खुद खोजेगा'))
       + '</table>'
+      /* her search on Cloud Functions stays free: stopped by the month's meter or the cent alarm (Ravi, 3 Nov) */
+      + (c && c.searchStopped === 'free' ? `<div class="ml-msg"><b>${mlL(`Server search stopped to stay free — back on the 1st${c.backOn ? ' (' + esc(c.backOn) + ')' : ''}.`, `मुफ़्त रहने के लिए सर्वर खोज रुकी — 1 तारीख़ को फिर चालू${c.backOn ? ' (' + esc(c.backOn) + ')' : ''}।`)}</b> ${mlL('Every browser searches on its own meanwhile, as before.', 'तब तक हर ब्राउज़र पहले की तरह खुद खोजेगा।')}</div>` : '')
+      + (c && c.searchStopped === 'alarm' ? `<div class="ml-msg"><b>${mlL('Server search stopped by the cent alarm', 'सेंट-अलार्म ने सर्वर खोज रोकी')}</b> — ${mlL('Google reported a cost above 0. Check the bill, then turn "Search on the server" on again.', 'Google ने 0 से ज़्यादा खर्च बताया। बिल देखें, फिर "सर्वर पर खोज" चालू करें।')}</div>` : '')
+      + (v.meter ? `<div class="ml-msg">${mlL(`This month's meter (${esc(v.meter.month)}): <b>${v.meter.req.toLocaleString('en-IN')}</b> of ${v.meter.limits.req.toLocaleString('en-IN')} requests · <b>${v.meter.sec.toLocaleString('en-IN')}</b> of ${v.meter.limits.sec.toLocaleString('en-IN')} computer-seconds — it stops at these, half of Google's free allowance.`,
+        `इस महीने का मीटर (${esc(v.meter.month)}): ${v.meter.limits.req.toLocaleString('en-IN')} में से <b>${v.meter.req.toLocaleString('en-IN')}</b> रिक्वेस्ट · ${v.meter.limits.sec.toLocaleString('en-IN')} में से <b>${v.meter.sec.toLocaleString('en-IN')}</b> सेकंड — Google की मुफ़्त सीमा के आधे पर रुक जाता है।`)}</div>` : '')
       + `<div class="ml-msg">${m ? mlL(`Server search against the browser, last 7 days: <b>${m.same} of ${m.asked}</b> questions the same.`, `पिछले 7 दिन, सर्वर की खोज बनाम ब्राउज़र: <b>${m.asked} में से ${m.same}</b> सवाल एक जैसे।`) : mlL('No comparison yet.', 'अभी कोई तुलना नहीं।')}</div>`
       + (m && m.differ.length ? `<table><tr><th>${mlL('Question (cleaned)', 'सवाल (साफ़ किया)')}</th><th>${mlL('Browser', 'ब्राउज़र')}</th><th>${mlL('Server', 'सर्वर')}</th><th>${mlL('When', 'कब')}</th></tr>`
         + m.differ.slice(0, 50).map(x => `<tr><td>${esc(x.question)}</td><td><code>${esc(x.browser)}</code></td><td><code>${esc(x.server)}</code></td><td>${when(x.created)}</td></tr>`).join('') + '</table>' : '');
