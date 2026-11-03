@@ -307,10 +307,10 @@ function imState(item) {
   const status = String(item.st || '').toUpperCase();
   const buy = status.includes('BUYABLE');
   const disc = status.includes('DISCOVERABLE');
-  if (buy && !disc) return { k: 'sup', label: 'Search suppressed', fill: '#fee2e2', ink: '#991b1b' };
-  if (buy && disc) return { k: 'ok', label: 'Buyable', fill: '#dcfce7', ink: '#166534' };
-  if (disc && !buy) return { k: 'nooffer', label: 'No offer', fill: '#e2e8f0', ink: '#475569' };
-  return { k: 'none', label: item.st || 'Not buyable', fill: '#e2e8f0', ink: '#475569' };
+  if (buy && !disc) return { k: 'sup', label: 'Search suppressed', fill: 'var(--bad-bg)', ink: 'var(--bad-ink)' };
+  if (buy && disc) return { k: 'ok', label: 'Buyable', fill: 'var(--accent-bg)', ink: 'var(--accent-ink)' };
+  if (disc && !buy) return { k: 'nooffer', label: 'No offer', fill: 'var(--hover)', ink: 'var(--muted)' };
+  return { k: 'none', label: item.st || 'Not buyable', fill: 'var(--hover)', ink: 'var(--muted)' };
 }
 
 /** True when the listing itself submitted no main image — what shows comes from the family. */
@@ -376,11 +376,11 @@ function imKidRow(item) {
           ? 'Amazon still allows a direct-link sale but has taken this listing out of search results.' : '')}
         <button class="ghost im-b" data-edit="${imEsc(item.sku)}">Edit</button>
         <button class="ghost im-b" data-copy="${imEsc(item.sku)}" title="Copy this listing's pictures">Copy</button></div>
-      ${item.ie ? `<div style="margin-top:3px">${chip('Amazon: ' + item.ie + ' error' + (item.ie > 1 ? 's' : ''), '#fee2e2', '#991b1b', item.im || '')}</div>
+      ${item.ie ? `<div style="margin-top:3px">${chip('Amazon: ' + item.ie + ' error' + (item.ie > 1 ? 's' : ''), 'var(--bad-bg)', 'var(--bad-ink)', item.im || '')}</div>
         <div class="muted" style="font-size:10.5px;margin-top:2px">${imEsc(String(item.im || '').slice(0, 90))}${String(item.im || '').length > 90 ? '…' : ''}</div>` : ''}
-      ${imNoOwnMain(item) ? `<div style="margin-top:3px">${chip('No image of your own', '#fef3c7', '#92400e',
+      ${imNoOwnMain(item) ? `<div style="margin-top:3px">${chip('No image of your own', 'var(--act-bg)', 'var(--act-ink)',
         'Your listing submitted no main image. What shows on Amazon comes from the family, and Amazon can suppress a listing for it.')}</div>` : ''}
-      ${hijack ? `<div style="margin-top:3px">${chip('Amazon shows ' + hijack.sku + (hijack.c ? ' · ' + hijack.c : ''), '#fef3c7', '#92400e',
+      ${hijack ? `<div style="margin-top:3px">${chip('Amazon shows ' + hijack.sku + (hijack.c ? ' · ' + hijack.c : ''), 'var(--act-bg)', 'var(--act-ink)',
         'Amazon catalogue serves ' + hijack.sku + ' pictures on this ASIN. The strip shows your own.')}</div>` : ''}
     </div>
     <div class="im-strip">${tiles}</div>
@@ -441,10 +441,10 @@ function imListRender() {
   el.innerHTML = `<div class="muted" style="font-size:12px;margin-bottom:6px">${groups.length} group(s), ${nKids} listing(s) of ${data.items.length}
       · snapshot ${data.at ? data.at.toLocaleString() : '—'}${IML_BUSY ? ' · refreshing…' : ''}
       · showing <b>${IML_VIEW === 'live' ? 'what Amazon serves' : 'the pictures you submitted'}</b>
-      · <span style="color:#d97706">orange ring</span> = Amazon serves a different picture in that slot
-      ${nHijack ? `· <b style="color:#92400e">${nHijack}</b> carry another SKU's pictures` : ''}
-      ${nSup ? `· <b style="color:#991b1b">${nSup}</b> suppressed from search` : ''}
-      ${nErr ? `· <b style="color:#991b1b">${nErr}</b> with an error from Amazon` : ''}</div>
+      · <span style="color:var(--act-ink)">orange ring</span> = Amazon serves a different picture in that slot
+      ${nHijack ? `· <b style="color:var(--act-ink)">${nHijack}</b> carry another SKU's pictures` : ''}
+      ${nSup ? `· <b style="color:var(--bad-ink)">${nSup}</b> suppressed from search` : ''}
+      ${nErr ? `· <b style="color:var(--bad-ink)">${nErr}</b> with an error from Amazon` : ''}</div>
     ${imClipBar('list')}
     ${pager}
     ${slice.map(group => {
@@ -585,7 +585,7 @@ function imCard(slot, url, opts) {
   return `<div class="im-card${changed ? ' im-chg' : ''}" data-slot="${slot}" ${opt.edit && slot !== 'SWCH' ? 'draggable="true"' : ''}>
       <div class="im-pic">${url ? `<a href="${imEsc(url)}" target="_blank" rel="noopener" draggable="false">${pic}</a>` : pic}</div>
       <div style="font-size:11px;font-weight:600;margin-top:3px">${label}${changed ? ' · changed' : ''}</div>
-      <div class="muted" style="font-size:10.5px${small ? ';color:var(--bad)' : ''}">${dim || '&nbsp;'}${small ? ' · no zoom' : ''}</div>
+      <div class="muted" style="font-size:10.5px${small ? ';color:var(--bad-ink)' : ''}">${dim || '&nbsp;'}${small ? ' · no zoom' : ''}</div>
       ${tools}
     </div>`;
 }
@@ -636,7 +636,7 @@ function imRender() {
     <div class="card" style="padding:10px 14px;margin-bottom:12px">
       <div style="font-weight:600;font-size:13px">Live on Amazon now</div>
       <div class="muted" style="font-size:11.5px;margin-bottom:6px">What shoppers see. ${listing.catalogError ? imEsc(listing.catalogError) : ''}
-        ${hjThis ? `<b style="color:#92400e">Amazon is serving ${imEsc(hjThis.sku)}${hjThis.c ? ' (' + imEsc(hjThis.c) + ')' : ''} pictures on this ASIN — your own stack, below, is the right one.</b>` : ''}</div>
+        ${hjThis ? `<b style="color:var(--act-ink)">Amazon is serving ${imEsc(hjThis.sku)}${hjThis.c ? ' (' + imEsc(hjThis.c) + ')' : ''} pictures on this ASIN — your own stack, below, is the right one.</b>` : ''}</div>
       <div class="im-row">${live}</div>
     </div>
     <div class="card" style="padding:10px 14px;margin-bottom:12px">
@@ -860,8 +860,8 @@ async function imSend(apply) {
     + `<span class="st ${issue.severity === 'ERROR' ? 'st-rejected' : 'st-draft'}">${imEsc(issue.severity)}</span> ${imEsc(issue.message)}</div>`).join('');
   let head;
   if (!reply.ok) head = `<div class="err" style="font-size:12.5px">${imEsc(reply.error || 'Failed')}</div>`;
-  else if (reply.previewOnly) head = `<div style="font-size:12.5px;color:var(--accent)">Amazon has no objection. Press Apply to send it.</div>`;
-  else head = `<div style="font-size:12.5px;color:var(--accent)">Accepted by Amazon (submission ${imEsc(reply.submissionId || '')}). `
+  else if (reply.previewOnly) head = `<div style="font-size:12.5px;color:var(--accent-ink)">Amazon has no objection. Press Apply to send it.</div>`;
+  else head = `<div style="font-size:12.5px;color:var(--accent-ink)">Accepted by Amazon (submission ${imEsc(reply.submissionId || '')}). `
     + `It is queued, not live: the page usually changes within 15 minutes to a few hours. Reload this listing later to confirm.</div>`;
   IM_RESULT = `<div style="margin-top:8px">${head}${issuesHtml}</div>`;
   $('imResult').innerHTML = IM_RESULT;
@@ -1007,7 +1007,7 @@ async function imPasteMany(skus) {
       done++;
       refusals = 0;
       row.img = Object.assign({}, row.img, set);        // what was sent, so the strip stops lying
-      lines.push('<span style="color:var(--accent)">' + sku + ' — accepted (' + Object.keys(set).length + ' slot(s))</span>');
+      lines.push('<span style="color:var(--accent-ink)">' + sku + ' — accepted (' + Object.keys(set).length + ' slot(s))</span>');
     } else {
       failed++;
       refusals++;

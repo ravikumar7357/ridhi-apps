@@ -201,9 +201,9 @@ function lcSetVals(name, list) {
 }
 // The findings of lcCheck as HTML: red ✕ for what Amazon refuses, amber • for what to look at, or a green tick.
 const lcFindHtml = list => list.length
-  ? list.map(finding => `<div style="font-size:11.5px;${finding.bad ? 'color:var(--bad);font-weight:600' : 'color:#92400e'}">`
+  ? list.map(finding => `<div style="font-size:11.5px;${finding.bad ? 'color:var(--bad-ink);font-weight:600' : 'color:var(--act-ink)'}">`
     + `${finding.bad ? '✕' : '•'} ${leEsc(finding.msg)}</div>`).join('')
-  : '<div style="font-size:11.5px;color:var(--accent)">✓ Nothing the rules object to.</div>';
+  : '<div style="font-size:11.5px;color:var(--accent-ink)">✓ Nothing the rules object to.</div>';
 // The ctx lcCheck wants for the listing on screen: its title now and its catalogue sub-category and colour.
 function lcCtx() {
   const cat = (LR_CAT[$('leBrand').value] || {})[LE.sku] || {};
@@ -226,7 +226,7 @@ function lcSectionHtml() {
   const kw = lcNow('generic_keyword').join(' ');
   const tFull = lcTemplateTitle(brand, sku, 200);
   const t75 = lcTemplateTitle(brand, sku, 75);
-  const ch = name => LE_EDIT[name] ? ' <span style="color:var(--accent);font-size:11.5px">· changed</span>' : '';
+  const ch = name => LE_EDIT[name] ? ' <span style="color:var(--accent-ink);font-size:11.5px">· changed</span>' : '';
   const nBoxes = Math.min(10, Math.max(5, bullets.length) + LC_EXTRA);
   return `<div class="card" style="padding:10px 14px;margin-bottom:10px">
     <div style="font-weight:600;font-size:13px;margin-bottom:6px">Content <span class="muted" style="font-weight:400;font-size:11.5px">— checked against Listing Rules as you type</span></div>
@@ -237,7 +237,7 @@ function lcSectionHtml() {
       ${tFull ? `<div style="font-size:11.5px;margin-top:4px" class="muted">Listing Rules template: <b>${leEsc(tFull)}</b> (${tFull.length})
           <button class="ghost im-b" data-lcuse="full">Use it</button>
           ${t75 && t75 !== tFull ? `<br>Cut to 75: <b>${leEsc(t75)}</b> (${t75.length}) <button class="ghost im-b" data-lcuse="75">Use it</button>${
-            (dropped => dropped.length ? ` <span style="color:#92400e">— leaves out what the template requires: ${leEsc(dropped.join(', '))}</span>` : '')(lcTemplateFit(brand, sku, 75).dropped)}` : ''}</div>`
+            (dropped => dropped.length ? ` <span style="color:var(--act-ink)">— leaves out what the template requires: ${leEsc(dropped.join(', '))}</span>` : '')(lcTemplateFit(brand, sku, 75).dropped)}` : ''}</div>`
         : `<div class="muted" style="font-size:11.5px;margin-top:4px">No Listing Rules template matches this SKU (its sub-category is not one the templates name, or the SKU is not in the brand catalogue).</div>`}
     </div>
     <div style="margin-bottom:10px"><div style="font-weight:600;font-size:12.5px">Bullet points${ch('bullet_point')}</div>
@@ -505,7 +505,7 @@ function lcUpRender() {
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       <b style="font-size:13px">Upload: ${leEsc(LC_UP.file)}</b>
       <span class="muted" style="font-size:12px">${rows.length} row(s) · ${count('ready') + count('checked')} to send · ${count('same')} unchanged · ${count('bad')} refused by the rules · ${count('skip')} not found
-        ${count('sent') ? ' · <b style="color:var(--accent)">' + count('sent') + ' sent</b>' : ''}${count('fail') ? ' · <b class="err">' + count('fail') + ' refused by Amazon</b>' : ''}</span>
+        ${count('sent') ? ' · <b style="color:var(--accent-ink)">' + count('sent') + ' sent</b>' : ''}${count('fail') ? ' · <b class="err">' + count('fail') + ' refused by Amazon</b>' : ''}</span>
       <span style="flex:1"></span>
       <button class="ghost im-b" id="lcUpCheck" ${go ? '' : 'disabled'}>Check all with Amazon</button>
       <button class="im-b" id="lcUpApply" ${go ? '' : 'disabled'}>Apply all (${go})</button>
@@ -532,8 +532,8 @@ function lcUpRender() {
 // The state cell of one upload row.
 const lcStateHtml = row => ({
   ready: '<b>ready</b>',
-  checked: '<b style="color:var(--accent)">Amazon: no objection</b>',
-  sent: `<b style="color:var(--accent)">accepted ${leEsc(row.msg)}</b>`,
+  checked: '<b style="color:var(--accent-ink)">Amazon: no objection</b>',
+  sent: `<b style="color:var(--accent-ink)">accepted ${leEsc(row.msg)}</b>`,
   fail: `<b class="err">${leEsc(row.msg)}</b>`,
   bad: '<b class="err">not sent — fix what the rules say ✕</b>',
   skip: `<b class="err">${leEsc(row.msg)}</b>`

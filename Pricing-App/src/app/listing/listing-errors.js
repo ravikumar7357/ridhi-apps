@@ -131,7 +131,7 @@ function leRender() {
   const slice = rows.slice(LE_PAGE * LE_PER, (LE_PAGE + 1) * LE_PER);
   // --- the HTML ---
   const chip = (kind, label) => `<button class="ghost im-b" data-kind="${kind}"`
-    + ` style="${$('leKind').value === kind ? 'border-color:var(--accent);color:var(--accent)' : ''}">`
+    + ` style="${$('leKind').value === kind ? 'border-color:var(--accent);color:var(--accent-ink)' : ''}">`
     + `${leEsc(label)} <b>${leNf(counts[kind] || 0)}</b></button>`;
   const pager = pages > 1 ? `<div style="display:flex;gap:6px;align-items:center;justify-content:flex-end;margin:6px 0">
       <button class="ghost im-b" data-lepg="-1" ${LE_PAGE ? '' : 'disabled'}>◀ Prev</button>
@@ -262,7 +262,7 @@ function leCard(name) {
       <div style="font-weight:600;font-size:13px">${leEsc(name)}</div>
       <div class="muted" style="font-size:12px;margin:4px 0">Amazon no longer uses this for ${leEsc(LE.productType)}. Now: <b>${
         leEsc(pretty(current) || JSON.stringify(current || '').slice(0, 120))}</b></div>
-      ${edit && edit.del ? `<div style="color:var(--accent);font-size:12px">Will be removed. <button class="ghost im-b" data-undo="${leEsc(name)}">Undo</button></div>`
+      ${edit && edit.del ? `<div style="color:var(--accent-ink);font-size:12px">Will be removed. <button class="ghost im-b" data-undo="${leEsc(name)}">Undo</button></div>`
         : `<button class="ghost im-b" data-del="${leEsc(name)}">Remove this attribute</button>`}</div>`;
   }
   // --- the editor: one row per value, one control per field ---
@@ -280,7 +280,7 @@ function leCard(name) {
               + `${leEsc((field.enumNames || [])[idx] || opt)}</option>`).join('')}</select></label>`;
         if (isTitle && field.field === 'value') return `<div style="flex:1 1 100%">`
             + `<textarea data-le="${leEsc(name)}" data-i="${i}" data-f="value" rows="2" style="width:100%">${leEsc(value || '')}</textarea>
-            <div class="muted" style="font-size:11px"><span id="leTitleN" style="${String(value || '').length > 75 ? 'color:var(--bad);font-weight:600' : ''}">`
+            <div class="muted" style="font-size:11px"><span id="leTitleN" style="${String(value || '').length > 75 ? 'color:var(--bad-ink);font-weight:600' : ''}">`
             + `${String(value || '').length}</span> / 75 characters (Amazon's limit for using Item Highlights)
             <button class="ghost im-b" data-suggest="1">Suggest a 75-character title</button></div></div>`;
         return `<label style="font-size:11.5px" class="muted">${leEsc(field.title)}
@@ -291,7 +291,7 @@ function leCard(name) {
       ${vals.length > 1 ? `<button class="ghost im-b" data-rm="${leEsc(name)}" data-i="${i}" title="Remove this value">✕</button>` : ''}</div>`).join('');
   return `<div class="card" style="padding:10px 14px;margin-bottom:10px">
     <div style="font-weight:600;font-size:13px">${leEsc(def.title || name)} <span class="muted" style="font-weight:400;font-size:11.5px">${leEsc(name)}</span>`
-    + `${edit ? ' <span style="color:var(--accent);font-size:11.5px">· changed</span>' : ''}</div>
+    + `${edit ? ' <span style="color:var(--accent-ink);font-size:11.5px">· changed</span>' : ''}</div>
     ${def.description ? `<div class="muted" style="font-size:11.5px;margin:2px 0 4px">${leEsc(def.description.slice(0, 220))}</div>` : ''}
     ${rows || '<div class="muted" style="font-size:12px">No value yet.</div>'}
     <div style="margin-top:4px">${!def.maxItems || vals.length < def.maxItems
@@ -383,7 +383,7 @@ function leFixWire() {
     }
     if (inp.tagName === 'TEXTAREA' && $('leTitleN')) {
       $('leTitleN').textContent = value.length;
-      $('leTitleN').style.color = value.length > 75 ? 'var(--bad)' : '';
+      $('leTitleN').style.color = value.length > 75 ? 'var(--bad-ink)' : '';
     }
     if (inp.tagName === 'SELECT') leFixRender();
     else {
@@ -465,8 +465,8 @@ async function leSend(apply) {
   const issuesHtml = (reply.issues || []).map(issue => `<div style="font-size:12px;margin:3px 0">`
     + `<span class="st ${issue.severity === 'ERROR' ? 'st-rejected' : 'st-draft'}">${leEsc(issue.severity)}</span> ${leEsc(issue.message)}</div>`).join('');
   const head = !reply.ok ? `<div class="err" style="font-size:12.5px">${leEsc(reply.error || 'Failed')}</div>`
-    : reply.previewOnly ? `<div style="font-size:12.5px;color:var(--accent)">Amazon has no objection. Press Apply to send it.</div>`
-    : `<div style="font-size:12.5px;color:var(--accent)">Accepted by Amazon (submission ${leEsc(reply.submissionId || '')}). `
+    : reply.previewOnly ? `<div style="font-size:12.5px;color:var(--accent-ink)">Amazon has no objection. Press Apply to send it.</div>`
+    : `<div style="font-size:12.5px;color:var(--accent-ink)">Accepted by Amazon (submission ${leEsc(reply.submissionId || '')}). `
       + `Queued, not live yet: Amazon usually updates the listing and clears the issue within minutes to a few hours. `
       + `Press Refresh from Amazon later to see it gone from the list.</div>`;
   LE_RESULT = `<div style="margin-top:8px">${head}${issuesHtml}</div>`;

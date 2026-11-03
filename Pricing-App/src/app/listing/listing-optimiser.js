@@ -104,7 +104,7 @@ function renderOpt() {
              style="width:104px;height:104px;object-fit:contain;border:1px solid var(--line);
                     border-radius:6px;background:#fff"></a>
       <div style="font-size:11px;font-weight:600;margin-top:2px">${slot}</div>
-      <div class="muted" style="font-size:10.5px${small ? ';color:#991b1b' : ''}">${im.w}${'×'}${im.h}${small ? ' · no zoom' : ''}</div>
+      <div class="muted" style="font-size:10.5px${small ? ';color:var(--bad-ink)' : ''}">${im.w}${'×'}${im.h}${small ? ' · no zoom' : ''}</div>
     </div>`;
   }).join('');
 

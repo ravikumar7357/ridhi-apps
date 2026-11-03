@@ -672,7 +672,7 @@ function renderHealth() {
       tip: `The worst ${area.toLowerCase()} issue among the children, and how many children have one. ✓ = none of the checked children has one.` }));
     defs.push({ k: 'score', t: 'Health', num: 1, noTotal: 1,
       cell: row => row.score == null ? '<span class="muted">—</span>'
-        : `<b style="color:${row.score >= 80 ? '#15803D' : row.score >= 50 ? '#B45309' : 'var(--bad,#b91c1c)'}">${row.score}</b>`,
+        : `<b style="color:${row.score >= 80 ? 'var(--accent-ink)' : row.score >= 50 ? 'var(--act-ink)' : 'var(--bad-ink)'}">${row.score}</b>`,
       tip: 'Average health of the checked children: 100 − 40 per critical issue − 10 per action − 3 per review. Green 80+, amber 50–79, red under 50.' });
     defs.push({ k: 'parent', t: 'Parent ASIN', mono: 1, noTotal: 1,
       cell: row => `<span data-hkid="${String(row.brand).replace(/"/g, '')}|${String(row.parent).replace(/[<>&"]/g, '')}"`

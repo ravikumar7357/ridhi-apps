@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <!-- ================================================================================================
-     GENERATED FILE. DO NOT READ OR EDIT THE CODE HERE — it is the 44 files of src/ joined into one page.
+     GENERATED FILE. DO NOT READ OR EDIT THE CODE HERE — it is the 46 files of src/ joined into one page.
      The real, grouped source: Pricing-App/src/   (map and workflow: src/README.md)
        src/index.html   page markup        src/styles.css   stylesheet        src/app/ORDER   join order
        src/app/<group>/ the code, by group: core, research, sales, inventory, listing, ads
@@ -18,151 +18,271 @@
 <link rel="icon" href="/logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<!-- THE SHOP'S OWN TWO FACES, the same ones ridhiblockprint.com is set in: Plus Jakarta Sans for
-     everything that is read, Libre Caslon Text for the name over the door. -->
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Libre+Caslon+Text:wght@400;700&display=swap">
+<!-- Inter for everything that is read (variable: optical size 14–32, weights 400–700), and Libre
+     Caslon Text for one thing only, the name on the sign-in screen. -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400..700&family=Libre+Caslon+Text:wght@400&display=swap">
 <link rel="apple-touch-icon" href="/logo.png">
 <style>
   /* Listing optimiser: what a rewrite removed and what it added, marked in place. */
   .lo-gone{text-decoration:line-through;opacity:.45}
-  .lo-new{color:#166534;font-weight:700;background:#dcfce7;border-radius:3px;padding:0 2px}
+  .lo-new{color:var(--accent-ink);font-weight:700;background:var(--accent-bg);border-radius:3px;padding:0 2px}
   /* THE SIGN-IN SCREEN. Every rule is scoped under #loginView so none of it can reach a control
-     inside the app — which is the whole point of stopping at this screen. */
-  #loginView .card{background:transparent;border:0;box-shadow:none;padding:0;max-width:340px}
-  #loginView .signin{text-align:center;margin-bottom:30px}
-  #loginView .signin h1{font-family:var(--serif);font-weight:400;font-size:33px;letter-spacing:-.01em;
-    margin:20px 0 6px;color:var(--si-ink)}
-  #loginView .kicker{font-size:11px;letter-spacing:.15em;text-transform:uppercase;color:var(--si-faint);margin:0}
-  #loginView .sifield{margin-bottom:18px}
-  #loginView .sifield label{display:block;font-size:11px;letter-spacing:.11em;text-transform:uppercase;
-    color:var(--si-faint);margin:0 0 7px;font-weight:400}
-  /* A rule, not a box. The storefront frames almost nothing, and a boxed field inside a boxed card is
-     the first thing that would read as a different site. */
-  #loginView .sifield input{width:100%;padding:7px 0 9px;border:0;border-bottom:1px solid var(--si-rule);
-    border-radius:0;background:transparent;font-size:15px;color:var(--si-ink)}
-  #loginView .sifield input:focus{outline:0;border-bottom-color:var(--si-ink);box-shadow:none}
-  #loginView .sibtn{width:100%;padding:11px 28px;border-radius:24px;background:var(--si-btn);
-    color:var(--si-btn-ink);border:1px solid var(--si-btn);font-size:14px;font-weight:500;margin-top:6px}
-  #loginView .sifoot{font-size:12px;color:var(--si-faint);margin:20px 0 0;text-align:center}
+     inside the app. The screen fills the window and centres one lightly frosted card; its background
+     layers (phase 4) sit inside it, behind the card. :not(.hide), so auth.js can still hide it. */
+  #loginView:not(.hide){display:flex;align-items:center;justify-content:center;min-height:100vh;min-height:100dvh;
+    max-width:none;margin:0;padding:24px 16px;position:relative;overflow:hidden;background:var(--bg)}
+  #loginView .card{position:relative;z-index:1;width:100%;max-width:380px;margin:0;padding:36px 32px 28px;
+    border-radius:20px;border:1px solid var(--card-line);background:color-mix(in srgb,var(--card) 84%,transparent);
+    -webkit-backdrop-filter:blur(16px) saturate(160%);backdrop-filter:blur(16px) saturate(160%);box-shadow:var(--sh-3)}
+  #loginView .signin{text-align:center;margin-bottom:28px}
+  #loginView .silogo{width:56px;height:56px;margin:0 auto;border-radius:16px;display:flex;align-items:center;
+    justify-content:center;background:color-mix(in srgb,#FF9900 13%,var(--card));
+    box-shadow:inset 0 0 0 1px color-mix(in srgb,#FF9900 22%,transparent)}
+  #loginView .silogo svg{width:38px;height:13px;overflow:visible}
+  #loginView .signin h1{font-family:var(--serif);font-weight:400;font-size:30px;letter-spacing:-.01em;
+    line-height:1.15;margin:18px 0 6px;color:var(--si-ink)}
+  #loginView .kicker{font-size:12px;font-weight:500;letter-spacing:.12em;text-transform:uppercase;color:var(--si-faint);margin:0}
+  #loginView .sifield{margin-bottom:16px}
+  #loginView .sifield label{display:block;font-size:13px;font-weight:500;letter-spacing:0;text-transform:none;
+    color:var(--si-faint);margin:0 0 6px}
+  #loginView .sifield input{width:100%;height:42px;padding:0 12px;border:1px solid var(--si-rule);
+    border-radius:var(--r-ctl);background:var(--input);font-size:14px;color:var(--si-ink);
+    transition:border-color .15s ease,box-shadow .15s ease}
+  #loginView .sifield input:focus{outline:0;border-color:var(--ring-line);box-shadow:var(--ring)}
+  #loginView .sibtn{width:100%;height:42px;padding:0 20px;margin-top:8px;border-radius:var(--r-ctl);
+    background:var(--si-btn);color:var(--si-btn-ink);border:0;box-shadow:var(--sh-btn);font-size:14px;font-weight:600;
+    transition:background-color .15s ease}
+  #loginView .sibtn:hover{background:var(--brand-ink)}
+  #loginView .sibtn:focus-visible{outline:0;box-shadow:var(--ring)}
+  #loginView .sifoot{font-size:12.5px;color:var(--si-faint);margin:18px 0 0;text-align:center}
+  @media (prefers-reduced-motion:reduce){#loginView .sifield input,#loginView .sibtn{transition:none}}
+  /* THE TWO THEMES. Light is the default; dark is "black & blue". The dark values are written twice
+     on purpose: once for a choice made with the switch in the top bar (data-theme on <html>, set by
+     app/core/theme.js), and once for a computer set to dark when nobody has chosen. A light choice on
+     a dark computer matches neither, so it stays light. The names are the ones every screen already
+     uses. Each status comes as three: the colour itself (dots, rules, fills), a soft -bg tint behind
+     it, and an -ink colour for TEXT, which is the one that passes AA on white and on its own tint. */
   :root{
-    /* Cotton Print Club's ground, read off the live site — a 1% tint against the old #f6f7f9. It is
-       what makes the app feel of a piece with the storefront without touching a single control. */
-    --bg:#F3F5F8; --card:#fff; --ink:#14181F; --muted:#5A6472; --faint:#98A1AE; --line:#E8EDF3;
-    --soft:#F7F9FB;
-    /* Rounded, and the same rounded everywhere. */
-    --r-card:18px; --r-row:16px; --r-ctl:12px; --r-sm:10px; --r-pill:999px;
-    /* DEPTH, SET ONCE. Three steps and no more: a card barely off the page, a control that has been
-       pressed, and a dialog that is plainly above everything. */
-    --sh-1:0 2px 10px rgba(26,29,41,.05); --sh-2:0 4px 16px rgba(26,29,41,.08);
-    --sh-3:0 24px 64px rgba(20,24,31,.20);
-    /* Not a fourth step: the tinted lift under a primary button. The sign-in button draws it too and
-       must not change, so it keeps the value it has always had, in both themes. */
-    --sh-btn:0 4px 12px rgba(79,91,213,.26);
-    /* The storefront's own face: a SYSTEM serif, so nothing is fetched and nothing can fail to load.
-       Brand, sign-in and page titles only — never data. Its digits are proportional and would stop a
-       column of figures lining up. */
+    color-scheme:light;
+    --bg:#F5F7FB; --card:#fff; --card-line:#EDF0F6; --ink:#101828; --muted:#4D5A70; --faint:#8592A6;
+    --line:#E8ECF3; --soft:#FBFCFE; --hover:#F1F4F9; --input:#fff;
+    --glass:rgba(255,255,255,.72);   /* the frosted top bar */
+    --raise:#fff;   /* the chosen segment, raised off its track */
+    /* Rounded, and the same rounded everywhere: cards 16, controls 10. */
+    --r-card:16px; --r-row:12px; --r-ctl:10px; --r-sm:8px; --r-pill:999px;
+    /* DEPTH, SET ONCE: a card barely off the page, a panel over the work, a dialog above everything.
+       --sh-btn is the small lift under a filled button. */
+    --sh-1:0 1px 1px rgba(16,24,40,.03),0 10px 28px -14px rgba(16,24,40,.16);
+    --sh-2:0 2px 4px rgba(16,24,40,.04),0 18px 40px -16px rgba(16,24,40,.24);
+    --sh-3:0 24px 64px -12px rgba(16,24,40,.28);
+    --sh-btn:0 1px 2px rgba(16,24,40,.08);
+    /* The sign-in title's face. Its digits are proportional, so never on data. */
     --serif:"Libre Caslon Text","New York","Iowan Old Style",Baskerville,"Times New Roman",Times,serif;
-    /* The sign-in screen's own tokens. Defined in BOTH themes below: the storefront is a light world,
-       but this app has a dark one, and a literal black here would be black text on a dark ground. */
-    --si-ink:#000; --si-faint:rgba(0,0,0,.40); --si-rule:rgba(0,0,0,.13);
-    --si-btn:#000; --si-btn-ink:#fff;
-    /* The shop's slate blue, darkened until white text on it (--on-brand) is legible. */
-    --brand:#4A6A92; --brand-bg:#E9EFF6; --brand-ink:#3A5573; --on-brand:#fff;
-    --accent:#4A5A3C; --accent-bg:#EDF0E7; --bad:#850000; --bad-bg:#FBE9E9;
-    --warn:#8A5A12; --warn-bg:#FFF3D6; --input:#fff;
-    --warn-ink:var(--warn);   /* the ERP's name for the same gold; follows --warn in both themes */
-    --hover:#EFF2F6; --chip:#EDF0E7; --chip-ink:#4A5A3C;   /* filter chip */
-    /* The ring a keyboard leaves. A one-pixel border change is not one you can see across a room,
-       and this is a screen people work at all day. */
-    --ring:0 0 0 3px rgba(110,144,181,.28); --ring-line:#6E90B5;
-    /* ONE HEIGHT FOR EVERY CONTROL IN A TOOLBAR. Three different ones is the single thing that makes
-       a working screen look unfinished. */
+    /* THE ACCENT is --brand: filled buttons, the menu, focus, links and "info". White text on it. */
+    --brand:#2F6FED; --brand-bg:#EAF1FE; --brand-ink:#1F56C7; --on-brand:#fff;
+    /* Status. --accent is GOOD (it always was the app's positive colour), --bad is bad, --act needs
+       action, --rev needs review. --warn is the app's older name for needs-action and follows --act. */
+    --accent:#12A26B; --accent-bg:#E3F4ED; --accent-ink:#0B7A50;
+    --bad:#E5484D; --bad-bg:#FCE9EA; --bad-ink:#C0262D;
+    --act:#F07B1D; --act-bg:#FDEFE4; --act-ink:#A44A08;
+    --rev:#E2B007; --rev-bg:#FCF6E1; --rev-ink:#7A5C00;
+    --violet-ink:#5B21B6;   /* one more text colour, for the purple series (Price disc., budget share) */
+    --warn:var(--act); --warn-bg:var(--act-bg); --warn-ink:var(--act-ink);
+    --chip:#EEF2F8; --chip-ink:#344054;   /* filter chip */
+    /* The ring a keyboard leaves: 3px of the accent at about a fifth. */
+    --ring:0 0 0 3px rgba(47,111,237,.20); --ring-line:#2F6FED;
+    /* ONE HEIGHT FOR EVERY CONTROL IN A TOOLBAR. */
     --ctl:40px;
+    /* The sign-in screen's own tokens. */
+    --si-ink:#101828; --si-faint:#4D5A70; --si-rule:#D5DBE5;
+    --si-btn:#2F6FED; --si-btn-ink:#fff;
+    /* Backgrounds: the still aurora at the top of the app (1 top-left, 2 top-right), the sign-in
+       screen's third circle, and the sign-in constellation's dots and lines. */
+    --aur-1:rgba(47,111,237,.10); --aur-2:rgba(139,124,246,.08); --aur-3:rgba(44,198,216,.12);
+    --fx-dot:rgba(47,111,237,.28); --fx-line:rgba(47,111,237,.09);
   }
+  :root[data-theme="dark"]{
+    color-scheme:dark;
+    --bg:#0B0F17; --card:#121826; --card-line:#1F2838; --ink:#E8ECF4; --muted:#A3ADBF; --faint:#7B8699;
+    --line:#212A3A; --soft:#101624; --hover:#1A2233; --input:#0E1420; --glass:rgba(18,24,38,.72); --raise:#263049;
+    --sh-1:none; --sh-2:0 16px 40px -12px rgba(0,0,0,.55); --sh-3:0 24px 64px rgba(0,0,0,.6); --sh-btn:none;
+    --brand:#6B9BF2; --brand-bg:#1F2C45; --brand-ink:#9DBDF7; --on-brand:#0B0F17;
+    --accent:#4ADE80; --accent-bg:#1A3633; --accent-ink:#4ADE80;
+    --bad:#F87171; --bad-bg:#342531; --bad-ink:#F87171;
+    --act:#FB923C; --act-bg:#352A29; --act-ink:#FB923C;
+    --rev:#FACC15; --rev-bg:#353323; --rev-ink:#FACC15; --violet-ink:#C4B5FD;
+    --chip:#1A2233; --chip-ink:#C9D2E1;
+    --ring:0 0 0 3px rgba(107,155,242,.24); --ring-line:#6B9BF2;
+    --si-ink:#E8ECF4; --si-faint:#A3ADBF; --si-rule:#2A3446;
+    --si-btn:#6B9BF2; --si-btn-ink:#0B0F17;
+    --aur-1:rgba(59,108,246,.18); --aur-2:rgba(124,92,255,.14); --aur-3:rgba(34,195,238,.18);
+    --fx-dot:rgba(169,196,245,.70); --fx-line:rgba(169,196,245,.14);
+  }
+  /* The same dark values, for a dark computer when nobody has chosen. Keep the two lists identical. */
   @media (prefers-color-scheme:dark){
-    :root{
-      --bg:#0b1120; --card:#111827; --ink:#e5e7eb; --muted:#94a3b8; --line:#1f2937;
-      --brand:#e5e7eb; --accent:#4ade80; --accent-bg:#052e16; --bad:#fca5a5; --bad-bg:#450a0a;
-      --warn:#fde68a; --warn-bg:#422006; --input:#0f172a;
-      --hover:#1e293b; --chip:#14301a; --chip-ink:#a3e635;
-      /* The first four had no dark value, so the menu's "on" item and a hovered row were light on
-         light here. --brand is light in this theme, so the text on it is dark. */
-      --faint:#64748b; --soft:#172033; --brand-bg:#1d3352; --brand-ink:#a9c1e0; --on-brand:#0b1120;
-      --ring:0 0 0 3px rgba(143,170,203,.40); --ring-line:#8FAACB; --sh-3:0 24px 64px rgba(0,0,0,.55);
-      /* No dark value on purpose: --warn-ink follows --warn, --sh-btn is drawn by the sign-in and
-         must not move, and --ctl is a size. */
-      /* Same sign-in, legible on the dark ground. The shape stays — rules not boxes, serif, pill
-         button — only the ink and the rule move. */
-      --si-ink:#e5e7eb; --si-faint:rgba(229,231,235,.45); --si-rule:rgba(229,231,235,.20);
-      --si-btn:#e5e7eb; --si-btn-ink:#0b1120;
+    :root:not([data-theme="light"]){
+      color-scheme:dark;
+      --bg:#0B0F17; --card:#121826; --card-line:#1F2838; --ink:#E8ECF4; --muted:#A3ADBF; --faint:#7B8699;
+      --line:#212A3A; --soft:#101624; --hover:#1A2233; --input:#0E1420; --glass:rgba(18,24,38,.72); --raise:#263049;
+      --sh-1:none; --sh-2:0 16px 40px -12px rgba(0,0,0,.55); --sh-3:0 24px 64px rgba(0,0,0,.6); --sh-btn:none;
+      --brand:#6B9BF2; --brand-bg:#1F2C45; --brand-ink:#9DBDF7; --on-brand:#0B0F17;
+      --accent:#4ADE80; --accent-bg:#1A3633; --accent-ink:#4ADE80;
+      --bad:#F87171; --bad-bg:#342531; --bad-ink:#F87171;
+      --act:#FB923C; --act-bg:#352A29; --act-ink:#FB923C;
+      --rev:#FACC15; --rev-bg:#353323; --rev-ink:#FACC15; --violet-ink:#C4B5FD;
+      --chip:#1A2233; --chip-ink:#C9D2E1;
+      --ring:0 0 0 3px rgba(107,155,242,.24); --ring-line:#6B9BF2;
+      --si-ink:#E8ECF4; --si-faint:#A3ADBF; --si-rule:#2A3446;
+      --si-btn:#6B9BF2; --si-btn-ink:#0B0F17;
+      --aur-1:rgba(59,108,246,.18); --aur-2:rgba(124,92,255,.14); --aur-3:rgba(34,195,238,.18);
+      --fx-dot:rgba(169,196,245,.70); --fx-line:rgba(169,196,245,.14);
     }
   }
+  /* The sign-in screen's aurora is stronger than the app's, in both themes. */
+  #loginView{--aur-1:rgba(47,111,237,.18); --aur-2:rgba(139,124,246,.16); --aur-3:rgba(44,198,216,.12)}
+  :root[data-theme="dark"] #loginView{--aur-1:rgba(59,108,246,.35); --aur-2:rgba(124,92,255,.28); --aur-3:rgba(34,195,238,.18)}
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]) #loginView{--aur-1:rgba(59,108,246,.35); --aur-2:rgba(124,92,255,.28); --aur-3:rgba(34,195,238,.18)}
+  }
   *{box-sizing:border-box}
+  /* Inter for everything that is read, at its optical size. */
   body{margin:0;background:var(--bg);color:var(--ink);
-    font:15px/1.6 "Plus Jakarta Sans",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
-    -webkit-font-smoothing:antialiased}
+    font:14px/1.5 Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;font-optical-sizing:auto;
+    -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
   .wrap{max-width:1320px;margin:0 auto;padding:14px 16px}
 
-  /* App shell: fixed sidebar + independently scrolling main column.
-     `min-width:0` on .main is what stops wide tables from pushing the layout and overlapping. */
-  .shell{display:flex;align-items:stretch;min-height:100vh}
-  /* THE MENU IS A BAR ACROSS THE TOP (design 7) — the same shape as the Replenishment app, so the
-     two read as one tool. It wraps rather than scrolling sideways. */
-  .shell{flex-direction:column;align-items:stretch}
-  .side{flex:0 0 auto;position:sticky;top:0;z-index:60;width:100%;height:auto;overflow:visible;
-    background:var(--card);box-shadow:var(--sh-1);padding:7px 16px;display:flex;flex-direction:row;
-    align-items:center;gap:2px;flex-wrap:wrap}
-  .navwrap{position:relative}
-  .brand{font-family:var(--serif);font-weight:400;font-size:17px;padding:0 14px 0 2px;letter-spacing:-.01em;line-height:1.1;white-space:nowrap}
+  /* ---------- THE APP SHELL ----------
+     The menu is a bar across the top, sticky and lightly frosted — the only glass inside the app. It
+     stays position:sticky on a wide screen: ppc-new.js measures it only while it is, to park its own
+     toolbar underneath. On a phone (860px and under, the width nav.js calls NARROW) the same bar is
+     the drawer the ☰ button opens. `min-width:0` on .main stops wide tables pushing the layout. */
+  .shell{display:flex;flex-direction:column;align-items:stretch;min-height:100vh}
+  .side{flex:0 0 auto;position:sticky;top:0;z-index:60;width:100%;min-height:60px;display:flex;
+    flex-direction:row;align-items:center;flex-wrap:wrap;gap:2px 4px;padding:12px 24px;
+    background:var(--glass);-webkit-backdrop-filter:saturate(180%) blur(14px);backdrop-filter:saturate(180%) blur(14px);
+    border-bottom:1px solid var(--line)}
+  @supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){.side{background:var(--card)}}
+  /* The mark: the orange swoosh in a rounded tile, then the name. */
+  .brand{display:flex;align-items:center;gap:10px;padding:0 16px 0 0;font-size:16px;font-weight:700;
+    letter-spacing:-.01em;line-height:1;white-space:nowrap;color:var(--ink)}
+  .brandtile{flex:none;width:32px;height:32px;border-radius:9px;display:inline-flex;align-items:center;
+    justify-content:center;background:color-mix(in srgb,#FF9900 13%,var(--card));
+    box-shadow:inset 0 0 0 1px color-mix(in srgb,#FF9900 22%,transparent)}
+  .brandtile svg{width:22px;height:8px;overflow:visible}
+  .logo-arc{stroke:#FF9900}
+  .logo-tip{fill:#FF9900}
   .side .navclose{display:none}
-  .sidefoot{margin:0 0 0 auto;padding:0;border-top:0;display:flex;align-items:center;gap:2px}
-  .sidefoot .nav{width:auto}
-  .topbar .hamb{display:none}
-  .main{padding:16px 22px}
-  /* Group headings are buttons, not labels: each one opens and closes the .navsec directly after
-     it. Seller Central works this way, and it keeps a thirteen-tab sidebar to one screen. */
-  .navgrp{display:flex;align-items:center;gap:6px;width:auto;text-align:left;background:transparent;
-    border:0;cursor:pointer;font:inherit;font-size:12.5px;font-weight:600;text-transform:none;
-    letter-spacing:0;color:var(--muted);padding:8px 11px;border-radius:var(--r-sm);box-shadow:none;min-height:0;
-    white-space:nowrap}
-  .navgrp:hover{color:var(--ink);background:var(--hover)}
-  .navgrp.open{background:var(--brand-bg);color:var(--brand)}
-  .navgrp.here{color:var(--brand);font-weight:800}
-  .navgrp .caret{flex:none;font-size:10px;line-height:1;transition:transform .16s ease}
-  .navgrp.open .caret{transform:rotate(90deg)}
+  .navwrap{position:relative}
+  /* GROUPS: soft pills, an icon drawn in CSS (one per data-grp), the label, then a chevron that turns
+     when the group is open. The group holding the screen on view (.here, set by nav.js) is tinted. */
+  .navgrp{display:inline-flex;align-items:center;gap:7px;width:auto;height:36px;padding:0 12px;
+    text-align:left;background:transparent;border:0;border-radius:var(--r-pill);box-shadow:none;min-height:0;
+    cursor:pointer;font:inherit;font-size:13.5px;font-weight:500;letter-spacing:0;text-transform:none;
+    color:var(--muted);white-space:nowrap;transition:background-color .15s ease,color .15s ease}
+  .navgrp::before{content:"";flex:none;width:16px;height:16px;background:currentColor;
+    mask:var(--ic) center/contain no-repeat}
+  .navgrp[data-grp="research"]{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='m20 20-3.5-3.5'/%3E%3C/svg%3E")}
+  .navgrp[data-grp="sales"]{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 17l6-6 4 4 8-8'/%3E%3Cpath d='M15 7h6v6'/%3E%3C/svg%3E")}
+  .navgrp[data-grp="listing"]{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9 6h11M9 12h11M9 18h11'/%3E%3Cpath d='M4 6h.01M4 12h.01M4 18h.01'/%3E%3C/svg%3E")}
+  .navgrp[data-grp="ads"]{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 10v4a1 1 0 0 0 1 1h3l5 4V5L7 9H4a1 1 0 0 0-1 1z'/%3E%3Cpath d='M16 9a4 4 0 0 1 0 6M19 6a8 8 0 0 1 0 12'/%3E%3C/svg%3E")}
+  .navgrp[data-grp="inv"]{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 8l-9-5-9 5 9 5 9-5z'/%3E%3Cpath d='M3 8v8l9 5 9-5V8M12 13v8'/%3E%3C/svg%3E")}
+  .navgrp[data-grp="social"]{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='18' cy='5' r='3'/%3E%3Ccircle cx='6' cy='12' r='3'/%3E%3Ccircle cx='18' cy='19' r='3'/%3E%3Cpath d='m8.6 13.5 6.8 4M15.4 6.5l-6.8 4'/%3E%3C/svg%3E")}
+  /* The chevron: the ▸ in the markup is hidden and a drawn one put after the label. */
+  .navgrp .caret{order:1;flex:none;width:12px;height:12px;font-size:0;line-height:0;background:currentColor;opacity:.7;
+    mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") center/contain no-repeat;
+    transition:transform .15s ease}
+  .navgrp:hover{background:var(--hover);color:var(--ink)}
+  .navgrp.open{background:var(--hover);color:var(--ink)}
+  .navgrp.open .caret{transform:rotate(180deg)}
+  .navgrp.here,.navgrp.here:hover,.navgrp.here.open{background:var(--brand-bg);color:var(--brand-ink);font-weight:600}
+  /* THE DROP-DOWN: a clean card under the bar, the group's screens as rows. It fades in from 4px up;
+     only FROM is given, so it always ends fully shown. */
   .navsec{display:none}
-  .navsec.open{display:block;position:absolute;top:calc(100% + 7px);left:0;min-width:250px;
-    background:var(--card);border-radius:var(--r-card);box-shadow:var(--sh-2);padding:7px;z-index:70}
+  .navsec.open{display:block;position:absolute;top:calc(100% + 14px);left:0;z-index:70;min-width:240px;padding:8px;
+    background:var(--card);border:1px solid var(--card-line);border-radius:12px;box-shadow:var(--sh-2);
+    animation:navIn .12s ease-out}
+  @keyframes navIn{from{opacity:0;transform:translateY(-4px)}}
   .navwrap:nth-last-child(-n+2) .navsec.open{left:auto;right:0}
-  .nav{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:transparent;
-    color:var(--ink);border:0;border-radius:8px;padding:7px 12px;font-weight:500;font-size:13.5px;
-    /* FLAT, and no minimum height: the shared button rule would otherwise make each item a card. */
-    box-shadow:none;min-height:0;line-height:1.35;margin-bottom:1px;border-radius:var(--r-ctl)}
+  .nav{display:flex;align-items:center;gap:10px;width:100%;min-height:36px;padding:7px 12px;margin:0 0 2px;
+    text-align:left;background:transparent;color:var(--ink);border:0;border-radius:8px;box-shadow:none;
+    font-weight:500;font-size:13.5px;line-height:1.35;transition:background-color .12s ease}
+  .navsec .nav:last-child{margin-bottom:0}
   .nav:hover{background:var(--hover)}
-  .nav.on{background:var(--brand-bg);color:var(--brand);font-weight:700}
-  .sidefoot{margin-top:auto;padding-top:10px;border-top:1px solid var(--line)}
-  .navclose{margin-left:auto;flex:none;width:28px;height:28px;padding:0;display:inline-flex;
-    align-items:center;justify-content:center;background:transparent;color:var(--muted);
-    border:0;border-radius:8px;font-size:17px;line-height:1}
+  .nav.on,.nav.on:hover{background:var(--brand-bg);color:var(--brand-ink);font-weight:600}
+  /* The TEST tag on a menu row: a small amber pill with a dot. */
+  .navtag{display:inline-flex;align-items:center;gap:5px;margin-left:4px;padding:1px 7px 1px 6px;
+    border-radius:var(--r-pill);background:var(--act-bg);color:var(--act-ink);font-size:10px;font-weight:700;
+    letter-spacing:.06em;line-height:16px}
+  .navtag::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--act)}
+  /* RIGHT OF THE BAR: the theme switch, the guide, Settings and Sign out. */
+  .sidefoot{margin:0 0 0 auto;padding:0;border:0;display:flex;align-items:center;gap:2px}
+  .sidefoot .nav{width:auto;height:36px;min-height:0;margin:0;padding:0 12px;border-radius:var(--r-pill);
+    color:var(--muted);white-space:nowrap}
+  .sidefoot .nav:hover{color:var(--ink)}
+  .sidefoot .nav.on{color:var(--brand-ink)}
+  .side #guideBtn{flex:none;height:36px;padding:0 12px;border-radius:var(--r-pill);background:transparent;
+    color:var(--muted);box-shadow:none;font-size:13.5px;font-weight:500;white-space:nowrap}
+  .side #guideBtn:hover{background:var(--hover);color:var(--ink)}
+  /* THE THEME SWITCH (app/core/theme.js): an icon button showing the theme in use — the sun in
+     light, the moon in dark. theme.js keeps aria-pressed in step, and the icon follows it. */
+  .themesw{flex:none;width:36px;height:36px;padding:0;display:inline-flex;align-items:center;
+    justify-content:center;background:transparent;color:var(--muted);border:0;border-radius:var(--r-pill);
+    box-shadow:none;min-height:0;transition:background-color .15s ease,color .15s ease}
+  .themesw:hover{background:var(--hover);color:var(--ink)}
+  .themesw svg{width:18px;height:18px;flex:none}
+  .themesw .ic-moon,.themesw[aria-pressed="true"] .ic-sun{display:none}
+  .themesw[aria-pressed="true"] .ic-moon{display:block}
+  .navclose{flex:none;width:32px;height:32px;padding:0;display:inline-flex;align-items:center;
+    justify-content:center;background:transparent;color:var(--muted);border:0;border-radius:var(--r-pill);
+    box-shadow:none;font-size:20px;line-height:1}
   .navclose:hover{background:var(--hover);color:var(--ink)}
-  /* Every screen and dialog reads at 14px on 1.5. EVERY FIGURE ON THE PAGE LINES UP: tabular digits
-     throughout, so a total ticking from 145,539 to 146,002 does not shift the tile beside it. Set here
-     rather than on body, so the sign-in screen and the menu bar, which inherit from body, stay exactly
-     as they were. */
-  .main{flex:1;min-width:0;padding:26px 30px;font-size:14px;line-height:1.5;font-variant-numeric:tabular-nums}
-  /* The 3-line button sits beside the page title and hides the sidebar entirely. */
+  /* A narrower desktop: the group icons go before anything wraps. */
+  @media (min-width:861px) and (max-width:1199px){
+    .side{padding:12px 16px}
+    .navgrp{padding:0 10px}
+    .navgrp::before{display:none}
+  }
+  /* THE CONTENT. Every screen and dialog reads at 14px on 1.5, and every figure lines up: tabular
+     digits throughout, so a total ticking from 145,539 to 146,002 does not shift the tile beside it. */
+  .main{flex:1;min-width:0;padding:24px 28px;font-size:14px;line-height:1.5;font-variant-numeric:tabular-nums}
+  /* The title row: the ☰ (phones only) and the page title. */
   .topbar{display:flex;align-items:center;gap:12px;margin:0 0 20px}
-  .hamb{flex:none;width:40px;height:40px;padding:0;display:inline-flex;align-items:center;
-    justify-content:center;background:transparent;color:var(--ink);border:1px solid var(--line);
-    border-radius:10px}
+  .hamb{display:none;flex:none;width:40px;height:40px;padding:0;align-items:center;justify-content:center;
+    background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:var(--r-ctl);box-shadow:none}
   .hamb:hover{background:var(--hover)}
-  .shell.navshut .side{display:none}
-  /* Scrim only ever appears over the narrow-screen drawer; tapping it closes the menu. */
-  #navScrim{display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:55}
-  /* ONE SCALE, AND IT STEPS PROPERLY: page heading 32 — brand 19 — nav 13.5 — group label 11.
-     They were 23 / 20 / 15 / 11, which is barely a step at all: the thing naming the page read the
-     same weight as the list of links beside it, so nothing told you where you were. */
-  .pagehead{font-size:26px;font-weight:800;letter-spacing:-.022em;margin:0;line-height:1.15}
+  .pagehead{font-size:21px;font-weight:700;letter-spacing:-.02em;margin:0;line-height:1.25}
+  /* The shade behind the phone drawer; tapping it closes the menu. */
+  #navScrim{display:none;position:fixed;inset:0;background:rgba(10,14,22,.45);z-index:55}
+  /* THE PHONE DRAWER. Same markup, same buttons, same nav.js: the bar becomes a panel down the left that
+     slides in when navshut comes off #appView. On a wide screen navshut changes nothing — the bar is the
+     only way to the screens there, and there is no ☰ to bring it back. */
+  @media(max-width:860px){
+    .side{position:fixed;top:0;left:0;bottom:0;z-index:60;width:min(300px,86vw);height:100vh;height:100dvh;
+      min-height:0;flex-direction:column;flex-wrap:nowrap;align-items:stretch;gap:2px;padding:14px 12px;
+      overflow-y:auto;background:var(--card);-webkit-backdrop-filter:none;backdrop-filter:none;
+      border-bottom:0;border-right:1px solid var(--line);box-shadow:var(--sh-3);
+      transition:transform .2s ease,visibility .2s}
+    .shell.navshut .side{transform:translateX(-100%);visibility:hidden;box-shadow:none}
+    .shell:not(.navshut) #navScrim{display:block;animation:fadeIn .15s ease-out}
+    .brand{padding:2px 4px 12px}
+    .side .navclose{display:inline-flex;margin-left:auto}
+    .navwrap{width:100%}
+    .navgrp{width:100%;height:40px;border-radius:var(--r-ctl)}
+    .navgrp .caret{margin-left:auto}
+    /* A group opens in place under its heading, not as a card over the drawer. */
+    .navsec.open{position:static;min-width:0;margin:2px 0 6px;padding:0 0 0 14px;border:0;border-radius:0;
+      background:transparent;box-shadow:none;animation:none}
+    .nav{min-height:38px}
+    .sidefoot{margin:auto 0 0;padding:10px 0 0;border-top:1px solid var(--line);flex-wrap:wrap}
+    .sidefoot .nav{height:38px}
+    .hamb{display:inline-flex}
+    .main{padding:16px}
+  }
+  @keyframes fadeIn{from{opacity:0}}
+  @media (prefers-reduced-motion:reduce){
+    .navsec.open,.shell:not(.navshut) #navScrim{animation:none}
+    .side,.navgrp,.navgrp .caret,.nav,.themesw{transition:none}
+  }
   /* Euka-style filter chip + metric block */
   .chip{display:inline-flex;align-items:center;gap:8px;background:var(--chip);color:var(--chip-ink);
     border-radius:999px;padding:8px 15px;font-size:13px;font-weight:600}
@@ -179,15 +299,23 @@
     justify-content:center;line-height:1}
   .toolbar .seg{flex:0 0 auto;height:var(--ctl)}
   .toolbar .segbtn{padding-top:0;padding-bottom:0}
+  /* A search box says so: a magnifier drawn in front of every Filter… / Search… field on a bar. */
+  .toolbar input:is([placeholder^="Filter"],[placeholder^="Search"]){padding-left:34px;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238592A6' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='m20 20-3.5-3.5'/%3E%3C/svg%3E");
+    background-repeat:no-repeat;background-position:12px 50%;background-size:15px}
   #ageMsg:empty{display:none}          /* no empty gap under the bar when there's nothing to say */
   #ageMsg{margin-top:10px}
 
-  /* Segmented toggle (Parent ASINs | Child ASINs), rounded like every other toolbar control. Flat at
-     rest: without box-shadow:none each segment wore the primary button's lift. */
-  .seg{display:inline-flex;background:var(--hover);border-radius:var(--r-ctl);padding:3px;gap:2px}
-  .segbtn{background:transparent;color:var(--muted);border:0;border-radius:var(--r-sm);padding:8px 16px;
-    font-weight:600;font-size:14px;box-shadow:none}
-  .segbtn.on{background:var(--card);color:var(--ink);box-shadow:var(--sh-1)}
+  /* Segmented toggle (Parent ASINs | Child ASINs): a soft grey track, and the chosen one a raised pill
+     (white in light, a lighter navy in dark). The Sales Dashboard's brand toggle is the same control. */
+  .seg,.sd-toggle{display:inline-flex;align-items:stretch;background:color-mix(in srgb,var(--ink) 6%,var(--card));
+    border:0;border-radius:var(--r-ctl);padding:3px;gap:2px;overflow:visible}
+  .segbtn,.sd-toggle button{background:transparent;color:var(--muted);border:0;border-radius:var(--r-sm);padding:7px 14px;
+    font-weight:500;font-size:13.5px;line-height:1.2;box-shadow:none;cursor:pointer;
+    transition:background-color .15s ease,color .15s ease}
+  .segbtn:hover,.sd-toggle button:hover{background:transparent;color:var(--ink)}
+  .segbtn.on,.segbtn.on:hover,.sd-toggle button.on,.sd-toggle button.on:hover{background:var(--raise);color:var(--ink);
+    font-weight:600;box-shadow:var(--sh-btn)}
 
   /* Excel-style grid: frozen header row + frozen first column, own scroll box. */
   /* Two classes so this beats `.card`'s padding. A sticky `top:0`/`left:0` anchors to the PADDING
@@ -201,15 +329,18 @@
   table.xl{border-collapse:separate;border-spacing:0;width:auto;min-width:100%;font-size:13px}
   /* NO GRID. Vertical rules between every column are what made a table of figures read as graph
      paper; the columns are held apart by their own space, and only a hairline separates rows. Text
-     reads from the left, figures (.num) from the right. 12px all round makes a row of about 44px. */
+     reads from the left, figures (.num) from the right. 10px by 12px makes a row of about 40px. */
   table.xl th,table.xl td{border-right:0;border-bottom:1px solid var(--line);
-    padding:12px;white-space:nowrap;text-align:left;vertical-align:middle}
-  /* THE HEADER IS ABOVE THE DATA, and looks it: small uppercase in the faint ink over a hairline,
-     shorter than a row. One row of sticky cells, so the inset shadow costs nothing. z-index must
-     beat the frozen first column or rows paint over it. */
-  table.xl thead th{position:sticky;top:0;z-index:5;background:var(--card);color:var(--faint);box-shadow:inset 0 -1px 0 var(--line);
-    font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;cursor:pointer;
-    user-select:none;padding-top:8px;padding-bottom:8px}
+    padding:10px 12px;white-space:nowrap;text-align:left;vertical-align:middle}
+  /* THE HEADER IS ABOVE THE DATA, and looks it: small uppercase, letter-spaced, grey, on a light band
+     over a hairline. One row of sticky cells, so the inset shadow costs nothing. z-index must beat
+     the frozen first column or rows paint over it. Muted rather than faint, so it passes AA. */
+  table.xl thead th{position:sticky;top:0;z-index:5;background:var(--soft);color:var(--muted);box-shadow:inset 0 -1px 0 var(--line);
+    font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;cursor:pointer;
+    user-select:none;padding-top:9px;padding-bottom:9px}
+  /* A group heading spanning several columns (two header rows): centred, over a firmer rule. */
+  table.xl thead tr:not(:last-child) th[colspan]{text-align:center;color:var(--ink);
+    box-shadow:inset 0 -2px 0 color-mix(in srgb,var(--ink) 14%,var(--card))}
   table.xl thead th:hover{color:var(--ink)}
   /* The row under the pointer, its frozen cell too: an even row's frozen cell is tinted, and without
      td.frz here it stayed tinted while the rest of its row lit up. */
@@ -217,7 +348,8 @@
   table.xl .num{text-align:right;font-variant-numeric:tabular-nums}
   /* No box-shadow here: a shadow on every sticky cell is repainted on each horizontal scroll frame,
      and these grids are wide enough that it dominates. There is no divider to draw either: NO GRID. */
-  table.xl .frz{position:sticky;left:0;z-index:2;background:var(--card);font-family:ui-monospace,monospace}
+  table.xl .frz{position:sticky;left:0;z-index:2;background:var(--card);font-family:ui-monospace,monospace;
+    border-right:1px solid var(--line)}
   /* TOTAL row: a second header row, so it stays put while the body scrolls under it. `top` is set
      in JS from the title row's measured height — hard-coding it breaks the moment a header wraps.
      The brand tint, the same one PPC-new's total row uses. */
@@ -231,21 +363,22 @@
   #dPlanTable tbody tr:nth-child(even) .pfz{background:var(--bg)}
   /* A frozen HEADER cell is sticky in both directions at once, so it has to outrank both the
      header row (which is sticky vertically) and the frozen column (sticky horizontally). */
-  #dPlanTable thead .pfz{z-index:9}
+  #dPlanTable thead .pfz{z-index:9;background:var(--soft)}
   #dPlanTable thead th{position:sticky;z-index:6}
   /* One line down the right edge of the frozen block, so the split is obvious while scrolling. */
-  #dPlanTable .pfz-last{border-right:2px solid #cbd5e1}
+  #dPlanTable .pfz-last{border-right:2px solid color-mix(in srgb,var(--ink) 16%,var(--card))}
+  #dPlanTable .frz{border-right:0}
   table.xl tbody tr:nth-child(even) .frz{background:var(--bg)}
-  table.xl thead .frz{z-index:6;background:var(--hover)}
+  table.xl thead .frz{z-index:6;background:var(--soft)}
   /* TOTAL stays pinned to the bottom of the scroll box. Safe now that the wrapper has no padding —
      the earlier bleed was that padding gap, not the stickiness. Needs a z-index above the body's
      frozen column (2), and the bottom-left corner cell must beat the whole footer row. */
-  table.xl tfoot td{position:sticky;bottom:0;z-index:5;background:var(--card);font-weight:700;
+  table.xl tfoot td{position:sticky;bottom:0;z-index:5;background:var(--brand-bg);font-weight:700;
     border-top:2px solid var(--line);box-shadow:0 -1px 0 var(--line)}
-  table.xl tfoot .frz{z-index:7;background:var(--card)}
+  table.xl tfoot .frz{z-index:7;background:var(--brand-bg)}
   /* .xl-dense: a grid packed tight enough that every column sits on one screen. Only the rows shrink;
      the header keeps its own size. */
-  table.xl.xl-dense th,table.xl.xl-dense td{padding:4px 8px;line-height:1.3}
+  table.xl.xl-dense th,table.xl.xl-dense td{padding:7px 10px;line-height:1.3}
   table.xl.xl-dense td{font-size:12.5px}
   table.xl.xl-dense td .sub{display:block;font-size:10.5px;color:var(--muted);font-weight:400;white-space:nowrap}
   table.xl.xl-dense td.wrap{white-space:normal;max-width:320px;text-align:left;font-size:12px}
@@ -254,95 +387,131 @@
      stretching to half the screen; they wrap on narrow windows. */
   /* Cards GROW to share the row (all four metrics sit on one line) rather than growing taller and
      leaving the right-hand side empty. */
-  /* ---- Sales dashboard. Written out by hand rather than pulled in with Tailwind: this app loads
-     no external scripts, and the whole design is these few components. Colours and sizes are the
-     Tailwind values the original used, so it looks identical. ---- */
-  .sd-toggle{display:inline-flex;border:1px solid #cbd5e1;border-radius:6px;overflow:hidden}
-  .sd-toggle button{border:0;background:#fff;color:#475569;font-size:14px;font-weight:600;
-    padding:6px 12px;cursor:pointer}
-  .sd-toggle button:hover{background:#f8fafc}
-  .sd-toggle button.on{background:#0891b2;color:#fff}
+  /* ---- Sales dashboard. Written out by hand: this app loads no external scripts, and the whole
+     design is these few components. The six period cards each carry their own colour (--glow): a
+     soft glow in the top-right corner, and a tinted chip with that period's icon before the label.
+     --glow-a is how strong the glow is — stronger on the dark ground, where a light one disappears. */
   .sd-kpis{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:16px;margin-bottom:24px}
   @media (max-width:1400px){ .sd-kpis{grid-template-columns:repeat(3,minmax(0,1fr))} }
   @media (max-width:900px){ .sd-kpis{grid-template-columns:repeat(2,minmax(0,1fr))} }
-  .sd-card{background:#fff;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,.1),0 1px 2px rgba(0,0,0,.06);
-    border-left:4px solid #94a3b8;padding:16px}
-  .sd-card .lbl{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:#64748b;font-weight:600}
-  .sd-card .val{font-size:24px;font-weight:700;color:#0f172a;margin-top:4px;line-height:1.2}
-  .sd-card .sub{font-size:12px;color:#64748b;margin-top:4px}
-  .sd-b-cyan{border-left-color:#06b6d4} .sd-b-teal{border-left-color:#14b8a6}
-  .sd-b-orange{border-left-color:#f97316} .sd-b-purple{border-left-color:#a855f7}
-  .sd-b-pink{border-left-color:#ec4899} .sd-b-indigo{border-left-color:#6366f1}
-  .sd-panel{background:#fff;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,.1),0 1px 2px rgba(0,0,0,.06);
-    padding:16px;margin-bottom:24px}
-  .sd-h2{font-size:14px;font-weight:600;color:#334155;margin:0 0 12px}
+  .sd-card{--glow:#94a3b8;--glow-a:17%;position:relative;padding:16px 18px;border:1px solid var(--card-line);
+    border-radius:var(--r-card);box-shadow:var(--sh-1);transition:box-shadow .15s ease;
+    background:radial-gradient(190px 140px at 100% 0%,color-mix(in srgb,var(--glow) var(--glow-a),transparent),transparent 72%),var(--card)}
+  :root[data-theme="dark"] .sd-card{--glow-a:24%}
+  @media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .sd-card{--glow-a:24%}}
+  .sd-card .lbl{display:flex;align-items:center;gap:10px;min-height:34px;font-size:12px;font-weight:600;
+    text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+  .sd-card .lbl::before{content:"";flex:none;width:30px;height:30px;border-radius:9px;
+    background:no-repeat center/16px,color-mix(in srgb,var(--glow) 16%,transparent)}
+  .sd-card .val{font-size:24px;font-weight:700;letter-spacing:-.02em;color:var(--ink);margin-top:10px;line-height:1.2;
+    font-variant-numeric:tabular-nums}
+  .sd-card .sub{font-size:12px;color:var(--muted);margin-top:6px}
+  /* The change on a card is a pill: ▲ green / ▼ red on its own soft tint (the arrow comes from the JS). */
+  .sd-card .sub .ui-pos,.sd-card .sub .ui-neg{display:inline-block;padding:0 7px;border-radius:var(--r-pill);
+    font-weight:600;line-height:18px}
+  .sd-card .sub .ui-pos{background:var(--accent-bg)}
+  .sd-card .sub .ui-neg{background:var(--bad-bg)}
+  /* Today — a clock; Yesterday — a calendar; Last 7 days — bars; MTD — a calendar grid;
+     Expected — a rising arrow; YTD — stacked layers. */
+  .sd-b-cyan{--glow:#06b6d4}
+  .sd-b-cyan .lbl::before{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2306b6d4' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='M12 7v5l3 2'/%3E%3C/svg%3E")}
+  .sd-b-teal{--glow:#14b8a6}
+  .sd-b-teal .lbl::before{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2314b8a6' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='5' width='18' height='16' rx='2'/%3E%3Cpath d='M3 10h18M8 3v4M16 3v4'/%3E%3C/svg%3E")}
+  .sd-b-orange{--glow:#f97316}
+  .sd-b-orange .lbl::before{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23f97316' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 20v-6M12 20V8M18 20V4M3 20h18'/%3E%3C/svg%3E")}
+  .sd-b-purple{--glow:#a855f7}
+  .sd-b-purple .lbl::before{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23a855f7' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='5' width='18' height='16' rx='2'/%3E%3Cpath d='M3 10h18M8 3v4M16 3v4M8 14h.01M12 14h.01M16 14h.01M8 17.5h.01M12 17.5h.01'/%3E%3C/svg%3E")}
+  .sd-b-indigo{--glow:#6366f1}
+  .sd-b-indigo .lbl::before{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236366f1' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 17l6-6 4 4 8-8'/%3E%3Cpath d='M15 7h6v6'/%3E%3C/svg%3E")}
+  .sd-b-pink{--glow:#ec4899}
+  .sd-b-pink .lbl::before{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ec4899' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m12 3 9 5-9 5-9-5 9-5z'/%3E%3Cpath d='m3 12.5 9 5 9-5M3 16.5l9 5 9-5'/%3E%3C/svg%3E")}
+  .sd-panel{background:var(--card);border:1px solid var(--card-line);border-radius:var(--r-card);box-shadow:var(--sh-1);
+    padding:16px 18px;margin-bottom:24px}
+  .sd-h2{font-size:14px;font-weight:600;color:var(--ink);margin:0 0 12px}
   .sd-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}
   @media (max-width:900px){ .sd-stats{grid-template-columns:repeat(2,minmax(0,1fr))} }
-  .sd-stat{background:#f8fafc;border-radius:8px;padding:12px}
-  .sd-stat .lbl{font-size:12px;color:#64748b;font-weight:600}
-  .sd-stat .val{font-size:18px;font-weight:700;color:#0f172a}
+  .sd-stat{background:color-mix(in srgb,var(--ink) 3%,var(--card));border-radius:var(--r-ctl);padding:12px 14px}
+  .sd-stat .lbl{font-size:12px;color:var(--muted);font-weight:500}
+  .sd-stat .val{font-size:18px;font-weight:700;letter-spacing:-.01em;color:var(--ink)}
   .sd-charts{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px}
   @media (max-width:1100px){ .sd-charts{grid-template-columns:1fr} }
   .sd-tbl{width:100%;border-collapse:collapse;font-size:14px;white-space:nowrap}
-  .sd-tbl thead th{background:#f8fafc;color:#475569;text-transform:uppercase;font-size:12px;
-    font-weight:600;padding:8px 12px;text-align:right}
+  .sd-tbl thead th{background:var(--soft);color:var(--muted);text-transform:uppercase;font-size:11px;letter-spacing:.06em;
+    font-weight:600;padding:9px 12px;text-align:right}
   .sd-tbl thead th:first-child{text-align:left}
-  .sd-tbl td{padding:8px 12px;text-align:right;border-top:1px solid #f1f5f9}
-  .sd-tbl td:first-child{text-align:left;font-weight:600;color:#0f172a}
-  .sd-ly{color:#94a3b8}
-  .sd-up{color:#0d9488;font-weight:600} .sd-dn{color:#dc2626;font-weight:600}
+  .sd-tbl td{padding:10px 12px;text-align:right;border-top:1px solid var(--line)}
+  .sd-tbl td:first-child{text-align:left;font-weight:600;color:var(--ink)}
+  .sd-ly{color:var(--faint)}
+  .sd-up{color:var(--accent-ink);font-weight:600} .sd-dn{color:var(--bad-ink);font-weight:600}
+  /* KPI cards — one per brand. They GROW to share the row (all the metrics sit on one line) rather
+     than growing taller and leaving the right-hand side empty; they wrap on narrow windows. A very
+     faint glow of the accent in the top-right corner, and the card lifts a little under the pointer. */
   .kpis{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:16px}
-  .kpi{flex:1 1 380px;background:var(--card);border:0;border-radius:var(--r-card);padding:16px;box-shadow:var(--sh-1)}
-  .kpi .kpihead{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:8px}
-  .kpi .kpiname{font-size:13px;font-weight:700;letter-spacing:-.01em}
-  .kpi .kpiwhen{font-size:10px;color:var(--muted)}
-  /* One rule per part. Every .metric in the app sits inside a .kpi, so the .kpi copies these replace
-     (18px over 21px, 11px over 12px) were the only ones anybody saw. Muted label, bold figure. */
-  .metrics{display:flex;gap:16px;flex-wrap:wrap;justify-content:space-between}
-  .metric .v{font-size:18px;font-weight:700;letter-spacing:-.02em;line-height:1.2}
-  .metric .l{font-size:11px;color:var(--muted);margin-top:4px;white-space:nowrap}
+  .kpi{flex:1 1 380px;position:relative;border:1px solid var(--card-line);border-radius:var(--r-card);padding:16px 18px;
+    box-shadow:var(--sh-1);transition:box-shadow .15s ease;
+    background:radial-gradient(280px 170px at 100% 0%,color-mix(in srgb,var(--brand) 6%,transparent),transparent 70%),var(--card)}
+  .kpi:hover,.sd-card:hover{box-shadow:var(--sh-2)}
+  .kpi .kpihead{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:12px}
+  .kpi .kpiname{font-size:13px;font-weight:600;letter-spacing:-.01em;color:var(--ink)}
+  .kpi .kpiwhen{font-size:11.5px;color:var(--muted)}
+  /* One rule per part. Every .metric in the app sits inside a .kpi. Small muted label, big bold
+     figure in tabular digits. */
+  .metrics{display:flex;gap:16px 24px;flex-wrap:wrap;justify-content:space-between}
+  .metric .v{font-size:22px;font-weight:700;letter-spacing:-.02em;line-height:1.2;font-variant-numeric:tabular-nums}
+  .metric .l{font-size:12px;color:var(--muted);margin-top:4px;white-space:nowrap}
   /* Listing-health grade pill. Colour is a shorthand for the grade, never the only signal — the
      word itself is in the cell, so it still reads correctly in a colour-blind or greyscale view. */
   /* Week-over-week direction, painted on the CELL rather than the number — the whole column reads as
      a run of ups and downs at a glance, which is the point of looking across thirteen weeks. */
-  #wTable td.wow-up{background:#dcfce7}
-  #wTable td.wow-dn{background:#ffedd5}
+  #wTable td.wow-up{background:var(--accent-bg)}
+  #wTable td.wow-dn{background:var(--act-bg)}
   #wTable td.wow-up,#wTable td.wow-dn{box-shadow:inset 0 0 0 1px rgba(0,0,0,.04)}
   /* The second line inside a week cell (sales → TACoS). Smaller and quieter: it explains the number
      above it and must not compete with it. */
   #wTable .wsub{margin-top:3px}
   #wTable .wsub .gd{padding:1px 6px;font-size:9.5px;font-weight:600}
-  .gd{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:700;white-space:nowrap}
-  .gd-good{background:#dcfce7;color:#166534}
-  .gd-warn{background:#fef08a;color:#854d0e}
-  .gd-bad{background:#fee2e2;color:#991b1b}
+  .gd{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:600;white-space:nowrap}
+  .gd-good{background:var(--accent-bg);color:var(--accent-ink)}
+  .gd-warn{background:var(--rev-bg);color:var(--rev-ink)}
+  .gd-bad{background:var(--bad-bg);color:var(--bad-ink)}
   /* Listing Health — a child's checks. The mark is the answer; the small line under it is the figure. */
   .hk-c{text-align:center;white-space:nowrap;font-weight:700}
   .hk-c .hk-say{font-size:10px;font-weight:400;color:var(--muted);margin-top:1px}
-  td.hk-ok{color:#166534;background:#f0fdf4}
-  td.hk-bad{color:#991b1b;background:#fef2f2}
-  td.hk-info{color:#854d0e;background:#fefce8}
+  td.hk-ok{color:var(--accent-ink);background:color-mix(in srgb,var(--accent) 8%,var(--card))}
+  td.hk-bad{color:var(--bad-ink);background:color-mix(in srgb,var(--bad) 8%,var(--card))}
+  td.hk-info{color:var(--rev-ink);background:color-mix(in srgb,var(--rev) 10%,var(--card))}
   td.hk-na{color:var(--muted)}
-  [data-hkid]{color:var(--accent);cursor:pointer;text-decoration:underline;text-underline-offset:2px}
-  /* Attachment editor overlay. */
-  .modal{position:fixed;inset:0;background:rgba(15,23,42,.45);display:flex;align-items:center;
+  [data-hkid]{color:var(--brand-ink);cursor:pointer;text-decoration:underline;text-underline-offset:2px}
+  /* Every pop-up window: a shade over the page, and the box rising into place. FROM only, so a
+     dialog always ends fully shown; closing is instant (it is display:none — nothing to animate). */
+  .modal{position:fixed;inset:0;background:rgba(10,14,22,.45);display:flex;align-items:center;
     justify-content:center;z-index:50;padding:16px}
+  .modal:not(.hide){animation:fadeIn .15s ease-out}
+  .modal:not(.hide) .modalbox{animation:modalIn .16s ease-out}
+  @keyframes modalIn{from{opacity:0;transform:translateY(6px) scale(.985)}}
   /* Scrolls when it has to. Without the max-height a dialog with a long list — twenty line items on
      one order — grew past the viewport, and everything under the list, including Save, was simply
      unreachable. The page behind does not scroll a fixed overlay, so there was no way down. */
-  .modalbox{background:var(--card);border-radius:14px;padding:20px;width:min(460px,100%);
-    max-height:calc(100vh - 32px);overflow-y:auto;box-shadow:var(--sh-3)}
+  .modalbox{background:var(--card);border:1px solid var(--card-line);border-radius:var(--r-card);padding:22px 24px;
+    width:min(460px,100%);max-height:calc(100vh - 32px);overflow-y:auto;box-shadow:var(--sh-3)}
   /* Attachment cells: a filled slot is a link, an empty one is a quiet "add" affordance. */
   .doc{display:inline-block;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
-    vertical-align:bottom;color:var(--accent);cursor:pointer;text-decoration:underline}
+    vertical-align:bottom;color:var(--brand-ink);cursor:pointer;text-decoration:underline}
   .docadd{color:var(--muted);cursor:pointer;opacity:.75}
   .docadd:hover{opacity:1;text-decoration:underline}
   /* Approval status. The WORD is always present — colour is a second signal, never the only one. */
-  .st{display:inline-block;padding:1px 7px;border-radius:999px;font-size:10px;font-weight:700;white-space:nowrap}
-  .st-draft{background:#e2e8f0;color:#475569}
-  .st-pending{background:#fef08a;color:#854d0e}
-  .st-approved{background:#dcfce7;color:#166534}
-  .st-rejected{background:#fee2e2;color:#991b1b}
+  /* A rounded pill with a 6px dot in front: green approved, amber pending, red rejected, grey draft. */
+  .st{display:inline-flex;align-items:center;gap:5px;padding:0 8px 0 7px;border-radius:var(--r-pill);font-size:11px;
+    font-weight:600;line-height:18px;white-space:nowrap;vertical-align:middle}
+  .st::before{content:"";flex:none;width:6px;height:6px;border-radius:50%;background:currentColor}
+  .st-draft{background:color-mix(in srgb,var(--ink) 7%,var(--card));color:var(--muted)}
+  .st-draft::before{background:var(--faint)}
+  .st-pending{background:var(--warn-bg);color:var(--warn-ink)}
+  .st-pending::before{background:var(--warn)}
+  .st-approved{background:var(--accent-bg);color:var(--accent-ink)}
+  .st-approved::before{background:var(--accent)}
+  .st-rejected{background:var(--bad-bg);color:var(--bad-ink)}
+  .st-rejected::before{background:var(--bad)}
   /* Shopify Orders row states. The strike and the tint are a SECOND signal — every one of these
      also carries a word in the Status column, because colour alone is not readable to everyone and
      does not survive a printout. */
@@ -363,15 +532,20 @@
      spend over sales, so reading it two tiles away from sales is reading it out of context. */
   .metric .sub{font-size:11.5px;color:var(--muted);margin-top:4px;white-space:nowrap}
   .metric .sub b{font-weight:700;color:var(--ink)}
-  .metric .up{color:var(--accent)}
-  .metric .dn{color:var(--bad)}
+  /* A change under a figure is a pill on its own soft tint. */
+  .metric .up,.metric .dn{display:inline-block;padding:0 7px;border-radius:var(--r-pill);font-weight:600;line-height:18px}
+  .metric .up{background:var(--accent-bg);color:var(--accent-ink)}
+  .metric .dn{background:var(--bad-bg);color:var(--bad-ink)}
   /* Freeze the PRODUCT column too, not just the ASIN. Thirteen week columns scroll a long way and an
      ASIN alone does not tell you which row you are reading. The widths are FIXED and the second
      column's `left` equals the first one's width — a sticky offset cannot be derived from content. */
   #wTable .frz{min-width:116px;width:116px}
   #wTable .frz2{position:sticky;left:116px;z-index:2;background:var(--card);
     min-width:200px;width:200px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  #wTable thead .frz2{z-index:6;background:var(--hover)}
+  #wTable thead .frz2{z-index:6;background:var(--soft)}
+  /* The hairline goes down the right of the LAST frozen column, not between the two. */
+  #wTable .frz{border-right:0}
+  #wTable .frz2{border-right:1px solid var(--line)}
   #wTable tbody tr:nth-child(even) .frz2{background:var(--bg)}
   /* Parent Listing Review: FOUR frozen columns — ASIN, child ASIN, picture, title. Those four are
      what a row is identified BY; the twenty numeric columns scroll under them. Same rule as above,
@@ -383,7 +557,9 @@
   #plTable .frz3{position:sticky;left:232px;z-index:2;background:var(--card);min-width:94px;width:94px}
   #plTable .frz4{position:sticky;left:326px;z-index:2;background:var(--card);
     min-width:230px;width:230px;max-width:230px}
-  #plTable thead .frz2,#plTable thead .frz3,#plTable thead .frz4{z-index:6;background:var(--hover)}
+  #plTable thead .frz2,#plTable thead .frz3,#plTable thead .frz4{z-index:6;background:var(--soft)}
+  #plTable .frz{border-right:0}
+  #plTable .frz4{border-right:1px solid var(--line)}
   #plTable thead tr.subtot th.frz2,#plTable thead tr.subtot th.frz3,
   #plTable thead tr.subtot th.frz4{background:var(--brand-bg);z-index:6}
   #plTable tbody tr:nth-child(even) .frz2,#plTable tbody tr:nth-child(even) .frz3,
@@ -392,6 +568,8 @@
      still — four pinned columns on a narrow screen leaves nothing to actually read. */
   @media (max-width:1180px){
     #plTable .frz2,#plTable .frz3,#plTable .frz4{position:static;width:auto;min-width:0;max-width:none}
+    #plTable .frz{border-right:1px solid var(--line)}
+    #plTable .frz4{border-right:0}
   }
   /* the parent card */
   .pl-head{display:flex;gap:16px;align-items:flex-start}
@@ -410,71 +588,75 @@
   .pl-cmp th,.pl-cmp td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:left}
   .pl-cmp th{font-size:11.5px;color:var(--muted);font-weight:600}
   .pl-cmp .num{text-align:right;font-variant-numeric:tabular-nums}
-  .pl-cmp .pl-up{color:var(--accent)} .pl-cmp .pl-dn{color:var(--bad)}
+  .pl-cmp .pl-up{color:var(--accent-ink)} .pl-cmp .pl-dn{color:var(--bad-ink)}
   .pl-note{margin-top:10px;font-size:12px;color:var(--muted);line-height:1.5}
   /* Sales Analysis heatmap. Three steps only: a row's month is mild, warm or hot against that
      row's OWN average, so a small colour and a big one are both readable on their own terms. */
-  #saTable .sa-mild{background:var(--warn-bg);color:var(--warn)}
+  #saTable .sa-mild{background:var(--warn-bg);color:var(--warn-ink)}
   #saTable .sa-warm{background:#f6b26b;color:#3b2400}
-  #saTable .sa-hot{background:var(--bad);color:#fff;font-weight:600}
+  #saTable .sa-hot{background:var(--bad-ink);color:var(--card);font-weight:600}
   #plTable .pl-open{cursor:pointer;border-bottom:1px dashed var(--muted)}
-  #plTable .pl-open:hover,#plTable .pl-open:focus{color:var(--accent);border-bottom-style:solid;outline:none}
+  #plTable .pl-open:hover,#plTable .pl-open:focus{color:var(--brand-ink);border-bottom-style:solid;outline:none}
   /* Multi-select, lifted verbatim from the Replenishment app so the same control behaves the same
      in both. A second implementation of one control is how two apps start feeling like two products. */
   .ms{position:relative;flex:0 0 auto}
-  .ms-btn{width:100%;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:9px;
+  .ms-btn{width:100%;text-align:left;background:var(--card);border:1px solid color-mix(in srgb,var(--ink) 14%,var(--card));border-radius:var(--r-ctl);
     padding:8px 26px 8px 11px;font:inherit;font-size:13px;color:var(--ink);cursor:pointer;
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .ms-btn:after{content:'▾';position:absolute;right:9px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:11px}
   .ms-btn.on{border-color:var(--ink);font-weight:600}
   .ms-panel{position:absolute;z-index:60;top:calc(100% + 4px);left:0;min-width:230px;max-width:340px;
-    background:var(--card);border:1px solid var(--line);border-radius:10px;box-shadow:0 12px 30px rgba(0,0,0,.18);padding:8px}
+    background:var(--card);border:1px solid var(--card-line);border-radius:12px;box-shadow:var(--sh-2);padding:8px;
+    animation:navIn .12s ease-out}
   .ms-search{width:100%;margin-bottom:6px}
   .ms-acts{display:flex;gap:6px;margin-bottom:6px}
   .ms-acts button{flex:1;padding:3px 6px;font-size:11.5px}
   .ms-list{max-height:280px;overflow:auto}
   .ms-opt{display:flex;align-items:center;gap:7px;padding:4px 5px;border-radius:6px;cursor:pointer;font-size:13px}
-  .ms-opt:hover{background:var(--hover,#f1f5f9)}
+  .ms-opt:hover{background:var(--hover)}
   .ms-opt input{margin:0}
-  @media(max-width:860px){
-    /* Off-canvas drawer rather than a wrapped row of chips: thirteen tabs in five groups no longer
-       fit across the top, and the drawer is what the hamburger is for. */
-    .side{position:fixed;top:0;left:0;bottom:0;z-index:60;flex:none;width:272px;height:100vh;
-      overflow-y:auto;box-shadow:0 10px 30px rgba(0,0,0,.22)}
-    .shell:not(.navshut) #navScrim{display:block}
-    .main{padding:14px}
-  }
   h1{font-size:20px;margin:0;letter-spacing:-.02em}
-  /* A CARD IS A SHADOW, NOT A BORDER. Sixty screens of bordered boxes inside bordered boxes is what
-     makes a tool look like a spreadsheet with a menu attached. */
-  .card{background:var(--card);border:0;border-radius:var(--r-card);padding:16px;margin-bottom:16px;box-shadow:var(--sh-1)}
-  /* The one that leads: solid, round, and lifted off the page. Only the lift and the press move — a
-     fading background would reach every menu item, which is a button too. */
-  button{font:inherit;font-weight:700;border:0;border-radius:var(--r-ctl);padding:8px 16px;cursor:pointer;
-    background:var(--brand);color:var(--on-brand);font-size:14px;box-shadow:var(--sh-btn);
-    transition:box-shadow .12s,transform .06s}
+  /* A CARD: the surface, a hairline edge and a soft shadow (no shadow on the dark ground). A
+     .ui-card-title that opens a card is its header row, over a divider that runs edge to edge. */
+  .card{background:var(--card);border:1px solid var(--card-line);border-radius:var(--r-card);padding:16px;margin-bottom:16px;box-shadow:var(--sh-1)}
+  .card>.ui-card-title:first-child{margin:-16px -16px 14px;padding:13px 16px;border-bottom:1px solid var(--line)}
+  #paneNew .card>.ui-card-title:first-child{margin-left:-18px;margin-right:-18px;padding-left:18px;padding-right:18px}
+  /* The one that leads: the accent, filled. Secondary buttons (.ghost, .xbtn) are outlined. */
+  button{font:inherit;font-weight:600;border:0;border-radius:var(--r-ctl);padding:8px 16px;cursor:pointer;
+    background:var(--brand);color:var(--on-brand);font-size:13.5px;line-height:1.3;box-shadow:var(--sh-btn);
+    transition:background-color .15s ease,color .15s ease,box-shadow .15s ease,transform .06s}
   button:hover{background:var(--brand-ink)}
   /* It moves when it is pressed. One pixel, and it is the difference between a picture of a button
      and a button. Not on the sign-in screen, in PPC-new or in the menu bar: those keep their own. */
   button:where(:not(#loginView *,#panePpcn *,.side *)):active{transform:translateY(1px);box-shadow:none}
-  /* Everything else on a bar: white, no outline, resting on the same soft shadow as a card. */
-  button.ghost{background:var(--card);color:var(--muted);border:0;font-weight:600;box-shadow:var(--sh-1)}
-  button.ghost:hover{background:var(--card);color:var(--ink);box-shadow:var(--sh-2)}
-  /* A RING YOU CAN SEE, on a button reached by keyboard. After .ghost, whose resting shadow would
-     otherwise cover it, and named for .segbtn.on, whose own shadow outranks it. The sign-in screen
-     and PPC-new keep their own focus. */
-  button:where(:not(#loginView *,#panePpcn *)):focus-visible,.segbtn.on:focus-visible{outline:none;
-    box-shadow:var(--ring)}
+  /* Everything else on a bar: the surface with a hairline outline (an inset shadow, so it takes no
+     room and the button is the same size as a filled one). */
+  button.ghost{background:var(--card);color:var(--ink);border:0;font-weight:500;
+    box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--ink) 14%,var(--card))}
+  button.ghost:hover{background:var(--hover);color:var(--ink);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--ink) 22%,var(--card))}
+  /* A RING YOU CAN SEE, on a button reached by keyboard. After .ghost, whose outline would otherwise
+     cover it, and named for the controls whose own shadow outranks it. The sign-in screen and
+     PPC-new keep their own focus. */
+  button:where(:not(#loginView *,#panePpcn *)):focus-visible,.segbtn.on:focus-visible,.sd-toggle button.on:focus-visible,
+  .side #guideBtn:focus-visible{outline:none;box-shadow:var(--ring)}
   button:disabled{opacity:.5;cursor:not-allowed}
   /* A disabled button does not darken under the mouse. :where() holds this at the weight of
      button:hover, so a component's own :hover (.ghost, .xbtn, the menu) still wins. */
   button:where(:disabled:not(#loginView *,#panePpcn *)):hover{background:var(--brand)}
   /* A NEW VERSION IS OUT — the same bar the Replenishment app uses. */
   #updBar{position:fixed;left:auto;right:12px;width:420px;max-width:calc(100vw - 24px);bottom:14px;z-index:200;display:flex;align-items:center;
-    justify-content:space-between;gap:10px;background:#0f172a;color:#fff;border-radius:12px;padding:10px 12px 10px 16px;box-shadow:0 12px 36px rgba(15,23,42,.24)}
-  #updBar button{background:#fff;color:#0f172a;border:0;padding:8px 14px;border-radius:8px;font-weight:700}
-  input,select,textarea{font:inherit;color:var(--ink);background:var(--input);border:1px solid var(--line);
-    border-radius:var(--r-ctl);padding:8px 12px;width:100%}
+    justify-content:space-between;gap:10px;background:var(--ink);color:var(--card);border-radius:12px;padding:10px 12px 10px 16px;
+    font-size:13.5px;box-shadow:var(--sh-3);animation:toastIn .2s ease-out}
+  #updBar button{background:var(--card);color:var(--ink);border:0;padding:8px 14px;border-radius:8px;font-weight:600;box-shadow:none}
+  @keyframes toastIn{from{opacity:0;transform:translateY(8px)}}
+  input,select,textarea{font:inherit;color:var(--ink);background:var(--input);border:1px solid color-mix(in srgb,var(--ink) 14%,var(--card));
+    border-radius:var(--r-ctl);padding:8px 12px;width:100%;transition:border-color .15s ease,box-shadow .15s ease}
+  /* A drop-down draws its own chevron. Not on a list box, nor on one whose inline padding leaves no
+     room for it — those keep the browser's own arrow. */
+  select:not([multiple],[size],[style*="padding"]){-webkit-appearance:none;appearance:none;padding-right:34px;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238592A6' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat:no-repeat;background-position:right 11px center;background-size:14px}
+  input[type=checkbox],input[type=radio]{accent-color:var(--brand)}
   /* A RING YOU CAN SEE. The border alone changed by one shade and told a keyboard user nothing.
      :where() stops the #ids in the exclusion adding weight. Not on the sign-in screen, which stays
      exactly as it is, nor in PPC-new, whose reset does not reach a box-shadow or a placeholder.
@@ -483,7 +665,7 @@
   :where(input:not([type=checkbox],[type=radio]),select,textarea):where(:not(#loginView *,#panePpcn *)):focus{
     outline:none;border-color:var(--ring-line);box-shadow:var(--ring)}
   :where(input,textarea):where(:not(#loginView *,#panePpcn *))::placeholder{color:var(--faint)}
-  label{display:block;font-size:13px;font-weight:600;color:var(--muted);margin-bottom:8px}
+  label{display:block;font-size:13px;font-weight:500;color:var(--muted);margin-bottom:6px}
   .row{display:flex;gap:10px;flex-wrap:wrap}
   .row>*{flex:1;min-width:140px}
   .muted{color:var(--muted);font-size:13px}
@@ -493,31 +675,31 @@
   :where(table:not(.xl)) td:last-child{text-align:right;font-weight:600}
   tr.sub td{color:var(--muted);font-weight:400;font-size:13px}
   tr.total td{border-top:2px solid var(--line);border-bottom:0;font-weight:700;padding-top:11px}
-  .hero{background:var(--accent-bg);border:1px solid var(--accent);border-radius:14px;padding:26px 22px;
-    text-align:center;margin-bottom:18px}
-  .hero.bad{background:var(--bad-bg);border-color:var(--bad)}
-  .hero .big{font-size:38px;font-weight:800;letter-spacing:-.03em;color:var(--accent);line-height:1.1}
-  .hero.bad .big{color:var(--bad)}
-  .hero .lbl{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+  .hero{background:var(--accent-bg);border:1px solid color-mix(in srgb,var(--accent) 35%,transparent);border-radius:var(--r-card);
+    padding:26px 22px;text-align:center;margin-bottom:18px}
+  .hero.bad{background:var(--bad-bg);border-color:color-mix(in srgb,var(--bad) 35%,transparent)}
+  .hero .big{font-size:36px;font-weight:700;letter-spacing:-.03em;color:var(--accent-ink);line-height:1.1}
+  .hero.bad .big{color:var(--bad-ink)}
+  .hero .lbl{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
   .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
   @media(max-width:760px){.grid{grid-template-columns:1fr}}
   .settings-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:16px}
   .hide{display:none}
-  /* A BAR DOWN THE SIDE, not a slab of colour. The fill is lighter and the edge carries the weight,
-     which is what lets a long notice stay readable. */
-  .err{background:var(--bad-bg);color:var(--bad);padding:12px 16px;border-radius:var(--r-sm);font-size:14px;
-    margin-bottom:12px;border-left:3px solid var(--bad);line-height:1.5}
-  .ok{background:var(--accent-bg);color:var(--accent);padding:12px 16px;border-radius:var(--r-sm);font-size:14px;
-    margin-bottom:12px;border-left:3px solid var(--accent);line-height:1.5}
-  .warn{background:var(--warn-bg);color:var(--warn-ink);padding:12px 16px;border-radius:var(--r-sm);font-size:13px;
-    margin-bottom:12px;border-left:3px solid var(--warn-ink);line-height:1.5}
+  /* A page-level message: a soft tint of its colour, a hairline of the same, and the text in the
+     colour's AA ink. */
+  .err{background:var(--bad-bg);color:var(--bad-ink);padding:11px 14px;border-radius:var(--r-ctl);font-size:13.5px;
+    margin-bottom:12px;border:1px solid color-mix(in srgb,var(--bad) 28%,transparent);line-height:1.5}
+  .ok{background:var(--accent-bg);color:var(--accent-ink);padding:11px 14px;border-radius:var(--r-ctl);font-size:13.5px;
+    margin-bottom:12px;border:1px solid color-mix(in srgb,var(--accent) 28%,transparent);line-height:1.5}
+  .warn{background:var(--warn-bg);color:var(--warn-ink);padding:11px 14px;border-radius:var(--r-ctl);font-size:13px;
+    margin-bottom:12px;border:1px solid color-mix(in srgb,var(--warn) 28%,transparent);line-height:1.5}
   /* A WARNING INSIDE A CELL OR A SENTENCE IS A WORD, NOT A MESSAGE BOX. The same classes mark both;
      the padded box with a bar belongs to the page-level message only. b.err is how this app writes
      one into a sentence. */
   table.xl td .err,table.xl td .ok,table.xl td .warn,span.err,span.ok,b.err,.metric .err,.kpi .err{
     background:none;border:0;padding:0;margin:0;border-radius:0;font-size:inherit;line-height:1.35}
   table.xl td .err,table.xl td .ok,table.xl td .warn{font-size:11.5px;font-weight:500;margin-top:2px}
-  .sec{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);
+  .sec{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);
     margin:22px 0 10px;grid-column:1/-1}
   /* New product is one long form, so the section gaps compounded: .sec's 22px margin sat on TOP of
      the grid's own 16px row gap, giving ~38px between every block. Tightened here only — Settings
@@ -526,12 +708,13 @@
   #paneNew .sec{margin:14px 0 2px}
   #paneNew .sec:first-child{margin-top:0}
   #paneNew label{margin-bottom:4px}
-  #paneNew input,#paneNew select{padding:9px 12px}
+  #paneNew input{padding:9px 12px}
+  #paneNew select{padding:9px 34px 9px 12px}
   #paneNew .card{padding:16px 18px}
   .hist{display:flex;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid var(--line);
     cursor:pointer;font-size:13px}
   .hist:hover{opacity:.7}
-  .hist b{color:var(--accent)}
+  .hist b{color:var(--accent-ink)}
   /* Drawn in the text colour, so it shows on a white button and in the dark theme as well as on the
      brand one. .ui-loading draws the same wheel in front of its message. */
   .spin,.ui-loading::before{display:inline-block;width:13px;height:13px;
@@ -543,7 +726,8 @@
   .tabs{display:flex;gap:6px;margin-bottom:16px;border-bottom:1px solid var(--line)}
   .tabs .tab{background:transparent;color:var(--muted);border:0;border-bottom:2px solid transparent;
     border-radius:0;padding:9px 14px}
-  .tabs .tab.on{color:var(--ink);border-bottom-color:var(--ink)}
+  .tabs .tab:hover{background:transparent;color:var(--ink)}
+  .tabs .tab.on{color:var(--ink);border-bottom-color:var(--brand)}
   .tbl{width:100%;font-size:13.5px}
   .tbl th{text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;
     color:var(--muted);padding:0 10px 10px 0;white-space:nowrap}
@@ -557,10 +741,10 @@
   .accg-top{display:flex;flex-wrap:wrap;gap:8px 22px;margin:4px 0 12px}
   .accg-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:12px}
   .accg{border:1px solid var(--line);border-radius:12px;padding:10px 12px 12px;background:var(--card)}
-  .accg.has-on{border-color:#16a34a;box-shadow:inset 3px 0 0 #16a34a}
+  .accg.has-on{border-color:var(--accent);box-shadow:inset 3px 0 0 var(--accent)}
   .accg header{display:flex;align-items:center;gap:8px;margin-bottom:6px}
   .accg h4{margin:0;font-size:14px;white-space:nowrap}
-  .accg-n{font-size:11.5px;color:#166534;font-weight:700}
+  .accg-n{font-size:11.5px;color:var(--accent-ink);font-weight:600}
   .accg-app{margin-left:auto;font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
   .accg header button{width:auto;padding:2px 8px;font-size:11.5px}
   .accg-boxes{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:2px 10px}
@@ -574,11 +758,11 @@
   .accg-brands{font-size:12.5px;display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center}
   .accg-brands label{display:inline-flex;gap:5px;align-items:center;cursor:pointer}
   .accg-preset{width:auto;justify-self:start;padding:3px 10px;font-size:12px}
-  .accg-warn{padding:10px 12px;border:1px solid #b45309;border-radius:8px;background:#fffbeb;color:#7c2d12;font-size:12.5px;line-height:1.5}
+  .accg-warn{padding:10px 12px;border:1px solid color-mix(in srgb,var(--act) 40%,transparent);border-radius:8px;background:var(--act-bg);color:var(--act-ink);font-size:12.5px;line-height:1.5}
   .accsum{font-size:12.5px;line-height:1.6}
   .accsum b{font-weight:600}
-  .xbtn{background:var(--card);color:var(--ink);border:1px solid var(--line);padding:8px 14px;
-    font-size:13px;font-weight:500;border-radius:999px}
+  .xbtn{background:var(--card);color:var(--ink);border:1px solid color-mix(in srgb,var(--ink) 14%,var(--card));padding:8px 14px;
+    font-size:13px;font-weight:500;border-radius:var(--r-ctl);box-shadow:none}
   .xbtn:hover{background:var(--hover)}
 
   /* Image Manager */
@@ -601,14 +785,15 @@
   .im-th img{width:100%;height:100%;object-fit:contain}
   .im-th i{position:absolute;left:0;bottom:0;font-style:normal;font-size:8.5px;background:rgba(0,0,0,.55);color:#fff;padding:0 3px;border-top-right-radius:3px}
   .im-th.im-empty{background:var(--bg);color:var(--faint);font-size:9px}
-  .im-th.im-diff{outline:2px solid #d97706;outline-offset:-2px}
+  .im-th.im-diff{outline:2px solid var(--act);outline-offset:-2px}
   .im-th.im-sw{width:40px;height:40px;border-radius:50%}
 
   /* PPC & ORGANIC · NEW (test). Everything is under #panePpcn and prefixed px-, and the app's own
      button / input / label / table rules are undone inside it first — so this page cannot change the
      look of any other screen, and no other screen's rules can reach in. */
   #panePpcn{--px-btn:var(--ink);--px-btn-ink:var(--card);--px-ppc-bg:#F7EBDD;--px-org:#5E7F4A;--px-good:#2F6B2F;--px-good-bg:#E6F2E3}
-  @media(prefers-color-scheme:dark){#panePpcn{--px-ppc-bg:#3a2816;--px-org:#8fbf76;--px-good:#86d39a;--px-good-bg:#12301c}}
+  :root[data-theme="dark"] #panePpcn{--px-ppc-bg:#3a2816;--px-org:#8fbf76;--px-good:#86d39a;--px-good-bg:#12301c}
+  @media(prefers-color-scheme:dark){:root:not([data-theme="light"]) #panePpcn{--px-ppc-bg:#3a2816;--px-org:#8fbf76;--px-good:#86d39a;--px-good-bg:#12301c}}
   #panePpcn button{all:unset;box-sizing:border-box;cursor:pointer}
   #panePpcn input,#panePpcn label{width:auto;margin:0;padding:0;border:0;background:none;display:inline;font:inherit;color:inherit}
   #panePpcn table{border-collapse:separate;border-spacing:0}
@@ -772,7 +957,7 @@
   /* Toolbar: whatever follows the spacer is pushed to the right. */
   .ui-spacer{flex:1}
   /* Blocks */
-  .ui-card-title{margin:0 0 12px;font-size:14px;font-weight:700;line-height:1.4;color:var(--ink)}
+  .ui-card-title{margin:0 0 12px;font-size:14px;font-weight:600;line-height:1.4;color:var(--ink)}
   .ui-section{margin-bottom:24px}
   /* KPIs: the smaller figure — on a .kpi, a .metric or the .v itself. */
   .ui-kpi-sm .v,.v.ui-kpi-sm{font-size:15px}
@@ -784,21 +969,112 @@
   .ui-note{font-size:12px;line-height:1.5;color:var(--muted)}
   .ui-strong{font-weight:700;color:var(--ink)}
   /* Meaning: colour only where it says something. */
-  .ui-pos{color:var(--accent)}
-  .ui-neg{color:var(--bad)}
+  .ui-pos{color:var(--accent-ink)}
+  .ui-neg{color:var(--bad-ink)}
   .ui-dim{color:var(--faint)}   /* zero, none, "—" */
   /* Badges: calm, from the theme's own pairs. The word is always there; colour is the second signal. */
-  .ui-badge{display:inline-block;padding:0 8px;border-radius:var(--r-pill);font-size:11px;font-weight:600;
-    line-height:18px;white-space:nowrap;background:var(--hover);color:var(--muted)}
-  .ui-badge.is-ok{background:var(--accent-bg);color:var(--accent)}
+  .ui-badge{display:inline-flex;align-items:center;gap:5px;padding:0 8px 0 7px;border-radius:var(--r-pill);font-size:11px;
+    font-weight:600;line-height:18px;white-space:nowrap;vertical-align:middle;
+    background:color-mix(in srgb,var(--ink) 7%,var(--card));color:var(--muted)}
+  .ui-badge::before{content:"";flex:none;width:6px;height:6px;border-radius:50%;background:var(--faint)}
+  .ui-badge.is-ok{background:var(--accent-bg);color:var(--accent-ink)}
+  .ui-badge.is-ok::before{background:var(--accent)}
   .ui-badge.is-warn{background:var(--warn-bg);color:var(--warn-ink)}
-  .ui-badge.is-bad{background:var(--bad-bg);color:var(--bad)}
+  .ui-badge.is-warn::before{background:var(--warn)}
+  .ui-badge.is-bad{background:var(--bad-bg);color:var(--bad-ink)}
+  .ui-badge.is-bad::before{background:var(--bad)}
   .ui-badge.is-info{background:var(--brand-bg);color:var(--brand-ink)}
+  .ui-badge.is-info::before{background:var(--brand)}
   /* States: what a block says when it has nothing, has failed, or is still on its way. */
   .ui-empty,.ui-error,.ui-loading{padding:24px 16px;text-align:center;font-size:13px}
   .ui-empty,.ui-loading{color:var(--muted)}
-  .ui-error{color:var(--bad)}
+  .ui-error{color:var(--bad-ink)}
   .ui-loading::before{content:""}
+  /* Still on its way: a soft shimmer passes over the block (never on a table cell; still under
+     reduced motion). */
+  /* THE STILL AURORA at the top of the app: two soft glows over the first ~300px of the content area,
+     fading into the page. Painted once — nothing moves. */
+  .main{background:radial-gradient(ellipse 55% 320px at 0 0,var(--aur-1),transparent 72%) no-repeat,
+    radial-gradient(ellipse 50% 300px at 100% 0,var(--aur-2),transparent 72%) no-repeat}
+  /* THE SIGN-IN SCREEN'S MOVING BACKGROUND, behind the card and inside the screen, so it goes with it.
+     Three large soft circles drifting and breathing (transform only, long loops, each its own pace),
+     and over them the canvas app/core/fx.js draws faint drifting dots on. Neither takes a click. */
+  #loginView .fx-aurora,#sellFx{position:absolute;inset:0;pointer-events:none}
+  #loginView .fx-aurora{overflow:hidden}
+  #sellFx{display:block;width:100%;height:100%}
+  .fx-aurora i{position:absolute;width:64vmax;height:64vmax;border-radius:50%;will-change:transform;
+    animation:aurA 14s ease-in-out infinite alternate}
+  .fx-aurora i:nth-child(1){left:-20vmax;top:-26vmax;background:radial-gradient(closest-side,var(--aur-1),transparent)}
+  .fx-aurora i:nth-child(2){right:-22vmax;top:-14vmax;background:radial-gradient(closest-side,var(--aur-2),transparent);
+    animation-name:aurB;animation-duration:18s;animation-delay:-7s}
+  .fx-aurora i:nth-child(3){left:18vmax;bottom:-34vmax;background:radial-gradient(closest-side,var(--aur-3),transparent);
+    animation-name:aurC;animation-duration:20s;animation-delay:-12s}
+  @keyframes aurA{to{transform:translate(9vmax,6vmax) scale(1.12)}}
+  @keyframes aurB{to{transform:translate(-8vmax,9vmax) scale(.9)}}
+  @keyframes aurC{to{transform:translate(-7vmax,-8vmax) scale(1.1)}}
+  @media print{.fx-aurora,#sellFx{display:none}}
+  .ui-loading:not(td){border-radius:var(--r-ctl);animation:shimmer 1.4s linear infinite;
+    background:linear-gradient(90deg,transparent 0,color-mix(in srgb,var(--ink) 6%,transparent) 50%,transparent 100%) 0 0/200% 100% no-repeat}
+  @keyframes shimmer{from{background-position:150% 0}to{background-position:-50% 0}}
+
+  /* ---------- POLISH: on the markup as it is ----------
+     Scrollbars, selection and focus everywhere; each screen fading in as it opens; icons on the
+     buttons that download, refresh and open; ⓘ on anything with a tooltip; status dots. */
+  ::-webkit-scrollbar{width:10px;height:10px}
+  ::-webkit-scrollbar-track,::-webkit-scrollbar-corner{background:transparent}
+  ::-webkit-scrollbar-thumb{background:color-mix(in srgb,var(--ink) 20%,transparent);border-radius:10px;
+    border:2px solid transparent;background-clip:content-box}
+  ::-webkit-scrollbar-thumb:hover{background-color:color-mix(in srgb,var(--ink) 34%,transparent)}
+  @supports not selector(::-webkit-scrollbar){html{scrollbar-width:thin;scrollbar-color:color-mix(in srgb,var(--ink) 24%,transparent) transparent}}
+  ::selection{background:color-mix(in srgb,var(--brand) 24%,transparent)}
+  :where(a,summary,[tabindex]):where(:not(#panePpcn *)):focus-visible{outline:none;box-shadow:var(--ring);border-radius:4px}
+  /* A SCREEN FADES IN as it opens: every pane, each time it loses .hide. FROM only, so a screen
+     always ends fully shown. Every id starting "pane" is a screen. */
+  .main>[id^="pane"]:not(.hide){animation:paneIn .15s ease-out}
+  @keyframes paneIn{from{opacity:0;transform:translateY(6px)}}
+  /* Button icons, by id: download (…Csv, …Export), refresh (…Refresh, hGo, ageGo), the guide's
+     book, the optimiser's sparkle, the raw fields' brackets. Drawn in the button's own colour. */
+  button:is([id$="Csv"],[id$="Export"],[id$="Refresh"],#hGo,#ageGo,#guideBtn,#hOptimiser,#hRaw)::before{content:"";
+    display:inline-block;flex:none;width:15px;height:15px;margin:0 7px 0 -2px;vertical-align:-3px;background:currentColor;
+    mask:var(--ic) center/contain no-repeat}
+  button:is([id$="Csv"],[id$="Export"]){--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 4v11M7 10l5 5 5-5M5 20h14'/%3E%3C/svg%3E")}
+  button:is([id$="Refresh"],#hGo,#ageGo){--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 12a8 8 0 1 1-2.34-5.66'/%3E%3Cpath d='M20 4v5h-5'/%3E%3C/svg%3E")}
+  #guideBtn{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5z'/%3E%3Cpath d='M4 19.5A2.5 2.5 0 0 0 6.5 22H20v-5'/%3E%3C/svg%3E")}
+  #hOptimiser{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z'/%3E%3Cpath d='M19 15.5l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z'/%3E%3C/svg%3E")}
+  #hRaw{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m8 7-5 5 5 5M16 7l5 5-5 5'/%3E%3C/svg%3E")}
+  /* ⓘ after a heading or a card label that has a tooltip, so the tooltip can be found. */
+  table.xl th[title]::after,.tbl th[title]::after,.sd-card[title] .lbl::after{content:"";display:inline-block;flex:none;
+    width:12px;height:12px;margin-left:5px;vertical-align:-2px;background:currentColor;opacity:.55;
+    mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='M12 11v5M12 8h.01'/%3E%3C/svg%3E") center/contain no-repeat}
+  /* Status dots (Listing Health, Listing Rules): 8px, a 3px soft halo, then the number. These beat
+     the small <style> block beside the Listing Rules screen in index.html. */
+  .main .sev{width:8px;height:8px;margin-right:8px;vertical-align:1px}
+  .main .sev-c{background:var(--bad);box-shadow:0 0 0 3px color-mix(in srgb,var(--bad) 20%,transparent)}
+  .main .sev-a{background:var(--act);box-shadow:0 0 0 3px color-mix(in srgb,var(--act) 20%,transparent)}
+  .main .sev-r{background:var(--rev);box-shadow:0 0 0 3px color-mix(in srgb,var(--rev) 22%,transparent)}
+  .main .sev-m{background:var(--faint);box-shadow:0 0 0 3px color-mix(in srgb,var(--faint) 20%,transparent)}
+  .main .sev-g{background:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 20%,transparent)}
+  .main .sev-ok{color:var(--accent-ink)}
+  .main #lrTable .lr-in{background:var(--accent-bg);color:var(--accent-ink)}
+  .main #lrTable .lr-del{color:var(--bad-ink)}
+  .main #lrTable select:not([multiple],[size],[style*="padding"]){padding-right:26px;background-position:right 7px center;background-size:12px}
+  /* The sign-in-email box at the top of the app: a needs-action notice. */
+  .card.vf-box{border-color:color-mix(in srgb,var(--act) 40%,transparent);background:var(--act-bg)}
+  .vf-head{font-weight:700;margin-bottom:6px;color:var(--act-ink)}
+  /* PPC & Organic · New: its TEST PAGE tag as a pill with a dot, and the chosen card with a soft ring. */
+  #panePpcn .px-testtag{display:inline-flex;align-items:center;gap:6px;color:var(--warn-ink)}
+  #panePpcn .px-testtag::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--warn)}
+  #panePpcn .px-pcard[aria-pressed="true"]{box-shadow:inset 0 3px 0 var(--brand),0 0 0 3px color-mix(in srgb,var(--brand) 18%,transparent)}
+  /* …and its status words in the AA ink of their colour (the fills stay as they are). */
+  #panePpcn .px-fresh:not(.px-busy),#panePpcn .px-var,#panePpcn .px-noimg{color:var(--accent-ink)}
+  #panePpcn .px-chipf[aria-pressed="true"],#panePpcn .px-chipf[aria-pressed="true"] b{color:var(--accent-ink)}
+  #panePpcn .px-neg,#panePpcn .px-pill.px-bad{color:var(--bad-ink)}
+  #panePpcn .px-warn{color:var(--warn-ink)}
+  @media (prefers-reduced-motion:reduce){
+    .main>[id^="pane"]:not(.hide),.modal:not(.hide),.modal:not(.hide) .modalbox,.ms-panel,#updBar,.ui-loading:not(td),
+    .fx-aurora i{animation:none}
+    .kpi,.sd-card,button,input,select,textarea,.segbtn,.sd-toggle button{transition:none}
+  }
   /* Helpers — only these. Last, so they win a tie with a component's own margin or gap. A width
      comes with flex:none, so it holds inside a toolbar instead of being squeezed. */
   .mt-4{margin-top:4px} .mt-8{margin-top:8px} .mt-12{margin-top:12px} .mt-16{margin-top:16px}
@@ -842,10 +1118,15 @@
 
   /* ===== MODULE: SALES ===== */
   /* Sales Dashboard charts, the SVG drawn in sales-dashboard.js. The chart fills its panel and keeps its
-     own proportions. Grid and labels take the theme's quiet colours — a CSS rule beats the SVG's own
-     stroke / fill attribute, which stays as the fallback. The two series colours have no theme match. */
+     own proportions. Every part takes the theme's colours — a CSS rule beats the SVG's own stroke / fill
+     attribute, which stays as the fallback: a dashed light grid, the daily line in the accent over a soft
+     tint of it, and this year's bars in the accent beside last year's in grey, their corners rounded. */
   .sa-chart{width:100%;height:auto}
-  .sa-ch-grid{stroke:var(--line)}
+  .sa-ch-grid{stroke:var(--line);stroke-dasharray:3 4}
+  .sa-ch-area{fill:var(--brand)}
+  .sa-ch-line{stroke:var(--brand);stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
+  .sa-ch-ty{fill:var(--brand);rx:3px}
+  .sa-ch-ly{fill:color-mix(in srgb,var(--ink) 22%,var(--card));rx:3px}
   .sa-ch-axis{fill:var(--faint)}
   .sa-ch-label{fill:var(--muted)}
   /* Parent Listing Review · the picture column: a 76px thumbnail in a tighter cell than the grid's own
@@ -871,7 +1152,7 @@
      Adjustments): a tighter card, and every control keeps its own deliberate width. Written `.toolbar>` so
      a width beats `.toolbar>button{flex:0 0 auto}` and `.ms{flex:0 0 auto}`; the filter box takes the rest. */
   .card.sa-toolcard{padding:12px 14px}
-  .toolbar>.sa-fix-90{flex:0 0 90px}
+  .toolbar>.sa-fix-90{flex:0 0 100px}
   .toolbar>.sa-fix-110{flex:0 0 110px}
   .toolbar>.sa-fix-120{flex:0 0 120px}
   .toolbar>.sa-fix-130{flex:0 0 130px}
@@ -901,7 +1182,7 @@
   /* Shopify Orders · "no API key for this shop" — an amber line with the button that answers it. Its
      border colour has no theme match. NB: display:flex outranks .hide here, exactly as the inline style
      did, so the box shows whether or not it carries .hide. */
-  .warn.sa-nokey{margin:8px 0 0;padding:10px 12px;border:1px solid #fed7aa;display:flex;align-items:center;
+  .warn.sa-nokey{margin:8px 0 0;padding:10px 12px;border:1px solid color-mix(in srgb,var(--warn) 30%,transparent);display:flex;align-items:center;
     gap:12px;flex-wrap:wrap}
   .sa-nokey-txt{flex:1 1 320px;min-width:0}
   .sa-nokey-go{flex:0 0 auto;background:var(--ink);color:var(--card);border-radius:var(--r-sm);padding:7px 12px;
@@ -924,13 +1205,28 @@
   /* TikTok Toolkit and Carousel Builder: the framed page fills the card, the window's height less the
      menu bar and the page head. */
   .card.sa-frame-card{padding:0;overflow:hidden}
-  .sa-frame{width:100%;height:calc(100vh - 132px);border:0;display:block}
+  .sa-frame{width:100%;height:calc(100vh - 138px);border:0;display:block}
   /* Parent Listing Review · the parent card dialog. */
   .modalbox.sa-plcard{width:min(660px,100%);max-height:88vh;overflow:auto}
 
   /* ===== MODULE: LISTING ===== */
 
   /* ===== MODULE: ADS ===== */
+  /* Ad Console chart (drawn in placement.js), and the Placement chart's grid. The theme's colours over
+     the SVG's own attributes: sales in grey, ad spend in the accent, TACOS in the needs-action orange. */
+  .ad-ch-grid{stroke:var(--line);stroke-dasharray:3 4}
+  .ad-ch-axis{fill:var(--faint)}
+  .ad-ch-label{fill:var(--muted)}
+  .ad-ch-pct{fill:var(--act-ink)}
+  .ad-ch-sales{fill:color-mix(in srgb,var(--ink) 22%,var(--card));rx:2.5px}
+  .ad-ch-spend{fill:var(--brand);rx:2.5px}
+  .ad-ch-tacos{stroke:var(--act);stroke-linejoin:round}
+  .ad-ch-dot{fill:var(--act)}
+  /* Its legend, under the chart. */
+  .ad-key{display:inline-block;width:10px;height:10px;border-radius:3px;vertical-align:-1px}
+  .ad-key-sales{background:color-mix(in srgb,var(--ink) 22%,var(--card))}
+  .ad-key-spend{background:var(--brand)}
+  .ad-key-tacos{width:14px;height:2px;border-radius:2px;background:var(--act);vertical-align:middle}
 
   /* ===== MODULE: INVENTORY ===== */</style>
 </head>
@@ -938,15 +1234,19 @@
 
 <!-- ============ LOGIN ============ -->
 <div id="loginView" class="wrap login">
+  <!-- The moving background, behind the card: soft drifting light (styles.css) and faint drifting dots
+       joined by lines (app/core/fx.js draws them). Inside this screen, so it goes when the screen does. -->
+  <div class="fx-aurora" aria-hidden="true"><i></i><i></i><i></i></div>
+  <canvas id="sellFx" aria-hidden="true"></canvas>
   <div class="card">
     <!-- Drawn inline, not fetched: the page's CSP blocks external images, and this is a plain smile
          arrow rather than Amazon's actual wordmark, which is theirs and not ours to ship. -->
     <div class="signin">
-      <svg width="104" height="34" viewBox="0 0 86 30" aria-label="Sellora" role="img">
-        <path d="M4 21 C20 30, 62 30, 78 20" stroke="#FF9900" stroke-width="3.4"
+      <div class="silogo"><svg width="104" height="34" viewBox="0 0 86 30" aria-label="Sellora" role="img">
+        <path class="logo-arc" d="M4 21 C20 30, 62 30, 78 20" stroke-width="4.4"
               stroke-linecap="round" fill="none"/>
-        <path d="M78 20 l-1.5 7.5 l7 -4.5 z" fill="#FF9900"/>
-      </svg>
+        <path class="logo-tip" d="M78 20 l-1.5 7.5 l7 -4.5 z"/>
+      </svg></div>
       <h1>Sellora</h1>
       <p class="kicker">The Fabric Rush</p>
     </div>
@@ -960,21 +1260,21 @@
 
 <!-- ============ APP ============ -->
 <div id="appView" class="shell hide">
-  <aside class="side">
-    <div class="brand" style="display:flex;align-items:center;gap:8px">
-      <svg width="30" height="12" viewBox="0 0 86 30" aria-hidden="true" style="flex:none">
-        <path d="M4 21 C20 30, 62 30, 78 20" stroke="#FF9900" stroke-width="5"
+  <aside class="side" id="sideNav" aria-label="Main menu">
+    <div class="brand">
+      <span class="brandtile"><svg width="30" height="12" viewBox="0 0 86 30" aria-hidden="true">
+        <path class="logo-arc" d="M4 21 C20 30, 62 30, 78 20" stroke-width="7"
               stroke-linecap="round" fill="none"/>
-        <path d="M78 20 l-1.5 7.5 l7 -4.5 z" fill="#FF9900"/>
-      </svg>
-      Sellora
+        <path class="logo-tip" d="M78 20 l-1.5 7.5 l7 -4.5 z"/>
+      </svg></span>
+      <span class="brandname">Sellora</span>
       <button id="navClose" class="navclose" type="button" aria-label="Close menu">&#8249;</button>
     </div>
 
     <!-- Each heading names the tabs it owns in data-tabs. That one attribute is what lets a group
          hide itself when every tab under it is hidden or not permitted, so there is no second list
          to keep in step when a tab moves between groups. -->
-    <div class="navwrap"><button class="navgrp" id="grpResearch" type="button" data-grp="research" data-tabs="link,new,pr,kw">
+    <div class="navwrap"><button class="navgrp" id="grpResearch" type="button" aria-controls="secResearch" data-grp="research" data-tabs="link,new,pr,kw">
       <span class="caret">&#9656;</span> Research</button>
     <div class="navsec" id="secResearch">
       <button id="tabLink" class="nav">By Amazon Link</button>
@@ -983,7 +1283,7 @@
       <button id="tabKw" class="nav">Keywords</button>
     </div></div>
 
-    <div class="navwrap"><button class="navgrp" id="grpSales" type="button" data-grp="sales" data-tabs="sales,profit,sa,plaudit,shop,adj,ba">
+    <div class="navwrap"><button class="navgrp" id="grpSales" type="button" aria-controls="secSales" data-grp="sales" data-tabs="sales,profit,sa,plaudit,shop,adj,ba">
       <span class="caret">&#9656;</span> Sales</button>
     <div class="navsec" id="secSales">
       <button id="tabSales" class="nav">Sales Dashboard</button>
@@ -998,7 +1298,7 @@
       <button id="tabBa" class="nav">Analytics</button>
     </div></div>
 
-    <div class="navwrap"><button class="navgrp" id="grpListing" type="button" data-grp="listing" data-tabs="opt,img,lerr,basket,health,lrules,audit,bsr">
+    <div class="navwrap"><button class="navgrp" id="grpListing" type="button" aria-controls="secListing" data-grp="listing" data-tabs="opt,img,lerr,basket,health,lrules,audit,bsr">
       <span class="caret">&#9656;</span> Listing</button>
     <div class="navsec" id="secListing">
       <button id="tabOpt" class="nav">Listing Optimiser</button>
@@ -1011,24 +1311,24 @@
       <button id="tabBsr" class="nav">BSR Audit</button>
     </div></div>
 
-    <div class="navwrap"><button class="navgrp" id="grpAds" type="button" data-grp="ads" data-tabs="trends,weekly,ppcn,st,plc,deals">
+    <div class="navwrap"><button class="navgrp" id="grpAds" type="button" aria-controls="secAds" data-grp="ads" data-tabs="trends,weekly,ppcn,st,plc,deals">
       <span class="caret">&#9656;</span> Advertising</button>
     <div class="navsec" id="secAds">
       <button id="tabTrends" class="nav">Ad Console</button>
       <button id="tabWeekly" class="nav">PPC &amp; Organic</button>
-      <button id="tabPpcn" class="nav">PPC &amp; Organic · New <span style="font-size:10px;font-weight:800;letter-spacing:.06em;color:var(--warn);background:var(--warn-bg);padding:1px 6px;border-radius:999px;margin-left:4px">TEST</span></button>
+      <button id="tabPpcn" class="nav">PPC &amp; Organic · New <span class="navtag">TEST</span></button>
       <button id="tabSt" class="nav">Search Terms</button>
       <button id="tabPlc" class="nav">Placement</button>
       <button id="tabDeals" class="nav">Deal Calendar</button>
     </div></div>
 
-    <div class="navwrap"><button class="navgrp" id="grpInv" type="button" data-grp="inv" data-tabs="age">
+    <div class="navwrap"><button class="navgrp" id="grpInv" type="button" aria-controls="secInv" data-grp="inv" data-tabs="age">
       <span class="caret">&#9656;</span> Inventory</button>
     <div class="navsec" id="secInv">
       <button id="tabAge" class="nav">Inventory Age</button>
     </div></div>
 
-    <div class="navwrap"><button class="navgrp" id="grpSocial" type="button" data-grp="social" data-tabs="tiktok,carousel">
+    <div class="navwrap"><button class="navgrp" id="grpSocial" type="button" aria-controls="secSocial" data-grp="social" data-tabs="tiktok,carousel">
       <span class="caret">&#9656;</span> Social</button>
     <div class="navsec" id="secSocial">
       <button id="tabTiktok" class="nav">TikTok Toolkit</button>
@@ -1036,6 +1336,18 @@
     </div></div>
 
     <div class="sidefoot">
+      <!-- Light / dark. Wired by app/core/theme.js, which keeps aria-pressed (dark = pressed) in step. -->
+      <button id="themeBtn" class="themesw" type="button" aria-label="Dark theme" aria-pressed="false" title="Switch to dark theme">
+        <svg class="ic-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>
+        </svg>
+        <svg class="ic-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+        </svg>
+      </button>
+      <!-- THE GUIDE, on every screen: opens /guide/ at the part about the screen you are on. -->
+      <button id="guideBtn" class="ghost" type="button"
+            title="How this screen works, step by step — English and Hindi">Guide · गाइड</button>
       <button id="toggleSettings" class="nav">Settings</button>
       <button id="logoutBtn" class="nav">Sign out</button>
     </div>
@@ -1044,19 +1356,16 @@
 
   <main class="main">
   <div class="topbar">
-    <button id="hambBtn" class="hamb" type="button" aria-label="Menu" aria-expanded="true" aria-controls="secResearch">
+    <button id="hambBtn" class="hamb" type="button" aria-label="Menu" aria-expanded="true" aria-controls="sideNav">
       <svg width="18" height="14" viewBox="0 0 18 14" aria-hidden="true">
         <path d="M1 1h16M1 7h16M1 13h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
       </svg>
     </button>
     <h2 class="pagehead" id="pageTitle">By Amazon Link</h2>
-    <!-- THE GUIDE, on every screen: opens /guide/ at the part about the screen you are on. -->
-    <button id="guideBtn" class="ghost" type="button" style="margin-left:auto;flex:0 0 auto"
-            title="How this screen works, step by step — English and Hindi">Guide · गाइड</button>
   </div>
 
-  <div id="verifyBox" class="card hide" style="border:1px solid #b45309;background:#fffbeb">
-    <div style="font-weight:700;margin-bottom:6px;color:#7c2d12" id="verifyHead">Confirm your email address</div>
+  <div id="verifyBox" class="card hide vf-box">
+    <div class="vf-head" id="verifyHead">Confirm your email address</div>
     <p class="muted" style="margin:0 0 10px">
       You are signed in as <b id="verifyWho"></b>, and that address has not been confirmed yet.
       Access is granted by typing an address, so until somebody answers it, it only proves that
@@ -1865,9 +2174,9 @@
     <div class="card" style="margin-top:12px">
       <div id="tChart" style="width:100%;overflow-x:auto"></div>
       <div class="muted" style="font-size:11.5px;margin-top:6px">
-        <span style="display:inline-block;width:10px;height:10px;background:#94a3b8;border-radius:2px"></span> Sales
-        &nbsp; <span style="display:inline-block;width:10px;height:10px;background:#6366f1;border-radius:2px"></span> Ad spend
-        &nbsp; <span style="display:inline-block;width:14px;height:2px;background:#ea580c;vertical-align:middle"></span> TACOS
+        <span class="ad-key ad-key-sales"></span> Sales
+        &nbsp; <span class="ad-key ad-key-spend"></span> Ad spend
+        &nbsp; <span class="ad-key ad-key-tacos"></span> TACOS
       </div>
     </div>
 
@@ -2276,7 +2585,7 @@
 
       <div class="row" style="gap:14px;align-items:flex-start">
         <div style="flex:0 0 150px"><img id="adjImg" alt=""
-             style="width:150px;height:150px;object-fit:contain;border-radius:10px;background:#f8fafc;border:1px solid var(--line)"></div>
+             style="width:150px;height:150px;object-fit:contain;border-radius:10px;background:var(--soft);border:1px solid var(--line)"></div>
         <div style="flex:1">
           <label>Reason</label>
           <select id="adjReason">
@@ -2600,7 +2909,7 @@
           <option value="live">Show what Amazon serves</option>
         </select>
         <button id="imGo" class="ghost" style="flex:0 0 120px" title="Open the editor for exactly this SKU or ASIN">Open editor</button>
-        <button id="imRefresh" class="ghost" style="flex:0 0 170px">Refresh from Amazon</button>
+        <button id="imRefresh" class="ghost" style="flex:0 0 190px">Refresh from Amazon</button>
         <span style="flex:1"></span>
         <span id="imMsg" class="muted" style="align-self:center;font-size:12px"></span>
       </div>
@@ -2624,7 +2933,7 @@
         </select>
         <select id="leSev" style="flex:0 0 170px"><option value="err">Errors only</option><option value="all">Errors and warnings</option><option value="any">Every listing</option></select>
         <input id="leQ" placeholder="Search SKU, ASIN, colour, message" style="flex:0 0 240px">
-        <button id="leRefresh" class="ghost" style="flex:0 0 170px">Refresh from Amazon</button>
+        <button id="leRefresh" class="ghost" style="flex:0 0 190px">Refresh from Amazon</button>
         <button id="leDown" class="ghost" style="flex:0 0 150px" title="Title, bullets, description and search terms of the listings on screen, with Listing Rules suggestions">Content → Excel</button>
         <button id="leUpBtn" class="ghost" style="flex:0 0 150px" title="The same file, changed — compared with Amazon now, then checked and applied row by row">Upload Excel</button>
         <input id="leUpFile" type="file" accept=".xlsx,.csv" class="hide">
@@ -3237,7 +3546,7 @@ function vfWire() {
       msg.textContent = 'Sent to ' + user.email + '. Open the link, then press "I have confirmed it". '
         + 'Look in the spam folder too — it arrives from Firebase, not from us.';
     } catch (e) {
-      msg.style.color = '#b91c1c';
+      msg.style.color = 'var(--bad-ink)';
       msg.textContent = /too-many-requests/.test(e.code || '')
         ? 'One has already gone out. Wait a minute, then look again — including in the spam folder.'
         : 'Could not send it: ' + (e.message || e);
@@ -3255,10 +3564,10 @@ function vfWire() {
       /* Confirming happens in another tab; a reload is what brings the new answer back to this one. */
       await user.reload();
       if (auth.currentUser && auth.currentUser.emailVerified) { location.reload(); return; }
-      msg.style.color = '#b91c1c';
+      msg.style.color = 'var(--bad-ink)';
       msg.textContent = 'Not confirmed yet. Open the link in the email first — then press this again.';
     } catch (e) {
-      msg.style.color = '#b91c1c';
+      msg.style.color = 'var(--bad-ink)';
       msg.textContent = 'Could not check: ' + (e.message || e);
     }
     $('verifyAgain').disabled = false;
@@ -3961,6 +4270,186 @@ function showTab(which) {
  * tab clickable by existing. */
 TABS.forEach(t => { $('tab' + capId(t)).onclick = () => showTab(t); });
 
+/* ============================== FILE: src/app/core/theme.js ============================== */
+/* ================= CORE · THEME: the light / dark switch =================
+ * Screens: every screen — the sun / moon button in the top bar (themeBtn).
+ * Does: sets data-theme="light" or "dark" on <html> when somebody picks one, remembers the choice in this
+ * browser (localStorage selloraTheme), and keeps the button's aria-pressed (dark = pressed) and title in
+ * step; the icon follows aria-pressed in styles.css. With no choice saved nothing is set, and the page
+ * follows the computer (styles.css reads prefers-color-scheme).
+ * Touches nothing else — not the menu, not a screen, not any app state — and everything sits inside the
+ * one function below, so it adds no name to the app's shared scope. */
+(() => {
+  try {
+    const KEY = 'selloraTheme';
+    const root = document.documentElement;
+    const btn = document.getElementById('themeBtn');
+    const osDark = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+    // The saved choice: 'light' or 'dark'. Anything else counts as no choice.
+    let saved = null;
+    try { saved = localStorage.getItem(KEY); } catch (e) {}
+    if (saved === 'light' || saved === 'dark') root.setAttribute('data-theme', saved);
+    // The theme on screen right now: the choice, or else the computer's.
+    const now = () => root.getAttribute('data-theme') || (osDark && osDark.matches ? 'dark' : 'light');
+    // Keep the button saying what it shows and what a press does.
+    const sync = () => {
+      if (!btn) return;
+      const dark = now() === 'dark';
+      btn.setAttribute('aria-pressed', String(dark));
+      btn.title = dark ? 'Switch to light theme' : 'Switch to dark theme';
+    };
+    // A press flips the theme on screen and remembers it.
+    if (btn) btn.addEventListener('click', () => {
+      const next = now() === 'dark' ? 'light' : 'dark';
+      root.setAttribute('data-theme', next);
+      try { localStorage.setItem(KEY, next); } catch (e) {}
+      sync();
+    });
+    // With no choice made, the button follows the computer when the computer switches.
+    if (osDark) {
+      if (osDark.addEventListener) osDark.addEventListener('change', sync);
+      else if (osDark.addListener) osDark.addListener(sync);
+    }
+    sync();
+  } catch (e) { /* a convenience only: if anything here fails, the page simply follows the computer */ }
+})();
+/* ============================== FILE: src/app/core/fx.js ============================== */
+/* ================= CORE · FX: the sign-in screen's drifting dots =================
+ * Screens: the sign-in screen only — the canvas sellFx behind the sign-in card.
+ * Does: draws faint dots drifting slowly across the canvas, joined by thin lines when two come close.
+ * About one dot per 26,000 px² (at most 45, or 25 under 900px wide), lines under 130px, at most 30
+ * frames a second, and never sharper than 1.5 device pixels per pixel. The colours are the theme's
+ * --fx-dot / --fx-line, read again whenever the theme or the computer's colour scheme changes.
+ * It RUNS ONLY WHILE THE CANVAS IS ON SCREEN: an IntersectionObserver starts and stops the loop, and it
+ * stops while the tab is hidden. Once somebody has signed in the screen is display:none, so nothing
+ * runs at all — no loop, no timer. With reduced motion it draws one still frame.
+ * Touches nothing but that canvas, takes no mouse or touch input, and every part is inside try/catch:
+ * if anything fails, the background is simply left plain. Everything sits inside the one function
+ * below, so it adds no name to the app's shared scope. */
+(() => {
+  try {
+    const cv = document.getElementById('sellFx');
+    const ctx = cv && cv.getContext ? cv.getContext('2d') : null;
+    if (!ctx || !window.IntersectionObserver || !window.requestAnimationFrame) return;
+    const mq = q => (window.matchMedia ? window.matchMedia(q) : null);
+    const still = mq('(prefers-reduced-motion: reduce)');
+    const scheme = mq('(prefers-color-scheme: dark)');
+    const LINK = 130, FRAME = 1000 / 30;
+    let dots = [], w = 0, h = 0, dot = '', line = '', raf = 0, last = 0, seen = false, timer = 0, dead = false;
+
+    // Stop for good: the loop, the timer, the canvas cleared.
+    const stop = () => {
+      dead = true;
+      if (raf) cancelAnimationFrame(raf);
+      if (timer) clearTimeout(timer);
+      raf = timer = 0;
+      try { ctx.clearRect(0, 0, cv.width, cv.height); } catch (e) {}
+    };
+    // Every callback goes through this, so a failure inside one stops the effect instead of throwing.
+    const safe = fn => (...args) => { if (dead) return; try { fn(...args); } catch (e) { stop(); } };
+
+    // --- the theme's two colours ---
+    const colours = () => {
+      const cs = getComputedStyle(cv);
+      dot = cs.getPropertyValue('--fx-dot').trim() || 'rgba(127,127,127,.3)';
+      line = cs.getPropertyValue('--fx-line').trim() || 'rgba(127,127,127,.1)';
+    };
+    // --- size the canvas to its box, and scatter the dots afresh ---
+    const size = () => {
+      const box = cv.getBoundingClientRect();
+      w = Math.max(1, Math.round(box.width));
+      h = Math.max(1, Math.round(box.height));
+      const dpr = Math.min(1.5, window.devicePixelRatio || 1);
+      cv.width = Math.round(w * dpr);
+      cv.height = Math.round(h * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      const n = Math.min(w < 900 ? 25 : 45, Math.max(6, Math.round((w * h) / 26000)));
+      dots = Array.from({ length: n }, () => {
+        const angle = Math.random() * Math.PI * 2, speed = 0.05 + Math.random() * 0.15;
+        return { x: Math.random() * w, y: Math.random() * h, vx: Math.cos(angle) * speed,
+          vy: Math.sin(angle) * speed, r: 1 + Math.random() * 1.2 };
+      });
+    };
+    // --- one frame: the lines first, the dots over them ---
+    const draw = () => {
+      ctx.clearRect(0, 0, w, h);
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = line;
+      for (let i = 0; i < dots.length; i++) {
+        for (let j = i + 1; j < dots.length; j++) {
+          const dx = dots[i].x - dots[j].x, dy = dots[i].y - dots[j].y, d = Math.sqrt(dx * dx + dy * dy);
+          if (d >= LINK) continue;
+          ctx.globalAlpha = 1 - d / LINK;
+          ctx.beginPath();
+          ctx.moveTo(dots[i].x, dots[i].y);
+          ctx.lineTo(dots[j].x, dots[j].y);
+          ctx.stroke();
+        }
+      }
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = dot;
+      dots.forEach(p => {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+        ctx.fill();
+      });
+    };
+    // --- move every dot one step, turning back at the edges ---
+    const move = () => dots.forEach(p => {
+      p.x += p.vx;
+      p.y += p.vy;
+      if (p.x < 0 || p.x > w) { p.vx = -p.vx; p.x = Math.max(0, Math.min(w, p.x)); }
+      if (p.y < 0 || p.y > h) { p.vy = -p.vy; p.y = Math.max(0, Math.min(h, p.y)); }
+    });
+
+    // --- the loop: only while on screen, the tab is showing and motion is welcome ---
+    const moving = () => seen && !document.hidden && !(still && still.matches);
+    const frame = safe(t => {
+      raf = 0;
+      if (!moving()) return;
+      raf = requestAnimationFrame(frame);
+      if (t - last < FRAME) return;
+      last = t;
+      move();
+      draw();
+    });
+    // Start or stop the loop to match; when it is not moving but on screen, leave one still frame.
+    const sync = () => {
+      if (moving()) { if (!raf) raf = requestAnimationFrame(frame); return; }
+      if (raf) cancelAnimationFrame(raf);
+      raf = 0;
+      if (seen) draw();
+    };
+
+    // On screen or off it (it goes off when the sign-in screen is hidden).
+    new IntersectionObserver(safe(entries => {
+      const now = entries[entries.length - 1].isIntersecting;
+      if (now && !seen) {
+        seen = true;
+        colours();
+        const box = cv.getBoundingClientRect();
+        if (Math.round(box.width) !== w || Math.round(box.height) !== h || !dots.length) size();
+      } else if (!now) {
+        seen = false;
+        if (timer) clearTimeout(timer);
+        timer = 0;
+      }
+      sync();
+    })).observe(cv);
+    document.addEventListener('visibilitychange', safe(sync));
+    if (still) (still.addEventListener ? still.addEventListener('change', safe(sync)) : still.addListener(safe(sync)));
+    // The theme changed — on the switch (data-theme on <html>) or on the computer: new colours.
+    const recolour = safe(() => { if (!seen) return; colours(); if (!moving()) draw(); });
+    new MutationObserver(recolour).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+    if (scheme) (scheme.addEventListener ? scheme.addEventListener('change', recolour) : scheme.addListener(recolour));
+    // A resize, settled for 200ms, re-sizes the canvas — only while the screen is showing.
+    window.addEventListener('resize', safe(() => {
+      if (!seen) return;
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(safe(() => { timer = 0; size(); sync(); }), 200);
+    }));
+  } catch (e) { /* a decoration only: if anything here fails, the sign-in background stays plain */ }
+})();
 /* ============================== FILE: src/app/core/settings.js ============================== */
 /* ================= CORE · SETTINGS: the Settings screen, and saving the Access form =================
  * Screens: Settings (settingsCard), opened by the sidebar's Settings button, and the Access card inside
@@ -6251,7 +6740,7 @@ function renderHealth() {
       tip: `The worst ${area.toLowerCase()} issue among the children, and how many children have one. ✓ = none of the checked children has one.` }));
     defs.push({ k: 'score', t: 'Health', num: 1, noTotal: 1,
       cell: row => row.score == null ? '<span class="muted">—</span>'
-        : `<b style="color:${row.score >= 80 ? '#15803D' : row.score >= 50 ? '#B45309' : 'var(--bad,#b91c1c)'}">${row.score}</b>`,
+        : `<b style="color:${row.score >= 80 ? 'var(--accent-ink)' : row.score >= 50 ? 'var(--act-ink)' : 'var(--bad-ink)'}">${row.score}</b>`,
       tip: 'Average health of the checked children: 100 − 40 per critical issue − 10 per action − 3 per review. Green 80+, amber 50–79, red under 50.' });
     defs.push({ k: 'parent', t: 'Parent ASIN', mono: 1, noTotal: 1,
       cell: row => `<span data-hkid="${String(row.brand).replace(/"/g, '')}|${String(row.parent).replace(/[<>&"]/g, '')}"`
@@ -6494,7 +6983,7 @@ function healthKidsRender() {
   // --- header line and the All / Problems / OK segment ---
   $('hkTitle').textContent = name || parent;
   $('hkSub').innerHTML = `<span style="font-family:ui-monospace,monospace">${esc(parent)}</span> · ${esc(BRAND_NAME[brand] || brand)}`
-    + ` · <b>${all.length}</b> children · <b style="color:#991b1b">${nBad}</b> with a problem · <b style="color:#166534">${all.length - nBad}</b> OK`
+    + ` · <b>${all.length}</b> children · <b style="color:var(--bad-ink)">${nBad}</b> with a problem · <b style="color:var(--accent-ink)">${all.length - nBad}</b> OK`
     + ` · avg score <b>${avg}</b>`
     + (over75 ? ` · <b>${over75}</b> title(s) over ${H_TITLE_LIMIT} characters` : '');
   $('hkSeg').querySelectorAll('[data-hks]').forEach(btn => btn.classList.toggle('on', btn.dataset.hks === HK_SHOW));
@@ -6648,7 +7137,7 @@ $('hRaw').onclick = async () => {
     let line = `<b>${BRAND_NAME[brand]} stock doc</b> — `;
     try {
       const snap = await getDoc(doc(db, 'stock', brand));
-      if (!snap.exists()) line += '<span style="color:var(--bad)">does not exist yet</span> — run “Refresh both brands”.';
+      if (!snap.exists()) line += '<span style="color:var(--bad-ink)">does not exist yet</span> — run “Refresh both brands”.';
       else {
         const data = snap.data();
         const qtyMap = data.m || {};          // SKU → quantity
@@ -6659,7 +7148,7 @@ $('hRaw').onclick = async () => {
         line += `${keys.length} SKUs · <b>${keys.length - zero} with stock</b>, ${zero} at zero · written ${at}`
           + (keys.length ? `<div style="font-family:ui-monospace,monospace;font-size:11px;margin-top:4px">${esc(sample)}</div>` : '');
         if (keys.length && zero === keys.length) {
-          line += '<div style="color:var(--bad);margin-top:4px">Every value is zero — '
+          line += '<div style="color:var(--bad-ink);margin-top:4px">Every value is zero — '
             + 'the quantity is not coming through from the ageing report.</div>';
         }
         // How the join actually landed for the listings on screen.
@@ -6671,7 +7160,7 @@ $('hRaw').onclick = async () => {
         }
       }
     } catch (e) {
-      line += `<span style="color:var(--bad)">could not read (${esc(e.message || e)})</span>`;
+      line += `<span style="color:var(--bad-ink)">could not read (${esc(e.message || e)})</span>`;
     }
     stockParts.push(`<div style="margin-bottom:12px">${line}</div>`);
   }
@@ -6779,7 +7268,7 @@ function hAreaCell(row, area) {
    * An out-of-stock listing with no image is shown as Attention, not Critical (the 15 Sept rule), and its amber dot
    * read as "a few images". The number says which: 0 is no image at all. */
   const nImages = area === 'Images' && row.content ? Number(row.content.images) || 0 : null;
-  const cnt = nImages == null ? '' : `<span style="font-size:12px;margin-left:4px;${nImages ? 'color:var(--muted)' : 'color:var(--bad,#b91c1c);font-weight:700'}">`
+  const cnt = nImages == null ? '' : `<span style="font-size:12px;margin-left:4px;${nImages ? 'color:var(--muted)' : 'color:var(--bad-ink);font-weight:700'}">`
     + `${nImages ? nImages : '0 · no image'}</span>`;
   if (hits.length) {
     const worst = hits.sort((a, b) => LR_SEV[b.sev].rank - LR_SEV[a.sev].rank)[0];
@@ -8089,7 +8578,7 @@ function renderAuditKpis(rows) {
       <span class="kpiwhen">${slots ? Math.round((attached / slots) * 100) : 0}% of all slots filled</span></div>
     <div class="metrics">
       <div class="metric"><div class="v">${nf(complete)}</div><div class="l">Complete parents</div></div>
-      <div class="metric"><div class="v" style="color:${pending ? 'var(--bad)' : 'inherit'}">${nf(pending)}</div>
+      <div class="metric"><div class="v" style="color:${pending ? 'var(--bad-ink)' : 'inherit'}">${nf(pending)}</div>
         <div class="l">${mine ? 'Waiting on you' : 'Awaiting approval'}</div></div>
       <div class="metric"><div class="v" style="font-size:15px">${nf(approved)}</div><div class="l">Approved</div></div>
       <div class="metric"><div class="v" style="font-size:15px">${nf(attached)} / ${nf(slots)}</div><div class="l">Documents attached</div></div>
@@ -8100,7 +8589,7 @@ function renderAuditKpis(rows) {
     <div class="metrics">
       <div class="metric"><div class="v">${nf(launched)}</div><div class="l">Launched parents</div></div>
       <div class="metric"><div class="v">${nf(inTransit)}</div><div class="l">Arriving / in transit</div></div>
-      <div class="metric"><div class="v" style="color:${flagged ? 'var(--bad)' : 'inherit'}">${nf(flagged)}</div>
+      <div class="metric"><div class="v" style="color:${flagged ? 'var(--bad-ink)' : 'inherit'}">${nf(flagged)}</div>
         <div class="l">⚑ Under $${nf(LAUNCH_REVIEW_MIN)} at ${LAUNCH_REVIEW_DAYS}d</div></div>
       <div class="metric"><div class="v" style="font-size:15px">${money(sales)}</div>
         <div class="l">30-day sales, launched parents</div></div>
@@ -8111,10 +8600,10 @@ function renderAuditKpis(rows) {
     <div class="metrics">
       <div class="metric"><div class="v" style="font-size:15px">${money(ppcSpend)}</div><div class="l">Ad spend</div></div>
       <div class="metric"><div class="v" style="font-size:15px">${money(ppcSales)}</div><div class="l">Ad sales</div></div>
-      <div class="metric"><div class="v" style="color:${acos != null && acos > 60 ? 'var(--bad)' : 'inherit'}">${
+      <div class="metric"><div class="v" style="color:${acos != null && acos > 60 ? 'var(--bad-ink)' : 'inherit'}">${
         acos == null ? '—' : acos + '%'}</div><div class="l">ACOS</div></div>
       <div class="metric" title="Ad spend ÷ total sales across these parents. Only counts parents whose total sales are known."><div class="v" style="color:${
-        tacos != null && tacos > 20 ? 'var(--bad)' : 'inherit'}">${tacos == null ? '—' : tacos + '%'}</div><div class="l">TACOS</div></div>
+        tacos != null && tacos > 20 ? 'var(--bad-ink)' : 'inherit'}">${tacos == null ? '—' : tacos + '%'}</div><div class="l">TACOS</div></div>
       <div class="metric"><div class="v">${nf(advertised)}</div><div class="l">Parents advertised</div></div>
     </div></div>`;
 
@@ -9046,7 +9535,7 @@ function renderBsr() {
       if (def.muted) return `<td class="${cls}"><span class="muted">${txt}</span></td>`;
       // Colour follows MEANING, not sign: improvement (negative) is green.
       const good = value < 0;
-      return `<td class="${cls}" style="font-weight:600;color:${good ? 'var(--accent)' : (value > 0 ? 'var(--bad)' : 'inherit')}">${txt}</td>`;
+      return `<td class="${cls}" style="font-weight:600;color:${good ? 'var(--accent-ink)' : (value > 0 ? 'var(--bad-ink)' : 'inherit')}">${txt}</td>`;
     }
     if (def.num) return `<td class="${cls}">${value ? Number(value).toLocaleString('en-US') : dash}</td>`;
     if (def.trunc) return `<td class="${cls}" title="${esc(value)}">${esc(String(value || '').slice(0, def.trunc)) || dash}</td>`;
@@ -9100,8 +9589,8 @@ function renderBsrKpis(rows, wA, wB) {
     <div class="kpihead"><span class="kpiname">${wA}${mark(wA)} vs ${wB}${mark(wB)}</span>
       <span class="kpiwhen">${nf(rows.length)} parents compared</span></div>
     <div class="metrics">
-      <div class="metric"><div class="v" style="color:var(--bad)">${nf(worse)}</div><div class="l">Rank got worse</div></div>
-      <div class="metric"><div class="v" style="color:var(--accent)">${nf(better)}</div><div class="l">Improved</div></div>
+      <div class="metric"><div class="v" style="color:var(--bad-ink)">${nf(worse)}</div><div class="l">Rank got worse</div></div>
+      <div class="metric"><div class="v" style="color:var(--accent-ink)">${nf(better)}</div><div class="l">Improved</div></div>
       <div class="metric"><div class="v" style="font-size:15px">${nf(act)}</div><div class="l">Need action</div></div>
       <div class="metric"><div class="v" style="font-size:15px">${nf(allWeeks().length)}</div><div class="l">Weeks stored</div></div>
     </div></div>`;
@@ -9205,14 +9694,14 @@ async function renderBsrHistory() {
           break;
         }
       }
-      const col = prev == null ? 'inherit' : (rank < prev ? 'var(--accent)' : rank > prev ? 'var(--bad)' : 'inherit');
+      const col = prev == null ? 'inherit' : (rank < prev ? 'var(--accent-ink)' : rank > prev ? 'var(--bad-ink)' : 'inherit');
       return `<td class="${cls}" style="color:${col}">${rank.toLocaleString('en-US')}</td>`;
     }
     if (def.signed) {
       const value = val(row, def);
       if (value == null) return `<td class="${cls}">${dash}</td>`;
       const good = value < 0;
-      return `<td class="${cls}" style="font-weight:600;color:${good ? 'var(--accent)' : value > 0 ? 'var(--bad)' : 'inherit'}">${(value > 0 ? '+' : '') + value.toLocaleString('en-US')}</td>`;
+      return `<td class="${cls}" style="font-weight:600;color:${good ? 'var(--accent-ink)' : value > 0 ? 'var(--bad-ink)' : 'inherit'}">${(value > 0 ? '+' : '') + value.toLocaleString('en-US')}</td>`;
     }
     const value = val(row, def);
     return `<td class="${cls}" style="${def.mono ? 'font-family:ui-monospace,monospace' : ''}">${esc(value) || dash}</td>`;
@@ -9230,8 +9719,8 @@ async function renderBsrHistory() {
     <div class="kpihead"><span class="kpiname">History · ${weeks.length} weeks (${earliest} → ${latest})</span>
       <span class="kpiwhen">${rows.length.toLocaleString('en-US')} parents</span></div>
     <div class="metrics">
-      <div class="metric"><div class="v" style="color:var(--accent)">${improved.toLocaleString('en-US')}</div><div class="l">Improved over window</div></div>
-      <div class="metric"><div class="v" style="color:var(--bad)">${worsened.toLocaleString('en-US')}</div><div class="l">Worse over window</div></div>
+      <div class="metric"><div class="v" style="color:var(--accent-ink)">${improved.toLocaleString('en-US')}</div><div class="l">Improved over window</div></div>
+      <div class="metric"><div class="v" style="color:var(--bad-ink)">${worsened.toLocaleString('en-US')}</div><div class="l">Worse over window</div></div>
       <div class="metric"><div class="v" style="font-size:15px">${allWeeks().length}</div><div class="l">Weeks stored</div></div>
       <div class="metric"><div class="v" style="font-size:15px">${weeks.length}</div><div class="l">Weeks shown</div></div>
     </div></div>`;
@@ -10360,8 +10849,8 @@ function sdChartDaily(pts) {
       + `<text class="sa-ch-axis" x="${padL - 8}" y="${yy + 4}" text-anchor="end" font-size="10" fill="#94a3b8">`
       + `$${Math.round(max * i / 4).toLocaleString('en-US')}</text>`;
   }
-  svg += `<path d="${area}" fill="#a855f7" opacity=".12"/>`
-    + `<path d="${line}" fill="none" stroke="#7c3aed" stroke-width="1.8"/>`;
+  svg += `<path class="sa-ch-area" d="${area}" fill="#a855f7" opacity=".12"/>`
+    + `<path class="sa-ch-line" d="${line}" fill="none" stroke="#7c3aed" stroke-width="1.8"/>`;
   const step = Math.ceil(pts.length / 8);
   pts.forEach((pt, i) => {
     if (i % step) return;
@@ -10401,15 +10890,15 @@ function sdChartMonthly(yr, lyr) {
   }
   for (let m = 0; m < 12; m++) {
     const cx = padL + slot * m + slot / 2;
-    svg += `<rect x="${cx - bw - 1}" y="${y(ty[m])}" width="${bw}" height="${Math.max(0, padT + ih - y(ty[m]))}" fill="#0d9488" rx="1.5">`
+    svg += `<rect class="sa-ch-ty" x="${cx - bw - 1}" y="${y(ty[m])}" width="${bw}" height="${Math.max(0, padT + ih - y(ty[m]))}" fill="#0d9488" rx="1.5">`
       + `<title>${MON[m]} ${yr} — $${Math.round(ty[m]).toLocaleString('en-US')}</title></rect>`
-      + `<rect x="${cx + 1}" y="${y(ly[m])}" width="${bw}" height="${Math.max(0, padT + ih - y(ly[m]))}" fill="#f97316" rx="1.5">`
+      + `<rect class="sa-ch-ly" x="${cx + 1}" y="${y(ly[m])}" width="${bw}" height="${Math.max(0, padT + ih - y(ly[m]))}" fill="#f97316" rx="1.5">`
       + `<title>${MON[m]} ${lyr} — $${Math.round(ly[m]).toLocaleString('en-US')}</title></rect>`
       + `<text class="sa-ch-label" x="${cx}" y="${H - 12}" text-anchor="middle" font-size="10" fill="#64748b">${MON[m]}</text>`;
   }
-  svg += `<rect x="${padL}" y="${H - 8}" width="9" height="9" fill="#0d9488" rx="1"/>`
+  svg += `<rect class="sa-ch-ty" x="${padL}" y="${H - 8}" width="9" height="9" fill="#0d9488" rx="1"/>`
     + `<text class="sa-ch-label" x="${padL + 13}" y="${H - 1}" font-size="10" fill="#64748b">This Year</text>`
-    + `<rect x="${padL + 70}" y="${H - 8}" width="9" height="9" fill="#f97316" rx="1"/>`
+    + `<rect class="sa-ch-ly" x="${padL + 70}" y="${H - 8}" width="9" height="9" fill="#f97316" rx="1"/>`
     + `<text class="sa-ch-label" x="${padL + 83}" y="${H - 1}" font-size="10" fill="#64748b">Last Year</text>`;
   $('sdChartMonthly').innerHTML = `<svg viewBox="0 0 ${W} ${H + 4}" class="sa-chart">${svg}</svg>`;
 }
@@ -11175,12 +11664,12 @@ function renderPlannerKpis(rows, weeks) {
     <div class="metrics">
       ${tile('Ridhi parents', nf(nSP))}
       ${tile('CPC parents', nf(nCPC))}
-      ${tile('Parents with a plan', nf(parentsWith.size), parentsWith.size ? '#166534' : '')}
-      ${tile('PED', nf((byType.PED || new Set()).size), '#1e40af')}
-      ${tile('COUPON', nf((byType.COUPON || new Set()).size), '#166534')}
-      ${tile('DEAL', nf(((byType.DEAL || new Set()).size) + ((byType['BEST DEAL'] || new Set()).size) + ((byType.LIGHTNING || new Set()).size)), '#92400e')}
-      ${tile('Price disc.', nf((byType['PRICE DISC'] || new Set()).size), '#5b21b6')}
-      ${tile('Nothing planned', nf(all.size - parentsWith.size), all.size - parentsWith.size ? 'var(--bad)' : '')}
+      ${tile('Parents with a plan', nf(parentsWith.size), parentsWith.size ? 'var(--accent-ink)' : '')}
+      ${tile('PED', nf((byType.PED || new Set()).size), 'var(--brand-ink)')}
+      ${tile('COUPON', nf((byType.COUPON || new Set()).size), 'var(--accent-ink)')}
+      ${tile('DEAL', nf(((byType.DEAL || new Set()).size) + ((byType['BEST DEAL'] || new Set()).size) + ((byType.LIGHTNING || new Set()).size)), 'var(--act-ink)')}
+      ${tile('Price disc.', nf((byType['PRICE DISC'] || new Set()).size), 'var(--violet-ink)')}
+      ${tile('Nothing planned', nf(all.size - parentsWith.size), all.size - parentsWith.size ? 'var(--bad-ink)' : '')}
     </div></div>`;
 }
 
@@ -11205,10 +11694,10 @@ function renderPlanner() {
     + '<th class="pfz pfz-last" data-pf="1" rowspan="2">Product</th>'
     + '<th rowspan="2">Image</th>'
     + '<th class="num" rowspan="2">BSR</th>'
-    + '<th class="num" style="background:#e2e8f0">Start</th>'
-    + weeks.map(w => `<th class="num" style="background:#fde4d3">${esc(dShortDate(w))}</th>`).join('') + '</tr>'
-    + '<tr class="phead2"><th class="num" style="background:#fef08a">End</th>'
-    + weeks.map(w => `<th class="num" style="background:#fde4d3">${
+    + '<th class="num" style="background:var(--hover)">Start</th>'
+    + weeks.map(w => `<th class="num" style="background:var(--act-bg)">${esc(dShortDate(w))}</th>`).join('') + '</tr>'
+    + '<tr class="phead2"><th class="num" style="background:var(--rev-bg)">End</th>'
+    + weeks.map(w => `<th class="num" style="background:var(--act-bg)">${
         esc(dShortDate(new Date(new Date(w + 'T00:00:00Z').getTime() + 6 * 86400000).toISOString().slice(0, 10)))
       }</th>`).join('')
     + '</tr></thead>';
@@ -11265,7 +11754,7 @@ function renderPlanner() {
     return `<tr><td class="frz pfz" data-pf="0" style="font-family:ui-monospace,monospace">${esc(r.parent)}</td>`
       + `<td class="pfz pfz-last" data-pf="1" title="${esc(r.name)}">${esc(String(r.name).slice(0, 32)) || '<span class="muted">—</span>'}</td>`
       + `<td style="padding:2px 6px">${img
-          ? `<img src="${esc(dThumb(img))}" loading="lazy" decoding="async" style="width:30px;height:30px;object-fit:cover;border-radius:5px;background:#f1f5f9" alt="">`
+          ? `<img src="${esc(dThumb(img))}" loading="lazy" decoding="async" style="width:30px;height:30px;object-fit:cover;border-radius:5px;background:var(--hover)" alt="">`
           : '<span class="muted" style="font-size:11px">—</span>'}</td>`
       + `<td class="num">${r.rank ? r.rank.toLocaleString('en-US') : '<span class="muted">—</span>'}</td>`
       + `<td class="num muted"></td>${cells}</tr>`;
@@ -11601,10 +12090,10 @@ function renderDoneKpis(rows) {
       ${tile('Parents involved', nf(parents.size))}
       ${tile('Days of discount', nf(days))}
       ${tile('Average discount', discN ? Math.round(discSum / discN) + '%' : '—')}
-      ${tile('PED', nf(byType.PED || 0), '#1e40af')}
-      ${tile('COUPON', nf(byType.COUPON || 0), '#166534')}
-      ${tile('DEAL', nf((byType.DEAL || 0) + (byType['BEST DEAL'] || 0) + (byType.LIGHTNING || 0)), '#92400e')}
-      ${tile('Price disc.', nf(byType['PRICE DISC'] || 0), '#5b21b6')}
+      ${tile('PED', nf(byType.PED || 0), 'var(--brand-ink)')}
+      ${tile('COUPON', nf(byType.COUPON || 0), 'var(--accent-ink)')}
+      ${tile('DEAL', nf((byType.DEAL || 0) + (byType['BEST DEAL'] || 0) + (byType.LIGHTNING || 0)), 'var(--act-ink)')}
+      ${tile('Price disc.', nf(byType['PRICE DISC'] || 0), 'var(--violet-ink)')}
     </div></div>`;
 }
 
@@ -11626,7 +12115,7 @@ function renderDone() {
       + `<td class="num">${r.span.days}</td>`
       + `<td style="font-family:ui-monospace,monospace">${esc(r.parent)}</td>`
       + `<td style="padding:2px 6px">${img
-          ? `<img src="${esc(dThumb(img))}" loading="lazy" decoding="async" style="width:30px;height:30px;object-fit:cover;border-radius:5px;background:#f1f5f9" alt="">`
+          ? `<img src="${esc(dThumb(img))}" loading="lazy" decoding="async" style="width:30px;height:30px;object-fit:cover;border-radius:5px;background:var(--hover)" alt="">`
           : '<span class="muted" style="font-size:11px">—</span>'}</td>`
       + `<td title="${esc(r.name)}">${esc(String(r.name).slice(0, 40)) || '<span class="muted">—</span>'}</td>`
       + `<td>${r.brand ? esc(BRAND_NAME[r.brand] || r.brand) : '<span class="muted">—</span>'}</td>`
@@ -11801,8 +12290,8 @@ function renderHdaKpis(rows) {
       ${tile('ASINs / parents', nf(asins.size))}
       ${tile('Days of discount', nf(days))}
       ${tile('Average discount', avg ? avg + '%' : '—')}
-      ${tile('Deepest', deepest ? deepest + '%' : '—', deepest >= 50 ? 'var(--bad)' : '')}
-      ${tile('Running now', nf(live), live ? '#166534' : '')}
+      ${tile('Deepest', deepest ? deepest + '%' : '—', deepest >= 50 ? 'var(--bad-ink)' : '')}
+      ${tile('Running now', nf(live), live ? 'var(--accent-ink)' : '')}
       ${tile('Typed here', nf(typed))}
       ${tile('From planner', nf(rows.length - typed))}
     </div></div>`;
@@ -11844,12 +12333,12 @@ function renderHda() {
           ? esc(r.asin) + (r.known ? '' : ' <span class="muted" style="font-family:inherit;font-size:11px" title="This ASIN is not in the Listing Health snapshot — it may have been removed, or belong to a brand you cannot see. The record is kept either way.">not in snapshot</span>')
           : `<span class="muted" style="font-size:11px">whole parent</span><br>${esc(r.parent)}`}</td>`
       + `<td style="padding:2px 6px">${img
-          ? `<img src="${esc(dThumb(img))}" loading="lazy" decoding="async" style="width:30px;height:30px;object-fit:cover;border-radius:5px;background:#f1f5f9" alt="">`
+          ? `<img src="${esc(dThumb(img))}" loading="lazy" decoding="async" style="width:30px;height:30px;object-fit:cover;border-radius:5px;background:var(--hover)" alt="">`
           : '<span class="muted" style="font-size:11px">—</span>'}</td>`
       + `<td title="${esc(r.name)}">${esc(String(r.name).slice(0, 34)) || '<span class="muted">—</span>'}</td>`
       + `<td>${r.brand ? esc(BRAND_NAME[r.brand] || r.brand) : '<span class="muted">—</span>'}</td>`
       + `<td><span style="background:${bg};color:${fg};font-weight:700;font-size:11.5px;padding:2px 7px;border-radius:5px">${esc(r.t)}</span></td>`
-      + `<td class="num"${r.v >= 50 ? ' style="color:var(--bad);font-weight:700"' : ''}>${r.v ? r.v + '%' : '<span class="muted">—</span>'}</td>`
+      + `<td class="num"${r.v >= 50 ? ' style="color:var(--bad-ink);font-weight:700"' : ''}>${r.v ? r.v + '%' : '<span class="muted">—</span>'}</td>`
       + `<td style="font-size:11.5px">${r.src === 'typed'
           ? 'Typed here' + (r.alsoPlanned ? ' <span class="muted" title="A planner deal on the same parent overlaps these dates. Both are shown — this screen cannot tell whether it is the same discount entered twice.">· also on planner</span>' : '')
           : '<span class="muted">From planner</span>'}</td>`
@@ -12281,8 +12770,8 @@ $('hdaImpFile').onchange = async ev => {
       + `</div>`
       + (noType ? `<div class="muted" style="font-size:12px;margin-top:4px">${noType} row(s) had no Type and will be recorded as <b>PED</b>.</div>` : '')
       + (dupInFile ? `<div class="muted" style="font-size:12px;margin-top:4px">${dupInFile} row(s) repeat an earlier line in the same file (same ASIN, type and dates) — the last one wins.</div>` : '')
-      + (unknown.length ? `<div style="color:var(--bad);font-size:12px;margin-top:4px">${unknown.length} ASIN(s) are not in the Listing Health snapshot (${unknown.slice(0, 3).map(g => esc(g.asin)).join(', ')}${unknown.length > 3 ? '…' : ''}). They will import, but with no name, brand or picture.</div>` : '')
-      + (bad.length ? `<div style="color:var(--bad);font-size:12px;margin-top:4px">${bad.length} row(s) will be skipped — ${esc(bad.slice(0, 5).join(' · '))}${bad.length > 5 ? ' …' : ''}</div>` : '')
+      + (unknown.length ? `<div style="color:var(--bad-ink);font-size:12px;margin-top:4px">${unknown.length} ASIN(s) are not in the Listing Health snapshot (${unknown.slice(0, 3).map(g => esc(g.asin)).join(', ')}${unknown.length > 3 ? '…' : ''}). They will import, but with no name, brand or picture.</div>` : '')
+      + (bad.length ? `<div style="color:var(--bad-ink);font-size:12px;margin-top:4px">${bad.length} row(s) will be skipped — ${esc(bad.slice(0, 5).join(' · '))}${bad.length > 5 ? ' …' : ''}</div>` : '')
       + `<div class="muted" style="font-size:12px;margin-top:6px">This ADDS to the ${D_HDA.length} record(s) already kept. Nothing is deleted.</div>`;
     $('hdaImpSave').disabled = false;
   } catch (e2) { err('Could not read that file: ' + esc(e2.message || e2)); }
@@ -13255,7 +13744,7 @@ function renderCp() {
     + `<td class="num">${r.tacos != null ? Math.round(r.tacos) + '%' : dash}</td>`
     + `<td class="num">${r.c > 0 ? (r.o / r.c * 100).toFixed(1) + '%' : dash}</td>`
     + `<td class="num">${r.be != null ? Math.round(r.be) + '%' : dash}</td>`
-    + `<td class="num"${r.stock === 0 ? ' style="color:var(--bad,#b91c1c);font-weight:700"' : ''}>${r.stock != null ? r.stock.toLocaleString('en-US') : dash}</td>`
+    + `<td class="num"${r.stock === 0 ? ' style="color:var(--bad-ink);font-weight:700"' : ''}>${r.stock != null ? r.stock.toLocaleString('en-US') : dash}</td>`
     + `<td class="num">${r.cover != null ? Math.round(r.cover) : dash}</td>`
     + `<td style="white-space:nowrap">${r.v ? `<span class="st ${TAG[r.v]}">${esc(r.act)}</span>` : `<span class="muted">${esc(r.act)}</span>`}</td>`
     + `<td style="min-width:260px;white-space:normal">${esc(r.why)}</td>`
@@ -13278,9 +13767,9 @@ function renderCp() {
   const stAt = ['SP', 'CPC'].map(b => (ST.ag[b] || {}).stAt).filter(Boolean)[0];
   stMsg(`<b>${rows.length.toLocaleString('en-US')}</b> campaign × product rows`
     + ` (${running.toLocaleString('en-US')} running, ${stopped.toLocaleString('en-US')} paused or archived)`
-    + ` · <b style="color:var(--bad,#b91c1c)">${bad.n} bad</b> (${money(bad.sp)} spent, ${money(bad.s)} back)`
+    + ` · <b style="color:var(--bad-ink)">${bad.n} bad</b> (${money(bad.sp)} spent, ${money(bad.s)} back)`
     + ` · <b>${watch.n} watch</b> (${money(watch.sp)} spent)`
-    + ` · <b style="color:#15803D">${good.n} good</b> (${money(good.sp)} spent, ${money(good.s)} back)`
+    + ` · <b style="color:var(--accent-ink)">${good.n} good</b> (${money(good.sp)} spent, ${money(good.s)} back)`
     + (rows.length > CAP ? ` · showing the first ${CAP} — narrow it, or Export for all` : '')
     + (ST.at ? ` · built ${esc(ST.at)}` : '') + ' · a 30-day window'
     + (stAt ? ` · ad status read ${esc(stAt)}` : '')
@@ -13360,11 +13849,11 @@ let PLC_GRAN = 'day';
 // The order the four known placements are listed in, and their colours; anything else is grey.
 const PLC_ORDER = ['Top of Search', 'Rest of Search', 'Product Page', 'Off Amazon'];
 const PLC_COLOR = {
-  'Top of Search': '#10b981',
-  'Product Page': '#374151',
-  'Rest of Search': '#f97316',
-  'Off Amazon': '#38bdf8' };
-const plcColor = p => PLC_COLOR[p] || '#9ca3af';
+  'Top of Search': 'var(--accent)',
+  'Product Page': 'var(--muted)',
+  'Rest of Search': 'var(--act)',
+  'Off Amazon': 'var(--brand)' };
+const plcColor = p => PLC_COLOR[p] || 'var(--faint)';
 /* Amazon's own wording, which is not the wording anybody uses. Verified against live rows:
  * `placementClassification` comes back as "Detail Page on-Amazon", not "Product Page".
  *
@@ -13488,7 +13977,7 @@ function renderPlc() {
     const pctOf = totSpend > 0 ? Math.round(sp * 100 / totSpend) : 0;
     return `<tr${bold ? ' style="font-weight:700;border-top:2px solid var(--line)"' : ''}>`
       + `<td class="frz">${label}</td>`
-      + `<td class="num"${misV > 0 ? ' style="color:var(--bad)"' : ''}>${money(misV)}`
+      + `<td class="num"${misV > 0 ? ' style="color:var(--bad-ink)"' : ''}>${money(misV)}`
         + `${sp > 0 && misV > 0 ? ` <span class="muted">(${Math.round(misV * 100 / sp)}%)</span>` : ''}</td>`
       + `<td class="num">${money(sp)}${bold ? '' : ` <span class="muted">(${pctOf}%)</span>`}</td>`
       + `<td class="num">${money(s)}</td>`
@@ -13522,14 +14011,14 @@ function renderPlc() {
         + `background:${plcColor(w.p)};margin-right:5px"></span>${esc(w.p)}</td>`
         + `<td>${esc(w.brand === 'SP' ? 'Ridhi' : w.brand)}</td>`
         + `<td class="num">${nf(w.c)}</td>`
-        + `<td class="num" style="color:var(--bad);font-weight:600">${money(w.sp)}</td></tr>`).join('')
+        + `<td class="num" style="color:var(--bad-ink);font-weight:600">${money(w.sp)}</td></tr>`).join('')
       + '</tbody>'
     : '<tbody><tr><td class="muted" style="padding:12px">Nothing — every campaign and placement that '
       + 'took a click also produced at least one order.</td></tr></tbody>';
 
   // --- the message line ---
   plcMsg(`${A.names.length} placement(s) · ${money(totSpend)} spent, ${money(T[4])} back`
-    + ` · <b style="color:var(--bad)">${money(totMis)}</b> of it bought nothing`
+    + ` · <b style="color:var(--bad-ink)">${money(totMis)}</b> of it bought nothing`
     + (PLC.at ? ` · built ${esc(PLC.at)}` : '') + ' · a 30-day window');
 }
 
@@ -13555,7 +14044,7 @@ function plcChartSvg(A, esc, money) {
   // --- grid lines and the y axis ---
   let g = '';
   for (let t = 0; t <= top; t += step) {
-    g += `<line x1="${PAD_L}" x2="${W - 8}" y1="${y(t)}" y2="${y(t)}" stroke="var(--line)" stroke-width="1"/>`
+    g += `<line class="ad-ch-grid" x1="${PAD_L}" x2="${W - 8}" y1="${y(t)}" y2="${y(t)}" stroke="var(--line)" stroke-width="1"/>`
       + `<text x="${PAD_L - 8}" y="${y(t) + 4}" text-anchor="end" font-size="10" fill="var(--muted)">$${Math.round(t).toLocaleString('en-US')}</text>`;
   }
   // --- the bars and their labels ---
@@ -14025,9 +14514,9 @@ function renderTrends() {
     <div class="metrics">
       ${kpi('Sales', money(total[T_I.sales]))}
       ${kpi(adLbl('Ad Spend'), money(adAny ? adTot[T_I.spend] : null))}
-      ${kpi(adLbl('TACOS'), tac == null ? '—' : tac.toFixed(1) + '%', tac != null && tac > 20 ? 'var(--bad)' : '')}
+      ${kpi(adLbl('TACOS'), tac == null ? '—' : tac.toFixed(1) + '%', tac != null && tac > 20 ? 'var(--bad-ink)' : '')}
       ${kpi(adLbl('Ad Sales'), money(adAny ? adTot[T_I.adSales] : null))}
-      ${kpi(adLbl('ACOS'), aco == null ? '—' : aco.toFixed(1) + '%', aco != null && aco > 60 ? 'var(--bad)' : '')}
+      ${kpi(adLbl('ACOS'), aco == null ? '—' : aco.toFixed(1) + '%', aco != null && aco > 60 ? 'var(--bad-ink)' : '')}
       ${kpi(adLbl('Organic %'), adAny && adTot[T_I.sales] ? (Math.max(0, adTot[T_I.sales] - adTot[T_I.adSales]) / adTot[T_I.sales] * 100).toFixed(1) + '%' : '—')}
       ${kpi(adLbl('CTR'), ctr == null ? '—' : ctr.toFixed(2) + '%')}
       ${kpi('Orders', Math.round(total[T_I.orders]).toLocaleString('en-US'))}
@@ -14047,7 +14536,7 @@ function renderTrends() {
     const tot = row.ad ? (adAny ? row.get(adTot) : null) : row.get(total);
     return `<tr><td class="frz" style="font-weight:600">${esc(row.t)}${
         row.ad ? '<span class="muted" style="font-weight:400" title="Only available for the days the Amazon Ads API still holds — about 95 back"> ·</span>' : ''}</td>`
-      + `<td class="num" style="font-weight:700;background:#f8fafc">${tFmt(row, tot)}</td>`
+      + `<td class="num" style="font-weight:700;background:var(--soft)">${tFmt(row, tot)}</td>`
       + keys.map(k => {
         const v = (row.ad && !adKnown[k]) ? null : row.get(agg[k]);
         const tip = (row.ad && !adKnown[k])
@@ -14092,16 +14581,16 @@ function tChart(keys, agg) {
   let g = '';
   for (let i = 0; i <= 4; i++) {
     const y = padT + ih - (i / 4) * ih;
-    g += `<line x1="${padL}" y1="${y}" x2="${W - padR}" y2="${y}" stroke="#eef2f6"/>`
-      + `<text x="${padL - 8}" y="${y + 4}" text-anchor="end" font-size="10" fill="#94a3b8">${money(maxMoney * i / 4)}</text>`
-      + `<text x="${W - padR + 8}" y="${y + 4}" font-size="10" fill="#ea580c">${(maxPct * i / 4).toFixed(0)}%</text>`;
+    g += `<line class="ad-ch-grid" x1="${padL}" y1="${y}" x2="${W - padR}" y2="${y}" stroke="#eef2f6"/>`
+      + `<text class="ad-ch-axis" x="${padL - 8}" y="${y + 4}" text-anchor="end" font-size="10" fill="#94a3b8">${money(maxMoney * i / 4)}</text>`
+      + `<text class="ad-ch-pct" x="${W - padR + 8}" y="${y + 4}" font-size="10" fill="#ea580c">${(maxPct * i / 4).toFixed(0)}%</text>`;
   }
   // --- the bars ---
   keys.forEach((k, i) => {
     const v = agg[k];
-    g += `<rect x="${x(i) - bw}" y="${yM(v[T_I.sales])}" width="${bw}" height="${Math.max(0, padT + ih - yM(v[T_I.sales]))}" fill="#94a3b8" rx="1.5">`
+    g += `<rect class="ad-ch-sales" x="${x(i) - bw}" y="${yM(v[T_I.sales])}" width="${bw}" height="${Math.max(0, padT + ih - yM(v[T_I.sales]))}" fill="#94a3b8" rx="1.5">`
       + `<title>${esc(tPeriodLabel(k))} — Sales ${money(v[T_I.sales])}</title></rect>`
-      + `<rect x="${x(i)}" y="${yM(v[T_I.spend])}" width="${bw}" height="${Math.max(0, padT + ih - yM(v[T_I.spend]))}" fill="#6366f1" rx="1.5">`
+      + `<rect class="ad-ch-spend" x="${x(i)}" y="${yM(v[T_I.spend])}" width="${bw}" height="${Math.max(0, padT + ih - yM(v[T_I.spend]))}" fill="#6366f1" rx="1.5">`
       + `<title>${esc(tPeriodLabel(k))} — Ad spend ${money(v[T_I.spend])}</title></rect>`;
   });
   // --- the TACOS line and its points ---
@@ -14117,18 +14606,18 @@ function tChart(keys, agg) {
     path += (started ? ' L' : ' M') + x(i) + ' ' + yP(t);
     started = true;
   });
-  g += `<path d="${path}" fill="none" stroke="#ea580c" stroke-width="2"/>`;
+  g += `<path class="ad-ch-tacos" d="${path}" fill="none" stroke="#ea580c" stroke-width="2"/>`;
   keys.forEach((k, i) => {
     const t = tac(k);
     if (t == null) return;
-    g += `<circle cx="${x(i)}" cy="${yP(t)}" r="2.6" fill="#ea580c"><title>${esc(tPeriodLabel(k))} — TACOS ${t.toFixed(1)}%</title></circle>`;
+    g += `<circle class="ad-ch-dot" cx="${x(i)}" cy="${yP(t)}" r="2.6" fill="#ea580c"><title>${esc(tPeriodLabel(k))} — TACOS ${t.toFixed(1)}%</title></circle>`;
   });
   // --- the x axis labels ---
   // Labels thin out rather than overlap once the periods get tight.
   const step = Math.ceil(keys.length / 14);
   keys.forEach((k, i) => {
     if (i % step) return;
-    g += `<text x="${x(i)}" y="${H - 10}" text-anchor="middle" font-size="10" fill="#64748b">${esc(tPeriodLabel(k))}</text>`;
+    g += `<text class="ad-ch-label" x="${x(i)}" y="${H - 10}" text-anchor="middle" font-size="10" fill="#64748b">${esc(tPeriodLabel(k))}</text>`;
   });
   $('tChart').innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" style="max-width:none">${g}</svg>`;
 }
@@ -15184,15 +15673,15 @@ function renderWeeklyKpis(rows, weeks) {
     <div class="metrics">
       <div class="metric">
         <div class="v" style="font-size:15px">${money(sales)}</div><div class="l">Total sales</div>
-        <div class="sub" style="color:${done && delta != null && delta < 0 ? 'var(--bad)' : 'inherit'}">${
+        <div class="sub" style="color:${done && delta != null && delta < 0 ? 'var(--bad-ink)' : 'inherit'}">${
           !done ? running : delta == null ? '— vs week before' : (delta > 0 ? '+' : '') + delta + '% vs week before'}</div>
         <div class="sub" title="Ad spend ÷ TOTAL sales — what all of the sales cost in advertising.">TACoS <b style="color:${
-          tacos != null && tacos > 20 ? 'var(--bad)' : 'inherit'}">${tacos == null ? '—' : tacos + '%'}</b></div>
+          tacos != null && tacos > 20 ? 'var(--bad-ink)' : 'inherit'}">${tacos == null ? '—' : tacos + '%'}</b></div>
       </div>
       <div class="metric">
         <div class="v" style="font-size:15px">${money(spend)}</div><div class="l">Ad spend</div>
         <div class="sub" title="Ad spend ÷ AD sales only — what the advertised sales cost.">ACoS <b style="color:${
-          acos != null && acos > 60 ? 'var(--bad)' : 'inherit'}">${acos == null ? '—' : acos + '%'}</b></div>
+          acos != null && acos > 60 ? 'var(--bad-ink)' : 'inherit'}">${acos == null ? '—' : acos + '%'}</b></div>
       </div>
       <div class="metric"><div class="v">${organicPct == null ? '—' : organicPct + '%'}</div><div class="l">Organic share</div></div>
       <div class="metric">
@@ -15437,17 +15926,17 @@ function renderWeeklyRange() {
     + `<td class="num">${nf(r.units)}</td>`
     + `<td class="num" style="font-weight:700">${money(r.sales)}</td>`
     + `<td class="num"${r.adSpend == null ? ' title="No ad report has been pulled for this range yet"' : ''}>${money(r.adSpend)}</td>`
-    + `<td class="num" style="color:#6d28d9;font-weight:600">${pct1(r.budgetShare)}</td>`
+    + `<td class="num" style="color:var(--violet-ink);font-weight:600">${pct1(r.budgetShare)}</td>`
     + `<td class="num"><span class="muted">${r.adSales == null ? '—' : '$' + Math.round(r.adSales).toLocaleString('en-US')}</span></td>`
     + `<td class="num" style="font-weight:600"${r.organic == null ? ' title="Needs the ad figures — organic is total sales minus ad sales, and the ad side is not in yet"' : ''}>${money(r.organic)}</td>`
     + `<td class="num">${r.organicShare == null ? '<span class="muted">—</span>' : `<span class="gd ${shareCls(r.organicShare)}">${(r.organicShare * 100).toFixed(1)}%</span>`}</td>`
     + `<td class="num">${pct1(r.acos)}</td>`
-    + `<td class="num" style="color:#166534">${pct1(r.tacos)}</td>`
+    + `<td class="num" style="color:var(--accent-ink)">${pct1(r.tacos)}</td>`
     + (mode === 'week'
       ? `<td class="num">${r.sessions == null ? '<span class="muted">—</span>' : nf(r.sessions)}</td>`
         + `<td class="num">${r.cvr == null ? '<span class="muted">—</span>' : (r.cvr * 100).toFixed(1) + '%'}</td>`
       : '')
-    + `<td class="num"${r.vsPrev != null && r.vsPrev < 0 ? ' style="color:var(--bad);font-weight:700"' : ''}>${
+    + `<td class="num"${r.vsPrev != null && r.vsPrev < 0 ? ' style="color:var(--bad-ink);font-weight:700"' : ''}>${
         r.vsPrev == null ? '<span class="muted">—</span>' : (r.vsPrev > 0 ? '+' : '') + (r.vsPrev * 100).toFixed(1) + '%'}</td>`
     + `</tr>`).join('');
 
@@ -15523,7 +16012,7 @@ function renderWeeklyAlerts(rows, weeks) {
       + `<td title="${esc(x.r.title)}">${esc(x.r.title.slice(0, 28)) || '<span class="muted">—</span>'}</td>`
       + `<td>${esc(wLabel(x.wk))}</td>`
       + `<td class="num">${money(x.c.rev)}</td><td class="num"><span class="muted">${money(x.p.rev)}</span></td>`
-      + `<td class="num"${d < 0 ? ' style="color:var(--bad);font-weight:700"' : ''}>${d ? (d > 0 ? '+' : '') + d + '%' : '—'}</td>`
+      + `<td class="num"${d < 0 ? ' style="color:var(--bad-ink);font-weight:700"' : ''}>${d ? (d > 0 ? '+' : '') + d + '%' : '—'}</td>`
       + `<td class="num">${x.c.spend == null ? '<span class="muted">—</span>' : money(x.c.spend)}</td>`
       + `<td class="num"><span class="muted">${x.p.spend == null ? '—' : money(x.p.spend)}</span></td>`
       + `<td class="num">${x.c.adSales == null ? '<span class="muted">—</span>' : money(x.c.adSales)}</td>`
@@ -15532,7 +16021,7 @@ function renderWeeklyAlerts(rows, weeks) {
       // the goal; a collapsing one means ads are the only thing still selling it.
       + `<td class="num">${orgPct == null ? '<span class="muted">—</span>'
           : `<span class="gd ${orgPct >= 50 ? 'gd-good' : orgPct >= 25 ? 'gd-warn' : 'gd-bad'}">${orgPct}%</span>`}</td>`
-      + `<td class="num"${dOrg != null && dOrg < 0 ? ' style="color:var(--bad)"' : ''}>${dOrg == null ? '<span class="muted">—</span>' : (dOrg > 0 ? '+' : '') + dOrg + '%'}</td>`
+      + `<td class="num"${dOrg != null && dOrg < 0 ? ' style="color:var(--bad-ink)"' : ''}>${dOrg == null ? '<span class="muted">—</span>' : (dOrg > 0 ? '+' : '') + dOrg + '%'}</td>`
       + `<td class="num">${x.c.sessions == null ? '<span class="muted">—</span>' : Math.round(x.c.sessions).toLocaleString('en-US')}</td>`
       + `<td class="num">${x.acos == null ? '<span class="muted">—</span>' : x.acos + '%'}</td>`
       + `<td title="${esc(cause.why)}"><span class="st ${cause.cls}">${esc(cause.t)}</span></td>`
@@ -15632,7 +16121,7 @@ function renderWeeklyLog() {
       + `<td title="${esc(e.what || '')}">${esc(String(e.what || '').slice(0, 48))}</td>`
       + `<td title="${esc(e.why || '')}">${esc(String(e.why || '').slice(0, 32))}</td>`
       + `<td class="num">${money(prev?.rev)}</td><td class="num">${money(cur?.rev)}</td>`
-      + `<td class="num"${d != null && d < 0 ? ' style="color:var(--bad);font-weight:700"' : ''}>${d == null ? '—' : (d > 0 ? '+' : '') + d + '%'}</td>`
+      + `<td class="num"${d != null && d < 0 ? ' style="color:var(--bad-ink);font-weight:700"' : ''}>${d == null ? '—' : (d > 0 ? '+' : '') + d + '%'}</td>`
       + `<td class="num">${prev?.sessions == null ? '<span class="muted">—</span>' : Math.round(prev.sessions).toLocaleString('en-US')}</td>`
       + `<td class="num">${cur?.sessions == null ? '<span class="muted">—</span>' : Math.round(cur.sessions).toLocaleString('en-US')}</td>`
       + `<td class="num">${cvr(prev) == null ? '<span class="muted">—</span>' : cvr(prev).toFixed(1) + '%'}</td>`
@@ -17677,7 +18166,7 @@ function renderOpt() {
              style="width:104px;height:104px;object-fit:contain;border:1px solid var(--line);
                     border-radius:6px;background:#fff"></a>
       <div style="font-size:11px;font-weight:600;margin-top:2px">${slot}</div>
-      <div class="muted" style="font-size:10.5px${small ? ';color:#991b1b' : ''}">${im.w}${'×'}${im.h}${small ? ' · no zoom' : ''}</div>
+      <div class="muted" style="font-size:10.5px${small ? ';color:var(--bad-ink)' : ''}">${im.w}${'×'}${im.h}${small ? ' · no zoom' : ''}</div>
     </div>`;
   }).join('');
 
@@ -18349,10 +18838,10 @@ function imState(item) {
   const status = String(item.st || '').toUpperCase();
   const buy = status.includes('BUYABLE');
   const disc = status.includes('DISCOVERABLE');
-  if (buy && !disc) return { k: 'sup', label: 'Search suppressed', fill: '#fee2e2', ink: '#991b1b' };
-  if (buy && disc) return { k: 'ok', label: 'Buyable', fill: '#dcfce7', ink: '#166534' };
-  if (disc && !buy) return { k: 'nooffer', label: 'No offer', fill: '#e2e8f0', ink: '#475569' };
-  return { k: 'none', label: item.st || 'Not buyable', fill: '#e2e8f0', ink: '#475569' };
+  if (buy && !disc) return { k: 'sup', label: 'Search suppressed', fill: 'var(--bad-bg)', ink: 'var(--bad-ink)' };
+  if (buy && disc) return { k: 'ok', label: 'Buyable', fill: 'var(--accent-bg)', ink: 'var(--accent-ink)' };
+  if (disc && !buy) return { k: 'nooffer', label: 'No offer', fill: 'var(--hover)', ink: 'var(--muted)' };
+  return { k: 'none', label: item.st || 'Not buyable', fill: 'var(--hover)', ink: 'var(--muted)' };
 }
 
 /** True when the listing itself submitted no main image — what shows comes from the family. */
@@ -18418,11 +18907,11 @@ function imKidRow(item) {
           ? 'Amazon still allows a direct-link sale but has taken this listing out of search results.' : '')}
         <button class="ghost im-b" data-edit="${imEsc(item.sku)}">Edit</button>
         <button class="ghost im-b" data-copy="${imEsc(item.sku)}" title="Copy this listing's pictures">Copy</button></div>
-      ${item.ie ? `<div style="margin-top:3px">${chip('Amazon: ' + item.ie + ' error' + (item.ie > 1 ? 's' : ''), '#fee2e2', '#991b1b', item.im || '')}</div>
+      ${item.ie ? `<div style="margin-top:3px">${chip('Amazon: ' + item.ie + ' error' + (item.ie > 1 ? 's' : ''), 'var(--bad-bg)', 'var(--bad-ink)', item.im || '')}</div>
         <div class="muted" style="font-size:10.5px;margin-top:2px">${imEsc(String(item.im || '').slice(0, 90))}${String(item.im || '').length > 90 ? '…' : ''}</div>` : ''}
-      ${imNoOwnMain(item) ? `<div style="margin-top:3px">${chip('No image of your own', '#fef3c7', '#92400e',
+      ${imNoOwnMain(item) ? `<div style="margin-top:3px">${chip('No image of your own', 'var(--act-bg)', 'var(--act-ink)',
         'Your listing submitted no main image. What shows on Amazon comes from the family, and Amazon can suppress a listing for it.')}</div>` : ''}
-      ${hijack ? `<div style="margin-top:3px">${chip('Amazon shows ' + hijack.sku + (hijack.c ? ' · ' + hijack.c : ''), '#fef3c7', '#92400e',
+      ${hijack ? `<div style="margin-top:3px">${chip('Amazon shows ' + hijack.sku + (hijack.c ? ' · ' + hijack.c : ''), 'var(--act-bg)', 'var(--act-ink)',
         'Amazon catalogue serves ' + hijack.sku + ' pictures on this ASIN. The strip shows your own.')}</div>` : ''}
     </div>
     <div class="im-strip">${tiles}</div>
@@ -18483,10 +18972,10 @@ function imListRender() {
   el.innerHTML = `<div class="muted" style="font-size:12px;margin-bottom:6px">${groups.length} group(s), ${nKids} listing(s) of ${data.items.length}
       · snapshot ${data.at ? data.at.toLocaleString() : '—'}${IML_BUSY ? ' · refreshing…' : ''}
       · showing <b>${IML_VIEW === 'live' ? 'what Amazon serves' : 'the pictures you submitted'}</b>
-      · <span style="color:#d97706">orange ring</span> = Amazon serves a different picture in that slot
-      ${nHijack ? `· <b style="color:#92400e">${nHijack}</b> carry another SKU's pictures` : ''}
-      ${nSup ? `· <b style="color:#991b1b">${nSup}</b> suppressed from search` : ''}
-      ${nErr ? `· <b style="color:#991b1b">${nErr}</b> with an error from Amazon` : ''}</div>
+      · <span style="color:var(--act-ink)">orange ring</span> = Amazon serves a different picture in that slot
+      ${nHijack ? `· <b style="color:var(--act-ink)">${nHijack}</b> carry another SKU's pictures` : ''}
+      ${nSup ? `· <b style="color:var(--bad-ink)">${nSup}</b> suppressed from search` : ''}
+      ${nErr ? `· <b style="color:var(--bad-ink)">${nErr}</b> with an error from Amazon` : ''}</div>
     ${imClipBar('list')}
     ${pager}
     ${slice.map(group => {
@@ -18627,7 +19116,7 @@ function imCard(slot, url, opts) {
   return `<div class="im-card${changed ? ' im-chg' : ''}" data-slot="${slot}" ${opt.edit && slot !== 'SWCH' ? 'draggable="true"' : ''}>
       <div class="im-pic">${url ? `<a href="${imEsc(url)}" target="_blank" rel="noopener" draggable="false">${pic}</a>` : pic}</div>
       <div style="font-size:11px;font-weight:600;margin-top:3px">${label}${changed ? ' · changed' : ''}</div>
-      <div class="muted" style="font-size:10.5px${small ? ';color:var(--bad)' : ''}">${dim || '&nbsp;'}${small ? ' · no zoom' : ''}</div>
+      <div class="muted" style="font-size:10.5px${small ? ';color:var(--bad-ink)' : ''}">${dim || '&nbsp;'}${small ? ' · no zoom' : ''}</div>
       ${tools}
     </div>`;
 }
@@ -18678,7 +19167,7 @@ function imRender() {
     <div class="card" style="padding:10px 14px;margin-bottom:12px">
       <div style="font-weight:600;font-size:13px">Live on Amazon now</div>
       <div class="muted" style="font-size:11.5px;margin-bottom:6px">What shoppers see. ${listing.catalogError ? imEsc(listing.catalogError) : ''}
-        ${hjThis ? `<b style="color:#92400e">Amazon is serving ${imEsc(hjThis.sku)}${hjThis.c ? ' (' + imEsc(hjThis.c) + ')' : ''} pictures on this ASIN — your own stack, below, is the right one.</b>` : ''}</div>
+        ${hjThis ? `<b style="color:var(--act-ink)">Amazon is serving ${imEsc(hjThis.sku)}${hjThis.c ? ' (' + imEsc(hjThis.c) + ')' : ''} pictures on this ASIN — your own stack, below, is the right one.</b>` : ''}</div>
       <div class="im-row">${live}</div>
     </div>
     <div class="card" style="padding:10px 14px;margin-bottom:12px">
@@ -18902,8 +19391,8 @@ async function imSend(apply) {
     + `<span class="st ${issue.severity === 'ERROR' ? 'st-rejected' : 'st-draft'}">${imEsc(issue.severity)}</span> ${imEsc(issue.message)}</div>`).join('');
   let head;
   if (!reply.ok) head = `<div class="err" style="font-size:12.5px">${imEsc(reply.error || 'Failed')}</div>`;
-  else if (reply.previewOnly) head = `<div style="font-size:12.5px;color:var(--accent)">Amazon has no objection. Press Apply to send it.</div>`;
-  else head = `<div style="font-size:12.5px;color:var(--accent)">Accepted by Amazon (submission ${imEsc(reply.submissionId || '')}). `
+  else if (reply.previewOnly) head = `<div style="font-size:12.5px;color:var(--accent-ink)">Amazon has no objection. Press Apply to send it.</div>`;
+  else head = `<div style="font-size:12.5px;color:var(--accent-ink)">Accepted by Amazon (submission ${imEsc(reply.submissionId || '')}). `
     + `It is queued, not live: the page usually changes within 15 minutes to a few hours. Reload this listing later to confirm.</div>`;
   IM_RESULT = `<div style="margin-top:8px">${head}${issuesHtml}</div>`;
   $('imResult').innerHTML = IM_RESULT;
@@ -19049,7 +19538,7 @@ async function imPasteMany(skus) {
       done++;
       refusals = 0;
       row.img = Object.assign({}, row.img, set);        // what was sent, so the strip stops lying
-      lines.push('<span style="color:var(--accent)">' + sku + ' — accepted (' + Object.keys(set).length + ' slot(s))</span>');
+      lines.push('<span style="color:var(--accent-ink)">' + sku + ' — accepted (' + Object.keys(set).length + ' slot(s))</span>');
     } else {
       failed++;
       refusals++;
@@ -19250,7 +19739,7 @@ function leRender() {
   const slice = rows.slice(LE_PAGE * LE_PER, (LE_PAGE + 1) * LE_PER);
   // --- the HTML ---
   const chip = (kind, label) => `<button class="ghost im-b" data-kind="${kind}"`
-    + ` style="${$('leKind').value === kind ? 'border-color:var(--accent);color:var(--accent)' : ''}">`
+    + ` style="${$('leKind').value === kind ? 'border-color:var(--accent);color:var(--accent-ink)' : ''}">`
     + `${leEsc(label)} <b>${leNf(counts[kind] || 0)}</b></button>`;
   const pager = pages > 1 ? `<div style="display:flex;gap:6px;align-items:center;justify-content:flex-end;margin:6px 0">
       <button class="ghost im-b" data-lepg="-1" ${LE_PAGE ? '' : 'disabled'}>◀ Prev</button>
@@ -19381,7 +19870,7 @@ function leCard(name) {
       <div style="font-weight:600;font-size:13px">${leEsc(name)}</div>
       <div class="muted" style="font-size:12px;margin:4px 0">Amazon no longer uses this for ${leEsc(LE.productType)}. Now: <b>${
         leEsc(pretty(current) || JSON.stringify(current || '').slice(0, 120))}</b></div>
-      ${edit && edit.del ? `<div style="color:var(--accent);font-size:12px">Will be removed. <button class="ghost im-b" data-undo="${leEsc(name)}">Undo</button></div>`
+      ${edit && edit.del ? `<div style="color:var(--accent-ink);font-size:12px">Will be removed. <button class="ghost im-b" data-undo="${leEsc(name)}">Undo</button></div>`
         : `<button class="ghost im-b" data-del="${leEsc(name)}">Remove this attribute</button>`}</div>`;
   }
   // --- the editor: one row per value, one control per field ---
@@ -19399,7 +19888,7 @@ function leCard(name) {
               + `${leEsc((field.enumNames || [])[idx] || opt)}</option>`).join('')}</select></label>`;
         if (isTitle && field.field === 'value') return `<div style="flex:1 1 100%">`
             + `<textarea data-le="${leEsc(name)}" data-i="${i}" data-f="value" rows="2" style="width:100%">${leEsc(value || '')}</textarea>
-            <div class="muted" style="font-size:11px"><span id="leTitleN" style="${String(value || '').length > 75 ? 'color:var(--bad);font-weight:600' : ''}">`
+            <div class="muted" style="font-size:11px"><span id="leTitleN" style="${String(value || '').length > 75 ? 'color:var(--bad-ink);font-weight:600' : ''}">`
             + `${String(value || '').length}</span> / 75 characters (Amazon's limit for using Item Highlights)
             <button class="ghost im-b" data-suggest="1">Suggest a 75-character title</button></div></div>`;
         return `<label style="font-size:11.5px" class="muted">${leEsc(field.title)}
@@ -19410,7 +19899,7 @@ function leCard(name) {
       ${vals.length > 1 ? `<button class="ghost im-b" data-rm="${leEsc(name)}" data-i="${i}" title="Remove this value">✕</button>` : ''}</div>`).join('');
   return `<div class="card" style="padding:10px 14px;margin-bottom:10px">
     <div style="font-weight:600;font-size:13px">${leEsc(def.title || name)} <span class="muted" style="font-weight:400;font-size:11.5px">${leEsc(name)}</span>`
-    + `${edit ? ' <span style="color:var(--accent);font-size:11.5px">· changed</span>' : ''}</div>
+    + `${edit ? ' <span style="color:var(--accent-ink);font-size:11.5px">· changed</span>' : ''}</div>
     ${def.description ? `<div class="muted" style="font-size:11.5px;margin:2px 0 4px">${leEsc(def.description.slice(0, 220))}</div>` : ''}
     ${rows || '<div class="muted" style="font-size:12px">No value yet.</div>'}
     <div style="margin-top:4px">${!def.maxItems || vals.length < def.maxItems
@@ -19502,7 +19991,7 @@ function leFixWire() {
     }
     if (inp.tagName === 'TEXTAREA' && $('leTitleN')) {
       $('leTitleN').textContent = value.length;
-      $('leTitleN').style.color = value.length > 75 ? 'var(--bad)' : '';
+      $('leTitleN').style.color = value.length > 75 ? 'var(--bad-ink)' : '';
     }
     if (inp.tagName === 'SELECT') leFixRender();
     else {
@@ -19584,8 +20073,8 @@ async function leSend(apply) {
   const issuesHtml = (reply.issues || []).map(issue => `<div style="font-size:12px;margin:3px 0">`
     + `<span class="st ${issue.severity === 'ERROR' ? 'st-rejected' : 'st-draft'}">${leEsc(issue.severity)}</span> ${leEsc(issue.message)}</div>`).join('');
   const head = !reply.ok ? `<div class="err" style="font-size:12.5px">${leEsc(reply.error || 'Failed')}</div>`
-    : reply.previewOnly ? `<div style="font-size:12.5px;color:var(--accent)">Amazon has no objection. Press Apply to send it.</div>`
-    : `<div style="font-size:12.5px;color:var(--accent)">Accepted by Amazon (submission ${leEsc(reply.submissionId || '')}). `
+    : reply.previewOnly ? `<div style="font-size:12.5px;color:var(--accent-ink)">Amazon has no objection. Press Apply to send it.</div>`
+    : `<div style="font-size:12.5px;color:var(--accent-ink)">Accepted by Amazon (submission ${leEsc(reply.submissionId || '')}). `
       + `Queued, not live yet: Amazon usually updates the listing and clears the issue within minutes to a few hours. `
       + `Press Refresh from Amazon later to see it gone from the list.</div>`;
   LE_RESULT = `<div style="margin-top:8px">${head}${issuesHtml}</div>`;
@@ -19853,9 +20342,9 @@ function lcSetVals(name, list) {
 }
 // The findings of lcCheck as HTML: red ✕ for what Amazon refuses, amber • for what to look at, or a green tick.
 const lcFindHtml = list => list.length
-  ? list.map(finding => `<div style="font-size:11.5px;${finding.bad ? 'color:var(--bad);font-weight:600' : 'color:#92400e'}">`
+  ? list.map(finding => `<div style="font-size:11.5px;${finding.bad ? 'color:var(--bad-ink);font-weight:600' : 'color:var(--act-ink)'}">`
     + `${finding.bad ? '✕' : '•'} ${leEsc(finding.msg)}</div>`).join('')
-  : '<div style="font-size:11.5px;color:var(--accent)">✓ Nothing the rules object to.</div>';
+  : '<div style="font-size:11.5px;color:var(--accent-ink)">✓ Nothing the rules object to.</div>';
 // The ctx lcCheck wants for the listing on screen: its title now and its catalogue sub-category and colour.
 function lcCtx() {
   const cat = (LR_CAT[$('leBrand').value] || {})[LE.sku] || {};
@@ -19878,7 +20367,7 @@ function lcSectionHtml() {
   const kw = lcNow('generic_keyword').join(' ');
   const tFull = lcTemplateTitle(brand, sku, 200);
   const t75 = lcTemplateTitle(brand, sku, 75);
-  const ch = name => LE_EDIT[name] ? ' <span style="color:var(--accent);font-size:11.5px">· changed</span>' : '';
+  const ch = name => LE_EDIT[name] ? ' <span style="color:var(--accent-ink);font-size:11.5px">· changed</span>' : '';
   const nBoxes = Math.min(10, Math.max(5, bullets.length) + LC_EXTRA);
   return `<div class="card" style="padding:10px 14px;margin-bottom:10px">
     <div style="font-weight:600;font-size:13px;margin-bottom:6px">Content <span class="muted" style="font-weight:400;font-size:11.5px">— checked against Listing Rules as you type</span></div>
@@ -19889,7 +20378,7 @@ function lcSectionHtml() {
       ${tFull ? `<div style="font-size:11.5px;margin-top:4px" class="muted">Listing Rules template: <b>${leEsc(tFull)}</b> (${tFull.length})
           <button class="ghost im-b" data-lcuse="full">Use it</button>
           ${t75 && t75 !== tFull ? `<br>Cut to 75: <b>${leEsc(t75)}</b> (${t75.length}) <button class="ghost im-b" data-lcuse="75">Use it</button>${
-            (dropped => dropped.length ? ` <span style="color:#92400e">— leaves out what the template requires: ${leEsc(dropped.join(', '))}</span>` : '')(lcTemplateFit(brand, sku, 75).dropped)}` : ''}</div>`
+            (dropped => dropped.length ? ` <span style="color:var(--act-ink)">— leaves out what the template requires: ${leEsc(dropped.join(', '))}</span>` : '')(lcTemplateFit(brand, sku, 75).dropped)}` : ''}</div>`
         : `<div class="muted" style="font-size:11.5px;margin-top:4px">No Listing Rules template matches this SKU (its sub-category is not one the templates name, or the SKU is not in the brand catalogue).</div>`}
     </div>
     <div style="margin-bottom:10px"><div style="font-weight:600;font-size:12.5px">Bullet points${ch('bullet_point')}</div>
@@ -20157,7 +20646,7 @@ function lcUpRender() {
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       <b style="font-size:13px">Upload: ${leEsc(LC_UP.file)}</b>
       <span class="muted" style="font-size:12px">${rows.length} row(s) · ${count('ready') + count('checked')} to send · ${count('same')} unchanged · ${count('bad')} refused by the rules · ${count('skip')} not found
-        ${count('sent') ? ' · <b style="color:var(--accent)">' + count('sent') + ' sent</b>' : ''}${count('fail') ? ' · <b class="err">' + count('fail') + ' refused by Amazon</b>' : ''}</span>
+        ${count('sent') ? ' · <b style="color:var(--accent-ink)">' + count('sent') + ' sent</b>' : ''}${count('fail') ? ' · <b class="err">' + count('fail') + ' refused by Amazon</b>' : ''}</span>
       <span style="flex:1"></span>
       <button class="ghost im-b" id="lcUpCheck" ${go ? '' : 'disabled'}>Check all with Amazon</button>
       <button class="im-b" id="lcUpApply" ${go ? '' : 'disabled'}>Apply all (${go})</button>
@@ -20184,8 +20673,8 @@ function lcUpRender() {
 // The state cell of one upload row.
 const lcStateHtml = row => ({
   ready: '<b>ready</b>',
-  checked: '<b style="color:var(--accent)">Amazon: no objection</b>',
-  sent: `<b style="color:var(--accent)">accepted ${leEsc(row.msg)}</b>`,
+  checked: '<b style="color:var(--accent-ink)">Amazon: no objection</b>',
+  sent: `<b style="color:var(--accent-ink)">accepted ${leEsc(row.msg)}</b>`,
   fail: `<b class="err">${leEsc(row.msg)}</b>`,
   bad: '<b class="err">not sent — fix what the rules say ✕</b>',
   skip: `<b class="err">${leEsc(row.msg)}</b>`

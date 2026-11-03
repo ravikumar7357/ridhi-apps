@@ -406,7 +406,7 @@ function renderBsr() {
       if (def.muted) return `<td class="${cls}"><span class="muted">${txt}</span></td>`;
       // Colour follows MEANING, not sign: improvement (negative) is green.
       const good = value < 0;
-      return `<td class="${cls}" style="font-weight:600;color:${good ? 'var(--accent)' : (value > 0 ? 'var(--bad)' : 'inherit')}">${txt}</td>`;
+      return `<td class="${cls}" style="font-weight:600;color:${good ? 'var(--accent-ink)' : (value > 0 ? 'var(--bad-ink)' : 'inherit')}">${txt}</td>`;
     }
     if (def.num) return `<td class="${cls}">${value ? Number(value).toLocaleString('en-US') : dash}</td>`;
     if (def.trunc) return `<td class="${cls}" title="${esc(value)}">${esc(String(value || '').slice(0, def.trunc)) || dash}</td>`;
@@ -460,8 +460,8 @@ function renderBsrKpis(rows, wA, wB) {
     <div class="kpihead"><span class="kpiname">${wA}${mark(wA)} vs ${wB}${mark(wB)}</span>
       <span class="kpiwhen">${nf(rows.length)} parents compared</span></div>
     <div class="metrics">
-      <div class="metric"><div class="v" style="color:var(--bad)">${nf(worse)}</div><div class="l">Rank got worse</div></div>
-      <div class="metric"><div class="v" style="color:var(--accent)">${nf(better)}</div><div class="l">Improved</div></div>
+      <div class="metric"><div class="v" style="color:var(--bad-ink)">${nf(worse)}</div><div class="l">Rank got worse</div></div>
+      <div class="metric"><div class="v" style="color:var(--accent-ink)">${nf(better)}</div><div class="l">Improved</div></div>
       <div class="metric"><div class="v" style="font-size:15px">${nf(act)}</div><div class="l">Need action</div></div>
       <div class="metric"><div class="v" style="font-size:15px">${nf(allWeeks().length)}</div><div class="l">Weeks stored</div></div>
     </div></div>`;
@@ -565,14 +565,14 @@ async function renderBsrHistory() {
           break;
         }
       }
-      const col = prev == null ? 'inherit' : (rank < prev ? 'var(--accent)' : rank > prev ? 'var(--bad)' : 'inherit');
+      const col = prev == null ? 'inherit' : (rank < prev ? 'var(--accent-ink)' : rank > prev ? 'var(--bad-ink)' : 'inherit');
       return `<td class="${cls}" style="color:${col}">${rank.toLocaleString('en-US')}</td>`;
     }
     if (def.signed) {
       const value = val(row, def);
       if (value == null) return `<td class="${cls}">${dash}</td>`;
       const good = value < 0;
-      return `<td class="${cls}" style="font-weight:600;color:${good ? 'var(--accent)' : value > 0 ? 'var(--bad)' : 'inherit'}">${(value > 0 ? '+' : '') + value.toLocaleString('en-US')}</td>`;
+      return `<td class="${cls}" style="font-weight:600;color:${good ? 'var(--accent-ink)' : value > 0 ? 'var(--bad-ink)' : 'inherit'}">${(value > 0 ? '+' : '') + value.toLocaleString('en-US')}</td>`;
     }
     const value = val(row, def);
     return `<td class="${cls}" style="${def.mono ? 'font-family:ui-monospace,monospace' : ''}">${esc(value) || dash}</td>`;
@@ -590,8 +590,8 @@ async function renderBsrHistory() {
     <div class="kpihead"><span class="kpiname">History · ${weeks.length} weeks (${earliest} → ${latest})</span>
       <span class="kpiwhen">${rows.length.toLocaleString('en-US')} parents</span></div>
     <div class="metrics">
-      <div class="metric"><div class="v" style="color:var(--accent)">${improved.toLocaleString('en-US')}</div><div class="l">Improved over window</div></div>
-      <div class="metric"><div class="v" style="color:var(--bad)">${worsened.toLocaleString('en-US')}</div><div class="l">Worse over window</div></div>
+      <div class="metric"><div class="v" style="color:var(--accent-ink)">${improved.toLocaleString('en-US')}</div><div class="l">Improved over window</div></div>
+      <div class="metric"><div class="v" style="color:var(--bad-ink)">${worsened.toLocaleString('en-US')}</div><div class="l">Worse over window</div></div>
       <div class="metric"><div class="v" style="font-size:15px">${allWeeks().length}</div><div class="l">Weeks stored</div></div>
       <div class="metric"><div class="v" style="font-size:15px">${weeks.length}</div><div class="l">Weeks shown</div></div>
     </div></div>`;
