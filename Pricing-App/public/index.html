@@ -676,6 +676,36 @@
   @media(max-width:860px){.px-vsep{display:none}.px-pop{left:0!important;right:auto!important}}
   @media(prefers-reduced-motion:reduce){.px-swap,.px-cin,.px-pop{animation:none}#panePpcn .px-seg button,.px-sizes i{transition:none}}
   /* ===== MODULE: RESEARCH ===== */
+  /* The spinner on a light (ghost) button — New Product's Fetch details. .spin's white arc does not
+     show on a light button, so the arc takes the button's text colour. */
+  .spin.re-spin-ghost{border-top-color:currentColor}
+  /* The research forms' widths are deliberate: the link / ASIN box takes three shares of its line (two
+     beside a mode dropdown), its button or dropdown keeps a fixed width. Written `.row>` so they beat
+     `.row>*{flex:1;min-width:140px}`. */
+  .row>.re-grow-3{flex:3}
+  .row>.re-grow-2{flex:2}
+  .row>.re-fix-150{flex:0 0 150px}
+  .row>.re-fix-130{flex:0 0 130px}
+  .row>.re-fix-118{flex:0 0 118px}
+  .row>.re-flex-none{flex:none}
+  .row>.re-min-240{min-width:240px}
+  .re-bottom{align-items:flex-end}
+  .re-w-full{width:100%}
+  /* A cell that spans the whole .settings-grid line. */
+  .re-full{grid-column:1/-1}
+  /* The aside inside a bold label or a caps .sec heading: normal weight, normal case. */
+  .re-plain{text-transform:none;font-weight:400}
+  /* A results card's head line: the title on the left, its button on the right. */
+  .re-split{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:12px}
+  /* A table wider than its card scrolls sideways inside it. */
+  .re-scroll-x{overflow-x:auto}
+  /* Keywords · Show raw fields: the first row as DataDive sent it. */
+  .re-raw{white-space:pre-wrap;font-family:monospace;font-size:12px;overflow-x:auto}
+  /* The message lines. Their JS replaces the whole className (err / ok / warn / muted), which would wipe
+     a spacing class, so the spacing sits on the id. */
+  #msg,#kwMsg{margin-top:10px}
+  #n_refInfo{margin-top:8px}
+  #nMsg,#prMsg{align-self:center}
 
   /* ===== MODULE: SALES ===== */
 
@@ -1022,26 +1052,26 @@
   <div id="paneLink">
   <div class="card">
     <label>Reference product — link or ASIN</label>
-    <div class="row" style="gap:8px">
-      <input id="link" placeholder="https://www.amazon.com/dp/B0XXXXXXXX   or   B0XXXXXXXX" style="flex:3">
-      <button id="go" style="flex:0 0 150px">Explore listings</button>
+    <div class="row gap-8">
+      <input id="link" placeholder="https://www.amazon.com/dp/B0XXXXXXXX   or   B0XXXXXXXX" class="re-grow-3">
+      <button id="go" class="re-fix-150">Explore listings</button>
     </div>
-    <div id="msg" class="muted" style="margin-top:10px"></div>
+    <div id="msg" class="muted"></div>
   </div>
 
   <div id="exResult" class="hide">
-    <div class="card" style="margin-bottom:12px">
-      <div id="exHead" style="font-weight:600"></div>
+    <div class="card mb-12">
+      <div id="exHead" class="ui-card-title"></div>
       <div class="muted" id="exSub"></div>
     </div>
-    <div class="card" style="overflow-x:auto">
-      <table class="tbl" id="exTable">
+    <div class="card re-scroll-x">
+      <table class="xl" id="exTable">
         <thead><tr>
-          <th>ASIN</th><th>Color</th><th>Size</th><th style="text-align:right">Selling price</th>
-          <th style="text-align:right">Qty (30d)</th><th style="text-align:right">Revenue (30d)</th><th style="text-align:right">BSR</th>
+          <th>ASIN</th><th>Color</th><th>Size</th><th class="num">Selling price</th>
+          <th class="num">Qty (30d)</th><th class="num">Revenue (30d)</th><th class="num">BSR</th>
         </tr></thead>
         <tbody id="exRows"></tbody>
-        <tfoot><tr id="exTotal" style="font-weight:700;border-top:2px solid var(--line)"></tr></tfoot>
+        <tfoot><tr id="exTotal" class="total"></tr></tfoot>
       </table>
     </div>
   </div>
@@ -1051,22 +1081,22 @@
   <div id="paneNew" class="hide">
     <div class="card">
       <div class="settings-grid">
-        <div class="sec">Reference product <span style="text-transform:none;font-weight:400">— optional. Fetch pulls the EXACT FBA fee, referral %, category &amp; weight straight from Amazon.</span></div>
-        <div style="grid-column:1/-1">
-          <div class="row" style="gap:8px">
-            <input id="n_ref" placeholder="B0XXXXXXXX  — or a full Amazon link" style="flex:3">
-            <button id="n_fetch" class="ghost" style="flex:0 0 130px">Fetch details</button>
+        <div class="sec">Reference product <span class="re-plain">— optional. Fetch pulls the EXACT FBA fee, referral %, category &amp; weight straight from Amazon.</span></div>
+        <div class="re-full">
+          <div class="row gap-8">
+            <input id="n_ref" placeholder="B0XXXXXXXX  — or a full Amazon link" class="re-grow-3">
+            <button id="n_fetch" class="ghost re-fix-130">Fetch details</button>
           </div>
-          <div id="n_refInfo" class="muted hide" style="margin-top:8px"></div>
+          <div id="n_refInfo" class="muted hide"></div>
         </div>
 
         <div class="sec">The product</div>
         <div><label>Target selling price $</label><input id="n_price" type="number" step="0.01" placeholder="34.99"></div>
         <div><label>Target profit margin %</label><input id="n_margin" type="number" step="0.1" placeholder="20"></div>
-        <div><label>Category <span style="font-weight:400">→ referral</span></label><select id="n_cat"></select></div>
+        <div><label>Category <span class="re-plain">→ referral</span></label><select id="n_cat"></select></div>
         <div><label>Weight (lb)</label><input id="n_wt" type="number" step="0.01" placeholder="1.5"></div>
 
-        <div class="sec">Package size (inches) <span style="text-transform:none;font-weight:400">→ picks the FBA tier · not needed if you gave a reference ASIN</span></div>
+        <div class="sec">Package size (inches) <span class="re-plain">→ picks the FBA tier · not needed if you gave a reference ASIN</span></div>
         <div><label>Length</label><input id="n_l" type="number" step="0.1" placeholder="12"></div>
         <div><label>Width</label><input id="n_w" type="number" step="0.1" placeholder="9"></div>
         <div><label>Height</label><input id="n_h" type="number" step="0.1" placeholder="3"></div>
@@ -1075,26 +1105,26 @@
         <div><label>Target TACOS %</label><input id="n_tacos" type="number" step="0.1" placeholder="16"></div>
         <div><label>Amazon overheads %</label><input id="n_oh" type="number" step="0.1" placeholder="10"></div>
         <div><label>Employee salary %</label><input id="n_sal" type="number" step="0.1"></div>
-        <div><label>Return loss % <span style="font-weight:400">(of landed cost)</span></label><input id="n_ret" type="number" step="0.1"></div>
+        <div><label>Return loss % <span class="re-plain">(of landed cost)</span></label><input id="n_ret" type="number" step="0.1"></div>
 
         <div class="sec">Freight</div>
-        <div><label>Shipping <span id="n_shipHint" style="font-weight:400"></span></label>
-          <div class="row" style="gap:6px">
-            <input id="n_ship" type="number" step="0.01" style="flex:2">
-            <select id="n_shipMode" style="flex:0 0 118px"><option value="pct">% of cost</option><option value="usd">$ / unit</option></select>
+        <div><label>Shipping <span id="n_shipHint" class="re-plain"></span></label>
+          <div class="row gap-8">
+            <input id="n_ship" type="number" step="0.01" class="re-grow-2">
+            <select id="n_shipMode" class="re-fix-118"><option value="pct">% of cost</option><option value="usd">$ / unit</option></select>
           </div>
         </div>
-        <div><label>Duty &amp; taxes <span id="n_dutyHint" style="font-weight:400"></span></label>
-          <div class="row" style="gap:6px">
-            <input id="n_duty" type="number" step="0.01" style="flex:2">
-            <select id="n_dutyMode" style="flex:0 0 118px"><option value="pct">% of base</option><option value="usd">$ / unit</option></select>
+        <div><label>Duty &amp; taxes <span id="n_dutyHint" class="re-plain"></span></label>
+          <div class="row gap-8">
+            <input id="n_duty" type="number" step="0.01" class="re-grow-2">
+            <select id="n_dutyMode" class="re-fix-118"><option value="pct">% of base</option><option value="usd">$ / unit</option></select>
           </div>
         </div>
         <div><label>P.M (markup ×)</label><input id="n_pm" type="number" step="0.01" placeholder="1.25"></div>
       </div>
-      <div class="row" style="margin-top:16px">
-        <button id="nGo" style="flex:none">Calculate</button>
-        <span id="nMsg" class="muted" style="align-self:center"></span>
+      <div class="row mt-16">
+        <button id="nGo" class="re-flex-none">Calculate</button>
+        <span id="nMsg" class="muted"></span>
       </div>
     </div>
 
@@ -1118,7 +1148,7 @@
           </div>
         </div>
         <div class="card">
-          <div class="muted" style="font-weight:600;margin-bottom:8px">Where the money goes</div>
+          <div class="ui-card-title mb-8">Where the money goes</div>
           <table>
             <tr><td>Selling price</td><td id="n_r_price"></td></tr>
             <tr class="sub"><td>Referral fee</td><td id="n_r_ref2"></td></tr>
@@ -1143,28 +1173,28 @@
   <div id="panePr" class="hide">
     <div class="card">
       <div class="settings-grid">
-        <div class="sec">Product research <span style="text-transform:none;font-weight:400">— search Amazon by product name; fill a material to show ONLY products matching it. Brand · size · materials · weight are live from Amazon; Sale Qty is a rough estimate assumed from BSR.</span></div>
-        <div style="grid-column:1/-1">
+        <div class="sec">Product research <span class="re-plain">— search Amazon by product name; fill a material to show ONLY products matching it. Brand · size · materials · weight are live from Amazon; Sale Qty is a rough estimate assumed from BSR.</span></div>
+        <div class="re-full">
           <label>Product name / keywords</label>
           <input id="pr_q" placeholder="e.g. velvet cushion cover 18x18">
         </div>
-        <div><label>Outer material <span style="font-weight:400">(optional)</span></label><input id="pr_outer" placeholder="e.g. velvet"></div>
-        <div><label>Inner material <span style="font-weight:400">(optional)</span></label><input id="pr_inner" placeholder="e.g. polyester fill"></div>
+        <div><label>Outer material <span class="re-plain">(optional)</span></label><input id="pr_outer" placeholder="e.g. velvet"></div>
+        <div><label>Inner material <span class="re-plain">(optional)</span></label><input id="pr_inner" placeholder="e.g. polyester fill"></div>
         <div><label>Results</label><input id="pr_count" type="number" min="1" max="100" step="1" value="20"></div>
       </div>
-      <div class="row" style="margin-top:16px">
-        <button id="prGo" style="flex:none">Search Amazon</button>
-        <span id="prMsg" class="muted" style="align-self:center"></span>
+      <div class="row mt-16">
+        <button id="prGo" class="re-flex-none">Search Amazon</button>
+        <span id="prMsg" class="muted"></span>
       </div>
     </div>
 
     <div id="prResult" class="hide card">
-      <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px">
-        <div class="muted" style="font-weight:600" id="prHead"></div>
-        <button id="prExport" class="ghost" style="flex:none">Export CSV</button>
+      <div class="row re-split mb-8">
+        <div class="ui-card-title" id="prHead"></div>
+        <button id="prExport" class="ghost re-flex-none">Export CSV</button>
       </div>
-      <div style="overflow-x:auto"><table id="prTable"></table></div>
-      <div class="muted" style="margin-top:8px;font-size:12px">
+      <div class="re-scroll-x"><table id="prTable" class="xl"></table></div>
+      <div class="ui-note mt-8">
         <b>Sale Qty</b> is a rough monthly estimate <b>assumed from each listing's Best Sellers Rank</b> — Amazon does not publish competitor sales, so treat it as a ballpark, not a measurement. Outer / Inner material appear only when the listing actually carries that attribute (often blank).
       </div>
     </div>
@@ -1173,29 +1203,29 @@
   <!-- ============ PANE: keywords (DataDive) ============ -->
   <div id="paneKw" class="hide">
     <div class="card">
-      <div class="row" style="align-items:flex-end">
-        <div style="flex:3;min-width:240px">
+      <div class="row re-bottom">
+        <div class="re-grow-3 re-min-240">
           <label>DataDive niche</label>
           <select id="kwNiche"><option value="">Loading your niches…</option></select>
         </div>
-        <div style="flex:0 0 150px">
-          <button id="kwGo" style="width:100%">Show keywords</button>
+        <div class="re-fix-150">
+          <button id="kwGo" class="re-w-full">Show keywords</button>
         </div>
       </div>
-      <div id="kwMsg" class="muted" style="margin-top:10px"></div>
+      <div id="kwMsg" class="muted"></div>
     </div>
 
     <div id="kwResult" class="hide">
-      <div class="card" style="margin-bottom:12px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap">
-        <div><div id="kwHead" style="font-weight:600"></div><div class="muted" id="kwSub"></div></div>
-        <button class="xbtn" id="kwRawBtn" style="align-self:center">Show raw fields</button>
+      <div class="card mb-12 re-split">
+        <div><div id="kwHead" class="ui-card-title"></div><div class="muted" id="kwSub"></div></div>
+        <button class="xbtn" id="kwRawBtn">Show raw fields</button>
       </div>
-      <div id="kwRaw" class="card hide" style="white-space:pre-wrap;font-family:monospace;font-size:12px;overflow-x:auto"></div>
-      <div class="card" style="overflow-x:auto">
-        <table class="tbl" id="kwTable">
+      <div id="kwRaw" class="card hide re-raw"></div>
+      <div class="card re-scroll-x">
+        <table class="xl" id="kwTable">
           <thead><tr>
-            <th>Keyword</th><th style="text-align:right">Search Volume</th>
-            <th style="text-align:right">Rank</th><th style="text-align:right">Page</th>
+            <th>Keyword</th><th class="num">Search Volume</th>
+            <th class="num">Rank</th><th class="num">Page</th>
           </tr></thead>
           <tbody id="kwRows"></tbody>
         </table>
@@ -9144,15 +9174,15 @@ function renderKeywords(data) {
 
   // --- the table, biggest volume first ---
   const rows = arr.slice().sort((a, b) => (num(b[vKey]) || 0) - (num(a[vKey]) || 0));
-  const dash = '<span class="muted">—</span>';
+  const dash = '<span class="ui-dim">—</span>';
   $('kwRows').innerHTML = rows.map(row => {
     const rank = rKey ? num(row[rKey]) : null;
     const page = rank && rank > 0 ? Math.ceil(rank / 48) : null;   // ~48 organic results per page (derived)
     return `<tr>
       <td>${kKey ? (row[kKey] ?? dash) : dash}</td>
-      <td style="text-align:right">${vKey && num(row[vKey]) != null ? num(row[vKey]).toLocaleString('en-US') : dash}</td>
-      <td style="text-align:right">${rank != null ? rank : dash}</td>
-      <td style="text-align:right">${page != null ? page : dash}</td>
+      <td class="num">${vKey && num(row[vKey]) != null ? num(row[vKey]).toLocaleString('en-US') : dash}</td>
+      <td class="num">${rank != null ? rank : dash}</td>
+      <td class="num">${page != null ? page : dash}</td>
     </tr>`;
   }).join('');
 }
@@ -9220,7 +9250,7 @@ function renderExplorer(data) {
     + (data.truncated ? ' &nbsp;·&nbsp; (showing first 60)' : '');
 
   // --- one row per child, adding up your sales on the way ---
-  const dash = '<span class="muted">—</span>';
+  const dash = '<span class="ui-dim">—</span>';
   let totQty = 0;          // your units over 30 days, across the children that have sales figures
   let totAmt = 0;          // your sales amount over 30 days
   let haveSales = false;   // at least one child came with sales figures
@@ -9231,20 +9261,20 @@ function renderExplorer(data) {
       haveSales = true;
     }
     return `<tr>
-      <td style="font-family:monospace">${child.asin}</td>
+      <td class="ui-mono">${child.asin}</td>
       <td>${child.color || dash}</td>
       <td>${child.size || dash}</td>
-      <td style="text-align:right">${child.price > 0 ? money(child.price) : dash}</td>
-      <td style="text-align:right">${child.qty30 != null ? child.qty30.toLocaleString('en-IN') : dash}</td>
-      <td style="text-align:right">${child.amt30 != null ? money(child.amt30) : dash}</td>
-      <td style="text-align:right">${child.bsr > 0 ? '#' + child.bsr.toLocaleString('en-US') : dash}</td>
+      <td class="num">${child.price > 0 ? money(child.price) : dash}</td>
+      <td class="num">${child.qty30 != null ? child.qty30.toLocaleString('en-IN') : dash}</td>
+      <td class="num">${child.amt30 != null ? money(child.amt30) : dash}</td>
+      <td class="num">${child.bsr > 0 ? '#' + child.bsr.toLocaleString('en-US') : dash}</td>
     </tr>`;
   }).join('');
   // --- the total row, only when sales figures came back ---
   $('exTotal').innerHTML = haveSales
-    ? `<td colspan="4" style="text-align:right">Your 30-day total</td>
-       <td style="text-align:right">${totQty.toLocaleString('en-IN')}</td>
-       <td style="text-align:right">${money(totAmt)}</td><td></td>`
+    ? `<td colspan="4" class="right">Your 30-day total</td>
+       <td class="num">${totQty.toLocaleString('en-IN')}</td>
+       <td class="num">${money(totAmt)}</td><td></td>`
     : '';
 }
 
@@ -9308,7 +9338,7 @@ $('n_fetch').onclick = async () => {
 
   // --- busy ---
   $('n_fetch').disabled = true;
-  $('n_fetch').innerHTML = '<span class="spin" style="border-top-color:currentColor"></span>…';
+  $('n_fetch').innerHTML = '<span class="spin re-spin-ghost"></span>…';
   info.classList.remove('hide');
   info.className = 'muted';
   info.textContent = 'Asking Amazon…';
@@ -9608,28 +9638,28 @@ function renderPr(data) {
   $('prHead').textContent = headTxt;
   $('prExport').style.display = rows.length ? '' : 'none';
   if (!rows.length) {
-    $('prTable').innerHTML = '<tr><td class="muted">No products found — try broader keywords.</td></tr>';
+    $('prTable').innerHTML = '<tr><td class="ui-empty">No products found — try broader keywords.</td></tr>';
     return;
   }
   // --- the table ---
-  const head = '<thead><tr><th>Link</th><th>Brand</th><th>Size</th><th>Pack</th><th>Outer Material</th>' +
-    '<th>Inner Material</th><th>Weight (lb)</th><th>Selling Price</th><th>BSR</th>' +
-    '<th>Variations</th><th>Sale Qty <span class="muted">(est/mo)</span></th></tr></thead>';
+  const head = '<thead><tr><th>Link</th><th>Brand</th><th>Size</th><th class="num">Pack</th><th>Outer Material</th>' +
+    '<th>Inner Material</th><th class="num">Weight (lb)</th><th class="num">Selling Price</th><th class="num">BSR</th>' +
+    '<th class="num">Variations</th><th class="num">Sale Qty <span class="muted">(est/mo)</span></th></tr></thead>';
   const body = rows.map(row => {
     // Show only the ASIN as the link (short, no wrapping → smaller rows, less lag); the full product
     // name lives in the hover tooltip and still exports to CSV.
     const prod = row.asin
-      ? `<a href="https://www.amazon.com/dp/${row.asin}" target="_blank" rel="noopener" `
+      ? `<a class="ui-mono" href="https://www.amazon.com/dp/${row.asin}" target="_blank" rel="noopener" `
         + `title="${esc(row.title)}">${row.asin}</a>`
       : (esc((row.title || '').slice(0, 40)) || '—');
     return `<tr><td>${prod}</td><td>${esc(row.brand) || '—'}</td><td>${esc(row.size) || '—'}</td>` +
-      `<td>${row.pack > 0 ? row.pack : '—'}</td>` +
+      `<td class="num">${row.pack > 0 ? row.pack : '—'}</td>` +
       `<td>${esc(row.outer) || '—'}</td><td>${esc(row.inner) || '—'}</td>` +
-      `<td>${row.weight > 0 ? row.weight : '—'}</td>` +
-      `<td>${row.price > 0 ? money(row.price) : '—'}</td>` +
-      `<td>${row.bsr > 0 ? '#' + row.bsr.toLocaleString() : '—'}</td>` +
-      `<td>${row.variations > 0 ? row.variations : '—'}</td>` +
-      `<td>${row.saleQtyEst != null ? '~' + row.saleQtyEst.toLocaleString() : '—'}</td></tr>`;
+      `<td class="num">${row.weight > 0 ? row.weight : '—'}</td>` +
+      `<td class="num">${row.price > 0 ? money(row.price) : '—'}</td>` +
+      `<td class="num">${row.bsr > 0 ? '#' + row.bsr.toLocaleString() : '—'}</td>` +
+      `<td class="num">${row.variations > 0 ? row.variations : '—'}</td>` +
+      `<td class="num">${row.saleQtyEst != null ? '~' + row.saleQtyEst.toLocaleString() : '—'}</td></tr>`;
   }).join('');
   $('prTable').innerHTML = head + '<tbody>' + body + '</tbody>';
 }
