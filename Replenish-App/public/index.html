@@ -31020,7 +31020,7 @@ function flowDueRows(q, testOnly) {
     const tp = flowToPrint(r, p), mPerPc = tp.pcs ? flowR2(tp.metres / tp.pcs) : (+(p.fabric && p.fabric.perPc) || 0);
     out.push({ printer: pr.name || String(pr.code), code: String(pr.code || ''), orderNo: r.orderNo, sku: obUC(r.sku), orderDate: ptIsoDate(r.orderDate) || '', l, r, mPerPc,
       unit: s.fabUnit || 'm', need, sent, back, left, withPrinter: flowR2(Math.max(0, sent - back)), notSent: flowR2(Math.max(0, need - Math.max(sent, back))),
-      challan: cx ? cx.no : '', po: s.po || '', test: !!r.__t });
+      challan: cx ? cx.no : '', po: s.po || '', test: !!r.__t, due: String((p.dates && p.dates.cut) || '').slice(0, 10) });
   });
   const hay = x => [x.printer, x.orderNo, x.sku, x.challan, x.po, x.l.fabric, (x.l.print && x.l.print.code) || ''].join(' ').toLowerCase();
   return out.filter(x => !q || hay(x).includes(q))
@@ -31227,6 +31227,116 @@ if (typeof document !== 'undefined' && typeof document.addEventListener === 'fun
 });
 if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') document.addEventListener('click', e => {
   const t = e.target; const b = t && t.closest && t.closest('[data-fldrc]'); if (!b) return; e.preventDefault(); flowDueRecvOpen(b.getAttribute('data-fldrc'));
+});
+/* DUE DATES · REMIND (Ravi, 3 Nov: "vendor portal me due date ka kya hota h, kyu uski koi notification nahi aati"). The due date of a
+ * line is the cut date PPC planned (plan.dates.cut — the same date the printer's vendor order carries). Per printer: what is past it
+ * with the cloth already with them, what falls due today or in the next FLOW_REM_SOON days, and what is held up because our RFD has not
+ * gone — that last is not the printer's delay and is never put in their reminder. "WhatsApp reminder" opens WhatsApp with the late
+ * lines typed in (wa.me: there is no WhatsApp API key), to the cellphone on the printer's Vendors record; a person presses Send.
+ * When it was opened is kept on this computer only, and is said as "opened", not "sent". */
+const FLOW_REM = { open: '' };
+/** Days from one ISO day to another (vendor-orders.js has voDays; this screen can load without it). */
+const flowRemDays = (a, b) => { const x = Date.parse(String(a || '').slice(0, 10) + 'T00:00:00'), y = Date.parse(String(b || '').slice(0, 10) + 'T00:00:00'); return isFinite(x) && isFinite(y) ? Math.round((y - x) / 864e5) : null; };
+const FLOW_REM_SOON = 3;   // the same three days the printer's portal calls "due soon" (VO_SOON)
+const FLOW_REM_KEY = 'flowRemOpened';
+function flowRemOf(x, today) {
+  if (!(x.withPrinter > 0.001)) return 'wait';
+  if (!x.due) return '';
+  const d = flowRemDays(x.due, today); if (d == null) return '';
+  return d > 0 ? 'late' : d === 0 ? 'today' : -d <= FLOW_REM_SOON ? 'soon' : 'later';
+}
+function flowRemPrinters(testOnly) {
+  const today = dToday(), by = new Map();
+  flowDueRows('', testOnly).forEach(x => {
+    const k = x.code || x.printer, st = flowRemOf(x, today);
+    const e = by.get(k) || by.set(k, { code: k, name: x.printer, late: [], today: [], soon: [], later: [], wait: [], none: [], max: 0 }).get(k);
+    const days = st === 'late' ? flowRemDays(x.due, today) : 0;
+    e[st || 'none'].push(Object.assign({}, x, { st, days }));
+    if (days > e.max) e.max = days;
+  });
+  return [...by.values()].sort((a, b) => b.late.length - a.late.length || b.max - a.max || a.name.localeCompare(b.name));
+}
+/** The printer's cellphone from its Vendors record (then its sign-in), as wa.me wants it: country code and digits only. */
+function flowRemPhone(code) {
+  const v = ptList((PTG.masters || {}).vendor).find(y => y && String(y.code) === String(code)) || {};
+  const m = (typeof VO !== 'undefined' && VO.map && VO.map[code]) || {};
+  let d = String(v.phone || m.phone || '').replace(/\D/g, '');
+  if (d.length === 11 && d[0] === '0') d = d.slice(1);
+  if (d.length === 10) d = '91' + d;
+  return d.length >= 11 && d.length <= 13 ? d : '';
+}
+const flowRemWhat = x => { const p = (x.l && x.l.print) || {}; let m = {}; try { m = cutSkuOf(x.sku) || {}; } catch (e) { m = {}; }
+  const colour = x.r.color || m.color || '';
+  return x.unit === 'm' ? [p.code || x.sku, colour, x.l.fabric].filter(Boolean).join(' ') : [x.sku, colour, x.r.size || m.size].filter(Boolean).join(' '); };
+/** The reminder's text: the late lines, oldest first, ten at most — the rest are on their portal. */
+function flowRemText(g) {
+  const late = g.late.slice().sort((a, b) => b.days - a.days || a.orderNo.localeCompare(b.orderNo));
+  const soon = g.today.length + g.soon.length;
+  const dm = iso => flowDueDay(iso).slice(0, 5);
+  const lines = late.slice(0, 10).map(x => `• ${x.orderNo} · ${flowRemWhat(x)} — ${flowQtyTxt(x.withPrinter, x.unit)}, due ${dm(x.due)} (${nf(x.days)} day${x.days === 1 ? '' : 's'} late)`);
+  return `${g.name} — reminder from Ridhi Home & Living (${flowDueDay(dToday())})\n\n`
+    + (late.length ? `${nf(late.length)} line(s) are past their due date. The cloth is already with you:\n\n${lines.join('\n')}`
+      + (late.length > 10 ? `\n…and ${nf(late.length - 10)} more — every line is on your portal.` : '') : 'Nothing is past its due date.')
+    + (soon ? `\n\n${nf(soon)} more line(s) fall due in the next ${FLOW_REM_SOON} days.` : '')
+    + '\n\nPlease send them and record each batch under "Vendor sent" on the portal.';
+}
+function flowRemSeen() { try { return JSON.parse(localStorage.getItem(FLOW_REM_KEY) || '{}') || {}; } catch (e) { return {}; } }
+function flowRemOpen(code, testOnly) {
+  const g = flowRemPrinters(testOnly).find(y => y.code === code); if (!g) return 'Nothing is owed by that printer any more — press Refresh.';
+  if (!g.late.length) return `Nothing of ${g.name}'s is past its due date.`;
+  const ph = flowRemPhone(code); if (!ph) return `${g.name} has no cellphone on its Vendors record (Setup → Masters → Vendors).`;
+  const url = 'https://wa.me/' + ph + '?text=' + encodeURIComponent(flowRemText(g));
+  try { window.open(url, '_blank', 'noopener'); } catch (e) { return 'Could not open WhatsApp: ' + (e.message || e); }
+  const seen = flowRemSeen(); seen[code] = new Date().toISOString();
+  try { localStorage.setItem(FLOW_REM_KEY, JSON.stringify(seen)); } catch (e) { /* not kept */ }
+  FLOW.said = `WhatsApp opened for ${g.name} with ${nf(g.late.length)} late line(s) — press Send there.`;
+  return '';
+}
+/** How many lines are late at every printer — the count on the tab. */
+const flowRemLateN = testOnly => flowRemPrinters(testOnly).reduce((t, g) => t + g.late.length, 0);
+function flowRemTable(testOnly) {
+  const gs = flowRemPrinters(testOnly), seen = flowRemSeen(), sum = k => gs.reduce((t, g) => t + g[k].length, 0);
+  const when = iso => { const d = new Date(iso); if (isNaN(d)) return ''; const t = d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+    return (ptIsoDate(iso) === dToday() ? 'today ' : flowDueDay(ptIsoDate(iso)) + ' ') + t; };
+  const tile = (n, label, bg, fg) => `<div style="background:${bg};border-radius:8px;padding:6px 2px;text-align:center"><div style="font-size:18px;font-weight:700;color:${fg}">${nf(n)}</div><div style="font-size:11px;color:${fg}">${label}</div></div>`;
+  const strip = `<div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;font-size:13px;padding:2px 2px 10px">`
+    + `<span><b style="color:var(--bad);font-size:17px">${nf(sum('late'))}</b> line(s) late at printers</span>`
+    + `<span><b style="font-size:17px">${nf(sum('today'))}</b> due today</span><span><b style="font-size:17px">${nf(sum('soon'))}</b> due in the next ${FLOW_REM_SOON} days</span>`
+    + `<span style="color:#92400e"><b style="font-size:17px">${nf(sum('wait'))}</b> waiting for our RFD cloth — not the printer's delay</span>`
+    + `<span class="muted" style="font-size:12px">Due date = the cut date PPC planned · today ${esc(flowDueDay(dToday()))}</span></div>`;
+  const cards = gs.map(g => { const ph = flowRemPhone(g.code), at = seen[g.code];
+    return `<div style="background:#fff;border:1px solid var(--line,#e5e8ee);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:9px">
+      <div style="display:flex;gap:8px;align-items:baseline"><b style="font-size:14.5px">${esc(g.name)}</b><span class="muted" style="font-size:12px">${esc(g.code)}${ph ? ' · ••••' + esc(ph.slice(-4)) : ' · no cellphone'}</span></div>
+      <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px">${tile(g.late.length, g.late.length ? 'late · up to ' + nf(g.max) + ' d' : 'late', '#fdecec', '#991b1b')}${tile(g.today.length, 'due today', '#f1f5f9', '#334155')}${tile(g.soon.length, 'next ' + FLOW_REM_SOON + ' days', '#f1f5f9', '#334155')}${tile(g.wait.length, 'our cloth due', '#fdf3e2', '#92400e')}</div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <button type="button" data-flrem="${esc(g.code)}" style="width:auto;padding:6px 12px;font-size:12.5px;background:#166534;border-color:#166534"${g.late.length && ph ? '' : ' disabled'} title="${ph ? 'Opens WhatsApp with the late lines typed in — you press Send' : 'No cellphone on this printer\'s Vendors record'}">WhatsApp reminder</button>
+        <button type="button" class="${FLOW_REM.open === g.code ? '' : 'ghost'}" data-flremshow="${esc(g.code)}" style="width:auto;padding:6px 12px;font-size:12.5px">${FLOW_REM.open === g.code ? 'Hide lines' : 'Show lines'}</button>
+        <span class="muted" style="font-size:11.5px">${at ? 'WhatsApp opened ' + esc(when(at)) + ' on this computer' : g.late.length ? 'not reminded from this computer' : 'nothing late'}</span></div></div>`; }).join('');
+  const g = gs.find(y => y.code === FLOW_REM.open);
+  let lines = '';
+  if (g) {
+    const ls = g.late.concat(g.today, g.soon).sort((a, b) => String(a.due).localeCompare(String(b.due)) || a.orderNo.localeCompare(b.orderNo));
+    lines = `<div style="background:#fff;border:1px solid var(--line,#e5e8ee);border-radius:12px;overflow:hidden;margin-top:12px">
+      <div style="background:#fdf0e8;padding:8px 14px;font-weight:700;font-size:13px">${esc(g.name)} — ${nf(g.late.length)} late, ${nf(g.today.length + g.soon.length)} due soon <span style="font-weight:500;color:#6b7686;font-size:12px;margin-left:8px">oldest due first · cloth already with them</span></div>
+      <table class="xl" style="width:100%"><thead><tr><th style="text-align:left">Order ID</th><th style="text-align:left">Item</th><th>Size</th><th class="num">With printer</th><th style="text-align:left">Due date</th><th style="text-align:left">Challan</th></tr></thead><tbody>`
+      + (ls.map(x => { let m = {}; try { m = cutSkuOf(x.sku) || {}; } catch (e) { m = {}; }
+        return `<tr><td style="text-align:left"><b>${esc(x.orderNo)}</b></td><td style="text-align:left;font-size:12px">${flowChLineWhat(x.l, true)}</td>
+          <td style="font-size:12px">${esc(x.r.size || m.size || '') || '<span class="muted">—</span>'}</td><td class="num"><b>${flowQtyTxt(x.withPrinter, x.unit)}</b></td>
+          <td style="text-align:left;font-size:12px">${typeof voDueHtml === 'function' ? voDueHtml({ due: x.due, st: x.st, days: x.days }) : esc(flowDueDay(x.due))}</td><td style="text-align:left;font-size:12px">${esc(x.challan) || '<span class="muted">—</span>'}</td></tr>`; }).join('')
+        || '<tr><td colspan="6" class="muted" style="padding:14px">Nothing of theirs is late or due in the next days.</td></tr>') + '</tbody></table></div>';
+  }
+  return `<tbody><tr><td style="text-align:left;padding:4px 2px;border:0;background:transparent">${strip}`
+    + (gs.length ? `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:12px">${cards}</div>` : '<div class="muted" style="padding:16px">Nothing is owed by a printer.</div>')
+    + lines + '</td></tr></tbody>';
+}
+if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') document.addEventListener('click', e => {
+  const t = e.target; if (!t || !t.closest) return;
+  const r = t.closest('[data-flrem]'), s = t.closest('[data-flremshow]'); if (!r && !s) return;
+  e.preventDefault();
+  if (s) { const k = s.getAttribute('data-flremshow'); FLOW_REM.open = FLOW_REM.open === k ? '' : k; renderFlow(); return; }
+  if (r.disabled) return;
+  const er = flowRemOpen(r.getAttribute('data-flrem'), FLOW.testOnly != null ? FLOW.testOnly : flowTestOnly());
+  renderFlow(); $('flMsg').className = er ? 'err' : 'muted'; $('flMsg').textContent = er || FLOW.said;
 });
 function flowDueXl(q, testOnly) {
   const rows = flowDueRows(q, testOnly); if (!rows.length) return 'Nothing is owed by a printer.';
@@ -32977,10 +33087,10 @@ function renderFlow() {
   /* DEMAND, ONE TAB (Ravi, 12 Oct): its parts as tabs, like Listing Health's — RFD out to printers, printed fabric in, accessories. */
   if (FLOW_DEMAND.includes(FLOW_VIEW)) FLOW.panel = (FLOW.eMode && FLOW_VIEW === 'drfd' ? '' : `<div class="seg" style="display:inline-flex;gap:4px;flex-wrap:wrap;margin-right:14px">${dem.map(([k, l]) =>
     `<button data-fldem="${k}" class="${k === FLOW_VIEW ? '' : 'ghost'}" style="width:auto;padding:5px 14px;font-size:13px">${esc(l)} <b>${nf(n[k] || 0)}</b></button>`).join('')}</div>`) + (FLOW.panel || '')
-    + (FLOW_VIEW === 'dhist' ? `<div class="seg" style="display:inline-flex;gap:4px">${[['due', 'Orders with printers · receive'], ['challan', 'By challan'], ['day', 'Received by date']].map(([k, l]) =>
-      `<button data-flang="${k}" class="${(FLOW_ANGLE.dhist || 'due') === k ? '' : 'ghost'}" style="width:auto;padding:4px 12px;font-size:12.5px">${l}</button>`).join('')}</div>`
+    + (FLOW_VIEW === 'dhist' ? `<div class="seg" style="display:inline-flex;gap:4px">${[['due', 'Orders with printers · receive'], ['remind', 'Due dates · remind'], ['challan', 'By challan'], ['day', 'Received by date']].map(([k, l]) =>
+      `<button data-flang="${k}" class="${(FLOW_ANGLE.dhist || 'due') === k ? '' : 'ghost'}" style="width:auto;padding:4px 12px;font-size:12.5px">${l}${k === 'remind' ? (n => n ? ` <b style="background:#fff;color:var(--bad);border-radius:9px;padding:0 7px;margin-left:2px">${nf(n)} late</b>` : '')(flowRemLateN(only)) : ''}</button>`).join('')}</div>`
       + (FLOW_ANGLE.dhist === 'day' ? flowRecvDayBar(q, only) : '')
-      + ((FLOW_ANGLE.dhist || 'due') === 'due' ? flowDueBar(only) + ' <button type="button" class="ghost" data-fldxl="1" style="width:auto;padding:4px 12px;font-size:12.5px;margin-left:6px">Download Excel</button>' : flowStandingHtml()) : '');
+      + ((FLOW_ANGLE.dhist || 'due') === 'due' ? flowDueBar(only) + ' <button type="button" class="ghost" data-fldxl="1" style="width:auto;padding:4px 12px;font-size:12.5px;margin-left:6px">Download Excel</button>' : FLOW_ANGLE.dhist === 'remind' ? '' : flowStandingHtml()) : '');
   /* RFD short? The Greige Desk shows the greige to order for it (Ravi, 13 Oct: Greige Desk joined to the PPC flow). */
   if (FLOW_VIEW === 'drfd' && typeof GD !== 'undefined' && gdAllowed()) FLOW.panel = (FLOW.panel || '') + '<button type="button" class="ghost" data-gdgo="inv" style="width:auto;padding:5px 14px;font-size:13px;margin-left:10px">Greige Desk · PPC demand</button>';
   /* RFD stock is the Greige Desk's count: not read here, the Demand figures say so instead of showing a false "short". */
@@ -33445,6 +33555,7 @@ function flowTable(view, rows) {
   if (view === 'pord') return flowPoTable(String($('flQ').value || '').trim().toLowerCase(), FLOW.testOnly != null ? FLOW.testOnly : flowTestOnly());
   /* PRINTED FABRIC IN OPENS ON THE ORDERS WITH PRINTERS (Ravi, 23 Oct): every order given to a printer, received right there. */
   if (view === 'dhist' && (FLOW_ANGLE.dhist || 'due') === 'due') return flowDueTable(String($('flQ').value || '').trim().toLowerCase(), FLOW.testOnly != null ? FLOW.testOnly : flowTestOnly());
+  if (view === 'dhist' && FLOW_ANGLE.dhist === 'remind') return flowRemTable(FLOW.testOnly != null ? FLOW.testOnly : flowTestOnly());
   if (view === 'dhist' && FLOW_ANGLE.dhist === 'day') return flowRecvDayTable(String($('flQ').value || '').trim().toLowerCase(), FLOW.testOnly != null ? FLOW.testOnly : flowTestOnly());
   if (view === 'dhist') return flowHistTable(String($('flQ').value || '').trim().toLowerCase(), FLOW.testOnly != null ? FLOW.testOnly : flowTestOnly());
   if (view === 'new') {
@@ -38716,7 +38827,8 @@ function dashFacts() {
     let pcs = 0, m = 0, late = 0, lateDays = 0;
     vo.forEach(o => voLines(o).forEach(l => {
       if (!l || l.cancelled) return;
-      const owed = Math.max(0, voQty(o, l) - (parseFloat(voDone(l)) || 0));
+      /* a PPC line comes back on its RFD challan, not on the vendor order — voDueOf reads that (3 Nov) */
+      const x = voDueOf(o, l), owed = x ? x.left : 0;
       if (voUnit(o) === 'm') m += owed; else pcs += owed;
       const d = voLateBy(o, l); if (d != null) { late++; lateDays = Math.max(lateDays, d); }
     }));
@@ -38793,7 +38905,7 @@ function renderDash() {
     + sec('Printers', 'vendor orders open now', (p
       ? card(nf(p.orders), 'Open vendor orders', 'box', 'blue', 'vord', nf(p.printers) + ' printer(s)')
         + card(p.owed, 'Still owed by printers', 'clock', 'blue', 'vord', 'ordered, not yet delivered')
-        + card(nf(p.late), 'Late lines', 'alert', p.late ? 'red' : 'green', 'vord', p.late ? 'the latest ' + nf(p.lateDays) + ' day(s) over' : 'nothing overdue')
+        + card(nf(p.late), 'Late lines', 'alert', p.late ? 'red' : 'green', 'flrem', p.late ? 'the latest ' + nf(p.lateDays) + ' day(s) over · remind' : 'nothing overdue')
       : card(dash, 'Open vendor orders', 'box', 'blue', 'vord'))
       + (r ? card(r.toSend, 'RFD cloth still to send', 'up', r.toSend !== '—' ? 'red' : 'green', 'rfd', nf(r.orders) + ' order(s) from ' + RFD_TRACK_FROM)
           + card(r.onWay, 'Sent, not yet confirmed', 'clock', r.onWay !== '—' ? 'amber' : 'blue', 'rfd', 'the printer confirms in their portal')
@@ -38818,8 +38930,10 @@ function renderDash() {
   $('dashMsg').textContent = (DASH.at ? 'Read ' + DASH.at + ' · ' : '') + 'every figure is the same one its own screen shows — click a card to open that screen'
     + (DASH.err.length ? ' · could not read: ' + DASH.err.join(' · ') : '');
 }
-$('dashBody').addEventListener('click', e => { const t = e.target.closest('[data-dash-go]'); if (t) showTab(t.getAttribute('data-dash-go')); });
-$('dashBody').addEventListener('keydown', e => { const t = e.target.closest('[data-dash-go]'); if (t && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); showTab(t.getAttribute('data-dash-go')); } });
+/* 'flrem' is the Production flow at Printed fabric in → Due dates · remind (3 Nov), where a late line is chased. */
+const dashGoTo = k => { if (k === 'flrem') { try { FLOW_VIEW = 'dhist'; FLOW_ANGLE.dhist = 'remind'; } catch (e) { /* the flow opens where it was */ } return showTab('flow'); } return showTab(k); };
+$('dashBody').addEventListener('click', e => { const t = e.target.closest('[data-dash-go]'); if (t) dashGoTo(t.getAttribute('data-dash-go')); });
+$('dashBody').addEventListener('keydown', e => { const t = e.target.closest('[data-dash-go]'); if (t && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); dashGoTo(t.getAttribute('data-dash-go')); } });
 $('dashGo').onclick = () => {
   /* Read again, every register — the tiles are only as fresh as the registers behind them. */
   VO.rows = null; FGI.rows = null; SOX.rows = null; ATT.rows = null; FAB.rows = null; RFD.decisions = null; VRQ.rows = null; ACC.ledger = null;
@@ -44768,11 +44882,59 @@ const voMoves = l => (Array.isArray(l && l.vendorDateLog) ? l.vendorDateLog : []
 
 /** Days late against the date this line runs on — null when there is no date, or nothing is owed. */
 function voLateBy(o, l, todayIso) {
-  if (!l || l.cancelled) return null;
-  if (voQty(o, l) - voDone(l) <= 0) return null;            // nothing still owed cannot be late
-  const due = voDue(l); if (!due) return null;
-  const d = voDays(due, todayIso || dToday());
-  return d != null && d > 0 ? d : null;
+  const x = voDueOf(o, l, todayIso);
+  return x && x.st === 'late' ? x.days : null;
+}
+/* DUE AT THE PRINTER (Ravi, 3 Nov: "due date ka kya hota h, notification nahi aati"; "due date vendor ko bhi dikhe"). A line the
+ * PPC flow placed comes back on its RFD challan, never on the vendor order, so voDone there stays 0 and every such line read as
+ * late — 1,296 lines on 3 Nov where 217 really were. The flow writes what it gave and got back onto the order (flowProg.items, per
+ * print-order line, shared over the vendor-order lines that stand for it), so that is what is read:
+ *   left    ordered less what came back            withV   given less what came back — what the printer holds
+ *   st      'wait'  something is left but none of it is with the printer: the cloth is ours to send, not the printer's delay
+ *           'late' / 'today' / 'soon' (within VO_SOON days) / 'later' by the due date (voDue); '' with no date
+ * Any other order keeps the old reading: what is owed is with the vendor. null = nothing left. */
+const VO_SOON = 3;
+const VO_DUE_CTX = new WeakMap(), VO_NO_ITEMS = Object.freeze({});
+function voFlowCtx(o) {
+  const p = o && o.flowProg; if (!p) return null;
+  /* Nothing given on the whole order yet: the flow writes no items then (379 of 893 open orders on 3 Nov), and every line waits for us. */
+  const items = p.items || (!(+p.given > 0) && !(+p.back > 0) ? VO_NO_ITEMS : null); if (!items) return null;
+  let c = VO_DUE_CTX.get(o); if (c && c.items === items) return c;
+  const keyOf = p => { const [k, part] = String(p || '').split('|'); return part === 'ruffle' ? k + '~ruffle' : k; }, cnt = {};
+  voLines(o).forEach(l => voParts(l).forEach(p => { const k = keyOf(p); cnt[k] = (cnt[k] || 0) + 1; }));
+  c = { items, cnt, keyOf }; VO_DUE_CTX.set(o, c); return c;
+}
+const voParts = l => Array.isArray(l.parts) ? l.parts : String(l.flowPart || '').split('+').filter(Boolean);
+function voDueOf(o, l, todayIso) {
+  if (!o || !l || l.cancelled) return null;
+  const ord = voQty(o, l), c = voFlowCtx(o);
+  let back = voDone(l), given = null;
+  if (c && voParts(l).length) {
+    given = 0; back = 0;
+    voParts(l).forEach(p => { const k = c.keyOf(p), it = c.items[k], n = c.cnt[k] || 1;
+      if (it) { given += (+it.given || 0) / n; back += (+it.back || 0) / n; } });
+    given = Math.round(given * 100) / 100; back = Math.round(back * 100) / 100;
+  }
+  const left = Math.round((ord - back) * 100) / 100; if (!(left > 0.001)) return null;
+  const withV = given == null ? left : Math.max(0, Math.round((given - back) * 100) / 100);
+  const due = voDue(l), today = todayIso || dToday();
+  const base = { due, left, withV, given, back, ord, unit: voUnit(o), days: null };
+  if (!(withV > 0.001)) return Object.assign(base, { st: 'wait' });
+  if (!due) return Object.assign(base, { st: '' });
+  const d = voDays(due, today);
+  if (d == null) return Object.assign(base, { st: '' });
+  return Object.assign(base, { days: d > 0 ? d : null, st: d > 0 ? 'late' : d === 0 ? 'today' : -d <= VO_SOON ? 'soon' : 'later' });
+}
+/** The due date as a printer reads it, with what it means today: "25/10/26 · 9 days late". HTML. */
+function voDueHtml(x, fallbackIso) {
+  const due = (x && x.due) || fallbackIso || '';
+  if (!due) return '<span class="muted">—</span>';
+  const st = x && x.st, d = esc(dShow(due));
+  if (st === 'late') return `<b style="color:var(--bad)">${d}</b><div style="font-size:10.5px;color:var(--bad);font-weight:600">${nf(x.days)} day${x.days === 1 ? '' : 's'} late</div>`;
+  if (st === 'today') return `<b style="color:#b45309">${d}</b><div style="font-size:10.5px;color:#b45309;font-weight:600">due today</div>`;
+  if (st === 'soon') { const n = voDays(dToday(), due) || 0; return `<b>${d}</b><div style="font-size:10.5px;color:#b45309">due in ${nf(n)} day${n === 1 ? '' : 's'}</div>`; }
+  if (st === 'wait') return `<span>${d}</span><div style="font-size:10.5px;color:#92400e">waiting for cloth from us</div>`;
+  return `<span>${d}</span>`;
 }
 /** A date as Ravi reads it: day first, two-digit year. */
 const dShow = iso => {
@@ -44796,7 +44958,7 @@ function voSummary(o) {
   const done = live.reduce((s, l) => s + voDone(l), 0);
   /* Unanswered lines are not late and not on time — nobody has said anything about them. They are
    * counted separately because chasing a promise and chasing a delivery are different jobs. */
-  const owing = live.filter(l => voQty(o, l) - voDone(l) > 0);
+  const owing = live.filter(l => voDueOf(o, l) != null);
   return { lines: all.length, live: live.length, cancelled: dead.length,
     cancelledQty: dead.reduce((s, l) => s + voQty(o, l), 0),
     ordered, done, owed: Math.max(0, ordered - done),
@@ -49431,7 +49593,10 @@ const vpLineOn = f => !!(f.at || f.sub || f.col || f.sz || f.pri);
  * those lines are shown and counted; an order found by its own number or note shows all of its lines. */
 const vpLineHay = l => [l.sku, l.fabricType, l.color, l.printDirection, l.articleType, l.articleSubtype, l.size].filter(Boolean).join(' ').toLowerCase();
 let VP_QX = { q: null, map: new WeakMap() };
-function vpQOk(o, l, f) {
+function vpQOk(o, l, f, everyDue) {
+  /* "Show late only" (3 Nov) narrows every view to lines past their due date with the cloth already given; the strip counts all. */
+  /* Not on Custom orders: that tab has no strip, so no button to undo it there. */
+  if (!everyDue && VP.lateOnly && VP.tab !== 'shop') { const x = voDueOf(o, l); if (!x || x.st !== 'late') return false; }
   const q = f && f.q; if (!q || !o) return true;
   if (VP_QX.q !== q) VP_QX = { q, map: new WeakMap() };
   let hits = VP_QX.map.get(o);
@@ -49515,16 +49680,20 @@ function renderVp() {
   /* Over the live lines of the orders on screen, in one pass: what is still owed, and — the thing
    * this strip never said — what has already gone out. A printer wants to know what they have got
    * through as much as what is left. */
-  const tot = { owedPcs: 0, owedM: 0, sentPcs: 0, sentM: 0, late: 0, noDate: 0 }, fq = vpF();
+  const tot = { owedPcs: 0, owedM: 0, sentPcs: 0, sentM: 0, late: 0, soon: 0, wait: 0, noDate: 0 }, fq = vpF();
   rows.forEach(o => {
     const run = o.orderType === 'running';
-    voLines(o).filter(l => !l.cancelled && vpPartOk(o, l) && vpQOk(o, l, fq)).forEach(l => {
+    voLines(o).filter(l => !l.cancelled && vpPartOk(o, l) && vpQOk(o, l, fq, true)).forEach(l => {
       const left = Math.max(0, vpQty(o, l) - vpDone(l));
       if (run) { tot.owedM += left; tot.sentM += vpDone(l); }
       else { tot.owedPcs += left; tot.sentPcs += vpDone(l); }
-      if (left > 0) {
-        if (voLateBy(o, l) != null) tot.late++;
-        else if (!voProm(l)) tot.noDate++;
+      /* THE DUE DATE, TO THE PRINTER TOO (Ravi, 3 Nov): what is past it, what falls due in the next days, and what waits for our cloth. */
+      const x = voDueOf(o, l);
+      if (x) {
+        if (x.st === 'late') tot.late++;
+        else if (x.st === 'today' || x.st === 'soon') tot.soon++;
+        else if (x.st === 'wait') tot.wait++;
+        if (x.st !== 'wait' && !voProm(l)) tot.noDate++;
       }
     });
   });
@@ -49542,8 +49711,11 @@ function renderVp() {
     <span class="muted">Sent</span> <span style="color:#166534;font-weight:700">${amt(tot.sentPcs, tot.sentM)}</span>
     <span class="sep"></span>
     <span class="muted">Left to send</span> <span style="color:var(--bad);font-weight:700">${amt(tot.owedPcs, tot.owedM)}</span>
-    ${vpViewAll() ? '' : (tot.late ? `<span class="sep"></span><span style="color:var(--bad);font-weight:600">${nf(tot.late)} past your date</span>` : '')
-      + (tot.noDate ? `<span class="sep"></span><span style="color:#7f6000;font-weight:600">${nf(tot.noDate)} with no date from you</span>` : '')}
+    <span class="sep"></span><span style="color:${tot.late ? 'var(--bad)' : '#166534'};font-weight:700">${tot.late ? nf(tot.late) + ' past the due date' : 'nothing past the due date'}</span>
+    ${tot.soon ? `<span class="sep"></span><span style="font-weight:600;color:#b45309">${nf(tot.soon)} due in the next ${VO_SOON} days</span>` : ''}
+    ${tot.wait ? `<span class="sep"></span><span style="color:#92400e">${nf(tot.wait)} waiting for cloth from us</span>` : ''}
+    ${vpViewAll() || !tot.noDate ? '' : `<span class="sep"></span><span style="color:#7f6000;font-weight:600">${nf(tot.noDate)} with no date from you</span>`}
+    ${tot.late || VP.lateOnly ? `<button type="button" data-vplate="1" class="${VP.lateOnly ? '' : 'ghost'}" style="width:auto;padding:3px 12px;font-size:12px;margin-left:6px">${VP.lateOnly ? 'Show all lines' : 'Show late only'}</button>` : ''}
     <span style="flex:1"></span>
     <span class="muted" style="font-size:11px">your orders only${VP.at ? ' · ' + esc(VP.at) : ''}</span>
   </div>`;
@@ -49712,7 +49884,8 @@ function vpRecvOf(l) {
   return { qty: vo, how: vo ? 'on the vendor order' : '' };
 }
 function vpCustomSheet(rows, f) {
-  const COLS = ['Date', 'Order Number', 'Image', 'Article', 'Size', 'Ordered', 'Vendor Sent', 'Received', 'Vendor Date'];
+  /* DUE DATE (Ravi, 3 Nov: "due date vendor ko bhi dikhe"): the date we need it by, red with the days once it is past. */
+  const COLS = ['Date', 'Order Number', 'Image', 'Article', 'Size', 'Ordered', 'Vendor Sent', 'Received', 'Due date', 'Vendor Date'];
   const on = !!(f && vpLineOn(f)), seen = new Set(), items = [];
   /* ONE LIST, A TO Z BY COLOUR (Ravi, 30 Oct: "1 a-z series me dikhe color wise"): every line of every order in one run, colour A→Z, then
    * article and size, then the oldest order first; a line with no colour goes last. */
@@ -49740,6 +49913,7 @@ function vpCustomSheet(rows, f) {
       + `<td class="num" style="font-weight:700">${nf(ord)} <span class="muted" style="font-weight:400;font-size:10px">${unit}</span></td>`
       + vpVsHtml(o, l, i, ord, unit, 'td')
       + (rc => `<td class="num" title="${esc(rc.how)}">${rc.qty > 0 ? `<b style="color:#166534">${nf(rc.qty)}</b> <span class="muted" style="font-size:10px">${unit}</span>` : '<span class="muted">—</span>'}</td>`)(vpRecvOf(l))
+      + `<td style="font-size:12px;text-align:left;white-space:nowrap">${voDueHtml(voDueOf(o, l), voWant(l))}</td>`
       + `<td>${vpViewAll() || flowVpViewOnly(o) || bal <= 0 ? `<span style="font-size:12px">${esc(voProm(l) ? dShow(voProm(l)) : '') || '<span class="muted">—</span>'}</span>`
           : `<input data-vpprom="${esc(o.id)}" data-i="${i}" type="date" value="${esc(voProm(l))}" style="width:146px">`}</td>`
       + '</tr>';
@@ -50026,11 +50200,13 @@ function vpBoard(rows, f) {
     if (!keep.length) return '';
     const ctx = vpRawCtx(o), q = n => nf(Math.round((+n || 0) * 100) / 100);
     const wants = keep.map(({ l }) => voWant(l)).filter(Boolean).sort();
+    const late = keep.map(({ l }) => voDueOf(o, l)).filter(x => x && x.st === 'late'), lateMax = late.reduce((m, x) => Math.max(m, x.days || 0), 0);
     const cls = st === 'Dispatched' || st === 'Received' ? 'pill-ok' : 'pill-low';
     const fabPool = Object.entries(ctx.byFab);
     const head = `<div class="vpb-order"><b style="font-size:15px">${esc(o.orderNo || o.id)}</b>
       <span class="pill">${run ? 'Running fabric — metres' : 'Cut fabric — pieces'}</span>${o.channel ? ` <span class="pill" style="background:#E9EFF6;color:#3A5573">For ${esc(o.channel)}</span>` : ''}
-      <span class="muted" style="font-size:12px">raised ${esc(o.orderDate) || '—'}${wants.length ? ' · wanted by ' + day(wants[0]) : ''}${o.lastDispatchDate ? ' · last sent ' + esc(o.lastDispatchDate) : ''}</span>
+      <span class="muted" style="font-size:12px">raised ${esc(o.orderDate) || '—'}${wants.length ? ' · due ' + day(wants[0]) : ''}${o.lastDispatchDate ? ' · last sent ' + esc(o.lastDispatchDate) : ''}</span>
+      ${late.length ? `<b style="color:var(--bad);font-size:12.5px">${nf(late.length)} line${late.length === 1 ? '' : 's'} past the due date · up to ${nf(lateMax)} day${lateMax === 1 ? '' : 's'} late</b>` : ''}
       <span style="flex:1"></span>${vpVsAll(o).length ? `<button class="ghost" data-vsdl="${esc(o.id)}" style="width:auto;padding:2px 10px;font-size:12px" title="Every batch the printer recorded as sent on this order, with date and time">Download vendor sent</button>` : ''}<span class="pill ${cls}">${esc(st)}</span></div>
       <div data-vpmsg="${esc(o.id)}" class="muted" style="font-size:12.5px"></div>
       ${fabPool.length ? `<div class="muted" style="font-size:12.5px;margin:-4px 0 8px">Raw fabric for this whole order: ${fabPool.map(([fab, v]) => `<b style="color:#3A5573">${esc(fab)} ${q(v.given)} m</b>${v.dates.length ? ' (' + v.dates.map(day).join(', ') + ')' : ''}`).join(' · ')}</div>` : ''}`;
@@ -50048,7 +50224,8 @@ function vpBoard(rows, f) {
         const pic = run ? vpRunPic(x.l, 44) : ptImgSpan(x.l.sku, 44);
         return `<div class="vpb-line">${pic}<div class="vpb-what"><span class="vpb-sku">${esc(run ? (x.l.sku || x.l.fabricType) : x.l.sku)}</span>
           <span class="muted">${esc(run ? [x.l.fabricType, x.l.printDirection].filter(Boolean).join(' · ') : [x.l.articleSubtype || x.l.articleType, x.l.size].filter(Boolean).join(' · '))}</span></div>
-          <div class="vpb-n"><b>${q(x.ord)}</b><span class="muted">ordered</span></div><div class="vpb-n">${chip}<span class="muted">${x.sent > 0 ? 'sent ' + q(x.sent) : 'none sent'}</span></div></div>${vpVsHtml(o, x.l, x.i, x.ord, unit)}`;
+          <div class="vpb-n"><b>${q(x.ord)}</b><span class="muted">ordered</span></div><div class="vpb-n">${chip}<span class="muted">${x.sent > 0 ? 'sent ' + q(x.sent) : 'none sent'}</span></div>
+          ${voWant(x.l) ? `<div class="vpb-n" style="font-size:12px">${voDueHtml(voDueOf(o, x.l), voWant(x.l))}<span class="muted">due date</span></div>` : ''}</div>${vpVsHtml(o, x.l, x.i, x.ord, unit)}`;
       }).join('');
       return `<div class="vpb-card"><div class="vpb-head"><b>${esc(g.colour) || 'no colour'}</b><span style="flex:1"></span>${g.priority ? `<span class="vpb-pri">${esc(g.priority)}</span>` : ''}</div>
         <div class="vpb-tot"><div><span>Ordered</span><b>${q(ord)}</b></div><div class="r"><span>Raw</span><b>${rawKnown ? q(raw) : '—'}</b></div>
@@ -50076,7 +50253,7 @@ function vpProductBoard(rows, f) {
       const key = (run ? 'R|' + [obUC(l.sku || l.fabricType), String(l.printDirection || '').toLowerCase(), vpColour(l).toLowerCase()].join('|') : 'C|' + obUC(l.sku));
       const g = groups.get(key) || { key, run, l, items: [], pri: 9, want: '' };
       const rw = vpLineRaw(o, l, ctx), w = voWant(l);
-      g.items.push({ o, l, i, st, ord: vpQty(o, l), raw: rw.raw, sent: rw.sent, vs: vpVsSum(vpVsOf(o, l)), want: w });
+      g.items.push({ o, l, i, st, ord: vpQty(o, l), raw: rw.raw, sent: rw.sent, vs: vpVsSum(vpVsOf(o, l)), want: w, due: voDueOf(o, l) });
       g.pri = Math.min(g.pri, vpPriRank(l));
       if (w && (!g.want || w < g.want)) g.want = w;
       groups.set(key, g);
@@ -50095,7 +50272,8 @@ function vpProductBoard(rows, f) {
     const rowsH = g.items.slice().sort((a, b) => String(a.want || '9').localeCompare(String(b.want || '9')) || String(a.o.orderNo).localeCompare(String(b.o.orderNo))).map(x => {
       const chip = x.raw == null ? '' : x.raw <= 0 ? '<span class="vpb-no">no raw yet</span>' : `<span class="vpb-raw">raw ${q(x.raw)}</span>`;
       return `<div class="vpb-line" style="align-items:flex-start"><div class="vpb-what"><b style="font-size:12.5px">${esc(x.o.orderNo || x.o.id)}</b>`
-        + `<span class="muted">${esc(forOf(x))}${forOf(x) ? ' · ' : ''}raised ${esc(x.o.orderDate || '—')}${x.want ? ' · wanted ' + day(x.want) : ''}</span></div>`
+        + `<span class="muted">${esc(forOf(x))}${forOf(x) ? ' · ' : ''}raised ${esc(x.o.orderDate || '—')}</span></div>`
+        + (x.want ? `<div class="vpb-n" style="font-size:12px">${voDueHtml(x.due, x.want)}<span class="muted">due date</span></div>` : '')
         + `<div class="vpb-n"><b>${q(x.ord)}</b><span class="muted">${x.sent > 0 ? 'sent ' + q(x.sent) : 'none sent'}</span>${chip}</div></div>`
         + vpVsHtml(x.o, x.l, x.i, x.ord, unit, 'flat');
     }).join('');
@@ -50103,7 +50281,7 @@ function vpProductBoard(rows, f) {
       + `<span class="muted">${esc(what)}</span><b style="font-size:13.5px">${esc(vpColour(l) || '')}</b></div>${pri ? `<span class="vpb-pri">${esc(pri)}</span>` : ''}</div>`
       + `<div class="vpb-tot"><div><span>Ordered</span><b>${q(ord)}</b></div><div class="r"><span>Raw</span><b>${rawKnown ? q(raw) : '—'}</b></div>`
       + `<div class="s"><span>Sent</span><b>${q(sent)}</b></div><div class="v"><span>Vendor sent</span><b>${q(vs)}</b></div><div class="b"><span>Balance</span><b>${q(Math.max(0, ord - sent))}</b></div></div>`
-      + `<details${orders.length === 1 ? '' : ''}><summary style="cursor:pointer;font-size:12.5px;font-weight:600;color:var(--brand)">${nf(orders.length)} order${orders.length === 1 ? '' : 's'} · ${unit}${g.want ? ' · first wanted ' + day(g.want) : ''}</summary>${rowsH}</details></div>`;
+      + `<details${orders.length === 1 ? '' : ''}><summary style="cursor:pointer;font-size:12.5px;font-weight:600;color:var(--brand)">${nf(orders.length)} order${orders.length === 1 ? '' : 's'} · ${unit}${g.want ? ' · first due ' + day(g.want) : ''}${(n => n ? ` · <span style="color:var(--bad)">${nf(n)} late</span>` : '')(g.items.filter(x => x.due && x.due.st === 'late').length)}</summary>${rowsH}</details></div>`;
   }).join('');
   return `<div class="card vpb-wrap"><div class="vpb-order"><b style="font-size:15px">By product</b><span class="muted" style="font-size:12px">${nf(list.length)} product(s) across ${nf(rows.length)} order(s) — open a card's list to see which orders it is for.${vpViewAll() ? '' : ' Record a send on "By order" or "Every line".'}</span></div><div class="vpb-grid">${cards}</div></div>`;
 }
@@ -50112,7 +50290,7 @@ function vpTable(rows, f) {
    * order number was on every row of an order whose bar already named it. View only (vpViewAll()): eight — no date of
    * the printer's own, nothing being sent. */
   const COLS = ['SKU / fabric', 'Image', 'Article', 'Size', 'Ordered', 'Sent so far', 'Vendor sent',
-    'Balance', 'Wanted by'].concat(vpViewAll() ? [] : ['Your date', 'Sending now']);
+    'Balance', 'Due date'].concat(vpViewAll() ? [] : ['Your date', 'Sending now']);
   const head = COLS
     .map(h => `<th${['Ordered', 'Sent so far', 'Vendor sent', 'Balance', 'Sending now'].indexOf(h) >= 0 ? ' class="num"' : ''}>${esc(h)}</th>`).join('');
 
@@ -50179,7 +50357,7 @@ function vpTable(rows, f) {
         + vpVsHtml(o, l, i, ord, unit, 'td')
         + `<td class="num">${dead ? '<span class="pill pill-out">cancelled</span>'
             : (bal > 0 ? `<span style="font-weight:700;color:var(--bad)">${nf(bal)}</span>` : '<span class="pill pill-ok">done</span>')}</td>`
-        + `<td class="muted" style="font-size:12px">${voWant(l) ? esc(dShow(voWant(l))) : '—'}</td>`
+        + `<td style="font-size:12px;text-align:left">${voDueHtml(dead ? null : voDueOf(o, l), voWant(l))}</td>`
         + (vpViewAll() ? '</tr>' : `<td>${flowVpViewOnly(o) || dead || bal <= 0 ? '<span class="muted">—</span>'
             : `<input data-vpprom="${esc(o.id)}" data-i="${i}" type="date" value="${esc(voProm(l))}" style="width:146px">`
               + (voMoves(l) ? `<div class="muted" style="font-size:10px">first said ${esc(dShow(voPromFirst(l)))}</div>` : '')}</td>`
@@ -50212,7 +50390,7 @@ function vpCard(o, f) {
   /* WANTED BY was not on this screen at all — the vendor was being asked to hit a date nobody had
    * shown them. It is here now, next to the box where they answer it. */
   const head = (run ? ['Fabric', 'Colour', 'Print'] : ['SKU', 'Image', 'Item'])
-    .concat(['Priority', 'Ordered', 'Sent so far', 'Vendor sent', 'Balance', 'Wanted by', 'Your date'])
+    .concat(['Priority', 'Ordered', 'Sent so far', 'Vendor sent', 'Balance', 'Due date', 'Your date'])
     .concat(can ? ['Sending now'] : [])
     .map(h => `<th${['Ordered', 'Sent so far', 'Vendor sent', 'Balance', 'Sending now'].indexOf(h) >= 0 ? ' class="num"' : ''}>${h}</th>`).join('');
   const body = keep.map(({ l, i }) => {
@@ -50233,7 +50411,7 @@ function vpCard(o, f) {
       + `<td class="num">${dead ? '<span class="pill pill-out">cancelled</span>'
         : (bal > 0 ? `<span style="font-weight:700;color:var(--bad)">${nf(bal)}</span>` : '<span class="pill pill-ok">done</span>')}</td>`
       /* What the buyer asked for, and the box where this vendor says what they can really do. */
-      + `<td class="muted" style="font-size:12px">${voWant(l) ? esc(dShow(voWant(l))) : '—'}</td>`
+      + `<td style="font-size:12px;text-align:left">${voDueHtml(dead ? null : voDueOf(o, l), voWant(l))}</td>`
       + `<td>${flowVpViewOnly(o) || dead || bal <= 0 ? '<span class="muted">—</span>'
         : `<input data-vpprom="${esc(o.id)}" data-i="${i}" type="date" value="${esc(voProm(l))}" style="width:148px">`
           + (voMoves(l) ? `<div class="muted" style="font-size:10px">first said ${esc(dShow(voPromFirst(l)))}</div>` : '')}</td>`
@@ -50502,6 +50680,10 @@ $('vpBody').addEventListener('click', e => {
   const f = e.target.closest('[data-vpflow]'); if (f) return vpFlow(f.getAttribute('data-vpflow'));
   const d = e.target.closest('[data-vpdeliver]'); if (d) return vpDeliver(d.getAttribute('data-vpdeliver'));
   const p = e.target.closest('[data-vpsaveprom]'); if (p) return vpPromise(p.getAttribute('data-vpsaveprom'));
+});
+if ($('vpKpis') && typeof $('vpKpis').addEventListener === 'function') $('vpKpis').addEventListener('click', e => {
+  const b = e.target && e.target.closest && e.target.closest('[data-vplate]'); if (!b) return;
+  e.preventDefault(); VP.lateOnly = !VP.lateOnly; renderVp();
 });
 ['vpView', 'vpStatus', 'vpType', 'vpAt', 'vpSub', 'vpCol', 'vpSz', 'vpPri'].forEach(id => {
   const el = $(id); if (el) el.onchange = renderVp;

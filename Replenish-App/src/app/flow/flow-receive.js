@@ -326,7 +326,7 @@ function flowDueRows(q, testOnly) {
     const tp = flowToPrint(r, p), mPerPc = tp.pcs ? flowR2(tp.metres / tp.pcs) : (+(p.fabric && p.fabric.perPc) || 0);
     out.push({ printer: pr.name || String(pr.code), code: String(pr.code || ''), orderNo: r.orderNo, sku: obUC(r.sku), orderDate: ptIsoDate(r.orderDate) || '', l, r, mPerPc,
       unit: s.fabUnit || 'm', need, sent, back, left, withPrinter: flowR2(Math.max(0, sent - back)), notSent: flowR2(Math.max(0, need - Math.max(sent, back))),
-      challan: cx ? cx.no : '', po: s.po || '', test: !!r.__t });
+      challan: cx ? cx.no : '', po: s.po || '', test: !!r.__t, due: String((p.dates && p.dates.cut) || '').slice(0, 10) });
   });
   const hay = x => [x.printer, x.orderNo, x.sku, x.challan, x.po, x.l.fabric, (x.l.print && x.l.print.code) || ''].join(' ').toLowerCase();
   return out.filter(x => !q || hay(x).includes(q))
@@ -533,6 +533,116 @@ if (typeof document !== 'undefined' && typeof document.addEventListener === 'fun
 });
 if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') document.addEventListener('click', e => {
   const t = e.target; const b = t && t.closest && t.closest('[data-fldrc]'); if (!b) return; e.preventDefault(); flowDueRecvOpen(b.getAttribute('data-fldrc'));
+});
+/* DUE DATES · REMIND (Ravi, 3 Nov: "vendor portal me due date ka kya hota h, kyu uski koi notification nahi aati"). The due date of a
+ * line is the cut date PPC planned (plan.dates.cut — the same date the printer's vendor order carries). Per printer: what is past it
+ * with the cloth already with them, what falls due today or in the next FLOW_REM_SOON days, and what is held up because our RFD has not
+ * gone — that last is not the printer's delay and is never put in their reminder. "WhatsApp reminder" opens WhatsApp with the late
+ * lines typed in (wa.me: there is no WhatsApp API key), to the cellphone on the printer's Vendors record; a person presses Send.
+ * When it was opened is kept on this computer only, and is said as "opened", not "sent". */
+const FLOW_REM = { open: '' };
+/** Days from one ISO day to another (vendor-orders.js has voDays; this screen can load without it). */
+const flowRemDays = (a, b) => { const x = Date.parse(String(a || '').slice(0, 10) + 'T00:00:00'), y = Date.parse(String(b || '').slice(0, 10) + 'T00:00:00'); return isFinite(x) && isFinite(y) ? Math.round((y - x) / 864e5) : null; };
+const FLOW_REM_SOON = 3;   // the same three days the printer's portal calls "due soon" (VO_SOON)
+const FLOW_REM_KEY = 'flowRemOpened';
+function flowRemOf(x, today) {
+  if (!(x.withPrinter > 0.001)) return 'wait';
+  if (!x.due) return '';
+  const d = flowRemDays(x.due, today); if (d == null) return '';
+  return d > 0 ? 'late' : d === 0 ? 'today' : -d <= FLOW_REM_SOON ? 'soon' : 'later';
+}
+function flowRemPrinters(testOnly) {
+  const today = dToday(), by = new Map();
+  flowDueRows('', testOnly).forEach(x => {
+    const k = x.code || x.printer, st = flowRemOf(x, today);
+    const e = by.get(k) || by.set(k, { code: k, name: x.printer, late: [], today: [], soon: [], later: [], wait: [], none: [], max: 0 }).get(k);
+    const days = st === 'late' ? flowRemDays(x.due, today) : 0;
+    e[st || 'none'].push(Object.assign({}, x, { st, days }));
+    if (days > e.max) e.max = days;
+  });
+  return [...by.values()].sort((a, b) => b.late.length - a.late.length || b.max - a.max || a.name.localeCompare(b.name));
+}
+/** The printer's cellphone from its Vendors record (then its sign-in), as wa.me wants it: country code and digits only. */
+function flowRemPhone(code) {
+  const v = ptList((PTG.masters || {}).vendor).find(y => y && String(y.code) === String(code)) || {};
+  const m = (typeof VO !== 'undefined' && VO.map && VO.map[code]) || {};
+  let d = String(v.phone || m.phone || '').replace(/\D/g, '');
+  if (d.length === 11 && d[0] === '0') d = d.slice(1);
+  if (d.length === 10) d = '91' + d;
+  return d.length >= 11 && d.length <= 13 ? d : '';
+}
+const flowRemWhat = x => { const p = (x.l && x.l.print) || {}; let m = {}; try { m = cutSkuOf(x.sku) || {}; } catch (e) { m = {}; }
+  const colour = x.r.color || m.color || '';
+  return x.unit === 'm' ? [p.code || x.sku, colour, x.l.fabric].filter(Boolean).join(' ') : [x.sku, colour, x.r.size || m.size].filter(Boolean).join(' '); };
+/** The reminder's text: the late lines, oldest first, ten at most — the rest are on their portal. */
+function flowRemText(g) {
+  const late = g.late.slice().sort((a, b) => b.days - a.days || a.orderNo.localeCompare(b.orderNo));
+  const soon = g.today.length + g.soon.length;
+  const dm = iso => flowDueDay(iso).slice(0, 5);
+  const lines = late.slice(0, 10).map(x => `• ${x.orderNo} · ${flowRemWhat(x)} — ${flowQtyTxt(x.withPrinter, x.unit)}, due ${dm(x.due)} (${nf(x.days)} day${x.days === 1 ? '' : 's'} late)`);
+  return `${g.name} — reminder from Ridhi Home & Living (${flowDueDay(dToday())})\n\n`
+    + (late.length ? `${nf(late.length)} line(s) are past their due date. The cloth is already with you:\n\n${lines.join('\n')}`
+      + (late.length > 10 ? `\n…and ${nf(late.length - 10)} more — every line is on your portal.` : '') : 'Nothing is past its due date.')
+    + (soon ? `\n\n${nf(soon)} more line(s) fall due in the next ${FLOW_REM_SOON} days.` : '')
+    + '\n\nPlease send them and record each batch under "Vendor sent" on the portal.';
+}
+function flowRemSeen() { try { return JSON.parse(localStorage.getItem(FLOW_REM_KEY) || '{}') || {}; } catch (e) { return {}; } }
+function flowRemOpen(code, testOnly) {
+  const g = flowRemPrinters(testOnly).find(y => y.code === code); if (!g) return 'Nothing is owed by that printer any more — press Refresh.';
+  if (!g.late.length) return `Nothing of ${g.name}'s is past its due date.`;
+  const ph = flowRemPhone(code); if (!ph) return `${g.name} has no cellphone on its Vendors record (Setup → Masters → Vendors).`;
+  const url = 'https://wa.me/' + ph + '?text=' + encodeURIComponent(flowRemText(g));
+  try { window.open(url, '_blank', 'noopener'); } catch (e) { return 'Could not open WhatsApp: ' + (e.message || e); }
+  const seen = flowRemSeen(); seen[code] = new Date().toISOString();
+  try { localStorage.setItem(FLOW_REM_KEY, JSON.stringify(seen)); } catch (e) { /* not kept */ }
+  FLOW.said = `WhatsApp opened for ${g.name} with ${nf(g.late.length)} late line(s) — press Send there.`;
+  return '';
+}
+/** How many lines are late at every printer — the count on the tab. */
+const flowRemLateN = testOnly => flowRemPrinters(testOnly).reduce((t, g) => t + g.late.length, 0);
+function flowRemTable(testOnly) {
+  const gs = flowRemPrinters(testOnly), seen = flowRemSeen(), sum = k => gs.reduce((t, g) => t + g[k].length, 0);
+  const when = iso => { const d = new Date(iso); if (isNaN(d)) return ''; const t = d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+    return (ptIsoDate(iso) === dToday() ? 'today ' : flowDueDay(ptIsoDate(iso)) + ' ') + t; };
+  const tile = (n, label, bg, fg) => `<div style="background:${bg};border-radius:8px;padding:6px 2px;text-align:center"><div style="font-size:18px;font-weight:700;color:${fg}">${nf(n)}</div><div style="font-size:11px;color:${fg}">${label}</div></div>`;
+  const strip = `<div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;font-size:13px;padding:2px 2px 10px">`
+    + `<span><b style="color:var(--bad);font-size:17px">${nf(sum('late'))}</b> line(s) late at printers</span>`
+    + `<span><b style="font-size:17px">${nf(sum('today'))}</b> due today</span><span><b style="font-size:17px">${nf(sum('soon'))}</b> due in the next ${FLOW_REM_SOON} days</span>`
+    + `<span style="color:#92400e"><b style="font-size:17px">${nf(sum('wait'))}</b> waiting for our RFD cloth — not the printer's delay</span>`
+    + `<span class="muted" style="font-size:12px">Due date = the cut date PPC planned · today ${esc(flowDueDay(dToday()))}</span></div>`;
+  const cards = gs.map(g => { const ph = flowRemPhone(g.code), at = seen[g.code];
+    return `<div style="background:#fff;border:1px solid var(--line,#e5e8ee);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:9px">
+      <div style="display:flex;gap:8px;align-items:baseline"><b style="font-size:14.5px">${esc(g.name)}</b><span class="muted" style="font-size:12px">${esc(g.code)}${ph ? ' · ••••' + esc(ph.slice(-4)) : ' · no cellphone'}</span></div>
+      <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px">${tile(g.late.length, g.late.length ? 'late · up to ' + nf(g.max) + ' d' : 'late', '#fdecec', '#991b1b')}${tile(g.today.length, 'due today', '#f1f5f9', '#334155')}${tile(g.soon.length, 'next ' + FLOW_REM_SOON + ' days', '#f1f5f9', '#334155')}${tile(g.wait.length, 'our cloth due', '#fdf3e2', '#92400e')}</div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <button type="button" data-flrem="${esc(g.code)}" style="width:auto;padding:6px 12px;font-size:12.5px;background:#166534;border-color:#166534"${g.late.length && ph ? '' : ' disabled'} title="${ph ? 'Opens WhatsApp with the late lines typed in — you press Send' : 'No cellphone on this printer\'s Vendors record'}">WhatsApp reminder</button>
+        <button type="button" class="${FLOW_REM.open === g.code ? '' : 'ghost'}" data-flremshow="${esc(g.code)}" style="width:auto;padding:6px 12px;font-size:12.5px">${FLOW_REM.open === g.code ? 'Hide lines' : 'Show lines'}</button>
+        <span class="muted" style="font-size:11.5px">${at ? 'WhatsApp opened ' + esc(when(at)) + ' on this computer' : g.late.length ? 'not reminded from this computer' : 'nothing late'}</span></div></div>`; }).join('');
+  const g = gs.find(y => y.code === FLOW_REM.open);
+  let lines = '';
+  if (g) {
+    const ls = g.late.concat(g.today, g.soon).sort((a, b) => String(a.due).localeCompare(String(b.due)) || a.orderNo.localeCompare(b.orderNo));
+    lines = `<div style="background:#fff;border:1px solid var(--line,#e5e8ee);border-radius:12px;overflow:hidden;margin-top:12px">
+      <div style="background:#fdf0e8;padding:8px 14px;font-weight:700;font-size:13px">${esc(g.name)} — ${nf(g.late.length)} late, ${nf(g.today.length + g.soon.length)} due soon <span style="font-weight:500;color:#6b7686;font-size:12px;margin-left:8px">oldest due first · cloth already with them</span></div>
+      <table class="xl" style="width:100%"><thead><tr><th style="text-align:left">Order ID</th><th style="text-align:left">Item</th><th>Size</th><th class="num">With printer</th><th style="text-align:left">Due date</th><th style="text-align:left">Challan</th></tr></thead><tbody>`
+      + (ls.map(x => { let m = {}; try { m = cutSkuOf(x.sku) || {}; } catch (e) { m = {}; }
+        return `<tr><td style="text-align:left"><b>${esc(x.orderNo)}</b></td><td style="text-align:left;font-size:12px">${flowChLineWhat(x.l, true)}</td>
+          <td style="font-size:12px">${esc(x.r.size || m.size || '') || '<span class="muted">—</span>'}</td><td class="num"><b>${flowQtyTxt(x.withPrinter, x.unit)}</b></td>
+          <td style="text-align:left;font-size:12px">${typeof voDueHtml === 'function' ? voDueHtml({ due: x.due, st: x.st, days: x.days }) : esc(flowDueDay(x.due))}</td><td style="text-align:left;font-size:12px">${esc(x.challan) || '<span class="muted">—</span>'}</td></tr>`; }).join('')
+        || '<tr><td colspan="6" class="muted" style="padding:14px">Nothing of theirs is late or due in the next days.</td></tr>') + '</tbody></table></div>';
+  }
+  return `<tbody><tr><td style="text-align:left;padding:4px 2px;border:0;background:transparent">${strip}`
+    + (gs.length ? `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:12px">${cards}</div>` : '<div class="muted" style="padding:16px">Nothing is owed by a printer.</div>')
+    + lines + '</td></tr></tbody>';
+}
+if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') document.addEventListener('click', e => {
+  const t = e.target; if (!t || !t.closest) return;
+  const r = t.closest('[data-flrem]'), s = t.closest('[data-flremshow]'); if (!r && !s) return;
+  e.preventDefault();
+  if (s) { const k = s.getAttribute('data-flremshow'); FLOW_REM.open = FLOW_REM.open === k ? '' : k; renderFlow(); return; }
+  if (r.disabled) return;
+  const er = flowRemOpen(r.getAttribute('data-flrem'), FLOW.testOnly != null ? FLOW.testOnly : flowTestOnly());
+  renderFlow(); $('flMsg').className = er ? 'err' : 'muted'; $('flMsg').textContent = er || FLOW.said;
 });
 function flowDueXl(q, testOnly) {
   const rows = flowDueRows(q, testOnly); if (!rows.length) return 'Nothing is owed by a printer.';

@@ -142,11 +142,59 @@ const voMoves = l => (Array.isArray(l && l.vendorDateLog) ? l.vendorDateLog : []
 
 /** Days late against the date this line runs on — null when there is no date, or nothing is owed. */
 function voLateBy(o, l, todayIso) {
-  if (!l || l.cancelled) return null;
-  if (voQty(o, l) - voDone(l) <= 0) return null;            // nothing still owed cannot be late
-  const due = voDue(l); if (!due) return null;
-  const d = voDays(due, todayIso || dToday());
-  return d != null && d > 0 ? d : null;
+  const x = voDueOf(o, l, todayIso);
+  return x && x.st === 'late' ? x.days : null;
+}
+/* DUE AT THE PRINTER (Ravi, 3 Nov: "due date ka kya hota h, notification nahi aati"; "due date vendor ko bhi dikhe"). A line the
+ * PPC flow placed comes back on its RFD challan, never on the vendor order, so voDone there stays 0 and every such line read as
+ * late — 1,296 lines on 3 Nov where 217 really were. The flow writes what it gave and got back onto the order (flowProg.items, per
+ * print-order line, shared over the vendor-order lines that stand for it), so that is what is read:
+ *   left    ordered less what came back            withV   given less what came back — what the printer holds
+ *   st      'wait'  something is left but none of it is with the printer: the cloth is ours to send, not the printer's delay
+ *           'late' / 'today' / 'soon' (within VO_SOON days) / 'later' by the due date (voDue); '' with no date
+ * Any other order keeps the old reading: what is owed is with the vendor. null = nothing left. */
+const VO_SOON = 3;
+const VO_DUE_CTX = new WeakMap(), VO_NO_ITEMS = Object.freeze({});
+function voFlowCtx(o) {
+  const p = o && o.flowProg; if (!p) return null;
+  /* Nothing given on the whole order yet: the flow writes no items then (379 of 893 open orders on 3 Nov), and every line waits for us. */
+  const items = p.items || (!(+p.given > 0) && !(+p.back > 0) ? VO_NO_ITEMS : null); if (!items) return null;
+  let c = VO_DUE_CTX.get(o); if (c && c.items === items) return c;
+  const keyOf = p => { const [k, part] = String(p || '').split('|'); return part === 'ruffle' ? k + '~ruffle' : k; }, cnt = {};
+  voLines(o).forEach(l => voParts(l).forEach(p => { const k = keyOf(p); cnt[k] = (cnt[k] || 0) + 1; }));
+  c = { items, cnt, keyOf }; VO_DUE_CTX.set(o, c); return c;
+}
+const voParts = l => Array.isArray(l.parts) ? l.parts : String(l.flowPart || '').split('+').filter(Boolean);
+function voDueOf(o, l, todayIso) {
+  if (!o || !l || l.cancelled) return null;
+  const ord = voQty(o, l), c = voFlowCtx(o);
+  let back = voDone(l), given = null;
+  if (c && voParts(l).length) {
+    given = 0; back = 0;
+    voParts(l).forEach(p => { const k = c.keyOf(p), it = c.items[k], n = c.cnt[k] || 1;
+      if (it) { given += (+it.given || 0) / n; back += (+it.back || 0) / n; } });
+    given = Math.round(given * 100) / 100; back = Math.round(back * 100) / 100;
+  }
+  const left = Math.round((ord - back) * 100) / 100; if (!(left > 0.001)) return null;
+  const withV = given == null ? left : Math.max(0, Math.round((given - back) * 100) / 100);
+  const due = voDue(l), today = todayIso || dToday();
+  const base = { due, left, withV, given, back, ord, unit: voUnit(o), days: null };
+  if (!(withV > 0.001)) return Object.assign(base, { st: 'wait' });
+  if (!due) return Object.assign(base, { st: '' });
+  const d = voDays(due, today);
+  if (d == null) return Object.assign(base, { st: '' });
+  return Object.assign(base, { days: d > 0 ? d : null, st: d > 0 ? 'late' : d === 0 ? 'today' : -d <= VO_SOON ? 'soon' : 'later' });
+}
+/** The due date as a printer reads it, with what it means today: "25/10/26 · 9 days late". HTML. */
+function voDueHtml(x, fallbackIso) {
+  const due = (x && x.due) || fallbackIso || '';
+  if (!due) return '<span class="muted">—</span>';
+  const st = x && x.st, d = esc(dShow(due));
+  if (st === 'late') return `<b style="color:var(--bad)">${d}</b><div style="font-size:10.5px;color:var(--bad);font-weight:600">${nf(x.days)} day${x.days === 1 ? '' : 's'} late</div>`;
+  if (st === 'today') return `<b style="color:#b45309">${d}</b><div style="font-size:10.5px;color:#b45309;font-weight:600">due today</div>`;
+  if (st === 'soon') { const n = voDays(dToday(), due) || 0; return `<b>${d}</b><div style="font-size:10.5px;color:#b45309">due in ${nf(n)} day${n === 1 ? '' : 's'}</div>`; }
+  if (st === 'wait') return `<span>${d}</span><div style="font-size:10.5px;color:#92400e">waiting for cloth from us</div>`;
+  return `<span>${d}</span>`;
 }
 /** A date as Ravi reads it: day first, two-digit year. */
 const dShow = iso => {
@@ -170,7 +218,7 @@ function voSummary(o) {
   const done = live.reduce((s, l) => s + voDone(l), 0);
   /* Unanswered lines are not late and not on time — nobody has said anything about them. They are
    * counted separately because chasing a promise and chasing a delivery are different jobs. */
-  const owing = live.filter(l => voQty(o, l) - voDone(l) > 0);
+  const owing = live.filter(l => voDueOf(o, l) != null);
   return { lines: all.length, live: live.length, cancelled: dead.length,
     cancelledQty: dead.reduce((s, l) => s + voQty(o, l), 0),
     ordered, done, owed: Math.max(0, ordered - done),
