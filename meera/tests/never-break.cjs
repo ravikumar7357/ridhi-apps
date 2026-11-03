@@ -25,7 +25,9 @@ const known = (ids, src, id) => ids.has(id) || (/^ptf_/.test(id) && src.includes
 
 async function main() {
   /* --bundle --on=design,…: the same list on meera.js with her switches on (Phase 3: a look-only switch keeps every check) */
-  const args = process.argv.slice(2), bundle = args.includes('--bundle');
+  /* her new features on (MEERA_V2_ON): "lazy" is on, so staff only ever get meera.js — the list is checked on meera.js */
+  const V2 = /^\s*const MEERA_V2_ON = true\b/m.test(require('fs').readFileSync(require('path').join(__dirname, '..', '..', 'Replenish-App', 'src', 'app', 'core', 'meera-bridge.js'), 'utf8'));
+  const args = process.argv.slice(2), bundle = args.includes('--bundle') || V2;
   const switches = ((args.find(a => a.startsWith('--on=')) || '').slice(5)).split(',').filter(Boolean);
   const M = await load({ root: ROOT, bundle, switches, handle: bundle });
   const run = bundle ? c => M.ctx.__meeraTest(c) : c => M.run(c);

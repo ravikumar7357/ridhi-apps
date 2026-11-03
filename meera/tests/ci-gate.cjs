@@ -50,6 +50,7 @@ function scope(base) {
 const CHECKS = [
   /* Phase 6 */
   { name: 'her type checks (strict new files; all files together)', cmd: ['meera/tests/type-check.cjs'], fix: 'run the type check (meera/tests/type-check.cjs) and fix what it names' },
+  { name: 'the emergency off for her new features (her router\'s switch)', cmd: ['meera/tests/v2-off.cjs'], fix: 'see the FAIL lines in meera/tests/v2-off.cjs — the off switch must always work' },
   { name: 'no automation pushes to main', cmd: ['meera/tests/no-push-to-main.cjs'], fix: 'a workflow could change main by itself (see the FAIL lines) — only meera-autobank.yml may write, and only autobank/* branches' },
   { name: 'her answers are well-formed', cmd: ['meera/tests/answers-check.cjs'], fix: 'fix the answers named above in Replenish-App/public/guide/' },
   { name: 'guide-errors is up to date with the screens', cmd: ['meera/tools/make-errors.cjs', '--check'], fix: 'run: node meera/tools/make-errors.cjs, then her gate, and commit meera/client/src/legacy/guide-errors.ts', warnOnly: true },

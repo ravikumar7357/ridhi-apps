@@ -10,7 +10,9 @@
 const fs = require('fs'), path = require('path'), { spawnSync } = require('child_process');
 const { load } = require('./harness.cjs');
 const ROOT = path.join(__dirname, '..', '..');
-const golden = JSON.parse(fs.readFileSync(path.join(ROOT, 'meera/bank/baseline/golden.json'), 'utf8'));
+/* the record that matches MEERA_V2_ON (her new features all on, or all off) */
+const V2 = /^\s*const MEERA_V2_ON = true\b/m.test(fs.readFileSync(path.join(ROOT, 'Replenish-App/src/app/core/meera-bridge.js'), 'utf8'));
+const golden = JSON.parse(fs.readFileSync(path.join(ROOT, 'meera/bank/baseline', ...(V2 ? ['v2'] : []), 'golden.json'), 'utf8'));
 const SEARCH = 'https://asia-south1-price-research-48ff3.cloudfunctions.net/meeraSearch';
 let pass = 0, fail = 0;
 const ok = (c, m) => { if (c) pass++; else { fail++; console.log('  FAIL ' + m); } };

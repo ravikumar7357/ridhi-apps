@@ -294,7 +294,7 @@ const sent = () => JSON.stringify(calls.map(c => c.body));
   await call('/admin/config', { tok: admin, body: { key: 'meera', value: 'off' } });
   const cf = (await call('/config', { method: 'GET' })).body;
   ok(cf.meera === false && cf.ai === false && cf.search === false, 'all three switches read back');
-  ok((await call('/admin/config', { tok: admin, body: { key: 'other', value: 'off' } })).status === 400, 'only those three');
+  ok((await call('/admin/config', { tok: admin, body: { key: 'other', value: 'off' } })).status === 400, 'only those four');
 }
 
 /* ---------- 10. the free plan: search parked (2 Nov) ---------- */
@@ -363,6 +363,20 @@ const sent = () => JSON.stringify(calls.map(c => c.body));
   ok(c3.search === false && c3.searchStopped === 'alarm', 'every browser told: stopped by the alarm');
   await call('/admin/config', { tok: admin, body: { key: 'search', value: 'on' } });
   ok((await call('/config', { method: 'GET' })).body.search === true, 'an admin turns it on again after checking the bill');
+}
+
+/* ---------- 12. the emergency off for her new features (3 Nov) ---------- */
+{
+  const s = setup(), admin = await token({ email: 'ravi@x.com' });
+  const flags = async (o = ORIGIN) => { const headers = o ? { origin: o } : {}; const r = await handle(new Request('https://router.example/flags', { headers }), s.env, { fetch: fakeFetch, store: store(s.db) }); return { status: r.status, body: await r.json().catch(() => null), cc: r.headers.get('cache-control') }; };
+  const f1 = await flags();
+  ok(f1.status === 200 && f1.body.v2 === true && Object.keys(f1.body).length === 1 && f1.cc === 'no-store', '/flags: on, nothing else in it, never cached');
+  ok((await flags('https://evil.example')).status === 403, '/flags: only the ERP pages');
+  await s.call('/admin/config', { tok: admin, body: { key: 'v2', value: 'off' } });
+  ok((await flags()).body.v2 === false, 'the admin switch off: every page told at once (no sign-in needed to read it)');
+  ok((await s.call('/admin/config', { body: { key: 'v2', value: 'on' } })).status === 403, 'only an admin can change it');
+  await s.call('/admin/config', { tok: admin, body: { key: 'v2', value: 'on' } });
+  ok((await flags()).body.v2 === true && (await s.call('/config', { method: 'GET' })).body.v2 === true, 'on again');
 }
 
 console.log(`meera-router: ${pass} passed, ${fail} failed`);

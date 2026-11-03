@@ -218,6 +218,25 @@ const MEERA_SWITCHES = {
    * a stage, today's counts, late orders), READ ONLY from this page's memory (ERP_MEERA.data). meera.js only: ?meera=lazy,data */
   data: MEERA_V2_ON,
 };
+/* THE EMERGENCY OFF (Ravi, 3 Nov: "the router's setting on the admin page should turn all seven off within seconds").
+ * Each page asks her router once as it opens (GET /flags: no sign-in, no data, only on/off) and keeps the answer in this
+ * browser; while it says off, the seven that follow MEERA_V2_ON are off — Meera as she was before. A page already open
+ * keeps what it started with until it is reloaded; a page opening after the switch obeys it (the very first page on a
+ * computer obeys it once the answer is back, before meera.js is fetched). A tester's own ?meera=… or localStorage
+ * choice still wins. */
+const MEERA_V2_NAMES = ['lazy', 'spell', 'design', 'learn', 'screenfirst', 'hindinames', 'data'];
+let MEERA_V2_KILLED = (() => { try { return localStorage.getItem('meera.v2off') === '1'; } catch (e) { return false; } })();
+const MEERA_FLAGS = (() => {
+  if (!MEERA_V2_ON) return Promise.resolve(null);
+  try {
+    return fetch('https://meera-router.erp-9a0.workers.dev/flags', { cache: 'no-store' }).then(r => (r.ok ? r.json() : null)).then(j => {
+      if (!j || typeof j.v2 !== 'boolean') return null;
+      MEERA_V2_KILLED = !j.v2;
+      try { if (MEERA_V2_KILLED) localStorage.setItem('meera.v2off', '1'); else localStorage.removeItem('meera.v2off'); } catch (e) { /* storage blocked */ }
+      return j;
+    }).catch(() => null);
+  } catch (e) { return Promise.resolve(null); }
+})();
 function meeraOn(name) {
   try {
     const v = localStorage.getItem('meera.' + name);
@@ -228,6 +247,7 @@ function meeraOn(name) {
     const u = new URLSearchParams(location.search).get('meera');
     if (u && u.split(',').map(s => s.trim()).includes(name)) return true;
   } catch (e) { /* no address: the defaults */ }
+  if (MEERA_V2_KILLED && MEERA_V2_NAMES.includes(name)) return false;   // the emergency off
   return !!MEERA_SWITCHES[name];
 }
 
@@ -238,6 +258,9 @@ function meeraOn(name) {
 function meeraHere() { return !meeraOn('lazy'); }
 function meeraLoadFile() {
   if (meeraLoadFile.done) return;
+  /* the emergency off: wait for her router's answer (a moment) and fetch nothing if it says off */
+  if (MEERA_V2_ON && !meeraLoadFile.asked) { meeraLoadFile.asked = true; MEERA_FLAGS.then(() => meeraLoadFile()); return; }
+  if (!meeraOn('lazy')) return;
   meeraLoadFile.done = true;
   const add = src => {
     try {

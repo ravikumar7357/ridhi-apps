@@ -159,7 +159,7 @@ interface MlView {
   down: { id: number; created: string; question: string; screen: string; lang: string; answer: string; note: string }[];
   tickets: { id: number; created: string; screen: string; question: string; why: string }[];
   /* Phase 5: her router's switches, and how its search compares with the browser's (last 7 days) */
-  cfg?: { meera: boolean; ai: boolean; search: boolean; searchStopped?: string; backOn?: string } | null;
+  cfg?: { meera: boolean; ai: boolean; v2?: boolean; search: boolean; searchStopped?: string; backOn?: string } | null;
   /* her search on Cloud Functions: this month's meter (requests and billed seconds) and its limits — half the free allowance */
   meter?: { month: string; req: number; sec: number; limits: { req: number; sec: number }; stopped: string; backOn: string } | null;
   cmp?: { asked: number; same: number; differ: { created: string; question: string; screen: string; browser: string; server: string }[] } | null;
@@ -279,6 +279,8 @@ function mlAdminDraw(msg: string): void {
     const m = v.cmp;
     body = `<table><tr><th>${mlL('Switch (for everyone, at once — no deploy)', 'स्विच (सबके लिए, तुरंत — बिना डिप्लॉय)')}</th><th>${mlL('Now', 'अभी')}</th><th></th></tr>`
       + row('meera', 'Meera', mlL('Off: her round face does not appear for anyone', 'बंद: किसी को उसका गोल चेहरा नहीं दिखेगा'))
+      /* the emergency off (Ravi, 3 Nov): the seven new features, read by every page as it opens */
+      + row('v2', mlL('Meera\'s new features (all seven)', 'मीरा की नई सुविधाएँ (सातों)'), mlL('Off: Meera as she was before — new look, spelling, screen first, Hindi names, figures, learning and her own file all off. Each page obeys as it opens (a page already open, when reloaded).', 'बंद: मीरा पहले जैसी — नया रूप, स्पेलिंग, स्क्रीन पहले, हिंदी नाम, आँकड़े, सीख और उसकी अपनी फ़ाइल सब बंद। हर पेज खुलते ही मानता है (खुला पेज रीलोड पर)।'))
       + row('ai', mlL('AI answers', 'AI जवाब'), mlL('Off: she answers only from her own answers; nothing goes to an AI', 'बंद: वह सिर्फ़ अपने जवाबों से जवाब देगी; AI को कुछ नहीं जाएगा'))
       + row('search', mlL('Search on the server', 'सर्वर पर खोज'), mlL('Off: every browser searches on its own, as before', 'बंद: हर ब्राउज़र पहले की तरह खुद खोजेगा'))
       + '</table>'

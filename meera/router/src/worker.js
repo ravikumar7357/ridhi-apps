@@ -88,6 +88,15 @@ export async function handle(req, env, deps = {}) {
   const url = new URL(req.url);
   const h = cors(req, env);
   if (req.method === 'OPTIONS') return h ? new Response(null, { status: 204, headers: h }) : new Response(null, { status: 403 });
+  /* ---- THE EMERGENCY OFF for her new features (Ravi, 3 Nov): every ERP page asks this once as it opens — no sign-in, no
+   * data, only on/off. An admin's "Meera's new features" switch off → { v2: false } → that page runs Meera as before
+   * (the seven new features off). Changed on the admin page, with no deploy. ---- */
+  if (url.pathname === '/flags' && req.method === 'GET') {
+    if (!h) return reply({ error: 'origin' }, 403);
+    let v2 = true;
+    try { const db = deps.store || store(env.DB); v2 = (await db.config()).v2 !== 'off'; } catch (e) { /* no answer: as set in the ERP */ }
+    return reply({ v2 }, 200, { ...h, 'cache-control': 'no-store' });
+  }
   if (url.pathname === '/health') return reply({ ok: true, v: ROUTER_VERSION, search: env.SEARCH === 'parked' ? 'parked' : 'on', groq: !!env.GROQ_API_KEY, workersAi: !!(env.AI && env.CF_AI_MODEL), gemini: !!env.GEMINI_API_KEY }, 200, h);
   /* ---- the weekly build step (Phase 4): what admins approved, for meera-bank.json — GitHub's job only, with its own
    * key (secret EXPORT_KEY, in Cloudflare and in GitHub); no key set: closed ---- */
@@ -142,7 +151,7 @@ export async function handle(req, env, deps = {}) {
   const stopped = searchStopped(cfg, now), searchOn = isOn('search') && !stopped;
   /* searchStopped: 'free' (the month's meter reached half the free allowance — back on the 1st) or 'alarm' (the cent
    * alarm — back when an admin turns it on); the browser then searches on its own, as before */
-  if (url.pathname === '/config' && req.method === 'GET') return reply({ meera: isOn('meera'), ai: isOn('ai'), search: searchOn, searchStopped: stopped,
+  if (url.pathname === '/config' && req.method === 'GET') return reply({ meera: isOn('meera'), ai: isOn('ai'), v2: isOn('v2'), search: searchOn, searchStopped: stopped,
     backOn: stopped === 'free' ? nextMonth(now) : '', kbVersion: cfg.kb_version || '0' }, 200, h);
 
   /* ---- A TICKET for one search on Cloud Functions (D.2; Ravi: "a total daily limit for all staff together"): the function
@@ -277,7 +286,7 @@ export async function handle(req, env, deps = {}) {
     /* Phase 4: the learning page — this week's unanswered, suggested spellings, 👎s, open tickets; and decisions */
     /* Phase 5: her switches, and how the server's search compares with the browser's */
     if (url.pathname === '/admin/config' && req.method === 'POST') {
-      if (!['meera', 'ai', 'search'].includes(body.key) || !['on', 'off'].includes(body.value)) return reply({ error: 'key: meera / ai / search, value: on / off' }, 400, h);
+      if (!['meera', 'ai', 'search', 'v2'].includes(body.key) || !['on', 'off'].includes(body.value)) return reply({ error: 'key: meera / ai / search / v2, value: on / off' }, 400, h);
       await db.configSet(body.key, body.value);
       /* an admin turning her search on again clears the cent alarm (after checking the bill); the month's meter stop stays */
       if (body.key === 'search' && body.value === 'on') await db.configSet('search_alarm', '');
