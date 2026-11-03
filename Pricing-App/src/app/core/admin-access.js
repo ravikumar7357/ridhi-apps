@@ -6,6 +6,17 @@ $('accessPick').onchange = e => {
   if (r) $('accessEmail').scrollIntoView({ block: 'nearest', behavior: 'smooth' });
 };
 
+/** Take somebody's access away: their record, and its copy in the production database. Asked first (3 Nov: the role page puts Remove on every row). */
+async function accessRemove(who) {
+  if (who === ME.email) { $('accessMsg').textContent = 'You cannot remove your own access.'; return; }
+  if (typeof confirm === 'function' && !confirm(`Remove all access for ${who}?`)) return;
+  await deleteDoc(doc(db, 'perms', who));
+  let gone = '';
+  try { await permMirror(who, null); } catch (e) { gone = e.message || String(e); }
+  $('accessMsg').textContent = `Removed ${who}. They keep their sign-in but can no longer see anything.`
+    + (gone ? ' BUT THEIR COPY IN THE PRODUCTION DATABASE IS STILL THERE — ' + gone + '. Remove them again.' : '');
+  loadAccessList();
+}
 async function loadAccessList() {
   if (!ME.admin) return;
   const box = $('accessRows');
@@ -33,16 +44,9 @@ async function loadAccessList() {
       </tr>`).join('')
       : '<tr><td colspan="4" class="muted">Nobody has been granted access yet.</td></tr>';
     box.querySelectorAll('[data-edit-perm]').forEach(b => b.onclick = () => fillAccessForm(rows.find(r => r.email === b.dataset.editPerm)));
-    box.querySelectorAll('[data-del-perm]').forEach(b => b.onclick = async () => {
-      const who = b.dataset.delPerm;
-      if (who === ME.email) { $('accessMsg').textContent = 'You cannot remove your own access.'; return; }
-      await deleteDoc(doc(db, 'perms', who));
-      let gone = '';
-      try { await permMirror(who, null); } catch (e) { gone = e.message || String(e); }
-      $('accessMsg').textContent = `Removed ${who}. They keep their sign-in but can no longer see anything.`
-        + (gone ? ' BUT THEIR COPY IN THE PRODUCTION DATABASE IS STILL THERE — ' + gone + '. Remove them again.' : '');
-      loadAccessList();
-    });
+    box.querySelectorAll('[data-del-perm]').forEach(b => b.onclick = () => accessRemove(b.dataset.delPerm));
+    /* the page by department and role (access-roles.js) is drawn from the same list */
+    if (typeof acrRender === 'function') acrRender();
   } catch (e) {
     box.innerHTML = `<tr><td colspan="4" class="err">Could not reach the access list, so it is not shown — nobody's access has changed. `
       + `This usually means Firestore cannot be reached from this network right now; try again in a moment, or from another connection. `

@@ -230,9 +230,9 @@
 
   <!-- ============ Admin: who can see what ============ -->
   <div id="accessCard" class="card hide" style="margin-bottom:14px">
-    <div class="sec" style="margin-top:0">Access &nbsp;·&nbsp;
-      <span style="text-transform:none;font-weight:400">who can open which section</span></div>
-    <table class="tbl">
+    <!-- BY DEPARTMENT AND ROLE (Ravi, 3 Nov): drawn by core/access-roles.js from the same list; the old email table stays underneath, hidden. -->
+    <div id="accRoles"></div>
+    <table class="tbl hide">
       <thead><tr><th style="width:38%">Email</th><th>Can see</th><th></th><th></th></tr></thead>
       <tbody id="accessRows"></tbody>
     </table>

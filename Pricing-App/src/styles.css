@@ -80,6 +80,54 @@
   .setmenu.open{display:flex;flex-direction:column;gap:2px;position:absolute;top:calc(100% + 7px);right:0;min-width:180px;
     background:var(--card);border-radius:var(--r-card);box-shadow:var(--sh-2);padding:7px;z-index:70}
   .setmenu .nav{width:100%;text-align:left}
+  /* ACCESS BY ROLE (core/access-roles.js, 3 Nov) */
+  .acr-top{display:flex;align-items:center;gap:10px;margin:0 0 12px;flex-wrap:wrap}
+  .acr-addbox{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:12px 14px;margin:0 0 12px;border-radius:var(--r-ctl);background:var(--soft);border:1px solid var(--line)}
+  .acr-addbox select{width:auto;min-width:240px}
+  .acr-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:0 0 14px}
+  .acr-stats .card{padding:12px 16px;margin:0}
+  .acr-stats b{display:block;font-size:24px;font-weight:600;letter-spacing:-.02em}
+  .acr-stats span{color:var(--muted);font-size:13px}
+  .acr-spc{color:#5B3FA0}.acr-adm{color:var(--bad)}
+  .acr-body{display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap}
+  .acr-side{flex:0 0 220px;background:var(--soft);border-radius:var(--r-card);padding:10px}
+  .acr-main{flex:999 1 560px;min-width:0;display:flex;flex-direction:column;gap:14px}
+  .acr-nav{display:flex;align-items:center;gap:8px;width:100%;padding:8px 10px;border:0;background:none;border-radius:var(--r-sm);font:inherit;font-size:14px;color:var(--ink);text-align:left;cursor:pointer;box-shadow:none}
+  .acr-nav:hover{background:var(--hover)}
+  .acr-nav.on{background:var(--brand-bg);color:var(--brand-ink);font-weight:700}
+  .acr-n{margin-left:auto;font-size:12px;color:var(--muted)}
+  .acr-n.acr-sp{background:#F1ECFB;color:#5B3FA0;padding:0 8px;border-radius:10px}
+  .acr-lbl{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;padding:10px 10px 4px}
+  .acr-sep{height:1px;background:var(--line);margin:8px 4px}
+  .acr-note{margin:12px 4px 0;padding:10px 12px;border-radius:var(--r-sm);background:var(--brand-bg);color:var(--brand-ink);font-size:12px;line-height:1.45}
+  .acr-card{padding:0;overflow:hidden;margin:0}
+  .acr-cardh{display:flex;align-items:center;gap:8px;padding:12px 18px;border-bottom:1px solid var(--line);font-size:15px}
+  table.acr-t{width:100%;border-collapse:collapse}
+  table.acr-t th{text-align:left;font-size:12px;font-weight:600;color:var(--muted);padding:9px 18px;background:var(--soft);border-bottom:1px solid var(--line)}
+  table.acr-t td{padding:10px 18px;border-bottom:1px solid var(--line);vertical-align:middle;font-size:14px}
+  tr.acr-grp td{background:var(--soft);font-size:12px;font-weight:600;color:var(--muted);padding:6px 18px}
+  tr.acr-row{cursor:pointer}
+  tr.acr-row:hover td,tr.acr-row.on td{background:var(--hover)}
+  tr.acr-row.acr-hit td,.acr-person.acr-hit{background:var(--warn-bg)}
+  .acr-chev{color:var(--faint);width:30px}
+  .acr-pill{display:inline-flex;font-size:12px;font-weight:600;padding:2px 9px;border-radius:999px;background:var(--hover);color:var(--muted);margin:0 4px 2px 0;white-space:nowrap}
+  .acr-pill.acr-admin{background:var(--bad-bg);color:var(--bad)}
+  .acr-pill.acr-limit{background:var(--warn-bg);color:var(--warn)}
+  .acr-av{width:26px;height:26px;border-radius:50%;display:inline-grid;place-items:center;font-size:11px;font-weight:700;border:2px solid var(--card);margin-left:-6px;vertical-align:middle}
+  .acr-av:first-child{margin-left:0}
+  .acr-c0{background:#E9EFF6;color:#3A5573}.acr-c1{background:#EDF0E7;color:#4A5A3C}.acr-c2{background:#FFF3D6;color:#8A5A12}.acr-c3{background:#F1ECFB;color:#5B3FA0}
+  .acr-av.acr-more{background:var(--hover);color:var(--muted)}
+  .acr-detail{padding:6px 0 4px}
+  .acr-what{font-size:13px;line-height:1.55;margin:6px 0 10px;color:var(--ink)}
+  .acr-sub{font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin:4px 0}
+  .acr-callout{padding:8px 12px;border-radius:var(--r-sm);font-size:13px;margin:0 0 6px}
+  .acr-cannot{background:var(--bad-bg);color:var(--bad)}.acr-lim{background:var(--warn-bg);color:var(--warn)}
+  .acr-person{display:flex;align-items:center;gap:10px;padding:8px 4px;border-bottom:1px solid var(--line)}
+  .acr-person:last-child{border-bottom:0}
+  .acr-person .acr-av{margin-left:0;width:32px;height:32px;font-size:12px}
+  .acr-mail{font-weight:600;word-break:break-all;font-size:14px}
+  .acr-person .xbtn{width:auto}
+  @media (max-width:900px){ .acr-stats{grid-template-columns:repeat(2,minmax(0,1fr))} .acr-side{flex:1 1 100%} }
   .topbar .hamb{display:none}
   .main{padding:16px 22px}
   /* Group headings are buttons, not labels: each one opens and closes the .navsec directly after
