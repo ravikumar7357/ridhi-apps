@@ -183,35 +183,40 @@ ERP_MEERA.data = {
  *   3. everyone:           the default below (change it, push — "live karo" first)
  * Later (plan Phase 5) the router can hold the defaults, so a switch flips without a push.
  */
+/* ALL OF MEERA'S NEW FEATURES AT ONCE (Ravi, 3 Nov): lazy, spell, design, screenfirst (with the named-screen rule),
+ * hindinames, data and learn follow this one line. To turn them ALL off for everyone: set it to false and push to main
+ * (or edit this line on GitHub and commit) — the site redeploys in ~5 minutes and Meera is as she was before. Server
+ * search (server / serveruse) and autobank are NOT part of it and stay off. */
+const MEERA_V2_ON = false;
 const MEERA_SWITCHES = {
   /* Phase 1 — Meera loaded as her own file (meera.js) after the ERP is ready, instead of inside the page */
-  lazy: false,
+  lazy: MEERA_V2_ON,
   /* Phase 2 — she reads spelling mistakes ("karigr", "maaal", "pakking") and says how she read the question.
    * Works in meera.js only, so it needs "lazy" on too: ?meera=lazy,spell */
-  spell: false,
+  spell: MEERA_V2_ON,
   /* Phase 3 — her new look: answer card, source label, English / हिंदी switch, phone sheets, her own sealed box
    * (Shadow DOM). meera.js only, so it needs "lazy" on too: ?meera=lazy,design */
-  design: false,
+  design: MEERA_V2_ON,
   /* Phase 4 — learning from staff: missed / not sure / 👎 / spellings go (cleaned, role only) to her router for an
    * admin; "Meera's learning" page for admins. meera.js only: ?meera=lazy,learn */
-  learn: false,
+  learn: MEERA_V2_ON,
   /* Phase 5 — her search on her router: "server" side by side (she answers as before; the router's answer is only
    * compared), "serveruse" answers from the router (no 1.9 MB download; a small list per screen when it is down). */
   server: false,
   serveruse: false,
   /* answer from the open screen first (Ravi, 2 Nov): its own answers before every other screen's; another screen's
    * answer says which screen it is for. Works in the page and in meera.js: ?meera=screenfirst */
-  screenfirst: false,
+  screenfirst: MEERA_V2_ON,
   /* her answers keep up with the screens by themselves (Ravi, 2 Nov): on every push, meera/tools/autobank.cjs adds an
    * answer for a new part (its label and help text only), follows a renamed one, takes out a removed one; a new screen or
    * job becomes a draft on the admin page. Off: it only reports what it would do. Read by the build, not the browser. */
   autobank: false,
   /* a button or column name typed in Hindi letters ("डमी एक्सपोर्ट" → Dummy export), by its sounds (Ravi, 2 Nov).
    * Works in the page and in meera.js: ?meera=hindinames */
-  hindinames: false,
+  hindinames: MEERA_V2_ON,
   /* Phase 7 — answers from the ERP's own figures (where is an order, what a karigar holds, a SKU's stock, what waits at
    * a stage, today's counts, late orders), READ ONLY from this page's memory (ERP_MEERA.data). meera.js only: ?meera=lazy,data */
-  data: false,
+  data: MEERA_V2_ON,
 };
 function meeraOn(name) {
   try {

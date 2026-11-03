@@ -57,7 +57,7 @@ async function load(c, dev, design, tab = 'pbase') {
   await c.send('Emulation.setDeviceMetricsOverride', { width: d.width, height: d.height, deviceScaleFactor: 1, mobile: d.mobile });
   await c.send('Emulation.setTouchEmulationEnabled', { enabled: d.mobile, maxTouchPoints: d.mobile ? 5 : 0 });
   await c.send('Network.setUserAgentOverride', { userAgent: d.ua || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36 Edg/120.0' });
-  await c.send('Page.navigate', { url: BASE + `?meera=lazy,spell${design ? ',design' : ''}&tab=${tab}&t=${Date.now()}` });
+  await c.send('Page.navigate', { url: BASE + `?meera=${process.env.MEERA_ON || ('lazy,spell' + (design ? ',design' : ''))}&tab=${tab}&t=${Date.now()}` });
   for (let i = 0; i < 60; i++) { await sleep(250); if (await evaluate(c, 'return !!window.__meeraTest && !!window.MEERA')) break; }
   /* the phone opens on its home page: the screen itself, as on the desktop */
   await evaluate(c, `localStorage.removeItem('guideLang'); window.__meera.showTab(${JSON.stringify(tab)}); await sleep(800); T('guideClose && guideClose()'); return 1`);
