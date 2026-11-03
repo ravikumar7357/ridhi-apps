@@ -175,7 +175,9 @@ const daysLeft = s => s.sold ? Math.floor(s.shop / (s.sold / 30)) : 999;
 const lowStock = () => S.stock.filter(s => (!STORE || s.store === STORE) && daysLeft(s) < 14);
 /* No Production or Shipments page (Ravi, 24 Oct: "move this into every order page, like Shopify does"): where a part
  * is in production and where its parcel is are shown on its order; the Orders filters list them across orders. */
-const TABS_ALL = [['orders', 'Orders', 'orders'], ['csb', 'Dispatch', 'csb'], ['returns', 'Returns', 'ret'], ['stock', 'Stock', 'stock'], ['setup', 'Setup', 'setup']];
+/* Inside the ERP with the Shopify OS database (window.parent.SHOS): the Alerts page (morning numbers + alerts). */
+const HAS_DB = (() => { try { return window.parent !== window && !!window.parent.SHOS; } catch (e) { return false; } })();
+const TABS_ALL = [['orders', 'Orders', 'orders'], ['csb', 'Dispatch', 'csb'], ['returns', 'Returns', 'ret'], ...(HAS_DB ? [['watch', 'Alerts', 'orders']] : []), ['stock', 'Stock', 'stock'], ['setup', 'Setup', 'setup']];
 /* THE THREE TEAM PAGES (Ravi, 2 Nov: Sales, Shipping, Production — "nothing should be repeated"). Opened as
  * ?page=sales|shipping|production (the ERP's three Shopify menu items), the hub shows only that team's tabs and that
  * team's order filters; every filter and tab belongs to exactly one page. No page = the whole hub, as before. */
@@ -197,6 +199,7 @@ function counts() {
     stock: lowStock().length,
     csb: allPk().filter(x => x.pk.booked && !x.pk.route).length || CD.ships.length,
     setup: S.queue.filter(q => q.status === 'failed').length,
+    watch: WATCH.w ? (WATCH.w.wanted || []).filter(a => a.severity === 'red').length : 0,
   };
 }
 let SHOWN = { n: 0 };
@@ -864,6 +867,62 @@ function bottleneck() {
 }
 function chips(F, cur, attr, count) {
   return `<div class="s-steps">${F.map(f => { const n = count ? count(f[0]) : null; return `<button class="s-st ${cur === f[0] ? 'on' : ''} ${f[0] === 'late' && n ? 'bad' : ''}" type="button" ${attr}="${f[0]}">${f[1]}${n != null ? ` <b>${n}</b>` : ''}</button>`; }).join('')}</div>`;
+}
+
+/* ============================== ALERTS (the Shopify OS database) ============================== */
+/* Ravi, 3 Nov: "an alerts and morning screen in the hub". Read from the database with the person's own ERP sign-in:
+ * hub_morning (yesterday's numbers per store) and hub_watch (what the alert rules say right now — also before the timed
+ * job is switched on — plus how many orders were left out as already dealt with, and why). Reads only. */
+let WATCH = { at: 0, busy: false, err: '', w: null, m: null }, WFILTER = '';
+async function dbRpc(fn, args) {
+  const S = window.parent.SHOS, cfg = await S.config(), token = await S.token();
+  const r = await fetch(cfg.url.replace(/\/+$/, '') + '/rest/v1/rpc/' + fn, { method: 'POST', body: JSON.stringify(args || {}),
+    headers: { apikey: cfg.key, Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' } });
+  const t = await r.text(); let j = null; try { j = t ? JSON.parse(t) : null; } catch (e) { /* not JSON */ }
+  if (!r.ok) throw new Error((j && (j.message || j.hint)) || 'The database said ' + r.status);
+  return j;
+}
+async function watchLoad(force) {
+  if (WATCH.busy || (!force && Date.now() - WATCH.at < 5 * 60000)) return;
+  WATCH.busy = true; WATCH.err = '';
+  try { const [w, m] = await Promise.all([dbRpc('hub_watch'), dbRpc('hub_morning', { p_day: null })]); WATCH.w = w; WATCH.m = m; WATCH.at = Date.now(); }
+  catch (e) { WATCH.err = e.message; }
+  WATCH.busy = false;
+  if (/^#watch/.test(location.hash) && !typing()) render();
+}
+setInterval(() => { if (/^#watch/.test(location.hash) && !document.hidden) watchLoad(); }, 60000);
+const KIND = { late: 'Late to ship', blocked: 'No SKU', hold: 'Payment on hold', not_routed: 'Not routed', changed_after_send: 'Cancelled while in work',
+  stuck: 'Stuck in production / packing', carrier: 'Carrier problem', stock_short: 'Not enough stock', system: 'Live feed' };
+function pageWatch() {
+  if (!WATCH.w && !WATCH.err) { watchLoad(); return '<div class="s-card s-empty">Reading the alerts and the morning numbers…</div>'; }
+  if (WATCH.err && !WATCH.w) return `<div class="s-card s-empty"><b>Could not read the database.</b><br><span class="s-muted">${esc(WATCH.err)}</span><br><button class="s-btn ghost" type="button" data-wreload>Try again</button></div>`;
+  const w = WATCH.w || {}, m = WATCH.m || {}, all = w.wanted || [];
+  const list = all.filter(a => (!STORE || a.store === (STORE === 'Ridhi' ? 'RBP' : STORE)) && (!WFILTER || WFILTER === a.kind + '|' + a.severity));
+  const groups = {}; all.filter(a => !STORE || a.store === (STORE === 'Ridhi' ? 'RBP' : STORE)).forEach(a => { const k = a.kind + '|' + a.severity; groups[k] = (groups[k] || 0) + 1; });
+  const gk = Object.keys(groups).sort((a, b) => (b.endsWith('red') - a.endsWith('red')) || groups[b] - groups[a]);
+  const handled = w.handled || {}, hn = Object.values(handled).reduce((s, n) => s + n, 0);
+  const days = t => t ? Math.floor((Date.now() - new Date(t).getTime()) / DAY) : '';
+  const hubNo = name => { const n = String(name || '').replace(/^#\s*/, ''); return S.orders.some(o => o.no === n) ? n : ''; };
+  const store = s => `<section class="s-card w-store"><header class="s-ch"><h3>${esc(s.name || s.store)}</h3><div class="r s-muted s-sm">yesterday, ${esc(m.day || '')}</div></header>
+    <div class="w-nums">${[[s.orders, 'new orders'], [s.shipped, 'shipped'], [s.cancelled, 'cancelled'], [(s.to_ship || {}).total, 'still to ship'], [s.waiting_production, 'lines waiting on production'], [s.no_sku_lines, 'lines without SKU']]
+      .map(x => `<div><b>${x[0] == null ? '—' : x[0]}</b><span>${x[1]}</span></div>`).join('')}</div>
+    <div class="w-age s-sm">Still to ship by age: ${[['d0_1', '0–1 d'], ['d2_3', '2–3 d'], ['d4_7', '4–7 d'], ['d7plus', '7+ d']].map(x => `<span class="${x[0] === 'd7plus' && (s.to_ship || {})[x[0]] ? 's-bad' : ''}">${x[1]} <b>${(s.to_ship || {})[x[0]] || 0}</b></span>`).join(' · ')}</div>
+    ${(s.top_waiting || []).length ? `<div class="w-top s-sm"><span class="s-muted">Most waiting:</span> ${s.top_waiting.slice(0, 5).map(t => `${esc(t.sku)} <b>${t.pieces}</b>`).join(' · ')}</div>` : ''}</section>`;
+  const stores = (m.stores || []).filter(s => !STORE || s.store === (STORE === 'Ridhi' ? 'RBP' : STORE));
+  return `<div class="w-bar ${w.engine_on ? '' : 'off'}"><b>${w.engine_on ? 'Alerts are on' : 'Alerts are not switched on yet'}</b> — ${w.engine_on ? 'the team is told every 15 minutes.' : 'this is what they would say right now. Nobody is told anything until they are switched on.'}
+      <span class="s-muted s-sm">Orders as of ${w.orders_as_of ? fmt(new Date(w.orders_as_of).getTime()) : '—'} · stock ${w.stock && w.stock.skus ? w.stock.skus + ' SKUs, ' + fmt(new Date(w.stock.as_of).getTime()) : 'not copied'} · read ${fmt(WATCH.at)}</span>
+      <button class="s-link" type="button" data-wreload>${WATCH.busy ? 'Reading…' : 'Read again'}</button></div>
+    <div class="w-grid">${stores.map(store).join('')}</div>
+    <section class="s-card"><header class="s-ch"><h3>Alerts · ${list.length}${WFILTER ? ' shown' : ''}</h3>
+      <div class="r s-muted s-sm">${hn ? `${hn} order(s) left out as already dealt with: ${Object.entries(handled).map(([k, n]) => `${esc(k)} ${n}`).join(' · ')}` : ''}</div></header>
+      <div class="s-steps" style="padding:0 14px 10px"><button class="s-st ${!WFILTER ? 'on' : ''}" type="button" data-wf="">All <b>${Object.values(groups).reduce((s, n) => s + n, 0)}</b></button>
+        ${gk.map(k => { const [kind, sev] = k.split('|'); return `<button class="s-st ${WFILTER === k ? 'on' : ''} ${sev === 'red' ? 'act' : ''}" type="button" data-wf="${esc(k)}">${esc(KIND[kind] || kind)} · ${sev} <b>${groups[k]}</b></button>`; }).join('')}</div>
+      ${table([['', 's-ck'], ['Order', 'tl'], ['Store'], ['Age'], ['What', 'tl'], ['Team']], list.slice(0, 300).map(a => { const no = hubNo(a.order);
+        return `<tr${no ? ` data-row="${esc(no)}" class="click" tabindex="0"` : ''}><td class="s-ck">${st(a.severity === 'red' ? 'Red' : 'Amber', a.severity === 'red' ? 'rejected' : 'pending')}</td>
+          <td class="tl b">${esc(a.order || '—')}${no ? '' : sub('not in the hub')}</td><td>${esc(a.store || '')}</td><td>${days(a.placed_at) === '' ? '—' : days(a.placed_at) + 'd'}</td>
+          <td class="tl">${esc(KIND[a.kind] || a.kind)}${sub(esc(a.title || ''))}</td><td class="s-muted">${esc(a.team || '')}</td></tr>`; }),
+        'No alerts — nothing is late.', '', 'dense')}
+      ${list.length > 300 ? `<div class="s-muted s-sm" style="padding:10px 14px">Showing the first 300 of ${list.length}.</div>` : ''}</section>`;
 }
 
 /* ============================== 4 · RETURNS ============================== */
@@ -1705,6 +1764,7 @@ function render() {
   else if (r === 'stock') html = pageStock();
   else if (r === 'csb') html = pageCsb();
   else if (r === 'setup') html = pageSetup();
+  else if (r === 'watch' && HAS_DB) html = pageWatch();
   else { html = pageOrders(); tab = 'orders'; }
   const page = $('page'); page.innerHTML = html; shell(tab);
   const sc = $('oscroll');
@@ -1726,6 +1786,8 @@ function render() {
   on('[data-f]', b => { FILTER = FILTER === b.dataset.f ? '' : b.dataset.f; render(); });
   on('[data-showall]', () => { FILTER = ''; Q = ''; $('q').value = ''; render(); });
   on('[data-rf]', b => { RFILTER = b.dataset.rf; render(); });
+  on('[data-wf]', b => { WFILTER = WFILTER === b.dataset.wf ? '' : b.dataset.wf; render(); });
+  on('[data-wreload]', () => { watchLoad(true); render(); });
   on('[data-kf]', b => { KFILTER = b.dataset.kf; render(); });
   on('[data-make]', () => exportStock());
   const om = $('omodal'); if (om) om.addEventListener('click', e => { if (e.target === om) location.hash = 'orders'; });

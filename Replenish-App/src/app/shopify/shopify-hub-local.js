@@ -87,7 +87,7 @@ if (SHUB_ON && $('secShopify') && $('paneShop')) {
     if (up) SHUB_URL = SHUB_LOCAL;
     return up;
   }
-  let shubShown = '';
+  let shubShown = '', shubDb = '';
   async function shubLoad(force) {
     const up = await shubCheck();
     $('shubDown').classList.toggle('hide', up);
@@ -95,6 +95,7 @@ if (SHUB_ON && $('secShopify') && $('paneShop')) {
     $('shubName').textContent = 'Shopify hub';
     let db = 'kept in this browser only';
     try { const c = await shosConfig(); db = 'shared database (' + c.from + ')'; } catch (e) { db = e.message; }
+    shubDb = db;
     $('shubState').textContent = !up ? 'Hub not found' : (SHUB_URL === SHUB_WEB ? 'Ready' : 'Hub on this computer') + ' · ' + db;
     /* Loaded once and kept: coming back to the page does not load the hub (or Shopify) again — Reload does. */
     if (up && (force || shubShown !== SHUB_PAGE)) { shubShown = SHUB_PAGE; $('shubFrame').src = SHUB_URL + '?embed=1#orders'; }
@@ -136,7 +137,8 @@ if (SHUB_ON && $('secShopify') && $('paneShop')) {
       try { $('shubState').textContent = 'Reading stock from the ERP…'; info = await shubInfo({ Ridhi, CPC }); } catch (e) { info = { error: e.message || String(e) }; }
       fr.contentWindow.postMessage({ type: 'shub-orders', got: { Ridhi, CPC, info } }, shubOrigin());
       const n = x => x.error ? 'not read' : x.orders.length + ' open';
-      $('shubState').textContent = `Shopify via Pricing API · Ridhi ${n(Ridhi)} · CPC ${n(CPC)} · ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+      /* Where the hub keeps its work stays on the line (Ravi, 3 Nov: it was hidden once the orders came in). */
+      $('shubState').textContent = `Shopify via Pricing API · Ridhi ${n(Ridhi)} · CPC ${n(CPC)} · ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}${shubDb ? ' · ' + shubDb : ''}`;
     } finally { shubBusy = false; }
   }
   /* THE ERP'S OWN FIGURES FOR EACH ITEM (Ravi, 26 Oct: "I don't know MCF has how many and India inventory has how
@@ -150,7 +152,10 @@ if (SHUB_ON && $('secShopify') && $('paneShop')) {
       typeof loadShopStock === 'function' && !SHOP_STOCK_LOADED ? loadShopStock().catch(() => {}) : null,
       typeof loadShopIndia === 'function' ? loadShopIndia().catch(() => {}) : null,
       typeof loadShopSku === 'function' && !Object.keys(SHOP_SKU || {}).length ? loadShopSku().catch(() => {}) : null,
-      typeof loadShopMeta === 'function' && !SHOP_META_LOADED ? loadShopMeta().catch(() => {}) : null,
+      /* The Shopify Orders page's records (MCF sent, status box, notes): read if that page has not read them yet. There is
+       * no "loaded" flag for them in the ERP — the name used here before did not exist, so this whole read failed and no
+       * stock or MCF record ever reached the hub (Ravi, 3 Nov: "0 orders with an ERP record"). */
+      typeof loadShopMeta === 'function' && !Object.keys((typeof SHOP_META === 'object' && SHOP_META) || {}).length ? loadShopMeta().catch(() => {}) : null,
       typeof ptLoadGates === 'function' ? ptLoadGates(false, true).catch(() => {}) : null,
     ]);
     const up = s => String(s == null ? '' : s).trim().toUpperCase();

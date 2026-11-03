@@ -305,6 +305,16 @@ button.od-cp:hover{background:var(--chip);color:var(--ink)}
 .s-ofoot .od-nav{display:flex;align-items:center;gap:6px;margin-right:auto}
 .s-ofoot > .s-muted{margin-right:0}
 @media (max-width:760px){ .od-prog li{font-size:10px} .s-ofoot{flex-wrap:wrap} }
+/* ALERTS page (Ravi, 3 Nov): morning numbers per store + what the alert rules say */
+.w-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 14px;border-radius:12px;background:var(--accent-bg,#E8F4EC);font-size:13px;margin-bottom:12px}
+.w-bar.off{background:var(--warn-bg)}
+.w-bar .s-link{margin-left:auto}
+.w-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:12px;margin-bottom:12px}
+.w-nums{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;padding:0 14px 10px}
+.w-nums div{display:flex;flex-direction:column}
+.w-nums b{font-size:20px;font-weight:800;font-variant-numeric:tabular-nums}
+.w-nums span{font-size:11.5px;color:var(--muted)}
+.w-age,.w-top{padding:0 14px 10px}
 /* 2B choice cards (Ravi, 2 Nov): the item left, a card for each way it CAN go right; the one in use filled and ticked */
 .od-ships > .od-h b{display:inline;margin:0;font-size:14px}
 .od-row.od-row2{grid-template-columns:36px minmax(0,1fr) auto}
