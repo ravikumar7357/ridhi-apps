@@ -51,7 +51,13 @@
     --soft:#F7F9FB;
     /* Rounded, and the same rounded everywhere. */
     --r-card:18px; --r-row:16px; --r-ctl:12px; --r-sm:10px; --r-pill:999px;
+    /* DEPTH, SET ONCE. Three steps and no more: a card barely off the page, a control that has been
+       pressed, and a dialog that is plainly above everything. */
     --sh-1:0 2px 10px rgba(26,29,41,.05); --sh-2:0 4px 16px rgba(26,29,41,.08);
+    --sh-3:0 24px 64px rgba(20,24,31,.20);
+    /* Not a fourth step: the tinted lift under a primary button. The sign-in button draws it too and
+       must not change, so it keeps the value it has always had, in both themes. */
+    --sh-btn:0 4px 12px rgba(79,91,213,.26);
     /* The storefront's own face: a SYSTEM serif, so nothing is fetched and nothing can fail to load.
        Brand, sign-in and page titles only — never data. Its digits are proportional and would stop a
        column of figures lining up. */
@@ -60,11 +66,18 @@
        but this app has a dark one, and a literal black here would be black text on a dark ground. */
     --si-ink:#000; --si-faint:rgba(0,0,0,.40); --si-rule:rgba(0,0,0,.13);
     --si-btn:#000; --si-btn-ink:#fff;
-    /* The shop's slate blue, darkened until white text on it is legible. */
-    --brand:#4A6A92; --brand-bg:#E9EFF6; --brand-ink:#3A5573;
+    /* The shop's slate blue, darkened until white text on it (--on-brand) is legible. */
+    --brand:#4A6A92; --brand-bg:#E9EFF6; --brand-ink:#3A5573; --on-brand:#fff;
     --accent:#4A5A3C; --accent-bg:#EDF0E7; --bad:#850000; --bad-bg:#FBE9E9;
     --warn:#8A5A12; --warn-bg:#FFF3D6; --input:#fff;
+    --warn-ink:var(--warn);   /* the ERP's name for the same gold; follows --warn in both themes */
     --hover:#EFF2F6; --chip:#EDF0E7; --chip-ink:#4A5A3C;   /* filter chip */
+    /* The ring a keyboard leaves. A one-pixel border change is not one you can see across a room,
+       and this is a screen people work at all day. */
+    --ring:0 0 0 3px rgba(110,144,181,.28); --ring-line:#6E90B5;
+    /* ONE HEIGHT FOR EVERY CONTROL IN A TOOLBAR. Three different ones is the single thing that makes
+       a working screen look unfinished. */
+    --ctl:40px;
   }
   @media (prefers-color-scheme:dark){
     :root{
@@ -72,6 +85,12 @@
       --brand:#e5e7eb; --accent:#4ade80; --accent-bg:#052e16; --bad:#fca5a5; --bad-bg:#450a0a;
       --warn:#fde68a; --warn-bg:#422006; --input:#0f172a;
       --hover:#1e293b; --chip:#14301a; --chip-ink:#a3e635;
+      /* The first four had no dark value, so the menu's "on" item and a hovered row were light on
+         light here. --brand is light in this theme, so the text on it is dark. */
+      --faint:#64748b; --soft:#172033; --brand-bg:#1d3352; --brand-ink:#a9c1e0; --on-brand:#0b1120;
+      --ring:0 0 0 3px rgba(143,170,203,.40); --ring-line:#8FAACB; --sh-3:0 24px 64px rgba(0,0,0,.55);
+      /* No dark value on purpose: --warn-ink follows --warn, --sh-btn is drawn by the sign-in and
+         must not move, and --ctl is a size. */
       /* Same sign-in, legible on the dark ground. The shape stays — rules not boxes, serif, pill
          button — only the ink and the rule move. */
       --si-ink:#e5e7eb; --si-faint:rgba(229,231,235,.45); --si-rule:rgba(229,231,235,.20);
@@ -126,7 +145,11 @@
     align-items:center;justify-content:center;background:transparent;color:var(--muted);
     border:0;border-radius:8px;font-size:17px;line-height:1}
   .navclose:hover{background:var(--hover);color:var(--ink)}
-  .main{flex:1;min-width:0;padding:26px 30px}
+  /* Every screen and dialog reads at 14px on 1.5. EVERY FIGURE ON THE PAGE LINES UP: tabular digits
+     throughout, so a total ticking from 145,539 to 146,002 does not shift the tile beside it. Set here
+     rather than on body, so the sign-in screen and the menu bar, which inherit from body, stay exactly
+     as they were. */
+  .main{flex:1;min-width:0;padding:26px 30px;font-size:14px;line-height:1.5;font-variant-numeric:tabular-nums}
   /* The 3-line button sits beside the page title and hides the sidebar entirely. */
   .topbar{display:flex;align-items:center;gap:12px;margin:0 0 20px}
   .hamb{flex:none;width:40px;height:40px;padding:0;display:inline-flex;align-items:center;
@@ -145,44 +168,62 @@
     border-radius:999px;padding:8px 15px;font-size:13px;font-weight:600}
   /* One-line control bar. Buttons keep their natural width; only the filter flexes, so nothing
      wraps onto a second line and the card stays short. */
-  .toolbar{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
-  .toolbar>button{flex:0 0 auto;white-space:nowrap}
-  .toolbar .seg{flex:0 0 auto}
+  .toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  /* THE RAGGED EDGE. A search box 41px tall beside a date box of 38 and a button of 40 is the thing
+     that reads as unfinished before anybody has looked at a single figure. One height, one radius.
+     Scoped to a toolbar so nothing inside a table or a dialog is caught by it. */
+  .toolbar>input,.toolbar>select,.toolbar>button,.toolbar .ms-btn{height:var(--ctl);padding-top:0;
+    padding-bottom:0;line-height:calc(var(--ctl) - 2px)}
+  .toolbar>input[type=date]{line-height:normal}
+  .toolbar>button{flex:0 0 auto;white-space:nowrap;display:inline-flex;align-items:center;
+    justify-content:center;line-height:1}
+  .toolbar .seg{flex:0 0 auto;height:var(--ctl)}
+  .toolbar .segbtn{padding-top:0;padding-bottom:0}
   #ageMsg:empty{display:none}          /* no empty gap under the bar when there's nothing to say */
   #ageMsg{margin-top:10px}
 
-  /* Segmented toggle (Parent ASINs | Child ASINs) */
-  .seg{display:inline-flex;background:var(--hover);border-radius:10px;padding:3px;gap:2px}
-  .segbtn{background:transparent;color:var(--muted);border:0;border-radius:8px;padding:8px 18px;
-    font-weight:600;font-size:14px}
-  .segbtn.on{background:var(--card);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.10)}
+  /* Segmented toggle (Parent ASINs | Child ASINs), rounded like every other toolbar control. Flat at
+     rest: without box-shadow:none each segment wore the primary button's lift. */
+  .seg{display:inline-flex;background:var(--hover);border-radius:var(--r-ctl);padding:3px;gap:2px}
+  .segbtn{background:transparent;color:var(--muted);border:0;border-radius:var(--r-sm);padding:8px 16px;
+    font-weight:600;font-size:14px;box-shadow:none}
+  .segbtn.on{background:var(--card);color:var(--ink);box-shadow:var(--sh-1)}
 
-  /* Excel-style grid: ruled cells, frozen header row + frozen first column, own scroll box. */
+  /* Excel-style grid: frozen header row + frozen first column, own scroll box. */
   /* Two classes so this beats `.card`'s padding. A sticky `top:0`/`left:0` anchors to the PADDING
      box, so any padding here becomes a see-through gap that scrolling rows show through — which is
      exactly what made rows appear above the header and beside the frozen column. */
   .card.xlwrap{padding:0}
   .xlwrap{overflow:auto;max-height:72vh}
-  table.xl{border-collapse:separate;border-spacing:0;width:100%;font-size:13px}
-  /* No vertical rules: the columns are held apart by their own space. */
+  /* THE TABLE HAS TO BE ALLOWED TO GROW. min-width, not width: under auto table layout `width` is
+     only a hint and gets overruled. The grid fills its box when it is narrower and grows past it,
+     into the wrapper's sideways scroll, when it is wider. */
+  table.xl{border-collapse:separate;border-spacing:0;width:auto;min-width:100%;font-size:13px}
+  /* NO GRID. Vertical rules between every column are what made a table of figures read as graph
+     paper; the columns are held apart by their own space, and only a hairline separates rows. Text
+     reads from the left, figures (.num) from the right. 12px all round makes a row of about 44px. */
   table.xl th,table.xl td{border-right:0;border-bottom:1px solid var(--line);
-    padding:9px 12px;white-space:nowrap;text-align:left}
-  /* Header stays put; z-index must beat the frozen first column or rows paint over it. */
+    padding:12px;white-space:nowrap;text-align:left;vertical-align:middle}
+  /* THE HEADER IS ABOVE THE DATA, and looks it: small uppercase in the faint ink over a hairline,
+     shorter than a row. One row of sticky cells, so the inset shadow costs nothing. z-index must
+     beat the frozen first column or rows paint over it. */
   table.xl thead th{position:sticky;top:0;z-index:5;background:var(--card);color:var(--faint);box-shadow:inset 0 -1px 0 var(--line);
-    font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;cursor:pointer;
-    user-select:none}
+    font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;cursor:pointer;
+    user-select:none;padding-top:8px;padding-bottom:8px}
   table.xl thead th:hover{color:var(--ink)}
-  table.xl tbody tr:hover td{background:var(--soft)}
+  /* The row under the pointer, its frozen cell too: an even row's frozen cell is tinted, and without
+     td.frz here it stayed tinted while the rest of its row lit up. */
+  table.xl tbody tr:hover td,table.xl tbody tr:hover td.frz{background:var(--hover)}
   table.xl .num{text-align:right;font-variant-numeric:tabular-nums}
   /* No box-shadow here: a shadow on every sticky cell is repainted on each horizontal scroll frame,
-     and these grids are wide enough that it dominates. The cell's own border-right (above) already
-     draws the divider, so this looks identical and scrolls at full speed. */
+     and these grids are wide enough that it dominates. There is no divider to draw either: NO GRID. */
   table.xl .frz{position:sticky;left:0;z-index:2;background:var(--card);font-family:ui-monospace,monospace}
   /* TOTAL row: a second header row, so it stays put while the body scrolls under it. `top` is set
-     in JS from the title row's measured height — hard-coding it breaks the moment a header wraps. */
-  table.xl thead tr.subtot th{background:#eef2ff;color:#334155;font-weight:700;text-transform:none;
-    font-size:13px;letter-spacing:0;cursor:default;border-bottom:2px solid #c7d2fe}
-  table.xl thead tr.subtot th.frz{background:#eef2ff;z-index:6}
+     in JS from the title row's measured height — hard-coding it breaks the moment a header wraps.
+     The brand tint, the same one PPC-new's total row uses. */
+  table.xl thead tr.subtot th{background:var(--brand-bg);color:var(--brand-ink);font-weight:700;text-transform:none;
+    font-size:13px;letter-spacing:0;cursor:default}
+  table.xl thead tr.subtot th.frz{background:var(--brand-bg);z-index:6}
   /* The planner freezes its whole left block — parent, product, image, BSR and the Start/End
      labels — because a week column is meaningless without the row it belongs to. `left` is measured
      and set in JS: the columns size themselves to their content, so it cannot be hard-coded. */
@@ -202,6 +243,12 @@
   table.xl tfoot td{position:sticky;bottom:0;z-index:5;background:var(--card);font-weight:700;
     border-top:2px solid var(--line);box-shadow:0 -1px 0 var(--line)}
   table.xl tfoot .frz{z-index:7;background:var(--card)}
+  /* .xl-dense: a grid packed tight enough that every column sits on one screen. Only the rows shrink;
+     the header keeps its own size. */
+  table.xl.xl-dense th,table.xl.xl-dense td{padding:4px 8px;line-height:1.3}
+  table.xl.xl-dense td{font-size:12.5px}
+  table.xl.xl-dense td .sub{display:block;font-size:10.5px;color:var(--muted);font-weight:400;white-space:nowrap}
+  table.xl.xl-dense td.wrap{white-space:normal;max-width:320px;text-align:left;font-size:12px}
 
   /* KPI cards — one per brand. Fixed basis (never grow) so two cards stay compact instead of each
      stretching to half the screen; they wrap on narrow windows. */
@@ -244,14 +291,16 @@
   .sd-tbl td:first-child{text-align:left;font-weight:600;color:#0f172a}
   .sd-ly{color:#94a3b8}
   .sd-up{color:#0d9488;font-weight:600} .sd-dn{color:#dc2626;font-weight:600}
-  .kpis{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:18px}
-  .kpi{flex:1 1 380px;background:var(--card);border:0;border-radius:var(--r-card);padding:15px 17px;box-shadow:var(--sh-1)}
-  .kpi .kpihead{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:10px}
+  .kpis{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:16px}
+  .kpi{flex:1 1 380px;background:var(--card);border:0;border-radius:var(--r-card);padding:16px;box-shadow:var(--sh-1)}
+  .kpi .kpihead{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:8px}
   .kpi .kpiname{font-size:13px;font-weight:700;letter-spacing:-.01em}
   .kpi .kpiwhen{font-size:10px;color:var(--muted)}
-  .kpi .metrics{gap:18px;justify-content:space-between}
-  .kpi .metric .v{font-size:18px}
-  .kpi .metric .l{font-size:11px;white-space:nowrap}
+  /* One rule per part. Every .metric in the app sits inside a .kpi, so the .kpi copies these replace
+     (18px over 21px, 11px over 12px) were the only ones anybody saw. Muted label, bold figure. */
+  .metrics{display:flex;gap:16px;flex-wrap:wrap;justify-content:space-between}
+  .metric .v{font-size:18px;font-weight:700;letter-spacing:-.02em;line-height:1.2}
+  .metric .l{font-size:11px;color:var(--muted);margin-top:4px;white-space:nowrap}
   /* Listing-health grade pill. Colour is a shorthand for the grade, never the only signal — the
      word itself is in the cell, so it still reads correctly in a colour-blind or greyscale view. */
   /* Week-over-week direction, painted on the CELL rather than the number — the whole column reads as
@@ -282,7 +331,7 @@
      one order — grew past the viewport, and everything under the list, including Save, was simply
      unreachable. The page behind does not scroll a fixed overlay, so there was no way down. */
   .modalbox{background:var(--card);border-radius:14px;padding:20px;width:min(460px,100%);
-    max-height:calc(100vh - 32px);overflow-y:auto;box-shadow:0 20px 50px rgba(0,0,0,.25)}
+    max-height:calc(100vh - 32px);overflow-y:auto;box-shadow:var(--sh-3)}
   /* Attachment cells: a filled slot is a link, an empty one is a quiet "add" affordance. */
   .doc{display:inline-block;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
     vertical-align:bottom;color:var(--accent);cursor:pointer;text-decoration:underline}
@@ -312,7 +361,7 @@
   .lrow input[type=checkbox]{width:auto;margin:0}
   /* A metric's SUB-LINE: the ratio that only means anything against the number above it. TACoS is
      spend over sales, so reading it two tiles away from sales is reading it out of context. */
-  .metric .sub{font-size:11.5px;color:var(--muted);margin-top:5px;white-space:nowrap}
+  .metric .sub{font-size:11.5px;color:var(--muted);margin-top:4px;white-space:nowrap}
   .metric .sub b{font-weight:700;color:var(--ink)}
   .metric .up{color:var(--accent)}
   .metric .dn{color:var(--bad)}
@@ -336,7 +385,7 @@
     min-width:230px;width:230px;max-width:230px}
   #plTable thead .frz2,#plTable thead .frz3,#plTable thead .frz4{z-index:6;background:var(--hover)}
   #plTable thead tr.subtot th.frz2,#plTable thead tr.subtot th.frz3,
-  #plTable thead tr.subtot th.frz4{background:#eef2ff;z-index:6}
+  #plTable thead tr.subtot th.frz4{background:var(--brand-bg);z-index:6}
   #plTable tbody tr:nth-child(even) .frz2,#plTable tbody tr:nth-child(even) .frz3,
   #plTable tbody tr:nth-child(even) .frz4{background:var(--bg)}
   /* 556px of frozen column is most of a laptop and all of a phone. Below this only the ASIN holds
@@ -387,9 +436,6 @@
   .ms-opt{display:flex;align-items:center;gap:7px;padding:4px 5px;border-radius:6px;cursor:pointer;font-size:13px}
   .ms-opt:hover{background:var(--hover,#f1f5f9)}
   .ms-opt input{margin:0}
-  .metrics{display:flex;gap:34px;flex-wrap:wrap}
-  .metric .v{font-size:21px;font-weight:700;letter-spacing:-.02em;line-height:1.2}
-  .metric .l{font-size:12px;color:var(--muted);margin-top:3px}
   @media(max-width:860px){
     /* Off-canvas drawer rather than a wrapped row of chips: thirteen tabs in five groups no longer
        fit across the top, and the drawer is what the hamburger is for. */
@@ -399,27 +445,52 @@
     .main{padding:14px}
   }
   h1{font-size:20px;margin:0;letter-spacing:-.02em}
-  .card{background:var(--card);border:0;border-radius:var(--r-card);padding:20px;margin-bottom:16px;box-shadow:var(--sh-1)}
-  button{font:inherit;font-weight:700;border:0;border-radius:var(--r-ctl);padding:11px 18px;cursor:pointer;
-    background:var(--brand);color:#fff;font-size:14px;box-shadow:0 4px 12px rgba(79,91,213,.26)}
+  /* A CARD IS A SHADOW, NOT A BORDER. Sixty screens of bordered boxes inside bordered boxes is what
+     makes a tool look like a spreadsheet with a menu attached. */
+  .card{background:var(--card);border:0;border-radius:var(--r-card);padding:16px;margin-bottom:16px;box-shadow:var(--sh-1)}
+  /* The one that leads: solid, round, and lifted off the page. Only the lift and the press move — a
+     fading background would reach every menu item, which is a button too. */
+  button{font:inherit;font-weight:700;border:0;border-radius:var(--r-ctl);padding:8px 16px;cursor:pointer;
+    background:var(--brand);color:var(--on-brand);font-size:14px;box-shadow:var(--sh-btn);
+    transition:box-shadow .12s,transform .06s}
   button:hover{background:var(--brand-ink)}
-  button:disabled{opacity:.5;cursor:not-allowed}
+  /* It moves when it is pressed. One pixel, and it is the difference between a picture of a button
+     and a button. Not on the sign-in screen, in PPC-new or in the menu bar: those keep their own. */
+  button:where(:not(#loginView *,#panePpcn *,.side *)):active{transform:translateY(1px);box-shadow:none}
+  /* Everything else on a bar: white, no outline, resting on the same soft shadow as a card. */
   button.ghost{background:var(--card);color:var(--muted);border:0;font-weight:600;box-shadow:var(--sh-1)}
+  button.ghost:hover{background:var(--card);color:var(--ink);box-shadow:var(--sh-2)}
+  /* A RING YOU CAN SEE, on a button reached by keyboard. After .ghost, whose resting shadow would
+     otherwise cover it, and named for .segbtn.on, whose own shadow outranks it. The sign-in screen
+     and PPC-new keep their own focus. */
+  button:where(:not(#loginView *,#panePpcn *)):focus-visible,.segbtn.on:focus-visible{outline:none;
+    box-shadow:var(--ring)}
+  button:disabled{opacity:.5;cursor:not-allowed}
+  /* A disabled button does not darken under the mouse. :where() holds this at the weight of
+     button:hover, so a component's own :hover (.ghost, .xbtn, the menu) still wins. */
+  button:where(:disabled:not(#loginView *,#panePpcn *)):hover{background:var(--brand)}
   /* A NEW VERSION IS OUT — the same bar the Replenishment app uses. */
   #updBar{position:fixed;left:auto;right:12px;width:420px;max-width:calc(100vw - 24px);bottom:14px;z-index:200;display:flex;align-items:center;
     justify-content:space-between;gap:10px;background:#0f172a;color:#fff;border-radius:12px;padding:10px 12px 10px 16px;box-shadow:0 12px 36px rgba(15,23,42,.24)}
   #updBar button{background:#fff;color:#0f172a;border:0;padding:8px 14px;border-radius:8px;font-weight:700}
-  button.ghost:hover{background:var(--card);color:var(--ink);box-shadow:var(--sh-2)}
-  input,select{font:inherit;color:var(--ink);background:var(--input);border:1px solid var(--line);
-    border-radius:var(--r-ctl);padding:11px 14px;width:100%}
-  input:focus,select:focus{outline:none;border-color:var(--muted)}
-  label{display:block;font-size:13px;font-weight:600;color:var(--muted);margin-bottom:7px}
+  input,select,textarea{font:inherit;color:var(--ink);background:var(--input);border:1px solid var(--line);
+    border-radius:var(--r-ctl);padding:8px 12px;width:100%}
+  /* A RING YOU CAN SEE. The border alone changed by one shade and told a keyboard user nothing.
+     :where() stops the #ids in the exclusion adding weight. Not on the sign-in screen, which stays
+     exactly as it is, nor in PPC-new, whose reset does not reach a box-shadow or a placeholder.
+     Tick-boxes and radios keep the browser's own ring, which shows for the keyboard only — this one
+     would sit round every box clicked in a list. */
+  :where(input:not([type=checkbox],[type=radio]),select,textarea):where(:not(#loginView *,#panePpcn *)):focus{
+    outline:none;border-color:var(--ring-line);box-shadow:var(--ring)}
+  :where(input,textarea):where(:not(#loginView *,#panePpcn *))::placeholder{color:var(--faint)}
+  label{display:block;font-size:13px;font-weight:600;color:var(--muted);margin-bottom:8px}
   .row{display:flex;gap:10px;flex-wrap:wrap}
   .row>*{flex:1;min-width:140px}
   .muted{color:var(--muted);font-size:13px}
   table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
   td{padding:10px 0;border-bottom:1px solid var(--line)}
-  td:last-child{text-align:right;font-weight:600}
+  /* The calculator's figure column. Kept out of the grids, where it made every last column semi-bold. */
+  :where(table:not(.xl)) td:last-child{text-align:right;font-weight:600}
   tr.sub td{color:var(--muted);font-weight:400;font-size:13px}
   tr.total td{border-top:2px solid var(--line);border-bottom:0;font-weight:700;padding-top:11px}
   .hero{background:var(--accent-bg);border:1px solid var(--accent);border-radius:14px;padding:26px 22px;
@@ -432,8 +503,20 @@
   @media(max-width:760px){.grid{grid-template-columns:1fr}}
   .settings-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:16px}
   .hide{display:none}
-  .err{background:var(--bad-bg);color:var(--bad);padding:13px 16px;border-radius:10px;font-size:14px;margin-bottom:14px}
-  .ok{background:var(--accent-bg);color:var(--accent);padding:13px 16px;border-radius:10px;font-size:14px;margin-bottom:14px}
+  /* A BAR DOWN THE SIDE, not a slab of colour. The fill is lighter and the edge carries the weight,
+     which is what lets a long notice stay readable. */
+  .err{background:var(--bad-bg);color:var(--bad);padding:12px 16px;border-radius:var(--r-sm);font-size:14px;
+    margin-bottom:12px;border-left:3px solid var(--bad);line-height:1.5}
+  .ok{background:var(--accent-bg);color:var(--accent);padding:12px 16px;border-radius:var(--r-sm);font-size:14px;
+    margin-bottom:12px;border-left:3px solid var(--accent);line-height:1.5}
+  .warn{background:var(--warn-bg);color:var(--warn-ink);padding:12px 16px;border-radius:var(--r-sm);font-size:13px;
+    margin-bottom:12px;border-left:3px solid var(--warn-ink);line-height:1.5}
+  /* A WARNING INSIDE A CELL OR A SENTENCE IS A WORD, NOT A MESSAGE BOX. The same classes mark both;
+     the padded box with a bar belongs to the page-level message only. b.err is how this app writes
+     one into a sentence. */
+  table.xl td .err,table.xl td .ok,table.xl td .warn,span.err,span.ok,b.err,.metric .err,.kpi .err{
+    background:none;border:0;padding:0;margin:0;border-radius:0;font-size:inherit;line-height:1.35}
+  table.xl td .err,table.xl td .ok,table.xl td .warn{font-size:11.5px;font-weight:500;margin-top:2px}
   .sec{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);
     margin:22px 0 10px;grid-column:1/-1}
   /* New product is one long form, so the section gaps compounded: .sec's 22px margin sat on TOP of
@@ -449,8 +532,11 @@
     cursor:pointer;font-size:13px}
   .hist:hover{opacity:.7}
   .hist b{color:var(--accent)}
-  .spin{display:inline-block;width:13px;height:13px;border:2px solid rgba(255,255,255,.3);
-    border-top-color:#fff;border-radius:50%;animation:s .7s linear infinite;vertical-align:-2px;margin-right:6px}
+  /* Drawn in the text colour, so it shows on a white button and in the dark theme as well as on the
+     brand one. .ui-loading draws the same wheel in front of its message. */
+  .spin,.ui-loading::before{display:inline-block;width:13px;height:13px;
+    border:2px solid color-mix(in srgb,currentColor 30%,transparent);border-top-color:currentColor;
+    border-radius:50%;animation:s .7s linear infinite;vertical-align:-2px;margin-right:8px}
   @keyframes s{to{transform:rotate(360deg)}}
   .login{max-width:340px;margin:14vh auto}
   .thumb{width:56px;height:56px;object-fit:contain;border-radius:6px;background:#fff;flex:none}
@@ -458,7 +544,6 @@
   .tabs .tab{background:transparent;color:var(--muted);border:0;border-bottom:2px solid transparent;
     border-radius:0;padding:9px 14px}
   .tabs .tab.on{color:var(--ink);border-bottom-color:var(--ink)}
-  .warn{background:var(--warn-bg);color:var(--warn);padding:13px 16px;border-radius:10px;font-size:13px;margin-bottom:14px}
   .tbl{width:100%;font-size:13.5px}
   .tbl th{text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;
     color:var(--muted);padding:0 10px 10px 0;white-space:nowrap}
@@ -466,6 +551,8 @@
   .tbl tbody tr:hover{background:var(--hover)}
   .tbl input{padding:7px 10px;font-size:13px}
   .tbl td:last-child{text-align:left}
+  /* Figures read from the right here too. After .tbl td:last-child, which has the same weight. */
+  .tbl th.num,.tbl td.num{text-align:right;font-variant-numeric:tabular-nums}
   /* Access, grouped by area of work. */
   .accg-top{display:flex;flex-wrap:wrap;gap:8px 22px;margin:4px 0 12px}
   .accg-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:12px}
@@ -675,6 +762,52 @@
   .px-empty{padding:40px 16px;text-align:center;color:var(--muted)}
   @media(max-width:860px){.px-vsep{display:none}.px-pop{left:0!important;right:auto!important}}
   @media(prefers-reduced-motion:reduce){.px-swap,.px-cin,.px-pop{animation:none}#panePpcn .px-seg button,.px-sizes i{transition:none}}
+
+  /* SELLORA LOOK — the shared classes (3 Nov). Every screen reads in the same order: the title and a
+     one-line purpose, the toolbar (filters left, actions right), the KPI cards, then the table. */
+  /* Page */
+  .ui-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 16px}
+  .ui-head:has(+ .ui-sub){margin-bottom:4px}
+  .ui-sub{margin:0 0 16px;font-size:13px;color:var(--muted)}
+  /* Toolbar: whatever follows the spacer is pushed to the right. */
+  .ui-spacer{flex:1}
+  /* Blocks */
+  .ui-card-title{margin:0 0 12px;font-size:14px;font-weight:700;line-height:1.4;color:var(--ink)}
+  .ui-section{margin-bottom:24px}
+  /* KPIs: the smaller figure — on a .kpi, a .metric or the .v itself. */
+  .ui-kpi-sm .v,.v.ui-kpi-sm{font-size:15px}
+  /* Tables. .ui-name goes on an element inside the cell, not on the cell: a cell will not cut. */
+  .ui-name{display:block;max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .ui-mono{font-family:ui-monospace,monospace;font-size:.92em}
+  /* Text */
+  .ui-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+  .ui-note{font-size:12px;line-height:1.5;color:var(--muted)}
+  .ui-strong{font-weight:700;color:var(--ink)}
+  /* Meaning: colour only where it says something. */
+  .ui-pos{color:var(--accent)}
+  .ui-neg{color:var(--bad)}
+  .ui-dim{color:var(--faint)}   /* zero, none, "—" */
+  /* Badges: calm, from the theme's own pairs. The word is always there; colour is the second signal. */
+  .ui-badge{display:inline-block;padding:0 8px;border-radius:var(--r-pill);font-size:11px;font-weight:600;
+    line-height:18px;white-space:nowrap;background:var(--hover);color:var(--muted)}
+  .ui-badge.is-ok{background:var(--accent-bg);color:var(--accent)}
+  .ui-badge.is-warn{background:var(--warn-bg);color:var(--warn-ink)}
+  .ui-badge.is-bad{background:var(--bad-bg);color:var(--bad)}
+  .ui-badge.is-info{background:var(--brand-bg);color:var(--brand-ink)}
+  /* States: what a block says when it has nothing, has failed, or is still on its way. */
+  .ui-empty,.ui-error,.ui-loading{padding:24px 16px;text-align:center;font-size:13px}
+  .ui-empty,.ui-loading{color:var(--muted)}
+  .ui-error{color:var(--bad)}
+  .ui-loading::before{content:""}
+  /* Helpers — only these. Last, so they win a tie with a component's own margin or gap. A width
+     comes with flex:none, so it holds inside a toolbar instead of being squeezed. */
+  .mt-4{margin-top:4px} .mt-8{margin-top:8px} .mt-12{margin-top:12px} .mt-16{margin-top:16px}
+  .mb-8{margin-bottom:8px} .mb-12{margin-bottom:12px} .gap-8{gap:8px}
+  .w-120{width:120px;flex:none} .w-160{width:160px;flex:none} .w-200{width:200px;flex:none}
+  .w-280{width:280px;flex:none}
+  .nowrap{white-space:nowrap}
+  /* A grid's cells set their own alignment, so .right names them as well. */
+  .right,table.xl .right,.tbl td.right,.tbl th.right{text-align:right}
   /* ===== MODULE: RESEARCH ===== */
   /* The spinner on a light (ghost) button — New Product's Fetch details. .spin's white arc does not
      show on a light button, so the arc takes the button's text colour. */
