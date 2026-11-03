@@ -230,14 +230,64 @@
 
   <!-- ============ Admin: who can see what ============ -->
   <div id="accessCard" class="card hide" style="margin-bottom:14px">
-    <!-- BY DEPARTMENT AND ROLE (Ravi, 3 Nov): drawn by core/access-roles.js from the same list; the old email table stays underneath, hidden. -->
-    <div id="accRoles"></div>
+    <!-- ACCESS BY ROLE — Ravi's design (3 Nov), core/access-design.js. PREVIEW: nothing on it is saved; the form below saves as before.
+         The old email table stays underneath, hidden. -->
+    <div id="acx-root" class="acx">
+<div class="shell">
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">F</span>
+      <div>
+        <div class="brand-title">Access by role</div>
+        <div class="brand-sub" id="acx-source">Loading…</div>
+      </div>
+    </div>
+    <div class="top-actions">
+      <label class="search">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <input id="acx-search" type="search" placeholder="Search people by email" aria-label="Search people by email">
+      </label>
+      <button id="acx-addBtn" class="btn primary" type="button">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg> Add user
+      </button>
+    </div>
+  </header>
+
+  <nav class="sidenav" id="acx-sidenav" aria-label="Departments"></nav>
+
+  <main class="content" id="acx-content"></main>
+</div>
+
+<div class="scrim" id="acx-scrim" hidden></div>
+<aside class="drawer" id="acx-drawer" aria-hidden="true" aria-labelledby="acx-drawerTitle">
+  <div class="drawer-head" id="acx-drawerHead"></div>
+  <div class="drawer-tabs" id="acx-drawerTabs"></div>
+  <div class="drawer-body" id="acx-drawerBody"></div>
+  <div class="drawer-foot" id="acx-drawerFoot"></div>
+</aside>
+
+<dialog id="acx-modal" aria-labelledby="acx-modalTitle">
+  <div class="modal-head">
+    <div>
+      <h2 id="acx-modalTitle"></h2>
+      <p class="muted" id="acx-modalSub"></p>
+    </div>
+    <button class="icon-btn" type="button" id="acx-modalClose" aria-label="Close">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+    </button>
+  </div>
+  <div id="acx-modalBody" class="modal-body"></div>
+  <div id="acx-modalFoot" class="modal-foot"></div>
+</dialog>
+
+<div class="toast" id="acx-toast" role="status" aria-live="polite"></div>
+    </div>
+    <div class="sec" style="margin-top:18px">Grant or update <span style="text-transform:none;font-weight:400">— saves for real</span></div>
     <table class="tbl hide">
       <thead><tr><th style="width:38%">Email</th><th>Can see</th><th></th><th></th></tr></thead>
       <tbody id="accessRows"></tbody>
     </table>
 
-    <div class="sec" style="margin-top:18px">Grant or update</div>
     <!-- Ravi, 2026-09-21: "jo already access de chuka unka dropdown bana, jiska edit krna ho kar saku".
          Picking a name loads exactly what the Edit button in the table above loads. -->
     <div style="margin-bottom:10px"><label>Edit somebody who already has access</label>

@@ -45,8 +45,8 @@ async function loadAccessList() {
       : '<tr><td colspan="4" class="muted">Nobody has been granted access yet.</td></tr>';
     box.querySelectorAll('[data-edit-perm]').forEach(b => b.onclick = () => fillAccessForm(rows.find(r => r.email === b.dataset.editPerm)));
     box.querySelectorAll('[data-del-perm]').forEach(b => b.onclick = () => accessRemove(b.dataset.delPerm));
-    /* the page by department and role (access-roles.js) is drawn from the same list */
-    if (typeof acrRender === 'function') acrRender();
+    /* the page by department and role (access-design.js, Ravi's design) is drawn from the same list */
+    if (typeof acxMount === 'function') acxMount(rows);
   } catch (e) {
     box.innerHTML = `<tr><td colspan="4" class="err">Could not reach the access list, so it is not shown — nobody's access has changed. `
       + `This usually means Firestore cannot be reached from this network right now; try again in a moment, or from another connection. `
