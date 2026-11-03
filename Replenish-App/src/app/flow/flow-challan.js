@@ -20,6 +20,15 @@
  * The fabric is PPC's plan (which starts from the master row), else the master row's own fabric. The direction is PPC's
  * choice (plan.print.dir); a quilt's comes from its lay; a fabric made only one way (Canvas, Cambric) needs none. A
  * sheeting or voil with no direction chosen says so — it is never shown as both. */
+/* PRINT DIRECTION IS ASKED ONLY FOR A PIPING OR RUFFLE TABLECLOTH (Ravi, 2 Nov: "piping tablecloth and ruffle tablecloth ke alawa print direction
+ * nahi mangna chahiye"). Every other line takes its direction by itself — the master's default, else Vertical, else the one way the catalogue
+ * has — so its printed fabric SKU is still found and nobody is asked. */
+function flowDirAsked(r) {
+  const m = (typeof cutSkuOf === 'function' && cutSkuOf(r.sku)) || {};
+  const what = [m.subtype, m.articleType, r.articleSubtype, r.articleType, r.itemName].filter(Boolean).join(' ');
+  return /tablecloth/i.test(what) && /piping|ruffle/i.test(what);
+}
+const flowDirAuto = dirs => (dirs || []).find(d => /^vert/i.test(d)) || (dirs || [])[0] || '';
 function flowPrintWhat(r, plan) {
   const m = cutSkuOf(r.sku) || {};
   /* EMBROIDERY IS DONE ON THE RUNNING CLOTH (Ravi, 21 Oct): a line on Printing + Embroidery is printed as fabric, whatever the
@@ -32,6 +41,7 @@ function flowPrintWhat(r, plan) {
   const dirs = flowFabDirs(fab, colour, cc);
   let dir = (plan && plan.print && plan.print.dir) || flowDirDefault(m, fab);
   if (!dir && dirs.length === 1) dir = dirs[0];
+  if (!dir && dirs.length > 1 && !flowDirAsked(r)) dir = flowDirAuto(dirs);
   let rule = ''; try { rule = ptPrintIssueAs(m) || ''; } catch (e) { rule = ''; }
   const mode = emb ? 'Running fabric — for embroidery' : rule === 'cut' ? 'Cut pieces (cut here from the printed fabric)' : 'Running fabric';
   if (!dir && dirs.length > 1)

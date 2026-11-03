@@ -26995,8 +26995,11 @@ function shpbStages(lines) {
     /* TO PLAN holds only what production sent to the printer (status Need from printer, or a tablecloth marked OOS) and nobody has planned yet; every other line sits at its own stage. */
     if (shpbGated(r)) { s.planA += q; s.planW += q; }
     /* A line that goes to a printer can be cut / issued only as far as the printed cloth has come back (flowState does the same). */
-    const fl = shpbFlowOf(r), base = shpbGated(r) ? 0 : (fl ? Math.min(q, fl.back) : q);
-    if (fl) { const back = Math.min(q, fl.back); s.prcA += q; s.prcD += back; s.prcW += q - back; }
+    /* WORK FURTHER ON SAYS THE CLOTH CAME (Ravi, 2 Nov: "kuch entry aise h jo issue press ho chuki but show kar rahi printer receive me"): a piece
+     * cut, issued, received, passed or pressed is past the printer whatever the challan says — the printer receive counts at least that many. */
+    const fl = shpbFlowOf(r), past = Math.max(r.cutReq ? cap(r.cut) : 0, iss, rec, qc, prs), flBack = fl ? Math.min(q, Math.max(+fl.back || 0, past)) : 0;
+    const base = shpbGated(r) ? 0 : (fl ? flBack : q);
+    if (fl) { s.prcA += q; s.prcD += flBack; s.prcW += q - flBack; }
     const cutDone = r.cutReq ? cap(r.cut) : base;
     if (r.cutReq) { s.cutA += base; s.cutD += cap(r.cut); s.cutW += Math.max(0, base - cap(r.cut)); }
     s.issA += cutDone; s.issD += iss; s.issW += Math.max(0, cutDone - iss);
@@ -27014,11 +27017,22 @@ const SHPB_STAGES = [['plan', 'To plan', 'plan', 'planW', 'planD', 'planA'], ['p
   ['receive', 'Receive', 'receive', 'recW', 'recD', 'recA'], ['qc', 'QC pass', 'qc', 'qcW', 'qcD', 'qcA'], ['press', 'Press', 'press', 'prsW', 'prsD', 'prsA'],
   ['hand', 'Shipping to accept', 'accept', 'handW', 'handD', 'handA']];
 /** One stage cell: "waiting − (done moved)", and the button for the work that is waiting. */
+/* EACH BUTTON TO THOSE WHO HOLD ITS WORK (Ravi, 2 Nov: "jiske pas access h wo hi cut issue receive kar pay — abhi cutting wala issue receive ki
+ * entry kar pa rha h"). The board lets a person do from the row only what their rights let them do on the register itself: [the rights, any one
+ * of them]. An admin does everything. The figures stay for everybody; only the buttons go. */
+const SHPB_RIGHT = { plan: ['flppc'], print: ['flppc'], prcv: ['flchl'], cut: ['pcut', 'flcut'], issue: ['pbase', 'flraw'], receive: ['pbase', 'flwip'],
+  qc: ['qc'], press: ['ppress', 'qc'], stock: ['fgi'] };
+function shpbMay(act) {
+  if (ME.admin) return true;
+  const need = SHPB_RIGHT[act];
+  if (!need) return true;   // accept / not received: shpCanReceive decides
+  return need.some(t => (ME.tabs || []).includes(t));
+}
 function shpbCell(a, w, d, act, label, key, title) {
   if (!a && !d) return '<td class="num" style="' + SHPB_STAGE_BG + ';' + SHPB_PAD + '"><span class="muted">—</span></td>';
   return '<td class="num" style="' + SHPB_STAGE_BG + ';' + SHPB_PAD + 'white-space:nowrap;line-height:1.25" title="' + esc(title || '') + '">'
     + (w ? '<b style="color:#b45309">' + nf(w) + '</b>' : '<b style="color:#166534">0</b>') + '<span class="muted" style="font-size:11px"> − (' + nf(d) + ' moved)</span>'
-    + (w ? '<div><button type="button" class="ghost" data-shpb-act="' + act + '" data-key="' + esc(key) + '" style="width:auto;padding:0 7px;font-size:10.5px;line-height:18px">' + esc(label) + '</button></div>' : '') + '</td>';
+    + (w && shpbMay(act) ? '<div><button type="button" class="ghost" data-shpb-act="' + act + '" data-key="' + esc(key) + '" style="width:auto;padding:0 7px;font-size:10.5px;line-height:18px">' + esc(label) + '</button></div>' : '') + '</td>';
 }
 const shpbLineOf = key => { const [o, k] = String(key).split('__'); return ordLines().find(r => r.orderNo === obUC(o) && r.sku === obUC(k)) || null; };
 const shpbPlanOf = r => ((typeof FLOW !== 'undefined' && FLOW && FLOW.ppc) || {})[typeof flowKey === 'function' ? flowKey(r.orderNo, r.sku) : ''] || null;
@@ -27059,7 +27073,7 @@ function shpbRow(r) {
     + shpbItem(r)
     + `<td class="num" style="${SHPB_PAD}"><b>${nf(r.qty)}</b></td>`
     + `<td style="${SHPB_PAD}text-align:left;font-size:11.5px;white-space:nowrap;line-height:1.25">${prn ? '<b>' + esc(prn) + '</b>' : (shpbPlanOf(r) ? '<span class="muted">no printer</span>' : '<b style="color:#b91c1c">not planned</b>')}`
-    + `<div><button type="button" class="ghost" data-shpb-act="print" data-key="${esc(k)}" style="width:auto;padding:0 7px;font-size:10.5px;line-height:18px" title="${shpbIsShp() ? 'The plan of this line: printer, fabric, accessories, dates — planned here, not in PPC' : 'The plan of this line — the same plan PPC raises; the line stays in PPC too'}">${shpbPlanOf(r) ? (prn ? 'Change' : 'Plan') : 'Plan'}</button></div></td>`
+    + (!shpbMay('print') ? '' : `<div><button type="button" class="ghost" data-shpb-act="print" data-key="${esc(k)}" style="width:auto;padding:0 7px;font-size:10.5px;line-height:18px" title="${shpbIsShp() ? 'The plan of this line: printer, fabric, accessories, dates — planned here, not in PPC' : 'The plan of this line — the same plan PPC raises; the line stays in PPC too'}">${shpbPlanOf(r) ? (prn ? 'Change' : 'Plan') : 'Plan'}</button></div>`) + '</td>'
     + shpbCell(s.prcA, s.prcW, s.prcD, 'prcv', 'Receive', k, tips.prcv)
     + (!r.cutReq ? `<td class="num" style="${SHPB_STAGE_BG};${SHPB_PAD}"><span class="muted" style="font-size:11px">not needed</span></td>` : shpbCell(s.cutA, s.cutW, s.cutD, 'cut', 'Cut', k, tips.cut))
     + shpbCell(s.issA, s.issW, s.issD, 'issue', 'Issue', k, tips.issue)
@@ -27080,7 +27094,7 @@ function shpbStatusCell(r, k, rd, late, edit) {
         : '<span style="font-size:11.5px">' + esc(shpbDmy(rd.date) || '—') + '</span>')
       + (rd.how ? ' <span class="muted" style="font-size:10px">' + (rd.how === 'set' ? 'set' + (rd.by ? ' · ' + esc(rd.by) : '') : esc(rd.how)) + '</span>' : '') + '</div>'
     + (stk ? '<div><span class="pill" style="background:#dcfce7;color:#166534" title="Completed from the ready stock in the India store, handed to shipping">' + nf(stk) + ' from stock</span></div>' : '')
-    + (edit && left > 0 && have !== 0 && shpbIsShp() ? '<div><button type="button" class="ghost" data-shpb-act="stock" data-key="' + esc(k) + '" style="width:auto;padding:0 7px;font-size:10.5px;line-height:18px" title="Complete this order from pieces already made and held in the India store">From stock' + (have ? ' (' + nf(have) + ')' : '') + '</button></div>' : '')
+    + (edit && left > 0 && have !== 0 && shpbIsShp() && shpbMay('stock') ? '<div><button type="button" class="ghost" data-shpb-act="stock" data-key="' + esc(k) + '" style="width:auto;padding:0 7px;font-size:10.5px;line-height:18px" title="Complete this order from pieces already made and held in the India store">From stock' + (have ? ' (' + nf(have) + ')' : '') + '</button></div>' : '')
     + '</td>';
 }
 
@@ -27122,7 +27136,7 @@ function renderShpBoard() {
   $('odKpis').innerHTML = ME.shpAccOnly ? `<div style="margin:2px 0 8px;font-weight:700;font-size:15px">Shipping to accept · ${nf(done.filter(r => r.open && shpbStages([r]).handW > 0).length)} line(s)</div>`
     : `<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:2px 0 8px">${shpbStagesShown().map(bucket).join('')}`
     + `<div style="display:flex;gap:8px;margin-left:auto">${tabBtn('pending', 'Order pending · ' + nf(pend.length))}${tabBtn('done', 'Complete · ' + nf(done.length))}</div></div>`
-    + (tab === 'pending' && shpbCanEdit() ? (() => {
+    + (tab === 'pending' && shpbMay('plan') ? (() => {
       const can = shpbToPlan(pend).length, left = typeof FLOW_XL_IMP !== 'undefined' && FLOW_XL_IMP.length ? flowXlLeft().length : 0;
       const b = 'height:34px;padding:0 14px;border-radius:12px;font:inherit;font-weight:700;cursor:pointer;box-shadow:none;transform:none;width:auto;';
       return can || left ? `<div style="display:flex;gap:8px;align-items:center;margin:0 0 8px">`
@@ -27266,6 +27280,7 @@ const shpbAfter = () => { try { renderOrd(); } catch (e) { /* the next draw show
 
 function shpbDialog(act, key) {
   const r = shpbLineOf(key); if (!r) return;
+  if (!shpbMay(act)) { $('odMsg').className = 'err'; $('odMsg').textContent = 'You do not have the right for this step — ask an admin.'; return; }
   const s = shpbStages([r]), who = (r.shopOrderNo || r.orderNo) + ' · ' + r.sku;
   if (act === 'print' || act === 'plan') { if (typeof flowPpcOpen === 'function') flowPpcOpen(r.orderNo, r.sku); return; }
   if (act === 'stock') {
@@ -28897,6 +28912,8 @@ function flowDirOpts(r, p) {
   if (m.cuttingRequired === false) return { dirs: [], cur: '' };
   const dirs = flowFabDirs(fab, String(m.color || r.color || '').trim(), ordColCodeOf(r.sku));
   const cur = (p.print && p.print.dir) || flowDirDefault(m, fab) || (dirs.length === 1 ? dirs[0] : '');
+  /* only a piping / ruffle tablecloth is asked (flowDirAsked): any other line takes its way by itself and the form shows no box */
+  if (!flowDirAsked(r)) return { dirs: [], cur: cur || flowDirAuto(dirs) };
   return { dirs, cur };
 }
 
@@ -29885,6 +29902,15 @@ function flowAccCover() {
  * The fabric is PPC's plan (which starts from the master row), else the master row's own fabric. The direction is PPC's
  * choice (plan.print.dir); a quilt's comes from its lay; a fabric made only one way (Canvas, Cambric) needs none. A
  * sheeting or voil with no direction chosen says so — it is never shown as both. */
+/* PRINT DIRECTION IS ASKED ONLY FOR A PIPING OR RUFFLE TABLECLOTH (Ravi, 2 Nov: "piping tablecloth and ruffle tablecloth ke alawa print direction
+ * nahi mangna chahiye"). Every other line takes its direction by itself — the master's default, else Vertical, else the one way the catalogue
+ * has — so its printed fabric SKU is still found and nobody is asked. */
+function flowDirAsked(r) {
+  const m = (typeof cutSkuOf === 'function' && cutSkuOf(r.sku)) || {};
+  const what = [m.subtype, m.articleType, r.articleSubtype, r.articleType, r.itemName].filter(Boolean).join(' ');
+  return /tablecloth/i.test(what) && /piping|ruffle/i.test(what);
+}
+const flowDirAuto = dirs => (dirs || []).find(d => /^vert/i.test(d)) || (dirs || [])[0] || '';
 function flowPrintWhat(r, plan) {
   const m = cutSkuOf(r.sku) || {};
   /* EMBROIDERY IS DONE ON THE RUNNING CLOTH (Ravi, 21 Oct): a line on Printing + Embroidery is printed as fabric, whatever the
@@ -29897,6 +29923,7 @@ function flowPrintWhat(r, plan) {
   const dirs = flowFabDirs(fab, colour, cc);
   let dir = (plan && plan.print && plan.print.dir) || flowDirDefault(m, fab);
   if (!dir && dirs.length === 1) dir = dirs[0];
+  if (!dir && dirs.length > 1 && !flowDirAsked(r)) dir = flowDirAuto(dirs);
   let rule = ''; try { rule = ptPrintIssueAs(m) || ''; } catch (e) { rule = ''; }
   const mode = emb ? 'Running fabric — for embroidery' : rule === 'cut' ? 'Cut pieces (cut here from the printed fabric)' : 'Running fabric';
   if (!dir && dirs.length > 1)
@@ -49670,12 +49697,22 @@ function vpHistTable(rows) {
 
 /**
  * THE CUSTOM ORDERS SHEET (Ravi, 30 Oct: "custom order ka view aise chahiye — neat and clean, koi other information nahi"): one row per line,
- * eight columns and nothing else — Date, Order Number, Image, Article, Size, Ordered, Vendor Sent, Vendor Date. Vendor Sent is the printer's
+ * nine columns and nothing else — Date, Order Number, Image, Article, Size, Ordered, Vendor Sent, Received (by us, 2 Nov), Vendor Date. Vendor Sent is the printer's
  * own word (the same batches vpVsHtml keeps; the box to add one is theirs alone) and Vendor Date is the date they promise it — the same
  * promise date every other view writes (data-vpprom).
  */
+/** RECEIVED BY US (Ravi, 2 Nov: "yaha apna challan banda receive karta h uska column show nahi ho rha h"): what our challan man took in for
+ *  this line — a PPC line is received on its RFD challan (flowChIndex: what came back on every challan of the line), which the vendor order
+ *  never hears of; any other line by the vendor order's own deliveries (voDone). { qty, how } — how names the challan(s). */
+function vpRecvOf(l) {
+  const ix = l && l.flowKey && typeof flowChIndex === 'function' && typeof FLOW !== 'undefined' && FLOW && FLOW.ch ? flowChIndex() : null;
+  const e = ix ? ix[l.flowKey + (/\|ruffle$/.test(String(l.flowPart || '')) && typeof FLOW_RUF !== 'undefined' ? FLOW_RUF : '')] : null;
+  const vo = voDone(l) || 0;
+  if (e && e.recv > vo) return { qty: Math.round(e.recv * 100) / 100, how: 'on challan ' + (e.no || '') };
+  return { qty: vo, how: vo ? 'on the vendor order' : '' };
+}
 function vpCustomSheet(rows, f) {
-  const COLS = ['Date', 'Order Number', 'Image', 'Article', 'Size', 'Ordered', 'Vendor Sent', 'Vendor Date'];
+  const COLS = ['Date', 'Order Number', 'Image', 'Article', 'Size', 'Ordered', 'Vendor Sent', 'Received', 'Vendor Date'];
   const on = !!(f && vpLineOn(f)), seen = new Set(), items = [];
   /* ONE LIST, A TO Z BY COLOUR (Ravi, 30 Oct: "1 a-z series me dikhe color wise"): every line of every order in one run, colour A→Z, then
    * article and size, then the oldest order first; a line with no colour goes last. */
@@ -49702,12 +49739,13 @@ function vpCustomSheet(rows, f) {
       + `<td style="font-size:12.5px">${esc(run ? '' : (l.size || '')) || '<span class="muted">—</span>'}</td>`
       + `<td class="num" style="font-weight:700">${nf(ord)} <span class="muted" style="font-weight:400;font-size:10px">${unit}</span></td>`
       + vpVsHtml(o, l, i, ord, unit, 'td')
+      + (rc => `<td class="num" title="${esc(rc.how)}">${rc.qty > 0 ? `<b style="color:#166534">${nf(rc.qty)}</b> <span class="muted" style="font-size:10px">${unit}</span>` : '<span class="muted">—</span>'}</td>`)(vpRecvOf(l))
       + `<td>${vpViewAll() || flowVpViewOnly(o) || bal <= 0 ? `<span style="font-size:12px">${esc(voProm(l) ? dShow(voProm(l)) : '') || '<span class="muted">—</span>'}</span>`
           : `<input data-vpprom="${esc(o.id)}" data-i="${i}" type="date" value="${esc(voProm(l))}" style="width:146px">`}</td>`
       + '</tr>';
   });
   if (!out.length) return '<div class="card" style="padding:34px;text-align:center;color:var(--muted)">No custom order line to show.</div>';
-  return `<div class="card xlwrap" style="padding:0"><table class="xl"><thead><tr>${COLS.map(h => `<th${h === 'Ordered' ? ' class="num"' : ''}>${esc(h)}</th>`).join('')}</tr></thead><tbody>${out.join('')}</tbody></table></div>`;
+  return `<div class="card xlwrap" style="padding:0"><table class="xl"><thead><tr>${COLS.map(h => `<th${h === 'Ordered' || h === 'Received' ? ' class="num"' : ''}>${esc(h)}</th>`).join('')}</tr></thead><tbody>${out.join('')}</tbody></table></div>`;
 }
 
 function vpShopTable(rows, f) {

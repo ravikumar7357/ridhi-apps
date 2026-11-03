@@ -73,6 +73,8 @@ function flowDirOpts(r, p) {
   if (m.cuttingRequired === false) return { dirs: [], cur: '' };
   const dirs = flowFabDirs(fab, String(m.color || r.color || '').trim(), ordColCodeOf(r.sku));
   const cur = (p.print && p.print.dir) || flowDirDefault(m, fab) || (dirs.length === 1 ? dirs[0] : '');
+  /* only a piping / ruffle tablecloth is asked (flowDirAsked): any other line takes its way by itself and the form shows no box */
+  if (!flowDirAsked(r)) return { dirs: [], cur: cur || flowDirAuto(dirs) };
   return { dirs, cur };
 }
 
