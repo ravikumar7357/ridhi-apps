@@ -18,7 +18,7 @@ async function accessRemove(who) {
   loadAccessList();
 }
 async function loadAccessList() {
-  if (!ME.admin) return;
+  if (!ME.admin && !ME.accessView) return;   // an access viewer reads the list too, and changes nothing
   const box = $('accessRows');
   box.innerHTML = '<tr><td colspan="4" class="muted">Loading…</td></tr>';
   try {

@@ -9,7 +9,7 @@ function setMenuOpen(on) {
 function openSetPage(which) {
   TABS.forEach(t => { $('pane' + capId(t)).classList.add('hide'); $('tab' + capId(t)).classList.remove('on'); });
   $('noAccess').classList.add('hide');
-  const acc = which === 'access' && ME.admin;
+  const acc = which === 'access' && (ME.admin || ME.accessView);
   $('settingsCard').classList.toggle('hide', acc);
   $('accessCard').classList.toggle('hide', !acc);
   if (acc) { accessTabBoxes(); loadAccessList(); }
@@ -21,7 +21,7 @@ function openSetPage(which) {
 $('toggleSettings').onclick = e => {
   e.stopPropagation();
   /* Access is for admins only: anyone else has one page, so the button opens it straight away */
-  if (!ME.admin) { openSetPage('settings'); return; }
+  if (!ME.admin && !ME.accessView) { openSetPage('settings'); return; }
   setMenuOpen(!$('setMenu').classList.contains('open'));
 };
 $('openSettings').onclick = () => openSetPage('settings');

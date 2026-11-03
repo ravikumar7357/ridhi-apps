@@ -115,6 +115,11 @@
   .acx .row>*{flex:initial;min-width:0}
   .acx .card{padding:0;margin:0}
   .acx .brand{font-family:inherit;font-weight:inherit;font-size:inherit;padding:0;letter-spacing:normal;line-height:inherit;white-space:normal}
+  .acx .topbar{margin:0}
+  /* ACCESS VIEWER: every control that changes access is gone (the writes refuse too, and so do the rules) */
+  .acx.ro #acx-addBtn,.acx.ro [data-add-role],.acx.ro [data-add-in],.acx.ro [data-edit],.acx.ro [data-save],.acx.ro [data-remove],.acx.ro [data-move],
+  .acx.ro #acx-pMove,.acx.ro .add-member,.acx.ro .move-box,.acx.ro [data-delete-role]{display:none!important}
+  .acx .err{background:none;padding:0;border-radius:0;font-size:12.5px;margin:6px 0 0}
   .acx .sec{font-size:inherit;font-weight:inherit;text-transform:none;letter-spacing:normal;color:inherit;margin:0;grid-column:auto}
   .acx .st{display:flex;padding:0;border-radius:0;font-size:13px;white-space:normal}
 
@@ -281,7 +286,7 @@
 .acx .tab:hover { color: var(--text); }
 .acx .tab.on { color: var(--accent-text); border-bottom-color: var(--accent); }
 .acx .tab .n { font-size: 12px; color: var(--faint); margin-left: 4px; }
-.acx .drawer-.acx { flex: 1; overflow: auto; padding: 16px 20px 24px; }
+.acx .drawer-body { flex: 1; overflow: auto; padding: 16px 20px 24px; }
 .acx .drawer-foot { display: flex; align-items: center; gap: 8px; padding: 12px 20px; border-top: 1px solid var(--line); background: var(--surface-2); flex-wrap: wrap; }
 .acx .drawer-foot:empty { display: none; }
 .acx .drawer-foot .left { margin-right: auto; font-size: 13px; color: var(--muted); }
@@ -331,7 +336,7 @@
 .acx dialog[open] { display: flex; flex-direction: column; }
 .acx .modal-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding: 18px 22px 0; }
 .acx .modal-head h2 { font-size: 18px; }
-.acx .modal-.acx { padding: 16px 22px 18px; overflow: auto; }
+.acx .modal-body { padding: 16px 22px 18px; overflow: auto; }
 .acx .modal-foot { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 22px; border-top: 1px solid var(--line); background: var(--surface-2); }
 .acx .stepper { display: flex; align-items: center; gap: 8px; margin-bottom: 18px; }
 .acx .st { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--faint); font-weight: 500; }
@@ -3384,7 +3389,7 @@ function applyBrandPicker(id) {
 }
 
 async function loadMyPerms(user) {
-  ME = { email: (user.email || '').toLowerCase(), admin: false, approve: false, tabs: [], brands: [] };
+  ME = { email: (user.email || '').toLowerCase(), admin: false, approve: false, tabs: [], brands: [], accessView: false };
   try {
     const snap = await getDoc(doc(db, 'perms', ME.email));
     if (snap.exists()) {
@@ -3393,6 +3398,8 @@ async function loadMyPerms(user) {
       ME.approve = d.approve === true;
       ME.tabs = Array.isArray(d.tabs) ? d.tabs : [];
       ME.brands = Array.isArray(d.brands) ? d.brands : [];
+      /* ACCESS VIEWER (3 Nov): may open the Access page and see everyone's access, change nothing */
+      ME.accessView = d.accessView === true;
     }
   } catch (e) { /* unreadable perms = no perms; the notice below explains it */ }
   // The owner is always an admin so the account can never lock itself out. Keep this in step with
@@ -3448,7 +3455,7 @@ async function accessRemove(who) {
   loadAccessList();
 }
 async function loadAccessList() {
-  if (!ME.admin) return;
+  if (!ME.admin && !ME.accessView) return;   // an access viewer reads the list too, and changes nothing
   const box = $('accessRows');
   box.innerHTML = '<tr><td colspan="4" class="muted">Loading…</td></tr>';
   try {
@@ -3834,6 +3841,19 @@ const ACX_ROLEDEFS = [
         "vreq"
        ],
        "rights": []
+      }
+     },
+     {
+      "key": "accessviewer",
+      "name": "Access viewer (view only)",
+      "limit": "Sees everybody’s access; cannot change any of it",
+      "cannot": "Give, change or remove access",
+      "boxes": {
+       "tabs": [],
+       "replTabs": [],
+       "rights": [
+        "accessView"
+       ]
       }
      }
     ]
@@ -4594,6 +4614,8 @@ const RIGHTS = [
   ['accEntry', 'Add accessory movements'],
   ['accEdit', 'Edit the accessories record'],
   ['mdbEdit', 'Change the Master Database'],
+  /* ACCESS VIEWER (3 Nov): sees this page — everybody's access — and changes nothing */
+  ['accessView', 'See the Access page (view only)'],
 ];
 
 const ALL_SELLORA = SELLORA_GROUPS.flatMap(g => g.items.map(i => i[0]));
@@ -4753,19 +4775,23 @@ function acxRecord(old, a, roleKey) {
   rec.accessRole = roleKey || '';
   return rec;
 }
+const acxCanEdit = () => !!(ME && ME.admin);
 async function acxWrite(email, a, roleKey) {
+  if (!acxCanEdit()) throw new Error('view only — only an admin can change access');
   if (email === String(ME.email || '').toLowerCase() && !a.admin) throw new Error('you cannot take away your own admin rights');
   const rec = acxRecord(acxOld(email), a, roleKey);
   await setDoc(doc(db, 'perms', email), Object.assign({}, rec, { at: serverTimestamp(), by: ME.email }));
   try { await permMirror(email, rec); } catch (e) { throw new Error('saved, but NOT in the production database copy (' + (e.message || e) + ') — do it again'); }
 }
 async function acxDel(email) {
+  if (!acxCanEdit()) throw new Error('view only — only an admin can change access');
   if (email === String(ME.email || '').toLowerCase()) throw new Error('you cannot remove your own access');
   await deleteDoc(doc(db, 'perms', email));
   try { await permMirror(email, null); } catch (e) { throw new Error('removed, but their copy in the production database is still there (' + (e.message || e) + ') — remove again'); }
 }
 /** The roles as they stand — their boxes, and roles added here — into config/accessRoles. */
 async function acxSaveRoles() {
+  if (!acxCanEdit()) throw new Error('view only — only an admin can change access');
   const out = {};
   ROLES.forEach(r => { out[r.key] = { access: S.roles[r.key] }; });
   (S.customRoles || []).forEach(r => { out[r.key] = Object.assign({}, out[r.key], { custom: { name: r.name, dept: r.dept, group: r.group, limit: r.limit || '', cannot: r.cannot || '' } }); });
@@ -4844,7 +4870,8 @@ function renderNav() {
     + '<div class="nav-sep"></div>'
     + item('special', null, IC.star, 'Special cases', specials().length, 'special-nav')
     + item('people', null, IC.people, 'All people', S.people.length)
-    + '<p class="nav-note">Changes here are real: they change what people can open, in Sellora and the ERP. Each one asks first.</p>';
+    + (acxCanEdit() ? '<p class="nav-note">Changes here are real: they change what people can open, in Sellora and the ERP. Each one asks first.</p>'
+      : '<p class="nav-note">View only. You can see who can open what; changing it needs an admin.</p>');
 }
 
 /* ---------- main area ---------- */
@@ -5337,6 +5364,8 @@ $('search').addEventListener('input', () => {
   return async rows => {
     try { const snap = await getDoc(doc(db, 'config', 'accessRoles')); ACX_ROLES_DOC = snap.exists() ? snap.data() : null; }
     catch (e) { ACX_ROLES_DOC = null; toast('The saved roles could not be read (' + (e.code || e.message || e) + ') — showing the role plan.'); }
+    /* an access viewer sees the page without one button that changes anything (styles .acx.ro) */
+    $('root').classList.toggle('ro', !acxCanEdit());
     ACX_DEPTS.length = 0; acxDepts().forEach(d => ACX_DEPTS.push(d));
     DEPARTMENTS.forEach(d => d.groups.forEach(g => g.roles.forEach(r => { if (r.accessRec) { r.access = personAccess(r.accessRec); delete r.accessRec; } })));
     DATA.people = rows.map(r => Object.assign({}, r, { email: String(r.email || '').toLowerCase() }));
@@ -5497,7 +5526,7 @@ function setMenuOpen(on) {
 function openSetPage(which) {
   TABS.forEach(t => { $('pane' + capId(t)).classList.add('hide'); $('tab' + capId(t)).classList.remove('on'); });
   $('noAccess').classList.add('hide');
-  const acc = which === 'access' && ME.admin;
+  const acc = which === 'access' && (ME.admin || ME.accessView);
   $('settingsCard').classList.toggle('hide', acc);
   $('accessCard').classList.toggle('hide', !acc);
   if (acc) { accessTabBoxes(); loadAccessList(); }
@@ -5509,7 +5538,7 @@ function openSetPage(which) {
 $('toggleSettings').onclick = e => {
   e.stopPropagation();
   /* Access is for admins only: anyone else has one page, so the button opens it straight away */
-  if (!ME.admin) { openSetPage('settings'); return; }
+  if (!ME.admin && !ME.accessView) { openSetPage('settings'); return; }
   setMenuOpen(!$('setMenu').classList.contains('open'));
 };
 $('openSettings').onclick = () => openSetPage('settings');

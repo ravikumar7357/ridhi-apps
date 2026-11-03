@@ -105,6 +105,19 @@ const ACX_ROLEDEFS = [
        ],
        "rights": []
       }
+     },
+     {
+      "key": "accessviewer",
+      "name": "Access viewer (view only)",
+      "limit": "Sees everybody’s access; cannot change any of it",
+      "cannot": "Give, change or remove access",
+      "boxes": {
+       "tabs": [],
+       "replTabs": [],
+       "rights": [
+        "accessView"
+       ]
+      }
      }
     ]
    },
@@ -864,6 +877,8 @@ const RIGHTS = [
   ['accEntry', 'Add accessory movements'],
   ['accEdit', 'Edit the accessories record'],
   ['mdbEdit', 'Change the Master Database'],
+  /* ACCESS VIEWER (3 Nov): sees this page — everybody's access — and changes nothing */
+  ['accessView', 'See the Access page (view only)'],
 ];
 
 const ALL_SELLORA = SELLORA_GROUPS.flatMap(g => g.items.map(i => i[0]));
@@ -1023,19 +1038,23 @@ function acxRecord(old, a, roleKey) {
   rec.accessRole = roleKey || '';
   return rec;
 }
+const acxCanEdit = () => !!(ME && ME.admin);
 async function acxWrite(email, a, roleKey) {
+  if (!acxCanEdit()) throw new Error('view only — only an admin can change access');
   if (email === String(ME.email || '').toLowerCase() && !a.admin) throw new Error('you cannot take away your own admin rights');
   const rec = acxRecord(acxOld(email), a, roleKey);
   await setDoc(doc(db, 'perms', email), Object.assign({}, rec, { at: serverTimestamp(), by: ME.email }));
   try { await permMirror(email, rec); } catch (e) { throw new Error('saved, but NOT in the production database copy (' + (e.message || e) + ') — do it again'); }
 }
 async function acxDel(email) {
+  if (!acxCanEdit()) throw new Error('view only — only an admin can change access');
   if (email === String(ME.email || '').toLowerCase()) throw new Error('you cannot remove your own access');
   await deleteDoc(doc(db, 'perms', email));
   try { await permMirror(email, null); } catch (e) { throw new Error('removed, but their copy in the production database is still there (' + (e.message || e) + ') — remove again'); }
 }
 /** The roles as they stand — their boxes, and roles added here — into config/accessRoles. */
 async function acxSaveRoles() {
+  if (!acxCanEdit()) throw new Error('view only — only an admin can change access');
   const out = {};
   ROLES.forEach(r => { out[r.key] = { access: S.roles[r.key] }; });
   (S.customRoles || []).forEach(r => { out[r.key] = Object.assign({}, out[r.key], { custom: { name: r.name, dept: r.dept, group: r.group, limit: r.limit || '', cannot: r.cannot || '' } }); });
@@ -1114,7 +1133,8 @@ function renderNav() {
     + '<div class="nav-sep"></div>'
     + item('special', null, IC.star, 'Special cases', specials().length, 'special-nav')
     + item('people', null, IC.people, 'All people', S.people.length)
-    + '<p class="nav-note">Changes here are real: they change what people can open, in Sellora and the ERP. Each one asks first.</p>';
+    + (acxCanEdit() ? '<p class="nav-note">Changes here are real: they change what people can open, in Sellora and the ERP. Each one asks first.</p>'
+      : '<p class="nav-note">View only. You can see who can open what; changing it needs an admin.</p>');
 }
 
 /* ---------- main area ---------- */
@@ -1607,6 +1627,8 @@ $('search').addEventListener('input', () => {
   return async rows => {
     try { const snap = await getDoc(doc(db, 'config', 'accessRoles')); ACX_ROLES_DOC = snap.exists() ? snap.data() : null; }
     catch (e) { ACX_ROLES_DOC = null; toast('The saved roles could not be read (' + (e.code || e.message || e) + ') — showing the role plan.'); }
+    /* an access viewer sees the page without one button that changes anything (styles .acx.ro) */
+    $('root').classList.toggle('ro', !acxCanEdit());
     ACX_DEPTS.length = 0; acxDepts().forEach(d => ACX_DEPTS.push(d));
     DEPARTMENTS.forEach(d => d.groups.forEach(g => g.roles.forEach(r => { if (r.accessRec) { r.access = personAccess(r.accessRec); delete r.accessRec; } })));
     DATA.people = rows.map(r => Object.assign({}, r, { email: String(r.email || '').toLowerCase() }));
