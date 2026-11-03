@@ -33,7 +33,7 @@ const USERS = { 'tok-staff': { uid: 'uid-staff-7Q2', email: 'karan@company.in', 
 
 async function run(switches, tokenName, ai = false) {
   const db = d1(), env = { ENABLED: 'true', ALLOWED_ORIGINS: ORIGIN, ADMIN_EMAILS: 'ravi@thefabricrush.com', LEARN_DAILY: '30', DB: db };
-  const M = await load({ root: ROOT, bundle: true, switches, handle: true });
+  const M = await load({ root: ROOT, bundle: true, switches, handle: true, only: true });
   const T = c => M.ctx.__meeraTest(c);
   M.ctx.PTE.emp = PEOPLE;
   M.ctx.PTG = { masters: { vendor: { v1: { code: 'SHP', name: 'Shree Printers' } } }, mdb: [{ sku: 'RCN148', brand: 'Ridhi' }] };   // a party the ERP knows

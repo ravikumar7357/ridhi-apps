@@ -107,6 +107,10 @@ async function load(opts = {}) {
   /* opts.switches: her switches on for this run, as one computer would have them (localStorage) — in meera.js and,
    * for a switch that works there too (screenfirst), in the page */
   for (const s of opts.switches || []) page.localStorage.setItem('meera.' + s, '1');
+  /* opts.only: ONLY the switches named are on — every other one off, whatever the ERP's defaults (MEERA_V2_ON) say;
+   * for checks that need a switch truly off ("with learn off nothing is sent") */
+  if (opts.only) for (const s of ['lazy', 'spell', 'design', 'learn', 'server', 'serveruse', 'screenfirst', 'autobank', 'hindinames', 'data'])
+    if (!(opts.switches || []).includes(s)) page.localStorage.setItem('meera.' + s, '0');
   if (opts.bundle) {
     delete sandbox.$; delete sandbox.esc;
     const bridge = path.join(app, 'src', 'app', 'core', 'meera-bridge.js'), file = path.join(app, 'public', 'meera', 'meera.js');

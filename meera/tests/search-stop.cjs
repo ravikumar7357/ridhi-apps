@@ -12,7 +12,9 @@ const { load } = require('./harness.cjs');
 const ROOT = path.join(__dirname, '..', '..');
 /* the record that matches MEERA_V2_ON (her new features all on, or all off) */
 const V2 = /^\s*const MEERA_V2_ON = true\b/m.test(fs.readFileSync(path.join(ROOT, 'Replenish-App/src/app/core/meera-bridge.js'), 'utf8'));
-const golden = JSON.parse(fs.readFileSync(path.join(ROOT, 'meera/bank/baseline', ...(V2 ? ['v2'] : []), 'golden.json'), 'utf8'));
+/* run with her new features off (only lazy + serveruse: the parked search is checked on its own), so the record without them */
+const golden = JSON.parse(fs.readFileSync(path.join(ROOT, 'meera/bank/baseline/golden.json'), 'utf8'));
+void V2;
 const SEARCH = 'https://asia-south1-price-research-48ff3.cloudfunctions.net/meeraSearch';
 let pass = 0, fail = 0;
 const ok = (c, m) => { if (c) pass++; else { fail++; console.log('  FAIL ' + m); } };
@@ -39,7 +41,7 @@ const res = (status, body) => ({ ok: status < 300, status, json: async () => bod
   };
   /* her sign-in, as the ERP gives it (the service's check is told yes for this test token) */
   const run = async stopped => {
-    const M = await load({ root: ROOT, bundle: true, handle: true, switches: ['lazy', 'serveruse'], route });
+    const M = await load({ root: ROOT, bundle: true, handle: true, switches: ['lazy', 'serveruse'], route, only: true });
     M.ctx.auth = { currentUser: { getIdToken: async () => 'test' } };
     M.ctx.__meeraTest(stopped ? "SRV.cfg = { meera: true, ai: true, search: false, stopped: 'free' }" : "SRV.cfg = { meera: true, ai: true, search: true, stopped: '' }");
     return M;

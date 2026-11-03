@@ -70,7 +70,7 @@ add('none', '', ['karigar ko kaam kaise de', 'Raju Kumar ko maal kaise issue kar
   'AMZ-16092026-02 ka maal kaise receive kare', 'where do i enter cutting', 'printer ko order kaise de', 'late fee kya hai', 'how to check stock of a sku', 'Mohan Lal ka hisab chahiye']);
 
 (async () => {
-  const M = await load({ root: ROOT, bundle: true, handle: true, switches: ['lazy', 'data'] });
+  const M = await load({ root: ROOT, bundle: true, handle: true, switches: ['lazy', 'data'], only: true });
   const T = c => M.ctx.__meeraTest(c);
   install(M);
   M.setTab('shop');
@@ -132,7 +132,7 @@ add('none', '', ['karigar ko kaam kaise de', 'Raju Kumar ko maal kaise issue kar
     ok(taken.length <= 5, 'at most a handful of recorded questions are taken as data questions'); }
 
   console.log('6. switch off');
-  { const N = await load({ root: ROOT, bundle: true, handle: true, switches: ['lazy'] }); install(N);
+  { const N = await load({ root: ROOT, bundle: true, handle: true, switches: ['lazy'], only: true }); install(N);
     ok((await N.ctx.__meeraTest('meeraDataAsk("Imran Ali ke paas kitne piece hain")')) === false, 'with "data" off she does not take it'); }
   console.log(`\nphase7-data: ${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);

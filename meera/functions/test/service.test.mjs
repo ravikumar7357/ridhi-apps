@@ -55,7 +55,7 @@ ok((await call('/wake', { method: 'GET' })).status === 401, '/wake only for sign
 
 /* the same answers as her browser */
 { const { load } = require(path.join(ROOT, 'meera/tests/harness.cjs'));
-  const M = await load({ root: ROOT });
+  const M = await load({ root: ROOT, only: true });   // her browser as before (the search function is compared with it)
   const qs = [...JSON.parse(readFileSync(path.join(ROOT, 'meera/bank/evals/eval.json'), 'utf8')), ...JSON.parse(readFileSync(path.join(ROOT, 'meera/bank/evals/eval2.json'), 'utf8'))].slice(0, 120);
   let same = 0; const diff = [];
   for (const x of qs) {
