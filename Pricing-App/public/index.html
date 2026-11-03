@@ -7759,69 +7759,82 @@ function renderAudit() {
  * Delegation costs one listener no matter how large the grid gets, and it keeps working for rows
  * that did not exist when it was attached.
  */
-let AUDIT_WIRED = false;
+let AUDIT_WIRED = false;              // true once the grid's click listener is attached
+// Attach the grid's single click listener (first render only) and route each click to the right dialog or sort.
 function wireAuditTable() {
   if (AUDIT_WIRED) return;
   AUDIT_WIRED = true;
   $('aTable').addEventListener('click', e => {
-    const t = e.target.closest('[data-edit],[data-launch],[data-pname],[data-delparent],th[data-k]');
-    if (!t) return;
+    const target = e.target.closest('[data-edit],[data-launch],[data-pname],[data-delparent],th[data-k]');
+    if (!target) return;
     // closest() already picked the innermost match, so these branches are simply "which kind is it".
-    if (t.dataset.delparent) return removeManualParent(...t.dataset.delparent.split('|'));
-    if (t.dataset.edit) return openAuditEditor(...t.dataset.edit.split('|'));
-    if (t.dataset.launch) return openLaunchEditor(...t.dataset.launch.split('|'));
-    if (t.dataset.pname) return openParentNameEditor(...t.dataset.pname.split('|'), renderAudit);
-    if (t.dataset.k) {
-      AUDIT_SORT = { k: t.dataset.k, dir: AUDIT_SORT.k === t.dataset.k ? -AUDIT_SORT.dir : -1 };
+    if (target.dataset.delparent) return removeManualParent(...target.dataset.delparent.split('|'));
+    if (target.dataset.edit) return openAuditEditor(...target.dataset.edit.split('|'));
+    if (target.dataset.launch) return openLaunchEditor(...target.dataset.launch.split('|'));
+    if (target.dataset.pname) return openParentNameEditor(...target.dataset.pname.split('|'), renderAudit);
+    if (target.dataset.k) {
+      // a header cell: sort by that column, or flip the direction if it is already the sort key
+      AUDIT_SORT = { k: target.dataset.k, dir: AUDIT_SORT.k === target.dataset.k ? -AUDIT_SORT.dir : -1 };
       renderAudit();
     }
   });
 }
 
+// Row "×": drop a hand-typed parent (after a confirm); its attached documents stay in the record.
 async function removeManualParent(brand, id) {
   const hasDocs = Object.keys((AUDIT[brand] || {})[id] || {}).length;
   if (hasDocs && !confirm(`${id} has documents attached. Remove the parent anyway? The documents stay in the record but the row disappears.`)) return;
   if (!hasDocs && !confirm(`Remove manual parent ${id}?`)) return;
   if (AUDIT_MANUAL[brand]) delete AUDIT_MANUAL[brand][id];
   renderAudit();
-  try { await saveManualParents(brand); aMsg(`Removed ${id}.`); }
-  catch (e) { aMsg('Could not save: ' + (e.message || e), true); }
+  try {
+    await saveManualParents(brand);
+    aMsg(`Removed ${id}.`);
+  } catch (e) {
+    aMsg('Could not save: ' + (e.message || e), true);
+  }
 }
 
+// The three KPI cards above the grid (documents, launch, PPC) for the rows on screen, plus the sidebar badge.
 function renderAuditKpis(rows) {
-  const nf = v => Number(v || 0).toLocaleString('en-US');
-  const escK = s => String(s == null ? '' : s).replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
+  const nf = value => Number(value || 0).toLocaleString('en-US');
+  const escK = str => String(str == null ? '' : str).replace(/[<>&"]/g, ch => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[ch]));
+
+  // --- documents: coverage and the approval queue ---
   const total = rows.length;
-  const complete = rows.filter(r => r.missing === 0).length;
-  const attached = rows.reduce((s, r) => s + r.have, 0);
-  const pending = rows.reduce((s, r) => s + r.pending, 0);
-  const approved = rows.reduce((s, r) => s + r.approved, 0);
+  const complete = rows.filter(row => row.missing === 0).length;
+  const attached = rows.reduce((acc, row) => acc + row.have, 0);
+  const pending = rows.reduce((acc, row) => acc + row.pending, 0);
+  const approved = rows.reduce((acc, row) => acc + row.approved, 0);
   const slots = total * AUDIT_DOCS.length;
   // Approvers get told what is waiting ON THEM, not just that something is pending somewhere.
   const mine = ME.approve ? pending : 0;
 
-  const launched = rows.filter(r => r.L?.launch).length;
-  const flagged = rows.filter(r => r.review?.k === 'review').length;
-  const inTransit = rows.filter(r => r.eta && dayMs(r.eta.date) >= Date.now() - DAY_MS).length;
-  const money = v => '$' + Math.round(v || 0).toLocaleString('en-US');
+  // --- launch: live, flagged, in transit, first-month sales ---
+  const launched = rows.filter(row => row.L?.launch).length;
+  const flagged = rows.filter(row => row.review?.k === 'review').length;
+  const inTransit = rows.filter(row => row.eta && dayMs(row.eta.date) >= Date.now() - DAY_MS).length;
+  const money = value => '$' + Math.round(value || 0).toLocaleString('en-US');
   // Only launched parents are averaged — folding in every parent that was never launched would drag
   // the figure towards zero and say nothing about how the launches are actually doing.
-  const launchedRows = rows.filter(r => r.L?.launch && r.sale30 != null);
-  const sales = launchedRows.reduce((s, r) => s + r.sale30, 0);
+  const launchedRows = rows.filter(row => row.L?.launch && row.sale30 != null);
+  const sales = launchedRows.reduce((acc, row) => acc + row.sale30, 0);
 
+  // --- PPC: spend, ad sales, ACOS, TACOS ---
   // PPC totals cover the whole filtered view, not just launched parents — ad spend is a running cost
   // on the entire catalogue, and hiding the older parents' share of it would flatter the number.
-  const ppcSpend = rows.reduce((s, r) => s + (r.ppcSpend || 0), 0);
-  const ppcSales = rows.reduce((s, r) => s + (r.ppcSales || 0), 0);
-  const advertised = rows.filter(r => r.ppcSpend > 0).length;
+  const ppcSpend = rows.reduce((acc, row) => acc + (row.ppcSpend || 0), 0);
+  const ppcSales = rows.reduce((acc, row) => acc + (row.ppcSales || 0), 0);
+  const advertised = rows.filter(row => row.ppcSpend > 0).length;
   const acos = ppcSpend && ppcSales ? Math.round(ppcSpend / ppcSales * 100) : null;
   // TACOS is only meaningful over parents we know the TOTAL sales of, so the spend side is narrowed
   // to match. Dividing all spend by a partial sales figure would invent a number nobody can act on.
-  const tacosRows = rows.filter(r => r.sale30 != null);
-  const tacosSpend = tacosRows.reduce((s, r) => s + (r.ppcSpend || 0), 0);
-  const tacosSales = tacosRows.reduce((s, r) => s + (r.sale30 || 0), 0);
+  const tacosRows = rows.filter(row => row.sale30 != null);
+  const tacosSpend = tacosRows.reduce((acc, row) => acc + (row.ppcSpend || 0), 0);
+  const tacosSales = tacosRows.reduce((acc, row) => acc + (row.sale30 || 0), 0);
   const tacos = tacosSpend && tacosSales ? Math.round(tacosSpend / tacosSales * 100) : null;
 
+  // --- the three cards ---
   $('aKpis').innerHTML = `<div class="kpi">
     <div class="kpihead"><span class="kpiname">Document coverage</span>
       <span class="kpiwhen">${slots ? Math.round((attached / slots) * 100) : 0}% of all slots filled</span></div>
@@ -7855,6 +7868,8 @@ function renderAuditKpis(rows) {
         tacos != null && tacos > 20 ? 'var(--bad)' : 'inherit'}">${tacos == null ? '—' : tacos + '%'}</div><div class="l">TACOS</div></div>
       <div class="metric"><div class="v">${nf(advertised)}</div><div class="l">Parents advertised</div></div>
     </div></div>`;
+
+  // --- sidebar badge ---
   // A badge on the sidebar so a pending item is visible without opening the tab.
   const btn = $('tabAudit');
   btn.textContent = 'Listing Audit' + (ME.approve && pending ? `  (${pending})` : '');
@@ -7863,11 +7878,11 @@ function renderAuditKpis(rows) {
 /** Every owner string already in use, for the suggestion list. Kept distinct and sorted. */
 function auditOwnerNames() {
   const out = new Set();
-  ['SP', 'CPC'].forEach(b => Object.values(AUDIT[b] || {}).forEach(parent => {
+  ['SP', 'CPC'].forEach(brand => Object.values(AUDIT[brand] || {}).forEach(parent => {
     Object.values(parent || {}).forEach(slot => {
       if (!slot) return;
       if (slot.own) out.add(slot.own);
-      (slot.v || []).forEach(v => { if (v.owner) out.add(v.owner); });
+      (slot.v || []).forEach(version => { if (version.owner) out.add(version.owner); });
     });
   }));
   return [...out].sort();
@@ -7887,7 +7902,8 @@ async function saveSlotOwner() {
   const byParent = AUDIT[brand] || (AUDIT[brand] = {});
   const slots = byParent[parent] || (byParent[parent] = {});
   const slot = slots[docKey] || (slots[docKey] = {});
-  if (own) slot.own = own; else delete slot.own;
+  if (own) slot.own = own;
+  else delete slot.own;
   try {
     await saveAuditCache(brand);
     aMsg(own ? `Assigned to ${own}.` : 'Owner cleared.');
@@ -7899,12 +7915,14 @@ async function saveSlotOwner() {
 }
 
 /* ----- the attachment editor ----- */
+// Open the document dialog for one slot: title, blank link fields, owner suggestions, version history.
 function openAuditEditor(brand, parent, docKey) {
   AUDIT_EDIT = { brand, parent, docKey };
-  const label = AUDIT_DOCS.find(d => d.k === docKey)?.t || docKey;
+  const label = AUDIT_DOCS.find(docType => docType.k === docKey)?.t || docKey;
   $('aModalTitle').textContent = label;
   $('aModalSub').textContent = parent + ' · ' + (parentName(brand, parent, '') || '—') + ' · ' + BRAND_NAME[brand];
-  $('aUrl').value = ''; $('aName').value = '';
+  $('aUrl').value = '';
+  $('aName').value = '';
   $('aDate').value = new Date().toISOString().slice(0, 10);
   // Pre-filled with whoever owns the step today, so a follow-up version stays with the same person
   // unless someone deliberately hands it over. New slot → yourself.
@@ -7914,7 +7932,7 @@ function openAuditEditor(brand, parent, docKey) {
   // Names already used anywhere become suggestions, so the same person with the same designation is
   // not typed three slightly different ways across six slots and two hundred parents.
   $('aOwnerList').innerHTML = auditOwnerNames()
-    .map(n => `<option value="${String(n).replace(/"/g, '&quot;')}">`).join('');
+    .map(name => `<option value="${String(name).replace(/"/g, '&quot;')}">`).join('');
   $('aModalErr').classList.add('hide');
   renderVersions();
   $('aModal').classList.remove('hide');
@@ -7926,76 +7944,99 @@ function renderVersions() {
   if (!AUDIT_EDIT) return;
   const { brand, parent, docKey } = AUDIT_EDIT;
   const slot = (AUDIT[brand] || {})[parent]?.[docKey];
-  const esc = s => String(s == null ? '' : s).replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
+  const esc = str => String(str == null ? '' : str).replace(/[<>&"]/g, ch => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[ch]));
   if (!slot?.v?.length) {
     $('aVersions').innerHTML = '<div class="muted" style="font-size:13px">No versions yet.</div>';
     return;
   }
-  $('aVersions').innerHTML = slot.v.map((v, i) => {
+  // --- one row per version: link, date, status, the buttons its status allows ---
+  $('aVersions').innerHTML = slot.v.map((version, idx) => {
     const acts = [];
-    if (v.status === 'draft' || v.status === 'rejected') acts.push(`<button class="xbtn" data-vsend="${i}">Send for approval</button>`);
+    if (version.status === 'draft' || version.status === 'rejected') acts.push(`<button class="xbtn" data-vsend="${idx}">Send for approval</button>`);
     // Only an approver may decide, and never on their own submission — a sign-off you gave yourself
     // is not an approval.
-    if (v.status === 'pending' && ME.approve && v.by !== ME.email) {
-      acts.push(`<button class="xbtn" data-vok="${i}">Approve</button>`);
-      acts.push(`<button class="xbtn" data-vno="${i}">Reject</button>`);
-    } else if (v.status === 'pending' && ME.approve && v.by === ME.email) {
+    if (version.status === 'pending' && ME.approve && version.by !== ME.email) {
+      acts.push(`<button class="xbtn" data-vok="${idx}">Approve</button>`);
+      acts.push(`<button class="xbtn" data-vno="${idx}">Reject</button>`);
+    } else if (version.status === 'pending' && ME.approve && version.by === ME.email) {
       acts.push('<span class="muted" style="font-size:11px">your own submission</span>');
     }
-    acts.push(`<button class="xbtn" data-vown="${i}">Owner</button>`);
-    acts.push(`<button class="xbtn" data-vdel="${i}">Remove</button>`);
+    acts.push(`<button class="xbtn" data-vown="${idx}">Owner</button>`);
+    acts.push(`<button class="xbtn" data-vdel="${idx}">Remove</button>`);
     return `<div class="vrow">
-      <span class="muted" style="flex:0 0 26px">v${i + 1}</span>
-      <a class="doc" href="${esc(v.url)}" target="_blank" rel="noopener" style="flex:1;max-width:none">${esc(v.name || v.url)}</a>
-      <span class="muted" style="flex:0 0 86px">${esc(v.date || '')}</span>
-      <span class="st st-${v.status}" style="flex:0 0 auto">${esc(AUDIT_STATUS[v.status] || v.status)}</span>
+      <span class="muted" style="flex:0 0 26px">v${idx + 1}</span>
+      <a class="doc" href="${esc(version.url)}" target="_blank" rel="noopener" style="flex:1;max-width:none">${esc(version.name || version.url)}</a>
+      <span class="muted" style="flex:0 0 86px">${esc(version.date || '')}</span>
+      <span class="st st-${version.status}" style="flex:0 0 auto">${esc(AUDIT_STATUS[version.status] || version.status)}</span>
       <span style="display:flex;gap:4px">${acts.join('')}</span>
     </div>`
-      + (v.appr ? `<div class="muted" style="font-size:11px;margin:-4px 0 6px 34px">${
-          v.status === 'approved' ? 'Approved' : 'Rejected'} by ${esc(v.appr)}${v.at ? ' on ' + esc(v.at) : ''}${
-          v.note ? ' — ' + esc(v.note) : ''}</div>` : '')
+      // the decision line (who approved / rejected, when, why) — only once a decision exists
+      + (version.appr ? `<div class="muted" style="font-size:11px;margin:-4px 0 6px 34px">${
+          version.status === 'approved' ? 'Approved' : 'Rejected'} by ${esc(version.appr)}${version.at ? ' on ' + esc(version.at) : ''}${
+          version.note ? ' — ' + esc(version.note) : ''}</div>` : '')
       // Owner first: it is the live fact (who to chase), where "added by" is history.
       + `<div class="muted" style="font-size:11px;margin:-4px 0 6px 34px">Owner: ${
-          esc(v.owner || v.by || '—')}${v.by ? ` · added by ${esc(v.by)}` : ''}</div>`;
+          esc(version.owner || version.by || '—')}${version.by ? ` · added by ${esc(version.by)}` : ''}</div>`;
   }).join('');
 
+  // --- wire the buttons; each carries its version's index ---
   const slotRef = () => AUDIT[brand][parent][docKey];
-  $('aVersions').querySelectorAll('[data-vsend]').forEach(b => b.onclick = () => versionAction(+b.dataset.vsend, 'send'));
-  $('aVersions').querySelectorAll('[data-vok]').forEach(b => b.onclick = () => versionAction(+b.dataset.vok, 'approve'));
-  $('aVersions').querySelectorAll('[data-vno]').forEach(b => b.onclick = () => versionAction(+b.dataset.vno, 'reject'));
-  $('aVersions').querySelectorAll('[data-vown]').forEach(b => b.onclick = () => versionAction(+b.dataset.vown, 'owner'));
-  $('aVersions').querySelectorAll('[data-vdel]').forEach(b => b.onclick = () => versionAction(+b.dataset.vdel, 'remove'));
+  $('aVersions').querySelectorAll('[data-vsend]').forEach(btn => btn.onclick = () => versionAction(+btn.dataset.vsend, 'send'));
+  $('aVersions').querySelectorAll('[data-vok]').forEach(btn => btn.onclick = () => versionAction(+btn.dataset.vok, 'approve'));
+  $('aVersions').querySelectorAll('[data-vno]').forEach(btn => btn.onclick = () => versionAction(+btn.dataset.vno, 'reject'));
+  $('aVersions').querySelectorAll('[data-vown]').forEach(btn => btn.onclick = () => versionAction(+btn.dataset.vown, 'owner'));
+  $('aVersions').querySelectorAll('[data-vdel]').forEach(btn => btn.onclick = () => versionAction(+btn.dataset.vdel, 'remove'));
 }
 
-async function versionAction(i, what) {
+// One button on a version row: send / approve / reject / owner / remove, then save and (for send) tell the approvers.
+async function versionAction(idx, what) {
   const { brand, parent, docKey } = AUDIT_EDIT;
   const slot = AUDIT[brand]?.[parent]?.[docKey];
-  const v = slot?.v?.[i];
-  if (!v) return;
+  const version = slot?.v?.[idx];
+  if (!version) return;
   const today = new Date().toISOString().slice(0, 10);
 
-  if (what === 'send') { v.status = 'pending'; v.by = v.by || ME.email; v.at = ''; v.appr = ''; v.note = ''; }
-  else if (what === 'approve') { v.status = 'approved'; v.appr = ME.email; v.at = today; }
-  else if (what === 'reject') {
+  // --- apply the action to the version ---
+  if (what === 'send') {
+    version.status = 'pending';
+    version.by = version.by || ME.email;
+    version.at = '';
+    version.appr = '';
+    version.note = '';
+  } else if (what === 'approve') {
+    version.status = 'approved';
+    version.appr = ME.email;
+    version.at = today;
+  } else if (what === 'reject') {
     const note = prompt('Why is it rejected? (optional, but it saves the next person guessing)') || '';
-    v.status = 'rejected'; v.appr = ME.email; v.at = today; v.note = note.slice(0, 140);
+    version.status = 'rejected';
+    version.appr = ME.email;
+    version.at = today;
+    version.note = note.slice(0, 140);
   } else if (what === 'owner') {
     // Handing a step over does NOT touch its approval state — who owns the work and whether the
     // document passed are separate facts, and resetting one because the other changed loses a sign-off.
-    const who = prompt('Who owns this step?', v.owner || v.by || ME.email);
+    const who = prompt('Who owns this step?', version.owner || version.by || ME.email);
     if (who == null) return;
-    v.owner = who.trim().slice(0, 60);
+    version.owner = who.trim().slice(0, 60);
   } else if (what === 'remove') {
-    slot.v.splice(i, 1);
-    if (!slot.v.length) { delete AUDIT[brand][parent][docKey];
-      if (!Object.keys(AUDIT[brand][parent]).length) delete AUDIT[brand][parent]; }
+    slot.v.splice(idx, 1);
+    // the last version gone → drop the empty slot, and the parent too if it has no slots left
+    if (!slot.v.length) {
+      delete AUDIT[brand][parent][docKey];
+      if (!Object.keys(AUDIT[brand][parent]).length) delete AUDIT[brand][parent];
+    }
   }
+
+  // --- redraw, then save ---
   renderVersions();
   renderAudit();
   try {
     await saveAuditCache(brand);
-    if (what === 'send') await notifyApprovers(brand, parent, docKey, v);
-  } catch (e) { aMsg('Could not save: ' + (e.message || e), true); }
+    if (what === 'send') await notifyApprovers(brand, parent, docKey, version);
+  } catch (e) {
+    aMsg('Could not save: ' + (e.message || e), true);
+  }
 }
 
 /**
@@ -8006,33 +8047,45 @@ async function versionAction(i, what) {
  * if that isn't granted the queue is still correct, so a failed email must never look like a failed
  * submission.
  */
-async function notifyApprovers(brand, parent, docKey, v) {
-  const label = AUDIT_DOCS.find(d => d.k === docKey)?.t || docKey;
+async function notifyApprovers(brand, parent, docKey, version) {
+  const label = AUDIT_DOCS.find(docType => docType.k === docKey)?.t || docKey;
   const pname = parentName(brand, parent, '') || parent;
   try {
+    // --- who can approve (everyone with the flag, except the sender) ---
     const snap = await getDocs(collection(db, 'perms'));
     const to = [];
-    snap.forEach(d => { if (d.data()?.approve === true && d.id !== ME.email) to.push(d.id); });
-    if (!to.length) { aMsg('Sent for approval. No approver is set up yet — tick "Can approve" for someone under Settings → Access.'); return; }
+    snap.forEach(perm => { if (perm.data()?.approve === true && perm.id !== ME.email) to.push(perm.id); });
+    if (!to.length) {
+      aMsg('Sent for approval. No approver is set up yet — tick "Can approve" for someone under Settings → Access.');
+      return;
+    }
     aMsg(`Sent for approval to ${to.join(', ')}.`);
+    // --- the email, best effort ---
     try {
       await baCall({ notify: 'approval', to: to.join(','),
         subj: `Approval pending: ${label} — ${pname}`,
         body: `${ME.email} sent a document for your approval.\n\n`
           + `Brand: ${BRAND_NAME[brand]}\nParent: ${parent} (${pname})\nDocument: ${label}\n`
-          + `Version: ${v.name || '(no label)'} dated ${v.date || 'n/a'}\nLink: ${v.url}\n\n`
+          + `Version: ${version.name || '(no label)'} dated ${version.date || 'n/a'}\nLink: ${version.url}\n\n`
           + `Open the Listing audit tab to approve or reject.` });
     } catch (e) {
       // The queue is right either way; only the email failed.
       aMsg(`Sent for approval to ${to.join(', ')}. (Email could not be sent: ${e.message || e})`);
     }
-  } catch (e) { aMsg('Sent for approval, but the approver list could not be read: ' + (e.message || e), true); }
+  } catch (e) {
+    aMsg('Sent for approval, but the approver list could not be read: ' + (e.message || e), true);
+  }
 }
-function closeAuditEditor() { $('aModal').classList.add('hide'); AUDIT_EDIT = null; }
+// Close the document dialog.
+function closeAuditEditor() {
+  $('aModal').classList.add('hide');
+  AUDIT_EDIT = null;
+}
 $('aCancel').onclick = closeAuditEditor;
 $('aSlotSave').onclick = saveSlotOwner;
-$('aModal').onclick = e => { if (e.target === $('aModal')) closeAuditEditor(); };
+$('aModal').onclick = e => { if (e.target === $('aModal')) closeAuditEditor(); };    // click on the backdrop closes
 
+// "Add version" / "Add and send": append the typed link as a new version (draft, or straight to pending).
 async function addVersion(send) {
   if (!AUDIT_EDIT) return;
   const { brand, parent, docKey } = AUDIT_EDIT;
@@ -8048,41 +8101,48 @@ async function addVersion(send) {
   AUDIT[brand] = AUDIT[brand] || {};
   AUDIT[brand][parent] = AUDIT[brand][parent] || {};
   const slot = AUDIT[brand][parent][docKey] = AUDIT[brand][parent][docKey] || { v: [] };
-  const v = { url, name: $('aName').value.trim().slice(0, 60),
+  const version = { url, name: $('aName').value.trim().slice(0, 60),
     date: $('aDate').value || new Date().toISOString().slice(0, 10),
     status: send ? 'pending' : 'draft', by: ME.email,
     owner: $('aOwner').value.trim().slice(0, 60) || ME.email };
-  slot.v.push(v);
+  slot.v.push(version);
   // Versions are appended, never replaced — an older template stays on the record with its own date
   // and its own approval, which is the whole point of keeping them dated.
-  $('aUrl').value = ''; $('aName').value = '';
+  $('aUrl').value = '';
+  $('aName').value = '';
   renderVersions();
   renderAudit();
   try {
     await saveAuditCache(brand);
-    if (send) await notifyApprovers(brand, parent, docKey, v);
-    else { aMsg('Version added.'); setTimeout(() => aMsg(''), 1500); }
-  } catch (e) { aMsg('Could not save: ' + (e.message || e), true); }
+    if (send) await notifyApprovers(brand, parent, docKey, version);
+    else {
+      aMsg('Version added.');
+      setTimeout(() => aMsg(''), 1500);
+    }
+  } catch (e) {
+    aMsg('Could not save: ' + (e.message || e), true);
+  }
 }
 $('aSave').onclick = () => addVersion(false);
 $('aSaveSend').onclick = () => addVersion(true);
 
 /* ----- the launch editor ----- */
+// Open the launch dialog for one parent with whatever is recorded so far.
 function openLaunchEditor(brand, parent) {
   LAUNCH_EDIT = { brand, parent };
-  const L = (LAUNCH[brand] || {})[parent] || {};
+  const details = (LAUNCH[brand] || {})[parent] || {};
   $('alSub').textContent = parent + ' · ' + (parentName(brand, parent, '') || '—') + ' · ' + BRAND_NAME[brand];
-  $('alMode').value = L.mode || '';
-  $('alShip').value = L.ship || '';
-  $('alEta').value = L.eta || '';
-  $('alLaunch').value = L.launch || '';
-  $('alVine').checked = !!L.vine;
-  $('alInfl').value = L.infl || '';
-  $('alCc').checked = !!L.cc;
-  $('alPpc').checked = !!L.ppc;
-  $('alMeta').checked = !!L.meta;
-  $('alLink').value = L.mlink || '';
-  $('alNote').value = L.note || '';
+  $('alMode').value = details.mode || '';
+  $('alShip').value = details.ship || '';
+  $('alEta').value = details.eta || '';
+  $('alLaunch').value = details.launch || '';
+  $('alVine').checked = !!details.vine;
+  $('alInfl').value = details.infl || '';
+  $('alCc').checked = !!details.cc;
+  $('alPpc').checked = !!details.ppc;
+  $('alMeta').checked = !!details.meta;
+  $('alLink').value = details.mlink || '';
+  $('alNote').value = details.note || '';
   $('alErr').classList.add('hide');
   launchHint();
   $('alModal').classList.remove('hide');
@@ -8094,27 +8154,34 @@ function openLaunchEditor(brand, parent) {
  * consequence of picking "sea" instead of "air" is visible before anything is saved.
  */
 function launchHint() {
+  // --- arrival line ---
   const draft = { mode: $('alMode').value, ship: $('alShip').value, eta: $('alEta').value };
-  const e = etaOf(draft);
-  $('alEtaHint').textContent = !e
+  const arrival = etaOf(draft);
+  $('alEtaHint').textContent = !arrival
     ? 'Pick a mode and a dispatch date and the tentative arrival works itself out.'
-    : e.auto
-      ? `Tentative arrival ${e.date} — ${draft.ship} plus ${SHIP_LEAD[draft.mode]} days by ${draft.mode}. Type a date above to override it.`
-      : `Arrival set by hand to ${e.date}. Clear that box to go back to the automatic ${
+    : arrival.auto
+      ? `Tentative arrival ${arrival.date} — ${draft.ship} plus ${SHIP_LEAD[draft.mode]} days by ${draft.mode}. Type a date above to override it.`
+      : `Arrival set by hand to ${arrival.date}. Clear that box to go back to the automatic ${
           etaOf({ mode: draft.mode, ship: draft.ship })?.date || 'estimate'}.`;
 
+  // --- review line: the typed launch date against the row's 30-day sales ---
   const { brand, parent } = LAUNCH_EDIT || {};
   const row = AUDIT_RENDER.rows.find(r => r.brand === brand && r.parent === parent);
-  const f = reviewFlag({ L: { launch: $('alLaunch').value }, sale30: row ? row.sale30 : null });
-  $('alReview').textContent = f ? f.why
+  const flag = reviewFlag({ L: { launch: $('alLaunch').value }, sale30: row ? row.sale30 : null });
+  $('alReview').textContent = flag ? flag.why
     : `No launch date set, so the ${LAUNCH_REVIEW_DAYS}-day $${LAUNCH_REVIEW_MIN.toLocaleString('en-US')} review never fires for this parent.`;
 }
 ['alMode', 'alShip', 'alEta', 'alLaunch'].forEach(id => $(id).addEventListener('change', launchHint));
 
-function closeLaunchEditor() { $('alModal').classList.add('hide'); LAUNCH_EDIT = null; }
+// Close the launch dialog.
+function closeLaunchEditor() {
+  $('alModal').classList.add('hide');
+  LAUNCH_EDIT = null;
+}
 $('alCancel').onclick = closeLaunchEditor;
-$('alModal').onclick = e => { if (e.target === $('alModal')) closeLaunchEditor(); };
+$('alModal').onclick = e => { if (e.target === $('alModal')) closeLaunchEditor(); };    // click on the backdrop closes
 
+// Save: validate the affiliate link, store the whole form as this parent's launch record.
 $('alSave').onclick = async () => {
   if (!LAUNCH_EDIT) return;
   const { brand, parent } = LAUNCH_EDIT;
@@ -8138,9 +8205,15 @@ $('alSave').onclick = async () => {
   };
   closeLaunchEditor();
   renderAudit();
-  try { await saveLaunch(brand); aMsg('Launch details saved.'); setTimeout(() => aMsg(''), 1500); }
-  catch (e) { aMsg('Could not save: ' + (e.message || e), true); }
+  try {
+    await saveLaunch(brand);
+    aMsg('Launch details saved.');
+    setTimeout(() => aMsg(''), 1500);
+  } catch (e) {
+    aMsg('Could not save: ' + (e.message || e), true);
+  }
 };
+// Clear: forget every launch detail for this parent (after a confirm).
 $('alClear').onclick = async () => {
   if (!LAUNCH_EDIT) return;
   const { brand, parent } = LAUNCH_EDIT;
@@ -8148,67 +8221,87 @@ $('alClear').onclick = async () => {
   if (LAUNCH[brand]) delete LAUNCH[brand][parent];
   closeLaunchEditor();
   renderAudit();
-  try { await saveLaunch(brand); aMsg('Launch details cleared.'); setTimeout(() => aMsg(''), 1500); }
-  catch (e) { aMsg('Could not save: ' + (e.message || e), true); }
+  try {
+    await saveLaunch(brand);
+    aMsg('Launch details cleared.');
+    setTimeout(() => aMsg(''), 1500);
+  } catch (e) {
+    aMsg('Could not save: ' + (e.message || e), true);
+  }
 };
 
 /* ----- toolbar: sales pull + the transit days behind the tentative arrival date ----- */
 $('aSales').onclick = pullSales30;
 $('aPpc').onclick = pullPpc30;
 loadShipLead();
-['air', 'sea'].forEach(k => {
-  const el = $('aLead' + k.charAt(0).toUpperCase() + k.slice(1));
-  el.value = SHIP_LEAD[k];
+// The two transit-day boxes (aLeadAir, aLeadSea): clamp to 1–365, keep, redraw if the tab is open.
+['air', 'sea'].forEach(lane => {
+  const el = $('aLead' + lane.charAt(0).toUpperCase() + lane.slice(1));
+  el.value = SHIP_LEAD[lane];
   el.addEventListener('change', () => {
-    const n = Math.max(1, Math.min(365, Number(el.value) || SHIP_LEAD[k]));
-    el.value = n; SHIP_LEAD[k] = n; saveShipLead();
+    const days = Math.max(1, Math.min(365, Number(el.value) || SHIP_LEAD[lane]));
+    el.value = days;
+    SHIP_LEAD[lane] = days;
+    saveShipLead();
     if (!$('paneAudit').classList.contains('hide')) renderAudit();
   });
 });
 
 /* ----- backup: export / import the whole index ----- */
+// Export: download documents, manual parents and launch details as one JSON file.
 $('aExport').onclick = () => {
   // version 2 adds `launch`. A version-1 file still restores — the import simply finds no launch
   // section and leaves what is on screen alone, which is the same rule the rest of it follows.
   const payload = { kind: 'listing-audit', version: 2, exportedAt: new Date().toISOString(),
     docTypes: AUDIT_DOCS, data: AUDIT, manual: AUDIT_MANUAL, launch: LAUNCH };
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = `listing-audit-backup-${new Date().toISOString().slice(0, 10)}.json`;
-  a.click();
-  URL.revokeObjectURL(a.href);
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = `listing-audit-backup-${new Date().toISOString().slice(0, 10)}.json`;
+  link.click();
+  URL.revokeObjectURL(link.href);
 };
 
 /* ----- add a parent that isn't on Amazon yet ----- */
+// Open the add-parent dialog, pre-picking the brand the grid is filtered to.
 $('aAddParent').onclick = () => {
   const pick = $('aBrandView').value;
   if (pick !== 'ALL') $('amBrand').value = pick;
-  $('amId').value = ''; $('amName').value = '';
+  $('amId').value = '';
+  $('amName').value = '';
   $('amErr').classList.add('hide');
   $('amModal').classList.remove('hide');
   $('amId').focus();
 };
 $('amCancel').onclick = () => $('amModal').classList.add('hide');
-$('amModal').onclick = e => { if (e.target === $('amModal')) $('amModal').classList.add('hide'); };
+$('amModal').onclick = e => { if (e.target === $('amModal')) $('amModal').classList.add('hide'); };    // click on the backdrop closes
+// Save the new manual parent: needs an identifier that is neither on Amazon nor already added.
 $('amSave').onclick = async () => {
   const brand = $('amBrand').value;
   const id = $('amId').value.trim();
   const name = $('amName').value.trim().slice(0, 90);
-  const err = m => { $('amErr').textContent = m; $('amErr').classList.remove('hide'); };
+  const err = message => {
+    $('amErr').textContent = message;
+    $('amErr').classList.remove('hide');
+  };
   if (!id) return err('Give it an identifier — a planned ASIN, or any code you will recognise.');
   // Don't shadow a real Amazon parent, and don't create the same manual one twice.
-  const onAmazon = (HEALTH[brand]?.rows || []).some(r => (r.parent || r.asin || r.sku) === id);
+  const onAmazon = (HEALTH[brand]?.rows || []).some(row => (row.parent || row.asin || row.sku) === id);
   if (onAmazon) return err('That parent already exists on Amazon — it is already in the list. Filter for it instead.');
   if (AUDIT_MANUAL[brand]?.[id]) return err('You have already added that identifier.');
   AUDIT_MANUAL[brand] = AUDIT_MANUAL[brand] || {};
   AUDIT_MANUAL[brand][id] = { name, at: new Date().toISOString().slice(0, 10), by: ME.email };
   $('amModal').classList.add('hide');
   renderAudit();
-  try { await saveManualParents(brand); aMsg(`Added ${id}. Attach its documents from the row.`); }
-  catch (e) { aMsg('Could not save the parent: ' + (e.message || e), true); }
+  try {
+    await saveManualParents(brand);
+    aMsg(`Added ${id}. Attach its documents from the row.`);
+  } catch (e) {
+    aMsg('Could not save the parent: ' + (e.message || e), true);
+  }
 };
 
+// Import: read a backup file and MERGE it into what is on screen, then save all three records for both brands.
 $('aImport').onclick = () => $('aFile').click();
 $('aFile').onchange = async e => {
   const file = e.target.files?.[0];
@@ -8217,53 +8310,81 @@ $('aFile').onchange = async e => {
   try {
     const parsed = JSON.parse(await file.text());
     if (parsed.kind !== 'listing-audit' || !parsed.data) throw new Error('not a listing-audit backup file');
+    // --- document versions ---
     // MERGE, never replace. An import that wiped attachments the file didn't happen to contain would
     // destroy work silently; anything already on screen survives unless the file has that same slot.
     // Versions are merged BY URL, so re-importing the same backup twice cannot duplicate them, and a
     // file written before versioning existed still restores (migrateAuditSlot lifts it).
-    let added = 0, updated = 0;
-    ['SP', 'CPC'].forEach(b => {
-      Object.entries(parsed.data[b] || {}).forEach(([parent, docs]) => {
-        AUDIT[b] = AUDIT[b] || {};
-        AUDIT[b][parent] = AUDIT[b][parent] || {};
-        Object.entries(docs || {}).forEach(([k, raw]) => {
+    let added = 0;        // versions new to this browser
+    let updated = 0;      // versions whose URL was already here (overwritten by the file's copy)
+    ['SP', 'CPC'].forEach(brand => {
+      Object.entries(parsed.data[brand] || {}).forEach(([parent, docs]) => {
+        AUDIT[brand] = AUDIT[brand] || {};
+        AUDIT[brand][parent] = AUDIT[brand][parent] || {};
+        Object.entries(docs || {}).forEach(([key, raw]) => {
           const inc = migrateAuditSlot(raw);
           if (!inc?.v?.length) return;
-          const slot = AUDIT[b][parent][k] = AUDIT[b][parent][k] || { v: [] };
-          inc.v.forEach(nv => {
-            if (!nv || !nv.url) return;
-            const at = slot.v.findIndex(x => x.url === nv.url);
-            if (at >= 0) { slot.v[at] = nv; updated++; } else { slot.v.push(nv); added++; }
+          const slot = AUDIT[brand][parent][key] = AUDIT[brand][parent][key] || { v: [] };
+          inc.v.forEach(newVersion => {
+            if (!newVersion || !newVersion.url) return;
+            const pos = slot.v.findIndex(existing => existing.url === newVersion.url);
+            if (pos >= 0) {
+              slot.v[pos] = newVersion;
+              updated++;
+            } else {
+              slot.v.push(newVersion);
+              added++;
+            }
           });
-          slot.v.sort((x, y) => String(x.date || '').localeCompare(String(y.date || '')));
+          slot.v.sort((first, second) => String(first.date || '').localeCompare(String(second.date || '')));
         });
       });
     });
+    // --- manual parents ---
     // Manual parents also merge, never replace — a backup missing one must not delete it.
     let manualAdded = 0;
-    ['SP', 'CPC'].forEach(b => {
-      Object.entries((parsed.manual || {})[b] || {}).forEach(([id, m]) => {
-        AUDIT_MANUAL[b] = AUDIT_MANUAL[b] || {};
-        if (!AUDIT_MANUAL[b][id]) { AUDIT_MANUAL[b][id] = m; manualAdded++; }
+    ['SP', 'CPC'].forEach(brand => {
+      Object.entries((parsed.manual || {})[brand] || {}).forEach(([id, manual]) => {
+        AUDIT_MANUAL[brand] = AUDIT_MANUAL[brand] || {};
+        if (!AUDIT_MANUAL[brand][id]) {
+          AUDIT_MANUAL[brand][id] = manual;
+          manualAdded++;
+        }
       });
     });
+    // --- launch details ---
     // Launch details merge the same way: a parent already filled in on screen is left alone, so an
     // older backup can never roll back a launch someone has since recorded.
     let launchAdded = 0;
-    ['SP', 'CPC'].forEach(b => {
-      Object.entries((parsed.launch || {})[b] || {}).forEach(([id, L]) => {
-        LAUNCH[b] = LAUNCH[b] || {};
-        if (!LAUNCH[b][id]) { LAUNCH[b][id] = L; launchAdded++; }
+    ['SP', 'CPC'].forEach(brand => {
+      Object.entries((parsed.launch || {})[brand] || {}).forEach(([id, details]) => {
+        LAUNCH[brand] = LAUNCH[brand] || {};
+        if (!LAUNCH[brand][id]) {
+          LAUNCH[brand][id] = details;
+          launchAdded++;
+        }
       });
     });
+    // --- redraw and save everything ---
     renderAudit();
-    for (const b of ['SP', 'CPC']) { await saveAuditCache(b); await saveManualParents(b); await saveLaunch(b); }
+    for (const brand of ['SP', 'CPC']) {
+      await saveAuditCache(brand);
+      await saveManualParents(brand);
+      await saveLaunch(brand);
+    }
     aMsg(`Imported — ${added} new document version(s), ${updated} overwritten, ${manualAdded} manual parent(s), ${launchAdded} launch record(s) added. Nothing else was touched (import merges, it does not replace).`);
-  } catch (err) { aMsg('Import failed: ' + (err.message || err), true); }
+  } catch (err) {
+    aMsg('Import failed: ' + (err.message || err), true);
+  }
 };
 
-$('aFilter').addEventListener('input', () => { clearTimeout(AUDIT_T); AUDIT_T = setTimeout(renderAudit, 250); });
-let AUDIT_T = 0;
+/* ----- the filter box and the two view pickers redraw the grid ----- */
+// Typing is debounced: one redraw 250 ms after the last keystroke.
+$('aFilter').addEventListener('input', () => {
+  clearTimeout(AUDIT_T);
+  AUDIT_T = setTimeout(renderAudit, 250);
+});
+let AUDIT_T = 0;                      // the pending redraw timer
 $('aBrandView').addEventListener('change', renderAudit);
 $('aStatusView').addEventListener('change', renderAudit);
 
