@@ -58,7 +58,7 @@ function hAreaCell(row, area) {
    * An out-of-stock listing with no image is shown as Attention, not Critical (the 15 Sept rule), and its amber dot
    * read as "a few images". The number says which: 0 is no image at all. */
   const nImages = area === 'Images' && row.content ? Number(row.content.images) || 0 : null;
-  const cnt = nImages == null ? '' : `<span style="font-size:12px;margin-left:4px;${nImages ? 'color:var(--muted)' : 'color:var(--bad,#b91c1c);font-weight:700'}">`
+  const cnt = nImages == null ? '' : `<span style="font-size:12px;margin-left:4px;${nImages ? 'color:var(--muted)' : 'color:var(--bad-ink);font-weight:700'}">`
     + `${nImages ? nImages : '0 · no image'}</span>`;
   if (hits.length) {
     const worst = hits.sort((a, b) => LR_SEV[b.sev].rank - LR_SEV[a.sev].rank)[0];

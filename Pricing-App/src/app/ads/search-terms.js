@@ -596,7 +596,7 @@ function renderCp() {
     + `<td class="num">${r.tacos != null ? Math.round(r.tacos) + '%' : dash}</td>`
     + `<td class="num">${r.c > 0 ? (r.o / r.c * 100).toFixed(1) + '%' : dash}</td>`
     + `<td class="num">${r.be != null ? Math.round(r.be) + '%' : dash}</td>`
-    + `<td class="num"${r.stock === 0 ? ' style="color:var(--bad,#b91c1c);font-weight:700"' : ''}>${r.stock != null ? r.stock.toLocaleString('en-US') : dash}</td>`
+    + `<td class="num"${r.stock === 0 ? ' style="color:var(--bad-ink);font-weight:700"' : ''}>${r.stock != null ? r.stock.toLocaleString('en-US') : dash}</td>`
     + `<td class="num">${r.cover != null ? Math.round(r.cover) : dash}</td>`
     + `<td style="white-space:nowrap">${r.v ? `<span class="st ${TAG[r.v]}">${esc(r.act)}</span>` : `<span class="muted">${esc(r.act)}</span>`}</td>`
     + `<td style="min-width:260px;white-space:normal">${esc(r.why)}</td>`
@@ -619,9 +619,9 @@ function renderCp() {
   const stAt = ['SP', 'CPC'].map(b => (ST.ag[b] || {}).stAt).filter(Boolean)[0];
   stMsg(`<b>${rows.length.toLocaleString('en-US')}</b> campaign × product rows`
     + ` (${running.toLocaleString('en-US')} running, ${stopped.toLocaleString('en-US')} paused or archived)`
-    + ` · <b style="color:var(--bad,#b91c1c)">${bad.n} bad</b> (${money(bad.sp)} spent, ${money(bad.s)} back)`
+    + ` · <b style="color:var(--bad-ink)">${bad.n} bad</b> (${money(bad.sp)} spent, ${money(bad.s)} back)`
     + ` · <b>${watch.n} watch</b> (${money(watch.sp)} spent)`
-    + ` · <b style="color:#15803D">${good.n} good</b> (${money(good.sp)} spent, ${money(good.s)} back)`
+    + ` · <b style="color:var(--accent-ink)">${good.n} good</b> (${money(good.sp)} spent, ${money(good.s)} back)`
     + (rows.length > CAP ? ` · showing the first ${CAP} — narrow it, or Export for all` : '')
     + (ST.at ? ` · built ${esc(ST.at)}` : '') + ' · a 30-day window'
     + (stAt ? ` · ad status read ${esc(stAt)}` : '')
