@@ -784,8 +784,124 @@
   /* A grid's cells set their own alignment, so .right names them as well. */
   .right,table.xl .right,.tbl td.right,.tbl th.right{text-align:right}
   /* ===== MODULE: RESEARCH ===== */
+  /* The spinner on a light (ghost) button — New Product's Fetch details. .spin's white arc does not
+     show on a light button, so the arc takes the button's text colour. */
+  .spin.re-spin-ghost{border-top-color:currentColor}
+  /* The research forms' widths are deliberate: the link / ASIN box takes three shares of its line (two
+     beside a mode dropdown), its button or dropdown keeps a fixed width. Written `.row>` so they beat
+     `.row>*{flex:1;min-width:140px}`. */
+  .row>.re-grow-3{flex:3}
+  .row>.re-grow-2{flex:2}
+  .row>.re-fix-150{flex:0 0 150px}
+  .row>.re-fix-130{flex:0 0 130px}
+  .row>.re-fix-118{flex:0 0 118px}
+  .row>.re-flex-none{flex:none}
+  .row>.re-min-240{min-width:240px}
+  .re-bottom{align-items:flex-end}
+  .re-w-full{width:100%}
+  /* A cell that spans the whole .settings-grid line. */
+  .re-full{grid-column:1/-1}
+  /* The aside inside a bold label or a caps .sec heading: normal weight, normal case. */
+  .re-plain{text-transform:none;font-weight:400}
+  /* A results card's head line: the title on the left, its button on the right. */
+  .re-split{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:12px}
+  /* A table wider than its card scrolls sideways inside it. */
+  .re-scroll-x{overflow-x:auto}
+  /* Keywords · Show raw fields: the first row as DataDive sent it. */
+  .re-raw{white-space:pre-wrap;font-family:monospace;font-size:12px;overflow-x:auto}
+  /* The message lines. Their JS replaces the whole className (err / ok / warn / muted), which would wipe
+     a spacing class, so the spacing sits on the id. */
+  #msg,#kwMsg{margin-top:10px}
+  #n_refInfo{margin-top:8px}
+  #nMsg,#prMsg{align-self:center}
 
   /* ===== MODULE: SALES ===== */
+  /* Sales Dashboard charts, the SVG drawn in sales-dashboard.js. The chart fills its panel and keeps its
+     own proportions. Grid and labels take the theme's quiet colours — a CSS rule beats the SVG's own
+     stroke / fill attribute, which stays as the fallback. The two series colours have no theme match. */
+  .sa-chart{width:100%;height:auto}
+  .sa-ch-grid{stroke:var(--line)}
+  .sa-ch-axis{fill:var(--faint)}
+  .sa-ch-label{fill:var(--muted)}
+  /* Parent Listing Review · the picture column: a 76px thumbnail in a tighter cell than the grid's own
+     padding. The 6px corner is kept — the smallest radius token (--r-sm) is 10px. */
+  table.xl td.sa-pl-piccell{padding:4px 8px}
+  .sa-pl-pic{width:76px;height:76px;object-fit:contain;border-radius:6px;background:var(--soft)}
+  /* The title column stays at most 230px even on narrow screens, where `#plTable .frz4` lifts its
+     max-width; .ui-name does the clipping. */
+  #plTable .sa-pl-title{max-width:230px}
+  /* The parent card's head: its text column may shrink beside the photo, and the action tag and the
+     listing age share one wrapping line. */
+  .sa-shrink{min-width:0}
+  .sa-tags{display:flex;flex-wrap:wrap;align-items:center}
+  /* Profit & Margin. The profit card takes the whole KPI row, and the "covers only the costed rows" note
+     under it sits on its own full line, tucked up to the card. */
+  .sa-basis-full{flex-basis:100%}
+  .sa-tuck{margin-top:-4px}
+  /* A Unit cost figure is clickable: a pointer and a dashed underline, like the Parent Listing Review links. */
+  .sa-pf-edit{cursor:pointer;border-bottom:1px dashed var(--muted)}
+  /* Small text that is NOT muted (the import preview's "Changing, for example" line and its red warnings). */
+  .sa-small{font-size:12px}
+  /* The sales toolbars (Profit & Margin, Sales Analysis, Parent Listing Review, Shopify Orders,
+     Adjustments): a tighter card, and every control keeps its own deliberate width. Written `.toolbar>` so
+     a width beats `.toolbar>button{flex:0 0 auto}` and `.ms{flex:0 0 auto}`; the filter box takes the rest. */
+  .card.sa-toolcard{padding:12px 14px}
+  .toolbar>.sa-fix-90{flex:0 0 90px}
+  .toolbar>.sa-fix-110{flex:0 0 110px}
+  .toolbar>.sa-fix-120{flex:0 0 120px}
+  .toolbar>.sa-fix-130{flex:0 0 130px}
+  .toolbar>.sa-fix-140{flex:0 0 140px}
+  .toolbar>.sa-fix-150{flex:0 0 150px}
+  .toolbar>.sa-fix-170{flex:0 0 170px}
+  .toolbar>.sa-fix-175{flex:0 0 175px}
+  .toolbar>.sa-fix-180{flex:0 0 180px}
+  .toolbar>.sa-fix-190{flex:0 0 190px}
+  .toolbar>.sa-fix-200{flex:0 0 200px}
+  .toolbar>.sa-fix-215{flex:0 0 215px}
+  .toolbar>.sa-grow{flex:1 1 150px;min-width:0}
+  .toolbar.sa-gap-12{gap:12px}
+  /* The grids' scroll boxes, at the height each screen was given (.xlwrap's own is 72vh). */
+  .xlwrap.sa-h70{max-height:70vh}
+  .xlwrap.sa-h74{max-height:74vh}
+  /* The message lines. Their JS replaces the whole className (err / muted), which would wipe a spacing
+     class, so the spacing sits on the id. Shopify Orders and Adjustments are driven from the Replenishment
+     app's scripts, which do the same. */
+  #sdMsg{font-size:12px;margin-right:auto}
+  #baMsg{margin-top:10px}
+  #pfMsg,#saMsg{margin-top:8px;font-size:12px}
+  #plMsg,#soMsg,#ajMsg{margin-top:8px;font-size:13px}
+  #soPickMsg{margin-top:4px;font-size:12px}
+  /* Parent Listing Review · the cross-check banner: a red edge down its left. */
+  .card.sa-alert{padding:10px 14px;border-left:4px solid var(--bad);font-size:13px}
+  /* Shopify Orders · "no API key for this shop" — an amber line with the button that answers it. Its
+     border colour has no theme match. NB: display:flex outranks .hide here, exactly as the inline style
+     did, so the box shows whether or not it carries .hide. */
+  .warn.sa-nokey{margin:8px 0 0;padding:10px 12px;border:1px solid #fed7aa;display:flex;align-items:center;
+    gap:12px;flex-wrap:wrap}
+  .sa-nokey-txt{flex:1 1 320px;min-width:0}
+  .sa-nokey-go{flex:0 0 auto;background:var(--ink);color:var(--card);border-radius:var(--r-sm);padding:7px 12px;
+    font-weight:700;text-decoration:none}
+  /* Shopify Orders · today and yesterday, side by side. */
+  .sa-today{margin-top:10px;display:flex;gap:22px;flex-wrap:wrap;font-size:13px}
+  /* Sales Dashboard · the bar above the cards (message left, buttons right) and the Custom Range bar. The
+     6px corner on Apply is kept — the smallest radius token is 10px. `button.` so Apply stays dark on hover. */
+  .toolbar.sa-sd-head{justify-content:flex-end;margin-bottom:16px}
+  .sa-btn-sm{width:auto;padding:6px 14px;font-size:13px}
+  button.sa-btn-dark{background:var(--ink);color:var(--card);font-size:12px;font-weight:600;padding:6px 16px;
+    border-radius:6px;width:auto}
+  .sa-date-sm{padding:4px 8px;font-size:14px;width:auto}
+  .sa-fs-14{font-size:14px}
+  .sa-flush{margin:0}
+  /* Brand Analytics. The rest of its form is the Keywords form, so it uses the Research section's re-
+     classes rather than copies of them. */
+  .row>.sa-fix-220{flex:0 0 220px}
+  .row>.sa-min-180{min-width:180px}
+  /* TikTok Toolkit and Carousel Builder: the framed page fills the card, the window's height less the
+     menu bar and the page head. */
+  .card.sa-frame-card{padding:0;overflow:hidden}
+  .sa-frame{width:100%;height:calc(100vh - 132px);border:0;display:block}
+  /* Parent Listing Review · the parent card dialog. */
+  .modalbox.sa-plcard{width:min(660px,100%);max-height:88vh;overflow:auto}
 
   /* ===== MODULE: LISTING ===== */
 

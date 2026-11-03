@@ -259,9 +259,9 @@ const sdShort = iso => String(Number(iso.slice(8, 10))) + ' ' + W_MON[Number(iso
 function sdDelta(now, was) {
   // No baseline means no percentage. Showing +100% against a zero last year reads as growth when it
   // really means "there is nothing to compare with".
-  if (!was) return '<span class="muted">—</span>';
+  if (!was) return '<span class="ui-dim">—</span>';
   const change = (now - was) / was * 100;
-  return `<span class="${change < 0 ? 'sd-dn' : 'sd-up'}">${change < 0 ? '▼' : '▲'}${Math.abs(change).toFixed(1)}%</span>`;
+  return `<span class="${change < 0 ? 'ui-neg' : 'ui-pos'}">${change < 0 ? '▼' : '▲'}${Math.abs(change).toFixed(1)}%</span>`;
 }
 
 // Draw the whole screen from SD for the channel on view: cards, the two comparison tables, both charts, the
@@ -309,16 +309,16 @@ function renderSales() {
   $('sdToday').textContent = sdMoney(T[0]);
   $('sdYest').textContent = sdMoney(Y[0]);
   $('sd7').textContent = sdMoney(W[0]);
-  $('sd7p').innerHTML = (Wl[0] ? sdDelta(W[0], Wl[0]) + ' vs LY' : '<span class="muted">—</span>')
+  $('sd7p').innerHTML = (Wl[0] ? sdDelta(W[0], Wl[0]) + ' vs LY' : '<span class="ui-dim">—</span>')
     + ` <span class="muted">· ${sdShort(sevenFrom)}–${sdShort(sevenTo)}</span>`;
   $('sdMtd').textContent = sdMoney(M[0]);
   $('sdMtdp').innerHTML = Ml[0]
     ? sdDelta(Mc[0], Ml[0]) + ' vs LY <span class="muted">· complete days</span>'
-    : '<span class="muted">—</span>';
+    : '<span class="ui-dim">—</span>';
   $('sdYtd').textContent = sdMoney(Yr[0]);
   $('sdYtdp').innerHTML = Yrl[0]
     ? sdDelta(Yrc[0], Yrl[0]) + ' vs LY <span class="muted">· complete days</span>'
-    : '<span class="muted">—</span>';
+    : '<span class="ui-dim">—</span>';
 
   /* ---------- where this month lands ----------
    * Built on COMPLETE days only, on both sides of every comparison. Today is hours behind all day
@@ -357,17 +357,17 @@ function renderSales() {
         ? sdDelta(projected, prevWhole) + ' vs ' + pmName
         : '<span class="muted">no ' + pmName + ' to compare</span>')
       + (prevSame ? ` · ${doneDays}d ${sdDelta(mtdDone, prevSame)}` : '')
-    : '<span class="muted">—</span>';
+    : '<span class="ui-dim">—</span>';
 
   const LABEL = { SP: 'Ridhi', CPC: 'CPC', SHOP: 'Shopify', ALL: 'All channels' };
   $('sdBrandLabel').textContent = LABEL[SD_CH];
 
   /* Period comparison — the same three windows, each against its own last-year equivalent. */
-  const row = (name, i, fmt) => `<tr><td>${name}</td>`
-    + `<td>${fmt(T[i])}</td><td>${fmt(Y[i])}</td>`
-    + `<td>${fmt(W[i])}</td><td class="sd-ly">${fmt(Wl[i])}</td><td>${sdDelta(W[i], Wl[i])}</td>`
-    + `<td>${fmt(M[i])}</td><td class="sd-ly">${fmt(Ml[i])}</td><td>${sdDelta(M[i], Ml[i])}</td>`
-    + `<td>${fmt(Yr[i])}</td><td class="sd-ly">${fmt(Yrl[i])}</td><td>${sdDelta(Yr[i], Yrl[i])}</td></tr>`;
+  const row = (name, i, fmt) => `<tr><td class="ui-strong">${name}</td>`
+    + `<td class="num">${fmt(T[i])}</td><td class="num">${fmt(Y[i])}</td>`
+    + `<td class="num">${fmt(W[i])}</td><td class="sd-ly num">${fmt(Wl[i])}</td><td class="num">${sdDelta(W[i], Wl[i])}</td>`
+    + `<td class="num">${fmt(M[i])}</td><td class="sd-ly num">${fmt(Ml[i])}</td><td class="num">${sdDelta(M[i], Ml[i])}</td>`
+    + `<td class="num">${fmt(Yr[i])}</td><td class="sd-ly num">${fmt(Yrl[i])}</td><td class="num">${sdDelta(Yr[i], Yrl[i])}</td></tr>`;
   $('sdPeriodBody').innerHTML = row('Sales', 0, sdMoney) + row('Quantity', 1, sdNum) + row('Orders', 2, sdNum);
 
   /* Monthly comparison — this year's months against the same months last year. */
@@ -381,10 +381,10 @@ function renderSales() {
     const ty = sdSum(`${yr}-${mm}-01`, last)[0];
     const ly = sdSum(`${lyr}-${mm}-01`, `${lyr}-${mm}-31`)[0];
     if (!ty && !ly) continue;                       // a month neither year has is just noise
-    mrows += `<tr><td>${MON[m]}</td><td>${sdMoney(ty)}</td><td class="sd-ly">${sdMoney(ly)}</td>`
-      + `<td>${sdDelta(ty, ly)}</td></tr>`;
+    mrows += `<tr><td class="ui-strong">${MON[m]}</td><td class="num">${sdMoney(ty)}</td><td class="sd-ly num">${sdMoney(ly)}</td>`
+      + `<td class="num">${sdDelta(ty, ly)}</td></tr>`;
   }
-  $('sdMonthlyBody').innerHTML = mrows || '<tr><td colspan="4" class="muted">Nothing yet.</td></tr>';
+  $('sdMonthlyBody').innerHTML = mrows || '<tr><td colspan="4" class="ui-empty">Nothing yet.</td></tr>';
 
   // --- charts, the date range, and the "Last synced" line ---
   sdChartDaily(sdSeries(sdShift(today, -89), today));
@@ -416,7 +416,7 @@ function sdRange() {
 // 8 date labels, and an invisible circle per point that carries the hover title.
 function sdChartDaily(pts) {
   if (!pts.length) {
-    $('sdChartDaily').innerHTML = '<div class="muted" style="padding:20px">No data yet.</div>';
+    $('sdChartDaily').innerHTML = '<div class="ui-empty">No data yet.</div>';
     return;
   }
   // --- geometry ---
@@ -436,8 +436,8 @@ function sdChartDaily(pts) {
   let svg = '';
   for (let i = 0; i <= 4; i++) {
     const yy = padT + ih - (i / 4) * ih;
-    svg += `<line x1="${padL}" y1="${yy}" x2="${W - padR}" y2="${yy}" stroke="#eef2f6"/>`
-      + `<text x="${padL - 8}" y="${yy + 4}" text-anchor="end" font-size="10" fill="#94a3b8">`
+    svg += `<line class="sa-ch-grid" x1="${padL}" y1="${yy}" x2="${W - padR}" y2="${yy}" stroke="#eef2f6"/>`
+      + `<text class="sa-ch-axis" x="${padL - 8}" y="${yy + 4}" text-anchor="end" font-size="10" fill="#94a3b8">`
       + `$${Math.round(max * i / 4).toLocaleString('en-US')}</text>`;
   }
   svg += `<path d="${area}" fill="#a855f7" opacity=".12"/>`
@@ -445,13 +445,13 @@ function sdChartDaily(pts) {
   const step = Math.ceil(pts.length / 8);
   pts.forEach((pt, i) => {
     if (i % step) return;
-    svg += `<text x="${x(i)}" y="${H - 8}" text-anchor="middle" font-size="10" fill="#64748b">${pt.d.slice(5)}</text>`;
+    svg += `<text class="sa-ch-label" x="${x(i)}" y="${H - 8}" text-anchor="middle" font-size="10" fill="#64748b">${pt.d.slice(5)}</text>`;
   });
   pts.forEach((pt, i) => {
     svg += `<circle cx="${x(i)}" cy="${y(pt.v)}" r="6" fill="transparent">`
       + `<title>${pt.d} — $${Math.round(pt.v).toLocaleString('en-US')}</title></circle>`;
   });
-  $('sdChartDaily').innerHTML = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto">${svg}</svg>`;
+  $('sdChartDaily').innerHTML = `<svg viewBox="0 0 ${W} ${H}" class="sa-chart">${svg}</svg>`;
 }
 
 // The monthly bars: this year (teal) beside last year (orange) for each month, with a legend.
@@ -475,8 +475,8 @@ function sdChartMonthly(yr, lyr) {
   let svg = '';
   for (let i = 0; i <= 4; i++) {
     const yy = padT + ih - (i / 4) * ih;
-    svg += `<line x1="${padL}" y1="${yy}" x2="${W - padR}" y2="${yy}" stroke="#eef2f6"/>`
-      + `<text x="${padL - 8}" y="${yy + 4}" text-anchor="end" font-size="10" fill="#94a3b8">`
+    svg += `<line class="sa-ch-grid" x1="${padL}" y1="${yy}" x2="${W - padR}" y2="${yy}" stroke="#eef2f6"/>`
+      + `<text class="sa-ch-axis" x="${padL - 8}" y="${yy + 4}" text-anchor="end" font-size="10" fill="#94a3b8">`
       + `$${Math.round(max * i / 4).toLocaleString('en-US')}</text>`;
   }
   for (let m = 0; m < 12; m++) {
@@ -485,13 +485,13 @@ function sdChartMonthly(yr, lyr) {
       + `<title>${MON[m]} ${yr} — $${Math.round(ty[m]).toLocaleString('en-US')}</title></rect>`
       + `<rect x="${cx + 1}" y="${y(ly[m])}" width="${bw}" height="${Math.max(0, padT + ih - y(ly[m]))}" fill="#f97316" rx="1.5">`
       + `<title>${MON[m]} ${lyr} — $${Math.round(ly[m]).toLocaleString('en-US')}</title></rect>`
-      + `<text x="${cx}" y="${H - 12}" text-anchor="middle" font-size="10" fill="#64748b">${MON[m]}</text>`;
+      + `<text class="sa-ch-label" x="${cx}" y="${H - 12}" text-anchor="middle" font-size="10" fill="#64748b">${MON[m]}</text>`;
   }
   svg += `<rect x="${padL}" y="${H - 8}" width="9" height="9" fill="#0d9488" rx="1"/>`
-    + `<text x="${padL + 13}" y="${H - 1}" font-size="10" fill="#64748b">This Year</text>`
+    + `<text class="sa-ch-label" x="${padL + 13}" y="${H - 1}" font-size="10" fill="#64748b">This Year</text>`
     + `<rect x="${padL + 70}" y="${H - 8}" width="9" height="9" fill="#f97316" rx="1"/>`
-    + `<text x="${padL + 83}" y="${H - 1}" font-size="10" fill="#64748b">Last Year</text>`;
-  $('sdChartMonthly').innerHTML = `<svg viewBox="0 0 ${W} ${H + 4}" style="width:100%;height:auto">${svg}</svg>`;
+    + `<text class="sa-ch-label" x="${padL + 83}" y="${H - 1}" font-size="10" fill="#64748b">Last Year</text>`;
+  $('sdChartMonthly').innerHTML = `<svg viewBox="0 0 ${W} ${H + 4}" class="sa-chart">${svg}</svg>`;
 }
 
 /* ---------- the controls ---------- */

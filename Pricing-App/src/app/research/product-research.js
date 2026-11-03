@@ -85,28 +85,28 @@ function renderPr(data) {
   $('prHead').textContent = headTxt;
   $('prExport').style.display = rows.length ? '' : 'none';
   if (!rows.length) {
-    $('prTable').innerHTML = '<tr><td class="muted">No products found — try broader keywords.</td></tr>';
+    $('prTable').innerHTML = '<tr><td class="ui-empty">No products found — try broader keywords.</td></tr>';
     return;
   }
   // --- the table ---
-  const head = '<thead><tr><th>Link</th><th>Brand</th><th>Size</th><th>Pack</th><th>Outer Material</th>' +
-    '<th>Inner Material</th><th>Weight (lb)</th><th>Selling Price</th><th>BSR</th>' +
-    '<th>Variations</th><th>Sale Qty <span class="muted">(est/mo)</span></th></tr></thead>';
+  const head = '<thead><tr><th>Link</th><th>Brand</th><th>Size</th><th class="num">Pack</th><th>Outer Material</th>' +
+    '<th>Inner Material</th><th class="num">Weight (lb)</th><th class="num">Selling Price</th><th class="num">BSR</th>' +
+    '<th class="num">Variations</th><th class="num">Sale Qty <span class="muted">(est/mo)</span></th></tr></thead>';
   const body = rows.map(row => {
     // Show only the ASIN as the link (short, no wrapping → smaller rows, less lag); the full product
     // name lives in the hover tooltip and still exports to CSV.
     const prod = row.asin
-      ? `<a href="https://www.amazon.com/dp/${row.asin}" target="_blank" rel="noopener" `
+      ? `<a class="ui-mono" href="https://www.amazon.com/dp/${row.asin}" target="_blank" rel="noopener" `
         + `title="${esc(row.title)}">${row.asin}</a>`
       : (esc((row.title || '').slice(0, 40)) || '—');
     return `<tr><td>${prod}</td><td>${esc(row.brand) || '—'}</td><td>${esc(row.size) || '—'}</td>` +
-      `<td>${row.pack > 0 ? row.pack : '—'}</td>` +
+      `<td class="num">${row.pack > 0 ? row.pack : '—'}</td>` +
       `<td>${esc(row.outer) || '—'}</td><td>${esc(row.inner) || '—'}</td>` +
-      `<td>${row.weight > 0 ? row.weight : '—'}</td>` +
-      `<td>${row.price > 0 ? money(row.price) : '—'}</td>` +
-      `<td>${row.bsr > 0 ? '#' + row.bsr.toLocaleString() : '—'}</td>` +
-      `<td>${row.variations > 0 ? row.variations : '—'}</td>` +
-      `<td>${row.saleQtyEst != null ? '~' + row.saleQtyEst.toLocaleString() : '—'}</td></tr>`;
+      `<td class="num">${row.weight > 0 ? row.weight : '—'}</td>` +
+      `<td class="num">${row.price > 0 ? money(row.price) : '—'}</td>` +
+      `<td class="num">${row.bsr > 0 ? '#' + row.bsr.toLocaleString() : '—'}</td>` +
+      `<td class="num">${row.variations > 0 ? row.variations : '—'}</td>` +
+      `<td class="num">${row.saleQtyEst != null ? '~' + row.saleQtyEst.toLocaleString() : '—'}</td></tr>`;
   }).join('');
   $('prTable').innerHTML = head + '<tbody>' + body + '</tbody>';
 }

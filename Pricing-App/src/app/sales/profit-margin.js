@@ -218,23 +218,23 @@ function renderProfitKpis(rows) {
   const cogs = costed.reduce((acc, row) => acc + row.m.cogs, 0);
   const ads = costed.reduce((acc, row) => acc + row.m.ads, 0);
   const cover = salesAll > 0 ? salesCosted / salesAll * 100 : 0;
-  const tile = (label, val, colour) => `<div class="metric"><div class="v"${colour ? ` style="color:${colour}"` : ''}>${val}</div>`
+  const tile = (label, val, colour) => `<div class="metric"><div class="v${colour ? ` ${colour}` : ''}">${val}</div>`
     + `<div class="l">${label}</div></div>`;
   const weeks = pfWeeks();
-  $('pfKpis').innerHTML = `<div class="kpi" style="flex-basis:100%">
+  $('pfKpis').innerHTML = `<div class="kpi sa-basis-full">
     <div class="kpihead"><span class="kpiname">Profit — ${weeks.length} week(s)</span>
       <span class="kpiwhen">${weeks.length ? weeks[0] + ' → ' + weeks[weeks.length - 1] : 'no weekly data yet'}</span></div>
     <div class="metrics">
       ${tile('Sales (costed rows)', money(salesCosted))}
       ${tile('COGS', money(cogs))}
       ${tile('Ad spend', money(ads))}
-      ${tile('Profit', money(profit), profit >= 0 ? '#166534' : 'var(--bad)')}
+      ${tile('Profit', money(profit), profit >= 0 ? 'ui-pos' : 'ui-neg')}
       ${tile('Margin', salesCosted > 0 ? (profit / salesCosted * 100).toFixed(1) + '%' : '—')}
       ${tile('ROI on goods', cogs > 0 ? Math.round(profit / cogs * 100) + '%' : '—')}
-      ${tile('Sales covered', Math.round(cover) + '%', cover >= 80 ? '#166534' : 'var(--bad)')}
+      ${tile('Sales covered', Math.round(cover) + '%', cover >= 80 ? 'ui-pos' : 'ui-neg')}
       ${tile('ASINs with no cost', (rows.length - costed.length).toLocaleString('en-US'))}
     </div></div>
-    ${cover < 99.5 ? `<div class="muted" style="flex-basis:100%;font-size:12px;margin-top:-4px">
+    ${cover < 99.5 ? `<div class="ui-note sa-basis-full sa-tuck">
       Every figure above covers ONLY the rows that have a unit cost — ${money(salesAll - salesCosted)} of sales is
       not in them. Filter to <b>Missing a cost</b> to see what is left out; nothing is estimated on your behalf.</div>` : ''}`;
 }
@@ -249,7 +249,7 @@ function renderProfit() {
   // --- nothing to cost yet ---
   if (!WEEKLY.at && !Object.keys(WEEKLY.rows).length) {
     $('pfKpis').innerHTML = '';
-    $('pfTable').innerHTML = '<tbody><tr><td class="muted" style="padding:14px">'
+    $('pfTable').innerHTML = '<tbody><tr><td class="ui-empty">'
       + 'No weekly sales data is cached yet. Open <b>PPC &amp; Organic</b> once and let it load — '
       + 'this tab costs the same figures.'
       + '</td></tr></tbody>';
@@ -269,46 +269,46 @@ function renderProfit() {
   const body = rows.slice(0, 400).map(row => {
     const m = row.m;   // the row's money (pfMoney), null when it has no unit cost
     const cell = html => `<td class="num">${html}</td>`;
-    const costCell = `<td class="num"><span class="pfcost" data-pf="${esc(row.asin)}" `
-      + `style="cursor:pointer;border-bottom:1px dashed var(--muted)"`
+    const costCell = `<td class="num"><span data-pf="${esc(row.asin)}" `
+      + `class="pfcost sa-pf-edit"`
       + ` title="${row.unitCost ? 'Landed cost of one unit. Click to change.'
         : 'No unit cost recorded — click to type one. Until then this row has no profit figure.'}">`
       + `${row.unitCost ? money2(row.unitCost) : '<span class="muted">— set —</span>'}</span></td>`;
     // an uncosted row: the real figures, the cost cell, and one wide note instead of the money columns
     if (!m) {
-      return `<tr><td style="font-family:ui-monospace,monospace">${esc(row.asin)}</td>`
-        + `<td title="${esc(row.title)}">${esc(String(row.title).slice(0, 40)) || '<span class="muted">—</span>'}</td>`
-        + `<td>${row.brand ? esc(BRAND_NAME[row.brand] || row.brand) : '<span class="muted">—</span>'}</td>`
+      return `<tr><td class="ui-mono">${esc(row.asin)}</td>`
+        + `<td class="ui-name" title="${esc(row.title)}">${esc(String(row.title).slice(0, 40)) || '<span class="ui-dim">—</span>'}</td>`
+        + `<td>${row.brand ? esc(BRAND_NAME[row.brand] || row.brand) : '<span class="ui-dim">—</span>'}</td>`
         + cell(Math.round(row.u).toLocaleString('en-US')) + cell(money(row.rev)) + cell(money(row.spend))
-        + cell(row.rev > 0 ? (row.spend / row.rev * 100).toFixed(1) + '%' : '<span class="muted">—</span>')
+        + cell(row.rev > 0 ? (row.spend / row.rev * 100).toFixed(1) + '%' : '<span class="ui-dim">—</span>')
         + costCell
-        + `<td class="num muted" colspan="7" style="text-align:left;font-size:12px">`
+        + `<td class="ui-note" colspan="7">`
         + (row.u ? 'no unit cost — nothing here is guessed' : 'nothing sold in this window')
         + `</td></tr>`;
     }
     const good = m.profit >= 0;
-    return `<tr><td style="font-family:ui-monospace,monospace">${esc(row.asin)}</td>`
-      + `<td title="${esc(row.title)}">${esc(String(row.title).slice(0, 40)) || '<span class="muted">—</span>'}</td>`
-      + `<td>${row.brand ? esc(BRAND_NAME[row.brand] || row.brand) : '<span class="muted">—</span>'}</td>`
+    return `<tr><td class="ui-mono">${esc(row.asin)}</td>`
+      + `<td class="ui-name" title="${esc(row.title)}">${esc(String(row.title).slice(0, 40)) || '<span class="ui-dim">—</span>'}</td>`
+      + `<td>${row.brand ? esc(BRAND_NAME[row.brand] || row.brand) : '<span class="ui-dim">—</span>'}</td>`
       + cell(Math.round(m.units).toLocaleString('en-US')
-          + (row.partial ? ` <span class="muted" style="font-size:11px" title="${row.kidsNoCost} child ASIN(s) under this parent `
+          + (row.partial ? ` <span class="ui-note" title="${row.kidsNoCost} child ASIN(s) under this parent `
             + `have no unit cost. Only the units that could be costed are counted here — the rest are left out rather than `
             + `costed at a guess.">part</span>` : ''))
       + cell(money(m.sales)) + cell(money(m.ads))
-      + cell(m.tacos == null ? '<span class="muted">—</span>' : m.tacos.toFixed(1) + '%')
+      + cell(m.tacos == null ? '<span class="ui-dim">—</span>' : m.tacos.toFixed(1) + '%')
       + costCell
       + cell(money(m.cogs))
       + cell(money(m.referral + m.fba))
       + cell(money(m.ret + m.oh + m.sal))
-      + `<td class="num" style="font-weight:700;color:${good ? '#166534' : 'var(--bad)'}">${money(m.profit)}</td>`
-      + cell(m.margin == null ? '<span class="muted">—</span>' : m.margin.toFixed(1) + '%')
-      + cell(m.roi == null ? '<span class="muted">—</span>' : Math.round(m.roi) + '%')
-      + cell(m.perUnit == null ? '<span class="muted">—</span>' : money2(m.perUnit))
+      + `<td class="num ui-strong ${good ? 'ui-pos' : 'ui-neg'}">${money(m.profit)}</td>`
+      + cell(m.margin == null ? '<span class="ui-dim">—</span>' : m.margin.toFixed(1) + '%')
+      + cell(m.roi == null ? '<span class="ui-dim">—</span>' : Math.round(m.roi) + '%')
+      + cell(m.perUnit == null ? '<span class="ui-dim">—</span>' : money2(m.perUnit))
       + '</tr>';
   }).join('');
 
   $('pfTable').innerHTML = head + '<tbody>' + (body
-    || '<tr><td colspan="15" class="muted" style="padding:14px">Nothing matches these filters.</td></tr>')
+    || '<tr><td colspan="15" class="ui-empty">Nothing matches these filters.</td></tr>')
     + '</tbody>';
   // --- the message line ---
   const nCost = Object.keys(COST).filter(asin => pfCostOf(asin)).length;
@@ -376,7 +376,7 @@ function pfModelNote() {
   $('pmNote').innerHTML = `Together these take <b>${ofSales.toFixed(1)}%</b> of every dollar of sales,`
     + ` plus ${field('pmRet').toFixed(1)}% of the landed cost, before ad spend and the goods themselves.`
     + (ofSales >= 100
-      ? ' <span style="color:var(--bad)">That is all of it or more — every row will show a loss.</span>' : '');
+      ? ' <span class="ui-neg">That is all of it or more — every row will show a loss.</span>' : '');
 }
 ['pmRef', 'pmFba', 'pmRet', 'pmOh', 'pmSal'].forEach(id => $(id).addEventListener('input', pfModelNote));
 $('pfModel').onclick = pfModelOpen;
@@ -543,17 +543,17 @@ $('pfImpFile').onchange = async ev => {
     $('pfImpPrev').classList.remove('hide');
     $('pfImpPrev').innerHTML =
       `<div><b>${list.length} ASIN(s)</b> ready — ${isNew.length} new, ${changing.length} changing a cost already stored.</div>`
-      + (dup ? `<div class="muted" style="font-size:12px;margin-top:4px">${dup} row(s) repeat an ASIN earlier in the file — `
+      + (dup ? `<div class="ui-note mt-4">${dup} row(s) repeat an ASIN earlier in the file — `
         + `the last one wins.</div>` : '')
-      + (changing.length ? `<div style="font-size:12px;margin-top:4px">Changing, for example: `
+      + (changing.length ? `<div class="sa-small mt-4">Changing, for example: `
         + `${changing.slice(0, 3).map(entry => `${esc(entry.asin)} $${pfCostOf(entry.asin).toFixed(2)} → $${entry.c.toFixed(2)}`).join(', ')}`
         + `${changing.length > 3 ? ' …' : ''}</div>` : '')
-      + (unsold.length ? `<div style="color:var(--bad);font-size:12px;margin-top:4px">${unsold.length} ASIN(s) have no sales `
+      + (unsold.length ? `<div class="ui-neg sa-small mt-4">${unsold.length} ASIN(s) have no sales `
         + `in the weekly cache at all (${unsold.slice(0, 3).map(entry => esc(entry.asin)).join(', ')}${unsold.length > 3 ? '…' : ''}). `
         + `Fine if they are new — but if most of the file is like this, check that the ASIN column is really ASINs.</div>` : '')
-      + (bad.length ? `<div style="color:var(--bad);font-size:12px;margin-top:4px">${bad.length} row(s) will be skipped — `
+      + (bad.length ? `<div class="ui-neg sa-small mt-4">${bad.length} row(s) will be skipped — `
         + `${esc(bad.slice(0, 5).join(' · '))}${bad.length > 5 ? ' …' : ''}</div>` : '')
-      + `<div class="muted" style="font-size:12px;margin-top:6px">An ASIN this file does not mention keeps the cost it already has. `
+      + `<div class="ui-note mt-8">An ASIN this file does not mention keeps the cost it already has. `
       + `Nothing is cleared.</div>`;
     $('pfImpSave').disabled = false;
   } catch (e2) {
