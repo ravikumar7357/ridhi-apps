@@ -301,14 +301,68 @@ const sent = () => JSON.stringify(calls.map(c => c.body));
 {
   const s = setup({ SEARCH: 'parked' }), admin = await token({ email: 'ravi@x.com' });
   const cfg = await s.call('/config', { method: 'GET' });
-  ok(cfg.status === 200 && cfg.body.search === false && cfg.body.ai === true && cfg.body.meera === true, 'parked: /config says search off, AI and Meera on');
-  ok((await s.call('/search', { body: { q: 'how to give job work', screen: 'pbase', lang: 'en' } })).status === 503, 'parked: /search refuses (503), so the browser searches as before');
+  ok(cfg.status === 200 && cfg.body.search === true && cfg.body.ai === true && cfg.body.meera === true, 'parked: /config gives the admin switches (search = her search on Cloud Functions)');
+  ok((await s.call('/search', { body: { q: 'how to give job work', screen: 'pbase', lang: 'en' } })).status === 503, 'parked: the router\'s own /search refuses (503)');
+  await s.call('/admin/config', { tok: admin, body: { key: 'search', value: 'off' } });
+  ok((await s.call('/config', { method: 'GET' })).body.search === false, 'an admin can switch her search on the server off for everyone (no deploy)');
   await s.call('/admin/config', { tok: admin, body: { key: 'search', value: 'on' } });
-  ok((await s.call('/config', { method: 'GET' })).body.search === false, 'parked: an admin switching search on does not start it');
+  ok((await s.call('/search', { body: { q: 'how to give job work', screen: 'pbase', lang: 'en' } })).status === 503, 'parked: switched on, the router itself still does not search');
+  /* side by side with her search on Cloud Functions (D.2) */
+  const d1r = await s.call('/diff', { body: { q: 'Ramesh Kumar ko kaam kaise de', names: ['Ramesh Kumar'], screen: 'pbase', browser: [{ id: 'pr-jw-issue', s: 0.9 }], server: [{ id: 'pr-jw-issue', s: 0.91 }] } });
+  const d2r = await s.call('/diff', { body: { q: 'packing list kya hai', screen: 'pack', browser: [{ id: 'a', s: 0.9 }], server: [{ id: 'b', s: 0.9 }] } });
+  ok(d1r.status === 200 && d1r.body.same === true && d2r.body.same === false, '/diff keeps whether the two agreed');
+  const view = await s.call('/admin/search', { method: 'GET', tok: admin });
+  ok(view.body.asked === 2 && view.body.same === 1 && !JSON.stringify(view.body).includes('Ramesh'), 'the comparison is counted, with names cleaned out');
+  ok((await s.call('/diff', { tok: null, body: { q: 'x' } })).status === 401, '/diff only for signed-in staff');
+  /* the daily limit for all staff together */
+  const s2 = setup({ SEARCH: 'parked', SEARCH_DAILY: '3' }), a2 = await token({ email: 'ravi@x.com' }), got = [];
+  for (let i = 0; i < 4; i++) got.push((await s2.call('/search-ticket', { body: {} })).body.ok);
+  ok(got.join() === 'true,true,true,false', 'search tickets: 3 a day for everyone together, then refused (' + got.join() + ')');
+  await s2.call('/admin/config', { tok: a2, body: { key: 'search', value: 'off' } });
+  ok((await s2.call('/search-ticket', { body: {} })).body.why === 'search-off', 'the admin switch off: no tickets');
+  ok((await s2.call('/search-ticket', { tok: null, body: {} })).status === 401, 'tickets only for signed-in staff');
   ok((await s.call('/learn', { body: { kind: 'missed', q: 'packing list kya hai', screen: 'pack' } })).status === 200, 'parked: learning records still kept');
   ok((await s.call('/ask', { body: { q: 'how do i give job work', lang: 'en', screen: 'pbase' } })).status === 200, 'parked: AI answers still work');
   const { default: free } = await import('../src/free.js');
   ok(typeof free.fetch === 'function', 'the free entry loads (no meaning table needed)');
+}
+
+/* ---------- 11. never a cent (3 Nov): the month's meter and the cent alarm ---------- */
+{
+  const KEY = 'm'.repeat(30), STOP = 's'.repeat(30), db = d1();
+  let clock = Date.parse('2026-11-20T06:00:00Z');
+  const env = { ...baseEnv(), SEARCH: 'parked', METER_KEY: KEY, STOP_KEY: STOP, METER_REQ: '100', METER_SEC: '10', DB: db };
+  const call = async (p, { method = 'POST', body, tok, head = {}, origin = ORIGIN } = {}) => {
+    const headers = { 'content-type': 'application/json', ...head };
+    if (origin) headers.origin = origin;
+    if (tok !== null) headers.authorization = 'Bearer ' + (tok || await token());
+    const r = await handle(new Request('https://router.example' + p, { method, headers, body: body ? JSON.stringify(body) : undefined }), env, { fetch: fakeFetch, store: store(db), now: () => clock });
+    return { status: r.status, body: await r.json().catch(() => null) };
+  };
+  const admin = await token({ email: 'ravi@x.com' });
+  ok((await call('/meter', { body: { req: 1, ms: 100 }, tok: null })).status === 403, 'meter: no key, refused');
+  const m1 = await call('/meter', { body: { req: 40, ms: 4000 }, tok: null, head: { 'x-meter-key': KEY } });
+  ok(m1.status === 200 && m1.body.stop === false && m1.body.req === 40 && m1.body.sec === 4, 'meter: counted, under half — goes on');
+  const m2 = await call('/meter', { body: { req: 10, ms: 6500 }, tok: null, head: { 'x-meter-key': KEY } });
+  ok(m2.body.stop === true && m2.body.why === 'free', 'meter: at the limit (half the free allowance) — stop');
+  const c1 = (await call('/config', { method: 'GET' })).body;
+  ok(c1.search === false && c1.searchStopped === 'free' && c1.backOn === '2026-12-01', 'stopped to stay free: every browser told, back on the 1st (' + c1.backOn + ')');
+  ok((await call('/search-ticket', { body: {} })).body.why === 'stopped-free', 'no tickets while stopped');
+  await call('/admin/config', { tok: admin, body: { key: 'search', value: 'on' } });
+  ok((await call('/config', { method: 'GET' })).body.search === false, 'an admin cannot turn it on again this month');
+  const mv = (await call('/admin/meter', { method: 'GET', tok: admin })).body;
+  ok(mv.req === 50 && mv.sec === 11 && mv.stopped === 'free' && mv.limits.req === 100, 'the admin page sees the meter: ' + JSON.stringify(mv));
+  clock = Date.parse('2026-12-01T00:30:00Z');   // 1 Dec, 6 am in India
+  const c2 = (await call('/config', { method: 'GET' })).body;
+  ok(c2.search === true && !c2.searchStopped, 'the 1st of the next month: on again, the meter at 0');
+  ok((await call('/admin/meter', { method: 'GET', tok: admin })).body.req === 0, 'a new month, a new meter');
+  /* the cent alarm */
+  ok((await call('/alarm', { body: { cost: 0.01 }, tok: null })).status === 403, 'alarm: no key, refused');
+  ok((await call('/alarm', { body: { cost: 0.01 }, tok: null, head: { 'x-stop-key': STOP } })).body.stopped === 'alarm', 'alarm: her search stopped');
+  const c3 = (await call('/config', { method: 'GET' })).body;
+  ok(c3.search === false && c3.searchStopped === 'alarm', 'every browser told: stopped by the alarm');
+  await call('/admin/config', { tok: admin, body: { key: 'search', value: 'on' } });
+  ok((await call('/config', { method: 'GET' })).body.search === true, 'an admin turns it on again after checking the bill');
 }
 
 console.log(`meera-router: ${pass} passed, ${fail} failed`);

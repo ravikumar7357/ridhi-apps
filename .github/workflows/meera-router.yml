@@ -38,6 +38,7 @@ jobs:
       HAS_CF: ${{ secrets.CLOUDFLARE_API_TOKEN != '' }}
       HAS_GROQ: ${{ secrets.GROQ_API_KEY != '' }}
       HAS_GEMINI: ${{ secrets.GEMINI_API_KEY != '' }}
+      HAS_METER: ${{ secrets.MEERA_METER_KEY != '' && secrets.MEERA_STOP_KEY != '' }}
     defaults:
       run:
         working-directory: meera/router
@@ -113,6 +114,22 @@ jobs:
             GROQ_API_KEY
         env:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+
+      # Her search on Cloud Functions (D.2): the meter's key and the cent alarm's key — the same two are in
+      # meera/functions/.env on the office computer (never in the repository)
+      - name: Meter and alarm keys (only if they are in GitHub)
+        if: env.HAS_CF == 'true' && env.HAS_METER == 'true'
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          workingDirectory: meera/router
+          command: deploy
+          secrets: |
+            METER_KEY
+            STOP_KEY
+        env:
+          METER_KEY: ${{ secrets.MEERA_METER_KEY }}
+          STOP_KEY: ${{ secrets.MEERA_STOP_KEY }}
 
       - name: Gemini key (only if it is in GitHub)
         if: env.HAS_CF == 'true' && env.HAS_GEMINI == 'true'
