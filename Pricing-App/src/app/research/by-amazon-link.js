@@ -50,7 +50,7 @@ function renderExplorer(data) {
     + (data.truncated ? ' &nbsp;·&nbsp; (showing first 60)' : '');
 
   // --- one row per child, adding up your sales on the way ---
-  const dash = '<span class="muted">—</span>';
+  const dash = '<span class="ui-dim">—</span>';
   let totQty = 0;          // your units over 30 days, across the children that have sales figures
   let totAmt = 0;          // your sales amount over 30 days
   let haveSales = false;   // at least one child came with sales figures
@@ -61,20 +61,20 @@ function renderExplorer(data) {
       haveSales = true;
     }
     return `<tr>
-      <td style="font-family:monospace">${child.asin}</td>
+      <td class="ui-mono">${child.asin}</td>
       <td>${child.color || dash}</td>
       <td>${child.size || dash}</td>
-      <td style="text-align:right">${child.price > 0 ? money(child.price) : dash}</td>
-      <td style="text-align:right">${child.qty30 != null ? child.qty30.toLocaleString('en-IN') : dash}</td>
-      <td style="text-align:right">${child.amt30 != null ? money(child.amt30) : dash}</td>
-      <td style="text-align:right">${child.bsr > 0 ? '#' + child.bsr.toLocaleString('en-US') : dash}</td>
+      <td class="num">${child.price > 0 ? money(child.price) : dash}</td>
+      <td class="num">${child.qty30 != null ? child.qty30.toLocaleString('en-IN') : dash}</td>
+      <td class="num">${child.amt30 != null ? money(child.amt30) : dash}</td>
+      <td class="num">${child.bsr > 0 ? '#' + child.bsr.toLocaleString('en-US') : dash}</td>
     </tr>`;
   }).join('');
   // --- the total row, only when sales figures came back ---
   $('exTotal').innerHTML = haveSales
-    ? `<td colspan="4" style="text-align:right">Your 30-day total</td>
-       <td style="text-align:right">${totQty.toLocaleString('en-IN')}</td>
-       <td style="text-align:right">${money(totAmt)}</td><td></td>`
+    ? `<td colspan="4" class="right">Your 30-day total</td>
+       <td class="num">${totQty.toLocaleString('en-IN')}</td>
+       <td class="num">${money(totAmt)}</td><td></td>`
     : '';
 }
 
