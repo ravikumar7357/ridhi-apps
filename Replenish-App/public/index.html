@@ -73265,6 +73265,23 @@ if (SHUB_ON && $('secShopify') && $('paneShop')) {
       let mcf = ''; try { mcf = meta.mcfId && soMcfHas(o.id, i.sku) ? String(meta.mcfId) : ''; } catch (e) { mcf = meta.mcfId && !Array.isArray(meta.mcfSkus) ? String(meta.mcfId) : ''; }
       if (open || mcf) out.lines[o.id + '|' + i.lid] = Object.assign(open ? { prod: String(open.orderNo || open.id || '') } : {}, mcf ? { mcf } : {});
     })));
+    /* EVERY ORDER THE ERP KNOWS, not only the last 14 days (Ravi, 3 Nov: 306 "late" orders were older than the hub's
+     * window, so their ERP records never reached the database). Short form: the status box, our note (cut to 120), the
+     * MCF id and when — and the SHP- production orders open for it in the order book. Read only. */
+    const short = v => String(v == null ? '' : v).slice(0, 120);
+    if (typeof SHOP_META === 'object' && SHOP_META) Object.keys(SHOP_META).forEach(id => {
+      if (!/^\d+$/.test(id) || out.orders[id]) return;
+      const m = SHOP_META[id] || {};
+      const r = { s: short(m.s), note: short(m.note), mcfId: short(m.mcfId), mcfAt: short(m.mcfAt) };
+      if (r.s || r.note || r.mcfId) out.orders[id] = r;
+    });
+    /* prod = SHP- orders still being made · prodDone = handed over (or marked done for Shopify): made, waiting to ship. */
+    (PTG.ob || []).forEach(r => {
+      const id = String((r && r.shopOrderId) || ''); if (!/^\d+$/.test(id)) return;
+      const rec = out.orders[id] || (out.orders[id] = {}), k = r.handedAt || r.shopDoneAt ? 'prodDone' : 'prod';
+      const no = String(r.orderNo || r.id || ''); rec[k] = rec[k] || [];
+      if (no && !rec[k].includes(no) && rec[k].length < 10) rec[k].push(no);
+    });
     return out;
   }
   /* Tracking by Shopify (Ravi, 26 Oct): the hub asks this page to talk to Shopify for it, through the Pricing API
