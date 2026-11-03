@@ -57,7 +57,7 @@ $('n_fetch').onclick = async () => {
 
   // --- busy ---
   $('n_fetch').disabled = true;
-  $('n_fetch').innerHTML = '<span class="spin" style="border-top-color:currentColor"></span>…';
+  $('n_fetch').innerHTML = '<span class="spin re-spin-ghost"></span>…';
   info.classList.remove('hide');
   info.className = 'muted';
   info.textContent = 'Asking Amazon…';

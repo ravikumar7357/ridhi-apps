@@ -131,15 +131,15 @@ function renderKeywords(data) {
 
   // --- the table, biggest volume first ---
   const rows = arr.slice().sort((a, b) => (num(b[vKey]) || 0) - (num(a[vKey]) || 0));
-  const dash = '<span class="muted">—</span>';
+  const dash = '<span class="ui-dim">—</span>';
   $('kwRows').innerHTML = rows.map(row => {
     const rank = rKey ? num(row[rKey]) : null;
     const page = rank && rank > 0 ? Math.ceil(rank / 48) : null;   // ~48 organic results per page (derived)
     return `<tr>
       <td>${kKey ? (row[kKey] ?? dash) : dash}</td>
-      <td style="text-align:right">${vKey && num(row[vKey]) != null ? num(row[vKey]).toLocaleString('en-US') : dash}</td>
-      <td style="text-align:right">${rank != null ? rank : dash}</td>
-      <td style="text-align:right">${page != null ? page : dash}</td>
+      <td class="num">${vKey && num(row[vKey]) != null ? num(row[vKey]).toLocaleString('en-US') : dash}</td>
+      <td class="num">${rank != null ? rank : dash}</td>
+      <td class="num">${page != null ? page : dash}</td>
     </tr>`;
   }).join('');
 }
