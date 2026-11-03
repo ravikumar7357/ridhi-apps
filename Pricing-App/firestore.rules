@@ -109,6 +109,10 @@ service cloud.firestore {
       allow read: if canAny();
       allow write: if false;
     }
+    // THE ROLES OF THE ACCESS PAGE (3 Nov): their boxes and roles added there. Admins only — the same people who may write perms.
+    match /config/accessRoles {
+      allow read, write: if isAdmin();
+    }
 
     // Costing rates — readable by anyone with app access, writable by the costing tab or an admin.
     match /settings/{doc} {

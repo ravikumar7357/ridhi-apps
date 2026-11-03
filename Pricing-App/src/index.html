@@ -282,7 +282,9 @@
 
 <div class="toast" id="acx-toast" role="status" aria-live="polite"></div>
     </div>
-    <div class="sec" style="margin-top:18px">Grant or update <span style="text-transform:none;font-weight:400">— saves for real</span></div>
+    <!-- THE OLD FORM, out of sight (Ravi, 3 Nov: the design's own Edit access does it). It stays in the page: the old code fills it. -->
+    <div id="accessOldForm" class="hide">
+    <div class="sec" style="margin-top:18px">Grant or update</div>
     <table class="tbl hide">
       <thead><tr><th style="width:38%">Email</th><th>Can see</th><th></th><th></th></tr></thead>
       <tbody id="accessRows"></tbody>
@@ -406,6 +408,7 @@
       <button id="accessSave" style="flex:none">Save access</button>
       <button id="accessClear" class="ghost" style="flex:none">Clear form</button>
       <span id="accessMsg" class="muted" style="align-self:center"></span>
+    </div>
     </div>
   </div>
 

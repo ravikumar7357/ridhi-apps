@@ -1247,7 +1247,9 @@
 
 <div class="toast" id="acx-toast" role="status" aria-live="polite"></div>
     </div>
-    <div class="sec" style="margin-top:18px">Grant or update <span style="text-transform:none;font-weight:400">— saves for real</span></div>
+    <!-- THE OLD FORM, out of sight (Ravi, 3 Nov: the design's own Edit access does it). It stays in the page: the old code fills it. -->
+    <div id="accessOldForm" class="hide">
+    <div class="sec" style="margin-top:18px">Grant or update</div>
     <table class="tbl hide">
       <thead><tr><th style="width:38%">Email</th><th>Can see</th><th></th><th></th></tr></thead>
       <tbody id="accessRows"></tbody>
@@ -1371,6 +1373,7 @@
       <button id="accessSave" style="flex:none">Save access</button>
       <button id="accessClear" class="ghost" style="flex:none">Clear form</button>
       <span id="accessMsg" class="muted" style="align-self:center"></span>
+    </div>
     </div>
   </div>
 
@@ -3727,7 +3730,10 @@ function fillAccessForm(r) {
 /* ============================== FILE: src/app/core/access-design.js ============================== */
 /* ================= ACCESS BY ROLE — Ravi's design (3 Nov: "mujhe wahi design chahiye jo maine bheja tha") =================
  * The page from the artifact "Access by role" (4VNW4HhNPajPwL7qPWtyKx), as it is, inside the Access tab: its CSS under .acx,
- * its ids acx-*. PREVIEW: the people are today's real records (perms/*), each placed in the role of the role plan
+ * its ids acx-*. IT SAVES FOR REAL (3 Nov: "edit access wali cheez bhi sahi karke do"): a person's access is their perms/<email> record
+ * and its production-database copy (permMirror), written the way Save access always wrote them; which role they are in is the
+ * record's accessRole ('__special' = kept apart); the roles themselves — their boxes, and roles added here — are config/accessRoles.
+ * Every change that touches somebody's access asks first. The people are today's real records (perms/*), each placed in the role of the role plan
  * ("Access role plan - check.xlsx", 3 Nov) — each role carries exactly the boxes its people hold, and a person lands in the role whose boxes are theirs; what is done on the page stays on the
  * screen (this browser) — nothing is written. The Grant or update form below it is unchanged and saves as before. */
 const ACX_ROLEDEFS = [
@@ -4513,6 +4519,7 @@ const ACX_ROLEDEFS = [
 ];
 let ACX_DEPTS = [];
 let ACX_SET = null;
+let ACX_ROLES_DOC = null;   // config/accessRoles as last read
 /** The departments for the page: the role plan's roles, each carrying the boxes its people hold today (no emails in the code — the
  *  repository is public; a person lands in the role whose boxes are exactly theirs). */
 function acxDepts() {
@@ -4598,6 +4605,8 @@ const DEPARTMENTS = ACX_DEPTS;
 
 /* What a role grants, as plain lists. */
 function roleAccess(role) {
+  const sv = ACX_ROLES_DOC && ACX_ROLES_DOC.roles && ACX_ROLES_DOC.roles[role.key];
+  if (sv && sv.access) return JSON.parse(JSON.stringify(sv.access));
   if (role.access) return JSON.parse(JSON.stringify(role.access));
   if (role.admin) return { admin: true, sellora: ALL_SELLORA.slice(), erp: ALL_ERP.slice(), rights: RIGHTS.map(r => r[0]) };
   const sellora = role.sellora === 'all' ? ALL_SELLORA.slice() : (role.sellora || []).slice();
@@ -4704,7 +4713,9 @@ function freshState() {
   const people = DATA.people.map(rec => {
     const email = String(rec.email || '').toLowerCase();
     if (email === OWNER_EMAIL) return { email, role: 'owner', special: null };
-    const acc = personAccess(rec);
+    const acc = personAccess(rec), tag = String(rec.accessRole || '');
+    if (tag === '__special') return { email, role: null, special: acc };
+    if (tag && roles[tag] && (roles[tag].admin ? acc.admin : sameAccess(acc, roles[tag]))) return { email, role: tag, special: null };
     if (acc.admin) return { email, role: 'owneradmin', special: null };
     const match = ROLES.find(r => !r.admin && sameAccess(acc, roles[r.key]));
     return match ? { email, role: match.key, special: null } : { email, role: null, special: acc };
@@ -4713,19 +4724,60 @@ function freshState() {
 }
 /* A copy kept from an earlier visit may not know a role added since; such a role starts with its listed access. */
 function load() {
-  let st = null;
-  try {
-    const saved = JSON.parse(localStorage.getItem(STORE_KEY) || 'null');
-    if (saved && saved.dataStamp === DATA_STAMP && saved.roles && Array.isArray(saved.people)) st = saved;
-  } catch (e) { /* nothing kept, or unreadable: start fresh */ }
-  if (!st) return freshState();
-  st.customRoles = Array.isArray(st.customRoles) ? st.customRoles : [];
-  S = st; buildRoles();
-  ROLES.forEach(r => { if (!st.roles[r.key]) st.roles[r.key] = roleAccess(r); });
+  /* the roles as saved (config/accessRoles): their boxes (roleAccess reads them) and roles added on this page */
+  const saved = (ACX_ROLES_DOC && ACX_ROLES_DOC.roles) || {};
+  const custom = Object.entries(saved).filter(([, v]) => v && v.custom).map(([key, v]) => Object.assign({ key }, v.custom));
+  S = { customRoles: custom };
+  const st = freshState();
+  st.customRoles = custom;
+  ROLES.forEach(r => { const v = saved[r.key]; if (v && v.access) st.roles[r.key] = v.access; });
   return st;
 }
-function save() { try { localStorage.setItem(STORE_KEY, JSON.stringify(S)); } catch (e) { /* kept for this visit only */ } }
+function save() { /* nothing is kept in the browser: every change is written (acxDo) */ }
 
+/* ---------- SAVING: every change here is a real change ---------- */
+const acxOld = email => DATA.people.find(p => p.email === email) || null;
+/** The perms record for these boxes, built the way Save access builds it. Boxes this page has no row for (hidden Sellora tabs, brands,
+ *  the old production app flag) are kept from the old record, so nothing anybody has is dropped by accident. */
+function acxRecord(old, a, roleKey) {
+  old = old || {};
+  const keepS = (old.tabs || []).filter(t => !ALL_SELLORA.includes(t)), keepE = (old.replTabs || []).filter(t => !ALL_ERP.includes(t));
+  const rec = { admin: !!a.admin, brands: old.brands || [], prod: !!old.prod };
+  if (a.admin) { rec.tabs = old.tabs || []; rec.replTabs = old.replTabs || []; rec.repl = !!old.repl; RIGHTS.forEach(([k]) => { rec[k] = old[k] === true; }); }
+  else {
+    rec.tabs = [...new Set(a.sellora.concat(keepS))]; rec.replTabs = [...new Set(a.erp.concat(keepE))];
+    /* only a section that reads Firestore turns repl on (Save access's rule); the old "whole app" flag stays only while no section is ticked */
+    rec.repl = (old.repl === true && !(old.replTabs || []).length && !a.erp.length) || rec.replTabs.some(t => !FACTORY_SECTIONS.includes(t));
+    RIGHTS.forEach(([k]) => { rec[k] = a.rights.includes(k); });
+  }
+  rec.accessRole = roleKey || '';
+  return rec;
+}
+async function acxWrite(email, a, roleKey) {
+  if (email === String(ME.email || '').toLowerCase() && !a.admin) throw new Error('you cannot take away your own admin rights');
+  const rec = acxRecord(acxOld(email), a, roleKey);
+  await setDoc(doc(db, 'perms', email), Object.assign({}, rec, { at: serverTimestamp(), by: ME.email }));
+  try { await permMirror(email, rec); } catch (e) { throw new Error('saved, but NOT in the production database copy (' + (e.message || e) + ') — do it again'); }
+}
+async function acxDel(email) {
+  if (email === String(ME.email || '').toLowerCase()) throw new Error('you cannot remove your own access');
+  await deleteDoc(doc(db, 'perms', email));
+  try { await permMirror(email, null); } catch (e) { throw new Error('removed, but their copy in the production database is still there (' + (e.message || e) + ') — remove again'); }
+}
+/** The roles as they stand — their boxes, and roles added here — into config/accessRoles. */
+async function acxSaveRoles() {
+  const out = {};
+  ROLES.forEach(r => { out[r.key] = { access: S.roles[r.key] }; });
+  (S.customRoles || []).forEach(r => { out[r.key] = Object.assign({}, out[r.key], { custom: { name: r.name, dept: r.dept, group: r.group, limit: r.limit || '', cannot: r.cannot || '' } }); });
+  await setDoc(doc(db, 'config', 'accessRoles'), { roles: out, at: serverTimestamp(), by: ME.email });
+}
+/** Ask, do it, say so, read the list again. */
+async function acxDo(ask, fn, ok) {
+  if (ask && typeof confirm === 'function' && !confirm(ask)) return false;
+  try { await fn(); } catch (e) { toast('Not saved: ' + (e.message || e)); await loadAccessList(); return false; }
+  toast(ok); await loadAccessList(); return true;
+}
+const acxRoleName = k => k === '__special' ? 'Special cases' : (roleByKey(k) || {}).name || k;
 const membersOf = key => S.people.filter(p => p.role === key);
 const specials = () => S.people.filter(p => !p.role);
 const personBy = email => S.people.find(p => p.email === email);
@@ -4792,7 +4844,7 @@ function renderNav() {
     + '<div class="nav-sep"></div>'
     + item('special', null, IC.star, 'Special cases', specials().length, 'special-nav')
     + item('people', null, IC.people, 'All people', S.people.length)
-    + '<p class="nav-note">PREVIEW. Roles, moves and removals here stay on this screen only — nobody\'s access is saved. The Grant or update form below still saves for real.</p>';
+    + '<p class="nav-note">Changes here are real: they change what people can open, in Sellora and the ERP. Each one asks first.</p>';
 }
 
 /* ---------- main area ---------- */
@@ -4890,7 +4942,7 @@ function renderMain() {
 }
 
 function renderSource() {
-  $('source').textContent = ('Today’s access, read ' + DATA.readAt + ' · preview, nothing is saved')
+  $('source').textContent = ('Today’s access, read ' + DATA.readAt)
     + ' · ' + plural(S.people.length, 'person');
 }
 function render() { renderSource(); renderNav(); renderMain(); if (D) renderDrawer(); }
@@ -4977,13 +5029,13 @@ function renderRoleDrawer() {
       const p = personBy(row.dataset.email);
       row.querySelector('[data-move]').onchange = e => {
         const to = e.target.value;
-        if (to === '__special') { p.special = JSON.parse(JSON.stringify(S.roles[D.key])); p.role = null; toast(p.email + ' moved to Special cases, starting from ' + r.name + '’s boxes'); }
-        else { p.role = to; p.special = null; toast(p.email + ' moved to ' + roleByKey(to).name); }
-        save(); render();
+        const go = to === '__special' ? () => acxWrite(p.email, S.roles[D.key], '__special') : () => acxWrite(p.email, S.roles[to], to);
+        acxDo(to === '__special' ? `Keep ${p.email} apart in Special cases? Their boxes stay as they are.` : `Give ${p.email} exactly what ${roleByKey(to).name} has? Their access changes now.`,
+          go, p.email + ' moved to ' + acxRoleName(to)).then(done => { if (!done) e.target.value = D.key; });
       };
       const rm = row.querySelector('[data-remove]');
       rm.onclick = () => {
-        if (rm.dataset.sure) { S.people = S.people.filter(x => x !== p); save(); toast(p.email + ' removed — no access'); render(); return; }
+        if (rm.dataset.sure) { acxDo('', () => acxDel(p.email), p.email + ' removed — no access'); return; }
         rm.dataset.sure = '1'; rm.textContent = 'Sure?';
       };
     });
@@ -4991,8 +5043,7 @@ function renderRoleDrawer() {
       const email = $('memberAdd').value.trim().toLowerCase();
       const err = whyNotEmail(email);
       if (err) { $('memberErr').textContent = err; return; }
-      S.people.push({ email, role: D.key, special: null }); save();
-      toast(email + ' added to ' + r.name); render();
+      acxDo(`Give ${email} exactly what ${r.name} has?`, () => acxWrite(email, S.roles[D.key], D.key), email + ' added to ' + r.name);
     };
     $('memberAddBtn').onclick = add;
     $('memberAdd').addEventListener('keydown', e => { if (e.key === 'Enter') add(); });
@@ -5018,10 +5069,12 @@ function renderRoleDrawer() {
     update();
     foot.querySelector('[data-cancel]').onclick = () => { D.editing = false; renderDrawer(); };
     foot.querySelector('[data-save]').onclick = () => {
-      const next = readBoxes(), d = accessDiff(next, a);
-      S.roles[D.key] = next; save();
-      toast(`${r.name} saved: +${d.plus.length} / −${d.minus.length} · ${m.length === 1 ? '1 member follows' : m.length + ' members follow'} it`);
-      D.editing = false; render();
+      const next = readBoxes(), d = accessDiff(next, a), key = D.key, was = S.roles[key];
+      acxDo(m.length ? `Save ${r.name}: +${d.plus.length} / −${d.minus.length}. This changes the access of ${m.length === 1 ? '1 person' : m.length + ' people'} now:\n` + m.map(p => p.email).join('\n') : `Save ${r.name}?`,
+        async () => { S.roles[key] = next; try { await acxSaveRoles(); } catch (e) { S.roles[key] = was; throw e; }
+          const bad = []; for (const p of m) { try { await acxWrite(p.email, next, key); } catch (e) { bad.push(p.email + ': ' + (e.message || e)); } }
+          if (bad.length) throw new Error('the role is saved, but ' + bad.length + ' of its people are not — ' + bad.join('; ')); },
+        `${r.name} saved: +${d.plus.length} / −${d.minus.length} · ${m.length === 1 ? '1 member follows' : m.length + ' members follow'} it`).then(done => { if (done && D) D.editing = false; if (D) renderDrawer(); });
     };
     return;
   }
@@ -5039,8 +5092,9 @@ function renderRoleDrawer() {
   if (del) del.onclick = () => {
     if (m.length) { toast('Move its ' + plural(m.length, 'member') + ' to another role first'); return; }
     if (!del.dataset.sure) { del.dataset.sure = '1'; del.textContent = 'Sure? Delete'; return; }
-    S.customRoles = S.customRoles.filter(x => x.key !== r.key); delete S.roles[r.key];
-    buildRoles(); save(); toast(r.name + ' deleted'); closeDrawer();
+    const keepC = S.customRoles, keepR = S.roles[r.key];
+    S.customRoles = S.customRoles.filter(x => x.key !== r.key); delete S.roles[r.key]; buildRoles();
+    acxDo('', async () => { try { await acxSaveRoles(); } catch (e) { S.customRoles = keepC; S.roles[r.key] = keepR; buildRoles(); throw e; } }, r.name + ' deleted').then(() => closeDrawer());
   };
 }
 
@@ -5096,10 +5150,9 @@ function openAddRole(deptKey, w) {
     const key = 'r' + Date.now().toString(36);
     S.customRoles.push({ key, name, dept: f.dept, group, limit: f.limit.trim(), cannot: f.cannot.trim() });
     S.roles[key] = f.access;
-    buildRoles(); save(); modal.close();
-    VIEW = { page: 'dept', dept: f.dept }; render();
-    openDrawer({ kind: 'role', key });
-    toast(name + ' added to ' + d.name + ' › ' + group);
+    buildRoles(); modal.close();
+    acxDo('', async () => { try { await acxSaveRoles(); } catch (e) { S.customRoles = S.customRoles.filter(x => x.key !== key); delete S.roles[key]; buildRoles(); throw e; } },
+      name + ' added to ' + d.name + ' › ' + group).then(done => { if (!done) return; VIEW = { page: 'dept', dept: f.dept }; render(); openDrawer({ kind: 'role', key }); });
   };
   setTimeout(() => { if (!w.name) $('arName').focus(); }, 30);
 }
@@ -5125,9 +5178,9 @@ function renderPersonDrawer() {
       foot.querySelector('[data-move]').onclick = () => {
         const to = $('pMove').value;
         if (to === p.role) { toast('Already in ' + r.name); return; }
-        if (to === '__special') { p.special = JSON.parse(JSON.stringify(S.roles[p.role])); p.role = null; toast(p.email + ' moved to Special cases'); }
-        else { p.role = to; p.special = null; toast(p.email + ' moved to ' + roleByKey(to).name); }
-        save(); render();
+        const from = p.role;
+        acxDo(to === '__special' ? `Keep ${p.email} apart in Special cases? Their boxes stay as they are.` : `Give ${p.email} exactly what ${roleByKey(to).name} has? Their access changes now.`,
+          () => (to === '__special' ? acxWrite(p.email, S.roles[from], '__special') : acxWrite(p.email, S.roles[to], to)), p.email + ' moved to ' + acxRoleName(to));
       };
       wireRemove(foot.querySelector('[data-remove]'), p);
     }
@@ -5143,10 +5196,9 @@ function renderPersonDrawer() {
     });
     foot.querySelector('[data-cancel]').onclick = () => { D.editing = false; renderDrawer(); };
     foot.querySelector('[data-save]').onclick = () => {
-      p.special = readBoxes();
-      const match = ROLES.find(r => !r.admin && sameAccess(p.special, S.roles[r.key]));
-      save(); D.editing = false; render();
-      toast(match ? 'Saved — these boxes are exactly ' + match.name + '. Move them into that role below.' : 'Saved');
+      const nb = readBoxes(), match = ROLES.find(r => !r.admin && sameAccess(nb, S.roles[r.key]));
+      acxDo(`Save ${p.email}'s own boxes? Their access changes now.`, () => acxWrite(p.email, nb, '__special'),
+        match ? 'Saved — these boxes are exactly ' + match.name + '. Move them into that role below.' : 'Saved').then(done => { if (done && D) { D.editing = false; renderDrawer(); } });
     };
     return;
   }
@@ -5162,14 +5214,14 @@ function renderPersonDrawer() {
   body.querySelector('[data-move]').onclick = () => {
     const to = $('pMove').value;
     if (!to) { toast('Pick a role first'); return; }
-    p.role = to; p.special = null; save(); toast(p.email + ' moved to ' + roleByKey(to).name); render();
+    acxDo(`Give ${p.email} exactly what ${roleByKey(to).name} has? Their access changes now.`, () => acxWrite(p.email, S.roles[to], to), p.email + ' moved to ' + roleByKey(to).name);
   };
   foot.querySelector('[data-edit]').onclick = () => { D.editing = true; renderDrawer(); };
   wireRemove(foot.querySelector('[data-remove]'), p);
 }
 function wireRemove(btn, p) {
   btn.onclick = () => {
-    if (btn.dataset.sure) { S.people = S.people.filter(x => x !== p); save(); toast(p.email + ' removed — no access'); closeDrawer(); return; }
+    if (btn.dataset.sure) { acxDo('', () => acxDel(p.email), p.email + ' removed — no access').then(() => closeDrawer()); return; }
     btn.dataset.sure = '1'; btn.textContent = 'Sure? Remove';
   };
 }
@@ -5234,8 +5286,8 @@ function openAdd(w = { step: 1, email: '', dept: '', role: '' }) {
       const a = { admin: false, sellora: [], erp: [], rights: [] };
       $('addBoxes').querySelectorAll('input[data-kind]:checked').forEach(c => a[c.dataset.kind].push(c.value));
       if (isEmptyAccess(a)) { $('addErr').textContent = 'Tick at least one page or right.'; return; }
-      S.people.push({ email: w.email, role: null, special: a }); save(); modal.close();
-      toast(w.email + ' added to Special cases'); render();
+      modal.close();
+      acxDo('', () => acxWrite(w.email, a, '__special'), w.email + ' added to Special cases');
     };
     return;
   }
@@ -5251,8 +5303,8 @@ function openAdd(w = { step: 1, email: '', dept: '', role: '' }) {
   $('modalBody').querySelectorAll('[data-pick]').forEach(b => { b.onclick = () => openAdd({ ...w, role: b.dataset.pick }); });
   $('modalFoot').querySelector('[data-back]').onclick = () => openAdd({ ...w, step: 2 });
   $('modalFoot').querySelector('[data-save]').onclick = () => {
-    S.people.push({ email: w.email, role: w.role, special: null }); save(); modal.close();
-    toast(w.email + ' added as ' + picked.name); render();
+    modal.close();
+    acxDo('', () => acxWrite(w.email, S.roles[w.role], w.role), w.email + ' added as ' + picked.name);
   };
 }
 
@@ -5282,7 +5334,9 @@ $('search').addEventListener('input', () => {
 
 
 
-  return rows => {
+  return async rows => {
+    try { const snap = await getDoc(doc(db, 'config', 'accessRoles')); ACX_ROLES_DOC = snap.exists() ? snap.data() : null; }
+    catch (e) { ACX_ROLES_DOC = null; toast('The saved roles could not be read (' + (e.code || e.message || e) + ') — showing the role plan.'); }
     ACX_DEPTS.length = 0; acxDepts().forEach(d => ACX_DEPTS.push(d));
     DEPARTMENTS.forEach(d => d.groups.forEach(g => g.roles.forEach(r => { if (r.accessRec) { r.access = personAccess(r.accessRec); delete r.accessRec; } })));
     DATA.people = rows.map(r => Object.assign({}, r, { email: String(r.email || '').toLowerCase() }));
