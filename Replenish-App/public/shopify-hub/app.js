@@ -891,7 +891,8 @@ async function watchLoad(force) {
   if (/^#watch/.test(location.hash) && !typing()) render();
 }
 setInterval(() => { if (/^#watch/.test(location.hash) && !document.hidden) watchLoad(); }, 60000);
-const KIND = { late: 'Late to ship', production_late: 'Production running late', blocked: 'No SKU', hold: 'Payment on hold', not_routed: 'Not routed', changed_after_send: 'Cancelled while in work',
+const KIND = { late: 'Late to ship', production_late: 'Production running late', not_shipped: 'Not shipped yet', delivery: 'Late in delivery',
+  carrier_problem: 'Carrier problem', production_hold: 'Production on hold', return: 'Return / replacement waiting', blocked: 'No SKU', hold: 'Payment on hold', not_routed: 'Not routed', changed_after_send: 'Cancelled while in work',
   stuck: 'Stuck in production / packing', carrier: 'Carrier problem', stock_short: 'Not enough stock', system: 'Live feed' };
 function pageWatch() {
   if (!WATCH.w && !WATCH.err) { watchLoad(); return '<div class="s-card s-empty">Reading the alerts and the morning numbers…</div>'; }
