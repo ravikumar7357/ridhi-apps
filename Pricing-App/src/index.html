@@ -121,7 +121,14 @@
     </div></div>
 
     <div class="sidefoot">
-      <button id="toggleSettings" class="nav">Settings</button>
+      <!-- SETTINGS IS A MENU (Ravi, 3 Nov): Settings and Access are two pages; Access (admins only) is no longer under Settings. -->
+      <div class="setwrap">
+        <button id="toggleSettings" class="nav" type="button" aria-haspopup="true" aria-expanded="false">Settings <span class="caret">&#9662;</span></button>
+        <div id="setMenu" class="setmenu" role="menu">
+          <button id="openSettings" class="nav" type="button" role="menuitem">Settings</button>
+          <button id="openAccess" class="nav" type="button" role="menuitem">Access</button>
+        </div>
+      </div>
       <button id="logoutBtn" class="nav">Sign out</button>
     </div>
   </aside>

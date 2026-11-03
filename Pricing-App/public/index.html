@@ -98,6 +98,13 @@
   .side .navclose{display:none}
   .sidefoot{margin:0 0 0 auto;padding:0;border-top:0;display:flex;align-items:center;gap:2px}
   .sidefoot .nav{width:auto}
+  /* the Settings menu (3 Nov): Settings · Access */
+  .setwrap{position:relative}
+  .setwrap .caret{font-size:10px;margin-left:2px}
+  .setmenu{display:none}
+  .setmenu.open{display:flex;flex-direction:column;gap:2px;position:absolute;top:calc(100% + 7px);right:0;min-width:180px;
+    background:var(--card);border-radius:var(--r-card);box-shadow:var(--sh-2);padding:7px;z-index:70}
+  .setmenu .nav{width:100%;text-align:left}
   .topbar .hamb{display:none}
   .main{padding:16px 22px}
   /* Group headings are buttons, not labels: each one opens and closes the .navsec directly after
@@ -779,7 +786,14 @@
     </div></div>
 
     <div class="sidefoot">
-      <button id="toggleSettings" class="nav">Settings</button>
+      <!-- SETTINGS IS A MENU (Ravi, 3 Nov): Settings and Access are two pages; Access (admins only) is no longer under Settings. -->
+      <div class="setwrap">
+        <button id="toggleSettings" class="nav" type="button" aria-haspopup="true" aria-expanded="false">Settings <span class="caret">&#9662;</span></button>
+        <div id="setMenu" class="setmenu" role="menu">
+          <button id="openSettings" class="nav" type="button" role="menuitem">Settings</button>
+          <button id="openAccess" class="nav" type="button" role="menuitem">Access</button>
+        </div>
+      </div>
       <button id="logoutBtn" class="nav">Sign out</button>
     </div>
   </aside>
@@ -3456,6 +3470,7 @@ function showTab(which) {
   $('accessCard').classList.add('hide');
   $('noAccess').classList.add('hide');
   $('toggleSettings').classList.remove('on');
+  if ($('setMenu')) $('setMenu').classList.remove('open');
   $('pageTitle').textContent = TAB_TITLE[which] || '';
   // Never leave the open tab sitting inside a collapsed group, and on a phone get the drawer out of
   // the way now that a choice has been made.
@@ -3496,18 +3511,35 @@ function showTab(which) {
 TABS.forEach(t => { $('tab' + capId(t)).onclick = () => showTab(t); });
 
 /* ============================== FILE: src/app/core/settings.js ============================== */
-/* ---------- settings ---------- */
-$('toggleSettings').onclick = () => {
+/* ---------- settings ----------
+ * SETTINGS IS A MENU (Ravi, 3 Nov: "settings button make a drop down … opening of settings and access page and also remove the
+ * [access] section from the settings page"). The button opens a small menu: Settings (the settings alone) and Access (who can open
+ * what — admins only, its own page). */
+function setMenuOpen(on) {
+  $('setMenu').classList.toggle('open', !!on);
+  $('toggleSettings').setAttribute('aria-expanded', on ? 'true' : 'false');
+}
+function openSetPage(which) {
   TABS.forEach(t => { $('pane' + capId(t)).classList.add('hide'); $('tab' + capId(t)).classList.remove('on'); });
   $('noAccess').classList.add('hide');
-  $('settingsCard').classList.remove('hide');
-  // The Access panel lives with Settings and only exists for admins.
-  $('accessCard').classList.toggle('hide', !ME.admin);
-  if (ME.admin) { accessTabBoxes(); loadAccessList(); }
+  const acc = which === 'access' && ME.admin;
+  $('settingsCard').classList.toggle('hide', acc);
+  $('accessCard').classList.toggle('hide', !acc);
+  if (acc) { accessTabBoxes(); loadAccessList(); }
   $('toggleSettings').classList.add('on');
-  $('pageTitle').textContent = 'Settings';
+  $('pageTitle').textContent = acc ? 'Access' : 'Settings';
+  setMenuOpen(false);
   if (NARROW()) setNavOpen(false, false);
+}
+$('toggleSettings').onclick = e => {
+  e.stopPropagation();
+  /* Access is for admins only: anyone else has one page, so the button opens it straight away */
+  if (!ME.admin) { openSetPage('settings'); return; }
+  setMenuOpen(!$('setMenu').classList.contains('open'));
 };
+$('openSettings').onclick = () => openSetPage('settings');
+$('openAccess').onclick = () => openSetPage('access');
+document.addEventListener('click', e => { if (!(e.target.closest && e.target.closest('.setwrap'))) setMenuOpen(false); });
 
 /* Two things a vendor grant gets wrong, and both are silent.
  *

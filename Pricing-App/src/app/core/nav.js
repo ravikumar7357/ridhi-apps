@@ -97,6 +97,7 @@ function showTab(which) {
   $('accessCard').classList.add('hide');
   $('noAccess').classList.add('hide');
   $('toggleSettings').classList.remove('on');
+  if ($('setMenu')) $('setMenu').classList.remove('open');
   $('pageTitle').textContent = TAB_TITLE[which] || '';
   // Never leave the open tab sitting inside a collapsed group, and on a phone get the drawer out of
   // the way now that a choice has been made.

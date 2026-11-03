@@ -73,6 +73,13 @@
   .side .navclose{display:none}
   .sidefoot{margin:0 0 0 auto;padding:0;border-top:0;display:flex;align-items:center;gap:2px}
   .sidefoot .nav{width:auto}
+  /* the Settings menu (3 Nov): Settings · Access */
+  .setwrap{position:relative}
+  .setwrap .caret{font-size:10px;margin-left:2px}
+  .setmenu{display:none}
+  .setmenu.open{display:flex;flex-direction:column;gap:2px;position:absolute;top:calc(100% + 7px);right:0;min-width:180px;
+    background:var(--card);border-radius:var(--r-card);box-shadow:var(--sh-2);padding:7px;z-index:70}
+  .setmenu .nav{width:100%;text-align:left}
   .topbar .hamb{display:none}
   .main{padding:16px 22px}
   /* Group headings are buttons, not labels: each one opens and closes the .navsec directly after

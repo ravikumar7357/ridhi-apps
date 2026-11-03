@@ -1,15 +1,32 @@
-/* ---------- settings ---------- */
-$('toggleSettings').onclick = () => {
+/* ---------- settings ----------
+ * SETTINGS IS A MENU (Ravi, 3 Nov: "settings button make a drop down … opening of settings and access page and also remove the
+ * [access] section from the settings page"). The button opens a small menu: Settings (the settings alone) and Access (who can open
+ * what — admins only, its own page). */
+function setMenuOpen(on) {
+  $('setMenu').classList.toggle('open', !!on);
+  $('toggleSettings').setAttribute('aria-expanded', on ? 'true' : 'false');
+}
+function openSetPage(which) {
   TABS.forEach(t => { $('pane' + capId(t)).classList.add('hide'); $('tab' + capId(t)).classList.remove('on'); });
   $('noAccess').classList.add('hide');
-  $('settingsCard').classList.remove('hide');
-  // The Access panel lives with Settings and only exists for admins.
-  $('accessCard').classList.toggle('hide', !ME.admin);
-  if (ME.admin) { accessTabBoxes(); loadAccessList(); }
+  const acc = which === 'access' && ME.admin;
+  $('settingsCard').classList.toggle('hide', acc);
+  $('accessCard').classList.toggle('hide', !acc);
+  if (acc) { accessTabBoxes(); loadAccessList(); }
   $('toggleSettings').classList.add('on');
-  $('pageTitle').textContent = 'Settings';
+  $('pageTitle').textContent = acc ? 'Access' : 'Settings';
+  setMenuOpen(false);
   if (NARROW()) setNavOpen(false, false);
+}
+$('toggleSettings').onclick = e => {
+  e.stopPropagation();
+  /* Access is for admins only: anyone else has one page, so the button opens it straight away */
+  if (!ME.admin) { openSetPage('settings'); return; }
+  setMenuOpen(!$('setMenu').classList.contains('open'));
 };
+$('openSettings').onclick = () => openSetPage('settings');
+$('openAccess').onclick = () => openSetPage('access');
+document.addEventListener('click', e => { if (!(e.target.closest && e.target.closest('.setwrap'))) setMenuOpen(false); });
 
 /* Two things a vendor grant gets wrong, and both are silent.
  *
