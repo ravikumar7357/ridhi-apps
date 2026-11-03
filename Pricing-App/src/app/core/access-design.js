@@ -1076,7 +1076,7 @@ function roleTable(roles, q) {
       const m = membersOf(r.key);
       const head = r.group !== lastGroup ? `<tr class="grp"><td colspan="4">${esc(r.group)}</td></tr>` : '';
       lastGroup = r.group;
-      const hit = q && m.some(p => p.email.includes(q));
+      const hit = q && (m.some(p => p.email.includes(q)) || roleHit(r, q));
       return head + `<tr class="row ${hit ? 'hit' : ''}" data-open-role="${r.key}" tabindex="0">
         <td><div class="cell-title">${esc(r.name)} ${r.admin ? '<span class="pill admin">Admin</span>' : ''} ${r.limit ? '<span class="pill limit">Limit</span>' : ''} ${r.custom ? '<span class="pill grey">Added here</span>' : ''}</div></td>
         <td class="hide-sm">${countPills(S.roles[r.key])}</td>
@@ -1086,6 +1086,14 @@ function roleTable(roles, q) {
     }).join('') + '</tbody></table>';
 }
 
+/* SEARCH BY ROLE TOO (Ravi, 3 Nov: "also add search by role in search button"): a word finds people by their email, their role's name,
+ * its group or department — "cutting" lists the Cutting master's people, "amazon" everyone in the Amazon group. */
+const roleHit = (r, q) => !!r && [r.name, r.group, r.deptName].some(x => String(x || '').toLowerCase().includes(q));
+function personHit(p, q) {
+  if (p.email.includes(q)) return true;
+  const pl = placeOf(p);
+  return [pl.role, pl.dept].some(x => String(x || '').toLowerCase().includes(q)) || roleHit(p.role && p.role !== 'owner' ? roleByKey(p.role) : null, q);
+}
 function renderMain() {
   const q = $('search').value.trim().toLowerCase();
   const c = $('content');
@@ -1130,7 +1138,7 @@ function renderMain() {
       <section class="card">` + (sp.length ? `<table class="t"><thead><tr><th>Person</th><th class="hide-sm">Access</th><th>Closest role</th><th class="chev"></th></tr></thead><tbody>`
         + sp.map(p => {
           const near = isEmptyAccess(p.special) ? null : closestRole(p.special);
-          const hit = q && p.email.includes(q);
+          const hit = q && personHit(p, q);
           return `<tr class="row ${hit ? 'hit' : ''}" data-open-person="${esc(p.email)}" tabindex="0">
             <td><div style="display:flex;gap:10px;align-items:center">${avatar(p.email, 'lg')}<div><div class="cell-title">${esc(p.email)}</div></div></div></td>
             <td class="hide-sm">${countPills(p.special)}</td>
@@ -1141,7 +1149,7 @@ function renderMain() {
     return;
   }
   /* All people */
-  const list = S.people.filter(p => !q || p.email.includes(q)).sort((a, b) => a.email.localeCompare(b.email));
+  const list = S.people.filter(p => !q || personHit(p, q)).sort((a, b) => a.email.localeCompare(b.email));
   c.innerHTML = `<div class="page-head"><div><h1>All people</h1><p class="muted">${q ? plural(list.length, 'match') + ' for “' + esc(q) + '”' : plural(S.people.length, 'person') + ' with a login'}</p></div></div>
     <section class="card">` + (list.length ? `<table class="t"><thead><tr><th>Person</th><th class="hide-sm">Department</th><th>Role</th><th class="hide-sm">Access</th><th class="chev"></th></tr></thead><tbody>`
       + list.map(p => {
