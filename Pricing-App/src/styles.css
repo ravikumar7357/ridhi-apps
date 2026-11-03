@@ -962,3 +962,12 @@
   .px-empty{padding:40px 16px;text-align:center;color:var(--muted)}
   @media(max-width:860px){.px-vsep{display:none}.px-pop{left:0!important;right:auto!important}}
   @media(prefers-reduced-motion:reduce){.px-swap,.px-cin,.px-pop{animation:none}#panePpcn .px-seg button,.px-sizes i{transition:none}}
+  /* ===== MODULE: RESEARCH ===== */
+
+  /* ===== MODULE: SALES ===== */
+
+  /* ===== MODULE: LISTING ===== */
+
+  /* ===== MODULE: ADS ===== */
+
+  /* ===== MODULE: INVENTORY ===== */
