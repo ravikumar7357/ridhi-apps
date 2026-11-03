@@ -43,20 +43,34 @@ const FLOW_RUF = '~ruffle';
 const flowRufflePrinter = p => (p && p.rufflePrinter && p.rufflePrinter.code && (!p.printer || String(p.rufflePrinter.code) !== String(p.printer.code))) ? p.rufflePrinter : null;
 /** The item a print order carries for one planned line: what is printed, and how much is still to print.
  * part: '' the whole line · 'body' without its ruffle (the ruffle goes to another printer) · 'ruffle' the ruffle alone. */
-function flowPoItem(r, p, part) {
-  const w = flowPrintWhat(r, p), tp = flowToPrint(r, p), xs = flowPrintExtras(r, p);
-  if (part === 'ruffle') return { sku: obUC(r.sku), item: flowChItem(r), print: null, ruffle: true, extras: xs, unit: 'm', pcs: 0,
-    metres: flowR2(xs.reduce((a, x) => a + (+x.metres || 0), 0)) };
-  return { sku: obUC(r.sku), item: flowChItem(r), print: w, extras: part === 'body' ? [] : xs, unit: w.kind === 'sku' ? 'pcs' : 'm',
-    pcs: tp.pcs, metres: tp.metres };
+/* ONLY THE PART STILL TO MAKE (Ravi, 4 Nov: "224 pcs pahle hi cut ho chuke … printer ko 9 m hi jana chahiye"). rem = the share of the
+ * line not yet cut / issued / passed when the line is FIRST put on a print order; it is kept on the item (it.rem) so the order does not
+ * shrink later as the printer's own cloth is cut. An item without rem is from before and stays whole. */
+function flowPoItem(r, p, part, rem) {
+  const rf = rem == null ? 1 : Math.max(0, Math.min(1, +rem || 0));
+  const w = flowPrintWhat(r, p), tp = flowToPrintRem(r, p, rf), xs = flowPrintExtras(r, p, rf), keep = rf < 1 ? { rem: flowR2(rf * 10000) / 10000 } : {};
+  if (part === 'ruffle') return Object.assign({ sku: obUC(r.sku), item: flowChItem(r), print: null, ruffle: true, extras: xs, unit: 'm', pcs: 0,
+    metres: flowR2(xs.reduce((a, x) => a + (+x.metres || 0), 0)) }, keep);
+  return Object.assign({ sku: obUC(r.sku), item: flowChItem(r), print: w, extras: part === 'body' ? [] : xs, unit: w.kind === 'sku' ? 'pcs' : 'm',
+    pcs: tp.pcs, metres: tp.metres }, keep);
+}
+/** The share of a line its print order is for: what the order froze (it.rem), whole for an older order, else what is still to make now. */
+function flowPoRemOf(r, s) {
+  try {
+    const k = flowKey(r.orderNo, r.sku), ix = flowPoIndex(), no = ix[k] || ix[k + FLOW_RUF], o = no && (FLOW.po || {})[no];
+    const it = o && o.items && (o.items[k] || o.items[k + FLOW_RUF]);
+    if (it) return it.rem != null ? +it.rem : 1;
+    if (flowChIndex()[k]) return 1;
+    return flowRemFrac(r, s || flowState(r));
+  } catch (e) { return 1; }
 }
 const flowPoItemPrints = it => (it.unit === 'pcs' ? it.pcs > 0 : it.metres > 0.01) || (it.extras || []).length > 0;
 /** What one planned line puts on print orders: [{ part: '' | '~ruffle', printer, item }]. */
-function flowPoParts(r, p) {
+function flowPoParts(r, p, rem) {
   if (!p || !flowPrinted(flowRouteOf(p)) || !flowPrintsSomething(r, p)) return [];
-  const rp = flowRufflePrinter(p), out = [], body = flowPoItem(r, p, rp ? 'body' : '');
+  const rp = flowRufflePrinter(p), out = [], body = flowPoItem(r, p, rp ? 'body' : '', rem);
   if (flowPoItemPrints(body)) out.push({ part: '', printer: p.printer || null, item: body });
-  if (rp) { const ruf = flowPoItem(r, p, 'ruffle'); if (ruf.extras.length) out.push({ part: FLOW_RUF, printer: rp, item: ruf }); }
+  if (rp) { const ruf = flowPoItem(r, p, 'ruffle', rem); if (ruf.extras.length) out.push({ part: FLOW_RUF, printer: rp, item: ruf }); }
   return out;
 }
 /**
@@ -88,7 +102,10 @@ function flowPoSync(items, date) {
   items.forEach(({ r, p }) => {
     /* All from printed stock (body and ruffle): nothing for a printer — no print order, no vendor order. */
     const key = flowKey(r.orderNo, r.sku), parts = {};
-    flowPoParts(r, p).forEach(x => { parts[x.part] = x; });
+    /* the share the line's print order is for: frozen on an order it is already on, else what is still to make now */
+    const was = (idx[key] && local[idx[key]] && (local[idx[key]].items || {})[key]) || (idx[key + FLOW_RUF] && local[idx[key + FLOW_RUF]] && (local[idx[key + FLOW_RUF]].items || {})[key + FLOW_RUF]);
+    let rem = 1; if (was) rem = was.rem != null ? +was.rem : 1; else if (!r.__t) { try { rem = flowRemFrac(r, flowState(r)); } catch (e) { rem = 1; } }
+    flowPoParts(r, p, rem).forEach(x => { parts[x.part] = x; });
     place(r, key, parts[''], obUC(r.sku)); place(r, key + FLOW_RUF, parts[FLOW_RUF], obUC(r.sku) + ' (ruffle)');
   });
   return { patch, said, local };
