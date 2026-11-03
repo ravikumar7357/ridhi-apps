@@ -89,7 +89,7 @@ function healthKidsRender() {
   // --- header line and the All / Problems / OK segment ---
   $('hkTitle').textContent = name || parent;
   $('hkSub').innerHTML = `<span style="font-family:ui-monospace,monospace">${esc(parent)}</span> · ${esc(BRAND_NAME[brand] || brand)}`
-    + ` · <b>${all.length}</b> children · <b style="color:#991b1b">${nBad}</b> with a problem · <b style="color:#166534">${all.length - nBad}</b> OK`
+    + ` · <b>${all.length}</b> children · <b style="color:var(--bad-ink)">${nBad}</b> with a problem · <b style="color:var(--accent-ink)">${all.length - nBad}</b> OK`
     + ` · avg score <b>${avg}</b>`
     + (over75 ? ` · <b>${over75}</b> title(s) over ${H_TITLE_LIMIT} characters` : '');
   $('hkSeg').querySelectorAll('[data-hks]').forEach(btn => btn.classList.toggle('on', btn.dataset.hks === HK_SHOW));
@@ -243,7 +243,7 @@ $('hRaw').onclick = async () => {
     let line = `<b>${BRAND_NAME[brand]} stock doc</b> — `;
     try {
       const snap = await getDoc(doc(db, 'stock', brand));
-      if (!snap.exists()) line += '<span style="color:var(--bad)">does not exist yet</span> — run “Refresh both brands”.';
+      if (!snap.exists()) line += '<span style="color:var(--bad-ink)">does not exist yet</span> — run “Refresh both brands”.';
       else {
         const data = snap.data();
         const qtyMap = data.m || {};          // SKU → quantity
@@ -254,7 +254,7 @@ $('hRaw').onclick = async () => {
         line += `${keys.length} SKUs · <b>${keys.length - zero} with stock</b>, ${zero} at zero · written ${at}`
           + (keys.length ? `<div style="font-family:ui-monospace,monospace;font-size:11px;margin-top:4px">${esc(sample)}</div>` : '');
         if (keys.length && zero === keys.length) {
-          line += '<div style="color:var(--bad);margin-top:4px">Every value is zero — '
+          line += '<div style="color:var(--bad-ink);margin-top:4px">Every value is zero — '
             + 'the quantity is not coming through from the ageing report.</div>';
         }
         // How the join actually landed for the listings on screen.
@@ -266,7 +266,7 @@ $('hRaw').onclick = async () => {
         }
       }
     } catch (e) {
-      line += `<span style="color:var(--bad)">could not read (${esc(e.message || e)})</span>`;
+      line += `<span style="color:var(--bad-ink)">could not read (${esc(e.message || e)})</span>`;
     }
     stockParts.push(`<div style="margin-bottom:12px">${line}</div>`);
   }

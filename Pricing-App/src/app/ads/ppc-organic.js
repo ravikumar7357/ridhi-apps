@@ -1015,15 +1015,15 @@ function renderWeeklyKpis(rows, weeks) {
     <div class="metrics">
       <div class="metric">
         <div class="v" style="font-size:15px">${money(sales)}</div><div class="l">Total sales</div>
-        <div class="sub" style="color:${done && delta != null && delta < 0 ? 'var(--bad)' : 'inherit'}">${
+        <div class="sub" style="color:${done && delta != null && delta < 0 ? 'var(--bad-ink)' : 'inherit'}">${
           !done ? running : delta == null ? '— vs week before' : (delta > 0 ? '+' : '') + delta + '% vs week before'}</div>
         <div class="sub" title="Ad spend ÷ TOTAL sales — what all of the sales cost in advertising.">TACoS <b style="color:${
-          tacos != null && tacos > 20 ? 'var(--bad)' : 'inherit'}">${tacos == null ? '—' : tacos + '%'}</b></div>
+          tacos != null && tacos > 20 ? 'var(--bad-ink)' : 'inherit'}">${tacos == null ? '—' : tacos + '%'}</b></div>
       </div>
       <div class="metric">
         <div class="v" style="font-size:15px">${money(spend)}</div><div class="l">Ad spend</div>
         <div class="sub" title="Ad spend ÷ AD sales only — what the advertised sales cost.">ACoS <b style="color:${
-          acos != null && acos > 60 ? 'var(--bad)' : 'inherit'}">${acos == null ? '—' : acos + '%'}</b></div>
+          acos != null && acos > 60 ? 'var(--bad-ink)' : 'inherit'}">${acos == null ? '—' : acos + '%'}</b></div>
       </div>
       <div class="metric"><div class="v">${organicPct == null ? '—' : organicPct + '%'}</div><div class="l">Organic share</div></div>
       <div class="metric">
@@ -1268,17 +1268,17 @@ function renderWeeklyRange() {
     + `<td class="num">${nf(r.units)}</td>`
     + `<td class="num" style="font-weight:700">${money(r.sales)}</td>`
     + `<td class="num"${r.adSpend == null ? ' title="No ad report has been pulled for this range yet"' : ''}>${money(r.adSpend)}</td>`
-    + `<td class="num" style="color:#6d28d9;font-weight:600">${pct1(r.budgetShare)}</td>`
+    + `<td class="num" style="color:var(--violet-ink);font-weight:600">${pct1(r.budgetShare)}</td>`
     + `<td class="num"><span class="muted">${r.adSales == null ? '—' : '$' + Math.round(r.adSales).toLocaleString('en-US')}</span></td>`
     + `<td class="num" style="font-weight:600"${r.organic == null ? ' title="Needs the ad figures — organic is total sales minus ad sales, and the ad side is not in yet"' : ''}>${money(r.organic)}</td>`
     + `<td class="num">${r.organicShare == null ? '<span class="muted">—</span>' : `<span class="gd ${shareCls(r.organicShare)}">${(r.organicShare * 100).toFixed(1)}%</span>`}</td>`
     + `<td class="num">${pct1(r.acos)}</td>`
-    + `<td class="num" style="color:#166534">${pct1(r.tacos)}</td>`
+    + `<td class="num" style="color:var(--accent-ink)">${pct1(r.tacos)}</td>`
     + (mode === 'week'
       ? `<td class="num">${r.sessions == null ? '<span class="muted">—</span>' : nf(r.sessions)}</td>`
         + `<td class="num">${r.cvr == null ? '<span class="muted">—</span>' : (r.cvr * 100).toFixed(1) + '%'}</td>`
       : '')
-    + `<td class="num"${r.vsPrev != null && r.vsPrev < 0 ? ' style="color:var(--bad);font-weight:700"' : ''}>${
+    + `<td class="num"${r.vsPrev != null && r.vsPrev < 0 ? ' style="color:var(--bad-ink);font-weight:700"' : ''}>${
         r.vsPrev == null ? '<span class="muted">—</span>' : (r.vsPrev > 0 ? '+' : '') + (r.vsPrev * 100).toFixed(1) + '%'}</td>`
     + `</tr>`).join('');
 
@@ -1354,7 +1354,7 @@ function renderWeeklyAlerts(rows, weeks) {
       + `<td title="${esc(x.r.title)}">${esc(x.r.title.slice(0, 28)) || '<span class="muted">—</span>'}</td>`
       + `<td>${esc(wLabel(x.wk))}</td>`
       + `<td class="num">${money(x.c.rev)}</td><td class="num"><span class="muted">${money(x.p.rev)}</span></td>`
-      + `<td class="num"${d < 0 ? ' style="color:var(--bad);font-weight:700"' : ''}>${d ? (d > 0 ? '+' : '') + d + '%' : '—'}</td>`
+      + `<td class="num"${d < 0 ? ' style="color:var(--bad-ink);font-weight:700"' : ''}>${d ? (d > 0 ? '+' : '') + d + '%' : '—'}</td>`
       + `<td class="num">${x.c.spend == null ? '<span class="muted">—</span>' : money(x.c.spend)}</td>`
       + `<td class="num"><span class="muted">${x.p.spend == null ? '—' : money(x.p.spend)}</span></td>`
       + `<td class="num">${x.c.adSales == null ? '<span class="muted">—</span>' : money(x.c.adSales)}</td>`
@@ -1363,7 +1363,7 @@ function renderWeeklyAlerts(rows, weeks) {
       // the goal; a collapsing one means ads are the only thing still selling it.
       + `<td class="num">${orgPct == null ? '<span class="muted">—</span>'
           : `<span class="gd ${orgPct >= 50 ? 'gd-good' : orgPct >= 25 ? 'gd-warn' : 'gd-bad'}">${orgPct}%</span>`}</td>`
-      + `<td class="num"${dOrg != null && dOrg < 0 ? ' style="color:var(--bad)"' : ''}>${dOrg == null ? '<span class="muted">—</span>' : (dOrg > 0 ? '+' : '') + dOrg + '%'}</td>`
+      + `<td class="num"${dOrg != null && dOrg < 0 ? ' style="color:var(--bad-ink)"' : ''}>${dOrg == null ? '<span class="muted">—</span>' : (dOrg > 0 ? '+' : '') + dOrg + '%'}</td>`
       + `<td class="num">${x.c.sessions == null ? '<span class="muted">—</span>' : Math.round(x.c.sessions).toLocaleString('en-US')}</td>`
       + `<td class="num">${x.acos == null ? '<span class="muted">—</span>' : x.acos + '%'}</td>`
       + `<td title="${esc(cause.why)}"><span class="st ${cause.cls}">${esc(cause.t)}</span></td>`
@@ -1463,7 +1463,7 @@ function renderWeeklyLog() {
       + `<td title="${esc(e.what || '')}">${esc(String(e.what || '').slice(0, 48))}</td>`
       + `<td title="${esc(e.why || '')}">${esc(String(e.why || '').slice(0, 32))}</td>`
       + `<td class="num">${money(prev?.rev)}</td><td class="num">${money(cur?.rev)}</td>`
-      + `<td class="num"${d != null && d < 0 ? ' style="color:var(--bad);font-weight:700"' : ''}>${d == null ? '—' : (d > 0 ? '+' : '') + d + '%'}</td>`
+      + `<td class="num"${d != null && d < 0 ? ' style="color:var(--bad-ink);font-weight:700"' : ''}>${d == null ? '—' : (d > 0 ? '+' : '') + d + '%'}</td>`
       + `<td class="num">${prev?.sessions == null ? '<span class="muted">—</span>' : Math.round(prev.sessions).toLocaleString('en-US')}</td>`
       + `<td class="num">${cur?.sessions == null ? '<span class="muted">—</span>' : Math.round(cur.sessions).toLocaleString('en-US')}</td>`
       + `<td class="num">${cvr(prev) == null ? '<span class="muted">—</span>' : cvr(prev).toFixed(1) + '%'}</td>`

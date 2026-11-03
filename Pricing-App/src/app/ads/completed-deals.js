@@ -104,10 +104,10 @@ function renderDoneKpis(rows) {
       ${tile('Parents involved', nf(parents.size))}
       ${tile('Days of discount', nf(days))}
       ${tile('Average discount', discN ? Math.round(discSum / discN) + '%' : '—')}
-      ${tile('PED', nf(byType.PED || 0), '#1e40af')}
-      ${tile('COUPON', nf(byType.COUPON || 0), '#166534')}
-      ${tile('DEAL', nf((byType.DEAL || 0) + (byType['BEST DEAL'] || 0) + (byType.LIGHTNING || 0)), '#92400e')}
-      ${tile('Price disc.', nf(byType['PRICE DISC'] || 0), '#5b21b6')}
+      ${tile('PED', nf(byType.PED || 0), 'var(--brand-ink)')}
+      ${tile('COUPON', nf(byType.COUPON || 0), 'var(--accent-ink)')}
+      ${tile('DEAL', nf((byType.DEAL || 0) + (byType['BEST DEAL'] || 0) + (byType.LIGHTNING || 0)), 'var(--act-ink)')}
+      ${tile('Price disc.', nf(byType['PRICE DISC'] || 0), 'var(--violet-ink)')}
     </div></div>`;
 }
 
@@ -129,7 +129,7 @@ function renderDone() {
       + `<td class="num">${r.span.days}</td>`
       + `<td style="font-family:ui-monospace,monospace">${esc(r.parent)}</td>`
       + `<td style="padding:2px 6px">${img
-          ? `<img src="${esc(dThumb(img))}" loading="lazy" decoding="async" style="width:30px;height:30px;object-fit:cover;border-radius:5px;background:#f1f5f9" alt="">`
+          ? `<img src="${esc(dThumb(img))}" loading="lazy" decoding="async" style="width:30px;height:30px;object-fit:cover;border-radius:5px;background:var(--hover)" alt="">`
           : '<span class="muted" style="font-size:11px">—</span>'}</td>`
       + `<td title="${esc(r.name)}">${esc(String(r.name).slice(0, 40)) || '<span class="muted">—</span>'}</td>`
       + `<td>${r.brand ? esc(BRAND_NAME[r.brand] || r.brand) : '<span class="muted">—</span>'}</td>`

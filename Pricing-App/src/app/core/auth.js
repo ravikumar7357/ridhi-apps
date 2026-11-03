@@ -59,7 +59,7 @@ function vfWire() {
       msg.textContent = 'Sent to ' + user.email + '. Open the link, then press "I have confirmed it". '
         + 'Look in the spam folder too — it arrives from Firebase, not from us.';
     } catch (e) {
-      msg.style.color = '#b91c1c';
+      msg.style.color = 'var(--bad-ink)';
       msg.textContent = /too-many-requests/.test(e.code || '')
         ? 'One has already gone out. Wait a minute, then look again — including in the spam folder.'
         : 'Could not send it: ' + (e.message || e);
@@ -77,10 +77,10 @@ function vfWire() {
       /* Confirming happens in another tab; a reload is what brings the new answer back to this one. */
       await user.reload();
       if (auth.currentUser && auth.currentUser.emailVerified) { location.reload(); return; }
-      msg.style.color = '#b91c1c';
+      msg.style.color = 'var(--bad-ink)';
       msg.textContent = 'Not confirmed yet. Open the link in the email first — then press this again.';
     } catch (e) {
-      msg.style.color = '#b91c1c';
+      msg.style.color = 'var(--bad-ink)';
       msg.textContent = 'Could not check: ' + (e.message || e);
     }
     $('verifyAgain').disabled = false;

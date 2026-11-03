@@ -411,12 +411,12 @@ function renderPlannerKpis(rows, weeks) {
     <div class="metrics">
       ${tile('Ridhi parents', nf(nSP))}
       ${tile('CPC parents', nf(nCPC))}
-      ${tile('Parents with a plan', nf(parentsWith.size), parentsWith.size ? '#166534' : '')}
-      ${tile('PED', nf((byType.PED || new Set()).size), '#1e40af')}
-      ${tile('COUPON', nf((byType.COUPON || new Set()).size), '#166534')}
-      ${tile('DEAL', nf(((byType.DEAL || new Set()).size) + ((byType['BEST DEAL'] || new Set()).size) + ((byType.LIGHTNING || new Set()).size)), '#92400e')}
-      ${tile('Price disc.', nf((byType['PRICE DISC'] || new Set()).size), '#5b21b6')}
-      ${tile('Nothing planned', nf(all.size - parentsWith.size), all.size - parentsWith.size ? 'var(--bad)' : '')}
+      ${tile('Parents with a plan', nf(parentsWith.size), parentsWith.size ? 'var(--accent-ink)' : '')}
+      ${tile('PED', nf((byType.PED || new Set()).size), 'var(--brand-ink)')}
+      ${tile('COUPON', nf((byType.COUPON || new Set()).size), 'var(--accent-ink)')}
+      ${tile('DEAL', nf(((byType.DEAL || new Set()).size) + ((byType['BEST DEAL'] || new Set()).size) + ((byType.LIGHTNING || new Set()).size)), 'var(--act-ink)')}
+      ${tile('Price disc.', nf((byType['PRICE DISC'] || new Set()).size), 'var(--violet-ink)')}
+      ${tile('Nothing planned', nf(all.size - parentsWith.size), all.size - parentsWith.size ? 'var(--bad-ink)' : '')}
     </div></div>`;
 }
 
@@ -441,10 +441,10 @@ function renderPlanner() {
     + '<th class="pfz pfz-last" data-pf="1" rowspan="2">Product</th>'
     + '<th rowspan="2">Image</th>'
     + '<th class="num" rowspan="2">BSR</th>'
-    + '<th class="num" style="background:#e2e8f0">Start</th>'
-    + weeks.map(w => `<th class="num" style="background:#fde4d3">${esc(dShortDate(w))}</th>`).join('') + '</tr>'
-    + '<tr class="phead2"><th class="num" style="background:#fef08a">End</th>'
-    + weeks.map(w => `<th class="num" style="background:#fde4d3">${
+    + '<th class="num" style="background:var(--hover)">Start</th>'
+    + weeks.map(w => `<th class="num" style="background:var(--act-bg)">${esc(dShortDate(w))}</th>`).join('') + '</tr>'
+    + '<tr class="phead2"><th class="num" style="background:var(--rev-bg)">End</th>'
+    + weeks.map(w => `<th class="num" style="background:var(--act-bg)">${
         esc(dShortDate(new Date(new Date(w + 'T00:00:00Z').getTime() + 6 * 86400000).toISOString().slice(0, 10)))
       }</th>`).join('')
     + '</tr></thead>';
@@ -501,7 +501,7 @@ function renderPlanner() {
     return `<tr><td class="frz pfz" data-pf="0" style="font-family:ui-monospace,monospace">${esc(r.parent)}</td>`
       + `<td class="pfz pfz-last" data-pf="1" title="${esc(r.name)}">${esc(String(r.name).slice(0, 32)) || '<span class="muted">—</span>'}</td>`
       + `<td style="padding:2px 6px">${img
-          ? `<img src="${esc(dThumb(img))}" loading="lazy" decoding="async" style="width:30px;height:30px;object-fit:cover;border-radius:5px;background:#f1f5f9" alt="">`
+          ? `<img src="${esc(dThumb(img))}" loading="lazy" decoding="async" style="width:30px;height:30px;object-fit:cover;border-radius:5px;background:var(--hover)" alt="">`
           : '<span class="muted" style="font-size:11px">—</span>'}</td>`
       + `<td class="num">${r.rank ? r.rank.toLocaleString('en-US') : '<span class="muted">—</span>'}</td>`
       + `<td class="num muted"></td>${cells}</tr>`;

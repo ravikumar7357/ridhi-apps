@@ -146,8 +146,8 @@ function renderHdaKpis(rows) {
       ${tile('ASINs / parents', nf(asins.size))}
       ${tile('Days of discount', nf(days))}
       ${tile('Average discount', avg ? avg + '%' : '—')}
-      ${tile('Deepest', deepest ? deepest + '%' : '—', deepest >= 50 ? 'var(--bad)' : '')}
-      ${tile('Running now', nf(live), live ? '#166534' : '')}
+      ${tile('Deepest', deepest ? deepest + '%' : '—', deepest >= 50 ? 'var(--bad-ink)' : '')}
+      ${tile('Running now', nf(live), live ? 'var(--accent-ink)' : '')}
       ${tile('Typed here', nf(typed))}
       ${tile('From planner', nf(rows.length - typed))}
     </div></div>`;
@@ -189,12 +189,12 @@ function renderHda() {
           ? esc(r.asin) + (r.known ? '' : ' <span class="muted" style="font-family:inherit;font-size:11px" title="This ASIN is not in the Listing Health snapshot — it may have been removed, or belong to a brand you cannot see. The record is kept either way.">not in snapshot</span>')
           : `<span class="muted" style="font-size:11px">whole parent</span><br>${esc(r.parent)}`}</td>`
       + `<td style="padding:2px 6px">${img
-          ? `<img src="${esc(dThumb(img))}" loading="lazy" decoding="async" style="width:30px;height:30px;object-fit:cover;border-radius:5px;background:#f1f5f9" alt="">`
+          ? `<img src="${esc(dThumb(img))}" loading="lazy" decoding="async" style="width:30px;height:30px;object-fit:cover;border-radius:5px;background:var(--hover)" alt="">`
           : '<span class="muted" style="font-size:11px">—</span>'}</td>`
       + `<td title="${esc(r.name)}">${esc(String(r.name).slice(0, 34)) || '<span class="muted">—</span>'}</td>`
       + `<td>${r.brand ? esc(BRAND_NAME[r.brand] || r.brand) : '<span class="muted">—</span>'}</td>`
       + `<td><span style="background:${bg};color:${fg};font-weight:700;font-size:11.5px;padding:2px 7px;border-radius:5px">${esc(r.t)}</span></td>`
-      + `<td class="num"${r.v >= 50 ? ' style="color:var(--bad);font-weight:700"' : ''}>${r.v ? r.v + '%' : '<span class="muted">—</span>'}</td>`
+      + `<td class="num"${r.v >= 50 ? ' style="color:var(--bad-ink);font-weight:700"' : ''}>${r.v ? r.v + '%' : '<span class="muted">—</span>'}</td>`
       + `<td style="font-size:11.5px">${r.src === 'typed'
           ? 'Typed here' + (r.alsoPlanned ? ' <span class="muted" title="A planner deal on the same parent overlaps these dates. Both are shown — this screen cannot tell whether it is the same discount entered twice.">· also on planner</span>' : '')
           : '<span class="muted">From planner</span>'}</td>`
@@ -626,8 +626,8 @@ $('hdaImpFile').onchange = async ev => {
       + `</div>`
       + (noType ? `<div class="muted" style="font-size:12px;margin-top:4px">${noType} row(s) had no Type and will be recorded as <b>PED</b>.</div>` : '')
       + (dupInFile ? `<div class="muted" style="font-size:12px;margin-top:4px">${dupInFile} row(s) repeat an earlier line in the same file (same ASIN, type and dates) — the last one wins.</div>` : '')
-      + (unknown.length ? `<div style="color:var(--bad);font-size:12px;margin-top:4px">${unknown.length} ASIN(s) are not in the Listing Health snapshot (${unknown.slice(0, 3).map(g => esc(g.asin)).join(', ')}${unknown.length > 3 ? '…' : ''}). They will import, but with no name, brand or picture.</div>` : '')
-      + (bad.length ? `<div style="color:var(--bad);font-size:12px;margin-top:4px">${bad.length} row(s) will be skipped — ${esc(bad.slice(0, 5).join(' · '))}${bad.length > 5 ? ' …' : ''}</div>` : '')
+      + (unknown.length ? `<div style="color:var(--bad-ink);font-size:12px;margin-top:4px">${unknown.length} ASIN(s) are not in the Listing Health snapshot (${unknown.slice(0, 3).map(g => esc(g.asin)).join(', ')}${unknown.length > 3 ? '…' : ''}). They will import, but with no name, brand or picture.</div>` : '')
+      + (bad.length ? `<div style="color:var(--bad-ink);font-size:12px;margin-top:4px">${bad.length} row(s) will be skipped — ${esc(bad.slice(0, 5).join(' · '))}${bad.length > 5 ? ' …' : ''}</div>` : '')
       + `<div class="muted" style="font-size:12px;margin-top:6px">This ADDS to the ${D_HDA.length} record(s) already kept. Nothing is deleted.</div>`;
     $('hdaImpSave').disabled = false;
   } catch (e2) { err('Could not read that file: ' + esc(e2.message || e2)); }

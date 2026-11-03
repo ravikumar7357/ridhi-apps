@@ -9,6 +9,8 @@ core/access.js
 core/admin-access.js
 core/access-design.js
 core/nav.js
+core/theme.js
+core/fx.js
 core/settings.js
 research/fee-tables.js
 core/backend.js

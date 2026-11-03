@@ -33,11 +33,11 @@ let PLC_GRAN = 'day';
 // The order the four known placements are listed in, and their colours; anything else is grey.
 const PLC_ORDER = ['Top of Search', 'Rest of Search', 'Product Page', 'Off Amazon'];
 const PLC_COLOR = {
-  'Top of Search': '#10b981',
-  'Product Page': '#374151',
-  'Rest of Search': '#f97316',
-  'Off Amazon': '#38bdf8' };
-const plcColor = p => PLC_COLOR[p] || '#9ca3af';
+  'Top of Search': 'var(--accent)',
+  'Product Page': 'var(--muted)',
+  'Rest of Search': 'var(--act)',
+  'Off Amazon': 'var(--brand)' };
+const plcColor = p => PLC_COLOR[p] || 'var(--faint)';
 /* Amazon's own wording, which is not the wording anybody uses. Verified against live rows:
  * `placementClassification` comes back as "Detail Page on-Amazon", not "Product Page".
  *
@@ -161,7 +161,7 @@ function renderPlc() {
     const pctOf = totSpend > 0 ? Math.round(sp * 100 / totSpend) : 0;
     return `<tr${bold ? ' style="font-weight:700;border-top:2px solid var(--line)"' : ''}>`
       + `<td class="frz">${label}</td>`
-      + `<td class="num"${misV > 0 ? ' style="color:var(--bad)"' : ''}>${money(misV)}`
+      + `<td class="num"${misV > 0 ? ' style="color:var(--bad-ink)"' : ''}>${money(misV)}`
         + `${sp > 0 && misV > 0 ? ` <span class="muted">(${Math.round(misV * 100 / sp)}%)</span>` : ''}</td>`
       + `<td class="num">${money(sp)}${bold ? '' : ` <span class="muted">(${pctOf}%)</span>`}</td>`
       + `<td class="num">${money(s)}</td>`
@@ -195,14 +195,14 @@ function renderPlc() {
         + `background:${plcColor(w.p)};margin-right:5px"></span>${esc(w.p)}</td>`
         + `<td>${esc(w.brand === 'SP' ? 'Ridhi' : w.brand)}</td>`
         + `<td class="num">${nf(w.c)}</td>`
-        + `<td class="num" style="color:var(--bad);font-weight:600">${money(w.sp)}</td></tr>`).join('')
+        + `<td class="num" style="color:var(--bad-ink);font-weight:600">${money(w.sp)}</td></tr>`).join('')
       + '</tbody>'
     : '<tbody><tr><td class="muted" style="padding:12px">Nothing — every campaign and placement that '
       + 'took a click also produced at least one order.</td></tr></tbody>';
 
   // --- the message line ---
   plcMsg(`${A.names.length} placement(s) · ${money(totSpend)} spent, ${money(T[4])} back`
-    + ` · <b style="color:var(--bad)">${money(totMis)}</b> of it bought nothing`
+    + ` · <b style="color:var(--bad-ink)">${money(totMis)}</b> of it bought nothing`
     + (PLC.at ? ` · built ${esc(PLC.at)}` : '') + ' · a 30-day window');
 }
 
@@ -228,7 +228,7 @@ function plcChartSvg(A, esc, money) {
   // --- grid lines and the y axis ---
   let g = '';
   for (let t = 0; t <= top; t += step) {
-    g += `<line x1="${PAD_L}" x2="${W - 8}" y1="${y(t)}" y2="${y(t)}" stroke="var(--line)" stroke-width="1"/>`
+    g += `<line class="ad-ch-grid" x1="${PAD_L}" x2="${W - 8}" y1="${y(t)}" y2="${y(t)}" stroke="var(--line)" stroke-width="1"/>`
       + `<text x="${PAD_L - 8}" y="${y(t) + 4}" text-anchor="end" font-size="10" fill="var(--muted)">$${Math.round(t).toLocaleString('en-US')}</text>`;
   }
   // --- the bars and their labels ---
@@ -698,9 +698,9 @@ function renderTrends() {
     <div class="metrics">
       ${kpi('Sales', money(total[T_I.sales]))}
       ${kpi(adLbl('Ad Spend'), money(adAny ? adTot[T_I.spend] : null))}
-      ${kpi(adLbl('TACOS'), tac == null ? '—' : tac.toFixed(1) + '%', tac != null && tac > 20 ? 'var(--bad)' : '')}
+      ${kpi(adLbl('TACOS'), tac == null ? '—' : tac.toFixed(1) + '%', tac != null && tac > 20 ? 'var(--bad-ink)' : '')}
       ${kpi(adLbl('Ad Sales'), money(adAny ? adTot[T_I.adSales] : null))}
-      ${kpi(adLbl('ACOS'), aco == null ? '—' : aco.toFixed(1) + '%', aco != null && aco > 60 ? 'var(--bad)' : '')}
+      ${kpi(adLbl('ACOS'), aco == null ? '—' : aco.toFixed(1) + '%', aco != null && aco > 60 ? 'var(--bad-ink)' : '')}
       ${kpi(adLbl('Organic %'), adAny && adTot[T_I.sales] ? (Math.max(0, adTot[T_I.sales] - adTot[T_I.adSales]) / adTot[T_I.sales] * 100).toFixed(1) + '%' : '—')}
       ${kpi(adLbl('CTR'), ctr == null ? '—' : ctr.toFixed(2) + '%')}
       ${kpi('Orders', Math.round(total[T_I.orders]).toLocaleString('en-US'))}
@@ -720,7 +720,7 @@ function renderTrends() {
     const tot = row.ad ? (adAny ? row.get(adTot) : null) : row.get(total);
     return `<tr><td class="frz" style="font-weight:600">${esc(row.t)}${
         row.ad ? '<span class="muted" style="font-weight:400" title="Only available for the days the Amazon Ads API still holds — about 95 back"> ·</span>' : ''}</td>`
-      + `<td class="num" style="font-weight:700;background:#f8fafc">${tFmt(row, tot)}</td>`
+      + `<td class="num" style="font-weight:700;background:var(--soft)">${tFmt(row, tot)}</td>`
       + keys.map(k => {
         const v = (row.ad && !adKnown[k]) ? null : row.get(agg[k]);
         const tip = (row.ad && !adKnown[k])
@@ -765,16 +765,16 @@ function tChart(keys, agg) {
   let g = '';
   for (let i = 0; i <= 4; i++) {
     const y = padT + ih - (i / 4) * ih;
-    g += `<line x1="${padL}" y1="${y}" x2="${W - padR}" y2="${y}" stroke="#eef2f6"/>`
-      + `<text x="${padL - 8}" y="${y + 4}" text-anchor="end" font-size="10" fill="#94a3b8">${money(maxMoney * i / 4)}</text>`
-      + `<text x="${W - padR + 8}" y="${y + 4}" font-size="10" fill="#ea580c">${(maxPct * i / 4).toFixed(0)}%</text>`;
+    g += `<line class="ad-ch-grid" x1="${padL}" y1="${y}" x2="${W - padR}" y2="${y}" stroke="#eef2f6"/>`
+      + `<text class="ad-ch-axis" x="${padL - 8}" y="${y + 4}" text-anchor="end" font-size="10" fill="#94a3b8">${money(maxMoney * i / 4)}</text>`
+      + `<text class="ad-ch-pct" x="${W - padR + 8}" y="${y + 4}" font-size="10" fill="#ea580c">${(maxPct * i / 4).toFixed(0)}%</text>`;
   }
   // --- the bars ---
   keys.forEach((k, i) => {
     const v = agg[k];
-    g += `<rect x="${x(i) - bw}" y="${yM(v[T_I.sales])}" width="${bw}" height="${Math.max(0, padT + ih - yM(v[T_I.sales]))}" fill="#94a3b8" rx="1.5">`
+    g += `<rect class="ad-ch-sales" x="${x(i) - bw}" y="${yM(v[T_I.sales])}" width="${bw}" height="${Math.max(0, padT + ih - yM(v[T_I.sales]))}" fill="#94a3b8" rx="1.5">`
       + `<title>${esc(tPeriodLabel(k))} — Sales ${money(v[T_I.sales])}</title></rect>`
-      + `<rect x="${x(i)}" y="${yM(v[T_I.spend])}" width="${bw}" height="${Math.max(0, padT + ih - yM(v[T_I.spend]))}" fill="#6366f1" rx="1.5">`
+      + `<rect class="ad-ch-spend" x="${x(i)}" y="${yM(v[T_I.spend])}" width="${bw}" height="${Math.max(0, padT + ih - yM(v[T_I.spend]))}" fill="#6366f1" rx="1.5">`
       + `<title>${esc(tPeriodLabel(k))} — Ad spend ${money(v[T_I.spend])}</title></rect>`;
   });
   // --- the TACOS line and its points ---
@@ -790,18 +790,18 @@ function tChart(keys, agg) {
     path += (started ? ' L' : ' M') + x(i) + ' ' + yP(t);
     started = true;
   });
-  g += `<path d="${path}" fill="none" stroke="#ea580c" stroke-width="2"/>`;
+  g += `<path class="ad-ch-tacos" d="${path}" fill="none" stroke="#ea580c" stroke-width="2"/>`;
   keys.forEach((k, i) => {
     const t = tac(k);
     if (t == null) return;
-    g += `<circle cx="${x(i)}" cy="${yP(t)}" r="2.6" fill="#ea580c"><title>${esc(tPeriodLabel(k))} — TACOS ${t.toFixed(1)}%</title></circle>`;
+    g += `<circle class="ad-ch-dot" cx="${x(i)}" cy="${yP(t)}" r="2.6" fill="#ea580c"><title>${esc(tPeriodLabel(k))} — TACOS ${t.toFixed(1)}%</title></circle>`;
   });
   // --- the x axis labels ---
   // Labels thin out rather than overlap once the periods get tight.
   const step = Math.ceil(keys.length / 14);
   keys.forEach((k, i) => {
     if (i % step) return;
-    g += `<text x="${x(i)}" y="${H - 10}" text-anchor="middle" font-size="10" fill="#64748b">${esc(tPeriodLabel(k))}</text>`;
+    g += `<text class="ad-ch-label" x="${x(i)}" y="${H - 10}" text-anchor="middle" font-size="10" fill="#64748b">${esc(tPeriodLabel(k))}</text>`;
   });
   $('tChart').innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" style="max-width:none">${g}</svg>`;
 }

@@ -440,8 +440,8 @@ function sdChartDaily(pts) {
       + `<text class="sa-ch-axis" x="${padL - 8}" y="${yy + 4}" text-anchor="end" font-size="10" fill="#94a3b8">`
       + `$${Math.round(max * i / 4).toLocaleString('en-US')}</text>`;
   }
-  svg += `<path d="${area}" fill="#a855f7" opacity=".12"/>`
-    + `<path d="${line}" fill="none" stroke="#7c3aed" stroke-width="1.8"/>`;
+  svg += `<path class="sa-ch-area" d="${area}" fill="#a855f7" opacity=".12"/>`
+    + `<path class="sa-ch-line" d="${line}" fill="none" stroke="#7c3aed" stroke-width="1.8"/>`;
   const step = Math.ceil(pts.length / 8);
   pts.forEach((pt, i) => {
     if (i % step) return;
@@ -481,15 +481,15 @@ function sdChartMonthly(yr, lyr) {
   }
   for (let m = 0; m < 12; m++) {
     const cx = padL + slot * m + slot / 2;
-    svg += `<rect x="${cx - bw - 1}" y="${y(ty[m])}" width="${bw}" height="${Math.max(0, padT + ih - y(ty[m]))}" fill="#0d9488" rx="1.5">`
+    svg += `<rect class="sa-ch-ty" x="${cx - bw - 1}" y="${y(ty[m])}" width="${bw}" height="${Math.max(0, padT + ih - y(ty[m]))}" fill="#0d9488" rx="1.5">`
       + `<title>${MON[m]} ${yr} — $${Math.round(ty[m]).toLocaleString('en-US')}</title></rect>`
-      + `<rect x="${cx + 1}" y="${y(ly[m])}" width="${bw}" height="${Math.max(0, padT + ih - y(ly[m]))}" fill="#f97316" rx="1.5">`
+      + `<rect class="sa-ch-ly" x="${cx + 1}" y="${y(ly[m])}" width="${bw}" height="${Math.max(0, padT + ih - y(ly[m]))}" fill="#f97316" rx="1.5">`
       + `<title>${MON[m]} ${lyr} — $${Math.round(ly[m]).toLocaleString('en-US')}</title></rect>`
       + `<text class="sa-ch-label" x="${cx}" y="${H - 12}" text-anchor="middle" font-size="10" fill="#64748b">${MON[m]}</text>`;
   }
-  svg += `<rect x="${padL}" y="${H - 8}" width="9" height="9" fill="#0d9488" rx="1"/>`
+  svg += `<rect class="sa-ch-ty" x="${padL}" y="${H - 8}" width="9" height="9" fill="#0d9488" rx="1"/>`
     + `<text class="sa-ch-label" x="${padL + 13}" y="${H - 1}" font-size="10" fill="#64748b">This Year</text>`
-    + `<rect x="${padL + 70}" y="${H - 8}" width="9" height="9" fill="#f97316" rx="1"/>`
+    + `<rect class="sa-ch-ly" x="${padL + 70}" y="${H - 8}" width="9" height="9" fill="#f97316" rx="1"/>`
     + `<text class="sa-ch-label" x="${padL + 83}" y="${H - 1}" font-size="10" fill="#64748b">Last Year</text>`;
   $('sdChartMonthly').innerHTML = `<svg viewBox="0 0 ${W} ${H + 4}" class="sa-chart">${svg}</svg>`;
 }

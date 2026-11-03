@@ -1,97 +1,152 @@
   /* Listing optimiser: what a rewrite removed and what it added, marked in place. */
   .lo-gone{text-decoration:line-through;opacity:.45}
-  .lo-new{color:#166534;font-weight:700;background:#dcfce7;border-radius:3px;padding:0 2px}
+  .lo-new{color:var(--accent-ink);font-weight:700;background:var(--accent-bg);border-radius:3px;padding:0 2px}
   /* THE SIGN-IN SCREEN. Every rule is scoped under #loginView so none of it can reach a control
-     inside the app — which is the whole point of stopping at this screen. */
-  #loginView .card{background:transparent;border:0;box-shadow:none;padding:0;max-width:340px}
-  #loginView .signin{text-align:center;margin-bottom:30px}
-  #loginView .signin h1{font-family:var(--serif);font-weight:400;font-size:33px;letter-spacing:-.01em;
-    margin:20px 0 6px;color:var(--si-ink)}
-  #loginView .kicker{font-size:11px;letter-spacing:.15em;text-transform:uppercase;color:var(--si-faint);margin:0}
-  #loginView .sifield{margin-bottom:18px}
-  #loginView .sifield label{display:block;font-size:11px;letter-spacing:.11em;text-transform:uppercase;
-    color:var(--si-faint);margin:0 0 7px;font-weight:400}
-  /* A rule, not a box. The storefront frames almost nothing, and a boxed field inside a boxed card is
-     the first thing that would read as a different site. */
-  #loginView .sifield input{width:100%;padding:7px 0 9px;border:0;border-bottom:1px solid var(--si-rule);
-    border-radius:0;background:transparent;font-size:15px;color:var(--si-ink)}
-  #loginView .sifield input:focus{outline:0;border-bottom-color:var(--si-ink);box-shadow:none}
-  #loginView .sibtn{width:100%;padding:11px 28px;border-radius:24px;background:var(--si-btn);
-    color:var(--si-btn-ink);border:1px solid var(--si-btn);font-size:14px;font-weight:500;margin-top:6px}
-  #loginView .sifoot{font-size:12px;color:var(--si-faint);margin:20px 0 0;text-align:center}
+     inside the app. The screen fills the window and centres one lightly frosted card; its background
+     layers (phase 4) sit inside it, behind the card. :not(.hide), so auth.js can still hide it. */
+  #loginView:not(.hide){display:flex;align-items:center;justify-content:center;min-height:100vh;min-height:100dvh;
+    max-width:none;margin:0;padding:24px 16px;position:relative;overflow:hidden;background:var(--bg)}
+  #loginView .card{position:relative;z-index:1;width:100%;max-width:380px;margin:0;padding:36px 32px 28px;
+    border-radius:20px;border:1px solid var(--card-line);background:color-mix(in srgb,var(--card) 84%,transparent);
+    -webkit-backdrop-filter:blur(16px) saturate(160%);backdrop-filter:blur(16px) saturate(160%);box-shadow:var(--sh-3)}
+  #loginView .signin{text-align:center;margin-bottom:28px}
+  #loginView .silogo{width:56px;height:56px;margin:0 auto;border-radius:16px;display:flex;align-items:center;
+    justify-content:center;background:color-mix(in srgb,#FF9900 13%,var(--card));
+    box-shadow:inset 0 0 0 1px color-mix(in srgb,#FF9900 22%,transparent)}
+  #loginView .silogo svg{width:38px;height:13px;overflow:visible}
+  #loginView .signin h1{font-family:var(--serif);font-weight:400;font-size:30px;letter-spacing:-.01em;
+    line-height:1.15;margin:18px 0 6px;color:var(--si-ink)}
+  #loginView .kicker{font-size:12px;font-weight:500;letter-spacing:.12em;text-transform:uppercase;color:var(--si-faint);margin:0}
+  #loginView .sifield{margin-bottom:16px}
+  #loginView .sifield label{display:block;font-size:13px;font-weight:500;letter-spacing:0;text-transform:none;
+    color:var(--si-faint);margin:0 0 6px}
+  #loginView .sifield input{width:100%;height:42px;padding:0 12px;border:1px solid var(--si-rule);
+    border-radius:var(--r-ctl);background:var(--input);font-size:14px;color:var(--si-ink);
+    transition:border-color .15s ease,box-shadow .15s ease}
+  #loginView .sifield input:focus{outline:0;border-color:var(--ring-line);box-shadow:var(--ring)}
+  #loginView .sibtn{width:100%;height:42px;padding:0 20px;margin-top:8px;border-radius:var(--r-ctl);
+    background:var(--si-btn);color:var(--si-btn-ink);border:0;box-shadow:var(--sh-btn);font-size:14px;font-weight:600;
+    transition:background-color .15s ease}
+  #loginView .sibtn:hover{background:var(--brand-ink)}
+  #loginView .sibtn:focus-visible{outline:0;box-shadow:var(--ring)}
+  #loginView .sifoot{font-size:12.5px;color:var(--si-faint);margin:18px 0 0;text-align:center}
+  @media (prefers-reduced-motion:reduce){#loginView .sifield input,#loginView .sibtn{transition:none}}
+  /* THE TWO THEMES. Light is the default; dark is "black & blue". The dark values are written twice
+     on purpose: once for a choice made with the switch in the top bar (data-theme on <html>, set by
+     app/core/theme.js), and once for a computer set to dark when nobody has chosen. A light choice on
+     a dark computer matches neither, so it stays light. The names are the ones every screen already
+     uses. Each status comes as three: the colour itself (dots, rules, fills), a soft -bg tint behind
+     it, and an -ink colour for TEXT, which is the one that passes AA on white and on its own tint. */
   :root{
-    /* Cotton Print Club's ground, read off the live site — a 1% tint against the old #f6f7f9. It is
-       what makes the app feel of a piece with the storefront without touching a single control. */
-    --bg:#F3F5F8; --card:#fff; --ink:#14181F; --muted:#5A6472; --faint:#98A1AE; --line:#E8EDF3;
-    --soft:#F7F9FB;
-    /* Rounded, and the same rounded everywhere. */
-    --r-card:18px; --r-row:16px; --r-ctl:12px; --r-sm:10px; --r-pill:999px;
-    /* DEPTH, SET ONCE. Three steps and no more: a card barely off the page, a control that has been
-       pressed, and a dialog that is plainly above everything. */
-    --sh-1:0 2px 10px rgba(26,29,41,.05); --sh-2:0 4px 16px rgba(26,29,41,.08);
-    --sh-3:0 24px 64px rgba(20,24,31,.20);
-    /* Not a fourth step: the tinted lift under a primary button. The sign-in button draws it too and
-       must not change, so it keeps the value it has always had, in both themes. */
-    --sh-btn:0 4px 12px rgba(79,91,213,.26);
-    /* The storefront's own face: a SYSTEM serif, so nothing is fetched and nothing can fail to load.
-       Brand, sign-in and page titles only — never data. Its digits are proportional and would stop a
-       column of figures lining up. */
+    color-scheme:light;
+    --bg:#F5F7FB; --card:#fff; --card-line:#EDF0F6; --ink:#101828; --muted:#4D5A70; --faint:#8592A6;
+    --line:#E8ECF3; --soft:#FBFCFE; --hover:#F1F4F9; --input:#fff;
+    --glass:rgba(255,255,255,.72);   /* the frosted top bar */
+    --raise:#fff;   /* the chosen segment, raised off its track */
+    /* Rounded, and the same rounded everywhere: cards 16, controls 10. */
+    --r-card:16px; --r-row:12px; --r-ctl:10px; --r-sm:8px; --r-pill:999px;
+    /* DEPTH, SET ONCE: a card barely off the page, a panel over the work, a dialog above everything.
+       --sh-btn is the small lift under a filled button. */
+    --sh-1:0 1px 1px rgba(16,24,40,.03),0 10px 28px -14px rgba(16,24,40,.16);
+    --sh-2:0 2px 4px rgba(16,24,40,.04),0 18px 40px -16px rgba(16,24,40,.24);
+    --sh-3:0 24px 64px -12px rgba(16,24,40,.28);
+    --sh-btn:0 1px 2px rgba(16,24,40,.08);
+    /* The sign-in title's face. Its digits are proportional, so never on data. */
     --serif:"Libre Caslon Text","New York","Iowan Old Style",Baskerville,"Times New Roman",Times,serif;
-    /* The sign-in screen's own tokens. Defined in BOTH themes below: the storefront is a light world,
-       but this app has a dark one, and a literal black here would be black text on a dark ground. */
-    --si-ink:#000; --si-faint:rgba(0,0,0,.40); --si-rule:rgba(0,0,0,.13);
-    --si-btn:#000; --si-btn-ink:#fff;
-    /* The shop's slate blue, darkened until white text on it (--on-brand) is legible. */
-    --brand:#4A6A92; --brand-bg:#E9EFF6; --brand-ink:#3A5573; --on-brand:#fff;
-    --accent:#4A5A3C; --accent-bg:#EDF0E7; --bad:#850000; --bad-bg:#FBE9E9;
-    --warn:#8A5A12; --warn-bg:#FFF3D6; --input:#fff;
-    --warn-ink:var(--warn);   /* the ERP's name for the same gold; follows --warn in both themes */
-    --hover:#EFF2F6; --chip:#EDF0E7; --chip-ink:#4A5A3C;   /* filter chip */
-    /* The ring a keyboard leaves. A one-pixel border change is not one you can see across a room,
-       and this is a screen people work at all day. */
-    --ring:0 0 0 3px rgba(110,144,181,.28); --ring-line:#6E90B5;
-    /* ONE HEIGHT FOR EVERY CONTROL IN A TOOLBAR. Three different ones is the single thing that makes
-       a working screen look unfinished. */
+    /* THE ACCENT is --brand: filled buttons, the menu, focus, links and "info". White text on it. */
+    --brand:#2F6FED; --brand-bg:#EAF1FE; --brand-ink:#1F56C7; --on-brand:#fff;
+    /* Status. --accent is GOOD (it always was the app's positive colour), --bad is bad, --act needs
+       action, --rev needs review. --warn is the app's older name for needs-action and follows --act. */
+    --accent:#12A26B; --accent-bg:#E3F4ED; --accent-ink:#0B7A50;
+    --bad:#E5484D; --bad-bg:#FCE9EA; --bad-ink:#C0262D;
+    --act:#F07B1D; --act-bg:#FDEFE4; --act-ink:#A44A08;
+    --rev:#E2B007; --rev-bg:#FCF6E1; --rev-ink:#7A5C00;
+    --violet-ink:#5B21B6;   /* one more text colour, for the purple series (Price disc., budget share) */
+    --warn:var(--act); --warn-bg:var(--act-bg); --warn-ink:var(--act-ink);
+    --chip:#EEF2F8; --chip-ink:#344054;   /* filter chip */
+    /* The ring a keyboard leaves: 3px of the accent at about a fifth. */
+    --ring:0 0 0 3px rgba(47,111,237,.20); --ring-line:#2F6FED;
+    /* ONE HEIGHT FOR EVERY CONTROL IN A TOOLBAR. */
     --ctl:40px;
+    /* The sign-in screen's own tokens. */
+    --si-ink:#101828; --si-faint:#4D5A70; --si-rule:#D5DBE5;
+    --si-btn:#2F6FED; --si-btn-ink:#fff;
+    /* Backgrounds: the still aurora at the top of the app (1 top-left, 2 top-right), the sign-in
+       screen's third circle, and the sign-in constellation's dots and lines. */
+    --aur-1:rgba(47,111,237,.10); --aur-2:rgba(139,124,246,.08); --aur-3:rgba(44,198,216,.12);
+    --fx-dot:rgba(47,111,237,.28); --fx-line:rgba(47,111,237,.09);
   }
+  :root[data-theme="dark"]{
+    color-scheme:dark;
+    --bg:#0B0F17; --card:#121826; --card-line:#1F2838; --ink:#E8ECF4; --muted:#A3ADBF; --faint:#7B8699;
+    --line:#212A3A; --soft:#101624; --hover:#1A2233; --input:#0E1420; --glass:rgba(18,24,38,.72); --raise:#263049;
+    --sh-1:none; --sh-2:0 16px 40px -12px rgba(0,0,0,.55); --sh-3:0 24px 64px rgba(0,0,0,.6); --sh-btn:none;
+    --brand:#6B9BF2; --brand-bg:#1F2C45; --brand-ink:#9DBDF7; --on-brand:#0B0F17;
+    --accent:#4ADE80; --accent-bg:#1A3633; --accent-ink:#4ADE80;
+    --bad:#F87171; --bad-bg:#342531; --bad-ink:#F87171;
+    --act:#FB923C; --act-bg:#352A29; --act-ink:#FB923C;
+    --rev:#FACC15; --rev-bg:#353323; --rev-ink:#FACC15; --violet-ink:#C4B5FD;
+    --chip:#1A2233; --chip-ink:#C9D2E1;
+    --ring:0 0 0 3px rgba(107,155,242,.24); --ring-line:#6B9BF2;
+    --si-ink:#E8ECF4; --si-faint:#A3ADBF; --si-rule:#2A3446;
+    --si-btn:#6B9BF2; --si-btn-ink:#0B0F17;
+    --aur-1:rgba(59,108,246,.18); --aur-2:rgba(124,92,255,.14); --aur-3:rgba(34,195,238,.18);
+    --fx-dot:rgba(169,196,245,.70); --fx-line:rgba(169,196,245,.14);
+  }
+  /* The same dark values, for a dark computer when nobody has chosen. Keep the two lists identical. */
   @media (prefers-color-scheme:dark){
-    :root{
-      --bg:#0b1120; --card:#111827; --ink:#e5e7eb; --muted:#94a3b8; --line:#1f2937;
-      --brand:#e5e7eb; --accent:#4ade80; --accent-bg:#052e16; --bad:#fca5a5; --bad-bg:#450a0a;
-      --warn:#fde68a; --warn-bg:#422006; --input:#0f172a;
-      --hover:#1e293b; --chip:#14301a; --chip-ink:#a3e635;
-      /* The first four had no dark value, so the menu's "on" item and a hovered row were light on
-         light here. --brand is light in this theme, so the text on it is dark. */
-      --faint:#64748b; --soft:#172033; --brand-bg:#1d3352; --brand-ink:#a9c1e0; --on-brand:#0b1120;
-      --ring:0 0 0 3px rgba(143,170,203,.40); --ring-line:#8FAACB; --sh-3:0 24px 64px rgba(0,0,0,.55);
-      /* No dark value on purpose: --warn-ink follows --warn, --sh-btn is drawn by the sign-in and
-         must not move, and --ctl is a size. */
-      /* Same sign-in, legible on the dark ground. The shape stays — rules not boxes, serif, pill
-         button — only the ink and the rule move. */
-      --si-ink:#e5e7eb; --si-faint:rgba(229,231,235,.45); --si-rule:rgba(229,231,235,.20);
-      --si-btn:#e5e7eb; --si-btn-ink:#0b1120;
+    :root:not([data-theme="light"]){
+      color-scheme:dark;
+      --bg:#0B0F17; --card:#121826; --card-line:#1F2838; --ink:#E8ECF4; --muted:#A3ADBF; --faint:#7B8699;
+      --line:#212A3A; --soft:#101624; --hover:#1A2233; --input:#0E1420; --glass:rgba(18,24,38,.72); --raise:#263049;
+      --sh-1:none; --sh-2:0 16px 40px -12px rgba(0,0,0,.55); --sh-3:0 24px 64px rgba(0,0,0,.6); --sh-btn:none;
+      --brand:#6B9BF2; --brand-bg:#1F2C45; --brand-ink:#9DBDF7; --on-brand:#0B0F17;
+      --accent:#4ADE80; --accent-bg:#1A3633; --accent-ink:#4ADE80;
+      --bad:#F87171; --bad-bg:#342531; --bad-ink:#F87171;
+      --act:#FB923C; --act-bg:#352A29; --act-ink:#FB923C;
+      --rev:#FACC15; --rev-bg:#353323; --rev-ink:#FACC15; --violet-ink:#C4B5FD;
+      --chip:#1A2233; --chip-ink:#C9D2E1;
+      --ring:0 0 0 3px rgba(107,155,242,.24); --ring-line:#6B9BF2;
+      --si-ink:#E8ECF4; --si-faint:#A3ADBF; --si-rule:#2A3446;
+      --si-btn:#6B9BF2; --si-btn-ink:#0B0F17;
+      --aur-1:rgba(59,108,246,.18); --aur-2:rgba(124,92,255,.14); --aur-3:rgba(34,195,238,.18);
+      --fx-dot:rgba(169,196,245,.70); --fx-line:rgba(169,196,245,.14);
     }
   }
+  /* The sign-in screen's aurora is stronger than the app's, in both themes. */
+  #loginView{--aur-1:rgba(47,111,237,.18); --aur-2:rgba(139,124,246,.16); --aur-3:rgba(44,198,216,.12)}
+  :root[data-theme="dark"] #loginView{--aur-1:rgba(59,108,246,.35); --aur-2:rgba(124,92,255,.28); --aur-3:rgba(34,195,238,.18)}
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]) #loginView{--aur-1:rgba(59,108,246,.35); --aur-2:rgba(124,92,255,.28); --aur-3:rgba(34,195,238,.18)}
+  }
   *{box-sizing:border-box}
+  /* Inter for everything that is read, at its optical size. */
   body{margin:0;background:var(--bg);color:var(--ink);
-    font:15px/1.6 "Plus Jakarta Sans",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
-    -webkit-font-smoothing:antialiased}
+    font:14px/1.5 Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;font-optical-sizing:auto;
+    -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
   .wrap{max-width:1320px;margin:0 auto;padding:14px 16px}
 
-  /* App shell: fixed sidebar + independently scrolling main column.
-     `min-width:0` on .main is what stops wide tables from pushing the layout and overlapping. */
-  .shell{display:flex;align-items:stretch;min-height:100vh}
-  /* THE MENU IS A BAR ACROSS THE TOP (design 7) — the same shape as the Replenishment app, so the
-     two read as one tool. It wraps rather than scrolling sideways. */
-  .shell{flex-direction:column;align-items:stretch}
-  .side{flex:0 0 auto;position:sticky;top:0;z-index:60;width:100%;height:auto;overflow:visible;
-    background:var(--card);box-shadow:var(--sh-1);padding:7px 16px;display:flex;flex-direction:row;
-    align-items:center;gap:2px;flex-wrap:wrap}
-  .navwrap{position:relative}
-  .brand{font-family:var(--serif);font-weight:400;font-size:17px;padding:0 14px 0 2px;letter-spacing:-.01em;line-height:1.1;white-space:nowrap}
+  /* ---------- THE APP SHELL ----------
+     The menu is a bar across the top, sticky and lightly frosted — the only glass inside the app. It
+     stays position:sticky on a wide screen: ppc-new.js measures it only while it is, to park its own
+     toolbar underneath. On a phone (860px and under, the width nav.js calls NARROW) the same bar is
+     the drawer the ☰ button opens. `min-width:0` on .main stops wide tables pushing the layout. */
+  .shell{display:flex;flex-direction:column;align-items:stretch;min-height:100vh}
+  .side{flex:0 0 auto;position:sticky;top:0;z-index:60;width:100%;min-height:60px;display:flex;
+    flex-direction:row;align-items:center;flex-wrap:wrap;gap:2px 4px;padding:12px 24px;
+    background:var(--glass);-webkit-backdrop-filter:saturate(180%) blur(14px);backdrop-filter:saturate(180%) blur(14px);
+    border-bottom:1px solid var(--line)}
+  @supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){.side{background:var(--card)}}
+  /* The mark: the orange swoosh in a rounded tile, then the name. */
+  .brand{display:flex;align-items:center;gap:10px;padding:0 16px 0 0;font-size:16px;font-weight:700;
+    letter-spacing:-.01em;line-height:1;white-space:nowrap;color:var(--ink)}
+  .brandtile{flex:none;width:32px;height:32px;border-radius:9px;display:inline-flex;align-items:center;
+    justify-content:center;background:color-mix(in srgb,#FF9900 13%,var(--card));
+    box-shadow:inset 0 0 0 1px color-mix(in srgb,#FF9900 22%,transparent)}
+  .brandtile svg{width:22px;height:8px;overflow:visible}
+  .logo-arc{stroke:#FF9900}
+  .logo-tip{fill:#FF9900}
   .side .navclose{display:none}
-  .sidefoot{margin:0 0 0 auto;padding:0;border-top:0;display:flex;align-items:center;gap:2px}
-  .sidefoot .nav{width:auto}
   /* the Settings menu (3 Nov): Settings · Access */
   .setwrap{position:relative}
   .setwrap .caret{font-size:10px;margin-left:2px}
@@ -129,8 +184,20 @@
   --av3b: #ece4fd; --av3f: #5b34b0; --av4b: #fde2e2; --av4f: #a52a1e; --av5b: #d9f1f3; --av5f: #0e6670; --toast: #172033;
   color-scheme: light;
 }
+/* Dark follows the sun/moon switch (data-theme on <html>), and the computer's own setting when nothing is picked. */
+:root[data-theme="dark"] .acx {
+  --bg: #0f1218; --surface: #171b23; --surface-2: #1c212b; --hover: #222834; --text: #e7eaf0; --muted: #a2aaba; --faint: #747d8e;
+  --line: #2a303c; --line-strong: #3a4250;
+  --accent: #5b8def; --accent-hover: #7aa3f3; --accent-soft: #1b2740; --accent-text: #a9c4f7;
+  --ok: #4cc38a; --ok-soft: #13291f; --warn: #e6a94e; --warn-soft: #2e2410; --bad: #f2877b; --bad-soft: #351b18;
+  --special: #b39cf0; --special-soft: #251f3a;
+  --shadow: none; --shadow-lg: 0 20px 40px -12px rgba(0, 0, 0, .6);
+  color-scheme: dark;
+  --av0b: #1f2d4a; --av0f: #a9c4f7; --av1b: #16301f; --av1f: #7fd6a8; --av2b: #33270f; --av2f: #e6a94e;
+  --av3b: #2a2140; --av3f: #c3aef4; --av4b: #3a1d1b; --av4f: #f2877b; --av5b: #13302f; --av5f: #7fd3da; --toast: #2a3140;
+}
 @media (prefers-color-scheme: dark) {
-  .acx {
+  :root:not([data-theme="light"]) .acx {
     --bg: #0f1218; --surface: #171b23; --surface-2: #1c212b; --hover: #222834; --text: #e7eaf0; --muted: #a2aaba; --faint: #747d8e;
     --line: #2a303c; --line-strong: #3a4250;
     --accent: #5b8def; --accent-hover: #7aa3f3; --accent-soft: #1b2740; --accent-text: #a9c4f7;
@@ -404,52 +471,117 @@
   .acx .topbar{position:static;height:60px}
   .acx .sidenav{position:static;height:auto;top:auto}
   .acx .prev{margin:0 0 12px;padding:10px 14px;border-radius:8px;background:var(--warn-soft);color:var(--warn);font-size:13px}
-  .topbar .hamb{display:none}
-  .main{padding:16px 22px}
-  /* Group headings are buttons, not labels: each one opens and closes the .navsec directly after
-     it. Seller Central works this way, and it keeps a thirteen-tab sidebar to one screen. */
-  .navgrp{display:flex;align-items:center;gap:6px;width:auto;text-align:left;background:transparent;
-    border:0;cursor:pointer;font:inherit;font-size:12.5px;font-weight:600;text-transform:none;
-    letter-spacing:0;color:var(--muted);padding:8px 11px;border-radius:var(--r-sm);box-shadow:none;min-height:0;
-    white-space:nowrap}
-  .navgrp:hover{color:var(--ink);background:var(--hover)}
-  .navgrp.open{background:var(--brand-bg);color:var(--brand)}
-  .navgrp.here{color:var(--brand);font-weight:800}
-  .navgrp .caret{flex:none;font-size:10px;line-height:1;transition:transform .16s ease}
-  .navgrp.open .caret{transform:rotate(90deg)}
+  .navwrap{position:relative}
+  /* GROUPS: soft pills, an icon drawn in CSS (one per data-grp), the label, then a chevron that turns
+     when the group is open. The group holding the screen on view (.here, set by nav.js) is tinted. */
+  .navgrp{display:inline-flex;align-items:center;gap:7px;width:auto;height:36px;padding:0 12px;
+    text-align:left;background:transparent;border:0;border-radius:var(--r-pill);box-shadow:none;min-height:0;
+    cursor:pointer;font:inherit;font-size:13.5px;font-weight:500;letter-spacing:0;text-transform:none;
+    color:var(--muted);white-space:nowrap;transition:background-color .15s ease,color .15s ease}
+  .navgrp::before{content:"";flex:none;width:16px;height:16px;background:currentColor;
+    mask:var(--ic) center/contain no-repeat}
+  .navgrp[data-grp="research"]{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='m20 20-3.5-3.5'/%3E%3C/svg%3E")}
+  .navgrp[data-grp="sales"]{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 17l6-6 4 4 8-8'/%3E%3Cpath d='M15 7h6v6'/%3E%3C/svg%3E")}
+  .navgrp[data-grp="listing"]{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9 6h11M9 12h11M9 18h11'/%3E%3Cpath d='M4 6h.01M4 12h.01M4 18h.01'/%3E%3C/svg%3E")}
+  .navgrp[data-grp="ads"]{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 10v4a1 1 0 0 0 1 1h3l5 4V5L7 9H4a1 1 0 0 0-1 1z'/%3E%3Cpath d='M16 9a4 4 0 0 1 0 6M19 6a8 8 0 0 1 0 12'/%3E%3C/svg%3E")}
+  .navgrp[data-grp="inv"]{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 8l-9-5-9 5 9 5 9-5z'/%3E%3Cpath d='M3 8v8l9 5 9-5V8M12 13v8'/%3E%3C/svg%3E")}
+  .navgrp[data-grp="social"]{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='18' cy='5' r='3'/%3E%3Ccircle cx='6' cy='12' r='3'/%3E%3Ccircle cx='18' cy='19' r='3'/%3E%3Cpath d='m8.6 13.5 6.8 4M15.4 6.5l-6.8 4'/%3E%3C/svg%3E")}
+  /* The chevron: the ▸ in the markup is hidden and a drawn one put after the label. */
+  .navgrp .caret{order:1;flex:none;width:12px;height:12px;font-size:0;line-height:0;background:currentColor;opacity:.7;
+    mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") center/contain no-repeat;
+    transition:transform .15s ease}
+  .navgrp:hover{background:var(--hover);color:var(--ink)}
+  .navgrp.open{background:var(--hover);color:var(--ink)}
+  .navgrp.open .caret{transform:rotate(180deg)}
+  .navgrp.here,.navgrp.here:hover,.navgrp.here.open{background:var(--brand-bg);color:var(--brand-ink);font-weight:600}
+  /* THE DROP-DOWN: a clean card under the bar, the group's screens as rows. It fades in from 4px up;
+     only FROM is given, so it always ends fully shown. */
   .navsec{display:none}
-  .navsec.open{display:block;position:absolute;top:calc(100% + 7px);left:0;min-width:250px;
-    background:var(--card);border-radius:var(--r-card);box-shadow:var(--sh-2);padding:7px;z-index:70}
+  .navsec.open{display:block;position:absolute;top:calc(100% + 14px);left:0;z-index:70;min-width:240px;padding:8px;
+    background:var(--card);border:1px solid var(--card-line);border-radius:12px;box-shadow:var(--sh-2);
+    animation:navIn .12s ease-out}
+  @keyframes navIn{from{opacity:0;transform:translateY(-4px)}}
   .navwrap:nth-last-child(-n+2) .navsec.open{left:auto;right:0}
-  .nav{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:transparent;
-    color:var(--ink);border:0;border-radius:8px;padding:7px 12px;font-weight:500;font-size:13.5px;
-    /* FLAT, and no minimum height: the shared button rule would otherwise make each item a card. */
-    box-shadow:none;min-height:0;line-height:1.35;margin-bottom:1px;border-radius:var(--r-ctl)}
+  .nav{display:flex;align-items:center;gap:10px;width:100%;min-height:36px;padding:7px 12px;margin:0 0 2px;
+    text-align:left;background:transparent;color:var(--ink);border:0;border-radius:8px;box-shadow:none;
+    font-weight:500;font-size:13.5px;line-height:1.35;transition:background-color .12s ease}
+  .navsec .nav:last-child{margin-bottom:0}
   .nav:hover{background:var(--hover)}
-  .nav.on{background:var(--brand-bg);color:var(--brand);font-weight:700}
-  .sidefoot{margin-top:auto;padding-top:10px;border-top:1px solid var(--line)}
-  .navclose{margin-left:auto;flex:none;width:28px;height:28px;padding:0;display:inline-flex;
-    align-items:center;justify-content:center;background:transparent;color:var(--muted);
-    border:0;border-radius:8px;font-size:17px;line-height:1}
+  .nav.on,.nav.on:hover{background:var(--brand-bg);color:var(--brand-ink);font-weight:600}
+  /* The TEST tag on a menu row: a small amber pill with a dot. */
+  .navtag{display:inline-flex;align-items:center;gap:5px;margin-left:4px;padding:1px 7px 1px 6px;
+    border-radius:var(--r-pill);background:var(--act-bg);color:var(--act-ink);font-size:10px;font-weight:700;
+    letter-spacing:.06em;line-height:16px}
+  .navtag::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--act)}
+  /* RIGHT OF THE BAR: the theme switch, the guide, Settings and Sign out. */
+  .sidefoot{margin:0 0 0 auto;padding:0;border:0;display:flex;align-items:center;gap:2px}
+  .sidefoot .nav{width:auto;height:36px;min-height:0;margin:0;padding:0 12px;border-radius:var(--r-pill);
+    color:var(--muted);white-space:nowrap}
+  .sidefoot .nav:hover{color:var(--ink)}
+  .sidefoot .nav.on{color:var(--brand-ink)}
+  .side #guideBtn{flex:none;height:36px;padding:0 12px;border-radius:var(--r-pill);background:transparent;
+    color:var(--muted);box-shadow:none;font-size:13.5px;font-weight:500;white-space:nowrap}
+  .side #guideBtn:hover{background:var(--hover);color:var(--ink)}
+  /* THE THEME SWITCH (app/core/theme.js): an icon button showing the theme in use — the sun in
+     light, the moon in dark. theme.js keeps aria-pressed in step, and the icon follows it. */
+  .themesw{flex:none;width:36px;height:36px;padding:0;display:inline-flex;align-items:center;
+    justify-content:center;background:transparent;color:var(--muted);border:0;border-radius:var(--r-pill);
+    box-shadow:none;min-height:0;transition:background-color .15s ease,color .15s ease}
+  .themesw:hover{background:var(--hover);color:var(--ink)}
+  .themesw svg{width:18px;height:18px;flex:none}
+  .themesw .ic-moon,.themesw[aria-pressed="true"] .ic-sun{display:none}
+  .themesw[aria-pressed="true"] .ic-moon{display:block}
+  .navclose{flex:none;width:32px;height:32px;padding:0;display:inline-flex;align-items:center;
+    justify-content:center;background:transparent;color:var(--muted);border:0;border-radius:var(--r-pill);
+    box-shadow:none;font-size:20px;line-height:1}
   .navclose:hover{background:var(--hover);color:var(--ink)}
-  /* Every screen and dialog reads at 14px on 1.5. EVERY FIGURE ON THE PAGE LINES UP: tabular digits
-     throughout, so a total ticking from 145,539 to 146,002 does not shift the tile beside it. Set here
-     rather than on body, so the sign-in screen and the menu bar, which inherit from body, stay exactly
-     as they were. */
-  .main{flex:1;min-width:0;padding:26px 30px;font-size:14px;line-height:1.5;font-variant-numeric:tabular-nums}
-  /* The 3-line button sits beside the page title and hides the sidebar entirely. */
+  /* A narrower desktop: the group icons go before anything wraps. */
+  @media (min-width:861px) and (max-width:1199px){
+    .side{padding:12px 16px}
+    .navgrp{padding:0 10px}
+    .navgrp::before{display:none}
+  }
+  /* THE CONTENT. Every screen and dialog reads at 14px on 1.5, and every figure lines up: tabular
+     digits throughout, so a total ticking from 145,539 to 146,002 does not shift the tile beside it. */
+  .main{flex:1;min-width:0;padding:24px 28px;font-size:14px;line-height:1.5;font-variant-numeric:tabular-nums}
+  /* The title row: the ☰ (phones only) and the page title. */
   .topbar{display:flex;align-items:center;gap:12px;margin:0 0 20px}
-  .hamb{flex:none;width:40px;height:40px;padding:0;display:inline-flex;align-items:center;
-    justify-content:center;background:transparent;color:var(--ink);border:1px solid var(--line);
-    border-radius:10px}
+  .hamb{display:none;flex:none;width:40px;height:40px;padding:0;align-items:center;justify-content:center;
+    background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:var(--r-ctl);box-shadow:none}
   .hamb:hover{background:var(--hover)}
-  .shell.navshut .side{display:none}
-  /* Scrim only ever appears over the narrow-screen drawer; tapping it closes the menu. */
-  #navScrim{display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:55}
-  /* ONE SCALE, AND IT STEPS PROPERLY: page heading 32 — brand 19 — nav 13.5 — group label 11.
-     They were 23 / 20 / 15 / 11, which is barely a step at all: the thing naming the page read the
-     same weight as the list of links beside it, so nothing told you where you were. */
-  .pagehead{font-size:26px;font-weight:800;letter-spacing:-.022em;margin:0;line-height:1.15}
+  .pagehead{font-size:21px;font-weight:700;letter-spacing:-.02em;margin:0;line-height:1.25}
+  /* The shade behind the phone drawer; tapping it closes the menu. */
+  #navScrim{display:none;position:fixed;inset:0;background:rgba(10,14,22,.45);z-index:55}
+  /* THE PHONE DRAWER. Same markup, same buttons, same nav.js: the bar becomes a panel down the left that
+     slides in when navshut comes off #appView. On a wide screen navshut changes nothing — the bar is the
+     only way to the screens there, and there is no ☰ to bring it back. */
+  @media(max-width:860px){
+    .side{position:fixed;top:0;left:0;bottom:0;z-index:60;width:min(300px,86vw);height:100vh;height:100dvh;
+      min-height:0;flex-direction:column;flex-wrap:nowrap;align-items:stretch;gap:2px;padding:14px 12px;
+      overflow-y:auto;background:var(--card);-webkit-backdrop-filter:none;backdrop-filter:none;
+      border-bottom:0;border-right:1px solid var(--line);box-shadow:var(--sh-3);
+      transition:transform .2s ease,visibility .2s}
+    .shell.navshut .side{transform:translateX(-100%);visibility:hidden;box-shadow:none}
+    .shell:not(.navshut) #navScrim{display:block;animation:fadeIn .15s ease-out}
+    .brand{padding:2px 4px 12px}
+    .side .navclose{display:inline-flex;margin-left:auto}
+    .navwrap{width:100%}
+    .navgrp{width:100%;height:40px;border-radius:var(--r-ctl)}
+    .navgrp .caret{margin-left:auto}
+    /* A group opens in place under its heading, not as a card over the drawer. */
+    .navsec.open{position:static;min-width:0;margin:2px 0 6px;padding:0 0 0 14px;border:0;border-radius:0;
+      background:transparent;box-shadow:none;animation:none}
+    .nav{min-height:38px}
+    .sidefoot{margin:auto 0 0;padding:10px 0 0;border-top:1px solid var(--line);flex-wrap:wrap}
+    .sidefoot .nav{height:38px}
+    .hamb{display:inline-flex}
+    .main{padding:16px}
+  }
+  @keyframes fadeIn{from{opacity:0}}
+  @media (prefers-reduced-motion:reduce){
+    .navsec.open,.shell:not(.navshut) #navScrim{animation:none}
+    .side,.navgrp,.navgrp .caret,.nav,.themesw{transition:none}
+  }
   /* Euka-style filter chip + metric block */
   .chip{display:inline-flex;align-items:center;gap:8px;background:var(--chip);color:var(--chip-ink);
     border-radius:999px;padding:8px 15px;font-size:13px;font-weight:600}
@@ -466,15 +598,23 @@
     justify-content:center;line-height:1}
   .toolbar .seg{flex:0 0 auto;height:var(--ctl)}
   .toolbar .segbtn{padding-top:0;padding-bottom:0}
+  /* A search box says so: a magnifier drawn in front of every Filter… / Search… field on a bar. */
+  .toolbar input:is([placeholder^="Filter"],[placeholder^="Search"]){padding-left:34px;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238592A6' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='m20 20-3.5-3.5'/%3E%3C/svg%3E");
+    background-repeat:no-repeat;background-position:12px 50%;background-size:15px}
   #ageMsg:empty{display:none}          /* no empty gap under the bar when there's nothing to say */
   #ageMsg{margin-top:10px}
 
-  /* Segmented toggle (Parent ASINs | Child ASINs), rounded like every other toolbar control. Flat at
-     rest: without box-shadow:none each segment wore the primary button's lift. */
-  .seg{display:inline-flex;background:var(--hover);border-radius:var(--r-ctl);padding:3px;gap:2px}
-  .segbtn{background:transparent;color:var(--muted);border:0;border-radius:var(--r-sm);padding:8px 16px;
-    font-weight:600;font-size:14px;box-shadow:none}
-  .segbtn.on{background:var(--card);color:var(--ink);box-shadow:var(--sh-1)}
+  /* Segmented toggle (Parent ASINs | Child ASINs): a soft grey track, and the chosen one a raised pill
+     (white in light, a lighter navy in dark). The Sales Dashboard's brand toggle is the same control. */
+  .seg,.sd-toggle{display:inline-flex;align-items:stretch;background:color-mix(in srgb,var(--ink) 6%,var(--card));
+    border:0;border-radius:var(--r-ctl);padding:3px;gap:2px;overflow:visible}
+  .segbtn,.sd-toggle button{background:transparent;color:var(--muted);border:0;border-radius:var(--r-sm);padding:7px 14px;
+    font-weight:500;font-size:13.5px;line-height:1.2;box-shadow:none;cursor:pointer;
+    transition:background-color .15s ease,color .15s ease}
+  .segbtn:hover,.sd-toggle button:hover{background:transparent;color:var(--ink)}
+  .segbtn.on,.segbtn.on:hover,.sd-toggle button.on,.sd-toggle button.on:hover{background:var(--raise);color:var(--ink);
+    font-weight:600;box-shadow:var(--sh-btn)}
 
   /* Excel-style grid: frozen header row + frozen first column, own scroll box. */
   /* Two classes so this beats `.card`'s padding. A sticky `top:0`/`left:0` anchors to the PADDING
@@ -488,15 +628,18 @@
   table.xl{border-collapse:separate;border-spacing:0;width:auto;min-width:100%;font-size:13px}
   /* NO GRID. Vertical rules between every column are what made a table of figures read as graph
      paper; the columns are held apart by their own space, and only a hairline separates rows. Text
-     reads from the left, figures (.num) from the right. 12px all round makes a row of about 44px. */
+     reads from the left, figures (.num) from the right. 10px by 12px makes a row of about 40px. */
   table.xl th,table.xl td{border-right:0;border-bottom:1px solid var(--line);
-    padding:12px;white-space:nowrap;text-align:left;vertical-align:middle}
-  /* THE HEADER IS ABOVE THE DATA, and looks it: small uppercase in the faint ink over a hairline,
-     shorter than a row. One row of sticky cells, so the inset shadow costs nothing. z-index must
-     beat the frozen first column or rows paint over it. */
-  table.xl thead th{position:sticky;top:0;z-index:5;background:var(--card);color:var(--faint);box-shadow:inset 0 -1px 0 var(--line);
-    font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;cursor:pointer;
-    user-select:none;padding-top:8px;padding-bottom:8px}
+    padding:10px 12px;white-space:nowrap;text-align:left;vertical-align:middle}
+  /* THE HEADER IS ABOVE THE DATA, and looks it: small uppercase, letter-spaced, grey, on a light band
+     over a hairline. One row of sticky cells, so the inset shadow costs nothing. z-index must beat
+     the frozen first column or rows paint over it. Muted rather than faint, so it passes AA. */
+  table.xl thead th{position:sticky;top:0;z-index:5;background:var(--soft);color:var(--muted);box-shadow:inset 0 -1px 0 var(--line);
+    font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;cursor:pointer;
+    user-select:none;padding-top:9px;padding-bottom:9px}
+  /* A group heading spanning several columns (two header rows): centred, over a firmer rule. */
+  table.xl thead tr:not(:last-child) th[colspan]{text-align:center;color:var(--ink);
+    box-shadow:inset 0 -2px 0 color-mix(in srgb,var(--ink) 14%,var(--card))}
   table.xl thead th:hover{color:var(--ink)}
   /* The row under the pointer, its frozen cell too: an even row's frozen cell is tinted, and without
      td.frz here it stayed tinted while the rest of its row lit up. */
@@ -504,7 +647,8 @@
   table.xl .num{text-align:right;font-variant-numeric:tabular-nums}
   /* No box-shadow here: a shadow on every sticky cell is repainted on each horizontal scroll frame,
      and these grids are wide enough that it dominates. There is no divider to draw either: NO GRID. */
-  table.xl .frz{position:sticky;left:0;z-index:2;background:var(--card);font-family:ui-monospace,monospace}
+  table.xl .frz{position:sticky;left:0;z-index:2;background:var(--card);font-family:ui-monospace,monospace;
+    border-right:1px solid var(--line)}
   /* TOTAL row: a second header row, so it stays put while the body scrolls under it. `top` is set
      in JS from the title row's measured height — hard-coding it breaks the moment a header wraps.
      The brand tint, the same one PPC-new's total row uses. */
@@ -518,21 +662,22 @@
   #dPlanTable tbody tr:nth-child(even) .pfz{background:var(--bg)}
   /* A frozen HEADER cell is sticky in both directions at once, so it has to outrank both the
      header row (which is sticky vertically) and the frozen column (sticky horizontally). */
-  #dPlanTable thead .pfz{z-index:9}
+  #dPlanTable thead .pfz{z-index:9;background:var(--soft)}
   #dPlanTable thead th{position:sticky;z-index:6}
   /* One line down the right edge of the frozen block, so the split is obvious while scrolling. */
-  #dPlanTable .pfz-last{border-right:2px solid #cbd5e1}
+  #dPlanTable .pfz-last{border-right:2px solid color-mix(in srgb,var(--ink) 16%,var(--card))}
+  #dPlanTable .frz{border-right:0}
   table.xl tbody tr:nth-child(even) .frz{background:var(--bg)}
-  table.xl thead .frz{z-index:6;background:var(--hover)}
+  table.xl thead .frz{z-index:6;background:var(--soft)}
   /* TOTAL stays pinned to the bottom of the scroll box. Safe now that the wrapper has no padding —
      the earlier bleed was that padding gap, not the stickiness. Needs a z-index above the body's
      frozen column (2), and the bottom-left corner cell must beat the whole footer row. */
-  table.xl tfoot td{position:sticky;bottom:0;z-index:5;background:var(--card);font-weight:700;
+  table.xl tfoot td{position:sticky;bottom:0;z-index:5;background:var(--brand-bg);font-weight:700;
     border-top:2px solid var(--line);box-shadow:0 -1px 0 var(--line)}
-  table.xl tfoot .frz{z-index:7;background:var(--card)}
+  table.xl tfoot .frz{z-index:7;background:var(--brand-bg)}
   /* .xl-dense: a grid packed tight enough that every column sits on one screen. Only the rows shrink;
      the header keeps its own size. */
-  table.xl.xl-dense th,table.xl.xl-dense td{padding:4px 8px;line-height:1.3}
+  table.xl.xl-dense th,table.xl.xl-dense td{padding:7px 10px;line-height:1.3}
   table.xl.xl-dense td{font-size:12.5px}
   table.xl.xl-dense td .sub{display:block;font-size:10.5px;color:var(--muted);font-weight:400;white-space:nowrap}
   table.xl.xl-dense td.wrap{white-space:normal;max-width:320px;text-align:left;font-size:12px}
@@ -541,95 +686,131 @@
      stretching to half the screen; they wrap on narrow windows. */
   /* Cards GROW to share the row (all four metrics sit on one line) rather than growing taller and
      leaving the right-hand side empty. */
-  /* ---- Sales dashboard. Written out by hand rather than pulled in with Tailwind: this app loads
-     no external scripts, and the whole design is these few components. Colours and sizes are the
-     Tailwind values the original used, so it looks identical. ---- */
-  .sd-toggle{display:inline-flex;border:1px solid #cbd5e1;border-radius:6px;overflow:hidden}
-  .sd-toggle button{border:0;background:#fff;color:#475569;font-size:14px;font-weight:600;
-    padding:6px 12px;cursor:pointer}
-  .sd-toggle button:hover{background:#f8fafc}
-  .sd-toggle button.on{background:#0891b2;color:#fff}
+  /* ---- Sales dashboard. Written out by hand: this app loads no external scripts, and the whole
+     design is these few components. The six period cards each carry their own colour (--glow): a
+     soft glow in the top-right corner, and a tinted chip with that period's icon before the label.
+     --glow-a is how strong the glow is — stronger on the dark ground, where a light one disappears. */
   .sd-kpis{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:16px;margin-bottom:24px}
   @media (max-width:1400px){ .sd-kpis{grid-template-columns:repeat(3,minmax(0,1fr))} }
   @media (max-width:900px){ .sd-kpis{grid-template-columns:repeat(2,minmax(0,1fr))} }
-  .sd-card{background:#fff;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,.1),0 1px 2px rgba(0,0,0,.06);
-    border-left:4px solid #94a3b8;padding:16px}
-  .sd-card .lbl{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:#64748b;font-weight:600}
-  .sd-card .val{font-size:24px;font-weight:700;color:#0f172a;margin-top:4px;line-height:1.2}
-  .sd-card .sub{font-size:12px;color:#64748b;margin-top:4px}
-  .sd-b-cyan{border-left-color:#06b6d4} .sd-b-teal{border-left-color:#14b8a6}
-  .sd-b-orange{border-left-color:#f97316} .sd-b-purple{border-left-color:#a855f7}
-  .sd-b-pink{border-left-color:#ec4899} .sd-b-indigo{border-left-color:#6366f1}
-  .sd-panel{background:#fff;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,.1),0 1px 2px rgba(0,0,0,.06);
-    padding:16px;margin-bottom:24px}
-  .sd-h2{font-size:14px;font-weight:600;color:#334155;margin:0 0 12px}
+  .sd-card{--glow:#94a3b8;--glow-a:17%;position:relative;padding:16px 18px;border:1px solid var(--card-line);
+    border-radius:var(--r-card);box-shadow:var(--sh-1);transition:box-shadow .15s ease;
+    background:radial-gradient(190px 140px at 100% 0%,color-mix(in srgb,var(--glow) var(--glow-a),transparent),transparent 72%),var(--card)}
+  :root[data-theme="dark"] .sd-card{--glow-a:24%}
+  @media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .sd-card{--glow-a:24%}}
+  .sd-card .lbl{display:flex;align-items:center;gap:10px;min-height:34px;font-size:12px;font-weight:600;
+    text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+  .sd-card .lbl::before{content:"";flex:none;width:30px;height:30px;border-radius:9px;
+    background:no-repeat center/16px,color-mix(in srgb,var(--glow) 16%,transparent)}
+  .sd-card .val{font-size:24px;font-weight:700;letter-spacing:-.02em;color:var(--ink);margin-top:10px;line-height:1.2;
+    font-variant-numeric:tabular-nums}
+  .sd-card .sub{font-size:12px;color:var(--muted);margin-top:6px}
+  /* The change on a card is a pill: ▲ green / ▼ red on its own soft tint (the arrow comes from the JS). */
+  .sd-card .sub .ui-pos,.sd-card .sub .ui-neg{display:inline-block;padding:0 7px;border-radius:var(--r-pill);
+    font-weight:600;line-height:18px}
+  .sd-card .sub .ui-pos{background:var(--accent-bg)}
+  .sd-card .sub .ui-neg{background:var(--bad-bg)}
+  /* Today — a clock; Yesterday — a calendar; Last 7 days — bars; MTD — a calendar grid;
+     Expected — a rising arrow; YTD — stacked layers. */
+  .sd-b-cyan{--glow:#06b6d4}
+  .sd-b-cyan .lbl::before{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2306b6d4' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='M12 7v5l3 2'/%3E%3C/svg%3E")}
+  .sd-b-teal{--glow:#14b8a6}
+  .sd-b-teal .lbl::before{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2314b8a6' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='5' width='18' height='16' rx='2'/%3E%3Cpath d='M3 10h18M8 3v4M16 3v4'/%3E%3C/svg%3E")}
+  .sd-b-orange{--glow:#f97316}
+  .sd-b-orange .lbl::before{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23f97316' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 20v-6M12 20V8M18 20V4M3 20h18'/%3E%3C/svg%3E")}
+  .sd-b-purple{--glow:#a855f7}
+  .sd-b-purple .lbl::before{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23a855f7' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='5' width='18' height='16' rx='2'/%3E%3Cpath d='M3 10h18M8 3v4M16 3v4M8 14h.01M12 14h.01M16 14h.01M8 17.5h.01M12 17.5h.01'/%3E%3C/svg%3E")}
+  .sd-b-indigo{--glow:#6366f1}
+  .sd-b-indigo .lbl::before{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236366f1' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 17l6-6 4 4 8-8'/%3E%3Cpath d='M15 7h6v6'/%3E%3C/svg%3E")}
+  .sd-b-pink{--glow:#ec4899}
+  .sd-b-pink .lbl::before{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ec4899' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m12 3 9 5-9 5-9-5 9-5z'/%3E%3Cpath d='m3 12.5 9 5 9-5M3 16.5l9 5 9-5'/%3E%3C/svg%3E")}
+  .sd-panel{background:var(--card);border:1px solid var(--card-line);border-radius:var(--r-card);box-shadow:var(--sh-1);
+    padding:16px 18px;margin-bottom:24px}
+  .sd-h2{font-size:14px;font-weight:600;color:var(--ink);margin:0 0 12px}
   .sd-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}
   @media (max-width:900px){ .sd-stats{grid-template-columns:repeat(2,minmax(0,1fr))} }
-  .sd-stat{background:#f8fafc;border-radius:8px;padding:12px}
-  .sd-stat .lbl{font-size:12px;color:#64748b;font-weight:600}
-  .sd-stat .val{font-size:18px;font-weight:700;color:#0f172a}
+  .sd-stat{background:color-mix(in srgb,var(--ink) 3%,var(--card));border-radius:var(--r-ctl);padding:12px 14px}
+  .sd-stat .lbl{font-size:12px;color:var(--muted);font-weight:500}
+  .sd-stat .val{font-size:18px;font-weight:700;letter-spacing:-.01em;color:var(--ink)}
   .sd-charts{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px}
   @media (max-width:1100px){ .sd-charts{grid-template-columns:1fr} }
   .sd-tbl{width:100%;border-collapse:collapse;font-size:14px;white-space:nowrap}
-  .sd-tbl thead th{background:#f8fafc;color:#475569;text-transform:uppercase;font-size:12px;
-    font-weight:600;padding:8px 12px;text-align:right}
+  .sd-tbl thead th{background:var(--soft);color:var(--muted);text-transform:uppercase;font-size:11px;letter-spacing:.06em;
+    font-weight:600;padding:9px 12px;text-align:right}
   .sd-tbl thead th:first-child{text-align:left}
-  .sd-tbl td{padding:8px 12px;text-align:right;border-top:1px solid #f1f5f9}
-  .sd-tbl td:first-child{text-align:left;font-weight:600;color:#0f172a}
-  .sd-ly{color:#94a3b8}
-  .sd-up{color:#0d9488;font-weight:600} .sd-dn{color:#dc2626;font-weight:600}
+  .sd-tbl td{padding:10px 12px;text-align:right;border-top:1px solid var(--line)}
+  .sd-tbl td:first-child{text-align:left;font-weight:600;color:var(--ink)}
+  .sd-ly{color:var(--faint)}
+  .sd-up{color:var(--accent-ink);font-weight:600} .sd-dn{color:var(--bad-ink);font-weight:600}
+  /* KPI cards — one per brand. They GROW to share the row (all the metrics sit on one line) rather
+     than growing taller and leaving the right-hand side empty; they wrap on narrow windows. A very
+     faint glow of the accent in the top-right corner, and the card lifts a little under the pointer. */
   .kpis{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:16px}
-  .kpi{flex:1 1 380px;background:var(--card);border:0;border-radius:var(--r-card);padding:16px;box-shadow:var(--sh-1)}
-  .kpi .kpihead{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:8px}
-  .kpi .kpiname{font-size:13px;font-weight:700;letter-spacing:-.01em}
-  .kpi .kpiwhen{font-size:10px;color:var(--muted)}
-  /* One rule per part. Every .metric in the app sits inside a .kpi, so the .kpi copies these replace
-     (18px over 21px, 11px over 12px) were the only ones anybody saw. Muted label, bold figure. */
-  .metrics{display:flex;gap:16px;flex-wrap:wrap;justify-content:space-between}
-  .metric .v{font-size:18px;font-weight:700;letter-spacing:-.02em;line-height:1.2}
-  .metric .l{font-size:11px;color:var(--muted);margin-top:4px;white-space:nowrap}
+  .kpi{flex:1 1 380px;position:relative;border:1px solid var(--card-line);border-radius:var(--r-card);padding:16px 18px;
+    box-shadow:var(--sh-1);transition:box-shadow .15s ease;
+    background:radial-gradient(280px 170px at 100% 0%,color-mix(in srgb,var(--brand) 6%,transparent),transparent 70%),var(--card)}
+  .kpi:hover,.sd-card:hover{box-shadow:var(--sh-2)}
+  .kpi .kpihead{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:12px}
+  .kpi .kpiname{font-size:13px;font-weight:600;letter-spacing:-.01em;color:var(--ink)}
+  .kpi .kpiwhen{font-size:11.5px;color:var(--muted)}
+  /* One rule per part. Every .metric in the app sits inside a .kpi. Small muted label, big bold
+     figure in tabular digits. */
+  .metrics{display:flex;gap:16px 24px;flex-wrap:wrap;justify-content:space-between}
+  .metric .v{font-size:22px;font-weight:700;letter-spacing:-.02em;line-height:1.2;font-variant-numeric:tabular-nums}
+  .metric .l{font-size:12px;color:var(--muted);margin-top:4px;white-space:nowrap}
   /* Listing-health grade pill. Colour is a shorthand for the grade, never the only signal — the
      word itself is in the cell, so it still reads correctly in a colour-blind or greyscale view. */
   /* Week-over-week direction, painted on the CELL rather than the number — the whole column reads as
      a run of ups and downs at a glance, which is the point of looking across thirteen weeks. */
-  #wTable td.wow-up{background:#dcfce7}
-  #wTable td.wow-dn{background:#ffedd5}
+  #wTable td.wow-up{background:var(--accent-bg)}
+  #wTable td.wow-dn{background:var(--act-bg)}
   #wTable td.wow-up,#wTable td.wow-dn{box-shadow:inset 0 0 0 1px rgba(0,0,0,.04)}
   /* The second line inside a week cell (sales → TACoS). Smaller and quieter: it explains the number
      above it and must not compete with it. */
   #wTable .wsub{margin-top:3px}
   #wTable .wsub .gd{padding:1px 6px;font-size:9.5px;font-weight:600}
-  .gd{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:700;white-space:nowrap}
-  .gd-good{background:#dcfce7;color:#166534}
-  .gd-warn{background:#fef08a;color:#854d0e}
-  .gd-bad{background:#fee2e2;color:#991b1b}
+  .gd{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:600;white-space:nowrap}
+  .gd-good{background:var(--accent-bg);color:var(--accent-ink)}
+  .gd-warn{background:var(--rev-bg);color:var(--rev-ink)}
+  .gd-bad{background:var(--bad-bg);color:var(--bad-ink)}
   /* Listing Health — a child's checks. The mark is the answer; the small line under it is the figure. */
   .hk-c{text-align:center;white-space:nowrap;font-weight:700}
   .hk-c .hk-say{font-size:10px;font-weight:400;color:var(--muted);margin-top:1px}
-  td.hk-ok{color:#166534;background:#f0fdf4}
-  td.hk-bad{color:#991b1b;background:#fef2f2}
-  td.hk-info{color:#854d0e;background:#fefce8}
+  td.hk-ok{color:var(--accent-ink);background:color-mix(in srgb,var(--accent) 8%,var(--card))}
+  td.hk-bad{color:var(--bad-ink);background:color-mix(in srgb,var(--bad) 8%,var(--card))}
+  td.hk-info{color:var(--rev-ink);background:color-mix(in srgb,var(--rev) 10%,var(--card))}
   td.hk-na{color:var(--muted)}
-  [data-hkid]{color:var(--accent);cursor:pointer;text-decoration:underline;text-underline-offset:2px}
-  /* Attachment editor overlay. */
-  .modal{position:fixed;inset:0;background:rgba(15,23,42,.45);display:flex;align-items:center;
+  [data-hkid]{color:var(--brand-ink);cursor:pointer;text-decoration:underline;text-underline-offset:2px}
+  /* Every pop-up window: a shade over the page, and the box rising into place. FROM only, so a
+     dialog always ends fully shown; closing is instant (it is display:none — nothing to animate). */
+  .modal{position:fixed;inset:0;background:rgba(10,14,22,.45);display:flex;align-items:center;
     justify-content:center;z-index:50;padding:16px}
+  .modal:not(.hide){animation:fadeIn .15s ease-out}
+  .modal:not(.hide) .modalbox{animation:modalIn .16s ease-out}
+  @keyframes modalIn{from{opacity:0;transform:translateY(6px) scale(.985)}}
   /* Scrolls when it has to. Without the max-height a dialog with a long list — twenty line items on
      one order — grew past the viewport, and everything under the list, including Save, was simply
      unreachable. The page behind does not scroll a fixed overlay, so there was no way down. */
-  .modalbox{background:var(--card);border-radius:14px;padding:20px;width:min(460px,100%);
-    max-height:calc(100vh - 32px);overflow-y:auto;box-shadow:var(--sh-3)}
+  .modalbox{background:var(--card);border:1px solid var(--card-line);border-radius:var(--r-card);padding:22px 24px;
+    width:min(460px,100%);max-height:calc(100vh - 32px);overflow-y:auto;box-shadow:var(--sh-3)}
   /* Attachment cells: a filled slot is a link, an empty one is a quiet "add" affordance. */
   .doc{display:inline-block;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
-    vertical-align:bottom;color:var(--accent);cursor:pointer;text-decoration:underline}
+    vertical-align:bottom;color:var(--brand-ink);cursor:pointer;text-decoration:underline}
   .docadd{color:var(--muted);cursor:pointer;opacity:.75}
   .docadd:hover{opacity:1;text-decoration:underline}
   /* Approval status. The WORD is always present — colour is a second signal, never the only one. */
-  .st{display:inline-block;padding:1px 7px;border-radius:999px;font-size:10px;font-weight:700;white-space:nowrap}
-  .st-draft{background:#e2e8f0;color:#475569}
-  .st-pending{background:#fef08a;color:#854d0e}
-  .st-approved{background:#dcfce7;color:#166534}
-  .st-rejected{background:#fee2e2;color:#991b1b}
+  /* A rounded pill with a 6px dot in front: green approved, amber pending, red rejected, grey draft. */
+  .st{display:inline-flex;align-items:center;gap:5px;padding:0 8px 0 7px;border-radius:var(--r-pill);font-size:11px;
+    font-weight:600;line-height:18px;white-space:nowrap;vertical-align:middle}
+  .st::before{content:"";flex:none;width:6px;height:6px;border-radius:50%;background:currentColor}
+  .st-draft{background:color-mix(in srgb,var(--ink) 7%,var(--card));color:var(--muted)}
+  .st-draft::before{background:var(--faint)}
+  .st-pending{background:var(--warn-bg);color:var(--warn-ink)}
+  .st-pending::before{background:var(--warn)}
+  .st-approved{background:var(--accent-bg);color:var(--accent-ink)}
+  .st-approved::before{background:var(--accent)}
+  .st-rejected{background:var(--bad-bg);color:var(--bad-ink)}
+  .st-rejected::before{background:var(--bad)}
   /* Shopify Orders row states. The strike and the tint are a SECOND signal — every one of these
      also carries a word in the Status column, because colour alone is not readable to everyone and
      does not survive a printout. */
@@ -650,15 +831,20 @@
      spend over sales, so reading it two tiles away from sales is reading it out of context. */
   .metric .sub{font-size:11.5px;color:var(--muted);margin-top:4px;white-space:nowrap}
   .metric .sub b{font-weight:700;color:var(--ink)}
-  .metric .up{color:var(--accent)}
-  .metric .dn{color:var(--bad)}
+  /* A change under a figure is a pill on its own soft tint. */
+  .metric .up,.metric .dn{display:inline-block;padding:0 7px;border-radius:var(--r-pill);font-weight:600;line-height:18px}
+  .metric .up{background:var(--accent-bg);color:var(--accent-ink)}
+  .metric .dn{background:var(--bad-bg);color:var(--bad-ink)}
   /* Freeze the PRODUCT column too, not just the ASIN. Thirteen week columns scroll a long way and an
      ASIN alone does not tell you which row you are reading. The widths are FIXED and the second
      column's `left` equals the first one's width — a sticky offset cannot be derived from content. */
   #wTable .frz{min-width:116px;width:116px}
   #wTable .frz2{position:sticky;left:116px;z-index:2;background:var(--card);
     min-width:200px;width:200px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  #wTable thead .frz2{z-index:6;background:var(--hover)}
+  #wTable thead .frz2{z-index:6;background:var(--soft)}
+  /* The hairline goes down the right of the LAST frozen column, not between the two. */
+  #wTable .frz{border-right:0}
+  #wTable .frz2{border-right:1px solid var(--line)}
   #wTable tbody tr:nth-child(even) .frz2{background:var(--bg)}
   /* Parent Listing Review: FOUR frozen columns — ASIN, child ASIN, picture, title. Those four are
      what a row is identified BY; the twenty numeric columns scroll under them. Same rule as above,
@@ -670,7 +856,9 @@
   #plTable .frz3{position:sticky;left:232px;z-index:2;background:var(--card);min-width:94px;width:94px}
   #plTable .frz4{position:sticky;left:326px;z-index:2;background:var(--card);
     min-width:230px;width:230px;max-width:230px}
-  #plTable thead .frz2,#plTable thead .frz3,#plTable thead .frz4{z-index:6;background:var(--hover)}
+  #plTable thead .frz2,#plTable thead .frz3,#plTable thead .frz4{z-index:6;background:var(--soft)}
+  #plTable .frz{border-right:0}
+  #plTable .frz4{border-right:1px solid var(--line)}
   #plTable thead tr.subtot th.frz2,#plTable thead tr.subtot th.frz3,
   #plTable thead tr.subtot th.frz4{background:var(--brand-bg);z-index:6}
   #plTable tbody tr:nth-child(even) .frz2,#plTable tbody tr:nth-child(even) .frz3,
@@ -679,6 +867,8 @@
      still — four pinned columns on a narrow screen leaves nothing to actually read. */
   @media (max-width:1180px){
     #plTable .frz2,#plTable .frz3,#plTable .frz4{position:static;width:auto;min-width:0;max-width:none}
+    #plTable .frz{border-right:1px solid var(--line)}
+    #plTable .frz4{border-right:0}
   }
   /* the parent card */
   .pl-head{display:flex;gap:16px;align-items:flex-start}
@@ -697,71 +887,75 @@
   .pl-cmp th,.pl-cmp td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:left}
   .pl-cmp th{font-size:11.5px;color:var(--muted);font-weight:600}
   .pl-cmp .num{text-align:right;font-variant-numeric:tabular-nums}
-  .pl-cmp .pl-up{color:var(--accent)} .pl-cmp .pl-dn{color:var(--bad)}
+  .pl-cmp .pl-up{color:var(--accent-ink)} .pl-cmp .pl-dn{color:var(--bad-ink)}
   .pl-note{margin-top:10px;font-size:12px;color:var(--muted);line-height:1.5}
   /* Sales Analysis heatmap. Three steps only: a row's month is mild, warm or hot against that
      row's OWN average, so a small colour and a big one are both readable on their own terms. */
-  #saTable .sa-mild{background:var(--warn-bg);color:var(--warn)}
+  #saTable .sa-mild{background:var(--warn-bg);color:var(--warn-ink)}
   #saTable .sa-warm{background:#f6b26b;color:#3b2400}
-  #saTable .sa-hot{background:var(--bad);color:#fff;font-weight:600}
+  #saTable .sa-hot{background:var(--bad-ink);color:var(--card);font-weight:600}
   #plTable .pl-open{cursor:pointer;border-bottom:1px dashed var(--muted)}
-  #plTable .pl-open:hover,#plTable .pl-open:focus{color:var(--accent);border-bottom-style:solid;outline:none}
+  #plTable .pl-open:hover,#plTable .pl-open:focus{color:var(--brand-ink);border-bottom-style:solid;outline:none}
   /* Multi-select, lifted verbatim from the Replenishment app so the same control behaves the same
      in both. A second implementation of one control is how two apps start feeling like two products. */
   .ms{position:relative;flex:0 0 auto}
-  .ms-btn{width:100%;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:9px;
+  .ms-btn{width:100%;text-align:left;background:var(--card);border:1px solid color-mix(in srgb,var(--ink) 14%,var(--card));border-radius:var(--r-ctl);
     padding:8px 26px 8px 11px;font:inherit;font-size:13px;color:var(--ink);cursor:pointer;
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .ms-btn:after{content:'▾';position:absolute;right:9px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:11px}
   .ms-btn.on{border-color:var(--ink);font-weight:600}
   .ms-panel{position:absolute;z-index:60;top:calc(100% + 4px);left:0;min-width:230px;max-width:340px;
-    background:var(--card);border:1px solid var(--line);border-radius:10px;box-shadow:0 12px 30px rgba(0,0,0,.18);padding:8px}
+    background:var(--card);border:1px solid var(--card-line);border-radius:12px;box-shadow:var(--sh-2);padding:8px;
+    animation:navIn .12s ease-out}
   .ms-search{width:100%;margin-bottom:6px}
   .ms-acts{display:flex;gap:6px;margin-bottom:6px}
   .ms-acts button{flex:1;padding:3px 6px;font-size:11.5px}
   .ms-list{max-height:280px;overflow:auto}
   .ms-opt{display:flex;align-items:center;gap:7px;padding:4px 5px;border-radius:6px;cursor:pointer;font-size:13px}
-  .ms-opt:hover{background:var(--hover,#f1f5f9)}
+  .ms-opt:hover{background:var(--hover)}
   .ms-opt input{margin:0}
-  @media(max-width:860px){
-    /* Off-canvas drawer rather than a wrapped row of chips: thirteen tabs in five groups no longer
-       fit across the top, and the drawer is what the hamburger is for. */
-    .side{position:fixed;top:0;left:0;bottom:0;z-index:60;flex:none;width:272px;height:100vh;
-      overflow-y:auto;box-shadow:0 10px 30px rgba(0,0,0,.22)}
-    .shell:not(.navshut) #navScrim{display:block}
-    .main{padding:14px}
-  }
   h1{font-size:20px;margin:0;letter-spacing:-.02em}
-  /* A CARD IS A SHADOW, NOT A BORDER. Sixty screens of bordered boxes inside bordered boxes is what
-     makes a tool look like a spreadsheet with a menu attached. */
-  .card{background:var(--card);border:0;border-radius:var(--r-card);padding:16px;margin-bottom:16px;box-shadow:var(--sh-1)}
-  /* The one that leads: solid, round, and lifted off the page. Only the lift and the press move — a
-     fading background would reach every menu item, which is a button too. */
-  button{font:inherit;font-weight:700;border:0;border-radius:var(--r-ctl);padding:8px 16px;cursor:pointer;
-    background:var(--brand);color:var(--on-brand);font-size:14px;box-shadow:var(--sh-btn);
-    transition:box-shadow .12s,transform .06s}
+  /* A CARD: the surface, a hairline edge and a soft shadow (no shadow on the dark ground). A
+     .ui-card-title that opens a card is its header row, over a divider that runs edge to edge. */
+  .card{background:var(--card);border:1px solid var(--card-line);border-radius:var(--r-card);padding:16px;margin-bottom:16px;box-shadow:var(--sh-1)}
+  .card>.ui-card-title:first-child{margin:-16px -16px 14px;padding:13px 16px;border-bottom:1px solid var(--line)}
+  #paneNew .card>.ui-card-title:first-child{margin-left:-18px;margin-right:-18px;padding-left:18px;padding-right:18px}
+  /* The one that leads: the accent, filled. Secondary buttons (.ghost, .xbtn) are outlined. */
+  button{font:inherit;font-weight:600;border:0;border-radius:var(--r-ctl);padding:8px 16px;cursor:pointer;
+    background:var(--brand);color:var(--on-brand);font-size:13.5px;line-height:1.3;box-shadow:var(--sh-btn);
+    transition:background-color .15s ease,color .15s ease,box-shadow .15s ease,transform .06s}
   button:hover{background:var(--brand-ink)}
   /* It moves when it is pressed. One pixel, and it is the difference between a picture of a button
      and a button. Not on the sign-in screen, in PPC-new or in the menu bar: those keep their own. */
   button:where(:not(#loginView *,#panePpcn *,.side *)):active{transform:translateY(1px);box-shadow:none}
-  /* Everything else on a bar: white, no outline, resting on the same soft shadow as a card. */
-  button.ghost{background:var(--card);color:var(--muted);border:0;font-weight:600;box-shadow:var(--sh-1)}
-  button.ghost:hover{background:var(--card);color:var(--ink);box-shadow:var(--sh-2)}
-  /* A RING YOU CAN SEE, on a button reached by keyboard. After .ghost, whose resting shadow would
-     otherwise cover it, and named for .segbtn.on, whose own shadow outranks it. The sign-in screen
-     and PPC-new keep their own focus. */
-  button:where(:not(#loginView *,#panePpcn *)):focus-visible,.segbtn.on:focus-visible{outline:none;
-    box-shadow:var(--ring)}
+  /* Everything else on a bar: the surface with a hairline outline (an inset shadow, so it takes no
+     room and the button is the same size as a filled one). */
+  button.ghost{background:var(--card);color:var(--ink);border:0;font-weight:500;
+    box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--ink) 14%,var(--card))}
+  button.ghost:hover{background:var(--hover);color:var(--ink);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--ink) 22%,var(--card))}
+  /* A RING YOU CAN SEE, on a button reached by keyboard. After .ghost, whose outline would otherwise
+     cover it, and named for the controls whose own shadow outranks it. The sign-in screen and
+     PPC-new keep their own focus. */
+  button:where(:not(#loginView *,#panePpcn *)):focus-visible,.segbtn.on:focus-visible,.sd-toggle button.on:focus-visible,
+  .side #guideBtn:focus-visible{outline:none;box-shadow:var(--ring)}
   button:disabled{opacity:.5;cursor:not-allowed}
   /* A disabled button does not darken under the mouse. :where() holds this at the weight of
      button:hover, so a component's own :hover (.ghost, .xbtn, the menu) still wins. */
   button:where(:disabled:not(#loginView *,#panePpcn *)):hover{background:var(--brand)}
   /* A NEW VERSION IS OUT — the same bar the Replenishment app uses. */
   #updBar{position:fixed;left:auto;right:12px;width:420px;max-width:calc(100vw - 24px);bottom:14px;z-index:200;display:flex;align-items:center;
-    justify-content:space-between;gap:10px;background:#0f172a;color:#fff;border-radius:12px;padding:10px 12px 10px 16px;box-shadow:0 12px 36px rgba(15,23,42,.24)}
-  #updBar button{background:#fff;color:#0f172a;border:0;padding:8px 14px;border-radius:8px;font-weight:700}
-  input,select,textarea{font:inherit;color:var(--ink);background:var(--input);border:1px solid var(--line);
-    border-radius:var(--r-ctl);padding:8px 12px;width:100%}
+    justify-content:space-between;gap:10px;background:var(--ink);color:var(--card);border-radius:12px;padding:10px 12px 10px 16px;
+    font-size:13.5px;box-shadow:var(--sh-3);animation:toastIn .2s ease-out}
+  #updBar button{background:var(--card);color:var(--ink);border:0;padding:8px 14px;border-radius:8px;font-weight:600;box-shadow:none}
+  @keyframes toastIn{from{opacity:0;transform:translateY(8px)}}
+  input,select,textarea{font:inherit;color:var(--ink);background:var(--input);border:1px solid color-mix(in srgb,var(--ink) 14%,var(--card));
+    border-radius:var(--r-ctl);padding:8px 12px;width:100%;transition:border-color .15s ease,box-shadow .15s ease}
+  /* A drop-down draws its own chevron. Not on a list box, nor on one whose inline padding leaves no
+     room for it — those keep the browser's own arrow. */
+  select:not([multiple],[size],[style*="padding"]){-webkit-appearance:none;appearance:none;padding-right:34px;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238592A6' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat:no-repeat;background-position:right 11px center;background-size:14px}
+  input[type=checkbox],input[type=radio]{accent-color:var(--brand)}
   /* A RING YOU CAN SEE. The border alone changed by one shade and told a keyboard user nothing.
      :where() stops the #ids in the exclusion adding weight. Not on the sign-in screen, which stays
      exactly as it is, nor in PPC-new, whose reset does not reach a box-shadow or a placeholder.
@@ -770,7 +964,7 @@
   :where(input:not([type=checkbox],[type=radio]),select,textarea):where(:not(#loginView *,#panePpcn *)):focus{
     outline:none;border-color:var(--ring-line);box-shadow:var(--ring)}
   :where(input,textarea):where(:not(#loginView *,#panePpcn *))::placeholder{color:var(--faint)}
-  label{display:block;font-size:13px;font-weight:600;color:var(--muted);margin-bottom:8px}
+  label{display:block;font-size:13px;font-weight:500;color:var(--muted);margin-bottom:6px}
   .row{display:flex;gap:10px;flex-wrap:wrap}
   .row>*{flex:1;min-width:140px}
   .muted{color:var(--muted);font-size:13px}
@@ -780,31 +974,31 @@
   :where(table:not(.xl)) td:last-child{text-align:right;font-weight:600}
   tr.sub td{color:var(--muted);font-weight:400;font-size:13px}
   tr.total td{border-top:2px solid var(--line);border-bottom:0;font-weight:700;padding-top:11px}
-  .hero{background:var(--accent-bg);border:1px solid var(--accent);border-radius:14px;padding:26px 22px;
-    text-align:center;margin-bottom:18px}
-  .hero.bad{background:var(--bad-bg);border-color:var(--bad)}
-  .hero .big{font-size:38px;font-weight:800;letter-spacing:-.03em;color:var(--accent);line-height:1.1}
-  .hero.bad .big{color:var(--bad)}
-  .hero .lbl{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+  .hero{background:var(--accent-bg);border:1px solid color-mix(in srgb,var(--accent) 35%,transparent);border-radius:var(--r-card);
+    padding:26px 22px;text-align:center;margin-bottom:18px}
+  .hero.bad{background:var(--bad-bg);border-color:color-mix(in srgb,var(--bad) 35%,transparent)}
+  .hero .big{font-size:36px;font-weight:700;letter-spacing:-.03em;color:var(--accent-ink);line-height:1.1}
+  .hero.bad .big{color:var(--bad-ink)}
+  .hero .lbl{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
   .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
   @media(max-width:760px){.grid{grid-template-columns:1fr}}
   .settings-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:16px}
   .hide{display:none}
-  /* A BAR DOWN THE SIDE, not a slab of colour. The fill is lighter and the edge carries the weight,
-     which is what lets a long notice stay readable. */
-  .err{background:var(--bad-bg);color:var(--bad);padding:12px 16px;border-radius:var(--r-sm);font-size:14px;
-    margin-bottom:12px;border-left:3px solid var(--bad);line-height:1.5}
-  .ok{background:var(--accent-bg);color:var(--accent);padding:12px 16px;border-radius:var(--r-sm);font-size:14px;
-    margin-bottom:12px;border-left:3px solid var(--accent);line-height:1.5}
-  .warn{background:var(--warn-bg);color:var(--warn-ink);padding:12px 16px;border-radius:var(--r-sm);font-size:13px;
-    margin-bottom:12px;border-left:3px solid var(--warn-ink);line-height:1.5}
+  /* A page-level message: a soft tint of its colour, a hairline of the same, and the text in the
+     colour's AA ink. */
+  .err{background:var(--bad-bg);color:var(--bad-ink);padding:11px 14px;border-radius:var(--r-ctl);font-size:13.5px;
+    margin-bottom:12px;border:1px solid color-mix(in srgb,var(--bad) 28%,transparent);line-height:1.5}
+  .ok{background:var(--accent-bg);color:var(--accent-ink);padding:11px 14px;border-radius:var(--r-ctl);font-size:13.5px;
+    margin-bottom:12px;border:1px solid color-mix(in srgb,var(--accent) 28%,transparent);line-height:1.5}
+  .warn{background:var(--warn-bg);color:var(--warn-ink);padding:11px 14px;border-radius:var(--r-ctl);font-size:13px;
+    margin-bottom:12px;border:1px solid color-mix(in srgb,var(--warn) 28%,transparent);line-height:1.5}
   /* A WARNING INSIDE A CELL OR A SENTENCE IS A WORD, NOT A MESSAGE BOX. The same classes mark both;
      the padded box with a bar belongs to the page-level message only. b.err is how this app writes
      one into a sentence. */
   table.xl td .err,table.xl td .ok,table.xl td .warn,span.err,span.ok,b.err,.metric .err,.kpi .err{
     background:none;border:0;padding:0;margin:0;border-radius:0;font-size:inherit;line-height:1.35}
   table.xl td .err,table.xl td .ok,table.xl td .warn{font-size:11.5px;font-weight:500;margin-top:2px}
-  .sec{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);
+  .sec{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);
     margin:22px 0 10px;grid-column:1/-1}
   /* New product is one long form, so the section gaps compounded: .sec's 22px margin sat on TOP of
      the grid's own 16px row gap, giving ~38px between every block. Tightened here only — Settings
@@ -813,12 +1007,13 @@
   #paneNew .sec{margin:14px 0 2px}
   #paneNew .sec:first-child{margin-top:0}
   #paneNew label{margin-bottom:4px}
-  #paneNew input,#paneNew select{padding:9px 12px}
+  #paneNew input{padding:9px 12px}
+  #paneNew select{padding:9px 34px 9px 12px}
   #paneNew .card{padding:16px 18px}
   .hist{display:flex;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid var(--line);
     cursor:pointer;font-size:13px}
   .hist:hover{opacity:.7}
-  .hist b{color:var(--accent)}
+  .hist b{color:var(--accent-ink)}
   /* Drawn in the text colour, so it shows on a white button and in the dark theme as well as on the
      brand one. .ui-loading draws the same wheel in front of its message. */
   .spin,.ui-loading::before{display:inline-block;width:13px;height:13px;
@@ -830,7 +1025,8 @@
   .tabs{display:flex;gap:6px;margin-bottom:16px;border-bottom:1px solid var(--line)}
   .tabs .tab{background:transparent;color:var(--muted);border:0;border-bottom:2px solid transparent;
     border-radius:0;padding:9px 14px}
-  .tabs .tab.on{color:var(--ink);border-bottom-color:var(--ink)}
+  .tabs .tab:hover{background:transparent;color:var(--ink)}
+  .tabs .tab.on{color:var(--ink);border-bottom-color:var(--brand)}
   .tbl{width:100%;font-size:13.5px}
   .tbl th{text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;
     color:var(--muted);padding:0 10px 10px 0;white-space:nowrap}
@@ -844,10 +1040,10 @@
   .accg-top{display:flex;flex-wrap:wrap;gap:8px 22px;margin:4px 0 12px}
   .accg-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:12px}
   .accg{border:1px solid var(--line);border-radius:12px;padding:10px 12px 12px;background:var(--card)}
-  .accg.has-on{border-color:#16a34a;box-shadow:inset 3px 0 0 #16a34a}
+  .accg.has-on{border-color:var(--accent);box-shadow:inset 3px 0 0 var(--accent)}
   .accg header{display:flex;align-items:center;gap:8px;margin-bottom:6px}
   .accg h4{margin:0;font-size:14px;white-space:nowrap}
-  .accg-n{font-size:11.5px;color:#166534;font-weight:700}
+  .accg-n{font-size:11.5px;color:var(--accent-ink);font-weight:600}
   .accg-app{margin-left:auto;font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
   .accg header button{width:auto;padding:2px 8px;font-size:11.5px}
   .accg-boxes{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:2px 10px}
@@ -861,11 +1057,11 @@
   .accg-brands{font-size:12.5px;display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center}
   .accg-brands label{display:inline-flex;gap:5px;align-items:center;cursor:pointer}
   .accg-preset{width:auto;justify-self:start;padding:3px 10px;font-size:12px}
-  .accg-warn{padding:10px 12px;border:1px solid #b45309;border-radius:8px;background:#fffbeb;color:#7c2d12;font-size:12.5px;line-height:1.5}
+  .accg-warn{padding:10px 12px;border:1px solid color-mix(in srgb,var(--act) 40%,transparent);border-radius:8px;background:var(--act-bg);color:var(--act-ink);font-size:12.5px;line-height:1.5}
   .accsum{font-size:12.5px;line-height:1.6}
   .accsum b{font-weight:600}
-  .xbtn{background:var(--card);color:var(--ink);border:1px solid var(--line);padding:8px 14px;
-    font-size:13px;font-weight:500;border-radius:999px}
+  .xbtn{background:var(--card);color:var(--ink);border:1px solid color-mix(in srgb,var(--ink) 14%,var(--card));padding:8px 14px;
+    font-size:13px;font-weight:500;border-radius:var(--r-ctl);box-shadow:none}
   .xbtn:hover{background:var(--hover)}
 
   /* Image Manager */
@@ -888,14 +1084,15 @@
   .im-th img{width:100%;height:100%;object-fit:contain}
   .im-th i{position:absolute;left:0;bottom:0;font-style:normal;font-size:8.5px;background:rgba(0,0,0,.55);color:#fff;padding:0 3px;border-top-right-radius:3px}
   .im-th.im-empty{background:var(--bg);color:var(--faint);font-size:9px}
-  .im-th.im-diff{outline:2px solid #d97706;outline-offset:-2px}
+  .im-th.im-diff{outline:2px solid var(--act);outline-offset:-2px}
   .im-th.im-sw{width:40px;height:40px;border-radius:50%}
 
   /* PPC & ORGANIC · NEW (test). Everything is under #panePpcn and prefixed px-, and the app's own
      button / input / label / table rules are undone inside it first — so this page cannot change the
      look of any other screen, and no other screen's rules can reach in. */
   #panePpcn{--px-btn:var(--ink);--px-btn-ink:var(--card);--px-ppc-bg:#F7EBDD;--px-org:#5E7F4A;--px-good:#2F6B2F;--px-good-bg:#E6F2E3}
-  @media(prefers-color-scheme:dark){#panePpcn{--px-ppc-bg:#3a2816;--px-org:#8fbf76;--px-good:#86d39a;--px-good-bg:#12301c}}
+  :root[data-theme="dark"] #panePpcn{--px-ppc-bg:#3a2816;--px-org:#8fbf76;--px-good:#86d39a;--px-good-bg:#12301c}
+  @media(prefers-color-scheme:dark){:root:not([data-theme="light"]) #panePpcn{--px-ppc-bg:#3a2816;--px-org:#8fbf76;--px-good:#86d39a;--px-good-bg:#12301c}}
   #panePpcn button{all:unset;box-sizing:border-box;cursor:pointer}
   #panePpcn input,#panePpcn label{width:auto;margin:0;padding:0;border:0;background:none;display:inline;font:inherit;color:inherit}
   #panePpcn table{border-collapse:separate;border-spacing:0}
@@ -1059,7 +1256,7 @@
   /* Toolbar: whatever follows the spacer is pushed to the right. */
   .ui-spacer{flex:1}
   /* Blocks */
-  .ui-card-title{margin:0 0 12px;font-size:14px;font-weight:700;line-height:1.4;color:var(--ink)}
+  .ui-card-title{margin:0 0 12px;font-size:14px;font-weight:600;line-height:1.4;color:var(--ink)}
   .ui-section{margin-bottom:24px}
   /* KPIs: the smaller figure — on a .kpi, a .metric or the .v itself. */
   .ui-kpi-sm .v,.v.ui-kpi-sm{font-size:15px}
@@ -1071,21 +1268,112 @@
   .ui-note{font-size:12px;line-height:1.5;color:var(--muted)}
   .ui-strong{font-weight:700;color:var(--ink)}
   /* Meaning: colour only where it says something. */
-  .ui-pos{color:var(--accent)}
-  .ui-neg{color:var(--bad)}
+  .ui-pos{color:var(--accent-ink)}
+  .ui-neg{color:var(--bad-ink)}
   .ui-dim{color:var(--faint)}   /* zero, none, "—" */
   /* Badges: calm, from the theme's own pairs. The word is always there; colour is the second signal. */
-  .ui-badge{display:inline-block;padding:0 8px;border-radius:var(--r-pill);font-size:11px;font-weight:600;
-    line-height:18px;white-space:nowrap;background:var(--hover);color:var(--muted)}
-  .ui-badge.is-ok{background:var(--accent-bg);color:var(--accent)}
+  .ui-badge{display:inline-flex;align-items:center;gap:5px;padding:0 8px 0 7px;border-radius:var(--r-pill);font-size:11px;
+    font-weight:600;line-height:18px;white-space:nowrap;vertical-align:middle;
+    background:color-mix(in srgb,var(--ink) 7%,var(--card));color:var(--muted)}
+  .ui-badge::before{content:"";flex:none;width:6px;height:6px;border-radius:50%;background:var(--faint)}
+  .ui-badge.is-ok{background:var(--accent-bg);color:var(--accent-ink)}
+  .ui-badge.is-ok::before{background:var(--accent)}
   .ui-badge.is-warn{background:var(--warn-bg);color:var(--warn-ink)}
-  .ui-badge.is-bad{background:var(--bad-bg);color:var(--bad)}
+  .ui-badge.is-warn::before{background:var(--warn)}
+  .ui-badge.is-bad{background:var(--bad-bg);color:var(--bad-ink)}
+  .ui-badge.is-bad::before{background:var(--bad)}
   .ui-badge.is-info{background:var(--brand-bg);color:var(--brand-ink)}
+  .ui-badge.is-info::before{background:var(--brand)}
   /* States: what a block says when it has nothing, has failed, or is still on its way. */
   .ui-empty,.ui-error,.ui-loading{padding:24px 16px;text-align:center;font-size:13px}
   .ui-empty,.ui-loading{color:var(--muted)}
-  .ui-error{color:var(--bad)}
+  .ui-error{color:var(--bad-ink)}
   .ui-loading::before{content:""}
+  /* Still on its way: a soft shimmer passes over the block (never on a table cell; still under
+     reduced motion). */
+  /* THE STILL AURORA at the top of the app: two soft glows over the first ~300px of the content area,
+     fading into the page. Painted once — nothing moves. */
+  .main{background:radial-gradient(ellipse 55% 320px at 0 0,var(--aur-1),transparent 72%) no-repeat,
+    radial-gradient(ellipse 50% 300px at 100% 0,var(--aur-2),transparent 72%) no-repeat}
+  /* THE SIGN-IN SCREEN'S MOVING BACKGROUND, behind the card and inside the screen, so it goes with it.
+     Three large soft circles drifting and breathing (transform only, long loops, each its own pace),
+     and over them the canvas app/core/fx.js draws faint drifting dots on. Neither takes a click. */
+  #loginView .fx-aurora,#sellFx{position:absolute;inset:0;pointer-events:none}
+  #loginView .fx-aurora{overflow:hidden}
+  #sellFx{display:block;width:100%;height:100%}
+  .fx-aurora i{position:absolute;width:64vmax;height:64vmax;border-radius:50%;will-change:transform;
+    animation:aurA 14s ease-in-out infinite alternate}
+  .fx-aurora i:nth-child(1){left:-20vmax;top:-26vmax;background:radial-gradient(closest-side,var(--aur-1),transparent)}
+  .fx-aurora i:nth-child(2){right:-22vmax;top:-14vmax;background:radial-gradient(closest-side,var(--aur-2),transparent);
+    animation-name:aurB;animation-duration:18s;animation-delay:-7s}
+  .fx-aurora i:nth-child(3){left:18vmax;bottom:-34vmax;background:radial-gradient(closest-side,var(--aur-3),transparent);
+    animation-name:aurC;animation-duration:20s;animation-delay:-12s}
+  @keyframes aurA{to{transform:translate(9vmax,6vmax) scale(1.12)}}
+  @keyframes aurB{to{transform:translate(-8vmax,9vmax) scale(.9)}}
+  @keyframes aurC{to{transform:translate(-7vmax,-8vmax) scale(1.1)}}
+  @media print{.fx-aurora,#sellFx{display:none}}
+  .ui-loading:not(td){border-radius:var(--r-ctl);animation:shimmer 1.4s linear infinite;
+    background:linear-gradient(90deg,transparent 0,color-mix(in srgb,var(--ink) 6%,transparent) 50%,transparent 100%) 0 0/200% 100% no-repeat}
+  @keyframes shimmer{from{background-position:150% 0}to{background-position:-50% 0}}
+
+  /* ---------- POLISH: on the markup as it is ----------
+     Scrollbars, selection and focus everywhere; each screen fading in as it opens; icons on the
+     buttons that download, refresh and open; ⓘ on anything with a tooltip; status dots. */
+  ::-webkit-scrollbar{width:10px;height:10px}
+  ::-webkit-scrollbar-track,::-webkit-scrollbar-corner{background:transparent}
+  ::-webkit-scrollbar-thumb{background:color-mix(in srgb,var(--ink) 20%,transparent);border-radius:10px;
+    border:2px solid transparent;background-clip:content-box}
+  ::-webkit-scrollbar-thumb:hover{background-color:color-mix(in srgb,var(--ink) 34%,transparent)}
+  @supports not selector(::-webkit-scrollbar){html{scrollbar-width:thin;scrollbar-color:color-mix(in srgb,var(--ink) 24%,transparent) transparent}}
+  ::selection{background:color-mix(in srgb,var(--brand) 24%,transparent)}
+  :where(a,summary,[tabindex]):where(:not(#panePpcn *)):focus-visible{outline:none;box-shadow:var(--ring);border-radius:4px}
+  /* A SCREEN FADES IN as it opens: every pane, each time it loses .hide. FROM only, so a screen
+     always ends fully shown. Every id starting "pane" is a screen. */
+  .main>[id^="pane"]:not(.hide){animation:paneIn .15s ease-out}
+  @keyframes paneIn{from{opacity:0;transform:translateY(6px)}}
+  /* Button icons, by id: download (…Csv, …Export), refresh (…Refresh, hGo, ageGo), the guide's
+     book, the optimiser's sparkle, the raw fields' brackets. Drawn in the button's own colour. */
+  button:is([id$="Csv"],[id$="Export"],[id$="Refresh"],#hGo,#ageGo,#guideBtn,#hOptimiser,#hRaw)::before{content:"";
+    display:inline-block;flex:none;width:15px;height:15px;margin:0 7px 0 -2px;vertical-align:-3px;background:currentColor;
+    mask:var(--ic) center/contain no-repeat}
+  button:is([id$="Csv"],[id$="Export"]){--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 4v11M7 10l5 5 5-5M5 20h14'/%3E%3C/svg%3E")}
+  button:is([id$="Refresh"],#hGo,#ageGo){--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 12a8 8 0 1 1-2.34-5.66'/%3E%3Cpath d='M20 4v5h-5'/%3E%3C/svg%3E")}
+  #guideBtn{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5z'/%3E%3Cpath d='M4 19.5A2.5 2.5 0 0 0 6.5 22H20v-5'/%3E%3C/svg%3E")}
+  #hOptimiser{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z'/%3E%3Cpath d='M19 15.5l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z'/%3E%3C/svg%3E")}
+  #hRaw{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m8 7-5 5 5 5M16 7l5 5-5 5'/%3E%3C/svg%3E")}
+  /* ⓘ after a heading or a card label that has a tooltip, so the tooltip can be found. */
+  table.xl th[title]::after,.tbl th[title]::after,.sd-card[title] .lbl::after{content:"";display:inline-block;flex:none;
+    width:12px;height:12px;margin-left:5px;vertical-align:-2px;background:currentColor;opacity:.55;
+    mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='M12 11v5M12 8h.01'/%3E%3C/svg%3E") center/contain no-repeat}
+  /* Status dots (Listing Health, Listing Rules): 8px, a 3px soft halo, then the number. These beat
+     the small <style> block beside the Listing Rules screen in index.html. */
+  .main .sev{width:8px;height:8px;margin-right:8px;vertical-align:1px}
+  .main .sev-c{background:var(--bad);box-shadow:0 0 0 3px color-mix(in srgb,var(--bad) 20%,transparent)}
+  .main .sev-a{background:var(--act);box-shadow:0 0 0 3px color-mix(in srgb,var(--act) 20%,transparent)}
+  .main .sev-r{background:var(--rev);box-shadow:0 0 0 3px color-mix(in srgb,var(--rev) 22%,transparent)}
+  .main .sev-m{background:var(--faint);box-shadow:0 0 0 3px color-mix(in srgb,var(--faint) 20%,transparent)}
+  .main .sev-g{background:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 20%,transparent)}
+  .main .sev-ok{color:var(--accent-ink)}
+  .main #lrTable .lr-in{background:var(--accent-bg);color:var(--accent-ink)}
+  .main #lrTable .lr-del{color:var(--bad-ink)}
+  .main #lrTable select:not([multiple],[size],[style*="padding"]){padding-right:26px;background-position:right 7px center;background-size:12px}
+  /* The sign-in-email box at the top of the app: a needs-action notice. */
+  .card.vf-box{border-color:color-mix(in srgb,var(--act) 40%,transparent);background:var(--act-bg)}
+  .vf-head{font-weight:700;margin-bottom:6px;color:var(--act-ink)}
+  /* PPC & Organic · New: its TEST PAGE tag as a pill with a dot, and the chosen card with a soft ring. */
+  #panePpcn .px-testtag{display:inline-flex;align-items:center;gap:6px;color:var(--warn-ink)}
+  #panePpcn .px-testtag::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--warn)}
+  #panePpcn .px-pcard[aria-pressed="true"]{box-shadow:inset 0 3px 0 var(--brand),0 0 0 3px color-mix(in srgb,var(--brand) 18%,transparent)}
+  /* …and its status words in the AA ink of their colour (the fills stay as they are). */
+  #panePpcn .px-fresh:not(.px-busy),#panePpcn .px-var,#panePpcn .px-noimg{color:var(--accent-ink)}
+  #panePpcn .px-chipf[aria-pressed="true"],#panePpcn .px-chipf[aria-pressed="true"] b{color:var(--accent-ink)}
+  #panePpcn .px-neg,#panePpcn .px-pill.px-bad{color:var(--bad-ink)}
+  #panePpcn .px-warn{color:var(--warn-ink)}
+  @media (prefers-reduced-motion:reduce){
+    .main>[id^="pane"]:not(.hide),.modal:not(.hide),.modal:not(.hide) .modalbox,.ms-panel,#updBar,.ui-loading:not(td),
+    .fx-aurora i{animation:none}
+    .kpi,.sd-card,button,input,select,textarea,.segbtn,.sd-toggle button{transition:none}
+  }
   /* Helpers — only these. Last, so they win a tie with a component's own margin or gap. A width
      comes with flex:none, so it holds inside a toolbar instead of being squeezed. */
   .mt-4{margin-top:4px} .mt-8{margin-top:8px} .mt-12{margin-top:12px} .mt-16{margin-top:16px}
@@ -1129,10 +1417,15 @@
 
   /* ===== MODULE: SALES ===== */
   /* Sales Dashboard charts, the SVG drawn in sales-dashboard.js. The chart fills its panel and keeps its
-     own proportions. Grid and labels take the theme's quiet colours — a CSS rule beats the SVG's own
-     stroke / fill attribute, which stays as the fallback. The two series colours have no theme match. */
+     own proportions. Every part takes the theme's colours — a CSS rule beats the SVG's own stroke / fill
+     attribute, which stays as the fallback: a dashed light grid, the daily line in the accent over a soft
+     tint of it, and this year's bars in the accent beside last year's in grey, their corners rounded. */
   .sa-chart{width:100%;height:auto}
-  .sa-ch-grid{stroke:var(--line)}
+  .sa-ch-grid{stroke:var(--line);stroke-dasharray:3 4}
+  .sa-ch-area{fill:var(--brand)}
+  .sa-ch-line{stroke:var(--brand);stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
+  .sa-ch-ty{fill:var(--brand);rx:3px}
+  .sa-ch-ly{fill:color-mix(in srgb,var(--ink) 22%,var(--card));rx:3px}
   .sa-ch-axis{fill:var(--faint)}
   .sa-ch-label{fill:var(--muted)}
   /* Parent Listing Review · the picture column: a 76px thumbnail in a tighter cell than the grid's own
@@ -1158,7 +1451,7 @@
      Adjustments): a tighter card, and every control keeps its own deliberate width. Written `.toolbar>` so
      a width beats `.toolbar>button{flex:0 0 auto}` and `.ms{flex:0 0 auto}`; the filter box takes the rest. */
   .card.sa-toolcard{padding:12px 14px}
-  .toolbar>.sa-fix-90{flex:0 0 90px}
+  .toolbar>.sa-fix-90{flex:0 0 100px}
   .toolbar>.sa-fix-110{flex:0 0 110px}
   .toolbar>.sa-fix-120{flex:0 0 120px}
   .toolbar>.sa-fix-130{flex:0 0 130px}
@@ -1188,7 +1481,7 @@
   /* Shopify Orders · "no API key for this shop" — an amber line with the button that answers it. Its
      border colour has no theme match. NB: display:flex outranks .hide here, exactly as the inline style
      did, so the box shows whether or not it carries .hide. */
-  .warn.sa-nokey{margin:8px 0 0;padding:10px 12px;border:1px solid #fed7aa;display:flex;align-items:center;
+  .warn.sa-nokey{margin:8px 0 0;padding:10px 12px;border:1px solid color-mix(in srgb,var(--warn) 30%,transparent);display:flex;align-items:center;
     gap:12px;flex-wrap:wrap}
   .sa-nokey-txt{flex:1 1 320px;min-width:0}
   .sa-nokey-go{flex:0 0 auto;background:var(--ink);color:var(--card);border-radius:var(--r-sm);padding:7px 12px;
@@ -1211,12 +1504,27 @@
   /* TikTok Toolkit and Carousel Builder: the framed page fills the card, the window's height less the
      menu bar and the page head. */
   .card.sa-frame-card{padding:0;overflow:hidden}
-  .sa-frame{width:100%;height:calc(100vh - 132px);border:0;display:block}
+  .sa-frame{width:100%;height:calc(100vh - 138px);border:0;display:block}
   /* Parent Listing Review · the parent card dialog. */
   .modalbox.sa-plcard{width:min(660px,100%);max-height:88vh;overflow:auto}
 
   /* ===== MODULE: LISTING ===== */
 
   /* ===== MODULE: ADS ===== */
+  /* Ad Console chart (drawn in placement.js), and the Placement chart's grid. The theme's colours over
+     the SVG's own attributes: sales in grey, ad spend in the accent, TACOS in the needs-action orange. */
+  .ad-ch-grid{stroke:var(--line);stroke-dasharray:3 4}
+  .ad-ch-axis{fill:var(--faint)}
+  .ad-ch-label{fill:var(--muted)}
+  .ad-ch-pct{fill:var(--act-ink)}
+  .ad-ch-sales{fill:color-mix(in srgb,var(--ink) 22%,var(--card));rx:2.5px}
+  .ad-ch-spend{fill:var(--brand);rx:2.5px}
+  .ad-ch-tacos{stroke:var(--act);stroke-linejoin:round}
+  .ad-ch-dot{fill:var(--act)}
+  /* Its legend, under the chart. */
+  .ad-key{display:inline-block;width:10px;height:10px;border-radius:3px;vertical-align:-1px}
+  .ad-key-sales{background:color-mix(in srgb,var(--ink) 22%,var(--card))}
+  .ad-key-spend{background:var(--brand)}
+  .ad-key-tacos{width:14px;height:2px;border-radius:2px;background:var(--act);vertical-align:middle}
 
   /* ===== MODULE: INVENTORY ===== */

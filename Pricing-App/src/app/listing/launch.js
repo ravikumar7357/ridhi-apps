@@ -806,7 +806,7 @@ function renderAuditKpis(rows) {
       <span class="kpiwhen">${slots ? Math.round((attached / slots) * 100) : 0}% of all slots filled</span></div>
     <div class="metrics">
       <div class="metric"><div class="v">${nf(complete)}</div><div class="l">Complete parents</div></div>
-      <div class="metric"><div class="v" style="color:${pending ? 'var(--bad)' : 'inherit'}">${nf(pending)}</div>
+      <div class="metric"><div class="v" style="color:${pending ? 'var(--bad-ink)' : 'inherit'}">${nf(pending)}</div>
         <div class="l">${mine ? 'Waiting on you' : 'Awaiting approval'}</div></div>
       <div class="metric"><div class="v" style="font-size:15px">${nf(approved)}</div><div class="l">Approved</div></div>
       <div class="metric"><div class="v" style="font-size:15px">${nf(attached)} / ${nf(slots)}</div><div class="l">Documents attached</div></div>
@@ -817,7 +817,7 @@ function renderAuditKpis(rows) {
     <div class="metrics">
       <div class="metric"><div class="v">${nf(launched)}</div><div class="l">Launched parents</div></div>
       <div class="metric"><div class="v">${nf(inTransit)}</div><div class="l">Arriving / in transit</div></div>
-      <div class="metric"><div class="v" style="color:${flagged ? 'var(--bad)' : 'inherit'}">${nf(flagged)}</div>
+      <div class="metric"><div class="v" style="color:${flagged ? 'var(--bad-ink)' : 'inherit'}">${nf(flagged)}</div>
         <div class="l">⚑ Under $${nf(LAUNCH_REVIEW_MIN)} at ${LAUNCH_REVIEW_DAYS}d</div></div>
       <div class="metric"><div class="v" style="font-size:15px">${money(sales)}</div>
         <div class="l">30-day sales, launched parents</div></div>
@@ -828,10 +828,10 @@ function renderAuditKpis(rows) {
     <div class="metrics">
       <div class="metric"><div class="v" style="font-size:15px">${money(ppcSpend)}</div><div class="l">Ad spend</div></div>
       <div class="metric"><div class="v" style="font-size:15px">${money(ppcSales)}</div><div class="l">Ad sales</div></div>
-      <div class="metric"><div class="v" style="color:${acos != null && acos > 60 ? 'var(--bad)' : 'inherit'}">${
+      <div class="metric"><div class="v" style="color:${acos != null && acos > 60 ? 'var(--bad-ink)' : 'inherit'}">${
         acos == null ? '—' : acos + '%'}</div><div class="l">ACOS</div></div>
       <div class="metric" title="Ad spend ÷ total sales across these parents. Only counts parents whose total sales are known."><div class="v" style="color:${
-        tacos != null && tacos > 20 ? 'var(--bad)' : 'inherit'}">${tacos == null ? '—' : tacos + '%'}</div><div class="l">TACOS</div></div>
+        tacos != null && tacos > 20 ? 'var(--bad-ink)' : 'inherit'}">${tacos == null ? '—' : tacos + '%'}</div><div class="l">TACOS</div></div>
       <div class="metric"><div class="v">${nf(advertised)}</div><div class="l">Parents advertised</div></div>
     </div></div>`;
 
