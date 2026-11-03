@@ -64,14 +64,14 @@ const PL_TINY_SPEND = 5;       // dollars a week below which "is it advertised" 
 // opportunity rather than a problem. "Steady" and "New" are deliberately colourless — a page where
 // everything is highlighted highlights nothing.
 const PL_ACT_TAG = {
-  'Restock — out':  '<span class="st st-rejected">Restock — out</span>',
-  'Restock — low':  '<span class="st st-pending">Restock — low</span>',
-  'Traffic drop':   '<span class="st st-pending">Traffic drop</span>',
-  'Fix the page':   '<span class="st st-rejected">Fix the page</span>',
-  'Cut spend':      '<span class="st st-rejected">Cut spend</span>',
-  'Spend too high': '<span class="st st-rejected">Spend too high</span>',
-  'Add budget':     '<span class="st st-approved">Add budget</span>',
-  'Overstocked':    '<span class="st st-pending">Overstocked</span>',
+  'Restock — out':  '<span class="ui-badge is-bad">Restock — out</span>',
+  'Restock — low':  '<span class="ui-badge is-warn">Restock — low</span>',
+  'Traffic drop':   '<span class="ui-badge is-warn">Traffic drop</span>',
+  'Fix the page':   '<span class="ui-badge is-bad">Fix the page</span>',
+  'Cut spend':      '<span class="ui-badge is-bad">Cut spend</span>',
+  'Spend too high': '<span class="ui-badge is-bad">Spend too high</span>',
+  'Add budget':     '<span class="ui-badge is-ok">Add budget</span>',
+  'Overstocked':    '<span class="ui-badge is-warn">Overstocked</span>',
   'New — watch':    '<span class="muted">New — watch</span>',
   'Steady':         '<span class="muted">Steady</span>',
 };
@@ -456,17 +456,17 @@ function renderPlaudit() {
   // --- formatters (a dash for unknown) ---
   const esc = str => String(str == null ? '' : str)
     .replace(/[<>&"]/g, ch => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[ch]));
-  const money = value => (value == null ? '<span class="muted">—</span>' : '$' + Math.round(value).toLocaleString('en-US'));
-  const nf = value => (value == null ? '<span class="muted">—</span>' : Math.round(value).toLocaleString('en-US'));
-  const pct = value => (value == null ? '<span class="muted">—</span>'
-    : '<span class="' + (value < 0 ? 'sd-dn' : 'sd-up') + '">' + (value > 0 ? '+' : '') + (value * 100).toFixed(0) + '%</span>');
+  const money = value => (value == null ? '<span class="ui-dim">—</span>' : '$' + Math.round(value).toLocaleString('en-US'));
+  const nf = value => (value == null ? '<span class="ui-dim">—</span>' : Math.round(value).toLocaleString('en-US'));
+  const pct = value => (value == null ? '<span class="ui-dim">—</span>'
+    : '<span class="' + (value < 0 ? 'ui-neg' : 'ui-pos') + '">' + (value > 0 ? '+' : '') + (value * 100).toFixed(0) + '%</span>');
 
   // --- the rows ---
   wRenderCheck();
   const { rows, lastWeek, avgWeeks, bsrWeek, skipped, weekly } = plRows();
 
   if (!lastWeek) {
-    $('plTable').innerHTML = '<tbody><tr><td class="muted" style="padding:14px">'
+    $('plTable').innerHTML = '<tbody><tr><td class="ui-empty">'
       + 'No completed week stored yet — open PPC &amp; Organic and Refresh once.</td></tr></tbody>';
     plMsg('');
     return;
@@ -528,7 +528,7 @@ function renderPlaudit() {
   const arrow = key => (PL_SORT.k === key ? (PL_SORT.dir > 0 ? ' ↑' : ' ↓') : '');
   const head = '<thead><tr>' + COLS.map(col =>
     '<th class="' + (col.num ? 'num' : '') + (col.frz ? ' ' + col.frz : '') + '"'
-    + (col.noSort ? '' : ' data-pl-sort="' + col.k + '" style="cursor:pointer"')
+    + (col.noSort ? '' : ' data-pl-sort="' + col.k + '"')
     + (col.tip ? ' title="' + col.tip + '"' : '')
     + '>' + col.t + (col.noSort ? '' : arrow(col.k)) + '</th>').join('') + '</tr>'
     // The subtotal sits in the HEAD so it stays put while the rows scroll under it — the whole point
@@ -541,7 +541,7 @@ function renderPlaudit() {
     + '<th class="num">' + nf(tot.lwSess) + '</th><th class="num">' + nf(tot.lwPv) + '</th>'
     + '<th class="num">' + nf(tot.lwUnits) + '</th><th class="num">' + money(tot.lwSales) + '</th>'
     + '<th class="num">' + money(tot.lwSpend) + '</th>'
-    + '<th class="num">' + (tot.share == null ? '<span class="muted">—</span>' : '100%') + '</th>'
+    + '<th class="num">' + (tot.share == null ? '<span class="ui-dim">—</span>' : '100%') + '</th>'
     + '<th class="num">' + nf(tot.avgSess) + '</th><th class="num">' + nf(tot.avgPv) + '</th>'
     + '<th class="num">' + nf(tot.avgUnits) + '</th>'
     + '<th class="num" title="' + esc(tot.parts) + '">' + money(tot.avgSales) + '</th>'
@@ -551,9 +551,9 @@ function renderPlaudit() {
     + '</tr></thead>';
 
   const TYPE_TAG = {
-    New: '<span class="st st-approved">New</span>',
+    New: '<span class="ui-badge is-ok">New</span>',
     Old: '<span class="muted">Old</span>',
-    '?': '<span class="st st-draft">—</span>',
+    '?': '<span class="ui-badge">—</span>',
   };
 
   // --- the body: one row per parent, in the same column order ---
@@ -561,40 +561,40 @@ function renderPlaudit() {
     + '<td class="frz"><span class="pl-open" data-pl-parent="' + esc(row.parent) + '" tabindex="0"'
       + ' role="button" title="Open everything known about this parent">' + esc(row.parent) + '</span></td>'
     + '<td class="frz2">' + esc(row.child) + '</td>'
-    + '<td class="frz3" style="padding:4px 8px">' + (row.img
+    + '<td class="frz3 sa-pl-piccell">' + (row.img
         ? '<img src="' + esc(plThumb(row.img)) + '" loading="lazy" decoding="async" alt=""'
-          + ' style="width:76px;height:76px;object-fit:contain;border-radius:6px;background:#f8fafc">'
-        : '<span class="muted" style="font-size:11px">—</span>') + '</td>'
+          + ' class="sa-pl-pic">'
+        : '<span class="ui-dim">—</span>') + '</td>'
     // Clipped rather than wrapped: a long product name was stretching the column past everything
     // worth reading. The full name stays in the tooltip.
-    + '<td class="frz4" style="max-width:230px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"'
+    + '<td class="frz4 ui-name sa-pl-title"'
       + ' title="' + esc(row.title) + '">' + esc(row.title) + '</td>'
     + '<td class="num"' + (row.bsrCat ? ' title="' + esc(row.bsrCat) + '"' : '') + '>'
-      + (row.bsr ? row.bsr.toLocaleString('en-US') : '<span class="muted">—</span>') + '</td>'
+      + (row.bsr ? row.bsr.toLocaleString('en-US') : '<span class="ui-dim">—</span>') + '</td>'
     + '<td class="num">' + money(row.runRate) + '</td>'
     + '<td class="num">' + nf(row.lwSess) + '</td><td class="num">' + nf(row.lwPv) + '</td>'
     + '<td class="num">' + nf(row.lwUnits) + '</td><td class="num">' + money(row.lwSales) + '</td>'
     + '<td class="num">' + money(row.lwSpend) + '</td>'
     + '<td class="num">'
-      + (row.share == null ? '<span class="muted">—</span>' : (row.share * 100).toFixed(1) + '%') + '</td>'
+      + (row.share == null ? '<span class="ui-dim">—</span>' : (row.share * 100).toFixed(1) + '%') + '</td>'
     + '<td class="num">' + nf(row.avgSess) + '</td><td class="num">' + nf(row.avgPv) + '</td>'
     + '<td class="num">' + nf(row.avgUnits) + '</td>'
     + '<td class="num" title="' + esc(row.parts) + '">' + money(row.avgSales) + '</td>'
     + '<td class="num">' + pct(row.diff) + '</td>'
     + '<td class="num">' + nf(row.stock) + '</td>'
-    + '<td class="num">' + (row.dos == null ? '<span class="muted">—</span>' : row.dos.toFixed(1)) + '</td>'
+    + '<td class="num">' + (row.dos == null ? '<span class="ui-dim">—</span>' : row.dos.toFixed(1)) + '</td>'
     + '<td title="' + esc(row.launch
         ? (row.launchSure ? 'Launched ' : 'Amazon open date ') + row.launch + ' · ' + row.ageDays + ' days ago'
         : 'No launch date recorded, and the listings report has no open date for it either') + '">'
       + TYPE_TAG[row.type]
-      + (row.launch && !row.launchSure ? ' <span class="muted" style="font-size:11px">auto</span>' : '')
+      + (row.launch && !row.launchSure ? ' <span class="ui-note">auto</span>' : '')
     + '</td>'
-    + '<td title="' + esc(row.why) + '" style="white-space:nowrap">'
+    + '<td title="' + esc(row.why) + '" class="nowrap">'
       + (PL_ACT_TAG[row.action] || esc(row.action)) + '</td>'
     + '</tr>').join('');
 
   $('plTable').innerHTML = head + '<tbody>' + (body
-    || '<tr><td colspan="' + COLS.length + '" class="muted" style="padding:14px">'
+    || '<tr><td colspan="' + COLS.length + '" class="ui-empty">'
       + 'Nothing matches that filter.</td></tr>')
     + '</tbody>';
   PL_RENDER = { rows, defs: COLS, total: tot };
@@ -639,8 +639,8 @@ function plCardOpen(parent) {
   // --- formatters ---
   const esc = str => String(str == null ? '' : str)
     .replace(/[<>&"]/g, ch => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[ch]));
-  const money = value => (value == null ? '<span class="muted">—</span>' : '$' + Math.round(value).toLocaleString('en-US'));
-  const nf = value => (value == null ? '<span class="muted">—</span>' : Math.round(value).toLocaleString('en-US'));
+  const money = value => (value == null ? '<span class="ui-dim">—</span>' : '$' + Math.round(value).toLocaleString('en-US'));
+  const nf = value => (value == null ? '<span class="ui-dim">—</span>' : Math.round(value).toLocaleString('en-US'));
 
   // Last week against the six-week average, per metric. The percentage is worked out here rather
   // than taken from r.diff — that one is the SALES difference, and printing it beside sessions
@@ -650,7 +650,7 @@ function plCardOpen(parent) {
     const change = (avg > 0 && lw != null) ? (lw - avg) / avg * 100 : null;
     const cls = change == null ? 'muted' : (change >= 0 ? 'pl-up' : 'pl-dn');
     return `<tr><td>${label}</td><td class="num">${format(lw)}</td><td class="num">${format(avg)}</td>`
-      + `<td class="num ${cls}">${change == null ? '<span class="muted">—</span>'
+      + `<td class="num ${cls}">${change == null ? '<span class="ui-dim">—</span>'
           : (change >= 0 ? '+' : '') + change.toFixed(0) + '%'}</td></tr>`;
   };
 
@@ -667,27 +667,27 @@ function plCardOpen(parent) {
     `<div class="pl-head">
        ${row.img ? `<img src="${esc(plThumb(row.img))}" alt="" class="pl-img">`
                : '<div class="pl-img pl-noimg">no photo</div>'}
-       <div style="min-width:0">
+       <div class="sa-shrink">
          <div class="pl-title">${esc(row.title) || '<span class="muted">no title</span>'}</div>
          <div class="pl-ids">${esc(row.parent)}${row.child ? ' · child ' + esc(row.child) : ''}</div>
-         <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+         <div class="sa-tags mt-8 gap-8">
            ${PL_ACT_TAG[row.action] || esc(row.action || '')}
-           <span class="muted" style="font-size:12px" title="${esc(launch)}">${esc(row.type === 'New' ? 'New listing' : row.type === 'Old' ? 'Old listing' : 'Listing age unknown')}</span>
+           <span class="ui-note" title="${esc(launch)}">${esc(row.type === 'New' ? 'New listing' : row.type === 'Old' ? 'Old listing' : 'Listing age unknown')}</span>
          </div>
          ${row.why ? `<div class="pl-why">${esc(row.why)}</div>` : ''}
        </div>
      </div>
 
      <div class="pl-tiles">
-       ${tile('BSR', row.bsr ? row.bsr.toLocaleString('en-US') : '<span class="muted">—</span>', row.bsrCat || '')}
+       ${tile('BSR', row.bsr ? row.bsr.toLocaleString('en-US') : '<span class="ui-dim">—</span>', row.bsrCat || '')}
        ${tile('52wk run rate', money(row.runRate), 'Last week’s sales × 52.')}
        ${tile('FBA stock', nf(row.stock))}
-       ${tile('Months of cover', row.dos == null ? '<span class="muted">—</span>' : row.dos.toFixed(1),
+       ${tile('Months of cover', row.dos == null ? '<span class="ui-dim">—</span>' : row.dos.toFixed(1),
               'Stock ÷ last week’s units.')}
        ${tile('LW ad spend', money(row.lwSpend),
               'Sponsored Products, last week. A dash means that week’s ad report has not been pulled — '
               + 'not that nothing was spent.')}
-       ${tile('Budget share', row.share == null ? '<span class="muted">—</span>' : (row.share * 100).toFixed(1) + '%',
+       ${tile('Budget share', row.share == null ? '<span class="ui-dim">—</span>' : (row.share * 100).toFixed(1) + '%',
               'This parent’s slice of the ad spend across the rows on screen.')}
      </div>
 

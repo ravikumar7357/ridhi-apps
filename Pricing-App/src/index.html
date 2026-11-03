@@ -540,40 +540,40 @@
   <!-- ============ PANE: Brand Analytics ============ -->
   <div id="paneBa" class="hide">
     <div class="card">
-      <div class="row" style="align-items:flex-end">
-        <div style="flex:0 0 220px">
+      <div class="row re-bottom">
+        <div class="sa-fix-220">
           <label>Report</label>
           <select id="baType">
             <option value="sqp">My product keywords (own ASIN)</option>
             <option value="terms">Top search terms (competitor peek)</option>
           </select>
         </div>
-        <div style="flex:2;min-width:180px" id="baAsinWrap">
-          <label>Your ASIN <span style="font-weight:400">(for “My product keywords”)</span></label>
+        <div class="re-grow-2 sa-min-180" id="baAsinWrap">
+          <label>Your ASIN <span class="re-plain">(for “My product keywords”)</span></label>
           <input id="baAsin" placeholder="B0XXXXXXXX">
         </div>
-        <div style="flex:0 0 130px">
+        <div class="re-fix-130">
           <label>Period</label>
           <select id="baPeriod"><option value="WEEK">Week</option><option value="MONTH">Month</option></select>
         </div>
-        <div style="flex:0 0 150px">
-          <button id="baGo" style="width:100%">Run report</button>
+        <div class="re-fix-150">
+          <button id="baGo" class="re-w-full">Run report</button>
         </div>
       </div>
-      <div style="margin-top:10px" id="baFilterWrap">
-        <label>Filter to a competitor ASIN <span style="font-weight:400">(optional — only rows where this ASIN is a top-3 clicked result)</span></label>
+      <div class="mt-12" id="baFilterWrap">
+        <label>Filter to a competitor ASIN <span class="re-plain">(optional — only rows where this ASIN is a top-3 clicked result)</span></label>
         <input id="baFilter" placeholder="B0XXXXXXXX — leave blank for all top terms">
       </div>
-      <div id="baMsg" class="muted" style="margin-top:10px"></div>
+      <div id="baMsg" class="muted"></div>
     </div>
 
     <div id="baResult" class="hide">
-      <div class="card" style="margin-bottom:12px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap">
-        <div><div id="baHead" style="font-weight:600"></div><div class="muted" id="baSub"></div></div>
-        <button class="xbtn" id="baRawBtn" style="align-self:center">Show raw fields</button>
+      <div class="card mb-12 re-split">
+        <div><div id="baHead" class="ui-card-title"></div><div class="muted" id="baSub"></div></div>
+        <button class="xbtn" id="baRawBtn">Show raw fields</button>
       </div>
-      <div id="baRaw" class="card hide" style="white-space:pre-wrap;font-family:monospace;font-size:12px;overflow-x:auto"></div>
-      <div class="card" style="overflow-x:auto"><table class="tbl" id="baTable"></table></div>
+      <div id="baRaw" class="card hide re-raw"></div>
+      <div class="card re-scroll-x"><table class="xl" id="baTable"></table></div>
     </div>
   </div><!-- /paneBa -->
 
@@ -963,9 +963,9 @@
 
   <!-- ============ Sales Dashboard ============ -->
   <div id="paneSales" class="hide">
-    <div style="display:flex;align-items:center;justify-content:flex-end;margin-bottom:16px;gap:12px;flex-wrap:wrap">
-      <span id="sdMsg" class="muted" style="font-size:12px;margin-right:auto"></span>
-      <button id="sdRefresh" class="ghost" style="width:auto;padding:6px 14px;font-size:13px"
+    <div class="toolbar sa-gap-12 sa-sd-head">
+      <span id="sdMsg" class="muted"></span>
+      <button id="sdRefresh" class="ghost sa-btn-sm"
         title="Re-read the last few days from the Orders sheets and Shopify. The rest of the history comes from the nightly run.">Refresh today</button>
       <div class="sd-toggle" id="sdBrand">
         <button data-ch="SP" class="on">Ridhi</button>
@@ -988,12 +988,12 @@
     </div>
 
     <div class="sd-panel">
-      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px">
-        <h2 class="sd-h2" style="margin:0">Custom Range</h2>
-        <input id="sdFrom" type="date" style="padding:4px 8px;font-size:14px;width:auto">
-        <span class="muted" style="font-size:14px">to</span>
-        <input id="sdTo" type="date" style="padding:4px 8px;font-size:14px;width:auto">
-        <button id="sdApply" style="background:#0f172a;color:#fff;font-size:12px;font-weight:600;padding:6px 16px;border-radius:6px;width:auto">Apply</button>
+      <div class="toolbar sa-gap-12 mb-12">
+        <h2 class="sd-h2 sa-flush">Custom Range</h2>
+        <input id="sdFrom" type="date" class="sa-date-sm">
+        <span class="muted sa-fs-14">to</span>
+        <input id="sdTo" type="date" class="sa-date-sm">
+        <button id="sdApply" class="sa-btn-dark">Apply</button>
       </div>
       <div class="sd-stats">
         <div class="sd-stat"><div class="lbl">Sales</div><div class="val" id="sdrSales">—</div></div>
@@ -1004,49 +1004,49 @@
     </div>
 
     <div class="sd-charts">
-      <div class="sd-panel" style="margin:0"><h2 class="sd-h2">Daily Sales — Last 90 Days</h2><div id="sdChartDaily"></div></div>
-      <div class="sd-panel" style="margin:0"><h2 class="sd-h2">Monthly — TY vs LY</h2><div id="sdChartMonthly"></div></div>
+      <div class="sd-panel sa-flush"><h2 class="sd-h2">Daily Sales — Last 90 Days</h2><div id="sdChartDaily"></div></div>
+      <div class="sd-panel sa-flush"><h2 class="sd-h2">Monthly — TY vs LY</h2><div id="sdChartMonthly"></div></div>
     </div>
 
-    <div class="sd-panel" style="overflow-x:auto">
+    <div class="sd-panel re-scroll-x">
       <h2 class="sd-h2">Period Comparison — <span id="sdBrandLabel">Ridhi</span></h2>
-      <table class="sd-tbl">
+      <table class="xl">
         <thead><tr>
-          <th>Metric</th><th>Today</th><th>Yesterday</th><th>WTD</th><th>LYWTD</th><th>%Δ</th>
-          <th>MTD</th><th>LYMTD</th><th>%Δ</th><th>YTD</th><th>LYYTD</th><th>%Δ</th>
+          <th>Metric</th><th class="num">Today</th><th class="num">Yesterday</th><th class="num">WTD</th><th class="num">LYWTD</th><th class="num">%Δ</th>
+          <th class="num">MTD</th><th class="num">LYMTD</th><th class="num">%Δ</th><th class="num">YTD</th><th class="num">LYYTD</th><th class="num">%Δ</th>
         </tr></thead>
         <tbody id="sdPeriodBody"></tbody>
       </table>
     </div>
 
-    <div class="sd-panel" style="overflow-x:auto">
+    <div class="sd-panel re-scroll-x">
       <h2 class="sd-h2">Monthly Comparison — This Year vs Last Year</h2>
-      <table class="sd-tbl">
-        <thead><tr><th>Month</th><th>This Year</th><th>Last Year</th><th>Change %</th></tr></thead>
+      <table class="xl">
+        <thead><tr><th>Month</th><th class="num">This Year</th><th class="num">Last Year</th><th class="num">Change %</th></tr></thead>
         <tbody id="sdMonthlyBody"></tbody>
       </table>
     </div>
 
-    <div class="muted" style="font-size:12px;text-align:right">Last synced: <span id="sdSynced">—</span></div>
+    <div class="ui-note right">Last synced: <span id="sdSynced">—</span></div>
   </div><!-- /paneSales -->
 
   <!-- ============ Parent Listing Review: one row per parent, last week against its own recent
        average, with how new the listing is and how long the stock lasts ============ -->
   <div id="panePlaudit" class="hide">
     <!-- The same warning as PPC & Organic: this tab's 6-week average is built from the same store. -->
-    <div id="plCheckBanner" class="card hide"
-         style="padding:10px 14px;margin-bottom:12px;border-left:4px solid var(--bad);font-size:13px"></div>
-    <div class="card" style="padding:12px 14px">
+    <div id="plCheckBanner"
+         class="card hide sa-alert mb-12"></div>
+    <div class="card sa-toolcard">
       <div class="toolbar">
-        <select id="plBrand" style="flex:0 0 150px"><option value="ALL">Both brands</option>
+        <select id="plBrand" class="sa-fix-150"><option value="ALL">Both brands</option>
           <option value="SP">Ridhi</option><option value="CPC">CPC</option></select>
-        <select id="plType" style="flex:0 0 190px" title="New means the listing went live inside the last 120 days.">
+        <select id="plType" class="sa-fix-190" title="New means the listing went live inside the last 120 days.">
           <option value="ALL">All listings</option>
           <option value="New">New only</option>
           <option value="Old">Old only</option>
           <option value="?">Launch date unknown</option>
         </select>
-        <select id="plAct" style="flex:0 0 200px" title="What the week says to do about each parent — stock first, then traffic, then spend.">
+        <select id="plAct" class="sa-fix-200" title="What the week says to do about each parent — stock first, then traffic, then spend.">
           <option value="TODO">Needs attention</option>
           <option value="ALL">All</option>
           <option value="Restock — out">Restock — out</option>
@@ -1060,15 +1060,15 @@
           <option value="New — watch">New — watch</option>
           <option value="Steady">Steady</option>
         </select>
-        <input id="plFilter" style="flex:1 1 150px;min-width:0" placeholder="Filter ASIN / title">
+        <input id="plFilter" class="sa-grow" placeholder="Filter ASIN / title">
         <button id="plExport" class="ghost">Export</button>
         <button id="plRefresh"
                 title="Pulls FBA stock from Amazon and re-reads the latest rank snapshot. Sales and sessions come from the nightly run and need no button. A NEW rank snapshot is taken on the BSR Audit tab.">Refresh stock &amp; ranks</button>
       </div>
-      <div id="plMsg" class="muted" style="margin-top:8px;font-size:13px"></div>
+      <div id="plMsg" class="muted"></div>
     </div>
 
-    <div class="card" style="padding:0;overflow:auto;max-height:74vh">
+    <div class="card xlwrap sa-h74">
       <table id="plTable" class="xl"></table>
     </div>
   </div><!-- /panePlaudit -->
@@ -1076,36 +1076,36 @@
   <!-- ============ Shopify Orders: what has to ship, whether Amazon can ship it, and where it
        stands. One row per order, because a courier label is made from one order at a time. ====== -->
   <div id="paneShop" class="hide">
-    <div class="card" style="padding:12px 14px">
+    <div class="card sa-toolcard">
       <div class="toolbar">
-        <input id="soFrom" type="date" style="flex:0 0 150px">
-        <span class="muted" style="font-size:13px">to</span>
-        <input id="soTo" type="date" style="flex:0 0 150px">
-        <select id="soOpen" style="flex:0 0 180px">
+        <input id="soFrom" type="date" class="sa-fix-150">
+        <span class="muted">to</span>
+        <input id="soTo" type="date" class="sa-fix-150">
+        <select id="soOpen" class="sa-fix-180">
           <option value="1">Not yet shipped</option>
           <option value="0">Every order</option>
         </select>
-        <div class="ms" id="soChan" style="flex:0 0 170px"
+        <div class="ms sa-fix-170" id="soChan"
              title="Which shop the order came from. Nothing ticked means all of them."></div>
-        <div class="ms" id="soMcf" style="flex:0 0 215px"
+        <div class="ms sa-fix-215" id="soMcf"
              title="Where this order can ship from. Tick as many as you like; nothing ticked means all of them."></div>
-        <select id="soState" style="flex:0 0 190px" title="Cancelled comes from Shopify. Chargeback and MCF done are read from the order's tags, its notes, or the status typed here.">
+        <select id="soState" class="sa-fix-190" title="Cancelled comes from Shopify. Chargeback and MCF done are read from the order's tags, its notes, or the status typed here.">
           <option value="ALL">Any state</option>
           <option value="live">Live only</option>
           <option value="cancel">Cancelled</option>
           <option value="cb">Chargeback</option>
           <option value="mcfdone">MCF done</option>
         </select>
-        <select id="soDay" style="flex:0 0 150px"
+        <select id="soDay" class="sa-fix-150"
                 title="Which day the order was PLACED, in the store's own day. Filters what is already loaded — it does not re-fetch.">
           <option value="">Any day</option>
           <option value="0">Placed today</option>
           <option value="-1">Placed yesterday</option>
           <option value="-7">Last 7 days</option>
         </select>
-        <input id="soFilter" style="flex:1 1 150px;min-width:0" placeholder="Filter order / SKU / name">
+        <input id="soFilter" class="sa-grow" placeholder="Filter order / SKU / name">
         <button id="soAdj" class="ghost" title="Every shortfall raised, by the day it was raised. Printable, to hand to production.">Adjustments</button>
-        <select id="soTmpl" style="flex:0 0 190px" title="Which upload template to write. The column headings and their order match the courier's own workbook exactly.">
+        <select id="soTmpl" class="sa-fix-190" title="Which upload template to write. The column headings and their order match the courier's own workbook exactly.">
           <option value="plain">Plain list — one row per line item</option>
           <option value="plainOrder">Plain list — one row per order</option>
           <option value="mcf">Amazon MCF</option>
@@ -1120,21 +1120,21 @@
                 title="Bring in orders from a shop this app has no API key for — CPC Shopify and the Etsy stores.">Import orders</button>
         <button id="soGo">Fetch orders</button>
       </div>
-      <div id="soMsg" class="muted" style="margin-top:8px;font-size:13px"></div>
+      <div id="soMsg" class="muted"></div>
       <!-- A shop this app has no API key for was asked for. One line, and the button that answers it. -->
-      <div id="soNoKey" class="hide" style="margin-top:8px;padding:10px 12px;border-radius:9px;background:#fff7ed;
-           border:1px solid #fed7aa;color:#7c2d12;font-size:13px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-        <span id="soNoKeyTxt" style="flex:1 1 320px;min-width:0"></span>
+      <div id="soNoKey"
+           class="hide warn sa-nokey">
+        <span id="soNoKeyTxt" class="sa-nokey-txt"></span>
         <a id="soNoKeyGo" href="https://fabricrush-replenish.web.app/" target="_blank" rel="noopener"
-           style="flex:0 0 auto;background:#0f172a;color:#fff;border-radius:8px;padding:7px 12px;font-weight:700;text-decoration:none">
+           class="sa-nokey-go">
           Open Shopify Orders in the Replenishment app →</a>
       </div>
-      <div id="soPickMsg" class="muted" style="margin-top:4px;font-size:12px"></div>
+      <div id="soPickMsg" class="muted"></div>
       <!-- Today and yesterday, in the STORE's day. Cancelled orders are left out of all of it. -->
-      <div id="soToday" style="margin-top:10px;display:flex;gap:22px;flex-wrap:wrap;font-size:13px"></div>
+      <div id="soToday" class="sa-today"></div>
     </div>
 
-    <div class="card" style="padding:0;overflow:auto;max-height:70vh;margin-top:12px">
+    <div class="card xlwrap sa-h70 mt-12">
       <table id="soTable" class="xl"></table>
     </div>
   </div><!-- /paneShop -->
@@ -1298,9 +1298,9 @@
 
   <!-- ============ Adjustments: what production owes, from raised to received back ============ -->
   <div id="paneAdj" class="hide">
-    <div class="card" style="padding:12px 14px">
+    <div class="card sa-toolcard">
       <div class="toolbar">
-        <select id="ajState" style="flex:0 0 190px">
+        <select id="ajState" class="sa-fix-190">
           <option value="OPEN">Open — not yet back</option>
           <option value="ALL">Every adjustment</option>
           <option value="raised">Raised</option>
@@ -1309,22 +1309,22 @@
           <option value="received">Received back</option>
           <option value="LATE">Past the promised date</option>
         </select>
-        <input id="ajFrom" type="date" style="flex:0 0 150px" title="Raised on or after">
-        <span class="muted" style="font-size:13px">to</span>
-        <input id="ajTo" type="date" style="flex:0 0 150px" title="Raised on or before">
-        <input id="ajFilter" style="flex:1 1 150px;min-width:0" placeholder="Filter id / order / SKU / product">
+        <input id="ajFrom" type="date" class="sa-fix-150" title="Raised on or after">
+        <span class="muted">to</span>
+        <input id="ajTo" type="date" class="sa-fix-150" title="Raised on or before">
+        <input id="ajFilter" class="sa-grow" placeholder="Filter id / order / SKU / product">
         <button id="ajSent" class="ghost" title="Mark the ticked jobs as handed to production.">Mark sent</button>
         <button id="ajAccept" class="ghost" title="Production has taken the ticked jobs on, and said when they will be back.">Accept…</button>
         <button id="ajRecv" class="ghost" title="Shipping has the pieces back from production.">Received…</button>
         <button id="ajPrint">Print selected</button>
         <button id="ajExport" class="ghost">Export</button>
       </div>
-      <div id="ajMsg" class="muted" style="margin-top:8px;font-size:13px"></div>
+      <div id="ajMsg" class="muted"></div>
     </div>
 
-    <div id="ajKpis" class="kpis" style="margin-top:12px"></div>
+    <div id="ajKpis" class="kpis mt-12"></div>
 
-    <div class="card" style="padding:0;overflow:auto;max-height:70vh;margin-top:12px">
+    <div class="card xlwrap sa-h70 mt-12">
       <table id="ajTable" class="xl"></table>
     </div>
   </div><!-- /paneAdj -->
@@ -1414,37 +1414,37 @@
        An ASIN with no unit cost gets NO profit figure — not a zero. A zero would make a loss-making
        product look like a perfect-margin one, and it would be added into the totals besides. -->
   <div id="paneProfit" class="hide">
-    <div class="card" style="padding:12px 14px">
+    <div class="card sa-toolcard">
       <div class="toolbar">
-        <select id="pfBrand" style="flex:0 0 140px">
+        <select id="pfBrand" class="sa-fix-140">
           <option value="ALL">Both brands</option><option value="SP">Ridhi</option><option value="CPC">CPC</option>
         </select>
-        <select id="pfWeeks" style="flex:0 0 175px" title="How far back to add up. The weekly cache is what feeds this.">
+        <select id="pfWeeks" class="sa-fix-175" title="How far back to add up. The weekly cache is what feeds this.">
           <option value="1">Last week</option>
           <option value="4" selected>Last 4 weeks</option>
           <option value="13">Last 13 weeks</option>
           <option value="26">Last 26 weeks</option>
           <option value="52">Last 52 weeks</option>
         </select>
-        <select id="pfView" style="flex:0 0 150px">
+        <select id="pfView" class="sa-fix-150">
           <option value="asin">By child ASIN</option>
           <option value="parent">By parent</option>
         </select>
-        <select id="pfHave" style="flex:0 0 190px" title="A row with no unit cost cannot be costed. This is how you find them.">
+        <select id="pfHave" class="sa-fix-190" title="A row with no unit cost cannot be costed. This is how you find them.">
           <option value="">Costed and uncosted</option>
           <option value="have">Costed only</option>
           <option value="none">Missing a cost</option>
         </select>
-        <input id="pfFilter" style="flex:1 1 150px;min-width:0" placeholder="Filter ASIN / name">
-        <button id="pfModel" class="ghost" style="flex:0 0 110px" title="The percentages every row is costed with">Cost model</button>
-        <button id="pfImport" class="ghost" style="flex:0 0 120px" title="Bring in unit costs for many ASINs at once">Import costs</button>
-        <button id="pfExport" class="ghost" style="flex:0 0 90px">Export</button>
+        <input id="pfFilter" class="sa-grow" placeholder="Filter ASIN / name">
+        <button id="pfModel" class="ghost sa-fix-110" title="The percentages every row is costed with">Cost model</button>
+        <button id="pfImport" class="ghost sa-fix-120" title="Bring in unit costs for many ASINs at once">Import costs</button>
+        <button id="pfExport" class="ghost sa-fix-90">Export</button>
       </div>
-      <div id="pfMsg" class="muted" style="margin-top:8px;font-size:12px"></div>
+      <div id="pfMsg" class="muted"></div>
     </div>
 
-    <div id="pfKpis" class="kpis" style="margin-top:12px"></div>
-    <div class="card xlwrap" style="margin-top:12px">
+    <div id="pfKpis" class="kpis mt-12"></div>
+    <div class="card xlwrap mt-12">
       <table id="pfTable" class="xl"></table>
     </div>
   </div>
@@ -1503,28 +1503,28 @@
        Monthly sales by colour, article or SKU, built from THIS account's own Orders workbook and its
        Catalog tab. Read on a button and cached, because the workbook is 190,000 rows. -->
   <div id="paneSa" class="hide">
-    <div class="card" style="padding:12px 14px">
+    <div class="card sa-toolcard">
       <div class="toolbar">
-        <select id="saBrand" style="flex:0 0 130px">
+        <select id="saBrand" class="sa-fix-130">
           <option value="SP">Ridhi</option><option value="CPC">CPC</option>
         </select>
-        <select id="saView" style="flex:0 0 170px" title="What each row is: a colour, an article (sub-category), or a single SKU.">
+        <select id="saView" class="sa-fix-170" title="What each row is: a colour, an article (sub-category), or a single SKU.">
           <option value="color">Color study</option>
           <option value="article">Article study</option>
           <option value="sku">SKU study</option>
         </select>
-        <select id="saMetric" style="flex:0 0 190px" title="Share of that month's units, the units themselves, or the money.">
+        <select id="saMetric" class="sa-fix-190" title="Share of that month's units, the units themselves, or the money.">
           <option value="pct">% share of units</option>
           <option value="qty">Units</option>
           <option value="amt">Sales $</option>
         </select>
-        <input id="saFilter" style="flex:1 1 150px;min-width:0" placeholder="Search colour / article / SKU">
-        <button id="saRebuild" style="flex:0 0 175px" title="Reads the whole Orders workbook once — about a minute — and remembers the result. Orders that are already in do not change, so this is not something to press often.">Rebuild from orders</button>
-        <button id="saExport" class="ghost" style="flex:0 0 90px">Export</button>
+        <input id="saFilter" class="sa-grow" placeholder="Search colour / article / SKU">
+        <button id="saRebuild" class="sa-fix-175" title="Reads the whole Orders workbook once — about a minute — and remembers the result. Orders that are already in do not change, so this is not something to press often.">Rebuild from orders</button>
+        <button id="saExport" class="ghost sa-fix-90">Export</button>
       </div>
-      <div id="saMsg" class="muted" style="margin-top:8px;font-size:12px"></div>
+      <div id="saMsg" class="muted"></div>
     </div>
-    <div class="card xlwrap" style="margin-top:12px">
+    <div class="card xlwrap mt-12">
       <table id="saTable" class="xl"></table>
     </div>
   </div>
@@ -1746,9 +1746,9 @@
   </div>
 
   <div id="paneTiktok" class="hide">
-    <div class="card" style="padding:0;overflow:hidden">
+    <div class="card sa-frame-card">
       <iframe id="tkFrame" title="TikTok Seller Toolkit"
-              style="width:100%;height:calc(100vh - 132px);border:0;display:block"></iframe>
+              class="sa-frame"></iframe>
     </div>
   </div>
 
@@ -1757,9 +1757,9 @@
        live here at all. The VIDEO builder cannot: it shells out to ffmpeg and to a Python
        text-to-speech engine, so it stays on the machine it was written for. -->
   <div id="paneCarousel" class="hide">
-    <div class="card" style="padding:0;overflow:hidden">
+    <div class="card sa-frame-card">
       <iframe id="carFrame" title="Carousel Builder"
-              style="width:100%;height:calc(100vh - 132px);border:0;display:block"></iframe>
+              class="sa-frame"></iframe>
     </div>
   </div>
 
@@ -1873,10 +1873,10 @@
   <!-- Everything known about ONE parent, standing still. The table is 21 columns wide and the
        figures that have to be read together are four horizontal scrolls apart. -->
   <div id="plCardModal" class="modal hide">
-    <div class="modalbox" style="width:min(660px,100%);max-height:88vh;overflow:auto">
+    <div class="modalbox sa-plcard">
       <div id="plCardBody"></div>
-      <div class="row" style="margin-top:18px">
-        <button id="plCardClose" class="ghost" style="flex:1">Close</button>
+      <div class="row mt-16">
+        <button id="plCardClose" class="ghost">Close</button>
       </div>
     </div>
   </div>

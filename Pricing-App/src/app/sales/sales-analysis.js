@@ -200,13 +200,13 @@ function renderSa() {
   const nf = value => Math.round(Number(value) || 0).toLocaleString('en-US');
   // --- nothing to draw yet ---
   if (SA.err && !SA.data) {
-    $('saTable').innerHTML = '<tbody><tr><td class="muted" style="padding:14px">Nothing to show.'
+    $('saTable').innerHTML = '<tbody><tr><td class="ui-empty">Nothing to show.'
       + '</td></tr></tbody>';
     return;
   }
   if (!SA.data) {
     saMsg('');
-    $('saTable').innerHTML = '<tbody><tr><td class="muted" style="padding:14px">'
+    $('saTable').innerHTML = '<tbody><tr><td class="ui-empty">'
       + 'Nothing built for this brand yet. Press <b>Rebuild from orders</b> — it reads the whole Orders '
       + 'workbook once (a minute or so) and remembers the result.</td></tr></tbody>';
     return;
@@ -244,7 +244,7 @@ function renderSa() {
     const mean = vals.reduce((a, b) => a + b, 0) / Math.max(1, vals.length);
     const peak = vals.reduce((a, b) => Math.max(a, b), 0);
     const ids = idCols.map(([key], i) => `<td${i === 0 ? ' class="frz"' : ''}${SA.view === 'sku' && key === 'name'
-      ? ' style="font-family:ui-monospace,monospace"' : ''}>${esc(row[key] == null ? '' : row[key])}</td>`).join('');
+      ? '' : ''}>${esc(row[key] == null ? '' : row[key])}</td>`).join('');
     const monthCells = cells.map(cell => {
       const value = valOf(cell);
       let cls = '';
@@ -262,7 +262,7 @@ function renderSa() {
   }).join('');
 
   $('saTable').innerHTML = head + '<tbody>' + (body
-    || '<tr><td colspan="9" class="muted" style="padding:14px">Nothing matches that search.</td></tr>')
+    || '<tr><td colspan="9" class="ui-empty">Nothing matches that search.</td></tr>')
     + '</tbody>';
   // --- the message line ---
   saMsg(`${nf(rows.length)} row(s)${rows.length > 400 ? ' · showing the first 400 · Export covers all of them' : ''}`

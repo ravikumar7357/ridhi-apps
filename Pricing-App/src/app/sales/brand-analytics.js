@@ -119,32 +119,32 @@ function renderBa(rows) {
   $('baSub').textContent = `${rows.length} rows${terms && filt ? ' · filtered to ' + filt : ''}`;
 
   // --- the table ---
-  const dash = '<span class="muted">—</span>';
+  const dash = '<span class="ui-dim">—</span>';
   // a count with thousands separators, or — ; a share: a fraction (≤ 1) becomes a %, a value already in % stays
   const fmtNum = value => (value == null ? dash : Number(value).toLocaleString('en-US'));
   const pctv = value => (value == null ? dash : (value <= 1 ? (value * 100).toFixed(1) : Number(value).toFixed(1)) + '%');
   let head, body;
   if (terms) {
-    head = `<thead><tr><th>Search term</th><th style="text-align:right">Freq rank</th><th>Top ASIN</th>
-      <th style="text-align:right">Click rank</th><th style="text-align:right">Click share</th>`
-      + `<th style="text-align:right">Conv share</th></tr></thead>`;
-    body = rows.map(row => `<tr><td>${row.searchTerm || dash}</td><td style="text-align:right">${fmtNum(row.freqRank)}</td>
-      <td style="font-family:monospace">${row.asin || dash}`
+    head = `<thead><tr><th>Search term</th><th class="num">Freq rank</th><th>Top ASIN</th>
+      <th class="num">Click rank</th><th class="num">Click share</th>`
+      + `<th class="num">Conv share</th></tr></thead>`;
+    body = rows.map(row => `<tr><td>${row.searchTerm || dash}</td><td class="num">${fmtNum(row.freqRank)}</td>
+      <td class="ui-mono">${row.asin || dash}`
       + `${row.title ? '<br><span class="muted">' + row.title.slice(0, 40) + '</span>' : ''}</td>
-      <td style="text-align:right">${fmtNum(row.clickRank)}</td><td style="text-align:right">${pctv(row.clickShare)}</td>`
-      + `<td style="text-align:right">${pctv(row.convShare)}</td></tr>`).join('');
+      <td class="num">${fmtNum(row.clickRank)}</td><td class="num">${pctv(row.clickShare)}</td>`
+      + `<td class="num">${pctv(row.convShare)}</td></tr>`).join('');
   } else {
-    head = `<thead><tr><th>Keyword</th><th style="text-align:right">Search volume</th>
-      <th style="text-align:right">Impressions</th><th style="text-align:right">Impr. share</th>
-      <th style="text-align:right">Clicks</th><th style="text-align:right">Purchases</th>
-      <th style="text-align:right">Market share</th></tr></thead>`;
-    body = rows.map(row => `<tr><td>${row.query || dash}</td><td style="text-align:right">${fmtNum(row.volume)}</td>
-      <td style="text-align:right">${fmtNum(row.impressions)}</td><td style="text-align:right">${pctv(row.impShare)}</td>
-      <td style="text-align:right">${fmtNum(row.clicks)}</td><td style="text-align:right">${fmtNum(row.purchases)}</td>
-      <td style="text-align:right">${pctv(row.purShare)}</td></tr>`).join('');
+    head = `<thead><tr><th>Keyword</th><th class="num">Search volume</th>
+      <th class="num">Impressions</th><th class="num">Impr. share</th>
+      <th class="num">Clicks</th><th class="num">Purchases</th>
+      <th class="num">Market share</th></tr></thead>`;
+    body = rows.map(row => `<tr><td>${row.query || dash}</td><td class="num">${fmtNum(row.volume)}</td>
+      <td class="num">${fmtNum(row.impressions)}</td><td class="num">${pctv(row.impShare)}</td>
+      <td class="num">${fmtNum(row.clicks)}</td><td class="num">${fmtNum(row.purchases)}</td>
+      <td class="num">${pctv(row.purShare)}</td></tr>`).join('');
   }
   $('baTable').innerHTML = head + '<tbody>'
-    + (body || `<tr><td colspan="7" class="muted">No rows — data may not be published yet for this period; `
+    + (body || `<tr><td colspan="7" class="ui-empty">No rows — data may not be published yet for this period; `
       + `try Month, or an earlier one.</td></tr>`)
     + '</tbody>';
 }
