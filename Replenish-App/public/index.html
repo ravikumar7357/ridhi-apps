@@ -520,6 +520,11 @@
   table.xl.xl-dense td .sub{display:block;font-size:10.5px;color:var(--muted);font-weight:400;white-space:nowrap}
   table.xl.xl-dense td.wrap{white-space:normal;max-width:320px;text-align:left;font-size:12px}
   table.xl.xl-dense td.tl{text-align:left}
+  /* VENDOR PORTAL · EVERY LINE, COMPACT (4 Nov): the table hugs its columns; pictures and boxes small */
+  table.xl.vp-lines{width:auto;min-width:100%}
+  table.xl.vp-lines td img{max-width:30px;max-height:30px}
+  table.xl.vp-lines td input[type=date]{width:128px!important;padding:3px 6px}
+  table.xl.vp-lines td input[type=number]{padding:3px 6px}
   /* PRINTER ALLOCATION, TWO PANES (2026-09-27). */
   .pal2{display:grid;grid-template-columns:300px minmax(0,1fr);gap:14px;padding:12px}
   .pal2-l{border:1px solid var(--line);border-radius:14px;overflow:auto;max-height:70vh}
@@ -50338,8 +50343,10 @@ function vpTable(rows, f) {
 
     /* The order itself, as one row across the table. Everything that belongs to the WHOLE order lives
      * here — there is nowhere else for it to go once the cards are gone. */
+    /* COMPACT (Ravi, 4 Nov: "need compact view for this"): the order's and the colour's rows across the table WRAP — one long unbroken
+     * line of challans there was setting the table's width, and every column was spread out to fill it. */
     const bar = `<tr data-vporder="${esc(o.id)}" style="background:var(--hover,#f1f5f9)">
-      <td colspan="${COLS.length}" style="text-align:left;padding:7px 10px">
+      <td colspan="${COLS.length}" style="text-align:left;padding:6px 10px;white-space:normal">
         <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
           <b style="font-size:14px">${esc(o.orderNo || o.id)}</b>${o.channel ? ` <span class="pill" style="background:#E9EFF6;color:#3A5573">For ${esc(o.channel)}</span>` : ''}
           <span class="pill">${esc(run ? 'Running fabric — metres' : 'Cut fabric — pieces')}</span>
@@ -50364,7 +50371,7 @@ function vpTable(rows, f) {
       const gLeft = g.items.filter(({ l }) => !l.cancelled)
         .reduce((s, { l }) => s + Math.max(0, vpQty(o, l) - vpDone(l)), 0);
       const gHead = `<tr style="background:var(--line-2,#f8fafc)">
-        <td colspan="${COLS.length}" style="text-align:left;padding:6px 10px;font-size:12.5px">
+        <td colspan="${COLS.length}" style="text-align:left;padding:5px 10px;font-size:12.5px;white-space:normal">
           ${g.priority ? `<b style="color:var(--accent)">${esc(g.priority)}</b> · ` : ''}
           <b>${esc(g.colour) || 'no colour'}</b>
           <span class="muted">· ${nf(g.items.length)} line(s) · ${nf(gQty)} ${unit}${
@@ -50376,7 +50383,7 @@ function vpTable(rows, f) {
       const dels = (Array.isArray(l.deliveries) ? l.deliveries : Object.values(l.deliveries || {})).filter(Boolean);
       return `<tr${dead ? ' style="opacity:.5"' : ''}>`
         + `<td style="text-align:left;font-family:ui-monospace,monospace;font-size:12px">${esc(run ? (l.sku || l.fabricType) : l.sku)}${run && l.sku ? `<div class="muted" style="font-size:10.5px;font-family:inherit">${esc(l.fabricType)}</div>` : ''}</td>`
-        + (run ? vpRunPic(l, 38, true) : ptImgCell(l.sku))
+        + (run ? vpRunPic(l, 30, true) : ptImgCell(l.sku, 30))
         + `<td style="text-align:left;font-size:12px">${esc(run
             ? (l.printDirection || '')
             : (l.articleSubtype || l.articleType || ''))}</td>`
@@ -50403,7 +50410,7 @@ function vpTable(rows, f) {
   /* No max-height: one scrollbar on the page beats two fighting each other, and the box this
    * replaces was showing four lines at a time. */
   return `<div class="card xlwrap" style="padding:0">
-    <table class="xl"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
+    <table class="xl xl-dense vp-lines"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
 }
 
 function vpCard(o, f) {
