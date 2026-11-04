@@ -1,0 +1,93 @@
+# SELLORA GOES LIVE FROM GITHUB TOO (Ravi, 2 Nov: "sellora also get publish by github main").
+#
+#   main          every push that touches Pricing-App/ (or shared/) is checked and deployed to the live site,
+#                 https://price-research-48ff3.web.app — whoever pushed it, from whichever computer.
+#   preview/<x>   a branch named preview/something that touches Sellora gets its own Sellora test link (7 days).
+#
+# HOSTING ONLY. The database and Firestore rules in Pricing-App/ are never deployed from here — they still go from the office
+# computer (rules/rules-tool.js deploy, which rolls back by itself), with Ravi's go-ahead.
+# Same key as the Replenish workflow: FIREBASE_SERVICE_ACCOUNT, or FIREBASE_SERVICE_ACCOUNT_PRICE_RESEARCH_48FF3 (Firebase Hosting Admin
+# on price-research-48ff3, whose default site is Sellora). Without one the checks still run and nothing is deployed.
+name: Sellora — check, deploy
+
+on:
+  push:
+    branches: [main, 'preview/**']
+    paths: ['Pricing-App/**', 'shared/**', '.github/workflows/sellora-hosting.yml']
+  workflow_dispatch:
+
+concurrency:
+  group: sellora-hosting-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  checks: write
+  pull-requests: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      HAS_KEY: ${{ (secrets.FIREBASE_SERVICE_ACCOUNT || secrets.FIREBASE_SERVICE_ACCOUNT_PRICE_RESEARCH_48FF3) != '' }}
+    defaults:
+      run:
+        working-directory: Pricing-App
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # the same check firebase.json's predeploy makes: the page deployed is exactly what src/ makes
+      - name: The page is what src/ makes
+        run: node ../Replenish-App/tests/assemble.js --root . --check
+
+      - name: Tests
+        run: |
+          set -e
+          for t in listing-errors listing-content; do
+            if node "tests/$t-test.js" > "/tmp/$t.log" 2>&1; then echo "$t: $(tail -1 /tmp/$t.log)"
+            else echo "::error::$t-test failed"; grep -E "FAIL|Error" "/tmp/$t.log" | head -40; tail -5 "/tmp/$t.log"; exit 1; fi
+          done
+
+      # a broken script takes the whole single-file page down: every inline module script must at least parse
+      - name: The page's scripts parse
+        run: |
+          node -e "
+          const s = require('fs').readFileSync('public/index.html', 'utf8'), re = /<script type=\"module\"[^>]*>([\s\S]*?)<\/script>/g;
+          let m, n = 0; while ((m = re.exec(s))) { require('fs').writeFileSync('/tmp/sellora-' + n + '.mjs', m[1]); n++; }
+          if (!n) { console.error('no module script found'); process.exit(1); } console.log(n + ' module script(s)');"
+          for f in /tmp/sellora-*.mjs; do node --check "$f"; done
+
+      - name: Deploy — live site
+        if: github.ref == 'refs/heads/main' && env.HAS_KEY == 'true'
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT || secrets.FIREBASE_SERVICE_ACCOUNT_PRICE_RESEARCH_48FF3 }}
+          projectId: price-research-48ff3
+          channelId: live
+          entryPoint: Pricing-App
+
+      - name: Test link name
+        id: ch
+        if: startsWith(github.ref, 'refs/heads/preview/')
+        run: echo "name=s-$(echo "${GITHUB_REF_NAME#preview/}" | tr -c 'a-zA-Z0-9-' '-' | cut -c1-28 | sed 's/-*$//')" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy — test link
+        if: startsWith(github.ref, 'refs/heads/preview/') && env.HAS_KEY == 'true'
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT || secrets.FIREBASE_SERVICE_ACCOUNT_PRICE_RESEARCH_48FF3 }}
+          projectId: price-research-48ff3
+          channelId: ${{ steps.ch.outputs.name }}
+          expires: 7d
+          entryPoint: Pricing-App
+
+      - name: No deploy key yet
+        if: env.HAS_KEY != 'true'
+        run: echo "::warning::No Firebase key secret is set — the checks ran, nothing was deployed."

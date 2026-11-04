@@ -59,9 +59,18 @@ function joinApp(files) {
   for (const f of files) {
     const g = groupOf(f);
     if (g !== last) { out += groupMark(g); last = g; }
-    out += fileMark(f) + fs.readFileSync(appPath(f), 'utf8');
+    out += fileMark(f) + readApp(f);
   }
   return out;
+}
+/* MEERA'S FILES IN TYPESCRIPT (v2 rebuild, Phase 6, 2 Nov 2026): "@meera/x.ts" is turned into JavaScript as it is joined
+ * (the repo's own esbuild; types removed, nothing renamed or reordered), ending in a newline like every other file. */
+function readApp(f) {
+  const src = fs.readFileSync(appPath(f), 'utf8');
+  if (!f.endsWith('.ts')) return src;
+  const esbuild = require(path.join(ROOT, 'node_modules', 'esbuild'));
+  const js = esbuild.transformSync(src.replace(/\r\n/g, '\n'), { loader: 'ts', legalComments: 'inline' }).code;
+  return js.endsWith('\n') ? js : js + '\n';
 }
 function banner(files) {
   const groups = [...new Set(files.map(groupOf))];

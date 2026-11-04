@@ -7,6 +7,7 @@ research/costing-maths.js
 core/auth.js
 core/access.js
 core/admin-access.js
+core/access-design.js
 core/nav.js
 core/theme.js
 core/fx.js

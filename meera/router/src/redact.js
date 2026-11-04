@@ -11,12 +11,17 @@ const PHONE = /\+?\d[\d\s-]{8,}\d/g;          // a run of digits with spaces or 
 const GSTIN = /\b\d{2}[A-Z]{5}\d{4}[A-Z][A-Z\d]Z[A-Z\d]\b/gi;
 const PAN = /\b[A-Z]{5}\d{4}[A-Z]\b/gi;
 const LONGNUM = /\b\d{5,}\b/g;                 // what is left of a long number
+/* Phase 4 (29 Oct): an amount of money — ₹4,500 / Rs. 1200 / 1200 rs / 500 rupaye / 1200/- — and a short order or
+ * document number written after its word ("order 1234", "challan no 77", "invoice #312"). Pieces and sizes stay. */
+const AMOUNT = /(?:₹|\brs\.?|\binr)\s*\d[\d,]*(?:\.\d+)?|\b\d[\d,]*(?:\.\d+)?\s*(?:\/-|₹|(?:rs|inr|rupees?|rupaye|rupay|rupiya|rupiye)\b\.?)/gi;
+const ORDER_NO = /\b(order|ordr|odr|ord|challan|invoice|bill|awb|po|so)(\s*(?:no\.?|number|num|nr)?\s*[:#.-]?\s*)\d{2,}\b/gi;
 
 /** Clean one question. names: people's names the ERP knows (karigars, employees), each one or more words. */
 export function clean(text, names = []) {
   let s = String(text || '').slice(0, 500);
   s = s.replace(EMAIL, '[EMAIL]').replace(GSTIN, '[TAX-ID]').replace(PAN, '[TAX-ID]').replace(ORDER, '[ORDER]')
-    .replace(PHONE, m => (m.replace(/\D/g, '').length >= 10 ? '[PHONE]' : m)).replace(LONGNUM, '[NUMBER]');
+    .replace(PHONE, m => (m.replace(/\D/g, '').length >= 10 ? '[PHONE]' : m)).replace(AMOUNT, '[AMOUNT]')
+    .replace(ORDER_NO, (m, w, mid) => w + mid.replace(/\s+$/, '') + ' [ORDER]').replace(LONGNUM, '[NUMBER]');
   const list = [...new Set((names || []).map(n => String(n || '').trim()).filter(n => n.length >= 3))].sort((a, b) => b.length - a.length);
   for (const n of list) {
     const re = new RegExp('(^|[^\\p{L}])' + n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?=$|[^\\p{L}])', 'giu');

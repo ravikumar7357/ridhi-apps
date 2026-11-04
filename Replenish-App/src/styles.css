@@ -1932,3 +1932,56 @@ html.mob #frMeeraMenu{right:14px;bottom:144px}
 #p1Home table.p1at td.nx{text-align:right;white-space:nowrap}
 #p1Home table.p1at td{white-space:nowrap}
 #p1Home table.p1at td:nth-child(2) .sm{white-space:normal}
+
+/* DEMAND · RFD OUT TO PRINTERS looks like the SHP board (Ravi, 31 Oct): small type, tight rows, quiet headings. */
+#flTable.fl-e td { font-size: 12.5px; padding: 5px 9px; }
+#flTable.fl-e th { font-size: 12px; padding: 7px 9px; color: #8a94a3; font-weight: 700; }
+/* Full width, the columns in fixed shares (31 Oct: "all printers looking very odd", "one printer: space on the right"): one long size or name wraps in
+ * its own column instead of stretching the table. */
+#flTable.fl-due { width: 100%; table-layout: fixed; }
+#flTable.fl-due td { font-size: 12.5px; padding: 5px 14px; white-space: normal; overflow-wrap: break-word; }
+#flTable.fl-due th { font-size: 12px; padding: 7px 14px; color: #8a94a3; font-weight: 700; }
+
+/* PPC, REDESIGNED (Ravi, 31 Oct): clear hierarchy in Product details, centred cells, one button style, subtle row hover. */
+#flTable.fl-ppc { width: 100%; table-layout: fixed; }
+#flTable.fl-ppc th { font-size: 12px; font-weight: 700; color: #8a94a3; padding: 10px 12px; }
+#flTable.fl-ppc th:nth-child(1) { width: 9%; } #flTable.fl-ppc th:nth-child(2) { width: 13%; } #flTable.fl-ppc th:nth-child(3) { width: 30%; }
+#flTable.fl-ppc th:nth-child(4) { width: 6%; } #flTable.fl-ppc th:nth-child(5) { width: 13%; } #flTable.fl-ppc th:nth-child(6) { width: 14%; } #flTable.fl-ppc th:nth-child(7) { width: 15%; }
+#flTable.fl-ppc td { padding: 12px 12px; vertical-align: middle; text-align: left; white-space: normal; overflow-wrap: break-word; font-size: 13px; line-height: 1.4; border-top: 1px solid #edf0f4; }
+#flTable.fl-ppc tbody tr:hover td { background: #f8fafc; }
+#flTable.fl-ppc tr.ppc-comb td { background: #f7f5ff; }
+#flTable.fl-ppc .ppc-date { font-size: 12.5px; color: #17202b; white-space: nowrap; }
+#flTable.fl-ppc .ppc-sub { font-size: 11.5px; color: #6b7686; line-height: 1.4; }
+#flTable.fl-ppc .ppc-red { color: #b42318; font-weight: 600; font-size: 12px; }
+#flTable.fl-ppc .ppc-id { color: #17202b; font-weight: 700; font-size: 13.5px; text-decoration: underline dotted; }
+#flTable.fl-ppc .ppc-pr { display: flex; gap: 10px; align-items: flex-start; }
+#flTable.fl-ppc .ppc-name { font-size: 14px; font-weight: 600; color: #17202b; line-height: 1.3; }
+#flTable.fl-ppc .ppc-var { font-size: 12.5px; color: #3b4656; margin-top: 1px; }
+#flTable.fl-ppc .ppc-sku { font-size: 11.5px; color: #8a94a3; font-family: ui-monospace, Menlo, monospace; margin-top: 1px; }
+#flTable.fl-ppc .ppc-warn { font-size: 11.5px; color: #b45309; margin-top: 3px; }
+#flTable.fl-ppc .ppc-badges { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
+#flTable.fl-ppc .ppc-badge { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 11px; font-weight: 700; line-height: 1.6; }
+#flTable.fl-ppc .b-green { background: #e5f4ea; color: #176b3a; } #flTable.fl-ppc .b-blue { background: #e3ecfb; color: #1d4ed8; }
+#flTable.fl-ppc .b-orange { background: #fdf0e3; color: #b45309; } #flTable.fl-ppc .b-red { background: #fdeceb; color: #b42318; } #flTable.fl-ppc .b-grey { background: #f1f3f6; color: #4b5563; }
+#flTable.fl-ppc .ppc-qty { text-align: center; font-size: 14px; }
+#flTable.fl-ppc .ppc-acts { display: flex; flex-wrap: wrap; gap: 6px; }
+#flTable.fl-ppc .ppc-btn { width: auto; height: 30px; padding: 0 12px; border-radius: 8px; font-size: 12.5px; font-weight: 600; line-height: 28px; box-shadow: none; transform: none; cursor: pointer; }
+#flTable.fl-ppc .ppc-pri { background: #4a6389; border: 1px solid #4a6389; color: #fff; }
+#flTable.fl-ppc .ppc-sec { background: #fff; border: 1px solid #d5dce5; color: #17202b; }
+#flTable.fl-ppc .ppc-out { background: #fff; border: 1px solid #f3c9c4; color: #b42318; }
+#flTable.fl-ppc .ppc-pri:hover { background: #3d5577; } #flTable.fl-ppc .ppc-sec:hover { background: #f3f5f8; } #flTable.fl-ppc .ppc-out:hover { background: #fdf3f2; }
+
+/* ORDER TICKER (orders/order-ticker.js, 31 Oct): the running strip of pending and critical orders under the page title. */
+.otk{overflow:hidden;background:#4a6389;color:#fff;border-radius:12px;margin:0 0 12px;height:38px;display:flex;align-items:center;position:relative}
+.otk.hide{display:none}
+.otk-run{display:flex;width:max-content;animation:otkMove linear infinite}
+.otk:hover .otk-run{animation-play-state:paused}
+.otk-set{display:flex;align-items:center;flex:none}
+.otk-it{display:inline-flex;align-items:center;gap:8px;white-space:nowrap;font-size:13.5px;padding:0 6px;color:#fff;background:none;border:0;width:auto;margin:0;font-weight:500;cursor:default}
+.otk-sum b{font-weight:700}.otk-sum span{opacity:.85}
+button.otk-it{cursor:pointer}button.otk-it:hover{text-decoration:underline}
+.otk-it em{font-style:normal;font-weight:700;font-size:11.5px;padding:3px 9px;border-radius:999px;letter-spacing:.02em}
+.otk-late em{background:#fde2e1;color:#9b1c1c}.otk-due em{background:#fdf0e8;color:#9a3f06}
+.otk-dot{width:5px;height:5px;border-radius:50%;background:rgba(255,255,255,.55);margin:0 22px;flex:none}
+@keyframes otkMove{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+@media (prefers-reduced-motion:reduce){.otk{overflow-x:auto}.otk-run{animation:none}}

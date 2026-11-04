@@ -188,5 +188,196 @@ const sent = () => JSON.stringify(calls.map(c => c.body));
   ok((await s.call('/learned', { method: 'GET' })).body.answers.length === 2, 'approved, it joins the list');
 }
 
+/* ---------- 8. learning from staff (Phase 4) ---------- */
+{
+  const s = setup({ LEARN_DAILY: '5' });
+  const staff = await token(), admin = await token({ email: 'ravi@x.com', sub: 'a1' });
+  const names = ['Ramesh Kumar', 'Raju'];
+  /* nothing personal is kept: names, phones, order numbers, amounts, emails — and no email, name or sign-in id of the asker */
+  const r1 = await s.call('/learn', { tok: staff, body: { kind: 'missed', q: 'Ramesh Kumar ko ₹4,500 diye order 1234 ke liye, phone 98765 43210, mail a@b.com', screen: 'pbase', lang: 'hg', role: 'staff', names } });
+  ok(r1.status === 200 && r1.body.id > 0, 'a missed question is kept');
+  const row = s.db.raw.prepare('SELECT * FROM learn WHERE id = ?').get(r1.body.id);
+  ok(row.question === '[NAME] ko [AMOUNT] diye order [ORDER] ke liye, phone [PHONE], mail [EMAIL]', 'cleaned: ' + row.question);
+  ok(!JSON.stringify(row).match(/staff@x\.com|u1|Ramesh|4,500|1234|98765|a@b\.com/), 'no email, sign-in id, name, amount, order or phone in the row');
+  ok(row.role === 'staff' && row.screen === 'pbase' && row.lang === 'hg' && row.kind === 'missed', 'with the screen, the language and the role only');
+  ok(!JSON.stringify(s.db.raw.prepare('SELECT * FROM usage').all()).includes('u1'), 'the daily count does not keep the sign-in id either');
+  /* a 👎 and its one-line note — only with its own key */
+  const d = await s.call('/learn', { tok: staff, body: { kind: 'down', q: 'karigar ko kaam kaise de', answer: 'pr-jw-issue', screen: 'pbase' } });
+  ok(d.body.key && d.body.key.length === 20, 'a 👎 gets a key for its note');
+  ok(!(await s.call('/learn/note', { tok: staff, body: { id: d.body.id, key: 'wrong-key-wrong-key0', note: 'x' } })).body.ok, 'a note without the key is refused');
+  ok((await s.call('/learn/note', { tok: staff, body: { id: d.body.id, key: d.body.key, note: 'Raju ka hisab chahiye tha', names } })).body.ok, 'the note is added');
+  ok(s.db.raw.prepare('SELECT note FROM learn WHERE id = ?').get(d.body.id).note === '[NAME] ka hisab chahiye tha', 'the note is cleaned too');
+  ok(!(await s.call('/learn/note', { tok: staff, body: { id: d.body.id, key: d.body.key, note: 'again' } })).body.ok, 'one note only');
+  /* a spelling */
+  const sp = await s.call('/learn', { tok: staff, body: { kind: 'spelling', q: 'kariger ko maaal kaise de', answer: 'pr-jw-issue' } });
+  ok(sp.body.id > 0, 'a misspelling and the answer chosen are kept');
+  ok((await s.call('/learn', { tok: staff, body: { kind: 'other', q: 'x' } })).status === 400, 'only the four kinds');
+  /* the daily limit: 5 a person */
+  await s.call('/learn', { tok: staff, body: { kind: 'unsure', q: 'packing list kya hai' } });
+  await s.call('/learn', { tok: staff, body: { kind: 'unsure', q: 'Packing list kya hai?' } });   // the 5th of the day
+  ok((await s.call('/learn', { tok: staff, body: { kind: 'missed', q: 'one too many' } })).status === 429, 'over the daily limit: refused');
+  ok((await s.call('/learn', { tok: await token({ sub: 'u9' }), body: { kind: 'missed', q: 'packing list kya hai' } })).status === 200, 'another person has their own limit');
+  /* admins only */
+  ok((await s.call('/admin/learn', { method: 'GET', tok: staff })).status === 403, 'staff cannot open the learning page');
+  const v = await s.call('/admin/learn', { method: 'GET', tok: admin });
+  ok(v.status === 200 && v.body.unanswered.length === 2 && v.body.spellings.length === 1 && v.body.down.length === 1 && Array.isArray(v.body.tickets), 'an admin sees unanswered, spellings, 👎 and tickets');
+  const pk = v.body.unanswered.find(x => /packing list/i.test(x.question));
+  ok(pk && pk.n === 3 && pk.unsure === 2, 'the same question counted once, asked three times');
+  /* nothing joins her answers until approved */
+  ok((await s.call('/learned', { method: 'GET' })).body.answers.length === 0, 'nothing joins her answers without an admin');
+  await s.call('/admin/learn', { tok: admin, body: { ids: v.body.spellings[0].ids, action: 'approve' } });
+  const add = await s.call('/admin/answer', { tok: admin, body: { q: 'packing list kya hai', a: 'Packing List shows what to pack today.', lang: 'hg', screen: 'pack', learnIds: pk.ids } });
+  ok(add.body.ok, 'an admin adds an answer for it');
+  const v2 = await s.call('/admin/learn', { method: 'GET', tok: admin });
+  ok(v2.body.unanswered.length === 1 && v2.body.spellings.length === 0, 'answered and approved ones leave the list');
+  ok((await s.call('/admin/learn', { tok: staff, body: { ids: [1], action: 'reject' } })).status === 403, 'staff cannot decide');
+  /* the weekly build step's export: only with its key */
+  ok((await s.call('/export', { method: 'GET', origin: null, tok: null })).status === 403, 'export closed without a key set');
+  const e = setup({ EXPORT_KEY: 'k'.repeat(30) });
+  ok((await e.call('/export', { method: 'GET', origin: null, tok: null })).status === 403, 'export closed without the key');
+  const ex = await handle(new Request('https://router.example/export', { headers: { 'x-export-key': 'k'.repeat(30) } }), e.env, { fetch: fakeFetch, store: store(e.db) });
+  const exb = await ex.json();
+  ok(ex.status === 200 && Array.isArray(exb.answers) && Array.isArray(exb.spellings), 'export with the key: approved answers and spellings');
+  const exs = await handle(new Request('https://router.example/export', { headers: { 'x-export-key': 'k'.repeat(30) } }), s.env, { fetch: fakeFetch, store: store(s.db) });
+  ok(exs.status === 403, 'export is closed where no key is set');
+  /* 90 days */
+  s.db.raw.prepare("UPDATE learn SET created = '2020-01-01T00:00:00.000Z' WHERE id = ?").run(r1.body.id);
+  await store(s.db).learnPurge(Date.now());
+  ok(!s.db.raw.prepare('SELECT id FROM learn WHERE id = ?').get(r1.body.id), 'older than 90 days: removed');
+}
+/* the new cleaning rules (Phase 4): amounts and short order numbers; pieces and sizes stay */
+{
+  ok(clean('Rs. 1200 ka bill no 77, 500 rupaye, 1200/- pending, order #312') === '[AMOUNT] ka bill no [ORDER], [AMOUNT], [AMOUNT] pending, order # [ORDER]', 'amounts and short order numbers cleaned');
+  ok(clean('50 piece 16x16 cushion cover 10 days') === '50 piece 16x16 cushion cover 10 days', 'pieces, sizes and days stay');
+}
+
+/* ---------- 9. search on the server (Phase 5) ---------- */
+{
+  const { createRequire } = await import('node:module');
+  const require = createRequire(import.meta.url);
+  const { fingerprint } = require('../build-search.cjs');
+  const gen = readFileSync(path.join(HERE, '..', 'src', 'search.gen.js'), 'utf8');
+  ok(gen.includes(`export const SOURCES = "${fingerprint()}"`), 'search.gen.js is what her files make (run node meera/router/build-search.cjs)');
+  const { resetEngine } = await import('../src/search.js');
+  const words = readFileSync(path.join(HERE, '..', '..', '..', 'Replenish-App', 'public', 'guide', 'meera-words.bin'));
+  const WB = words.buffer.slice(words.byteOffset, words.byteOffset + words.byteLength);
+  const s = setup();
+  resetEngine();
+  await store(s.db).kbPut(BANK.map(e => ({ id: e.id, kind: 'answer', body: e })).concat([{ id: 'walk:jw', kind: 'walk', body: { id: 'jw-issue-walk', from: ['pr-jw-issue'], steps: [{ sel: '#jwNew', wait: 'click' }] } }]));
+  const call = async (p, o = {}) => { const r = await handle(new Request('https://router.example' + p, { method: o.method || 'POST', headers: { 'content-type': 'application/json', origin: ORIGIN, authorization: 'Bearer ' + (o.tok || await token()) }, body: o.body ? JSON.stringify(o.body) : undefined }), s.env, { fetch: fakeFetch, store: store(s.db), words: WB }); return { status: r.status, body: await r.json() }; };
+  const staff = await token(), admin = await token({ email: 'ravi@x.com', sub: 'a1' });
+  const r = await call('/search', { body: { q: 'how to give job work to a karigar', screen: 'pbase', lang: 'en' } });
+  ok(r.status === 200 && r.body.hits[0] && r.body.hits[0].id === 'pr-jw-issue', 'the server finds her answer: ' + (r.body.hits[0] && r.body.hits[0].id));
+  ok(r.body.hits[0].walk && r.body.hits[0].walk.id === 'jw-issue-walk', 'with the walk-through it offers');
+  ok(JSON.stringify(r.body).length < 4000, 'a small reply: ' + JSON.stringify(r.body).length + ' bytes');
+  ok(!('phr' in r.body.hits[0].e) && r.body.hits[0].e.a.en, 'the answer itself, not her search\'s working');
+  /* side by side: the browser's answer and the server's, kept with the question cleaned */
+  const c = await call('/search', { body: { q: 'Ramesh Kumar ko kaam kaise de, phone 98765 43210', screen: 'pbase', names: ['Ramesh Kumar'], compare: [{ id: 'pr-jw-issue', s: 0.9 }] } });
+  ok(c.status === 200 && typeof c.body.same === 'boolean', 'a side-by-side question is compared');
+  const row = s.db.raw.prepare('SELECT * FROM diffs ORDER BY id DESC').get();
+  ok(row && row.question === '[NAME] ko kaam kaise de, phone [PHONE]' && !/Ramesh|98765/.test(JSON.stringify(row)), 'kept cleaned: ' + (row && row.question));
+  ok((await call('/admin/search', { method: 'GET', tok: staff })).status === 403, 'staff cannot see the comparison');
+  const view = await call('/admin/search', { method: 'GET', tok: admin });
+  ok(view.status === 200 && view.body.asked === 1, 'an admin sees how often they agree');
+  /* an approved answer is searchable at once — no deploy */
+  ok(!(await call('/search', { body: { q: 'how do i export the qc report' } })).body.hits.some(x => /^learned-/.test(x.id)), 'not there before');
+  await call('/admin/answer', { tok: admin, body: { q: 'how do i export the qc report', a: 'Open **QC** and press **Export**.', lang: 'en', screen: 'qc' } });
+  const after = await call('/search', { body: { q: 'how do i export the qc report' } });
+  ok(after.body.hits[0] && /^learned-/.test(after.body.hits[0].id), 'an admin\'s answer is found straight away');
+  /* her switches on the router, with no deploy */
+  ok((await call('/admin/config', { tok: staff, body: { key: 'search', value: 'off' } })).status === 403, 'staff cannot change her switches');
+  ok((await call('/config', { method: 'GET' })).body.search === true, 'search on by default');
+  await call('/admin/config', { tok: admin, body: { key: 'search', value: 'off' } });
+  ok((await call('/search', { body: { q: 'karigar' } })).status === 503, 'search off: the browser answers on its own');
+  await call('/admin/config', { tok: admin, body: { key: 'ai', value: 'off' } });
+  ok((await call('/ask', { body: { q: 'anything new' } })).status === 503, 'AI off: no model is asked');
+  await call('/admin/config', { tok: admin, body: { key: 'meera', value: 'off' } });
+  const cf = (await call('/config', { method: 'GET' })).body;
+  ok(cf.meera === false && cf.ai === false && cf.search === false, 'all three switches read back');
+  ok((await call('/admin/config', { tok: admin, body: { key: 'other', value: 'off' } })).status === 400, 'only those four');
+}
+
+/* ---------- 10. the free plan: search parked (2 Nov) ---------- */
+{
+  const s = setup({ SEARCH: 'parked' }), admin = await token({ email: 'ravi@x.com' });
+  const cfg = await s.call('/config', { method: 'GET' });
+  ok(cfg.status === 200 && cfg.body.search === true && cfg.body.ai === true && cfg.body.meera === true, 'parked: /config gives the admin switches (search = her search on Cloud Functions)');
+  ok((await s.call('/search', { body: { q: 'how to give job work', screen: 'pbase', lang: 'en' } })).status === 503, 'parked: the router\'s own /search refuses (503)');
+  await s.call('/admin/config', { tok: admin, body: { key: 'search', value: 'off' } });
+  ok((await s.call('/config', { method: 'GET' })).body.search === false, 'an admin can switch her search on the server off for everyone (no deploy)');
+  await s.call('/admin/config', { tok: admin, body: { key: 'search', value: 'on' } });
+  ok((await s.call('/search', { body: { q: 'how to give job work', screen: 'pbase', lang: 'en' } })).status === 503, 'parked: switched on, the router itself still does not search');
+  /* side by side with her search on Cloud Functions (D.2) */
+  const d1r = await s.call('/diff', { body: { q: 'Ramesh Kumar ko kaam kaise de', names: ['Ramesh Kumar'], screen: 'pbase', browser: [{ id: 'pr-jw-issue', s: 0.9 }], server: [{ id: 'pr-jw-issue', s: 0.91 }] } });
+  const d2r = await s.call('/diff', { body: { q: 'packing list kya hai', screen: 'pack', browser: [{ id: 'a', s: 0.9 }], server: [{ id: 'b', s: 0.9 }] } });
+  ok(d1r.status === 200 && d1r.body.same === true && d2r.body.same === false, '/diff keeps whether the two agreed');
+  const view = await s.call('/admin/search', { method: 'GET', tok: admin });
+  ok(view.body.asked === 2 && view.body.same === 1 && !JSON.stringify(view.body).includes('Ramesh'), 'the comparison is counted, with names cleaned out');
+  ok((await s.call('/diff', { tok: null, body: { q: 'x' } })).status === 401, '/diff only for signed-in staff');
+  /* the daily limit for all staff together */
+  const s2 = setup({ SEARCH: 'parked', SEARCH_DAILY: '3' }), a2 = await token({ email: 'ravi@x.com' }), got = [];
+  for (let i = 0; i < 4; i++) got.push((await s2.call('/search-ticket', { body: {} })).body.ok);
+  ok(got.join() === 'true,true,true,false', 'search tickets: 3 a day for everyone together, then refused (' + got.join() + ')');
+  await s2.call('/admin/config', { tok: a2, body: { key: 'search', value: 'off' } });
+  ok((await s2.call('/search-ticket', { body: {} })).body.why === 'search-off', 'the admin switch off: no tickets');
+  ok((await s2.call('/search-ticket', { tok: null, body: {} })).status === 401, 'tickets only for signed-in staff');
+  ok((await s.call('/learn', { body: { kind: 'missed', q: 'packing list kya hai', screen: 'pack' } })).status === 200, 'parked: learning records still kept');
+  ok((await s.call('/ask', { body: { q: 'how do i give job work', lang: 'en', screen: 'pbase' } })).status === 200, 'parked: AI answers still work');
+  const { default: free } = await import('../src/free.js');
+  ok(typeof free.fetch === 'function', 'the free entry loads (no meaning table needed)');
+}
+
+/* ---------- 11. never a cent (3 Nov): the month's meter and the cent alarm ---------- */
+{
+  const KEY = 'm'.repeat(30), STOP = 's'.repeat(30), db = d1();
+  let clock = Date.parse('2026-11-20T06:00:00Z');
+  const env = { ...baseEnv(), SEARCH: 'parked', METER_KEY: KEY, STOP_KEY: STOP, METER_REQ: '100', METER_SEC: '10', DB: db };
+  const call = async (p, { method = 'POST', body, tok, head = {}, origin = ORIGIN } = {}) => {
+    const headers = { 'content-type': 'application/json', ...head };
+    if (origin) headers.origin = origin;
+    if (tok !== null) headers.authorization = 'Bearer ' + (tok || await token());
+    const r = await handle(new Request('https://router.example' + p, { method, headers, body: body ? JSON.stringify(body) : undefined }), env, { fetch: fakeFetch, store: store(db), now: () => clock });
+    return { status: r.status, body: await r.json().catch(() => null) };
+  };
+  const admin = await token({ email: 'ravi@x.com' });
+  ok((await call('/meter', { body: { req: 1, ms: 100 }, tok: null })).status === 403, 'meter: no key, refused');
+  const m1 = await call('/meter', { body: { req: 40, ms: 4000 }, tok: null, head: { 'x-meter-key': KEY } });
+  ok(m1.status === 200 && m1.body.stop === false && m1.body.req === 40 && m1.body.sec === 4, 'meter: counted, under half — goes on');
+  const m2 = await call('/meter', { body: { req: 10, ms: 6500 }, tok: null, head: { 'x-meter-key': KEY } });
+  ok(m2.body.stop === true && m2.body.why === 'free', 'meter: at the limit (half the free allowance) — stop');
+  const c1 = (await call('/config', { method: 'GET' })).body;
+  ok(c1.search === false && c1.searchStopped === 'free' && c1.backOn === '2026-12-01', 'stopped to stay free: every browser told, back on the 1st (' + c1.backOn + ')');
+  ok((await call('/search-ticket', { body: {} })).body.why === 'stopped-free', 'no tickets while stopped');
+  await call('/admin/config', { tok: admin, body: { key: 'search', value: 'on' } });
+  ok((await call('/config', { method: 'GET' })).body.search === false, 'an admin cannot turn it on again this month');
+  const mv = (await call('/admin/meter', { method: 'GET', tok: admin })).body;
+  ok(mv.req === 50 && mv.sec === 11 && mv.stopped === 'free' && mv.limits.req === 100, 'the admin page sees the meter: ' + JSON.stringify(mv));
+  clock = Date.parse('2026-12-01T00:30:00Z');   // 1 Dec, 6 am in India
+  const c2 = (await call('/config', { method: 'GET' })).body;
+  ok(c2.search === true && !c2.searchStopped, 'the 1st of the next month: on again, the meter at 0');
+  ok((await call('/admin/meter', { method: 'GET', tok: admin })).body.req === 0, 'a new month, a new meter');
+  /* the cent alarm */
+  ok((await call('/alarm', { body: { cost: 0.01 }, tok: null })).status === 403, 'alarm: no key, refused');
+  ok((await call('/alarm', { body: { cost: 0.01 }, tok: null, head: { 'x-stop-key': STOP } })).body.stopped === 'alarm', 'alarm: her search stopped');
+  const c3 = (await call('/config', { method: 'GET' })).body;
+  ok(c3.search === false && c3.searchStopped === 'alarm', 'every browser told: stopped by the alarm');
+  await call('/admin/config', { tok: admin, body: { key: 'search', value: 'on' } });
+  ok((await call('/config', { method: 'GET' })).body.search === true, 'an admin turns it on again after checking the bill');
+}
+
+/* ---------- 12. the emergency off for her new features (3 Nov) ---------- */
+{
+  const s = setup(), admin = await token({ email: 'ravi@x.com' });
+  const flags = async (o = ORIGIN) => { const headers = o ? { origin: o } : {}; const r = await handle(new Request('https://router.example/flags', { headers }), s.env, { fetch: fakeFetch, store: store(s.db) }); return { status: r.status, body: await r.json().catch(() => null), cc: r.headers.get('cache-control') }; };
+  const f1 = await flags();
+  ok(f1.status === 200 && f1.body.v2 === true && Object.keys(f1.body).length === 1 && f1.cc === 'no-store', '/flags: on, nothing else in it, never cached');
+  ok((await flags('https://evil.example')).status === 403, '/flags: only the ERP pages');
+  await s.call('/admin/config', { tok: admin, body: { key: 'v2', value: 'off' } });
+  ok((await flags()).body.v2 === false, 'the admin switch off: every page told at once (no sign-in needed to read it)');
+  ok((await s.call('/admin/config', { body: { key: 'v2', value: 'on' } })).status === 403, 'only an admin can change it');
+  await s.call('/admin/config', { tok: admin, body: { key: 'v2', value: 'on' } });
+  ok((await flags()).body.v2 === true && (await s.call('/config', { method: 'GET' })).body.v2 === true, 'on again');
+}
+
 console.log(`meera-router: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

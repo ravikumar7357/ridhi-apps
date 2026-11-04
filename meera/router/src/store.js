@@ -17,6 +17,25 @@ export function store(db) {
       const n1 = (mine.results && mine.results[0] || {}).n || 0, n2 = (all.results && all.results[0] || {}).n || 0;
       return { ok: n1 <= userMax && n2 <= companyMax, mine: n1, all: n2 };
     },
+    /** THE MONTH'S METER (her search on Cloud Functions): add to this month's count of `who` (requests, or milliseconds of
+     * billed time); the month's totals back: { req, ms } */
+    async meterAdd(req, ms, now) {
+      const m = 'M:' + today(now).slice(0, 7), up = 'INSERT INTO usage (day, who, n) VALUES (?1, ?2, ?3) ON CONFLICT(day, who) DO UPDATE SET n = n + ?3 RETURNING n';
+      const [a, b] = await db.batch([db.prepare(up).bind(m, 'meter:req', Math.max(0, Math.round(req))), db.prepare(up).bind(m, 'meter:ms', Math.max(0, Math.round(ms)))]);
+      return { req: (a.results && a.results[0] || {}).n || 0, ms: (b.results && b.results[0] || {}).n || 0 };
+    },
+    async meterGet(now) {
+      const m = 'M:' + today(now).slice(0, 7);
+      const r = await db.prepare("SELECT who, n FROM usage WHERE day = ?1 AND who IN ('meter:req', 'meter:ms')").bind(m).all();
+      const o = Object.fromEntries((r.results || []).map(x => [x.who, x.n]));
+      return { req: o['meter:req'] || 0, ms: o['meter:ms'] || 0 };
+    },
+    /** One more on a shared daily count (D.2: her search on Cloud Functions, all staff together): { ok, n } */
+    async count(who, max, now) {
+      const r = await db.prepare('INSERT INTO usage (day, who, n) VALUES (?1, ?2, 1) ON CONFLICT(day, who) DO UPDATE SET n = n + 1 RETURNING n').bind(today(now), who).first();
+      const n = (r && r.n) || 0;
+      return { ok: n <= max, n };
+    },
     /** The last approved answer for exactly this (cleaned) question, if any. */
     async saved(qkey) {
       return db.prepare("SELECT id, answer, source FROM answers WHERE qkey = ?1 AND status = 'approved' ORDER BY id DESC LIMIT 1").bind(qkey).first();
@@ -49,6 +68,90 @@ export function store(db) {
     async closeTicket(id, answerId) {
       await db.prepare("UPDATE tickets SET status = 'answered', answer_id = ?2 WHERE id = ?1").bind(id, answerId || null).run();
     },
+    /* ---- learning from staff (Phase 4) ---- */
+    /** Count one learning record for this person today (who: a hash of their sign-in, never stored with the record). */
+    async learnTake(who, max, now) {
+      const r = await db.prepare('INSERT INTO usage (day, who, n) VALUES (?1, ?2, 1) ON CONFLICT(day, who) DO UPDATE SET n = n + 1 RETURNING n')
+        .bind(today(now), who).first();
+      return ((r && r.n) || 0) <= max;
+    },
+    async learnAdd({ kind, question, qkey, screen, lang, role, answer, key }, now) {
+      const r = await db.prepare("INSERT INTO learn (created, kind, question, qkey, screen, lang, role, answer, note, status, key) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, '', 'new', ?9) RETURNING id")
+        .bind(stamp(now), kind, question, qkey, screen || '', lang || '', role || '', answer || '', key || '').first();
+      return r && r.id;
+    },
+    /** The one-line note after a 👎 — only with the key that record was given. */
+    async learnNote(id, key, note) {
+      const r = await db.prepare("UPDATE learn SET note = ?3 WHERE id = ?1 AND key = ?2 AND key != '' AND note = '' RETURNING id").bind(id, key, note).first();
+      return !!r;
+    },
+    /** Older than 90 days: gone. And yesterday's learning counters. */
+    async learnPurge(now) {
+      await db.batch([
+        db.prepare('DELETE FROM learn WHERE created < ?1').bind(stamp(now - 90 * 864e5)),
+        db.prepare("DELETE FROM usage WHERE who LIKE 'L:%' AND day < ?1").bind(today(now - 2 * 864e5)),
+      ]);
+    },
+    /** What an admin sees: this week's unanswered (most asked first), suggested spellings, 👎s. */
+    async learnView(now) {
+      const week = stamp(now - 7 * 864e5);
+      const unanswered = await db.prepare(`SELECT MIN(question) AS question, screen, lang, COUNT(*) AS n, MAX(created) AS last, GROUP_CONCAT(id) AS ids,
+          SUM(kind = 'unsure') AS unsure FROM learn WHERE kind IN ('missed', 'unsure') AND status = 'new' AND created >= ?1
+          GROUP BY qkey ORDER BY n DESC, last DESC LIMIT 60`).bind(week).all();
+      const spellings = await db.prepare(`SELECT MIN(question) AS question, answer, lang, COUNT(*) AS n, MAX(created) AS last, GROUP_CONCAT(id) AS ids
+          FROM learn WHERE kind = 'spelling' AND status = 'new' GROUP BY qkey, answer ORDER BY n DESC, last DESC LIMIT 60`).all();
+      const down = await db.prepare(`SELECT id, created, question, screen, lang, answer, note, role FROM learn WHERE kind = 'down' AND status = 'new'
+          ORDER BY id DESC LIMIT 100`).all();
+      const ids = r => (r.results || []).map(x => ({ ...x, ids: String(x.ids || '').split(',').map(Number).filter(Boolean) }));
+      return { unanswered: ids(unanswered), spellings: ids(spellings), down: down.results || [] };
+    },
+    /** An admin's decision on records: done (an answer was added), approved (a spelling), rejected. */
+    async learnSet(ids, status) {
+      const list = (ids || []).map(Number).filter(Boolean).slice(0, 200);
+      if (!list.length) return 0;
+      await db.batch(list.map(id => (status === 'approved'
+        ? db.prepare("UPDATE learn SET status = 'approved' WHERE id = ?1 AND kind = 'spelling'").bind(id)
+        : db.prepare('UPDATE learn SET status = ?2 WHERE id = ?1').bind(id, status))));
+      return list.length;
+    },
+    /** Approved spellings: a new way of asking for one of her answers. */
+    async spellings(limit = 2000) {
+      const r = await db.prepare("SELECT question, answer, lang FROM learn WHERE kind = 'spelling' AND status = 'approved' GROUP BY qkey, answer ORDER BY MAX(id) DESC LIMIT ?1").bind(limit).all();
+      return r.results || [];
+    },
+    /* ---- search on the server (Phase 5) ---- */
+    /** her answers and walk-throughs, as loaded at the last deploy */
+    async kbAll() {
+      const r = await db.prepare('SELECT id, kind, body FROM kb').all();
+      return (r.results || []).map(x => ({ id: x.id, kind: x.kind, body: safeJson(x.body) }));
+    },
+    async kbPut(rows) {
+      for (let i = 0; i < rows.length; i += 50)
+        await db.batch(rows.slice(i, i + 50).map(x => db.prepare('INSERT OR REPLACE INTO kb (id, kind, body) VALUES (?1, ?2, ?3)').bind(x.id, x.kind, JSON.stringify(x.body))));
+    },
+    /** the router's switches (meera, ai, search) and kb_version — one small read */
+    async config() {
+      const r = await db.prepare('SELECT key, value FROM config').all();
+      return Object.fromEntries((r.results || []).map(x => [x.key, x.value]));
+    },
+    async configSet(key, value) {
+      await db.prepare('INSERT INTO config (key, value) VALUES (?1, ?2) ON CONFLICT(key) DO UPDATE SET value = ?2').bind(key, String(value)).run();
+    },
+    /** her answers changed (an admin approved one, or a deploy loaded new ones): every router copy reloads */
+    async kbBump() {
+      await db.prepare("INSERT INTO config (key, value) VALUES ('kb_version', '1') ON CONFLICT(key) DO UPDATE SET value = CAST(value AS INTEGER) + 1").run();
+    },
+    async diffAdd({ question, screen, spell, browser, server, same }, now) {
+      await db.prepare('INSERT INTO diffs (created, question, screen, spell, browser, server, same) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)')
+        .bind(stamp(now), question, screen || '', spell ? 1 : 0, browser, server, same ? 1 : 0).run();
+    },
+    /** how often the two agree, since a day; and the latest differences */
+    async diffView(since, limit = 100) {
+      const n = await db.prepare('SELECT COUNT(*) AS n, SUM(same) AS same FROM diffs WHERE created >= ?1').bind(stamp(since)).first();
+      const list = await db.prepare('SELECT created, question, screen, browser, server FROM diffs WHERE same = 0 AND created >= ?1 ORDER BY id DESC LIMIT ?2').bind(stamp(since), limit).all();
+      return { asked: (n && n.n) || 0, same: (n && n.same) || 0, differ: list.results || [] };
+    },
+    async diffPurge(now) { await db.prepare('DELETE FROM diffs WHERE created < ?1').bind(stamp(now - 90 * 864e5)).run(); },
     /** Every approved answer: they join Meera's own list in every browser. */
     async learned(limit = 2000) {
       const r = await db.prepare("SELECT id, question, lang, screen, answer FROM answers WHERE status = 'approved' ORDER BY id DESC LIMIT ?1").bind(limit).all();
