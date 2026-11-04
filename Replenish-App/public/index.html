@@ -26899,7 +26899,7 @@ const shpbStockOf = r => Math.max(0, Math.min(+r.qty || 0, parseInt((((SHPB || {
  *  { label, auto } — auto false means nothing has moved yet, so the hand-set status (or In production) still shows and can be changed. */
 function shpbStatusInfo(r, s) {
   s = s || shpbStages([r]);
-  const steps = [['handD', 'Accepted by shipping'], ['prsD', 'Pressed'], ['qcD', 'QC passed'], ['recD', 'Received'], ['issD', 'Issued'], ['cutD', 'Cut'], ['prcD', 'Printer received']];
+  const steps = [['handD', 'Accepted by shipping'], ['prsD', shpbIsQuilt(r) ? 'Filled' : 'Pressed'], ['qcD', 'QC passed'], ['recD', 'Received'], ['issD', 'Issued'], ['cutD', 'Cut'], ['prcD', 'Printer received']];
   const hit = steps.find(x => s[x[0]] > 0);
   if (hit) return { label: hit[1], auto: true };
   if (s.stk) return { label: 'From stock', auto: true };
@@ -26996,7 +26996,9 @@ function shpbStages(lines) {
     const q0 = +r.qty || 0, stk = shpbStockOf(r), q = q0 - stk, cap = n => Math.max(0, Math.min(q, +n || 0));
     const iss = cap(r.issued), rec = cap(r.received), qc = cap(r.pressed);
     const sp = (typeof spOf === 'function' ? spOf(r.orderNo, r.sku) : null) || {}, got = Math.min(q0, Number(sp.handedQty) || (r.handedAt ? q0 : 0));
-    const prs = Math.min(qc, cap(((SHPB.pressBy || {})[shpbKey(r.orderNo, r.sku)] || {}).pcs));
+    /* A QUILT IS NOT PRESSED (Ravi, 4 Nov: "quilt artile press nahi hota h direct filling ke liye jata h"): after QC it goes to the filler
+     * vendor, and what comes back filled stands where pressed pieces stand — so Complete, shipping and the reports need no other change. */
+    const prs = shpbIsQuilt(r) ? Math.min(qc, cap(shpbFillSum(shpbFillOf(r), 'rec'))) : Math.min(qc, cap(((SHPB.pressBy || {})[shpbKey(r.orderNo, r.sku)] || {}).pcs));
     s.pcs += q0; s.stk += stk;
     if (r.cutReq) { const c = cap(r.cut); s.cutX += c; s.cutMv += Math.min(c, iss); s.toCut += Math.max(0, q - c); s.toIssue += Math.max(0, c - iss); }
     else { s.cutNone += q; s.toIssue += Math.max(0, q - iss); }
@@ -27057,10 +27059,11 @@ const shpbFillers = () => { let all = []; try { all = voAllVendors(); } catch (e
   const f = all.filter(v => /fill/i.test(String(v.category || ''))); return f.length ? f : all; };
 function shpbFillCell(r, k) {
   if (!shpbIsQuilt(r)) return '<td style="' + SHPB_PAD + '"><span class="muted">—</span></td>';
-  const f = shpbFillOf(r), iss = shpbFillSum(f, 'iss'), rec = shpbFillSum(f, 'rec');
-  return '<td style="' + SHPB_PAD + 'text-align:left;white-space:nowrap;line-height:1.25;font-size:11.5px">'
+  const f = shpbFillOf(r), iss = shpbFillSum(f, 'iss'), rec = shpbFillSum(f, 'rec'), qc = shpbStages([r]).qcD;
+  return '<td style="' + SHPB_STAGE_BG + ';' + SHPB_PAD + 'text-align:left;white-space:nowrap;line-height:1.25;font-size:11.5px" title="A quilt is not pressed: after QC it goes to the filler vendor">'
     + (f && (f.name || f.code) ? '<b>' + esc(f.name || f.code) + '</b>' : '<span class="muted">no filler vendor</span>')
     + '<div class="muted">issued <b style="color:#17202b">' + nf(iss) + '</b> · received <b style="color:' + (rec < iss ? '#b45309' : '#166534') + '">' + nf(rec) + '</b></div>'
+    + (qc > iss ? '<div style="color:#b45309">' + nf(qc - iss) + ' passed QC, not issued</div>' : '')
     + (shpbMay('fill') ? '<div><button type="button" class="ghost" data-shpb-act="fill" data-key="' + esc(k) + '" style="width:auto;padding:0 7px;font-size:10.5px;line-height:18px">Filler</button></div>' : '')
     + '</td>';
 }
@@ -27071,7 +27074,9 @@ async function shpbFillSave(r, v) {
   const iq = Math.round(+v.iss || 0), rq = Math.round(+v.rec || 0), qty = +r.qty || 0;
   if (iq < 0 || rq < 0) return 'Quantities cannot be below 0.';
   const iss = shpbFillSum(was, 'iss') + iq, rec = shpbFillSum(was, 'rec') + rq;
+  const qcd = shpbStages([r]).qcD;
   if (iss > qty) return `Only ${nf(qty)} piece(s) on this line — ${nf(iss)} would be issued.`;
+  if (iq > 0 && iss > qcd) return `Only ${nf(qcd)} piece(s) have passed QC — a quilt goes to the filler after QC.`;
   if (rec > iss) return `Only ${nf(iss)} issued — ${nf(rec)} cannot come back.`;
   const now = new Date().toISOString(), id = 'f' + Date.now().toString(36), day = v.date || shpbToday(), by = ME.email || '';
   const next = { code: ven ? String(ven.code) : was.code, name: ven ? String(ven.desc || ven.name || ven.code) : was.name,
@@ -27105,7 +27110,7 @@ function shpbFlowSpans(r, s) {
   const steps = [['Plan', plan ? 'done' : 'na', 'PPC plan'], ['Printer', fl ? (fl.printer ? 'done' : 'active') : 'na', 'Printer given'],
     ['P.recv', fl ? st(s.prcA, s.prcW, s.prcD) : 'na', 'Printed cloth back from the printer'], ['Cut', r.cutReq ? st(s.cutA, s.cutW, s.cutD) : 'na', 'Cut'],
     ['Issue', st(s.issA, s.issW, s.issD), 'Issued to a karigar'], ['Recv', st(s.recA, s.recW, s.recD), 'Received from the karigar'], ['QC', st(s.qcA, s.qcW, s.qcD), 'Passed QC'],
-    ['Press', st(s.prsA, s.prsW, s.prsD), 'Pressed'], ['Ship', st(s.handA, s.handW, s.handD, qf), 'Accepted by shipping']];
+    shpbIsQuilt(r) ? ['Filling', st(s.prsA, s.prsW, s.prsD), 'Back filled from the filler vendor'] : ['Press', st(s.prsA, s.prsW, s.prsD), 'Pressed'], ['Ship', st(s.handA, s.handW, s.handD, qf), 'Accepted by shipping']];
   const look = { done: 'background:#dcfce7;color:#166534', part: 'background:#fef3c7;color:#92400e', active: 'background:#f59e0b;color:#fff;font-weight:700', future: 'background:#f1f5f9;color:#94a3b8' };
   return steps.filter(x => x[1] !== 'na').map(x =>
     `<span title="${esc(x[2])}" style="font-size:10px;padding:1px 5px;border-radius:7px;${look[x[1]]}">${x[1] === 'done' ? '✓ ' : ''}${esc(x[0])}</span>`).join('<span class="muted" style="font-size:9px"> ›</span>');
@@ -27129,9 +27134,8 @@ function shpbRow(r) {
     + (!r.cutReq ? `<td class="num" style="${SHPB_STAGE_BG};${SHPB_PAD}"><span class="muted" style="font-size:11px">not needed</span></td>` : shpbCell(s.cutA, s.cutW, s.cutD, 'cut', 'Cut', k, tips.cut))
     + shpbCell(s.issA, s.issW, s.issD, 'issue', 'Issue', k, tips.issue)
     + shpbCell(s.recA, s.recW, s.recD, 'receive', 'Receive', k, tips.receive)
-    + (SHPB_FILLCOL ? shpbFillCell(r, k) : '')
     + shpbCell(s.qcA, s.qcW, s.qcD, 'qc', 'QC pass', k, tips.qc)
-    + shpbCell(s.prsA, s.prsW, s.prsD, 'press', 'Press', k, tips.press)
+    + (shpbIsQuilt(r) ? shpbFillCell(r, k) : shpbCell(s.prsA, s.prsW, s.prsD, 'press', 'Press', k, tips.press))
     + shpbStatusCell(r, k, rd, late, edit) + '</tr>';
 }
 /** THE LAST COLUMN: the line's status (In production / OOS / Delayed / On hold), the date it will be ready, and the way to complete it from ready stock. */
@@ -27207,10 +27211,9 @@ function renderShpBoard() {
   const th = (t, c) => `<th class="${c || ''}" style="${SHPB_PAD}${c === 'num' ? SHPB_STAGE_BG : ''}">${t}</th>`;
   const head = '<thead><tr><th class="frz" style="' + SHPB_PAD + 'text-align:left">Date</th><th style="' + SHPB_PAD + 'text-align:left">Order ID</th><th style="' + SHPB_PAD + 'text-align:left">Item</th>'
     + '<th class="num" style="' + SHPB_PAD + '">Pcs</th><th style="' + SHPB_PAD + 'text-align:left">Printer</th>'
-    + ['Printer receive', 'Cut', 'Issued', 'Received'].map(h => th(h, 'num')).join('') + (SHPB_FILLCOL ? '<th style="' + SHPB_PAD + 'text-align:left">Filler vendor</th>' : '')
-    + ['QC passed', 'Press'].map(h => th(h, 'num')).join('') + '<th style="' + SHPB_PAD + 'text-align:left">Status · ready by</th></tr></thead>';
+    + ['Printer receive', 'Cut', 'Issued', 'Received', 'QC passed', SHPB_FILLCOL ? 'Press · quilt: Filler' : 'Press'].map(h => th(h, 'num')).join('') + '<th style="' + SHPB_PAD + 'text-align:left">Status · ready by</th></tr></thead>';
   $('odTable').innerHTML = head + '<tbody>' + rows.slice(0, 300).map(shpbRow).join('') + '</tbody>'
-    + (rows.length > 300 ? '<tfoot><tr><td colspan="' + (SHPB_FILLCOL ? 12 : 11) + '" class="muted" style="padding:10px;text-align:left">Showing the first 300 of ' + nf(rows.length) + ' lines — search or filter to narrow them. Export has all of them.</td></tr></tfoot>' : '');
+    + (rows.length > 300 ? '<tfoot><tr><td colspan="11" class="muted" style="padding:10px;text-align:left">Showing the first 300 of ' + nf(rows.length) + ' lines — search or filter to narrow them. Export has all of them.</td></tr></tfoot>' : '');
 }
 
 /** COMPLETE: pressed lines waiting for shipping (Accept / Not received), then handed-over lines, newest day first. */
@@ -27252,7 +27255,7 @@ function shpbExport() {
   list.slice().sort((a, b) => String(a.orderDate).localeCompare(String(b.orderDate)) || a.orderNo.localeCompare(b.orderNo)).forEach(r => {
     const s = shpbStages([r]), rd = shpbReadyOf(r), at = ptIsoDate(r.handedAt || r.shopDoneAt) || '', px = (SHPB.pressBy || {})[shpbKey(r.orderNo, r.sku)] || {};
     lines.push([ptIsoDate(r.orderDate) || '', r.shopOrderNo || '', r.orderNo, r.sku, r.articleType || r.itemName || '', r.articleSubtype || '', r.color || '', r.size || '', r.qty, rd.date, rd.how === 'set' ? 'typed here' : rd.how, shpbStatusInfo(r).label, shpbPrinterOf(r),
-      s.prcA ? s.prcW : '', s.prcA ? s.prcD : '', r.cutReq ? s.cutW : 'not needed', r.cutReq ? s.cutD : '', s.issW, s.issD, s.recW, s.recD, s.qcW, s.qcD, s.prsW, s.prsD, (px.men || []).join(' / '), shpbIsQuilt(r) ? ((shpbFillOf(r) || {}).name || '') : '', shpbIsQuilt(r) ? shpbFillSum(shpbFillOf(r), 'iss') : '', shpbIsQuilt(r) ? shpbFillSum(shpbFillOf(r), 'rec') : '', s.stk || '', s.handW, s.handD, at,
+      s.prcA ? s.prcW : '', s.prcA ? s.prcD : '', r.cutReq ? s.cutW : 'not needed', r.cutReq ? s.cutD : '', s.issW, s.issD, s.recW, s.recD, s.qcW, s.qcD, shpbIsQuilt(r) ? '' : s.prsW, shpbIsQuilt(r) ? '' : s.prsD, (px.men || []).join(' / '), shpbIsQuilt(r) ? ((shpbFillOf(r) || {}).name || '') : '', shpbIsQuilt(r) ? shpbFillSum(shpbFillOf(r), 'iss') : '', shpbIsQuilt(r) ? shpbFillSum(shpbFillOf(r), 'rec') : '', s.stk || '', s.handW, s.handD, at,
       r.open ? 'Pending' : (r.handedAt ? 'Handed over' : (typeof SHP_DONE_TXT === 'function' ? SHP_DONE_TXT(r.shopDoneWhy) : 'Closed'))].map(csvCell).join(','));
   });
   ptDownload(shpbKind() + '-board-' + (SHPB.tab === 'done' ? 'complete' : (SHPB.stage ? 'waiting-' + SHPB.stage : 'pending')), lines);
@@ -27365,6 +27368,7 @@ function shpbDialog(act, key) {
         { key: 'date', label: 'Date', type: 'date', value: shpbToday() }],
       saveLabel: 'Save', onSave: async v => { const err = await shpbFillSave(r, v); if (!err) shpbAfter(); return err; } });
   }
+  if (act === 'press' && shpbIsQuilt(r)) return ptOpenDialog({ title: 'Press — ' + who, subtitle: 'A quilt is not pressed — after QC it goes to the filler vendor (the Filler button).' });
   if (act === 'press') {
     return ptOpenDialog({ title: 'Press — ' + who, subtitle: nf(s.prsW) + ' passed QC and not pressed yet. After this entry the line is in Complete, for shipping to accept.',
       fields: [{ key: 'man', label: 'Pressman', type: 'select', options: [['', '— pick —']].concat(SHPB_PRESSMEN.map(x => [x, x])), value: '' },
@@ -27465,7 +27469,9 @@ function shpbSteps(r) {
   const qcs = ((typeof QC !== 'undefined' && QC.checks) || []).filter(c => c && obUC(c.orderNo) === r.orderNo && qcNorm(c.sku) === r.sku && ptNum(c.ok) > 0);
   add('QC passed', s.qcW ? (s.qcD ? 'part' : (s.qcA ? 'active' : 'future')) : (s.qcA ? 'done' : 'future'), nf(s.qcD) + ' of ' + nf(q) + ' passed' + (qcs.length ? ' · by ' + [...new Set(qcs.map(c => c.checkedBy || String(c.addedBy || '').split('@')[0]))].join(', ') : ''), qcs.length ? shpbDay(qcs[qcs.length - 1].date) : '');
   const px = (SHPB.pressBy || {})[key] || {}, pe = Object.values(SHPB.press || {}).filter(e => e && shpbKey(e.orderNo, e.sku) === key);
-  add('Press', st(s.prsA, s.prsW, s.prsD), nf(s.prsD) + ' of ' + nf(q) + ' pressed' + (pe.length ? ' · ' + pe.map(e => e.pressman + ' ' + nf(e.pieces)).join(', ') : ''), px.last ? shpbDmy(px.last) : '');
+  if (shpbIsQuilt(r)) { const fz = shpbFillOf(r) || {}, fi = Object.values(fz.iss || {}), fr = Object.values(fz.rec || {}), lastF = fr.concat(fi).map(x => x.date).sort().pop();
+    add('Filling', st(s.prsA, s.prsW, s.prsD), nf(s.prsD) + ' of ' + nf(q) + ' back filled' + (fz.name ? ' · ' + fz.name : '') + ' · ' + nf(shpbFillSum(fz, 'iss')) + ' issued', lastF ? shpbDmy(lastF) : ''); }
+  else add('Press', st(s.prsA, s.prsW, s.prsD), nf(s.prsD) + ' of ' + nf(q) + ' pressed' + (pe.length ? ' · ' + pe.map(e => e.pressman + ' ' + nf(e.pieces)).join(', ') : ''), px.last ? shpbDmy(px.last) : '');
   const sp = (typeof spOf === 'function' ? spOf(r.orderNo, r.sku) : null) || {}, ns = (SHPB.ship || {})[key];
   add('Shipping', r.handedAt ? 'done' : st(s.handA, s.handW, s.handD, qf),
     (r.handedAt ? 'handed over' : nf(s.handD) + ' accepted') + (s.handW ? ' · ' + nf(s.handW) + ' waiting to accept' : '') + (ns && ns.state === 'notrecv' ? ' · NOT RECEIVED' + (ns.note ? ' (' + ns.note + ')' : '') : ''),

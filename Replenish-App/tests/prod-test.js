@@ -6792,6 +6792,12 @@ console.log('\n== Order Console: what the vendors hold, order by order ==');
         ok('…Board — Filler vendor gives the filler button and nothing else; only a quilt is one', A.shpbMay('fill') && !A.shpbMay('cut')
           && A.shpbIsQuilt({ articleSubtype: 'King Quilt' }) && !A.shpbIsQuilt({ articleSubtype: 'Ruffle Pillow Cover' }));
         ME.bdFill = false;
+        /* A QUILT IS NOT PRESSED (4 Nov): after QC the filler; filled-back pieces stand where pressed ones do */
+        { const kq = A.shpbKey('SHP-1', 'Q-1'), q = L({ sku: 'Q-1', articleSubtype: 'King Quilt', cut: 4, issued: 4, received: 4, pressed: 4 }), was = A.SHPB();
+          A.setSHPB(Object.assign({}, was, { pressBy: { [kq]: { pcs: 4, last: '', men: ['Keshav'] } }, ready: { [kq]: { fill: { code: 'F1', name: 'Filler One', iss: { a: { qty: 4 } }, rec: { b: { qty: 3 } } } } } }));
+          const sq = A.shpbStages([q]);
+          ok('…a quilt is not pressed: the press entry is ignored and 3 filled back count as done, 1 waits at the filler', sq.prsD === 3 && sq.prsW === 1 && sq.handA === 3, JSON.stringify([sq.prsD, sq.prsW, sq.handA]));
+          A.setSHPB(was); }
         ME.admin = true; ME.tabs = [];
         ok('…an admin may do every step', ['plan', 'prcv', 'cut', 'issue', 'receive', 'qc', 'press', 'stock'].every(a => A.shpbMay(a)));
         ME.admin = was.admin; ME.tabs = was.tabs;
