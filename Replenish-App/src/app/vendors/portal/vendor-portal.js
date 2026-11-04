@@ -344,6 +344,7 @@ function renderVp() {
      * is outstanding, and a number that only goes up stops being read after a fortnight. */
     paint('vpTabRfd', VP.tab === 'rfd', 'RFD fabric I need',
       vpRfdRows().filter(r => r.stage === 'pending' || r.stage === 'approved').length);
+    paint('vpTabDch', VP.tab === 'dch', 'Daily challan', 0);   // daily-challan.js
   }
   const doneTab = VP.tab === 'done';
   VP_PART = doneTab ? 'done' : 'open';
@@ -409,10 +410,12 @@ function renderVp() {
   /* View only: no asking for RFD cloth and nothing to record or date — the tab and the bar go (vpViewAll()). */
   if (vpViewAll() && VP.tab === 'rfd') VP.tab = 'bulk';
   if ($('vpTabRfd')) $('vpTabRfd').classList.toggle('hide', vpViewAll());
-  const rfdTab = VP.tab === 'rfd';
-  ['vpBar2', 'vpBar3'].forEach(id => { if ($(id)) $(id).classList.toggle('hide', rfdTab || (id === 'vpBar3' && vpViewAll())); });
-  ['vpView', 'vpStatus', 'vpType', 'vpQ', 'vpExport'].forEach(id => { if ($(id)) $(id).classList.toggle('hide', rfdTab || (VP.tab === 'shop' && (id === 'vpView' || id === 'vpType'))); });
+  const rfdTab = VP.tab === 'rfd', dchTab = VP.tab === 'dch';
+  ['vpBar2', 'vpBar3'].forEach(id => { if ($(id)) $(id).classList.toggle('hide', rfdTab || dchTab || (id === 'vpBar3' && vpViewAll())); });
+  ['vpView', 'vpStatus', 'vpType', 'vpQ', 'vpExport'].forEach(id => { if ($(id)) $(id).classList.toggle('hide', rfdTab || dchTab || (VP.tab === 'shop' && (id === 'vpView' || id === 'vpType'))); });
   if (rfdTab) { vpRfdRender(matched, nag); return; }
+  /* DAILY CHALLAN (4 Nov, daily-challan.js): the printer's own delivery challan, and theirs by date */
+  if (dchTab && typeof vpDchRender === 'function') { vpDchRender(); return; }
 
   if (VP.tab === 'hist') {
     const q = f.q;
