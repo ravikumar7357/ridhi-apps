@@ -344,6 +344,7 @@ function renderVp() {
      * is outstanding, and a number that only goes up stops being read after a fortnight. */
     paint('vpTabRfd', VP.tab === 'rfd', 'RFD fabric I need',
       vpRfdRows().filter(r => r.stage === 'pending' || r.stage === 'approved').length);
+    paint('vpTabDch', VP.tab === 'dch', 'Daily challan', 0);   // daily-challan.js
   }
   const doneTab = VP.tab === 'done';
   VP_PART = doneTab ? 'done' : 'open';
@@ -409,10 +410,12 @@ function renderVp() {
   /* View only: no asking for RFD cloth and nothing to record or date — the tab and the bar go (vpViewAll()). */
   if (vpViewAll() && VP.tab === 'rfd') VP.tab = 'bulk';
   if ($('vpTabRfd')) $('vpTabRfd').classList.toggle('hide', vpViewAll());
-  const rfdTab = VP.tab === 'rfd';
-  ['vpBar2', 'vpBar3'].forEach(id => { if ($(id)) $(id).classList.toggle('hide', rfdTab || (id === 'vpBar3' && vpViewAll())); });
-  ['vpView', 'vpStatus', 'vpType', 'vpQ', 'vpExport'].forEach(id => { if ($(id)) $(id).classList.toggle('hide', rfdTab || (VP.tab === 'shop' && (id === 'vpView' || id === 'vpType'))); });
+  const rfdTab = VP.tab === 'rfd', dchTab = VP.tab === 'dch';
+  ['vpBar2', 'vpBar3'].forEach(id => { if ($(id)) $(id).classList.toggle('hide', rfdTab || dchTab || (id === 'vpBar3' && vpViewAll())); });
+  ['vpView', 'vpStatus', 'vpType', 'vpQ', 'vpExport'].forEach(id => { if ($(id)) $(id).classList.toggle('hide', rfdTab || dchTab || (VP.tab === 'shop' && (id === 'vpView' || id === 'vpType'))); });
   if (rfdTab) { vpRfdRender(matched, nag); return; }
+  /* DAILY CHALLAN (4 Nov, daily-challan.js): the printer's own delivery challan, and theirs by date */
+  if (dchTab && typeof vpDchRender === 'function') { vpDchRender(); return; }
 
   if (VP.tab === 'hist') {
     const q = f.q;
@@ -981,8 +984,10 @@ function vpTable(rows, f) {
 
     /* The order itself, as one row across the table. Everything that belongs to the WHOLE order lives
      * here — there is nowhere else for it to go once the cards are gone. */
+    /* COMPACT (Ravi, 4 Nov: "need compact view for this"): the order's and the colour's rows across the table WRAP — one long unbroken
+     * line of challans there was setting the table's width, and every column was spread out to fill it. */
     const bar = `<tr data-vporder="${esc(o.id)}" style="background:var(--hover,#f1f5f9)">
-      <td colspan="${COLS.length}" style="text-align:left;padding:7px 10px">
+      <td colspan="${COLS.length}" style="text-align:left;padding:6px 10px;white-space:normal">
         <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
           <b style="font-size:14px">${esc(o.orderNo || o.id)}</b>${o.channel ? ` <span class="pill" style="background:#E9EFF6;color:#3A5573">For ${esc(o.channel)}</span>` : ''}
           <span class="pill">${esc(run ? 'Running fabric — metres' : 'Cut fabric — pieces')}</span>
@@ -1007,7 +1012,7 @@ function vpTable(rows, f) {
       const gLeft = g.items.filter(({ l }) => !l.cancelled)
         .reduce((s, { l }) => s + Math.max(0, vpQty(o, l) - vpDone(l)), 0);
       const gHead = `<tr style="background:var(--line-2,#f8fafc)">
-        <td colspan="${COLS.length}" style="text-align:left;padding:6px 10px;font-size:12.5px">
+        <td colspan="${COLS.length}" style="text-align:left;padding:5px 10px;font-size:12.5px;white-space:normal">
           ${g.priority ? `<b style="color:var(--accent)">${esc(g.priority)}</b> · ` : ''}
           <b>${esc(g.colour) || 'no colour'}</b>
           <span class="muted">· ${nf(g.items.length)} line(s) · ${nf(gQty)} ${unit}${
@@ -1019,7 +1024,7 @@ function vpTable(rows, f) {
       const dels = (Array.isArray(l.deliveries) ? l.deliveries : Object.values(l.deliveries || {})).filter(Boolean);
       return `<tr${dead ? ' style="opacity:.5"' : ''}>`
         + `<td style="text-align:left;font-family:ui-monospace,monospace;font-size:12px">${esc(run ? (l.sku || l.fabricType) : l.sku)}${run && l.sku ? `<div class="muted" style="font-size:10.5px;font-family:inherit">${esc(l.fabricType)}</div>` : ''}</td>`
-        + (run ? vpRunPic(l, 38, true) : ptImgCell(l.sku))
+        + (run ? vpRunPic(l, 30, true) : ptImgCell(l.sku, 30))
         + `<td style="text-align:left;font-size:12px">${esc(run
             ? (l.printDirection || '')
             : (l.articleSubtype || l.articleType || ''))}</td>`
@@ -1046,7 +1051,7 @@ function vpTable(rows, f) {
   /* No max-height: one scrollbar on the page beats two fighting each other, and the box this
    * replaces was showing four lines at a time. */
   return `<div class="card xlwrap" style="padding:0">
-    <table class="xl"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
+    <table class="xl xl-dense vp-lines"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
 }
 
 function vpCard(o, f) {

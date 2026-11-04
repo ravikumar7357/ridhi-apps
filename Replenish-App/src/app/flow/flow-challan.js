@@ -60,15 +60,18 @@ function flowPrintWhat(r, plan) {
 /* THE RUFFLE CLOTH IS PRINTED TOO (Ravi, 10 Oct, the 327 catalogue: Cambric → LSB). A ruffle SKU's ruffle cloth (the
  * plan's "Ruffle — <fabric>", from the master row / recipe / ruffle rule) goes to the same printer as the body: its
  * printed fabric SKU, in metres. Only for a printed line. */
-function flowPrintExtras(r, plan) {
+/* rem (4 Nov): the share of the line still to make — pieces already cut / issued / passed need no ruffle cloth again (Ravi: "224 pcs
+ * pahle hi cut ho chuke … only pending fabric hi print par jana chahiye"). 1 when not given. */
+function flowPrintExtras(r, plan, rem) {
   if (!plan || !flowPrinted(flowRouteOf(plan))) return [];
+  const rf = rem == null ? 1 : Math.max(0, Math.min(1, +rem || 0));
   const m = cutSkuOf(r.sku) || {}, colour = String(m.color || r.color || '').trim(), cc = ordColCodeOf(r.sku);
   return (plan.extra || []).filter(x => x.unit === 'm' && /^Ruffle — /.test(String(x.what || '')) && +x.qty > 0).map(x => {
     const fab = String(x.what).replace(/^Ruffle — /, '').trim(), dirs = flowFabDirs(fab, colour, cc);
     const dir = dirs.length === 1 ? dirs[0] : ((plan.print && plan.print.dir) || '');
     const code = dir || !dirs.length ? flowFabSku(fab, colour, dir, cc) : '';
-    const left = flowR2(Math.max(0, (+x.qty || 0) - (+x.fromPrinted || 0)));
-    return { kind: 'fabric', code, mode: 'Ruffle cloth', label: [colour, fab, dir].filter(Boolean).join(' · '), unit: 'm', metres: left, total: flowR2(+x.qty), fromPrinted: flowR2(+x.fromPrinted || 0), what: 'ruffle' };
+    const need = flowR2((+x.qty || 0) * rf), left = flowR2(Math.max(0, need - (+x.fromPrinted || 0)));
+    return { kind: 'fabric', code, mode: 'Ruffle cloth', label: [colour, fab, dir].filter(Boolean).join(' · '), unit: 'm', metres: left, total: need, fromPrinted: flowR2(+x.fromPrinted || 0), what: 'ruffle' };
   }).filter(x => x.metres > 0);
 }
 const flowExtrasTxt = xs => xs.map(w => `<div style="font-size:11px;color:#4338ca">+ Ruffle: ${w.code ? `<b>${esc(w.code)}</b>` : '<b style="color:#b91c1c">no fabric SKU in the catalogue</b>'} · ${esc(w.label)} · ${nf(w.metres)} m</div>`).join('');
@@ -103,6 +106,14 @@ function flowFabOwed(r, s) {
   const need = pcsWise ? tp.pcs : tp.metres, rem = typeof flowRemFrac === 'function' ? flowRemFrac(r, s) : 1;
   const left = Math.max(0, Math.min(need - (s.fabSent || 0), need * rem));
   return { unit: pcsWise ? 'pcs' : 'm', need, sent: s.fabSent || 0, left: flowR2(left), metres: pcsWise ? (need ? flowR2(tp.metres * left / need) : 0) : flowR2(left) };
+}
+/** flowToPrint for only the part of the line still to make (rem, 4 Nov): what a NEW print order asks the printer for. */
+function flowToPrintRem(r, p, rem) {
+  const rf = rem == null ? 1 : Math.max(0, Math.min(1, +rem || 0));
+  if (rf >= 1) return flowToPrint(r, p);
+  const qty = +r.qty || 0, m = flowR2(+(p && p.fabric && p.fabric.metres) || 0), fp = +(p && p.fabric && p.fabric.fromPrinted) || 0;
+  if (p && p.fabric && p.fabric.printedUnit === 'pcs') { const pcs = Math.max(0, Math.round(qty * rf) - fp); return { pcs, metres: qty ? flowR2(m * pcs / qty) : 0 }; }
+  return { pcs: Math.round(qty * rf), metres: flowR2(Math.max(0, m * rf - fp)) };
 }
 function flowToPrint(r, p) {
   const qty = +r.qty || 0, m = flowR2(+(p && p.fabric && p.fabric.metres) || 0), fp = +(p && p.fabric && p.fabric.fromPrinted) || 0;
@@ -153,7 +164,7 @@ const flowPlanPrinter = s => (s.plan && s.plan.printer && s.plan.printer.code) |
 function flowRuffleOwed(x) {
   const p = x.s.plan, rp = flowRufflePrinter(p); if (!rp || !flowPrinted(x.s.route)) return null;
   if (flowChIndex()[x.s.key + FLOW_RUF]) return null;   // sent already
-  const xs = flowPrintExtras(x.r, p); if (!xs.length) return null;
+  const xs = flowPrintExtras(x.r, p, flowPoRemOf(x.r, x.s)); if (!xs.length) return null;
   const ruf = (p.extra || []).find(e => /^Ruffle — /.test(String(e.what || '')));
   return { printer: rp, extras: xs, metres: flowR2(xs.reduce((a, e) => a + (+e.metres || 0), 0)), fabric: ruf ? String(ruf.what).replace(/^Ruffle — /, '') : '' };
 }
@@ -343,8 +354,8 @@ function flowChallanDialog(rows, pcode, rufRows, pre, after) {
       const ch = { no, date, orderNo, orders, vendor: { code: v.code, name: vname }, note: $('flcNote').value.trim(), at: now, by: ME.email || '',
         lines: picked.map(({ x, m, ruf, pc }) => ruf
           /* the ruffle cloth alone, to its own printer: its key is the line's, marked ruffleOnly (indexed as <key>~ruffle) */
-          ? { key: x.s.key, ruffleOnly: true, sku: obUC(x.r.sku), item: flowChItem(x.r), print: null, extras: flowPrintExtras(x.r, x.s.plan), fabric: (flowRuffleOwed(x) || {}).fabric || '', pcs: 0, metres: flowR2(m) }
-          : { key: x.s.key, sku: obUC(x.r.sku), item: flowChItem(x.r), print: flowPrintWhat(x.r, x.s.plan), extras: flowPrintExtras(x.r, x.s.plan), fabric: (x.s.plan && x.s.plan.fabric && x.s.plan.fabric.name) || '', pcs: x.s.fabUnit === 'pcs' ? (pc != null ? pc : flowFabOwed(x.r, x.s).left) : (preOf(x) ? preOf(x).pcs : flowToPrint(x.r, x.s.plan).pcs), metres: flowR2(m),
+          ? { key: x.s.key, ruffleOnly: true, sku: obUC(x.r.sku), item: flowChItem(x.r), print: null, extras: flowPrintExtras(x.r, x.s.plan, flowPoRemOf(x.r, x.s)), fabric: (flowRuffleOwed(x) || {}).fabric || '', pcs: 0, metres: flowR2(m) }
+          : { key: x.s.key, sku: obUC(x.r.sku), item: flowChItem(x.r), print: flowPrintWhat(x.r, x.s.plan), extras: flowPrintExtras(x.r, x.s.plan, flowPoRemOf(x.r, x.s)), fabric: (x.s.plan && x.s.plan.fabric && x.s.plan.fabric.name) || '', pcs: x.s.fabUnit === 'pcs' ? (pc != null ? pc : flowFabOwed(x.r, x.s).left) : (preOf(x) ? preOf(x).pcs : flowToPrint(x.r, x.s.plan).pcs), metres: flowR2(m),
           /* the ruffle cloth goes once, on the first challan for the line — never when it has a printer of its own */ ...(x.s.fabSent > 0 || flowRufflePrinter(x.s.plan) ? { extras: [] } : {}) }) };
       /* THE NUMBER IS CLAIMED: the challan is written only where no challan of that number is yet — two people making one at
        * the same moment get two numbers, never one challan written over the other. */

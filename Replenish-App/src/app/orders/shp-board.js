@@ -181,10 +181,16 @@ const SHPB_STAGES = [['plan', 'To plan', 'plan', 'planW', 'planD', 'planA'], ['p
  * of them]. An admin does everything. The figures stay for everybody; only the buttons go. */
 const SHPB_RIGHT = { plan: ['flppc'], print: ['flppc'], prcv: ['flchl'], cut: ['pcut', 'flcut'], issue: ['pbase', 'flraw'], receive: ['pbase', 'flwip'],
   qc: ['qc'], press: ['ppress', 'qc'], stock: ['fgi'] };
+/* BOARD RIGHTS, ONE PER BUTTON (Ravi, 4 Nov: "access me thoda refine version … jisko jis cheej ka access du wo hi kar pay like cut,
+ * issue, receive, qc, press"). Somebody given ANY board right does exactly those steps on the boards and no other — whatever screens
+ * they also hold. Somebody given none keeps the rule above (the screens they hold), so nobody's work stops the day this goes live. */
+const SHPB_BD = { cut: 'bdCut', issue: 'bdIssue', receive: 'bdRecv', qc: 'bdQc', press: 'bdPress' };
+var SHPB_BD_RIGHTS = Object.values(SHPB_BD);   // var: core/auth.js reads it at sign-in
 function shpbMay(act) {
   if (ME.admin) return true;
   const need = SHPB_RIGHT[act];
   if (!need) return true;   // accept / not received: shpCanReceive decides
+  if (SHPB_BD[act] && SHPB_BD_RIGHTS.some(k => ME[k])) return !!ME[SHPB_BD[act]];
   return need.some(t => (ME.tabs || []).includes(t));
 }
 function shpbCell(a, w, d, act, label, key, title) {
