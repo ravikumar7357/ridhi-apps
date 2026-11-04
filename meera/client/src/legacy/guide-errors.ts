@@ -1,9 +1,12 @@
 /* EVERY ERROR THE ERP CAN SHOW, for Meera: [the message's longest fixed piece, lower case; the screen it belongs to].
  * Read off the screens' own code (every red message line, and every rule a form checks before it saves), so when
  * someone pastes or asks about a message, Meera knows which screen it is from and why it happens (gaWhy in
- * guide-ask.ts). 617 messages. MADE BY meera/tools/make-errors.cjs — do not edit; when screens change, it is
+ * guide-ask.ts). 620 messages. MADE BY meera/tools/make-errors.cjs — do not edit; when screens change, it is
  * made again (her gate says so on every push). */
 const GUIDE_ERRS = [
+  ["everything in both apps", ""],
+  ["type an email address first.", ""],
+  ["that does not look like an email address.", ""],
   ["⚠️ backend not configured — create firestore doc config/replapi with {url, key}.", ""],
   ["not deleted", ""],
   ["pieces must be at least 1.", ""],
