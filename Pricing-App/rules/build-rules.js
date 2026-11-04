@@ -101,6 +101,9 @@ const rules = {
   },
 
   pt_vendorOrders: { '.write': STAFF, $code: { '.read': OWN_BRANCH, '.write': OWN_BRANCH } },
+  /* THE PRINTER'S DAILY CHALLAN (Ravi, 4 Nov; Replenish vendors/portal/daily-challan.js): their own branch, as their orders are —
+   * a printer makes and reads only its own challans; staff read (read-model.js) and write the lot. */
+  pt_vendorChallans: { '.write': STAFF, $code: { '.read': OWN_BRANCH, '.write': OWN_BRANCH } },
 
   /* WHAT A PRINTER SAYS IS ALREADY ON THEIR FLOOR, per size, so the factory stops sending cloth they
    * have. Their own branch and nobody else's, exactly as their orders are — one printer must not be
