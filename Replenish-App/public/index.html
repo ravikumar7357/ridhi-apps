@@ -32722,10 +32722,18 @@ function flowFgRender() {
   const all = flowFgLines(), rows = all.filter(x => !q || [x.r.orderNo, x.r.sku, x.r.color, x.r.size, x.r.subtype].join(' ').toLowerCase().includes(q));
   const may = flowMayFg(), pcs = rows.reduce((a, x) => a + flowFgToAccept(x.r, x.s), 0);
   const pic = sku => { const u = typeof ptImgOf === 'function' ? ptImgOf(sku) : ''; return u ? `<img src="${esc(ptImgSrc(u, 34))}" alt="" style="width:34px;height:34px;object-fit:contain;background:#fff;border-radius:5px">` : ''; };
-  const head = ['Order', 'SKU', 'Image', 'Qty', 'QC passed', 'In India stock', 'To accept', 'Earlier', ''];
-  $('fgTable').innerHTML = '<thead><tr>' + head.map((h, i) => `<th${i === 0 ? ' class="frz"' : i >= 3 && i <= 6 ? ' class="num"' : ''}>${h}</th>`).join('') + '</tr></thead><tbody>'
+  /* SENT ON (Ravi, 4 Nov: "yaha date show honi chahiye kis date ko mal bheja h"): the days QC passed the line's pieces — QC is what
+   * sends them on to Finished Goods — newest first, with the pieces each day; a reject from here (a negative row) is left out. */
+  const sentOn = r => { const m = new Map();
+    (flowQcLine(r).rows || []).forEach(c => { if (!(+c.ok > 0)) return; const d = ptIsoDate(c.date) || String(c.addedAt || '').slice(0, 10); if (d) m.set(d, (m.get(d) || 0) + (+c.ok || 0)); });
+    return [...m.entries()].sort((a, b) => b[0].localeCompare(a[0])); };
+  const dmy = iso => { const p = String(iso).split('-'); return p.length === 3 ? p[2] + '-' + p[1] + '-' + p[0] : iso; };
+  const head = ['Order', 'Sent on', 'SKU', 'Image', 'Qty', 'QC passed', 'In India stock', 'To accept', 'Earlier', ''];
+  $('fgTable').innerHTML = '<thead><tr>' + head.map((h, i) => `<th${i === 0 ? ' class="frz"' : i >= 4 && i <= 7 ? ' class="num"' : ''}>${h}</th>`).join('') + '</tr></thead><tbody>'
     + (rows.map(x => { const n = flowFgToAccept(x.r, x.s), log = flowFgOf(x.r).sort((a, b) => String(b.at || '').localeCompare(String(a.at || '')));
+      const so = sentOn(x.r);
       return `<tr><td class="frz" style="text-align:left"><b>${esc(x.r.orderNo)}</b>${x.r.__t ? ' <span class="navbadge" style="background:#7c3aed;position:static">TEST</span>' : ''}</td>
+        <td style="text-align:left;white-space:nowrap">${so.length ? `<b>${esc(dmy(so[0][0]))}</b>` + (so.length > 1 ? so.slice(0, 4).map(([d, n]) => `<div class="muted" style="font-size:11px">${esc(dmy(d))} · ${nf(n)} pcs</div>`).join('') : '') : '<span class="muted">—</span>'}</td>
         <td style="text-align:left;font-family:ui-monospace,monospace">${esc(obUC(x.r.sku))}<div class="muted" style="font-family:inherit;font-size:11px">${esc([x.r.subtype, x.r.color, x.r.size].filter(Boolean).join(' · '))}</div></td>
         <td>${pic(x.r.sku)}</td><td class="num">${nf(+x.r.qty || 0)}</td><td class="num">${nf(x.s.made)}</td><td class="num">${nf(x.s.india)}</td>
         <td class="num" style="font-weight:700;color:#166534">${nf(n)}</td>
