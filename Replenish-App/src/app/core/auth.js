@@ -98,7 +98,9 @@ onAuthStateChanged(auth, async user => {
       ME.fgiEntry = d.fgiEntry === true;
       /* …and: may add, change and DELETE people on the employee list. It opens the Employee list on
        * its own — pay, rates and slips stay shut unless Finance & HR is granted as well. */
-      ME.empEdit = d.empEdit === true; }
+      ME.empEdit = d.empEdit === true;
+      /* …and: may SEE the Access page (who can open what) and change nothing (core/access-host.js). */
+      ME.accessView = d.accessView === true; }
   } catch (e) { /* no perms = no access */ }
   /* A perms read that fails leaves ME.tabs empty, which is the correct answer — but the cover still
    * has to come off, or a denied account sits looking at nothing at all. */
@@ -107,6 +109,8 @@ onAuthStateChanged(auth, async user => {
   if (ME.admin) (typeof SHPB_BD_RIGHTS !== 'undefined' ? SHPB_BD_RIGHTS : []).forEach(k => { ME[k] = true; });
   if (ME.admin) { ME.tabs = REPL_TABS.slice(); ME.projEdit = true; ME.prodEdit = true; ME.rateApprove = true; ME.shopAssign = true; ME.b2bAssign = true;
     ME.accEntry = true; ME.accEdit = true; ME.vlogAccept = true; ME.soApprove = true; ME.mdbEdit = true; ME.attendMark = true; ME.vreqApprove = true; ME.rfdApprove = true; ME.rfdSend = true; ME.fgiEdit = true; ME.fgiEntry = true; ME.empEdit = true; ME.hrEmpOnly = false; }
+  /* THE ACCESS PAGE (4 Nov): admins, and Access viewers, see it; it is not a box anybody is given */
+  if ((ME.admin || ME.accessView) && !ME.tabs.includes('access')) ME.tabs = ME.tabs.concat('access');
   /* FROM QC — TO ACCEPT (Ravi, 27 Oct: "From QC — to accept - access me jodo"): its own box in Access, for whoever accepts what
    * passed QC into the India store and does nothing else there. A grant, not a screen: on its own it opens Finished Goods on that
    * one list (ME.fgAccOnly, finished-goods.js); with Finished Goods ticked as well it adds nothing. */
@@ -219,7 +223,7 @@ onAuthStateChanged(auth, async user => {
    * with its own sign-in, and the three read-only views read the factory's database over REST. An
    * account holding only those would otherwise spend its login on reads the rules must refuse, and
    * land on a red "ask an admin for perms.repl" message about a permission it does not need. */
-  const FACTORY_TABS = ['dash', 'att', 'pmdb', 'mst', 'pbase', 'pcut', 'ppress', 'qc', 'qcalt', 'qcret', 'ord', 'so', 'vord', 'vreq', 'rfd', 'vend', 'palloc', 'fgi', 'fba', 'fab', 'acc', 'rep', 'pa', 'ka', 'hr',
+  const FACTORY_TABS = ['access', 'dash', 'att', 'pmdb', 'mst', 'pbase', 'pcut', 'ppress', 'qc', 'qcalt', 'qcret', 'ord', 'so', 'vord', 'vreq', 'rfd', 'vend', 'palloc', 'fgi', 'fba', 'fab', 'acc', 'rep', 'pa', 'ka', 'hr',
     /* History and Customer Orders are factory screens too; missing here, a login holding History loaded
      * the Replenishment snapshot at sign-in — a vendor's among them. */
     'vlog', 'cx', ...FLOW_TABS,
