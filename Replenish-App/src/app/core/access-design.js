@@ -880,7 +880,7 @@ const RIGHTS = [
   /* ACCESS VIEWER (3 Nov): sees this page — everybody's access — and changes nothing */
   ['accessView', 'See the Access page (view only)'],
   /* THE BOARDS' BUTTONS (4 Nov): given any of these, a person does exactly these steps on the SHP / AMZ / B2B / SPY boards */
-  ['bdCut', 'Board — Cut'], ['bdIssue', 'Board — Issue'], ['bdRecv', 'Board — Receive'], ['bdQc', 'Board — QC pass'], ['bdPress', 'Board — Press'],
+  ['bdCut', 'Board — Cut'], ['bdIssue', 'Board — Issue'], ['bdRecv', 'Board — Receive'], ['bdQc', 'Board — QC pass'], ['bdPress', 'Board — Press'], ['bdFill', 'Board — Filler vendor (quilts)'],
 ];
 
 /* TWO PAGES, ONE CODE (Ravi, 4 Nov: "sellora access ko replenish app me shift — sellora me sirf amazon ke access rahe"). This file is the same
