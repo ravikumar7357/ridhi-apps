@@ -79122,7 +79122,8 @@ SELLORA_GROUPS.forEach(g => g.items.forEach(([k, l]) => { LABEL.sellora[k] = l; 
 ERP_GROUPS.forEach(g => g.items.forEach(([k, l]) => { LABEL.erp[k] = l; }));
 RIGHTS.forEach(([k, l]) => { LABEL.rights[k] = l; });
 const APPS = [
-  SIDE === 'sellora' ? { kind: 'sellora', name: 'Sellora', groups: SELLORA_GROUPS } : { kind: 'erp', name: 'Fabricrush (ERP)', groups: ERP_GROUPS },
+  /* the page is one app's already, so its block is called what it holds, not the app (Ravi, 4 Nov) */
+  SIDE === 'sellora' ? { kind: 'sellora', name: 'Access points', groups: SELLORA_GROUPS } : { kind: 'erp', name: 'Access points', groups: ERP_GROUPS },
   { kind: 'rights', name: 'Extra rights', groups: [{ name: 'Can also', items: RIGHTS.filter(r => SIDE_RIGHT(r[0]) && !/^bd/.test(r[0])) },
     { name: 'SHP / AMZ / B2B / SPY boards — only these buttons', items: RIGHTS.filter(r => SIDE_RIGHT(r[0]) && /^bd/.test(r[0])) }].filter(g => g.items.length) },
 ];
