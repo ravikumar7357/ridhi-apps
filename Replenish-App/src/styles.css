@@ -1568,32 +1568,7 @@ button.otk-it{cursor:pointer}button.otk-it:hover{text-decoration:underline}
   --av3b: #ece4fd; --av3f: #5b34b0; --av4b: #fde2e2; --av4f: #a52a1e; --av5b: #d9f1f3; --av5f: #0e6670; --toast: #172033;
   color-scheme: light;
 }
-/* Dark follows the sun/moon switch (data-theme on <html>), and the computer's own setting when nothing is picked. */
-:root[data-theme="dark"] .acx {
-  --bg: #0f1218; --surface: #171b23; --surface-2: #1c212b; --hover: #222834; --text: #e7eaf0; --muted: #a2aaba; --faint: #747d8e;
-  --line: #2a303c; --line-strong: #3a4250;
-  --accent: #5b8def; --accent-hover: #7aa3f3; --accent-soft: #1b2740; --accent-text: #a9c4f7;
-  --ok: #4cc38a; --ok-soft: #13291f; --warn: #e6a94e; --warn-soft: #2e2410; --bad: #f2877b; --bad-soft: #351b18;
-  --special: #b39cf0; --special-soft: #251f3a;
-  --shadow: none; --shadow-lg: 0 20px 40px -12px rgba(0, 0, 0, .6);
-  color-scheme: dark;
-  --av0b: #1f2d4a; --av0f: #a9c4f7; --av1b: #16301f; --av1f: #7fd6a8; --av2b: #33270f; --av2f: #e6a94e;
-  --av3b: #2a2140; --av3f: #c3aef4; --av4b: #3a1d1b; --av4f: #f2877b; --av5b: #13302f; --av5f: #7fd3da; --toast: #2a3140;
-}
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .acx {
-    --bg: #0f1218; --surface: #171b23; --surface-2: #1c212b; --hover: #222834; --text: #e7eaf0; --muted: #a2aaba; --faint: #747d8e;
-    --line: #2a303c; --line-strong: #3a4250;
-    --accent: #5b8def; --accent-hover: #7aa3f3; --accent-soft: #1b2740; --accent-text: #a9c4f7;
-    --ok: #4cc38a; --ok-soft: #13291f; --warn: #e6a94e; --warn-soft: #2e2410; --bad: #f2877b; --bad-soft: #351b18;
-    --special: #b39cf0; --special-soft: #251f3a;
-    --shadow: none; --shadow-lg: 0 20px 40px -12px rgba(0, 0, 0, .6);
-    color-scheme: dark;
-    --av0b: #1f2d4a; --av0f: #a9c4f7; --av1b: #16301f; --av1f: #7fd6a8; --av2b: #33270f; --av2f: #e6a94e;
-    --av3b: #2a2140; --av3f: #c3aef4; --av4b: #3a1d1b; --av4f: #f2877b; --av5b: #13302f; --av5f: #7fd3da; --toast: #2a3140;
-  }
-}
-
+/* No dark copy here: the ERP has one look, light — the page opens in the colours the rest of the app has. */
 .acx * { box-sizing: border-box; }
 
 .acx { background: var(--bg); color: var(--text); font: 14px/1.5 "Segoe UI", system-ui, -apple-system, Roboto, sans-serif; -webkit-font-smoothing: antialiased; }
