@@ -105,13 +105,15 @@ function mdParse(q0: string, D: ErpMeeraData): MdAsk | null {
     return { kind: 'karigar-which', said: said || cand[0].split(/\s+/)[0], names: cand.slice(0, 6) };
   }
   /* a SKU ("CPC008-04"; "CPC008" when it has several sizes: she asks which) */
-  if (MD_STOCK.test(low) || MD_COUNT.test(low) || MD_ORDERQ.test(low) || MD_CLOTH.test(low) || /\b(details?|batao|bataiye|info|about|sab kuch|poori|puri)\b|बताओ|बताइए/.test(low)) {
+  /* …or a SKU typed on its own ("CPC-002"): written with the dash anywhere, it is that SKU or its sizes */
+  const alone = ws.length === 1 && /[a-z]/i.test(ws[0]) && /\d{2,}/.test(ws[0]);
+  if (alone || MD_STOCK.test(low) || MD_COUNT.test(low) || MD_ORDERQ.test(low) || MD_CLOTH.test(low) || /\b(details?|batao|bataiye|info|about|sab kuch|poori|puri)\b|बताओ|बताइए/.test(low)) {
     const set = new Set(D.skus());
     for (const w of ws) {
       const u = w.toUpperCase();
       if (!/\d/.test(u) || u.length < 4) continue;
       if (set.has(u)) return skuAsk(u);
-      const pre = [...set].filter(s => s.startsWith(u + '-') || mdBare(s) === mdBare(u));
+      const pre = [...set].filter(s => s.startsWith(u + '-') || mdBare(s) === mdBare(u) || mdBare(s.split('-')[0]) === mdBare(u));
       if (pre.length === 1) return skuAsk(pre[0]);
       if (pre.length > 1 && pre.length <= 8) return { kind: 'sku-which', said: u, skus: pre };
     }

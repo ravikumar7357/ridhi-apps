@@ -1216,7 +1216,23 @@ function gaBankAnswer(e, lang, L, near) {
 const GA_TAB_TITLE = { dash: 'Dashboard', repl: 'Replenishment', article: 'Article Review', target: 'Revenue Target', follow: 'Ongoing Purchase Order', top: 'Top ASIN Status', india: 'India Stock', shopify: 'Shopify Stock', prod: 'In Production', pack: 'Packing List', plan: 'Action Plan',
   att: 'Attendance', pmdb: 'Master Database', mst: 'Masters', pbase: 'Job Work Register', pcut: 'Cutting Data', ppress: 'Press Inventory', qc: 'Quality Control', ord: 'Order Console', so: 'Sales Orders', vord: 'Vendor Orders', vreq: 'Vendor Order Requests', rfd: 'RFD Requirements', vend: 'Vendor Portal', vlog: 'History — what printers have sent', cx: 'Customer Orders', palloc: 'Printer Allocation', fgi: 'Finished Goods', fba: 'FBA Dispatch', fab: 'Fabric Inventory', acc: 'Accessories', rep: 'Reports', pa: 'Production Analysis', ka: 'Karigar Analysis', hr: 'Finance & HR', shop: 'Shopify Orders', adj: 'Adjustments', flow: 'Production flow', gdesk: 'Greige Desk' };
 function gaNearHtml(near, lang, head) {
-  return `<div class="ga-rel"><span>${head}</span>${near.map(n => { const t = gaAskOf(n.e, lang); return t ? `<button type="button" class="ga-chip" data-gq="${esc(t)}">${esc(t)}</button>` : ''; }).join('')}</div>`;
+  /* two choices with the same words ("CPC" — a button on Shopify Orders, an option on Replenishment …) carry their screen,
+   * and pressing one opens that very answer: asking the words again only asked which again (Ravi, 4 Nov: "CPC-002") */
+  const ts = near.map(n => gaAskOf(n.e, lang)), same = t => ts.filter(x => x.toLowerCase() === t.toLowerCase()).length > 1;
+  const lab = near.map((n, i) => { const t = ts[i]; if (!t || !same(t)) return t; const tb = n.e.tab ? (GA_TAB_TITLE[n.e.tab] || gaTabName(n.e.tab)) : ''; return tb ? `${t} · ${tb}` : t; });
+  const kind = lab.map((t, i) => (t && lab.filter(x => x === t).length > 1 && n0(near[i]) ? `${t} (${n0(near[i])})` : t));
+  function n0(n) { return n.e.p && n.e.p[1] ? String(n.e.p[1]) : ''; }
+  return `<div class="ga-rel"><span>${head}</span>${near.map((n, i) => { const t = kind[i]; if (!t) return ''; const one = t !== ts[i];
+    return `<button type="button" class="ga-chip" data-gq="${esc(t)}"${one ? ` data-gid="${esc(n.e.id)}"` : ''}>${esc(t)}</button>`; }).join('')}</div>`;
+}
+/** a choice that names one answer (gaNearHtml): that answer, not the same question again */
+function gaAskEntry(id, label) {
+  const e = GA_BANK && GA_BANK.list.find(x => x.id === id);
+  if (!e) { gaAsk(label); return; }
+  gaMine(label);
+  const lang = gaRead(label).lang, L = (en, hi, hg) => (lang === 'hi' ? hi : lang === 'hg' ? (hg || en) : en);
+  const r = gaBankAnswer(e, lang, L, []);
+  gaSay(r.html, r.acts, r.after);
 }
 /* ---------- questions she could not answer, kept on this device so the bank can learn them ---------- */
 function gaMissKeep(q, why) {
@@ -1265,7 +1281,7 @@ function guideAskBuild() {
   box.addEventListener('click', e => {
     const a = (e.target as HTMLElement).closest<HTMLElement>('[data-ga]');
     if (a) { if (a.dataset.ga === 'fb' && a.closest('.ga-fb')) a.closest('.ga-fb').remove(); gaAct(a.dataset.ga, a.dataset.id || '', a.dataset.tab || ''); return; }
-    const c = (e.target as HTMLElement).closest<HTMLElement>('[data-gq]'); if (c) { if (typeof meeraLearnTap === 'function') meeraLearnTap(c.dataset.gq); gaAsk(c.dataset.gq); }
+    const c = (e.target as HTMLElement).closest<HTMLElement>('[data-gq]'); if (c) { if (typeof meeraLearnTap === 'function') meeraLearnTap(c.dataset.gq); if (c.dataset.gid) gaAskEntry(c.dataset.gid, c.dataset.gq); else gaAsk(c.dataset.gq); }
   });
   box.addEventListener('keydown', e => { if (e.key === 'Escape') guideAskClose(); });
 }

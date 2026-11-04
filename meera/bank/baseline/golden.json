@@ -442,14 +442,14 @@
   "off": false
  },
  "eval|shop|order console kis kaam aata hai": {
-  "text": "Aapka sawaal ek se zyada jawaabon se milta hai. Aap kaunsa poochh rahe hain? Order Console kya hai order console kya hai job work register ka total order console se zyada",
+  "text": "Aapka sawaal ek se zyada jawaabon se milta hai. Aap kaunsa poochh rahe hain? Order Console kya hai · Finished Goods order console kya hai · Order Console job work register ka total order console se zyada",
   "acts": [],
   "bank": null,
   "miss": null,
   "off": false
  },
  "eval|shop|स्टेटस में 25 to make का मतलब क्या है": {
-  "text": "आपका सवाल एक से ज़्यादा जवाबों से मिलता है। आप कौन-सा पूछ रहे हैं? Pending, In Progress, Completed का मतलब Status क्या है Status क्या है",
+  "text": "आपका सवाल एक से ज़्यादा जवाबों से मिलता है। आप कौन-सा पूछ रहे हैं? Pending, In Progress, Completed का मतलब Status क्या है · Adjustments Status क्या है · Production flow",
   "acts": [],
   "bank": null,
   "miss": null,
@@ -1891,7 +1891,7 @@
   "off": false
  },
  "eval2|shop|sab log sku sku bolte rehte h, iska matlab kya hua": {
-  "text": "Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? SKU kya hai sku kya hota hai SKU kya hai",
+  "text": "Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? SKU kya hai · Shopify Orders sku kya hota hai SKU kya hai · Adjustments",
   "acts": [],
   "bank": null,
   "miss": "near",
@@ -1944,7 +1944,7 @@
   "off": false
  },
  "eval2|shop|karigar matlab darzi hi na? ya koi aur": {
-  "text": "Your question fits more than one answer. Which one do you mean? how to filter Karigar Karigar",
+  "text": "Your question fits more than one answer. Which one do you mean? how to filter Karigar · Masters Karigar · Order Console",
   "acts": [],
   "bank": null,
   "miss": null,
@@ -2095,7 +2095,7 @@
   "off": false
  },
  "eval2|shop|what's the difference between article type and subtype": {
-  "text": "Your question fits more than one answer. Which one do you mean? -- Article type -- what is article type -- Article type --",
+  "text": "Your question fits more than one answer. Which one do you mean? -- Article type -- · Quality Control what is article type -- Article type -- · Press Inventory",
   "acts": [],
   "bank": null,
   "miss": null,
@@ -2123,7 +2123,7 @@
   "off": false
  },
  "eval2|shop|master database aur masters dono alag h kya": {
-  "text": "Aapka sawaal ek se zyada jawaabon se milta hai. Aap kaunsa poochh rahe hain? master database kya hai Master database kya hai master database me sku table kahan hai",
+  "text": "Aapka sawaal ek se zyada jawaabon se milta hai. Aap kaunsa poochh rahe hain? master database kya hai · Master Database Master database kya hai · Master Database master database me sku table kahan hai",
   "acts": [],
   "bank": null,
   "miss": null,
@@ -2160,7 +2160,7 @@
   "off": false
  },
  "eval2|shop|mark sent dabaya to bol raha pehle row select karo": {
-  "text": "Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? Mark sent kya hai Mark sent kya hai adjustment production ko bheja kaise mark kare",
+  "text": "Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? Mark sent kya hai · Adjustments Mark sent kya hai · RFD Requirements adjustment production ko bheja kaise mark kare",
   "acts": [],
   "bank": null,
   "miss": "near",
@@ -2282,7 +2282,7 @@
   "off": false
  },
  "eval2|shop|is there a way to see more info about a number without clicking on it": {
-  "text": "I'm not fully sure what you mean. Is it one of these? Click to see only these Click to see only these what are the boxes with numbers on top",
+  "text": "I'm not fully sure what you mean. Is it one of these? Click to see only these · In Production Click to see only these · India Stock what are the boxes with numbers on top",
   "acts": [],
   "bank": null,
   "miss": "near",
@@ -2324,7 +2324,7 @@
   "off": false
  },
  "eval2|shop|it won't let me type 10.5 pieces": {
-  "text": "Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? box me akshar nahi ja rahe Pieces kya hai Pieces kya hai",
+  "text": "Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? box me akshar nahi ja rahe Pieces kya hai · Quality Control Pieces kya hai · Cutting Data",
   "acts": [],
   "bank": null,
   "miss": "near",
@@ -3185,7 +3185,7 @@
   "off": false
  },
  "parts|mst|Cut किसलिए है": {
-  "text": "आपका सवाल एक से ज़्यादा जवाबों से मिलता है। आप कौन-सा पूछ रहे हैं? Cut क्या है Cut क्या है Cut क्या है",
+  "text": "आपका सवाल एक से ज़्यादा जवाबों से मिलता है। आप कौन-सा पूछ रहे हैं? Cut क्या है · Masters (note) Cut क्या है · Masters (column) Cut क्या है · Order Console",
   "acts": [],
   "bank": null,
   "miss": null,
@@ -3299,7 +3299,7 @@
   "off": false
  },
  "parts|gdesk|what does Date show": {
-  "text": "Your question fits more than one answer. Which one do you mean? Date * Date Date",
+  "text": "Your question fits more than one answer. Which one do you mean? Date * Date · Greige Desk (box) Date · Greige Desk (column)",
   "acts": [],
   "bank": null,
   "miss": null,
@@ -3695,7 +3695,7 @@
   "off": false
  },
  "parts|pack|what does Invoice # show": {
-  "text": "Your question fits more than one answer. Which one do you mean? Invoice # Invoice # Invoice #",
+  "text": "Your question fits more than one answer. Which one do you mean? Invoice # · Packing List (column) Invoice # · Packing List (box) Invoice # · Adjustments",
   "acts": [],
   "bank": null,
   "miss": null,
@@ -4333,7 +4333,7 @@
   "off": false
  },
  "parts|flow|what does Printer show": {
-  "text": "Your question fits more than one answer. Which one do you mean? Printer Printer + Printer",
+  "text": "Your question fits more than one answer. Which one do you mean? Printer · Production flow (box) Printer · Production flow (column) + Printer",
   "acts": [],
   "bank": null,
   "miss": null,
@@ -4627,7 +4627,7 @@
   "off": false
  },
  "parts|flow|what does Date show": {
-  "text": "Your question fits more than one answer. Which one do you mean? Date Date Date",
+  "text": "Your question fits more than one answer. Which one do you mean? Date · Production flow (box) Date · Production flow (column) Date · Adjustments",
   "acts": [],
   "bank": null,
   "miss": null,
@@ -4671,7 +4671,7 @@
   "off": false
  },
  "parts|adj|what does Low show": {
-  "text": "Your question fits more than one answer. Which one do you mean? Low Low when does status show low",
+  "text": "Your question fits more than one answer. Which one do you mean? Low · Adjustments Low · Finished Goods when does status show low",
   "acts": [],
   "bank": null,
   "miss": null,

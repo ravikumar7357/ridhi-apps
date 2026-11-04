@@ -39,3 +39,51 @@ Each entry: when, why, and what it changed. Made by `node meera/tests/gate.cjs -
   - before: - · I'm not fully sure what you mean. Is it one of these? embroidery cutting goes where how to
   - after: - · I'm not fully sure what you mean. Is it one of these? embroidery cutting goes where cut no
 
+## 2026-11-04 10:27 — Choices with the same words carry their screen and open that answer (Ravi, 4 Nov: "CPC-002" looped on four "CPC" buttons)
+
+- answer `eval|shop|order console kis kaam aata hai`
+  - before: - · Aapka sawaal ek se zyada jawaabon se milta hai. Aap kaunsa poochh rahe hain? Order Console
+  - after: - · Aapka sawaal ek se zyada jawaabon se milta hai. Aap kaunsa poochh rahe hain? Order Console
+- answer `eval|shop|स्टेटस में 25 to make का मतलब क्या है`
+  - before: - · आपका सवाल एक से ज़्यादा जवाबों से मिलता है। आप कौन-सा पूछ रहे हैं? Pending, In Progress, C
+  - after: - · आपका सवाल एक से ज़्यादा जवाबों से मिलता है। आप कौन-सा पूछ रहे हैं? Pending, In Progress, C
+- answer `eval2|shop|sab log sku sku bolte rehte h, iska matlab kya hua`
+  - before: - · Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? SKU kya hai sku kya h
+  - after: - · Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? SKU kya hai · Shopify
+- answer `eval2|shop|karigar matlab darzi hi na? ya koi aur`
+  - before: - · Your question fits more than one answer. Which one do you mean? how to filter Karigar Kari
+  - after: - · Your question fits more than one answer. Which one do you mean? how to filter Karigar · Ma
+- answer `eval2|shop|what's the difference between article type and subtype`
+  - before: - · Your question fits more than one answer. Which one do you mean? -- Article type -- what is
+  - after: - · Your question fits more than one answer. Which one do you mean? -- Article type -- · Quali
+- answer `eval2|shop|master database aur masters dono alag h kya`
+  - before: - · Aapka sawaal ek se zyada jawaabon se milta hai. Aap kaunsa poochh rahe hain? master databa
+  - after: - · Aapka sawaal ek se zyada jawaabon se milta hai. Aap kaunsa poochh rahe hain? master databa
+- answer `eval2|shop|mark sent dabaya to bol raha pehle row select karo`
+  - before: - · Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? Mark sent kya hai Mar
+  - after: - · Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? Mark sent kya hai · A
+- answer `eval2|shop|is there a way to see more info about a number without clicking on it`
+  - before: - · I'm not fully sure what you mean. Is it one of these? Click to see only these Click to see
+  - after: - · I'm not fully sure what you mean. Is it one of these? Click to see only these · In Product
+- answer `eval2|shop|it won't let me type 10.5 pieces`
+  - before: - · Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? box me akshar nahi ja
+  - after: - · Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? box me akshar nahi ja
+- answer `parts|mst|Cut किसलिए है`
+  - before: - · आपका सवाल एक से ज़्यादा जवाबों से मिलता है। आप कौन-सा पूछ रहे हैं? Cut क्या है Cut क्या है
+  - after: - · आपका सवाल एक से ज़्यादा जवाबों से मिलता है। आप कौन-सा पूछ रहे हैं? Cut क्या है · Masters (
+- answer `parts|gdesk|what does Date show`
+  - before: - · Your question fits more than one answer. Which one do you mean? Date * Date Date
+  - after: - · Your question fits more than one answer. Which one do you mean? Date * Date · Greige Desk 
+- answer `parts|pack|what does Invoice # show`
+  - before: - · Your question fits more than one answer. Which one do you mean? Invoice # Invoice # Invoic
+  - after: - · Your question fits more than one answer. Which one do you mean? Invoice # · Packing List (
+- answer `parts|flow|what does Printer show`
+  - before: - · Your question fits more than one answer. Which one do you mean? Printer Printer + Printer
+  - after: - · Your question fits more than one answer. Which one do you mean? Printer · Production flow 
+- answer `parts|flow|what does Date show`
+  - before: - · Your question fits more than one answer. Which one do you mean? Date Date Date
+  - after: - · Your question fits more than one answer. Which one do you mean? Date · Production flow (bo
+- answer `parts|adj|what does Low show`
+  - before: - · Your question fits more than one answer. Which one do you mean? Low Low when does status s
+  - after: - · Your question fits more than one answer. Which one do you mean? Low · Adjustments Low · Fi
+

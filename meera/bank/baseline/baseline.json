@@ -1,5 +1,5 @@
 {
- "made": "2026-11-02",
+ "made": "2026-11-04",
  "scores": {
   "eval": {
    "right": 114,
@@ -45,8 +45,8 @@
  },
  "sizes": {
   "meera-bank.json": {
-   "raw": 3389048,
-   "gzip": 857568
+   "raw": 3395212,
+   "gzip": 859429
   },
   "meera-words.bin": {
    "raw": 1591833,
@@ -57,13 +57,13 @@
    "gzip": 118316
   },
   "code in the page": {
-   "raw": 421413,
-   "gzip": 182505,
+   "raw": 438153,
+   "gzip": 187373,
    "files": 10
   }
  },
  "timing": {
-  "loadMs": 1438,
-  "msPerAnswer": 49
+  "loadMs": 1466,
+  "msPerAnswer": 51.3
  }
 }

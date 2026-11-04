@@ -171,6 +171,17 @@ add('none', '', ['karigar ko kaam kaise de', 'Raju Kumar ko maal kaise issue kar
       const a = plain(await chat(q)); ok(a === b || /क्वालिटी कंट्रोल/.test(a), `"${q}" explains the open screen: ${a.slice(0, 100)}`); }
     ok(!/This is Quality Control/.test(plain(await chat('keyboard shortcut kya hai is page ke'))), '"keyboard shortcut kya hai is page ke" keeps its own answer'); }
 
+  console.log('9. a SKU typed on its own, and choices with the same words (Ravi, 4 Nov: "CPC-002" looped on "CPC")');
+  { const c = card('CPC008-04'); ok(c.kind === 'skucard' && c.t.includes('Cotton Duck'), 'a SKU on its own gets its card: ' + c.kind); }
+  { const c = card('CPC-008'); ok(c.kind === 'sku-which' && ['CPC008-04', 'CPC008-06', 'CPC008-08'].every(s => c.t.includes(s)), 'CPC-008 (dash anywhere): which size — ' + c.kind); }
+  { ok(!T('meeraDataTry("CPC")') && !T('meeraDataTry("AMZ")'), 'a brand or a word alone is not a SKU');
+    M.setTab('shop');
+    const h = await chat('CPC'), labs = [...h.matchAll(/class="ga-chip"[^>]*>([^<]+)</g)].map(m => m[1]), ids = [...h.matchAll(/data-gid="([^"]+)"/g)].map(m => m[1]);
+    ok(labs.length >= 2 && new Set(labs).size === labs.length, 'every choice has its own words: ' + labs.join(' | '));
+    ok(ids.length === labs.length, 'and opens its own answer: ' + ids.join(', '));
+    const a = plain(await M.ctx.__meeraTest(`(async () => { let o = ''; const s = gaSay; gaSay = h => { o += h; }; try { gaAskEntry(${JSON.stringify(ids[0] || '')}, 'CPC'); } finally { gaSay = s; } return o; })()`));
+    ok(/Shows only CPC|CPC ke|सिर्फ/.test(a) && !/more than one answer|ek se zyada/.test(a), 'pressing a choice answers it, not "which one" again: ' + a.slice(0, 100)); }
+
   console.log('6. switch off');
   { const N = await load({ root: ROOT, bundle: true, handle: true, switches: ['lazy'], only: true }); install(N);
     ok((await N.ctx.__meeraTest('meeraDataAsk("Imran Ali ke paas kitne piece hain")')) === false, 'with "data" off she does not take it'); }
