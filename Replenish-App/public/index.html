@@ -27060,7 +27060,7 @@ const shpbFillers = () => { let all = []; try { all = voAllVendors(); } catch (e
 /* THREE COLUMNS AFTER QC (Ravi, 4 Nov: "quilt ke liye press required nahi h and qc ke bad Filler · Qty · Rec"): the filler vendor and
  * its button, the pieces issued to it, the pieces received back filled. A line that is not a quilt shows a dash in all three. */
 function shpbFillCell(r, k) {
-  const dash = '<td class="num" style="' + SHPB_PAD + '"><span class="muted">—</span></td>';
+  const dash = '<td class="num" style="' + SHPB_STAGE_BG + ';' + SHPB_PAD + '"><span class="muted">—</span></td>';
   if (!shpbIsQuilt(r)) return dash + dash + dash;
   const f = shpbFillOf(r), iss = shpbFillSum(f, 'iss'), rec = shpbFillSum(f, 'rec'), qc = shpbStages([r]).qcD;
   const td = (x, al) => '<td style="' + SHPB_STAGE_BG + ';' + SHPB_PAD + 'text-align:' + (al || 'center') + ';white-space:nowrap;line-height:1.25;font-size:11.5px">' + x + '</td>';
@@ -27071,8 +27071,10 @@ function shpbFillCell(r, k) {
 }
 async function shpbFillSave(r, v) {
   const key = shpbKey(r.orderNo, r.sku), was = shpbFillOf(r) || {}, all = shpbFillers();
-  const ven = all.find(x => String(x.code) === String(v.ven)) || null;
-  if (!ven && !was.code) return 'Pick the filler vendor.';
+  /* A FILLER NOT ON THE VENDOR LIST (Ravi, 4 Nov: "vendor yadi list me nahi h to manually feed kar sake"): its name is typed, kept with no code */
+  const typed = String(v.venTxt || '').trim().replace(/\s+/g, ' ');
+  const ven = typed ? { code: '', name: typed } : (all.find(x => String(x.code) === String(v.ven)) || null);
+  if (!ven && !was.code && !was.name) return 'Pick the filler vendor, or type its name.';
   const iq = Math.round(+v.iss || 0), rq = Math.round(+v.rec || 0), qty = +r.qty || 0;
   if (iq < 0 || rq < 0) return 'Quantities cannot be below 0.';
   const iss = shpbFillSum(was, 'iss') + iq, rec = shpbFillSum(was, 'rec') + rq;
@@ -27081,7 +27083,7 @@ async function shpbFillSave(r, v) {
   if (iq > 0 && iss > qcd) return `Only ${nf(qcd)} piece(s) have passed QC — a quilt goes to the filler after QC.`;
   if (rec > iss) return `Only ${nf(iss)} issued — ${nf(rec)} cannot come back.`;
   const now = new Date().toISOString(), id = 'f' + Date.now().toString(36), day = v.date || shpbToday(), by = ME.email || '';
-  const next = { code: ven ? String(ven.code) : was.code, name: ven ? String(ven.desc || ven.name || ven.code) : was.name,
+  const next = { code: ven ? String(ven.code || '') : (was.code || ''), name: ven ? String(ven.desc || ven.name || ven.code) : (was.name || ''),
     iss: Object.assign({}, was.iss || {}, iq > 0 ? { [id + 'i']: { qty: iq, date: day, by, at: now } } : {}),
     rec: Object.assign({}, was.rec || {}, rq > 0 ? { [id + 'r']: { qty: rq, date: day, by, at: now } } : {}) };
   return shpbSetReady(key, { fill: next });
@@ -27366,6 +27368,7 @@ function shpbDialog(act, key) {
     return ptOpenDialog({ title: 'Filler vendor — ' + who, subtitle: `${nf(+r.qty || 0)} quilt(s) on this line · ${nf(iss)} issued to the filler · ${nf(rec)} received back filled`,
       html: hist.length ? '<div style="font-size:12px;margin:-4px 0 8px">' + hist.map(h => `<div class="muted">${esc(shpbDmy(h.x.date))} · ${h.k === 'iss' ? 'issued' : 'received'} <b>${nf(h.x.qty)}</b> · ${esc(String(h.x.by || '').split('@')[0])}</div>`).join('') + '</div>' : '',
       fields: [{ key: 'ven', label: 'Filler vendor', type: 'select', options: [['', vs.length ? '— pick —' : 'no vendor with category Filling in the vendor master']].concat(vs.map(v => [String(v.code), String(v.desc || v.name || v.code)])), value: f.code || '' },
+        { key: 'venTxt', label: 'Not in the list? Type the filler vendor', value: f.code ? '' : (f.name || '') },
         { key: 'iss', label: 'Issue now (pieces)', type: 'number', min: 0, value: '' },
         { key: 'rec', label: 'Received back now (pieces)', type: 'number', min: 0, value: '' },
         { key: 'date', label: 'Date', type: 'date', value: shpbToday() }],
