@@ -21911,7 +21911,13 @@ console.log('\n== every menu item is a link a new tab can open ==');
   const src = fs.readFileSync(APP, 'utf8');
   const side = src.slice(src.indexOf('<aside class="side">'), src.indexOf('</aside>'));
   const links = [...side.matchAll(/<a id="(tab\w+)" class="nav" href="#(\w+)"/g)];
-  ok('all 38 menu items are links with an address', links.length === 38, String(links.length));   // + Management dashboard (2026-09-26), + Production flow (2026-10-10), + Greige Desk (2026-10-13)
+  ok('all 39 menu items are links with an address', links.length === 39, String(links.length));   // + Management dashboard (2026-09-26), + Production flow (2026-10-10), + Greige Desk (2026-10-13), + Access (2026-11-04)
+  /* ACCESS MOVED IN (4 Nov): the ERP's Access page is Sellora's page file, word for word — ACX_SIDE alone tells them apart */
+  { const path = require('path'), here = path.join(__dirname, '..', 'src', 'app', 'core', 'access-design.js'), there = path.join(__dirname, '..', '..', 'Pricing-App', 'src', 'app', 'core', 'access-design.js');
+    const norm = p => fs.existsSync(p) ? fs.readFileSync(p, 'utf8').split(String.fromCharCode(13)).join('') : null;
+    ok('the Access page is the same file in the ERP and in Sellora (copy Pricing-App/src/app/core/access-design.js over after a change)', norm(here) !== null && norm(here) === norm(there));
+    const host = norm(path.join(__dirname, '..', 'src', 'app', 'core', 'access-host.js')) || '';
+    ok('…and the ERP runs it on its own side', /const ACX_SIDE = 'erp';/.test(host) && /ACX_SIDE === 'erp'/.test(norm(here) || '')); }
   ok('…and not one of them is still a button', !/<button id="tab\w+" class="nav"/.test(side));
   const navs = (src.match(/const navs = \{([^}]+)\};/) || [])[1] || '';
   ok('…each address is the screen its item opens', links.every(([, id, key]) => new RegExp('\\b' + key + ": '" + id + "'").test(navs)),
