@@ -31052,7 +31052,9 @@ function flowDueRows(q, testOnly) {
       unit: s.fabUnit || 'm', need, sent, back, left, withPrinter: flowR2(Math.max(0, sent - back)), notSent: flowR2(Math.max(0, need - Math.max(sent, back))),
       challan: cx ? cx.no : '', po: s.po || '', test: !!r.__t, due: String((p.dates && p.dates.cut) || '').slice(0, 10) });
   });
-  const hay = x => [x.printer, x.orderNo, x.sku, x.challan, x.po, x.l.fabric, (x.l.print && x.l.print.code) || ''].join(' ').toLowerCase();
+  /* the colour, the article and the size too (Ravi, 4 Nov: "search bar me color name dale to bhi … printer receive window me") */
+  const hay = x => [x.printer, x.orderNo, x.sku, x.challan, x.po, x.l.fabric, (x.l.print && x.l.print.code) || '', x.l.item,
+    x.r.color, x.r.articleSubtype, x.r.articleType, x.r.size, x.r.shopOrderNo].join(' ').toLowerCase();
   return out.filter(x => !q || hay(x).includes(q))
     .sort((a, b) => a.printer.localeCompare(b.printer) || String(a.orderDate).localeCompare(String(b.orderDate)) || a.orderNo.localeCompare(b.orderNo));
 }
