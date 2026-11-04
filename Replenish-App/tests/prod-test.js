@@ -11391,6 +11391,10 @@ console.log('\n== the printer\'s daily challan ==');
   D.rows[0].order = 'SHP-7862';
   const b = A.dchBuild();
   ok('…a matched row is assigned to that order line; a row in no order of theirs gets NIO-<ddmmyyyy>-01', b.lines.length === 2 && b.lines[0].voId === 'vpo1' && !b.lines[0].nio && b.lines[1].nio && /^NIO-\d{8}-01$/.test(b.lines[1].orderNo), JSON.stringify(b));
+  /* TYPED BY HAND (4 Nov): an article not in their orders, typed — it goes on the challan with its own NIO number */
+  D.rows.push({ article: 'Kimono', color: 'Teal', size: 'Free', order: '', qty: '3', mArticle: true, mColor: true, mSize: true, unit: 'pcs' });
+  const b2 = A.dchBuild();
+  ok('…a typed article is accepted, in no order, with the next NIO number', b2.lines.length === 3 && b2.lines[2].nio && b2.lines[2].typed && /-02$/.test(b2.lines[2].orderNo) && b2.lines[2].article === 'Kimono', JSON.stringify(b2.lines[2]));
   A.vpDchRender();
   ok('…the tab draws the new challan with its number DC-VND001-<ddmmyyyy>-01', /New challan/.test(els.vpBody.innerHTML) && /DC-VND001-\d{8}-01/.test(els.vpKpis.innerHTML));
   A.setVP(wasVP);

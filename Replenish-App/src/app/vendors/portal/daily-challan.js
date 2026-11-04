@@ -11,6 +11,8 @@
  * Saved as pt_vendorChallans/<code>/<DC-code-ddmmyyyy-NN> = { no, date, code, name, lines:[{orderNo, voId, lineId, sku, article,
  *   color, size, qty, unit, nio}], at, by }. A line matched to an order also goes on that order line's Vendor sent (vSent), as if
  *   typed there — the challan number on it.
+ * TYPED BY HAND (Ravi, 4 Nov: "koi article aisa jo is list me nahi h but wo print karke bhej raha to manually entry kar sake"): every
+ * drop-down ends in "Other — type it"; a row with anything typed is in no order of theirs, so it gets its NIO number like any other.
  * The rules for pt_vendorChallans are NOT deployed yet (Ravi, 4 Nov: "pehle sirf preview"): until then a save is refused and says so;
  * the form, the print and the matching all work. */
 let DCH = { rows: [], saved: null, savedErr: '', busy: false, msg: '', open: '' };
@@ -40,11 +42,13 @@ function dchSource() {
 const dchUniq = a => [...new Set(a.filter(Boolean))].sort((x, y) => x.localeCompare(y, undefined, { numeric: true }));
 /** What one row resolves to: its drop-down choices, the lines it matches, its SKU, its order options. */
 function dchResolve(src, r) {
-  const byArt = src.filter(x => x.article === r.article), byCol = byArt.filter(x => x.color === r.color), bySize = byCol.filter(x => x.size === (r.size || ''));
+  const byArt = r.mArticle ? [] : src.filter(x => x.article === r.article), byCol = r.mColor ? [] : byArt.filter(x => x.color === r.color),
+    bySize = r.mSize ? [] : byCol.filter(x => x.size === (r.size || ''));
   const skus = dchUniq(bySize.map(x => x.sku));
   const orders = dchUniq(bySize.flatMap(x => x.orders));
   return { arts: dchUniq(src.map(x => x.article)), cols: dchUniq(byArt.map(x => x.color)), sizes: dchUniq(byCol.map(x => x.size)),
-    match: bySize, sku: skus[0] || '', skus, orders, unit: (bySize[0] || byCol[0] || byArt[0] || {}).unit || 'pcs' };
+    match: bySize, sku: skus[0] || '', skus, orders, unit: r.mArticle ? (r.unit || 'pcs') : ((bySize[0] || byCol[0] || byArt[0] || {}).unit || 'pcs'),
+    manual: !!(r.mArticle || r.mColor || r.mSize) };
 }
 /** The NIO numbers this challan hands out: one per order-less row, after the ones already given today. */
 function dchNioNos(src) {
@@ -71,12 +75,17 @@ function vpDchRender() {
   if (!DCH.saved) { body.innerHTML = '<div class="card muted" style="padding:24px">Reading your challans…</div>'; dchLoad().then(() => { if (VP.tab === 'dch') vpDchRender(); }); return; }
   if (!DCH.rows.length) DCH.rows = [{ article: '', color: '', size: '', order: '', qty: '' }];
   const src = dchSource(), nio = dchNioNos(src), today = dchToday(), can = dchCanSave();
-  const sel = (k, f, list, v, ph) => `<select data-dch="${k}" data-f="${f}" style="width:100%;min-width:110px;padding:5px 8px;font-size:13px">`
-    + `<option value="">${esc(ph)}</option>` + list.map(x => `<option${x === v ? ' selected' : ''}>${esc(x)}</option>`).join('') + '</select>';
+  const mk = f => 'm' + f[0].toUpperCase() + f.slice(1);
+  const sel = (k, f, list, v, ph) => DCH.rows[k][mk(f)]
+    ? `<div style="display:flex;gap:4px;align-items:center"><input data-dch="${k}" data-f="${f}" type="text" value="${esc(v || '')}" placeholder="type the ${esc(f === 'color' ? 'colour' : f)}" style="width:100%;min-width:110px;padding:5px 8px;font-size:13px">`
+      + (f === 'article' || !DCH.rows[k].mArticle ? `<button type="button" class="ghost" data-dchlist="${k}" data-f="${f}" title="Back to the list" style="width:auto;padding:3px 7px;font-size:11px">list</button>` : '') + '</div>'
+    : `<select data-dch="${k}" data-f="${f}" style="width:100%;min-width:110px;padding:5px 8px;font-size:13px">`
+      + `<option value="">${esc(ph)}</option>` + list.map(x => `<option${x === v ? ' selected' : ''}>${esc(x)}</option>`).join('')
+      + `<option value="__other">Other — type it</option></select>`;
   const rowsH = DCH.rows.map((r, k) => {
     const z = dchResolve(src, r), nioNo = nio[k];
     const orderCell = !r.article ? '<span class="muted">—</span>'
-      : !z.match.length ? `<b>${esc(nioNo || '')}</b><div class="muted" style="font-size:10.5px">not in your orders — a number is made</div>`
+      : !z.match.length ? `<b>${esc(nioNo || '')}</b><div class="muted" style="font-size:10.5px">${z.manual ? 'typed by hand' : 'not in your orders'} — a number is made</div>`
       : `<select data-dch="${k}" data-f="order" style="width:100%;min-width:150px;padding:5px 8px;font-size:13px">`
         + `<option value="">— pick the order —</option>` + z.orders.map(x => `<option${x === r.order ? ' selected' : ''}>${esc(x)}</option>`).join('')
         + `<option value="__nio"${r.order === '__nio' ? ' selected' : ''}>Not in my orders (NIO)</option></select>`
@@ -84,8 +93,9 @@ function vpDchRender() {
     return `<tr><td style="white-space:nowrap;font-size:12.5px">${esc(dchDmy(today))}</td><td style="min-width:170px">${orderCell}</td>`
       + `<td style="font-family:ui-monospace,monospace;font-size:12px">${esc(z.skus.join(' / ')) || '<span class="muted">—</span>'}</td>`
       + `<td>${sel(k, 'article', z.arts, r.article, '— article —')}</td><td>${sel(k, 'color', z.cols, r.color, '— colour —')}</td>`
-      + `<td>${z.sizes.some(Boolean) ? sel(k, 'size', z.sizes, r.size, '— size —') : '<span class="muted">—</span>'}</td>`
-      + `<td><input data-dch="${k}" data-f="qty" type="number" min="0" step="${z.unit === 'm' ? '0.01' : '1'}" value="${esc(r.qty)}" placeholder="0" style="width:90px;padding:5px 8px;text-align:right"> <span class="muted" style="font-size:11px">${esc(z.unit)}</span></td>`
+      + `<td>${z.sizes.some(Boolean) || r.mSize ? sel(k, 'size', z.sizes, r.size, '— size —') : r.article ? `<span class="muted">—</span> <button type="button" class="ghost" data-dchother="${k}" data-f="size" style="width:auto;padding:3px 7px;font-size:11px">type a size</button>` : '<span class="muted">—</span>'}</td>`
+      + `<td><input data-dch="${k}" data-f="qty" type="number" min="0" step="${z.unit === 'm' ? '0.01' : '1'}" value="${esc(r.qty)}" placeholder="0" style="width:90px;padding:5px 8px;text-align:right"> `
+      + (r.mArticle ? `<select data-dch="${k}" data-f="unit" style="width:auto;padding:4px 6px;font-size:12px"><option${z.unit === 'pcs' ? ' selected' : ''}>pcs</option><option${z.unit === 'm' ? ' selected' : ''}>m</option></select>` : `<span class="muted" style="font-size:11px">${esc(z.unit)}</span>`) + `</td>`
       + `<td><button type="button" class="ghost" data-dchdel="${k}" style="width:auto;padding:4px 10px" aria-label="Remove this row">✕</button></td></tr>`;
   }).join('');
   /* office (looking as the printer): what came outside any order */
@@ -123,14 +133,15 @@ function dchBuild() {
     if (!r.article && !r.qty) return;
     const z = dchResolve(src, r), qty = parseFloat(r.qty);
     if (!r.article || !r.color) return bad.push(`row ${k + 1}: pick the article and colour`);
-    if (z.sizes.some(Boolean) && !r.size) return bad.push(`row ${k + 1}: pick the size`);
+    if (z.sizes.some(Boolean) && !r.size && !r.mSize) return bad.push(`row ${k + 1}: pick the size, or type it`);
     if (!(qty > 0)) return bad.push(`row ${k + 1}: type the quantity`);
     if (z.unit === 'pcs' && qty !== Math.round(qty)) return bad.push(`row ${k + 1}: pieces are whole numbers`);
     const isNio = !z.match.length || r.order === '__nio';
     if (!isNio && !r.order) return bad.push(`row ${k + 1}: pick the order`);
     const hit = isNio ? null : (z.match.find(x => x.orders.includes(r.order) && x.bal > 0) || z.match.find(x => x.orders.includes(r.order)));
     lines.push({ orderNo: isNio ? nio[k] : r.order, nio: isNio, voId: hit ? hit.o.id : '', voNo: hit ? (hit.o.orderNo || hit.o.id) : '', lineId: hit ? (hit.l.lineId || '') : '', li: hit ? hit.i : -1,
-      sku: z.sku, article: r.article, color: r.color, size: r.size || '', qty: z.unit === 'm' ? Math.round(qty * 100) / 100 : qty, unit: z.unit, bal: hit ? hit.bal : 0 });
+      sku: z.sku, article: r.article, color: r.color, size: r.size || '', qty: z.unit === 'm' ? Math.round(qty * 100) / 100 : qty, unit: z.unit, bal: hit ? hit.bal : 0,
+      typed: z.manual || undefined });
   });
   return { lines, bad };
 }
@@ -203,7 +214,14 @@ if ($('vpBody') && $('vpBody').addEventListener) {
     if (VP.tab !== 'dch') return;
     const el = e.target.closest && e.target.closest('[data-dch]'); if (!el) return;
     const r = DCH.rows[+el.dataset.dch]; if (!r) return;
-    const f = el.dataset.f; r[f] = el.value;
+    const f = el.dataset.f;
+    if (el.value === '__other') {
+      const chain = f === 'article' ? ['article', 'color', 'size'] : f === 'color' ? ['color', 'size'] : ['size'];
+      chain.forEach(x => { r['m' + x[0].toUpperCase() + x.slice(1)] = true; r[x] = ''; }); r.order = '';
+      DCH.msg = ''; return vpDchRender();
+    }
+    r[f] = el.value;
+    if (el.tagName === 'INPUT' && el.type === 'text') { DCH.msg = ''; return vpDchRender(); }   // typed: nothing to pick by itself
     /* a choice upstream clears what depended on it */
     if (f === 'article') { r.color = ''; r.size = ''; r.order = ''; }
     if (f === 'color') { r.size = ''; r.order = ''; }
@@ -219,7 +237,10 @@ if ($('vpBody') && $('vpBody').addEventListener) {
   });
   $('vpBody').addEventListener('click', e => {
     if (VP.tab !== 'dch') return;
-    const t = e.target.closest && e.target.closest('[data-dchadd],[data-dchdel],[data-dchprint],[data-dchsave]'); if (!t) return;
+    const t = e.target.closest && e.target.closest('[data-dchadd],[data-dchdel],[data-dchprint],[data-dchsave],[data-dchlist],[data-dchother]'); if (!t) return;
+    if (t.dataset.dchlist != null) { const r = DCH.rows[+t.dataset.dchlist], f = t.dataset.f, chain = f === 'article' ? ['article', 'color', 'size'] : f === 'color' ? ['color', 'size'] : ['size'];
+      if (r) chain.forEach(x => { r['m' + x[0].toUpperCase() + x.slice(1)] = false; r[x] = ''; }); return vpDchRender(); }
+    if (t.dataset.dchother != null) { const r = DCH.rows[+t.dataset.dchother]; if (r) { r.mSize = true; r.size = ''; } return vpDchRender(); }
     if (t.dataset.dchadd) { DCH.rows.push({ article: '', color: '', size: '', order: '', qty: '' }); return vpDchRender(); }
     if (t.dataset.dchdel != null) { DCH.rows.splice(+t.dataset.dchdel, 1); return vpDchRender(); }
     if (t.dataset.dchprint) return dchPrint(t.dataset.dchprint);
