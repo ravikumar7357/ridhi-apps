@@ -26,6 +26,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+          cache: npm
+          cache-dependency-path: Replenish-App/package-lock.json
+      # the ERP page is joined with esbuild since Meera's files became TypeScript (main, 2 Nov) — as replenish-hosting.yml does
+      - name: Install
+        working-directory: Replenish-App
+        run: npm ci
       - name: Pages match their source
         run: |
           node Replenish-App/tests/assemble.js --check
