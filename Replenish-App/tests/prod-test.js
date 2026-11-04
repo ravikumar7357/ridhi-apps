@@ -6781,6 +6781,12 @@ console.log('\n== Order Console: what the vendors hold, order by order ==');
         ok('a cutting account may cut on the board, and not issue, receive, QC or plan', A.shpbMay('cut') && !A.shpbMay('issue') && !A.shpbMay('receive') && !A.shpbMay('qc') && !A.shpbMay('plan'));
         ME.tabs = ['pbase'];
         ok('…the Job Work register right issues and receives, and does not cut', A.shpbMay('issue') && A.shpbMay('receive') && !A.shpbMay('cut'));
+        /* BOARD RIGHTS (4 Nov): given any board right, exactly those steps — whatever screens are held */
+        ME.tabs = ['pcut', 'pbase', 'qc']; ME.bdCut = true;
+        ok('…a board right narrows the board to its own step: Board — Cut alone cuts, and does not issue, receive or QC though the screens are held', A.shpbMay('cut') && !A.shpbMay('issue') && !A.shpbMay('receive') && !A.shpbMay('qc'));
+        ME.bdCut = false; ME.bdQc = true; ME.bdPress = true;
+        ok('…Board — QC pass and Board — Press do just those two', A.shpbMay('qc') && A.shpbMay('press') && !A.shpbMay('cut'));
+        ME.bdQc = false; ME.bdPress = false;
         ME.admin = true; ME.tabs = [];
         ok('…an admin may do every step', ['plan', 'prcv', 'cut', 'issue', 'receive', 'qc', 'press', 'stock'].every(a => A.shpbMay(a)));
         ME.admin = was.admin; ME.tabs = was.tabs;

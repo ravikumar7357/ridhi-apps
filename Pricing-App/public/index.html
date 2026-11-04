@@ -5360,6 +5360,8 @@ const RIGHTS = [
   ['mdbEdit', 'Change the Master Database'],
   /* ACCESS VIEWER (3 Nov): sees this page — everybody's access — and changes nothing */
   ['accessView', 'See the Access page (view only)'],
+  /* THE BOARDS' BUTTONS (4 Nov): given any of these, a person does exactly these steps on the SHP / AMZ / B2B / SPY boards */
+  ['bdCut', 'Board — Cut'], ['bdIssue', 'Board — Issue'], ['bdRecv', 'Board — Receive'], ['bdQc', 'Board — QC pass'], ['bdPress', 'Board — Press'],
 ];
 
 const ALL_SELLORA = SELLORA_GROUPS.flatMap(g => g.items.map(i => i[0]));
@@ -5461,7 +5463,8 @@ RIGHTS.forEach(([k, l]) => { LABEL.rights[k] = l; });
 const APPS = [
   { kind: 'sellora', name: 'Sellora', groups: SELLORA_GROUPS },
   { kind: 'erp', name: 'Fabricrush', groups: ERP_GROUPS },
-  { kind: 'rights', name: 'Extra rights', groups: [{ name: 'Can also', items: RIGHTS }] },
+  { kind: 'rights', name: 'Extra rights', groups: [{ name: 'Can also', items: RIGHTS.filter(r => !/^bd/.test(r[0])) },
+    { name: 'SHP / AMZ / B2B / SPY boards — only these buttons', items: RIGHTS.filter(r => /^bd/.test(r[0])) }] },
 ];
 
 const DATA = { source: 'live', readAt: '', people: [] };

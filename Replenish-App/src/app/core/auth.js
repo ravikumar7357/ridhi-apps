@@ -64,6 +64,9 @@ onAuthStateChanged(auth, async user => {
       ME.projEdit = d.replProj === true;     // separate right: may change the monthly projections
       // …and another: may CHANGE a production entry someone has already made. Entering is not editing.
       ME.prodEdit = d.prodEdit === true;
+      /* THE BOARD'S OWN BUTTONS (Ravi, 4 Nov: "jisko jis cheej ka access du wo hi kar pay — cut, issue, receive, qc, press"): one right
+       * per step of the SHP / AMZ / B2B / SPY boards (orders/shp-board.js shpbMay). */
+      (typeof SHPB_BD_RIGHTS !== 'undefined' ? SHPB_BD_RIGHTS : []).forEach(k => { ME[k] = d[k] === true; });
       /* …and another: may make a proposed VENDOR RATE count. A rate prices every order line it
        * matches, so proposing one and approving one are separate rights. */
       ME.rateApprove = d.rateApprove === true;
@@ -101,6 +104,7 @@ onAuthStateChanged(auth, async user => {
    * has to come off, or a denied account sits looking at nothing at all. */
   if (ME.empEdit && !ME.tabs.includes('hr')) { ME.tabs = ME.tabs.concat('hr'); ME.hrEmpOnly = true; }
   if (ME.email === 'ravi@thefabricrush.com') ME.admin = true;
+  if (ME.admin) (typeof SHPB_BD_RIGHTS !== 'undefined' ? SHPB_BD_RIGHTS : []).forEach(k => { ME[k] = true; });
   if (ME.admin) { ME.tabs = REPL_TABS.slice(); ME.projEdit = true; ME.prodEdit = true; ME.rateApprove = true; ME.shopAssign = true; ME.b2bAssign = true;
     ME.accEntry = true; ME.accEdit = true; ME.vlogAccept = true; ME.soApprove = true; ME.mdbEdit = true; ME.attendMark = true; ME.vreqApprove = true; ME.rfdApprove = true; ME.rfdSend = true; ME.fgiEdit = true; ME.fgiEntry = true; ME.empEdit = true; ME.hrEmpOnly = false; }
   /* FROM QC — TO ACCEPT (Ravi, 27 Oct: "From QC — to accept - access me jodo"): its own box in Access, for whoever accepts what
