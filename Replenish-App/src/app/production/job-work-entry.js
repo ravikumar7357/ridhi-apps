@@ -283,6 +283,8 @@ const bdMasterSpelling = (list, v) => { const t = String(v || '').trim(); if (!t
 const bdCustAt = () => bdMasterSpelling([...new Set((PTG.mdb || []).map(r => r && r.articleType).filter(Boolean))], $('bwAtTxt') ? $('bwAtTxt').value : '');
 const bdCustSub = () => { const at = ptNorm(bdCustAt());
   return bdMasterSpelling([...new Set((PTG.mdb || []).filter(r => r && ptNorm(r.articleType) === at).map(r => r.subtype).filter(Boolean))], $('bwSubTxt') ? $('bwSubTxt').value : ''); };
+/** The typed subtype box in the master's spelling of that article's subtypes (the article picked from the drop-down). */
+const bdCustSubOf = at => bdMasterSpelling([...new Set((PTG.mdb || []).filter(r => r && ptNorm(r.articleType) === ptNorm(at)).map(r => r.subtype).filter(Boolean))], $('bwSubTxt') ? $('bwSubTxt').value : '');
 /** The suggestion lists under the four boxes: the master's articles; that article's subtypes; that pair's colours and sizes. */
 function bdCustomLists() {
   const mdb = PTG.mdb || [], at = ptNorm(bdCustAt()), sub = ptNorm(bdCustSub());
@@ -310,13 +312,76 @@ async function bdCustomMaster(e) {
 }
 
 /** The master rows in play: everything in Custom mode, otherwise only what the picked order needs. */
+/* A SKU ONLY ON THE CUSTOM SKUs LIST, WITH NO SIZE OR SUBTYPE (Ravi, 4 Nov: "jo SKU custom masterdata me save hote h unme size article ka
+ * issue aata h — manually size add kar sake, but suggestion auto aana chahiye, kuch bhi type na kare: 26x26, 26" X26" ek format me hi").
+ * Such a line (a Shopify item not catalogued yet, e.g. RPC351-2626 "… Pillow Cover · 26" x 26" in") was not in the drop-downs at all,
+ * since they list the master only. Now the order's Custom-SKUs-list lines are in them too; a blank size is read off the Shopify title,
+ * a blank subtype off the master's subtypes of that article the title names; what still cannot be read is typed — from the master's
+ * own list, and written ONE way (ptSizeStd). The issue then fills those blanks on the Custom SKUs list, so it is asked once. */
+/** One way to write a size, however it was typed: 26" X26" · 26*26 · 26 x 26 inches → 26x26; 50 cm x 40 cm → 50x40 cm; Round 72" → 72 Round. */
+function ptSizeStd(v) {
+  const t = String(v == null ? '' : v).replace(/[\u201C\u201D\u2033]/g, '"').replace(/[\u00D7\u2715]/g, 'x').replace(/\s+/g, ' ').trim();
+  if (!t) return '';
+  const cm = /\bcms?\b/i.test(t);
+  const core = t.replace(/\b(cms?|inches|inch|in)\b\.?/gi, ' ').replace(/"/g, ' ');
+  const n = '(\\d+(?:\\.\\d+)?)';
+  const m = core.match(new RegExp('^\\s*' + n + '\\s*(?:[x*]\\s*' + n + ')?\\s*(?:[x*]\\s*' + n + ')?\\s*$', 'i'));
+  if (m) return [m[1], m[2], m[3]].filter(Boolean).join('x') + (cm ? ' cm' : '');
+  const r = core.match(new RegExp('^\\s*(?:round\\s*' + n + '|' + n + '\\s*round)\\s*$', 'i'));
+  if (r) return (r[1] || r[2]) + ' Round';
+  return t;
+}
+/** The size a Custom-SKUs-list row's Shopify title gives ("… · 26\" x 26\" in / Pack of 2" → 26x26), or ''. */
+function ptSizeFromTitle(name) {
+  const t = String(name || '').replace(/[\u201C\u201D\u2033]/g, '"').replace(/[\u00D7\u2715]/g, 'x');
+  const m = t.match(/(\d+(?:\.\d+)?)\s*"?\s*(?:in(?:ch(?:es)?)?)?\s*[xX*]\s*(\d+(?:\.\d+)?)\s*"?\s*(cms?)?/);
+  return m ? ptSizeStd(m[1] + 'x' + m[2] + (m[3] ? ' cm' : '')) : '';
+}
+/** The master's own subtype of this article that the title names — the longest one it contains — or ''. */
+function ptSubFromTitle(at, name) {
+  const t = ptNorm(name), a = ptNorm(at);
+  if (!t || !a) return '';
+  const subs = [...new Set((PTG.mdb || []).filter(r => r && ptNorm(r.articleType) === a && r.subtype).map(r => String(r.subtype).trim()))];
+  return subs.filter(x => t.includes(ptNorm(x))).sort((x, y) => y.length - x.length)[0] || '';
+}
+/** An order line's SKU that is only on the Custom SKUs list, as a drop-down row: its blanks guessed where they can be. */
+function bdCustomRow(sku) {
+  const c = typeof ptCustomOf === 'function' ? ptCustomOf(sku) : null;
+  if (!c) return null;
+  const sub = c.subtype || ptSubFromTitle(c.articleType, c.shopName), size = ptSizeStd(c.size) || ptSizeFromTitle(c.shopName);
+  return Object.assign({}, c, { subtype: sub, size, _subGap: !String(c.subtype || '').trim(), _szGap: !String(c.size || '').trim() });
+}
 function bdScope() {
   const all = PTG.mdb || [];
   if (bdIsCustom()) return all;
   const o = obUC($('bwOrd').value);
   if (!o) return all;
-  const open = new Set(obLines().filter(l => l.orderNo === o).map(l => l.sku));
-  return all.filter(r => open.has(obUC(r.sku)));
+  const open = new Set(obLines().filter(l => l.orderNo === o).map(l => obUC(l.sku)));
+  const rows = all.filter(r => open.has(obUC(r.sku)));
+  const have = new Set(rows.map(r => obUC(r.sku)));
+  open.forEach(k => { if (k && !have.has(k) && !mdbOf(k)) { const c = bdCustomRow(k); if (c) rows.push(c); } });
+  return rows;
+}
+/** The order's Custom-SKUs-list row the four boxes point at whose subtype or size could not be read — those are typed. */
+function bdGapRow(scope, at, col) {
+  if (bdIsCustom() || !at) return null;
+  return scope.find(r => r && r._custom && (!r.subtype || !r.size) && ptNorm(r.articleType) === ptNorm(at) && (!col || ptNorm(r.color) === ptNorm(col))) || null;
+}
+/** After the issue: the blanks of its Custom-SKUs-list row filled with what was issued (never over a value already there). */
+async function bdCustomFill(entry) {
+  const list = (typeof MDBX !== 'undefined' && MDBX.custom) || [];
+  const row = list.find(x => x && obUC(x.sku) === obUC(entry.sku));
+  if (!row || !row._key || mdbOf(entry.sku)) return '';
+  const w = {};
+  [['articleType', entry.articleType], ['subtype', entry.articleSubtype], ['color', entry.color], ['size', entry.size]].forEach(([f, v]) => {
+    if (!String(row[f] == null ? '' : row[f]).trim() && String(v || '').trim()) w[f] = String(v).trim(); });
+  if (!Object.keys(w).length) return '';
+  try {
+    for (const f of Object.keys(w)) await ptPut('pt_customSkus/' + row._key + '/' + f, w[f]);
+    Object.assign(row, w);
+    if (typeof CUST_IX !== 'undefined') CUST_IX = { src: null, map: null };
+    return ` ${obUC(entry.sku)} on the Custom SKUs list now has its ${Object.keys(w).map(f => f === 'articleType' ? 'article' : f).join(', ')}.`;
+  } catch (e) { return ` The Custom SKUs list could NOT be filled for ${obUC(entry.sku)}: ${e.message || e}.`; }
 }
 
 function bdFill(id, values, label) {
@@ -367,9 +432,22 @@ function renderBdForm() {
   }
 
   const scope = bdScope();
-  const at = custom ? bdCustAt() : $('bwAt').value, sub = custom ? bdCustSub() : $('bwSub').value;
+  const at = custom ? bdCustAt() : $('bwAt').value;
   const col = custom ? $('bwColTxt').value.trim() : $('bwCol').value;
-  const sz = custom ? $('bwSzTxt').value.trim() : $('bwSz').value;
+  /* a Custom-SKUs-list line whose subtype or size nobody could read: those two are typed, from the master's lists */
+  const gap = bdGapRow(scope, at, col), typeSub = !!(gap && !gap.subtype), typeSz = !!(gap && !gap.size);
+  if (!custom) {
+    $('bwSubTxt').classList.toggle('hide', !typeSub); $('bwSub').classList.toggle('hide', typeSub);
+    $('bwSzTxt').classList.toggle('hide', !typeSz); $('bwSz').classList.toggle('hide', typeSz);
+    if (gap) {
+      const of = vals => [...new Set(vals.filter(Boolean).map(v => String(v).trim()))].sort((a, b) => a.localeCompare(b)).slice(0, 400).map(v => `<option value="${esc(v)}">`).join('');
+      const tSub = typeSub ? bdCustSubOf(at) : gap.subtype;
+      $('bwSubList').innerHTML = of((PTG.mdb || []).filter(r => r && ptNorm(r.articleType) === ptNorm(at)).map(r => r.subtype));
+      $('bwSzList').innerHTML = of((PTG.mdb || []).filter(r => r && ptNorm(r.articleType) === ptNorm(at) && (!tSub || ptNorm(r.subtype) === ptNorm(tSub))).map(r => ptSizeStd(r.size)));
+    }
+  }
+  const sub = custom ? bdCustSub() : (typeSub ? bdCustSubOf(at) : $('bwSub').value);
+  const sz = custom ? $('bwSzTxt').value.trim() : (typeSz ? ptSizeStd($('bwSzTxt').value) : $('bwSz').value);
 
   bdFill('bwAt', scope.map(r => r.articleType), '-- Article type --');
   bdFill('bwSub', scope.filter(r => !at || ptNorm(r.articleType) === ptNorm(at)).map(r => r.subtype), '-- Subtype --');
@@ -391,11 +469,17 @@ function renderBdForm() {
         : existing ? 'Matches an existing SKU — reusing it instead of minting a duplicate.'
         : (col && sz ? 'New custom SKU — nothing existing matches this colour and size.' : '');
     } else {
-      const hit = scope.filter(r => ptNorm(r.articleType) === ptNorm(at) && ptNorm(r.subtype) === ptNorm(sub)
+      const hit = gap ? [gap] : scope.filter(r => ptNorm(r.articleType) === ptNorm(at) && ptNorm(r.subtype) === ptNorm(sub)
         && ptNorm(r.color) === ptNorm(col) && ptNorm(r.size) === ptNorm(sz));
       $('bwSku').value = (at && sub && col && sz && hit.length === 1) ? hit[0].sku : '';
+      const pick = (at && sub && col && sz && hit.length === 1) ? hit[0] : null;
       $('bwSkuNote').textContent = (at && sub && col && sz && hit.length > 1)
-        ? `${hit.length} SKUs share this description — pick the SKU directly.` : '';
+        ? `${hit.length} SKUs share this description — pick the SKU directly.`
+        : pick && pick._custom && (pick._szGap || pick._subGap)
+          ? `${obUC(pick.sku)} is on the Custom SKUs list without its ${[pick._subGap ? 'subtype' : '', pick._szGap ? 'size' : ''].filter(Boolean).join(' or ')}`
+            + ((pick._szGap && pick.size && !typeSz) || (pick._subGap && pick.subtype && !typeSub) ? ' — read from its Shopify title' : '')
+            + '; this issue saves it there.'
+          : '';
     }
   }
 
@@ -594,6 +678,7 @@ $('bwClear').onclick = () => {
   $(id).addEventListener('input', reset);
 });
 $('bwSku').addEventListener('input', bdSkuTyped);
+$('bwSzTxt').addEventListener('change', () => { const v = ptSizeStd($('bwSzTxt').value); if (v !== $('bwSzTxt').value) { $('bwSzTxt').value = v; renderBdForm(); } });
 /* The pieces decide how many zippers and how much ruffle go with them, so the boxes follow the count
  * as it is typed. bdMatFill, NOT renderBdForm: renderBdForm rebuilds the article, subtype, colour and
  * size dropdowns off the master list, and doing that on every keystroke of a piece count is what made
@@ -625,10 +710,13 @@ $('bwSave').onclick = async () => {
   /* On the Custom SKUs list and not in the master: what it is comes off the list (its selects cannot hold a size like
    * "40*40 cm" that no master row has). */
   const cm = !custom && sku && !mdbOf(sku) ? ptCustomOf(sku) : null;
-  const at = custom ? bdCustAt() : ($('bwAt').value || (cm ? cm.articleType : '')), sub = custom ? bdCustSub() : ($('bwSub').value || (cm ? cm.subtype : ''));
+  const gapRow = custom ? null : bdGapRow(bdScope(), $('bwAt').value, $('bwCol').value);
+  const at = custom ? bdCustAt() : ($('bwAt').value || (cm ? cm.articleType : ''));
+  const sub = custom ? bdCustSub() : (gapRow && !gapRow.subtype ? bdCustSubOf(at) : ($('bwSub').value || (cm ? cm.subtype : '')));
   const custOrder = custom && $('bwCustOrd') ? $('bwCustOrd').value.trim() : '';
   const col = custom ? $('bwColTxt').value.trim() : ($('bwCol').value || (cm ? cm.color : ''));
-  const sz = custom ? $('bwSzTxt').value.trim() : ($('bwSz').value || (cm ? cm.size : ''));
+  /* typed sizes are written the one way; a size picked from the master stays exactly as the master spells it */
+  const sz = custom || (gapRow && !gapRow.size) ? ptSizeStd($('bwSzTxt').value) : ($('bwSz').value || (cm ? cm.size : ''));
 
   if (custom && !custOrder) return bdFormMsg('Type the Order ID, or pick ETSY / SHOPIFY / B2B / ONLINE.', true);
   if (!type) return bdFormMsg('Select the employment type.', true);
@@ -636,9 +724,9 @@ $('bwSave').onclick = async () => {
   const emp = ptEmpsOfType(type).find(e => String(e[1]).trim().toLowerCase() === name.toLowerCase());
   if (!emp) return bdFormMsg(`"${name}" is not on the ${type} list.`, true);
   if (!at) return bdFormMsg('Select the article type.', true);
-  if (!sub) return bdFormMsg('Select the article subtype.', true);
+  if (!sub) return bdFormMsg(gapRow && !gapRow.subtype ? 'Type the subtype — pick one of the suggestions.' : 'Select the article subtype.', true);
   if (!col) return bdFormMsg(custom ? 'Type the colour.' : 'Select the colour.', true);
-  if (!sz) return bdFormMsg(custom ? 'Type the size.' : 'Select the size.', true);
+  if (!sz) return bdFormMsg(custom || (gapRow && !gapRow.size) ? 'Type the size — e.g. 26x26.' : 'Select the size.', true);
   if (!sku) return bdFormMsg('No SKU — pick the item, or type the SKU directly.', true);
   if (!pcs || pcs < 1) return bdFormMsg('Enter how many pieces are being issued.', true);
   if (!date) return bdFormMsg('Enter the issue date.', true);
@@ -698,7 +786,7 @@ This would be a SECOND, identical issue — and a second payment. OK saves it an
     try { zipNote = await ptConsumeZippers(entry); } catch (e) { zipNote = 'The zipper deduction did not save: ' + (e.message || e); }
     /* THE RUFFLE GOES WITH IT, the way the zipper does — a ruffle tablecloth takes both. */
     try { rufNote = await ptConsumeRuffle(entry); } catch (e) { rufNote = ' The ruffle fabric deduction did not save: ' + (e.message || e); }
-    const mdbNote = custom ? await bdCustomMaster(entry) : '';
+    const mdbNote = custom ? await bdCustomMaster(entry) : await bdCustomFill(entry);
     bdClearForm();
     renderPbase();
     const matNote = (zipNote + rufNote + mdbNote).trim();
