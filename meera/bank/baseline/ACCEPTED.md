@@ -87,3 +87,15 @@ Each entry: when, why, and what it changed. Made by `node meera/tests/gate.cjs -
   - before: - · Your question fits more than one answer. Which one do you mean? Low Low when does status s
   - after: - · Your question fits more than one answer. Which one do you mean? Low · Adjustments Low · Fi
 
+## 2026-11-04 11:24 — check means looking, not QC; Shopify Orders answers for this bucket, No stock, checking an order (Ravi, 4 Nov)
+
+- answer `eval|shop|चेक हो गए पीस ठीक हैं, क्यूसी में ओके कैसे करूं`
+  - before: - · मैं पक्का नहीं समझ पाई। क्या आप इनमें से कुछ पूछ रहे हैं? Checks फ़ॉर्म में available कैसे
+  - after: - · आपका सवाल एक से ज़्यादा जवाबों से मिलता है। आप कौन-सा पूछ रहे हैं? QC क्या है QC कितने पीस
+- answer `eval|shop|प्रिंटर ने जो भेजा वो पोर्टल में कहाँ दिखेगा`
+  - before: or-shop-bucket · फ़िल्टर के पास Bucket आइकन दबाएँ, Needs production में लाइनें टिक करें और Open ticked prod
+  - after: or-shop-bucket · Bucket में वे Shopify लाइनें रहती हैं जिन्हें बनाना है — वे उसके Needs production टैब पर ह
+- answer `eval2|shop|वेटिंग फॉर क्यूसी में 30 है पर चेक्स फॉर्म 120 बचे बता रहा, कौन सही है`
+  - before: - · मैं पक्का नहीं समझ पाई। क्या आप इनमें से कुछ पूछ रहे हैं? QC में पीस पास कैसे करें QC में 
+  - after: - · मैं पक्का नहीं समझ पाई। क्या आप इनमें से कुछ पूछ रहे हैं? QC चेक एडिट क्यों नहीं हो रहा QC
+

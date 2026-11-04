@@ -38,15 +38,15 @@
   "hindi": {
    "count": 114,
    "right": 50,
-   "offered": 40,
+   "offered": 41,
    "wrong": 0,
-   "none": 24
+   "none": 23
   }
  },
  "sizes": {
   "meera-bank.json": {
-   "raw": 3395212,
-   "gzip": 859429
+   "raw": 3398845,
+   "gzip": 860283
   },
   "meera-words.bin": {
    "raw": 1591833,
@@ -57,13 +57,13 @@
    "gzip": 118316
   },
   "code in the page": {
-   "raw": 438153,
-   "gzip": 187373,
+   "raw": 438300,
+   "gzip": 187445,
    "files": 10
   }
  },
  "timing": {
-  "loadMs": 1466,
-  "msPerAnswer": 51.3
+  "loadMs": 1420,
+  "msPerAnswer": 38.4
  }
 }

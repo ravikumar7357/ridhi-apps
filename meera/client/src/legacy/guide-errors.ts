@@ -1,7 +1,7 @@
 /* EVERY ERROR THE ERP CAN SHOW, for Meera: [the message's longest fixed piece, lower case; the screen it belongs to].
  * Read off the screens' own code (every red message line, and every rule a form checks before it saves), so when
  * someone pastes or asks about a message, Meera knows which screen it is from and why it happens (gaWhy in
- * guide-ask.ts). 612 messages. MADE BY meera/tools/make-errors.cjs — do not edit; when screens change, it is
+ * guide-ask.ts). 617 messages. MADE BY meera/tools/make-errors.cjs — do not edit; when screens change, it is
  * made again (her gate says so on every push). */
 const GUIDE_ERRS = [
   ["⚠️ backend not configured — create firestore doc config/replapi with {url, key}.", ""],
@@ -347,6 +347,11 @@ const GUIDE_ERRS = [
   ["this order is not yours to change.", "so"],
   ["that sku is not on this order.", "so"],
   ["pick the delivery date.", "so"],
+  ["pick the filler vendor, or type its name.", ""],
+  ["quantities cannot be below 0.", ""],
+  ["piece(s) on this line", ""],
+  ["piece(s) have passed qc — a quilt goes to the filler after qc.", ""],
+  ["cannot come back.", ""],
   ["handing pieces to shipping needs the shopify tab.", ""],
   ["piece(s) of this line still need to be made.", ""],
   ["type how many pieces were cut.", ""],

@@ -22,16 +22,16 @@
  },
  "typos": {
   "count": 238,
-  "right": 104,
-  "offered": 103,
+  "right": 105,
+  "offered": 102,
   "wrong": 6,
   "none": 25
  },
  "extra": {
   "held": {
    "count": 447,
-   "right": 228,
-   "offered": 154,
+   "right": 229,
+   "offered": 153,
    "wrong": 12,
    "none": 53
   },
@@ -45,8 +45,8 @@
  },
  "sizes": {
   "meera-bank.json": {
-   "raw": 3395212,
-   "gzip": 859429
+   "raw": 3398845,
+   "gzip": 860283
   },
   "meera-words.bin": {
    "raw": 1591833,
@@ -57,13 +57,13 @@
    "gzip": 118316
   },
   "code in the page": {
-   "raw": 438152,
-   "gzip": 187370,
+   "raw": 438299,
+   "gzip": 187442,
    "files": 10
   }
  },
  "timing": {
-  "loadMs": 1509,
-  "msPerAnswer": 46.9
+  "loadMs": 1363,
+  "msPerAnswer": 38.5
  }
 }

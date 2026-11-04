@@ -182,6 +182,14 @@ add('none', '', ['karigar ko kaam kaise de', 'Raju Kumar ko maal kaise issue kar
     const a = plain(await M.ctx.__meeraTest(`(async () => { let o = ''; const s = gaSay; gaSay = h => { o += h; }; try { gaAskEntry(${JSON.stringify(ids[0] || '')}, 'CPC'); } finally { gaSay = s; } return o; })()`));
     ok(/Shows only CPC|CPC ke|सिर्फ/.test(a) && !/more than one answer|ek se zyada/.test(a), 'pressing a choice answers it, not "which one" again: ' + a.slice(0, 100)); }
 
+  console.log('10. Shopify Orders questions as Ravi asked them (4 Nov)');
+  M.setTab('shop');
+  for (const [q, want] of [['WHAT IS THIS BUCKET', /Bucket is where Shopify lines/], ['WHAT IS THIS NO STOCK MEANS', /No stock in the India column/], ['no stock kya hai', /No stock ka matlab/],
+    ['HOW DO i CHECK THE ORDER', /Filter order \/ SKU \/ name/], ['i WANT TO CHECK THE SHOPIFY ORDERS WHERE DO i CHECK THAT NEEDS PRODUCTION', /Needs production/], ['order kaise check kare', /Filter order/]]) {
+    const a = plain(await chat(q)); ok(want.test(a) && !/more than one answer|ek se zyada/.test(a), `"${q}" → ${a.slice(0, 90)}`);
+  }
+  { const a = plain(await chat('qc check kaise kare')); ok(!/Filter order/.test(a), '"qc check" still means QC: ' + a.slice(0, 80)); }
+
   console.log('6. switch off');
   { const N = await load({ root: ROOT, bundle: true, handle: true, switches: ['lazy'], only: true }); install(N);
     ok((await N.ctx.__meeraTest('meeraDataAsk("Imran Ali ke paas kitne piece hain")')) === false, 'with "data" off she does not take it'); }

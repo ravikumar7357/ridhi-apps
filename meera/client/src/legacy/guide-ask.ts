@@ -48,7 +48,9 @@ const GUIDE_SYN = (() => {
   add('stock', 'stock stok inventory maal mal store godown स्टॉक माल गोदाम');
   add('shopify', 'shopify shopfy shopifi शॉपिफाई website etsy');
   add('amazon', 'amazon amzon fba अमेज़न');
-  add('qc', 'qc quality check checking checked alteration alter चेक क्वालिटी');
+  /* "check" alone is looking at something ("order kaise check kare"), not QC — QC is "qc", "quality" (Ravi, 4 Nov) */
+  add('qc', 'qc quality alteration alter क्वालिटी');
+  add('check', 'check checking checked chek चेक');
   add('attendance', 'attendance attendence hajri haziri hazri haajri punch present हाजिरी');
   add('wrong', 'wrong mistake mistakes galat galti glt error errors गलत गलती');
   add('delete', 'delete deleted hatana hatao hata remove mitana mitao cancel हटा हटाना मिटा');

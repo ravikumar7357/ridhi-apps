@@ -9,3 +9,8 @@ choices, 3 now answered right. The gate checks against this record while MEERA_V
 
 - 14 answers: the same answer; where two or more choices had the same words, each now names its screen (and, if still the same, button / option)
 
+
+## 2026-11-04 11:25 — check means looking, not QC; Shopify Orders answers for this bucket, No stock, checking an order (Ravi, 4 Nov)
+
+- 3 answers: two Hindi QC questions offer other QC choices (still unsure, as before); the Bucket answer opens with what the Bucket is
+
