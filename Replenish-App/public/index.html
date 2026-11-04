@@ -1885,6 +1885,10 @@ button.otk-it{cursor:pointer}button.otk-it:hover{text-decoration:underline}
   .acx .topbar{position:static;height:60px}
   .acx .sidenav{position:static;height:auto;top:auto}
   .acx .prev{margin:0 0 12px;padding:10px 14px;border-radius:8px;background:var(--warn-soft);color:var(--warn);font-size:13px}
+/* The ERP's bar across the top sat over the side panel's heading (Ravi, 4 Nov: "heading nahi dikh rahi ki kya role hai"): the panel and its shade go above it. */
+.acx .scrim { z-index: 940; }
+.acx .drawer { z-index: 945; }
+.acx .toast { z-index: 946; }
 /* ================= THE GUIDE CHARACTER (guide.js, 2026-10-21) =================
    Above everything, the scanner included (9999): the dim, the lit box, the arrow, Master ji and his bubble. */
 #gdRoot{position:fixed;inset:0;z-index:10050;pointer-events:none}
