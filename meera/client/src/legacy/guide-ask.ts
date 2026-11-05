@@ -870,6 +870,11 @@ async function gaAnswer1(q) {
   if (GA_W === null) await Promise.race([gaWordsLoad(), new Promise(ok => setTimeout(ok, MEERA_CONFIG.wordsWaitMs))]);
   const hits = gaBankFind(means, words, q);
   if (!(top && top.kind === 'talk' && top.s >= 1.4) && hits[0] && hits[0].s >= (GA_W || gaRemote() ? GA_BANK_SURE_SEM : GA_BANK_SURE)) {
+    /* the question is word for word one of an answer's own ways of asking ("bucket kya hai"): that answer, no "which one"
+     * (Ravi, 5 Nov: "what is this bucket" got three choices) — only when exactly one of the close answers has it */
+    const qn = gaQNorm(q), ex0 = hits.slice(0, 3).filter(h => hits[0].s - h.s < GA_BANK_GAP && gaHasQ(h.e, qn)), here0 = gaHere();
+    const exact = ex0.length > 1 ? ex0.filter(h => h.e.tab && h.e.tab === here0) : ex0;   // two have it: the one on this screen
+    if (exact.length === 1 && hits[1] && hits[0].s - hits[1].s < GA_BANK_GAP) return gaBankAnswer(exact[0].e, lang, L, hits.filter(h => h !== exact[0]).slice(0, 2).filter(h => h.s >= GA_BANK_NEAR));
     /* two answers fit almost equally ("short by kya hai": the screen, or its Short by column): ask which, never guess */
     if (hits[1] && hits[0].s - hits[1].s < GA_BANK_GAP && hits[1].e.id !== hits[0].e.id)
       return { html: L('Your question fits more than one answer. Which one do you mean?', 'आपका सवाल एक से ज़्यादा जवाबों से मिलता है। आप कौन-सा पूछ रहे हैं?', 'Aapka sawaal ek se zyada jawaabon se milta hai. Aap kaunsa poochh rahe hain?')
@@ -1190,6 +1195,9 @@ let GA_BANK_GAP = MEERA_CONFIG.gap;   // config.ts
 /* from here up, a not-sure question gets the bank's nearest answers to choose from rather than the older lists */
 let GA_BANK_ASK = MEERA_CONFIG.ask;   // config.ts
 const gaL3 = (o, lang) => (o ? (lang === 'hi' ? o.hi : lang === 'hg' ? (o.hg || o.en) : o.en) || o.en || '' : '');
+/* a question as words only, for "is it word for word one of this answer's ways of asking" */
+const gaQNorm = s => String(s || '').toLowerCase().replace(/[?!.,।;:"'()]/g, ' ').replace(/\s+/g, ' ').trim();
+const gaHasQ = (e, qn) => { const q = e.q || {}; return [].concat(q.en || [], q.hi || [], q.hg || []).some(x => gaQNorm(x) === qn); };
 const gaAskOf = (e, lang) => { const q = e.q || {}; return ((lang === 'hi' ? q.hi : lang === 'hg' ? q.hg : q.en) || q.en || [])[0] || ''; };
 /** One answer from the bank: the answer, why, what to do, and the buttons that do it. */
 function gaBankAnswer(e, lang, L, near) {
