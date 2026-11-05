@@ -305,6 +305,26 @@ button.od-cp:hover{background:var(--chip);color:var(--ink)}
 .s-ofoot .od-nav{display:flex;align-items:center;gap:6px;margin-right:auto}
 .s-ofoot > .s-muted{margin-right:0}
 @media (max-width:760px){ .od-prog li{font-size:10px} .s-ofoot{flex-wrap:wrap} }
+/* COLOURS THE SHOPIFY WAY (Ravi, 5 Nov: "red green is a problem — think how Shopify handles this"). Like Shopify's
+ * admin: what is done is a quiet grey, what needs attention is yellow, and only real trouble is a strong warm amber.
+ * The words (and an icon on the lateness badges) carry the meaning, never the colour alone. */
+:root{--accent:#4A4F57;--accent-bg:#ECEEF1;--bad:#8A3B00;--bad-bg:#FFE7D1;--warn-bg:#FFF2C6;--warn-ink:#6B4800}
+.st-approved{background:#ECEEF1;color:#4A4F57}
+.st-rejected{background:#FFE7D1;color:#8A3B00}
+/* LATENESS on every order (Ravi, 5 Nov: "the hub is the alert screen") */
+.lt{display:inline-flex;align-items:center;gap:5px;border-radius:7px;font-size:11.5px;font-weight:700;padding:2px 8px 2px 6px;line-height:16px;white-space:nowrap;margin-bottom:3px}
+.lt svg{width:13px;height:13px;flex:none}
+.lt-lo{background:#FFF2C6;color:#6B4800;box-shadow:inset 0 0 0 1px #F0D987}
+.lt-hi{background:#8A3B00;color:#FFF7EE}
+button.s-st .s-sti{width:14px;height:14px;margin-right:-1px}
+.lt-sub{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;padding:0 0 10px;font-size:12.5px}
+.lt-sub > span{color:var(--muted);font-weight:600}
+.lt-sub button.s-st{padding:4px 11px;font-size:12.5px}
+.od-late{display:flex;align-items:flex-start;gap:10px;padding:12px 14px;border-radius:12px;font-size:13px}
+.od-late.lt-lo{box-shadow:inset 0 0 0 1px #F0D987}
+.od-late svg{width:18px;height:18px;flex:none;margin-top:1px}
+.od-late b{display:block}
+.od-late ul{margin:4px 0 0;padding-left:18px}
 /* ALERTS page (Ravi, 3 Nov): morning numbers per store + what the alert rules say */
 .w-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 14px;border-radius:12px;background:var(--accent-bg,#E8F4EC);font-size:13px;margin-bottom:12px}
 .w-bar.off{background:var(--warn-bg)}

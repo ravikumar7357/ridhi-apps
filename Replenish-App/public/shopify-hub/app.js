@@ -431,6 +431,7 @@ let LIMIT = ROWS_STEP, LIMIT_KEY = '', ROW_NOS = [], GROW = null;
 
 /* ============================== 1 · ORDERS ============================== */
 const BUCKETS = [
+  ['alert', 'Late', null],                 // from the alert rules (inside the ERP only)
   ['act', 'Needs action', null],
   ['decide', 'Needs routing', null],
   ['make', 'In production', pk => phaseOf(pk) === 0],
@@ -439,30 +440,46 @@ const BUCKETS = [
   ['late', 'On hold / delayed', pk => !!(flagOf(pk) || pk.block)],
   ['done', 'Delivered', pk => phaseOf(pk) === 4],
 ];
-const inBucket = (o, b) => b[0] === 'act' ? needsAction(o) : b[0] === 'decide' ? undecided(o).length > 0 : o.pkgs.some(b[2]);
+const inBucket = (o, b) => b[0] === 'alert' ? !!LATE[o.no] : b[0] === 'act' ? needsAction(o) : b[0] === 'decide' ? undecided(o).length > 0 : o.pkgs.some(b[2]);
 function pageOrders() {
   const match = o => !Q || [o.no, o.cust.n, o.cust.e, ...o.items.map(i => i.sku + ' ' + i.t), ...o.pkgs.flatMap(p => p.trk)].join(' ').toLowerCase().includes(Q);
   /* On a team page only that team's filters; one is always chosen, except on Sales where "All" is the order search. */
   /* No "Needs routing" chip on the whole hub (Ravi, 2 Nov: "remove it") — every order to route is already in Needs action,
    * first, since routing is its most urgent step. Kept only while something still asks for it (the standalone To route). */
-  const BK = PAGE ? BUCKETS.filter(x => PAGE.buckets.includes(x[0])) : BUCKETS.filter(x => x[0] !== 'decide' || FILTER === 'decide');
+  const BK = (PAGE ? BUCKETS.filter(x => PAGE.buckets.includes(x[0])) : BUCKETS.filter(x => x[0] !== 'decide' || FILTER === 'decide'))
+    .filter(x => x[0] !== 'alert' || HAS_DB);                     // "Late" needs the Shopify OS database (inside the ERP)
   if (PAGE && !PAGE.buckets.includes(FILTER) && !(FILTER === '' && PAGE.first === '')) FILTER = PAGE.first;
+  if (HAS_DB && !WATCH.busy && Date.now() - WATCH.at > 5 * 60000) watchLoad();
   const b = BK.find(x => x[0] === FILTER);
   const urg = o => (nextAction(o) || { urg: -1 }).urg;
-  const rows = vis().filter(match).filter(o => !b || inBucket(o, b)).sort((x, y) => (FILTER === 'act' ? urg(y) - urg(x) : 0) || y.at - x.at);
+  /* In "Late": how late (by the order's age) and why (the kind of alert); worst first, then the oldest. */
+  const lateOk = o => { const l = LATE[o.no]; return !!l && (!LAGE || ageKey(l.days) === LAGE) && (!LKIND || l.all.some(x => x.kind === LKIND)); };
+  const lateRank = o => { const l = LATE[o.no]; return l ? (l.sev === 'red' ? 1e6 : 0) + l.days : -1; };
+  const rows = vis().filter(match).filter(o => !b || inBucket(o, b)).filter(o => FILTER !== 'alert' || lateOk(o))
+    .sort((x, y) => (FILTER === 'act' ? urg(y) - urg(x) : FILTER === 'alert' ? lateRank(y) - lateRank(x) : 0) || y.at - x.at);
   SHOWN.n = rows.length;
   SEL = new Set([...SEL].filter(no => rows.some(o => o.no === no)));
   const cnt = x => vis().filter(o => inBucket(o, x)).length;
   const allChip = !PAGE || PAGE.first === '' ? `<button class="s-st ${!FILTER ? 'on' : ''}" type="button" data-f="">All <b>${vis().length}</b></button>` : '';
   /* Five chips in sight, the rest under "More" (Ravi, 2 Nov); the chosen one always stays in sight, and delayed orders
    * show their count on More in red. A team page has few chips and shows them all. */
-  const MAIN = ['act', 'make', 'ready', 'carrier'];
-  const chip = x => { const n = cnt(x); return `<button class="s-st ${n ? '' : 'zero'} ${(x[0] === 'act' || x[0] === 'late') && n ? 'act' : ''} ${FILTER === x[0] ? 'on' : ''}" type="button" data-f="${x[0]}">${x[1]} <b>${n}</b></button>`; };
+  const MAIN = ['alert', 'act', 'make', 'ready', 'carrier'];
+  const chip = x => { const n = cnt(x); return `<button class="s-st ${n ? '' : 'zero'} ${(x[0] === 'act' || x[0] === 'late' || x[0] === 'alert') && n ? 'act' : ''} ${FILTER === x[0] ? 'on' : ''}" type="button" data-f="${x[0]}">${x[0] === 'alert' ? ICON_CLOCK.replace('<svg ', '<svg class="s-sti" ') : ''}${x[1]} <b>${n}</b></button>`; };
+  /* The second row inside "Late": how late, and why — each with its count among the late orders shown. */
+  const lateRow = () => {
+    const pool = vis().filter(match).filter(o => LATE[o.no]);
+    const nAge = k => pool.filter(o => !k || ageKey(LATE[o.no].days) === k).length;
+    const kinds = {}; pool.forEach(o => LATE[o.no].all.forEach(x => { kinds[x.kind] = (kinds[x.kind] || 0) + 1; }));
+    return `<div class="lt-sub"><span>How late</span>${LATE_AGE.map(([k, t]) => `<button class="s-st ${LAGE === k ? 'on' : ''} ${nAge(k) ? '' : 'zero'}" type="button" data-lage="${k}">${t} <b>${nAge(k)}</b></button>`).join('')}
+      <span>Why</span><button class="s-st ${!LKIND ? 'on' : ''}" type="button" data-lkind="">All</button>${Object.keys(kinds).sort((a, c) => kinds[c] - kinds[a]).map(k => `<button class="s-st ${LKIND === k ? 'on' : ''}" type="button" data-lkind="${esc(k)}">${esc(LATE_KIND[k] || k)} <b>${kinds[k]}</b></button>`).join('')}
+      ${WATCH.at ? `<span class="s-faint" style="font-weight:400">checked ${fmt(WATCH.at)}</span>` : ''}</div>`;
+  };
   const inSight = PAGE ? BK : BK.filter(x => MAIN.includes(x[0]) || x[0] === FILTER), rest = BK.filter(x => !inSight.includes(x));
   const late = rest.find(x => x[0] === 'late'), lateN = late ? cnt(late) : 0;
   const more = rest.length ? `<details class="s-moremenu s-stmore"><summary>More${lateN ? ` <b class="s-bad">${lateN} delayed</b>` : ''} ▾</summary><div class="s-menu">${rest.map(chip).join('')}</div></details>` : '';
   const steps = `<div class="s-steps" id="pipe">${allChip}${inSight.map(chip).join('')}${more}
-    ${(FILTER && (!PAGE || PAGE.first === '')) || Q ? `<span class="s-kept">Showing ${esc([b && b[1], Q && '“' + Q + '”'].filter(Boolean).join(' · '))} <button type="button" data-showall>Show all</button></span>` : ''}</div>`;
+    ${(FILTER && (!PAGE || PAGE.first === '')) || Q ? `<span class="s-kept">Showing ${esc([b && b[1], Q && '“' + Q + '”'].filter(Boolean).join(' · '))} <button type="button" data-showall>Show all</button></span>` : ''}</div>
+    ${FILTER === 'alert' ? lateRow() : ''}`;
   /* With orders ticked, the things done to many at once. Every one does real work. */
   /* Shipping's bulk jobs (files, tracking, pick sheets) only on Shipping and on the whole hub. */
   const bulk = SEL.size && (!PAGE || PAGE.name === 'Shipping') ? `<div class="s-bulk" id="bulk"><b>${SEL.size} selected</b>
@@ -472,7 +489,7 @@ function pageOrders() {
       ${S.settings.fedexShip.on ? '<button class="s-btn ghost" type="button" data-bulk="fedex">FedEx labels (API)</button>' : ''}
       <button class="s-btn ghost" type="button" data-bulk="note">Add a note</button>
       <button class="s-link" type="button" data-bulk="clear">Clear</button></div>` : '';
-  const key = [FILTER, Q, STORE, PAGE ? PAGE.name : ''].join('|');
+  const key = [FILTER, Q, STORE, PAGE ? PAGE.name : '', LAGE, LKIND].join('|');
   if (key !== LIMIT_KEY) { LIMIT_KEY = key; LIMIT = ROWS_STEP; }
   ROW_NOS = rows.map(o => o.no);
   const tr = rows.slice(0, LIMIT).map(o => {
@@ -486,7 +503,7 @@ function pageOrders() {
       <td class="tl" title="${esc(addrText(o))}">${esc(o.cust.n)}${sub(`${esc([o.addr.state, o.addr.country].filter(Boolean).join(', '))} · ${units(o)} unit${units(o) > 1 ? 's' : ''}`)}</td>
       <td class="tl s-itemscol">${itemsCol(o)}</td>
       <td class="num">${usd(orderVal(o))}</td>
-      <td class="tl m-hide">${routeCol(o)}</td><td class="tl s-statuscol">${statusOne(o)}</td>
+      <td class="tl m-hide">${routeCol(o)}</td><td class="tl s-statuscol">${lateBadge(o)}${statusOne(o)}</td>
       <td class="s-actcol">${btn}</td></tr>`;
   });
   if (rows.length > LIMIT) tr.push(`<tr class="s-morerows" id="moreRows"><td colspan="8">Showing ${LIMIT} of ${rows.length} orders · scroll for more</td></tr>`);
@@ -821,6 +838,7 @@ function pageOrder(no) {
       ${progressBar(o)}</div>
     <div class="s-obody od-grid">
       <div class="od-main">
+        ${lateStrip(o)}
         ${clash ? `<div class="od-clash" id="clash"><div><b>${UNLOCKED.has(o.no) ? 'Checked — sending unlocked.' : 'Sending is locked.'}</b> ${clash}</div>${UNLOCKED.has(o.no) ? '' : '<button class="s-btn ghost" type="button" data-do="unlock">I checked — unlock sending</button>'}</div>` : ''}
         ${linesCard(o)}
         ${o.pkgs.map((pk, n) => partPanel(o, pk, n)).join('')}
@@ -885,12 +903,46 @@ async function dbRpc(fn, args) {
 async function watchLoad(force) {
   if (WATCH.busy || (!force && Date.now() - WATCH.at < 5 * 60000)) return;
   WATCH.busy = true; WATCH.err = '';
-  try { const [w, m] = await Promise.all([dbRpc('hub_watch'), dbRpc('hub_morning', { p_day: null })]); WATCH.w = w; WATCH.m = m; WATCH.at = Date.now(); }
+  try { const [w, m] = await Promise.all([dbRpc('hub_watch'), dbRpc('hub_morning', { p_day: null })]); WATCH.w = w; WATCH.m = m; WATCH.at = Date.now(); rebuildLate(); }
   catch (e) { WATCH.err = e.message; }
   WATCH.busy = false;
-  if (/^#watch/.test(location.hash) && !typing()) render();
+  if (/^#(watch|orders|order\/)/.test(location.hash || '#orders') && !typing() && !$('dlg').innerHTML) render();
 }
-setInterval(() => { if (/^#watch/.test(location.hash) && !document.hidden) watchLoad(); }, 60000);
+/* Read again every 5 minutes while the hub is open (not only on the Alerts page): the lateness is on every order. */
+setInterval(() => { if (HAS_DB && !document.hidden) watchLoad(); }, 60000);
+
+/* LATENESS ON EVERY ORDER (Ravi, 5 Nov: "the hub is the alert screen — tabs for what is late and how late").
+ * The same alert rules as the Alerts page (database step 31), put on the order they are about: the worst one shows as a
+ * badge in the order's Status and as a strip in the order window. Like Shopify, no red / green: attention is yellow,
+ * urgent is a strong amber with "!", and the words say what it is. */
+const LATE_KIND = { late: 'Not shipped', production_late: 'In production', not_shipped: 'Not sent', delivery: 'In delivery',
+  carrier_problem: 'Carrier problem', production_hold: 'Production on hold', return: 'Return', blocked: 'No SKU', hold: 'Payment',
+  not_routed: 'Not routed', changed_after_send: 'Cancelled in work', stuck: 'Stuck', carrier: 'Carrier problem', stock_short: 'Short of stock' };
+const LATE_AGE = [['', 'Any time'], ['a', '2–6 days'], ['b', '7–14 days'], ['c', '15+ days']];
+let LATE = {}, LAGE = '', LKIND = '';
+const ageKey = d => d < 7 ? 'a' : d < 15 ? 'b' : 'c';
+function rebuildLate() {
+  LATE = {};
+  ((WATCH.w && WATCH.w.wanted) || []).forEach(a => {
+    const no = String(a.order || '').replace(/^#\s*/, ''); if (!no) return;
+    const x = { sev: a.severity, kind: a.kind, title: a.title || '', team: a.team || '', days: a.placed_at ? Math.max(0, Math.floor((Date.now() - new Date(a.placed_at).getTime()) / DAY)) : 0 };
+    const cur = LATE[no];
+    if (!cur) LATE[no] = Object.assign(x, { all: [x] });
+    else { cur.all.push(x); if (x.sev === 'red' && cur.sev !== 'red') Object.assign(cur, x, { all: cur.all }); }
+  });
+}
+const ICON_CLOCK = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="8" cy="8" r="6.2"/><path d="M8 4.6V8l2.3 1.5" stroke-linecap="round"/></svg>';
+const ICON_BANG = '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="7" fill="currentColor" opacity=".18"/><path d="M8 4v5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="8" cy="11.6" r="1.1" fill="currentColor"/></svg>';
+const lateBadge = o => { const l = LATE[o.no]; if (!l) return '';
+  return `<span class="lt ${l.sev === 'red' ? 'lt-hi' : 'lt-lo'}" title="${esc(l.title)}${l.all.length > 1 ? ' (+' + (l.all.length - 1) + ' more)' : ''}">${l.sev === 'red' ? ICON_BANG : ICON_CLOCK}${esc(LATE_KIND[l.kind] || l.kind)} · ${l.days} d</span><br>`; };
+function lateStrip(o) {
+  const l = LATE[o.no]; if (!l) return '';
+  const team = { orders: 'Sales', shipment: 'Shipping', production: 'Production', care: 'Customer care' }[l.team] || l.team;
+  return `<div class="od-late ${l.sev === 'red' ? 'lt-hi' : 'lt-lo'}">${l.sev === 'red' ? ICON_BANG : ICON_CLOCK}<div>
+    <b>${l.sev === 'red' ? 'Late' : 'Getting late'} · ${esc(LATE_KIND[l.kind] || l.kind)}: ${esc(l.title)}</b>
+    <span>${l.days} days since the order${team ? ' · ' + esc(team) + ' team' : ''}</span>
+    ${l.all.length > 1 ? `<ul>${l.all.filter(x => x !== l).map(x => `<li>${esc(LATE_KIND[x.kind] || x.kind)}: ${esc(x.title)}</li>`).join('')}</ul>` : ''}</div></div>`;
+}
 const KIND = { late: 'Late to ship', production_late: 'Production running late', not_shipped: 'Not shipped yet', delivery: 'Late in delivery',
   carrier_problem: 'Carrier problem', production_hold: 'Production on hold', return: 'Return / replacement waiting', blocked: 'No SKU', hold: 'Payment on hold', not_routed: 'Not routed', changed_after_send: 'Cancelled while in work',
   stuck: 'Stuck in production / packing', carrier: 'Carrier problem', stock_short: 'Not enough stock', system: 'Live feed' };
@@ -1788,6 +1840,8 @@ function render() {
   on('[data-showall]', () => { FILTER = ''; Q = ''; $('q').value = ''; render(); });
   on('[data-rf]', b => { RFILTER = b.dataset.rf; render(); });
   on('[data-wf]', b => { WFILTER = WFILTER === b.dataset.wf ? '' : b.dataset.wf; render(); });
+  on('[data-lage]', b => { LAGE = b.dataset.lage; render(); });
+  on('[data-lkind]', b => { LKIND = LKIND === b.dataset.lkind ? '' : b.dataset.lkind; render(); });
   on('[data-wreload]', () => { watchLoad(true); render(); });
   on('[data-kf]', b => { KFILTER = b.dataset.kf; render(); });
   on('[data-make]', () => exportStock());
