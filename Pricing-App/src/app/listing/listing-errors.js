@@ -29,6 +29,7 @@ let LE = null;          // the listing open in the fixer (the ?lfix=get reply), 
 let LE_SCHEMA = {};     // attribute name → what Amazon allows for it (the ?lfix=schema reply)
 let LE_EDIT = {};       // attribute name → { vals } edited so far, or { del: true }
 let LE_RESULT = '';     // HTML of the last Check / Apply result, kept across redraws
+let LE_EXTRA = [];      // attribute names the caller asked to edit as well (the Workspace's empty specs), beside the ones Amazon names
 const LE_PER = 50;      // listings per page
 const LE_KINDS = [
   ['image', 'Image'], ['title', 'Title too long'], ['value', 'Wrong / old value'],
@@ -203,13 +204,15 @@ const leShow = on => {
   $('leListWrap').classList.toggle('hide', on);
 };
 
-// Open one listing in the fixer: read it live from Amazon, then what Amazon allows for the attributes its issues name.
-async function leOpen(sku) {
+// Open one listing in the fixer: read it live from Amazon, then what Amazon allows for the attributes its issues name —
+// and for `extraAttrs`, when the caller (the Workspace's Specs fix) names attributes that are simply empty.
+async function leOpen(sku, extraAttrs = []) {
   leShow(true);
   window.scrollTo(0, 0);
   LE = null;
   LE_EDIT = {};
   LE_RESULT = '';
+  LE_EXTRA = Array.isArray(extraAttrs) ? extraAttrs.map(String).filter(Boolean) : [];
   $('leFix').innerHTML = '<div class="card" style="padding:14px"><span class="muted">Reading ' + leEsc(sku) + ' from Amazon…</span></div>';
   try {
     // --- the listing ---
@@ -217,7 +220,7 @@ async function leOpen(sku) {
     LE = reply;
     await lcEnsureRules();
     // --- the schema for the attributes Amazon names (images and the content fields are handled elsewhere) ---
-    const names = [...new Set(reply.issues.flatMap(issue => issue.attrs || []))].filter(attr => !/image_locator/.test(attr) && !LC_FIELDS.includes(attr));
+    const names = leAttrNames(reply);
     if (names.length && reply.productType) {
       const schemaReply = await baCall({ lfix: 'schema', brand: $('leBrand').value, pt: reply.productType, attrs: names.join(',') });
       LE_SCHEMA = schemaReply.attrs || {};
@@ -227,6 +230,11 @@ async function leOpen(sku) {
     $('leFix').innerHTML = `<div class="card err" style="padding:14px">${leEsc(e.message || e)}</div>`;
   }
 }
+
+// The attributes the fixer edits: the ones Amazon's issues name, then the extra ones asked for — without image slots and
+// the four content fields, which have their own screens.
+const leAttrNames = listing => [...new Set(listing.issues.flatMap(issue => issue.attrs || []).concat(LE_EXTRA))]
+  .filter(attr => !/image_locator/.test(attr) && !LC_FIELDS.includes(attr));
 
 /* A value is an array of entries; a field may be nested one level ('type.value'). */
 // Read a (possibly dotted) field from one entry.
@@ -311,7 +319,7 @@ function lePatches() {
 function leFixRender() {
   const listing = LE;
   if (!listing) return;
-  const names = [...new Set(listing.issues.flatMap(issue => issue.attrs || []))].filter(attr => !/image_locator/.test(attr) && !LC_FIELDS.includes(attr));
+  const names = leAttrNames(listing);
   const imgIssues = listing.issues.filter(issue => leKind(issue) === 'image');
   const nChanges = Object.keys(LE_EDIT).length;
   $('leFix').innerHTML = `

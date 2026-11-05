@@ -1185,6 +1185,202 @@
   .modalbox.sa-plcard{width:min(660px,100%);max-height:88vh;overflow:auto}
 
   /* ===== MODULE: LISTING ===== */
+  /* ----- One look for every problem (listing/listing-rules.js, lrProblemHtml): Listing Health's Why column and one-parent view,
+     the Workspace's detail and audit, the suggested-title dialog — the severity dot, what is wrong, how to fix it in plain words,
+     a small grey source line, a tag for whose rule it is, and Fix. ----- */
+  .lr-prob{display:flex;align-items:flex-start;gap:8px;padding:6px 0;border-top:1px solid var(--line);font-size:12.5px;
+    line-height:1.45;white-space:normal;text-align:left}
+  .lr-prob:first-child{border-top:0;padding-top:0}
+  .lr-prob>.sev{flex:none;margin:5px 0 0 2px}
+  .lr-prob-body{flex:1 1 200px;min-width:0}
+  .lr-prob-what{color:var(--ink);font-weight:600;overflow-wrap:anywhere}
+  .lr-prob-how{margin-top:1px;color:var(--ink);overflow-wrap:anywhere}
+  .lr-prob-src{margin-top:2px;font-size:11px;color:var(--muted)}
+  /* "Amazon" and "Amazon limit" in the needs-action pair; "Company rule" quiet, with its hover saying Amazon does not check it. */
+  .lr-tag{flex:none;align-self:flex-start;margin-top:2px;padding:0 7px;border:1px solid transparent;border-radius:var(--r-pill);
+    background:var(--act-bg);color:var(--act-ink);font-size:10.5px;font-weight:600;line-height:16px;white-space:nowrap;cursor:help}
+  .lr-tag.is-own{background:transparent;color:var(--muted);border-color:var(--line)}
+  .main .lr-fixbtn{flex:none;align-self:flex-start;padding:2px 10px;font-size:12px;line-height:1.3;white-space:nowrap}
+  .main .lr-fixbtn:focus-visible{outline:none;box-shadow:var(--ring)}
+  /* Listing Health's Why column: the problems stacked in a wide, wrapping cell. */
+  table.xl td .lr-probs{min-width:340px;max-width:560px;white-space:normal}
+  /* The "What people may write" box on Listing Rules: a heading line, then one row per allowance with its note under it. */
+  .lr-allow{margin-top:12px;padding:12px 14px;font-size:12.5px;line-height:1.5}
+  .lr-allow-head{margin-bottom:6px}
+  .lr-allow-row{display:flex;flex-wrap:wrap;align-items:center;gap:6px 18px;padding:7px 0;border-top:1px solid var(--line)}
+  .lr-allow-row label{display:inline-flex;align-items:center;gap:6px;white-space:nowrap;font-weight:600}
+  .lr-allow-row .muted{flex:1 1 100%;font-size:12px}
+  .lr-allow input{padding:4px 8px;border-radius:6px;font-size:12.5px;line-height:1.3}
+  .lr-allow .w-xs{width:62px}
+  .lr-allow .w-m{width:200px}
+
+  /* ----- Listing Workspace (listing/listing-workspace.js): Listing Health's third view, a checklist per listing ----- */
+  /* Three buttons in the segment now: a little less side padding keeps the toolbar on one line at 1440px. */
+  #paneHealth .seg .segbtn{padding-left:12px;padding-right:12px}
+  /* While the Workspace shows, Listing Health's own table, issue picker and buttons step aside, and the Parent /
+     Child buttons — which renderHealth keeps marking .on — read as unpressed. Workspace keeps the pressed look. */
+  #paneHealth.li-ws-on #hResult,#paneHealth.li-ws-on #hIssueView,#paneHealth.li-ws-on #hRaw,
+  #paneHealth.li-ws-on #hCsv,#paneHealth.li-ws-on #hSchema{display:none}
+  #paneHealth.li-ws-on #hViewParent.on,#paneHealth.li-ws-on #hViewChild.on{background:transparent;color:var(--muted);
+    font-weight:500;box-shadow:none}
+  #paneHealth.li-ws-on #hViewParent.on:hover,#paneHealth.li-ws-on #hViewChild.on:hover{color:var(--ink)}
+  /* The banner when the snapshot is days old: the warning pair, with the warning colour down the left. */
+  .li-ws-banner{margin:0 0 12px;padding:10px 14px;border-left:4px solid var(--act);border-radius:var(--r-sm);
+    background:var(--act-bg);color:var(--act-ink);font-size:13px;line-height:1.5}
+  /* The card's figure that means work. */
+  .li-ws .li-ws-v-bad{color:var(--bad-ink)}
+  /* The bar: the mode on the left, the sweep and its progress on the right. */
+  .li-ws-bar{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:0 0 12px}
+  .li-ws-barr{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .li-ws-prog{font-size:12.5px;color:var(--muted)}
+  .li-ws-err{margin-top:3px;font-size:11.5px;color:var(--bad-ink);white-space:normal;max-width:320px}
+  /* Filter chips: a dot in the group's colour, the label, a count pill; the chosen one filled in the brand pair.
+     Written .li-ws .li-ws-chip so they beat the page's button rules. */
+  .li-ws-chips{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 14px}
+  .li-ws .li-ws-chip{display:inline-flex;align-items:center;gap:7px;padding:5px 12px 5px 10px;border-radius:var(--r-pill);
+    background:var(--card);color:var(--ink);font-size:12.5px;font-weight:500;line-height:1.3;
+    box-shadow:inset 0 0 0 1px var(--line);transition:background-color .15s ease,color .15s ease}
+  .li-ws .li-ws-chip:hover{background:var(--hover);color:var(--ink)}
+  .li-ws .li-ws-chip[aria-pressed="true"],.li-ws .li-ws-chip[aria-pressed="true"]:hover{background:var(--brand-bg);
+    color:var(--brand-ink);font-weight:600;box-shadow:none}
+  .li-ws-dot{flex:none;width:8px;height:8px;border-radius:50%}
+  .li-ws-dot-brand{background:var(--brand)}
+  .li-ws-dot-bad{background:var(--bad)}
+  .li-ws-dot-act{background:var(--act)}
+  .li-ws-n{padding:0 7px;border-radius:var(--r-pill);background:color-mix(in srgb,var(--ink) 8%,transparent);
+    font-size:11px;font-weight:600;font-variant-numeric:tabular-nums}
+  .li-ws .li-ws-chip[aria-pressed="true"] .li-ws-n{background:color-mix(in srgb,var(--brand-ink) 14%,transparent)}
+  /* The legend under the chips: what the marks in the checklist mean. */
+  .li-ws-legend{margin:-6px 0 12px;font-size:12px;line-height:1.5;color:var(--muted)}
+  /* The small muted line under a KPI label. */
+  .li-ws .li-ws-kpisub{margin-top:2px;font-size:11px;color:var(--muted);cursor:help}
+  /* Last checked: the Amazon read with a dot in the age's colour, the snapshot's refresh under it in muted text. */
+  .li-ws-when{display:flex;align-items:center;gap:6px;font-size:12.5px;white-space:nowrap}
+  .li-ws-when2{margin-top:2px;font-size:11.5px;color:var(--muted);white-space:nowrap;cursor:help}
+  .li-ws-ldot{flex:none;width:8px;height:8px;border-radius:50%;background:var(--faint)}
+  .li-ws-ldot.is-ok{background:var(--accent)}
+  .li-ws-ldot.is-warn{background:var(--warn)}
+  .li-ws-ldot.is-bad{background:var(--bad)}
+  .li-ws-ldot.is-live{background:var(--brand)}
+  /* The parent table: cells read from the top; the ASIN under the name; a small muted line under a badge. */
+  .li-ws-tbl tr.li-ws-row>td{vertical-align:top}
+  .li-ws-tbl .li-ws-asin{display:block;margin-top:2px;font-size:11px;color:var(--muted)}
+  .li-ws-sub{margin-top:3px;font-size:11.5px;color:var(--muted);white-space:normal;max-width:360px}
+  /* A header that sorts is a button dressed as the header text; ▲ / ▼ says which way. */
+  .li-ws .li-ws-th{padding:0;border-radius:4px;background:transparent;color:inherit;font:inherit;text-transform:inherit;
+    letter-spacing:inherit;box-shadow:none;white-space:nowrap;transition:color .15s ease}
+  .li-ws .li-ws-th:hover{background:transparent;color:var(--ink)}
+  /* ▸ opens the parent's checklist; ▾ while it is open. */
+  .li-ws .li-ws-tog{width:26px;height:26px;padding:0;border-radius:var(--r-sm);background:transparent;color:var(--muted);
+    font-size:14px;line-height:1;box-shadow:none;transition:background-color .15s ease,color .15s ease}
+  .li-ws .li-ws-tog:hover,.li-ws .li-ws-tog[aria-expanded="true"]{background:var(--hover);color:var(--ink)}
+  /* Open, Read again, Fix: the ghost button, compact enough for a row. */
+  .li-ws .li-ws-open,.li-ws .li-ws-again{padding:3px 10px;font-size:12px;line-height:1.3;white-space:nowrap}
+  /* The opened parent: the note and Read again, then the checklist in a box of its own that scrolls sideways. Written
+     with .li-ws-tbl in front, so these beat the table.xl cell rules, which reach into a nested table too. */
+  .li-ws-tbl tbody tr.li-ws-kids>td,.li-ws-tbl tbody tr.li-ws-kids:hover>td{padding:0;background:var(--soft)}
+  .li-ws-note{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:8px 12px 8px 38px;
+    font-size:12px;line-height:1.5;color:var(--muted);white-space:normal}
+  .li-ws-note>span{flex:1 1 320px;min-width:0}
+  .li-ws-kidbox{overflow:auto;max-width:100%}
+  .li-ws-tbl .li-ws-kidtable{width:auto;min-width:100%;border-collapse:collapse;font-size:12.5px}
+  .li-ws-tbl .li-ws-kidtable th{position:static;z-index:auto;padding:6px 10px;background:transparent;box-shadow:none;
+    font-size:10.5px;letter-spacing:.04em;cursor:default;white-space:nowrap}
+  .li-ws-tbl .li-ws-kidtable td{padding:5px 10px;vertical-align:middle;white-space:nowrap}
+  .li-ws-tbl .li-ws-kidtable tr.li-ws-kid.is-off td{color:var(--muted)}
+  .li-ws-tbl .li-ws-kidtable tbody>tr:last-child>td{border-bottom:0}
+  /* ✓ in the good ink; ✗ a small red pill that is a button (it opens the fix); — faint; "!" = that cell's source could not
+     be read. A not-live listing's ✗ is grey and dashed: shown, never counted. */
+  .li-ws-ok{color:var(--accent-ink);font-weight:700}
+  .li-ws .li-ws-x{display:inline-block;padding:0 7px;border:1px solid transparent;border-radius:var(--r-pill);
+    background:var(--bad-bg);color:var(--bad-ink);font-size:11px;font-weight:600;line-height:18px;box-shadow:none;
+    white-space:nowrap;transition:background-color .15s ease,color .15s ease,border-color .15s ease}
+  .li-ws .li-ws-x:hover{background:var(--bad-bg);color:var(--bad-ink);border-color:var(--bad)}
+  .li-ws .li-ws-x.is-dim,.li-ws .li-ws-x.is-dim:hover{background:transparent;color:var(--faint);border:1px dashed var(--line)}
+  /* The pill takes its finding's Listing Health level: red Critical (above), orange Needs action, yellow Needs review. */
+  .li-ws .li-ws-x.is-a{background:var(--act-bg);color:var(--act-ink)}
+  .li-ws .li-ws-x.is-a:hover{background:var(--act-bg);color:var(--act-ink);border-color:var(--act)}
+  .li-ws .li-ws-x.is-r{background:var(--rev-bg);color:var(--rev-ink)}
+  .li-ws .li-ws-x.is-r:hover{background:var(--rev-bg);color:var(--rev-ink);border-color:var(--rev)}
+  /* Under the Problems badge: the three levels with their dots, as Parent ASINs shows them; the legend uses the same dots. */
+  .li-ws-levels{display:flex;flex-wrap:wrap;gap:2px 12px;margin-top:4px;font-size:11.5px;color:var(--ink)}
+  .li-ws-lvl{white-space:nowrap}
+  .li-ws-levels .sev{margin-right:6px}
+  .li-ws-legend .sev{margin:0 4px 0 2px}
+  .li-ws-na{color:var(--faint)}
+  .li-ws-bang{color:var(--act-ink);font-weight:700;cursor:help}
+  /* The audit inside an opened parent: each failing step as a block (dot, what is wrong and how many, how to fix, "Show these
+     listings"), the steps without data in one grey line, the passing ones folded into one line. */
+  .li-ws-audit{padding:0 12px 10px 38px;font-size:12.5px;line-height:1.45}
+  .li-ws-astep{display:flex;align-items:flex-start;gap:8px;padding:4px 0;white-space:normal}
+  .li-ws-astep>.sev{flex:none;margin:5px 0 0 2px}
+  .li-ws-astep>.li-ws-ok,.li-ws-astep>.li-ws-na{flex:none;width:12px;text-align:center}
+  .li-ws-astep-body{flex:1 1 200px;min-width:0}
+  .li-ws-astep.is-fail .li-ws-astep-t{color:var(--bad-ink);font-weight:600}
+  .li-ws-astep.is-fail.is-a .li-ws-astep-t{color:var(--act-ink)}
+  .li-ws-astep-how{color:var(--ink)}
+  .li-ws-astep.is-unknown,.li-ws-astep.is-pass{color:var(--muted);font-size:12px}
+  .li-ws .li-ws-ashow{flex:none;padding:2px 10px;font-size:12px;line-height:1.3;white-space:nowrap}
+  .li-ws .li-ws-ashow[aria-pressed="true"],.li-ws .li-ws-ashow[aria-pressed="true"]:hover{background:var(--brand-bg);color:var(--brand-ink)}
+  /* While a parent is being read: a grey bar where each mark will be, and a thin progress bar under the note. */
+  .li-ws-ph{display:inline-block;width:22px;height:10px;border-radius:5px;vertical-align:middle;
+    background:color-mix(in srgb,var(--ink) 9%,transparent)}
+  .li-ws-pbar{height:3px;margin-top:6px;border-radius:2px;background:color-mix(in srgb,var(--ink) 9%,transparent);overflow:hidden}
+  .li-ws-pfill{height:100%;border-radius:2px;background:var(--brand);transition:width .3s ease}
+  /* The SKU is the toggle for the detail: its own hover, active and focus, or the global button hover paints it blue. */
+  .li-ws .li-ws-sku{padding:1px 5px;margin-left:-5px;border-radius:4px;background:transparent;color:var(--ink);font:inherit;
+    font-family:ui-monospace,monospace;font-size:12px;font-weight:600;line-height:1.4;box-shadow:none;text-align:left;
+    transition:background-color .15s ease,color .15s ease}
+  .li-ws .li-ws-sku:hover,.li-ws .li-ws-sku:active{background:var(--hover);color:var(--ink)}
+  .li-ws .li-ws-sku[aria-expanded="true"]{color:var(--brand-ink)}
+  /* The detail under a listing: a box with the listing's status line, its problems (the shared .lr-prob look), one grey line for
+     what is not checked yet, a red one for what could not be read, and "Show passed checks (N)" with the list under it. */
+  .li-ws-tbl tbody tr.li-ws-detail>td,.li-ws-tbl tbody tr.li-ws-detail:hover>td{padding:2px 10px 8px 24px;background:var(--soft);
+    white-space:normal}
+  .li-ws-dbox{max-width:100%;padding:8px 12px;background:var(--card);border:1px solid var(--line);border-radius:6px;font-size:12.5px;
+    text-align:left}
+  .li-ws-dinfo{margin-bottom:6px;font-size:11.5px;color:var(--muted);white-space:normal}
+  .li-ws-dunk{margin-top:6px;padding-top:6px;border-top:1px solid var(--line);font-size:12px;color:var(--muted);white-space:normal}
+  .li-ws-dbang{margin-top:4px;font-size:12px;color:var(--bad-ink);white-space:normal}
+  .li-ws .li-ws-pass{margin-top:8px;padding:2px 10px;font-size:12px;line-height:1.3}
+  .li-ws-passed{margin-top:6px;font-size:12px;color:var(--muted);line-height:1.5}
+  .li-ws-passed>div{white-space:normal}
+  /* Under the table: how many are on the page, and the way to more. */
+  .li-ws-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:-6px 0 16px;font-size:12.5px}
+  /* The ring the app gives a focused button, kept on the buttons above (their own box-shadow would hide it). */
+  #liWs :is(.li-ws-chip,.li-ws-th,.li-ws-tog,.li-ws-open,.li-ws-again,.li-ws-sku,.li-ws-x,.li-ws-sweep,.li-ws-resort,.li-ws-more,.li-ws-pass,.li-ws-ashow):focus-visible{
+    outline:none;box-shadow:var(--ring)}
+  /* PHONE: each parent is a card — ▸ | name + ASIN | Open on the first line, then Problems and Data under it. Brand and Live
+     are not shown. The checklist and the detail scroll inside their own boxes; the page itself never scrolls sideways.
+     Child combinators, so the tables inside keep their own rows and cells. */
+  @media (max-width:760px){
+    .li-ws .xlwrap{overflow:visible;max-height:none}
+    .li-ws-tbl,.li-ws-tbl>tbody,.li-ws-tbl>tbody>tr,.li-ws-tbl>tbody>tr>td{display:block;min-width:0}
+    .li-ws-tbl>thead{display:none}
+    .li-ws-tbl>tbody>tr.li-ws-row{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:6px 10px;
+      padding:10px 12px;border-bottom:1px solid var(--line)}
+    .li-ws-tbl>tbody>tr.li-ws-row>td,.li-ws-tbl>tbody>tr.li-ws-row:hover>td{padding:0;border:0;background:transparent;
+      white-space:normal;vertical-align:middle}
+    .li-ws-tbl>tbody>tr>td.li-ws-c-brand,.li-ws-tbl>tbody>tr>td.li-ws-c-kids{display:none}
+    .li-ws-tbl>tbody>tr.li-ws-row>td.li-ws-c-open{grid-column:3;grid-row:1}
+    .li-ws-tbl .li-ws-c-amz,.li-ws-tbl .li-ws-c-audit,.li-ws-tbl .li-ws-c-data{grid-column:1/-1}
+    .li-ws-tbl .li-ws-c-name .ui-name{max-width:none}
+    .li-ws-sub,.li-ws-err{max-width:none}
+    .li-ws-when,.li-ws-when2{white-space:normal}
+    .li-ws-legend{font-size:11.5px}
+    .li-ws-tbl>tbody>tr.li-ws-kids>td,.li-ws-tbl>tbody>tr.li-ws-kids:hover>td{padding:0}
+    .li-ws-note,.li-ws-audit{padding-left:12px}
+    .li-ws-kidbox{overflow:auto;max-width:100%}
+    .li-ws-dbox{padding:8px 10px}
+    .lr-prob,.li-ws-astep{flex-wrap:wrap}
+    .lr-prob-body,.li-ws-astep-body{flex-basis:calc(100% - 24px)}
+    .lr-tag,.main .lr-fixbtn,.li-ws .li-ws-ashow{margin-left:22px}
+    table.xl td .lr-probs{min-width:0;max-width:none}
+    .lr-allow-row label{white-space:normal}
+  }
+  @media (prefers-reduced-motion:reduce){
+    .li-ws .li-ws-chip,.li-ws .li-ws-th,.li-ws .li-ws-tog,.li-ws .li-ws-x,.li-ws .li-ws-sku{transition:none}
+  }
 
   /* ===== MODULE: ADS ===== */
   /* Ad Console chart (drawn in placement.js), and the Placement chart's grid. The theme's colours over

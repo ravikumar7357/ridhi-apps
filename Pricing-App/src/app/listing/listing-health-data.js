@@ -707,7 +707,12 @@ function renderHealth() {
       cell: row => hAreaCell(row, area) }));
     defs.push({ k: 'score', t: 'Health', num: 1, bold: 1, noTotal: 1 });
     defs.push({ k: 'title', t: 'Title text', trunc: 38 });
-    defs.push({ k: 'issues', t: 'Why', map: reasonText, trunc: 60 });
+    // Why: every problem as one block — what is wrong, how to fix it in plain words, whose rule it is, and Fix — the same look
+    // the Workspace gives it (lrProblemHtml in listing-rules.js). Sorting and the CSV still use the one-line text.
+    defs.push({ k: 'issues', t: 'Why', map: reasonText,
+      cell: row => (row._h.found.length ? `<div class="lr-probs">${lrProblemsHtml(row._h.found, { brand: row.brand, sku: row.sku })}</div>`
+        : `<span class="muted">${row.content ? 'No problem' : 'Content not checked'}</span>`),
+      tip: 'What is wrong, how to fix it, and whose rule it is. Fix opens the Image Manager for pictures and Listing Errors for everything else.' });
     defs.push({ k: 'suggest', t: '', noTotal: 1, map: () => '',
       cell: row => (row._h.found.some(found => found.area === 'Title' || found.area === 'Size' || found.area === 'Variation') && lrTemplateFor(row, LR || LR_DEFAULT))
         ? `<button class="ghost" data-hsug="${lrEsc(row.brand)}|${lrEsc(row.sku)}" style="padding:2px 8px;font-size:12px;white-space:nowrap">Suggest title</button>` : '' });

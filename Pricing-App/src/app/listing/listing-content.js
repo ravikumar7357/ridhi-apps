@@ -56,7 +56,11 @@ function lcCheck(field, vals, ctx) {
     const len = lcRule('title_length');
     if (len && nChars && (nChars < +len.params.min || nChars > +len.params.max)) push(false, `Listing Rules: ${len.params.min}–${len.params.max} characters (${len.name}).`);
     const kw = lcRule('title_keyword');
-    if (kw && title && !lrWords(kw.params.words).some(word => lrHas(title, word))) push(false, `Listing Rules: needs one of "${kw.params.words}" (${kw.name}).`);
+    if (kw && title && !lrWords(kw.params.words).some(word => lrHas(title, word))) {
+      // Block Print is never asked of an embroidery colour, nor of a title that says Embroidered (Listing Rules, "What people may write").
+      const bp = lrWords(kw.params.words).some(word => lrNorm(word) === 'block print');
+      if (!bp || !(lrIsEmbroideryColor(ctx.color || '', LR || LR_DEFAULT) || /embroider/.test(lrNorm(title)))) push(false, `Listing Rules: needs one of "${kw.params.words}" (${kw.name}).`);
+    }
     ((LR || LR_DEFAULT).issues || []).filter(issue => issue.detector === 'title_contains' && issue.on !== false)
       .forEach(issue => lrWords(issue.params.words).filter(word => lrHas(title, word)).forEach(word => push(false, `Listing Rules: "${word}" — ${issue.name}.`)));
     const today = new Date();
@@ -70,7 +74,8 @@ function lcCheck(field, vals, ctx) {
     });
     const sizeRule = lcRule('size_format');
     if (sizeRule) {
-      hTitleSizes(title).filter(size => !lrSizeOk(size.text, sizeRule.params.example))
+      const near = lrNear(title, LR || LR_DEFAULT);   // 74–75 characters: the short forms are allowed (Listing Rules, "What people may write")
+      hTitleSizes(title).filter(size => !lrSizeOk(size.text, sizeRule.params.example) && !(near && lrSizeLoose(size.text)))
         .forEach(size => push(false, `Size "${size.text}" — Listing Rules write it like "${sizeRule.params.example}".`));
     }
   } else if (field === 'bullet_point') {

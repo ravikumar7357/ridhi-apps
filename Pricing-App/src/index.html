@@ -621,6 +621,7 @@
         <div class="seg">
           <button id="hViewParent" class="segbtn">Parent ASINs</button>
           <button id="hViewChild" class="segbtn on">Child listings</button>
+          <button id="hViewWs" class="segbtn" type="button" aria-pressed="false" title="A checklist for every listing, from Amazon's own data: live only, problems per parent and per child">Workspace</button>
         </div>
         <select id="hBrandView" style="flex:0 0 140px">
           <option value="ALL">Both brands</option><option value="SP">Ridhi</option><option value="CPC">CPC</option>
@@ -640,7 +641,7 @@
           <option value="fewimg">Fewer than 6 images</option>
           <option value="noaplus">A+ content missing</option>
         </select>
-        <input id="hFilter" style="flex:1 1 150px;min-width:0" placeholder="Filter SKU / ASIN / Parent / title">
+        <input id="hFilter" style="flex:1 1 100px;min-width:0" placeholder="Filter SKU / ASIN / Parent / title">
         <button id="hOptimiser" class="ghost" title="Opens the Title &amp; Highlights Optimizer in a new tab: titles down to 75 characters, and Item Highlights up to 125. It runs inside Claude, not in this app.">Title optimiser &#8599;</button>
         <button id="hRaw" class="ghost">Raw fields</button>
         <button id="hCsv" class="ghost">Export</button>
@@ -656,6 +657,8 @@
       <div id="hKpis" class="kpis"></div>
       <div class="card xlwrap"><table class="xl" id="hTable"></table></div>
     </div>
+    <!-- The third view, Listing Workspace (a checklist per listing from Amazon's data): drawn by listing/listing-workspace.js. -->
+    <div id="liWs" class="li-ws hide"></div>
   </div><!-- /paneHealth -->
 
   <!-- ============ PANE: listing audit ============ -->
@@ -691,6 +694,8 @@
       </div>
       <div id="lrMsg" class="muted" style="margin-top:8px;font-size:12.5px"></div>
     </div>
+    <!-- "What people may write": the allowances (not errors), drawn by listing/listing-rules-tab.js in the Issues view. -->
+    <div id="lrAllow" class="card lr-allow hide"></div>
     <div class="card xlwrap" style="margin-top:12px"><table class="xl" id="lrTable"></table></div>
   </div>
 

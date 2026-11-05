@@ -6,8 +6,10 @@
  *       when each occasion falls and whether it is in season; reads sizes out of titles; builds the title a template would
  *       write (lrSuggest); one detector per rule (LR_DET); hCtx gathers what every listing is judged against (rules, today,
  *       each parent's children, Amazon's own status) and healthOf turns that into { score, bucket, grade, found … }.
- * Main functions: lrEaster, lrEventDate, lrSeason, hTitleSizes, hTitleText, lrTemplateFor, lrParts, lrSuggest, LR_DET,
- *                 amzEnsure, hCtx, healthOf, hAreaSev, lrLoad, lrLoadCatalog. */
+ * Main functions: lrEaster, lrEventDate, lrSeason, lrNorm (same meaning, one spelling), lrAllow (what people may write),
+ *                 hTitleSizes, hTitleText, lrTemplateFor, lrParts, lrSuggest, LR_DET, amzEnsure, hCtx, healthOf (each finding
+ *                 carries its plain-words fix, LR_FIX_TEXT), lrProblemHtml / lrProblemsHtml (the one look every screen gives a
+ *                 problem) and lrFixOpen (the Fix button's hand-off), hAreaSev, lrLoad, lrLoadCatalog. */
 /* ---------- LISTING RULES: the issues, the title templates, the season calendar (Ravi, 2026-09-15) ----------
  *
  * Ravi: "me tumko issue bucket bhej diya tha, tum unko apne app ke backend me save kar lena and ek tab
@@ -151,6 +153,13 @@ const LR_DEFAULT = {
     { id: 'cybermonday', name: 'Cyber Monday', words: 'Cyber Monday', when: { type: 'after', event: 'thanksgiving', days: 4 }, lead: 30, lag: 1 },
     { id: 'christmas', name: 'Christmas', words: 'Christmas, Xmas', when: { type: 'fixed', m: 12, d: 25 }, lead: 75, lag: 7, except: 'Christmas, Tree Skirt' },
   ],
+  /* WHAT PEOPLE MAY WRITE (Part A, 5 Nov 2026): things a person writes on purpose are not errors. Saved in the same document.
+   *   shortFrom         a title of this many characters up to 75 was shortened on purpose to fit Amazon's 75: the short forms of
+   *                     a size ("18x18 Inc", "18×18", the unit left out) are then fine in size_format and variation_naming.
+   *   brandWords        per brand, the words that mean "our brand" in a title when Amazon's own brand for the listing is not
+   *                     known yet; any one of them, in any case, is the brand. Empty = the brand is not judged.
+   *   embroideryColors  pieces in these colours are embroidery, so "Block Print" is never asked of them. */
+  allow: { shortFrom: 74, brandWords: { SP: 'Ridhi', CPC: 'Whimsical Corner' }, embroideryColors: 'White, Off White' },
 };
 
 let LR = null;             // the rules in force: saved config, or the defaults
@@ -214,8 +223,77 @@ function lrSeason(ev, today, events) {
 }
 // "a, b, c" → ['a', 'b', 'c'].
 const lrWords = str => String(str || '').split(',').map(word => word.trim()).filter(Boolean);
-// Whole-word, case-blind test for a word (or phrase) in a text.
-const lrHas = (text, word) => new RegExp('(^|[^a-z0-9])' + word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s+') + '(?=$|[^a-z0-9])', 'i').test(text);
+/* ---- same meaning, different writing (Part A2) ---- */
+/** One spelling for words that mean the same, so a word or a template part is found however a person wrote it: lower case;
+ *  hyphens, commas and "|" as spaces; "&" = and, "w/" = with, Pc / Pcs = Pieces, "2 Pack" / "Pack of 2" / "2 Pcs" = Set of 2;
+ *  Inches = Inch; Grey = Gray; Colour = Color; Table Cloth / Table-Cloth = Tablecloth; Cushion Cover = Pillow Cover;
+ *  Block-Print / Blockprint / Block Printed / Hand Block Printed = Block Print; and a plural reads as its singular
+ *  (Covers = Cover, Napkins = Napkin). Both sides of every comparison go through it, so what is compared is the meaning. */
+function lrNorm(text) {
+  return String(text || '').toLowerCase()
+    .replace(/[-,|]+/g, ' ')
+    .replace(/&/g, ' and ')
+    .replace(/\bw\//g, ' with ')
+    .replace(/\bpack of (\d+)\b/g, 'set of $1')
+    .replace(/\b(\d+)\s*(?:pack|pieces|pcs?)\b/g, 'set of $1')
+    .replace(/\bpcs?\b/g, 'pieces')
+    .replace(/\binches\b/g, 'inch')
+    .replace(/\bgrey\b/g, 'gray')
+    .replace(/\bcolour/g, 'color')
+    .replace(/\btable\s*cloths?\b/g, 'tablecloth')
+    .replace(/\bcushion\s+covers?\b/g, 'pillow cover')
+    .replace(/\b(?:hand\s+)?block\s*print(?:ed|s)?\b/g, 'block print')
+    .replace(/\b([a-z]{4,})s\b/g, '$1')
+    .replace(/\s+/g, ' ').trim();
+}
+// Where a word (or phrase) sits in a text, both read the same way (lrNorm); -1 when it is not there. Whole words only.
+function lrFind(text, word) {
+  const low = lrNorm(text);
+  const want = lrNorm(word);
+  if (!want) return -1;
+  const m = new RegExp('(^|[^a-z0-9])' + want.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s+') + '(?=$|[^a-z0-9])').exec(low);
+  return m ? m.index + m[1].length : -1;
+}
+// Whole-word test for a word (or phrase) in a text — however either is written (case, plural, Grey/Gray, Table Cloth …).
+const lrHas = (text, word) => lrFind(text, word) >= 0;
+
+/* ---- what people may write (Part A): the settings, with the defaults behind whatever was saved ---- */
+// The allowances in force: { shortFrom, brandWords: { SP, CPC }, embroideryColors } — the saved values over the defaults.
+function lrAllow(cfg) {
+  const base = LR_DEFAULT.allow;
+  const own = (cfg && cfg.allow) || {};
+  return { shortFrom: +own.shortFrom > 0 ? +own.shortFrom : base.shortFrom,
+    brandWords: Object.assign({}, base.brandWords, own.brandWords || {}),
+    embroideryColors: own.embroideryColors != null ? String(own.embroideryColors) : base.embroideryColors };
+}
+// True when a title sits in the band where the short forms are allowed: from "Short forms allowed from" up to 75 characters.
+const lrNear = (title, cfg) => String(title || '').length >= lrAllow(cfg).shortFrom && String(title || '').length <= 75;
+// The words that mean this listing's own brand (Part A3): Amazon's brand for it when Sellora has read it, else the "Brand
+// words" setting; "the", "my", "by" and punctuation do not count. [] when nothing is known — then the brand is not judged.
+const LR_BRAND_SKIP = ['the', 'my', 'by', 'and', 'of'];
+function lrBrandWords(row, cfg) {
+  const text = row.amzBrand || lrAllow(cfg).brandWords[row.brand] || '';
+  return lrNorm(text).split(/[^a-z0-9]+/).filter(word => word.length > 1 && !LR_BRAND_SKIP.includes(word));
+}
+// The brand as a title should write it: Amazon's own for the listing, else the setting's first phrase, else the brand's name.
+const lrBrandName = (row, cfg) => String(row.amzBrand || lrWords(lrAllow(cfg).brandWords[row.brand])[0] || BRAND_NAME[row.brand] || row.brand || '');
+// This listing's colour: Amazon's colour attribute when read, else the catalogue's, else the colour part of its title (after
+// the last " - ", where the templates put it), else ''.
+function lrColorOf(row) {
+  if (row.amzColor) return String(row.amzColor);
+  const cat = lrCatOf(row);
+  if (cat && cat.color) return String(cat.color);
+  const title = hTitleText(row);
+  const dash = title.lastIndexOf(' - ');
+  return dash >= 0 && title.length - dash <= 32 ? title.slice(dash + 3).trim() : '';
+}
+// True when every word of a colour is one of the embroidery colours' words ("Off White" is; "Blue & White" is not).
+function lrIsEmbroideryColor(color, cfg) {
+  const words = lrNorm(color).split(/[^a-z]+/).filter(Boolean);
+  if (!words.length) return false;
+  const emb = new Set(lrWords(lrAllow(cfg).embroideryColors).flatMap(each => lrNorm(each).split(/[^a-z]+/)).filter(Boolean));
+  return words.every(word => emb.has(word));
+}
 // "25 Dec 2026", or — for no date.
 const lrFmtDate = date => date ? date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }) : '—';
 
@@ -225,11 +303,16 @@ function lrSizeOk(text, example) {
   const shape = String(example || '14 x 36 Inch').replace(/\d+(?:\.\d+)?/g, 'N');
   return String(text).replace(/\d+(?:\.\d+)?/g, 'N') === shape || String(text).replace(/\d+(?:\.\d+)?/g, 'N') === shape.replace('N x N', 'N x N x N');
 }
+/** The short forms a person uses to fit 75 characters (Part A1): the unit as Inc, In, In., in, " ″ ” or left out, Inches as
+ *  Inch / In, Centimeter as cm, and no spaces around x, X or × — "18x18", "18X18 Inc", "18×18", "18 x 18 In". */
+function lrSizeLoose(text) {
+  return /^N\s*[x×X]\s*N(?:\s*[x×X]\s*N)?\s*(?:inches|inch|inc\.?|in\.?|"|”|″|cm)?$/i.test(String(text).replace(/\d+(?:\.\d+)?/g, 'N'));
+}
 /** Every W x H (or W x H x D) written in a title, exactly as written, with the unit that follows it. */
-// Returns [{ text, a, b, c }]: the text as written, the two or three numbers (c is null for W x H).
+// Returns [{ text, a, b, c }]: the text as written, the two or three numbers (c is null for W x H). Inc, In and In. read as inch.
 function hTitleSizes(title) {
   const out = [];
-  const unit = '(?:"|”|″|in\\.?(?![a-z])|inch(?:es)?(?![a-z])|cm(?![a-z]))';
+  const unit = '(?:"|”|″|inc\\.?(?![a-z])|in\\.?(?![a-z])|inch(?:es)?(?![a-z])|cm(?![a-z]))';
   const re = new RegExp(`(\\d+(?:\\.\\d+)?)\\s*${unit}?\\s*[x×X*]\\s*(\\d+(?:\\.\\d+)?)(?:\\s*${unit}?\\s*[x×X*]\\s*(\\d+(?:\\.\\d+)?))?(\\s*${unit})?`, 'gi');
   let match;
   while ((match = re.exec(String(title || '')))) {
@@ -237,8 +320,11 @@ function hTitleSizes(title) {
   }
   return out;
 }
-/** A size's written shape — "60x90" and "60 x 90 Inch" are different shapes of the same size. */
-const lrSizeShape = str => String(str).replace(/\d+(?:\.\d+)?/g, 'N').replace(/\s+/g, ' ').toLowerCase();
+/** A size's written shape, read by meaning (Part A2): "18x18" = "18 x 18" = "18×18", and "18x18 Inc" = "18 x 18 Inch" — but a
+ *  size with a unit and one without are still two shapes, as are two and three numbers. */
+const lrSizeShape = str => String(str).replace(/\d+(?:\.\d+)?/g, 'N').toLowerCase()
+  .replace(/(inches|inch|inc\.?|in\.?|"|”|″)(?![a-z])/g, ' inch ').replace(/\bcm\b/g, ' cm ')
+  .replace(/\s*[x×*]\s*/g, 'x').replace(/\s+/g, ' ').trim();
 /**
  * The title text to judge — the catalog's full title first, else the listings report's. A title cached
  * before 15 Sept was cut at 60 characters; one of exactly 60 that is not marked full is not judged.
@@ -273,7 +359,7 @@ function lrParts(row, tpl, cfg, today) {
   const cat = lrCatOf(row) || {};
   const example = ((cfg.issues || []).find(issue => issue.detector === 'size_format') || {}).params;   // the size_format rule's settings
   return {
-    brand: BRAND_NAME[row.brand] || row.brand, product: tpl.product || '', shape: lrShape(cat.subcat),
+    brand: lrBrandName(row, cfg), product: tpl.product || '', shape: lrShape(cat.subcat),
     material: tpl.material || '', size: lrSizeText(cat.size, example && example.example), pattern: tpl.pattern || '',
     uses: tpl.uses || '', occasions: lrOccasionsNow(cfg, today).join(' '), color: cat.color || '',
   };
@@ -323,7 +409,9 @@ const LR_DET = {
   title_length: (row, ctx, params) => (row.content && (row.content.titleLen < (+params.min || 0) || row.content.titleLen > (+params.max || 999)))
     ? `${row.content.titleLen} characters` : '',
   size_format: (row, ctx, params) => {
-    const bad = hTitleSizes(hTitleText(row)).find(size => !lrSizeOk(size.text, params.example));
+    const title = hTitleText(row);
+    const near = lrNear(title, ctx.cfg);          // 74–75 characters: shortened on purpose to fit, so the short forms are fine (Part A1)
+    const bad = hTitleSizes(title).find(size => !lrSizeOk(size.text, params.example) && !(near && lrSizeLoose(size.text)));
     return bad ? `"${bad.text}", approved is "${params.example || '14 x 36 Inch'}"` : '';
   },
   dimension_order: row => {
@@ -337,8 +425,10 @@ const LR_DET = {
     return group && group.sized > 0 && !hTitleSizes(title).length ? `no size in the title; ${group.sized} sibling(s) name theirs` : '';
   },
   variation_naming: (row, ctx) => {
-    const size = hTitleSizes(hTitleText(row))[0];
+    const title = hTitleText(row);
+    const size = hTitleSizes(title)[0];
     if (!size || !row.parent) return '';
+    if (lrNear(title, ctx.cfg)) return '';        // 74–75 characters: the short form was chosen to fit (Part A1)
     const group = ctx.parents.get(row.parent + '|' + row.brand);
     if (!group || group.shapes.size < 2) return '';
     const mine = lrSizeShape(size.text);
@@ -347,7 +437,16 @@ const LR_DET = {
   title_keyword: (row, ctx, params) => {
     const title = hTitleText(row);
     const words = lrWords(params.words);
-    return (title && words.length && !words.some(word => lrHas(title, word))) ? `no "${words.join('" or "')}"` : '';
+    if (!title || !words.length || words.some(word => lrHas(title, word))) return '';
+    /* BLOCK PRINT vs EMBROIDERY (Part A4): a white piece is embroidery and an embroidered piece is not block print, so neither
+     * is asked for "Block Print"; any other piece is asked only with proof that it IS block print — a sibling's title under the
+     * same parent, or its own bullets / description on Amazon say so. The message says which. */
+    const bp = words.find(word => lrNorm(word) === 'block print');
+    if (bp) {
+      const proof = lrBlockPrintProof(row, ctx);
+      return proof ? `no "${bp}" in the title, but ${proof}` : '';
+    }
+    return `no "${words.join('" or "')}"`;
   },
   title_contains: (row, ctx, params) => {
     const title = hTitleText(row);
@@ -358,31 +457,38 @@ const LR_DET = {
     const title = hTitleText(row);
     const tpl = lrTemplateFor(row, ctx.cfg);
     if (!title || !tpl) return '';
-    const low = title.toLowerCase().replace(/table\s+cloth/g, 'tablecloth');
+    const low = lrNorm(title);                      // the title and every part read the same way (Part A2)
     const parts = lrParts(row, tpl, ctx.cfg, ctx.today);
     const need = lrWords(tpl.required || 'brand,product,size,color');
     // --- where each required part sits in the title: -2 nothing to look for, -1 missing, else its position ---
     const where = key => {
+      if (key === 'brand') {                          // any of the brand's words is the brand (Part A3); none known: not judged
+        const words = lrBrandWords(row, ctx.cfg);
+        if (!words.length) return -2;
+        const at = words.map(word => lrFind(low, word)).filter(idx => idx >= 0);
+        return at.length ? Math.min(...at) : -1;
+      }
       const value = parts[key];
       if (!value) return -2;                          // nothing to look for: not judged
       if (key === 'size') {                           // how it is written is size_format's job
         const size = hTitleSizes(title)[0];
-        return size ? title.indexOf(size.text) : -1;
+        if (!size) return -1;
+        const at = low.indexOf(lrNorm(size.text));
+        return at >= 0 ? at : title.indexOf(size.text);
       }
       if (key === 'material') return low.search(/cotton|linen|polyester|jute|velvet/);
       if (key === 'product') {
-        const words = String(value).toLowerCase().replace(/table\s+cloth/g, 'tablecloth').split(/\s+/)
-          .filter(word => word.length > 3).map(word => word.replace(/s$/, ''));
+        const words = lrNorm(value).split(/\s+/).filter(word => word.length > 3);
         const at = words.map(word => low.indexOf(word)).filter(idx => idx >= 0);
         return at.length ? Math.min(...at) : -1;
       }
       if (key === 'color') {
         /* A colour is found when any real word of it is in the title — the catalog says Neutral Ivory Grey, the title says Grey. */
-        const at = String(value).toLowerCase().split(/[^a-z]+/).filter(word => word.length > 2)
-          .map(word => low.search(new RegExp('\\b' + word + '\\b'))).filter(idx => idx >= 0);
+        const at = lrNorm(value).split(/[^a-z]+/).filter(word => word.length > 2)
+          .map(word => lrFind(low, word)).filter(idx => idx >= 0);
         return at.length ? Math.min(...at) : -1;
       }
-      return low.indexOf(String(value).toLowerCase());
+      return low.indexOf(lrNorm(value));
     };
     // --- the required parts in template order: which are missing, and are the found ones in that order ---
     const order = String(tpl.template).match(/\{(\w+)\}/g).map(token => token.slice(1, -1)).filter(key => need.includes(key));
@@ -408,6 +514,21 @@ const LR_DET = {
     return '';
   },
 };
+
+/** Why a listing should say "Block Print" (Part A4), in words — or null when it should not be asked: its colour is an embroidery
+ *  colour, it says Embroidered / Embroidery itself, or nothing proves it is block print (no sibling's title, no own bullets). */
+function lrBlockPrintProof(row, ctx) {
+  if (lrIsEmbroideryColor(lrColorOf(row), ctx.cfg)) return null;
+  const words = row.amzWords || {};                 // from the live Amazon read: which rule words its bullets / description hold
+  if (/embroider/.test(lrNorm(hTitleText(row))) || words.emb) return null;
+  const group = row.parent ? ctx.parents.get(row.parent + '|' + row.brand) : null;
+  const sib = group ? group.bp : 0;                 // this title has no Block Print, so every one counted is a sibling's
+  if (!sib && !words.bp) return null;
+  const parts = [];
+  if (sib) parts.push(`${sib} of its siblings`);
+  if (words.bp) parts.push('its bullets');
+  return parts.join(' and ') + (sib === 1 && !words.bp ? ' says it' : ' say it');
+}
 
 /** What every listing is judged against at once: the rules, today, and what each parent's children look like. */
 let H_CTX = null;
@@ -458,8 +579,10 @@ function hCtx(rowsAll) {
   rows.forEach(row => {
     if (!row.parent) return;
     const parentKey = row.parent + '|' + row.brand;
-    const group = parents.get(parentKey) || { sized: 0, shapes: new Map(), examples: new Map() };
-    const size = hTitleSizes(hTitleText(row))[0];
+    const group = parents.get(parentKey) || { sized: 0, bp: 0, shapes: new Map(), examples: new Map() };
+    const title = hTitleText(row);
+    if (lrNorm(title).includes('block print')) group.bp++;   // how many children say Block Print (the Block Print rule's proof)
+    const size = hTitleSizes(title)[0];
     if (size) {
       group.sized++;
       const shape = lrSizeShape(size.text);
@@ -492,7 +615,7 @@ function healthOf(row, ctx) {
     } catch (e) {
       result = '';
     }
-    if (result) found.push({ id: rule.id, name: rule.name, sev: rule.sev, area: rule.area, detail: result, detector: rule.detector });
+    if (result) found.push({ id: rule.id, name: rule.name, sev: rule.sev, area: rule.area, detail: result, detector: rule.detector, params: rule.params || {} });
   });
   // --- out of stock softens Critical to Attention, except the HARD list ---
   /* NOTHING IN STOCK IS NEVER CRITICAL (Ravi, 15 Sept). A listing with 0 units is not losing sales today,
@@ -507,6 +630,12 @@ function healthOf(row, ctx) {
       hit.sev = 'action';
       hit.detail += ' (0 in stock, so not critical)';
     }
+  });
+  // --- how to fix each one, in plain words, whose rule it is, and where its Fix button goes (Part B) ---
+  found.forEach(hit => {
+    hit.fix = lrFixText(hit, row, ctx);
+    hit.tag = lrFixTag(hit, row);
+    hit.kind = lrFixKind(hit.detector);
   });
   // --- bucket, grade and score ---
   const list = sev => found.filter(hit => hit.sev === sev).map(hit => hit.name + ' — ' + hit.detail);
@@ -524,6 +653,159 @@ function healthOf(row, ctx) {
 /** The worst severity found in one area of a listing: 'critical' | 'action' | 'review' | '' (none). */
 const hAreaSev = (health, area) => health.found.filter(hit => hit.area === area).sort((a, b) => LR_SEV[b.sev].rank - LR_SEV[a.sev].rank)[0] || null;
 
+/* ---- how to fix, in plain words (Part B1) ---- */
+// "2 more pictures", "1 more picture".
+const lrN = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+// The picture count a listing's content holds.
+const lrImages = row => (row.content ? Number(row.content.images) || 0 : 0);
+// The template's parts in words a seller uses, with the listing's own values.
+function lrPartWords(key, parts) {
+  const value = parts[key] || '';
+  const names = { brand: 'the brand', product: 'the product', shape: 'the shape', material: 'the material', size: 'the size', color: 'the colour', pattern: 'the print', uses: 'the uses' };
+  return (names[key] || key) + (value ? ` "${value}"` : '');
+}
+/** One sentence per detector: what to do, with the listing's own values. (hit, row, ctx, params) → text. Plain words for a
+ *  seller — never a detector id, a field code or a list of rules. */
+const LR_FIX_TEXT = {
+  inactive_with_stock: () => 'It has stock but is Inactive. Open Listing Errors to see why.',
+  no_price: () => 'Add a price in Seller Central.',
+  amazon_suppressed: () => 'Fix the issue in Listing Errors so it shows in Amazon search again.',
+  amazon_error: hit => 'Open Listing Errors and do what Amazon asks: ' + String(hit.detail).replace(/\.?\s*$/, '.'),
+  no_main_image: () => 'Add a main picture in Image Manager.',
+  aplus_missing: () => 'Publish A+ content.',
+  images_below: (hit, row, ctx, params) => {
+    const have = lrImages(row);
+    const need = +params.n || 6;
+    return `Add ${lrN(need - have, 'more picture')} in Image Manager (it has ${have}, needs ${need}).`;
+  },
+  images_between: (hit, row, ctx, params) => {
+    const have = lrImages(row);
+    const ideal = (+params.max || 7) + 1;
+    return `Add ${lrN(ideal - have, 'more picture')} in Image Manager to reach ${ideal} (it has ${have}).`;
+  },
+  bullets_below: (hit, row, ctx, params) => `Add bullets until there are ${+params.n || 5} (it has ${row.content ? row.content.bullets || 0 : 0}).`,
+  desc_below: (hit, row, ctx, params) => `Write a description of ${+params.n || 200}+ characters (it has ${row.content && row.content.descLen ? row.content.descLen : 'none'}).`,
+  title_length: (hit, row, ctx, params) => `Make the title ${+params.min || 0} to ${+params.max || 999} characters (now ${row.content ? row.content.titleLen : hTitleText(row).length}).`,
+  size_format: (hit, row, ctx, params) => {
+    const title = hTitleText(row);
+    const near = lrNear(title, ctx.cfg);
+    const bad = hTitleSizes(title).find(size => !lrSizeOk(size.text, params.example) && !(near && lrSizeLoose(size.text)));
+    const example = params.example || '14 x 36 Inch';
+    if (!bad) return `Write the size as "${example}".`;
+    const want = lrSizeText([bad.a, bad.b].concat(bad.c === null ? [] : [bad.c]).join('x'), example) || example;
+    const from = lrAllow(ctx.cfg).shortFrom;
+    const why = title.length < from ? ` and the title is only ${title.length} characters (short forms are allowed from ${from})`
+      : title.length > 75 ? ` and the title is ${title.length} characters, over 75, so a short form does not help` : '';
+    return `Write the size as "${want}". It says "${bad.text}"${why}.`;
+  },
+  dimension_order: (hit, row) => {
+    const wrong = hTitleSizes(hTitleText(row)).find(size => size.c === null && size.a > size.b);
+    return wrong ? `Put the smaller number first: "${wrong.b} x ${wrong.a}".` : 'Put the smaller number first.';
+  },
+  variation_value_missing: (hit, row, ctx) => {
+    const group = ctx.parents.get(row.parent + '|' + row.brand);
+    return `Add the size to the title${group && group.commonExample ? `, as its siblings do ("${group.commonExample}")` : ''}.`;
+  },
+  variation_naming: (hit, row, ctx) => {
+    const group = ctx.parents.get(row.parent + '|' + row.brand);
+    const size = hTitleSizes(hTitleText(row))[0];
+    return `Write the size like its siblings: "${group ? group.commonExample : ''}"${size ? ` (it says "${size.text}")` : ''}.`;
+  },
+  title_keyword: (hit, row, ctx, params) => {
+    const word = lrWords(params.words)[0] || '';
+    const why = (String(hit.detail).match(/, but (.+)$/) || [])[1];
+    return `Add "${word}" to the title${why ? ', because ' + why : ''}.`;
+  },
+  title_contains: hit => {
+    const word = (String(hit.detail).match(/"([^"]+)"/) || [])[1];
+    return word ? `Take "${word}" out of the title.` : 'Take the word out of the title.';
+  },
+  title_template: (hit, row, ctx) => {
+    const tpl = lrTemplateFor(row, ctx.cfg);
+    if (!tpl) return 'Write the title the way its template says.';
+    const parts = lrParts(row, tpl, ctx.cfg, ctx.today);
+    const need = lrWords(tpl.required || 'brand,product,size,color');
+    const order = String(tpl.template).match(/\{(\w+)\}/g).map(token => token.slice(1, -1)).filter(key => need.includes(key));
+    const orderWords = order.map(key => lrPartWords(key, {}).replace(/^the /, '')).join(', ');
+    const missing = ((String(hit.detail).match(/missing ([^·]+)/) || [])[1] || '').split(',').map(part => part.trim()).filter(Boolean);
+    const wrongOrder = /different order/.test(hit.detail);
+    if (missing.length === 1 && missing[0] === 'brand') return `Put the brand in the title: "${parts.brand} …".${wrongOrder ? ` Keep the template's order: ${orderWords}.` : ''}`;
+    if (!missing.length) return `Put the title's parts in the template's order: ${orderWords}.`;
+    return `Add ${missing.map(key => lrPartWords(key, parts)).join(', ')} to the title${wrongOrder ? `, in the template's order: ${orderWords}` : ''}.`;
+  },
+  seasonal_keyword: hit => {
+    const m = String(hit.detail).match(/^"([^"]+)" — .+; it belongs in the title from (.+)$/);
+    return m ? `Remove "${m[1]}" from the title until its season (from ${m[2]}).` : 'Remove the occasion from the title until its season.';
+  },
+};
+// The fix sentence of one finding; a detector without one, or one that fails, falls back to naming the rule.
+function lrFixText(hit, row, ctx) {
+  const fn = LR_FIX_TEXT[hit.detector];
+  const clean = Object.assign({}, hit, { detail: String(hit.detail).replace(/ \(0 in stock, so not critical\)$/, '') });   // the stock note is not part of the finding
+  try {
+    return (fn && fn(clean, row, ctx, hit.params || {})) || `See the rule "${hit.name}" in Listing Rules.`;
+  } catch (e) {
+    return `See the rule "${hit.name}" in Listing Rules.`;
+  }
+}
+/* ---- whose rule it is, and where the Fix button goes ---- */
+// "Amazon": Amazon itself reports or demands it. "Amazon limit": one of Amazon's own limits. Everything else: "Company rule".
+const LR_FIX_TAG = { amazon_suppressed: 'Amazon', amazon_error: 'Amazon', no_main_image: 'Amazon', inactive_with_stock: 'Amazon', no_price: 'Amazon' };
+const LR_TAG_TIP = { Amazon: 'Amazon itself reports this.', 'Amazon limit': "One of Amazon's own limits.", 'Company rule': 'Your own rule. Amazon does not check this.' };
+function lrFixTag(hit, row) {
+  if (LR_FIX_TAG[hit.detector]) return LR_FIX_TAG[hit.detector];
+  const params = hit.params || {};
+  if (hit.detector === 'title_length' && +params.max >= 75 && row.content && row.content.titleLen > +params.max) return 'Amazon limit';
+  return 'Company rule';
+}
+// The Image Manager for pictures, nothing for A+ (no screen here), Listing Errors for everything else.
+const LR_FIX_IMG = ['no_main_image', 'images_below', 'images_between'];
+const lrFixKind = detector => (LR_FIX_IMG.includes(detector) ? 'img' : detector === 'aplus_missing' ? '' : 'lerr');
+
+/* ---- one look for every problem, on every screen (Part B2): dot · what is wrong · how to fix · tag · Fix ---- */
+// `where`: { brand, sku, attrs } — the listing the Fix button opens (attrs: attribute names Listing Errors should show boxes
+// for even when no Amazon issue names them); null for no button. `note`: a short grey line under it (source · when), or ''.
+function lrProblemHtml(hit, where, note) {
+  const esc = str => String(str == null ? '' : str).replace(/[<>&"]/g, ch => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[ch]));
+  const sev = LR_SEV[hit.sev] || LR_SEV.review;
+  const tag = hit.tag || 'Company rule';
+  const kind = hit.kind == null ? lrFixKind(hit.detector) : hit.kind;
+  const fix = where && kind ? `<button type="button" class="ghost lr-fixbtn" data-lr-fix="${esc(kind)}|${esc(where.brand)}|${esc(where.sku)}"`
+    + (where.attrs && where.attrs.length ? ` data-lr-attrs="${esc(where.attrs.join(','))}"` : '')
+    + ` title="${kind === 'img' ? 'Opens the Image Manager' : 'Opens Listing Errors'}">Fix</button>` : '';
+  return `<div class="lr-prob"><span class="sev ${sev.cls}" title="${esc(sev.label)}"></span><div class="lr-prob-body">`
+    + `<div class="lr-prob-what">${esc(hit.what || (hit.name + ' — ' + hit.detail))}</div>`
+    + `<div class="lr-prob-how">${esc(hit.fix || '')}</div>${note ? `<div class="lr-prob-src">${esc(note)}</div>` : ''}</div>`
+    + `<span class="lr-tag${tag === 'Company rule' ? ' is-own' : ''}" title="${esc(LR_TAG_TIP[tag] || '')}">${esc(tag)}</span>${fix}</div>`;
+}
+// Worst first: Critical, then Needs action, then Needs review (Part B4).
+const lrProblemsSort = hits => hits.slice().sort((a, b) => ((LR_SEV[b.sev] || {}).rank || 0) - ((LR_SEV[a.sev] || {}).rank || 0));
+// Several problems as one list; noteOf(hit), when given, gives each its grey line.
+const lrProblemsHtml = (hits, where, noteOf) => lrProblemsSort(hits).map(hit => lrProblemHtml(hit, where, noteOf ? noteOf(hit) : '')).join('');
+// The Fix button's hand-off, the same from every screen: the Image Manager for pictures, Listing Errors for everything else.
+function lrFixOpen(kind, brand, sku, attrs) {
+  if (kind === 'img') {
+    $('imBrand').value = brand;
+    showTab('img');
+    $('imQ').value = sku;
+    IM_SKU_CHOICES = null;
+    imLoad(sku);
+  } else {
+    $('leBrand').value = brand;
+    showTab('lerr');
+    leOpen(sku, attrs || []);
+  }
+  window.scrollTo(0, 0);
+}
+// One listener for every Fix button on every screen (the test pages have no document to listen on).
+if (typeof document !== 'undefined' && document.addEventListener) document.addEventListener('click', e => {
+  const btn = e.target && e.target.closest ? e.target.closest('[data-lr-fix]') : null;
+  if (!btn) return;
+  const first = btn.dataset.lrFix.indexOf('|');                 // "img|brand|sku" or "lerr|brand|sku"
+  const last = btn.dataset.lrFix.lastIndexOf('|');
+  lrFixOpen(btn.dataset.lrFix.slice(0, first), btn.dataset.lrFix.slice(first + 1, last), btn.dataset.lrFix.slice(last + 1), (btn.dataset.lrAttrs || '').split(',').filter(Boolean));
+});
+
 // Read the saved rules from Firestore into LR (or the defaults when there are none), adding any default rule saved before it existed.
 async function lrLoad() {
   try {
@@ -535,7 +817,8 @@ async function lrLoad() {
       const saved = data.issues || LR_DEFAULT.issues;
       const have = new Set(saved.map(issue => issue.id));
       const added = LR_DEFAULT.issues.filter(issue => !have.has(issue.id));
-      LR = { issues: added.concat(saved), templates: data.templates || LR_DEFAULT.templates, events: data.events || LR_DEFAULT.events };
+      LR = { issues: added.concat(saved), templates: data.templates || LR_DEFAULT.templates, events: data.events || LR_DEFAULT.events,
+        allow: lrAllow({ allow: data.allow }) };        // what people may write: the saved values over the defaults
       LR_SAVED_AT = data.at && data.at.toDate ? data.at.toDate() : null;
     } else LR = JSON.parse(JSON.stringify(LR_DEFAULT));
   } catch (e) {

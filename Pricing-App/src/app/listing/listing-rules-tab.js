@@ -5,7 +5,8 @@
  *       and saves to Firestore listingrules/config; hSugOpen shows the title lrSuggest builds for one SKU; parentName and the
  *       pnModal handlers keep the names typed by hand in parentnames/{brand}, which win over Amazon's.
  * Main functions: lrParamsParse, hSevDot / hSevCell / hAreaCell (the severity and area cells), ensureLrules, lrAllRows,
- *                 renderLrules, the lrTable / lrAdd / lrReset / lrSave / lrTry handlers, hSugOpen, loadParentNames,
+ *                 lrAllowRender (the "What people may write" box), renderLrules, the lrTable / lrAllow / lrAdd / lrReset /
+ *                 lrSave / lrTry handlers, hSugOpen, loadParentNames,
  *                 saveParentNames, parentName, parentNameLocked, parentNameCell, wireParentNameCells, openParentNameEditor. */
 /* ---------- the Listing Rules tab: where the issues are fed in ----------
  *
@@ -90,6 +91,30 @@ function lrAllRows() {
   return ['SP', 'CPC'].flatMap(b => ((HEALTH[b] && HEALTH[b].rows) || []).map(row => Object.assign({}, row, { brand: b })));
 }
 
+// The "What people may write" box above the issues (Part A, 5 Nov 2026): the allowances, each with a plain-words note of what it
+// means. Every input writes into LR.allow (the lrAllow handler below); Save sends them with the rules, in the same document.
+function lrAllowRender(cfg) {
+  const allow = lrAllow(cfg);
+  const field = (key, value, cls, extra) => `<input data-lra="${key}" class="${cls}" value="${lrEsc(value)}"${extra || ''}>`;
+  $('lrAllow').innerHTML = `<div class="lr-allow-head"><b>What people may write</b><span class="muted"> — written on purpose, so not errors. The same
+      allowances apply to every parent and every listing of both brands: Listing Health, the Workspace and the Audit all read them from here.</span></div>
+    <div class="lr-allow-row"><label>Short forms allowed from ${field('shortFrom', allow.shortFrom, 'w-xs', ' type="number" min="1" max="75"')} characters</label>
+      <span class="muted">A title of ${allow.shortFrom} to 75 characters was shortened on purpose to fit Amazon's 75, so in it these are fine: Inch written as Inc, In, In., in,
+      " ″ ” or left out; Inches as Inch or In; Centimeter as cm; no spaces around x, X or ×; "&amp;" for and, "w/" for with, Pc or Pcs for Pieces, "2 Pack", "Pack of 2"
+      or "2 Pcs" for Set of 2. Below ${allow.shortFrom} characters the house style stays strict ("18 x 18 Inch"); over 75 the title is asked to be shortened.</span></div>
+    <div class="lr-allow-row"><label>Brand words — ${lrEsc(BRAND_NAME.SP)} ${field('brandSP', allow.brandWords.SP, 'w-m')}</label>
+      <label>Brand words — ${lrEsc(BRAND_NAME.CPC)} ${field('brandCPC', allow.brandWords.CPC, 'w-m')}</label>
+      <span class="muted">Any of these words in a title is the brand (upper or lower case; "the", "my" and "by" are skipped). Every brand under ${lrEsc(BRAND_NAME.CPC)} is ours,
+      so for a listing Sellora has read on the Workspace, Amazon's own brand for it comes first. Empty = the brand is not judged.</span></div>
+    <div class="lr-allow-row"><label>Embroidery colours ${field('embColors', allow.embroideryColors, 'w-m')}</label>
+      <span class="muted">Pieces in these colours are embroidery, so "Block Print" is never asked of them; nor of a listing that says Embroidered or Embroidery. Otherwise
+      "Block Print" is asked for only with proof that the product is block print — a sibling's title under the same parent, or the listing's own bullets or description on
+      Amazon say it. A mixed colour such as "Blue &amp; White" is not white.</span></div>
+    <div class="lr-allow-row"><span class="muted">Always, at any length, the same meaning is never an error: upper / lower case, singular / plural, Grey / Gray, Colour / Color,
+      Tablecloth / Table Cloth / Table-Cloth, Pillow Cover / Cushion Cover, Block Print / Block-Print / Blockprint / Block Printed / Hand Block Printed, hyphens, commas,
+      "|" and extra spaces. Siblings' sizes compare by meaning: "18x18" = "18 x 18" = "18×18".</span></div>`;
+}
+
 // Draw the current view (issues / titles / season) into lrTable, with live counts from the listings snapshot.
 function renderLrules() {
   ['issues', 'titles', 'season'].forEach(view => $('lrView' + view[0].toUpperCase() + view.slice(1)).classList.toggle('on', LR_VIEW === view));
@@ -99,6 +124,8 @@ function renderLrules() {
   const ctx = hCtx(rows);
   $('lrAdd').textContent = LR_VIEW === 'issues' ? '+ Add issue' : LR_VIEW === 'titles' ? '+ Add template' : '+ Add occasion';
   $('lrTry').classList.toggle('hide', LR_VIEW !== 'titles');
+  $('lrAllow').classList.toggle('hide', LR_VIEW !== 'issues');
+  if (LR_VIEW === 'issues') lrAllowRender(cfg);
 
   // --- the issues view ---
   if (LR_VIEW === 'issues') {
@@ -241,6 +268,21 @@ $('lrTable').addEventListener('change', e => {
   H_CTX = null;
   renderLrules();
 });
+// The "What people may write" box: every input writes into the allowances in memory; Save sends them with the rules.
+$('lrAllow').addEventListener('change', e => {
+  const key = e.target.getAttribute('data-lra');
+  if (!key) return;
+  const cfg = LR || (LR = JSON.parse(JSON.stringify(LR_DEFAULT)));
+  const allow = cfg.allow = lrAllow(cfg);
+  const value = String(e.target.value || '').trim();
+  if (key === 'shortFrom') allow.shortFrom = Math.min(75, Math.max(1, parseInt(value, 10) || LR_DEFAULT.allow.shortFrom));
+  else if (key === 'brandSP') allow.brandWords.SP = value;
+  else if (key === 'brandCPC') allow.brandWords.CPC = value;
+  else if (key === 'embColors') allow.embroideryColors = value;
+  LR_DIRTY = true;
+  H_CTX = null;
+  renderLrules();
+});
 // The × button on a row: delete that issue / template / occasion (after a confirm).
 $('lrTable').addEventListener('click', e => {
   const delBtn = e.target.closest('[data-lrdel]');
@@ -307,7 +349,7 @@ $('lrReset').onclick = () => {
 $('lrSave').onclick = async () => {
   const cfg = LR || LR_DEFAULT;
   /* Firestore refuses undefined anywhere in a document. */
-  const clean = JSON.parse(JSON.stringify({ issues: cfg.issues, templates: cfg.templates, events: cfg.events }));
+  const clean = JSON.parse(JSON.stringify({ issues: cfg.issues, templates: cfg.templates, events: cfg.events, allow: lrAllow(cfg) }));
   if (clean.issues.some(issue => !String(issue.name || '').trim())) {
     lrMsg('Every issue needs a name.', true);
     return;
@@ -357,8 +399,7 @@ function hSugOpen(brand, sku) {
     <div class="muted" style="font-size:11.5px" id="hSugLen">${sug.length} / 200 characters</div>
     ${!cat ? '<div class="err" style="margin-top:8px">This SKU is not in the brand catalog, so its colour, size and sub-category are unknown — no title can be built.</div>' : ''}
     ${cat && !tpl ? '<div class="err" style="margin-top:8px">No title template matches its sub-category "' + lrEsc(cat.subcat) + '" — add one in Listing Rules → Title templates.</div>' : ''}
-    <div style="margin-top:12px;font-size:12.5px">${health.found.filter(hit => hit.area === 'Title' || hit.area === 'Size' || hit.area === 'Variation')
-      .map(hit => `<div>${hSevDot(hit.sev)}<b>${lrEsc(hit.name)}</b> — ${lrEsc(hit.detail)}</div>`).join('')
+    <div class="lr-probs" style="margin-top:12px;max-width:none">${lrProblemsHtml(health.found.filter(hit => hit.area === 'Title' || hit.area === 'Size' || hit.area === 'Variation'), { brand, sku })
       || '<span class="muted">No title, size or variation issue on this listing.</span>'}</div>`;
   $('hSugModal').classList.remove('hide');
 }
