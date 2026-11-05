@@ -2095,6 +2095,10 @@ html.mob #gdAsk{right:8px;left:8px;width:auto;bottom:72px;max-height:calc(100vh 
 #gdAsk .ga-do{margin-top:8px;font-size:13px}
 #gdAsk .ga-do ol{margin:2px 0 0;padding-left:20px}
 #gdAsk .ga-do li{margin:3px 0}
+#gdAsk .ga-more{margin-top:8px;font-size:13.5px}
+#gdAsk .ga-more>b{display:block;font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--brand-ink);margin-bottom:2px}
+#gdAsk .ga-more ol{margin:2px 0 0;padding-left:20px}
+#gdAsk .ga-more li{margin:3px 0}
 #gdAsk .ga-note{margin-top:8px;padding:6px 10px;border-radius:8px;background:#F2F4F7;font-size:12px;color:var(--muted)}
 #gdAsk .ga-rel{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:10px}
 #gdAsk .ga-rel>span{font-size:11px;color:var(--muted);width:100%}
@@ -77812,7 +77816,7 @@ try { window.ERP_MEERA = ERP_MEERA; } catch (e) { /* no window: the page itself 
  * data a screen has not read yet is "not loaded" (she asks the person to open that screen), never fetched — the quota
  * fix stands. Each answer says which screen it comes from and when that screen last read it. A screen the account
  * cannot open answers "not allowed", with no data. open() is called only from a button the person presses. */
-const MEERA_DATA_SCREENS = { ord: 'Order Console', pbase: 'Job Work Register', fgi: 'Finished Goods', qc: 'Quality Control', pmdb: 'Master Database' };
+const MEERA_DATA_SCREENS = { ord: 'Order Console', pbase: 'Job Work Register', fgi: 'Finished Goods', qc: 'Quality Control', pmdb: 'Master Database', shop: 'Shopify Orders' };
 const mdMay = tab => (typeof mobMay === 'function' ? !!mobMay(tab) : true);
 const mdNum = v => Number(v) || 0;
 const mdLeft = r => mdNum(r.issuePieces) - mdNum(r.receivedPieces) - mdNum(r.rejectionPieces);
@@ -77939,6 +77943,41 @@ ERP_MEERA.data = {
       .map(r => ({ orderNo: r.orderNo, qty: mdNum(r.qty), at: typeof ordWaitingAt === 'function' ? ordWaitingAt(r) : '' }));
     return { from, sku: S, lines };
   }, { from: { tab: 'ord', notLoaded: true } }),
+  /** A SKU's family — every size of the same design ("CPC002-04", "CPC002-06" … are CPC002) — from the Master Database */
+  skuFamily: said => meeraSafe(() => {
+    const from = mdFrom('pmdb', typeof PTG !== 'undefined' && Array.isArray(PTG.mdb), typeof PTG !== 'undefined' ? mdTime(PTG.at) : '');
+    if (from.denied || from.notLoaded) return { from, skus: [] };
+    const bare = s => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    const fam = s => { const u = String(s || '').toUpperCase(); return bare(u.includes('-') ? u.replace(/-[^-]*$/, '') : u); };
+    const U = String(said || '').toUpperCase(), key = (PTG.mdb || []).some(r => r && String(r.sku || '').toUpperCase() === U) ? fam(U) : bare(U);
+    const skus = (PTG.mdb || []).filter(r => r && r.sku && fam(r.sku) === key)
+      .map(r => ({ sku: String(r.sku).toUpperCase(), size: r.size || '', color: r.color || '' })).slice(0, 40);
+    return { from, family: key, skus };
+  }, { from: { tab: 'pmdb', notLoaded: true }, skus: [] }),
+  /** Amazon FBA units of a SKU, as Shopify Orders last read them (both accounts, the larger) */
+  skuFba: sku => meeraSafe(() => {
+    const from = mdFrom('shop', typeof SHOP_STOCK_LOADED !== 'undefined' && SHOP_STOCK_LOADED, typeof SHOP !== 'undefined' ? SHOP.at : '');
+    if (from.denied || from.notLoaded) return { from };
+    const S = String(sku || '').toUpperCase();
+    return { from, fba: S in SHOP_STOCK ? mdNum(SHOP_STOCK[S]) : null };
+  }, { from: { tab: 'shop', notLoaded: true } }),
+  /** where a SKU sells: Amazon when the Master Database has its ASIN; the others from the orders this page has seen
+   *  (Order Console lines by their number, Shopify orders by their store) — each only for whoever may see that screen */
+  skuPlatforms: sku => meeraSafe(() => {
+    const S = String(sku || '').toUpperCase(), seen = new Map(), add = (name, no) => { const m = seen.get(name) || new Set(); if (no) m.add(no); seen.set(name, m); };
+    let asin = '';
+    if (mdMay('pmdb') && typeof mdbOf === 'function') { const m = mdbOf(S); if (m && m.asin) { asin = String(m.asin); add('Amazon'); } }
+    const NAME = { AMZ: 'Amazon', SHP: 'Shopify', SPY: 'Shopify', B2B: 'B2B', ONL: 'Online', ETSY: 'Etsy' };
+    if (mdMay('ord') && typeof PTG !== 'undefined' && Array.isArray(PTG.ob)) mdOrdLines().forEach(r => {
+      if (String(r.sku || '').toUpperCase() !== S) return;
+      const p = String(r.orderNo || '').split('-')[0].toUpperCase(), ch = String(r.custChannel || r.src || '').toUpperCase();
+      const n = NAME[ch] || NAME[p]; if (n) add(n, r.orderNo);
+    });
+    if (mdMay('shop') && typeof SHOP !== 'undefined' && Array.isArray(SHOP.orders)) SHOP.orders.forEach(o => {
+      if ((o.items || []).some(i => String(i.sku || '').toUpperCase() === S)) add('Shopify' + (typeof soStoreOf === 'function' ? ' (' + soStoreOf(o) + ')' : ''), o.name || o.id || '');
+    });
+    return { asin, list: [...seen.entries()].map(([name, nos]) => ({ name, orders: nos.size, nos: [...nos] })) };
+  }, { asin: '', list: [] }),
   /** the person pressed the answer's button: the screen, on the line (an order's journey, a karigar's rows, a SKU) */
   open: (kind, key) => meeraSafe(() => {
     if (kind === 'order' && mdMay('ord') && typeof ordJourney === 'function') { ordJourney(key); return true; }
@@ -83156,6 +83195,10 @@ const gaAskOf = (e, lang) => {
 };
 function gaBankAnswer(e, lang, L, near) {
   let html = `<div class="ga-a">${gaL3(e.a, lang)}</div>`;
+  const mo = e.more, mFor = mo && gaL3(mo.for, lang), mHow = mo && mo.how ? gaL3(mo.how, lang) : null, mWhen = mo && gaL3(mo.when, lang);
+  if (mFor) html += `<div class="ga-more"><b>${L("What it's for", "\u092F\u0939 \u0915\u093F\u0938 \u0932\u093F\u090F \u0939\u0948", "Yeh kis liye hai")}</b>${mFor}</div>`;
+  if (mHow && mHow.length) html += `<div class="ga-more"><b>${L("How it works", "\u092F\u0939 \u0915\u0948\u0938\u0947 \u0915\u093E\u092E \u0915\u0930\u0924\u093E \u0939\u0948", "Yeh kaise kaam karta hai")}</b><ol>${mHow.map((s) => `<li>${s}</li>`).join("")}</ol></div>`;
+  if (mWhen) html += `<div class="ga-more"><b>${L("When to use it", "\u0915\u092C \u0907\u0938\u094D\u0924\u0947\u092E\u093E\u0932 \u0915\u0930\u0947\u0902", "Kab use karein")}</b>${mWhen}</div>`;
   const why = gaL3(e.why, lang);
   if (why) html += `<div class="ga-why"><b>${L("Why", "\u0915\u094D\u092F\u094B\u0902", "Kyun")}</b>${why}</div>`;
   const st = e.steps ? gaL3(e.steps, lang) : null;

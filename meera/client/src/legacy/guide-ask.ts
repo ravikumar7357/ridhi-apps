@@ -1194,6 +1194,12 @@ const gaAskOf = (e, lang) => { const q = e.q || {}; return ((lang === 'hi' ? q.h
 /** One answer from the bank: the answer, why, what to do, and the buttons that do it. */
 function gaBankAnswer(e, lang, L, near) {
   let html = `<div class="ga-a">${gaL3(e.a, lang)}</div>`;
+  /* the fuller explanation — what it is for, how it works, when to use it (Ravi, 5 Nov: "answers that are actually usable").
+   * Kept apart from the answer line so it is shown but never used to pick which answer fits a question. */
+  const mo = e.more, mFor = mo && gaL3(mo.for, lang), mHow = mo && mo.how ? gaL3(mo.how, lang) : null, mWhen = mo && gaL3(mo.when, lang);
+  if (mFor) html += `<div class="ga-more"><b>${L("What it's for", 'यह किस लिए है', 'Yeh kis liye hai')}</b>${mFor}</div>`;
+  if (mHow && mHow.length) html += `<div class="ga-more"><b>${L('How it works', 'यह कैसे काम करता है', 'Yeh kaise kaam karta hai')}</b><ol>${mHow.map(s => `<li>${s}</li>`).join('')}</ol></div>`;
+  if (mWhen) html += `<div class="ga-more"><b>${L('When to use it', 'कब इस्तेमाल करें', 'Kab use karein')}</b>${mWhen}</div>`;
   const why = gaL3(e.why, lang);
   if (why) html += `<div class="ga-why"><b>${L('Why', 'क्यों', 'Kyun')}</b>${why}</div>`;
   const st = e.steps ? gaL3(e.steps, lang) : null;

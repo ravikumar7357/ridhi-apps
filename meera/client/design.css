@@ -59,6 +59,7 @@ ol,ul{margin:0}
 #gdAsk .md-src .md-where{margin-left:auto;font-weight:500;color:var(--muted)}
 #gdAsk .md-card .ga-a{padding:10px 12px 2px;font-weight:400;font-size:14px}
 #gdAsk .md-card .ga-a b{font-weight:700}
+#gdAsk .md-card .ga-more{margin:0;padding:6px 12px 2px}
 #gdAsk .md-card>.ga-a:first-line{font-weight:600}
 #gdAsk .md-card .ga-acts{display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px;margin:0;padding:8px 12px 10px}
 #gdAsk .md-card .ga-act{height:auto;border:0;background:none;color:var(--brand);padding:6px 2px;font-size:13px;font-weight:600}

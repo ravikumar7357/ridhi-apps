@@ -59,7 +59,7 @@ try { window.ERP_MEERA = ERP_MEERA; } catch (e) { /* no window: the page itself 
  * data a screen has not read yet is "not loaded" (she asks the person to open that screen), never fetched — the quota
  * fix stands. Each answer says which screen it comes from and when that screen last read it. A screen the account
  * cannot open answers "not allowed", with no data. open() is called only from a button the person presses. */
-const MEERA_DATA_SCREENS = { ord: 'Order Console', pbase: 'Job Work Register', fgi: 'Finished Goods', qc: 'Quality Control', pmdb: 'Master Database' };
+const MEERA_DATA_SCREENS = { ord: 'Order Console', pbase: 'Job Work Register', fgi: 'Finished Goods', qc: 'Quality Control', pmdb: 'Master Database', shop: 'Shopify Orders' };
 const mdMay = tab => (typeof mobMay === 'function' ? !!mobMay(tab) : true);
 const mdNum = v => Number(v) || 0;
 const mdLeft = r => mdNum(r.issuePieces) - mdNum(r.receivedPieces) - mdNum(r.rejectionPieces);
@@ -186,6 +186,41 @@ ERP_MEERA.data = {
       .map(r => ({ orderNo: r.orderNo, qty: mdNum(r.qty), at: typeof ordWaitingAt === 'function' ? ordWaitingAt(r) : '' }));
     return { from, sku: S, lines };
   }, { from: { tab: 'ord', notLoaded: true } }),
+  /** A SKU's family — every size of the same design ("CPC002-04", "CPC002-06" … are CPC002) — from the Master Database */
+  skuFamily: said => meeraSafe(() => {
+    const from = mdFrom('pmdb', typeof PTG !== 'undefined' && Array.isArray(PTG.mdb), typeof PTG !== 'undefined' ? mdTime(PTG.at) : '');
+    if (from.denied || from.notLoaded) return { from, skus: [] };
+    const bare = s => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    const fam = s => { const u = String(s || '').toUpperCase(); return bare(u.includes('-') ? u.replace(/-[^-]*$/, '') : u); };
+    const U = String(said || '').toUpperCase(), key = (PTG.mdb || []).some(r => r && String(r.sku || '').toUpperCase() === U) ? fam(U) : bare(U);
+    const skus = (PTG.mdb || []).filter(r => r && r.sku && fam(r.sku) === key)
+      .map(r => ({ sku: String(r.sku).toUpperCase(), size: r.size || '', color: r.color || '' })).slice(0, 40);
+    return { from, family: key, skus };
+  }, { from: { tab: 'pmdb', notLoaded: true }, skus: [] }),
+  /** Amazon FBA units of a SKU, as Shopify Orders last read them (both accounts, the larger) */
+  skuFba: sku => meeraSafe(() => {
+    const from = mdFrom('shop', typeof SHOP_STOCK_LOADED !== 'undefined' && SHOP_STOCK_LOADED, typeof SHOP !== 'undefined' ? SHOP.at : '');
+    if (from.denied || from.notLoaded) return { from };
+    const S = String(sku || '').toUpperCase();
+    return { from, fba: S in SHOP_STOCK ? mdNum(SHOP_STOCK[S]) : null };
+  }, { from: { tab: 'shop', notLoaded: true } }),
+  /** where a SKU sells: Amazon when the Master Database has its ASIN; the others from the orders this page has seen
+   *  (Order Console lines by their number, Shopify orders by their store) — each only for whoever may see that screen */
+  skuPlatforms: sku => meeraSafe(() => {
+    const S = String(sku || '').toUpperCase(), seen = new Map(), add = (name, no) => { const m = seen.get(name) || new Set(); if (no) m.add(no); seen.set(name, m); };
+    let asin = '';
+    if (mdMay('pmdb') && typeof mdbOf === 'function') { const m = mdbOf(S); if (m && m.asin) { asin = String(m.asin); add('Amazon'); } }
+    const NAME = { AMZ: 'Amazon', SHP: 'Shopify', SPY: 'Shopify', B2B: 'B2B', ONL: 'Online', ETSY: 'Etsy' };
+    if (mdMay('ord') && typeof PTG !== 'undefined' && Array.isArray(PTG.ob)) mdOrdLines().forEach(r => {
+      if (String(r.sku || '').toUpperCase() !== S) return;
+      const p = String(r.orderNo || '').split('-')[0].toUpperCase(), ch = String(r.custChannel || r.src || '').toUpperCase();
+      const n = NAME[ch] || NAME[p]; if (n) add(n, r.orderNo);
+    });
+    if (mdMay('shop') && typeof SHOP !== 'undefined' && Array.isArray(SHOP.orders)) SHOP.orders.forEach(o => {
+      if ((o.items || []).some(i => String(i.sku || '').toUpperCase() === S)) add('Shopify' + (typeof soStoreOf === 'function' ? ' (' + soStoreOf(o) + ')' : ''), o.name || o.id || '');
+    });
+    return { asin, list: [...seen.entries()].map(([name, nos]) => ({ name, orders: nos.size, nos: [...nos] })) };
+  }, { asin: '', list: [] }),
   /** the person pressed the answer's button: the screen, on the line (an order's journey, a karigar's rows, a SKU) */
   open: (kind, key) => meeraSafe(() => {
     if (kind === 'order' && mdMay('ord') && typeof ordJourney === 'function') { ordJourney(key); return true; }

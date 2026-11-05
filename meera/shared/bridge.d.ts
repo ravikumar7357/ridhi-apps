@@ -56,6 +56,12 @@ interface ErpMeeraData {
   skuInfo(sku: string): { from: ErpMeeraFrom; none?: boolean; row?: Record<string, string | number | boolean>; fabricWidthIn?: number | null };
   /** one SKU's open order lines on the Order Console, with their stage */
   skuOrders(sku: string): { from: ErpMeeraFrom; sku?: string; lines?: { orderNo: string; qty: number; at: string }[] };
+  /** every size of the same design (Master Database) */
+  skuFamily(said: string): { from: ErpMeeraFrom; family?: string; skus: { sku: string; size: string; color: string }[] };
+  /** Amazon FBA units, as Shopify Orders last read them */
+  skuFba(sku: string): { from: ErpMeeraFrom; fba?: number | null };
+  /** where it sells: Amazon by its ASIN, the rest from the orders seen */
+  skuPlatforms(sku: string): { asin: string; list: { name: string; orders: number; nos?: string[] }[] };
   /** only from a button the person pressed: 'order' | 'karigar' | 'sku' | a screen */
   open(kind: string, key: string): boolean;
 }

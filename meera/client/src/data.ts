@@ -21,7 +21,7 @@ declare function muDistance(a: string, b: string, max: number): number;
 const MEERA_DATA: boolean = meeraOn('data');
 type MdLang = 'en' | 'hi' | 'hg';
 type MdAsk = { kind: 'order'; no: string } | { kind: 'order-missing'; text: string } | { kind: 'order-which'; said: string; nos: string[] }
-  | { kind: 'skucard'; sku: string; focus: 'all' | 'cloth' | 'brand' | 'amazon' | 'orders' } | { kind: 'karigar'; name: string } | { kind: 'karigar-which'; said: string; names: string[] }
+  | { kind: 'skucard'; sku: string; focus: 'all' | 'cloth' | 'brand' | 'amazon' | 'orders' | 'where'; fam?: boolean } | { kind: 'karigar'; name: string } | { kind: 'karigar-which'; said: string; names: string[] }
   | { kind: 'sku'; sku: string } | { kind: 'sku-which'; said: string; skus: string[] } | { kind: 'today'; focus: string } | { kind: 'late' } | { kind: 'wait'; stage: string };
 
 /* ---------- reading the question ---------- */
@@ -80,10 +80,10 @@ function mdParse(q0: string, D: ErpMeeraData): MdAsk | null {
    * brand, Amazon, its open orders and their stage */
   const skuSet = new Set(D.skus());
   const skuW = ws.map(w => w.toUpperCase()).find(u => /\d/.test(u) && u.length >= 4 && skuSet.has(u));
-  const skuAsk = (sku: string): MdAsk => {
-    if ((MD_STOCK.test(low) || MD_COUNT.test(low)) && !MD_ORDERQ.test(low) && !MD_CLOTH.test(low)) return { kind: 'sku', sku };
-    const focus = MD_ORDERQ.test(low) ? 'orders' : MD_CLOTH.test(low) ? 'cloth' : MD_AMAZON.test(low) ? 'amazon' : MD_BRAND.test(low) ? 'brand' : 'all';
-    return { kind: 'skucard', sku, focus };
+  const skuAsk = (sku: string, fam?: boolean): MdAsk => {
+    if (!fam && (MD_STOCK.test(low) || MD_COUNT.test(low)) && !MD_ORDERQ.test(low) && !MD_CLOTH.test(low) && !MD_WHERE.test(low)) return { kind: 'sku', sku };
+    const focus = MD_ORDERQ.test(low) ? 'orders' : MD_WHERE.test(low) ? 'where' : MD_CLOTH.test(low) ? 'cloth' : MD_AMAZON.test(low) ? 'amazon' : MD_BRAND.test(low) ? 'brand' : 'all';
+    return { kind: 'skucard', sku, focus, fam };
   };
   if (skuW) return skuAsk(skuW);
   /* past here only her figures lists — never for "yeh … kya hai" */
@@ -107,7 +107,7 @@ function mdParse(q0: string, D: ErpMeeraData): MdAsk | null {
   /* a SKU ("CPC008-04"; "CPC008" when it has several sizes: she asks which) */
   /* …or a SKU typed on its own ("CPC-002"): written with the dash anywhere, it is that SKU or its sizes */
   const alone = ws.length === 1 && /[a-z]/i.test(ws[0]) && /\d{2,}/.test(ws[0]);
-  if (alone || MD_STOCK.test(low) || MD_COUNT.test(low) || MD_ORDERQ.test(low) || MD_CLOTH.test(low) || /\b(details?|batao|bataiye|info|about|sab kuch|poori|puri)\b|बताओ|बताइए/.test(low)) {
+  if (alone || MD_STOCK.test(low) || MD_COUNT.test(low) || MD_ORDERQ.test(low) || MD_CLOTH.test(low) || MD_WHERE.test(low) || /\b(details?|batao|bataiye|info|about|sab kuch|poori|puri)\b|बताओ|बताइए/.test(low)) {
     const set = new Set(D.skus());
     for (const w of ws) {
       const u = w.toUpperCase();
@@ -115,7 +115,11 @@ function mdParse(q0: string, D: ErpMeeraData): MdAsk | null {
       if (set.has(u)) return skuAsk(u);
       const pre = [...set].filter(s => s.startsWith(u + '-') || mdBare(s) === mdBare(u) || mdBare(s.split('-')[0]) === mdBare(u));
       if (pre.length === 1) return skuAsk(pre[0]);
-      if (pre.length > 1 && pre.length <= 8) return { kind: 'sku-which', said: u, skus: pre };
+      if (pre.length > 1) {
+        const stockOnly = (MD_STOCK.test(low) || MD_COUNT.test(low)) && !MD_ORDERQ.test(low) && !MD_WHERE.test(low) && !MD_CLOTH.test(low);
+        if (stockOnly && pre.length <= 8) return { kind: 'sku-which', said: u, skus: pre };
+        return skuAsk(u, true);
+      }
     }
   }
   if (MD_TODAY.test(low)) {
@@ -158,16 +162,73 @@ const mdChips = (head: string, list: { label: string; q: string }[]): string =>
 const MD_FIELDS: [string, string][] = [['brand', 'Brand'], ['articleType', 'Article'], ['subtype', 'Type'], ['color', 'Colour'], ['size', 'Size'], ['packOf', 'Pack of'],
   ['packType', 'Pack type'], ['packMaterial', 'Pack material'], ['isCustom', 'Custom'], ['mergedInto', 'Merged into']];
 const mdYes = (v: unknown): boolean => v === true || /^(true|yes|y|1)$/i.test(String(v));
-function mdSkuCard(sku: string, focus: string, D: ErpMeeraData, L: (en: string, hi: string, hg: string) => string): { html: string; acts: { t: string; id: string; label: string }[] } {
+function mdSkuCard(sku: string, focus: string, D: ErpMeeraData, L: (en: string, hi: string, hg: string) => string, fam?: boolean): { html: string; acts: { t: string; id: string; label: string }[] } {
   const s = esc(sku), parts: string[] = [], acts: { t: string; id: string; label: string }[] = [];
   const no = L('Your account does not have this screen.', 'आपके अकाउंट में यह स्क्रीन नहीं है।', 'Aapke account mein yeh screen nahi hai.');
   const part = (head: string, body: string) => parts.push(`<div class="ga-a"><b>${head}</b></div>${body}`);
-  /* the Master Database */
-  const m = D.skuInfo(sku), mc = mdCannot(m.from, L);
-  if (mc) part(L('Master details', 'मास्टर डिटेल', 'Master details'), `<div>${m.from.denied ? no : mc.html}</div>`);
-  else if (m.none || !m.row) part(L('Master details', 'मास्टर डिटेल', 'Master details'), `<div>${L(`<b>${s}</b> is not in the Master Database.`, `<b>${s}</b> मास्टर डेटाबेस में नहीं है।`, `<b>${s}</b> Master Database mein nahi hai.`)}</div>`);
+  const cant = (f: ErpMeeraFrom) => { const c = mdCannot(f, L); return c ? (f.denied ? no : c.html) : ''; };
+  const row = (label: string, v: string) => `<li>${label}: ${v}</li>`;
+  /* the design and its sizes (Ravi, 5 Nov: "CPC-002 … name of product, sizes available, brand, in production, number of
+   * orders, order id, platforms") — a family typed on its own ("CPC-002") is all its sizes together */
+  const fy = D.skuFamily(sku), sizes = fy.skus || [];
+  const members = fam ? sizes.map(x => x.sku) : [sku.toUpperCase()];
+  const m = D.skuInfo(members[0] || sku), mc = mdCannot(m.from, L), r = !mc && !m.none && m.row ? m.row : null;
+  const sum: string[] = [];
+  if (mc) sum.push(row(L('Product', 'प्रोडक्ट', 'Product'), cant(m.from)));
+  else if (!r) sum.push(`<li>${L(`<b>${s}</b> is not in the Master Database.`, `<b>${s}</b> मास्टर डेटाबेस में नहीं है।`, `<b>${s}</b> Master Database mein nahi hai.`)}</li>`);
   else {
-    const r = m.row, li = (k: string, label: string) => (r[k] !== undefined ? `<li>${label}: <b>${esc(String(r[k]))}</b></li>` : '');
+    const name = [r.articleType, r.subtype, fam ? '' : r.color].filter(x => x !== undefined && x !== '').map(x => esc(String(x))).join(' ');
+    if (name) sum.push(row(L('Product', 'प्रोडक्ट', 'Product'), `<b>${name}</b>`));
+    if (r.brand !== undefined) sum.push(row(L('Brand', 'ब्रांड', 'Brand'), `<b>${esc(String(r.brand))}</b>`));
+  }
+  if (sizes.length) {
+    const one = (x: { sku: string; size: string; color: string }) => `<b>${esc(x.size || x.sku)}</b>${x.size ? ` (${esc(x.sku)}${fam && x.color ? ' · ' + esc(x.color) : ''})` : ''}`;
+    sum.push(row(L('Sizes available', 'उपलब्ध साइज़', 'Sizes available'), sizes.map(one).join(', ')));
+  }
+  /* its open orders: how many, which, and the stage each is at */
+  let ordHtml = '', pcsMade = 0, ordOk = false;
+  const lines: { sku: string; orderNo: string; qty: number; at: string }[] = [];
+  let of: ErpMeeraFrom | null = null;
+  members.forEach(k => { const o = D.skuOrders(k); of = o.from; if (!mdCannot(o.from, L)) { ordOk = true; (o.lines || []).forEach(x => lines.push({ sku: k, ...x })); } });
+  if (!members.length) { const o = D.skuOrders(sku); of = o.from; if (!mdCannot(o.from, L)) { ordOk = true; (o.lines || []).forEach(x => lines.push({ sku, ...x })); } }
+  if (!ordOk && of) {
+    sum.push(row(L('In production', 'प्रोडक्शन में', 'Production mein'), cant(of)));
+  } else if (of) {
+    pcsMade = lines.reduce((t, x) => t + (x.qty || 0), 0);
+    const nos = [...new Set(lines.map(x => x.orderNo))];
+    const stage = new Map<string, number>();
+    lines.forEach(x => { const k = String(x.at || '—').split(' — ')[0].trim() || '—'; stage.set(k, (stage.get(k) || 0) + (x.qty || 0)); });
+    sum.push(row(L('In production', 'प्रोडक्शन में', 'Production mein'), lines.length
+      ? `<b>${mdNf(pcsMade)}</b> pcs — ${[...stage.entries()].map(([k, n]) => `${esc(k)} <b>${mdNf(n)}</b>`).join(' · ')}`
+      : L('nothing open right now', 'अभी कुछ खुला नहीं', 'abhi kuch open nahi')));
+    sum.push(row(L('Number of orders', 'ऑर्डर की गिनती', 'Orders kitne'), `<b>${nos.length}</b>`));
+    if (nos.length) sum.push(row(L('Order IDs', 'ऑर्डर नंबर', 'Order IDs'), nos.slice(0, 10).map(n => `<b>${esc(n)}</b>`).join(', ') + (nos.length > 10 ? L(` and ${nos.length - 10} more`, ` और ${nos.length - 10}`, ` aur ${nos.length - 10}`) : '')));
+    if (lines.length) ordHtml = `<ul>${lines.slice(0, 10).map(x => `<li><b>${esc(x.orderNo)}</b>${fam ? ' · ' + esc(x.sku) : ''} · ${mdNf(x.qty)} — ${esc(x.at || '—')}</li>`).join('')}</ul>` + mdSource(of, L);
+    acts.push({ t: 'dataopen', id: 'ord|', label: L('Open Order Console', 'ऑर्डर कंसोल खोलें', 'Order Console kholiye') });
+  }
+  /* where it sells */
+  const plat = new Map<string, Set<string>>();
+  let asin = '';
+  (members.length ? members : [sku]).forEach(k => { const p = D.skuPlatforms(k); if (p.asin && !asin) asin = p.asin; (p.list || []).forEach(x => { const m = plat.get(x.name) || new Set<string>(); (x.nos || []).forEach(n => m.add(n)); plat.set(x.name, m); }); });
+  if (plat.size) sum.push(row(L('Platforms', 'प्लेटफ़ॉर्म', 'Platforms'), [...plat.entries()].map(([n, set]) => { const c = set.size; return `<b>${esc(n)}</b>${n === 'Amazon' && asin && !fam ? ` (${esc(asin)})` : ''}${c ? L(` — ${c} order(s)`, ` — ${c} ऑर्डर`, ` — ${c} order`) : ''}`; }).join(', ')));
+  /* where it is: the India store, Amazon FBA, in production */
+  const where: string[] = [];
+  let ind = 0, indOk = false, indFrom: ErpMeeraFrom | null = null, fba = 0, fbaKnown = false, fbaFrom: ErpMeeraFrom | null = null;
+  (members.length ? members : [sku]).forEach(k => {
+    const st = D.skuStock(k); indFrom = st.from; if (!mdCannot(st.from, L)) { indOk = true; ind += st.current || 0; }
+    const f = D.skuFba(k); fbaFrom = f.from; if (!mdCannot(f.from, L) && f.fba != null) { fbaKnown = true; fba += f.fba; }
+  });
+  if (indOk) where.push(L(`India store <b>${mdNf(ind)}</b>`, `इंडिया स्टोर <b>${mdNf(ind)}</b>`, `India store <b>${mdNf(ind)}</b>`));
+  else if (indFrom) where.push(L('India store: ', 'इंडिया स्टोर: ', 'India store: ') + cant(indFrom));
+  if (fbaKnown) where.push(L(`Amazon FBA <b>${mdNf(fba)}</b>`, `Amazon FBA <b>${mdNf(fba)}</b>`, `Amazon FBA <b>${mdNf(fba)}</b>`));
+  else if (fbaFrom && (fbaFrom as ErpMeeraFrom).denied) where.push('Amazon FBA: ' + no);
+  else if (fbaFrom && (fbaFrom as ErpMeeraFrom).notLoaded) where.push(L('Amazon FBA: open Shopify Orders and press Fetch orders to read it', 'Amazon FBA: Shopify Orders खोलकर Fetch orders दबाएँ', 'Amazon FBA: Shopify Orders kholke Fetch orders dabaiye'));
+  if (ordOk && pcsMade) where.push(L(`in production <b>${mdNf(pcsMade)}</b>`, `प्रोडक्शन में <b>${mdNf(pcsMade)}</b>`, `production mein <b>${mdNf(pcsMade)}</b>`));
+  if (where.length) sum.push(row(L('Where it is', 'कहाँ है', 'Kahan hai'), where.join(' · ')));
+  const summary = `<ul>${sum.join('')}</ul>`;
+  /* the rest of its master details — one SKU only */
+  if (r && !fam) {
+    const li = (k: string, label: string) => (r[k] !== undefined ? `<li>${label}: <b>${esc(String(r[k]))}</b></li>` : '');
     const cloth: string[] = [];
     if (r.fabric !== undefined) cloth.push(`<li>${L('Fabric', 'कपड़ा', 'Kapda')}: <b>${esc(String(r.fabric))}</b>${m.fabricWidthIn ? ` · ${L('width', 'चौड़ाई', 'width')} <b>${mdNf(m.fabricWidthIn)}"</b>` : ''}</li>`);
     if (r.cuttingRequired !== undefined && !mdYes(r.cuttingRequired)) cloth.push(`<li>${L('No cutting needed', 'कटिंग नहीं चाहिए', 'Cutting nahi chahiye')}</li>`);
@@ -185,25 +246,14 @@ function mdSkuCard(sku: string, focus: string, D: ErpMeeraData, L: (en: string, 
       if (x === 'a' && amz) part('Amazon', `<ul>${amz}</ul>`);
     }
     parts.push(mdSource(m.from, L));
-    acts.push({ t: 'dataopen', id: 'sku|' + sku, label: L('Open this SKU', 'यह SKU खोलें', 'Ye SKU kholiye') });
+    acts.unshift({ t: 'dataopen', id: 'sku|' + sku, label: L('Open this SKU', 'यह SKU खोलें', 'Ye SKU kholiye') });
   }
-  /* stock (the India store) */
-  const st = D.skuStock(sku), sc = mdCannot(st.from, L);
-  const stock = sc ? `<div>${st.from.denied ? no : sc.html}</div>` : `<div>${L(`<b>${mdNf(st.current || 0)}</b> in the India store`, `इंडिया स्टोर में <b>${mdNf(st.current || 0)}</b>`, `India store mein <b>${mdNf(st.current || 0)}</b>`)}${st.pending ? L(` (${mdNf(st.pending)} more waiting to be confirmed)`, ` (${mdNf(st.pending)} और पुष्टि के इंतज़ार में)`, ` (${mdNf(st.pending)} aur confirm hone baaki)`) : ''}.</div>` + mdSource(st.from, L);
-  /* its open orders and their stage */
-  const o = D.skuOrders(sku), oc = mdCannot(o.from, L);
-  let ord: string;
-  if (oc) ord = `<div>${o.from.denied ? no : oc.html}</div>`;
-  else {
-    const ls = o.lines || [], pcs = ls.reduce((t, x) => t + (x.qty || 0), 0);
-    ord = (ls.length ? `<div>${L(`<b>${ls.length}</b> open order line(s), <b>${mdNf(pcs)}</b> pcs:`, `<b>${ls.length}</b> खुली ऑर्डर लाइन, <b>${mdNf(pcs)}</b> पीस:`, `<b>${ls.length}</b> open order line, <b>${mdNf(pcs)}</b> pcs:`)}</div><ul>${ls.slice(0, 8).map(x => `<li><b>${esc(x.orderNo)}</b> · ${mdNf(x.qty)} — ${esc(x.at || '—')}</li>`).join('')}</ul>`
-      : `<div>${L('No open order for this SKU right now.', 'अभी इस SKU का कोई खुला ऑर्डर नहीं है।', 'Abhi is SKU ka koi open order nahi hai.')}</div>`) + mdSource(o.from, L);
-    acts.push({ t: 'dataopen', id: 'ord|', label: L('Open Order Console', 'ऑर्डर कंसोल खोलें', 'Order Console kholiye') });
-  }
-  const oHead = L('Open orders', 'खुले ऑर्डर', 'Open orders'), sHead = L('Stock', 'स्टॉक', 'Stock');
-  const tail = focus === 'orders' ? [`<div class="ga-a"><b>${oHead}</b></div>${ord}`, `<div class="ga-a"><b>${sHead}</b></div>${stock}`] : [`<div class="ga-a"><b>${sHead}</b></div>${stock}`, `<div class="ga-a"><b>${oHead}</b></div>${ord}`];
-  const body = focus === 'orders' ? [...tail, ...parts] : [...parts, ...tail];
-  return { html: `<div class="ga-a"><b>${s}</b></div>` + body.join(''), acts };
+  const ordPart = ordHtml ? `<div class="ga-a"><b>${L('Open orders', 'खुले ऑर्डर', 'Open orders')}</b></div>${ordHtml}` : '';
+  const body = focus === 'orders' || focus === 'where' ? [ordPart, ...parts] : [...parts, ordPart];
+  const title = fam ? L(`<b>${s}</b> — all ${sizes.length} sizes`, `<b>${s}</b> — सभी ${sizes.length} साइज़`, `<b>${s}</b> — saare ${sizes.length} size`) : `<b>${s}</b>`;
+  /* a family: each size opens its own card */
+  const chips = fam && sizes.length ? mdChips(L('Open one size', 'एक साइज़ खोलें', 'Ek size kholiye'), sizes.slice(0, 12).map(x => ({ label: x.sku, q: x.sku }))) : '';
+  return { html: `<div class="ga-a">${title}</div>` + summary + body.join('') + chips, acts: acts.slice(0, 3) };
 }
 
 function mdAnswer(a: MdAsk, q: string, D: ErpMeeraData, lang: MdLang): { html: string; acts: { t: string; id: string; label: string }[] } {
@@ -217,7 +267,7 @@ function mdAnswer(a: MdAsk, q: string, D: ErpMeeraData, lang: MdLang): { html: s
     + mdChips('', a.skus.map(s => ({ label: s, q: q.replace(new RegExp(a.said.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'), s) }))), acts: [] };
   if (a.kind === 'order-which') return { html: L(`Which order — ${a.nos.map(esc).join(', ')}?`, `कौन-सा ऑर्डर — ${a.nos.map(esc).join(', ')}?`, `Kaunsa order — ${a.nos.map(esc).join(', ')}?`)
     + mdChips('', a.nos.map(n => ({ label: n, q: n }))), acts: [] };
-  if (a.kind === 'skucard') return mdSkuCard(a.sku, a.focus, D, L);
+  if (a.kind === 'skucard') return mdSkuCard(a.sku, a.focus, D, L, a.fam);
   if (a.kind === 'order') {
     const r = D.findOrder(a.no), no = esc(a.no);
     const c = mdCannot(r.from, L); if (c) return c;

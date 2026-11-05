@@ -145,13 +145,13 @@ add('none', '', ['karigar ko kaam kaise de', 'Raju Kumar ko maal kaise issue kar
   { const c = card('RTBX72 me kitna kapda lagta hai'); ok(c.kind === 'skucard' && ['0.6', 'Linen Blend', '54', '4 m'].every(s => c.t.includes(s)), 'the cloth it takes: ' + c.t.slice(0, 200)); }
   { const c = card('RTBX72 kis brand ka hai'); ok(c.kind === 'skucard' && c.t.includes('Ridhi'), 'its brand (CPC or Ridhi): ' + c.t.slice(0, 120)); }
   { const c = card('RQL354-K ki chaudai kitni hai'); ok(c.kind === 'skucard' && ['Mulmul', '44', '5.2', '1.8 kg'].every(s => c.t.includes(s)), 'quilt: fabric, width, cloth, filling: ' + c.t.slice(0, 200)); }
-  { const c = card('CPC008 ki details batao'); ok(c.kind === 'sku-which', 'a SKU with several sizes: she asks which → ' + c.kind); }
+  { const c = card('CPC008 ki details batao'); ok(c.kind === 'skucard' && ['CPC008-04', 'CPC008-06', 'CPC008-08'].every(s => c.t.includes(s)), 'a SKU with several sizes: one card with all its sizes → ' + c.kind); }
   { const c = card('CPC008-04 ka stock kitna hai'); ok(c.kind === 'sku', 'a stock question keeps its short stock answer'); }
   { let bad = []; for (const s of SKUS) for (const q of [`${s} ki details batao`, `details of ${s}`, `${s} की पूरी जानकारी बताओ`, `${s} kis brand ka hai`, `${s} me kitna kapda lagta hai`]) { const c = card(q); if (c.kind && SECRET.test(c.t)) bad.push(q); }
     ok(!bad.length, 'never the cost value or the maker, in any card: ' + bad.join(' | ')); }
   install(M, { tabs: ['qc'] });
   { const c = card('CPC008-04 ki details batao');
-    ok(c.kind === 'skucard' && (c.t.match(/Your account does not have this screen|Aapke account mein yeh screen nahi hai|आपके अकाउंट में यह स्क्रीन नहीं है/g) || []).length === 3 && !/Cotton Duck|B0CPC|AMZ-16092026/.test(c.t), 'Quality Control only: each part says "not in your account", no figure: ' + c.t.slice(0, 200)); }
+    ok(c.kind === 'skucard' && (c.t.match(/Your account does not have this screen|Aapke account mein yeh screen nahi hai|आपके अकाउंट में यह स्क्रीन नहीं है/g) || []).length >= 3 && !/Cotton Duck|B0CPC|AMZ-16092026/.test(c.t), 'Quality Control only: each part says "not in your account", no figure: ' + c.t.slice(0, 200)); }
   install(M, { tabs: ['pmdb'] });
   { const c = card('CPC008-04 ki details batao');
     ok(/Cotton Duck/.test(c.t) && !/AMZ-16092026/.test(c.t) && /Your account does not have this screen|Aapke account mein yeh screen nahi hai/.test(c.t), 'Master Database only: details yes, orders and stock no: ' + c.t.slice(0, 200)); }
@@ -173,7 +173,13 @@ add('none', '', ['karigar ko kaam kaise de', 'Raju Kumar ko maal kaise issue kar
 
   console.log('9. a SKU typed on its own, and choices with the same words (Ravi, 4 Nov: "CPC-002" looped on "CPC")');
   { const c = card('CPC008-04'); ok(c.kind === 'skucard' && c.t.includes('Cotton Duck'), 'a SKU on its own gets its card: ' + c.kind); }
-  { const c = card('CPC-008'); ok(c.kind === 'sku-which' && ['CPC008-04', 'CPC008-06', 'CPC008-08'].every(s => c.t.includes(s)), 'CPC-008 (dash anywhere): which size — ' + c.kind); }
+  { const c = card('CPC-008'); ok(c.kind === 'skucard' && ['CPC008-04', 'CPC008-06', 'CPC008-08'].every(s => c.t.includes(s)), 'CPC-008 (dash anywhere): all its sizes — ' + c.kind); }
+  /* Ravi, 5 Nov: CPC-002 → name of product, sizes available, brand, in production, number of orders, order id, platforms; and 'kahan hai' */
+  { const c = card('CPC-008'); ok(['Product', 'Cushion Cover', 'Sizes available', 'Brand', 'CPC', 'In production', 'Number of orders', 'Order IDs', 'AMZ-16092026-02', 'Platforms', 'Amazon', 'Where it is', 'India store'].every(s => c.t.includes(s)), 'the family card has every line Ravi asked for: ' + c.t.slice(0, 300));
+    ok(!SECRET.test(c.t), 'and never cost or maker'); }
+  { const c = card('CPC008-04 kahan hai'); ok(c.kind === 'skucard' && /India store/.test(c.t) && /Karigar/.test(c.t), 'yeh SKU kahan hai: the India store and the production stage — ' + c.t.slice(0, 200)); }
+  { const c = card('CPC-008 ke kitne order production mein hai'); ok(c.kind === 'skucard' && /Orders kitne: 2|Number of orders: 2/.test(c.t) && /130/.test(c.t), 'kitne order production mein: the count and pieces — ' + c.t.slice(0, 200)); }
+  { const c = card('CPC008-04'); ok(c.t.includes('Amazon (B0CPC00804)'), 'platforms: Amazon with its ASIN — ' + c.t.slice(0, 300)); }
   { ok(!T('meeraDataTry("CPC")') && !T('meeraDataTry("AMZ")'), 'a brand or a word alone is not a SKU');
     M.setTab('shop');
     const h = await chat('CPC'), labs = [...h.matchAll(/class="ga-chip"[^>]*>([^<]+)</g)].map(m => m[1]), ids = [...h.matchAll(/data-gid="([^"]+)"/g)].map(m => m[1]);
