@@ -1331,7 +1331,7 @@
   "q": "₹ / poece किसलिए है",
   "from": "₹ / piece किसलिए है",
   "id": "c-mst-1641",
-  "tab": "mst"
+  "tab": "ka"
  },
  {
   "q": "Estka kya matlab hota hai",
@@ -1445,7 +1445,7 @@
   "q": "In the app ka kya matlab hlga hai",
   "from": "In the app ka kya matlab hota hai",
   "id": "c-mst-1667",
-  "tab": "mst"
+  "tab": "pmdb"
  },
  {
   "q": "whag does W cm shoe",
@@ -1463,7 +1463,7 @@
   "q": "ye ' + (group === 'article' ? 'Article' : group === 'dept' ? 'Department' : 'Karigar') + ' kis kaaam ka hai",
   "from": "ye ' + (group === 'article' ? 'Article' : group === 'dept' ? 'Department' : 'Karigar') + ' kis kaam ka hai",
   "id": "c-mst-1635",
-  "tab": "mst"
+  "tab": "ka"
  },
  {
   "q": "whaathappens if i pres Reference",
@@ -1487,7 +1487,7 @@
   "q": "All depaartments button kya karta h",
   "from": "All departments button kya karta h",
   "id": "c-mst-1632",
-  "tab": "mst"
+  "tab": "ka"
  },
  {
   "q": "ye Terms of delivery kis jaam ka hai",
@@ -1781,7 +1781,7 @@
   "q": "+ Add vendor ka kya matlab hotahai",
   "from": "+ Add vendor ka kya matlab hota hai",
   "id": "c-mst-1665",
-  "tab": "mst"
+  "tab": "pmdb"
  },
  {
   "q": "what does Type a number, or leave empty to go bakk to the calculated pfojection show",
@@ -2231,7 +2231,7 @@
   "q": "… of … issued ka kya matlab htz hai",
   "from": "… of … issued ka kya matlab hota hai",
   "id": "c-vord-2522",
-  "tab": "vord"
+  "tab": "pcut"
  },
  {
   "q": "what does Invoice # dhow",
@@ -2284,8 +2284,8 @@
  {
   "q": "ye Custm dates kis kaam ka hai",
   "from": "ye Custom dates kis kaam ka hai",
-  "id": "c-mst-1634",
-  "tab": "mst"
+  "id": "c-ka-462",
+  "tab": "ka"
  },
  {
   "q": "what happenz if i press Sale minth",
@@ -2327,7 +2327,7 @@
   "q": "what happens if i press Itm",
   "from": "what happens if i press Item",
   "id": "c-mst-1686",
-  "tab": "mst"
+  "tab": "pmdb"
  },
  {
   "q": "CC pzyout किसलिए है",
