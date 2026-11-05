@@ -325,6 +325,22 @@ button.s-st .s-sti{width:14px;height:14px;margin-right:-1px}
 .od-late svg{width:18px;height:18px;flex:none;margin-top:1px}
 .od-late b{display:block}
 .od-late ul{margin:4px 0 0;padding-left:18px}
+.od-late > div{flex:1;min-width:0}
+/* ALERTS AS TASKS (step 32): who has it, the answer, by when, and the buttons */
+.lt-task{display:flex;flex-wrap:wrap;align-items:center;gap:4px 14px;margin-top:10px;padding-top:10px;border-top:1px solid currentColor;border-top-color:color-mix(in srgb,currentColor 22%,transparent)}
+.lt-task b{display:inline}
+.lt-btns{display:flex;gap:6px;margin-left:auto;flex-wrap:wrap}
+.lt-btns .s-btn{padding:4px 12px;font-size:12.5px;min-height:0}
+.od-late.lt-hi .lt-btns .s-btn{background:#FFF7EE;color:#8A3B00;border-color:#FFF7EE}
+.od-late.lt-hi .lt-btns .s-btn.ghost{background:transparent;color:#FFF7EE;border:1px solid rgba(255,247,238,.55)}
+.lt-esc{display:inline-flex !important;align-items:center;gap:3px}
+.lt-esc svg,.lt svg + svg{width:12px;height:12px}
+.lt-over{text-decoration:underline}
+.lt-note{display:block;margin-top:6px;font-size:12px;opacity:.75}
+.lt-who{display:inline-block;font-size:11px;font-weight:600;color:var(--muted);background:#ECEEF1;border-radius:6px;padding:1px 6px;margin-left:2px}
+.s-lbl{display:block;font-size:13px;font-weight:600;margin:0 0 12px}
+.s-lbl input,.s-lbl select{display:block;width:100%;margin-top:5px;font-weight:400}
+#tOther{width:100%;margin:-6px 0 12px}
 /* ALERTS page (Ravi, 3 Nov): morning numbers per store + what the alert rules say */
 .w-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 14px;border-radius:12px;background:var(--accent-bg,#E8F4EC);font-size:13px;margin-bottom:12px}
 .w-bar.off{background:var(--warn-bg)}

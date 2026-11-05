@@ -453,7 +453,7 @@ function pageOrders() {
   const b = BK.find(x => x[0] === FILTER);
   const urg = o => (nextAction(o) || { urg: -1 }).urg;
   /* In "Late": how late (by the order's age) and why (the kind of alert); worst first, then the oldest. */
-  const lateOk = o => { const l = LATE[o.no]; return !!l && (!LAGE || ageKey(l.days) === LAGE) && (!LKIND || l.all.some(x => x.kind === LKIND)); };
+  const lateOk = o => { const l = LATE[o.no]; return !!l && (!LAGE || ageKey(l.days) === LAGE) && (!LKIND || l.all.some(x => x.kind === LKIND)) && (!LMINE || isMine(l)); };
   const lateRank = o => { const l = LATE[o.no]; return l ? (l.sev === 'red' ? 1e6 : 0) + l.days : -1; };
   const rows = vis().filter(match).filter(o => !b || inBucket(o, b)).filter(o => FILTER !== 'alert' || lateOk(o))
     .sort((x, y) => (FILTER === 'act' ? urg(y) - urg(x) : FILTER === 'alert' ? lateRank(y) - lateRank(x) : 0) || y.at - x.at);
@@ -472,6 +472,7 @@ function pageOrders() {
     const kinds = {}; pool.forEach(o => LATE[o.no].all.forEach(x => { kinds[x.kind] = (kinds[x.kind] || 0) + 1; }));
     return `<div class="lt-sub"><span>How late</span>${LATE_AGE.map(([k, t]) => `<button class="s-st ${LAGE === k ? 'on' : ''} ${nAge(k) ? '' : 'zero'}" type="button" data-lage="${k}">${t} <b>${nAge(k)}</b></button>`).join('')}
       <span>Why</span><button class="s-st ${!LKIND ? 'on' : ''}" type="button" data-lkind="">All</button>${Object.keys(kinds).sort((a, c) => kinds[c] - kinds[a]).map(k => `<button class="s-st ${LKIND === k ? 'on' : ''}" type="button" data-lkind="${esc(k)}">${esc(LATE_KIND[k] || k)} <b>${kinds[k]}</b></button>`).join('')}
+      ${TASKS.on ? `<span>Who</span><button class="s-st ${LMINE ? 'on' : ''}" type="button" data-lmine>Mine <b>${pool.filter(o => isMine(LATE[o.no])).length}</b></button>` : ''}
       ${WATCH.at ? `<span class="s-faint" style="font-weight:400">checked ${fmt(WATCH.at)}</span>` : ''}</div>`;
   };
   const inSight = PAGE ? BK : BK.filter(x => MAIN.includes(x[0]) || x[0] === FILTER), rest = BK.filter(x => !inSight.includes(x));
@@ -489,7 +490,7 @@ function pageOrders() {
       ${S.settings.fedexShip.on ? '<button class="s-btn ghost" type="button" data-bulk="fedex">FedEx labels (API)</button>' : ''}
       <button class="s-btn ghost" type="button" data-bulk="note">Add a note</button>
       <button class="s-link" type="button" data-bulk="clear">Clear</button></div>` : '';
-  const key = [FILTER, Q, STORE, PAGE ? PAGE.name : '', LAGE, LKIND].join('|');
+  const key = [FILTER, Q, STORE, PAGE ? PAGE.name : '', LAGE, LKIND, LMINE].join('|');
   if (key !== LIMIT_KEY) { LIMIT_KEY = key; LIMIT = ROWS_STEP; }
   ROW_NOS = rows.map(o => o.no);
   const tr = rows.slice(0, LIMIT).map(o => {
@@ -903,7 +904,13 @@ async function dbRpc(fn, args) {
 async function watchLoad(force) {
   if (WATCH.busy || (!force && Date.now() - WATCH.at < 5 * 60000)) return;
   WATCH.busy = true; WATCH.err = '';
-  try { const [w, m] = await Promise.all([dbRpc('hub_watch'), dbRpc('hub_morning', { p_day: null })]); WATCH.w = w; WATCH.m = m; WATCH.at = Date.now(); rebuildLate(); }
+  try {
+    /* hub_tasks comes with database step 32; before it is run the hub simply shows the alerts without buttons. */
+    const [w, m, t] = await Promise.all([dbRpc('hub_watch'), dbRpc('hub_morning', { p_day: null }), dbRpc('hub_tasks').catch(() => null)]);
+    WATCH.w = w; WATCH.m = m; WATCH.at = Date.now();
+    TASKS = t ? { on: !!t.engine_on, me: t.me || {}, alerts: t.alerts || [], reasons: t.reasons || {} } : { on: false, me: {}, alerts: [], reasons: {} };
+    rebuildLate();
+  }
   catch (e) { WATCH.err = e.message; }
   WATCH.busy = false;
   if (/^#(watch|orders|order\/)/.test(location.hash || '#orders') && !typing() && !$('dlg').innerHTML) render();
@@ -919,29 +926,112 @@ const LATE_KIND = { late: 'Not shipped', production_late: 'In production', not_s
   carrier_problem: 'Carrier problem', production_hold: 'Production on hold', return: 'Return', blocked: 'No SKU', hold: 'Payment',
   not_routed: 'Not routed', changed_after_send: 'Cancelled in work', stuck: 'Stuck', carrier: 'Carrier problem', stock_short: 'Short of stock' };
 const LATE_AGE = [['', 'Any time'], ['a', '2–6 days'], ['b', '7–14 days'], ['c', '15+ days']];
-let LATE = {}, LAGE = '', LKIND = '';
+let LATE = {}, LAGE = '', LKIND = '', LMINE = false;
+/* ALERTS AS TASKS (Ravi, 5 Nov, database step 32): once the alert engine runs, each late order has one real alert that a
+ * person can Take, Answer (reason, next step, by when), Give to someone else, or Close. Everyone may take and answer;
+ * give / close are for heads — and for everyone while no heads are set (me.manage says which). */
+let TASKS = { on: false, me: {}, alerts: [], reasons: {} };
+const TEAM_NAME = { orders: 'Sales', shipment: 'Shipping', production: 'Production', care: 'Customer care' };
+const isMine = l => !!(l && l.task && TASKS.me.email && l.task.assigned_to === TASKS.me.email);
 const ageKey = d => d < 7 ? 'a' : d < 15 ? 'b' : 'c';
+const daysSince = t => t ? Math.max(0, Math.floor((Date.now() - new Date(t).getTime()) / DAY)) : 0;
 function rebuildLate() {
   LATE = {};
-  ((WATCH.w && WATCH.w.wanted) || []).forEach(a => {
-    const no = String(a.order || '').replace(/^#\s*/, ''); if (!no) return;
-    const x = { sev: a.severity, kind: a.kind, title: a.title || '', team: a.team || '', days: a.placed_at ? Math.max(0, Math.floor((Date.now() - new Date(a.placed_at).getTime()) / DAY)) : 0 };
+  const put = (no, x) => {
     const cur = LATE[no];
     if (!cur) LATE[no] = Object.assign(x, { all: [x] });
     else { cur.all.push(x); if (x.sev === 'red' && cur.sev !== 'red') Object.assign(cur, x, { all: cur.all }); }
+  };
+  ((WATCH.w && WATCH.w.wanted) || []).forEach(a => {
+    const no = String(a.order || '').replace(/^#\s*/, ''); if (!no) return;
+    put(no, { sev: a.severity, kind: a.kind, title: a.title || '', team: a.team || '', days: daysSince(a.placed_at) });
+    /* Step 32 sends one alert per order and names the other problems in "also". */
+    String(a.also || '').split(',').filter(Boolean).forEach(k => LATE[no].all.push({ sev: 'amber', kind: k, title: '', team: '', days: LATE[no].days }));
   });
+  if (!TASKS.on) return;
+  TASKS.alerts.forEach(t => {
+    const no = String(t.order || '').replace(/^#\s*/, ''); if (!no) return;
+    if (!LATE[no]) put(no, { sev: t.severity, kind: t.kind, title: t.title || '', team: t.team || '', days: daysSince(t.placed_at) });
+    LATE[no].task = t;
+  });
+}
+const shortWho = e => e ? (e === TASKS.me.email ? 'you' : String(e).split('@')[0]) : '';
+const ICON_UP = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M8 13V3M4 7l4-4 4 4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+function taskBlock(l) {
+  const t = l.task;
+  if (!t) return HAS_DB && !TASKS.on ? '<span class="lt-note">Take / answer buttons come once the alert engine is switched on.</span>' : '';
+  const due = t.due_at ? new Date(t.due_at).getTime() : 0, over = due && due < Date.now();
+  const who = t.assigned_to ? `With <b>${esc(shortWho(t.assigned_to))}</b>` : `Nobody has it yet${t.team ? ' · ' + esc(TEAM_NAME[t.team] || t.team) + ' team' : ''}`;
+  const btn = (k, txt, ghost) => `<button class="s-btn ${ghost ? 'ghost' : ''} sm" type="button" data-task="${k}" data-id="${t.id}">${txt}</button>`;
+  return `<div class="lt-task">
+    <span>${who}${t.level > 1 ? ` · <b class="lt-esc">${ICON_UP}Escalated · level ${t.level}</b>` : ''}</span>
+    ${t.reason ? `<span>Answer: <b>${esc(t.reason)}</b>${t.next ? ' — ' + esc(t.next) : ''}</span>` : ''}
+    ${due ? `<span>${t.reason ? 'Promised by' : 'Answer by'} <b class="${over ? 'lt-over' : ''}">${fmt(due)}</b>${over ? ' · passed' : ''}</span>` : ''}
+    <div class="lt-btns">${t.assigned_to !== TASKS.me.email ? btn('take', 'Take it') : ''}${btn('answer', t.reason ? 'Change answer' : 'Answer', t.assigned_to !== TASKS.me.email)}
+      ${TASKS.me.manage ? btn('give', 'Give to…', true) + btn('close', 'Close', true) : ''}</div></div>`;
+}
+const taskById = id => TASKS.alerts.find(a => a.id === id);
+async function taskSend(fn, args, done) {
+  try { await dbRpc(fn, args); toast(done); close(); await watchLoad(true); render(); }
+  catch (e) { toast(e.message, true); }
+}
+function taskAct(k, id) {
+  const t = taskById(id); if (!t) { toast('This alert has changed — reading again.', true); watchLoad(true); return; }
+  const title = `${t.order || 'Order'} · ${LATE_KIND[t.kind] || t.kind}`;
+  if (k === 'take') return taskSend('act_take_alert', { p_id: id }, 'It is yours now.');
+  if (k === 'answer') {
+    const R = TASKS.reasons || {}, team = t.team === 'production' ? 'production' : t.team === 'shipment' ? 'shipment' : 'orders';
+    const list = (R[team] && R[team].length ? R[team] : [].concat(...Object.values(R).filter(Array.isArray)));
+    const d = new Date(Date.now() + DAY); d.setMinutes(0, 0, 0);
+    const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+    dialog('Answer · ' + title, `<p class="s-muted s-sm" style="margin-top:0">${esc(t.title)}</p>
+      <label class="s-lbl">Why is it late?<select id="tReason">${list.map(r => `<option ${r === t.reason ? 'selected' : ''}>${esc(r)}</option>`).join('')}<option value="__other">Something else…</option></select></label>
+      <input id="tOther" placeholder="Say why" style="display:none">
+      <label class="s-lbl">What happens next?<input id="tNext" value="${esc(t.next || '')}" placeholder="e.g. printing finishes Friday, ships Saturday"></label>
+      <label class="s-lbl">By when?<input id="tDue" type="datetime-local" value="${local}"></label>
+      <p class="s-faint s-sm">If this time passes with the problem still there, the alert goes up a level.</p>`,
+      '<button class="s-btn" type="button" id="go">Save answer</button>', () => {
+        const sel = $('tReason'), oth = $('tOther');
+        sel.addEventListener('change', () => { oth.style.display = sel.value === '__other' ? '' : 'none'; });
+        if (!list.length) { sel.value = '__other'; oth.style.display = ''; }
+        $('go').addEventListener('click', () => {
+          const reason = sel.value === '__other' ? oth.value.trim() : sel.value, due = $('tDue').value;
+          if (!reason) { toast('Pick or write a reason.', true); return; }
+          if (!due) { toast('Say by when.', true); return; }
+          taskSend('act_answer_alert', { p_id: id, p_reason: reason, p_action: $('tNext').value.trim(), p_due: new Date(due).toISOString() }, 'Answer saved.');
+        });
+      });
+    return;
+  }
+  if (k === 'give') {
+    dialog('Give to · ' + title, `<label class="s-lbl">A person (their ERP email) or a team
+        <input id="tTo" list="tTeams" placeholder="name@ridhihome.com, or shipment"><datalist id="tTeams">${Object.keys(TEAM_NAME).map(x => `<option value="${x}">${TEAM_NAME[x]} team</option>`).join('')}</datalist></label>
+      <p class="s-faint s-sm">Now with ${esc(t.assigned_to || 'nobody')}. The change is written on the order's history.</p>`,
+      '<button class="s-btn" type="button" id="go">Give it</button>', () => {
+        $('go').addEventListener('click', () => { const to = $('tTo').value.trim(); if (!to) { toast('Say who.', true); return; } taskSend('act_reassign_alert', { p_id: id, p_email: to }, 'Given to ' + to + '.'); });
+      });
+    return;
+  }
+  if (k === 'close') {
+    dialog('Close · ' + title, `<label class="s-lbl">What was done? (written on the order's history)<input id="tNote" placeholder="e.g. customer agreed to wait"></label>
+      <p class="s-faint s-sm">If the problem is still there, the alert opens again on the next check.</p>`,
+      '<button class="s-btn" type="button" id="go">Close alert</button>', () => {
+        $('go').addEventListener('click', () => taskSend('act_close_alert', { p_id: id, p_note: $('tNote').value.trim() }, 'Alert closed.'));
+      });
+  }
 }
 const ICON_CLOCK = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="8" cy="8" r="6.2"/><path d="M8 4.6V8l2.3 1.5" stroke-linecap="round"/></svg>';
 const ICON_BANG = '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="7" fill="currentColor" opacity=".18"/><path d="M8 4v5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="8" cy="11.6" r="1.1" fill="currentColor"/></svg>';
 const lateBadge = o => { const l = LATE[o.no]; if (!l) return '';
-  return `<span class="lt ${l.sev === 'red' ? 'lt-hi' : 'lt-lo'}" title="${esc(l.title)}${l.all.length > 1 ? ' (+' + (l.all.length - 1) + ' more)' : ''}">${l.sev === 'red' ? ICON_BANG : ICON_CLOCK}${esc(LATE_KIND[l.kind] || l.kind)} · ${l.days} d</span><br>`; };
+  return `<span class="lt ${l.sev === 'red' ? 'lt-hi' : 'lt-lo'}" title="${esc(l.title)}${l.all.length > 1 ? ' (+' + (l.all.length - 1) + ' more)' : ''}">${l.sev === 'red' ? ICON_BANG : ICON_CLOCK}${esc(LATE_KIND[l.kind] || l.kind)} · ${l.days} d${l.task && l.task.level > 1 ? ' · ' + ICON_UP : ''}</span>${l.task && l.task.assigned_to ? ` <span class="lt-who" title="With ${esc(l.task.assigned_to)}">${esc(shortWho(l.task.assigned_to))}</span>` : ''}<br>`; };
 function lateStrip(o) {
   const l = LATE[o.no]; if (!l) return '';
-  const team = { orders: 'Sales', shipment: 'Shipping', production: 'Production', care: 'Customer care' }[l.team] || l.team;
+  const team = TEAM_NAME[l.team] || l.team;
   return `<div class="od-late ${l.sev === 'red' ? 'lt-hi' : 'lt-lo'}">${l.sev === 'red' ? ICON_BANG : ICON_CLOCK}<div>
     <b>${l.sev === 'red' ? 'Late' : 'Getting late'} · ${esc(LATE_KIND[l.kind] || l.kind)}: ${esc(l.title)}</b>
     <span>${l.days} days since the order${team ? ' · ' + esc(team) + ' team' : ''}</span>
-    ${l.all.length > 1 ? `<ul>${l.all.filter(x => x !== l).map(x => `<li>${esc(LATE_KIND[x.kind] || x.kind)}: ${esc(x.title)}</li>`).join('')}</ul>` : ''}</div></div>`;
+    ${l.all.length > 1 ? `<ul>${l.all.filter(x => x !== l).map(x => `<li>Also: ${esc(LATE_KIND[x.kind] || x.kind)}${x.title ? ' — ' + esc(x.title) : ''}</li>`).join('')}</ul>` : ''}
+    ${taskBlock(l)}</div></div>`;
 }
 const KIND = { late: 'Late to ship', production_late: 'Production running late', not_shipped: 'Not shipped yet', delivery: 'Late in delivery',
   carrier_problem: 'Carrier problem', production_hold: 'Production on hold', return: 'Return / replacement waiting', blocked: 'No SKU', hold: 'Payment on hold', not_routed: 'Not routed', changed_after_send: 'Cancelled while in work',
@@ -1843,6 +1933,8 @@ function render() {
   on('[data-lage]', b => { LAGE = b.dataset.lage; render(); });
   on('[data-lkind]', b => { LKIND = LKIND === b.dataset.lkind ? '' : b.dataset.lkind; render(); });
   on('[data-wreload]', () => { watchLoad(true); render(); });
+  on('[data-lmine]', () => { LMINE = !LMINE; render(); });
+  on('[data-task]', b => taskAct(b.dataset.task, Number(b.dataset.id)));
   on('[data-kf]', b => { KFILTER = b.dataset.kf; render(); });
   on('[data-make]', () => exportStock());
   const om = $('omodal'); if (om) om.addEventListener('click', e => { if (e.target === om) location.hash = 'orders'; });
