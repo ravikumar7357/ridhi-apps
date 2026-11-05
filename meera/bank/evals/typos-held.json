@@ -1535,7 +1535,7 @@
   "q": "Select all ka kya matla hota hai",
   "from": "Select all ka kya matlab hota hai",
   "id": "c-so-1813",
-  "tab": "so"
+  "tab": "vord"
  },
  {
   "q": "what does e.g. Greeege Sheeting 67 show",
@@ -1943,7 +1943,7 @@
   "q": "ye Delivery dtekis qaamka hai",
   "from": "ye Delivery date kis kaam ka hai",
   "id": "c-adj-1012",
-  "tab": "follow"
+  "tab": "repl"
  },
  {
   "q": "what hqpp ens if i press Pack & verify",
@@ -1961,7 +1961,7 @@
   "q": "SKU ka kya matlab hotaahai",
   "from": "SKU ka kya matlab hota hai",
   "id": "c-adj-1021",
-  "tab": "follow"
+  "tab": "repl"
  },
  {
   "q": "wht does Article zhow",
@@ -2081,7 +2081,7 @@
   "q": "ye Evry msrketplace is showing. Switch the picker back to “US marketplace only” to hide the kis kaam ka hai",
   "from": "ye Every marketplace is showing. Switch the picker back to “US marketplace only” to hide the kis kaam ka hai",
   "id": "c-repl-2052",
-  "tab": "repl"
+  "tab": "article"
  },
  {
   "q": "what happens if i prss Search design / grou / printer",
@@ -2183,7 +2183,7 @@
   "q": "ye Send to a printer kis kaaam ka hai",
   "from": "ye Send to a printer kis kaam ka hai",
   "id": "c-so-1814",
-  "tab": "so"
+  "tab": "vord"
  },
  {
   "q": "what happens if i prezs Over 20 days",
@@ -2201,7 +2201,7 @@
   "q": "vhat does Needed shpw",
   "from": "what does Needed show",
   "id": "c-so-1815",
-  "tab": "so"
+  "tab": "vord"
  },
  {
   "q": "I hve confirmed it — check again button kya kzrta h",
@@ -2345,7 +2345,7 @@
   "q": "what ds Low show",
   "from": "what does Low show",
   "id": "c-adj-1016",
-  "tab": "follow"
+  "tab": "repl"
  },
  {
   "q": "Askd by btton kya karta h",
