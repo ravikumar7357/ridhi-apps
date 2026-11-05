@@ -1655,7 +1655,7 @@
   "q": "e.g. 07001 button kya kzrta h",
   "from": "e.g. 07001 button kya karta h",
   "id": "c-india-1973",
-  "tab": "india"
+  "tab": "shop"
  },
  {
   "q": "ye Ordere kis kaam ka hai",
@@ -1751,7 +1751,7 @@
   "q": "what does ' + esc(ln.st ? `………` : 'Nothing recordef yet.') + ' show",
   "from": "what does ' + esc(ln.st ? `………` : 'Nothing recorded yet.') + ' show",
   "id": "c-india-2001",
-  "tab": "india"
+  "tab": "shop"
  },
  {
   "q": "Paswed QC, not in India stock yet — accept or reject them button kya karta h",
@@ -1841,7 +1841,7 @@
   "q": "whaathappens if i press ' + esc(why) + '",
   "from": "what happens if i press ' + esc(why) + '",
   "id": "c-india-2005",
-  "tab": "india"
+  "tab": "shop"
  },
  {
   "q": "who yok the pieces किसलिए है",
@@ -1889,7 +1889,7 @@
   "q": "India stock does not stretc to the end of this month ka kya matlab hota hai",
   "from": "India stock does not stretch to the end of this month ka kya matlab hota hai",
   "id": "c-target-2091",
-  "tab": "target"
+  "tab": "repl"
  },
  {
   "q": "what coes All sizes show",
@@ -1955,7 +1955,7 @@
   "q": "FromIndia · DHL / FefEx किसलिए है",
   "from": "From India · DHL / FedEx किसलिए है",
   "id": "c-india-1972",
-  "tab": "india"
+  "tab": "shop"
  },
  {
   "q": "SKU ka kya matlab hotaahai",
@@ -2123,7 +2123,7 @@
   "q": "what happdns if i press Express / overnight",
   "from": "what happens if i press Express / overnight",
   "id": "c-india-1983",
-  "tab": "india"
+  "tab": "shop"
  },
  {
   "q": "All otders ka kya maatlabhota hai",
@@ -2195,7 +2195,7 @@
   "q": "Pro duct ka kya mqtlab hota hai",
   "from": "Product ka kya matlab hota hai",
   "id": "c-india-1985",
-  "tab": "india"
+  "tab": "shop"
  },
  {
   "q": "vhat does Needed shpw",
