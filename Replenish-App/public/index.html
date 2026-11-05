@@ -83047,6 +83047,8 @@ function gaPartOpen(e) {
   };
   const where = { en: scr ? ` \u2014 ${K[0]} on ${scr}` : "", hi: scr ? ` \u2014 ${scr} \u092A\u0930 ${K[1]}` : "", hg: scr ? ` \u2014 ${scr} par ${K[2]}` : "" };
   e.a = { en: `<b>${esc(L)}</b>${esc(where.en)}: ${esc(en)}`, hi: `<b>${esc(L)}</b>${esc(where.hi)}: ${esc(hi || en)}`, hg: `<b>${esc(L)}</b>${esc(where.hg)}: ${esc(hg || en)}` };
+  const title = e.tab && GA_TAB_TITLE[e.tab];
+  if (title && title !== scr) e.aShow = { en: e.a.en.split(esc(scr)).join(esc(title)), hi: e.a.hi.split(esc(scr)).join(esc(title)), hg: e.a.hg.split(esc(scr)).join(esc(title)) };
   if (sel) e.sel = sel;
 }
 function gaBankIndex(list) {
@@ -83202,7 +83204,7 @@ const gaAskOf = (e, lang) => {
   return ((lang === "hi" ? q.hi : lang === "hg" ? q.hg : q.en) || q.en || [])[0] || "";
 };
 function gaBankAnswer(e, lang, L, near) {
-  let html = `<div class="ga-a">${gaL3(e.a, lang)}</div>`;
+  let html = `<div class="ga-a">${gaL3(e.aShow || e.a, lang)}</div>`;
   const mo = e.more, mFor = mo && gaL3(mo.for, lang), mHow = mo && mo.how ? gaL3(mo.how, lang) : null, mWhen = mo && gaL3(mo.when, lang);
   if (mFor) html += `<div class="ga-more"><b>${L("What it's for", "\u092F\u0939 \u0915\u093F\u0938 \u0932\u093F\u090F \u0939\u0948", "Yeh kis liye hai")}</b>${mFor}</div>`;
   if (mHow && mHow.length) html += `<div class="ga-more"><b>${L("How it works", "\u092F\u0939 \u0915\u0948\u0938\u0947 \u0915\u093E\u092E \u0915\u0930\u0924\u093E \u0939\u0948", "Yeh kaise kaam karta hai")}</b><ol>${mHow.map((s) => `<li>${s}</li>`).join("")}</ol></div>`;

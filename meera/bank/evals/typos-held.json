@@ -1943,7 +1943,7 @@
   "q": "ye Delivery dtekis qaamka hai",
   "from": "ye Delivery date kis kaam ka hai",
   "id": "c-adj-1012",
-  "tab": "adj"
+  "tab": "follow"
  },
  {
   "q": "what hqpp ens if i press Pack & verify",
@@ -1961,7 +1961,7 @@
   "q": "SKU ka kya matlab hotaahai",
   "from": "SKU ka kya matlab hota hai",
   "id": "c-adj-1021",
-  "tab": "adj"
+  "tab": "follow"
  },
  {
   "q": "wht does Article zhow",
@@ -2003,7 +2003,7 @@
   "q": "what drsAdd a note (e.g. 'Fabric ordered', 'Production started', 'Ready to ship') show",
   "from": "what does Add a note (e.g. 'Fabric ordered', 'Production started', 'Ready to ship') show",
   "id": "c-adj-1044",
-  "tab": "adj"
+  "tab": "top"
  },
  {
   "q": "Clear button kya qarta h",
@@ -2345,7 +2345,7 @@
   "q": "what ds Low show",
   "from": "what does Low show",
   "id": "c-adj-1016",
-  "tab": "adj"
+  "tab": "follow"
  },
  {
   "q": "Askd by btton kya karta h",

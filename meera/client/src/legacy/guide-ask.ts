@@ -1062,6 +1062,9 @@ function gaPartOpen(e) {
     hg: [`${L} kya hai`, `${L} kya karta hai`, `${L} ka matlab`, `${L} ${K[2]}`] };
   const where = { en: scr ? ` — ${K[0]} on ${scr}` : '', hi: scr ? ` — ${scr} पर ${K[1]}` : '', hg: scr ? ` — ${scr} par ${K[2]}` : '' };
   e.a = { en: `<b>${esc(L)}</b>${esc(where.en)}: ${esc(en)}`, hi: `<b>${esc(L)}</b>${esc(where.hi)}: ${esc(hi || en)}`, hg: `<b>${esc(L)}</b>${esc(where.hg)}: ${esc(hg || en)}` };
+  /* what she shows names the screen by its title ("Ongoing Purchase Order", not "follow"); the answer she matches on stays as it was */
+  const title = e.tab && GA_TAB_TITLE[e.tab];
+  if (title && title !== scr) e.aShow = { en: e.a.en.split(esc(scr)).join(esc(title)), hi: e.a.hi.split(esc(scr)).join(esc(title)), hg: e.a.hg.split(esc(scr)).join(esc(title)) };
   if (sel) e.sel = sel;
 }
 function gaBankIndex(list) {
@@ -1201,7 +1204,7 @@ const gaHasQ = (e, qn) => { const q = e.q || {}; return [].concat(q.en || [], q.
 const gaAskOf = (e, lang) => { const q = e.q || {}; return ((lang === 'hi' ? q.hi : lang === 'hg' ? q.hg : q.en) || q.en || [])[0] || ''; };
 /** One answer from the bank: the answer, why, what to do, and the buttons that do it. */
 function gaBankAnswer(e, lang, L, near) {
-  let html = `<div class="ga-a">${gaL3(e.a, lang)}</div>`;
+  let html = `<div class="ga-a">${gaL3(e.aShow || e.a, lang)}</div>`;
   /* the fuller explanation — what it is for, how it works, when to use it (Ravi, 5 Nov: "answers that are actually usable").
    * Kept apart from the answer line so it is shown but never used to pick which answer fits a question. */
   const mo = e.more, mFor = mo && gaL3(mo.for, lang), mHow = mo && mo.how ? gaL3(mo.how, lang) : null, mWhen = mo && gaL3(mo.when, lang);
