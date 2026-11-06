@@ -36,4 +36,26 @@ interface ErpMeera {
   on(event: 'screen', fn: (tab: string) => void): void;
   /** one of her switches (meera-bridge.js, MEERA_SWITCHES) */
   switchOn(name: string): boolean;
+  /** Phase 7 (switch "data"): the ERP's own figures, READ ONLY, from this page's memory — never a database read */
+  data?: ErpMeeraData;
+}
+/** where a figure comes from: its screen and when that screen last read it — or why there is none */
+interface ErpMeeraFrom { tab: string; name?: string; asOf?: string; denied?: boolean; notLoaded?: boolean }
+interface ErpMeeraData {
+  orders(): string[];
+  findOrder(no: string): { from: ErpMeeraFrom; none?: boolean; order?: { orderNo: string; lines: { sku: string; qty: number; at: string }[]; pcs: number; open: boolean;
+    karigars: [string, number][]; last: { ms: number; by: string; kind: string } | null; idle: number; late: boolean } };
+  karigars(): string[];
+  karigarHolding(name: string): { from: ErpMeeraFrom; name?: string; pieces?: number; rows?: { orderNo: string; sku: string; pcs: number; given: string }[] };
+  skus(): string[];
+  skuStock(sku: string): { from: ErpMeeraFrom; sku?: string; current?: number; pending?: number };
+  waitingAt(stage: string): { from: ErpMeeraFrom; stage?: string; lines?: { orderNo: string; sku: string; pcs: number }[]; pcs?: number };
+  today(): { base: ErpMeeraFrom; qc: ErpMeeraFrom; issued?: { pcs: number; entries: number }; received?: { pcs: number; entries: number }; passed?: { pcs: number; checks: number } };
+  late(): { from: ErpMeeraFrom; days?: number; orders?: { orderNo: string; idle: number; at: string }[] };
+  /** one SKU from the Master Database — never its cost value or its maker */
+  skuInfo(sku: string): { from: ErpMeeraFrom; none?: boolean; row?: Record<string, string | number | boolean>; fabricWidthIn?: number | null };
+  /** one SKU's open order lines on the Order Console, with their stage */
+  skuOrders(sku: string): { from: ErpMeeraFrom; sku?: string; lines?: { orderNo: string; qty: number; at: string }[] };
+  /** only from a button the person pressed: 'order' | 'karigar' | 'sku' | a screen */
+  open(kind: string, key: string): boolean;
 }

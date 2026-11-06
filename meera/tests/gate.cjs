@@ -14,7 +14,12 @@
  * the three test sets and on the spelling-mistake set. Sizes are printed, not judged. */
 const fs = require('fs'), path = require('path');
 const { measure } = require('./measure.cjs');
-const DIR = path.join(__dirname, '..', 'bank', 'baseline');
+/* TWO RECORDS (Ravi, 3 Nov): her new features follow one line, MEERA_V2_ON (core/meera-bridge.js). With it on, she is
+ * compared with what she answered with them all on (bank/baseline/v2/); with it off, with the record before them
+ * (bank/baseline/) — so turning them all off again is never blocked by her gate. */
+const V2 = /^\s*const MEERA_V2_ON = true\b/m.test(fs.readFileSync(path.join(__dirname, '..', '..', 'Replenish-App', 'src', 'app', 'core', 'meera-bridge.js'), 'utf8'));
+const DIR = path.join(__dirname, '..', 'bank', 'baseline', ...(V2 ? ['v2'] : []));
+if (V2) fs.mkdirSync(DIR, { recursive: true });
 const f = n => path.join(DIR, n);
 const CI = !!process.env.GITHUB_ACTIONS;
 
@@ -59,8 +64,15 @@ function writeBaseline(now) {
 
 async function main() {
   const args = process.argv.slice(2);
-  const bundle = args.includes('--bundle');
-  const now = await measure({ bundle });
+  /* her new features on (MEERA_V2_ON): "lazy" is on, so staff only ever get meera.js — the page check checks meera.js */
+  const bundle = args.includes('--bundle') || V2;
+  if (V2 && !args.includes('--bundle')) console.log('MEERA_V2_ON: she runs as meera.js only — checking meera.js');
+  /* --on=design,…: her switches on (meera.js only) — a look-only switch must give the very same answers */
+  const switches = ((args.find(a => a.startsWith('--on=')) || '').slice(5)).split(',').filter(Boolean);
+  if (switches.length && !bundle) { console.log('switches work in meera.js only: add --bundle'); process.exit(2); }
+  if (switches.length && args.includes('--accept')) { console.log('the baseline is recorded with every switch off'); process.exit(2); }
+  const now = await measure({ bundle, switches });
+  if (switches.length) console.log('switches on: ' + switches.join(', '));
   if (bundle) console.log('checking meera.js — Meera as her own file');
   if (args.includes('--baseline')) {
     writeBaseline(now);
@@ -71,7 +83,11 @@ async function main() {
   const golden = JSON.parse(fs.readFileSync(f('golden.json'), 'utf8'));
   const ai = args.indexOf('--allow');
   const allowed = new Set(ai >= 0 ? fs.readFileSync(args[ai + 1], 'utf8').split(/\r?\n/).map(s => s.trim()).filter(Boolean) : []);
-  const { fails, notes } = compare(base, now);
+  /* with "serveruse" her search runs on her router: the browser holds only a small list, so its own search scores say
+   * nothing — the router's search is scored, set by set, by meera/tools/phase5-compare.mjs; here, her whole answers */
+  const remote = switches.includes('serveruse');
+  if (remote) console.log('switch "serveruse": search scores are the router\'s (meera/tools/phase5-compare.mjs); comparing her whole answers here');
+  const { fails, notes } = remote ? { fails: [], notes: [] } : compare(base, now);
   const g = goldenDiff(golden, now.golden, allowed);
   notes.forEach(l => console.log('  ok   ' + l));
   fails.forEach(x => console.log('  FAIL ' + x.line));

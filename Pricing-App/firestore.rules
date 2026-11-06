@@ -19,6 +19,8 @@ service cloud.firestore {
 
     function isOwner() { return email() == 'ravi@thefabricrush.com'; }
     function isAdmin() { return isOwner() || (hasPerms() && permData().admin == true); }
+    // ACCESS VIEWER (3 Nov): may READ everybody's access record and the roles, to see the Access page. Never write.
+    function isAccessViewer() { return hasPerms() && permData().accessView == true; }
 
     // Default DENY: a signed-in user with no perms doc gets nothing. Adding an account in the
     // Firebase console is therefore no longer the same as granting access to everything.
@@ -97,7 +99,7 @@ service cloud.firestore {
     // other brand's numbers directly. Making that restriction real means splitting these caches into
     // per-brand documents and gating each one — worth doing if the brands are ever separate parties.
     match /perms/{userEmail} {
-      allow read: if request.auth != null && (userEmail == email() || isAdmin());
+      allow read: if request.auth != null && (userEmail == email() || isAdmin() || isAccessViewer());
       allow write: if isAdmin();
     }
 
@@ -108,6 +110,11 @@ service cloud.firestore {
     match /config/{doc} {
       allow read: if canAny();
       allow write: if false;
+    }
+    // THE ROLES OF THE ACCESS PAGE (3 Nov): their boxes and roles added there. Admins only — the same people who may write perms.
+    match /config/accessRoles {
+      allow read: if isAdmin() || isAccessViewer();
+      allow write: if isAdmin();
     }
 
     // Costing rates — readable by anyone with app access, writable by the costing tab or an admin.

@@ -54,6 +54,26 @@ How to see it:
 - She learns the names only from what this person's screens already have loaded (the karigar list, the master lists);
   they are used only to leave such words alone — never shown, never sent anywhere.
 
+## 1c. The new look (Phase 3) on the test link — add `?meera=lazy,spell,design`
+
+Compare with `?meera=lazy,spell` (today's look) on an office computer and on a phone. Sign in as usual.
+
+| # | Do this | With design on she should |
+|---|---|---|
+| 1 | Look bottom-right | a small round face; nothing else of hers on the page |
+| 2 | Click the face → Ask Meera, at once | a thin "Getting ready… you can type now" line for a moment; typing works meanwhile |
+| 3 | Open Ask on a screen showing a red message | "I can see this message on the screen" with the message and a **Help with this** button; under it "Common on <screen>" with 3 questions as rows |
+| 4 | Ask `karigar ko kaam kaise de` | a card: "✓ From the ERP guide" + the screen's name, one bold line, **Do it with me** as the one blue button, "Steps and why (6)" folded |
+| 5 | Open "Steps and why" | the steps and the why, as before |
+| 6 | Click **हिंदी** in the header, ask again | everything in Hindi — buttons, labels, the answer |
+| 7 | Back to **English**, ask in Hinglish (`kariger ko maaal kaise de`) | the answer in Hinglish, the buttons in English |
+| 8 | Ask something she cannot answer (`GST invoice me HSN code kaise badle`) when AI is on | the AI's answer marked in amber "⚠ Suggested — please check" |
+| 9 | Stay idle on a half-filled form with a red line | the "Stuck?" note small, beside her face; the page still works |
+| 10 | Open a screen for the first time (or Show me this screen) | first visit: her full figure beside the bubble; "Show me this screen": her round face in the bubble only |
+| 11 | Phone: Ask | a sheet from the bottom with a handle; the page above it |
+| 12 | Phone: a walk-round | the bubble is a sheet at the bottom; the lit box always above it (or the sheet moves to the top); her round button hidden meanwhile |
+| 13 | The ERP itself: three or four screens you use every day, with the look on | buttons, boxes, menus look and work exactly as without it (her styles are sealed in her own box) |
+
 ## 2. Rollout on live — each step only on Ravi's "live karo" (order set 29 Oct)
 
 1. **The meera.js cache fix** (and Phase 2 code, switches still off): merge to main. Live behaves as today; nobody has
@@ -79,3 +99,44 @@ How to see it:
     no push); or
   - switch the AI off for everyone: `ENABLED = "false"` in `meera/router/wrangler.toml`, push (Meera answers on her own);
   - or empty `GA_AI_URL` in `meera/client/src/legacy/guide-ai.js`, push.
+
+## 4. Her router on Cloudflare's FREE plan (master plan B.1) — approved 2 Nov ("B.1 approved — live karo")
+
+**What went up** (main 90d8b76; deployed BY HAND: GitHub → Actions → "Meera router — test, deploy" → Run workflow, on main):
+- the router from `meera/router`, entry `src/free.js` — AI answers (`/ask`) as before (with the better cleaning: amounts and
+  short order / invoice numbers taken out too), plus the learning records, the admin page's lists, her switches
+  (`/config`) and the weekly export (locked: no `EXPORT_KEY` set). Her search on the server is PARKED
+  (`SEARCH = "parked"` in wrangler.toml: off whatever the admin switch says). 58 KB compressed; 0.2–1.3 ms a request.
+- the database: 4 new, empty tables (`learn`, `kb`, `config`, `diffs`); the 3 old ones (`usage`, `answers`, `tickets`)
+  untouched — their layout is the same. Her answers are NOT loaded into `kb` (nothing reads them while search is parked).
+- No secret changes. Nothing changes for staff: every switch in the ERP stays off, so live Meera uses only `/ask`, as before.
+
+**Health check** (no sign-in, no data): https://meera-router.erp-9a0.workers.dev/health →
+`{"ok":true,"v":"learn-free-2026-11-02","search":"parked","groq":true,"workersAi":true,…}`. The deploy run checks it
+itself. Before 2 Nov it said `{"ok":true,"groq":true,"workersAi":true,"gemini":false}` (no "v").
+
+**Roll back** (seconds, nothing lost):
+1. Cloudflare dashboard (erp@ridhihome.com) → Workers & Pages → **meera-router** → **Deployments** (or Versions).
+2. Pick the one before 2 Nov (deployed 29 Oct, from main dc3aa15) → **Rollback** → confirm.
+3. Check /health shows no `"v"` again. Live Meera keeps asking `/ask`, which the old router has.
+4. The 4 new tables can stay (the old router never reads them); learning records kept in them stay for when the new router
+   comes back. On GitHub: revert 90d8b76 if the files should go too (the site is not affected either way).
+
+**Next (B.2–B.3):** the admin page ("Meera's learning" + "New on the screens", opening even when the router is down), then
+`learn` on for everyone — each on its own "live karo".
+
+## 5. Server search (Phase 5) — PARKED (Ravi, 2 Nov 2026: "I'm not taking Workers Paid for now")
+
+Its search needs 27–53 ms of computer time per question; the free plan allows 10 ms. The code stays (switches `server`
+and `serveruse` off for everyone) and is not deployed; everything else on her router fits the free plan. To take it up
+again: Workers Paid, then the checks below.
+
+
+1. `?meera=lazy,server` (side by side): nothing looks different. Ask 10–20 everyday questions. Meera's learning →
+   Switches shows how many the server answered the same.
+2. `?meera=lazy,serveruse` (answers from the router): the same answers as before. Browser → F12 → Network: no
+   meera-bank.json (837 KB) and no meera-words.bin (1.3 MB) — only `backup/<screen>.json` (a few KB) and one `search`
+   (~2.6 KB) per question. First answer: under a second once the router is warm.
+3. Turn "Search on the server" off in Switches, ask again: she says her server search is not available and still answers.
+4. Phone: the same, on mobile data.
+

@@ -78,11 +78,13 @@ async function load(opts = {}) {
     setTimeout: (fn, ms) => { const t = { fn, ms, unref() {} }; timers.push(t); return t; }, clearTimeout() {},
     setInterval: () => ({ unref() {} }), clearInterval() {},
     /* her files, read from public/guide the way the page would fetch them */
-    fetch: async (url) => {
+    fetch: async (url, o) => {
+      /* opts.route: a test's own stand-in for an address (her router, her search function); null = as below */
+      if (opts.route) { const r = await opts.route(String(url), o || {}); if (r) return r; }
       const u = String(url).replace(/^https?:\/\/[^/]+/, '').split('?')[0];
       state.fetched.push(u);
       const f = path.join(app, 'public', u.replace(/^\//, ''));
-      if (!u.startsWith('/guide/') || !fs.existsSync(f)) return { ok: false, status: 404, json: async () => null, arrayBuffer: async () => null, text: async () => '' };
+      if (!(u.startsWith('/guide/') || u.startsWith('/meera/backup/')) || !fs.existsSync(f)) return { ok: false, status: 404, json: async () => null, arrayBuffer: async () => null, text: async () => '' };
       const buf = fs.readFileSync(f);
       return { ok: true, status: 200, json: async () => JSON.parse(buf.toString('utf8')), text: async () => buf.toString('utf8'),
         arrayBuffer: async () => buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) };
@@ -102,13 +104,21 @@ async function load(opts = {}) {
   /* opts.bundle (Phase 1): Meera as her own file — the ERP side is only its bridge (core/meera-bridge.js, which reads
    * the ERP's ME, TAB_NOW, showTab… given above); then public/meera/meera.js, which brings its own $ and esc and talks
    * to the ERP through the bridge alone. Her answers come out through window.MEERA. */
+  /* opts.switches: her switches on for this run, as one computer would have them (localStorage) — in meera.js and,
+   * for a switch that works there too (screenfirst), in the page */
+  for (const s of opts.switches || []) page.localStorage.setItem('meera.' + s, '1');
+  /* opts.only: ONLY the switches named are on — every other one off, whatever the ERP's defaults (MEERA_V2_ON) say;
+   * for checks that need a switch truly off ("with learn off nothing is sent") */
+  if (opts.only) for (const s of ['lazy', 'spell', 'design', 'learn', 'server', 'serveruse', 'screenfirst', 'autobank', 'hindinames', 'data'])
+    if (!(opts.switches || []).includes(s)) page.localStorage.setItem('meera.' + s, '0');
   if (opts.bundle) {
-    /* opts.switches: her switches on for this run, as one computer would have them (localStorage) */
-    for (const s of opts.switches || []) page.localStorage.setItem('meera.' + s, '1');
     delete sandbox.$; delete sandbox.esc;
     const bridge = path.join(app, 'src', 'app', 'core', 'meera-bridge.js'), file = path.join(app, 'public', 'meera', 'meera.js');
     vm.runInContext(fs.readFileSync(bridge, 'utf8'), ctx, { filename: 'meera-bridge.js' });
-    vm.runInContext(fs.readFileSync(file, 'utf8'), ctx, { filename: 'https://local.test/meera/meera.js' });
+    /* opts.handle: a test handle into meera.js's closed box (window.__meeraTest), for the never-break list — tests only */
+    let js = fs.readFileSync(file, 'utf8');
+    if (opts.handle) { const end = js.lastIndexOf('})();'); js = js.slice(0, end) + ';window.__meeraTest = c => eval(c);\n' + js.slice(end); }
+    vm.runInContext(js, ctx, { filename: 'https://local.test/meera/meera.js' });
     if (!ctx.MEERA) throw new Error('meera.js did not start');
     await ctx.MEERA.ready();
     const tidy = r => ({ text: String(r.html || '').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim(),
@@ -122,7 +132,8 @@ async function load(opts = {}) {
   }
   const files = opts.files || meeraFiles(app);
   for (const f of files) {
-    const code = fs.readFileSync(f, 'utf8');
+    let code = fs.readFileSync(f, 'utf8');
+    if (f.endsWith('.ts')) code = require(path.join(app, 'node_modules', 'esbuild')).transformSync(code.replace(/\r\n/g, '\n'), { loader: 'ts', legalComments: 'inline' }).code;   // Phase 6: her TypeScript files
     try { vm.runInContext(code, ctx, { filename: path.relative(root, f) }); }
     catch (e) { throw new Error('Meera did not start: ' + path.relative(root, f) + ': ' + e.message); }
   }
@@ -144,7 +155,8 @@ async function load(opts = {}) {
     find(q, tab) {
       if (tab) this.setTab(tab);
       ctx.__q = q;
-      return run('(() => { const r = gaRead(__q); return gaBankFind(r.means, r.words, __q).map(h => ({ id: h.e.id, s: h.s })); })()');
+      /* a name typed in Hindi letters is read first (switch "hindinames"; off: the question as typed) */
+      return run('(() => { const q = typeof gaHiNames === "function" ? gaHiNames(__q) : __q; const r = gaRead(q); return gaBankFind(r.means, r.words, q).map(h => ({ id: h.e.id, s: h.s })); })()');
     },
   };
 }

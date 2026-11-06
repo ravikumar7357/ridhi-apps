@@ -27,6 +27,9 @@ const BY_HAND = {
    * AWAY is the direction that breaks a screen, and a list of pending approvals is not a secret — so the
    * grant stays until somebody has watched those four screens work without it. */
   pt_approvals: { tabs: ['ka', 'pa', 'palloc', 'shop'] },
+  /* The printers' daily challans (4 Nov): the office sees them, and the lines sent outside any order, through the printer's portal
+   * as the printer (vpview) and from the printed-fabric and vendor screens. */
+  pt_vendorChallans: { tabs: ['vpview', 'flchl', 'vord', 'vlog'] },
 };
 
 /* THE PRODUCTION FLOW AND THE GREIGE DESK (test link, 2026-10-13). Their rights are steps of one screen, not tabs the

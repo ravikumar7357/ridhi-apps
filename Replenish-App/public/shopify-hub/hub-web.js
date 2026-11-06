@@ -1962,11 +1962,31 @@ const NEED_FOR_TEST_ORDERS = [];
 const SENDS = ['fulfil'];
 const notHere = what => () => Promise.reject(new Error(`${what} is not done from the test site — only marking lines shipped is.`));
 
+/* SHOPIFY'S TRACKING through the Shopify OS database's own reader (Ravi, 3 Nov: Supabase function shopify-track),
+ * asked with the ERP page's database address and the person's ERP sign-in (window.parent.SHOS) — the live Pricing API
+ * has no tracking route (it answered "No ASIN found"). Without the database (the hub on its own) the ERP is asked. */
+async function trackViaDb(store, ids) {
+  let S = null; try { S = window.parent !== window && window.parent.SHOS ? window.parent.SHOS : null; } catch (e) { /* another site */ }
+  if (!S) return null;
+  const cfg = await S.config(), token = await S.token();
+  const r = await fetch(cfg.url.replace(/\/+$/, '') + '/functions/v1/shopify-track', { method: 'POST',
+    headers: { apikey: cfg.key, Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ store: store === 'Ridhi' ? 'RBP' : store, ids }) });
+  const t = await r.text(); let d = null; try { d = t ? JSON.parse(t) : null; } catch (e) { /* not JSON */ }
+  if (r.status === 404) throw new Error('The tracking reader (Supabase function shopify-track) is not deployed yet.');
+  if (!r.ok || !d || d.ok === false) throw new Error((d && d.error) || 'The tracking reader said ' + r.status);
+  return d;
+}
 /** Shopify's tracking of many orders in one go (50 a call): { <gid>: [fulfilment, …] }. */
 async function fulfilmentsMany(store, gids) {
   const out = {};
   for (let i = 0; i < gids.length; i += 50) {
-    const part = gids.slice(i, i + 50), d = await ask('track', { store, ids: part.map(num) });
+    const part = gids.slice(i, i + 50), ids = part.map(num);
+    /* The database's reader first; if it is not there (not deployed yet, no token) the ERP is asked as before, and only
+     * when both fail is the reader's own reason given — so sending this before the reader is online changes nothing. */
+    let d = null, why = null;
+    try { d = await trackViaDb(store, ids); } catch (e) { why = e; }
+    if (!d) { try { d = await ask('track', { store, ids }); } catch (e) { throw why || e; } }
     part.forEach(g => { out[g] = (d.orders || {})[num(g)] || []; });
   }
   return out;

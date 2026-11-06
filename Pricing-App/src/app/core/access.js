@@ -64,7 +64,7 @@ function applyBrandPicker(id) {
 
 // Read perms/{email} into ME. No document, or one this account may not read, means no access at all.
 async function loadMyPerms(user) {
-  ME = { email: (user.email || '').toLowerCase(), admin: false, approve: false, tabs: [], brands: [] };
+  ME = { email: (user.email || '').toLowerCase(), admin: false, approve: false, tabs: [], brands: [], accessView: false };
   try {
     const snap = await getDoc(doc(db, 'perms', ME.email));
     if (snap.exists()) {
@@ -73,6 +73,8 @@ async function loadMyPerms(user) {
       ME.approve = data.approve === true;
       ME.tabs = Array.isArray(data.tabs) ? data.tabs : [];
       ME.brands = Array.isArray(data.brands) ? data.brands : [];
+      /* ACCESS VIEWER (3 Nov): may open the Access page and see everyone's access, change nothing */
+      ME.accessView = data.accessView === true;
     }
   } catch (e) { /* unreadable perms = no perms; the notice below explains it */ }
   // The owner is always an admin so the account can never lock itself out. Keep this in step with

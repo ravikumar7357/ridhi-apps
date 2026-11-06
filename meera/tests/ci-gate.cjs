@@ -24,8 +24,8 @@ const MEERA_PATHS = [/^meera\//, /^Replenish-App\/public\/guide\//, /^Replenish-
 function meeraIds() {
   const ids = new Set();
   const add = s => { for (const m of String(s || '').replace(/\[[^\]]*\]/g, '').matchAll(/#([A-Za-z][\w-]*)/g)) ids.add(m[1]); };
-  for (const f of ['guide-tours.js', 'guide-ask.js']) {
-    const src = fs.readFileSync(path.join(ROOT, 'meera/client/src/legacy', f), 'utf8');
+  for (const f of ['guide-tours', 'guide-ask']) {
+    const base = path.join(ROOT, 'meera/client/src/legacy', f), src = fs.readFileSync(fs.existsSync(base + '.ts') ? base + '.ts' : base + '.js', 'utf8');
     for (const m of src.matchAll(/sel:\s*'([^']*)'/g)) add(m[1]);
   }
   const g = p => JSON.parse(fs.readFileSync(path.join(ROOT, 'Replenish-App/public/guide', p), 'utf8'));
@@ -48,6 +48,19 @@ function scope(base) {
 }
 
 const CHECKS = [
+  /* Phase 6 */
+  { name: 'her type checks (strict new files; all files together)', cmd: ['meera/tests/type-check.cjs'], fix: 'run the type check (meera/tests/type-check.cjs) and fix what it names' },
+  { name: 'the emergency off for her new features (her router\'s switch)', cmd: ['meera/tests/v2-off.cjs'], fix: 'see the FAIL lines in meera/tests/v2-off.cjs — the off switch must always work' },
+  { name: 'no automation pushes to main', cmd: ['meera/tests/no-push-to-main.cjs'], fix: 'a workflow could change main by itself (see the FAIL lines) — only meera-autobank.yml may write, and only autobank/* branches' },
+  { name: 'her answers are well-formed', cmd: ['meera/tests/answers-check.cjs'], fix: 'fix the answers named above in Replenish-App/public/guide/' },
+  { name: 'guide-errors is up to date with the screens', cmd: ['meera/tools/make-errors.cjs', '--check'], fix: 'run: node meera/tools/make-errors.cjs, then her gate, and commit meera/client/src/legacy/guide-errors.ts', warnOnly: true },
+  { name: 'her router\'s tests', cmd: ['meera/router/test/router.test.mjs'], fix: 'a router test failed (see the FAIL lines)' },
+  { name: 'her search on Cloud Functions (D.2): same answers as her browser, only the ERP may ask, keeps nothing, at most 2 instances', cmd: ['meera/functions/test/service.test.mjs'], fix: 'a check of meera/functions failed (see the FAIL lines)' },
+  { name: 'never a cent: the meter stops at half the free allowance, the cent alarm, never billing', cmd: ['meera/functions/test/guards.test.mjs'], fix: 'a cost guard failed (see the FAIL lines) — never deploy the function like this' },
+  { name: 'her search in use and stopped: 580 answers the same, admin message, never-break', cmd: ['meera/tests/search-stop.cjs'], fix: 'see the FAIL lines in meera/tests/search-stop.cjs' },
+  { name: 'the page and the router clean questions alike', cmd: ['meera/router/test/same-cleaning.test.mjs'], fix: 'gaClean (guide-ai.ts) and clean (meera/router/src/redact.js) must change together' },
+  { name: 'privacy: nothing personal is kept or sent', cmd: ['meera/tools/phase4-privacy.mjs'], fix: 'a privacy check failed (see the FAIL lines) — never ship this' },
+  { name: 'figures answers (Phase 7): right on the sample factory, rights kept, read only', cmd: ['meera/tests/data-test.cjs'], fix: 'a Phase 7 check failed (see the FAIL lines) — never ship a save, a read or a figure shown without the right' },
   { name: 'meera.js is what her sources make', cmd: ['meera/client/build.cjs', '--check'], fix: 'run: node meera/client/build.cjs, and commit Replenish-App/public/meera/' },
   { name: 'never-break list', cmd: ['meera/tests/never-break.cjs'], fix: 'a never-break item failed (see the FAIL lines): fix it — these must always work' },
   { name: 'no-worse gate, Meera in the page', cmd: ['meera/tests/gate.cjs'], fix: 'if the change is meant: node meera/tests/gate.cjs --accept "why", commit meera/bank/baseline/' },
@@ -65,9 +78,11 @@ for (const c of CHECKS) {
   if (r.status !== 0) failed.push(c);
 }
 if (!failed.length) { console.log('\nMEERA: all checks passed.'); process.exit(0); }
-console.log(`\n${sc.full ? 'MEERA BLOCKED THIS DEPLOY' : 'MEERA WARNING (the deploy goes ahead)'} — ${failed.length} check(s) failed:`);
+/* a check marked warnOnly (guide-errors out of date after a screen changed) never blocks: it says what to do */
+const blocks = sc.full && failed.some(c => !c.warnOnly);
+console.log(`\n${blocks ? 'MEERA BLOCKED THIS DEPLOY' : 'MEERA WARNING (the deploy goes ahead)'} — ${failed.length} check(s) failed:`);
 for (const c of failed) {
-  console.log(`  • ${c.name} — ${c.fix}`);
-  if (process.env.GITHUB_ACTIONS) console.log(`::${sc.full ? 'error' : 'warning'} title=Meera: ${c.name}::${c.fix}`);
+  console.log(`  • ${c.name}${c.warnOnly ? ' (a warning only)' : ''} — ${c.fix}`);
+  if (process.env.GITHUB_ACTIONS) console.log(`::${sc.full && !c.warnOnly ? 'error' : 'warning'} title=Meera: ${c.name}::${c.fix}`);
 }
-process.exit(sc.full ? 1 : 0);
+process.exit(blocks ? 1 : 0);

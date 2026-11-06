@@ -589,13 +589,17 @@ function tPeriodLabel(k) {
   return W_MON[d.getUTCMonth()] + ' ' + d.getUTCDate();
 }
 
-// Roll TREND's days into periods for the chosen brands: { keys (the last tSpan periods), agg, adKnown }.
-function tSeries() {
+// Roll TREND's days into periods for the chosen brands: { keys, agg, adKnown, from, to }. o = { n } for the last n periods, or
+// { from, to } for only the days in that range (every period they touch, its edges holding just those days); left out, the
+// page's own choice (tRange).
+function tSeries(o) {
+  const r = o || tRange();
   // --- add the days up per period ---
   const brand = $('tBrand').value;
   const brands = brand === 'ALL' ? adBrands() : [brand].filter(b => adBrands().includes(b));
   const agg = {}, adDays = {}, allDays = {};
   brands.forEach(b => Object.entries(TREND.d[b] || {}).forEach(([day, v]) => {
+    if (r.from && (day < r.from || day > r.to)) return;
     const k = tPeriodKey(day);
     const t = agg[k] || (agg[k] = new Array(T_LEN).fill(0));
     for (let i = 0; i < T_LEN; i++) t[i] += v[i] || 0;
@@ -609,8 +613,11 @@ function tSeries() {
   const adKnown = {};
   Object.keys(agg).forEach(k => { adKnown[k] = !!adDays[k] && adDays[k] === allDays[k]; });
   const keys = Object.keys(agg).sort();
-  const span = Number($('tSpan').value) || 26;
-  return { keys: keys.slice(-span), agg, adKnown };
+  if (r.from) return { keys, agg, adKnown, from: r.from, to: r.to };
+  const span = r.n || 26;
+  // "Last 1" is the last FULL period (yesterday, last week…): the running one alone has no ad figures yet.
+  const pool = span === 1 ? keys.filter(k => k < tPeriodKey(sdToday())) : keys;
+  return { keys: pool.slice(-span), agg, adKnown };
 }
 
 // Derived metrics are computed from the SUMS, never averaged from each period's ratio — a quiet week
@@ -693,7 +700,7 @@ function renderTrends() {
     : ` · no ad figures in this span (ads cover ${esc(TREND.adFrom)} → ${esc(TREND.adTo)})`;
   const adLbl = l => (adAll || !adAny) ? l : `${l} · ${covered.length}${T_GRAN[0]}`;
   $('tKpis').innerHTML = `<div class="kpi" style="flex-basis:100%">
-    <div class="kpihead"><span class="kpiname">${esc(BRAND_NAME[$('tBrand').value] || 'Both brands')} — last ${keys.length} ${T_GRAN}${keys.length === 1 ? '' : 's'}</span>
+    <div class="kpihead"><span class="kpiname">${esc(BRAND_NAME[$('tBrand').value] || 'Both brands')} — ${tSpanName(keys.length)}</span>
       <span class="kpiwhen">${TREND.at ? 'sales as at ' + esc(TREND.at) : 'not pulled yet'}${adNote}</span></div>
     <div class="metrics">
       ${kpi('Sales', money(total[T_I.sales]))}
@@ -707,7 +714,7 @@ function renderTrends() {
     </div></div>`;
 
   // --- the chart ---
-  tChart(keys, agg);
+  tChart(keys, agg, adKnown);
 
   // --- build table: metrics down, periods across ---
   /* Metrics down the side, periods across the top — the shape a trends table is read in. */
@@ -735,13 +742,18 @@ function renderTrends() {
     || `<tr><td colspan="${keys.length + 2}" class="muted" style="padding:14px">Nothing stored yet — hit “Refresh”.</td></tr>`)
     + '</tbody>';
   if (!keys.length) $('tTable').innerHTML = `<tbody><tr><td class="muted" style="padding:14px">Nothing stored yet — hit “Refresh”. Sales come back in a couple of minutes; the ad figures take longer.</td></tr></tbody>`;
+
+  // --- the boxes, the two line charts and Campaign performance (ads/ads-charts.js) ---
+  // Last, and fenced off: whatever happens in there, everything above is already on screen.
+  try { ADSX.draw({ keys, agg, adKnown, total, adTot, covered }); } catch (e) { console.warn('[ads-charts]', e); }
 }
 
 /* ---------- the chart: sales and ad spend as bars, TACOS as a line ---------- */
 // Hand-drawn SVG rather than a charting library: the page loads no external scripts, and this needs
 // exactly one chart shape. Two scales, because a percentage and a dollar figure share no axis.
 // Draw the Ad Console chart into tChart: sales and ad-spend bars per period on a dollar scale, TACOS as a line on a % scale.
-function tChart(keys, agg) {
+// adKnown (from tSeries) marks the periods whose ad figures were fetched; the others get no spend bar and no TACOS point.
+function tChart(keys, agg, adKnown) {
   if (!keys.length) {
     $('tChart').innerHTML = '';
     return;
@@ -751,7 +763,8 @@ function tChart(keys, agg) {
   const padL = 62, padR = 48, padT = 14, padB = 34;
   const iw = W - padL - padR, ih = H - padT - padB;
   const maxMoney = Math.max(1, ...keys.map(k => agg[k][T_I.sales]));
-  const tac = k => (agg[k][T_I.sales] ? agg[k][T_I.spend] / agg[k][T_I.sales] * 100 : null);
+  const adOk = k => !adKnown || adKnown[k];
+  const tac = k => (agg[k][T_I.sales] && adOk(k) ? agg[k][T_I.spend] / agg[k][T_I.sales] * 100 : null);
   const maxPct = Math.max(5, ...keys.map(k => tac(k) || 0));
   const x = i => padL + (i + 0.5) * (iw / keys.length);
   const yM = v => padT + ih - (v / maxMoney) * ih;
@@ -773,13 +786,15 @@ function tChart(keys, agg) {
   keys.forEach((k, i) => {
     const v = agg[k];
     g += `<rect class="ad-ch-sales" x="${x(i) - bw}" y="${yM(v[T_I.sales])}" width="${bw}" height="${Math.max(0, padT + ih - yM(v[T_I.sales]))}" fill="#94a3b8" rx="1.5">`
-      + `<title>${esc(tPeriodLabel(k))} — Sales ${money(v[T_I.sales])}</title></rect>`
-      + `<rect class="ad-ch-spend" x="${x(i)}" y="${yM(v[T_I.spend])}" width="${bw}" height="${Math.max(0, padT + ih - yM(v[T_I.spend]))}" fill="#6366f1" rx="1.5">`
+      + `<title>${esc(tPeriodLabel(k))} — Sales ${money(v[T_I.sales])}</title></rect>`;
+    // No spend bar where the ad figures are not known: the table shows a dash there, and a bar would say how much.
+    if (!adOk(k)) return;
+    g += `<rect class="ad-ch-spend" x="${x(i)}" y="${yM(v[T_I.spend])}" width="${bw}" height="${Math.max(0, padT + ih - yM(v[T_I.spend]))}" fill="#6366f1" rx="1.5">`
       + `<title>${esc(tPeriodLabel(k))} — Ad spend ${money(v[T_I.spend])}</title></rect>`;
   });
   // --- the TACOS line and its points ---
-  // The TACOS line skips periods with no sales rather than dropping to zero — a gap is honest, a
-  // plunge to the axis is a story that did not happen.
+  // The TACOS line skips periods with no sales, or no ad figures, rather than dropping to zero — a gap
+  // is honest, a plunge to the axis is a story that did not happen.
   let path = '', started = false;
   keys.forEach((k, i) => {
     const t = tac(k);
@@ -807,14 +822,98 @@ function tChart(keys, agg) {
 }
 
 // Switch the Ad Console's period (day / week / month / quarter), mark the button, redraw.
+// The "Last N" stretches each period offers — the page's list and each Ad Console chart's own.
+const T_SPANS = { day: [1, 7, 14, 30, 60, 90], week: [1, 4, 7, 13, 26, 52], month: [1, 3, 6, 12, 24], quarter: [1, 2, 4, 8] };
+const T_SPAN_DAYS = { day: 1, week: 7, month: 30.44, quarter: 91.31 };
+// The "Last N" under period `to` closest to the same stretch of time as n under `from` (26 weeks → 6 months → 90 days),
+// never under min (a chart needs at least two periods).
+function tSpanFit(from, n, to, min) {
+  if (n === 'custom') return n;
+  const want = n * (T_SPAN_DAYS[from] || 7) / (T_SPAN_DAYS[to] || 7);
+  const list = (T_SPANS[to] || T_SPANS.week).filter(v => v >= (min || 1));
+  return list.reduce((b, v) => (Math.abs(v - want) < Math.abs(b - want) ? v : b), list[0]);
+}
+// The options of a "Last N" list for period g, with n chosen, from min up: "Last full week" (1), "Last 26 weeks"…
+function tSpanOptions(g, n, min) {
+  return (T_SPANS[g] || T_SPANS.week).filter(v => v >= (min || 1)).map(v => `<option value="${v}"${v === n ? ' selected' : ''}>`
+    + `${v === 1 ? (g === 'day' ? 'Yesterday' : 'Last full ' + g) : `Last ${v} ${g}s`}</option>`).join('')
+    + `<option value="custom"${n === 'custom' ? ' selected' : ''}>Custom dates…</option>`;
+}
+// The first and last day the store holds (any brand), and the custom range it starts on: 30 days, up to yesterday.
+function tDayBounds() {
+  let lo = '', hi = '';
+  Object.values(TREND.d || {}).forEach(m => Object.keys(m || {}).forEach(d => {
+    if (!lo || d < lo) lo = d;
+    if (!hi || d > hi) hi = d;
+  }));
+  const y = sdShift(sdToday(), -1), to = hi && hi < y ? hi : y, from = sdShift(to, -29);
+  return { lo, hi, from: lo && from < lo ? lo : from, to };
+}
+// Two picked days as a range { n: 'custom', from, to }, in order; a missing or broken one falls back to the starting range.
+function tDates(a, b) {
+  const ok = s => /^\d{4}-\d{2}-\d{2}$/.test(String(s || ''));
+  const d = ok(a) && ok(b) ? null : tDayBounds();
+  let from = ok(a) ? a : d.from, to = ok(b) ? b : d.to;
+  if (from > to) [from, to] = [to, from];
+  return { n: 'custom', from, to };
+}
+// The page's stretch: { n } for "Last N", or its own two days for "Custom dates…".
+function tRange() {
+  const v = $('tSpan').value;
+  return v === 'custom' ? tDates($('tFrom').value, $('tTo').value) : { n: Number(v) || 26 };
+}
+// A range as it reads: "3 Oct – 31 Oct", with the year on a day of another year.
+function tRangeText(r) {
+  const yr = sdToday().slice(0, 4);
+  const f = s => {
+    const x = new Date(s + 'T00:00:00Z');
+    return x.getUTCDate() + ' ' + W_MON[x.getUTCMonth()] + (s.slice(0, 4) === yr ? '' : " '" + s.slice(2, 4));
+  };
+  return r.from === r.to ? f(r.from) : f(r.from) + ' – ' + f(r.to);
+}
+// Fill a pair of date boxes: the days the store holds, and the range (or the starting one) when they are empty.
+function tDatesFill(f, t, r) {
+  if (!f || !t) return;
+  const b = tDayBounds();
+  [f, t].forEach(x => {
+    if (b.lo) x.min = b.lo;
+    x.max = sdToday();
+  });
+  if (!f.value) f.value = (r && r.from) || b.from;
+  if (!t.value) t.value = (r && r.to) || b.to;
+}
+// How the page's stretch reads: "last 26 weeks" — or, for "Last 1", "the last full week" / "yesterday".
+function tSpanName(n) {
+  const r = tRange();
+  if (r.from) return tRangeText(r);
+  if (r.n === 1) return T_GRAN === 'day' ? 'yesterday' : 'the last full ' + T_GRAN;
+  return `last ${n} ${T_GRAN}${n === 1 ? '' : 's'}`;
+}
 function tSetGran(g) {
+  const from = T_GRAN;
   T_GRAN = g;
   ['Day', 'Week', 'Month', 'Quarter'].forEach(x => $('tGran' + x).classList.toggle('on', x.toLowerCase() === g));
+  // A new period keeps about the same stretch of time — 26 weeks become 6 months, not 26 months.
+  if (from !== g) {
+    const s = $('tSpan');
+    s.innerHTML = tSpanOptions(g, tSpanFit(from, s.value === 'custom' ? 'custom' : Number(s.value) || 26, g));
+  }
   renderTrends();
 }
 // The four period buttons; brand and span redraw at once; Refresh.
 ['Day', 'Week', 'Month', 'Quarter'].forEach(x => { $('tGran' + x).onclick = () => tSetGran(x.toLowerCase()); });
-['tBrand', 'tSpan'].forEach(id => $(id).addEventListener('change', renderTrends));
+// "Custom dates…" shows the two days (the last 30 days to start with); either one changing redraws, like the list.
+function tSpanChange() {
+  const on = $('tSpan').value === 'custom', box = $('tCustom');
+  if (box) {
+    box.classList.toggle('hide', !on);
+    if (on) tDatesFill($('tFrom'), $('tTo'));
+  }
+  renderTrends();
+}
+$('tBrand').addEventListener('change', renderTrends);
+$('tSpan').addEventListener('change', tSpanChange);
+['tFrom', 'tTo'].forEach(id => { if ($(id)) $(id).addEventListener('change', renderTrends); });
 $('tRefresh').onclick = trendsRefresh;
 // Export: the metrics × periods table as a CSV, with the ratios to two decimals and the counts rounded.
 $('tExport').onclick = () => {

@@ -125,6 +125,21 @@ function voStampOrders(lines, channel) {
 
 /** One order line's share — null when no vendor holds anything for it. */
 const ordVendorOf = (orderNo, sku) => ordVendorAlloc().get(obUC(orderNo) + '|' + obUC(sku)) || null;
+/** WHAT THE PRINTING COLUMNS SHOW (2 Nov, AMZ-15102026-01 · CPC008-06 said "0 back of 11" with all 11 received on RFD-202610-108): a line PPC
+ *  planned to a printer comes back on the RFD challan, and that receipt never reaches the vendor order — so the flow's own count (challan
+ *  receipts, all of it once the challan is closed) wins when it is the higher. Display only: flowState still reads ordVendorOf. */
+let ORD_VSH = { src: null, map: null };
+function ordVendorShown(r) {
+  const v = ordVendorOf(r.orderNo, r.sku);
+  const p = typeof FLOW !== 'undefined' && FLOW && FLOW.ppc && typeof flowKey === 'function' ? FLOW.ppc[flowKey(r.orderNo, r.sku)] : null;
+  if (!p || typeof flowRows !== 'function') return v;
+  let s = null;
+  try { const rows = flowRows(); if (ORD_VSH.src !== rows) ORD_VSH = { src: rows, map: new Map(rows.map(x => [x.r.orderNo + '|' + x.r.sku, x.s])) }; s = ORD_VSH.map.get(r.orderNo + '|' + r.sku) || null; } catch (e) { s = null; }
+  if (!s || !s.printed || s.fromStock || !(s.po || s.challan) || (v && v.back >= s.back)) return v;
+  const code = (p.printer && (p.printer.code || p.printer.name)) || '';
+  return Object.assign({ parts: code ? [{ vendorCode: code, vpo: 'RFD challan', qty: s.given, back: s.back, stamped: true }] : [], shared: false }, v || {},
+    { given: Math.max(v ? v.given : 0, s.given), back: s.back, onChallan: true });
+}
 
 /**
  * Where a line is waiting, in one word — the first stage that has not caught up with the one before.

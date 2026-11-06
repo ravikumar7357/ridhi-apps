@@ -1,12 +1,18 @@
 # Meera's router — a Cloudflare Worker (free plan). Deployed by GitHub (.github/workflows/meera-router.yml) when a
 # push to main changes meera-router/, and only once the Cloudflare secrets are in the repository's settings.
 name = "meera-router"
-main = "src/worker.js"
+main = "src/free.js"    # the FREE plan (2 Nov): no search on the server, no meaning table bundled. With Workers Paid: "src/index.js"
 # Ravi's Cloudflare account (erp@ridhihome.com). Not a secret: it only names the account; the token is the key.
 account_id = "9a01c041fd44e0d34dc483b6ada6c300"
 compatibility_date = "2026-10-01"
 # Its address: https://meera-router.erp-9a0.workers.dev (the account's workers.dev name, set 27 Oct).
 workers_dev = true
+
+# Phase 5: her meaning table travels inside the router, as bytes
+[[rules]]
+type = "Data"
+globs = ["**/*.bin"]
+fallthrough = false
 
 # Cloudflare Workers AI: the second model, no key needed (free daily allowance).
 [ai]
@@ -22,6 +28,11 @@ database_id = "eb3168f8-7da4-4f78-876f-07045d80712f"   # made by Ravi, 27 Oct
 [vars]
 # "true" to answer; anything else and the router says it is off (Meera then works on her own, as today).
 ENABLED = "true"
+# Her search on the server is parked (free plan: 10 ms a request; her search needs 27–53 ms). "parked" keeps it off
+# whatever the admin switch says. Remove with Workers Paid (and point main back to src/index.js).
+SEARCH = "parked"
+# Her search on Firebase Cloud Functions (D.2): questions a day for ALL staff together; past it, her own copy answers.
+SEARCH_DAILY = "5000"
 FIREBASE_PROJECT_ID = "price-research-48ff3"
 ALLOWED_ORIGINS = "https://fabricrush-replenish.web.app https://fabricrush-replenish.firebaseapp.com"
 # Meera's own answers, published with the ERP: the only notes a model is given.
@@ -31,6 +42,9 @@ ADMIN_EMAILS = "ravi@thefabricrush.com"
 # Questions to a model per person per day, and for the whole company.
 USER_DAILY = "10"
 COMPANY_DAILY = "500"
+# Phase 4: learning records (missed, not sure, 👎, spellings) per person per day; kept 90 days.
+LEARN_DAILY = "30"
+# EXPORT_KEY (a secret, 24+ characters, in Cloudflare and in GitHub): the weekly build step reads what admins approved.
 # The models. Check each provider's list before switching on — names change; a missing or retired one is skipped.
 GROQ_MODEL = "openai/gpt-oss-120b"   # Groq's list, 27 Oct (Llama 3.3 70B no longer listed)
 CF_AI_MODEL = "@cf/meta/llama-3.1-8b-instruct"

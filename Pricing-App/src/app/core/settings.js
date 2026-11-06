@@ -1,33 +1,51 @@
 /* ================= CORE · SETTINGS: the Settings screen, and saving the Access form =================
- * Screens: Settings (settingsCard), opened by the sidebar's Settings button, and the Access card inside
- * it (accessCard, admins only).
- * Does: opens the Settings pane (the toggleSettings handler). For the Access card: warns when the Vendor
+ * Screens: Settings (settingsCard) and Access (accessCard, admins and access viewers), the two pages of the
+ * Settings menu (setMenu) under the sidebar's Settings button.
+ * Does: opens either page (openSetPage, from the menu). For the Access card: warns when the Vendor
  * Portal is ticked together with other sections (accessVendCheck), keeps the counts and that warning
  * current as boxes are ticked, and saves one person's rights to Firestore perms/{email} and to the
  * factory database's copy (the accessSave handler). loadSettings reads settings/default into SET and
  * fills the Settings fields; readSettings reads them back. The Settings fields' own Save button is wired
  * in research/fee-tables.js.
- * Main functions: accessVendCheck, loadSettings, readSettings, and the toggleSettings / accessSave handlers. */
+ * Main functions: setMenuOpen, openSetPage, accessVendCheck, loadSettings, readSettings, and the toggleSettings / accessSave handlers. */
 
-/* ---------- settings ---------- */
-// The Settings button: hide every tab pane, show the Settings pane and, for an admin, the Access card freshly loaded.
-$('toggleSettings').onclick = () => {
+/* ---------- settings ----------
+ * SETTINGS IS A MENU (Ravi, 3 Nov: "settings button make a drop down … opening of settings and access page and also remove the
+ * [access] section from the settings page"). The button opens a small menu: Settings (the settings alone) and Access (who can open
+ * what — admins only, its own page). */
+// Open or close the small Settings / Access menu under the Settings button.
+function setMenuOpen(on) {
+  $('setMenu').classList.toggle('open', !!on);
+  $('toggleSettings').setAttribute('aria-expanded', on ? 'true' : 'false');
+}
+// Show one page of the menu: hide every tab pane, then show Settings, or Access (freshly loaded) for an admin or access viewer.
+function openSetPage(which) {
   TABS.forEach(t => {
     $('pane' + capId(t)).classList.add('hide');
     $('tab' + capId(t)).classList.remove('on');
   });
   $('noAccess').classList.add('hide');
-  $('settingsCard').classList.remove('hide');
-  // The Access panel lives with Settings and only exists for admins.
-  $('accessCard').classList.toggle('hide', !ME.admin);
-  if (ME.admin) {
+  const acc = which === 'access' && (ME.admin || ME.accessView);
+  $('settingsCard').classList.toggle('hide', acc);
+  $('accessCard').classList.toggle('hide', !acc);
+  if (acc) {
     accessTabBoxes();
     loadAccessList();
   }
   $('toggleSettings').classList.add('on');
-  $('pageTitle').textContent = 'Settings';
+  $('pageTitle').textContent = acc ? 'Access' : 'Settings';
+  setMenuOpen(false);
   if (NARROW()) setNavOpen(false, false);
+}
+$('toggleSettings').onclick = e => {
+  e.stopPropagation();
+  /* Access is for admins only: anyone else has one page, so the button opens it straight away */
+  if (!ME.admin && !ME.accessView) { openSetPage('settings'); return; }
+  setMenuOpen(!$('setMenu').classList.contains('open'));
 };
+$('openSettings').onclick = () => openSetPage('settings');
+$('openAccess').onclick = () => openSetPage('access');
+document.addEventListener('click', e => { if (!(e.target.closest && e.target.closest('.setwrap'))) setMenuOpen(false); });
 
 /* Two things a vendor grant gets wrong, and both are silent.
  *

@@ -1,0 +1,10 @@
+{
+  "functions": [
+    {
+      "source": "../functions",
+      "codebase": "meera",
+      "runtime": "nodejs22",
+      "ignore": ["test", "build.cjs", ".gitignore", "node_modules"]
+    }
+  ]
+}

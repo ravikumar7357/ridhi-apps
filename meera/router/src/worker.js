@@ -11,8 +11,13 @@
  * Meera's own written answers. It never changes anything in the ERP: it has no key to it. */
 import { verify } from './auth.js';
 import { clean, questionKey } from './redact.js';
-import { store } from './store.js';
+import { store, today } from './store.js';
 import { askModels } from './providers.js';
+import { engine, search, sure } from './search.js';
+
+/* her meaning table (meera-words.bin): given by the router's entry (index.js, bundled with it) or by a test */
+let WORDS = null;
+export function setWords(buf) { WORDS = buf; }
 
 const LANGS = { en: 'English', hi: 'Hindi in Devanagari script, formal (आप)', hg: 'Hinglish — Hindi in Latin letters, respectful (aap: kholiye, dabaiye, chuniye; never kholo/dabao)' };
 
@@ -64,13 +69,65 @@ function cors(req, env) {
 }
 const reply = (body, status, h) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', ...(h || {}) } });
 
+/* a server-to-server key: set (24+ characters) and the same */
+const keyOk = (key, got) => { key = String(key || ''); got = String(got || ''); return key.length >= 24 && got.length === key.length && timingSafeSame(got, key); };
+/* half of Google's free monthly allowance for request-based Cloud Run functions (2 million requests, 180,000 vCPU-seconds,
+ * 360,000 GiB-seconds — read 2 Nov 2026); lower with METER_REQ / METER_SEC when other things on the billing account use it */
+const meterLimits = env => ({ req: +env.METER_REQ || 1000000, sec: +env.METER_SEC || 90000 });
+/** why her search on the server is stopped now: 'free' (the meter, until the 1st), 'alarm' (the cent alarm, until an admin) */
+function searchStopped(cfg, now) {
+  if (cfg.search_alarm) return 'alarm';
+  if (cfg.search_stop && cfg.search_stop === today(now).slice(0, 7)) return 'free';
+  return '';
+}
+/* which router this is, for the check after a deploy (GET /health) */
+export const ROUTER_VERSION = 'learn-free-2026-11-02';
 /** The whole router. deps: { fetch, store, verify, now } — the real ones by default; tests pass their own. */
 export async function handle(req, env, deps = {}) {
   const fetcher = deps.fetch || fetch;
   const url = new URL(req.url);
   const h = cors(req, env);
   if (req.method === 'OPTIONS') return h ? new Response(null, { status: 204, headers: h }) : new Response(null, { status: 403 });
-  if (url.pathname === '/health') return reply({ ok: true, groq: !!env.GROQ_API_KEY, workersAi: !!(env.AI && env.CF_AI_MODEL), gemini: !!env.GEMINI_API_KEY }, 200, h);
+  /* ---- THE EMERGENCY OFF for her new features (Ravi, 3 Nov): every ERP page asks this once as it opens — no sign-in, no
+   * data, only on/off. An admin's "Meera's new features" switch off → { v2: false } → that page runs Meera as before
+   * (the seven new features off). Changed on the admin page, with no deploy. ---- */
+  if (url.pathname === '/flags' && req.method === 'GET') {
+    if (!h) return reply({ error: 'origin' }, 403);
+    let v2 = true;
+    try { const db = deps.store || store(env.DB); v2 = (await db.config()).v2 !== 'off'; } catch (e) { /* no answer: as set in the ERP */ }
+    return reply({ v2 }, 200, { ...h, 'cache-control': 'no-store' });
+  }
+  if (url.pathname === '/health') return reply({ ok: true, v: ROUTER_VERSION, search: env.SEARCH === 'parked' ? 'parked' : 'on', groq: !!env.GROQ_API_KEY, workersAi: !!(env.AI && env.CF_AI_MODEL), gemini: !!env.GEMINI_API_KEY }, 200, h);
+  /* ---- the weekly build step (Phase 4): what admins approved, for meera-bank.json — GitHub's job only, with its own
+   * key (secret EXPORT_KEY, in Cloudflare and in GitHub); no key set: closed ---- */
+  if (url.pathname === '/export' && req.method === 'GET') {
+    const key = String(env.EXPORT_KEY || ''), got = req.headers.get('x-export-key') || '';
+    if (key.length < 24 || got.length !== key.length || !timingSafeSame(got, key)) return reply({ error: 'key' }, 403);
+    const db = deps.store || store(env.DB);
+    return reply({ answers: await db.learned(), spellings: await db.spellings() }, 200);
+  }
+  /* ---- THE METER for her search on Cloud Functions (Ravi, 3 Nov: "it must never cost even one cent") ----
+   * The function reports here every request it received (answered or refused) and the billed time it counted (rounded
+   * up to 0.1 s, and its start-up). At HALF of Google's free monthly allowance — 1,000,000 requests or 90,000
+   * CPU-seconds (= 90,000 GiB-seconds at 1 GiB, half of 180,000) — her search on the server stops for the rest of the
+   * month: the function stops serving, and every browser searches on its own. Server to server, with its own key. */
+  if (url.pathname === '/meter' && req.method === 'POST') {
+    if (!keyOk(env.METER_KEY, req.headers.get('x-meter-key'))) return reply({ error: 'key' }, 403);
+    let b = {}; try { b = await req.json(); } catch (e) { return reply({ error: 'json' }, 400); }
+    const db = deps.store || store(env.DB), now = deps.now ? deps.now() : Date.now(), month = today(now).slice(0, 7);
+    const t = await db.meterAdd(+b.req || 0, +b.ms || 0, now), lim = meterLimits(env);
+    if (t.req >= lim.req || t.ms / 1000 >= lim.sec) await db.configSet('search_stop', month);
+    const cfg = await db.config();
+    return reply({ stop: !!searchStopped(cfg, now), why: searchStopped(cfg, now), req: t.req, sec: Math.round(t.ms / 1000), limits: lim }, 200);
+  }
+  /* ---- THE CENT ALARM (her budget's listener, meera/functions): any actual cost → her search on the server off until an
+   * admin turns it back on. It switches off ONLY her search — never billing, never anything else. ---- */
+  if (url.pathname === '/alarm' && req.method === 'POST') {
+    if (!keyOk(env.STOP_KEY, req.headers.get('x-stop-key'))) return reply({ error: 'key' }, 403);
+    const db = deps.store || store(env.DB), now = deps.now ? deps.now() : Date.now();
+    await db.configSet('search_alarm', new Date(now).toISOString());
+    return reply({ ok: true, stopped: 'alarm' }, 200);
+  }
   if (!h) return reply({ error: 'origin' }, 403);
   if (String(env.ENABLED || '') !== 'true') return reply({ error: 'off' }, 503, h);
 
@@ -84,8 +141,61 @@ export async function handle(req, env, deps = {}) {
   const lang = LANGS[body.lang] ? body.lang : 'en';
   const screen = String(body.screen || '').slice(0, 40);
 
+  /* ---- her switches on the router (Phase 5): meera, ai, search — an admin changes them with no deploy ---- */
+  const cfg = await db.config();
+  /* SEARCH PARKED (Ravi, 2 Nov: no Workers Paid — free plan): with SEARCH = "parked" (wrangler.toml) search is off whatever
+   * the admin switch says; it needs 27–53 ms a question and the free plan allows 10 ms. Everything else is as before. */
+  const isOn = k => cfg[k] !== 'off';
+  /* "search" is the admin's switch for her search ON THE SERVER — since D.2 that runs on Firebase Cloud Functions; the
+   * router's own search stays parked (below) */
+  const stopped = searchStopped(cfg, now), searchOn = isOn('search') && !stopped;
+  /* searchStopped: 'free' (the month's meter reached half the free allowance — back on the 1st) or 'alarm' (the cent
+   * alarm — back when an admin turns it on); the browser then searches on its own, as before */
+  if (url.pathname === '/config' && req.method === 'GET') return reply({ meera: isOn('meera'), ai: isOn('ai'), v2: isOn('v2'), search: searchOn, searchStopped: stopped,
+    backOn: stopped === 'free' ? nextMonth(now) : '', kbVersion: cfg.kb_version || '0' }, 200, h);
+
+  /* ---- A TICKET for one search on Cloud Functions (D.2; Ravi: "a total daily limit for all staff together"): the function
+   * asks here before each search; over SEARCH_DAILY (5,000) today, or the admin switch off, it is refused — the browser
+   * then answers from her own copy. One shared count, so restarts of the function cannot reset it. ---- */
+  if (url.pathname === '/search-ticket' && req.method === 'POST') {
+    if (!searchOn) return reply({ ok: false, why: stopped ? 'stopped-' + stopped : 'search-off' }, 200, h);
+    const t = await db.count('search:*', +env.SEARCH_DAILY || 5000, now);
+    return reply({ ok: t.ok, n: t.n, max: +env.SEARCH_DAILY || 5000, why: t.ok ? '' : 'daily-limit' }, 200, h);
+  }
+
+  /* ---- SIDE BY SIDE with her search on Cloud Functions (D.2): the browser's and the function's top answers; kept with the
+   * question cleaned again here, for "Meera's learning → Switches" ("… of … the same") ---- */
+  if (url.pathname === '/diff' && req.method === 'POST') {
+    const top = l => (Array.isArray(l) ? l : []).slice(0, 3).map(x => ({ id: String((x && x.id) || '').slice(0, 80), s: +(x && x.s) || 0 }));
+    const mine = top(body.browser), srv = top(body.server);
+    const same = (mine[0] && srv[0] ? mine[0].id === srv[0].id : !mine[0] && !srv[0]) && sure(mine) === sure(srv);
+    const list = l => l.map(x => x.id + ':' + (+x.s).toFixed(3)).join(',');
+    if (now - DIFF_PURGED > 3600e3) { DIFF_PURGED = now; try { await db.diffPurge(now); } catch (e) { /* next time */ } }
+    await db.diffAdd({ question: clean(body.q, names), screen, spell: !!body.spell, browser: list(mine), server: list(srv), same }, now);
+    return reply({ ok: true, same }, 200, h);
+  }
+
+  /* ---- SEARCH ON THE SERVER (Phase 5): her own search (search.js), on her answers in D1 ----
+   * The question arrives with phone numbers, order numbers, amounts and emails already taken out by the browser; it is
+   * never kept as asked. Side by side ("compare": the browser's own top answers): both are kept, the question cleaned. */
+  if (url.pathname === '/search' && req.method === 'POST') {
+    if (!isOn('search') || env.SEARCH === 'parked') return reply({ error: env.SEARCH === 'parked' ? 'search-parked' : 'search-off' }, 503, h);
+    const E = await engine(db, deps.words || WORDS, cfg.kb_version || '0');
+    const r = search(E, body);
+    if (Array.isArray(body.compare)) {
+      const mine = body.compare.slice(0, 3).map(x => ({ id: String(x.id || '').slice(0, 80), s: +x.s || 0 }));
+      const same = (mine[0] && r.hits[0] ? mine[0].id === r.hits[0].id : !mine[0] && !r.hits[0]) && sure(mine) === sure(r.hits);
+      const list = l => l.map(x => x.id + ':' + (+x.s).toFixed(3)).join(',');
+      if (now - DIFF_PURGED > 3600e3) { DIFF_PURGED = now; try { await db.diffPurge(now); } catch (e) { /* next time */ } }
+      await db.diffAdd({ question: clean(body.q, names), screen, spell: !!body.spell, browser: list(mine), server: list(r.hits), same }, now);
+      r.same = same;
+    }
+    return reply({ ...r, v: E.version, n: E.n }, 200, h);
+  }
+
   /* ---- a question ---- */
   if (url.pathname === '/ask' && req.method === 'POST') {
+    if (!isOn('ai')) return reply({ error: 'ai-off' }, 503, h);
     const q = clean(body.q, names);
     if (!q) return reply({ error: 'empty' }, 400, h);
     const qkey = questionKey(q) + '|' + lang;
@@ -130,6 +240,28 @@ export async function handle(req, env, deps = {}) {
   /* ---- what admins approved: it joins Meera's own answers in every browser ---- */
   if (url.pathname === '/learned' && req.method === 'GET') return reply({ answers: await db.learned() }, 200, h);
 
+  /* ---- LEARNING FROM STAFF (Phase 4, the browser's switch "learn") ----
+   * A missed or "not sure" question, a 👎, or a misspelt question and the answer then chosen. Cleaned again here; kept
+   * with the role only (no email, no name, no sign-in id); at most LEARN_DAILY a person a day; gone after 90 days. */
+  if (url.pathname === '/learn' && req.method === 'POST') {
+    const kind = ['missed', 'unsure', 'down', 'spelling'].includes(body.kind) ? body.kind : '';
+    const q = clean(body.q, names);
+    if (!kind || !q) return reply({ error: 'kind and q' }, 400, h);
+    if (now - LEARN_PURGED > 3600e3) { LEARN_PURGED = now; try { await db.learnPurge(now); } catch (e) { /* next time */ } }
+    const who8 = 'L:' + (await hash(who.uid + '|' + new Date(now).toISOString().slice(0, 10))).slice(0, 16);   // a new hash each day: days cannot be linked
+    if (!(await db.learnTake(who8, +env.LEARN_DAILY || 30, now))) return reply({ error: 'limit' }, 429, h);
+    const role = who.admin ? 'admin' : ['staff', 'vendor'].includes(body.role) ? body.role : 'staff';
+    const answer = (Array.isArray(body.answer) ? body.answer : [body.answer]).map(x => String(x || '').replace(/[^\w:.-]/g, '').slice(0, 60)).filter(Boolean).slice(0, 3).join(',');
+    const key = kind === 'down' ? (await hash(crypto.randomUUID())).slice(0, 20) : '';
+    const id = await db.learnAdd({ kind, question: q, qkey: questionKey(q), screen, lang, role, answer, key }, now);
+    return reply({ ok: true, id, key: key || undefined }, 200, h);
+  }
+  if (url.pathname === '/learn/note' && req.method === 'POST') {
+    const note = clean(String(body.note || '').slice(0, 300), names);
+    const ok = note ? await db.learnNote(+body.id || 0, String(body.key || ''), note) : false;
+    return reply({ ok }, 200, h);
+  }
+
   /* ---- admins ---- */
   if (url.pathname.startsWith('/admin/')) {
     if (!who.admin) return reply({ error: 'admin' }, 403, h);
@@ -139,6 +271,7 @@ export async function handle(req, env, deps = {}) {
       /* approve or turn down a model's answer; or write one (for a ticket, or new) */
       if (body.answerId && (body.action === 'approve' || body.action === 'reject')) {
         await db.setStatus(+body.answerId, body.action === 'approve' ? 'approved' : 'rejected');
+        await db.kbBump();   // the server's search takes it in at once (Phase 5)
         return reply({ ok: true }, 200, h);
       }
       const q = clean(body.q, names), a = String(body.a || '').trim();
@@ -146,10 +279,44 @@ export async function handle(req, env, deps = {}) {
       const ans = { a: a.slice(0, 1200), why: String(body.why || '').slice(0, 600), steps: (Array.isArray(body.steps) ? body.steps : []).map(String).slice(0, 6) };
       const id = await db.addAnswer({ qkey: questionKey(q) + '|' + lang, question: q, lang, screen, answer: ans, source: 'admin', status: 'approved', email: who.email }, now);
       if (body.ticketId) await db.closeTicket(+body.ticketId, id);
+      await db.kbBump();   // the server's search takes it in at once (Phase 5)
+      if (Array.isArray(body.learnIds)) await db.learnSet(body.learnIds, 'done');   // the questions this answers (Phase 4)
       return reply({ ok: true, answerId: id }, 200, h);
+    }
+    /* Phase 4: the learning page — this week's unanswered, suggested spellings, 👎s, open tickets; and decisions */
+    /* Phase 5: her switches, and how the server's search compares with the browser's */
+    if (url.pathname === '/admin/config' && req.method === 'POST') {
+      if (!['meera', 'ai', 'search', 'v2'].includes(body.key) || !['on', 'off'].includes(body.value)) return reply({ error: 'key: meera / ai / search / v2, value: on / off' }, 400, h);
+      await db.configSet(body.key, body.value);
+      /* an admin turning her search on again clears the cent alarm (after checking the bill); the month's meter stop stays */
+      if (body.key === 'search' && body.value === 'on') await db.configSet('search_alarm', '');
+      return reply({ ok: true, [body.key]: body.value }, 200, h);
+    }
+    /* the month's meter, for the admin page */
+    if (url.pathname === '/admin/meter' && req.method === 'GET') {
+      const m = await db.meterGet(now), lim = meterLimits(env);
+      return reply({ month: today(now).slice(0, 7), req: m.req, sec: Math.round(m.ms / 1000), limits: lim, stopped: searchStopped(cfg, now), backOn: searchStopped(cfg, now) === 'free' ? nextMonth(now) : '' }, 200, h);
+    }
+    if (url.pathname === '/admin/search' && req.method === 'GET') return reply(await db.diffView(now - (Math.min(90, +url.searchParams.get('days') || 7)) * 864e5), 200, h);
+    if (url.pathname === '/admin/learn' && req.method === 'GET') return reply({ ...(await db.learnView(now)), tickets: await db.tickets('open') }, 200, h);
+    if (url.pathname === '/admin/learn' && req.method === 'POST') {
+      const action = { approve: 'approved', reject: 'rejected', done: 'done' }[body.action];
+      if (!action || !Array.isArray(body.ids)) return reply({ error: 'ids and action' }, 400, h);
+      return reply({ ok: true, n: await db.learnSet(body.ids, action) }, 200, h);
     }
   }
   return reply({ error: 'not found' }, 404, h);
 }
+
+/* Phase 4 helpers: when old learning rows were last removed (once an hour at most), a one-way hash (a person's sign-in id
+ * only ever counted, never kept), and a comparison of keys that takes the same time whatever they hold */
+let LEARN_PURGED = 0, DIFF_PURGED = 0;
+async function hash(s) {
+  const d = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(String(s))));
+  return Array.from(d, b => b.toString(16).padStart(2, '0')).join('');
+}
+/** the 1st of next month (India time), when a meter stop ends */
+function nextMonth(now) { const d = new Date(now + 5.5 * 3600e3); return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1)).toISOString().slice(0, 10); }
+function timingSafeSame(a, b) { let x = 0; for (let i = 0; i < a.length; i++) x |= a.charCodeAt(i) ^ b.charCodeAt(i); return x === 0; }
 
 export default { fetch: (req, env) => handle(req, env) };
