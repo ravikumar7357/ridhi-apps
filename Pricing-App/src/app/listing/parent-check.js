@@ -20,6 +20,7 @@ const H_OPTIMISER_URL = 'https://claude.ai/public/artifacts/9d2c21e6-30b8-4f08-a
 const H_TITLE_LIMIT = 75;     // Amazon's title limit — shown for information only, never scored
 let HK_OPEN = null;           // { brand, parent } of the dialog on screen
 let HK_SHOW = 'all';          // all | bad | ok
+let HK_MORE = new Set();      // the SKUs whose "What to fix" shows every problem, not the first 5
 
 /**
  * Each check for one child: pass true/false, or null when the fact is not known (never checked, or the
@@ -27,12 +28,16 @@ let HK_SHOW = 'all';          // all | bad | ok
  * that is fine.
  */
 // Each check for one child row (see the block above): { k, t, pass, say } — `info: true` marks the one that is not scored.
-function healthChecks(row) {
+// `health` is healthOf's answer for the row: pictures and A+ are read from it (the catalogue's pictures, A+ on the listing or its
+// parent — Listing Rules, Parts A1 / A2), never from the raw snapshot fields, so this dialog cannot contradict the other screens.
+function healthChecks(row, health) {
   const content = row.content;
   const status = row.status || '';
   const isActive = /active/i.test(status) && !/inactive/i.test(status);
   const fba = /amazon|afn/i.test(row.channel || '');
   const titleLen = content ? content.titleLen : null;
+  const pics = health ? health.pics : null;
+  const ap = health ? health.aplus : null;
   return [
     { k: 'active', t: 'Active', pass: /inactive/i.test(status) ? false : (isActive || fba ? true : (status ? false : null)),
       say: status || 'no status' },
@@ -47,13 +52,25 @@ function healthChecks(row) {
       say: titleLen == null ? 'not checked' : (titleLen > H_TITLE_LIMIT ? `${titleLen - H_TITLE_LIMIT} over` : 'within') },
     { k: 'bullets', t: `Bullets ${H_RULES.minBullets}+`, pass: content ? content.bullets >= H_RULES.minBullets : null,
       say: content ? content.bullets + ' bullets' : 'not checked' },
-    { k: 'images', t: `Images ${H_RULES.minImages}+`, pass: content ? content.images >= H_RULES.minImages : null,
-      say: content ? content.images + ' images' : 'not checked' },
+    { k: 'images', t: `Images ${H_RULES.minImages}+`, pass: pics ? pics.main && pics.n >= H_RULES.minImages : null,
+      say: pics ? `${pics.n} picture${pics.n === 1 ? '' : 's'}${pics.main ? '' : ', no main'}` : 'not checked' },
     { k: 'desc', t: 'Description', pass: content ? content.descLen >= H_RULES.minDesc : null,
       say: content ? (content.descLen ? content.descLen + ' chars' : 'none') : 'not checked' },
-    { k: 'aplus', t: 'A+', pass: row.aplus === true ? true : (row.aplus === false ? false : null),
-      say: row.aplus === true ? 'published' : (row.aplus === false ? 'missing' : 'not checked') },
+    { k: 'aplus', t: 'A+', pass: !ap ? null : ap.v === true ? true : (ap.v === false && !ap.stale ? false : null),
+      say: !ap ? 'not checked' : ap.v === true ? (ap.src === 'parent' ? 'published on the parent' : 'published') : ap.v === false && !ap.stale ? 'missing' : (ap.why || 'not checked') },
   ];
+}
+// The "What to fix" lines of one child, in the two words every problem list uses (Listing Rules, Part B1), Errors first; an Error
+// resting on old data reads "Error? Check again". (The CSV.)
+const hkFixLines = health => lrProblemsSort(health.found).map(hit => (hit.sev === 'critical' ? (hit.stale ? 'Error? Check again: ' : 'Error: fix first: ') : 'Needs attention: ') + hit.name + ' — ' + hit.detail);
+// The same problems as rows (the Listing Health look): the first 5, then "Show N more".
+function hkRecsHtml(health, brand, sku) {
+  const hits = lrProblemsSort(health.found);
+  const open = HK_MORE.has(sku);
+  const shown = open ? hits : hits.slice(0, 5);
+  return `<div class="ls-recs">${shown.map(hit => lrHitRec(hit, { brand, sku })).join('')}</div>`
+    + (hits.length > 5 && !open ? `<button type="button" class="ls-more" data-hk-more="${lrEsc(sku)}">Show ${hits.length - 5} more</button>` : '')
+    + lrNotesHtml(health.notes);
 }
 
 // A parent row was clicked: remember which parent, show every child, open the dialog.
@@ -74,8 +91,8 @@ function healthKidsRender() {
   const all = ((HEALTH[brand] && HEALTH[brand].rows) || [])
     .filter(row => (row.parent || row.asin || row.sku) === parent)
     .map(row => {
-      const health = healthOf(row);
-      return Object.assign({}, row, { _h: health, score: health.score, grade: health.grade, _c: healthChecks(row) });
+      const health = healthOf(Object.assign({ brand }, row));   // the snapshot rows carry no brand; every live and A+ lookup keys on it
+      return Object.assign({}, row, { _h: health, score: health.score, grade: health.grade, _c: healthChecks(row, health) });
     })
     .sort((a, b) => a.score - b.score || String(a.sku).localeCompare(String(b.sku)));
   const bad = row => row._h.blocking.length || row._h.content.length;
@@ -108,10 +125,8 @@ function healthKidsRender() {
         : ''}>${esc(check.t)}${check.info ? ' <span class="muted">ⓘ</span>' : ''}</th>`).join('')
     + '<th>What to fix</th></tr></thead>';
   const body = kids.map(row => {
-    const fix = [...row._h.critical.map(issue => 'Critical: ' + issue),
-      ...row._h.action.map(issue => 'Action: ' + issue),
-      ...row._h.review.map(issue => 'Review: ' + issue)];
-    if (row.content && row.content.titleLen > H_TITLE_LIMIT) fix.push(`Title over ${H_TITLE_LIMIT} (${row.content.titleLen}) — information only`);
+    const fix = hkFixLines(row._h);
+    const over = row.content && row.content.titleLen > H_TITLE_LIMIT ? `<div class="ls-note">Title over ${H_TITLE_LIMIT} (${row.content.titleLen}) — information only</div>` : '';
     return '<tr>'
       + `<td class="frz" style="font-family:ui-monospace,monospace;font-size:12px">${esc(row.sku)}</td>`
       + `<td style="font-family:ui-monospace,monospace;font-size:12px">${row.asin
@@ -122,14 +137,21 @@ function healthKidsRender() {
       + `<td class="num" style="font-weight:700">${row.score}</td>`
       + `<td>${esc(row.grade)}</td>`
       + row._c.map(mark).join('')
-      + `<td style="white-space:normal;min-width:180px;font-size:12px">${fix.length
-          ? fix.map(note => `<div>• ${esc(note)}</div>`).join('')
-          : (row.content ? '<span style="font-weight:600">Nothing found — Healthy</span>' : '<span class="muted">Content not checked yet</span>')}</td>`
+      + `<td class="ls-hkfix">${fix.length
+          ? hkRecsHtml(row._h, brand, row.sku)
+          : (row.content ? '<span style="font-weight:600">Nothing found — Healthy</span>' : '<span class="muted">Content not checked yet</span>')}${over}</td>`
       + '</tr>';
   }).join('');
   $('hkTable').innerHTML = head + '<tbody>' + (body
     || `<tr><td colspan="${checks.length + 6}" class="muted" style="padding:14px">No children match.</td></tr>`) + '</tbody>';
 }
+// "Show N more" in the dialog: that child's full list, redrawn.
+$('hkTable').addEventListener('click', e => {
+  const btn = e.target.closest('[data-hk-more]');
+  if (!btn) return;
+  HK_MORE.add(btn.dataset.hkMore);
+  healthKidsRender();
+});
 
 // Close the dialog: the X button, or a click on the backdrop.
 $('hkClose').onclick = () => {
@@ -164,11 +186,9 @@ $('hkCsv').onclick = () => {
   const checks = healthChecks({});
   const lines = [['SKU', 'ASIN', 'Title', 'Health', 'Bucket'].concat(checks.map(check => check.t), ['What to fix']).map(cell).join(',')];
   rows.forEach(row => {
-    const health = healthOf(row);
-    const rowChecks = healthChecks(row);
-    const fix = [...health.critical.map(issue => 'Critical: ' + issue),
-      ...health.action.map(issue => 'Action: ' + issue),
-      ...health.review.map(issue => 'Review: ' + issue)];
+    const health = healthOf(Object.assign({ brand }, row));
+    const rowChecks = healthChecks(row, health);
+    const fix = hkFixLines(health);
     if (row.content && row.content.titleLen > H_TITLE_LIMIT) fix.push(`Title over ${H_TITLE_LIMIT} (${row.content.titleLen})`);
     lines.push([row.sku, row.asin, row.title, health.score, health.grade]
       .concat(rowChecks.map(check => (check.pass === null ? '' : (check.pass ? 'OK' : 'FAIL')) + ' ' + check.say), [fix.join(' | ')])
@@ -198,25 +218,47 @@ function renderHealthKpis(rows, brands) {
     return acc;
   }, { n: 0, critical: 0, action: 0, review: 0, healthy: 0, monitor: 0, unchecked: 0, nodata: 0, checked: 0, score: 0 });
 
+  // One row of boxes per brand, the Ad Console look (6 Nov 2026): Ravi's four levels with their own colours and marks (Critical
+  // red ●, Needs Action orange ●, Needs Review yellow ▲, Healthy green ✓), then Health and Listings. The numbers are exactly the
+  // ones above. A level box is a button that sets Listing Health's own level filter (#hIssueView) exactly as picking it there
+  // does; the same box again sets it back to All listings. Health and Listings are plain boxes.
+  const view = $('hIssueView').value;
+  const box = (cls, ic, v, label, hint, level) => {
+    const inner = `<span class="ls-l">${ic ? `<span class="ls-ic" aria-hidden="true">${ic}</span>` : ''}${label}</span><span class="ls-v"><b>${v}</b></span>`
+      + `<span class="ls-note">${hint}</span>`;
+    if (!level) return `<div class="ls-box ${cls}">${inner}</div>`;
+    const on = view === level;
+    return `<div class="ls-box ${cls}${on ? ' is-on' : ''}"><button type="button" class="ls-box-main" data-lh-level="${level}" aria-pressed="${on}"`
+      + ` title="Show only the ${lrEsc(label)} listings; click again to show all">${inner}</button></div>`;
+  };
   $('hKpis').innerHTML = brands.map(brand => {
     const counts = tally(rows.filter(row => row.brand === brand));
     const saved = HEALTH[brand];
     const when = saved && saved.at ? 'updated ' + saved.at.toLocaleString() : '';
     const avg = counts.checked ? Math.round(counts.score / counts.checked) : 0;
-    return `<div class="kpi">
-      <div class="kpihead"><span class="kpiname">${BRAND_NAME[brand]}</span><span class="kpiwhen">${when}</span></div>
-      <div class="metrics">
-        <div class="metric"><div class="v">${nf(counts.critical)}</div><div class="l">Critical</div></div>
-        <div class="metric"><div class="v">${nf(counts.action)}</div><div class="l">Needs Action</div></div>
-        <div class="metric"><div class="v">${nf(counts.review)}</div><div class="l">Needs Review</div></div>
-        <div class="metric"><div class="v">${nf(counts.healthy + counts.monitor)}</div><div class="l">Healthy${counts.monitor ? ` · ${nf(counts.monitor)} monitor` : ''}</div></div>
-        <div class="metric"><div class="v" style="font-size:15px">${avg}</div><div class="l">Health</div></div>
-        <div class="metric"><div class="v" style="font-size:15px">${nf(counts.n)}</div><div class="l">Listings${
-          counts.unchecked ? ` · ${nf(counts.unchecked)} not checked` : ''}${counts.nodata ? ` (${nf(counts.nodata)} no catalog data)` : ''}</div></div>
-      </div>
-    </div>`;
+    const listSub = [counts.unchecked ? `${nf(counts.unchecked)} not checked` : '', counts.nodata ? `${nf(counts.nodata)} no catalog data` : ''].filter(Boolean).join(' · ') || 'FBA listings';
+    return `<div class="lh-kpibrand"><div class="lh-kpihead"><span class="lh-kpiname">${BRAND_NAME[brand]}</span><span class="lh-kpiwhen">${when}</span></div>`
+      + '<div class="ls-boxes">'
+      + box('is-err', '●', nf(counts.critical), 'Critical', 'Fix these first', 'critical')
+      + box('is-act', '●', nf(counts.action), 'Needs Action', 'Not urgent, worth fixing', 'action')
+      + box('is-att', '▲', nf(counts.review), 'Needs Review', 'Worth a look', 'review')
+      + box('is-ok', '✓', nf(counts.healthy + counts.monitor), 'Healthy', counts.monitor ? `${nf(counts.monitor)} monitor (not selling)` : 'Nothing to fix', 'healthy')
+      + box('', '', avg, 'Health', 'Average of the checked listings')
+      + box('', '', nf(counts.n), 'Listings', listSub)
+      + '</div></div>';
   }).join('');
 }
+
+// A level card on the Parent ASINs / Child listings view: set the existing level filter and redraw, as its own change handler does.
+$('hKpis').addEventListener('click', e => {
+  const btn = e.target.closest('[data-lh-level]');
+  if (!btn) return;
+  const level = btn.dataset.lhLevel;
+  $('hIssueView').value = $('hIssueView').value === level ? 'ALL' : level;
+  renderHealth();
+  const again = $('hKpis').querySelector(`[data-lh-level="${level}"]`);
+  if (again) again.focus({ preventScroll: true });
+});
 
 /**
  * The report's REAL column names, one real row, and how many rows actually carry a merchant

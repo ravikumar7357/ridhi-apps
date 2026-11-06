@@ -59,6 +59,8 @@ async function loadHealthCache() {
         at: data.at && data.at.toDate ? data.at.toDate() : null,
         contentAt: data.contentAt && data.contentAt.toDate ? data.contentAt.toDate() : null,
         scope: data.scope || null, parentNames: data.parentNames || {}, rows,
+        // A+ on the PARENT ASINs (6 Nov 2026): { asin: { v, at } } — a child has A+ when it or its parent has it (lrAplus).
+        parentAplus: data.parentAplus || {}, parentAplusAt: data.parentAplusAt || 0,
       };
     } catch (e) {
       // Do NOT swallow this. A failed load is exactly what "my data disappeared" looks like, and it
@@ -83,7 +85,8 @@ async function saveHealthCache(brand) {
     rows: null,                                      // clear the old single-doc payload if present
     scope: health.scope || null,
     parentNames: health.parentNames || null,         // ~800 entries; kept so they aren't re-fetched
-
+    parentAplus: health.parentAplus || null,         // A+ per parent ASIN: a child has A+ when its parent has
+    parentAplusAt: health.parentAplusAt || 0,
     at: serverTimestamp(),
     contentAt: health.contentAt ? serverTimestamp() : null,
   });
@@ -102,11 +105,110 @@ async function ensureHealth() {
   if (!AMZ.map) amzEnsure().then(() => {
     if (!$('paneHealth').classList.contains('hide')) renderHealth();
   });
+  /* The Image Manager snapshot too (the pictures on the rows, and the pictures the rules judge when it is the freshest source);
+   * the table draws without it and again once it lands. */
+  if (typeof IML !== 'undefined' && typeof imListLoad === 'function') ['SP', 'CPC'].forEach(brand => {
+    if (brand in IML) return;
+    imListLoad(brand).then(() => {
+      if (!$('paneHealth').classList.contains('hide')) renderHealth();
+    });
+  });
   if (H_LOADED) return renderHealth();
   hMsg('Loading the last snapshot…');
+  hSkeleton();
   await loadHealthCache();
   hMsg('');
   renderHealth();
+}
+
+/* ----- the Listing Health LOOK (6 Nov 2026): the meta line, the sticky toolbar, pictures, pills, bars, skeletons ----- */
+// The meta line above the toolbar, like the Ad Console's: the view, when Amazon was last read on this screen, when the full
+// refresh was — amber once the oldest full refresh is older than a week. Both views call it with the brands they show.
+function hMetaRender(brands, view) {
+  const el = $('hMeta');
+  if (!el) return;
+  const now = Date.now();
+  const ats = brands.map(brand => (HEALTH[brand] && HEALTH[brand].at ? HEALTH[brand].at.getTime() : 0)).filter(Boolean);
+  const oldest = ats.length ? Math.min(...ats) : 0;
+  const days = oldest ? Math.floor((now - oldest) / 86400000) : -1;
+  const ago = ms => (ms < 3600000 ? Math.max(1, Math.round(ms / 60000)) + ' min ago' : ms < 86400000 ? Math.round(ms / 3600000) + ' h ago'
+    : Math.round(ms / 86400000) === 1 ? '1 day ago' : Math.round(ms / 86400000) + ' days ago');
+  const read = typeof liWsNewestRead === 'function' ? liWsNewestRead(brands) : 0;
+  const perBrand = brands.map(brand => (BRAND_NAME[brand] || brand) + ' ' + (HEALTH[brand] && HEALTH[brand].at
+    ? HEALTH[brand].at.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : 'never')).join(' · ');
+  const old = !oldest || days > 7;
+  el.innerHTML = `<span class="${old ? 'is-old' : ''}"><b>${lrEsc(view || 'Listing Health')}</b> · Amazon read ${read ? ago(now - read) : 'not yet on this screen'}`
+    + ` · Full refresh ${oldest ? ago(now - oldest) : 'never'}${old && oldest ? ' — press “Refresh both brands”' : ''}</span><span>Full refresh: ${lrEsc(perBrand)}</span>`;
+}
+/* The toolbar sticks under Sellora's menu bar, like PPC & Organic · New's. The bar's height is measured, not assumed: it wraps onto
+ * a second line on narrower screens, and on phones it is a drawer (not sticky), so the offset goes to 0. The card is marked while
+ * it is stuck (flat top corners, a deeper shadow). */
+function hStick() {
+  try {
+    const pane = $('paneHealth');
+    const bar = $('hToolbar');
+    if (!pane || !bar || !bar.getBoundingClientRect || typeof getComputedStyle !== 'function' || !pane.style || !pane.style.setProperty) return;
+    const side = document.querySelector('.side');
+    const top = side && getComputedStyle(side).position === 'sticky' ? Math.round(side.getBoundingClientRect().height) : 0;
+    pane.style.setProperty('--ls-top', top + 'px');
+    bar.classList.toggle('ls-stuck', Math.round(bar.getBoundingClientRect().top) <= top + 1 && window.scrollY > 0);
+  } catch (e) { /* no layout to measure (a test page) */ }
+}
+if (typeof window !== 'undefined' && window.addEventListener) {
+  window.addEventListener('scroll', () => { if (typeof TAB_NOW === 'undefined' || TAB_NOW === 'health') hStick(); }, { passive: true });
+  window.addEventListener('resize', () => { if (typeof TAB_NOW === 'undefined' || TAB_NOW === 'health') hStick(); });
+}
+// While the snapshot loads: grey pulsing bars where the boxes and the rows will be.
+function hSkeleton() {
+  $('hResult').classList.remove('hide');
+  $('hKpis').innerHTML = '<div class="ls-boxes">' + Array.from({ length: 6 }, () => '<div class="ls-box ls-skel-box"><span class="ls-skel is-s"></span><span class="ls-skel"></span></div>').join('') + '</div>';
+  $('hTable').innerHTML = '<tbody>' + Array.from({ length: 6 }, () => '<tr><td><div class="ls-skel-row"><span class="ls-skel is-pic"></span><span class="ls-skel is-w"></span><span class="ls-skel is-s"></span></div></td></tr>').join('') + '</tbody>';
+}
+// A listing's picture: the catalogue's MAIN from the Workspace's live read, else the Image Manager snapshot's (liWsPicUrl holds the order).
+const hPicUrl = (brand, sku) => (typeof liWsPicUrl === 'function' ? liWsPicUrl(brand, sku) : '');
+// The small picture of the first of these rows that has one; a grey square when none. Lazy-loaded; a broken one hides itself.
+function hPicHtml(brand, rows, big) {
+  let url = '';
+  for (const row of rows || []) {
+    url = hPicUrl(brand, row.sku);
+    if (url) break;
+  }
+  return `<span class="ls-pic${big ? ' ls-lg' : ''}${url ? '' : ' is-none'}" aria-hidden="true">${url ? `<img src="${lrEsc(url)}" alt="" loading="lazy" decoding="async">` : ''}</span>`;
+}
+// Health as a small bar and the number: green 80+, amber 50–79, red under 50 — the same thresholds as before. The bar's widths are
+// SVG attributes, so nothing is styled inline.
+function hHealthBar(score) {
+  if (score == null) return '<span class="muted">—</span>';
+  const n = Math.max(0, Math.min(100, Math.round(score)));
+  const cls = n >= 80 ? 'is-good' : n >= 50 ? 'is-warn' : 'is-bad';
+  return `<span class="ls-health ${cls}" title="Health ${n}: 100 − 40 per critical issue − 10 per action − 3 per review"><svg class="ls-hbar" viewBox="0 0 100 6" preserveAspectRatio="none" aria-hidden="true">`
+    + `<rect class="ls-hbar-t" x="0" y="0" width="100" height="6" rx="3"/><rect class="ls-hbar-f" x="0" y="0" width="${n}" height="6" rx="3"/></svg><b>${n}</b></span>`;
+}
+// A count as a pill in its level's colour (is-c / is-a / is-r / is-g), a zero faint.
+const hPill = (n, cls) => (n ? `<span class="ls-pill ${cls}">${Number(n).toLocaleString('en-US')}</span>` : '<span class="ls-zero">0</span>');
+// Why: up to 3 problems in words (the one look every screen gives a problem), then "+n more" that opens the rest in place — no redraw.
+function hWhyCell(row) {
+  const found = lrProblemsSort(row._h.found);
+  if (!found.length && !row._h.notes.length) return `<span class="muted">${row.content ? 'No problem' : 'Content not checked'}</span>`;
+  const where = { brand: row.brand, sku: row.sku };
+  const rest = found.slice(3);
+  return `<div class="lr-probs ls-why">${found.slice(0, 3).map(hit => lrProblemHtml(hit, where, '')).join('')}`
+    + (rest.length ? `<div class="ls-why-rest">${rest.map(hit => lrProblemHtml(hit, where, '')).join('')}</div>`
+      + `<button type="button" class="ls-why-more" data-ls-why="1">+${rest.length} more</button>` : '')
+    + lrNotesHtml(row._h.notes) + '</div>';
+}
+// "+n more" opens the rest of a Why cell in place; a picture that fails to load hides itself (its grey square stays).
+if (typeof document !== 'undefined' && $('hTable') && $('hTable').addEventListener) {
+  $('hTable').addEventListener('click', e => {
+    const btn = e.target && e.target.closest ? e.target.closest('[data-ls-why]') : null;
+    const box = btn && btn.closest('.ls-why');
+    if (box) box.classList.add('is-open');
+  });
+  $('paneHealth').addEventListener('error', e => {
+    const img = e.target;
+    const pic = img && img.tagName === 'IMG' && img.closest ? img.closest('.ls-pic') : null;
+    if (pic) pic.classList.add('is-broken');
+  }, true);
 }
 
 /* ----- Refresh (both brands) ----- */
@@ -242,6 +344,7 @@ $('hGo').onclick = async () => {
 
       HEALTH[brand] = { rows, at: new Date(), contentAt: HEALTH[brand]?.contentAt || null,
         parentNames: pNames,                    // must survive this reassignment
+        parentAplus: HEALTH[brand]?.parentAplus || {}, parentAplusAt: HEALTH[brand]?.parentAplusAt || 0,   // and so must the parents' A+
         scope: { total: all.length, mfn, bundles, kept: rows.length, matched, stockSrc },
         schema: { headers: done.headers || [], sample: done.sample || {},
           withPrice: done.withPrice || 0, withQty: done.withQty || 0, n: done.total || all.length } };
@@ -384,11 +487,23 @@ $('hGo').onclick = async () => {
          * read "A+ missing" it stayed missing after the A+ went live. Now: never asked first, then the ones that read
          * MISSING (oldest answer first — those are the ones on a fix-it list), then the ones that have it, oldest first.
          * A lookup that fails keeps the last answer instead of going back to unknown. */
+        /* THE PARENT ASINs ARE ASKED TOO (6 Nov 2026, Part A2): A+ added to the parent shows on every child, so a child whose
+         * parent has A+ has A+ (lrAplus in listing-rules.js). The parents go first — one answer covers all their children. */
         const seenA = new Set();
         const never = [];           // never asked
         const missing = [];         // last answer: no A+
         const present = [];         // last answer: has A+
         const askedAt = {};
+        const pAplus = HEALTH[brand].parentAplus || (HEALTH[brand].parentAplus = {});
+        const parentSet = new Set();
+        HEALTH[brand].rows.forEach(row => {
+          if (!row.parent || seenA.has(row.parent) || !/^[A-Z0-9]{10}$/.test(String(row.parent))) return;
+          seenA.add(row.parent);
+          parentSet.add(row.parent);
+          const have = pAplus[row.parent];
+          askedAt[row.parent] = have ? have.at || 0 : 0;
+          (!have ? never : have.v === false ? missing : present).push(row.parent);
+        });
         HEALTH[brand].rows.forEach(row => {
           if (!row.asin || seenA.has(row.asin)) return;
           seenA.add(row.asin);
@@ -419,6 +534,10 @@ $('hGo').onclick = async () => {
             (reply.errors || []).forEach(e => { if (errs.length < 3) errs.push(e); });
             Object.entries(reply.map || {}).forEach(([asin, has]) => {
               answered++;
+              if (parentSet.has(asin)) {
+                pAplus[asin] = { v: !!has, at: Date.now() };
+                HEALTH[brand].parentAplusAt = Date.now();
+              }
               (byAsin[asin] || []).forEach(row => {
                 row.aplus = has;
                 row.aplusAt = Date.now();
@@ -433,11 +552,12 @@ $('hGo').onclick = async () => {
         const withA = HEALTH[brand].rows.filter(row => row.aplus === true).length;
         const without = HEALTH[brand].rows.filter(row => row.aplus === false).length;
         const unknown = HEALTH[brand].rows.filter(row => row.aplus === undefined).length;
+        const pWith = Object.values(pAplus).filter(each => each && each.v === true).length;
         if (roleMissing && !answered) {
           notes.push(`${BRAND_NAME[brand]}: A+ could not be read — the SP-API app does not have the A+ Content role. Left as unknown.`);
         } else {
           HEALTH[brand].aplusChecked = true;
-          notes.push(`${BRAND_NAME[brand]}: A+ present on ${withA}, missing on ${without}, unknown ${unknown}`
+          notes.push(`${BRAND_NAME[brand]}: A+ present on ${withA} listings, missing on ${without}, unknown ${unknown} · ${pWith} of ${parentSet.size} parent ASINs have A+ (their children count as having it)`
             + (uniq.length > work.length ? ` — ${uniq.length - work.length} not re-asked this time; the next refresh starts with them` : '')
             + (errs.length ? ` · errors: ${errs.join(' | ')}` : ''));
         }
@@ -522,16 +642,14 @@ function hFocusBar(brands) {
   kids.forEach(row => { counts[healthOf(row, hc).bucket]++; });
   const name = parentName(H_FOCUS.brand, H_FOCUS.parent, kids[0] && kids[0].title);
   bar.classList.remove('hide');
-  bar.innerHTML = `<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-      <button id="hFocusBack" class="ghost">← All parents</button>
-      <div style="flex:1 1 280px;min-width:0">
-        <div style="font-weight:700;font-size:16px">${lrEsc(name || H_FOCUS.parent)}</div>
-        <div class="muted" style="font-size:12.5px"><span style="font-family:ui-monospace,monospace">${lrEsc(H_FOCUS.parent)}</span> · ${lrEsc(BRAND_NAME[H_FOCUS.brand] || H_FOCUS.brand)} · ${kids.length} children
-          · <span class="sev sev-c"></span>${counts.critical} critical · <span class="sev sev-a"></span>${counts.action} attention · <span class="sev sev-r"></span>${counts.review} review
-          · <span class="sev sev-g"></span>${counts.healthy + counts.monitor} healthy${counts.unchecked ? ` · ${counts.unchecked} not checked` : ''}</div>
+  // The header card of the open parent (the look, 6 Nov 2026): back, picture, name, ASIN · brand · children, Ravi's four counts as pills.
+  const pill = (n, cls, word) => (n ? `<span class="ls-pill ${cls}">${n} ${word}</span>` : `<span class="ls-zero">0 ${word}</span>`);
+  bar.innerHTML = `<button id="hFocusBack" class="ghost ls-btn">← All parents</button>${hPicHtml(H_FOCUS.brand, kids, true)}<div class="ls-head-t">
+        <div class="ls-head-n">${lrEsc(name || H_FOCUS.parent)}</div>
+        <div class="ls-head-s"><span class="ui-mono">${lrEsc(H_FOCUS.parent)}</span><span>·</span><span>${lrEsc(BRAND_NAME[H_FOCUS.brand] || H_FOCUS.brand)}</span><span>·</span><span>${kids.length} children</span>
+          ${pill(counts.critical, 'is-c', 'critical')}${pill(counts.action, 'is-a', 'attention')}${pill(counts.review, 'is-r', 'review')}${pill(counts.healthy + counts.monitor, 'is-g', 'healthy')}${counts.unchecked ? `<span class="ls-pill">${counts.unchecked} not checked</span>` : ''}</div>
       </div>
-      <button id="hFocusOpt" class="ghost">Title optimiser ↗</button>
-    </div>`;
+      <button id="hFocusOpt" class="ghost ls-btn">Title optimiser ↗</button>`;
   $('hFocusBack').onclick = () => {
     H_FOCUS = null;
     H_VIEW = 'parent';
@@ -584,10 +702,11 @@ function renderHealth() {
     active: isActive,
     inactive: row => !isActive(row),
     // These three ask about a KNOWN fact, so rows that were never checked are excluded rather than
-    // swept in as if they were missing.
-    noimg: row => row.content && !row.content.images,
-    fewimg: row => row.content && row.content.images < H_RULES.minImages,
-    noaplus: row => row.aplus === false,
+    // swept in as if they were missing. They read what the rules judged: the catalogue's pictures and A+ on the listing or
+    // its parent (healthOf's pics / aplus), never the raw snapshot fields.
+    noimg: row => !!row._h.pics && !row._h.pics.main,
+    fewimg: row => !!row._h.pics && row._h.pics.main && row._h.pics.n < H_RULES.minImages,
+    noaplus: row => row._h.aplus.v === false && !row._h.aplus.stale,
   }[view] || null;
 
   const search = $('hFilter').value.trim().toLowerCase();
@@ -631,7 +750,7 @@ function renderHealth() {
     rows = groups;
 
     defs.push({ k: 'title', t: 'Parent', trunc: 38,
-      cell: row => parentNameCell(row.brand, row.parent, row.title, 38),
+      cell: row => `<div class="ls-prod">${hPicHtml(row.brand, row.kids)}<div class="ls-prod-t">${parentNameCell(row.brand, row.parent, row.title, 38)}</div></div>`,
       tip: "Click a name to set your own — once saved, refreshes never change it. Otherwise the seller's own listing name, or a child's title marked ~." });
     if (multiBrand) defs.push({ k: 'brand', t: 'Brand', map: row => BRAND_NAME[row.brand] });
     defs.push({ k: 'children', t: 'Children', num: 1,
@@ -639,16 +758,13 @@ function renderHealth() {
     /* IN COLOUR (2026-10-03, Ravi: "parent wale data ko bhi colorful kar dena"): each count carries its bucket's dot,
      * a zero stays grey, Health is green / amber / red, and the same five areas as the child table show the worst
      * colour among the children with how many children it hits. */
-    const cnt = spec => row => {                 // spec: { k: the count's key, c: the dot's CSS class }
-      const value = row[spec.k];
-      return value ? `<span class="sev ${spec.c}"></span><b>${Number(value).toLocaleString('en-US')}</b>` : '<span class="muted">0</span>';
-    };
+    const cnt = spec => row => hPill(row[spec.k], 'is-' + spec.c.slice(4));   // spec: { k: the count's key, c: the level's class (sev-c → is-c) }: a pill, a zero faint
     defs.push({ k: 'critical', t: 'Critical', num: 1, cell: cnt({ k: 'critical', c: 'sev-c' }),
-      tip: 'Cannot be bought or is fundamentally wrong: stock at Amazon but Inactive, no price, or no main image.' });
+      tip: 'Children with an "Error: fix first" — a rule set to Critical in Listing Rules (recommended: Amazon reports an error, suppressed from search, stock but Inactive, no price, main image missing, fewer than 6 pictures, A+ missing).' });
     defs.push({ k: 'action', t: 'Needs Action', num: 1, cell: cnt({ k: 'action', c: 'sev-a' }),
-      tip: 'A+ missing, under 6 images, under 5 bullets, or a size in the title not written "14 x 36 Inch" / written larger-first.' });
+      tip: 'Children whose worst finding is a rule set to Attention in Listing Rules — shown as "Needs attention" in the problem lists.' });
     defs.push({ k: 'review', t: 'Needs Review', num: 1, cell: cnt({ k: 'review', c: 'sev-r' }),
-      tip: '6–7 images when 8 is ideal, a thin or missing description, or a title outside 80–200 characters.' });
+      tip: 'Children whose worst finding is a rule set to Review in Listing Rules — also shown as "Needs attention" in the problem lists.' });
     /* ONE COLUMN, NOT TWO (2026-10-05, Ravi: "healthy or health only 1 column rakho"): the Health score stays; the count
      * of clean children is on the brand card above. */
     ['Amazon', 'Title', 'Size', 'Variation', 'Images', 'Content'].forEach(area => defs.push({ k: 'parea' + area, t: area, noTotal: 1,
@@ -671,14 +787,16 @@ function renderHealth() {
       },
       tip: `The worst ${area.toLowerCase()} issue among the children, and how many children have one. ✓ = none of the checked children has one.` }));
     defs.push({ k: 'score', t: 'Health', num: 1, noTotal: 1,
-      cell: row => row.score == null ? '<span class="muted">—</span>'
-        : `<b style="color:${row.score >= 80 ? 'var(--accent-ink)' : row.score >= 50 ? 'var(--act-ink)' : 'var(--bad-ink)'}">${row.score}</b>`,
+      cell: row => hHealthBar(row.score),
       tip: 'Average health of the checked children: 100 − 40 per critical issue − 10 per action − 3 per review. Green 80+, amber 50–79, red under 50.' });
+    // The ASIN and a › : both open the parent's children ON THE PAGE (Ravi's rule); the name cell still edits the name.
     defs.push({ k: 'parent', t: 'Parent ASIN', mono: 1, noTotal: 1,
-      cell: row => `<span data-hkid="${String(row.brand).replace(/"/g, '')}|${String(row.parent).replace(/[<>&"]/g, '')}"`
-        + ` style="font-family:ui-monospace,monospace;cursor:pointer;text-decoration:underline dotted" title="Open this parent's children">`
-        + `${String(row.parent).replace(/[<>&"]/g, '')}</span>`,
-      tip: 'Click a Parent ASIN to open all of its child listings — what each one fails and passes.' });
+      cell: row => {
+        const key = `${String(row.brand).replace(/"/g, '')}|${String(row.parent).replace(/[<>&"]/g, '')}`;
+        return `<span class="ls-asinc"><span class="ui-mono" data-hkid="${key}" title="Open this parent's children">${String(row.parent).replace(/[<>&"]/g, '')}</span>`
+          + `<button type="button" class="ls-chev" data-hkid="${key}" aria-label="Open this parent's children">›</button></span>`;
+      },
+      tip: 'Click a Parent ASIN, or its ›, to open all of its child listings — what each one fails and passes.' });
   } else {
     // --- child view: one row per listing, filtered to one parent when a parent is open ---
     if (H_FOCUS && brands.includes(H_FOCUS.brand))
@@ -690,8 +808,7 @@ function renderHealth() {
      * then Content (A+, bullets, description), Health, the reasons, and a suggested title where one applies.
      * A coloured dot is the worst issue in that area; ✓ is judged and fine; — could not be judged. */
     defs.push({ k: 'sku', t: 'SKU / ASIN', frz: 1,
-      cell: row => `<div style="font-family:ui-monospace,monospace">${lrEsc(row.sku)}</div>`
-        + `<div class="muted" style="font-family:ui-monospace,monospace;font-size:11px">${lrEsc(row.asin || '')}</div>` });
+      cell: row => `<div class="ls-prod">${hPicHtml(row.brand, [row])}<div class="ls-prod-t"><div class="ui-mono">${lrEsc(row.sku)}</div><span class="ls-asin">${lrEsc(row.asin || '')}</span></div></div>` });
     if (multiBrand) defs.push({ k: 'brand', t: 'Brand', map: row => BRAND_NAME[row.brand] });
     defs.push({ k: 'lstatus', t: 'Status', noTotal: 1,
       map: row => row.qty === 0 ? 'OOS' : (/inactive/i.test(row.status || '') ? 'Inactive' : (/active/i.test(row.status || '') ? 'Active' : (row.status || '—'))) });
@@ -705,9 +822,13 @@ function renderHealth() {
         return found ? LR_SEV[found.sev].rank : 0;
       },
       cell: row => hAreaCell(row, area) }));
-    defs.push({ k: 'score', t: 'Health', num: 1, bold: 1, noTotal: 1 });
+    defs.push({ k: 'score', t: 'Health', num: 1, bold: 1, noTotal: 1, cell: row => hHealthBar(row.score) });
     defs.push({ k: 'title', t: 'Title text', trunc: 38 });
-    defs.push({ k: 'issues', t: 'Why', map: reasonText, trunc: 60 });
+    // Why: up to 3 problems as blocks — what is wrong, how to fix it in plain words, whose rule it is, and Fix — the same look
+    // the Workspace gives it (lrProblemHtml in listing-rules.js), then "+n more". Sorting and the CSV still use the one-line text.
+    defs.push({ k: 'issues', t: 'Why', map: reasonText,
+      cell: hWhyCell,
+      tip: 'What is wrong (Error: fix first, or Needs attention), how to fix it, and whose rule it is. Fix opens the Image Manager for pictures and Listing Errors for everything else; Check now reads a listing from Amazon when an Error rests on old data.' });
     defs.push({ k: 'suggest', t: '', noTotal: 1, map: () => '',
       cell: row => (row._h.found.some(found => found.area === 'Title' || found.area === 'Size' || found.area === 'Variation') && lrTemplateFor(row, LR || LR_DEFAULT))
         ? `<button class="ghost" data-hsug="${lrEsc(row.brand)}|${lrEsc(row.sku)}" style="padding:2px 8px;font-size:12px;white-space:nowrap">Suggest title</button>` : '' });
@@ -731,6 +852,8 @@ function renderHealth() {
   // The cards always describe LISTINGS, never parents — in parent view that means the children of
   // whichever parents survived the filter, so the cards still agree with what's on screen.
   renderHealthKpis(H_VIEW === 'parent' ? rows.flatMap(g => g.kids) : rows, brands);
+  hMetaRender(brands, H_VIEW === 'parent' ? 'Parent ASINs' : 'Child listings');
+  hStick();
 
   // Only H_PAGE rows are put in the DOM. At full catalogue size (3,922 listings × 13 columns =
   // ~55,000 cells) a sticky header + sticky first column cost ~88ms of layout PER SCROLL FRAME —

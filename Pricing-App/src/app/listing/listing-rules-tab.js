@@ -5,7 +5,8 @@
  *       and saves to Firestore listingrules/config; hSugOpen shows the title lrSuggest builds for one SKU; parentName and the
  *       pnModal handlers keep the names typed by hand in parentnames/{brand}, which win over Amazon's.
  * Main functions: lrParamsParse, hSevDot / hSevCell / hAreaCell (the severity and area cells), ensureLrules, lrAllRows,
- *                 renderLrules, the lrTable / lrAdd / lrReset / lrSave / lrTry handlers, hSugOpen, loadParentNames,
+ *                 lrAllowRender (the "What people may write" box), renderLrules, the lrTable / lrAllow / lrAdd / lrReset /
+ *                 lrSave / lrTry handlers, hSugOpen, loadParentNames,
  *                 saveParentNames, parentName, parentNameLocked, parentNameCell, wireParentNameCells, openParentNameEditor. */
 /* ---------- the Listing Rules tab: where the issues are fed in ----------
  *
@@ -57,14 +58,16 @@ function hAreaCell(row, area) {
   /* THE IMAGE COUNT IS WRITTEN BESIDE THE COLOUR (2026-10-05, Ravi: "images nahi h fir bhi show kar rha h ki image h").
    * An out-of-stock listing with no image is shown as Attention, not Critical (the 15 Sept rule), and its amber dot
    * read as "a few images". The number says which: 0 is no image at all. */
-  const nImages = area === 'Images' && row.content ? Number(row.content.images) || 0 : null;
-  const cnt = nImages == null ? '' : `<span style="font-size:12px;margin-left:4px;${nImages ? 'color:var(--muted)' : 'color:var(--bad-ink);font-weight:700'}">`
-    + `${nImages ? nImages : '0 · no image'}</span>`;
+  // The count is the one the rules judged — the catalogue's gallery pictures (healthOf's pics), not the raw snapshot field.
+  const pics = area === 'Images' ? row._h.pics : null;
+  const nImages = pics ? pics.n : null;
+  const cnt = nImages == null ? '' : `<span style="font-size:12px;margin-left:4px;${pics.main ? 'color:var(--muted)' : 'color:var(--bad-ink);font-weight:700'}">`
+    + `${pics.main ? nImages : (nImages ? nImages + ' · no main' : '0 · no image')}</span>`;
   if (hits.length) {
     const worst = hits.sort((a, b) => LR_SEV[b.sev].rank - LR_SEV[a.sev].rank)[0];
     return `<span class="sev ${LR_SEV[worst.sev].cls}" title="${lrEsc(hits.map(hit => hit.name + ' — ' + hit.detail).join('\n'))}"></span>` + cnt;
   }
-  const judged = (area === 'Images' || area === 'Content') ? !!row.content : !!hTitleText(row);
+  const judged = area === 'Images' ? !!row._h.pics : area === 'Content' ? !!row.content : !!hTitleText(row);
   return judged ? '<span class="sev-ok">✓</span>' + cnt : '<span class="muted">—</span>';
 }
 
@@ -90,6 +93,30 @@ function lrAllRows() {
   return ['SP', 'CPC'].flatMap(b => ((HEALTH[b] && HEALTH[b].rows) || []).map(row => Object.assign({}, row, { brand: b })));
 }
 
+// The "What people may write" box above the issues (Part A, 5 Nov 2026): the allowances, each with a plain-words note of what it
+// means. Every input writes into LR.allow (the lrAllow handler below); Save sends them with the rules, in the same document.
+function lrAllowRender(cfg) {
+  const allow = lrAllow(cfg);
+  const field = (key, value, cls, extra) => `<input data-lra="${key}" class="${cls}" value="${lrEsc(value)}"${extra || ''}>`;
+  $('lrAllow').innerHTML = `<div class="lr-allow-head"><b>What people may write</b><span class="muted"> — written on purpose, so not errors. The same
+      allowances apply to every parent and every listing of both brands: Listing Health, the Workspace and the Audit all read them from here.</span></div>
+    <div class="lr-allow-row"><label>Short forms allowed from ${field('shortFrom', allow.shortFrom, 'w-xs', ' type="number" min="1" max="75"')} characters</label>
+      <span class="muted">A title of ${allow.shortFrom} to 75 characters was shortened on purpose to fit Amazon's 75, so in it these are fine: Inch written as Inc, In, In., in,
+      " ″ ” or left out; Inches as Inch or In; Centimeter as cm; no spaces around x, X or ×; "&amp;" for and, "w/" for with, Pc or Pcs for Pieces, "2 Pack", "Pack of 2"
+      or "2 Pcs" for Set of 2. Below ${allow.shortFrom} characters the house style stays strict ("18 x 18 Inch"); over 75 the title is asked to be shortened.</span></div>
+    <div class="lr-allow-row"><label>Brand words — ${lrEsc(BRAND_NAME.SP)} ${field('brandSP', allow.brandWords.SP, 'w-m')}</label>
+      <label>Brand words — ${lrEsc(BRAND_NAME.CPC)} ${field('brandCPC', allow.brandWords.CPC, 'w-m')}</label>
+      <span class="muted">Any of these words in a title is the brand (upper or lower case; "the", "my" and "by" are skipped). Every brand under ${lrEsc(BRAND_NAME.CPC)} is ours,
+      so for a listing Sellora has read on the Workspace, Amazon's own brand for it comes first. Empty = the brand is not judged.</span></div>
+    <div class="lr-allow-row"><label>Embroidery colours ${field('embColors', allow.embroideryColors, 'w-m')}</label>
+      <span class="muted">Pieces in these colours are embroidery, so "Block Print" is never asked of them; nor of a listing that says Embroidered or Embroidery. Otherwise
+      "Block Print" is asked for only with proof that the product is block print — a sibling's title under the same parent, or the listing's own bullets or description on
+      Amazon say it. A mixed colour such as "Blue &amp; White" is not white.</span></div>
+    <div class="lr-allow-row"><span class="muted">Always, at any length, the same meaning is never an error: upper / lower case, singular / plural, Grey / Gray, Colour / Color,
+      Tablecloth / Table Cloth / Table-Cloth, Pillow Cover / Cushion Cover, Block Print / Block-Print / Blockprint / Block Printed / Hand Block Printed, hyphens, commas,
+      "|" and extra spaces. Siblings' sizes compare by meaning: "18x18" = "18 x 18" = "18×18".</span></div>`;
+}
+
 // Draw the current view (issues / titles / season) into lrTable, with live counts from the listings snapshot.
 function renderLrules() {
   ['issues', 'titles', 'season'].forEach(view => $('lrView' + view[0].toUpperCase() + view.slice(1)).classList.toggle('on', LR_VIEW === view));
@@ -99,6 +126,8 @@ function renderLrules() {
   const ctx = hCtx(rows);
   $('lrAdd').textContent = LR_VIEW === 'issues' ? '+ Add issue' : LR_VIEW === 'titles' ? '+ Add template' : '+ Add occasion';
   $('lrTry').classList.toggle('hide', LR_VIEW !== 'titles');
+  $('lrAllow').classList.toggle('hide', LR_VIEW !== 'issues');
+  if (LR_VIEW === 'issues') lrAllowRender(cfg);
 
   // --- the issues view ---
   if (LR_VIEW === 'issues') {
@@ -107,9 +136,11 @@ function renderLrules() {
     rows.forEach(row => healthOf(row, ctx).found.forEach(hit => { count[hit.id] = (count[hit.id] || 0) + 1; }));
     const order = { critical: 0, action: 1, review: 2 };
     const list = cfg.issues.map((it, i) => ({ it, i })).sort((a, b) => (order[a.it.sev] - order[b.it.sev]) || a.i - b.i);
-    // The three pickers of one row, with the current value selected.
-    const sevSel = (i, selected) => `<select data-lri="${i}" data-f="sev" style="width:auto">${Object.entries(LR_SEV)
-      .map(([key, sev]) => `<option value="${key}"${key === selected ? ' selected' : ''}>${sev.label}</option>`).join('')}</select>`;
+    // The three pickers of one row, with the current value selected. The level names say which of the two words a problem list
+    // uses (Part B1); the search-term rule is never an Error (Part A4), so Critical is not offered for it.
+    const sevSel = (i, selected, detector) => `<select data-lri="${i}" data-f="sev" style="width:auto">${Object.entries(LR_SEV)
+      .filter(([key]) => !(detector === 'keyword_bytes' && key === 'critical' && selected !== 'critical'))
+      .map(([key, sev]) => `<option value="${key}"${key === selected ? ' selected' : ''}>${sev.label} — ${lrLevel(key).word}</option>`).join('')}</select>`;
     const areaSel = (i, selected) => `<select data-lri="${i}" data-f="area" style="width:auto">${LR_AREAS
       .map(area => `<option${area === selected ? ' selected' : ''}>${area}</option>`).join('')}</select>`;
     const detSel = (i, selected) => `<select data-lri="${i}" data-f="detector" style="max-width:230px">${Object.entries(LR_DETECTORS)
@@ -121,7 +152,7 @@ function renderLrules() {
         return `<tr>
           <td>${hSevDot(it.sev)}</td>
           <td style="text-align:left"><input class="w-l" data-lri="${i}" data-f="name" value="${lrEsc(it.name)}"></td>
-          <td>${sevSel(i, it.sev)}</td><td>${areaSel(i, it.area)}</td><td style="text-align:left">${detSel(i, it.detector)}</td>
+          <td>${sevSel(i, it.sev, it.detector)}</td><td>${areaSel(i, it.area)}</td><td style="text-align:left">${detSel(i, it.detector)}</td>
           <td>${params.length
             ? `<input data-lri="${i}" data-f="params" value="${lrEsc(lrParamsText(it.params))}" placeholder="${params.map(param => param + '=').join(', ')}" class="w-s">`
             : '<span class="muted">—</span>'}</td>
@@ -134,7 +165,10 @@ function renderLrules() {
         </tr>`;
       }).join('') + '</tbody>';
     const manual = cfg.issues.filter(issue => issue.detector === 'manual').length;
+    const offLevels = cfg.issues.filter(issue => { const def = LR_DEFAULT.issues.find(each => each.id === issue.id); return def && def.sev !== issue.sev; }).length;
     lrMsg(`${cfg.issues.length} issues · ${manual} not detectable yet · counts are from the listings snapshot${rows.length ? ' (' + rows.length.toLocaleString('en-US') + ' listings)' : ' — none loaded'}`
+      + ` · on every screen Critical reads "Error: fix first", Attention and Review read "Needs attention"`
+      + (offLevels ? ` · ${offLevels} rule${offLevels === 1 ? '' : 's'} not at the recommended level` : '')
       + `${LR_SAVED_AT ? ' · last saved ' + LR_SAVED_AT.toLocaleString() : ' · using the built-in lists until you save'}${LR_DIRTY ? ' · UNSAVED CHANGES' : ''}`);
     return;
   }
@@ -241,6 +275,21 @@ $('lrTable').addEventListener('change', e => {
   H_CTX = null;
   renderLrules();
 });
+// The "What people may write" box: every input writes into the allowances in memory; Save sends them with the rules.
+$('lrAllow').addEventListener('change', e => {
+  const key = e.target.getAttribute('data-lra');
+  if (!key) return;
+  const cfg = LR || (LR = JSON.parse(JSON.stringify(LR_DEFAULT)));
+  const allow = cfg.allow = lrAllow(cfg);
+  const value = String(e.target.value || '').trim();
+  if (key === 'shortFrom') allow.shortFrom = Math.min(75, Math.max(1, parseInt(value, 10) || LR_DEFAULT.allow.shortFrom));
+  else if (key === 'brandSP') allow.brandWords.SP = value;
+  else if (key === 'brandCPC') allow.brandWords.CPC = value;
+  else if (key === 'embColors') allow.embroideryColors = value;
+  LR_DIRTY = true;
+  H_CTX = null;
+  renderLrules();
+});
 // The × button on a row: delete that issue / template / occasion (after a confirm).
 $('lrTable').addEventListener('click', e => {
   const delBtn = e.target.closest('[data-lrdel]');
@@ -295,6 +344,25 @@ $('lrAdd').onclick = () => {
   H_CTX = null;
   renderLrules();
 };
+// Use recommended levels (Part B2, 6 Nov 2026): every rule's level becomes the built-in one — Error (Critical) for Amazon
+// reports an error, Suppressed from search, Stock but Inactive, No price, Main image missing, Secondary images missing and
+// A+ missing; Needs attention for everything else. Only the levels change, in memory; the person presses Save to keep them.
+$('lrLevels').onclick = () => {
+  const cfg = LR || (LR = JSON.parse(JSON.stringify(LR_DEFAULT)));
+  let changed = 0;
+  cfg.issues.forEach(issue => {
+    const def = LR_DEFAULT.issues.find(each => each.id === issue.id);
+    if (def && def.sev !== issue.sev) {
+      issue.sev = def.sev;
+      changed++;
+    }
+  });
+  LR_VIEW = 'issues';
+  LR_DIRTY = LR_DIRTY || changed > 0;
+  H_CTX = null;
+  renderLrules();
+  lrMsg(changed ? `${changed} level${changed === 1 ? '' : 's'} set to the recommended one — press “Save rules” to keep them (saving works on live Sellora).` : 'Every rule is already at its recommended level.');
+};
 // Reset: back to the built-in lists (LR_DEFAULT) in memory; nothing is saved until Save.
 $('lrReset').onclick = () => {
   if (!confirm("Put back Ravi's original lists, templates and calendar? Your edits are lost once you save.")) return;
@@ -307,7 +375,7 @@ $('lrReset').onclick = () => {
 $('lrSave').onclick = async () => {
   const cfg = LR || LR_DEFAULT;
   /* Firestore refuses undefined anywhere in a document. */
-  const clean = JSON.parse(JSON.stringify({ issues: cfg.issues, templates: cfg.templates, events: cfg.events }));
+  const clean = JSON.parse(JSON.stringify({ issues: cfg.issues, templates: cfg.templates, events: cfg.events, allow: lrAllow(cfg) }));
   if (clean.issues.some(issue => !String(issue.name || '').trim())) {
     lrMsg('Every issue needs a name.', true);
     return;
@@ -357,8 +425,7 @@ function hSugOpen(brand, sku) {
     <div class="muted" style="font-size:11.5px" id="hSugLen">${sug.length} / 200 characters</div>
     ${!cat ? '<div class="err" style="margin-top:8px">This SKU is not in the brand catalog, so its colour, size and sub-category are unknown — no title can be built.</div>' : ''}
     ${cat && !tpl ? '<div class="err" style="margin-top:8px">No title template matches its sub-category "' + lrEsc(cat.subcat) + '" — add one in Listing Rules → Title templates.</div>' : ''}
-    <div style="margin-top:12px;font-size:12.5px">${health.found.filter(hit => hit.area === 'Title' || hit.area === 'Size' || hit.area === 'Variation')
-      .map(hit => `<div>${hSevDot(hit.sev)}<b>${lrEsc(hit.name)}</b> — ${lrEsc(hit.detail)}</div>`).join('')
+    <div class="lr-probs" style="margin-top:12px;max-width:none">${lrProblemsHtml(health.found.filter(hit => hit.area === 'Title' || hit.area === 'Size' || hit.area === 'Variation'), { brand, sku })
       || '<span class="muted">No title, size or variation issue on this listing.</span>'}</div>`;
   $('hSugModal').classList.remove('hide');
 }

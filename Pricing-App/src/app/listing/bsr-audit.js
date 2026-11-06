@@ -304,13 +304,19 @@ function renderBsr() {
 
   // --- stock and content facts per parent, for the action heuristic ---
   // Health facts feed the action heuristic, so it can tell "out of stock" from "losing visibility".
+  // Pictures and A+ are judged as Listing Health judges them (listing-rules.js): the catalogue's pictures and A+ on the listing
+  // or its parent, from the freshest data — never the raw snapshot fields. Unknown is not counted.
   const healthBy = {};
+  const hc = hCtx();
   brands.forEach(brand => (HEALTH[brand]?.rows || []).forEach(row => {
     const key = (row.parent || row.asin) + '|' + brand;
     const facts = healthBy[key] || (healthBy[key] = { qty: null, gaps: 0, noImage: 0 });
     if (row.qty != null) facts.qty = (facts.qty || 0) + row.qty;
-    if (row.content && !row.content.images) facts.noImage++;
-    if (row.aplus === false) facts.gaps++;
+    const judged = Object.assign({ brand }, row);   // the snapshot rows carry no brand; the lookups key on it
+    const pics = lrPictures(judged, hc);
+    const aplus = lrAplus(judged, hc);
+    if (pics && !pics.main) facts.noImage++;
+    if (aplus.v === false && !aplus.stale) facts.gaps++;
   }));
 
   // --- one row per parent present in either week ---
