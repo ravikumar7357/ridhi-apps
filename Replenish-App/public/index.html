@@ -5742,8 +5742,10 @@ onAuthStateChanged(auth, async user => {
         dmSaveFlag(!!d && (d.dataMeter === true || d.dataMeter === 1 || d.dataMeter === '1' || d.dataMeter === 'on'), dmKind);
         /* The same single read also answers the pending-badges switch (core/pending-badges.js); it applies from the next page load. */
         if (typeof pbSaveFlag === 'function') pbSaveFlag(!!d && (d.pendingBadges === true || d.pendingBadges === 1 || d.pendingBadges === '1' || d.pendingBadges === 'on'));
+        /* ...and the order strip's plain-line switch (orders/order-ticker.js), also from the next page load. */
+        if (typeof otkSaveFlag === 'function') otkSaveFlag(!!d && (d.tickerPlain === true || d.tickerPlain === 1 || d.tickerPlain === '1' || d.tickerPlain === 'on'));
       })
-        .catch(() => { dmSaveFlag(false, dmKind); if (typeof pbSaveFlag === 'function') pbSaveFlag(false); });
+        .catch(() => { dmSaveFlag(false, dmKind); if (typeof pbSaveFlag === 'function') pbSaveFlag(false); if (typeof otkSaveFlag === 'function') otkSaveFlag(false); });
     }
     if (typeof dmStart === 'function') dmStart();
   } catch (e) { console.warn('[data meter]', e); }
@@ -29101,7 +29103,27 @@ function otkAllowed() {
   if (typeof NAV_IS_VENDOR !== 'undefined' && NAV_IS_VENDOR) return false;
   return !!(ME.admin || (ME.tabs && (ME.tabs.includes('ord') || ME.tabs.includes('shopprod') || ME.tabs.includes('so'))));
 }
-const otkDays = (a, b) => { const p = s => { const q = String(s).split('-').map(Number); return Date.UTC(q[0], q[1] - 1, q[2]); }; return Math.round((p(b) - p(a)) / 864e5); };
+/* PLAIN LINE (Stage 0 of the alert list, docs/data-reduction/ALERT-LIST-PLAN.md). With the switch on, the strip never
+ * downloads the registers (about 11 MB) by itself. A page that already has them (the Order Console, a factory screen)
+ * shows the strip as before; a page without them shows one still line that opens the Order Console.
+ *   Switch: localStorage tickerPlain '0' = off on this device whatever the flag says, '1' = on, otherwise the last answer
+ *   of the Firestore flag config/flags.tickerPlain (read in core/auth.js's single flags read, kept in tpFlagLast for the
+ *   NEXT page load). Off by default. Always off in the test harnesses. */
+function otkPlainOn() {
+  try {
+    const s = localStorage.getItem('tickerPlain');
+    if (s === '0') return false;
+    if (typeof AUDIT === 'undefined' || !AUDIT.on) return false;
+    if (s === '1') return true;
+    return localStorage.getItem('tpFlagLast') === '1';
+  } catch (e) { return false; }
+}
+/** Keep the flag's last answer for the next page load. */
+function otkSaveFlag(on) {
+  try { if (on) localStorage.setItem('tpFlagLast', '1'); else localStorage.removeItem('tpFlagLast'); } catch (e) { /* no storage: stays off */ }
+}
+const OTK_PLAIN = '<button type="button" class="otk-it otk-sum otk-plain" data-otkplain="1" title="Open the Order Console"><b>Pending and critical orders:</b> <span>open the Order Console</span></button>';
+const otkDays =(a, b) => { const p = s => { const q = String(s).split('-').map(Number); return Date.UTC(q[0], q[1] - 1, q[2]); }; return Math.round((p(b) - p(a)) / 864e5); };
 
 /** The strip's items: critical lines first (most late first), then the pending totals. */
 function otkItems() {
@@ -29137,7 +29159,13 @@ function otkItemHtml(x) {
 function otkRender() {
   const box = $('ordTicker');
   if (!box) return;
-  if (!otkAllowed() || !PTG.ob) { box.classList.add('hide'); return; }
+  if (!otkAllowed()) { box.classList.add('hide'); return; }
+  if (!PTG.ob) {
+    if (!otkPlainOn()) { box.classList.add('hide'); return; }
+    if (OTK.sig !== OTK_PLAIN) { OTK.sig = OTK_PLAIN; box.innerHTML = OTK_PLAIN; }
+    box.classList.remove('hide');
+    return;
+  }
   let items;
   try { items = otkItems(); } catch (e) { box.classList.add('hide'); return; }
   const one = items.map(otkItemHtml).join('<span class="otk-dot" aria-hidden="true"></span>') + '<span class="otk-dot" aria-hidden="true"></span>';
@@ -29148,13 +29176,14 @@ function otkRender() {
   box.classList.remove('hide');
 }
 function otkTick() {
-  if (otkAllowed() && !PTG.ob && !OTK.asked && typeof ptLoadGates === 'function') { OTK.asked = true; ptLoadGates(false, true).then(otkRender, () => {}); }
+  if (otkAllowed() && !PTG.ob && !OTK.asked && !otkPlainOn() && typeof ptLoadGates === 'function') { OTK.asked = true; ptLoadGates(false, true).then(otkRender, () => {}); }
   otkRender();
 }
 /* Not in the test harnesses, which have no real page. */
 if (typeof document !== 'undefined' && typeof document.addEventListener === 'function' && typeof setInterval === 'function') {
   setTimeout(otkTick, 4000); setInterval(otkTick, 60000);
   document.addEventListener('click', e => {
+    if (e.target.closest && e.target.closest('[data-otkplain]')) { showTab('ord'); return; }
     const b = e.target.closest && e.target.closest('[data-otkno]');
     if (!b) return;
     const no = b.dataset.otkno;

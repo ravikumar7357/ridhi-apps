@@ -241,8 +241,10 @@ onAuthStateChanged(auth, async user => {
         dmSaveFlag(!!d && (d.dataMeter === true || d.dataMeter === 1 || d.dataMeter === '1' || d.dataMeter === 'on'), dmKind);
         /* The same single read also answers the pending-badges switch (core/pending-badges.js); it applies from the next page load. */
         if (typeof pbSaveFlag === 'function') pbSaveFlag(!!d && (d.pendingBadges === true || d.pendingBadges === 1 || d.pendingBadges === '1' || d.pendingBadges === 'on'));
+        /* ...and the order strip's plain-line switch (orders/order-ticker.js), also from the next page load. */
+        if (typeof otkSaveFlag === 'function') otkSaveFlag(!!d && (d.tickerPlain === true || d.tickerPlain === 1 || d.tickerPlain === '1' || d.tickerPlain === 'on'));
       })
-        .catch(() => { dmSaveFlag(false, dmKind); if (typeof pbSaveFlag === 'function') pbSaveFlag(false); });
+        .catch(() => { dmSaveFlag(false, dmKind); if (typeof pbSaveFlag === 'function') pbSaveFlag(false); if (typeof otkSaveFlag === 'function') otkSaveFlag(false); });
     }
     if (typeof dmStart === 'function') dmStart();
   } catch (e) { console.warn('[data meter]', e); }
