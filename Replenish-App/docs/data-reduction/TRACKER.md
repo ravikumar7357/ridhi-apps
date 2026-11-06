@@ -6,8 +6,8 @@ Status: Not started · Building · Preview · Ravi's PC · Everybody · Dropped
 
 | Step | Status | Switch name | Gate | Date |
 | --- | --- | --- | --- | --- |
-| 0 — Safety and baseline | Building | `dataMeter` | Billing shows no warning, alerts set, meter has 3 working days of data | 2026-11-05 |
-| 1 — Ticker and badges: pending items only | Building (badges only; ticker planned separately) | `pendingBadges` (badges); `pendingQueries` (ticker, later) | Query count equals full-data count on fixtures; teeth test fails when the filter is broken; switch-off path tested; then preview → Ravi's PC 2–3 days → everybody | 2026-11-06 |
+| 0 — Safety and baseline | Meter code live, switched off (main 8db3f3a); its rule ready, not deployed; billing, alerts and checks B/C open | `dataMeter` | Billing shows no warning, alerts set, meter has 3 working days of data | 2026-11-06 |
+| 1 — Ticker and badges: pending items only | Badges built + reviewed, switched off, not yet live; ticker replaced by the alert list — planned only ([ALERT-LIST-PLAN.md](ALERT-LIST-PLAN.md)) | `pendingBadges` (badges); `tickerPlain`, `alertListBuild`, `alertList` (ticker, later) | Query count equals full-data count on fixtures; teeth test fails when the filter is broken; switch-off path tested; then preview → Ravi's PC 2–3 days → everybody | 2026-11-06 |
 | 2 — Archive closed orders older than 90 days | Not started | not named in plan | 30-day dry run logs no closed order a screen still opens; test fails if a screen reads `pt_orderBook` directly; then one month at a time | 2026-11-05 |
 | 3 — Each page loads only its registers | Not started | `pageRegisters` | Static test and runtime guard pass; one page group at a time through preview | 2026-11-05 |
 | 4 — Fix change notes, then Delta Sync phase 3 | Not started | `DELTA.use` (device: `deltaUse`) | Shadow shows 0 mismatches for 4 consecutive working days → Ravi's PC 3 days → everybody | 2026-11-05 |
