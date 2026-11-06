@@ -81,6 +81,7 @@ async function deltaRead(path, query) {
   const r = await fetch(url);
   if (!r.ok) throw new Error(path + ' answered ' + r.status);
   const t = await r.text();
+  try { if (typeof dmCount === 'function') dmCount(path, t.length, 'delta-shadow'); } catch (e) { console.warn('[data meter]', e); }
   return { v: t ? JSON.parse(t) : null, bytes: t.length };
 }
 

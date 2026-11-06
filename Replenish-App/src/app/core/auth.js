@@ -230,6 +230,17 @@ onAuthStateChanged(auth, async user => {
     /* The Greige Desk's four rights (2026-10-13) are factory screens too. */
     'gdesk', 'gdled', 'gdledit', 'gdappr'];
   const FACTORY_ONLY = ME.tabs.every(t => FACTORY_TABS.includes(t));
+  /* DATA METER (Step 0): remember what kind of user this is, ask the Firestore flag config/flags.dataMeter in the
+   * background and keep its answer for the NEXT page load. Never waits, never blocks sign-in; a missing document or a
+   * refused read leaves the meter off. */
+  try {
+    const dmKind = ME.admin ? 'admin' : FACTORY_ONLY ? 'factory' : 'office';
+    if (typeof dmSaveFlag === 'function') {
+      getDoc(doc(db, 'config', 'flags')).then(f => { const d = f.exists() ? f.data() : null; dmSaveFlag(!!d && (d.dataMeter === true || d.dataMeter === 1 || d.dataMeter === '1' || d.dataMeter === 'on'), dmKind); })
+        .catch(() => { dmSaveFlag(false, dmKind); });
+    }
+    if (typeof dmStart === 'function') dmStart();
+  } catch (e) { console.warn('[data meter]', e); }
 
   if (!FACTORY_ONLY) try {
     const c = await getDoc(doc(db, 'config', 'replapi'));

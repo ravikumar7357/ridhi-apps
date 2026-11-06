@@ -56,7 +56,7 @@ async function auditTrash(paths, why) {
 async function ptGetFresh(path) {
   const r = await fetch(`${PT_URL}/${ptPath(path)}.json` + await ptAuthQuery());
   if (!r.ok) throw new Error('read ' + r.status);
-  return r.json();
+  return typeof dmJson === 'function' ? dmJson(r, path, 'plain') : r.json();
 }
 /** The history's own write: a root PATCH that is never itself logged. */
 async function ptAuditWrite(updates) {
@@ -126,7 +126,7 @@ async function audRead(node, n) {
   const r = await fetch(`${PT_URL}/${ptPath(node)}.json?orderBy=%22%24key%22&limitToLast=${n}` + (q ? '&' + q.slice(1) : ''));
   if (r.status === 401 || r.status === 403) throw new Error('only an admin can read the change history');
   if (!r.ok) throw new Error('the database answered ' + r.status);
-  const v = await r.json();
+  const v = await (typeof dmJson === 'function' ? dmJson(r, node, 'plain') : r.json());
   return Object.entries(v || {}).map(([id, x]) => Object.assign({ _id: id }, x)).filter(x => x && x.at)
     .sort((a, b) => String(b.at).localeCompare(String(a.at)));
 }
@@ -223,7 +223,7 @@ async function ptCas(path, expect, next) {
   const g = await fetch(url, { headers: { 'X-Firebase-ETag': 'true' } });
   if (g.status === 401 || g.status === 403) throw new Error('The production database refused the read (permission denied).');
   if (!g.ok) throw new Error(`The production database answered ${g.status} ${g.statusText || ''}`.trim());
-  const cur = await g.json(), tag = g.headers.get('ETag');
+  const cur = await (typeof dmJson === 'function' ? dmJson(g, path, 'plain') : g.json()), tag = g.headers.get('ETag');
   if (JSON.stringify(cur == null ? null : cur) !== JSON.stringify(expect == null ? null : expect)) return 'changed';
   ptLiveWrote([path]);
   const r = await fetch(url, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'if-match': tag }, body: JSON.stringify(next) });

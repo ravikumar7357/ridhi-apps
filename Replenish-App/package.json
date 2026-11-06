@@ -9,7 +9,7 @@
   },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "check": "node tests/assemble.js --check && node tests/shopify-copy-test.js && node tests/delta-test.js"
+    "check": "node tests/assemble.js --check && node tests/shopify-copy-test.js && node tests/delta-test.js && node tests/data-meter-test.js"
   },
   "keywords": [],
   "author": "",
