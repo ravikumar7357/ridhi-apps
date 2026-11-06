@@ -66,6 +66,7 @@ let LI_WS = {
   openSku: new Set(),               // "brand|sku" of the listings whose detail is open
   openPass: new Set(),              // "brand|sku" of the details showing their passed checks too
   showStep: new Map(),              // "brand|parent" → an audit step's key: the checklist shows only the children failing it
+  card: '',                         // '' | err | chk | att | ok — the number card the list is filtered by (Not live is the mode 'off'); one filter at a time with the chips
   shown: LI_WS_PAGE,                // how many parents are in the DOM
   rows: [],                         // the last draw's parents after the filters (the sweep and Show more read these)
   byKey: new Map(),                 // "brand|parent" → the parent record of the last draw (▸ and Read again find kids here)
@@ -353,7 +354,12 @@ function liWsChild(row, brand, hc, imlMap, now) {
   const bucket = h.bucket;
   const fails = LI_WS_CHECKS.filter(check => c[check.k].pass === false).map(check => check.k);
   // unknown: a counted check with no answer yet (not read, A+ not checked, schema on its way) — a check that does not apply is not unknown.
-  return { sku: row.sku, asin: row.asin || '', brand, row, lr, live, why, c, fails, found, bucket, notes: h.notes, stale: h.stale,
+  // Which number cards this listing counts in (live listings only; one listing can be in more than one): a confirmed Error, only
+  // "Error? Check again", any Needs action / Needs review problem (also beside an Error), or no problem at all. Read from the
+  // findings above — no rule of its own.
+  const cards = { err: live && bucket === 'critical' && !h.stale, chk: live && bucket === 'critical' && !!h.stale,
+    att: live && found.some(hit => hit.sev === 'action' || hit.sev === 'review'), ok: live && bucket === 'healthy' };
+  return { sku: row.sku, asin: row.asin || '', brand, row, lr, live, why, c, fails, found, bucket, notes: h.notes, stale: h.stale, cards,
     problem: bucket === 'critical' || bucket === 'action' || bucket === 'review',
     red: bucket === 'critical', unknown: LI_WS_CHECKS.some(check => c[check.k].pass === null && !c[check.k].na) };
 }
@@ -527,6 +533,9 @@ function liWsParents(brands, hc, now) {
       group.staleN = scope.filter(kid => kid.bucket === 'critical' && kid.stale).length;   // Errors resting only on old data: "Error? Check again"
       group.redN = group.critN;
       group.liveProbN = live.filter(kid => kid.problem).length;
+      // The number cards: how many live children count in each (a child can count in more than one).
+      group.cardN = { err: 0, chk: 0, att: 0, ok: 0 };
+      live.forEach(kid => Object.keys(group.cardN).forEach(k => { if (kid.cards[k]) group.cardN[k]++; }));
       group.unknownN = live.filter(kid => kid.bucket === 'unchecked').length;   // content not read yet: the content rules cannot run
       group.passN = live.filter(kid => kid.bucket === 'healthy').length;        // no Listing Rules problem: Listing Health's "Healthy"
       group.inMode = LI_WS.mode === 'live' ? live : (LI_WS.mode === 'off' ? off : group.kids);
@@ -557,6 +566,14 @@ function liWsParents(brands, hc, now) {
   });
   return out;
 }
+// The parents a number card shows: at least one live child counting in that card — except No problem, which shows only fully
+// clean parents (every live child with no problem at all). `t` is the card's words for the "Showing:" bar.
+const LI_WS_CARD = {
+  err: { t: 'Error: fix first', keep: p => p.cardN.err > 0 },
+  chk: { t: 'Error? Check again', keep: p => p.cardN.chk > 0 },
+  att: { t: 'Needs attention', keep: p => p.cardN.att > 0 },
+  ok: { t: 'No problem', keep: p => p.liveN > 0 && p.cardN.ok === p.liveN },
+};
 // Priority: serious problems (Amazon error, main image) first, then other problems, then the most problem children, then name.
 function liWsPriority(a, b) {
   return (b.rank - a.rank) || (b.probN - a.probN) || (b.redN - a.redN) || (a.name || a.parent).localeCompare(b.name || b.parent);
@@ -919,8 +936,12 @@ function liWsKidTable(p, span) {
   const stepK = LI_WS.showStep.get(p.key) || '';
   const step = stepK ? LI_WS_AUDIT.find(each => each.k === stepK) : null;
   const inStep = kid => !!(step && step.checks && step.checks.some(k => kid.c[k].pass === false));
-  const kids = p.inMode.filter(kid => !step || inStep(kid)).sort((a, b) => (Number(b.live) - Number(a.live)) || (Number(b.red) - Number(a.red)) || (b.fails.length - a.fails.length)
+  // With a number card on, the listings that count in it come first and are marked; the others follow, faded, under "Other listings".
+  const cardK = LI_WS.mode !== 'off' && LI_WS_CARD[LI_WS.card] ? LI_WS.card : '';
+  const inCard = kid => !!(cardK && kid.cards && kid.cards[cardK]);
+  const kids = p.inMode.filter(kid => !step || inStep(kid)).sort((a, b) => (Number(inCard(b)) - Number(inCard(a))) || (Number(b.live) - Number(a.live)) || (Number(b.red) - Number(a.red)) || (b.fails.length - a.fails.length)
     || String(a.sku).localeCompare(String(b.sku)));
+  const firstOther = cardK ? kids.findIndex(kid => !inCard(kid)) : -1;
   const reading = p.data.state === 'reading';
   const when = reading ? `Reading ${liWsNf(kids.length)} listing${kids.length === 1 ? '' : 's'} from Amazon… ${liWsNf(p.data.done)} of ${liWsNf(p.data.total)}`
     : p.data.state === 'live' ? 'Read from Amazon ' + liWsAgoWords(p.data.age)
@@ -935,10 +956,12 @@ function liWsKidTable(p, span) {
   const head = '<thead><tr><th>SKU / ASIN</th>' + info('Live = active at Amazon with stock; the others are shown, never counted') + 'Status</th>'
     + `<th class="num" title="Units in stock at the last full refresh">Stock</th>`
     + LI_WS_CHECKS.map(check => `${info(check.tip)}${check.t}</th>`).join('') + '</tr></thead>';   // table.xl draws ⓘ after a th with a title
-  const body = kids.map(kid => {
+  const body = kids.map((kid, i) => {
     const key = kid.brand + '|' + kid.sku;
     const open = LI_WS.openSku.has(key);
-    return `<tr class="li-ws-kid${kid.live ? '' : ' is-off'}"><td><button type="button" class="li-ws-sku" data-li-ws-sku="${lrEsc(key)}" aria-expanded="${open}">${open ? '▾' : '▸'} ${lrEsc(kid.sku)}</button>`
+    const mark = cardK ? (inCard(kid) ? ` is-match is-m-${cardK}` : ' is-other') : '';
+    const other = i === firstOther && i > 0 ? `<tr class="li-ws-otherhead"><td colspan="${LI_WS_CHECKS.length + 3}">Other listings</td></tr>` : '';
+    return `${other}<tr class="li-ws-kid${kid.live ? '' : ' is-off'}${mark}"><td><button type="button" class="li-ws-sku" data-li-ws-sku="${lrEsc(key)}" aria-expanded="${open}">${open ? '▾' : '▸'} ${lrEsc(kid.sku)}</button>`
       + `<div class="li-ws-asin">${lrEsc(kid.asin)}</div></td><td>${lrEsc(kid.why)}</td><td class="num">${kid.row.qty == null ? '<span class="li-ws-na">—</span>' : liWsNf(kid.row.qty)}</td>`
       + LI_WS_CHECKS.map(check => `<td>${liWsCell(kid, check, reading)}</td>`).join('') + '</tr>' + (open ? liWsDetail(kid, LI_WS_CHECKS.length + 3) : '');
   }).join('') || `<tr><td colspan="${LI_WS_CHECKS.length + 3}" class="li-ws-na">${step ? 'No listing fails this step now.' : `No ${LI_WS.mode === 'live' ? 'live' : LI_WS.mode === 'off' ? 'not-live' : ''} children.`}</td></tr>`;
@@ -1040,7 +1063,9 @@ function liWsRender() {
     .concat(LI_WS_CHECKS.map(check => ({ k: check.k, t: check.w, dot: redK(check.k) ? 'bad' : 'act', n: scoped.filter(p => p.failN[check.k] > 0).length })).filter(chip => chip.n > 0));
   if (!chipDefs.some(chip => chip.k === LI_WS.chip)) LI_WS.chip = 'all';
   const keep = LI_WS.chip === 'all' ? () => true : LI_WS.chip === 'problems' ? p => p.probN > 0 : p => p.failN[LI_WS.chip] > 0;
-  const rows = liWsOrder(scoped.filter(p => (LI_WS.mode !== 'off' || p.offN > 0) && keep(p)));
+  const cardOn = LI_WS.mode !== 'off' && LI_WS_CARD[LI_WS.card] ? LI_WS_CARD[LI_WS.card] : null;
+  const keepCard = cardOn ? cardOn.keep : () => true;
+  const rows = liWsOrder(scoped.filter(p => (LI_WS.mode !== 'off' || p.offN > 0) && keep(p) && keepCard(p)));
   LI_WS.rows = rows;
   const shown = rows.slice(0, LI_WS.shown);
 
@@ -1051,22 +1076,53 @@ function liWsRender() {
     + 'Press “Refresh both brands” on live Sellora to bring it up to date — on the test site nothing is saved. Opening a parent here reads its status, '
     + "Amazon's issues, pictures, title, bullets, description, search terms and specs from Amazon right now.</div>" : '';
 
-  // --- the card ---
+  // --- the number cards: live listings per card (one listing can be in more than one), and P = the parents a click shows ---
   const liveN = scoped.reduce((sum, p) => sum + p.liveN, 0);
-  const probN = scoped.reduce((sum, p) => sum + p.liveProbN, 0);
   const offN = scoped.reduce((sum, p) => sum + p.offN, 0);
   const passN = scoped.reduce((sum, p) => sum + p.passN, 0);
   const unknownN = scoped.reduce((sum, p) => sum + p.unknownN, 0);
-  const card = `<div class="kpis"><div class="kpi">
-      <div class="kpihead"><span class="kpiname">Listing checklist</span><span class="kpiwhen">${lrEsc(brands.map(b => BRAND_NAME[b] + ' ' + (HEALTH[b] && HEALTH[b].at ? 'snapshot ' + HEALTH[b].at.toLocaleString() : 'no snapshot')).join(' · '))}</span></div>
-      <div class="metrics">
-        <div class="metric"><div class="v">${nf(scoped.length)}</div><div class="l">Parents</div></div>
-        <div class="metric"><div class="v">${nf(liveN)}</div><div class="l">Live listings</div></div>
-        <div class="metric"><div class="v li-ws-v-bad">${nf(probN)}</div><div class="l">Live with a problem</div></div>
-        <div class="metric"><div class="v">${nf(offN)}</div><div class="l">Not live / inbound</div></div>
-        <div class="metric" title="Live listings with no Listing Rules problem: Listing Health calls them Healthy. Specs are an extra from the live Amazon read and do not count here."><div class="v">${nf(passN)}</div><div class="l">Live with no problem (${liveN ? Math.round(passN * 100 / liveN) : 0}%)</div>`
-    + (unknownN ? `<div class="li-ws-kpisub" title="Live listings whose content has not been read yet, so the content rules cannot run on them">${nf(unknownN)} not checked yet</div>` : '') + `</div>
-      </div></div></div>`;
+  const probN = scoped.reduce((sum, p) => sum + p.liveProbN, 0);
+  const cardN = k => scoped.reduce((sum, p) => sum + p.cardN[k], 0);
+  const cardP = k => scoped.filter(LI_WS_CARD[k].keep).length;
+  const lvErrN = cardN('err');
+  const lvChkN = cardN('chk');
+  const lvAttN = cardN('att');
+  // A full refresh older than a week shows in amber; the dates are each brand's last "Refresh both brands".
+  const fmtDay = ms => new Date(ms).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+  const fresh = brands.map(b => BRAND_NAME[b] + ' ' + (HEALTH[b] && HEALTH[b].at ? fmtDay(HEALTH[b].at.getTime()) : 'never')).join(' · ');
+  const oldDays = oldest ? Math.floor((now - oldest) / LI_WS_DAY) : -1;
+  const freshLine = `<div class="li-ws-fresh${!oldest || oldDays > 7 ? ' is-old' : ''}" title="Stock, price, status and the content snapshot come from the last “Refresh both brands”">`
+    + `Full refresh: ${lrEsc(fresh)}${oldest ? ` (${oldDays === 0 ? 'today' : oldDays === 1 ? '1 day ago' : oldDays + ' days ago'})` : ''}</div>`;
+  const offOn = LI_WS.mode === 'off';
+  const pw = n => `${nf(n)} parent${n === 1 ? '' : 's'}`;
+  // A clickable card: the big button (number, label, hint, the "in P parents" line) and, after it, an optional link of its own.
+  const cardBtn = (k, ic, cls, v, label, hint, sub, tip, link) => {
+    const on = k === 'off' ? offOn : !offOn && LI_WS.card === k;
+    return `<div class="li-ws-card ${cls}${on ? ' is-on' : ''}"><button type="button" class="li-ws-card-main" data-li-ws-card="${k}" aria-pressed="${on}" title="${lrEsc(tip)}">`
+      + `<span class="li-ws-card-v"><span class="li-ws-card-ic" aria-hidden="true">${ic}</span>${nf(v)}</span><span class="li-ws-card-l">${label}</span>`
+      + `<span class="li-ws-card-h">${hint}</span>${sub ? `<span class="li-ws-card-s">${sub}</span>` : ''}</button>${link || ''}</div>`;
+  };
+  const cardBox = (cls, v, label, hint, tip) => `<div class="li-ws-card ${cls}" title="${lrEsc(tip)}"><span class="li-ws-card-v">${nf(v)}</span>`
+    + `<span class="li-ws-card-l">${label}</span><span class="li-ws-card-h">${hint}</span></div>`;
+  const chkOn = !offOn && LI_WS.card === 'chk';
+  const chkLink = lvChkN ? `<span class="li-ws-card-s li-ws-card-more">+ <button type="button" class="li-ws-card-link" data-li-ws-card="chk" aria-pressed="${chkOn}"`
+    + ` title="Show only the parents with a listing whose Error rests on old data (Error? Check again)">${nf(lvChkN)} to check again</button></span>` : '';
+  const card = freshLine + '<div class="li-ws-cards" role="group" aria-label="Filter the parents by level">'
+    + cardBox('is-plain', scoped.length, 'Parents', 'In view', 'Parents in view (brand and search)')
+    + cardBox('is-plain', liveN, 'Live listings', 'Active, with stock', 'Live = active at Amazon with stock; only these are counted')
+    + cardBtn('err', '●', 'is-err' + (chkOn ? ' is-on' : ''), lvErrN, 'Error: fix first', 'Fix these first', `in ${pw(cardP('err'))}`,
+      'Live listings with at least one confirmed Error. Click to show only their parents; click again to show all.', chkLink)
+    + cardBtn('att', '▲', 'is-att', lvAttN, 'Needs attention', 'Not urgent, worth fixing', `in ${pw(cardP('att'))}`,
+      'Live listings with at least one Needs action or Needs review problem — also when the same listing has an Error. Click to show only their parents; click again to show all.')
+    + cardBtn('ok', '✓', 'is-ok', passN, 'No problem', `Nothing to fix · ${liveN ? Math.round(passN * 100 / liveN) : 0}% of live`,
+      `${pw(cardP('ok'))} fully clean${unknownN ? ` · ${nf(unknownN)} not checked yet` : ''}`,
+      'Live listings with no Listing Rules problem: Listing Health calls them Healthy. A click shows only the parents whose every live listing has no problem. Specs are an extra from the live Amazon read and do not count here.')
+    + cardBtn('off', '○', 'is-off', offN, 'Not live / inbound', 'Shown, not counted', '', 'Inactive or out-of-stock listings. Click to list them; click again to go back to the live ones.')
+    + '</div>'
+    + `<div class="li-ws-cardnote">${nf(probN)} live listing${probN === 1 ? ' has' : 's have'} a problem · a listing with an Error and other problems is in both cards.</div>`;
+  // --- the "Showing:" bar while a number card filters the list ---
+  const showBar = cardOn ? `<div class="li-ws-showing" role="status"><span>Showing: <b>${lrEsc(cardOn.t)}</b> · ${pw(rows.length)}</span>`
+    + '<button type="button" class="ghost li-ws-showall" data-li-ws-cardclear="1">Show all ✕</button></div>' : '';
   // --- the bar: the mode, and the sweep or the re-check with its progress ---
   const sweeping = LI_WS.sweep && LI_WS.sweep.total > 0;
   const rechecking = sweeping && LI_WS.sweep.kind === 'errors';
@@ -1126,7 +1182,7 @@ function liWsRender() {
   const wrap = box.querySelector('.xlwrap');
   const scroll = wrap && !LI_WS.toTop ? { top: wrap.scrollTop, left: wrap.scrollLeft } : null;
   LI_WS.toTop = false;
-  box.innerHTML = banner + card + bar + chips + table + foot;
+  box.innerHTML = banner + card + bar + chips + showBar + table + foot;
   const wrapNow = scroll && box.querySelector('.xlwrap');
   if (wrapNow) {
     wrapNow.scrollTop = scroll.top;
@@ -1211,7 +1267,7 @@ window.addEventListener('scroll', () => { if (LI_WS.on) LI_WS.scrollAt = Date.no
 // One click listener for the whole view: chips, headers, the mode, ▸, Open, Read again, the SKU toggles, Show passed checks,
 // Show these listings, the sweep, Sort again, Show more. (✗ and Fix are data-lr-fix buttons: listing-rules.js opens the fix.)
 $('liWs').addEventListener('click', e => {
-  const el = e.target.closest('[data-li-ws-chip],[data-li-ws-sort],[data-li-ws-mode],[data-li-ws-tog],[data-li-ws-open],[data-li-ws-again],[data-li-ws-sku],[data-li-ws-pass],[data-li-ws-show],[data-li-ws-sweep],[data-li-ws-recheck],[data-li-ws-resort],[data-li-ws-more]');
+  const el = e.target.closest('[data-li-ws-card],[data-li-ws-cardclear],[data-li-ws-chip],[data-li-ws-sort],[data-li-ws-mode],[data-li-ws-tog],[data-li-ws-open],[data-li-ws-again],[data-li-ws-sku],[data-li-ws-pass],[data-li-ws-show],[data-li-ws-sweep],[data-li-ws-recheck],[data-li-ws-resort],[data-li-ws-more]');
   if (!el) return;
   const d = el.dataset;
   // The view is redrawn, so the pressed button is a new element: put the keyboard back on it, without scrolling to it.
@@ -1219,8 +1275,30 @@ $('liWs').addEventListener('click', e => {
     const again = $('liWs').querySelector(selector);
     if (again) again.focus({ preventScroll: true });
   };
+  if (d.liWsCard) {
+    // A number card filters the list to its group; the same card again clears it. "Not live" is the mode of that name.
+    const k = d.liWsCard;
+    if (k === 'off') {
+      LI_WS.mode = LI_WS.mode === 'off' ? 'live' : 'off';
+      LI_WS.card = '';
+    } else {
+      LI_WS.card = LI_WS.card === k && LI_WS.mode !== 'off' ? '' : k;
+      if (LI_WS.mode === 'off') LI_WS.mode = 'live';
+    }
+    LI_WS.chip = 'all';                                      // one filter at a time: a card clears the chip
+    liWsReset();
+    liWsDraw();
+    return refocus(`[data-li-ws-card="${k}"]`);
+  }
+  if (d.liWsCardclear) {
+    LI_WS.card = '';
+    liWsReset();
+    liWsDraw();
+    return refocus('.li-ws-sweep');
+  }
   if (d.liWsChip) {
     LI_WS.chip = d.liWsChip;
+    LI_WS.card = '';                                         // …and a chip clears the card
     liWsReset();
     liWsDraw();
     return refocus(`[data-li-ws-chip="${d.liWsChip}"]`);

@@ -289,6 +289,29 @@ if (require.main === module) {
     const hm = {}; T.rows.forEach(r => { const key = r.brand + '|' + r.parent; const g = hm[key] || (hm[key] = { critical: 0, action: 0, review: 0 }); const b = T.healthOf(r, T.hCtx()).bucket; if (g[b] !== undefined) g[b]++; });
     return ['live', 'all'].every(mode => { T.LI_WS.mode = mode; return T.liWsParents(['SP', 'CPC']).every(p => { const g = hm[p.key]; return g && p.critN === g.critical && p.actN === g.action && p.revN === g.review && p.attN === g.action + g.review; }); }) && hm['SP|P1'].critical >= 1; })());
 
+  console.log('== the Workspace number cards: counts, P parents, and what each click shows ==');
+  const C = load({ ws: true });
+  const c13 = C.rows.find(r => r.sku === 'R13');
+  c13.content.bullets = 3; C.reset();                                // R13: 4 pictures (an Error) AND 3 bullets (Needs attention)
+  C.LI_WS.on = true; C.LI_WS.mode = 'live';
+  const k13 = C.liWsParents(['SP', 'CPC']).flatMap(p => p.kids).find(k => k.sku === 'R13');
+  ok('a listing with an Error AND a Needs attention problem counts in both cards', k13.cards.err === true && k13.cards.att === true && k13.cards.ok === false, JSON.stringify(k13.cards));
+  const showN = k => { C.LI_WS.card = k; C.LI_WS.chip = 'all'; C.liWsRender(); return C.LI_WS.rows.map(p => p.key); };
+  const errRows = showN('err'), attRows = showN('att'), okRows = showN('ok');
+  ok('…and its parent shows under both filters', errRows.includes('SP|P1') && attRows.includes('SP|P1'), JSON.stringify({ errRows, attRows }));
+  C.LI_WS.card = ''; C.liWsRender();
+  const htmlC = C.el('liWs').innerHTML;
+  const pOf = re => +((htmlC.match(re) || [])[1] || -1);
+  ok('the P on each card = the number of parents its click shows', pOf(/data-li-ws-card="err"[^]*?in (\d+) parents?</) === errRows.length && pOf(/data-li-ws-card="att"[^]*?in (\d+) parents?</) === attRows.length
+    && pOf(/data-li-ws-card="ok"[^]*?(\d+) parents? fully clean/) === okRows.length, JSON.stringify([errRows.length, attRows.length, okRows.length]));
+  const parentsC = C.liWsParents(['SP', 'CPC']);
+  ok('the No problem filter never shows a parent that has any problem', okRows.length > 0 && okRows.every(key => { const p = parentsC.find(x => x.key === key); return p.kids.filter(k => k.live).every(k => !k.problem && k.bucket === 'healthy'); }), JSON.stringify(okRows));
+  ok('the problem line keeps the old number', new RegExp(`${parentsC.reduce((s, p) => s + p.liveProbN, 0)} live listings have a problem`).test(htmlC));
+  C.LI_WS.card = 'att'; C.liWsRender();
+  const kt = C.liWsKidTable(C.LI_WS.byKey.get('SP|P1'), 8);
+  ok('inside the parent, the matching listings come first and are marked; the others are faded under "Other listings"', /is-match is-m-att/.test(kt) && /Other listings/.test(kt) && kt.indexOf('is-match') < kt.indexOf('Other listings') && kt.indexOf('Other listings') < kt.indexOf('is-other'));
+  ok('the "Showing:" bar names the card and the parent count', new RegExp(`Showing: <b>Needs attention</b> · ${attRows.length} parent`).test(C.el('liWs').innerHTML));
+
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
 }

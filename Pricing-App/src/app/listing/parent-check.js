@@ -201,25 +201,47 @@ function renderHealthKpis(rows, brands) {
     return acc;
   }, { n: 0, critical: 0, action: 0, review: 0, healthy: 0, monitor: 0, unchecked: 0, nodata: 0, checked: 0, score: 0 });
 
+  // One row of cards per brand, the same look as the Workspace's number cards (6 Nov 2026): Ravi's four levels with their own
+  // colours and marks, then Health and Listings. The numbers are exactly the ones above.
+  // A level card is a button that sets Listing Health's own level filter (#hIssueView) exactly as picking it there does; the
+  // same card again sets it back to All listings. Health and Listings are plain cards.
+  const view = $('hIssueView').value;
+  const card = (cls, ic, v, label, sub, level) => {
+    const inner = `<span class="li-ws-card-v">${ic ? `<span class="li-ws-card-ic" aria-hidden="true">${ic}</span>` : ''}${v}</span>`
+      + `<span class="li-ws-card-l">${label}</span>${sub ? `<span class="li-ws-card-h">${sub}</span>` : ''}`;
+    if (!level) return `<div class="li-ws-card ${cls}">${inner}</div>`;
+    const on = view === level;
+    return `<div class="li-ws-card ${cls}${on ? ' is-on' : ''}"><button type="button" class="li-ws-card-main" data-lh-level="${level}" aria-pressed="${on}"`
+      + ` title="Show only the ${lrEsc(label)} listings; click again to show all">${inner}</button></div>`;
+  };
   $('hKpis').innerHTML = brands.map(brand => {
     const counts = tally(rows.filter(row => row.brand === brand));
     const saved = HEALTH[brand];
     const when = saved && saved.at ? 'updated ' + saved.at.toLocaleString() : '';
     const avg = counts.checked ? Math.round(counts.score / counts.checked) : 0;
-    return `<div class="kpi">
-      <div class="kpihead"><span class="kpiname">${BRAND_NAME[brand]}</span><span class="kpiwhen">${when}</span></div>
-      <div class="metrics">
-        <div class="metric"><div class="v">${nf(counts.critical)}</div><div class="l">Critical</div></div>
-        <div class="metric"><div class="v">${nf(counts.action)}</div><div class="l">Needs Action</div></div>
-        <div class="metric"><div class="v">${nf(counts.review)}</div><div class="l">Needs Review</div></div>
-        <div class="metric"><div class="v">${nf(counts.healthy + counts.monitor)}</div><div class="l">Healthy${counts.monitor ? ` · ${nf(counts.monitor)} monitor` : ''}</div></div>
-        <div class="metric"><div class="v" style="font-size:15px">${avg}</div><div class="l">Health</div></div>
-        <div class="metric"><div class="v" style="font-size:15px">${nf(counts.n)}</div><div class="l">Listings${
-          counts.unchecked ? ` · ${nf(counts.unchecked)} not checked` : ''}${counts.nodata ? ` (${nf(counts.nodata)} no catalog data)` : ''}</div></div>
-      </div>
-    </div>`;
+    const listSub = [counts.unchecked ? `${nf(counts.unchecked)} not checked` : '', counts.nodata ? `${nf(counts.nodata)} no catalog data` : ''].filter(Boolean).join(' · ');
+    return `<div class="lh-kpibrand"><div class="lh-kpihead"><span class="lh-kpiname">${BRAND_NAME[brand]}</span><span class="lh-kpiwhen">${when}</span></div>`
+      + '<div class="li-ws-cards">'
+      + card('is-err', '●', nf(counts.critical), 'Critical', '', 'critical')
+      + card('is-act', '●', nf(counts.action), 'Needs Action', '', 'action')
+      + card('is-att', '▲', nf(counts.review), 'Needs Review', '', 'review')
+      + card('is-ok', '✓', nf(counts.healthy + counts.monitor), 'Healthy', counts.monitor ? `${nf(counts.monitor)} monitor` : '', 'healthy')
+      + card('is-plain', '', avg, 'Health', '')
+      + card('is-plain', '', nf(counts.n), 'Listings', listSub)
+      + '</div></div>';
   }).join('');
 }
+
+// A level card on the Parent ASINs / Child listings view: set the existing level filter and redraw, as its own change handler does.
+$('hKpis').addEventListener('click', e => {
+  const btn = e.target.closest('[data-lh-level]');
+  if (!btn) return;
+  const level = btn.dataset.lhLevel;
+  $('hIssueView').value = $('hIssueView').value === level ? 'ALL' : level;
+  renderHealth();
+  const again = $('hKpis').querySelector(`[data-lh-level="${level}"]`);
+  if (again) again.focus({ preventScroll: true });
+});
 
 /**
  * The report's REAL column names, one real row, and how many rows actually carry a merchant
