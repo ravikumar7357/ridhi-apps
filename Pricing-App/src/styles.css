@@ -1746,6 +1746,298 @@
   .li-ws-passed>div{white-space:normal}
   /* Under the table: how many are on the page, and the way to more. */
   .li-ws-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:-6px 0 16px;font-size:12.5px}
+
+  /* ===== THE LISTING HEALTH LOOK (6 Nov 2026): the Ad Console / PPC & Organic · New layout, Listing Health's own copies (.ls-*).
+     Same tokens, sizes, radii, shadows, spacing and hover effects as .adx-meta / .adx-seg / .adx-box / .px-toolbar / .px-card /
+     .px-tbl / .px-pop / .adh-bar / .adh-f / .adh-skel — written here so the Ads rules are never touched. Scoped to #paneHealth.
+     Colours in this tab: Error red ●, Needs attention yellow ▲ (--rev), no problem green ✓, not checked / check again grey ○.
+     Parent ASINs / Child listings keep Ravi's four levels (Critical red, Needs Action orange, Needs Review yellow, Healthy green).
+     Animations are transform-only, and none under prefers-reduced-motion. ===== */
+  /* The meta line, like .adx-meta: what the page shows, how fresh it is; amber once the full refresh is older than a week. */
+  #paneHealth .ls-meta{display:flex;justify-content:space-between;align-items:baseline;gap:4px 16px;flex-wrap:wrap;margin:0 2px 10px;
+    font-size:12px;color:var(--muted)}
+  #paneHealth .ls-meta b{color:var(--ink);font-weight:600}
+  #paneHealth .ls-meta>span:last-child{color:var(--faint)}
+  #paneHealth .ls-meta .is-old,#paneHealth .ls-meta .is-old b{color:var(--warn-ink)}
+  /* The toolbar card, like .px-card.px-toolbar: it sticks under Sellora's menu bar (--ls-top is that bar's measured height,
+     set by hStick in listing-health-data.js), flat-topped with a deeper shadow while stuck; not under 860px. */
+  #paneHealth .card.ls-toolbar{position:sticky;top:var(--ls-top,0px);z-index:20;padding:12px 16px;border-radius:var(--r-card);
+    box-shadow:var(--sh-1);transition:box-shadow .15s ease}
+  #paneHealth .card.ls-toolbar.ls-stuck{box-shadow:var(--sh-2);border-top-left-radius:0;border-top-right-radius:0}
+  #paneHealth .ls-tb{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  #paneHealth .card.ls-schema{margin:0 0 12px;padding:12px 16px;font-size:12px}
+  #paneHealth #hMsg:empty{display:none}
+  #paneHealth #hMsg{margin-top:8px;font-size:12.5px}
+  /* Pill switches, like .adx-seg: a soft track, the chosen pill raised in the card colour. */
+  #paneHealth .ls-tb .ls-seg{display:inline-flex;align-items:center;gap:2px;height:auto;padding:3px;border-radius:var(--r-pill);
+    background:var(--hover);border:1px solid var(--line)}
+  #paneHealth .ls-seg .segbtn{border:0;background:transparent;color:var(--muted);font:inherit;font-size:12px;font-weight:600;line-height:1;
+    padding:6px 11px;border-radius:var(--r-pill);box-shadow:none;cursor:pointer;transition:background-color .15s ease,color .15s ease,box-shadow .15s ease}
+  #paneHealth .ls-seg .segbtn:hover{color:var(--ink);background:color-mix(in srgb,var(--card) 55%,transparent)}
+  #paneHealth .ls-seg .segbtn.on,#paneHealth .ls-seg .segbtn.on:hover{background:var(--raise);color:var(--ink);font-weight:600;box-shadow:var(--sh-1)}
+  #paneHealth .ls-seg .segbtn:focus-visible,#paneHealth .ls-seg .segbtn.on:focus-visible{outline:2px solid var(--accent);outline-offset:1px;box-shadow:none}
+  #paneHealth #hModeSeg{display:none}
+  #paneHealth.li-ws-on #hModeSeg{display:inline-flex}
+  /* The search box with its icon, like .px-search; the selects and buttons share its height and radius. */
+  #paneHealth .ls-tb .ls-search{display:flex;align-items:center;gap:8px;flex:1 1 200px;min-width:180px;height:var(--ctl);padding:0 12px;
+    border:1px solid var(--line);border-radius:var(--r-ctl);background:var(--card);color:var(--faint)}
+  #paneHealth .ls-search svg{width:15px;height:15px;flex:none}
+  #paneHealth .ls-tb .ls-search input{width:100%;height:100%;min-height:0;margin:0;padding:0;border:0;border-radius:0;background:transparent;
+    background-image:none;box-shadow:none;outline:none;font-size:13.5px;color:var(--ink)}
+  #paneHealth .ls-tb .ls-search:focus-within{box-shadow:var(--ring)}
+  #paneHealth .ls-tb .ls-sel{flex:0 0 auto;width:auto;max-width:190px;height:var(--ctl);padding:0 30px 0 12px;border:1px solid var(--line);
+    border-radius:var(--r-ctl);background-color:var(--card);font-size:13px;font-weight:600;color:var(--ink)}
+  /* Outline buttons, like .px-btn; the one main button dark and round, like .px-btn.px-dark. */
+  #paneHealth .ls-tb .ls-btn{height:var(--ctl);padding:0 14px;border:1px solid var(--line);border-radius:var(--r-ctl);background:var(--card);
+    color:var(--ink);font-size:13px;font-weight:600;line-height:1;box-shadow:none;white-space:nowrap;display:inline-flex;align-items:center;gap:6px}
+  #paneHealth .ls-tb .ls-btn:hover{background:var(--hover);color:var(--ink);box-shadow:none}
+  #paneHealth .ls-tb .ls-btn:focus-visible{outline:none;box-shadow:var(--ring)}
+  #paneHealth .ls-tb .ls-btn.ls-dark,#paneHealth .ls-tb .ls-btn.ls-dark:hover{background:var(--ink);color:var(--card);border-color:var(--ink);
+    border-radius:var(--r-pill);padding:0 18px}
+  #paneHealth .ls-tb .ls-btn.ls-dark:hover{background:color-mix(in srgb,var(--ink) 86%,var(--card))}
+  #paneHealth .ls-tb .ls-btn.ls-dark:disabled{opacity:.55;cursor:default}
+  #paneHealth .ls-tb .ls-btn.ls-dark[data-li-ws-recheck="stop"]{background:var(--bad-ink);border-color:var(--bad-ink)}
+  /* Number boxes, like .adx-box: icon, label, big number, small lines, a soft corner circle in the box's colour (--c, set by
+     class — never inline), hover lift and shadow, focus ring. A clickable box holds its button (.ls-box-main) and may carry one
+     link of its own after it (.ls-box-more). The box whose filter is on wears the ring. */
+  #paneHealth .ls-boxes{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;margin:0 0 10px}
+  #paneHealth .ls-box{--c:var(--brand);position:relative;overflow:hidden;min-width:0;display:flex;flex-direction:column;align-items:stretch;gap:0;
+    margin:0;padding:12px 14px 8px;background:var(--card);border:1px solid var(--card-line);border-radius:var(--r-card);box-shadow:var(--sh-1);
+    color:var(--ink);font:inherit;text-align:left;line-height:1.3;transition:transform .15s cubic-bezier(.2,.7,.2,1),box-shadow .15s ease,border-color .15s ease}
+  #paneHealth .ls-box::after{content:"";position:absolute;right:-55px;top:-65px;width:160px;height:160px;border-radius:50%;
+    background:radial-gradient(circle,var(--c) 0,transparent 68%);opacity:var(--ls-glow);pointer-events:none}
+  #paneHealth{--ls-glow:.12}
+  :root[data-theme="dark"] #paneHealth{--ls-glow:.2}
+  @media (prefers-color-scheme:dark){:root:not([data-theme="light"]) #paneHealth{--ls-glow:.2}}
+  #paneHealth .ls-box:hover{box-shadow:var(--sh-2)}
+  #paneHealth .ls-box:has(.ls-box-main):hover{transform:translateY(-3px);border-color:color-mix(in srgb,var(--c) 40%,var(--card-line))}
+  #paneHealth .ls-box:has(.ls-box-main:active){transform:translateY(-1px) scale(.99)}
+  #paneHealth .ls-box:has(.ls-box-main:focus-visible),#paneHealth .ls-box.is-on{box-shadow:0 0 0 3px color-mix(in srgb,var(--c) 35%,transparent)}
+  #paneHealth .ls-box.is-on{border-color:color-mix(in srgb,var(--c) 55%,var(--card-line))}
+  #paneHealth .ls-box:has(.ls-box-main){padding:0}
+  #paneHealth .ls-box-main{display:flex;flex-direction:column;align-items:stretch;gap:0;width:100%;margin:0;padding:12px 14px 8px;border:0;border-radius:0;
+    background:transparent;box-shadow:none;color:inherit;font:inherit;text-align:left;line-height:1.3;cursor:pointer}
+  #paneHealth .ls-box-main:hover,#paneHealth .ls-box-main:active,#paneHealth .ls-box-main:focus-visible{background:transparent;color:inherit;box-shadow:none;outline:none;transform:none}
+  #paneHealth .ls-l{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:600;color:var(--muted);white-space:nowrap}
+  #paneHealth .ls-ic{flex:none;display:grid;place-items:center;width:24px;height:24px;border-radius:var(--r-sm);color:var(--c);
+    background:color-mix(in srgb,var(--c) 14%,transparent);font-size:12px;line-height:1;transition:transform .25s cubic-bezier(.2,.7,.2,1)}
+  #paneHealth .ls-box:hover .ls-ic{transform:scale(1.1) rotate(-6deg)}
+  #paneHealth .ls-v{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:8px 0 2px}
+  #paneHealth .ls-v>b{font-size:22px;font-weight:700;letter-spacing:-.025em;line-height:1.15;color:var(--ink);font-variant-numeric:tabular-nums}
+  #paneHealth .ls-box.is-err .ls-v>b{color:var(--bad-ink)}
+  #paneHealth .ls-box.is-att .ls-v>b{color:var(--rev-ink)}
+  #paneHealth .ls-box.is-act .ls-v>b{color:var(--act-ink)}
+  #paneHealth .ls-box.is-ok .ls-v>b{color:var(--accent-ink)}
+  :is(#paneHealth,#hkModal) .ls-note{font-size:11.5px;color:var(--faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  :is(#paneHealth,#hkModal) .ls-note.ls-sub{color:var(--muted)}
+  #paneHealth .ls-box.is-err{--c:var(--bad)}
+  #paneHealth .ls-box.is-att{--c:var(--rev)}
+  #paneHealth .ls-box.is-act{--c:var(--act)}
+  #paneHealth .ls-box.is-ok{--c:var(--accent)}
+  #paneHealth .ls-box.is-off{--c:var(--faint)}
+  #paneHealth .ls-box.is-off .ls-v>b{color:var(--muted)}
+  #paneHealth .ls-box-more{display:block;margin:-4px 14px 10px;font-size:11.5px;color:var(--muted)}
+  #paneHealth .ls-box-more .li-ws-card-link{display:inline;margin:0;padding:0 2px;border:0;border-radius:4px;background:transparent;box-shadow:none;
+    color:var(--bad-ink);font:inherit;font-weight:600;text-decoration:underline;text-underline-offset:2px;cursor:pointer}
+  #paneHealth .ls-box-more .li-ws-card-link:hover{background:transparent;color:var(--bad-ink)}
+  #paneHealth .ls-box-more .li-ws-card-link[aria-pressed="true"]{background:var(--bad-bg)}
+  #paneHealth .ls-box-more .li-ws-card-link:focus-visible{outline:none;box-shadow:var(--ring)}
+  /* Parent ASINs / Child listings: one line per brand above its boxes. */
+  #paneHealth .lh-kpibrand .ls-boxes{margin-bottom:14px}
+  /* The flush list card, like .px-card.px-clip, and the calm table inside it, like .px-tbl: a soft sticky header in small
+     capitals, 44px rows, one hairline between rows, the row under the pointer tinted. */
+  #paneHealth .card.ls-card{border-radius:var(--r-card);box-shadow:var(--sh-1);border:1px solid var(--card-line)}
+  #paneHealth .card.ls-clip{padding:0;overflow:auto}
+  #paneHealth table.ls-tbl{font-size:13.5px}
+  #paneHealth table.ls-tbl thead th{background:var(--card);color:var(--faint);font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;
+    padding:12px;box-shadow:inset 0 -1px 0 var(--line)}
+  #paneHealth table.ls-tbl thead th:hover{color:var(--ink)}
+  #paneHealth table.ls-tbl tbody td{height:44px;padding:9px 12px;line-height:1.3}
+  #paneHealth table.ls-tbl tbody tr:hover td,#paneHealth table.ls-tbl tbody tr:hover td.frz{background:var(--soft)}
+  #paneHealth table.ls-tbl tfoot td{background:var(--soft);color:var(--ink)}
+  #paneHealth table.ls-tbl .frz{font-family:inherit;border-right:0}
+  /* Count pills in the level's colour; a zero stays faint. */
+  #paneHealth .ls-pill{display:inline-block;min-width:26px;padding:2px 9px;border-radius:var(--r-pill);font-size:11.5px;font-weight:700;line-height:1.4;
+    text-align:center;font-variant-numeric:tabular-nums;background:var(--hover);color:var(--ink)}
+  #paneHealth .ls-pill.is-c{background:var(--bad-bg);color:var(--bad-ink)}
+  #paneHealth .ls-pill.is-a{background:var(--act-bg);color:var(--act-ink)}
+  #paneHealth .ls-pill.is-r{background:var(--rev-bg);color:var(--rev-ink)}
+  #paneHealth .ls-pill.is-g{background:var(--accent-bg);color:var(--accent-ink)}
+  #paneHealth .ls-pill.is-b{background:var(--brand-bg);color:var(--brand-ink)}
+  #paneHealth .ls-zero{color:var(--faint);font-variant-numeric:tabular-nums}
+  /* Health: a small bar and the number — green 80+, amber 50–79, red under 50, the same thresholds as before. The bar is an SVG whose
+     widths are attributes, so no inline style is needed. */
+  #paneHealth .ls-health{display:inline-flex;align-items:center;gap:8px;font-weight:700;font-variant-numeric:tabular-nums}
+  #paneHealth .ls-health b{min-width:24px;text-align:right}
+  #paneHealth .ls-hbar{display:block;width:52px;height:6px;flex:none}
+  #paneHealth .ls-hbar .ls-hbar-t{fill:var(--hover)}
+  #paneHealth .ls-hbar .ls-hbar-f{fill:var(--accent)}
+  #paneHealth .ls-health.is-warn .ls-hbar-f{fill:var(--act)}
+  #paneHealth .ls-health.is-warn b{color:var(--act-ink)}
+  #paneHealth .ls-health.is-good b{color:var(--accent-ink)}
+  #paneHealth .ls-health.is-bad .ls-hbar-f{fill:var(--bad)}
+  #paneHealth .ls-health.is-bad b{color:var(--bad-ink)}
+  /* The mix bar of a parent's children, like .adh-bar: Error red, Needs attention yellow, no problem green, not checked grey; the
+     counts in words under it. */
+  #paneHealth .ls-mix{display:block;width:100%;min-width:140px;max-width:260px;height:6px;border-radius:var(--r-pill);overflow:hidden;background:var(--hover)}
+  #paneHealth .ls-mix rect{shape-rendering:crispEdges}
+  #paneHealth .ls-mix .is-err{fill:var(--bad)}
+  #paneHealth .ls-mix .is-chk{fill:var(--faint)}
+  #paneHealth .ls-mix .is-att{fill:var(--rev)}
+  #paneHealth .ls-mix .is-ok{fill:var(--accent)}
+  #paneHealth .ls-mix .is-unk{fill:color-mix(in srgb,var(--faint) 45%,transparent)}
+  #paneHealth .ls-mixw{display:flex;flex-wrap:wrap;gap:2px 10px;margin-top:5px;font-size:11.5px;color:var(--muted);white-space:nowrap}
+  #paneHealth .ls-mixw span{display:inline-flex;align-items:center;gap:5px}
+  :is(#paneHealth,#hkModal) .ls-dot{display:inline-block;flex:none;width:7px;height:7px;border-radius:50%;background:var(--faint)}
+  :is(#paneHealth,#hkModal) .ls-dot.is-err{background:var(--bad)}
+  :is(#paneHealth,#hkModal) .ls-dot.is-att{background:var(--rev)}
+  :is(#paneHealth,#hkModal) .ls-dot.is-ok{background:var(--accent)}
+  :is(#paneHealth,#hkModal) .ls-dot.is-chk{background:transparent;box-shadow:inset 0 0 0 1.5px var(--bad)}
+  :is(#paneHealth,#hkModal) .ls-dot.is-fill{background:var(--brand)}
+  /* The product cell: a small picture (the catalogue's MAIN, or the Image Manager's; grey when none), the name, the "Fix first" line and
+     the ASIN muted — like .px-prod / .px-pic. */
+  #paneHealth .ls-prod{display:flex;align-items:center;gap:10px;min-width:0}
+  #paneHealth .ls-prod-t{min-width:0}
+  #paneHealth .ls-prod-t .ui-name{max-width:320px;font-weight:600}
+  #paneHealth .ls-pic{flex:none;display:grid;place-items:center;width:36px;height:36px;border-radius:var(--r-sm);overflow:hidden;
+    background:var(--card);border:1px solid var(--line)}
+  #paneHealth .ls-pic.ls-lg{width:48px;height:48px;border-radius:10px}
+  #paneHealth .ls-pic img{display:block;width:100%;height:100%;object-fit:contain}
+  #paneHealth .ls-pic.is-none,#paneHealth .ls-pic.is-broken{background:var(--hover);border-color:transparent}
+  #paneHealth .ls-pic.is-broken img{display:none}
+  #paneHealth .ls-fix{display:block;margin-top:1px;font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:320px}
+  #paneHealth .ls-fix b{color:var(--bad-ink);font-weight:600}
+  #paneHealth .ls-fix.is-ok b{color:var(--accent-ink)}
+  #paneHealth .ls-asin{display:block;margin-top:1px;font-size:11px;color:var(--faint);font-family:ui-monospace,monospace}
+  /* The › that opens a parent: a round target, like .adh-chevw. */
+  #paneHealth .ls-asinc{display:inline-flex;align-items:center;gap:8px}
+  #paneHealth .ls-chev{text-decoration:none;display:inline-grid;place-items:center;width:30px;height:30px;margin:0;padding:0;border:0;border-radius:50%;background:var(--hover);
+    color:var(--muted);font-size:18px;font-weight:600;line-height:1;box-shadow:none;cursor:pointer;transition:background .15s ease,color .15s ease}
+  #paneHealth .ls-chev:hover{background:color-mix(in srgb,var(--ink) 12%,transparent);color:var(--ink)}
+  #paneHealth .ls-chev:focus-visible{outline:none;box-shadow:var(--ring)}
+  /* A list row that opens the side panel: pointer, a keyboard ring inside the row, the open one tinted in the brand pair. */
+  #paneHealth tr.ls-row{cursor:pointer}
+  #paneHealth tr.ls-row:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+  #paneHealth tr.ls-row.is-open>td,#paneHealth tr.ls-row.is-open:hover>td{background:var(--brand-bg)}
+  /* The open parent's header card on Parent ASINs / Child listings: back, picture, name, ASIN · brand · children, count pills, optimiser. */
+  #paneHealth .card.ls-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 16px;margin-bottom:10px}
+  #paneHealth .card.ls-head.hide{display:none}
+  #paneHealth .ls-head .ls-head-t{flex:1 1 280px;min-width:0}
+  #paneHealth .ls-head .ls-head-n{font-size:16px;font-weight:700;letter-spacing:-.01em}
+  #paneHealth .ls-head .ls-head-s{display:flex;align-items:center;gap:6px 10px;flex-wrap:wrap;margin-top:3px;font-size:12.5px;color:var(--muted)}
+  /* "Why": up to 3 problems in words, then "+n more" that opens the rest in place (no redraw). */
+  #paneHealth .ls-why .ls-why-rest{display:none}
+  #paneHealth .ls-why.is-open .ls-why-rest{display:block}
+  #paneHealth .ls-why.is-open .ls-why-more{display:none}
+  :is(#paneHealth,#hkModal) .ls-more,:is(#paneHealth,#hkModal) .ls-why-more{display:inline-block;margin:4px 0 0;padding:2px 10px;border:1px solid var(--line);border-radius:var(--r-pill);
+    background:var(--card);color:var(--brand-ink);font:inherit;font-size:12px;font-weight:600;line-height:1.4;box-shadow:none;cursor:pointer}
+  :is(#paneHealth,#hkModal) .ls-more:hover,:is(#paneHealth,#hkModal) .ls-why-more:hover{background:var(--brand-bg);color:var(--brand-ink)}
+  :is(#paneHealth,#hkModal) .ls-more:focus-visible,:is(#paneHealth,#hkModal) .ls-why-more:focus-visible{outline:none;box-shadow:var(--ring)}
+  /* Problem rows, like the Recommendation rows (.adh-f): a dot through --sev, the problem in words with a grey subtitle, how to fix,
+     a tag, a Fix button. One grid row, a hairline between rows, the row under the pointer tinted. */
+  :is(#paneHealth,#hkModal) .ls-rec{--sev:var(--faint);display:grid;grid-template-columns:14px minmax(0,1fr) auto;align-items:start;gap:4px 12px;padding:12px 16px;
+    border-top:1px solid var(--line);font-size:13px;line-height:1.45;transition:background .15s ease}
+  :is(#paneHealth,#hkModal) .ls-rec:first-child{border-top:0}
+  :is(#paneHealth,#hkModal) .ls-rec:hover{background:var(--hover)}
+  :is(#paneHealth,#hkModal) .ls-rec.is-err{--sev:var(--bad)}
+  :is(#paneHealth,#hkModal) .ls-rec.is-att{--sev:var(--rev)}
+  :is(#paneHealth,#hkModal) .ls-rec.is-fill{--sev:var(--brand)}
+  :is(#paneHealth,#hkModal) .ls-rec>.ls-dot{margin-top:6px;background:var(--sev)}
+  :is(#paneHealth,#hkModal) .ls-rec.is-chk>.ls-dot{background:transparent;box-shadow:inset 0 0 0 1.5px var(--bad)}
+  :is(#paneHealth,#hkModal) .ls-rec-t{min-width:0}
+  :is(#paneHealth,#hkModal) .ls-rec-t b{display:block;font-size:13.5px;font-weight:600;color:var(--ink)}
+  :is(#paneHealth,#hkModal) .ls-rec-t small{display:block;font-size:11.5px;color:var(--faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  :is(#paneHealth,#hkModal) .ls-rec-how{grid-column:2;margin-top:2px;font-size:12.5px;color:var(--muted)}
+  :is(#paneHealth,#hkModal) .ls-rec-a{display:flex;align-items:center;gap:8px;justify-self:end;white-space:nowrap}
+  :is(#paneHealth,#hkModal) .ls-rec-a .lr-tag{margin:0}
+  :is(#paneHealth,#hkModal) .ls-rec-a .lr-tag.is-fill{background:var(--brand-bg);color:var(--brand-ink);border-color:transparent}
+  :is(#paneHealth,#hkModal) .ls-rec .lr-fixbtn{margin:0}
+  :is(#paneHealth,#hkModal) .ls-recs{margin:0}
+  #hkModal td.ls-hkfix{min-width:320px;white-space:normal;font-size:12px}
+  #hkModal .ls-rec{padding:8px 4px}
+  /* Small tags for a listing's problems in the panel's Listings tab. */
+  #paneHealth .ls-tag{display:inline-block;max-width:180px;padding:1px 8px;border-radius:var(--r-pill);background:var(--hover);color:var(--muted);
+    font-size:11px;font-weight:600;line-height:1.5;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;vertical-align:middle}
+  #paneHealth .ls-tag.is-err{background:var(--bad-bg);color:var(--bad-ink)}
+  #paneHealth .ls-tag.is-att{background:var(--rev-bg);color:var(--rev-ink)}
+  #paneHealth .ls-tag.is-chk{background:transparent;color:var(--bad-ink);box-shadow:inset 0 0 0 1px var(--bad)}
+  #paneHealth .ls-tag.is-ok{background:var(--accent-bg);color:var(--accent-ink)}
+  /* The side panel, like .px-pop (16px radius, the soft shadow, a hairline): fixed to the right, 520px, the page's full height under
+     the menu bar; slides in with a transform only. One at a time. */
+  #paneHealth .ls-panel{position:fixed;top:var(--ls-top,0px);right:0;bottom:0;z-index:50;display:flex;flex-direction:column;width:min(520px,100vw);
+    margin:8px;max-height:calc(100vh - var(--ls-top,0px) - 16px);background:var(--card);border:1px solid var(--line);border-radius:16px;
+    box-shadow:var(--sh-2);transform:translateX(0);animation:ls-panel-in .22s cubic-bezier(.2,.7,.2,1) both}
+  #paneHealth .ls-panel[hidden]{display:none}
+  @keyframes ls-panel-in{from{transform:translateX(24px)}to{transform:none}}
+  #paneHealth .ls-panel-h{display:flex;align-items:center;gap:12px;padding:14px 16px 10px}
+  #paneHealth .ls-panel-t{flex:1 1 auto;min-width:0}
+  #paneHealth .ls-panel-t b{display:block;font-size:15px;font-weight:650;letter-spacing:-.01em;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  #paneHealth .ls-panel-t span{display:block;margin-top:2px;font-size:12px;color:var(--muted)}
+  #paneHealth .ls-x{flex:none;display:grid;place-items:center;width:30px;height:30px;margin:0;padding:0;border:0;border-radius:50%;background:var(--hover);
+    color:var(--muted);font-size:18px;line-height:1;box-shadow:none;cursor:pointer}
+  #paneHealth .ls-x:hover{background:color-mix(in srgb,var(--ink) 12%,transparent);color:var(--ink)}
+  #paneHealth .ls-x:focus-visible{outline:none;box-shadow:var(--ring)}
+  #paneHealth .ls-panel-a{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:0 16px 10px}
+  #paneHealth .ls-panel-a .ls-btn{height:32px;padding:0 12px;border:1px solid var(--line);border-radius:var(--r-ctl);background:var(--card);color:var(--ink);
+    font-size:12.5px;font-weight:600;line-height:1;box-shadow:none;white-space:nowrap}
+  #paneHealth .ls-panel-a .ls-btn:hover{background:var(--hover);color:var(--ink);box-shadow:none}
+  #paneHealth .ls-panel-a .ls-btn:focus-visible{outline:none;box-shadow:var(--ring)}
+  #paneHealth .ls-tabs{display:flex;gap:2px;margin:0 16px;padding:3px;border-radius:var(--r-pill);background:var(--hover);border:1px solid var(--line)}
+  #paneHealth .ls-tabs button{flex:1 1 0;min-width:0;margin:0;padding:6px 10px;border:0;border-radius:var(--r-pill);background:transparent;color:var(--muted);
+    font:inherit;font-size:12px;font-weight:600;line-height:1;box-shadow:none;white-space:nowrap;cursor:pointer;transition:background-color .15s ease,color .15s ease}
+  #paneHealth .ls-tabs button:hover{color:var(--ink);background:color-mix(in srgb,var(--card) 55%,transparent)}
+  #paneHealth .ls-tabs button[aria-selected="true"]{background:var(--raise);color:var(--ink);box-shadow:var(--sh-btn)}
+  #paneHealth .ls-tabs button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+  #paneHealth .ls-tabs .ls-n{display:inline-block;margin-left:5px;padding:0 6px;border-radius:var(--r-pill);background:color-mix(in srgb,var(--ink) 8%,transparent);font-size:11px}
+  #paneHealth .ls-panel-b{flex:1 1 auto;min-height:0;overflow:auto;margin-top:10px;border-top:1px solid var(--line)}
+  #paneHealth .ls-panel-f{flex:none;padding:8px 16px;border-top:1px solid var(--line);font-size:11.5px;color:var(--faint)}
+  #paneHealth .ls-panel .ls-recs,#paneHealth .ls-panel .ls-kids{padding:0}
+  #paneHealth .ls-panel .li-ws-audit{padding:8px 16px 10px}
+  #paneHealth .ls-panel .li-ws-kidbox{overflow:auto;max-width:100%}
+  #paneHealth .ls-panel .li-ws-kidtable th{position:static;padding:6px 10px;background:transparent;font-size:11px;color:var(--faint)}
+  #paneHealth .ls-panel .li-ws-kidtable td{padding:5px 10px;white-space:nowrap}
+  #paneHealth .ls-panel-tog{display:flex;justify-content:flex-end;padding:8px 16px 0}
+  /* One child in the Listings tab: picture, SKU, status, its problems as tags; the open one shows its own problems under it. */
+  #paneHealth .ls-kid{display:grid;grid-template-columns:36px minmax(0,1fr) auto;align-items:center;gap:4px 10px;width:100%;margin:0;padding:9px 16px;border:0;
+    border-top:1px solid var(--line);border-radius:0;background:transparent;color:var(--ink);font:inherit;text-align:left;box-shadow:none;cursor:pointer;transition:background .15s ease}
+  #paneHealth .ls-kid:first-child{border-top:0}
+  #paneHealth .ls-kid:hover,#paneHealth .ls-kid[aria-expanded="true"]{background:var(--hover);color:var(--ink)}
+  #paneHealth .ls-kid:focus-visible{outline:none;box-shadow:inset 0 0 0 2px var(--ring-line)}
+  #paneHealth .ls-kid.is-off{color:var(--muted)}
+  #paneHealth .ls-kid.is-other{opacity:.55}
+  #paneHealth .ls-kid-t{min-width:0}
+  #paneHealth .ls-kid-t b{display:block;font-family:ui-monospace,monospace;font-size:12.5px;font-weight:600}
+  #paneHealth .ls-kid-t small{display:block;font-size:11.5px;color:var(--faint)}
+  #paneHealth .ls-kid-s{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:4px;max-width:220px}
+  #paneHealth .ls-kid-d{padding:4px 16px 12px 62px;border-top:0;background:var(--soft)}
+  #paneHealth .ls-kid-d .li-ws-dbox{border:0;background:transparent;padding:4px 0 0}
+  #paneHealth .ls-kidhead{padding:10px 16px 4px;border-top:1px solid var(--line);font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--faint)}
+  /* Loading: grey pulsing bars, like .adh-skel. Empty: a friendly line, like .px-empty. */
+  #paneHealth .ls-skel{display:inline-block;width:72px;height:24px;border-radius:var(--r-pill);background:var(--hover);animation:ls-pulse 1.2s ease-in-out infinite}
+  @keyframes ls-pulse{50%{opacity:.45}}
+  #paneHealth .ls-skel.is-w{width:55%;height:14px}
+  #paneHealth .ls-skel.is-s{width:44px;height:14px}
+  #paneHealth .ls-skel.is-pic{width:36px;height:36px;border-radius:var(--r-sm)}
+  #paneHealth .ls-skel-row{display:flex;align-items:center;gap:12px;padding:10px 16px;border-top:1px solid var(--line)}
+  #paneHealth .ls-skel-row:first-child{border-top:0}
+  #paneHealth .ls-skel-box{min-height:88px}
+  #paneHealth .ls-empty{padding:40px 16px;text-align:center;color:var(--muted);font-size:13px;line-height:1.6}
+  #paneHealth .ls-empty b{color:var(--ink);font-weight:600}
+  /* In this tab Needs attention is yellow (the --rev pair), in the problem lists and the Workspace pills; the Severity column and the
+     area dots keep Ravi's orange for Needs Action. */
+  #paneHealth .lr-prob>.sev-a,#paneHealth .li-ws-astep>.sev-a{background:var(--rev);box-shadow:0 0 0 3px color-mix(in srgb,var(--rev) 22%,transparent)}
+  :is(#paneHealth,#hkModal) .lr-lvl.is-a{background:var(--rev-bg);color:var(--rev-ink)}
+  :is(#paneHealth,#hkModal) .lr-lvl.is-f{background:var(--brand-bg);color:var(--brand-ink)}
+  #paneHealth .li-ws .li-ws-x.is-a{background:var(--rev-bg);color:var(--rev-ink)}
+  #paneHealth .li-ws .li-ws-x.is-a:hover{background:var(--rev-bg);color:var(--rev-ink);border-color:var(--rev)}
+  #paneHealth .li-ws-astep.is-fail.is-a .li-ws-astep-t{color:var(--rev-ink)}
+  #paneHealth .li-ws-dot-act{background:var(--rev)}
+  /* The Workspace's own bar is slim now: the progress on the left, Sort again and the sweep on the right. */
+  #paneHealth .li-ws-bar{margin:0 0 10px}
+  @media (max-width:860px){
+    #paneHealth .card.ls-toolbar{position:relative;top:auto}
+    #paneHealth .ls-boxes{grid-template-columns:repeat(3,minmax(0,1fr))}
+  }
   /* The ring the app gives a focused button, kept on the buttons above (their own box-shadow would hide it). */
   #liWs :is(.li-ws-chip,.li-ws-th,.li-ws-tog,.li-ws-open,.li-ws-again,.li-ws-sku,.li-ws-x,.li-ws-sweep,.li-ws-recheck,.li-ws-resort,.li-ws-more,.li-ws-pass,.li-ws-ashow):focus-visible{
     outline:none;box-shadow:var(--ring)}
@@ -1780,9 +2072,33 @@
     #paneHealth .li-ws-card,#paneHealth .li-ws-card-main{padding:10px 12px}
     #paneHealth .li-ws-card-more{margin:-4px 12px 8px}
     #paneHealth .li-ws-card-v{font-size:21px}
+    /* The look on a phone: two boxes a row, the panel the whole screen, the toolbar in two lines, rows as cards. */
+    #paneHealth .ls-boxes{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+    #paneHealth .ls-box,#paneHealth .ls-box-main{padding:10px 12px 8px}
+    #paneHealth .ls-v>b{font-size:20px}
+    #paneHealth .ls-panel{top:0;width:100vw;max-height:100vh;margin:0;border-radius:0;border:0}
+    #paneHealth .ls-tb .ls-search{flex-basis:100%}
+    #paneHealth .ls-tb .ls-sel{max-width:none;flex:1 1 140px}
+    #paneHealth .ls-tb .ui-spacer{display:none}
+    #paneHealth .ls-prod-t .ui-name,#paneHealth .ls-fix{max-width:none;white-space:normal}
+    #paneHealth .ls-mix{max-width:none}
+    :is(#paneHealth,#hkModal) .ls-rec{grid-template-columns:14px minmax(0,1fr)}
+    :is(#paneHealth,#hkModal) .ls-rec-a{grid-column:2;justify-self:start}
+    #paneHealth .ls-kid-s{max-width:none;justify-content:flex-start;grid-column:1/-1}
+    #paneHealth .ls-kid-d{padding-left:16px}
+    /* The row on a phone, now: the picture + name on the first line with the › at its right, then the mix bar, Live, Audit and Last checked each on a line. */
+    .li-ws-tbl>tbody>tr.li-ws-row{grid-template-columns:minmax(0,1fr) auto}
+    #paneHealth table.ls-tbl tbody td{height:auto}
+    .li-ws-tbl>tbody>tr.li-ws-row>td.li-ws-c-name{grid-column:1;grid-row:1}
+    .li-ws-tbl>tbody>tr.li-ws-row>td.li-ws-c-open{grid-column:2;grid-row:1}
+    .li-ws-tbl>tbody>tr>td.li-ws-c-kids{display:block;grid-column:1/-1;text-align:left}
+    .li-ws-tbl>tbody>tr>td.li-ws-c-kids::before{content:"Live ";color:var(--muted)}
   }
   @media (prefers-reduced-motion:reduce){
-    .li-ws .li-ws-chip,.li-ws .li-ws-th,.li-ws .li-ws-tog,.li-ws .li-ws-x,.li-ws .li-ws-sku,#paneHealth .li-ws-card{transition:none}
+    .li-ws .li-ws-chip,.li-ws .li-ws-th,.li-ws .li-ws-tog,.li-ws .li-ws-x,.li-ws .li-ws-sku,#paneHealth .li-ws-card,#paneHealth .ls-box,
+    #paneHealth .ls-ic,#paneHealth .ls-chev,#paneHealth .ls-rec,#paneHealth .ls-kid,#paneHealth .ls-seg .segbtn,#paneHealth .ls-tabs button{transition:none}
+    #paneHealth .ls-panel,#paneHealth .ls-skel{animation:none}
+    #paneHealth .ls-box:has(.ls-box-main):hover,#paneHealth .ls-box:has(.ls-box-main:active),#paneHealth .ls-box:hover .ls-ic{transform:none}
   }
 
   /* ===== MODULE: ADS ===== */

@@ -78,7 +78,7 @@ function load(opts) {
     + ' typeofFix: typeof lrProblemHtml, lrProblemHtml: typeof lrProblemHtml === "function" ? lrProblemHtml : null, lrProblemsHtml: typeof lrProblemsHtml === "function" ? lrProblemsHtml : null,'
     + ' lrAllow: typeof lrAllow === "function" ? lrAllow : null, lrFixOpen: typeof lrFixOpen === "function" ? lrFixOpen : null,'
     + ' lrKwBytes: typeof lrKwBytes === "function" ? lrKwBytes : null, lrLevel: typeof lrLevel === "function" ? lrLevel : null, lrNotesHtml: typeof lrNotesHtml === "function" ? lrNotesHtml : null, IML,'
-    + (opts.ws ? ' LI_WS, LI_WS_AUDIT, liWsParents: (brands) => liWsParents(brands, hCtx(), Date.now()), liWsDetail, liWsAuditBox, liWsKidTable, liWsRender, liWsRecheck, liWsCheckNow, liWsLiveMap, liWsProblems,' : '') + ' };';
+    + (opts.ws ? ' LI_WS, LI_WS_AUDIT, liWsParents: (brands) => liWsParents(brands, hCtx(), Date.now()), liWsDetail, liWsAuditBox, liWsKidTable, liWsRender, liWsRecheck, liWsCheckNow, liWsLiveMap, liWsProblems, liWsPanelOpen, liWsPanelClose, liWsPanelMove, liWsPanelRender, liWsOff, liWsToolbarSync,' : '') + ' };';
   const api = new Function(...Object.keys(ctx), src + tail)(...Object.values(ctx));
   // api.rows ARE the HEALTH rows (the same objects, brand on each): a test that changes one changes what every screen judges.
   api.score = sku => { const r = api.rows.find(x => x.sku === sku); return api.healthOf(r, api.hCtx()); };
@@ -240,7 +240,7 @@ if (require.main === module) {
   const oldHit = T.hit('R14', 'no_main_image');
   ok('an Error from 21-day-old data = "Error? Check again" with a Check now button', !!oldHit && oldHit.sev === 'critical' && oldHit.stale === true && T.score('R14').stale === true
     && (h => /lr-lvl is-s">Error\? Check again<\/span>/.test(h) && /from data 21 days old/.test(h) && /data-lr-check="SP\|R14"[^>]*>Check now</.test(h) && /class="sev sev-s"/.test(h))(T.lrProblemHtml(oldHit, { brand: 'SP', sku: 'R14' }, '')), JSON.stringify(oldHit));
-  ok('…the Workspace pill reads "None?" in the hollow look and the Problems cell counts it "to check again"', (() => { const p = T.liWsParents(['SP', 'CPC']).find(x => x.key === 'SP|P4'); const k = p.kids[0]; const cell = T.liWsKidTable(p, 8); return k.stale === true && p.staleN === 1 && /li-ws-x is-s"[^>]*>None\?</.test(cell) && /Error: fix first 1 <span class="li-ws-na">\(1 to check again\)/.test(T.liWsProblems(p)); })());
+  ok('…the Workspace pill reads "None?" in the hollow look and the row\'s mix bar counts it "to check again"', (() => { const p = T.liWsParents(['SP', 'CPC']).find(x => x.key === 'SP|P4'); const k = p.kids[0]; const cell = T.liWsKidTable(p, 8); return k.stale === true && p.staleN === 1 && p.mix.chk === 1 && /li-ws-x is-s"[^>]*>None\?</.test(cell) && /<rect class="is-chk"/.test(T.liWsProblems(p)) && /1 to check again/.test(T.liWsProblems(p)); })());
   r14.checked = NOW - 2 * DAY; T.reset();
   ok('the same Error from 2-day-old data is a plain Error', T.hit('R14', 'no_main_image').stale === false && T.score('R14').stale === false);
   liveEntry('SP', 'R14', { gAt: NOW, slots: gallery8, iAt: NOW, cat: gallery8 });
@@ -281,8 +281,13 @@ if (require.main === module) {
   ok('Errors always come first, then Needs attention (action before review); review reads "Needs attention" in orange too',
     two2.indexOf('is-c">Error: fix first') < two2.indexOf('is-a">Needs attention') && (two2.match(/is-a">Needs attention/g) || []).length === 2 && !/sev-r/.test(two2), two2);
   const render = (() => { T.LI_WS.on = true; T.LI_WS.sweep = null; /* the re-check above is still running (its stub calls never land): cleared, or the bar shows Stop */ T.liWsRender(); return T.el('liWs').innerHTML; })();
-  ok('the Workspace legend and bar: the two words, "Error? Check again", and "Re-check all errors with Amazon" with the count of Errors in view',
-    /Error: fix first · <span class="sev sev-a"><\/span> Needs attention/.test(render) && /Error\? Check again/.test(render) && /data-li-ws-recheck="go"[^>]*>Re-check all errors with Amazon \(1\)</.test(render) && !/sev-r"><\/span> Needs review/.test(render) && !/Critical · /.test(render), render.slice(0, 400));
+  ok('the Workspace legend: the two words and "Error? Check again"; the toolbar\'s one main button reads "Re-check all errors with Amazon (N)" with the Errors in view',
+    /Error: fix first · <span class="sev sev-a"><\/span> Needs attention/.test(render) && /Error\? Check again/.test(render) && T.el('hRecheck').textContent === 'Re-check all errors with Amazon (1)' && T.el('hRecheck').dataset.liWsRecheck === 'go' && T.el('hRecheck').disabled === false
+    && !/sev-r"><\/span> Needs review/.test(render) && !/Critical · /.test(render), render.slice(0, 400) + ' | ' + T.el('hRecheck').textContent);
+  ok('the look: number boxes, a flush list card with one row per parent (picture, Fix first line, ASIN, mix bar, ›), no in-row expansion',
+    /class="ls-boxes li-ws-cards"/.test(render) && (render.match(/class="ls-box[" ]/g) || []).length === 6 && /class="card xlwrap ls-card ls-clip"><table class="xl li-ws-tbl ls-tbl"/.test(render)
+    && (render.match(/<tr class="li-ws-row ls-row"/g) || []).length === 6 && /class="ls-pic is-none"/.test(render) && /<span class="ls-fix" title="Secondary images missing"><b>Fix first:<\/b> Secondary images missing · 1 of 7 listings<\/span>/.test(render)
+    && /<svg class="ls-mix"/.test(render) && /class="ls-chev li-ws-open" data-li-ws-panel="SP\|P1"/.test(render) && !/data-li-ws-tog/.test(render), render.slice(render.indexOf('<table'), render.indexOf('<table') + 900));
   ok('the out-of-stock softening stays: 0 in stock turns an Error into Needs attention, except no main image, suppressed and Amazon error',
     (() => { const r = Object.assign({}, T.rows.find(x => x.sku === 'R13'), { qty: 0 }); const h = T.healthOf(r, T.hCtx()); const img = h.found.find(x => x.detector === 'images_below'); const r2 = Object.assign({}, T.rows.find(x => x.sku === 'R6'), { qty: 0, content: Object.assign({}, T.rows.find(x => x.sku === 'R6').content, { images: 0 }) }); const h2 = T.healthOf(r2, T.hCtx()); return img && img.sev === 'action' && / \(0 in stock, so not critical\)$/.test(img.detail) && h2.found.find(x => x.detector === 'no_main_image').sev === 'critical'; })());
   ok('Workspace = Parent ASINs still, with live reads and A+ answers in play', (() => { T.LI_WS.on = false; liveEntry('SP', 'R1', { gAt: NOW, slots: gallery8, iAt: NOW, cat: ['MAIN', 'PT01'] }); T.LI_WS.aplus.SP.P1 = { v: true, at: NOW }; T.LI_WS.liveV++; T.reset();
@@ -311,6 +316,39 @@ if (require.main === module) {
   const kt = C.liWsKidTable(C.LI_WS.byKey.get('SP|P1'), 8);
   ok('inside the parent, the matching listings come first and are marked; the others are faded under "Other listings"', /is-match is-m-att/.test(kt) && /Other listings/.test(kt) && kt.indexOf('is-match') < kt.indexOf('Other listings') && kt.indexOf('Other listings') < kt.indexOf('is-other'));
   ok('the "Showing:" bar names the card and the parent count', new RegExp(`Showing: <b>Needs attention</b> · ${attRows.length} parent`).test(C.el('liWs').innerHTML));
+
+  console.log('== the side panel: open, tabs, close, move ==');
+  C.LI_WS.card = ''; C.liWsRender();
+  C.liWsPanelOpen('SP|P1');
+  const P = C.el('lsPanel');
+  ok('a parent opens in the side panel: header (name, ASIN · brand · live count), Read from Amazon now, Open in Parent ASINs, three tabs',
+    C.LI_WS.panel && C.LI_WS.panel.key === 'SP|P1' && C.LI_WS.panel.tab === 'fix' && P.hidden === false && /class="ls-panel-h"/.test(P.innerHTML) && /Parent P1/.test(P.innerHTML)
+    && /<span class="ui-mono">P1<\/span> · Ridhi · 7 live of 7 listings/.test(P.innerHTML) && /data-li-ws-again="SP\|P1"[^>]*>Read from Amazon now</.test(P.innerHTML) && /data-li-ws-open="SP\|P1">Open in Parent ASINs</.test(P.innerHTML)
+    && /data-li-ws-ptab="fix" aria-selected="true"/.test(P.innerHTML) && /data-li-ws-ptab="list"/.test(P.innerHTML) && /data-li-ws-ptab="audit"/.test(P.innerHTML), P.innerHTML.slice(0, 700));
+  ok('What to fix: one row per rule, Errors first (Secondary images missing — 1 listing), then Needs attention (Size formatting — 2 listings), each with the level word, the SKUs, how to fix, a tag and Fix',
+    (() => { const h = P.innerHTML; const a = h.indexOf('is-c">Error: fix first</span>Secondary images missing — 1 listing'), b = h.indexOf('is-a">Needs attention</span>Size formatting inconsistent — 2 listings'); return a > 0 && b > a && /<small title="R13">R13<\/small>/.test(h) && /ls-rec-how">Add 2 more pictures/.test(h) && /data-lr-fix="img\|SP\|R13"/.test(h) && /class="ls-rec is-err"/.test(h) && /class="ls-rec is-att"/.test(h); })(), P.innerHTML.slice(P.innerHTML.indexOf('ls-recs'), P.innerHTML.indexOf('ls-recs') + 900));
+  ok('…Errors from old data read "Error? Check again" in the panel too', (() => {
+    const r = C.rows.find(x => x.sku === 'R14'); r.content.images = 0; r.checked = NOW - 21 * DAY; C.reset(); C.liWsRender();
+    C.liWsPanelOpen('SP|P4'); const h = C.el('lsPanel').innerHTML;
+    r.content.images = 8; r.checked = NOW; C.reset(); C.liWsRender();
+    return /class="ls-rec is-chk"/.test(h) && /Error\? Check again<\/span>Main image missing/.test(h); })(), C.el('lsPanel').innerHTML.slice(0, 300));
+  C.liWsPanelOpen('SP|P1');
+  C.LI_WS.panel.tab = 'list'; C.liWsPanelRender();
+  ok('Listings tab: every child with picture, SKU, status and its problems as tags or ✓; the table toggle', (C.el('lsPanel').innerHTML.match(/class="ls-kid"/g) || []).length === 7 && /ls-tag is-err"[^>]*>Secondary images missing/.test(C.el('lsPanel').innerHTML)
+    && /ls-tag is-ok">✓ No problem/.test(C.el('lsPanel').innerHTML) && /data-li-ws-ptable="1">Show every check as a table/.test(C.el('lsPanel').innerHTML), (C.el('lsPanel').innerHTML.match(/class="ls-kid"/g) || []).length);
+  C.LI_WS.openSku.add('SP|R13'); C.liWsPanelRender();
+  ok('…a child opens to its own problems with "Show passed checks"', /ls-kid-d/.test(C.el('lsPanel').innerHTML) && /lr-prob-what"><span class="lr-lvl is-c">Error: fix first<\/span>Secondary images missing — 4 of 6/.test(C.el('lsPanel').innerHTML) && /Show passed checks \(\d+\)/.test(C.el('lsPanel').innerHTML), C.el('lsPanel').innerHTML.slice(C.el('lsPanel').innerHTML.indexOf('ls-kid-d'), C.el('lsPanel').innerHTML.indexOf('ls-kid-d') + 400));
+  C.LI_WS.openSku.clear();
+  C.LI_WS.panel.table = true; C.liWsPanelRender();
+  ok('…"Show every check as a table" shows the checklist table', /class="li-ws-kidtable"/.test(C.el('lsPanel').innerHTML) && (C.el('lsPanel').innerHTML.match(/class="li-ws-kid[" ]/g) || []).length === 7);
+  C.LI_WS.panel.table = false; C.LI_WS.panel.tab = 'audit'; C.liWsPanelRender();
+  ok('Audit tab: the failing steps with "Show these listings", the passing ones folded', /✗ Images/.test(C.el('lsPanel').innerHTML) && /data-li-ws-show="SP\|P1\|fmt"/.test(C.el('lsPanel').innerHTML) && /1 step passes: Template/.test(C.el('lsPanel').innerHTML));
+  ok('↓ moves to the next parent in the order showing, ↑ back', (() => { const keys = C.LI_WS.rows.map(p => p.key); const i = keys.indexOf('SP|P1'); C.liWsPanelMove(1); const a = C.LI_WS.panel.key === keys[i + 1]; C.liWsPanelMove(-1); return a && C.LI_WS.panel.key === 'SP|P1'; })());
+  C.liWsPanelClose(true);
+  ok('close: the panel is hidden and empty, nothing is open', C.LI_WS.panel === null && P.hidden === true && P.innerHTML === '');
+  ok('the list did not redraw while the panel opened and closed (the rows are the same objects)', (() => { const before = C.LI_WS.rows; C.liWsPanelOpen('SP|P2'); C.liWsPanelClose(false); return C.LI_WS.rows === before; })());
+  ok('the Workspace going away closes the panel too', (() => { C.liWsPanelOpen('SP|P2'); C.liWsOff(); return C.LI_WS.panel === null; })());
+  ok('a parent without a counted listing: the panel says so instead of showing rows', (() => { C.LI_WS.on = true; C.LI_WS.mode = 'live'; const r = C.rows.find(x => x.sku === 'R14'); r.qty = 0; C.reset(); C.liWsRender(); C.liWsPanelOpen('SP|P4'); const h = C.el('lsPanel').innerHTML; r.qty = 5; C.reset(); C.liWsPanelClose(false); return /No live listing/.test(h); })());
 
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);

@@ -1771,6 +1771,298 @@
   .li-ws-passed>div{white-space:normal}
   /* Under the table: how many are on the page, and the way to more. */
   .li-ws-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:-6px 0 16px;font-size:12.5px}
+
+  /* ===== THE LISTING HEALTH LOOK (6 Nov 2026): the Ad Console / PPC & Organic · New layout, Listing Health's own copies (.ls-*).
+     Same tokens, sizes, radii, shadows, spacing and hover effects as .adx-meta / .adx-seg / .adx-box / .px-toolbar / .px-card /
+     .px-tbl / .px-pop / .adh-bar / .adh-f / .adh-skel — written here so the Ads rules are never touched. Scoped to #paneHealth.
+     Colours in this tab: Error red ●, Needs attention yellow ▲ (--rev), no problem green ✓, not checked / check again grey ○.
+     Parent ASINs / Child listings keep Ravi's four levels (Critical red, Needs Action orange, Needs Review yellow, Healthy green).
+     Animations are transform-only, and none under prefers-reduced-motion. ===== */
+  /* The meta line, like .adx-meta: what the page shows, how fresh it is; amber once the full refresh is older than a week. */
+  #paneHealth .ls-meta{display:flex;justify-content:space-between;align-items:baseline;gap:4px 16px;flex-wrap:wrap;margin:0 2px 10px;
+    font-size:12px;color:var(--muted)}
+  #paneHealth .ls-meta b{color:var(--ink);font-weight:600}
+  #paneHealth .ls-meta>span:last-child{color:var(--faint)}
+  #paneHealth .ls-meta .is-old,#paneHealth .ls-meta .is-old b{color:var(--warn-ink)}
+  /* The toolbar card, like .px-card.px-toolbar: it sticks under Sellora's menu bar (--ls-top is that bar's measured height,
+     set by hStick in listing-health-data.js), flat-topped with a deeper shadow while stuck; not under 860px. */
+  #paneHealth .card.ls-toolbar{position:sticky;top:var(--ls-top,0px);z-index:20;padding:12px 16px;border-radius:var(--r-card);
+    box-shadow:var(--sh-1);transition:box-shadow .15s ease}
+  #paneHealth .card.ls-toolbar.ls-stuck{box-shadow:var(--sh-2);border-top-left-radius:0;border-top-right-radius:0}
+  #paneHealth .ls-tb{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  #paneHealth .card.ls-schema{margin:0 0 12px;padding:12px 16px;font-size:12px}
+  #paneHealth #hMsg:empty{display:none}
+  #paneHealth #hMsg{margin-top:8px;font-size:12.5px}
+  /* Pill switches, like .adx-seg: a soft track, the chosen pill raised in the card colour. */
+  #paneHealth .ls-tb .ls-seg{display:inline-flex;align-items:center;gap:2px;height:auto;padding:3px;border-radius:var(--r-pill);
+    background:var(--hover);border:1px solid var(--line)}
+  #paneHealth .ls-seg .segbtn{border:0;background:transparent;color:var(--muted);font:inherit;font-size:12px;font-weight:600;line-height:1;
+    padding:6px 11px;border-radius:var(--r-pill);box-shadow:none;cursor:pointer;transition:background-color .15s ease,color .15s ease,box-shadow .15s ease}
+  #paneHealth .ls-seg .segbtn:hover{color:var(--ink);background:color-mix(in srgb,var(--card) 55%,transparent)}
+  #paneHealth .ls-seg .segbtn.on,#paneHealth .ls-seg .segbtn.on:hover{background:var(--raise);color:var(--ink);font-weight:600;box-shadow:var(--sh-1)}
+  #paneHealth .ls-seg .segbtn:focus-visible,#paneHealth .ls-seg .segbtn.on:focus-visible{outline:2px solid var(--accent);outline-offset:1px;box-shadow:none}
+  #paneHealth #hModeSeg{display:none}
+  #paneHealth.li-ws-on #hModeSeg{display:inline-flex}
+  /* The search box with its icon, like .px-search; the selects and buttons share its height and radius. */
+  #paneHealth .ls-tb .ls-search{display:flex;align-items:center;gap:8px;flex:1 1 200px;min-width:180px;height:var(--ctl);padding:0 12px;
+    border:1px solid var(--line);border-radius:var(--r-ctl);background:var(--card);color:var(--faint)}
+  #paneHealth .ls-search svg{width:15px;height:15px;flex:none}
+  #paneHealth .ls-tb .ls-search input{width:100%;height:100%;min-height:0;margin:0;padding:0;border:0;border-radius:0;background:transparent;
+    background-image:none;box-shadow:none;outline:none;font-size:13.5px;color:var(--ink)}
+  #paneHealth .ls-tb .ls-search:focus-within{box-shadow:var(--ring)}
+  #paneHealth .ls-tb .ls-sel{flex:0 0 auto;width:auto;max-width:190px;height:var(--ctl);padding:0 30px 0 12px;border:1px solid var(--line);
+    border-radius:var(--r-ctl);background-color:var(--card);font-size:13px;font-weight:600;color:var(--ink)}
+  /* Outline buttons, like .px-btn; the one main button dark and round, like .px-btn.px-dark. */
+  #paneHealth .ls-tb .ls-btn{height:var(--ctl);padding:0 14px;border:1px solid var(--line);border-radius:var(--r-ctl);background:var(--card);
+    color:var(--ink);font-size:13px;font-weight:600;line-height:1;box-shadow:none;white-space:nowrap;display:inline-flex;align-items:center;gap:6px}
+  #paneHealth .ls-tb .ls-btn:hover{background:var(--hover);color:var(--ink);box-shadow:none}
+  #paneHealth .ls-tb .ls-btn:focus-visible{outline:none;box-shadow:var(--ring)}
+  #paneHealth .ls-tb .ls-btn.ls-dark,#paneHealth .ls-tb .ls-btn.ls-dark:hover{background:var(--ink);color:var(--card);border-color:var(--ink);
+    border-radius:var(--r-pill);padding:0 18px}
+  #paneHealth .ls-tb .ls-btn.ls-dark:hover{background:color-mix(in srgb,var(--ink) 86%,var(--card))}
+  #paneHealth .ls-tb .ls-btn.ls-dark:disabled{opacity:.55;cursor:default}
+  #paneHealth .ls-tb .ls-btn.ls-dark[data-li-ws-recheck="stop"]{background:var(--bad-ink);border-color:var(--bad-ink)}
+  /* Number boxes, like .adx-box: icon, label, big number, small lines, a soft corner circle in the box's colour (--c, set by
+     class — never inline), hover lift and shadow, focus ring. A clickable box holds its button (.ls-box-main) and may carry one
+     link of its own after it (.ls-box-more). The box whose filter is on wears the ring. */
+  #paneHealth .ls-boxes{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;margin:0 0 10px}
+  #paneHealth .ls-box{--c:var(--brand);position:relative;overflow:hidden;min-width:0;display:flex;flex-direction:column;align-items:stretch;gap:0;
+    margin:0;padding:12px 14px 8px;background:var(--card);border:1px solid var(--card-line);border-radius:var(--r-card);box-shadow:var(--sh-1);
+    color:var(--ink);font:inherit;text-align:left;line-height:1.3;transition:transform .15s cubic-bezier(.2,.7,.2,1),box-shadow .15s ease,border-color .15s ease}
+  #paneHealth .ls-box::after{content:"";position:absolute;right:-55px;top:-65px;width:160px;height:160px;border-radius:50%;
+    background:radial-gradient(circle,var(--c) 0,transparent 68%);opacity:var(--ls-glow);pointer-events:none}
+  #paneHealth{--ls-glow:.12}
+  :root[data-theme="dark"] #paneHealth{--ls-glow:.2}
+  @media (prefers-color-scheme:dark){:root:not([data-theme="light"]) #paneHealth{--ls-glow:.2}}
+  #paneHealth .ls-box:hover{box-shadow:var(--sh-2)}
+  #paneHealth .ls-box:has(.ls-box-main):hover{transform:translateY(-3px);border-color:color-mix(in srgb,var(--c) 40%,var(--card-line))}
+  #paneHealth .ls-box:has(.ls-box-main:active){transform:translateY(-1px) scale(.99)}
+  #paneHealth .ls-box:has(.ls-box-main:focus-visible),#paneHealth .ls-box.is-on{box-shadow:0 0 0 3px color-mix(in srgb,var(--c) 35%,transparent)}
+  #paneHealth .ls-box.is-on{border-color:color-mix(in srgb,var(--c) 55%,var(--card-line))}
+  #paneHealth .ls-box:has(.ls-box-main){padding:0}
+  #paneHealth .ls-box-main{display:flex;flex-direction:column;align-items:stretch;gap:0;width:100%;margin:0;padding:12px 14px 8px;border:0;border-radius:0;
+    background:transparent;box-shadow:none;color:inherit;font:inherit;text-align:left;line-height:1.3;cursor:pointer}
+  #paneHealth .ls-box-main:hover,#paneHealth .ls-box-main:active,#paneHealth .ls-box-main:focus-visible{background:transparent;color:inherit;box-shadow:none;outline:none;transform:none}
+  #paneHealth .ls-l{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:600;color:var(--muted);white-space:nowrap}
+  #paneHealth .ls-ic{flex:none;display:grid;place-items:center;width:24px;height:24px;border-radius:var(--r-sm);color:var(--c);
+    background:color-mix(in srgb,var(--c) 14%,transparent);font-size:12px;line-height:1;transition:transform .25s cubic-bezier(.2,.7,.2,1)}
+  #paneHealth .ls-box:hover .ls-ic{transform:scale(1.1) rotate(-6deg)}
+  #paneHealth .ls-v{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:8px 0 2px}
+  #paneHealth .ls-v>b{font-size:22px;font-weight:700;letter-spacing:-.025em;line-height:1.15;color:var(--ink);font-variant-numeric:tabular-nums}
+  #paneHealth .ls-box.is-err .ls-v>b{color:var(--bad-ink)}
+  #paneHealth .ls-box.is-att .ls-v>b{color:var(--rev-ink)}
+  #paneHealth .ls-box.is-act .ls-v>b{color:var(--act-ink)}
+  #paneHealth .ls-box.is-ok .ls-v>b{color:var(--accent-ink)}
+  :is(#paneHealth,#hkModal) .ls-note{font-size:11.5px;color:var(--faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  :is(#paneHealth,#hkModal) .ls-note.ls-sub{color:var(--muted)}
+  #paneHealth .ls-box.is-err{--c:var(--bad)}
+  #paneHealth .ls-box.is-att{--c:var(--rev)}
+  #paneHealth .ls-box.is-act{--c:var(--act)}
+  #paneHealth .ls-box.is-ok{--c:var(--accent)}
+  #paneHealth .ls-box.is-off{--c:var(--faint)}
+  #paneHealth .ls-box.is-off .ls-v>b{color:var(--muted)}
+  #paneHealth .ls-box-more{display:block;margin:-4px 14px 10px;font-size:11.5px;color:var(--muted)}
+  #paneHealth .ls-box-more .li-ws-card-link{display:inline;margin:0;padding:0 2px;border:0;border-radius:4px;background:transparent;box-shadow:none;
+    color:var(--bad-ink);font:inherit;font-weight:600;text-decoration:underline;text-underline-offset:2px;cursor:pointer}
+  #paneHealth .ls-box-more .li-ws-card-link:hover{background:transparent;color:var(--bad-ink)}
+  #paneHealth .ls-box-more .li-ws-card-link[aria-pressed="true"]{background:var(--bad-bg)}
+  #paneHealth .ls-box-more .li-ws-card-link:focus-visible{outline:none;box-shadow:var(--ring)}
+  /* Parent ASINs / Child listings: one line per brand above its boxes. */
+  #paneHealth .lh-kpibrand .ls-boxes{margin-bottom:14px}
+  /* The flush list card, like .px-card.px-clip, and the calm table inside it, like .px-tbl: a soft sticky header in small
+     capitals, 44px rows, one hairline between rows, the row under the pointer tinted. */
+  #paneHealth .card.ls-card{border-radius:var(--r-card);box-shadow:var(--sh-1);border:1px solid var(--card-line)}
+  #paneHealth .card.ls-clip{padding:0;overflow:auto}
+  #paneHealth table.ls-tbl{font-size:13.5px}
+  #paneHealth table.ls-tbl thead th{background:var(--card);color:var(--faint);font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;
+    padding:12px;box-shadow:inset 0 -1px 0 var(--line)}
+  #paneHealth table.ls-tbl thead th:hover{color:var(--ink)}
+  #paneHealth table.ls-tbl tbody td{height:44px;padding:9px 12px;line-height:1.3}
+  #paneHealth table.ls-tbl tbody tr:hover td,#paneHealth table.ls-tbl tbody tr:hover td.frz{background:var(--soft)}
+  #paneHealth table.ls-tbl tfoot td{background:var(--soft);color:var(--ink)}
+  #paneHealth table.ls-tbl .frz{font-family:inherit;border-right:0}
+  /* Count pills in the level's colour; a zero stays faint. */
+  #paneHealth .ls-pill{display:inline-block;min-width:26px;padding:2px 9px;border-radius:var(--r-pill);font-size:11.5px;font-weight:700;line-height:1.4;
+    text-align:center;font-variant-numeric:tabular-nums;background:var(--hover);color:var(--ink)}
+  #paneHealth .ls-pill.is-c{background:var(--bad-bg);color:var(--bad-ink)}
+  #paneHealth .ls-pill.is-a{background:var(--act-bg);color:var(--act-ink)}
+  #paneHealth .ls-pill.is-r{background:var(--rev-bg);color:var(--rev-ink)}
+  #paneHealth .ls-pill.is-g{background:var(--accent-bg);color:var(--accent-ink)}
+  #paneHealth .ls-pill.is-b{background:var(--brand-bg);color:var(--brand-ink)}
+  #paneHealth .ls-zero{color:var(--faint);font-variant-numeric:tabular-nums}
+  /* Health: a small bar and the number — green 80+, amber 50–79, red under 50, the same thresholds as before. The bar is an SVG whose
+     widths are attributes, so no inline style is needed. */
+  #paneHealth .ls-health{display:inline-flex;align-items:center;gap:8px;font-weight:700;font-variant-numeric:tabular-nums}
+  #paneHealth .ls-health b{min-width:24px;text-align:right}
+  #paneHealth .ls-hbar{display:block;width:52px;height:6px;flex:none}
+  #paneHealth .ls-hbar .ls-hbar-t{fill:var(--hover)}
+  #paneHealth .ls-hbar .ls-hbar-f{fill:var(--accent)}
+  #paneHealth .ls-health.is-warn .ls-hbar-f{fill:var(--act)}
+  #paneHealth .ls-health.is-warn b{color:var(--act-ink)}
+  #paneHealth .ls-health.is-good b{color:var(--accent-ink)}
+  #paneHealth .ls-health.is-bad .ls-hbar-f{fill:var(--bad)}
+  #paneHealth .ls-health.is-bad b{color:var(--bad-ink)}
+  /* The mix bar of a parent's children, like .adh-bar: Error red, Needs attention yellow, no problem green, not checked grey; the
+     counts in words under it. */
+  #paneHealth .ls-mix{display:block;width:100%;min-width:140px;max-width:260px;height:6px;border-radius:var(--r-pill);overflow:hidden;background:var(--hover)}
+  #paneHealth .ls-mix rect{shape-rendering:crispEdges}
+  #paneHealth .ls-mix .is-err{fill:var(--bad)}
+  #paneHealth .ls-mix .is-chk{fill:var(--faint)}
+  #paneHealth .ls-mix .is-att{fill:var(--rev)}
+  #paneHealth .ls-mix .is-ok{fill:var(--accent)}
+  #paneHealth .ls-mix .is-unk{fill:color-mix(in srgb,var(--faint) 45%,transparent)}
+  #paneHealth .ls-mixw{display:flex;flex-wrap:wrap;gap:2px 10px;margin-top:5px;font-size:11.5px;color:var(--muted);white-space:nowrap}
+  #paneHealth .ls-mixw span{display:inline-flex;align-items:center;gap:5px}
+  :is(#paneHealth,#hkModal) .ls-dot{display:inline-block;flex:none;width:7px;height:7px;border-radius:50%;background:var(--faint)}
+  :is(#paneHealth,#hkModal) .ls-dot.is-err{background:var(--bad)}
+  :is(#paneHealth,#hkModal) .ls-dot.is-att{background:var(--rev)}
+  :is(#paneHealth,#hkModal) .ls-dot.is-ok{background:var(--accent)}
+  :is(#paneHealth,#hkModal) .ls-dot.is-chk{background:transparent;box-shadow:inset 0 0 0 1.5px var(--bad)}
+  :is(#paneHealth,#hkModal) .ls-dot.is-fill{background:var(--brand)}
+  /* The product cell: a small picture (the catalogue's MAIN, or the Image Manager's; grey when none), the name, the "Fix first" line and
+     the ASIN muted — like .px-prod / .px-pic. */
+  #paneHealth .ls-prod{display:flex;align-items:center;gap:10px;min-width:0}
+  #paneHealth .ls-prod-t{min-width:0}
+  #paneHealth .ls-prod-t .ui-name{max-width:320px;font-weight:600}
+  #paneHealth .ls-pic{flex:none;display:grid;place-items:center;width:36px;height:36px;border-radius:var(--r-sm);overflow:hidden;
+    background:var(--card);border:1px solid var(--line)}
+  #paneHealth .ls-pic.ls-lg{width:48px;height:48px;border-radius:10px}
+  #paneHealth .ls-pic img{display:block;width:100%;height:100%;object-fit:contain}
+  #paneHealth .ls-pic.is-none,#paneHealth .ls-pic.is-broken{background:var(--hover);border-color:transparent}
+  #paneHealth .ls-pic.is-broken img{display:none}
+  #paneHealth .ls-fix{display:block;margin-top:1px;font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:320px}
+  #paneHealth .ls-fix b{color:var(--bad-ink);font-weight:600}
+  #paneHealth .ls-fix.is-ok b{color:var(--accent-ink)}
+  #paneHealth .ls-asin{display:block;margin-top:1px;font-size:11px;color:var(--faint);font-family:ui-monospace,monospace}
+  /* The › that opens a parent: a round target, like .adh-chevw. */
+  #paneHealth .ls-asinc{display:inline-flex;align-items:center;gap:8px}
+  #paneHealth .ls-chev{text-decoration:none;display:inline-grid;place-items:center;width:30px;height:30px;margin:0;padding:0;border:0;border-radius:50%;background:var(--hover);
+    color:var(--muted);font-size:18px;font-weight:600;line-height:1;box-shadow:none;cursor:pointer;transition:background .15s ease,color .15s ease}
+  #paneHealth .ls-chev:hover{background:color-mix(in srgb,var(--ink) 12%,transparent);color:var(--ink)}
+  #paneHealth .ls-chev:focus-visible{outline:none;box-shadow:var(--ring)}
+  /* A list row that opens the side panel: pointer, a keyboard ring inside the row, the open one tinted in the brand pair. */
+  #paneHealth tr.ls-row{cursor:pointer}
+  #paneHealth tr.ls-row:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+  #paneHealth tr.ls-row.is-open>td,#paneHealth tr.ls-row.is-open:hover>td{background:var(--brand-bg)}
+  /* The open parent's header card on Parent ASINs / Child listings: back, picture, name, ASIN · brand · children, count pills, optimiser. */
+  #paneHealth .card.ls-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 16px;margin-bottom:10px}
+  #paneHealth .card.ls-head.hide{display:none}
+  #paneHealth .ls-head .ls-head-t{flex:1 1 280px;min-width:0}
+  #paneHealth .ls-head .ls-head-n{font-size:16px;font-weight:700;letter-spacing:-.01em}
+  #paneHealth .ls-head .ls-head-s{display:flex;align-items:center;gap:6px 10px;flex-wrap:wrap;margin-top:3px;font-size:12.5px;color:var(--muted)}
+  /* "Why": up to 3 problems in words, then "+n more" that opens the rest in place (no redraw). */
+  #paneHealth .ls-why .ls-why-rest{display:none}
+  #paneHealth .ls-why.is-open .ls-why-rest{display:block}
+  #paneHealth .ls-why.is-open .ls-why-more{display:none}
+  :is(#paneHealth,#hkModal) .ls-more,:is(#paneHealth,#hkModal) .ls-why-more{display:inline-block;margin:4px 0 0;padding:2px 10px;border:1px solid var(--line);border-radius:var(--r-pill);
+    background:var(--card);color:var(--brand-ink);font:inherit;font-size:12px;font-weight:600;line-height:1.4;box-shadow:none;cursor:pointer}
+  :is(#paneHealth,#hkModal) .ls-more:hover,:is(#paneHealth,#hkModal) .ls-why-more:hover{background:var(--brand-bg);color:var(--brand-ink)}
+  :is(#paneHealth,#hkModal) .ls-more:focus-visible,:is(#paneHealth,#hkModal) .ls-why-more:focus-visible{outline:none;box-shadow:var(--ring)}
+  /* Problem rows, like the Recommendation rows (.adh-f): a dot through --sev, the problem in words with a grey subtitle, how to fix,
+     a tag, a Fix button. One grid row, a hairline between rows, the row under the pointer tinted. */
+  :is(#paneHealth,#hkModal) .ls-rec{--sev:var(--faint);display:grid;grid-template-columns:14px minmax(0,1fr) auto;align-items:start;gap:4px 12px;padding:12px 16px;
+    border-top:1px solid var(--line);font-size:13px;line-height:1.45;transition:background .15s ease}
+  :is(#paneHealth,#hkModal) .ls-rec:first-child{border-top:0}
+  :is(#paneHealth,#hkModal) .ls-rec:hover{background:var(--hover)}
+  :is(#paneHealth,#hkModal) .ls-rec.is-err{--sev:var(--bad)}
+  :is(#paneHealth,#hkModal) .ls-rec.is-att{--sev:var(--rev)}
+  :is(#paneHealth,#hkModal) .ls-rec.is-fill{--sev:var(--brand)}
+  :is(#paneHealth,#hkModal) .ls-rec>.ls-dot{margin-top:6px;background:var(--sev)}
+  :is(#paneHealth,#hkModal) .ls-rec.is-chk>.ls-dot{background:transparent;box-shadow:inset 0 0 0 1.5px var(--bad)}
+  :is(#paneHealth,#hkModal) .ls-rec-t{min-width:0}
+  :is(#paneHealth,#hkModal) .ls-rec-t b{display:block;font-size:13.5px;font-weight:600;color:var(--ink)}
+  :is(#paneHealth,#hkModal) .ls-rec-t small{display:block;font-size:11.5px;color:var(--faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  :is(#paneHealth,#hkModal) .ls-rec-how{grid-column:2;margin-top:2px;font-size:12.5px;color:var(--muted)}
+  :is(#paneHealth,#hkModal) .ls-rec-a{display:flex;align-items:center;gap:8px;justify-self:end;white-space:nowrap}
+  :is(#paneHealth,#hkModal) .ls-rec-a .lr-tag{margin:0}
+  :is(#paneHealth,#hkModal) .ls-rec-a .lr-tag.is-fill{background:var(--brand-bg);color:var(--brand-ink);border-color:transparent}
+  :is(#paneHealth,#hkModal) .ls-rec .lr-fixbtn{margin:0}
+  :is(#paneHealth,#hkModal) .ls-recs{margin:0}
+  #hkModal td.ls-hkfix{min-width:320px;white-space:normal;font-size:12px}
+  #hkModal .ls-rec{padding:8px 4px}
+  /* Small tags for a listing's problems in the panel's Listings tab. */
+  #paneHealth .ls-tag{display:inline-block;max-width:180px;padding:1px 8px;border-radius:var(--r-pill);background:var(--hover);color:var(--muted);
+    font-size:11px;font-weight:600;line-height:1.5;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;vertical-align:middle}
+  #paneHealth .ls-tag.is-err{background:var(--bad-bg);color:var(--bad-ink)}
+  #paneHealth .ls-tag.is-att{background:var(--rev-bg);color:var(--rev-ink)}
+  #paneHealth .ls-tag.is-chk{background:transparent;color:var(--bad-ink);box-shadow:inset 0 0 0 1px var(--bad)}
+  #paneHealth .ls-tag.is-ok{background:var(--accent-bg);color:var(--accent-ink)}
+  /* The side panel, like .px-pop (16px radius, the soft shadow, a hairline): fixed to the right, 520px, the page's full height under
+     the menu bar; slides in with a transform only. One at a time. */
+  #paneHealth .ls-panel{position:fixed;top:var(--ls-top,0px);right:0;bottom:0;z-index:50;display:flex;flex-direction:column;width:min(520px,100vw);
+    margin:8px;max-height:calc(100vh - var(--ls-top,0px) - 16px);background:var(--card);border:1px solid var(--line);border-radius:16px;
+    box-shadow:var(--sh-2);transform:translateX(0);animation:ls-panel-in .22s cubic-bezier(.2,.7,.2,1) both}
+  #paneHealth .ls-panel[hidden]{display:none}
+  @keyframes ls-panel-in{from{transform:translateX(24px)}to{transform:none}}
+  #paneHealth .ls-panel-h{display:flex;align-items:center;gap:12px;padding:14px 16px 10px}
+  #paneHealth .ls-panel-t{flex:1 1 auto;min-width:0}
+  #paneHealth .ls-panel-t b{display:block;font-size:15px;font-weight:650;letter-spacing:-.01em;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  #paneHealth .ls-panel-t span{display:block;margin-top:2px;font-size:12px;color:var(--muted)}
+  #paneHealth .ls-x{flex:none;display:grid;place-items:center;width:30px;height:30px;margin:0;padding:0;border:0;border-radius:50%;background:var(--hover);
+    color:var(--muted);font-size:18px;line-height:1;box-shadow:none;cursor:pointer}
+  #paneHealth .ls-x:hover{background:color-mix(in srgb,var(--ink) 12%,transparent);color:var(--ink)}
+  #paneHealth .ls-x:focus-visible{outline:none;box-shadow:var(--ring)}
+  #paneHealth .ls-panel-a{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:0 16px 10px}
+  #paneHealth .ls-panel-a .ls-btn{height:32px;padding:0 12px;border:1px solid var(--line);border-radius:var(--r-ctl);background:var(--card);color:var(--ink);
+    font-size:12.5px;font-weight:600;line-height:1;box-shadow:none;white-space:nowrap}
+  #paneHealth .ls-panel-a .ls-btn:hover{background:var(--hover);color:var(--ink);box-shadow:none}
+  #paneHealth .ls-panel-a .ls-btn:focus-visible{outline:none;box-shadow:var(--ring)}
+  #paneHealth .ls-tabs{display:flex;gap:2px;margin:0 16px;padding:3px;border-radius:var(--r-pill);background:var(--hover);border:1px solid var(--line)}
+  #paneHealth .ls-tabs button{flex:1 1 0;min-width:0;margin:0;padding:6px 10px;border:0;border-radius:var(--r-pill);background:transparent;color:var(--muted);
+    font:inherit;font-size:12px;font-weight:600;line-height:1;box-shadow:none;white-space:nowrap;cursor:pointer;transition:background-color .15s ease,color .15s ease}
+  #paneHealth .ls-tabs button:hover{color:var(--ink);background:color-mix(in srgb,var(--card) 55%,transparent)}
+  #paneHealth .ls-tabs button[aria-selected="true"]{background:var(--raise);color:var(--ink);box-shadow:var(--sh-btn)}
+  #paneHealth .ls-tabs button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+  #paneHealth .ls-tabs .ls-n{display:inline-block;margin-left:5px;padding:0 6px;border-radius:var(--r-pill);background:color-mix(in srgb,var(--ink) 8%,transparent);font-size:11px}
+  #paneHealth .ls-panel-b{flex:1 1 auto;min-height:0;overflow:auto;margin-top:10px;border-top:1px solid var(--line)}
+  #paneHealth .ls-panel-f{flex:none;padding:8px 16px;border-top:1px solid var(--line);font-size:11.5px;color:var(--faint)}
+  #paneHealth .ls-panel .ls-recs,#paneHealth .ls-panel .ls-kids{padding:0}
+  #paneHealth .ls-panel .li-ws-audit{padding:8px 16px 10px}
+  #paneHealth .ls-panel .li-ws-kidbox{overflow:auto;max-width:100%}
+  #paneHealth .ls-panel .li-ws-kidtable th{position:static;padding:6px 10px;background:transparent;font-size:11px;color:var(--faint)}
+  #paneHealth .ls-panel .li-ws-kidtable td{padding:5px 10px;white-space:nowrap}
+  #paneHealth .ls-panel-tog{display:flex;justify-content:flex-end;padding:8px 16px 0}
+  /* One child in the Listings tab: picture, SKU, status, its problems as tags; the open one shows its own problems under it. */
+  #paneHealth .ls-kid{display:grid;grid-template-columns:36px minmax(0,1fr) auto;align-items:center;gap:4px 10px;width:100%;margin:0;padding:9px 16px;border:0;
+    border-top:1px solid var(--line);border-radius:0;background:transparent;color:var(--ink);font:inherit;text-align:left;box-shadow:none;cursor:pointer;transition:background .15s ease}
+  #paneHealth .ls-kid:first-child{border-top:0}
+  #paneHealth .ls-kid:hover,#paneHealth .ls-kid[aria-expanded="true"]{background:var(--hover);color:var(--ink)}
+  #paneHealth .ls-kid:focus-visible{outline:none;box-shadow:inset 0 0 0 2px var(--ring-line)}
+  #paneHealth .ls-kid.is-off{color:var(--muted)}
+  #paneHealth .ls-kid.is-other{opacity:.55}
+  #paneHealth .ls-kid-t{min-width:0}
+  #paneHealth .ls-kid-t b{display:block;font-family:ui-monospace,monospace;font-size:12.5px;font-weight:600}
+  #paneHealth .ls-kid-t small{display:block;font-size:11.5px;color:var(--faint)}
+  #paneHealth .ls-kid-s{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:4px;max-width:220px}
+  #paneHealth .ls-kid-d{padding:4px 16px 12px 62px;border-top:0;background:var(--soft)}
+  #paneHealth .ls-kid-d .li-ws-dbox{border:0;background:transparent;padding:4px 0 0}
+  #paneHealth .ls-kidhead{padding:10px 16px 4px;border-top:1px solid var(--line);font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--faint)}
+  /* Loading: grey pulsing bars, like .adh-skel. Empty: a friendly line, like .px-empty. */
+  #paneHealth .ls-skel{display:inline-block;width:72px;height:24px;border-radius:var(--r-pill);background:var(--hover);animation:ls-pulse 1.2s ease-in-out infinite}
+  @keyframes ls-pulse{50%{opacity:.45}}
+  #paneHealth .ls-skel.is-w{width:55%;height:14px}
+  #paneHealth .ls-skel.is-s{width:44px;height:14px}
+  #paneHealth .ls-skel.is-pic{width:36px;height:36px;border-radius:var(--r-sm)}
+  #paneHealth .ls-skel-row{display:flex;align-items:center;gap:12px;padding:10px 16px;border-top:1px solid var(--line)}
+  #paneHealth .ls-skel-row:first-child{border-top:0}
+  #paneHealth .ls-skel-box{min-height:88px}
+  #paneHealth .ls-empty{padding:40px 16px;text-align:center;color:var(--muted);font-size:13px;line-height:1.6}
+  #paneHealth .ls-empty b{color:var(--ink);font-weight:600}
+  /* In this tab Needs attention is yellow (the --rev pair), in the problem lists and the Workspace pills; the Severity column and the
+     area dots keep Ravi's orange for Needs Action. */
+  #paneHealth .lr-prob>.sev-a,#paneHealth .li-ws-astep>.sev-a{background:var(--rev);box-shadow:0 0 0 3px color-mix(in srgb,var(--rev) 22%,transparent)}
+  :is(#paneHealth,#hkModal) .lr-lvl.is-a{background:var(--rev-bg);color:var(--rev-ink)}
+  :is(#paneHealth,#hkModal) .lr-lvl.is-f{background:var(--brand-bg);color:var(--brand-ink)}
+  #paneHealth .li-ws .li-ws-x.is-a{background:var(--rev-bg);color:var(--rev-ink)}
+  #paneHealth .li-ws .li-ws-x.is-a:hover{background:var(--rev-bg);color:var(--rev-ink);border-color:var(--rev)}
+  #paneHealth .li-ws-astep.is-fail.is-a .li-ws-astep-t{color:var(--rev-ink)}
+  #paneHealth .li-ws-dot-act{background:var(--rev)}
+  /* The Workspace's own bar is slim now: the progress on the left, Sort again and the sweep on the right. */
+  #paneHealth .li-ws-bar{margin:0 0 10px}
+  @media (max-width:860px){
+    #paneHealth .card.ls-toolbar{position:relative;top:auto}
+    #paneHealth .ls-boxes{grid-template-columns:repeat(3,minmax(0,1fr))}
+  }
   /* The ring the app gives a focused button, kept on the buttons above (their own box-shadow would hide it). */
   #liWs :is(.li-ws-chip,.li-ws-th,.li-ws-tog,.li-ws-open,.li-ws-again,.li-ws-sku,.li-ws-x,.li-ws-sweep,.li-ws-recheck,.li-ws-resort,.li-ws-more,.li-ws-pass,.li-ws-ashow):focus-visible{
     outline:none;box-shadow:var(--ring)}
@@ -1805,9 +2097,33 @@
     #paneHealth .li-ws-card,#paneHealth .li-ws-card-main{padding:10px 12px}
     #paneHealth .li-ws-card-more{margin:-4px 12px 8px}
     #paneHealth .li-ws-card-v{font-size:21px}
+    /* The look on a phone: two boxes a row, the panel the whole screen, the toolbar in two lines, rows as cards. */
+    #paneHealth .ls-boxes{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+    #paneHealth .ls-box,#paneHealth .ls-box-main{padding:10px 12px 8px}
+    #paneHealth .ls-v>b{font-size:20px}
+    #paneHealth .ls-panel{top:0;width:100vw;max-height:100vh;margin:0;border-radius:0;border:0}
+    #paneHealth .ls-tb .ls-search{flex-basis:100%}
+    #paneHealth .ls-tb .ls-sel{max-width:none;flex:1 1 140px}
+    #paneHealth .ls-tb .ui-spacer{display:none}
+    #paneHealth .ls-prod-t .ui-name,#paneHealth .ls-fix{max-width:none;white-space:normal}
+    #paneHealth .ls-mix{max-width:none}
+    :is(#paneHealth,#hkModal) .ls-rec{grid-template-columns:14px minmax(0,1fr)}
+    :is(#paneHealth,#hkModal) .ls-rec-a{grid-column:2;justify-self:start}
+    #paneHealth .ls-kid-s{max-width:none;justify-content:flex-start;grid-column:1/-1}
+    #paneHealth .ls-kid-d{padding-left:16px}
+    /* The row on a phone, now: the picture + name on the first line with the › at its right, then the mix bar, Live, Audit and Last checked each on a line. */
+    .li-ws-tbl>tbody>tr.li-ws-row{grid-template-columns:minmax(0,1fr) auto}
+    #paneHealth table.ls-tbl tbody td{height:auto}
+    .li-ws-tbl>tbody>tr.li-ws-row>td.li-ws-c-name{grid-column:1;grid-row:1}
+    .li-ws-tbl>tbody>tr.li-ws-row>td.li-ws-c-open{grid-column:2;grid-row:1}
+    .li-ws-tbl>tbody>tr>td.li-ws-c-kids{display:block;grid-column:1/-1;text-align:left}
+    .li-ws-tbl>tbody>tr>td.li-ws-c-kids::before{content:"Live ";color:var(--muted)}
   }
   @media (prefers-reduced-motion:reduce){
-    .li-ws .li-ws-chip,.li-ws .li-ws-th,.li-ws .li-ws-tog,.li-ws .li-ws-x,.li-ws .li-ws-sku,#paneHealth .li-ws-card{transition:none}
+    .li-ws .li-ws-chip,.li-ws .li-ws-th,.li-ws .li-ws-tog,.li-ws .li-ws-x,.li-ws .li-ws-sku,#paneHealth .li-ws-card,#paneHealth .ls-box,
+    #paneHealth .ls-ic,#paneHealth .ls-chev,#paneHealth .ls-rec,#paneHealth .ls-kid,#paneHealth .ls-seg .segbtn,#paneHealth .ls-tabs button{transition:none}
+    #paneHealth .ls-panel,#paneHealth .ls-skel{animation:none}
+    #paneHealth .ls-box:has(.ls-box-main):hover,#paneHealth .ls-box:has(.ls-box-main:active),#paneHealth .ls-box:hover .ls-ic{transform:none}
   }
 
   /* ===== MODULE: ADS ===== */
@@ -2994,18 +3310,28 @@
   </div><!-- /paneAge -->
 
   <!-- ============ PANE: listing health ============ -->
+  <!-- THE LISTING HEALTH LOOK (6 Nov 2026): the Ad Console / PPC & Organic · New layout — a meta line, a sticky toolbar card
+       (pill switches, the search box, outline buttons, one dark round main button), number boxes, a flush list card, a side
+       panel. Every id, data- attribute and class the JS reads is kept; the look is the .ls-* rules in the LISTING block. -->
   <div id="paneHealth" class="hide">
-    <div class="card" style="padding:12px 14px">
-      <div class="toolbar">
-        <div class="seg">
+    <div id="hMeta" class="ls-meta"><span><b>Listing Health</b></span><span></span></div>
+    <div class="card ls-toolbar" id="hToolbar">
+      <div class="toolbar ls-tb">
+        <div class="seg ls-seg" role="group" aria-label="View">
           <button id="hViewParent" class="segbtn">Parent ASINs</button>
           <button id="hViewChild" class="segbtn on">Child listings</button>
           <button id="hViewWs" class="segbtn" type="button" aria-pressed="false" title="A checklist for every listing, from Amazon's own data: live only, problems per parent and per child">Workspace</button>
         </div>
-        <select id="hBrandView" style="flex:0 0 140px">
+        <!-- Which listings the Workspace lists and reads: shown in the Workspace view only (listing/listing-workspace.js keeps it in step). -->
+        <div class="seg ls-seg" id="hModeSeg" role="group" aria-label="Which listings">
+          <button type="button" class="segbtn on" data-li-ws-mode="live" aria-pressed="true">Live</button>
+          <button type="button" class="segbtn" data-li-ws-mode="off" aria-pressed="false">Not live / inbound</button>
+          <button type="button" class="segbtn" data-li-ws-mode="all" aria-pressed="false">All</button>
+        </div>
+        <select id="hBrandView" class="ls-sel">
           <option value="ALL">Both brands</option><option value="SP">Ridhi</option><option value="CPC">CPC</option>
         </select>
-        <select id="hIssueView" style="flex:0 0 170px">
+        <select id="hIssueView" class="ls-sel">
           <option value="ALL">All listings</option>
           <option value="critical">Critical</option>
           <option value="action">Needs Action</option>
@@ -3020,24 +3346,29 @@
           <option value="fewimg">Fewer than 6 images</option>
           <option value="noaplus">A+ content missing</option>
         </select>
-        <input id="hFilter" style="flex:1 1 100px;min-width:0" placeholder="Filter SKU / ASIN / Parent / title">
-        <button id="hOptimiser" class="ghost" title="Opens the Title &amp; Highlights Optimizer in a new tab: titles down to 75 characters, and Item Highlights up to 125. It runs inside Claude, not in this app.">Title optimiser &#8599;</button>
-        <button id="hRaw" class="ghost">Raw fields</button>
-        <button id="hCsv" class="ghost">Export</button>
-        <button id="hGo">Refresh both brands</button>
+        <label class="ls-search"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="hFilter" placeholder="Search SKU / ASIN / Parent / title" aria-label="Search SKU, ASIN, parent or title"></label>
+        <span class="ui-spacer"></span>
+        <button id="hOptimiser" class="ghost ls-btn" title="Opens the Title &amp; Highlights Optimizer in a new tab: titles down to 75 characters, and Item Highlights up to 125. It runs inside Claude, not in this app.">Title optimiser &#8599;</button>
+        <button id="hRaw" class="ghost ls-btn">Raw fields</button>
+        <button id="hCsv" class="ghost ls-btn">Export</button>
+        <button id="hGo" class="ghost ls-btn">Refresh both brands</button>
+        <!-- The one main button: reads only the listings in view that show an Error (listing/listing-workspace.js runs it). -->
+        <button id="hRecheck" class="ls-btn ls-dark" type="button" data-li-ws-recheck="go" title="Reads only the listings in view that show an Error — status, Amazon's issues, the catalogue's pictures, content and A+ — so an Error from old data is confirmed or cleared">Re-check all errors with Amazon</button>
       </div>
       <div id="hMsg" class="muted"></div>
-      <div id="hSchema" class="hide" style="margin-top:10px;font-size:12px"></div>
     </div>
+    <div id="hSchema" class="card hide ls-schema"></div>
     <!-- The standing scope/truncation text that used to sit here now lives in "Raw fields". -->
 
     <div id="hResult" class="hide">
-      <div id="hFocus" class="card hide" style="padding:10px 14px;margin-bottom:10px"></div>
+      <div id="hFocus" class="card hide ls-head"></div>
       <div id="hKpis" class="kpis"></div>
-      <div class="card xlwrap"><table class="xl" id="hTable"></table></div>
+      <div class="card xlwrap ls-card ls-clip"><table class="xl ls-tbl" id="hTable"></table></div>
     </div>
     <!-- The third view, Listing Workspace (a checklist per listing from Amazon's data): drawn by listing/listing-workspace.js. -->
     <div id="liWs" class="li-ws hide"></div>
+    <!-- The side panel one parent opens into (listing/listing-workspace.js draws it): What to fix / Listings / Audit. -->
+    <aside id="lsPanel" class="ls-panel" role="dialog" aria-label="Parent details" hidden></aside>
   </div><!-- /paneHealth -->
 
   <!-- ============ PANE: listing audit ============ -->
@@ -9347,6 +9678,30 @@ function lrProblemHtml(hit, where, note) {
     + `<div class="lr-prob-how">${esc(hit.fix || '')}</div>${note ? `<div class="lr-prob-src">${esc(note)}</div>` : ''}</div>`
     + `<span class="lr-tag${tag === 'Company rule' ? ' is-own' : ''}" title="${esc(LR_TAG_TIP[tag] || '')}">${esc(tag)}</span>${check}${fix}</div>`;
 }
+/* ---- a problem as one ROW (the Listing Health look, 6 Nov 2026), like the Ad Console's recommendation rows: a dot through the
+ *      level's colour · the level word and the name, a grey subtitle · how to fix · a tag · Fix. The Workspace side panel and the
+ *      children dialog draw with it; lrProblemHtml above stays the block every other screen uses. ---- */
+// `rec`: { sev, stale, name, sub, fix, tag, kind, detector, attrs, fill } — `fill` marks a "Good to fill" gap (not an error: no level
+// word, a blue dot). `where`: { brand, sku } for the Fix button, or null for none.
+function lrRecHtml(rec, where) {
+  const esc = str => String(str == null ? '' : str).replace(/[<>&"]/g, ch => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[ch]));
+  const stale = rec.sev === 'critical' && !!rec.stale;
+  const cls = rec.fill ? 'is-fill' : rec.sev === 'critical' ? (stale ? 'is-chk' : 'is-err') : 'is-att';
+  const level = lrLevel(rec.sev);
+  const word = rec.fill ? 'Good to fill' : stale ? level.stale : level.word;
+  const tag = rec.fill ? 'Good to fill' : (rec.tag || 'Company rule');
+  const kind = rec.kind == null ? lrFixKind(rec.detector) : rec.kind;
+  const fix = where && kind ? `<button type="button" class="ghost lr-fixbtn" data-lr-fix="${esc(kind)}|${esc(where.brand)}|${esc(where.sku)}"`
+    + (rec.attrs && rec.attrs.length ? ` data-lr-attrs="${esc(rec.attrs.join(','))}"` : '')
+    + ` title="${kind === 'img' ? 'Opens the Image Manager' : 'Opens Listing Errors'}">Fix</button>` : '';
+  return `<div class="ls-rec ${cls}"><span class="ls-dot" aria-hidden="true"></span><div class="ls-rec-t">`
+    + `<b><span class="lr-lvl ${rec.fill ? 'is-f' : stale ? 'is-s' : rec.sev === 'critical' ? 'is-c' : 'is-a'}">${esc(word)}</span>${esc(rec.name)}</b>`
+    + (rec.sub ? `<small title="${esc(rec.sub)}">${esc(rec.sub)}</small>` : '') + '</div>'
+    + `<div class="ls-rec-a"><span class="lr-tag${tag === 'Company rule' ? ' is-own' : ''}${rec.fill ? ' is-fill' : ''}" title="${esc(LR_TAG_TIP[tag] || (rec.fill ? 'Not an error: a gap worth filling.' : ''))}">${esc(tag)}</span>${fix}</div>`
+    + (rec.fix ? `<div class="ls-rec-how">${esc(rec.fix)}</div>` : '') + '</div>';
+}
+// One finding of healthOf as that row.
+const lrHitRec = (hit, where) => lrRecHtml({ sev: hit.sev, stale: hit.stale, name: hit.name, sub: hit.detail, fix: hit.fix, tag: hit.tag, kind: hit.kind, detector: hit.detector }, where);
 // Errors first, then Needs attention (action before review).
 const lrProblemsSort = hits => hits.slice().sort((a, b) => ((LR_SEV[b.sev] || {}).rank || 0) - ((LR_SEV[a.sev] || {}).rank || 0));
 // Several problems as one list; noteOf(hit), when given, gives each its grey line.
@@ -9542,11 +9897,110 @@ async function ensureHealth() {
   if (!AMZ.map) amzEnsure().then(() => {
     if (!$('paneHealth').classList.contains('hide')) renderHealth();
   });
+  /* The Image Manager snapshot too (the pictures on the rows, and the pictures the rules judge when it is the freshest source);
+   * the table draws without it and again once it lands. */
+  if (typeof IML !== 'undefined' && typeof imListLoad === 'function') ['SP', 'CPC'].forEach(brand => {
+    if (brand in IML) return;
+    imListLoad(brand).then(() => {
+      if (!$('paneHealth').classList.contains('hide')) renderHealth();
+    });
+  });
   if (H_LOADED) return renderHealth();
   hMsg('Loading the last snapshot…');
+  hSkeleton();
   await loadHealthCache();
   hMsg('');
   renderHealth();
+}
+
+/* ----- the Listing Health LOOK (6 Nov 2026): the meta line, the sticky toolbar, pictures, pills, bars, skeletons ----- */
+// The meta line above the toolbar, like the Ad Console's: the view, when Amazon was last read on this screen, when the full
+// refresh was — amber once the oldest full refresh is older than a week. Both views call it with the brands they show.
+function hMetaRender(brands, view) {
+  const el = $('hMeta');
+  if (!el) return;
+  const now = Date.now();
+  const ats = brands.map(brand => (HEALTH[brand] && HEALTH[brand].at ? HEALTH[brand].at.getTime() : 0)).filter(Boolean);
+  const oldest = ats.length ? Math.min(...ats) : 0;
+  const days = oldest ? Math.floor((now - oldest) / 86400000) : -1;
+  const ago = ms => (ms < 3600000 ? Math.max(1, Math.round(ms / 60000)) + ' min ago' : ms < 86400000 ? Math.round(ms / 3600000) + ' h ago'
+    : Math.round(ms / 86400000) === 1 ? '1 day ago' : Math.round(ms / 86400000) + ' days ago');
+  const read = typeof liWsNewestRead === 'function' ? liWsNewestRead(brands) : 0;
+  const perBrand = brands.map(brand => (BRAND_NAME[brand] || brand) + ' ' + (HEALTH[brand] && HEALTH[brand].at
+    ? HEALTH[brand].at.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : 'never')).join(' · ');
+  const old = !oldest || days > 7;
+  el.innerHTML = `<span class="${old ? 'is-old' : ''}"><b>${lrEsc(view || 'Listing Health')}</b> · Amazon read ${read ? ago(now - read) : 'not yet on this screen'}`
+    + ` · Full refresh ${oldest ? ago(now - oldest) : 'never'}${old && oldest ? ' — press “Refresh both brands”' : ''}</span><span>Full refresh: ${lrEsc(perBrand)}</span>`;
+}
+/* The toolbar sticks under Sellora's menu bar, like PPC & Organic · New's. The bar's height is measured, not assumed: it wraps onto
+ * a second line on narrower screens, and on phones it is a drawer (not sticky), so the offset goes to 0. The card is marked while
+ * it is stuck (flat top corners, a deeper shadow). */
+function hStick() {
+  try {
+    const pane = $('paneHealth');
+    const bar = $('hToolbar');
+    if (!pane || !bar || !bar.getBoundingClientRect || typeof getComputedStyle !== 'function' || !pane.style || !pane.style.setProperty) return;
+    const side = document.querySelector('.side');
+    const top = side && getComputedStyle(side).position === 'sticky' ? Math.round(side.getBoundingClientRect().height) : 0;
+    pane.style.setProperty('--ls-top', top + 'px');
+    bar.classList.toggle('ls-stuck', Math.round(bar.getBoundingClientRect().top) <= top + 1 && window.scrollY > 0);
+  } catch (e) { /* no layout to measure (a test page) */ }
+}
+if (typeof window !== 'undefined' && window.addEventListener) {
+  window.addEventListener('scroll', () => { if (typeof TAB_NOW === 'undefined' || TAB_NOW === 'health') hStick(); }, { passive: true });
+  window.addEventListener('resize', () => { if (typeof TAB_NOW === 'undefined' || TAB_NOW === 'health') hStick(); });
+}
+// While the snapshot loads: grey pulsing bars where the boxes and the rows will be.
+function hSkeleton() {
+  $('hResult').classList.remove('hide');
+  $('hKpis').innerHTML = '<div class="ls-boxes">' + Array.from({ length: 6 }, () => '<div class="ls-box ls-skel-box"><span class="ls-skel is-s"></span><span class="ls-skel"></span></div>').join('') + '</div>';
+  $('hTable').innerHTML = '<tbody>' + Array.from({ length: 6 }, () => '<tr><td><div class="ls-skel-row"><span class="ls-skel is-pic"></span><span class="ls-skel is-w"></span><span class="ls-skel is-s"></span></div></td></tr>').join('') + '</tbody>';
+}
+// A listing's picture: the catalogue's MAIN from the Workspace's live read, else the Image Manager snapshot's (liWsPicUrl holds the order).
+const hPicUrl = (brand, sku) => (typeof liWsPicUrl === 'function' ? liWsPicUrl(brand, sku) : '');
+// The small picture of the first of these rows that has one; a grey square when none. Lazy-loaded; a broken one hides itself.
+function hPicHtml(brand, rows, big) {
+  let url = '';
+  for (const row of rows || []) {
+    url = hPicUrl(brand, row.sku);
+    if (url) break;
+  }
+  return `<span class="ls-pic${big ? ' ls-lg' : ''}${url ? '' : ' is-none'}" aria-hidden="true">${url ? `<img src="${lrEsc(url)}" alt="" loading="lazy" decoding="async">` : ''}</span>`;
+}
+// Health as a small bar and the number: green 80+, amber 50–79, red under 50 — the same thresholds as before. The bar's widths are
+// SVG attributes, so nothing is styled inline.
+function hHealthBar(score) {
+  if (score == null) return '<span class="muted">—</span>';
+  const n = Math.max(0, Math.min(100, Math.round(score)));
+  const cls = n >= 80 ? 'is-good' : n >= 50 ? 'is-warn' : 'is-bad';
+  return `<span class="ls-health ${cls}" title="Health ${n}: 100 − 40 per critical issue − 10 per action − 3 per review"><svg class="ls-hbar" viewBox="0 0 100 6" preserveAspectRatio="none" aria-hidden="true">`
+    + `<rect class="ls-hbar-t" x="0" y="0" width="100" height="6" rx="3"/><rect class="ls-hbar-f" x="0" y="0" width="${n}" height="6" rx="3"/></svg><b>${n}</b></span>`;
+}
+// A count as a pill in its level's colour (is-c / is-a / is-r / is-g), a zero faint.
+const hPill = (n, cls) => (n ? `<span class="ls-pill ${cls}">${Number(n).toLocaleString('en-US')}</span>` : '<span class="ls-zero">0</span>');
+// Why: up to 3 problems in words (the one look every screen gives a problem), then "+n more" that opens the rest in place — no redraw.
+function hWhyCell(row) {
+  const found = lrProblemsSort(row._h.found);
+  if (!found.length && !row._h.notes.length) return `<span class="muted">${row.content ? 'No problem' : 'Content not checked'}</span>`;
+  const where = { brand: row.brand, sku: row.sku };
+  const rest = found.slice(3);
+  return `<div class="lr-probs ls-why">${found.slice(0, 3).map(hit => lrProblemHtml(hit, where, '')).join('')}`
+    + (rest.length ? `<div class="ls-why-rest">${rest.map(hit => lrProblemHtml(hit, where, '')).join('')}</div>`
+      + `<button type="button" class="ls-why-more" data-ls-why="1">+${rest.length} more</button>` : '')
+    + lrNotesHtml(row._h.notes) + '</div>';
+}
+// "+n more" opens the rest of a Why cell in place; a picture that fails to load hides itself (its grey square stays).
+if (typeof document !== 'undefined' && $('hTable') && $('hTable').addEventListener) {
+  $('hTable').addEventListener('click', e => {
+    const btn = e.target && e.target.closest ? e.target.closest('[data-ls-why]') : null;
+    const box = btn && btn.closest('.ls-why');
+    if (box) box.classList.add('is-open');
+  });
+  $('paneHealth').addEventListener('error', e => {
+    const img = e.target;
+    const pic = img && img.tagName === 'IMG' && img.closest ? img.closest('.ls-pic') : null;
+    if (pic) pic.classList.add('is-broken');
+  }, true);
 }
 
 /* ----- Refresh (both brands) ----- */
@@ -9980,16 +10434,14 @@ function hFocusBar(brands) {
   kids.forEach(row => { counts[healthOf(row, hc).bucket]++; });
   const name = parentName(H_FOCUS.brand, H_FOCUS.parent, kids[0] && kids[0].title);
   bar.classList.remove('hide');
-  bar.innerHTML = `<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-      <button id="hFocusBack" class="ghost">← All parents</button>
-      <div style="flex:1 1 280px;min-width:0">
-        <div style="font-weight:700;font-size:16px">${lrEsc(name || H_FOCUS.parent)}</div>
-        <div class="muted" style="font-size:12.5px"><span style="font-family:ui-monospace,monospace">${lrEsc(H_FOCUS.parent)}</span> · ${lrEsc(BRAND_NAME[H_FOCUS.brand] || H_FOCUS.brand)} · ${kids.length} children
-          · <span class="sev sev-c"></span>${counts.critical} critical · <span class="sev sev-a"></span>${counts.action} attention · <span class="sev sev-r"></span>${counts.review} review
-          · <span class="sev sev-g"></span>${counts.healthy + counts.monitor} healthy${counts.unchecked ? ` · ${counts.unchecked} not checked` : ''}</div>
+  // The header card of the open parent (the look, 6 Nov 2026): back, picture, name, ASIN · brand · children, Ravi's four counts as pills.
+  const pill = (n, cls, word) => (n ? `<span class="ls-pill ${cls}">${n} ${word}</span>` : `<span class="ls-zero">0 ${word}</span>`);
+  bar.innerHTML = `<button id="hFocusBack" class="ghost ls-btn">← All parents</button>${hPicHtml(H_FOCUS.brand, kids, true)}<div class="ls-head-t">
+        <div class="ls-head-n">${lrEsc(name || H_FOCUS.parent)}</div>
+        <div class="ls-head-s"><span class="ui-mono">${lrEsc(H_FOCUS.parent)}</span><span>·</span><span>${lrEsc(BRAND_NAME[H_FOCUS.brand] || H_FOCUS.brand)}</span><span>·</span><span>${kids.length} children</span>
+          ${pill(counts.critical, 'is-c', 'critical')}${pill(counts.action, 'is-a', 'attention')}${pill(counts.review, 'is-r', 'review')}${pill(counts.healthy + counts.monitor, 'is-g', 'healthy')}${counts.unchecked ? `<span class="ls-pill">${counts.unchecked} not checked</span>` : ''}</div>
       </div>
-      <button id="hFocusOpt" class="ghost">Title optimiser ↗</button>
-    </div>`;
+      <button id="hFocusOpt" class="ghost ls-btn">Title optimiser ↗</button>`;
   $('hFocusBack').onclick = () => {
     H_FOCUS = null;
     H_VIEW = 'parent';
@@ -10090,7 +10542,7 @@ function renderHealth() {
     rows = groups;
 
     defs.push({ k: 'title', t: 'Parent', trunc: 38,
-      cell: row => parentNameCell(row.brand, row.parent, row.title, 38),
+      cell: row => `<div class="ls-prod">${hPicHtml(row.brand, row.kids)}<div class="ls-prod-t">${parentNameCell(row.brand, row.parent, row.title, 38)}</div></div>`,
       tip: "Click a name to set your own — once saved, refreshes never change it. Otherwise the seller's own listing name, or a child's title marked ~." });
     if (multiBrand) defs.push({ k: 'brand', t: 'Brand', map: row => BRAND_NAME[row.brand] });
     defs.push({ k: 'children', t: 'Children', num: 1,
@@ -10098,10 +10550,7 @@ function renderHealth() {
     /* IN COLOUR (2026-10-03, Ravi: "parent wale data ko bhi colorful kar dena"): each count carries its bucket's dot,
      * a zero stays grey, Health is green / amber / red, and the same five areas as the child table show the worst
      * colour among the children with how many children it hits. */
-    const cnt = spec => row => {                 // spec: { k: the count's key, c: the dot's CSS class }
-      const value = row[spec.k];
-      return value ? `<span class="sev ${spec.c}"></span><b>${Number(value).toLocaleString('en-US')}</b>` : '<span class="muted">0</span>';
-    };
+    const cnt = spec => row => hPill(row[spec.k], 'is-' + spec.c.slice(4));   // spec: { k: the count's key, c: the level's class (sev-c → is-c) }: a pill, a zero faint
     defs.push({ k: 'critical', t: 'Critical', num: 1, cell: cnt({ k: 'critical', c: 'sev-c' }),
       tip: 'Children with an "Error: fix first" — a rule set to Critical in Listing Rules (recommended: Amazon reports an error, suppressed from search, stock but Inactive, no price, main image missing, fewer than 6 pictures, A+ missing).' });
     defs.push({ k: 'action', t: 'Needs Action', num: 1, cell: cnt({ k: 'action', c: 'sev-a' }),
@@ -10130,14 +10579,16 @@ function renderHealth() {
       },
       tip: `The worst ${area.toLowerCase()} issue among the children, and how many children have one. ✓ = none of the checked children has one.` }));
     defs.push({ k: 'score', t: 'Health', num: 1, noTotal: 1,
-      cell: row => row.score == null ? '<span class="muted">—</span>'
-        : `<b style="color:${row.score >= 80 ? 'var(--accent-ink)' : row.score >= 50 ? 'var(--act-ink)' : 'var(--bad-ink)'}">${row.score}</b>`,
+      cell: row => hHealthBar(row.score),
       tip: 'Average health of the checked children: 100 − 40 per critical issue − 10 per action − 3 per review. Green 80+, amber 50–79, red under 50.' });
+    // The ASIN and a › : both open the parent's children ON THE PAGE (Ravi's rule); the name cell still edits the name.
     defs.push({ k: 'parent', t: 'Parent ASIN', mono: 1, noTotal: 1,
-      cell: row => `<span data-hkid="${String(row.brand).replace(/"/g, '')}|${String(row.parent).replace(/[<>&"]/g, '')}"`
-        + ` style="font-family:ui-monospace,monospace;cursor:pointer;text-decoration:underline dotted" title="Open this parent's children">`
-        + `${String(row.parent).replace(/[<>&"]/g, '')}</span>`,
-      tip: 'Click a Parent ASIN to open all of its child listings — what each one fails and passes.' });
+      cell: row => {
+        const key = `${String(row.brand).replace(/"/g, '')}|${String(row.parent).replace(/[<>&"]/g, '')}`;
+        return `<span class="ls-asinc"><span class="ui-mono" data-hkid="${key}" title="Open this parent's children">${String(row.parent).replace(/[<>&"]/g, '')}</span>`
+          + `<button type="button" class="ls-chev" data-hkid="${key}" aria-label="Open this parent's children">›</button></span>`;
+      },
+      tip: 'Click a Parent ASIN, or its ›, to open all of its child listings — what each one fails and passes.' });
   } else {
     // --- child view: one row per listing, filtered to one parent when a parent is open ---
     if (H_FOCUS && brands.includes(H_FOCUS.brand))
@@ -10149,8 +10600,7 @@ function renderHealth() {
      * then Content (A+, bullets, description), Health, the reasons, and a suggested title where one applies.
      * A coloured dot is the worst issue in that area; ✓ is judged and fine; — could not be judged. */
     defs.push({ k: 'sku', t: 'SKU / ASIN', frz: 1,
-      cell: row => `<div style="font-family:ui-monospace,monospace">${lrEsc(row.sku)}</div>`
-        + `<div class="muted" style="font-family:ui-monospace,monospace;font-size:11px">${lrEsc(row.asin || '')}</div>` });
+      cell: row => `<div class="ls-prod">${hPicHtml(row.brand, [row])}<div class="ls-prod-t"><div class="ui-mono">${lrEsc(row.sku)}</div><span class="ls-asin">${lrEsc(row.asin || '')}</span></div></div>` });
     if (multiBrand) defs.push({ k: 'brand', t: 'Brand', map: row => BRAND_NAME[row.brand] });
     defs.push({ k: 'lstatus', t: 'Status', noTotal: 1,
       map: row => row.qty === 0 ? 'OOS' : (/inactive/i.test(row.status || '') ? 'Inactive' : (/active/i.test(row.status || '') ? 'Active' : (row.status || '—'))) });
@@ -10164,13 +10614,12 @@ function renderHealth() {
         return found ? LR_SEV[found.sev].rank : 0;
       },
       cell: row => hAreaCell(row, area) }));
-    defs.push({ k: 'score', t: 'Health', num: 1, bold: 1, noTotal: 1 });
+    defs.push({ k: 'score', t: 'Health', num: 1, bold: 1, noTotal: 1, cell: row => hHealthBar(row.score) });
     defs.push({ k: 'title', t: 'Title text', trunc: 38 });
-    // Why: every problem as one block — what is wrong, how to fix it in plain words, whose rule it is, and Fix — the same look
-    // the Workspace gives it (lrProblemHtml in listing-rules.js). Sorting and the CSV still use the one-line text.
+    // Why: up to 3 problems as blocks — what is wrong, how to fix it in plain words, whose rule it is, and Fix — the same look
+    // the Workspace gives it (lrProblemHtml in listing-rules.js), then "+n more". Sorting and the CSV still use the one-line text.
     defs.push({ k: 'issues', t: 'Why', map: reasonText,
-      cell: row => (row._h.found.length || row._h.notes.length ? `<div class="lr-probs">${lrProblemsHtml(row._h.found, { brand: row.brand, sku: row.sku })}${lrNotesHtml(row._h.notes)}</div>`
-        : `<span class="muted">${row.content ? 'No problem' : 'Content not checked'}</span>`),
+      cell: hWhyCell,
       tip: 'What is wrong (Error: fix first, or Needs attention), how to fix it, and whose rule it is. Fix opens the Image Manager for pictures and Listing Errors for everything else; Check now reads a listing from Amazon when an Error rests on old data.' });
     defs.push({ k: 'suggest', t: '', noTotal: 1, map: () => '',
       cell: row => (row._h.found.some(found => found.area === 'Title' || found.area === 'Size' || found.area === 'Variation') && lrTemplateFor(row, LR || LR_DEFAULT))
@@ -10195,6 +10644,8 @@ function renderHealth() {
   // The cards always describe LISTINGS, never parents — in parent view that means the children of
   // whichever parents survived the filter, so the cards still agree with what's on screen.
   renderHealthKpis(H_VIEW === 'parent' ? rows.flatMap(g => g.kids) : rows, brands);
+  hMetaRender(brands, H_VIEW === 'parent' ? 'Parent ASINs' : 'Child listings');
+  hStick();
 
   // Only H_PAGE rows are put in the DOM. At full catalogue size (3,922 listings × 13 columns =
   // ~55,000 cells) a sticky header + sticky first column cost ~88ms of layout PER SCROLL FRAME —
@@ -10310,6 +10761,7 @@ const H_OPTIMISER_URL = 'https://claude.ai/public/artifacts/9d2c21e6-30b8-4f08-a
 const H_TITLE_LIMIT = 75;     // Amazon's title limit — shown for information only, never scored
 let HK_OPEN = null;           // { brand, parent } of the dialog on screen
 let HK_SHOW = 'all';          // all | bad | ok
+let HK_MORE = new Set();      // the SKUs whose "What to fix" shows every problem, not the first 5
 
 /**
  * Each check for one child: pass true/false, or null when the fact is not known (never checked, or the
@@ -10350,8 +10802,17 @@ function healthChecks(row, health) {
   ];
 }
 // The "What to fix" lines of one child, in the two words every problem list uses (Listing Rules, Part B1), Errors first; an Error
-// resting on old data reads "Error? Check again".
+// resting on old data reads "Error? Check again". (The CSV.)
 const hkFixLines = health => lrProblemsSort(health.found).map(hit => (hit.sev === 'critical' ? (hit.stale ? 'Error? Check again: ' : 'Error: fix first: ') : 'Needs attention: ') + hit.name + ' — ' + hit.detail);
+// The same problems as rows (the Listing Health look): the first 5, then "Show N more".
+function hkRecsHtml(health, brand, sku) {
+  const hits = lrProblemsSort(health.found);
+  const open = HK_MORE.has(sku);
+  const shown = open ? hits : hits.slice(0, 5);
+  return `<div class="ls-recs">${shown.map(hit => lrHitRec(hit, { brand, sku })).join('')}</div>`
+    + (hits.length > 5 && !open ? `<button type="button" class="ls-more" data-hk-more="${lrEsc(sku)}">Show ${hits.length - 5} more</button>` : '')
+    + lrNotesHtml(health.notes);
+}
 
 // A parent row was clicked: remember which parent, show every child, open the dialog.
 function healthKidsOpen(brand, parent) {
@@ -10406,7 +10867,7 @@ function healthKidsRender() {
     + '<th>What to fix</th></tr></thead>';
   const body = kids.map(row => {
     const fix = hkFixLines(row._h);
-    if (row.content && row.content.titleLen > H_TITLE_LIMIT) fix.push(`Title over ${H_TITLE_LIMIT} (${row.content.titleLen}) — information only`);
+    const over = row.content && row.content.titleLen > H_TITLE_LIMIT ? `<div class="ls-note">Title over ${H_TITLE_LIMIT} (${row.content.titleLen}) — information only</div>` : '';
     return '<tr>'
       + `<td class="frz" style="font-family:ui-monospace,monospace;font-size:12px">${esc(row.sku)}</td>`
       + `<td style="font-family:ui-monospace,monospace;font-size:12px">${row.asin
@@ -10417,14 +10878,21 @@ function healthKidsRender() {
       + `<td class="num" style="font-weight:700">${row.score}</td>`
       + `<td>${esc(row.grade)}</td>`
       + row._c.map(mark).join('')
-      + `<td style="white-space:normal;min-width:180px;font-size:12px">${fix.length
-          ? fix.map(note => `<div>• ${esc(note)}</div>`).join('')
-          : (row.content ? '<span style="font-weight:600">Nothing found — Healthy</span>' : '<span class="muted">Content not checked yet</span>')}</td>`
+      + `<td class="ls-hkfix">${fix.length
+          ? hkRecsHtml(row._h, brand, row.sku)
+          : (row.content ? '<span style="font-weight:600">Nothing found — Healthy</span>' : '<span class="muted">Content not checked yet</span>')}${over}</td>`
       + '</tr>';
   }).join('');
   $('hkTable').innerHTML = head + '<tbody>' + (body
     || `<tr><td colspan="${checks.length + 6}" class="muted" style="padding:14px">No children match.</td></tr>`) + '</tbody>';
 }
+// "Show N more" in the dialog: that child's full list, redrawn.
+$('hkTable').addEventListener('click', e => {
+  const btn = e.target.closest('[data-hk-more]');
+  if (!btn) return;
+  HK_MORE.add(btn.dataset.hkMore);
+  healthKidsRender();
+});
 
 // Close the dialog: the X button, or a click on the backdrop.
 $('hkClose').onclick = () => {
@@ -10491,17 +10959,17 @@ function renderHealthKpis(rows, brands) {
     return acc;
   }, { n: 0, critical: 0, action: 0, review: 0, healthy: 0, monitor: 0, unchecked: 0, nodata: 0, checked: 0, score: 0 });
 
-  // One row of cards per brand, the same look as the Workspace's number cards (6 Nov 2026): Ravi's four levels with their own
-  // colours and marks, then Health and Listings. The numbers are exactly the ones above.
-  // A level card is a button that sets Listing Health's own level filter (#hIssueView) exactly as picking it there does; the
-  // same card again sets it back to All listings. Health and Listings are plain cards.
+  // One row of boxes per brand, the Ad Console look (6 Nov 2026): Ravi's four levels with their own colours and marks (Critical
+  // red ●, Needs Action orange ●, Needs Review yellow ▲, Healthy green ✓), then Health and Listings. The numbers are exactly the
+  // ones above. A level box is a button that sets Listing Health's own level filter (#hIssueView) exactly as picking it there
+  // does; the same box again sets it back to All listings. Health and Listings are plain boxes.
   const view = $('hIssueView').value;
-  const card = (cls, ic, v, label, sub, level) => {
-    const inner = `<span class="li-ws-card-v">${ic ? `<span class="li-ws-card-ic" aria-hidden="true">${ic}</span>` : ''}${v}</span>`
-      + `<span class="li-ws-card-l">${label}</span>${sub ? `<span class="li-ws-card-h">${sub}</span>` : ''}`;
-    if (!level) return `<div class="li-ws-card ${cls}">${inner}</div>`;
+  const box = (cls, ic, v, label, hint, level) => {
+    const inner = `<span class="ls-l">${ic ? `<span class="ls-ic" aria-hidden="true">${ic}</span>` : ''}${label}</span><span class="ls-v"><b>${v}</b></span>`
+      + `<span class="ls-note">${hint}</span>`;
+    if (!level) return `<div class="ls-box ${cls}">${inner}</div>`;
     const on = view === level;
-    return `<div class="li-ws-card ${cls}${on ? ' is-on' : ''}"><button type="button" class="li-ws-card-main" data-lh-level="${level}" aria-pressed="${on}"`
+    return `<div class="ls-box ${cls}${on ? ' is-on' : ''}"><button type="button" class="ls-box-main" data-lh-level="${level}" aria-pressed="${on}"`
       + ` title="Show only the ${lrEsc(label)} listings; click again to show all">${inner}</button></div>`;
   };
   $('hKpis').innerHTML = brands.map(brand => {
@@ -10509,15 +10977,15 @@ function renderHealthKpis(rows, brands) {
     const saved = HEALTH[brand];
     const when = saved && saved.at ? 'updated ' + saved.at.toLocaleString() : '';
     const avg = counts.checked ? Math.round(counts.score / counts.checked) : 0;
-    const listSub = [counts.unchecked ? `${nf(counts.unchecked)} not checked` : '', counts.nodata ? `${nf(counts.nodata)} no catalog data` : ''].filter(Boolean).join(' · ');
+    const listSub = [counts.unchecked ? `${nf(counts.unchecked)} not checked` : '', counts.nodata ? `${nf(counts.nodata)} no catalog data` : ''].filter(Boolean).join(' · ') || 'FBA listings';
     return `<div class="lh-kpibrand"><div class="lh-kpihead"><span class="lh-kpiname">${BRAND_NAME[brand]}</span><span class="lh-kpiwhen">${when}</span></div>`
-      + '<div class="li-ws-cards">'
-      + card('is-err', '●', nf(counts.critical), 'Critical', '', 'critical')
-      + card('is-act', '●', nf(counts.action), 'Needs Action', '', 'action')
-      + card('is-att', '▲', nf(counts.review), 'Needs Review', '', 'review')
-      + card('is-ok', '✓', nf(counts.healthy + counts.monitor), 'Healthy', counts.monitor ? `${nf(counts.monitor)} monitor` : '', 'healthy')
-      + card('is-plain', '', avg, 'Health', '')
-      + card('is-plain', '', nf(counts.n), 'Listings', listSub)
+      + '<div class="ls-boxes">'
+      + box('is-err', '●', nf(counts.critical), 'Critical', 'Fix these first', 'critical')
+      + box('is-act', '●', nf(counts.action), 'Needs Action', 'Not urgent, worth fixing', 'action')
+      + box('is-att', '▲', nf(counts.review), 'Needs Review', 'Worth a look', 'review')
+      + box('is-ok', '✓', nf(counts.healthy + counts.monitor), 'Healthy', counts.monitor ? `${nf(counts.monitor)} monitor (not selling)` : 'Nothing to fix', 'healthy')
+      + box('', '', avg, 'Health', 'Average of the checked listings')
+      + box('', '', nf(counts.n), 'Listings', listSub)
       + '</div></div>';
   }).join('');
 }
@@ -12633,8 +13101,10 @@ $('aStatusView').addEventListener('change', renderAudit);
  *                 parent), liWsOrder (the order showing; reads landing never reorder), liWsRender (the view), liWsDetail (one
  *                 listing's problems, each as what is wrong · how to fix · Fix, through lrProblemHtml in listing-rules.js — the
  *                 same look as Listing Health), liWsAuditBox, the read queue (liWsQueue / liWsPump / liWsJob, liWsReadParent,
- *                 liWsCheckNow, liWsSweep, liWsRecheck), liWsOn / liWsOff, liWsSchedule, and the listeners at the end. The Fix
- *                 buttons are lrFixOpen's. Every name starts with liWs / LI_WS. */
+ *                 liWsCheckNow, liWsSweep, liWsRecheck), the side panel one parent opens into (liWsPanelOpen / liWsPanelClose /
+ *                 liWsPanelMove / liWsPanelRender: What to fix, Listings, Audit), liWsPicUrl (a listing's picture), liWsToolbarSync
+ *                 (the mode switch and the Re-check button in the pane's toolbar), liWsOn / liWsOff, liWsSchedule, and the
+ *                 listeners at the end. The Fix buttons are lrFixOpen's. Every name starts with liWs / LI_WS. */
 /* ---------- Listing Workspace ---------- */
 const LI_WS_PAGE = 100;                 // parents put in the DOM at once; "Show 100 more" adds another page
 const LI_WS_DAY = 86400000;             // one day in milliseconds
@@ -12684,6 +13154,10 @@ let LI_WS = {
   openPass: new Set(),              // "brand|sku" of the details showing their passed checks too
   showStep: new Map(),              // "brand|parent" → an audit step's key: the checklist shows only the children failing it
   card: '',                         // '' | err | chk | att | ok — the number card the list is filtered by (Not live is the mode 'off'); one filter at a time with the chips
+  panel: null,                      // { key, tab: 'fix' | 'list' | 'audit', table } — the parent open in the side panel and its tab; one at a time
+  panelSig: null,                   // what the panel last drew (its kids' kept checks, the read state): a landed read that changed nothing leaves it alone
+  moreOpen: new Set(),              // "fix:brand|parent" … the panel lists showing every item, not the first 5
+  recheckNext: false,               // Re-check pressed in the toolbar from another view: run it once the Workspace has drawn
   shown: LI_WS_PAGE,                // how many parents are in the DOM
   rows: [],                         // the last draw's parents after the filters (the sweep and Show more read these)
   byKey: new Map(),                 // "brand|parent" → the parent record of the last draw (▸ and Read again find kids here)
@@ -13032,7 +13506,7 @@ function liWsChildSig(row, brand, hc, imlMap, now) {
   const sch = lr && lr.pt ? LI_WS.schema[brand][lr.pt] || null : null;
   const ap = LI_WS.aplus[brand];
   return [hc, IML[brand] || null, imlMap.get(row.sku) || null, LR_SAVED_AT, LR_CAT[brand] || null, lr, lr ? lr.at : 0, lr ? lr.cAt : 0, lr ? lr.gAt : 0,
-    lr ? lr.iAt : 0, lr ? lr.cat : null, lr ? lr.iErr : '', lr ? lr.err : '', lr ? lr.cErr : '', lr ? lr.brand : '', lr ? lr.color : '', lr ? lr.words : null, sch,
+    lr ? lr.iAt : 0, lr ? lr.cat : null, lr ? lr.catMain : '', lr ? lr.iErr : '', lr ? lr.err : '', lr ? lr.cErr : '', lr ? lr.brand : '', lr ? lr.color : '', lr ? lr.words : null, sch,
     ap[row.asin] || null, row.parent ? ap[row.parent] || null : null,
     row.content, row.checked, row.aplus, row.aplusAt, row.qty, row.status, row.channel, Math.floor(now / 60000)];
 }
@@ -13153,6 +13627,14 @@ function liWsParents(brands, hc, now) {
       // The number cards: how many live children count in each (a child can count in more than one).
       group.cardN = { err: 0, chk: 0, att: 0, ok: 0 };
       live.forEach(kid => Object.keys(group.cardN).forEach(k => { if (kid.cards[k]) group.cardN[k]++; }));
+      // The mix bar on the row: the counted children by their worst level, each once (a display of the same results, counted nowhere).
+      group.mix = { err: 0, chk: 0, att: 0, ok: 0, unk: 0 };
+      scope.forEach(kid => { group.mix[liWsMixOf(kid)]++; });
+      // "Fix first": the Error most children share (a confirmed one first), else the most shared Needs attention problem.
+      group.fixFirst = liWsFixFirst(scope);
+      // The row's picture: the first counted child's (a live one first), from the catalogue or the Image Manager snapshot.
+      group.pic = '';
+      for (const kid of live.concat(group.kids)) { group.pic = liWsPicUrl(brand, kid.sku); if (group.pic) break; }
       group.unknownN = live.filter(kid => kid.bucket === 'unchecked').length;   // content not read yet: the content rules cannot run
       group.passN = live.filter(kid => kid.bucket === 'healthy').length;        // no Listing Rules problem: Listing Health's "Healthy"
       group.inMode = LI_WS.mode === 'live' ? live : (LI_WS.mode === 'off' ? off : group.kids);
@@ -13182,6 +13664,23 @@ function liWsParents(brands, hc, now) {
     });
   });
   return out;
+}
+// A counted child's worst level for the mix bar: err (a confirmed Error), chk (only "Error? Check again"), att, ok, unk (not checked).
+const liWsMixOf = kid => (kid.bucket === 'critical' ? (kid.stale ? 'chk' : 'err') : kid.bucket === 'action' || kid.bucket === 'review' ? 'att'
+  : kid.bucket === 'healthy' || kid.bucket === 'monitor' ? 'ok' : 'unk');
+// The problem most of these children share, Errors first: { name, n, sev, stale } or null.
+function liWsFixFirst(kids) {
+  const by = new Map();
+  kids.forEach(kid => kid.found.forEach(hit => {
+    const key = hit.id || hit.detector;
+    const got = by.get(key) || { name: hit.name, n: 0, sev: hit.sev, stale: true };
+    got.n++;
+    if (!(hit.sev === 'critical' && hit.stale)) got.stale = false;
+    if ((LR_SEV[hit.sev] || {}).rank > (LR_SEV[got.sev] || {}).rank) got.sev = hit.sev;
+    by.set(key, got);
+  }));
+  const rank = g => (g.sev === 'critical' ? (g.stale ? 2 : 3) : 1);
+  return [...by.values()].sort((a, b) => (rank(b) - rank(a)) || (b.n - a.n) || a.name.localeCompare(b.name))[0] || null;
 }
 // The parents a number card shows: at least one live child counting in that card — except No problem, which shows only fully
 // clean parents (every live child with no problem at all). `t` is the card's words for the "Showing:" bar.
@@ -13285,6 +13784,7 @@ function liWsPump() {
 // redraws too, because it judges the same live data (a Check now button pressed there).
 function liWsAfterRead() {
   if (LI_WS.on) return liWsSchedule();
+  liWsToolbarSync();                                  // the toolbar's Re-check button follows its run in every view
   if (LI_WS.inflight || LI_WS.q.length) return;                 // once the last answer is in
   if (typeof renderHealth !== 'function' || !H_LOADED) return;
   const pane = $('paneHealth');
@@ -13340,7 +13840,8 @@ async function liWsJob(job) {
       const entry = liWsEntry(brand, job.sku);
       const cat = reply.catalog && typeof reply.catalog === 'object' ? reply.catalog : null;
       const slots = cat ? Object.keys(cat).filter(slot => cat[slot] && cat[slot].link) : [];
-      if (cat && (slots.length || !reply.catalogError)) Object.assign(entry, { at: now, iAt: now, cat: slots, iErr: '' });
+      if (cat && (slots.length || !reply.catalogError)) Object.assign(entry, { at: now, iAt: now, cat: slots, iErr: '',
+        catMain: cat.MAIN && cat.MAIN.link ? String(cat.MAIN.link).slice(0, 200) : '' });   // the catalogue's main picture: the row's thumbnail
       else Object.assign(entry, { at: now, iErr: String(reply.catalogError || 'no catalogue answer').slice(0, 160) });   // an answer without the catalogue leaves the pictures unknown, never "none"
     } else if (job.t === 'aplus') {
       const reply = await baCall({ lh: 'aplusasin', brand, asins: job.asins.join(',') });
@@ -13392,10 +13893,10 @@ function liWsNeedSchema(brand, pt, pk) {
 // Read one parent's listed children from Amazon: content in batches, then each listing (status / issues / specs, and the
 // catalogue's pictures), A+ for the parent ASIN and its children, then the schemas. Reads from the last day are skipped unless
 // `force` (Read again). Children showing an Error from old data are among them, so opening a parent re-checks them.
-function liWsReadParent(p, force) {
+function liWsReadParent(p, force, quiet) {
   // A read of this parent is still on its way (▸ closed and opened again): its calls are out, so nothing is queued twice.
   const cur = LI_WS.prog[p.key];
-  if (!force && cur && cur.done < cur.total) return;
+  if (cur && cur.done < cur.total) return;            // a read still out (also for Read again: a second press would queue every read twice)
   const cut = Date.now() - LI_WS_DAY;
   const kids = p.inMode;
   const needC = kids.filter(kid => force || !(kid.lr && kid.lr.cAt > cut)).map(kid => kid.sku);
@@ -13415,7 +13916,7 @@ function liWsReadParent(p, force) {
   }
   needG.forEach(sku => liWsQueue({ t: 'get', brand: p.brand, sku, pk: p.key, units: 1 }));
   needI.forEach(sku => liWsQueue({ t: 'limg', brand: p.brand, sku, pk: p.key, units: 1 }));
-  liWsSchedule();
+  if (!quiet) liWsSchedule();                         // quiet: the side panel opened it — the list is not redrawn for that
 }
 // The reads one listing needs for a fresh verdict, as sweep jobs marked with its key: content, status / issues / specs, the
 // catalogue's pictures, and A+ for it and its parent. Returns how many jobs were queued.
@@ -13490,6 +13991,7 @@ function liWsStop() {
   LI_WS.q = LI_WS.q.filter(job => !job.sweep);
   LI_WS.sweep = null;
   liWsDraw();
+  liWsToolbarSync();                                  // the toolbar's button too, when the Workspace is not the view showing
 }
 /* ----- drawing ----- */
 // One checklist cell: ✓, a ✗ pill that opens the fix, "!" when the source could not be read, or — when not known yet.
@@ -13521,7 +14023,7 @@ const liWsAttrs = c => (c.attrs && c.attrs.length ? ` data-lr-attrs="${lrEsc(c.a
 // Listing Health's Why), worst first, with the source and when it was read in a grey line under it; then one line for what is
 // not checked yet; the passed checks stay behind "Show passed checks (N)". Specs and Search terms from the live read are among
 // the problems (they are not counted anywhere above).
-function liWsDetail(kid, span) {
+function liWsDetailBody(kid) {
   const names = { amz: 'Amazon', main: 'Main image', img: 'Images', title: 'Title', tpl: 'Template', bul: 'Bullets', desc: 'Description', aplus: 'A+', other: 'Other rules', spec: 'Specs', kw: 'Search terms' };
   const key = kid.brand + '|' + kid.sku;
   const srcOf = c => [c.src && c.src.s, c.src && c.src.when].filter(Boolean).join(' · ');
@@ -13546,10 +14048,12 @@ function liWsDetail(kid, span) {
   const open = LI_WS.openPass.has(key);
   const passBtn = passed.length ? `<button type="button" class="ghost li-ws-pass" data-li-ws-pass="${lrEsc(key)}" aria-expanded="${open}">${open ? 'Hide' : 'Show'} passed checks (${liWsNf(passed.length)})</button>` : '';
   const passList = open ? `<div class="li-ws-passed">${passed.map(c => `<div>${c.na ? '<span class="li-ws-na">—</span>' : '<span class="li-ws-ok">✓</span>'} ${lrEsc(c.t)} — ${lrEsc(c.found || '')}${srcOf(c) ? ' · ' + lrEsc(srcOf(c)) : ''}</div>`).join('')}</div>` : '';
-  return `<tr class="li-ws-detail"><td colspan="${span}"><div class="li-ws-dbox">${info}${problems}${none}${unkLine}${bangLine}${passBtn}${passList}</div></td></tr>`;
+  return `<div class="li-ws-dbox">${info}${problems}${none}${unkLine}${bangLine}${passBtn}${passList}</div>`;
 }
+// The detail as the row under a listing in the kid table (the box above inside it).
+const liWsDetail = (kid, span) => `<tr class="li-ws-detail"><td colspan="${span}">${liWsDetailBody(kid)}</td></tr>`;
 // The opened parent: the note, Read again, and the checklist — one row per listed child, worst first.
-function liWsKidTable(p, span) {
+function liWsKidTableInner(p, bare) {
   const stepK = LI_WS.showStep.get(p.key) || '';
   const step = stepK ? LI_WS_AUDIT.find(each => each.k === stepK) : null;
   const inStep = kid => !!(step && step.checks && step.checks.some(k => kid.c[k].pass === false));
@@ -13582,8 +14086,10 @@ function liWsKidTable(p, span) {
       + `<div class="li-ws-asin">${lrEsc(kid.asin)}</div></td><td>${lrEsc(kid.why)}</td><td class="num">${kid.row.qty == null ? '<span class="li-ws-na">—</span>' : liWsNf(kid.row.qty)}</td>`
       + LI_WS_CHECKS.map(check => `<td>${liWsCell(kid, check, reading)}</td>`).join('') + '</tr>' + (open ? liWsDetail(kid, LI_WS_CHECKS.length + 3) : '');
   }).join('') || `<tr><td colspan="${LI_WS_CHECKS.length + 3}" class="li-ws-na">${step ? 'No listing fails this step now.' : `No ${LI_WS.mode === 'live' ? 'live' : LI_WS.mode === 'off' ? 'not-live' : ''} children.`}</td></tr>`;
-  return `<tr class="li-ws-kids"><td colspan="${span}">${note}${liWsAuditBox(p)}<div class="li-ws-kidbox"><table class="li-ws-kidtable">${head}<tbody>${body}</tbody></table></div></td></tr>`;
+  return `${bare ? '' : note + liWsAuditBox(p)}<div class="li-ws-kidbox"><table class="li-ws-kidtable">${head}<tbody>${body}</tbody></table></div>`;
 }
+// The checklist as the row under a parent in the list (the note, the audit and the table above inside it).
+const liWsKidTable = (p, span) => `<tr class="li-ws-kids"><td colspan="${span}">${liWsKidTableInner(p, false)}</td></tr>`;
 // The Problems cell: how many children have a Listing Rules problem, the three levels as Parent ASINs shows them, which columns,
 // and the extras from the live Amazon read on their own line (they never change the counts).
 function liWsProblems(p) {
@@ -13591,20 +14097,24 @@ function liWsProblems(p) {
   if (LI_WS.mode === 'off') return `<span class="ui-badge">${liWsNf(p.offN)} of ${liWsNf(p.kids.length)} not live</span>`
     + (offWords ? `<div class="li-ws-sub">${lrEsc(offWords)} — not counted as problems</div>` : '');
   if (!p.scopeN) return '<span class="ui-badge">Not live</span>' + (offWords ? `<div class="li-ws-sub">${lrEsc(offWords)}</div>` : '');
-  const words = LI_WS_CHECKS.filter(check => !check.extra && p.failN[check.k]).map(check => `${check.w} ${liWsNf(p.failN[check.k])}`).join(' · ');
   const extras = LI_WS_CHECKS.filter(check => check.extra && p.failN[check.k]).map(check => `${check.w} ${liWsNf(p.failN[check.k])}`).join(' · ');
   const extraLine = extras ? `<div class="li-ws-sub li-ws-extra">Also from Amazon: ${lrEsc(extras)}</div>` : '';
-  const scopeWord = LI_WS.mode === 'all' ? '' : ' live';
-  if (p.probN) {
-    // The two words (Listing Rules, Part B1): Error: fix first (Critical) and Needs attention (Needs action + Needs review);
-    // an Error resting only on old data is counted with the Errors and named "to check again".
-    const levels = [['critN', 'sev-c', 'Error: fix first'], ['attN', 'sev-a', 'Needs attention']]
-      .filter(([k]) => p[k]).map(([k, cls, t]) => `<span class="li-ws-lvl"><span class="sev ${cls}"></span>${t} ${liWsNf(p[k])}${k === 'critN' && p.staleN ? ` <span class="li-ws-na">(${liWsNf(p.staleN)} to check again)</span>` : ''}</span>`).join('');
-    return `<span class="ui-badge ${p.critN ? 'is-bad' : 'is-warn'}">${liWsNf(p.probN)} of ${liWsNf(p.scopeN)}${scopeWord} with a problem</span>`
-      + `<div class="li-ws-levels">${levels}</div><div class="li-ws-sub">${lrEsc(words)}</div>${extraLine}`;
-  }
-  if (p.unknownN && LI_WS.mode !== 'all') return `<span class="ui-badge">No problem found</span><div class="li-ws-sub">${liWsNf(p.unknownN)} not checked yet</div>${extraLine}`;
-  return `<span class="ui-badge is-ok">No Listing Rules problem</span>${extraLine}`;
+  // The mix bar (the look, 6 Nov 2026): the counted children by their worst level — Error red, "check again" and not checked grey,
+  // Needs attention yellow, no problem green — with the counts in words under it. An SVG, so the widths are attributes, not styles.
+  const m = p.mix;
+  const parts = [['err', m.err, n => (n === 1 ? 'error' : 'errors')], ['chk', m.chk, () => 'to check again'], ['att', m.att, n => (n === 1 ? 'needs attention' : 'need attention')],
+    ['ok', m.ok, () => 'fine'], ['unk', m.unk, () => 'not checked']].filter(([, n]) => n);
+  let x = 0;
+  const rects = parts.map(([k, n]) => {
+    const w = Math.max(1.5, n / p.scopeN * 100);
+    const rect = `<rect class="is-${k}" x="${x.toFixed(2)}" y="0" width="${w.toFixed(2)}" height="6"/>`;
+    x += w;
+    return rect;
+  }).join('');
+  const words = parts.map(([k, n, word]) => `<span><i class="ls-dot is-${k}"></i>${liWsNf(n)} ${word(n)}</span>`).join('');
+  const label = parts.map(([k, n, word]) => `${liWsNf(n)} ${word(n)}`).join(', ');
+  return `<svg class="ls-mix" viewBox="0 0 ${Math.max(100, x).toFixed(2)} 6" preserveAspectRatio="none" role="img" aria-label="${lrEsc(label)}">${rects}</svg>`
+    + `<div class="ls-mixw">${words}</div>${extraLine}`;
 }
 // The Audit cell: "Audit 3/6" (green when every step passes), and under it what is left to fix or to check. "—" when the
 // parent has no child to judge, and in "Not live / inbound" mode (the audit judges the children the row counts, the live ones).
@@ -13661,7 +14171,7 @@ function liWsRender() {
   if (!LI_WS.on) return;
   LI_WS.lastDraw = Date.now();
   if (LI_WS.loading) {
-    box.innerHTML = '<div class="card xlwrap"><div class="ui-loading">Loading the Listing Health and Image Manager snapshots…</div></div>';
+    box.innerHTML = liWsSkeleton();
     return;
   }
   const now = Date.now();
@@ -13704,53 +14214,45 @@ function liWsRender() {
   const lvErrN = cardN('err');
   const lvChkN = cardN('chk');
   const lvAttN = cardN('att');
-  // A full refresh older than a week shows in amber; the dates are each brand's last "Refresh both brands".
-  const fmtDay = ms => new Date(ms).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
-  const fresh = brands.map(b => BRAND_NAME[b] + ' ' + (HEALTH[b] && HEALTH[b].at ? fmtDay(HEALTH[b].at.getTime()) : 'never')).join(' · ');
-  const oldDays = oldest ? Math.floor((now - oldest) / LI_WS_DAY) : -1;
-  const freshLine = `<div class="li-ws-fresh${!oldest || oldDays > 7 ? ' is-old' : ''}" title="Stock, price, status and the content snapshot come from the last “Refresh both brands”">`
-    + `Full refresh: ${lrEsc(fresh)}${oldest ? ` (${oldDays === 0 ? 'today' : oldDays === 1 ? '1 day ago' : oldDays + ' days ago'})` : ''}</div>`;
+  // The number boxes (the look, 6 Nov 2026), like the Ad Console's: icon, label, big number, small lines, the corner circle in the
+  // box's colour; a clickable box is a button (.ls-box-main) with, after it, an optional link of its own ("x to check again").
   const offOn = LI_WS.mode === 'off';
   const pw = n => `${nf(n)} parent${n === 1 ? '' : 's'}`;
-  // A clickable card: the big button (number, label, hint, the "in P parents" line) and, after it, an optional link of its own.
-  const cardBtn = (k, ic, cls, v, label, hint, sub, tip, link) => {
+  const boxBtn = (k, ic, cls, v, label, hint, sub, tip, link) => {
     const on = k === 'off' ? offOn : !offOn && LI_WS.card === k;
-    return `<div class="li-ws-card ${cls}${on ? ' is-on' : ''}"><button type="button" class="li-ws-card-main" data-li-ws-card="${k}" aria-pressed="${on}" title="${lrEsc(tip)}">`
-      + `<span class="li-ws-card-v"><span class="li-ws-card-ic" aria-hidden="true">${ic}</span>${nf(v)}</span><span class="li-ws-card-l">${label}</span>`
-      + `<span class="li-ws-card-h">${hint}</span>${sub ? `<span class="li-ws-card-s">${sub}</span>` : ''}</button>${link || ''}</div>`;
+    return `<div class="ls-box ${cls}${on ? ' is-on' : ''}"><button type="button" class="ls-box-main" data-li-ws-card="${k}" aria-pressed="${on}" title="${lrEsc(tip)}">`
+      + `<span class="ls-l"><span class="ls-ic" aria-hidden="true">${ic}</span>${label}</span><span class="ls-v"><b>${nf(v)}</b></span>`
+      + `<span class="ls-note">${hint}</span>${sub ? `<span class="ls-note ls-sub">${sub}</span>` : ''}</button>${link || ''}</div>`;
   };
-  const cardBox = (cls, v, label, hint, tip) => `<div class="li-ws-card ${cls}" title="${lrEsc(tip)}"><span class="li-ws-card-v">${nf(v)}</span>`
-    + `<span class="li-ws-card-l">${label}</span><span class="li-ws-card-h">${hint}</span></div>`;
+  const boxPlain = (v, label, hint, tip) => `<div class="ls-box" title="${lrEsc(tip)}"><span class="ls-l">${label}</span><span class="ls-v"><b>${nf(v)}</b></span>`
+    + `<span class="ls-note">${hint}</span></div>`;
   const chkOn = !offOn && LI_WS.card === 'chk';
-  const chkLink = lvChkN ? `<span class="li-ws-card-s li-ws-card-more">+ <button type="button" class="li-ws-card-link" data-li-ws-card="chk" aria-pressed="${chkOn}"`
+  const chkLink = lvChkN ? `<span class="ls-box-more li-ws-card-more">+ <button type="button" class="li-ws-card-link" data-li-ws-card="chk" aria-pressed="${chkOn}"`
     + ` title="Show only the parents with a listing whose Error rests on old data (Error? Check again)">${nf(lvChkN)} to check again</button></span>` : '';
-  const card = freshLine + '<div class="li-ws-cards" role="group" aria-label="Filter the parents by level">'
-    + cardBox('is-plain', scoped.length, 'Parents', 'In view', 'Parents in view (brand and search)')
-    + cardBox('is-plain', liveN, 'Live listings', 'Active, with stock', 'Live = active at Amazon with stock; only these are counted')
-    + cardBtn('err', '●', 'is-err' + (chkOn ? ' is-on' : ''), lvErrN, 'Error: fix first', 'Fix these first', `in ${pw(cardP('err'))}`,
+  const card = '<div class="ls-boxes li-ws-cards" role="group" aria-label="Filter the parents by level">'
+    + boxPlain(scoped.length, 'Parents', 'In view', 'Parents in view (brand and search)')
+    + boxPlain(liveN, 'Live listings', 'Active, with stock', 'Live = active at Amazon with stock; only these are counted')
+    + boxBtn('err', '●', 'is-err' + (chkOn ? ' is-on' : ''), lvErrN, 'Error: fix first', 'Fix these first', `in ${pw(cardP('err'))}`,
       'Live listings with at least one confirmed Error. Click to show only their parents; click again to show all.', chkLink)
-    + cardBtn('att', '▲', 'is-att', lvAttN, 'Needs attention', 'Not urgent, worth fixing', `in ${pw(cardP('att'))}`,
+    + boxBtn('att', '▲', 'is-att', lvAttN, 'Needs attention', 'Not urgent, worth fixing', `in ${pw(cardP('att'))}`,
       'Live listings with at least one Needs action or Needs review problem — also when the same listing has an Error. Click to show only their parents; click again to show all.')
-    + cardBtn('ok', '✓', 'is-ok', passN, 'No problem', `Nothing to fix · ${liveN ? Math.round(passN * 100 / liveN) : 0}% of live`,
+    + boxBtn('ok', '✓', 'is-ok', passN, 'No problem', `Nothing to fix · ${liveN ? Math.round(passN * 100 / liveN) : 0}% of live`,
       `${pw(cardP('ok'))} fully clean${unknownN ? ` · ${nf(unknownN)} not checked yet` : ''}`,
       'Live listings with no Listing Rules problem: Listing Health calls them Healthy. A click shows only the parents whose every live listing has no problem. Specs are an extra from the live Amazon read and do not count here.')
-    + cardBtn('off', '○', 'is-off', offN, 'Not live / inbound', 'Shown, not counted', '', 'Inactive or out-of-stock listings. Click to list them; click again to go back to the live ones.')
+    + boxBtn('off', '○', 'is-off', offN, 'Not live / inbound', 'Shown, not counted', '', 'Inactive or out-of-stock listings. Click to list them; click again to go back to the live ones.')
     + '</div>'
     + `<div class="li-ws-cardnote">${nf(probN)} live listing${probN === 1 ? ' has' : 's have'} a problem · a listing with an Error and other problems is in both cards.</div>`;
   // --- the "Showing:" bar while a number card filters the list ---
   const showBar = cardOn ? `<div class="li-ws-showing" role="status"><span>Showing: <b>${lrEsc(cardOn.t)}</b> · ${pw(rows.length)}</span>`
     + '<button type="button" class="ghost li-ws-showall" data-li-ws-cardclear="1">Show all ✕</button></div>' : '';
-  // --- the bar: the mode, and the sweep or the re-check with its progress ---
+  // --- the bar: the progress on the left; Sort again and the sweep on the right. The mode switch and the Re-check button live in
+  //     the pane's toolbar now (liWsToolbarSync keeps them in step). ---
   const sweeping = LI_WS.sweep && LI_WS.sweep.total > 0;
   const rechecking = sweeping && LI_WS.sweep.kind === 'errors';
   const progText = sweeping ? `${rechecking ? 'Re-checking' : 'Reading'} ${nf(LI_WS.sweep.done)} of ${nf(LI_WS.sweep.total)}…` : (LI_WS.sweep && LI_WS.sweep.note ? LI_WS.sweep.note : '');
-  const errN = rows.reduce((sum, p) => sum + p.inMode.filter(kid => kid.red).length, 0);   // over the rows the re-check reads: brand, search, chip and mode
-  const bar = '<div class="li-ws-bar"><div class="seg" role="group" aria-label="Which listings">' + LI_WS_MODES.map(([k, t]) =>
-    `<button type="button" class="segbtn${LI_WS.mode === k ? ' on' : ''}" data-li-ws-mode="${k}" aria-pressed="${LI_WS.mode === k}">${t}</button>`).join('') + '</div>'
-    + `<div class="li-ws-barr"><span class="li-ws-prog">${lrEsc(progText)}</span>`
+  const bar = `<div class="li-ws-bar"><span class="li-ws-prog" role="status">${lrEsc(progText)}</span>`
+    + '<div class="li-ws-barr">'
     + (LI_WS.stale ? '<button type="button" class="ghost li-ws-resort" data-li-ws-resort="1" title="New answers from Amazon would put the parents in another order; the list keeps its order until you press this">Sort again</button>' : '')
-    + `<button type="button" class="ghost li-ws-recheck" data-li-ws-recheck="${rechecking ? 'stop' : 'go'}"${!rechecking && (sweeping || !errN) ? ' disabled' : ''}`
-    + ` title="Reads only the listings in view that show an Error — status, Amazon's issues, the catalogue's pictures, content and A+ — so an Error from old data is confirmed or cleared">${rechecking ? 'Stop' : `Re-check all errors with Amazon${errN ? ' (' + nf(errN) + ')' : ''}`}</button>`
     + `<button type="button" class="ghost li-ws-sweep" data-li-ws-sweep="${sweeping && !rechecking ? 'stop' : 'go'}"${rechecking ? ' disabled' : ''}`
     + ` title="Reads title, bullets, description and search terms of every live listing in view from Amazon, 20 at a time; listings read within a day are skipped">${sweeping && !rechecking ? 'Stop' : 'Check live listings on Amazon'}</button></div></div>`;
   // --- the chips (decided above) ---
@@ -13760,39 +14262,42 @@ function liWsRender() {
     + '<div class="li-ws-legend"><span class="li-ws-ok">✓</span> passes · <span class="sev sev-c"></span> Error: fix first · <span class="sev sev-a"></span> Needs attention (the same Listing Rules as Parent ASINs; click a pill to open the fix) · '
     + `<span class="sev sev-s"></span> Error? Check again (the Error rests on data older than ${LR_STALE_DAYS} days — open the listing and press Check now) · <span class="li-ws-na">—</span> doesn’t apply or not checked yet · `
     + '<span class="li-ws-bang">!</span> couldn’t read from Amazon</div>';
-  // --- the table ---
+  // --- the list (the look, 6 Nov 2026): a flush card with a sticky header; one row per parent — picture, name, "Fix first", ASIN ·
+  //     the mix bar · Live x / y · Audit x/6 · Last checked · › — a click or Enter opens the side panel. 100 a page. ---
   const cols = [
-    { k: 'priority', t: 'Priority', cls: 'li-ws-c-tog', tip: 'The default order: parents with a child showing an Error first, then other problems, then the most problem children. ▸ opens the checklist.' },
-    { k: 'name', t: 'Parent', cls: 'li-ws-c-name' },
+    { k: 'name', t: 'Parent', cls: 'li-ws-c-name', tip: 'The parent, its picture, the problem most of its children share, and its ASIN. Click the row to open it.' },
     multi ? { k: 'brand', t: 'Brand', cls: 'li-ws-c-brand' } : null,
+    { k: 'priority', t: 'Health', cls: 'li-ws-c-amz', tip: 'The counted children by their worst level: Error red, Needs attention yellow, no problem green, not checked or check again grey — the same Listing Rules as Parent ASINs. Sorted by priority: parents with a child showing an Error first, then other problems.' },
     { k: 'kids', t: 'Live', cls: 'li-ws-c-kids num', tip: 'Live children of all children. Live = active at Amazon with stock; the others are shown but never counted.' },
-    { k: 'amz', t: 'Problems', cls: 'li-ws-c-amz', tip: 'Children with a Listing Rules problem, counted exactly as Parent ASINs counts them (Error: fix first = Critical; Needs attention = Needs action + Needs review), and which columns. Specs are an extra from the live Amazon read and are not counted.' },
     { k: 'audit', t: 'Audit', cls: 'li-ws-c-audit', tip: 'Six listing checks summed up per parent, worked out automatically from the checklist (nothing to upload). Not counted as problems.' },
     { k: 'data', t: 'Last checked', cls: 'li-ws-c-data', tip: 'Amazon = when Sellora last read these listings from Amazon. Full refresh = the Listing Health snapshot. Neither is the date the listing was changed on Amazon.' },
-    { k: '', t: 'Open', cls: 'li-ws-c-open' },
+    { k: '', t: '', cls: 'li-ws-c-open' },
   ].filter(Boolean);
   const th = col => {
-    if (!col.k) return `<th class="${col.cls}">${col.t}</th>`;
+    if (!col.k) return `<th class="${col.cls}"><span class="ui-dim" aria-hidden="true"></span></th>`;
     const active = LI_WS.sort.k === col.k;
     const sort = active ? (LI_WS.sort.dir > 0 ? 'ascending' : 'descending') : 'none';
     return `<th class="${col.cls}" aria-sort="${sort}"${col.tip ? ` title="${lrEsc(col.tip)}"` : ''}>`
       + `<button type="button" class="li-ws-th" data-li-ws-sort="${col.k}">${col.t}${active ? (LI_WS.sort.dir > 0 ? ' ▲' : ' ▼') : ''}</button></th>`;   // table.xl draws ⓘ after a th with a title
   };
   const tr = p => {
-    const open = LI_WS.open.has(p.key);
-    return `<tr class="li-ws-row"><td class="li-ws-c-tog"><button type="button" class="li-ws-tog" data-li-ws-tog="${lrEsc(p.key)}" aria-expanded="${open}"`
-      + ` aria-label="${open ? 'Hide' : 'Show'} the checklist of ${lrEsc(p.parent)}">${open ? '▾' : '▸'}</button></td>`
-      + `<td class="li-ws-c-name"><span class="ui-name" title="${lrEsc(p.name || p.parent)}">${lrEsc(p.name) || '<span class="ui-dim">—</span>'}</span><span class="ui-mono li-ws-asin">${lrEsc(p.parent)}</span></td>`
+    const open = !!(LI_WS.panel && LI_WS.panel.key === p.key);
+    const name = p.name || p.parent;
+    return `<tr class="li-ws-row ls-row${open ? ' is-open' : ''}" data-li-ws-row="${lrEsc(p.key)}" tabindex="0" aria-expanded="${open}" aria-label="${lrEsc(name)}: open">`
+      + `<td class="li-ws-c-name"><div class="ls-prod">${liWsPicHtml(p.pic, false)}<div class="ls-prod-t"><span class="ui-name" title="${lrEsc(name)}">${lrEsc(p.name) || '<span class="ui-dim">—</span>'}</span>`
+      + `${liWsFixLine(p)}<span class="ls-asin">${lrEsc(p.parent)}</span></div></div></td>`
       + (multi ? `<td class="li-ws-c-brand">${lrEsc(BRAND_NAME[p.brand] || p.brand)}</td>` : '')
+      + `<td class="li-ws-c-amz">${liWsProblems(p)}</td>`
       + `<td class="li-ws-c-kids num">${nf(p.liveN)} / ${nf(p.kids.length)}</td>`
-      + `<td class="li-ws-c-amz">${liWsProblems(p)}</td><td class="li-ws-c-audit">${liWsAuditCell(p)}</td><td class="li-ws-c-data">${liWsData(p)}</td>`
-      + `<td class="li-ws-c-open"><button type="button" class="ghost li-ws-open" data-li-ws-open="${lrEsc(p.key)}" title="Open this parent's children in Listing Health">Open</button></td></tr>`
-      + (open ? liWsKidTable(p, cols.length) : '');
+      + `<td class="li-ws-c-audit">${liWsAuditCell(p)}</td><td class="li-ws-c-data">${liWsData(p)}</td>`
+      + `<td class="li-ws-c-open"><button type="button" class="ls-chev li-ws-open" data-li-ws-panel="${lrEsc(p.key)}" aria-label="Open ${lrEsc(name)}">›</button></td></tr>`;
   };
   let table;
-  if (!all.length) table = '<div class="card xlwrap"><div class="ui-empty">No listings yet. Press “Refresh both brands” here on Listing Health first.</div></div>';
-  else if (!rows.length) table = `<div class="card xlwrap"><div class="ui-empty">${scoped.length ? 'No parent in this group.' : 'No parent matches the search.'}</div></div>`;
-  else table = `<div class="card xlwrap"><table class="xl li-ws-tbl"><thead><tr>${cols.map(th).join('')}</tr></thead><tbody>${shown.map(tr).join('')}</tbody></table></div>`;
+  if (!all.length) table = '<div class="card ls-card"><div class="ls-empty"><b>No listings yet.</b><br>Press “Refresh both brands” to read both brands from Amazon; the list fills from that snapshot.</div></div>';
+  else if (!rows.length) table = `<div class="card ls-card"><div class="ls-empty">${!scoped.length ? '<b>No parent matches the search.</b><br>Clear the search box, or pick Both brands, to see every parent.'
+    : cardOn ? `<b>No parent in “${lrEsc(cardOn.t)}”.</b><br>Press “Show all ✕” to see every parent.`
+      : LI_WS.chip !== 'all' ? '<b>No parent fails this check now.</b><br>Pick “All parents” to see every parent.' : '<b>No parent in this group.</b><br>Pick another group above.'}</div></div>`;
+  else table = `<div class="card xlwrap ls-card ls-clip"><table class="xl li-ws-tbl ls-tbl"><thead><tr>${cols.map(th).join('')}</tr></thead><tbody>${shown.map(tr).join('')}</tbody></table></div>`;
   const foot = rows.length ? `<div class="li-ws-foot"><span class="muted">${nf(shown.length)} of ${nf(rows.length)} parents</span>`
     + (rows.length > shown.length ? `<button type="button" class="ghost li-ws-more" data-li-ws-more="1">Show ${LI_WS_PAGE} more</button>` : '') + '</div>' : '';
   // The table card keeps its scroll position across a redraw; only the person's own actions start it at the top.
@@ -13805,6 +14310,234 @@ function liWsRender() {
     wrapNow.scrollTop = scroll.top;
     wrapNow.scrollLeft = scroll.left;
   }
+  // The pane's toolbar, the meta line and the sticky offset follow the view; the side panel redraws only if its parent changed.
+  liWsToolbarSync();
+  if (typeof hMetaRender === 'function') hMetaRender(brands, 'Workspace');
+  if (typeof hStick === 'function') hStick();
+  if (LI_WS.panel) liWsPanelSync();
+  if (LI_WS.recheckNext) {
+    LI_WS.recheckNext = false;
+    liWsRecheck();
+  }
+}
+
+/* ----- the look's own pieces: skeleton, pictures, the "Fix first" line, the pane's toolbar ----- */
+// While the snapshots load: grey pulsing bars where the boxes and the rows will be.
+function liWsSkeleton() {
+  return '<div class="ls-boxes">' + Array.from({ length: 6 }, () => '<div class="ls-box ls-skel-box"><span class="ls-skel is-s"></span><span class="ls-skel"></span></div>').join('') + '</div>'
+    + '<div class="card ls-card ls-clip">' + Array.from({ length: 6 }, () => '<div class="ls-skel-row"><span class="ls-skel is-pic"></span><span class="ls-skel is-w"></span><span class="ls-skel is-s"></span></div>').join('') + '</div>';
+}
+// A listing's picture: the catalogue's MAIN from its live read first, else the Image Manager snapshot's live MAIN, else the one we
+// submitted; '' when none. Thumbnail-sized when the Image Manager's helper is there.
+function liWsPicUrl(brand, sku) {
+  const lr = LI_WS.live[brand] && LI_WS.live[brand][sku];
+  let url = lr && lr.catMain ? lr.catMain : '';
+  if (!url) {
+    const item = liWsImlIndex(brand).get(sku);
+    if (item) url = (item.live && item.live.MAIN) || (item.img && item.img.MAIN) || '';
+  }
+  return url && typeof imThumb === 'function' ? imThumb(url) : url;
+}
+// The small picture, or a grey square when there is none. Lazy-loaded; one that fails to load hides itself (listing-health-data.js listens).
+const liWsPicHtml = (url, big) => `<span class="ls-pic${big ? ' ls-lg' : ''}${url ? '' : ' is-none'}" aria-hidden="true">${url ? `<img src="${lrEsc(url)}" alt="" loading="lazy" decoding="async">` : ''}</span>`;
+// "Fix first: Main image missing · 3 listings" — the problem most of the counted children share; "Nothing to fix" when none.
+function liWsFixLine(p) {
+  const f = p.fixFirst;
+  const n = p.scopeN;
+  if (LI_WS.mode === 'off') return `<span class="ls-fix"><b>Not live</b> · ${liWsNf(p.offN)} of ${liWsNf(p.kids.length)} listing${p.kids.length === 1 ? '' : 's'}</span>`;
+  if (!n) return '<span class="ls-fix is-ok"><b>Not live</b></span>';
+  if (!f) return p.unknownN === n ? `<span class="ls-fix"><b>Not checked yet</b> · ${liWsNf(n)} listing${n === 1 ? '' : 's'}</span>`
+    : `<span class="ls-fix is-ok"><b>Nothing to fix</b> · ${liWsNf(n)} listing${n === 1 ? '' : 's'}</span>`;
+  const word = f.sev === 'critical' ? (f.stale ? 'Check again' : 'Fix first') : 'Needs attention';
+  return `<span class="ls-fix${f.sev === 'critical' ? '' : ' is-att'}" title="${lrEsc(f.name)}"><b>${word}:</b> ${lrEsc(f.name)} · ${liWsNf(f.n)} of ${liWsNf(n)} listing${n === 1 ? '' : 's'}</span>`;
+}
+// The pane's toolbar: the mode switch marks the mode showing; the Re-check button says what it would read (and Stop while it runs).
+function liWsToolbarSync() {
+  const seg = $('hModeSeg');
+  if (seg && seg.querySelectorAll) seg.querySelectorAll('[data-li-ws-mode]').forEach(btn => {
+    const on = btn.dataset.liWsMode === LI_WS.mode;
+    btn.classList.toggle('on', on);
+    btn.setAttribute('aria-pressed', String(on));
+  });
+  const btn = $('hRecheck');
+  if (!btn) return;
+  const sweeping = LI_WS.sweep && LI_WS.sweep.total > 0;
+  const rechecking = sweeping && LI_WS.sweep.kind === 'errors';
+  const errN = LI_WS.on ? LI_WS.rows.reduce((sum, p) => sum + p.inMode.filter(kid => kid.red).length, 0) : 0;   // over the rows the re-check reads
+  btn.dataset.liWsRecheck = rechecking ? 'stop' : 'go';
+  btn.disabled = LI_WS.on && !rechecking && (sweeping || !errN);
+  btn.textContent = rechecking ? `Stop re-checking (${liWsNf(LI_WS.sweep.done)} of ${liWsNf(LI_WS.sweep.total)})`
+    : 'Re-check all errors with Amazon' + (LI_WS.on && errN ? ` (${liWsNf(errN)})` : '');
+}
+// The newest live read among these brands' listings (ms), 0 when none — the meta line's "Amazon read".
+function liWsNewestRead(brands) {
+  if (!LI_WS.stored) liWsStoreLoad();
+  let newest = 0;
+  (brands || ['SP', 'CPC']).forEach(brand => Object.values(LI_WS.live[brand] || {}).forEach(entry => { if (entry && entry.at > newest) newest = entry.at; }));
+  return newest;
+}
+
+/* ----- the side panel: one parent, three tabs (What to fix / Listings / Audit), like PPC & Organic · New's pop ----- */
+// Open a parent in the panel (a click or Enter on its row, ↑/↓ from another parent): the row is marked without redrawing the list,
+// the panel draws, and the parent's listings are read from Amazon if they were not within a day.
+function liWsPanelOpen(key) {
+  const p = LI_WS.byKey.get(key);
+  if (!p) return;
+  const was = LI_WS.panel;
+  LI_WS.panel = { key, tab: was && was.key === key ? was.tab : 'fix', table: was && was.key === key ? was.table : false };
+  LI_WS.panelSig = null;
+  liWsRowMark(key);
+  const panel = $('lsPanel');
+  if (panel) {
+    panel.hidden = false;
+    if (panel.setAttribute) panel.setAttribute('tabindex', '-1');
+  }
+  liWsReadParent(p, false, true);
+  liWsPanelRender();
+  if (panel && panel.focus) panel.focus({ preventScroll: true });
+}
+// Close it: ×, Esc, a click outside, or the Workspace going away. Focus goes back to the parent's row when asked.
+function liWsPanelClose(returnFocus) {
+  if (!LI_WS.panel) return;
+  const key = LI_WS.panel.key;
+  LI_WS.panel = null;
+  LI_WS.panelSig = null;
+  const panel = $('lsPanel');
+  if (panel) {
+    panel.hidden = true;
+    panel.innerHTML = '';
+  }
+  liWsRowMark('');
+  if (returnFocus) {
+    const row = $('liWs').querySelector ? $('liWs').querySelector(`[data-li-ws-row="${CSS.escape(key)}"]`) : null;
+    if (row && row.focus) row.focus({ preventScroll: true });
+  }
+}
+// ↑/↓: the parent before / after the open one in the order showing (filters and sort as they are).
+function liWsPanelMove(dir) {
+  if (!LI_WS.panel) return;
+  const keys = LI_WS.rows.slice(0, LI_WS.shown).map(p => p.key);   // the parents on the page only
+  const at = keys.indexOf(LI_WS.panel.key);
+  if (at < 0) return;
+  const next = keys[at + dir];
+  if (!next) return;
+  liWsPanelOpen(next);
+  const row = $('liWs').querySelector ? $('liWs').querySelector(`[data-li-ws-row="${CSS.escape(next)}"]`) : null;
+  if (row && row.scrollIntoView) row.scrollIntoView({ block: 'nearest' });
+}
+// Mark the open parent's row in the list by hand (no redraw): the one with this key is open, every other one is not.
+function liWsRowMark(key) {
+  const box = $('liWs');
+  if (!box || !box.querySelectorAll) return;
+  box.querySelectorAll('[data-li-ws-row]').forEach(row => {
+    const on = row.dataset.liWsRow === key;
+    row.classList.toggle('is-open', on);
+    row.setAttribute('aria-expanded', String(on));
+  });
+}
+// After a list draw: the panel's parent is gone (another brand, a search) → close; its kids or read state changed → draw again; else nothing.
+function liWsPanelSync() {
+  const p = LI_WS.byKey.get(LI_WS.panel.key);
+  if (!p) return liWsPanelClose(false);
+  const sig = liWsPanelSigOf(p);
+  const was = LI_WS.panelSig;
+  if (was && was.length === sig.length && was.every((part, i) => part === sig[i])) return;
+  liWsPanelRender();
+}
+// What the panel shows depends on: each child's kept-checks inputs (without the minute), the read state and the mode.
+const liWsPanelSigOf = p => p.kids.flatMap(kid => { const kept = LI_WS_KEPT.get(kid.row); return kept ? kept.sig.slice(0, -1) : [kid]; })
+  .concat([p.kids.length, p.data.state, p.data.done, p.data.total, p.data.read, LI_WS.mode, LI_WS.card]);
+// Draw the panel from the parent record of the last list draw: header, actions, tabs, the open tab, footer.
+function liWsPanelRender() {
+  const panel = $('lsPanel');
+  if (!panel || !LI_WS.panel) return;
+  const p = LI_WS.byKey.get(LI_WS.panel.key);
+  if (!p) return;
+  const tab = LI_WS.panel.tab;
+  LI_WS.panelSig = liWsPanelSigOf(p);
+  const scope = p.inMode;                             // the children the mode shows (live, not live, or all)
+  const groups = liWsPanelGroups(scope);
+  const reading = p.data.state === 'reading';
+  const name = p.name || p.parent;
+  const tabs = [['fix', 'What to fix', groups.length], ['list', 'Listings', p.inMode.length], ['audit', 'Audit', p.audit ? p.audit.fail : 0]];
+  const head = `<div class="ls-panel-h">${liWsPicHtml(p.pic, true)}<div class="ls-panel-t"><b title="${lrEsc(name)}">${lrEsc(name)}</b>`
+    + `<span><span class="ui-mono">${lrEsc(p.parent)}</span> · ${lrEsc(BRAND_NAME[p.brand] || p.brand)} · ${liWsNf(p.liveN)} live of ${liWsNf(p.kids.length)} listing${p.kids.length === 1 ? '' : 's'}</span></div>`
+    + '<button type="button" class="ls-x" data-li-ws-pclose="1" aria-label="Close">×</button></div>'
+    + `<div class="ls-panel-a"><button type="button" class="ls-btn" data-li-ws-again="${lrEsc(p.key)}"${reading ? ' disabled' : ''}>${reading ? `Reading… ${liWsNf(p.data.done)} of ${liWsNf(p.data.total)}` : 'Read from Amazon now'}</button>`
+    + `<button type="button" class="ls-btn" data-li-ws-open="${lrEsc(p.key)}">Open in Parent ASINs</button></div>`
+    + '<div class="ls-tabs" role="tablist">' + tabs.map(([k, t, n]) => `<button type="button" role="tab" data-li-ws-ptab="${k}" aria-selected="${tab === k}">${t}${n ? `<span class="ls-n">${liWsNf(n)}</span>` : ''}</button>`).join('') + '</div>';
+  const body = tab === 'fix' ? liWsPanelFix(p, groups) : tab === 'list' ? liWsPanelList(p) : liWsPanelAudit(p);
+  const d = p.data;
+  const amazon = d.state === 'reading' ? `reading ${liWsNf(d.done)} of ${liWsNf(d.total)}…` : d.state === 'live' ? liWsAgoWords(d.age)
+    : d.state === 'part' ? `${liWsNf(d.read)} of ${liWsNf(d.n)} read ${liWsAgoWords(d.age)}` : 'not read yet';
+  const foot = `<div class="ls-panel-f">Amazon: ${lrEsc(amazon)} · Full refresh: ${d.snapAge >= 0 ? liWsAgoWords(d.snapAge) : 'none yet'}${d.why ? ` · <span class="li-ws-err">${lrEsc(liWsCut(d.why, 120))}</span>` : ''}</div>`;
+  panel.innerHTML = head + `<div class="ls-panel-b" role="tabpanel">${body}</div>` + foot;
+}
+// What to fix: the counted children's findings grouped by rule — Errors first, then Needs attention, then "Good to fill" (the
+// empty specs from the live read) — each as one row: the level word and the rule, which listings, how to fix, the tag, Fix.
+function liWsPanelGroups(scope) {
+  const by = new Map();
+  const add = (key, hit, kid, fill) => {
+    const g = by.get(key) || { key, name: hit.name, sev: fill ? 'review' : hit.sev, stale: !fill, fill, n: 0, skus: [], fix: new Map(), tag: hit.tag, kind: hit.kind == null ? lrFixKind(hit.detector) : hit.kind, detector: hit.detector, attrs: fill && kid.c.spec && kid.c.spec.attrs ? kid.c.spec.attrs : [] };
+    g.n++;
+    g.skus.push(kid.sku);
+    if (!fill && !(hit.sev === 'critical' && hit.stale)) g.stale = false;
+    if (!fill && (LR_SEV[hit.sev] || {}).rank > (LR_SEV[g.sev] || {}).rank) g.sev = hit.sev;
+    if (hit.fix) g.fix.set(hit.fix, (g.fix.get(hit.fix) || 0) + 1);
+    by.set(key, g);
+  };
+  scope.forEach(kid => {
+    kid.found.forEach(hit => add(hit.id || hit.detector, hit, kid, false));
+    ((kid.c.spec && kid.c.spec.hits) || []).forEach(hit => add('fill:spec', Object.assign({}, hit, { name: 'Specs to fill' }), kid, true));
+  });
+  const rank = g => (g.fill ? 0 : g.sev === 'critical' ? (g.stale ? 3 : 4) : 2);
+  return [...by.values()].map(g => Object.assign(g, { fixText: [...g.fix.entries()].sort((a, b) => b[1] - a[1]).map(([text]) => text)[0] || '' }))
+    .sort((a, b) => (rank(b) - rank(a)) || (b.n - a.n) || a.name.localeCompare(b.name));
+}
+function liWsPanelFix(p, groups) {
+  if (!groups.length) return `<div class="ls-empty">${p.scopeN ? '<b>Nothing to fix.</b><br>Every counted listing of this parent passes the Listing Rules.' : '<b>No live listing.</b><br>Switch to “All” above to judge the ones that are not live.'}</div>`;
+  const moreKey = 'fix:' + p.key;
+  const open = LI_WS.moreOpen.has(moreKey);
+  const shown = open ? groups : groups.slice(0, 5);
+  const rows = shown.map(g => {
+    const skus = g.skus.slice(0, 4).join(', ') + (g.skus.length > 4 ? ` +${g.skus.length - 4} more` : '');
+    return lrRecHtml({ sev: g.sev, stale: g.stale, name: `${g.name} — ${liWsNf(g.n)} listing${g.n === 1 ? '' : 's'}`, sub: skus, fix: g.fixText, tag: g.tag, kind: g.kind,
+      detector: g.detector, attrs: g.attrs, fill: g.fill }, { brand: p.brand, sku: g.skus[0] });
+  }).join('');
+  return `<div class="ls-recs">${rows}</div>` + (groups.length > 5 && !open ? `<div class="ls-panel-tog"><button type="button" class="ls-more" data-li-ws-pmore="${lrEsc(moreKey)}">Show ${groups.length - 5} more</button></div>` : '');
+}
+// Listings: every child in the mode — picture, SKU, status, its problems as small tags or ✓ — the ones matching the number card
+// first; a click opens its own problems (and "Show passed checks"); or the whole checklist as a table.
+function liWsPanelList(p) {
+  if (LI_WS.panel.table) return `<div class="ls-panel-tog"><button type="button" class="ls-more" data-li-ws-ptable="0">Show as a list</button></div>${liWsKidTableInner(p, true)}`;
+  const stepK = LI_WS.showStep.get(p.key) || '';
+  const step = stepK ? LI_WS_AUDIT.find(each => each.k === stepK) : null;
+  const inStep = kid => !!(step && step.checks && step.checks.some(k => kid.c[k].pass === false));
+  const cardK = LI_WS.mode !== 'off' && LI_WS_CARD[LI_WS.card] ? LI_WS.card : '';
+  const inCard = kid => !!(cardK && kid.cards && kid.cards[cardK]);
+  const kids = p.inMode.filter(kid => !step || inStep(kid)).sort((a, b) => (Number(inCard(b)) - Number(inCard(a))) || (Number(b.live) - Number(a.live)) || (Number(b.red) - Number(a.red)) || (b.fails.length - a.fails.length)
+    || String(a.sku).localeCompare(String(b.sku)));
+  const firstOther = cardK ? kids.findIndex(kid => !inCard(kid)) : -1;
+  const tagOf = hit => `<span class="ls-tag ${hit.sev === 'critical' ? (hit.stale ? 'is-chk' : 'is-err') : 'is-att'}" title="${lrEsc(hit.name + ' — ' + hit.detail)}">${lrEsc(liWsCut(hit.name, 26))}</span>`;
+  const rows = kids.map((kid, i) => {
+    const key = kid.brand + '|' + kid.sku;
+    const open = LI_WS.openSku.has(key);
+    const found = lrProblemsSort(kid.found);
+    const tags = found.length ? found.slice(0, 3).map(tagOf).join('') + (found.length > 3 ? `<span class="ls-tag">+${found.length - 3}</span>` : '')
+      : kid.bucket === 'unchecked' ? '<span class="ls-tag">— Not checked</span>' : '<span class="ls-tag is-ok">✓ No problem</span>';
+    const other = i === firstOther && i > 0 ? '<div class="ls-kidhead">Other listings</div>' : '';
+    return `${other}<button type="button" class="ls-kid${kid.live ? '' : ' is-off'}${cardK ? (inCard(kid) ? ' is-match' : ' is-other') : ''}" data-li-ws-sku="${lrEsc(key)}" aria-expanded="${open}">`
+      + `${liWsPicHtml(liWsPicUrl(kid.brand, kid.sku), false)}<div class="ls-kid-t"><b>${lrEsc(kid.sku)}</b><small>${lrEsc(kid.asin)} · ${lrEsc(kid.why)}${kid.row.qty == null ? '' : ' · ' + liWsNf(kid.row.qty) + ' units'}</small></div>`
+      + `<div class="ls-kid-s">${tags}</div></button>` + (open ? `<div class="ls-kid-d">${liWsDetailBody(kid)}</div>` : '');
+  }).join('');
+  const note = step ? `<div class="ls-kidhead">Failing “${lrEsc(step.t)}” · <button type="button" class="ls-more" data-li-ws-show="${lrEsc(p.key)}|${step.k}">Show all listings</button></div>` : '';
+  return `<div class="ls-panel-tog"><button type="button" class="ls-more" data-li-ws-ptable="1">Show every check as a table</button></div>${note}<div class="ls-kids">${rows
+    || `<div class="ls-empty">No ${LI_WS.mode === 'live' ? 'live' : LI_WS.mode === 'off' ? 'not-live' : ''} listing under this parent.</div>`}</div>`;
+}
+// Audit: the six steps — failing ones with what is wrong, how to fix and "Show these listings"; passing ones folded; unknown grey.
+function liWsPanelAudit(p) {
+  const box = liWsAuditBox(p);
+  return box || '<div class="ls-empty"><b>No audit in this view.</b><br>The audit judges the live listings; switch to Live or All above.</div>';
 }
 
 // Draw, and say so on the page if the draw itself fails — a blank box would read as "no data".
@@ -13845,8 +14578,10 @@ function liWsOn() {
 // Workspace off (Parent / Child clicked, or Open): the other views' own handlers then draw their table. Reads already queued go on.
 function liWsOff() {
   if (!LI_WS.on) return;
+  liWsPanelClose(false);
   LI_WS.on = false;
   clearTimeout(LI_WS.timer);
+  liWsToolbarSync();
   $('paneHealth').classList.remove('li-ws-on');
   $('hViewWs').classList.remove('on');
   $('hViewWs').setAttribute('aria-pressed', 'false');
@@ -13881,17 +14616,44 @@ new MutationObserver(liWsSchedule).observe($('hTable'), { childList: true });
 // On a phone the card does not scroll and the window does, so that scroll counts too.
 $('liWs').addEventListener('scroll', () => { LI_WS.scrollAt = Date.now(); }, { capture: true, passive: true });
 window.addEventListener('scroll', () => { if (LI_WS.on) LI_WS.scrollAt = Date.now(); }, { passive: true });
-// One click listener for the whole view: chips, headers, the mode, ▸, Open, Read again, the SKU toggles, Show passed checks,
-// Show these listings, the sweep, Sort again, Show more. (✗ and Fix are data-lr-fix buttons: listing-rules.js opens the fix.)
-$('liWs').addEventListener('click', e => {
-  const el = e.target.closest('[data-li-ws-card],[data-li-ws-cardclear],[data-li-ws-chip],[data-li-ws-sort],[data-li-ws-mode],[data-li-ws-tog],[data-li-ws-open],[data-li-ws-again],[data-li-ws-sku],[data-li-ws-pass],[data-li-ws-show],[data-li-ws-sweep],[data-li-ws-recheck],[data-li-ws-resort],[data-li-ws-more]');
-  if (!el) return;
+// One click listener for the whole view AND the side panel: boxes, chips, headers, the mode, rows and ›, Open, Read again, the
+// SKU toggles, Show passed checks, Show these listings, the sweep, Sort again, Show more, the panel's own buttons. (✗ and Fix are
+// data-lr-fix buttons: listing-rules.js opens the fix.)
+function liWsClick(e) {
+  const inPanel = !!(e.target.closest && e.target.closest('#lsPanel'));
+  // Something in the panel changed (a listing opened, a tab, Show more): the panel redraws, never the list.
+  const redraw = () => (inPanel && LI_WS.panel ? liWsPanelRender() : liWsDraw());
+  const el = e.target.closest('[data-li-ws-card],[data-li-ws-cardclear],[data-li-ws-chip],[data-li-ws-sort],[data-li-ws-mode],[data-li-ws-tog],[data-li-ws-open],[data-li-ws-again],[data-li-ws-sku],[data-li-ws-pass],[data-li-ws-show],[data-li-ws-sweep],[data-li-ws-recheck],[data-li-ws-resort],[data-li-ws-more],[data-li-ws-panel],[data-li-ws-pclose],[data-li-ws-ptab],[data-li-ws-ptable],[data-li-ws-pmore],[data-lr-fix],[data-lr-check],[data-pname]');
+  if (!el) {
+    // A click on the row itself (not on a button in it) opens the parent in the side panel.
+    const row = e.target.closest('[data-li-ws-row]');
+    if (row && !e.target.closest('button,a,input,select')) liWsPanelOpen(row.dataset.liWsRow);
+    return;
+  }
   const d = el.dataset;
+  if (d.lrFix !== undefined || d.lrCheck !== undefined || d.pname !== undefined) return;   // theirs: listing-rules.js and the name editor
   // The view is redrawn, so the pressed button is a new element: put the keyboard back on it, without scrolling to it.
   const refocus = selector => {
-    const again = $('liWs').querySelector(selector);
+    const root = inPanel ? $('lsPanel') : $('liWs');
+    const again = root && root.querySelector ? root.querySelector(selector) : null;
     if (again) again.focus({ preventScroll: true });
   };
+  if (d.liWsPanel) return liWsPanelOpen(d.liWsPanel);
+  if (d.liWsPclose) return liWsPanelClose(true);
+  if (d.liWsPtab) {
+    if (LI_WS.panel) LI_WS.panel.tab = d.liWsPtab;
+    liWsPanelRender();
+    return refocus(`[data-li-ws-ptab="${d.liWsPtab}"]`);
+  }
+  if (d.liWsPtable) {
+    if (LI_WS.panel) LI_WS.panel.table = d.liWsPtable === '1';
+    liWsPanelRender();
+    return refocus('[data-li-ws-ptable]');
+  }
+  if (d.liWsPmore) {
+    LI_WS.moreOpen.add(d.liWsPmore);
+    return liWsPanelRender();
+  }
   if (d.liWsCard) {
     // A number card filters the list to its group; the same card again clears it. "Not live" is the mode of that name.
     const k = d.liWsCard;
@@ -13951,20 +14713,24 @@ $('liWs').addEventListener('click', e => {
   }
   if (d.liWsAgain) {
     const p = LI_WS.byKey.get(d.liWsAgain);
-    if (p) liWsReadParent(p, true);
-    liWsDraw();
+    if (p) liWsReadParent(p, true, inPanel);
+    if (p && inPanel) {                                 // the panel shows "Reading…" at once, from the new progress record
+      const pr = LI_WS.prog[p.key];
+      if (pr && pr.done < pr.total) p.data = Object.assign({}, p.data, { state: 'reading', done: pr.done, total: pr.total });
+    }
+    redraw();
     return refocus(`[data-li-ws-again="${CSS.escape(d.liWsAgain)}"]`);
   }
   if (d.liWsSku) {
     if (LI_WS.openSku.has(d.liWsSku)) LI_WS.openSku.delete(d.liWsSku);
     else LI_WS.openSku.add(d.liWsSku);
-    liWsDraw();
+    redraw();
     return refocus(`[data-li-ws-sku="${CSS.escape(d.liWsSku)}"]`);
   }
   if (d.liWsPass) {
     if (LI_WS.openPass.has(d.liWsPass)) LI_WS.openPass.delete(d.liWsPass);
     else LI_WS.openPass.add(d.liWsPass);
-    liWsDraw();
+    redraw();
     return refocus(`[data-li-ws-pass="${CSS.escape(d.liWsPass)}"]`);
   }
   if (d.liWsShow) {
@@ -13973,7 +14739,8 @@ $('liWs').addEventListener('click', e => {
     const step = d.liWsShow.slice(sep + 1);
     if (LI_WS.showStep.get(key) === step) LI_WS.showStep.delete(key);
     else LI_WS.showStep.set(key, step);
-    liWsDraw();
+    if (inPanel && LI_WS.panel) LI_WS.panel.tab = 'list';   // "Show these listings" in the panel's audit: the Listings tab, narrowed
+    redraw();
     return refocus(`[data-li-ws-show="${CSS.escape(d.liWsShow)}"]`);
   }
   if (d.liWsOpen) {
@@ -13987,7 +14754,56 @@ $('liWs').addEventListener('click', e => {
     LI_WS.shown += LI_WS_PAGE;
     liWsDraw();
   }
+}
+$('liWs').addEventListener('click', liWsClick);
+$('lsPanel').addEventListener('click', liWsClick);
+// Enter or Space on a focused row opens its parent in the panel.
+$('liWs').addEventListener('keydown', e => {
+  if (e.key !== 'Enter' && e.key !== ' ') return;
+  const row = e.target && e.target.closest ? e.target.closest('[data-li-ws-row]') : null;
+  if (!row || e.target !== row) return;
+  e.preventDefault();
+  liWsPanelOpen(row.dataset.liWsRow);
 });
+// The pane's toolbar: the mode switch (Live / Not live / All) and the one main button, Re-check all errors with Amazon — from
+// another view it switches to the Workspace first and runs once the list has drawn.
+$('hModeSeg').addEventListener('click', e => {
+  const btn = e.target.closest ? e.target.closest('[data-li-ws-mode]') : null;
+  if (!btn) return;
+  LI_WS.mode = btn.dataset.liWsMode;
+  liWsReset();
+  if (LI_WS.on) liWsDraw();
+  else liWsOn();
+});
+$('hRecheck').addEventListener('click', () => {
+  if (LI_WS.sweep && LI_WS.sweep.total > 0 && LI_WS.sweep.kind === 'errors') return liWsStop();   // Stop, from any view
+  if (!LI_WS.on) {
+    LI_WS.recheckNext = true;
+    liWsOn();
+    return;
+  }
+  liWsRecheck();
+});
+// The panel closes on Esc, or a press outside it (on the page, not on a row or a dialog); ↑ / ↓ move to the parent before / after.
+// Like PPC & Organic · New's pop: mousedown, and the panel alone goes — the click under the mouse still lands where it was aimed.
+if (typeof document !== 'undefined' && document.addEventListener) {
+  document.addEventListener('keydown', e => {
+    if (!LI_WS.panel || (typeof TAB_NOW !== 'undefined' && TAB_NOW !== 'health')) return;
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      liWsPanelClose(true);
+    } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      if (e.target && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName || '')) return;
+      e.preventDefault();
+      liWsPanelMove(e.key === 'ArrowDown' ? 1 : -1);
+    }
+  });
+  document.addEventListener('mousedown', e => {
+    if (!LI_WS.panel || (typeof TAB_NOW !== 'undefined' && TAB_NOW !== 'health') || !e.target || !e.target.closest) return;
+    if (e.target.closest('#lsPanel,[data-li-ws-row],[data-li-ws-panel],.modal,.modalbox,#hModeSeg,#hRecheck')) return;
+    liWsPanelClose(false);
+  });
+}
 /* ============================== FILE: src/app/listing/bsr-audit.js ============================== */
 /* ================= LISTING · BSR AUDIT: weekly best-seller-rank snapshots per parent, compared week on week =================
  * Screens: BSR Audit (tab 'bsr').

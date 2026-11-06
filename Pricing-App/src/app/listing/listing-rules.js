@@ -987,6 +987,30 @@ function lrProblemHtml(hit, where, note) {
     + `<div class="lr-prob-how">${esc(hit.fix || '')}</div>${note ? `<div class="lr-prob-src">${esc(note)}</div>` : ''}</div>`
     + `<span class="lr-tag${tag === 'Company rule' ? ' is-own' : ''}" title="${esc(LR_TAG_TIP[tag] || '')}">${esc(tag)}</span>${check}${fix}</div>`;
 }
+/* ---- a problem as one ROW (the Listing Health look, 6 Nov 2026), like the Ad Console's recommendation rows: a dot through the
+ *      level's colour · the level word and the name, a grey subtitle · how to fix · a tag · Fix. The Workspace side panel and the
+ *      children dialog draw with it; lrProblemHtml above stays the block every other screen uses. ---- */
+// `rec`: { sev, stale, name, sub, fix, tag, kind, detector, attrs, fill } — `fill` marks a "Good to fill" gap (not an error: no level
+// word, a blue dot). `where`: { brand, sku } for the Fix button, or null for none.
+function lrRecHtml(rec, where) {
+  const esc = str => String(str == null ? '' : str).replace(/[<>&"]/g, ch => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[ch]));
+  const stale = rec.sev === 'critical' && !!rec.stale;
+  const cls = rec.fill ? 'is-fill' : rec.sev === 'critical' ? (stale ? 'is-chk' : 'is-err') : 'is-att';
+  const level = lrLevel(rec.sev);
+  const word = rec.fill ? 'Good to fill' : stale ? level.stale : level.word;
+  const tag = rec.fill ? 'Good to fill' : (rec.tag || 'Company rule');
+  const kind = rec.kind == null ? lrFixKind(rec.detector) : rec.kind;
+  const fix = where && kind ? `<button type="button" class="ghost lr-fixbtn" data-lr-fix="${esc(kind)}|${esc(where.brand)}|${esc(where.sku)}"`
+    + (rec.attrs && rec.attrs.length ? ` data-lr-attrs="${esc(rec.attrs.join(','))}"` : '')
+    + ` title="${kind === 'img' ? 'Opens the Image Manager' : 'Opens Listing Errors'}">Fix</button>` : '';
+  return `<div class="ls-rec ${cls}"><span class="ls-dot" aria-hidden="true"></span><div class="ls-rec-t">`
+    + `<b><span class="lr-lvl ${rec.fill ? 'is-f' : stale ? 'is-s' : rec.sev === 'critical' ? 'is-c' : 'is-a'}">${esc(word)}</span>${esc(rec.name)}</b>`
+    + (rec.sub ? `<small title="${esc(rec.sub)}">${esc(rec.sub)}</small>` : '') + '</div>'
+    + `<div class="ls-rec-a"><span class="lr-tag${tag === 'Company rule' ? ' is-own' : ''}${rec.fill ? ' is-fill' : ''}" title="${esc(LR_TAG_TIP[tag] || (rec.fill ? 'Not an error: a gap worth filling.' : ''))}">${esc(tag)}</span>${fix}</div>`
+    + (rec.fix ? `<div class="ls-rec-how">${esc(rec.fix)}</div>` : '') + '</div>';
+}
+// One finding of healthOf as that row.
+const lrHitRec = (hit, where) => lrRecHtml({ sev: hit.sev, stale: hit.stale, name: hit.name, sub: hit.detail, fix: hit.fix, tag: hit.tag, kind: hit.kind, detector: hit.detector }, where);
 // Errors first, then Needs attention (action before review).
 const lrProblemsSort = hits => hits.slice().sort((a, b) => ((LR_SEV[b.sev] || {}).rank || 0) - ((LR_SEV[a.sev] || {}).rank || 0));
 // Several problems as one list; noteOf(hit), when given, gives each its grey line.

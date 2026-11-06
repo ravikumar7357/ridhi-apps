@@ -675,18 +675,28 @@
   </div><!-- /paneAge -->
 
   <!-- ============ PANE: listing health ============ -->
+  <!-- THE LISTING HEALTH LOOK (6 Nov 2026): the Ad Console / PPC & Organic · New layout — a meta line, a sticky toolbar card
+       (pill switches, the search box, outline buttons, one dark round main button), number boxes, a flush list card, a side
+       panel. Every id, data- attribute and class the JS reads is kept; the look is the .ls-* rules in the LISTING block. -->
   <div id="paneHealth" class="hide">
-    <div class="card" style="padding:12px 14px">
-      <div class="toolbar">
-        <div class="seg">
+    <div id="hMeta" class="ls-meta"><span><b>Listing Health</b></span><span></span></div>
+    <div class="card ls-toolbar" id="hToolbar">
+      <div class="toolbar ls-tb">
+        <div class="seg ls-seg" role="group" aria-label="View">
           <button id="hViewParent" class="segbtn">Parent ASINs</button>
           <button id="hViewChild" class="segbtn on">Child listings</button>
           <button id="hViewWs" class="segbtn" type="button" aria-pressed="false" title="A checklist for every listing, from Amazon's own data: live only, problems per parent and per child">Workspace</button>
         </div>
-        <select id="hBrandView" style="flex:0 0 140px">
+        <!-- Which listings the Workspace lists and reads: shown in the Workspace view only (listing/listing-workspace.js keeps it in step). -->
+        <div class="seg ls-seg" id="hModeSeg" role="group" aria-label="Which listings">
+          <button type="button" class="segbtn on" data-li-ws-mode="live" aria-pressed="true">Live</button>
+          <button type="button" class="segbtn" data-li-ws-mode="off" aria-pressed="false">Not live / inbound</button>
+          <button type="button" class="segbtn" data-li-ws-mode="all" aria-pressed="false">All</button>
+        </div>
+        <select id="hBrandView" class="ls-sel">
           <option value="ALL">Both brands</option><option value="SP">Ridhi</option><option value="CPC">CPC</option>
         </select>
-        <select id="hIssueView" style="flex:0 0 170px">
+        <select id="hIssueView" class="ls-sel">
           <option value="ALL">All listings</option>
           <option value="critical">Critical</option>
           <option value="action">Needs Action</option>
@@ -701,24 +711,29 @@
           <option value="fewimg">Fewer than 6 images</option>
           <option value="noaplus">A+ content missing</option>
         </select>
-        <input id="hFilter" style="flex:1 1 100px;min-width:0" placeholder="Filter SKU / ASIN / Parent / title">
-        <button id="hOptimiser" class="ghost" title="Opens the Title &amp; Highlights Optimizer in a new tab: titles down to 75 characters, and Item Highlights up to 125. It runs inside Claude, not in this app.">Title optimiser &#8599;</button>
-        <button id="hRaw" class="ghost">Raw fields</button>
-        <button id="hCsv" class="ghost">Export</button>
-        <button id="hGo">Refresh both brands</button>
+        <label class="ls-search"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="hFilter" placeholder="Search SKU / ASIN / Parent / title" aria-label="Search SKU, ASIN, parent or title"></label>
+        <span class="ui-spacer"></span>
+        <button id="hOptimiser" class="ghost ls-btn" title="Opens the Title &amp; Highlights Optimizer in a new tab: titles down to 75 characters, and Item Highlights up to 125. It runs inside Claude, not in this app.">Title optimiser &#8599;</button>
+        <button id="hRaw" class="ghost ls-btn">Raw fields</button>
+        <button id="hCsv" class="ghost ls-btn">Export</button>
+        <button id="hGo" class="ghost ls-btn">Refresh both brands</button>
+        <!-- The one main button: reads only the listings in view that show an Error (listing/listing-workspace.js runs it). -->
+        <button id="hRecheck" class="ls-btn ls-dark" type="button" data-li-ws-recheck="go" title="Reads only the listings in view that show an Error — status, Amazon's issues, the catalogue's pictures, content and A+ — so an Error from old data is confirmed or cleared">Re-check all errors with Amazon</button>
       </div>
       <div id="hMsg" class="muted"></div>
-      <div id="hSchema" class="hide" style="margin-top:10px;font-size:12px"></div>
     </div>
+    <div id="hSchema" class="card hide ls-schema"></div>
     <!-- The standing scope/truncation text that used to sit here now lives in "Raw fields". -->
 
     <div id="hResult" class="hide">
-      <div id="hFocus" class="card hide" style="padding:10px 14px;margin-bottom:10px"></div>
+      <div id="hFocus" class="card hide ls-head"></div>
       <div id="hKpis" class="kpis"></div>
-      <div class="card xlwrap"><table class="xl" id="hTable"></table></div>
+      <div class="card xlwrap ls-card ls-clip"><table class="xl ls-tbl" id="hTable"></table></div>
     </div>
     <!-- The third view, Listing Workspace (a checklist per listing from Amazon's data): drawn by listing/listing-workspace.js. -->
     <div id="liWs" class="li-ws hide"></div>
+    <!-- The side panel one parent opens into (listing/listing-workspace.js draws it): What to fix / Listings / Audit. -->
+    <aside id="lsPanel" class="ls-panel" role="dialog" aria-label="Parent details" hidden></aside>
   </div><!-- /paneHealth -->
 
   <!-- ============ PANE: listing audit ============ -->
