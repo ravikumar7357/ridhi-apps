@@ -236,8 +236,13 @@ onAuthStateChanged(auth, async user => {
   try {
     const dmKind = ME.admin ? 'admin' : FACTORY_ONLY ? 'factory' : 'office';
     if (typeof dmSaveFlag === 'function') {
-      getDoc(doc(db, 'config', 'flags')).then(f => { const d = f.exists() ? f.data() : null; dmSaveFlag(!!d && (d.dataMeter === true || d.dataMeter === 1 || d.dataMeter === '1' || d.dataMeter === 'on'), dmKind); })
-        .catch(() => { dmSaveFlag(false, dmKind); });
+      getDoc(doc(db, 'config', 'flags')).then(f => {
+        const d = f.exists() ? f.data() : null;
+        dmSaveFlag(!!d && (d.dataMeter === true || d.dataMeter === 1 || d.dataMeter === '1' || d.dataMeter === 'on'), dmKind);
+        /* The same single read also answers the pending-badges switch (core/pending-badges.js); it applies from the next page load. */
+        if (typeof pbSaveFlag === 'function') pbSaveFlag(!!d && (d.pendingBadges === true || d.pendingBadges === 1 || d.pendingBadges === '1' || d.pendingBadges === 'on'));
+      })
+        .catch(() => { dmSaveFlag(false, dmKind); if (typeof pbSaveFlag === 'function') pbSaveFlag(false); });
     }
     if (typeof dmStart === 'function') dmStart();
   } catch (e) { console.warn('[data meter]', e); }
@@ -268,16 +273,19 @@ onAuthStateChanged(auth, async user => {
    * reload. showTab itself sends anything else to the first screen this account has. */
   showTab(navHashTab() || ME.tabs[0]);
   /* Somebody who approves requests is told how many are waiting without having to open the tab. */
-  if (ME.tabs.includes('vreq') && vrqCanApprove()) ptGet('pt_vendorOrderReqs')
-    .then(v => { if (VRQ.rows === null) VRQ.rows = ptList(v).filter(r => r && r.id); vrqBadge(); }).catch(() => {});
+  /* With the pending-badges switch on (core/pending-badges.js) the four request counts below come from asking the database
+   * for the pending rows only; the screens' own lists are not filled here and load in full when each screen is opened.
+   * Switched off, or if that question fails, each one reads its whole list exactly as before. */
+  if (ME.tabs.includes('vreq') && vrqCanApprove()) pbLogin('vrq', vrqBadge, () => ptGet('pt_vendorOrderReqs')
+    .then(v => { if (VRQ.rows === null) VRQ.rows = ptList(v).filter(r => r && r.id); vrqBadge(); })).catch(() => {});
   /* The RFD count needs the orders as well as the decisions, because the requirements live inside
    * the orders — so it is filled when the screen is opened, not on the way in. */
-  if (ME.tabs.includes('rfd') && rfdCanApprove() && RFD.decisions === null) ptGet('pt_rfdDecisions')
+  if (ME.tabs.includes('rfd') && rfdCanApprove() && RFD.decisions === null && !pbSkipRfdRead()) ptGet('pt_rfdDecisions')
     .then(v => { if (RFD.decisions === null) RFD.decisions = v || {}; rfdBadge(); }).catch(() => {});
-  if (ME.tabs.includes('so') && odrCanAnswer()) odrLoad().catch(() => {});
-  if (ME.tabs.includes('fgi') && (ME.admin || ME.fgiEdit)) fgiCorrLoad().catch(() => {});
+  if (ME.tabs.includes('so') && odrCanAnswer()) pbLogin('odr', odrBadge, () => odrLoad()).catch(() => {});
+  if (ME.tabs.includes('fgi') && (ME.admin || ME.fgiEdit)) pbLogin('fgc', fgiCorrBadge, () => fgiCorrLoad()).catch(() => {});
   /* Job Work corrections waiting: the badge is for whoever may answer them. */
-  if (ME.tabs.includes('pbase') && ptCanEdit()) jwCorrLoad().catch(() => {});
+  if (ME.tabs.includes('pbase') && ptCanEdit()) pbLogin('jwc', jwCorrBadge, () => jwCorrLoad()).catch(() => {});
   if (ME.tabs.includes('fgi')) ptGet('pt_amzListings').then(idx => { LST.map = lstParse(idx); LST.at = (idx && idx.at) || ''; return lstLoadAlerts(); }).catch(() => {});
   // Background-load POs once so the Follow-ups nav badge shows without opening the tab.
   /* Purchase orders are the planners' (firestore.rules → po, 2026-10-14); anybody else would only be refused. */

@@ -37,6 +37,7 @@ core/history.js
 core/gates.js
 core/delta-sync.js
 core/data-meter.js
+core/pending-badges.js
 core/lookups.js
 core/look-alike-skus.js
 production/job-work-entry.js

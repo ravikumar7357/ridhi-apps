@@ -97,7 +97,8 @@ async function ensureVrq(force) {
 /** The red count on the sidebar — only for somebody who can do something about it. */
 function vrqBadge() {
   const el = $('vreqBadge'); if (!el) return;
-  const n = vrqCanApprove() ? (VRQ.rows || []).filter(r => r && r.status === 'pending').length : 0;
+  /* The screen's own list wins once it is loaded; until then, the count the sign-in asked for (core/pending-badges.js). */
+  const n = vrqCanApprove() ? (VRQ.rows === null ? pbCount('vrq') : VRQ.rows.filter(r => r && r.status === 'pending').length) : 0;
   el.textContent = n ? String(n) : '';
   el.classList.toggle('hide', !n);
 }
