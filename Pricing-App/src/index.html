@@ -1007,10 +1007,17 @@
           <button id="tGranQuarter" class="segbtn">Quarter</button>
         </div>
         <select id="tSpan" style="flex:0 0 170px" title="How much history to show">
-          <option value="14">Last 14 periods</option>
-          <option value="26" selected>Last 26 periods</option>
-          <option value="52">Last 52 periods</option>
+          <option value="1">Last full week</option>
+          <option value="4">Last 4 weeks</option>
+          <option value="7">Last 7 weeks</option>
+          <option value="13">Last 13 weeks</option>
+          <option value="26" selected>Last 26 weeks</option>
+          <option value="52">Last 52 weeks</option>
+          <option value="custom">Custom dates…</option>
         </select>
+        <span id="tCustom" class="adx-dates hide" title="Only the days in this range; the first and last period hold just the days inside it">
+          <input type="date" id="tFrom" aria-label="From"><span aria-hidden="true">→</span><input type="date" id="tTo" aria-label="To">
+        </span>
         <span style="flex:1 1 auto"></span>
         <button id="tRefresh" class="ghost" title="Pull daily sales from the Orders workbooks and daily ad figures from the Amazon Ads API, for both brands.">Refresh</button>
         <button id="tExport" class="ghost">Export</button>
@@ -1019,6 +1026,15 @@
     </div>
 
     <div id="tKpis" class="kpis" style="margin-top:12px"></div>
+    <!-- The boxes, two line charts and Campaign performance (ads/ads-charts.js). Each stays hidden until it has drawn;
+         the card above is hidden only while the boxes are showing. -->
+    <div id="tBoxes" class="hide"></div>
+    <!-- Recommendation (ads/ads-health.js): suggestions from ACoS and stock over the last 30 days, ranked. -->
+    <div id="tHealth" class="card adh hide"></div>
+    <div id="tCharts" class="adx-charts hide"></div>
+    <!-- Sales, ad spend, ACoS & TACOS (ads/ads-charts.js), with its own period, in place of the old chart below, which shows again if it cannot draw. -->
+    <div id="tBars" class="card adx-bars hide"></div>
+    <div id="tCamp" class="card adx-camp hide"></div>
 
     <div class="card" style="margin-top:12px">
       <div id="tChart" style="width:100%;overflow-x:auto"></div>
@@ -1029,9 +1045,17 @@
       </div>
     </div>
 
-    <div class="card xlwrap" style="margin-top:12px">
-      <table id="tTable" class="xl"></table>
-    </div>
+    <!-- Performance Overview: the metrics × periods table, folded away until opened (ads/ads-charts.js opens it on the newest period). -->
+    <details id="tPerf" class="card adx-fold">
+      <summary class="adx-fold-sum">
+        <span class="adx-fold-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2.5"/><path d="M3 9.5h18M9 9.5V20"/></svg></span>
+        <span class="adx-fold-tt"><b>Performance Overview</b><small id="tPerfNote">Every measure, period by period</small></span>
+        <span class="adx-fold-chev"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></span>
+      </summary>
+      <div class="card xlwrap">
+        <table id="tTable" class="xl"></table>
+      </div>
+    </details>
   </div><!-- /paneTrends -->
 
   <!-- ============ Sales Dashboard ============ -->

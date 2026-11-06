@@ -37,6 +37,8 @@ ads/hda.js
 ads/account-trends.js
 ads/search-terms.js
 ads/placement.js
+ads/ads-charts.js
+ads/ads-health.js
 ads/ppc-organic.js
 sales/parent-listing-review.js
 sales/profit-margin.js
