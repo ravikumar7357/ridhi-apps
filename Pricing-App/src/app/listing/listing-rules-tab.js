@@ -58,14 +58,16 @@ function hAreaCell(row, area) {
   /* THE IMAGE COUNT IS WRITTEN BESIDE THE COLOUR (2026-10-05, Ravi: "images nahi h fir bhi show kar rha h ki image h").
    * An out-of-stock listing with no image is shown as Attention, not Critical (the 15 Sept rule), and its amber dot
    * read as "a few images". The number says which: 0 is no image at all. */
-  const nImages = area === 'Images' && row.content ? Number(row.content.images) || 0 : null;
-  const cnt = nImages == null ? '' : `<span style="font-size:12px;margin-left:4px;${nImages ? 'color:var(--muted)' : 'color:var(--bad-ink);font-weight:700'}">`
-    + `${nImages ? nImages : '0 · no image'}</span>`;
+  // The count is the one the rules judged — the catalogue's gallery pictures (healthOf's pics), not the raw snapshot field.
+  const pics = area === 'Images' ? row._h.pics : null;
+  const nImages = pics ? pics.n : null;
+  const cnt = nImages == null ? '' : `<span style="font-size:12px;margin-left:4px;${pics.main ? 'color:var(--muted)' : 'color:var(--bad-ink);font-weight:700'}">`
+    + `${pics.main ? nImages : (nImages ? nImages + ' · no main' : '0 · no image')}</span>`;
   if (hits.length) {
     const worst = hits.sort((a, b) => LR_SEV[b.sev].rank - LR_SEV[a.sev].rank)[0];
     return `<span class="sev ${LR_SEV[worst.sev].cls}" title="${lrEsc(hits.map(hit => hit.name + ' — ' + hit.detail).join('\n'))}"></span>` + cnt;
   }
-  const judged = (area === 'Images' || area === 'Content') ? !!row.content : !!hTitleText(row);
+  const judged = area === 'Images' ? !!row._h.pics : area === 'Content' ? !!row.content : !!hTitleText(row);
   return judged ? '<span class="sev-ok">✓</span>' + cnt : '<span class="muted">—</span>';
 }
 
@@ -134,9 +136,11 @@ function renderLrules() {
     rows.forEach(row => healthOf(row, ctx).found.forEach(hit => { count[hit.id] = (count[hit.id] || 0) + 1; }));
     const order = { critical: 0, action: 1, review: 2 };
     const list = cfg.issues.map((it, i) => ({ it, i })).sort((a, b) => (order[a.it.sev] - order[b.it.sev]) || a.i - b.i);
-    // The three pickers of one row, with the current value selected.
-    const sevSel = (i, selected) => `<select data-lri="${i}" data-f="sev" style="width:auto">${Object.entries(LR_SEV)
-      .map(([key, sev]) => `<option value="${key}"${key === selected ? ' selected' : ''}>${sev.label}</option>`).join('')}</select>`;
+    // The three pickers of one row, with the current value selected. The level names say which of the two words a problem list
+    // uses (Part B1); the search-term rule is never an Error (Part A4), so Critical is not offered for it.
+    const sevSel = (i, selected, detector) => `<select data-lri="${i}" data-f="sev" style="width:auto">${Object.entries(LR_SEV)
+      .filter(([key]) => !(detector === 'keyword_bytes' && key === 'critical' && selected !== 'critical'))
+      .map(([key, sev]) => `<option value="${key}"${key === selected ? ' selected' : ''}>${sev.label} — ${lrLevel(key).word}</option>`).join('')}</select>`;
     const areaSel = (i, selected) => `<select data-lri="${i}" data-f="area" style="width:auto">${LR_AREAS
       .map(area => `<option${area === selected ? ' selected' : ''}>${area}</option>`).join('')}</select>`;
     const detSel = (i, selected) => `<select data-lri="${i}" data-f="detector" style="max-width:230px">${Object.entries(LR_DETECTORS)
@@ -148,7 +152,7 @@ function renderLrules() {
         return `<tr>
           <td>${hSevDot(it.sev)}</td>
           <td style="text-align:left"><input class="w-l" data-lri="${i}" data-f="name" value="${lrEsc(it.name)}"></td>
-          <td>${sevSel(i, it.sev)}</td><td>${areaSel(i, it.area)}</td><td style="text-align:left">${detSel(i, it.detector)}</td>
+          <td>${sevSel(i, it.sev, it.detector)}</td><td>${areaSel(i, it.area)}</td><td style="text-align:left">${detSel(i, it.detector)}</td>
           <td>${params.length
             ? `<input data-lri="${i}" data-f="params" value="${lrEsc(lrParamsText(it.params))}" placeholder="${params.map(param => param + '=').join(', ')}" class="w-s">`
             : '<span class="muted">—</span>'}</td>
@@ -161,7 +165,10 @@ function renderLrules() {
         </tr>`;
       }).join('') + '</tbody>';
     const manual = cfg.issues.filter(issue => issue.detector === 'manual').length;
+    const offLevels = cfg.issues.filter(issue => { const def = LR_DEFAULT.issues.find(each => each.id === issue.id); return def && def.sev !== issue.sev; }).length;
     lrMsg(`${cfg.issues.length} issues · ${manual} not detectable yet · counts are from the listings snapshot${rows.length ? ' (' + rows.length.toLocaleString('en-US') + ' listings)' : ' — none loaded'}`
+      + ` · on every screen Critical reads "Error: fix first", Attention and Review read "Needs attention"`
+      + (offLevels ? ` · ${offLevels} rule${offLevels === 1 ? '' : 's'} not at the recommended level` : '')
       + `${LR_SAVED_AT ? ' · last saved ' + LR_SAVED_AT.toLocaleString() : ' · using the built-in lists until you save'}${LR_DIRTY ? ' · UNSAVED CHANGES' : ''}`);
     return;
   }
@@ -336,6 +343,25 @@ $('lrAdd').onclick = () => {
   LR_DIRTY = true;
   H_CTX = null;
   renderLrules();
+};
+// Use recommended levels (Part B2, 6 Nov 2026): every rule's level becomes the built-in one — Error (Critical) for Amazon
+// reports an error, Suppressed from search, Stock but Inactive, No price, Main image missing, Secondary images missing and
+// A+ missing; Needs attention for everything else. Only the levels change, in memory; the person presses Save to keep them.
+$('lrLevels').onclick = () => {
+  const cfg = LR || (LR = JSON.parse(JSON.stringify(LR_DEFAULT)));
+  let changed = 0;
+  cfg.issues.forEach(issue => {
+    const def = LR_DEFAULT.issues.find(each => each.id === issue.id);
+    if (def && def.sev !== issue.sev) {
+      issue.sev = def.sev;
+      changed++;
+    }
+  });
+  LR_VIEW = 'issues';
+  LR_DIRTY = LR_DIRTY || changed > 0;
+  H_CTX = null;
+  renderLrules();
+  lrMsg(changed ? `${changed} level${changed === 1 ? '' : 's'} set to the recommended one — press “Save rules” to keep them (saving works on live Sellora).` : 'Every rule is already at its recommended level.');
 };
 // Reset: back to the built-in lists (LR_DEFAULT) in memory; nothing is saved until Save.
 $('lrReset').onclick = () => {

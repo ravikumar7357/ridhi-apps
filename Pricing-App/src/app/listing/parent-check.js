@@ -27,12 +27,16 @@ let HK_SHOW = 'all';          // all | bad | ok
  * that is fine.
  */
 // Each check for one child row (see the block above): { k, t, pass, say } — `info: true` marks the one that is not scored.
-function healthChecks(row) {
+// `health` is healthOf's answer for the row: pictures and A+ are read from it (the catalogue's pictures, A+ on the listing or its
+// parent — Listing Rules, Parts A1 / A2), never from the raw snapshot fields, so this dialog cannot contradict the other screens.
+function healthChecks(row, health) {
   const content = row.content;
   const status = row.status || '';
   const isActive = /active/i.test(status) && !/inactive/i.test(status);
   const fba = /amazon|afn/i.test(row.channel || '');
   const titleLen = content ? content.titleLen : null;
+  const pics = health ? health.pics : null;
+  const ap = health ? health.aplus : null;
   return [
     { k: 'active', t: 'Active', pass: /inactive/i.test(status) ? false : (isActive || fba ? true : (status ? false : null)),
       say: status || 'no status' },
@@ -47,14 +51,17 @@ function healthChecks(row) {
       say: titleLen == null ? 'not checked' : (titleLen > H_TITLE_LIMIT ? `${titleLen - H_TITLE_LIMIT} over` : 'within') },
     { k: 'bullets', t: `Bullets ${H_RULES.minBullets}+`, pass: content ? content.bullets >= H_RULES.minBullets : null,
       say: content ? content.bullets + ' bullets' : 'not checked' },
-    { k: 'images', t: `Images ${H_RULES.minImages}+`, pass: content ? content.images >= H_RULES.minImages : null,
-      say: content ? content.images + ' images' : 'not checked' },
+    { k: 'images', t: `Images ${H_RULES.minImages}+`, pass: pics ? pics.main && pics.n >= H_RULES.minImages : null,
+      say: pics ? `${pics.n} picture${pics.n === 1 ? '' : 's'}${pics.main ? '' : ', no main'}` : 'not checked' },
     { k: 'desc', t: 'Description', pass: content ? content.descLen >= H_RULES.minDesc : null,
       say: content ? (content.descLen ? content.descLen + ' chars' : 'none') : 'not checked' },
-    { k: 'aplus', t: 'A+', pass: row.aplus === true ? true : (row.aplus === false ? false : null),
-      say: row.aplus === true ? 'published' : (row.aplus === false ? 'missing' : 'not checked') },
+    { k: 'aplus', t: 'A+', pass: !ap ? null : ap.v === true ? true : (ap.v === false && !ap.stale ? false : null),
+      say: !ap ? 'not checked' : ap.v === true ? (ap.src === 'parent' ? 'published on the parent' : 'published') : ap.v === false && !ap.stale ? 'missing' : (ap.why || 'not checked') },
   ];
 }
+// The "What to fix" lines of one child, in the two words every problem list uses (Listing Rules, Part B1), Errors first; an Error
+// resting on old data reads "Error? Check again".
+const hkFixLines = health => lrProblemsSort(health.found).map(hit => (hit.sev === 'critical' ? (hit.stale ? 'Error? Check again: ' : 'Error: fix first: ') : 'Needs attention: ') + hit.name + ' — ' + hit.detail);
 
 // A parent row was clicked: remember which parent, show every child, open the dialog.
 function healthKidsOpen(brand, parent) {
@@ -74,8 +81,8 @@ function healthKidsRender() {
   const all = ((HEALTH[brand] && HEALTH[brand].rows) || [])
     .filter(row => (row.parent || row.asin || row.sku) === parent)
     .map(row => {
-      const health = healthOf(row);
-      return Object.assign({}, row, { _h: health, score: health.score, grade: health.grade, _c: healthChecks(row) });
+      const health = healthOf(Object.assign({ brand }, row));   // the snapshot rows carry no brand; every live and A+ lookup keys on it
+      return Object.assign({}, row, { _h: health, score: health.score, grade: health.grade, _c: healthChecks(row, health) });
     })
     .sort((a, b) => a.score - b.score || String(a.sku).localeCompare(String(b.sku)));
   const bad = row => row._h.blocking.length || row._h.content.length;
@@ -108,9 +115,7 @@ function healthKidsRender() {
         : ''}>${esc(check.t)}${check.info ? ' <span class="muted">ⓘ</span>' : ''}</th>`).join('')
     + '<th>What to fix</th></tr></thead>';
   const body = kids.map(row => {
-    const fix = [...row._h.critical.map(issue => 'Critical: ' + issue),
-      ...row._h.action.map(issue => 'Action: ' + issue),
-      ...row._h.review.map(issue => 'Review: ' + issue)];
+    const fix = hkFixLines(row._h);
     if (row.content && row.content.titleLen > H_TITLE_LIMIT) fix.push(`Title over ${H_TITLE_LIMIT} (${row.content.titleLen}) — information only`);
     return '<tr>'
       + `<td class="frz" style="font-family:ui-monospace,monospace;font-size:12px">${esc(row.sku)}</td>`
@@ -164,11 +169,9 @@ $('hkCsv').onclick = () => {
   const checks = healthChecks({});
   const lines = [['SKU', 'ASIN', 'Title', 'Health', 'Bucket'].concat(checks.map(check => check.t), ['What to fix']).map(cell).join(',')];
   rows.forEach(row => {
-    const health = healthOf(row);
-    const rowChecks = healthChecks(row);
-    const fix = [...health.critical.map(issue => 'Critical: ' + issue),
-      ...health.action.map(issue => 'Action: ' + issue),
-      ...health.review.map(issue => 'Review: ' + issue)];
+    const health = healthOf(Object.assign({ brand }, row));
+    const rowChecks = healthChecks(row, health);
+    const fix = hkFixLines(health);
     if (row.content && row.content.titleLen > H_TITLE_LIMIT) fix.push(`Title over ${H_TITLE_LIMIT} (${row.content.titleLen})`);
     lines.push([row.sku, row.asin, row.title, health.score, health.grade]
       .concat(rowChecks.map(check => (check.pass === null ? '' : (check.pass ? 'OK' : 'FAIL')) + ' ' + check.say), [fix.join(' | ')])

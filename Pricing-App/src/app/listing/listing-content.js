@@ -100,10 +100,12 @@ function lcCheck(field, vals, ctx) {
     if (desc.length > 2000) push(true, desc.length + ' characters — Amazon\'s limit is 2,000.');
     if (need && desc.length < (+need.params.n || 200)) push(false, `${desc.length} characters — Listing Rules want at least ${+need.params.n || 200}.`);
   } else if (field === 'generic_keyword') {
-    // --- search terms: the byte limit, no ASINs, nothing the title already says ---
+    // --- search terms: the byte limit the way Amazon counts it (the words only — spaces and ; , . do not count; Listing Rules,
+    //     Part A4), no ASINs, nothing the title already says ---
     const text = vals.join(' ');
-    const bytes = lcBytes(text);
-    if (bytes > 249) push(true, bytes + ' bytes — Amazon reads only the first 249 (US).');
+    const bytes = lrKwBytes(text);
+    const max = lcKwMax();
+    if (bytes > max) push(true, `${bytes} bytes of words — over ${max} Amazon ignores all of the search terms (spaces and ; , . do not count).`);
     if (/\bB0[A-Z0-9]{8}\b/i.test(text)) push(false, 'Contains an ASIN — Amazon does not want ASINs in search terms.');
     const titleWords = new Set(String(ctx.title || '').toLowerCase().split(/[^a-z0-9]+/).filter(word => word.length > 2));
     const repeated = [...new Set(text.toLowerCase().split(/[^a-z0-9]+/).filter(word => titleWords.has(word)))];
@@ -166,7 +168,9 @@ function lcTemplateFit(brand, sku, max) {
 }
 // Just the title of lcTemplateFit.
 const lcTemplateTitle = (brand, sku, max) => lcTemplateFit(brand, sku, max).title;
-/** Search terms: the template's own words that the title does not carry, then what is there now — never past 249 bytes. */
+// The search-term byte limit from Listing Rules (the "Search terms over the limit" rule), 249 when the rule is off or gone.
+const lcKwMax = () => { const rule = lcRule('keyword_bytes'); return rule ? (+(rule.params || {}).max || 249) : 249; };
+/** Search terms: the template's own words that the title does not carry, then what is there now — never past the byte limit. */
 function lcSuggestKeywords(brand, sku, title, current) {
   const cfg = LR || LR_DEFAULT;
   const row = { brand, sku };
@@ -180,9 +184,10 @@ function lcSuggestKeywords(brand, sku, title, current) {
       if (word.length > 1 && !stop.has(word) && !inTitle.has(word) && !/^b0[a-z0-9]{8}$/.test(word) && !words.includes(word)) words.push(word);
     });
   let out = '';
+  const max = lcKwMax();
   for (const word of words) {
     const next = out ? out + ' ' + word : word;
-    if (lcBytes(next) > 249) break;
+    if (lrKwBytes(next) > max) break;
     out = next;
   }
   return out;
@@ -261,7 +266,7 @@ function lcSectionHtml() {
     </div>
     <div><div style="font-weight:600;font-size:12.5px">Search terms (backend keywords)${ch('generic_keyword')}</div>
       <textarea id="lcKw" rows="2" style="width:100%">${leEsc(kw)}</textarea>
-      <div class="muted" style="font-size:11px"><span id="lcKwN">${lcBytes(kw)}</span> / 249 bytes
+      <div class="muted" style="font-size:11px"><span id="lcKwN">${lrKwBytes(kw)}</span> / ${lcKwMax()} bytes of words (spaces and ; , . do not count)
         <button class="ghost im-b" id="lcKwSug" title="Words from the Listing Rules template this title does not carry, then what is there now">Suggest from Listing Rules</button></div>
       <div id="lcKwF">${lcFindHtml(lcCheck('generic_keyword', [kw], lcCtx()))}</div>
     </div></div>`;
@@ -314,7 +319,7 @@ function lcWire(redraw) {
   };
   $('lcKw').oninput = () => {
     lcSetVals('generic_keyword', [$('lcKw').value]);
-    $('lcKwN').textContent = lcBytes($('lcKw').value);
+    $('lcKwN').textContent = lrKwBytes($('lcKw').value);
     $('lcKwF').innerHTML = lcFindHtml(lcCheck('generic_keyword', [$('lcKw').value], lcCtx()));
     recount();
   };
@@ -387,7 +392,7 @@ async function lcDownload() {
       out.push([item.sku, item.asin || cur.asin, cur.productType, item.c || cat.color || '', item.z || cat.size || '', title, title.length,
         lcTemplateTitle(brand, item.sku, 200), lcTemplateTitle(brand, item.sku, 75)]
         .concat(Array.from({ length: nBullets }, (_, i) => bullets[i] || ''),
-          [desc, kw, lcBytes(kw), lcSuggestKeywords(brand, item.sku, title, kw), finds]));
+          [desc, kw, lrKwBytes(kw), lcSuggestKeywords(brand, item.sku, title, kw), finds]));
     });
     // --- the file ---
     const blob = new Blob([lcXlsx(out)], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });

@@ -666,6 +666,7 @@
   <style>
     .sev{display:inline-block;width:11px;height:11px;border-radius:50%;vertical-align:-1px;margin-right:6px}
     .sev-c{background:#dc2626}.sev-a{background:#f59e0b}.sev-r{background:#facc15}.sev-m{background:#d1d5db}.sev-g{background:#16a34a}
+    .sev-s{background:transparent;box-shadow:inset 0 0 0 2px #dc2626}
     .sev-ok{color:#16a34a;font-weight:700}
     /* Listing Rules tables are forms: the app's roomy inputs made every row tall and every column wide. */
     #lrTable td{padding:3px 8px;vertical-align:middle}
@@ -689,6 +690,7 @@
         <span style="flex:1"></span>
         <button id="lrTry" class="ghost hide">Try a SKU</button>
         <button id="lrAdd" class="ghost">+ Add issue</button>
+        <button id="lrLevels" class="ghost" title="Fills the recommended level into every rule: Error for Amazon reports an error, Suppressed from search, Stock but Inactive, No price, Main image missing, Secondary images missing and A+ missing; Needs attention for everything else. Press Save rules to keep them.">Use recommended levels</button>
         <button id="lrReset" class="ghost">Reset to the original lists</button>
         <button id="lrSave">Save rules</button>
       </div>

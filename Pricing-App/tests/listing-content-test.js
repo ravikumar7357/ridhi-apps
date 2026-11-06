@@ -40,7 +40,8 @@ const has = (list, re) => list.some(f => re.test(f.msg));
   ok('a 600-character bullet is refused', A.lcCheck('bullet_point', ['x'.repeat(600)]).some(f => f.bad));
   ok('a bullet repeated is flagged', has(A.lcCheck('bullet_point', ['Soft cotton', 'soft cotton ']), /repeats bullet 1/));
   ok('a short description is flagged', has(A.lcCheck('product_description', ['Nice']), /at least 200/));
-  ok('search terms over 249 bytes are refused', A.lcCheck('generic_keyword', ['word '.repeat(60)]).some(f => f.bad && /249/.test(f.msg)));
+  ok('search terms over 249 bytes of words are refused', A.lcCheck('generic_keyword', ['words '.repeat(50)]).some(f => f.bad && /250 bytes of words — over 249/.test(f.msg)), JSON.stringify(A.lcCheck('generic_keyword', ['words '.repeat(50)])));
+  ok('spaces and ; , . do not count: 60 × "word " = 240 bytes of words, so not refused (300 raw bytes)', !A.lcCheck('generic_keyword', ['word '.repeat(60)]).some(f => f.bad) && A.lcBytes('word '.repeat(60)) === 300);
   ok('bytes, not characters: é is two', A.lcBytes('é') === 2);
   ok('search words already in the title are named as wasted', has(A.lcCheck('generic_keyword', ['tablecloth linen'], { title: 'Ridhi Tablecloth' }), /tablecloth/));
 

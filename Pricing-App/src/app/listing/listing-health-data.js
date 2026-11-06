@@ -59,6 +59,8 @@ async function loadHealthCache() {
         at: data.at && data.at.toDate ? data.at.toDate() : null,
         contentAt: data.contentAt && data.contentAt.toDate ? data.contentAt.toDate() : null,
         scope: data.scope || null, parentNames: data.parentNames || {}, rows,
+        // A+ on the PARENT ASINs (6 Nov 2026): { asin: { v, at } } — a child has A+ when it or its parent has it (lrAplus).
+        parentAplus: data.parentAplus || {}, parentAplusAt: data.parentAplusAt || 0,
       };
     } catch (e) {
       // Do NOT swallow this. A failed load is exactly what "my data disappeared" looks like, and it
@@ -83,7 +85,8 @@ async function saveHealthCache(brand) {
     rows: null,                                      // clear the old single-doc payload if present
     scope: health.scope || null,
     parentNames: health.parentNames || null,         // ~800 entries; kept so they aren't re-fetched
-
+    parentAplus: health.parentAplus || null,         // A+ per parent ASIN: a child has A+ when its parent has
+    parentAplusAt: health.parentAplusAt || 0,
     at: serverTimestamp(),
     contentAt: health.contentAt ? serverTimestamp() : null,
   });
@@ -242,6 +245,7 @@ $('hGo').onclick = async () => {
 
       HEALTH[brand] = { rows, at: new Date(), contentAt: HEALTH[brand]?.contentAt || null,
         parentNames: pNames,                    // must survive this reassignment
+        parentAplus: HEALTH[brand]?.parentAplus || {}, parentAplusAt: HEALTH[brand]?.parentAplusAt || 0,   // and so must the parents' A+
         scope: { total: all.length, mfn, bundles, kept: rows.length, matched, stockSrc },
         schema: { headers: done.headers || [], sample: done.sample || {},
           withPrice: done.withPrice || 0, withQty: done.withQty || 0, n: done.total || all.length } };
@@ -384,11 +388,23 @@ $('hGo').onclick = async () => {
          * read "A+ missing" it stayed missing after the A+ went live. Now: never asked first, then the ones that read
          * MISSING (oldest answer first — those are the ones on a fix-it list), then the ones that have it, oldest first.
          * A lookup that fails keeps the last answer instead of going back to unknown. */
+        /* THE PARENT ASINs ARE ASKED TOO (6 Nov 2026, Part A2): A+ added to the parent shows on every child, so a child whose
+         * parent has A+ has A+ (lrAplus in listing-rules.js). The parents go first — one answer covers all their children. */
         const seenA = new Set();
         const never = [];           // never asked
         const missing = [];         // last answer: no A+
         const present = [];         // last answer: has A+
         const askedAt = {};
+        const pAplus = HEALTH[brand].parentAplus || (HEALTH[brand].parentAplus = {});
+        const parentSet = new Set();
+        HEALTH[brand].rows.forEach(row => {
+          if (!row.parent || seenA.has(row.parent) || !/^[A-Z0-9]{10}$/.test(String(row.parent))) return;
+          seenA.add(row.parent);
+          parentSet.add(row.parent);
+          const have = pAplus[row.parent];
+          askedAt[row.parent] = have ? have.at || 0 : 0;
+          (!have ? never : have.v === false ? missing : present).push(row.parent);
+        });
         HEALTH[brand].rows.forEach(row => {
           if (!row.asin || seenA.has(row.asin)) return;
           seenA.add(row.asin);
@@ -419,6 +435,10 @@ $('hGo').onclick = async () => {
             (reply.errors || []).forEach(e => { if (errs.length < 3) errs.push(e); });
             Object.entries(reply.map || {}).forEach(([asin, has]) => {
               answered++;
+              if (parentSet.has(asin)) {
+                pAplus[asin] = { v: !!has, at: Date.now() };
+                HEALTH[brand].parentAplusAt = Date.now();
+              }
               (byAsin[asin] || []).forEach(row => {
                 row.aplus = has;
                 row.aplusAt = Date.now();
@@ -433,11 +453,12 @@ $('hGo').onclick = async () => {
         const withA = HEALTH[brand].rows.filter(row => row.aplus === true).length;
         const without = HEALTH[brand].rows.filter(row => row.aplus === false).length;
         const unknown = HEALTH[brand].rows.filter(row => row.aplus === undefined).length;
+        const pWith = Object.values(pAplus).filter(each => each && each.v === true).length;
         if (roleMissing && !answered) {
           notes.push(`${BRAND_NAME[brand]}: A+ could not be read — the SP-API app does not have the A+ Content role. Left as unknown.`);
         } else {
           HEALTH[brand].aplusChecked = true;
-          notes.push(`${BRAND_NAME[brand]}: A+ present on ${withA}, missing on ${without}, unknown ${unknown}`
+          notes.push(`${BRAND_NAME[brand]}: A+ present on ${withA} listings, missing on ${without}, unknown ${unknown} · ${pWith} of ${parentSet.size} parent ASINs have A+ (their children count as having it)`
             + (uniq.length > work.length ? ` — ${uniq.length - work.length} not re-asked this time; the next refresh starts with them` : '')
             + (errs.length ? ` · errors: ${errs.join(' | ')}` : ''));
         }
@@ -584,10 +605,11 @@ function renderHealth() {
     active: isActive,
     inactive: row => !isActive(row),
     // These three ask about a KNOWN fact, so rows that were never checked are excluded rather than
-    // swept in as if they were missing.
-    noimg: row => row.content && !row.content.images,
-    fewimg: row => row.content && row.content.images < H_RULES.minImages,
-    noaplus: row => row.aplus === false,
+    // swept in as if they were missing. They read what the rules judged: the catalogue's pictures and A+ on the listing or
+    // its parent (healthOf's pics / aplus), never the raw snapshot fields.
+    noimg: row => !!row._h.pics && !row._h.pics.main,
+    fewimg: row => !!row._h.pics && row._h.pics.main && row._h.pics.n < H_RULES.minImages,
+    noaplus: row => row._h.aplus.v === false && !row._h.aplus.stale,
   }[view] || null;
 
   const search = $('hFilter').value.trim().toLowerCase();
@@ -644,11 +666,11 @@ function renderHealth() {
       return value ? `<span class="sev ${spec.c}"></span><b>${Number(value).toLocaleString('en-US')}</b>` : '<span class="muted">0</span>';
     };
     defs.push({ k: 'critical', t: 'Critical', num: 1, cell: cnt({ k: 'critical', c: 'sev-c' }),
-      tip: 'Cannot be bought or is fundamentally wrong: stock at Amazon but Inactive, no price, or no main image.' });
+      tip: 'Children with an "Error: fix first" — a rule set to Critical in Listing Rules (recommended: Amazon reports an error, suppressed from search, stock but Inactive, no price, main image missing, fewer than 6 pictures, A+ missing).' });
     defs.push({ k: 'action', t: 'Needs Action', num: 1, cell: cnt({ k: 'action', c: 'sev-a' }),
-      tip: 'A+ missing, under 6 images, under 5 bullets, or a size in the title not written "14 x 36 Inch" / written larger-first.' });
+      tip: 'Children whose worst finding is a rule set to Attention in Listing Rules — shown as "Needs attention" in the problem lists.' });
     defs.push({ k: 'review', t: 'Needs Review', num: 1, cell: cnt({ k: 'review', c: 'sev-r' }),
-      tip: '6–7 images when 8 is ideal, a thin or missing description, or a title outside 80–200 characters.' });
+      tip: 'Children whose worst finding is a rule set to Review in Listing Rules — also shown as "Needs attention" in the problem lists.' });
     /* ONE COLUMN, NOT TWO (2026-10-05, Ravi: "healthy or health only 1 column rakho"): the Health score stays; the count
      * of clean children is on the brand card above. */
     ['Amazon', 'Title', 'Size', 'Variation', 'Images', 'Content'].forEach(area => defs.push({ k: 'parea' + area, t: area, noTotal: 1,
@@ -710,9 +732,9 @@ function renderHealth() {
     // Why: every problem as one block — what is wrong, how to fix it in plain words, whose rule it is, and Fix — the same look
     // the Workspace gives it (lrProblemHtml in listing-rules.js). Sorting and the CSV still use the one-line text.
     defs.push({ k: 'issues', t: 'Why', map: reasonText,
-      cell: row => (row._h.found.length ? `<div class="lr-probs">${lrProblemsHtml(row._h.found, { brand: row.brand, sku: row.sku })}</div>`
+      cell: row => (row._h.found.length || row._h.notes.length ? `<div class="lr-probs">${lrProblemsHtml(row._h.found, { brand: row.brand, sku: row.sku })}${lrNotesHtml(row._h.notes)}</div>`
         : `<span class="muted">${row.content ? 'No problem' : 'Content not checked'}</span>`),
-      tip: 'What is wrong, how to fix it, and whose rule it is. Fix opens the Image Manager for pictures and Listing Errors for everything else.' });
+      tip: 'What is wrong (Error: fix first, or Needs attention), how to fix it, and whose rule it is. Fix opens the Image Manager for pictures and Listing Errors for everything else; Check now reads a listing from Amazon when an Error rests on old data.' });
     defs.push({ k: 'suggest', t: '', noTotal: 1, map: () => '',
       cell: row => (row._h.found.some(found => found.area === 'Title' || found.area === 'Size' || found.area === 'Variation') && lrTemplateFor(row, LR || LR_DEFAULT))
         ? `<button class="ghost" data-hsug="${lrEsc(row.brand)}|${lrEsc(row.sku)}" style="padding:2px 8px;font-size:12px;white-space:nowrap">Suggest title</button>` : '' });
