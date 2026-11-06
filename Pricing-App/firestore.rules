@@ -117,6 +117,13 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // THE SWITCHES THE ERP READS AT LOGIN (Step 0 data meter: field dataMeter). Anyone with a perms record may
+    // read; nobody writes from the app. Matches are OR'd, so this only adds to config/{doc} above (canAny).
+    match /config/flags {
+      allow read: if hasPerms() || isOwner();
+      allow write: if false;
+    }
+
     // Costing rates — readable by anyone with app access, writable by the costing tab or an admin.
     match /settings/{doc} {
       allow read: if canAny() || can('audit');

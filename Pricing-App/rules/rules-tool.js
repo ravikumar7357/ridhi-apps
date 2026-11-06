@@ -149,7 +149,9 @@ const NODES = ['pt_perms', 'pt_payoutFreezes', 'pt_printerRates', 'pt_rateList',
   'pt_masters/ruffleRule', 'pt_masters/recipe', 'pt_masters/zz_someOtherList', 'pt_vendorByEmail', 'pt_loginDir',
   'pt_vendorMap', 'pt_vendorPin', 'pt_baseData', 'pt_orderBook', 'pt_salesOrders', 'pt_accLedger', 'zz_unnamedNode',
   /* delta sync (2026-10-09): staff write the change register, like the registers themselves */
-  'pt_sync/pt_orderBook', 'pt_sync/pt_masterDB', 'pt_sync/_reset'];
+  'pt_sync/pt_orderBook', 'pt_sync/pt_masterDB', 'pt_sync/_reset',
+  /* data meter: somebody else's daily line (each person's own line is added per person in check()) */
+  'pt_dataMeter/2026-01-01/zz_someoneelse'];
 /* Filled in by check(): the path of a rate that is APPROVED today, so that "may somebody without the
  * right touch an approved rate" is asked of a real one. */
 let APPROVED_ROW = '';
@@ -159,6 +161,8 @@ function expectWrite(who, node, mode) {
   if (who.kind === 'vendor') return node === 'pt_vendorOrders/' + who.code || node === 'pt_rfdStock/' + who.code;
   /* PHASE 3: signed in is not enough. Anybody can sign themselves up; only rights on record make staff. */
   if ((mode === 'p3' || mode === 'p4') && !who.p) return false;
+  /* DATA METER: staff write only the line keyed by their own email; a vendor, a stranger or somebody else's key: no. */
+  if (node.indexOf('pt_dataMeter/') === 0) return !!who.p && node.split('/')[2] === emailKey(who.email);
   // staff write every vendor branch of both vendor-keyed nodes
   if (node.indexOf('pt_vendorOrders/') === 0 || node.indexOf('pt_rfdStock/') === 0) return true;
   if (mode === 'p0') return true;                                    // before any of this: any staff, anything
@@ -208,6 +212,7 @@ async function check(mode) {
       if (w.other) nodes.push('pt_vendorOrders/' + w.other, 'pt_rfdStock/' + w.other);
     } else nodes.push('pt_vendorOrders/' + vbe[v1].code, 'pt_rfdStock/' + vbe[v1].code);
     if (APPROVED_ROW) nodes.push(APPROVED_ROW);
+    if (w.kind === 'staff') nodes.push('pt_dataMeter/2026-01-01/' + emailKey(w.email));   // their own daily line
     nodes.forEach(n => jobs.push({ w, n, as, what: 'write', want: expectWrite(w, n, mode) }));
     /* And reading: staff read everything, a vendor reads its own branch only, nobody reads nothing. */
     if (mode === 'p4') {
@@ -219,6 +224,8 @@ async function check(mode) {
       jobs.push({ w, n: 'pt_printerRates', as, what: 'read', want: w.kind === 'staff' && !(mode === 'p3' && !w.p) });
       jobs.push({ w, n: 'pt_empList', as, what: 'read', want: w.kind === 'staff' && !(mode === 'p3' && !w.p) });
     }
+    /* Data meter lines are read by admins only. */
+    jobs.push({ w, n: 'pt_dataMeter', as, what: 'read', want: w.kind === 'staff' && !!w.p && !!w.p.admin });
     if (w.kind === 'vendor') jobs.push({ w, n: 'pt_vendorOrders/' + w.code, as, what: 'read', want: true });
   });
 

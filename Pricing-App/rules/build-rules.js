@@ -132,6 +132,27 @@ const rules = {
     Object.fromEntries(SYNC_NODES.map(n => [n, { '.read': readExpr(n), '.write': STAFF, '.indexOn': ['.value'] }])),
     { _reset: { '.read': STAFF, '.write': STAFF } }),
 
+  /* THE DATA METER (Step 0): one daily line per person per device, at pt_dataMeter/<day>/<emailKey>/<deviceId>.
+   * Each member of staff writes only their own line (the key is their own email, as pt_perms is keyed);
+   * only an admin reads what everyone's lines say. The day must look like YYYY-MM-DD. Named here, above
+   * "$other", so it is not left open to every staff account. */
+  pt_dataMeter: {
+    '.read': any(ADMIN),
+    $day: {
+      '.validate': "$day.matches(/^\\d{4}-\\d{2}-\\d{2}$/)",
+      $emailKey: { '.write': `${STAFF} && $emailKey === ${KEY}` },
+    },
+  },
+
+  /* PENDING BADGES (Step 1): the app asks these four request lists for the rows with status 'pending' only, to show the red
+   * numbers at sign-in without downloading the whole list (Replenish-App core/pending-badges.js). That query needs an
+   * index on status. Who may read or write them does not change - the staff write they had is repeated here, as for the
+   * other indexed nodes, and each one still gets its read from NODES below. */
+  pt_vendorOrderReqs: staffIndexed(['status']),
+  pt_obDeleteReqs: staffIndexed(['status']),
+  pt_fgiCorrReqs: staffIndexed(['status']),
+  pt_jwCorrReqs: staffIndexed(['status']),
+
   $other: { '.read': any(ADMIN), '.write': STAFF },
 };
 
