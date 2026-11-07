@@ -58,6 +58,8 @@ interface ErpMeeraData {
   skuOrders(sku: string): { from: ErpMeeraFrom; sku?: string; lines?: { orderNo: string; qty: number; at: string }[] };
   /** every size of the same design (Master Database) */
   skuFamily(said: string): { from: ErpMeeraFrom; family?: string; skus: { sku: string; size: string; color: string }[] };
+  /** every SKU's article, type, colour, brand, size and fabric (Master Database) — for finding SKUs by those words */
+  skuList(): { from: ErpMeeraFrom; rows: { sku: string; articleType: string; subtype: string; color: string; brand: string; size: string; fabric: string }[] };
   /** Amazon FBA units, as Shopify Orders last read them */
   skuFba(sku: string): { from: ErpMeeraFrom; fba?: number | null };
   /** where it sells: Amazon by its ASIN, the rest from the orders seen */

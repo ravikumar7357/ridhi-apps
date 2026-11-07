@@ -199,6 +199,17 @@ ERP_MEERA.data = {
       .map(r => ({ sku: String(r.sku).toUpperCase(), size: r.size || '', color: r.color || '' })).slice(0, 40);
     return { from, family: key, skus };
   }, { from: { tab: 'pmdb', notLoaded: true }, skus: [] }),
+  /** EVERY SKU's OWN WORDS IN THE MASTER DATABASE (Ravi, 7 Nov: "the sku of table cloth that comes under Appetite Green"):
+   * article, type, colour, brand, size and fabric — what she finds SKUs by. Never the cost value or the maker. A SKU
+   * merged into another is left out: it is not made any more. */
+  skuList: () => meeraSafe(() => {
+    const from = mdFrom('pmdb', typeof PTG !== 'undefined' && Array.isArray(PTG.mdb), typeof PTG !== 'undefined' ? mdTime(PTG.at) : '');
+    if (from.denied || from.notLoaded) return { from, rows: [] };
+    const t = v => String(v == null ? '' : v).trim();
+    const rows = (PTG.mdb || []).filter(r => r && r.sku && !t(r.mergedInto))
+      .map(r => ({ sku: String(r.sku).toUpperCase(), articleType: t(r.articleType), subtype: t(r.subtype), color: t(r.color), brand: t(r.brand), size: t(r.size), fabric: t(r.fabric) }));
+    return { from, rows };
+  }, { from: { tab: 'pmdb', notLoaded: true }, rows: [] }),
   /** Amazon FBA units of a SKU, as Shopify Orders last read them (both accounts, the larger) */
   skuFba: sku => meeraSafe(() => {
     const from = mdFrom('shop', typeof SHOP_STOCK_LOADED !== 'undefined' && SHOP_STOCK_LOADED, typeof SHOP !== 'undefined' ? SHOP.at : '');

@@ -196,6 +196,45 @@ add('none', '', ['karigar ko kaam kaise de', 'Raju Kumar ko maal kaise issue kar
   }
   { const a = plain(await chat('qc check kaise kare')); ok(!/Filter order/.test(a), '"qc check" still means QC: ' + a.slice(0, 80)); }
 
+  console.log('11. SKUs found by their master words (Ravi, 7 Nov: "what are the sku of table cloth that comes under apettite green")');
+  install(M);
+  /* made-up rows for this part only: tablecloths and a napkin in a two-word colour, a CPC quilt, and an old SKU merged into another */
+  const EXTRA = [
+    { sku: 'RTC501-6060', brand: 'Ridhi', articleType: 'Tablecloth', subtype: 'Square Tablecloth', color: 'Appetite Green', size: '60x60', fabric: 'Cotton', inventoryValuationPrice: 310, manufacturer: 'Shree Ganesh Textiles' },
+    { sku: 'RTC501-6090', brand: 'Ridhi', articleType: 'Tablecloth', subtype: 'Rectangle Tablecloth', color: 'Appetite Green', size: '60x90', fabric: 'Cotton' },
+    { sku: 'RTC502-6060', brand: 'Ridhi', articleType: 'Tablecloth', subtype: 'Square Tablecloth', color: 'Ocean Blue', size: '60x60', fabric: 'Cotton' },
+    { sku: 'RNP501-20', brand: 'Ridhi', articleType: 'Napkin', subtype: 'Border Napkin', color: 'Appetite Green', size: '20x20', fabric: 'Cotton' },
+    { sku: 'CQL900-Q', brand: 'CPC', articleType: 'Quilt', subtype: 'Twin Quilt', color: 'Beige', size: '60x90', fabric: 'Mulmul' },
+    { sku: 'RTC499-6060', brand: 'Ridhi', articleType: 'Tablecloth', color: 'Appetite Green', size: '60x60', mergedInto: 'RTC501-6060' }];
+  const addExtra = () => { M.ctx.PTG.mdb.push(...EXTRA.map(r => Object.assign({}, r))); return T('ERP_MEERA.data.skus().length'); };
+  ok(addExtra() === RAW.SKUS.length + EXTRA.length, 'the made-up rows are in the master Meera reads');
+  const find = (q, skus, also) => {
+    const c = card(q), got = [...String(T('(meeraDataTry(' + JSON.stringify(q) + ') || {}).html') || '').matchAll(/data-gq="([^"]+)"/g)].map(m => m[1]);
+    ok(c.kind === 'skufind' && got.length === skus.length && skus.every(s => got.includes(s)) && (!also || also.test(c.t)), `"${q}" → ${c.kind}: ${got.join(', ')} | ${c.t.slice(0, 160)}`);
+    return c;
+  };
+  { const c = find('what are the sku of table cloth that comes under apettite green', ['RTC501-6060', 'RTC501-6090'], /I read “apettite green” as Appetite Green/);
+    ok(!/RTC499|RNP501|RTC502/.test(c.t), 'not the napkin, not another colour, not the merged SKU');
+    ok(c.t.includes('60x60') && c.t.includes('60x90'), 'each SKU with its size');
+    ok(!/310|Shree Ganesh/.test(c.t), 'never the cost value or the maker');
+    ok(c.acts.includes('pmdb|'), 'a button to the Master Database'); }
+  find('appetite green tablecloth ki sku batao', ['RTC501-6060', 'RTC501-6090']);
+  find('Appetite Green ki saari SKU', ['RTC501-6060', 'RTC501-6090', 'RNP501-20']);
+  find('tablecloths in appetite green', ['RTC501-6060', 'RTC501-6090']);
+  find('CPC ke 60x90 quilt', ['CQL900-Q']);
+  find('cpc quilt 60*90 ki sku', ['CQL900-Q']);
+  find('square tablecloth 60x60 sku', ['RTC501-6060', 'RTC502-6060']);
+  find('ocean blue ya appetite green tablecloth sku', ['RTC501-6060', 'RTC501-6090', 'RTC502-6060']);
+  { const c = card('napkin ocean blue sku'); ok(c.kind === 'skufind' && /No SKU in the Master Database is/.test(c.t) && /Ocean Blue: 1/.test(c.t), 'none: she says so, and how many each word has alone — ' + c.t.slice(0, 160)); }
+  { const c = card('RTC501-6060'); ok(c.kind === 'skucard', 'a SKU pressed from the list opens its card'); }
+  for (const q of ['tablecloth kya hota hai', 'how to add a tablecloth in master', 'what is colour column', 'appetite green', 'stock is showing -12 in red for one sku', 'ridhi aur cpc alag alag brand h kya'])
+    ok(card(q).kind !== 'skufind', '"' + q + '" is not a search for SKUs');
+  install(M, { tabs: ['qc'] }); addExtra();
+  { const c = card('appetite green ki sku batao'); ok(c.kind === 'skufind' && /Your account does not have this screen|Aapke account mein yeh screen nahi hai/.test(c.t) && !/RTC|RNP/.test(c.t), 'no Master Database in the account: no SKU at all'); }
+  install(M, { missing: ['pmdb'] });
+  { const c = card('appetite green ki sku batao'); ok(c.kind === 'skufind' && /not been opened yet|abhi nahi khuli|अभी नहीं खुली/.test(c.t), 'Master Database not read yet: she says so'); ok(!M.ctx.__touched.length, 'and reads nothing'); }
+  install(M);
+
   console.log('6. switch off');
   { const N = await load({ root: ROOT, bundle: true, handle: true, switches: ['lazy'], only: true }); install(N);
     ok((await N.ctx.__meeraTest('meeraDataAsk("Imran Ali ke paas kitne piece hain")')) === false, 'with "data" off she does not take it'); }
