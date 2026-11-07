@@ -72,7 +72,7 @@ function otkRender() {
   const box = $('ordTicker');
   if (!box) return;
   if (!otkAllowed()) { box.classList.add('hide'); return; }
-  if (!PTG.ob) {
+  if (!ptHas(PTG_ALL)) {
     if (!otkPlainOn()) { box.classList.add('hide'); return; }
     if (OTK.sig !== OTK_PLAIN) { OTK.sig = OTK_PLAIN; box.innerHTML = OTK_PLAIN; }
     box.classList.remove('hide');
@@ -88,7 +88,7 @@ function otkRender() {
   box.classList.remove('hide');
 }
 function otkTick() {
-  if (otkAllowed() && !PTG.ob && !OTK.asked && !otkPlainOn() && typeof ptLoadGates === 'function') { OTK.asked = true; ptLoadGates(false, true).then(otkRender, () => {}); }
+  if (otkAllowed() && !ptHas(PTG_ALL) && !OTK.asked && !otkPlainOn() && typeof ptNeed === 'function') { OTK.asked = true; ptNeed(PTG_ALL, { light: true, why: 'order strip' }).then(otkRender, () => {}); }
   otkRender();
 }
 /* Not in the test harnesses, which have no real page. */

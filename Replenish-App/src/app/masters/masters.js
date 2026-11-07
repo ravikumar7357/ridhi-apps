@@ -78,7 +78,7 @@ $('mstTable').addEventListener('change', async e => {
 });
 
 async function ensureMst() {
-  if (!PTG.masters) { MST.busy = true; renderMst(); await ptLoadGates(); MST.busy = false; MST.at = ptStamp(); }
+  if (ptLack(PTG_ALL, 'masters')) { MST.busy = true; renderMst(); await ptNeed(PTG_ALL, { why: 'masters', has: 'masters' }); MST.busy = false; MST.at = ptStamp(); }
   renderMst();
 }
 

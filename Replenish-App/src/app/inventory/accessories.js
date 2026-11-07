@@ -35,7 +35,7 @@ let ACC = { items: null, ledger: null, err: '', busy: false, at: '', shown: [] }
 async function ensureAcc() {
   if (ACC.items === null) {
     ACC.busy = true; renderAcc();
-    if (!PTG.masters) await ptLoadGates();
+    await ptNeed(PTG_ALL, { why: 'accessories', has: 'masters' });
     try {
       ACC.items = ptList((PTG.masters || {}).accessories);
       ACC.ledger = ptList(await ptGet('pt_accLedger'));

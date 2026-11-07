@@ -19,7 +19,7 @@ let REP = { view: 'wpr', busy: false, at: '' };
 async function ensureRep() {
   /* PT.base as well as the press: the week-on-week report is built on receipts now, and opening the
    * tab straight onto it would otherwise show an empty report rather than a loading one. */
-  if (!PTG.mdb || !PTG.press || !PT.base) { REP.busy = true; renderRep(); await ptLoadGates(); REP.busy = false; REP.at = ptStamp(); }
+  if (ptLack(PTG_ALL, ['mdb', 'press', 'base'])) { REP.busy = true; renderRep(); await ptNeed(PTG_ALL, { why: 'rep' }); REP.busy = false; REP.at = ptStamp(); }
   if (FGI.rows === null && $('repView').value === 'fgval') { try { FGI.rows = ptList(await ptGet('pt_fgiLedger')); } catch (e) { FGI.rows = []; } }
   if (REP_HEADS === null) { try { REP_HEADS = (await ptGet('pt_contractorHeads')) || {}; } catch (e) { REP_HEADS = {}; } }
   renderRep();

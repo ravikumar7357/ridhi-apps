@@ -243,8 +243,10 @@ onAuthStateChanged(auth, async user => {
         if (typeof pbSaveFlag === 'function') pbSaveFlag(!!d && (d.pendingBadges === true || d.pendingBadges === 1 || d.pendingBadges === '1' || d.pendingBadges === 'on'));
         /* ...and the order strip's plain-line switch (orders/order-ticker.js), also from the next page load. */
         if (typeof otkSaveFlag === 'function') otkSaveFlag(!!d && (d.tickerPlain === true || d.tickerPlain === 1 || d.tickerPlain === '1' || d.tickerPlain === 'on'));
+        /* ...and the page registers switch (core/gates.js), also from the next page load. */
+        if (typeof prSaveFlag === 'function') prSaveFlag(!!d && (d.pageRegisters === true || d.pageRegisters === 1 || d.pageRegisters === '1' || d.pageRegisters === 'on'));
       })
-        .catch(() => { dmSaveFlag(false, dmKind); if (typeof pbSaveFlag === 'function') pbSaveFlag(false); if (typeof otkSaveFlag === 'function') otkSaveFlag(false); });
+        .catch(() => { dmSaveFlag(false, dmKind); if (typeof pbSaveFlag === 'function') pbSaveFlag(false); if (typeof otkSaveFlag === 'function') otkSaveFlag(false); if (typeof prSaveFlag === 'function') prSaveFlag(false); });
     }
     if (typeof dmStart === 'function') dmStart();
   } catch (e) { console.warn('[data meter]', e); }

@@ -26,7 +26,7 @@ let FAB_AUTO = { err: '', start: '' };
 async function fabAutoLoad() {
   const errs = [];
   /* The sizes offered in "RFD to cutting", and the widths the consumption is worked out on. */
-  if (!PTG.mdb) { try { await ptLoadGates(); } catch (e) { /* the dialog says so if it cannot work metres out */ } }
+  try { await ptNeed(PTG_ALL, { why: 'rfd-stock-auto', has: 'mdb' }); } catch (e) { /* the dialog says so if it cannot work metres out */ }
   if (typeof RFD !== 'undefined' && RFD.decisions === null) {
     try { RFD.decisions = (await ptGet('pt_rfdDecisions')) || {}; }
     catch (e) { errs.push('the RFD office (' + (e.message || e) + ')'); }

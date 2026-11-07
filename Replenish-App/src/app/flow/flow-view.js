@@ -23,7 +23,7 @@ async function flowReads(parts) {
 /** Everything the lines are worked out from — also read by the Finished Goods screen's "From QC — to accept". */
 async function flowEnsureData() {
   const errs = [];
-  if (!PTG.mdb) errs.push(...await flowReads([['the order book and registers', ptLoadGates()]]));
+  if (ptLack(PTG_ALL, 'mdb')) errs.push(...await flowReads([['the order book and registers', ptNeed(PTG_ALL, { why: 'flow' })]]));
   /* Printer Allocation too: PPC's printer is suggested from it. */
   /* The store too: the printed stock PPC sees beside the RFD balance (Store Stock Balance; its Job Work and cutting
    * registers are the ones the order book has already read). */

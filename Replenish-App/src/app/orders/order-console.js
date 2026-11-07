@@ -30,7 +30,7 @@ function ordMoreBtn(n) {
 }
 
 async function ensureOrd() {
-  if (!PTG.mdb) { ORD.busy = true; renderOrd(); await ptLoadGates(); }
+  if (ptLack(PTG_ALL, 'mdb')) { ORD.busy = true; renderOrd(); await ptNeed(PTG_ALL, { why: 'ord', has: 'mdb' }); }
   if (!PTE.emp) await ptLoadEmp();
   if (QC.checks === null) { try { QC.checks = ptList(await ptGet('pt_qcChecks')); QC.issue = ptList(await ptGet('pt_qcIssuance')); } catch (e) { QC.checks = QC.checks || []; QC.issue = QC.issue || []; } }
   // The per-SKU override that can flip "does this need cutting" for one code. It has never been

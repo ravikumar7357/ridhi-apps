@@ -5744,8 +5744,10 @@ onAuthStateChanged(auth, async user => {
         if (typeof pbSaveFlag === 'function') pbSaveFlag(!!d && (d.pendingBadges === true || d.pendingBadges === 1 || d.pendingBadges === '1' || d.pendingBadges === 'on'));
         /* ...and the order strip's plain-line switch (orders/order-ticker.js), also from the next page load. */
         if (typeof otkSaveFlag === 'function') otkSaveFlag(!!d && (d.tickerPlain === true || d.tickerPlain === 1 || d.tickerPlain === '1' || d.tickerPlain === 'on'));
+        /* ...and the page registers switch (core/gates.js), also from the next page load. */
+        if (typeof prSaveFlag === 'function') prSaveFlag(!!d && (d.pageRegisters === true || d.pageRegisters === 1 || d.pageRegisters === '1' || d.pageRegisters === 'on'));
       })
-        .catch(() => { dmSaveFlag(false, dmKind); if (typeof pbSaveFlag === 'function') pbSaveFlag(false); if (typeof otkSaveFlag === 'function') otkSaveFlag(false); });
+        .catch(() => { dmSaveFlag(false, dmKind); if (typeof pbSaveFlag === 'function') pbSaveFlag(false); if (typeof otkSaveFlag === 'function') otkSaveFlag(false); if (typeof prSaveFlag === 'function') prSaveFlag(false); });
     }
     if (typeof dmStart === 'function') dmStart();
   } catch (e) { console.warn('[data meter]', e); }
@@ -9990,7 +9992,7 @@ async function ensureShopify() {
   renderShopify();
   /* The master list names the SKUs (Ravi, 2026-09-29: "i have updated my masterdata please check and fill the blank
    * data"); when it is not in hand yet the table is drawn again once it is. */
-  if (!PTG.mdb && typeof ptLoadGates === 'function') { try { await ptLoadGates(); renderShopify(); } catch (e) { /* the snapshot names stay */ } }
+  if (ptLack(PTG_ALL, 'mdb') && typeof ptNeed === 'function') { try { await ptNeed(PTG_ALL, { why: 'shopify stock', has: 'mdb' }); renderShopify(); } catch (e) { /* the snapshot names stay */ } }
 }
 async function loadShopify() {
   const store = shStore();
@@ -10187,7 +10189,7 @@ async function shOpenSo() {
   const lines = picked.filter(r => r.need > 0).map(r => ({ sku: obUC(r.sku), qty: r.need, deliveryDate: '', orderTypeKey: 'regular', priority: '' }));
   const skipped = picked.length - lines.length;
   if (!lines.length) return shMsg('None of the ticked SKUs has anything to send.', true);
-  if (!PTG.masters || !PTG.mdb) await ptLoadGates();
+  await ptNeed(PTG_ALL, { why: 'shopify stock', has: ['masters', 'mdb'] });
   if (SOX.rows === null) { try { SOX.rows = ptList(await ptGet('pt_salesOrders')); } catch (e) { SOX.rows = SOX.rows || []; } }
   soFormOpen();
   const cpc = shStore() === 'CPC', chans = soChannels();
@@ -10562,7 +10564,7 @@ let INPROD_ROWS = [], INPROD_AT = null, INPROD_LOADED = false, PD_LAST = [], INP
 async function loadInProd() {
   INPROD_ROWS = []; INPROD_AT = null; INPROD_ERR = '';
   try {
-    if (!PTG.mdb) await ptLoadGates();
+    await ptNeed(PTG_ALL, { why: 'in-production', has: 'mdb' });
     if (PTG.err) throw new Error(PTG.err);
     if (SOX.rows === null) SOX.rows = ptList(await ptGet('pt_salesOrders'));
     INPROD_ROWS = ordProdRows();
@@ -14664,9 +14666,9 @@ async function baseAutoMove(now) {
 /* ---------------- Master Database ---------------- */
 
 async function ensurePmdb() {
-  if (!PTG.mdb) {
+  if (ptLack(PTG_ALL, 'mdb')) {
     PT.busy.mdb = true; renderPmdb();
-    await ptLoadGates();
+    await ptNeed(PTG_ALL, { why: 'pmdb', has: 'mdb' });
     PT.busy.mdb = false; PT.err.mdb = PTG.err || ''; PT.at.mdb = ptStamp();
   }
   PT.mdb = PTG.mdb;      // one array, two names — the gates and this tab must never disagree
@@ -16417,7 +16419,63 @@ let PTG = { masters: null, mdb: null, ob: null, press: null, freeze: null, err: 
  * change rarely and are re-read on a background refresh only every half hour; Master DB's own Refresh reads them at once. */
 const PTG_STALE_MS = 10 * 60 * 1000;
 const PTG_MDB_STALE_MS = 30 * 60 * 1000;
-const ptGatesStale = () => !PTG.at || Date.now() - PTG.at > PTG_STALE_MS;
+
+/* ---- PAGE REGISTERS (Step 3 of docs/data-reduction/PLAN.md; plan in STEP3-PLAN.md) ----
+ * A screen asks for the registers it needs by SET: the master set (masters + master database, ~2.2 MB) or the whole set
+ * (all nine, ~11 MB). Every screen asks for the whole set for now, so the switch changes nothing yet.
+ *   - Switch: localStorage pageRegisters '0' = off on this device whatever the flag says, '1' = on, otherwise the last
+ *     answer of the Firestore flag config/flags.pageRegisters (read in the same single read core/auth.js already makes,
+ *     kept in prFlagLast for the NEXT page load). Off by default. Always off for vendors.
+ *   - Switch OFF: ptNeed is ptLoadGates exactly as before — the same nine reads in the same order. */
+const PTG_REGS = ['masters', 'mdb', 'ob', 'press', 'freeze', 'cut', 'base', 'shopProd', 'qc'];
+const PTG_MASTER = ['masters', 'mdb'];
+const PTG_ALL = PTG_REGS.slice();
+/* When each register was read. Written by the loader below and nowhere else. */
+const PTG_AT = {};
+/* The read of each register that is under way — a second ask for the same register waits for it instead of reading again. */
+const PTG_FLY = {};
+let PTG_IMG_DONE = false;
+
+/** On or off. Cheap: a couple of storage reads, no network. */
+function prOn() {
+  try {
+    const s = localStorage.getItem('pageRegisters');
+    if (s === '0') return false;
+    if (typeof AUDIT === 'undefined' || !AUDIT.on) return false;
+    if (typeof spIsVendor === 'function' && spIsVendor()) return false;
+    if (s === '1') return true;
+    return localStorage.getItem('prFlagLast') === '1';
+  } catch (e) { return false; }
+}
+/** Keep the flag's last answer for the next page load. */
+function prSaveFlag(on) {
+  try { if (on) localStorage.setItem('prFlagLast', '1'); else localStorage.removeItem('prFlagLast'); } catch (e) { /* no storage: stays off */ }
+}
+
+/** Where a register's value lives: Job Work + cutting and the base data sit on PT, the rest on PTG. */
+const ptRegVal = r => (r === 'cut' ? PT.cut : r === 'base' ? PT.base : PTG[r]);
+/** A register counts as loaded when the loader stamped it AND its value is still there (Master DB Refresh clears values). */
+const ptRegLoaded = r => !!PTG_AT[r] && ptRegVal(r) != null;
+const ptRegLimit = (r, light) => (light && (r === 'masters' || r === 'mdb') ? PTG_MDB_STALE_MS : PTG_STALE_MS);
+
+/** True when every register in the set is loaded. Switch off: the order book is there, as before. */
+function ptHas(set) {
+  if (!prOn()) return !!PTG.ob;
+  return (set || PTG_ALL).every(ptRegLoaded);
+}
+/** True when something in the set is missing. Switch off, "missing" means the fields the caller used to test (has: 'mdb' or
+ *  ['mdb', 'press', 'base']), so a screen that tested one field still tests that one. */
+function ptLack(set, has) {
+  if (prOn()) return !ptHas(set);
+  return !(Array.isArray(has) ? has : [has || 'mdb']).every(h => !!ptRegVal(h));
+}
+/** The refusal a save gives when the registers it reads from are not all in yet (switch on only); '' otherwise. */
+const ptStillReading = () => (prOn() && !ptHas(PTG_ALL) ? 'Still reading the order book, try again in a moment.' : '');
+
+function ptGatesStale(set, light) {
+  if (!prOn()) return !PTG.at || Date.now() - PTG.at > PTG_STALE_MS;
+  return (set || PTG_ALL).some(r => !ptRegLoaded(r) || Date.now() - PTG_AT[r] > ptRegLimit(r, light));
+}
 
 /** Re-read the order book, master and registers if they are old. Opening a screen is the moment to
  *  find out what the rest of the floor has done. */
@@ -16430,7 +16488,15 @@ async function ptGatesFresh() {
  * minutes sit blank for seconds. The screen draws from what is in memory; when the fresh copy lands it redraws, and
  * only if it is still the screen being looked at. The very first open still waits, because there is nothing to draw.
  */
-function ptOpenFresh(tab, ensure) {
+function ptOpenFresh(tab, ensure, set) {
+  if (prOn()) {
+    /* A screen that names no set wants the whole set. */
+    const want = set || PTG_ALL;
+    if (!ptHas(want) || !ptGatesStale(want, true)) return ensure();
+    ensure();
+    ptNeed(want, { force: true, light: true, why: tab }).then(() => { if (TAB_NOW === tab) ensure(); }).catch(() => { /* the screen already shows what it had */ });
+    return;
+  }
   const stale = ptGatesStale();
   if (!PTG.mdb || !stale) return ensure();
   ensure();
@@ -16440,6 +16506,8 @@ function ptOpenFresh(tab, ensure) {
 /* A READ ALREADY UNDER WAY IS WAITED FOR, not skipped (2026-09-25). Returning at once let the Master Database —
  * and any screen that awaited this — carry on with nothing loaded yet and say the database was empty. */
 function ptLoadGates(force, light) {
+  /* Switch on: any caller that has not been given a set yet still gets everything. */
+  if (prOn()) return ptNeedRun(PTG_ALL, !!force, !!light);
   if (PTG.busy && PTG.loading) return PTG.loading;
   if (PTG.mdb && !force) return Promise.resolve();
   PTG.loading = ptLoadGatesRun(light);
@@ -16485,6 +16553,68 @@ async function ptLoadGatesRun(light) {
   PTG.at = Date.now();
   /* Delta sync, phase 2: once a page session, the background comparison (core/delta-sync.js). Changes nothing here. */
   if (!PTG.err && typeof deltaShadowSoon === 'function') deltaShadowSoon();
+}
+
+/**
+ * ASK FOR A SET OF REGISTERS. opt: { force, light, why, has, note }.
+ *   Switch off: exactly ptLoadGates(force, light) — has (the field a caller used to test, or a list of them) keeps the old
+ *   "only when it is not there" test, note (a message shown while reading) is shown only when a read is going to happen.
+ *   Switch on: reads only the registers of the set that are missing (force: those over ten minutes old, or over thirty
+ *   for the master on a light refresh; force without light: all of them), in parallel, one read per register at a time.
+ * Never rejects: a register that fails stays unloaded, the others still land, PTG.err says what went wrong.
+ */
+function ptNeed(set, opt) {
+  const o = typeof opt === 'string' ? { why: opt } : (opt || {});
+  if (!prOn()) {
+    if (!o.force && o.has !== undefined && !ptLack(set, o.has)) return Promise.resolve();
+    if (typeof o.note === 'function') o.note();
+    return ptLoadGates(o.force, o.light);
+  }
+  const want = set || PTG_ALL;
+  if (typeof o.note === 'function' && (o.force || !ptHas(want))) o.note();
+  return ptNeedRun(want, !!o.force, !!o.light);
+}
+
+/** One register's read, stored the way ptLoadGatesRun stores it. */
+async function ptReadReg(r) {
+  switch (r) {
+    case 'masters': PTG.masters = (await ptGet('pt_masters')) || {}; PTG.recipeAt = Date.now(); ptMasterLanded(); break;
+    case 'mdb':
+      PTG.mdb = ptList(await ptGet('pt_masterDB')).map(mdbYnFix); PTG.mdbAt = Date.now(); ptMasterLanded();
+      /* The pictures already looked up: read once, with the first load that includes the master database. */
+      if (!PTG_IMG_DONE) { PTG_IMG_DONE = true; try { await ptImgShared(); } catch (e) { /* pictures are a nicety, never a blocker */ } }
+      break;
+    case 'ob': PTG.ob = ptList(await ptGet('pt_orderBook')); break;
+    case 'press': PTG.press = ptList(await ptGet('pt_pressInventory')); break;
+    case 'freeze': PTG.freeze = (await ptGet('pt_cuttingFreezes')) || {}; break;
+    case 'cut': PT.cut = ptList(await ptGet('pt_cuttingData')); PT.at.cut = ptStamp(); break;
+    case 'base': PT.base = ptList(await ptGet('pt_baseData')); PT.at.base = ptStamp(); break;
+    case 'shopProd': PTG.shopProd = (await ptGet('pt_shopProd')) || {}; break;
+    /* QC checks have their own catch: an account that may not read them still gets the rest, and made falls back to the old press entries. */
+    case 'qc': { const q = await ptGet('pt_qcChecks').catch(() => null); PTG.qc = q ? ptList(q) : (PTG.qc || []); break; }
+  }
+}
+/** Replenishment shows the master's product details: put a fresh master on its rows once both halves are in. */
+function ptMasterLanded() {
+  if (PTG.masters && PTG.mdb && typeof replMasterSync === 'function') { try { replMasterSync(); } catch (e) { /* the snapshot's details stay */ } }
+}
+function ptNeedRun(set, force, light) {
+  const due = set.filter(r => !ptRegLoaded(r) || (force && (!light || Date.now() - PTG_AT[r] > ptRegLimit(r, true))));
+  if (!due.length) return Promise.resolve();
+  PTG.err = ''; PTG.busy = true;
+  const jobs = due.map(r => {
+    if (PTG_FLY[r]) return PTG_FLY[r];
+    const p = ptReadReg(r).then(() => { PTG_AT[r] = Date.now(); }, e => { PTG.err = e.message || String(e); }).then(() => { delete PTG_FLY[r]; });
+    PTG_FLY[r] = p;
+    return p;
+  });
+  return Promise.all(jobs).then(() => {
+    PTG.busy = Object.keys(PTG_FLY).length > 0;
+    /* PTG.at: when the oldest register was read, once all nine are in. */
+    PTG.at = PTG_REGS.every(ptRegLoaded) ? Math.min(...PTG_REGS.map(r => PTG_AT[r])) : 0;
+    /* Delta sync, phase 2: only once everything is loaded (core/delta-sync.js). Changes nothing here. */
+    if (!PTG.err && PTG.at && typeof deltaShadowSoon === 'function') deltaShadowSoon();
+  });
 }
 
 const obUC = s => String(s == null ? '' : s).trim().toUpperCase();
@@ -17360,7 +17490,7 @@ async function skuFillOpen() {
   if (!mdbCanEdit()) { $('ptmMsg').className = 'err'; $('ptmMsg').textContent = MDB_NO_EDIT; return; }
   $('ptmMsg').className = 'muted'; $('ptmMsg').textContent = 'Reading the Custom SKUs and the vendor orders…';
   try {
-    if (!PTG.mdb) await ptLoadGates();
+    await ptNeed(PTG_ALL, { why: 'lookups', has: 'mdb' });
     MDBX.custom = ptList(await ptGet('pt_customSkus'));
     VO.rows = null; await ensureVo();
   } catch (e) { $('ptmMsg').className = 'err'; $('ptmMsg').textContent = 'Could not read them: ' + (e.message || e); return; }
@@ -17509,6 +17639,8 @@ function obCutQty(orderNo, sku, exclId) {
 const obIsLegacy = no => /^LEG-/i.test(String(no || '').trim());
 const OB_LEGACY_SHUT = no => `${obUC(no)} is the legacy order — it only holds the pieces made before 15 Oct and takes no new cutting or issue. Pick the order these pieces are for.`;
 function cutGuard(orderNo, sku, qty, exclId, allowExtra) {
+  /* Page registers: a cutting entry is never checked against a half-read order book (switch on only; never reached with it off). */
+  if (prOn() && !ptHas(PTG_ALL)) return ptStillReading();
   if (obIsLegacy(orderNo) && !exclId) return OB_LEGACY_SHUT(orderNo);
   const ordered = obOrderedQty(orderNo, sku);
   if (!ordered) return `Order ${orderNo} has no line for SKU ${obUC(sku)} — pick the correct Order ID.`;
@@ -17761,7 +17893,7 @@ function cutFillFabrics() {
 }
 
 async function ensureCutForm() {
-  if (!PTG.mdb) { cutFormMsg('Reading the master database and the order book…'); await ptLoadGates(); }
+  await ptNeed(PTG_ALL, { why: 'pcut', has: 'mdb', note: () => cutFormMsg('Reading the master database and the order book…') });
   await ptEnsureCustom();
   if (PTG.err) { cutFormMsg('Could not read what the checks need: ' + PTG.err, true); return; }
   cutFormMsg('');
@@ -18136,6 +18268,8 @@ function ptZipCheck(sku, qty, zipsIssued) {
 
 /** The old tool's obGuard('bd'), number for number. */
 function bdGuard(orderNo, sku, qty, exclId, allowExtra) {
+  /* Page registers: an issue is never checked against a half-read order book (switch on only; never reached with it off). */
+  if (prOn() && !ptHas(PTG_ALL)) return ptStillReading();
   if (typeof obIsLegacy === 'function' && obIsLegacy(orderNo) && !exclId) return OB_LEGACY_SHUT(orderNo);
   const ordered = obOrderedQty(orderNo, sku);
   if (!ordered) return `Order ${orderNo} has no line for SKU ${obUC(sku)} — pick the correct Order ID.`;
@@ -18546,7 +18680,7 @@ const bdIssueDay = () => { const el = $('bwDate'); if (el.dataset.auto === '1' |
 if ($('bwDate')) $('bwDate').addEventListener('change', () => { $('bwDate').dataset.auto = ''; });
 
 async function ensureBdForm() {
-  if (!PTG.mdb) { bdFormMsg('Reading the master database and the order book…'); await ptLoadGates(); }
+  await ptNeed(PTG_ALL, { why: 'pbase', has: 'mdb', note: () => bdFormMsg('Reading the master database and the order book…') });
   await ptEnsureCustom();
   if (!PTE.emp) await ptLoadEmp();
   /* PPC's plans, so a line it sent straight to Job Work is issued without a cutting entry (bdGuard). Quiet when it fails. */
@@ -19811,7 +19945,7 @@ $('bdmDelete').onclick = async () => {
 let PP = { err: '', busy: false, at: '', freeze: null };
 
 async function ensurePpress() {
-  if (!PTG.mdb) { PP.busy = true; renderPpress(); await ptLoadGates(); PP.busy = false; }
+  if (ptLack(PTG_ALL, 'mdb')) { PP.busy = true; renderPpress(); await ptNeed(PTG_ALL, { why: 'ppress', has: 'mdb' }); PP.busy = false; }
   if (PP.freeze === null) { try { PP.freeze = (await ptGet('pt_pressFreezes')) || {}; } catch (e) { PP.freeze = {}; } }
   PP.at = ptStamp();
   renderPpress();
@@ -19999,7 +20133,7 @@ $('pwToggle').onclick = async () => {
   box.classList.toggle('hide', !open);
   $('pwToggle').textContent = open ? 'Close' : '+ New press entry';
   if (open) {
-    if (!PTG.mdb) { pressFormMsg('Reading the master database and the order book…'); await ptLoadGates(); }
+    await ptNeed(PTG_ALL, { why: 'ppress', has: 'mdb', note: () => pressFormMsg('Reading the master database and the order book…') });
     await ptEnsureCustom();
     if (!$('pwDate').value) $('pwDate').value = dToday();
     pressFormMsg('');
@@ -20407,9 +20541,9 @@ function cutEdit(id) {
 let QC = { checks: null, issue: null, ret: null, err: '', busy: false, at: '' };
 
 async function ensureQc() {
-  if (QC.checks === null || !PTG.mdb) {
+  if (QC.checks === null || ptLack(PTG_ALL, 'mdb')) {
     QC.busy = true; renderQc();
-    if (!PTG.mdb) await ptLoadGates();
+    await ptNeed(PTG_ALL, { why: 'quality-control', has: 'mdb' });
     if (!PTE.emp) await ptLoadEmp();
     try {
       const [c, i, t] = await Promise.all([ptGet('pt_qcChecks'), ptGet('pt_qcIssuance'), ptGet('pt_qcReturns')]);
@@ -20867,6 +21001,8 @@ $('qcwSave').onclick = async () => {
 
   /* AN ORDER, WHEREVER THERE IS ONE TO NAME. Every other register is keyed by order, and the Order
    * Console shows this figure as an order's own QC — a check with no order is invisible there. */
+  /* Page registers: a QC check is never saved against a half-read order book (switch on only; never reached with it off). */
+  if (prOn() && !ptHas(PTG_ALL)) return qcCheckMsg(ptStillReading(), true);
   const onOrders = qcOrdersFor(sku), ordTyped = obUC(($('qcwOrd') || {}).value);
   const waitOn = onOrders.filter(o => qcOrderAvail(o.orderNo, sku) > 0);
   /* A free inspection of pieces no order has received (the "any" source) may go on no order — it is shared out by SKU on the
@@ -21714,7 +21850,7 @@ $('ptmTplShort').onclick = () => {
 };
 
 $('ptmNew').onclick = async () => {
-  if (!PTG.mdb) { $('ptmMsg').textContent = 'Reading the master database…'; await ptLoadGates(); }
+  await ptNeed(PTG_ALL, { why: 'pmdb edit', has: 'mdb', note: () => { $('ptmMsg').textContent = 'Reading the master database…'; } });
   if (($('ptmView') || {}).value === 'fabric') return fsManualEdit('');
   mdbAddNew();
 };
@@ -22704,7 +22840,7 @@ function mdbRenamePreview() {
 const MDB_RENAME_MAX = 200;
 
 $('ptmRename').onclick = async () => {
-  if (!PTG.mdb) { $('ptmMsg').textContent = 'Reading the master database…'; await ptLoadGates(); }
+  await ptNeed(PTG_ALL, { why: 'custom skus', has: 'mdb', note: () => { $('ptmMsg').textContent = 'Reading the master database…'; } });
   MDBREN = { pairs: null, name: '' };
   ptOpenDialog({
     title: 'Change a SKU code',
@@ -22769,7 +22905,7 @@ $('ptmRename').onclick = async () => {
     if (!got.rows.length) { ptDlgMsg('That file has no rows under the header.', true); return; }
     ptDlgMsg('');
     /* The master database has to be in memory before the preview can count what moves. */
-    if (!PTG.mdb) await ptLoadGates();
+    await ptNeed(PTG_ALL, { why: 'custom-order-skus', has: 'mdb' });
     await mdbRenameLoadAll();
     MDBREN = { pairs: got.rows, name: f.name };
     const plan = mdbRenamePlan(got.rows);
@@ -23080,7 +23216,7 @@ function ordMoreBtn(n) {
 }
 
 async function ensureOrd() {
-  if (!PTG.mdb) { ORD.busy = true; renderOrd(); await ptLoadGates(); }
+  if (ptLack(PTG_ALL, 'mdb')) { ORD.busy = true; renderOrd(); await ptNeed(PTG_ALL, { why: 'ord', has: 'mdb' }); }
   if (!PTE.emp) await ptLoadEmp();
   if (QC.checks === null) { try { QC.checks = ptList(await ptGet('pt_qcChecks')); QC.issue = ptList(await ptGet('pt_qcIssuance')); } catch (e) { QC.checks = QC.checks || []; QC.issue = QC.issue || []; } }
   // The per-SKU override that can flip "does this need cutting" for one code. It has never been
@@ -29160,7 +29296,7 @@ function otkRender() {
   const box = $('ordTicker');
   if (!box) return;
   if (!otkAllowed()) { box.classList.add('hide'); return; }
-  if (!PTG.ob) {
+  if (!ptHas(PTG_ALL)) {
     if (!otkPlainOn()) { box.classList.add('hide'); return; }
     if (OTK.sig !== OTK_PLAIN) { OTK.sig = OTK_PLAIN; box.innerHTML = OTK_PLAIN; }
     box.classList.remove('hide');
@@ -29176,7 +29312,7 @@ function otkRender() {
   box.classList.remove('hide');
 }
 function otkTick() {
-  if (otkAllowed() && !PTG.ob && !OTK.asked && !otkPlainOn() && typeof ptLoadGates === 'function') { OTK.asked = true; ptLoadGates(false, true).then(otkRender, () => {}); }
+  if (otkAllowed() && !ptHas(PTG_ALL) && !OTK.asked && !otkPlainOn() && typeof ptNeed === 'function') { OTK.asked = true; ptNeed(PTG_ALL, { light: true, why: 'order strip' }).then(otkRender, () => {}); }
   otkRender();
 }
 /* Not in the test harnesses, which have no real page. */
@@ -33805,7 +33941,7 @@ async function flowReads(parts) {
 /** Everything the lines are worked out from — also read by the Finished Goods screen's "From QC — to accept". */
 async function flowEnsureData() {
   const errs = [];
-  if (!PTG.mdb) errs.push(...await flowReads([['the order book and registers', ptLoadGates()]]));
+  if (ptLack(PTG_ALL, 'mdb')) errs.push(...await flowReads([['the order book and registers', ptNeed(PTG_ALL, { why: 'flow' })]]));
   /* Printer Allocation too: PPC's printer is suggested from it. */
   /* The store too: the printed stock PPC sees beside the RFD balance (Store Stock Balance; its Job Work and cutting
    * registers are the ones the order book has already read). */
@@ -39401,7 +39537,7 @@ function gdSaveAll() {
 function gdLoad() {
   if (GD_READY) return GD_READY;
   GD_READY = (async function () {
-    try { if (typeof ptLoadGates === 'function' && !PTG.masters) await ptLoadGates(); } catch (e) { /* masters wait */ }
+    try { if (typeof ptNeed === 'function') await ptNeed(PTG_ALL, { why: 'gdesk', has: 'masters' }); } catch (e) { /* masters wait */ }
     try { if (typeof ensureGpo === 'function' && typeof GPO !== 'undefined' && GPO.rows == null) await ensureGpo(); } catch (e) { /* real POs wait */ }
     /* A READ THAT FAILED IS NOT AN EMPTY DESK (16 Oct). It used to be taken as one, and the empty desk was then WRITTEN
      * over the whole node — every greige PO and every movement gone because one read timed out. Now a failed read
@@ -39891,7 +40027,7 @@ async function ensureHr() {
     /* The printer rates are read against the vendor orders — the usage count and the pickers are
      * both built from them, and without them every rate would read as matching nothing. */
     if (VO.rows === null && !hrEmpOnly()) { try { await ensureVo(); } catch (e) { /* the rates still list */ } }
-    if (!PTG.mdb) { try { await ptLoadGates(); } catch (e) { /* a cut rate falls back to the line */ } }
+    try { await ptNeed(PTG_ALL, { why: 'finance-hr', has: 'mdb' }); } catch (e) { /* a cut rate falls back to the line */ }
   }
   renderHr();
 }
@@ -42469,7 +42605,7 @@ let FAB_AUTO = { err: '', start: '' };
 async function fabAutoLoad() {
   const errs = [];
   /* The sizes offered in "RFD to cutting", and the widths the consumption is worked out on. */
-  if (!PTG.mdb) { try { await ptLoadGates(); } catch (e) { /* the dialog says so if it cannot work metres out */ } }
+  try { await ptNeed(PTG_ALL, { why: 'rfd-stock-auto', has: 'mdb' }); } catch (e) { /* the dialog says so if it cannot work metres out */ }
   if (typeof RFD !== 'undefined' && RFD.decisions === null) {
     try { RFD.decisions = (await ptGet('pt_rfdDecisions')) || {}; }
     catch (e) { errs.push('the RFD office (' + (e.message || e) + ')'); }
@@ -44104,7 +44240,7 @@ let ACC = { items: null, ledger: null, err: '', busy: false, at: '', shown: [] }
 async function ensureAcc() {
   if (ACC.items === null) {
     ACC.busy = true; renderAcc();
-    if (!PTG.masters) await ptLoadGates();
+    await ptNeed(PTG_ALL, { why: 'accessories', has: 'masters' });
     try {
       ACC.items = ptList((PTG.masters || {}).accessories);
       ACC.ledger = ptList(await ptGet('pt_accLedger'));
@@ -44984,7 +45120,7 @@ let SOX = { rows: null, err: '', busy: false, at: '', shown: [] };
 async function ensureSox() {
   if (SOX.rows === null) {
     SOX.busy = true; renderSox();
-    if (!PTG.ob) await ptLoadGates();
+    await ptNeed(PTG_ALL, { why: 'sales-orders', has: 'ob' });
     try { SOX.rows = ptList(await ptGet('pt_salesOrders')); SOX.err = ''; }
     catch (e) { SOX.err = e.message || String(e); SOX.rows = SOX.rows || []; }
     await odrLoad(true);
@@ -47087,7 +47223,7 @@ async function ensureVlog() {
   /* THE MASTER NAMES THE CLOTH (Ravi, 2026-09-29: "tablecloth ki sizes ke liye bhi Fabric m² lagao"). A cut line's
    * square metres come from its SKU's master row, and this screen never loaded the master — so every tablecloth
    * showed a dash while running cloth, which needs no master, showed its figure. Read it, then draw again. */
-  if (!PTG.mdb) { try { await ptLoadGates(); renderVlog(); } catch (e) { /* the dashes stay */ } }
+  if (ptLack(PTG_ALL, 'mdb')) { try { await ptNeed(PTG_ALL, { why: 'vlog', has: 'mdb' }); renderVlog(); } catch (e) { /* the dashes stay */ } }
 }
 ['vlVendor', 'vlType', 'vlFrom', 'vlTo', 'vlState'].forEach(id => $(id).addEventListener('change', renderVlog));
 ptDebounce('vlQ', renderVlog);
@@ -48765,7 +48901,7 @@ let VOF = { kind: 'running', lines: [] };
 
 async function voFormOpen(mode) {
   if (VO.rows === null) await ensureVo();
-  if (!PTG.mdb) await ptLoadGates();
+  await ptNeed(PTG_ALL, { why: 'place-vendor-order', has: 'mdb' });
   if (SOX.rows === null) { try { SOX.rows = ptList(await ptGet('pt_salesOrders')); } catch (e) { SOX.rows = SOX.rows || []; } }
   /* REQUEST OR ORDER. Somebody who may approve places the order; everybody else asks for it, and
    * the same form builds the request so every check below applies to both. */
@@ -49611,7 +49747,7 @@ async function resSend() {
 
 async function resOpen() {
   if (VO.rows === null) await ensureVo();
-  if (!PTG.mdb) await ptLoadGates();
+  await ptNeed(PTG_ALL, { why: 'reserve', has: 'mdb' });
   if (SOX.rows === null) { try { SOX.rows = ptList(await ptGet('pt_salesOrders')); } catch (e) { SOX.rows = SOX.rows || []; } }
   RES_PICK.clear();
   ptOpenDialog({
@@ -49966,7 +50102,7 @@ async function voPlace(given) {
    * request or order alike, so one order never gets two printer orders. */
   if (FLOW_ON) {
     let fo = [];
-    try { if (!PTG.ob) await ptLoadGates(); fo = flowOwnedIn(voStampOrders(VOF.lines.map(l => Object.assign({}, l)), channel)); } catch (e) { fo = []; }
+    try { await ptNeed(PTG_ALL, { why: 'reserve', has: 'ob' }); fo = flowOwnedIn(voStampOrders(VOF.lines.map(l => Object.assign({}, l)), channel)); } catch (e) { fo = []; }
     if (fo.length) return 'Not placed — ' + flowOwnsMsg(fo, 'PPC raises its printer order in PPC · Production flow. Take those SKUs off this order.');
   }
   /* A REQUEST STOPS HERE — checked exactly as an order is, and stored where no vendor can read it. */
@@ -50004,7 +50140,7 @@ async function voPlace(given) {
   /* EVERY LINE SAYS WHICH SALES ORDERS IT IS FOR. The order book is needed to say it; if it cannot be
    * read the order is still placed — an unstamped line is shared out by rule, as every older one is —
    * because refusing to order cloth over a missing annotation would be the wrong way round. */
-  try { if (!PTG.ob) await ptLoadGates(); order.lines = voStampOrders(order.lines, channel); } catch (e) { /* placed unstamped */ }
+  try { await ptNeed(PTG_ALL, { why: 'reserve', has: 'ob' }); order.lines = voStampOrders(order.lines, channel); } catch (e) { /* placed unstamped */ }
 
   await ptPut('pt_vendorOrders/' + code + '/' + order.id, order);
   /* The vendor list the portal reads is a separate node, and it only gets written when the master
@@ -51680,7 +51816,7 @@ async function voSyncAccess() {
 $('voSync').onclick = async () => {
   if (!ME.admin) { $('voMsg').className = 'err'; $('voMsg').textContent = 'Only an admin can give a vendor portal access.'; return; }
   if (VO.rows === null) await ensureVo();
-  if (!PTG.masters) await ptLoadGates();
+  await ptNeed(PTG_ALL, { why: 'vendor-portal', has: 'masters' });
   /* This writes to the vendor list the portal reads, so it says what it will do before doing it —
    * and it must count the same vendors voSyncAccess will map, or it offers 6 and does 9. */
   const n = voAllVendors().filter(v => vpPhone(v.phone).length >= 10).length;
@@ -52479,7 +52615,7 @@ function vfNeeded(user) {
 }
 
 async function vmOpen() {
-  if (!PTG.masters) await ptLoadGates();
+  await ptNeed(PTG_ALL, { why: 'vendor-master', has: 'masters' });
   if (VO.rows === null) await ensureVo();
   /* EVERY vendor, not only the printers — a filling firm has an address and a phone like anybody
    * else, and hiding it here is why three of the four on the quilt sheet were never entered. */
@@ -53001,7 +53137,7 @@ async function ensureFgi() {
 /** Read the ledger, the recipients and the settings. Finished Goods and FBA Dispatch both draw from it. */
 async function fgiLoad() {
   FGI.busy = true;
-  if (!PTG.mdb) await ptLoadGates();
+  await ptNeed(PTG_ALL, { why: 'finished-goods', has: 'mdb' });
   try {
     const [led, rec, set] = await Promise.all([ptGet('pt_fgiLedger'), ptGet('pt_issueRecipients'), ptGet('pt_fgiSettings')]);
     FGI.rows = ptList(led);
@@ -53058,7 +53194,7 @@ const fgiOf = sku => fgiStock().get(obUC(sku)) || { current: 0, pending: 0, open
  * ledger cannot be read, so the caller says so instead of showing nothing in India.
  */
 async function indiaFromFg() {
-  if (!PTG.mdb) { try { await ptLoadGates(); } catch (e) { /* no master: the pack rule still answers */ } }
+  try { await ptNeed(PTG_ALL, { why: 'finished-goods', has: 'mdb' }); } catch (e) { /* no master: the pack rule still answers */ }
   if (FGI.rows === null || FGI.rows === undefined) FGI.rows = ptList(await ptGet('pt_fgiLedger'));
   const d = {};
   fgiStock().forEach((b, sku) => {
@@ -53370,7 +53506,7 @@ let FGT = { picked: new Map() };
 
 async function fgiTransferOpen() {
   if (!ME.admin) return;
-  if (!PTG.press) await ptLoadGates();
+  await ptNeed(PTG_ALL, { why: 'finished-goods', has: 'press' });
   FGT = { picked: new Map() };
   const rows = (PTG.press || []).filter(r => r && fgiPressLeft(r) > 0)
     .sort((a, b) => ptDtMs(b.entryDate || b.addedAt) - ptDtMs(a.entryDate || a.addedAt));
@@ -53806,7 +53942,7 @@ $('mstTable').addEventListener('change', async e => {
 });
 
 async function ensureMst() {
-  if (!PTG.masters) { MST.busy = true; renderMst(); await ptLoadGates(); MST.busy = false; MST.at = ptStamp(); }
+  if (ptLack(PTG_ALL, 'masters')) { MST.busy = true; renderMst(); await ptNeed(PTG_ALL, { why: 'masters', has: 'masters' }); MST.busy = false; MST.at = ptStamp(); }
   renderMst();
 }
 
@@ -54531,7 +54667,7 @@ let REP = { view: 'wpr', busy: false, at: '' };
 async function ensureRep() {
   /* PT.base as well as the press: the week-on-week report is built on receipts now, and opening the
    * tab straight onto it would otherwise show an empty report rather than a loading one. */
-  if (!PTG.mdb || !PTG.press || !PT.base) { REP.busy = true; renderRep(); await ptLoadGates(); REP.busy = false; REP.at = ptStamp(); }
+  if (ptLack(PTG_ALL, ['mdb', 'press', 'base'])) { REP.busy = true; renderRep(); await ptNeed(PTG_ALL, { why: 'rep' }); REP.busy = false; REP.at = ptStamp(); }
   if (FGI.rows === null && $('repView').value === 'fgval') { try { FGI.rows = ptList(await ptGet('pt_fgiLedger')); } catch (e) { FGI.rows = []; } }
   if (REP_HEADS === null) { try { REP_HEADS = (await ptGet('pt_contractorHeads')) || {}; } catch (e) { REP_HEADS = {}; } }
   renderRep();
@@ -57578,7 +57714,7 @@ async function fgiSeedSave(india, press, known) {
 async function fgiWipeOpen() {
   if (!ME.admin) return;
   if (FGI.rows === null) await ensureFgi();
-  if (!PTG.press) await ptLoadGates();
+  await ptNeed(PTG_ALL, { why: 'fg-receive-excel', has: 'press' });
   const rows = FGI.rows || [];
   const byType = {}, bySrc = {};
   rows.forEach(r => { byType[r.txnType] = (byType[r.txnType] || 0) + 1;
@@ -58937,7 +59073,7 @@ async function odrKeepRun(ids) {
   return '';
 }
 
-$('sxDelReqs').onclick = async () => { await odrLoad(true); if (!PTG.ob) await ptLoadGates(); odrListOpen(); };
+$('sxDelReqs').onclick = async () => { await odrLoad(true); await ptNeed(PTG_ALL, { why: 'delete-requests', has: 'ob' }); odrListOpen(); };
 
 $('sxQtyTpl').onclick = soQtyTemplate;
 $('sxQtyImp').onclick = () => $('sxQtyFile').click();
@@ -61020,7 +61156,7 @@ function palPlan(designs) {
 /* ---- reading and writing ---- */
 async function palLoad() {
   PAL.busy = true;
-  if (!PTG.mdb) await ptLoadGates();
+  await ptNeed(PTG_ALL, { why: 'printer-capacity', has: 'mdb' });
   try {
     const [g, p, n, h] = await Promise.all([
       ptGet('pt_colorGroups'), ptGet('pt_printers'), ptGet('pt_blockNeed'), ptGet('pt_blockHave'),
@@ -62013,7 +62149,7 @@ let CX = { rows: null, err: '', busy: false, at: '', shown: [] };
 async function ensureCx() {
   if (CX.rows === null) {
     CX.busy = true; renderCx();
-    if (!PTG.mdb) await ptLoadGates();
+    await ptNeed(PTG_ALL, { why: 'customer-orders', has: 'mdb' });
     if (FGI.rows === null) { try { FGI.rows = ptList(await ptGet('pt_fgiLedger')); } catch (e) { FGI.rows = []; } }
     try { CX.rows = ptList(await ptGet('pt_cxOrders')); CX.err = ''; }
     catch (e) { CX.err = e.message || String(e); CX.rows = CX.rows || []; }
@@ -62428,7 +62564,7 @@ async function ensureVrq(force) {
     /* The progress column reads the orders the requests became, and the vendor names come from the
      * master — both are needed before the table can say anything true. */
     if (VO.rows === null || force) { VO.rows = null; try { await ensureVo(); } catch (e) { /* progress shows as unknown */ } }
-    if (!PTG.mdb) { try { await ptLoadGates(); } catch (e) { /* codes show instead of names */ } }
+    try { await ptNeed(PTG_ALL, { why: 'vendor-order-requests', has: 'mdb' }); } catch (e) { /* codes show instead of names */ }
     VRQ.at = ptStamp(); VRQ.busy = false;
   }
   renderVrq();
@@ -64215,7 +64351,7 @@ async function ensureRfd(force) {
     /* The requirements themselves live inside the vendor orders, so there is nothing to show until
      * those are loaded. */
     if (VO.rows === null || force) { VO.rows = null; try { await ensureVo(); } catch (e) { /* shown as none */ } }
-    if (!PTG.mdb) { try { await ptLoadGates(); } catch (e) { /* ceilings show as unknown */ } }
+    try { await ptNeed(PTG_ALL, { why: 'order-driven-rfd', has: 'mdb' }); } catch (e) { /* ceilings show as unknown */ }
     RFD.at = ptStamp(); RFD.busy = false; RFD.loaded = true;
   }
   renderRfd();
@@ -64622,11 +64758,11 @@ const paDayIso = ms => repWkIso(new Date(ms));
 
 async function ensurePa() {
   if (PA.busy) return;
-  const need = !PTG.mdb || !PT.base || !PTE.emp || HR.rate === null || ATT.rows === null || PA.team === null || !KA.levels;
+  const need = ptLack(PTG_ALL, ['mdb', 'base']) || !PTE.emp || HR.rate === null || ATT.rows === null || PA.team === null || !KA.levels;
   if (need) {
     PA.busy = true; renderPa(); renderKa();
     try {
-      await ptLoadGates();
+      await ptNeed(PTG_ALL, { why: 'karigar analysis' });
       if (!PTE.emp) await ptLoadEmp();
       if (HR.rate === null) HR.rate = ptList(await ptGet('pt_rateList')).map(hrRow).filter(x => x.length && x[1]);
       if (ATT.rows === null) { ATT.rows = ptList(await ptGet('pt_attend')); ATT.at = ptStamp(); }
@@ -65930,9 +66066,9 @@ function skcSheetRows() {
 }
 
 function renderSkuCode() {
-  if (!PTG.mdb || !PTG.masters) {
+  if (ptLack(PTG_ALL, ['mdb', 'masters'])) {
     $('ptmMsg').className = 'muted'; $('ptmMsg').textContent = 'Reading the master database…';
-    ptLoadGates().then(() => { if (PTG.mdb) renderPmdb(); });
+    ptNeed(PTG_ALL, { why: 'sku codes' }).then(() => { if (PTG.mdb) renderPmdb(); });
     return;
   }
   const all = skcRows();
@@ -66132,7 +66268,7 @@ async function ensureStoreRead() {
   const errs = [];
   try { STORE.rows = ptList(await ptGet('pt_storeLedger')); } catch (e) { errs.push('the store book (' + (e.message || e) + ')'); STORE.rows = STORE.rows || []; }
   try { STORE.checks = (await ptGet('pt_storeChecks')) || {}; } catch (e) { STORE.checks = STORE.checks || {}; }
-  if (!PTG.mdb) { try { await ptLoadGates(); } catch (e) { errs.push('the master database'); } }
+  try { await ptNeed(PTG_ALL, { why: 'store', has: 'mdb' }); } catch (e) { errs.push('the master database'); }
   if (!PT.base) { try { PT.base = ptList(await ptGet('pt_baseData')); } catch (e) { errs.push('the Job Work Register'); } }
   if (VO.rows === null) { try { await ensureVo(); } catch (e) { errs.push('the printers\' orders'); } }
   if (typeof FLOW_ON !== 'undefined' && FLOW_ON && typeof flowLoad === 'function') { try { await flowLoad(); } catch (e) { /* the flow's receipts wait */ } }
@@ -72811,14 +72947,14 @@ async function shpBucketOpen() {
    * read from the order book, and the Shopify tab never reads it — so after a page refresh the bucket counted every
    * line production already has as still needing production, and From production / Handed over / Opened today read 0.
    * Read once here (the same read "Open ticked production lines" makes); a wrong count is never shown in its place. */
-  if (!PTG.ob) {
+  if (ptLack(PTG_ALL, 'ob')) {
     const btn = $('soBucket');
     if (btn && btn.disabled) return;
     if (btn) btn.disabled = true;
     soMsg('Reading the production order book…');
-    try { await ptLoadGates(); } catch (e) { PTG.err = PTG.err || e.message || String(e); }
+    try { await ptNeed(PTG_ALL, { why: 'bucket' }); } catch (e) { PTG.err = PTG.err || e.message || String(e); }
     if (btn) btn.disabled = false;
-    if (!PTG.ob || PTG.err) { soMsg('The production order book could not be read, so the bucket cannot say what is already open: ' + (PTG.err || 'nothing came back') + '. Try again.', true); return; }
+    if (ptLack(PTG_ALL, 'ob') || PTG.err) { soMsg('The production order book could not be read, so the bucket cannot say what is already open: ' + (PTG.err || 'nothing came back') + '. Try again.', true); return; }
     soMsg('');
   }
   /* A SKU NEEDS NO STOCK: without the stock read, the bucket still opens on its Without SKU tab; the tabs that judge
@@ -77302,7 +77438,7 @@ async function mobSearchLoad() {
   if (MOB_SR.loading) return;
   MOB_SR.loading = true;
   const tries = [];
-  if (typeof ptLoadGates === 'function' && !(PTG.mdb && PTG.mdb.length)) tries.push(ptLoadGates());
+  if (typeof ptNeed === 'function' && !(PTG.mdb && PTG.mdb.length)) tries.push(ptNeed(PTG_ALL, { why: 'phone search' }));
   if (typeof loadPk === 'function' && typeof PK_LOADED !== 'undefined' && !PK_LOADED) tries.push(loadPk());
   if (typeof fnLoad === 'function') tries.push(fnLoad());
   await Promise.all(tries.map(x => Promise.resolve(x).catch(() => null)));
@@ -77317,7 +77453,7 @@ function mobSearchAll(q) {
   const skuQ = fn ? String(fn).toUpperCase() : '';
   const skuHit = s => hit(s) || (skuQ && String(s || '').toUpperCase() === skuQ);
   try {
-    if (mobMay('ord') || mobMay('shopprod')) {
+    if ((mobMay('ord') || mobMay('shopprod')) && (!prOn() || ptHas(PTG_ALL))) {
       const by = new Map();
       ordLines().forEach(l => { if ((hit(l.orderNo) || hit(l.shopOrderNo) || skuHit(l.sku)) && !by.has(l.orderNo)) by.set(l.orderNo, l); });
       add('Orders', [...by.values()].map(l => ({ id: 'ord|' + l.orderNo, t: l.shopOrderNo || l.orderNo, s: [l.shopOrderNo ? l.orderNo : '', l.src, l.orderDate].filter(Boolean).join(' · ') })));
@@ -78197,7 +78333,7 @@ function mdFrom(tab, loaded, asOf) {
   if (!loaded) return { tab, name: MEERA_DATA_SCREENS[tab] || tab, notLoaded: true };
   return { tab, name: MEERA_DATA_SCREENS[tab] || tab, asOf: asOf || '' };
 }
-const mdOrdFrom = () => mdFrom('ord', typeof PTG !== 'undefined' && Array.isArray(PTG.ob) && typeof ordLines === 'function', typeof PTG !== 'undefined' ? mdTime(PTG.at) : '');
+const mdOrdFrom = () => mdFrom('ord', typeof PTG !== 'undefined' && ptHas(PTG_ALL) && typeof ordLines === 'function', typeof PTG !== 'undefined' ? mdTime(PTG.at) : '');
 const mdBaseFrom = () => mdFrom('pbase', typeof PT !== 'undefined' && Array.isArray(PT.base), typeof PT !== 'undefined' && PT.at ? PT.at.base : '');
 const mdOrdLines = () => { try { return ordLines() || []; } catch (e) { return []; } };
 ERP_MEERA.data = {
@@ -78336,7 +78472,7 @@ ERP_MEERA.data = {
     let asin = '';
     if (mdMay('pmdb') && typeof mdbOf === 'function') { const m = mdbOf(S); if (m && m.asin) { asin = String(m.asin); add('Amazon'); } }
     const NAME = { AMZ: 'Amazon', SHP: 'Shopify', SPY: 'Shopify', B2B: 'B2B', ONL: 'Online', ETSY: 'Etsy' };
-    if (mdMay('ord') && typeof PTG !== 'undefined' && Array.isArray(PTG.ob)) mdOrdLines().forEach(r => {
+    if (mdMay('ord') && typeof PTG !== 'undefined' && ptHas(PTG_ALL)) mdOrdLines().forEach(r => {
       if (String(r.sku || '').toUpperCase() !== S) return;
       const p = String(r.orderNo || '').split('-')[0].toUpperCase(), ch = String(r.custChannel || r.src || '').toUpperCase();
       const n = NAME[ch] || NAME[p]; if (n) add(n, r.orderNo);

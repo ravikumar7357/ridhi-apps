@@ -297,7 +297,7 @@ $('ptmTplShort').onclick = () => {
 };
 
 $('ptmNew').onclick = async () => {
-  if (!PTG.mdb) { $('ptmMsg').textContent = 'Reading the master database…'; await ptLoadGates(); }
+  await ptNeed(PTG_ALL, { why: 'pmdb edit', has: 'mdb', note: () => { $('ptmMsg').textContent = 'Reading the master database…'; } });
   if (($('ptmView') || {}).value === 'fabric') return fsManualEdit('');
   mdbAddNew();
 };

@@ -622,7 +622,7 @@ async function ensureVlog() {
   /* THE MASTER NAMES THE CLOTH (Ravi, 2026-09-29: "tablecloth ki sizes ke liye bhi Fabric m² lagao"). A cut line's
    * square metres come from its SKU's master row, and this screen never loaded the master — so every tablecloth
    * showed a dash while running cloth, which needs no master, showed its figure. Read it, then draw again. */
-  if (!PTG.mdb) { try { await ptLoadGates(); renderVlog(); } catch (e) { /* the dashes stay */ } }
+  if (ptLack(PTG_ALL, 'mdb')) { try { await ptNeed(PTG_ALL, { why: 'vlog', has: 'mdb' }); renderVlog(); } catch (e) { /* the dashes stay */ } }
 }
 ['vlVendor', 'vlType', 'vlFrom', 'vlTo', 'vlState'].forEach(id => $(id).addEventListener('change', renderVlog));
 ptDebounce('vlQ', renderVlog);

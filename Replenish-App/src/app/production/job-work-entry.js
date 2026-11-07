@@ -152,6 +152,8 @@ function ptZipCheck(sku, qty, zipsIssued) {
 
 /** The old tool's obGuard('bd'), number for number. */
 function bdGuard(orderNo, sku, qty, exclId, allowExtra) {
+  /* Page registers: an issue is never checked against a half-read order book (switch on only; never reached with it off). */
+  if (prOn() && !ptHas(PTG_ALL)) return ptStillReading();
   if (typeof obIsLegacy === 'function' && obIsLegacy(orderNo) && !exclId) return OB_LEGACY_SHUT(orderNo);
   const ordered = obOrderedQty(orderNo, sku);
   if (!ordered) return `Order ${orderNo} has no line for SKU ${obUC(sku)} — pick the correct Order ID.`;
@@ -562,7 +564,7 @@ const bdIssueDay = () => { const el = $('bwDate'); if (el.dataset.auto === '1' |
 if ($('bwDate')) $('bwDate').addEventListener('change', () => { $('bwDate').dataset.auto = ''; });
 
 async function ensureBdForm() {
-  if (!PTG.mdb) { bdFormMsg('Reading the master database and the order book…'); await ptLoadGates(); }
+  await ptNeed(PTG_ALL, { why: 'pbase', has: 'mdb', note: () => bdFormMsg('Reading the master database and the order book…') });
   await ptEnsureCustom();
   if (!PTE.emp) await ptLoadEmp();
   /* PPC's plans, so a line it sent straight to Job Work is issued without a cutting entry (bdGuard). Quiet when it fails. */

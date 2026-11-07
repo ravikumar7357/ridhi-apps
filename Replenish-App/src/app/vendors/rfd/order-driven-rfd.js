@@ -569,7 +569,7 @@ async function ensureRfd(force) {
     /* The requirements themselves live inside the vendor orders, so there is nothing to show until
      * those are loaded. */
     if (VO.rows === null || force) { VO.rows = null; try { await ensureVo(); } catch (e) { /* shown as none */ } }
-    if (!PTG.mdb) { try { await ptLoadGates(); } catch (e) { /* ceilings show as unknown */ } }
+    try { await ptNeed(PTG_ALL, { why: 'order-driven-rfd', has: 'mdb' }); } catch (e) { /* ceilings show as unknown */ }
     RFD.at = ptStamp(); RFD.busy = false; RFD.loaded = true;
   }
   renderRfd();

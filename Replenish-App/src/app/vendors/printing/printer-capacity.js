@@ -191,7 +191,7 @@ function palPlan(designs) {
 /* ---- reading and writing ---- */
 async function palLoad() {
   PAL.busy = true;
-  if (!PTG.mdb) await ptLoadGates();
+  await ptNeed(PTG_ALL, { why: 'printer-capacity', has: 'mdb' });
   try {
     const [g, p, n, h] = await Promise.all([
       ptGet('pt_colorGroups'), ptGet('pt_printers'), ptGet('pt_blockNeed'), ptGet('pt_blockHave'),

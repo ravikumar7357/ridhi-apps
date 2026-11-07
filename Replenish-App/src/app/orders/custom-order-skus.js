@@ -340,7 +340,7 @@ function mdbRenamePreview() {
 const MDB_RENAME_MAX = 200;
 
 $('ptmRename').onclick = async () => {
-  if (!PTG.mdb) { $('ptmMsg').textContent = 'Reading the master database…'; await ptLoadGates(); }
+  await ptNeed(PTG_ALL, { why: 'custom skus', has: 'mdb', note: () => { $('ptmMsg').textContent = 'Reading the master database…'; } });
   MDBREN = { pairs: null, name: '' };
   ptOpenDialog({
     title: 'Change a SKU code',
@@ -405,7 +405,7 @@ $('ptmRename').onclick = async () => {
     if (!got.rows.length) { ptDlgMsg('That file has no rows under the header.', true); return; }
     ptDlgMsg('');
     /* The master database has to be in memory before the preview can count what moves. */
-    if (!PTG.mdb) await ptLoadGates();
+    await ptNeed(PTG_ALL, { why: 'custom-order-skus', has: 'mdb' });
     await mdbRenameLoadAll();
     MDBREN = { pairs: got.rows, name: f.name };
     const plan = mdbRenamePlan(got.rows);

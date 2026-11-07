@@ -28,6 +28,8 @@ function page(o) {
     NAV_IS_VENDOR: !!o.vendor,
     $: id => (id === 'ordTicker' ? box : null),
     ptLoadGates: (force, light) => { loads.push([force, light]); return new Promise(() => {}); },
+    /* the gates (core/gates.js) are not loaded here: the strip only asks whether the order book is in, and for it to be read */
+    PTG_ALL: [], ptHas: () => !!PTG.ob, ptNeed: (set, o) => { loads.push([!!(o && o.force), !!(o && o.light)]); return new Promise(() => {}); },
     ordLines: () => [{ open: true, orderNo: 'AMZ-1', sku: 'S1', qty: 4, pressed: 1, fromStock: 0, mtoDue: '2026-11-01', itemName: 'Quilt', color: 'Red' }],
     dToday: () => '2026-11-06', nf: n => String(n), esc: s => String(s),
     showTab: t => tabs.push(t),

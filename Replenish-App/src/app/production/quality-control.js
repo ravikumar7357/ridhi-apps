@@ -18,9 +18,9 @@
 let QC = { checks: null, issue: null, ret: null, err: '', busy: false, at: '' };
 
 async function ensureQc() {
-  if (QC.checks === null || !PTG.mdb) {
+  if (QC.checks === null || ptLack(PTG_ALL, 'mdb')) {
     QC.busy = true; renderQc();
-    if (!PTG.mdb) await ptLoadGates();
+    await ptNeed(PTG_ALL, { why: 'quality-control', has: 'mdb' });
     if (!PTE.emp) await ptLoadEmp();
     try {
       const [c, i, t] = await Promise.all([ptGet('pt_qcChecks'), ptGet('pt_qcIssuance'), ptGet('pt_qcReturns')]);
@@ -478,6 +478,8 @@ $('qcwSave').onclick = async () => {
 
   /* AN ORDER, WHEREVER THERE IS ONE TO NAME. Every other register is keyed by order, and the Order
    * Console shows this figure as an order's own QC — a check with no order is invisible there. */
+  /* Page registers: a QC check is never saved against a half-read order book (switch on only; never reached with it off). */
+  if (prOn() && !ptHas(PTG_ALL)) return qcCheckMsg(ptStillReading(), true);
   const onOrders = qcOrdersFor(sku), ordTyped = obUC(($('qcwOrd') || {}).value);
   const waitOn = onOrders.filter(o => qcOrderAvail(o.orderNo, sku) > 0);
   /* A free inspection of pieces no order has received (the "any" source) may go on no order — it is shared out by SKU on the

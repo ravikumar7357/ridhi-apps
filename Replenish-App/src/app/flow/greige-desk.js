@@ -4170,7 +4170,7 @@ function gdSaveAll() {
 function gdLoad() {
   if (GD_READY) return GD_READY;
   GD_READY = (async function () {
-    try { if (typeof ptLoadGates === 'function' && !PTG.masters) await ptLoadGates(); } catch (e) { /* masters wait */ }
+    try { if (typeof ptNeed === 'function') await ptNeed(PTG_ALL, { why: 'gdesk', has: 'masters' }); } catch (e) { /* masters wait */ }
     try { if (typeof ensureGpo === 'function' && typeof GPO !== 'undefined' && GPO.rows == null) await ensureGpo(); } catch (e) { /* real POs wait */ }
     /* A READ THAT FAILED IS NOT AN EMPTY DESK (16 Oct). It used to be taken as one, and the empty desk was then WRITTEN
      * over the whole node — every greige PO and every movement gone because one read timed out. Now a failed read

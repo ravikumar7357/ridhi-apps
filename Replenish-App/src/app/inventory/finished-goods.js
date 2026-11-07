@@ -42,7 +42,7 @@ async function ensureFgi() {
 /** Read the ledger, the recipients and the settings. Finished Goods and FBA Dispatch both draw from it. */
 async function fgiLoad() {
   FGI.busy = true;
-  if (!PTG.mdb) await ptLoadGates();
+  await ptNeed(PTG_ALL, { why: 'finished-goods', has: 'mdb' });
   try {
     const [led, rec, set] = await Promise.all([ptGet('pt_fgiLedger'), ptGet('pt_issueRecipients'), ptGet('pt_fgiSettings')]);
     FGI.rows = ptList(led);
@@ -99,7 +99,7 @@ const fgiOf = sku => fgiStock().get(obUC(sku)) || { current: 0, pending: 0, open
  * ledger cannot be read, so the caller says so instead of showing nothing in India.
  */
 async function indiaFromFg() {
-  if (!PTG.mdb) { try { await ptLoadGates(); } catch (e) { /* no master: the pack rule still answers */ } }
+  try { await ptNeed(PTG_ALL, { why: 'finished-goods', has: 'mdb' }); } catch (e) { /* no master: the pack rule still answers */ }
   if (FGI.rows === null || FGI.rows === undefined) FGI.rows = ptList(await ptGet('pt_fgiLedger'));
   const d = {};
   fgiStock().forEach((b, sku) => {
@@ -411,7 +411,7 @@ let FGT = { picked: new Map() };
 
 async function fgiTransferOpen() {
   if (!ME.admin) return;
-  if (!PTG.press) await ptLoadGates();
+  await ptNeed(PTG_ALL, { why: 'finished-goods', has: 'press' });
   FGT = { picked: new Map() };
   const rows = (PTG.press || []).filter(r => r && fgiPressLeft(r) > 0)
     .sort((a, b) => ptDtMs(b.entryDate || b.addedAt) - ptDtMs(a.entryDate || a.addedAt));

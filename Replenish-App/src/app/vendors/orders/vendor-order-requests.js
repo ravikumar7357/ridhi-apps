@@ -88,7 +88,7 @@ async function ensureVrq(force) {
     /* The progress column reads the orders the requests became, and the vendor names come from the
      * master — both are needed before the table can say anything true. */
     if (VO.rows === null || force) { VO.rows = null; try { await ensureVo(); } catch (e) { /* progress shows as unknown */ } }
-    if (!PTG.mdb) { try { await ptLoadGates(); } catch (e) { /* codes show instead of names */ } }
+    try { await ptNeed(PTG_ALL, { why: 'vendor-order-requests', has: 'mdb' }); } catch (e) { /* codes show instead of names */ }
     VRQ.at = ptStamp(); VRQ.busy = false;
   }
   renderVrq();

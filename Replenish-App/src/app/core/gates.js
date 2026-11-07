@@ -9,7 +9,63 @@ let PTG = { masters: null, mdb: null, ob: null, press: null, freeze: null, err: 
  * change rarely and are re-read on a background refresh only every half hour; Master DB's own Refresh reads them at once. */
 const PTG_STALE_MS = 10 * 60 * 1000;
 const PTG_MDB_STALE_MS = 30 * 60 * 1000;
-const ptGatesStale = () => !PTG.at || Date.now() - PTG.at > PTG_STALE_MS;
+
+/* ---- PAGE REGISTERS (Step 3 of docs/data-reduction/PLAN.md; plan in STEP3-PLAN.md) ----
+ * A screen asks for the registers it needs by SET: the master set (masters + master database, ~2.2 MB) or the whole set
+ * (all nine, ~11 MB). Every screen asks for the whole set for now, so the switch changes nothing yet.
+ *   - Switch: localStorage pageRegisters '0' = off on this device whatever the flag says, '1' = on, otherwise the last
+ *     answer of the Firestore flag config/flags.pageRegisters (read in the same single read core/auth.js already makes,
+ *     kept in prFlagLast for the NEXT page load). Off by default. Always off for vendors.
+ *   - Switch OFF: ptNeed is ptLoadGates exactly as before — the same nine reads in the same order. */
+const PTG_REGS = ['masters', 'mdb', 'ob', 'press', 'freeze', 'cut', 'base', 'shopProd', 'qc'];
+const PTG_MASTER = ['masters', 'mdb'];
+const PTG_ALL = PTG_REGS.slice();
+/* When each register was read. Written by the loader below and nowhere else. */
+const PTG_AT = {};
+/* The read of each register that is under way — a second ask for the same register waits for it instead of reading again. */
+const PTG_FLY = {};
+let PTG_IMG_DONE = false;
+
+/** On or off. Cheap: a couple of storage reads, no network. */
+function prOn() {
+  try {
+    const s = localStorage.getItem('pageRegisters');
+    if (s === '0') return false;
+    if (typeof AUDIT === 'undefined' || !AUDIT.on) return false;
+    if (typeof spIsVendor === 'function' && spIsVendor()) return false;
+    if (s === '1') return true;
+    return localStorage.getItem('prFlagLast') === '1';
+  } catch (e) { return false; }
+}
+/** Keep the flag's last answer for the next page load. */
+function prSaveFlag(on) {
+  try { if (on) localStorage.setItem('prFlagLast', '1'); else localStorage.removeItem('prFlagLast'); } catch (e) { /* no storage: stays off */ }
+}
+
+/** Where a register's value lives: Job Work + cutting and the base data sit on PT, the rest on PTG. */
+const ptRegVal = r => (r === 'cut' ? PT.cut : r === 'base' ? PT.base : PTG[r]);
+/** A register counts as loaded when the loader stamped it AND its value is still there (Master DB Refresh clears values). */
+const ptRegLoaded = r => !!PTG_AT[r] && ptRegVal(r) != null;
+const ptRegLimit = (r, light) => (light && (r === 'masters' || r === 'mdb') ? PTG_MDB_STALE_MS : PTG_STALE_MS);
+
+/** True when every register in the set is loaded. Switch off: the order book is there, as before. */
+function ptHas(set) {
+  if (!prOn()) return !!PTG.ob;
+  return (set || PTG_ALL).every(ptRegLoaded);
+}
+/** True when something in the set is missing. Switch off, "missing" means the fields the caller used to test (has: 'mdb' or
+ *  ['mdb', 'press', 'base']), so a screen that tested one field still tests that one. */
+function ptLack(set, has) {
+  if (prOn()) return !ptHas(set);
+  return !(Array.isArray(has) ? has : [has || 'mdb']).every(h => !!ptRegVal(h));
+}
+/** The refusal a save gives when the registers it reads from are not all in yet (switch on only); '' otherwise. */
+const ptStillReading = () => (prOn() && !ptHas(PTG_ALL) ? 'Still reading the order book, try again in a moment.' : '');
+
+function ptGatesStale(set, light) {
+  if (!prOn()) return !PTG.at || Date.now() - PTG.at > PTG_STALE_MS;
+  return (set || PTG_ALL).some(r => !ptRegLoaded(r) || Date.now() - PTG_AT[r] > ptRegLimit(r, light));
+}
 
 /** Re-read the order book, master and registers if they are old. Opening a screen is the moment to
  *  find out what the rest of the floor has done. */
@@ -22,7 +78,15 @@ async function ptGatesFresh() {
  * minutes sit blank for seconds. The screen draws from what is in memory; when the fresh copy lands it redraws, and
  * only if it is still the screen being looked at. The very first open still waits, because there is nothing to draw.
  */
-function ptOpenFresh(tab, ensure) {
+function ptOpenFresh(tab, ensure, set) {
+  if (prOn()) {
+    /* A screen that names no set wants the whole set. */
+    const want = set || PTG_ALL;
+    if (!ptHas(want) || !ptGatesStale(want, true)) return ensure();
+    ensure();
+    ptNeed(want, { force: true, light: true, why: tab }).then(() => { if (TAB_NOW === tab) ensure(); }).catch(() => { /* the screen already shows what it had */ });
+    return;
+  }
   const stale = ptGatesStale();
   if (!PTG.mdb || !stale) return ensure();
   ensure();
@@ -32,6 +96,8 @@ function ptOpenFresh(tab, ensure) {
 /* A READ ALREADY UNDER WAY IS WAITED FOR, not skipped (2026-09-25). Returning at once let the Master Database —
  * and any screen that awaited this — carry on with nothing loaded yet and say the database was empty. */
 function ptLoadGates(force, light) {
+  /* Switch on: any caller that has not been given a set yet still gets everything. */
+  if (prOn()) return ptNeedRun(PTG_ALL, !!force, !!light);
   if (PTG.busy && PTG.loading) return PTG.loading;
   if (PTG.mdb && !force) return Promise.resolve();
   PTG.loading = ptLoadGatesRun(light);
@@ -77,6 +143,68 @@ async function ptLoadGatesRun(light) {
   PTG.at = Date.now();
   /* Delta sync, phase 2: once a page session, the background comparison (core/delta-sync.js). Changes nothing here. */
   if (!PTG.err && typeof deltaShadowSoon === 'function') deltaShadowSoon();
+}
+
+/**
+ * ASK FOR A SET OF REGISTERS. opt: { force, light, why, has, note }.
+ *   Switch off: exactly ptLoadGates(force, light) — has (the field a caller used to test, or a list of them) keeps the old
+ *   "only when it is not there" test, note (a message shown while reading) is shown only when a read is going to happen.
+ *   Switch on: reads only the registers of the set that are missing (force: those over ten minutes old, or over thirty
+ *   for the master on a light refresh; force without light: all of them), in parallel, one read per register at a time.
+ * Never rejects: a register that fails stays unloaded, the others still land, PTG.err says what went wrong.
+ */
+function ptNeed(set, opt) {
+  const o = typeof opt === 'string' ? { why: opt } : (opt || {});
+  if (!prOn()) {
+    if (!o.force && o.has !== undefined && !ptLack(set, o.has)) return Promise.resolve();
+    if (typeof o.note === 'function') o.note();
+    return ptLoadGates(o.force, o.light);
+  }
+  const want = set || PTG_ALL;
+  if (typeof o.note === 'function' && (o.force || !ptHas(want))) o.note();
+  return ptNeedRun(want, !!o.force, !!o.light);
+}
+
+/** One register's read, stored the way ptLoadGatesRun stores it. */
+async function ptReadReg(r) {
+  switch (r) {
+    case 'masters': PTG.masters = (await ptGet('pt_masters')) || {}; PTG.recipeAt = Date.now(); ptMasterLanded(); break;
+    case 'mdb':
+      PTG.mdb = ptList(await ptGet('pt_masterDB')).map(mdbYnFix); PTG.mdbAt = Date.now(); ptMasterLanded();
+      /* The pictures already looked up: read once, with the first load that includes the master database. */
+      if (!PTG_IMG_DONE) { PTG_IMG_DONE = true; try { await ptImgShared(); } catch (e) { /* pictures are a nicety, never a blocker */ } }
+      break;
+    case 'ob': PTG.ob = ptList(await ptGet('pt_orderBook')); break;
+    case 'press': PTG.press = ptList(await ptGet('pt_pressInventory')); break;
+    case 'freeze': PTG.freeze = (await ptGet('pt_cuttingFreezes')) || {}; break;
+    case 'cut': PT.cut = ptList(await ptGet('pt_cuttingData')); PT.at.cut = ptStamp(); break;
+    case 'base': PT.base = ptList(await ptGet('pt_baseData')); PT.at.base = ptStamp(); break;
+    case 'shopProd': PTG.shopProd = (await ptGet('pt_shopProd')) || {}; break;
+    /* QC checks have their own catch: an account that may not read them still gets the rest, and made falls back to the old press entries. */
+    case 'qc': { const q = await ptGet('pt_qcChecks').catch(() => null); PTG.qc = q ? ptList(q) : (PTG.qc || []); break; }
+  }
+}
+/** Replenishment shows the master's product details: put a fresh master on its rows once both halves are in. */
+function ptMasterLanded() {
+  if (PTG.masters && PTG.mdb && typeof replMasterSync === 'function') { try { replMasterSync(); } catch (e) { /* the snapshot's details stay */ } }
+}
+function ptNeedRun(set, force, light) {
+  const due = set.filter(r => !ptRegLoaded(r) || (force && (!light || Date.now() - PTG_AT[r] > ptRegLimit(r, true))));
+  if (!due.length) return Promise.resolve();
+  PTG.err = ''; PTG.busy = true;
+  const jobs = due.map(r => {
+    if (PTG_FLY[r]) return PTG_FLY[r];
+    const p = ptReadReg(r).then(() => { PTG_AT[r] = Date.now(); }, e => { PTG.err = e.message || String(e); }).then(() => { delete PTG_FLY[r]; });
+    PTG_FLY[r] = p;
+    return p;
+  });
+  return Promise.all(jobs).then(() => {
+    PTG.busy = Object.keys(PTG_FLY).length > 0;
+    /* PTG.at: when the oldest register was read, once all nine are in. */
+    PTG.at = PTG_REGS.every(ptRegLoaded) ? Math.min(...PTG_REGS.map(r => PTG_AT[r])) : 0;
+    /* Delta sync, phase 2: only once everything is loaded (core/delta-sync.js). Changes nothing here. */
+    if (!PTG.err && PTG.at && typeof deltaShadowSoon === 'function') deltaShadowSoon();
+  });
 }
 
 const obUC = s => String(s == null ? '' : s).trim().toUpperCase();

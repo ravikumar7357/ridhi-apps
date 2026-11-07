@@ -277,7 +277,7 @@ async function odrKeepRun(ids) {
   return '';
 }
 
-$('sxDelReqs').onclick = async () => { await odrLoad(true); if (!PTG.ob) await ptLoadGates(); odrListOpen(); };
+$('sxDelReqs').onclick = async () => { await odrLoad(true); await ptNeed(PTG_ALL, { why: 'delete-requests', has: 'ob' }); odrListOpen(); };
 
 $('sxQtyTpl').onclick = soQtyTemplate;
 $('sxQtyImp').onclick = () => $('sxQtyFile').click();

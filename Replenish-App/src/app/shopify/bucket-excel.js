@@ -308,14 +308,14 @@ async function shpBucketOpen() {
    * read from the order book, and the Shopify tab never reads it — so after a page refresh the bucket counted every
    * line production already has as still needing production, and From production / Handed over / Opened today read 0.
    * Read once here (the same read "Open ticked production lines" makes); a wrong count is never shown in its place. */
-  if (!PTG.ob) {
+  if (ptLack(PTG_ALL, 'ob')) {
     const btn = $('soBucket');
     if (btn && btn.disabled) return;
     if (btn) btn.disabled = true;
     soMsg('Reading the production order book…');
-    try { await ptLoadGates(); } catch (e) { PTG.err = PTG.err || e.message || String(e); }
+    try { await ptNeed(PTG_ALL, { why: 'bucket' }); } catch (e) { PTG.err = PTG.err || e.message || String(e); }
     if (btn) btn.disabled = false;
-    if (!PTG.ob || PTG.err) { soMsg('The production order book could not be read, so the bucket cannot say what is already open: ' + (PTG.err || 'nothing came back') + '. Try again.', true); return; }
+    if (ptLack(PTG_ALL, 'ob') || PTG.err) { soMsg('The production order book could not be read, so the bucket cannot say what is already open: ' + (PTG.err || 'nothing came back') + '. Try again.', true); return; }
     soMsg('');
   }
   /* A SKU NEEDS NO STOCK: without the stock read, the bucket still opens on its Without SKU tab; the tabs that judge
