@@ -236,6 +236,41 @@ add('none', '', ['karigar ko kaam kaise de', 'Raju Kumar ko maal kaise issue kar
   { const c = card('appetite green ki sku batao'); ok(c.kind === 'skufind' && /not been opened yet|abhi nahi khuli|अभी नहीं खुली/.test(c.t), 'Master Database not read yet: she says so'); ok(!M.ctx.__touched.length, 'and reads nothing'); }
   install(M);
 
+  console.log('12. what a vendor holds (Ravi, 7 Nov: "chaudhry handbooks ke paas apana kitana maal hai") — from Vendor Orders');
+  /* a small copy of the Vendor Orders screen: its own figures (voDueOf: given less what came back) are the ERP's, made up here */
+  const vendWorld = (o = {}) => {
+    const c = M.ctx;
+    c.voAllVendors = () => [{ code: 'VND010', desc: 'Choudhary Hand Block', category: 'Printer' }, { code: 'VND011', desc: 'Alisha Garmnets', category: 'Filling' },
+      { code: 'VND012', desc: 'Choudhary Prints', category: 'Printer' }];
+    c.voName = code => ({ VND010: 'Choudhary Hand Block', VND011: 'Alisha Garmnets', VND012: 'Choudhary Prints' })[code] || code;
+    c.voLines = x => x.lines;
+    c.voDueOf = (x, l) => { const left = l.qty - l.back; if (!(left > 0)) return null;
+      return { left, withV: l.given - l.back, unit: x.orderType === 'running' ? 'm' : 'pcs', due: l.due || '', st: l.due && l.due < '2026-11-07' ? 'late' : '' }; };
+    c.VO = { at: '7 Nov, 11:00', rows: o.missing ? null : [
+      { vendorCode: 'VND010', orderNo: 'VO-101', status: 'Placed', lines: [{ sku: 'RTC501-6060', qty: 100, given: 100, back: 40, due: '2026-11-01' }, { sku: 'RTC501-6090', qty: 50, given: 0, back: 0 }] },
+      { vendorCode: 'VND010', orderNo: 'VO-102', status: 'Received', lines: [{ sku: 'RTC777-1', qty: 30, given: 30, back: 0 }] },
+      { vendorCode: 'VND010', orderNo: 'VO-103', orderType: 'running', status: 'Placed', lines: [{ fabricType: 'Cotton', color: 'Green', qty: 200, given: 200, back: 80, due: '2026-11-20' },
+        { sku: 'RTC888-1', qty: 10, given: 10, back: 0, cancelled: true }] },
+      { vendorCode: 'VND011', orderNo: 'VO-201', status: 'Placed', lines: [{ sku: 'RQL354-K', qty: 20, given: 20, back: 20 }] }] };
+  };
+  install(M); vendWorld();
+  for (const q of ['chaudhry handbooks ke paas apana kitana maal hai', 'Choudhary Hand Block ke paas kitna maal hai', 'how many pieces does Choudhary Hand Block have', 'choudhary hand block ke pass kitne pcs pending hai']) {
+    const c = card(q);
+    ok(c.kind === 'vendor' && ['Choudhary Hand Block', '60', '120', 'VO-101', 'RTC501-6060', 'VO-103', 'Cotton Green', '50'].every(s => c.t.includes(s)) && !/VO-102|RTC777|RTC888/.test(c.t),
+      `"${q}" → ${c.kind}: ${c.t.slice(0, 220)}`);
+    ok(c.acts.includes('vord|'), 'a button to Vendor Orders');
+  }
+  { const c = card('chaudhry handbooks ke paas apana kitana maal hai'); ok(/late|लेट/.test(c.t), 'a line past its date says late'); }
+  { const c = card('Alisha ke paas kitna maal hai'); ok(c.kind === 'vendor' && /nothing of ours|koi maal nahi|कोई माल नहीं/.test(c.t), 'a vendor with nothing of ours: she says so — ' + c.t.slice(0, 120)); }
+  { const c = card('Imran Ali ke paas kitne piece hain'); ok(c.kind === 'karigar', 'a karigar is still a karigar'); }
+  for (const q of ['choudhary hand block ka rate kya hai', 'printer ko maal kaise de', 'vendor order kya hai'])
+    ok(card(q).kind !== 'vendor', '"' + q + '" is not about what a vendor holds');
+  install(M, { tabs: ['qc'] }); vendWorld();
+  { const c = card('Choudhary Hand Block ke paas kitna maal hai'); ok(c.kind === 'vendor' && /Your account does not have this screen|Aapke account mein yeh screen nahi hai/.test(c.t) && !/VO-101|60/.test(c.t), 'no Vendor Orders in the account: no figure'); }
+  install(M); vendWorld({ missing: true });
+  { const c = card('Choudhary Hand Block ke paas kitna maal hai'); ok(c.kind === 'vendor' && /not been opened yet|abhi nahi khuli|अभी नहीं खुली/.test(c.t), 'Vendor Orders not read yet: she says so'); ok(!M.ctx.__touched.length, 'and reads nothing'); }
+  install(M);
+
   console.log('6. switch off');
   { const N = await load({ root: ROOT, bundle: true, handle: true, switches: ['lazy'], only: true }); install(N);
     ok((await N.ctx.__meeraTest('meeraDataAsk("Imran Ali ke paas kitne piece hain")')) === false, 'with "data" off she does not take it'); }

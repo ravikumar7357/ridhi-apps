@@ -8,6 +8,7 @@
  *   waiting at a stage       QC, cutting, printer (vendor), karigar, issue                          → Order Console
  *   today's counts           issued, received (Job Work Register); passed (Quality Control)
  *   late orders              the Order Console's own rule: no work for 5 days or more               → Order Console
+ *   what a vendor holds      a printer's pieces and metres given and not back ("Choudhary ke paas kitna maal") → Vendor Orders
  *   SKUs by their words      article, type, colour, brand, size, fabric ("tablecloth Appetite Green") → Master Database
  * Rules: READ ONLY — she never saves, and never makes the ERP read the database (a screen not read yet: she asks the
  * person to open it). A screen the account cannot open: "Aapke account mein yeh screen nahi hai", and no figure. The
@@ -24,7 +25,7 @@ type MdLang = 'en' | 'hi' | 'hg';
 type MdTerm = { said: string; hits: { f: string; v: string; w?: string; x?: boolean }[] };
 type MdAsk = { kind: 'order'; no: string } | { kind: 'order-missing'; text: string } | { kind: 'order-which'; said: string; nos: string[] }
   | { kind: 'skucard'; sku: string; focus: 'all' | 'cloth' | 'brand' | 'amazon' | 'orders' | 'where'; fam?: boolean } | { kind: 'karigar'; name: string } | { kind: 'karigar-which'; said: string; names: string[] }
-  | { kind: 'skufind'; terms: MdTerm[] } | { kind: 'sku'; sku: string } | { kind: 'sku-which'; said: string; skus: string[] } | { kind: 'today'; focus: string } | { kind: 'late' } | { kind: 'wait'; stage: string };
+  | { kind: 'skufind'; terms: MdTerm[] } | { kind: 'vendor'; code: string; name: string } | { kind: 'vendor-which'; said: string; names: string[] } | { kind: 'sku'; sku: string } | { kind: 'sku-which'; said: string; skus: string[] } | { kind: 'today'; focus: string } | { kind: 'late' } | { kind: 'wait'; stage: string };
 
 /* ---------- reading the question ---------- */
 const MD_HOW = /\b(kaise|kese|kaisey|kaisay|how to|how do|how can|kaha likh\w*|kahan likh\w*|kaha chadha\w*|kaha daal\w*|kaha enter|entry kaise|kya kar(u|un|e|na)|how (are|is|does|did|come))\b|कैसे|कहाँ लिखूं|कहाँ चढ़ाऊं/;
@@ -106,6 +107,28 @@ function mdFindTerms(q: string, rows: Record<string, string>[]): MdTerm[] {
   for (const x of out) { const k = [...new Set(x.hits.map(h => h.f))].sort().join("|"), o = kinds.get(k); if (o) { o.said += " / " + x.said; o.hits.push(...x.hits); } else kinds.set(k, { said: x.said, hits: x.hits.slice() }); }
   return [...kinds.values()];
 }
+/* A VENDOR NAMED IN A QUESTION: the words of its name that tell it apart (not "prints", "textiles", "pvt ltd"), each matched
+ * as written, by its start ("handbooks" holds "hand"), or a letter or two off in a long word ("chaudhry" is Choudhary). Two such
+ * words, or every word of a one-word name of five letters or more. The best-matched names are returned; more than one: she asks. */
+const MD_VEND_SKIP = new Set('and the of pvt ltd private limited co company print prints printer printers printing textile textiles fabric fabrics fab garment garments garmnets enterprise enterprises industries industry house works art arts mills mill shop store traders trading'.split(' '));
+function mdVendorFind(lw: string[], vendors: { code: string; name: string }[]): { code: string; name: string; said: string }[] {
+  const said = lw.filter(w => w.length >= 3 && !MD_FIND_STOP.has(w));
+  const near = (w: string, n: string): boolean => w === n || (n.length >= 4 && w.startsWith(n)) || (w.length >= 4 && n.startsWith(w))
+    || (n.length >= 6 && w.length >= 6 && muDistance(w, n, 2) <= 2);
+  let best = 0, out: { code: string; name: string; said: string }[] = [];
+  for (const v of vendors) {
+    const nw = v.name.toLowerCase().split(/[^a-z0-9]+/).filter(x => x.length >= 2 && !MD_VEND_SKIP.has(x));
+    if (!nw.length) continue;
+    const hit = nw.filter(n => said.some(w => near(w, n)));
+    const ok = hit.length >= 2 || (nw.length === 1 && hit.length === 1 && nw[0].length >= 5);
+    if (!ok) continue;
+    const sc = hit.length / nw.length + hit.length;
+    const first = said.find(w => near(w, hit[0])) || hit[0];
+    if (sc > best + 1e-9) { best = sc; out = [{ code: v.code, name: v.name, said: first }]; }
+    else if (Math.abs(sc - best) < 1e-9) out.push({ code: v.code, name: v.name, said: first });
+  }
+  return out;
+}
 function mdParse(q0: string, D: ErpMeeraData): MdAsk | null {
   /* "AMZ -30082026", "amz 30082026" → AMZ-30082026 (an order number typed with a space) */
   const q = String(q0 || '').replace(/\b(amz|spy|shp|b2b|onl|adj|leg)\s*-\s*(?=\d)|\b(amz|spy|shp|b2b|onl|adj|leg)\s+(?=\d)/gi, (m: string, a: string, b: string) => (a || b) + '-');
@@ -154,6 +177,13 @@ function mdParse(q0: string, D: ErpMeeraData): MdAsk | null {
   if (cand.length && aboutHolding && !MD_TODAY.test(low)) {
     if (cand.length === 1) return { kind: 'karigar', name: cand[0] };
     return { kind: 'karigar-which', said: said || cand[0].split(/\s+/)[0], names: cand.slice(0, 6) };
+  }
+  /* a vendor — a printer, fabricator or filling house ("chaudhry handbooks ke paas apana kitana maal hai", Ravi 7 Nov): two words
+   * of its name, or one long one, each as written, its start, or a letter or two off */
+  if (aboutHolding && !MD_TODAY.test(low) && D.vendors) {
+    const vs = mdVendorFind(lw, D.vendors());
+    if (vs.length === 1) return { kind: 'vendor', code: vs[0].code, name: vs[0].name };
+    if (vs.length > 1) return { kind: 'vendor-which', said: vs[0].said, names: vs.slice(0, 6).map(v => v.name) };
   }
   /* a SKU ("CPC008-04"; "CPC008" when it has several sizes: she asks which) */
   /* …or a SKU typed on its own ("CPC-002"): written with the dash anywhere, it is that SKU or its sizes */
@@ -331,6 +361,24 @@ function mdAnswer(a: MdAsk, q: string, D: ErpMeeraData, lang: MdLang): { html: s
   if (a.kind === 'order-which') return { html: L(`Which order — ${a.nos.map(esc).join(', ')}?`, `कौन-सा ऑर्डर — ${a.nos.map(esc).join(', ')}?`, `Kaunsa order — ${a.nos.map(esc).join(', ')}?`)
     + mdChips('', a.nos.map(n => ({ label: n, q: n }))), acts: [] };
   if (a.kind === 'skucard') return mdSkuCard(a.sku, a.focus, D, L, a.fam);
+  if (a.kind === 'vendor-which') return { html: L(`Which one do you mean — ${a.names.map(esc).join(' or ')}?`, `कौन-सा — ${a.names.map(esc).join(' या ')}?`,
+    `Kaunsa — ${a.names.map(esc).join(' ya ')}?`) + mdChips('', a.names.map(n => ({ label: n, q: q.replace(new RegExp(a.said.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'), n) }))), acts: [] };
+  if (a.kind === 'vendor') {
+    const r = D.vendorHolding(a.code), n = esc(r.name || a.name);
+    const c = mdCannot(r.from, L); if (c) return c;
+    const lines = r.lines || [], has = (r.pcs || 0) > 0 || (r.m || 0) > 0;
+    const amt = [r.pcs ? `<b>${mdNf(r.pcs)}</b> ${L('pcs', 'पीस', 'pcs')}` : '', r.m ? `<b>${mdNf(r.m)}</b> m` : ''].filter(Boolean).join(L(' and ', ' और ', ' aur '));
+    const list = lines.slice(0, 8).map(x => `<li>${esc(x.vpo)} · <b>${esc(x.what || '—')}</b> — ${mdNf(x.qty)} ${x.unit === 'm' ? 'm' : L('pcs', 'पीस', 'pcs')}`
+      + (x.due ? ` · ${L('due', 'तारीख़', 'due')} ${esc(x.due)}` : '') + (x.late ? ` <b>${L('late', 'लेट', 'late')}</b>` : '') + '</li>').join('');
+    const more = lines.length > 8 ? `<div>${L(`…and ${lines.length - 8} more line(s) on Vendor Orders.`, `…और ${lines.length - 8} लाइन वेंडर ऑर्डर्स पर।`, `…aur ${lines.length - 8} line Vendor Orders par.`)}</div>` : '';
+    const send = r.toSend ? `<div>${L(`Also ordered from them but not given yet: ${mdNf(r.toSend)} — that is still ours to send.`, `उनसे ऑर्डर किया पर अभी दिया नहीं: ${mdNf(r.toSend)} — वह अभी हमें भेजना है।`,
+      `Unse order kiya par abhi diya nahi: ${mdNf(r.toSend)} — woh abhi humein bhejna hai.`)}</div>` : '';
+    return { html: `<div class="ga-a">${has ? L(`<b>${n}</b> has ${amt} of ours not back yet, on ${lines.length} vendor order line${lines.length === 1 ? '' : 's'}:`,
+      `<b>${n}</b> के पास हमारा ${amt} माल है जो अभी वापस नहीं आया, ${lines.length} वेंडर ऑर्डर लाइन में:`, `<b>${n}</b> ke paas humara ${amt} maal hai jo abhi wapas nahi aaya, ${lines.length} vendor order line mein:`)
+      : L(`<b>${n}</b> has nothing of ours right now on Vendor Orders.`, `वेंडर ऑर्डर्स के हिसाब से अभी <b>${n}</b> के पास हमारा कोई माल नहीं है।`, `Vendor Orders ke hisaab se abhi <b>${n}</b> ke paas humara koi maal nahi hai.`)}</div>`
+      + (list ? `<ul>${list}</ul>` : '') + more + send + mdSource(r.from, L),
+      acts: [open('vord|', 'Open Vendor Orders', 'वेंडर ऑर्डर्स खोलें', 'Vendor Orders kholiye')] };
+  }
   if (a.kind === 'skufind') {
     const r = D.skuList(), c = mdCannot(r.from, L); if (c) return c;
     const rows = r.rows as unknown as Record<string, string>[];

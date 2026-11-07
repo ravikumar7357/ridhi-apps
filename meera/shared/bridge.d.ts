@@ -60,6 +60,10 @@ interface ErpMeeraData {
   skuFamily(said: string): { from: ErpMeeraFrom; family?: string; skus: { sku: string; size: string; color: string }[] };
   /** every SKU's article, type, colour, brand, size and fabric (Master Database) — for finding SKUs by those words */
   skuList(): { from: ErpMeeraFrom; rows: { sku: string; articleType: string; subtype: string; color: string; brand: string; size: string; fabric: string }[] };
+  /** the vendors' names (vendor master, and codes on vendor orders) */
+  vendors(): { code: string; name: string }[];
+  /** what one vendor holds of ours on Vendor Orders: given less what came back, pieces and metres apart */
+  vendorHolding(code: string): { from: ErpMeeraFrom; code?: string; name?: string; pcs?: number; m?: number; toSend?: number; lines?: { vpo: string; what: string; qty: number; unit: string; due: string; late: boolean }[] };
   /** Amazon FBA units, as Shopify Orders last read them */
   skuFba(sku: string): { from: ErpMeeraFrom; fba?: number | null };
   /** where it sells: Amazon by its ASIN, the rest from the orders seen */
