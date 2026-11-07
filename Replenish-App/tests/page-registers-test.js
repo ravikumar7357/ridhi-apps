@@ -5,7 +5,8 @@
  * database, two screens asking at once share one read, a register that fails stays unloaded while the others land, and
  * each register goes stale on its own clock; no screen outside core/gates.js tests "is it loaded" and then loads, and
  * nothing outside the loader stamps PTG_AT; and a broken copy of the gates makes this suite fail.
- * Part B adds the full call-graph check (every screen's entry against its declared set). */
+ * Part B adds: per-register errors, the runtime guard (undeclared reads), and the full call-graph check (every screen's entries,
+ * followed across every file, against its declared set; tests/page-registers-graph.js). */
 const fs = require('fs'), path = require('path'), os = require('os'), vm = require('vm'), { spawnSync } = require('child_process');
 const rd = f => fs.readFileSync(f, 'utf8').replace(/\r\n/g, '\n');
 const APP = path.join(__dirname, '..', 'src', 'app');
@@ -33,7 +34,7 @@ function boot(src, o) {
   o = o || {};
   const LS = new Map(Object.entries(o.ls || {}));
   const localStorage = { getItem: k => (LS.has(k) ? LS.get(k) : null), setItem: (k, v) => LS.set(k, String(v)), removeItem: k => { LS.delete(k); } };
-  const st = { reads: [], clock: 1.8e12, img: 0, sync: 0, delta: 0, fail: new Set(), hold: false, held: [] };
+  const st = { reads: [], clock: 1.8e12, img: 0, sync: 0, delta: 0, fail: new Set(), hold: false, held: [], warns: [], shown: [], dm: [] };
   const ctx = {
     localStorage, AUDIT: { on: o.audit !== false }, PT: { at: {}, cut: null, base: null }, TAB_NOW: 't',
     Date: { now: () => st.clock },
@@ -46,10 +47,12 @@ function boot(src, o) {
     ptList: v => (Array.isArray(v) ? v.slice() : v && typeof v === 'object' ? Object.values(v) : []),
     mdbYnFix: r => Object.assign({}, r, { fixed: 1 }), ptStamp: () => 'stamp',
     ptImgShared: async () => { st.img++; }, replMasterSync: () => { st.sync++; }, deltaShadowSoon: () => { st.delta++; },
+    /* what the runtime guard talks to: the console, the screen redraw, the data meter's counting hook */
+    console: { warn: (...a) => st.warns.push(a.join(' ')) }, showTab: t => { st.shown.push(t); }, dmCount: (...a) => { st.dm.push(a); },
   };
   if (o.vendor) ctx.spIsVendor = () => true;
   vm.createContext(ctx);
-  const names = ['PTG', 'PT', 'ptLoadGates', 'ptGatesStale', 'ptGatesFresh', 'ptOpenFresh', 'ptNeed', 'ptHas', 'PTG_ALL', 'PTG_MASTER', 'PTG_REGS', 'PTG_AT', 'PTG_FLY', 'prOn', 'prSaveFlag', 'ptLack', 'ptStillReading'];
+  const names = ['PTG', 'PT', 'ptLoadGates', 'ptGatesStale', 'ptGatesFresh', 'ptOpenFresh', 'ptNeed', 'ptHas', 'PTG_ALL', 'PTG_MASTER', 'PTG_REGS', 'PTG_AT', 'PTG_FLY', 'prOn', 'prSaveFlag', 'ptLack', 'ptStillReading', 'ptPeek', 'PTG_ERR', 'PR_UNDECLARED', 'ptNeedRun'];
   vm.runInContext(src + '\n;this.__t = {' + names.map(n => `${n}: typeof ${n} !== 'undefined' ? ${n} : undefined`).join(', ') + '};', ctx);
   return Object.assign({ t: ctx.__t, st, LS, ctx }, {
     snap: () => JSON.stringify({ PTG: Object.assign({}, ctx.__t.PTG, { loading: undefined }), PT: ctx.__t.PT }),
@@ -137,7 +140,7 @@ async function offRun(src, how) {
     await p.t.ptNeed(p.t.PTG_MASTER, {});
     const r = p.take();
     ok('the master set reads only the masters and the master database', same(r, MASTER_NODES), JSON.stringify(r));
-    ok('…and nothing else is loaded', !p.t.PTG.ob && !p.t.PTG.press && !p.t.PT.cut && !p.t.PT.base && !p.t.PTG.shopProd);
+    ok('…and nothing else is loaded', !p.t.ptPeek('ob') && !p.t.ptPeek('press') && !p.t.ptPeek('cut') && !p.t.ptPeek('base') && !p.t.ptPeek('shopProd'));
     ok('ptHas: master set yes, whole set no', p.t.ptHas(p.t.PTG_MASTER) === true && p.t.ptHas(p.t.PTG_ALL) === false);
     ok('the master database is stored as today (mdbYnFix applied), pictures read once, master synced to Replenishment', p.t.PTG.mdb.length === 2 && p.t.PTG.mdb[0].fixed === 1 && p.st.img === 1 && p.st.sync >= 1);
     ok('PTG.at stays 0 and delta sync stays quiet until all nine are in', p.t.PTG.at === 0 && p.st.delta === 0);
@@ -166,7 +169,7 @@ async function offRun(src, how) {
     const p = boot(SRC, ON); p.st.fail.add('pt_orderBook');
     await p.t.ptNeed(p.t.PTG_ALL, {});
     p.take();
-    ok('a register that fails stays unloaded while the others land', p.t.PTG.ob == null && p.t.PTG.press.length === 1 && p.t.PTG.mdb.length === 2 && p.t.PT.base.length === 1);
+    ok('a register that fails stays unloaded while the others land', p.t.ptPeek('ob') == null && p.t.PTG.press.length === 1 && p.t.PTG.mdb.length === 2 && p.t.PT.base.length === 1);
     ok('…the error is kept for the screen, and the set is not "has"', /orderBook/.test(p.t.PTG.err) && p.t.ptHas(p.t.PTG_ALL) === false && p.t.ptHas(p.t.PTG_MASTER) === true);
     ok('…and no delta sync starts on a partial load', p.st.delta === 0);
     p.st.fail.clear();
@@ -268,6 +271,181 @@ async function offRun(src, how) {
   ok('teeth: a multi-line presence check is caught too', presence(planted2).length === 1);
   ok('teeth: a PTG_AT write in a screen is caught', atWriters(Object.assign({}, tree, { 'zz/planted.js': 'PTG_AT.ob = Date.now();\n' })).length === 1 && atWriters(Object.assign({}, tree, { 'zz/planted.js': "PTG_AT['mdb'] = 1;\n" })).length === 1);
 
+  /* ------------------------------------------------------------ (b2) Part B: per-register errors, the runtime guard */
+  console.log('\nPer-register errors (switch on)');
+  {
+    const p = boot(SRC, ON); p.st.fail.add('pt_orderBook'); p.st.hold = true;
+    const a = p.t.ptNeed(['ob'], {}), b = p.t.ptNeed(['press'], {});
+    await tick();
+    p.st.hold = false; p.st.held.splice(0).forEach(f => f());
+    await Promise.all([a, b]);
+    ok('a failed order-book read is kept under its own register', /orderBook/.test(p.t.PTG_ERR.ob || '') && !p.t.PTG_ERR.press);
+    const c = p.t.ptNeed(['press', 'mdb'], {}); await c;
+    ok('another screen\'s later ask (a different register) does not wipe it', /orderBook/.test(p.t.PTG_ERR.ob || ''));
+    ok('…and that other screen sees no failure in what it asked for', p.t.PTG.err === '');
+    await p.t.ptNeed(['ob'], {});
+    ok('a screen asking again for the failed register sees the failure in PTG.err', /orderBook/.test(p.t.PTG.err));
+    p.st.fail.clear();
+    await p.t.ptNeed(['ob'], {});
+    ok('a successful read clears that register\'s error and PTG.err', !p.t.PTG_ERR.ob && p.t.PTG.err === '');
+  }
+  {
+    const p = boot(SRC, ON); p.st.fail.add('pt_masterDB');
+    await p.t.ptNeed(p.t.PTG_ALL, {});
+    ok('PTG.err for a whole-set ask names the failed register of that set', /masterDB/.test(p.t.PTG.err));
+    const q = boot(SRC); q.st.fail.add('pt_masterDB'); await q.t.ptNeed(q.t.PTG_ALL, {});
+    ok('switch off: PTG.err is set as before (no per-register table is used)', /masterDB/.test(q.t.PTG.err) && Object.keys(q.t.PTG_ERR).length === 0);
+  }
+
+  console.log('\nRuntime guard (switch on): an undeclared read');
+  {
+    const p = boot(SRC, ON);
+    await p.t.ptNeed(p.t.PTG_MASTER, {}); p.take();
+    ok('on: the fields are guarded (getters)', typeof Object.getOwnPropertyDescriptor(p.t.PTG, 'ob').get === 'function');
+    { const q = boot(SRC, ON); await q.t.ptNeed(q.t.PTG_ALL, {}); q.take(); q.t.PTG.ob = null; q.t.PTG.mdb = null; q.t.PTG.masters = null;
+      ok('presence checks on a register a screen cleared (Master DB Refresh) never fire it', (q.t.ptHas(q.t.PTG_ALL), q.t.ptLack(q.t.PTG_MASTER, 'mdb'), q.t.ptGatesStale(q.t.PTG_ALL), q.t.ptStillReading(), q.st.warns.length === 0 && q.take().length === 0)); }
+    ok('presence checks never fire it: ptHas, ptLack, ptPeek, ptStillReading, ptGatesStale', (() => {
+      p.t.ptHas(p.t.PTG_ALL); p.t.ptLack(p.t.PTG_ALL, 'mdb'); p.t.ptPeek('ob'); p.t.ptPeek('cut'); p.t.ptStillReading(); p.t.ptGatesStale(p.t.PTG_ALL, true);
+      return p.st.warns.length === 0 && p.take().length === 0; })());
+    const seen = p.t.PTG.ob;
+    ok('reading an unloaded register returns what it held (nothing) and says so once, in plain words', seen == null && p.st.warns.length === 1 && /"t" screen read the order book before it was loaded/.test(p.st.warns[0]), p.st.warns[0]);
+    ok('…the tally the data meter reads has one line for the page and register', p.t.PR_UNDECLARED['t|ob'] === 1 && p.st.dm.length === 1 && p.st.dm[0][0] === 'undeclared_ob' && p.st.dm[0][2] === 'undeclared');
+    void p.t.PTG.ob; void p.t.PTG.ob;
+    ok('…reading it again while it loads is counted but not logged or counted by the meter again, and starts no second read', p.st.warns.length === 1 && p.t.PR_UNDECLARED['t|ob'] === 3 && p.st.dm.length === 1 && same(p.take(), OTHER_NODES));
+    await tick(); await tick();
+    ok('…it is read in the background, lands, and the screen is drawn again once', p.t.ptHas(['ob']) && p.t.PTG.ob.length === 1 && p.st.shown.length === 1 && p.st.shown[0] === 't');
+    ok('…and a loaded register no longer fires', p.st.warns.length === 1);
+    p.t.PTG.press = null; void p.t.PTG.press;
+    ok('another register on the same page is a second line', p.st.warns.length === 2 && p.t.PR_UNDECLARED['t|press'] === 1);
+    await tick(); await tick();
+  }
+  {
+    const p = boot(SRC, ON); await p.t.ptNeed(p.t.PTG_MASTER, {}); p.take(); p.st.hold = true;
+    void p.t.PTG.ob; await tick();
+    p.st.held.shift()(); await tick(); await tick();
+    ok('the screen is not redrawn while only the order book has landed', p.st.shown.length === 0 && !p.t.ptHas(p.t.PTG_ALL));
+    p.st.hold = false; p.st.held.splice(0).forEach(f => f()); await tick(); await tick();
+    ok('…it is redrawn once all seven have', p.st.shown.length === 1 && p.t.ptHas(p.t.PTG_ALL));
+  }
+  {
+    const p = boot(SRC, ON); await p.t.ptNeed(p.t.PTG_MASTER, {}); p.take();
+    void p.t.PTG.ob; p.ctx.TAB_NOW = 'elsewhere';
+    await tick(); await tick();
+    ok('if the person has moved to another screen before it lands, nothing is redrawn', p.t.ptHas(['ob']) && p.st.shown.length === 0);
+    p.t.PTG.press = null; void p.t.PTG.ob; void p.t.PTG.press;
+    ok('a different page logs its own line for a register', p.st.warns.length === 2 && p.t.PR_UNDECLARED['elsewhere|press'] === 1 && p.t.PR_UNDECLARED['elsewhere|ob'] === undefined);
+  }
+  {
+    const p = boot(SRC, ON);
+    p.t.PTG.ob = [{ orderNo: 'X' }];
+    ok('the setter stores exactly what it is given', p.t.PTG.ob.length === 1 && p.t.PTG.ob[0].orderNo === 'X' && p.st.warns.length === 0);
+    ok('…and does NOT mark the register loaded (only the loader stamps PTG_AT)', p.t.ptHas(['ob']) === false && p.t.PTG_AT.ob === undefined);
+    p.t.PTG.ob = null;
+    ok('…a screen can clear a register (Master DB Refresh) and it reads as unloaded', p.t.ptPeek('ob') === null);
+  }
+  {
+    const p = boot(SRC, ON); p.st.fail.add('pt_qcChecks');
+    await p.t.ptNeed(['qc'], {});
+    ok('the loader\'s own reads do not fire it (QC keeps its own catch and falls back to an empty list)', p.st.warns.length === 0 && Array.isArray(p.t.ptPeek('qc')));
+    const q = boot(SRC, ON); await q.t.ptNeed(['masters'], {});
+    ok('landing the masters alone does not read the master database to sync Replenishment', q.st.warns.length === 0 && q.st.sync === 0);
+    await q.t.ptNeed(['mdb'], {});
+    ok('…it syncs once both halves are in', q.st.sync >= 1 && q.st.warns.length === 0);
+  }
+  {
+    const p = boot(SRC);
+    const d = Object.getOwnPropertyDescriptor(p.t.PTG, 'ob');
+    ok('off: the fields are the plain fields they always were (no getters installed)', d && 'value' in d && !d.get);
+    void p.t.PTG.ob; void p.t.PTG.mdb;
+    ok('off: reading an unloaded register logs nothing and reads nothing', p.st.warns.length === 0 && p.take().length === 0 && p.st.dm.length === 0);
+    const v = boot(SRC, { ls: { pageRegisters: '1' }, vendor: true });
+    ok('vendors: off, nothing installed', !Object.getOwnPropertyDescriptor(v.t.PTG, 'ob').get);
+    const w = boot(SRC, ON); w.ctx.spIsVendor = () => true; void w.t.PTG.ob;
+    ok('a page that turned out to be a vendor after the guard was installed: no log, no read', w.st.warns.length === 0 && w.take().length === 0);
+  }
+
+  console.log('\nPart B groups: the Master set on a fresh page');
+  {
+    const p = boot(SRC, ON);
+    /* what ensurePmdb / ensureAcc / vmOpen / voSync do on a fresh page */
+    if (p.t.ptLack(p.t.PTG_MASTER, 'mdb')) await p.t.ptNeed(p.t.PTG_MASTER, { why: 'pmdb', has: 'mdb' });
+    ok('Master DB opens on a fresh page: only pt_masters and pt_masterDB are read', same(p.take(), MASTER_NODES));
+    ok('…and a second screen of the group (Accessories, vendor master) reads nothing more', (await p.t.ptNeed(p.t.PTG_MASTER, { why: 'accessories', has: 'masters' }), p.take().length === 0));
+    await p.t.ptNeed(p.t.PTG_MASTER, { force: true });
+    ok('the Refresh button (acGo) force-reads the master set again, and only that', same(p.take(), MASTER_NODES));
+    ok('…and the page stayed free of undeclared reads', p.st.warns.length === 0);
+    const q = boot(SRC);
+    await q.t.ptNeed(q.t.PTG_MASTER, { force: true });
+    ok('switch off: the same button is ptLoadGates(true) — all nine reads, as today', q.take().length === 9);
+  }
+
+  /* ------------------------------------------------------------ (c2) every screen's whole reach, against its declared set */
+  if (!process.env.GATES_SRC) {
+    console.log('\nScreen check: what each screen can reach, following calls across every file');
+    const G = require('./page-registers-graph.js');
+    const g = G.build(tree);
+    const MASTER = ['masters', 'mdb'];
+    /* group B screens (narrowed to the master set) and a few whole-set screens as controls */
+    const PR_SCREENS = [
+      { name: 'Master Database (all its views, buttons, exports and saves)', set: MASTER,
+        entries: ['ensurePmdb', 'renderPmdb', 'pmdbRefresh', /\$\('ptm\w+'\)/, { file: 'masters/master-database.js' }, { file: 'masters/sku-codes.js' }, 'renderSkuCode'], asks: ['ensurePmdb', 'renderSkuCode'] },
+      { name: 'Accessories', set: MASTER, entries: ['ensureAcc', { file: 'inventory/accessories.js' }, /\$\('ac\w+'\)/], asks: ['ensureAcc'] },
+      { name: 'Vendor master', set: MASTER, entries: ['vmOpen', { file: 'vendors/portal/vendor-master.js' }], asks: ['vmOpen'] },
+      { name: 'Vendor sync (admin)', set: MASTER, entries: [/\$\('voSync'\)/, 'voSyncAccess'], asks: [] },
+      { name: 'control: Order Console', set: G.ALL, entries: ['ensureOrd'], mustReach: ['ob', 'base', 'cut', 'press', 'qc', 'shopProd', 'mdb'] },
+      { name: 'control: Press', set: G.ALL, entries: ['ensurePpress'], mustReach: ['press'] },
+      { name: 'control: Quality Control', set: G.ALL, entries: ['ensureQc'], mustReach: ['base', 'cut'] },
+    ];
+    const check = (scr, graph) => {
+      const r = G.reach(graph || g, scr.entries);
+      const extra = [...r.regs].filter(x => scr.set.indexOf(x) < 0);
+      return { r, extra, why: extra.map(x => x + ' <= ' + (r.via.get(x) || []).join(' > ')).join(' | ') };
+    };
+    PR_SCREENS.forEach(scr => {
+      const c = check(scr);
+      ok('screen "' + scr.name + '" finds its entry points', c.r.start.length >= 1);
+      ok('screen "' + scr.name + '" reaches only ' + scr.set.join(' + '), c.extra.length === 0, c.why);
+      if (scr.mustReach) ok('screen "' + scr.name + '" (control) really reaches ' + scr.mustReach.join(', '), scr.mustReach.every(x => c.r.regs.has(x)), [...c.r.regs].join(','));
+      (scr.asks || []).forEach(fn => {
+        const piece = (g.byName.get(fn) || [])[0];
+        ok('"' + fn + '" asks for the master set, not the whole set', !!piece && /ptNeed\(\s*PTG_MASTER\b/.test(piece.text) && !/ptNeed\(\s*PTG_ALL\b|ptLoadGates\(/.test(piece.text), piece && piece.file);
+      });
+    });
+    /* The narrowed screens' saves that need order data wait for the whole set first. */
+    ['mdbEdit', 'custFixOpen'].forEach(fn => { const pc = (g.byName.get(fn) || [])[0]; ok('"' + fn + '" waits for the whole set before it uses order data', !!pc && pc.gate === true, pc && pc.file); });
+    { const pc = G.reach(g, [/\$\('ptmRename'\)/]); ok('Change SKU (rename) waits for the whole set', pc.start.length === 1 && pc.start[0].gate === true && pc.regs.size === 0); }
+    { const pc = (g.byName.get('skuFillOpen') || [])[0]; ok('"skuFillOpen" (look-alike fill) waits for the whole set', !!pc && pc.gate === true); }
+    { const pc = (g.byName.get('flowVoExtra') || [])[0]; ok('"flowVoExtra" (test print orders) reads the whole set first when they are on', !!pc && pc.gate === true); }
+    /* The check has teeth of its own. */
+    const planted = (text, extraNames) => G.build(tree, [{ file: 'zz/planted.js', text }]);
+    {
+      const fake = { name: 'fake master screen', set: MASTER, entries: ['fakeMasterScreen'] };
+      const g1 = planted('async function fakeMasterScreen() {\n  await ptNeed(PTG_MASTER, {});\n  return (PT.base || []).length;\n}\n');
+      ok('teeth: a Master screen that reads Job Work (PT.base) fails', check(fake, g1).extra.join() === 'base', check(fake, g1).why);
+      const g2 = planted('async function fakeMasterScreen() {\n  await ptNeed(PTG_MASTER, {});\n  return fakeHelper();\n}\nfunction fakeHelper() {\n  return fakeDeeper();\n}\nfunction fakeDeeper() {\n  return (PTG.ob || []).length;\n}\n');
+      ok('teeth: a read two calls down (through a helper) is followed and fails', check(fake, g2).extra.join() === 'ob');
+      const g3 = planted('const fakeMasterScreen = async () => {\n  await ptNeed(PTG_MASTER, {});\n  return ordLines();\n};\n');
+      ok('teeth: the Order Console line builder counts as the whole set', check(fake, g3).extra.length >= 6);
+      const g4 = planted('async function fakeMasterScreen() {\n  $(\'x\').onclick = () => fakeSave();\n}\nasync function fakeSave() {\n  await ptNeed(PTG_ALL, {});\n  return (PTG.ob || []).length;\n}\n');
+      ok('teeth: a save that waits for the whole set before it reads is not charged to the screen', check(fake, g4).extra.length === 0);
+      const g5 = planted('async function fakeMasterScreen() {\n  await ptNeed(PTG_MASTER, {});\n  return fakeSave();\n}\nasync function fakeSave() {\n  const n = (PTG.ob || []).length;\n  await ptNeed(PTG_ALL, {});\n  return n;\n}\n');
+      ok('teeth: a save that reads BEFORE it waits is charged', check(fake, g5).extra.join() === 'ob');
+      const g6 = planted('async function fakeMasterScreen() {\n  await ptNeed(PTG_MASTER, {});\n  const ob = typeof ptPeek === \'function\' ? ptPeek(\'ob\') : PTG.ob;\n  return (ob || []).length;\n}\n');
+      ok('teeth: an "if it is there, use it" read through ptPeek is not a read of the screen', check(fake, g6).extra.length === 0);
+      const g7 = planted('async function fakeMasterScreen() {\n  const x = `${(PT.cut || []).length}`;\n  return x;\n}\n');
+      ok('teeth: a register named inside a template ${ } is seen', check(fake, g7).extra.join() === 'cut');
+      const g8 = planted('async function fakeMasterScreen() {\n  const m = "PTG.ob is only text here"; // PTG.press in a comment\n  return m;\n}\n');
+      ok('teeth: a register named in a string or a comment is not a read', check(fake, g8).extra.length === 0);
+    }
+    {
+      const ctl = PR_SCREENS.find(x => x.name === 'control: Order Console');
+      const without = Object.assign({}, ctl, { set: ctl.set.filter(x => x !== 'ob') });
+      ok('teeth: take "ob" out of the Order Console\'s declared set and the check fails', check(without).extra.indexOf('ob') >= 0);
+      const m = PR_SCREENS[0];
+      ok('teeth: take "mdb" out of the Master Database\'s declared set and the check fails', check(Object.assign({}, m, { set: ['masters'] })).extra.indexOf('mdb') >= 0);
+    }
+  }
+
   /* ------------------------------------------------------------ (d) teeth */
   if (!process.env.GATES_SRC) {
     console.log('\nTeeth: a broken copy of core/gates.js must fail this suite');
@@ -278,9 +456,17 @@ async function offRun(src, how) {
       ['ptHas ignores the order book', real.replace('return (set || PTG_ALL).every(ptRegLoaded);', "return (set || PTG_ALL).filter(r => r !== 'ob').every(ptRegLoaded);")],
       ['the master set loads the whole set', real.replace('const due = set.filter(', 'const due = PTG_ALL.filter(')],
       ['two asks for one register read it twice', real.replace('if (PTG_FLY[r]) return PTG_FLY[r];', '')],
-      ['a failed register stops the others', real.replace('e => { PTG.err = e.message || String(e); }', 'e => { throw e; }')],
+      ['a failed register stops the others', real.replace('e => { PTG_ERR[r] = e.message || String(e); }', 'e => { throw e; }')],
       ['a light refresh ignores the master clock', real.replace("(light && (r === 'masters' || r === 'mdb') ? PTG_MDB_STALE_MS : PTG_STALE_MS)", 'PTG_STALE_MS')],
       ['delta sync starts on a partial load', real.replace('if (!PTG.err && PTG.at && typeof deltaShadowSoon', "if (typeof deltaShadowSoon")],
+      ['one ask wipes every register error', real.replace('    delete PTG_ERR[r];\n    const p', '    Object.keys(PTG_ERR).forEach(k => delete PTG_ERR[k]);\n    const p')],
+      ['PTG.err is not set from the registers the screen asked for', real.replace("PTG.err = set.map(r => PTG_ERR[r]).find(Boolean) || '';", "PTG.err = '';")],
+      ['the guard setter marks the register loaded', real.replace('set(v) { PR_VAL[reg] = v; } });', 'set(v) { PR_VAL[reg] = v; PTG_AT[reg] = Date.now(); } });')],
+      ['ptHas / ptLack trip the guard', real.replace('const ptRegVal = r => ptPeek(r);', "const ptRegVal = r => (r === 'cut' ? PT.cut : r === 'base' ? PT.base : PTG[r]);")],
+      ['the guard logs every read instead of one per page and register', real.replace('if (PR_UNDECLARED[key] > 1) return;', '')],
+      ['the guard is installed with the switch off', real.replace('if (prOn()) prGuardInstall();', 'prGuardInstall();')],
+      ['the guard never starts the background read', real.replace("ptNeed(want, { why: 'undeclared ' + page })", "Promise.resolve()")],
+      ['the guard loads one order register alone', real.replace('const want = PTG_MASTER.indexOf(reg) >= 0 ? PTG_MASTER : PTG_ALL;', 'const want = [reg];')],
       ['the pictures are read with every register', real.replace("case 'ob': PTG.ob = ptList(await ptGet('pt_orderBook'));", "case 'ob': PTG.ob = ptList(await ptGet('pt_orderBook')); try { await ptImgShared(); } catch (e) { /* x */ }")],
     ];
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'prg-'));

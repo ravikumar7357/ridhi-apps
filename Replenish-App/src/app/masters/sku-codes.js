@@ -253,9 +253,9 @@ function skcSheetRows() {
 }
 
 function renderSkuCode() {
-  if (ptLack(PTG_ALL, ['mdb', 'masters'])) {
+  if (ptLack(PTG_MASTER, ['mdb', 'masters'])) {
     $('ptmMsg').className = 'muted'; $('ptmMsg').textContent = 'Reading the master database…';
-    ptNeed(PTG_ALL, { why: 'sku codes' }).then(() => { if (PTG.mdb) renderPmdb(); });
+    ptNeed(PTG_MASTER, { why: 'sku codes' }).then(() => { if (PTG.mdb) renderPmdb(); });
     return;
   }
   const all = skcRows();

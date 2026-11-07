@@ -92,6 +92,13 @@ M masters, D master database, O order book, P press, Z cutting freezes, C cuttin
 
 **Part B item:** ptNeedRun clears PTG.err at the start of every call; with the switch on, keep errors per register so a parallel ask can't wipe another's error (in-production.js:501 checks PTG.err).
 
+**Part B status (7 Nov, built locally, switch still off, not deployed):**
+- Per-register errors: `PTG_ERR[reg]`; `PTG.err` is set at the end of each ask from the registers of THAT ask's set (switch on only).
+- Runtime guard: the seven `PTG` fields get getters when the switch is on at page start (`prGuardInstall`, core/gates.js). One console line per page + register, `PR_UNDECLARED` tally, data meter line `undeclared_<reg>` (how = undeclared), background read, redraw with `showTab` if still on that screen. `ptPeek(reg)` is the "is it there?" read that never fires; the loader, ptHas, ptLack, ptStillReading and the Meera / Replenishment / picture "if loaded, use it" reads use it. PT.cut and PT.base are NOT guarded: Job Work, Cutting, Store and HR test them for null and load them with ptLoad, so a getter would cry wolf; the static test covers them.
+- Static screen check: tests/page-registers-graph.js (call graph over src/app, pieces = top-level blocks) + the PR_SCREENS table in page-registers-test.js. A "gate" (asks for the whole set before touching any register) stops the walk. Not seen by it: calls through a table or a string, and inline onclick="" inside templates.
+- Narrowed to the master set: Master Database (all views, import, export, + New SKU, Refresh), SKU codes, Accessories (+ its Refresh), Vendor master, Vendor sync. Left whole-set inside them (each waits for All first): Master DB Edit / Delete (mdbEdit: usage counts), Change SKU (rename), custom-order fix, look-alike fill (skuFillOpen: vendor orders reach the line builder). flowVoExtra (test print orders, preview only) reads All first when test orders are on.
+- Known small difference with the switch on: Master DB shows an order-book picture for a SKU only once the order book is loaded (ptImgLines uses ptPeek).
+
 **Part A status (7 Nov):** the runtime guard below is NOT built in Part A (deferred to Part B, which narrows the first screens); the full call-graph screen check in the static test is also Part B. Part A built the gates, the switch, the converted presence checks, the synchronous refusals in cutGuard / bdGuard / the QC check save, and the test with its teeth.
 
 **Runtime guard (switch on):** the nine PTG fields become getters/setters. Reading an unloaded register logs one line per

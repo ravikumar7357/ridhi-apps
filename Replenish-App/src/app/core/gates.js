@@ -24,6 +24,9 @@ const PTG_ALL = PTG_REGS.slice();
 const PTG_AT = {};
 /* The read of each register that is under way — a second ask for the same register waits for it instead of reading again. */
 const PTG_FLY = {};
+/* Switch on: what went wrong with each register's last read, kept apart so one screen's failed read is not wiped by another
+ * screen's ask. PTG.err (what screens test) is set from the registers of the set a screen asked for. */
+const PTG_ERR = {};
 let PTG_IMG_DONE = false;
 
 /** On or off. Cheap: a couple of storage reads, no network. */
@@ -42,8 +45,10 @@ function prSaveFlag(on) {
   try { if (on) localStorage.setItem('prFlagLast', '1'); else localStorage.removeItem('prFlagLast'); } catch (e) { /* no storage: stays off */ }
 }
 
-/** Where a register's value lives: Job Work + cutting and the base data sit on PT, the rest on PTG. */
-const ptRegVal = r => (r === 'cut' ? PT.cut : r === 'base' ? PT.base : PTG[r]);
+/** Where a register's value lives: Job Work + cutting and the base data sit on PT, the rest on PTG. Reads the value without
+ *  raising the undeclared-read guard below (the loader and every "is it there?" check use this). */
+const ptRegVal = r => ptPeek(r);
+const ptPeek = r => (r === 'cut' ? PT.cut : r === 'base' ? PT.base : PR_GUARDED ? PR_VAL[r] : PTG[r]);
 /** A register counts as loaded when the loader stamped it AND its value is still there (Master DB Refresh clears values). */
 const ptRegLoaded = r => !!PTG_AT[r] && ptRegVal(r) != null;
 const ptRegLimit = (r, light) => (light && (r === 'masters' || r === 'mdb') ? PTG_MDB_STALE_MS : PTG_STALE_MS);
@@ -181,24 +186,28 @@ async function ptReadReg(r) {
     case 'base': PT.base = ptList(await ptGet('pt_baseData')); PT.at.base = ptStamp(); break;
     case 'shopProd': PTG.shopProd = (await ptGet('pt_shopProd')) || {}; break;
     /* QC checks have their own catch: an account that may not read them still gets the rest, and made falls back to the old press entries. */
-    case 'qc': { const q = await ptGet('pt_qcChecks').catch(() => null); PTG.qc = q ? ptList(q) : (PTG.qc || []); break; }
+    case 'qc': { const q = await ptGet('pt_qcChecks').catch(() => null); PTG.qc = q ? ptList(q) : (ptPeek('qc') || []); break; }
   }
 }
 /** Replenishment shows the master's product details: put a fresh master on its rows once both halves are in. */
 function ptMasterLanded() {
-  if (PTG.masters && PTG.mdb && typeof replMasterSync === 'function') { try { replMasterSync(); } catch (e) { /* the snapshot's details stay */ } }
+  if (ptPeek('masters') && ptPeek('mdb') && typeof replMasterSync === 'function') { try { replMasterSync(); } catch (e) { /* the snapshot's details stay */ } }
 }
 function ptNeedRun(set, force, light) {
   const due = set.filter(r => !ptRegLoaded(r) || (force && (!light || Date.now() - PTG_AT[r] > ptRegLimit(r, true))));
   if (!due.length) return Promise.resolve();
-  PTG.err = ''; PTG.busy = true;
+  PTG.busy = true;
   const jobs = due.map(r => {
     if (PTG_FLY[r]) return PTG_FLY[r];
-    const p = ptReadReg(r).then(() => { PTG_AT[r] = Date.now(); }, e => { PTG.err = e.message || String(e); }).then(() => { delete PTG_FLY[r]; });
+    delete PTG_ERR[r];
+    const p = ptReadReg(r).then(() => { PTG_AT[r] = Date.now(); delete PTG_ERR[r]; }, e => { PTG_ERR[r] = e.message || String(e); }).then(() => { delete PTG_FLY[r]; });
     PTG_FLY[r] = p;
     return p;
   });
   return Promise.all(jobs).then(() => {
+    /* What a screen sees in PTG.err is the failure of a register IT asked for. Another screen's read going wrong stays in
+     * PTG_ERR under its own register and is not wiped by this ask. */
+    PTG.err = set.map(r => PTG_ERR[r]).find(Boolean) || '';
     PTG.busy = Object.keys(PTG_FLY).length > 0;
     /* PTG.at: when the oldest register was read, once all nine are in. */
     PTG.at = PTG_REGS.every(ptRegLoaded) ? Math.min(...PTG_REGS.map(r => PTG_AT[r])) : 0;
@@ -206,6 +215,56 @@ function ptNeedRun(set, force, light) {
     if (!PTG.err && PTG.at && typeof deltaShadowSoon === 'function') deltaShadowSoon();
   });
 }
+
+/* ---- PAGE REGISTERS: THE RUNTIME GUARD (Step 3, Part B; switch on only) ----
+ * A screen asks for the registers it needs (ptNeed). If it reads one it did not ask for, the page would quietly show a short
+ * list. With the switch on at page start, the registers become fields with a getter: reading one that is NOT loaded writes one
+ * warning line per screen and register, counts it for the data meter, starts reading it in the background and, when it lands,
+ * draws the screen again if you are still on it. Honest limit: a screen already drawn may show a short list for about a second.
+ * What the guard never does: store a value differently (the setter keeps exactly what it is given), mark a register loaded
+ * (only the loader in ptNeedRun does), or fire on the loader's own reads and on "is it there?" checks (ptHas, ptLack, ptPeek).
+ * Only the PTG fields are guarded. PT.cut and PT.base are not: Job Work, Cutting, the Store and HR test them for "not loaded yet" and read
+ * them with their own loader (ptLoad), so a getter there would cry wolf on screens that are doing nothing wrong; the static test in
+ * tests/page-registers-test.js is what covers them.
+ * With the switch off at page start nothing is installed: PTG stays the plain object it always was. */
+const PR_UNDECLARED = {};
+const PR_VAL = {};
+let PR_GUARDED = false;
+const PR_NAMES = { masters: 'the masters', mdb: 'the master database', ob: 'the order book', press: 'the press register', freeze: 'the cutting freezes',
+  cut: 'the cutting register', base: 'the Job Work register', shopProd: 'Shopify production', qc: 'the QC checks' };
+function prUndeclared(reg) {
+  try {
+    if (!prOn()) return;
+    let page = '(start)';
+    try { page = (typeof TAB_NOW !== 'undefined' && TAB_NOW) || '(start)'; } catch (e) { /* the page is still starting up */ }
+    const key = page + '|' + reg;
+    PR_UNDECLARED[key] = (PR_UNDECLARED[key] || 0) + 1;
+    if (PR_UNDECLARED[key] > 1) return;
+    console.warn('Page registers: the "' + page + '" screen read ' + (PR_NAMES[reg] || reg) + ' before it was loaded. It is being read now and the screen will be drawn again. '
+      + 'Tell the builder so this screen can ask for it when it opens.');
+    if (typeof dmCount === 'function') dmCount('undeclared_' + reg, 0, 'undeclared');
+    /* The seven order registers only ever load together (the line builders need all of them); the master pair loads on its own. */
+    const want = PTG_MASTER.indexOf(reg) >= 0 ? PTG_MASTER : PTG_ALL;
+    ptNeed(want, { why: 'undeclared ' + page }).then(() => {
+      if (!ptHas(want)) return;
+      let still = false;
+      try { still = TAB_NOW === page; } catch (e) { /* nothing to redraw */ }
+      if (still && typeof showTab === 'function') showTab(page);
+    }, () => { /* the next ask for it tries again */ });
+  } catch (e) { /* a guard that fails leaves the read exactly as it was */ }
+}
+function prGuardInstall() {
+  if (PR_GUARDED) return;
+  const hold = (obj, key, reg) => {
+    PR_VAL[reg] = obj[key];
+    Object.defineProperty(obj, key, { enumerable: true, configurable: true,
+      get() { const v = PR_VAL[reg]; if (v == null) prUndeclared(reg); return v; },
+      set(v) { PR_VAL[reg] = v; } });
+  };
+  ['masters', 'mdb', 'ob', 'press', 'freeze', 'shopProd', 'qc'].forEach(r => hold(PTG, r, r));
+  PR_GUARDED = true;
+}
+if (prOn()) prGuardInstall();
 
 const obUC = s => String(s == null ? '' : s).trim().toUpperCase();
 

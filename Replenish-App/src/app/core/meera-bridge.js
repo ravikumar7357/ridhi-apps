@@ -43,8 +43,8 @@ const ERP_MEERA = {
   phone: () => meeraSafe(() => typeof mobOn === 'function' && !!mobOn(), false),
   words: () => meeraSafe(() => {
     const out = new Set(), add = v => { if (typeof v === 'string' && v.length < 80) out.add(v); };
-    Object.values((PTG && PTG.masters) || {}).forEach(list => Object.values(list || {}).forEach(e => { if (e && typeof e === 'object') ['name', 'desc', 'code', 'label'].forEach(k => add(e[k])); else add(e); }));
-    ((PTG && PTG.mdb) || []).forEach(r => { if (r) ['sku', 'brand', 'color', 'colour'].forEach(k => add(r[k])); });
+    Object.values(mdHeld('masters') || {}).forEach(list => Object.values(list || {}).forEach(e => { if (e && typeof e === 'object') ['name', 'desc', 'code', 'label'].forEach(k => add(e[k])); else add(e); }));
+    (mdHeld('mdb') || []).forEach(r => { if (r) ['sku', 'brand', 'color', 'colour'].forEach(k => add(r[k])); });
     return [...out];
   }, []),
   on: (event, fn) => { (MEERA_EVENTS[event] = MEERA_EVENTS[event] || []).push(fn); },
@@ -63,6 +63,8 @@ const MEERA_DATA_SCREENS = { ord: 'Order Console', pbase: 'Job Work Register', f
 const mdMay = tab => (typeof mobMay === 'function' ? !!mobMay(tab) : true);
 const mdNum = v => Number(v) || 0;
 const mdLeft = r => mdNum(r.issuePieces) - mdNum(r.receivedPieces) - mdNum(r.rejectionPieces);
+/* A register as the page holds it WITHOUT asking for it (Meera never starts a read). Without the gates (a test page) it is the field itself. */
+const mdHeld = r => (typeof ptPeek === 'function' ? ptPeek(r) : (typeof PTG !== 'undefined' ? PTG[r] : undefined));
 const mdTime = ms => (ms ? new Date(ms).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '');
 const mdToday = () => { const d = new Date(), p = n => String(n).padStart(2, '0'); return p(d.getDate()) + '/' + p(d.getMonth() + 1) + '/' + d.getFullYear(); };
 const mdDayMs = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d.getTime(); };
@@ -73,7 +75,7 @@ function mdFrom(tab, loaded, asOf) {
   return { tab, name: MEERA_DATA_SCREENS[tab] || tab, asOf: asOf || '' };
 }
 /* The order book must be there (as always); with page registers on, every register the order lines use must be too. */
-const mdOrdReady = () => typeof PTG !== 'undefined' && Array.isArray(PTG.ob) && (typeof ptHas !== 'function' || ptHas(PTG_ALL));
+const mdOrdReady = () => typeof PTG !== 'undefined' && (typeof ptHas !== 'function' || ptHas(PTG_ALL)) && Array.isArray(mdHeld('ob'));
 const mdOrdFrom = () => mdFrom('ord', mdOrdReady() && typeof ordLines === 'function', typeof PTG !== 'undefined' ? mdTime(PTG.at) : '');
 const mdBaseFrom = () => mdFrom('pbase', typeof PT !== 'undefined' && Array.isArray(PT.base), typeof PT !== 'undefined' && PT.at ? PT.at.base : '');
 const mdOrdLines = () => { try { return ordLines() || []; } catch (e) { return []; } };
@@ -112,7 +114,7 @@ ERP_MEERA.data = {
       rows: rows.map(r => ({ orderNo: r.orderNo || '', sku: r.sku || '', pcs: mdLeft(r), given: String(r.issueDate || '').slice(0, 10) })).sort((a, b) => b.pcs - a.pcs) };
   }, { from: { tab: 'pbase', notLoaded: true } }),
   /** the SKU codes the Master Database has (for finding the one meant) */
-  skus: () => meeraSafe(() => ((typeof PTG !== 'undefined' && PTG.mdb) || []).map(r => String((r && r.sku) || '').toUpperCase()).filter(Boolean), []),
+  skus: () => meeraSafe(() => (mdHeld('mdb') || []).map(r => String((r && r.sku) || '').toUpperCase()).filter(Boolean), []),
   /** one SKU in the India store (Finished Goods' own count) */
   skuStock: sku => meeraSafe(() => {
     const from = mdFrom('fgi', typeof FGI !== 'undefined' && Array.isArray(FGI.rows) && typeof fgiOf === 'function', typeof FGI !== 'undefined' ? FGI.at : '');
@@ -166,7 +168,7 @@ ERP_MEERA.data = {
    * screen shows, for accounts that may open it — NEVER the cost value (inventoryValuationPrice) or the maker
    * (manufacturer), to anyone. Fabric width from the fabric master (ptFabricWidths). */
   skuInfo: sku => meeraSafe(() => {
-    const from = mdFrom('pmdb', typeof PTG !== 'undefined' && Array.isArray(PTG.mdb), typeof PTG !== 'undefined' ? mdTime(PTG.at) : '');
+    const from = mdFrom('pmdb', Array.isArray(mdHeld('mdb')), typeof PTG !== 'undefined' ? mdTime(PTG.at) : '');
     if (from.denied || from.notLoaded) return { from };
     const m = typeof mdbOf === 'function' ? mdbOf(sku) : null;
     if (!m) return { from, none: true };
@@ -190,12 +192,12 @@ ERP_MEERA.data = {
   }, { from: { tab: 'ord', notLoaded: true } }),
   /** A SKU's family — every size of the same design ("CPC002-04", "CPC002-06" … are CPC002) — from the Master Database */
   skuFamily: said => meeraSafe(() => {
-    const from = mdFrom('pmdb', typeof PTG !== 'undefined' && Array.isArray(PTG.mdb), typeof PTG !== 'undefined' ? mdTime(PTG.at) : '');
+    const from = mdFrom('pmdb', Array.isArray(mdHeld('mdb')), typeof PTG !== 'undefined' ? mdTime(PTG.at) : '');
     if (from.denied || from.notLoaded) return { from, skus: [] };
     const bare = s => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
     const fam = s => { const u = String(s || '').toUpperCase(); return bare(u.includes('-') ? u.replace(/-[^-]*$/, '') : u); };
-    const U = String(said || '').toUpperCase(), key = (PTG.mdb || []).some(r => r && String(r.sku || '').toUpperCase() === U) ? fam(U) : bare(U);
-    const skus = (PTG.mdb || []).filter(r => r && r.sku && fam(r.sku) === key)
+    const U = String(said || '').toUpperCase(), key = (mdHeld('mdb') || []).some(r => r && String(r.sku || '').toUpperCase() === U) ? fam(U) : bare(U);
+    const skus = (mdHeld('mdb') || []).filter(r => r && r.sku && fam(r.sku) === key)
       .map(r => ({ sku: String(r.sku).toUpperCase(), size: r.size || '', color: r.color || '' })).slice(0, 40);
     return { from, family: key, skus };
   }, { from: { tab: 'pmdb', notLoaded: true }, skus: [] }),

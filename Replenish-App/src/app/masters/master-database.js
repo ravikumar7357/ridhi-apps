@@ -1,9 +1,9 @@
 /* ---------------- Master Database ---------------- */
 
 async function ensurePmdb() {
-  if (ptLack(PTG_ALL, 'mdb')) {
+  if (ptLack(PTG_MASTER, 'mdb')) {
     PT.busy.mdb = true; renderPmdb();
-    await ptNeed(PTG_ALL, { why: 'pmdb', has: 'mdb' });
+    await ptNeed(PTG_MASTER, { why: 'pmdb', has: 'mdb' });
     PT.busy.mdb = false; PT.err.mdb = PTG.err || ''; PT.at.mdb = ptStamp();
   }
   PT.mdb = PTG.mdb;      // one array, two names — the gates and this tab must never disagree

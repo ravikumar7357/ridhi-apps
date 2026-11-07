@@ -509,7 +509,7 @@ async function soImgShrink(bytes, ext) {
  * order-book line (shopImg), not with Amazon. sku -> that picture; rebuilt only when either list changes. */
 let _imgLineMap = null, _imgLineFor = null;
 function ptImgLines() {
-  const cust = (typeof MDBX !== 'undefined' && MDBX.custom) || null, ob = PTG.ob || null;
+  const cust = (typeof MDBX !== 'undefined' && MDBX.custom) || null, ob = (typeof ptPeek === 'function' ? ptPeek('ob') : PTG.ob) || null;
   if (_imgLineMap && _imgLineFor && _imgLineFor[0] === cust && _imgLineFor[1] === ob) return _imgLineMap;
   const m = new Map();
   const pic = u => /^(https?:|data:)/i.test(u || '') && !/kommodo\.ai\/i\//i.test(u);     // a share page is not a picture

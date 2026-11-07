@@ -66,7 +66,7 @@ function shDetails() {
     const r = typeof mdbOf === 'function' ? mdbOf(k) : null, s = m[k] || {};
     if (r) { m[k] = { subcat: pick(r.subtype, pick(r.articleType, s.subcat)), color: pick(r.color, s.color), size: pick(r.size, s.size) }; return; }
     if (s.subcat && s.color && s.size) return;
-    const g = PTG.mdb && typeof skuLookalike === 'function' ? skuLookalike(k) : null;
+    const g = (typeof ptPeek === 'function' ? ptPeek('mdb') : PTG.mdb) && typeof skuLookalike === 'function' ? skuLookalike(k) : null;
     if (g) m[k] = { subcat: s.subcat || g.subtype || g.articleType || '', color: s.color || g.color || '', size: s.size || g.size || '', guess: true };
   });
   return m;

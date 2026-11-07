@@ -1508,8 +1508,10 @@ async function voSyncAccess() {
 
 $('voSync').onclick = async () => {
   if (!ME.admin) { $('voMsg').className = 'err'; $('voMsg').textContent = 'Only an admin can give a vendor portal access.'; return; }
+  /* Page registers on: the master is read first, because the vendor orders are drawn with its names and pictures. */
+  if (prOn()) await ptNeed(PTG_MASTER, { why: 'vendor-portal', has: 'masters' });
   if (VO.rows === null) await ensureVo();
-  await ptNeed(PTG_ALL, { why: 'vendor-portal', has: 'masters' });
+  await ptNeed(PTG_MASTER, { why: 'vendor-portal', has: 'masters' });
   /* This writes to the vendor list the portal reads, so it says what it will do before doing it —
    * and it must count the same vendors voSyncAccess will map, or it offers 6 and does 9. */
   const n = voAllVendors().filter(v => vpPhone(v.phone).length >= 10).length;

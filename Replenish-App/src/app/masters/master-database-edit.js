@@ -237,6 +237,16 @@ function mdbAddNew() {
 
 function mdbEdit(sku) {
   if (!mdbCanEdit()) { $('ptmMsg').className = 'err'; $('ptmMsg').textContent = MDB_NO_EDIT; return; }
+  /* The edit window says where the SKU is in use (order book, Job Work, cutting, press, QC), and Delete refuses a SKU in use:
+   * with page registers on, the Master Database opens on the master alone, so the rest is read now, before the window opens. */
+  if (prOn() && !ptHas(PTG_ALL)) {
+    $('ptmMsg').className = 'muted'; $('ptmMsg').textContent = 'Reading where this SKU is used…';
+    ptNeed(PTG_ALL, { why: 'pmdb edit' }).then(() => {
+      if (ptHas(PTG_ALL)) { $('ptmMsg').textContent = ''; mdbEdit(sku); }
+      else { $('ptmMsg').className = 'err'; $('ptmMsg').textContent = 'Could not read the orders: ' + (PTG.err || 'try again'); }
+    });
+    return;
+  }
   const r = mdbOf(sku);
   if (!r) return;
   const use = mdbUsage(r.sku);
@@ -297,7 +307,7 @@ $('ptmTplShort').onclick = () => {
 };
 
 $('ptmNew').onclick = async () => {
-  await ptNeed(PTG_ALL, { why: 'pmdb edit', has: 'mdb', note: () => { $('ptmMsg').textContent = 'Reading the master database…'; } });
+  await ptNeed(PTG_MASTER, { why: 'pmdb edit', has: 'mdb', note: () => { $('ptmMsg').textContent = 'Reading the master database…'; } });
   if (($('ptmView') || {}).value === 'fabric') return fsManualEdit('');
   mdbAddNew();
 };
