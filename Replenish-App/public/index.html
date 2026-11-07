@@ -3149,7 +3149,7 @@ html.mob #gdNudge{right:14px;left:14px;max-width:none;bottom:144px}
     <div id="panePa" class="hide">
       <div class="card" style="padding:12px 14px">
         <div class="toolbar">
-          <select id="paWk" style="flex:0 0 240px" title="Sunday to Saturday"></select>
+          <select id="paWk" style="flex:0 0 240px" title="Monday to Sunday"></select>
           <span class="muted" style="font-size:12.5px;flex:0 0 auto">Weekly target</span>
           <input id="paTarget" type="number" min="1" step="500" style="flex:0 0 120px" title="Kept in this browser">
           <select id="paBasis" style="flex:0 0 250px" title="Which weeks the pieces-per-karigar-per-day average is taken from">
@@ -21534,6 +21534,11 @@ $('qcExport').onclick = () => {
       .concat(I.map(x2 => [new Date(x2.last).toLocaleString('en-GB'), x2.r.empName, x2.r.sku, [x2.r.articleSubtype, x2.r.color, x2.r.size].filter(Boolean).join(' · '), x2.r.orderNo, x2.since, x2.accepted, x2.wait].map(csvCell).join(','))));
   }
   const rows = QC.rows || []; if (!rows.length) return;
+  /* Pieces back from alteration have their own columns: what came back, what was mended, what is still wrong. */
+  if (v === 'ret') {
+    return ptDownload('qc-back-from-alteration', [['Date', 'SKU', 'Article', 'Subtype', 'Color', 'Size', 'Back', 'Mended', 'Still wrong', 'From', 'Received by', 'Remarks'].map(csvCell).join(',')]
+      .concat(rows.map(r => [r.date, r.sku, r.articleType, r.subtype, r.color, r.size, ptNum(r.received), ptNum(r.reworkedOk), ptNum(r.stillRejected), r.employee, r.receivedBy, r.remarks].map(csvCell).join(','))));
+  }
   const checks = qcView() === 'checks';
   const head = checks
     ? ['Date', 'SKU', 'Article', 'Subtype', 'Color', 'Size', 'Checked', 'OK', 'For alteration', 'Rejected', 'Checked by', 'Remarks']
@@ -37239,7 +37244,7 @@ function rdPoHtml(po) {
       }).join(' &nbsp;|&nbsp; ') + '</div>'
     : '<div class="sub" style="margin-top:8px">Nothing received against this PO yet.</div>';
   return '<div class="pohead"><div class="pohead-top"><div><div class="b" style="font-size:15px">' + esc(po.poNo) + '</div>'
-    + '<div class="sub">' + esc(fmtD(po.date)) + ' · due ' + esc(fmtD(gpoDueOf(po))) +  + '</div></div>'
+    + '<div class="sub">' + esc(fmtD(po.date)) + ' · due ' + esc(fmtD(gpoDueOf(po))) + '</div></div>'
     + '<div style="text-align:right"><div class="sub">Supplier</div><div class="b">' + esc(po.mill) + '</div></div></div>'
     + '<div class="scroll">' + lines + '</div>' + earlier + '</div>';
 }
@@ -40935,15 +40940,15 @@ function prTemplate() {
   /* One example of each shape the list holds: printing by the metre, plain piecework, and filling —
    * which is the one that needs the filler and the weight to tell two rates apart. */
   ptDownload('vendor-rate-template', [PR_COLS.join(','),
-    'RBP-Bagru,Block print,Voil 92,Vertical,,,,,,14',   // a fabric means metres
-    'Choudhary Hand Block,Block print,,,Tablecloth,Square Tablecloth,60X60,,,22',
-    'Alisha Garmnets,Filling,,,Quilt,Twin Quilt,60x90,Surgical Cotton,1,550',
-    'Alisha Garmnets,Filling,,,Quilt,Twin Quilt,60x90,Cotton,1,450',
-    'Yakum Ansari,Filling,,,Seat Pad,Seat Pad,16x16,Recron,0.65,80',
+    'RBP-Bagru,Block print,Voil 92,Vertical,,,,,,,14',   // a fabric means metres
+    'Choudhary Hand Block,Block print,,,Tablecloth,Square Tablecloth,60X60,,,,22',
+    'Alisha Garmnets,Filling,,,Quilt,Twin Quilt,60x90,,Surgical Cotton,1,550',
+    'Alisha Garmnets,Filling,,,Quilt,Twin Quilt,60x90,,Cotton,1,450',
+    'Yakum Ansari,Filling,,,Seat Pad,Seat Pad,16x16,,Recron,0.65,80',
     /* A fabricator is TWO rates, not one — cutting and stitching are separate jobs at separate
      * prices, so the template shows them as separate rows rather than one "Fabricator". */
-    'Jatin Singh,Cutting,,,Napkin,Border Napkin,20x20,,,3',
-    'Jatin Singh,Stitching,,,Napkin,Border Napkin,20x20,,,6']);
+    'Jatin Singh,Cutting,,,Napkin,Border Napkin,20x20,,,,3',
+    'Jatin Singh,Stitching,,,Napkin,Border Napkin,20x20,,,,6']);
 }
 
 /** Rows out of a file, in the shape prCheck and prRec already understand. */
@@ -41558,7 +41563,7 @@ $('hrExport').onclick = () => {
     const out = [PR_COLS.join(',')];
     (HR.rows || []).forEach(({ r }) => out.push([voName(r.vendor), r.service || 'Block print',
       r.fabric || '', r.print || '', r.articleType || '', r.subtype || '', r.size || '',
-      r.filler || '', r.weight || '', r.rate, r.notes || ''].map(csvCell).join(',')));
+      r.colours || '', r.filler || '', r.weight || '', r.rate, r.notes || ''].map(csvCell).join(',')));
     return ptDownload('vendor-rate-list', out);
   } else if (view === 'rate') {
     head = ['Article type', 'Subtype', 'Size', 'Applicable for', 'Rate', 'Commission'];
