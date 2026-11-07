@@ -66,6 +66,11 @@ async function main() {
 
   /* 6. row reader */
   ok(typeof run('gaRowFind') === 'function' && typeof run('gaRowAnswer') === 'function', 'row reader is there');
+  /* a screen drawn inside one table cell (Printer Allocation's colour groups) is not "a line" (Ravi, 7 Nov: "what is this 51 not given") */
+  ok(run(`(() => { const gp = guidePane, mk = (t, nest) => ({ textContent: t, offsetParent: {}, tagName: 'TR', children: [], closest: () => null, querySelector: () => (nest ? {} : null) });
+    const rows = [mk('RBP ungrouped 69 colours 51 to make of 926 Not given 51 Evergreen Ikat Red 19 of 26 Garnet Red 7 of 125', true), mk('Evergreen Ikat & Red 32 SKUs 19 of 26 nobody'), mk('Garnet Red 8 SKUs 7 of 125 nobody')];
+    guidePane = () => ({ querySelectorAll: () => rows });
+    try { const a = gaRowFind('what is this 51 not given'), b = gaRowFind('ye garnet red 125 wali line kya hai'); return a === null && b === rows[2]; } finally { guidePane = gp; } })()`), 'a row holding other rows is not taken as a line; the line inside it is');
 
   /* 7. which page / here; off-topic; private */
   ok(run('GA_WHEREAMI_RE').test('main kis page par hoon') && run('GA_WHEREAMI_RE').test('which page am i on'), '"which page am I on" is understood');

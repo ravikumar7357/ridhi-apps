@@ -167,8 +167,9 @@ add('none', '', ['karigar ko kaam kaise de', 'Raju Kumar ko maal kaise issue kar
   const chat = q => M.ctx.__meeraTest(`(async () => { let o = ''; const s = gaSay; gaSay = h => { o += h; }; try { await gaAsk(${JSON.stringify(q)}); } finally { gaSay = s; } return o; })()`);
   M.setTab('qc');
   { const b = plain(await chat('ye screen kya hai'));
-    for (const q of ['iss page ka kaam kya hai', 'is page ka kya kaam hai', 'ye page kis liye hai', 'इस पेज का काम क्या है']) {
-      const a = plain(await chat(q)); ok(a === b || /क्वालिटी कंट्रोल/.test(a), `"${q}" explains the open screen: ${a.slice(0, 100)}`); }
+    for (const q of ['iss page ka kaam kya hai', 'is page ka kya kaam hai', 'ye page kis liye hai', 'इस पेज का काम क्या है',
+      'yeh page jispe main hoon voh kya kaam karta hai', 'mai erp pe jis screen par hoon main uski baat kar raha hoon', 'what does the screen i am on do']) {
+      const a = plain(await chat(q)); ok(a === b || a.includes(b) || /क्वालिटी कंट्रोल/.test(a), `"${q}" explains the open screen: ${a.slice(0, 100)}`); }
     ok(!/This is Quality Control/.test(plain(await chat('keyboard shortcut kya hai is page ke'))), '"keyboard shortcut kya hai is page ke" keeps its own answer'); }
 
   console.log('9. a SKU typed on its own, and choices with the same words (Ravi, 4 Nov: "CPC-002" looped on "CPC")');

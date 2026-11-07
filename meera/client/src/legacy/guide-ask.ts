@@ -773,7 +773,9 @@ function gaRowFind(q) {
   /* at least one word that names a thing, not the ERP: a number, or a word the answers hardly use */
   const own = w => /\d/.test(w) || !B || (B.df.get(gaMean(w)) || 0) <= 3;
   if (!words.some(own)) return null;
-  const rows = [...root.querySelectorAll('tbody tr, .ml-row')].filter(x => x.offsetParent !== null).slice(0, 4000);
+  /* a "row" that holds other rows or a whole table is a screen drawn inside one cell (Printer Allocation's colour groups,
+   * Ravi 7 Nov: "what is this 51 not given" got the whole screen) — not a line; its own rows are */
+  const rows = [...root.querySelectorAll('tbody tr, .ml-row')].filter(x => x.offsetParent !== null && !x.querySelector('table, tr, .ml-row')).slice(0, 4000);
   let best = null, bs = 0, bown = 0, ties = [];
   for (const row of rows) {
     const t = ' ' + (row.textContent || '').toLowerCase().replace(/[^\p{L}\p{M}\p{N}]+/gu, ' ') + ' ';
@@ -787,7 +789,7 @@ function gaRowFind(q) {
   return best;
 }
 function gaRowAnswer(row, lang, L) {
-  const name = esc(gaTabName(gaHere()));
+  const name = esc(GA_TAB_TITLE[gaHere()] || gaTabName(gaHere()));   // the screen's title ("Printer Allocation", not "palloc")
   const ties = row.gaTies || [row];
   if (ties.length > 1) {
     const first = x => ((x.tagName === 'TR' ? x.children[0] : x) || x).textContent.replace(/\s+/g, ' ').trim().slice(0, 60);
@@ -1358,8 +1360,11 @@ async function gaAsk(q) {
   /* "this screen" means the one open now — when that is all the question asks ("ye screen kya hai"), not "keyboard
    * shortcut kya hai is page ke", which has an answer of its own */
   const rest = gaRead(q).means.filter(m => !['what', 'screen', 'show', 'help', 'about', 'how', 'job', 'why'].includes(m) && !/^(page|pej|पेज|about|samjha|samjhao|batao|bataiye|tell|explain|kaam|kam|work|purpose|use|kis|liye|lie|for|iss|isse|इस|काम|किस|लिए)$/.test(m));
-  const here = !rest.length && (/\b(this|is|iss|es|yeh|ye|yah)\s+(screen|page|pej)\b|(यह|इस) (स्क्रीन|पेज)|ye screen|is screen/i.test(q)) && gaHere();
-  const r = here && /what|kya|क्या|about|samjha|batao|kaam|liye|purpose|why|काम|लिए/i.test(q) ? gaScreenAnswer(here, gaRead(q).lang, (en, hi, hg) => { const l = gaRead(q).lang; return l === 'hi' ? hi : l === 'hg' ? (hg || en) : en; }) : await gaAnswer(q);
+  /* …or "the screen I am on", however it is said (Ravi, 7 Nov: "yeh page jispe main hoon voh kya kaam karta hai" was refused as
+   * not about the ERP; "jis screen par hoon main uski baat kar raha hoon") */
+  const onIt = /\b(jis|jo|jispe|jisme|jahan|jaha)\b[^?.!]{0,14}\b(screen|page|pej)\b|\b(screen|page|pej)\s+(jispe|jisme|jis pe|jis par|jahan|jaha)\b|\b(screen|page) (i am|i'm|im) (on|in)\b|\bcurrent (screen|page)\b|जिस (स्क्रीन|पेज)/i.test(q);
+  const here = (onIt || (!rest.length && (/\b(this|is|iss|es|yeh|ye|yah)\s+(screen|page|pej)\b|(यह|इस) (स्क्रीन|पेज)|ye screen|is screen/i.test(q)))) && gaHere();
+  const r = here && /what|kya|क्या|about|samjha|batao|kaam|liye|purpose|why|baat|काम|लिए|बात/i.test(q) ? gaScreenAnswer(here, gaRead(q).lang, (en, hi, hg) => { const l = gaRead(q).lang; return l === 'hi' ? hi : l === 'hg' ? (hg || en) : en; }) : await gaAnswer(q);
   if (r.miss) gaMissKeep(q, r.miss === true ? 'none' : r.miss);
   if (typeof meeraLearnAnswered === 'function') meeraLearnAnswered(q, r);
   if (typeof meeraServerAfter === 'function') meeraServerAfter(q);   // Phase 5, switch "server": her router's search, side by side   // Phase 4, switch "learn": a miss or "not sure" kept (cleaned)

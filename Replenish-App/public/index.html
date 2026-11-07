@@ -83224,7 +83224,7 @@ function gaRowFind(q) {
   if (!words.length) return null;
   const own = (w) => /\d/.test(w) || !B || (B.df.get(gaMean(w)) || 0) <= 3;
   if (!words.some(own)) return null;
-  const rows = [...root.querySelectorAll("tbody tr, .ml-row")].filter((x) => x.offsetParent !== null).slice(0, 4e3);
+  const rows = [...root.querySelectorAll("tbody tr, .ml-row")].filter((x) => x.offsetParent !== null && !x.querySelector("table, tr, .ml-row")).slice(0, 4e3);
   let best = null, bs = 0, bown = 0, ties = [];
   for (const row of rows) {
     const t = " " + (row.textContent || "").toLowerCase().replace(/[^\p{L}\p{M}\p{N}]+/gu, " ") + " ";
@@ -83245,7 +83245,7 @@ function gaRowFind(q) {
   return best;
 }
 function gaRowAnswer(row, lang, L) {
-  const name = esc(gaTabName(gaHere()));
+  const name = esc(GA_TAB_TITLE[gaHere()] || gaTabName(gaHere()));
   const ties = row.gaTies || [row];
   if (ties.length > 1) {
     const first = (x) => ((x.tagName === "TR" ? x.children[0] : x) || x).textContent.replace(/\s+/g, " ").trim().slice(0, 60);
@@ -83957,8 +83957,9 @@ async function gaAsk(q) {
     return;
   }
   const rest = gaRead(q).means.filter((m) => !["what", "screen", "show", "help", "about", "how", "job", "why"].includes(m) && !/^(page|pej|पेज|about|samjha|samjhao|batao|bataiye|tell|explain|kaam|kam|work|purpose|use|kis|liye|lie|for|iss|isse|इस|काम|किस|लिए)$/.test(m));
-  const here = !rest.length && /\b(this|is|iss|es|yeh|ye|yah)\s+(screen|page|pej)\b|(यह|इस) (स्क्रीन|पेज)|ye screen|is screen/i.test(q) && gaHere();
-  const r = here && /what|kya|क्या|about|samjha|batao|kaam|liye|purpose|why|काम|लिए/i.test(q) ? gaScreenAnswer(here, gaRead(q).lang, (en, hi, hg) => {
+  const onIt = /\b(jis|jo|jispe|jisme|jahan|jaha)\b[^?.!]{0,14}\b(screen|page|pej)\b|\b(screen|page|pej)\s+(jispe|jisme|jis pe|jis par|jahan|jaha)\b|\b(screen|page) (i am|i'm|im) (on|in)\b|\bcurrent (screen|page)\b|जिस (स्क्रीन|पेज)/i.test(q);
+  const here = (onIt || !rest.length && /\b(this|is|iss|es|yeh|ye|yah)\s+(screen|page|pej)\b|(यह|इस) (स्क्रीन|पेज)|ye screen|is screen/i.test(q)) && gaHere();
+  const r = here && /what|kya|क्या|about|samjha|batao|kaam|liye|purpose|why|baat|काम|लिए|बात/i.test(q) ? gaScreenAnswer(here, gaRead(q).lang, (en, hi, hg) => {
     const l = gaRead(q).lang;
     return l === "hi" ? hi : l === "hg" ? hg || en : en;
   }) : await gaAnswer(q);
@@ -84576,6 +84577,9 @@ async function gaAiCall(path, body, method = "POST") {
 }
 const gaMd = (s) => esc(String(s || "")).replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>");
 const gaLL = (lang) => (en, hi, hg) => lang === "hi" ? hi : lang === "hg" ? hg : en;
+function gaAiSteps(steps) {
+  return (Array.isArray(steps) ? steps : []).map((s) => String(s && typeof s === "object" ? s.text || s.step || s.en || "" : s == null ? "" : s).trim()).filter(Boolean);
+}
 async function gaAiAsk(q, own) {
   const { lang, means, words } = gaRead(q), L = gaLL(lang);
   await gaBankLoad();
@@ -84593,7 +84597,7 @@ async function gaAiAsk(q, own) {
   const b = r.body || {};
   if (r.status === 200 && b.answer) {
     const a = b.answer;
-    const html = `<div class="ga-a">${gaMd(a.a)}</div>` + (a.why ? `<div class="ga-why"><b>${L("Why", "\u0915\u094D\u092F\u094B\u0902", "Kyun")}</b>${gaMd(a.why)}</div>` : "") + (a.steps && a.steps.length ? `<div class="ga-do"><b>${L("What to do", "\u0915\u094D\u092F\u093E \u0915\u0930\u0947\u0902", "Kya karein")}</b><ol>${a.steps.map((s) => `<li>${gaMd(s)}</li>`).join("")}</ol></div>` : "") + `<div class="ga-note">${b.source === "saved" ? L("Answer checked by an admin.", "\u090F\u0921\u092E\u093F\u0928 \u0915\u093E \u091C\u093E\u0901\u091A\u093E \u0939\u0941\u0906 \u091C\u0935\u093E\u092C\u0964", "Admin ka jaancha hua jawaab.") : L("Written by AI from Meera's notes \u2014 not yet checked by an admin.", "\u092E\u0940\u0930\u093E \u0915\u0947 \u0928\u094B\u091F\u094D\u0938 \u0938\u0947 AI \u0915\u093E \u0932\u093F\u0916\u093E \u2014 \u090F\u0921\u092E\u093F\u0928 \u0928\u0947 \u0905\u092D\u0940 \u091C\u093E\u0901\u091A\u093E \u0928\u0939\u0940\u0902\u0964", "Meera ke notes se AI ka likha \u2014 admin ne abhi jaancha nahi.")}</div>`;
+    const html = `<div class="ga-a">${gaMd(a.a)}</div>` + (a.why ? `<div class="ga-why"><b>${L("Why", "\u0915\u094D\u092F\u094B\u0902", "Kyun")}</b>${gaMd(a.why)}</div>` : "") + (gaAiSteps(a.steps).length ? `<div class="ga-do"><b>${L("What to do", "\u0915\u094D\u092F\u093E \u0915\u0930\u0947\u0902", "Kya karein")}</b><ol>${gaAiSteps(a.steps).map((s) => `<li>${gaMd(s)}</li>`).join("")}</ol></div>` : "") + `<div class="ga-note">${b.source === "saved" ? L("Answer checked by an admin.", "\u090F\u0921\u092E\u093F\u0928 \u0915\u093E \u091C\u093E\u0901\u091A\u093E \u0939\u0941\u0906 \u091C\u0935\u093E\u092C\u0964", "Admin ka jaancha hua jawaab.") : L("Written by AI from Meera's notes \u2014 not yet checked by an admin.", "\u092E\u0940\u0930\u093E \u0915\u0947 \u0928\u094B\u091F\u094D\u0938 \u0938\u0947 AI \u0915\u093E \u0932\u093F\u0916\u093E \u2014 \u090F\u0921\u092E\u093F\u0928 \u0928\u0947 \u0905\u092D\u0940 \u091C\u093E\u0901\u091A\u093E \u0928\u0939\u0940\u0902\u0964", "Meera ke notes se AI ka likha \u2014 admin ne abhi jaancha nahi.")}</div>`;
     const fb = `<div class="ga-fb"><span>${L("Did this help?", "\u0915\u094D\u092F\u093E \u0907\u0938\u0938\u0947 \u092E\u0926\u0926 \u092E\u093F\u0932\u0940?", "Kya isse madad mili?")}</span><button type="button" class="ga-fbb" data-ga="aifb" data-id="up:${+b.answerId || 0}" aria-label="Yes">\u{1F44D}</button><button type="button" class="ga-fbb" data-ga="aifb" data-id="down:${+b.answerId || 0}" aria-label="No">\u{1F44E}</button></div>`;
     gaSay(html, [], fb, b.source === "saved" ? "checked" : "ai");
     return;
@@ -84643,7 +84647,7 @@ async function gaAiLearned(list) {
         q: { en: [x.question], hi: [x.question], hg: [x.question] },
         a: one(gaMd(a.a)),
         why: a.why ? one(gaMd(a.why)) : void 0,
-        steps: a.steps && a.steps.length ? one(a.steps.map(gaMd)) : void 0
+        steps: gaAiSteps(a.steps).length ? one(gaAiSteps(a.steps).map(gaMd)) : void 0
       };
     }));
   } catch (e) {
