@@ -72,7 +72,9 @@ function mdFrom(tab, loaded, asOf) {
   if (!loaded) return { tab, name: MEERA_DATA_SCREENS[tab] || tab, notLoaded: true };
   return { tab, name: MEERA_DATA_SCREENS[tab] || tab, asOf: asOf || '' };
 }
-const mdOrdFrom = () => mdFrom('ord', typeof PTG !== 'undefined' && ptHas(PTG_ALL) && typeof ordLines === 'function', typeof PTG !== 'undefined' ? mdTime(PTG.at) : '');
+/* The order book must be there (as always); with page registers on, every register the order lines use must be too. */
+const mdOrdReady = () => typeof PTG !== 'undefined' && Array.isArray(PTG.ob) && (typeof ptHas !== 'function' || ptHas(PTG_ALL));
+const mdOrdFrom = () => mdFrom('ord', mdOrdReady() && typeof ordLines === 'function', typeof PTG !== 'undefined' ? mdTime(PTG.at) : '');
 const mdBaseFrom = () => mdFrom('pbase', typeof PT !== 'undefined' && Array.isArray(PT.base), typeof PT !== 'undefined' && PT.at ? PT.at.base : '');
 const mdOrdLines = () => { try { return ordLines() || []; } catch (e) { return []; } };
 ERP_MEERA.data = {
@@ -211,7 +213,7 @@ ERP_MEERA.data = {
     let asin = '';
     if (mdMay('pmdb') && typeof mdbOf === 'function') { const m = mdbOf(S); if (m && m.asin) { asin = String(m.asin); add('Amazon'); } }
     const NAME = { AMZ: 'Amazon', SHP: 'Shopify', SPY: 'Shopify', B2B: 'B2B', ONL: 'Online', ETSY: 'Etsy' };
-    if (mdMay('ord') && typeof PTG !== 'undefined' && ptHas(PTG_ALL)) mdOrdLines().forEach(r => {
+    if (mdMay('ord') && mdOrdReady()) mdOrdLines().forEach(r => {
       if (String(r.sku || '').toUpperCase() !== S) return;
       const p = String(r.orderNo || '').split('-')[0].toUpperCase(), ch = String(r.custChannel || r.src || '').toUpperCase();
       const n = NAME[ch] || NAME[p]; if (n) add(n, r.orderNo);
