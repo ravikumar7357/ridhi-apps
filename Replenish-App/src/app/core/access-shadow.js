@@ -122,6 +122,75 @@ async function accessShadow(user, permsDoc, firebaseMs) {
   console.info('[shadow] access', matched ? 'same' : 'DIFFERS', { firebaseMs, supabaseMs, missing, extra });
   controlShadow(token);   // section 2: the waiting-request counts
   mastersShadow(token);   // section 3: every Masters record
+  skusShadow(token);      // section 4: every SKU record (at most once an hour per browser — it reads ~4 MB)
+}
+
+/* ================= SKUs · SHADOW TEST (Ravi, 10 Nov) =================
+ * Every SKU record in live Firebase (pt_masterDB, pt_customSkus, pt_skuImages, pt_skuPriority, pt_fnskuMap) against the copy in
+ * Supabase, record by record, by fingerprint (same way as Masters; core.skus_records()). It reads about 4 MB from Firebase, so it
+ * runs at most once an hour in a browser; click the line to run it again now. Keep ashSkusPaths the same as
+ * migration/tools/make-skus-data.js (firebasePaths). */
+const ASH_SKU_LAST = 'r1.testerp.skusShadowAt';
+function ashEnt(v) { return !v ? [] : Array.isArray(v) ? v.map((x, i) => [String(i), x]).filter(([, x]) => x != null) : Object.entries(v).filter(([, x]) => x != null); }
+function ashSkusPaths(mdb, cus, img, pri, fn) {
+  const out = new Map();
+  ashEnt(mdb).forEach(([k, x]) => out.set(`pt_masterDB/${k}`, x));
+  ashEnt(cus).forEach(([k, x]) => out.set(`pt_customSkus/${k}`, x));
+  ashEnt(img).forEach(([k, x]) => out.set(`pt_skuImages/${k}`, x));
+  ashEnt(pri).forEach(([k, x]) => out.set(`pt_skuPriority/${k}`, x));
+  Object.entries(fn || {}).forEach(([k, x]) => { if (x != null) out.set(`pt_fnskuMap/${k}`, x); });
+  return out;
+}
+async function skusShadow(token, force) {
+  let last = 0; try { last = Number(localStorage.getItem(ASH_SKU_LAST)) || 0; } catch (e) { /* no storage: run */ }
+  if (!force && Date.now() - last < 3600e3) { ashShowSkus({ waiting: true, at: last, token }); return; }
+  ashShowSkus({ running: true, token });
+  try {
+    const read = n => (typeof ptGetFresh === 'function' ? ptGetFresh(n) : ptGet(n, true));
+    const t0 = performance.now();
+    const [mdb, cus, img, pri, fn] = await Promise.all(['pt_masterDB', 'pt_customSkus', 'pt_skuImages', 'pt_skuPriority', 'pt_fnskuMap'].map(read));
+    const firebaseMs = Math.round(performance.now() - t0);
+    const fb = ashSkusPaths(mdb, cus, img, pri, fn);
+    const t1 = performance.now();
+    const rows = [];
+    for (let f = 0; ; f += 1000) { const page = await ashCall(`skus_records?order=path&offset=${f}&limit=1000`, token); rows.push(...page); if (page.length < 1000) break; }
+    const supabaseMs = Math.round(performance.now() - t1);
+    const sb = new Map(rows.map(r => [r.path, r.h]));
+    const copyOf = sb.get('#copy_of') || ''; sb.delete('#copy_of');
+    const missing = [], changed = [], extra = [];
+    for (const [p, rec] of fb) {
+      if (!sb.has(p)) missing.push(p);
+      else if (sb.get(p) !== await ashSha(ashJbText(rec))) changed.push(p);
+    }
+    for (const p of sb.keys()) if (!fb.has(p)) extra.push(p);
+    const matched = !missing.length && !changed.length && !extra.length;
+    try { localStorage.setItem(ASH_SKU_LAST, String(Date.now())); } catch (e) { /* fine */ }
+    ashShowSkus({ matched, total: fb.size, missing, changed, extra, firebaseMs, supabaseMs, copyOf, token });
+    ashCall('shadow_report', token, { p_section: 'skus · records', p_matched: matched, p_firebase_ms: firebaseMs, p_supabase_ms: supabaseMs,
+      p_missing: missing.concat(changed.map(p => p + ' (changed)')).slice(0, 500), p_extra: extra.slice(0, 500), p_build: (window.__TEST_ERP && window.__TEST_ERP.sha) || 'local' }).catch(() => {});
+    console.info('[shadow] skus', matched ? 'same' : 'DIFFERS', { total: fb.size, missing: missing.length, changed: changed.length, extra: extra.length, firebaseMs, supabaseMs });
+  } catch (e) { ashShowSkus({ error: e.message, token }); }
+}
+function ashShowSkus(r) {
+  let el = document.getElementById('ashSkus');
+  if (!el) {
+    el = document.createElement('button'); el.id = 'ashSkus'; el.type = 'button';
+    el.style.cssText = 'position:fixed;left:calc(12px + env(safe-area-inset-left,0px));bottom:calc(186px + env(safe-area-inset-bottom,0px));z-index:10000;'
+      + 'font:12px/1.3 system-ui,sans-serif;padding:7px 11px;border-radius:999px;border:1px solid rgba(0,0,0,.15);cursor:pointer;max-width:calc(100vw - 24px);text-align:left;color:#1b1b1b';
+    document.body.appendChild(el);
+    el.onclick = () => { const x = el._r || {}; if (x.waiting || x.error) { skusShadow(x.token, true); return; } el.dataset.open = el.dataset.open ? '' : '1'; ashShowSkus(x); };
+  }
+  el._r = r; el.style.whiteSpace = 'pre-line';
+  if (r.running) { el.style.background = '#eef1f7'; el.textContent = 'SKUs · comparing 18,000+ records with Firebase…'; return; }
+  if (r.waiting) { el.style.background = '#eef1f7'; el.textContent = 'SKUs · last compared ' + new Date(r.at).toLocaleTimeString('en-IN') + ' · click to compare again now'; return; }
+  if (r.error) { el.style.background = '#fff4d6'; el.textContent = '! SKUs · not compared: ' + String(r.error).slice(0, 120) + ' · click to retry'; return; }
+  el.style.background = r.matched ? '#e3f4ea' : '#fde4e1';
+  const n = r.missing.length + r.changed.length + r.extra.length;
+  let t = 'SKUs · ' + r.total.toLocaleString('en-IN') + ' records · ' + (r.matched ? '✓ every one the same as Firebase' : '✗ ' + n.toLocaleString('en-IN') + ' differ (Supabase copy from ' + (r.copyOf || '?') + ')')
+    + ' · Firebase ' + r.firebaseMs + ' ms · Supabase ' + r.supabaseMs + ' ms';
+  if (el.dataset.open && n) t += '\n' + [...r.changed.map(p => 'changed: ' + p), ...r.missing.map(p => 'new in Firebase: ' + p), ...r.extra.map(p => 'gone from Firebase: ' + p)].slice(0, 30).join('\n')
+    + (n > 30 ? '\n… ' + (n - 30) + ' more (all on the check page)' : '') + '\nA difference here usually means a SKU added or edited in the ERP after the copy was made.';
+  el.textContent = t;
 }
 
 /* ================= MASTERS · SHADOW TEST (Ravi, 10 Nov) =================
