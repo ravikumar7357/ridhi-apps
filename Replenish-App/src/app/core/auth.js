@@ -54,9 +54,11 @@ onAuthStateChanged(auth, async user => {
     attendMark: false, vreqApprove: false, rfdApprove: false, rfdSend: false, fgiEdit: false, fgiEntry: false, empEdit: false, hrEmpOnly: false };
   try {
     ASH_DOC = null; ASH_MS = null; const ashT0 = performance.now();
+    const ashP = typeof accessFromSupabase === 'function' ? accessFromSupabase(user) : null;   // test ERP: the new database, asked alongside
     const s = await getDoc(doc(db, 'perms', ME.email));
     ASH_DOC = s.exists() ? s.data() : null; ASH_MS = Math.round(performance.now() - ashT0);
-    if (s.exists()) { const d = s.data(); ME.admin = d.admin === true; ME.repl = d.repl === true;
+    const ashSb = ashP ? await ashP : null;   // test ERP: access from Supabase (null = Firebase: switch off, not the test ERP, or not reached)
+    if (ashSb || s.exists()) { const d = ashSb || s.data(); ME.admin = d.admin === true; ME.repl = d.repl === true;
       // Per-section access: perms.replTabs = ['repl','follow','top']. Empty but repl=true → all (legacy).
       const rt = Array.isArray(d.replTabs) ? d.replTabs.filter(t => REPL_TABS.includes(t)) : [];
       /* Whether these sections were CHOSEN for this account or inherited as "all of them". A tab that

@@ -46,6 +46,42 @@ async function ashCall(fn, token, body) {
   return t ? JSON.parse(t) : null;
 }
 
+/* ================= STEP 7 · ACCESS FROM THE NEW DATABASE (Ravi, 10 Nov) =================
+ * On the test ERP, access now COMES FROM Supabase: core/auth.js asks accessFromSupabase() alongside the Firebase read and,
+ * when it answers, builds the menu, screens and rights from Supabase's boxes — fed in as the same kind of record Firebase
+ * gives, so everything the sign-in works out after that runs unchanged. Firebase is still read, for the comparison.
+ * The switch (on the line at the bottom left) flips this browser between Supabase and Firebase. If Supabase cannot be
+ * reached, the sign-in uses Firebase and the line says so — nobody is locked out of the test ERP. */
+const ASH_SRC_KEY = 'r1.testerp.accessSource';
+function ashSource() { try { return localStorage.getItem(ASH_SRC_KEY) === 'firebase' ? 'firebase' : 'supabase'; } catch (e) { return 'supabase'; } }
+function ashSetSource(v) { try { localStorage.setItem(ASH_SRC_KEY, v); } catch (e) { /* this browser keeps nothing: stays on the default */ } location.reload(); }
+let ASH_SB = null;          // { rows, ms, token } — the new database's answer at this sign-in
+let ASH_USED = 'firebase';  // where this sign-in's access actually came from: 'supabase' | 'firebase' | 'firebase (fallback)'
+
+/** Supabase's answer as a perms-like record, or null to use Firebase. Never throws. */
+async function accessFromSupabase(user) {
+  ASH_SB = null; ASH_USED = 'firebase';
+  if (!ASH.on || !ASH.key || !user) return null;
+  try {
+    const token = await user.getIdToken();
+    const t0 = performance.now();
+    const rows = await ashCall('my_access', token);
+    ASH_SB = { rows, ms: Math.round(performance.now() - t0), token };
+  } catch (e) {
+    ASH_SB = { error: e.message };
+    if (ashSource() === 'supabase') ASH_USED = 'firebase (fallback)';
+    return null;
+  }
+  if (ashSource() !== 'supabase') return null;
+  ASH_USED = 'supabase';
+  const rec = { admin: ASH_SB.rows.some(r => r.is_admin), repl: false, replTabs: [], __from: 'supabase' };
+  ASH_SB.rows.forEach(r => {
+    if (r.item_key.startsWith('erp:')) rec.replTabs.push(r.item_key.slice(4));
+    else if (r.item_key.startsWith('right:')) rec[r.item_key.slice(6)] = true;
+  });
+  return rec;
+}
+
 /** Called once after sign-in by core/auth.js with the perms record Firebase gave and how long that took. Never throws. */
 async function accessShadow(user, permsDoc, firebaseMs) {
   if (!ASH.on || !user) return;
@@ -54,10 +90,14 @@ async function accessShadow(user, permsDoc, firebaseMs) {
   const fb = ashFirebaseBoxes(permsDoc, email);
   let token, rows, supabaseMs = null;
   try {
-    token = await user.getIdToken();
-    const t0 = performance.now();
-    rows = await ashCall('my_access', token);
-    supabaseMs = Math.round(performance.now() - t0);
+    if (ASH_SB && ASH_SB.rows) { token = ASH_SB.token; rows = ASH_SB.rows; supabaseMs = ASH_SB.ms; }   // already asked at sign-in
+    else if (ASH_SB && ASH_SB.error) throw new Error(ASH_SB.error);
+    else {
+      token = await user.getIdToken();
+      const t0 = performance.now();
+      rows = await ashCall('my_access', token);
+      supabaseMs = Math.round(performance.now() - t0);
+    }
   } catch (e) { ashShow({ state: 'error', firebaseMs, why: e.message }); return; }
 
   const sbAdmin = rows.some(x => x.is_admin);
@@ -67,7 +107,7 @@ async function accessShadow(user, permsDoc, firebaseMs) {
   else { missing = fb.boxes.filter(k => !sb.includes(k)); extra = sb.filter(k => !fb.boxes.includes(k)); }
   const matched = !missing.length && !extra.length;
   ashShow({ state: matched ? 'same' : 'differs', firebaseMs, supabaseMs, missing, extra });
-  ashCall('shadow_report', token, { p_section: 'access', p_matched: matched, p_firebase_ms: firebaseMs, p_supabase_ms: supabaseMs,
+  ashCall('shadow_report', token, { p_section: ASH_USED === 'supabase' ? 'access · from Supabase' : 'access', p_matched: matched, p_firebase_ms: firebaseMs, p_supabase_ms: supabaseMs,
     p_missing: missing, p_extra: extra, p_build: (window.__TEST_ERP && window.__TEST_ERP.sha) || 'local' }).catch(e => console.warn('[shadow] report not saved:', e.message));
   console.info('[shadow] access', matched ? 'same' : 'DIFFERS', { firebaseMs, supabaseMs, missing, extra });
 }
@@ -160,10 +200,11 @@ function ashShow(r) {
   }
   el._r = r;
   const ms = v => v == null ? '–' : v + ' ms';
-  const head = { same: '✓ Access · Supabase gives the same', differs: '✗ Access · Supabase differs', error: '! Access · Supabase not reached', off: 'Access shadow test is off (no key yet)' }[r.state];
+  const from = { supabase: 'Access from Supabase', firebase: 'Access from Firebase', 'firebase (fallback)': 'Access from Firebase (Supabase not reached)' }[ASH_USED];
+  const cmp = { same: '✓ same as Firebase', differs: '✗ differs from Firebase', error: '! Supabase not reached', off: 'shadow test off (no key)' }[r.state];
   el.style.background = r.state === 'same' ? '#e3f4ea' : r.state === 'differs' ? '#fde4e1' : '#fff4d6';
   el.style.color = '#1b1b1b';
-  let text = head + ' · Firebase ' + ms(r.firebaseMs) + (r.state === 'same' || r.state === 'differs' ? ' · Supabase ' + ms(r.supabaseMs) : '');
+  let text = from + ' · ' + cmp + ' · Firebase ' + ms(r.firebaseMs) + (r.state === 'same' || r.state === 'differs' ? ' · Supabase ' + ms(r.supabaseMs) : '');
   if (el.dataset.open) {
     if (r.missing && r.missing.length) text += '\nMissing in Supabase: ' + r.missing.join(', ');
     if (r.extra && r.extra.length) text += '\nExtra in Supabase: ' + r.extra.join(', ');
@@ -171,6 +212,19 @@ function ashShow(r) {
   }
   el.textContent = text;
   el.style.whiteSpace = 'pre-line';
+  // the switch: which database this browser's test ERP takes access from
+  let sw = document.getElementById('ashSwitch');
+  if (!sw) {
+    sw = document.createElement('button'); sw.id = 'ashSwitch'; sw.type = 'button';
+    sw.style.cssText = 'position:fixed;bottom:calc(58px + env(safe-area-inset-bottom,0px));z-index:10000;font:12px/1.3 system-ui,sans-serif;padding:7px 11px;'
+      + 'border-radius:999px;border:1px solid rgba(0,0,0,.25);background:#fff;color:#1b1b1b;cursor:pointer';
+    document.body.appendChild(sw);
+    const place = () => { const rr = el.getBoundingClientRect(); sw.style.left = Math.round(rr.right + 8) + 'px'; const all = document.getElementById('ashAll'); if (all) all.style.left = Math.round(rr.right + 16 + sw.getBoundingClientRect().width) + 'px'; };
+    new ResizeObserver(place).observe(el); new ResizeObserver(place).observe(sw); setTimeout(place, 0);
+  }
+  const other = ashSource() === 'supabase' ? 'firebase' : 'supabase';
+  sw.textContent = 'Switch to ' + (other === 'supabase' ? 'Supabase' : 'Firebase');
+  sw.onclick = () => ashSetSource(other);
   // the "Check everyone" button, beside the line — only for an admin or an Access viewer
   if (ashMayCheckAll() && !document.getElementById('ashAll')) {
     const b = document.createElement('button');
@@ -179,7 +233,7 @@ function ashShow(r) {
       + 'border-radius:999px;border:1px solid rgba(0,0,0,.2);background:#1b1b1b;color:#fff;cursor:pointer';
     b.onclick = ashCheckEveryone;
     document.body.appendChild(b);
-    const place = () => { const r = el.getBoundingClientRect(); b.style.left = Math.round(r.right + 8) + 'px'; };
+    const place = () => { const sw2 = document.getElementById('ashSwitch'); const r = (sw2 || el).getBoundingClientRect(); b.style.left = Math.round(r.right + 8) + 'px'; };
     place(); new ResizeObserver(place).observe(el);
   }
 }
