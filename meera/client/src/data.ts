@@ -25,7 +25,7 @@ type MdLang = 'en' | 'hi' | 'hg';
 type MdTerm = { said: string; hits: { f: string; v: string; w?: string; x?: boolean }[] };
 type MdAsk = { kind: 'order'; no: string; date?: boolean } | { kind: 'order-missing'; text: string } | { kind: 'order-which'; said: string; nos: string[] }
   | { kind: 'skucard'; sku: string; focus: 'all' | 'cloth' | 'brand' | 'amazon' | 'orders' | 'where'; fam?: boolean } | { kind: 'karigar'; name: string } | { kind: 'karigar-which'; said: string; names: string[] }
-  | { kind: 'skufind'; terms: MdTerm[] } | { kind: 'skuflag'; flag: string; yes: boolean; orders: boolean; terms: MdTerm[] } | { kind: 'vendor'; code: string; name: string } | { kind: 'vendor-which'; said: string; names: string[] } | { kind: 'sku'; sku: string } | { kind: 'sku-which'; said: string; skus: string[] } | { kind: 'today'; focus: string } | { kind: 'late' } | { kind: 'wait'; stage: string };
+  | { kind: 'ppcplan' } | { kind: 'skufind'; terms: MdTerm[] } | { kind: 'skuflag'; flag: string; yes: boolean; orders: boolean; terms: MdTerm[] } | { kind: 'vendor'; code: string; name: string } | { kind: 'vendor-which'; said: string; names: string[] } | { kind: 'sku'; sku: string } | { kind: 'sku-which'; said: string; skus: string[] } | { kind: 'today'; focus: string } | { kind: 'late' } | { kind: 'wait'; stage: string };
 
 /* ---------- reading the question ---------- */
 const MD_HOW = /\b(kaise|kese|kaisey|kaisay|how to|how do|how can|kaha likh\w*|kahan likh\w*|kaha chadha\w*|kaha daal\w*|kaha enter|entry kaise|kya kar(u|un|e|na)|how (are|is|does|did|come))\b|कैसे|कहाँ लिखूं|कहाँ चढ़ाऊं/;
@@ -63,6 +63,9 @@ const MD_FLAGS: [string, RegExp, string, string, string][] = [
   ['filler', /\b(filler|filling|filler fabric)\b|फिलर/, 'filler fabric', 'फिलर कपड़ा', 'filler kapda'],
   ['cut', /\b(cutting required|cutting needed|cutting chahiye|cutting wale|cutting wala|cutting yes|cutting no)\b/, 'cutting needed', 'कटिंग ज़रूरी', 'cutting zaroori'],
   ['custom', /\b(custom|customised|customized)\b|कस्टम/, 'custom', 'कस्टम', 'custom']];
+const MD_PLANQ = /\b(planning|plan|plann|planing|ppc)\b|प्लानिंग|प्लान/;
+/* a list or a count asked for — "sab order ek baar me plan" (how to plan many at once) and "planning band karni hai" are not */
+const MD_PLANLIST = /\b(list|kitne|kitni|kitna|how many|which|kaun|kaunse|konse|jinki|jinka|jinke|jo|dedo|de do|dikhao|dikha|batao|show|give|pending|baaki|baki|bache|bacha|waiting|remaining|left)\b|कितने|बाकी|दिखाओ|जिनकी/;
 const MD_FLAG_NO = /\b(no|without|bina|nahi|nahin|not|false|na)\b|बिना|नहीं/;
 const MD_FLAG_ORD = /\b(order|orders|ordr|odr|production|open|pending|chal raha|chal rahe|ban raha|ban rahe)\b|ऑर्डर/;
 let MD_LAST: { no: string; at: number } | null = null;
@@ -228,6 +231,10 @@ function mdParse(q0: string, D: ErpMeeraData): MdAsk | null {
       }
     }
   }
+  /* the lines waiting in PPC to be planned (Ravi, 11 Nov: "saare orders do jinki planning karni hai"): planning said with orders
+   * or lines, and a list or a count asked for — "planning kaise kare" is a how-to and keeps its own answer */
+  if (MD_PLANQ.test(low) && /\b(orders?|ordr|odr|lines?|sku|skus)\b|ऑर्डर/.test(low) && MD_PLANLIST.test(low)
+    && !/\b(where|kahan|kaha|kidhar|how|kaise|kese|why|kyu|kyun|what is|kya hai|kya hota)\b/.test(low)) return { kind: 'ppcplan' };
   /* SKUs by a yes/no field of the master — piping, ruffle, zip, cutting, filler fabric, custom — all of them, or those on open
    * orders; with it or without it; narrowed by any other master words said (Ravi, 11 Nov: "how many sku with piping as yes are in
    * order") */
@@ -424,6 +431,22 @@ function mdAnswer(a: MdAsk, q: string, D: ErpMeeraData, lang: MdLang): { html: s
       : L(`<b>${n}</b> has nothing of ours right now on Vendor Orders.`, `वेंडर ऑर्डर्स के हिसाब से अभी <b>${n}</b> के पास हमारा कोई माल नहीं है।`, `Vendor Orders ke hisaab se abhi <b>${n}</b> ke paas humara koi maal nahi hai.`)}</div>`
       + (list ? `<ul>${list}</ul>` : '') + more + send + mdSource(r.from, L),
       acts: [open('vord|', 'Open Vendor Orders', 'वेंडर ऑर्डर्स खोलें', 'Vendor Orders kholiye')] };
+  }
+  if (a.kind === 'ppcplan') {
+    const r = D.ppcToPlan(), c = mdCannot(r.from, L); if (c) return c;
+    const ls = r.lines, n = ls.length, pcs = ls.reduce((s, x) => s + x.qty, 0), nos = new Set(ls.map(x => x.orderNo)).size, SHOW = 12;
+    const ago = (d: string) => { const t = Date.parse(d + 'T00:00:00'); return isFinite(t) ? Math.max(0, Math.floor((Date.now() - t) / 864e5)) : null; };
+    const dd = (d: string) => { const t = new Date(d + 'T00:00:00'); return isFinite(t.getTime()) ? String(t.getDate()).padStart(2, '0') + ' ' + 'Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec'.split(' ')[t.getMonth()] : d; };
+    const li = ls.slice(0, SHOW).map(x => { const g = ago(x.day);
+      return `<li><b>${esc(x.orderNo)}</b> · ${esc(x.sku)} — ${mdNf(x.qty)} ${L('pcs', 'पीस', 'pcs')} · ${esc(dd(x.day))}${g != null ? ` (${g} ${L(g === 1 ? 'day' : 'days', 'दिन', 'din')})` : ''}`
+        + (x.started ? ` · ${L('some already started', 'कुछ पहले से शुरू', 'kuch pehle se shuru')}` : '') + '</li>'; }).join('');
+    return { html: `<div class="ga-a">${n
+        ? L(`<b>${mdNf(n)}</b> order line${n === 1 ? ' is' : 's are'} waiting in PPC for planning — ${mdNf(pcs)} pcs on ${mdNf(nos)} order${nos === 1 ? '' : 's'}, oldest first:`,
+          `<b>${mdNf(n)}</b> ऑर्डर लाइन PPC में प्लानिंग का इंतज़ार कर रही हैं — ${mdNf(nos)} ऑर्डर पर ${mdNf(pcs)} पीस, सबसे पुरानी पहले:`,
+          `<b>${mdNf(n)}</b> order line${n === 1 ? '' : 's'} PPC mein planning ka intezaar kar rahi hain — ${mdNf(nos)} order par ${mdNf(pcs)} pcs, sabse purani pehle:`)
+        : L('Nothing is waiting in PPC for planning right now.', 'अभी PPC में प्लानिंग के लिए कुछ नहीं रुका है।', 'Abhi PPC mein planning ke liye kuch nahi ruka hai.')}</div>`
+      + (li ? `<ul>${li}</ul>` : '') + (n > SHOW ? `<div>${L(`…and ${n - SHOW} more in PPC.`, `…और ${n - SHOW} PPC में।`, `…aur ${n - SHOW} PPC mein.`)}</div>` : '') + mdSource(r.from, L),
+      acts: [open('flow|', 'Open Production flow', 'प्रोडक्शन फ़्लो खोलें', 'Production flow kholiye')] };
   }
   if (a.kind === 'skuflag') {
     const r = D.skuList(), c = mdCannot(r.from, L); if (c) return c;

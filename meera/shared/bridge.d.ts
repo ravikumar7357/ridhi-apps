@@ -61,6 +61,8 @@ interface ErpMeeraData {
   /** every SKU's article, type, colour, brand, size and fabric (Master Database) — for finding SKUs by those words */
   skuList(): { from: ErpMeeraFrom; rows: { sku: string; articleType: string; subtype: string; color: string; brand: string; size: string; fabric: string;
     piping: boolean; ruffle: boolean; zip: boolean; cut: boolean; filler: boolean; custom: boolean }[] };
+  /** the lines waiting in PPC to be planned (Production flow), oldest first */
+  ppcToPlan(): { from: ErpMeeraFrom; lines: { orderNo: string; sku: string; qty: number; day: string; started: boolean }[] };
   /** the open order lines on the Order Console: SKU, order and pieces */
   openLines(): { from: ErpMeeraFrom; lines: { sku: string; orderNo: string; qty: number }[] };
   /** the vendors' names (vendor master, and codes on vendor orders) */

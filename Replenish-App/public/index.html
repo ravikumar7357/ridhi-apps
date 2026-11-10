@@ -79437,7 +79437,7 @@ try { window.ERP_MEERA = ERP_MEERA; } catch (e) { /* no window: the page itself 
  * data a screen has not read yet is "not loaded" (she asks the person to open that screen), never fetched — the quota
  * fix stands. Each answer says which screen it comes from and when that screen last read it. A screen the account
  * cannot open answers "not allowed", with no data. open() is called only from a button the person presses. */
-const MEERA_DATA_SCREENS = { ord: 'Order Console', pbase: 'Job Work Register', fgi: 'Finished Goods', qc: 'Quality Control', pmdb: 'Master Database', shop: 'Shopify Orders', vord: 'Vendor Orders' };
+const MEERA_DATA_SCREENS = { ord: 'Order Console', pbase: 'Job Work Register', fgi: 'Finished Goods', qc: 'Quality Control', pmdb: 'Master Database', shop: 'Shopify Orders', vord: 'Vendor Orders', flow: 'Production flow' };
 const mdMay = tab => (typeof mobMay === 'function' ? !!mobMay(tab) : true);
 const mdNum = v => Number(v) || 0;
 const mdLeft = r => mdNum(r.issuePieces) - mdNum(r.receivedPieces) - mdNum(r.rejectionPieces);
@@ -79595,6 +79595,17 @@ ERP_MEERA.data = {
         piping: yes(r, 'isPiping'), ruffle: yes(r, 'isRuffle'), zip: yes(r, 'isZip'), cut: yes(r, 'cuttingRequired'), filler: yes(r, 'fillerFabricRequired'), custom: yes(r, 'isCustom') }));
     return { from, rows };
   }, { from: { tab: 'pmdb', notLoaded: true }, rows: [] }),
+  /** THE LINES WAITING IN PPC TO BE PLANNED, oldest first — the Production flow's own list (flowRows, bucket 'ppc'), read
+   * only when the page already holds it (Ravi, 11 Nov: "saare orders do jinki planning karni hai") */
+  ppcToPlan: () => meeraSafe(() => {
+    const from = mdFrom('flow', typeof FLOW !== 'undefined' && !!FLOW.ppc && typeof flowRows === 'function', typeof FLOW !== 'undefined' ? mdTime(FLOW.at) : '');
+    if (from.denied || from.notLoaded) return { from, lines: [] };
+    const day = v => { const p = String(v || '').split('/'); return p.length === 3 ? p[2] + '-' + p[1].padStart(2, '0') + '-' + p[0].padStart(2, '0') : String(v || '').slice(0, 10); };
+    const lines = flowRows().filter(x => x && x.s && x.s.bucket === 'ppc' && x.r)
+      .map(x => ({ orderNo: String(x.r.orderNo || ''), sku: String(x.r.sku || ''), qty: mdNum(x.r.qty), day: day(x.r.orderDate), started: !!x.s.startedNoPlan }))
+      .sort((a, b) => a.day.localeCompare(b.day) || a.orderNo.localeCompare(b.orderNo));
+    return { from, lines };
+  }, { from: { tab: 'flow', notLoaded: true }, lines: [] }),
   /** THE OPEN ORDER LINES on the Order Console: SKU, order and pieces — for "how many SKUs with piping are in order" */
   openLines: () => meeraSafe(() => {
     const from = mdOrdFrom();
