@@ -22,6 +22,8 @@ const BY_HAND = {
   pt_salesOrders: { rights: ['mdbEdit'], tabs: ['vord', 'vreq'] },
   /* Assigning a Shopify line to a printer (spMirror) reads that printer's order from the Order Console. */
   pt_vendorOrders: { rights: ['mdbEdit'], tabs: ['ord', 'shopprod'] },
+  /* The order alert list (Replenish-App orders/order-alerts.js): the three screens that show the order strip read it. */
+  pt_orderAlerts: { tabs: ['ord', 'shopprod', 'so'] },
   /* KEPT, NOT DERIVED. These four could read the approval requests while the audit still followed the tab
    * switcher into every tab; with that fixed the call graph no longer reaches it from them. Taking a read
    * AWAY is the direction that breaks a screen, and a list of pending approvals is not a secret — so the
