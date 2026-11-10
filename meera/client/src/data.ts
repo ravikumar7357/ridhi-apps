@@ -56,6 +56,11 @@ const MD_ORDERLIKE = /^(amz|spy|shp|b2b|onl|adj|leg)[-a-z0-9]*\d[-a-z0-9]*$/i;
 const MD_PLACED = /\b(opening date|open date|order date|date of (the )?order|placed|place hua|place kiya|opened|created|kab (khula|khuli|khola|aaya|aya|aayi|aai|bana|bani|dala|dali|daala|daali|laga|lagaya|mila|liya|tha|thi)|(khula|khuli|aaya|aya|bana|dala|laga|mila) kab|kis (din|date|tarikh|taarikh)|(ki|ka|ke) (date|tarikh|taarikh)|kab ka|kab ki|when (was|did|is)\b[^?.!]*\b(placed|opened|open|come|came|created|made|start))\b|कब (खुला|आया|बना|डाला)|खुला कब|किस (दिन|तारीख)/;
 const MD_THISORDER = /\b(yeh|ye|yah|is|iss|this|that|wo|woh|wahi|usi|isi|same) (order|ordr|odr)\b|यह ऑर्डर|इस ऑर्डर|ये ऑर्डर/;
 let MD_LAST: { no: string; at: number } | null = null;
+/* the line on a screen she last answered about ("Canvas · Mughal Buta Blue"), in this page only, for a few minutes */
+let MD_LINE: { text: string; at: number } | null = null;
+function mdNoteLine(text: string): void { MD_LINE = text ? { text: String(text), at: Date.now() } : null; }
+const MD_THISTHING = /\b(this|that|its|it's|is|iss|isi|usi|ye|yeh|iska|iski|iske|uska|uski|uske)\b[^?.!]{0,16}\b(cloth|fabric|kapda|kapde|kapra|colou?r|rang|line|sku|skus|products?|items?)\b|\b(its|iska|iski|iske|uska|uski) (sku|skus)\b/;
+const MD_USES = /\b(use|uses|used|using|lagta|lagti|lagte|lage|bante|banta|banti|bana|made|make|products?|items?)\b|लगता|बनते/;
 const MD_LAST_MS = 15 * 60 * 1000;
 
 const mdWords = (q: string): string[] => String(q || '').split(/[\s,?!।.;:()]+/).filter(Boolean);
@@ -219,10 +224,17 @@ function mdParse(q0: string, D: ErpMeeraData): MdAsk | null {
     const L0 = D.skuList();
     if (L0.from.denied || L0.from.notLoaded) { if (MD_SKUWORD.test(low) && MD_FIND_ASK.test(low)) return { kind: 'skufind', terms: [] }; }
     else {
-      const terms = mdFindTerms(q, L0.rows as unknown as Record<string, string>[]);
+      const rows0 = L0.rows as unknown as Record<string, string>[], terms = mdFindTerms(q, rows0);
+      const exact = terms.some(x => x.hits.some(h => h.x));
       /* without "which SKUs": an article or type among them, and at least one word spelt as the master spells it */
-      const product = terms.length >= 2 && terms.some(x => x.hits.some(h => h.f === 'articleType' || h.f === 'subtype')) && terms.some(x => x.hits.some(h => h.x));
-      if (product || (terms.length && MD_SKUWORD.test(low) && MD_FIND_ASK.test(low))) return { kind: 'skufind', terms };
+      const product = terms.length >= 2 && terms.some(x => x.hits.some(h => h.f === 'articleType' || h.f === 'subtype')) && exact;
+      if (product || (terms.length && MD_SKUWORD.test(low) && (MD_FIND_ASK.test(low) || (terms.length >= 2 && exact)))) return { kind: 'skufind', terms };
+      /* "iska sku kya hai", "how many products use this cloth" — right after she answered about a line (a cloth on Fabric
+       * Inventory, Ravi 10 Nov): that line's words, the fabric and colour it names */
+      if (!terms.length && MD_LINE && Date.now() - MD_LINE.at < MD_LAST_MS && MD_THISTHING.test(low) && (MD_SKUWORD.test(low) || MD_COUNT.test(low) || MD_USES.test(low))) {
+        const lt = mdFindTerms(MD_LINE.text, rows0).filter(x => x.hits.some(h => h.f === 'fabric' || h.f === 'color' || h.f === 'articleType' || h.f === 'subtype'));
+        if (lt.length) return { kind: 'skufind', terms: lt };
+      }
     }
   }
   if (MD_TODAY.test(low)) {
@@ -280,7 +292,9 @@ function mdSkuCard(sku: string, focus: string, D: ErpMeeraData, L: (en: string, 
   if (mc) sum.push(row(L('Product', 'प्रोडक्ट', 'Product'), cant(m.from)));
   else if (!r) sum.push(`<li>${L(`<b>${s}</b> is not in the Master Database.`, `<b>${s}</b> मास्टर डेटाबेस में नहीं है।`, `<b>${s}</b> Master Database mein nahi hai.`)}</li>`);
   else {
-    const name = [r.articleType, r.subtype, fam ? '' : r.color].filter(x => x !== undefined && x !== '').map(x => esc(String(x))).join(' ');
+    /* the type already says the article ("Table Runner", "Square Tablecloth"): not twice (Ravi, 10 Nov: "Table Runner Table Runner") */
+    const at = String(r.articleType || ''), st = String(r.subtype || ''), both = at && st && st.toLowerCase().includes(at.toLowerCase());
+    const name = [both ? '' : at, st, fam ? '' : r.color].filter(x => x !== undefined && x !== '').map(x => esc(String(x))).join(' ');
     if (name) sum.push(row(L('Product', 'प्रोडक्ट', 'Product'), `<b>${name}</b>`));
     if (r.brand !== undefined) sum.push(row(L('Brand', 'ब्रांड', 'Brand'), `<b>${esc(String(r.brand))}</b>`));
   }
@@ -413,7 +427,13 @@ function mdAnswer(a: MdAsk, q: string, D: ErpMeeraData, lang: MdLang): { html: s
       html = `<div class="ga-a">${L(`No SKU in the Master Database is ${desc}.`, `मास्टर डेटाबेस में कोई SKU ${desc} नहीं है।`, `Master Database mein koi SKU ${desc} nahi hai.`)}</div>`
         + (each ? `<div>${L('SKUs with each on its own: ', 'हर एक के अलग से SKU: ', 'Har ek ke alag se SKU: ')}${each}</div>` : '');
     }
-    return { html: html + asRead + mdSource(r.from, L), acts: [open('pmdb|', 'Open Master Database', 'मास्टर डेटाबेस खोलें', 'Master Database kholiye')] };
+    /* a cloth was named: the Master Database opens on that fabric, its products listed, narrowed to the colour if one was said
+     * (Ravi, 10 Nov: "when I click on open master database it should automatically give me the list of products") */
+    const hv = (f: string) => { const t = a.terms.find(x => x.hits.some(h => h.f === f)); return t ? (t.hits.find(h => h.f === f) || { v: '' }).v : ''; };
+    const fab = hv('fabric');
+    return { html: html + asRead + mdSource(r.from, L), acts: [fab
+      ? open('pmdbfab|' + fab + '|' + hv('color'), `Open ${fab} on Master Database`, `मास्टर डेटाबेस पर ${fab} खोलें`, `Master Database par ${fab} kholiye`)
+      : open('pmdb|', 'Open Master Database', 'मास्टर डेटाबेस खोलें', 'Master Database kholiye')] };
   }
   if (a.kind === 'order') {
     const r = D.findOrder(a.no), no = esc(a.no);

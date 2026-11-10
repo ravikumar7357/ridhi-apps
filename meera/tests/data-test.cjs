@@ -121,7 +121,10 @@ add('none', '', ['karigar ko kaam kaise de', 'Raju Kumar ko maal kaise issue kar
     const part = br.slice(br.indexOf('MEERA READS THE ERP'), br.indexOf('MEERA READS THE ERP') > 0 ? br.indexOf('/* ===', br.indexOf('MEERA READS THE ERP')) : 0);
     const bad = TOUCH.concat(['fetch(', 'localStorage', 'mlSend', 'gaAiAsk', 'srvAsk']).filter(n => src.includes(n + (n.endsWith('(') ? '' : '(')) || part.includes(n + (n.endsWith('(') ? '' : '(')));
     ok(part.length > 1000 && !bad.length, 'the Phase 7 code names no save, read, fetch or AI call: ' + bad.join(', '));
-    ok((part.match(/showTab\(/g) || []).length === 1 && /open: \(kind, key\)/.test(part), 'the only screen change is the button (open)'); }
+    /* every screen change sits inside open() — the button the person pressed — and nowhere else in her part of the bridge */
+    { const o = part.indexOf('open: (kind, key)'), end = part.indexOf('}, false),', o), inOpen = o >= 0 ? part.slice(o, end) : '';
+      ok(o >= 0 && (part.match(/showTab\(/g) || []).length >= 1 && (part.match(/showTab\(/g) || []).length === (inOpen.match(/showTab\(/g) || []).length
+        && !/fmRender\(|fmSetView\(/.test(part.slice(0, o) + part.slice(end)), 'the only screen change is the button (open)'); } }
   { T('GA.lastQ = ""'); const took = await M.ctx.__meeraTest('meeraDataAsk("Imran Ali ke paas kitne piece hain")');
     ok(took === true && T('GA.lastQ') === '', 'a data question is answered and not kept as her last question (no 👎 note can carry it)'); }
 

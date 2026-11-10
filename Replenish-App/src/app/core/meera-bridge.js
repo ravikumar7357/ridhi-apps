@@ -274,6 +274,20 @@ ERP_MEERA.data = {
     if (kind === 'order' && mdMay('ord') && typeof ordJourney === 'function') { ordJourney(key); return true; }
     if (kind === 'karigar' && mdMay('pbase') && typeof mobSearchOpen === 'function') { mobSearchOpen('kar|' + key); return true; }
     if (kind === 'sku' && typeof mobSkuSheet === 'function') { mobSkuSheet(key); return true; }
+    /* ONE CLOTH ON THE MASTER DATABASE (Ravi, 10 Nov): the fabric page, that fabric's row opened with its products, searched to the
+     * colour when one was named. Only what the screen itself does when somebody types in its search and opens the row. */
+    if (kind === 'pmdbfab' && mdMay('pmdb')) {
+      showTab('pmdb');
+      if (typeof FM !== 'undefined' && typeof fmRender === 'function' && typeof fmProducts === 'function') {
+        const [fab, col] = String(key || '').split('|'), k = s => String(s || '').trim().toLowerCase();
+        if (typeof fmSetView === 'function' && FM.view !== 'fabric') fmSetView('fabric');
+        const p = fmProducts().find(x => k(x.fabName) === k(fab));
+        FM.q = col || fab || '';
+        if (p && p.fab) FM.open.add(p.fab);
+        fmRender();
+      }
+      return true;
+    }
     if (MEERA_DATA_SCREENS[kind] && mdMay(kind)) { showTab(kind); return true; }
     return false;
   }, false),
