@@ -4,6 +4,7 @@
  *   node asin-fill-write.js          → dry run
  *   node asin-fill-write.js --write  → one PATCH */
 const fs = require('fs'), https = require('https'), pathm = require('path');
+const NW = require('./_noted-write.js');     // writes to a synced register leave their change note (Step 4d)
 const FTL = 'C:/Users/ravik/AppData/Roaming/npm/node_modules/firebase-tools/lib/';
 const DB = 'https://price-research-48ff3-default-rtdb.asia-southeast1.firebasedatabase.app';
 const FS = 'https://firestore.googleapis.com/v1/projects/price-research-48ff3/databases/(default)/documents/';
@@ -39,7 +40,7 @@ const RE = /^[A-Z0-9]{10}$/;
   const undo = {}; Object.keys(patch).forEach(p => { undo[p] = null; });
   const f = pathm.join(__dirname, 'asin-fill-undo-' + new Date().toISOString().replace(/[:.]/g, '-') + '.json');
   fs.writeFileSync(f, JSON.stringify(undo));
-  await req(DB + '/.json', 'PATCH', patch);
+  { const n = NW.noted('PATCH', '', patch); await req(DB + '/.json', n[0], n[2]); }
   console.log('written; undo file', f);
   const back = await req(DB + '/pt_masterDB.json?shallow=false');
   console.log('now with ASIN', Object.values(back).filter(m => m && m.asin).length, 'with parent', Object.values(back).filter(m => m && m.parentAsin).length);

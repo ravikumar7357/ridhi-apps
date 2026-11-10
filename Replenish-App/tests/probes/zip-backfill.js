@@ -22,6 +22,7 @@
  * is the ledger telling the truth — the stock typed in does not cover what was used — and it is shown.
  */
 const fs = require('fs'), https = require('https'), pathm = require('path');
+const NW = require('./_noted-write.js');     // writes to a synced register leave their change note (Step 4d)
 const FTL = 'C:/Users/ravik/AppData/Roaming/npm/node_modules/firebase-tools/lib/';
 const HOST = 'price-research-48ff3-default-rtdb.asia-southeast1.firebasedatabase.app';
 const APPLY = process.argv.includes('--apply');
@@ -91,7 +92,7 @@ const zipQty = m => { const n = parseFloat(m && m.zipQty); return isFinite(n) &&
 
   const patch = {};
   recs.forEach(r => { const x = Object.assign({}, r); delete x._src; patch[r._id] = x; });
-  const w = await call('PATCH', 'pt_accLedger', patch);
+  const w = await call(...NW.noted('PATCH', 'pt_accLedger', patch));
   if (w.status !== 200) throw new Error('write refused: HTTP ' + w.status + ' ' + JSON.stringify(w.j).slice(0, 200));
   console.log('\nwritten: ' + recs.length + ' row(s) in pt_accLedger.');
 })().catch(e => { console.error(e.message); process.exit(1); });

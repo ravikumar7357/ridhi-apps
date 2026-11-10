@@ -37,6 +37,7 @@ const clone = v => v === undefined ? undefined : JSON.parse(JSON.stringify(v));
     auth: { currentUser: { uid: 'dry' } }, ME: { email: 'dry-run' }, AUDIT: { on: true }, spIsVendor: () => false, auditId: () => 'dry',
     ptAuditWrite: async u => { lines.push(Object.values(u)[0]); return true; }, localStorage: { getItem: () => null }, setTimeout };
   const api = new Function(...Object.keys(ctx), SRC + '\n;return { DELTA, deltaShadowRun };')(...Object.values(ctx));
+  api.DELTA.minUpMs = 0;     // a dry run has no connection to wait for; the second round needs the copy the first one keeps
   for (const round of [1, 2]) {
     got = 0;
     const t0 = Date.now();

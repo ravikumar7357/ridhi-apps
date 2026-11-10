@@ -1,6 +1,7 @@
 /* Parent ASIN for master rows that have an ASIN and no parent, from Amazon's catalogue through the Pricing-API ?parents=
  * endpoint (20 a call). Blanks only. node asin-parents-fill.js [--write] */
 const fs = require('fs'), https = require('https'), pathm = require('path');
+const NW = require('./_noted-write.js');     // writes to a synced register leave their change note (Step 4d)
 const FTL = 'C:/Users/ravik/AppData/Roaming/npm/node_modules/firebase-tools/lib/';
 const DB = 'https://price-research-48ff3-default-rtdb.asia-southeast1.firebasedatabase.app';
 const FS = 'https://firestore.googleapis.com/v1/projects/price-research-48ff3/databases/(default)/documents/';
@@ -39,6 +40,6 @@ const RE = /^[A-Z0-9]{10}$/;
   if (process.argv[2] !== '--write') return console.log('dry run');
   const undo = {}; Object.keys(patch).forEach(p => { undo[p] = null; });
   fs.writeFileSync(pathm.join(__dirname, 'asin-parents-undo-' + new Date().toISOString().replace(/[:.]/g, '-') + '.json'), JSON.stringify(undo));
-  await req(DB + '/.json', 'PATCH', patch);
+  { const n = NW.noted('PATCH', '', patch); await req(DB + '/.json', n[0], n[2]); }
   console.log('written');
 })().catch(e => { console.error('FAILED', e.message || e); process.exit(1); });

@@ -1,6 +1,7 @@
 /* RBP → Ridhi on the master (Ravi, 2026-09-22: "rbp ridhi hi brand h"). Backs up every brand first;
  * `node brand-rbp-ridhi.js rollback <backup.json>` puts them back. Only rows whose brand is exactly RBP change. */
 const fs = require('fs'), https = require('https'), pathm = require('path');
+const NW = require('./_noted-write.js');     // writes to a synced register leave their change note (Step 4d)
 const FTL = 'C:/Users/ravik/AppData/Roaming/npm/node_modules/firebase-tools/lib/';
 const DB = 'https://price-research-48ff3-default-rtdb.asia-southeast1.firebasedatabase.app';
 (async () => {
@@ -11,7 +12,7 @@ const DB = 'https://price-research-48ff3-default-rtdb.asia-southeast1.firebaseda
   if (process.argv[2] === 'rollback') {
     const b = JSON.parse(fs.readFileSync(process.argv[3], 'utf8'));
     const patch = {}; Object.entries(b).forEach(([k, v]) => { patch[k + '/brand'] = v; });
-    await req('PATCH', 'pt_masterDB', patch); console.log('rolled back', Object.keys(patch).length); return;
+    await req(...NW.noted('PATCH', 'pt_masterDB', patch)); console.log('rolled back', Object.keys(patch).length); return;
   }
   const mdb = await req('GET', 'pt_masterDB');
   const backup = {}; Object.entries(mdb).forEach(([k, v]) => { if (v) backup[k] = v.brand == null ? null : v.brand; });
@@ -20,7 +21,7 @@ const DB = 'https://price-research-48ff3-default-rtdb.asia-southeast1.firebaseda
   const patch = {}; Object.entries(mdb).forEach(([k, v]) => { if (v && String(v.brand) === 'RBP') patch[k + '/brand'] = 'Ridhi'; });
   console.log('backup', file, 'rows to change', Object.keys(patch).length);
   if (process.argv[2] !== 'go') return;
-  await req('PATCH', 'pt_masterDB', patch);
+  await req(...NW.noted('PATCH', 'pt_masterDB', patch));
   const after = await req('GET', 'pt_masterDB');
   const c = {}; Object.values(after).filter(Boolean).forEach(v => { c[String(v.brand)] = (c[String(v.brand)] || 0) + 1; });
   console.log('brands now', JSON.stringify(c));
