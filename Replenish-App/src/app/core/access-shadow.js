@@ -72,6 +72,80 @@ async function accessShadow(user, permsDoc, firebaseMs) {
   console.info('[shadow] access', matched ? 'same' : 'DIFFERS', { firebaseMs, supabaseMs, missing, extra });
 }
 
+/* ================= CHECK EVERYONE (Ravi, 10 Nov) =================
+ * For an admin or an Access viewer (the people Firebase lets read everybody's access): every person's access, read LIVE
+ * from Firebase (perms/*), against what the new database gives each of them — one list, all at once, saved to ERP TEST.
+ * Read only on both sides. Shown as a second small button beside the access line. */
+const ASH_NOT_CARRIED_EMPTY = true;   // people with no real box left (only the old production app) are not carried — shown as such, not as a fault
+
+function ashMayCheckAll() { return !!(typeof ME !== 'undefined' && ME && (ME.admin || (ASH_DOC && ASH_DOC.accessView === true))); }
+
+async function ashCheckEveryone() {
+  const out = ashPanel('Checking everyone… reading Firebase and the new database');
+  try {
+    const token = await auth.currentUser.getIdToken();
+    const t0 = performance.now();
+    const snap = await getDocs(collection(db, 'perms'));
+    const firebaseMs = Math.round(performance.now() - t0);
+    const fb = {};
+    snap.forEach(d => { const email = String(d.id || '').trim().toLowerCase(); if (email.includes('@')) fb[email] = ashFirebaseBoxes(d.data(), email); });
+
+    const t1 = performance.now();
+    const rows = await ashCall('access_of_everyone', token);
+    const supabaseMs = Math.round(performance.now() - t1);
+    const sb = {};
+    rows.forEach(r => { const p = sb[r.email] = sb[r.email] || { name: r.name, role: r.role_code, admin: false, boxes: [] };
+      if (r.via === 'admin') p.admin = true; else if (/^(erp|right):/.test(r.item_key)) p.boxes.push(r.item_key); });
+
+    const results = [];
+    new Set([...Object.keys(fb), ...Object.keys(sb)]).forEach(email => {
+      const f = fb[email], s = sb[email];
+      let missing = [], extra = [], note = '';
+      if (f && !s) {
+        if (!f.admin && !f.boxes.length && ASH_NOT_CARRIED_EMPTY) note = 'not carried (no access left)';
+        else missing = f.admin ? ['admin'] : f.boxes;
+      } else if (!f && s) { note = 'not in Firebase'; extra = s.admin ? ['admin'] : s.boxes; }
+      else if (f.admin || s.admin) { if (f.admin !== s.admin) (f.admin ? missing : extra).push('admin'); }
+      else { const sbx = s.boxes.sort(); missing = f.boxes.filter(k => !sbx.includes(k)); extra = sbx.filter(k => !f.boxes.includes(k)); }
+      results.push({ email, name: s ? s.name : '', role: s ? s.role : '', matched: !missing.length && !extra.length, missing, extra, note });
+    });
+    results.sort((a, b) => (a.matched - b.matched) || a.email.localeCompare(b.email));
+
+    const bad = results.filter(r => !r.matched).length;
+    let saved = '';
+    try { const n = await ashCall('shadow_report_everyone', token, { p_results: results.filter(r => !r.note.startsWith('not carried')).map(({ email, matched, missing, extra }) => ({ email, matched, missing, extra })),
+      p_firebase_ms: firebaseMs, p_supabase_ms: supabaseMs, p_build: (window.__TEST_ERP && window.__TEST_ERP.sha) || 'local' }); saved = ' · saved ' + n + ' results to ERP TEST'; }
+    catch (e) { saved = ' · not saved: ' + e.message; }
+
+    const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[m]));
+    out.innerHTML = `<div style="display:flex;justify-content:space-between;gap:10px;align-items:baseline;flex-wrap:wrap">
+        <b style="font-size:15px">${bad ? '✗ ' + bad + ' of ' + results.length + ' differ' : '✓ All ' + results.length + ' people: the new database gives the same access'}</b>
+        <span style="color:#555">Firebase ${firebaseMs} ms (everyone) · Supabase ${supabaseMs} ms (everyone)${esc(saved)}</span></div>
+      <div style="max-height:60vh;overflow:auto;margin-top:10px"><table style="border-collapse:collapse;width:100%;font-size:12.5px">
+      <thead><tr>${['Person', 'Role in the new database', 'Result'].map(h => `<th style="text-align:left;padding:5px 8px;border-bottom:1px solid #ddd">${h}</th>`).join('')}</tr></thead><tbody>` +
+      results.map(r => `<tr><td style="padding:5px 8px;border-bottom:1px solid #eee">${esc(r.name || '')}<div style="color:#666">${esc(r.email)}</div></td>
+        <td style="padding:5px 8px;border-bottom:1px solid #eee">${esc(r.role || '—')}</td>
+        <td style="padding:5px 8px;border-bottom:1px solid #eee;color:${r.matched ? '#1d7a4a' : '#b3261e'}">${r.matched ? '✓ same' + (r.note ? ' · ' + esc(r.note) : '') : '✗ ' + esc([r.note, r.missing.length && 'missing: ' + r.missing.join(', '), r.extra.length && 'extra: ' + r.extra.join(', ')].filter(Boolean).join(' · '))}</td></tr>`).join('') +
+      '</tbody></table></div>';
+  } catch (e) { out.textContent = '! Could not check everyone: ' + e.message; }
+}
+
+/** The results panel (one, reused). */
+function ashPanel(msg) {
+  let p = document.getElementById('ashPanel');
+  if (!p) {
+    p = document.createElement('div'); p.id = 'ashPanel';
+    p.style.cssText = 'position:fixed;left:calc(12px + env(safe-area-inset-left,0px));right:calc(12px + env(safe-area-inset-right,0px));bottom:calc(56px + env(safe-area-inset-bottom,0px));'
+      + 'z-index:9999;background:#fff;color:#1b1b1b;border:1px solid rgba(0,0,0,.15);border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,.18);padding:14px 16px;font:13px/1.45 system-ui,sans-serif;max-width:900px';
+    const close = document.createElement('button'); close.type = 'button'; close.textContent = 'Close';
+    close.style.cssText = 'position:absolute;top:8px;right:10px;font:12px system-ui;border:1px solid #ccc;border-radius:6px;background:#fff;padding:3px 8px;cursor:pointer';
+    close.onclick = () => p.remove();
+    const body = document.createElement('div'); body.id = 'ashPanelBody'; body.style.paddingRight = '56px';
+    p.append(close, body); document.body.appendChild(p);
+  }
+  const body = document.getElementById('ashPanelBody'); body.textContent = msg; return body;
+}
+
 /** The small line at the bottom left. Click it to see the details. */
 function ashShow(r) {
   let el = document.getElementById('ashLine');
@@ -96,4 +170,15 @@ function ashShow(r) {
   }
   el.textContent = text;
   el.style.whiteSpace = 'pre-line';
+  // the "Check everyone" button, beside the line — only for an admin or an Access viewer
+  if (ashMayCheckAll() && !document.getElementById('ashAll')) {
+    const b = document.createElement('button');
+    b.id = 'ashAll'; b.type = 'button'; b.textContent = 'Shadow check · everyone';
+    b.style.cssText = 'position:fixed;bottom:calc(12px + env(safe-area-inset-bottom,0px));z-index:9999;font:12px/1.3 system-ui,sans-serif;padding:7px 11px;'
+      + 'border-radius:999px;border:1px solid rgba(0,0,0,.2);background:#1b1b1b;color:#fff;cursor:pointer';
+    b.onclick = ashCheckEveryone;
+    document.body.appendChild(b);
+    const place = () => { const r = el.getBoundingClientRect(); b.style.left = Math.round(r.right + 8) + 'px'; };
+    place(); new ResizeObserver(place).observe(el);
+  }
 }
