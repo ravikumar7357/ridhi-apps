@@ -62,6 +62,7 @@ let ASH_USED = 'firebase';  // where this sign-in's access actually came from: '
 async function accessFromSupabase(user) {
   ASH_SB = null; ASH_USED = 'firebase';
   if (!ASH.on || !ASH.key || !user) return null;
+  if (ashSource() !== 'supabase') return null;   // switch on Firebase: Firebase only; Supabase is checked afterwards
   try {
     const token = await user.getIdToken();
     const t0 = performance.now();
@@ -87,6 +88,15 @@ async function accessShadow(user, permsDoc, firebaseMs) {
   if (!ASH.on || !user) return;
   if (!ASH.key) { ashShow({ state: 'off', firebaseMs }); return; }
   const email = String(user.email || '').toLowerCase();
+  // Supabase only: the sign-in did not ask Firebase at all — ask it now, after the screens are up, just for the comparison
+  if (ASH_USED === 'supabase' && firebaseMs == null) {
+    try {
+      const t0 = performance.now();
+      const s = await getDoc(doc(db, 'perms', email));
+      firebaseMs = Math.round(performance.now() - t0);
+      permsDoc = s.exists() ? s.data() : null;
+    } catch (e) { ashShow({ state: 'error', firebaseMs: null, supabaseMs: ASH_SB && ASH_SB.ms, why: 'Firebase not read for the comparison: ' + e.message }); return; }
+  }
   const fb = ashFirebaseBoxes(permsDoc, email);
   let token, rows, supabaseMs = null;
   try {
@@ -118,7 +128,10 @@ async function accessShadow(user, permsDoc, firebaseMs) {
  * Read only on both sides. Shown as a second small button beside the access line. */
 const ASH_NOT_CARRIED_EMPTY = true;   // people with no real box left (only the old production app) are not carried — shown as such, not as a fault
 
-function ashMayCheckAll() { return !!(typeof ME !== 'undefined' && ME && (ME.admin || (ASH_DOC && ASH_DOC.accessView === true))); }
+function ashMayCheckAll() {
+  return !!(typeof ME !== 'undefined' && ME && (ME.admin || (ASH_DOC && ASH_DOC.accessView === true)
+    || (ASH_SB && ASH_SB.rows && ASH_SB.rows.some(r => r.item_key === 'right:accessView'))));
+}
 
 async function ashCheckEveryone() {
   const out = ashPanel('Checking everyone… reading Firebase and the new database');
@@ -200,7 +213,7 @@ function ashShow(r) {
   }
   el._r = r;
   const ms = v => v == null ? '–' : v + ' ms';
-  const from = { supabase: 'Access from Supabase', firebase: 'Access from Firebase', 'firebase (fallback)': 'Access from Firebase (Supabase not reached)' }[ASH_USED];
+  const from = { supabase: 'Access from Supabase only', firebase: 'Access from Firebase only', 'firebase (fallback)': 'Access from Firebase (Supabase not reached)' }[ASH_USED];
   const cmp = { same: '✓ same as Firebase', differs: '✗ differs from Firebase', error: '! Supabase not reached', off: 'shadow test off (no key)' }[r.state];
   el.style.background = r.state === 'same' ? '#e3f4ea' : r.state === 'differs' ? '#fde4e1' : '#fff4d6';
   el.style.color = '#1b1b1b';
