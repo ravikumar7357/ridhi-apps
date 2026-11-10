@@ -121,6 +121,90 @@ async function accessShadow(user, permsDoc, firebaseMs) {
     p_missing: missing, p_extra: extra, p_build: (window.__TEST_ERP && window.__TEST_ERP.sha) || 'local' }).catch(e => console.warn('[shadow] report not saved:', e.message));
   console.info('[shadow] access', matched ? 'same' : 'DIFFERS', { firebaseMs, supabaseMs, missing, extra });
   controlShadow(token);   // section 2: the waiting-request counts
+  mastersShadow(token);   // section 3: every Masters record
+}
+
+/* ================= MASTERS · SHADOW TEST (Ravi, 10 Nov) =================
+ * Every Masters record in live Firebase (pt_masters, pt_colorGroups, the Greige Desk's fabric pairs + vendors) against the
+ * copy in Supabase, record by record: each record is fingerprinted here (sha-256 of the record written the way the database
+ * writes it) and compared with the fingerprints core.masters_records() gives — no names leave the database. A third line at the
+ * bottom. Supabase's copy is from a backup day (shown), so a difference can simply mean "changed in the ERP since that day".
+ * Read only on both sides; never throws. Keep ashMastersPaths / ashJbText the same as migration/tools/make-masters-data.js
+ * (firebasePaths) and masters-fingerprint.js (jbText). */
+function ashMastersPaths(M, CG, GD) {
+  const out = new Map();
+  for (const [L, v] of Object.entries(M || {})) {
+    if (v && typeof v === 'object') for (const [k, x] of Object.entries(v)) { if (x != null) out.set(`pt_masters/${L}/${k}`, x); }
+    else if (v != null) out.set(`pt_masters/${L}`, v);
+  }
+  for (const [k, v] of Object.entries(CG || {})) {
+    if (k === 'map' && v && typeof v === 'object') for (const [l, g] of Object.entries(v)) out.set(`pt_colorGroups/map/${l}`, g);
+    else if (v != null) out.set(`pt_colorGroups/${k}`, v);
+  }
+  for (const part of ['mst', 'ven']) for (const [k, x] of Object.entries((GD || {})[part] || {})) if (x != null) out.set(`pt_gdTest/${part}/${k}`, x);
+  return out;
+}
+const ASH_ENC = new TextEncoder();
+function ashKeyCmp(a, b) {
+  const x = ASH_ENC.encode(a), y = ASH_ENC.encode(b);
+  if (x.length !== y.length) return x.length - y.length;
+  for (let i = 0; i < x.length; i++) if (x[i] !== y[i]) return x[i] - y[i];
+  return 0;
+}
+function ashJbText(v) {
+  if (v === null || v === undefined) return 'null';
+  if (Array.isArray(v)) return '[' + v.map(ashJbText).join(', ') + ']';
+  if (typeof v === 'object') return '{' + Object.keys(v).sort(ashKeyCmp).map(k => JSON.stringify(k) + ': ' + ashJbText(v[k])).join(', ') + '}';
+  return JSON.stringify(v);
+}
+async function ashSha(s) {
+  const b = await crypto.subtle.digest('SHA-256', ASH_ENC.encode(s));
+  return [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, '0')).join('');
+}
+async function mastersShadow(token) {
+  try {
+    const read = n => (typeof ptGetFresh === 'function' ? ptGetFresh(n) : ptGet(n, true));
+    const t0 = performance.now();
+    const [M, CG, GD] = await Promise.all([read('pt_masters'), read('pt_colorGroups'), read('pt_gdTest')]);
+    const firebaseMs = Math.round(performance.now() - t0);
+    const fb = ashMastersPaths(M, CG, GD);
+    const t1 = performance.now();
+    const rows = [];   // Supabase answers at most 1,000 rows at a time: read the door in pages
+    for (let f = 0; ; f += 1000) { const page = await ashCall(`masters_records?order=path&offset=${f}&limit=1000`, token); rows.push(...page); if (page.length < 1000) break; }
+    const supabaseMs = Math.round(performance.now() - t1);
+    const sb = new Map(rows.map(r => [r.path, r.h]));
+    const copyOf = sb.get('#copy_of') || ''; sb.delete('#copy_of');
+    const missing = [], changed = [], extra = [];
+    for (const [p, rec] of fb) {
+      if (!sb.has(p)) missing.push(p);
+      else if (sb.get(p) !== await ashSha(ashJbText(rec))) changed.push(p);
+    }
+    for (const p of sb.keys()) if (!fb.has(p)) extra.push(p);
+    const matched = !missing.length && !changed.length && !extra.length;
+    ashShowMasters({ matched, total: fb.size, missing, changed, extra, firebaseMs, supabaseMs, copyOf });
+    ashCall('shadow_report', token, { p_section: 'masters · records', p_matched: matched, p_firebase_ms: firebaseMs, p_supabase_ms: supabaseMs,
+      p_missing: missing.concat(changed.map(p => p + ' (changed)')), p_extra: extra, p_build: (window.__TEST_ERP && window.__TEST_ERP.sha) || 'local' }).catch(() => {});
+    console.info('[shadow] masters', matched ? 'same' : 'DIFFERS', { total: fb.size, missing, changed, extra, firebaseMs, supabaseMs });
+  } catch (e) { ashShowMasters({ error: e.message }); }
+}
+function ashShowMasters(r) {
+  let el = document.getElementById('ashMasters');
+  if (!el) {
+    el = document.createElement('button'); el.id = 'ashMasters'; el.type = 'button';
+    el.style.cssText = 'position:fixed;left:calc(12px + env(safe-area-inset-left,0px));bottom:calc(142px + env(safe-area-inset-bottom,0px));z-index:10000;'
+      + 'font:12px/1.3 system-ui,sans-serif;padding:7px 11px;border-radius:999px;border:1px solid rgba(0,0,0,.15);cursor:pointer;max-width:calc(100vw - 24px);text-align:left;color:#1b1b1b';
+    document.body.appendChild(el);
+    el.onclick = () => { el.dataset.open = el.dataset.open ? '' : '1'; ashShowMasters(el._r); };
+  }
+  el._r = r;
+  if (r.error) { el.style.background = '#fff4d6'; el.textContent = '! Masters · not compared: ' + String(r.error).slice(0, 120); return; }
+  el.style.background = r.matched ? '#e3f4ea' : '#fde4e1';
+  const n = r.missing.length + r.changed.length + r.extra.length;
+  let t = 'Masters · ' + r.total.toLocaleString('en-IN') + ' records · ' + (r.matched ? '✓ every one the same as Firebase' : '✗ ' + n + ' differ (Supabase copy from ' + (r.copyOf || '?') + ')')
+    + ' · Firebase ' + r.firebaseMs + ' ms · Supabase ' + r.supabaseMs + ' ms';
+  if (el.dataset.open && n) t += '\n' + [...r.changed.map(p => 'changed: ' + p), ...r.missing.map(p => 'new in Firebase: ' + p), ...r.extra.map(p => 'gone from Firebase: ' + p)].slice(0, 30).join('\n')
+    + '\nA difference here usually means a master entry added or edited in the ERP after the copy was made.';
+  el.textContent = t; el.style.whiteSpace = 'pre-line';
 }
 
 /* ================= CONTROL · SHADOW TEST (Ravi, 10 Nov) =================
