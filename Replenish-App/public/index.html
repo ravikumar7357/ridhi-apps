@@ -9999,7 +9999,7 @@ async function ensureShopify() {
   renderShopify();
   /* The master list names the SKUs (Ravi, 2026-09-29: "i have updated my masterdata please check and fill the blank
    * data"); when it is not in hand yet the table is drawn again once it is. */
-  if (ptLack(PTG_ALL, 'mdb') && typeof ptNeed === 'function') { try { await ptNeed(PTG_ALL, { why: 'shopify stock', has: 'mdb' }); renderShopify(); } catch (e) { /* the snapshot names stay */ } }
+  if (ptLack(PTG_MASTER, 'mdb') && typeof ptNeed === 'function') { try { await ptNeed(PTG_MASTER, { why: 'shopify stock', has: 'mdb' }); renderShopify(); } catch (e) { /* the snapshot names stay */ } }
 }
 async function loadShopify() {
   const store = shStore();
@@ -40026,7 +40026,7 @@ function gdSaveAll() {
 function gdLoad() {
   if (GD_READY) return GD_READY;
   GD_READY = (async function () {
-    try { if (typeof ptNeed === 'function') await ptNeed(PTG_ALL, { why: 'gdesk', has: 'masters' }); } catch (e) { /* masters wait */ }
+    try { if (typeof ptNeed === 'function') await ptNeed(PTG_MASTER, { why: 'gdesk', has: 'masters' }); } catch (e) { /* masters wait */ }
     try { if (typeof ensureGpo === 'function' && typeof GPO !== 'undefined' && GPO.rows == null) await ensureGpo(); } catch (e) { /* real POs wait */ }
     /* A READ THAT FAILED IS NOT AN EMPTY DESK (16 Oct). It used to be taken as one, and the empty desk was then WRITTEN
      * over the whole node — every greige PO and every movement gone because one read timed out. Now a failed read
@@ -40084,7 +40084,8 @@ function usersSafe() { return true; }
  * the store, cloth at an RFD processor. What is still short is the greige to order, with 5% added for what the
  * processor takes. */
 var GD_LOSS = 0.05;
-function gdFlowReady() { return typeof FLOW !== 'undefined' && FLOW && FLOW.ppc && typeof flowRfdCover === 'function'; }
+/* Page registers on: PPC's figures are not ready until the order book and the factory registers are all in (a plain look, it reads nothing). */
+function gdFlowReady() { return typeof FLOW !== 'undefined' && FLOW && FLOW.ppc && typeof flowRfdCover === 'function' && (typeof prOn !== 'function' || !prOn() || ptHas(PTG_ALL)); }
 function gdRfdShelf(name) {
   if (!DB) return 0;
   var k = String(name || '').trim().toUpperCase(), e = fabFlowRows(DB.fab || []).filter(function (x) { return String(x.fabricType).toUpperCase() === k; })[0];
@@ -40114,7 +40115,9 @@ var GD_FLOW_ASKED = false;
  * null when the flow is not here; { __loading: true } while the plans are being read. */
 function gdPpcMap() {
   if (typeof flowRfdCover !== 'function') return null;
-  if (!gdFlowReady()) {
+  /* Page registers on: the desk opens on the master alone, but PPC's figures are worked out from the order book and the factory registers.
+   * Until all of them are in, the column says it is loading; the flow reads them (flowEnsureData waits for the whole set) and the screen is drawn again. */
+  if (!gdFlowReady() || (typeof prOn === 'function' && prOn() && !ptHas(PTG_ALL))) {
     if (typeof flowEnsureData === 'function' && !GD_FLOW_ASKED) { GD_FLOW_ASKED = true; flowEnsureData().then(function () { if (UI.tab === 'inv') render(); }, function () { /* the column says so */ }); }
     return { __loading: true };
   }
@@ -40516,7 +40519,7 @@ async function ensureHr() {
     /* The printer rates are read against the vendor orders — the usage count and the pickers are
      * both built from them, and without them every rate would read as matching nothing. */
     if (VO.rows === null && !hrEmpOnly()) { try { await ensureVo(); } catch (e) { /* the rates still list */ } }
-    try { await ptNeed(PTG_ALL, { why: 'finance-hr', has: 'mdb' }); } catch (e) { /* a cut rate falls back to the line */ }
+    try { await ptNeed(PTG_MASTER, { why: 'finance-hr', has: 'mdb' }); } catch (e) { /* a cut rate falls back to the line */ }
   }
   renderHr();
 }
@@ -43053,6 +43056,10 @@ async function ensureFab() {
     FAB.busy = true; renderFab();
     try { FAB.rows = ptList(await ptGet('pt_fabInvLedger')); FAB.err = ''; }
     catch (e) { FAB.err = e.message || String(e); FAB.rows = FAB.rows || []; }
+    /* The Fabric tab holds the Store, which reads the order book and the factory registers, so it asks for the whole set itself.
+     * The RFD stock dialog's own load (fabAutoLoad) needs only the master since page registers were narrowed.
+     * Only with page registers on: with the switch off, fabAutoLoad's own read below does exactly what it did before. */
+    if (prOn()) { try { await ptNeed(PTG_ALL, { why: 'fabric', has: 'mdb' }); } catch (e) { /* the store says so if it cannot read */ } }
     await fabAutoLoad();
     FAB.at = ptStamp(); FAB.busy = false;
   }
@@ -43094,7 +43101,7 @@ let FAB_AUTO = { err: '', start: '' };
 async function fabAutoLoad() {
   const errs = [];
   /* The sizes offered in "RFD to cutting", and the widths the consumption is worked out on. */
-  try { await ptNeed(PTG_ALL, { why: 'rfd-stock-auto', has: 'mdb' }); } catch (e) { /* the dialog says so if it cannot work metres out */ }
+  try { await ptNeed(PTG_MASTER, { why: 'rfd-stock-auto', has: 'mdb' }); } catch (e) { /* the dialog says so if it cannot work metres out */ }
   if (typeof RFD !== 'undefined' && RFD.decisions === null) {
     try { RFD.decisions = (await ptGet('pt_rfdDecisions')) || {}; }
     catch (e) { errs.push('the RFD office (' + (e.message || e) + ')'); }
@@ -47212,6 +47219,9 @@ function vlFind(r) {
  */
 async function vlAcceptWrite(rows, qtyFor, note, rejFor, ordersFor) {
   if (!vlCanAccept()) return VLOG_NO_ACCEPT;
+  /* Page registers on: the list opens on the master alone, but accepting puts the pieces against the sales orders they were for, which
+   * the order book and the factory registers say. Read them first; an acceptance is never written on part of them. */
+  if (prOn()) { await ptNeed(PTG_ALL, { why: 'accept delivery' }); const wait = ptStillReading(); if (wait) return wait; }
   /* A FLOW ORDER'S PRINTED FABRIC IS RECEIVED ON ITS CHALLAN (PPC · Production flow → Demand → Printed fabric in), never here. */
   if (rows.some(r => flowVoIsFlow({ id: r.id }))) return 'Not accepted — a Production flow order is received on its RFD challan: PPC · Production flow → Demand → Printed fabric in.';
   if (!rows.length) return '';
@@ -47294,6 +47304,15 @@ async function vlAcceptWrite(rows, qtyFor, note, rejFor, ordersFor) {
 
 /** One delivery, checked against the challan. */
 function vlAcceptOne(rowKey) {
+  /* Page registers on: the window below names the orders this delivery can go against, so the whole set is read before it opens. */
+  if (prOn() && !ptHas(PTG_ALL)) {
+    $('vlMsg').className = 'muted'; $('vlMsg').textContent = 'Reading the orders this delivery can be put against…';
+    ptNeed(PTG_ALL, { why: 'accept delivery' }).then(() => {
+      if (ptHas(PTG_ALL)) { $('vlMsg').textContent = ''; vlAcceptOne(rowKey); }
+      else { $('vlMsg').className = 'err'; $('vlMsg').textContent = 'Could not read the orders: ' + (PTG.err || 'try again'); }
+    });
+    return;
+  }
   const r = (VLOG.rows || []).find(x => x.key2 === rowKey);
   if (!r) return;
   const f = vlFind(r);
@@ -47712,7 +47731,7 @@ async function ensureVlog() {
   /* THE MASTER NAMES THE CLOTH (Ravi, 2026-09-29: "tablecloth ki sizes ke liye bhi Fabric m² lagao"). A cut line's
    * square metres come from its SKU's master row, and this screen never loaded the master — so every tablecloth
    * showed a dash while running cloth, which needs no master, showed its figure. Read it, then draw again. */
-  if (ptLack(PTG_ALL, 'mdb')) { try { await ptNeed(PTG_ALL, { why: 'vlog', has: 'mdb' }); renderVlog(); } catch (e) { /* the dashes stay */ } }
+  if (ptLack(PTG_MASTER, 'mdb')) { try { await ptNeed(PTG_MASTER, { why: 'vlog', has: 'mdb' }); renderVlog(); } catch (e) { /* the dashes stay */ } }
 }
 ['vlVendor', 'vlType', 'vlFrom', 'vlTo', 'vlState'].forEach(id => $(id).addEventListener('change', renderVlog));
 ptDebounce('vlQ', renderVlog);
@@ -62640,7 +62659,7 @@ let CX = { rows: null, err: '', busy: false, at: '', shown: [] };
 async function ensureCx() {
   if (CX.rows === null) {
     CX.busy = true; renderCx();
-    await ptNeed(PTG_ALL, { why: 'customer-orders', has: 'mdb' });
+    await ptNeed(PTG_MASTER, { why: 'customer-orders', has: 'mdb' });
     if (FGI.rows === null) { try { FGI.rows = ptList(await ptGet('pt_fgiLedger')); } catch (e) { FGI.rows = []; } }
     try { CX.rows = ptList(await ptGet('pt_cxOrders')); CX.err = ''; }
     catch (e) { CX.err = e.message || String(e); CX.rows = CX.rows || []; }
@@ -63055,7 +63074,7 @@ async function ensureVrq(force) {
     /* The progress column reads the orders the requests became, and the vendor names come from the
      * master — both are needed before the table can say anything true. */
     if (VO.rows === null || force) { VO.rows = null; try { await ensureVo(); } catch (e) { /* progress shows as unknown */ } }
-    try { await ptNeed(PTG_ALL, { why: 'vendor-order-requests', has: 'mdb' }); } catch (e) { /* codes show instead of names */ }
+    try { await ptNeed(PTG_MASTER, { why: 'vendor-order-requests', has: 'mdb' }); } catch (e) { /* codes show instead of names */ }
     VRQ.at = ptStamp(); VRQ.busy = false;
   }
   renderVrq();
@@ -63113,6 +63132,9 @@ async function vrqSubmit(d) {
  */
 async function vrqApprove(id, opts) {
   if (!vrqCanApprove()) return VRQ_NO_APPROVE;
+  /* Page registers on: this screen opens on the master alone, but approving stamps each line with the sales orders it is for and checks
+   * the printer cap against the order book. The whole set is read first; a save never runs on part of it. */
+  if (prOn()) { await ptNeed(PTG_ALL, { why: 'vendor-order-requests approve' }); const wait = ptStillReading(); if (wait) return wait; }
   const r = vrqOf(id);
   if (!r) return 'That request is gone — press Refresh.';
   if (r.status !== 'pending') return `${r.reqNo || id} is not waiting for approval any more (${r.status}).`;
@@ -63229,6 +63251,8 @@ async function vrqWithdraw(id) {
 
 /** A rejected or withdrawn request, back in the form to fix and send again. */
 async function vrqCopy(id) {
+  /* Page registers on: the order form works out the demand and the printer cap from the order book and the factory registers, so they are read first. */
+  if (prOn()) await ptNeed(PTG_ALL, { why: 'vendor-order-requests copy' });
   const r = vrqOf(id); if (!r) return;
   await voFormOpen('request');
   if ($('vof_vendor')) $('vof_vendor').value = r.vendorCode || '';
@@ -64842,7 +64866,7 @@ async function ensureRfd(force) {
     /* The requirements themselves live inside the vendor orders, so there is nothing to show until
      * those are loaded. */
     if (VO.rows === null || force) { VO.rows = null; try { await ensureVo(); } catch (e) { /* shown as none */ } }
-    try { await ptNeed(PTG_ALL, { why: 'order-driven-rfd', has: 'mdb' }); } catch (e) { /* ceilings show as unknown */ }
+    try { await ptNeed(PTG_MASTER, { why: 'order-driven-rfd', has: 'mdb' }); } catch (e) { /* ceilings show as unknown */ }
     RFD.at = ptStamp(); RFD.busy = false; RFD.loaded = true;
   }
   renderRfd();

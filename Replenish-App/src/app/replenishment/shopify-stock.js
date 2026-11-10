@@ -20,7 +20,7 @@ async function ensureShopify() {
   renderShopify();
   /* The master list names the SKUs (Ravi, 2026-09-29: "i have updated my masterdata please check and fill the blank
    * data"); when it is not in hand yet the table is drawn again once it is. */
-  if (ptLack(PTG_ALL, 'mdb') && typeof ptNeed === 'function') { try { await ptNeed(PTG_ALL, { why: 'shopify stock', has: 'mdb' }); renderShopify(); } catch (e) { /* the snapshot names stay */ } }
+  if (ptLack(PTG_MASTER, 'mdb') && typeof ptNeed === 'function') { try { await ptNeed(PTG_MASTER, { why: 'shopify stock', has: 'mdb' }); renderShopify(); } catch (e) { /* the snapshot names stay */ } }
 }
 async function loadShopify() {
   const store = shStore();

@@ -113,6 +113,14 @@ Change SKU, Job Work issue, cutting, QC, press, Order Console status buttons, ac
 or any write to PTG_AT outside the loader; a vm run of gates.js proves switch-off = today's nine reads and values, and
 switch-on behaviour. **Teeth:** remove 'ob' from an All screen; switch-off path skips a read; a Master screen reaching PT.base.
 
+**Parts C + D status (10 Nov, built, switch off):** narrowed to Master — vendor order requests (approve and copy wait for
+All), RFD, RFD stock dialog, vendor log list (accept waits for All), Greige Desk (PPC column shows "…" until All), HR/pay,
+Shopify stock, customer orders. Kept All (they really use order data): In production, Fabric flow, Reserve. The Fabric tab
+asks for All itself only with the switch on.
+**Greige Desk file:** `src/app/flow/greige-desk.js` is hand-maintained since 16 Oct; its generator
+(`tools/greige-desk/make-app.js`) is out of date and would silently undo live fixes and these edits. Do not run
+make-app.js before bringing `tools/greige-desk/app-layer.js` up to date.
+
 ## 6. Rollout (each group: tests → preview → Ravi's PC 2–3 days → everybody)
 
 | Order | Group | Screens moved to Master | Saving per first open |

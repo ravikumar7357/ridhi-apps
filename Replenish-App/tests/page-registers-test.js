@@ -392,6 +392,15 @@ async function offRun(src, how) {
       { name: 'Accessories', set: MASTER, entries: ['ensureAcc', { file: 'inventory/accessories.js' }, /\$\('ac\w+'\)/], asks: ['ensureAcc'] },
       { name: 'Vendor master', set: MASTER, entries: ['vmOpen', { file: 'vendors/portal/vendor-master.js' }], asks: ['vmOpen'] },
       { name: 'Vendor sync (admin)', set: MASTER, entries: [/\$\('voSync'\)/, 'voSyncAccess'], asks: [] },
+      /* Part C (vendors) and Part D (desks and lists). Each reaches nothing but the master set, plus the one register it loads itself (HR: Job Work). */
+      { name: 'Vendor order requests (list, answer, approve, copy)', set: MASTER, entries: ['ensureVrq', 'renderVrq', { file: 'vendors/orders/vendor-order-requests.js' }], asks: ['ensureVrq'] },
+      { name: 'RFD (order-driven)', set: MASTER, entries: ['ensureRfd', { file: 'vendors/rfd/order-driven-rfd.js' }], asks: ['ensureRfd'] },
+      { name: 'RFD stock dialog', set: MASTER, entries: ['fabAutoLoad', { file: 'vendors/rfd/rfd-stock-auto.js' }], asks: ['fabAutoLoad'] },
+      { name: 'Vendor log (list and its buttons; accepting waits for the whole set)', set: MASTER, entries: ['ensureVlog', 'renderVlog', 'vlNoOne', 'vlAcceptPicked', /\$\('vl\w+'\)/], asks: ['ensureVlog'] },
+      { name: 'Greige Desk', set: MASTER, entries: [{ file: 'flow/greige-desk.js' }], asks: ['gdLoad'] },
+      { name: 'HR / pay (+ its own Job Work read)', set: MASTER.concat(['base']), entries: ['ensureHr', { file: 'people-pay/finance-hr.js' }], asks: ['ensureHr'] },
+      { name: 'Shopify stock', set: MASTER, entries: ['ensureShopify', { file: 'replenishment/shopify-stock.js' }], asks: ['ensureShopify'] },
+      { name: 'Customer orders', set: MASTER, entries: ['ensureCx', { file: 'orders/customer-orders.js' }], asks: ['ensureCx'] },
       { name: 'control: Order Console', set: G.ALL, entries: ['ensureOrd'], mustReach: ['ob', 'base', 'cut', 'press', 'qc', 'shopProd', 'mdb'] },
       { name: 'control: Press', set: G.ALL, entries: ['ensurePpress'], mustReach: ['press'] },
       { name: 'control: Quality Control', set: G.ALL, entries: ['ensureQc'], mustReach: ['base', 'cut'] },
@@ -416,6 +425,40 @@ async function offRun(src, how) {
     { const pc = G.reach(g, [/\$\('ptmRename'\)/]); ok('Change SKU (rename) waits for the whole set', pc.start.length === 1 && pc.start[0].gate === true && pc.regs.size === 0); }
     { const pc = (g.byName.get('skuFillOpen') || [])[0]; ok('"skuFillOpen" (look-alike fill) waits for the whole set', !!pc && pc.gate === true); }
     { const pc = (g.byName.get('flowVoExtra') || [])[0]; ok('"flowVoExtra" (test print orders) reads the whole set first when they are on', !!pc && pc.gate === true); }
+    /* Part C / D: the saves and sub-views that need order data wait for the whole set first (with the switch on), and the real ask each
+     * narrowed screen makes, run on a fresh page, reads only the two master nodes. */
+    ['vrqApprove', 'vrqCopy', 'vlAcceptWrite', 'vlAcceptOne', 'shOpenSo', 'gdPpcMap', 'gdFlowReady', 'ensureFab'].forEach(fn => {
+      const pc = (g.byName.get(fn) || [])[0];
+      ok('"' + fn + '" waits for the whole set before it uses order data', !!pc && pc.gate === true && /ptNeed\(\s*PTG_ALL|ptHas\(\s*PTG_ALL/.test(pc.text), pc && pc.file);
+    });
+    ['vrqApprove', 'vrqCopy', 'vlAcceptWrite'].forEach(fn => { const pc = (g.byName.get(fn) || [])[0]; ok('"' + fn + '" only waits when the switch is on (switch off: today\'s code path)', !!pc && /prOn\(\)/.test(pc.text)); });
+    /* what the narrowed screens ask for, taken from their own code and run on a fresh page */
+    for (const fn of ['ensureVrq', 'ensureRfd', 'fabAutoLoad', 'ensureVlog', 'gdLoad', 'ensureHr', 'ensureShopify', 'ensureCx']) {
+      const pc = (g.byName.get(fn) || [])[0];
+      const m = pc && /ptNeed\(\s*(PTG_MASTER|PTG_ALL)/.exec(pc.text);
+      const p = boot(SRC, ON);
+      if (m) await p.t.ptNeed(p.t[m[1]], { why: fn });
+      ok('"' + fn + '" on a fresh page reads only pt_masters and pt_masterDB', !!m && m[1] === 'PTG_MASTER' && same(p.take(), MASTER_NODES), m && m[1]);
+    }
+    { const p = boot(SRC, ON); await p.t.ptNeed(p.t.PTG_MASTER, {}); p.take(); await p.t.ptNeed(p.t.PTG_ALL, { why: 'a save' });
+      ok('a save that waits for the whole set on a master-only page reads the other seven nodes, and nothing is read twice', same(p.take(), OTHER_NODES) && p.t.ptHas(p.t.PTG_ALL)); }
+    { const pc = (g.byName.get('ensureFab') || [])[0]; ok('the Fabric tab (it holds the Store) asks for the whole set itself, since the RFD stock dialog no longer does', !!pc && /ptNeed\(\s*PTG_ALL/.test(pc.text)); }
+    /* The kept-whole screens stay whole: In production (its rows come from the order book) and Fabric flow / Reserve (the Store and the demand map read it). */
+    ['loadInProd'].forEach(fn => { const pc = (g.byName.get(fn) || [])[0]; ok('"' + fn + '" still asks for the whole set', !!pc && /ptNeed\(\s*PTG_ALL/.test(pc.text)); });
+    for (const [name, entries] of [['Fabric flow', [{ file: 'vendors/greige/fabric-flow.js' }]], ['In production', ['loadInProd']], ['Reserve', [{ file: 'orders/reserve.js' }]]]) {
+      const r = G.reach(g, entries); ok('control: "' + name + '" really reaches order registers, so it keeps the whole set', ['ob', 'cut', 'base', 'press'].some(x => r.regs.has(x)), [...r.regs].join(','));
+    }
+    /* Teeth: take a guard away from the real code and the check must fail. */
+    const without = (file, needle) => { const t2 = Object.assign({}, tree); if (t2[file].indexOf(needle) < 0) return null; t2[file] = t2[file].replace(needle, ''); return G.build(t2); };
+    {
+      const vrq = PR_SCREENS.find(x => x.name.indexOf('Vendor order requests') === 0), vlog = PR_SCREENS.find(x => x.name.indexOf('Vendor log') === 0), gd = PR_SCREENS.find(x => x.name === 'Greige Desk');
+      const g1 = without('vendors/orders/vendor-order-requests.js', "if (prOn()) await ptNeed(PTG_ALL, { why: 'vendor-order-requests copy' });");
+      ok('teeth: take the whole-set wait out of "Copy and send again" and the Vendor requests screen fails', !!g1 && check(vrq, g1).extra.indexOf('ob') >= 0);
+      const g2 = without('vendors/orders/accept-delivery.js', "if (prOn()) { await ptNeed(PTG_ALL, { why: 'accept delivery' }); const wait = ptStillReading(); if (wait) return wait; }");
+      ok('teeth: take the whole-set wait out of the accept-delivery save and the Vendor log screen fails', !!g2 && check(vlog, g2).extra.indexOf('ob') >= 0);
+      const g3 = without('flow/greige-desk.js', "(typeof prOn === 'function' && prOn() && !ptHas(PTG_ALL))");
+      ok('teeth: take the whole-set wait out of the Greige Desk\'s PPC column and the Greige Desk fails', !!g3 && check(gd, g3).extra.indexOf('ob') >= 0);
+    }
     /* The check has teeth of its own. */
     const planted = (text, extraNames) => G.build(tree, [{ file: 'zz/planted.js', text }]);
     {

@@ -16,8 +16,13 @@
 const fs = require('fs'), path = require('path');
 const REGS = ['masters', 'mdb', 'ob', 'press', 'freeze', 'cut', 'base', 'shopProd', 'qc'];
 const ALL = REGS.slice();
-/* Pieces that only read registers already in memory (see build). Kept to the one that needs it. */
+/* Pieces that only read registers already in memory (see build). Kept to the one that needs it (see also DESK_READERS). */
 const QUIET_READERS = new Set(['oalAllEntries']);
+/* The Greige Desk's PPC column the same way: it says it is loading until all nine registers are in, and asks the flow to read them. */
+const DESK_READERS = new Set(['gdPpcMap', 'gdFlowReady']);
+/* Files whose inner names are their own (see build), and the calls that only move to another screen. */
+const SEALED = ['flow/greige-desk.js'];
+const NAVIGATION = new Set(['showTab', 'ensureFlow']);
 
 /** The code of a file with comments and the insides of strings blanked to spaces (newlines kept), template ${…} kept as code. */
 function blank(src) {
@@ -147,7 +152,7 @@ function build(tree, extra) {
       p.gate = g >= 0 && (first < 0 || g < first);
       /* A QUIET READER never loads: it asks ptHas(PTG_ALL) first and returns nothing when the registers are not all there, so what it
        * reaches is not charged to the screen whose save woke it (the alert list's background worker, orders/order-alerts.js). */
-      if (!p.gate && QUIET_READERS.has(p.name)) { const h = p.text.search(/\bptHas\s*\(\s*PTG_ALL\s*\)/); p.gate = h >= 0 && (first < 0 || h < first); } }
+      if (!p.gate && (QUIET_READERS.has(p.name) || DESK_READERS.has(p.name))) { const h = p.text.search(/\bptHas\s*\(\s*PTG_ALL\s*\)/); p.gate = h >= 0 && (first < 0 || h < first); } }
     p.calls = new Set();
     const local = localNames(p.text);
     const re = /(?<![\w$.]|\.\.)([A-Za-z_$][\w$]*)/g;
@@ -161,6 +166,16 @@ function build(tree, extra) {
       t.forEach(q => { if (q !== p) p.calls.add(q); });
     }
   });
+  /* A SEALED FILE keeps its own names to itself. The Greige Desk is one closure generated into one file: its inner functions
+   * (render, renderMst, mstEdit, ffFacts …) are NOT the app's functions of the same name, so a call to a name the file declares
+   * itself is never followed into another file. */
+  SEALED.forEach(file => {
+    const own = new Set();
+    all.filter(p => p.file === file).forEach(p => { const re = /\bfunction\s+([\w$]+)|\b(?:var|let|const)\s+([\w$]+)/g; let m; while ((m = re.exec(p.text))) own.add(m[1] || m[2]); });
+    all.filter(p => p.file === file).forEach(p => [...p.calls].forEach(q => { if (q.file !== file && own.has(q.name)) p.calls.delete(q); }));
+  });
+  /* NAVIGATION IS NOT A READ: showTab (and ensureFlow, the Greige Desk's jump to PPC) opens another screen, and that screen asks for its own registers (PPC waits for all nine) and is checked as its own screen. */
+  all.forEach(p => [...p.calls].forEach(q => { if (NAVIGATION.has(q.name)) p.calls.delete(q); }));
   return { all, byName };
 }
 
