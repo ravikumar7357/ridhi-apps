@@ -757,6 +757,29 @@ function gaGuideFind(means) {
   return bs >= need ? best : null;
 }
 
+/* A PART NAMED WORD FOR WORD, ON THE SCREEN OPEN NOW ("In column kya hai", "Out column", "Save button") — Ravi, 10 Nov: "toh isme
+ * yeh In column kya hai" on Fabric Inventory was refused. "In", "Out", "To" are words her search leaves out, so here the name is read
+ * as typed, followed by what it is (column, button, box, option); the longest name that fits wins. Only "what is it" questions
+ * ("save button hi nahi h, hua ya nahi?" is a problem, not this), and not when a longer name on the screen is in the question
+ * ("+ A new packing list button" is that option, not the Packing list button). */
+const GA_PART_SAID = { column: 'columns?|col|colum|coloumn|kolam|कॉलम', button: 'buttons?|btn|बटन', box: 'box|बॉक्स', option: 'options?' };
+const GA_PART_WHAT = /\b(kya|what|matlab|mtlb|meaning|means?|mean|explain|samjha\w*|batao|bataiye|kis liye|for what|used for|karta|karti|karte|hota|hoti)\b|क्या|मतलब/i;
+function gaPartNamed(q) {
+  const B = GA_BANK, here = gaHere();
+  if (!B || !B.list || !here || !GA_PART_WHAT.test(String(q || ''))) return null;
+  const norm = s => String(s || '').toLowerCase().replace(/[^\p{L}\p{M}\p{N}]+/gu, ' ').trim();
+  const t = ' ' + norm(q) + ' ';
+  let best = null, bl = 0, longest = 0;
+  for (const e of B.list) {
+    if (!e.p || e.tab !== here) continue;
+    const n = norm(e.p[0]);
+    if (!n || n.length > 40) continue;
+    if (n.length > longest && t.includes(' ' + n + ' ')) longest = n.length;
+    if (!GA_PART_SAID[e.p[1]] || n.length <= bl) continue;
+    if (new RegExp(' ' + n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ' (' + GA_PART_SAID[e.p[1]] + ') ').test(t)) { best = e; bl = n.length; }
+  }
+  return best && longest <= bl ? best : null;
+}
 /** The answer to one question: { html, acts: [{t:'task'|'tour'|'open'|'guide', id|tab, label}] }. */
 /* ---------- a line on the screen ("what is this 92 Dark Salmon Pink", "ye RQL354-K wali line kya hai") ----------
  * Only what the person already sees: the visible rows of the screen in front. A row is taken when the question's own
@@ -833,6 +856,7 @@ async function gaAnswer1(q) {
     'Sorry, site ya main kaise bani hoon, ya company ki policy (jaise privacy) ke baare me main baat nahi kar sakti. Iske liye admin ya management se poochiye. ERP chalane me — koi bhi screen, koi bhi kaam, koi bhi dikkat — main khushi se help karungi.'), acts: [] };
   if (/^(meera\s+)?(unanswered|missed|miss)(\s+(questions|list))?\s*$/i.test(q.trim())) return gaMissList(L);
   await gaBankLoad();
+  { const pe = gaPartNamed(q); if (pe) return gaBankAnswer(pe, lang, L, []); }   // "In column", named word for word on this screen
   { const row = gaRowFind(q); if (row) return gaRowAnswer(row, lang, L); }
   /* "ab kya karu", "what next", "atak gaya" with a form half filled in: its next box */
   if (typeof GA_NEXT_RE !== 'undefined' && GA_NEXT_RE.test(q)) { const n = gaWalkNext(lang, L); if (n) return n; }
@@ -1094,7 +1118,7 @@ const GA_PART_ASK = new Set(('what does do happens happen press click tap mean m
  * two words her answers do use, leaving out the asking words below. Set on 380 test questions, 200 part questions and
  * 11,335 made from every part's name: none of them refused; 12 of the 41 she cannot answer caught (the rest are
  * about the business — GST, Flipkart — and go on to the AI and a ticket). */
-const GA_OFF_IGNORE = new Set(["what","how","where","why","not","can","help","ok","date","time","tomorrow","yesterday","good","best","tell","give","make","want","need","see","show","new","one","all","more","last","week","month","day","year","name","you","who","hello","thanks","bye","joke","language","meera","about","writ","count","correct","open","find","screen","button","do","get","please","work","job","wala","wali","wale","वाली","वाला","kab","milega","aayegi","rahega","raha","kaisa","ऐसा","ऐसे","वैसा","जबकि","क्यों","kyu","kyun","bhai","yaar","sir","ji","madam","plz","acha","accha","theek","haan","nahi","किसलिए","किसलिये","kisliye","kislie","kisliy","किस","लिए","liye","क्यूँ","क्यूं","कैसा","कैसी","कौनसा","कौन","konsa","kaunsa","matlab","मतलब","बताओ","बताइए","batao","bataiye","samjhao","समझाओ","hota","होता","hoti","होती","karta","करता","karti","करती"]);
+const GA_OFF_IGNORE = new Set(["isme","ismein","ismai","usme","usmein","inme","unme","iske","uske","iska","uska","iski","uski","yahan","yaha","yahaan","wahan","waha","idhar","udhar","toh","bhi","what","how","where","why","not","can","help","ok","date","time","tomorrow","yesterday","good","best","tell","give","make","want","need","see","show","new","one","all","more","last","week","month","day","year","name","you","who","hello","thanks","bye","joke","language","meera","about","writ","count","correct","open","find","screen","button","do","get","please","work","job","wala","wali","wale","वाली","वाला","kab","milega","aayegi","rahega","raha","kaisa","ऐसा","ऐसे","वैसा","जबकि","क्यों","kyu","kyun","bhai","yaar","sir","ji","madam","plz","acha","accha","theek","haan","nahi","किसलिए","किसलिये","kisliye","kislie","kisliy","किस","लिए","liye","क्यूँ","क्यूं","कैसा","कैसी","कौनसा","कौन","konsa","kaunsa","matlab","मतलब","बताओ","बताइए","batao","bataiye","samjhao","समझाओ","hota","होता","hoti","होती","karta","करता","karti","करती"]);
 /** Phase 5, switch "serveruse": her router searched (with meanings) — its scores are read with the meaning-search bar */
 const gaRemote = () => typeof meeraServerServed === 'function' && meeraServerServed();   // only when the router did answer this question
 function gaOffTopic(means) {

@@ -189,6 +189,15 @@ add('none', '', ['karigar ko kaam kaise de', 'Raju Kumar ko maal kaise issue kar
     const a = plain(await M.ctx.__meeraTest(`(async () => { let o = ''; const s = gaSay; gaSay = h => { o += h; }; try { gaAskEntry(${JSON.stringify(ids[0] || '')}, 'CPC'); } finally { gaSay = s; } return o; })()`));
     ok(/Shows only CPC|CPC ke|सिर्फ/.test(a) && !/more than one answer|ek se zyada/.test(a), 'pressing a choice answers it, not "which one" again: ' + a.slice(0, 100)); }
 
+  console.log('10b. a column named word for word on the open screen (Ravi, 10 Nov: "toh isme yeh In column kya hai" was refused)');
+  M.setTab('fab');
+  for (const [q, want] of [['TOH ISME YEH IN COLUMN KYA HAI', /^In — .*column.*(challan|चालान)/], ['out column kya hai', /^Out — .*(PPC)/], ['what is the balance column', /^Balance — .*In minus Out/],
+    ['isme entries column ka matlab', /^Entries — /]]) {
+    const a = plain(await chat(q)).trim(); ok(want.test(a), `"${q}" → ${a.slice(0, 100)}`);
+  }
+  M.setTab('att');
+  { const a = plain(await chat('in button kya hai')).trim(); ok(/^In — .*Attendance/.test(a), 'the same word on another screen is that screen\'s part: ' + a.slice(0, 80)); }
+
   console.log('10. Shopify Orders questions as Ravi asked them (4 Nov)');
   M.setTab('shop');
   for (const [q, want] of [['WHAT IS THIS BUCKET', /Bucket is where Shopify lines/], ['WHAT IS THIS NO STOCK MEANS', /No stock in the India column/], ['no stock kya hai', /No stock ka matlab/],
