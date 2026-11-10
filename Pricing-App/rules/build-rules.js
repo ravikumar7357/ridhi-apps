@@ -54,6 +54,15 @@ const { readersOf, NODES } = require('./read-model');
 const readExpr = node => { const r = readersOf(node);
   return `auth != null && ${NOT_VENDOR} && (${[ADMIN].concat(r.tabs.map(tab), r.rights.map(right)).join(' || ')})`; };
 
+/* STEP 4a — A CHANGE NOTE MUST BE A SERVER CLOCK READING, NEVER ANYTHING ELSE (null still deletes). The master list and the
+ * master database are saved by right-holders who are not always staff-wide writers of every register, so their note may be
+ * written by staff OR whoever may write that register - in the same save. The other six registers' notes stay staff. */
+const STAMP = "newData.isNumber() && newData.val() === now";
+const SYNC_WRITE = {
+  pt_masterDB: `(${STAFF}) || (${any(ADMIN, right('mdbEdit'), right('prodEdit'))})`,
+  pt_masters: `(${STAFF}) || (${any(ADMIN, right('accEdit'), right('prodEdit'), right('mdbEdit'))})`,
+};
+
 const rules = {
 
   pt_perms: { '.write': any(ADMIN) },
@@ -129,8 +138,8 @@ const rules = {
    * `pt_sync/_reset/<register>` when a whole register is written. Nothing in a register itself changes.
    * Read by whoever may read that register; indexed on the time so "changed since T" is one small query. */
   pt_sync: Object.assign(
-    Object.fromEntries(SYNC_NODES.map(n => [n, { '.read': readExpr(n), '.write': STAFF, '.indexOn': ['.value'] }])),
-    { _reset: { '.read': STAFF, '.write': STAFF } }),
+    Object.fromEntries(SYNC_NODES.map(n => [n, { '.read': readExpr(n), '.write': SYNC_WRITE[n] || STAFF, '.indexOn': ['.value'], $key: { '.validate': STAMP } }])),
+    { _reset: { '.read': STAFF, '.write': STAFF, $reg: { '.validate': STAMP } } }),
 
   /* THE DATA METER (Step 0): one daily line per person per device, at pt_dataMeter/<day>/<emailKey>/<deviceId>.
    * Each member of staff writes only their own line (the key is their own email, as pt_perms is keyed);
