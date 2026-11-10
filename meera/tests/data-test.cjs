@@ -121,7 +121,10 @@ add('none', '', ['karigar ko kaam kaise de', 'Raju Kumar ko maal kaise issue kar
     const part = br.slice(br.indexOf('MEERA READS THE ERP'), br.indexOf('MEERA READS THE ERP') > 0 ? br.indexOf('/* ===', br.indexOf('MEERA READS THE ERP')) : 0);
     const bad = TOUCH.concat(['fetch(', 'localStorage', 'mlSend', 'gaAiAsk', 'srvAsk']).filter(n => src.includes(n + (n.endsWith('(') ? '' : '(')) || part.includes(n + (n.endsWith('(') ? '' : '(')));
     ok(part.length > 1000 && !bad.length, 'the Phase 7 code names no save, read, fetch or AI call: ' + bad.join(', '));
-    ok((part.match(/showTab\(/g) || []).length === 1 && /open: \(kind, key\)/.test(part), 'the only screen change is the button (open)'); }
+    /* every screen change sits inside open() — the button the person pressed — and nowhere else in her part of the bridge */
+    { const o = part.indexOf('open: (kind, key)'), end = part.indexOf('}, false),', o), inOpen = o >= 0 ? part.slice(o, end) : '';
+      ok(o >= 0 && (part.match(/showTab\(/g) || []).length >= 1 && (part.match(/showTab\(/g) || []).length === (inOpen.match(/showTab\(/g) || []).length
+        && !/fmRender\(|fmSetView\(/.test(part.slice(0, o) + part.slice(end)), 'the only screen change is the button (open)'); } }
   { T('GA.lastQ = ""'); const took = await M.ctx.__meeraTest('meeraDataAsk("Imran Ali ke paas kitne piece hain")');
     ok(took === true && T('GA.lastQ') === '', 'a data question is answered and not kept as her last question (no 👎 note can carry it)'); }
 
@@ -279,6 +282,20 @@ add('none', '', ['karigar ko kaam kaise de', 'Raju Kumar ko maal kaise issue kar
   install(M); vendWorld({ missing: true });
   { const c = card('Choudhary Hand Block ke paas kitna maal hai'); ok(c.kind === 'vendor' && /not been opened yet|abhi nahi khuli|अभी नहीं खुली/.test(c.t), 'Vendor Orders not read yet: she says so'); ok(!M.ctx.__touched.length, 'and reads nothing'); }
   install(M);
+
+  console.log('13. when an order came in (Ravi, 10 Nov: "AMZ-01092026-01 opening date", then "yeh order khula kab tha")');
+  { const c = card('AMZ-16092026-02 OPENING DATE'); ok(c.kind === 'order' && /^AMZ-16092026-02 — Placed on 16 Sep 2026/.test(c.t.trim()), 'the date first when the date is asked: ' + c.t.slice(0, 80)); }
+  { const c = card('YEH ORDER KHULA KAB THA'); ok(c.kind === 'order' && /AMZ-16092026-02 — Placed on 16 Sep 2026/.test(c.t), '"yeh order" is the order she just answered about: ' + c.t.slice(0, 80)); }
+  { const c = card('is order ki date kya hai'); ok(c.kind === 'order' && /AMZ-16092026-02 — (Placed on|Order ki date)/.test(c.t), '"is order ki date": ' + c.t.slice(0, 80)); }
+  { const c = card('when was AMZ-25102026-01 placed'); ok(c.kind === 'order' && /AMZ-25102026-01 — Placed on 25 Oct 2026/.test(c.t), 'when was it placed: ' + c.t.slice(0, 80)); }
+  { const c = card('where is order SPY-28102026-03'); ok(c.kind === 'order' && /Placed on 28 Oct 2026/.test(c.t) && c.t.trim().startsWith('SPY-28102026-03 :'), 'every order answer says when it was placed, after its pieces: ' + c.t.slice(0, 80)); }
+  ok(!T('meeraDataTry("order kab khula")'), 'with no order named and none just answered, "order kab khula" is not guessed');
+  card('AMZ-16092026-02 kahan hai');
+  for (const q of ['karigar ne 20 wapas kar diye to wo 20 phir se issue kyu nahi ho rahe usi order pe', 'ye How many of these you already have for THIS order kis kaam ka hai'])
+    ok(!T('meeraDataTry(' + JSON.stringify(q) + ')'), 'right after an order, a question about something else is not that order: ' + q);
+  T('MD_LAST = { no: "AMZ-16092026-02", at: Date.now() - 16 * 60 * 1000 }');
+  ok(!T('meeraDataTry("yeh order khula kab tha")'), 'an order answered more than 15 minutes ago is not "yeh order"');
+  T('MD_LAST = null');
 
   console.log('6. switch off');
   { const N = await load({ root: ROOT, bundle: true, handle: true, switches: ['lazy'], only: true }); install(N);

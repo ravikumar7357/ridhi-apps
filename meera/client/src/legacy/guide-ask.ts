@@ -808,6 +808,13 @@ function gaRowFind(q) {
     else if (hit && hit === bs && hitOwn === bown) ties.push(row);
   }
   if (!best || !bown || bs < Math.min(2, words.length) || bs / words.length < 0.6) return null;
+  /* several lines fit: the one whose name holds the fewest words that were not asked wins ("92 · Dark Salmon Pink" is that
+   * line, not "Voil 92 · Dark Salmon Pink" — Ravi, 10 Nov: she offered both, the first twice, again and again) */
+  if (ties.length > 1) {
+    const asked = new Set(words), lead = x => ((x.tagName === 'TR' ? x.children[0] : x) || x).textContent.toLowerCase().replace(/[^\p{L}\p{M}\p{N}]+/gu, ' ').trim().split(' ').filter(Boolean);
+    const extra = x => lead(x).filter(w => !asked.has(w)).length, least = Math.min(...ties.map(extra)), fewest = ties.filter(x => extra(x) === least);
+    if (fewest.length === 1) { best = fewest[0]; ties = fewest; }
+  }
   best.gaTies = ties;
   return best;
 }
@@ -827,6 +834,7 @@ function gaRowAnswer(row, lang, L) {
   const parts = cells.map((c, i) => (c && c !== lead ? (heads[i] ? `<li><b>${esc(heads[i])}</b>: ${esc(c)}</li>` : `<li>${esc(c)}</li>`) : '')).filter(Boolean);
   const tour = GUIDE_TOURS[gaHere()], intro = tour && tour[0] && !tour[0].sel ? (lang === 'hi' ? tour[0].hi : tour[0].en) : '';
   GA.fix = [row];
+  if (typeof mdNoteLine === 'function') mdNoteLine(lead);   // "iska sku", "how many products use this cloth" next: this line's words
   return { html: L(`That is a line on <b>${name}</b>: <b>${esc(lead)}</b>.`, `यह <b>${name}</b> की एक लाइन है: <b>${esc(lead)}</b>।`, `Ye <b>${name}</b> ki ek line hai: <b>${esc(lead)}</b>.`)
       + (parts.length ? `<div class="ga-do"><b>${L('What it shows', 'इसमें क्या है', 'Isme kya hai')}</b><ul>${parts.slice(0, 10).join('')}</ul></div>` : '')
       + (intro ? `<div class="ga-why"><b>${L('This screen', 'यह स्क्रीन', 'Ye screen')}</b>${intro}</div>` : ''),
@@ -1399,7 +1407,7 @@ async function gaAsk(q) {
   const auto = !!r.miss && !r.off && typeof gaAiAuto === 'function' && gaAiAuto();   // not about the ERP: never to the AI
   if (auto && r.miss === true) { gaAiAsk(q, { html: r.html, acts: r.acts }); gaChipsDraw(); return; }
   /* spelling (Phase 2): she says how she read the question, with a way back to it as typed */
-  const und = r.understood ? `<div class="ga-und">${LL('Showing results for', 'इसके नतीजे', 'Iske results')} <b>${esc(r.understood.text)}</b>${LL(' — did you mean something else?', ' — कुछ और पूछना था?', ' — kuch aur poochna tha?')}`
+  const und = r.understood ? `<div class="ga-und ga-spell">${LL('Showing results for', 'इसके नतीजे', 'Iske results')} <b>${esc(r.understood.text)}</b>${LL(' — did you mean something else?', ' — कुछ और पूछना था?', ' — kuch aur poochna tha?')}`
     + ` <button type="button" class="ga-und-b" data-ga="astyped">${LL('Search what I typed', 'जैसा लिखा वैसा खोजें', 'Jaisa likha waisa khojiye')}</button></div>` : '';
   /* Phase 5: her router could not be reached (or its search is off) — said; answered on this computer (her own copy, or with no internet her small list) */
   const off = r.offline ? `<div class="ga-und">${LL('My search on the server is not available right now — I answered on this computer.', 'सर्वर पर मेरी खोज अभी उपलब्ध नहीं — मैंने इसी कंप्यूटर पर जवाब दिया।', 'Server par meri khoj abhi available nahi — maine isi computer par jawaab diya.')}</div>` : '';

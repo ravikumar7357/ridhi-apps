@@ -78847,7 +78847,7 @@ ERP_MEERA.data = {
     return { from, order: { orderNo: NO, lines: rows.map(r => ({ sku: r.sku, qty: mdNum(r.qty), at: typeof ordWaitingAt === 'function' ? ordWaitingAt(r) : '' })),
       pcs: rows.reduce((a, r) => a + mdNum(r.qty), 0), open,
       karigars: typeof ordKarigarsOf === 'function' ? [...ordKarigarsOf(NO).entries()].sort((a, b) => b[1] - a[1]) : [],
-      last: last ? { ms: last.ms, by: last.by || '', kind: last.kind || '' } : null, idle, late: open && idle >= (typeof ORD_PIPE_STALE_DAYS !== 'undefined' ? ORD_PIPE_STALE_DAYS : 5) } };
+      last: last ? { ms: last.ms, by: last.by || '', kind: last.kind || '' } : null, placed, idle, late: open && idle >= (typeof ORD_PIPE_STALE_DAYS !== 'undefined' ? ORD_PIPE_STALE_DAYS : 5) } };
   }, { from: { tab: 'ord', notLoaded: true } }),
   /** the karigars this page knows (the employee list and the Job Work rows) */
   karigars: () => meeraSafe(() => {
@@ -79026,6 +79026,20 @@ ERP_MEERA.data = {
     if (kind === 'order' && mdMay('ord') && typeof ordJourney === 'function') { ordJourney(key); return true; }
     if (kind === 'karigar' && mdMay('pbase') && typeof mobSearchOpen === 'function') { mobSearchOpen('kar|' + key); return true; }
     if (kind === 'sku' && typeof mobSkuSheet === 'function') { mobSkuSheet(key); return true; }
+    /* ONE CLOTH ON THE MASTER DATABASE (Ravi, 10 Nov): the fabric page, that fabric's row opened with its products, searched to the
+     * colour when one was named. Only what the screen itself does when somebody types in its search and opens the row. */
+    if (kind === 'pmdbfab' && mdMay('pmdb')) {
+      showTab('pmdb');
+      if (typeof FM !== 'undefined' && typeof fmRender === 'function' && typeof fmProducts === 'function') {
+        const [fab, col] = String(key || '').split('|'), k = s => String(s || '').trim().toLowerCase();
+        if (typeof fmSetView === 'function' && FM.view !== 'fabric') fmSetView('fabric');
+        const p = fmProducts().find(x => k(x.fabName) === k(fab));
+        FM.q = col || fab || '';
+        if (p && p.fab) FM.open.add(p.fab);
+        fmRender();
+      }
+      return true;
+    }
     if (MEERA_DATA_SCREENS[kind] && mdMay(kind)) { showTab(kind); return true; }
     return false;
   }, false),
@@ -83783,6 +83797,14 @@ function gaRowFind(q) {
     } else if (hit && hit === bs && hitOwn === bown) ties.push(row);
   }
   if (!best || !bown || bs < Math.min(2, words.length) || bs / words.length < 0.6) return null;
+  if (ties.length > 1) {
+    const asked = new Set(words), lead = (x) => ((x.tagName === "TR" ? x.children[0] : x) || x).textContent.toLowerCase().replace(/[^\p{L}\p{M}\p{N}]+/gu, " ").trim().split(" ").filter(Boolean);
+    const extra = (x) => lead(x).filter((w) => !asked.has(w)).length, least = Math.min(...ties.map(extra)), fewest = ties.filter((x) => extra(x) === least);
+    if (fewest.length === 1) {
+      best = fewest[0];
+      ties = fewest;
+    }
+  }
   best.gaTies = ties;
   return best;
 }
@@ -83801,6 +83823,7 @@ function gaRowAnswer(row, lang, L) {
   const parts = cells.map((c, i) => c && c !== lead ? heads[i] ? `<li><b>${esc(heads[i])}</b>: ${esc(c)}</li>` : `<li>${esc(c)}</li>` : "").filter(Boolean);
   const tour = GUIDE_TOURS[gaHere()], intro = tour && tour[0] && !tour[0].sel ? lang === "hi" ? tour[0].hi : tour[0].en : "";
   GA.fix = [row];
+  if (typeof mdNoteLine === "function") mdNoteLine(lead);
   return {
     html: L(`That is a line on <b>${name}</b>: <b>${esc(lead)}</b>.`, `\u092F\u0939 <b>${name}</b> \u0915\u0940 \u090F\u0915 \u0932\u093E\u0907\u0928 \u0939\u0948: <b>${esc(lead)}</b>\u0964`, `Ye <b>${name}</b> ki ek line hai: <b>${esc(lead)}</b>.`) + (parts.length ? `<div class="ga-do"><b>${L("What it shows", "\u0907\u0938\u092E\u0947\u0902 \u0915\u094D\u092F\u093E \u0939\u0948", "Isme kya hai")}</b><ul>${parts.slice(0, 10).join("")}</ul></div>` : "") + (intro ? `<div class="ga-why"><b>${L("This screen", "\u092F\u0939 \u0938\u094D\u0915\u094D\u0930\u0940\u0928", "Ye screen")}</b>${intro}</div>` : ""),
     acts: [{ t: "fixel", id: "0", label: L("Show me the line", "\u0932\u093E\u0907\u0928 \u0926\u093F\u0916\u093E\u090F\u0901", "Line dikhaiye") }],
@@ -84520,7 +84543,7 @@ async function gaAsk(q) {
     gaChipsDraw();
     return;
   }
-  const und = r.understood ? `<div class="ga-und">${LL("Showing results for", "\u0907\u0938\u0915\u0947 \u0928\u0924\u0940\u091C\u0947", "Iske results")} <b>${esc(r.understood.text)}</b>${LL(" \u2014 did you mean something else?", " \u2014 \u0915\u0941\u091B \u0914\u0930 \u092A\u0942\u091B\u0928\u093E \u0925\u093E?", " \u2014 kuch aur poochna tha?")} <button type="button" class="ga-und-b" data-ga="astyped">${LL("Search what I typed", "\u091C\u0948\u0938\u093E \u0932\u093F\u0916\u093E \u0935\u0948\u0938\u093E \u0916\u094B\u091C\u0947\u0902", "Jaisa likha waisa khojiye")}</button></div>` : "";
+  const und = r.understood ? `<div class="ga-und ga-spell">${LL("Showing results for", "\u0907\u0938\u0915\u0947 \u0928\u0924\u0940\u091C\u0947", "Iske results")} <b>${esc(r.understood.text)}</b>${LL(" \u2014 did you mean something else?", " \u2014 \u0915\u0941\u091B \u0914\u0930 \u092A\u0942\u091B\u0928\u093E \u0925\u093E?", " \u2014 kuch aur poochna tha?")} <button type="button" class="ga-und-b" data-ga="astyped">${LL("Search what I typed", "\u091C\u0948\u0938\u093E \u0932\u093F\u0916\u093E \u0935\u0948\u0938\u093E \u0916\u094B\u091C\u0947\u0902", "Jaisa likha waisa khojiye")}</button></div>` : "";
   const off = r.offline ? `<div class="ga-und">${LL("My search on the server is not available right now \u2014 I answered on this computer.", "\u0938\u0930\u094D\u0935\u0930 \u092A\u0930 \u092E\u0947\u0930\u0940 \u0916\u094B\u091C \u0905\u092D\u0940 \u0909\u092A\u0932\u092C\u094D\u0927 \u0928\u0939\u0940\u0902 \u2014 \u092E\u0948\u0902\u0928\u0947 \u0907\u0938\u0940 \u0915\u0902\u092A\u094D\u092F\u0942\u091F\u0930 \u092A\u0930 \u091C\u0935\u093E\u092C \u0926\u093F\u092F\u093E\u0964", "Server par meri khoj abhi available nahi \u2014 maine isi computer par jawaab diya.")}</div>` : "";
   gaSay(off + und + r.html, r.acts || [], (r.after || "") + fb, r.bank ? "guide" : "");
   if (auto) gaAiAsk(q);

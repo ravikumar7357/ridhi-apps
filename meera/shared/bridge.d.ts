@@ -44,7 +44,7 @@ interface ErpMeeraFrom { tab: string; name?: string; asOf?: string; denied?: boo
 interface ErpMeeraData {
   orders(): string[];
   findOrder(no: string): { from: ErpMeeraFrom; none?: boolean; order?: { orderNo: string; lines: { sku: string; qty: number; at: string }[]; pcs: number; open: boolean;
-    karigars: [string, number][]; last: { ms: number; by: string; kind: string } | null; idle: number; late: boolean } };
+    karigars: [string, number][]; last: { ms: number; by: string; kind: string } | null; placed?: number; idle: number; late: boolean } };
   karigars(): string[];
   karigarHolding(name: string): { from: ErpMeeraFrom; name?: string; pieces?: number; rows?: { orderNo: string; sku: string; pcs: number; given: string }[] };
   skus(): string[];

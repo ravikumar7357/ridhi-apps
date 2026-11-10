@@ -1245,3 +1245,77 @@ Each entry: when, why, and what it changed. Made by `node meera/tests/gate.cjs -
   - before: (none)
   - after: - · Your question fits more than one answer. Which one do you mean? Low · Replenishment Low · 
 
+## 2026-11-10 05:16 — Part answers named by their real on-screen names (99 had a scrap of code as their name, so nobody could ask for them; 2 written twice removed); her test questions that asked by the old names now ask by the new; order date answers; Ravi, 10 Nov
+
+- score: spelling-mistake questions: right 85→85, offered 115→114, wrong 8→8, not sure 30→31
+- score: spelling set 2 (held back, scoring only): right 193→191, offered 162→162, wrong 12→13, not sure 80→81
+- answer `eval|shop|customer ne return bheja hai entry kaise kre`
+  - before: - · Aapka sawaal ek se zyada jawaabon se milta hai. Aap kaunsa poochh rahe hain? return kaise 
+  - after: or-shop-return · More ▾ kholiye, Returns dabaiye, + New dabaiye, order number likhiye, lines aur kitne piec
+- answer `eval|shop|can you translate this message to english for the customer`
+  - before: - · I'm not fully sure what you mean. Is it one of these? what is the pencil mark next to orde
+  - after: - · I'm not fully sure what you mean. Is it one of these? what is the pencil mark next to orde
+- answer `eval2|shop|pressed went up but To make didn't drop at all, why`
+  - before: - · I'm not fully sure what you mean. Is it one of these? why did stock change when i deleted 
+  - after: - · I'm not fully sure what you mean. Is it one of these? why did stock change when i deleted 
+- answer `parts|gdesk|By PO ' + nf((DB.gpo || []).length) + ' ka kya matlab hota hai`
+  - before: c-gdesk-1360 · By PO ' + nf((DB.gpo || []).length) + ' — Greige Desk par button: Greige PO ki list; numbe
+  - after: (none)
+- answer `parts|gdesk|+ Supplement PO for ' + m1(extra) + ' m button kya karta h`
+  - before: c-gdesk-1375 · + Supplement PO for ' + m1(extra) + ' m — Greige Desk par button: Jab line 10% chhoot se u
+  - after: (none)
+- answer `parts|ka|ye ' + (group === 'article' ? 'Article' : group === 'dept' ? 'Department' : 'Karigar') + ' kis kaam ka hai`
+  - before: c-mst-1635 · ' + (group === 'article' ? 'Article' : group === 'dept' ? 'Department' : 'Karigar') + ' — 
+  - after: (none)
+- answer `parts|gdesk|' + esc(o.greige) + ' किसलिए है`
+  - before: c-gdesk-1377 · ' + esc(o.greige) + ' — Greige Desk पर विकल्प: PO line का greige fabric चुनें; RFD fabric 
+  - after: (none)
+- answer `parts|pbase|= 0 ? ' class="num"' : '')}> किसलिए है`
+  - before: c-pbase-1880 · = 0 ? ' class=&quot;num&quot;' : '')}&gt; — Job Work Register पर कॉलम: रजिस्टर के कॉलम: Is
+  - after: (none)
+- answer `parts|fgi|FBA account … `).join('')} button kya karta h`
+  - before: c-fgi-1562 · FBA account … `).join('')} — Finished Goods par box: FBA account chuniye (Ridhi FBA ya CPC
+  - after: (none)
+- answer `parts|ord|what does Closed from Shopify ' + esc(ptIsoDate(r.shopDoneAt) || '') + ' show`
+  - before: c-ord-1742 · Closed from Shopify ' + esc(ptIsoDate(r.shopDoneAt) || '') + ' — note on Order Console: Th
+  - after: (none)
+- answer `parts|shop|what does ' + esc(ln.st ? `………` : 'Nothing recorded yet.') + ' show`
+  - before: - · If you see that message: A box the ERP needs is still empty or not chosen — it will not sa
+  - after: (none)
+- answer `parts|shop|what happens if i press ' + esc(why) + '`
+  - before: c-india-2005 · ' + esc(why) + ' — note on Shopify Orders: can't ship: hover to see Amazon's reason this s
+  - after: (none)
+- answer `parts|cx|= q0 ? '' : ' disabled'}>Fulfil from India किसलिए है`
+  - before: c-cx-1718 · = q0 ? '' : ' disabled'}&gt;Fulfil from India — Customer Orders पर बटन: इस ऑर्डर के नाम पर
+  - after: (none)
+- answer `parts|gdesk|By PO tab ka kya matlab hota hai`
+  - before: (none)
+  - after: c-gdesk-1360 · By PO tab — Greige Desk par button: Greige PO ki list; number batata hai kitne hain. Yeh k
+- answer `parts|gdesk|Supplement PO button kya karta h`
+  - before: (none)
+  - after: c-gdesk-1375 · Supplement PO — Greige Desk par button: Jab line 10% chhoot se upar ho: extra metre ka usi
+- answer `parts|ka|ye First column (Karigar, Article or Department) kis kaam ka hai`
+  - before: (none)
+  - after: c-mst-1635 · First column (Karigar, Article or Department) — Karigar Analysis par column: Karigar Analy
+- answer `parts|gdesk|Greige fabric for the PO line किसलिए है`
+  - before: (none)
+  - after: c-gdesk-1377 · Greige fabric for the PO line — Greige Desk पर विकल्प: PO line का greige fabric चुनें; RFD
+- answer `parts|pbase|Job Work register table किसलिए है`
+  - before: (none)
+  - after: c-pbase-1880 · Job Work register table — Job Work Register पर जानकारी: रजिस्टर के कॉलम: Issue Date, Karig
+- answer `parts|fgi|FBA account button kya karta h`
+  - before: (none)
+  - after: c-fgi-1562 · FBA account — Finished Goods par box: FBA account chuniye (Ridhi FBA ya CPC FBA) jiske liy
+- answer `parts|ord|what does Closed from Shopify show`
+  - before: (none)
+  - after: c-ord-1742 · Closed from Shopify — note on Order Console: The line was closed from Shopify; hover to se
+- answer `parts|shop|what does Who changed the line status show`
+  - before: (none)
+  - after: c-india-2001 · Who changed the line status — note on Shopify Orders: Hover the line status to see who typ
+- answer `parts|shop|what happens if i press Can't ship`
+  - before: (none)
+  - after: c-india-2005 · Can't ship — note on Shopify Orders: can't ship: hover to see Amazon's reason this speed c
+- answer `parts|cx|Fulfil from India किसलिए है`
+  - before: (none)
+  - after: c-cx-1718 · Fulfil from India — Customer Orders पर बटन: इस ऑर्डर के नाम पर India Store से पीस इश्यू कर
+

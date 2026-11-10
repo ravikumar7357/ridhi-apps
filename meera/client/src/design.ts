@@ -103,7 +103,7 @@ function meeraDesignSay(d: HTMLElement, src: string): void {
     d.dataset.mdSrc = src;
     d.querySelectorAll<HTMLElement>('.ga-act').forEach(mdAct);
     d.querySelectorAll('.ga-why>b, .ga-do>b, .ga-more>b, .ga-fb>span, .ga-rel>span, .ga-note').forEach(mdRelabel);
-    const und = d.querySelector('.ga-und'); if (und) mdUnd(und);
+    const und = d.querySelector('.ga-und.ga-spell'); if (und) mdUnd(und);   // only the spelling note: a data answer's source line and 'This is on X' keep their words
     const a = d.querySelector(':scope > .ga-a');
     if (!a) return;   // a short reply (hello, not sure, did you mean): as a plain note
     const card = document.createElement('div');
@@ -170,7 +170,7 @@ function mdHead(): void {
 function mdRelabelMsg(d: HTMLElement): void {
   d.querySelectorAll<HTMLElement>('.ga-act').forEach(mdAct);
   d.querySelectorAll('.ga-why>b, .ga-do>b, .ga-more>b, .ga-fb>span, .ga-rel>span, .ga-note').forEach(mdRelabel);
-  const und = d.querySelector('.ga-und'); if (und) mdUnd(und);
+  const und = d.querySelector('.ga-und.ga-spell'); if (und) mdUnd(und);   // only the spelling note: a data answer's source line and 'This is on X' keep their words
   const s = d.querySelector('.md-srct'), src = MD_SRC[d.dataset.mdSrc || ''];
   if (s && src) s.textContent = mdL(src[0], src[1]);
   const sum = d.querySelector('.md-more summary');

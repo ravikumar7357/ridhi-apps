@@ -19,3 +19,8 @@ choices, 3 now answered right. The gate checks against this record while MEERA_V
 
 - every changed answer: the same answer with its fuller text, a corrected line, or its real screen named; 4 recorded questions asked on a screen where the part is not now offer choices; scores the same in every test set
 
+
+## 2026-11-10 05:17 — Part answers named by their real on-screen names (99 had a scrap of code as their name, so nobody could ask for them; 2 written twice removed); her test questions that asked by the old names now ask by the new; order date answers; Ravi, 10 Nov
+
+- 10 test questions that used a part's old scrap name replaced by the same question with its real name, each answered by that part; "customer ne return bheja hai entry kaise kre" now the Returns steps; two not-sure questions offer different choices; every score the same or better
+
