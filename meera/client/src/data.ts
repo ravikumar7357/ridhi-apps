@@ -23,7 +23,7 @@ declare function muDistance(a: string, b: string, max: number): number;
 const MEERA_DATA: boolean = meeraOn('data');
 type MdLang = 'en' | 'hi' | 'hg';
 type MdTerm = { said: string; hits: { f: string; v: string; w?: string; x?: boolean }[] };
-type MdAsk = { kind: 'order'; no: string } | { kind: 'order-missing'; text: string } | { kind: 'order-which'; said: string; nos: string[] }
+type MdAsk = { kind: 'order'; no: string; date?: boolean } | { kind: 'order-missing'; text: string } | { kind: 'order-which'; said: string; nos: string[] }
   | { kind: 'skucard'; sku: string; focus: 'all' | 'cloth' | 'brand' | 'amazon' | 'orders' | 'where'; fam?: boolean } | { kind: 'karigar'; name: string } | { kind: 'karigar-which'; said: string; names: string[] }
   | { kind: 'skufind'; terms: MdTerm[] } | { kind: 'vendor'; code: string; name: string } | { kind: 'vendor-which'; said: string; names: string[] } | { kind: 'sku'; sku: string } | { kind: 'sku-which'; said: string; skus: string[] } | { kind: 'today'; focus: string } | { kind: 'late' } | { kind: 'wait'; stage: string };
 
@@ -52,6 +52,11 @@ const MD_LIST = /\b(order|orders|ordr|odrer|line|lines|kaun|kaunse|konse|kon se|
 const MD_STAGES: [string, RegExp][] = [['QC', /\b(qc|q\.c|quality|checking)\b|क्यूसी/], ['Cutting', /\b(cutting|cuting|kutting|katai)\b|कटिंग/],
   ['Vendor', /\b(printer|printers|printing|vendor|vendors|print)\b|प्रिंटर|वेंडर|प्रिंटिंग/], ['Karigar', /\b(karigar|karigars|karigaron|kaarigar)\s+(ke paas|ke pass|pe|par)\b|\bwith (the )?karigars?\b|कारीगरों के पास|कारीगर के पास/]];
 const MD_ORDERLIKE = /^(amz|spy|shp|b2b|onl|adj|leg)[-a-z0-9]*\d[-a-z0-9]*$/i;
+/* when an order came in (Ravi, 10 Nov: "AMZ-01092026-01 opening date", "yeh order khula kab tha") */
+const MD_PLACED = /\b(opening date|open date|order date|date of (the )?order|placed|place hua|place kiya|opened|created|kab (khula|khuli|khola|aaya|aya|aayi|aai|bana|bani|dala|dali|daala|daali|laga|lagaya|mila|liya|tha|thi)|(khula|khuli|aaya|aya|bana|dala|laga|mila) kab|kis (din|date|tarikh|taarikh)|(ki|ka|ke) (date|tarikh|taarikh)|kab ka|kab ki|when (was|did|is)\b[^?.!]*\b(placed|opened|open|come|came|created|made|start))\b|कब (खुला|आया|बना|डाला)|खुला कब|किस (दिन|तारीख)/;
+const MD_THISORDER = /\b(yeh|ye|yah|is|iss|this|that|wo|woh|wahi|usi|isi|same) (order|ordr|odr)\b|यह ऑर्डर|इस ऑर्डर|ये ऑर्डर/;
+let MD_LAST: { no: string; at: number } | null = null;
+const MD_LAST_MS = 15 * 60 * 1000;
 
 const mdWords = (q: string): string[] => String(q || '').split(/[\s,?!।.;:()]+/).filter(Boolean);
 const mdBare = (s: string): string => s.toUpperCase().replace(/[^A-Z0-9]/g, '');
@@ -136,20 +141,25 @@ function mdParse(q0: string, D: ErpMeeraData): MdAsk | null {
   if (MD_HOW.test(low) || MD_NOT.test(low)) return null;
   /* an order number ("AMZ-16092026-02", "amz1609202602", "RBP7620" for SHP-RBP7620) */
   const orderish = ws.filter(w => (MD_ORDERLIKE.test(w) && /\d{3,}/.test(w)) || (/^[a-z]{2,4}\d{3,}$/i.test(w) && MD_WHERE.test(low)));
+  const ord = (no: string): MdAsk => ({ kind: 'order', no, date: MD_PLACED.test(low) });
   if (orderish.length) {
     const all = D.orders(), byBare = new Map(all.map(o => [mdBare(o), o]));
     for (const w of orderish) {
       const b = mdBare(w), hit = byBare.get(b) || all.find(o => mdBare(o).endsWith(b) && o.toUpperCase().endsWith(w.toUpperCase()));
-      if (hit) return { kind: 'order', no: hit };
+      if (hit) return ord(hit);
       /* only the start of a number ("AMZ-30082026"): the one order it names, or she asks which */
       const pre = all.filter(o => o.toUpperCase().startsWith(w.toUpperCase() + '-'));
-      if (pre.length === 1) return { kind: 'order', no: pre[0] };
+      if (pre.length === 1) return ord(pre[0]);
       if (pre.length > 1) return { kind: 'order-which', said: w.toUpperCase(), nos: pre.slice(0, 8) };
     }
     const w0 = orderish.find(w => MD_ORDERLIKE.test(w));
     /* the Order Console cannot be read here (not allowed, or not opened yet): findOrder says which */
-    if (w0) return all.length ? { kind: 'order-missing', text: w0.toUpperCase() } : { kind: 'order', no: w0.toUpperCase() };
+    if (w0) return all.length ? { kind: 'order-missing', text: w0.toUpperCase() } : ord(w0.toUpperCase());
   }
+  /* "yeh order khula kab tha" right after an order's answer: that order (Ravi, 10 Nov). Only the order number she just
+   * showed, kept in this page for a few minutes — never saved, never sent. */
+  if (MD_LAST && Date.now() - MD_LAST.at < MD_LAST_MS && MD_THISORDER.test(low) && (MD_PLACED.test(low) || MD_WHERE.test(low))
+    && !/\b(kyu|kyun|kyon|why|kaise|how)\b|क्यों|कैसे/.test(low)) return ord(MD_LAST.no);
   /* a SKU named in full ("RTC327-6060"): its stock when that is what is asked, else its card — master details, cloth,
    * brand, Amazon, its open orders and their stage */
   const skuSet = new Set(D.skus());
@@ -415,7 +425,13 @@ function mdAnswer(a: MdAsk, q: string, D: ErpMeeraData, lang: MdLang): { html: s
     const last = o.last ? L(`Last work: ${esc(o.last.kind)}${o.last.by ? ' by ' + esc(o.last.by) : ''}, ${d} (${o.idle} day${o.idle === 1 ? '' : 's'} ago).`,
       `आख़िरी काम: ${esc(o.last.kind)}${o.last.by ? ', ' + esc(o.last.by) : ''}, ${d} (${o.idle} दिन पहले)।`, `Aakhri kaam: ${esc(o.last.kind)}${o.last.by ? ', ' + esc(o.last.by) : ''}, ${d} (${o.idle} din pehle).`) : '';
     const late = o.late ? `<br><b>${L('Late', 'लेट', 'Late')}</b>: ${L(`no work for ${o.idle} days (the Order Console counts 5 or more as late).`, `${o.idle} दिन से कोई काम नहीं (ऑर्डर कंसोल 5 या ज़्यादा को लेट गिनता है)।`, `${o.idle} din se koi kaam nahi (Order Console 5 ya zyada ko late ginta hai).`)}` : '';
-    return { html: `<div class="ga-a"><b>${no}</b>: ${mdNf(o.pcs)} ${L('pcs on', 'पीस,', 'pcs,')} ${o.lines.length} ${L(o.lines.length === 1 ? 'line' : 'lines', 'लाइन', o.lines.length === 1 ? 'line' : 'lines')}${o.open ? '' : ' — ' + L('done, nothing open.', 'पूरा, कुछ बाकी नहीं।', 'poora, kuch baaki nahi.')}</div>`
+    /* WHEN IT CAME IN — the order's own date on the Order Console; first when that is what was asked */
+    const pd = o.placed ? new Date(o.placed) : null, ago = pd ? Math.floor((Date.now() - o.placed!) / 864e5) : 0;
+    const pday = pd ? String(pd.getDate()).padStart(2, '0') + ' ' + 'Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec'.split(' ')[pd.getMonth()] + ' ' + pd.getFullYear() : '';
+    const placed = pd ? L(`Placed on <b>${pday}</b> (${ago} day${ago === 1 ? '' : 's'} ago).`, `ऑर्डर की तारीख़: <b>${pday}</b> (${ago} दिन पहले)।`, `Order ki date: <b>${pday}</b> (${ago} din pehle).`)
+      : (a.date ? L('The Order Console has no date for this order.', 'ऑर्डर कंसोल पर इस ऑर्डर की तारीख़ नहीं है।', 'Order Console par is order ki date nahi hai.') : '');
+    const head = `<b>${no}</b>: ${mdNf(o.pcs)} ${L('pcs on', 'पीस,', 'pcs,')} ${o.lines.length} ${L(o.lines.length === 1 ? 'line' : 'lines', 'लाइन', o.lines.length === 1 ? 'line' : 'lines')}${o.open ? '' : ' — ' + L('done, nothing open.', 'पूरा, कुछ बाकी नहीं।', 'poora, kuch baaki nahi.')}`;
+    return { html: (a.date && placed ? `<div class="ga-a"><b>${no}</b> — ${placed}</div><div>${head}</div>` : `<div class="ga-a">${head}</div>${placed ? `<div>${placed}</div>` : ''}`)
       + `<ul>${lines}</ul>${kar ? `<div>${kar}</div>` : ''}${last ? `<div>${last}${late}</div>` : late}` + mdSource(r.from, L),
       acts: [open('order|' + a.no, 'Open this order', 'यह ऑर्डर खोलें', 'Ye order kholiye')] };
   }
@@ -475,6 +491,8 @@ function mdAnswer(a: MdAsk, q: string, D: ErpMeeraData, lang: MdLang): { html: s
     acts: [open('ord|', 'Open Order Console', 'ऑर्डर कंसोल खोलें', 'Order Console kholiye')] };
 }
 
+/** the order she last answered about, so "yeh order" can mean it — in this page only, for a few minutes */
+const mdKeep = (a: MdAsk): void => { if (a.kind === 'order') MD_LAST = { no: a.no, at: Date.now() }; };
 /** guide-ask.ts gaAsk, first thing: true when the question was about the ERP's figures and has been answered here */
 async function meeraDataAsk(q: string): Promise<boolean> {
   if (!MEERA_DATA || !ERP_MEERA.data) return false;
@@ -482,6 +500,7 @@ async function meeraDataAsk(q: string): Promise<boolean> {
     const D = ERP_MEERA.data, a = mdParse(q, D);
     if (!a) return false;
     const r = mdAnswer(a, q, D, gaRead(q).lang as MdLang);
+    mdKeep(a);
     gaSay(r.html, r.acts, '', 'data');
     return true;
   } catch (e) { return false; }   // anything unexpected: her ordinary answer, as before
@@ -492,6 +511,7 @@ function meeraDataTry(q: string): { kind: string; html: string; acts: string[] }
   const D = ERP_MEERA.data, a = mdParse(q, D);
   if (!a) return null;
   const r = mdAnswer(a, q, D, gaRead(q).lang as MdLang);
+  mdKeep(a);
   return { kind: a.kind, html: r.html, acts: r.acts.map(x => x.id) };
 }
 /** a data answer's button: that screen, on the line — the person pressed it */

@@ -1406,7 +1406,7 @@
   "tab": "gdesk"
  },
  {
-  "q": "By PO ' + nf((DB.gpo || []).length) + ' ka kya matl hota hai",
+  "q": "By PO tab ka kya matl hota hai",
   "from": "By PO ' + nf((DB.gpo || []).length) + ' ka kya matlab hota hai",
   "id": "c-gdesk-1360",
   "tab": "gdesk"
@@ -1454,13 +1454,13 @@
   "tab": "fgi"
  },
  {
-  "q": "+ Supple ment PO for ' + m1(extra) + ' m buttn kya karta h",
+  "q": "Supple ment PO buttn kya karta h",
   "from": "+ Supplement PO for ' + m1(extra) + ' m button kya karta h",
   "id": "c-gdesk-1375",
   "tab": "gdesk"
  },
  {
-  "q": "ye ' + (group === 'article' ? 'Article' : group === 'dept' ? 'Department' : 'Karigar') + ' kis kaaam ka hai",
+  "q": "ye First column (Karigar, Article or Department) kis kaaam ka hai",
   "from": "ye ' + (group === 'article' ? 'Article' : group === 'dept' ? 'Department' : 'Karigar') + ' kis kaam ka hai",
   "id": "c-mst-1635",
   "tab": "ka"
@@ -1580,7 +1580,7 @@
   "tab": "mst"
  },
  {
-  "q": "FBA aaccount … `).join('')} button kya karta h",
+  "q": "FBA aaccount button kya karta h",
   "from": "FBA account … `).join('')} button kya karta h",
   "id": "c-fgi-1562",
   "tab": "fgi"
@@ -1610,7 +1610,7 @@
   "tab": "india"
  },
  {
-  "q": "wht des Closed from Shopify ' + esc(ptIsoDate(r.shopDoneAt) || '') + ' show",
+  "q": "wht des Closed from Shopify show",
   "from": "what does Closed from Shopify ' + esc(ptIsoDate(r.shopDoneAt) || '') + ' show",
   "id": "c-ord-1742",
   "tab": "ord"
@@ -1748,7 +1748,7 @@
   "tab": "follow"
  },
  {
-  "q": "what does ' + esc(ln.st ? `………` : 'Nothing recordef yet.') + ' show",
+  "q": "what does Who changed the line staus show",
   "from": "what does ' + esc(ln.st ? `………` : 'Nothing recorded yet.') + ' show",
   "id": "c-india-2001",
   "tab": "shop"
@@ -1838,7 +1838,7 @@
   "tab": "flow"
  },
  {
-  "q": "whaathappens if i press ' + esc(why) + '",
+  "q": "whaathappens if i press Can't ship",
   "from": "what happens if i press ' + esc(why) + '",
   "id": "c-india-2005",
   "tab": "shop"
@@ -1988,7 +1988,7 @@
   "tab": "rep"
  },
  {
-  "q": "= q0 ? '' : ' disabled'}>Fulfil from Indaa किसलिए है",
+  "q": "Fulfil from Indaa किसलिए है",
   "from": "= q0 ? '' : ' disabled'}>Fulfil from India किसलिए है",
   "id": "c-cx-1718",
   "tab": "cx"

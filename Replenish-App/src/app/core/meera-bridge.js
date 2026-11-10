@@ -95,7 +95,7 @@ ERP_MEERA.data = {
     return { from, order: { orderNo: NO, lines: rows.map(r => ({ sku: r.sku, qty: mdNum(r.qty), at: typeof ordWaitingAt === 'function' ? ordWaitingAt(r) : '' })),
       pcs: rows.reduce((a, r) => a + mdNum(r.qty), 0), open,
       karigars: typeof ordKarigarsOf === 'function' ? [...ordKarigarsOf(NO).entries()].sort((a, b) => b[1] - a[1]) : [],
-      last: last ? { ms: last.ms, by: last.by || '', kind: last.kind || '' } : null, idle, late: open && idle >= (typeof ORD_PIPE_STALE_DAYS !== 'undefined' ? ORD_PIPE_STALE_DAYS : 5) } };
+      last: last ? { ms: last.ms, by: last.by || '', kind: last.kind || '' } : null, placed, idle, late: open && idle >= (typeof ORD_PIPE_STALE_DAYS !== 'undefined' ? ORD_PIPE_STALE_DAYS : 5) } };
   }, { from: { tab: 'ord', notLoaded: true } }),
   /** the karigars this page knows (the employee list and the Job Work rows) */
   karigars: () => meeraSafe(() => {

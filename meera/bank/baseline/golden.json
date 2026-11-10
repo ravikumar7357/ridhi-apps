@@ -632,9 +632,11 @@
   "off": false
  },
  "eval|shop|customer ne return bheja hai entry kaise kre": {
-  "text": "Aapka sawaal ek se zyada jawaabon se milta hai. Aap kaunsa poochh rahe hain? return kaise darj kare order se zyada return kyu nahi hota return ko aage kaise badhaye",
-  "acts": [],
-  "bank": null,
+  "text": "More ▾ kholiye, Returns dabaiye, + New dabaiye, order number likhiye, lines aur kitne piece tick kijiye, aur Save the case dabaiye. Yeh kis liye hai Har customer return ko ek case ki tarah rakhta hai, taaki kya lauta, kaise aa raha hai aur customer ko kya milega, yeh kabhi na khoye. Yeh kaise kaam karta hai More ▾ kholkar Returns , phir + New dabaiye. Order number likhiye aur lines aur quantity tick kijiye. What does the customer get? , Why mein reason, aur pata ho to return tracking number chuniye/bhariye. Save the case dabaiye. Ek piece do baar return nahi ho sakta. Kab use karein Jab customer kahe ki woh kuch wapas bhej raha hai. Kyun What does the customer get? , Why mein reason aur return tracking number (agar hai) bhi bhariye. Ek piece do baar return nahi ho sakta.",
+  "acts": [
+   "tour:shop"
+  ],
+  "bank": "or-shop-return",
   "miss": null,
   "off": false
  },
@@ -1817,7 +1819,7 @@
   "off": true
  },
  "eval|shop|can you translate this message to english for the customer": {
-  "text": "I'm not fully sure what you mean. Is it one of these? what is the pencil mark next to order which label in whatsapp message Customer",
+  "text": "I'm not fully sure what you mean. Is it one of these? what is the pencil mark next to order which label in whatsapp message What does the customer get?",
   "acts": [],
   "bank": null,
   "miss": "near",
@@ -2338,7 +2340,7 @@
   "off": false
  },
  "eval2|shop|pressed went up but To make didn't drop at all, why": {
-  "text": "I'm not fully sure what you mean. Is it one of these? why did stock change when i deleted an entry what is a drop down how is to make worked out",
+  "text": "I'm not fully sure what you mean. Is it one of these? why did stock change when i deleted an entry how is to make worked out what is a drop down",
   "acts": [],
   "bank": null,
   "miss": "near",
@@ -3335,8 +3337,8 @@
   "miss": null,
   "off": false
  },
- "parts|gdesk|By PO ' + nf((DB.gpo || []).length) + ' ka kya matlab hota hai": {
-  "text": "By PO ' + nf((DB.gpo || []).length) + ' — Greige Desk par button: Greige PO ki list; number batata hai kitne hain. Yeh kis liye hai Greige ko purchase order ke roop mein dikhata hai: kya kharida, kisse, aur kitna aaya. Yeh kaise kaam karta hai Har row ek PO hai; arrow uski lines aur uske saamne aaye challan kholta hai. Row ke buttons agla kaam karte hain: receive, issue to RFD, receive RFD. Number batata hai kitne PO hain. Kab use karein Greige kharid par kaam karte waqt aam shuruaati view.",
+ "parts|gdesk|By PO tab ka kya matlab hota hai": {
+  "text": "By PO tab — Greige Desk par button: Greige PO ki list; number batata hai kitne hain. Yeh kis liye hai Greige ko purchase order ke roop mein dikhata hai: kya kharida, kisse, aur kitna aaya. Yeh kaise kaam karta hai Har row ek PO hai; arrow uski lines aur uske saamne aaye challan kholta hai. Row ke buttons agla kaam karte hain: receive, issue to RFD, receive RFD. Number batata hai kitne PO hain. Kab use karein Greige kharid par kaam karte waqt aam shuruaati view.",
   "acts": [],
   "bank": "c-gdesk-1360",
   "miss": null,
@@ -3405,15 +3407,15 @@
   "miss": null,
   "off": false
  },
- "parts|gdesk|+ Supplement PO for ' + m1(extra) + ' m button kya karta h": {
-  "text": "+ Supplement PO for ' + m1(extra) + ' m — Greige Desk par button: Jab line 10% chhoot se upar ho: extra metre ka usi supplier par supplement PO banata hai, jo isi challan par receive hota hai. Yeh kis liye hai Ek line baaki maal ke saath 10% tak zyada le sakti hai. Usse upar ke metre ka alag supplement PO banta hai, taaki woh darj rahein. Yeh kaise kaam karta hai Type kiye metre 10% chhoot paar karein to laal sandesh ke saath + Supplement PO button dikhta hai. Dabane par note aata hai ki mool PO ke baad -S1, -S2 number ka supplement PO extra ko cover karega. Yeh usi supplier par banta hai aur extra isi challan par receive hota hai. Naya PO challan save karte waqt banta hai. Kab use karein Jab supplier PO se 10% se zyada bheje.",
+ "parts|gdesk|Supplement PO button kya karta h": {
+  "text": "Supplement PO — Greige Desk par button: Jab line 10% chhoot se upar ho: extra metre ka usi supplier par supplement PO banata hai, jo isi challan par receive hota hai. Yeh kis liye hai Ek line baaki maal ke saath 10% tak zyada le sakti hai. Usse upar ke metre ka alag supplement PO banta hai, taaki woh darj rahein. Yeh kaise kaam karta hai Type kiye metre 10% chhoot paar karein to laal sandesh ke saath + Supplement PO button dikhta hai. Dabane par note aata hai ki mool PO ke baad -S1, -S2 number ka supplement PO extra ko cover karega. Yeh usi supplier par banta hai aur extra isi challan par receive hota hai. Naya PO challan save karte waqt banta hai. Kab use karein Jab supplier PO se 10% se zyada bheje.",
   "acts": [],
   "bank": "c-gdesk-1375",
   "miss": null,
   "off": false
  },
- "parts|ka|ye ' + (group === 'article' ? 'Article' : group === 'dept' ? 'Department' : 'Karigar') + ' kis kaam ka hai": {
-  "text": "' + (group === 'article' ? 'Article' : group === 'dept' ? 'Department' : 'Karigar') + ' — Karigar Analysis par column: Karigar Analysis Karigar Analysis pehla column: grouping box mein jo chuna ho — Karigar Analysisrigar, article ya department. Yeh kis liye hai Ek hi table karigar, article ya department ke hisaab se padhi ja sakti hai, aur yeh pehla column wahi naam deta hai jo chuna gaya. Kab use karein Grouping box badalne par yeh heading aur rows badal jaati hain.",
+ "parts|ka|ye First column (Karigar, Article or Department) kis kaam ka hai": {
+  "text": "First column (Karigar, Article or Department) — Karigar Analysis par column: Karigar Analysis Karigar Analysis pehla column: grouping box mein jo chuna ho — Karigar Analysisrigar, article ya department. Yeh kis liye hai Ek hi table karigar, article ya department ke hisaab se padhi ja sakti hai, aur yeh pehla column wahi naam deta hai jo chuna gaya. Kab use karein Grouping box badalne par yeh heading aur rows badal jaati hain.",
   "acts": [],
   "bank": "c-mst-1635",
   "miss": null,
@@ -3474,8 +3476,8 @@
   "miss": null,
   "off": false
  },
- "parts|gdesk|' + esc(o.greige) + ' किसलिए है": {
-  "text": "' + esc(o.greige) + ' — Greige Desk पर विकल्प: PO line का greige fabric चुनें; RFD fabric और description Master data से आते हैं। यह किस लिए है यहाँ एक चुनाव से खरीदा जाने वाला greige और उससे बनने वाला RFD तय होता है, इसलिए दोनों में फ़र्क़ नहीं आता। यह कैसे काम करता है सूची में Greige & RFD fabric master के greige नाम हैं। एक चुनने पर बगल में RFD कपड़ा और विवरण भर जाते हैं। एक ही PO पर और कपड़ों के लिए और लाइनें जोड़ें। कब इस्तेमाल करें PO की हर लाइन लिखते समय।",
+ "parts|gdesk|Greige fabric for the PO line किसलिए है": {
+  "text": "Greige fabric for the PO line — Greige Desk पर विकल्प: PO line का greige fabric चुनें; RFD fabric और description Master data से आते हैं। यह किस लिए है यहाँ एक चुनाव से खरीदा जाने वाला greige और उससे बनने वाला RFD तय होता है, इसलिए दोनों में फ़र्क़ नहीं आता। यह कैसे काम करता है सूची में Greige & RFD fabric master के greige नाम हैं। एक चुनने पर बगल में RFD कपड़ा और विवरण भर जाते हैं। एक ही PO पर और कपड़ों के लिए और लाइनें जोड़ें। कब इस्तेमाल करें PO की हर लाइन लिखते समय।",
   "acts": [],
   "bank": "c-gdesk-1377",
   "miss": null,
@@ -3526,8 +3528,8 @@
   "miss": null,
   "off": false
  },
- "parts|pbase|= 0 ? ' class=\"num\"' : '')}> किसलिए है": {
-  "text": "= 0 ? ' class=&quot;num&quot;' : '')}&gt; — Job Work Register पर कॉलम: रजिस्टर के कॉलम: Issue Date, Karigar, Item, Qty Issued, Qty Received, Progress ring, Status, Actions और Entered by। यह किस लिए है ये register के कॉलम हैं। मिलकर बताते हैं कि किसके पास क्या है और हर काम कहाँ तक पहुँचा। यह कैसे काम करता है Issue Date : दिया गया दिन और समय। Karigar : नाम व employment type। Item : चित्र, article या subtype, colour, size, SKU, order (या \"custom\" टैग)। Qty Issued और Qty Received : पीस की संख्या। Progress : एक रिंग जो issued में से लौटे पीस का हिस्सा (received + rejected) दिखाती है। Status : Pending, In Progress या Completed, साथ में pending और rejected संख्या। Actions : Receive, Edit या Correction और ⋯ मेनू। Entered by : किसने दर्ज किया। पहले कॉलम का टिक पंक्ति चुनता है। कब इस्तेमाल करें किसी karigar का काम कहाँ है, यह देखने के लिए पंक्ति को पढ़ें।",
+ "parts|pbase|Job Work register table किसलिए है": {
+  "text": "Job Work register table — Job Work Register पर जानकारी: रजिस्टर के कॉलम: Issue Date, Karigar, Item, Qty Issued, Qty Received, Progress ring, Status, Actions और Entered by। यह किस लिए है ये register के कॉलम हैं। मिलकर बताते हैं कि किसके पास क्या है और हर काम कहाँ तक पहुँचा। यह कैसे काम करता है Issue Date : दिया गया दिन और समय। Karigar : नाम व employment type। Item : चित्र, article या subtype, colour, size, SKU, order (या \"custom\" टैग)। Qty Issued और Qty Received : पीस की संख्या। Progress : एक रिंग जो issued में से लौटे पीस का हिस्सा (received + rejected) दिखाती है। Status : Pending, In Progress या Completed, साथ में pending और rejected संख्या। Actions : Receive, Edit या Correction और ⋯ मेनू। Entered by : किसने दर्ज किया। पहले कॉलम का टिक पंक्ति चुनता है। कब इस्तेमाल करें किसी karigar का काम कहाँ है, यह देखने के लिए पंक्ति को पढ़ें।",
   "acts": [
    "tour:pbase"
   ],
@@ -3601,8 +3603,8 @@
   "miss": null,
   "off": false
  },
- "parts|fgi|FBA account … `).join('')} button kya karta h": {
-  "text": "FBA account … `).join('')} — Finished Goods par box: FBA account chuniye (Ridhi FBA ya CPC FBA) jiske liye shipment hai. Yeh kis liye hai Amazon jane wale pieces do seller accounts mein se ek ke hote hain, aur packing list tatha FBA rows par sahi account hona chahiye. Yeh kaise kaam karta hai Start dabane se pehle Ridhi FBA ya CPC FBA chuniye. Account packing list aur Finish se bani Send to FBA rows par save hota hai. Start ke baad yeh band ho jata hai. Kab use karein Amazon ke liye har packing session ki shuruat mein.",
+ "parts|fgi|FBA account button kya karta h": {
+  "text": "FBA account — Finished Goods par box: FBA account chuniye (Ridhi FBA ya CPC FBA) jiske liye shipment hai. Yeh kis liye hai Amazon jane wale pieces do seller accounts mein se ek ke hote hain, aur packing list tatha FBA rows par sahi account hona chahiye. Yeh kaise kaam karta hai Start dabane se pehle Ridhi FBA ya CPC FBA chuniye. Account packing list aur Finish se bani Send to FBA rows par save hota hai. Start ke baad yeh band ho jata hai. Kab use karein Amazon ke liye har packing session ki shuruat mein.",
   "acts": [
    "tour:fgi"
   ],
@@ -3640,8 +3642,8 @@
   "miss": null,
   "off": false
  },
- "parts|ord|what does Closed from Shopify ' + esc(ptIsoDate(r.shopDoneAt) || '') + ' show": {
-  "text": "Closed from Shopify ' + esc(ptIsoDate(r.shopDoneAt) || '') + ' — note on Order Console: The line was closed from Shopify; hover to see the date.",
+ "parts|ord|what does Closed from Shopify show": {
+  "text": "Closed from Shopify — note on Order Console: The line was closed from Shopify; hover to see the date.",
   "acts": [
    "tour:ord"
   ],
@@ -3841,12 +3843,12 @@
   "miss": null,
   "off": false
  },
- "parts|shop|what does ' + esc(ln.st ? `………` : 'Nothing recorded yet.') + ' show": {
-  "text": "If you see that message: A box the ERP needs is still empty or not chosen — it will not save half an entry. Fix: fill the box the message names (I light it up), then press the button again. It comes from Shopify Orders .",
+ "parts|shop|what does Who changed the line status show": {
+  "text": "Who changed the line status — note on Shopify Orders: Hover the line status to see who typed it and when, or Nothing recorded yet.",
   "acts": [
-   "open:shop"
+   "tour:shop"
   ],
-  "bank": null,
+  "bank": "c-india-2001",
   "miss": null,
   "off": false
  },
@@ -3966,8 +3968,8 @@
   "miss": null,
   "off": false
  },
- "parts|shop|what happens if i press ' + esc(why) + '": {
-  "text": "' + esc(why) + ' — note on Shopify Orders: can't ship: hover to see Amazon's reason this speed cannot be used.",
+ "parts|shop|what happens if i press Can't ship": {
+  "text": "Can't ship — note on Shopify Orders: can't ship: hover to see Amazon's reason this speed cannot be used.",
   "acts": [
    "tour:shop"
   ],
@@ -4179,8 +4181,8 @@
   "miss": null,
   "off": false
  },
- "parts|cx|= q0 ? '' : ' disabled'}>Fulfil from India किसलिए है": {
-  "text": "= q0 ? '' : ' disabled'}&gt;Fulfil from India — Customer Orders पर बटन: इस ऑर्डर के नाम पर India Store से पीस इश्यू करता है और लाइन Fulfilled-India करता है; India स्टॉक काफ़ी होना चाहिए। सिर्फ़ एडमिन। यह किस लिए है इस order के नाम India finished-goods स्टोर से पीस देता है। यह कैसे काम करता है Decide बॉक्स के अंदर; जब तक In India, finished goods Qty पूरी न करे, फीका रहता है। यह Finished Goods में \"Customer order\" और order number नाम का issue लिखता है और लाइन Fulfilled-India करता है। दोनों एक साथ सेव होते हैं, और संदेश बताता है कि स्टोर में कितने पीस बचे। सिर्फ़ admin इस्तेमाल कर सकता है। कब इस्तेमाल करें जब Amazon लाइन पूरी न कर सके पर India स्टोर में पीस हों।",
+ "parts|cx|Fulfil from India किसलिए है": {
+  "text": "Fulfil from India — Customer Orders पर बटन: इस ऑर्डर के नाम पर India Store से पीस इश्यू करता है और लाइन Fulfilled-India करता है; India स्टॉक काफ़ी होना चाहिए। सिर्फ़ एडमिन। यह किस लिए है इस order के नाम India finished-goods स्टोर से पीस देता है। यह कैसे काम करता है Decide बॉक्स के अंदर; जब तक In India, finished goods Qty पूरी न करे, फीका रहता है। यह Finished Goods में \"Customer order\" और order number नाम का issue लिखता है और लाइन Fulfilled-India करता है। दोनों एक साथ सेव होते हैं, और संदेश बताता है कि स्टोर में कितने पीस बचे। सिर्फ़ admin इस्तेमाल कर सकता है। कब इस्तेमाल करें जब Amazon लाइन पूरी न कर सके पर India स्टोर में पीस हों।",
   "acts": [],
   "bank": "c-cx-1718",
   "miss": null,
