@@ -16461,6 +16461,14 @@ function prOn() {
     return localStorage.getItem('prFlagLast') === '1';
   } catch (e) { return false; }
 }
+/** Does this device ask for the page registers at all? Storage only, so it is safe at page load. (prOn also asks who is signed in,
+ *  and the vendor portal's VP is not declared yet while this file loads: asking it there threw, was swallowed as "off", and the
+ *  guard below was never installed on the real page. The guard's getters ask prOn() again each time they are read.) */
+function prWanted() {
+  /* A vendor, where that is already known, never gets it; at page load it is not known yet (the call throws) and the getters decide later. */
+  try { if (typeof spIsVendor === 'function' && spIsVendor()) return false; } catch (e) { /* not known yet */ }
+  try { const s = localStorage.getItem('pageRegisters'); return s === '1' || (s !== '0' && localStorage.getItem('prFlagLast') === '1'); } catch (e) { return false; }
+}
 /** Keep the flag's last answer for the next page load. */
 function prSaveFlag(on) {
   try { if (on) localStorage.setItem('prFlagLast', '1'); else localStorage.removeItem('prFlagLast'); } catch (e) { /* no storage: stays off */ }
@@ -16685,7 +16693,7 @@ function prGuardInstall() {
   ['masters', 'mdb', 'ob', 'press', 'freeze', 'shopProd', 'qc'].forEach(r => hold(PTG, r, r));
   PR_GUARDED = true;
 }
-if (prOn()) prGuardInstall();
+if (prWanted() && typeof AUDIT !== 'undefined' && AUDIT.on) prGuardInstall();
 
 const obUC = s => String(s == null ? '' : s).trim().toUpperCase();
 
@@ -29562,6 +29570,16 @@ function oalOn() {
     return localStorage.getItem('alFlagLast') === '1';
   } catch (e) { return false; }
 }
+/** Does this device ask for the list at all? Storage only - safe to ask while the page is still loading. (oalOn also asks who is
+ *  signed in, and the vendor portal's VP is not declared yet at that point: asking it at load threw, so nothing was ever started.) */
+function oalWanted() {
+  try { const s = localStorage.getItem('alertListBuild'); return s === '1' || (s !== '0' && localStorage.getItem('alFlagLast') === '1'); } catch (e) { return false; }
+}
+/** Say once per reason why the check did not run (console only, and only for a device that asked for the list). */
+const OAL_SAID = {};
+function oalSkip(why) {
+  try { if (OAL_SAID[why] || !oalWanted()) return; OAL_SAID[why] = 1; if (typeof console !== 'undefined' && console.info) console.info('[order alert list] check skipped: ' + why); } catch (e) { /* only a note */ }
+}
 /** Keep the flag's last answer for the next page load. */
 function oalSaveFlag(on) {
   try { if (on) localStorage.setItem('alFlagLast', '1'); else localStorage.removeItem('alFlagLast'); } catch (e) { /* no storage: stays off */ }
@@ -29607,11 +29625,13 @@ function oalAllEntries() {
   return out;
 }
 /** Can this page work lines out? Only when it already holds the registers AND Sales Orders and may read the list. */
-function oalReady() {
-  if (typeof ptHas !== 'function' || typeof PTG_ALL === 'undefined' || !ptHas(PTG_ALL)) return false;
-  if (typeof SOX === 'undefined' || !SOX.rows) return false;
-  return typeof otkAllowed !== 'function' || otkAllowed();
+function oalNotReady() {
+  if (typeof ptHas !== 'function' || typeof PTG_ALL === 'undefined' || !ptHas(PTG_ALL)) return 'this page does not hold the registers';
+  if (typeof SOX === 'undefined' || !SOX.rows) return 'Sales Orders are not loaded on this page';
+  if (typeof otkAllowed === 'function' && !otkAllowed()) return 'this login may not see the order strip';
+  return '';
 }
+const oalReady = () => !oalNotReady();
 
 /* ---- the hook: called by core/history.js after a SUCCESSFUL save. Never throws, never waits, changes nothing. ---- */
 function oalRowKey(node, id) {
@@ -29741,11 +29761,15 @@ async function oalRebuild(mine) {
 
 /** The full check. Reads the list (and its version) once; writes only what differs; logs what it found. */
 async function oalCheck() {
-  if (!oalOn() || OAL.busy || OAL.noRead || !oalReady()) return;
+  if (!oalOn()) { oalSkip('the switch is off for this login or device (vendor, test harness, or the device setting)'); return; }
+  if (OAL.busy) return;
+  if (OAL.noRead) { oalSkip('this login may not read the list yet'); return; }
+  const why = oalNotReady();
+  if (why) { oalSkip(why); return; }
   OAL.busy = true;
   const t0 = Date.now();
   try {
-    if (!(await oalLease())) return;
+    if (!(await oalLease())) { oalSkip('another page holds the lease'); return; }
     const mine = oalAllEntries();
     const ver = await ptGetFresh(OAL_NODE + '/v');
     if (ver !== OAL_V) {
@@ -29778,13 +29802,13 @@ async function oalCheck() {
     }
   } catch (e) {
     /* A refused read (a login that may not read the list yet) is not an error worth a log line every 15 minutes: stop checking. */
-    if (/\b40[13]\b|refused the read/.test(String((e && e.message) || e))) { OAL.noRead = true; return; }
+    if (/\b40[13]\b|refused the read/.test(String((e && e.message) || e))) { OAL.noRead = true; oalSkip('the list read was refused for this login'); return; }
     oalLog({ kind: 'error', msg: String((e && e.message) || e).slice(0, 120) });
   } finally { OAL.busy = false; }
 }
 
 /* Not in the test harnesses, which have no real page; and nothing at all with the switch off. */
-if (typeof document !== 'undefined' && typeof document.addEventListener === 'function' && typeof setInterval === 'function' && oalOn()) {
+if (typeof document !== 'undefined' && typeof document.addEventListener === 'function' && typeof setInterval === 'function' && oalWanted()) {
   try { const r = JSON.parse(localStorage.getItem('oalRetry') || 'null'); if (r && typeof r === 'object') OAL.retry = r; } catch (e) { /* none kept */ }
   setTimeout(oalCheck, 90000); setInterval(oalCheck, OAL_CHECK_MS);
   if (Object.keys(OAL.retry).length) OAL.retryTimer = setTimeout(oalRetryNow, 20000);

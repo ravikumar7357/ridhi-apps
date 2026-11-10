@@ -446,6 +446,31 @@ async function offRun(src, how) {
     }
   }
 
+  /* ------------------------------------------------------------ (c2) the real page's load order */
+  /* The real page is ONE script. gates.js runs at load, before vendor-portal.js declares `let VP`, and spIsVendor (orders/order-console.js)
+   * reads VP: asking prOn() at load threw, was swallowed as "off", and the runtime guard was never installed on the live page. */
+  {
+    console.log('\nThe guard installs on the real page (load order: spIsVendor first, VP declared after gates.js)');
+    const run = ls => {
+      const warns = [];
+      const ctx = { localStorage: { getItem: k => (k in ls ? ls[k] : null), setItem() {}, removeItem() {} }, AUDIT: { on: true }, ME: { email: 'a@b', admin: false },
+        console: { warn: (...a) => warns.push(a.join(' ')) }, dmCount() {}, showTab() {}, ptGet: () => new Promise(() => {}), ptList: v => v || [] };
+      vm.createContext(ctx);
+      vm.runInContext('const spIsVendor = () => !!(!ME.admin && VP && VP.code);\n' + SRC + '\nlet VP = { code: null };\n;this.__g = { guarded: PR_GUARDED, on: prOn(), PTG, setVendor: () => { VP.code = "V1"; } };', ctx);
+      return { g: ctx.__g, ctx, warns, PTG: ctx.__g.PTG };
+    };
+    const a = run({ pageRegisters: '1' });
+    ok('switch on at load: the guard is installed even though VP is not declared yet', a.g.guarded === true);
+    ok('...and the switch reads on once the page is up', a.g.on === true);
+    ok('switch off at load: not installed', run({}).g.guarded === false);
+    ok("device '0' beats the flag at load", run({ pageRegisters: '0', prFlagLast: '1' }).g.guarded === false);
+    ok('the flag answer alone installs it', run({ prFlagLast: '1' }).g.guarded === true);
+    const v = run({ pageRegisters: '1' }); v.g.setVendor(); void v.PTG.ob;
+    ok('a vendor (known only after load) gets plain fields: no warning, no read started', v.warns.length === 0);
+    const u = run({ pageRegisters: '1' }); void u.PTG.ob;
+    ok('an office login reading an unloaded register is warned (the guard works)', u.warns.length === 1);
+  }
+
   /* ------------------------------------------------------------ (d) teeth */
   if (!process.env.GATES_SRC) {
     console.log('\nTeeth: a broken copy of core/gates.js must fail this suite');
@@ -464,7 +489,8 @@ async function offRun(src, how) {
       ['the guard setter marks the register loaded', real.replace('set(v) { PR_VAL[reg] = v; } });', 'set(v) { PR_VAL[reg] = v; PTG_AT[reg] = Date.now(); } });')],
       ['ptHas / ptLack trip the guard', real.replace('const ptRegVal = r => ptPeek(r);', "const ptRegVal = r => (r === 'cut' ? PT.cut : r === 'base' ? PT.base : PTG[r]);")],
       ['the guard logs every read instead of one per page and register', real.replace('if (PR_UNDECLARED[key] > 1) return;', '')],
-      ['the guard is installed with the switch off', real.replace('if (prOn()) prGuardInstall();', 'prGuardInstall();')],
+      ['the guard is installed with the switch off', real.replace("if (prWanted() && typeof AUDIT !== 'undefined' && AUDIT.on) prGuardInstall();", 'prGuardInstall();')],
+      ['the guard is decided by asking who is signed in at load (VP not declared yet)', real.replace("if (prWanted() && typeof AUDIT !== 'undefined' && AUDIT.on) prGuardInstall();", 'if (prOn()) prGuardInstall();')],
       ['the guard never starts the background read', real.replace("ptNeed(want, { why: 'undeclared ' + page })", "Promise.resolve()")],
       ['the guard loads one order register alone', real.replace('const want = PTG_MASTER.indexOf(reg) >= 0 ? PTG_MASTER : PTG_ALL;', 'const want = [reg];')],
       ['the pictures are read with every register', real.replace("case 'ob': PTG.ob = ptList(await ptGet('pt_orderBook'));", "case 'ob': PTG.ob = ptList(await ptGet('pt_orderBook')); try { await ptImgShared(); } catch (e) { /* x */ }")],

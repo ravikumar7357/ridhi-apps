@@ -87,8 +87,9 @@ function page(o) {
   const db = o.db || makeDb(), net = o.net || { down: false };
   const LS = new Map(Object.entries(o.ls || {}));
   const stats = { writes: [], reads: [], cas: 0, timers: 0 };
-  const timers = [];
+  const timers = [], infos = [];
   const ctx = {
+    console: { info: m => infos.push(m) },
     localStorage: { getItem: k => (LS.has(k) ? LS.get(k) : null), setItem: (k, v) => LS.set(k, String(v)), removeItem: k => { LS.delete(k); } },
     AUDIT: { on: !o.harness },
     ME: { email: 'ravi@x.com', admin: true, tabs: [] }, NAV_IS_VENDOR: !!o.vendor,
@@ -109,7 +110,7 @@ function page(o) {
   };
   vm.createContext(ctx);
   vm.runInContext(TICKER + '\n' + ALERTS + '\n' + OLD_ITEMS + '\n;this.__t = { otkItems, otkItemsFrom, otkItemsOld, oalEntry, oalKey, oalAfterSave, oalOn, oalCheck, oalFlush, oalSaveFlag, oalAllEntries, OAL };', ctx);
-  return { t: ctx.__t, ctx, db, stats, LS, net, timers,
+  return { t: ctx.__t, ctx, db, stats, LS, net, timers, infos,
     /* runs the timers set so far; anything they set in turn waits for the next call */
     runTimers: async () => { const batch = timers.splice(0); for (const x of batch) await x.fn(); } };
 }
@@ -200,6 +201,27 @@ async function hookTests() {
   const bad = page({ ls: ON }); let threw = false;
   try { bad.t.oalAfterSave('pt_orderBook/x', { get orderNo() { throw new Error('boom'); }, sku: 'S' }, 'put'); bad.t.oalAfterSave(undefined, undefined, undefined); bad.t.oalAfterSave('', null, 'patch'); } catch (e) { threw = true; }
   ok('the hook never throws', !threw); }
+
+async function startTests() {
+  console.log('Start-up on the real page');
+/* The real page is ONE script and this file runs at load, before vendor-portal.js declares VP. spIsVendor (orders/order-console.js)
+ * reads VP, so asking oalOn() at load threw - and the whole alert list was silently never started (found on the test link). */
+{ const sets = [], ints = [];
+  const ctx = { localStorage: { getItem: k => (k === 'alertListBuild' ? '1' : null), setItem() {}, removeItem() {} }, AUDIT: { on: true }, ME: { email: 'a@b', admin: false, tabs: ['so'] },
+    document: { addEventListener() {} }, setTimeout: (fn, ms) => { sets.push(ms); return 1; }, setInterval: (fn, ms) => { ints.push(ms); return 1; }, console: { info() {} } };
+  vm.createContext(ctx);
+  vm.runInContext('const spIsVendor = () => !!(!ME.admin && VP && VP.code);\n' + ALERTS + '\nlet VP = { code: null };\n;this.__on = oalOn();', ctx);
+  ok('with the switch on the check is scheduled (90 s, then every 15 minutes) even though VP is not declared yet', sets.includes(90000) && ints.includes(15 * 60 * 1000), JSON.stringify([sets, ints]));
+  ok('...and once the page is up the switch reads on', ctx.__on === true); }
+{ const p = page({ ls: ON, so: false }); await p.t.oalCheck(); await p.t.oalCheck();
+  ok('a skipped check says why, once', p.infos.length === 1 && /check skipped: Sales Orders are not loaded/.test(p.infos[0]), JSON.stringify(p.infos));
+  const q = page({ ls: ON, registers: false }); await q.t.oalCheck();
+  ok('...the registers reason too', q.infos.length === 1 && /registers/.test(q.infos[0]));
+  const r = page(); await r.t.oalCheck();
+  ok('a device that did not ask for the list says nothing', r.infos.length === 0);
+  const v = page({ ls: ON, vendor: true }); await v.t.oalCheck();
+  ok('a vendor with the device switch on gets the switch-off reason', v.infos.length === 1 && /switch is off/.test(v.infos[0])); }
+}
 
 console.log('Retry survives offline');
 async function retryTests() {
@@ -340,6 +362,7 @@ function scanWrites(files) {
 
 (async () => {
   await offTests();
+  await startTests();
   await hookTests(); await retryTests(); await checkTests(); await helperTests();
   /* Teeth: broken copies must make this suite fail. */
   if (!process.env.OA_TICKER && !process.env.OA_ALERTS && !process.env.OA_HIST) {
@@ -351,8 +374,9 @@ function scanWrites(files) {
       ['hook removed from ptPatch', 'OA_HIST', H.replace("  if (typeof oalAfterSave === 'function') oalAfterSave('', updates, 'patch');\n", '')],
       ['hook removed from ptDelete', 'OA_HIST', H.replace("  if (typeof oalAfterSave === 'function') oalAfterSave(path, null, 'delete');\n", '')],
       ['hook fires before the save is known good', 'OA_HIST', H.replace("  if (typeof oalAfterSave === 'function') oalAfterSave(path, value, 'put');\n", '').replace("  const r = await fetch(`${PT_URL}/${ptPath(path)}.json` + await ptAuthQuery(), {\n    method: 'PUT'", "  if (typeof oalAfterSave === 'function') oalAfterSave(path, value, 'put');\n  const r = await fetch(`${PT_URL}/${ptPath(path)}.json` + await ptAuthQuery(), {\n    method: 'PUT'")],
+      ['start-up asks who is signed in too early (VP not declared yet)', 'OA_ALERTS', A.replace("typeof setInterval === 'function' && oalWanted()", "typeof setInterval === 'function' && oalOn()")],
       ['switch off still writes', 'OA_ALERTS', A.replace('function oalOn() {', 'function oalOn() { return true;')],
-      ['the check ignores the switch', 'OA_ALERTS', A.replace('if (!oalOn() || OAL.busy || OAL.noRead || !oalReady()) return;', 'if (OAL.busy || !oalReady()) return;')],
+      ['the check ignores the switch', 'OA_ALERTS', A.replace('if (!oalOn()) { oalSkip(', 'if (false) { oalSkip(')],
       ['a failed write is forgotten (no retry)', 'OA_ALERTS', A.replace('catch (e) { oalKeep(up); }\n}', 'catch (e) { /* lost */ }\n}')],
       ['no lease: every page checks', 'OA_ALERTS', A.replace("if (cur && cur.until > now && cur.by !== OAL.me) return false;", '').replace("return (await ptCas(OAL_NODE + '/lease', cur == null ? null : cur, { by: OAL.me, until: now + OAL_CHECK_MS })) === '';", 'return true;')],
       ['every line written every time', 'OA_ALERTS', A.replace("if (OAL.last.has(k) && OAL.last.get(k) === fp) return;", '')],

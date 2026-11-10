@@ -40,6 +40,14 @@ function prOn() {
     return localStorage.getItem('prFlagLast') === '1';
   } catch (e) { return false; }
 }
+/** Does this device ask for the page registers at all? Storage only, so it is safe at page load. (prOn also asks who is signed in,
+ *  and the vendor portal's VP is not declared yet while this file loads: asking it there threw, was swallowed as "off", and the
+ *  guard below was never installed on the real page. The guard's getters ask prOn() again each time they are read.) */
+function prWanted() {
+  /* A vendor, where that is already known, never gets it; at page load it is not known yet (the call throws) and the getters decide later. */
+  try { if (typeof spIsVendor === 'function' && spIsVendor()) return false; } catch (e) { /* not known yet */ }
+  try { const s = localStorage.getItem('pageRegisters'); return s === '1' || (s !== '0' && localStorage.getItem('prFlagLast') === '1'); } catch (e) { return false; }
+}
 /** Keep the flag's last answer for the next page load. */
 function prSaveFlag(on) {
   try { if (on) localStorage.setItem('prFlagLast', '1'); else localStorage.removeItem('prFlagLast'); } catch (e) { /* no storage: stays off */ }
@@ -264,7 +272,7 @@ function prGuardInstall() {
   ['masters', 'mdb', 'ob', 'press', 'freeze', 'shopProd', 'qc'].forEach(r => hold(PTG, r, r));
   PR_GUARDED = true;
 }
-if (prOn()) prGuardInstall();
+if (prWanted() && typeof AUDIT !== 'undefined' && AUDIT.on) prGuardInstall();
 
 const obUC = s => String(s == null ? '' : s).trim().toUpperCase();
 
