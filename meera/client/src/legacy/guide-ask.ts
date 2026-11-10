@@ -567,6 +567,7 @@ function gaRead(q) {
   const words = gaWords(q);
   let lang = /[ऀ-ॿ]/.test(q) ? 'hi' : words.some(w => GUIDE_HG.has(w)) ? 'hg' : 'en';
   if (typeof meeraDesignLang === 'function' && meeraDesignLang() === 'hi') lang = 'hi';   // her new look: हिंदी chosen in the Ask box
+  if (GA_LANG_FORCE) lang = GA_LANG_FORCE;   // "hinglish main samjhao": the last answer again, in that language
   const people = gaPeople();
   let means = [...new Set(words.filter(w => !GUIDE_STOP.has(w) && !/^\d+$/.test(w)).map(w => people.has(w) ? 'karigar' : gaMean(w)))];
   /* "maal aa gaya", "आ गया": it came in — a receipt (both words are fillers on their own) */
@@ -1376,12 +1377,36 @@ function gaSay(html, acts?, after?, src?) {
   if (typeof meeraDesignSay === 'function') meeraDesignSay(d, src || '');
   $('gaLog').scrollTop = $('gaLog').scrollHeight;
 }
+/* "HINGLISH MAIN SAMJHAO", "hindi mein batao", "explain in english" — the last answer again, in that language (Ravi, 11 Nov:
+ * it was refused as not about the ERP). Only a question that asks for nothing but the language; the language holds for that
+ * one answer. A figures answer is never kept, so it cannot be repeated: she asks for it again. */
+const GA_RELANG = /^\s*(?:please |pls |plz )?(?:(?:isko|ise|isse|ye|yeh|this|it|that|same|wahi|vahi|ab|toh|to)\s+)*(?:(?:in|me|mein|main|mai)\s+)?(hinglish|hindi|english|angrezi|angreji|हिंदी|हिन्दी|इंग्लिश|हिंग्लिश)\s*(?:(?:main|mein|me|mai|mei|में)\s*)?(?:samjhao|samjhaiye|samjha do|samjhado|batao|bataiye|bata do|bolo|likho|explain|batayein|please|plz|pls|समझाओ|बताओ)?\s*[.?!]*\s*$|^\s*(?:please\s+)?(?:explain|tell me|say|repeat|answer|write)(?:\s+(?:it|this|that|again))*\s+in\s+(hinglish|hindi|english)\s*(?:please)?\s*[.?!]*\s*$/i;
+let GA_LANG_FORCE = '', GA_QUIET = false, GA_LAST_DATA = false;
+function gaReLang(q) {
+  const m = String(q || '').match(GA_RELANG); if (!m) return '';
+  const w = (m[1] || m[2] || '').toLowerCase();
+  return /hinglish|हिंग्लिश/.test(w) ? 'hg' : /hindi|हिंदी|हिन्दी/.test(w) ? 'hi' : 'en';
+}
 async function gaAsk(q) {
-  gaMine(q);
+  const rl = !GA_QUIET && gaReLang(q);
+  if (rl) {
+    gaMine(q);
+    if (GA_LAST_DATA || !GA.lastQ) {
+      const L = (en, hi, hg) => (rl === 'hi' ? hi : rl === 'hg' ? hg : en);
+      gaSay(L('Ask that question once more, adding "in English", and I will answer in English.', 'वह सवाल एक बार फिर पूछिए, साथ में "हिंदी में" लिखिए — मैं हिंदी में जवाब दूँगी।',
+        'Woh sawaal ek baar phir poochiye, saath mein "Hinglish mein" likhiye — main Hinglish mein jawaab dungi.'));
+      return;
+    }
+    GA_LANG_FORCE = rl; GA_QUIET = true;
+    try { await gaAsk(GA.lastQ); } finally { GA_LANG_FORCE = ''; GA_QUIET = false; }
+    return;
+  }
+  if (!GA_QUIET) gaMine(q);
   if (typeof gaAiCommand === 'function' && await gaAiCommand(q)) return;
   /* Phase 7, switch "data": a question about the ERP's own figures is answered here, from this page's memory — before
    * anything is kept or sent (no AI, no learning record, no 👎 note) */
-  if (typeof meeraDataAsk === 'function' && await meeraDataAsk(q)) return;
+  GA_LAST_DATA = false;
+  if (typeof meeraDataAsk === 'function' && await meeraDataAsk(q)) { GA_LAST_DATA = true; return; }
   GA.lastQ = q;
   if (GA_WHEREAMI_RE.test(q) && gaHere()) {
     const lg = gaRead(q).lang, LL = (en, hi, hg) => (lg === 'hi' ? hi : lg === 'hg' ? (hg || en) : en), name = esc(gaTabName(gaHere()));

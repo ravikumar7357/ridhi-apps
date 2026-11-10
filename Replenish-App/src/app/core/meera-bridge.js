@@ -208,10 +208,21 @@ ERP_MEERA.data = {
     const from = mdFrom('pmdb', typeof PTG !== 'undefined' && Array.isArray(PTG.mdb), typeof PTG !== 'undefined' ? mdTime(PTG.at) : '');
     if (from.denied || from.notLoaded) return { from, rows: [] };
     const t = v => String(v == null ? '' : v).trim();
+    /* its yes/no fields as the Master Database shows them — the SKU's own, or its recipe's (Ravi, 11 Nov: "how many sku with
+     * piping as yes are in order") */
+    const yes = (r, k) => { let v = r[k]; try { if (typeof recipeValue === 'function') v = recipeValue(r, k); } catch (e) { /* the SKU's own */ }
+      return v === true || /^(y|yes|true|1)$/i.test(t(v)); };
     const rows = (PTG.mdb || []).filter(r => r && r.sku && !t(r.mergedInto))
-      .map(r => ({ sku: String(r.sku).toUpperCase(), articleType: t(r.articleType), subtype: t(r.subtype), color: t(r.color), brand: t(r.brand), size: t(r.size), fabric: t(r.fabric) }));
+      .map(r => ({ sku: String(r.sku).toUpperCase(), articleType: t(r.articleType), subtype: t(r.subtype), color: t(r.color), brand: t(r.brand), size: t(r.size), fabric: t(r.fabric),
+        piping: yes(r, 'isPiping'), ruffle: yes(r, 'isRuffle'), zip: yes(r, 'isZip'), cut: yes(r, 'cuttingRequired'), filler: yes(r, 'fillerFabricRequired'), custom: yes(r, 'isCustom') }));
     return { from, rows };
   }, { from: { tab: 'pmdb', notLoaded: true }, rows: [] }),
+  /** THE OPEN ORDER LINES on the Order Console: SKU, order and pieces — for "how many SKUs with piping are in order" */
+  openLines: () => meeraSafe(() => {
+    const from = mdOrdFrom();
+    if (from.denied || from.notLoaded) return { from, lines: [] };
+    return { from, lines: mdOrdLines().filter(r => r && r.open && r.sku).map(r => ({ sku: String(r.sku).toUpperCase(), orderNo: String(r.orderNo || ''), qty: mdNum(r.qty) })) };
+  }, { from: { tab: 'ord', notLoaded: true }, lines: [] }),
   /** THE VENDORS' NAMES (printers, fabricators, filling houses): the vendor master, and any code on a vendor order the master no
    * longer has — for finding the one meant ("chaudhry handbooks ke paas apna kitna maal hai", Ravi 7 Nov) */
   vendors: () => meeraSafe(() => {

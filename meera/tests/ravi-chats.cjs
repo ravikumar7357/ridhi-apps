@@ -26,6 +26,8 @@ const MASTER = [
   { sku: 'RCC777-18', brand: 'Ridhi', articleType: 'Cushion Cover', subtype: 'Printed Cushion Cover', color: 'Mughal Buta Blue', size: '18x18', fabric: 'Canvas' },
   { sku: 'RCC778-16', brand: 'Ridhi', articleType: 'Cushion Cover', subtype: 'Printed Cushion Cover', color: 'Indigo', size: '16x16', fabric: 'Canvas' }];
 const withMaster = M => { M.ctx.PTG.mdb.push(...MASTER.map(r => Object.assign({}, r))); };
+/* these SKUs get piping in the master too (the sample's CPC008-04 has it already) */
+const piping = (M, skus) => M.ctx.PTG.mdb.forEach(r => { if (skus.includes(r.sku)) r.isPiping = true; });
 /* a screen's lines, as Meera reads them (gaRowFind): made-up rows, first cell = the line's name */
 const rows = (M, list) => {
   const mk = cells => ({ textContent: cells.join(' '), offsetParent: {}, tagName: 'TR', closest: () => null, querySelector: () => null,
@@ -59,6 +61,20 @@ const CHATS = [
   { day: '10 Nov', tab: 'fab', q: 'Canvas · Mughal Buta Blue what is its sku', setup: withMaster, data: true, want: /^2 SKUs — (?=.*Fabric Canvas)(?=.*Colour Mughal Buta Blue).*RCC777-16.*RCC777-18/, not: /RCC778/ },
   { day: '10 Nov', tab: 'fab', q: 'how many products use this cloth', setup: M => { withMaster(M); rows(M, STORE); }, before: 'Canvas · Mughal Buta Blue', data: true,
     want: /^2 SKUs — (?=.*Fabric Canvas)(?=.*Colour Mughal Buta Blue)/, acts: /^pmdbfab\|Canvas\|Mughal Buta Blue$/ },
+  /* 11 Nov: a yes/no field of the master, with the open orders. On the sample factory CPC008-04 has piping and an open order;
+   * CPC210-02 is given piping here but its order is complete; RCC777-16 has piping and no order at all. */
+  { day: '11 Nov', tab: 'ord', q: 'how many sku with piping as yes are in order', data: true, setup: M => { withMaster(M); piping(M, ['CPC210-02', 'RCC777-16']); },
+    want: /^1 SKU with piping is in open orders.*CPC008-04/, not: /CPC210-02|RCC777-16|not fully sure|admin team/ },
+  { day: '11 Nov', tab: 'pmdb', q: 'piping wale kitne sku hai', data: true, setup: M => { withMaster(M); piping(M, ['CPC210-02', 'RCC777-16']); },
+    want: /^Master Database mein piping wale 3 SKU(?=.*CPC008-04)(?=.*CPC210-02)(?=.*RCC777-16)/ },
+  { day: '11 Nov', tab: 'ord', q: 'order mein kitne sku bina piping ke hai', data: true, setup: M => { withMaster(M); piping(M, ['CPC210-02', 'RCC777-16']); },
+    want: /^Khule order mein bina piping ke 6 SKU/, not: /CPC008-04 ·|CPC210-02/ },
+  /* 11 Nov: "explain that in Hinglish" after an answer is the same answer again, in that language */
+  { day: '11 Nov', tab: 'flow', before: 'where do I check at which stage is the order actually is from ppc', q: 'hinglish main samjhao',
+    want: /PPC completed.*(mein|hai|kahan|dekhiye|likhiye)/i, not: OFF },
+  { day: '11 Nov', tab: 'flow', before: 'where do I check at which stage is the order actually is from ppc', q: 'hindi mein batao', want: /[ऀ-ॿ]{3,}.*PPC completed|PPC completed.*[ऀ-ॿ]{3,}/, not: OFF },
+  { day: '11 Nov', tab: 'flow', before: 'order line kahan dekhe', q: 'explain in english', want: /What it's for/, not: /Yeh kis liye hai|kholiye|not about the ERP/ },
+  { day: '11 Nov', tab: 'ord', before: 'AMZ-16092026-02 kahan hai', q: 'hinglish main samjhao', want: /once more|ek baar phir/, not: OFF },
 ];
 
 let pass = 0, fail = 0;
