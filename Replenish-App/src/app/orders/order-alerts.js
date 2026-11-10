@@ -186,6 +186,7 @@ async function oalFlush() {
     await oalWrite(up);
     OAL.retryWait = 30000;
     Object.keys(up).forEach(p => { const k = p.slice((OAL_NODE + '/l/').length); OAL.last.set(k, oalFp(up[p])); });
+    if (typeof otkOwnWrite === 'function') otkOwnWrite(up);   // this page's own strip moves at once, without waiting for the live copy
   } catch (e) { oalKeep(up); }
 }
 
