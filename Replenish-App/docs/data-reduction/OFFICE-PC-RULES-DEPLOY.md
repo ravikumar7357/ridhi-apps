@@ -3,6 +3,11 @@
 For the office computer (Windows user **ravik**), where `Pricing-App/rules/rules-tool.js` can run (it uses the
 firebase-tools installed there). Written 6 Nov 2026. Ravi runs this, or asks Claude Code on that PC to.
 
+**Also works on the other PC (user "User") since 10 Nov 2026:** rules-tool.js now also finds Firebase's library inside the
+stand-alone firebase.exe's folder (`%USERPROFILE%\.cache\firebase\tools`). It needs a valid login there first:
+`& "C:\Users\User\tools\firebase\firebase.exe" login --reauth --no-localhost` (open the link, Allow, paste the code
+back). The Firestore step (5) uses the same exe: `& "C:\Users\User\tools\firebase\firebase.exe" deploy --only firestore:rules --project price-research-48ff3`.
+
 ## What goes live
 
 All in branch `preview/badges` (commit "Firebase rules for the data download plan…"):

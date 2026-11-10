@@ -24,7 +24,14 @@
  * the real rights shows up as a wrong answer here instead of passing quietly.
  */
 const fs = require('fs'), https = require('https'), pathm = require('path');
-const FTL = 'C:/Users/ravik/AppData/Roaming/npm/node_modules/firebase-tools/lib/';
+/* WHERE FIREBASE'S OWN LIBRARY IS (used only to turn the saved login into a pass). The office PC has it from npm;
+ * the other PC has it inside the stand-alone firebase.exe's folder (npm is blocked there). FIREBASE_TOOLS_LIB can
+ * name another place. The first one that exists is used. */
+const FTL = [process.env.FIREBASE_TOOLS_LIB,
+  'C:/Users/ravik/AppData/Roaming/npm/node_modules/firebase-tools/lib/',
+  pathm.join(process.env.USERPROFILE || '', '.cache/firebase/tools/lib/node_modules/firebase-tools/lib/')]
+  .filter(Boolean).map(p => p.replace(/\\/g, '/').replace(/\/?$/, '/')).find(p => fs.existsSync(p + 'auth.js'))
+  || 'C:/Users/ravik/AppData/Roaming/npm/node_modules/firebase-tools/lib/';
 const HOST = 'price-research-48ff3-default-rtdb.asia-southeast1.firebasedatabase.app';
 const PROJ = 'price-research-48ff3';
 const READS = require('./read-model');
