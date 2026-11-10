@@ -63,6 +63,7 @@ orders/shp-board.js
 orders/shopify-pipeline-team.js
 orders/orders-one-line.js
 orders/order-ticker.js
+orders/order-alerts.js
 flow/flow-core.js
 flow/flow-ppc.js
 flow/flow-demand.js

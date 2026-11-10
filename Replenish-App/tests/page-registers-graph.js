@@ -16,6 +16,8 @@
 const fs = require('fs'), path = require('path');
 const REGS = ['masters', 'mdb', 'ob', 'press', 'freeze', 'cut', 'base', 'shopProd', 'qc'];
 const ALL = REGS.slice();
+/* Pieces that only read registers already in memory (see build). Kept to the one that needs it. */
+const QUIET_READERS = new Set(['oalAllEntries']);
 
 /** The code of a file with comments and the insides of strings blanked to spaces (newlines kept), template ${…} kept as code. */
 function blank(src) {
@@ -142,7 +144,10 @@ function build(tree, extra) {
     /* A gate asks for the whole set BEFORE its first mention of any register. */
     { const g = p.text.search(/\bptNeed\s*\(\s*PTG_ALL\b|\bptNeedAll\s*\(|\bptLoadGates\s*\(/);
       const first = (() => { let best = -1; REG_DIRECT.forEach(([re]) => { re.lastIndex = 0; const m = re.exec(peekFree(p.text)); if (m && (best < 0 || m.index < best)) best = m.index; }); return best; })();
-      p.gate = g >= 0 && (first < 0 || g < first); }
+      p.gate = g >= 0 && (first < 0 || g < first);
+      /* A QUIET READER never loads: it asks ptHas(PTG_ALL) first and returns nothing when the registers are not all there, so what it
+       * reaches is not charged to the screen whose save woke it (the alert list's background worker, orders/order-alerts.js). */
+      if (!p.gate && QUIET_READERS.has(p.name)) { const h = p.text.search(/\bptHas\s*\(\s*PTG_ALL\s*\)/); p.gate = h >= 0 && (first < 0 || h < first); } }
     p.calls = new Set();
     const local = localNames(p.text);
     const re = /(?<![\w$.]|\.\.)([A-Za-z_$][\w$]*)/g;

@@ -209,6 +209,7 @@ async function ptPut(path, value) {
   const out = await r.json();
   auditLog('put', { [path]: value });
   ptSyncNote([path], true);
+  if (typeof oalAfterSave === 'function') oalAfterSave(path, value, 'put');
   return out;
 }
 
@@ -234,6 +235,7 @@ async function ptCas(path, expect, next) {
   if (!r.ok) throw new Error(`The production database answered ${r.status} ${r.statusText || ''}`.trim());
   auditLog('put', { [path]: next });
   ptSyncNote([path], true);
+  if (typeof oalAfterSave === 'function') oalAfterSave(path, next, 'put');
   return '';
 }
 
@@ -265,6 +267,7 @@ async function ptPatch(updates, opts) {
   const out = await r.json();
   auditLog('patch', updates || {});
   ptSyncNote(Object.keys(updates || {}), false);
+  if (typeof oalAfterSave === 'function') oalAfterSave('', updates, 'patch');
   if (baseMonths.length) await baseForget(baseMonths);
   return out;
 }
@@ -283,5 +286,6 @@ async function ptDelete(path) {
   if (!r.ok) throw new Error(`The production database answered ${r.status} ${r.statusText || ''}`.trim());
   auditLog('delete', { [path]: null });
   ptSyncNote([path], true);
+  if (typeof oalAfterSave === 'function') oalAfterSave(path, null, 'delete');
   return true;
 }

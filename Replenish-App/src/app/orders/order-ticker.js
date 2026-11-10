@@ -37,24 +37,27 @@ function otkSaveFlag(on) {
 const OTK_PLAIN = '<button type="button" class="otk-it otk-sum otk-plain" data-otkplain="1" title="Open the Order Console"><b>Pending and critical orders:</b> <span>open the Order Console</span></button>';
 const otkDays =(a, b) => { const p = s => { const q = String(s).split('-').map(Number); return Date.UTC(q[0], q[1] - 1, q[2]); }; return Math.round((p(b) - p(a)) / 864e5); };
 
-/** The strip's items: critical lines first (most late first), then the pending totals. */
+/** The strip's items: critical lines first (most late first), then the pending totals. Each open line is an entry of the
+ *  one shared rule (oalEntry, orders/order-alerts.js); the items are then worked out from the entries (otkItemsFrom). */
 function otkItems() {
   const today = dToday(), soDue = typeof SOX !== 'undefined' && SOX.rows ? ordDueIndex() : null;
-  const open = ordLines().filter(l => l.open && !(typeof shpInsertProduct === 'function' && shpInsertProduct(l.sku)));
+  return otkItemsFrom(ordLines().map(l => oalEntry(l, soDue)).filter(Boolean), today);
+}
+/** The same items from a list of entries (today's lines, or the alert list's). */
+function otkItemsFrom(entries, today) {
   const crit = [], per = new Map();
   let pcs = 0;
-  open.forEach(l => {
-    const owe = Math.max(0, (+l.qty || 0) - (+l.pressed || 0) - (+l.fromStock || 0));
-    const ch = OTK_CHANNEL[String(l.orderNo).split('-')[0]] || 'Other';
+  entries.forEach(l => {
+    const owe = Math.max(0, l.qty - l.pr - l.fs);
+    const ch = OTK_CHANNEL[l.ch] || 'Other';
     const e = per.get(ch) || per.set(ch, { lines: 0, pcs: 0 }).get(ch); e.lines++; e.pcs += owe; pcs += owe;
-    const due = (soDue && soDue.get(l.orderNo + '|' + l.sku)) || l.mtoDue || '';
-    if (!due) return;
-    const d = otkDays(due, today);   // + late, 0 today, -1 tomorrow
+    if (!l.due) return;
+    const d = otkDays(l.due, today);   // + late, 0 today, -1 tomorrow
     if (d < -1) return;
-    crit.push({ no: l.orderNo, d, what: [l.articleSubtype || l.itemName || l.articleType, l.color].filter(Boolean).join(' · ') || l.sku, qty: l.qty });
+    crit.push({ no: l.no, d, what: l.what, qty: l.qty });
   });
   crit.sort((a, b) => b.d - a.d || a.no.localeCompare(b.no));
-  const out = [{ kind: 'sum', txt: `Pending: ${nf(open.length)} lines · ${nf(pcs)} pcs`, sub: [...per.entries()].sort((a, b) => b[1].lines - a[1].lines).map(([k, v]) => `${k} ${nf(v.lines)}`).join(' · ') }];
+  const out = [{ kind: 'sum', txt: `Pending: ${nf(entries.length)} lines · ${nf(pcs)} pcs`, sub: [...per.entries()].sort((a, b) => b[1].lines - a[1].lines).map(([k, v]) => `${k} ${nf(v.lines)}`).join(' · ') }];
   const late = crit.filter(c => c.d > 0).length;
   if (crit.length) out.push({ kind: 'sum', txt: `Critical: ${nf(late)} late · ${nf(crit.length - late)} due today / tomorrow` });
   crit.slice(0, 40).forEach(c => out.push({ kind: c.d > 0 ? 'late' : 'due', no: c.no,

@@ -9,6 +9,8 @@ const rd = f => fs.readFileSync(f, 'utf8').replace(/\r\n/g, '\n');
 const APP = path.join(__dirname, '..', 'src', 'app');
 const SRC = rd(process.env.TK_SRC || path.join(APP, 'orders', 'order-ticker.js'));
 const AUTH = rd(path.join(APP, 'core', 'auth.js'));
+/* The strip's lines are worked out by the shared rule (oalEntry) in orders/order-alerts.js, joined to the same page. */
+const RULE = rd(path.join(APP, 'orders', 'order-alerts.js'));
 
 let pass = 0, fail = 0;
 const ok = (n, c, d) => { if (c) { pass++; console.log('  PASS ' + n); } else { fail++; console.log('  FAIL ' + n + (d ? ' — ' + d : '')); } };
@@ -37,7 +39,7 @@ function page(o) {
     setTimeout: () => 0, setInterval: () => 0, Event: function () {},
   };
   vm.createContext(ctx);
-  vm.runInContext(SRC + '\n;this.__t = { otkTick, otkRender, otkPlainOn, otkSaveFlag, OTK };', ctx);
+  vm.runInContext(SRC + '\n' + RULE + '\n;this.__t = { otkTick, otkRender, otkPlainOn, otkSaveFlag, OTK };', ctx);
   return {
     t: ctx.__t, box, cls, loads, tabs, LS, PTG,
     click: attr => onClick && onClick({ target: { closest: sel => (sel === '[' + attr + ']' ? { dataset: { otkno: 'AMZ-1' } } : null) } }),
