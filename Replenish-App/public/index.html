@@ -74332,6 +74332,63 @@ async function accessShadow(user, permsDoc, firebaseMs) {
   ashCall('shadow_report', token, { p_section: ASH_USED === 'supabase' ? 'access · from Supabase' : 'access', p_matched: matched, p_firebase_ms: firebaseMs, p_supabase_ms: supabaseMs,
     p_missing: missing, p_extra: extra, p_build: (window.__TEST_ERP && window.__TEST_ERP.sha) || 'local' }).catch(e => console.warn('[shadow] report not saved:', e.message));
   console.info('[shadow] access', matched ? 'same' : 'DIFFERS', { firebaseMs, supabaseMs, missing, extra });
+  controlShadow(token);   // section 2: the waiting-request counts
+}
+
+/* ================= CONTROL · SHADOW TEST (Ravi, 10 Nov) =================
+ * The waiting requests of every kind, counted in Firebase (the registers the badges read) and in Supabase (core.waiting_counts,
+ * counts only), side by side on a second line. Supabase's copy is from a backup day (shown), so a difference can simply mean
+ * "requests raised since that day" — the line says which day. Never throws; nothing changes in either database. */
+const ASH_CONTROL = [
+  ['jw_correction', 'job-work', 'pt_jwCorrReqs', x => x.status === 'pending'],
+  ['fgi_correction', 'FG', 'pt_fgiCorrReqs', x => x.status === 'pending'],
+  ['order_delete', 'order deletes', 'pt_obDeleteReqs', x => x.status === 'pending'],
+  ['vendor_order_request', 'vendor-order', 'pt_vendorOrderReqs', x => x.status === 'pending'],
+  ['rfd_decision', 'RFD', 'pt_rfdDecisions', x => x.stage === 'pending'],
+  ['rate', 'rates', 'pt_printerRates', x => !x.status],
+];
+async function controlShadow(token) {
+  try {
+    const t0 = performance.now();
+    const fb = {};
+    await Promise.all(ASH_CONTROL.map(async ([kind, , reg, isWaiting]) => {
+      try { fb[kind] = ptList(await ptGet(reg)).filter(x => x && typeof x === 'object' && isWaiting(x)).length; }
+      catch (e) { fb[kind] = null; }   // this login may not read that register in Firebase
+    }));
+    const firebaseMs = Math.round(performance.now() - t0);
+    const t1 = performance.now();
+    const rows = await ashCall('waiting_counts', token);
+    const supabaseMs = Math.round(performance.now() - t1);
+    const sb = Object.fromEntries(rows.map(r => [r.kind, r.waiting]));
+    const copyOf = (rows[0] && rows[0].copy_of) || '';
+    const parts = [], diffs = [];
+    ASH_CONTROL.forEach(([kind, label]) => {
+      if (fb[kind] == null) { parts.push(label + ' –'); return; }
+      parts.push(label + ' ' + fb[kind] + (fb[kind] !== sb[kind] ? '/' + sb[kind] : ''));
+      if (fb[kind] !== sb[kind]) diffs.push(`${kind}: Firebase ${fb[kind]} · Supabase ${sb[kind]}`);
+    });
+    const matched = !diffs.length;
+    ashShowControl({ matched, parts, diffs, firebaseMs, supabaseMs, copyOf });
+    ashCall('shadow_report', token, { p_section: 'control · waiting', p_matched: matched, p_firebase_ms: firebaseMs, p_supabase_ms: supabaseMs,
+      p_missing: diffs, p_extra: [], p_build: (window.__TEST_ERP && window.__TEST_ERP.sha) || 'local' }).catch(() => {});
+  } catch (e) { ashShowControl({ error: e.message }); }
+}
+function ashShowControl(r) {
+  let el = document.getElementById('ashControl');
+  if (!el) {
+    el = document.createElement('button'); el.id = 'ashControl'; el.type = 'button';
+    el.style.cssText = 'position:fixed;left:calc(12px + env(safe-area-inset-left,0px));bottom:calc(100px + env(safe-area-inset-bottom,0px));z-index:10000;'
+      + 'font:12px/1.3 system-ui,sans-serif;padding:7px 11px;border-radius:999px;border:1px solid rgba(0,0,0,.15);cursor:pointer;max-width:calc(100vw - 24px);text-align:left;color:#1b1b1b';
+    document.body.appendChild(el);
+    el.onclick = () => { el.dataset.open = el.dataset.open ? '' : '1'; ashShowControl(el._r); };
+  }
+  el._r = r;
+  if (r.error) { el.style.background = '#fff4d6'; el.textContent = '! Waiting requests · Supabase not reached'; return; }
+  el.style.background = r.matched ? '#e3f4ea' : '#fde4e1';
+  let t = 'Waiting · ' + r.parts.join(' · ') + ' · ' + (r.matched ? '✓ same as Firebase' : '✗ differs (Supabase copy from ' + (r.copyOf || '?') + ')')
+    + ' · Firebase ' + r.firebaseMs + ' ms · Supabase ' + r.supabaseMs + ' ms';
+  if (el.dataset.open && r.diffs.length) t += '\n' + r.diffs.join('\n') + '\nA difference here usually means requests raised or answered after the copy was made.';
+  el.textContent = t; el.style.whiteSpace = 'pre-line';
 }
 
 /* ================= CHECK EVERYONE (Ravi, 10 Nov) =================
