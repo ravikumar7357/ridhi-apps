@@ -1872,7 +1872,7 @@ function rdPoHtml(po) {
       }).join(' &nbsp;|&nbsp; ') + '</div>'
     : '<div class="sub" style="margin-top:8px">Nothing received against this PO yet.</div>';
   return '<div class="pohead"><div class="pohead-top"><div><div class="b" style="font-size:15px">' + esc(po.poNo) + '</div>'
-    + '<div class="sub">' + esc(fmtD(po.date)) + ' · due ' + esc(fmtD(gpoDueOf(po))) +  + '</div></div>'
+    + '<div class="sub">' + esc(fmtD(po.date)) + ' · due ' + esc(fmtD(gpoDueOf(po))) + '</div></div>'
     + '<div style="text-align:right"><div class="sub">Supplier</div><div class="b">' + esc(po.mill) + '</div></div></div>'
     + '<div class="scroll">' + lines + '</div>' + earlier + '</div>';
 }

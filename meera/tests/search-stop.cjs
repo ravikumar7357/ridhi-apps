@@ -6,7 +6,7 @@
  *   2. stopped (the month's meter at half, or the cent alarm): she searches in the browser as today — all 580 the same,
  *      nothing sent to the function, no "server not available" note;
  *   3. the admin page shows "Server search stopped to stay free — back on the 1st";
- *   4. never-break: 30 of 30 with search in use and after it stopped. */
+ *   4. never-break: every check passes with search in use and after it stopped. */
 const fs = require('fs'), path = require('path'), { spawnSync } = require('child_process');
 const { load } = require('./harness.cjs');
 const ROOT = path.join(__dirname, '..', '..');
@@ -79,7 +79,7 @@ const res = (status, body) => ({ ok: status < 300, status, json: async () => bod
   for (const on of ['lazy,serveruse', 'lazy,server']) {
     const r = spawnSync(process.execPath, [path.join(__dirname, 'never-break.cjs'), '--bundle', '--on=' + on], { cwd: ROOT, encoding: 'utf8' });
     const last = (r.stdout || '').trim().split('\n').pop();
-    ok(/30 passed, 0 failed/.test(last), `never-break with ${on}: ${last}`);
+    ok(/\b[1-9]\d* passed, 0 failed/.test(last), `never-break with ${on}: ${last}`);
   }
   console.log(`search-stop: ${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);

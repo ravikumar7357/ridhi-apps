@@ -3149,7 +3149,7 @@ html.mob #gdNudge{right:14px;left:14px;max-width:none;bottom:144px}
     <div id="panePa" class="hide">
       <div class="card" style="padding:12px 14px">
         <div class="toolbar">
-          <select id="paWk" style="flex:0 0 240px" title="Sunday to Saturday"></select>
+          <select id="paWk" style="flex:0 0 240px" title="Monday to Sunday"></select>
           <span class="muted" style="font-size:12.5px;flex:0 0 auto">Weekly target</span>
           <input id="paTarget" type="number" min="1" step="500" style="flex:0 0 120px" title="Kept in this browser">
           <select id="paBasis" style="flex:0 0 250px" title="Which weeks the pieces-per-karigar-per-day average is taken from">
@@ -21596,6 +21596,11 @@ $('qcExport').onclick = () => {
       .concat(I.map(x2 => [new Date(x2.last).toLocaleString('en-GB'), x2.r.empName, x2.r.sku, [x2.r.articleSubtype, x2.r.color, x2.r.size].filter(Boolean).join(' · '), x2.r.orderNo, x2.since, x2.accepted, x2.wait].map(csvCell).join(','))));
   }
   const rows = QC.rows || []; if (!rows.length) return;
+  /* Pieces back from alteration have their own columns: what came back, what was mended, what is still wrong. */
+  if (v === 'ret') {
+    return ptDownload('qc-back-from-alteration', [['Date', 'SKU', 'Article', 'Subtype', 'Color', 'Size', 'Back', 'Mended', 'Still wrong', 'From', 'Received by', 'Remarks'].map(csvCell).join(',')]
+      .concat(rows.map(r => [r.date, r.sku, r.articleType, r.subtype, r.color, r.size, ptNum(r.received), ptNum(r.reworkedOk), ptNum(r.stillRejected), r.employee, r.receivedBy, r.remarks].map(csvCell).join(','))));
+  }
   const checks = qcView() === 'checks';
   const head = checks
     ? ['Date', 'SKU', 'Article', 'Subtype', 'Color', 'Size', 'Checked', 'OK', 'For alteration', 'Rejected', 'Checked by', 'Remarks']
@@ -37314,7 +37319,7 @@ function rdPoHtml(po) {
       }).join(' &nbsp;|&nbsp; ') + '</div>'
     : '<div class="sub" style="margin-top:8px">Nothing received against this PO yet.</div>';
   return '<div class="pohead"><div class="pohead-top"><div><div class="b" style="font-size:15px">' + esc(po.poNo) + '</div>'
-    + '<div class="sub">' + esc(fmtD(po.date)) + ' · due ' + esc(fmtD(gpoDueOf(po))) +  + '</div></div>'
+    + '<div class="sub">' + esc(fmtD(po.date)) + ' · due ' + esc(fmtD(gpoDueOf(po))) + '</div></div>'
     + '<div style="text-align:right"><div class="sub">Supplier</div><div class="b">' + esc(po.mill) + '</div></div></div>'
     + '<div class="scroll">' + lines + '</div>' + earlier + '</div>';
 }
@@ -41010,15 +41015,15 @@ function prTemplate() {
   /* One example of each shape the list holds: printing by the metre, plain piecework, and filling —
    * which is the one that needs the filler and the weight to tell two rates apart. */
   ptDownload('vendor-rate-template', [PR_COLS.join(','),
-    'RBP-Bagru,Block print,Voil 92,Vertical,,,,,,14',   // a fabric means metres
-    'Choudhary Hand Block,Block print,,,Tablecloth,Square Tablecloth,60X60,,,22',
-    'Alisha Garmnets,Filling,,,Quilt,Twin Quilt,60x90,Surgical Cotton,1,550',
-    'Alisha Garmnets,Filling,,,Quilt,Twin Quilt,60x90,Cotton,1,450',
-    'Yakum Ansari,Filling,,,Seat Pad,Seat Pad,16x16,Recron,0.65,80',
+    'RBP-Bagru,Block print,Voil 92,Vertical,,,,,,,14',   // a fabric means metres
+    'Choudhary Hand Block,Block print,,,Tablecloth,Square Tablecloth,60X60,,,,22',
+    'Alisha Garmnets,Filling,,,Quilt,Twin Quilt,60x90,,Surgical Cotton,1,550',
+    'Alisha Garmnets,Filling,,,Quilt,Twin Quilt,60x90,,Cotton,1,450',
+    'Yakum Ansari,Filling,,,Seat Pad,Seat Pad,16x16,,Recron,0.65,80',
     /* A fabricator is TWO rates, not one — cutting and stitching are separate jobs at separate
      * prices, so the template shows them as separate rows rather than one "Fabricator". */
-    'Jatin Singh,Cutting,,,Napkin,Border Napkin,20x20,,,3',
-    'Jatin Singh,Stitching,,,Napkin,Border Napkin,20x20,,,6']);
+    'Jatin Singh,Cutting,,,Napkin,Border Napkin,20x20,,,,3',
+    'Jatin Singh,Stitching,,,Napkin,Border Napkin,20x20,,,,6']);
 }
 
 /** Rows out of a file, in the shape prCheck and prRec already understand. */
@@ -41633,7 +41638,7 @@ $('hrExport').onclick = () => {
     const out = [PR_COLS.join(',')];
     (HR.rows || []).forEach(({ r }) => out.push([voName(r.vendor), r.service || 'Block print',
       r.fabric || '', r.print || '', r.articleType || '', r.subtype || '', r.size || '',
-      r.filler || '', r.weight || '', r.rate, r.notes || ''].map(csvCell).join(',')));
+      r.colours || '', r.filler || '', r.weight || '', r.rate, r.notes || ''].map(csvCell).join(',')));
     return ptDownload('vendor-rate-list', out);
   } else if (view === 'rate') {
     head = ['Article type', 'Subtype', 'Size', 'Applicable for', 'Rate', 'Commission'];
@@ -78397,7 +78402,7 @@ try { window.ERP_MEERA = ERP_MEERA; } catch (e) { /* no window: the page itself 
  * data a screen has not read yet is "not loaded" (she asks the person to open that screen), never fetched — the quota
  * fix stands. Each answer says which screen it comes from and when that screen last read it. A screen the account
  * cannot open answers "not allowed", with no data. open() is called only from a button the person presses. */
-const MEERA_DATA_SCREENS = { ord: 'Order Console', pbase: 'Job Work Register', fgi: 'Finished Goods', qc: 'Quality Control', pmdb: 'Master Database', shop: 'Shopify Orders' };
+const MEERA_DATA_SCREENS = { ord: 'Order Console', pbase: 'Job Work Register', fgi: 'Finished Goods', qc: 'Quality Control', pmdb: 'Master Database', shop: 'Shopify Orders', vord: 'Vendor Orders' };
 const mdMay = tab => (typeof mobMay === 'function' ? !!mobMay(tab) : true);
 const mdNum = v => Number(v) || 0;
 const mdLeft = r => mdNum(r.issuePieces) - mdNum(r.receivedPieces) - mdNum(r.rejectionPieces);
@@ -78539,6 +78544,50 @@ ERP_MEERA.data = {
       .map(r => ({ sku: String(r.sku).toUpperCase(), size: r.size || '', color: r.color || '' })).slice(0, 40);
     return { from, family: key, skus };
   }, { from: { tab: 'pmdb', notLoaded: true }, skus: [] }),
+  /** EVERY SKU's OWN WORDS IN THE MASTER DATABASE (Ravi, 7 Nov: "the sku of table cloth that comes under Appetite Green"):
+   * article, type, colour, brand, size and fabric — what she finds SKUs by. Never the cost value or the maker. A SKU
+   * merged into another is left out: it is not made any more. */
+  skuList: () => meeraSafe(() => {
+    const from = mdFrom('pmdb', typeof PTG !== 'undefined' && Array.isArray(PTG.mdb), typeof PTG !== 'undefined' ? mdTime(PTG.at) : '');
+    if (from.denied || from.notLoaded) return { from, rows: [] };
+    const t = v => String(v == null ? '' : v).trim();
+    const rows = (PTG.mdb || []).filter(r => r && r.sku && !t(r.mergedInto))
+      .map(r => ({ sku: String(r.sku).toUpperCase(), articleType: t(r.articleType), subtype: t(r.subtype), color: t(r.color), brand: t(r.brand), size: t(r.size), fabric: t(r.fabric) }));
+    return { from, rows };
+  }, { from: { tab: 'pmdb', notLoaded: true }, rows: [] }),
+  /** THE VENDORS' NAMES (printers, fabricators, filling houses): the vendor master, and any code on a vendor order the master no
+   * longer has — for finding the one meant ("chaudhry handbooks ke paas apna kitna maal hai", Ravi 7 Nov) */
+  vendors: () => meeraSafe(() => {
+    const seen = new Map();
+    const add = (code, name) => { const c = String(code || '').trim(), n = String(name || '').trim(); if (c && n && !seen.has(c)) seen.set(c, n); };
+    if (typeof voAllVendors === 'function') voAllVendors().forEach(v => add(v.code, v.desc || v.name));
+    if (typeof VO !== 'undefined' && Array.isArray(VO.rows) && typeof voName === 'function') VO.rows.forEach(o => o && add(o.vendorCode, voName(o.vendorCode)));
+    return [...seen].map(([code, name]) => ({ code, name }));
+  }, []),
+  /** WHAT ONE VENDOR HOLDS OF OURS, from Vendor Orders: on every open line, what was given less what came back (voDueOf withV —
+   * the Vendor Orders screen's own figure), pieces and metres apart. A cancelled line, or an order Cancelled or Received, holds
+   * nothing. A line with nothing given yet is counted apart: that cloth is still ours to send. */
+  vendorHolding: code => meeraSafe(() => {
+    const from = mdFrom('vord', typeof VO !== 'undefined' && Array.isArray(VO.rows), typeof VO !== 'undefined' ? VO.at : '');
+    if (from.denied || from.notLoaded) return { from };
+    const C = String(code || ''), lines = [];
+    let pcs = 0, m = 0, toSend = 0;
+    VO.rows.forEach(o => {
+      if (!o || String(o.vendorCode) !== C || o.status === 'Cancelled' || o.status === 'Received') return;
+      voLines(o).forEach(l => {
+        if (!l || l.cancelled) return;
+        const x = voDueOf(o, l);
+        if (!x) return;
+        if (!(x.withV > 0.001)) { toSend += x.left; return; }
+        if (x.unit === 'm') m += x.withV; else pcs += x.withV;
+        lines.push({ vpo: String(o.orderNo || o.id || ''), what: String(l.sku || [l.fabricType || l.fabric, l.color].filter(Boolean).join(' ') || ''),
+          qty: Math.round(x.withV * 100) / 100, unit: x.unit, due: x.due || '', late: x.st === 'late' });
+      });
+    });
+    lines.sort((a, b) => (b.late - a.late) || String(a.due || '9').localeCompare(String(b.due || '9')));
+    return { from, code: C, name: typeof voName === 'function' ? voName(C) : C, pcs: Math.round(pcs * 100) / 100, m: Math.round(m * 100) / 100,
+      toSend: Math.round(toSend * 100) / 100, lines };
+  }, { from: { tab: 'vord', notLoaded: true } }),
   /** Amazon FBA units of a SKU, as Shopify Orders last read them (both accounts, the larger) */
   skuFba: sku => meeraSafe(() => {
     const from = mdFrom('shop', typeof SHOP_STOCK_LOADED !== 'undefined' && SHOP_STOCK_LOADED, typeof SHOP !== 'undefined' ? SHOP.at : '');
@@ -83287,7 +83336,7 @@ function gaRowFind(q) {
   if (!words.length) return null;
   const own = (w) => /\d/.test(w) || !B || (B.df.get(gaMean(w)) || 0) <= 3;
   if (!words.some(own)) return null;
-  const rows = [...root.querySelectorAll("tbody tr, .ml-row")].filter((x) => x.offsetParent !== null).slice(0, 4e3);
+  const rows = [...root.querySelectorAll("tbody tr, .ml-row")].filter((x) => x.offsetParent !== null && !x.querySelector("table, tr, .ml-row")).slice(0, 4e3);
   let best = null, bs = 0, bown = 0, ties = [];
   for (const row of rows) {
     const t = " " + (row.textContent || "").toLowerCase().replace(/[^\p{L}\p{M}\p{N}]+/gu, " ") + " ";
@@ -83308,7 +83357,7 @@ function gaRowFind(q) {
   return best;
 }
 function gaRowAnswer(row, lang, L) {
-  const name = esc(gaTabName(gaHere()));
+  const name = esc(GA_TAB_TITLE[gaHere()] || gaTabName(gaHere()));
   const ties = row.gaTies || [row];
   if (ties.length > 1) {
     const first = (x) => ((x.tagName === "TR" ? x.children[0] : x) || x).textContent.replace(/\s+/g, " ").trim().slice(0, 60);
@@ -84020,8 +84069,9 @@ async function gaAsk(q) {
     return;
   }
   const rest = gaRead(q).means.filter((m) => !["what", "screen", "show", "help", "about", "how", "job", "why"].includes(m) && !/^(page|pej|पेज|about|samjha|samjhao|batao|bataiye|tell|explain|kaam|kam|work|purpose|use|kis|liye|lie|for|iss|isse|इस|काम|किस|लिए)$/.test(m));
-  const here = !rest.length && /\b(this|is|iss|es|yeh|ye|yah)\s+(screen|page|pej)\b|(यह|इस) (स्क्रीन|पेज)|ye screen|is screen/i.test(q) && gaHere();
-  const r = here && /what|kya|क्या|about|samjha|batao|kaam|liye|purpose|why|काम|लिए/i.test(q) ? gaScreenAnswer(here, gaRead(q).lang, (en, hi, hg) => {
+  const onIt = /\b(jis|jo|jispe|jisme|jahan|jaha)\b[^?.!]{0,14}\b(screen|page|pej)\b|\b(screen|page|pej)\s+(jispe|jisme|jis pe|jis par|jahan|jaha)\b|\b(screen|page) (i am|i'm|im) (on|in)\b|\bcurrent (screen|page)\b|जिस (स्क्रीन|पेज)/i.test(q);
+  const here = (onIt || !rest.length && /\b(this|is|iss|es|yeh|ye|yah)\s+(screen|page|pej)\b|(यह|इस) (स्क्रीन|पेज)|ye screen|is screen/i.test(q)) && gaHere();
+  const r = here && /what|kya|क्या|about|samjha|batao|kaam|liye|purpose|why|baat|काम|लिए|बात/i.test(q) ? gaScreenAnswer(here, gaRead(q).lang, (en, hi, hg) => {
     const l = gaRead(q).lang;
     return l === "hi" ? hi : l === "hg" ? hg || en : en;
   }) : await gaAnswer(q);
@@ -84639,6 +84689,9 @@ async function gaAiCall(path, body, method = "POST") {
 }
 const gaMd = (s) => esc(String(s || "")).replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>");
 const gaLL = (lang) => (en, hi, hg) => lang === "hi" ? hi : lang === "hg" ? hg : en;
+function gaAiSteps(steps) {
+  return (Array.isArray(steps) ? steps : []).map((s) => String(s && typeof s === "object" ? s.text || s.step || s.en || "" : s == null ? "" : s).trim()).filter(Boolean);
+}
 async function gaAiAsk(q, own) {
   const { lang, means, words } = gaRead(q), L = gaLL(lang);
   await gaBankLoad();
@@ -84656,7 +84709,7 @@ async function gaAiAsk(q, own) {
   const b = r.body || {};
   if (r.status === 200 && b.answer) {
     const a = b.answer;
-    const html = `<div class="ga-a">${gaMd(a.a)}</div>` + (a.why ? `<div class="ga-why"><b>${L("Why", "\u0915\u094D\u092F\u094B\u0902", "Kyun")}</b>${gaMd(a.why)}</div>` : "") + (a.steps && a.steps.length ? `<div class="ga-do"><b>${L("What to do", "\u0915\u094D\u092F\u093E \u0915\u0930\u0947\u0902", "Kya karein")}</b><ol>${a.steps.map((s) => `<li>${gaMd(s)}</li>`).join("")}</ol></div>` : "") + `<div class="ga-note">${b.source === "saved" ? L("Answer checked by an admin.", "\u090F\u0921\u092E\u093F\u0928 \u0915\u093E \u091C\u093E\u0901\u091A\u093E \u0939\u0941\u0906 \u091C\u0935\u093E\u092C\u0964", "Admin ka jaancha hua jawaab.") : L("Written by AI from Meera's notes \u2014 not yet checked by an admin.", "\u092E\u0940\u0930\u093E \u0915\u0947 \u0928\u094B\u091F\u094D\u0938 \u0938\u0947 AI \u0915\u093E \u0932\u093F\u0916\u093E \u2014 \u090F\u0921\u092E\u093F\u0928 \u0928\u0947 \u0905\u092D\u0940 \u091C\u093E\u0901\u091A\u093E \u0928\u0939\u0940\u0902\u0964", "Meera ke notes se AI ka likha \u2014 admin ne abhi jaancha nahi.")}</div>`;
+    const html = `<div class="ga-a">${gaMd(a.a)}</div>` + (a.why ? `<div class="ga-why"><b>${L("Why", "\u0915\u094D\u092F\u094B\u0902", "Kyun")}</b>${gaMd(a.why)}</div>` : "") + (gaAiSteps(a.steps).length ? `<div class="ga-do"><b>${L("What to do", "\u0915\u094D\u092F\u093E \u0915\u0930\u0947\u0902", "Kya karein")}</b><ol>${gaAiSteps(a.steps).map((s) => `<li>${gaMd(s)}</li>`).join("")}</ol></div>` : "") + `<div class="ga-note">${b.source === "saved" ? L("Answer checked by an admin.", "\u090F\u0921\u092E\u093F\u0928 \u0915\u093E \u091C\u093E\u0901\u091A\u093E \u0939\u0941\u0906 \u091C\u0935\u093E\u092C\u0964", "Admin ka jaancha hua jawaab.") : L("Written by AI from Meera's notes \u2014 not yet checked by an admin.", "\u092E\u0940\u0930\u093E \u0915\u0947 \u0928\u094B\u091F\u094D\u0938 \u0938\u0947 AI \u0915\u093E \u0932\u093F\u0916\u093E \u2014 \u090F\u0921\u092E\u093F\u0928 \u0928\u0947 \u0905\u092D\u0940 \u091C\u093E\u0901\u091A\u093E \u0928\u0939\u0940\u0902\u0964", "Meera ke notes se AI ka likha \u2014 admin ne abhi jaancha nahi.")}</div>`;
     const fb = `<div class="ga-fb"><span>${L("Did this help?", "\u0915\u094D\u092F\u093E \u0907\u0938\u0938\u0947 \u092E\u0926\u0926 \u092E\u093F\u0932\u0940?", "Kya isse madad mili?")}</span><button type="button" class="ga-fbb" data-ga="aifb" data-id="up:${+b.answerId || 0}" aria-label="Yes">\u{1F44D}</button><button type="button" class="ga-fbb" data-ga="aifb" data-id="down:${+b.answerId || 0}" aria-label="No">\u{1F44E}</button></div>`;
     gaSay(html, [], fb, b.source === "saved" ? "checked" : "ai");
     return;
@@ -84706,7 +84759,7 @@ async function gaAiLearned(list) {
         q: { en: [x.question], hi: [x.question], hg: [x.question] },
         a: one(gaMd(a.a)),
         why: a.why ? one(gaMd(a.why)) : void 0,
-        steps: a.steps && a.steps.length ? one(a.steps.map(gaMd)) : void 0
+        steps: gaAiSteps(a.steps).length ? one(gaAiSteps(a.steps).map(gaMd)) : void 0
       };
     }));
   } catch (e) {

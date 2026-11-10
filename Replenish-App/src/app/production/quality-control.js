@@ -1011,6 +1011,11 @@ $('qcExport').onclick = () => {
       .concat(I.map(x2 => [new Date(x2.last).toLocaleString('en-GB'), x2.r.empName, x2.r.sku, [x2.r.articleSubtype, x2.r.color, x2.r.size].filter(Boolean).join(' · '), x2.r.orderNo, x2.since, x2.accepted, x2.wait].map(csvCell).join(','))));
   }
   const rows = QC.rows || []; if (!rows.length) return;
+  /* Pieces back from alteration have their own columns: what came back, what was mended, what is still wrong. */
+  if (v === 'ret') {
+    return ptDownload('qc-back-from-alteration', [['Date', 'SKU', 'Article', 'Subtype', 'Color', 'Size', 'Back', 'Mended', 'Still wrong', 'From', 'Received by', 'Remarks'].map(csvCell).join(',')]
+      .concat(rows.map(r => [r.date, r.sku, r.articleType, r.subtype, r.color, r.size, ptNum(r.received), ptNum(r.reworkedOk), ptNum(r.stillRejected), r.employee, r.receivedBy, r.remarks].map(csvCell).join(','))));
+  }
   const checks = qcView() === 'checks';
   const head = checks
     ? ['Date', 'SKU', 'Article', 'Subtype', 'Color', 'Size', 'Checked', 'OK', 'For alteration', 'Rejected', 'Checked by', 'Remarks']

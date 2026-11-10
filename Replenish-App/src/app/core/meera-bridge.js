@@ -59,7 +59,7 @@ try { window.ERP_MEERA = ERP_MEERA; } catch (e) { /* no window: the page itself 
  * data a screen has not read yet is "not loaded" (she asks the person to open that screen), never fetched — the quota
  * fix stands. Each answer says which screen it comes from and when that screen last read it. A screen the account
  * cannot open answers "not allowed", with no data. open() is called only from a button the person presses. */
-const MEERA_DATA_SCREENS = { ord: 'Order Console', pbase: 'Job Work Register', fgi: 'Finished Goods', qc: 'Quality Control', pmdb: 'Master Database', shop: 'Shopify Orders' };
+const MEERA_DATA_SCREENS = { ord: 'Order Console', pbase: 'Job Work Register', fgi: 'Finished Goods', qc: 'Quality Control', pmdb: 'Master Database', shop: 'Shopify Orders', vord: 'Vendor Orders' };
 const mdMay = tab => (typeof mobMay === 'function' ? !!mobMay(tab) : true);
 const mdNum = v => Number(v) || 0;
 const mdLeft = r => mdNum(r.issuePieces) - mdNum(r.receivedPieces) - mdNum(r.rejectionPieces);
@@ -201,6 +201,50 @@ ERP_MEERA.data = {
       .map(r => ({ sku: String(r.sku).toUpperCase(), size: r.size || '', color: r.color || '' })).slice(0, 40);
     return { from, family: key, skus };
   }, { from: { tab: 'pmdb', notLoaded: true }, skus: [] }),
+  /** EVERY SKU's OWN WORDS IN THE MASTER DATABASE (Ravi, 7 Nov: "the sku of table cloth that comes under Appetite Green"):
+   * article, type, colour, brand, size and fabric — what she finds SKUs by. Never the cost value or the maker. A SKU
+   * merged into another is left out: it is not made any more. */
+  skuList: () => meeraSafe(() => {
+    const from = mdFrom('pmdb', typeof PTG !== 'undefined' && Array.isArray(PTG.mdb), typeof PTG !== 'undefined' ? mdTime(PTG.at) : '');
+    if (from.denied || from.notLoaded) return { from, rows: [] };
+    const t = v => String(v == null ? '' : v).trim();
+    const rows = (PTG.mdb || []).filter(r => r && r.sku && !t(r.mergedInto))
+      .map(r => ({ sku: String(r.sku).toUpperCase(), articleType: t(r.articleType), subtype: t(r.subtype), color: t(r.color), brand: t(r.brand), size: t(r.size), fabric: t(r.fabric) }));
+    return { from, rows };
+  }, { from: { tab: 'pmdb', notLoaded: true }, rows: [] }),
+  /** THE VENDORS' NAMES (printers, fabricators, filling houses): the vendor master, and any code on a vendor order the master no
+   * longer has — for finding the one meant ("chaudhry handbooks ke paas apna kitna maal hai", Ravi 7 Nov) */
+  vendors: () => meeraSafe(() => {
+    const seen = new Map();
+    const add = (code, name) => { const c = String(code || '').trim(), n = String(name || '').trim(); if (c && n && !seen.has(c)) seen.set(c, n); };
+    if (typeof voAllVendors === 'function') voAllVendors().forEach(v => add(v.code, v.desc || v.name));
+    if (typeof VO !== 'undefined' && Array.isArray(VO.rows) && typeof voName === 'function') VO.rows.forEach(o => o && add(o.vendorCode, voName(o.vendorCode)));
+    return [...seen].map(([code, name]) => ({ code, name }));
+  }, []),
+  /** WHAT ONE VENDOR HOLDS OF OURS, from Vendor Orders: on every open line, what was given less what came back (voDueOf withV —
+   * the Vendor Orders screen's own figure), pieces and metres apart. A cancelled line, or an order Cancelled or Received, holds
+   * nothing. A line with nothing given yet is counted apart: that cloth is still ours to send. */
+  vendorHolding: code => meeraSafe(() => {
+    const from = mdFrom('vord', typeof VO !== 'undefined' && Array.isArray(VO.rows), typeof VO !== 'undefined' ? VO.at : '');
+    if (from.denied || from.notLoaded) return { from };
+    const C = String(code || ''), lines = [];
+    let pcs = 0, m = 0, toSend = 0;
+    VO.rows.forEach(o => {
+      if (!o || String(o.vendorCode) !== C || o.status === 'Cancelled' || o.status === 'Received') return;
+      voLines(o).forEach(l => {
+        if (!l || l.cancelled) return;
+        const x = voDueOf(o, l);
+        if (!x) return;
+        if (!(x.withV > 0.001)) { toSend += x.left; return; }
+        if (x.unit === 'm') m += x.withV; else pcs += x.withV;
+        lines.push({ vpo: String(o.orderNo || o.id || ''), what: String(l.sku || [l.fabricType || l.fabric, l.color].filter(Boolean).join(' ') || ''),
+          qty: Math.round(x.withV * 100) / 100, unit: x.unit, due: x.due || '', late: x.st === 'late' });
+      });
+    });
+    lines.sort((a, b) => (b.late - a.late) || String(a.due || '9').localeCompare(String(b.due || '9')));
+    return { from, code: C, name: typeof voName === 'function' ? voName(C) : C, pcs: Math.round(pcs * 100) / 100, m: Math.round(m * 100) / 100,
+      toSend: Math.round(toSend * 100) / 100, lines };
+  }, { from: { tab: 'vord', notLoaded: true } }),
   /** Amazon FBA units of a SKU, as Shopify Orders last read them (both accounts, the larger) */
   skuFba: sku => meeraSafe(() => {
     const from = mdFrom('shop', typeof SHOP_STOCK_LOADED !== 'undefined' && SHOP_STOCK_LOADED, typeof SHOP !== 'undefined' ? SHOP.at : '');
