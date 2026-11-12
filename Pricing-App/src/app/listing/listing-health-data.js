@@ -98,19 +98,19 @@ async function ensureHealth() {
   /* The catalogue is slow to read the first time; the table draws without it and again once it lands. */
   if (!LR_CAT.SP || !LR_CAT.CPC) lrLoadCatalog().then(() => {
     H_CTX = null;
-    if (!$('paneHealth').classList.contains('hide')) renderHealth();
+    if (!$('paneHealth').classList.contains('hide')) hRedraw();
   });
   /* Amazon's own status and errors, from the Image Manager snapshot. Loaded beside the catalog so the
    * two Amazon rules can run; until it arrives they find nothing rather than guessing. */
   if (!AMZ.map) amzEnsure().then(() => {
-    if (!$('paneHealth').classList.contains('hide')) renderHealth();
+    if (!$('paneHealth').classList.contains('hide')) hRedraw();
   });
   /* The Image Manager snapshot too (the pictures on the rows, and the pictures the rules judge when it is the freshest source);
    * the table draws without it and again once it lands. */
   if (typeof IML !== 'undefined' && typeof imListLoad === 'function') ['SP', 'CPC'].forEach(brand => {
     if (brand in IML) return;
     imListLoad(brand).then(() => {
-      if (!$('paneHealth').classList.contains('hide')) renderHealth();
+      if (!$('paneHealth').classList.contains('hide')) hRedraw();
     });
   });
   if (H_LOADED) return renderHealth();
@@ -154,8 +154,52 @@ function hStick() {
     bar.classList.toggle('ls-stuck', Math.round(bar.getBoundingClientRect().top) <= top + 1 && window.scrollY > 0);
   } catch (e) { /* no layout to measure (a test page) */ }
 }
+/* DATA LANDING NEVER MOVES THE TABLE (12 Nov 2026): a redraw because data arrived (the catalogue, Amazon's status, the Image
+ * Manager snapshot, a refresh, the content sweep, a Check now) goes through hRedraw — it waits until the table and the page have
+ * not been scrolled for H_SCROLL_MS, and the Child listings rows keep the order they had (new ones join at the end; "Sort again"
+ * in the meta line sorts afresh). The person's own changes (a sort, a filter, a view) call renderHealth and sort afresh. */
+const H_SCROLL_MS = 400;
+let H_SCROLL_AT = 0;          // when the table or the page was last scrolled
+let H_REDRAW_T = 0;           // the waiting data redraw
+let H_KEEP = false;           // the draw now running is for landed data: keep the Child listings order
+let H_ORDER = null;           // { key, ids }: the Child listings order as last sorted, and what it was sorted for
+let H_MOVED = false;          // a fresh sort would give another order than the one showing
+function hRedraw() {
+  clearTimeout(H_REDRAW_T);
+  H_REDRAW_T = setTimeout(() => {
+    if (Date.now() - H_SCROLL_AT < H_SCROLL_MS) return hRedraw();
+    H_KEEP = true;
+    try {
+      renderHealth();
+    } finally {
+      H_KEEP = false;
+    }
+  }, Math.max(60, H_SCROLL_MS - (Date.now() - H_SCROLL_AT)));
+}
+// The Child listings rows in the order they had, while data lands: rows already shown keep their place, new ones join at the end.
+function hKeepOrder(rows, key, keep) {
+  const idOf = row => row.brand + '|' + row.sku;
+  if (!keep || !H_ORDER || H_ORDER.key !== key) {
+    H_ORDER = { key, ids: rows.map(idOf) };
+    H_MOVED = false;
+    return rows;
+  }
+  const fresh = rows.map(idOf);
+  const pos = new Map(H_ORDER.ids.map((id, i) => [id, i]));
+  const kept = rows.filter(row => pos.has(idOf(row))).sort((a, b) => pos.get(idOf(a)) - pos.get(idOf(b)));
+  const added = rows.filter(row => !pos.has(idOf(row)));
+  if (added.length) H_ORDER.ids = H_ORDER.ids.concat(added.map(idOf));
+  const out = kept.concat(added);
+  H_MOVED = out.some((row, i) => idOf(row) !== fresh[i]);
+  return out;
+}
 if (typeof window !== 'undefined' && window.addEventListener) {
-  window.addEventListener('scroll', () => { if (typeof TAB_NOW === 'undefined' || TAB_NOW === 'health') hStick(); }, { passive: true });
+  window.addEventListener('scroll', () => {
+    if (typeof TAB_NOW === 'undefined' || TAB_NOW === 'health') {
+      H_SCROLL_AT = Date.now();
+      hStick();
+    }
+  }, { passive: true });
   window.addEventListener('resize', () => { if (typeof TAB_NOW === 'undefined' || TAB_NOW === 'health') hStick(); });
 }
 // While the snapshot loads: grey pulsing bars where the boxes and the rows will be.
@@ -186,18 +230,31 @@ function hHealthBar(score) {
 }
 // A count as a pill in its level's colour (is-c / is-a / is-r / is-g), a zero faint.
 const hPill = (n, cls) => (n ? `<span class="ls-pill ${cls}">${Number(n).toLocaleString('en-US')}</span>` : '<span class="ls-zero">0</span>');
-// Why: up to 3 problems in words (the one look every screen gives a problem), then "+n more" that opens the rest in place — no redraw.
+// Why: up to 3 problems in words on one line — a dot in the level's colour and the problem's name — then "+n more", which opens the
+// child's sidebar (listing-kid.js) with every problem, how to fix it and Fix. The row stays one even 44px line.
 function hWhyCell(row) {
   const found = lrProblemsSort(row._h.found);
-  if (!found.length && !row._h.notes.length) return `<span class="muted">${row.content ? 'No problem' : 'Content not checked'}</span>`;
-  const where = { brand: row.brand, sku: row.sku };
-  const rest = found.slice(3);
-  return `<div class="lr-probs ls-why">${found.slice(0, 3).map(hit => lrProblemHtml(hit, where, '')).join('')}`
-    + (rest.length ? `<div class="ls-why-rest">${rest.map(hit => lrProblemHtml(hit, where, '')).join('')}</div>`
-      + `<button type="button" class="ls-why-more" data-ls-why="1">+${rest.length} more</button>` : '')
-    + lrNotesHtml(row._h.notes) + '</div>';
+  if (!found.length) return `<span class="muted">${row.content ? 'No problem' : 'Content not checked'}</span>`;
+  const item = hit => {
+    const stale = hit.sev === 'critical' && !!hit.stale;
+    const level = lrLevel(hit.sev);
+    const words = hit.what || hit.name;
+    return `<span class="ls-whyi ${hit.sev === 'critical' ? (stale ? 'is-chk' : 'is-err') : 'is-att'}" title="${lrEsc((stale ? level.stale : level.word) + ': ' + (hit.what || hit.name + ' — ' + hit.detail))}">`
+      + `<span class="ls-whyd" aria-hidden="true"></span><span class="ls-whyt">${lrEsc(words)}</span></span>`;
+  };
+  const rest = found.length - 3;
+  return `<div class="ls-whyl">${found.slice(0, 3).map(item).join('')}`
+    + (rest > 0 ? `<button type="button" class="ls-why-more" data-lk-more="1" aria-label="Show all ${found.length} problems">+${rest} more</button>` : '') + '</div>';
 }
 // "+n more" opens the rest of a Why cell in place; a picture that fails to load hides itself (its grey square stays).
+// The table card scrolls inside itself too (the scroll event does not bubble, so it is caught on the way down); "Sort again" in
+// the meta line sorts the Child listings afresh.
+if (typeof document !== 'undefined' && $('hResult') && $('hResult').addEventListener) {
+  $('hResult').addEventListener('scroll', () => { H_SCROLL_AT = Date.now(); }, { capture: true, passive: true });
+  $('hMeta').addEventListener('click', e => {
+    if (e.target && e.target.closest && e.target.closest('[data-h-resort]')) renderHealth();
+  });
+}
 if (typeof document !== 'undefined' && $('hTable') && $('hTable').addEventListener) {
   $('hTable').addEventListener('click', e => {
     const btn = e.target && e.target.closest ? e.target.closest('[data-ls-why]') : null;
@@ -351,7 +408,7 @@ $('hGo').onclick = async () => {
       notes.push(`${BRAND_NAME[brand]}: ${rows.length} FBA listings (removed ${mfn} MFN, ${bundles} bundles)`
         + (stock ? ` · stock matched ${matched}/${rows.length} (${stockSrc})` : ''));
       await saveHealthCache(brand);
-      renderHealth();
+      hRedraw();
     } catch (e) {
       failed.push(`${BRAND_NAME[brand]}: ${e.message || e}`);
     }
@@ -453,7 +510,7 @@ $('hGo').onclick = async () => {
         }
         if (asked.has(row.asin)) row.tried = true;
       }));
-      if (i % (H_SWEEP_PAR * 5) === 0) renderHealth();           // periodic repaint, not every group
+      if (i % (H_SWEEP_PAR * 5) === 0) hRedraw();                // periodic repaint, not every group (never mid-scroll)
     }
     // Phase 2b — the PARENT ASINs' own titles, so the parent view can show a real product name
     // instead of borrowing one of the children's. Same catalog endpoint, and resumable: only parents
@@ -578,7 +635,7 @@ $('hGo').onclick = async () => {
     failed.push('content sweep: ' + (e.message || e));
   }
 
-  renderHealth();
+  hRedraw();
   // Only PROBLEMS stay on screen. The per-brand counts are informational and used to sit there as a
   // permanent wall of text — they're kept under "Raw fields" instead.
   H_LAST_RUN = notes;
@@ -845,6 +902,9 @@ function renderHealth() {
     const cmp = (typeof x === 'number' && typeof y === 'number') ? x - y : String(x || '').localeCompare(String(y || ''));
     return cmp * H_SORT.dir;
   });
+  // Child listings: while data lands (hRedraw) the rows keep the order they had for the same view, filters and sort.
+  if (H_VIEW === 'child') rows = hKeepOrder(rows, [H_FOCUS ? H_FOCUS.brand + '|' + H_FOCUS.parent : '', pick, view, search, H_SORT.k, H_SORT.dir].join('§'), H_KEEP);
+  else H_MOVED = false;
 
   // Export and the totals below use the FULL filtered set; only the DOM is capped.
   H_RENDER = { rows, defs, val };
@@ -853,6 +913,9 @@ function renderHealth() {
   // whichever parents survived the filter, so the cards still agree with what's on screen.
   renderHealthKpis(H_VIEW === 'parent' ? rows.flatMap(g => g.kids) : rows, brands);
   hMetaRender(brands, H_VIEW === 'parent' ? 'Parent ASINs' : 'Child listings');
+  if (H_MOVED && $('hMeta').firstChild && $('hMeta').firstChild.insertAdjacentHTML) {
+    $('hMeta').firstChild.insertAdjacentHTML('beforeend', ' <button type="button" class="ls-more lh-resort" data-h-resort="1" title="New answers would put the listings in another order; the table keeps its order until you press this">Sort again</button>');
+  }
   hStick();
 
   // Only H_PAGE rows are put in the DOM. At full catalogue size (3,922 listings × 13 columns =
@@ -871,7 +934,14 @@ function renderHealth() {
     `<th data-k="${esc(def.k)}" class="${def.frz ? 'frz ' : ''}${def.num ? 'num' : ''}"${
       def.tip ? ` title="${esc(def.tip)}"` : ''}>${esc(def.t)}${arrow(def)}</th>`).join('') + '</tr></thead>';
 
-  const body = shown.map(row => '<tr>' + defs.map(def => {
+  // Child listings: every row opens its sidebar (listing-kid.js) — a click or Enter; the open one is marked.
+  const selKey = typeof LK !== 'undefined' ? LK.key : '';
+  const rowOpen = row => {
+    if (H_VIEW !== 'child') return '<tr>';
+    const key = row.brand + '|' + row.sku;
+    return `<tr class="ls-row${key === selKey ? ' is-open' : ''}" data-lk-row="${esc(key)}" tabindex="0" aria-selected="${key === selKey}" aria-label="${esc(row.sku)}: open its details">`;
+  };
+  const body = shown.map(row => rowOpen(row) + defs.map(def => {
     const value = val(row, def);
     const cls = (def.frz ? 'frz ' : '') + (def.num ? 'num' : '');
     if (def.cell) return `<td class="${cls}">${def.cell(row)}</td>`;
@@ -893,8 +963,17 @@ function renderHealth() {
     return `<td class="num">${fmtNum(sum)}</td>`;
   }).join('') + '</tr></tfoot>' : '';
 
+  // The keyboard stays on the row it was on across the redraw (the row is a new element afterwards).
+  const active = typeof document !== 'undefined' ? document.activeElement : null;
+  const focusRow = active && active.closest && $('hTable').contains && $('hTable').contains(active) && active.closest('tr[data-lk-row]')
+    ? active.closest('tr[data-lk-row]').dataset.lkRow : '';
+  if ($('hTable').classList) $('hTable').classList.toggle('is-kids', H_VIEW === 'child');
   $('hTable').innerHTML = head + '<tbody>' + (body ||
     `<tr><td colspan="${defs.length}" class="muted">No rows.</td></tr>`) + '</tbody>' + foot;
+  if (focusRow) {
+    const again = $('hTable').querySelector(`tr[data-lk-row="${CSS.escape(focusRow)}"]`);
+    if (again) again.focus({ preventScroll: true });
+  }
 
   // The scope and truncation detail moved into "Raw fields" — it was two paragraphs of standing text
   // above every view. The TOTAL row still carries the real count, so the table can't be mistaken for
@@ -944,5 +1023,7 @@ function renderHealth() {
       };
     });
   }
+  // The child sidebar follows what was just drawn (closes in Parent ASINs; draws again when its listing's data changed).
+  if (typeof lkSync === 'function') lkSync();
 }
 

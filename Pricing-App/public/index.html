@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <!-- ================================================================================================
-     GENERATED FILE. DO NOT READ OR EDIT THE CODE HERE — it is the 50 files of src/ joined into one page.
+     GENERATED FILE. DO NOT READ OR EDIT THE CODE HERE — it is the 51 files of src/ joined into one page.
      The real, grouped source: Pricing-App/src/   (map and workflow: src/README.md)
        src/index.html   page markup        src/styles.css   stylesheet        src/app/ORDER   join order
        src/app/<group>/ the code, by group: core, research, sales, inventory, listing, ads
@@ -2057,6 +2057,51 @@
   #paneHealth .li-ws .li-ws-x.is-a:hover{background:var(--rev-bg);color:var(--rev-ink);border-color:var(--rev)}
   #paneHealth .li-ws-astep.is-fail.is-a .li-ws-astep-t{color:var(--rev-ink)}
   #paneHealth .li-ws-dot-act{background:var(--rev)}
+  /* Child listings (12 Nov 2026): compact, even 44px rows with one hairline between them; the Why cell is one line of up to 3
+     problems in words (a dot in the level's colour) and "+n more"; the open child's row is tinted (tr.ls-row.is-open above). */
+  #paneHealth table.ls-tbl.is-kids tbody td{height:44px;padding-top:0;padding-bottom:0;white-space:nowrap;vertical-align:middle}
+  #paneHealth table.ls-tbl.is-kids tbody td .ls-prod{flex-wrap:nowrap}
+  #paneHealth .ls-whyl{display:flex;align-items:center;gap:6px;max-width:440px;min-width:0;overflow:hidden}
+  #paneHealth .ls-whyi{--sev:var(--faint);display:inline-flex;align-items:center;gap:6px;flex:0 1 auto;min-width:0;max-width:200px;padding:2px 9px 2px 7px;
+    border-radius:var(--r-pill);background:var(--hover);color:var(--ink);font-size:12px;font-weight:600;line-height:1.4}
+  #paneHealth .ls-whyi.is-err{--sev:var(--bad);background:var(--bad-bg);color:var(--bad-ink)}
+  #paneHealth .ls-whyi.is-att{--sev:var(--rev);background:var(--rev-bg);color:var(--rev-ink)}
+  #paneHealth .ls-whyi.is-chk{--sev:var(--bad);background:transparent;color:var(--bad-ink);box-shadow:inset 0 0 0 1px var(--bad)}
+  #paneHealth .ls-whyd{flex:none;width:6px;height:6px;border-radius:50%;background:var(--sev)}
+  #paneHealth .ls-whyt{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  #paneHealth .ls-whyl .ls-why-more{flex:none;margin:0}
+  #paneHealth .lh-resort{margin:0 0 0 6px;padding:0 9px}
+  /* The child sidebar, like .px-pop: 460px (the Workspace panel is 520px — that one is a parent); a phone gets the whole screen
+     and "← Back". The Workspace panel draws the same component inside itself, with its "← all listings" always showing. */
+  #paneHealth .ls-panel.ls-kidp{width:min(460px,100vw);z-index:51}
+  #paneHealth .lk-top{padding:12px 16px 0}
+  #paneHealth .ls-kidp .lk-top:not(.is-always){display:none}
+  #paneHealth .lk-back{display:inline-flex;align-items:center;max-width:100%;height:30px;margin:0;padding:0 12px;border:1px solid var(--line);border-radius:var(--r-ctl);
+    background:var(--card);color:var(--ink);font:inherit;font-size:12.5px;font-weight:600;line-height:1;box-shadow:none;cursor:pointer;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;transition:background-color .15s ease}
+  #paneHealth .lk-back:hover{background:var(--hover);color:var(--ink)}
+  #paneHealth .lk-back:focus-visible{outline:none;box-shadow:var(--ring)}
+  #paneHealth .lk-h .lk-sku{font-family:ui-monospace,monospace}
+  #paneHealth .lk-h .ls-panel-t>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  #paneHealth .lk-h .ls-panel-t>span span{display:inline;margin:0}
+  #paneHealth .lk-st{font-weight:600;color:var(--muted)}
+  #paneHealth .lk-st.is-live{color:var(--accent-ink)}
+  #paneHealth .lk-gh{display:flex;align-items:center;gap:6px}
+  #paneHealth .lk-b>.lk-gh:first-child{border-top:0}
+  #paneHealth .lk-gh.is-c{color:var(--bad-ink)}
+  #paneHealth .lk-gh.is-a{color:var(--rev-ink)}
+  #paneHealth .lk-gh.is-f{color:var(--brand-ink)}
+  #paneHealth .lk-gh .ls-n{display:inline-block;padding:0 6px;border-radius:var(--r-pill);background:color-mix(in srgb,var(--ink) 8%,transparent);
+    color:var(--muted);font-size:11px;letter-spacing:0}
+  #paneHealth .lk-b .ls-rec-t small{white-space:normal;overflow:visible}
+  #paneHealth .lk-info{padding:8px 16px;border-top:1px solid var(--line);font-size:12px;line-height:1.5;color:var(--muted)}
+  #paneHealth .lk-info .lr-notes{margin:0}
+  #paneHealth .lk-none{padding:28px 16px}
+  #paneHealth .lk-passtog{justify-content:flex-start;padding:10px 16px;border-top:1px solid var(--line)}
+  #paneHealth .lk-passtog .ls-more{margin:0}
+  #paneHealth .lk-passed{padding:0 16px 14px;font-size:12px;line-height:1.55;color:var(--muted)}
+  #paneHealth .lk-passed b{color:var(--ink);font-weight:600}
+  #paneHealth .lk-src{color:var(--faint)}
   /* The Workspace's own bar is slim now: the progress on the left, Sort again and the sweep on the right. */
   #paneHealth .li-ws-bar{margin:0 0 10px}
   @media (max-width:860px){
@@ -2111,6 +2156,10 @@
     :is(#paneHealth,#hkModal) .ls-rec-a{grid-column:2;justify-self:start}
     #paneHealth .ls-kid-s{max-width:none;justify-content:flex-start;grid-column:1/-1}
     #paneHealth .ls-kid-d{padding-left:16px}
+    /* The child sidebar on a phone: the whole screen, with "← Back" above its header. */
+    #paneHealth .ls-panel.ls-kidp{width:100vw}
+    #paneHealth .ls-kidp .lk-top:not(.is-always){display:block}
+    #paneHealth .ls-whyl{max-width:320px}
     /* The row on a phone, now: the picture + name on the first line with the › at its right, then the mix bar, Live, Audit and Last checked each on a line. */
     .li-ws-tbl>tbody>tr.li-ws-row{grid-template-columns:minmax(0,1fr) auto}
     #paneHealth table.ls-tbl tbody td{height:auto}
@@ -2123,6 +2172,7 @@
     .li-ws .li-ws-chip,.li-ws .li-ws-th,.li-ws .li-ws-tog,.li-ws .li-ws-x,.li-ws .li-ws-sku,#paneHealth .li-ws-card,#paneHealth .ls-box,
     #paneHealth .ls-ic,#paneHealth .ls-chev,#paneHealth .ls-rec,#paneHealth .ls-kid,#paneHealth .ls-seg .segbtn,#paneHealth .ls-tabs button{transition:none}
     #paneHealth .ls-panel,#paneHealth .ls-skel{animation:none}
+    #paneHealth .lk-back{transition:none}
     #paneHealth .ls-box:has(.ls-box-main):hover,#paneHealth .ls-box:has(.ls-box-main:active),#paneHealth .ls-box:hover .ls-ic{transform:none}
   }
 
@@ -3369,6 +3419,8 @@
     <div id="liWs" class="li-ws hide"></div>
     <!-- The side panel one parent opens into (listing/listing-workspace.js draws it): What to fix / Listings / Audit. -->
     <aside id="lsPanel" class="ls-panel" role="dialog" aria-label="Parent details" hidden></aside>
+    <!-- The sidebar one child listing opens into on Child listings (listing/listing-kid.js draws it; the Workspace panel uses the same component). -->
+    <aside id="lsKid" class="ls-panel ls-kidp" role="dialog" aria-label="Listing details" hidden></aside>
   </div><!-- /paneHealth -->
 
   <!-- ============ PANE: listing audit ============ -->
@@ -9155,7 +9207,7 @@ const LR_DET = {
     const title = hTitleText(row);
     const near = lrNear(title, ctx.cfg);          // 74–75 characters: shortened on purpose to fit, so the short forms are fine (Part A1)
     const bad = hTitleSizes(title).find(size => !lrSizeOk(size.text, params.example) && !(near && lrSizeLoose(size.text)));
-    return bad ? `"${bad.text}", approved is "${params.example || '14 x 36 Inch'}"` : '';
+    return bad ? `"${bad.text}"` : '';               // the heading reads: Size not in house style: "60×60 Inches" (LR_WHAT_TEXT)
   },
   dimension_order: row => {
     const wrong = hTitleSizes(hTitleText(row)).find(size => size.c === null && size.a > size.b);
@@ -9296,7 +9348,9 @@ async function amzEnsure() {
       got.forEach(chunk => {
         if (!chunk.exists()) return;
         (chunk.data().r || []).forEach(item => {
-          if (item && item.sku) map.set(brand + '|' + item.sku, { st: item.st || '', ie: item.ie || 0, iw: item.iw || 0, im: item.im || '' });
+          // `im` is Amazon's first error cut at 140 characters; the issue list (`iss`) keeps each message to 220, so the errors come from there.
+          if (item && item.sku) map.set(brand + '|' + item.sku, { st: item.st || '', ie: item.ie || 0, iw: item.iw || 0, im: item.im || '',
+            em: (item.iss || []).filter(issue => issue && issue.s === 'E').map(issue => (issue.c ? `ERROR ${issue.c}: ` : '') + lrWholeCut(String(issue.m || ''), 220)) });
         });
       });
     }
@@ -9364,6 +9418,15 @@ function lrAplus(row, ctx) {
   const stale = !(at > 0) || Date.now() - at > LR_APLUS_DAYS * LR_DAY;
   return { v: false, at, stale, src: row.parent ? 'listing and parent' : 'listing', why: stale ? `the "no A+" answer is ${at > 0 ? Math.round((Date.now() - at) / LR_DAY) + ' days' : 'too'} old — asked again before it counts` : '' };
 }
+/** A message a source kept only `max` characters of (the snapshot: 140, its issue list: 220): at that length or longer it was cut, so
+ *  it ends on the last whole word with "…" — never mid-word ("resu"). Shorter text is returned as it is. */
+function lrWholeCut(text, max) {
+  const str = String(text == null ? '' : text);
+  if (str.length < max || str.endsWith('…')) return str;
+  const head = str.slice(0, max);
+  const space = head.search(/\s\S*$/);
+  return (space > max / 2 ? head.slice(0, space) : head).replace(/[\s,;:.\-–—]+$/, '') + '…';
+}
 /** Amazon's own verdict on one listing: { st, ie, im, errs, at, src: 'live' | 'iml' } — the live read first, else the snapshot. Null = none. */
 function lrAmz(row, ctx) {
   const live = lrLiveOf(row, ctx);
@@ -9372,7 +9435,7 @@ function lrAmz(row, ctx) {
     return { st: (live.st || []).join(','), ie: errs.length, im: errs.map(issue => `ERROR ${issue.c}: ${issue.m}`).join(' · '), errs, at: live.gAt, src: 'live' };
   }
   const amz = ctx.amz && ctx.amz.get(row.brand + '|' + row.sku);
-  return amz ? { st: amz.st, ie: amz.ie, im: amz.im, errs: null, at: (ctx.amzAt && ctx.amzAt[row.brand]) || 0, src: 'iml' } : null;
+  return amz ? { st: amz.st, ie: amz.ie, im: amz.em && amz.em.length ? amz.em.join(' · ') : lrWholeCut(amz.im, 140), errs: null, at: (ctx.amzAt && ctx.amzAt[row.brand]) || 0, src: 'iml' } : null;
 }
 /** The listing with the freshest content on it: the live read's title / bullets / description / search terms, brand, colour and
  *  rule words (lrFresh), else exactly the Health row. `contentAt` says when that content was read; `kw` is only ever live. */
@@ -9507,6 +9570,7 @@ function healthOf(rowIn, ctx) {
   // --- how to fix each one, in plain words, whose rule it is, where its Fix button goes (Part B), and how old its data is (A5) ---
   const now = Date.now();
   found.forEach(hit => {
+    if (LR_WHAT_TEXT[hit.detector]) hit.what = LR_WHAT_TEXT[hit.detector](hit);   // a heading in its own words (else "name — detail")
     hit.fix = lrFixText(hit, row, ctx);
     hit.tag = lrFixTag(hit, row);
     hit.kind = lrFixKind(hit.detector);
@@ -9549,13 +9613,17 @@ function lrPartWords(key, parts) {
   const names = { brand: 'the brand', product: 'the product', shape: 'the shape', material: 'the material', size: 'the size', color: 'the colour', pattern: 'the print', uses: 'the uses' };
   return (names[key] || key) + (value ? ` "${value}"` : '');
 }
+/** The heading a problem shows when "rule name — detail" would read badly. (hit) → text. */
+const LR_WHAT_TEXT = {
+  size_format: hit => 'Size not in house style: ' + hit.detail,
+};
 /** One sentence per detector: what to do, with the listing's own values. (hit, row, ctx, params) → text. Plain words for a
  *  seller — never a detector id, a field code or a list of rules. */
 const LR_FIX_TEXT = {
   inactive_with_stock: () => 'It has stock but is Inactive. Open Listing Errors to see why.',
   no_price: () => 'Add a price in Seller Central.',
   amazon_suppressed: () => 'Fix the issue in Listing Errors so it shows in Amazon search again.',
-  amazon_error: hit => 'Open Listing Errors and do what Amazon asks: ' + String(hit.detail).replace(/\.?\s*$/, '.'),
+  amazon_error: () => 'Open Listing Errors and do what Amazon asks.',   // Amazon's message is the heading already: once, not twice
   no_main_image: () => 'Add a main picture in Image Manager — the catalogue shows none, so shoppers see no picture.',
   aplus_missing: (hit, row) => (row.parent ? 'Publish A+ content on the listing or its parent ASIN.' : 'Publish A+ content.'),
   images_below: (hit, row, ctx, params) => {
@@ -9681,8 +9749,9 @@ function lrProblemHtml(hit, where, note) {
 /* ---- a problem as one ROW (the Listing Health look, 6 Nov 2026), like the Ad Console's recommendation rows: a dot through the
  *      level's colour · the level word and the name, a grey subtitle · how to fix · a tag · Fix. The Workspace side panel and the
  *      children dialog draw with it; lrProblemHtml above stays the block every other screen uses. ---- */
-// `rec`: { sev, stale, name, sub, fix, tag, kind, detector, attrs, fill } — `fill` marks a "Good to fill" gap (not an error: no level
-// word, a blue dot). `where`: { brand, sku } for the Fix button, or null for none.
+// `rec`: { sev, stale, name, sub, fix, tag, kind, detector, attrs, fill, bare } — `fill` marks a "Good to fill" gap (not an error: no level
+// word, a blue dot); `bare` leaves the level word out where a group heading already says it (the child sidebar), except "Error? Check
+// again", which says more than its heading. `where`: { brand, sku } for the Fix button, or null for none.
 function lrRecHtml(rec, where) {
   const esc = str => String(str == null ? '' : str).replace(/[<>&"]/g, ch => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[ch]));
   const stale = rec.sev === 'critical' && !!rec.stale;
@@ -9695,7 +9764,7 @@ function lrRecHtml(rec, where) {
     + (rec.attrs && rec.attrs.length ? ` data-lr-attrs="${esc(rec.attrs.join(','))}"` : '')
     + ` title="${kind === 'img' ? 'Opens the Image Manager' : 'Opens Listing Errors'}">Fix</button>` : '';
   return `<div class="ls-rec ${cls}"><span class="ls-dot" aria-hidden="true"></span><div class="ls-rec-t">`
-    + `<b><span class="lr-lvl ${rec.fill ? 'is-f' : stale ? 'is-s' : rec.sev === 'critical' ? 'is-c' : 'is-a'}">${esc(word)}</span>${esc(rec.name)}</b>`
+    + `<b>${rec.bare && !stale ? '' : `<span class="lr-lvl ${rec.fill ? 'is-f' : stale ? 'is-s' : rec.sev === 'critical' ? 'is-c' : 'is-a'}">${esc(word)}</span>`}${esc(rec.name)}</b>`
     + (rec.sub ? `<small title="${esc(rec.sub)}">${esc(rec.sub)}</small>` : '') + '</div>'
     + `<div class="ls-rec-a"><span class="lr-tag${tag === 'Company rule' ? ' is-own' : ''}${rec.fill ? ' is-fill' : ''}" title="${esc(LR_TAG_TIP[tag] || (rec.fill ? 'Not an error: a gap worth filling.' : ''))}">${esc(tag)}</span>${fix}</div>`
     + (rec.fix ? `<div class="ls-rec-how">${esc(rec.fix)}</div>` : '') + '</div>';
@@ -9890,19 +9959,19 @@ async function ensureHealth() {
   /* The catalogue is slow to read the first time; the table draws without it and again once it lands. */
   if (!LR_CAT.SP || !LR_CAT.CPC) lrLoadCatalog().then(() => {
     H_CTX = null;
-    if (!$('paneHealth').classList.contains('hide')) renderHealth();
+    if (!$('paneHealth').classList.contains('hide')) hRedraw();
   });
   /* Amazon's own status and errors, from the Image Manager snapshot. Loaded beside the catalog so the
    * two Amazon rules can run; until it arrives they find nothing rather than guessing. */
   if (!AMZ.map) amzEnsure().then(() => {
-    if (!$('paneHealth').classList.contains('hide')) renderHealth();
+    if (!$('paneHealth').classList.contains('hide')) hRedraw();
   });
   /* The Image Manager snapshot too (the pictures on the rows, and the pictures the rules judge when it is the freshest source);
    * the table draws without it and again once it lands. */
   if (typeof IML !== 'undefined' && typeof imListLoad === 'function') ['SP', 'CPC'].forEach(brand => {
     if (brand in IML) return;
     imListLoad(brand).then(() => {
-      if (!$('paneHealth').classList.contains('hide')) renderHealth();
+      if (!$('paneHealth').classList.contains('hide')) hRedraw();
     });
   });
   if (H_LOADED) return renderHealth();
@@ -9946,8 +10015,52 @@ function hStick() {
     bar.classList.toggle('ls-stuck', Math.round(bar.getBoundingClientRect().top) <= top + 1 && window.scrollY > 0);
   } catch (e) { /* no layout to measure (a test page) */ }
 }
+/* DATA LANDING NEVER MOVES THE TABLE (12 Nov 2026): a redraw because data arrived (the catalogue, Amazon's status, the Image
+ * Manager snapshot, a refresh, the content sweep, a Check now) goes through hRedraw — it waits until the table and the page have
+ * not been scrolled for H_SCROLL_MS, and the Child listings rows keep the order they had (new ones join at the end; "Sort again"
+ * in the meta line sorts afresh). The person's own changes (a sort, a filter, a view) call renderHealth and sort afresh. */
+const H_SCROLL_MS = 400;
+let H_SCROLL_AT = 0;          // when the table or the page was last scrolled
+let H_REDRAW_T = 0;           // the waiting data redraw
+let H_KEEP = false;           // the draw now running is for landed data: keep the Child listings order
+let H_ORDER = null;           // { key, ids }: the Child listings order as last sorted, and what it was sorted for
+let H_MOVED = false;          // a fresh sort would give another order than the one showing
+function hRedraw() {
+  clearTimeout(H_REDRAW_T);
+  H_REDRAW_T = setTimeout(() => {
+    if (Date.now() - H_SCROLL_AT < H_SCROLL_MS) return hRedraw();
+    H_KEEP = true;
+    try {
+      renderHealth();
+    } finally {
+      H_KEEP = false;
+    }
+  }, Math.max(60, H_SCROLL_MS - (Date.now() - H_SCROLL_AT)));
+}
+// The Child listings rows in the order they had, while data lands: rows already shown keep their place, new ones join at the end.
+function hKeepOrder(rows, key, keep) {
+  const idOf = row => row.brand + '|' + row.sku;
+  if (!keep || !H_ORDER || H_ORDER.key !== key) {
+    H_ORDER = { key, ids: rows.map(idOf) };
+    H_MOVED = false;
+    return rows;
+  }
+  const fresh = rows.map(idOf);
+  const pos = new Map(H_ORDER.ids.map((id, i) => [id, i]));
+  const kept = rows.filter(row => pos.has(idOf(row))).sort((a, b) => pos.get(idOf(a)) - pos.get(idOf(b)));
+  const added = rows.filter(row => !pos.has(idOf(row)));
+  if (added.length) H_ORDER.ids = H_ORDER.ids.concat(added.map(idOf));
+  const out = kept.concat(added);
+  H_MOVED = out.some((row, i) => idOf(row) !== fresh[i]);
+  return out;
+}
 if (typeof window !== 'undefined' && window.addEventListener) {
-  window.addEventListener('scroll', () => { if (typeof TAB_NOW === 'undefined' || TAB_NOW === 'health') hStick(); }, { passive: true });
+  window.addEventListener('scroll', () => {
+    if (typeof TAB_NOW === 'undefined' || TAB_NOW === 'health') {
+      H_SCROLL_AT = Date.now();
+      hStick();
+    }
+  }, { passive: true });
   window.addEventListener('resize', () => { if (typeof TAB_NOW === 'undefined' || TAB_NOW === 'health') hStick(); });
 }
 // While the snapshot loads: grey pulsing bars where the boxes and the rows will be.
@@ -9978,18 +10091,31 @@ function hHealthBar(score) {
 }
 // A count as a pill in its level's colour (is-c / is-a / is-r / is-g), a zero faint.
 const hPill = (n, cls) => (n ? `<span class="ls-pill ${cls}">${Number(n).toLocaleString('en-US')}</span>` : '<span class="ls-zero">0</span>');
-// Why: up to 3 problems in words (the one look every screen gives a problem), then "+n more" that opens the rest in place — no redraw.
+// Why: up to 3 problems in words on one line — a dot in the level's colour and the problem's name — then "+n more", which opens the
+// child's sidebar (listing-kid.js) with every problem, how to fix it and Fix. The row stays one even 44px line.
 function hWhyCell(row) {
   const found = lrProblemsSort(row._h.found);
-  if (!found.length && !row._h.notes.length) return `<span class="muted">${row.content ? 'No problem' : 'Content not checked'}</span>`;
-  const where = { brand: row.brand, sku: row.sku };
-  const rest = found.slice(3);
-  return `<div class="lr-probs ls-why">${found.slice(0, 3).map(hit => lrProblemHtml(hit, where, '')).join('')}`
-    + (rest.length ? `<div class="ls-why-rest">${rest.map(hit => lrProblemHtml(hit, where, '')).join('')}</div>`
-      + `<button type="button" class="ls-why-more" data-ls-why="1">+${rest.length} more</button>` : '')
-    + lrNotesHtml(row._h.notes) + '</div>';
+  if (!found.length) return `<span class="muted">${row.content ? 'No problem' : 'Content not checked'}</span>`;
+  const item = hit => {
+    const stale = hit.sev === 'critical' && !!hit.stale;
+    const level = lrLevel(hit.sev);
+    const words = hit.what || hit.name;
+    return `<span class="ls-whyi ${hit.sev === 'critical' ? (stale ? 'is-chk' : 'is-err') : 'is-att'}" title="${lrEsc((stale ? level.stale : level.word) + ': ' + (hit.what || hit.name + ' — ' + hit.detail))}">`
+      + `<span class="ls-whyd" aria-hidden="true"></span><span class="ls-whyt">${lrEsc(words)}</span></span>`;
+  };
+  const rest = found.length - 3;
+  return `<div class="ls-whyl">${found.slice(0, 3).map(item).join('')}`
+    + (rest > 0 ? `<button type="button" class="ls-why-more" data-lk-more="1" aria-label="Show all ${found.length} problems">+${rest} more</button>` : '') + '</div>';
 }
 // "+n more" opens the rest of a Why cell in place; a picture that fails to load hides itself (its grey square stays).
+// The table card scrolls inside itself too (the scroll event does not bubble, so it is caught on the way down); "Sort again" in
+// the meta line sorts the Child listings afresh.
+if (typeof document !== 'undefined' && $('hResult') && $('hResult').addEventListener) {
+  $('hResult').addEventListener('scroll', () => { H_SCROLL_AT = Date.now(); }, { capture: true, passive: true });
+  $('hMeta').addEventListener('click', e => {
+    if (e.target && e.target.closest && e.target.closest('[data-h-resort]')) renderHealth();
+  });
+}
 if (typeof document !== 'undefined' && $('hTable') && $('hTable').addEventListener) {
   $('hTable').addEventListener('click', e => {
     const btn = e.target && e.target.closest ? e.target.closest('[data-ls-why]') : null;
@@ -10143,7 +10269,7 @@ $('hGo').onclick = async () => {
       notes.push(`${BRAND_NAME[brand]}: ${rows.length} FBA listings (removed ${mfn} MFN, ${bundles} bundles)`
         + (stock ? ` · stock matched ${matched}/${rows.length} (${stockSrc})` : ''));
       await saveHealthCache(brand);
-      renderHealth();
+      hRedraw();
     } catch (e) {
       failed.push(`${BRAND_NAME[brand]}: ${e.message || e}`);
     }
@@ -10245,7 +10371,7 @@ $('hGo').onclick = async () => {
         }
         if (asked.has(row.asin)) row.tried = true;
       }));
-      if (i % (H_SWEEP_PAR * 5) === 0) renderHealth();           // periodic repaint, not every group
+      if (i % (H_SWEEP_PAR * 5) === 0) hRedraw();                // periodic repaint, not every group (never mid-scroll)
     }
     // Phase 2b — the PARENT ASINs' own titles, so the parent view can show a real product name
     // instead of borrowing one of the children's. Same catalog endpoint, and resumable: only parents
@@ -10370,7 +10496,7 @@ $('hGo').onclick = async () => {
     failed.push('content sweep: ' + (e.message || e));
   }
 
-  renderHealth();
+  hRedraw();
   // Only PROBLEMS stay on screen. The per-brand counts are informational and used to sit there as a
   // permanent wall of text — they're kept under "Raw fields" instead.
   H_LAST_RUN = notes;
@@ -10637,6 +10763,9 @@ function renderHealth() {
     const cmp = (typeof x === 'number' && typeof y === 'number') ? x - y : String(x || '').localeCompare(String(y || ''));
     return cmp * H_SORT.dir;
   });
+  // Child listings: while data lands (hRedraw) the rows keep the order they had for the same view, filters and sort.
+  if (H_VIEW === 'child') rows = hKeepOrder(rows, [H_FOCUS ? H_FOCUS.brand + '|' + H_FOCUS.parent : '', pick, view, search, H_SORT.k, H_SORT.dir].join('§'), H_KEEP);
+  else H_MOVED = false;
 
   // Export and the totals below use the FULL filtered set; only the DOM is capped.
   H_RENDER = { rows, defs, val };
@@ -10645,6 +10774,9 @@ function renderHealth() {
   // whichever parents survived the filter, so the cards still agree with what's on screen.
   renderHealthKpis(H_VIEW === 'parent' ? rows.flatMap(g => g.kids) : rows, brands);
   hMetaRender(brands, H_VIEW === 'parent' ? 'Parent ASINs' : 'Child listings');
+  if (H_MOVED && $('hMeta').firstChild && $('hMeta').firstChild.insertAdjacentHTML) {
+    $('hMeta').firstChild.insertAdjacentHTML('beforeend', ' <button type="button" class="ls-more lh-resort" data-h-resort="1" title="New answers would put the listings in another order; the table keeps its order until you press this">Sort again</button>');
+  }
   hStick();
 
   // Only H_PAGE rows are put in the DOM. At full catalogue size (3,922 listings × 13 columns =
@@ -10663,7 +10795,14 @@ function renderHealth() {
     `<th data-k="${esc(def.k)}" class="${def.frz ? 'frz ' : ''}${def.num ? 'num' : ''}"${
       def.tip ? ` title="${esc(def.tip)}"` : ''}>${esc(def.t)}${arrow(def)}</th>`).join('') + '</tr></thead>';
 
-  const body = shown.map(row => '<tr>' + defs.map(def => {
+  // Child listings: every row opens its sidebar (listing-kid.js) — a click or Enter; the open one is marked.
+  const selKey = typeof LK !== 'undefined' ? LK.key : '';
+  const rowOpen = row => {
+    if (H_VIEW !== 'child') return '<tr>';
+    const key = row.brand + '|' + row.sku;
+    return `<tr class="ls-row${key === selKey ? ' is-open' : ''}" data-lk-row="${esc(key)}" tabindex="0" aria-selected="${key === selKey}" aria-label="${esc(row.sku)}: open its details">`;
+  };
+  const body = shown.map(row => rowOpen(row) + defs.map(def => {
     const value = val(row, def);
     const cls = (def.frz ? 'frz ' : '') + (def.num ? 'num' : '');
     if (def.cell) return `<td class="${cls}">${def.cell(row)}</td>`;
@@ -10685,8 +10824,17 @@ function renderHealth() {
     return `<td class="num">${fmtNum(sum)}</td>`;
   }).join('') + '</tr></tfoot>' : '';
 
+  // The keyboard stays on the row it was on across the redraw (the row is a new element afterwards).
+  const active = typeof document !== 'undefined' ? document.activeElement : null;
+  const focusRow = active && active.closest && $('hTable').contains && $('hTable').contains(active) && active.closest('tr[data-lk-row]')
+    ? active.closest('tr[data-lk-row]').dataset.lkRow : '';
+  if ($('hTable').classList) $('hTable').classList.toggle('is-kids', H_VIEW === 'child');
   $('hTable').innerHTML = head + '<tbody>' + (body ||
     `<tr><td colspan="${defs.length}" class="muted">No rows.</td></tr>`) + '</tbody>' + foot;
+  if (focusRow) {
+    const again = $('hTable').querySelector(`tr[data-lk-row="${CSS.escape(focusRow)}"]`);
+    if (again) again.focus({ preventScroll: true });
+  }
 
   // The scope and truncation detail moved into "Raw fields" — it was two paragraphs of standing text
   // above every view. The TOTAL row still carries the real count, so the table can't be mistaken for
@@ -10736,6 +10884,8 @@ function renderHealth() {
       };
     });
   }
+  // The child sidebar follows what was just drawn (closes in Parent ASINs; draws again when its listing's data changed).
+  if (typeof lkSync === 'function') lkSync();
 }
 
 /* ============================== FILE: src/app/listing/parent-check.js ============================== */
@@ -13111,10 +13261,11 @@ const LI_WS_DAY = 86400000;             // one day in milliseconds
 const LI_WS_NUM = new Intl.NumberFormat('en-US');   // one formatter for every number on the view (toLocaleString per number is slow)
 const LI_WS_DRAW_MS = 1000;             // while reads land, the view is redrawn at most this often
 const LI_WS_SCROLL_MS = 400;            // …and only once scrolling has stopped for this long
+const LI_WS_PANEL_MS = 2000;            // while reads land, the side panel is redrawn at most this often (and never while it is scrolled)
 const LI_WS_INFLIGHT = 4;               // backend calls out at once
 const LI_WS_BATCH = 20;                 // SKUs per ?lfix=content call — the backend's own cap
 const LI_WS_STORE = 'selloraWsLive';    // localStorage key of the live reads
-const LI_WS_STORE_V = 3;                // its record version: 3 = catalogue slots and A+ answers kept, search-term bytes counted the Amazon way
+const LI_WS_STORE_V = 4;                // its record version: 3 = catalogue slots and A+ answers kept, search-term bytes counted the Amazon way; 4 = Amazon's error messages kept whole
 const LI_WS_APLUS_BATCH = 10;           // ASINs per ?lh=aplusasin call — the backend's own cap
 const LI_WS_STORE_MAX = 1500000;        // characters kept there; past it the oldest reads go first
 // The spec attributes a listing should carry; the product type's schema says which of them apply.
@@ -13157,6 +13308,13 @@ let LI_WS = {
   panel: null,                      // { key, tab: 'fix' | 'list' | 'audit', table } — the parent open in the side panel and its tab; one at a time
   panelSig: null,                   // what the panel last drew (its kids' kept checks, the read state): a landed read that changed nothing leaves it alone
   moreOpen: new Set(),              // "fix:brand|parent" … the panel lists showing every item, not the first 5
+  panelT: 0,                        // the panel's own redraw timer (reads landing: at most once per LI_WS_PANEL_MS, never mid-scroll)
+  panelAt: 0,                       // when the panel was last drawn
+  pScrollAt: 0,                     // when the panel was last scrolled
+  panelDrawn: '',                   // "key|tab|table" the panel last drew — the same again keeps the person's place in it
+  panelOrder: new Map(),            // 'kids' | 'fix' → { ctx, ids }: the panel's rows keep their order while reads land
+  panelResort: true,                // the next panel draw sorts afresh (a parent opened, or Sort again)
+  panelMoved: false,                // a fresh sort would give the panel another order ("Sort again" in the panel)
   recheckNext: false,               // Re-check pressed in the toolbar from another view: run it once the Workspace has drawn
   shown: LI_WS_PAGE,                // how many parents are in the DOM
   rows: [],                         // the last draw's parents after the filters (the sweep and Show more read these)
@@ -13259,7 +13417,8 @@ function liWsStoreLoad() {
     const data = JSON.parse(localStorage.getItem(LI_WS_STORE) || 'null');
     if (!data || !data.live) return;
     const cut = Date.now() - LI_WS_DAY;
-    const old = (data.v || 0) < LI_WS_STORE_V;   // an older record counted search-term bytes with the spaces: the count is dropped and worked out again from the text
+    const ver = data.v || 0;
+    const old = ver < 3;                         // an older record counted search-term bytes with the spaces: the count is dropped and worked out again from the text
     ['SP', 'CPC'].forEach(brand => {
       Object.entries((data.live && data.live[brand]) || {}).forEach(([sku, entry]) => {
         if (!entry || !(entry.at > cut)) return;
@@ -13267,6 +13426,8 @@ function liWsStoreLoad() {
           delete entry.kwBytes;
           if (entry.kw && entry.kw.length >= 300) delete entry.cAt;   // the kept text was cut at 300 characters: counted again it would read short, so the content is read again instead
         }
+        // Before v4 every Amazon message was cut at 220 characters, mid-word: a cut one now ends on a whole word with …
+        if (ver < 4 && Array.isArray(entry.iss)) entry.iss.forEach(issue => { if (issue && typeof issue.m === 'string') issue.m = lrWholeCut(issue.m, 220); });
         LI_WS.live[brand][sku] = entry;
       });
       Object.entries((data.schema && data.schema[brand]) || {}).forEach(([pt, entry]) => { if (entry && entry.at > cut && entry.ok) LI_WS.schema[brand][pt] = entry; });
@@ -13789,6 +13950,7 @@ function liWsAfterRead() {
   if (typeof renderHealth !== 'function' || !H_LOADED) return;
   const pane = $('paneHealth');
   if (pane && pane.classList && pane.classList.contains('hide')) return;
+  if (typeof hRedraw === 'function') return hRedraw();   // landed data: never mid-scroll, and Child listings keeps its order
   clearTimeout(LI_WS.timer);
   LI_WS.timer = setTimeout(renderHealth, 60);
 }
@@ -13828,7 +13990,7 @@ async function liWsJob(job) {
       // Amazon's own brand and colour for the listing, as short strings: the brand and the Block Print rules read them.
       Object.assign(entry, { at: now, gAt: now, pt: reply.productType || entry.pt || '', st: reply.status || [], brand: first('brand').slice(0, 60) || entry.brand || '',
         color: first('color').slice(0, 40) || entry.color || '',
-        iss: (reply.issues || []).slice(0, 8).map(issue => ({ s: String(issue.severity || '').charAt(0), c: String(issue.code || ''), m: String(issue.message || '').slice(0, 220), a: (issue.attrs || []).slice(0, 4) })),
+        iss: (reply.issues || []).slice(0, 8).map(issue => ({ s: String(issue.severity || '').charAt(0), c: String(issue.code || ''), m: lrWholeCut(String(issue.message || ''), issue.severity === 'ERROR' ? 1000 : 220), a: (issue.attrs || []).slice(0, 4) })),
         slots: IM_SLOTS.filter(slot => (at[LI_WS_SLOT_ATTR[slot]] || []).some(e => e && e.media_location)),
         specs: Object.fromEntries(LI_WS_SPECS.map(name => [name, filled(name)])), err: '' });
       if (entry.pt) liWsNeedSchema(brand, entry.pt, job.pk);
@@ -14060,10 +14222,10 @@ function liWsKidTableInner(p, bare) {
   // With a number card on, the listings that count in it come first and are marked; the others follow, faded, under "Other listings".
   const cardK = LI_WS.mode !== 'off' && LI_WS_CARD[LI_WS.card] ? LI_WS.card : '';
   const inCard = kid => !!(cardK && kid.cards && kid.cards[cardK]);
-  const kids = p.inMode.filter(kid => !step || inStep(kid)).sort((a, b) => (Number(inCard(b)) - Number(inCard(a))) || (Number(b.live) - Number(a.live)) || (Number(b.red) - Number(a.red)) || (b.fails.length - a.fails.length)
-    || String(a.sku).localeCompare(String(b.sku)));
+  const kids = bare ? liWsPanelKids(p, step, cardK, inStep, inCard) : liWsKidSort(p.inMode.filter(kid => !step || inStep(kid)), inCard);
+  if (bare) LI_WS.panelKidIds = kids.map(kid => kid.brand + '|' + kid.sku);
   const firstOther = cardK ? kids.findIndex(kid => !inCard(kid)) : -1;
-  const reading = p.data.state === 'reading';
+  const reading =p.data.state === 'reading';
   const when = reading ? `Reading ${liWsNf(kids.length)} listing${kids.length === 1 ? '' : 's'} from Amazon… ${liWsNf(p.data.done)} of ${liWsNf(p.data.total)}`
     : p.data.state === 'live' ? 'Read from Amazon ' + liWsAgoWords(p.data.age)
       : p.data.state === 'part' ? `${liWsNf(p.data.read)} of ${liWsNf(p.data.n)} read from Amazon ${liWsAgoWords(p.data.age)}` : 'Not read from Amazon yet';
@@ -14384,8 +14546,10 @@ function liWsPanelOpen(key) {
   const p = LI_WS.byKey.get(key);
   if (!p) return;
   const was = LI_WS.panel;
-  LI_WS.panel = { key, tab: was && was.key === key ? was.tab : 'fix', table: was && was.key === key ? was.table : false };
+  LI_WS.panel = { key, tab: was && was.key === key ? was.tab : 'fix', table: was && was.key === key ? was.table : false,
+    kid: was && was.key === key ? was.kid || '' : '', listPlace: was && was.key === key ? was.listPlace || null : null };
   LI_WS.panelSig = null;
+  LI_WS.panelResort = true;
   liWsRowMark(key);
   const panel = $('lsPanel');
   if (panel) {
@@ -14402,6 +14566,9 @@ function liWsPanelClose(returnFocus) {
   const key = LI_WS.panel.key;
   LI_WS.panel = null;
   LI_WS.panelSig = null;
+  LI_WS.panelDrawn = '';
+  clearTimeout(LI_WS.panelT);
+  LI_WS.panelT = 0;
   const panel = $('lsPanel');
   if (panel) {
     panel.hidden = true;
@@ -14425,6 +14592,34 @@ function liWsPanelMove(dir) {
   const row = $('liWs').querySelector ? $('liWs').querySelector(`[data-li-ws-row="${CSS.escape(next)}"]`) : null;
   if (row && row.scrollIntoView) row.scrollIntoView({ block: 'nearest' });
 }
+// A child from the Listings tab (list or table) opens in the panel as the shared child component; the list's place is kept for
+// "← back". ↑ / ↓ go to the child before / after it in the order the list showed; Esc and ← back return to the list, at the same
+// place, with the keyboard on that child's row.
+function liWsPanelKid(key) {
+  if (!LI_WS.panel) return;
+  const panel = $('lsPanel');
+  if (!LI_WS.panel.kid && panel && panel.querySelector) LI_WS.panel.listPlace = liWsPanelPlace(panel);
+  LI_WS.panel.kid = key;
+  liWsPanelRender();
+  const back = panel && panel.querySelector ? panel.querySelector('[data-li-ws-pback]') : null;
+  if (back && back.focus) back.focus({ preventScroll: true });
+}
+function liWsPanelKidMove(dir) {
+  const ids = LI_WS.panelKidIds || [];
+  const at = ids.indexOf(LI_WS.panel.kid);
+  const next = ids[at + dir];
+  if (next) liWsPanelKid(next);
+}
+function liWsPanelKidBack() {
+  if (!LI_WS.panel || !LI_WS.panel.kid) return;
+  const key = LI_WS.panel.kid;
+  const place = LI_WS.panel.listPlace;
+  LI_WS.panel.kid = '';
+  LI_WS.panel.listPlace = null;
+  liWsPanelRender();
+  const panel = $('lsPanel');
+  if (panel && panel.querySelector) liWsPanelPlaceBack(panel, Object.assign({ top: 0, sku: '', off: 0 }, place || {}, { focus: `[data-li-ws-sku="${CSS.escape(key)}"]`, hadFocus: true }));
+}
 // Mark the open parent's row in the list by hand (no redraw): the one with this key is open, every other one is not.
 function liWsRowMark(key) {
   const box = $('liWs');
@@ -14435,14 +14630,92 @@ function liWsRowMark(key) {
     row.setAttribute('aria-expanded', String(on));
   });
 }
-// After a list draw: the panel's parent is gone (another brand, a search) → close; its kids or read state changed → draw again; else nothing.
+// After a list draw: the panel's parent is gone (another brand, a search) → close; its kids or read state changed → draw again
+// (through liWsPanelSchedule: never while the panel is scrolled, at most once per LI_WS_PANEL_MS while reads land); else nothing.
 function liWsPanelSync() {
   const p = LI_WS.byKey.get(LI_WS.panel.key);
   if (!p) return liWsPanelClose(false);
+  if (liWsPanelSame(p)) return;
+  liWsPanelSchedule();
+}
+// The panel already shows what this parent record would draw.
+function liWsPanelSame(p) {
   const sig = liWsPanelSigOf(p);
   const was = LI_WS.panelSig;
-  if (was && was.length === sig.length && was.every((part, i) => part === sig[i])) return;
-  liWsPanelRender();
+  return !!was && was.length === sig.length && was.every((part, i) => part === sig[i]);
+}
+// The panel's redraw for landed reads: waits until the panel has not been scrolled for LI_WS_SCROLL_MS and, while reads are
+// running, until LI_WS_PANEL_MS since its last draw. The person's own clicks in the panel draw it at once (liWsPanelRender).
+function liWsPanelSchedule() {
+  if (!LI_WS.panel) return;
+  const now = Date.now();
+  const busy = LI_WS.inflight || LI_WS.q.length;
+  let wait = busy ? Math.max(0, LI_WS_PANEL_MS - (now - LI_WS.panelAt)) : 0;
+  if (now - LI_WS.pScrollAt < LI_WS_SCROLL_MS) wait = Math.max(wait, LI_WS_SCROLL_MS - (now - LI_WS.pScrollAt));
+  clearTimeout(LI_WS.panelT);
+  LI_WS.panelT = 0;
+  if (!wait) return liWsPanelTick();
+  LI_WS.panelT = setTimeout(liWsPanelTick, wait);
+}
+function liWsPanelTick() {
+  LI_WS.panelT = 0;
+  if (!LI_WS.panel) return;
+  if (Date.now() - LI_WS.pScrollAt < LI_WS_SCROLL_MS) return liWsPanelSchedule();
+  const p = LI_WS.byKey.get(LI_WS.panel.key);
+  if (!p) return liWsPanelClose(false);
+  if (!liWsPanelSame(p)) liWsPanelRender();
+}
+// The person's place in the panel before a redraw: the scroll, the listing row at the top edge (its SKU) and how far it sits from
+// that edge — rows above it may change height, so the row is put back, not just scrollTop — and which control had the keyboard.
+function liWsPanelPlace(panel) {
+  const body = panel.querySelector('.ls-panel-b');
+  const active = typeof document !== 'undefined' ? document.activeElement : null;
+  let focus = '';
+  if (active && active !== panel && panel.contains && panel.contains(active)) {
+    focus = [...active.attributes].filter(at => /^data-(li-ws|lr)-/.test(at.name)).map(at => `[${at.name}="${CSS.escape(at.value)}"]`).join('');
+  }
+  const place = { top: body ? body.scrollTop : 0, sku: '', off: 0, focus, hadFocus: !!active && panel.contains && panel.contains(active) };
+  if (!body || !body.scrollTop) return place;
+  const edge = body.getBoundingClientRect().top;
+  for (const btn of body.querySelectorAll('[data-li-ws-sku]')) {
+    const top = (btn.closest('tr') || btn).getBoundingClientRect().top;
+    if (top <= edge + 1 || !place.sku) {
+      place.sku = btn.dataset.liWsSku;           // the last row starting at or above the edge: the one the top edge cuts through
+      place.off = top - edge;
+    }
+    if (top > edge + 1) break;
+  }
+  return place;
+}
+// …and back after it: the same row at the same distance from the top edge (else the same scrollTop), the keyboard on the same control.
+function liWsPanelPlaceBack(panel, place) {
+  const body = panel.querySelector('.ls-panel-b');
+  if (body) {
+    body.scrollTop = place.top;
+    const btn = place.sku ? body.querySelector(`[data-li-ws-sku="${CSS.escape(place.sku)}"]`) : null;
+    if (btn) body.scrollTop += ((btn.closest('tr') || btn).getBoundingClientRect().top - body.getBoundingClientRect().top) - place.off;
+  }
+  if (!place.hadFocus) return;
+  const again = place.focus ? panel.querySelector(place.focus) : null;
+  if (again && again.focus) again.focus({ preventScroll: true });
+  else if (panel.focus) panel.focus({ preventScroll: true });
+}
+// The panel's rows keep the order they were drawn in while reads land (the list's "Sort again" rule): rows already shown stay in
+// their place, new ones join at the end; a parent opened, or Sort again, sorts afresh. `slot` 'kids' | 'fix', `ctx` what the rows are.
+function liWsPanelKeep(slot, ctx, items, idOf) {
+  const freshIds = items.map(idOf);
+  const was = LI_WS.panelOrder.get(slot);
+  if (LI_WS.panelResort || !was || was.ctx !== ctx) {
+    LI_WS.panelOrder.set(slot, { ctx, ids: freshIds });
+    return items;
+  }
+  const pos = new Map(was.ids.map((id, i) => [id, i]));
+  const kept = items.filter(it => pos.has(idOf(it))).sort((a, b) => pos.get(idOf(a)) - pos.get(idOf(b)));
+  const added = items.filter(it => !pos.has(idOf(it)));
+  if (added.length) was.ids = was.ids.concat(added.map(idOf));
+  const out = kept.concat(added);
+  if (out.some((it, i) => idOf(it) !== freshIds[i])) LI_WS.panelMoved = true;
+  return out;
 }
 // What the panel shows depends on: each child's kept-checks inputs (without the minute), the read state and the mode.
 const liWsPanelSigOf = p => p.kids.flatMap(kid => { const kept = LI_WS_KEPT.get(kid.row); return kept ? kept.sig.slice(0, -1) : [kid]; })
@@ -14455,23 +14728,43 @@ function liWsPanelRender() {
   if (!p) return;
   const tab = LI_WS.panel.tab;
   LI_WS.panelSig = liWsPanelSigOf(p);
-  const scope = p.inMode;                             // the children the mode shows (live, not live, or all)
+  clearTimeout(LI_WS.panelT);
+  LI_WS.panelT = 0;
+  LI_WS.panelAt = Date.now();
+  LI_WS.panelMoved = false;
+  const drawn = [LI_WS.panel.key, tab, LI_WS.panel.table ? 1 : 0, LI_WS.panel.kid || ''].join('|');
+  const place = LI_WS.panelDrawn === drawn ? liWsPanelPlace(panel) : null;   // the same view again: keep the person's place
+  // One child open from the Listings tab: the panel shows the SAME child component as Child listings' sidebar (listing-kid.js),
+  // with "← back" to the list where it was.
+  const kidOpen = LI_WS.panel.kid ? p.kids.find(kid => kid.brand + '|' + kid.sku === LI_WS.panel.kid) : null;
+  if (LI_WS.panel.kid && !kidOpen) LI_WS.panel.kid = '';
+  if (kidOpen && typeof lkHtml === 'function') {
+    panel.innerHTML = lkHtml(kidOpen, { back: 'data-li-ws-pback="1"', backLabel: `← ${liWsCut(p.name || p.parent, 40)} · all listings`, backAlways: true, close: 'data-li-ws-pclose="1"' });
+    LI_WS.panelDrawn = drawn;
+    if (place) liWsPanelPlaceBack(panel, place);
+    return;
+  }
+  const scope = p.inMode;                            // the children the mode shows (live, not live, or all)
   const groups = liWsPanelGroups(scope);
   const reading = p.data.state === 'reading';
   const name = p.name || p.parent;
   const tabs = [['fix', 'What to fix', groups.length], ['list', 'Listings', p.inMode.length], ['audit', 'Audit', p.audit ? p.audit.fail : 0]];
-  const head = `<div class="ls-panel-h">${liWsPicHtml(p.pic, true)}<div class="ls-panel-t"><b title="${lrEsc(name)}">${lrEsc(name)}</b>`
+  const body = tab === 'fix' ? liWsPanelFix(p, groups) : tab === 'list' ? liWsPanelList(p) : liWsPanelAudit(p);   // first: it says whether rows are held (panelMoved)
+  LI_WS.panelResort = false;
+  const resort = LI_WS.panelMoved ? '<button type="button" class="ls-btn" data-li-ws-psort="1" title="New answers from Amazon would put these rows in another order; the panel keeps its order until you press this">Sort again</button>' : '';
+  const head =`<div class="ls-panel-h">${liWsPicHtml(p.pic, true)}<div class="ls-panel-t"><b title="${lrEsc(name)}">${lrEsc(name)}</b>`
     + `<span><span class="ui-mono">${lrEsc(p.parent)}</span> · ${lrEsc(BRAND_NAME[p.brand] || p.brand)} · ${liWsNf(p.liveN)} live of ${liWsNf(p.kids.length)} listing${p.kids.length === 1 ? '' : 's'}</span></div>`
     + '<button type="button" class="ls-x" data-li-ws-pclose="1" aria-label="Close">×</button></div>'
     + `<div class="ls-panel-a"><button type="button" class="ls-btn" data-li-ws-again="${lrEsc(p.key)}"${reading ? ' disabled' : ''}>${reading ? `Reading… ${liWsNf(p.data.done)} of ${liWsNf(p.data.total)}` : 'Read from Amazon now'}</button>`
-    + `<button type="button" class="ls-btn" data-li-ws-open="${lrEsc(p.key)}">Open in Parent ASINs</button></div>`
+    + `<button type="button" class="ls-btn" data-li-ws-open="${lrEsc(p.key)}">Open in Parent ASINs</button>${resort}</div>`
     + '<div class="ls-tabs" role="tablist">' + tabs.map(([k, t, n]) => `<button type="button" role="tab" data-li-ws-ptab="${k}" aria-selected="${tab === k}">${t}${n ? `<span class="ls-n">${liWsNf(n)}</span>` : ''}</button>`).join('') + '</div>';
-  const body = tab === 'fix' ? liWsPanelFix(p, groups) : tab === 'list' ? liWsPanelList(p) : liWsPanelAudit(p);
   const d = p.data;
   const amazon = d.state === 'reading' ? `reading ${liWsNf(d.done)} of ${liWsNf(d.total)}…` : d.state === 'live' ? liWsAgoWords(d.age)
     : d.state === 'part' ? `${liWsNf(d.read)} of ${liWsNf(d.n)} read ${liWsAgoWords(d.age)}` : 'not read yet';
   const foot = `<div class="ls-panel-f">Amazon: ${lrEsc(amazon)} · Full refresh: ${d.snapAge >= 0 ? liWsAgoWords(d.snapAge) : 'none yet'}${d.why ? ` · <span class="li-ws-err">${lrEsc(liWsCut(d.why, 120))}</span>` : ''}</div>`;
   panel.innerHTML = head + `<div class="ls-panel-b" role="tabpanel">${body}</div>` + foot;
+  LI_WS.panelDrawn = drawn;
+  if (place) liWsPanelPlaceBack(panel, place);
 }
 // What to fix: the counted children's findings grouped by rule — Errors first, then Needs attention, then "Good to fill" (the
 // empty specs from the live read) — each as one row: the level word and the rule, which listings, how to fix, the tag, Fix.
@@ -14498,6 +14791,7 @@ function liWsPanelFix(p, groups) {
   if (!groups.length) return `<div class="ls-empty">${p.scopeN ? '<b>Nothing to fix.</b><br>Every counted listing of this parent passes the Listing Rules.' : '<b>No live listing.</b><br>Switch to “All” above to judge the ones that are not live.'}</div>`;
   const moreKey = 'fix:' + p.key;
   const open = LI_WS.moreOpen.has(moreKey);
+  groups = liWsPanelKeep('fix', [p.key, LI_WS.mode, LI_WS.card].join('|'), groups, g => g.key);
   const shown = open ? groups : groups.slice(0, 5);
   const rows = shown.map(g => {
     const skus = g.skus.slice(0, 4).join(', ') + (g.skus.length > 4 ? ` +${g.skus.length - 4} more` : '');
@@ -14506,6 +14800,12 @@ function liWsPanelFix(p, groups) {
   }).join('');
   return `<div class="ls-recs">${rows}</div>` + (groups.length > 5 && !open ? `<div class="ls-panel-tog"><button type="button" class="ls-more" data-li-ws-pmore="${lrEsc(moreKey)}">Show ${groups.length - 5} more</button></div>` : '');
 }
+// The children worst first: the ones in the number card, live, with an Error, with more failing checks, then by SKU.
+const liWsKidSort = (kids, inCard) => kids.sort((a, b) => (Number(inCard(b)) - Number(inCard(a))) || (Number(b.live) - Number(a.live)) || (Number(b.red) - Number(a.red))
+  || (b.fails.length - a.fails.length) || String(a.sku).localeCompare(String(b.sku)));
+// The panel's children (list or table): sorted like that once, then kept in that order while reads land (liWsPanelKeep).
+const liWsPanelKids = (p, step, cardK, inStep, inCard) => liWsPanelKeep('kids', [p.key, LI_WS.mode, cardK, step ? step.k : ''].join('|'),
+  liWsKidSort(p.inMode.filter(kid => !step || inStep(kid)), inCard), kid => kid.brand + '|' + kid.sku);
 // Listings: every child in the mode — picture, SKU, status, its problems as small tags or ✓ — the ones matching the number card
 // first; a click opens its own problems (and "Show passed checks"); or the whole checklist as a table.
 function liWsPanelList(p) {
@@ -14515,10 +14815,10 @@ function liWsPanelList(p) {
   const inStep = kid => !!(step && step.checks && step.checks.some(k => kid.c[k].pass === false));
   const cardK = LI_WS.mode !== 'off' && LI_WS_CARD[LI_WS.card] ? LI_WS.card : '';
   const inCard = kid => !!(cardK && kid.cards && kid.cards[cardK]);
-  const kids = p.inMode.filter(kid => !step || inStep(kid)).sort((a, b) => (Number(inCard(b)) - Number(inCard(a))) || (Number(b.live) - Number(a.live)) || (Number(b.red) - Number(a.red)) || (b.fails.length - a.fails.length)
-    || String(a.sku).localeCompare(String(b.sku)));
+  const kids = liWsPanelKids(p, step, cardK, inStep, inCard);
+  LI_WS.panelKidIds = kids.map(kid => kid.brand + '|' + kid.sku);   // ↑ / ↓ in an open child go through this order
   const firstOther = cardK ? kids.findIndex(kid => !inCard(kid)) : -1;
-  const tagOf = hit => `<span class="ls-tag ${hit.sev === 'critical' ? (hit.stale ? 'is-chk' : 'is-err') : 'is-att'}" title="${lrEsc(hit.name + ' — ' + hit.detail)}">${lrEsc(liWsCut(hit.name, 26))}</span>`;
+  const tagOf =hit => `<span class="ls-tag ${hit.sev === 'critical' ? (hit.stale ? 'is-chk' : 'is-err') : 'is-att'}" title="${lrEsc(hit.name + ' — ' + hit.detail)}">${lrEsc(liWsCut(hit.name, 26))}</span>`;
   const rows = kids.map((kid, i) => {
     const key = kid.brand + '|' + kid.sku;
     const open = LI_WS.openSku.has(key);
@@ -14567,6 +14867,7 @@ function liWsTick() {
 // Workspace on: mark the pane and the button, show the box, load, draw. Listing Health's own table stays drawn underneath,
 // hidden by CSS, so the other two views come back exactly as they were.
 function liWsOn() {
+  if (typeof lkClose === 'function') lkClose(false);   // the Child listings sidebar goes with its view
   LI_WS.on = true;
   if (!LI_WS.stored) liWsStoreLoad();
   $('paneHealth').classList.add('li-ws-on');
@@ -14616,6 +14917,8 @@ new MutationObserver(liWsSchedule).observe($('hTable'), { childList: true });
 // On a phone the card does not scroll and the window does, so that scroll counts too.
 $('liWs').addEventListener('scroll', () => { LI_WS.scrollAt = Date.now(); }, { capture: true, passive: true });
 window.addEventListener('scroll', () => { if (LI_WS.on) LI_WS.scrollAt = Date.now(); }, { passive: true });
+// The side panel scrolls inside its body (.ls-panel-b): a scroll there holds the panel's redraws until it has stopped (liWsPanelSchedule).
+$('lsPanel').addEventListener('scroll', () => { LI_WS.pScrollAt = Date.now(); }, { capture: true, passive: true });
 // One click listener for the whole view AND the side panel: boxes, chips, headers, the mode, rows and ›, Open, Read again, the
 // SKU toggles, Show passed checks, Show these listings, the sweep, Sort again, Show more, the panel's own buttons. (✗ and Fix are
 // data-lr-fix buttons: listing-rules.js opens the fix.)
@@ -14623,7 +14926,7 @@ function liWsClick(e) {
   const inPanel = !!(e.target.closest && e.target.closest('#lsPanel'));
   // Something in the panel changed (a listing opened, a tab, Show more): the panel redraws, never the list.
   const redraw = () => (inPanel && LI_WS.panel ? liWsPanelRender() : liWsDraw());
-  const el = e.target.closest('[data-li-ws-card],[data-li-ws-cardclear],[data-li-ws-chip],[data-li-ws-sort],[data-li-ws-mode],[data-li-ws-tog],[data-li-ws-open],[data-li-ws-again],[data-li-ws-sku],[data-li-ws-pass],[data-li-ws-show],[data-li-ws-sweep],[data-li-ws-recheck],[data-li-ws-resort],[data-li-ws-more],[data-li-ws-panel],[data-li-ws-pclose],[data-li-ws-ptab],[data-li-ws-ptable],[data-li-ws-pmore],[data-lr-fix],[data-lr-check],[data-pname]');
+  const el = e.target.closest('[data-li-ws-card],[data-li-ws-cardclear],[data-li-ws-chip],[data-li-ws-sort],[data-li-ws-mode],[data-li-ws-tog],[data-li-ws-open],[data-li-ws-again],[data-li-ws-sku],[data-li-ws-pass],[data-li-ws-show],[data-li-ws-sweep],[data-li-ws-recheck],[data-li-ws-resort],[data-li-ws-more],[data-li-ws-panel],[data-li-ws-pclose],[data-li-ws-pback],[data-li-ws-ptab],[data-li-ws-ptable],[data-li-ws-pmore],[data-li-ws-psort],[data-lr-fix],[data-lr-check],[data-pname]');
   if (!el) {
     // A click on the row itself (not on a button in it) opens the parent in the side panel.
     const row = e.target.closest('[data-li-ws-row]');
@@ -14653,6 +14956,11 @@ function liWsClick(e) {
   if (d.liWsPmore) {
     LI_WS.moreOpen.add(d.liWsPmore);
     return liWsPanelRender();
+  }
+  if (d.liWsPsort) {                                   // the panel's own Sort again: its rows in a fresh order
+    LI_WS.panelResort = true;
+    liWsPanelRender();
+    return refocus('[data-li-ws-ptab][aria-selected="true"]');
   }
   if (d.liWsCard) {
     // A number card filters the list to its group; the same card again clears it. "Not live" is the mode of that name.
@@ -14721,6 +15029,8 @@ function liWsClick(e) {
     redraw();
     return refocus(`[data-li-ws-again="${CSS.escape(d.liWsAgain)}"]`);
   }
+  if (d.liWsPback) return liWsPanelKidBack();
+  if (d.liWsSku && inPanel && LI_WS.panel) return liWsPanelKid(d.liWsSku);   // the panel: the child opens in the shared component
   if (d.liWsSku) {
     if (LI_WS.openSku.has(d.liWsSku)) LI_WS.openSku.delete(d.liWsSku);
     else LI_WS.openSku.add(d.liWsSku);
@@ -14791,17 +15101,246 @@ if (typeof document !== 'undefined' && document.addEventListener) {
     if (!LI_WS.panel || (typeof TAB_NOW !== 'undefined' && TAB_NOW !== 'health')) return;
     if (e.key === 'Escape') {
       e.preventDefault();
-      liWsPanelClose(true);
+      if (LI_WS.panel.kid) liWsPanelKidBack();        // an open child goes back to the list first
+      else liWsPanelClose(true);
     } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       if (e.target && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName || '')) return;
       e.preventDefault();
-      liWsPanelMove(e.key === 'ArrowDown' ? 1 : -1);
+      if (LI_WS.panel.kid) liWsPanelKidMove(e.key === 'ArrowDown' ? 1 : -1);   // an open child: the previous / next child
+      else liWsPanelMove(e.key === 'ArrowDown' ? 1 : -1);
     }
   });
   document.addEventListener('mousedown', e => {
     if (!LI_WS.panel || (typeof TAB_NOW !== 'undefined' && TAB_NOW !== 'health') || !e.target || !e.target.closest) return;
     if (e.target.closest('#lsPanel,[data-li-ws-row],[data-li-ws-panel],.modal,.modalbox,#hModeSeg,#hRecheck')) return;
     liWsPanelClose(false);
+  });
+}
+/* ============================== FILE: src/app/listing/listing-kid.js ============================== */
+/* ================= LISTING · ONE CHILD LISTING AS A SIDEBAR: the same component on Child listings and in the Workspace panel =================
+ * Screens: Listing Health → Child listings: a click (or Enter) on a row opens that child in a 460px sidebar on the right (#lsKid;
+ *          the whole screen on a phone, with "← Back"), one at a time; ↑ / ↓ move to the previous / next row, Esc closes.
+ *          Parent ASINs still opens a parent ON THE PAGE (Ravi's rule) — nothing here touches that.
+ *          The Workspace side panel's Listings tab draws the very same component inside the panel (listing-workspace.js calls lkHtml).
+ * Does: one child listing — header (picture, SKU, ASIN, parent name, status, stock, ×, Check now), its problems grouped
+ *       "Error: fix first" / "Needs attention" / "Good to fill" (each a lrRecHtml row: dot, the problem in words, how to fix, the tag,
+ *       Fix), "Show passed checks (N)", and a footer with the sources and how old each is. DISPLAY ONLY: every judgement is
+ *       healthOf's (listing-rules.js) through the Workspace's liWsChild — the same record the table and the Workspace show.
+ * Main functions: lkKid (the child record of a Health row), lkHtml (the component), lkOpen / lkClose / lkMove / lkRender / lkSync /
+ *       lkRowMark (the Child listings sidebar).
+ */
+const LK = {
+  key: '',                 // "brand|sku" open in the Child listings sidebar; '' when closed
+  pass: new Set(),         // "brand|sku" whose passed checks are showing (both screens)
+  scrollAt: 0,             // when the sidebar was last scrolled: a redraw for landed data waits LK_SCROLL_MS after it
+  timer: 0,                // that waiting redraw
+  drawn: null,             // the child record the sidebar last drew (liWsChildKept gives the same object while nothing changed)
+  drawnChk: false,         // …and whether its Check now was running then
+};
+const LK_SCROLL_MS = 400;
+
+// The child record (liWsChild's checks, findings and live read) of one listing in the Health snapshot; null when it is not there.
+function lkKid(brand, sku) {
+  const row = ((HEALTH[brand] && HEALTH[brand].rows) || []).find(each => each.sku === sku);
+  if (!row || typeof liWsChildKept !== 'function') return null;
+  return liWsChildKept(row, brand, hCtx(), liWsImlIndex(brand), Date.now());
+}
+// A date that may be a Date, a Firestore Timestamp or milliseconds, as milliseconds (0 when none).
+const lkMs = value => (!value ? 0 : value.getTime ? value.getTime() : value.toDate ? value.toDate().getTime() : +value || 0);
+
+/** The component: one child listing as header + body + footer (the .ls-panel-h / .ls-panel-b / .ls-panel-f parts of a side panel).
+ *  `opts`: { back, backLabel, backAlways, close } — `back` / `close` are the attributes their buttons carry, so each screen handles
+ *  its own (Child listings: data-lk-close; the Workspace panel: data-li-ws-pback / data-li-ws-pclose). */
+function lkHtml(kid, opts) {
+  const key = kid.brand + '|' + kid.sku;
+  const row = kid.row;
+  const now = Date.now();
+  const checking = !!(LI_WS.checking && LI_WS.checking.has(key));
+  const parent = row.parent ? (typeof parentName === 'function' ? parentName(kid.brand, row.parent, row.title) : row.parent) : '';
+  // --- header: back (a phone, or always in the Workspace panel), picture, SKU, ASIN, parent, status, stock, ×; then Check now ---
+  const top = opts.back ? `<div class="lk-top${opts.backAlways ? ' is-always' : ''}"><button type="button" class="lk-back" ${opts.back}>${lrEsc(opts.backLabel || '← Back')}</button></div>` : '';
+  const status = String(row.status || '').trim();
+  const stock = row.qty == null ? 'Stock not known' : `${liWsNf(row.qty)} unit${row.qty === 1 ? '' : 's'} in stock`;
+  const head = top + `<div class="ls-panel-h lk-h">${liWsPicHtml(liWsPicUrl(kid.brand, kid.sku), true)}<div class="ls-panel-t">`
+    + `<b class="lk-sku" title="${lrEsc(kid.sku)}">${lrEsc(kid.sku)}</b>`
+    + `<span><span class="ui-mono">${lrEsc(kid.asin || '—')}</span>${parent ? ` · <span title="${lrEsc(parent)}">${lrEsc(parent)}</span>` : ''}</span>`
+    + `<span><span class="lk-st${kid.live ? ' is-live' : ''}">${lrEsc(kid.why)}</span>${status && status.toLowerCase() !== kid.why.toLowerCase() ? ' · ' + lrEsc(status) : ''} · ${lrEsc(stock)}</span></div>`
+    + `<button type="button" class="ls-x" ${opts.close} aria-label="Close">×</button></div>`
+    + `<div class="ls-panel-a"><button type="button" class="ls-btn" data-lr-check="${lrEsc(key)}"${checking ? ' disabled' : ''} title="Reads this one listing from Amazon now: status, Amazon's issues, the catalogue's pictures, content and A+">${checking ? 'Checking…' : 'Check now'}</button></div>`;
+  // --- body: the problems in three groups, worst first; each one row: dot · in words · how to fix · tag · Fix ---
+  const found = lrProblemsSort(kid.found);
+  const ageOf = hit => (hit.at > 0 ? Math.round((now - hit.at) / LR_DAY) + ' days old' : 'with no date');
+  const rec = (hit, fill) => lrRecHtml({ sev: hit.sev, stale: hit.stale, fill, bare: true, name: hit.what || hit.name,
+    sub: [hit.what ? '' : hit.detail, hit.sev === 'critical' && hit.stale ? `from data ${ageOf(hit)} — Check now reads it again` : ''].filter(Boolean).join(' · '),
+    fix: hit.fix, tag: hit.tag, kind: hit.kind, detector: hit.detector,
+    attrs: fill ? ((kid.c.spec && kid.c.spec.attrs) || []) : ((kid.c[liWsColOf(hit)] || {}).attrs || []) }, { brand: kid.brand, sku: kid.sku });
+  const group = (cls, title, items) => (items.length ? `<div class="ls-kidhead lk-gh ${cls}">${lrEsc(title)}<span class="ls-n">${liWsNf(items.length)}</span></div><div class="ls-recs">${items.join('')}</div>` : '');
+  const errs = found.filter(hit => hit.sev === 'critical').map(hit => rec(hit, false));
+  const atts = found.filter(hit => hit.sev !== 'critical').map(hit => rec(hit, false));
+  const fills = ((kid.c.spec && kid.c.spec.hits) || []).map(hit => rec(hit, true));
+  const checks = LI_WS_CHECKS.map(check => Object.assign({ k: check.k, t: check.w || check.t }, kid.c[check.k]));
+  const unknown = checks.filter(c => c.pass === null && !c.na);
+  const bangs = [...new Set(checks.map(c => c.bang).filter(Boolean))];
+  const none = !errs.length && !atts.length && !fills.length
+    ? `<div class="ls-empty lk-none">${unknown.length ? '<b>No problem found so far.</b><br>Some checks have no answer yet — see below.' : '<b>No problem on this listing.</b><br>Every Listing Rule passes.'}</div>` : '';
+  const info = (kid.live ? '' : '<div class="lk-info">This listing is not live, so its problems are not counted anywhere.</div>')
+    + (checking ? '<div class="lk-info">Reading this listing from Amazon now…</div>' : '')
+    + (kid.notes && kid.notes.length ? `<div class="lk-info">${lrNotesHtml(kid.notes)}</div>` : '')
+    + (unknown.length ? `<div class="lk-info">Not checked yet: ${unknown.map(c => `${lrEsc(c.t)} — ${lrEsc(c.found || 'not known')}`).join(' · ')}</div>` : '')
+    + (bangs.length ? `<div class="lk-info li-ws-err">Could not read from Amazon: ${bangs.map(lrEsc).join(' · ')}</div>` : '');
+  const passed = checks.filter(c => c.pass === true || c.na);
+  const open = LK.pass.has(key);
+  const srcOf = c => [c.src && c.src.s, c.src && c.src.when].filter(Boolean).join(' · ');
+  const pass = passed.length ? `<div class="ls-panel-tog lk-passtog"><button type="button" class="ls-more" data-lk-pass="${lrEsc(key)}" aria-expanded="${open}">${open ? 'Hide' : 'Show'} passed checks (${liWsNf(passed.length)})</button></div>`
+    + (open ? `<div class="lk-passed">${passed.map(c => `<div>${c.na ? '<span class="li-ws-na">—</span>' : '<span class="li-ws-ok">✓</span>'} <b>${lrEsc(c.t)}</b> — ${lrEsc(c.found || '')}${srcOf(c) ? ` <span class="lk-src">· ${lrEsc(srcOf(c))}</span>` : ''}</div>`).join('')}</div>` : '') : '';
+  const body = group('is-c', lrLevel('critical').word, errs) + group('is-a', lrLevel('action').word, atts) + group('is-f', 'Good to fill', fills) + none + info + pass;
+  // --- footer: where the answers come from, and how old each source is ---
+  const healthAt = lkMs(HEALTH[kid.brand] && HEALTH[kid.brand].at);
+  const imlAt = lkMs(typeof IML !== 'undefined' && IML[kid.brand] && IML[kid.brand].at);
+  const lr = kid.lr;
+  const foot = `<div class="ls-panel-f">Amazon: ${lr && lr.at ? 'read ' + liWsAgoWords(now - lr.at) : 'not read from Amazon yet'}`
+    + ` · Full refresh: ${healthAt ? liWsAgoWords(now - healthAt) : 'none yet'}`
+    + ` · Image Manager: ${imlAt ? liWsAgoWords(now - imlAt) : 'not loaded'}`
+    + ` · Listing Rules: ${typeof LR_SAVED_AT !== 'undefined' && LR_SAVED_AT ? 'saved ' + liWsDate(lkMs(LR_SAVED_AT)) : 'built-in defaults'}</div>`;
+  return head + `<div class="ls-panel-b lk-b" role="region" aria-label="Problems of ${lrEsc(kid.sku)}">${body}</div>` + foot;
+}
+
+/* ----- the Child listings sidebar ----- */
+// Open a child (a click or Enter on its row, ↑ / ↓ from another): the row is marked without redrawing the table, the sidebar draws.
+function lkOpen(key) {
+  const sep = key.indexOf('|');
+  if (!lkKid(key.slice(0, sep), key.slice(sep + 1))) return;
+  const same = LK.key === key;
+  LK.key = key;
+  lkRowMark();
+  const box = $('lsKid');
+  if (!box) return;
+  box.hidden = false;
+  if (box.setAttribute) box.setAttribute('tabindex', '-1');
+  lkRender(same);
+  if (!same && box.focus) box.focus({ preventScroll: true });
+}
+// Close it: ×, ← Back, Esc, a press outside, another view. Focus goes back to the child's row when asked.
+function lkClose(returnFocus) {
+  if (!LK.key) return;
+  const key = LK.key;
+  LK.key = '';
+  LK.drawn = null;
+  clearTimeout(LK.timer);
+  const box = $('lsKid');
+  if (box) {
+    box.hidden = true;
+    box.innerHTML = '';
+  }
+  lkRowMark();
+  if (returnFocus) {
+    const row = lkRowEl(key);
+    if (row && row.focus) row.focus({ preventScroll: true });
+  }
+}
+const lkRowEl = key => ($('hTable') && $('hTable').querySelector ? $('hTable').querySelector(`tr[data-lk-row="${CSS.escape(key)}"]`) : null);
+// Mark the open child's row (no redraw): the selected row is highlighted, every other one is not.
+function lkRowMark() {
+  const table = $('hTable');
+  if (!table || !table.querySelectorAll) return;
+  table.querySelectorAll('tr[data-lk-row]').forEach(row => {
+    const on = row.dataset.lkRow === LK.key;
+    row.classList.toggle('is-open', on);
+    row.setAttribute('aria-selected', String(on));
+  });
+}
+// ↑ / ↓: the row before / after the open one, in the order the table shows; the sidebar follows and the row scrolls into view.
+function lkMove(dir) {
+  const table = $('hTable');
+  if (!LK.key || !table || !table.querySelectorAll) return;
+  const rows = [...table.querySelectorAll('tr[data-lk-row]')];
+  const at = rows.findIndex(row => row.dataset.lkRow === LK.key);
+  const next = at < 0 ? rows[0] : rows[at + dir];
+  if (!next) return;
+  lkOpen(next.dataset.lkRow);
+  if (next.scrollIntoView) next.scrollIntoView({ block: 'nearest' });
+}
+// Draw the sidebar. `keep`: the same child again — its scroll and the keyboard's place stay (liWsPanelPlace / PlaceBack).
+function lkRender(keep) {
+  const box = $('lsKid');
+  if (!box || !LK.key) return;
+  const sep = LK.key.indexOf('|');
+  const kid = lkKid(LK.key.slice(0, sep), LK.key.slice(sep + 1));
+  if (!kid) return lkClose(false);
+  clearTimeout(LK.timer);
+  const place = keep && box.querySelector ? liWsPanelPlace(box) : null;
+  LK.drawn = kid;
+  LK.drawnChk = !!(LI_WS.checking && LI_WS.checking.has(LK.key));
+  box.innerHTML = lkHtml(kid, { close: 'data-lk-close="1"', back: 'data-lk-close="1"', backLabel: '← Back' });
+  if (place) liWsPanelPlaceBack(box, place);
+}
+// After the table drew (data landed, a filter, a sort): another view → close; the child's record changed → draw again, but never
+// while the sidebar is being scrolled (it waits until LK_SCROLL_MS after the last scroll).
+function lkSync() {
+  if (!LK.key) return;
+  if (typeof H_VIEW !== 'undefined' && H_VIEW !== 'child') return lkClose(false);
+  lkRowMark();
+  const sep = LK.key.indexOf('|');
+  const kid = lkKid(LK.key.slice(0, sep), LK.key.slice(sep + 1));
+  if (!kid) return lkClose(false);
+  if (kid === LK.drawn && LK.drawnChk === !!(LI_WS.checking && LI_WS.checking.has(LK.key))) return;
+  const wait = LK_SCROLL_MS - (Date.now() - LK.scrollAt);
+  clearTimeout(LK.timer);
+  if (wait > 0) LK.timer = setTimeout(lkSync, wait);
+  else lkRender(true);
+}
+
+/* ----- wiring: listeners are ADDED beside Listing Health's own ----- */
+if (typeof document !== 'undefined' && document.addEventListener && $('hTable') && $('hTable').addEventListener) {
+  // A click on a child row (not on a button, a link or a name editor in it) opens it; "+n more" in its Why cell does too.
+  $('hTable').addEventListener('click', e => {
+    const row = e.target && e.target.closest ? e.target.closest('tr[data-lk-row]') : null;
+    if (!row) return;
+    if (!e.target.closest('[data-lk-more]') && e.target.closest('button,a,input,select,textarea,[data-hkid],[data-pname]')) return;
+    lkOpen(row.dataset.lkRow);
+  });
+  $('hTable').addEventListener('keydown', e => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    const row = e.target && e.target.closest ? e.target.closest('tr[data-lk-row]') : null;
+    if (!row || e.target !== row) return;
+    e.preventDefault();
+    lkOpen(row.dataset.lkRow);
+  });
+  $('lsKid').addEventListener('click', e => {
+    if (e.target.closest && e.target.closest('[data-lk-close]')) lkClose(true);
+  });
+  $('lsKid').addEventListener('scroll', () => { LK.scrollAt = Date.now(); }, { capture: true, passive: true });
+  // "Show passed checks": the same toggle on both screens; the screen it is on redraws, the keyboard stays on the button.
+  document.addEventListener('click', e => {
+    const btn = e.target && e.target.closest ? e.target.closest('[data-lk-pass]') : null;
+    if (!btn) return;
+    const key = btn.dataset.lkPass;
+    if (LK.pass.has(key)) LK.pass.delete(key);
+    else LK.pass.add(key);
+    const inKid = !!btn.closest('#lsKid');
+    if (inKid) lkRender(true);
+    else if (btn.closest('#lsPanel') && typeof liWsPanelRender === 'function') liWsPanelRender();
+    const root = inKid ? $('lsKid') : $('lsPanel');
+    const again = root && root.querySelector ? root.querySelector(`[data-lk-pass="${CSS.escape(key)}"]`) : null;
+    if (again) again.focus({ preventScroll: true });
+  });
+  // Esc closes the sidebar (focus back on the row); ↑ / ↓ move to the previous / next child. Not while typing in a box.
+  document.addEventListener('keydown', e => {
+    if (!LK.key || (typeof TAB_NOW !== 'undefined' && TAB_NOW !== 'health') || LI_WS.panel) return;
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      lkClose(true);
+    } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      if (e.target && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName || '')) return;
+      e.preventDefault();
+      lkMove(e.key === 'ArrowDown' ? 1 : -1);
+    }
+  });
+  // A press outside it (on the page, not on a child row, the toolbar or a dialog) closes it — the click itself still lands.
+  document.addEventListener('mousedown', e => {
+    if (!LK.key || (typeof TAB_NOW !== 'undefined' && TAB_NOW !== 'health') || !e.target || !e.target.closest) return;
+    if (e.target.closest('#lsKid,tr[data-lk-row],.modal,.modalbox,#hToolbar')) return;
+    lkClose(false);
   });
 }
 /* ============================== FILE: src/app/listing/bsr-audit.js ============================== */
