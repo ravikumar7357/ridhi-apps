@@ -103,6 +103,7 @@ vendors/orders/same-colour-twice.js
 orders/reserve.js
 vendors/portal/vendor-portal.js
 vendors/portal/daily-challan.js
+vendors/portal/vendor-sent-excel.js
 vendors/portal/vendor-master.js
 vendors/portal/phone-pin.js
 inventory/finished-goods.js
