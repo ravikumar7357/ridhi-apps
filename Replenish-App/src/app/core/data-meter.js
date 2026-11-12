@@ -21,7 +21,7 @@
  *
  * EVERY meter error goes to the console only. Nothing is thrown and nothing is written because of one: a failing
  * meter leaves the read or the save exactly as it was before it existed. */
-const DM = { tab: '', day: '', T: {}, rl: 0, pk: 1, dirty: false, started: false, sendSet: false };
+const DM = { tab: '', day: '', T: {}, rl: 0, ra: 0, rb: 0, pk: 1, dirty: false, started: false, sendSet: false };
 const DM_GIVE_UP_DAYS = 7;
 const dmWarn = e => { try { console.warn('[data meter]', e); } catch (x) { /* nowhere to say it */ } };
 const dmDay = () => new Date().toISOString().slice(0, 10);
@@ -59,8 +59,11 @@ function dmInit() {
   DM.tab = tab; DM.day = dmDay();
   /* A reload keeps the tab: carry on from what this tab saved earlier today, and count the reload. */
   const old = dmParse(dmLsGet('dm:t:' + DM.day + ':' + DM.tab));
-  if (old && old.pages) { DM.T = old.pages; DM.rl = old.rl || 0; DM.pk = old.pk || 1; }
-  try { const nav = performance.getEntriesByType('navigation')[0]; if (nav && nav.type === 'reload') { DM.rl++; DM.dirty = true; } } catch (e) { /* not known */ }
+  if (old && old.pages) { DM.T = old.pages; DM.rl = old.rl || 0; DM.ra = old.ra || 0; DM.rb = old.rb || 0; DM.pk = old.pk || 1; }
+  try { const nav = performance.getEntriesByType('navigation')[0]; if (nav && nav.type === 'reload') { DM.rl++; DM.dirty = true;
+    /* appv.js tags a reload it caused itself: 'auto' = the app took in a new version on its own, 'bar' = someone clicked the red bar. The tag is read once and removed, so an F5 later is not mistaken for it. */
+    let why = ''; try { why = sessionStorage.getItem('appvAuto') || ''; sessionStorage.removeItem('appvAuto'); } catch (e) { /* no session storage */ }
+    if (why === 'auto') DM.ra++; else if (why === 'bar') DM.rb++; } } catch (e) { /* not known */ }
   try {
     const tick = setInterval(dmTick, 30000);
     if (tick && typeof tick.unref === 'function') tick.unref();
@@ -86,12 +89,12 @@ function dmCount(node, chars, how) {
 /** The page stayed open past midnight: yesterday's figures are saved under yesterday, today starts clean. */
 function dmRoll() {
   dmSave(true);
-  DM.T = {}; DM.rl = 0; DM.pk = 1; DM.day = dmDay(); DM.dirty = false;
+  DM.T = {}; DM.rl = 0; DM.ra = 0; DM.rb = 0; DM.pk = 1; DM.day = dmDay(); DM.dirty = false;
 }
 function dmSave(force) {
   try {
     if (!DM.started || (!DM.dirty && !force)) return;
-    dmLsSet('dm:t:' + DM.day + ':' + DM.tab, JSON.stringify({ v: 1, tab: DM.tab, rl: DM.rl, pk: DM.pk, pages: DM.T }));
+    dmLsSet('dm:t:' + DM.day + ':' + DM.tab, JSON.stringify({ v: 1, tab: DM.tab, rl: DM.rl, ra: DM.ra, rb: DM.rb, pk: DM.pk, pages: DM.T }));
     DM.dirty = false;
   } catch (e) { dmWarn(e); }
 }
@@ -187,11 +190,11 @@ function dmNotCounted() {
 /** The tallies of every tab that day added together, in the shape of the daily line. */
 function dmBuildLine(keys, who, type) {
   const pages = {};
-  let reloads = 0, peak = 1, tabs = 0;
+  let reloads = 0, reloadsAuto = 0, reloadsBar = 0, peak = 1, tabs = 0;
   keys.forEach(k => {
     const t = dmParse(dmLsGet(k));
     if (!t || !t.pages) return;
-    tabs++; reloads += t.rl || 0; peak = Math.max(peak, t.pk || 1);
+    tabs++; reloads += t.rl || 0; reloadsAuto += t.ra || 0; reloadsBar += t.rb || 0; peak = Math.max(peak, t.pk || 1);
     Object.keys(t.pages).forEach(pg => Object.keys(t.pages[pg]).forEach(reg => {
       const s = t.pages[pg][reg];
       const P = pages[pg] || (pages[pg] = {});
@@ -205,7 +208,7 @@ function dmBuildLine(keys, who, type) {
     Object.keys(N.how).forEach(h => { how[h] = { n: N.how[h].n, kb: dmKb(N.how[h].c) }; });
     pages[pg][reg] = { n: N.n, kb: dmKb(N.c), how };
   }));
-  return { v: 1, at: new Date().toISOString(), who, type, tabs, reloads, peakTabs: peak, pages, notCounted: dmNotCounted() };
+  return { v: 1, at: new Date().toISOString(), who, type, tabs, reloads, reloadsAuto, reloadsBar, peakTabs: peak, pages, notCounted: dmNotCounted() };
 }
 function dmDeviceId() {
   let d = dmLsGet('dmDevice');

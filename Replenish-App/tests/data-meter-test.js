@@ -43,7 +43,8 @@ function world(o) {
     get length() { return LS.size; }, key: i => [...LS.keys()][i] };
   if (o.ls) Object.entries(o.ls).forEach(([k, v]) => LS.set(k, v));
   const SS = new Map();
-  const sessionStorage = { getItem: k => (SS.has(k) ? SS.get(k) : null), setItem: (k, v) => SS.set(k, String(v)) };
+  const sessionStorage = { getItem: k => (SS.has(k) ? SS.get(k) : null), setItem: (k, v) => SS.set(k, String(v)), removeItem: k => { SS.delete(k); } };
+  if (o.ss) Object.entries(o.ss).forEach(([k, v]) => SS.set(k, v));
   const net = { calls: [], textCalls: 0, jsonCalls: 0 };
   const fetch = async (url, init) => {
     init = init || {};
@@ -215,9 +216,9 @@ const dmKeysOf = W => [...W.LS.keys()].filter(k => k.indexOf('dm') === 0);
 
   console.log('== the daily line ==');
   const yday = daysAgo(1), tabA = 'dm:t:' + yday + ':tA', tabB = 'dm:t:' + yday + ':tB';
-  const tally = (rl, pk, pages) => JSON.stringify({ v: 1, rl, pk, pages });
+  const tally = (rl, pk, pages, ra, rb) => JSON.stringify({ v: 1, rl, ra, rb, pk, pages });
   const mkLs = () => ({ dataMeter: '1', dmType: 'factory',
-    [tabA]: tally(1, 2, { ord: { pt_orderBook: { n: 2, c: 2048, how: { plain: { n: 1, c: 1024 }, 'from-copy': { n: 1, c: 0 }, 'live-first': { n: 0, c: 0 } } } } }),
+    [tabA]: tally(1, 2, { ord: { pt_orderBook: { n: 2, c: 2048, how: { plain: { n: 1, c: 1024 }, 'from-copy': { n: 1, c: 0 }, 'live-first': { n: 0, c: 0 } } } } }, 1, 0),
     [tabB]: tally(0, 3, { ord: { pt_orderBook: { n: 1, c: 1024, how: { plain: { n: 1, c: 1024 } } } }, cut: { pt_masterDB: { n: 1, c: 512, how: { plain: { n: 1, c: 512 } } } } }) });
   W = world({ ls: mkLs() });
   await W.dmSendDays();
@@ -225,7 +226,7 @@ const dmKeysOf = W => [...W.LS.keys()].filter(k => k.indexOf('dm') === 0);
   const key = Object.keys(W.writes[0] || {})[0] || '';
   ok('…at pt_dataMeter/<day>/<email with dots as commas>/<device>', new RegExp('^pt_dataMeter/' + yday + '/ravi,k@fabricrush,com/d[a-z0-9]+$').test(key), key);
   const line = W.writes[0][key];
-  ok('…with the right shape and the two tabs added up', line.v === 1 && line.who === 'Ravi.K@fabricrush.com' && line.type === 'factory' && line.tabs === 2 && line.reloads === 1 && line.peakTabs === 3 && typeof line.at === 'string',
+  ok('…with the right shape and the two tabs added up', line.v === 1 && line.who === 'Ravi.K@fabricrush.com' && line.type === 'factory' && line.tabs === 2 && line.reloads === 1 && line.reloadsAuto === 1 && line.reloadsBar === 0 && line.peakTabs === 3 && typeof line.at === 'string',
     JSON.stringify(line));
   ok('…pages add up (3 reads, 3 KB for the Order Book on one screen; Master Database apart)', line.pages.ord.pt_orderBook.n === 3 && line.pages.ord.pt_orderBook.kb === 3 && line.pages.ord.pt_orderBook.how.plain.n === 2
     && line.pages.ord.pt_orderBook.how.plain.kb === 2 && line.pages.cut.pt_masterDB.kb === 0.5, JSON.stringify(line.pages));
@@ -272,6 +273,14 @@ const dmKeysOf = W => [...W.LS.keys()].filter(k => k.indexOf('dm') === 0);
   W.dmTick();
   const saved = JSON.parse(W.LS.get('dm:t:' + today() + ':' + W.DM.tab));
   ok('the tally is saved when it changed, with the reload counted', saved.pages.ord.pt_orderBook.c === TEXT.pt_orderBook.length && saved.rl === 1);
+  /* reloads the app caused itself are counted apart (appvAuto tag), and the tag is used up */
+  W = world({ ls: { dataMeter: '1' }, reload: true, ss: { appvAuto: 'auto' } }); await W.ptGet('pt_orderBook'); W.dmTick();
+  ok('an automatic reload is counted as such, once, and the tag removed', W.DM.rl === 1 && W.DM.ra === 1 && W.DM.rb === 0 && W.ctx.sessionStorage.getItem('appvAuto') === null);
+  W = world({ ls: { dataMeter: '1' }, reload: true, ss: { appvAuto: 'bar' } }); await W.ptGet('pt_orderBook');
+  ok('a click on the red bar is counted apart', W.DM.rl === 1 && W.DM.ra === 0 && W.DM.rb === 1);
+  W = world({ ls: { dataMeter: '1' }, reload: true }); await W.ptGet('pt_orderBook');
+  ok('a plain F5 is in reloads only', W.DM.rl === 1 && W.DM.ra === 0 && W.DM.rb === 0);
+  W = world({ ls: { dataMeter: '1' }, reload: true });  await W.ptGet('pt_orderBook'); W.dmTick();
   W.LS.set('dm:hb:other1', String(Date.now())); W.LS.set('dm:hb:other2', String(Date.now() - 600000));
   W.dmTick();
   ok('peak tabs open at once counts recent heartbeats only', JSON.parse(W.LS.get('dm:t:' + today() + ':' + W.DM.tab)).pk === 2);
