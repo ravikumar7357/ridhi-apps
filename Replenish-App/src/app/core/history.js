@@ -217,6 +217,7 @@ async function ptPut(path, value) {
   if (!r.ok) throw new Error(`The production database answered ${r.status} ${r.statusText || ''}`.trim());
   const out = await r.json();
   auditLog('put', { [path]: value });
+  if (typeof ptMirror === 'function') ptMirror('put', { [path]: value });   // live mirror (core/mirror.js): never waits, never throws
   ptSyncNote([path], true);
   return out;
 }
@@ -243,6 +244,7 @@ async function ptCas(path, expect, next) {
     throw new Error('The production database refused the change — this account does not hold the right it needs.');
   if (!r.ok) throw new Error(`The production database answered ${r.status} ${r.statusText || ''}`.trim());
   auditLog('put', { [path]: next });
+  if (typeof ptMirror === 'function') ptMirror('put', { [path]: next });
   ptSyncNote([path], true);
   return '';
 }
@@ -275,6 +277,7 @@ async function ptPatch(updates, opts) {
   if (!r.ok) throw new Error(`The production database answered ${r.status} ${r.statusText || ''}`.trim());
   const out = await r.json();
   auditLog('patch', updates || {});
+  if (typeof ptMirror === 'function') ptMirror('patch', updates || {});
   ptSyncNote(Object.keys(updates || {}), false);
   if (baseMonths.length) await baseForget(baseMonths);
   return out;
@@ -294,6 +297,7 @@ async function ptDelete(path) {
   if (!r.ok) ptSaveFailed('delete', [path], r.status);
   if (!r.ok) throw new Error(`The production database answered ${r.status} ${r.statusText || ''}`.trim());
   auditLog('delete', { [path]: null });
+  if (typeof ptMirror === 'function') ptMirror('delete', { [path]: null });
   ptSyncNote([path], true);
   return true;
 }

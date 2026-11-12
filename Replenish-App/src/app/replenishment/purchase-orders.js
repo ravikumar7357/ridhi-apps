@@ -182,8 +182,8 @@ $('pmSave').onclick = async () => {
     by: ME.email, at: serverTimestamp(),
   };
   try {
-    if (PO_EDIT) { await setDoc(doc(db, 'po', PO_EDIT.id), rec); }
-    else { await addDoc(collection(db, 'po'), rec); }
+    if (PO_EDIT) { await setDoc(doc(db, 'po', PO_EDIT.id), rec); if (typeof fsMirror === 'function') fsMirror('put', 'po/' + PO_EDIT.id, rec); }
+    else { const ref = await addDoc(collection(db, 'po'), rec); if (ref && ref.path) if (typeof fsMirror === 'function') fsMirror('put', ref.path, rec); }
     $('poModal').classList.add('hide');
     PO_LOADED = false; await ensurePo();
     poMsg('Saved.'); setTimeout(() => poMsg(''), 1500);
@@ -193,6 +193,7 @@ $('pmDelete').onclick = async () => {
   if (!PO_EDIT || !confirm('Delete this purchase order?')) return;
   try {
     await deleteDoc(doc(db, 'po', PO_EDIT.id));
+    if (typeof fsMirror === 'function') fsMirror('delete', 'po/' + PO_EDIT.id);
     $('poModal').classList.add('hide');
     PO_LOADED = false; await ensurePo();
   } catch (e) { $('pmErr').textContent = 'Could not delete: ' + (e.message || e); $('pmErr').classList.remove('hide'); }
