@@ -124,6 +124,70 @@ async function accessShadow(user, permsDoc, firebaseMs) {
   mastersShadow(token);   // section 3: every Masters record
   skusShadow(token);      // section 4: every SKU record (at most once an hour per browser — it reads ~4 MB)
   ordersShadow(token);    // section 5: every order (at most once an hour per browser — it reads ~13 MB)
+  stockShadow(token);     // section 6: every stock line (at most once an hour per browser — it reads ~5 MB)
+}
+
+/* ================= STOCK · SHADOW TEST (Ravi, 12 Nov) =================
+ * Every stock line in live Firebase — finished goods, fabric, accessories, press, reserve, store, RFD cloth, recipients —
+ * against the copy in Supabase (schema stock), line by line, by fingerprint (core.stock_fp(), one trip). At most once an
+ * hour in a browser; click the line to run it now. Keep the paths the same as migration/tools/make-stock.js. */
+const ASH_STK_LAST = 'r1.testerp.stockShadowAt';
+const ASH_STK_ONE = ['pt_fgiLedger', 'pt_fabInvLedger', 'pt_accLedger', 'pt_pressInventory', 'pt_accReserve', 'pt_storeLedger', 'pt_issueRecipients'];
+function ashStockPaths(vals) {
+  const out = new Map();
+  const isRec = x => x && typeof x === 'object' && !Array.isArray(x);
+  ASH_STK_ONE.forEach((n, i) => ashEnt(vals[i]).forEach(([k, x]) => { if (isRec(x)) out.set(`${n}/${k}`, x); }));
+  ashEnt(vals[ASH_STK_ONE.length]).forEach(([g, grp]) => { if (isRec(grp)) ashEnt(grp).forEach(([k, x]) => { if (isRec(x)) out.set(`pt_rfdStock/${g}/${k}`, x); }); });
+  return out;
+}
+async function stockShadow(token, force) {
+  let last = 0; try { last = Number(localStorage.getItem(ASH_STK_LAST)) || 0; } catch (e) { /* no storage: run */ }
+  if (!force && Date.now() - last < 3600e3) { ashShowStock({ waiting: true, at: last, token }); return; }
+  ashShowStock({ running: true, token });
+  try {
+    const read = n => (typeof ptGetFresh === 'function' ? ptGetFresh(n) : ptGet(n, true));
+    const t0 = performance.now();
+    const vals = await Promise.all([...ASH_STK_ONE, 'pt_rfdStock'].map(read));
+    const firebaseMs = Math.round(performance.now() - t0);
+    const fb = ashStockPaths(vals);
+    const t1 = performance.now();
+    const j = await ashCall('stock_fp', token);
+    const supabaseMs = Math.round(performance.now() - t1);
+    const sb = new Map(Object.entries(j || {}));
+    const copyOf = sb.get('#copy_of') || ''; sb.delete('#copy_of');
+    const t2 = performance.now();
+    const { missing, changed, extra } = await ashCompare(fb, sb);
+    const compareMs = Math.round(performance.now() - t2);
+    const matched = !missing.length && !changed.length && !extra.length;
+    try { localStorage.setItem(ASH_STK_LAST, String(Date.now())); } catch (e) { /* fine */ }
+    ashShowStock({ matched, total: fb.size, missing, changed, extra, firebaseMs, supabaseMs, compareMs, copyOf, token });
+    ashCall('shadow_report', token, { p_section: 'stock · records', p_matched: matched, p_firebase_ms: firebaseMs, p_supabase_ms: supabaseMs,
+      p_missing: missing.concat(changed.map(p => p + ' (changed)')).slice(0, 500), p_extra: extra.slice(0, 500), p_build: (window.__TEST_ERP && window.__TEST_ERP.sha) || 'local' }).catch(() => {});
+    console.info('[shadow] stock', matched ? 'same' : 'DIFFERS', { total: fb.size, missing: missing.length, changed: changed.length, extra: extra.length, firebaseMs, supabaseMs });
+  } catch (e) { ashShowStock({ error: e.message, token }); }
+}
+function ashShowStock(r) {
+  let el = document.getElementById('ashStock');
+  if (!el) {
+    el = document.createElement('button'); el.id = 'ashStock'; el.type = 'button';
+    el.style.cssText = 'position:fixed;left:calc(12px + env(safe-area-inset-left,0px));bottom:calc(274px + env(safe-area-inset-bottom,0px));z-index:10000;'
+      + 'font:12px/1.3 system-ui,sans-serif;padding:7px 11px;border-radius:999px;border:1px solid rgba(0,0,0,.15);cursor:pointer;max-width:calc(100vw - 24px);text-align:left;color:#1b1b1b';
+    document.body.appendChild(el);
+    el.onclick = () => { const x = el._r || {}; if (x.waiting || x.error) { stockShadow(x.token, true); return; } el.dataset.open = el.dataset.open ? '' : '1'; ashShowStock(x); };
+  }
+  el._r = r; el.style.whiteSpace = 'pre-line';
+  if (r.running) { el.style.background = '#eef1f7'; ashShape(el, false); el.textContent = 'Stock · comparing every stock line with Firebase…'; return; }
+  if (r.waiting) { el.style.background = '#eef1f7'; ashShape(el, false); el.textContent = 'Stock · last compared ' + new Date(r.at).toLocaleTimeString('en-IN') + ' · click to compare again now'; return; }
+  if (r.error) { el.style.background = '#fff4d6'; ashShape(el, false); el.textContent = '! Stock · not compared: ' + String(r.error).slice(0, 120) + ' · click to retry'; return; }
+  el.style.background = r.matched ? '#e3f4ea' : '#fde4e1';
+  const n = r.missing.length + r.changed.length + r.extra.length;
+  let t = 'Stock · ' + r.total.toLocaleString('en-IN') + ' lines · ' + (r.matched ? '✓ every one the same as Firebase' : '✗ ' + n.toLocaleString('en-IN') + ' differ (Supabase copy from ' + (r.copyOf || '?') + ')')
+    + ' · Firebase ' + r.firebaseMs + ' ms · Supabase ' + r.supabaseMs + ' ms · compare ' + r.compareMs + ' ms';
+  const open = !!(el.dataset.open && n);
+  if (open) t += '\n' + [...r.changed.map(p => 'changed: ' + p), ...r.missing.map(p => 'new in Firebase: ' + p), ...r.extra.map(p => 'gone from Firebase: ' + p)].join('\n')
+    + '\nA difference here usually means a stock line added or changed in the ERP after the copy was made. Click to close.';
+  ashShape(el, open);
+  el.textContent = t;
 }
 
 /* ================= ORDERS · SHADOW TEST (Ravi, 12 Nov) =================
