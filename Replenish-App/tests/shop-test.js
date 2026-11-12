@@ -238,8 +238,12 @@ const ok = (what, cond, extra) => {
 console.log('\n== the backend the move had to repoint ==');
 {
   CALLS.prGet = []; FETCHES = [];
-  DOCS['stock/SP'] = { m: { 'RCNBMIX': 40, 'RTC301-6090': 5 } };
-  DOCS['stock/CPC'] = { m: { 'RCNBmix': 12 } };
+  /* Amazon stock for the Shopify screen is the Replenishment snapshot's FULFILLABLE only (Ravi, 12 Nov). Sellora's report
+   * (stock/{brand}) is still there with other figures, and must be ignored. */
+  DOCS['replshop/SP'] = { ful: { 'RCNBMIX': 40, 'RTC301-6090': 5 }, at: { toDate: () => new Date('2026-11-12T00:45:00Z') } };
+  DOCS['replshop/CPC'] = { ful: { 'RCNBmix': 12 }, at: { toDate: () => new Date('2026-11-12T00:46:00Z') } };
+  DOCS['stock/SP'] = { m: { 'RCNBMIX': 999, 'RTC301-6090': 999, 'ONLY-IN-SELLORA': 7 }, at: { toDate: () => new Date('2026-11-12T05:00:00Z') } };
+  DOCS['stock/CPC'] = { m: { 'RCNBmix': 999 } };
 
   await A.loadShopIndia();
   /* 2026-10-06, Ravi: "india stock ko apne app ke finish goods se dikhao sheet ka data hata do". */
@@ -279,6 +283,8 @@ console.log('\n== Amazon stock, and the casing that must survive ==');
   A.setSTOCK({}); A.setSTOCKCASE({});
   await A.loadShopStock();
   ok('both brands are merged into one map', A.SHOP_STOCK()['RCNBMIX'] === 40 && A.SHOP_STOCK()['RTC301-6090'] === 5);
+  ok('…and the figures are Fulfillable only: Sellora\'s newer stock report is not read, not even for a SKU only it has',
+    A.SHOP_STOCK()['ONLY-IN-SELLORA'] === undefined && A.SHOP_STOCK()['RCNBMIX'] !== 999, JSON.stringify(A.SHOP_STOCK()));
   /* Amazon SKUs are case-sensitive: matching ignores case, but what is SENT back must be spelled
    * the way Amazon spells it. This is the bug Ravi caught on screen on 2026-08-25. */
   ok('a lower-case spelling still matches', A.soAmzKey('rcnbmix') === 'RCNBMIX');
