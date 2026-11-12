@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <!-- ================================================================================================
-     GENERATED FILE. DO NOT READ OR EDIT THE CODE HERE — it is the 52 files of src/ joined into one page.
+     GENERATED FILE. DO NOT READ OR EDIT THE CODE HERE — it is the 53 files of src/ joined into one page.
      The real, grouped source: Pricing-App/src/   (map and workflow: src/README.md)
        src/index.html   page markup        src/styles.css   stylesheet        src/app/ORDER   join order
        src/app/<group>/ the code, by group: core, research, sales, inventory, listing, ads
@@ -2238,6 +2238,44 @@
     .sp-box,.sp-tlc,.sp-main,.sp-skel,.sp-pbar span{transition:none;animation:none}
     .sp-box:hover,.sp-tlc:hover,.sp-main:active{transform:none}
   }
+  /* ----- Rule Engine (12 Nov 2026): Image Manager's Picture check and Listing Rules' History. They reuse the look classes that work
+     outside Listing Health (.card, .sp-chip, .sp-seg, .sp-main, .sp-btn, .sp-link, .sp-chip-s, .sp-dim, .sp-empty, .sp-skel, .sp-foot —
+     the Ad Console copies above); Listing Health's own .ls-* rules are scoped to #paneHealth and stay untouched. Only layout is new,
+     scoped to #paneImg / #paneLrules, tokens only. ----- */
+  #paneImg #imPcChip{flex:0 0 auto}
+  #paneImg #imPcChip.is-on{background:var(--ink);color:var(--card);border-color:var(--ink)}
+  #paneImg .card.pc-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px 16px;flex-wrap:wrap;padding:14px 16px;margin-bottom:12px;
+    border-radius:var(--r-card);border:1px solid var(--card-line);box-shadow:var(--sh-1)}
+  #paneImg .pc-head>div:first-child{flex:1 1 320px;min-width:0}
+  #paneImg .pc-head p{margin:4px 0;font-size:13px;line-height:1.5;color:var(--muted)}
+  #paneImg .pc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;margin:0 0 12px}
+  #paneImg .card.pc-card{display:flex;flex-direction:column;margin:0;padding:0;overflow:hidden;border-radius:var(--r-card);border:1px solid var(--card-line);box-shadow:var(--sh-1)}
+  #paneImg .card.pc-card.is-ok{border-color:color-mix(in srgb,var(--accent) 45%,var(--card-line))}
+  #paneImg .card.pc-card.is-bad{border-color:color-mix(in srgb,var(--bad) 45%,var(--card-line))}
+  #paneImg .card.pc-card.is-focus{box-shadow:0 0 0 3px color-mix(in srgb,var(--brand) 40%,transparent)}
+  #paneImg .pc-pic{display:grid;place-items:center;aspect-ratio:1/1;background:var(--soft);border-bottom:1px solid var(--line)}
+  #paneImg .pc-pic img{display:block;width:100%;height:100%;object-fit:contain}
+  #paneImg .pc-skel-pic{display:block;width:100%;height:auto;aspect-ratio:1/1;border-radius:0}
+  #paneImg .pc-body{display:flex;flex-direction:column;gap:6px;padding:12px 14px 14px}
+  #paneImg .pc-name{font-size:13.5px;font-weight:650;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  #paneImg .pc-q{margin:4px 0 0;font-size:13.5px;font-weight:600;color:var(--ink);line-height:1.4}
+  #paneImg .pc-state{margin:0;font-size:12px;line-height:1.6}
+  #paneImg .sp-chip-s.pc-bad{background:var(--bad-bg);color:var(--bad-ink)}
+  #paneImg .pc-note-l{display:flex;flex-direction:column;gap:2px;font-size:11.5px;font-weight:600;color:var(--muted)}
+  #paneImg .pc-note{width:100%;height:36px;margin:0;padding:0 10px;border:1px solid var(--line);border-radius:var(--r-ctl);background:var(--card);color:var(--ink);font:inherit;font-size:13px}
+  #paneImg .pc-note:focus{outline:none;box-shadow:var(--ring)}
+  #paneImg .pc-act{display:flex;gap:8px}
+  #paneImg .pc-act button{flex:1 1 0}
+  #paneLrules .card.lr-hist{margin-top:12px;padding:14px 16px}
+  #paneLrules .lr-h-head{display:flex;align-items:baseline;gap:4px 12px;flex-wrap:wrap;margin-bottom:6px}
+  #paneLrules .lr-h-row{padding:10px 0;border-top:1px solid var(--line);font-size:13px}
+  #paneLrules .lr-h-list{margin:4px 0 2px;padding-left:18px;line-height:1.55;color:var(--ink)}
+  #paneLrules .lr-h-cmp{margin-top:6px;padding:10px 12px;border-radius:10px;background:var(--soft)}
+  #paneLrules .lr-h-none{margin:6px 0 0}
+  @media (max-width:760px){
+    #paneImg .pc-grid{grid-template-columns:1fr}
+    #paneImg .pc-head .sp-seg{flex:1 1 100%}
+  }
   /* ----- Season planner, three levels (12 Nov 2026, final): parent cards on the page, a parent's side panel (520px), a child's side panel
      (460px, to the right of the parent on wide screens). Tokens only; transform-only animation; none under prefers-reduced-motion. ----- */
   .sp-today{margin:0 2px 12px;font-size:14px;line-height:1.5;color:var(--muted)}
@@ -3747,6 +3785,8 @@
     <!-- "What people may write": the allowances (not errors), drawn by listing/listing-rules-tab.js in the Issues view. -->
     <div id="lrAllow" class="card lr-allow hide"></div>
     <div class="card xlwrap" style="margin-top:12px"><table class="xl" id="lrTable"></table></div>
+    <!-- History: each "Save rules" keeps the version it replaces (listing/listing-rules-tab.js draws it). -->
+    <div id="lrHistory" class="card lr-hist"></div>
   </div>
 
   <div id="paneAudit" class="hide">
@@ -4784,6 +4824,8 @@
           <option value="mine">Show the pictures you sent</option>
           <option value="live">Show what Amazon serves</option>
         </select>
+        <!-- Picture check: the main pictures a person must judge (listing/picture-check.js). -->
+        <button id="imPcChip" type="button" class="sp-chip" aria-pressed="false">◐ Picture check</button>
         <button id="imGo" class="ghost" style="flex:0 0 120px" title="Open the editor for exactly this SKU or ASIN">Open editor</button>
         <button id="imRefresh" class="ghost" style="flex:0 0 190px">Refresh from Amazon</button>
         <span style="flex:1"></span>
@@ -4795,6 +4837,7 @@
       <div id="imBody"></div>
     </div>
     <div id="imListWrap"><div id="imList"></div></div>
+    <div id="imPcWrap" class="hide"></div>
   </div>
 
   <div id="paneLerr" class="hide">
@@ -9117,6 +9160,10 @@ const LR_DETECTORS = {
   aplus_missing: { label: 'A+ asked of the listing and its parent ASIN, and neither has it', params: [] },
   images_below: { label: 'Fewer gallery pictures than N in the catalogue (MAIN + PT01–PT08; the swatch is not a picture)', params: ['n'] },
   images_between: { label: 'Gallery pictures from MIN to MAX', params: ['min', 'max'] },
+  images_small: { label: 'A catalogue picture under PX pixels on its longest side (zoom does not work)', params: ['px'] },
+  main_not_square: { label: 'The main picture is not square (more than PCT % longer one way)', params: ['pct'] },
+  images_duplicate: { label: 'The same picture in two slots of the catalogue', params: [] },
+  main_photo_check: { label: 'A person marked the main picture Not OK (Image Manager → Picture check)', params: [] },
   bullets_below: { label: 'Fewer bullets than N', params: ['n'] },
   desc_below: { label: 'Description shorter than N characters (not judged when A+ is live — Amazon shows the A+ instead)', params: ['n'] },
   keyword_bytes: { label: 'Search terms over MAX bytes, counting the words only (spaces and ; , . do not count)', params: ['max'] },
@@ -9139,6 +9186,13 @@ const LR_DEFAULT = {
      * had images, because the family supplies them, and no rule had ever asked Amazon what IT thought. */
     { id: 'amz_suppressed', name: 'Suppressed from search by Amazon', sev: 'critical', area: 'Amazon', detector: 'amazon_suppressed', desc: 'Buyable from a direct link but removed from search results' },
     { id: 'amz_error', name: 'Amazon reports an error', sev: 'critical', area: 'Amazon', detector: 'amazon_error', desc: "Amazon's own issue list for this listing holds at least one ERROR" },
+    /* PICTURE RULES (Rule Engine, 12 Nov 2026): judged on the catalogue's pictures — what shoppers see — from the live Amazon read
+     * (sizes and which picture sits in which slot) or the Image Manager snapshot. No picture data: not judged ("Not checked").
+     * "Main picture present" and "at least 6 pictures" are the two rules just below (main_image, img_secondary). */
+    { id: 'img_small', name: 'Picture too small to zoom', sev: 'action', area: 'Images', detector: 'images_small', params: { px: 1000 }, desc: 'A catalogue picture under 1000 px on its longest side: shoppers cannot zoom in' },
+    { id: 'main_square', name: 'Main picture not square', sev: 'review', area: 'Images', detector: 'main_not_square', params: { pct: 10 }, desc: 'The main picture is more than 10 % longer one way than the other; Amazon shows it best square' },
+    { id: 'img_dup', name: 'Same picture used twice', sev: 'action', area: 'Images', detector: 'images_duplicate', desc: 'The same picture sits in two slots of the catalogue: one slot is wasted' },
+    { id: 'main_check', name: 'Main picture marked Not OK', sev: 'action', area: 'Images', detector: 'main_photo_check', desc: 'A person marked the main picture Not OK in Image Manager → Picture check (background not pure white, or text / logo on it)' },
     /* Critical — the rows Ravi's screenshot showed, and a listing with no image at all. */
     { id: 'inv_mismatch', name: 'Inventory/content mismatch', sev: 'critical', area: 'Inventory', detector: 'inactive_with_stock', desc: 'Inventory has arrived and listing is fundamentally incomplete/unbuyable' },
     { id: 'price_error', name: 'Major price error', sev: 'critical', area: 'Price', detector: 'no_price', desc: 'Price substantially outside approved/master range — only "no price" can be checked today' },
@@ -9236,6 +9290,7 @@ const LR_DEFAULT = {
 
 let LR = null;             // the rules in force: saved config, or the defaults
 let LR_SAVED_AT = null;    // when the saved config was written, or null while the defaults are in use
+let LR_HISTORY = [];       // the last 20 saves, newest first: { at, by, who, changes: [words], prev: the rules as they were before it }
 let LR_CAT = { SP: null, CPC: null };   // brand → { sku: { color, size, subcat } } from the brand catalogue, once read
 
 /* ---- the calendar ---- */
@@ -9504,6 +9559,40 @@ const LR_DET = {
     const pics = lrFactsOf(row, ctx).pics;
     return pics && pics.main && pics.n >= (+params.min || 0) && pics.n <= (+params.max || 0) ? `${pics.n} pictures` : '';
   },
+  // A gallery picture under PX on its longest side: zoom does not work. Judged only on sizes the live read brought back.
+  images_small: (row, ctx, params) => {
+    const pics = lrFactsOf(row, ctx).pics;
+    const min = +params.px || 1000;
+    if (!pics || !pics.px) return '';
+    const small = Object.entries(pics.px).filter(([, wh]) => Math.max(wh[0], wh[1]) < min);
+    return small.length ? `${small.length} picture${small.length === 1 ? '' : 's'} under ${min} px: ${small.map(([slot, wh]) => `${slot} (${Math.max(wh[0], wh[1])} px)`).join(', ')}` : '';
+  },
+  // The main picture more than PCT % longer one way than the other.
+  main_not_square: (row, ctx, params) => {
+    const pics = lrFactsOf(row, ctx).pics;
+    const wh = pics && pics.px && pics.px.MAIN;
+    if (!wh) return '';
+    const ratio = Math.max(wh[0], wh[1]) / Math.min(wh[0], wh[1]);
+    return ratio > 1 + (+params.pct || 10) / 100 ? `${wh[0]} × ${wh[1]} px` : '';
+  },
+  // The same picture in two gallery slots (by the picture's id in its link).
+  images_duplicate: (row, ctx) => {
+    const pics = lrFactsOf(row, ctx).pics;
+    if (!pics || !pics.ids) return '';
+    const first = {};
+    for (const [slot, id] of Object.entries(pics.ids)) {
+      if (!id) continue;
+      if (first[id]) return `${slot} is the same picture as ${first[id]}`;
+      first[id] = slot;
+    }
+    return '';
+  },
+  // A person looked at the main picture in Image Manager → Picture check and marked it Not OK. Not looked at yet: no problem here —
+  // the check line says "◐ A person needs to look" instead (lrLooks), and it is counted nowhere.
+  main_photo_check: (row, ctx) => {
+    const mark = lrPcMark(row, ctx);
+    return mark && mark.v === 'bad' ? `marked Not OK by ${mark.name || mark.by || 'someone'} on ${lrFmtDate(new Date(mark.at))}${mark.note ? ': ' + mark.note : ''}` : '';
+  },
   bullets_below: (row, ctx, params) => (row.content && row.content.bullets < (+params.n || 5))
     ? `${row.content.bullets} of ${+params.n || 5}` : '',
   // When A+ is live on the listing or its parent, Amazon shows the A+ instead of the description (Part A3): not judged.
@@ -9693,26 +9782,37 @@ const lrGallery = slots => (Array.isArray(slots) ? slots : Object.keys(slots || 
 /** The pictures shoppers see: { n, main, at, src: 'live' | 'iml' | 'health', own } — the catalogue slots of the Workspace's live
  *  read, else the Image Manager snapshot's live slots when newer than the listing's content read, else the Health snapshot's
  *  count (which cannot tell the swatch apart). `own`: our listing's own gallery slots when known (the live read). Null = unknown. */
+// A catalogue picture's id — the part of its link that names the picture ("…/images/I/71Q1abcL.jpg" → "71Q1abcL"): the same picture has
+// the same id whatever size Amazon serves, so two slots with one id show one picture, and a new id means the picture changed.
+const lrPicId = url => { const m = String(url || '').match(/\/images\/I\/([^./?]+)/); return m ? m[1] : String(url || ''); };
+// Which picture is in which gallery slot ({ MAIN: id, PT01: id … }), from a slot → link map or the live read's [id, w, h] map; null for none.
+const lrPicIds = (map, packed) => (map ? Object.fromEntries(lrGallery(map).map(slot => [slot, packed ? map[slot][0] : lrPicId(map[slot])])) : null);
+// Each gallery picture's size in pixels ({ MAIN: [w, h] … }) from the live read; null when the sizes were not read.
+const lrPicPx = map => (map ? Object.fromEntries(lrGallery(map).filter(slot => map[slot][1] > 0 && map[slot][2] > 0).map(slot => [slot, [map[slot][1], map[slot][2]]])) : null);
 function lrPictures(row, ctx) {
   const live = lrLiveOf(row, ctx);
-  if (live && live.iAt && Array.isArray(live.cat)) {
-    const g = lrGallery(live.cat);
-    return { n: g.length, main: g.includes('MAIN'), at: live.iAt, src: 'live', own: live.gAt && Array.isArray(live.slots) ? lrGallery(live.slots) : null };
-  }
   const iml = lrImlOf(row, ctx);
   const imlAt = (ctx.imlAt && ctx.imlAt[row.brand]) || 0;
   // The snapshot's catalogue answer counts only for an item the catalogue was asked about (one with an ASIN) and answered: an
   // empty live map on an item without an ASIN, or one marked liveErr, is no answer — never "no picture in the catalogue".
   const imlOk = iml && iml.live && iml.asin && !iml.liveErr && imlAt;
+  if (live && live.iAt && Array.isArray(live.cat)) {
+    const g = lrGallery(live.cat);
+    const pic = live.catPic && typeof live.catPic === 'object' ? live.catPic : null;   // { slot: [id, w, h] } — reads before 12 Nov have none
+    const ids = pic ? lrPicIds(pic, true) : imlOk ? lrPicIds(iml.live) : null;
+    return { n: g.length, main: g.includes('MAIN'), at: live.iAt, src: 'live', own: live.gAt && Array.isArray(live.slots) ? lrGallery(live.slots) : null,
+      ids, px: pic ? lrPicPx(pic) : null, mainId: (ids && ids.MAIN) || (live.catMain ? lrPicId(live.catMain) : '') };
+  }
   const checked = row.checked || 0;
   const fromIml = () => {
     const g = lrGallery(iml.live);
-    return { n: g.length, main: g.includes('MAIN'), at: imlAt, src: 'iml', own: iml.img ? lrGallery(iml.img) : null };
+    const ids = lrPicIds(iml.live);
+    return { n: g.length, main: g.includes('MAIN'), at: imlAt, src: 'iml', own: iml.img ? lrGallery(iml.img) : null, ids, px: null, mainId: (ids && ids.MAIN) || '' };
   };
   if (imlOk && imlAt > checked) return fromIml();
   if (row.content && row.content.images != null) {
     const n = Number(row.content.images) || 0;
-    return { n, main: n > 0, at: checked, src: 'health', own: null };
+    return { n, main: n > 0, at: checked, src: 'health', own: null, ids: null, px: null, mainId: '' };
   }
   return imlOk ? fromIml() : null;
 }
@@ -9779,6 +9879,7 @@ const lrFacts = (row, ctx) => ({ pics: lrPictures(row, ctx), aplus: lrAplus(row,
 const lrFactsOf = (row, ctx) => row._f || (row._f = lrFacts(row, ctx));
 // What each detector's answer rests on, for the age of the data behind a finding (Part A5).
 const LR_DET_SRC = { inactive_with_stock: 'report', no_price: 'report', amazon_suppressed: 'amz', amazon_error: 'amz', no_main_image: 'pics',
+  images_small: 'pics', main_not_square: 'pics', images_duplicate: 'pics', main_photo_check: 'pics',
   images_below: 'pics', images_between: 'pics', aplus_missing: 'aplus', bullets_below: 'content', desc_below: 'content', title_length: 'content',
   keyword_bytes: 'content' };
 // When the data behind one finding was read (ms), 0 when not known: title rules read the content title when there is one, else the report.
@@ -9802,7 +9903,8 @@ function hCtx(rowsAll) {
   const imlOf = b => (typeof IML !== 'undefined' && IML && IML[b]) || null;
   // --- reuse the last context while nothing it depends on has changed ---
   const withContent = rows.reduce((count, row) => count + (row.content ? 1 : 0), 0);
-  const key = [rows.length, withContent, LR_CAT.SP ? 1 : 0, LR_CAT.CPC ? 1 : 0, AMZ.at, ws ? 1 : 0,
+  const pcV = typeof PC !== 'undefined' ? PC.v : 0;          // the Picture check marks (picture-check.js): a new mark judges again
+  const key = [rows.length, withContent, LR_CAT.SP ? 1 : 0, LR_CAT.CPC ? 1 : 0, AMZ.at, ws ? 1 : 0, pcV,
     ['SP', 'CPC'].map(b => (HEALTH[b] && HEALTH[b].parentAplusAt) || 0).join(',')].join('|');
   if (H_CTX && H_CTX.cfg === cfg && H_CTX.sp === HEALTH.SP && H_CTX.cpc === HEALTH.CPC && H_CTX.key === key
       && H_CTX.imlSP === imlOf('SP') && H_CTX.imlCPC === imlOf('CPC') && H_CTX.day === new Date().toDateString()) return H_CTX;
@@ -9843,8 +9945,25 @@ function hCtx(rowsAll) {
     iml[b] = map;
   });
   H_CTX = { cfg, today: new Date(), parents, amz: AMZ.map, amzAt: AMZ.snapAt, sp: HEALTH.SP, cpc: HEALTH.CPC, key, day: new Date().toDateString(),
-    wsLive: ws ? ws.live : null, wsAplus: ws ? ws.aplus : null, healthAt, parentAplus, imlAt, iml, imlSP: imlOf('SP'), imlCPC: imlOf('CPC') };
+    wsLive: ws ? ws.live : null, wsAplus: ws ? ws.aplus : null, healthAt, parentAplus, imlAt, iml, imlSP: imlOf('SP'), imlCPC: imlOf('CPC'),
+    pc: typeof PC !== 'undefined' ? PC.marks : null };
   return H_CTX;
+}
+// The Picture check mark on this listing's main picture ({ v: 'ok' | 'bad', by, name, at, note }), or null when nobody looked at
+// this picture yet. Marks are kept per picture, so a new main picture has none.
+function lrPcMark(row, ctx) {
+  const pics = lrFactsOf(row, ctx).pics;
+  const id = pics && pics.mainId;
+  return id && ctx.pc && ctx.pc[row.brand] ? ctx.pc[row.brand][id] || null : null;
+}
+// What a person needs to look at (◐): the main picture — pure white background, no text or logo — while nobody has marked it. Never
+// an error, never in a count; the check line says so and links to Image Manager. [] when the rule is off or there is no picture to see.
+function lrLooks(row, ctx) {
+  const rule = (ctx.cfg.issues || []).find(issue => issue.detector === 'main_photo_check');
+  if (!rule || rule.on === false) return [];
+  const pics = lrFactsOf(row, ctx).pics;
+  if (!pics || !pics.main || !pics.mainId || lrPcMark(row, ctx)) return [];
+  return [{ k: 'main', area: 'Images', what: 'is the background of the main picture pure white, with no text or logo on it?', picId: pics.mainId }];
 }
 
 // Score one listing: run every rule that is on over its freshest data (lrFresh), then { score, bucket, grade, critical[], action[],
@@ -9909,7 +10028,8 @@ function healthOf(rowIn, ctx) {
   const bucket = critical.length ? 'critical' : action.length ? 'action' : review.length ? 'review'
     : (notSelling ? 'monitor' : (row.content ? 'healthy' : 'unchecked'));
   const score = Math.max(0, Math.min(100, 100 - critical.length * 40 - action.length * 10 - review.length * 3));
-  return { score, bucket, grade: H_BUCKETS[bucket], critical, action, review, found,
+  const looks = lrLooks(row, ctx);                      // ◐ what a person needs to look at — never a problem, counted nowhere
+  return { score, bucket, grade: H_BUCKETS[bucket], critical, action, review, found, looks,
     blocking: critical, content: action.concat(review), fresh: row, pics: facts.pics, aplus: facts.aplus, amz: facts.amz, notes,
     stale: bucket === 'critical' && found.filter(hit => hit.sev === 'critical').every(hit => hit.stale) };
 }
@@ -9959,6 +10079,10 @@ const LR_FIX_TEXT = {
   bullets_below: (hit, row, ctx, params) => `Add bullets until there are ${+params.n || 5} (it has ${row.content ? row.content.bullets || 0 : 0}).`,
   desc_below: (hit, row, ctx, params) => `Write a description of ${+params.n || 200}+ characters (it has ${row.content && row.content.descLen ? row.content.descLen : 'none'}).`,
   title_length: (hit, row, ctx, params) => `Make the title ${+params.min || 0} to ${+params.max || 999} characters (now ${row.content ? row.content.titleLen : hTitleText(row).length}).`,
+  images_small: (hit, row, ctx, params) => `Upload a bigger version of ${String(hit.detail).replace(/^.*?:\s*/, '').replace(/\s*\(\d+ px\)/g, '')} in Image Manager — at least ${+params.px || 1000} px on the long side, so shoppers can zoom.`,
+  main_not_square: () => 'Use a square main picture in Image Manager (for example 2000 × 2000 px).',
+  images_duplicate: hit => `Put a different picture in ${String(hit.detail).split(' ')[0]} in Image Manager — it repeats another slot.`,
+  main_photo_check: () => 'Replace the main picture in Image Manager: pure white background, no text or logo on it.',
   size_format: (hit, row, ctx, params) => {
     const title = hTitleText(row);
     const near = lrNear(title, ctx.cfg);
@@ -10023,7 +10147,8 @@ function lrFixText(hit, row, ctx) {
 }
 /* ---- whose rule it is, and where the Fix button goes ---- */
 // "Amazon": Amazon itself reports or demands it. "Amazon limit": one of Amazon's own limits. Everything else: "Company rule".
-const LR_FIX_TAG = { amazon_suppressed: 'Amazon', amazon_error: 'Amazon', no_main_image: 'Amazon', inactive_with_stock: 'Amazon', no_price: 'Amazon', keyword_bytes: 'Amazon limit' };
+const LR_FIX_TAG = { amazon_suppressed: 'Amazon', amazon_error: 'Amazon', no_main_image: 'Amazon', inactive_with_stock: 'Amazon', no_price: 'Amazon', keyword_bytes: 'Amazon limit',
+  images_small: 'Amazon', main_photo_check: 'Amazon' };
 const LR_TAG_TIP = { Amazon: 'Amazon itself reports this.', 'Amazon limit': "One of Amazon's own limits.", 'Company rule': 'Your own rule. Amazon does not check this.' };
 function lrFixTag(hit, row) {
   if (LR_FIX_TAG[hit.detector]) return LR_FIX_TAG[hit.detector];
@@ -10032,7 +10157,7 @@ function lrFixTag(hit, row) {
   return 'Company rule';
 }
 // The Image Manager for pictures, nothing for A+ (no screen here), Listing Errors for everything else.
-const LR_FIX_IMG = ['no_main_image', 'images_below', 'images_between'];
+const LR_FIX_IMG = ['no_main_image', 'images_below', 'images_between', 'images_small', 'main_not_square', 'images_duplicate', 'main_photo_check'];
 const lrFixKind = detector => (LR_FIX_IMG.includes(detector) ? 'img' : detector === 'aplus_missing' ? '' : 'lerr');
 
 /* ---- one look for every problem, on every screen (Part B2): dot · level word · what is wrong · how to fix · tag · Fix ---- */
@@ -10057,7 +10182,7 @@ function lrProblemHtml(hit, where, note) {
   const ageWords = age ? age + ' days old' : 'with no date';
   const staleWhy = stale ? (fromReport ? ` (from the listings report ${ageWords} — press “Refresh both brands”)` : ` (from data ${ageWords})`) : '';
   return `<div class="lr-prob${stale ? ' is-stale' : ''}"><span class="sev ${stale ? 'sev-s' : level.cls}" title="${esc(stale ? level.stale : level.word)}"></span><div class="lr-prob-body">`
-    + `<div class="lr-prob-what"><span class="lr-lvl ${stale ? 'is-s' : hit.sev === 'critical' ? 'is-c' : 'is-a'}">${esc(stale ? level.stale : level.word)}</span>${esc(hit.what || (hit.name + ' — ' + hit.detail))}${esc(staleWhy)}</div>`
+    + `<div class="lr-prob-what"><span class="lr-lvl ${stale ? 'is-s' : hit.sev === 'critical' ? 'is-c' : 'is-a'}">${esc(stale ? level.stale : '✕ ' + level.word)}</span>${esc(hit.what || (hit.name + ' — ' + hit.detail))}${esc(staleWhy)}</div>`
     + `<div class="lr-prob-how">${esc(hit.fix || '')}</div>${note ? `<div class="lr-prob-src">${esc(note)}</div>` : ''}</div>`
     + `<span class="lr-tag${tag === 'Company rule' ? ' is-own' : ''}" title="${esc(LR_TAG_TIP[tag] || '')}">${esc(tag)}</span>${check}${fix}</div>`;
 }
@@ -10072,7 +10197,7 @@ function lrRecHtml(rec, where) {
   const stale = rec.sev === 'critical' && !!rec.stale;
   const cls = rec.fill ? 'is-fill' : rec.sev === 'critical' ? (stale ? 'is-chk' : 'is-err') : 'is-att';
   const level = lrLevel(rec.sev);
-  const word = rec.fill ? 'Good to fill' : stale ? level.stale : level.word;
+  const word = rec.fill ? 'Good to fill' : stale ? level.stale : '✕ ' + level.word;   // ✕ Fix: the problem's own answer, icon + word
   const tag = rec.fill ? 'Good to fill' : (rec.tag || 'Company rule');
   const kind = rec.kind == null ? lrFixKind(rec.detector) : rec.kind;
   const fix = where && kind ? `<button type="button" class="ghost lr-fixbtn" data-lr-fix="${esc(kind)}|${esc(where.brand)}|${esc(where.sku)}"`
@@ -10083,6 +10208,27 @@ function lrRecHtml(rec, where) {
     + (rec.sub ? `<small title="${esc(rec.sub)}">${esc(rec.sub)}</small>` : '') + '</div>'
     + `<div class="ls-rec-a"><span class="lr-tag${tag === 'Company rule' ? ' is-own' : ''}${rec.fill ? ' is-fill' : ''}" title="${esc(LR_TAG_TIP[tag] || (rec.fill ? 'Not an error: a gap worth filling.' : ''))}">${esc(tag)}</span>${fix}</div>`
     + (rec.fix ? `<div class="ls-rec-how">${esc(rec.fix)}</div>` : '') + '</div>';
+}
+/* ---- the FOUR ANSWERS a check line gives (Rule Engine, 12 Nov 2026), on every Listing Health screen: ✓ Pass · ✕ Fix (the problem
+ *      rows above, with their level word) · ○ Not checked (with the plain reason — never an error) · ◐ A person needs to look (with a
+ *      link to Image Manager — never an error, counted nowhere). Existing classes only: li-ws-ok, li-ws-na, ui-error, ls-more. ---- */
+// One check's answer: 'pass' | 'fix' | 'unk' | 'look'. `c`: a check record { pass: true | false | null, na, look }.
+const lrAnswer = c => (c.pass === false ? 'fix' : c.pass === true ? (c.look ? 'look' : 'pass') : 'unk');
+// The answer's icon and word, for a cell's tooltip or a line.
+const LR_ANSWER = { pass: { i: '✓', w: 'Pass', cls: 'li-ws-ok' }, fix: { i: '✕', w: 'Fix', cls: 'ui-error' }, unk: { i: '○', w: 'Not checked', cls: 'li-ws-na' },
+  look: { i: '◐', w: 'A person needs to look', cls: 'li-ws-na' } };
+// One check as a line: icon, the check's name, the answer in words and why; ◐ carries "Open in Image Manager" (picture-check.js opens
+// that listing's main picture there). `where`: { brand, sku }; `src`: the grey "source · when" text, or ''.
+function lrAnswerHtml(name, c, where, src) {
+  const esc = str => String(str == null ? '' : str).replace(/[<>&"]/g, ch => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[ch]));
+  const a = lrAnswer(c);
+  const icon = `<span class="${LR_ANSWER[a].cls}" aria-hidden="true">${LR_ANSWER[a].i}</span>`;
+  const tail = src ? ` · ${esc(src)}` : '';
+  if (a === 'look') return `<div>${icon} <b>${esc(name)}</b> — ${LR_ANSWER.look.w}: ${esc(c.look)} <button type="button" class="ls-more" data-pc-open="${esc(where.brand)}|${esc(where.sku)}">Open in Image Manager</button></div>`;
+  if (a === 'pass') return `<div>${icon} <b>${esc(name)}</b> — Pass${c.found ? ' · ' + esc(c.found) : ''}${tail}</div>`;
+  if (a === 'fix') return `<div>${icon} <b>${esc(name)}</b> — Fix: ${esc(c.miss || c.found || '')}</div>`;
+  const why = c.na ? 'doesn’t apply to this listing' : c.bang ? 'could not read it from Amazon (' + c.bang + ')' : (c.found || 'not known yet');
+  return `<div>${icon} <b>${esc(name)}</b> — Not checked: ${esc(why)} — not an error</div>`;
 }
 // One finding of healthOf as that row.
 const lrHitRec = (hit, where) => lrRecHtml({ sev: hit.sev, stale: hit.stale, name: hit.name, sub: hit.detail, fix: hit.fix, tag: hit.tag, kind: hit.kind, detector: hit.detector }, where);
@@ -10137,6 +10283,7 @@ async function lrLoad() {
       LR = { issues: added.concat(saved), templates: data.templates || LR_DEFAULT.templates, events: data.events || LR_DEFAULT.events,
         allow: lrAllow({ allow: data.allow }) };        // what people may write: the saved values over the defaults
       LR_SAVED_AT = data.at && data.at.toDate ? data.at.toDate() : null;
+      LR_HISTORY = Array.isArray(data.history) ? data.history : [];
     } else LR = JSON.parse(JSON.stringify(LR_DEFAULT));
   } catch (e) {
     LR = LR || JSON.parse(JSON.stringify(LR_DEFAULT));
@@ -11632,7 +11779,10 @@ function hAreaCell(row, area) {
     return `<span class="sev ${LR_SEV[worst.sev].cls}" title="${lrEsc(hits.map(hit => hit.name + ' — ' + hit.detail).join('\n'))}"></span>` + cnt;
   }
   const judged = area === 'Images' ? !!row._h.pics : area === 'Content' ? !!row.content : !!hTitleText(row);
-  return judged ? '<span class="sev-ok">✓</span>' + cnt : '<span class="muted">—</span>';
+  // The four answers (Rule Engine): ✓ Pass · ◐ A person needs to look (the main picture, not marked yet — not an error) · ○ Not checked.
+  const look = area === 'Images' && (row._h.looks || []).length;
+  if (judged && look) return `<span class="muted" title="${lrEsc('A person needs to look: ' + row._h.looks[0].what + ' — Image Manager → Picture check')}">◐</span>` + cnt;
+  return judged ? '<span class="sev-ok" title="Pass">✓</span>' + cnt : '<span class="muted" title="Not checked: not read yet — not an error">○</span>';
 }
 
 // First visit to the tab: the saved rules, the listings snapshot (for the counts) and the brand catalogues, then draw.
@@ -11692,6 +11842,7 @@ function renderLrules() {
   $('lrTry').classList.toggle('hide', LR_VIEW !== 'titles');
   $('lrAllow').classList.toggle('hide', LR_VIEW !== 'issues');
   if (LR_VIEW === 'issues') lrAllowRender(cfg);
+  lrHistoryRender();
 
   // --- the issues view ---
   if (LR_VIEW === 'issues') {
@@ -11935,17 +12086,97 @@ $('lrReset').onclick = () => {
   renderLrules();
 };
 // Save: write the three lists to Firestore listingrules/config.
+/* ---- HISTORY (Rule Engine, 12 Nov 2026): every "Save rules" keeps the version it replaces, inside listingrules/config itself (the last
+ *      LR_HISTORY_MAX), with who saved, when, and what the save changed in words. Compare with now; no restore button. ---- */
+const LR_HISTORY_MAX = 20;
+// A person's name from an e-mail: the part before the @ (and before a dot), capitalised.
+const lrWho = email => { const s = String(email || '').split(/[@._-]/)[0]; return s ? s.charAt(0).toUpperCase() + s.slice(1) : 'Someone'; };
+// What changed from one version of the rules to another, in words: ["changed 'A+ missing' from Attention to Critical", …].
+function lrRulesDiff(a, b) {
+  a = a || {};
+  b = b || {};
+  const out = [];
+  const lvl = sev => (LR_SEV[sev] ? LR_SEV[sev].label : String(sev || '—'));
+  const ai = new Map((a.issues || []).map(issue => [issue.id, issue]));
+  const bi = new Map((b.issues || []).map(issue => [issue.id, issue]));
+  bi.forEach((x, id) => {
+    const o = ai.get(id);
+    if (!o) return out.push(`added the rule '${x.name}'`);
+    if (o.name !== x.name) out.push(`renamed '${o.name}' to '${x.name}'`);
+    if (o.sev !== x.sev) out.push(`changed '${x.name}' from ${lvl(o.sev)} to ${lvl(x.sev)}`);
+    if ((o.on !== false) !== (x.on !== false)) out.push(`turned '${x.name}' ${x.on === false ? 'off' : 'on'}`);
+    if (o.area !== x.area) out.push(`moved '${x.name}' from ${o.area} to ${x.area}`);
+    if (o.detector !== x.detector) out.push(`changed how '${x.name}' is found`);
+    const op = o.params || {};
+    const np = x.params || {};
+    const keys = [...new Set(Object.keys(op).concat(Object.keys(np)))].filter(k => String(op[k]) !== String(np[k]));
+    if (keys.length) out.push(`changed the settings of '${x.name}' (${keys.map(k => `${k}: ${op[k] == null ? '—' : op[k]} → ${np[k] == null ? '—' : np[k]}`).join(', ')})`);
+  });
+  ai.forEach((o, id) => { if (!bi.has(id)) out.push(`removed the rule '${o.name}'`); });
+  const tkey = tpl => `${tpl.brand || 'ALL'}|${tpl.match || ''}`;
+  const at = new Map((a.templates || []).map(tpl => [tkey(tpl), tpl]));
+  const bt = new Map((b.templates || []).map(tpl => [tkey(tpl), tpl]));
+  bt.forEach((x, k) => { if (!at.has(k)) out.push(`added the title template for '${x.match || 'anything'}'`); else if (JSON.stringify(at.get(k)) !== JSON.stringify(x)) out.push(`changed the title template for '${x.match || 'anything'}'`); });
+  at.forEach((o, k) => { if (!bt.has(k)) out.push(`removed the title template for '${o.match || 'anything'}'`); });
+  const ae = new Map((a.events || []).map(ev => [ev.id, ev]));
+  const be = new Map((b.events || []).map(ev => [ev.id, ev]));
+  be.forEach((x, id) => { if (!ae.has(id)) out.push(`added '${x.name}' to the season calendar`); else if (JSON.stringify(ae.get(id)) !== JSON.stringify(x)) out.push(`changed '${x.name}' in the season calendar`); });
+  ae.forEach((o, id) => { if (!be.has(id)) out.push(`removed '${o.name}' from the season calendar`); });
+  const aa = lrAllow(a);
+  const ba = lrAllow(b);
+  const allowName = { shortFrom: 'Short forms allowed from', ourBrands: 'Our brand words', embroideryColors: 'Embroidery colours' };
+  Object.keys(allowName).forEach(k => { if (String(aa[k]) !== String(ba[k])) out.push(`changed '${allowName[k]}' from '${aa[k]}' to '${ba[k]}'`); });
+  return out;
+}
+// The History card: each save — who, when, what it changed — and "Compare with now" (that version against the rules in force).
+const LR_HIST_OPEN = new Set();
+function lrHistoryRender() {
+  const box = $('lrHistory');
+  if (!box) return;
+  const cfg = LR || LR_DEFAULT;
+  const when = ms => new Date(ms).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  const rows = LR_HISTORY.map((entry, i) => {
+    const open = LR_HIST_OPEN.has(i);
+    const now = open ? lrRulesDiff(entry.prev, cfg) : [];
+    return `<div class="lr-h-row"><div class="lr-h-who"><b>${lrEsc(entry.who || lrWho(entry.by))}</b> <span class="sp-dim">· ${lrEsc(when(entry.at))}</span></div>`
+      + `<ul class="lr-h-list">${(entry.changes || []).length ? entry.changes.map(line => `<li>${lrEsc(line)}</li>`).join('') : '<li class="sp-dim">saved without a change</li>'}</ul>`
+      + `<button type="button" class="sp-link" data-lrh="${i}" aria-expanded="${open}">${open ? 'Hide the comparison' : 'Compare with now'}</button>`
+      + (open ? `<div class="lr-h-cmp"><b>From the version before this save to the rules now:</b>${now.length ? `<ul class="lr-h-list">${now.map(line => `<li>${lrEsc(line)}</li>`).join('')}</ul>` : '<p class="sp-dim">The same as now.</p>'}</div>` : '')
+      + '</div>';
+  }).join('');
+  box.innerHTML = `<div class="lr-h-head"><b>History</b><span class="sp-dim">The last ${LR_HISTORY_MAX} saves. Each one keeps the rules as they were before it, so you can see what changed.</span></div>`
+    + (rows || '<p class="sp-dim lr-h-none">No save yet. When someone presses “Save rules”, it shows here: who, when and what changed.</p>');
+}
+if ($('lrHistory') && $('lrHistory').addEventListener) $('lrHistory').addEventListener('click', e => {
+  const btn = e.target.closest ? e.target.closest('[data-lrh]') : null;
+  if (!btn) return;
+  const i = +btn.dataset.lrh;
+  if (LR_HIST_OPEN.has(i)) LR_HIST_OPEN.delete(i); else LR_HIST_OPEN.add(i);
+  lrHistoryRender();
+  const again = $('lrHistory').querySelector(`[data-lrh="${i}"]`);
+  if (again) again.focus({ preventScroll: true });
+});
+// The rules as one plain object (what is saved and compared), from a config or a saved document.
+const lrRulesOf = cfg => JSON.parse(JSON.stringify({ issues: cfg.issues || [], templates: cfg.templates || [], events: cfg.events || [], allow: lrAllow(cfg) }));
 $('lrSave').onclick = async () => {
   const cfg = LR || LR_DEFAULT;
   /* Firestore refuses undefined anywhere in a document. */
-  const clean = JSON.parse(JSON.stringify({ issues: cfg.issues, templates: cfg.templates, events: cfg.events, allow: lrAllow(cfg) }));
+  const clean = lrRulesOf(cfg);
   if (clean.issues.some(issue => !String(issue.name || '').trim())) {
     lrMsg('Every issue needs a name.', true);
     return;
   }
   $('lrSave').disabled = true;
   try {
-    await setDoc(doc(db, 'listingrules', 'config'), Object.assign(clean, { at: serverTimestamp(), by: ME.email }));
+    // The version this save replaces, read fresh (someone else may have saved since this page loaded): kept in the history.
+    const snap = await getDoc(doc(db, 'listingrules', 'config'));
+    const data = snap.exists() ? snap.data() : null;
+    const prev = data ? Object.assign(lrRulesOf(Object.assign({}, LR_DEFAULT, data, { allow: data.allow })), { at: data.at && data.at.toMillis ? data.at.toMillis() : 0, by: data.by || '' })
+      : Object.assign(lrRulesOf(LR_DEFAULT), { at: 0, by: '' });
+    const history = [{ at: Date.now(), by: ME.email, who: lrWho(ME.email), changes: lrRulesDiff(prev, clean), prev }]
+      .concat(data && Array.isArray(data.history) ? data.history : []).slice(0, LR_HISTORY_MAX);
+    await setDoc(doc(db, 'listingrules', 'config'), Object.assign(clean, { at: serverTimestamp(), by: ME.email, history: JSON.parse(JSON.stringify(history)) }));
+    LR_HISTORY = history;
     LR_SAVED_AT = new Date();
     LR_DIRTY = false;
     H_CTX = null;
@@ -13844,8 +14075,12 @@ function liWsChild(row, brand, hc, imlMap, now) {
   const picErr = lr && lr.iErr ? lr.iErr : '';
   c.main = ruleCol('main', pics ? { known: true, src: picSrc, value: (pics.main ? 'Main picture in the catalogue · ' : '') + picWords }
     : Object.assign({ src: picSrc }, noContent, { unknown: 'No picture data yet', bang: picErr || contentErr }));
-  c.img = ruleCol('img', pics ? { known: true, src: picSrc, value: picWords }
+  c.img = ruleCol('img', pics ? { known: true, src: picSrc, value: picWords + (pics.px ? '' : ' (picture sizes not read from Amazon yet)') }
     : Object.assign({ src: picSrc }, noContent, { unknown: 'No picture data yet', bang: picErr || contentErr }));
+  // ◐ A person needs to look: the main picture's white background and no text or logo, until someone marks it in Image Manager.
+  // The check still passes (it is not an error and counts nowhere); only its line says so.
+  const look = (h.looks || []).find(each => each.k === 'main');
+  if (look && c.main.pass === true) c.main.look = look.what;
   // The title rules read the title the way Listing Health does: the content read's, else the listings report's own title.
   const titleText = hTitleText(scored);
   c.title = ruleCol('title', (content || titleText) ? { known: true, src: content ? contentSrc : liWsSrc('health', healthAt),
@@ -13934,13 +14169,14 @@ function liWsChild(row, brand, hc, imlMap, now) {
 // Which column a Listing Rules finding belongs to: by what it detects first, then by its area. Anything else (Size,
 // Variation, Price, Inventory, a rule the team adds later) goes to "Other", so every finding shows somewhere.
 const LI_WS_COL_DET = { amazon_error: 'amz', amazon_suppressed: 'amz', no_main_image: 'main', title_template: 'tpl', bullets_below: 'bul',
-  desc_below: 'desc', aplus_missing: 'aplus', keyword_bytes: 'kw' };
+  desc_below: 'desc', aplus_missing: 'aplus', keyword_bytes: 'kw', main_not_square: 'main', main_photo_check: 'main' };
 const LI_WS_COL_AREA = { Amazon: 'amz', Images: 'img', Title: 'title' };
 const liWsColOf = hit => LI_WS_COL_DET[hit.detector] || LI_WS_COL_AREA[hit.area] || 'other';
 // The short word in a ✗ pill, per kind of finding.
 const LI_WS_SHORT = { amazon_error: 'Error', amazon_suppressed: 'Suppressed', no_main_image: 'None', aplus_missing: 'None',
   title_keyword: 'Keyword', seasonal_keyword: 'Season', title_contains: 'Word', size_format: 'Size', dimension_order: 'Size order',
-  variation_value_missing: 'No size', variation_naming: 'Naming', inactive_with_stock: 'Inactive', no_price: 'No price' };
+  variation_value_missing: 'No size', variation_naming: 'Naming', inactive_with_stock: 'Inactive', no_price: 'No price',
+  images_small: 'Small', main_not_square: 'Not square', images_duplicate: 'Repeat', main_photo_check: 'Not OK' };
 function liWsShort(hit) {
   if (LI_WS_SHORT[hit.detector]) return LI_WS_SHORT[hit.detector];
   const num = (String(hit.detail).match(/^\d[\d,]*/) || [])[0];   // "134 characters", "4 of 6", "3 of 5": the number
@@ -14318,7 +14554,9 @@ async function liWsJob(job) {
       const cat = reply.catalog && typeof reply.catalog === 'object' ? reply.catalog : null;
       const slots = cat ? Object.keys(cat).filter(slot => cat[slot] && cat[slot].link) : [];
       if (cat && (slots.length || !reply.catalogError)) Object.assign(entry, { at: now, iAt: now, cat: slots, iErr: '',
-        catMain: cat.MAIN && cat.MAIN.link ? String(cat.MAIN.link).slice(0, 200) : '' });   // the catalogue's main picture: the row's thumbnail
+        catMain: cat.MAIN && cat.MAIN.link ? String(cat.MAIN.link).slice(0, 200) : '',   // the catalogue's main picture: the row's thumbnail
+        // each picture's id and size, for the picture rules (too small to zoom, main not square, the same picture twice)
+        catPic: Object.fromEntries(slots.map(slot => [slot, [lrPicId(cat[slot].link), Number(cat[slot].w) || 0, Number(cat[slot].h) || 0]])) });
       else Object.assign(entry, { at: now, iErr: String(reply.catalogError || 'no catalogue answer').slice(0, 160) });   // an answer without the catalogue leaves the pictures unknown, never "none"
     } else if (job.t === 'aplus') {
       const reply = await baCall({ lh: 'aplusasin', brand, asins: job.asins.join(',') });
@@ -14476,7 +14714,9 @@ function liWsStop() {
 function liWsCell(kid, check, reading) {
   if (reading) return '<span class="li-ws-ph" aria-label="Reading from Amazon"></span>';
   const c = kid.c[check.k];
-  if (c.pass === true) return `<span class="li-ws-ok" title="${lrEsc(c.found)}">✓</span>`;
+  // The four answers (Rule Engine): ✓ Pass · ✕ Fix (the pill) · ○ Not checked · ◐ A person needs to look.
+  if (c.pass === true && c.look) return `<span class="li-ws-na" title="${lrEsc('A person needs to look: ' + c.look + ' — open Image Manager → Picture check')}">◐</span>`;
+  if (c.pass === true) return `<span class="li-ws-ok" title="${lrEsc('Pass · ' + c.found)}">✓</span>`;
   if (c.pass === false) {
     const word = lrEsc(c.cell || '✗');
     const fixes = (c.hits || []).map(hit => hit.fix).filter(Boolean).join(' ');
@@ -14488,9 +14728,9 @@ function liWsCell(kid, check, reading) {
     if (!check.fix) return `<span class="${cls}" title="${tip}">${word2}</span>`;
     return `<button type="button" class="${cls}" data-lr-fix="${check.fix}|${lrEsc(kid.brand)}|${lrEsc(kid.sku)}"${liWsAttrs(c)} title="${tip}">${word2}</button>`;
   }
-  if (c.na) return '<span class="li-ws-na" title="Doesn’t apply to this listing">—</span>';
-  if (c.bang) return `<span class="li-ws-bang" title="${lrEsc('Could not read from Amazon: ' + c.bang)}">!</span>`;
-  return `<span class="li-ws-na" title="${lrEsc(c.found || 'Not known yet')}">—</span>`;
+  if (c.na) return '<span class="li-ws-na" title="Not checked: doesn’t apply to this listing — not an error">○</span>';
+  if (c.bang) return `<span class="li-ws-bang" title="${lrEsc('Not checked: could not read it from Amazon (' + c.bang + ') — not an error')}">!</span>`;
+  return `<span class="li-ws-na" title="${lrEsc('Not checked: ' + (c.found || 'not known yet') + ' — not an error')}">○</span>`;
 }
 // The pill's colour from the finding's level: red "Error: fix first" (the default), orange "Needs attention" (action and review alike).
 const liWsSevCls = sev => (sev === 'action' || sev === 'review' ? ' is-a' : '');
@@ -14515,16 +14755,19 @@ function liWsDetailBody(kid) {
   const checking = LI_WS.checking.has(key) ? ' · reading from Amazon now…' : '';
   const info = `<div class="li-ws-dinfo">${lrEsc(kid.why)}${kid.row.qty == null ? '' : ' · ' + liWsNf(kid.row.qty) + ' units'}`
     + `${kid.live ? '' : ' — this listing is not live, so its problems are not counted anywhere above'}${checking}</div>`;
+  // ○ Not checked (with why — never an error) and ◐ A person needs to look (with the Image Manager link): one line each, always shown.
+  const where = { brand: kid.brand, sku: kid.sku };
   const unknown = checks.filter(c => c.pass === null && !c.na);
-  const unkLine = unknown.length ? `<div class="li-ws-dunk">Not checked yet: ${unknown.map(c => `${lrEsc(c.t)} — ${lrEsc(c.found || 'not known')}`).join(' · ')}</div>` : '';
+  const looks = checks.filter(c => c.pass === true && c.look);
+  const unkLine = unknown.length || looks.length ? `<div class="li-ws-dunk">${looks.concat(unknown).map(c => lrAnswerHtml(c.t, c, where, '')).join('')}</div>` : '';
   const bangs = [...new Set(checks.map(c => c.bang).filter(Boolean))];
   const bangLine = bangs.length ? `<div class="li-ws-dbang">Could not read from Amazon: ${bangs.map(lrEsc).join(' · ')}</div>` : '';
-  const none = !probs.length && !unknown.length ? '<div class="li-ws-dunk">No problem on this listing.</div>' : '';
-  // --- the passed checks (and the ones that do not apply), behind a button ---
-  const passed = checks.filter(c => c.pass === true || c.na);
+  const none = !probs.length && !unknown.length && !looks.length ? '<div class="li-ws-dunk">No problem on this listing.</div>' : '';
+  // --- ✓ the passed checks (and ○ the ones that do not apply), behind a button ---
+  const passed = checks.filter(c => (c.pass === true && !c.look) || c.na);
   const open = LI_WS.openPass.has(key);
   const passBtn = passed.length ? `<button type="button" class="ghost li-ws-pass" data-li-ws-pass="${lrEsc(key)}" aria-expanded="${open}">${open ? 'Hide' : 'Show'} passed checks (${liWsNf(passed.length)})</button>` : '';
-  const passList = open ? `<div class="li-ws-passed">${passed.map(c => `<div>${c.na ? '<span class="li-ws-na">—</span>' : '<span class="li-ws-ok">✓</span>'} ${lrEsc(c.t)} — ${lrEsc(c.found || '')}${srcOf(c) ? ' · ' + lrEsc(srcOf(c)) : ''}</div>`).join('')}</div>` : '';
+  const passList = open ? `<div class="li-ws-passed">${passed.map(c => lrAnswerHtml(c.t, c, where, srcOf(c))).join('')}</div>` : '';
   return `<div class="li-ws-dbox">${info}${problems}${none}${unkLine}${bangLine}${passBtn}${passList}</div>`;
 }
 // The detail as the row under a listing in the kid table (the box above inside it).
@@ -15495,19 +15738,21 @@ function lkHtml(kid, opts) {
   const fills = ((kid.c.spec && kid.c.spec.hits) || []).map(hit => rec(hit, true));
   const checks = LI_WS_CHECKS.map(check => Object.assign({ k: check.k, t: check.w || check.t }, kid.c[check.k]));
   const unknown = checks.filter(c => c.pass === null && !c.na);
+  const looks = checks.filter(c => c.pass === true && c.look);       // ◐ a person needs to look — not an error, counted nowhere
+  const where = { brand: kid.brand, sku: kid.sku };
   const bangs = [...new Set(checks.map(c => c.bang).filter(Boolean))];
   const none = !errs.length && !atts.length && !fills.length
-    ? `<div class="ls-empty lk-none">${unknown.length ? '<b>No problem found so far.</b><br>Some checks have no answer yet — see below.' : '<b>No problem on this listing.</b><br>Every Listing Rule passes.'}</div>` : '';
+    ? `<div class="ls-empty lk-none">${unknown.length || looks.length ? '<b>No problem found so far.</b><br>Some checks have no answer yet — see below.' : '<b>No problem on this listing.</b><br>Every Listing Rule passes.'}</div>` : '';
   const info = (kid.live ? '' : '<div class="lk-info">This listing is not live, so its problems are not counted anywhere.</div>')
     + (checking ? '<div class="lk-info">Reading this listing from Amazon now…</div>' : '')
     + (kid.notes && kid.notes.length ? `<div class="lk-info">${lrNotesHtml(kid.notes)}</div>` : '')
-    + (unknown.length ? `<div class="lk-info">Not checked yet: ${unknown.map(c => `${lrEsc(c.t)} — ${lrEsc(c.found || 'not known')}`).join(' · ')}</div>` : '')
+    + (unknown.length || looks.length ? `<div class="lk-info">${looks.concat(unknown).map(c => lrAnswerHtml(c.t, c, where, '')).join('')}</div>` : '')
     + (bangs.length ? `<div class="lk-info li-ws-err">Could not read from Amazon: ${bangs.map(lrEsc).join(' · ')}</div>` : '');
-  const passed = checks.filter(c => c.pass === true || c.na);
+  const passed = checks.filter(c => (c.pass === true && !c.look) || c.na);
   const open = LK.pass.has(key);
   const srcOf = c => [c.src && c.src.s, c.src && c.src.when].filter(Boolean).join(' · ');
   const pass = passed.length ? `<div class="ls-panel-tog lk-passtog"><button type="button" class="ls-more" data-lk-pass="${lrEsc(key)}" aria-expanded="${open}">${open ? 'Hide' : 'Show'} passed checks (${liWsNf(passed.length)})</button></div>`
-    + (open ? `<div class="lk-passed">${passed.map(c => `<div>${c.na ? '<span class="li-ws-na">—</span>' : '<span class="li-ws-ok">✓</span>'} <b>${lrEsc(c.t)}</b> — ${lrEsc(c.found || '')}${srcOf(c) ? ` <span class="lk-src">· ${lrEsc(srcOf(c))}</span>` : ''}</div>`).join('')}</div>` : '') : '';
+    + (open ? `<div class="lk-passed">${passed.map(c => lrAnswerHtml(c.t, c, where, srcOf(c))).join('')}</div>` : '') : '';
   const body = group('is-c', lrLevel('critical').word, errs) + group('is-a', lrLevel('action').word, atts) + group('is-f', 'Good to fill', fills) + none + info + pass;
   // --- footer: where the answers come from, and how old each source is ---
   const healthAt = lkMs(HEALTH[kid.brand] && HEALTH[kid.brand].at);
@@ -29758,6 +30003,250 @@ $('imBrand').onchange = () => {
 };
 // Refresh from Amazon: rebuild this brand's snapshot.
 $('imRefresh').onclick = () => imListBuild($('imBrand').value);
+/* ============================== FILE: src/app/listing/picture-check.js ============================== */
+/* ================= LISTING · PICTURE CHECK: the main pictures a person must judge (white background, no text or logo) =================
+ * Screens: Image Manager (tab 'img') → the "Picture check (N)" chip in its toolbar (#imPcChip) opens #imPcWrap in place of the list.
+ *          Listing Health's check lines link here ("◐ A person needs to look — Open in Image Manager", data-pc-open).
+ * Does: lists each brand's main pictures from the Image Manager snapshot (IML), one card per PICTURE (a picture used on several
+ *       listings is judged once): the picture big, the question in plain words, [✓ Looks OK] [✕ Not OK] and an optional note; after a
+ *       click "Checked by <name> · <date>". A mark is kept per picture id, so it holds until the picture changes (a new picture has a
+ *       new id and is asked again). "Not OK" becomes a normal problem through the Listing Rule "Main picture marked Not OK"
+ *       (listing-rules.js, main_photo_check); not marked yet is "◐ A person needs to look" there — never an error, counted nowhere.
+ * Saved in imgsnap/piccheck — the Image Manager's own collection, which firestore.rules already lets Image Manager users write
+ *       (match /imgsnap/{brand}). If that write is refused the marks are kept in this browser (localStorage) and the page says so;
+ *       on the test site they last for the visit only ("not saved here").
+ * Main functions: pcLoad, pcMark, pcPictures, pcRender, pcOn / pcOff, pcOpenFor. State: PC (marks per brand → picture id → mark).
+ */
+const PC_STORE = 'selloraPicCheck';       // localStorage: the marks kept in this browser when the shared place could not be written
+const PC_PAGE = 24;                       // cards shown at once
+let PC = {
+  marks: { SP: {}, CPC: {} },             // brand → picture id → { v: 'ok' | 'bad', at, by, name, note, sku }
+  v: 0,                                   // bumps on every change: hCtx (listing-rules.js) judges again
+  loaded: false,
+  loading: null,
+  where: '',                              // 'shared' | 'browser' | 'visit' — where the marks are kept
+  err: '',                                // why the shared place could not be read or written
+  on: false,                              // the Picture check view is showing in Image Manager
+  show: 'todo',                           // 'todo' (not checked yet) | 'done' (checked)
+  shown: PC_PAGE,
+  focus: '',                              // a picture id to put first (opened from Listing Health)
+  busy: new Set(),                        // picture ids being saved
+};
+const pcIsTest = () => typeof window !== 'undefined' && !!window.__TEST_ERP;
+// The person's name as the card says it: the part of the e-mail before the @ (and before a dot), capitalised.
+const pcName = () => { const s = String((typeof ME !== 'undefined' && ME.email) || '').split(/[@._-]/)[0]; return s ? s.charAt(0).toUpperCase() + s.slice(1) : 'Someone'; };
+const pcDate = ms => new Date(ms).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+const pcEsc = str => String(str == null ? '' : str).replace(/[<>&"]/g, ch => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[ch]));
+
+/* ----- the marks: read once, saved on every click ----- */
+async function pcLoad() {
+  if (PC.loaded) return;
+  if (PC.loading) return PC.loading;
+  PC.loading = (async () => {
+    let shared = {};
+    try {
+      const snap = await getDoc(doc(db, 'imgsnap', 'piccheck'));
+      shared = snap.exists() ? snap.data() : {};
+      PC.where = 'shared';
+    } catch (e) {
+      PC.where = 'browser';
+      PC.err = String((e && e.message) || e);
+    }
+    let local = {};
+    try { local = JSON.parse(localStorage.getItem(PC_STORE) || '{}') || {}; } catch (e) { /* no storage */ }
+    // The newer of the shared mark and this browser's own, per picture.
+    ['SP', 'CPC'].forEach(brand => {
+      const out = Object.assign({}, (shared && shared[brand]) || {});
+      Object.entries(local[brand] || {}).forEach(([id, mark]) => { if (!out[id] || (mark && mark.at > (out[id].at || 0))) out[id] = mark; });
+      PC.marks[brand] = out;
+    });
+    if (pcIsTest()) PC.where = 'visit';
+    PC.loaded = true;
+    pcChanged();
+  })();
+  return PC.loading;
+}
+// A mark changed: every screen judges again (Listing Health through hCtx's key), and the Image Manager view redraws.
+function pcChanged() {
+  PC.v++;
+  if (typeof H_CTX !== 'undefined') H_CTX = null;
+  pcChip();
+  if (PC.on) pcRender();
+  const health = $('paneHealth');
+  if (health && health.classList && !health.classList.contains('hide')) {
+    if (typeof LI_WS !== 'undefined' && LI_WS.on && typeof liWsSchedule === 'function') liWsSchedule();
+    else if (typeof hRedraw === 'function') hRedraw();
+  }
+}
+// Mark one picture Looks OK ('ok') or Not OK ('bad'), with an optional note; saved for everyone where the app may write.
+async function pcMark(brand, id, v, note, sku) {
+  const mark = { v, at: Date.now(), by: (typeof ME !== 'undefined' && ME.email) || '', name: pcName(), note: String(note || '').trim().slice(0, 200), sku: sku || '' };
+  PC.marks[brand] = PC.marks[brand] || {};
+  PC.marks[brand][id] = mark;
+  PC.busy.add(id);
+  pcChanged();
+  if (pcIsTest()) PC.where = 'visit';
+  else {
+    try {
+      await setDoc(doc(db, 'imgsnap', 'piccheck'), { [brand]: { [id]: mark } }, { merge: true });
+      PC.where = 'shared';
+      PC.err = '';
+    } catch (e) {
+      // Refused (no right to write there, or offline): kept in this browser, and the page says so.
+      try {
+        const local = JSON.parse(localStorage.getItem(PC_STORE) || '{}') || {};
+        local[brand] = Object.assign({}, local[brand] || {}, { [id]: mark });
+        localStorage.setItem(PC_STORE, JSON.stringify(local));
+      } catch (x) { /* no storage either: this visit only */ }
+      PC.where = 'browser';
+      PC.err = String((e && e.message) || e);
+    }
+  }
+  PC.busy.delete(id);
+  pcChanged();
+}
+
+/* ----- the pictures to judge: one per main picture of the brand ----- */
+// [{ id, url, title, skus: [...], asin, mark }] from the Image Manager snapshot's live (catalogue) main pictures.
+function pcPictures(brand) {
+  const data = typeof IML !== 'undefined' ? IML[brand] : null;
+  if (!data) return null;
+  const by = new Map();
+  (data.items || []).forEach(item => {
+    if (!item || item.lvl === 'parent' || !item.live || !item.live.MAIN) return;
+    const id = lrPicId(item.live.MAIN);
+    const pic = by.get(id) || { id, url: item.live.MAIN, title: item.t || '', asin: item.asin || '', skus: [] };
+    pic.skus.push(item.sku);
+    by.set(id, pic);
+  });
+  const marks = PC.marks[brand] || {};
+  return [...by.values()].map(pic => Object.assign(pic, { mark: marks[pic.id] || null }));
+}
+// The chip: "Picture check (N)" — N = main pictures of the brand nobody has looked at yet.
+function pcChip() {
+  const chip = $('imPcChip');
+  if (!chip) return;
+  const pics = pcPictures($('imBrand') ? $('imBrand').value : 'SP');
+  const n = pics ? pics.filter(pic => !pic.mark).length : null;
+  chip.innerHTML = `◐ Picture check <span class="sp-n">${n == null ? '…' : Number(n).toLocaleString('en-US')}</span>`;
+  chip.classList.toggle('is-on', PC.on);
+  chip.setAttribute('aria-pressed', String(PC.on));
+}
+
+/* ----- the view ----- */
+function pcCardHtml(brand, pic) {
+  const m = pic.mark;
+  const state = m ? `<p class="pc-state"><span class="sp-chip-s ${m.v === 'ok' ? 'is-ready' : 'pc-bad'}"><i aria-hidden="true">${m.v === 'ok' ? '✓' : '✕'}</i>${m.v === 'ok' ? 'Looks OK' : 'Not OK'}</span>`
+    + ` <span class="sp-dim">Checked by ${pcEsc(m.name || m.by || 'someone')} · ${pcDate(m.at)}${m.note ? ' · “' + pcEsc(m.note) + '”' : ''}</span></p>` : '';
+  const busy = PC.busy.has(pic.id);
+  return `<div class="card pc-card${m ? (m.v === 'ok' ? ' is-ok' : ' is-bad') : ''}${PC.focus === pic.id ? ' is-focus' : ''}" data-pc-id="${pcEsc(pic.id)}">`
+    + `<div class="pc-pic"><img src="${pcEsc(pic.url)}" alt="${pcEsc('Main picture of ' + (pic.title || pic.skus[0]))}" loading="lazy" decoding="async"></div>`
+    + `<div class="pc-body"><b class="pc-name" title="${pcEsc(pic.title)}">${pcEsc(pic.title || pic.skus[0])}</b>`
+    + `<small class="sp-dim">${pcEsc(pic.skus[0])}${pic.skus.length > 1 ? ` · used on ${pic.skus.length} listings` : ''}</small>`
+    + '<p class="pc-q">Is the background pure white, with no text or logo on the picture?</p>' + state
+    + `<label class="pc-note-l">Note (optional)<input class="pc-note" data-pc-note="${pcEsc(pic.id)}" value="${pcEsc(m && m.note ? m.note : '')}" maxlength="200" placeholder="e.g. grey shadow at the bottom"></label>`
+    + `<div class="pc-act"><button type="button" class="sp-main" data-pc-act="ok" data-pc-id="${pcEsc(pic.id)}" data-pc-sku="${pcEsc(pic.skus[0])}"${busy ? ' disabled' : ''}>✓ Looks OK</button>`
+    + `<button type="button" class="sp-btn" data-pc-act="bad" data-pc-id="${pcEsc(pic.id)}" data-pc-sku="${pcEsc(pic.skus[0])}"${busy ? ' disabled' : ''}>✕ Not OK</button></div></div></div>`;
+}
+function pcRender() {
+  const box = $('imPcWrap');
+  if (!box || !PC.on) return;
+  const brand = $('imBrand').value;
+  const name = (typeof BRAND_NAME !== 'undefined' && BRAND_NAME[brand]) || brand;
+  const pics = pcPictures(brand);
+  if (!pics || !PC.loaded) {
+    box.innerHTML = '<div class="card pc-head"><b>Picture check</b><span class="sp-dim">Reading your pictures…</span></div><div class="pc-grid">'
+      + Array.from({ length: 6 }, () => '<div class="card pc-card"><span class="sp-skel pc-skel-pic"></span><div class="pc-body"><span class="sp-skel is-w"></span><span class="sp-skel is-s"></span></div></div>').join('') + '</div>';
+    return;
+  }
+  const todo = pics.filter(pic => !pic.mark);
+  const done = pics.filter(pic => pic.mark);
+  let list = PC.show === 'done' ? done.sort((a, b) => b.mark.at - a.mark.at) : todo;
+  if (PC.focus) list = list.filter(pic => pic.id === PC.focus).concat(list.filter(pic => pic.id !== PC.focus));
+  const page = list.slice(0, PC.shown);
+  const where = PC.where === 'visit' ? 'Test site — your answers last for this visit only; they are not saved here.'
+    : PC.where === 'browser' ? 'Your answers are kept in this browser only: the shared place could not be written' + (PC.err ? ` (${pcEsc(PC.err)})` : '') + '.'
+      : 'Your answers are saved for everyone who uses Sellora.';
+  const head = `<div class="card pc-head"><div><b>Picture check · ${pcEsc(name)}</b><p>${todo.length ? `${todo.length.toLocaleString('en-US')} main picture${todo.length === 1 ? '' : 's'} to look at. Look at each one and press <b>Looks OK</b> or <b>Not OK</b>.` : 'Every main picture has been looked at.'} `
+    + `“Not OK” shows as a problem in Listing Health (“Replace the main picture”); “Looks OK” is remembered until the picture changes.</p><small class="sp-dim">${where}</small></div>`
+    + `<div class="sp-seg" role="group" aria-label="Which pictures"><button type="button" class="${PC.show === 'todo' ? 'on' : ''}" data-pc-show="todo" aria-pressed="${PC.show === 'todo'}">To look at (${todo.length.toLocaleString('en-US')})</button>`
+    + `<button type="button" class="${PC.show === 'done' ? 'on' : ''}" data-pc-show="done" aria-pressed="${PC.show === 'done'}">Checked (${done.length.toLocaleString('en-US')})</button></div></div>`;
+  const empty = !page.length ? `<div class="card sp-empty"><b>${PC.show === 'done' ? 'No picture checked yet.' : 'Nothing to look at right now.'}</b><br>${PC.show === 'done' ? 'Pictures you mark show here.' : 'When a main picture changes on Amazon it comes back here to be looked at.'}</div>` : '';
+  const more = list.length > page.length ? `<div class="sp-foot"><span>${page.length.toLocaleString('en-US')} of ${list.length.toLocaleString('en-US')}</span><button type="button" class="sp-btn" data-pc-more="1">Show ${Math.min(PC_PAGE, list.length - page.length)} more</button></div>` : '';
+  box.innerHTML = head + empty + `<div class="pc-grid">${page.map(pic => pcCardHtml(brand, pic)).join('')}</div>` + more;
+}
+// Open the view (the chip, or a link from Listing Health); the list and the editor step aside.
+async function pcOn() {
+  PC.on = true;
+  $('imListWrap').classList.add('hide');
+  $('imEditWrap').classList.add('hide');
+  $('imPcWrap').classList.remove('hide');
+  pcChip();
+  pcRender();
+  const brand = $('imBrand').value;
+  await Promise.all([pcLoad(), typeof IML !== 'undefined' && !(brand in IML) && typeof imListLoad === 'function' ? imListLoad(brand) : null]);
+  pcChip();
+  pcRender();
+}
+function pcOff() {
+  if (!PC.on) return;
+  PC.on = false;
+  PC.focus = '';
+  $('imPcWrap').classList.add('hide');
+  $('imListWrap').classList.remove('hide');
+  pcChip();
+}
+// From Listing Health's ◐ line: Image Manager, that brand, the Picture check with this listing's main picture first.
+async function pcOpenFor(brand, sku) {
+  if (typeof showTab === 'function') showTab('img');
+  if ($('imBrand').value !== brand) {
+    $('imBrand').value = brand;
+    if (typeof $('imBrand').onchange === 'function') $('imBrand').onchange();
+  }
+  if (typeof IML !== 'undefined' && !(brand in IML) && typeof imListLoad === 'function') await imListLoad(brand);
+  const item = ((IML[brand] && IML[brand].items) || []).find(each => each.sku === sku);
+  PC.focus = item && item.live && item.live.MAIN ? lrPicId(item.live.MAIN) : '';
+  const mark = PC.focus ? (PC.marks[brand] || {})[PC.focus] : null;
+  PC.show = mark ? 'done' : 'todo';
+  PC.shown = PC_PAGE;
+  await pcOn();
+  const card = PC.focus && $('imPcWrap').querySelector ? $('imPcWrap').querySelector(`[data-pc-id="${CSS.escape(PC.focus)}"] .sp-main`) : null;
+  if (card) { card.scrollIntoView({ block: 'center' }); card.focus({ preventScroll: true }); }
+}
+
+/* ----- wiring ----- */
+if (typeof document !== 'undefined' && document.addEventListener && $('imPcChip') && $('imPcChip').addEventListener) {
+  $('imPcChip').addEventListener('click', () => (PC.on ? pcOff() : (PC.focus = '', pcOn())));
+  // The Image Manager's own controls bring its list back; a brand change redraws whichever view is showing.
+  ['imFilter', 'imView'].forEach(id => $(id).addEventListener('change', pcOff));
+  $('imGo').addEventListener('click', pcOff);
+  $('imBrand').addEventListener('change', () => {
+    PC.shown = PC_PAGE;
+    PC.focus = '';
+    if (PC.on) { $('imListWrap').classList.add('hide'); pcOn(); } else pcChip();
+  });
+  $('imPcWrap').addEventListener('click', e => {
+    const btn = e.target.closest ? e.target.closest('[data-pc-act],[data-pc-show],[data-pc-more]') : null;
+    if (!btn) return;
+    if (btn.dataset.pcShow) { PC.show = btn.dataset.pcShow; PC.shown = PC_PAGE; PC.focus = ''; pcRender(); return; }
+    if (btn.dataset.pcMore) { PC.shown += PC_PAGE; pcRender(); return; }
+    const id = btn.dataset.pcId;
+    const note = $('imPcWrap').querySelector(`[data-pc-note="${CSS.escape(id)}"]`);
+    pcMark($('imBrand').value, id, btn.dataset.pcAct === 'ok' ? 'ok' : 'bad', note ? note.value : '', btn.dataset.pcSku);
+  });
+  // "◐ A person needs to look — Open in Image Manager" on Listing Health's check lines.
+  document.addEventListener('click', e => {
+    const link = e.target && e.target.closest ? e.target.closest('[data-pc-open]') : null;
+    if (!link) return;
+    const sep = link.dataset.pcOpen.indexOf('|');
+    pcOpenFor(link.dataset.pcOpen.slice(0, sep), link.dataset.pcOpen.slice(sep + 1));
+  });
+  // The marks are read when Listing Health or Image Manager first shows (Listing Health judges "Not OK" pictures as problems).
+  ['paneHealth', 'paneImg'].forEach(id => {
+    const pane = $(id);
+    if (pane && typeof MutationObserver === 'function') new MutationObserver(() => { if (!pane.classList.contains('hide')) { pcLoad(); pcChip(); } }).observe(pane, { attributes: true, attributeFilter: ['class'] });
+  });
+}
 /* ============================== FILE: src/app/listing/listing-errors.js ============================== */
 /* ================= LISTING · LISTING ERRORS: what Amazon reports wrong on each listing, and the editor that fixes it from here =================
  * Screens: Listing Errors (tab 'lerr').

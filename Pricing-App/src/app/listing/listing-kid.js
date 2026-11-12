@@ -61,19 +61,21 @@ function lkHtml(kid, opts) {
   const fills = ((kid.c.spec && kid.c.spec.hits) || []).map(hit => rec(hit, true));
   const checks = LI_WS_CHECKS.map(check => Object.assign({ k: check.k, t: check.w || check.t }, kid.c[check.k]));
   const unknown = checks.filter(c => c.pass === null && !c.na);
+  const looks = checks.filter(c => c.pass === true && c.look);       // ◐ a person needs to look — not an error, counted nowhere
+  const where = { brand: kid.brand, sku: kid.sku };
   const bangs = [...new Set(checks.map(c => c.bang).filter(Boolean))];
   const none = !errs.length && !atts.length && !fills.length
-    ? `<div class="ls-empty lk-none">${unknown.length ? '<b>No problem found so far.</b><br>Some checks have no answer yet — see below.' : '<b>No problem on this listing.</b><br>Every Listing Rule passes.'}</div>` : '';
+    ? `<div class="ls-empty lk-none">${unknown.length || looks.length ? '<b>No problem found so far.</b><br>Some checks have no answer yet — see below.' : '<b>No problem on this listing.</b><br>Every Listing Rule passes.'}</div>` : '';
   const info = (kid.live ? '' : '<div class="lk-info">This listing is not live, so its problems are not counted anywhere.</div>')
     + (checking ? '<div class="lk-info">Reading this listing from Amazon now…</div>' : '')
     + (kid.notes && kid.notes.length ? `<div class="lk-info">${lrNotesHtml(kid.notes)}</div>` : '')
-    + (unknown.length ? `<div class="lk-info">Not checked yet: ${unknown.map(c => `${lrEsc(c.t)} — ${lrEsc(c.found || 'not known')}`).join(' · ')}</div>` : '')
+    + (unknown.length || looks.length ? `<div class="lk-info">${looks.concat(unknown).map(c => lrAnswerHtml(c.t, c, where, '')).join('')}</div>` : '')
     + (bangs.length ? `<div class="lk-info li-ws-err">Could not read from Amazon: ${bangs.map(lrEsc).join(' · ')}</div>` : '');
-  const passed = checks.filter(c => c.pass === true || c.na);
+  const passed = checks.filter(c => (c.pass === true && !c.look) || c.na);
   const open = LK.pass.has(key);
   const srcOf = c => [c.src && c.src.s, c.src && c.src.when].filter(Boolean).join(' · ');
   const pass = passed.length ? `<div class="ls-panel-tog lk-passtog"><button type="button" class="ls-more" data-lk-pass="${lrEsc(key)}" aria-expanded="${open}">${open ? 'Hide' : 'Show'} passed checks (${liWsNf(passed.length)})</button></div>`
-    + (open ? `<div class="lk-passed">${passed.map(c => `<div>${c.na ? '<span class="li-ws-na">—</span>' : '<span class="li-ws-ok">✓</span>'} <b>${lrEsc(c.t)}</b> — ${lrEsc(c.found || '')}${srcOf(c) ? ` <span class="lk-src">· ${lrEsc(srcOf(c))}</span>` : ''}</div>`).join('')}</div>` : '') : '';
+    + (open ? `<div class="lk-passed">${passed.map(c => lrAnswerHtml(c.t, c, where, srcOf(c))).join('')}</div>` : '') : '';
   const body = group('is-c', lrLevel('critical').word, errs) + group('is-a', lrLevel('action').word, atts) + group('is-f', 'Good to fill', fills) + none + info + pass;
   // --- footer: where the answers come from, and how old each source is ---
   const healthAt = lkMs(HEALTH[kid.brand] && HEALTH[kid.brand].at);

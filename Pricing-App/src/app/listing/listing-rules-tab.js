@@ -68,7 +68,10 @@ function hAreaCell(row, area) {
     return `<span class="sev ${LR_SEV[worst.sev].cls}" title="${lrEsc(hits.map(hit => hit.name + ' — ' + hit.detail).join('\n'))}"></span>` + cnt;
   }
   const judged = area === 'Images' ? !!row._h.pics : area === 'Content' ? !!row.content : !!hTitleText(row);
-  return judged ? '<span class="sev-ok">✓</span>' + cnt : '<span class="muted">—</span>';
+  // The four answers (Rule Engine): ✓ Pass · ◐ A person needs to look (the main picture, not marked yet — not an error) · ○ Not checked.
+  const look = area === 'Images' && (row._h.looks || []).length;
+  if (judged && look) return `<span class="muted" title="${lrEsc('A person needs to look: ' + row._h.looks[0].what + ' — Image Manager → Picture check')}">◐</span>` + cnt;
+  return judged ? '<span class="sev-ok" title="Pass">✓</span>' + cnt : '<span class="muted" title="Not checked: not read yet — not an error">○</span>';
 }
 
 // First visit to the tab: the saved rules, the listings snapshot (for the counts) and the brand catalogues, then draw.
@@ -128,6 +131,7 @@ function renderLrules() {
   $('lrTry').classList.toggle('hide', LR_VIEW !== 'titles');
   $('lrAllow').classList.toggle('hide', LR_VIEW !== 'issues');
   if (LR_VIEW === 'issues') lrAllowRender(cfg);
+  lrHistoryRender();
 
   // --- the issues view ---
   if (LR_VIEW === 'issues') {
@@ -371,17 +375,97 @@ $('lrReset').onclick = () => {
   renderLrules();
 };
 // Save: write the three lists to Firestore listingrules/config.
+/* ---- HISTORY (Rule Engine, 12 Nov 2026): every "Save rules" keeps the version it replaces, inside listingrules/config itself (the last
+ *      LR_HISTORY_MAX), with who saved, when, and what the save changed in words. Compare with now; no restore button. ---- */
+const LR_HISTORY_MAX = 20;
+// A person's name from an e-mail: the part before the @ (and before a dot), capitalised.
+const lrWho = email => { const s = String(email || '').split(/[@._-]/)[0]; return s ? s.charAt(0).toUpperCase() + s.slice(1) : 'Someone'; };
+// What changed from one version of the rules to another, in words: ["changed 'A+ missing' from Attention to Critical", …].
+function lrRulesDiff(a, b) {
+  a = a || {};
+  b = b || {};
+  const out = [];
+  const lvl = sev => (LR_SEV[sev] ? LR_SEV[sev].label : String(sev || '—'));
+  const ai = new Map((a.issues || []).map(issue => [issue.id, issue]));
+  const bi = new Map((b.issues || []).map(issue => [issue.id, issue]));
+  bi.forEach((x, id) => {
+    const o = ai.get(id);
+    if (!o) return out.push(`added the rule '${x.name}'`);
+    if (o.name !== x.name) out.push(`renamed '${o.name}' to '${x.name}'`);
+    if (o.sev !== x.sev) out.push(`changed '${x.name}' from ${lvl(o.sev)} to ${lvl(x.sev)}`);
+    if ((o.on !== false) !== (x.on !== false)) out.push(`turned '${x.name}' ${x.on === false ? 'off' : 'on'}`);
+    if (o.area !== x.area) out.push(`moved '${x.name}' from ${o.area} to ${x.area}`);
+    if (o.detector !== x.detector) out.push(`changed how '${x.name}' is found`);
+    const op = o.params || {};
+    const np = x.params || {};
+    const keys = [...new Set(Object.keys(op).concat(Object.keys(np)))].filter(k => String(op[k]) !== String(np[k]));
+    if (keys.length) out.push(`changed the settings of '${x.name}' (${keys.map(k => `${k}: ${op[k] == null ? '—' : op[k]} → ${np[k] == null ? '—' : np[k]}`).join(', ')})`);
+  });
+  ai.forEach((o, id) => { if (!bi.has(id)) out.push(`removed the rule '${o.name}'`); });
+  const tkey = tpl => `${tpl.brand || 'ALL'}|${tpl.match || ''}`;
+  const at = new Map((a.templates || []).map(tpl => [tkey(tpl), tpl]));
+  const bt = new Map((b.templates || []).map(tpl => [tkey(tpl), tpl]));
+  bt.forEach((x, k) => { if (!at.has(k)) out.push(`added the title template for '${x.match || 'anything'}'`); else if (JSON.stringify(at.get(k)) !== JSON.stringify(x)) out.push(`changed the title template for '${x.match || 'anything'}'`); });
+  at.forEach((o, k) => { if (!bt.has(k)) out.push(`removed the title template for '${o.match || 'anything'}'`); });
+  const ae = new Map((a.events || []).map(ev => [ev.id, ev]));
+  const be = new Map((b.events || []).map(ev => [ev.id, ev]));
+  be.forEach((x, id) => { if (!ae.has(id)) out.push(`added '${x.name}' to the season calendar`); else if (JSON.stringify(ae.get(id)) !== JSON.stringify(x)) out.push(`changed '${x.name}' in the season calendar`); });
+  ae.forEach((o, id) => { if (!be.has(id)) out.push(`removed '${o.name}' from the season calendar`); });
+  const aa = lrAllow(a);
+  const ba = lrAllow(b);
+  const allowName = { shortFrom: 'Short forms allowed from', ourBrands: 'Our brand words', embroideryColors: 'Embroidery colours' };
+  Object.keys(allowName).forEach(k => { if (String(aa[k]) !== String(ba[k])) out.push(`changed '${allowName[k]}' from '${aa[k]}' to '${ba[k]}'`); });
+  return out;
+}
+// The History card: each save — who, when, what it changed — and "Compare with now" (that version against the rules in force).
+const LR_HIST_OPEN = new Set();
+function lrHistoryRender() {
+  const box = $('lrHistory');
+  if (!box) return;
+  const cfg = LR || LR_DEFAULT;
+  const when = ms => new Date(ms).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  const rows = LR_HISTORY.map((entry, i) => {
+    const open = LR_HIST_OPEN.has(i);
+    const now = open ? lrRulesDiff(entry.prev, cfg) : [];
+    return `<div class="lr-h-row"><div class="lr-h-who"><b>${lrEsc(entry.who || lrWho(entry.by))}</b> <span class="sp-dim">· ${lrEsc(when(entry.at))}</span></div>`
+      + `<ul class="lr-h-list">${(entry.changes || []).length ? entry.changes.map(line => `<li>${lrEsc(line)}</li>`).join('') : '<li class="sp-dim">saved without a change</li>'}</ul>`
+      + `<button type="button" class="sp-link" data-lrh="${i}" aria-expanded="${open}">${open ? 'Hide the comparison' : 'Compare with now'}</button>`
+      + (open ? `<div class="lr-h-cmp"><b>From the version before this save to the rules now:</b>${now.length ? `<ul class="lr-h-list">${now.map(line => `<li>${lrEsc(line)}</li>`).join('')}</ul>` : '<p class="sp-dim">The same as now.</p>'}</div>` : '')
+      + '</div>';
+  }).join('');
+  box.innerHTML = `<div class="lr-h-head"><b>History</b><span class="sp-dim">The last ${LR_HISTORY_MAX} saves. Each one keeps the rules as they were before it, so you can see what changed.</span></div>`
+    + (rows || '<p class="sp-dim lr-h-none">No save yet. When someone presses “Save rules”, it shows here: who, when and what changed.</p>');
+}
+if ($('lrHistory') && $('lrHistory').addEventListener) $('lrHistory').addEventListener('click', e => {
+  const btn = e.target.closest ? e.target.closest('[data-lrh]') : null;
+  if (!btn) return;
+  const i = +btn.dataset.lrh;
+  if (LR_HIST_OPEN.has(i)) LR_HIST_OPEN.delete(i); else LR_HIST_OPEN.add(i);
+  lrHistoryRender();
+  const again = $('lrHistory').querySelector(`[data-lrh="${i}"]`);
+  if (again) again.focus({ preventScroll: true });
+});
+// The rules as one plain object (what is saved and compared), from a config or a saved document.
+const lrRulesOf = cfg => JSON.parse(JSON.stringify({ issues: cfg.issues || [], templates: cfg.templates || [], events: cfg.events || [], allow: lrAllow(cfg) }));
 $('lrSave').onclick = async () => {
   const cfg = LR || LR_DEFAULT;
   /* Firestore refuses undefined anywhere in a document. */
-  const clean = JSON.parse(JSON.stringify({ issues: cfg.issues, templates: cfg.templates, events: cfg.events, allow: lrAllow(cfg) }));
+  const clean = lrRulesOf(cfg);
   if (clean.issues.some(issue => !String(issue.name || '').trim())) {
     lrMsg('Every issue needs a name.', true);
     return;
   }
   $('lrSave').disabled = true;
   try {
-    await setDoc(doc(db, 'listingrules', 'config'), Object.assign(clean, { at: serverTimestamp(), by: ME.email }));
+    // The version this save replaces, read fresh (someone else may have saved since this page loaded): kept in the history.
+    const snap = await getDoc(doc(db, 'listingrules', 'config'));
+    const data = snap.exists() ? snap.data() : null;
+    const prev = data ? Object.assign(lrRulesOf(Object.assign({}, LR_DEFAULT, data, { allow: data.allow })), { at: data.at && data.at.toMillis ? data.at.toMillis() : 0, by: data.by || '' })
+      : Object.assign(lrRulesOf(LR_DEFAULT), { at: 0, by: '' });
+    const history = [{ at: Date.now(), by: ME.email, who: lrWho(ME.email), changes: lrRulesDiff(prev, clean), prev }]
+      .concat(data && Array.isArray(data.history) ? data.history : []).slice(0, LR_HISTORY_MAX);
+    await setDoc(doc(db, 'listingrules', 'config'), Object.assign(clean, { at: serverTimestamp(), by: ME.email, history: JSON.parse(JSON.stringify(history)) }));
+    LR_HISTORY = history;
     LR_SAVED_AT = new Date();
     LR_DIRTY = false;
     H_CTX = null;

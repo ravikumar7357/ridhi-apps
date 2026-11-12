@@ -295,8 +295,12 @@ function liWsChild(row, brand, hc, imlMap, now) {
   const picErr = lr && lr.iErr ? lr.iErr : '';
   c.main = ruleCol('main', pics ? { known: true, src: picSrc, value: (pics.main ? 'Main picture in the catalogue · ' : '') + picWords }
     : Object.assign({ src: picSrc }, noContent, { unknown: 'No picture data yet', bang: picErr || contentErr }));
-  c.img = ruleCol('img', pics ? { known: true, src: picSrc, value: picWords }
+  c.img = ruleCol('img', pics ? { known: true, src: picSrc, value: picWords + (pics.px ? '' : ' (picture sizes not read from Amazon yet)') }
     : Object.assign({ src: picSrc }, noContent, { unknown: 'No picture data yet', bang: picErr || contentErr }));
+  // ◐ A person needs to look: the main picture's white background and no text or logo, until someone marks it in Image Manager.
+  // The check still passes (it is not an error and counts nowhere); only its line says so.
+  const look = (h.looks || []).find(each => each.k === 'main');
+  if (look && c.main.pass === true) c.main.look = look.what;
   // The title rules read the title the way Listing Health does: the content read's, else the listings report's own title.
   const titleText = hTitleText(scored);
   c.title = ruleCol('title', (content || titleText) ? { known: true, src: content ? contentSrc : liWsSrc('health', healthAt),
@@ -385,13 +389,14 @@ function liWsChild(row, brand, hc, imlMap, now) {
 // Which column a Listing Rules finding belongs to: by what it detects first, then by its area. Anything else (Size,
 // Variation, Price, Inventory, a rule the team adds later) goes to "Other", so every finding shows somewhere.
 const LI_WS_COL_DET = { amazon_error: 'amz', amazon_suppressed: 'amz', no_main_image: 'main', title_template: 'tpl', bullets_below: 'bul',
-  desc_below: 'desc', aplus_missing: 'aplus', keyword_bytes: 'kw' };
+  desc_below: 'desc', aplus_missing: 'aplus', keyword_bytes: 'kw', main_not_square: 'main', main_photo_check: 'main' };
 const LI_WS_COL_AREA = { Amazon: 'amz', Images: 'img', Title: 'title' };
 const liWsColOf = hit => LI_WS_COL_DET[hit.detector] || LI_WS_COL_AREA[hit.area] || 'other';
 // The short word in a ✗ pill, per kind of finding.
 const LI_WS_SHORT = { amazon_error: 'Error', amazon_suppressed: 'Suppressed', no_main_image: 'None', aplus_missing: 'None',
   title_keyword: 'Keyword', seasonal_keyword: 'Season', title_contains: 'Word', size_format: 'Size', dimension_order: 'Size order',
-  variation_value_missing: 'No size', variation_naming: 'Naming', inactive_with_stock: 'Inactive', no_price: 'No price' };
+  variation_value_missing: 'No size', variation_naming: 'Naming', inactive_with_stock: 'Inactive', no_price: 'No price',
+  images_small: 'Small', main_not_square: 'Not square', images_duplicate: 'Repeat', main_photo_check: 'Not OK' };
 function liWsShort(hit) {
   if (LI_WS_SHORT[hit.detector]) return LI_WS_SHORT[hit.detector];
   const num = (String(hit.detail).match(/^\d[\d,]*/) || [])[0];   // "134 characters", "4 of 6", "3 of 5": the number
@@ -769,7 +774,9 @@ async function liWsJob(job) {
       const cat = reply.catalog && typeof reply.catalog === 'object' ? reply.catalog : null;
       const slots = cat ? Object.keys(cat).filter(slot => cat[slot] && cat[slot].link) : [];
       if (cat && (slots.length || !reply.catalogError)) Object.assign(entry, { at: now, iAt: now, cat: slots, iErr: '',
-        catMain: cat.MAIN && cat.MAIN.link ? String(cat.MAIN.link).slice(0, 200) : '' });   // the catalogue's main picture: the row's thumbnail
+        catMain: cat.MAIN && cat.MAIN.link ? String(cat.MAIN.link).slice(0, 200) : '',   // the catalogue's main picture: the row's thumbnail
+        // each picture's id and size, for the picture rules (too small to zoom, main not square, the same picture twice)
+        catPic: Object.fromEntries(slots.map(slot => [slot, [lrPicId(cat[slot].link), Number(cat[slot].w) || 0, Number(cat[slot].h) || 0]])) });
       else Object.assign(entry, { at: now, iErr: String(reply.catalogError || 'no catalogue answer').slice(0, 160) });   // an answer without the catalogue leaves the pictures unknown, never "none"
     } else if (job.t === 'aplus') {
       const reply = await baCall({ lh: 'aplusasin', brand, asins: job.asins.join(',') });
@@ -927,7 +934,9 @@ function liWsStop() {
 function liWsCell(kid, check, reading) {
   if (reading) return '<span class="li-ws-ph" aria-label="Reading from Amazon"></span>';
   const c = kid.c[check.k];
-  if (c.pass === true) return `<span class="li-ws-ok" title="${lrEsc(c.found)}">✓</span>`;
+  // The four answers (Rule Engine): ✓ Pass · ✕ Fix (the pill) · ○ Not checked · ◐ A person needs to look.
+  if (c.pass === true && c.look) return `<span class="li-ws-na" title="${lrEsc('A person needs to look: ' + c.look + ' — open Image Manager → Picture check')}">◐</span>`;
+  if (c.pass === true) return `<span class="li-ws-ok" title="${lrEsc('Pass · ' + c.found)}">✓</span>`;
   if (c.pass === false) {
     const word = lrEsc(c.cell || '✗');
     const fixes = (c.hits || []).map(hit => hit.fix).filter(Boolean).join(' ');
@@ -939,9 +948,9 @@ function liWsCell(kid, check, reading) {
     if (!check.fix) return `<span class="${cls}" title="${tip}">${word2}</span>`;
     return `<button type="button" class="${cls}" data-lr-fix="${check.fix}|${lrEsc(kid.brand)}|${lrEsc(kid.sku)}"${liWsAttrs(c)} title="${tip}">${word2}</button>`;
   }
-  if (c.na) return '<span class="li-ws-na" title="Doesn’t apply to this listing">—</span>';
-  if (c.bang) return `<span class="li-ws-bang" title="${lrEsc('Could not read from Amazon: ' + c.bang)}">!</span>`;
-  return `<span class="li-ws-na" title="${lrEsc(c.found || 'Not known yet')}">—</span>`;
+  if (c.na) return '<span class="li-ws-na" title="Not checked: doesn’t apply to this listing — not an error">○</span>';
+  if (c.bang) return `<span class="li-ws-bang" title="${lrEsc('Not checked: could not read it from Amazon (' + c.bang + ') — not an error')}">!</span>`;
+  return `<span class="li-ws-na" title="${lrEsc('Not checked: ' + (c.found || 'not known yet') + ' — not an error')}">○</span>`;
 }
 // The pill's colour from the finding's level: red "Error: fix first" (the default), orange "Needs attention" (action and review alike).
 const liWsSevCls = sev => (sev === 'action' || sev === 'review' ? ' is-a' : '');
@@ -966,16 +975,19 @@ function liWsDetailBody(kid) {
   const checking = LI_WS.checking.has(key) ? ' · reading from Amazon now…' : '';
   const info = `<div class="li-ws-dinfo">${lrEsc(kid.why)}${kid.row.qty == null ? '' : ' · ' + liWsNf(kid.row.qty) + ' units'}`
     + `${kid.live ? '' : ' — this listing is not live, so its problems are not counted anywhere above'}${checking}</div>`;
+  // ○ Not checked (with why — never an error) and ◐ A person needs to look (with the Image Manager link): one line each, always shown.
+  const where = { brand: kid.brand, sku: kid.sku };
   const unknown = checks.filter(c => c.pass === null && !c.na);
-  const unkLine = unknown.length ? `<div class="li-ws-dunk">Not checked yet: ${unknown.map(c => `${lrEsc(c.t)} — ${lrEsc(c.found || 'not known')}`).join(' · ')}</div>` : '';
+  const looks = checks.filter(c => c.pass === true && c.look);
+  const unkLine = unknown.length || looks.length ? `<div class="li-ws-dunk">${looks.concat(unknown).map(c => lrAnswerHtml(c.t, c, where, '')).join('')}</div>` : '';
   const bangs = [...new Set(checks.map(c => c.bang).filter(Boolean))];
   const bangLine = bangs.length ? `<div class="li-ws-dbang">Could not read from Amazon: ${bangs.map(lrEsc).join(' · ')}</div>` : '';
-  const none = !probs.length && !unknown.length ? '<div class="li-ws-dunk">No problem on this listing.</div>' : '';
-  // --- the passed checks (and the ones that do not apply), behind a button ---
-  const passed = checks.filter(c => c.pass === true || c.na);
+  const none = !probs.length && !unknown.length && !looks.length ? '<div class="li-ws-dunk">No problem on this listing.</div>' : '';
+  // --- ✓ the passed checks (and ○ the ones that do not apply), behind a button ---
+  const passed = checks.filter(c => (c.pass === true && !c.look) || c.na);
   const open = LI_WS.openPass.has(key);
   const passBtn = passed.length ? `<button type="button" class="ghost li-ws-pass" data-li-ws-pass="${lrEsc(key)}" aria-expanded="${open}">${open ? 'Hide' : 'Show'} passed checks (${liWsNf(passed.length)})</button>` : '';
-  const passList = open ? `<div class="li-ws-passed">${passed.map(c => `<div>${c.na ? '<span class="li-ws-na">—</span>' : '<span class="li-ws-ok">✓</span>'} ${lrEsc(c.t)} — ${lrEsc(c.found || '')}${srcOf(c) ? ' · ' + lrEsc(srcOf(c)) : ''}</div>`).join('')}</div>` : '';
+  const passList = open ? `<div class="li-ws-passed">${passed.map(c => lrAnswerHtml(c.t, c, where, srcOf(c))).join('')}</div>` : '';
   return `<div class="li-ws-dbox">${info}${problems}${none}${unkLine}${bangLine}${passBtn}${passList}</div>`;
 }
 // The detail as the row under a listing in the kid table (the box above inside it).

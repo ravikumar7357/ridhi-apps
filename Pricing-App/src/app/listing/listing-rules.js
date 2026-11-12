@@ -72,6 +72,10 @@ const LR_DETECTORS = {
   aplus_missing: { label: 'A+ asked of the listing and its parent ASIN, and neither has it', params: [] },
   images_below: { label: 'Fewer gallery pictures than N in the catalogue (MAIN + PT01–PT08; the swatch is not a picture)', params: ['n'] },
   images_between: { label: 'Gallery pictures from MIN to MAX', params: ['min', 'max'] },
+  images_small: { label: 'A catalogue picture under PX pixels on its longest side (zoom does not work)', params: ['px'] },
+  main_not_square: { label: 'The main picture is not square (more than PCT % longer one way)', params: ['pct'] },
+  images_duplicate: { label: 'The same picture in two slots of the catalogue', params: [] },
+  main_photo_check: { label: 'A person marked the main picture Not OK (Image Manager → Picture check)', params: [] },
   bullets_below: { label: 'Fewer bullets than N', params: ['n'] },
   desc_below: { label: 'Description shorter than N characters (not judged when A+ is live — Amazon shows the A+ instead)', params: ['n'] },
   keyword_bytes: { label: 'Search terms over MAX bytes, counting the words only (spaces and ; , . do not count)', params: ['max'] },
@@ -94,6 +98,13 @@ const LR_DEFAULT = {
      * had images, because the family supplies them, and no rule had ever asked Amazon what IT thought. */
     { id: 'amz_suppressed', name: 'Suppressed from search by Amazon', sev: 'critical', area: 'Amazon', detector: 'amazon_suppressed', desc: 'Buyable from a direct link but removed from search results' },
     { id: 'amz_error', name: 'Amazon reports an error', sev: 'critical', area: 'Amazon', detector: 'amazon_error', desc: "Amazon's own issue list for this listing holds at least one ERROR" },
+    /* PICTURE RULES (Rule Engine, 12 Nov 2026): judged on the catalogue's pictures — what shoppers see — from the live Amazon read
+     * (sizes and which picture sits in which slot) or the Image Manager snapshot. No picture data: not judged ("Not checked").
+     * "Main picture present" and "at least 6 pictures" are the two rules just below (main_image, img_secondary). */
+    { id: 'img_small', name: 'Picture too small to zoom', sev: 'action', area: 'Images', detector: 'images_small', params: { px: 1000 }, desc: 'A catalogue picture under 1000 px on its longest side: shoppers cannot zoom in' },
+    { id: 'main_square', name: 'Main picture not square', sev: 'review', area: 'Images', detector: 'main_not_square', params: { pct: 10 }, desc: 'The main picture is more than 10 % longer one way than the other; Amazon shows it best square' },
+    { id: 'img_dup', name: 'Same picture used twice', sev: 'action', area: 'Images', detector: 'images_duplicate', desc: 'The same picture sits in two slots of the catalogue: one slot is wasted' },
+    { id: 'main_check', name: 'Main picture marked Not OK', sev: 'action', area: 'Images', detector: 'main_photo_check', desc: 'A person marked the main picture Not OK in Image Manager → Picture check (background not pure white, or text / logo on it)' },
     /* Critical — the rows Ravi's screenshot showed, and a listing with no image at all. */
     { id: 'inv_mismatch', name: 'Inventory/content mismatch', sev: 'critical', area: 'Inventory', detector: 'inactive_with_stock', desc: 'Inventory has arrived and listing is fundamentally incomplete/unbuyable' },
     { id: 'price_error', name: 'Major price error', sev: 'critical', area: 'Price', detector: 'no_price', desc: 'Price substantially outside approved/master range — only "no price" can be checked today' },
@@ -191,6 +202,7 @@ const LR_DEFAULT = {
 
 let LR = null;             // the rules in force: saved config, or the defaults
 let LR_SAVED_AT = null;    // when the saved config was written, or null while the defaults are in use
+let LR_HISTORY = [];       // the last 20 saves, newest first: { at, by, who, changes: [words], prev: the rules as they were before it }
 let LR_CAT = { SP: null, CPC: null };   // brand → { sku: { color, size, subcat } } from the brand catalogue, once read
 
 /* ---- the calendar ---- */
@@ -459,6 +471,40 @@ const LR_DET = {
     const pics = lrFactsOf(row, ctx).pics;
     return pics && pics.main && pics.n >= (+params.min || 0) && pics.n <= (+params.max || 0) ? `${pics.n} pictures` : '';
   },
+  // A gallery picture under PX on its longest side: zoom does not work. Judged only on sizes the live read brought back.
+  images_small: (row, ctx, params) => {
+    const pics = lrFactsOf(row, ctx).pics;
+    const min = +params.px || 1000;
+    if (!pics || !pics.px) return '';
+    const small = Object.entries(pics.px).filter(([, wh]) => Math.max(wh[0], wh[1]) < min);
+    return small.length ? `${small.length} picture${small.length === 1 ? '' : 's'} under ${min} px: ${small.map(([slot, wh]) => `${slot} (${Math.max(wh[0], wh[1])} px)`).join(', ')}` : '';
+  },
+  // The main picture more than PCT % longer one way than the other.
+  main_not_square: (row, ctx, params) => {
+    const pics = lrFactsOf(row, ctx).pics;
+    const wh = pics && pics.px && pics.px.MAIN;
+    if (!wh) return '';
+    const ratio = Math.max(wh[0], wh[1]) / Math.min(wh[0], wh[1]);
+    return ratio > 1 + (+params.pct || 10) / 100 ? `${wh[0]} × ${wh[1]} px` : '';
+  },
+  // The same picture in two gallery slots (by the picture's id in its link).
+  images_duplicate: (row, ctx) => {
+    const pics = lrFactsOf(row, ctx).pics;
+    if (!pics || !pics.ids) return '';
+    const first = {};
+    for (const [slot, id] of Object.entries(pics.ids)) {
+      if (!id) continue;
+      if (first[id]) return `${slot} is the same picture as ${first[id]}`;
+      first[id] = slot;
+    }
+    return '';
+  },
+  // A person looked at the main picture in Image Manager → Picture check and marked it Not OK. Not looked at yet: no problem here —
+  // the check line says "◐ A person needs to look" instead (lrLooks), and it is counted nowhere.
+  main_photo_check: (row, ctx) => {
+    const mark = lrPcMark(row, ctx);
+    return mark && mark.v === 'bad' ? `marked Not OK by ${mark.name || mark.by || 'someone'} on ${lrFmtDate(new Date(mark.at))}${mark.note ? ': ' + mark.note : ''}` : '';
+  },
   bullets_below: (row, ctx, params) => (row.content && row.content.bullets < (+params.n || 5))
     ? `${row.content.bullets} of ${+params.n || 5}` : '',
   // When A+ is live on the listing or its parent, Amazon shows the A+ instead of the description (Part A3): not judged.
@@ -648,26 +694,37 @@ const lrGallery = slots => (Array.isArray(slots) ? slots : Object.keys(slots || 
 /** The pictures shoppers see: { n, main, at, src: 'live' | 'iml' | 'health', own } — the catalogue slots of the Workspace's live
  *  read, else the Image Manager snapshot's live slots when newer than the listing's content read, else the Health snapshot's
  *  count (which cannot tell the swatch apart). `own`: our listing's own gallery slots when known (the live read). Null = unknown. */
+// A catalogue picture's id — the part of its link that names the picture ("…/images/I/71Q1abcL.jpg" → "71Q1abcL"): the same picture has
+// the same id whatever size Amazon serves, so two slots with one id show one picture, and a new id means the picture changed.
+const lrPicId = url => { const m = String(url || '').match(/\/images\/I\/([^./?]+)/); return m ? m[1] : String(url || ''); };
+// Which picture is in which gallery slot ({ MAIN: id, PT01: id … }), from a slot → link map or the live read's [id, w, h] map; null for none.
+const lrPicIds = (map, packed) => (map ? Object.fromEntries(lrGallery(map).map(slot => [slot, packed ? map[slot][0] : lrPicId(map[slot])])) : null);
+// Each gallery picture's size in pixels ({ MAIN: [w, h] … }) from the live read; null when the sizes were not read.
+const lrPicPx = map => (map ? Object.fromEntries(lrGallery(map).filter(slot => map[slot][1] > 0 && map[slot][2] > 0).map(slot => [slot, [map[slot][1], map[slot][2]]])) : null);
 function lrPictures(row, ctx) {
   const live = lrLiveOf(row, ctx);
-  if (live && live.iAt && Array.isArray(live.cat)) {
-    const g = lrGallery(live.cat);
-    return { n: g.length, main: g.includes('MAIN'), at: live.iAt, src: 'live', own: live.gAt && Array.isArray(live.slots) ? lrGallery(live.slots) : null };
-  }
   const iml = lrImlOf(row, ctx);
   const imlAt = (ctx.imlAt && ctx.imlAt[row.brand]) || 0;
   // The snapshot's catalogue answer counts only for an item the catalogue was asked about (one with an ASIN) and answered: an
   // empty live map on an item without an ASIN, or one marked liveErr, is no answer — never "no picture in the catalogue".
   const imlOk = iml && iml.live && iml.asin && !iml.liveErr && imlAt;
+  if (live && live.iAt && Array.isArray(live.cat)) {
+    const g = lrGallery(live.cat);
+    const pic = live.catPic && typeof live.catPic === 'object' ? live.catPic : null;   // { slot: [id, w, h] } — reads before 12 Nov have none
+    const ids = pic ? lrPicIds(pic, true) : imlOk ? lrPicIds(iml.live) : null;
+    return { n: g.length, main: g.includes('MAIN'), at: live.iAt, src: 'live', own: live.gAt && Array.isArray(live.slots) ? lrGallery(live.slots) : null,
+      ids, px: pic ? lrPicPx(pic) : null, mainId: (ids && ids.MAIN) || (live.catMain ? lrPicId(live.catMain) : '') };
+  }
   const checked = row.checked || 0;
   const fromIml = () => {
     const g = lrGallery(iml.live);
-    return { n: g.length, main: g.includes('MAIN'), at: imlAt, src: 'iml', own: iml.img ? lrGallery(iml.img) : null };
+    const ids = lrPicIds(iml.live);
+    return { n: g.length, main: g.includes('MAIN'), at: imlAt, src: 'iml', own: iml.img ? lrGallery(iml.img) : null, ids, px: null, mainId: (ids && ids.MAIN) || '' };
   };
   if (imlOk && imlAt > checked) return fromIml();
   if (row.content && row.content.images != null) {
     const n = Number(row.content.images) || 0;
-    return { n, main: n > 0, at: checked, src: 'health', own: null };
+    return { n, main: n > 0, at: checked, src: 'health', own: null, ids: null, px: null, mainId: '' };
   }
   return imlOk ? fromIml() : null;
 }
@@ -734,6 +791,7 @@ const lrFacts = (row, ctx) => ({ pics: lrPictures(row, ctx), aplus: lrAplus(row,
 const lrFactsOf = (row, ctx) => row._f || (row._f = lrFacts(row, ctx));
 // What each detector's answer rests on, for the age of the data behind a finding (Part A5).
 const LR_DET_SRC = { inactive_with_stock: 'report', no_price: 'report', amazon_suppressed: 'amz', amazon_error: 'amz', no_main_image: 'pics',
+  images_small: 'pics', main_not_square: 'pics', images_duplicate: 'pics', main_photo_check: 'pics',
   images_below: 'pics', images_between: 'pics', aplus_missing: 'aplus', bullets_below: 'content', desc_below: 'content', title_length: 'content',
   keyword_bytes: 'content' };
 // When the data behind one finding was read (ms), 0 when not known: title rules read the content title when there is one, else the report.
@@ -757,7 +815,8 @@ function hCtx(rowsAll) {
   const imlOf = b => (typeof IML !== 'undefined' && IML && IML[b]) || null;
   // --- reuse the last context while nothing it depends on has changed ---
   const withContent = rows.reduce((count, row) => count + (row.content ? 1 : 0), 0);
-  const key = [rows.length, withContent, LR_CAT.SP ? 1 : 0, LR_CAT.CPC ? 1 : 0, AMZ.at, ws ? 1 : 0,
+  const pcV = typeof PC !== 'undefined' ? PC.v : 0;          // the Picture check marks (picture-check.js): a new mark judges again
+  const key = [rows.length, withContent, LR_CAT.SP ? 1 : 0, LR_CAT.CPC ? 1 : 0, AMZ.at, ws ? 1 : 0, pcV,
     ['SP', 'CPC'].map(b => (HEALTH[b] && HEALTH[b].parentAplusAt) || 0).join(',')].join('|');
   if (H_CTX && H_CTX.cfg === cfg && H_CTX.sp === HEALTH.SP && H_CTX.cpc === HEALTH.CPC && H_CTX.key === key
       && H_CTX.imlSP === imlOf('SP') && H_CTX.imlCPC === imlOf('CPC') && H_CTX.day === new Date().toDateString()) return H_CTX;
@@ -798,8 +857,25 @@ function hCtx(rowsAll) {
     iml[b] = map;
   });
   H_CTX = { cfg, today: new Date(), parents, amz: AMZ.map, amzAt: AMZ.snapAt, sp: HEALTH.SP, cpc: HEALTH.CPC, key, day: new Date().toDateString(),
-    wsLive: ws ? ws.live : null, wsAplus: ws ? ws.aplus : null, healthAt, parentAplus, imlAt, iml, imlSP: imlOf('SP'), imlCPC: imlOf('CPC') };
+    wsLive: ws ? ws.live : null, wsAplus: ws ? ws.aplus : null, healthAt, parentAplus, imlAt, iml, imlSP: imlOf('SP'), imlCPC: imlOf('CPC'),
+    pc: typeof PC !== 'undefined' ? PC.marks : null };
   return H_CTX;
+}
+// The Picture check mark on this listing's main picture ({ v: 'ok' | 'bad', by, name, at, note }), or null when nobody looked at
+// this picture yet. Marks are kept per picture, so a new main picture has none.
+function lrPcMark(row, ctx) {
+  const pics = lrFactsOf(row, ctx).pics;
+  const id = pics && pics.mainId;
+  return id && ctx.pc && ctx.pc[row.brand] ? ctx.pc[row.brand][id] || null : null;
+}
+// What a person needs to look at (◐): the main picture — pure white background, no text or logo — while nobody has marked it. Never
+// an error, never in a count; the check line says so and links to Image Manager. [] when the rule is off or there is no picture to see.
+function lrLooks(row, ctx) {
+  const rule = (ctx.cfg.issues || []).find(issue => issue.detector === 'main_photo_check');
+  if (!rule || rule.on === false) return [];
+  const pics = lrFactsOf(row, ctx).pics;
+  if (!pics || !pics.main || !pics.mainId || lrPcMark(row, ctx)) return [];
+  return [{ k: 'main', area: 'Images', what: 'is the background of the main picture pure white, with no text or logo on it?', picId: pics.mainId }];
 }
 
 // Score one listing: run every rule that is on over its freshest data (lrFresh), then { score, bucket, grade, critical[], action[],
@@ -864,7 +940,8 @@ function healthOf(rowIn, ctx) {
   const bucket = critical.length ? 'critical' : action.length ? 'action' : review.length ? 'review'
     : (notSelling ? 'monitor' : (row.content ? 'healthy' : 'unchecked'));
   const score = Math.max(0, Math.min(100, 100 - critical.length * 40 - action.length * 10 - review.length * 3));
-  return { score, bucket, grade: H_BUCKETS[bucket], critical, action, review, found,
+  const looks = lrLooks(row, ctx);                      // ◐ what a person needs to look at — never a problem, counted nowhere
+  return { score, bucket, grade: H_BUCKETS[bucket], critical, action, review, found, looks,
     blocking: critical, content: action.concat(review), fresh: row, pics: facts.pics, aplus: facts.aplus, amz: facts.amz, notes,
     stale: bucket === 'critical' && found.filter(hit => hit.sev === 'critical').every(hit => hit.stale) };
 }
@@ -914,6 +991,10 @@ const LR_FIX_TEXT = {
   bullets_below: (hit, row, ctx, params) => `Add bullets until there are ${+params.n || 5} (it has ${row.content ? row.content.bullets || 0 : 0}).`,
   desc_below: (hit, row, ctx, params) => `Write a description of ${+params.n || 200}+ characters (it has ${row.content && row.content.descLen ? row.content.descLen : 'none'}).`,
   title_length: (hit, row, ctx, params) => `Make the title ${+params.min || 0} to ${+params.max || 999} characters (now ${row.content ? row.content.titleLen : hTitleText(row).length}).`,
+  images_small: (hit, row, ctx, params) => `Upload a bigger version of ${String(hit.detail).replace(/^.*?:\s*/, '').replace(/\s*\(\d+ px\)/g, '')} in Image Manager — at least ${+params.px || 1000} px on the long side, so shoppers can zoom.`,
+  main_not_square: () => 'Use a square main picture in Image Manager (for example 2000 × 2000 px).',
+  images_duplicate: hit => `Put a different picture in ${String(hit.detail).split(' ')[0]} in Image Manager — it repeats another slot.`,
+  main_photo_check: () => 'Replace the main picture in Image Manager: pure white background, no text or logo on it.',
   size_format: (hit, row, ctx, params) => {
     const title = hTitleText(row);
     const near = lrNear(title, ctx.cfg);
@@ -978,7 +1059,8 @@ function lrFixText(hit, row, ctx) {
 }
 /* ---- whose rule it is, and where the Fix button goes ---- */
 // "Amazon": Amazon itself reports or demands it. "Amazon limit": one of Amazon's own limits. Everything else: "Company rule".
-const LR_FIX_TAG = { amazon_suppressed: 'Amazon', amazon_error: 'Amazon', no_main_image: 'Amazon', inactive_with_stock: 'Amazon', no_price: 'Amazon', keyword_bytes: 'Amazon limit' };
+const LR_FIX_TAG = { amazon_suppressed: 'Amazon', amazon_error: 'Amazon', no_main_image: 'Amazon', inactive_with_stock: 'Amazon', no_price: 'Amazon', keyword_bytes: 'Amazon limit',
+  images_small: 'Amazon', main_photo_check: 'Amazon' };
 const LR_TAG_TIP = { Amazon: 'Amazon itself reports this.', 'Amazon limit': "One of Amazon's own limits.", 'Company rule': 'Your own rule. Amazon does not check this.' };
 function lrFixTag(hit, row) {
   if (LR_FIX_TAG[hit.detector]) return LR_FIX_TAG[hit.detector];
@@ -987,7 +1069,7 @@ function lrFixTag(hit, row) {
   return 'Company rule';
 }
 // The Image Manager for pictures, nothing for A+ (no screen here), Listing Errors for everything else.
-const LR_FIX_IMG = ['no_main_image', 'images_below', 'images_between'];
+const LR_FIX_IMG = ['no_main_image', 'images_below', 'images_between', 'images_small', 'main_not_square', 'images_duplicate', 'main_photo_check'];
 const lrFixKind = detector => (LR_FIX_IMG.includes(detector) ? 'img' : detector === 'aplus_missing' ? '' : 'lerr');
 
 /* ---- one look for every problem, on every screen (Part B2): dot · level word · what is wrong · how to fix · tag · Fix ---- */
@@ -1012,7 +1094,7 @@ function lrProblemHtml(hit, where, note) {
   const ageWords = age ? age + ' days old' : 'with no date';
   const staleWhy = stale ? (fromReport ? ` (from the listings report ${ageWords} — press “Refresh both brands”)` : ` (from data ${ageWords})`) : '';
   return `<div class="lr-prob${stale ? ' is-stale' : ''}"><span class="sev ${stale ? 'sev-s' : level.cls}" title="${esc(stale ? level.stale : level.word)}"></span><div class="lr-prob-body">`
-    + `<div class="lr-prob-what"><span class="lr-lvl ${stale ? 'is-s' : hit.sev === 'critical' ? 'is-c' : 'is-a'}">${esc(stale ? level.stale : level.word)}</span>${esc(hit.what || (hit.name + ' — ' + hit.detail))}${esc(staleWhy)}</div>`
+    + `<div class="lr-prob-what"><span class="lr-lvl ${stale ? 'is-s' : hit.sev === 'critical' ? 'is-c' : 'is-a'}">${esc(stale ? level.stale : '✕ ' + level.word)}</span>${esc(hit.what || (hit.name + ' — ' + hit.detail))}${esc(staleWhy)}</div>`
     + `<div class="lr-prob-how">${esc(hit.fix || '')}</div>${note ? `<div class="lr-prob-src">${esc(note)}</div>` : ''}</div>`
     + `<span class="lr-tag${tag === 'Company rule' ? ' is-own' : ''}" title="${esc(LR_TAG_TIP[tag] || '')}">${esc(tag)}</span>${check}${fix}</div>`;
 }
@@ -1027,7 +1109,7 @@ function lrRecHtml(rec, where) {
   const stale = rec.sev === 'critical' && !!rec.stale;
   const cls = rec.fill ? 'is-fill' : rec.sev === 'critical' ? (stale ? 'is-chk' : 'is-err') : 'is-att';
   const level = lrLevel(rec.sev);
-  const word = rec.fill ? 'Good to fill' : stale ? level.stale : level.word;
+  const word = rec.fill ? 'Good to fill' : stale ? level.stale : '✕ ' + level.word;   // ✕ Fix: the problem's own answer, icon + word
   const tag = rec.fill ? 'Good to fill' : (rec.tag || 'Company rule');
   const kind = rec.kind == null ? lrFixKind(rec.detector) : rec.kind;
   const fix = where && kind ? `<button type="button" class="ghost lr-fixbtn" data-lr-fix="${esc(kind)}|${esc(where.brand)}|${esc(where.sku)}"`
@@ -1038,6 +1120,27 @@ function lrRecHtml(rec, where) {
     + (rec.sub ? `<small title="${esc(rec.sub)}">${esc(rec.sub)}</small>` : '') + '</div>'
     + `<div class="ls-rec-a"><span class="lr-tag${tag === 'Company rule' ? ' is-own' : ''}${rec.fill ? ' is-fill' : ''}" title="${esc(LR_TAG_TIP[tag] || (rec.fill ? 'Not an error: a gap worth filling.' : ''))}">${esc(tag)}</span>${fix}</div>`
     + (rec.fix ? `<div class="ls-rec-how">${esc(rec.fix)}</div>` : '') + '</div>';
+}
+/* ---- the FOUR ANSWERS a check line gives (Rule Engine, 12 Nov 2026), on every Listing Health screen: ✓ Pass · ✕ Fix (the problem
+ *      rows above, with their level word) · ○ Not checked (with the plain reason — never an error) · ◐ A person needs to look (with a
+ *      link to Image Manager — never an error, counted nowhere). Existing classes only: li-ws-ok, li-ws-na, ui-error, ls-more. ---- */
+// One check's answer: 'pass' | 'fix' | 'unk' | 'look'. `c`: a check record { pass: true | false | null, na, look }.
+const lrAnswer = c => (c.pass === false ? 'fix' : c.pass === true ? (c.look ? 'look' : 'pass') : 'unk');
+// The answer's icon and word, for a cell's tooltip or a line.
+const LR_ANSWER = { pass: { i: '✓', w: 'Pass', cls: 'li-ws-ok' }, fix: { i: '✕', w: 'Fix', cls: 'ui-error' }, unk: { i: '○', w: 'Not checked', cls: 'li-ws-na' },
+  look: { i: '◐', w: 'A person needs to look', cls: 'li-ws-na' } };
+// One check as a line: icon, the check's name, the answer in words and why; ◐ carries "Open in Image Manager" (picture-check.js opens
+// that listing's main picture there). `where`: { brand, sku }; `src`: the grey "source · when" text, or ''.
+function lrAnswerHtml(name, c, where, src) {
+  const esc = str => String(str == null ? '' : str).replace(/[<>&"]/g, ch => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[ch]));
+  const a = lrAnswer(c);
+  const icon = `<span class="${LR_ANSWER[a].cls}" aria-hidden="true">${LR_ANSWER[a].i}</span>`;
+  const tail = src ? ` · ${esc(src)}` : '';
+  if (a === 'look') return `<div>${icon} <b>${esc(name)}</b> — ${LR_ANSWER.look.w}: ${esc(c.look)} <button type="button" class="ls-more" data-pc-open="${esc(where.brand)}|${esc(where.sku)}">Open in Image Manager</button></div>`;
+  if (a === 'pass') return `<div>${icon} <b>${esc(name)}</b> — Pass${c.found ? ' · ' + esc(c.found) : ''}${tail}</div>`;
+  if (a === 'fix') return `<div>${icon} <b>${esc(name)}</b> — Fix: ${esc(c.miss || c.found || '')}</div>`;
+  const why = c.na ? 'doesn’t apply to this listing' : c.bang ? 'could not read it from Amazon (' + c.bang + ')' : (c.found || 'not known yet');
+  return `<div>${icon} <b>${esc(name)}</b> — Not checked: ${esc(why)} — not an error</div>`;
 }
 // One finding of healthOf as that row.
 const lrHitRec = (hit, where) => lrRecHtml({ sev: hit.sev, stale: hit.stale, name: hit.name, sub: hit.detail, fix: hit.fix, tag: hit.tag, kind: hit.kind, detector: hit.detector }, where);
@@ -1092,6 +1195,7 @@ async function lrLoad() {
       LR = { issues: added.concat(saved), templates: data.templates || LR_DEFAULT.templates, events: data.events || LR_DEFAULT.events,
         allow: lrAllow({ allow: data.allow }) };        // what people may write: the saved values over the defaults
       LR_SAVED_AT = data.at && data.at.toDate ? data.at.toDate() : null;
+      LR_HISTORY = Array.isArray(data.history) ? data.history : [];
     } else LR = JSON.parse(JSON.stringify(LR_DEFAULT));
   } catch (e) {
     LR = LR || JSON.parse(JSON.stringify(LR_DEFAULT));

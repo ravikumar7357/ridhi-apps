@@ -2213,6 +2213,44 @@
     .sp-box,.sp-tlc,.sp-main,.sp-skel,.sp-pbar span{transition:none;animation:none}
     .sp-box:hover,.sp-tlc:hover,.sp-main:active{transform:none}
   }
+  /* ----- Rule Engine (12 Nov 2026): Image Manager's Picture check and Listing Rules' History. They reuse the look classes that work
+     outside Listing Health (.card, .sp-chip, .sp-seg, .sp-main, .sp-btn, .sp-link, .sp-chip-s, .sp-dim, .sp-empty, .sp-skel, .sp-foot —
+     the Ad Console copies above); Listing Health's own .ls-* rules are scoped to #paneHealth and stay untouched. Only layout is new,
+     scoped to #paneImg / #paneLrules, tokens only. ----- */
+  #paneImg #imPcChip{flex:0 0 auto}
+  #paneImg #imPcChip.is-on{background:var(--ink);color:var(--card);border-color:var(--ink)}
+  #paneImg .card.pc-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px 16px;flex-wrap:wrap;padding:14px 16px;margin-bottom:12px;
+    border-radius:var(--r-card);border:1px solid var(--card-line);box-shadow:var(--sh-1)}
+  #paneImg .pc-head>div:first-child{flex:1 1 320px;min-width:0}
+  #paneImg .pc-head p{margin:4px 0;font-size:13px;line-height:1.5;color:var(--muted)}
+  #paneImg .pc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;margin:0 0 12px}
+  #paneImg .card.pc-card{display:flex;flex-direction:column;margin:0;padding:0;overflow:hidden;border-radius:var(--r-card);border:1px solid var(--card-line);box-shadow:var(--sh-1)}
+  #paneImg .card.pc-card.is-ok{border-color:color-mix(in srgb,var(--accent) 45%,var(--card-line))}
+  #paneImg .card.pc-card.is-bad{border-color:color-mix(in srgb,var(--bad) 45%,var(--card-line))}
+  #paneImg .card.pc-card.is-focus{box-shadow:0 0 0 3px color-mix(in srgb,var(--brand) 40%,transparent)}
+  #paneImg .pc-pic{display:grid;place-items:center;aspect-ratio:1/1;background:var(--soft);border-bottom:1px solid var(--line)}
+  #paneImg .pc-pic img{display:block;width:100%;height:100%;object-fit:contain}
+  #paneImg .pc-skel-pic{display:block;width:100%;height:auto;aspect-ratio:1/1;border-radius:0}
+  #paneImg .pc-body{display:flex;flex-direction:column;gap:6px;padding:12px 14px 14px}
+  #paneImg .pc-name{font-size:13.5px;font-weight:650;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  #paneImg .pc-q{margin:4px 0 0;font-size:13.5px;font-weight:600;color:var(--ink);line-height:1.4}
+  #paneImg .pc-state{margin:0;font-size:12px;line-height:1.6}
+  #paneImg .sp-chip-s.pc-bad{background:var(--bad-bg);color:var(--bad-ink)}
+  #paneImg .pc-note-l{display:flex;flex-direction:column;gap:2px;font-size:11.5px;font-weight:600;color:var(--muted)}
+  #paneImg .pc-note{width:100%;height:36px;margin:0;padding:0 10px;border:1px solid var(--line);border-radius:var(--r-ctl);background:var(--card);color:var(--ink);font:inherit;font-size:13px}
+  #paneImg .pc-note:focus{outline:none;box-shadow:var(--ring)}
+  #paneImg .pc-act{display:flex;gap:8px}
+  #paneImg .pc-act button{flex:1 1 0}
+  #paneLrules .card.lr-hist{margin-top:12px;padding:14px 16px}
+  #paneLrules .lr-h-head{display:flex;align-items:baseline;gap:4px 12px;flex-wrap:wrap;margin-bottom:6px}
+  #paneLrules .lr-h-row{padding:10px 0;border-top:1px solid var(--line);font-size:13px}
+  #paneLrules .lr-h-list{margin:4px 0 2px;padding-left:18px;line-height:1.55;color:var(--ink)}
+  #paneLrules .lr-h-cmp{margin-top:6px;padding:10px 12px;border-radius:10px;background:var(--soft)}
+  #paneLrules .lr-h-none{margin:6px 0 0}
+  @media (max-width:760px){
+    #paneImg .pc-grid{grid-template-columns:1fr}
+    #paneImg .pc-head .sp-seg{flex:1 1 100%}
+  }
   /* ----- Season planner, three levels (12 Nov 2026, final): parent cards on the page, a parent's side panel (520px), a child's side panel
      (460px, to the right of the parent on wide screens). Tokens only; transform-only animation; none under prefers-reduced-motion. ----- */
   .sp-today{margin:0 2px 12px;font-size:14px;line-height:1.5;color:var(--muted)}

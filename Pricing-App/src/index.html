@@ -776,6 +776,8 @@
     <!-- "What people may write": the allowances (not errors), drawn by listing/listing-rules-tab.js in the Issues view. -->
     <div id="lrAllow" class="card lr-allow hide"></div>
     <div class="card xlwrap" style="margin-top:12px"><table class="xl" id="lrTable"></table></div>
+    <!-- History: each "Save rules" keeps the version it replaces (listing/listing-rules-tab.js draws it). -->
+    <div id="lrHistory" class="card lr-hist"></div>
   </div>
 
   <div id="paneAudit" class="hide">
@@ -1813,6 +1815,8 @@
           <option value="mine">Show the pictures you sent</option>
           <option value="live">Show what Amazon serves</option>
         </select>
+        <!-- Picture check: the main pictures a person must judge (listing/picture-check.js). -->
+        <button id="imPcChip" type="button" class="sp-chip" aria-pressed="false">◐ Picture check</button>
         <button id="imGo" class="ghost" style="flex:0 0 120px" title="Open the editor for exactly this SKU or ASIN">Open editor</button>
         <button id="imRefresh" class="ghost" style="flex:0 0 190px">Refresh from Amazon</button>
         <span style="flex:1"></span>
@@ -1824,6 +1828,7 @@
       <div id="imBody"></div>
     </div>
     <div id="imListWrap"><div id="imList"></div></div>
+    <div id="imPcWrap" class="hide"></div>
   </div>
 
   <div id="paneLerr" class="hide">
