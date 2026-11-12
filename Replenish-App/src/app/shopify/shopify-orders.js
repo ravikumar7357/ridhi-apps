@@ -653,6 +653,17 @@ function soMcf(order) {
  */
 let SO_INDIA_TAKEN = {};      // order id → { sku key → { stock, before, got, need } }
 
+/* WHAT A LINE STILL OWES FROM THE SHELF (Ravi, 12 Nov: "jo order pahle se Shopify me fulfill ho chuke h kanhi unke liye bhi
+ * stock reserve to nahi ho rha"). It was: the queue holds every loaded order — two months, shipped ones too — and a shipped
+ * line still asked for its full quantity, so an order sent weeks ago stood first in line and the 7 Queen quilts on the
+ * shelf were "promised" to parcels already delivered, leaving the new order "To produce". Now a line Shopify has shipped
+ * takes nothing; a part-shipped one takes only what Shopify says is still to fulfil (fulfillable_quantity). */
+function soIndiaOwed(i) {
+  const live = soLive(i);
+  if (/^ful/i.test(String(i.ffl || ''))) return 0;                       // this line went out already
+  return i.fq != null && isFinite(Number(i.fq)) ? Math.min(live, Math.max(0, Number(i.fq) || 0)) : live;
+}
+
 /** The key an India row was actually found under — the Shopify code or the Amazon one. */
 function soIndiaKey(sku) {
   const shop = String(sku || '').trim().toUpperCase();
@@ -672,10 +683,11 @@ function soAllocIndia(orders) {
 
   queue.forEach(o => {
     if (o.cancelled) return;
+    if (/^ful/i.test(String(o.ff || ''))) return;     // Shopify shipped the whole order: it holds nothing on the shelf
     const sm = SHOP_META[o.id] || {};
     if (sm.mcfId && !Array.isArray(sm.mcfSkus)) return; // the whole order went to Amazon
     /* A part-order: the lines Amazon did not take still need India, or production. */
-    const lines = o.items.filter(i => soSendQty(o.id, i.sku, soLive(i)) > 0 && !soMcfHas(o.id, i.sku));
+    const lines = o.items.filter(i => soIndiaOwed(i) > 0 && soSendQty(o.id, i.sku, soIndiaOwed(i)) > 0 && !soMcfHas(o.id, i.sku));
     if (!lines.length) return;
     if (soMcf(o).v === 'yes') return;                  // Amazon has it covered; leave India alone
 
@@ -686,7 +698,7 @@ function soAllocIndia(orders) {
       const row = SHOP_INDIA[key];
       const stock = Number(row[0]) || 0;
       if (left[key] == null) left[key] = stock;
-      const need = soSendQty(o.id, i.sku, soLive(i));
+      const need = soSendQty(o.id, i.sku, soIndiaOwed(i));
       const got = Math.max(0, Math.min(need, left[key]));
       // `before` is what earlier orders already hold. It is the whole explanation for a row that
       // reads "No stock" while the warehouse column still shows a number, so it is carried through

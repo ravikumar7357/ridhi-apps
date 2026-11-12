@@ -207,12 +207,26 @@ const EXPORT = '\n;return {'
   + ', setCustom:v=>{SHP_CUSTOM=v}, shpNoSkuLines, shpNoSkuSave'
   + ', soIndexNames, soPackFit, shpSkuFromTitle, shpWords, shpSyncSoon, SHP_BUSY:()=>SHP_BUSY, SHP_AGAIN:()=>SHP_AGAIN, setSyncAll:v=>{shpSyncAll=v}'
   + ', soBulkPlan, soBulkApply, soBulkSheet, SO_LOC_OPTIONS, soLine, soLocOf, soBulkXlsx, soBinList, soCrc32'
+  + ', soAllocIndia, soIndiaOwed, SO_INDIA_TAKEN:()=>SO_INDIA_TAKEN'
   + '};';
 const fn = new Function(...Object.keys(ctx), block + EXPORT);
 const A = fn(...Object.values(ctx));
 
 /* ---- runner ---- */
 let pass = 0, fail = 0;
+
+/* SHIPPED ORDERS HOLD NO INDIA STOCK (Ravi, 12 Nov) — checked after the runner exists, below */
+const SHIPPED_INDIA_TEST = () => {
+  A.setIndia({ 'RQL510-Q': [7, 7, 1, ''] }, true, '');
+  A.setMETA({});
+  const it = (qty, ffl, fq) => ({ sku: 'RQL510-Q', qty, ffl, fq });
+  const old1 = { id: 'o1', no: '#1', at: '2026-10-01', ff: 'fulfilled', items: [it(5, 'fulfilled', 0)] };
+  const old2 = { id: 'o2', no: '#2', at: '2026-10-02', ff: 'partial', items: [it(4, 'partial', 1)] };
+  const newer = { id: 'o3', no: '#3', at: '2026-11-10', ff: null, items: [it(1, null, 1)] };
+  A.soAllocIndia([old1, old2, newer]);
+  const T = A.SO_INDIA_TAKEN();
+  return { T, owedShipped: A.soIndiaOwed(it(5, 'fulfilled', 0)), owedPart: A.soIndiaOwed(it(4, 'partial', 1)) };
+};
 const ok = (what, cond, extra) => {
   if (cond) { pass++; console.log('  PASS ' + what); }
   else { fail++; console.log('  FAIL ' + what + (extra ? '   [' + extra + ']' : '')); }
@@ -2058,6 +2072,13 @@ console.log('\n== the Shopify returns team: returns, delivery days, FBA stock by
   const rows = A.srtStockRows('RPC1-1818, RTC327-6060');
   ok('several SKUs typed → exactly those, each with its figure', rows.length === 2 && rows[0].sku === 'RPC1-1818' && rows[0].sp === 4 && rows[1].sp === 12);
   ME.tabs = wasTabs; ME.admin = wasAdmin;
+}
+console.log('\n== shipped orders hold no India stock ==');
+{
+  const r = SHIPPED_INDIA_TEST();
+  ok('a line Shopify has shipped owes the shelf nothing; a part-shipped one only what is left', r.owedShipped === 0 && r.owedPart === 1, JSON.stringify(r));
+  ok('...so the shipped order takes none of the 7, the part-shipped one takes 1, and the new order gets its piece',
+    !r.T.o1 && r.T.o2 && r.T.o2['RQL510-Q'].got === 1 && r.T.o3 && r.T.o3['RQL510-Q'].got === 1 && r.T.o3['RQL510-Q'].before === 1, JSON.stringify(r.T));
 }
 console.log('\n' + pass + ' passed, ' + fail + ' failed');
 process.exitCode = fail ? 1 : 0;
