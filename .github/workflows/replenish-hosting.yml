@@ -2,7 +2,7 @@
 #
 #   main          every push that touches Replenish-App/ (or shared/) is tested, built and deployed to the live site,
 #                 https://fabricrush-replenish.web.app — whoever pushed it, from whichever computer.
-#   preview/<x>   a branch named preview/something gets its own test link (7 days), the live site untouched — the way
+#   preview/<x>   a branch named preview/something gets its own test link (30 days), the live site untouched — the way
 #                 a feature waits for Ravi's "live karo". Merging it into main puts it live.
 #
 # Nothing is deployed when a test fails. The key is the repository secret FIREBASE_SERVICE_ACCOUNT, or the
@@ -107,7 +107,7 @@ jobs:
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT || secrets.FIREBASE_SERVICE_ACCOUNT_PRICE_RESEARCH_48FF3 }}
           projectId: price-research-48ff3
           channelId: ${{ steps.ch.outputs.name }}
-          expires: 7d
+          expires: 30d
           entryPoint: Replenish-App
 
       - name: No deploy key yet
