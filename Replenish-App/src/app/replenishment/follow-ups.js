@@ -172,6 +172,7 @@ $('fuSaveBtn').onclick = async () => {
   const followups = [...(FU_PO.followups || []), entry];
   try {
     await setDoc(doc(db, 'po', FU_PO.id), { followups }, { merge: true });
+    if (typeof fsMirror === 'function') fsMirror('merge', 'po/' + FU_PO.id, { followups });
     FU_PO.followups = followups;                         // keep the local copy in sync
     $('fuModal').classList.add('hide');
     renderFollow(); updateFollowBadge();
@@ -280,8 +281,8 @@ $('fuFile').onchange = async e => {
     $('fuMsg').textContent = 'Importing…';
     for (const g of list) {
       const rec = { brand: g.brand, supplier: g.supplier, mode: g.mode, orderDate: g.orderDate, eta: g.eta, priority: g.priority, status: g.status, lines: g.lines, by: ME.email, at: serverTimestamp() };
-      if (g.id) { const ex = PO.find(p => p.id === g.id); rec.followups = (ex && ex.followups) || []; await setDoc(doc(db, 'po', g.id), rec); }
-      else { rec.followups = []; await addDoc(collection(db, 'po'), rec); }
+      if (g.id) { const ex = PO.find(p => p.id === g.id); rec.followups = (ex && ex.followups) || []; await setDoc(doc(db, 'po', g.id), rec); if (typeof fsMirror === 'function') fsMirror('put', 'po/' + g.id, rec); }
+      else { rec.followups = []; const ref = await addDoc(collection(db, 'po'), rec); if (ref && ref.path) if (typeof fsMirror === 'function') fsMirror('put', ref.path, rec); }
     }
     PO_LOADED = false; await loadPo(); PO_LOADED = true; renderFollow(); updateFollowBadge();
     $('fuMsg').textContent = `Imported ${list.length} PO(s).`; setTimeout(() => { $('fuMsg').textContent = ''; }, 2500);

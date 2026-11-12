@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <!-- ================================================================================================
-     GENERATED FILE. DO NOT READ OR EDIT THE CODE HERE — it is the 175 files of src/ joined into one page.
+     GENERATED FILE. DO NOT READ OR EDIT THE CODE HERE — it is the 176 files of src/ joined into one page.
      The real, grouped source: Replenish-App/src/   (map and workflow: src/README.md)
        src/index.html   page markup        src/styles.css   stylesheet        src/app/ORDER   join order
        src/app/<group>/ the code, by group: core, replenishment, masters, production, vendors, orders, shopify, flow, dashboard, people-pay, inventory, reports, shared, meera
@@ -9368,8 +9368,8 @@ $('pmSave').onclick = async () => {
     by: ME.email, at: serverTimestamp(),
   };
   try {
-    if (PO_EDIT) { await setDoc(doc(db, 'po', PO_EDIT.id), rec); }
-    else { await addDoc(collection(db, 'po'), rec); }
+    if (PO_EDIT) { await setDoc(doc(db, 'po', PO_EDIT.id), rec); if (typeof fsMirror === 'function') fsMirror('put', 'po/' + PO_EDIT.id, rec); }
+    else { const ref = await addDoc(collection(db, 'po'), rec); if (ref && ref.path) if (typeof fsMirror === 'function') fsMirror('put', ref.path, rec); }
     $('poModal').classList.add('hide');
     PO_LOADED = false; await ensurePo();
     poMsg('Saved.'); setTimeout(() => poMsg(''), 1500);
@@ -9379,6 +9379,7 @@ $('pmDelete').onclick = async () => {
   if (!PO_EDIT || !confirm('Delete this purchase order?')) return;
   try {
     await deleteDoc(doc(db, 'po', PO_EDIT.id));
+    if (typeof fsMirror === 'function') fsMirror('delete', 'po/' + PO_EDIT.id);
     $('poModal').classList.add('hide');
     PO_LOADED = false; await ensurePo();
   } catch (e) { $('pmErr').textContent = 'Could not delete: ' + (e.message || e); $('pmErr').classList.remove('hide'); }
@@ -9559,6 +9560,7 @@ $('fuSaveBtn').onclick = async () => {
   const followups = [...(FU_PO.followups || []), entry];
   try {
     await setDoc(doc(db, 'po', FU_PO.id), { followups }, { merge: true });
+    if (typeof fsMirror === 'function') fsMirror('merge', 'po/' + FU_PO.id, { followups });
     FU_PO.followups = followups;                         // keep the local copy in sync
     $('fuModal').classList.add('hide');
     renderFollow(); updateFollowBadge();
@@ -9667,8 +9669,8 @@ $('fuFile').onchange = async e => {
     $('fuMsg').textContent = 'Importing…';
     for (const g of list) {
       const rec = { brand: g.brand, supplier: g.supplier, mode: g.mode, orderDate: g.orderDate, eta: g.eta, priority: g.priority, status: g.status, lines: g.lines, by: ME.email, at: serverTimestamp() };
-      if (g.id) { const ex = PO.find(p => p.id === g.id); rec.followups = (ex && ex.followups) || []; await setDoc(doc(db, 'po', g.id), rec); }
-      else { rec.followups = []; await addDoc(collection(db, 'po'), rec); }
+      if (g.id) { const ex = PO.find(p => p.id === g.id); rec.followups = (ex && ex.followups) || []; await setDoc(doc(db, 'po', g.id), rec); if (typeof fsMirror === 'function') fsMirror('put', 'po/' + g.id, rec); }
+      else { rec.followups = []; const ref = await addDoc(collection(db, 'po'), rec); if (ref && ref.path) if (typeof fsMirror === 'function') fsMirror('put', ref.path, rec); }
     }
     PO_LOADED = false; await loadPo(); PO_LOADED = true; renderFollow(); updateFollowBadge();
     $('fuMsg').textContent = `Imported ${list.length} PO(s).`; setTimeout(() => { $('fuMsg').textContent = ''; }, 2500);
@@ -11496,6 +11498,7 @@ async function savePkOne(p) {
   p.updatedAt = pkToday() + ' ' + new Date().toTimeString().slice(0, 5);
   p.updatedBy = ME.email || '';
   await setDoc(doc(db, 'packlist', p.id), p);
+  if (typeof fsMirror === 'function') fsMirror('put', 'packlist/' + p.id, p);
   const at = PK.findIndex(x => x.id === p.id);
   if (at >= 0) PK[at] = p; else PK.unshift(p);
 }
@@ -11819,6 +11822,7 @@ async function pkDelete(id) {
   if (!confirm(`Delete the packing list \u201c${p.title || id}\u201d? This cannot be undone.`)) return;
   try {
     await deleteDoc(doc(db, 'packlist', id));
+    if (typeof fsMirror === 'function') fsMirror('delete', 'packlist/' + id);
     PK = PK.filter(x => x.id !== id);
     renderPack();
     pkMsg('Deleted.');
@@ -16433,6 +16437,7 @@ async function ptPut(path, value) {
   if (!r.ok) throw new Error(`The production database answered ${r.status} ${r.statusText || ''}`.trim());
   const out = merged ? value : await r.json();
   auditLog('put', { [path]: value });
+  if (typeof ptMirror === 'function') ptMirror('put', { [path]: value });   // live mirror (core/mirror.js): never waits, never throws
   if (!merged) ptSyncNote([path], true);
   if (typeof oalAfterSave === 'function') oalAfterSave(path, value, 'put');
   return out;
@@ -16459,6 +16464,7 @@ async function ptCas(path, expect, next) {
     throw new Error('The production database refused the change — this account does not hold the right it needs.');
   if (!r.ok) throw new Error(`The production database answered ${r.status} ${r.statusText || ''}`.trim());
   auditLog('put', { [path]: next });
+  if (typeof ptMirror === 'function') ptMirror('put', { [path]: next });
   ptSyncNote([path], true);
   if (typeof oalAfterSave === 'function') oalAfterSave(path, next, 'put');
   return '';
@@ -16497,6 +16503,7 @@ async function ptPatch(updates, opts) {
   if (!r.ok) throw new Error(`The production database answered ${r.status} ${r.statusText || ''}`.trim());
   const out = await r.json();
   auditLog('patch', updates || {});
+  if (typeof ptMirror === 'function') ptMirror('patch', updates || {});
   if (!merged) ptSyncNote(Object.keys(updates || {}), false);
   if (typeof oalAfterSave === 'function') oalAfterSave('', updates, 'patch');
   if (baseMonths.length) await baseForget(baseMonths);
@@ -16522,10 +16529,115 @@ async function ptDelete(path) {
   ptLiveWrote([path]);
   if (!r.ok) throw new Error(`The production database answered ${r.status} ${r.statusText || ''}`.trim());
   auditLog('delete', { [path]: null });
+  if (typeof ptMirror === 'function') ptMirror('delete', { [path]: null });
   if (!merged) ptSyncNote([path], true);
   if (typeof oalAfterSave === 'function') oalAfterSave(path, null, 'delete');
   return true;
 }
+/* ============================== FILE: src/app/core/mirror.js ============================== */
+/* ================= LIVE MIRROR · every save also goes to the new database (Ravi, 12 Nov 2026) =================
+ *
+ * Firebase saves first, exactly as before, and the screen waits only for that. AFTER a save has worked, the same change
+ * (the path and the value, as written) is queued here and sent to the new database (Supabase, project ERP TEST, door
+ * core.mirror) about a second later, many saves together. It is never waited for, never throws and never stops a save.
+ *
+ * Not sent (no network, Supabase asleep) → kept in this browser (localStorage) and sent again: every 30 s, after the next
+ * save, and when the ERP is opened again. Anything still missed is found by the nightly check against the backup.
+ *
+ * Who: the person signed in. Supabase checks their Firebase sign-in itself and takes it only from an ERP person; a vendor
+ * login is not one, so a vendor's saves are not sent (the nightly check brings them over).
+ *
+ * ON: the test ERP and localhost now. The real ERP only once MIR_LIVE is true (Ravi + sir, step 4).
+ * Where it is called: core/history.js (ptPut, ptCas, ptPatch, ptDelete — every save to the production database) and the
+ * Firestore saves of the lists already moved (Amazon POs, packing lists).
+ * Remove this file, its line in ORDER and the one-line calls, and nothing of it is left.
+ */
+const MIR_LIVE = true;    // ON for the real ERP (Ravi + sir, step 4). Stop without a deploy: sql/sync_switch.sql
+const MIR = {
+  on: typeof window !== 'undefined' && (MIR_LIVE || !!window.__TEST_ERP || /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)),
+  url: 'https://eaklutqgopejtnxacamd.supabase.co',          // ERP TEST in Mumbai
+  key: 'sb_publishable_ybYG7Y1iAZerulnwWREWaw_EzubVDPT',   // its publishable key (made for browsers; opens only the doors)
+  store: 'r1.mirror.queue', q: [], busy: false, timer: null, refused: false, sent: 0, lastError: '',
+};
+/* Lists that are bookkeeping, not data: never sent. */
+const MIR_SKIP = /^pt_(audit|trash|sync|syncAudit|dataMeter|flowRev)(\/|$)/;
+
+/** A Firestore value as plain JSON: server time → now, a date → its ISO text. */
+function mirPlain(v) {
+  if (v === null || v === undefined) return null;
+  if (v instanceof Date) return v.toISOString();
+  if (Array.isArray(v)) return v.map(mirPlain);
+  if (typeof v === 'object') {
+    const n = v.constructor && v.constructor.name;
+    if (typeof v.toDate === 'function') { try { return v.toDate().toISOString(); } catch (e) { return null; } }   // a Firestore Timestamp
+    if (n && n !== 'Object') return v._methodName || /Timestamp|FieldValue|Sentinel/i.test(n) ? new Date().toISOString() : String(v);   // serverTimestamp()
+    const o = {}; for (const k of Object.keys(v)) o[k] = mirPlain(v[k]); return o;
+  }
+  return v;
+}
+function mirSave() { try { localStorage.setItem(MIR.store, JSON.stringify(MIR.q)); } catch (e) { /* too big or no storage: kept in memory only */ } }
+function mirSoon(ms) { if (MIR.timer) return; MIR.timer = setTimeout(() => { MIR.timer = null; mirFlush(); }, ms == null ? 1000 : ms); }
+
+/** Called after a production-database save worked. kind: put · patch · delete; updates: { path: value written }. */
+function ptMirror(kind, updates) {
+  try {
+    if (!MIR.on || MIR.refused) return;
+    const t = new Date().toISOString();
+    for (const p of Object.keys(updates || {})) {
+      const path = String(p).replace(/^\/+|\/+$/g, '');
+      if (!path || MIR_SKIP.test(path)) continue;
+      const v = updates[p];
+      MIR.q.push({ k: kind === 'delete' || v === null ? (kind === 'patch' ? 'patch' : 'delete') : kind, p: path, v: v === undefined ? null : v, t });
+    }
+    mirSave(); mirSoon();
+  } catch (e) { /* never in the way of the save */ }
+}
+/** Called after a Firestore save of a moved list worked. kind: put · merge · delete; path: "po/<id>". */
+function fsMirror(kind, path, data) {
+  try {
+    if (!MIR.on || MIR.refused) return;
+    const base = 'fs/' + String(path || '').replace(/^\/+/, ''), t = new Date().toISOString();
+    if (kind === 'delete') MIR.q.push({ k: 'delete', p: base, v: null, t });
+    else if (kind === 'merge') {
+      /* setDoc(…, { merge: true }): only the fields given change — each top-level field as its own change */
+      const d = mirPlain(data) || {};
+      for (const f of Object.keys(d)) MIR.q.push({ k: 'patch', p: base + '/' + f, v: d[f], t });
+    } else MIR.q.push({ k: 'put', p: base, v: mirPlain(data), t });
+    mirSave(); mirSoon();
+  } catch (e) { /* never in the way of the save */ }
+}
+
+async function mirFlush() {
+  if (MIR.busy || !MIR.q.length || !MIR.on || MIR.refused) return;
+  const user = typeof auth !== 'undefined' && auth && auth.currentUser;
+  if (!user) return mirSoon(30000);
+  MIR.busy = true;
+  try {
+    const token = await user.getIdToken();
+    while (MIR.q.length) {
+      let n = 0, size = 0;
+      while (n < MIR.q.length && n < 500) { const s = JSON.stringify(MIR.q[n]).length; if (n && size + s > 3e6) break; size += s; n++; }
+      const r = await fetch(MIR.url + '/rest/v1/rpc/mirror', {
+        method: 'POST',
+        headers: { apikey: MIR.key, Authorization: 'Bearer ' + token, 'Content-Type': 'application/json', 'Content-Profile': 'core', 'Accept-Profile': 'core' },
+        body: JSON.stringify({ p_changes: MIR.q.slice(0, n), p_screen: (typeof TAB_NOW !== 'undefined' && TAB_NOW) || '' }),
+      });
+      if (r.ok) { MIR.q.splice(0, n); MIR.sent += n; mirSave(); continue; }
+      const txt = await r.text();
+      if (/not an ERP sign-in/.test(txt)) { MIR.refused = true; MIR.q = []; mirSave(); break; }   // a vendor login: not sent at all
+      throw new Error(r.status + ' ' + txt.slice(0, 120));
+    }
+    MIR.lastError = '';
+  } catch (e) {
+    MIR.lastError = String((e && e.message) || e);
+    mirSoon(30000);                                          // asked again in 30 s; the queue is kept in this browser
+  } finally { MIR.busy = false; }
+}
+/* What was not sent last time (the tab was closed, no network) goes out once someone is signed in. */
+if (MIR.on) {
+  try { const old = JSON.parse(localStorage.getItem(MIR.store) || '[]'); if (Array.isArray(old) && old.length) { MIR.q = old.concat(MIR.q); mirSoon(8000); } } catch (e) { /* nothing kept */ }
+}
+/* ================= END LIVE MIRROR ================= */
 /* ============================== FILE: src/app/core/gates.js ============================== */
 
 /* ---- the data the gates are measured against ---- */

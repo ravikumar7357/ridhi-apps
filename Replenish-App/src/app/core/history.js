@@ -255,6 +255,7 @@ async function ptPut(path, value) {
   if (!r.ok) throw new Error(`The production database answered ${r.status} ${r.statusText || ''}`.trim());
   const out = merged ? value : await r.json();
   auditLog('put', { [path]: value });
+  if (typeof ptMirror === 'function') ptMirror('put', { [path]: value });   // live mirror (core/mirror.js): never waits, never throws
   if (!merged) ptSyncNote([path], true);
   if (typeof oalAfterSave === 'function') oalAfterSave(path, value, 'put');
   return out;
@@ -281,6 +282,7 @@ async function ptCas(path, expect, next) {
     throw new Error('The production database refused the change — this account does not hold the right it needs.');
   if (!r.ok) throw new Error(`The production database answered ${r.status} ${r.statusText || ''}`.trim());
   auditLog('put', { [path]: next });
+  if (typeof ptMirror === 'function') ptMirror('put', { [path]: next });
   ptSyncNote([path], true);
   if (typeof oalAfterSave === 'function') oalAfterSave(path, next, 'put');
   return '';
@@ -319,6 +321,7 @@ async function ptPatch(updates, opts) {
   if (!r.ok) throw new Error(`The production database answered ${r.status} ${r.statusText || ''}`.trim());
   const out = await r.json();
   auditLog('patch', updates || {});
+  if (typeof ptMirror === 'function') ptMirror('patch', updates || {});
   if (!merged) ptSyncNote(Object.keys(updates || {}), false);
   if (typeof oalAfterSave === 'function') oalAfterSave('', updates, 'patch');
   if (baseMonths.length) await baseForget(baseMonths);
@@ -344,6 +347,7 @@ async function ptDelete(path) {
   ptLiveWrote([path]);
   if (!r.ok) throw new Error(`The production database answered ${r.status} ${r.statusText || ''}`.trim());
   auditLog('delete', { [path]: null });
+  if (typeof ptMirror === 'function') ptMirror('delete', { [path]: null });
   if (!merged) ptSyncNote([path], true);
   if (typeof oalAfterSave === 'function') oalAfterSave(path, null, 'delete');
   return true;
