@@ -32683,19 +32683,62 @@ function flowDueRows(q, testOnly) {
  * challans exactly as the Receive dialog does, dated TODAY by itself. Date shows the day the line was last received. A printer is picked above. */
 const FLOW_DUE = { printer: '', typed: {} };
 /** What the printer said it sent for this line (its portal's batches), shared over the vendor-order lines that stand for it; null when not known. */
-function flowVendorSentOf(x) {
+function flowVendorSentOf(x) { return flowVsOfKey(x.l.key, false, x.unit, x.po); }
+/** What the printer says it sent for one flow line — its key, the ruffle cloth or not, in the unit it was given — from the batches
+ * on its portal (vSent), shared over the vendor-order lines that stand for it; null when no vendor order of this line is known. */
+function flowVsOfKey(key, ruffle, unit, poNo) {
   try {
-    if (typeof vpVsOf !== 'function' || typeof VO === 'undefined') return null;
-    const po = (FLOW.po || {})[x.po], ref = po && po.vo && po.vo[x.unit === 'pcs' ? 'cut' : 'running']; if (!ref) return null;
-    const o = (VO.rows || []).find(r => r && r.vendorCode === ref.code && r.id === ref.id); if (!o) return null;
+    if (typeof vpVsOf !== 'function' || typeof VO === 'undefined' || !VO.rows) return null;
+    const ik = ruffle ? key + FLOW_RUF : key, kOf = p => { const [k, part] = String(p).split('|'); return part === 'ruffle' ? k + FLOW_RUF : k; };
+    const pos = poNo && (FLOW.po || {})[poNo] ? [FLOW.po[poNo]] : Object.values(FLOW.po || {}).filter(o => o && !o.cancelled && o.items && o.items[ik]);
     let sum = 0, hit = false;
-    voLines(o).forEach(l => {
-      const parts = (Array.isArray(l.parts) ? l.parts : String(l.flowPart || '').split('+')).map(p => String(p).split('|')[0]).filter(Boolean);
-      if (!parts.includes(x.l.key)) return;
-      hit = true; sum += vpVsSum(vpVsOf(o, l)) / new Set(parts).size;
+    pos.forEach(po => {
+      const ref = po && po.vo && po.vo[unit === 'pcs' ? 'cut' : 'running']; if (!ref) return;
+      const o = VO.rows.find(r => r && r.vendorCode === ref.code && r.id === ref.id); if (!o) return;
+      voLines(o).forEach(l => {
+        const keys = (Array.isArray(l.parts) ? l.parts : String(l.flowPart || '').split('+')).filter(Boolean).map(kOf);
+        if (!keys.includes(ik)) return;
+        hit = true; sum += vpVsSum(vpVsOf(o, l)) / new Set(keys).size;
+      });
     });
     return hit ? flowR2(sum) : null;
   } catch (e) { return null; }
+}
+/* ONLY WHAT THE PRINTER SAYS IT SENT (Ravi, 12 Nov: "instead of giving them option to put how much amount they have received it only
+ * gives the fix amount of what the printer has sent"). On every receive screen — the Printed fabric in sheet, Receive from a printer and
+ * Receive against a challan — a line offers what the printer put on its portal as sent, less what we have already taken in for that
+ * line on any challan. The challan person may take in less (short, damaged) but never more; a line the printer has said nothing about
+ * cannot be received until they enter it. A TEST line keeps the old free typing (the automated flow tests). */
+/* The automated flow tests take goods in on lines no printer ever wrote on; they set recvFree. The app never sets it. */
+function flowVsRuleOn() { try { return localStorage.getItem('recvFree') !== '1'; } catch (e) { return true; } }
+function flowVsPending(key, ruffle, unit, poNo) {
+  const vs = flowVsOfKey(key, ruffle, unit, poNo);
+  if (!(vs > 0)) return { vs: 0, pending: 0, blocked: true };
+  const e = flowChIndex()[ruffle ? key + FLOW_RUF : key], got = e ? +e.recv || 0 : 0;
+  return { vs, pending: flowR2(Math.max(0, vs - got)), blocked: false };
+}
+/** The Received cell for one line under the rule above: a tick that fills the printer's figure, and the box (at most that much). */
+function flowVsRecvCell(attr, id, pv, unit, value, extra) {
+  if (pv.blocked) return `<span style="font-size:11.5px;color:#b45309" title="Ask the printer to enter what it sent on its portal (Vendor Sent)">printer has not said it sent</span>`;
+  if (!(pv.pending > 0)) return `<span class="muted" style="font-size:11.5px" title="${esc(flowQtyTxt(pv.vs, unit))} said sent — all of it is in">all sent is in</span>`;
+  return `<label style="display:inline-flex;gap:4px;align-items:center;margin:0 6px 0 0;font-size:12px;white-space:nowrap" title="Take in what the printer says it sent"><input type="checkbox" data-flfill="${esc(String(pv.pending))}" style="width:auto;margin:0"${+value >= pv.pending ? ' checked' : ''}>${esc(flowQtyTxt(pv.pending, unit))}</label>`
+    + `<input ${attr}="${esc(id)}" type="number" min="0" max="${esc(String(pv.pending))}" step="${unit === 'pcs' ? 1 : 0.01}" value="${esc(String(value || ''))}" placeholder="0" onfocus="this.select()" style="width:72px;padding:3px 6px;font-size:12px;text-align:right"${extra || ''}>`;
+}
+if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
+  /* the tick fills the box with the printer's figure (or clears it); a figure typed over it comes back down to it */
+  document.addEventListener('change', e => { const t = e.target; if (!t || !t.dataset || t.dataset.flfill == null) return;
+    const td = t.closest && t.closest('td'), inp = td && td.querySelector('input[type="number"]'); if (!inp) return;
+    inp.value = t.checked ? t.dataset.flfill : ''; inp.dispatchEvent(new Event('input', { bubbles: true })); });
+  document.addEventListener('input', e => { const t = e.target; if (!t || t.type !== 'number' || !t.max || !(t.dataset && (t.dataset.fldrq != null || t.dataset.fldq != null || t.dataset.flrm != null))) return;
+    if (+t.value > +t.max) t.value = t.max;
+    const td = t.closest && t.closest('td'), tick = td && td.querySelector('[data-flfill]'); if (tick) tick.checked = +t.value >= +t.max && +t.value > 0; }, true);
+}
+/** The save-side check of the same rule: '' when fine, else what is wrong with this line. */
+function flowVsCheck(key, ruffle, unit, poNo, q, what) {
+  const pv = flowVsPending(key, ruffle, unit, poNo);
+  if (pv.blocked) return `${what}: the printer has not said it sent this — ask them to enter it on their portal`;
+  if (q > pv.pending + 1e-9) return `${what}: ${flowQtyTxt(q, unit)} is more than the ${flowQtyTxt(pv.pending, unit)} the printer says it sent and we have not taken in`;
+  return '';
 }
 /** The day this line was last received on any challan. */
 function flowDueLastRecv(key) {
@@ -32726,7 +32769,9 @@ function flowDueTable(q, testOnly) {
       <td style="font-size:12.5px;vertical-align:middle;text-align:center"${String(x.r.size || m.size || '').length > 40 ? ` title="${esc(x.r.size || m.size)}"` : ''}>${esc((s => s.length > 40 ? s.slice(0, 38) + '…' : s)(String(x.r.size || m.size || ''))) || '<span class="muted">—</span>'}</td>
       <td class="num" style="font-weight:700;vertical-align:middle">${flowQtyTxt(x.need, x.unit)}</td>
       <td class="num" style="vertical-align:middle">${vs ? `<b>${flowQtyTxt(vs, x.unit)}</b>` : '<span class="muted">—</span>'}</td>
-      <td class="num" style="vertical-align:middle"><input data-fldrq="${esc(id)}" type="number" min="0" step="${x.unit === 'pcs' ? 1 : 0.01}" value="${esc(FLOW_DUE.typed[id] || '')}" placeholder="${esc(String(x.left))}" onfocus="this.select()" style="width:84px;padding:3px 6px;font-size:12px;text-align:right" title="${esc(flowQtyTxt(x.left, x.unit))} still to come"></td></tr>`; }).join('')).join('');
+      <td class="num" style="vertical-align:middle;white-space:nowrap">${x.test || !flowVsRuleOn()
+        ? `<input data-fldrq="${esc(id)}" type="number" min="0" step="${x.unit === 'pcs' ? 1 : 0.01}" value="${esc(FLOW_DUE.typed[id] || '')}" placeholder="${esc(String(x.left))}" onfocus="this.select()" style="width:84px;padding:3px 6px;font-size:12px;text-align:right" title="${esc(flowQtyTxt(x.left, x.unit))} still to come">`
+        : flowVsRecvCell('data-fldrq', id, flowVsPending(x.l.key, false, x.unit, x.po), x.unit, FLOW_DUE.typed[id] || '')}</td></tr>`; }).join('')).join('');
   if (typeof ptImgFill === 'function' && typeof setTimeout === 'function') setTimeout(() => { try { ptImgFill(rows.map(x => x.sku), false, typeof ptImgPatch === 'function' ? ptImgPatch : null); } catch (e) { /* the pictures follow */ } }, 0);
   return '<colgroup><col style="width:9%"><col style="width:11%"><col style="width:38%"><col style="width:11%"><col style="width:10%"><col style="width:9%"><col style="width:12%"></colgroup>'
     + `<thead><tr><th style="text-align:left">Date</th><th style="text-align:left">Order ID</th><th style="text-align:left">Item</th><th>Size</th><th>Ordered</th><th>Vendor sent</th><th>Received</th></tr></thead><tbody>`
@@ -32781,6 +32826,7 @@ async function flowDueRecvSave(key, got, o) {
     const q = flowR2(+got[x.l.key] || 0); if (!(q > 0)) return;
     if (x.unit === 'pcs' && q !== Math.round(q)) return bad.push(`${x.sku}: pieces are whole`);
     if (q > (x.unit === 'pcs' ? x.left : x.left * 1.1) + 1e-9) return bad.push(`${x.orderNo} ${x.sku}: ${flowQtyTxt(q, x.unit)} is more than the ${flowQtyTxt(x.left, x.unit)} still to come`);
+    if (!x.test && flowVsRuleOn()) { const vb = flowVsCheck(x.l.key, false, x.unit, x.po, q, `${x.orderNo} ${x.sku}`); if (vb) return bad.push(vb); }
     let rest = q, last = '';
     flowDueOpenChs(x.l.key).forEach(({ c, rem }) => { last = c.no; if (rest <= 0) return; const t = flowR2(Math.min(rest, rem)); rest = flowR2(rest - t);
       const e = per.get(c.no) || per.set(c.no, {}).get(c.no); e[x.l.key] = flowR2((e[x.l.key] || 0) + t); });
@@ -32832,7 +32878,7 @@ function flowDueRecvOpen(key) {
   const pic = sku => (typeof ptImgSpan === 'function' ? ptImgSpan(sku, 40) : '');
   ptOpenDialog({
     title: `Receive from ${rows[0].printer}`,
-    subtitle: `${nf(rows.length)} line(s) this printer owes. Type what came now, in the form it was given — printed cloth in metres, pieces printed on the SKU in pieces. A line left at 0 stays owed.`,
+    subtitle: `${nf(rows.length)} line(s) this printer owes. Each line offers only what the printer says it sent on its portal — tick it, or type less if fewer came. Never more. A line left empty stays owed.`,
     /* SEARCH (Ravi, 23 Oct: "add search bar in this bucket jisase sku ya color name dal kar receiving qty add kar sake abhi scroll
      * karke dekhna padega"): typing hides the lines that do not match — what was typed in a hidden line stays and is saved. The
      * figures sit in one column so the box to type in is on screen without scrolling sideways. */
@@ -32843,7 +32889,8 @@ function flowDueRecvOpen(key) {
       <thead><tr><th>Photo</th><th style="text-align:left">Order · what comes back</th><th>Still to come</th><th>Received now</th></tr></thead><tbody>
       ${rows.map((x, i) => `<tr data-fldrow="${i}" data-hay="${esc(flowDueHay(x))}"><td>${pic(x.sku)}</td><td style="text-align:left;white-space:normal"><b>${esc(x.orderNo)}</b> · ${flowChLineWhat(x.l, true)}</td>
         <td class="num"><b>${flowQtyTxt(x.left, x.unit)}</b>${x.withPrinter ? `<div class="muted" style="font-size:10.5px">${flowQtyTxt(x.withPrinter, x.unit)} cloth with printer</div>` : ''}${x.notSent ? `<div style="font-size:10.5px;color:#b45309">${flowQtyTxt(x.notSent, x.unit)} RFD not sent</div>` : ''}</td>
-        <td class="num"><input data-fldq="${i}" type="number" min="0" step="${x.unit === 'pcs' ? 1 : 0.01}" value="0" onfocus="this.select()" style="width:72px;padding:3px 6px;font-size:12px"> ${x.unit}</td></tr>`).join('')}
+        <td class="num" style="white-space:nowrap">${x.test || !flowVsRuleOn() ? `<input data-fldq="${i}" type="number" min="0" step="${x.unit === 'pcs' ? 1 : 0.01}" value="0" onfocus="this.select()" style="width:72px;padding:3px 6px;font-size:12px"> ${x.unit}`
+          : flowVsRecvCell('data-fldq', i, flowVsPending(x.l.key, false, x.unit, x.po), x.unit, '')}</td></tr>`).join('')}
       </tbody></table></div>
       <label style="display:flex;gap:6px;align-items:center;margin-top:8px"><input id="fldrDed" type="checkbox" checked style="width:auto"> Where no RFD challan was made, take that cloth off RFD stock (it left the store without one)</label>
       <label style="display:block;margin-top:8px">Note (lot, vehicle, quality…)<input id="fldrNote"></label>`,
@@ -33053,22 +33100,24 @@ if (typeof document !== 'undefined' && typeof document.addEventListener === 'fun
 /** Printed fabric back from the printer against a challan: metres per line. Closes by itself when all of it is back. */
 function flowReceiveOpen(no) {
   const c = (FLOW.ch || {})[no]; if (!c) return;
-  const recv = flowChRecv(c);
+  const recv = flowChRecv(c), test = /^T/.test(String(c.no)) || !!c.test || !flowVsRuleOn();
   FLOW_RX = new Set(); FLOW_RX_WAS.clear();
   /* the picture of each line (20 Oct), from wherever the app has it — master, Shopify, the B2B sheet */
   const pic = sku => (typeof ptImgSpan === 'function' ? ptImgSpan(sku, 40) : '');
   ptOpenDialog({
     title: `Receive against ${no}`,
-    subtitle: `${c.orderNo} · ${c.vendor && c.vendor.name}. Type what came back now, in the form it was given: printed cloth in metres, pieces printed on the SKU in pieces. When every line is back the challan closes and the lines move to the store by themselves.`,
+    subtitle: `${c.orderNo} · ${c.vendor && c.vendor.name}. Each line offers only what the printer says it sent on its portal — tick it, or type less if fewer came. Never more. When every line is back the challan closes and the lines move to the store by themselves.`,
     html: `<label>Date<input id="flrDate" type="date" value="${esc(dToday())}"></label>
       <table class="xl" style="margin-top:8px;width:100%"><thead><tr><th style="width:52px">Photo</th><th style="text-align:left">SKU</th><th>Given as</th><th>Sent</th><th>Back so far</th><th>Received now</th></tr></thead><tbody>
       ${/* STARTS AT 0 (Ravi, 22 Oct: "received now me auto 0 aana chahiye jisase cross krne ki need hi n pade jisme aayega usme qty
          fill kar denge"): only the lines typed in are received; a line left at 0 stays owed on the challan. */ ''}
       ${(c.lines || []).map((l, i) => { const u = flowChUnit(l), left = flowChMoved(c, l) ? 0 : flowR2(Math.max(0, flowChSent(l) - (recv[l.key] || 0)));
+        /* only what the printer says it sent (12 Nov) — and never more than this challan still owes on the line */
+        const pv = test || !(left > 0) ? null : (p => Object.assign({}, p, { pending: flowR2(Math.min(p.pending, u === 'pcs' ? left : left * 1.1)) }))(flowVsPending(l.key, !!l.ruffleOnly, u, null));
         return `<tr data-flrrow="${i}"><td>${pic(l.sku)}</td><td style="text-align:left">${flowChLineWhat(l, true)}<div class="muted" style="font-size:10.5px">${esc(l.item || '')}</div></td>
           <td style="text-align:left;font-size:11.5px">${u === 'pcs' ? 'Cut pieces' : l.ruffleOnly ? 'Printed ruffle cloth' : 'Printed cloth'}</td>
           <td class="num"><b>${flowQtyTxt(flowChSent(l), u)}</b>${u === 'pcs' ? `<div class="muted" style="font-size:10.5px">${flowQtyTxt(l.metres, 'm')} cloth</div>` : ''}</td><td class="num">${flowQtyTxt(recv[l.key] || 0, u)}</td>
-          <td class="num"><span data-flrin="${i}"><input data-flrm="${i}" type="number" step="${u === 'pcs' ? '1' : '0.01'}" min="0" value="${left > 0 ? '0' : ''}" ${left > 0 ? `title="still to come: ${esc(flowQtyTxt(left, u))}" onfocus="this.select()"` : 'disabled'} style="width:85px;padding:3px 6px;font-size:12px"> ${u}</span>`
+          <td class="num" style="white-space:nowrap"><span data-flrin="${i}">${pv ? flowVsRecvCell('data-flrm', i, pv, u, '') : `<input data-flrm="${i}" type="number" step="${u === 'pcs' ? '1' : '0.01'}" min="0" value="${left > 0 ? '0' : ''}" ${left > 0 ? `title="still to come: ${esc(flowQtyTxt(left, u))}" onfocus="this.select()"` : 'disabled'} style="width:85px;padding:3px 6px;font-size:12px"> ${u}`}</span>`
           + `<span data-flrno="${i}" class="pill bad" style="display:none;font-size:11px">Not received</span>`
           + (flowChMoved(c, l) ? ` <span class="pill" style="font-size:11px" title="the printer was changed — the cloth stands with ${esc(c.vendor && c.vendor.name)}">moved → ${esc(((c.moved[l.key] || {}).to || {}).name || '')}</span>` : '')
           /* the ✕ sits in the same cell as the figure: a column of its own ran off the right of the window (20 Oct) */
@@ -33083,6 +33132,8 @@ function flowReceiveOpen(no) {
         if (m > 0) { items[l.key] = flowR2(m); if (flowChUnit(l) === 'pcs' && m !== Math.round(m)) frac.push(l.sku); } });
       if (!Object.keys(items).length) return 'Type what came back for at least one line.';
       if (frac.length) return `Pieces are whole: ${frac.join(', ')}.`;
+      if (!test) { const vb = (c.lines || []).filter(l => items[l.key] > 0).map(l => flowVsCheck(l.key, !!l.ruffleOnly, flowChUnit(l), null, items[l.key], l.sku)).filter(Boolean);
+        if (vb.length) return vb.join(' · '); }
       /* Pieces back are pieces given — never more. Cloth may come back a little over (shrinkage, roll ends): up to 10%. */
       const over = (c.lines || []).filter(l => (recv[l.key] || 0) + (items[l.key] || 0) > flowChSent(l) * (flowChUnit(l) === 'pcs' ? 1 : 1.1) + 1e-9).map(l => l.sku);
       if (over.length) return `More came back than was given for ${over.join(', ')} — check the figure.`;
@@ -51585,13 +51636,40 @@ function vpHistTable(rows) {
 /** RECEIVED BY US (Ravi, 2 Nov: "yaha apna challan banda receive karta h uska column show nahi ho rha h"): what our challan man took in for
  *  this line — a PPC line is received on its RFD challan (flowChIndex: what came back on every challan of the line), which the vendor order
  *  never hears of; any other line by the vendor order's own deliveries (voDone). { qty, how } — how names the challan(s). */
-function vpRecvOf(l) {
-  const ix = l && l.flowKey && typeof flowChIndex === 'function' && typeof FLOW !== 'undefined' && FLOW && FLOW.ch ? flowChIndex() : null;
-  const e = ix ? ix[l.flowKey + (/\|ruffle$/.test(String(l.flowPart || '')) && typeof FLOW_RUF !== 'undefined' ? FLOW_RUF : '')] : null;
+/* THE PRINTER'S OWN SIGN-IN SAW "—" (Ravi, 12 Nov: VPO-261021-I24 — 1 pc received on its challan, the office's printer's view said 1,
+ * the printer's own screen said nothing). A printer's sign-in may not read the RFD challans, so it reads the copy the office writes
+ * onto its vendor order (flowProg.items, flow-printorder.js — the same copy its Due date reads). Each part of the line counts, shared
+ * over the order's lines that stand for it: every SKU of a combined line, the ruffle cloth, a quilt's Front and Back half each. The
+ * office, which reads the challans, counts them as they are now. */
+const VP_RECV_CNT = new WeakMap();
+const vpRecvKey = p => { const [k, part] = String(p || '').split('|'); return part === 'ruffle' ? k + (typeof FLOW_RUF !== 'undefined' ? FLOW_RUF : '~ruffle') : k; };
+function vpRecvCnt(o, l) {
+  const ls = o ? voLines(o) : [l], c = o && VP_RECV_CNT.get(o);
+  if (c && c.lines === o.lines) return c.cnt;
+  const cnt = {}; ls.forEach(x => voParts(x).forEach(p => { const k = vpRecvKey(p); cnt[k] = (cnt[k] || 0) + 1; }));
+  if (o) VP_RECV_CNT.set(o, { lines: o.lines, cnt });
+  return cnt;
+}
+function vpRecvOf(l, o) {
   const vo = voDone(l) || 0;
-  if (e && e.recv > vo) return { qty: Math.round(e.recv * 100) / 100, how: 'on challan ' + (e.no || '') };
+  const parts = l ? (voParts(l).length ? voParts(l) : (l.flowKey ? [l.flowKey] : [])) : [];
+  const share = items => { let q = 0, hit = false; const cnt = vpRecvCnt(o, l), nos = [];
+    parts.forEach(p => { const k = vpRecvKey(p), e = items[k]; if (!e) return; hit = true; q += (+e.v || 0) / (cnt[k] || 1); if (e.no) nos.push(e.no); });
+    return hit ? { qty: Math.round(q * 100) / 100, nos: [...new Set(nos)] } : null; };
+  let got = null;
+  if (parts.length && typeof flowChIndex === 'function' && typeof FLOW !== 'undefined' && FLOW && FLOW.ch) {
+    const ix = flowChIndex(), items = {}; parts.forEach(p => { const k = vpRecvKey(p); if (ix[k]) items[k] = { v: ix[k].recv, no: ix[k].no }; });
+    got = share(items); if (got) got.how = 'on challan ' + got.nos.join(', ');
+  }
+  if (!got && parts.length && o && o.flowProg && o.flowProg.items) {
+    const items = {}; Object.entries(o.flowProg.items).forEach(([k, e]) => { if (e) items[k] = { v: e.back }; });
+    got = share(items); if (got) got.how = 'on our challan';
+  }
+  if (got && got.qty > vo) return { qty: got.qty, how: got.how };
   return { qty: vo, how: vo ? 'on the vendor order' : '' };
 }
+/** Everything ordered on the line has reached us — nothing is left for the printer to say it sent. */
+const vpRecvAll = (o, l) => { const ord = vpQty(o, l); return ord > 0 && vpRecvOf(l, o).qty >= ord - 0.01; };
 function vpCustomSheet(rows, f) {
   /* DUE DATE (Ravi, 3 Nov: "due date vendor ko bhi dikhe"): the date we need it by, red with the days once it is past. */
   const COLS = ['Date', 'Order Number', 'Image', 'Article', 'Size', 'Ordered', 'Vendor Sent', 'Received', 'Due date', 'Vendor Date'];
@@ -51621,7 +51699,7 @@ function vpCustomSheet(rows, f) {
       + `<td style="font-size:12.5px">${esc(run ? '' : (l.size || '')) || '<span class="muted">—</span>'}</td>`
       + `<td class="num" style="font-weight:700">${nf(ord)} <span class="muted" style="font-weight:400;font-size:10px">${unit}</span></td>`
       + vpVsHtml(o, l, i, ord, unit, 'td')
-      + (rc => `<td class="num" title="${esc(rc.how)}">${rc.qty > 0 ? `<b style="color:#166534">${nf(rc.qty)}</b> <span class="muted" style="font-size:10px">${unit}</span>` : '<span class="muted">—</span>'}</td>`)(vpRecvOf(l))
+      + (rc => `<td class="num" title="${esc(rc.how)}">${rc.qty > 0 ? `<b style="color:#166534">${nf(rc.qty)}</b> <span class="muted" style="font-size:10px">${unit}</span>` : '<span class="muted">—</span>'}</td>`)(vpRecvOf(l, o))
       + `<td style="font-size:12px;text-align:left;white-space:nowrap">${voDueHtml(voDueOf(o, l), voWant(l))}</td>`
       + `<td>${vpViewAll() || flowVpViewOnly(o) || bal <= 0 ? `<span style="font-size:12px">${esc(voProm(l) ? dShow(voProm(l)) : '') || '<span class="muted">—</span>'}</span>`
           : `<input data-vpprom="${esc(o.id)}" data-i="${i}" type="date" value="${esc(voProm(l))}" style="width:146px">`}</td>`
@@ -51830,7 +51908,8 @@ function vpVsHtml(o, l, i, ord, unit, shape) {
   return (td ? '<td class="vpvs-td">' : `<div class="vpb-vs${shape === 'flat' ? ' flat' : ''}">`)
     + (td ? `<b>${vs > 0 ? q(vs) : '<span class="muted">—</span>'}</b>` : `<span class="muted">Vendor sent</span> <b>${vs > 0 ? q(vs) + ' ' + unit : '—'}</b>`)
     + (list.length ? ` <details><summary>${nf(live)} batch${live === 1 ? '' : 'es'}</summary>${batches}</details>` : '')
-    + (vpVsCan() && left > 0 && !l.cancelled ? `${td ? '' : '<span style="flex:1"></span>'}<span class="vpvs-add"><input data-vsq="${esc(o.id)}" data-i="${i}" type="number" min="0" max="${left}" step="${unit === 'm' ? '0.01' : '1'}" placeholder="qty" aria-label="Quantity sent">`
+    /* RECEIVED IN FULL, NO BOX (Ravi, 12 Nov): once all of it has reached us, the printer cannot say it sent it a second time. */
+    + (vpVsCan() && left > 0 && !l.cancelled && !vpRecvAll(o, l) ?`${td ? '' : '<span style="flex:1"></span>'}<span class="vpvs-add"><input data-vsq="${esc(o.id)}" data-i="${i}" type="number" min="0" max="${left}" step="${unit === 'm' ? '0.01' : '1'}" placeholder="qty" aria-label="Quantity sent">`
       + `<button class="ghost" data-vsadd="${esc(o.id)}" data-i="${i}">Add</button></span>` : '') + (td ? '</td>' : '</div>');
 }
 async function vpVsAdd(id, i) {
@@ -51839,6 +51918,7 @@ async function vpVsAdd(id, i) {
   if (!o || !l || !el || !vpVsCan()) return;
   const run = o.orderType === 'running', unit = run ? 'm' : 'pcs', typed = parseFloat(el.value);
   if (!(typed > 0)) return vpSay(id, 'Type how much you are sending first.', true);
+  if (vpRecvAll(o, l)) return vpSay(id, 'All of this line has already reached us — nothing is left to send.', true);
   const left = Math.max(0, Math.round((vpQty(o, l) - vpVsSum(vpVsOf(o, l))) * 100) / 100);
   const qty = run ? Math.round(Math.min(typed, left) * 100) / 100 : Math.min(Math.floor(typed), Math.floor(left));
   if (!(qty > 0)) return vpSay(id, left > 0 ? 'Pieces are whole numbers — type 1 or more.' : 'You have already said all of it is sent.', true);
