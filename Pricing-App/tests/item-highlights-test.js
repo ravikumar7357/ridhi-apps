@@ -202,7 +202,8 @@ const planOf = (C, sku, day) => { C.reset(); C.SP.itemsKey = ''; return C.spComp
     put('H8', FULL);
     live('H8', FULL, 'dinner', 'NAPKIN_NEW');
     let it = planOf(C, 'H8');
-    ok('not known yet: Reading (the word would go to Item Highlights), and the schema is asked', it.status === 'reading' && /Item Highlights/.test(it.why) && it.hlInfo.need === 'schema', JSON.stringify([it.status, it.why, it.hlInfo]));
+    ok('not known yet: "Item Highlights: checking…" — the rest of the plan shows at once, nothing is sent until they are read; the schema is asked',
+      it.hlChecking === true && it.status !== 'reading' && /Item Highlights: checking…/.test(C.spRowHtml(it)) && /data-sp-act="row-fix"[^>]*disabled/.test(C.spRowHtml(it)) && it.hlInfo.need === 'schema', JSON.stringify([it.status, it.hlChecking, it.hlInfo]));
     C.spEnsureReads([it]);
     await new Promise(r => setTimeout(r, 30));
     ok('the schema reply gives the shape: one text of 125', JSON.stringify(C.LI_WS.schema.SP.NAPKIN_NEW.hl) === JSON.stringify({ items: 1, max: 125, bytes: 0 }) && calls.some(c => c.lfix === 'schema' && /title_differentiation/.test(c.attrs)), JSON.stringify(C.LI_WS.schema.SP.NAPKIN_NEW));

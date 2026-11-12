@@ -14515,6 +14515,7 @@ function liWsPump() {
     liWsJob(job).catch(() => {}).then(() => {
       LI_WS.inflight--;
       LI_WS.liveV++;
+      if (typeof job.done === 'function') job.done();   // the caller's own "this read is in" (the Season planner's progress)
       const prog = LI_WS.prog[job.pk];
       if (prog) prog.done += job.units;
       const sweep = LI_WS.sweep;
@@ -16161,6 +16162,12 @@ const SP_SKIP_DAYS = 120;                // "Not now" lasts this long in this br
 const SP_STORE_SKIP = 'selloraSeasonSkip';   // localStorage: "brand|sku|what" → when "Not now" was pressed
 const SP_STORE_VIEW = 'selloraOptView';      // localStorage: 'one' | 'season' — the pill last chosen in the Listing Optimiser
 const SP_STORE_HELP = 'selloraSeasonHelp';   // localStorage: '1' when the "How it works" strip is folded away
+/* SPEED + NO JUMPING (12 Nov 2026): the parent list reads nothing — it shows what is held (the full refresh and the Workspace's live
+ * reads kept 24 h in selloraWsLive). Opening a parent reads that parent only: titles and search words 20 a call (?lfix=content),
+ * then Item Highlights one by one (?lfix=get) — the rows on screen first, 4 at a time (the Workspace queue). While reads land the
+ * screens redraw at most every SP_DRAW_MS, never while scrolled (SP_SCROLL_MS after the last scroll), and keep the top row in place. */
+const SP_DRAW_MS = 2000;
+const SP_SCROLL_MS = 400;
 /* THE FOUR PLAIN SEASONS (planner only). Listing Rules' calendar holds occasions (Christmas, Easter …) — a word like "Spring" in a
  * November title is also old, so the planner judges these four as REMOVE-only words (they are never added to a title). They are not
  * Listing Rules, so no rule, level or count on any other screen changes. Windows: Spring 1 Mar – 31 May, Summer 1 Jun – 31 Aug,
@@ -16211,7 +16218,10 @@ let SP = {
   choice: new Map(),         // "brand|sku" → the season the person switched to ("Also possible: …")
   editing: new Set(),        // the cards whose Edit box is open
   skip: null,                // the "Not now" records, once read from localStorage
-  reading: new Set(),        // "brand|sku" queued for a content read from Amazon ("brand|sku|get": for Item Highlights)
+  reading: new Set(),        // "brand|sku" queued for a content read from Amazon ("brand|sku|get": for Item Highlights); cleared when that read is done
+  prog: null,                // the open parent's reads: { key, items: Map("brand|sku" → Set(read tokens)) } — "Reading 40 of 469" in its header
+  lastDraw: 0,               // when the planner last redrew for landed reads (at most every SP_DRAW_MS)
+  scrollAt: 0,               // when the list or a panel was last scrolled (no redraw for SP_SCROLL_MS after)
   hlTried: new Set(),        // "brand|sku" whose Item Highlights were asked for (?lfix=get) — an error after that is said, not waited on
   redrawT: 0,                // the debounced redraw for landed reads
   sending: null,             // { done, total, results } while titles are sent
@@ -16388,7 +16398,7 @@ function spPlan(row, ctx, today, log) {
     // Item Highlights as they were before, when the change record kept them and they changed
     if (Array.isArray(restore.before.hl) && restore.after && Array.isArray(restore.after.hl) && restore.before.hl.join('\u0001') !== restore.after.hl.join('\u0001')) {
       if (hl) item.hlAfter = restore.before.hl.slice();
-      else if (hlInfo.state === 'unknown') { item.status = 'reading'; item.why = 'reading Item Highlights from Amazon first'; return item; }
+      else if (hlInfo.state === 'unknown') item.hlChecking = true;    // the title goes back now; Item Highlights once they are read
     }
     if (title && restore.after && restore.after.title && title !== restore.after.title) {
       item.note = `The title changed since the planner sent it (it was sent as “${restore.after.title}”) — look before putting back.`;
@@ -16435,10 +16445,8 @@ function spPlan(row, ctx, today, log) {
       item.hlWords = [word];
       placed = 'hl';
       item.note = `The title is full, so we added “${word}” to Item Highlights (shown under the title, and searchable).`;
-    } else if (hlTry.res === 'wait') {
-      item.status = 'reading';
-      item.why = 'the title is full, so the word goes to Item Highlights — reading those from Amazon first';
-      return item;
+    } else if (hlTry.res === 'wait' && !(item.hlChecking = true)) {
+      // never: Item Highlights not read yet — "checking…"; the rest of the plan shows now and is sent only once they are read
     } else if (kw == null) {
       item.kwWords = [word];
       if (item.readErr) return spFix(item, `the title is full and Amazon could not be read for the hidden search words (${item.readErr})`, `Add “${word}” to the hidden search words.`);
@@ -16508,7 +16516,8 @@ function spHlInfo(brand, pt, live, key) {
     if (live && live.err && SP.hlTried.has(key)) return { state: 'err', err: String(live.err) };
     return { state: 'unknown', need: 'get' };
   }
-  return { state: 'ok', entries: (live.hl || []).map(String), max: +sch.hl.max || SP_HL_MAX, items: +sch.hl.items || 1 };
+  // read within 24 h: kept (the Workspace's cache); older: used as it is and read again
+  return { state: 'ok', entries: (live.hl || []).map(String), max: +sch.hl.max || SP_HL_MAX, items: +sch.hl.items || 1, need: Date.now() - live.hlAt > LR_DAY ? 'get' : '' };
 }
 const spHlChanged = item => item.hl != null && item.hlAfter != null && item.hlAfter.join('\u0001') !== item.hl.join('\u0001');
 // The few words added to Item Highlights with the season word: plain use words the title does not say yet ("table decor").
@@ -16568,7 +16577,7 @@ function spHlTry(item, word, title) {
   }
   if (info.state === 'none') return { res: 'no', line: 'not available for this product type' };
   if (info.state === 'err') return { res: 'no', line: `could not be read from Amazon (${info.err})` };
-  if (info.state !== 'ok') return { res: 'wait', line: 'not read from Amazon yet' };
+  if (info.state !== 'ok') return { res: 'wait', line: 'checking…' };
   const now = item.hlAfter || [];
   if (now.some(entry => lrHas(entry, word))) return { res: 'has', line: `${word} already there` };
   const phrase = spHlPhrase(item, word, title);
@@ -16883,8 +16892,23 @@ function spCompute(today) {
     ['SP', 'CPC'].map(b => (HEALTH[b] && HEALTH[b].rows ? HEALTH[b].rows.length : 0)).join(',')].join('|');
   if (SP.items && SP.itemsKey === key && SP.ctx === ctx) return SP.items;
   SP.ctx = ctx;
-  const rows = ['SP', 'CPC'].flatMap(b => ((HEALTH[b] && HEALTH[b].rows) || []).map(row => (row.brand ? row : Object.assign({ brand: b }, row))));
-  SP.items = rows.map(row => spPlan(row, ctx, today, SP.log || []));
+  // Each listing's plan is kept until something it reads changes (its live read, its product type's schema, the rules, the day, the
+  // change records): a read landing re-plans that one listing, not all of them.
+  if (!SP.planKeep) SP.planKeep = new WeakMap();
+  const hour = Math.floor(Date.now() / 3600000);
+  SP.items = ['SP', 'CPC'].flatMap(b => ((HEALTH[b] && HEALTH[b].rows) || []).map(raw => {
+    const row = raw.brand ? raw : Object.assign({ brand: b }, raw);
+    const live = typeof LI_WS !== 'undefined' && LI_WS.live[b] ? LI_WS.live[b][raw.sku] || null : null;
+    const sch = live && live.pt && LI_WS.schema[b] ? LI_WS.schema[b][live.pt] || null : null;
+    const sig = [ctx, today.toDateString(), SP.log, SP.log ? SP.log.length : -1, SP.choice.get(spKey(b, raw.sku)) || '', hour, live, live ? live.at : 0, live ? live.cAt : 0,
+      live ? live.gAt : 0, live ? live.hlAt : 0, live ? live.tAt : 0, live ? live.err : '', live ? live.cErr : '', sch, sch ? !!sch.pending : false, SP.hlTried.has(spKey(b, raw.sku)),
+      raw.content, raw.checked, raw.title, raw.status, raw.qty];
+    const kept = SP.planKeep.get(raw);
+    if (kept && kept.sig.length === sig.length && kept.sig.every((part, i) => part === sig[i])) return kept.item;
+    const item = spPlan(row, ctx, today, SP.log || []);
+    SP.planKeep.set(raw, { sig, item });
+    return item;
+  }));
   SP.itemsKey = key;
   return SP.items;
 }
@@ -16895,54 +16919,141 @@ const spInList = (item, k) => (k === 'add' ? item.kind !== 'restore' && item.add
 const spSkipped = item => { const skips = spSkips(); return !!skips[item.key + '|' + item.kind + ':' + item.seasons.join('+')]; };
 // Reads from Amazon the listings whose plan needs the live read (the hidden search words, the product kind): 20 a call through the
 // Workspace's queue, content only. Returns how many were queued.
-function spEnsureReads(items) {
+// Reads from Amazon what these listings' plans still need — only ever for the parent that is open (spPanelsRender): titles and search
+// words 20 a call (?lfix=content), then the product type's schema and each listing's Item Highlights (?lfix=get), `first` (the rows on
+// screen) before the rest, through the Workspace's queue (4 at a time). A read is never queued twice; one held for 24 h is not read again.
+function spEnsureReads(items, first) {
   if (typeof liWsQueue !== 'function' || !items.length) return 0;
   if (!LI_WS.stored) liWsStoreLoad();
-  const want = items.filter(item => (item.status === 'reading' || (item.kind !== 'ok' && item.kind !== 'none' && !item.liveFresh && !item.readErr))
+  const front = new Set(first || []);
+  const order = front.size ? items.filter(item => front.has(item.key)).concat(items.filter(item => !front.has(item.key))) : items;
+  const token = t => { SP.reading.add(t); spProgAdd(t); return () => { SP.reading.delete(t); }; };
+  // 1 titles and search words: 20 a call
+  const want = order.filter(item => (item.status === 'reading' || (item.kind !== 'ok' && item.kind !== 'none' && !item.liveFresh && !item.readErr))
     && !SP.reading.has(item.key) && !(item.live && item.live.cErr && Date.now() - (item.live.at || 0) < 3600000));
   const byBrand = { SP: [], CPC: [] };
-  want.forEach(item => { byBrand[item.brand].push(item.sku); SP.reading.add(item.key); });
-  // Item Highlights: the product type's schema (once per type), then the listing's own value (?lfix=get) — only for these listings
+  want.forEach(item => byBrand[item.brand].push(item));
+  ['SP', 'CPC'].forEach(brand => {
+    for (let i = 0; i < byBrand[brand].length; i += LI_WS_BATCH) {
+      const batch = byBrand[brand].slice(i, i + LI_WS_BATCH);
+      const done = batch.map(item => token(item.key));
+      liWsQueue({ t: 'content', brand, skus: batch.map(item => item.sku), units: batch.length, pk: '', mark: batch.map(item => item.key), sweep: true, done: () => done.forEach(fn => fn()) });
+    }
+  });
+  // 2 Item Highlights: the product type's schema (once per type), then the listing's own value (?lfix=get), one by one
   let hlN = 0;
-  items.forEach(item => {
+  order.forEach(item => {
     const need = item.hlInfo && item.hlInfo.need;
-    if (!need || item.kind === 'ok' || item.kind === 'none') return;
+    if (!need) return;
     if (need === 'schema') {
       const pt = item.pt;
       const sch = LI_WS.schema[item.brand][pt];
       if (sch && !sch.pending && !sch.hl && !sch.err) delete LI_WS.schema[item.brand][pt];   // an older answer: ask again, with Item Highlights
       if (!LI_WS.schema[item.brand][pt]) { liWsNeedSchema(item.brand, pt, ''); hlN++; }
     } else if (need === 'get' && !SP.reading.has(item.key + '|get')) {
-      SP.reading.add(item.key + '|get');
       SP.hlTried.add(item.key);
-      liWsQueue({ t: 'get', brand: item.brand, sku: item.sku, units: 1, pk: '', mark: [item.key], sweep: true });
+      liWsQueue({ t: 'get', brand: item.brand, sku: item.sku, units: 1, pk: '', mark: [item.key], sweep: true, done: token(item.key + '|get') });
       hlN++;
-    }
-  });
-  ['SP', 'CPC'].forEach(brand => {
-    for (let i = 0; i < byBrand[brand].length; i += LI_WS_BATCH) {
-      const skus = byBrand[brand].slice(i, i + LI_WS_BATCH);
-      liWsQueue({ t: 'content', brand, skus, units: skus.length, pk: '', mark: skus.map(sku => spKey(brand, sku)), sweep: true });
     }
   });
   return want.length + hlN;
 }
-// A read landed (listing-workspace.js calls this): the planner redraws, a little later and not while a title is being typed.
-function spAfterRead() {
-  if (!SP.on && !SP.kid) return;
-  ['SP', 'CPC'].forEach(brand => Object.keys(LI_WS.live[brand] || {}).forEach(sku => {
-    const entry = LI_WS.live[brand][sku];
-    if (entry && (entry.cAt || entry.cErr || entry.err)) SP.reading.delete(spKey(brand, sku));
-    if (entry && (entry.hlAt || entry.err)) SP.reading.delete(spKey(brand, sku) + '|get');
-  }));
-  clearTimeout(SP.redrawT);
-  SP.redrawT = setTimeout(() => {
-    const active = typeof document !== 'undefined' ? document.activeElement : null;
-    if (active && active.classList && active.classList.contains('sp-edit')) return spAfterRead();
-    if (SP.on) spRender();
-    spPanelsRender();
-  }, 600);
+// The open parent's progress: each listing counts once, done when every read queued for it is in.
+function spProgAdd(t) {
+  if (!SP.prog) return;
+  const key = t.replace(/\|get$/, '');
+  if (!SP.prog.items.has(key)) SP.prog.items.set(key, new Set());
+  SP.prog.items.get(key).add(t);
 }
+function spProgText(g) {
+  const p = SP.prog;
+  if (!p || p.key !== g.key) return '';
+  const total = p.items.size;
+  let done = 0;
+  p.items.forEach(set => { if ([...set].every(t => !SP.reading.has(t))) done++; });
+  return done < total ? `Reading ${spNf(done)} of ${spNf(total)} — you can keep working` : '';
+}
+// The rows of the open parent that are on screen now (their reads go first).
+function spVisibleKeys() {
+  const body = $('spPanel') && $('spPanel').querySelector ? $('spPanel').querySelector('.sp-side-b') : null;
+  if (!body || !body.getBoundingClientRect || !body.querySelectorAll) return [];
+  const box = body.getBoundingClientRect();
+  return [...body.querySelectorAll('.sp-row[data-sp-key]')].filter(row => { const r = row.getBoundingClientRect(); return r.bottom > box.top && r.top < box.bottom; }).map(row => row.dataset.spKey);
+}
+// Once scrolling stops: the queued Item Highlights reads of the rows now on screen move to the front of the queue.
+function spPrioritize() {
+  if (typeof LI_WS === 'undefined' || !LI_WS.q || !SP.panel) return;
+  const seen = new Set(spVisibleKeys());
+  if (!seen.size) return;
+  const first = LI_WS.q.filter(job => job.t === 'get' && job.mark && seen.has(job.mark[0]));
+  if (!first.length) return;
+  LI_WS.q = first.concat(LI_WS.q.filter(job => !first.includes(job)));
+}
+/* Keeping my place across a redraw: the first row (or card) on screen and how far it sat from the top of its scroller; after the
+ * redraw that row is put back exactly there. `scroller` is a panel body, or null for the page. */
+function spPlaceOf(scroller, rows) {
+  const root = scroller || (typeof document !== 'undefined' ? document : null);
+  if (!root || !root.querySelectorAll) return null;
+  const top = scroller && scroller.getBoundingClientRect ? scroller.getBoundingClientRect().top : 0;
+  const list = [...root.querySelectorAll(rows)];
+  for (const row of list) {
+    if (!row.getBoundingClientRect) return null;
+    const r = row.getBoundingClientRect();
+    if (r.bottom > top) return { key: row.getAttribute('data-sp-key') || row.getAttribute('data-sp-group') || '', off: r.top - top, scroll: scroller ? scroller.scrollTop : 0 };
+  }
+  return { key: '', off: 0, scroll: scroller ? scroller.scrollTop : 0 };
+}
+function spPlaceBack(scroller, rows, place) {
+  if (!place) return;
+  if (scroller) scroller.scrollTop = place.scroll;
+  const root = scroller || document;
+  if (!place.key || !root.querySelector) return;
+  const attr = /group/.test(rows) ? 'data-sp-group' : 'data-sp-key';
+  const row = root.querySelector(`${rows.split(',')[0].replace(/\[[^\]]*\]$/, '')}[${attr}="${CSS.escape(place.key)}"]`);
+  if (!row || !row.getBoundingClientRect) return;
+  const top = scroller && scroller.getBoundingClientRect ? scroller.getBoundingClientRect().top : 0;
+  const delta = row.getBoundingClientRect().top - top - place.off;
+  if (!delta) return;
+  if (scroller) scroller.scrollTop += delta;
+  else if (typeof window !== 'undefined' && window.scrollBy) window.scrollBy(0, delta);
+}
+// A read landed (listing-workspace.js calls this): the planner redraws, a little later and not while a title is being typed.
+// A read landed (listing-workspace.js calls this): the planner redraws — at most every SP_DRAW_MS, never while the list or a panel is
+// being scrolled (SP_SCROLL_MS after the last scroll), and not while a title is being typed.
+function spAfterRead() {
+  if (!SP.on && !SP.kid && !SP.panel) return;
+  spSchedule();
+}
+function spSchedule() {
+  if (SP.redrawT) return;
+  const now = Date.now();
+  SP.redrawT = setTimeout(spTick, Math.max(50, SP.lastDraw + SP_DRAW_MS - now, SP.scrollAt + SP_SCROLL_MS - now));
+}
+function spTick() {
+  SP.redrawT = 0;
+  spReadOpen();                                        // the open parent's next reads (schema, Item Highlights) go out even while scrolling
+  const active = typeof document !== 'undefined' ? document.activeElement : null;
+  if (Date.now() - SP.scrollAt < SP_SCROLL_MS || (active && active.classList && active.classList.contains('sp-edit'))) return spSchedule();
+  SP.lastDraw = Date.now();
+  if (SP.on) spRender();
+  spPanelsRender();
+}
+// What the open parent still needs from Amazon: queued (never twice), the rows on screen first. No redraw.
+function spReadOpen() {
+  if (!SP.panel) return 0;
+  const g = spGroupOf(SP.panel.key);
+  return g ? spEnsureReads(g.todo.concat(g.all.filter(item => !g.todo.includes(item))), spVisibleKeys()) : 0;
+}
+// A scroll in the list or a panel: held for SP_SCROLL_MS before any redraw; once it stops, the rows on screen are read first.
+function spOnScroll(e) {
+  const t = e && e.target;
+  if (!SP.on && !SP.panel) return;
+  if (t && t !== document && !(t.closest && t.closest('#spPane,#spPanel,#spKid'))) return;
+  SP.scrollAt = Date.now();
+  clearTimeout(SP.prioT);
+  SP.prioT = setTimeout(spPrioritize, SP_SCROLL_MS);
+}
+if (typeof document !== 'undefined' && document.addEventListener) document.addEventListener('scroll', spOnScroll, true);
 
 /* ----- the screens: three levels — parent cards on the page, one parent's side panel, one child's side panel -----
  * Written for a seller, not a developer: one sentence says what is going on, every card has ONE main button, every state is an icon
@@ -17126,8 +17237,7 @@ function spParentLine(g) {
   if (back) parts.push(`↺ ${spNf(back)} can go back`);
   const you = g.look.length + g.fix.length;
   if (you) parts.push(`<span class="sp-you">⚠ ${spNf(you)} need${you === 1 ? 's' : ''} you</span>`);
-  if (g.reading.length) parts.push(`<span class="sp-wait">… ${spNf(g.reading.length)} being read</span>`);
-  return parts.join(' · ');
+  return parts.join(' · ');   // nothing is read from the list: no "being read" here (an open parent says its progress in its header)
 }
 function spParentCardHtml(g) {
   const open = SP.panel && SP.panel.key === g.key;
@@ -17148,8 +17258,7 @@ function spRender() {
     box.innerHTML = spHowHtml() + `<div class="card sp-empty"><b>Could not read your listings.</b><br>${lrEsc(SP.loadErr)}<br><button type="button" class="sp-main" data-sp-act="reload">Try again</button></div>`;
     return;
   }
-  const items = spCompute();
-  spEnsureReads(items.filter(item => SP.brand === 'ALL' || item.brand === SP.brand));
+  const items = spCompute();                           // what is held now — the list reads nothing from Amazon
   const groups = spGroups(items);
   const todo = groups.filter(g => g.todo.length).sort((a, b) => (b.todo.length - a.todo.length) || a.name.localeCompare(b.name));
   const done = groups.filter(g => !g.todo.length).sort((a, b) => a.name.localeCompare(b.name));
@@ -17166,7 +17275,9 @@ function spRender() {
   const doneHtml = done.length ? `<div class="sp-done"><button type="button" class="sp-link" data-sp-act="show-done" aria-expanded="${SP.showDone ? 'true' : 'false'}">${SP.showDone ? 'Hide' : 'Show'} the ${spNf(done.length)} parent${done.length === 1 ? '' : 's'} that ${done.length === 1 ? 'is' : 'are'} up to date</button>`
     + (SP.showDone ? `<div class="sp-list">${done.map(spParentCardHtml).join('')}</div>` : '') + '</div>' : '';
   const result = SP.result && !SP.panel ? spResultHtml(SP.result) : '';
+  const place = spPlaceOf(null, '#spPane .sp-pc[data-sp-group]');   // the card at the top of the screen stays where it is
   box.innerHTML = spHowHtml() + spTodayHtml(groups) + toolbar + spTimelineHtml(items) + chips + result + empty + `<div class="sp-list">${page.map(spParentCardHtml).join('')}</div>` + more + doneHtml;
+  spPlaceBack(null, '#spPane .sp-pc[data-sp-group]', place);
 }
 // After a send: what went, what did not and why, in plain words.
 function spResultHtml(res) {
@@ -17210,13 +17321,16 @@ function spParentBodyHtml(g) {
   const note = filter ? `<div class="sp-filter">Showing the ${spNf(rows.length)} that ${filter === 'look' ? 'need your OK' : 'need fixing by hand'} · <button type="button" class="sp-link" data-sp-act="filter" data-sp-filter="" data-sp-group="${lrEsc(g.key)}">Show all ${spNf(g.todo.length)}</button></div>` : '';
   const upToDate = total - g.todo.length;
   const result = SP.result ? spResultHtml(SP.result) : '';
-  const reading = g.reading.length ? `<div class="sp-filter"><span class="sp-reading">Reading ${spPlural(g.reading.length, 'listing')} from Amazon…</span></div>` : '';
-  return `<p class="sp-today sp-psent">${sentence}</p>${result}${g.todo.length ? cards : ''}${reading}${note}`
+  return `<p class="sp-today sp-psent">${sentence}</p>${result}${g.todo.length ? cards : ''}${note}`
     + `<div class="sp-rows">${rows.map(item => spRowHtml(item)).join('')}</div>`
     + (upToDate ? `<p class="sp-more-ok">✓ ${spNf(upToDate)} more listing${upToDate === 1 ? ' is' : 's are'} up to date.</p>` : '');
 }
 // What we will do for one listing, in one short line.
 function spDoLine(item) {
+  const line = spDoLineWords(item);
+  return item.hlChecking && item.status !== 'reading' ? `${line} · Item Highlights: checking…` : line;
+}
+function spDoLineWords(item) {
   if (item.status === 'reading') return 'Reading this listing from Amazon…';
   if (item.status === 'fix') return item.hint || 'Change it by hand in Listing Errors';
   if (item.kind === 'restore') return 'Put the old title back';
@@ -17235,7 +17349,7 @@ function spDoLine(item) {
 function spRowHtml(item) {
   const st = SP_STATE[item.status] || SP_STATE.look;
   const open = SP.kid && SP.kid.key === item.key;
-  const btn = item.status === 'ready' ? `<button type="button" class="sp-btn sp-row-b" data-sp-act="row-fix" data-sp-key="${lrEsc(item.key)}"${SP.sending ? ' disabled' : ''}>Fix</button>`
+  const btn = item.status === 'ready' ? `<button type="button" class="sp-btn sp-row-b" data-sp-act="row-fix" data-sp-key="${lrEsc(item.key)}"${SP.sending || item.hlChecking ? ' disabled' : ''}${item.hlChecking ? ' title="Item Highlights: checking…"' : ''}>Fix</button>`
     : item.status === 'reading' ? '<button type="button" class="sp-btn sp-row-b" disabled>Wait</button>'
       : `<button type="button" class="sp-btn sp-row-b" data-sp-act="open-kid" data-sp-key="${lrEsc(item.key)}">Check</button>`;
   return `<div class="sp-row ${st.cls}${open ? ' is-open' : ''}" role="button" tabindex="0" data-sp-act="open-kid" data-sp-key="${lrEsc(item.key)}" aria-label="Open ${lrEsc(spFacts(item))}">`
@@ -17245,7 +17359,7 @@ function spRowHtml(item) {
 // The parent side panel: header card, then the body.
 function spParentPanelHtml(g) {
   return `<div class="sp-side-h"><div class="sp-hc">${spPic(g.brand, (g.todo[0] || g.all[0]).sku, true)}<div class="sp-hc-t"><b title="${lrEsc(g.name)}">${lrEsc(g.name)}</b>`
-    + `<span>${lrEsc(BRAND_NAME[g.brand] || g.brand)} · ${spPlural(g.all.length, 'listing')}</span></div><button type="button" class="sp-x" data-sp-act="close-parent" aria-label="Close">×</button></div></div>`
+    + `<span>${lrEsc(BRAND_NAME[g.brand] || g.brand)} · ${spPlural(g.all.length, 'listing')}${spProgText(g) ? ` · <span class="sp-reading">${spProgText(g)}</span>` : ''}</span></div><button type="button" class="sp-x" data-sp-act="close-parent" aria-label="Close">×</button></div></div>`
     + `<div class="sp-side-b">${spParentBodyHtml(g)}</div>`;
 }
 
@@ -17305,12 +17419,12 @@ function spKidHtml(item, g) {
   const checksHtml = checks.length ? card('sp-chk-c', 'Checks', spChecksHtml(checks)) + spPreCardHtml(checks, item) : '';
   // 7 the action bar
   const bad = checks.find(check => check.ok === false);
-  const canSend = (item.status === 'ready' || item.status === 'look') && !bad && !!item.pt && !SP.sending && spChanges(item, after);
+  const canSend = (item.status === 'ready' || item.status === 'look') && !bad && !!item.pt && !SP.sending && spChanges(item, after) && !item.hlChecking;
   let main;
   if (item.status === 'fix') main = `<button type="button" class="sp-main" data-sp-act="fixhand" data-sp-key="${lrEsc(item.key)}">Open in Listing Errors</button>`;
   else if (item.status === 'reading') main = '<button type="button" class="sp-main" disabled>Reading from Amazon…</button>';
   else main = `<button type="button" class="sp-main" data-sp-act="approve" data-sp-key="${lrEsc(item.key)}"${canSend ? '' : ' disabled'}>${item.status === 'look' ? 'Approve this change' : item.kind === 'restore' ? 'Put it back — send to Amazon' : 'Fix — send to Amazon'}</button>`;
-  const reason = (item.status === 'ready' || item.status === 'look') && !canSend ? (bad ? bad.why || bad.t : !item.pt ? 'Reading this listing from Amazon first' : '') : '';
+  const reason = (item.status === 'ready' || item.status === 'look') && !canSend ? (bad ? bad.why || bad.t : !item.pt ? 'Reading this listing from Amazon first' : item.hlChecking ? 'Item Highlights: checking…' : '') : '';
   const bar = `<div class="sp-bar">${main}<button type="button" class="sp-btn" data-sp-act="edit" data-sp-key="${lrEsc(item.key)}" aria-pressed="${editing}">${editing ? 'Done' : 'Edit'}</button>`
     + `<button type="button" class="sp-btn sp-quiet" data-sp-act="skip" data-sp-key="${lrEsc(item.key)}" title="Hide this for this season, in this browser">Not now</button>`
     + `<span class="sp-reason"${reason ? '' : ' hidden'}>${lrEsc(reason)}</span></div>`;
@@ -17374,6 +17488,7 @@ function spChecksHtml(checks) {
 // The parent panel (from the page) and the child panel (from the parent panel). Esc closes the child first.
 function spOpenParent(key) {
   SP.panel = { key, filter: '' };
+  if (!SP.prog || SP.prog.key !== key) SP.prog = { key, items: new Map() };
   SP.kid = null;
   SP.result = null;
   const box = $('spPanel');
@@ -17436,12 +17551,14 @@ function spPanelsRender() {
     const g = spGroupOf(SP.panel.key);
     if (!g) spCloseParent(false);
     else {
+      // this parent's reads only, queued before drawing so its header shows the progress at once: the rows on screen first (the rows
+      // still to do, then the up-to-date children)
+      spEnsureReads(g.todo.concat(g.all.filter(item => !g.todo.includes(item))), spVisibleKeys());
       const body = pp.querySelector ? pp.querySelector('.sp-side-b') : null;
-      const top = body ? body.scrollTop : 0;
+      const place = body ? spPlaceOf(body, '.sp-row[data-sp-key]') : null;   // my place: the top row on screen and its offset
       pp.innerHTML = spParentPanelHtml(g);
       const again = pp.querySelector ? pp.querySelector('.sp-side-b') : null;
-      if (again) again.scrollTop = top;
-      if (g.todo.length) spEnsureReads(g.todo);
+      if (again) spPlaceBack(again, '.sp-row[data-sp-key]', place);
     }
   }
   if (pp && pp.classList) pp.classList.toggle('has-kid', !!SP.kid);
@@ -17475,18 +17592,21 @@ function spPatches(item, after) {
 function spApprove(keys) {
   const items = spCompute().filter(item => keys.includes(item.key));
   const todo = [];
+  let checking = 0;
   items.forEach(item => {
     const typed = SP.edits.has(item.key) ? SP.edits.get(item.key) : null;
     const after = (typed != null ? typed : item.after).trim();
     const checks = typed != null ? spChecks(item.title, typed, item.row, hCtx(), spToday(), Object.assign({ kwAfter: item.kwAfter, kwBefore: item.kw, kwMax: item.kwMax }, spHlOpts(item))) : item.checks;
     if (!(item.status === 'ready' || item.status === 'look') || !item.pt || checks.some(check => check.ok === false) || !spChanges(item, after)) return;
+    if (item.hlChecking) { checking++; return; }          // sent once its Item Highlights are read — never on half the facts
     todo.push({ item, after, patches: spPatches(item, after) });
   });
   if (!todo.length) return;
   const n = todo.length;
   const test = spIsTest();
   const body = `<div class="sp-m-h"><b>${test ? 'Test site — nothing will be sent' : `You are about to change ${spPlural(n, 'listing')} on Amazon`}</b>`
-    + `<p>${test ? 'On live Sellora this would send what is listed below.' : 'Amazon checks each one first. The old words are kept so you can put them back.'}</p></div>`
+    + `<p>${test ? 'On live Sellora this would send what is listed below.' : 'Amazon checks each one first. The old words are kept so you can put them back.'}</p>`
+    + (checking ? `<p>${spPlural(checking, 'more listing')} ${checking === 1 ? 'is' : 'are'} still checking Item Highlights — ready in a moment.</p>` : '') + '</div>'
     + `<div class="sp-m-list">${todo.map(t => { const dk = spWordDiff(t.item.kw, t.item.kwAfter); return `<div class="sp-m-row"><b>${lrEsc(spFacts(t.item))}</b><small>${lrEsc(t.item.sku)}</small>${t.after !== t.item.title ? `<div class="sp-m-now">${spDiffHtml(t.item.title, t.after)}</div>` : ''}${t.patches.length > 1 && dk.added.length ? `<div class="sp-m-kw">+ Hidden search words: ${spWordList(dk.added)}</div>` : ''}${spHlModalHtml(t.item)}</div>`; }).join('')}</div>`
     + `<div class="sp-m-a"><button type="button" class="sp-main" id="spSendBtn">${test ? 'Close — nothing is sent here' : `Send ${spPlural(n, 'listing')}`}</button><button type="button" class="sp-btn" id="spCancelBtn">Cancel</button></div>`;
   spModal(body);

@@ -703,6 +703,7 @@ function liWsPump() {
     liWsJob(job).catch(() => {}).then(() => {
       LI_WS.inflight--;
       LI_WS.liveV++;
+      if (typeof job.done === 'function') job.done();   // the caller's own "this read is in" (the Season planner's progress)
       const prog = LI_WS.prog[job.pk];
       if (prog) prog.done += job.units;
       const sweep = LI_WS.sweep;
