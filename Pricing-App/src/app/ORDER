@@ -26,6 +26,7 @@ listing/listing-audit.js
 listing/launch.js
 listing/listing-workspace.js
 listing/listing-kid.js
+listing/season-planner.js
 listing/bsr-audit.js
 research/keywords.js
 research/by-amazon-link.js
@@ -47,6 +48,7 @@ sales/profit-margin.js
 sales/sales-analysis.js
 listing/listing-optimiser.js
 listing/image-manager.js
+listing/picture-check.js
 listing/listing-errors.js
 listing/listing-content.js
 listing/bought-together.js

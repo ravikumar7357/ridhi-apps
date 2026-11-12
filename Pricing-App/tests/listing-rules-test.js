@@ -63,23 +63,30 @@ function load(opts) {
   const HEALTH = { SP: { at: new Date(), rows: rows.filter(r => r.brand === 'SP') }, CPC: { at: new Date(), rows: rows.filter(r => r.brand === 'CPC') } };
   const calls = [];
   const ctx = {
-    $: el, document: { addEventListener() {}, querySelectorAll: () => [], createElement: () => ({ click() {} }) }, window: { addEventListener() {}, scrollTo() {} },
+    $: el, document: { addEventListener() {}, querySelectorAll: () => [], createElement: () => ({ click() {} }) }, window: Object.assign({ addEventListener() {}, scrollTo() {} }, opts.window || {}),
     MutationObserver: class { observe() {} }, localStorage: { getItem: () => null, setItem() {} }, CSS: { escape: s => s }, setTimeout, clearTimeout,
     BRAND_NAME: { SP: 'Ridhi', CPC: 'CPC' }, HEALTH, H_LOADED: true, H_RULES: { minTitle: 80, maxTitle: 200, minBullets: 5, minImages: 6, minDesc: 200 },
     IML: { SP: { at: new Date(), items: [] }, CPC: { at: new Date(), items: [] } }, IM_SLOTS: ['MAIN', 'PT01', 'PT02', 'PT03', 'PT04', 'PT05', 'PT06', 'PT07', 'PT08'], IM_SKU_CHOICES: null,
-    getDoc: async () => ({ exists: () => false }), setDoc: async () => {}, doc: () => ({}), db: {}, serverTimestamp: () => 0, baCall: async () => ({}),
+    getDoc: opts.getDoc || (async () => ({ exists: () => false })), setDoc: opts.setDoc || (async () => {}), doc: (db, coll, id) => ({ path: coll + '/' + id }), db: {}, serverTimestamp: () => 0, baCall: opts.baCall || (async () => ({})),
     showTab: t => calls.push({ tab: t }), imLoad() {}, leOpen: (sku, attrs) => calls.push({ sku, attrs }), hFocusOpen() {}, ensureHealth: async () => {}, imListLoad: async () => {},
     parentName: (brand, asin) => 'Parent ' + asin, lcBytes: s => Buffer.byteLength(String(s || ''), 'utf8'),
+    ME: { email: 'test@example.com' }, imPost: async body => { calls.push(body); return opts.post ? opts.post(body) : { ok: true, status: 'ACCEPTED', submissionId: 'sub-' + body.sku }; },
+    navigator: { clipboard: null },
     lrEsc: s => String(s == null ? '' : s).replace(/[<>&"]/g, ch => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[ch])),
   };
-  const src = (opts.src || L('listing-rules.js')) + (opts.ws ? '\n' + L('listing-workspace.js') + '\n' + L('listing-kid.js') : '');
+  if (opts.tab) delete ctx.lrEsc;   // the Rules tab file defines its own
+  const src = (opts.src || L('listing-rules.js')) + (opts.ws ? '\n' + L('listing-workspace.js') + '\n' + L('listing-kid.js') : '') + (opts.sp ? '\n' + L('season-planner.js') : '')
+    + (opts.pc ? '\n' + L('picture-check.js') : '') + (opts.tab ? '\n' + L('listing-rules-tab.js') : '');
   const tail = '\n;LR = JSON.parse(JSON.stringify(LR_DEFAULT)); LR_CAT.SP = ' + JSON.stringify(CAT.SP) + '; LR_CAT.CPC = ' + JSON.stringify(CAT.CPC) + ';'
     + '\n;return { rows: HEALTH.SP.rows.concat(HEALTH.CPC.rows), LR_DEFAULT, getLR: () => LR, healthOf, hCtx: () => hCtx(), reset: () => { H_CTX = null; }, hTitleSizes,'
+    + ' lrAnswer, lrAnswerHtml, lrPicId, lrLooks, setHealthAt: d => { HEALTH.SP.at = d; HEALTH.CPC.at = d; },'
+    + (opts.pc ? ' PC, pcMark, pcPictures, pcLoad,' : '') + (opts.tab ? ' lrRulesDiff, lrWho, getHistory: () => LR_HISTORY, setHistory: h => { LR_HISTORY = h; },' : '')
     + ' typeofFix: typeof lrProblemHtml, lrProblemHtml: typeof lrProblemHtml === "function" ? lrProblemHtml : null, lrProblemsHtml: typeof lrProblemsHtml === "function" ? lrProblemsHtml : null,'
     + ' lrAllow: typeof lrAllow === "function" ? lrAllow : null, lrFixOpen: typeof lrFixOpen === "function" ? lrFixOpen : null,'
-    + ' lrKwBytes: typeof lrKwBytes === "function" ? lrKwBytes : null, lrLevel: typeof lrLevel === "function" ? lrLevel : null, lrNotesHtml: typeof lrNotesHtml === "function" ? lrNotesHtml : null, IML,'
+    + ' lrKwBytes: typeof lrKwBytes === "function" ? lrKwBytes : null, lrBrandWords, lrFind, lrLevel: typeof lrLevel === "function" ? lrLevel : null, lrNotesHtml: typeof lrNotesHtml === "function" ? lrNotesHtml : null, IML,'
     + ' lrWholeCut: typeof lrWholeCut === "function" ? lrWholeCut : null, AMZ: typeof AMZ === "undefined" ? null : AMZ,'
-    + (opts.ws ? ' LI_WS, LI_WS_AUDIT, liWsParents: (brands) => liWsParents(brands, hCtx(), Date.now()), liWsDetail, liWsAuditBox, liWsKidTable, liWsRender, liWsRecheck, liWsCheckNow, liWsLiveMap, liWsProblems, liWsPanelOpen, liWsPanelClose, liWsPanelMove, liWsPanelRender, liWsOff, liWsToolbarSync, liWsPanelSync, liWsPanelSchedule, liWsPanelKeep, liWsPanelKid, liWsPanelKidBack, lkHtml, lkKid, LK,' : '') + ' };';
+    + (opts.ws ? ' LI_WS, LI_WS_AUDIT, liWsParents: (brands) => liWsParents(brands, hCtx(), Date.now()), liWsDetail, liWsAuditBox, liWsKidTable, liWsRender, liWsRecheck, liWsCheckNow, liWsLiveMap, liWsProblems, liWsPanelOpen, liWsPanelClose, liWsPanelMove, liWsPanelRender, liWsOff, liWsToolbarSync, liWsPanelSync, liWsPanelSchedule, liWsPanelKeep, liWsPanelKid, liWsPanelKidBack, lkHtml, lkKid, LK, liWsReconcile, liWsErrorsCsv, liWsDlButton, liWsSearch, LI_WS_DL_COLS, liWsJob,' : '')
+    + (opts.sp ? ' SP, spCompute, spPlan, spChecks, spStrip, spInsert, spDiffHtml, spWordDiff, spKidHtml, spRowHtml, spParentBodyHtml, spParentCardHtml, spGroups, spGroupOf, spOpenParent, spCloseParent, spOpenKid, spCloseKid, spRender, spApprove, spSendAll, spPatches, spLogLoad, spEvents, SP_SEASONS, spHlInfo, spHlTry, spHighlightsCount, spEnsureReads, spApprove, spProgText, spPanelsRender, spAfterRead, spFindSeason, spWhere, spTipOf, spWhereCount, spMarkHtml, setHealthLoaded: v => { H_LOADED = v; }, setCat: (b, m) => { LR_CAT[b] = Object.assign(LR_CAT[b] || {}, m); H_CTX = null; },' : '') + ' };';
   const api = new Function(...Object.keys(ctx), src + tail)(...Object.values(ctx));
   // api.rows ARE the HEALTH rows (the same objects, brand on each): a test that changes one changes what every screen judges.
   api.score = sku => { const r = api.rows.find(x => x.sku === sku); return api.healthOf(r, api.hCtx()); };
@@ -112,7 +119,26 @@ if (require.main === module) {
   ok('a CPC title with no brand word at all: brand error, and the fix names the brand to write', /missing brand/.test((A.hit('C1c', 'title_template') || {}).detail || '') && /^Put the brand in the title: "Whimsical Corner …"\./.test(A.hit('C1c', 'title_template').fix), JSON.stringify(A.hit('C1c', 'title_template')));
   ok('Grey in the catalogue, Gray in the title: no colour error', A.ids('C2a') === '', A.ids('C2a'));
   ok('"Block-Print" counts as Block Print', A.ids('C2b') === '', A.ids('C2b'));
-  ok('the code CPC is never looked for', !A.rows.some(r => r.brand === 'CPC' && /missing brand/.test((A.hit(r.sku, 'title_template') || {}).detail || '') && r.sku !== 'C1c'));
+  console.log('== our brand words: Ridhi, CPC and Whimsical Corner, for BOTH accounts ==');
+  (() => {
+    const B = load();
+    const brandOf = (acct, title, extra) => {
+      const row = Object.assign({ brand: acct, parent: 'PB', sku: 'B' + Math.random().toString(36).slice(2, 7), asin: 'B0X', title, qty: 5, price: 20, status: 'Active', channel: 'AFN',
+        aplus: true, aplusAt: Date.now(), checked: Date.now(), content: { titleLen: title.length, images: 8, bullets: 5, descLen: 300, title } }, extra || {});
+      const words = B.lrBrandWords(row, B.getLR());
+      return words.some(word => B.lrFind(title, word) >= 0);
+    };
+    ok('"CPC Agate Green Block Print 100% Cotton Square Tablecloth 60×60 Inch" (CPC-01): brand found', brandOf('CPC', 'CPC Agate Green Block Print 100% Cotton Square Tablecloth 60×60 Inch'));
+    ok('"MY WHIMSICAL CORNER …": brand found', brandOf('CPC', 'MY WHIMSICAL CORNER Tablecloth Rectangle Cotton 60x90 Inch Block Print Blue'));
+    ok('"Ridhi Hand Block …": brand found — on either account', brandOf('SP', 'Ridhi Hand Block Print Cotton Napkins 18 x 18 Inch - Blue') && brandOf('CPC', 'Ridhi Hand Block Print Cotton Napkins 18 x 18 Inch - Blue'));
+    ok('"Whimsical Corner" on a Ridhi-account listing: brand found (all three are ours, for both accounts)', brandOf('SP', 'Whimsical Corner Cloth Napkins Cotton 18 x 18 Inch - Blue'));
+    ok('"Ridhi" inside another word ("Ridhima"): not found', !brandOf('SP', 'Ridhima Cloth Napkins Cotton 18 x 18 Inch - Blue'));
+    ok('"Corner" alone is not the brand (the phrase is "Whimsical Corner")', !brandOf('CPC', 'Corner Table Cloth Cotton 60 x 90 Inch - Blue'));
+    ok('a title with none of them: not found (flagged)', !brandOf('CPC', 'Cotton Tablecloth Rectangle 60 x 90 Inch Block Print Table Cover - Red'));
+    ok('punctuation and "the" are skipped: "The-Whimsical-Corner, …" and "CPC:" count', brandOf('CPC', 'The-Whimsical-Corner, Napkins Cotton') && brandOf('CPC', 'CPC: Napkins Cotton 18 x 18 Inch'));
+    ok('the brand Amazon shows is accepted too', brandOf('CPC', 'Agate Home Napkins Cotton 18 x 18 Inch', { amzBrand: 'Agate Home' }));
+  })();
+  ok('the CPC sample with no brand word at all is still the only CPC listing flagged', A.rows.filter(r => r.brand === 'CPC' && /missing brand/.test((A.hit(r.sku, 'title_template') || {}).detail || '')).map(r => r.sku).join() === 'C1c');
 
   console.log('== A4: Block Print vs embroidery ==');
   ok('white child whose siblings say Block Print: no Block Print error', !A.hit('R7', 'title_keyword') && A.ids('R7') === '', A.ids('R7'));
@@ -131,7 +157,7 @@ if (require.main === module) {
     && (() => { const r = Object.assign({}, A.rows.find(x => x.sku === 'R6'), { status: 'Inactive', qty: 3 }); const h = A.healthOf(r, A.hCtx()).found.find(x => x.detector === 'inactive_with_stock'); return h && h.tag === 'Amazon' && h.fix === 'It has stock but is Inactive. Open Listing Errors to see why.'; })());
   const html = A.lrProblemHtml(A.hit('R13', 'images_below'), { brand: 'SP', sku: 'R13' }, 'Listing Health snapshot · content read 2d ago');
   ok('B2: one problem block — dot, the level word, what is wrong, how to fix, source line, tag with its hover, Fix button to the Image Manager',
-    /class="sev sev-c"/.test(html) && /lr-lvl is-c">Error: fix first<\/span>Secondary images missing — 4 of 6</.test(html) && /lr-prob-how">Add 2 more pictures/.test(html)
+    /class="sev sev-c"/.test(html) && /lr-lvl is-c">✕ Error: fix first<\/span>Secondary images missing — 4 of 6</.test(html) && /lr-prob-how">Add 2 more pictures/.test(html)
     && /lr-prob-src">Listing Health snapshot/.test(html) && /lr-tag is-own" title="Your own rule. Amazon does not check this.">Company rule/.test(html) && /data-lr-fix="img\|SP\|R13"/.test(html) && !/Check now/.test(html), html);
   const two = A.lrProblemsHtml([A.hit('R4', 'variation_naming'), Object.assign({}, A.hit('R4', 'size_format'), { sev: 'critical' })], { brand: 'SP', sku: 'R4' });
   ok('B4: worst first', two.indexOf('sev-c') < two.indexOf('sev-a'));
@@ -139,10 +165,11 @@ if (require.main === module) {
   ok('Fix hands over to Listing Errors with the attributes', A.calls.some(c => c.tab === 'lerr') && A.calls.some(c => c.sku === 'R4' && c.attrs.join() === 'material'), JSON.stringify(A.calls));
 
   console.log('== the settings ==');
-  ok('defaults: 74, Ridhi / Whimsical Corner, White / Off White', JSON.stringify(A.lrAllow({})) === JSON.stringify({ shortFrom: 74, brandWords: { SP: 'Ridhi', CPC: 'Whimsical Corner' }, embroideryColors: 'White, Off White' }), JSON.stringify(A.lrAllow({})));
+  ok('defaults: 74, our brand words "Ridhi, CPC, Whimsical Corner" (one list for both accounts), White / Off White', JSON.stringify(A.lrAllow({})) === JSON.stringify({ shortFrom: 74, ourBrands: 'Ridhi, CPC, Whimsical Corner', writeAs: { SP: 'Ridhi', CPC: 'Whimsical Corner' }, embroideryColors: 'White, Off White' }), JSON.stringify(A.lrAllow({})));
+  ok('a config saved with the old per-account lists: their words join the shared list (nothing typed is lost)', A.lrAllow({ allow: { brandWords: { SP: 'Ridhi, Ridhi Home', CPC: 'Whimsical Corner' } } }).ourBrands === 'Ridhi, CPC, Whimsical Corner, Ridhi Home', A.lrAllow({ allow: { brandWords: { SP: 'Ridhi, Ridhi Home', CPC: 'Whimsical Corner' } } }).ourBrands);
   A.getLR().allow = { shortFrom: 70 }; A.reset();
   ok('Short forms allowed from 70: the 62-character title still fails, a 70+ one would not', !!A.hit('R2', 'size_format') && A.lrAllow(A.getLR()).shortFrom === 70);
-  A.getLR().allow = { brandWords: { CPC: '' } }; A.reset();
+  A.getLR().allow = { ourBrands: '' }; A.reset();
   ok('no brand words and no Amazon brand: the brand is not judged', !/missing brand/.test((A.hit('C1c', 'title_template') || {}).detail || ''), JSON.stringify(A.hit('C1c', 'title_template')));
   A.getLR().allow = {}; A.reset();
 
@@ -170,7 +197,7 @@ if (require.main === module) {
   const detail = W.liWsDetail(p1.kids.find(k => k.sku === 'R2'), 8);
   ok('B3: the detail shows only the problem, as the one block, with a source line; passed checks behind "Show passed checks (N)"; no Needed column, no "Nothing found"',
     (detail.match(/class="lr-prob"/g) || []).length === 1 && /lr-prob-src">Listing Rules/.test(detail) && /Show passed checks \(\d+\)/.test(detail) && !/Needed/.test(detail) && !/Nothing found/.test(detail) && /data-lr-fix="lerr\|SP\|R2"/.test(detail), detail);
-  ok('B3: the extras from Amazon (Specs, Search terms) are listed as not checked yet, never as failures', /Not checked yet: [^<]*Specs[^<]*Search terms/.test(detail), detail);
+  ok('B3: the extras from Amazon (Specs, Search terms) are listed as ○ Not checked — not an error, never as failures', /○<\/span> <b>Specs<\/b> — Not checked: [^<]* — not an error/.test(detail) && /○<\/span> <b>Search terms<\/b> — Not checked: Not read from Amazon yet — not an error/.test(detail), detail);
 
   /* ---- 6 Nov 2026: only TRUE errors — a listing never shows an error its Amazon page does not have ---- */
   console.log('== A1: pictures are judged by the catalogue (what shoppers see) ==');
@@ -280,7 +307,7 @@ if (require.main === module) {
     && lv.var_value === 'action' && lv.kw_bytes === 'action' && lv.img_low === 'review' && T.LR_DEFAULT.issues.filter(it => it.sev === 'critical').length === 7, JSON.stringify(lv));
   const two2 = T.lrProblemsHtml([T.hit('R4', 'size_format'), Object.assign({}, T.hit('R4', 'variation_naming'), { sev: 'review' }), Object.assign({}, T.hit('R4', 'size_format'), { sev: 'critical', stale: false })], { brand: 'SP', sku: 'R4' });
   ok('Errors always come first, then Needs attention (action before review); review reads "Needs attention" in orange too',
-    two2.indexOf('is-c">Error: fix first') < two2.indexOf('is-a">Needs attention') && (two2.match(/is-a">Needs attention/g) || []).length === 2 && !/sev-r/.test(two2), two2);
+    two2.indexOf('is-c">✕ Error: fix first') < two2.indexOf('is-a">✕ Needs attention') && (two2.match(/is-a">✕ Needs attention/g) || []).length === 2 && !/sev-r/.test(two2), two2);
   const render = (() => { T.LI_WS.on = true; T.LI_WS.sweep = null; /* the re-check above is still running (its stub calls never land): cleared, or the bar shows Stop */ T.liWsRender(); return T.el('liWs').innerHTML; })();
   ok('the Workspace legend: the two words and "Error? Check again"; the toolbar\'s one main button reads "Re-check all errors with Amazon (N)" with the Errors in view',
     /Error: fix first · <span class="sev sev-a"><\/span> Needs attention/.test(render) && /Error\? Check again/.test(render) && T.el('hRecheck').textContent === 'Re-check all errors with Amazon (1)' && T.el('hRecheck').dataset.liWsRecheck === 'go' && T.el('hRecheck').disabled === false
@@ -312,7 +339,7 @@ if (require.main === module) {
     && pOf(/data-li-ws-card="ok"[^]*?(\d+) parents? fully clean/) === okRows.length, JSON.stringify([errRows.length, attRows.length, okRows.length]));
   const parentsC = C.liWsParents(['SP', 'CPC']);
   ok('the No problem filter never shows a parent that has any problem', okRows.length > 0 && okRows.every(key => { const p = parentsC.find(x => x.key === key); return p.kids.filter(k => k.live).every(k => !k.problem && k.bucket === 'healthy'); }), JSON.stringify(okRows));
-  ok('the problem line keeps the old number', new RegExp(`${parentsC.reduce((s, p) => s + p.liveProbN, 0)} live listings have a problem`).test(htmlC));
+  ok('the problem line keeps the old number', new RegExp(`${parentsC.reduce((s, p) => s + p.liveProbN, 0)} counted listings have a problem`).test(htmlC));
   C.LI_WS.card = 'att'; C.liWsRender();
   const kt = C.liWsKidTable(C.LI_WS.byKey.get('SP|P1'), 8);
   ok('inside the parent, the matching listings come first and are marked; the others are faded under "Other listings"', /is-match is-m-att/.test(kt) && /Other listings/.test(kt) && kt.indexOf('is-match') < kt.indexOf('Other listings') && kt.indexOf('Other listings') < kt.indexOf('is-other'));
@@ -327,7 +354,7 @@ if (require.main === module) {
     && /<span class="ui-mono">P1<\/span> · Ridhi · 7 live of 7 listings/.test(P.innerHTML) && /data-li-ws-again="SP\|P1"[^>]*>Read from Amazon now</.test(P.innerHTML) && /data-li-ws-open="SP\|P1">Open in Parent ASINs</.test(P.innerHTML)
     && /data-li-ws-ptab="fix" aria-selected="true"/.test(P.innerHTML) && /data-li-ws-ptab="list"/.test(P.innerHTML) && /data-li-ws-ptab="audit"/.test(P.innerHTML), P.innerHTML.slice(0, 700));
   ok('What to fix: one row per rule, Errors first (Secondary images missing — 1 listing), then Needs attention (Size formatting — 2 listings), each with the level word, the SKUs, how to fix, a tag and Fix',
-    (() => { const h = P.innerHTML; const a = h.indexOf('is-c">Error: fix first</span>Secondary images missing — 1 listing'), b = h.indexOf('is-a">Needs attention</span>Size formatting inconsistent — 2 listings'); return a > 0 && b > a && /<small title="R13">R13<\/small>/.test(h) && /ls-rec-how">Add 2 more pictures/.test(h) && /data-lr-fix="img\|SP\|R13"/.test(h) && /class="ls-rec is-err"/.test(h) && /class="ls-rec is-att"/.test(h); })(), P.innerHTML.slice(P.innerHTML.indexOf('ls-recs'), P.innerHTML.indexOf('ls-recs') + 900));
+    (() => { const h = P.innerHTML; const a = h.indexOf('is-c">✕ Error: fix first</span>Secondary images missing — 1 listing'), b = h.indexOf('is-a">✕ Needs attention</span>Size formatting inconsistent — 2 listings'); return a > 0 && b > a && /<small title="R13">R13<\/small>/.test(h) && /ls-rec-how">Add 2 more pictures/.test(h) && /data-lr-fix="img\|SP\|R13"/.test(h) && /class="ls-rec is-err"/.test(h) && /class="ls-rec is-att"/.test(h); })(), P.innerHTML.slice(P.innerHTML.indexOf('ls-recs'), P.innerHTML.indexOf('ls-recs') + 900));
   ok('…Errors from old data read "Error? Check again" in the panel too', (() => {
     const r = C.rows.find(x => x.sku === 'R14'); r.content.images = 0; r.checked = NOW - 21 * DAY; C.reset(); C.liWsRender();
     C.liWsPanelOpen('SP|P4'); const h = C.el('lsPanel').innerHTML;
@@ -338,7 +365,7 @@ if (require.main === module) {
   ok('Listings tab: every child with picture, SKU, status and its problems as tags or ✓; the table toggle', (C.el('lsPanel').innerHTML.match(/class="ls-kid"/g) || []).length === 7 && /ls-tag is-err"[^>]*>Secondary images missing/.test(C.el('lsPanel').innerHTML)
     && /ls-tag is-ok">✓ No problem/.test(C.el('lsPanel').innerHTML) && /data-li-ws-ptable="1">Show every check as a table/.test(C.el('lsPanel').innerHTML), (C.el('lsPanel').innerHTML.match(/class="ls-kid"/g) || []).length);
   C.LI_WS.openSku.add('SP|R13'); C.liWsPanelRender();
-  ok('…a child opens to its own problems with "Show passed checks"', /ls-kid-d/.test(C.el('lsPanel').innerHTML) && /lr-prob-what"><span class="lr-lvl is-c">Error: fix first<\/span>Secondary images missing — 4 of 6/.test(C.el('lsPanel').innerHTML) && /Show passed checks \(\d+\)/.test(C.el('lsPanel').innerHTML), C.el('lsPanel').innerHTML.slice(C.el('lsPanel').innerHTML.indexOf('ls-kid-d'), C.el('lsPanel').innerHTML.indexOf('ls-kid-d') + 400));
+  ok('…a child opens to its own problems with "Show passed checks"', /ls-kid-d/.test(C.el('lsPanel').innerHTML) && /lr-prob-what"><span class="lr-lvl is-c">✕ Error: fix first<\/span>Secondary images missing — 4 of 6/.test(C.el('lsPanel').innerHTML) && /Show passed checks \(\d+\)/.test(C.el('lsPanel').innerHTML), C.el('lsPanel').innerHTML.slice(C.el('lsPanel').innerHTML.indexOf('ls-kid-d'), C.el('lsPanel').innerHTML.indexOf('ls-kid-d') + 400));
   C.LI_WS.openSku.clear();
   C.LI_WS.panel.table = true; C.liWsPanelRender();
   ok('…"Show every check as a table" shows the checklist table', /class="li-ws-kidtable"/.test(C.el('lsPanel').innerHTML) && (C.el('lsPanel').innerHTML.match(/class="li-ws-kid[" ]/g) || []).length === 7);
@@ -423,7 +450,7 @@ if (require.main === module) {
   })();
   ok('Size heading: Size not in house style: "18x18 Inc" — no "approved is"', (() => {
     const h = C.lrProblemHtml(C.healthOf(C.rows.find(x => x.sku === 'R2'), C.hCtx()).found.find(x => x.detector === 'size_format'), null);
-    return /lr-prob-what"><span class="lr-lvl is-a">Needs attention<\/span>Size not in house style: &quot;18x18 Inc&quot;</.test(h) && !/approved is/.test(h); })());
+    return /lr-prob-what"><span class="lr-lvl is-a">✕ Needs attention<\/span>Size not in house style: &quot;18x18 Inc&quot;</.test(h) && !/approved is/.test(h); })());
 
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);

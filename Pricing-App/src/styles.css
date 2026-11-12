@@ -1552,6 +1552,7 @@
   .lr-allow input{padding:4px 8px;border-radius:6px;font-size:12.5px;line-height:1.3}
   .lr-allow .w-xs{width:62px}
   .lr-allow .w-m{width:200px}
+  .lr-allow .w-l{width:320px;max-width:100%}
 
   /* ----- Listing Workspace (listing/listing-workspace.js): Listing Health's third view, a checklist per listing ----- */
   /* Three buttons in the segment now: a little less side padding keeps the toolbar on one line at 1440px. */
@@ -2077,6 +2078,329 @@
   #paneHealth .lk-passed{padding:0 16px 14px;font-size:12px;line-height:1.55;color:var(--muted)}
   #paneHealth .lk-passed b{color:var(--ink);font-weight:600}
   #paneHealth .lk-src{color:var(--faint)}
+  /* ===== SEASON PLANNER (12 Nov 2026): the Listing Optimiser's second view and the Workspace panel's Season tab — the Ad Console look
+     again (.sp-* copies of .adx-meta / .adx-box / .px-toolbar / .adh-f), tokens only, transform-only animation. Written for a seller:
+     big targets (40px+), one filled button per card, icon + word for every state. ===== */
+  .sp-switch{display:inline-flex;align-items:stretch;gap:2px;margin:0 0 12px;padding:3px;border-radius:var(--r-pill);background:var(--hover);border:1px solid var(--line)}
+  .sp-switch .segbtn{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:40px;padding:5px 16px;border-radius:var(--r-pill);line-height:1.2}
+  .sp-switch .segbtn small{display:block;font-size:10.5px;font-weight:500;color:var(--faint);letter-spacing:0}
+  .sp-switch .segbtn.on small{color:var(--muted)}
+  .sp-root{--sp-c:var(--brand)}
+  .sp-root button{font:inherit}
+  /* How it works: three numbered steps with an icon, a ? for the short explanation, Hide. */
+  .sp-how{display:flex;align-items:center;gap:12px 20px;flex-wrap:wrap;margin:0 0 12px;padding:12px 16px;border:1px solid var(--card-line);border-radius:var(--r-card);background:var(--card);box-shadow:var(--sh-1)}
+  .sp-how.is-folded{padding:6px 12px;background:transparent;border-color:transparent;box-shadow:none}
+  .sp-steps{display:flex;flex:1 1 auto;gap:8px 24px;flex-wrap:wrap}
+  .sp-step{display:flex;align-items:center;gap:10px;min-width:0;font-size:13px}
+  .sp-step b{display:block;font-weight:650;color:var(--ink)}
+  .sp-step small{display:block;font-size:11.5px;color:var(--muted)}
+  .sp-step-n{flex:none;display:grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--ink);color:var(--card);font-size:12px;font-weight:700}
+  .sp-step-i{flex:none;display:grid;place-items:center;width:30px;height:30px;border-radius:var(--r-sm);background:color-mix(in srgb,var(--sp-c) 14%,transparent);color:var(--sp-c)}
+  .sp-step-i svg,.sp-ic svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+  .sp-how-a{display:flex;align-items:center;gap:10px}
+  .sp-q{display:grid;place-items:center;width:30px;height:30px;margin:0;padding:0;border:1.5px solid var(--faint);border-radius:50%;background:transparent;color:var(--muted);font-size:14px;font-weight:700;box-shadow:none;cursor:pointer}
+  .sp-q:hover,.sp-q[aria-expanded="true"]{background:var(--hover);color:var(--ink)}
+  .sp-help{flex-basis:100%;font-size:13px;line-height:1.55;color:var(--muted)}
+  .sp-link{margin:0;padding:4px 6px;border:0;background:transparent;color:var(--brand-ink);font-size:12.5px;font-weight:600;text-decoration:underline;text-underline-offset:2px;box-shadow:none;cursor:pointer}
+  .sp-link:hover{background:var(--brand-bg);color:var(--brand-ink)}
+  /* The meta line and the toolbar, like the Listing Health ones. */
+  .sp-reading{color:var(--act-ink);font-weight:600}
+  .card.sp-tb{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:12px 16px;margin-bottom:10px;border-radius:var(--r-card);box-shadow:var(--sh-1);border:1px solid var(--card-line)}
+  .sp-search{display:flex;align-items:center;gap:8px;flex:1 1 200px;min-width:180px;height:var(--ctl);padding:0 12px;border:1px solid var(--line);border-radius:var(--r-ctl);background:var(--card)}
+  .sp-search svg{flex:none;width:16px;height:16px;fill:none;stroke:var(--faint);stroke-width:2;stroke-linecap:round}
+  .sp-search input{flex:1 1 auto;min-width:0;height:auto;margin:0;padding:0;border:0;background:transparent;color:var(--ink);font:inherit;font-size:13px;box-shadow:none}
+  .sp-search input:focus{outline:none}
+  .sp-search:focus-within{box-shadow:var(--ring)}
+  /* Buttons: one filled main button, quiet ones beside it. 40px targets. */
+  /* The main button is the app's own primary (brand blue, its own text colour) in light and dark, so it always reads as pressable;
+     disabled it turns flat grey with a dashed edge — never the same colour dimmed, which read as "off" in dark mode. */
+  .sp-main{display:inline-flex;align-items:center;justify-content:center;min-height:40px;margin:0;padding:0 18px;border:1px solid var(--brand);border-radius:var(--r-ctl);background:var(--brand);color:var(--on-brand);font-size:13px;font-weight:650;line-height:1;white-space:nowrap;box-shadow:var(--sh-btn);cursor:pointer;transition:transform .12s ease}
+  .sp-main:hover{background:var(--brand-ink);border-color:var(--brand-ink);color:var(--on-brand)}
+  .sp-main:active{transform:translateY(1px)}
+  .sp-main:disabled,.sp-main:disabled:hover{opacity:1;cursor:not-allowed;transform:none;background:var(--hover);border:1px dashed var(--line);color:var(--faint);box-shadow:none}
+  .sp-main:focus-visible{outline:none;box-shadow:var(--ring)}
+  .sp-btn{display:inline-flex;align-items:center;justify-content:center;min-height:40px;margin:0;padding:0 14px;border:1px solid var(--line);border-radius:var(--r-ctl);background:var(--card);color:var(--ink);font-size:13px;font-weight:600;line-height:1;white-space:nowrap;box-shadow:none;cursor:pointer}
+  .sp-btn:hover{background:var(--hover);color:var(--ink);box-shadow:none}
+  .sp-btn:focus-visible{outline:none;box-shadow:var(--ring)}
+  .sp-btn.sp-quiet{border-color:transparent;color:var(--muted)}
+  /* The four number boxes, like .adx-box. */
+  @media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .sp-box::after{opacity:.2}}
+  /* The season timeline: one card a season, in date order, scrolls sideways; the seasons on now stand out. */
+  .sp-tl{display:flex;gap:8px;overflow-x:auto;padding:2px 2px 8px;margin:0 0 6px;scroll-snap-type:x proximity}
+  .sp-tlc{flex:0 0 auto;display:flex;flex-direction:column;align-items:flex-start;gap:3px;min-width:170px;min-height:40px;margin:0;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--card);color:var(--ink);text-align:left;line-height:1.3;box-shadow:none;cursor:pointer;scroll-snap-align:start;transition:transform .15s cubic-bezier(.2,.7,.2,1),box-shadow .15s ease}
+  .sp-tlc:hover{box-shadow:var(--sh-1);transform:translateY(-2px);background:var(--card);color:var(--ink)}
+  .sp-tlc:focus-visible{outline:none;box-shadow:var(--ring)}
+  .sp-tlc>b{font-size:13px;font-weight:650}
+  .sp-tlc.is-now{border-color:var(--accent);background:var(--accent-bg)}
+  .sp-tlc.is-now>b{color:var(--accent-ink)}
+  .sp-tlc.is-soon{border-color:var(--act)}
+  .sp-tlc.is-plain{opacity:.8}
+  .sp-tlc.is-on{box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 35%,transparent)}
+  .sp-tlw{font-size:11.5px;font-weight:600;color:var(--muted)}
+  .sp-tlc.is-now .sp-tlw{color:var(--accent-ink)}
+  .sp-tld{font-size:11.5px;color:var(--faint)}
+  .sp-tld b{color:var(--ink);font-weight:600}
+  .sp-tln{font-size:11.5px;color:var(--muted)}
+  /* The list chips. */
+  .sp-chips{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 10px}
+  .sp-chip{display:inline-flex;align-items:center;gap:7px;min-height:40px;margin:0;padding:0 14px;border:1px solid var(--line);border-radius:var(--r-pill);background:var(--card);color:var(--muted);font-size:12.5px;font-weight:600;box-shadow:none;cursor:pointer}
+  .sp-chip:hover{background:var(--hover);color:var(--ink)}
+  .sp-chip.is-on{background:var(--ink);color:var(--card);border-color:var(--ink)}
+  .sp-chip:focus-visible{outline:none;box-shadow:var(--ring)}
+  .sp-n{display:inline-block;min-width:18px;padding:0 6px;border-radius:var(--r-pill);background:color-mix(in srgb,var(--ink) 8%,transparent);font-size:11px;text-align:center}
+  .sp-chip.is-on .sp-n{background:color-mix(in srgb,var(--card) 22%,transparent)}
+  /* A parent's group card and the listing cards inside it. */
+  .sp-root .ls-pic{flex:none;display:grid;place-items:center;width:36px;height:36px;border-radius:var(--r-sm);overflow:hidden;background:var(--hover)}
+  .sp-root .ls-pic img{width:100%;height:100%;object-fit:cover}
+  .sp-root .ls-pic.is-broken img{display:none}
+  /* Status: an icon AND a word, never colour alone. */
+  .sp-alts{margin-left:10px;font-weight:500;color:var(--faint)}
+  .sp-alts .sp-link{padding:2px 4px;font-size:12px}
+  /* The hint Listing Errors shows when a listing arrives from the Season planner with a suggestion typed in. */
+  .lc-hint{margin:0 0 8px;padding:8px 12px;border-radius:10px;background:var(--brand-bg);color:var(--brand-ink);font-size:12.5px;line-height:1.5}
+  .sp-cnt{position:absolute;right:12px;top:8px;font-size:11.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+  .sp-cnt.is-over{color:var(--bad-ink);font-weight:650}
+  .sp-checks{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:2px 16px;margin:6px 0 2px;padding:0;list-style:none}
+  .sp-chk{display:flex;align-items:flex-start;gap:6px;font-size:12.5px;color:var(--muted)}
+  .sp-chk i{flex:none;font-style:normal;font-weight:700;width:14px}
+  .sp-chk.is-ok i{color:var(--accent-ink)}
+  .sp-chk.is-warn{color:var(--rev-ink)}
+  .sp-chk.is-no{color:var(--bad-ink);font-weight:600}
+  .sp-edit{display:block;width:100%;margin:2px 0 0;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);font:inherit;font-size:13.5px;line-height:1.45;resize:vertical}
+  .sp-edit:focus{outline:none;box-shadow:var(--ring)}
+  .sp-reason{flex-basis:100%;font-size:12.5px;color:var(--rev-ink)}
+  .sp-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:-4px 0 16px;font-size:12.5px;color:var(--muted)}
+  .card.sp-empty{padding:40px 16px;text-align:center;color:var(--muted);font-size:13px;line-height:1.6}
+  .card.sp-empty b{color:var(--ink);font-weight:600}
+  .card.sp-empty .sp-main{margin-top:10px}
+  .card.sp-list{padding:0}
+  /* The result after a send. */
+  .card.sp-result{padding:12px 16px;margin-bottom:12px;border-left:4px solid var(--accent)}
+  .card.sp-result.has-bad{border-left-color:var(--bad)}
+  .sp-res-ok{color:var(--accent-ink);font-weight:650}
+  .sp-res-bad{margin-top:4px;color:var(--bad-ink)}
+  .sp-res-bad .lr-fixbtn{margin-left:6px}
+  /* Loading placeholders. */
+  .sp-skel{display:inline-block;width:72px;height:24px;border-radius:var(--r-pill);background:var(--hover);animation:ls-pulse 1.2s ease-in-out infinite}
+  .sp-skel.is-w{width:55%;height:14px}
+  .sp-skel.is-s{width:44px;height:14px}
+  .sp-skel.is-pic{width:36px;height:36px;border-radius:var(--r-sm)}
+  /* The confirm window and the progress bar. */
+  .modalbox.sp-modal{width:min(640px,100%);max-height:calc(100vh - 32px);display:flex;flex-direction:column;padding:0;overflow:hidden}
+  .sp-m-h{padding:18px 22px 10px}
+  .sp-m-h b{font-size:16px;font-weight:700}
+  .sp-m-h p{margin:4px 0 0;font-size:13px;color:var(--muted)}
+  .sp-m-list{flex:1 1 auto;min-height:0;overflow:auto;padding:0 22px;border-top:1px solid var(--line)}
+  .sp-m-row{padding:10px 0;border-bottom:1px solid var(--line);font-size:13px}
+  .sp-m-row b{display:block;font-weight:650}
+  .sp-m-row small{color:var(--faint)}
+  .sp-m-now ins{background:color-mix(in srgb,var(--accent) 22%,transparent);color:var(--accent-ink);text-decoration:none;border-radius:3px;padding:0 2px;font-weight:650}
+  .sp-m-now del{display:none}
+  .sp-m-kw{font-size:12px;color:var(--muted)}
+  .sp-m-a{display:flex;gap:10px;padding:14px 22px 18px;border-top:1px solid var(--line)}
+  .sp-pbar{height:8px;margin:0 22px 22px;border-radius:var(--r-pill);background:var(--hover);overflow:hidden}
+  .sp-pbar span{display:block;height:100%;border-radius:var(--r-pill);background:var(--accent);transition:width .25s ease}
+  /* Inside the Workspace panel's Season tab: the same cards, the panel's width. */
+  @media (max-width:760px){
+    .sp-steps{gap:8px 14px}
+    .card.sp-tb{padding:10px 12px}
+    .sp-search{flex-basis:100%}
+    .sp-cnt{position:static;display:block;margin-top:2px}
+    .sp-checks{grid-template-columns:1fr}
+    .modalbox.sp-modal{max-height:100vh;border-radius:0}
+  }
+  @media (prefers-reduced-motion:reduce){
+    .sp-box,.sp-tlc,.sp-main,.sp-skel,.sp-pbar span{transition:none;animation:none}
+    .sp-box:hover,.sp-tlc:hover,.sp-main:active{transform:none}
+  }
+  /* ----- Rule Engine (12 Nov 2026): Image Manager's Picture check and Listing Rules' History. They reuse the look classes that work
+     outside Listing Health (.card, .sp-chip, .sp-seg, .sp-main, .sp-btn, .sp-link, .sp-chip-s, .sp-dim, .sp-empty, .sp-skel, .sp-foot —
+     the Ad Console copies above); Listing Health's own .ls-* rules are scoped to #paneHealth and stay untouched. Only layout is new,
+     scoped to #paneImg / #paneLrules, tokens only. ----- */
+  #paneImg #imPcChip{flex:0 0 auto}
+  #paneImg #imPcChip.is-on{background:var(--ink);color:var(--card);border-color:var(--ink)}
+  #paneImg .card.pc-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px 16px;flex-wrap:wrap;padding:14px 16px;margin-bottom:12px;
+    border-radius:var(--r-card);border:1px solid var(--card-line);box-shadow:var(--sh-1)}
+  #paneImg .pc-head>div:first-child{flex:1 1 320px;min-width:0}
+  #paneImg .pc-head p{margin:4px 0;font-size:13px;line-height:1.5;color:var(--muted)}
+  #paneImg .pc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;margin:0 0 12px}
+  #paneImg .card.pc-card{display:flex;flex-direction:column;margin:0;padding:0;overflow:hidden;border-radius:var(--r-card);border:1px solid var(--card-line);box-shadow:var(--sh-1)}
+  #paneImg .card.pc-card.is-ok{border-color:color-mix(in srgb,var(--accent) 45%,var(--card-line))}
+  #paneImg .card.pc-card.is-bad{border-color:color-mix(in srgb,var(--bad) 45%,var(--card-line))}
+  #paneImg .card.pc-card.is-focus{box-shadow:0 0 0 3px color-mix(in srgb,var(--brand) 40%,transparent)}
+  #paneImg .pc-pic{display:grid;place-items:center;aspect-ratio:1/1;background:var(--soft);border-bottom:1px solid var(--line)}
+  #paneImg .pc-pic img{display:block;width:100%;height:100%;object-fit:contain}
+  #paneImg .pc-skel-pic{display:block;width:100%;height:auto;aspect-ratio:1/1;border-radius:0}
+  #paneImg .pc-body{display:flex;flex-direction:column;gap:6px;padding:12px 14px 14px}
+  #paneImg .pc-name{font-size:13.5px;font-weight:650;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  #paneImg .pc-q{margin:4px 0 0;font-size:13.5px;font-weight:600;color:var(--ink);line-height:1.4}
+  #paneImg .pc-state{margin:0;font-size:12px;line-height:1.6}
+  #paneImg .sp-chip-s.pc-bad{background:var(--bad-bg);color:var(--bad-ink)}
+  #paneImg .pc-note-l{display:flex;flex-direction:column;gap:2px;font-size:11.5px;font-weight:600;color:var(--muted)}
+  #paneImg .pc-note{width:100%;height:36px;margin:0;padding:0 10px;border:1px solid var(--line);border-radius:var(--r-ctl);background:var(--card);color:var(--ink);font:inherit;font-size:13px}
+  #paneImg .pc-note:focus{outline:none;box-shadow:var(--ring)}
+  #paneImg .pc-act{display:flex;gap:8px}
+  #paneImg .pc-act button{flex:1 1 0}
+  #paneLrules .card.lr-hist{margin-top:12px;padding:14px 16px}
+  #paneLrules .lr-h-head{display:flex;align-items:baseline;gap:4px 12px;flex-wrap:wrap;margin-bottom:6px}
+  #paneLrules .lr-h-row{padding:10px 0;border-top:1px solid var(--line);font-size:13px}
+  #paneLrules .lr-h-list{margin:4px 0 2px;padding-left:18px;line-height:1.55;color:var(--ink)}
+  #paneLrules .lr-h-cmp{margin-top:6px;padding:10px 12px;border-radius:10px;background:var(--soft)}
+  #paneLrules .lr-h-none{margin:6px 0 0}
+  @media (max-width:760px){
+    #paneImg .pc-grid{grid-template-columns:1fr}
+    #paneImg .pc-head .sp-seg{flex:1 1 100%}
+  }
+  /* ----- Season planner, three levels (12 Nov 2026, final): parent cards on the page, a parent's side panel (520px), a child's side panel
+     (460px, to the right of the parent on wide screens). Tokens only; transform-only animation; none under prefers-reduced-motion. ----- */
+  .sp-today{margin:0 2px 12px;font-size:14px;line-height:1.5;color:var(--muted)}
+  .sp-today b{color:var(--ink);font-weight:650}
+  .sp-seg{display:inline-flex;gap:2px;padding:3px;border-radius:var(--r-pill);background:var(--hover);border:1px solid var(--line)}
+  .sp-seg button{min-height:34px;margin:0;padding:0 14px;border:0;border-radius:var(--r-pill);background:transparent;color:var(--muted);font-size:13px;font-weight:600;box-shadow:none;cursor:pointer}
+  .sp-seg button:hover{color:var(--ink);background:color-mix(in srgb,var(--card) 55%,transparent)}
+  .sp-seg button.on{background:var(--raise);color:var(--ink);box-shadow:var(--sh-1)}
+  .sp-seg button:focus-visible{outline:none;box-shadow:var(--ring)}
+  .sp-list{display:flex;flex-direction:column;gap:8px;margin:0 0 12px}
+  /* Level 1: one card per parent — picture, name, one line, Open ›. The whole card is the button. */
+  .card.sp-pc{display:flex;align-items:center;gap:14px;min-height:64px;margin:0;padding:12px 16px;border-radius:var(--r-card);border:1px solid var(--card-line);box-shadow:var(--sh-1);
+    cursor:pointer;transition:transform .15s cubic-bezier(.2,.7,.2,1),box-shadow .15s ease}
+  .card.sp-pc:hover{transform:translateY(-2px);box-shadow:var(--sh-2)}
+  .card.sp-pc:focus-visible{outline:none;box-shadow:var(--ring)}
+  .card.sp-pc.is-open{border-color:var(--brand);background:var(--brand-bg)}
+  .card.sp-pc.is-done{opacity:.8}
+  .card.sp-pc.is-skel{cursor:default}
+  .card.sp-pc.is-skel:hover{transform:none;box-shadow:var(--sh-1)}
+  .sp-pc-t{flex:1 1 auto;min-width:0}
+  .sp-pc-t b{display:block;font-size:14.5px;font-weight:650;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .sp-pc-t span{display:block;margin-top:2px;font-size:12.5px;color:var(--muted)}
+  .sp-pc-open{flex:none;display:inline-flex;align-items:center;min-height:40px;padding:0 14px;border:1px solid var(--line);border-radius:var(--r-ctl);background:var(--card);color:var(--ink);font-size:13px;font-weight:600}
+  .card.sp-pc:hover .sp-pc-open{background:var(--hover)}
+  .sp-ok{color:var(--accent-ink);font-weight:600}
+  .sp-you{color:var(--rev-ink);font-weight:600}
+  .sp-wait{color:var(--act-ink)}
+  .sp-root .ls-pic.ls-lg{width:48px;height:48px;border-radius:10px}
+  .sp-done{margin:4px 0 16px}
+  .sp-done .sp-list{margin-top:8px}
+  /* The side panels, like .px-pop: fixed to the right, the page's full height, 16px radius, the soft shadow; slide in by transform only. */
+  .sp-side{position:fixed;top:8px;right:8px;bottom:8px;z-index:61;display:flex;flex-direction:column;width:min(520px,calc(100vw - 16px));
+    background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:var(--sh-2);animation:sp-in .22s cubic-bezier(.2,.7,.2,1) backwards;
+    transition:transform .22s cubic-bezier(.2,.7,.2,1)}
+  .sp-side[hidden]{display:none}
+  .sp-side:focus{outline:none}
+  @keyframes sp-in{from{transform:translateX(24px)}to{transform:none}}
+  .sp-side.sp-kp{z-index:62;width:min(460px,calc(100vw - 16px))}
+  /* Wide screens: the parent moves left so both show side by side; narrower, the child covers it and "← Back" shows. */
+  @media (min-width:1100px){
+    .sp-side.sp-pp.has-kid{transform:translateX(calc(-460px - 8px))}
+    .sp-side.sp-kp .sp-back{display:none}
+  }
+  .sp-side-h{flex:none;padding:12px 12px 0}
+  .sp-side-b{flex:1 1 auto;min-height:0;overflow:auto;padding:12px}
+  .sp-hc{display:flex;align-items:center;gap:12px;padding:12px;border:1px solid var(--card-line);border-radius:12px;background:var(--soft)}
+  .sp-hc-t{flex:1 1 auto;min-width:0}
+  .sp-hc-t b{display:block;font-size:15px;font-weight:650;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .sp-hc-t span{display:block;margin-top:2px;font-size:12.5px;color:var(--muted)}
+  .sp-hc-t small{display:block;font-family:ui-monospace,monospace;font-size:11px;color:var(--faint)}
+  .sp-hc-t .sp-chip-s{display:inline-flex;margin-top:6px}
+  .sp-kp .sp-hc-t b{white-space:normal}
+  .sp-x{flex:none;display:grid;place-items:center;width:40px;height:40px;margin:0;padding:0;border:0;border-radius:50%;background:var(--hover);color:var(--muted);font-size:20px;line-height:1;box-shadow:none;cursor:pointer}
+  .sp-x:hover{background:color-mix(in srgb,var(--ink) 12%,transparent);color:var(--ink)}
+  .sp-x:focus-visible{outline:none;box-shadow:var(--ring)}
+  .sp-back{display:inline-flex;align-items:center;min-height:40px;margin:0 0 8px;padding:0 12px;border:1px solid var(--line);border-radius:var(--r-ctl);background:var(--card);color:var(--ink);
+    font-size:13px;font-weight:600;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;box-shadow:none;cursor:pointer}
+  .sp-back:hover{background:var(--hover)}
+  .sp-back:focus-visible{outline:none;box-shadow:var(--ring)}
+  .sp-psent{margin:4px 2px 12px}
+  /* Level 2: three state cards in a row — count, one line, one button; a card with 0 is greyed. */
+  .sp-scs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:0 0 12px}
+  .sp-sc{--c:var(--faint);display:flex;flex-direction:column;gap:6px;min-width:0;padding:12px;border:1px solid var(--card-line);border-radius:12px;background:var(--card);
+    box-shadow:inset 0 3px 0 color-mix(in srgb,var(--c) 70%,transparent)}
+  .sp-sc.is-ready{--c:var(--accent)}
+  .sp-sc.is-look{--c:var(--rev)}
+  .sp-sc.is-fix{--c:var(--brand)}
+  .sp-sc.is-zero{opacity:.55}
+  .sp-sc-h{display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:650;color:var(--ink)}
+  .sp-sc-h b{margin-left:auto;font-size:20px;font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums}
+  .sp-sc-i{display:grid;place-items:center;width:22px;height:22px;border-radius:50%;background:color-mix(in srgb,var(--c) 18%,transparent);color:var(--c);font-size:12px;font-weight:700}
+  .sp-sc p{flex:1 1 auto;margin:0;font-size:12px;line-height:1.4;color:var(--muted)}
+  .sp-sc .sp-main,.sp-sc .sp-btn{width:100%;white-space:normal;line-height:1.2;text-align:center}
+  .sp-filter{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 2px 8px;font-size:12.5px;color:var(--muted)}
+  /* The children as compact card-rows, no gaps: picture · Colour · Size · Pack (what we'll do, SKU small grey) · state chip · one button. */
+  .sp-rows{border:1px solid var(--card-line);border-radius:12px;overflow:hidden;background:var(--card)}
+  .sp-row{display:grid;grid-template-columns:36px minmax(0,1fr) auto auto;align-items:center;gap:4px 10px;min-height:56px;padding:8px 12px;border-top:1px solid var(--line);cursor:pointer}
+  .sp-row:first-child{border-top:0}
+  .sp-row:hover{background:var(--hover)}
+  .sp-row:focus-visible{outline:none;box-shadow:inset 0 0 0 2px var(--ring-line)}
+  .sp-row.is-open{background:var(--brand-bg)}
+  .sp-row-t{min-width:0}
+  .sp-row-t b{display:block;font-size:13px;font-weight:650;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .sp-row-t span{display:block;font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .sp-row-t small{display:block;font-family:ui-monospace,monospace;font-size:10.5px;color:var(--faint)}
+  .sp-row-b{min-height:36px;padding:0 14px}
+  .sp-more-ok{margin:10px 2px 0;font-size:12.5px;color:var(--accent-ink)}
+  /* A state chip: icon AND word, never colour alone. */
+  .sp-chip-s{flex:none;display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:var(--r-pill);background:var(--hover);color:var(--muted);font-size:12px;font-weight:650;white-space:nowrap}
+  .sp-chip-s i{font-style:normal}
+  .sp-chip-s.is-ready,.sp-chip-s.is-ok{background:var(--accent-bg);color:var(--accent-ink)}
+  .sp-chip-s.is-look{background:var(--rev-bg);color:var(--rev-ink)}
+  .sp-chip-s.is-fix{background:var(--brand-bg);color:var(--brand-ink)}
+  .sp-chip-s.is-reading{background:var(--act-bg);color:var(--act-ink)}
+  /* Level 3: the child's cards, top to bottom, and the action bar fixed at the bottom of the panel. */
+  .sp-card2{margin:0 0 8px;padding:12px 14px;border:1px solid var(--card-line);border-radius:12px;background:var(--card);font-size:13.5px;line-height:1.5}
+  .sp-card2 h4{margin:0 0 4px;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--faint)}
+  .sp-card2 p{margin:0}
+  .sp-card2.sp-prob{border-color:color-mix(in srgb,var(--rev) 45%,var(--card-line))}
+  .sp-card2.sp-do{background:var(--soft)}
+  .sp-card2 .sp-alts{margin-top:6px;font-size:12.5px;color:var(--muted)}
+  .sp-ba small{display:block;margin-top:4px;font-size:10.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--faint)}
+  .sp-ba p{overflow-wrap:anywhere}
+  .sp-card2 ins,.sp-m-now ins,.sp-kwfull ins{background:color-mix(in srgb,var(--accent) 22%,transparent);color:var(--accent-ink);text-decoration:none;border-radius:3px;padding:0 2px;font-weight:650}
+  .sp-card2 del{background:color-mix(in srgb,var(--bad) 14%,transparent);color:var(--bad-ink);text-decoration:line-through;border-radius:3px;padding:0 2px}
+  .sp-add{color:var(--accent-ink);font-weight:650}
+  .sp-rem{color:var(--bad-ink)}
+  .sp-dim{color:var(--muted);font-size:12.5px;font-weight:400}
+  .sp-times{color:var(--muted);font-size:11.5px}
+  .sp-fold{margin-top:6px}
+  .sp-fold summary{min-height:32px;display:flex;align-items:center;font-size:12.5px;font-weight:600;color:var(--brand-ink);cursor:pointer;list-style:none}
+  .sp-fold summary::-webkit-details-marker{display:none}
+  .sp-fold summary::before{content:"›";display:inline-block;margin-right:6px;transition:transform .15s ease}
+  .sp-fold[open] summary::before{transform:rotate(90deg)}
+  .sp-fold summary:focus-visible{outline:none;box-shadow:var(--ring);border-radius:6px}
+  .sp-chk-sum{color:var(--accent-ink)}
+  .sp-card2.sp-pre-c{border-style:dashed;background:var(--soft)}
+  .sp-card2.sp-pre-c h4{color:var(--muted)}
+  .sp-chk.is-pre{color:var(--muted)}
+  .sp-chk.is-pre i{color:var(--rev-ink)}
+  .sp-fold.is-warn .sp-chk-sum{color:var(--rev-ink)}
+  .sp-fold.is-bad .sp-chk-sum{color:var(--bad-ink)}
+  .sp-kwfull small{display:block;margin-top:4px;font-size:10.5px;font-weight:700;text-transform:uppercase;color:var(--faint)}
+  .sp-kwfull p{font-size:12.5px;color:var(--muted);overflow-wrap:anywhere}
+  .sp-card2 .sp-checks{grid-template-columns:1fr;margin-top:6px}
+  .sp-card2 .sp-cnt{position:static;display:block;margin-top:2px}
+  .sp-bar{flex:none;display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:12px;border-top:1px solid var(--line);background:var(--card);border-radius:0 0 16px 16px}
+  .sp-bar .sp-main{flex:1 1 auto}
+  .sp-bar .sp-reason{flex-basis:100%}
+  .sp-small{min-height:32px;padding:0 10px;font-size:12px}
+  .sp-res-h{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+  .sp-res-h small{color:var(--muted)}
+  .sp-res-no{color:var(--bad-ink);font-weight:650}
+  #spModal{z-index:70}
+  @media (max-width:760px){
+    .sp-side,.sp-side.sp-kp{top:0;right:0;bottom:0;width:100vw;border:0;border-radius:0}
+    .sp-bar{border-radius:0}
+    .sp-scs{grid-template-columns:1fr}
+    .sp-row{grid-template-columns:36px minmax(0,1fr) auto}
+    .sp-row .sp-chip-s{grid-column:2;grid-row:2;justify-self:start}
+    .sp-row .sp-row-b{grid-column:3;grid-row:1/span 2}
+    .card.sp-pc{flex-wrap:wrap}
+    .sp-pc-open{display:none}
+    .sp-seg{flex:1 1 100%}
+    .sp-seg button{flex:1 1 0}
+  }
+  @media (prefers-reduced-motion:reduce){
+    .sp-side,.card.sp-pc,.sp-fold summary::before{animation:none;transition:none}
+    .card.sp-pc:hover{transform:none}
+  }
   /* The Workspace's own bar is slim now: the progress on the left, Sort again and the sweep on the right. */
   #paneHealth .li-ws-bar{margin:0 0 10px}
   @media (max-width:860px){

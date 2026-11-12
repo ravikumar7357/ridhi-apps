@@ -776,6 +776,8 @@
     <!-- "What people may write": the allowances (not errors), drawn by listing/listing-rules-tab.js in the Issues view. -->
     <div id="lrAllow" class="card lr-allow hide"></div>
     <div class="card xlwrap" style="margin-top:12px"><table class="xl" id="lrTable"></table></div>
+    <!-- History: each "Save rules" keeps the version it replaces (listing/listing-rules-tab.js draws it). -->
+    <div id="lrHistory" class="card lr-hist"></div>
   </div>
 
   <div id="paneAudit" class="hide">
@@ -1766,6 +1768,13 @@
        served from /toolkit.html on this same site.
        Loaded LAZILY (src set on first open) so it is not fetched by everyone who never opens it. -->
   <div id="paneOpt" class="hide">
+    <!-- Review one ASIN (today's screen, below) or the Season planner (listing/season-planner.js draws #spPane). -->
+    <div class="seg sp-switch" id="spSwitch" role="group" aria-label="What to do">
+      <button type="button" class="segbtn on" data-sp-view="one" aria-pressed="true">Review one ASIN</button>
+      <button type="button" class="segbtn" data-sp-view="season" aria-pressed="false">Season planner<small>Seasonal Title Optimiser</small></button>
+    </div>
+    <div id="spPane" class="sp-root hide"></div>
+    <div id="loOne">
     <div class="card" style="padding:12px 14px;margin-bottom:12px">
       <div class="toolbar">
         <input id="loAsin" placeholder="ASIN, e.g. B0FD7L369M" style="flex:0 0 200px;font-family:ui-monospace,monospace">
@@ -1781,6 +1790,7 @@
       </div>
     </div>
     <div id="loBody"></div>
+    </div><!-- /loOne -->
   </div>
 
   <div id="paneImg" class="hide">
@@ -1805,6 +1815,8 @@
           <option value="mine">Show the pictures you sent</option>
           <option value="live">Show what Amazon serves</option>
         </select>
+        <!-- Picture check: the main pictures a person must judge (listing/picture-check.js). -->
+        <button id="imPcChip" type="button" class="sp-chip" aria-pressed="false">◐ Picture check</button>
         <button id="imGo" class="ghost" style="flex:0 0 120px" title="Open the editor for exactly this SKU or ASIN">Open editor</button>
         <button id="imRefresh" class="ghost" style="flex:0 0 190px">Refresh from Amazon</button>
         <span style="flex:1"></span>
@@ -1816,6 +1828,7 @@
       <div id="imBody"></div>
     </div>
     <div id="imListWrap"><div id="imList"></div></div>
+    <div id="imPcWrap" class="hide"></div>
   </div>
 
   <div id="paneLerr" class="hide">
@@ -2090,6 +2103,14 @@
       <div id="hSugBody" style="margin-top:10px"></div>
     </div>
   </div>
+
+  <!-- The Season planner's confirm window and progress bar (listing/season-planner.js fills it). -->
+  <div id="spModal" class="modal hide" role="dialog" aria-modal="true" aria-label="Send changes">
+    <div class="modalbox sp-modal" id="spModalBox"></div>
+  </div>
+  <!-- The Season planner's side panels: one parent (#spPanel), one child (#spKid). -->
+  <aside id="spPanel" class="sp-root sp-side sp-pp" role="dialog" aria-label="One product and its listings" tabindex="-1" hidden></aside>
+  <aside id="spKid" class="sp-root sp-side sp-kp" role="dialog" aria-label="One listing" tabindex="-1" hidden></aside>
 
   <div id="pnModal" class="modal hide">
     <div class="modalbox">
