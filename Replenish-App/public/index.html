@@ -4714,7 +4714,7 @@ html.mob #gdNudge{right:14px;left:14px;max-width:none;bottom:144px}
 <script>
 /* ==== APP VERSION — does this tab still run the build that is live? ==== */
 (function () {
-  var APPV = window.__APPV = { base: '', now: '', stale: false, checks: 0 };
+  var APPV = window.__APPV = { base: '', now: '', stale: false, checks: 0, staleAt: 0, hiddenAt: 0 };
   /** Two answers that are both known and differ. An answer that could not be read says nothing. */
   APPV.isStale = function (base, now) { return !!base && !!now && base !== now; };
   APPV.read = function () {
@@ -4730,17 +4730,35 @@ html.mob #gdNudge{right:14px;left:14px;max-width:none;bottom:144px}
        * needs no guard of its own here. Two guards for one fact is how they come to disagree. */
       if (!APPV.base) { APPV.base = now; return; }   // the first answer is the build this tab was loaded with
       APPV.now = now;
-      if (APPV.isStale(APPV.base, now) && !APPV.stale) { APPV.stale = true; APPV.show(); }
+      if (APPV.isStale(APPV.base, now) && !APPV.stale) { APPV.stale = true; APPV.staleAt = Date.now(); APPV.show(); }
     });
   };
   document.addEventListener('DOMContentLoaded', function () {
-    var btn = document.getElementById('appvReload'); if (btn) btn.onclick = function () { location.reload(); };
+    var btn = document.getElementById('appvReload'); if (btn) btn.onclick = function () { APPV.tag('bar'); location.reload(); };
   });
   APPV.tick();
   setInterval(APPV.tick, 5 * 60 * 1000);
-  /* NEW VERSION, TAKEN IN BY ITSELF (Ravi, 16 Oct: "jaise hi mai koi bhi update laoon … update ho jaye"). When the app comes
-   * back to the front and a newer build is live, it reloads — but only with nothing open: no dialog, no form being typed
-   * in. Otherwise the bar stays and says so, as before. Never in the middle of an entry. */
+  /* NEW VERSION, TAKEN IN BY ITSELF — BATCHED, ABOUT ONCE A DAY. Ravi 16 Oct wanted every tab to update the moment he
+   * brought a new version; Ravi 12 Nov changed that to "batch + once a day", because every deploy reloaded every open tab of every
+   * person (about 11 MB each) and that was most of the database download. Now the red bar still appears within five minutes and
+   * anyone can click it to update at once. The app reloads BY ITSELF only when nothing is open (no dialog, no form being typed in,
+   * no scan) AND one of these holds: the tab comes back to the front after being away 45 minutes or more (lunch, overnight);
+   * or it has known about the newer build for over 20 hours (nobody stays on an old version for days). Never more than once
+   * per tab in 6 hours, so a tab can never loop. A device that wants the old instant behaviour sets localStorage appvInstant = 1.
+   * Before any reload by the app or the bar, sessionStorage appvAuto says which, so the data meter can tell it from F5. */
+  var AWAY_MS = 45 * 60 * 1000, OLD_MS = 20 * 60 * 60 * 1000, GAP_MS = 6 * 60 * 60 * 1000;
+  APPV.tag = function (why) { try { sessionStorage.setItem('appvAuto', why); } catch (e) { /* no session storage */ } };
+  APPV.instant = function () { try { return localStorage.getItem('appvInstant') === '1'; } catch (e) { return false; } };
+  /** Should this safe return to the front reload now? (the 45-minute, 20-hour and 6-hour rules) */
+  APPV.due = function () {
+    if (APPV.instant()) return true;
+    var t = Date.now();
+    var away = APPV.hiddenAt && t - APPV.hiddenAt >= AWAY_MS;
+    var old = APPV.staleAt && t - APPV.staleAt > OLD_MS;
+    if (!away && !old) return false;
+    try { var last = Number(sessionStorage.getItem('appvAutoAt')) || 0; if (last && t - last < GAP_MS) return false; } catch (e) { /* no session storage: no cap to read */ }
+    return true;
+  };
   APPV.safe = function () {
     try {
       var d = document; if (typeof d.querySelector !== 'function') return false;
@@ -4752,8 +4770,12 @@ html.mob #gdNudge{right:14px;left:14px;max-width:none;bottom:144px}
     } catch (e) { return false; }
   };
   document.addEventListener('visibilitychange', function () {
-    if (document.hidden) return;
-    APPV.tick().then(function () { if (APPV.stale && APPV.safe()) location.reload(); });
+    if (document.hidden) { APPV.hiddenAt = Date.now(); return; }
+    APPV.tick().then(function () {
+      if (!(APPV.stale && APPV.safe() && APPV.due())) return;
+      if (!APPV.instant()) { try { sessionStorage.setItem('appvAutoAt', String(Date.now())); } catch (e) { /* no session storage */ } }
+      APPV.tag('auto'); location.reload();
+    });
   });
 })();
 /* ==== END APP VERSION ==== */
@@ -5771,8 +5793,10 @@ onAuthStateChanged(auth, async user => {
         if (typeof saSaveFlag === 'function') saSaveFlag(!!d && (d.syncAtomic === true || d.syncAtomic === 1 || d.syncAtomic === '1' || d.syncAtomic === 'on'));
         /* ...and the downloaded-copy switch (core/delta-sync.js), also from the next page load. */
         if (typeof deltaSaveFlag === 'function') deltaSaveFlag(!!d && (d.deltaUse === true || d.deltaUse === 1 || d.deltaUse === '1' || d.deltaUse === 'on'));
+        /* ...and the Finished Goods light-open switch (inventory/finished-goods.js), also from the next page load. */
+        if (typeof fgLiteSaveFlag === 'function') fgLiteSaveFlag(!!d && (d.fgLite === true || d.fgLite === 1 || d.fgLite === '1' || d.fgLite === 'on'));
       })
-        .catch(() => { dmSaveFlag(false, dmKind); if (typeof pbSaveFlag === 'function') pbSaveFlag(false); if (typeof otkSaveFlag === 'function') otkSaveFlag(false); if (typeof prSaveFlag === 'function') prSaveFlag(false); if (typeof oalSaveFlag === 'function') oalSaveFlag(false); if (typeof otkListSaveFlag === 'function') otkListSaveFlag(false); if (typeof saSaveFlag === 'function') saSaveFlag(false); if (typeof deltaSaveFlag === 'function') deltaSaveFlag(false); });
+        .catch(() => { dmSaveFlag(false, dmKind); if (typeof fgLiteSaveFlag === 'function') fgLiteSaveFlag(false); if (typeof pbSaveFlag === 'function') pbSaveFlag(false); if (typeof otkSaveFlag === 'function') otkSaveFlag(false); if (typeof prSaveFlag === 'function') prSaveFlag(false); if (typeof oalSaveFlag === 'function') oalSaveFlag(false); if (typeof otkListSaveFlag === 'function') otkListSaveFlag(false); if (typeof saSaveFlag === 'function') saSaveFlag(false); if (typeof deltaSaveFlag === 'function') deltaSaveFlag(false); });
     }
     if (typeof dmStart === 'function') dmStart();
   } catch (e) { console.warn('[data meter]', e); }
@@ -17180,7 +17204,7 @@ async function deltaLiveFull(L, node, why, idb) {
  *
  * EVERY meter error goes to the console only. Nothing is thrown and nothing is written because of one: a failing
  * meter leaves the read or the save exactly as it was before it existed. */
-const DM = { tab: '', day: '', T: {}, rl: 0, pk: 1, dirty: false, started: false, sendSet: false };
+const DM = { tab: '', day: '', T: {}, rl: 0, ra: 0, rb: 0, pk: 1, dirty: false, started: false, sendSet: false };
 const DM_GIVE_UP_DAYS = 7;
 const dmWarn = e => { try { console.warn('[data meter]', e); } catch (x) { /* nowhere to say it */ } };
 const dmDay = () => new Date().toISOString().slice(0, 10);
@@ -17218,8 +17242,11 @@ function dmInit() {
   DM.tab = tab; DM.day = dmDay();
   /* A reload keeps the tab: carry on from what this tab saved earlier today, and count the reload. */
   const old = dmParse(dmLsGet('dm:t:' + DM.day + ':' + DM.tab));
-  if (old && old.pages) { DM.T = old.pages; DM.rl = old.rl || 0; DM.pk = old.pk || 1; }
-  try { const nav = performance.getEntriesByType('navigation')[0]; if (nav && nav.type === 'reload') { DM.rl++; DM.dirty = true; } } catch (e) { /* not known */ }
+  if (old && old.pages) { DM.T = old.pages; DM.rl = old.rl || 0; DM.ra = old.ra || 0; DM.rb = old.rb || 0; DM.pk = old.pk || 1; }
+  try { const nav = performance.getEntriesByType('navigation')[0]; if (nav && nav.type === 'reload') { DM.rl++; DM.dirty = true;
+    /* appv.js tags a reload it caused itself: 'auto' = the app took in a new version on its own, 'bar' = someone clicked the red bar. The tag is read once and removed, so an F5 later is not mistaken for it. */
+    let why = ''; try { why = sessionStorage.getItem('appvAuto') || ''; sessionStorage.removeItem('appvAuto'); } catch (e) { /* no session storage */ }
+    if (why === 'auto') DM.ra++; else if (why === 'bar') DM.rb++; } } catch (e) { /* not known */ }
   try {
     const tick = setInterval(dmTick, 30000);
     if (tick && typeof tick.unref === 'function') tick.unref();
@@ -17245,12 +17272,12 @@ function dmCount(node, chars, how) {
 /** The page stayed open past midnight: yesterday's figures are saved under yesterday, today starts clean. */
 function dmRoll() {
   dmSave(true);
-  DM.T = {}; DM.rl = 0; DM.pk = 1; DM.day = dmDay(); DM.dirty = false;
+  DM.T = {}; DM.rl = 0; DM.ra = 0; DM.rb = 0; DM.pk = 1; DM.day = dmDay(); DM.dirty = false;
 }
 function dmSave(force) {
   try {
     if (!DM.started || (!DM.dirty && !force)) return;
-    dmLsSet('dm:t:' + DM.day + ':' + DM.tab, JSON.stringify({ v: 1, tab: DM.tab, rl: DM.rl, pk: DM.pk, pages: DM.T }));
+    dmLsSet('dm:t:' + DM.day + ':' + DM.tab, JSON.stringify({ v: 1, tab: DM.tab, rl: DM.rl, ra: DM.ra, rb: DM.rb, pk: DM.pk, pages: DM.T }));
     DM.dirty = false;
   } catch (e) { dmWarn(e); }
 }
@@ -17346,11 +17373,11 @@ function dmNotCounted() {
 /** The tallies of every tab that day added together, in the shape of the daily line. */
 function dmBuildLine(keys, who, type) {
   const pages = {};
-  let reloads = 0, peak = 1, tabs = 0;
+  let reloads = 0, reloadsAuto = 0, reloadsBar = 0, peak = 1, tabs = 0;
   keys.forEach(k => {
     const t = dmParse(dmLsGet(k));
     if (!t || !t.pages) return;
-    tabs++; reloads += t.rl || 0; peak = Math.max(peak, t.pk || 1);
+    tabs++; reloads += t.rl || 0; reloadsAuto += t.ra || 0; reloadsBar += t.rb || 0; peak = Math.max(peak, t.pk || 1);
     Object.keys(t.pages).forEach(pg => Object.keys(t.pages[pg]).forEach(reg => {
       const s = t.pages[pg][reg];
       const P = pages[pg] || (pages[pg] = {});
@@ -17364,7 +17391,7 @@ function dmBuildLine(keys, who, type) {
     Object.keys(N.how).forEach(h => { how[h] = { n: N.how[h].n, kb: dmKb(N.how[h].c) }; });
     pages[pg][reg] = { n: N.n, kb: dmKb(N.c), how };
   }));
-  return { v: 1, at: new Date().toISOString(), who, type, tabs, reloads, peakTabs: peak, pages, notCounted: dmNotCounted() };
+  return { v: 1, at: new Date().toISOString(), who, type, tabs, reloads, reloadsAuto, reloadsBar, peakTabs: peak, pages, notCounted: dmNotCounted() };
 }
 function dmDeviceId() {
   let d = dmLsGet('dmDevice');
@@ -34335,6 +34362,13 @@ function flowFgBadge() {
 function flowFgBadgeLoad() {
   if (!FLOW_ON || !flowMayFg()) return;
   const w = flowFgEnsure(); if (w) w.then(flowFgBadge); else flowFgBadge();
+}
+/** Light open (switch fgLite): the same count, but only when the flow's data is already in memory. Otherwise the badge shows "…" and
+ *  nothing is read; clicking it opens "From QC — to accept", which reads the full chain first (flowFgRender) and then fills the number. */
+function flowFgBadgeLite() {
+  if (!FLOW_ON || !flowMayFg()) return;
+  if (FLOW.ppc && typeof QC !== 'undefined' && QC.checks != null) { flowFgBadge(); return; }
+  const el = $('flFgBadge'); if (el) { el.textContent = '…'; el.classList.remove('hide'); }
 }
 /* Switched on with the flow only: the view in the picker, the badge, the buttons. The live app's screen is untouched. */
 if (FLOW_ON && $('fgView') && $('fgView').insertAdjacentHTML) {
@@ -53806,6 +53840,26 @@ const fgiNewId = p => (p || 'FGI') + '-' + Date.now().toString(36).toUpperCase()
 
 let FGI = { rows: null, err: '', busy: false, at: '', view: 'stock', shown: [], recips: null, set: {} };
 
+/** Finished Goods "light open" switch (config/flags.fgLite, read once in core/auth.js and kept in fgFlagLast for the NEXT page load;
+ *  localStorage fgLite '1'/'0' overrides on one device). ON: opening this screen no longer reads the whole production flow just to
+ *  paint the "From QC" count; the count shows "…" until the flow data is in memory and the full chain is read when "From QC" is opened.
+ *  Off by default, never for vendors or test harnesses. Asked only when the screen opens, never while the page loads. */
+function fgLiteOn() {
+  try {
+    const s = localStorage.getItem('fgLite');
+    if (s === '0') return false;
+    if (typeof AUDIT === 'undefined' || !AUDIT.on) return false;
+    if (typeof spIsVendor === 'function' && spIsVendor()) return false;
+    if (typeof NAV_IS_VENDOR !== 'undefined' && NAV_IS_VENDOR) return false;
+    if (s === '1') return true;
+    return localStorage.getItem('fgFlagLast') === '1';
+  } catch (e) { return false; }
+}
+/** Keep the flag's last answer for the next page load. */
+function fgLiteSaveFlag(on) {
+  try { if (on) localStorage.setItem('fgFlagLast', '1'); else localStorage.removeItem('fgFlagLast'); } catch (e) { /* no storage: stays off */ }
+}
+
 async function ensureFgi() {
   if (FGI.rows === null) { FGI.busy = true; renderFgi(); await fgiLoad(); }
   renderFgi();
@@ -53830,7 +53884,7 @@ async function fgiLoad() {
   await fgiCorrLoad();
   await fnLoad();
   fgiOverBadge();
-  if (typeof FLOW_ON !== 'undefined' && FLOW_ON && typeof flowFgBadgeLoad === 'function') flowFgBadgeLoad();
+  if (typeof FLOW_ON !== 'undefined' && FLOW_ON && typeof flowFgBadgeLoad === 'function') { if (fgLiteOn() && typeof flowFgBadgeLite === 'function') flowFgBadgeLite(); else flowFgBadgeLoad(); }
   lstMaybeRefresh();
 }
 

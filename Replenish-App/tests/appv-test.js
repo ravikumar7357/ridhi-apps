@@ -12,9 +12,12 @@ ok('the bar is outside appView, so the sign-in screen shows it too', html.indexO
 const code = html.slice(a, b);
 
 (async () => {
-  let etag = '"build-1"', online = true, hidden = false, reloaded = 0, openDlg = null, active = null;
+  let clock = 1.8e12, SS = {}, LS = {}, etag = '"build-1"', online = true, hidden = false, reloaded = 0, openDlg = null, active = null;
   const bar = { style: { display: 'none' } }, btn = {}, listeners = {}, timers = [];
   const env = {
+    Date: { now: () => clock },
+    sessionStorage: { getItem: k => (k in SS ? SS[k] : null), setItem: (k, v) => { SS[k] = String(v); } },
+    localStorage: { getItem: k => (k in LS ? LS[k] : null) },
     window: {}, location: { pathname: '/index.html', reload: () => { reloaded++; } },
     document: { getElementById: id => (id === 'appvBar' ? bar : (id === 'appvReload' ? btn : null)), get hidden() { return hidden; },
       querySelector: () => openDlg, get activeElement() { return active; },
@@ -46,6 +49,8 @@ const code = html.slice(a, b);
 
   (listeners.DOMContentLoaded || []).forEach(fn => fn());
   ok('the Reload button is what reloads', typeof btn.onclick === 'function' && (btn.onclick(), reloaded === 1), String(reloaded));
+  ok('…and tags it as the bar, so the data meter can tell it from F5', SS.appvAuto === 'bar', String(SS.appvAuto));
+  delete SS.appvAuto;
 
   /* Coming back to the tab asks at once — that is when somebody is about to read a figure. */
   const before = V.checks; hidden = false; (listeners.visibilitychange || []).forEach(fn => fn());
@@ -55,16 +60,44 @@ const code = html.slice(a, b);
   await new Promise(r => setTimeout(r, 5));
   ok('…and going AWAY from it does not', V.checks === b2);
 
-  /* A NEW VERSION TAKES ITSELF IN WHEN THE APP COMES BACK TO THE FRONT (Ravi, 16 Oct) — never with something open. */
-  { const r0 = reloaded; openDlg = { id: 'ptDlg' }; hidden = false; (listeners.visibilitychange || []).forEach(fn => fn());
-    await new Promise(r => setTimeout(r, 5));
-    ok('back to the front with a newer build but a dialog open → no reload, the bar stays', reloaded === r0 && bar.style.display === 'block');
-    openDlg = null; active = { tagName: 'INPUT' }; (listeners.visibilitychange || []).forEach(fn => fn());
-    await new Promise(r => setTimeout(r, 5));
+  /* A NEW VERSION IS TAKEN IN BY ITSELF — BATCHED (Ravi 12 Nov: "batch + once a day"): only after the tab was away 45 minutes,
+   * or has known about the new build 20 hours; never with something open; once per 6 hours; appvInstant=1 keeps the old way. */
+  const MIN = 60000, HR = 60 * MIN, fire = () => (listeners.visibilitychange || []).forEach(fn => fn()), wait = () => new Promise(r => setTimeout(r, 5));
+  const back = async away => { hidden = true; fire(); clock += away; hidden = false; fire(); await wait(); };
+  { let r0 = reloaded;
+    await back(10 * MIN);
+    ok('away only 10 minutes → no reload, the bar stays', reloaded === r0 && bar.style.display === 'block');
+    await back(44 * MIN);
+    ok('…44 minutes is still not enough', reloaded === r0);
+    openDlg = { id: 'ptDlg' }; await back(2 * HR);
+    ok('away 2 hours but a dialog is open → never', reloaded === r0 && !('appvAutoAt' in SS));
+    openDlg = null; active = { tagName: 'INPUT' }; await back(2 * HR);
     ok('…nor while a box is being typed in', reloaded === r0);
-    active = null; (listeners.visibilitychange || []).forEach(fn => fn());
-    await new Promise(r => setTimeout(r, 5));
-    ok('…and with nothing open it reloads by itself', reloaded === r0 + 1, String(reloaded - r0)); }
+    active = null; await back(45 * MIN);
+    ok('away 45 minutes, newer build, nothing open → reloads by itself', reloaded === r0 + 1, String(reloaded - r0));
+    ok('…tagged as automatic, with the time stamped', SS.appvAuto === 'auto' && Number(SS.appvAutoAt) === clock, JSON.stringify(SS));
+    r0 = reloaded; await back(3 * HR);
+    ok('a second long absence within 6 hours → no second reload (a tab cannot loop)', reloaded === r0);
+    await back(2 * HR);
+    ok('…still inside the 6 hours', reloaded === r0);
+    await back(2 * HR);
+    ok('…after 6 hours it may reload again', reloaded === r0 + 1, String(reloaded - r0));
+    /* known about the build for over 20 hours: a normal quick return also reloads */
+    r0 = reloaded; delete SS.appvAutoAt; V.staleAt = clock - 21 * HR;
+    await back(1 * MIN);
+    ok('known about the new build 21 hours → a normal safe return reloads', reloaded === r0 + 1, String(reloaded - r0));
+    r0 = reloaded; delete SS.appvAutoAt; V.staleAt = clock - 19 * HR;
+    await back(1 * MIN);
+    ok('…but 19 hours is not yet', reloaded === r0);
+    V.staleAt = clock - 21 * HR; openDlg = { id: 'ptDlg' }; await back(1 * MIN); openDlg = null;
+    ok('…and the old build with something open still waits', reloaded === r0);
+    /* the device override */
+    LS.appvInstant = '1'; delete SS.appvAuto; V.staleAt = clock; SS.appvAutoAt = String(clock);
+    await back(1000);
+    ok('appvInstant=1 → reloads on every safe return at once, as before', reloaded === r0 + 1 && SS.appvAuto === 'auto', String(reloaded - r0));
+    openDlg = { id: 'ptDlg' }; await back(1000); openDlg = null;
+    ok('…still never with a dialog open', reloaded === r0 + 1);
+    LS.appvInstant = '0'; }
   ok('the two-answers rule on its own', V.isStale('a', 'b') && !V.isStale('a', 'a') && !V.isStale('', 'b') && !V.isStale('a', ''));
   console.log('\n' + pass + ' passed, ' + fail + ' failed');
   process.exit(fail ? 1 : 0);
