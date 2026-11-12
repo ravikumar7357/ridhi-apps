@@ -85,7 +85,7 @@ function load(opts) {
     + ' lrAllow: typeof lrAllow === "function" ? lrAllow : null, lrFixOpen: typeof lrFixOpen === "function" ? lrFixOpen : null,'
     + ' lrKwBytes: typeof lrKwBytes === "function" ? lrKwBytes : null, lrBrandWords, lrFind, lrLevel: typeof lrLevel === "function" ? lrLevel : null, lrNotesHtml: typeof lrNotesHtml === "function" ? lrNotesHtml : null, IML,'
     + ' lrWholeCut: typeof lrWholeCut === "function" ? lrWholeCut : null, AMZ: typeof AMZ === "undefined" ? null : AMZ,'
-    + (opts.ws ? ' LI_WS, LI_WS_AUDIT, liWsParents: (brands) => liWsParents(brands, hCtx(), Date.now()), liWsDetail, liWsAuditBox, liWsKidTable, liWsRender, liWsRecheck, liWsCheckNow, liWsLiveMap, liWsProblems, liWsPanelOpen, liWsPanelClose, liWsPanelMove, liWsPanelRender, liWsOff, liWsToolbarSync, liWsPanelSync, liWsPanelSchedule, liWsPanelKeep, liWsPanelKid, liWsPanelKidBack, lkHtml, lkKid, LK,' : '')
+    + (opts.ws ? ' LI_WS, LI_WS_AUDIT, liWsParents: (brands) => liWsParents(brands, hCtx(), Date.now()), liWsDetail, liWsAuditBox, liWsKidTable, liWsRender, liWsRecheck, liWsCheckNow, liWsLiveMap, liWsProblems, liWsPanelOpen, liWsPanelClose, liWsPanelMove, liWsPanelRender, liWsOff, liWsToolbarSync, liWsPanelSync, liWsPanelSchedule, liWsPanelKeep, liWsPanelKid, liWsPanelKidBack, lkHtml, lkKid, LK, liWsReconcile,' : '')
     + (opts.sp ? ' SP, spCompute, spPlan, spChecks, spStrip, spInsert, spDiffHtml, spWordDiff, spKidHtml, spRowHtml, spParentBodyHtml, spParentCardHtml, spGroups, spGroupOf, spOpenParent, spCloseParent, spOpenKid, spCloseKid, spRender, spApprove, spSendAll, spPatches, spLogLoad, spEvents, SP_SEASONS, setHealthLoaded: v => { H_LOADED = v; }, setCat: (b, m) => { LR_CAT[b] = Object.assign(LR_CAT[b] || {}, m); H_CTX = null; },' : '') + ' };';
   const api = new Function(...Object.keys(ctx), src + tail)(...Object.values(ctx));
   // api.rows ARE the HEALTH rows (the same objects, brand on each): a test that changes one changes what every screen judges.
@@ -339,7 +339,7 @@ if (require.main === module) {
     && pOf(/data-li-ws-card="ok"[^]*?(\d+) parents? fully clean/) === okRows.length, JSON.stringify([errRows.length, attRows.length, okRows.length]));
   const parentsC = C.liWsParents(['SP', 'CPC']);
   ok('the No problem filter never shows a parent that has any problem', okRows.length > 0 && okRows.every(key => { const p = parentsC.find(x => x.key === key); return p.kids.filter(k => k.live).every(k => !k.problem && k.bucket === 'healthy'); }), JSON.stringify(okRows));
-  ok('the problem line keeps the old number', new RegExp(`${parentsC.reduce((s, p) => s + p.liveProbN, 0)} live listings have a problem`).test(htmlC));
+  ok('the problem line keeps the old number', new RegExp(`${parentsC.reduce((s, p) => s + p.liveProbN, 0)} counted listings have a problem`).test(htmlC));
   C.LI_WS.card = 'att'; C.liWsRender();
   const kt = C.liWsKidTable(C.LI_WS.byKey.get('SP|P1'), 8);
   ok('inside the parent, the matching listings come first and are marked; the others are faded under "Other listings"', /is-match is-m-att/.test(kt) && /Other listings/.test(kt) && kt.indexOf('is-match') < kt.indexOf('Other listings') && kt.indexOf('Other listings') < kt.indexOf('is-other'));

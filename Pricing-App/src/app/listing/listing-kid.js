@@ -66,7 +66,8 @@ function lkHtml(kid, opts) {
   const bangs = [...new Set(checks.map(c => c.bang).filter(Boolean))];
   const none = !errs.length && !atts.length && !fills.length
     ? `<div class="ls-empty lk-none">${unknown.length || looks.length ? '<b>No problem found so far.</b><br>Some checks have no answer yet — see below.' : '<b>No problem on this listing.</b><br>Every Listing Rule passes.'}</div>` : '';
-  const info = (kid.live ? '' : '<div class="lk-info">This listing is not live, so its problems are not counted anywhere.</div>')
+  const info = (kid.live ? '' : kid.urgent ? '<div class="lk-info">Not live, but counted as an Error: fix this first.</div>'
+    : '<div class="lk-info">This listing is not live, so its problems are not counted anywhere.</div>')
     + (checking ? '<div class="lk-info">Reading this listing from Amazon now…</div>' : '')
     + (kid.notes && kid.notes.length ? `<div class="lk-info">${lrNotesHtml(kid.notes)}</div>` : '')
     + (unknown.length || looks.length ? `<div class="lk-info">${looks.concat(unknown).map(c => lrAnswerHtml(c.t, c, where, '')).join('')}</div>` : '')

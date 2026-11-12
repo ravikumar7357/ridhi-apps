@@ -180,9 +180,9 @@ const url = id => `https://m.media-amazon.com/images/I/${id}._AC_SL1500_.jpg`;
       C.reset();
       return row;
     };
-    // the rules as they were (HEAD before this change) over the same listing
+    // the rules as they were before this change (128bad3~1, the commit before the title change) over the same listing
     let old = null;
-    try { old = cp.execSync('git show HEAD:Pricing-App/src/app/listing/listing-rules.js', { cwd: require('path').join(__dirname, '..', '..') }).toString(); } catch (e) { /* no git */ }
+    try { old = cp.execSync('git show 128bad3~1:Pricing-App/src/app/listing/listing-rules.js', { cwd: require('path').join(__dirname, '..', '..') }).toString(); } catch (e) { /* no git */ }
     const C = load({ ws: true, sp: true });
     const row = setUp(C);
     const h = C.healthOf(row, C.hCtx());
