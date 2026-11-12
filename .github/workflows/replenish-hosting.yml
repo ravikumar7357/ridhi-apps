@@ -38,7 +38,6 @@ concurrency:
 permissions:
   contents: write   # to move the live-site tag after a release
   checks: write
-  checks: write
   pull-requests: write
 
 jobs:
