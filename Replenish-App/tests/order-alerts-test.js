@@ -109,7 +109,7 @@ function page(o) {
     setTimeout: (fn, ms) => { stats.timers++; timers.push({ fn, ms }); return timers.length; }, setInterval: () => 0, clearTimeout: () => {},
   };
   vm.createContext(ctx);
-  vm.runInContext(TICKER + '\n' + ALERTS + '\n' + OLD_ITEMS + '\n;this.__t = { otkItems, otkItemsFrom, otkItemsOld, oalEntry, oalKey, oalAfterSave, oalOn, oalCheck, oalFlush, oalSaveFlag, oalAllEntries, OAL };', ctx);
+  vm.runInContext(TICKER + '\n' + ALERTS + '\n' + OLD_ITEMS + '\n;this.__t = { otkItems, otkItemsFrom, otkItemsOld, oalEntry, oalKey, oalAfterSave, oalOn, oalCheck, oalFlush, oalSaveFlag, oalAllEntries, oalFp, OAL };', ctx);
   return { t: ctx.__t, ctx, db, stats, LS, net, timers, infos,
     /* runs the timers set so far; anything they set in turn waits for the next call */
     runTimers: async () => { const batch = timers.splice(0); for (const x of batch) await x.fn(); } };
@@ -281,6 +281,47 @@ async function checkTests() {
   await page({ ls: ON, db: old }).t.oalCheck();
   ok('a new rule version rebuilds the whole list', old.get('pt_orderAlerts/v') === 1 && !old.get('pt_orderAlerts/l/OLD__X') && Object.keys(old.get('pt_orderAlerts/l')).length === 53); }
 
+console.log('Late or wrong: who wrote an entry');
+async function lateWrongTests() {
+  const logsOf = db => { const day = Object.keys(db.get('pt_orderAlertsLog') || {})[0]; return Object.values(db.get('pt_orderAlertsLog/' + day) || {}).filter(x => x.kind === 'check'); };
+  const again = async (db, pg) => { db.set('pt_orderAlerts/lease', { by: 'old', until: 1 }); await pg.t.oalCheck(); };
+  const K = 'pt_orderAlerts/l/AMZ-1__S1';
+  { const db = makeDb(), p = page({ ls: ON, db });
+    await p.t.oalCheck();                                                     // rebuild
+    ok('a rebuild marks every entry w=r', Object.values(db.get('pt_orderAlerts/l')).every(e => e.w === 'r'));
+    { const x = p.t.oalAllEntries().get('AMZ-1__S1'); ok('the fingerprint ignores w and at', p.t.oalFp(x) === p.t.oalFp(Object.assign({}, x, { w: 'h', at: 1 })) && p.t.oalFp(x) !== p.t.oalFp(Object.assign({}, x, { pr: 99 }))); }
+    const e = p.t.oalAllEntries().get('AMZ-1__S1');
+    ok('a stored entry with another w has the same fingerprint (a clean check writes no line)', (() => { db.set(K, Object.assign({}, db.get(K), { w: 'h', at: 5 })); return true; })());
+    p.stats.writes.length = 0; await again(db, p);
+    ok('...and the check finds no difference', listWrites(p).length === 1 && Object.keys(p.stats.writes[0]).join() === 'pt_orderAlerts/at', JSON.stringify(p.stats.writes).slice(0,300));
+    ok('w and at do not change the strip output', JSON.stringify(p.t.otkItemsFrom([Object.assign({}, e, { w: 'h', at: 9 })], '2026-11-06')) === JSON.stringify(p.t.otkItemsFrom([e], '2026-11-06')));
+    /* the hook writes w=h */
+    const lines = fixtureLines(); lines[0].pressed = 3;
+    const q = page({ ls: ON, lines, db }); q.t.OAL.last = new Map(p.t.OAL.last);
+    save(q, 'pt_orderBook/ob1', { orderNo: 'AMZ-1', sku: 'S1' }); await q.runTimers();
+    ok('the after-save hook marks its entry w=h', db.get(K).w === 'h' && db.get(K).pr === 3);
+    /* a hook-written entry that disagrees with the registers -> wrong */
+    await again(db, p);
+    let lg = logsOf(db).pop();
+    ok('a hook-written entry that disagrees is WRONG (1), not late', lg.wrong === 1 && lg.late === 0 && lg.changed === 1, JSON.stringify(lg));
+    ok('...with a sample showing before and after', /AMZ-1__S1 w=h pr:3>2/.test(lg.wrongSample) && lg.wrongSample.length <= 400, lg.wrongSample);
+    ok('...and the repair is marked w=c', db.get(K).w === 'c' && db.get(K).pr === 2);
+    /* a check-written (or rebuilt) stale entry -> late */
+    db.set(K + '/pr', 77); await again(db, p); lg = logsOf(db).pop();
+    ok('a stale entry last written by a check is LATE', lg.late === 1 && lg.wrong === 0 && lg.changed === 1 && !('wrongSample' in lg), JSON.stringify(lg));
+    const d2 = db.get(K); delete d2.w; db.set(K, Object.assign({}, d2, { pr: 5 })); await again(db, p); lg = logsOf(db).pop();
+    ok('an old entry with no w is LATE', lg.late === 1 && lg.wrong === 0, JSON.stringify(lg));
+    /* missing -> late */
+    db.set(K, null); await again(db, p); lg = logsOf(db).pop();
+    ok('a line missing from the list is LATE', lg.missing === 1 && lg.late === 1 && lg.wrong === 0, JSON.stringify(lg));
+    /* extra */
+    db.set('pt_orderAlerts/l/GONE-1__X', { no: 'GONE-1', w: 'h' }); await again(db, p); lg = logsOf(db).pop();
+    ok('an extra entry written by the hook is WRONG', lg.extra === 1 && lg.wrong === 1 && lg.late === 0 && /GONE-1__X/.test(lg.wrongSample), JSON.stringify(lg));
+    db.set('pt_orderAlerts/l/GONE-2__X', { no: 'GONE-2', w: 'c' }); await again(db, p); lg = logsOf(db).pop();
+    ok('an extra entry from a check is LATE', lg.extra === 1 && lg.late === 1 && lg.wrong === 0, JSON.stringify(lg));
+    ok('the check line keeps its old fields', ['missing', 'extra', 'changed', 'same', 'sample'].every(f => f in lg)); }
+}
+
 console.log('The four save helpers tell the list');
 async function helperTests() {
   function hist(failWith) {
@@ -363,7 +404,7 @@ function scanWrites(files) {
 (async () => {
   await offTests();
   await startTests();
-  await hookTests(); await retryTests(); await checkTests(); await helperTests();
+  await hookTests(); await retryTests(); await checkTests(); await lateWrongTests(); await helperTests();
   /* Teeth: broken copies must make this suite fail. */
   if (!process.env.OA_TICKER && !process.env.OA_ALERTS && !process.env.OA_HIST) {
     console.log('Teeth');
@@ -379,6 +420,8 @@ function scanWrites(files) {
       ['the check ignores the switch', 'OA_ALERTS', A.replace('if (!oalOn()) { oalSkip(', 'if (false) { oalSkip(')],
       ['a failed write is forgotten (no retry)', 'OA_ALERTS', A.replace('catch (e) { oalKeep(up); }\n}', 'catch (e) { /* lost */ }\n}')],
       ['no lease: every page checks', 'OA_ALERTS', A.replace("if (cur && cur.until > now && cur.by !== OAL.me) return false;", '').replace("return (await ptCas(OAL_NODE + '/lease', cur == null ? null : cur, { by: OAL.me, until: now + OAL_CHECK_MS })) === '';", 'return true;')],
+      ['everything is classified late (hook entries never wrong)', 'OA_ALERTS', A.replace("if (s.w === 'h') bad(k, s, e); else late++;", 'late++;')],
+      ['w is part of the fingerprint', 'OA_ALERTS', A.replace('e.tab, e.id].join', 'e.tab, e.id, e.w].join')],
       ['every line written every time', 'OA_ALERTS', A.replace("if (OAL.last.has(k) && OAL.last.get(k) === fp) return;", '')],
     ];
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'oal-'));

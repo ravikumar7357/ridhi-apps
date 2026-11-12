@@ -88,7 +88,7 @@ function oalEntry(l, soDue) {
     qty: +l.qty || 0, pr: +l.pressed || 0, fs: +l.fromStock || 0,
     due, dh: so ? 'so' : l.mtoDue ? 'mto' : '', st: oalStageOf(l), tab: oalTabOf(l), id: oalKey(l.orderNo, l.sku) };
 }
-/** What makes two entries "the same": every field but the time it was written. */
+/** What makes two entries "the same": every field but the time it was written (at) and who wrote it (w). */
 const oalFp = e => (e ? [e.no, e.sku, e.ch, e.what, e.qty, e.pr, e.fs, e.due, e.dh, e.st, e.tab, e.id].join('|') : '');
 
 /** Every open line as an entry, keyed for the list (this page's copy of the registers and Sales Orders). Never loads anything:
@@ -151,7 +151,15 @@ async function oalWrite(updates) {
     await ptAuditWrite(part);
   }
 }
-const oalPutEntry = e => (e ? Object.assign({}, e, { at: Date.now() }) : null);
+/** An entry as stored: stamped with the time and with who wrote it: 'h' the after-save hook, 'c' a check repair, 'r' a rebuild.
+ *  The check uses w to tell a late line (a save on a page without the hook) from a wrong one (the hook disagreed with the registers). */
+const oalPutEntry = (e, who) => (e ? Object.assign({}, e, { at: Date.now(), w: who || 'h' }) : null);
+const OAL_FIELDS = ['no', 'sku', 'ch', 'what', 'qty', 'pr', 'fs', 'due', 'dh', 'st', 'tab', 'id'];
+/** A compact before/after of the fields that differ, for the log. */
+function oalDiffText(s, e) {
+  const d = OAL_FIELDS.filter(f => !s || !e || s[f] !== e[f]).map(f => f + ':' + (s ? s[f] : '-') + '>' + (e ? e[f] : '-'));
+  return 'w=' + ((s && s.w) || '') + ' ' + d.join(' ');
+}
 /** Lines a write could not carry, kept for another try. */
 function oalKeep(updates) {
   Object.keys(updates).forEach(p => { if (p.indexOf(OAL_NODE + '/l/') === 0) OAL.retry[p] = updates[p]; });
@@ -187,7 +195,7 @@ async function oalFlush() {
         keys.forEach(k => {
           const e = all.get(k) || null, fp = oalFp(e);
           if (OAL.last.has(k) && OAL.last.get(k) === fp) return;
-          up[OAL_NODE + '/l/' + k] = oalPutEntry(e);
+          up[OAL_NODE + '/l/' + k] = oalPutEntry(e, 'h');
         });
       }
     }
@@ -228,7 +236,7 @@ const oalItemsText = items => items.map(x => [x.kind, x.tag || '', x.txt, x.sub 
 /** Write the whole list again (a new rule version, or a list that is not there). */
 async function oalRebuild(mine) {
   const l = {};
-  mine.forEach((e, k) => { l[k] = oalPutEntry(e); });
+  mine.forEach((e, k) => { l[k] = oalPutEntry(e, 'r'); });
   await oalWrite({ [OAL_NODE + '/l']: l, [OAL_NODE + '/v']: OAL_V, [OAL_NODE + '/at']: { '.sv': 'timestamp' } });
   OAL.last = new Map([...mine].map(([k, e]) => [k, oalFp(e)]));
   return mine.size;
@@ -253,14 +261,16 @@ async function oalCheck() {
       return;
     }
     const stored = (await ptGetFresh(OAL_NODE + '/l')) || {};
-    let missing = 0, extra = 0, changed = 0;
-    const up = {}, sample = [];
+    let missing = 0, extra = 0, changed = 0, late = 0, wrong = 0;
+    const up = {}, sample = [], wrongBits = [];
+    /* Late: a save on a page without the hook since the last check. Wrong: the hook wrote an entry the registers disagree with. */
+    const bad = (k, s, e) => { wrong++; if (wrongBits.length < 5) wrongBits.push(k + ' ' + oalDiffText(s, e)); };
     mine.forEach((e, k) => {
       const s = stored[k];
-      if (!s) { missing++; if (sample.length < 5) sample.push('+' + k); up[OAL_NODE + '/l/' + k] = oalPutEntry(e); }
-      else if (oalFp(s) !== oalFp(e)) { changed++; if (sample.length < 5) sample.push('~' + k); up[OAL_NODE + '/l/' + k] = oalPutEntry(e); }
+      if (!s) { missing++; late++; if (sample.length < 5) sample.push('+' + k); up[OAL_NODE + '/l/' + k] = oalPutEntry(e, 'c'); }
+      else if (oalFp(s) !== oalFp(e)) { changed++; if (s.w === 'h') bad(k, s, e); else late++; if (sample.length < 5) sample.push('~' + k); up[OAL_NODE + '/l/' + k] = oalPutEntry(e, 'c'); }
     });
-    Object.keys(stored).forEach(k => { if (!mine.has(k)) { extra++; if (sample.length < 5) sample.push('-' + k); up[OAL_NODE + '/l/' + k] = null; } });
+    Object.keys(stored).forEach(k => { if (!mine.has(k)) { extra++; if (stored[k] && stored[k].w === 'h') bad(k, stored[k], null); else late++; if (sample.length < 5) sample.push('-' + k); up[OAL_NODE + '/l/' + k] = null; } });
     /* The shadow comparison: the strip worked out from the list as it stood, against today's strip from the registers. */
     const today = dToday();
     const fromRegs = oalItemsText(otkItemsFrom([...mine.values()], today));
@@ -273,7 +283,9 @@ async function oalCheck() {
     /* Quiet when all is well: a line at most once an hour. A difference is always logged. */
     if (diff || !same || Date.now() - OAL.okAt > 60 * 60 * 1000) {
       OAL.okAt = Date.now();
-      oalLog({ kind: 'check', lines: mine.size, missing, extra, changed, same, sample, skipped: OAL.skipped, ms: Date.now() - t0 });
+      const rec = { kind: 'check', lines: mine.size, missing, extra, changed, late, wrong, same, sample, skipped: OAL.skipped, ms: Date.now() - t0 };
+      if (wrong) rec.wrongSample = wrongBits.join(' | ').slice(0, 400);
+      oalLog(rec);
     }
   } catch (e) {
     /* A refused read (a login that may not read the list yet) is not an error worth a log line every 15 minutes: stop checking. */
