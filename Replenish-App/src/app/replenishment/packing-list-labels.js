@@ -480,6 +480,7 @@ async function savePkOne(p) {
   p.updatedAt = pkToday() + ' ' + new Date().toTimeString().slice(0, 5);
   p.updatedBy = ME.email || '';
   await setDoc(doc(db, 'packlist', p.id), p);
+  if (typeof fsMirror === 'function') fsMirror('put', 'packlist/' + p.id, p);
   const at = PK.findIndex(x => x.id === p.id);
   if (at >= 0) PK[at] = p; else PK.unshift(p);
 }

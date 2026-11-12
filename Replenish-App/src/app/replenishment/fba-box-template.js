@@ -196,6 +196,7 @@ async function pkDelete(id) {
   if (!confirm(`Delete the packing list \u201c${p.title || id}\u201d? This cannot be undone.`)) return;
   try {
     await deleteDoc(doc(db, 'packlist', id));
+    if (typeof fsMirror === 'function') fsMirror('delete', 'packlist/' + id);
     PK = PK.filter(x => x.id !== id);
     renderPack();
     pkMsg('Deleted.');
