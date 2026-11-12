@@ -211,7 +211,7 @@ function spPlan(row, ctx, today, log) {
   const live = lrLiveOf(row, ctx);
   const title = hTitleText(fresh) || '';
   const liveFresh = !!(live && live.cAt && Date.now() - live.cAt < LR_DAY);
-  const kw = live && live.cAt ? String(fresh.kw || '') : null;        // the hidden search words are only ever known from the live read
+  const kw = live && live.cAt && fresh.kw != null ? String(fresh.kw) : null;   // the hidden search words are only ever known from the live read — never "0 of 249" for one not read
   const kwMax = (() => { const rule = (cfg.issues || []).find(issue => issue.detector === 'keyword_bytes' && issue.on !== false); return rule ? (+(rule.params || {}).max || 249) : 249; })();
   const cat = lrCatOf(row);
   const tpl = lrTemplateFor(row, cfg);
@@ -324,10 +324,14 @@ function spPlan(row, ctx, today, log) {
     const kwAsIs = kw == null ? '' : (kw.trim() ? kw.trim() + ' ' : '') + word;
     const kwHas = kw != null && !!spFindSeason(kw, main.ev);
     const kwFits = kw != null && !kwHas && lrKwBytes(kwAsIs) <= kwMax;
+    // the sizes say which is which: "now" (as it is) and "after adding" (with the word)
+    const needs = out.length - item.after.length;
     item.placeLines = [
-      `Title: ${word} missing — ${titleFits ? `it fits (${out.length} of ${SP_TITLE_MAX})` : `title is full (${item.after.length} of ${SP_TITLE_MAX})`}`,
+      `Title: ${word} missing — ${titleFits ? `it fits (now ${item.after.length} of ${SP_TITLE_MAX}, after adding ${out.length} of ${SP_TITLE_MAX})`
+        : `no room in title: “${word}” needs ${spPlural(needs, 'letter')}, only ${Math.max(0, SP_TITLE_MAX - item.after.length)} left (${item.after.length} of ${SP_TITLE_MAX})`}`,
       'Item Highlights: ' + hlTry.line,
-      'Hidden search words: ' + (kw == null ? 'not read from Amazon yet' : kwHas ? `${word} already there` : `${word} missing${kwFits ? ` — it fits (${spNf(lrKwBytes(kwAsIs))} of ${spNf(kwMax)})` : ` — full (${spNf(lrKwBytes(kw))} of ${spNf(kwMax)})`}`),
+      'Hidden search words: ' + (kw == null ? (SP.reading.has(key) ? 'checking…' : 'not read yet') : kwHas ? `${word} already there`
+        : `${word} missing${kwFits ? ` — it fits (now ${spNf(lrKwBytes(kw))} of ${spNf(kwMax)}, after adding ${spNf(lrKwBytes(kwAsIs))} of ${spNf(kwMax)})` : ` — full (${spNf(lrKwBytes(kw))} of ${spNf(kwMax)})`}`),
     ];
     item.alsoPlaces = [titleFits ? 'Title' : '', hlTry.res === 'hl' ? 'Item Highlights' : '', kwFits ? 'Hidden search words' : ''].filter(Boolean);
     if (titleFits && !tipAdd) { item.after = out; placed = 'title'; }
@@ -472,7 +476,7 @@ function spHlTry(item, word, title) {
   }
   if (info.state === 'none') return { res: 'no', line: 'not available for this product type' };
   if (info.state === 'err') return { res: 'no', line: `could not be read from Amazon (${info.err})` };
-  if (info.state !== 'ok') return { res: 'wait', line: 'checking…' };
+  if (info.state !== 'ok') return { res: 'wait', line: SP.reading.has(item.key + '|get') ? 'checking…' : 'not read yet' };
   const now = item.hlAfter || [];
   if (now.some(entry => lrHas(entry, word))) return { res: 'has', line: `${word} already there` };
   const phrase = spHlPhrase(item, word, title);
@@ -507,7 +511,7 @@ function spHlTry(item, word, title) {
   }
   if (!after) return { res: 'no', line: `${word} missing — no room (${lenOf(now)})` };
   item.hlOk = spWords(after.join(' '));                      // the words this suggestion may add (the facts and the phrase): nothing made up
-  return { res: 'hl', after, line: `${word} missing — ‘${said}’ fits (${lenOf(after)})` };
+  return { res: 'hl', after, line: `${word} missing — ‘${said}’ fits (now ${lenOf(now)}, after adding ${lenOf(after)})` };
 }
 // The Item Highlights checks, in the same list as the title's: within the limit, no promotions, nothing the title already says, no
 // banned symbols, nothing made up, every season word in season, and only with a title of 75 letters or less. A problem that was
@@ -860,13 +864,16 @@ function spProgAdd(t) {
   if (!SP.prog.items.has(key)) SP.prog.items.set(key, new Set());
   SP.prog.items.get(key).add(t);
 }
-function spProgText(g) {
+function spProgNums(g) {
   const p = SP.prog;
-  if (!p || p.key !== g.key) return '';
-  const total = p.items.size;
+  if (!p || p.key !== g.key) return null;
   let done = 0;
   p.items.forEach(set => { if ([...set].every(t => !SP.reading.has(t))) done++; });
-  return done < total ? `Reading ${spNf(done)} of ${spNf(total)} — you can keep working` : '';
+  return { done, total: p.items.size };
+}
+function spProgText(g) {
+  const p = spProgNums(g);
+  return p && p.done < p.total ? `Reading ${spNf(p.done)} of ${spNf(p.total)} — you can keep working` : '';
 }
 // The rows of the open parent that are on screen now (their reads go first).
 function spVisibleKeys() {
@@ -1215,7 +1222,15 @@ function spParentBodyHtml(g) {
   const rem = spTopRemove(g.todo);
   const back = g.todo.filter(item => item.kind === 'restore');
   let sentence;
-  if (top) sentence = `${spSeasonIcon(top.e.ev.id)} <b>${lrEsc(top.e.ev.name)} ${spSeasonWord(top.e)}.</b> ${top.n === total ? `None of these ${spNf(total)} ${lrEsc(products)} mention${total === 1 ? 's' : ''} it yet.` : `${spNf(top.n)} of these ${spNf(total)} ${lrEsc(products)} don't mention it yet.`}`;
+  // ONE count for the sentence and the cards: the listings to change = Ready + Needs your OK + Fix by hand; while reads are on their
+  // way it says "so far", with the reads done of all queued
+  const missing = g.ready.length + g.look.length + g.fix.length;
+  const prog = spProgNums(g);
+  const readingNow = g.reading.length > 0 || (prog && prog.done < prog.total);
+  const soFar = readingNow ? ` (reading ${prog && prog.done < prog.total ? `${spNf(prog.done)} of ${spNf(prog.total)}` : spNf(g.reading.length)})` : '';
+  if (top) sentence = `${spSeasonIcon(top.e.ev.id)} <b>${lrEsc(top.e.ev.name)} ${spSeasonWord(top.e)}.</b> ${readingNow
+    ? `So far: ${spNf(missing)} of these ${spNf(total)} ${lrEsc(products)} don't mention ${lrEsc(top.e.ev.name)}${soFar}.`
+    : missing === total ? `None of these ${spNf(total)} ${lrEsc(products)} mention${total === 1 ? 's' : ''} it yet.` : `${spNf(missing)} of these ${spNf(total)} ${lrEsc(products)} don't mention it yet.`}`;
   else if (rem) sentence = `${spSeasonIcon(rem.e.ev.id)} <b>${lrEsc(rem.e.ev.name)} is over.</b> ${spNf(rem.n)} of these ${spNf(total)} ${lrEsc(products)} still mention it.`;
   else if (back.length) sentence = `↺ <b>The season is over.</b> ${spNf(back.length)} of these ${spNf(total)} ${lrEsc(products)} can go back to their old titles.`;
   else sentence = `✓ <b>Nothing to change here</b> for the seasons on now.`;
@@ -1355,15 +1370,24 @@ function spWhere(item) {
   const f = item.found || {};
   const info = item.hlInfo || {};
   const hl = item.hl || [];
-  const titleN = `${spNf(String(item.title || '').length)} of ${SP_TITLE_MAX}`;
-  const hlN = info.state === 'ok' ? (info.items > 1 ? `${spNf(hl.length)} of ${spNf(info.items)} entries` : `${spNf((hl[0] || '').length)} of ${spNf(info.max)}`) : '';
-  const kwN = item.kw != null ? `${spNf(lrKwBytes(item.kw))} of ${spNf(item.kwMax)}` : '';
+  // a size is "now X of N" — and ", after adding Y of N" (or "after the change") when this plan changes that place
+  const sized = (now, after, max, added) => (after == null || after === now ? `${spNf(now)} of ${spNf(max)}` : `now ${spNf(now)} of ${spNf(max)}, after ${added ? 'adding' : 'the change'} ${spNf(after)} of ${spNf(max)}`);
+  const added = (a, b) => spWordDiff(a, b).added.length > 0;
+  const titleChanged = item.after != null && item.after !== item.title;
+  const titleN = sized(String(item.title || '').length, titleChanged ? String(item.after).length : null, SP_TITLE_MAX, titleChanged && added(item.title, item.after));
+  const hlChanged = spHlChanged(item);
+  const hlN = info.state === 'ok' ? (info.items > 1 ? sized(hl.length, hlChanged ? item.hlAfter.length : null, info.items, hlChanged && added(hl.join(' '), item.hlAfter.join(' '))) + ' entries'
+    : sized((hl[0] || '').length, hlChanged ? (item.hlAfter[0] || '').length : null, info.max, hlChanged && added(hl.join(' '), item.hlAfter.join(' ')))) : '';
+  const kwChanged = item.kw != null && item.kwAfter != null && item.kwAfter !== item.kw;
+  const kwN = item.kw != null ? sized(lrKwBytes(item.kw), kwChanged ? lrKwBytes(item.kwAfter) : null, item.kwMax, kwChanged && added(item.kw, item.kwAfter)) : '';
+  // not read: "checking…" while a read is on its way, else "Not read yet" — never a count of 0 for something never read
+  const unread = token => (SP.reading.has(token) ? 'checking…' : 'Not read yet');
   const row = (k, place, st, what, n) => ({ k, st, text: `${st === 'found' ? '✓' : st === 'missing' ? '✕' : '·'} ${place}: ${what}${n ? ` (${n})` : ''}` });
   const rows = [];
   if (!e) {
     rows.push(row('title', 'Title', 'na', 'no season word needed now', titleN));
-    rows.push(row('hl', 'Item Highlights', 'na', info.state === 'ok' ? 'no season word needed now' : info.state === 'none' ? 'not available for this product type' : 'not read', hlN));
-    rows.push(row('kw', 'Hidden search words', 'na', item.kw == null ? 'not read' : 'no season word needed now', kwN));
+    rows.push(row('hl', 'Item Highlights', 'na', info.state === 'ok' ? 'no season word needed now' : info.state === 'none' ? 'not available for this product type' : unread(item.key + '|get'), hlN));
+    rows.push(row('kw', 'Hidden search words', 'na', item.kw == null ? unread(item.key) : 'no season word needed now', kwN));
     return { name, rows };
   }
   rows.push(f.title ? row('title', 'Title', 'found', `“${f.title}” found`, titleN) : row('title', 'Title', 'missing', `${name} missing`, titleN));
@@ -1371,10 +1395,10 @@ function spWhere(item) {
   else if (f.hlHidden) rows.push(row('hl', 'Item Highlights', 'na', `“${f.hlHidden}” found — but Amazon shows Item Highlights only when the title is ${SP_TITLE_MAX} letters or less, so shoppers don't see it yet (title is ${String(item.title || '').length})`, ''));
   else if (info.state === 'none') rows.push(row('hl', 'Item Highlights', 'na', 'not available for this product type', ''));
   else if (info.state === 'err') rows.push(row('hl', 'Item Highlights', 'na', `could not be read (${info.err})`, ''));
-  else if (info.state !== 'ok') rows.push(row('hl', 'Item Highlights', 'checking', 'checking…', ''));
+  else if (info.state !== 'ok') rows.push(row('hl', 'Item Highlights', 'checking', unread(item.key + '|get'), ''));
   else if (String(item.title || '').length > SP_TITLE_MAX) rows.push(row('hl', 'Item Highlights', 'na', `not available: title over ${SP_TITLE_MAX}`, hlN));
   else rows.push(row('hl', 'Item Highlights', 'missing', `${name} missing`, hlN));
-  if (item.kw == null) rows.push(row('kw', 'Hidden search words', 'checking', 'checking…', ''));
+  if (item.kw == null) rows.push(row('kw', 'Hidden search words', 'checking', unread(item.key), ''));
   else rows.push(f.kw ? row('kw', 'Hidden search words', 'found', `“${f.kw}” found`, kwN) : row('kw', 'Hidden search words', 'missing', `${name} missing`, kwN));
   return { name, rows };
 }
@@ -1656,7 +1680,9 @@ async function spSendAll(todo) {
       // what was sent is now what the listing shows, as far as every screen knows
       if (typeof liWsEntry === 'function') {
         const entry = liWsEntry(item.brand, item.sku);
-        Object.assign(entry, { at: now, cAt: now, title: t.after.slice(0, 220), titleLen: t.after.length, err: '', cErr: '' });
+        // our submitted title is now the one sent; the content counts as read only if it was read before (never "0 bullets" or
+        // "0 of 249" search words for a listing whose content was never read)
+        Object.assign(entry, { at: now, title: t.after.slice(0, 220), titleLen: t.after.length, err: '', cErr: '' }, entry.cAt ? { cAt: now } : {});
         if (item.kwAfter != null) Object.assign(entry, { kw: item.kwAfter.slice(0, 300), kwBytes: lrKwBytes(item.kwAfter) });
         if (spHlChanged(item)) Object.assign(entry, { hl: item.hlAfter.slice(), hlAt: now });
         LI_WS.liveV++;

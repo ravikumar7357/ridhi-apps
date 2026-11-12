@@ -107,7 +107,56 @@ const text = rows => rows.map(r => r.text).join(' | ');
     live('R1', FULL, null, 'TC_HL');
     const it = planOf(C, 'R1');
     const t = text(C.spWhere(it).rows);
-    ok('Item Highlights and the hidden search words not read yet: "checking…" for both, with no count', /· Item Highlights: checking…/.test(t) && /· Hidden search words: checking…/.test(t), t);
+    ok('not read and nothing on its way: "Not read yet" for both, with no count (never "0 of 249")', /· Item Highlights: Not read yet$|· Item Highlights: Not read yet \|/.test(t) && /· Hidden search words: Not read yet$/.test(t) && !/0 of 249/.test(t), t);
+    C.SP.reading.add('SP|R1'); C.SP.reading.add('SP|R1|get');
+    const t2 = text(C.spWhere(it).rows);
+    ok('…and "checking…" while their reads are on the way', /· Item Highlights: checking…/.test(t2) && /· Hidden search words: checking…/.test(t2), t2);
+  }
+
+  console.log('== the four small fixes: one count, clear sizes, no room in title, never 0 for not read ==');
+  {
+    const { C, put, live } = setup();
+    // 4 to change for Christmas (title full, no Item Highlights for the type: search words), 1 that only loses "Spring", 1 up to date
+    for (let i = 1; i <= 4; i++) { put('N' + i, FULL); live('N' + i, FULL, 'dinner', 'TC_NONE'); }
+    const SPR = 'Ridhi Rectangle Tablecloth 60 x 90 Inch Spring Table Decor Christmas - Red';
+    put('N5', SPR); live('N5', SPR, 'dinner', 'TC_NONE');
+    put('N6', FULL); live('N6', FULL, 'dinner christmas', 'TC_NONE');
+    C.reset(); C.SP.itemsKey = '';
+    const g = C.spGroupOf('SP|PW');
+    const body = C.spParentBodyHtml(g, false);
+    const n = g.ready.length + g.look.length + g.fix.length;
+    ok(`ONE count: the sentence says ${n} — Ready + Needs your OK + Fix by hand (the "Spring" one included)`, n === 5 && new RegExp(`${n} of these 6 tablecloths don't mention it yet`).test(body), body.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').slice(0, 200));
+    // while reading: "So far: … (reading x of y)"
+    C.SP.prog = { key: 'SP|PW', items: new Map([['SP|N1', new Set(['SP|N1'])], ['SP|N2', new Set(['SP|N2'])], ['SP|N3', new Set(['SP|N3|get'])]]) };
+    C.SP.reading.add('SP|N3|get');
+    const reading = C.spParentBodyHtml(C.spGroupOf('SP|PW'), false);
+    ok('while reading: "So far: 5 of these 6 tablecloths don\'t mention Christmas (reading 2 of 3)"', /So far: 5 of these 6 tablecloths don't mention Christmas \(reading 2 of 3\)\./.test(reading), reading.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').slice(0, 220));
+    C.SP.reading.clear(); C.SP.prog = null;
+    // clear sizes: search words empty on Amazon (read): "now 0 of 249, after adding 9 of 249"
+    put('N7', FULL); live('N7', FULL, '', 'TC_NONE');
+    const e7 = planOf(C, 'N7');
+    const kwRow = C.spWhere(e7).rows.find(r => r.k === 'kw').text;
+    ok('search words read and empty: "✕ Hidden search words: Christmas missing (now 0 of 249, after adding 9 of 249)"', kwRow === '✕ Hidden search words: Christmas missing (now 0 of 249, after adding 9 of 249)', kwRow);
+    const T60 = 'Ridhi Rectangle Tablecloth 60 x 90 Inch Block Print - Red';
+    put('N8', T60); live('N8', T60, 'dinner', 'TC_NONE');
+    const e8 = planOf(C, 'N8');
+    const tRow = C.spWhere(e8).rows.find(r => r.k === 'title').text;
+    ok(`the title gets it: "✕ Title: Christmas missing (now ${T60.length} of 75, after adding ${e8.after.length} of 75)"`, e8.place === 'title' && tRow === `✕ Title: Christmas missing (now ${T60.length} of 75, after adding ${e8.after.length} of 75)`, tRow);
+    // no room in title, in plain words
+    const T69 = 'Ridhi Rectangle Tablecloth 60 x 90 Inch Dining Table Cover Linen - Red';
+    put('N9', T69); live('N9', T69, 'dinner', 'TC_NONE');
+    const e9 = planOf(C, 'N9');
+    ok(`"No room in title: “Christmas” needs 10 letters, only ${75 - T69.length} left (${T69.length} of 75)"`, e9.placeLines[0] === `Title: Christmas missing — no room in title: “Christmas” needs 10 letters, only ${75 - T69.length} left (${T69.length} of 75)`, e9.placeLines[0]);
+    // never "0 of 249" for a listing whose content was never read — even after a title was sent for it
+    const T10 = 'Ridhi Rectangle Tablecloth 60 x 90 Inch Block Print Cotton - Red';
+    put('N10', T10);
+    C.LI_WS.live.SP.N10 = { at: Date.now(), gAt: Date.now(), pt: 'TC_NONE', catTitle: T10, tAt: Date.now() };   // a status read only: no content read
+    C.LI_WS.liveV++;
+    let e10 = planOf(C, 'N10');
+    ok('no content read: the search words are "Not read yet", never 0 of 249', e10.kw === null && /· Hidden search words: Not read yet/.test(text(C.spWhere(e10).rows)), text(C.spWhere(e10).rows));
+    await C.spSendAll([{ item: e10, after: e10.after, patches: C.spPatches(e10, e10.after) }]);
+    e10 = planOf(C, 'N10');
+    ok('…a title sent for it does not make it "read": still "Not read yet", not "0 of 249" (and no 0 bullets anywhere)', e10.kw === null && !C.LI_WS.live.SP.N10.cAt && !/0 of 249/.test(text(C.spWhere(e10).rows)), JSON.stringify([e10.kw, C.LI_WS.live.SP.N10.cAt]));
   }
 
   console.log('== the parent panel: each child row says where ==');

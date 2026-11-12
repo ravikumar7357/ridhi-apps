@@ -803,10 +803,11 @@ function lrFresh(row, ctx) {
     r.content = { title: r.shownTitle, titleLen: shownLen, bullets: live.bul || 0, descLen: live.desc || 0, images: row.content ? row.content.images : null };
     r.contentAt = live.cAt;
     r.contentSrc = 'live';
-    r.kw = live.kw || '';
+    // The search terms only when the content read brought them (a string, '' when empty on Amazon); a record without them is "not read".
+    r.kw = typeof live.kw === 'string' ? live.kw : null;
     // Counted from the text itself whenever the text is whole (the live read keeps up to 300 characters of it); the stored count
     // is used only for a longer text — so a count stored the old way (with the spaces) can never make a listing look over.
-    r.kwBytes = r.kw.length >= 300 && live.kwBytes != null ? live.kwBytes : lrKwBytes(r.kw);
+    r.kwBytes = r.kw == null ? null : r.kw.length >= 300 && live.kwBytes != null ? live.kwBytes : lrKwBytes(r.kw);
   } else {
     r.contentAt = row.checked || 0;
     r.contentSrc = row.content ? 'health' : '';

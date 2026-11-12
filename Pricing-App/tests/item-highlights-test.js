@@ -47,9 +47,9 @@ const planOf = (C, sku, day) => { C.reset(); C.SP.itemsKey = ''; return C.spComp
     const it = planOf(C, 'H1');
     ok('the suggestion goes to Item Highlights, at the START in a natural phrase ("Christmas table decor, hand block printed cotton, soft and washable"); the title stays', it.place === 'hl' && it.after === FULL && it.kwAfter === it.kw
       && it.hlAfter[0] === 'Christmas table decor, hand block printed cotton, soft and washable' && it.status === 'ready', JSON.stringify([it.place, it.hlAfter, it.status, it.why]));
-    ok('the three places in plain words, in order', it.placeLines[0] === 'Title: Christmas missing — title is full (74 of 75)'
-      && it.placeLines[1] === 'Item Highlights: Christmas missing — ‘Christmas table decor’ fits (67 of 125)'
-      && /^Hidden search words: Christmas missing — it fits \(\d+ of 249\)$/.test(it.placeLines[2]), JSON.stringify(it.placeLines));
+    ok('the three places in plain words, in order, the sizes "now" and "after adding"', it.placeLines[0] === 'Title: Christmas missing — no room in title: “Christmas” needs 10 letters, only 1 left (74 of 75)'
+      && it.placeLines[1] === 'Item Highlights: Christmas missing — ‘Christmas table decor’ fits (now 44 of 125, after adding 67 of 125)'
+      && /^Hidden search words: Christmas missing — it fits \(now 17 of 249, after adding 26 of 249\)$/.test(it.placeLines[2]), JSON.stringify(it.placeLines));
     ok('…one suggestion; the other place that fits is "Also possible"', it.alsoPlaces.join() === 'Hidden search words', it.alsoPlaces.join());
     const p = C.spPatches(it, it.after);
     ok('what is sent: the title as it is, and title_differentiation with the new text', p.map(x => x.path).join() === '/attributes/item_name,/attributes/title_differentiation'
@@ -59,7 +59,7 @@ const planOf = (C, sku, day) => { C.reset(); C.SP.itemsKey = ''; return C.spComp
     const g = C.spGroups(C.spCompute(NOV)).find(x => x.key === 'SP|PH');
     const kid = C.spKidHtml(it, g);
     ok('the child panel: "Add “Christmas” to Item Highlights", the three place lines, Also possible', /Add “Christmas” to Item Highlights \(shown under the title\)/.test(kid)
-      && /Item Highlights: Christmas missing — ‘Christmas table decor’ fits \(67 of 125\)/.test(kid) && /Also possible: Hidden search words/.test(kid), kid.slice(0, 200));
+      && /Item Highlights: Christmas missing — ‘Christmas table decor’ fits \(now 44 of 125, after adding 67 of 125\)/.test(kid) && /Also possible: Hidden search words/.test(kid), kid.slice(0, 200));
     ok('…"What changes" shows Item Highlights the way the hidden search words are shown: + Added, the count, the full text folded', /<p class="sp-add">\+ Added to Item Highlights: Christmas, table, decor<\/p>/.test(kid)
       && /Item Highlights: 67 of 125\./.test(kid) && /<summary>Show full Item Highlights<\/summary>/.test(kid), (kid.match(/sp-chg[^]*?<\/div><div class="sp-card2 sp-chk-c/) || [''])[0].slice(0, 600));
     ok('the parent row says it in the same words', /Add “Christmas” to Item Highlights/.test(C.spRowHtml(it)));
