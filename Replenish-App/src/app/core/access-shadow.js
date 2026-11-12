@@ -123,6 +123,70 @@ async function accessShadow(user, permsDoc, firebaseMs) {
   controlShadow(token);   // section 2: the waiting-request counts
   mastersShadow(token);   // section 3: every Masters record
   skusShadow(token);      // section 4: every SKU record (at most once an hour per browser — it reads ~4 MB)
+  ordersShadow(token);    // section 5: every order (at most once an hour per browser — it reads ~13 MB)
+}
+
+/* ================= ORDERS · SHADOW TEST (Ravi, 12 Nov) =================
+ * Every order in live Firebase — sales orders, order book, vendor orders, Shopify floor, vendor challans — against the copy in
+ * Supabase (schemas sales / production), record by record, by fingerprint (core.orders_fp(), one trip). Each fingerprint covers
+ * the whole order, lines included. Reads ~13 MB, so at most once an hour in a browser; click the line to run it now.
+ * Keep the paths the same as migration/tools/make-orders.js (the legacy keys). */
+const ASH_ORD_LAST = 'r1.testerp.ordersShadowAt';
+function ashOrdersPaths(so, ob, vo, sp, vc) {
+  const out = new Map();
+  const one = (v, p) => ashEnt(v).forEach(([k, x]) => { if (x && typeof x === 'object' && !Array.isArray(x)) out.set(`${p}/${k}`, x); });
+  const two = (v, p) => ashEnt(v).forEach(([g, grp]) => { if (grp && typeof grp === 'object' && !Array.isArray(grp)) one(grp, `${p}/${g}`); });
+  one(so, 'pt_salesOrders'); one(ob, 'pt_orderBook'); two(vo, 'pt_vendorOrders'); one(sp, 'pt_shopProd'); two(vc, 'pt_vendorChallans');
+  return out;
+}
+async function ordersShadow(token, force) {
+  let last = 0; try { last = Number(localStorage.getItem(ASH_ORD_LAST)) || 0; } catch (e) { /* no storage: run */ }
+  if (!force && Date.now() - last < 3600e3) { ashShowOrders({ waiting: true, at: last, token }); return; }
+  ashShowOrders({ running: true, token });
+  try {
+    const read = n => (typeof ptGetFresh === 'function' ? ptGetFresh(n) : ptGet(n, true));
+    const t0 = performance.now();
+    const [so, ob, vo, sp, vc] = await Promise.all(['pt_salesOrders', 'pt_orderBook', 'pt_vendorOrders', 'pt_shopProd', 'pt_vendorChallans'].map(read));
+    const firebaseMs = Math.round(performance.now() - t0);
+    const fb = ashOrdersPaths(so, ob, vo, sp, vc);
+    const t1 = performance.now();
+    const j = await ashCall('orders_fp', token);
+    const supabaseMs = Math.round(performance.now() - t1);
+    const sb = new Map(Object.entries(j || {}));
+    const copyOf = sb.get('#copy_of') || ''; sb.delete('#copy_of');
+    const t2 = performance.now();
+    const { missing, changed, extra } = await ashCompare(fb, sb);
+    const compareMs = Math.round(performance.now() - t2);
+    const matched = !missing.length && !changed.length && !extra.length;
+    try { localStorage.setItem(ASH_ORD_LAST, String(Date.now())); } catch (e) { /* fine */ }
+    ashShowOrders({ matched, total: fb.size, missing, changed, extra, firebaseMs, supabaseMs, compareMs, copyOf, token });
+    ashCall('shadow_report', token, { p_section: 'orders · records', p_matched: matched, p_firebase_ms: firebaseMs, p_supabase_ms: supabaseMs,
+      p_missing: missing.concat(changed.map(p => p + ' (changed)')).slice(0, 500), p_extra: extra.slice(0, 500), p_build: (window.__TEST_ERP && window.__TEST_ERP.sha) || 'local' }).catch(() => {});
+    console.info('[shadow] orders', matched ? 'same' : 'DIFFERS', { total: fb.size, missing: missing.length, changed: changed.length, extra: extra.length, firebaseMs, supabaseMs });
+  } catch (e) { ashShowOrders({ error: e.message, token }); }
+}
+function ashShowOrders(r) {
+  let el = document.getElementById('ashOrders');
+  if (!el) {
+    el = document.createElement('button'); el.id = 'ashOrders'; el.type = 'button';
+    el.style.cssText = 'position:fixed;left:calc(12px + env(safe-area-inset-left,0px));bottom:calc(230px + env(safe-area-inset-bottom,0px));z-index:10000;'
+      + 'font:12px/1.3 system-ui,sans-serif;padding:7px 11px;border-radius:999px;border:1px solid rgba(0,0,0,.15);cursor:pointer;max-width:calc(100vw - 24px);text-align:left;color:#1b1b1b';
+    document.body.appendChild(el);
+    el.onclick = () => { const x = el._r || {}; if (x.waiting || x.error) { ordersShadow(x.token, true); return; } el.dataset.open = el.dataset.open ? '' : '1'; ashShowOrders(x); };
+  }
+  el._r = r; el.style.whiteSpace = 'pre-line';
+  if (r.running) { el.style.background = '#eef1f7'; ashShape(el, false); el.textContent = 'Orders · comparing every order with Firebase…'; return; }
+  if (r.waiting) { el.style.background = '#eef1f7'; ashShape(el, false); el.textContent = 'Orders · last compared ' + new Date(r.at).toLocaleTimeString('en-IN') + ' · click to compare again now'; return; }
+  if (r.error) { el.style.background = '#fff4d6'; ashShape(el, false); el.textContent = '! Orders · not compared: ' + String(r.error).slice(0, 120) + ' · click to retry'; return; }
+  el.style.background = r.matched ? '#e3f4ea' : '#fde4e1';
+  const n = r.missing.length + r.changed.length + r.extra.length;
+  let t = 'Orders · ' + r.total.toLocaleString('en-IN') + ' orders · ' + (r.matched ? '✓ every one the same as Firebase' : '✗ ' + n.toLocaleString('en-IN') + ' differ (Supabase copy from ' + (r.copyOf || '?') + ')')
+    + ' · Firebase ' + r.firebaseMs + ' ms · Supabase ' + r.supabaseMs + ' ms · compare ' + r.compareMs + ' ms';
+  const open = !!(el.dataset.open && n);
+  if (open) t += '\n' + [...r.changed.map(p => 'changed: ' + p), ...r.missing.map(p => 'new in Firebase: ' + p), ...r.extra.map(p => 'gone from Firebase: ' + p)].join('\n')
+    + '\nA difference here usually means an order added or changed in the ERP after the copy was made. Click to close.';
+  ashShape(el, open);
+  el.textContent = t;
 }
 
 /* ================= SKUs · SHADOW TEST (Ravi, 10 Nov) =================
