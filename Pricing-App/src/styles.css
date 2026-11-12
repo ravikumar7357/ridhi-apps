@@ -2077,6 +2077,213 @@
   #paneHealth .lk-passed{padding:0 16px 14px;font-size:12px;line-height:1.55;color:var(--muted)}
   #paneHealth .lk-passed b{color:var(--ink);font-weight:600}
   #paneHealth .lk-src{color:var(--faint)}
+  /* ===== SEASON PLANNER (12 Nov 2026): the Listing Optimiser's second view and the Workspace panel's Season tab — the Ad Console look
+     again (.sp-* copies of .adx-meta / .adx-box / .px-toolbar / .adh-f), tokens only, transform-only animation. Written for a seller:
+     big targets (40px+), one filled button per card, icon + word for every state. ===== */
+  .sp-switch{display:inline-flex;align-items:stretch;gap:2px;margin:0 0 12px;padding:3px;border-radius:var(--r-pill);background:var(--hover);border:1px solid var(--line)}
+  .sp-switch .segbtn{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:40px;padding:5px 16px;border-radius:var(--r-pill);line-height:1.2}
+  .sp-switch .segbtn small{display:block;font-size:10.5px;font-weight:500;color:var(--faint);letter-spacing:0}
+  .sp-switch .segbtn.on small{color:var(--muted)}
+  .sp-root{--sp-c:var(--brand)}
+  .sp-root button{font:inherit}
+  /* How it works: three numbered steps with an icon, a ? for the short explanation, Hide. */
+  .sp-how{display:flex;align-items:center;gap:12px 20px;flex-wrap:wrap;margin:0 0 12px;padding:12px 16px;border:1px solid var(--card-line);border-radius:var(--r-card);background:var(--card);box-shadow:var(--sh-1)}
+  .sp-how.is-folded{padding:6px 12px;background:transparent;border-color:transparent;box-shadow:none}
+  .sp-steps{display:flex;flex:1 1 auto;gap:8px 24px;flex-wrap:wrap}
+  .sp-step{display:flex;align-items:center;gap:10px;min-width:0;font-size:13px}
+  .sp-step b{display:block;font-weight:650;color:var(--ink)}
+  .sp-step small{display:block;font-size:11.5px;color:var(--muted)}
+  .sp-step-n{flex:none;display:grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--ink);color:var(--card);font-size:12px;font-weight:700}
+  .sp-step-i{flex:none;display:grid;place-items:center;width:30px;height:30px;border-radius:var(--r-sm);background:color-mix(in srgb,var(--sp-c) 14%,transparent);color:var(--sp-c)}
+  .sp-step-i svg,.sp-ic svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+  .sp-how-a{display:flex;align-items:center;gap:10px}
+  .sp-q{display:grid;place-items:center;width:30px;height:30px;margin:0;padding:0;border:1.5px solid var(--faint);border-radius:50%;background:transparent;color:var(--muted);font-size:14px;font-weight:700;box-shadow:none;cursor:pointer}
+  .sp-q:hover,.sp-q[aria-expanded="true"]{background:var(--hover);color:var(--ink)}
+  .sp-help{flex-basis:100%;font-size:13px;line-height:1.55;color:var(--muted)}
+  .sp-link{margin:0;padding:4px 6px;border:0;background:transparent;color:var(--brand-ink);font-size:12.5px;font-weight:600;text-decoration:underline;text-underline-offset:2px;box-shadow:none;cursor:pointer}
+  .sp-link:hover{background:var(--brand-bg);color:var(--brand-ink)}
+  /* The meta line and the toolbar, like the Listing Health ones. */
+  .sp-meta{display:flex;justify-content:space-between;align-items:baseline;gap:4px 16px;flex-wrap:wrap;margin:0 2px 10px;font-size:12px;color:var(--muted)}
+  .sp-meta b{color:var(--ink);font-weight:600}
+  .sp-meta>span:last-child{color:var(--faint)}
+  .sp-reading{color:var(--act-ink);font-weight:600}
+  .card.sp-tb{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:12px 16px;margin-bottom:10px;border-radius:var(--r-card);box-shadow:var(--sh-1);border:1px solid var(--card-line)}
+  .sp-sel{flex:0 0 auto;width:auto;max-width:190px;height:var(--ctl);padding:0 30px 0 12px;border:1px solid var(--line);border-radius:var(--r-ctl);background:var(--card);color:var(--ink);font:inherit;font-size:13px}
+  .sp-search{display:flex;align-items:center;gap:8px;flex:1 1 200px;min-width:180px;height:var(--ctl);padding:0 12px;border:1px solid var(--line);border-radius:var(--r-ctl);background:var(--card)}
+  .sp-search svg{flex:none;width:16px;height:16px;fill:none;stroke:var(--faint);stroke-width:2;stroke-linecap:round}
+  .sp-search input{flex:1 1 auto;min-width:0;height:auto;margin:0;padding:0;border:0;background:transparent;color:var(--ink);font:inherit;font-size:13px;box-shadow:none}
+  .sp-search input:focus{outline:none}
+  .sp-search:focus-within{box-shadow:var(--ring)}
+  .sp-spacer{flex:1 1 auto}
+  /* Buttons: one filled main button, quiet ones beside it. 40px targets. */
+  .sp-main{display:inline-flex;align-items:center;justify-content:center;min-height:40px;margin:0;padding:0 18px;border:1px solid var(--ink);border-radius:var(--r-ctl);background:var(--ink);color:var(--card);font-size:13px;font-weight:650;line-height:1;white-space:nowrap;box-shadow:none;cursor:pointer;transition:transform .12s ease}
+  .sp-main:hover{background:color-mix(in srgb,var(--ink) 86%,var(--card));color:var(--card)}
+  .sp-main:active{transform:translateY(1px)}
+  .sp-main:disabled,.sp-main:disabled:hover{opacity:.45;cursor:default;transform:none;background:var(--ink);color:var(--card)}
+  .sp-main:focus-visible{outline:none;box-shadow:var(--ring)}
+  .sp-big{min-height:var(--ctl);padding:0 20px}
+  .sp-btn{display:inline-flex;align-items:center;justify-content:center;min-height:40px;margin:0;padding:0 14px;border:1px solid var(--line);border-radius:var(--r-ctl);background:var(--card);color:var(--ink);font-size:13px;font-weight:600;line-height:1;white-space:nowrap;box-shadow:none;cursor:pointer}
+  .sp-btn:hover{background:var(--hover);color:var(--ink);box-shadow:none}
+  .sp-btn:focus-visible{outline:none;box-shadow:var(--ring)}
+  .sp-btn.sp-quiet{border-color:transparent;color:var(--muted)}
+  /* The four number boxes, like .adx-box. */
+  .sp-boxes{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:0 0 10px}
+  .sp-box{--c:var(--brand);position:relative;overflow:hidden;min-width:0;display:flex;padding:0;background:var(--card);border:1px solid var(--card-line);border-radius:var(--r-card);box-shadow:var(--sh-1);transition:transform .15s cubic-bezier(.2,.7,.2,1),box-shadow .15s ease,border-color .15s ease}
+  .sp-box::after{content:"";position:absolute;right:-55px;top:-65px;width:160px;height:160px;border-radius:50%;background:radial-gradient(circle,var(--c) 0,transparent 68%);opacity:.12;pointer-events:none}
+  :root[data-theme="dark"] .sp-box::after{opacity:.2}
+  @media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .sp-box::after{opacity:.2}}
+  .sp-box:hover{transform:translateY(-3px);box-shadow:var(--sh-2);border-color:color-mix(in srgb,var(--c) 40%,var(--card-line))}
+  .sp-box.is-on{box-shadow:0 0 0 3px color-mix(in srgb,var(--c) 35%,transparent);border-color:color-mix(in srgb,var(--c) 55%,var(--card-line))}
+  .sp-box.is-add{--c:var(--accent)}
+  .sp-box.is-rem{--c:var(--bad)}
+  .sp-box.is-res{--c:var(--brand)}
+  .sp-box.is-ok{--c:var(--faint)}
+  .sp-box-main{display:flex;flex-direction:column;align-items:stretch;width:100%;min-height:88px;margin:0;padding:12px 14px 10px;border:0;border-radius:0;background:transparent;box-shadow:none;color:inherit;text-align:left;line-height:1.3;cursor:pointer}
+  .sp-box-main:hover,.sp-box-main:active{background:transparent;color:inherit;box-shadow:none;transform:none}
+  .sp-box-main:focus-visible{outline:none;box-shadow:inset 0 0 0 2px var(--ring-line)}
+  .sp-l{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:600;color:var(--muted);white-space:nowrap}
+  .sp-ic{flex:none;display:grid;place-items:center;width:24px;height:24px;border-radius:var(--r-sm);color:var(--c);background:color-mix(in srgb,var(--c) 14%,transparent)}
+  .sp-v{display:flex;align-items:center;gap:6px;margin:8px 0 2px}
+  .sp-v>b{font-size:22px;font-weight:700;letter-spacing:-.025em;line-height:1.15;color:var(--ink);font-variant-numeric:tabular-nums}
+  .sp-box.is-add .sp-v>b{color:var(--accent-ink)}
+  .sp-box.is-rem .sp-v>b{color:var(--bad-ink)}
+  .sp-box.is-res .sp-v>b{color:var(--brand-ink)}
+  .sp-box.is-ok .sp-v>b{color:var(--muted)}
+  .sp-note{font-size:11.5px;color:var(--faint);white-space:normal}
+  .sp-box.is-skel{min-height:88px;flex-direction:column;gap:8px;padding:12px 14px}
+  /* The season timeline: one card a season, in date order, scrolls sideways; the seasons on now stand out. */
+  .sp-tl{display:flex;gap:8px;overflow-x:auto;padding:2px 2px 8px;margin:0 0 6px;scroll-snap-type:x proximity}
+  .sp-tlc{flex:0 0 auto;display:flex;flex-direction:column;align-items:flex-start;gap:3px;min-width:170px;min-height:40px;margin:0;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--card);color:var(--ink);text-align:left;line-height:1.3;box-shadow:none;cursor:pointer;scroll-snap-align:start;transition:transform .15s cubic-bezier(.2,.7,.2,1),box-shadow .15s ease}
+  .sp-tlc:hover{box-shadow:var(--sh-1);transform:translateY(-2px);background:var(--card);color:var(--ink)}
+  .sp-tlc:focus-visible{outline:none;box-shadow:var(--ring)}
+  .sp-tlc>b{font-size:13px;font-weight:650}
+  .sp-tlc.is-now{border-color:var(--accent);background:var(--accent-bg)}
+  .sp-tlc.is-now>b{color:var(--accent-ink)}
+  .sp-tlc.is-soon{border-color:var(--act)}
+  .sp-tlc.is-plain{opacity:.8}
+  .sp-tlc.is-on{box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 35%,transparent)}
+  .sp-tlw{font-size:11.5px;font-weight:600;color:var(--muted)}
+  .sp-tlc.is-now .sp-tlw{color:var(--accent-ink)}
+  .sp-tld{font-size:11.5px;color:var(--faint)}
+  .sp-tld b{color:var(--ink);font-weight:600}
+  .sp-tln{font-size:11.5px;color:var(--muted)}
+  /* The list chips. */
+  .sp-chips{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 10px}
+  .sp-chip{display:inline-flex;align-items:center;gap:7px;min-height:40px;margin:0;padding:0 14px;border:1px solid var(--line);border-radius:var(--r-pill);background:var(--card);color:var(--muted);font-size:12.5px;font-weight:600;box-shadow:none;cursor:pointer}
+  .sp-chip:hover{background:var(--hover);color:var(--ink)}
+  .sp-chip.is-on{background:var(--ink);color:var(--card);border-color:var(--ink)}
+  .sp-chip:focus-visible{outline:none;box-shadow:var(--ring)}
+  .sp-n{display:inline-block;min-width:18px;padding:0 6px;border-radius:var(--r-pill);background:color-mix(in srgb,var(--ink) 8%,transparent);font-size:11px;text-align:center}
+  .sp-chip.is-on .sp-n{background:color-mix(in srgb,var(--card) 22%,transparent)}
+  /* A parent's group card and the listing cards inside it. */
+  .card.sp-group{padding:0;margin-bottom:12px;overflow:hidden;border-radius:var(--r-card);box-shadow:var(--sh-1);border:1px solid var(--card-line)}
+  .sp-group-h{display:flex;align-items:center;gap:12px;padding:12px 16px;background:var(--soft);border-bottom:1px solid var(--line)}
+  .sp-group-t{flex:1 1 auto;min-width:0}
+  .sp-group-t b{display:block;font-size:14px;font-weight:650;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .sp-group-t small{display:block;font-size:11.5px;color:var(--muted)}
+  .sp-card{padding:12px 16px;border-top:1px solid var(--line);font-size:13px;line-height:1.45}
+  .sp-group .sp-card:first-of-type{border-top:0}
+  .sp-card-h{display:flex;align-items:center;gap:12px}
+  .sp-card-t{flex:1 1 auto;min-width:0}
+  .sp-card-t b{display:block;font-size:13.5px;font-weight:650;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .sp-card-t small{display:block;font-size:11.5px;color:var(--faint)}
+  .sp-root .ls-pic{flex:none;display:grid;place-items:center;width:36px;height:36px;border-radius:var(--r-sm);overflow:hidden;background:var(--hover)}
+  .sp-root .ls-pic img{width:100%;height:100%;object-fit:cover}
+  .sp-root .ls-pic.is-broken img{display:none}
+  /* Status: an icon AND a word, never colour alone. */
+  .sp-st{flex:none;display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:var(--r-pill);background:var(--hover);color:var(--muted);font-size:12px;font-weight:650;white-space:nowrap}
+  .sp-st i{font-style:normal}
+  .sp-st.is-ready,.sp-st.is-ok{background:var(--accent-bg);color:var(--accent-ink)}
+  .sp-st.is-look{background:var(--rev-bg);color:var(--rev-ink)}
+  .sp-st.is-no{background:var(--bad-bg);color:var(--bad-ink)}
+  .sp-st.is-reading{background:var(--act-bg);color:var(--act-ink)}
+  .sp-what{margin:8px 0 4px;font-size:12px;font-weight:650;color:var(--muted)}
+  .sp-now,.sp-sug,.sp-kw{position:relative;margin:6px 0;padding:8px 12px;border-radius:10px;background:var(--soft)}
+  .sp-sug{background:var(--accent-bg)}
+  .sp-now small,.sp-sug small,.sp-kw small{display:block;margin-bottom:2px;font-size:10.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--faint)}
+  .sp-now>div,.sp-sug>div,.sp-kw>div{font-size:13.5px;line-height:1.45;padding-right:84px;overflow-wrap:anywhere}
+  .sp-cnt{position:absolute;right:12px;top:8px;font-size:11.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+  .sp-cnt.is-over{color:var(--bad-ink);font-weight:650}
+  .sp-sug ins,.sp-kw ins{background:color-mix(in srgb,var(--accent) 22%,transparent);color:var(--accent-ink);text-decoration:none;border-radius:3px;padding:0 2px;font-weight:650}
+  .sp-sug del,.sp-kw del{background:color-mix(in srgb,var(--bad) 14%,transparent);color:var(--bad-ink);text-decoration:line-through;border-radius:3px;padding:0 2px}
+  .sp-note-l{margin:4px 0;font-size:12.5px;color:var(--muted)}
+  .sp-no{margin:6px 0;padding:8px 12px;border-radius:10px;background:var(--bad-bg);color:var(--bad-ink);font-weight:600}
+  .sp-okline{margin:4px 0 0;font-size:12.5px;color:var(--accent-ink);font-weight:600}
+  .sp-checks{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:2px 16px;margin:6px 0 2px;padding:0;list-style:none}
+  .sp-chk{display:flex;align-items:flex-start;gap:6px;font-size:12.5px;color:var(--muted)}
+  .sp-chk i{flex:none;font-style:normal;font-weight:700;width:14px}
+  .sp-chk.is-ok i{color:var(--accent-ink)}
+  .sp-chk.is-warn{color:var(--rev-ink)}
+  .sp-chk.is-no{color:var(--bad-ink);font-weight:600}
+  .sp-editbox{margin:6px 0}
+  .sp-editbox label{display:block;font-size:11.5px;font-weight:650;color:var(--muted)}
+  .sp-edit{display:block;width:100%;margin:2px 0 0;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);font:inherit;font-size:13.5px;line-height:1.45;resize:vertical}
+  .sp-edit:focus{outline:none;box-shadow:var(--ring)}
+  .sp-editbox .sp-cnt{position:static;display:block;margin-top:2px}
+  .sp-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px}
+  .sp-reason{flex-basis:100%;font-size:12.5px;color:var(--rev-ink)}
+  .sp-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:-4px 0 16px;font-size:12.5px;color:var(--muted)}
+  .card.sp-empty{padding:40px 16px;text-align:center;color:var(--muted);font-size:13px;line-height:1.6}
+  .card.sp-empty b{color:var(--ink);font-weight:600}
+  .card.sp-empty .sp-main{margin-top:10px}
+  .card.sp-list{padding:0}
+  /* The result after a send. */
+  .card.sp-result{padding:12px 16px;margin-bottom:12px;border-left:4px solid var(--accent)}
+  .card.sp-result.has-bad{border-left-color:var(--bad)}
+  .sp-res-ok{color:var(--accent-ink);font-weight:650}
+  .sp-res-bad{margin-top:4px;color:var(--bad-ink)}
+  .sp-res-bad .lr-fixbtn{margin-left:6px}
+  /* Loading placeholders. */
+  .sp-skel{display:inline-block;width:72px;height:24px;border-radius:var(--r-pill);background:var(--hover);animation:ls-pulse 1.2s ease-in-out infinite}
+  .sp-skel.is-w{width:55%;height:14px}
+  .sp-skel.is-s{width:44px;height:14px}
+  .sp-skel.is-pic{width:36px;height:36px;border-radius:var(--r-sm)}
+  .sp-skel-row{display:flex;align-items:center;gap:12px;padding:12px 16px;border-top:1px solid var(--line)}
+  .sp-skel-row:first-child{border-top:0}
+  /* The confirm window and the progress bar. */
+  .modalbox.sp-modal{width:min(640px,100%);max-height:calc(100vh - 32px);display:flex;flex-direction:column;padding:0;overflow:hidden}
+  .sp-m-h{padding:18px 22px 10px}
+  .sp-m-h b{font-size:16px;font-weight:700}
+  .sp-m-h p{margin:4px 0 0;font-size:13px;color:var(--muted)}
+  .sp-m-list{flex:1 1 auto;min-height:0;overflow:auto;padding:0 22px;border-top:1px solid var(--line)}
+  .sp-m-row{padding:10px 0;border-bottom:1px solid var(--line);font-size:13px}
+  .sp-m-row b{display:block;font-weight:650}
+  .sp-m-row small{color:var(--faint)}
+  .sp-m-was{color:var(--muted);text-decoration:line-through;text-decoration-color:color-mix(in srgb,var(--bad) 50%,transparent)}
+  .sp-m-now ins{background:color-mix(in srgb,var(--accent) 22%,transparent);color:var(--accent-ink);text-decoration:none;border-radius:3px;padding:0 2px;font-weight:650}
+  .sp-m-now del{display:none}
+  .sp-m-kw{font-size:12px;color:var(--muted)}
+  .sp-m-a{display:flex;gap:10px;padding:14px 22px 18px;border-top:1px solid var(--line)}
+  .sp-pbar{height:8px;margin:0 22px 22px;border-radius:var(--r-pill);background:var(--hover);overflow:hidden}
+  .sp-pbar span{display:block;height:100%;border-radius:var(--r-pill);background:var(--accent);transition:width .25s ease}
+  /* Inside the Workspace panel's Season tab: the same cards, the panel's width. */
+  .sp-in-panel .sp-card{padding:12px 16px}
+  .sp-panel-a{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 16px;border-bottom:1px solid var(--line)}
+  .sp-panel-s{font-size:12.5px;color:var(--muted)}
+  .sp-in-panel .sp-checks{grid-template-columns:1fr}
+  .sp-in-panel .card.sp-result{margin:10px 16px}
+  @media (max-width:760px){
+    .sp-boxes{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+    .sp-box-main{min-height:80px;padding:10px 12px 8px}
+    .sp-l{white-space:normal;line-height:1.25}
+    .sp-v>b{font-size:20px}
+    .sp-steps{gap:8px 14px}
+    .card.sp-tb{padding:10px 12px}
+    .sp-search{flex-basis:100%}
+    .sp-spacer{display:none}
+    .sp-big{flex:1 1 auto}
+    .sp-now>div,.sp-sug>div,.sp-kw>div{padding-right:0}
+    .sp-cnt{position:static;display:block;margin-top:2px}
+    .sp-checks{grid-template-columns:1fr}
+    .sp-actions .sp-main{flex:1 1 100%}
+    .sp-card-h{flex-wrap:wrap}
+    .sp-st{margin-left:48px}
+    .modalbox.sp-modal{max-height:100vh;border-radius:0}
+  }
+  @media (prefers-reduced-motion:reduce){
+    .sp-box,.sp-tlc,.sp-main,.sp-skel,.sp-pbar span{transition:none;animation:none}
+    .sp-box:hover,.sp-tlc:hover,.sp-main:active{transform:none}
+  }
   /* The Workspace's own bar is slim now: the progress on the left, Sort again and the sweep on the right. */
   #paneHealth .li-ws-bar{margin:0 0 10px}
   @media (max-width:860px){

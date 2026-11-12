@@ -70,16 +70,19 @@ function load(opts) {
     getDoc: async () => ({ exists: () => false }), setDoc: async () => {}, doc: () => ({}), db: {}, serverTimestamp: () => 0, baCall: async () => ({}),
     showTab: t => calls.push({ tab: t }), imLoad() {}, leOpen: (sku, attrs) => calls.push({ sku, attrs }), hFocusOpen() {}, ensureHealth: async () => {}, imListLoad: async () => {},
     parentName: (brand, asin) => 'Parent ' + asin, lcBytes: s => Buffer.byteLength(String(s || ''), 'utf8'),
+    ME: { email: 'test@example.com' }, imPost: async body => { calls.push(body); return opts.post ? opts.post(body) : { ok: true, status: 'ACCEPTED', submissionId: 'sub-' + body.sku }; },
+    navigator: { clipboard: null },
     lrEsc: s => String(s == null ? '' : s).replace(/[<>&"]/g, ch => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[ch])),
   };
-  const src = (opts.src || L('listing-rules.js')) + (opts.ws ? '\n' + L('listing-workspace.js') + '\n' + L('listing-kid.js') : '');
+  const src = (opts.src || L('listing-rules.js')) + (opts.ws ? '\n' + L('listing-workspace.js') + '\n' + L('listing-kid.js') : '') + (opts.sp ? '\n' + L('season-planner.js') : '');
   const tail = '\n;LR = JSON.parse(JSON.stringify(LR_DEFAULT)); LR_CAT.SP = ' + JSON.stringify(CAT.SP) + '; LR_CAT.CPC = ' + JSON.stringify(CAT.CPC) + ';'
     + '\n;return { rows: HEALTH.SP.rows.concat(HEALTH.CPC.rows), LR_DEFAULT, getLR: () => LR, healthOf, hCtx: () => hCtx(), reset: () => { H_CTX = null; }, hTitleSizes,'
     + ' typeofFix: typeof lrProblemHtml, lrProblemHtml: typeof lrProblemHtml === "function" ? lrProblemHtml : null, lrProblemsHtml: typeof lrProblemsHtml === "function" ? lrProblemsHtml : null,'
     + ' lrAllow: typeof lrAllow === "function" ? lrAllow : null, lrFixOpen: typeof lrFixOpen === "function" ? lrFixOpen : null,'
     + ' lrKwBytes: typeof lrKwBytes === "function" ? lrKwBytes : null, lrLevel: typeof lrLevel === "function" ? lrLevel : null, lrNotesHtml: typeof lrNotesHtml === "function" ? lrNotesHtml : null, IML,'
     + ' lrWholeCut: typeof lrWholeCut === "function" ? lrWholeCut : null, AMZ: typeof AMZ === "undefined" ? null : AMZ,'
-    + (opts.ws ? ' LI_WS, LI_WS_AUDIT, liWsParents: (brands) => liWsParents(brands, hCtx(), Date.now()), liWsDetail, liWsAuditBox, liWsKidTable, liWsRender, liWsRecheck, liWsCheckNow, liWsLiveMap, liWsProblems, liWsPanelOpen, liWsPanelClose, liWsPanelMove, liWsPanelRender, liWsOff, liWsToolbarSync, liWsPanelSync, liWsPanelSchedule, liWsPanelKeep, liWsPanelKid, liWsPanelKidBack, lkHtml, lkKid, LK,' : '') + ' };';
+    + (opts.ws ? ' LI_WS, LI_WS_AUDIT, liWsParents: (brands) => liWsParents(brands, hCtx(), Date.now()), liWsDetail, liWsAuditBox, liWsKidTable, liWsRender, liWsRecheck, liWsCheckNow, liWsLiveMap, liWsProblems, liWsPanelOpen, liWsPanelClose, liWsPanelMove, liWsPanelRender, liWsOff, liWsToolbarSync, liWsPanelSync, liWsPanelSchedule, liWsPanelKeep, liWsPanelKid, liWsPanelKidBack, lkHtml, lkKid, LK,' : '')
+    + (opts.sp ? ' SP, spCompute, spPlan, spChecks, spStrip, spInsert, spDiffHtml, spCardHtml, spRender, spPanelHtml, spPanelCount, spApprove, spSendAll, spPatches, spLogLoad, spEvents, SP_SEASONS, setHealthLoaded: v => { H_LOADED = v; }, setCat: (b, m) => { LR_CAT[b] = Object.assign(LR_CAT[b] || {}, m); H_CTX = null; },' : '') + ' };';
   const api = new Function(...Object.keys(ctx), src + tail)(...Object.values(ctx));
   // api.rows ARE the HEALTH rows (the same objects, brand on each): a test that changes one changes what every screen judges.
   api.score = sku => { const r = api.rows.find(x => x.sku === sku); return api.healthOf(r, api.hCtx()); };

@@ -709,6 +709,7 @@ function liWsPump() {
 // An answer landed: the Workspace redraws (at most once a second); Listing Health's own table, when it is the view showing,
 // redraws too, because it judges the same live data (a Check now button pressed there).
 function liWsAfterRead() {
+  if (typeof spAfterRead === 'function') spAfterRead();   // the Season planner judges the same live titles
   if (LI_WS.on) return liWsSchedule();
   liWsToolbarSync();                                  // the toolbar's Re-check button follows its run in every view
   if (LI_WS.inflight || LI_WS.q.length) return;                 // once the last answer is in
@@ -1513,8 +1514,9 @@ function liWsPanelRender() {
   const groups = liWsPanelGroups(scope);
   const reading = p.data.state === 'reading';
   const name = p.name || p.parent;
-  const tabs = [['fix', 'What to fix', groups.length], ['list', 'Listings', p.inMode.length], ['audit', 'Audit', p.audit ? p.audit.fail : 0]];
-  const body = tab === 'fix' ? liWsPanelFix(p, groups) : tab === 'list' ? liWsPanelList(p) : liWsPanelAudit(p);   // first: it says whether rows are held (panelMoved)
+  const tabs = [['fix', 'What to fix', groups.length], ['list', 'Listings', p.inMode.length], ['audit', 'Audit', p.audit ? p.audit.fail : 0]]
+    .concat(typeof spPanelHtml === 'function' ? [['season', 'Season', spPanelCount(p)]] : []);   // the Season planner for this parent (season-planner.js)
+  const body = tab === 'fix' ? liWsPanelFix(p, groups) : tab === 'list' ? liWsPanelList(p) : tab === 'season' ? spPanelHtml(p) : liWsPanelAudit(p);   // first: it says whether rows are held (panelMoved)
   LI_WS.panelResort = false;
   const resort = LI_WS.panelMoved ? '<button type="button" class="ls-btn" data-li-ws-psort="1" title="New answers from Amazon would put these rows in another order; the panel keeps its order until you press this">Sort again</button>' : '';
   const head =`<div class="ls-panel-h">${liWsPicHtml(p.pic, true)}<div class="ls-panel-t"><b title="${lrEsc(name)}">${lrEsc(name)}</b>`
