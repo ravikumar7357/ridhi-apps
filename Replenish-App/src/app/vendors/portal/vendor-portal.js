@@ -413,6 +413,7 @@ function renderVp() {
   const rfdTab = VP.tab === 'rfd', dchTab = VP.tab === 'dch';
   ['vpBar2', 'vpBar3'].forEach(id => { if ($(id)) $(id).classList.toggle('hide', rfdTab || dchTab || (id === 'vpBar3' && vpViewAll())); });
   ['vpView', 'vpStatus', 'vpType', 'vpQ', 'vpExport'].forEach(id => { if ($(id)) $(id).classList.toggle('hide', rfdTab || dchTab || (VP.tab === 'shop' && (id === 'vpView' || id === 'vpType'))); });
+  if (typeof vsxSync === 'function') vsxSync();   // Sent sheet / Upload sent sheet (vendor-sent-excel.js)
   if (rfdTab) { vpRfdRender(matched, nag); return; }
   /* DAILY CHALLAN (4 Nov, daily-challan.js): the printer's own delivery challan, and theirs by date */
   if (dchTab && typeof vpDchRender === 'function') { vpDchRender(); return; }
