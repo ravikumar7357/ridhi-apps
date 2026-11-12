@@ -2201,8 +2201,6 @@
   .sp-pbar{height:8px;margin:0 22px 22px;border-radius:var(--r-pill);background:var(--hover);overflow:hidden}
   .sp-pbar span{display:block;height:100%;border-radius:var(--r-pill);background:var(--accent);transition:width .25s ease}
   /* Inside the Workspace panel's Season tab: the same cards, the panel's width. */
-  .sp-in-panel .sp-checks{grid-template-columns:1fr}
-  .sp-in-panel .card.sp-result{margin:10px 16px}
   @media (max-width:760px){
     .sp-steps{gap:8px 14px}
     .card.sp-tb{padding:10px 12px}
@@ -2253,11 +2251,10 @@
   .sp-side:focus{outline:none}
   @keyframes sp-in{from{transform:translateX(24px)}to{transform:none}}
   .sp-side.sp-kp{z-index:62;width:min(460px,calc(100vw - 16px))}
-  .sp-side.sp-kp.is-ws{z-index:63}
   /* Wide screens: the parent moves left so both show side by side; narrower, the child covers it and "← Back" shows. */
   @media (min-width:1100px){
     .sp-side.sp-pp.has-kid{transform:translateX(calc(-460px - 8px))}
-    .sp-side.sp-kp:not(.is-ws) .sp-back{display:none}
+    .sp-side.sp-kp .sp-back{display:none}
   }
   .sp-side-h{flex:none;padding:12px 12px 0}
   .sp-side-b{flex:1 1 auto;min-height:0;overflow:auto;padding:12px}

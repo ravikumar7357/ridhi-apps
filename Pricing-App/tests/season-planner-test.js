@@ -314,7 +314,9 @@ const napkin = color => ({ color, size: '18x18', subcat: 'Napkin Set' });
     ok("a title Amazon refuses is never silent: ✕ with Amazon's reason in plain words and what to do", C.SP.result && !C.SP.result.results[0].ok && /longer than Amazon allows/.test(C.SP.result.results[0].why) && /shorten the title/.test(C.SP.result.results[0].todo), JSON.stringify(C.SP.result));
     C.LI_WS.on = true; C.liWsRender();
     const p = C.LI_WS.byKey.get('SP|P1');
-    ok("the Workspace panel's Season tab draws the same parent body (sentence, state cards, rows) for one parent", p && /sp-root sp-in-panel/.test(C.spPanelHtml(p)) && typeof C.spPanelCount(p) === 'number');
+    C.liWsPanelOpen('SP|P1');
+    ok('Listing Health has no Season tab: the Workspace panel shows What to fix, Listings and Audit only', p && !/data-li-ws-ptab="season"/.test(C.el('lsPanel').innerHTML) && /data-li-ws-ptab="audit"/.test(C.el('lsPanel').innerHTML) && !/sp-root|sp-row/.test(C.el('lsPanel').innerHTML));
+    C.liWsPanelClose(false);
   }
 
   console.log(`\n${pass} passed, ${fail} failed`);

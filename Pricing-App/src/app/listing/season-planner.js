@@ -1,6 +1,6 @@
 /* ================= LISTING · SEASON PLANNER (Seasonal Title Optimiser): which titles should gain or lose a season word, and sending them =================
- * Screens: Listing Optimiser (tab 'opt') → the "Season planner" pill beside "Review one ASIN" (#spPane); and the "Season" tab of the
- *          Workspace side panel (listing-workspace.js asks spPanelHtml for one parent). Written for a seller, not a developer: plain
+ * Screens: Listing Optimiser (tab 'opt') → the "Season planner" pill beside "Review one ASIN" (#spPane) — ONLY there: Listing Health
+ *          shows problems, the Listing Optimiser improves titles and content, seasons included. Written for a seller, not a developer: plain
  *          words everywhere, one main button per card, a confirm window before anything is sent, and nothing lost (the old title is
  *          always kept).
  * Does: for every listing in the Listing Health snapshot, from the title Amazon shows (the live read first) and the Listing Rules
@@ -16,7 +16,7 @@
  *       three state cards with one button each, the children as rows) and a child's side panel (#spKid, spKidHtml — Problem, Why it
  *       matters, What we'll do, What changes, Checks, and the action bar). Esc closes the child first, then the parent.
  * Main functions: spCompute (every listing's plan), spPlan (one listing), spChecks (the ✓ list), spWordDiff (word sets, not positions),
- *                 spRender / spParentBodyHtml / spKidHtml / spPanelHtml (the screens), spApprove / spSendAll (the confirm window and the
+ *                 spRender / spParentBodyHtml / spKidHtml (the screens), spApprove / spSendAll (the confirm window and the
  *                 send), spAfterRead (redraw when reads land).
  */
 const SP_TITLE_MAX = 75;                 // Amazon asks for 75 or less (Item Highlights); the house rule too
@@ -73,7 +73,7 @@ let SP = {
   redrawT: 0,                // the debounced redraw for landed reads
   sending: null,             // { done, total, results } while titles are sent
   panel: null,               // the parent side panel: { key: "brand|parent", filter: '' | 'look' | 'fix', ws }
-  kid: null,                 // the child side panel: { key: "brand|sku", from: 'page' | 'ws' }
+  kid: null,                 // the child side panel: { key: "brand|sku" }
   kidOrder: [],              // the rows' order in the parent last drawn (↑ / ↓ in a child)
   showDone: false,           // the up-to-date parents are showing
   result: null,              // the last send's result, shown until the next action
@@ -529,7 +529,7 @@ function spEnsureReads(items) {
 }
 // A read landed (listing-workspace.js calls this): the planner redraws, a little later and not while a title is being typed.
 function spAfterRead() {
-  if (!SP.on && !SP.kid && !(typeof LI_WS !== 'undefined' && LI_WS.panel)) return;
+  if (!SP.on && !SP.kid) return;
   ['SP', 'CPC'].forEach(brand => Object.keys(LI_WS.live[brand] || {}).forEach(sku => {
     const entry = LI_WS.live[brand][sku];
     if (entry && (entry.cAt || entry.cErr || entry.err)) SP.reading.delete(spKey(brand, sku));
@@ -540,7 +540,6 @@ function spAfterRead() {
     if (active && active.classList && active.classList.contains('sp-edit')) return spAfterRead();
     if (SP.on) spRender();
     spPanelsRender();
-    if (typeof LI_WS !== 'undefined' && LI_WS.panel && LI_WS.panel.tab === 'season' && typeof liWsPanelRender === 'function') liWsPanelRender();
   }, 600);
 }
 
@@ -778,8 +777,8 @@ function spResultHtml(res) {
 }
 
 /* ----- level 2: one parent ----- */
-// The sentence, the three state cards, and the children as compact rows. Used by the parent side panel and the Workspace's Season tab.
-function spParentBodyHtml(g, inWs) {
+// The sentence, the three state cards, and the children as compact rows (the parent side panel).
+function spParentBodyHtml(g) {
   const total = g.all.length;
   const products = spProducts((g.todo[0] || g.all[0]).row);
   const top = spTopSeason(g.todo);
@@ -810,7 +809,7 @@ function spParentBodyHtml(g, inWs) {
   const result = SP.result ? spResultHtml(SP.result) : '';
   const reading = g.reading.length ? `<div class="sp-filter"><span class="sp-reading">Reading ${spPlural(g.reading.length, 'listing')} from Amazon…</span></div>` : '';
   return `<p class="sp-today sp-psent">${sentence}</p>${result}${g.todo.length ? cards : ''}${reading}${note}`
-    + `<div class="sp-rows">${rows.map(item => spRowHtml(item, inWs)).join('')}</div>`
+    + `<div class="sp-rows">${rows.map(item => spRowHtml(item)).join('')}</div>`
     + (upToDate ? `<p class="sp-more-ok">✓ ${spNf(upToDate)} more listing${upToDate === 1 ? ' is' : 's are'} up to date.</p>` : '');
 }
 // What we will do for one listing, in one short line.
@@ -829,13 +828,13 @@ function spDoLine(item) {
   return out.join(', then ') || 'Nothing to change';
 }
 // One child as a compact row: picture · Colour · Size · Pack (SKU small grey) · what we'll do · the state chip · ONE button.
-function spRowHtml(item, inWs) {
+function spRowHtml(item) {
   const st = SP_STATE[item.status] || SP_STATE.look;
   const open = SP.kid && SP.kid.key === item.key;
   const btn = item.status === 'ready' ? `<button type="button" class="sp-btn sp-row-b" data-sp-act="row-fix" data-sp-key="${lrEsc(item.key)}"${SP.sending ? ' disabled' : ''}>Fix</button>`
     : item.status === 'reading' ? '<button type="button" class="sp-btn sp-row-b" disabled>Wait</button>'
-      : `<button type="button" class="sp-btn sp-row-b" data-sp-act="open-kid" data-sp-key="${lrEsc(item.key)}"${inWs ? ' data-sp-from="ws"' : ''}>Check</button>`;
-  return `<div class="sp-row ${st.cls}${open ? ' is-open' : ''}" role="button" tabindex="0" data-sp-act="open-kid" data-sp-key="${lrEsc(item.key)}"${inWs ? ' data-sp-from="ws"' : ''} aria-label="Open ${lrEsc(spFacts(item))}">`
+      : `<button type="button" class="sp-btn sp-row-b" data-sp-act="open-kid" data-sp-key="${lrEsc(item.key)}">Check</button>`;
+  return `<div class="sp-row ${st.cls}${open ? ' is-open' : ''}" role="button" tabindex="0" data-sp-act="open-kid" data-sp-key="${lrEsc(item.key)}" aria-label="Open ${lrEsc(spFacts(item))}">`
     + `${spPic(item.brand, item.sku, false)}<div class="sp-row-t"><b>${lrEsc(spFacts(item))}</b><span>${spDoLine(item)}</span><small>${lrEsc(item.sku)}</small></div>`
     + `<span class="sp-chip-s ${st.cls}"><i aria-hidden="true">${st.i}</i>${st.s}</span>${btn}</div>`;
 }
@@ -843,20 +842,7 @@ function spRowHtml(item, inWs) {
 function spParentPanelHtml(g) {
   return `<div class="sp-side-h"><div class="sp-hc">${spPic(g.brand, (g.todo[0] || g.all[0]).sku, true)}<div class="sp-hc-t"><b title="${lrEsc(g.name)}">${lrEsc(g.name)}</b>`
     + `<span>${lrEsc(BRAND_NAME[g.brand] || g.brand)} · ${spPlural(g.all.length, 'listing')}</span></div><button type="button" class="sp-x" data-sp-act="close-parent" aria-label="Close">×</button></div></div>`
-    + `<div class="sp-side-b">${spParentBodyHtml(g, false)}</div>`;
-}
-// The same, for ONE parent, inside the Workspace side panel's Season tab (listing-workspace.js calls it).
-function spPanelHtml(p) {
-  if (!SP.log) spLogLoad().then(() => { if (typeof liWsPanelRender === 'function' && LI_WS.panel) liWsPanelRender(); });
-  const g = spGroups(spCompute()).find(each => each.key === p.brand + '|' + p.parent);
-  if (!g) return '<div class="sp-root sp-in-panel"><div class="ls-empty"><b>No listing of this parent is in the season planner.</b></div></div>';
-  spEnsureReads(g.todo);
-  return `<div class="sp-root sp-in-panel">${spParentBodyHtml(g, true)}</div>`;
-}
-// How many of a parent's listings the Season tab would show (its count pill).
-function spPanelCount(p) {
-  if (!H_LOADED) return 0;
-  return spCompute().filter(item => item.brand === p.brand && spParentOf(item) === p.parent && item.kind !== 'none' && item.kind !== 'ok' && !spSkipped(item)).length;
+    + `<div class="sp-side-b">${spParentBodyHtml(g)}</div>`;
 }
 
 /* ----- level 3: one child ----- */
@@ -962,7 +948,7 @@ function spChecksHtml(checks) {
 }
 
 /* ----- opening and closing the panels ----- */
-// The parent panel (from the page) and the child panel (from the parent panel or the Workspace's Season tab). Esc closes the child first.
+// The parent panel (from the page) and the child panel (from the parent panel). Esc closes the child first.
 function spOpenParent(key) {
   SP.panel = { key, filter: '' };
   SP.kid = null;
@@ -986,25 +972,23 @@ function spCloseParent(returnFocus) {
     if (card && card.focus) card.focus({ preventScroll: true });
   }
 }
-function spOpenKid(key, from) {
-  SP.kid = { key, from: from || 'page' };
+function spOpenKid(key) {
+  SP.kid = { key };
   const box = $('spKid');
   if (!box) return;
   box.hidden = false;
-  box.classList.toggle('is-ws', SP.kid.from === 'ws');
   spPanelsRender();
   if (box.focus) box.focus({ preventScroll: true });
 }
 function spCloseKid(returnFocus) {
   if (!SP.kid) return;
-  const { key, from } = SP.kid;
+  const { key } = SP.kid;
   SP.kid = null;
   const box = $('spKid');
   if (box) { box.hidden = true; box.innerHTML = ''; }
   spPanelsRender();
-  if (from === 'ws' && typeof liWsPanelRender === 'function' && LI_WS.panel) liWsPanelRender();
   if (returnFocus) {
-    const root = from === 'ws' ? $('lsPanel') : $('spPanel');
+    const root = $('spPanel');
     const row = root && root.querySelector ? root.querySelector(`.sp-row[data-sp-key="${CSS.escape(key)}"]`) : null;
     if (row && row.focus) row.focus({ preventScroll: true });
   }
@@ -1015,17 +999,17 @@ function spKidMove(dir) {
   const order = SP.kidOrder || [];
   const at = order.indexOf(SP.kid.key);
   const next = order[at + dir];
-  if (next) spOpenKid(next, SP.kid.from);
+  if (next) spOpenKid(next);
 }
-// Close both (the tab changed, or the Workspace panel went away).
-function spPanelsClose(from) {
-  if (SP.kid && (!from || SP.kid.from === from)) spCloseKid(false);
-  if (SP.panel && from !== 'ws') spCloseParent(false);
+// Close both (the tab changed, or the Season planner pill was switched off).
+function spPanelsClose() {
+  if (SP.kid) spCloseKid(false);
+  if (SP.panel) spCloseParent(false);
 }
 // Draw what is open: the parent panel (its scroll kept) and the child panel.
 function spPanelsRender() {
   const pp = $('spPanel');
-  if (pp && SP.panel && !SP.panel.ws) {
+  if (pp && SP.panel) {
     const g = spGroupOf(SP.panel.key);
     if (!g) spCloseParent(false);
     else {
@@ -1037,7 +1021,7 @@ function spPanelsRender() {
       if (g.todo.length) spEnsureReads(g.todo);
     }
   }
-  if (pp && pp.classList) pp.classList.toggle('has-kid', !!(SP.kid && SP.kid.from === 'page'));
+  if (pp && pp.classList) pp.classList.toggle('has-kid', !!SP.kid);
   const kp = $('spKid');
   if (kp && SP.kid) {
     const item = spCompute().find(each => each.key === SP.kid.key);
@@ -1157,12 +1141,11 @@ function spPlainReason(text) {
 }
 const spTodo = text => (/different from what's already in the Amazon catalog/i.test(String(text)) ? 'ask Seller Support to update the catalogue, or leave this title as it is'
   : /characters or less/i.test(String(text)) ? 'shorten the title in Listing Errors and try again' : 'open Listing Errors for this listing and do what Amazon asks');
-// Redraw wherever the planner is showing: the page, and the Workspace panel's Season tab.
+// Redraw wherever the planner is showing: the page and its two panels.
 function spRedrawAll() {
   SP.itemsKey = '';
   if (SP.on) spRender();
   spPanelsRender();
-  if (typeof LI_WS !== 'undefined' && LI_WS.panel && typeof liWsPanelRender === 'function') liWsPanelRender();
 }
 
 /* ----- opening the planner: the pill on the Listing Optimiser ----- */
@@ -1214,19 +1197,16 @@ if (typeof document !== 'undefined' && document.addEventListener && $('spSwitch'
     else { spPanelsClose(); spOff(); }
   });
   // The planner comes back on its own when the Listing Optimiser tab opens with "Season planner" last chosen; its panels close when the
-  // tab goes away (and a child opened from the Workspace closes with Listing Health).
+  // tab goes away.
   const pane = $('paneOpt');
-  if (pane && typeof MutationObserver === 'function') new MutationObserver(() => { if (!pane.classList.contains('hide')) spMaybeOpen(); else spPanelsClose('page'); }).observe(pane, { attributes: true, attributeFilter: ['class'] });
-  const health = $('paneHealth');
-  if (health && typeof MutationObserver === 'function') new MutationObserver(() => { if (health.classList.contains('hide')) spPanelsClose('ws'); }).observe(health, { attributes: true, attributeFilter: ['class'] });
-  // Every button of the planner: on the page, in its two panels, and in the Workspace's Season tab.
+  if (pane && typeof MutationObserver === 'function') new MutationObserver(() => { if (!pane.classList.contains('hide')) spMaybeOpen(); else spPanelsClose(); }).observe(pane, { attributes: true, attributeFilter: ['class'] });
+  // Every button of the planner: on the page and in its two panels.
   document.addEventListener('click', e => {
     const el = e.target && e.target.closest ? e.target.closest('[data-sp-act]') : null;
     if (!el || el.tagName === 'SELECT') return;
     const act = el.dataset.spAct;
     const key = el.dataset.spKey || '';
-    const inWs = !!el.closest('#lsPanel');
-    const root = el.closest('#spKid') ? $('spKid') : el.closest('#spPanel') ? $('spPanel') : inWs ? $('lsPanel') : $('spPane');
+    const root = el.closest('#spKid') ? $('spKid') : el.closest('#spPanel') ? $('spPanel') : $('spPane');
     const refocus = selector => { const again = root && root.querySelector ? root.querySelector(selector) : null; if (again) again.focus({ preventScroll: true }); };
     if (act === 'help-hide') { try { localStorage.setItem(SP_STORE_HELP, '1'); } catch (x) { /* no storage */ } SP.helpOpen = false; return spRender(); }
     if (act === 'help-show') { try { localStorage.removeItem(SP_STORE_HELP); } catch (x) { /* no storage */ } return spRender(); }
@@ -1240,10 +1220,9 @@ if (typeof document !== 'undefined' && document.addEventListener && $('spSwitch'
     if (act === 'result-close') { SP.result = null; return spRedrawAll(); }
     if (act === 'open-parent') return spOpenParent(el.dataset.spGroup);
     if (act === 'close-parent') return spCloseParent(true);
-    if (act === 'open-kid') return spOpenKid(key, el.dataset.spFrom || (inWs ? 'ws' : 'page'));
+    if (act === 'open-kid') return spOpenKid(key);
     if (act === 'close-kid') return spCloseKid(true);
     if (act === 'filter') {
-      if (inWs) { SP.panel = SP.panel && SP.panel.key === el.dataset.spGroup ? SP.panel : { key: el.dataset.spGroup, filter: '', ws: true }; }
       if (SP.panel) SP.panel.filter = el.dataset.spFilter || '';
       spRedrawAll();
       return refocus('.sp-row');
@@ -1301,14 +1280,14 @@ if (typeof document !== 'undefined' && document.addEventListener && $('spSwitch'
     e.target.click();
   });
   // Esc: the confirm window first, then the child panel, then the parent panel — the keyboard goes back to where it came from.
-  // ↑ / ↓ in a child panel: the previous / next child. Caught before the Workspace's own keys, so its panel stays open under a child.
+  // ↑ / ↓ in a child panel: the previous / next child.
   if (typeof window !== 'undefined' && window.addEventListener) window.addEventListener('keydown', e => {
     const typing = e.target && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName || '');
     const modalOpen = $('spModal') && !$('spModal').classList.contains('hide');
     if (e.key === 'Escape') {
       if (modalOpen) { if (!SP.sending) spModal(''); e.preventDefault(); e.stopPropagation(); return; }
       if (SP.kid) { spCloseKid(true); e.preventDefault(); e.stopPropagation(); return; }
-      if (SP.panel && !SP.panel.ws) { spCloseParent(true); e.preventDefault(); e.stopPropagation(); }
+      if (SP.panel) { spCloseParent(true); e.preventDefault(); e.stopPropagation(); }
       return;
     }
     if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && SP.kid && !typing && !modalOpen) {
