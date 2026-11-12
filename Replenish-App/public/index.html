@@ -2158,6 +2158,7 @@ html.mob #gdNudge{right:14px;left:14px;max-width:none;bottom:144px}
     <div id="emailBox">
       <div class="sifield"><label for="email">Email</label><input id="email" type="email" autocomplete="username"></div>
       <div class="sifield"><label for="pass">Password</label><input id="pass" type="password" autocomplete="current-password"></div>
+      <label class="sifoot" style="display:flex;align-items:center;justify-content:flex-start;gap:8px;margin:6px 0;text-align:left"><input id="sharedDevice" type="checkbox" style="width:auto;flex:none;margin:0"> Shared computer (delete downloaded data when I sign out)</label>
       <button id="loginBtn" class="sibtn">Sign in</button>
       <button id="resetLink" type="button" class="resetlink">Forgot password?</button>
       <p id="resetMsg" class="sifoot hide"></p>
@@ -5532,7 +5533,21 @@ $('resetLink').onclick = async () => {
   $('resetLink').disabled = false;
 };
 /* Sign out wipes this device's copy of the Shopify orders first (shopify/shopify-copy.js) — customer details included. */
-$('logoutBtn').onclick = async () => { try { await soCopyWipe(); } catch (e) { /* nothing kept */ } signOut(auth); };
+$('logoutBtn').onclick = async () => {
+  try { await soCopyWipe(); } catch (e) { /* nothing kept */ }
+  /* On a shared computer, the downloaded factory data goes too (core/delta-sync.js deltaWipe). */
+  try { if (authSharedOn() && typeof deltaWipe === 'function') await deltaWipe('shared sign-out'); } catch (e) { /* nothing kept */ }
+  signOut(auth);
+};
+/* Shared computer tick on the sign-in form: remembered per device. Ticked, the downloaded copy is deleted at sign-out. */
+function authSharedOn() { try { return localStorage.getItem('sharedDevice') === '1'; } catch (e) { return false; } }
+{
+  const sh = $('sharedDevice');
+  if (sh) {
+    sh.checked = authSharedOn();
+    sh.onchange = () => { try { if (sh.checked) localStorage.setItem('sharedDevice', '1'); else localStorage.removeItem('sharedDevice'); } catch (e) { /* not kept */ } };
+  }
+}
 
 let AUTH_SEEN = false;
 onAuthStateChanged(auth, async user => {
@@ -5552,6 +5567,8 @@ onAuthStateChanged(auth, async user => {
   ME = { email: (user.email || '').toLowerCase(), admin: false, repl: false, tabs: [], tabsExplicit: false, projEdit: false, prodEdit: false, rateApprove: false, shopAssign: false, b2bAssign: false,
     accEntry: false, accEdit: false, vlogAccept: false, soApprove: false, mdbEdit: false,
     attendMark: false, vreqApprove: false, rfdApprove: false, rfdSend: false, fgiEdit: false, fgiEntry: false, empEdit: false, hrEmpOnly: false };
+  /* A downloaded copy kept by ANOTHER account (or by nobody we know) is deleted before this one is used (core/delta-sync.js). */
+  try { if (typeof deltaSignedIn === 'function') await deltaSignedIn(ME.email); } catch (e) { /* nothing kept */ }
   try {
     const s = await getDoc(doc(db, 'perms', ME.email));
     if (s.exists()) { const d = s.data(); ME.admin = d.admin === true; ME.repl = d.repl === true;
@@ -5750,8 +5767,12 @@ onAuthStateChanged(auth, async user => {
         if (typeof otkListSaveFlag === 'function') otkListSaveFlag(!!d && (d.alertList === true || d.alertList === 1 || d.alertList === '1' || d.alertList === 'on'));
         /* ...and the page registers switch (core/gates.js), also from the next page load. */
         if (typeof prSaveFlag === 'function') prSaveFlag(!!d && (d.pageRegisters === true || d.pageRegisters === 1 || d.pageRegisters === '1' || d.pageRegisters === 'on'));
+        /* ...and the one-request-with-its-note switch (core/history.js), also from the next page load. */
+        if (typeof saSaveFlag === 'function') saSaveFlag(!!d && (d.syncAtomic === true || d.syncAtomic === 1 || d.syncAtomic === '1' || d.syncAtomic === 'on'));
+        /* ...and the downloaded-copy switch (core/delta-sync.js), also from the next page load. */
+        if (typeof deltaSaveFlag === 'function') deltaSaveFlag(!!d && (d.deltaUse === true || d.deltaUse === 1 || d.deltaUse === '1' || d.deltaUse === 'on'));
       })
-        .catch(() => { dmSaveFlag(false, dmKind); if (typeof pbSaveFlag === 'function') pbSaveFlag(false); if (typeof otkSaveFlag === 'function') otkSaveFlag(false); if (typeof prSaveFlag === 'function') prSaveFlag(false); if (typeof oalSaveFlag === 'function') oalSaveFlag(false); if (typeof otkListSaveFlag === 'function') otkListSaveFlag(false); });
+        .catch(() => { dmSaveFlag(false, dmKind); if (typeof pbSaveFlag === 'function') pbSaveFlag(false); if (typeof otkSaveFlag === 'function') otkSaveFlag(false); if (typeof prSaveFlag === 'function') prSaveFlag(false); if (typeof oalSaveFlag === 'function') oalSaveFlag(false); if (typeof otkListSaveFlag === 'function') otkListSaveFlag(false); if (typeof saSaveFlag === 'function') saSaveFlag(false); if (typeof deltaSaveFlag === 'function') deltaSaveFlag(false); });
     }
     if (typeof dmStart === 'function') dmStart();
   } catch (e) { console.warn('[data meter]', e); }
@@ -9999,7 +10020,7 @@ async function ensureShopify() {
   renderShopify();
   /* The master list names the SKUs (Ravi, 2026-09-29: "i have updated my masterdata please check and fill the blank
    * data"); when it is not in hand yet the table is drawn again once it is. */
-  if (ptLack(PTG_ALL, 'mdb') && typeof ptNeed === 'function') { try { await ptNeed(PTG_ALL, { why: 'shopify stock', has: 'mdb' }); renderShopify(); } catch (e) { /* the snapshot names stay */ } }
+  if (ptLack(PTG_MASTER, 'mdb') && typeof ptNeed === 'function') { try { await ptNeed(PTG_MASTER, { why: 'shopify stock', has: 'mdb' }); renderShopify(); } catch (e) { /* the snapshot names stay */ } }
 }
 async function loadShopify() {
   const store = shStore();
@@ -16188,10 +16209,11 @@ async function ptGetFresh(path) {
   return typeof dmJson === 'function' ? dmJson(r, path, 'plain') : r.json();
 }
 /** The history's own write: a root PATCH that is never itself logged. */
-async function ptAuditWrite(updates) {
+async function ptAuditWrite(updates, raw) {
   const r = await fetch(`${PT_URL}/.json` + await ptAuthQuery(), {
     method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updates),
   });
+  if (raw) return r;                                  // Step 4b: a save that wants the answer itself (see saSend)
   if (!r.ok) throw new Error('audit ' + r.status);
   return true;
 }
@@ -16227,6 +16249,46 @@ function ptSyncNote(paths, fromUrl) {
   const u = ptSyncPaths(paths, fromUrl);
   if (!Object.keys(u).length) return;
   ptAuditWrite(u).catch(() => {});
+}
+/* ---- ONE REQUEST, DATA + NOTE TOGETHER (Step 4b, switch syncAtomic) ----
+ * The change note above goes out as a second request after the save, so a tab closed between the two leaves a changed
+ * row with no note. With the switch ON, a save on a register path carries its note in the SAME request (a root PATCH),
+ * so both land or neither does. Off, or for a vendor login, or with the history off: today's two requests, unchanged.
+ * Compare-and-set saves (ptCas) never use this. If the database refuses the combined request (403: the note rule is
+ * not live or this login may not write the note), the save is retried the old way and the refusal is logged. */
+function saOn() {
+  try {
+    const s = localStorage.getItem('syncAtomic');
+    if (s === '0') return false;
+    if (typeof AUDIT === 'undefined' || !AUDIT.on) return false;
+    if (typeof spIsVendor === 'function' && spIsVendor()) return false;
+    if (s === '1') return true;
+    return localStorage.getItem('saFlagLast') === '1';
+  } catch (e) { return false; }
+}
+/** Keep the flag's last answer for the next page load. */
+function saSaveFlag(on) {
+  try { if (on) localStorage.setItem('saFlagLast', '1'); else localStorage.removeItem('saFlagLast'); } catch (e) { /* no storage: stays off */ }
+}
+/** The note lines to send together with a save, or null when this save goes the old way (switch off, no register path,
+ *  a note key that is also being written). */
+function saNoteLines(paths, fromUrl, written) {
+  if (!saOn()) return null;
+  const n = ptSyncPaths(paths, fromUrl);
+  const ks = Object.keys(n);
+  if (!ks.length) return null;
+  if (ks.some(k => written && Object.prototype.hasOwnProperty.call(written, k))) return null;
+  return n;
+}
+/** A path as a root-PATCH key: the database key as it is (no %xx), the same form ptSyncPaths notes. */
+function saRawPath(path) {
+  return String(path == null ? '' : path).split('/').filter(s => s !== '')
+    .map(s => { if (!/%[0-9A-Fa-f]{2}/.test(s)) return s; try { return decodeURIComponent(s); } catch (e) { return s; } }).join('/');
+}
+async function saSend(body) { return ptAuditWrite(body, true); }
+/** The combined request was refused: leave a line in pt_syncAudit (never awaited, never throws). */
+function saRefused(paths, status) {
+  try { ptAuditWrite({ ['pt_syncAudit/' + auditId()]: { at: new Date().toISOString(), by: auditWho().by, noteRefused: true, status, paths: (paths || []).slice(0, 20) } }).catch(() => {}); } catch (e) { /* only a log */ }
 }
 
 /** Put a record from the recycle bin back where it was — only if nothing has been written there since. Admins. */
@@ -16327,7 +16389,13 @@ async function ptPut(path, value) {
     if (baseRoutePath(path)) return ptPatch({ [path]: value });
   }
   ptLiveWrote([path]);
-  const r = await fetch(`${PT_URL}/${ptPath(path)}.json` + await ptAuthQuery(), {
+  let r = null, merged = false;
+  const nl = value === undefined ? null : saNoteLines([path], true, null);
+  if (nl) {
+    r = await saSend(Object.assign({ [saRawPath(path)]: value }, nl));
+    if (r.status === 403) { saRefused([path], 403); r = null; } else merged = true;
+  }
+  if (!r) r = await fetch(`${PT_URL}/${ptPath(path)}.json` + await ptAuthQuery(), {
     method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(value),
   });
   ptLiveWrote([path]);
@@ -16335,9 +16403,9 @@ async function ptPut(path, value) {
     throw new Error('The production database refused the write (permission denied). Sign out and '
       + 'sign in again; if it keeps happening, this account is not allowed to change production data.');
   if (!r.ok) throw new Error(`The production database answered ${r.status} ${r.statusText || ''}`.trim());
-  const out = await r.json();
+  const out = merged ? value : await r.json();
   auditLog('put', { [path]: value });
-  ptSyncNote([path], true);
+  if (!merged) ptSyncNote([path], true);
   if (typeof oalAfterSave === 'function') oalAfterSave(path, value, 'put');
   return out;
 }
@@ -16385,7 +16453,13 @@ async function ptPatch(updates, opts) {
     && (k.split('/').filter(Boolean).length <= 2 || /^pt_baseDone\/\d{4}-\d{2}-\d{2}\/[^/]+$/.test(k)));
   if (gone.length) await auditTrash(gone, 'patch');
   ptLiveWrote(Object.keys(updates || {}));
-  const r = await fetch(`${PT_URL}/.json` + await ptAuthQuery(), {
+  let r = null, merged = false;
+  const nl = saNoteLines(Object.keys(updates || {}), false, updates);
+  if (nl) {
+    r = await saSend(Object.assign({}, updates, nl));
+    if (r.status === 403) { saRefused(Object.keys(updates || {}), 403); r = null; } else merged = true;
+  }
+  if (!r) r = await fetch(`${PT_URL}/.json` + await ptAuthQuery(), {
     method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updates),
   });
   ptLiveWrote(Object.keys(updates || {}));
@@ -16395,7 +16469,7 @@ async function ptPatch(updates, opts) {
   if (!r.ok) throw new Error(`The production database answered ${r.status} ${r.statusText || ''}`.trim());
   const out = await r.json();
   auditLog('patch', updates || {});
-  ptSyncNote(Object.keys(updates || {}), false);
+  if (!merged) ptSyncNote(Object.keys(updates || {}), false);
   if (typeof oalAfterSave === 'function') oalAfterSave('', updates, 'patch');
   if (baseMonths.length) await baseForget(baseMonths);
   return out;
@@ -16410,11 +16484,17 @@ async function ptDelete(path) {
   }
   await auditTrash([path], 'delete');
   ptLiveWrote([path]);
-  const r = await fetch(`${PT_URL}/${ptPath(path)}.json` + await ptAuthQuery(), { method: 'DELETE' });
+  let r = null, merged = false;
+  const nl = saNoteLines([path], true, null);
+  if (nl) {
+    r = await saSend(Object.assign({ [saRawPath(path)]: null }, nl));
+    if (r.status === 403) { saRefused([path], 403); r = null; } else merged = true;
+  }
+  if (!r) r = await fetch(`${PT_URL}/${ptPath(path)}.json` + await ptAuthQuery(), { method: 'DELETE' });
   ptLiveWrote([path]);
   if (!r.ok) throw new Error(`The production database answered ${r.status} ${r.statusText || ''}`.trim());
   auditLog('delete', { [path]: null });
-  ptSyncNote([path], true);
+  if (!merged) ptSyncNote([path], true);
   if (typeof oalAfterSave === 'function') oalAfterSave(path, null, 'delete');
   return true;
 }
@@ -16718,21 +16798,38 @@ const obUC = s => String(s == null ? '' : s).trim().toUpperCase();
  * Off with localStorage deltaShadowOff = '1'. Never in the test harnesses (AUDIT_OFF) or for a vendor. */
 /* ON since 2026-10-10: sync-coverage.js showed every gate-row save since phase 1 noted (458 of 458), Ravi said go. */
 const DELTA = { on: true, delayMs: 20000, maxRows: 300, marginMs: 2 * 60 * 1000, done: false, running: false, offset: null,
-  /* phase 3 (below): OFF as shipped; one device can try it first with localStorage deltaUse = '1' */
-  use: false, maxAgeMs: 24 * 3600 * 1000, keyCheckMs: 24 * 3600 * 1000 };
+  /* A copy is saved only after the connection has been up this long: just after a reconnect the live copy can still be an old one. */
+  minUpMs: 60 * 1000, upAt: null, netOn: false,
+  /* A wipe bumps gen, so a run or an open that was already under way cannot write a copy back afterwards. */
+  gen: 0, wipeSaid: {},
+  /* phase 3 (below): its switch is config/flags deltaUse (kept by deltaSaveFlag); one device can override with localStorage
+   * deltaUse = '1' / '0'. After go-live, this share of page sessions takes the full path and runs the shadow. */
+  sampleRate: 0.1, sample: null, maxAgeMs: 24 * 3600 * 1000, keyCheckMs: 24 * 3600 * 1000 };
 const DELTA_DB = 'ridhi-delta', DELTA_STORE = 'copies';
 
 function deltaShadowSoon() {
   try {
-    if (DELTA.done || DELTA.running || !DELTA.on || !AUDIT.on || deltaUseOn()) return;   // nothing to shadow once the copy IS used
+    if (DELTA.done || DELTA.running || !DELTA.on || !AUDIT.on || deltaLiveOn()) return;   // nothing to shadow once the copy IS used
     try { if (localStorage.getItem('deltaShadowOff') === '1') return; } catch (e) { /* no storage: carry on */ }
     if (typeof indexedDB === 'undefined' || !auth || !auth.currentUser || spIsVendor()) return;
     DELTA.done = true;              // once a page session: the open that phase 3 would make cheaper
+    deltaNetWatch();
+    /* late enough that the connection has been up for the minimum before the copy is taken */
     setTimeout(() => {
       deltaShadowRun().catch(e => { DELTA.running = false; deltaLog({ at: new Date().toISOString(), by: deltaWho(), err: deltaErr(e) }); });
-    }, DELTA.delayMs);
+    }, Math.max(DELTA.delayMs, DELTA.minUpMs ? DELTA.minUpMs + 5000 : 0));
   } catch (e) { /* never in the way */ }
 }
+
+/** How long the connection has been up without a break — this file's own listener, started with the shadow. */
+function deltaNetWatch() {
+  if (DELTA.netOn) return;
+  DELTA.netOn = true;
+  ptLiveDb().then(({ m, db }) => {
+    m.onValue(m.ref(db, '.info/connected'), s => { DELTA.upAt = s.val() === true ? (DELTA.upAt || Date.now()) : null; });
+  }).catch(() => { DELTA.netOn = false; });
+}
+const deltaUpMs = () => (DELTA.upAt ? Date.now() - DELTA.upAt : 0);
 
 const deltaWho = () => { try { return (ME && ME.email) || ''; } catch (e) { return ''; } };
 const deltaErr = e => String((e && e.message) || e).slice(0, 160);
@@ -16750,6 +16847,8 @@ function deltaIdb() {
     r.onerror = () => rej(r.error || new Error('indexedDB'));
   });
 }
+/* A wipe (below) must not wait for a connection this file left open. */
+const deltaIdbOpen = () => deltaIdb().then(d => { try { d.onversionchange = () => d.close(); } catch (e) { /* fine */ } return d; });
 const deltaTx = (db, mode, fn) => new Promise((res, rej) => {
   const tx = db.transaction(DELTA_STORE, mode), st = tx.objectStore(DELTA_STORE), q = fn(st);
   tx.oncomplete = () => res(q && 'result' in q ? q.result : undefined);
@@ -16775,13 +16874,13 @@ async function deltaServerNow() {
 }
 
 /* ---- reads: always small, and their size is counted ---- */
-async function deltaRead(path, query) {
+async function deltaRead(path, query, label) {
   const q = await ptAuthQuery();
   const url = `${PT_URL}/${ptPath(path)}.json` + q + (query ? (q ? '&' : '?') + query : '');
   const r = await fetch(url);
   if (!r.ok) throw new Error(path + ' answered ' + r.status);
   const t = await r.text();
-  try { if (typeof dmCount === 'function') dmCount(path, t.length, 'delta-shadow'); } catch (e) { console.warn('[data meter]', e); }
+  try { if (typeof dmCount === 'function') dmCount(path, t.length, label || 'delta-shadow'); } catch (e) { console.warn('[data meter]', e); }
   return { v: t ? JSON.parse(t) : null, bytes: t.length };
 }
 
@@ -16795,19 +16894,19 @@ function deltaLiveNow(node) {
 }
 
 /** Last time's copy + the rows changed since = what phase 3 would hand the screens. */
-async function deltaRebuild(node, copy, keyCheck) {
+async function deltaRebuild(node, copy, keyCheck, label) {
   const info = { mode: 'delta', bytes: 0 };
-  const reset = await deltaRead('pt_sync/_reset/' + node);
+  const reset = await deltaRead('pt_sync/_reset/' + node, '', label);
   info.bytes += reset.bytes;
   if (reset.v && Number(reset.v) >= copy.mark) { info.mode = 'reset'; return { info }; }
-  const s = await deltaRead('pt_sync/' + node, 'orderBy=%22%24value%22&startAt=' + Math.floor(copy.mark));
+  const s = await deltaRead('pt_sync/' + node, 'orderBy=%22%24value%22&startAt=' + Math.floor(copy.mark), label);
   info.bytes += s.bytes;
   const keys = Object.keys(s.v || {});
   info.changed = keys.length;
   if (keys.length > DELTA.maxRows) { info.mode = 'toomany'; return { info }; }
   const R = Object.assign({}, copy.v || {});
   for (let i = 0; i < keys.length; i += 20) {
-    const part = await Promise.all(keys.slice(i, i + 20).map(k => deltaRead(node + '/' + k)));
+    const part = await Promise.all(keys.slice(i, i + 20).map(k => deltaRead(node + '/' + k, '', label)));
     part.forEach((x, j) => {
       info.bytes += x.bytes;
       const k = keys[i + j];
@@ -16817,7 +16916,7 @@ async function deltaRebuild(node, copy, keyCheck) {
   /* A row added or removed by something that wrote no pt_sync line shows here. Phase 3 asks once a day (it is most
    * of the bytes); the shadow always asks. */
   if (keyCheck === false) { info.addedOutside = 0; info.removedOutside = 0; return { info, R, synced: s.v || {} }; }
-  const sh = await deltaRead(node, 'shallow=true');
+  const sh = await deltaRead(node, 'shallow=true', label);
   info.bytes += sh.bytes;
   const there = new Set(Object.keys(sh.v || {}));
   info.addedOutside = [...there].filter(k => !(k in R)).length;
@@ -16825,8 +16924,22 @@ async function deltaRebuild(node, copy, keyCheck) {
   return { info, R, synced: s.v || {} };
 }
 
-/** Row by row against the live copy. A row saved WHILE this ran is a race, not a fault, and is counted apart. */
-async function deltaCompare(node, R, F, startedAt) {
+/** One differing row in a few words: the field, its type and the first 40 characters each side. */
+function deltaRowDiff(k, a, b) {
+  const typ = x => (Array.isArray(x) ? 'array' : x == null ? 'none' : typeof x);
+  const cut = x => (x === undefined ? '(none)' : typeof x === 'string' ? x : JSON.stringify(x)).slice(0, 40);
+  if (a === undefined || b === undefined) return k + ': row missing in ' + (a === undefined ? 'copy' : 'live');
+  if (!a || !b || typeof a !== 'object' || typeof b !== 'object') return k + ' ' + typ(a) + '/' + typ(b) + ' "' + cut(a) + '" vs "' + cut(b) + '"';
+  const fs = [];
+  for (const f of new Set(Object.keys(a).concat(Object.keys(b)))) {
+    if (deltaCanon(a[f]) !== deltaCanon(b[f])) { fs.push(k + '.' + f + ' ' + typ(a[f]) + '/' + typ(b[f]) + ' "' + cut(a[f]) + '" vs "' + cut(b[f]) + '"'); if (fs.length >= 2) break; }
+  }
+  return fs.length ? fs.join(', ') : k + ': differs';
+}
+
+/** Row by row against the live copy. A row saved WHILE this ran is a race, not a fault, and is counted apart.
+ *  For up to 3 differing rows it also says what differs, and whether the row has a change line and when, against the copy's time. */
+async function deltaCompare(node, R, F, startedAt, copyMark) {
   const keys = new Set(Object.keys(R).concat(Object.keys(F || {})));
   const bad = [];
   let n = 0;
@@ -16835,22 +16948,26 @@ async function deltaCompare(node, R, F, startedAt) {
     if (++n % 200 === 0) await deltaYield();
   }
   let race = 0;
-  const mism = [];
+  const mism = [], lines = {};
   for (const k of bad.slice(0, 20)) {
     let ts = 0;
-    try { ts = Number((await deltaRead('pt_sync/' + node + '/' + k)).v) || 0; } catch (e) { /* unknown: count it as a mismatch */ }
+    try { ts = Number((await deltaRead('pt_sync/' + node + '/' + k, '', 'delta-shadow')).v) || 0; } catch (e) { /* unknown: count it as a mismatch */ }
+    lines[k] = ts;
     if (ts && ts >= startedAt - DELTA.marginMs) race++; else mism.push(k);
   }
-  return { rows: keys.size, mismatch: mism.length + Math.max(0, bad.length - 20), race, sample: mism.slice(0, 10) };
+  const unchecked = Math.max(0, bad.length - 20);          // bad rows past the first 20: counted, not re-checked
+  const diff = bad.slice(0, 3).map(k => deltaRowDiff(k, R[k], (F || {})[k]) + ' | '
+    + (lines[k] ? 'note ' + (lines[k] >= (copyMark || 0) ? '+' : '') + Math.round((lines[k] - (copyMark || 0)) / 1000) + 's vs copy' : 'no note')).join(' ;; ').slice(0, 600);
+  return { rows: keys.size, mismatch: mism.length + unchecked, unchecked, race, sample: mism.slice(0, 10), diff };
 }
 
 async function deltaShadowRun() {
   if (DELTA.running) return;
   DELTA.running = true;
-  const t0 = Date.now(), uid = auth.currentUser.uid;
+  const t0 = Date.now(), uid = auth.currentUser.uid, gen = DELTA.gen;
   const out = { at: new Date().toISOString(), by: deltaWho(), nodes: {} };
   let db;
-  try { db = await deltaIdb(); } catch (e) { DELTA.running = false; out.err = 'no IndexedDB: ' + deltaErr(e); return deltaLog(out); }
+  try { db = await deltaIdbOpen(); } catch (e) { DELTA.running = false; out.err = 'no IndexedDB: ' + deltaErr(e); return deltaLog(out); }
   for (const node of PT_SYNC_NODES) {
     const r = {};
     try {
@@ -16858,14 +16975,19 @@ async function deltaShadowRun() {
       const startedAt = await deltaServerNow();
       let res = null;
       if (!copy || copy.uid !== uid || typeof copy.mark !== 'number') r.mode = 'nocopy';
-      else { res = await deltaRebuild(node, copy); Object.assign(r, res.info); }
+      else { res = await deltaRebuild(node, copy, undefined, 'delta-shadow'); Object.assign(r, res.info); }
       /* The truth, taken AFTER the delta so both describe the same moment. */
-      const mark = (await deltaServerNow()) - DELTA.marginMs;
+      const nowS = await deltaServerNow(), mark = nowS - DELTA.marginMs;
       const F = deltaLiveNow(node);
+      const up = deltaUpMs();                                  // how long the connection has been up, at the moment of the truth
+      r.upFor = Math.round(up / 1000);
       if (F === PT_LIVE_NO) { r.mode = (r.mode || '') + '+nolive'; out.nodes[node] = r; continue; }
       r.full = JSON.stringify(F || {}).length;
-      if (res && res.R) Object.assign(r, await deltaCompare(node, res.R, F || {}, startedAt));
-      await deltaCopyPut(db, node, { uid, mark, v: F || {}, at: Date.now() });
+      if (res && res.R) Object.assign(r, await deltaCompare(node, res.R, F || {}, startedAt, copy.mark));
+      /* The copy is today's full register, so it carries a full-download time (fullAt). Not saved when the connection has
+       * only just come back (the live copy may be an old one) or when the copy was wiped meanwhile. */
+      if (up >= DELTA.minUpMs && gen === DELTA.gen) await deltaCopyPut(db, node, { uid, mark, v: F || {}, at: Date.now(), fullAt: nowS, keysAt: nowS });
+      else r.kept = 'old copy kept';
     } catch (e) { r.mode = (r.mode || '') + '+error'; r.err = deltaErr(e); }
     out.nodes[node] = r;
     await deltaYield();
@@ -16883,10 +17005,38 @@ function deltaLog(rec) {
     return ptAuditWrite({ ['pt_syncAudit/' + day + '/' + auditId()]: rec }).catch(() => {});
   } catch (e) { return Promise.resolve(); }
 }
+/** Delete the whole browser copy (sign-out on a shared computer, another account signing in). Logs the reason once. Never throws. */
+function deltaWipe(reason) {
+  DELTA.gen++;
+  try {
+    if (!DELTA.wipeSaid[reason]) { DELTA.wipeSaid[reason] = 1; deltaLog({ at: new Date().toISOString(), by: deltaWho(), wipe: String(reason || '').slice(0, 80) }); }
+  } catch (e) { /* only a note */ }
+  return new Promise(res => {
+    setTimeout(() => res(false), 3000);     // a delete behind another tab's blocked one gets no event: never hold up a sign-in or sign-out
+    try {
+      if (typeof indexedDB === 'undefined') return res(false);
+      const r = indexedDB.deleteDatabase(DELTA_DB);
+      r.onsuccess = () => res(true); r.onerror = () => res(false); r.onblocked = () => res(false);
+    } catch (e) { res(false); }
+  });
+}
+
+/** Called once someone is signed in: a copy kept for another account (or one with no known owner) is deleted. */
+function deltaSignedIn(email) {
+  try {
+    const em = String(email || '').trim().toLowerCase();
+    if (!em) return Promise.resolve(false);
+    let owner = null;
+    try { owner = localStorage.getItem('deltaOwner'); } catch (e) { /* no storage: always wipe */ }
+    try { localStorage.setItem('deltaOwner', em); } catch (e) { /* no storage */ }
+    if (owner === em) return Promise.resolve(false);
+    return deltaWipe(owner ? 'another account signed in' : 'copy of unknown owner');
+  } catch (e) { return Promise.resolve(false); }
+}
 /* ==== END DELTA SYNC SHADOW ==== */
 
 /* ==== DELTA SYNC, PHASE 3: USE THE COPY ====
- * When it is switched on (DELTA.use for everyone, or localStorage deltaUse = '1' on one device; deltaUse = '0' turns
+ * When it is switched on (config/flags deltaUse for everyone, or localStorage deltaUse = '1' on one device; deltaUse = '0' turns
  * it off on that device whatever the switch says), a gate register's live copy (core/live-copies.js) is built from
  * the browser's copy + the rows pt_sync says changed, instead of downloading the whole register:
  *   - kept fresh by listening to pt_sync/<register> from the copy's mark: each changed row is read on its own;
@@ -16899,15 +17049,28 @@ function deltaUseOn() {
     const d = localStorage.getItem('deltaUse');
     if (d === '0') return false;
     if (d === '1') return true;
-  } catch (e) { /* no storage: the global switch decides */ }
-  return !!DELTA.use;
+    return localStorage.getItem('deltaFlagLast') === '1';
+  } catch (e) { return false; }
 }
+/** Keep the switch's last answer for the next page load (the page reads config/flags once; core/history.js passes it on). */
+function deltaSaveFlag(on) {
+  try { if (on) localStorage.setItem('deltaFlagLast', '1'); else localStorage.removeItem('deltaFlagLast'); } catch (e) { /* no storage: stays off */ }
+}
+/** One page session in ten (after go-live) takes today's full path and runs the shadow, so the copy keeps being proved.
+ *  Not on a device that chose deltaUse = '1' for itself. Decided once per page session. */
+function deltaSampleFull() {
+  try { if (localStorage.getItem('deltaUse') === '1') return false; } catch (e) { /* the share decides */ }
+  if (DELTA.sample === null) DELTA.sample = Math.random() < DELTA.sampleRate;
+  return DELTA.sample;
+}
+/** Is this page session reading from the copy? Asked at use, never at file load (the vendor check is not ready then). */
+const deltaLiveOn = () => deltaUseOn() && !deltaSampleFull();
 const deltaClone = v => (typeof structuredClone === 'function' ? structuredClone(v) : JSON.parse(JSON.stringify(v)));
 
 /** A live copy for a gate register built from the copy, or null to let core/live-copies.js do it the full way. */
 function deltaLiveOpen(node) {
   try {
-    if (!PT_SYNC_NODES.has(node) || !AUDIT.on || !deltaUseOn()) return null;
+    if (!PT_SYNC_NODES.has(node) || !AUDIT.on || !deltaLiveOn()) return null;
     if (typeof indexedDB === 'undefined' || !auth || !auth.currentUser || spIsVendor()) return null;
   } catch (e) { return null; }
   const L = { snap: null, dead: false, wroteAt: 0, wroteSeq: 0, evSeq: 0, off: null, offs: [], closed: false, delta: 'opening' };
@@ -16919,16 +17082,18 @@ function deltaLiveOpen(node) {
 async function deltaLiveStart(L, node) {
   const uid = auth.currentUser.uid;
   const { m, db } = await ptLiveDb();
-  const idb = await deltaIdb();
+  const gen = DELTA.gen;
+  const idb = await deltaIdbOpen();
   const copy = await deltaCopyGet(idb, node);
   const now = await deltaServerNow();
   if (L.closed) return false;
   let why = '';
   if (!copy || copy.uid !== uid || typeof copy.mark !== 'number') why = 'no copy';
-  else if (now - copy.mark > DELTA.maxAgeMs) why = 'copy older than a day';
+  else if (typeof copy.fullAt !== 'number') why = 'no full download time';
+  else if (now - copy.mark > DELTA.maxAgeMs || now - copy.fullAt > DELTA.maxAgeMs) why = 'copy older than a day';   // a delta open never moves fullAt
   if (why) return deltaLiveFull(L, node, why, idb);
   const keyCheck = now - (copy.keysAt || 0) > DELTA.keyCheckMs;
-  const res = await deltaRebuild(node, copy, keyCheck);
+  const res = await deltaRebuild(node, copy, keyCheck, 'delta');
   if (L.closed) return false;
   if (!res.R) return deltaLiveFull(L, node, res.info.mode, idb);
   if (res.info.addedOutside || res.info.removedOutside) return deltaLiveFull(L, node, 'rows added or removed outside the app', idb);
@@ -16936,14 +17101,15 @@ async function deltaLiveStart(L, node) {
   L.snap = { val: () => deltaClone(val) };
   L.evSeq = ++PT_LIVE_SEQ;
   L.delta = 'delta';
-  deltaCopyPut(idb, node, { uid, mark: now - DELTA.marginMs, v: val, at: Date.now(), keysAt: keyCheck ? now : (copy.keysAt || 0) }).catch(() => {});
+  if (gen === DELTA.gen) deltaCopyPut(idb, node, { uid, mark: now - DELTA.marginMs, v: val, at: Date.now(), keysAt: keyCheck ? now : (copy.keysAt || 0), fullAt: copy.fullAt }).catch(() => {});
   /* Every later save anywhere: its pt_sync line arrives here, and that one row is read. */
   const onKey = sn => {
     const k = sn.key, ts = Number(sn.val()) || 0;
+    try { if (typeof dmCount === 'function') dmCount('pt_sync/' + node, JSON.stringify(k).length + String(ts).length + 2, 'delta-notes'); } catch (e) { /* only a count */ }
     if (L.closed || L.delta !== 'delta' || (seen[k] && seen[k] >= ts)) return;
     seen[k] = ts;
     const my = (want[k] || 0) + 1; want[k] = my;
-    deltaRead(node + '/' + k).then(x => {
+    deltaRead(node + '/' + k, '', 'delta').then(x => {
       if (want[k] !== my || L.delta !== 'delta' || L.closed) return;     // a newer read of this row is on its way
       if (x.v === null) delete val[k]; else val[k] = x.v;
       L.evSeq = ++PT_LIVE_SEQ;
@@ -16972,7 +17138,7 @@ async function deltaLiveFull(L, node, why, idb) {
   L.offs.forEach(f => { try { f(); } catch (e) { /* gone */ } }); L.offs = [];
   L.delta = 'full';
   if (L.closed) return false;
-  const uid = auth.currentUser.uid;
+  const uid = auth.currentUser.uid, gen = DELTA.gen;
   const { m, db } = await ptLiveDb();
   const mark = (await deltaServerNow()) - DELTA.marginMs;     // taken BEFORE the read, so nothing after it is missed
   return new Promise(res => {
@@ -16981,8 +17147,9 @@ async function deltaLiveFull(L, node, why, idb) {
       L.snap = sn; L.evSeq = ++PT_LIVE_SEQ;
       if (!first) return;
       first = false; res(true);
-      (idb ? Promise.resolve(idb) : deltaIdb())
-        .then(d => deltaCopyPut(d, node, { uid, mark, v: sn.val() || {}, at: Date.now(), keysAt: mark + DELTA.marginMs }))
+      /* the only place a copy gets its full-download time (the shadow's full save is the other) */
+      (idb ? Promise.resolve(idb) : deltaIdbOpen())
+        .then(d => (gen === DELTA.gen ? deltaCopyPut(d, node, { uid, mark, v: sn.val() || {}, at: Date.now(), keysAt: mark + DELTA.marginMs, fullAt: mark + DELTA.marginMs }) : null))
         .catch(() => {});
       deltaLog({ at: new Date().toISOString(), by: deltaWho(), use: node, mode: 'full', why });
     }, () => { L.dead = true; L.snap = null; res(false); }));
@@ -40026,7 +40193,7 @@ function gdSaveAll() {
 function gdLoad() {
   if (GD_READY) return GD_READY;
   GD_READY = (async function () {
-    try { if (typeof ptNeed === 'function') await ptNeed(PTG_ALL, { why: 'gdesk', has: 'masters' }); } catch (e) { /* masters wait */ }
+    try { if (typeof ptNeed === 'function') await ptNeed(PTG_MASTER, { why: 'gdesk', has: 'masters' }); } catch (e) { /* masters wait */ }
     try { if (typeof ensureGpo === 'function' && typeof GPO !== 'undefined' && GPO.rows == null) await ensureGpo(); } catch (e) { /* real POs wait */ }
     /* A READ THAT FAILED IS NOT AN EMPTY DESK (16 Oct). It used to be taken as one, and the empty desk was then WRITTEN
      * over the whole node — every greige PO and every movement gone because one read timed out. Now a failed read
@@ -40084,7 +40251,8 @@ function usersSafe() { return true; }
  * the store, cloth at an RFD processor. What is still short is the greige to order, with 5% added for what the
  * processor takes. */
 var GD_LOSS = 0.05;
-function gdFlowReady() { return typeof FLOW !== 'undefined' && FLOW && FLOW.ppc && typeof flowRfdCover === 'function'; }
+/* Page registers on: PPC's figures are not ready until the order book and the factory registers are all in (a plain look, it reads nothing). */
+function gdFlowReady() { return typeof FLOW !== 'undefined' && FLOW && FLOW.ppc && typeof flowRfdCover === 'function' && (typeof prOn !== 'function' || !prOn() || ptHas(PTG_ALL)); }
 function gdRfdShelf(name) {
   if (!DB) return 0;
   var k = String(name || '').trim().toUpperCase(), e = fabFlowRows(DB.fab || []).filter(function (x) { return String(x.fabricType).toUpperCase() === k; })[0];
@@ -40114,7 +40282,9 @@ var GD_FLOW_ASKED = false;
  * null when the flow is not here; { __loading: true } while the plans are being read. */
 function gdPpcMap() {
   if (typeof flowRfdCover !== 'function') return null;
-  if (!gdFlowReady()) {
+  /* Page registers on: the desk opens on the master alone, but PPC's figures are worked out from the order book and the factory registers.
+   * Until all of them are in, the column says it is loading; the flow reads them (flowEnsureData waits for the whole set) and the screen is drawn again. */
+  if (!gdFlowReady() || (typeof prOn === 'function' && prOn() && !ptHas(PTG_ALL))) {
     if (typeof flowEnsureData === 'function' && !GD_FLOW_ASKED) { GD_FLOW_ASKED = true; flowEnsureData().then(function () { if (UI.tab === 'inv') render(); }, function () { /* the column says so */ }); }
     return { __loading: true };
   }
@@ -40516,7 +40686,7 @@ async function ensureHr() {
     /* The printer rates are read against the vendor orders — the usage count and the pickers are
      * both built from them, and without them every rate would read as matching nothing. */
     if (VO.rows === null && !hrEmpOnly()) { try { await ensureVo(); } catch (e) { /* the rates still list */ } }
-    try { await ptNeed(PTG_ALL, { why: 'finance-hr', has: 'mdb' }); } catch (e) { /* a cut rate falls back to the line */ }
+    try { await ptNeed(PTG_MASTER, { why: 'finance-hr', has: 'mdb' }); } catch (e) { /* a cut rate falls back to the line */ }
   }
   renderHr();
 }
@@ -43053,6 +43223,10 @@ async function ensureFab() {
     FAB.busy = true; renderFab();
     try { FAB.rows = ptList(await ptGet('pt_fabInvLedger')); FAB.err = ''; }
     catch (e) { FAB.err = e.message || String(e); FAB.rows = FAB.rows || []; }
+    /* The Fabric tab holds the Store, which reads the order book and the factory registers, so it asks for the whole set itself.
+     * The RFD stock dialog's own load (fabAutoLoad) needs only the master since page registers were narrowed.
+     * Only with page registers on: with the switch off, fabAutoLoad's own read below does exactly what it did before. */
+    if (prOn()) { try { await ptNeed(PTG_ALL, { why: 'fabric', has: 'mdb' }); } catch (e) { /* the store says so if it cannot read */ } }
     await fabAutoLoad();
     FAB.at = ptStamp(); FAB.busy = false;
   }
@@ -43094,7 +43268,7 @@ let FAB_AUTO = { err: '', start: '' };
 async function fabAutoLoad() {
   const errs = [];
   /* The sizes offered in "RFD to cutting", and the widths the consumption is worked out on. */
-  try { await ptNeed(PTG_ALL, { why: 'rfd-stock-auto', has: 'mdb' }); } catch (e) { /* the dialog says so if it cannot work metres out */ }
+  try { await ptNeed(PTG_MASTER, { why: 'rfd-stock-auto', has: 'mdb' }); } catch (e) { /* the dialog says so if it cannot work metres out */ }
   if (typeof RFD !== 'undefined' && RFD.decisions === null) {
     try { RFD.decisions = (await ptGet('pt_rfdDecisions')) || {}; }
     catch (e) { errs.push('the RFD office (' + (e.message || e) + ')'); }
@@ -47212,6 +47386,9 @@ function vlFind(r) {
  */
 async function vlAcceptWrite(rows, qtyFor, note, rejFor, ordersFor) {
   if (!vlCanAccept()) return VLOG_NO_ACCEPT;
+  /* Page registers on: the list opens on the master alone, but accepting puts the pieces against the sales orders they were for, which
+   * the order book and the factory registers say. Read them first; an acceptance is never written on part of them. */
+  if (prOn()) { await ptNeed(PTG_ALL, { why: 'accept delivery' }); const wait = ptStillReading(); if (wait) return wait; }
   /* A FLOW ORDER'S PRINTED FABRIC IS RECEIVED ON ITS CHALLAN (PPC · Production flow → Demand → Printed fabric in), never here. */
   if (rows.some(r => flowVoIsFlow({ id: r.id }))) return 'Not accepted — a Production flow order is received on its RFD challan: PPC · Production flow → Demand → Printed fabric in.';
   if (!rows.length) return '';
@@ -47294,6 +47471,15 @@ async function vlAcceptWrite(rows, qtyFor, note, rejFor, ordersFor) {
 
 /** One delivery, checked against the challan. */
 function vlAcceptOne(rowKey) {
+  /* Page registers on: the window below names the orders this delivery can go against, so the whole set is read before it opens. */
+  if (prOn() && !ptHas(PTG_ALL)) {
+    $('vlMsg').className = 'muted'; $('vlMsg').textContent = 'Reading the orders this delivery can be put against…';
+    ptNeed(PTG_ALL, { why: 'accept delivery' }).then(() => {
+      if (ptHas(PTG_ALL)) { $('vlMsg').textContent = ''; vlAcceptOne(rowKey); }
+      else { $('vlMsg').className = 'err'; $('vlMsg').textContent = 'Could not read the orders: ' + (PTG.err || 'try again'); }
+    });
+    return;
+  }
   const r = (VLOG.rows || []).find(x => x.key2 === rowKey);
   if (!r) return;
   const f = vlFind(r);
@@ -47712,7 +47898,7 @@ async function ensureVlog() {
   /* THE MASTER NAMES THE CLOTH (Ravi, 2026-09-29: "tablecloth ki sizes ke liye bhi Fabric m² lagao"). A cut line's
    * square metres come from its SKU's master row, and this screen never loaded the master — so every tablecloth
    * showed a dash while running cloth, which needs no master, showed its figure. Read it, then draw again. */
-  if (ptLack(PTG_ALL, 'mdb')) { try { await ptNeed(PTG_ALL, { why: 'vlog', has: 'mdb' }); renderVlog(); } catch (e) { /* the dashes stay */ } }
+  if (ptLack(PTG_MASTER, 'mdb')) { try { await ptNeed(PTG_MASTER, { why: 'vlog', has: 'mdb' }); renderVlog(); } catch (e) { /* the dashes stay */ } }
 }
 ['vlVendor', 'vlType', 'vlFrom', 'vlTo', 'vlState'].forEach(id => $(id).addEventListener('change', renderVlog));
 ptDebounce('vlQ', renderVlog);
@@ -62640,7 +62826,7 @@ let CX = { rows: null, err: '', busy: false, at: '', shown: [] };
 async function ensureCx() {
   if (CX.rows === null) {
     CX.busy = true; renderCx();
-    await ptNeed(PTG_ALL, { why: 'customer-orders', has: 'mdb' });
+    await ptNeed(PTG_MASTER, { why: 'customer-orders', has: 'mdb' });
     if (FGI.rows === null) { try { FGI.rows = ptList(await ptGet('pt_fgiLedger')); } catch (e) { FGI.rows = []; } }
     try { CX.rows = ptList(await ptGet('pt_cxOrders')); CX.err = ''; }
     catch (e) { CX.err = e.message || String(e); CX.rows = CX.rows || []; }
@@ -63055,7 +63241,7 @@ async function ensureVrq(force) {
     /* The progress column reads the orders the requests became, and the vendor names come from the
      * master — both are needed before the table can say anything true. */
     if (VO.rows === null || force) { VO.rows = null; try { await ensureVo(); } catch (e) { /* progress shows as unknown */ } }
-    try { await ptNeed(PTG_ALL, { why: 'vendor-order-requests', has: 'mdb' }); } catch (e) { /* codes show instead of names */ }
+    try { await ptNeed(PTG_MASTER, { why: 'vendor-order-requests', has: 'mdb' }); } catch (e) { /* codes show instead of names */ }
     VRQ.at = ptStamp(); VRQ.busy = false;
   }
   renderVrq();
@@ -63113,6 +63299,9 @@ async function vrqSubmit(d) {
  */
 async function vrqApprove(id, opts) {
   if (!vrqCanApprove()) return VRQ_NO_APPROVE;
+  /* Page registers on: this screen opens on the master alone, but approving stamps each line with the sales orders it is for and checks
+   * the printer cap against the order book. The whole set is read first; a save never runs on part of it. */
+  if (prOn()) { await ptNeed(PTG_ALL, { why: 'vendor-order-requests approve' }); const wait = ptStillReading(); if (wait) return wait; }
   const r = vrqOf(id);
   if (!r) return 'That request is gone — press Refresh.';
   if (r.status !== 'pending') return `${r.reqNo || id} is not waiting for approval any more (${r.status}).`;
@@ -63229,6 +63418,8 @@ async function vrqWithdraw(id) {
 
 /** A rejected or withdrawn request, back in the form to fix and send again. */
 async function vrqCopy(id) {
+  /* Page registers on: the order form works out the demand and the printer cap from the order book and the factory registers, so they are read first. */
+  if (prOn()) await ptNeed(PTG_ALL, { why: 'vendor-order-requests copy' });
   const r = vrqOf(id); if (!r) return;
   await voFormOpen('request');
   if ($('vof_vendor')) $('vof_vendor').value = r.vendorCode || '';
@@ -64842,7 +65033,7 @@ async function ensureRfd(force) {
     /* The requirements themselves live inside the vendor orders, so there is nothing to show until
      * those are loaded. */
     if (VO.rows === null || force) { VO.rows = null; try { await ensureVo(); } catch (e) { /* shown as none */ } }
-    try { await ptNeed(PTG_ALL, { why: 'order-driven-rfd', has: 'mdb' }); } catch (e) { /* ceilings show as unknown */ }
+    try { await ptNeed(PTG_MASTER, { why: 'order-driven-rfd', has: 'mdb' }); } catch (e) { /* ceilings show as unknown */ }
     RFD.at = ptStamp(); RFD.busy = false; RFD.loaded = true;
   }
   renderRfd();

@@ -12,6 +12,7 @@
  * beside this script before anything is written, so every change can be put back exactly.
  */
 const fs = require('fs'), https = require('https'), pathm = require('path');
+const NW = require('./_noted-write.js');     // writes to a synced register leave their change note (Step 4d)
 const FTL = 'C:/Users/ravik/AppData/Roaming/npm/node_modules/firebase-tools/lib/';
 const HOST = 'price-research-48ff3-default-rtdb.asia-southeast1.firebasedatabase.app';
 const APPLY = process.argv.includes('--apply');
@@ -55,7 +56,7 @@ const long = v => { const n = parseFloat(v); return isFinite(n) && Math.abs(Math
   const file = pathm.join(__dirname, 'm2-backup-' + new Date().toISOString().replace(/[:.]/g, '-') + '.json');
   fs.writeFileSync(file, JSON.stringify(backup, null, 1));
   console.log('\nbackup: ' + file);
-  const w = await call('PATCH', '', patch);
+  const w = await call(...NW.noted('PATCH', '', patch));
   if (w.status !== 200) throw new Error('write refused: HTTP ' + w.status + ' ' + JSON.stringify(w.j).slice(0, 200));
   console.log('written: ' + Object.keys(patch).length + ' value(s).');
 })().catch(e => { console.error(e.message); process.exit(1); });

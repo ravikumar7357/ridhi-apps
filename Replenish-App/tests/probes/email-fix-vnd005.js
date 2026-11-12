@@ -1,6 +1,7 @@
 /* Ravi, 2026-09-26: VND005 Friends Creations was saved as thecrownandloon@gmail.com — the real address is
  * thecrownandloom@gmail.com (already right in pt_perms). Fixes the four places the typo sits, in ONE patch, after a backup. */
 const fs = require('fs'), https = require('https'), pathm = require('path');
+const NW = require('./_noted-write.js');     // writes to a synced register leave their change note (Step 4d)
 const FTL = 'C:/Users/ravik/AppData/Roaming/npm/node_modules/firebase-tools/lib/';
 const DB = 'https://price-research-48ff3-default-rtdb.asia-southeast1.firebasedatabase.app';
 const BAD = 'thecrownandloon@gmail.com', GOOD = 'thecrownandloom@gmail.com';
@@ -22,7 +23,7 @@ const BAD = 'thecrownandloon@gmail.com', GOOD = 'thecrownandloom@gmail.com';
     'pt_vendorByEmail/thecrownandloon@gmail,com': null,
     'pt_loginDir/9414046837/email': GOOD, 'pt_loginDir/9414046837/updatedAt': now,
   };
-  const r = await req('PATCH', '', patch);
+  const r = await req(...NW.noted('PATCH', '', patch));
   console.log(r && r.error ? 'ERROR ' + r.error : 'written', '· backup', bf);
   for (const p of paths) console.log(p, '=>', JSON.stringify(await req('GET', p)));
 })().catch(e => { console.error('FAILED', e.message || e); process.exit(1); });

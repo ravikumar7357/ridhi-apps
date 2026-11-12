@@ -31,7 +31,21 @@ $('resetLink').onclick = async () => {
   $('resetLink').disabled = false;
 };
 /* Sign out wipes this device's copy of the Shopify orders first (shopify/shopify-copy.js) — customer details included. */
-$('logoutBtn').onclick = async () => { try { await soCopyWipe(); } catch (e) { /* nothing kept */ } signOut(auth); };
+$('logoutBtn').onclick = async () => {
+  try { await soCopyWipe(); } catch (e) { /* nothing kept */ }
+  /* On a shared computer, the downloaded factory data goes too (core/delta-sync.js deltaWipe). */
+  try { if (authSharedOn() && typeof deltaWipe === 'function') await deltaWipe('shared sign-out'); } catch (e) { /* nothing kept */ }
+  signOut(auth);
+};
+/* Shared computer tick on the sign-in form: remembered per device. Ticked, the downloaded copy is deleted at sign-out. */
+function authSharedOn() { try { return localStorage.getItem('sharedDevice') === '1'; } catch (e) { return false; } }
+{
+  const sh = $('sharedDevice');
+  if (sh) {
+    sh.checked = authSharedOn();
+    sh.onchange = () => { try { if (sh.checked) localStorage.setItem('sharedDevice', '1'); else localStorage.removeItem('sharedDevice'); } catch (e) { /* not kept */ } };
+  }
+}
 
 let AUTH_SEEN = false;
 onAuthStateChanged(auth, async user => {
@@ -51,6 +65,8 @@ onAuthStateChanged(auth, async user => {
   ME = { email: (user.email || '').toLowerCase(), admin: false, repl: false, tabs: [], tabsExplicit: false, projEdit: false, prodEdit: false, rateApprove: false, shopAssign: false, b2bAssign: false,
     accEntry: false, accEdit: false, vlogAccept: false, soApprove: false, mdbEdit: false,
     attendMark: false, vreqApprove: false, rfdApprove: false, rfdSend: false, fgiEdit: false, fgiEntry: false, empEdit: false, hrEmpOnly: false };
+  /* A downloaded copy kept by ANOTHER account (or by nobody we know) is deleted before this one is used (core/delta-sync.js). */
+  try { if (typeof deltaSignedIn === 'function') await deltaSignedIn(ME.email); } catch (e) { /* nothing kept */ }
   try {
     const s = await getDoc(doc(db, 'perms', ME.email));
     if (s.exists()) { const d = s.data(); ME.admin = d.admin === true; ME.repl = d.repl === true;
@@ -249,8 +265,12 @@ onAuthStateChanged(auth, async user => {
         if (typeof otkListSaveFlag === 'function') otkListSaveFlag(!!d && (d.alertList === true || d.alertList === 1 || d.alertList === '1' || d.alertList === 'on'));
         /* ...and the page registers switch (core/gates.js), also from the next page load. */
         if (typeof prSaveFlag === 'function') prSaveFlag(!!d && (d.pageRegisters === true || d.pageRegisters === 1 || d.pageRegisters === '1' || d.pageRegisters === 'on'));
+        /* ...and the one-request-with-its-note switch (core/history.js), also from the next page load. */
+        if (typeof saSaveFlag === 'function') saSaveFlag(!!d && (d.syncAtomic === true || d.syncAtomic === 1 || d.syncAtomic === '1' || d.syncAtomic === 'on'));
+        /* ...and the downloaded-copy switch (core/delta-sync.js), also from the next page load. */
+        if (typeof deltaSaveFlag === 'function') deltaSaveFlag(!!d && (d.deltaUse === true || d.deltaUse === 1 || d.deltaUse === '1' || d.deltaUse === 'on'));
       })
-        .catch(() => { dmSaveFlag(false, dmKind); if (typeof pbSaveFlag === 'function') pbSaveFlag(false); if (typeof otkSaveFlag === 'function') otkSaveFlag(false); if (typeof prSaveFlag === 'function') prSaveFlag(false); if (typeof oalSaveFlag === 'function') oalSaveFlag(false); if (typeof otkListSaveFlag === 'function') otkListSaveFlag(false); });
+        .catch(() => { dmSaveFlag(false, dmKind); if (typeof pbSaveFlag === 'function') pbSaveFlag(false); if (typeof otkSaveFlag === 'function') otkSaveFlag(false); if (typeof prSaveFlag === 'function') prSaveFlag(false); if (typeof oalSaveFlag === 'function') oalSaveFlag(false); if (typeof otkListSaveFlag === 'function') otkListSaveFlag(false); if (typeof saSaveFlag === 'function') saSaveFlag(false); if (typeof deltaSaveFlag === 'function') deltaSaveFlag(false); });
     }
     if (typeof dmStart === 'function') dmStart();
   } catch (e) { console.warn('[data meter]', e); }

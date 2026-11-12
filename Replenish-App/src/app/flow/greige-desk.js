@@ -4170,7 +4170,7 @@ function gdSaveAll() {
 function gdLoad() {
   if (GD_READY) return GD_READY;
   GD_READY = (async function () {
-    try { if (typeof ptNeed === 'function') await ptNeed(PTG_ALL, { why: 'gdesk', has: 'masters' }); } catch (e) { /* masters wait */ }
+    try { if (typeof ptNeed === 'function') await ptNeed(PTG_MASTER, { why: 'gdesk', has: 'masters' }); } catch (e) { /* masters wait */ }
     try { if (typeof ensureGpo === 'function' && typeof GPO !== 'undefined' && GPO.rows == null) await ensureGpo(); } catch (e) { /* real POs wait */ }
     /* A READ THAT FAILED IS NOT AN EMPTY DESK (16 Oct). It used to be taken as one, and the empty desk was then WRITTEN
      * over the whole node — every greige PO and every movement gone because one read timed out. Now a failed read
@@ -4228,7 +4228,8 @@ function usersSafe() { return true; }
  * the store, cloth at an RFD processor. What is still short is the greige to order, with 5% added for what the
  * processor takes. */
 var GD_LOSS = 0.05;
-function gdFlowReady() { return typeof FLOW !== 'undefined' && FLOW && FLOW.ppc && typeof flowRfdCover === 'function'; }
+/* Page registers on: PPC's figures are not ready until the order book and the factory registers are all in (a plain look, it reads nothing). */
+function gdFlowReady() { return typeof FLOW !== 'undefined' && FLOW && FLOW.ppc && typeof flowRfdCover === 'function' && (typeof prOn !== 'function' || !prOn() || ptHas(PTG_ALL)); }
 function gdRfdShelf(name) {
   if (!DB) return 0;
   var k = String(name || '').trim().toUpperCase(), e = fabFlowRows(DB.fab || []).filter(function (x) { return String(x.fabricType).toUpperCase() === k; })[0];
@@ -4258,7 +4259,9 @@ var GD_FLOW_ASKED = false;
  * null when the flow is not here; { __loading: true } while the plans are being read. */
 function gdPpcMap() {
   if (typeof flowRfdCover !== 'function') return null;
-  if (!gdFlowReady()) {
+  /* Page registers on: the desk opens on the master alone, but PPC's figures are worked out from the order book and the factory registers.
+   * Until all of them are in, the column says it is loading; the flow reads them (flowEnsureData waits for the whole set) and the screen is drawn again. */
+  if (!gdFlowReady() || (typeof prOn === 'function' && prOn() && !ptHas(PTG_ALL))) {
     if (typeof flowEnsureData === 'function' && !GD_FLOW_ASKED) { GD_FLOW_ASKED = true; flowEnsureData().then(function () { if (UI.tab === 'inv') render(); }, function () { /* the column says so */ }); }
     return { __loading: true };
   }

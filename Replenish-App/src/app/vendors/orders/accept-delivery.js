@@ -122,6 +122,9 @@ function vlFind(r) {
  */
 async function vlAcceptWrite(rows, qtyFor, note, rejFor, ordersFor) {
   if (!vlCanAccept()) return VLOG_NO_ACCEPT;
+  /* Page registers on: the list opens on the master alone, but accepting puts the pieces against the sales orders they were for, which
+   * the order book and the factory registers say. Read them first; an acceptance is never written on part of them. */
+  if (prOn()) { await ptNeed(PTG_ALL, { why: 'accept delivery' }); const wait = ptStillReading(); if (wait) return wait; }
   /* A FLOW ORDER'S PRINTED FABRIC IS RECEIVED ON ITS CHALLAN (PPC · Production flow → Demand → Printed fabric in), never here. */
   if (rows.some(r => flowVoIsFlow({ id: r.id }))) return 'Not accepted — a Production flow order is received on its RFD challan: PPC · Production flow → Demand → Printed fabric in.';
   if (!rows.length) return '';
@@ -204,6 +207,15 @@ async function vlAcceptWrite(rows, qtyFor, note, rejFor, ordersFor) {
 
 /** One delivery, checked against the challan. */
 function vlAcceptOne(rowKey) {
+  /* Page registers on: the window below names the orders this delivery can go against, so the whole set is read before it opens. */
+  if (prOn() && !ptHas(PTG_ALL)) {
+    $('vlMsg').className = 'muted'; $('vlMsg').textContent = 'Reading the orders this delivery can be put against…';
+    ptNeed(PTG_ALL, { why: 'accept delivery' }).then(() => {
+      if (ptHas(PTG_ALL)) { $('vlMsg').textContent = ''; vlAcceptOne(rowKey); }
+      else { $('vlMsg').className = 'err'; $('vlMsg').textContent = 'Could not read the orders: ' + (PTG.err || 'try again'); }
+    });
+    return;
+  }
   const r = (VLOG.rows || []).find(x => x.key2 === rowKey);
   if (!r) return;
   const f = vlFind(r);
@@ -622,7 +634,7 @@ async function ensureVlog() {
   /* THE MASTER NAMES THE CLOTH (Ravi, 2026-09-29: "tablecloth ki sizes ke liye bhi Fabric m² lagao"). A cut line's
    * square metres come from its SKU's master row, and this screen never loaded the master — so every tablecloth
    * showed a dash while running cloth, which needs no master, showed its figure. Read it, then draw again. */
-  if (ptLack(PTG_ALL, 'mdb')) { try { await ptNeed(PTG_ALL, { why: 'vlog', has: 'mdb' }); renderVlog(); } catch (e) { /* the dashes stay */ } }
+  if (ptLack(PTG_MASTER, 'mdb')) { try { await ptNeed(PTG_MASTER, { why: 'vlog', has: 'mdb' }); renderVlog(); } catch (e) { /* the dashes stay */ } }
 }
 ['vlVendor', 'vlType', 'vlFrom', 'vlTo', 'vlState'].forEach(id => $(id).addEventListener('change', renderVlog));
 ptDebounce('vlQ', renderVlog);

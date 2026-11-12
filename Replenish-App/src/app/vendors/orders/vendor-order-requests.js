@@ -88,7 +88,7 @@ async function ensureVrq(force) {
     /* The progress column reads the orders the requests became, and the vendor names come from the
      * master — both are needed before the table can say anything true. */
     if (VO.rows === null || force) { VO.rows = null; try { await ensureVo(); } catch (e) { /* progress shows as unknown */ } }
-    try { await ptNeed(PTG_ALL, { why: 'vendor-order-requests', has: 'mdb' }); } catch (e) { /* codes show instead of names */ }
+    try { await ptNeed(PTG_MASTER, { why: 'vendor-order-requests', has: 'mdb' }); } catch (e) { /* codes show instead of names */ }
     VRQ.at = ptStamp(); VRQ.busy = false;
   }
   renderVrq();
@@ -146,6 +146,9 @@ async function vrqSubmit(d) {
  */
 async function vrqApprove(id, opts) {
   if (!vrqCanApprove()) return VRQ_NO_APPROVE;
+  /* Page registers on: this screen opens on the master alone, but approving stamps each line with the sales orders it is for and checks
+   * the printer cap against the order book. The whole set is read first; a save never runs on part of it. */
+  if (prOn()) { await ptNeed(PTG_ALL, { why: 'vendor-order-requests approve' }); const wait = ptStillReading(); if (wait) return wait; }
   const r = vrqOf(id);
   if (!r) return 'That request is gone — press Refresh.';
   if (r.status !== 'pending') return `${r.reqNo || id} is not waiting for approval any more (${r.status}).`;
@@ -262,6 +265,8 @@ async function vrqWithdraw(id) {
 
 /** A rejected or withdrawn request, back in the form to fix and send again. */
 async function vrqCopy(id) {
+  /* Page registers on: the order form works out the demand and the printer cap from the order book and the factory registers, so they are read first. */
+  if (prOn()) await ptNeed(PTG_ALL, { why: 'vendor-order-requests copy' });
   const r = vrqOf(id); if (!r) return;
   await voFormOpen('request');
   if ($('vof_vendor')) $('vof_vendor').value = r.vendorCode || '';

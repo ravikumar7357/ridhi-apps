@@ -8,6 +8,7 @@
  * recipes would then do. `node recipe-flap.js` shows; `node recipe-flap.js go` writes the copies.
  */
 const fs = require('fs'), https = require('https'), pathm = require('path');
+const NW = require('./_noted-write.js');     // writes to a synced register leave their change note (Step 4d)
 const FTL = 'C:/Users/ravik/AppData/Roaming/npm/node_modules/firebase-tools/lib/';
 const DB = 'https://price-research-48ff3-default-rtdb.asia-southeast1.firebasedatabase.app';
 const FROM = 'Piping Pillow Cover', TO = 'Piping Flap Pillow Cover';
@@ -70,7 +71,7 @@ const said = v => v !== undefined && v !== null && String(v).trim() !== '';
   const flap = mdb.filter(m => norm(m.subtype) === norm(TO));
   console.log('\nSKUs called', TO + ':', flap.length, '· of them with no fabric:', flap.filter(m => !said(m.fabric)).length);
   if (process.argv[2] !== 'go') return;
-  await req('PATCH', 'pt_masters/recipe', copies);
+  await req(...NW.noted('PATCH', 'pt_masters/recipe', copies));
   const back = await req('GET', 'pt_masters/recipe');
   console.log('\nwritten. recipes now:', Object.keys(back || {}).length);
 })().catch(e => { console.error(e.message || e); process.exit(1); });
