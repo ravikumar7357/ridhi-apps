@@ -72,6 +72,7 @@ const LR_DETECTORS = {
   aplus_missing: { label: 'A+ asked of the listing and its parent ASIN, and neither has it', params: [] },
   images_below: { label: 'Fewer gallery pictures than N in the catalogue (MAIN + PT01–PT08; the swatch is not a picture)', params: ['n'] },
   images_between: { label: 'Gallery pictures from MIN to MAX', params: ['min', 'max'] },
+  title_not_live: { label: 'The title Amazon shows is not the one we submitted (ours is not live)', params: [] },
   images_small: { label: 'A catalogue picture under PX pixels on its longest side (zoom does not work)', params: ['px'] },
   main_not_square: { label: 'The main picture is not square (more than PCT % longer one way)', params: ['pct'] },
   images_duplicate: { label: 'The same picture in two slots of the catalogue', params: [] },
@@ -98,6 +99,9 @@ const LR_DEFAULT = {
      * had images, because the family supplies them, and no rule had ever asked Amazon what IT thought. */
     { id: 'amz_suppressed', name: 'Suppressed from search by Amazon', sev: 'critical', area: 'Amazon', detector: 'amazon_suppressed', desc: 'Buyable from a direct link but removed from search results' },
     { id: 'amz_error', name: 'Amazon reports an error', sev: 'critical', area: 'Amazon', detector: 'amazon_error', desc: "Amazon's own issue list for this listing holds at least one ERROR" },
+    /* THE TITLE AMAZON SHOWS (12 Nov 2026): every title rule judges the title shoppers see (the catalogue's), not the one we
+     * submitted; when ours differs, it is not live — one Needs attention problem says so, with both titles. */
+    { id: 'title_not_live', name: 'Amazon shows a different title from yours — yours is not live', sev: 'action', area: 'Title', detector: 'title_not_live', desc: 'The title we submitted (item_name) is not the title Amazon shows on the product page' },
     /* PICTURE RULES (Rule Engine, 12 Nov 2026): judged on the catalogue's pictures — what shoppers see — from the live Amazon read
      * (sizes and which picture sits in which slot) or the Image Manager snapshot. No picture data: not judged ("Not checked").
      * "Main picture present" and "at least 6 pictures" are the two rules just below (main_image, img_secondary). */
@@ -378,7 +382,18 @@ const lrSizeShape = str => String(str).replace(/\d+(?:\.\d+)?/g, 'N').toLowerCas
  * The title text to judge — the catalog's full title first, else the listings report's. A title cached
  * before 15 Sept was cut at 60 characters; one of exactly 60 that is not marked full is not judged.
  */
-const hTitleText = row => (row.content && row.content.title) || ((row.titleFull || String(row.title || '').length !== 60) ? (row.title || '') : '');
+// A listing judged through lrFresh carries `shownTitle`: the title Amazon SHOWS (the catalogue's), freshest first — see lrFresh.
+const hTitleText = row => row.shownTitle || (row.content && row.content.title) || ((row.titleFull || String(row.title || '').length !== 60) ? (row.title || '') : '');
+// Two titles are the same title when they read the same: case, spaces and "&amp;" aside; a title kept cut (the snapshot keeps 200
+// characters, the live read 220) is the same when the other one starts with it.
+function lrSameTitle(a, b) {
+  const norm = s => String(s || '').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim().toLowerCase();
+  const x = norm(a);
+  const y = norm(b);
+  if (x === y) return true;
+  const [short, long] = x.length <= y.length ? [x, y] : [y, x];
+  return short.length >= 200 && long.startsWith(short);
+}
 /** Search-term bytes the way Amazon counts them (Part A4): the UTF-8 bytes of the words only — spaces and the punctuation
  *  ; , . do not count toward the limit. */
 function lrKwBytes(text) {
@@ -517,6 +532,9 @@ const LR_DET = {
     const bytes = row.kwBytes != null ? row.kwBytes : lrKwBytes(row.kw);
     return bytes > max ? `${bytes} of ${max} bytes — cut ${bytes - max}; over the limit Amazon ignores all of them` : '';
   },
+  // Our submitted title (the live read's item_name) is not the title Amazon shows: ours is not live. Both titles are named.
+  title_not_live: row => (row.shownTitle && row.submittedTitle && !lrSameTitle(row.shownTitle, row.submittedTitle)
+    ? `Amazon shows: "${row.shownTitle}" · Yours: "${row.submittedTitle}"` : ''),
   title_length: (row, ctx, params) => (row.content && (row.content.titleLen < (+params.min || 0) || row.content.titleLen > (+params.max || 999)))
     ? `${row.content.titleLen} characters` : '',
   size_format: (row, ctx, params) => {
@@ -766,11 +784,23 @@ function lrAmz(row, ctx) {
 }
 /** The listing with the freshest content on it: the live read's title / bullets / description / search terms, brand, colour and
  *  rule words (lrFresh), else exactly the Health row. `contentAt` says when that content was read; `kw` is only ever live. */
+/* THE TITLE AMAZON SHOWS (12 Nov 2026): every title rule judges the title shoppers see, freshest first — the catalogue's title from a
+ * live read (?limg=get / ?lfix=get, `catTitle`), else the one in the latest full refresh (the Health snapshot's catalogue title). Our
+ * submitted item_name (the live content read's `title`) is used only when neither exists; when both exist and differ, ours is not live
+ * (title_not_live). RTC14 / B09M3JRNF8: the live read's 68-character item_name had been judged, while amazon.com shows ~150 characters. */
 function lrFresh(row, ctx) {
   const live = lrLiveOf(row, ctx);
   const r = Object.assign({}, row);
+  const shownLive = live && live.catTitle ? String(live.catTitle) : '';
+  const shownSnap = row.content && row.content.title ? String(row.content.title) : '';
+  const submitted = live && live.cAt && live.title ? String(live.title) : '';
+  const shown = shownLive || shownSnap;
+  r.shownTitle = shown || submitted || '';
+  r.submittedTitle = submitted;
+  r.titleSrc = shownLive ? 'live' : shownSnap ? 'snapshot' : submitted ? 'submitted' : 'report';
+  const shownLen = shownLive ? shownLive.length : shownSnap ? (row.content.titleLen || shownSnap.length) : submitted ? (live.titleLen || submitted.length) : 0;
   if (live && live.cAt) {
-    r.content = { title: live.title || '', titleLen: live.titleLen || 0, bullets: live.bul || 0, descLen: live.desc || 0, images: row.content ? row.content.images : null };
+    r.content = { title: r.shownTitle, titleLen: shownLen, bullets: live.bul || 0, descLen: live.desc || 0, images: row.content ? row.content.images : null };
     r.contentAt = live.cAt;
     r.contentSrc = 'live';
     r.kw = live.kw || '';
@@ -780,6 +810,7 @@ function lrFresh(row, ctx) {
   } else {
     r.contentAt = row.checked || 0;
     r.contentSrc = row.content ? 'health' : '';
+    if (shownLive && row.content) r.content = Object.assign({}, row.content, { title: shownLive, titleLen: shownLive.length });
   }
   if (live && live.brand) r.amzBrand = live.brand;
   if (live && live.color) r.amzColor = live.color;
@@ -791,7 +822,7 @@ const lrFacts = (row, ctx) => ({ pics: lrPictures(row, ctx), aplus: lrAplus(row,
 const lrFactsOf = (row, ctx) => row._f || (row._f = lrFacts(row, ctx));
 // What each detector's answer rests on, for the age of the data behind a finding (Part A5).
 const LR_DET_SRC = { inactive_with_stock: 'report', no_price: 'report', amazon_suppressed: 'amz', amazon_error: 'amz', no_main_image: 'pics',
-  images_small: 'pics', main_not_square: 'pics', images_duplicate: 'pics', main_photo_check: 'pics',
+  images_small: 'pics', main_not_square: 'pics', images_duplicate: 'pics', main_photo_check: 'pics', title_not_live: 'content',
   images_below: 'pics', images_between: 'pics', aplus_missing: 'aplus', bullets_below: 'content', desc_below: 'content', title_length: 'content',
   keyword_bytes: 'content' };
 // When the data behind one finding was read (ms), 0 when not known: title rules read the content title when there is one, else the report.
@@ -991,6 +1022,7 @@ const LR_FIX_TEXT = {
   bullets_below: (hit, row, ctx, params) => `Add bullets until there are ${+params.n || 5} (it has ${row.content ? row.content.bullets || 0 : 0}).`,
   desc_below: (hit, row, ctx, params) => `Write a description of ${+params.n || 200}+ characters (it has ${row.content && row.content.descLen ? row.content.descLen : 'none'}).`,
   title_length: (hit, row, ctx, params) => `Make the title ${+params.min || 0} to ${+params.max || 999} characters (now ${row.content ? row.content.titleLen : hTitleText(row).length}).`,
+  title_not_live: () => 'Check Listing Errors for why Amazon has not accepted it; resubmit if needed.',
   images_small: (hit, row, ctx, params) => `Upload a bigger version of ${String(hit.detail).replace(/^.*?:\s*/, '').replace(/\s*\(\d+ px\)/g, '')} in Image Manager — at least ${+params.px || 1000} px on the long side, so shoppers can zoom.`,
   main_not_square: () => 'Use a square main picture in Image Manager (for example 2000 × 2000 px).',
   images_duplicate: hit => `Put a different picture in ${String(hit.detail).split(' ')[0]} in Image Manager — it repeats another slot.`,
@@ -1060,7 +1092,7 @@ function lrFixText(hit, row, ctx) {
 /* ---- whose rule it is, and where the Fix button goes ---- */
 // "Amazon": Amazon itself reports or demands it. "Amazon limit": one of Amazon's own limits. Everything else: "Company rule".
 const LR_FIX_TAG = { amazon_suppressed: 'Amazon', amazon_error: 'Amazon', no_main_image: 'Amazon', inactive_with_stock: 'Amazon', no_price: 'Amazon', keyword_bytes: 'Amazon limit',
-  images_small: 'Amazon', main_photo_check: 'Amazon' };
+  images_small: 'Amazon', main_photo_check: 'Amazon', title_not_live: 'Amazon' };
 const LR_TAG_TIP = { Amazon: 'Amazon itself reports this.', 'Amazon limit': "One of Amazon's own limits.", 'Company rule': 'Your own rule. Amazon does not check this.' };
 function lrFixTag(hit, row) {
   if (LR_FIX_TAG[hit.detector]) return LR_FIX_TAG[hit.detector];

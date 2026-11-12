@@ -162,6 +162,69 @@ const url = id => `https://m.media-amazon.com/images/I/${id}._AC_SL1500_.jpg`;
     ok('…and only the last 20 are kept', h && h.length === 20 && h[19].changes[0] === 'old 18');
   }
 
+  console.log('== the title Amazon SHOWS (12 Nov 2026) ==');
+  {
+    const cp = require('child_process');
+    const SHOWN = 'Ridhi - Goldenrod Yellow Hand Block Print Cotton Square Tablecloth for Dining Table Kitchen Farmhouse Party Home Decor 60x60 Inches';
+    const MINE = 'Ridhi Square Tablecloth 60×60 Inch Block Print - Goldenrod Yellow';   // our submitted item_name: no material
+    const setUp = C => {
+      const row = { brand: 'SP', parent: 'PRT', sku: 'RTC14', asin: 'B09M3JRNF8', title: MINE, qty: 5, price: 30, status: 'Active', channel: 'AFN', aplus: true, aplusAt: Date.now(), checked: Date.now(),
+        content: { title: SHOWN, titleLen: SHOWN.length, images: 8, bullets: 5, descLen: 300 } };
+      C.HEALTH.SP.rows.push(row);
+      C.rows.push(row);
+      const now = Date.now();
+      C.LI_WS.stored = true;
+      C.LI_WS.live.SP.RTC14 = { at: now, cAt: now, title: MINE, titleLen: MINE.length, bul: 5, desc: 300, kw: '' };   // a live content read: our item_name only
+      C.LI_WS.liveV++;
+      C.setCat('SP', { RTC14: { color: 'Goldenrod Yellow', size: '60x60', subcat: 'Square Tablecloth' } });
+      C.reset();
+      return row;
+    };
+    // the rules as they were (HEAD before this change) over the same listing
+    let old = null;
+    try { old = cp.execSync('git show HEAD:Pricing-App/src/app/listing/listing-rules.js', { cwd: require('path').join(__dirname, '..', '..') }).toString(); } catch (e) { /* no git */ }
+    const C = load({ ws: true, sp: true });
+    const row = setUp(C);
+    const h = C.healthOf(row, C.hCtx());
+    ok('RTC14 / B09M3JRNF8: the rules judge the title Amazon shows (~130 characters, "60x60 Inches", Cotton), not our 68-character item_name', h.fresh.shownTitle === SHOWN && h.fresh.titleSrc === 'snapshot' && h.fresh.content.titleLen === SHOWN.length, h.fresh.shownTitle + ' | ' + h.fresh.titleSrc);
+    const hit = h.found.find(x => x.detector === 'title_not_live');
+    ok('…ONE Needs attention problem, tag Amazon: "Amazon shows a different title from yours — yours is not live", with both titles and the fix',
+      hit && hit.sev === 'action' && hit.tag === 'Amazon' && hit.name === 'Amazon shows a different title from yours — yours is not live' && hit.detail.includes(SHOWN) && hit.detail.includes(MINE)
+      && hit.fix === 'Check Listing Errors for why Amazon has not accepted it; resubmit if needed.' && h.found.filter(x => x.detector === 'title_not_live').length === 1, hit && JSON.stringify(hit).slice(0, 300));
+    ok('…no false "missing material" from the template (the shown title says Cotton)', !h.found.some(x => x.detector === 'title_template' && /material/.test(x.detail)), h.found.map(x => x.detector + ':' + x.detail).join(' | '));
+    if (old) {
+      const O = load({ ws: true, sp: true, src: old });
+      const orow = setUp(O);
+      const oh = O.healthOf(orow, O.hCtx());
+      ok('…before this change the same listing showed the false "missing material" (judged on our item_name)', oh.found.some(x => x.detector === 'title_template' && /material/.test(x.detail)), oh.found.map(x => x.detector + ':' + x.detail).join(' | '));
+    }
+    // the planner reads the same shown title
+    const plan = C.spCompute(new Date(2026, 10, 12)).find(item => item.sku === 'RTC14');
+    ok('the Season planner works from the shown title too', plan && plan.title === SHOWN);
+    // a live catalogue read is fresher than the snapshot
+    C.LI_WS.live.SP.RTC14.catTitle = 'Ridhi Goldenrod Yellow Cotton Square Tablecloth 60 x 60 Inch';
+    C.LI_WS.live.SP.RTC14.tAt = Date.now();
+    C.LI_WS.liveV++; C.reset(); delete row._f;
+    const h2 = C.healthOf(row, C.hCtx());
+    ok('a live catalogue read (?limg=get / ?lfix=get) wins over the snapshot\'s title', h2.fresh.shownTitle === 'Ridhi Goldenrod Yellow Cotton Square Tablecloth 60 x 60 Inch' && h2.fresh.titleSrc === 'live');
+    // a child with no live read: the snapshot's catalogue title, nothing new
+    delete C.LI_WS.live.SP.RTC14;
+    C.LI_WS.liveV++; C.reset(); delete row._f;
+    const h3 = C.healthOf(row, C.hCtx());
+    ok('a child with no live read: judged on the latest full refresh\'s title; no "not live" problem (nothing to compare)', h3.fresh.shownTitle === SHOWN && !h3.found.some(x => x.detector === 'title_not_live'));
+    // titles equal (case and spaces aside): nothing new
+    C.LI_WS.live.SP.RTC14 = { at: Date.now(), cAt: Date.now(), title: SHOWN.toUpperCase().replace(/ /g, '  '), titleLen: SHOWN.length, bul: 5, desc: 300, kw: '' };
+    C.LI_WS.liveV++; C.reset(); delete row._f;
+    ok('titles equal (case and spaces aside): nothing new', !C.healthOf(row, C.hCtx()).found.some(x => x.detector === 'title_not_live'));
+    // no catalogue title anywhere: our submitted item_name is used
+    const bare = { brand: 'SP', parent: 'PRT', sku: 'RTC15', asin: 'B0X15', title: 'report title', qty: 5, price: 30, status: 'Active', channel: 'AFN', aplus: true, aplusAt: Date.now(), checked: Date.now(), content: null };
+    C.HEALTH.SP.rows.push(bare);
+    C.LI_WS.live.SP.RTC15 = { at: Date.now(), cAt: Date.now(), title: MINE, titleLen: MINE.length, bul: 5, desc: 300, kw: '' };
+    C.LI_WS.liveV++; C.reset();
+    const h4 = C.healthOf(bare, C.hCtx());
+    ok('no catalogue title anywhere: our submitted item_name is used, and no "not live" problem', h4.fresh.shownTitle === MINE && h4.fresh.titleSrc === 'submitted' && !h4.found.some(x => x.detector === 'title_not_live'));
+  }
+
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
 })();

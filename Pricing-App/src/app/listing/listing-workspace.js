@@ -438,6 +438,7 @@ function liWsChildSig(row, brand, hc, imlMap, now) {
   const ap = LI_WS.aplus[brand];
   return [hc, IML[brand] || null, imlMap.get(row.sku) || null, LR_SAVED_AT, LR_CAT[brand] || null, lr, lr ? lr.at : 0, lr ? lr.cAt : 0, lr ? lr.gAt : 0,
     lr ? lr.iAt : 0, lr ? lr.cat : null, lr ? lr.catMain : '', lr ? lr.iErr : '', lr ? lr.err : '', lr ? lr.cErr : '', lr ? lr.brand : '', lr ? lr.color : '', lr ? lr.words : null, sch,
+    lr ? lr.catTitle : '', lr ? lr.tAt : 0,
     ap[row.asin] || null, row.parent ? ap[row.parent] || null : null,
     row.content, row.checked, row.aplus, row.aplusAt, row.qty, row.status, row.channel, Math.floor(now / 60000)];
 }
@@ -759,6 +760,8 @@ async function liWsJob(job) {
       const first = name => String(((at[name] || []).find(e => e && e.value != null && e.value !== '') || {}).value || '');
       const entry = liWsEntry(brand, job.sku);
       // Amazon's own brand and colour for the listing, as short strings: the brand and the Block Print rules read them.
+      // The catalogue's title (what amazon.com shows) comes with this read: kept beside our submitted item_name (the content read's).
+      if (reply.title) Object.assign(entry, { catTitle: String(reply.title).slice(0, 250), tAt: now });
       Object.assign(entry, { at: now, gAt: now, pt: reply.productType || entry.pt || '', st: reply.status || [], brand: first('brand').slice(0, 60) || entry.brand || '',
         color: first('color').slice(0, 40) || entry.color || '',
         iss: (reply.issues || []).slice(0, 8).map(issue => ({ s: String(issue.severity || '').charAt(0), c: String(issue.code || ''), m: lrWholeCut(String(issue.message || ''), issue.severity === 'ERROR' ? 1000 : 220), a: (issue.attrs || []).slice(0, 4) })),
@@ -773,6 +776,7 @@ async function liWsJob(job) {
       const entry = liWsEntry(brand, job.sku);
       const cat = reply.catalog && typeof reply.catalog === 'object' ? reply.catalog : null;
       const slots = cat ? Object.keys(cat).filter(slot => cat[slot] && cat[slot].link) : [];
+      if (reply.title) Object.assign(entry, { catTitle: String(reply.title).slice(0, 250), tAt: now });   // the title Amazon shows
       if (cat && (slots.length || !reply.catalogError)) Object.assign(entry, { at: now, iAt: now, cat: slots, iErr: '',
         catMain: cat.MAIN && cat.MAIN.link ? String(cat.MAIN.link).slice(0, 200) : '',   // the catalogue's main picture: the row's thumbnail
         // each picture's id and size, for the picture rules (too small to zoom, main not square, the same picture twice)

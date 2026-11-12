@@ -198,6 +198,9 @@ function spPlan(row, ctx, today, log) {
   // --- put back: the newest change this planner sent for the listing whose seasons are all over, and that was not put back since ---
   const mine = (log || []).filter(rec => rec.brand === brand && rec.sku === row.sku);
   const last = mine[0] || null;
+  // Sent by this planner in the last 3 days, now our submitted title, but Amazon does not show it yet: waiting — never suggested twice.
+  const sentWaiting = !!(last && last.after && last.after.title && Date.now() - (last.at || 0) < 3 * LR_DAY && fresh.submittedTitle
+    && lrSameTitle(fresh.submittedTitle, last.after.title) && !lrSameTitle(title, last.after.title));
   let restore = null;
   if (last && last.kind !== 'restore' && last.seasons && last.seasons.length) {
     const over = last.seasons.every(id => { const e = events.find(each => each.ev.id === id); return !e || !e.s.inSeason; });
@@ -207,6 +210,12 @@ function spPlan(row, ctx, today, log) {
     live, liveFresh, fits, add: main ? [main] : [], alts, remove: restore ? [] : remove, restore, seasons: [], kind: 'none', after: title, kwAfter: kw, kwWords: [],
     checks: [], status: 'ok', why: '', note: '', changes: [], hint: '', readErr: live && (live.cErr || live.err) ? String(live.cErr || live.err) : '' };
   const word = main ? main.ev.name : '';
+  if (sentWaiting) {
+    item.kind = 'ok';
+    item.status = 'ok';
+    item.note = 'Sent — Amazon has not shown the new title yet. It usually takes a few hours.';
+    return item;
+  }
   if (restore) {
     item.kind = 'restore';
     item.seasons = restore.seasons.slice();

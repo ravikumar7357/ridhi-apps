@@ -22,7 +22,7 @@ function setup(opts) {
     return row;
   };
   // a live read for a SKU: the title Amazon shows, its hidden search words, and the product kind (needed to send)
-  const live = (sku, title, kw) => { const now = Date.now(); C.LI_WS.live.SP[sku] = { at: now, cAt: now, pt: 'NAPKIN', title, titleLen: title.length, kw, kwBytes: C.lrKwBytes(kw) }; C.LI_WS.liveV++; };
+  const live = (sku, title, kw) => { const now = Date.now(); C.LI_WS.live.SP[sku] = { at: now, cAt: now, pt: 'NAPKIN', title, titleLen: title.length, catTitle: title, tAt: now, kw, kwBytes: C.lrKwBytes(kw) }; C.LI_WS.liveV++; };
   return { C, put, live };
 }
 const napkin = color => ({ color, size: '18x18', subcat: 'Napkin Set' });
