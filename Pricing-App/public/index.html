@@ -15618,6 +15618,16 @@ const SP_SEASONS = [
   { id: 'sp_winter', name: 'Winter', words: 'Winter', when: { type: 'fixed', m: 1, d: 15 }, lead: 45, lag: 44, removeOnly: true },
 ];
 const SP_BANNED = /[!$?_{}^¬¦]|\p{Extended_Pictographic}/u;   // the symbols Amazon does not allow in a title (and no emoji); "%" and "&" are fine
+/* A SEASON WORD THAT DESCRIBES THE PRODUCT IS NEVER TOUCHED ("Summer Dress", "Christmas Tablecloth", "Spring floral", "Winter Coat").
+ * Only a season word used as an OCCASION or a time of use is judged: "for Thanksgiving", "Christmas Gift", "Spring Decor", "Easter table",
+ * or standing where the title templates put occasions (at the end, before " - Colour", next to another season word). When unsure the
+ * word is left alone. SP_USE: the words after a season word that mean "used for / at". SP_BEFORE: the words before it that do. */
+const SP_USE = new Set(['decor', 'decoration', 'decorations', 'gift', 'gifts', 'gifting', 'party', 'parties', 'table', 'tables', 'dinner', 'dinners', 'celebration', 'celebrations',
+  'holiday', 'holidays', 'season', 'seasonal', 'occasion', 'occasions', 'present', 'presents', 'entertaining', 'hosting', 'feast', 'brunch', 'dining', 'gathering', 'gatherings', 'event', 'events']);
+const SP_BEFORE = new Set(['for', 'this', 'gift', 'gifts', 'perfect']);
+/* THE CALENDAR IS FOR HOME PRODUCTS: a listing is judged only when its sub-category or title names one of these (clothing is left out),
+ * unless the calendar event itself names its products (`products: "Tablecloth, Napkin"` in Listing Rules). */
+const SP_HOME = 'Tablecloth, Table Cloth, Table Cover, Napkin, Runner, Placemat, Place Mat, Cushion, Pillow, Bedding, Quilt, Duvet, Bedspread, Comforter, Sheet, Curtain, Throw, Blanket, Apron, Towel, Pot Holder, Oven Mitt, Coaster, Tea Cosy, Table Linen';
 const SP_JOIN = ['for', 'and', 'with', 'the', 'of', 'a', 'an', 'to', 'in', 'on', '&', '-', '–', '|', ',', 'x'];   // joiners, never counted as facts
 const SP_FILLER = new Set(['for', 'and', 'with', 'the', 'of', 'a', 'an', 'to', 'in', 'on', 'or', 'by', 'at', 'from', 'your', 'our', 'is', 'are', 'it', 'its', 'this', 'that']);   // small words wasted in the hidden search words
 
@@ -15667,11 +15677,13 @@ function spTidy(text) {
     .replace(/\b(for|and|with|or|&)\s+(?=-|$)/gi, '').replace(/\b(for|and|with|or)\s+(for|and|with|or)\b/gi, '$1')
     .replace(/\s+-\s+-\s+/g, ' - ').replace(/\s*-\s*$/, '').replace(/^\s*-\s*/, '').replace(/\s+/g, ' ').trim();
 }
-// Take one occasion's words out of a title (whole words, however written), and the "for" / "&" that only joined them.
+// Take one occasion's words out of a title (whole words, however written), with the "for" / "&" that only joined them and a use word
+// that only belonged to them ("Spring Decor", "Christmas Gift", "Easter Celebration" go whole; "Thanksgiving Dinner Napkins" keeps Dinner).
+const SP_STRIP_WITH = 'decor|decorations?|gifts?|gifting|celebrations?|party|parties|holidays?|season|seasonal|occasions?|presents?';
 function spStrip(title, words) {
   let out = String(title || '');
   lrWords(words).forEach(word => {
-    const re = new RegExp('(?:\\b(?:for|and|&)\\s+)?(^|[^a-z0-9])' + word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s+') + "(?:'s)?(?=$|[^a-z0-9])", 'gi');
+    const re = new RegExp('(?:\\b(?:for|and|&)\\s+)?(^|[^a-z0-9])' + word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s+') + "(?:'s)?(?:\\s+(?:" + SP_STRIP_WITH + ")(?![a-z]))?(?=$|[^a-z0-9])", 'gi');
     out = out.replace(re, '$1');
   });
   return spTidy(out);
@@ -15748,12 +15760,13 @@ function spPlan(row, ctx, today, log) {
   const events = spEvents(cfg, today);
   const keep = e => lrWords(e.ev.except).some(word => lrHas(protect, word));   // the product IS the occasion: its title may always say so
   const inTitle = e => !!title && lrWords(e.ev.words).some(word => lrHas(title, word));
-  const remove = events.filter(e => inTitle(e) && !e.s.inSeason && !keep(e));
+  const applies = e => spApplies(e.ev, cat, title);                              // a home product (or one the event names): clothing is left out
+  // Only a season word used as an occasion is ever taken out; one that describes the product stays (spSeasonUse).
+  const remove = events.filter(e => inTitle(e) && !e.s.inSeason && !keep(e) && applies(e) && spSeasonUse(title, e.ev) === 'use');
   // ONE product season at a time: the active one the title will keep the longest (most days left in its window; ties → the nearest).
-  // Sale days (Black Friday, Cyber Monday, Prime Day …) are promotions, not product words: never in a title, at most in the search words.
-  const product = events.filter(e => !e.ev.removeOnly && !spIsSale(e.ev) && fits && !keep(e) && !inTitle(e) && e.s.inSeason)
+  // Sale days (Black Friday, Cyber Monday, Prime Day …) are promotions, never product words: never suggested anywhere.
+  const product = events.filter(e => !e.ev.removeOnly && !spIsSale(e.ev) && fits && applies(e) && !keep(e) && !inTitle(e) && e.s.inSeason)
     .sort((a, b) => (b.s.to - a.s.to) || (a.s.next - b.s.next));
-  const sales = events.filter(e => spIsSale(e.ev) && e.s.inSeason && !inTitle(e));
   const chosen = SP.choice.get(key);
   const main = product.find(e => e.ev.id === chosen) || product[0] || null;
   const alts = product.filter(e => e !== main);
@@ -15766,7 +15779,7 @@ function spPlan(row, ctx, today, log) {
     if (over) restore = last;
   }
   const item = { key, brand, sku: row.sku, asin: row.asin || '', row, name: title || row.title || '', title, kw, kwMax, pt: live && live.pt ? live.pt : '',
-    live, liveFresh, fits, add: main ? [main] : [], alts, sales, remove: restore ? [] : remove, restore, seasons: [], kind: 'none', after: title, kwAfter: kw, kwWords: [],
+    live, liveFresh, fits, add: main ? [main] : [], alts, remove: restore ? [] : remove, restore, seasons: [], kind: 'none', after: title, kwAfter: kw, kwWords: [],
     checks: [], status: 'ok', why: '', note: '', changes: [], hint: '', readErr: live && (live.cErr || live.err) ? String(live.cErr || live.err) : '' };
   const word = main ? main.ev.name : '';
   if (restore) {
@@ -15852,15 +15865,6 @@ function spPlan(row, ctx, today, log) {
       }
     }
   }
-  // sale days go to the hidden search words only, and only when they fit as they are (never a word taken out for them)
-  if (sales.length && item.kwAfter != null) {
-    sales.forEach(e => {
-      const name = e.ev.name;
-      if (lrHas(item.kwAfter, name) || lrHas(item.after, name)) return;
-      const tryKw = (item.kwAfter.trim() ? item.kwAfter.trim() + ' ' : '') + name;
-      if (lrKwBytes(tryKw) <= kwMax) { item.kwAfter = tryKw; item.kwWords.push(name); }
-    });
-  }
   if (!placed && word && !remove.length && item.after === title && (item.kwAfter == null || item.kwAfter === kw)) item.kind = 'none';
   return spFinish(item, ctx, today);
 }
@@ -15895,6 +15899,31 @@ function spFix(item, why, hint) {
 }
 // Sale days are promotions, not product words.
 const spIsSale = ev => /black friday|cyber monday|prime day|\bsale\b|\bdeal/i.test(String(ev.name || '') + ' ' + String(ev.id || ''));
+// Does this calendar event apply to the listing? Its own `products`, else the home products — found in the sub-category or the title.
+function spApplies(ev, cat, title) {
+  const text = String((cat && cat.subcat) || '') + ' ' + String(title || '');
+  return lrWords(ev.products || SP_HOME).some(word => lrHas(text, word));
+}
+/** How an event's word is used in a title: 'use' (an occasion or time of use — may be judged), 'product' (describes the product — never
+ *  touched), or null when the word is not there. Reads the word before and after each occurrence; one 'use' is enough. */
+function spSeasonUse(title, ev) {
+  const text = String(title || '');
+  let found = null;
+  for (const word of lrWords(ev.words)) {
+    const re = new RegExp('(^|[^a-z0-9])' + word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s+') + "(?:'s)?(?=$|[^a-z0-9])", 'gi');
+    let m;
+    while ((m = re.exec(text))) {
+      const before = (text.slice(0, m.index + m[1].length).trim().split(/\s+/).pop() || '').toLowerCase().replace(/[^a-z']/g, '');
+      const rest = text.slice(m.index + m[0].length).trim();
+      const after = (rest.split(/\s+/)[0] || '').toLowerCase().replace(/[^a-z']/g, '');
+      const nextIsSeason = !!after && spEvents(spCfg(), spToday()).some(e => lrWords(e.ev.words).some(w => lrNorm(w).split(' ')[0] === lrNorm(after)));
+      const use = SP_BEFORE.has(before) || SP_USE.has(after) || !rest || rest.startsWith('-') || rest.startsWith('–') || nextIsSeason || (after === 'and' || after === '&');
+      if (use) return 'use';
+      found = 'product';
+    }
+  }
+  return found;
+}
 // The hidden search words with the waste taken out: words the title already says, repeats, fillers, out-of-season words.
 function spKwClean(kw, title, events, keep) {
   let text = String(kw || '');
@@ -16013,7 +16042,8 @@ function spChecks(before, after, row, ctx, today, opts) {
   // 8 Season words in season
   const cat = lrCatOf(row) || {};
   const protect = String(cat.subcat || '') + ' ' + String(cat.color || '');
-  const stale = spEvents(cfg, today).find(e => !e.s.inSeason && lrWords(e.ev.words).some(word => lrHas(now, word)) && !lrWords(e.ev.except).some(word => lrHas(protect, word)));
+  const stale = spEvents(cfg, today).find(e => !e.s.inSeason && lrWords(e.ev.words).some(word => lrHas(now, word)) && !lrWords(e.ev.except).some(word => lrHas(protect, word))
+    && spApplies(e.ev, cat, now) && spSeasonUse(now, e.ev) === 'use');   // a season word that describes the product is never flagged
   if (!stale) push('season', 'Every season word is in season', true);
   else push('season', `Still says “${lrWords(stale.ev.words).find(word => lrHas(now, word))}” — ${stale.ev.name} is ${stale.s.next ? 'on ' + spDate(stale.s.next, true) : 'over'}`, false, `“${stale.ev.name}” is out of season`);
   // 9 Nothing made up: every word was in the title before, or is an occasion name
