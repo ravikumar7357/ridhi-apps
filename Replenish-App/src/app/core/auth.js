@@ -34,6 +34,7 @@ $('resetLink').onclick = async () => {
 $('logoutBtn').onclick = async () => { try { await soCopyWipe(); } catch (e) { /* nothing kept */ } signOut(auth); };
 
 let AUTH_SEEN = false;
+let ASH_DOC = null, ASH_MS = null;   // access shadow test (core/access-shadow.js) — test ERP only
 onAuthStateChanged(auth, async user => {
   $('loginView').classList.toggle('hide', !!user);
   $('appView').classList.toggle('hide', !user);
@@ -52,8 +53,11 @@ onAuthStateChanged(auth, async user => {
     accEntry: false, accEdit: false, vlogAccept: false, soApprove: false, mdbEdit: false,
     attendMark: false, vreqApprove: false, rfdApprove: false, rfdSend: false, fgiEdit: false, fgiEntry: false, empEdit: false, hrEmpOnly: false };
   try {
-    const s = await getDoc(doc(db, 'perms', ME.email));
-    if (s.exists()) { const d = s.data(); ME.admin = d.admin === true; ME.repl = d.repl === true;
+    ASH_DOC = null; ASH_MS = null; const ashT0 = performance.now();
+    const ashSb = typeof accessFromSupabase === 'function' ? await accessFromSupabase(user) : null;   // test ERP: Supabase only, Firebase not waited for (null = use Firebase)
+    const s = ashSb ? null : await getDoc(doc(db, 'perms', ME.email));
+    if (s) { ASH_DOC = s.exists() ? s.data() : null; ASH_MS = Math.round(performance.now() - ashT0); }
+    if (ashSb || (s && s.exists())) { const d = ashSb || s.data(); ME.admin = d.admin === true; ME.repl = d.repl === true;
       // Per-section access: perms.replTabs = ['repl','follow','top']. Empty but repl=true → all (legacy).
       const rt = Array.isArray(d.replTabs) ? d.replTabs.filter(t => REPL_TABS.includes(t)) : [];
       /* Whether these sections were CHOSEN for this account or inherited as "all of them". A tab that
@@ -100,6 +104,7 @@ onAuthStateChanged(auth, async user => {
        * its own — pay, rates and slips stay shut unless Finance & HR is granted as well. */
       ME.empEdit = d.empEdit === true; }
   } catch (e) { /* no perms = no access */ }
+  if (typeof accessShadow === 'function') accessShadow(user, ASH_DOC, ASH_MS);   // test ERP only (core/access-shadow.js): never waits, never throws
   /* A perms read that fails leaves ME.tabs empty, which is the correct answer — but the cover still
    * has to come off, or a denied account sits looking at nothing at all. */
   if (ME.empEdit && !ME.tabs.includes('hr')) { ME.tabs = ME.tabs.concat('hr'); ME.hrEmpOnly = true; }
