@@ -219,7 +219,7 @@ const napkin = color => ({ color, size: '18x18', subcat: 'Napkin Set' });
       && /Ready to fix<\/span><b>4<\/b>[\s\S]*We add “Christmas” safely\. Nothing else changes\.[\s\S]*data-sp-act="fix-all"[^>]*>Fix all 4</.test(body)
       && /Needs your OK<\/span><b>1<\/b>[\s\S]*One word in the title would change\.[\s\S]*>Check them</.test(body)
       && /Fix by hand<\/span><b>1<\/b>[\s\S]*No safe automatic change\.[\s\S]*data-sp-act="fixhand"[^>]*>Open in Listing Errors</.test(body), body.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').slice(0, 500));
-    ok('…the children as rows: Colour · Size · Pack, what we will do, the state chip, one button; 2 more up to date', (body.match(/class="sp-row /g) || []).length === 6 && /<b>Red · 18 x 18 Inch · Set of 4<\/b><span>Add “Christmas” to hidden search words<\/span>/.test(body)
+    ok('…the children as rows: Colour · Size · Pack, what we will do, the state chip, one button; 2 more up to date (folded, listed with where the word is)', (body.split('sp-uptodate')[0].match(/class="sp-row /g) || []).length === 6 && (body.match(/class="sp-row /g) || []).length === 8 && /<b>Red · 18 x 18 Inch · Set of 4<\/b><span>Add “Christmas” to hidden search words<\/span>/.test(body)
       && /<i aria-hidden="true">✓<\/i>Ready<\/span><button[^>]*data-sp-act="row-fix"[^>]*>Fix</.test(body) && /<i aria-hidden="true">⚠<\/i>OK\?<\/span><button[^>]*>Check</.test(body) && /2 more listings are up to date/.test(body), body.match(/class="sp-row [\s\S]{0,500}/));
     ok('a state card with 0 is greyed with its button disabled', (h => /sp-sc is-fix is-zero[\s\S]*?disabled/.test(h))(C.spParentBodyHtml(Object.assign({}, g, { fix: [] }), false)));
     // Fix all: ONLY the Ready ones are sent; Needs your OK never without its own approval
