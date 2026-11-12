@@ -304,9 +304,9 @@ function spFinish(item, ctx, today) {
     item.status = 'ok';
     return item;
   }
-  item.checks = spChecks(item.title, item.after, item.row, ctx, today, { kwAfter: item.kwAfter, kwMax: item.kwMax, added: item.kwWords });
+  item.checks = spChecks(item.title, item.after, item.row, ctx, today, { kwAfter: item.kwAfter, kwBefore: item.kw, kwMax: item.kwMax, added: item.kwWords });
   const bad = item.checks.find(check => check.ok === false);
-  const warn = item.checks.find(check => check.ok === 'warn');
+  const warn = item.checks.find(check => check.ok === 'warn' && !check.pre);   // a problem that was already there never holds it back
   if (bad) return spFix(item, bad.why || bad.t, `Change the title by hand: ${bad.why || bad.t}.`);
   if (!item.pt) {
     if (item.live && item.live.cAt) return spFix(item, 'Amazon did not say what kind of product this is, so the change cannot be sent from here', 'Send the change from Listing Errors.');
@@ -409,18 +409,20 @@ function spSwap(title, word, item, cfg, tpl) {
   return { title: spTidy(out.join(' ')), removed, why };
 }
 
-/** The same ✓ list for every suggested title (and for a title typed in Edit): [{ k, t, ok: true | false | 'warn', why }].
- *  `ok: false` blocks sending; 'warn' is "⚠ Needs a look" and shows beside the button. */
+/** The same ✓ list for every suggested title (and for a title typed in Edit): [{ k, t, ok: true | false | 'warn', why, pre }].
+ *  `ok: false` blocks sending; 'warn' makes it "⚠ Needs your OK" — unless `pre`: a problem that was ALREADY THERE BEFORE the
+ *  change (a title already over 75, a size already written another way…). Those never block it and never make it Needs your OK:
+ *  a change is Ready when it makes nothing worse. They show in their own card, "Already there before — not caused by this change". */
 function spChecks(before, after, row, ctx, today, opts) {
   opts = opts || {};
   const cfg = ctx.cfg;
   const out = [];
-  const push = (k, t, ok, why) => out.push({ k, t, ok, why: why || '' });
+  const push = (k, t, ok, why, pre) => out.push({ k, t, ok, why: why || '', pre: !!pre });
   const was = String(before || '');
   const now = String(after || '').trim();
   // 1 Within 75 letters (never made longer than it already was)
   if (now.length <= SP_TITLE_MAX) push('len', `Within ${SP_TITLE_MAX} letters (${now.length} of ${SP_TITLE_MAX})`, true);
-  else if (was.length > SP_TITLE_MAX && now.length <= was.length) push('len', `Longer than ${SP_TITLE_MAX} letters — it already was (${now.length}); not made longer`, 'warn');
+  else if (was.length > SP_TITLE_MAX && now.length <= was.length) push('len', `Longer than ${SP_TITLE_MAX} letters (${now.length}) — it already was; this change does not make it longer`, 'warn', '', true);
   else push('len', `Too long by ${spNf(now.length - SP_TITLE_MAX)} letter${now.length - SP_TITLE_MAX === 1 ? '' : 's'} (${now.length} of ${SP_TITLE_MAX})`, false, `the title is too long by ${now.length - SP_TITLE_MAX} letter${now.length - SP_TITLE_MAX === 1 ? '' : 's'}`);
   // 2 Under Amazon's 200 limit
   push('amz', `Under Amazon's ${SP_AMZ_MAX} limit`, now.length <= SP_AMZ_MAX, `over Amazon's ${SP_AMZ_MAX}-letter limit`);
@@ -436,7 +438,7 @@ function spChecks(before, after, row, ctx, today, opts) {
     const badWas = hTitleSizes(was).find(size => !lrSizeOk(size.text, example) && !(lrNear(was, cfg) && lrSizeLoose(size.text)));
     if (!sizesNow.length) push('size', 'Size kept as it was (none in the title)', true);
     else if (!badNow) push('size', 'Size written the house way', true);
-    else if (badWas) push('size', `Size written another way (“${badNow.text}”, as before)`, 'warn');
+    else if (badWas) push('size', `Size written another way (“${badNow.text}”)`, 'warn', '', true);
     else push('size', `Size not written the house way (“${badNow.text}”)`, false, `the size should read like “${example}”`);
   }
   // 4 Brand at the start
@@ -447,8 +449,8 @@ function spChecks(before, after, row, ctx, today, opts) {
     const atWas = brandWords.map(word => lrFind(was, word)).filter(i => i >= 0);
     if (atNow.length && Math.min(...atNow) === 0) push('brand', 'Brand at the start', true);
     else if (!atNow.length && atWas.length) push('brand', 'The brand was lost', false, 'the brand was lost');
-    else if (atNow.length) push('brand', 'Brand in the title, not at the start (as before)', 'warn');
-    else push('brand', 'No brand in the title (as before)', 'warn');
+    else if (atNow.length) push('brand', 'Brand in the title, not at the start', 'warn', '', atWas.length > 0 && Math.min(...atWas) > 0);
+    else push('brand', 'No brand in the title', 'warn', '', true);
   }
   // 5 Colour kept
   const color = lrColorOf(row);
@@ -459,13 +461,13 @@ function spChecks(before, after, row, ctx, today, opts) {
   const symNow = now.match(SP_BANNED);
   const symWas = was.match(SP_BANNED);
   if (!symNow) push('sym', 'No banned symbols', true);
-  else if (symWas && symWas[0] === symNow[0]) push('sym', `Has “${symNow[0]}”, which Amazon does not allow (as before)`, 'warn');
+  else if (symWas && symWas[0] === symNow[0]) push('sym', `Has “${symNow[0]}”, which Amazon does not allow`, 'warn', '', true);
   else push('sym', `Has “${symNow[0]}”, which Amazon does not allow`, false, `“${symNow[0]}” is not allowed in a title`);
   // 7 No word used 3 times
   const thrice = text => { const n = {}; spWords(text).filter(word => word.length >= 3).forEach(word => { n[word] = (n[word] || 0) + 1; }); return Object.keys(n).find(word => n[word] >= 3) || ''; };
   const threeNow = thrice(now);
   if (!threeNow) push('rep', 'No word used 3 times', true);
-  else if (thrice(was) === threeNow) push('rep', `“${threeNow}” is used 3 times (as before)`, 'warn');
+  else if (thrice(was) === threeNow) push('rep', `“${threeNow}” is used 3 times`, 'warn', '', true);
   else push('rep', `“${threeNow}” would be used 3 times`, false, `“${threeNow}” would be used 3 times`);
   // 8 Season words in season
   const cat = lrCatOf(row) || {};
@@ -483,6 +485,7 @@ function spChecks(before, after, row, ctx, today, opts) {
   if (opts.kwAfter != null) {
     const bytes = lrKwBytes(opts.kwAfter);
     if (bytes <= (opts.kwMax || 249)) push('kw', `Hidden search words within their limit (${spNf(bytes)} of ${spNf(opts.kwMax || 249)})`, true);
+    else if (opts.kwBefore != null && opts.kwAfter === opts.kwBefore) push('kw', `Hidden search words over their limit (${spNf(bytes)} of ${spNf(opts.kwMax || 249)})`, 'warn', '', true);   // unchanged: already so
     else push('kw', `Hidden search words over their limit (${spNf(bytes)} of ${spNf(opts.kwMax || 249)})`, false, 'the hidden search words would be over their limit');
   }
   if (!now) push('empty', 'The title is empty', false, 'the title is empty');
@@ -901,11 +904,11 @@ function spKidHtml(item, g) {
   // 5 what changes, 6 checks, the edit box
   const typed = SP.edits.has(item.key) ? SP.edits.get(item.key) : null;
   const after = typed != null ? typed : item.after;
-  const checks = typed != null ? spChecks(item.title, typed, item.row, hCtx(), spToday(), { kwAfter: item.kwAfter, kwMax: item.kwMax }) : item.checks;
+  const checks = typed != null ? spChecks(item.title, typed, item.row, hCtx(), spToday(), { kwAfter: item.kwAfter, kwBefore: item.kw, kwMax: item.kwMax }) : item.checks;
   const editing = SP.editing.has(item.key);
   const edit = editing ? card('sp-editc', 'Your title', `<textarea class="sp-edit" data-sp-key="${lrEsc(item.key)}" rows="3" aria-label="Edit the title">${lrEsc(after)}</textarea><span class="sp-cnt" data-sp-cnt="${lrEsc(item.key)}">${after.length} of ${SP_TITLE_MAX} letters</span>`) : '';
   const changes = item.status === 'reading' ? '' : card('sp-chg', 'What changes', spChangesHtml(item, after));
-  const checksHtml = checks.length ? card('sp-chk-c', 'Checks', spChecksHtml(checks)) : '';
+  const checksHtml = checks.length ? card('sp-chk-c', 'Checks', spChecksHtml(checks)) + spPreCardHtml(checks, item) : '';
   // 7 the action bar
   const bad = checks.find(check => check.ok === false);
   const canSend = (item.status === 'ready' || item.status === 'look') && !bad && !!item.pt && !SP.sending && spChanges(item, after);
@@ -940,8 +943,18 @@ function spChangesHtml(item, after) {
     + [...groups.entries()].map(([r, list]) => `<p class="sp-rem">− Removed: ${spWordList(list)} <span class="sp-dim">(${r})</span></p>`).join('')
     + `<p class="sp-dim">Hidden search words: ${spNf(lrKwBytes(item.kwAfter))} of ${spNf(item.kwMax)}.</p>` + fullKw;
 }
-// "✓ All 10 checks pass" — click to see them.
+// "Already there before — not caused by this change": the checks that failed before the change too, and a way to fix them in
+// Listing Health (Child listings, this listing's sidebar). Always in the page (hidden when empty) so the Edit box can fill it.
+function spPreCardHtml(checks, item) {
+  const pre = checks.filter(check => check.pre);
+  return `<div class="sp-card2 sp-pre-c"${pre.length ? '' : ' hidden'}>${spPreHtml(pre, item)}</div>`;
+}
+const spPreHtml = (pre, item) => '<h4>Already there before — not caused by this change</h4>'
+  + `<ul class="sp-checks">${pre.map(check => `<li class="sp-chk is-pre"><i>⚠</i>${lrEsc(check.t)}</li>`).join('')}</ul>`
+  + `<p class="sp-dim">These don't stop this change. <button type="button" class="sp-link" data-sp-act="to-health" data-sp-key="${lrEsc(item.key)}">Fix them in Listing Health</button></p>`;
+// "✓ All 8 checks pass" — click to see them. Only the change's own checks: the ones already failing before are in their own card.
 function spChecksHtml(checks) {
+  checks = checks.filter(check => !check.pre);
   const fail = checks.filter(check => check.ok === false).length;
   const warn = checks.filter(check => check.ok === 'warn').length;
   const sum = fail ? `✕ ${spPlural(fail, 'check')} ${fail === 1 ? 'does' : 'do'} not pass` : warn ? `⚠ ${spNf(checks.length - warn)} of ${spNf(checks.length)} checks pass — ${spNf(warn)} to look at` : `✓ All ${spNf(checks.length)} checks pass`;
@@ -1055,7 +1068,7 @@ function spApprove(keys) {
   items.forEach(item => {
     const typed = SP.edits.has(item.key) ? SP.edits.get(item.key) : null;
     const after = (typed != null ? typed : item.after).trim();
-    const checks = typed != null ? spChecks(item.title, typed, item.row, hCtx(), spToday(), { kwAfter: item.kwAfter, kwMax: item.kwMax }) : item.checks;
+    const checks = typed != null ? spChecks(item.title, typed, item.row, hCtx(), spToday(), { kwAfter: item.kwAfter, kwBefore: item.kw, kwMax: item.kwMax }) : item.checks;
     if (!(item.status === 'ready' || item.status === 'look') || !item.pt || checks.some(check => check.ok === false) || !spChanges(item, after)) return;
     todo.push({ item, after, patches: spPatches(item, after) });
   });
@@ -1263,6 +1276,16 @@ if (typeof document !== 'undefined' && document.addEventListener && $('spSwitch'
       return;
     }
     // One child: its own approval (Ready or Needs your OK). A row's Fix: that Ready child only.
+    if (act === 'to-health') {
+      const item = spCompute().find(each => each.key === key);
+      if (!item) return;
+      spPanelsClose();
+      if (typeof showTab === 'function') showTab('health');
+      if (typeof liWsOff === 'function') liWsOff();
+      if (typeof hFocusOpen === 'function') hFocusOpen(item.brand, spParentOf(item));
+      if (typeof lkOpen === 'function') setTimeout(() => lkOpen(item.key), 0);
+      return;
+    }
     if (act === 'approve') return spApprove([key]);
     if (act === 'row-fix') { const item = spCompute().find(each => each.key === key); return item && item.status === 'ready' ? spApprove([key]) : undefined; }
     // Fix all: ONLY the Ready ones of this parent — a change that needs your OK is never sent without its own approval.
@@ -1312,9 +1335,11 @@ if (typeof document !== 'undefined' && document.addEventListener && $('spSwitch'
       // the panel's What changes, Checks, count and main button follow the typing in place (no redraw: the box keeps the cursor)
       const panel = t.closest('#spKid') || t.closest('[data-sp-card]');
       if (!panel) return;
-      const checks = spChecks(item.title, t.value, item.row, hCtx(), spToday(), { kwAfter: item.kwAfter, kwMax: item.kwMax });
+      const checks = spChecks(item.title, t.value, item.row, hCtx(), spToday(), { kwAfter: item.kwAfter, kwBefore: item.kw, kwMax: item.kwMax });
       const chk = panel.querySelector('.sp-chk-c');
       if (chk) chk.innerHTML = '<h4>Checks</h4>' + spChecksHtml(checks);
+      const preC = panel.querySelector('.sp-pre-c');
+      if (preC) { const pre = checks.filter(check => check.pre); preC.innerHTML = spPreHtml(pre, item); preC.hidden = !pre.length; }
       const chg = panel.querySelector('.sp-chg');
       if (chg) chg.innerHTML = '<h4>What changes</h4>' + spChangesHtml(item, t.value);
       const cnt = panel.querySelector(`[data-sp-cnt="${CSS.escape(key)}"]`);

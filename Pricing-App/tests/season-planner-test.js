@@ -249,6 +249,37 @@ const napkin = color => ({ color, size: '18x18', subcat: 'Napkin Set' });
     ok('…then the parent', C.el('spPanel').hidden && !C.SP.panel);
   }
 
+  console.log('== Ready when nothing gets worse: problems already there do not block ==');
+  {
+    const { C, put, live } = setup();
+    // CPC "Tablecloth main": Agate Green 60×60 — title already over 75 and its size written another way; Christmas goes to the
+    // hidden search words only, the title does not change.
+    const T1 = 'Whimsical Corner Tablecloth Square 100% Cotton 60x60 Inches Block Print Dining Table Cover - Agate Green';   // > 75
+    const row = { brand: 'CPC', parent: 'CPCTAB', sku: 'CPC-01', asin: 'B0CPC01', title: T1, qty: 5, price: 20, status: 'Active', channel: 'AFN', aplus: true, aplusAt: Date.now(), checked: Date.now(), content: { titleLen: T1.length, images: 8, bullets: 5, descLen: 300, title: T1 } };
+    C.HEALTH.CPC.rows.push(row);
+    const now = Date.now();
+    C.LI_WS.live.CPC['CPC-01'] = { at: now, cAt: now, pt: 'TABLECLOTH', title: T1, titleLen: T1.length, kw: 'cotton table cover square', kwBytes: 1 };
+    C.LI_WS.liveV++;
+    C.setCat('CPC', { 'CPC-01': { color: 'Agate Green', size: '60x60', subcat: 'Square Tablecloth' } });
+    C.reset();
+    const item = C.spCompute(NOV).find(each => each.sku === 'CPC-01');
+    ok('CPC-01 (Agate Green 60×60): adds "Christmas" to the hidden search words only, the title unchanged → ✓ Ready', item && item.place === 'kw' && item.after === T1 && /Christmas/.test(item.kwAfter) && item.status === 'ready', item && (item.status + ' ' + item.place + ' | ' + item.checks.filter(c => c.ok !== true).map(c => c.t + (c.pre ? ' [pre]' : '')).join(' / ')));
+    ok('…the problems that were already there are marked as such: over 75, the size written another way', item.checks.some(c => c.k === 'len' && c.pre) && item.checks.some(c => c.k === 'size' && c.pre) && item.checks.filter(c => c.ok !== true).every(c => c.pre));
+    const h = C.spKidHtml(item, null);
+    ok('…the child panel: "✓ All N checks pass" for the change itself, and a separate card "Already there before — not caused by this change" with a link to Listing Health',
+      /✓ All \d+ checks pass/.test(h) && /<h4>Already there before — not caused by this change<\/h4>/.test(h) && /Longer than 75 letters/.test(h) && /Size written another way/.test(h) && /data-sp-act="to-health"[^>]*>Fix them in Listing Health</.test(h)
+      && /class="sp-main" data-sp-act="approve"[^>]*>Fix — send to Amazon</.test(h) && !/data-sp-act="approve"[^>]*disabled/.test(h), h.match(/Checks<\/h4>[\s\S]{0,300}/));
+    // a problem the change itself causes still needs the person's OK
+    const typed = C.spChecks(T1, T1.replace('Dining', 'Linen'), row, C.hCtx(), NOV, { kwAfter: item.kwAfter, kwBefore: item.kw, kwMax: 249 });
+    ok('…but a problem the change itself causes is not "already there": a new word typed in is a warning of its own', typed.some(c => c.k === 'fact' && c.ok === 'warn' && !c.pre));
+    const longer = C.spChecks(T1, T1 + ' Christmas', row, C.hCtx(), NOV, {});
+    ok('…and making a too-long title longer still blocks it', longer.some(c => c.k === 'len' && c.ok === false && !c.pre));
+    const kwSame = C.spChecks(T1, T1 + '', row, C.hCtx(), NOV, { kwAfter: 'x'.repeat(260), kwBefore: 'x'.repeat(260), kwMax: 249 });
+    ok('…search words already over their limit and left as they are: already there, not a block', kwSame.some(c => c.k === 'kw' && c.pre && c.ok === 'warn'));
+    const g = C.spGroups(C.spCompute(NOV)).find(each => each.key === 'CPC|CPCTAB');
+    ok('…and the parent counts it as Ready to fix (1 Ready, 0 Needs your OK)', g && g.ready.length === 1 && g.look.length === 0, g && [g.ready.length, g.look.length, g.fix.length].join());
+  }
+
   console.log('== put old titles back, the confirm window, sending ==');
   {
     const before = 'Ridhi Cloth Napkins Cotton 18 x 18 Inch Block Print Dinner - Blue';

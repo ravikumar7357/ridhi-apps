@@ -2111,10 +2111,12 @@
   .sp-search input:focus{outline:none}
   .sp-search:focus-within{box-shadow:var(--ring)}
   /* Buttons: one filled main button, quiet ones beside it. 40px targets. */
-  .sp-main{display:inline-flex;align-items:center;justify-content:center;min-height:40px;margin:0;padding:0 18px;border:1px solid var(--ink);border-radius:var(--r-ctl);background:var(--ink);color:var(--card);font-size:13px;font-weight:650;line-height:1;white-space:nowrap;box-shadow:none;cursor:pointer;transition:transform .12s ease}
-  .sp-main:hover{background:color-mix(in srgb,var(--ink) 86%,var(--card));color:var(--card)}
+  /* The main button is the app's own primary (brand blue, its own text colour) in light and dark, so it always reads as pressable;
+     disabled it turns flat grey with a dashed edge — never the same colour dimmed, which read as "off" in dark mode. */
+  .sp-main{display:inline-flex;align-items:center;justify-content:center;min-height:40px;margin:0;padding:0 18px;border:1px solid var(--brand);border-radius:var(--r-ctl);background:var(--brand);color:var(--on-brand);font-size:13px;font-weight:650;line-height:1;white-space:nowrap;box-shadow:var(--sh-btn);cursor:pointer;transition:transform .12s ease}
+  .sp-main:hover{background:var(--brand-ink);border-color:var(--brand-ink);color:var(--on-brand)}
   .sp-main:active{transform:translateY(1px)}
-  .sp-main:disabled,.sp-main:disabled:hover{opacity:.45;cursor:default;transform:none;background:var(--ink);color:var(--card)}
+  .sp-main:disabled,.sp-main:disabled:hover{opacity:1;cursor:not-allowed;transform:none;background:var(--hover);border:1px dashed var(--line);color:var(--faint);box-shadow:none}
   .sp-main:focus-visible{outline:none;box-shadow:var(--ring)}
   .sp-btn{display:inline-flex;align-items:center;justify-content:center;min-height:40px;margin:0;padding:0 14px;border:1px solid var(--line);border-radius:var(--r-ctl);background:var(--card);color:var(--ink);font-size:13px;font-weight:600;line-height:1;white-space:nowrap;box-shadow:none;cursor:pointer}
   .sp-btn:hover{background:var(--hover);color:var(--ink);box-shadow:none}
@@ -2329,6 +2331,10 @@
   .sp-fold[open] summary::before{transform:rotate(90deg)}
   .sp-fold summary:focus-visible{outline:none;box-shadow:var(--ring);border-radius:6px}
   .sp-chk-sum{color:var(--accent-ink)}
+  .sp-card2.sp-pre-c{border-style:dashed;background:var(--soft)}
+  .sp-card2.sp-pre-c h4{color:var(--muted)}
+  .sp-chk.is-pre{color:var(--muted)}
+  .sp-chk.is-pre i{color:var(--rev-ink)}
   .sp-fold.is-warn .sp-chk-sum{color:var(--rev-ink)}
   .sp-fold.is-bad .sp-chk-sum{color:var(--bad-ink)}
   .sp-kwfull small{display:block;margin-top:4px;font-size:10.5px;font-weight:700;text-transform:uppercase;color:var(--faint)}
