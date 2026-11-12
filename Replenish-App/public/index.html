@@ -74364,20 +74364,15 @@ async function skusShadow(token, force) {
     const firebaseMs = Math.round(performance.now() - t0);
     const fb = ashSkusPaths(mdb, cus, img, pri, fn);
     const t1 = performance.now();
-    const rows = [];
-    for (let f = 0; ; f += 1000) { const page = await ashCall(`skus_records?order=path&offset=${f}&limit=1000`, token); rows.push(...page); if (page.length < 1000) break; }
+    const sb = await ashSectionFp('skus_fp', 'skus_records', token);
     const supabaseMs = Math.round(performance.now() - t1);
-    const sb = new Map(rows.map(r => [r.path, r.h]));
     const copyOf = sb.get('#copy_of') || ''; sb.delete('#copy_of');
-    const missing = [], changed = [], extra = [];
-    for (const [p, rec] of fb) {
-      if (!sb.has(p)) missing.push(p);
-      else if (sb.get(p) !== await ashSha(ashJbText(rec))) changed.push(p);
-    }
-    for (const p of sb.keys()) if (!fb.has(p)) extra.push(p);
+    const t2 = performance.now();
+    const { missing, changed, extra } = await ashCompare(fb, sb);
+    const compareMs = Math.round(performance.now() - t2);
     const matched = !missing.length && !changed.length && !extra.length;
     try { localStorage.setItem(ASH_SKU_LAST, String(Date.now())); } catch (e) { /* fine */ }
-    ashShowSkus({ matched, total: fb.size, missing, changed, extra, firebaseMs, supabaseMs, copyOf, token });
+    ashShowSkus({ matched, total: fb.size, missing, changed, extra, firebaseMs, supabaseMs, compareMs, copyOf, token });
     ashCall('shadow_report', token, { p_section: 'skus · records', p_matched: matched, p_firebase_ms: firebaseMs, p_supabase_ms: supabaseMs,
       p_missing: missing.concat(changed.map(p => p + ' (changed)')).slice(0, 500), p_extra: extra.slice(0, 500), p_build: (window.__TEST_ERP && window.__TEST_ERP.sha) || 'local' }).catch(() => {});
     console.info('[shadow] skus', matched ? 'same' : 'DIFFERS', { total: fb.size, missing: missing.length, changed: changed.length, extra: extra.length, firebaseMs, supabaseMs });
@@ -74399,9 +74394,11 @@ function ashShowSkus(r) {
   el.style.background = r.matched ? '#e3f4ea' : '#fde4e1';
   const n = r.missing.length + r.changed.length + r.extra.length;
   let t = 'SKUs · ' + r.total.toLocaleString('en-IN') + ' records · ' + (r.matched ? '✓ every one the same as Firebase' : '✗ ' + n.toLocaleString('en-IN') + ' differ (Supabase copy from ' + (r.copyOf || '?') + ')')
-    + ' · Firebase ' + r.firebaseMs + ' ms · Supabase ' + r.supabaseMs + ' ms';
-  if (el.dataset.open && n) t += '\n' + [...r.changed.map(p => 'changed: ' + p), ...r.missing.map(p => 'new in Firebase: ' + p), ...r.extra.map(p => 'gone from Firebase: ' + p)].slice(0, 30).join('\n')
-    + (n > 30 ? '\n… ' + (n - 30) + ' more (all on the check page)' : '') + '\nA difference here usually means a SKU added or edited in the ERP after the copy was made.';
+    + ' · Firebase ' + r.firebaseMs + ' ms · Supabase ' + r.supabaseMs + ' ms' + (r.compareMs != null ? ' · compare ' + r.compareMs + ' ms' : '');
+  const open = !!(el.dataset.open && n);
+  if (open) t += '\n' + [...r.changed.map(p => 'changed: ' + p), ...r.missing.map(p => 'new in Firebase: ' + p), ...r.extra.map(p => 'gone from Firebase: ' + p)].join('\n')
+    + '\nA difference here usually means a SKU added or edited in the ERP after the copy was made. Click to close.';
+  ashShape(el, open);
   el.textContent = t;
 }
 
@@ -74442,6 +74439,34 @@ async function ashSha(s) {
   const b = await crypto.subtle.digest('SHA-256', ASH_ENC.encode(s));
   return [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, '0')).join('');
 }
+/* Supabase's fingerprints of a section in ONE trip (core.masters_fp / core.skus_fp, saved when rows are written).
+ * Falls back to the older page-by-page door if the new one is not there yet. Returns a Map path → fingerprint. */
+async function ashSectionFp(fn, oldFn, token) {
+  try { const j = await ashCall(fn, token); if (j && typeof j === 'object') return new Map(Object.entries(j)); }
+  catch (e) { if (!/404|PGRST202|Could not find/.test(e.message)) throw e; }
+  const rows = [];
+  for (let f = 0; ; f += 1000) { const page = await ashCall(`${oldFn}?order=path&offset=${f}&limit=1000`, token); rows.push(...page); if (page.length < 1000) break; }
+  return new Map(rows.map(r => [r.path, r.h]));
+}
+/* Compare live Firebase records with Supabase's fingerprints; the browser's fingerprints are made in parallel. */
+async function ashCompare(fb, sb) {
+  const missing = [], changed = [], extra = [];
+  const entries = [...fb];
+  for (let i = 0; i < entries.length; i += 2000) {
+    const part = entries.slice(i, i + 2000);
+    const hs = await Promise.all(part.map(([p, rec]) => sb.has(p) ? ashSha(ashJbText(rec)) : null));
+    part.forEach(([p], j) => { if (!sb.has(p)) missing.push(p); else if (sb.get(p) !== hs[j]) changed.push(p); });
+  }
+  for (const p of sb.keys()) if (!fb.has(p)) extra.push(p);
+  return { missing, changed, extra };
+}
+/* A line at the bottom: a pill when closed; a scrolling box when opened (long lists used to turn it into a big circle). */
+function ashShape(el, open) {
+  el.style.borderRadius = open ? '12px' : '999px';
+  el.style.maxHeight = open ? '55vh' : '';
+  el.style.overflowY = open ? 'auto' : '';
+  el.style.maxWidth = open ? 'min(720px, calc(100vw - 24px))' : 'calc(100vw - 24px)';
+}
 async function mastersShadow(token) {
   try {
     const read = n => (typeof ptGetFresh === 'function' ? ptGetFresh(n) : ptGet(n, true));
@@ -74450,17 +74475,10 @@ async function mastersShadow(token) {
     const firebaseMs = Math.round(performance.now() - t0);
     const fb = ashMastersPaths(M, CG, GD);
     const t1 = performance.now();
-    const rows = [];   // Supabase answers at most 1,000 rows at a time: read the door in pages
-    for (let f = 0; ; f += 1000) { const page = await ashCall(`masters_records?order=path&offset=${f}&limit=1000`, token); rows.push(...page); if (page.length < 1000) break; }
+    const sb = await ashSectionFp('masters_fp', 'masters_records', token);
     const supabaseMs = Math.round(performance.now() - t1);
-    const sb = new Map(rows.map(r => [r.path, r.h]));
     const copyOf = sb.get('#copy_of') || ''; sb.delete('#copy_of');
-    const missing = [], changed = [], extra = [];
-    for (const [p, rec] of fb) {
-      if (!sb.has(p)) missing.push(p);
-      else if (sb.get(p) !== await ashSha(ashJbText(rec))) changed.push(p);
-    }
-    for (const p of sb.keys()) if (!fb.has(p)) extra.push(p);
+    const { missing, changed, extra } = await ashCompare(fb, sb);
     const matched = !missing.length && !changed.length && !extra.length;
     ashShowMasters({ matched, total: fb.size, missing, changed, extra, firebaseMs, supabaseMs, copyOf });
     ashCall('shadow_report', token, { p_section: 'masters · records', p_matched: matched, p_firebase_ms: firebaseMs, p_supabase_ms: supabaseMs,
@@ -74483,8 +74501,10 @@ function ashShowMasters(r) {
   const n = r.missing.length + r.changed.length + r.extra.length;
   let t = 'Masters · ' + r.total.toLocaleString('en-IN') + ' records · ' + (r.matched ? '✓ every one the same as Firebase' : '✗ ' + n + ' differ (Supabase copy from ' + (r.copyOf || '?') + ')')
     + ' · Firebase ' + r.firebaseMs + ' ms · Supabase ' + r.supabaseMs + ' ms';
-  if (el.dataset.open && n) t += '\n' + [...r.changed.map(p => 'changed: ' + p), ...r.missing.map(p => 'new in Firebase: ' + p), ...r.extra.map(p => 'gone from Firebase: ' + p)].slice(0, 30).join('\n')
-    + '\nA difference here usually means a master entry added or edited in the ERP after the copy was made.';
+  const open = !!(el.dataset.open && n);
+  if (open) t += '\n' + [...r.changed.map(p => 'changed: ' + p), ...r.missing.map(p => 'new in Firebase: ' + p), ...r.extra.map(p => 'gone from Firebase: ' + p)].join('\n')
+    + '\nA difference here usually means a master entry added or edited in the ERP after the copy was made. Click to close.';
+  ashShape(el, open);
   el.textContent = t; el.style.whiteSpace = 'pre-line';
 }
 
@@ -74540,7 +74560,9 @@ function ashShowControl(r) {
   el.style.background = r.matched ? '#e3f4ea' : '#fde4e1';
   let t = 'Waiting · ' + r.parts.join(' · ') + ' · ' + (r.matched ? '✓ same as Firebase' : '✗ differs (Supabase copy from ' + (r.copyOf || '?') + ')')
     + ' · Firebase ' + r.firebaseMs + ' ms · Supabase ' + r.supabaseMs + ' ms';
-  if (el.dataset.open && r.diffs.length) t += '\n' + r.diffs.join('\n') + '\nA difference here usually means requests raised or answered after the copy was made.';
+  const open = !!(el.dataset.open && r.diffs.length);
+  if (open) t += '\n' + r.diffs.join('\n') + '\nA difference here usually means requests raised or answered after the copy was made.';
+  ashShape(el, open);
   el.textContent = t; el.style.whiteSpace = 'pre-line';
 }
 
