@@ -16374,7 +16374,10 @@ function spPlan(row, ctx, today, log) {
   const pick = product.find(e => e.ev.id === chosen) || product[0] || null;
   // Where the planner's ONE season already is. Up to date when it is found in at least one place; the optional tip "Add to Item
   // Highlights" (pressed: SP.tipAdd) asks for it there all the same when it is only in the hidden search words.
-  const found = pick ? { title: spFindSeason(title, pick.ev), hl: hl ? spFindSeason(hlText, pick.ev) : '', kw: kw != null ? spFindSeason(kw, pick.ev) : '' } : null;
+  // Item Highlights with a title over 75 are not shown by Amazon: a season word there is "found, but not seen" (hlHidden), never found.
+  const hlMatch = pick && hl ? spFindSeason(hlText, pick.ev) : '';
+  const titleOver = String(title || '').length > SP_TITLE_MAX;
+  const found = pick ? { title: spFindSeason(title, pick.ev), hl: titleOver ? '' : hlMatch, hlHidden: titleOver ? hlMatch : '', kw: kw != null ? spFindSeason(kw, pick.ev) : '' } : null;
   const tipAdd = !!found && SP.tipAdd.has(key) && !found.title && !found.hl && !!found.kw;
   const main = pick && !found.title && !found.hl && (!found.kw || tipAdd) ? pick : null;
   const alts = product.filter(e => e !== pick && !inTitle(e));
@@ -17155,16 +17158,37 @@ function spWordDiff(from, to) {
 // "cloth, napkins ×2, block" — each word once, ×n when it went more than once.
 const spWordList = list => list.map(x => lrEsc(x.w) + (x.n > 1 ? ` <span class="sp-times">×${x.n}</span>` : '')).join(', ');
 // A text with the listed words marked (each as many times as it counts): ins for added, del for removed.
-function spMarkHtml(text, list, tag) {
+// The words of `list` marked in `text`. With `other` (the text on the other side of the change) the marks go BY POSITION: the words
+// the other side does not keep, found by lining the two up word by word (the longest common run) — so the last "for" in "Gifts for
+// Spring, Mother's Day" is marked when that is the one taken out, never an earlier one. Without it, the first ones are marked.
+function spMarkHtml(text, list, tag, other) {
   const left = new Map(list.map(x => [x.k, x.n]));
-  return String(text || '').split(/(\s+)/).map(part => {
-    const k = part.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}']+$/gu, '').toLowerCase();
-    if (k && left.get(k) > 0) { left.set(k, left.get(k) - 1); return `<${tag}>${lrEsc(part)}</${tag}>`; }
+  const key = part => part.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}']+$/gu, '').toLowerCase();
+  const parts = String(text || '').split(/(\s+)/);
+  let only = null;
+  if (other != null) {
+    const a = parts.map((part, i) => ({ i, k: key(part) })).filter(x => x.k);
+    const b = String(other || '').split(/\s+/).map(key).filter(Boolean);
+    const n = a.length;
+    const m = b.length;
+    const L = Array.from({ length: n + 1 }, () => new Int32Array(m + 1));
+    for (let i = n - 1; i >= 0; i--) for (let j = m - 1; j >= 0; j--) L[i][j] = a[i].k === b[j] ? L[i + 1][j + 1] + 1 : Math.max(L[i + 1][j], L[i][j + 1]);
+    const kept = new Set();
+    for (let i = 0, j = 0; i < n && j < m;) {
+      if (a[i].k === b[j]) { kept.add(a[i].i); i++; j++; } else if (L[i + 1][j] >= L[i][j + 1]) i++; else j++;
+    }
+    only = new Set(a.filter(x => !kept.has(x.i)).map(x => x.i));
+  }
+  return parts.map((part, idx) => {
+    const k = key(part);
+    if (k && left.get(k) > 0 && (!only || only.has(idx))) { left.set(k, left.get(k) - 1); return `<${tag}>${lrEsc(part)}</${tag}>`; }
     return lrEsc(part);
   }).join('');
 }
 // The new text with only the really new words marked.
-const spDiffHtml = (from, to) => spMarkHtml(to, spWordDiff(from, to).added, 'ins');
+const spDiffHtml = (from, to) => spMarkHtml(to, spWordDiff(from, to).added, 'ins', from);
+// The "before" text with what goes marked, by position.
+const spDelHtml = (from, to) => spMarkHtml(from, spWordDiff(from, to).removed, 'del', to);
 
 /* ----- the groups: one per parent ----- */
 const spParentOf = item => item.row.parent || item.asin || item.sku;
@@ -17478,6 +17502,7 @@ function spWhere(item) {
   }
   rows.push(f.title ? row('title', 'Title', 'found', `“${f.title}” found`, titleN) : row('title', 'Title', 'missing', `${name} missing`, titleN));
   if (f.hl) rows.push(row('hl', 'Item Highlights', 'found', `“${f.hl}” found`, hlN));
+  else if (f.hlHidden) rows.push(row('hl', 'Item Highlights', 'na', `“${f.hlHidden}” found — but Amazon shows Item Highlights only when the title is ${SP_TITLE_MAX} letters or less, so shoppers don't see it yet (title is ${String(item.title || '').length})`, ''));
   else if (info.state === 'none') rows.push(row('hl', 'Item Highlights', 'na', 'not available for this product type', ''));
   else if (info.state === 'err') rows.push(row('hl', 'Item Highlights', 'na', `could not be read (${info.err})`, ''));
   else if (info.state !== 'ok') rows.push(row('hl', 'Item Highlights', 'checking', 'checking…', ''));
@@ -17535,11 +17560,11 @@ function spWhereCount() {
 // "+ Added" / "− Removed" lists, each word once, with why it went; the full search words folded away.
 function spChangesHtml(item, after) {
   const kwChanged = item.kwAfter != null && item.kwAfter !== item.kw;
-  const fullKw = kwChanged ? `<details class="sp-fold"><summary>Show full search words</summary><div class="sp-kwfull"><small>Before</small><p>${lrEsc(item.kw || '(none)')}</p><small>After</small><p>${spDiffHtml(item.kw, item.kwAfter)}</p></div></details>` : '';
+  const fullKw = kwChanged ? `<details class="sp-fold"><summary>Show full search words</summary><div class="sp-kwfull"><small>Before</small><p>${item.kw ? spDelHtml(item.kw, item.kwAfter) : '(none)'}</p><small>After</small><p>${spDiffHtml(item.kw, item.kwAfter)}</p></div></details>` : '';
   const hlPart = spHlChangesHtml(item);
   if (String(after).trim() !== item.title) {
     const d = spWordDiff(item.title, after);
-    return `<div class="sp-ba"><small>Title before</small><p>${spMarkHtml(item.title, d.removed, 'del')}</p><small>Title after</small><p class="sp-change-after">${spMarkHtml(after, d.added, 'ins')}</p></div>`
+    return `<div class="sp-ba"><small>Title before</small><p>${spMarkHtml(item.title, d.removed, 'del', after)}</p><small>Title after</small><p class="sp-change-after">${spMarkHtml(after, d.added, 'ins', item.title)}</p></div>`
       + (!d.added.length && !d.removed.length ? '<p class="sp-dim">Only the order of the words changes.</p>' : '') + fullKw + hlPart;
   }
   if (!kwChanged) return hlPart || '<p class="sp-dim">Nothing changes.</p>';
@@ -17565,7 +17590,7 @@ function spHlChangesHtml(item) {
   return (d.added.length ? `<p class="sp-add">+ Added to Item Highlights: ${spWordList(d.added)}</p>` : '')
     + (d.removed.length ? `<p class="sp-rem">− Removed from Item Highlights: ${spWordList(d.removed)} <span class="sp-dim">(out of season)</span></p>` : '')
     + `<p class="sp-dim">Item Highlights: ${count}.</p>`
-    + `<details class="sp-fold"><summary>Show full Item Highlights</summary><div class="sp-kwfull"><small>Before</small><p>${lrEsc(before || '(none)')}</p><small>After</small><p>${spDiffHtml(before, after)}</p></div></details>`;
+    + `<details class="sp-fold"><summary>Show full Item Highlights</summary><div class="sp-kwfull"><small>Before</small><p>${before ? spDelHtml(before, after) : '(none)'}</p><small>After</small><p>${spDiffHtml(before, after)}</p></div></details>`;
 }
 // "Already there before — not caused by this change": the checks that failed before the change too, and a way to fix them in
 // Listing Health (Child listings, this listing's sidebar). Always in the page (hidden when empty) so the Edit box can fill it.

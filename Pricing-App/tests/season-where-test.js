@@ -129,6 +129,47 @@ const text = rows => rows.map(r => r.text).join(' | ');
     ok('the count per brand: Up to date 3 — in the title 1, in highlights 1, in search words only 1', n.upToDate === 3 && n.inTitle === 1 && n.inHighlightsNotTitle === 1 && n.inSearchWordsOnly === 1, JSON.stringify(n));
   }
 
+  console.log('== Item Highlights with a title over 75: found, but shoppers do not see it ==');
+  {
+    const { C, put, live } = setup();
+    const T190 = 'Ridhi Rectangle Tablecloth 60 x 90 Inch Hand Block Print 100% Cotton Table Cover for Dining Table Kitchen Farmhouse Party Home Decor Washable Linen Look Floral Pattern Spill Proof Everyday Use - Red';
+    put('V1', T190); live('V1', T190, 'dinner party', 'TC_HL', ['Christmas table decor, cotton']);
+    const it = planOf(C, 'V1');
+    const hlRow = C.spWhere(it).rows.find(r => r.k === 'hl');
+    ok(`title of ${T190.length}: "Item Highlights: “Christmas” found — but Amazon shows Item Highlights only when the title is 75 letters or less, so shoppers don't see it yet (title is ${T190.length})"`,
+      T190.length > 75 && hlRow.text === `· Item Highlights: “Christmas” found — but Amazon shows Item Highlights only when the title is 75 letters or less, so shoppers don't see it yet (title is ${T190.length})`, hlRow.text);
+    ok('…not counted as found: the listing needs Christmas, and it goes to the hidden search words', it.kind === 'add' && it.place === 'kw' && /Christmas/.test(it.kwAfter) && !it.found.hl && it.found.hlHidden === 'Christmas', JSON.stringify([it.kind, it.place, it.kwAfter, it.found]));
+    ok('…not "✓ in highlights" on its row, and not Up to date in the count', !/✓ in highlights/.test(C.spRowHtml(it)) && C.spWhereCount().Ridhi.upToDate === 0);
+    put('V2', T190); live('V2', T190, 'x'.repeat(246), 'TC_HL', ['Christmas table decor, cotton']);
+    const full = planOf(C, 'V2');
+    ok('…and when the hidden search words are full too: Fix by hand, saying so', full.status === 'fix' && /full too/.test(full.why), full.status + ' ' + full.why);
+  }
+
+  console.log('== the "before" marks the words taken out, by position ==');
+  {
+    const { C, put, live } = setup();
+    const before = "Ridhi Cloth Napkins for Dinner Gifts for Spring, Mother's Day - Blue";
+    const after = "Ridhi Cloth Napkins for Dinner Gifts, Mother's Day - Blue";
+    const html = C.spMarkHtml(before, C.spWordDiff(before, after).removed, 'del', after);
+    ok('"Gifts for Spring, Mother\'s Day" → the LAST "for" and "Spring," are marked, never the first "for"', html === "Ridhi Cloth Napkins for Dinner Gifts <del>for</del> <del>Spring,</del> Mother&#39;s Day - Blue".replace('&#39;', "'"), html);
+    const ins = C.spDiffHtml('a for b', 'a for b for c');
+    ok('"after" too: the new "for" is the second one', ins === 'a for b <ins>for</ins> <ins>c</ins>', ins);
+    // Item Highlights and the hidden search words: the full text before, marked by position
+    const T = FULL;
+    // nearly full search words with "linen" twice: making room takes out the REPEAT — the second "linen", marked there
+    const fill = Array.from({ length: 38 }, (_, i) => 'word' + String.fromCharCode(97 + Math.floor(i / 26)) + String.fromCharCode(97 + (i % 26))).join(' ');   // 245 bytes in all
+    const kwText = 'linen napkins linen ' + fill;
+    put('M1', T); live('M1', T, kwText, 'TC_NONE');
+    const it = planOf(C, 'M1');
+    const kid = C.spKidHtml(it, null);
+    ok('search words: "linen napkins linen …" → the repeat taken out is the SECOND "linen", marked there',
+      C.lrKwBytes(kwText + ' Christmas') > 249 && /<small>Before<\/small><p>linen napkins <del>linen<\/del> wordaa/.test(kid), C.lrKwBytes(kwText) + ' ' + (kid.match(/<small>Before<\/small><p>[^]*?<\/p>/) || [''])[0].slice(0, 200));
+    put('M2', T); live('M2', T, 'dinner christmas', 'TC_HL', ['Gifts for dinner, gifts for Spring table decor']);
+    const it2 = planOf(C, 'M2');
+    const kid2 = C.spKidHtml(it2, null);
+    ok('Item Highlights: "Gifts for dinner, gifts for Spring table decor" → "Spring" marked where it was', /Show full Item Highlights[^]*?<small>Before<\/small><p>Gifts for dinner, gifts for <del>Spring<\/del> table decor<\/p>/.test(kid2), (kid2.match(/Show full Item Highlights[^]*?<\/p>/) || [''])[0]);
+  }
+
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exitCode = fail ? 1 : 0;
 })();
