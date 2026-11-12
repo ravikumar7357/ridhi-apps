@@ -37,6 +37,7 @@ const LI_WS_STORE_MAX = 1500000;        // characters kept there; past it the ol
 const LI_WS_SPECS = ['material', 'color', 'size', 'pattern', 'style', 'item_shape', 'number_of_items', 'theme', 'care_instructions',
   'special_feature', 'item_type_name', 'fabric_type'];
 // The picture slots as the Listings API names them (the same table the backend's ListingImages.gs keeps).
+const LI_WS_HL = 'title_differentiation';   // Amazon's Item Highlights (Season planner): its value from ?lfix=get, its shape from the schema
 const LI_WS_SLOT_ATTR = { MAIN: 'main_product_image_locator', PT01: 'other_product_image_locator_1', PT02: 'other_product_image_locator_2',
   PT03: 'other_product_image_locator_3', PT04: 'other_product_image_locator_4', PT05: 'other_product_image_locator_5',
   PT06: 'other_product_image_locator_6', PT07: 'other_product_image_locator_7', PT08: 'other_product_image_locator_8' };
@@ -780,7 +781,8 @@ async function liWsJob(job) {
         color: first('color').slice(0, 40) || entry.color || '',
         iss: (reply.issues || []).slice(0, 8).map(issue => ({ s: String(issue.severity || '').charAt(0), c: String(issue.code || ''), m: lrWholeCut(String(issue.message || ''), issue.severity === 'ERROR' ? 1000 : 220), a: (issue.attrs || []).slice(0, 4) })),
         slots: IM_SLOTS.filter(slot => (at[LI_WS_SLOT_ATTR[slot]] || []).some(e => e && e.media_location)),
-        specs: Object.fromEntries(LI_WS_SPECS.map(name => [name, filled(name)])), err: '' });
+        specs: Object.fromEntries(LI_WS_SPECS.map(name => [name, filled(name)])), err: '',
+        hl: (at[LI_WS_HL] || []).map(e => (e && e.value != null ? String(e.value) : '')).filter(Boolean).map(v => v.slice(0, 300)), hlAt: now });
       if (entry.pt) liWsNeedSchema(brand, entry.pt, job.pk);
     } else if (job.t === 'limg') {
       // The catalogue's picture slots — what shoppers see. The reply also carries our own listing's slots and the open issues,
@@ -803,9 +805,13 @@ async function liWsJob(job) {
       if (reply.roleMissing && !Object.keys(reply.map || {}).length) throw new Error('the SP-API app does not have the A+ Content role');
       Object.entries(reply.map || {}).forEach(([asin, has]) => { LI_WS.aplus[brand][asin] = { v: !!has, at: now }; });
     } else if (job.t === 'schema') {
-      const reply = await baCall({ lfix: 'schema', brand, pt: job.pt, attrs: LI_WS_SPECS.join(',') });
+      const reply = await baCall({ lfix: 'schema', brand, pt: job.pt, attrs: LI_WS_SPECS.concat([LI_WS_HL]).join(',') });
       const attrs = reply.attrs || {};
-      LI_WS.schema[brand][job.pt] = { at: now, ok: LI_WS_SPECS.filter(name => attrs[name] && !attrs[name].missing) };
+      // Item Highlights' shape for this product type, as Amazon's schema says it: not there at all, or how many entries and how long
+      const hlDef = attrs[LI_WS_HL];
+      const hlVal = hlDef && !hlDef.missing ? ((hlDef.fields || []).find(f => f.field === 'value') || {}) : null;
+      const hl = !hlDef ? null : hlDef.missing ? { none: true } : { items: +hlDef.maxItems || 1, max: +hlVal.maxLength || 0, bytes: +hlVal.maxBytes || 0 };
+      LI_WS.schema[brand][job.pt] = { at: now, ok: LI_WS_SPECS.filter(name => attrs[name] && !attrs[name].missing), hl };
     }
   } catch (e) {
     const why = String((e && e.message) || e);

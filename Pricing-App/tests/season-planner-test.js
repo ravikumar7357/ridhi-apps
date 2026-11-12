@@ -15,6 +15,9 @@ function setup(opts) {
   C.setHealthLoaded(true);
   C.LI_WS.stored = true;
   C.SP.log = (opts && opts.log) || [];
+  // The product types these tests use have no Item Highlights in their schema (title → hidden search words, as before Item Highlights);
+  // the Item Highlights tests give their own product type a schema that has them.
+  ['SP', 'CPC'].forEach(b => ['NAPKIN', 'TABLECLOTH'].forEach(pt => { C.LI_WS.schema[b][pt] = { at: Date.now(), ok: [], hl: { none: true } }; }));
   const put = (sku, title, extra) => {
     const row = Object.assign({ brand: 'SP', parent: 'PS', sku, asin: 'B0' + sku, title, qty: 5, price: 12.5, status: 'Active', channel: 'AFN', aplus: true, aplusAt: Date.now(), checked: Date.now(),
       content: { titleLen: title.length, images: 8, bullets: 5, descLen: 300, title } }, extra || {});
