@@ -120,11 +120,20 @@ async function accessShadow(user, permsDoc, firebaseMs) {
   ashCall('shadow_report', token, { p_section: ASH_USED === 'supabase' ? 'access · from Supabase' : 'access', p_matched: matched, p_firebase_ms: firebaseMs, p_supabase_ms: supabaseMs,
     p_missing: missing, p_extra: extra, p_build: (window.__TEST_ERP && window.__TEST_ERP.sha) || 'local' }).catch(e => console.warn('[shadow] report not saved:', e.message));
   console.info('[shadow] access', matched ? 'same' : 'DIFFERS', { firebaseMs, supabaseMs, missing, extra });
-  controlShadow(token);   // section 2: the waiting-request counts
-  mastersShadow(token);   // section 3: every Masters record
-  skusShadow(token);      // section 4: every SKU record (at most once an hour per browser — it reads ~4 MB)
-  ordersShadow(token);    // section 5: every order (at most once an hour per browser — it reads ~13 MB)
-  stockShadow(token);     // section 6: every stock line (at most once an hour per browser — it reads ~5 MB)
+  // STAGGERED (Ravi, 12 Nov): all six at once queued behind each other on the small database and slowed the ERP's own
+  // loading. Now: access at sign-in; the light checks after 3 s; the heavy ones after the ERP has loaded, one at a time.
+  const ashWait = ms => new Promise(r => setTimeout(r, ms));
+  (async () => {
+    try {
+      await ashWait(3000);
+      await controlShadow(token);   // section 2: the waiting-request counts
+      await mastersShadow(token);   // section 3: every Masters record
+      await ashWait(5000);
+      await skusShadow(token);      // section 4: every SKU record (at most once an hour per browser — ~4 MB)
+      await ordersShadow(token);    // section 5: every order (at most once an hour per browser — ~13 MB)
+      await stockShadow(token);     // section 6: every stock line (at most once an hour per browser — ~5 MB)
+    } catch (e) { console.warn('[shadow] stopped:', e && e.message); }
+  })();
 }
 
 /* ================= STOCK · SHADOW TEST (Ravi, 12 Nov) =================
