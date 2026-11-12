@@ -72,13 +72,14 @@ function load(opts) {
     parentName: (brand, asin) => 'Parent ' + asin, lcBytes: s => Buffer.byteLength(String(s || ''), 'utf8'),
     lrEsc: s => String(s == null ? '' : s).replace(/[<>&"]/g, ch => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[ch])),
   };
-  const src = (opts.src || L('listing-rules.js')) + (opts.ws ? '\n' + L('listing-workspace.js') : '');
+  const src = (opts.src || L('listing-rules.js')) + (opts.ws ? '\n' + L('listing-workspace.js') + '\n' + L('listing-kid.js') : '');
   const tail = '\n;LR = JSON.parse(JSON.stringify(LR_DEFAULT)); LR_CAT.SP = ' + JSON.stringify(CAT.SP) + '; LR_CAT.CPC = ' + JSON.stringify(CAT.CPC) + ';'
     + '\n;return { rows: HEALTH.SP.rows.concat(HEALTH.CPC.rows), LR_DEFAULT, getLR: () => LR, healthOf, hCtx: () => hCtx(), reset: () => { H_CTX = null; }, hTitleSizes,'
     + ' typeofFix: typeof lrProblemHtml, lrProblemHtml: typeof lrProblemHtml === "function" ? lrProblemHtml : null, lrProblemsHtml: typeof lrProblemsHtml === "function" ? lrProblemsHtml : null,'
     + ' lrAllow: typeof lrAllow === "function" ? lrAllow : null, lrFixOpen: typeof lrFixOpen === "function" ? lrFixOpen : null,'
     + ' lrKwBytes: typeof lrKwBytes === "function" ? lrKwBytes : null, lrLevel: typeof lrLevel === "function" ? lrLevel : null, lrNotesHtml: typeof lrNotesHtml === "function" ? lrNotesHtml : null, IML,'
-    + (opts.ws ? ' LI_WS, LI_WS_AUDIT, liWsParents: (brands) => liWsParents(brands, hCtx(), Date.now()), liWsDetail, liWsAuditBox, liWsKidTable, liWsRender, liWsRecheck, liWsCheckNow, liWsLiveMap, liWsProblems, liWsPanelOpen, liWsPanelClose, liWsPanelMove, liWsPanelRender, liWsOff, liWsToolbarSync,' : '') + ' };';
+    + ' lrWholeCut: typeof lrWholeCut === "function" ? lrWholeCut : null, AMZ: typeof AMZ === "undefined" ? null : AMZ,'
+    + (opts.ws ? ' LI_WS, LI_WS_AUDIT, liWsParents: (brands) => liWsParents(brands, hCtx(), Date.now()), liWsDetail, liWsAuditBox, liWsKidTable, liWsRender, liWsRecheck, liWsCheckNow, liWsLiveMap, liWsProblems, liWsPanelOpen, liWsPanelClose, liWsPanelMove, liWsPanelRender, liWsOff, liWsToolbarSync, liWsPanelSync, liWsPanelSchedule, liWsPanelKeep, liWsPanelKid, liWsPanelKidBack, lkHtml, lkKid, LK,' : '') + ' };';
   const api = new Function(...Object.keys(ctx), src + tail)(...Object.values(ctx));
   // api.rows ARE the HEALTH rows (the same objects, brand on each): a test that changes one changes what every screen judges.
   api.score = sku => { const r = api.rows.find(x => x.sku === sku); return api.healthOf(r, api.hCtx()); };
@@ -348,7 +349,81 @@ if (require.main === module) {
   ok('close: the panel is hidden and empty, nothing is open', C.LI_WS.panel === null && P.hidden === true && P.innerHTML === '');
   ok('the list did not redraw while the panel opened and closed (the rows are the same objects)', (() => { const before = C.LI_WS.rows; C.liWsPanelOpen('SP|P2'); C.liWsPanelClose(false); return C.LI_WS.rows === before; })());
   ok('the Workspace going away closes the panel too', (() => { C.liWsPanelOpen('SP|P2'); C.liWsOff(); return C.LI_WS.panel === null; })());
+  console.log('== one child as a sidebar: the shared component (12 Nov 2026) ==');
+  (() => {
+    C.LI_WS.on = true; C.LI_WS.mode = 'live'; C.reset(); C.liWsRender();
+    const kid = C.lkKid('SP', 'R13');
+    const h = C.lkHtml(kid, { close: 'data-lk-close="1"', back: 'data-lk-close="1"', backLabel: '← Back' });
+    ok('the component: header (SKU, ASIN, parent, status, stock, ×, Check now), groups by level, rows without a repeated level word, passed checks, sources',
+      /class="ls-panel-h lk-h"/.test(h) && /lk-sku[^>]*>R13</.test(h) && /B0R13/.test(h) && /Parent P1/.test(h) && /units? in stock/.test(h) && /data-lk-close="1" aria-label="Close">×/.test(h)
+      && /data-lr-check="SP\|R13"[^>]*>Check now/.test(h) && /lk-gh is-c">Error: fix first/.test(h) && /class="ls-rec is-err"/.test(h) && !/ls-rec is-err"><span class="ls-dot" aria-hidden="true"><\/span><div class="ls-rec-t"><b><span class="lr-lvl/.test(h)
+      && /class="ls-rec-how"/.test(h) && /Show passed checks \(\d+\)/.test(h) && /class="ls-panel-f">Amazon: .* · Full refresh: .* · Image Manager: .* · Listing Rules/.test(h), h.slice(0, 400));
+    ok('…it says what healthOf says: the same findings, no more, no fewer', (h.match(/class="ls-rec is-(err|chk|att)"/g) || []).length === kid.found.length, kid.found.length);
+    C.LK.pass.add('SP|R13');
+    ok('…"Show passed checks" lists them with their source', /class="lk-passed"/.test(C.lkHtml(kid, { close: '' })) && /Hide passed checks/.test(C.lkHtml(kid, { close: '' })));
+    C.LK.pass.clear();
+    C.liWsPanelOpen('SP|P1'); C.LI_WS.panel.tab = 'list'; C.liWsPanelRender();
+    C.liWsPanelKid('SP|R13');
+    const P = C.el('lsPanel').innerHTML;
+    ok('Workspace panel → Listings: a child opens as the SAME component, with "← … all listings" and × closing the panel', /class="ls-panel-h lk-h"/.test(P) && /data-li-ws-pback="1">← .* · all listings/.test(P) && /data-li-ws-pclose="1" aria-label="Close"/.test(P));
+    C.liWsPanelKidBack();
+    ok('…back goes to the Listings tab', !C.LI_WS.panel.kid && /class="ls-kid/.test(C.el('lsPanel').innerHTML));
+    C.liWsPanelClose(false);
+  })();
   ok('a parent without a counted listing: the panel says so instead of showing rows', (() => { C.LI_WS.on = true; C.LI_WS.mode = 'live'; const r = C.rows.find(x => x.sku === 'R14'); r.qty = 0; C.reset(); C.liWsRender(); C.liWsPanelOpen('SP|P4'); const h = C.el('lsPanel').innerHTML; r.qty = 5; C.reset(); C.liWsPanelClose(false); return /No live listing/.test(h); })());
+  console.log('== the side panel stays put while reads land (12 Nov 2026) ==');
+  (() => {
+    C.LI_WS.on = true; C.LI_WS.mode = 'live'; C.reset(); C.liWsRender();
+    C.liWsPanelOpen('SP|P1');
+    const P2 = C.el('lsPanel');
+    const before = P2.innerHTML;
+    // Reads running: a landed read that changes the panel waits (at most once every 2 s); it does not redraw at once.
+    C.LI_WS.inflight = 1; C.LI_WS.panelSig = ['changed'];
+    C.liWsPanelSync();
+    const held = P2.innerHTML === before && !!C.LI_WS.panelT;
+    // Scrolling the panel holds even an idle redraw until 400 ms after the last scroll.
+    const queued = C.LI_WS.q.splice(0);             // opening the panel queued its reads: idle = nothing queued, nothing out
+    C.LI_WS.inflight = 0; C.LI_WS.pScrollAt = Date.now();
+    C.liWsPanelSchedule();
+    const heldScroll = P2.innerHTML === before && !!C.LI_WS.panelT;
+    C.LI_WS.pScrollAt = 0;
+    C.liWsPanelSchedule();
+    const drawnIdle = !C.LI_WS.panelT && C.LI_WS.panelSig[0] !== 'changed';
+    C.LI_WS.q.push(...queued);
+    ok('reads running: the panel redraw is held (at most once per 2 s); while it is scrolled it waits; idle and still it draws', held && heldScroll && drawnIdle, [held, heldScroll, drawnIdle].join(' '));
+    // Rows keep their order while reads land; new ones join at the end; Sort again (panelResort) sorts afresh.
+    C.LI_WS.panelResort = true;
+    const ids = list => list.map(x => x.k).join('');
+    const first = ids(C.liWsPanelKeep('test', 'ctx', [{ k: 'a' }, { k: 'b' }, { k: 'c' }], x => x.k));
+    C.LI_WS.panelResort = false; C.LI_WS.panelMoved = false;
+    const kept = ids(C.liWsPanelKeep('test', 'ctx', [{ k: 'c' }, { k: 'd' }, { k: 'a' }, { k: 'b' }], x => x.k));
+    const moved = C.LI_WS.panelMoved;
+    C.LI_WS.panelResort = true;
+    const fresh = ids(C.liWsPanelKeep('test', 'ctx', [{ k: 'c' }, { k: 'a' }], x => x.k));
+    C.LI_WS.panelResort = false;
+    ok('panel rows keep their order while reads land, new ones at the end, Sort again offered; a resort takes the fresh order', first === 'abc' && kept === 'abcd' && moved && fresh === 'ca', [first, kept, moved, fresh].join(' '));
+    C.liWsPanelClose(false);
+  })();
+  ok('a message a source cut ends on a whole word with …, never mid-word; a short one is untouched',
+    C.lrWholeCut('Provide a valid value for the attribute so that the resu', 56) === 'Provide a valid value for the attribute so that the…' && C.lrWholeCut('All fine.', 140) === 'All fine.', C.lrWholeCut('Provide a valid value for the attribute so that the resu', 56));
+  (() => {
+    const r = C.rows.find(x => x.sku === 'R1');
+    const msg = 'The value provided for item_type_keyword is not valid for this product type, so the listing cannot be shown in search results until it is changed';
+    const cut = msg.slice(0, 140);
+    C.AMZ.map = new Map([['SP|R1', { st: 'BUYABLE,DISCOVERABLE', ie: 1, iw: 0, im: cut, em: ['ERROR 90220: ' + msg] }]]); C.reset();
+    const hit = C.healthOf(r, C.hCtx()).found.find(h => h.detector === 'amazon_error');
+    const html = hit ? C.lrProblemHtml(hit, { brand: 'SP', sku: 'R1' }) : '';
+    const times = html.split('cannot be shown in search').length - 1;
+    ok("Amazon's error: its message once, in full (from the issue list, not the 140-character cut); the fix line only says what to do",
+      !!hit && times === 1 && html.includes(msg) && hit.fix === 'Open Listing Errors and do what Amazon asks.', hit && (times + ' ' + hit.fix));
+    C.AMZ.map.set('SP|R1', { st: '', ie: 1, iw: 0, im: cut, em: [] }); C.reset();
+    const hit2 = C.healthOf(r, C.hCtx()).found.find(h => h.detector === 'amazon_error');
+    ok('…a snapshot with only the 140-character cut ends it on a whole word with …', !!hit2 && /\b(until|it|is)…$/.test(hit2.detail) && hit2.detail.length <= 141, hit2 && hit2.detail);
+    C.AMZ.map = null; C.reset();
+  })();
+  ok('Size heading: Size not in house style: "18x18 Inc" — no "approved is"', (() => {
+    const h = C.lrProblemHtml(C.healthOf(C.rows.find(x => x.sku === 'R2'), C.hCtx()).found.find(x => x.detector === 'size_format'), null);
+    return /lr-prob-what"><span class="lr-lvl is-a">Needs attention<\/span>Size not in house style: &quot;18x18 Inc&quot;</.test(h) && !/approved is/.test(h); })());
 
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);

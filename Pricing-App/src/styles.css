@@ -2032,6 +2032,51 @@
   #paneHealth .li-ws .li-ws-x.is-a:hover{background:var(--rev-bg);color:var(--rev-ink);border-color:var(--rev)}
   #paneHealth .li-ws-astep.is-fail.is-a .li-ws-astep-t{color:var(--rev-ink)}
   #paneHealth .li-ws-dot-act{background:var(--rev)}
+  /* Child listings (12 Nov 2026): compact, even 44px rows with one hairline between them; the Why cell is one line of up to 3
+     problems in words (a dot in the level's colour) and "+n more"; the open child's row is tinted (tr.ls-row.is-open above). */
+  #paneHealth table.ls-tbl.is-kids tbody td{height:44px;padding-top:0;padding-bottom:0;white-space:nowrap;vertical-align:middle}
+  #paneHealth table.ls-tbl.is-kids tbody td .ls-prod{flex-wrap:nowrap}
+  #paneHealth .ls-whyl{display:flex;align-items:center;gap:6px;max-width:440px;min-width:0;overflow:hidden}
+  #paneHealth .ls-whyi{--sev:var(--faint);display:inline-flex;align-items:center;gap:6px;flex:0 1 auto;min-width:0;max-width:200px;padding:2px 9px 2px 7px;
+    border-radius:var(--r-pill);background:var(--hover);color:var(--ink);font-size:12px;font-weight:600;line-height:1.4}
+  #paneHealth .ls-whyi.is-err{--sev:var(--bad);background:var(--bad-bg);color:var(--bad-ink)}
+  #paneHealth .ls-whyi.is-att{--sev:var(--rev);background:var(--rev-bg);color:var(--rev-ink)}
+  #paneHealth .ls-whyi.is-chk{--sev:var(--bad);background:transparent;color:var(--bad-ink);box-shadow:inset 0 0 0 1px var(--bad)}
+  #paneHealth .ls-whyd{flex:none;width:6px;height:6px;border-radius:50%;background:var(--sev)}
+  #paneHealth .ls-whyt{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  #paneHealth .ls-whyl .ls-why-more{flex:none;margin:0}
+  #paneHealth .lh-resort{margin:0 0 0 6px;padding:0 9px}
+  /* The child sidebar, like .px-pop: 460px (the Workspace panel is 520px — that one is a parent); a phone gets the whole screen
+     and "← Back". The Workspace panel draws the same component inside itself, with its "← all listings" always showing. */
+  #paneHealth .ls-panel.ls-kidp{width:min(460px,100vw);z-index:51}
+  #paneHealth .lk-top{padding:12px 16px 0}
+  #paneHealth .ls-kidp .lk-top:not(.is-always){display:none}
+  #paneHealth .lk-back{display:inline-flex;align-items:center;max-width:100%;height:30px;margin:0;padding:0 12px;border:1px solid var(--line);border-radius:var(--r-ctl);
+    background:var(--card);color:var(--ink);font:inherit;font-size:12.5px;font-weight:600;line-height:1;box-shadow:none;cursor:pointer;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;transition:background-color .15s ease}
+  #paneHealth .lk-back:hover{background:var(--hover);color:var(--ink)}
+  #paneHealth .lk-back:focus-visible{outline:none;box-shadow:var(--ring)}
+  #paneHealth .lk-h .lk-sku{font-family:ui-monospace,monospace}
+  #paneHealth .lk-h .ls-panel-t>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  #paneHealth .lk-h .ls-panel-t>span span{display:inline;margin:0}
+  #paneHealth .lk-st{font-weight:600;color:var(--muted)}
+  #paneHealth .lk-st.is-live{color:var(--accent-ink)}
+  #paneHealth .lk-gh{display:flex;align-items:center;gap:6px}
+  #paneHealth .lk-b>.lk-gh:first-child{border-top:0}
+  #paneHealth .lk-gh.is-c{color:var(--bad-ink)}
+  #paneHealth .lk-gh.is-a{color:var(--rev-ink)}
+  #paneHealth .lk-gh.is-f{color:var(--brand-ink)}
+  #paneHealth .lk-gh .ls-n{display:inline-block;padding:0 6px;border-radius:var(--r-pill);background:color-mix(in srgb,var(--ink) 8%,transparent);
+    color:var(--muted);font-size:11px;letter-spacing:0}
+  #paneHealth .lk-b .ls-rec-t small{white-space:normal;overflow:visible}
+  #paneHealth .lk-info{padding:8px 16px;border-top:1px solid var(--line);font-size:12px;line-height:1.5;color:var(--muted)}
+  #paneHealth .lk-info .lr-notes{margin:0}
+  #paneHealth .lk-none{padding:28px 16px}
+  #paneHealth .lk-passtog{justify-content:flex-start;padding:10px 16px;border-top:1px solid var(--line)}
+  #paneHealth .lk-passtog .ls-more{margin:0}
+  #paneHealth .lk-passed{padding:0 16px 14px;font-size:12px;line-height:1.55;color:var(--muted)}
+  #paneHealth .lk-passed b{color:var(--ink);font-weight:600}
+  #paneHealth .lk-src{color:var(--faint)}
   /* The Workspace's own bar is slim now: the progress on the left, Sort again and the sweep on the right. */
   #paneHealth .li-ws-bar{margin:0 0 10px}
   @media (max-width:860px){
@@ -2086,6 +2131,10 @@
     :is(#paneHealth,#hkModal) .ls-rec-a{grid-column:2;justify-self:start}
     #paneHealth .ls-kid-s{max-width:none;justify-content:flex-start;grid-column:1/-1}
     #paneHealth .ls-kid-d{padding-left:16px}
+    /* The child sidebar on a phone: the whole screen, with "← Back" above its header. */
+    #paneHealth .ls-panel.ls-kidp{width:100vw}
+    #paneHealth .ls-kidp .lk-top:not(.is-always){display:block}
+    #paneHealth .ls-whyl{max-width:320px}
     /* The row on a phone, now: the picture + name on the first line with the › at its right, then the mix bar, Live, Audit and Last checked each on a line. */
     .li-ws-tbl>tbody>tr.li-ws-row{grid-template-columns:minmax(0,1fr) auto}
     #paneHealth table.ls-tbl tbody td{height:auto}
@@ -2098,6 +2147,7 @@
     .li-ws .li-ws-chip,.li-ws .li-ws-th,.li-ws .li-ws-tog,.li-ws .li-ws-x,.li-ws .li-ws-sku,#paneHealth .li-ws-card,#paneHealth .ls-box,
     #paneHealth .ls-ic,#paneHealth .ls-chev,#paneHealth .ls-rec,#paneHealth .ls-kid,#paneHealth .ls-seg .segbtn,#paneHealth .ls-tabs button{transition:none}
     #paneHealth .ls-panel,#paneHealth .ls-skel{animation:none}
+    #paneHealth .lk-back{transition:none}
     #paneHealth .ls-box:has(.ls-box-main):hover,#paneHealth .ls-box:has(.ls-box-main:active),#paneHealth .ls-box:hover .ls-ic{transform:none}
   }
 

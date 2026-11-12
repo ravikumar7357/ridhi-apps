@@ -25,6 +25,7 @@ listing/listing-rules-tab.js
 listing/listing-audit.js
 listing/launch.js
 listing/listing-workspace.js
+listing/listing-kid.js
 listing/bsr-audit.js
 research/keywords.js
 research/by-amazon-link.js

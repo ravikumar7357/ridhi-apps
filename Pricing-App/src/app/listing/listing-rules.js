@@ -464,7 +464,7 @@ const LR_DET = {
     const title = hTitleText(row);
     const near = lrNear(title, ctx.cfg);          // 74–75 characters: shortened on purpose to fit, so the short forms are fine (Part A1)
     const bad = hTitleSizes(title).find(size => !lrSizeOk(size.text, params.example) && !(near && lrSizeLoose(size.text)));
-    return bad ? `"${bad.text}", approved is "${params.example || '14 x 36 Inch'}"` : '';
+    return bad ? `"${bad.text}"` : '';               // the heading reads: Size not in house style: "60×60 Inches" (LR_WHAT_TEXT)
   },
   dimension_order: row => {
     const wrong = hTitleSizes(hTitleText(row)).find(size => size.c === null && size.a > size.b);
@@ -605,7 +605,9 @@ async function amzEnsure() {
       got.forEach(chunk => {
         if (!chunk.exists()) return;
         (chunk.data().r || []).forEach(item => {
-          if (item && item.sku) map.set(brand + '|' + item.sku, { st: item.st || '', ie: item.ie || 0, iw: item.iw || 0, im: item.im || '' });
+          // `im` is Amazon's first error cut at 140 characters; the issue list (`iss`) keeps each message to 220, so the errors come from there.
+          if (item && item.sku) map.set(brand + '|' + item.sku, { st: item.st || '', ie: item.ie || 0, iw: item.iw || 0, im: item.im || '',
+            em: (item.iss || []).filter(issue => issue && issue.s === 'E').map(issue => (issue.c ? `ERROR ${issue.c}: ` : '') + lrWholeCut(String(issue.m || ''), 220)) });
         });
       });
     }
@@ -673,6 +675,15 @@ function lrAplus(row, ctx) {
   const stale = !(at > 0) || Date.now() - at > LR_APLUS_DAYS * LR_DAY;
   return { v: false, at, stale, src: row.parent ? 'listing and parent' : 'listing', why: stale ? `the "no A+" answer is ${at > 0 ? Math.round((Date.now() - at) / LR_DAY) + ' days' : 'too'} old — asked again before it counts` : '' };
 }
+/** A message a source kept only `max` characters of (the snapshot: 140, its issue list: 220): at that length or longer it was cut, so
+ *  it ends on the last whole word with "…" — never mid-word ("resu"). Shorter text is returned as it is. */
+function lrWholeCut(text, max) {
+  const str = String(text == null ? '' : text);
+  if (str.length < max || str.endsWith('…')) return str;
+  const head = str.slice(0, max);
+  const space = head.search(/\s\S*$/);
+  return (space > max / 2 ? head.slice(0, space) : head).replace(/[\s,;:.\-–—]+$/, '') + '…';
+}
 /** Amazon's own verdict on one listing: { st, ie, im, errs, at, src: 'live' | 'iml' } — the live read first, else the snapshot. Null = none. */
 function lrAmz(row, ctx) {
   const live = lrLiveOf(row, ctx);
@@ -681,7 +692,7 @@ function lrAmz(row, ctx) {
     return { st: (live.st || []).join(','), ie: errs.length, im: errs.map(issue => `ERROR ${issue.c}: ${issue.m}`).join(' · '), errs, at: live.gAt, src: 'live' };
   }
   const amz = ctx.amz && ctx.amz.get(row.brand + '|' + row.sku);
-  return amz ? { st: amz.st, ie: amz.ie, im: amz.im, errs: null, at: (ctx.amzAt && ctx.amzAt[row.brand]) || 0, src: 'iml' } : null;
+  return amz ? { st: amz.st, ie: amz.ie, im: amz.em && amz.em.length ? amz.em.join(' · ') : lrWholeCut(amz.im, 140), errs: null, at: (ctx.amzAt && ctx.amzAt[row.brand]) || 0, src: 'iml' } : null;
 }
 /** The listing with the freshest content on it: the live read's title / bullets / description / search terms, brand, colour and
  *  rule words (lrFresh), else exactly the Health row. `contentAt` says when that content was read; `kw` is only ever live. */
@@ -816,6 +827,7 @@ function healthOf(rowIn, ctx) {
   // --- how to fix each one, in plain words, whose rule it is, where its Fix button goes (Part B), and how old its data is (A5) ---
   const now = Date.now();
   found.forEach(hit => {
+    if (LR_WHAT_TEXT[hit.detector]) hit.what = LR_WHAT_TEXT[hit.detector](hit);   // a heading in its own words (else "name — detail")
     hit.fix = lrFixText(hit, row, ctx);
     hit.tag = lrFixTag(hit, row);
     hit.kind = lrFixKind(hit.detector);
@@ -858,13 +870,17 @@ function lrPartWords(key, parts) {
   const names = { brand: 'the brand', product: 'the product', shape: 'the shape', material: 'the material', size: 'the size', color: 'the colour', pattern: 'the print', uses: 'the uses' };
   return (names[key] || key) + (value ? ` "${value}"` : '');
 }
+/** The heading a problem shows when "rule name — detail" would read badly. (hit) → text. */
+const LR_WHAT_TEXT = {
+  size_format: hit => 'Size not in house style: ' + hit.detail,
+};
 /** One sentence per detector: what to do, with the listing's own values. (hit, row, ctx, params) → text. Plain words for a
  *  seller — never a detector id, a field code or a list of rules. */
 const LR_FIX_TEXT = {
   inactive_with_stock: () => 'It has stock but is Inactive. Open Listing Errors to see why.',
   no_price: () => 'Add a price in Seller Central.',
   amazon_suppressed: () => 'Fix the issue in Listing Errors so it shows in Amazon search again.',
-  amazon_error: hit => 'Open Listing Errors and do what Amazon asks: ' + String(hit.detail).replace(/\.?\s*$/, '.'),
+  amazon_error: () => 'Open Listing Errors and do what Amazon asks.',   // Amazon's message is the heading already: once, not twice
   no_main_image: () => 'Add a main picture in Image Manager — the catalogue shows none, so shoppers see no picture.',
   aplus_missing: (hit, row) => (row.parent ? 'Publish A+ content on the listing or its parent ASIN.' : 'Publish A+ content.'),
   images_below: (hit, row, ctx, params) => {
@@ -990,8 +1006,9 @@ function lrProblemHtml(hit, where, note) {
 /* ---- a problem as one ROW (the Listing Health look, 6 Nov 2026), like the Ad Console's recommendation rows: a dot through the
  *      level's colour · the level word and the name, a grey subtitle · how to fix · a tag · Fix. The Workspace side panel and the
  *      children dialog draw with it; lrProblemHtml above stays the block every other screen uses. ---- */
-// `rec`: { sev, stale, name, sub, fix, tag, kind, detector, attrs, fill } — `fill` marks a "Good to fill" gap (not an error: no level
-// word, a blue dot). `where`: { brand, sku } for the Fix button, or null for none.
+// `rec`: { sev, stale, name, sub, fix, tag, kind, detector, attrs, fill, bare } — `fill` marks a "Good to fill" gap (not an error: no level
+// word, a blue dot); `bare` leaves the level word out where a group heading already says it (the child sidebar), except "Error? Check
+// again", which says more than its heading. `where`: { brand, sku } for the Fix button, or null for none.
 function lrRecHtml(rec, where) {
   const esc = str => String(str == null ? '' : str).replace(/[<>&"]/g, ch => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[ch]));
   const stale = rec.sev === 'critical' && !!rec.stale;
@@ -1004,7 +1021,7 @@ function lrRecHtml(rec, where) {
     + (rec.attrs && rec.attrs.length ? ` data-lr-attrs="${esc(rec.attrs.join(','))}"` : '')
     + ` title="${kind === 'img' ? 'Opens the Image Manager' : 'Opens Listing Errors'}">Fix</button>` : '';
   return `<div class="ls-rec ${cls}"><span class="ls-dot" aria-hidden="true"></span><div class="ls-rec-t">`
-    + `<b><span class="lr-lvl ${rec.fill ? 'is-f' : stale ? 'is-s' : rec.sev === 'critical' ? 'is-c' : 'is-a'}">${esc(word)}</span>${esc(rec.name)}</b>`
+    + `<b>${rec.bare && !stale ? '' : `<span class="lr-lvl ${rec.fill ? 'is-f' : stale ? 'is-s' : rec.sev === 'critical' ? 'is-c' : 'is-a'}">${esc(word)}</span>`}${esc(rec.name)}</b>`
     + (rec.sub ? `<small title="${esc(rec.sub)}">${esc(rec.sub)}</small>` : '') + '</div>'
     + `<div class="ls-rec-a"><span class="lr-tag${tag === 'Company rule' ? ' is-own' : ''}${rec.fill ? ' is-fill' : ''}" title="${esc(LR_TAG_TIP[tag] || (rec.fill ? 'Not an error: a gap worth filling.' : ''))}">${esc(tag)}</span>${fix}</div>`
     + (rec.fix ? `<div class="ls-rec-how">${esc(rec.fix)}</div>` : '') + '</div>';
