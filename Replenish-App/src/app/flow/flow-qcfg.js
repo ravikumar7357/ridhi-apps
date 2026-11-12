@@ -213,6 +213,13 @@ function flowFgBadgeLoad() {
   if (!FLOW_ON || !flowMayFg()) return;
   const w = flowFgEnsure(); if (w) w.then(flowFgBadge); else flowFgBadge();
 }
+/** Light open (switch fgLite): the same count, but only when the flow's data is already in memory. Otherwise the badge shows "…" and
+ *  nothing is read; clicking it opens "From QC — to accept", which reads the full chain first (flowFgRender) and then fills the number. */
+function flowFgBadgeLite() {
+  if (!FLOW_ON || !flowMayFg()) return;
+  if (FLOW.ppc && typeof QC !== 'undefined' && QC.checks != null) { flowFgBadge(); return; }
+  const el = $('flFgBadge'); if (el) { el.textContent = '…'; el.classList.remove('hide'); }
+}
 /* Switched on with the flow only: the view in the picker, the badge, the buttons. The live app's screen is untouched. */
 if (FLOW_ON && $('fgView') && $('fgView').insertAdjacentHTML) {
   const opt = [...($('fgView').options || [])].find(o => o.value === 'pending');

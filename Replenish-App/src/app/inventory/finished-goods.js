@@ -34,6 +34,26 @@ const fgiNewId = p => (p || 'FGI') + '-' + Date.now().toString(36).toUpperCase()
 
 let FGI = { rows: null, err: '', busy: false, at: '', view: 'stock', shown: [], recips: null, set: {} };
 
+/** Finished Goods "light open" switch (config/flags.fgLite, read once in core/auth.js and kept in fgFlagLast for the NEXT page load;
+ *  localStorage fgLite '1'/'0' overrides on one device). ON: opening this screen no longer reads the whole production flow just to
+ *  paint the "From QC" count; the count shows "…" until the flow data is in memory and the full chain is read when "From QC" is opened.
+ *  Off by default, never for vendors or test harnesses. Asked only when the screen opens, never while the page loads. */
+function fgLiteOn() {
+  try {
+    const s = localStorage.getItem('fgLite');
+    if (s === '0') return false;
+    if (typeof AUDIT === 'undefined' || !AUDIT.on) return false;
+    if (typeof spIsVendor === 'function' && spIsVendor()) return false;
+    if (typeof NAV_IS_VENDOR !== 'undefined' && NAV_IS_VENDOR) return false;
+    if (s === '1') return true;
+    return localStorage.getItem('fgFlagLast') === '1';
+  } catch (e) { return false; }
+}
+/** Keep the flag's last answer for the next page load. */
+function fgLiteSaveFlag(on) {
+  try { if (on) localStorage.setItem('fgFlagLast', '1'); else localStorage.removeItem('fgFlagLast'); } catch (e) { /* no storage: stays off */ }
+}
+
 async function ensureFgi() {
   if (FGI.rows === null) { FGI.busy = true; renderFgi(); await fgiLoad(); }
   renderFgi();
@@ -58,7 +78,7 @@ async function fgiLoad() {
   await fgiCorrLoad();
   await fnLoad();
   fgiOverBadge();
-  if (typeof FLOW_ON !== 'undefined' && FLOW_ON && typeof flowFgBadgeLoad === 'function') flowFgBadgeLoad();
+  if (typeof FLOW_ON !== 'undefined' && FLOW_ON && typeof flowFgBadgeLoad === 'function') { if (fgLiteOn() && typeof flowFgBadgeLite === 'function') flowFgBadgeLite(); else flowFgBadgeLoad(); }
   lstMaybeRefresh();
 }
 
