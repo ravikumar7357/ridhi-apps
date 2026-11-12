@@ -1218,7 +1218,8 @@ function liWsRender() {
     + '<div class="li-ws-barr">'
     + (LI_WS.stale ? '<button type="button" class="ghost li-ws-resort" data-li-ws-resort="1" title="New answers from Amazon would put the parents in another order; the list keeps its order until you press this">Sort again</button>' : '')
     + `<button type="button" class="ghost li-ws-sweep" data-li-ws-sweep="${sweeping && !rechecking ? 'stop' : 'go'}"${rechecking ? ' disabled' : ''}`
-    + ` title="Reads title, bullets, description and search terms of every live listing in view from Amazon, 20 at a time; listings read within a day are skipped">${sweeping && !rechecking ? 'Stop' : 'Check live listings on Amazon'}</button></div></div>`;
+    + ` title="Reads title, bullets, description and search terms of every live listing in view from Amazon, 20 at a time; listings read within a day are skipped">${sweeping && !rechecking ? 'Stop' : 'Check live listings on Amazon'}</button>`
+    + liWsDlButton(scoped) + '</div></div>';
   // --- the chips (decided above) ---
   const chips = '<div class="li-ws-chips" role="group" aria-label="Show the parents with">' + chipDefs.map(chip =>
     `<button type="button" class="li-ws-chip" data-li-ws-chip="${chip.k}" aria-pressed="${LI_WS.chip === chip.k}"><span class="li-ws-dot li-ws-dot-${chip.dot}"></span>${chip.t}<span class="li-ws-n">${nf(chip.n)}</span></button>`).join('') + '</div>'
@@ -1378,6 +1379,71 @@ function liWsReconcile(brandsIn) {
     if (out.filters.level !== 'ALL' || out.filters.search) console.log(`Listing Health's cards count only what its table shows: level filter "${out.filters.level}", search "${out.filters.search}". Set All listings and clear the search to compare.`);
   }
   return out;
+}
+
+/* ----- DOWNLOAD ERRORS (12 Nov 2026, the manager's sheet): the listings the red Error card counts plus its "check again" ones, for the
+ *       brand switch and the search — one row per Error-level problem, as a CSV that opens in Excel / Google Sheets. It only reads:
+ *       nothing is saved or sent, so it works on the test site too. ----- */
+const LI_WS_DL_COLS = ['Brand', 'Parent name', 'Parent ASIN', 'SKU', 'ASIN', 'Product', 'Live?', 'Stock (units)', 'Error', 'Details', 'How to fix',
+  'Status', 'Checked on', 'Errors on this listing', 'Amazon link'];
+// The problem in plain words where the rule's own name says it less plainly; every other Error keeps its Listing Rules name.
+const LI_WS_DL_WORDS = { amazon_error: 'Amazon reports an error', amazon_suppressed: 'Suppressed from search', inactive_with_stock: 'Stock but Inactive',
+  no_main_image: 'Main picture missing', no_price: 'No price' };
+// The listings in the sheet: exactly the ones the Error card and its "check again" link count, over the parents in view.
+const liWsDlKids = parents => parents.flatMap(p => p.kids.filter(kid => kid.cards.err || kid.cards.chk).map(kid => ({ p, kid })));
+function liWsDlButton(parents) {
+  const n = liWsDlKids(parents).length;
+  return `<button type="button" class="ghost li-ws-dl" data-li-ws-dl="1"${n ? '' : ' disabled'} title="A sheet (CSV for Excel / Google Sheets) of the listings in the Error card and its “check again” ones — one row per error, with how to fix it">⬇ Download errors (${liWsNf(n)})</button>`;
+}
+// The sheet: { name, text, skus } — text is UTF-8 with a BOM, comma-separated, every text cell quoted, Windows line ends.
+function liWsErrorsCsv(parents, brandPick, now) {
+  now = now || Date.now();
+  const day = d => {
+    const t = new Date(d);
+    return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
+  };
+  const q = v => (typeof v === 'number' ? String(v) : `"${String(v == null ? '' : v).replace(/"/g, '""')}"`);
+  const rows = [];
+  liWsDlKids(parents).forEach(({ p, kid }) => {
+    const row = kid.row;
+    const errs = kid.found.filter(hit => hit.sev === 'critical');
+    const cat = (LR_CAT[kid.brand] && LR_CAT[kid.brand][kid.sku]) || {};
+    const items = kid.lr && kid.lr.specs ? kid.lr.specs.number_of_items : '';
+    const product = [cat.color, cat.size, items && +items > 1 ? 'pack of ' + items : ''].filter(Boolean).join(' · ');
+    const liveWord = kid.live ? 'Live' : row.qty > 0 ? 'Not live — has stock' : 'Not live';
+    const healthAt = HEALTH[kid.brand] && HEALTH[kid.brand].at ? HEALTH[kid.brand].at.getTime() : 0;
+    errs.forEach(hit => {
+      const at = hit.at > 0 ? hit.at : (hit.src === 'report' ? healthAt : 0);
+      const age = at ? Math.max(0, Math.round((now - at) / LR_DAY)) : -1;
+      const status = hit.stale ? (age >= 0 ? `Check again — data ${age} day${age === 1 ? '' : 's'} old` : 'Check again — the date of the data is not known') : 'Confirmed';
+      rows.push({ sort: [BRAND_NAME[kid.brand] || kid.brand, p.name || p.parent, p.parent, kid.sku], cells: [
+        BRAND_NAME[kid.brand] || kid.brand, p.name || '', p.parent, kid.sku, kid.asin || '', product, liveWord, row.qty == null ? '' : +row.qty,
+        LI_WS_DL_WORDS[hit.detector] || hit.name, hit.detail || '', hit.fix || '', status, at ? day(at) : '', errs.length,
+        kid.asin ? 'https://www.amazon.com/dp/' + kid.asin : ''] });
+    });
+  });
+  rows.sort((a, b) => {
+    for (let i = 0; i < a.sort.length; i++) {
+      const c = String(a.sort[i]).localeCompare(String(b.sort[i]));
+      if (c) return c;
+    }
+    return 0;
+  });
+  const which = brandPick === 'ALL' ? 'Both' : (BRAND_NAME[brandPick] || brandPick);
+  const text = '\uFEFF' + [LI_WS_DL_COLS.map(q).join(',')].concat(rows.map(r => r.cells.map(q).join(','))).join('\r\n') + '\r\n';
+  return { name: `Sellora-errors-${which}-${day(now)}.csv`, text, rows: rows.length, skus: new Set(rows.map(r => r.cells[0] + '|' + r.cells[3])).size };
+}
+// The button: the same parents the view counts (brand switch + search), the sheet built and handed to the browser.
+function liWsDownloadErrors() {
+  const pick = $('hBrandView').value;
+  const brands = pick === 'ALL' ? ['SP', 'CPC'] : [pick];
+  const sheet = liWsErrorsCsv(liWsSearch(liWsParents(brands, hCtx(), Date.now())), pick);
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([sheet.text], { type: 'text/csv;charset=utf-8' }));
+  a.download = sheet.name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  return sheet;
 }
 
 /* ----- the look's own pieces: skeleton, pictures, the "Fix first" line, the pane's toolbar ----- */
@@ -1823,7 +1889,7 @@ function liWsClick(e) {
   const inPanel = !!(e.target.closest && e.target.closest('#lsPanel'));
   // Something in the panel changed (a listing opened, a tab, Show more): the panel redraws, never the list.
   const redraw = () => (inPanel && LI_WS.panel ? liWsPanelRender() : liWsDraw());
-  const el = e.target.closest('[data-li-ws-card],[data-li-ws-cardclear],[data-li-ws-chip],[data-li-ws-sort],[data-li-ws-mode],[data-li-ws-tog],[data-li-ws-open],[data-li-ws-again],[data-li-ws-sku],[data-li-ws-pass],[data-li-ws-show],[data-li-ws-sweep],[data-li-ws-recheck],[data-li-ws-resort],[data-li-ws-more],[data-li-ws-panel],[data-li-ws-pclose],[data-li-ws-pback],[data-li-ws-ptab],[data-li-ws-ptable],[data-li-ws-pmore],[data-li-ws-psort],[data-lr-fix],[data-lr-check],[data-pname]');
+  const el = e.target.closest('[data-li-ws-card],[data-li-ws-cardclear],[data-li-ws-chip],[data-li-ws-sort],[data-li-ws-mode],[data-li-ws-tog],[data-li-ws-open],[data-li-ws-again],[data-li-ws-sku],[data-li-ws-pass],[data-li-ws-show],[data-li-ws-sweep],[data-li-ws-recheck],[data-li-ws-resort],[data-li-ws-dl],[data-li-ws-more],[data-li-ws-panel],[data-li-ws-pclose],[data-li-ws-pback],[data-li-ws-ptab],[data-li-ws-ptable],[data-li-ws-pmore],[data-li-ws-psort],[data-lr-fix],[data-lr-check],[data-pname]');
   if (!el) {
     // A click on the row itself (not on a button in it) opens the parent in the side panel.
     const row = e.target.closest('[data-li-ws-row]');
@@ -1901,6 +1967,7 @@ function liWsClick(e) {
     liWsDraw();
     return refocus(`[data-li-ws-sort="${k}"]`);
   }
+  if (d.liWsDl) return liWsDownloadErrors();
   if (d.liWsResort) {
     LI_WS.resort = true;
     liWsDraw();
