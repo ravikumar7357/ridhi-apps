@@ -79,7 +79,7 @@ function load(opts) {
     + '\n;return { rows: HEALTH.SP.rows.concat(HEALTH.CPC.rows), LR_DEFAULT, getLR: () => LR, healthOf, hCtx: () => hCtx(), reset: () => { H_CTX = null; }, hTitleSizes,'
     + ' typeofFix: typeof lrProblemHtml, lrProblemHtml: typeof lrProblemHtml === "function" ? lrProblemHtml : null, lrProblemsHtml: typeof lrProblemsHtml === "function" ? lrProblemsHtml : null,'
     + ' lrAllow: typeof lrAllow === "function" ? lrAllow : null, lrFixOpen: typeof lrFixOpen === "function" ? lrFixOpen : null,'
-    + ' lrKwBytes: typeof lrKwBytes === "function" ? lrKwBytes : null, lrLevel: typeof lrLevel === "function" ? lrLevel : null, lrNotesHtml: typeof lrNotesHtml === "function" ? lrNotesHtml : null, IML,'
+    + ' lrKwBytes: typeof lrKwBytes === "function" ? lrKwBytes : null, lrBrandWords, lrFind, lrLevel: typeof lrLevel === "function" ? lrLevel : null, lrNotesHtml: typeof lrNotesHtml === "function" ? lrNotesHtml : null, IML,'
     + ' lrWholeCut: typeof lrWholeCut === "function" ? lrWholeCut : null, AMZ: typeof AMZ === "undefined" ? null : AMZ,'
     + (opts.ws ? ' LI_WS, LI_WS_AUDIT, liWsParents: (brands) => liWsParents(brands, hCtx(), Date.now()), liWsDetail, liWsAuditBox, liWsKidTable, liWsRender, liWsRecheck, liWsCheckNow, liWsLiveMap, liWsProblems, liWsPanelOpen, liWsPanelClose, liWsPanelMove, liWsPanelRender, liWsOff, liWsToolbarSync, liWsPanelSync, liWsPanelSchedule, liWsPanelKeep, liWsPanelKid, liWsPanelKidBack, lkHtml, lkKid, LK,' : '')
     + (opts.sp ? ' SP, spCompute, spPlan, spChecks, spStrip, spInsert, spDiffHtml, spWordDiff, spKidHtml, spRowHtml, spParentBodyHtml, spParentCardHtml, spGroups, spGroupOf, spOpenParent, spCloseParent, spOpenKid, spCloseKid, spRender, spPanelHtml, spPanelCount, spApprove, spSendAll, spPatches, spLogLoad, spEvents, SP_SEASONS, setHealthLoaded: v => { H_LOADED = v; }, setCat: (b, m) => { LR_CAT[b] = Object.assign(LR_CAT[b] || {}, m); H_CTX = null; },' : '') + ' };';
@@ -115,7 +115,26 @@ if (require.main === module) {
   ok('a CPC title with no brand word at all: brand error, and the fix names the brand to write', /missing brand/.test((A.hit('C1c', 'title_template') || {}).detail || '') && /^Put the brand in the title: "Whimsical Corner …"\./.test(A.hit('C1c', 'title_template').fix), JSON.stringify(A.hit('C1c', 'title_template')));
   ok('Grey in the catalogue, Gray in the title: no colour error', A.ids('C2a') === '', A.ids('C2a'));
   ok('"Block-Print" counts as Block Print', A.ids('C2b') === '', A.ids('C2b'));
-  ok('the code CPC is never looked for', !A.rows.some(r => r.brand === 'CPC' && /missing brand/.test((A.hit(r.sku, 'title_template') || {}).detail || '') && r.sku !== 'C1c'));
+  console.log('== our brand words: Ridhi, CPC and Whimsical Corner, for BOTH accounts ==');
+  (() => {
+    const B = load();
+    const brandOf = (acct, title, extra) => {
+      const row = Object.assign({ brand: acct, parent: 'PB', sku: 'B' + Math.random().toString(36).slice(2, 7), asin: 'B0X', title, qty: 5, price: 20, status: 'Active', channel: 'AFN',
+        aplus: true, aplusAt: Date.now(), checked: Date.now(), content: { titleLen: title.length, images: 8, bullets: 5, descLen: 300, title } }, extra || {});
+      const words = B.lrBrandWords(row, B.getLR());
+      return words.some(word => B.lrFind(title, word) >= 0);
+    };
+    ok('"CPC Agate Green Block Print 100% Cotton Square Tablecloth 60×60 Inch" (CPC-01): brand found', brandOf('CPC', 'CPC Agate Green Block Print 100% Cotton Square Tablecloth 60×60 Inch'));
+    ok('"MY WHIMSICAL CORNER …": brand found', brandOf('CPC', 'MY WHIMSICAL CORNER Tablecloth Rectangle Cotton 60x90 Inch Block Print Blue'));
+    ok('"Ridhi Hand Block …": brand found — on either account', brandOf('SP', 'Ridhi Hand Block Print Cotton Napkins 18 x 18 Inch - Blue') && brandOf('CPC', 'Ridhi Hand Block Print Cotton Napkins 18 x 18 Inch - Blue'));
+    ok('"Whimsical Corner" on a Ridhi-account listing: brand found (all three are ours, for both accounts)', brandOf('SP', 'Whimsical Corner Cloth Napkins Cotton 18 x 18 Inch - Blue'));
+    ok('"Ridhi" inside another word ("Ridhima"): not found', !brandOf('SP', 'Ridhima Cloth Napkins Cotton 18 x 18 Inch - Blue'));
+    ok('"Corner" alone is not the brand (the phrase is "Whimsical Corner")', !brandOf('CPC', 'Corner Table Cloth Cotton 60 x 90 Inch - Blue'));
+    ok('a title with none of them: not found (flagged)', !brandOf('CPC', 'Cotton Tablecloth Rectangle 60 x 90 Inch Block Print Table Cover - Red'));
+    ok('punctuation and "the" are skipped: "The-Whimsical-Corner, …" and "CPC:" count', brandOf('CPC', 'The-Whimsical-Corner, Napkins Cotton') && brandOf('CPC', 'CPC: Napkins Cotton 18 x 18 Inch'));
+    ok('the brand Amazon shows is accepted too', brandOf('CPC', 'Agate Home Napkins Cotton 18 x 18 Inch', { amzBrand: 'Agate Home' }));
+  })();
+  ok('the CPC sample with no brand word at all is still the only CPC listing flagged', A.rows.filter(r => r.brand === 'CPC' && /missing brand/.test((A.hit(r.sku, 'title_template') || {}).detail || '')).map(r => r.sku).join() === 'C1c');
 
   console.log('== A4: Block Print vs embroidery ==');
   ok('white child whose siblings say Block Print: no Block Print error', !A.hit('R7', 'title_keyword') && A.ids('R7') === '', A.ids('R7'));
@@ -142,10 +161,11 @@ if (require.main === module) {
   ok('Fix hands over to Listing Errors with the attributes', A.calls.some(c => c.tab === 'lerr') && A.calls.some(c => c.sku === 'R4' && c.attrs.join() === 'material'), JSON.stringify(A.calls));
 
   console.log('== the settings ==');
-  ok('defaults: 74, Ridhi / Whimsical Corner, White / Off White', JSON.stringify(A.lrAllow({})) === JSON.stringify({ shortFrom: 74, brandWords: { SP: 'Ridhi', CPC: 'Whimsical Corner' }, embroideryColors: 'White, Off White' }), JSON.stringify(A.lrAllow({})));
+  ok('defaults: 74, our brand words "Ridhi, CPC, Whimsical Corner" (one list for both accounts), White / Off White', JSON.stringify(A.lrAllow({})) === JSON.stringify({ shortFrom: 74, ourBrands: 'Ridhi, CPC, Whimsical Corner', writeAs: { SP: 'Ridhi', CPC: 'Whimsical Corner' }, embroideryColors: 'White, Off White' }), JSON.stringify(A.lrAllow({})));
+  ok('a config saved with the old per-account lists: their words join the shared list (nothing typed is lost)', A.lrAllow({ allow: { brandWords: { SP: 'Ridhi, Ridhi Home', CPC: 'Whimsical Corner' } } }).ourBrands === 'Ridhi, CPC, Whimsical Corner, Ridhi Home', A.lrAllow({ allow: { brandWords: { SP: 'Ridhi, Ridhi Home', CPC: 'Whimsical Corner' } } }).ourBrands);
   A.getLR().allow = { shortFrom: 70 }; A.reset();
   ok('Short forms allowed from 70: the 62-character title still fails, a 70+ one would not', !!A.hit('R2', 'size_format') && A.lrAllow(A.getLR()).shortFrom === 70);
-  A.getLR().allow = { brandWords: { CPC: '' } }; A.reset();
+  A.getLR().allow = { ourBrands: '' }; A.reset();
   ok('no brand words and no Amazon brand: the brand is not judged', !/missing brand/.test((A.hit('C1c', 'title_template') || {}).detail || ''), JSON.stringify(A.hit('C1c', 'title_template')));
   A.getLR().allow = {}; A.reset();
 

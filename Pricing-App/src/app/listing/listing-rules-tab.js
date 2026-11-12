@@ -104,10 +104,10 @@ function lrAllowRender(cfg) {
       <span class="muted">A title of ${allow.shortFrom} to 75 characters was shortened on purpose to fit Amazon's 75, so in it these are fine: Inch written as Inc, In, In., in,
       " ″ ” or left out; Inches as Inch or In; Centimeter as cm; no spaces around x, X or ×; "&amp;" for and, "w/" for with, Pc or Pcs for Pieces, "2 Pack", "Pack of 2"
       or "2 Pcs" for Set of 2. Below ${allow.shortFrom} characters the house style stays strict ("18 x 18 Inch"); over 75 the title is asked to be shortened.</span></div>
-    <div class="lr-allow-row"><label>Brand words — ${lrEsc(BRAND_NAME.SP)} ${field('brandSP', allow.brandWords.SP, 'w-m')}</label>
-      <label>Brand words — ${lrEsc(BRAND_NAME.CPC)} ${field('brandCPC', allow.brandWords.CPC, 'w-m')}</label>
-      <span class="muted">Any of these words in a title is the brand (upper or lower case; "the", "my" and "by" are skipped). Every brand under ${lrEsc(BRAND_NAME.CPC)} is ours,
-      so for a listing Sellora has read on the Workspace, Amazon's own brand for it comes first. Empty = the brand is not judged.</span></div>
+    <div class="lr-allow-row"><label>Our brand words ${field('ourBrands', allow.ourBrands, 'w-l')}</label>
+      <span class="muted">All of these are ours, for every listing of both brand accounts. A title has its brand when it holds any of them as whole words — upper or
+      lower case, with "the", "my", "by" and punctuation skipped, so "My Whimsical Corner" counts and "Ridhima" does not. The brand Amazon shows for a listing counts
+      too once Sellora has read it. Empty = only Amazon's brand is looked for.</span></div>
     <div class="lr-allow-row"><label>Embroidery colours ${field('embColors', allow.embroideryColors, 'w-m')}</label>
       <span class="muted">Pieces in these colours are embroidery, so "Block Print" is never asked of them; nor of a listing that says Embroidered or Embroidery. Otherwise
       "Block Print" is asked for only with proof that the product is block print — a sibling's title under the same parent, or the listing's own bullets or description on
@@ -283,8 +283,7 @@ $('lrAllow').addEventListener('change', e => {
   const allow = cfg.allow = lrAllow(cfg);
   const value = String(e.target.value || '').trim();
   if (key === 'shortFrom') allow.shortFrom = Math.min(75, Math.max(1, parseInt(value, 10) || LR_DEFAULT.allow.shortFrom));
-  else if (key === 'brandSP') allow.brandWords.SP = value;
-  else if (key === 'brandCPC') allow.brandWords.CPC = value;
+  else if (key === 'ourBrands') allow.ourBrands = value;
   else if (key === 'embColors') allow.embroideryColors = value;
   LR_DIRTY = true;
   H_CTX = null;

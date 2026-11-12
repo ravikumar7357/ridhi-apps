@@ -383,7 +383,7 @@ function spKwClean(kw, title, events, keep) {
 // the brand, the product, the size, the colour, the material or the pattern. Null when there is none.
 function spSwap(title, word, item, cfg, tpl) {
   const tokens = String(title).split(' ');
-  const protect = new Set([].concat(lrBrandWords(item.row, cfg), spWords(tpl ? tpl.product : ''), spWords(tpl ? tpl.material : ''), spWords(tpl ? tpl.pattern : ''),
+  const protect = new Set([].concat(lrBrandWords(item.row, cfg).flatMap(phrase => phrase.split(' ')), spWords(tpl ? tpl.product : ''), spWords(tpl ? tpl.material : ''), spWords(tpl ? tpl.pattern : ''),
     spWords(lrColorOf(item.row)), ['cotton', 'linen', 'polyester', 'jute', 'velvet', 'block', 'print', 'hand', 'embroidered', 'embroidery', 'printed', 'inch', 'inches', 'cm', 'x', '-'], [...SP_FILLER])
     .map(w => lrNorm(w)).filter(Boolean));
   const sizes = hTitleSizes(title).map(s => s.text);

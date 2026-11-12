@@ -180,10 +180,13 @@ const LR_DEFAULT = {
   /* WHAT PEOPLE MAY WRITE (Part A, 5 Nov 2026): things a person writes on purpose are not errors. Saved in the same document.
    *   shortFrom         a title of this many characters up to 75 was shortened on purpose to fit Amazon's 75: the short forms of
    *                     a size ("18x18 Inc", "18×18", the unit left out) are then fine in size_format and variation_naming.
-   *   brandWords        per brand, the words that mean "our brand" in a title when Amazon's own brand for the listing is not
-   *                     known yet; any one of them, in any case, is the brand. Empty = the brand is not judged.
+   *   ourBrands         OUR BRAND WORDS (12 Nov 2026): one list for every listing of BOTH accounts — Ridhi, CPC and Whimsical Corner are
+   *                     all ours. A title has its brand when it holds ANY of them as whole words (case, "the" / "my" / "by" and
+   *                     punctuation ignored, so "My Whimsical Corner" counts and "Ridhima" does not). The brand Amazon shows for the
+   *                     listing counts too when Sellora has read it. Empty and no Amazon brand = the brand is not judged.
+   *   writeAs           per account, the brand a suggested title writes when Amazon's own is not known (not a setting).
    *   embroideryColors  pieces in these colours are embroidery, so "Block Print" is never asked of them. */
-  allow: { shortFrom: 74, brandWords: { SP: 'Ridhi', CPC: 'Whimsical Corner' }, embroideryColors: 'White, Off White' },
+  allow: { shortFrom: 74, ourBrands: 'Ridhi, CPC, Whimsical Corner', writeAs: { SP: 'Ridhi', CPC: 'Whimsical Corner' }, embroideryColors: 'White, Off White' },
 };
 
 let LR = null;             // the rules in force: saved config, or the defaults
@@ -282,25 +285,35 @@ function lrFind(text, word) {
 const lrHas = (text, word) => lrFind(text, word) >= 0;
 
 /* ---- what people may write (Part A): the settings, with the defaults behind whatever was saved ---- */
-// The allowances in force: { shortFrom, brandWords: { SP, CPC }, embroideryColors } — the saved values over the defaults.
+// The allowances in force: { shortFrom, ourBrands, writeAs: { SP, CPC }, embroideryColors } — the saved values over the defaults. A
+// config saved before 12 Nov kept one brand list per account (brandWords): its words join the shared list, so nothing typed is lost.
 function lrAllow(cfg) {
   const base = LR_DEFAULT.allow;
   const own = (cfg && cfg.allow) || {};
-  return { shortFrom: +own.shortFrom > 0 ? +own.shortFrom : base.shortFrom,
-    brandWords: Object.assign({}, base.brandWords, own.brandWords || {}),
+  let ours = own.ourBrands != null ? String(own.ourBrands) : base.ourBrands;
+  if (own.ourBrands == null && own.brandWords && typeof own.brandWords === 'object') {
+    const seen = new Set();
+    ours = lrWords(ours).concat(Object.values(own.brandWords).flatMap(lrWords))
+      .filter(word => { const k = lrNorm(word); if (!k || seen.has(k)) return false; seen.add(k); return true; }).join(', ');
+  }
+  return { shortFrom: +own.shortFrom > 0 ? +own.shortFrom : base.shortFrom, ourBrands: ours, writeAs: Object.assign({}, base.writeAs),
     embroideryColors: own.embroideryColors != null ? String(own.embroideryColors) : base.embroideryColors };
 }
 // True when a title sits in the band where the short forms are allowed: from "Short forms allowed from" up to 75 characters.
 const lrNear = (title, cfg) => String(title || '').length >= lrAllow(cfg).shortFrom && String(title || '').length <= 75;
-// The words that mean this listing's own brand (Part A3): Amazon's brand for it when Sellora has read it, else the "Brand
-// words" setting; "the", "my", "by" and punctuation do not count. [] when nothing is known — then the brand is not judged.
-const LR_BRAND_SKIP = ['the', 'my', 'by', 'and', 'of'];
+// The phrases that mean OUR brand in a title, for every listing of both accounts: the "Our brand words" list, plus the brand Amazon shows
+// for this listing when Sellora has read it. Each phrase read the same way as titles (lrNorm), with "the", "my", "by" and punctuation
+// left out ("The Whimsical Corner" → "whimsical corner"); a phrase is found only as whole words (lrFind), so "Ridhi" is not in "Ridhima".
+// [] when nothing is known — then the brand is not judged.
+const LR_BRAND_SKIP = ['the', 'my', 'by'];
 function lrBrandWords(row, cfg) {
-  const text = row.amzBrand || lrAllow(cfg).brandWords[row.brand] || '';
-  return lrNorm(text).split(/[^a-z0-9]+/).filter(word => word.length > 1 && !LR_BRAND_SKIP.includes(word));
+  const phrases = lrWords(lrAllow(cfg).ourBrands).concat(row.amzBrand ? [String(row.amzBrand)] : []);
+  const out = phrases.map(text => lrNorm(text).split(/[^a-z0-9]+/).filter(word => word && !LR_BRAND_SKIP.includes(word)).join(' '))
+    .filter(phrase => phrase.length > 1);
+  return [...new Set(out)];
 }
-// The brand as a title should write it: Amazon's own for the listing, else the setting's first phrase, else the brand's name.
-const lrBrandName = (row, cfg) => String(row.amzBrand || lrWords(lrAllow(cfg).brandWords[row.brand])[0] || BRAND_NAME[row.brand] || row.brand || '');
+// The brand as a suggested title should write it: Amazon's own for the listing, else the account's (Ridhi / Whimsical Corner).
+const lrBrandName = (row, cfg) => String(row.amzBrand || lrAllow(cfg).writeAs[row.brand] || BRAND_NAME[row.brand] || row.brand || '');
 // This listing's colour: Amazon's colour attribute when read, else the catalogue's, else the colour part of its title (after
 // the last " - ", where the templates put it), else ''.
 function lrColorOf(row) {
