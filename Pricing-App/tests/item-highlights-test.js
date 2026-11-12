@@ -45,8 +45,8 @@ const planOf = (C, sku, day) => { C.reset(); C.SP.itemsKey = ''; return C.spComp
     put('H1', FULL);
     live('H1', FULL, 'cotton dinner party', 'NAPKIN_HL', ['Hand block printed cotton, soft and washable']);
     const it = planOf(C, 'H1');
-    ok('the suggestion goes to Item Highlights, not the hidden search words; the title stays', it.place === 'hl' && it.after === FULL && it.kwAfter === it.kw
-      && it.hlAfter[0] === 'Hand block printed cotton, soft and washable, Christmas table decor' && it.status === 'ready', JSON.stringify([it.place, it.hlAfter, it.status, it.why]));
+    ok('the suggestion goes to Item Highlights, at the START in a natural phrase ("Christmas table decor, hand block printed cotton, soft and washable"); the title stays', it.place === 'hl' && it.after === FULL && it.kwAfter === it.kw
+      && it.hlAfter[0] === 'Christmas table decor, hand block printed cotton, soft and washable' && it.status === 'ready', JSON.stringify([it.place, it.hlAfter, it.status, it.why]));
     ok('the three places in plain words, in order', it.placeLines[0] === 'Title: Christmas missing — title is full (74 of 75)'
       && it.placeLines[1] === 'Item Highlights: Christmas missing — ‘Christmas table decor’ fits (67 of 125)'
       && /^Hidden search words: Christmas missing — it fits \(\d+ of 249\)$/.test(it.placeLines[2]), JSON.stringify(it.placeLines));
@@ -84,7 +84,7 @@ const planOf = (C, sku, day) => { C.reset(); C.SP.itemsKey = ''; return C.spComp
     put('H3', T3);
     live('H3', T3, 'dinner', 'NAPKIN_HL', []);
     const it = planOf(C, 'H3');
-    ok('empty Item Highlights: a short one from the season word and a use the title does not say ("Christmas decor" — "Table" is in the title)', T3.length === 74 && it.place === 'hl' && it.hlAfter.join() === 'Christmas decor', JSON.stringify(it.hlAfter));
+    ok('empty Item Highlights and no facts read: just the season phrase ("table" may repeat the title — a small joining word)', T3.length === 74 && it.place === 'hl' && it.hlAfter.join() === 'Christmas table decor', JSON.stringify(it.hlAfter));
     ok('…the "nothing the title already says" check passes', it.checks.some(c => c.k === 'hltitle' && c.ok === true));
     const bad = C.spChecks(T3, T3, C.rows.find(r => r.sku === 'H3') || it.row, C.hCtx(), NOV, { hlBefore: [], hlAfter: ['Best Christmas deal, napkins for your table'], hlMax: 125, hlItems: 1 });
     ok('a typed text with "Best" / "deal" fails "No promotion words"; one repeating the title ("napkins") fails "Nothing the title already says"',
@@ -107,8 +107,46 @@ const planOf = (C, sku, day) => { C.reset(); C.SP.itemsKey = ''; return C.spComp
     const plans = many.map(sku => planOf(C, sku));
     ok('never over 125 in any entry, never more entries than the schema allows', plans.every(p => p.hlAfter.every(e => e.length <= 125) && p.hlAfter.length <= p.hlInfo.items), JSON.stringify(plans.map(p => p.hlAfter.map(e => e.length))));
     const multi = planOf(C, 'M1');
-    ok('several entries (schema maxItems 5): the season words are a new entry of their own', multi.place === 'hl' && multi.hlAfter.length === 2 && multi.hlAfter[1] === 'Christmas table decor', JSON.stringify(multi.hlAfter));
+    ok('several entries (schema maxItems 5): the season words are a new entry of their own, first', multi.place === 'hl' && multi.hlAfter.length === 2 && multi.hlAfter[0] === 'Christmas table decor', JSON.stringify(multi.hlAfter));
     ok('sale days never go into Item Highlights', plans.concat([it, it4]).every(p => !/black friday|cyber monday/i.test(p.hlAfter.join(' '))));
+  }
+
+  console.log('== empty Item Highlights: a full line from verified facts the title does not say ==');
+  {
+    const { C, put, live } = setup();
+    const T10 = 'Ridhi Cloth Napkins 18 x 18 Inch Dinner Party Set of 4 - Navy Blue';            // 67: Christmas does not fit
+    put('E1', T10, 'Navy Blue');
+    live('E1', T10, 'dinner', 'NAPKIN_HL', []);
+    Object.assign(C.LI_WS.live.SP.E1, { words: { bp: true, hb: true, emb: false }, facts: { material: '100% Cotton', care: 'Machine Wash', items: '4' } });
+    C.LI_WS.liveV++;
+    const it = planOf(C, 'E1');
+    ok('"Christmas table decor, hand block printed 100% cotton, machine washable" — the phrase first, then the facts Amazon holds (set of 4 is in the title already)',
+      T10.length + ' Christmas'.length > 75 && it.place === 'hl' && it.hlAfter[0] === 'Christmas table decor, hand block printed 100% cotton, machine washable', JSON.stringify([T10.length, it.place, it.hlAfter]));
+    ok('…every check passes: nothing made up (the facts are verified), no main title word repeated', !it.checks.some(c => c.ok === false) && it.checks.some(c => c.k === 'hlfact' && c.ok === true) && it.checks.some(c => c.k === 'hltitle' && c.ok === true), JSON.stringify(it.checks.filter(c => /^hl/.test(c.k))));
+    const T11 = 'Ridhi Cotton Napkins 18 x 18 Inch Hand Block Print Dinner Party - Navy Blue';    // says Cotton and Block Print
+    put('E2', T11, 'Navy Blue');
+    live('E2', T11, 'dinner', 'NAPKIN_HL', []);
+    Object.assign(C.LI_WS.live.SP.E2, { words: { bp: true, hb: true, emb: false }, facts: { material: 'Cotton', care: 'Machine Wash', items: '4' } });
+    C.LI_WS.liveV++;
+    const it2 = planOf(C, 'E2');
+    ok('a title that already says Cotton and Block Print: those main words are not repeated — "Christmas table decor, machine washable, set of 4"', it2.hlAfter[0] === 'Christmas table decor, machine washable, set of 4', JSON.stringify([T11.length, it2.place, it2.hlAfter]));
+    ok('no fact Amazon does not hold is ever written (no "soft" unless the listing says it)', ![it, it2].some(x => /soft/i.test(x.hlAfter.join(' '))));
+  }
+
+  console.log('== the same ONE season everywhere ==');
+  {
+    const { C, put, live } = setup();
+    const T12 = 'Ridhi Cloth Napkins Cotton 18 x 18 Inch Block Print Christmas Dinner - Blue';   // already says Christmas
+    put('O1', T12);
+    live('O1', T12, 'dinner party', 'NAPKIN_HL', ['Hand block printed cotton']);
+    const it = planOf(C, 'O1');
+    ok('November, the title already says Christmas (the planner\'s one season): nothing is added — not Thanksgiving into Item Highlights or the search words', (it.kind === 'ok' || it.kind === 'none') && it.hlAfter.join() === 'Hand block printed cotton' && it.kwAfter === 'dinner party', JSON.stringify([it.kind, it.hlAfter, it.kwAfter]));
+    ok('…Thanksgiving is only "Also possible"', it.alts.some(e => e.ev.id === 'thanksgiving') && !it.add.length);
+    const T13 = 'Ridhi Cloth Napkins 100% Cotton 18 x 18 Inch Block Print Dinner Set - Blue';
+    put('O2', T13);
+    live('O2', T13, 'dinner party', 'NAPKIN_HL', ['Hand block printed cotton']);
+    const it2 = planOf(C, 'O2');
+    ok('a full title: the same season (Christmas) in Item Highlights, never another one', it2.place === 'hl' && /^Christmas/.test(it2.hlAfter[0]) && !/Thanksgiving/.test(it2.hlAfter[0] + it2.kwAfter), JSON.stringify(it2.hlAfter));
   }
 
   console.log('== "Spring" taken out of Item Highlights in November ==');
@@ -118,10 +156,22 @@ const planOf = (C, sku, day) => { C.reset(); C.SP.itemsKey = ''; return C.spComp
     put('H5', T5);
     live('H5', T5, 'dinner', 'NAPKIN_HL', ['Spring table decor, hand block printed cotton']);
     const it = planOf(C, 'H5');
-    ok('Remove old season words covers Item Highlights: "Spring" goes, the rest stays', it.remove.some(e => e.ev.id === 'sp_spring') && it.hlAfter[0] === 'table decor, hand block printed cotton, Thanksgiving' && !/spring/i.test(it.hlAfter[0]) && it.after === T5, JSON.stringify([it.kind, it.hlAfter, it.after]));
+    ok('Remove old season words covers Item Highlights: "Spring" goes — a capital first letter, no dangling word: "Table decor, hand block printed cotton"', it.remove.some(e => e.ev.id === 'sp_spring') && it.hlAfter[0] === 'Table decor, hand block printed cotton' && it.after === T5, JSON.stringify([it.kind, it.hlAfter, it.after]));
     ok('…in plain words: "Take “Spring” out of Item Highlights"', /Take “Spring” out of Item Highlights/.test(C.spRowHtml(it)));
     ok('…"− Removed from Item Highlights: Spring (out of season)"', /− Removed from Item Highlights: Spring <span class="sp-dim">\(out of season\)<\/span>/.test(C.spKidHtml(it, null)));
     ok('…a change that makes nothing worse: Ready', it.status === 'ready', it.status + ' ' + it.why);
+  }
+
+  console.log('== an old season word out, the season word in its place, as one phrase ==');
+  {
+    const { C, put, live } = setup();
+    const T = 'Ridhi Table Runner Cotton 14 x 72 Inch Block Print for Dining Table - Green';   // 75
+    put('J1', T, 'Green');
+    C.setCat('SP', { J1: { color: 'Green', size: '14x72', subcat: 'Table Runner' } });
+    live('J1', T, 'dinner', 'NAPKIN_HL', ['Spring table decor, hand block printed by artisans']);
+    const it = planOf(C, 'J1');
+    ok('"Spring table decor, hand block printed by artisans" in November → "Christmas table decor, hand block printed by artisans" (never "Christmas, table decor, …")',
+      it.place === 'hl' && it.hlAfter[0] === 'Christmas table decor, hand block printed by artisans', JSON.stringify([it.place, it.hlAfter]));
   }
 
   console.log('== title over 75: Item Highlights cannot be used ==');
@@ -162,7 +212,7 @@ const planOf = (C, sku, day) => { C.reset(); C.SP.itemsKey = ''; return C.spComp
     await new Promise(r => setTimeout(r, 30));
     ok('?lfix=get fills the value', JSON.stringify(C.LI_WS.live.SP.H8.hl) === '["Soft cotton"]' && C.LI_WS.live.SP.H8.hlAt > 0 && calls.some(c => c.lfix === 'get' && c.sku === 'H8'));
     it = planOf(C, 'H8');
-    ok('…and the plan goes on: Christmas into Item Highlights', it.place === 'hl' && it.hlAfter[0] === 'Soft cotton, Christmas table decor', JSON.stringify([it.place, it.hlAfter]));
+    ok('…and the plan goes on: Christmas into Item Highlights', it.place === 'hl' && it.hlAfter[0] === 'Christmas table decor, soft cotton', JSON.stringify([it.place, it.hlAfter]));
   }
 
   console.log('== Put old titles back covers Item Highlights ==');

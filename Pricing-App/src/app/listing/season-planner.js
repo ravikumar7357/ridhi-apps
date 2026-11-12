@@ -207,11 +207,14 @@ function spPlan(row, ctx, today, log) {
     && ((inTitle(e) && spSeasonUse(title, e.ev) === 'use') || (inHl(e) && spSeasonUse(hlText, e.ev) === 'use')));
   // ONE product season at a time: the active one the title will keep the longest (most days left in its window; ties → the nearest).
   // Sale days (Black Friday, Cyber Monday, Prime Day …) are promotions, never product words: never suggested anywhere.
-  const product = events.filter(e => !e.ev.removeOnly && !spIsSale(e.ev) && fits && applies(e) && !keep(e) && !inTitle(e) && e.s.inSeason)
+  // The same ONE season for the title, Item Highlights and the hidden search words: when the title already names it, nothing is added
+  // anywhere (the others are only "Also possible").
+  const product = events.filter(e => !e.ev.removeOnly && !spIsSale(e.ev) && fits && applies(e) && !keep(e) && e.s.inSeason)
     .sort((a, b) => (b.s.to - a.s.to) || (a.s.next - b.s.next));
   const chosen = SP.choice.get(key);
-  const main = product.find(e => e.ev.id === chosen) || product[0] || null;
-  const alts = product.filter(e => e !== main);
+  const pick = product.find(e => e.ev.id === chosen) || product[0] || null;
+  const main = pick && !inTitle(pick) ? pick : null;
+  const alts = product.filter(e => e !== pick && !inTitle(e));
   // --- put back: the newest change this planner sent for the listing whose seasons are all over, and that was not put back since ---
   const mine = (log || []).filter(rec => rec.brand === brand && rec.sku === row.sku);
   const last = mine[0] || null;
@@ -274,7 +277,7 @@ function spPlan(row, ctx, today, log) {
   item.after = spTidy(next);
   if (hl) {
     let hlNext = hl.slice();
-    remove.forEach(e => { if (spSeasonUse(hlNext.join(' · '), e.ev) === 'use') hlNext = hlNext.map(entry => spTidy(spStrip(entry, e.ev.words))); });
+    remove.forEach(e => { if (spSeasonUse(hlNext.join(' · '), e.ev) === 'use') hlNext = hlNext.map(entry => spHlTidy(spStrip(entry, e.ev.words))); });
     item.hlAfter = hlNext.filter(Boolean);
   }
   let placed = '';
@@ -376,12 +379,53 @@ function spHlInfo(brand, pt, live, key) {
 }
 const spHlChanged = item => item.hl != null && item.hlAfter != null && item.hlAfter.join('\u0001') !== item.hl.join('\u0001');
 // The few words added to Item Highlights with the season word: plain use words the title does not say yet ("table decor").
+// "Christmas table decor" (what is used at a table) or "Christmas decor": the season's natural phrase, at the START of the highlights.
+// "table" is a small joining word and may repeat the title; "decor" is left out when the title or the highlights already say it.
 function spHlPhrase(item, word, title) {
   const cat = lrCatOf(item.row) || {};
-  const use = SP_HL_TABLE.test(String(cat.subcat || '') + ' ' + title) ? ['table', 'decor'] : ['decor'];
   const have = (item.hlAfter || []).join(' ');
-  const free = use.filter(w => !lrHas(title, w) && !lrHas(have, w));   // never a word the title or the highlights already say
-  return [word].concat(free.length === use.length ? free : free.filter(w => w === 'decor')).join(' ').trim();
+  const table = SP_HL_TABLE.test(String(cat.subcat || '') + ' ' + title);
+  const decor = !lrHas(title, 'decor') && !lrHas(have, 'decor');
+  return [word, table && decor ? 'table' : '', decor ? 'decor' : ''].filter(Boolean).join(' ');
+}
+// The words that may repeat the title in Item Highlights so the line reads naturally — never a main keyword.
+const SP_HL_JOIN = new Set([...SP_FILLER, 'table', 'set', 'of', 'pack', 'piece', 'pieces']);
+const spStem = w => lrNorm(w).replace(/(ing|ed|es|s)$/, '');
+// Item Highlights as a person writes them: a capital first letter, commas between ideas, no dangling joining word or comma.
+function spHlTidy(text) {
+  const t = String(text || '').replace(/\s+/g, ' ').replace(/\s+,/g, ',').replace(/,(\s*,)+/g, ',').replace(/,(?=[A-Za-z])/g, ', ')
+    .replace(/^[\s,;·–-]+|[\s,;·–-]+$/g, '').replace(/^(for|and|with|or|&)\s+/i, '').replace(/\s+(for|and|with|or|&)$/i, '').trim();
+  return t ? t.charAt(0).toUpperCase() + t.slice(1) : '';
+}
+// The first word of what was the start, in lower case once the season phrase goes in front — unless it is a name (a brand word, all
+// capitals, a number).
+function spHlAfterStart(text, item) {
+  const m = String(text).match(/^([A-Z][a-z]+)\b/);
+  if (!m) return String(text);
+  const brands = lrBrandWords(item.row, spCfg()).flatMap(phrase => phrase.split(' ')).map(w => lrNorm(w));
+  return brands.includes(lrNorm(m[1])) ? String(text) : m[1].toLowerCase() + String(text).slice(m[1].length);
+}
+// The verified facts for an empty Item Highlights — only what Amazon holds for the listing (its material, care and number of items from
+// ?lfix=get; "block print" / "hand block" / "embroider" found in its own bullets and description) — and only the ones whose main words
+// the title does not say already. [{ text }] in the order a person would write them: technique + material, care, pack.
+function spHlFacts(item, title) {
+  const live = item.live || {};
+  const f = live.facts || {};
+  const words = live.words || {};
+  const main = new Set(spWords(title).filter(w => w.length >= 3 && !SP_HL_JOIN.has(w) && !/^\d/.test(w)).map(spStem));
+  const isMain = text => spWords(text).filter(w => w.length >= 3 && !SP_HL_JOIN.has(w) && !/^\d/.test(w)).some(w => main.has(spStem(w)));
+  const out = [];
+  const tech = words.hb ? 'hand block printed' : words.bp ? 'block printed' : words.emb ? 'embroidered' : '';
+  const mat = String(f.material || '').trim().toLowerCase();
+  const techOk = tech && !isMain(tech) ? tech : '';
+  const matOk = mat && !isMain(mat) ? mat : '';
+  if (techOk || matOk) out.push([techOk, matOk].filter(Boolean).join(' '));
+  const care = String(f.care || '');
+  const careText = /machine/i.test(care) ? 'machine washable' : /hand wash/i.test(care) ? 'hand wash only' : /dry clean/i.test(care) ? 'dry clean only' : '';
+  if (careText && !isMain(careText)) out.push(careText);
+  const n = parseInt(f.items, 10);
+  if (n > 1 && !/\b(set|pack) of \d+\b|\b\d+\s*(pack|pcs|pieces)\b/i.test(title)) out.push(`set of ${n}`);
+  return out;
 }
 // Can the season word go into Item Highlights? { res: hl | has | wait | no, after, line } — `line` is the place in plain words.
 function spHlTry(item, word, title) {
@@ -395,20 +439,37 @@ function spHlTry(item, word, title) {
   const now = item.hlAfter || [];
   if (now.some(entry => lrHas(entry, word))) return { res: 'has', line: `${word} already there` };
   const phrase = spHlPhrase(item, word, title);
-  const fits = list => list.length <= info.items && list.every(entry => entry.length <= info.max) && !SP_PROMO.test(phrase) && !SP_BANNED.test(phrase);   // what WE add; one already there is "Already there before"
   const lenOf = list => (info.items > 1 ? `${list.length} of ${info.items} entries` : `${(list[0] || '').length} of ${info.max}`);
+  // The season phrase goes at the START, as a person would write it; empty highlights get a full line from the verified facts.
+  // `added`: only what WE write is held to "no promotion, no banned symbol" (one already there is "Already there before").
+  const ok = (list, added) => list.length <= info.items && list.every(entry => entry.length <= info.max) && !SP_PROMO.test(added) && !SP_BANNED.test(added);
+  const facts = now.length ? [] : spHlFacts(item, title);
+  const line = parts => {                                  // as many facts as fit after the phrase, in order
+    let text = parts[0];
+    parts.slice(1).forEach(part => { if (`${text}, ${part}`.length <= info.max) text = `${text}, ${part}`; });
+    return spHlTidy(text);
+  };
   let after = null;
   let said = phrase;
+  // highlights that already start with the use ("Table decor, …" — often what is left once an old season word is taken out): the
+  // season word joins that phrase ("Christmas table decor, …") instead of standing alone in front of it
+  const front = (add, rest) => {
+    if (!rest) return spHlTidy(add);
+    if (/^(table decor|holiday decor|decor|table)\b/i.test(rest)) return spHlTidy(`${word} ${rest.charAt(0).toLowerCase()}${rest.slice(1)}`);
+    return spHlTidy(`${add}, ${spHlAfterStart(rest, item)}`);
+  };
   if (info.items > 1) {
-    if (now.length < info.items && fits(now.concat([phrase]))) after = now.concat([phrase]);
+    const entry = now.length ? spHlTidy(phrase) : line([phrase].concat(facts));
+    if (now.length < info.items && ok([entry].concat(now), entry)) { after = [entry].concat(now); said = entry; }
   } else {
     const cur = now[0] || '';
-    for (const add of [phrase, word]) {
-      const cand = cur ? `${cur}, ${add}` : add;
-      if (fits([cand])) { after = [cand]; said = add; break; }
+    const tries = cur ? [phrase, `${word} decor`, word].filter((v, i, a) => a.indexOf(v) === i).map(add => [add, front(add, cur)]) : [[phrase, line([phrase].concat(facts))]];
+    for (const [add, cand] of tries) {
+      if (ok([cand], cur ? add : cand)) { after = [cand]; said = cur ? add : cand; break; }
     }
   }
   if (!after) return { res: 'no', line: `${word} missing — no room (${lenOf(now)})` };
+  item.hlOk = spWords(after.join(' '));                      // the words this suggestion may add (the facts and the phrase): nothing made up
   return { res: 'hl', after, line: `${word} missing — ‘${said}’ fits (${lenOf(after)})` };
 }
 // The Item Highlights checks, in the same list as the title's: within the limit, no promotions, nothing the title already says, no
@@ -436,15 +497,16 @@ function spHlChecks(push, opts, titleNow, cfg, today, row) {
   if (!promoA) push('hlpromo', 'No promotion words in Item Highlights', true);
   else if (promoB && promoB[0].toLowerCase() === promoA[0].toLowerCase()) push('hlpromo', `Item Highlights say “${promoA[0]}”, a promotion word`, 'warn', '', true);
   else push('hlpromo', `Item Highlights would say “${promoA[0]}”, a promotion word`, false, 'no promotion words in Item Highlights');
-  const titleWords = new Set(spWords(titleNow).filter(w => !SP_FILLER.has(w)));
-  const dupA = added.filter(w => titleWords.has(w) && !SP_FILLER.has(w));
+  // a main keyword of the title said again (the small joining words — "table", "for", "set of" — may repeat so it reads naturally)
+  const titleWords = new Set(spWords(titleNow).filter(w => !SP_HL_JOIN.has(w)).map(spStem));
+  const dupA = added.filter(w => !SP_HL_JOIN.has(w) && !/^\d/.test(w) && titleWords.has(spStem(w)));
   if (!dupA.length) push('hltitle', 'Nothing the title already says', true);
   else push('hltitle', `“${dupA[0]}” is in the title already`, false, `“${dupA[0]}” is in the title already`);
   const symA = textA.match(SP_BANNED);
   if (!symA) push('hlsym', 'No banned symbols in Item Highlights', true);
   else if ((textB.match(SP_BANNED) || [])[0] === symA[0]) push('hlsym', `Item Highlights have “${symA[0]}”, which Amazon does not allow`, 'warn', '', true);
   else push('hlsym', `Item Highlights would have “${symA[0]}”, which Amazon does not allow`, false, `“${symA[0]}” is not allowed`);
-  const okWords = new Set(spWords(textB).concat(spEvents(cfg, today).flatMap(e => spWords(e.ev.name + ' ' + e.ev.words)), ['table', 'decor'], SP_JOIN));
+  const okWords = new Set(spWords(textB).concat(spEvents(cfg, today).flatMap(e => spWords(e.ev.name + ' ' + e.ev.words)), ['table', 'decor'], SP_JOIN, opts.hlOk || []));
   const madeUp = added.filter(w => !okWords.has(w) && !/^\d/.test(w));
   if (!madeUp.length) push('hlfact', 'Nothing new made up in Item Highlights', true);
   else push('hlfact', `New word${madeUp.length === 1 ? '' : 's'} in Item Highlights “${[...new Set(madeUp)].slice(0, 4).join('”, “')}” — make sure ${madeUp.length === 1 ? 'it is' : 'they are'} true`, 'warn');
@@ -503,7 +565,7 @@ function spFinish(item, ctx, today) {
   return item;
 }
 // The Item Highlights part of the checks' options: only when they change.
-const spHlOpts = item => (spHlChanged(item) ? { hlBefore: item.hl, hlAfter: item.hlAfter, hlMax: item.hlInfo.max, hlItems: item.hlInfo.items } : {});
+const spHlOpts = item => (spHlChanged(item) ? { hlBefore: item.hl, hlAfter: item.hlAfter, hlMax: item.hlInfo.max, hlItems: item.hlInfo.items, hlOk: item.hlOk || [] } : {});
 // "Fix by hand": the card keeps its suggestion and a one-line hint, and its button opens Listing Errors with the boxes filled in.
 function spFix(item, why, hint) {
   item.status = 'fix';

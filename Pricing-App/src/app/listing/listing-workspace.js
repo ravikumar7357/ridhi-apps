@@ -764,7 +764,7 @@ async function liWsJob(job) {
         const text = lrNorm([title].concat(values('bullet_point'), values('product_description')).join(' '));
         Object.assign(entry, { at: now, cAt: now, pt: item.productType || entry.pt || '', title: title.slice(0, 220), titleLen: title.length,
           bul: values('bullet_point').length, desc: values('product_description').join(' ').length, kw: kw.slice(0, 300), kwBytes: lrKwBytes(kw), err: '', cErr: '',
-          words: { emb: /embroider/.test(text), bp: text.includes('block print') } });   // only WHICH rule words were found, never the text; kwBytes the way Amazon counts (no spaces, no ; , .)
+          words: { emb: /embroider/.test(text), bp: text.includes('block print'), hb: text.includes('hand block') } });   // only WHICH rule words were found, never the text; kwBytes the way Amazon counts (no spaces, no ; , .)
         if (values('brand')[0]) entry.brand = values('brand')[0].slice(0, 60);
         if (entry.pt && !job.sweep) liWsNeedSchema(brand, entry.pt, job.pk);
       });
@@ -782,7 +782,9 @@ async function liWsJob(job) {
         iss: (reply.issues || []).slice(0, 8).map(issue => ({ s: String(issue.severity || '').charAt(0), c: String(issue.code || ''), m: lrWholeCut(String(issue.message || ''), issue.severity === 'ERROR' ? 1000 : 220), a: (issue.attrs || []).slice(0, 4) })),
         slots: IM_SLOTS.filter(slot => (at[LI_WS_SLOT_ATTR[slot]] || []).some(e => e && e.media_location)),
         specs: Object.fromEntries(LI_WS_SPECS.map(name => [name, filled(name)])), err: '',
-        hl: (at[LI_WS_HL] || []).map(e => (e && e.value != null ? String(e.value) : '')).filter(Boolean).map(v => v.slice(0, 300)), hlAt: now });
+        hl: (at[LI_WS_HL] || []).map(e => (e && e.value != null ? String(e.value) : '')).filter(Boolean).map(v => v.slice(0, 300)), hlAt: now,
+        // a few short facts Amazon holds for the listing, for an Item Highlights line built only from what is verified
+        facts: { material: first('material').slice(0, 60), care: first('care_instructions').slice(0, 60), items: first('number_of_items').slice(0, 6) } });
       if (entry.pt) liWsNeedSchema(brand, entry.pt, job.pk);
     } else if (job.t === 'limg') {
       // The catalogue's picture slots — what shoppers see. The reply also carries our own listing's slots and the open issues,
