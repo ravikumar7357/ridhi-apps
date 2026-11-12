@@ -222,6 +222,10 @@ function lcCtx() {
 
 let LC_FOR = '';        // the SKU the bullet boxes below were counted for
 let LC_EXTRA = 0;       // empty bullet boxes added by hand, for the listing on screen
+/* A suggestion brought from another screen (the Season planner's "Fix by hand"): { brand, sku, title, kw, hint, done }. When that
+ * listing opens here, the title and search-term boxes start with the suggestion typed in and the hint shows above them; nothing is
+ * sent until the person presses Apply. Applied once (done), kept for the hint until another listing opens. */
+let LC_PREFILL = null;
 // The Content section's HTML: title (with the template suggestions), bullets, description, search terms — each with its findings.
 function lcSectionHtml() {
   const brand = $('leBrand').value;
@@ -229,7 +233,14 @@ function lcSectionHtml() {
   if (LC_FOR !== sku) {
     LC_FOR = sku;
     LC_EXTRA = 0;
+    if (LC_PREFILL && (LC_PREFILL.sku !== sku || LC_PREFILL.brand !== brand)) LC_PREFILL = null;
   }
+  if (LC_PREFILL && LC_PREFILL.sku === sku && LC_PREFILL.brand === brand && !LC_PREFILL.done) {
+    LC_PREFILL.done = true;
+    if (LC_PREFILL.title) lcSetVals('item_name', [LC_PREFILL.title]);
+    if (LC_PREFILL.kw != null) lcSetVals('generic_keyword', [LC_PREFILL.kw]);
+  }
+  const hint = LC_PREFILL && LC_PREFILL.sku === sku && LC_PREFILL.hint ? `<div class="lc-hint">✎ From the Season planner: ${leEsc(LC_PREFILL.hint)} The boxes below hold the suggestion — change what you like, then Check and Apply.</div>` : '';
   const title = lcNow('item_name')[0] || '';
   const bullets = lcNow('bullet_point');
   const desc = lcNow('product_description').join('\n');
@@ -239,7 +250,7 @@ function lcSectionHtml() {
   const ch = name => LE_EDIT[name] ? ' <span style="color:var(--accent-ink);font-size:11.5px">· changed</span>' : '';
   const nBoxes = Math.min(10, Math.max(5, bullets.length) + LC_EXTRA);
   return `<div class="card" style="padding:10px 14px;margin-bottom:10px">
-    <div style="font-weight:600;font-size:13px;margin-bottom:6px">Content <span class="muted" style="font-weight:400;font-size:11.5px">— checked against Listing Rules as you type</span></div>
+    <div style="font-weight:600;font-size:13px;margin-bottom:6px">Content <span class="muted" style="font-weight:400;font-size:11.5px">— checked against Listing Rules as you type</span></div>${hint}
     <div style="margin-bottom:10px"><div style="font-weight:600;font-size:12.5px">Title${ch('item_name')}</div>
       <textarea id="lcTitle" rows="2" style="width:100%">${leEsc(title)}</textarea>
       <div class="muted" style="font-size:11px"><span id="lcTitleN">${title.length}</span> characters</div>

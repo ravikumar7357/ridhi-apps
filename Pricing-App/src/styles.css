@@ -2197,6 +2197,21 @@
   .sp-st.is-look{background:var(--rev-bg);color:var(--rev-ink)}
   .sp-st.is-no{background:var(--bad-bg);color:var(--bad-ink)}
   .sp-st.is-reading{background:var(--act-bg);color:var(--act-ink)}
+  .sp-st.is-fix{background:var(--brand-bg);color:var(--brand-ink)}
+  .sp-alts{margin-left:10px;font-weight:500;color:var(--faint)}
+  .sp-alts .sp-link{padding:2px 4px;font-size:12px}
+  .sp-fixline{margin:6px 0;padding:8px 12px;border-radius:10px;background:var(--brand-bg);color:var(--brand-ink);font-size:12.5px;line-height:1.5}
+  .sp-fixline b{font-weight:650}
+  .sp-changes{margin:6px 0;padding:8px 12px;border-radius:10px;border:1px dashed var(--rev);font-size:12.5px}
+  .sp-changes>b{display:block;margin-bottom:4px;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--rev-ink)}
+  .sp-change{margin:4px 0}
+  .sp-change>span{font-weight:650;color:var(--muted)}
+  .sp-change-d{overflow-wrap:anywhere}
+  .sp-change-d ins{background:color-mix(in srgb,var(--accent) 22%,transparent);color:var(--accent-ink);text-decoration:none;border-radius:3px;padding:0 2px;font-weight:650}
+  .sp-change-d del{background:color-mix(in srgb,var(--bad) 14%,transparent);color:var(--bad-ink);text-decoration:line-through;border-radius:3px;padding:0 2px}
+  .sp-change small{display:block;color:var(--muted)}
+  /* The hint Listing Errors shows when a listing arrives from the Season planner with a suggestion typed in. */
+  .lc-hint{margin:0 0 8px;padding:8px 12px;border-radius:10px;background:var(--brand-bg);color:var(--brand-ink);font-size:12.5px;line-height:1.5}
   .sp-what{margin:8px 0 4px;font-size:12px;font-weight:650;color:var(--muted)}
   .sp-now,.sp-sug,.sp-kw{position:relative;margin:6px 0;padding:8px 12px;border-radius:10px;background:var(--soft)}
   .sp-sug{background:var(--accent-bg)}

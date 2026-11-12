@@ -46,21 +46,20 @@ const napkin = color => ({ color, size: '18x18', subcat: 'Napkin Set' });
     C.reset();
     const items = C.spCompute(NOV);
     const by = Object.fromEntries(items.map(item => [item.sku, item]));
-    ok('"Spring" in November → Remove old season words: the word goes, nothing else changes (the in-season adds go to the search words)', by.S1 && by.S1.remove.some(e => e.ev.id === 'sp_spring') && /Thanksgiving/.test(by.S1.kwAfter)
-      && by.S1.after === 'Ridhi Cloth Napkins Cotton 18 x 18 Inch Block Print Dinner - Blue' && by.S1.status === 'ready', by.S1 && (by.S1.after + ' | ' + by.S1.status + ' ' + by.S1.why));
-    ok('a short tablecloth title in November → Add: the nearest occasion goes into the title before " - Colour", never over 75, the rest to the search words',
-      by.S2 && by.S2.kind === 'add' && by.S2.after === 'Ridhi Tablecloth 100% Cotton 60 x 90 Inch Block Print Thanksgiving - Red' && /Black Friday/.test(by.S2.kwAfter) && by.S2.status === 'ready', by.S2 && (by.S2.after + ' | ' + by.S2.kwAfter + ' | ' + by.S2.status + ' ' + by.S2.why));
-    ok('…Christmas is added only inside its window: in November it is one of them', by.S2 && by.S2.add.some(e => e.ev.id === 'christmas') && /Christmas/.test(by.S2.kwAfter));
+    ok('"Spring" in November → Remove old season words: the word goes, the one season word (Christmas) takes the room it frees', by.S1 && by.S1.remove.some(e => e.ev.id === 'sp_spring')
+      && by.S1.after === 'Ridhi Cloth Napkins Cotton 18 x 18 Inch Block Print Dinner Christmas - Blue' && by.S1.status === 'ready', by.S1 && (by.S1.after + ' | ' + by.S1.status + ' ' + by.S1.why));
+    ok('a short tablecloth title in November → Add ONE season: Christmas (kept the longest) goes into the title before " - Colour"; Black Friday only to the search words',
+      by.S2 && by.S2.kind === 'add' && by.S2.after === 'Ridhi Tablecloth 100% Cotton 60 x 90 Inch Block Print Christmas - Red' && /Black Friday/.test(by.S2.kwAfter) && !/Thanksgiving/.test(by.S2.kwAfter) && by.S2.status === 'ready', by.S2 && (by.S2.after + ' | ' + by.S2.kwAfter + ' | ' + by.S2.status + ' ' + by.S2.why));
+    ok('…Thanksgiving and the rest are offered as "Also possible", not added', by.S2 && by.S2.add.length === 1 && by.S2.alts.some(e => e.ev.id === 'thanksgiving') && !by.S2.alts.some(e => e.ev.id === 'blackfriday'));
     ok('a full 75-letter title not read from Amazon yet: Reading (the words need the hidden search words)', by.S3 && by.S3.kind === 'add' && by.S3.after === by.S3.title && by.S3.status === 'reading', by.S3 && by.S3.status);
-    ok('"Easter" in November → removed, and the in-season word put in its place', by.S4 && !/Easter/.test(by.S4.after) && by.S4.after === 'Ridhi Cloth Napkins Cotton 18 x 18 Inch Block Print Thanksgiving - Green', by.S4 && by.S4.after);
+    ok('"Easter" in November → removed, and the in-season word put in its place', by.S4 && !/Easter/.test(by.S4.after) && by.S4.after === 'Ridhi Cloth Napkins Cotton 18 x 18 Inch Block Print Christmas - Green', by.S4 && by.S4.after);
     ok('a product that IS the occasion (Halloween napkins) keeps its word after Halloween', by.S5 && by.S5.remove.length === 0 && !/Halloween/.test(by.S5.add.map(e => e.ev.id).join()));
-    ok('a title already naming an in-season occasion gets the next one, not that one twice', by.S6 && by.S6.after === 'Ridhi Napkins Cotton 18 x 18 Inch Print Thanksgiving Black Friday - Blue' && (by.S6.after.match(/Thanksgiving/g) || []).length === 1, by.S6 && by.S6.after);
+    ok('a title already naming an in-season occasion gets the one season word, not that one twice, never a sale day', by.S6 && by.S6.after === 'Ridhi Napkins Cotton 18 x 18 Inch Print Thanksgiving Christmas - Blue' && (by.S6.after.match(/Thanksgiving/g) || []).length === 1, by.S6 && by.S6.after);
     ok('a listing with no template (not in the catalogue) is never asked to add a season word', by.S7 && by.S7.kind === 'none', by.S7 && by.S7.kind);
     ok('brand, size and colour are never lost in any suggestion', items.filter(item => /^S\d$/.test(item.sku) && item.after !== item.title).every(item => /^Ridhi/.test(item.after) && /18 x 18 Inch|60 x 90 Inch/.test(item.after) && / - (Blue|Red|Green|Orange)$/.test(item.after)));
     ok('no suggested title is over 75 letters (one that already was is never made longer)', items.every(item => item.after.length <= Math.max(75, item.title.length)));
     ok('in July nothing is on: nothing to add', C.spCompute(JUL).filter(item => item.kind === 'add').length === 0, C.spCompute(JUL).filter(item => item.kind === 'add').map(i => i.sku + ':' + i.why).join());
-    const soon = C.spCompute(JUL2).find(item => item.sku === 'S2');
-    ok('a season coming within 30 days shows as "can be added from …", nothing to send yet', soon && soon.kind === 'add' && soon.status === 'look' && /Labor Day can be added from 17 Aug/.test(soon.why), soon && (soon.status + ' ' + soon.why));
+    ok('a season coming within 30 days is not a card yet (the timeline says when it starts)', C.spCompute(JUL2).filter(item => item.kind === 'add').length === 0);
     ok('in May "Spring" is in season: nothing to remove', (s => s && s.remove.length === 0)(C.spCompute(MAY).find(item => item.sku === 'S1')));
   }
 
@@ -77,12 +76,12 @@ const napkin = color => ({ color, size: '18x18', subcat: 'Napkin Set' });
     C.reset();
     const items = C.spCompute(NOV);
     const by = Object.fromEntries(items.map(item => [item.sku, item]));
-    ok('a full title moves the words to the hidden search words, within their limit, words only, and the card says so', by.F1 && by.F1.after === full && /Thanksgiving/.test(by.F1.kwAfter) && C.lrKwBytes(by.F1.kwAfter) <= 249
-      && /The title is full, so we added .* to the hidden search words instead \(the safest place\)/.test(by.F1.note) && by.F1.status === 'ready', by.F1 && (by.F1.kwAfter + ' | ' + by.F1.note + ' | ' + by.F1.status + ' ' + by.F1.why));
+    ok('a full title moves the words to the hidden search words, within their limit, words only, and the card says so', by.F1 && by.F1.after === full && /Christmas/.test(by.F1.kwAfter) && !/Thanksgiving/.test(by.F1.kwAfter) && C.lrKwBytes(by.F1.kwAfter) <= 249
+      && /The title is full, so we added “Christmas” to the hidden search words instead \(the safest place\)/.test(by.F1.note) && by.F1.status === 'ready' && /Black Friday/.test(by.F1.kwAfter), by.F1 && (by.F1.kwAfter + ' | ' + by.F1.note + ' | ' + by.F1.status + ' ' + by.F1.why));
     ok('…what is sent then: the title and the hidden search words', by.F1 && C.spPatches(by.F1, by.F1.after).map(p => p.path).join() === '/attributes/item_name,/attributes/generic_keyword');
-    ok("a full title with full search words: ✕ Can't do safely, with the reason", by.F2 && by.F2.status === 'no' && /full too/.test(by.F2.why), by.F2 && by.F2.why);
+    ok('a full title with full search words and no word to replace: ✎ Fix by hand, with the reason, a hint and the suggestion kept', by.F2 && by.F2.status === 'fix' && /full too/.test(by.F2.why) && /Shorten the hidden search words by \d+ letters?, then add “Christmas”/.test(by.F2.hint) && /Christmas/.test(by.F2.kwAfter), by.F2 && (by.F2.status + ' ' + by.F2.why + ' | ' + by.F2.hint));
     ok('the words already in the search words: Up to date', by.F3 && by.F3.kind === 'ok', by.F3 && by.F3.kind);
-    ok("a listing Amazon could not read: ✕ with Amazon's reason, not stuck on Reading", by.F4 && by.F4.status === 'no' && /could not be read/.test(by.F4.why), by.F4 && (by.F4.status + ' ' + by.F4.why));
+    ok("a listing Amazon could not read: ✎ Fix by hand with Amazon's reason, never stuck on Reading", by.F4 && by.F4.status === 'fix' && /could not be read/.test(by.F4.why) && by.F4.hint, by.F4 && (by.F4.status + ' ' + by.F4.why));
     const row = by.F1.row;
     const ctx = C.hCtx();
     const chk = after => C.spChecks(full, after, row, ctx, NOV, { kwAfter: '', kwMax: 249 });
@@ -107,6 +106,54 @@ const napkin = color => ({ color, size: '18x18', subcat: 'Napkin Set' });
     ok("no code words on the screen: no 'bytes', 'attribute', 'detector', 'API' or 'VALIDATION'", !/bytes|attribute|detector|\bAPI\b|VALIDATION|generic_keyword|item_name/.test(C.spCardHtml(by.F1, 'page') + C.spCardHtml(by.F2, 'page')));
   }
 
+  console.log('== no dead ends: sale days, one season, making room, the three states ==');
+  {
+    const { C, put, live } = setup();
+    const T = {
+      G1: 'Ridhi Tablecloth Rectangle 100% Cotton 60 x 90 Inch Block Print Dining - Red',   // 76: full; "Rectangle" is what the size already tells
+      G2: 'Ridhi Cloth Napkins Cotton Cotton 18 x 18 Inch Block Print Dinner - Blue',        // 71: Christmas does not fit; "Cotton" twice
+      G3: 'Ridhi Cloth Napkins 100% Cotton 18 x 18 Inch Block Print Dinner Sets - Blue',    // 75: full; nothing to replace
+      G4: 'Ridhi Tablecloth 100% Cotton 60 x 90 Inch Block Print - Red',                    // short: the word goes in the title
+    };
+    Object.entries(T).forEach(([sku, title]) => put(sku, title));
+    const busy = 'cotton napkins dinner for the and party party tablecloth red blue easter spring kitchen home decor farmhouse ' + 'w'.repeat(150);   // over the limit once Christmas is added, full of waste
+    live('G1', T.G1, busy);
+    live('G2', T.G2, busy);
+    live('G3', T.G3, 'x'.repeat(246));
+    live('G4', T.G4, 'cotton');
+    C.setCat('SP', { G1: { color: 'Red', size: '60x90', subcat: 'Rectangle Tablecloth' }, G2: napkin('Blue'), G3: napkin('Blue'), G4: { color: 'Red', size: '60x90', subcat: 'Rectangle Tablecloth' } });
+    C.reset();
+    const items = C.spCompute(NOV);
+    const by = Object.fromEntries(items.map(item => [item.sku, item]));
+    ok('sale days are never in a title: Black Friday / Cyber Monday go only to the hidden search words', items.every(item => !/Black Friday|Cyber Monday/.test(item.after)) && /Black Friday/.test(by.G4.kwAfter), by.G4 && by.G4.kwAfter);
+    ok('one season only: the title gets Christmas, Thanksgiving is "Also possible"', by.G4.after === 'Ridhi Tablecloth 100% Cotton 60 x 90 Inch Block Print Christmas - Red' && by.G4.alts.map(e => e.ev.id).includes('thanksgiving'), by.G4.after);
+    C.SP.choice.set('SP|G4', 'thanksgiving');
+    const sw = C.spCompute(NOV).find(item => item.sku === 'G4');
+    ok('…one click switches the card to the other season', sw.after === 'Ridhi Tablecloth 100% Cotton 60 x 90 Inch Block Print Thanksgiving - Red' && sw.alts.map(e => e.ev.id).includes('christmas'), sw.after);
+    C.SP.choice.delete('SP|G4');
+    ok('a full title: the hidden search words are cleaned first (repeats, fillers, words the title says, out-of-season) and the card says what was removed',
+      by.G1.status === 'look' && /Removed \d+ words \(.*\) from the hidden search words to make room for “Christmas” \(now \d+ of 249\)/.test(by.G1.note) && /Christmas/.test(by.G1.kwAfter) && !/easter|spring/.test(by.G1.kwAfter) && !/\bfor\b|\bthe\b/.test(by.G1.kwAfter)
+      && by.G1.changes.some(c => c.what === 'Hidden search words'), by.G1 && (by.G1.status + ' | ' + by.G1.note + ' | ' + by.G1.kwAfter));
+    ok('…the search words still fit Amazon\'s limit after the clean-up', C.lrKwBytes(by.G1.kwAfter) <= 249);
+    // a title with no room and search words that cannot be cleaned enough: ONE low-value word is replaced, for the person's OK
+    live('G2', T.G2, 'x'.repeat(246));
+    live('G1', T.G1, 'x'.repeat(246));
+    C.reset();
+    const items2 = C.spCompute(NOV);
+    const b2 = Object.fromEntries(items2.map(item => [item.sku, item]));
+    ok('…else ONE low-value word is replaced in the title (a repeated word) — ⚠ Needs your OK, before → after shown', b2.G2.status === 'look' && b2.G2.after === 'Ridhi Cloth Napkins Cotton Christmas 18 x 18 Inch Block Print Dinner - Blue' && b2.G2.changes.some(c => c.what === 'Title' && /twice/.test(c.why)), b2.G2 && (b2.G2.status + ' ' + b2.G2.after + ' ' + b2.G2.why));
+    ok('…or a shape the size already tells ("Rectangle" with 60 x 90 Inch) — a 76-letter title is not made longer', b2.G1.status === 'look' && b2.G1.after === 'Ridhi Tablecloth Christmas 100% Cotton 60 x 90 Inch Block Print Dining - Red' && /size already says it/.test(b2.G1.note), b2.G1 && (b2.G1.status + ' ' + b2.G1.after + ' ' + b2.G1.why));
+    ok('brand, product, size, colour, material and pattern are never the word replaced', items2.filter(item => /^G\d$/.test(item.sku) && item.after !== item.title).every(item => /^Ridhi/.test(item.after) && /Cotton/.test(item.after) && /Block Print/.test(item.after) && /(60 x 90|18 x 18) Inch/.test(item.after) && / - (Red|Blue)$/.test(item.after)));
+    ok('no room anywhere: ✎ Fix by hand with the suggestion filled in (search words with Christmas, over the limit) and a one-line hint', b2.G3.status === 'fix' && /Shorten the hidden search words by \d+ letters?, then add “Christmas”/.test(b2.G3.hint) && /Christmas$/.test(b2.G3.kwAfter), b2.G3 && (b2.G3.status + ' ' + b2.G3.hint));
+    ok('every card has one main button for its state: Approve / Review and approve / Fix in Listing Errors — and Edit and Not now', [b2.G1, b2.G2, b2.G3, b2.G4].every(item => {
+      const h = C.spCardHtml(item, 'page');
+      const main = item.status === 'fix' ? /class="sp-main" data-sp-act="fixhand"[^>]*>Fix in Listing Errors</ : item.status === 'look' ? /class="sp-main" data-sp-act="approve"[^>]*>Review and approve</ : /class="sp-main" data-sp-act="approve"[^>]*>Approve</;
+      return main.test(h) && /data-sp-act="edit"/.test(h) && /data-sp-act="skip"/.test(h) && !/Can't do/.test(h) && (h.match(/class="sp-main"/g) || []).length === 1;
+    }), [b2.G1, b2.G2, b2.G3, b2.G4].map(i => i.sku + ':' + i.status).join());
+    ok('…the Fix by hand card shows ✎ Fix by hand with the reason and the hint, and still a suggestion', (h => /<i>✎<\/i>Fix by hand/.test(h) && /Fix by hand — the title is full/.test(h) && /Suggestion \(to finish in Listing Errors\)/.test(h))(C.spCardHtml(b2.G3, 'page')));
+    ok('"Add season words" counts only listings with a real season word to add (the sale days and coming seasons do not count)', items2.filter(item => /^G\d$/.test(item.sku) && item.add.length).length === 4 && items2.every(item => !item.add.some(e => /blackfriday|cybermonday/.test(e.ev.id))));
+  }
+
   console.log('== put old titles back, the confirm window, sending ==');
   {
     const before = 'Ridhi Cloth Napkins Cotton 18 x 18 Inch Block Print Dinner - Blue';
@@ -125,7 +172,7 @@ const napkin = color => ({ color, size: '18x18', subcat: 'Napkin Set' });
     const j1 = jan.find(item => item.sku === 'R1');
     const j2 = jan.find(item => item.sku === 'R2');
     ok('after the season: Put old titles back, with the original from the change record, ready to send', j1 && j1.kind === 'restore' && j1.after === before && j1.status === 'ready', j1 && (j1.kind + ' ' + j1.status + ' ' + j1.why));
-    ok('a record without the old title says so plainly, and cannot be sent', j2 && j2.kind === 'restore' && j2.status === 'no' && /old title was not kept/.test(j2.why), j2 && j2.why);
+    ok('a record without the old title says so plainly and offers the next best thing (the season word taken out) for the person\'s OK', j2 && j2.kind === 'restore' && (j2.status === 'look' || j2.status === 'fix') && /old title was not kept/.test(j2.note + j2.why), j2 && (j2.status + ' ' + j2.note + j2.why));
     ok('…and such a listing is not also in the Remove list', j1 && j1.remove.length === 0 && j2 && j2.remove.length === 0);
     C.SP.on = true;
     C.spApprove(['SP|R1']);
