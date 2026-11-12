@@ -1,7 +1,7 @@
 /* EVERY ERROR THE ERP CAN SHOW, for Meera: [the message's longest fixed piece, lower case; the screen it belongs to].
  * Read off the screens' own code (every red message line, and every rule a form checks before it saves), so when
  * someone pastes or asks about a message, Meera knows which screen it is from and why it happens (gaWhy in
- * guide-ask.ts). 620 messages. MADE BY meera/tools/make-errors.cjs — do not edit; when screens change, it is
+ * guide-ask.ts). 622 messages. MADE BY meera/tools/make-errors.cjs — do not edit; when screens change, it is
  * made again (her gate says so on every push). */
 const GUIDE_ERRS = [
   ["everything in both apps", ""],
@@ -287,6 +287,7 @@ const GUIDE_ERRS = [
   ["those requests are no longer waiting — somebody has answered them.", "so"],
   ["only the sales team (the sales orders tab) can answer a request.", "so"],
   ["say why these lines stay — production asked for a reason, and gets one back.", "so"],
+  ["sales orders are not loaded on this page", ""],
   ["that line is no longer on the order.", "ord"],
   ["which employment type?", "ord"],
   ["which karigar is it going to?", "ord"],
@@ -599,6 +600,7 @@ const GUIDE_ERRS = [
   ["put a quantity against at least one line you are sending now.", "vend"],
   ["only an admin can give a vendor portal access.", "vend"],
   ["no vendor in the vendor master has an email address or a cellphone, so there is nothing to", "vend"],
+  ["upload the sheet again for the rest — the saved ones are no longer open for that much.", ""],
   ["nothing to write — choose \"remove these\" to take the missing colours off the list.", "palloc"],
   ["no order number", "palloc"],
   ["tick what to delete.", "palloc"],
