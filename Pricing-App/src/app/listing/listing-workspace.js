@@ -1329,6 +1329,7 @@ function liWsPanelOpen(key) {
 // Close it: ×, Esc, a click outside, or the Workspace going away. Focus goes back to the parent's row when asked.
 function liWsPanelClose(returnFocus) {
   if (!LI_WS.panel) return;
+  if (typeof spPanelsClose === 'function') spPanelsClose('ws');   // a Season planner child opened from this panel goes with it
   const key = LI_WS.panel.key;
   LI_WS.panel = null;
   LI_WS.panelSig = null;
@@ -1879,7 +1880,7 @@ if (typeof document !== 'undefined' && document.addEventListener) {
   });
   document.addEventListener('mousedown', e => {
     if (!LI_WS.panel || (typeof TAB_NOW !== 'undefined' && TAB_NOW !== 'health') || !e.target || !e.target.closest) return;
-    if (e.target.closest('#lsPanel,[data-li-ws-row],[data-li-ws-panel],.modal,.modalbox,#hModeSeg,#hRecheck')) return;
+    if (e.target.closest('#lsPanel,[data-li-ws-row],[data-li-ws-panel],.modal,.modalbox,#hModeSeg,#hRecheck,#spKid,#spPanel')) return;
     liWsPanelClose(false);
   });
 }

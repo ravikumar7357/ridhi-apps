@@ -95,15 +95,18 @@ const napkin = color => ({ color, size: '18x18', subcat: 'Napkin Set' });
     ok('a made-up word is a warning, not a block (the seller must make sure it is true)', (c => c && c.ok === 'warn' && /linen/i.test(c.t))(chk('Ridhi Linen Napkins 100% Cotton 18 x 18 Inch Block Print Dinner - Blue').find(c => c.k === 'fact')));
     const good = chk('Ridhi Cloth Napkins 100% Cotton 18 x 18 Inch Block Print Christmas - Blue');
     ok('the good suggestion passes every check: 75, 200, size, brand, colour, symbols, 3 times, season, nothing made up, search words', good.every(c => c.ok === true) && good.length === 10, good.filter(c => c.ok !== true).map(c => c.t).join(' | '));
-    ok('the card: Approve is disabled while a check fails, the reason is beside it; Edit, Copy and Not now are there', (() => {
+    ok('the child panel: the main button is disabled while a check fails, the reason is beside it; Edit and Not now are there', (() => {
       C.SP.edits.set('SP|F1', full + ' Extra');
-      const h = C.spCardHtml(by.F1, 'page');
+      const h = C.spKidHtml(by.F1, null);
       C.SP.edits.delete('SP|F1');
-      return /data-sp-act="approve" data-sp-key="SP\|F1" disabled/.test(h) && /sp-reason">the title is too long by 6 letters/.test(h) && /data-sp-act="skip"/.test(h) && /data-sp-act="edit"/.test(h) && /data-sp-act="copy"/.test(h);
+      return /data-sp-act="approve" data-sp-key="SP\|F1" disabled/.test(h) && /class="sp-reason">the title is too long by 6 letters/.test(h) && /data-sp-act="skip"/.test(h) && /data-sp-act="edit"/.test(h);
     })());
-    ok('…and enabled once they all pass; the card shows picture, name, SKU / ASIN small, Now on Amazon, Suggested, the letter count, ✓ Ready', (h => !/data-sp-act="approve" data-sp-key="SP\|F1" disabled/.test(h) && /class="ls-pic/.test(h) && /sp-card-t"><b/.test(h) && /ui-mono">F1</.test(h) && /Now on Amazon/.test(h) && /75 of 75/.test(h) && /<i>✓<\/i>Ready/.test(h))(C.spCardHtml(by.F1, 'page')), C.spCardHtml(by.F1, 'page').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').slice(0, 300));
-    ok('the changed words are marked: added green, removed red', C.spDiffHtml('Ridhi Napkins Spring Dinner - Blue', 'Ridhi Napkins Christmas Dinner - Blue') === 'Ridhi Napkins <del>Spring</del> <ins>Christmas</ins> Dinner - Blue', C.spDiffHtml('Ridhi Napkins Spring Dinner - Blue', 'Ridhi Napkins Christmas Dinner - Blue'));
-    ok("no code words on the screen: no 'bytes', 'attribute', 'detector', 'API' or 'VALIDATION'", !/bytes|attribute|detector|\bAPI\b|VALIDATION|generic_keyword|item_name/.test(C.spCardHtml(by.F1, 'page') + C.spCardHtml(by.F2, 'page')));
+    ok('…and enabled once they all pass: picture, Colour · Size · Pack, SKU small, the six cards top to bottom, [Fix — send to Amazon]', (h => !/data-sp-act="approve" data-sp-key="SP\|F1" disabled/.test(h) && /class="ls-pic/.test(h) && /Blue · 18 x 18 Inch/.test(h) && /<small>F1<\/small>/.test(h)
+      && /<h4>Problem<\/h4>[\s\S]*<h4>Why it matters<\/h4>[\s\S]*<h4>What we’ll do<\/h4>[\s\S]*<h4>What changes<\/h4>[\s\S]*<h4>Checks<\/h4>/.test(h) && />Fix — send to Amazon</.test(h)
+      && /Christmas is (coming|here) and this listing doesn't mention it/.test(h) && /Shoppers searching “christmas napkins” may not find it/.test(h) && /Add “Christmas” to the hidden search words\. The title stays the same/.test(h) && /✓ All 10 checks pass/.test(h))(C.spKidHtml(by.F1, null)),
+      C.spKidHtml(by.F1, null).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').slice(0, 400));
+    ok('…"What changes": + Added: Christmas; nothing removed', (h => /\+ Added: Christmas/.test(h) && !/− Removed/.test(h) && /Show full search words/.test(h))(C.spKidHtml(by.F1, null)));
+    ok("no code words on the screen: no 'bytes', 'attribute', 'detector', 'API' or 'VALIDATION'", !/bytes|attribute|detector|\bAPI\b|VALIDATION|generic_keyword|item_name/.test(C.spKidHtml(by.F1, null) + C.spKidHtml(by.F2, null) + C.spRowHtml(by.F1, false)));
   }
 
   console.log('== no dead ends: sale days, one season, making room, the three states ==');
@@ -145,12 +148,13 @@ const napkin = color => ({ color, size: '18x18', subcat: 'Napkin Set' });
     ok('…or a shape the size already tells ("Rectangle" with 60 x 90 Inch) — a 76-letter title is not made longer', b2.G1.status === 'look' && b2.G1.after === 'Ridhi Tablecloth Christmas 100% Cotton 60 x 90 Inch Block Print Dining - Red' && /size already says it/.test(b2.G1.note), b2.G1 && (b2.G1.status + ' ' + b2.G1.after + ' ' + b2.G1.why));
     ok('brand, product, size, colour, material and pattern are never the word replaced', items2.filter(item => /^G\d$/.test(item.sku) && item.after !== item.title).every(item => /^Ridhi/.test(item.after) && /Cotton/.test(item.after) && /Block Print/.test(item.after) && /(60 x 90|18 x 18) Inch/.test(item.after) && / - (Red|Blue)$/.test(item.after)));
     ok('no room anywhere: ✎ Fix by hand with the suggestion filled in (search words with Christmas, over the limit) and a one-line hint', b2.G3.status === 'fix' && /Shorten the hidden search words by \d+ letters?, then add “Christmas”/.test(b2.G3.hint) && /Christmas$/.test(b2.G3.kwAfter), b2.G3 && (b2.G3.status + ' ' + b2.G3.hint));
-    ok('every card has one main button for its state: Approve / Review and approve / Fix in Listing Errors — and Edit and Not now', [b2.G1, b2.G2, b2.G3, b2.G4].every(item => {
-      const h = C.spCardHtml(item, 'page');
-      const main = item.status === 'fix' ? /class="sp-main" data-sp-act="fixhand"[^>]*>Fix in Listing Errors</ : item.status === 'look' ? /class="sp-main" data-sp-act="approve"[^>]*>Review and approve</ : /class="sp-main" data-sp-act="approve"[^>]*>Approve</;
+    ok('every child panel has one main button for its state: Fix — send to Amazon / Approve this change / Open in Listing Errors — and Edit and Not now', [b2.G1, b2.G2, b2.G3, b2.G4].every(item => {
+      const h = C.spKidHtml(item, null);
+      const main = item.status === 'fix' ? /class="sp-main" data-sp-act="fixhand"[^>]*>Open in Listing Errors</ : item.status === 'look' ? /class="sp-main" data-sp-act="approve"[^>]*>Approve this change</ : /class="sp-main" data-sp-act="approve"[^>]*>Fix — send to Amazon</;
       return main.test(h) && /data-sp-act="edit"/.test(h) && /data-sp-act="skip"/.test(h) && !/Can't do/.test(h) && (h.match(/class="sp-main"/g) || []).length === 1;
     }), [b2.G1, b2.G2, b2.G3, b2.G4].map(i => i.sku + ':' + i.status).join());
-    ok('…the Fix by hand card shows ✎ Fix by hand with the reason and the hint, and still a suggestion', (h => /<i>✎<\/i>Fix by hand/.test(h) && /Fix by hand — the title is full/.test(h) && /Suggestion \(to finish in Listing Errors\)/.test(h))(C.spCardHtml(b2.G3, 'page')));
+    ok('…the By hand child says why and what to do, and Listing Errors opens with the suggestion filled in', (h => /✎<\/i>Fix by hand/.test(h) && /can't change this one safely by ourselves: the title is full/.test(h) && /Shorten the hidden search words by \d+ letters?, then add “Christmas”/.test(h) && /suggestion already filled in/.test(h))(C.spKidHtml(b2.G3, null)));
+    ok('…a title change shows ONLY the title before → after, the changed word marked', (h => /Title before<\/small><p>[^<]*<del>Cotton<\/del>/.test(h) && /Title after<\/small><p class="sp-change-after">[^<]*<ins>Christmas<\/ins>/.test(h) && !/\+ Added/.test(h))(C.spKidHtml(b2.G2, null)), C.spKidHtml(b2.G2, null).match(/Title before[\s\S]{0,400}/));
     ok('"Add season words" counts only listings with a real season word to add (the sale days and coming seasons do not count)', items2.filter(item => /^G\d$/.test(item.sku) && item.add.length).length === 4 && items2.every(item => !item.add.some(e => /blackfriday|cybermonday/.test(e.ev.id))));
   }
 
@@ -184,6 +188,67 @@ const napkin = color => ({ color, size: '18x18', subcat: 'Napkin Set' });
     ok('a season word that describes the product is not flagged by the checks either', C.spChecks('Ridhi Christmas Tablecloth 100% Cotton 60 x 90 Inch Block Print - Red', 'Ridhi Christmas Tablecloth 100% Cotton 60 x 90 Inch Block Print - Red', jan.H1.row, C.hCtx(), JAN, {}).every(c => c.k !== 'season' || c.ok === true));
   }
 
+  console.log('== three levels: parent cards, the parent panel, Fix all, the word difference ==');
+  {
+    const posts = [];
+    const { C, put, live } = setup({ post: body => { posts.push(body); return { ok: true, status: 'ACCEPTED', submissionId: 'sub-' + body.sku }; } });
+    // "Embroidery Napkin": 6 napkins under one parent — 4 Ready (the word fits the search words), 1 Needs your OK (a repeat in the title
+    // gives way), 1 By hand (no room anywhere); plus 2 up to date (they already say Christmas in the search words).
+    const mk = (sku, color, title, kw) => { put(sku, title, { parent: 'PEMB' }); live(sku, title, kw); };
+    const t = color => 'Ridhi Embroidery Cloth Napkins Cotton 18 x 18 Inch Set of 4 Dinner - ' + color;   // 72–74: Christmas does not fit in the title
+    mk('E1', 'Red', t('Red'), 'cotton');
+    mk('E2', 'Blue', t('Blue'), 'cotton');
+    mk('E3', 'Gold', t('Gold'), 'cotton');
+    mk('E4', 'Ivory', t('Ivory'), 'cotton');
+    mk('E5', 'Green', 'Ridhi Embroidery Napkins Cotton Cotton 18 x 18 Inch Set of 4 - Green', 'x'.repeat(246));   // 68: the repeat gives way
+    mk('E6', 'Pink', t('Pink'), 'x'.repeat(246));
+    mk('E7', 'Teal', t('Teal'), 'christmas napkins');
+    mk('E8', 'Navy', t('Navy'), 'christmas');
+    C.setCat('SP', Object.fromEntries(['E1', 'E2', 'E3', 'E4', 'E5', 'E6', 'E7', 'E8'].map((sku, i) => [sku, napkin(['Red', 'Blue', 'Gold', 'Ivory', 'Green', 'Pink', 'Teal', 'Navy'][i])])));
+    C.reset();
+    C.SP.today = NOV;
+    const g = C.spGroups(C.spCompute(NOV)).find(each => each.key === 'SP|PEMB');
+    ok('the parent: 8 listings, 6 to do — 4 Ready, 1 Needs your OK, 1 By hand', g && g.all.length === 8 && g.todo.length === 6 && g.ready.length === 4 && g.look.length === 1 && g.fix.length === 1, g && [g.all.length, g.todo.length, g.ready.length, g.look.length, g.fix.length].join());
+    const card = C.spParentCardHtml(g);
+    ok('the parent card: picture, name, "8 listings · 🎄 6 need “Christmas” · ⚠ 2 need you", Open ›, the whole card opens it', /8 listings · 🎄 6 need “Christmas” · <span class="sp-you">⚠ 2 need you<\/span>/.test(card) && /class="ls-pic/.test(card) && /Open ›/.test(card) && /role="button" tabindex="0" data-sp-act="open-parent"/.test(card), card.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' '));
+    const body = C.spParentBodyHtml(g, false);
+    ok('the parent panel: one sentence, three state cards with their counts and one button each', /Christmas is (coming|here)\.<\/b> 6 of these 8 napkins don't mention it yet\./.test(body)
+      && /Ready to fix<\/span><b>4<\/b>[\s\S]*We add “Christmas” safely\. Nothing else changes\.[\s\S]*data-sp-act="fix-all"[^>]*>Fix all 4</.test(body)
+      && /Needs your OK<\/span><b>1<\/b>[\s\S]*One word in the title would change\.[\s\S]*>Check them</.test(body)
+      && /Fix by hand<\/span><b>1<\/b>[\s\S]*No safe automatic change\.[\s\S]*data-sp-act="fixhand"[^>]*>Open in Listing Errors</.test(body), body.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').slice(0, 500));
+    ok('…the children as rows: Colour · Size · Pack, what we will do, the state chip, one button; 2 more up to date', (body.match(/class="sp-row /g) || []).length === 6 && /<b>Red · 18 x 18 Inch · Set of 4<\/b><span>Add “Christmas” to hidden search words<\/span>/.test(body)
+      && /<i aria-hidden="true">✓<\/i>Ready<\/span><button[^>]*data-sp-act="row-fix"[^>]*>Fix</.test(body) && /<i aria-hidden="true">⚠<\/i>OK\?<\/span><button[^>]*>Check</.test(body) && /2 more listings are up to date/.test(body), body.match(/class="sp-row [\s\S]{0,500}/));
+    ok('a state card with 0 is greyed with its button disabled', (h => /sp-sc is-fix is-zero[\s\S]*?disabled/.test(h))(C.spParentBodyHtml(Object.assign({}, g, { fix: [] }), false)));
+    // Fix all: ONLY the Ready ones are sent; Needs your OK never without its own approval
+    C.SP.on = true;
+    C.spApprove(g.ready.map(item => item.key));
+    const modal = C.el('spModalBox').innerHTML;
+    ok('Fix all → the confirm window lists the 4 Ready listings only, "You are about to change 4 listings on Amazon"', /You are about to change 4 listings on Amazon/.test(modal) && (modal.match(/class="sp-m-row"/g) || []).length === 4 && !/E5|E6/.test(modal), modal.slice(0, 200));
+    await C.spSendAll(g.ready.map(item => ({ item, after: item.after, patches: C.spPatches(item, item.after) })));
+    ok('…and only those 4 are sent; the one that needs your OK and the by-hand one are not', posts.length === 4 && posts.every(p => ['E1', 'E2', 'E3', 'E4'].includes(p.sku)), posts.map(p => p.sku).join());
+    const look = C.spCompute(NOV).find(item => item.sku === 'E5');
+    ok('Needs your OK is sent only through its own child panel ([Approve this change])', look.status === 'look' && />Approve this change</.test(C.spKidHtml(look, null)));
+    // the word difference: word sets, not positions
+    const d1 = C.spWordDiff('picnic red picnic picnic blanket', 'red blanket picnic christmas');
+    ok('the word difference: a word that only moved is not shown; never both added and removed; duplicates collapse ("picnic ×2")',
+      d1.added.map(x => x.w + 'x' + x.n).join() === 'christmasx1' && d1.removed.map(x => x.w + 'x' + x.n).join() === 'picnicx2' && !d1.added.some(x => d1.removed.some(y => y.k === x.k)), JSON.stringify(d1));
+    const d2 = C.spWordDiff('Ridhi Napkins Spring Dinner - Blue', 'Ridhi Napkins Dinner Christmas - Blue');
+    ok('…"Dinner" moved: not marked; Spring removed, Christmas added', d2.added.map(x => x.w).join() === 'Christmas' && d2.removed.map(x => x.w).join() === 'Spring' && C.spDiffHtml('Ridhi Napkins Spring Dinner - Blue', 'Ridhi Napkins Dinner Christmas - Blue') === 'Ridhi Napkins Dinner <ins>Christmas</ins> - Blue');
+    // a cleaned search-words change lists what went and why, each word once
+    const kwItem = Object.assign({}, look, { title: t('Red'), after: t('Red'), kw: 'cloth cloth napkins picnic picnic for spring', kwAfter: 'cloth picnic christmas', kwMax: 249 });
+    const ch = C.spKidHtml(kwItem, null);
+    ok('…"What changes" for the search words: + Added, − Removed with why (already in the title / repeated / filler / out of season)', /\+ Added: christmas/.test(ch) && /− Removed: napkins <span class="sp-dim">\(already in the title\)/.test(ch) && /− Removed: cloth, picnic <span class="sp-dim">\(repeated\)/.test(ch.replace(/<span class="sp-times">[^<]*<\/span>/g, '').replace(/ ×\d/g, '')) && /\(small filler words\)/.test(ch) && /\(out of season\)/.test(ch), ch.match(/What changes[\s\S]{0,700}/));
+    // the panels: open, Esc order (child first), ↑ ↓
+    C.spOpenParent('SP|PEMB');
+    ok('Open › opens the parent side panel', !C.el('spPanel').hidden && /Ridhi Embroidery|PEMB/.test(C.el('spPanel').innerHTML) && C.SP.panel.key === 'SP|PEMB');
+    C.spOpenKid('SP|E5', 'page');
+    ok('a row opens the child panel beside it (the parent panel stays open)', !C.el('spKid').hidden && !C.el('spPanel').hidden && C.SP.kid.key === 'SP|E5' && /Back to/.test(C.el('spKid').innerHTML));
+    C.spCloseKid(false);
+    ok('closing the child leaves the parent open (Esc closes the child first)', C.el('spKid').hidden && !C.el('spPanel').hidden && C.SP.panel && !C.SP.kid);
+    C.spCloseParent(false);
+    ok('…then the parent', C.el('spPanel').hidden && !C.SP.panel);
+  }
+
   console.log('== put old titles back, the confirm window, sending ==');
   {
     const before = 'Ridhi Cloth Napkins Cotton 18 x 18 Inch Block Print Dinner - Blue';
@@ -207,18 +272,18 @@ const napkin = color => ({ color, size: '18x18', subcat: 'Napkin Set' });
     C.SP.on = true;
     C.spApprove(['SP|R1']);
     const modal = C.el('spModalBox').innerHTML;
-    ok('Approve opens the confirm window in plain words: [Send 1 title] [Cancel], Amazon checks first, the old title can be put back',
-      /You are about to change 1 title on Amazon/.test(modal) && /Amazon checks each one first/.test(modal) && /You can put the old titles back after the season/.test(modal) && /id="spSendBtn">Send 1 title</.test(modal) && /id="spCancelBtn">Cancel</.test(modal), modal.slice(0, 300));
+    ok('Approve opens the confirm window in plain words: [Send 1 listing] [Cancel], Amazon checks first, the old words are kept',
+      /You are about to change 1 listing on Amazon/.test(modal) && /Amazon checks each one first/.test(modal) && /The old words are kept so you can put them back/.test(modal) && /id="spSendBtn">Send 1 listing</.test(modal) && /id="spCancelBtn">Cancel</.test(modal), modal.slice(0, 300));
     await C.spSendAll([{ item: j1, after: j1.after, patches: C.spPatches(j1, j1.after) }]);
     ok('the send goes through the existing path (POST lfix=patch, apply, the product kind, by the signed-in person): Amazon checks first', posts.length === 1 && posts[0].lfix === 'patch' && posts[0].apply === true && posts[0].productType === 'NAPKIN' && posts[0].patches[0].value[0].value === before && posts[0].by === 'test@example.com', JSON.stringify(posts[0] || {}).slice(0, 200));
-    ok('…the result says it in plain words', C.SP.result && C.SP.result.results[0].ok && /1 title sent\. Amazon usually shows them within a few hours/.test((C.spRender(), C.el('spPane').innerHTML)), C.el('spPane').innerHTML.slice(0, 200));
+    ok('…the result says it in plain words', C.SP.result && C.SP.result.results[0].ok && /✓ 1 sent<\/span>.*Amazon usually shows the changes within a few hours/.test((C.spRender(), C.el('spPane').innerHTML)), C.el('spPane').innerHTML.slice(0, 300));
     ok('…what was sent is recorded with the old title (kind: restore), and the title every screen now judges is the new one', C.SP.log[0].kind === 'restore' && C.SP.log[0].before.title === after && C.SP.log[0].after.title === before && C.LI_WS.live.SP.R1.title === before);
     const item2 = C.spCompute(JAN).find(item => item.sku === 'R2');
     await C.spSendAll([{ item: item2, after: item2.title + ' X', patches: C.spPatches(item2, item2.title + ' X') }]);
     ok("a title Amazon refuses is never silent: ✕ with Amazon's reason in plain words and what to do", C.SP.result && !C.SP.result.results[0].ok && /longer than Amazon allows/.test(C.SP.result.results[0].why) && /shorten the title/.test(C.SP.result.results[0].todo), JSON.stringify(C.SP.result));
     C.LI_WS.on = true; C.liWsRender();
     const p = C.LI_WS.byKey.get('SP|P1');
-    ok("the Workspace panel's Season tab draws the same cards for one parent", p && /sp-root sp-in-panel/.test(C.spPanelHtml(p)) && typeof C.spPanelCount(p) === 'number');
+    ok("the Workspace panel's Season tab draws the same parent body (sentence, state cards, rows) for one parent", p && /sp-root sp-in-panel/.test(C.spPanelHtml(p)) && typeof C.spPanelCount(p) === 'number');
   }
 
   console.log(`\n${pass} passed, ${fail} failed`);

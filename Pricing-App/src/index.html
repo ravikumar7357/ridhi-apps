@@ -2100,9 +2100,12 @@
   </div>
 
   <!-- The Season planner's confirm window and progress bar (listing/season-planner.js fills it). -->
-  <div id="spModal" class="modal hide" role="dialog" aria-modal="true" aria-label="Send titles">
+  <div id="spModal" class="modal hide" role="dialog" aria-modal="true" aria-label="Send changes">
     <div class="modalbox sp-modal" id="spModalBox"></div>
   </div>
+  <!-- The Season planner's side panels: one parent (#spPanel), one child (#spKid, also opened from the Workspace's Season tab). -->
+  <aside id="spPanel" class="sp-root sp-side sp-pp" role="dialog" aria-label="One product and its listings" tabindex="-1" hidden></aside>
+  <aside id="spKid" class="sp-root sp-side sp-kp" role="dialog" aria-label="One listing" tabindex="-1" hidden></aside>
 
   <div id="pnModal" class="modal hide">
     <div class="modalbox">

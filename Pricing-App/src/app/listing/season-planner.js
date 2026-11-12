@@ -12,8 +12,12 @@
  *       disabled until they all pass. Sending goes through the existing path (POST lfix=patch: Amazon checks the change first,
  *       then sends, and logs it), one listing at a time with a progress bar; what was sent is recorded with the OLD title in
  *       listingrules/seasonlog (the backend's own log keeps no old values), so "Put back" always knows the original.
- * Main functions: spCompute (every listing's plan), spPlan (one listing), spChecks (the ✓ list), spRender / spPanelHtml (the
- *                 screens), spApprove / spSendAll (the confirm window and the send), spAfterRead (redraw when reads land).
+ * Screens, three levels: the page (spRender: one card per parent), a parent's side panel (#spPanel, spParentPanelHtml — the sentence,
+ *       three state cards with one button each, the children as rows) and a child's side panel (#spKid, spKidHtml — Problem, Why it
+ *       matters, What we'll do, What changes, Checks, and the action bar). Esc closes the child first, then the parent.
+ * Main functions: spCompute (every listing's plan), spPlan (one listing), spChecks (the ✓ list), spWordDiff (word sets, not positions),
+ *                 spRender / spParentBodyHtml / spKidHtml / spPanelHtml (the screens), spApprove / spSendAll (the confirm window and the
+ *                 send), spAfterRead (redraw when reads land).
  */
 const SP_TITLE_MAX = 75;                 // Amazon asks for 75 or less (Item Highlights); the house rule too
 const SP_AMZ_MAX = 200;                  // Amazon's hard limit
@@ -68,6 +72,10 @@ let SP = {
   reading: new Set(),        // "brand|sku" queued for a content read from Amazon
   redrawT: 0,                // the debounced redraw for landed reads
   sending: null,             // { done, total, results } while titles are sent
+  panel: null,               // the parent side panel: { key: "brand|parent", filter: '' | 'look' | 'fix', ws }
+  kid: null,                 // the child side panel: { key: "brand|sku", from: 'page' | 'ws' }
+  kidOrder: [],              // the rows' order in the parent last drawn (↑ / ↓ in a child)
+  showDone: false,           // the up-to-date parents are showing
   result: null,              // the last send's result, shown until the next action
 };
 
@@ -271,6 +279,8 @@ function spPlan(row, ctx, today, log) {
             item.after = swap.title;
             item.note = `Replaced “${swap.removed}” with “${word}” in the title (${swap.why}).`;
             item.forceLook = true;
+            item.swapped = swap.removed;
+            item.swapWhy = swap.why;
             placed = 'swap';
           } else {
             const over = lrKwBytes(tryKw) - kwMax;
@@ -283,6 +293,7 @@ function spPlan(row, ctx, today, log) {
     }
   }
   if (!placed && word && !remove.length && item.after === title && (item.kwAfter == null || item.kwAfter === kw)) item.kind = 'none';
+  item.place = placed;                                 // title | kw | kw-has | swap | '' — where the season word went (the screens say it)
   return spFinish(item, ctx, today);
 }
 // Nothing changed: up to date. Else run the checks; a check that fails means "Fix by hand" (the suggestion goes to Listing Errors).
@@ -515,7 +526,7 @@ function spEnsureReads(items) {
 }
 // A read landed (listing-workspace.js calls this): the planner redraws, a little later and not while a title is being typed.
 function spAfterRead() {
-  if (!SP.on && !(typeof LI_WS !== 'undefined' && LI_WS.panel)) return;
+  if (!SP.on && !SP.kid && !(typeof LI_WS !== 'undefined' && LI_WS.panel)) return;
   ['SP', 'CPC'].forEach(brand => Object.keys(LI_WS.live[brand] || {}).forEach(sku => {
     const entry = LI_WS.live[brand][sku];
     if (entry && (entry.cAt || entry.cErr || entry.err)) SP.reading.delete(spKey(brand, sku));
@@ -525,164 +536,207 @@ function spAfterRead() {
     const active = typeof document !== 'undefined' ? document.activeElement : null;
     if (active && active.classList && active.classList.contains('sp-edit')) return spAfterRead();
     if (SP.on) spRender();
+    spPanelsRender();
+    if (typeof LI_WS !== 'undefined' && LI_WS.panel && LI_WS.panel.tab === 'season' && typeof liWsPanelRender === 'function') liWsPanelRender();
   }, 600);
 }
 
-/* ----- the screen on the Listing Optimiser ----- */
+/* ----- the screens: three levels — parent cards on the page, one parent's side panel, one child's side panel -----
+ * Written for a seller, not a developer: one sentence says what is going on, every card has ONE main button, every state is an icon
+ * and a word (never colour alone), and nothing is sent without the confirm window. */
 const SP_ICON = {
   pick: '<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>',
   check: '<svg viewBox="0 0 24 24"><path d="M4 12.5l5 5L20 7"/></svg>',
-  send: '<svg viewBox="0 0 24 24"><path d="M3 11.5 21 3l-7 18-2.5-7.5z"/></svg>',
-  add: '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
-  remove: '<svg viewBox="0 0 24 24"><path d="M5 12h14"/></svg>',
-  restore: '<svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 2.5-5.8"/><path d="M4 4v5h5"/></svg>',
-  ok: '<svg viewBox="0 0 24 24"><path d="M4 12.5l5 5L20 7"/></svg>',
+  fix: '<svg viewBox="0 0 24 24"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.5-2.5z"/></svg>',
 };
 const SP_LISTS = [
-  { k: 'add', t: 'Add season words', hint: 'The season is on and these titles do not say it yet', cls: 'is-add' },
-  { k: 'remove', t: 'Remove old season words', hint: 'These titles still name a season that is over', cls: 'is-rem' },
-  { k: 'restore', t: 'Put old titles back', hint: 'Season changes this planner sent whose season has ended', cls: 'is-res' },
-  { k: 'ok', t: 'Up to date', hint: 'Nothing to change for the seasons on now', cls: 'is-ok' },
+  { k: 'add', t: 'Add season words' },
+  { k: 'remove', t: 'Remove old season words' },
+  { k: 'restore', t: 'Put old titles back' },
 ];
-const SP_STATUS = {
-  ready: ['✓', 'Ready', 'is-ready'], look: ['⚠', 'Needs your OK', 'is-look'], fix: ['✎', 'Fix by hand', 'is-fix'],
-  reading: ['…', 'Reading from Amazon', 'is-reading'], ok: ['✓', 'Up to date', 'is-ok'],
+// Each state: its icon, its long word (cards, the child panel), its short word (the rows), its class.
+const SP_STATE = {
+  ready: { i: '✓', t: 'Ready to fix', s: 'Ready', cls: 'is-ready' },
+  look: { i: '⚠', t: 'Needs your OK', s: 'OK?', cls: 'is-look' },
+  fix: { i: '✎', t: 'Fix by hand', s: 'By hand', cls: 'is-fix' },
+  reading: { i: '…', t: 'Reading from Amazon', s: 'Reading', cls: 'is-reading' },
+  ok: { i: '✓', t: 'Up to date', s: 'Up to date', cls: 'is-ok' },
 };
-// The "How it works" strip: three steps with icons, a "?" that opens the short explanation, Hide that remembers.
+// A picture for each season, beside its name (the word is always there too).
+const SP_SEASON_ICON = { christmas: '🎄', thanksgiving: '🦃', halloween: '🎃', easter: '🐣', valentine: '❤️', newyear: '🎆', mother: '💐', father: '👔', july4: '🎆',
+  patrick: '☘️', memorial: '🎗️', labor: '🛠️', sp_spring: '🌸', sp_summer: '☀️', sp_fall: '🍂', sp_winter: '❄️' };
+const spSeasonIcon = id => SP_SEASON_ICON[id] || '📅';
+// Where today stands against a season, in words: "is coming" (before its day), "is here" (its day has passed, still in its window), "is over".
+function spSeasonWord(e) {
+  if (!e || !e.s) return '';
+  if (!e.s.inSeason) return 'is over';
+  const t = spToday();
+  return e.s.next && Date.UTC(t.getFullYear(), t.getMonth(), t.getDate()) < e.s.next.getTime() ? 'is coming' : 'is here';
+}
+// What a parent's products are called in a sentence: "napkins", "table runners", "pillow covers" (from the title template, else the catalogue).
+function spProducts(row) {
+  const tpl = lrTemplateFor(row, spCfg());
+  const cat = lrCatOf(row) || {};
+  let words = String((tpl && tpl.product) || cat.subcat || 'listing').toLowerCase().split(/\s+/).filter(Boolean);
+  if (words.length > 1 && /^(cloth|throw|rectangle|round|square)$/.test(words[0])) words = words.slice(1);
+  const last = words.pop();
+  words.push(/s$/.test(last) ? last : last + 's');
+  return words.join(' ');
+}
+// A child in the words a seller knows it by: Colour · Size · Pack — from the title (and the colour Amazon or the catalogue holds).
+function spFacts(item) {
+  const title = item.title || item.row.title || '';
+  const color = typeof lrColorOf === 'function' ? lrColorOf(item.row) : '';
+  const size = (hTitleSizes(title)[0] || {}).text || '';
+  const pack = (title.match(/\b(?:set|pack) of \d+\b|\b\d+\s*(?:pack|pcs|pieces)\b/i) || [])[0] || '';
+  return [color, size, pack ? pack.charAt(0).toUpperCase() + pack.slice(1) : ''].filter(Boolean).join(' · ') || item.name || item.sku;
+}
+const spPic = (brand, sku, big) => (typeof liWsPicHtml === 'function' ? liWsPicHtml(typeof liWsPicUrl === 'function' ? liWsPicUrl(brand, sku) : '', big) : '');
+// The season name a listing's change is about, and the season word still in its title.
+const spSeasonOf = item => (item.add[0] ? item.add[0] : null);
+const spOldWord = (item, e) => lrWords(e.ev.words).find(word => lrHas(item.title, word)) || e.ev.name;
+
+/* ----- the word difference: word SETS, not positions ----- */
+// { added: [{ w, n, k }], removed: [{ w, n, k, kept }] } — a word that only moved is in neither; a word is never in both; a word
+// whose count went down by 2 is one entry with n = 2 ("picnic ×2"). `kept`: the word is still there (a repeat taken out).
+function spWordDiff(from, to) {
+  const tok = text => String(text || '').split(/[\s,;]+/).map(word => word.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}']+$/gu, '')).filter(Boolean);
+  const count = list => { const m = new Map(); list.forEach(word => { const k = word.toLowerCase(); const e = m.get(k) || { w: word, n: 0 }; e.n++; m.set(k, e); }); return m; };
+  const a = count(tok(from));
+  const b = count(tok(to));
+  const added = [];
+  const removed = [];
+  b.forEach((e, k) => { const d = e.n - ((a.get(k) || {}).n || 0); if (d > 0) added.push({ w: e.w, n: d, k }); });
+  a.forEach((e, k) => { const d = e.n - ((b.get(k) || {}).n || 0); if (d > 0) removed.push({ w: e.w, n: d, k, kept: b.has(k) }); });
+  return { added, removed };
+}
+// "cloth, napkins ×2, block" — each word once, ×n when it went more than once.
+const spWordList = list => list.map(x => lrEsc(x.w) + (x.n > 1 ? ` <span class="sp-times">×${x.n}</span>` : '')).join(', ');
+// A text with the listed words marked (each as many times as it counts): ins for added, del for removed.
+function spMarkHtml(text, list, tag) {
+  const left = new Map(list.map(x => [x.k, x.n]));
+  return String(text || '').split(/(\s+)/).map(part => {
+    const k = part.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}']+$/gu, '').toLowerCase();
+    if (k && left.get(k) > 0) { left.set(k, left.get(k) - 1); return `<${tag}>${lrEsc(part)}</${tag}>`; }
+    return lrEsc(part);
+  }).join('');
+}
+// The new text with only the really new words marked.
+const spDiffHtml = (from, to) => spMarkHtml(to, spWordDiff(from, to).added, 'ins');
+
+/* ----- the groups: one per parent ----- */
+const spParentOf = item => item.row.parent || item.asin || item.sku;
+// Every parent in view (brand and search), with all its listings and the ones to do (the list and season filters, "Not now" left out).
+function spGroups(items) {
+  const q = SP.q.trim().toLowerCase();
+  const by = new Map();
+  items.forEach(item => {
+    if (SP.brand !== 'ALL' && item.brand !== SP.brand) return;
+    const parent = spParentOf(item);
+    const key = item.brand + '|' + parent;
+    let g = by.get(key);
+    if (!g) {
+      g = { key, brand: item.brand, parent, name: typeof parentName === 'function' ? parentName(item.brand, parent, item.row.title) : parent, all: [], todo: [], match: !q };
+      by.set(key, g);
+    }
+    g.all.push(item);
+    if (q && [item.sku, item.asin, item.name, parent, g.name].join(' ').toLowerCase().includes(q)) g.match = true;
+  });
+  const out = [];
+  by.forEach(g => {
+    if (!g.match) return;
+    g.todo = g.all.filter(item => spInList(item, SP.list) && (!SP.season || item.seasons.includes(SP.season)) && !spSkipped(item));
+    ['ready', 'look', 'fix', 'reading'].forEach(st => { g[st] = g.todo.filter(item => item.status === st); });
+    out.push(g);
+  });
+  return out;
+}
+const spGroupOf = key => spGroups(spCompute()).find(g => g.key === key) || null;
+// The season most of these listings need, with how many: { e, n } or null.
+function spTopSeason(list) {
+  const by = new Map();
+  list.forEach(item => { const e = spSeasonOf(item); if (e) by.set(e.ev.id, { e, n: ((by.get(e.ev.id) || {}).n || 0) + 1 }); });
+  return [...by.values()].sort((a, b) => b.n - a.n)[0] || null;
+}
+function spTopRemove(list) {
+  const by = new Map();
+  list.forEach(item => item.remove.forEach(e => by.set(e.ev.id, { e, n: ((by.get(e.ev.id) || {}).n || 0) + 1 })));
+  return [...by.values()].sort((a, b) => b.n - a.n)[0] || null;
+}
+
+/* ----- level 1: the page ----- */
 function spHowHtml() {
   let hidden = false;
   try { hidden = localStorage.getItem(SP_STORE_HELP) === '1'; } catch (e) { /* no storage */ }
   if (hidden) return '<div class="sp-how is-folded"><button type="button" class="sp-link" data-sp-act="help-show">How it works</button></div>';
   const step = (n, icon, t, s) => `<div class="sp-step"><span class="sp-step-n">${n}</span><span class="sp-step-i">${SP_ICON[icon]}</span><div><b>${t}</b><small>${s}</small></div></div>`;
-  return `<div class="sp-how" role="note"><div class="sp-steps">${step(1, 'pick', 'Pick a season', 'Click a season card or a list below')}${step(2, 'check', 'Check the new titles', 'Each card shows the title now and the new one, with its checks')}${step(3, 'send', 'Approve and send', 'Amazon checks each title first; the old one is always kept')}</div>`
+  return `<div class="sp-how" role="note"><div class="sp-steps">${step(1, 'pick', 'Pick a season', 'Click a season card below')}${step(2, 'check', 'Check', 'Open a product to see what would change')}${step(3, 'fix', 'Fix', 'Amazon checks each change first; the old words are kept')}</div>`
     + `<div class="sp-how-a"><button type="button" class="sp-q" data-sp-act="help-more" aria-expanded="${SP.helpOpen ? 'true' : 'false'}" aria-label="What does this do?">?</button><button type="button" class="sp-link" data-sp-act="help-hide">Hide</button></div>`
-    + (SP.helpOpen ? `<div class="sp-help">This page looks at every listing's title on Amazon and the season calendar in Listing Rules. When a season is on (for example Christmas from ${spDate(spEvents(spCfg(), spToday()).find(e => e.ev.id === 'christmas').s.from)}), it suggests adding that word to the titles of products that fit; when a season is over, it suggests taking the word out again. You read each suggestion, approve the ones you like, and Amazon checks every title before it goes live. Nothing is lost: the old title is kept, and “Put back” returns it after the season with one click.</div>` : '')
+    + (SP.helpOpen ? '<div class="sp-help">This page compares every listing with the season calendar in Listing Rules. When a season is on, it suggests adding its name where shoppers will find it — in the title when there is room, otherwise in the hidden search words. When a season is over, it suggests taking its word out again. You open a product, look at what would change, and press Fix. Amazon checks every change before it goes live, and the old words are kept so you can put them back after the season.</div>' : '')
     + '</div>';
 }
-// The meta line, like the Ad Console's: what is on, when Amazon was read, when the full refresh was.
-function spMetaHtml(items) {
-  const now = Date.now();
-  const read = typeof liWsNewestRead === 'function' ? liWsNewestRead(['SP', 'CPC']) : 0;
-  const ats = ['SP', 'CPC'].map(b => (HEALTH[b] && HEALTH[b].at ? HEALTH[b].at.getTime() : 0)).filter(Boolean);
-  const ago = ms => (typeof liWsAgoWords === 'function' ? liWsAgoWords(ms) : Math.round(ms / 3600000) + ' h ago');
-  const onNow = spEvents(spCfg(), spToday()).filter(e => e.s.inSeason && !e.ev.removeOnly).map(e => e.ev.name);
-  const reading = SP.reading.size ? ` · <span class="sp-reading">Reading your listings… ${spNf(SP.reading.size)} left</span>` : '';
-  return `<div class="sp-meta"><span><b>Season planner</b> · today ${spDate(spToday(), true)} · on now: ${onNow.length ? lrEsc(onNow.join(', ')) : 'no occasion'}${reading}</span>`
-    + `<span>Amazon read ${read ? ago(now - read) : 'not yet'} · Full refresh ${ats.length ? ago(now - Math.min(...ats)) : 'never'} · ${spNf(items.length)} listings</span></div>`;
+// One sentence for today: what is coming, and how many parents it touches.
+function spTodayHtml(groups) {
+  const todo = groups.flatMap(g => g.todo);
+  const top = spTopSeason(todo);
+  if (top) {
+    const n = groups.filter(g => g.todo.some(item => spSeasonOf(item) && spSeasonOf(item).ev.id === top.e.ev.id)).length;
+    return `<p class="sp-today">${spSeasonIcon(top.e.ev.id)} <b>${lrEsc(top.e.ev.name)} ${spSeasonWord(top.e)}.</b> ${spNf(n)} parent${n === 1 ? ' has' : 's have'} listings that don't mention it yet.</p>`;
+  }
+  const rem = spTopRemove(todo);
+  if (rem) {
+    const n = groups.filter(g => g.todo.some(item => item.remove.some(e => e.ev.id === rem.e.ev.id))).length;
+    return `<p class="sp-today">${spSeasonIcon(rem.e.ev.id)} <b>${lrEsc(rem.e.ev.name)} is over.</b> ${spNf(n)} parent${n === 1 ? ' still has' : 's still have'} listings that mention it.</p>`;
+  }
+  const back = todo.filter(item => item.kind === 'restore').length;
+  if (back) return `<p class="sp-today">↺ <b>A season is over.</b> ${spPlural(back, 'listing')} can go back to ${back === 1 ? 'its' : 'their'} old title.</p>`;
+  const next = spEvents(spCfg(), spToday()).filter(e => !e.ev.removeOnly && !e.s.inSeason && e.s.from && spDays(e.s.from, spToday()) < 0).sort((a, b) => a.s.from - b.s.from)[0];
+  return `<p class="sp-today">✓ <b>No season changes needed right now.</b>${next ? ` The next season, ${lrEsc(next.ev.name)}, starts on ${spDate(next.s.from)}.` : ''}</p>`;
 }
 // Season timeline: one card per season in date order; "Add from" and "Remove after", today's place, how many listings it touches.
 function spTimelineHtml(items) {
   const today = spToday();
-  const events = spEvents(spCfg(), today).filter(e => e.s.next).sort((a, b) => a.s.next - b.s.next);
-  const touches = id => items.filter(item => item.seasons.includes(id) && item.kind !== 'ok' && !spSkipped(item)).length;
+  const events = spEvents(spCfg(), today).filter(e => e.s.next && !spIsSale(e.ev)).sort((a, b) => a.s.next - b.s.next);
+  const touches = id => items.filter(item => item.seasons.includes(id) && item.kind !== 'ok' && item.kind !== 'none' && !spSkipped(item) && (SP.brand === 'ALL' || item.brand === SP.brand)).length;
   return '<div class="sp-tl" role="group" aria-label="Seasons">' + events.map(e => {
-    const n = touches(e.ev.id);   // listings whose plan names this season (title or hidden search words)
+    const n = touches(e.ev.id);
     const startsIn = e.s.from ? -spDays(e.s.from, today) : 0;
     const state = e.s.inSeason ? 'is-now' : startsIn > 0 && startsIn <= SP_SOON_DAYS ? 'is-soon' : '';
     const when = e.s.inSeason ? `On now · until ${spDate(e.s.to)}` : startsIn > 0 ? `Starts in ${spPlural(startsIn, 'day')}` : 'Over';
     return `<button type="button" class="sp-tlc ${state}${SP.season === e.ev.id ? ' is-on' : ''}${e.ev.removeOnly ? ' is-plain' : ''}" data-sp-act="season" data-sp-id="${lrEsc(e.ev.id)}" aria-pressed="${SP.season === e.ev.id}">`
-      + `<b>${lrEsc(e.ev.name)}</b><span class="sp-tlw">${lrEsc(when)}</span>`
+      + `<b>${spSeasonIcon(e.ev.id)} ${lrEsc(e.ev.name)}</b><span class="sp-tlw">${lrEsc(when)}</span>`
       + `<span class="sp-tld">${e.ev.removeOnly ? 'Remove after' : 'Add from'} <b>${spDate(e.ev.removeOnly ? e.s.to : e.s.from)}</b>${e.ev.removeOnly ? '' : ` · Remove after <b>${spDate(e.s.to)}</b>`}</span>`
       + `<span class="sp-tln">${n ? spPlural(n, 'listing') : 'nothing to do'}</span></button>`;
   }).join('') + '</div>';
 }
-// The four number cards: Add · Remove · Put back · Up to date — a one-line hint each, click to filter.
-function spBoxesHtml(counts) {
-  return '<div class="sp-boxes">' + SP_LISTS.map(list => `<div class="sp-box ${list.cls}${SP.list === list.k ? ' is-on' : ''}"><button type="button" class="sp-box-main" data-sp-act="list" data-sp-list="${list.k}" aria-pressed="${SP.list === list.k}">`
-    + `<span class="sp-l"><span class="sp-ic">${SP_ICON[list.k === 'ok' ? 'ok' : list.k === 'remove' ? 'remove' : list.k]}</span>${list.t}</span><span class="sp-v"><b>${spNf(counts[list.k] || 0)}</b></span><span class="sp-note">${list.hint}</span></button></div>`).join('') + '</div>';
+// One parent card: picture, name, one line — "36 listings · 🎄 30 need “Christmas” · ⚠ 2 need you" — and Open ›. The whole card opens it.
+function spParentLine(g) {
+  const parts = [spPlural(g.all.length, 'listing')];
+  if (!g.todo.length) return parts.concat(['<span class="sp-ok">✓ Up to date</span>']).join(' · ');
+  const top = spTopSeason(g.todo);
+  if (top) parts.push(`${spSeasonIcon(top.e.ev.id)} ${spNf(top.n)} need “${lrEsc(top.e.ev.name)}”`);
+  const rem = spTopRemove(g.todo);
+  if (rem) parts.push(`${spSeasonIcon(rem.e.ev.id)} ${spNf(rem.n)} still say “${lrEsc(rem.e.ev.name)}”`);
+  const back = g.todo.filter(item => item.kind === 'restore').length;
+  if (back) parts.push(`↺ ${spNf(back)} can go back`);
+  const you = g.look.length + g.fix.length;
+  if (you) parts.push(`<span class="sp-you">⚠ ${spNf(you)} need${you === 1 ? 's' : ''} you</span>`);
+  if (g.reading.length) parts.push(`<span class="sp-wait">… ${spNf(g.reading.length)} being read</span>`);
+  return parts.join(' · ');
 }
-// One listing card: picture + name, the title now and the suggested one with the changed words marked, the letter count, the checks,
-// ONE main button for its state (✓ Ready → Approve · ⚠ Needs your OK → Review and approve · ✎ Fix by hand → Fix in Listing Errors),
-// then Edit, Copy and Not now. Never a dead end: a card always has a suggestion and a button.
-function spCardHtml(item, where) {
-  const st = SP_STATUS[item.status] || SP_STATUS.look;
-  const editing = SP.editing.has(item.key);
-  const typed = SP.edits.has(item.key) ? SP.edits.get(item.key) : null;
-  const after = typed != null ? typed : item.after;
-  const checks = typed != null ? spChecks(item.title, typed, item.row, hCtx(), spToday(), { kwAfter: item.kwAfter, kwMax: item.kwMax }) : item.checks;
-  const bad = checks.find(check => check.ok === false);
-  const pic = typeof liWsPicHtml === 'function' ? liWsPicHtml(typeof liWsPicUrl === 'function' ? liWsPicUrl(item.brand, item.sku) : '', false) : '';
-  const what = item.kind === 'restore' ? 'Put the old title back' : item.kind === 'ok' || item.kind === 'none' ? 'Up to date'
-    : [item.remove.length ? `Remove ${lrEsc(item.remove.map(e => e.ev.name).join(', '))}` : '', item.add.length ? `Add ${lrEsc(item.add[0].ev.name)}` : ''].filter(Boolean).join(' · ');
-  const head = `<div class="sp-card-h">${pic}<div class="sp-card-t"><b title="${lrEsc(item.name)}">${lrEsc(item.name || item.sku)}</b><small><span class="ui-mono">${lrEsc(item.sku)}</span> · <span class="ui-mono">${lrEsc(item.asin || '—')}</span> · ${lrEsc(BRAND_NAME[item.brand] || item.brand)}</small></div>`
-    + `<span class="sp-st ${st[2]}" title="${lrEsc(item.why)}"><i>${st[0]}</i>${st[1]}</span></div>`;
-  if (item.kind === 'ok' || item.kind === 'none') {
-    return `<div class="sp-card is-ok" data-sp-card="${lrEsc(item.key)}">${head}<div class="sp-now"><small>Now on Amazon</small><div>${lrEsc(item.title)}</div></div><div class="sp-okline">✓ Nothing to change for the seasons on now.</div></div>`;
-  }
-  const alts = item.alts && item.alts.length ? `<span class="sp-alts">Also possible: ${item.alts.map(e => `<button type="button" class="sp-link" data-sp-act="choose" data-sp-key="${lrEsc(item.key)}" data-sp-id="${lrEsc(e.ev.id)}">${lrEsc(e.ev.name)}</button>`).join(', ')}</span>` : '';
-  const diff = spDiffHtml(item.title, after);
-  const kwLine = item.kwAfter != null && item.kwAfter !== item.kw ? `<div class="sp-kw"><small>Hidden search words</small><div>${spDiffHtml(item.kw || '', item.kwAfter)}</div><span class="sp-cnt${lrKwBytes(item.kwAfter) > item.kwMax ? ' is-over' : ''}">${spNf(lrKwBytes(item.kwAfter))} of ${spNf(item.kwMax)}</span></div>` : '';
-  const changes = item.status === 'look' && item.changes.length ? `<div class="sp-changes"><b>What changes</b>${item.changes.map(c => `<div class="sp-change"><span>${lrEsc(c.what)}</span><div class="sp-change-d">${spDiffHtml(c.from, c.to)}</div>${c.why ? `<small>${lrEsc(c.why)}</small>` : ''}</div>`).join('')}</div>` : '';
-  const checksHtml = checks.length ? `<ul class="sp-checks">${checks.map(check => `<li class="sp-chk ${check.ok === true ? 'is-ok' : check.ok === false ? 'is-no' : 'is-warn'}"><i>${check.ok === true ? '✓' : check.ok === false ? '✕' : '⚠'}</i>${lrEsc(check.t)}</li>`).join('')}</ul>` : '';
-  const edit = editing ? `<div class="sp-editbox"><label>Your title<textarea class="sp-edit" data-sp-key="${lrEsc(item.key)}" rows="2" aria-label="Edit the title">${lrEsc(after)}</textarea></label><span class="sp-cnt" data-sp-cnt="${lrEsc(item.key)}">${after.length} of ${SP_TITLE_MAX} letters</span></div>` : '';
-  const fixLine = item.status === 'fix' ? `<div class="sp-fixline">✎ Fix by hand — ${lrEsc(item.why)}.${item.hint ? ` <b>${lrEsc(item.hint)}</b>` : ''}</div>` : '';
-  const reading = item.status === 'reading' ? `<div class="sp-note-l">${lrEsc(item.why)}…</div>` : '';
-  const canSend = (item.status === 'ready' || item.status === 'look') && !bad && !!item.pt && !SP.sending && spChanges(item, after);
-  let main;
-  if (item.status === 'fix') main = `<button type="button" class="sp-main" data-sp-act="fixhand" data-sp-key="${lrEsc(item.key)}">Fix in Listing Errors</button>`;
-  else if (item.status === 'reading') main = '<button type="button" class="sp-main" disabled>Reading…</button>';
-  else main = `<button type="button" class="sp-main" data-sp-act="approve" data-sp-key="${lrEsc(item.key)}"${canSend ? '' : ' disabled'}>${item.kind === 'restore' ? (item.status === 'look' ? 'Review and put back' : 'Put back') : item.status === 'look' ? 'Review and approve' : 'Approve'}</button>`;
-  const reason = (item.status === 'ready' || item.status === 'look') && !canSend ? (bad ? bad.why || bad.t : !item.pt ? 'Reading this listing from Amazon first' : '') : '';
-  const actions = `<div class="sp-actions">${main}`
-    + `<button type="button" class="sp-btn" data-sp-act="edit" data-sp-key="${lrEsc(item.key)}" aria-pressed="${editing}">${editing ? 'Done editing' : 'Edit'}</button>`
-    + `<button type="button" class="sp-btn" data-sp-act="copy" data-sp-key="${lrEsc(item.key)}">Copy</button>`
-    + `<button type="button" class="sp-btn sp-quiet" data-sp-act="skip" data-sp-key="${lrEsc(item.key)}" title="Hide this suggestion for this season, in this browser">Not now</button>`
-    + (reason ? `<span class="sp-reason">${lrEsc(reason)}</span>` : '') + '</div>';
-  const sugLabel = item.kind === 'restore' ? 'Old title to put back' : item.status === 'fix' ? 'Suggestion (to finish in Listing Errors)' : 'Suggested';
-  return `<div class="sp-card ${st[2]}" data-sp-card="${lrEsc(item.key)}">${head}<div class="sp-what">${what}${alts}</div>`
-    + `<div class="sp-now"><small>Now on Amazon</small><div>${lrEsc(item.title || '(no title saved yet)')}</div><span class="sp-cnt">${item.title.length} of ${SP_TITLE_MAX}</span></div>`
-    + `<div class="sp-sug"><small>${sugLabel}</small><div>${diff || '<span class="ui-dim">—</span>'}</div><span class="sp-cnt${after.length > SP_TITLE_MAX ? ' is-over' : ''}">${after.length} of ${SP_TITLE_MAX} letters</span></div>`
-    + kwLine + (item.note ? `<div class="sp-note-l">${lrEsc(item.note)}</div>` : '') + fixLine + reading + changes + edit + checksHtml + actions + '</div>';
+function spParentCardHtml(g) {
+  const open = SP.panel && SP.panel.key === g.key;
+  return `<div class="card sp-pc${open ? ' is-open' : ''}${g.todo.length ? '' : ' is-done'}" role="button" tabindex="0" data-sp-act="open-parent" data-sp-group="${lrEsc(g.key)}" aria-label="Open ${lrEsc(g.name)}">`
+    + `${spPic(g.brand, (g.todo[0] || g.all[0]).sku, false)}<div class="sp-pc-t"><b title="${lrEsc(g.name)}">${lrEsc(g.name)}</b><span>${spParentLine(g)}</span></div>`
+    + '<span class="sp-pc-open" aria-hidden="true">Open ›</span></div>';
 }
-// The changed words marked in place: taken out = red strikethrough, put in = green.
-function spDiffHtml(from, to) {
-  const a = String(from || '').split(/\s+/).filter(Boolean);
-  const b = String(to || '').split(/\s+/).filter(Boolean);
-  const count = list => { const n = {}; list.forEach(word => { const k = word.toLowerCase(); n[k] = (n[k] || 0) + 1; }); return n; };
-  const inA = count(a);
-  const inB = count(b);
-  const out = [];
-  let i = 0;
-  let j = 0;
-  while (i < a.length || j < b.length) {
-    const wa = a[i] ? a[i].toLowerCase() : null;
-    const wb = b[j] ? b[j].toLowerCase() : null;
-    if (wa !== null && wb !== null && wa === wb) { out.push(lrEsc(b[j])); i++; j++; continue; }
-    if (wa !== null && !(inB[wa] > 0)) { out.push(`<del>${lrEsc(a[i])}</del>`); i++; continue; }
-    if (wb !== null && !(inA[wb] > 0)) { out.push(`<ins>${lrEsc(b[j])}</ins>`); j++; continue; }
-    if (wa !== null) { inB[wa]--; out.push(`<del>${lrEsc(a[i])}</del>`); i++; }
-    if (wb !== null) { inA[wb]--; out.push(`<ins>${lrEsc(b[j])}</ins>`); j++; }
-  }
-  return out.join(' ');
-}
-// The listings in view, grouped by parent in the order the snapshot has them.
-function spGroups(items) {
-  const by = new Map();
-  items.forEach(item => {
-    const parent = item.row.parent || item.asin || item.sku;
-    const key = item.brand + '|' + parent;
-    const group = by.get(key) || { key, brand: item.brand, parent, name: typeof parentName === 'function' ? parentName(item.brand, parent, item.row.title) : parent, items: [], all: 0 };
-    group.items.push(item);
-    by.set(key, group);
-  });
-  return [...by.values()];
-}
-function spFilter(items) {
-  const q = SP.q.trim().toLowerCase();
-  return items.filter(item => (SP.brand === 'ALL' || item.brand === SP.brand)
-    && spInList(item, SP.list)
-    && (!SP.season || item.seasons.includes(SP.season))
-    && (!q || [item.sku, item.asin, item.name, item.row.parent].join(' ').toLowerCase().includes(q))
-    && !(SP.list !== 'ok' && spSkipped(item)));
-}
-// The whole planner.
+// The whole page.
 function spRender() {
   const box = $('spPane');
   if (!box || !SP.on) return;
   if (SP.loading || !H_LOADED) {
-    box.innerHTML = spHowHtml() + '<div class="sp-meta"><span><b>Season planner</b> · <span class="sp-reading">Reading your listings…</span></span></div>'
-      + '<div class="sp-boxes">' + SP_LISTS.map(() => '<div class="sp-box is-skel"><span class="sp-skel is-s"></span><span class="sp-skel"></span></div>').join('') + '</div>'
-      + '<div class="card sp-list">' + Array.from({ length: 5 }, () => '<div class="sp-skel-row"><span class="sp-skel is-pic"></span><span class="sp-skel is-w"></span><span class="sp-skel is-s"></span></div>').join('') + '</div>';
+    box.innerHTML = spHowHtml() + '<p class="sp-today"><span class="sp-reading">Reading your listings…</span></p>'
+      + '<div class="sp-list">' + Array.from({ length: 6 }, () => '<div class="card sp-pc is-skel"><span class="sp-skel is-pic"></span><span class="sp-skel is-w"></span><span class="sp-skel is-s"></span></div>').join('') + '</div>';
     return;
   }
   if (SP.loadErr) {
@@ -691,56 +745,298 @@ function spRender() {
   }
   const items = spCompute();
   spEnsureReads(items.filter(item => SP.brand === 'ALL' || item.brand === SP.brand));
+  const groups = spGroups(items);
+  const todo = groups.filter(g => g.todo.length).sort((a, b) => (b.todo.length - a.todo.length) || a.name.localeCompare(b.name));
+  const done = groups.filter(g => !g.todo.length).sort((a, b) => a.name.localeCompare(b.name));
+  const page = todo.slice(0, SP.shown);
   const counts = {};
-  items.forEach(item => SP_LISTS.forEach(list => { if (spInList(item, list.k) && (list.k === 'ok' || !spSkipped(item))) counts[list.k] = (counts[list.k] || 0) + 1; }));
-  const shown = spFilter(items);
-  const groups = spGroups(shown);
-  const page = groups.slice(0, SP.shown);
-  const ready = shown.filter(item => item.status === 'ready' && !SP.sending);
-  const chips = '<div class="sp-chips">' + [['all', 'Everything to do']].concat(SP_LISTS.map(list => [list.k, list.t])).map(([k, t]) => `<button type="button" class="sp-chip${SP.list === k ? ' is-on' : ''}" data-sp-act="list" data-sp-list="${k}" aria-pressed="${SP.list === k}">${t}<span class="sp-n">${spNf(k === 'all' ? (counts.add || 0) + (counts.remove || 0) + (counts.restore || 0) : counts[k] || 0)}</span></button>`).join('')
-    + (SP.season ? `<button type="button" class="sp-chip is-on" data-sp-act="season" data-sp-id="" aria-pressed="true">${lrEsc((spEvents(spCfg(), spToday()).find(e => e.ev.id === SP.season) || { ev: { name: SP.season } }).ev.name)} ✕</button>` : '') + '</div>';
-  const toolbar = `<div class="card sp-tb"><select class="sp-sel" data-sp-act="brand" aria-label="Brand"><option value="ALL"${SP.brand === 'ALL' ? ' selected' : ''}>Both brands</option><option value="SP"${SP.brand === 'SP' ? ' selected' : ''}>${lrEsc(BRAND_NAME.SP || 'SP')}</option><option value="CPC"${SP.brand === 'CPC' ? ' selected' : ''}>${lrEsc(BRAND_NAME.CPC || 'CPC')}</option></select>`
-    + `<label class="sp-search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="spQ" value="${lrEsc(SP.q)}" placeholder="Search name, SKU or ASIN" aria-label="Search"></label><span class="sp-spacer"></span>`
-    + `<button type="button" class="sp-main sp-big" data-sp-act="approve-all"${ready.length ? '' : ' disabled'}>Approve all ${spNf(ready.length)} ready</button></div>`;
-  const next = spEvents(spCfg(), spToday()).filter(e => !e.ev.removeOnly && !e.s.inSeason && e.s.from && spDays(e.s.from, spToday()) < 0).sort((a, b) => a.s.from - b.s.from)[0];
-  const empty = !shown.length ? `<div class="card sp-empty"><b>${SP.list === 'ok' ? 'No listing is up to date yet.' : SP.q || SP.season || SP.list !== 'all' ? 'Nothing here with these filters.' : 'No season changes needed right now.'}</b><br>`
-    + (SP.q || SP.season || (SP.list !== 'all' && SP.list !== 'ok') ? 'Clear the search or the filters above to see everything.' : next ? `The next season, ${lrEsc(next.ev.name)}, starts adding on ${spDate(next.s.from)}.` : '') + '</div>' : '';
-  const groupHtml = page.map(group => {
-    const readyN = group.items.filter(item => item.status === 'ready').length;
-    return `<section class="card sp-group" aria-label="${lrEsc(group.name)}"><div class="sp-group-h">${typeof liWsPicHtml === 'function' ? liWsPicHtml(typeof liWsPicUrl === 'function' ? liWsPicUrl(group.brand, group.items[0].sku) : '', false) : ''}<div class="sp-group-t"><b>${lrEsc(group.name)}</b><small><span class="ui-mono">${lrEsc(group.parent)}</span> · ${lrEsc(BRAND_NAME[group.brand] || group.brand)} · ${spPlural(group.items.length, 'listing')} to look at</small></div>`
-      + (readyN > 1 ? `<button type="button" class="sp-btn" data-sp-act="approve-group" data-sp-group="${lrEsc(group.key)}">Approve all ${spNf(readyN)}</button>` : '') + '</div>'
-      + group.items.map(item => spCardHtml(item, 'page')).join('') + '</section>';
-  }).join('');
-  const more = groups.length > page.length ? `<div class="sp-foot"><span>${spNf(page.length)} of ${spNf(groups.length)} parents</span><button type="button" class="sp-btn" data-sp-act="more">Show ${spNf(Math.min(SP_PAGE, groups.length - page.length))} more</button></div>` : '';
-  const result = SP.result ? spResultHtml(SP.result) : '';
-  box.innerHTML = spHowHtml() + spMetaHtml(items) + toolbar + spBoxesHtml(counts) + spTimelineHtml(items) + chips + result + empty + groupHtml + more;
+  items.forEach(item => { if ((SP.brand === 'ALL' || item.brand === SP.brand) && !spSkipped(item)) SP_LISTS.forEach(list => { if (spInList(item, list.k)) counts[list.k] = (counts[list.k] || 0) + 1; }); });
+  const all = (counts.add || 0) + (counts.remove || 0) + (counts.restore || 0);
+  const toolbar = `<div class="card sp-tb"><div class="sp-seg" role="group" aria-label="Brand">${[['ALL', 'Both brands'], ['SP', BRAND_NAME.SP || 'SP'], ['CPC', BRAND_NAME.CPC || 'CPC']].map(([v, t]) => `<button type="button" class="${SP.brand === v ? 'on' : ''}" data-sp-act="brand" data-sp-brand="${v}" aria-pressed="${SP.brand === v}">${lrEsc(t)}</button>`).join('')}</div>`
+    + `<label class="sp-search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="spQ" value="${lrEsc(SP.q)}" placeholder="Search a product, SKU or ASIN" aria-label="Search"></label></div>`;
+  const chips = '<div class="sp-chips">' + [['all', 'Everything to do', all]].concat(SP_LISTS.map(list => [list.k, list.t, counts[list.k] || 0])).map(([k, t, n]) => `<button type="button" class="sp-chip${SP.list === k ? ' is-on' : ''}" data-sp-act="list" data-sp-list="${k}" aria-pressed="${SP.list === k}">${t}<span class="sp-n">${spNf(n)}</span></button>`).join('')
+    + (SP.season ? `<button type="button" class="sp-chip is-on" data-sp-act="season" data-sp-id="" aria-pressed="true">${spSeasonIcon(SP.season)} ${lrEsc((spEvents(spCfg(), spToday()).find(e => e.ev.id === SP.season) || { ev: { name: SP.season } }).ev.name)} ✕</button>` : '') + '</div>';
+  const empty = !todo.length ? `<div class="card sp-empty"><b>${SP.q || SP.season || SP.list !== 'all' ? 'Nothing here with these filters.' : 'No season changes needed right now.'}</b><br>${SP.q || SP.season || SP.list !== 'all' ? 'Clear the search or the filters above to see everything.' : 'Everything below is up to date.'}</div>` : '';
+  const more = todo.length > page.length ? `<div class="sp-foot"><span>${spNf(page.length)} of ${spNf(todo.length)} parents</span><button type="button" class="sp-btn" data-sp-act="more">Show ${spNf(Math.min(SP_PAGE, todo.length - page.length))} more</button></div>` : '';
+  const doneHtml = done.length ? `<div class="sp-done"><button type="button" class="sp-link" data-sp-act="show-done" aria-expanded="${SP.showDone ? 'true' : 'false'}">${SP.showDone ? 'Hide' : 'Show'} the ${spNf(done.length)} parent${done.length === 1 ? '' : 's'} that ${done.length === 1 ? 'is' : 'are'} up to date</button>`
+    + (SP.showDone ? `<div class="sp-list">${done.map(spParentCardHtml).join('')}</div>` : '') + '</div>' : '';
+  const result = SP.result && !SP.panel ? spResultHtml(SP.result) : '';
+  box.innerHTML = spHowHtml() + spTodayHtml(groups) + toolbar + spTimelineHtml(items) + chips + result + empty + `<div class="sp-list">${page.map(spParentCardHtml).join('')}</div>` + more + doneHtml;
 }
 // After a send: what went, what did not and why, in plain words.
 function spResultHtml(res) {
   const okN = res.results.filter(r => r.ok).length;
   const bad = res.results.filter(r => !r.ok);
-  return `<div class="card sp-result${bad.length ? ' has-bad' : ''}" role="status">${res.test ? '<div><b>This is the test site — nothing was sent.</b></div>' : ''}`
-    + (okN ? `<div class="sp-res-ok">✓ ${spPlural(okN, 'title')} sent. Amazon usually shows them within a few hours.</div>` : '')
-    + bad.map(r => `<div class="sp-res-bad">✕ ${lrEsc(r.sku)} was not accepted: ${lrEsc(r.why)} — what to do: ${lrEsc(r.todo)} <button type="button" class="ghost lr-fixbtn" data-lr-fix="lerr|${lrEsc(r.brand)}|${lrEsc(r.sku)}">Open Listing Errors</button></div>`).join('')
-    + (res.logErr ? `<div class="sp-res-bad">⚠ The change was sent but the record of the old title could not be saved (${lrEsc(res.logErr)}) — keep a note of it.</div>` : '')
+  const head = res.test ? '<b>Test site — nothing was sent.</b>' : [okN ? `<span class="sp-res-ok">✓ ${spNf(okN)} sent</span>` : '', bad.length ? `<span class="sp-res-no">✕ ${spNf(bad.length)} not accepted</span>` : ''].filter(Boolean).join(' · ');
+  return `<div class="card sp-result${bad.length ? ' has-bad' : ''}" role="status"><div class="sp-res-h">${head}${okN && !res.test ? ' <small>Amazon usually shows the changes within a few hours.</small>' : ''}</div>`
+    + bad.map(r => `<div class="sp-res-bad">✕ <b>${lrEsc(r.sku)}</b> was not accepted: ${lrEsc(r.why)} — what to do: ${lrEsc(r.todo)} <button type="button" class="sp-btn sp-small" data-lr-fix="lerr|${lrEsc(r.brand)}|${lrEsc(r.sku)}">Open in Listing Errors</button></div>`).join('')
+    + (res.logErr ? `<div class="sp-res-bad">⚠ The change was sent, but the note of the old words could not be saved (${lrEsc(res.logErr)}) — keep a copy of the old title.</div>` : '')
     + '<button type="button" class="sp-link" data-sp-act="result-close">Close</button></div>';
 }
-// The same planner for ONE parent, inside the Workspace side panel's Season tab (listing-workspace.js calls it).
+
+/* ----- level 2: one parent ----- */
+// The sentence, the three state cards, and the children as compact rows. Used by the parent side panel and the Workspace's Season tab.
+function spParentBodyHtml(g, inWs) {
+  const total = g.all.length;
+  const products = spProducts((g.todo[0] || g.all[0]).row);
+  const top = spTopSeason(g.todo);
+  const rem = spTopRemove(g.todo);
+  const back = g.todo.filter(item => item.kind === 'restore');
+  let sentence;
+  if (top) sentence = `${spSeasonIcon(top.e.ev.id)} <b>${lrEsc(top.e.ev.name)} ${spSeasonWord(top.e)}.</b> ${top.n === total ? `None of these ${spNf(total)} ${lrEsc(products)} mention${total === 1 ? 's' : ''} it yet.` : `${spNf(top.n)} of these ${spNf(total)} ${lrEsc(products)} don't mention it yet.`}`;
+  else if (rem) sentence = `${spSeasonIcon(rem.e.ev.id)} <b>${lrEsc(rem.e.ev.name)} is over.</b> ${spNf(rem.n)} of these ${spNf(total)} ${lrEsc(products)} still mention it.`;
+  else if (back.length) sentence = `↺ <b>The season is over.</b> ${spNf(back.length)} of these ${spNf(total)} ${lrEsc(products)} can go back to their old titles.`;
+  else sentence = `✓ <b>Nothing to change here</b> for the seasons on now.`;
+  const word = top ? top.e.ev.name : rem ? rem.e.ev.name : '';
+  const readyMeaning = top ? `We add “${lrEsc(word)}” safely. Nothing else changes.` : rem ? `We take “${lrEsc(word)}” out safely. Nothing else changes.` : back.length ? 'We put the old titles back. Nothing else changes.' : 'Nothing is waiting.';
+  const lookTitle = g.look.some(item => item.after !== item.title);
+  const card = (k, n, meaning, btn) => `<div class="sp-sc ${SP_STATE[k].cls}${n ? '' : ' is-zero'}"><div class="sp-sc-h"><span class="sp-sc-i" aria-hidden="true">${SP_STATE[k].i}</span><span>${SP_STATE[k].t}</span><b>${spNf(n)}</b></div><p>${meaning}</p>${btn}</div>`;
+  const fixBtn = g.fix.length === 1
+    ? `<button type="button" class="sp-btn" data-sp-act="fixhand" data-sp-key="${lrEsc(g.fix[0].key)}">Open in Listing Errors</button>`
+    : `<button type="button" class="sp-btn" data-sp-act="filter" data-sp-filter="fix" data-sp-group="${lrEsc(g.key)}"${g.fix.length ? '' : ' disabled'}>${g.fix.length ? `Show the ${spNf(g.fix.length)}` : 'Open in Listing Errors'}</button>`;
+  const cards = '<div class="sp-scs">'
+    + card('ready', g.ready.length, readyMeaning, `<button type="button" class="sp-main" data-sp-act="fix-all" data-sp-group="${lrEsc(g.key)}"${g.ready.length && !SP.sending ? '' : ' disabled'}>Fix all ${spNf(g.ready.length)}</button>`)
+    + card('look', g.look.length, g.look.length ? (lookTitle ? 'One word in the title would change.' : 'Some hidden search words are trimmed to make room.') : 'Nothing waits for your OK.',
+      `<button type="button" class="sp-btn" data-sp-act="filter" data-sp-filter="look" data-sp-group="${lrEsc(g.key)}"${g.look.length ? '' : ' disabled'}>Check them</button>`)
+    + card('fix', g.fix.length, g.fix.length ? 'No safe automatic change.' : 'Nothing to do by hand.', fixBtn) + '</div>';
+  const filter = SP.panel && SP.panel.key === g.key ? SP.panel.filter : '';
+  const rows = g.todo.filter(item => !filter || item.status === filter);
+  SP.kidOrder = rows.map(item => item.key);
+  const note = filter ? `<div class="sp-filter">Showing the ${spNf(rows.length)} that ${filter === 'look' ? 'need your OK' : 'need fixing by hand'} · <button type="button" class="sp-link" data-sp-act="filter" data-sp-filter="" data-sp-group="${lrEsc(g.key)}">Show all ${spNf(g.todo.length)}</button></div>` : '';
+  const upToDate = total - g.todo.length;
+  const result = SP.result ? spResultHtml(SP.result) : '';
+  const reading = g.reading.length ? `<div class="sp-filter"><span class="sp-reading">Reading ${spPlural(g.reading.length, 'listing')} from Amazon…</span></div>` : '';
+  return `<p class="sp-today sp-psent">${sentence}</p>${result}${g.todo.length ? cards : ''}${reading}${note}`
+    + `<div class="sp-rows">${rows.map(item => spRowHtml(item, inWs)).join('')}</div>`
+    + (upToDate ? `<p class="sp-more-ok">✓ ${spNf(upToDate)} more listing${upToDate === 1 ? ' is' : 's are'} up to date.</p>` : '');
+}
+// What we will do for one listing, in one short line.
+function spDoLine(item) {
+  if (item.status === 'reading') return 'Reading this listing from Amazon…';
+  if (item.status === 'fix') return item.hint || 'Change it by hand in Listing Errors';
+  if (item.kind === 'restore') return 'Put the old title back';
+  const e = spSeasonOf(item);
+  const out = [];
+  if (item.remove.length) out.push(`Take “${lrEsc(spOldWord(item, item.remove[0]))}” out of the title`);
+  if (e) {
+    if (item.place === 'swap') out.push(`Put “${lrEsc(e.ev.name)}” in the title in place of “${lrEsc(item.swapped)}”`);
+    else if (item.place === 'title') out.push(`Add “${lrEsc(e.ev.name)}” to the title`);
+    else if (item.place === 'kw') out.push(`Add “${lrEsc(e.ev.name)}” to hidden search words`);
+  }
+  return out.join(', then ') || 'Nothing to change';
+}
+// One child as a compact row: picture · Colour · Size · Pack (SKU small grey) · what we'll do · the state chip · ONE button.
+function spRowHtml(item, inWs) {
+  const st = SP_STATE[item.status] || SP_STATE.look;
+  const open = SP.kid && SP.kid.key === item.key;
+  const btn = item.status === 'ready' ? `<button type="button" class="sp-btn sp-row-b" data-sp-act="row-fix" data-sp-key="${lrEsc(item.key)}"${SP.sending ? ' disabled' : ''}>Fix</button>`
+    : item.status === 'reading' ? '<button type="button" class="sp-btn sp-row-b" disabled>Wait</button>'
+      : `<button type="button" class="sp-btn sp-row-b" data-sp-act="open-kid" data-sp-key="${lrEsc(item.key)}"${inWs ? ' data-sp-from="ws"' : ''}>Check</button>`;
+  return `<div class="sp-row ${st.cls}${open ? ' is-open' : ''}" role="button" tabindex="0" data-sp-act="open-kid" data-sp-key="${lrEsc(item.key)}"${inWs ? ' data-sp-from="ws"' : ''} aria-label="Open ${lrEsc(spFacts(item))}">`
+    + `${spPic(item.brand, item.sku, false)}<div class="sp-row-t"><b>${lrEsc(spFacts(item))}</b><span>${spDoLine(item)}</span><small>${lrEsc(item.sku)}</small></div>`
+    + `<span class="sp-chip-s ${st.cls}"><i aria-hidden="true">${st.i}</i>${st.s}</span>${btn}</div>`;
+}
+// The parent side panel: header card, then the body.
+function spParentPanelHtml(g) {
+  return `<div class="sp-side-h"><div class="sp-hc">${spPic(g.brand, (g.todo[0] || g.all[0]).sku, true)}<div class="sp-hc-t"><b title="${lrEsc(g.name)}">${lrEsc(g.name)}</b>`
+    + `<span>${lrEsc(BRAND_NAME[g.brand] || g.brand)} · ${spPlural(g.all.length, 'listing')}</span></div><button type="button" class="sp-x" data-sp-act="close-parent" aria-label="Close">×</button></div></div>`
+    + `<div class="sp-side-b">${spParentBodyHtml(g, false)}</div>`;
+}
+// The same, for ONE parent, inside the Workspace side panel's Season tab (listing-workspace.js calls it).
 function spPanelHtml(p) {
   if (!SP.log) spLogLoad().then(() => { if (typeof liWsPanelRender === 'function' && LI_WS.panel) liWsPanelRender(); });
-  const items = spCompute().filter(item => item.brand === p.brand && (item.row.parent || item.asin || item.sku) === p.parent && item.kind !== 'none');
-  const todo = items.filter(item => item.kind !== 'ok' && !spSkipped(item));
-  spEnsureReads(todo);
-  const ready = todo.filter(item => item.status === 'ready' && !SP.sending);
-  const head = `<div class="sp-panel-a">${ready.length > 1 ? `<button type="button" class="sp-main" data-sp-act="approve-group" data-sp-group="${lrEsc(p.key)}">Approve all ${spNf(ready.length)}</button>` : ''}<span class="sp-panel-s">${todo.length ? spPlural(todo.length, 'listing') + ' to look at' : 'Nothing to change for the seasons on now'}${SP.reading.size ? ' · reading from Amazon…' : ''}</span></div>`;
-  const next = spEvents(spCfg(), spToday()).filter(e => !e.ev.removeOnly && !e.s.inSeason && e.s.from && spDays(e.s.from, spToday()) < 0).sort((a, b) => a.s.from - b.s.from)[0];
-  if (!todo.length) return `<div class="sp-root sp-in-panel">${head}<div class="ls-empty"><b>No season changes needed right now.</b><br>${next ? `The next season, ${lrEsc(next.ev.name)}, starts adding on ${spDate(next.s.from)}.` : ''}</div>${SP.result ? spResultHtml(SP.result) : ''}</div>`;
-  return `<div class="sp-root sp-in-panel">${head}${SP.result ? spResultHtml(SP.result) : ''}${todo.map(item => spCardHtml(item, 'panel')).join('')}</div>`;
+  const g = spGroups(spCompute()).find(each => each.key === p.brand + '|' + p.parent);
+  if (!g) return '<div class="sp-root sp-in-panel"><div class="ls-empty"><b>No listing of this parent is in the season planner.</b></div></div>';
+  spEnsureReads(g.todo);
+  return `<div class="sp-root sp-in-panel">${spParentBodyHtml(g, true)}</div>`;
 }
 // How many of a parent's listings the Season tab would show (its count pill).
 function spPanelCount(p) {
   if (!H_LOADED) return 0;
-  return spCompute().filter(item => item.brand === p.brand && (item.row.parent || item.asin || item.sku) === p.parent && item.kind !== 'none' && item.kind !== 'ok' && !spSkipped(item)).length;
+  return spCompute().filter(item => item.brand === p.brand && spParentOf(item) === p.parent && item.kind !== 'none' && item.kind !== 'ok' && !spSkipped(item)).length;
+}
+
+/* ----- level 3: one child ----- */
+function spKidHtml(item, g) {
+  const st = SP_STATE[item.status] || SP_STATE.look;
+  const parentNameText = g ? g.name : spParentOf(item);
+  const back = `<button type="button" class="sp-back" data-sp-act="close-kid">← Back to ${lrEsc(parentNameText)}</button>`;
+  const head = `<div class="sp-side-h">${back}<div class="sp-hc">${spPic(item.brand, item.sku, true)}<div class="sp-hc-t"><b>${lrEsc(spFacts(item))}</b><span>${lrEsc(parentNameText)}</span><small>${lrEsc(item.sku)}</small>`
+    + `<span class="sp-chip-s ${st.cls}"><i aria-hidden="true">${st.i}</i>${st.t}</span></div><button type="button" class="sp-x" data-sp-act="close-kid" aria-label="Close">×</button></div></div>`;
+  if (item.kind === 'ok' || item.kind === 'none') {
+    return head + `<div class="sp-side-b"><div class="sp-card2 is-ok"><h4>✓ Up to date</h4><p>Nothing to change on this listing for the seasons on now.</p></div></div>`
+      + '<div class="sp-bar"><button type="button" class="sp-main" data-sp-act="close-kid">Close</button></div>';
+  }
+  const e = spSeasonOf(item);
+  const products = spProducts(item.row);
+  const card = (cls, title, body) => `<div class="sp-card2 ${cls}"><h4>${title}</h4>${body}</div>`;
+  // 2 the problem
+  let problem;
+  if (item.kind === 'restore') problem = `${lrEsc((item.restore && item.restore.seasons || []).map(id => (spEvents(spCfg(), spToday()).find(x => x.ev.id === id) || { ev: { name: id } }).ev.name).join(', ') || 'The season')} is over. This listing still has the title we changed for it.`;
+  else {
+    const bits = [];
+    if (e) bits.push(`${lrEsc(e.ev.name)} ${spSeasonWord(e)} and this listing doesn't mention it.`);
+    item.remove.forEach(r => bits.push(`${lrEsc(r.ev.name)} is over, but the title still says “${lrEsc(spOldWord(item, r))}”.`));
+    problem = bits.join(' ');
+  }
+  // 3 why it matters
+  const why = item.kind === 'restore' ? 'Your normal title is the one that sells the rest of the year.'
+    : e ? `Shoppers searching “${lrEsc(e.ev.name.toLowerCase())} ${lrEsc(products)}” may not find it.` : 'An old season word makes the listing look out of date to shoppers.';
+  // 4 what we'll do
+  let todo;
+  if (item.status === 'fix') todo = `We can't change this one safely by ourselves: ${lrEsc(item.why)}. ${item.hint ? lrEsc(item.hint) + ' ' : ''}Listing Errors opens with the suggestion already filled in — nothing is sent until you press Send there.`;
+  else if (item.status === 'reading') todo = 'We are reading this listing from Amazon first. This takes a moment.';
+  else if (item.kind === 'restore') todo = `Put the old title back. ${item.note ? lrEsc(item.note) : 'Nothing else changes.'}`;
+  else {
+    const bits = [];
+    if (item.remove.length) bits.push(`Take “${lrEsc(spOldWord(item, item.remove[0]))}” out of the title.`);
+    if (e && item.place === 'title') bits.push(`Add “${lrEsc(e.ev.name)}” to the title.`);
+    if (e && item.place === 'swap') bits.push(`Put “${lrEsc(e.ev.name)}” in the title in place of “${lrEsc(item.swapped)}” (${lrEsc(item.swapWhy)}).`);
+    if (e && item.place === 'kw') bits.push(`Add “${lrEsc(e.ev.name)}” to the hidden search words.`);
+    if (e && item.place === 'kw' && item.changes.some(c => c.what === 'Hidden search words')) bits.push('To make room, words that were wasted there are taken out.');
+    bits.push(item.after === item.title ? 'The title stays the same.' : 'Everything else stays the same.');
+    todo = bits.join(' ');
+  }
+  const alts = item.alts && item.alts.length ? `<p class="sp-alts">Also possible: ${item.alts.map(a => `<button type="button" class="sp-link" data-sp-act="choose" data-sp-key="${lrEsc(item.key)}" data-sp-id="${lrEsc(a.ev.id)}">${spSeasonIcon(a.ev.id)} ${lrEsc(a.ev.name)}</button>`).join(' · ')}</p>` : '';
+  // 5 what changes, 6 checks, the edit box
+  const typed = SP.edits.has(item.key) ? SP.edits.get(item.key) : null;
+  const after = typed != null ? typed : item.after;
+  const checks = typed != null ? spChecks(item.title, typed, item.row, hCtx(), spToday(), { kwAfter: item.kwAfter, kwMax: item.kwMax }) : item.checks;
+  const editing = SP.editing.has(item.key);
+  const edit = editing ? card('sp-editc', 'Your title', `<textarea class="sp-edit" data-sp-key="${lrEsc(item.key)}" rows="3" aria-label="Edit the title">${lrEsc(after)}</textarea><span class="sp-cnt" data-sp-cnt="${lrEsc(item.key)}">${after.length} of ${SP_TITLE_MAX} letters</span>`) : '';
+  const changes = item.status === 'reading' ? '' : card('sp-chg', 'What changes', spChangesHtml(item, after));
+  const checksHtml = checks.length ? card('sp-chk-c', 'Checks', spChecksHtml(checks)) : '';
+  // 7 the action bar
+  const bad = checks.find(check => check.ok === false);
+  const canSend = (item.status === 'ready' || item.status === 'look') && !bad && !!item.pt && !SP.sending && spChanges(item, after);
+  let main;
+  if (item.status === 'fix') main = `<button type="button" class="sp-main" data-sp-act="fixhand" data-sp-key="${lrEsc(item.key)}">Open in Listing Errors</button>`;
+  else if (item.status === 'reading') main = '<button type="button" class="sp-main" disabled>Reading from Amazon…</button>';
+  else main = `<button type="button" class="sp-main" data-sp-act="approve" data-sp-key="${lrEsc(item.key)}"${canSend ? '' : ' disabled'}>${item.status === 'look' ? 'Approve this change' : item.kind === 'restore' ? 'Put it back — send to Amazon' : 'Fix — send to Amazon'}</button>`;
+  const reason = (item.status === 'ready' || item.status === 'look') && !canSend ? (bad ? bad.why || bad.t : !item.pt ? 'Reading this listing from Amazon first' : '') : '';
+  const bar = `<div class="sp-bar">${main}<button type="button" class="sp-btn" data-sp-act="edit" data-sp-key="${lrEsc(item.key)}" aria-pressed="${editing}">${editing ? 'Done' : 'Edit'}</button>`
+    + `<button type="button" class="sp-btn sp-quiet" data-sp-act="skip" data-sp-key="${lrEsc(item.key)}" title="Hide this for this season, in this browser">Not now</button>`
+    + `<span class="sp-reason"${reason ? '' : ' hidden'}>${lrEsc(reason)}</span></div>`;
+  return head + `<div class="sp-side-b">${card('sp-prob', 'Problem', `<p>${problem}</p>`)}${card('sp-whyc', 'Why it matters', `<p>${why}</p>`)}${card('sp-do', 'What we’ll do', `<p>${todo}</p>${alts}`)}${edit}${changes}${checksHtml}</div>` + bar;
+}
+// "What changes": the title before → after (only the changed words marked) when the title changes; else the hidden search words as
+// "+ Added" / "− Removed" lists, each word once, with why it went; the full search words folded away.
+function spChangesHtml(item, after) {
+  const kwChanged = item.kwAfter != null && item.kwAfter !== item.kw;
+  const fullKw = kwChanged ? `<details class="sp-fold"><summary>Show full search words</summary><div class="sp-kwfull"><small>Before</small><p>${lrEsc(item.kw || '(none)')}</p><small>After</small><p>${spDiffHtml(item.kw, item.kwAfter)}</p></div></details>` : '';
+  if (String(after).trim() !== item.title) {
+    const d = spWordDiff(item.title, after);
+    return `<div class="sp-ba"><small>Title before</small><p>${spMarkHtml(item.title, d.removed, 'del')}</p><small>Title after</small><p class="sp-change-after">${spMarkHtml(after, d.added, 'ins')}</p></div>`
+      + (!d.added.length && !d.removed.length ? '<p class="sp-dim">Only the order of the words changes.</p>' : '') + fullKw;
+  }
+  if (!kwChanged) return '<p class="sp-dim">Nothing changes.</p>';
+  const d = spWordDiff(item.kw, item.kwAfter);
+  const titleWords = new Set(spWords(after).map(w => lrNorm(w)));
+  const outOf = new Set(spEvents(spCfg(), spToday()).filter(e => !e.s.inSeason).flatMap(e => spWords(e.ev.words)));
+  const reasonOf = x => (x.kept ? 'repeated' : titleWords.has(lrNorm(x.k)) ? 'already in the title' : SP_FILLER.has(lrNorm(x.k)) ? 'small filler words' : outOf.has(x.k) ? 'out of season' : 'to make room');
+  const groups = new Map();
+  d.removed.forEach(x => { const r = reasonOf(x); groups.set(r, (groups.get(r) || []).concat([x])); });
+  return (d.added.length ? `<p class="sp-add">+ Added: ${spWordList(d.added)}</p>` : '')
+    + [...groups.entries()].map(([r, list]) => `<p class="sp-rem">− Removed: ${spWordList(list)} <span class="sp-dim">(${r})</span></p>`).join('')
+    + `<p class="sp-dim">Hidden search words: ${spNf(lrKwBytes(item.kwAfter))} of ${spNf(item.kwMax)}.</p>` + fullKw;
+}
+// "✓ All 10 checks pass" — click to see them.
+function spChecksHtml(checks) {
+  const fail = checks.filter(check => check.ok === false).length;
+  const warn = checks.filter(check => check.ok === 'warn').length;
+  const sum = fail ? `✕ ${spPlural(fail, 'check')} ${fail === 1 ? 'does' : 'do'} not pass` : warn ? `⚠ ${spNf(checks.length - warn)} of ${spNf(checks.length)} checks pass — ${spNf(warn)} to look at` : `✓ All ${spNf(checks.length)} checks pass`;
+  return `<details class="sp-fold${fail ? ' is-bad' : warn ? ' is-warn' : ''}"${fail ? ' open' : ''}><summary class="sp-chk-sum">${sum}</summary><ul class="sp-checks">${checks.map(check => `<li class="sp-chk ${check.ok === true ? 'is-ok' : check.ok === false ? 'is-no' : 'is-warn'}"><i>${check.ok === true ? '✓' : check.ok === false ? '✕' : '⚠'}</i>${lrEsc(check.t)}</li>`).join('')}</ul></details>`;
+}
+
+/* ----- opening and closing the panels ----- */
+// The parent panel (from the page) and the child panel (from the parent panel or the Workspace's Season tab). Esc closes the child first.
+function spOpenParent(key) {
+  SP.panel = { key, filter: '' };
+  SP.kid = null;
+  SP.result = null;
+  const box = $('spPanel');
+  if (!box) return;
+  box.hidden = false;
+  spPanelsRender();
+  if (SP.on) spRender();
+  if (box.focus) box.focus({ preventScroll: true });
+}
+function spCloseParent(returnFocus) {
+  if (SP.kid) spCloseKid(false);
+  const key = SP.panel && SP.panel.key;
+  SP.panel = null;
+  const box = $('spPanel');
+  if (box) { box.hidden = true; box.innerHTML = ''; }
+  if (SP.on) spRender();
+  if (returnFocus && key) {
+    const card = $('spPane') && $('spPane').querySelector ? $('spPane').querySelector(`[data-sp-act="open-parent"][data-sp-group="${CSS.escape(key)}"]`) : null;
+    if (card && card.focus) card.focus({ preventScroll: true });
+  }
+}
+function spOpenKid(key, from) {
+  SP.kid = { key, from: from || 'page' };
+  const box = $('spKid');
+  if (!box) return;
+  box.hidden = false;
+  box.classList.toggle('is-ws', SP.kid.from === 'ws');
+  spPanelsRender();
+  if (box.focus) box.focus({ preventScroll: true });
+}
+function spCloseKid(returnFocus) {
+  if (!SP.kid) return;
+  const { key, from } = SP.kid;
+  SP.kid = null;
+  const box = $('spKid');
+  if (box) { box.hidden = true; box.innerHTML = ''; }
+  spPanelsRender();
+  if (from === 'ws' && typeof liWsPanelRender === 'function' && LI_WS.panel) liWsPanelRender();
+  if (returnFocus) {
+    const root = from === 'ws' ? $('lsPanel') : $('spPanel');
+    const row = root && root.querySelector ? root.querySelector(`.sp-row[data-sp-key="${CSS.escape(key)}"]`) : null;
+    if (row && row.focus) row.focus({ preventScroll: true });
+  }
+}
+// ↑ / ↓ in a child: the child before / after it, in the order the parent's rows show.
+function spKidMove(dir) {
+  if (!SP.kid) return;
+  const order = SP.kidOrder || [];
+  const at = order.indexOf(SP.kid.key);
+  const next = order[at + dir];
+  if (next) spOpenKid(next, SP.kid.from);
+}
+// Close both (the tab changed, or the Workspace panel went away).
+function spPanelsClose(from) {
+  if (SP.kid && (!from || SP.kid.from === from)) spCloseKid(false);
+  if (SP.panel && from !== 'ws') spCloseParent(false);
+}
+// Draw what is open: the parent panel (its scroll kept) and the child panel.
+function spPanelsRender() {
+  const pp = $('spPanel');
+  if (pp && SP.panel && !SP.panel.ws) {
+    const g = spGroupOf(SP.panel.key);
+    if (!g) spCloseParent(false);
+    else {
+      const body = pp.querySelector ? pp.querySelector('.sp-side-b') : null;
+      const top = body ? body.scrollTop : 0;
+      pp.innerHTML = spParentPanelHtml(g);
+      const again = pp.querySelector ? pp.querySelector('.sp-side-b') : null;
+      if (again) again.scrollTop = top;
+      if (g.todo.length) spEnsureReads(g.todo);
+    }
+  }
+  if (pp && pp.classList) pp.classList.toggle('has-kid', !!(SP.kid && SP.kid.from === 'page'));
+  const kp = $('spKid');
+  if (kp && SP.kid) {
+    const item = spCompute().find(each => each.key === SP.kid.key);
+    if (!item) return spCloseKid(false);
+    const g = spGroups(spCompute()).find(each => each.key === item.brand + '|' + spParentOf(item));
+    const body = kp.querySelector ? kp.querySelector('.sp-side-b') : null;
+    const top = body ? body.scrollTop : 0;
+    kp.innerHTML = spKidHtml(item, g);
+    const again = kp.querySelector ? kp.querySelector('.sp-side-b') : null;
+    if (again) again.scrollTop = top;
+    if (kp.setAttribute) kp.setAttribute('data-sp-card', item.key);
+  }
 }
 
 /* ----- approve, confirm, send ----- */
@@ -766,10 +1062,10 @@ function spApprove(keys) {
   if (!todo.length) return;
   const n = todo.length;
   const test = spIsTest();
-  const body = `<div class="sp-m-h"><b>${test ? 'This is the test site — nothing will be sent' : `You are about to change ${spPlural(n, 'title')} on Amazon`}</b>`
-    + `<p>${test ? 'On live Sellora this would send:' : 'Amazon checks each one first. You can put the old titles back after the season.'}</p></div>`
-    + `<div class="sp-m-list">${todo.map(t => `<div class="sp-m-row"><b>${lrEsc(t.item.name)}</b><small>${lrEsc(t.item.sku)}</small><div class="sp-m-was">${lrEsc(t.item.title)}</div><div class="sp-m-now">${spDiffHtml(t.item.title, t.after)}</div>${t.patches.length > 1 ? `<div class="sp-m-kw">Hidden search words: ${lrEsc(t.item.kwAfter)}</div>` : ''}</div>`).join('')}</div>`
-    + `<div class="sp-m-a"><button type="button" class="sp-main" id="spSendBtn">${test ? 'Close — nothing is sent here' : `Send ${spPlural(n, 'title')}`}</button><button type="button" class="sp-btn" id="spCancelBtn">Cancel</button></div>`;
+  const body = `<div class="sp-m-h"><b>${test ? 'Test site — nothing will be sent' : `You are about to change ${spPlural(n, 'listing')} on Amazon`}</b>`
+    + `<p>${test ? 'On live Sellora this would send what is listed below.' : 'Amazon checks each one first. The old words are kept so you can put them back.'}</p></div>`
+    + `<div class="sp-m-list">${todo.map(t => { const dk = spWordDiff(t.item.kw, t.item.kwAfter); return `<div class="sp-m-row"><b>${lrEsc(spFacts(t.item))}</b><small>${lrEsc(t.item.sku)}</small>${t.after !== t.item.title ? `<div class="sp-m-now">${spDiffHtml(t.item.title, t.after)}</div>` : ''}${t.patches.length > 1 && dk.added.length ? `<div class="sp-m-kw">+ Hidden search words: ${spWordList(dk.added)}</div>` : ''}</div>`; }).join('')}</div>`
+    + `<div class="sp-m-a"><button type="button" class="sp-main" id="spSendBtn">${test ? 'Close — nothing is sent here' : `Send ${spPlural(n, 'listing')}`}</button><button type="button" class="sp-btn" id="spCancelBtn">Cancel</button></div>`;
   spModal(body);
   $('spCancelBtn').onclick = () => spModal('');
   $('spSendBtn').onclick = () => {
@@ -797,7 +1093,7 @@ function spModal(html) {
 // then record each one sent, with its OLD title, so it can be put back.
 async function spSendAll(todo) {
   SP.sending = { done: 0, total: todo.length };
-  const bar = () => `<div class="sp-m-h"><b>Sending ${spNf(SP.sending.done)} of ${spNf(SP.sending.total)}…</b><p>Amazon checks each title first. Please keep this window open.</p></div><div class="sp-pbar" role="progressbar" aria-valuemin="0" aria-valuemax="${SP.sending.total}" aria-valuenow="${SP.sending.done}"><span style="width:${Math.round(SP.sending.done * 100 / SP.sending.total)}%"></span></div>`;
+  const bar = () => `<div class="sp-m-h"><b>Sending ${spNf(SP.sending.done)} of ${spNf(SP.sending.total)}…</b><p>Amazon checks each one first. Please keep this window open.</p></div><div class="sp-pbar" role="progressbar" aria-valuemin="0" aria-valuemax="${SP.sending.total}" aria-valuenow="${SP.sending.done}"><span style="width:${Math.round(SP.sending.done * 100 / SP.sending.total)}%"></span></div>`;
   spModal(bar());
   const results = [];
   const records = [];
@@ -852,6 +1148,7 @@ const spTodo = text => (/different from what's already in the Amazon catalog/i.t
 function spRedrawAll() {
   SP.itemsKey = '';
   if (SP.on) spRender();
+  spPanelsRender();
   if (typeof LI_WS !== 'undefined' && LI_WS.panel && typeof liWsPanelRender === 'function') liWsPanelRender();
 }
 
@@ -901,41 +1198,48 @@ if (typeof document !== 'undefined' && document.addEventListener && $('spSwitch'
     const btn = e.target.closest ? e.target.closest('[data-sp-view]') : null;
     if (!btn) return;
     if (btn.dataset.spView === 'season') spOn();
-    else spOff();
+    else { spPanelsClose(); spOff(); }
   });
-  // The planner comes back on its own when the Listing Optimiser tab opens with "Season planner" last chosen.
+  // The planner comes back on its own when the Listing Optimiser tab opens with "Season planner" last chosen; its panels close when the
+  // tab goes away (and a child opened from the Workspace closes with Listing Health).
   const pane = $('paneOpt');
-  if (pane && typeof MutationObserver === 'function') new MutationObserver(() => { if (!pane.classList.contains('hide')) spMaybeOpen(); }).observe(pane, { attributes: true, attributeFilter: ['class'] });
-  // Every button of the planner, on the page and inside the Workspace panel.
+  if (pane && typeof MutationObserver === 'function') new MutationObserver(() => { if (!pane.classList.contains('hide')) spMaybeOpen(); else spPanelsClose('page'); }).observe(pane, { attributes: true, attributeFilter: ['class'] });
+  const health = $('paneHealth');
+  if (health && typeof MutationObserver === 'function') new MutationObserver(() => { if (health.classList.contains('hide')) spPanelsClose('ws'); }).observe(health, { attributes: true, attributeFilter: ['class'] });
+  // Every button of the planner: on the page, in its two panels, and in the Workspace's Season tab.
   document.addEventListener('click', e => {
     const el = e.target && e.target.closest ? e.target.closest('[data-sp-act]') : null;
     if (!el || el.tagName === 'SELECT') return;
     const act = el.dataset.spAct;
     const key = el.dataset.spKey || '';
-    const inPanel = !!el.closest('#lsPanel');
-    const redraw = () => (inPanel ? (typeof liWsPanelRender === 'function' && liWsPanelRender()) : spRender());
-    const refocus = selector => { const root = inPanel ? $('lsPanel') : $('spPane'); const again = root && root.querySelector ? root.querySelector(selector) : null; if (again) again.focus({ preventScroll: true }); };
-    if (act === 'help-hide') { try { localStorage.setItem(SP_STORE_HELP, '1'); } catch (x) { /* no storage */ } SP.helpOpen = false; return redraw(); }
-    if (act === 'help-show') { try { localStorage.removeItem(SP_STORE_HELP); } catch (x) { /* no storage */ } return redraw(); }
-    if (act === 'help-more') { SP.helpOpen = !SP.helpOpen; redraw(); return refocus('[data-sp-act="help-more"]'); }
-    if (act === 'list') { SP.list = SP.list === el.dataset.spList && el.classList.contains('sp-box-main') ? 'all' : el.dataset.spList; SP.shown = SP_PAGE; redraw(); return refocus(`[data-sp-act="list"][data-sp-list="${el.dataset.spList}"]`); }
-    if (act === 'season') { SP.season = SP.season === el.dataset.spId ? '' : el.dataset.spId; SP.shown = SP_PAGE; redraw(); return refocus(SP.season ? `[data-sp-act="season"][data-sp-id="${CSS.escape(SP.season)}"]` : '.sp-tlc'); }
-    if (act === 'more') { SP.shown += SP_PAGE; return redraw(); }
+    const inWs = !!el.closest('#lsPanel');
+    const root = el.closest('#spKid') ? $('spKid') : el.closest('#spPanel') ? $('spPanel') : inWs ? $('lsPanel') : $('spPane');
+    const refocus = selector => { const again = root && root.querySelector ? root.querySelector(selector) : null; if (again) again.focus({ preventScroll: true }); };
+    if (act === 'help-hide') { try { localStorage.setItem(SP_STORE_HELP, '1'); } catch (x) { /* no storage */ } SP.helpOpen = false; return spRender(); }
+    if (act === 'help-show') { try { localStorage.removeItem(SP_STORE_HELP); } catch (x) { /* no storage */ } return spRender(); }
+    if (act === 'help-more') { SP.helpOpen = !SP.helpOpen; spRender(); return refocus('[data-sp-act="help-more"]'); }
+    if (act === 'brand') { SP.brand = el.dataset.spBrand; SP.shown = SP_PAGE; spRender(); return refocus(`[data-sp-act="brand"][data-sp-brand="${el.dataset.spBrand}"]`); }
+    if (act === 'list') { SP.list = el.dataset.spList; SP.shown = SP_PAGE; spRender(); return refocus(`[data-sp-act="list"][data-sp-list="${el.dataset.spList}"]`); }
+    if (act === 'season') { SP.season = SP.season === el.dataset.spId ? '' : el.dataset.spId; SP.shown = SP_PAGE; spRender(); return refocus(SP.season ? `[data-sp-act="season"][data-sp-id="${CSS.escape(SP.season)}"]` : '.sp-tlc'); }
+    if (act === 'more') { SP.shown += SP_PAGE; return spRender(); }
+    if (act === 'show-done') { SP.showDone = !SP.showDone; spRender(); return refocus('[data-sp-act="show-done"]'); }
     if (act === 'reload') { H_LOADED = false; return spOn(); }
-    if (act === 'result-close') { SP.result = null; return redraw(); }
-    if (act === 'edit') {
-      if (SP.editing.has(key)) { SP.editing.delete(key); } else { SP.editing.add(key); }
-      redraw();
-      const box = (inPanel ? $('lsPanel') : $('spPane')).querySelector(`.sp-edit[data-sp-key="${CSS.escape(key)}"]`);
-      if (box) box.focus({ preventScroll: true });
-      else refocus(`[data-sp-act="edit"][data-sp-key="${CSS.escape(key)}"]`);
-      return;
+    if (act === 'result-close') { SP.result = null; return spRedrawAll(); }
+    if (act === 'open-parent') return spOpenParent(el.dataset.spGroup);
+    if (act === 'close-parent') return spCloseParent(true);
+    if (act === 'open-kid') return spOpenKid(key, el.dataset.spFrom || (inWs ? 'ws' : 'page'));
+    if (act === 'close-kid') return spCloseKid(true);
+    if (act === 'filter') {
+      if (inWs) { SP.panel = SP.panel && SP.panel.key === el.dataset.spGroup ? SP.panel : { key: el.dataset.spGroup, filter: '', ws: true }; }
+      if (SP.panel) SP.panel.filter = el.dataset.spFilter || '';
+      spRedrawAll();
+      return refocus('.sp-row');
     }
-    if (act === 'copy') {
-      const item = spCompute().find(each => each.key === key);
-      const text = item ? (SP.edits.has(key) ? SP.edits.get(key) : item.after) : '';
-      const done = () => { el.textContent = 'Copied'; setTimeout(() => { el.textContent = 'Copy'; }, 1500); };
-      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, () => { el.textContent = 'Could not copy'; });
+    if (act === 'edit') {
+      if (SP.editing.has(key)) SP.editing.delete(key); else SP.editing.add(key);
+      spPanelsRender();
+      const box = $('spKid').querySelector ? $('spKid').querySelector(`.sp-edit[data-sp-key="${CSS.escape(key)}"]`) : null;
+      if (box) box.focus({ preventScroll: true }); else refocus(`[data-sp-act="edit"][data-sp-key="${CSS.escape(key)}"]`);
       return;
     }
     if (act === 'skip') {
@@ -945,31 +1249,52 @@ if (typeof document !== 'undefined' && document.addEventListener && $('spSwitch'
       spSkipSave();
       SP.edits.delete(key);
       SP.editing.delete(key);
+      spCloseKid(false);
       return spRedrawAll();
     }
-    if (act === 'choose') { SP.choice.set(key, el.dataset.spId); SP.edits.delete(key); redraw(); return refocus(`[data-sp-card="${CSS.escape(key)}"] .sp-main`); }
+    if (act === 'choose') { SP.choice.set(key, el.dataset.spId); SP.edits.delete(key); spRedrawAll(); return refocus('.sp-bar .sp-main'); }
     if (act === 'fixhand') {
       const item = spCompute().find(each => each.key === key);
       if (!item) return;
       const after = SP.edits.has(key) ? SP.edits.get(key) : item.after;
       if (typeof LC_PREFILL !== 'undefined') LC_PREFILL = { brand: item.brand, sku: item.sku, title: after && after !== item.title ? after : '', kw: item.kwAfter != null && item.kwAfter !== item.kw ? item.kwAfter : null, hint: item.hint || item.why, done: false };
+      spPanelsClose();
       if (typeof lrFixOpen === 'function') lrFixOpen('lerr', item.brand, item.sku, []);
       return;
     }
+    // One child: its own approval (Ready or Needs your OK). A row's Fix: that Ready child only.
     if (act === 'approve') return spApprove([key]);
-    if (act === 'approve-group') {
-      const g = el.dataset.spGroup;
-      const sep = g.indexOf('|');
-      const brand = g.slice(0, sep);
-      const parent = g.slice(sep + 1);
-      return spApprove(spCompute().filter(item => item.brand === brand && (item.row.parent || item.asin || item.sku) === parent && item.status === 'ready' && !spSkipped(item)).map(item => item.key));
+    if (act === 'row-fix') { const item = spCompute().find(each => each.key === key); return item && item.status === 'ready' ? spApprove([key]) : undefined; }
+    // Fix all: ONLY the Ready ones of this parent — a change that needs your OK is never sent without its own approval.
+    if (act === 'fix-all') {
+      const g = spGroupOf(el.dataset.spGroup);
+      return g ? spApprove(g.ready.map(item => item.key)) : undefined;
     }
-    if (act === 'approve-all') return spApprove(spFilter(spCompute()).filter(item => item.status === 'ready').map(item => item.key));
   });
-  // The brand select, the search box (a quarter second after typing stops), and the Edit box (checks again as you type).
-  document.addEventListener('change', e => {
-    if (e.target && e.target.dataset && e.target.dataset.spAct === 'brand') { SP.brand = e.target.value; SP.shown = SP_PAGE; spRender(); $('spPane').querySelector('[data-sp-act="brand"]').focus(); }
+  // The cards and rows that are not buttons (role="button") open on Enter or Space, like a button.
+  document.addEventListener('keydown', e => {
+    if ((e.key !== 'Enter' && e.key !== ' ') || !e.target || !e.target.dataset || !e.target.dataset.spAct || e.target.tagName === 'BUTTON') return;
+    e.preventDefault();
+    e.target.click();
   });
+  // Esc: the confirm window first, then the child panel, then the parent panel — the keyboard goes back to where it came from.
+  // ↑ / ↓ in a child panel: the previous / next child. Caught before the Workspace's own keys, so its panel stays open under a child.
+  if (typeof window !== 'undefined' && window.addEventListener) window.addEventListener('keydown', e => {
+    const typing = e.target && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName || '');
+    const modalOpen = $('spModal') && !$('spModal').classList.contains('hide');
+    if (e.key === 'Escape') {
+      if (modalOpen) { if (!SP.sending) spModal(''); e.preventDefault(); e.stopPropagation(); return; }
+      if (SP.kid) { spCloseKid(true); e.preventDefault(); e.stopPropagation(); return; }
+      if (SP.panel && !SP.panel.ws) { spCloseParent(true); e.preventDefault(); e.stopPropagation(); }
+      return;
+    }
+    if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && SP.kid && !typing && !modalOpen) {
+      e.preventDefault();
+      e.stopPropagation();
+      spKidMove(e.key === 'ArrowDown' ? 1 : -1);
+    }
+  }, true);
+  // The search box (a quarter second after typing stops), and the Edit box (checks again as you type).
   let spQT = 0;
   document.addEventListener('input', e => {
     const t = e.target;
@@ -984,26 +1309,22 @@ if (typeof document !== 'undefined' && document.addEventListener && $('spSwitch'
       const item = spCompute().find(each => each.key === key);
       if (!item) return;
       SP.edits.set(key, t.value);
-      // the card's checks and its count follow the typing in place (no redraw: the box keeps the cursor)
-      const card = t.closest('[data-sp-card]');
+      // the panel's What changes, Checks, count and main button follow the typing in place (no redraw: the box keeps the cursor)
+      const panel = t.closest('#spKid') || t.closest('[data-sp-card]');
+      if (!panel) return;
       const checks = spChecks(item.title, t.value, item.row, hCtx(), spToday(), { kwAfter: item.kwAfter, kwMax: item.kwMax });
-      const list = card && card.querySelector('.sp-checks');
-      if (list) list.innerHTML = checks.map(check => `<li class="sp-chk ${check.ok === true ? 'is-ok' : check.ok === false ? 'is-no' : 'is-warn'}"><i>${check.ok === true ? '✓' : check.ok === false ? '✕' : '⚠'}</i>${lrEsc(check.t)}</li>`).join('');
-      const cnt = card && card.querySelector(`[data-sp-cnt="${CSS.escape(key)}"]`);
+      const chk = panel.querySelector('.sp-chk-c');
+      if (chk) chk.innerHTML = '<h4>Checks</h4>' + spChecksHtml(checks);
+      const chg = panel.querySelector('.sp-chg');
+      if (chg) chg.innerHTML = '<h4>What changes</h4>' + spChangesHtml(item, t.value);
+      const cnt = panel.querySelector(`[data-sp-cnt="${CSS.escape(key)}"]`);
       if (cnt) cnt.textContent = `${t.value.length} of ${SP_TITLE_MAX} letters`;
-      const sug = card && card.querySelector('.sp-sug > div');
-      if (sug) sug.innerHTML = spDiffHtml(item.title, t.value);
       const bad = checks.find(check => check.ok === false);
-      const btn = card && card.querySelector('[data-sp-act="approve"]');
-      const reason = card && card.querySelector('.sp-reason');
+      const btn = panel.querySelector('[data-sp-act="approve"]');
+      const reason = panel.querySelector('.sp-reason');
       if (btn) btn.disabled = !!bad || !item.pt || !(item.status === 'ready' || item.status === 'look') || !spChanges(item, t.value);
-      if (reason) reason.textContent = bad ? bad.why || bad.t : '';
-      else if (bad && btn) btn.insertAdjacentHTML('afterend', `<span class="sp-reason">${lrEsc(bad.why || bad.t)}</span>`);
+      if (reason) { reason.textContent = bad ? bad.why || bad.t : ''; reason.hidden = !bad; }
     }
-  });
-  // Esc closes the confirm window (nothing is sent); a press on the dark backdrop too, unless a send is running.
-  document.addEventListener('keydown', e => {
-    if (e.key === 'Escape' && $('spModal') && !$('spModal').classList.contains('hide') && !SP.sending) spModal('');
   });
   if ($('spModal')) $('spModal').addEventListener('click', e => { if (e.target === $('spModal') && !SP.sending) spModal(''); });
 }
