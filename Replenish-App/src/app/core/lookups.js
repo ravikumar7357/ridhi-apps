@@ -44,7 +44,7 @@ async function mdbFetchSku(sku) {
     try {
       const r = await fetch(`${PT_URL}/pt_masterDB.json?orderBy=%22sku%22&equalTo=${encodeURIComponent(JSON.stringify(v))}` + (q ? '&' + q.slice(1) : ''));
       if (!r.ok) continue;
-      got = await r.json();
+      got = await (typeof dmJson === 'function' ? dmJson(r, 'pt_masterDB', 'plain') : r.json());
     } catch (e) { continue; }
     const rows = Object.entries(got || {}).map(([k, x]) => (x && typeof x === 'object' ? Object.assign({ _key: k }, x) : null))
       .filter(x => x && x.sku && !x.mergedInto && obUC(x.sku) === obUC(want));
@@ -266,7 +266,7 @@ async function skuFillOpen() {
   if (!mdbCanEdit()) { $('ptmMsg').className = 'err'; $('ptmMsg').textContent = MDB_NO_EDIT; return; }
   $('ptmMsg').className = 'muted'; $('ptmMsg').textContent = 'Reading the Custom SKUs and the vendor orders…';
   try {
-    if (!PTG.mdb) await ptLoadGates();
+    await ptNeed(PTG_ALL, { why: 'lookups', has: 'mdb' });
     MDBX.custom = ptList(await ptGet('pt_customSkus'));
     VO.rows = null; await ensureVo();
   } catch (e) { $('ptmMsg').className = 'err'; $('ptmMsg').textContent = 'Could not read them: ' + (e.message || e); return; }

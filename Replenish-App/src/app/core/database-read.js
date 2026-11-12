@@ -10,7 +10,7 @@ async function ptGet(node, raw) {
     if (rt) node = rt.path;
   }
   if (ptLiveable(node)) {
-    try { const v = await ptLiveRead(node); if (v !== PT_LIVE_NO) return v; } catch (e) { /* the plain read below */ }
+    try { const v = await ptLiveRead(node); if (v !== PT_LIVE_NO) { try { if (typeof dmCount === 'function') dmCount(node, 0, 'from-copy'); } catch (e2) { console.warn('[data meter]', e2); } return v; } } catch (e) { /* the plain read below */ }
   }
   /* The token goes on the READ as well as the write. Where the data sits now, nothing is readable
    * without one — the rules are "signed in, and not a vendor", and a vendor is refused at the root
@@ -27,7 +27,7 @@ async function ptGet(node, raw) {
         throw new Error('The production database refused the read (permission denied). Sign out and '
           + 'sign in again; if it keeps happening, this account is not allowed to read production data.');
       if (!r.ok) throw new Error(`The production database answered ${r.status} ${r.statusText || ''}`.trim());
-      return await r.json();
+      return await (typeof dmJson === 'function' ? dmJson(r, node, 'plain') : r.json());
     } catch (e) {
       clearTimeout(t);
       lastErr = (e && e.name === 'AbortError')

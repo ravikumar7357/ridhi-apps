@@ -39,6 +39,7 @@ function ptLiveOpen(node) {
     L.off = m.onValue(m.ref(db, node), sn => { L.snap = sn; L.evSeq = ++PT_LIVE_SEQ; res(true); },
       () => { L.dead = true; L.snap = null; res(false); });
   })).catch(() => { L.dead = true; return false; });
+  try { if (typeof dmLiveWatch === 'function' && dmOn()) dmLiveWatch(node, L); } catch (e) { console.warn('[data meter]', e); }
   return L;
 }
 async function ptLiveRead(node) {

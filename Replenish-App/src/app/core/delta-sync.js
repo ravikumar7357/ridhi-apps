@@ -18,21 +18,38 @@
  * Off with localStorage deltaShadowOff = '1'. Never in the test harnesses (AUDIT_OFF) or for a vendor. */
 /* ON since 2026-10-10: sync-coverage.js showed every gate-row save since phase 1 noted (458 of 458), Ravi said go. */
 const DELTA = { on: true, delayMs: 20000, maxRows: 300, marginMs: 2 * 60 * 1000, done: false, running: false, offset: null,
-  /* phase 3 (below): OFF as shipped; one device can try it first with localStorage deltaUse = '1' */
-  use: false, maxAgeMs: 24 * 3600 * 1000, keyCheckMs: 24 * 3600 * 1000 };
+  /* A copy is saved only after the connection has been up this long: just after a reconnect the live copy can still be an old one. */
+  minUpMs: 60 * 1000, upAt: null, netOn: false,
+  /* A wipe bumps gen, so a run or an open that was already under way cannot write a copy back afterwards. */
+  gen: 0, wipeSaid: {},
+  /* phase 3 (below): its switch is config/flags deltaUse (kept by deltaSaveFlag); one device can override with localStorage
+   * deltaUse = '1' / '0'. After go-live, this share of page sessions takes the full path and runs the shadow. */
+  sampleRate: 0.1, sample: null, maxAgeMs: 24 * 3600 * 1000, keyCheckMs: 24 * 3600 * 1000 };
 const DELTA_DB = 'ridhi-delta', DELTA_STORE = 'copies';
 
 function deltaShadowSoon() {
   try {
-    if (DELTA.done || DELTA.running || !DELTA.on || !AUDIT.on || deltaUseOn()) return;   // nothing to shadow once the copy IS used
+    if (DELTA.done || DELTA.running || !DELTA.on || !AUDIT.on || deltaLiveOn()) return;   // nothing to shadow once the copy IS used
     try { if (localStorage.getItem('deltaShadowOff') === '1') return; } catch (e) { /* no storage: carry on */ }
     if (typeof indexedDB === 'undefined' || !auth || !auth.currentUser || spIsVendor()) return;
     DELTA.done = true;              // once a page session: the open that phase 3 would make cheaper
+    deltaNetWatch();
+    /* late enough that the connection has been up for the minimum before the copy is taken */
     setTimeout(() => {
       deltaShadowRun().catch(e => { DELTA.running = false; deltaLog({ at: new Date().toISOString(), by: deltaWho(), err: deltaErr(e) }); });
-    }, DELTA.delayMs);
+    }, Math.max(DELTA.delayMs, DELTA.minUpMs ? DELTA.minUpMs + 5000 : 0));
   } catch (e) { /* never in the way */ }
 }
+
+/** How long the connection has been up without a break — this file's own listener, started with the shadow. */
+function deltaNetWatch() {
+  if (DELTA.netOn) return;
+  DELTA.netOn = true;
+  ptLiveDb().then(({ m, db }) => {
+    m.onValue(m.ref(db, '.info/connected'), s => { DELTA.upAt = s.val() === true ? (DELTA.upAt || Date.now()) : null; });
+  }).catch(() => { DELTA.netOn = false; });
+}
+const deltaUpMs = () => (DELTA.upAt ? Date.now() - DELTA.upAt : 0);
 
 const deltaWho = () => { try { return (ME && ME.email) || ''; } catch (e) { return ''; } };
 const deltaErr = e => String((e && e.message) || e).slice(0, 160);
@@ -50,6 +67,8 @@ function deltaIdb() {
     r.onerror = () => rej(r.error || new Error('indexedDB'));
   });
 }
+/* A wipe (below) must not wait for a connection this file left open. */
+const deltaIdbOpen = () => deltaIdb().then(d => { try { d.onversionchange = () => d.close(); } catch (e) { /* fine */ } return d; });
 const deltaTx = (db, mode, fn) => new Promise((res, rej) => {
   const tx = db.transaction(DELTA_STORE, mode), st = tx.objectStore(DELTA_STORE), q = fn(st);
   tx.oncomplete = () => res(q && 'result' in q ? q.result : undefined);
@@ -75,12 +94,13 @@ async function deltaServerNow() {
 }
 
 /* ---- reads: always small, and their size is counted ---- */
-async function deltaRead(path, query) {
+async function deltaRead(path, query, label) {
   const q = await ptAuthQuery();
   const url = `${PT_URL}/${ptPath(path)}.json` + q + (query ? (q ? '&' : '?') + query : '');
   const r = await fetch(url);
   if (!r.ok) throw new Error(path + ' answered ' + r.status);
   const t = await r.text();
+  try { if (typeof dmCount === 'function') dmCount(path, t.length, label || 'delta-shadow'); } catch (e) { console.warn('[data meter]', e); }
   return { v: t ? JSON.parse(t) : null, bytes: t.length };
 }
 
@@ -94,19 +114,19 @@ function deltaLiveNow(node) {
 }
 
 /** Last time's copy + the rows changed since = what phase 3 would hand the screens. */
-async function deltaRebuild(node, copy, keyCheck) {
+async function deltaRebuild(node, copy, keyCheck, label) {
   const info = { mode: 'delta', bytes: 0 };
-  const reset = await deltaRead('pt_sync/_reset/' + node);
+  const reset = await deltaRead('pt_sync/_reset/' + node, '', label);
   info.bytes += reset.bytes;
   if (reset.v && Number(reset.v) >= copy.mark) { info.mode = 'reset'; return { info }; }
-  const s = await deltaRead('pt_sync/' + node, 'orderBy=%22%24value%22&startAt=' + Math.floor(copy.mark));
+  const s = await deltaRead('pt_sync/' + node, 'orderBy=%22%24value%22&startAt=' + Math.floor(copy.mark), label);
   info.bytes += s.bytes;
   const keys = Object.keys(s.v || {});
   info.changed = keys.length;
   if (keys.length > DELTA.maxRows) { info.mode = 'toomany'; return { info }; }
   const R = Object.assign({}, copy.v || {});
   for (let i = 0; i < keys.length; i += 20) {
-    const part = await Promise.all(keys.slice(i, i + 20).map(k => deltaRead(node + '/' + k)));
+    const part = await Promise.all(keys.slice(i, i + 20).map(k => deltaRead(node + '/' + k, '', label)));
     part.forEach((x, j) => {
       info.bytes += x.bytes;
       const k = keys[i + j];
@@ -116,7 +136,7 @@ async function deltaRebuild(node, copy, keyCheck) {
   /* A row added or removed by something that wrote no pt_sync line shows here. Phase 3 asks once a day (it is most
    * of the bytes); the shadow always asks. */
   if (keyCheck === false) { info.addedOutside = 0; info.removedOutside = 0; return { info, R, synced: s.v || {} }; }
-  const sh = await deltaRead(node, 'shallow=true');
+  const sh = await deltaRead(node, 'shallow=true', label);
   info.bytes += sh.bytes;
   const there = new Set(Object.keys(sh.v || {}));
   info.addedOutside = [...there].filter(k => !(k in R)).length;
@@ -124,8 +144,22 @@ async function deltaRebuild(node, copy, keyCheck) {
   return { info, R, synced: s.v || {} };
 }
 
-/** Row by row against the live copy. A row saved WHILE this ran is a race, not a fault, and is counted apart. */
-async function deltaCompare(node, R, F, startedAt) {
+/** One differing row in a few words: the field, its type and the first 40 characters each side. */
+function deltaRowDiff(k, a, b) {
+  const typ = x => (Array.isArray(x) ? 'array' : x == null ? 'none' : typeof x);
+  const cut = x => (x === undefined ? '(none)' : typeof x === 'string' ? x : JSON.stringify(x)).slice(0, 40);
+  if (a === undefined || b === undefined) return k + ': row missing in ' + (a === undefined ? 'copy' : 'live');
+  if (!a || !b || typeof a !== 'object' || typeof b !== 'object') return k + ' ' + typ(a) + '/' + typ(b) + ' "' + cut(a) + '" vs "' + cut(b) + '"';
+  const fs = [];
+  for (const f of new Set(Object.keys(a).concat(Object.keys(b)))) {
+    if (deltaCanon(a[f]) !== deltaCanon(b[f])) { fs.push(k + '.' + f + ' ' + typ(a[f]) + '/' + typ(b[f]) + ' "' + cut(a[f]) + '" vs "' + cut(b[f]) + '"'); if (fs.length >= 2) break; }
+  }
+  return fs.length ? fs.join(', ') : k + ': differs';
+}
+
+/** Row by row against the live copy. A row saved WHILE this ran is a race, not a fault, and is counted apart.
+ *  For up to 3 differing rows it also says what differs, and whether the row has a change line and when, against the copy's time. */
+async function deltaCompare(node, R, F, startedAt, copyMark) {
   const keys = new Set(Object.keys(R).concat(Object.keys(F || {})));
   const bad = [];
   let n = 0;
@@ -134,22 +168,26 @@ async function deltaCompare(node, R, F, startedAt) {
     if (++n % 200 === 0) await deltaYield();
   }
   let race = 0;
-  const mism = [];
+  const mism = [], lines = {};
   for (const k of bad.slice(0, 20)) {
     let ts = 0;
-    try { ts = Number((await deltaRead('pt_sync/' + node + '/' + k)).v) || 0; } catch (e) { /* unknown: count it as a mismatch */ }
+    try { ts = Number((await deltaRead('pt_sync/' + node + '/' + k, '', 'delta-shadow')).v) || 0; } catch (e) { /* unknown: count it as a mismatch */ }
+    lines[k] = ts;
     if (ts && ts >= startedAt - DELTA.marginMs) race++; else mism.push(k);
   }
-  return { rows: keys.size, mismatch: mism.length + Math.max(0, bad.length - 20), race, sample: mism.slice(0, 10) };
+  const unchecked = Math.max(0, bad.length - 20);          // bad rows past the first 20: counted, not re-checked
+  const diff = bad.slice(0, 3).map(k => deltaRowDiff(k, R[k], (F || {})[k]) + ' | '
+    + (lines[k] ? 'note ' + (lines[k] >= (copyMark || 0) ? '+' : '') + Math.round((lines[k] - (copyMark || 0)) / 1000) + 's vs copy' : 'no note')).join(' ;; ').slice(0, 600);
+  return { rows: keys.size, mismatch: mism.length + unchecked, unchecked, race, sample: mism.slice(0, 10), diff };
 }
 
 async function deltaShadowRun() {
   if (DELTA.running) return;
   DELTA.running = true;
-  const t0 = Date.now(), uid = auth.currentUser.uid;
+  const t0 = Date.now(), uid = auth.currentUser.uid, gen = DELTA.gen;
   const out = { at: new Date().toISOString(), by: deltaWho(), nodes: {} };
   let db;
-  try { db = await deltaIdb(); } catch (e) { DELTA.running = false; out.err = 'no IndexedDB: ' + deltaErr(e); return deltaLog(out); }
+  try { db = await deltaIdbOpen(); } catch (e) { DELTA.running = false; out.err = 'no IndexedDB: ' + deltaErr(e); return deltaLog(out); }
   for (const node of PT_SYNC_NODES) {
     const r = {};
     try {
@@ -157,14 +195,19 @@ async function deltaShadowRun() {
       const startedAt = await deltaServerNow();
       let res = null;
       if (!copy || copy.uid !== uid || typeof copy.mark !== 'number') r.mode = 'nocopy';
-      else { res = await deltaRebuild(node, copy); Object.assign(r, res.info); }
+      else { res = await deltaRebuild(node, copy, undefined, 'delta-shadow'); Object.assign(r, res.info); }
       /* The truth, taken AFTER the delta so both describe the same moment. */
-      const mark = (await deltaServerNow()) - DELTA.marginMs;
+      const nowS = await deltaServerNow(), mark = nowS - DELTA.marginMs;
       const F = deltaLiveNow(node);
+      const up = deltaUpMs();                                  // how long the connection has been up, at the moment of the truth
+      r.upFor = Math.round(up / 1000);
       if (F === PT_LIVE_NO) { r.mode = (r.mode || '') + '+nolive'; out.nodes[node] = r; continue; }
       r.full = JSON.stringify(F || {}).length;
-      if (res && res.R) Object.assign(r, await deltaCompare(node, res.R, F || {}, startedAt));
-      await deltaCopyPut(db, node, { uid, mark, v: F || {}, at: Date.now() });
+      if (res && res.R) Object.assign(r, await deltaCompare(node, res.R, F || {}, startedAt, copy.mark));
+      /* The copy is today's full register, so it carries a full-download time (fullAt). Not saved when the connection has
+       * only just come back (the live copy may be an old one) or when the copy was wiped meanwhile. */
+      if (up >= DELTA.minUpMs && gen === DELTA.gen) await deltaCopyPut(db, node, { uid, mark, v: F || {}, at: Date.now(), fullAt: nowS, keysAt: nowS });
+      else r.kept = 'old copy kept';
     } catch (e) { r.mode = (r.mode || '') + '+error'; r.err = deltaErr(e); }
     out.nodes[node] = r;
     await deltaYield();
@@ -182,10 +225,38 @@ function deltaLog(rec) {
     return ptAuditWrite({ ['pt_syncAudit/' + day + '/' + auditId()]: rec }).catch(() => {});
   } catch (e) { return Promise.resolve(); }
 }
+/** Delete the whole browser copy (sign-out on a shared computer, another account signing in). Logs the reason once. Never throws. */
+function deltaWipe(reason) {
+  DELTA.gen++;
+  try {
+    if (!DELTA.wipeSaid[reason]) { DELTA.wipeSaid[reason] = 1; deltaLog({ at: new Date().toISOString(), by: deltaWho(), wipe: String(reason || '').slice(0, 80) }); }
+  } catch (e) { /* only a note */ }
+  return new Promise(res => {
+    setTimeout(() => res(false), 3000);     // a delete behind another tab's blocked one gets no event: never hold up a sign-in or sign-out
+    try {
+      if (typeof indexedDB === 'undefined') return res(false);
+      const r = indexedDB.deleteDatabase(DELTA_DB);
+      r.onsuccess = () => res(true); r.onerror = () => res(false); r.onblocked = () => res(false);
+    } catch (e) { res(false); }
+  });
+}
+
+/** Called once someone is signed in: a copy kept for another account (or one with no known owner) is deleted. */
+function deltaSignedIn(email) {
+  try {
+    const em = String(email || '').trim().toLowerCase();
+    if (!em) return Promise.resolve(false);
+    let owner = null;
+    try { owner = localStorage.getItem('deltaOwner'); } catch (e) { /* no storage: always wipe */ }
+    try { localStorage.setItem('deltaOwner', em); } catch (e) { /* no storage */ }
+    if (owner === em) return Promise.resolve(false);
+    return deltaWipe(owner ? 'another account signed in' : 'copy of unknown owner');
+  } catch (e) { return Promise.resolve(false); }
+}
 /* ==== END DELTA SYNC SHADOW ==== */
 
 /* ==== DELTA SYNC, PHASE 3: USE THE COPY ====
- * When it is switched on (DELTA.use for everyone, or localStorage deltaUse = '1' on one device; deltaUse = '0' turns
+ * When it is switched on (config/flags deltaUse for everyone, or localStorage deltaUse = '1' on one device; deltaUse = '0' turns
  * it off on that device whatever the switch says), a gate register's live copy (core/live-copies.js) is built from
  * the browser's copy + the rows pt_sync says changed, instead of downloading the whole register:
  *   - kept fresh by listening to pt_sync/<register> from the copy's mark: each changed row is read on its own;
@@ -198,15 +269,28 @@ function deltaUseOn() {
     const d = localStorage.getItem('deltaUse');
     if (d === '0') return false;
     if (d === '1') return true;
-  } catch (e) { /* no storage: the global switch decides */ }
-  return !!DELTA.use;
+    return localStorage.getItem('deltaFlagLast') === '1';
+  } catch (e) { return false; }
 }
+/** Keep the switch's last answer for the next page load (the page reads config/flags once; core/history.js passes it on). */
+function deltaSaveFlag(on) {
+  try { if (on) localStorage.setItem('deltaFlagLast', '1'); else localStorage.removeItem('deltaFlagLast'); } catch (e) { /* no storage: stays off */ }
+}
+/** One page session in ten (after go-live) takes today's full path and runs the shadow, so the copy keeps being proved.
+ *  Not on a device that chose deltaUse = '1' for itself. Decided once per page session. */
+function deltaSampleFull() {
+  try { if (localStorage.getItem('deltaUse') === '1') return false; } catch (e) { /* the share decides */ }
+  if (DELTA.sample === null) DELTA.sample = Math.random() < DELTA.sampleRate;
+  return DELTA.sample;
+}
+/** Is this page session reading from the copy? Asked at use, never at file load (the vendor check is not ready then). */
+const deltaLiveOn = () => deltaUseOn() && !deltaSampleFull();
 const deltaClone = v => (typeof structuredClone === 'function' ? structuredClone(v) : JSON.parse(JSON.stringify(v)));
 
 /** A live copy for a gate register built from the copy, or null to let core/live-copies.js do it the full way. */
 function deltaLiveOpen(node) {
   try {
-    if (!PT_SYNC_NODES.has(node) || !AUDIT.on || !deltaUseOn()) return null;
+    if (!PT_SYNC_NODES.has(node) || !AUDIT.on || !deltaLiveOn()) return null;
     if (typeof indexedDB === 'undefined' || !auth || !auth.currentUser || spIsVendor()) return null;
   } catch (e) { return null; }
   const L = { snap: null, dead: false, wroteAt: 0, wroteSeq: 0, evSeq: 0, off: null, offs: [], closed: false, delta: 'opening' };
@@ -218,16 +302,18 @@ function deltaLiveOpen(node) {
 async function deltaLiveStart(L, node) {
   const uid = auth.currentUser.uid;
   const { m, db } = await ptLiveDb();
-  const idb = await deltaIdb();
+  const gen = DELTA.gen;
+  const idb = await deltaIdbOpen();
   const copy = await deltaCopyGet(idb, node);
   const now = await deltaServerNow();
   if (L.closed) return false;
   let why = '';
   if (!copy || copy.uid !== uid || typeof copy.mark !== 'number') why = 'no copy';
-  else if (now - copy.mark > DELTA.maxAgeMs) why = 'copy older than a day';
+  else if (typeof copy.fullAt !== 'number') why = 'no full download time';
+  else if (now - copy.mark > DELTA.maxAgeMs || now - copy.fullAt > DELTA.maxAgeMs) why = 'copy older than a day';   // a delta open never moves fullAt
   if (why) return deltaLiveFull(L, node, why, idb);
   const keyCheck = now - (copy.keysAt || 0) > DELTA.keyCheckMs;
-  const res = await deltaRebuild(node, copy, keyCheck);
+  const res = await deltaRebuild(node, copy, keyCheck, 'delta');
   if (L.closed) return false;
   if (!res.R) return deltaLiveFull(L, node, res.info.mode, idb);
   if (res.info.addedOutside || res.info.removedOutside) return deltaLiveFull(L, node, 'rows added or removed outside the app', idb);
@@ -235,14 +321,15 @@ async function deltaLiveStart(L, node) {
   L.snap = { val: () => deltaClone(val) };
   L.evSeq = ++PT_LIVE_SEQ;
   L.delta = 'delta';
-  deltaCopyPut(idb, node, { uid, mark: now - DELTA.marginMs, v: val, at: Date.now(), keysAt: keyCheck ? now : (copy.keysAt || 0) }).catch(() => {});
+  if (gen === DELTA.gen) deltaCopyPut(idb, node, { uid, mark: now - DELTA.marginMs, v: val, at: Date.now(), keysAt: keyCheck ? now : (copy.keysAt || 0), fullAt: copy.fullAt }).catch(() => {});
   /* Every later save anywhere: its pt_sync line arrives here, and that one row is read. */
   const onKey = sn => {
     const k = sn.key, ts = Number(sn.val()) || 0;
+    try { if (typeof dmCount === 'function') dmCount('pt_sync/' + node, JSON.stringify(k).length + String(ts).length + 2, 'delta-notes'); } catch (e) { /* only a count */ }
     if (L.closed || L.delta !== 'delta' || (seen[k] && seen[k] >= ts)) return;
     seen[k] = ts;
     const my = (want[k] || 0) + 1; want[k] = my;
-    deltaRead(node + '/' + k).then(x => {
+    deltaRead(node + '/' + k, '', 'delta').then(x => {
       if (want[k] !== my || L.delta !== 'delta' || L.closed) return;     // a newer read of this row is on its way
       if (x.v === null) delete val[k]; else val[k] = x.v;
       L.evSeq = ++PT_LIVE_SEQ;
@@ -271,7 +358,7 @@ async function deltaLiveFull(L, node, why, idb) {
   L.offs.forEach(f => { try { f(); } catch (e) { /* gone */ } }); L.offs = [];
   L.delta = 'full';
   if (L.closed) return false;
-  const uid = auth.currentUser.uid;
+  const uid = auth.currentUser.uid, gen = DELTA.gen;
   const { m, db } = await ptLiveDb();
   const mark = (await deltaServerNow()) - DELTA.marginMs;     // taken BEFORE the read, so nothing after it is missed
   return new Promise(res => {
@@ -280,8 +367,9 @@ async function deltaLiveFull(L, node, why, idb) {
       L.snap = sn; L.evSeq = ++PT_LIVE_SEQ;
       if (!first) return;
       first = false; res(true);
-      (idb ? Promise.resolve(idb) : deltaIdb())
-        .then(d => deltaCopyPut(d, node, { uid, mark, v: sn.val() || {}, at: Date.now(), keysAt: mark + DELTA.marginMs }))
+      /* the only place a copy gets its full-download time (the shadow's full save is the other) */
+      (idb ? Promise.resolve(idb) : deltaIdbOpen())
+        .then(d => (gen === DELTA.gen ? deltaCopyPut(d, node, { uid, mark, v: sn.val() || {}, at: Date.now(), keysAt: mark + DELTA.marginMs, fullAt: mark + DELTA.marginMs }) : null))
         .catch(() => {});
       deltaLog({ at: new Date().toISOString(), by: deltaWho(), use: node, mode: 'full', why });
     }, () => { L.dead = true; L.snap = null; res(false); }));

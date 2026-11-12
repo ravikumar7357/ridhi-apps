@@ -52,7 +52,7 @@ function pksResolve(code) {
   const byFn = (FN.map || /* @__PURE__ */ new Map()).get(c);
   if (byFn) return { sku: obUC(byFn), how: "fnsku" };
   const rmap = typeof replRowMap === "function" ? replRowMap() : {};
-  if (rmap[c] || PK_META[c] || (PTG.mdb || []).some((r) => r && obUC(r.sku) === c)) return { sku: c, how: "sku" };
+  if (rmap[c] || PK_META[c] || ((typeof ptPeek === 'function' ? ptPeek('mdb') : PTG.mdb) || []).some((r) => r && obUC(r.sku) === c)) return { sku: c, how: "sku" };
   return { sku: "", how: "" };
 }
 function pksImg(sku) {

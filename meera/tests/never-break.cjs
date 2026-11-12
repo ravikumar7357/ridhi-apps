@@ -24,8 +24,14 @@ const idsIn = sel => [...String(sel || '').replace(/\[[^\]]*\]/g, '').matchAll(/
 const known = (ids, src, id) => ids.has(id) || (/^ptf_/.test(id) && src.includes("'ptf_' +")) || /^mobL-/.test(id);
 
 async function main() {
-  const M = await load({ root: ROOT });
-  const run = c => M.run(c);
+  /* --bundle --on=design,…: the same list on meera.js with her switches on (Phase 3: a look-only switch keeps every check) */
+  /* her new features on (MEERA_V2_ON): "lazy" is on, so staff only ever get meera.js — the list is checked on meera.js */
+  const V2 = /^\s*const MEERA_V2_ON = true\b/m.test(require('fs').readFileSync(require('path').join(__dirname, '..', '..', 'Replenish-App', 'src', 'app', 'core', 'meera-bridge.js'), 'utf8'));
+  const args = process.argv.slice(2), bundle = args.includes('--bundle') || V2;
+  const switches = ((args.find(a => a.startsWith('--on=')) || '').slice(5)).split(',').filter(Boolean);
+  const M = await load({ root: ROOT, bundle, switches, handle: bundle });
+  const run = bundle ? c => M.ctx.__meeraTest(c) : c => M.run(c);
+  if (bundle) console.log('checking meera.js' + (switches.length ? ', switches on: ' + switches.join(', ') : ''));
   const { ids, src } = appIds();
 
   /* 1. first-visit walk-rounds (14 screens have written ones on 29 Oct; the rest get one read off the screen): every screen's tour, every box it lights, is in the app */
@@ -60,6 +66,11 @@ async function main() {
 
   /* 6. row reader */
   ok(typeof run('gaRowFind') === 'function' && typeof run('gaRowAnswer') === 'function', 'row reader is there');
+  /* a screen drawn inside one table cell (Printer Allocation's colour groups) is not "a line" (Ravi, 7 Nov: "what is this 51 not given") */
+  ok(run(`(() => { const gp = guidePane, mk = (t, nest) => ({ textContent: t, offsetParent: {}, tagName: 'TR', children: [], closest: () => null, querySelector: () => (nest ? {} : null) });
+    const rows = [mk('RBP ungrouped 69 colours 51 to make of 926 Not given 51 Evergreen Ikat Red 19 of 26 Garnet Red 7 of 125', true), mk('Evergreen Ikat & Red 32 SKUs 19 of 26 nobody'), mk('Garnet Red 8 SKUs 7 of 125 nobody')];
+    guidePane = () => ({ querySelectorAll: () => rows });
+    try { const a = gaRowFind('what is this 51 not given'), b = gaRowFind('ye garnet red 125 wali line kya hai'); return a === null && b === rows[2]; } finally { guidePane = gp; } })()`), 'a row holding other rows is not taken as a line; the line inside it is');
 
   /* 7. which page / here; off-topic; private */
   ok(run('GA_WHEREAMI_RE').test('main kis page par hoon') && run('GA_WHEREAMI_RE').test('which page am i on'), '"which page am I on" is understood');
@@ -79,10 +90,15 @@ async function main() {
   let walkMissing = [];
   for (const w of walks) for (const s of w.steps || []) for (const id of idsIn(s.sel).concat(idsIn(s.skip))) if (!known(ids, src, id)) walkMissing.push(w.id + ' → #' + id);
   ok(walks.length >= 200, `${walks.length} walk-throughs`);
+  /* Phase 6: every answer's "Show me" box, and every part of a screen she explains, is still in the app */
+  const bankAll = JSON.parse(fs.readFileSync(path.join(APP, 'public/guide/meera-bank.json'), 'utf8'));
+  const showMissing = [];
+  for (const e of bankAll) for (const id of idsIn(e.sel).concat(e.p ? idsIn(e.p[5]) : [])) if (!known(ids, src, id)) showMissing.push(e.id + ' → #' + id);
+  ok(!showMissing.length, 'every answer\'s "Show me" box is in the app' + (showMissing.length ? ': ' + showMissing.slice(0, 8).join(', ') : ''));
   ok(!walkMissing.length, 'every walk-through box is in the app' + (walkMissing.length ? ': ' + walkMissing.slice(0, 8).join(', ') : ''));
 
   /* 9. Stuck? offer: 3 × No thanks = off */
-  ok(/>= 3/.test(run('gaNudgeOff.toString()')), 'Stuck? offer: three "No thanks" turn it off');
+  ok(/>=\s*3/.test(run('gaNudgeOff.toString()')), 'Stuck? offer: three "No thanks" turn it off');
 
   /* 10. AI fallback with strict rules */
   ok(/meera-router\.erp-9a0\.workers\.dev/.test(run('GA_AI_URL')), 'AI fallback points at the router');

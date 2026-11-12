@@ -11,9 +11,9 @@
 <link rel="icon" href="/logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<!-- THE SHOP'S OWN TWO FACES, the same ones ridhiblockprint.com is set in: Plus Jakarta Sans for
-     everything that is read, Libre Caslon Text for the name over the door. -->
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Libre+Caslon+Text:wght@400;700&display=swap">
+<!-- Inter for everything that is read (variable: optical size 14–32, weights 400–700), and Libre
+     Caslon Text for one thing only, the name on the sign-in screen. -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400..700&family=Libre+Caslon+Text:wght@400&display=swap">
 <link rel="apple-touch-icon" href="/logo.png">
 <style>
 <!--@include styles.css-->
@@ -23,15 +23,19 @@
 
 <!-- ============ LOGIN ============ -->
 <div id="loginView" class="wrap login">
+  <!-- The moving background, behind the card: soft drifting light (styles.css) and faint drifting dots
+       joined by lines (app/core/fx.js draws them). Inside this screen, so it goes when the screen does. -->
+  <div class="fx-aurora" aria-hidden="true"><i></i><i></i><i></i></div>
+  <canvas id="sellFx" aria-hidden="true"></canvas>
   <div class="card">
     <!-- Drawn inline, not fetched: the page's CSP blocks external images, and this is a plain smile
          arrow rather than Amazon's actual wordmark, which is theirs and not ours to ship. -->
     <div class="signin">
-      <svg width="104" height="34" viewBox="0 0 86 30" aria-label="Sellora" role="img">
-        <path d="M4 21 C20 30, 62 30, 78 20" stroke="#FF9900" stroke-width="3.4"
+      <div class="silogo"><svg width="104" height="34" viewBox="0 0 86 30" aria-label="Sellora" role="img">
+        <path class="logo-arc" d="M4 21 C20 30, 62 30, 78 20" stroke-width="4.4"
               stroke-linecap="round" fill="none"/>
-        <path d="M78 20 l-1.5 7.5 l7 -4.5 z" fill="#FF9900"/>
-      </svg>
+        <path class="logo-tip" d="M78 20 l-1.5 7.5 l7 -4.5 z"/>
+      </svg></div>
       <h1>Sellora</h1>
       <p class="kicker">The Fabric Rush</p>
     </div>
@@ -45,21 +49,21 @@
 
 <!-- ============ APP ============ -->
 <div id="appView" class="shell hide">
-  <aside class="side">
-    <div class="brand" style="display:flex;align-items:center;gap:8px">
-      <svg width="30" height="12" viewBox="0 0 86 30" aria-hidden="true" style="flex:none">
-        <path d="M4 21 C20 30, 62 30, 78 20" stroke="#FF9900" stroke-width="5"
+  <aside class="side" id="sideNav" aria-label="Main menu">
+    <div class="brand">
+      <span class="brandtile"><svg width="30" height="12" viewBox="0 0 86 30" aria-hidden="true">
+        <path class="logo-arc" d="M4 21 C20 30, 62 30, 78 20" stroke-width="7"
               stroke-linecap="round" fill="none"/>
-        <path d="M78 20 l-1.5 7.5 l7 -4.5 z" fill="#FF9900"/>
-      </svg>
-      Sellora
+        <path class="logo-tip" d="M78 20 l-1.5 7.5 l7 -4.5 z"/>
+      </svg></span>
+      <span class="brandname">Sellora</span>
       <button id="navClose" class="navclose" type="button" aria-label="Close menu">&#8249;</button>
     </div>
 
     <!-- Each heading names the tabs it owns in data-tabs. That one attribute is what lets a group
          hide itself when every tab under it is hidden or not permitted, so there is no second list
          to keep in step when a tab moves between groups. -->
-    <div class="navwrap"><button class="navgrp" id="grpResearch" type="button" data-grp="research" data-tabs="link,new,pr,kw">
+    <div class="navwrap"><button class="navgrp" id="grpResearch" type="button" aria-controls="secResearch" data-grp="research" data-tabs="link,new,pr,kw">
       <span class="caret">&#9656;</span> Research</button>
     <div class="navsec" id="secResearch">
       <button id="tabLink" class="nav">By Amazon Link</button>
@@ -68,7 +72,7 @@
       <button id="tabKw" class="nav">Keywords</button>
     </div></div>
 
-    <div class="navwrap"><button class="navgrp" id="grpSales" type="button" data-grp="sales" data-tabs="sales,profit,sa,plaudit,shop,adj,ba">
+    <div class="navwrap"><button class="navgrp" id="grpSales" type="button" aria-controls="secSales" data-grp="sales" data-tabs="sales,profit,sa,plaudit,shop,adj,ba">
       <span class="caret">&#9656;</span> Sales</button>
     <div class="navsec" id="secSales">
       <button id="tabSales" class="nav">Sales Dashboard</button>
@@ -83,7 +87,7 @@
       <button id="tabBa" class="nav">Analytics</button>
     </div></div>
 
-    <div class="navwrap"><button class="navgrp" id="grpListing" type="button" data-grp="listing" data-tabs="opt,img,lerr,basket,health,lrules,audit,bsr">
+    <div class="navwrap"><button class="navgrp" id="grpListing" type="button" aria-controls="secListing" data-grp="listing" data-tabs="opt,img,lerr,basket,health,lrules,audit,bsr">
       <span class="caret">&#9656;</span> Listing</button>
     <div class="navsec" id="secListing">
       <button id="tabOpt" class="nav">Listing Optimiser</button>
@@ -96,23 +100,24 @@
       <button id="tabBsr" class="nav">BSR Audit</button>
     </div></div>
 
-    <div class="navwrap"><button class="navgrp" id="grpAds" type="button" data-grp="ads" data-tabs="trends,weekly,st,plc,deals">
+    <div class="navwrap"><button class="navgrp" id="grpAds" type="button" aria-controls="secAds" data-grp="ads" data-tabs="trends,weekly,ppcn,st,plc,deals">
       <span class="caret">&#9656;</span> Advertising</button>
     <div class="navsec" id="secAds">
       <button id="tabTrends" class="nav">Ad Console</button>
       <button id="tabWeekly" class="nav">PPC &amp; Organic</button>
+      <button id="tabPpcn" class="nav">PPC &amp; Organic · New <span class="navtag">TEST</span></button>
       <button id="tabSt" class="nav">Search Terms</button>
       <button id="tabPlc" class="nav">Placement</button>
       <button id="tabDeals" class="nav">Deal Calendar</button>
     </div></div>
 
-    <div class="navwrap"><button class="navgrp" id="grpInv" type="button" data-grp="inv" data-tabs="age">
+    <div class="navwrap"><button class="navgrp" id="grpInv" type="button" aria-controls="secInv" data-grp="inv" data-tabs="age">
       <span class="caret">&#9656;</span> Inventory</button>
     <div class="navsec" id="secInv">
       <button id="tabAge" class="nav">Inventory Age</button>
     </div></div>
 
-    <div class="navwrap"><button class="navgrp" id="grpSocial" type="button" data-grp="social" data-tabs="tiktok,carousel">
+    <div class="navwrap"><button class="navgrp" id="grpSocial" type="button" aria-controls="secSocial" data-grp="social" data-tabs="tiktok,carousel">
       <span class="caret">&#9656;</span> Social</button>
     <div class="navsec" id="secSocial">
       <button id="tabTiktok" class="nav">TikTok Toolkit</button>
@@ -120,7 +125,26 @@
     </div></div>
 
     <div class="sidefoot">
-      <button id="toggleSettings" class="nav">Settings</button>
+      <!-- Light / dark. Wired by app/core/theme.js, which keeps aria-pressed (dark = pressed) in step. -->
+      <button id="themeBtn" class="themesw" type="button" aria-label="Dark theme" aria-pressed="false" title="Switch to dark theme">
+        <svg class="ic-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>
+        </svg>
+        <svg class="ic-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+        </svg>
+      </button>
+      <!-- THE GUIDE, on every screen: opens /guide/ at the part about the screen you are on. -->
+      <button id="guideBtn" class="ghost" type="button"
+            title="How this screen works, step by step — English and Hindi">Guide · गाइड</button>
+      <!-- SETTINGS IS A MENU (Ravi, 3 Nov): Settings and Access are two pages; Access (admins only) is no longer under Settings. -->
+      <div class="setwrap">
+        <button id="toggleSettings" class="nav" type="button" aria-haspopup="true" aria-expanded="false">Settings <span class="caret">&#9662;</span></button>
+        <div id="setMenu" class="setmenu" role="menu">
+          <button id="openSettings" class="nav" type="button" role="menuitem">Settings</button>
+          <button id="openAccess" class="nav" type="button" role="menuitem">Access</button>
+        </div>
+      </div>
       <button id="logoutBtn" class="nav">Sign out</button>
     </div>
   </aside>
@@ -128,19 +152,16 @@
 
   <main class="main">
   <div class="topbar">
-    <button id="hambBtn" class="hamb" type="button" aria-label="Menu" aria-expanded="true" aria-controls="secResearch">
+    <button id="hambBtn" class="hamb" type="button" aria-label="Menu" aria-expanded="true" aria-controls="sideNav">
       <svg width="18" height="14" viewBox="0 0 18 14" aria-hidden="true">
         <path d="M1 1h16M1 7h16M1 13h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
       </svg>
     </button>
     <h2 class="pagehead" id="pageTitle">By Amazon Link</h2>
-    <!-- THE GUIDE, on every screen: opens /guide/ at the part about the screen you are on. -->
-    <button id="guideBtn" class="ghost" type="button" style="margin-left:auto;flex:0 0 auto"
-            title="How this screen works, step by step — English and Hindi">Guide · गाइड</button>
   </div>
 
-  <div id="verifyBox" class="card hide" style="border:1px solid #b45309;background:#fffbeb">
-    <div style="font-weight:700;margin-bottom:6px;color:#7c2d12" id="verifyHead">Confirm your email address</div>
+  <div id="verifyBox" class="card hide vf-box">
+    <div class="vf-head" id="verifyHead">Confirm your email address</div>
     <p class="muted" style="margin:0 0 10px">
       You are signed in as <b id="verifyWho"></b>, and that address has not been confirmed yet.
       Access is granted by typing an address, so until somebody answers it, it only proves that
@@ -222,14 +243,66 @@
 
   <!-- ============ Admin: who can see what ============ -->
   <div id="accessCard" class="card hide" style="margin-bottom:14px">
-    <div class="sec" style="margin-top:0">Access &nbsp;·&nbsp;
-      <span style="text-transform:none;font-weight:400">who can open which section</span></div>
-    <table class="tbl">
+    <!-- ACCESS BY ROLE — Ravi's design (3 Nov), core/access-design.js. PREVIEW: nothing on it is saved; the form below saves as before.
+         The old email table stays underneath, hidden. -->
+    <div id="acx-root" class="acx">
+<div class="shell">
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">F</span>
+      <div>
+        <div class="brand-title">Access by role</div>
+        <div class="brand-sub" id="acx-source">Loading…</div>
+      </div>
+    </div>
+    <div class="top-actions">
+      <label class="search">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <input id="acx-search" type="search" placeholder="Search people or role" aria-label="Search people by email or role">
+      </label>
+      <button id="acx-addBtn" class="btn primary" type="button">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg> Add user
+      </button>
+    </div>
+  </header>
+
+  <nav class="sidenav" id="acx-sidenav" aria-label="Departments"></nav>
+
+  <main class="content" id="acx-content"></main>
+</div>
+
+<div class="scrim" id="acx-scrim" hidden></div>
+<aside class="drawer" id="acx-drawer" aria-hidden="true" aria-labelledby="acx-drawerTitle">
+  <div class="drawer-head" id="acx-drawerHead"></div>
+  <div class="drawer-tabs" id="acx-drawerTabs"></div>
+  <div class="drawer-body" id="acx-drawerBody"></div>
+  <div class="drawer-foot" id="acx-drawerFoot"></div>
+</aside>
+
+<dialog id="acx-modal" aria-labelledby="acx-modalTitle">
+  <div class="modal-head">
+    <div>
+      <h2 id="acx-modalTitle"></h2>
+      <p class="muted" id="acx-modalSub"></p>
+    </div>
+    <button class="icon-btn" type="button" id="acx-modalClose" aria-label="Close">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+    </button>
+  </div>
+  <div id="acx-modalBody" class="modal-body"></div>
+  <div id="acx-modalFoot" class="modal-foot"></div>
+</dialog>
+
+<div class="toast" id="acx-toast" role="status" aria-live="polite"></div>
+    </div>
+    <!-- THE OLD FORM, out of sight (Ravi, 3 Nov: the design's own Edit access does it). It stays in the page: the old code fills it. -->
+    <div id="accessOldForm" class="hide">
+    <div class="sec" style="margin-top:18px">Grant or update</div>
+    <table class="tbl hide">
       <thead><tr><th style="width:38%">Email</th><th>Can see</th><th></th><th></th></tr></thead>
       <tbody id="accessRows"></tbody>
     </table>
 
-    <div class="sec" style="margin-top:18px">Grant or update</div>
     <!-- Ravi, 2026-09-21: "jo already access de chuka unka dropdown bana, jiska edit krna ho kar saku".
          Picking a name loads exactly what the Edit button in the table above loads. -->
     <div style="margin-bottom:10px"><label>Edit somebody who already has access</label>
@@ -349,32 +422,33 @@
       <button id="accessClear" class="ghost" style="flex:none">Clear form</button>
       <span id="accessMsg" class="muted" style="align-self:center"></span>
     </div>
+    </div>
   </div>
 
   <!-- ============ PANE: by link (variation explorer) ============ -->
   <div id="paneLink">
   <div class="card">
     <label>Reference product — link or ASIN</label>
-    <div class="row" style="gap:8px">
-      <input id="link" placeholder="https://www.amazon.com/dp/B0XXXXXXXX   or   B0XXXXXXXX" style="flex:3">
-      <button id="go" style="flex:0 0 150px">Explore listings</button>
+    <div class="row gap-8">
+      <input id="link" placeholder="https://www.amazon.com/dp/B0XXXXXXXX   or   B0XXXXXXXX" class="re-grow-3">
+      <button id="go" class="re-fix-150">Explore listings</button>
     </div>
-    <div id="msg" class="muted" style="margin-top:10px"></div>
+    <div id="msg" class="muted"></div>
   </div>
 
   <div id="exResult" class="hide">
-    <div class="card" style="margin-bottom:12px">
-      <div id="exHead" style="font-weight:600"></div>
+    <div class="card mb-12">
+      <div id="exHead" class="ui-card-title"></div>
       <div class="muted" id="exSub"></div>
     </div>
-    <div class="card" style="overflow-x:auto">
-      <table class="tbl" id="exTable">
+    <div class="card re-scroll-x">
+      <table class="xl" id="exTable">
         <thead><tr>
-          <th>ASIN</th><th>Color</th><th>Size</th><th style="text-align:right">Selling price</th>
-          <th style="text-align:right">Qty (30d)</th><th style="text-align:right">Revenue (30d)</th><th style="text-align:right">BSR</th>
+          <th>ASIN</th><th>Color</th><th>Size</th><th class="num">Selling price</th>
+          <th class="num">Qty (30d)</th><th class="num">Revenue (30d)</th><th class="num">BSR</th>
         </tr></thead>
         <tbody id="exRows"></tbody>
-        <tfoot><tr id="exTotal" style="font-weight:700;border-top:2px solid var(--line)"></tr></tfoot>
+        <tfoot><tr id="exTotal" class="total"></tr></tfoot>
       </table>
     </div>
   </div>
@@ -384,22 +458,22 @@
   <div id="paneNew" class="hide">
     <div class="card">
       <div class="settings-grid">
-        <div class="sec">Reference product <span style="text-transform:none;font-weight:400">— optional. Fetch pulls the EXACT FBA fee, referral %, category &amp; weight straight from Amazon.</span></div>
-        <div style="grid-column:1/-1">
-          <div class="row" style="gap:8px">
-            <input id="n_ref" placeholder="B0XXXXXXXX  — or a full Amazon link" style="flex:3">
-            <button id="n_fetch" class="ghost" style="flex:0 0 130px">Fetch details</button>
+        <div class="sec">Reference product <span class="re-plain">— optional. Fetch pulls the EXACT FBA fee, referral %, category &amp; weight straight from Amazon.</span></div>
+        <div class="re-full">
+          <div class="row gap-8">
+            <input id="n_ref" placeholder="B0XXXXXXXX  — or a full Amazon link" class="re-grow-3">
+            <button id="n_fetch" class="ghost re-fix-130">Fetch details</button>
           </div>
-          <div id="n_refInfo" class="muted hide" style="margin-top:8px"></div>
+          <div id="n_refInfo" class="muted hide"></div>
         </div>
 
         <div class="sec">The product</div>
         <div><label>Target selling price $</label><input id="n_price" type="number" step="0.01" placeholder="34.99"></div>
         <div><label>Target profit margin %</label><input id="n_margin" type="number" step="0.1" placeholder="20"></div>
-        <div><label>Category <span style="font-weight:400">→ referral</span></label><select id="n_cat"></select></div>
+        <div><label>Category <span class="re-plain">→ referral</span></label><select id="n_cat"></select></div>
         <div><label>Weight (lb)</label><input id="n_wt" type="number" step="0.01" placeholder="1.5"></div>
 
-        <div class="sec">Package size (inches) <span style="text-transform:none;font-weight:400">→ picks the FBA tier · not needed if you gave a reference ASIN</span></div>
+        <div class="sec">Package size (inches) <span class="re-plain">→ picks the FBA tier · not needed if you gave a reference ASIN</span></div>
         <div><label>Length</label><input id="n_l" type="number" step="0.1" placeholder="12"></div>
         <div><label>Width</label><input id="n_w" type="number" step="0.1" placeholder="9"></div>
         <div><label>Height</label><input id="n_h" type="number" step="0.1" placeholder="3"></div>
@@ -408,26 +482,26 @@
         <div><label>Target TACOS %</label><input id="n_tacos" type="number" step="0.1" placeholder="16"></div>
         <div><label>Amazon overheads %</label><input id="n_oh" type="number" step="0.1" placeholder="10"></div>
         <div><label>Employee salary %</label><input id="n_sal" type="number" step="0.1"></div>
-        <div><label>Return loss % <span style="font-weight:400">(of landed cost)</span></label><input id="n_ret" type="number" step="0.1"></div>
+        <div><label>Return loss % <span class="re-plain">(of landed cost)</span></label><input id="n_ret" type="number" step="0.1"></div>
 
         <div class="sec">Freight</div>
-        <div><label>Shipping <span id="n_shipHint" style="font-weight:400"></span></label>
-          <div class="row" style="gap:6px">
-            <input id="n_ship" type="number" step="0.01" style="flex:2">
-            <select id="n_shipMode" style="flex:0 0 118px"><option value="pct">% of cost</option><option value="usd">$ / unit</option></select>
+        <div><label>Shipping <span id="n_shipHint" class="re-plain"></span></label>
+          <div class="row gap-8">
+            <input id="n_ship" type="number" step="0.01" class="re-grow-2">
+            <select id="n_shipMode" class="re-fix-118"><option value="pct">% of cost</option><option value="usd">$ / unit</option></select>
           </div>
         </div>
-        <div><label>Duty &amp; taxes <span id="n_dutyHint" style="font-weight:400"></span></label>
-          <div class="row" style="gap:6px">
-            <input id="n_duty" type="number" step="0.01" style="flex:2">
-            <select id="n_dutyMode" style="flex:0 0 118px"><option value="pct">% of base</option><option value="usd">$ / unit</option></select>
+        <div><label>Duty &amp; taxes <span id="n_dutyHint" class="re-plain"></span></label>
+          <div class="row gap-8">
+            <input id="n_duty" type="number" step="0.01" class="re-grow-2">
+            <select id="n_dutyMode" class="re-fix-118"><option value="pct">% of base</option><option value="usd">$ / unit</option></select>
           </div>
         </div>
         <div><label>P.M (markup ×)</label><input id="n_pm" type="number" step="0.01" placeholder="1.25"></div>
       </div>
-      <div class="row" style="margin-top:16px">
-        <button id="nGo" style="flex:none">Calculate</button>
-        <span id="nMsg" class="muted" style="align-self:center"></span>
+      <div class="row mt-16">
+        <button id="nGo" class="re-flex-none">Calculate</button>
+        <span id="nMsg" class="muted"></span>
       </div>
     </div>
 
@@ -451,7 +525,7 @@
           </div>
         </div>
         <div class="card">
-          <div class="muted" style="font-weight:600;margin-bottom:8px">Where the money goes</div>
+          <div class="ui-card-title mb-8">Where the money goes</div>
           <table>
             <tr><td>Selling price</td><td id="n_r_price"></td></tr>
             <tr class="sub"><td>Referral fee</td><td id="n_r_ref2"></td></tr>
@@ -476,28 +550,28 @@
   <div id="panePr" class="hide">
     <div class="card">
       <div class="settings-grid">
-        <div class="sec">Product research <span style="text-transform:none;font-weight:400">— search Amazon by product name; fill a material to show ONLY products matching it. Brand · size · materials · weight are live from Amazon; Sale Qty is a rough estimate assumed from BSR.</span></div>
-        <div style="grid-column:1/-1">
+        <div class="sec">Product research <span class="re-plain">— search Amazon by product name; fill a material to show ONLY products matching it. Brand · size · materials · weight are live from Amazon; Sale Qty is a rough estimate assumed from BSR.</span></div>
+        <div class="re-full">
           <label>Product name / keywords</label>
           <input id="pr_q" placeholder="e.g. velvet cushion cover 18x18">
         </div>
-        <div><label>Outer material <span style="font-weight:400">(optional)</span></label><input id="pr_outer" placeholder="e.g. velvet"></div>
-        <div><label>Inner material <span style="font-weight:400">(optional)</span></label><input id="pr_inner" placeholder="e.g. polyester fill"></div>
+        <div><label>Outer material <span class="re-plain">(optional)</span></label><input id="pr_outer" placeholder="e.g. velvet"></div>
+        <div><label>Inner material <span class="re-plain">(optional)</span></label><input id="pr_inner" placeholder="e.g. polyester fill"></div>
         <div><label>Results</label><input id="pr_count" type="number" min="1" max="100" step="1" value="20"></div>
       </div>
-      <div class="row" style="margin-top:16px">
-        <button id="prGo" style="flex:none">Search Amazon</button>
-        <span id="prMsg" class="muted" style="align-self:center"></span>
+      <div class="row mt-16">
+        <button id="prGo" class="re-flex-none">Search Amazon</button>
+        <span id="prMsg" class="muted"></span>
       </div>
     </div>
 
     <div id="prResult" class="hide card">
-      <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px">
-        <div class="muted" style="font-weight:600" id="prHead"></div>
-        <button id="prExport" class="ghost" style="flex:none">Export CSV</button>
+      <div class="row re-split mb-8">
+        <div class="ui-card-title" id="prHead"></div>
+        <button id="prExport" class="ghost re-flex-none">Export CSV</button>
       </div>
-      <div style="overflow-x:auto"><table id="prTable"></table></div>
-      <div class="muted" style="margin-top:8px;font-size:12px">
+      <div class="re-scroll-x"><table id="prTable" class="xl"></table></div>
+      <div class="ui-note mt-8">
         <b>Sale Qty</b> is a rough monthly estimate <b>assumed from each listing's Best Sellers Rank</b> — Amazon does not publish competitor sales, so treat it as a ballpark, not a measurement. Outer / Inner material appear only when the listing actually carries that attribute (often blank).
       </div>
     </div>
@@ -506,29 +580,29 @@
   <!-- ============ PANE: keywords (DataDive) ============ -->
   <div id="paneKw" class="hide">
     <div class="card">
-      <div class="row" style="align-items:flex-end">
-        <div style="flex:3;min-width:240px">
+      <div class="row re-bottom">
+        <div class="re-grow-3 re-min-240">
           <label>DataDive niche</label>
           <select id="kwNiche"><option value="">Loading your niches…</option></select>
         </div>
-        <div style="flex:0 0 150px">
-          <button id="kwGo" style="width:100%">Show keywords</button>
+        <div class="re-fix-150">
+          <button id="kwGo" class="re-w-full">Show keywords</button>
         </div>
       </div>
-      <div id="kwMsg" class="muted" style="margin-top:10px"></div>
+      <div id="kwMsg" class="muted"></div>
     </div>
 
     <div id="kwResult" class="hide">
-      <div class="card" style="margin-bottom:12px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap">
-        <div><div id="kwHead" style="font-weight:600"></div><div class="muted" id="kwSub"></div></div>
-        <button class="xbtn" id="kwRawBtn" style="align-self:center">Show raw fields</button>
+      <div class="card mb-12 re-split">
+        <div><div id="kwHead" class="ui-card-title"></div><div class="muted" id="kwSub"></div></div>
+        <button class="xbtn" id="kwRawBtn">Show raw fields</button>
       </div>
-      <div id="kwRaw" class="card hide" style="white-space:pre-wrap;font-family:monospace;font-size:12px;overflow-x:auto"></div>
-      <div class="card" style="overflow-x:auto">
-        <table class="tbl" id="kwTable">
+      <div id="kwRaw" class="card hide re-raw"></div>
+      <div class="card re-scroll-x">
+        <table class="xl" id="kwTable">
           <thead><tr>
-            <th>Keyword</th><th style="text-align:right">Search Volume</th>
-            <th style="text-align:right">Rank</th><th style="text-align:right">Page</th>
+            <th>Keyword</th><th class="num">Search Volume</th>
+            <th class="num">Rank</th><th class="num">Page</th>
           </tr></thead>
           <tbody id="kwRows"></tbody>
         </table>
@@ -539,40 +613,40 @@
   <!-- ============ PANE: Brand Analytics ============ -->
   <div id="paneBa" class="hide">
     <div class="card">
-      <div class="row" style="align-items:flex-end">
-        <div style="flex:0 0 220px">
+      <div class="row re-bottom">
+        <div class="sa-fix-220">
           <label>Report</label>
           <select id="baType">
             <option value="sqp">My product keywords (own ASIN)</option>
             <option value="terms">Top search terms (competitor peek)</option>
           </select>
         </div>
-        <div style="flex:2;min-width:180px" id="baAsinWrap">
-          <label>Your ASIN <span style="font-weight:400">(for “My product keywords”)</span></label>
+        <div class="re-grow-2 sa-min-180" id="baAsinWrap">
+          <label>Your ASIN <span class="re-plain">(for “My product keywords”)</span></label>
           <input id="baAsin" placeholder="B0XXXXXXXX">
         </div>
-        <div style="flex:0 0 130px">
+        <div class="re-fix-130">
           <label>Period</label>
           <select id="baPeriod"><option value="WEEK">Week</option><option value="MONTH">Month</option></select>
         </div>
-        <div style="flex:0 0 150px">
-          <button id="baGo" style="width:100%">Run report</button>
+        <div class="re-fix-150">
+          <button id="baGo" class="re-w-full">Run report</button>
         </div>
       </div>
-      <div style="margin-top:10px" id="baFilterWrap">
-        <label>Filter to a competitor ASIN <span style="font-weight:400">(optional — only rows where this ASIN is a top-3 clicked result)</span></label>
+      <div class="mt-12" id="baFilterWrap">
+        <label>Filter to a competitor ASIN <span class="re-plain">(optional — only rows where this ASIN is a top-3 clicked result)</span></label>
         <input id="baFilter" placeholder="B0XXXXXXXX — leave blank for all top terms">
       </div>
-      <div id="baMsg" class="muted" style="margin-top:10px"></div>
+      <div id="baMsg" class="muted"></div>
     </div>
 
     <div id="baResult" class="hide">
-      <div class="card" style="margin-bottom:12px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap">
-        <div><div id="baHead" style="font-weight:600"></div><div class="muted" id="baSub"></div></div>
-        <button class="xbtn" id="baRawBtn" style="align-self:center">Show raw fields</button>
+      <div class="card mb-12 re-split">
+        <div><div id="baHead" class="ui-card-title"></div><div class="muted" id="baSub"></div></div>
+        <button class="xbtn" id="baRawBtn">Show raw fields</button>
       </div>
-      <div id="baRaw" class="card hide" style="white-space:pre-wrap;font-family:monospace;font-size:12px;overflow-x:auto"></div>
-      <div class="card" style="overflow-x:auto"><table class="tbl" id="baTable"></table></div>
+      <div id="baRaw" class="card hide re-raw"></div>
+      <div class="card re-scroll-x"><table class="xl" id="baTable"></table></div>
     </div>
   </div><!-- /paneBa -->
 
@@ -768,6 +842,9 @@
     </div>
   </div><!-- /paneBsr -->
 
+  <!-- ============ PPC & Organic · New (test): drawn whole by app/ads/ppc-new.js ============ -->
+  <div id="panePpcn" class="hide"></div>
+
   <!-- ============ PPC & Organic: one row per ASIN, one column per week ============ -->
   <div id="paneWeekly" class="hide">
     <!-- Sales that failed the nightly cross-check. Held back rather than shown, and said so here. -->
@@ -946,9 +1023,9 @@
     <div class="card" style="margin-top:12px">
       <div id="tChart" style="width:100%;overflow-x:auto"></div>
       <div class="muted" style="font-size:11.5px;margin-top:6px">
-        <span style="display:inline-block;width:10px;height:10px;background:#94a3b8;border-radius:2px"></span> Sales
-        &nbsp; <span style="display:inline-block;width:10px;height:10px;background:#6366f1;border-radius:2px"></span> Ad spend
-        &nbsp; <span style="display:inline-block;width:14px;height:2px;background:#ea580c;vertical-align:middle"></span> TACOS
+        <span class="ad-key ad-key-sales"></span> Sales
+        &nbsp; <span class="ad-key ad-key-spend"></span> Ad spend
+        &nbsp; <span class="ad-key ad-key-tacos"></span> TACOS
       </div>
     </div>
 
@@ -959,9 +1036,9 @@
 
   <!-- ============ Sales Dashboard ============ -->
   <div id="paneSales" class="hide">
-    <div style="display:flex;align-items:center;justify-content:flex-end;margin-bottom:16px;gap:12px;flex-wrap:wrap">
-      <span id="sdMsg" class="muted" style="font-size:12px;margin-right:auto"></span>
-      <button id="sdRefresh" class="ghost" style="width:auto;padding:6px 14px;font-size:13px"
+    <div class="toolbar sa-gap-12 sa-sd-head">
+      <span id="sdMsg" class="muted"></span>
+      <button id="sdRefresh" class="ghost sa-btn-sm"
         title="Re-read the last few days from the Orders sheets and Shopify. The rest of the history comes from the nightly run.">Refresh today</button>
       <div class="sd-toggle" id="sdBrand">
         <button data-ch="SP" class="on">Ridhi</button>
@@ -984,12 +1061,12 @@
     </div>
 
     <div class="sd-panel">
-      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px">
-        <h2 class="sd-h2" style="margin:0">Custom Range</h2>
-        <input id="sdFrom" type="date" style="padding:4px 8px;font-size:14px;width:auto">
-        <span class="muted" style="font-size:14px">to</span>
-        <input id="sdTo" type="date" style="padding:4px 8px;font-size:14px;width:auto">
-        <button id="sdApply" style="background:#0f172a;color:#fff;font-size:12px;font-weight:600;padding:6px 16px;border-radius:6px;width:auto">Apply</button>
+      <div class="toolbar sa-gap-12 mb-12">
+        <h2 class="sd-h2 sa-flush">Custom Range</h2>
+        <input id="sdFrom" type="date" class="sa-date-sm">
+        <span class="muted sa-fs-14">to</span>
+        <input id="sdTo" type="date" class="sa-date-sm">
+        <button id="sdApply" class="sa-btn-dark">Apply</button>
       </div>
       <div class="sd-stats">
         <div class="sd-stat"><div class="lbl">Sales</div><div class="val" id="sdrSales">—</div></div>
@@ -1000,49 +1077,49 @@
     </div>
 
     <div class="sd-charts">
-      <div class="sd-panel" style="margin:0"><h2 class="sd-h2">Daily Sales — Last 90 Days</h2><div id="sdChartDaily"></div></div>
-      <div class="sd-panel" style="margin:0"><h2 class="sd-h2">Monthly — TY vs LY</h2><div id="sdChartMonthly"></div></div>
+      <div class="sd-panel sa-flush"><h2 class="sd-h2">Daily Sales — Last 90 Days</h2><div id="sdChartDaily"></div></div>
+      <div class="sd-panel sa-flush"><h2 class="sd-h2">Monthly — TY vs LY</h2><div id="sdChartMonthly"></div></div>
     </div>
 
-    <div class="sd-panel" style="overflow-x:auto">
+    <div class="sd-panel re-scroll-x">
       <h2 class="sd-h2">Period Comparison — <span id="sdBrandLabel">Ridhi</span></h2>
-      <table class="sd-tbl">
+      <table class="xl">
         <thead><tr>
-          <th>Metric</th><th>Today</th><th>Yesterday</th><th>WTD</th><th>LYWTD</th><th>%Δ</th>
-          <th>MTD</th><th>LYMTD</th><th>%Δ</th><th>YTD</th><th>LYYTD</th><th>%Δ</th>
+          <th>Metric</th><th class="num">Today</th><th class="num">Yesterday</th><th class="num">WTD</th><th class="num">LYWTD</th><th class="num">%Δ</th>
+          <th class="num">MTD</th><th class="num">LYMTD</th><th class="num">%Δ</th><th class="num">YTD</th><th class="num">LYYTD</th><th class="num">%Δ</th>
         </tr></thead>
         <tbody id="sdPeriodBody"></tbody>
       </table>
     </div>
 
-    <div class="sd-panel" style="overflow-x:auto">
+    <div class="sd-panel re-scroll-x">
       <h2 class="sd-h2">Monthly Comparison — This Year vs Last Year</h2>
-      <table class="sd-tbl">
-        <thead><tr><th>Month</th><th>This Year</th><th>Last Year</th><th>Change %</th></tr></thead>
+      <table class="xl">
+        <thead><tr><th>Month</th><th class="num">This Year</th><th class="num">Last Year</th><th class="num">Change %</th></tr></thead>
         <tbody id="sdMonthlyBody"></tbody>
       </table>
     </div>
 
-    <div class="muted" style="font-size:12px;text-align:right">Last synced: <span id="sdSynced">—</span></div>
+    <div class="ui-note right">Last synced: <span id="sdSynced">—</span></div>
   </div><!-- /paneSales -->
 
   <!-- ============ Parent Listing Review: one row per parent, last week against its own recent
        average, with how new the listing is and how long the stock lasts ============ -->
   <div id="panePlaudit" class="hide">
     <!-- The same warning as PPC & Organic: this tab's 6-week average is built from the same store. -->
-    <div id="plCheckBanner" class="card hide"
-         style="padding:10px 14px;margin-bottom:12px;border-left:4px solid var(--bad);font-size:13px"></div>
-    <div class="card" style="padding:12px 14px">
+    <div id="plCheckBanner"
+         class="card hide sa-alert mb-12"></div>
+    <div class="card sa-toolcard">
       <div class="toolbar">
-        <select id="plBrand" style="flex:0 0 150px"><option value="ALL">Both brands</option>
+        <select id="plBrand" class="sa-fix-150"><option value="ALL">Both brands</option>
           <option value="SP">Ridhi</option><option value="CPC">CPC</option></select>
-        <select id="plType" style="flex:0 0 190px" title="New means the listing went live inside the last 120 days.">
+        <select id="plType" class="sa-fix-190" title="New means the listing went live inside the last 120 days.">
           <option value="ALL">All listings</option>
           <option value="New">New only</option>
           <option value="Old">Old only</option>
           <option value="?">Launch date unknown</option>
         </select>
-        <select id="plAct" style="flex:0 0 200px" title="What the week says to do about each parent — stock first, then traffic, then spend.">
+        <select id="plAct" class="sa-fix-200" title="What the week says to do about each parent — stock first, then traffic, then spend.">
           <option value="TODO">Needs attention</option>
           <option value="ALL">All</option>
           <option value="Restock — out">Restock — out</option>
@@ -1056,15 +1133,15 @@
           <option value="New — watch">New — watch</option>
           <option value="Steady">Steady</option>
         </select>
-        <input id="plFilter" style="flex:1 1 150px;min-width:0" placeholder="Filter ASIN / title">
+        <input id="plFilter" class="sa-grow" placeholder="Filter ASIN / title">
         <button id="plExport" class="ghost">Export</button>
         <button id="plRefresh"
                 title="Pulls FBA stock from Amazon and re-reads the latest rank snapshot. Sales and sessions come from the nightly run and need no button. A NEW rank snapshot is taken on the BSR Audit tab.">Refresh stock &amp; ranks</button>
       </div>
-      <div id="plMsg" class="muted" style="margin-top:8px;font-size:13px"></div>
+      <div id="plMsg" class="muted"></div>
     </div>
 
-    <div class="card" style="padding:0;overflow:auto;max-height:74vh">
+    <div class="card xlwrap sa-h74">
       <table id="plTable" class="xl"></table>
     </div>
   </div><!-- /panePlaudit -->
@@ -1072,36 +1149,36 @@
   <!-- ============ Shopify Orders: what has to ship, whether Amazon can ship it, and where it
        stands. One row per order, because a courier label is made from one order at a time. ====== -->
   <div id="paneShop" class="hide">
-    <div class="card" style="padding:12px 14px">
+    <div class="card sa-toolcard">
       <div class="toolbar">
-        <input id="soFrom" type="date" style="flex:0 0 150px">
-        <span class="muted" style="font-size:13px">to</span>
-        <input id="soTo" type="date" style="flex:0 0 150px">
-        <select id="soOpen" style="flex:0 0 180px">
+        <input id="soFrom" type="date" class="sa-fix-150">
+        <span class="muted">to</span>
+        <input id="soTo" type="date" class="sa-fix-150">
+        <select id="soOpen" class="sa-fix-180">
           <option value="1">Not yet shipped</option>
           <option value="0">Every order</option>
         </select>
-        <div class="ms" id="soChan" style="flex:0 0 170px"
+        <div class="ms sa-fix-170" id="soChan"
              title="Which shop the order came from. Nothing ticked means all of them."></div>
-        <div class="ms" id="soMcf" style="flex:0 0 215px"
+        <div class="ms sa-fix-215" id="soMcf"
              title="Where this order can ship from. Tick as many as you like; nothing ticked means all of them."></div>
-        <select id="soState" style="flex:0 0 190px" title="Cancelled comes from Shopify. Chargeback and MCF done are read from the order's tags, its notes, or the status typed here.">
+        <select id="soState" class="sa-fix-190" title="Cancelled comes from Shopify. Chargeback and MCF done are read from the order's tags, its notes, or the status typed here.">
           <option value="ALL">Any state</option>
           <option value="live">Live only</option>
           <option value="cancel">Cancelled</option>
           <option value="cb">Chargeback</option>
           <option value="mcfdone">MCF done</option>
         </select>
-        <select id="soDay" style="flex:0 0 150px"
+        <select id="soDay" class="sa-fix-150"
                 title="Which day the order was PLACED, in the store's own day. Filters what is already loaded — it does not re-fetch.">
           <option value="">Any day</option>
           <option value="0">Placed today</option>
           <option value="-1">Placed yesterday</option>
           <option value="-7">Last 7 days</option>
         </select>
-        <input id="soFilter" style="flex:1 1 150px;min-width:0" placeholder="Filter order / SKU / name">
+        <input id="soFilter" class="sa-grow" placeholder="Filter order / SKU / name">
         <button id="soAdj" class="ghost" title="Every shortfall raised, by the day it was raised. Printable, to hand to production.">Adjustments</button>
-        <select id="soTmpl" style="flex:0 0 190px" title="Which upload template to write. The column headings and their order match the courier's own workbook exactly.">
+        <select id="soTmpl" class="sa-fix-190" title="Which upload template to write. The column headings and their order match the courier's own workbook exactly.">
           <option value="plain">Plain list — one row per line item</option>
           <option value="plainOrder">Plain list — one row per order</option>
           <option value="mcf">Amazon MCF</option>
@@ -1116,21 +1193,21 @@
                 title="Bring in orders from a shop this app has no API key for — CPC Shopify and the Etsy stores.">Import orders</button>
         <button id="soGo">Fetch orders</button>
       </div>
-      <div id="soMsg" class="muted" style="margin-top:8px;font-size:13px"></div>
+      <div id="soMsg" class="muted"></div>
       <!-- A shop this app has no API key for was asked for. One line, and the button that answers it. -->
-      <div id="soNoKey" class="hide" style="margin-top:8px;padding:10px 12px;border-radius:9px;background:#fff7ed;
-           border:1px solid #fed7aa;color:#7c2d12;font-size:13px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-        <span id="soNoKeyTxt" style="flex:1 1 320px;min-width:0"></span>
+      <div id="soNoKey"
+           class="hide warn sa-nokey">
+        <span id="soNoKeyTxt" class="sa-nokey-txt"></span>
         <a id="soNoKeyGo" href="https://fabricrush-replenish.web.app/" target="_blank" rel="noopener"
-           style="flex:0 0 auto;background:#0f172a;color:#fff;border-radius:8px;padding:7px 12px;font-weight:700;text-decoration:none">
+           class="sa-nokey-go">
           Open Shopify Orders in the Replenishment app →</a>
       </div>
-      <div id="soPickMsg" class="muted" style="margin-top:4px;font-size:12px"></div>
+      <div id="soPickMsg" class="muted"></div>
       <!-- Today and yesterday, in the STORE's day. Cancelled orders are left out of all of it. -->
-      <div id="soToday" style="margin-top:10px;display:flex;gap:22px;flex-wrap:wrap;font-size:13px"></div>
+      <div id="soToday" class="sa-today"></div>
     </div>
 
-    <div class="card" style="padding:0;overflow:auto;max-height:70vh;margin-top:12px">
+    <div class="card xlwrap sa-h70 mt-12">
       <table id="soTable" class="xl"></table>
     </div>
   </div><!-- /paneShop -->
@@ -1294,9 +1371,9 @@
 
   <!-- ============ Adjustments: what production owes, from raised to received back ============ -->
   <div id="paneAdj" class="hide">
-    <div class="card" style="padding:12px 14px">
+    <div class="card sa-toolcard">
       <div class="toolbar">
-        <select id="ajState" style="flex:0 0 190px">
+        <select id="ajState" class="sa-fix-190">
           <option value="OPEN">Open — not yet back</option>
           <option value="ALL">Every adjustment</option>
           <option value="raised">Raised</option>
@@ -1305,22 +1382,22 @@
           <option value="received">Received back</option>
           <option value="LATE">Past the promised date</option>
         </select>
-        <input id="ajFrom" type="date" style="flex:0 0 150px" title="Raised on or after">
-        <span class="muted" style="font-size:13px">to</span>
-        <input id="ajTo" type="date" style="flex:0 0 150px" title="Raised on or before">
-        <input id="ajFilter" style="flex:1 1 150px;min-width:0" placeholder="Filter id / order / SKU / product">
+        <input id="ajFrom" type="date" class="sa-fix-150" title="Raised on or after">
+        <span class="muted">to</span>
+        <input id="ajTo" type="date" class="sa-fix-150" title="Raised on or before">
+        <input id="ajFilter" class="sa-grow" placeholder="Filter id / order / SKU / product">
         <button id="ajSent" class="ghost" title="Mark the ticked jobs as handed to production.">Mark sent</button>
         <button id="ajAccept" class="ghost" title="Production has taken the ticked jobs on, and said when they will be back.">Accept…</button>
         <button id="ajRecv" class="ghost" title="Shipping has the pieces back from production.">Received…</button>
         <button id="ajPrint">Print selected</button>
         <button id="ajExport" class="ghost">Export</button>
       </div>
-      <div id="ajMsg" class="muted" style="margin-top:8px;font-size:13px"></div>
+      <div id="ajMsg" class="muted"></div>
     </div>
 
-    <div id="ajKpis" class="kpis" style="margin-top:12px"></div>
+    <div id="ajKpis" class="kpis mt-12"></div>
 
-    <div class="card" style="padding:0;overflow:auto;max-height:70vh;margin-top:12px">
+    <div class="card xlwrap sa-h70 mt-12">
       <table id="ajTable" class="xl"></table>
     </div>
   </div><!-- /paneAdj -->
@@ -1357,7 +1434,7 @@
 
       <div class="row" style="gap:14px;align-items:flex-start">
         <div style="flex:0 0 150px"><img id="adjImg" alt=""
-             style="width:150px;height:150px;object-fit:contain;border-radius:10px;background:#f8fafc;border:1px solid var(--line)"></div>
+             style="width:150px;height:150px;object-fit:contain;border-radius:10px;background:var(--soft);border:1px solid var(--line)"></div>
         <div style="flex:1">
           <label>Reason</label>
           <select id="adjReason">
@@ -1410,37 +1487,37 @@
        An ASIN with no unit cost gets NO profit figure — not a zero. A zero would make a loss-making
        product look like a perfect-margin one, and it would be added into the totals besides. -->
   <div id="paneProfit" class="hide">
-    <div class="card" style="padding:12px 14px">
+    <div class="card sa-toolcard">
       <div class="toolbar">
-        <select id="pfBrand" style="flex:0 0 140px">
+        <select id="pfBrand" class="sa-fix-140">
           <option value="ALL">Both brands</option><option value="SP">Ridhi</option><option value="CPC">CPC</option>
         </select>
-        <select id="pfWeeks" style="flex:0 0 175px" title="How far back to add up. The weekly cache is what feeds this.">
+        <select id="pfWeeks" class="sa-fix-175" title="How far back to add up. The weekly cache is what feeds this.">
           <option value="1">Last week</option>
           <option value="4" selected>Last 4 weeks</option>
           <option value="13">Last 13 weeks</option>
           <option value="26">Last 26 weeks</option>
           <option value="52">Last 52 weeks</option>
         </select>
-        <select id="pfView" style="flex:0 0 150px">
+        <select id="pfView" class="sa-fix-150">
           <option value="asin">By child ASIN</option>
           <option value="parent">By parent</option>
         </select>
-        <select id="pfHave" style="flex:0 0 190px" title="A row with no unit cost cannot be costed. This is how you find them.">
+        <select id="pfHave" class="sa-fix-190" title="A row with no unit cost cannot be costed. This is how you find them.">
           <option value="">Costed and uncosted</option>
           <option value="have">Costed only</option>
           <option value="none">Missing a cost</option>
         </select>
-        <input id="pfFilter" style="flex:1 1 150px;min-width:0" placeholder="Filter ASIN / name">
-        <button id="pfModel" class="ghost" style="flex:0 0 110px" title="The percentages every row is costed with">Cost model</button>
-        <button id="pfImport" class="ghost" style="flex:0 0 120px" title="Bring in unit costs for many ASINs at once">Import costs</button>
-        <button id="pfExport" class="ghost" style="flex:0 0 90px">Export</button>
+        <input id="pfFilter" class="sa-grow" placeholder="Filter ASIN / name">
+        <button id="pfModel" class="ghost sa-fix-110" title="The percentages every row is costed with">Cost model</button>
+        <button id="pfImport" class="ghost sa-fix-120" title="Bring in unit costs for many ASINs at once">Import costs</button>
+        <button id="pfExport" class="ghost sa-fix-90">Export</button>
       </div>
-      <div id="pfMsg" class="muted" style="margin-top:8px;font-size:12px"></div>
+      <div id="pfMsg" class="muted"></div>
     </div>
 
-    <div id="pfKpis" class="kpis" style="margin-top:12px"></div>
-    <div class="card xlwrap" style="margin-top:12px">
+    <div id="pfKpis" class="kpis mt-12"></div>
+    <div class="card xlwrap mt-12">
       <table id="pfTable" class="xl"></table>
     </div>
   </div>
@@ -1499,28 +1576,28 @@
        Monthly sales by colour, article or SKU, built from THIS account's own Orders workbook and its
        Catalog tab. Read on a button and cached, because the workbook is 190,000 rows. -->
   <div id="paneSa" class="hide">
-    <div class="card" style="padding:12px 14px">
+    <div class="card sa-toolcard">
       <div class="toolbar">
-        <select id="saBrand" style="flex:0 0 130px">
+        <select id="saBrand" class="sa-fix-130">
           <option value="SP">Ridhi</option><option value="CPC">CPC</option>
         </select>
-        <select id="saView" style="flex:0 0 170px" title="What each row is: a colour, an article (sub-category), or a single SKU.">
+        <select id="saView" class="sa-fix-170" title="What each row is: a colour, an article (sub-category), or a single SKU.">
           <option value="color">Color study</option>
           <option value="article">Article study</option>
           <option value="sku">SKU study</option>
         </select>
-        <select id="saMetric" style="flex:0 0 190px" title="Share of that month's units, the units themselves, or the money.">
+        <select id="saMetric" class="sa-fix-190" title="Share of that month's units, the units themselves, or the money.">
           <option value="pct">% share of units</option>
           <option value="qty">Units</option>
           <option value="amt">Sales $</option>
         </select>
-        <input id="saFilter" style="flex:1 1 150px;min-width:0" placeholder="Search colour / article / SKU">
-        <button id="saRebuild" style="flex:0 0 175px" title="Reads the whole Orders workbook once — about a minute — and remembers the result. Orders that are already in do not change, so this is not something to press often.">Rebuild from orders</button>
-        <button id="saExport" class="ghost" style="flex:0 0 90px">Export</button>
+        <input id="saFilter" class="sa-grow" placeholder="Search colour / article / SKU">
+        <button id="saRebuild" class="sa-fix-175" title="Reads the whole Orders workbook once — about a minute — and remembers the result. Orders that are already in do not change, so this is not something to press often.">Rebuild from orders</button>
+        <button id="saExport" class="ghost sa-fix-90">Export</button>
       </div>
-      <div id="saMsg" class="muted" style="margin-top:8px;font-size:12px"></div>
+      <div id="saMsg" class="muted"></div>
     </div>
-    <div class="card xlwrap" style="margin-top:12px">
+    <div class="card xlwrap mt-12">
       <table id="saTable" class="xl"></table>
     </div>
   </div>
@@ -1681,7 +1758,7 @@
           <option value="live">Show what Amazon serves</option>
         </select>
         <button id="imGo" class="ghost" style="flex:0 0 120px" title="Open the editor for exactly this SKU or ASIN">Open editor</button>
-        <button id="imRefresh" class="ghost" style="flex:0 0 170px">Refresh from Amazon</button>
+        <button id="imRefresh" class="ghost" style="flex:0 0 190px">Refresh from Amazon</button>
         <span style="flex:1"></span>
         <span id="imMsg" class="muted" style="align-self:center;font-size:12px"></span>
       </div>
@@ -1705,7 +1782,7 @@
         </select>
         <select id="leSev" style="flex:0 0 170px"><option value="err">Errors only</option><option value="all">Errors and warnings</option><option value="any">Every listing</option></select>
         <input id="leQ" placeholder="Search SKU, ASIN, colour, message" style="flex:0 0 240px">
-        <button id="leRefresh" class="ghost" style="flex:0 0 170px">Refresh from Amazon</button>
+        <button id="leRefresh" class="ghost" style="flex:0 0 190px">Refresh from Amazon</button>
         <button id="leDown" class="ghost" style="flex:0 0 150px" title="Title, bullets, description and search terms of the listings on screen, with Listing Rules suggestions">Content → Excel</button>
         <button id="leUpBtn" class="ghost" style="flex:0 0 150px" title="The same file, changed — compared with Amazon now, then checked and applied row by row">Upload Excel</button>
         <input id="leUpFile" type="file" accept=".xlsx,.csv" class="hide">
@@ -1742,9 +1819,9 @@
   </div>
 
   <div id="paneTiktok" class="hide">
-    <div class="card" style="padding:0;overflow:hidden">
+    <div class="card sa-frame-card">
       <iframe id="tkFrame" title="TikTok Seller Toolkit"
-              style="width:100%;height:calc(100vh - 132px);border:0;display:block"></iframe>
+              class="sa-frame"></iframe>
     </div>
   </div>
 
@@ -1753,9 +1830,9 @@
        live here at all. The VIDEO builder cannot: it shells out to ffmpeg and to a Python
        text-to-speech engine, so it stays on the machine it was written for. -->
   <div id="paneCarousel" class="hide">
-    <div class="card" style="padding:0;overflow:hidden">
+    <div class="card sa-frame-card">
       <iframe id="carFrame" title="Carousel Builder"
-              style="width:100%;height:calc(100vh - 132px);border:0;display:block"></iframe>
+              class="sa-frame"></iframe>
     </div>
   </div>
 
@@ -1869,10 +1946,10 @@
   <!-- Everything known about ONE parent, standing still. The table is 21 columns wide and the
        figures that have to be read together are four horizontal scrolls apart. -->
   <div id="plCardModal" class="modal hide">
-    <div class="modalbox" style="width:min(660px,100%);max-height:88vh;overflow:auto">
+    <div class="modalbox sa-plcard">
       <div id="plCardBody"></div>
-      <div class="row" style="margin-top:18px">
-        <button id="plCardClose" class="ghost" style="flex:1">Close</button>
+      <div class="row mt-16">
+        <button id="plCardClose" class="ghost">Close</button>
       </div>
     </div>
   </div>

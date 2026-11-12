@@ -65,7 +65,7 @@ async function ensureStoreRead() {
   const errs = [];
   try { STORE.rows = ptList(await ptGet('pt_storeLedger')); } catch (e) { errs.push('the store book (' + (e.message || e) + ')'); STORE.rows = STORE.rows || []; }
   try { STORE.checks = (await ptGet('pt_storeChecks')) || {}; } catch (e) { STORE.checks = STORE.checks || {}; }
-  if (!PTG.mdb) { try { await ptLoadGates(); } catch (e) { errs.push('the master database'); } }
+  try { await ptNeed(PTG_ALL, { why: 'store', has: 'mdb' }); } catch (e) { errs.push('the master database'); }
   if (!PT.base) { try { PT.base = ptList(await ptGet('pt_baseData')); } catch (e) { errs.push('the Job Work Register'); } }
   if (VO.rows === null) { try { await ensureVo(); } catch (e) { errs.push('the printers\' orders'); } }
   if (typeof FLOW_ON !== 'undefined' && FLOW_ON && typeof flowLoad === 'function') { try { await flowLoad(); } catch (e) { /* the flow's receipts wait */ } }

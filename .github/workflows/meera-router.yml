@@ -12,9 +12,15 @@
 name: Meera router — test, deploy
 
 on:
-  push:
-    branches: [main]
-    paths: ['meera/router/**', 'meera/client/src/legacy/guide-ai.js', '.github/workflows/meera-router.yml']
+  # HELD BACK (Ravi, 2 Nov 2026). Free plan, search parked (master plan step B.1): on Ravi's "live karo" the router is
+  # deployed BY HAND — GitHub → Actions → "Meera router — test, deploy" → Run workflow (on main). Until then
+  # nothing here deploys by itself.
+# push:
+#   branches: [main]
+#   # Phase 5: her search runs on the router too — a change to her answers or her search code redeploys it
+#   paths: ['meera/router/**', 'meera/client/src/legacy/guide-ai.*', '.github/workflows/meera-router.yml',
+#           'meera/client/src/understand.ts', 'meera/client/src/legacy/guide-ask.*', 'meera/client/src/legacy/guide-tours.*',
+#           'Replenish-App/public/guide/meera-bank.json', 'Replenish-App/public/guide/meera-walks.json', 'Replenish-App/public/guide/meera-words.bin']
   workflow_dispatch:
 
 concurrency:
@@ -32,6 +38,7 @@ jobs:
       HAS_CF: ${{ secrets.CLOUDFLARE_API_TOKEN != '' }}
       HAS_GROQ: ${{ secrets.GROQ_API_KEY != '' }}
       HAS_GEMINI: ${{ secrets.GEMINI_API_KEY != '' }}
+      HAS_METER: ${{ secrets.MEERA_METER_KEY != '' && secrets.MEERA_STOP_KEY != '' }}
     defaults:
       run:
         working-directory: meera/router
@@ -61,6 +68,22 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           workingDirectory: meera/router
           command: d1 execute meera --remote --file=schema.sql
+
+      # Phase 5: her answers and walk-throughs into the database (the server's search reads them; kb_version goes up).
+      # Not on the free plan (SEARCH = "parked" in wrangler.toml): nothing would read them.
+      - name: Is her search on the server parked (free plan)?
+        id: plan
+        run: if grep -q '^SEARCH = "parked"' wrangler.toml; then echo "parked=yes" >> "$GITHUB_OUTPUT"; else echo "parked=no" >> "$GITHUB_OUTPUT"; fi
+      - name: Her answers into D1
+        if: env.HAS_CF == 'true' && steps.plan.outputs.parked != 'yes'
+        run: node kb-sql.cjs > kb.sql
+      - name: D1 answers (replaced)
+        if: env.HAS_CF == 'true' && steps.plan.outputs.parked != 'yes'
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          workingDirectory: meera/router
+          command: d1 execute meera --remote --file=kb.sql
 
       # Wrangler run straight, so that on a failure its own error lines become notes on the run that anyone can read
       # (GitHub shows a step's full log only to someone signed in).
@@ -92,6 +115,22 @@ jobs:
         env:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
 
+      # Her search on Cloud Functions (D.2): the meter's key and the cent alarm's key — the same two are in
+      # meera/functions/.env on the office computer (never in the repository)
+      - name: Meter and alarm keys (only if they are in GitHub)
+        if: env.HAS_CF == 'true' && env.HAS_METER == 'true'
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          workingDirectory: meera/router
+          command: deploy
+          secrets: |
+            METER_KEY
+            STOP_KEY
+        env:
+          METER_KEY: ${{ secrets.MEERA_METER_KEY }}
+          STOP_KEY: ${{ secrets.MEERA_STOP_KEY }}
+
       - name: Gemini key (only if it is in GitHub)
         if: env.HAS_CF == 'true' && env.HAS_GEMINI == 'true'
         uses: cloudflare/wrangler-action@v3
@@ -103,6 +142,19 @@ jobs:
             GEMINI_API_KEY
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+
+      # The new router answers: GET /health (no sign-in, no data) gives the version in src/worker.js and the search state
+      - name: Health check
+        if: env.HAS_CF == 'true'
+        run: |
+          want=$(grep -oE "ROUTER_VERSION = '[^']+'" src/worker.js | cut -d"'" -f2)
+          for i in 1 2 3 4 5 6; do
+            got=$(curl -s -m 10 https://meera-router.erp-9a0.workers.dev/health)
+            echo "$got"
+            if echo "$got" | grep -q "\"v\":\"$want\""; then echo "::notice::Meera router $want is answering: $got"; exit 0; fi
+            sleep 10
+          done
+          echo "::error::The router did not answer as $want — roll back: Cloudflare → Workers & Pages → meera-router → Deployments → the previous one → Rollback"; exit 1
 
       - name: No Cloudflare key yet
         if: env.HAS_CF != 'true'

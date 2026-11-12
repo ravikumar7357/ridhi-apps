@@ -318,11 +318,18 @@ function nightlyStatus() {
     Logger.log('cache ' + n + ': ' + (c ? ('ok Â· updated ' + (c.at || '?')
       + (c.from ? ' Â· from ' + c.from : '')) : 'empty'));
   });
-  var lost = nProp_('CACHE_SHEET_LOST');
+  var lost = nProp_('CACHE_SHEET_LOST'), curId = nProp_('CACHE_SHEET_ID');
   if (lost) {
-    Logger.log('⚠️ THE CACHE SHEET WAS REPLACED — every cache was lost and is rebuilding.');
-    Logger.log('   old sheet ' + lost);
-    Logger.log('   clear the CACHE_SHEET_LOST script property once this is understood.');
+    /* The marker is written when the sheet would not open (cacheSheet_). The sheet is NOT replaced any more — that stopped in Aug —
+     * so when the id it names is the sheet still in use, it only says the sheet did not open once (a Sheets timeout), and nothing was lost. */
+    if (curId && String(lost).indexOf(curId) === 0) {
+      Logger.log('note: the cache sheet did not open once — ' + lost);
+      Logger.log('   it is the SAME sheet still in use, so nothing was lost; clear the CACHE_SHEET_LOST script property to hide this.');
+    } else {
+      Logger.log('⚠️ THE CACHE SHEET WAS REPLACED — every cache was lost and is rebuilding.');
+      Logger.log('   old sheet ' + lost);
+      Logger.log('   clear the CACHE_SHEET_LOST script property once this is understood.');
+    }
   }
   var id = nProp_('CACHE_SHEET_ID');
   if (id) Logger.log('cache sheet https://docs.google.com/spreadsheets/d/' + id + '/edit');
@@ -350,7 +357,7 @@ function nightlyRunNow() {
     var st = nState_();
     // An explicit flag, not just a blank day. The day check depends on the very state being
     // replaced, so a reset that failed to take looked exactly like one that worked.
-    nSaveState_({ day: '', reset: true, sessDone: st.sessDone || {} });
+    nSaveState_({ day: '', reset: true, sessHave: st.sessHave || {} });
     var back = nState_();
     Logger.log(back.reset
       ? 'Cleared and verified — the next nightlyTick starts a fresh pass.'
@@ -408,7 +415,7 @@ function nightlyTickLocked_() {
   if (st.reset || (st.day !== today && hour >= NIGHTLY_START_HOUR)) {
     Logger.log('tick: starting a FRESH pass' + (st.reset ? ' (asked for by nightlyRunNow)' : ''));
     st = { day: today, phase: 'daily', book: 0, row: 2, daily: {}, weekly: {},
-           pending: [], acc: {}, sessDone: (st.sessDone || {}) };
+           pending: [], acc: {}, sessHave: (st.sessHave || {}) };
     // Start every pass with empty scratch tabs. Each phase clears its own once it has merged, but a
     // pass abandoned half way â€” the clock rolling past the start hour while reports were still
     // pending, a phase erroring out â€” leaves slices behind. The merges ADD, so those leftovers would
@@ -619,7 +626,20 @@ function nMergeAdsAsinDay_() {
 
 /** Fold every appended session slice into { brand: { asin: { week: [sessions, pageViews] } } }. */
 function nMergeSessions_() {
-  var out = {};
+  /* ON TOP OF WHAT THE CACHE ALREADY HOLDS (3 Nov 2026). The scratch tab is emptied at the start of every pass, and a week already
+   * collected is not asked for again — so a merge of the scratch tab alone threw every earlier week away each morning, and the cache
+   * held one week of one brand. The cache is the record; this pass's slices are laid over it, and weeks older than the window drop off. */
+  var keep = {}; weeklyKeys_(26).forEach(function (w) { keep[w] = 1; });
+  var out = {}, old = (cacheRead_('sessions') || {}).d || {};
+  Object.keys(old).forEach(function (brand) {
+    Object.keys(old[brand] || {}).forEach(function (asin) {
+      Object.keys(old[brand][asin] || {}).forEach(function (week) {
+        if (!keep[week]) return;
+        var into = out[brand] || (out[brand] = {});
+        (into[asin] || (into[asin] = {}))[week] = old[brand][asin][week];
+      });
+    });
+  });
   accReadAll_('sessions').forEach(function (part) {
     var into = out[part.brand] || (out[part.brand] = {});
     Object.keys(part.d || {}).forEach(function (asin) {
@@ -923,25 +943,28 @@ function nPhaseAdsGet_(st, left) {
  * still-changing week is.
  */
 function nPhaseSessions_(st, left) {
-  st.sessDone = st.sessDone || {};
+  /* FIXED 3 Nov 2026. This phase never ended: the current week of BOTH brands was put first in the list on every wake-up, so the list
+   * was never empty, the run never reached "done", and — one report per wake-up — the first job, SP's current week, was asked for again
+   * every ten minutes all day. CPC's current week and every older week never got a turn, and the report quota went on the repeats (the
+   * 429s in nightlyStatus).
+   *
+   * Now: each brand's CURRENT week once per pass (st.sessCur, which a fresh pass starts empty — the week is still changing, so it is
+   * asked again tomorrow); then every week of the last 26 that the cache does not hold yet, brands alternating; then done.
+   * A week is "held" (st.sessHave) only once it is no longer current and was collected whole — so the week that just ended is asked
+   * for one last time, complete. 2 = Amazon had no data for it (a real answer, not asked again). */
+  st.sessHave = st.sessHave || {}; st.sessCur = st.sessCur || {};
   var weeks = weeklyKeys_(26);
   var current = weeks[weeks.length - 1];
-  /* The CURRENT week for every brand first, then the backfill ALTERNATING brands.
-   *
-   * This used to be "every outstanding week of SP, then every outstanding week of CPC". With one
-   * report per wake-up (see below) that meant CPC was not asked for anything at all until SP's whole
-   * 26-week backfill had finished — several nights of it — so CPC had no sessions and no page views
-   * for any week, including the current one. On Parent Listing Review that read as a brand nobody
-   * visits, sitting next to real units and real sales.
-   *
-   * Alternating costs nothing and makes starving one brand impossible. The current week goes first
-   * because it is the one every tab shows, and it is re-asked every pass regardless of sessDone —
-   * the week is still changing. */
+  /* what the cache really holds, so a lost or replaced cache sheet is refilled rather than trusted */
+  var held = {}, c0 = (cacheRead_('sessions') || {}).d || {};
+  Object.keys(c0).forEach(function (brand) { Object.keys(c0[brand] || {}).forEach(function (asin) { Object.keys(c0[brand][asin] || {}).forEach(function (w) { held[brand + '|' + w] = 1; }); }); });
   var jobs = [];
-  ['SP', 'CPC'].forEach(function (brand) { jobs.push({ brand: brand, week: current }); });
+  ['SP', 'CPC'].forEach(function (brand) { if (!st.sessCur[brand]) jobs.push({ brand: brand, week: current }); });
   for (var i = weeks.length - 2; i >= 0; i--) {
     ['SP', 'CPC'].forEach(function (brand) {
-      if (!st.sessDone[brand + '|' + weeks[i]]) jobs.push({ brand: brand, week: weeks[i] });
+      var k = brand + '|' + weeks[i];
+      if (st.sessHave[k] === 2 || (st.sessHave[k] && held[k])) return;
+      jobs.push({ brand: brand, week: weeks[i] });
     });
   }
   if (!jobs.length) {
@@ -950,48 +973,39 @@ function nPhaseSessions_(st, left) {
     st.phase = 'done'; st.finishedAt = nowStamp_();
     return true;
   }
-  // ONE report per wake-up, not a burst.
-  //
-  // SP-API allows report creation at roughly one a minute after a small burst, and asking for 52 in
-  // a row spends that burst in seconds and then earns a QuotaExceeded for everything after it. The
-  // trigger already fires every ten minutes, so pacing to one per wake-up costs nothing that matters
-  // — the whole point of running overnight is that it does not have to be quick — and it never
-  // trips the limit. A backfill takes a couple of nights instead of one, and then only the current
-  // week is ever asked for again.
-  var perTick = 1;
-  for (var j = 0; j < jobs.length && j < perTick; j++) {
-    if (left() < 45000) return false;
-    var job = jobs[j];
-    setBrand_(job.brand);
-    var end = Utilities.formatDate(new Date(new Date(job.week + 'T00:00:00Z').getTime() + 6 * 86400000), 'UTC', 'yyyy-MM-dd');
-    try {
-      var c = trafficCreate_(job.week, end);
-      if (!c.reportId) continue;
-      // Waited on here rather than across wake-ups: these are small and usually quick, and a second
-      // queue for them would double the bookkeeping for very little gain.
-      var got = null;
-      for (var k = 0; k < 12 && left() > 25000; k++) {
-        Utilities.sleep(10000);
-        var s = trafficStatus_(c.reportId);
-        if (s.dead) { got = {}; break; }                      // no data that week â€” a real answer
-        if (s.ready) { got = (trafficFetch_(s.doc).asins || {}); break; }
-      }
-      if (got == null) return false;
-      var slice = {};
-      Object.keys(got).forEach(function (a) { slice[a] = [got[a][0], got[a][1]]; });
-      accStart_(st, 'sessions');
-      accAppend_('sessions', { k: 'sess|' + job.brand + '|' + job.week, brand: job.brand, week: job.week, d: slice });
-      st.sessDone[job.brand + '|' + job.week] = 1;
-      nSaveState_(st);
-    } catch (e) {
-      var m = String(e.message || e);
-      st.lastErrorAt = nowStamp_(); st.lastError = 'sessions: ' + m.slice(0, 160);
-      // A quota refusal is not a failure to retry harder at — it is a request to come back later.
-      if (/429|quota/i.test(m)) return false;
+  // ONE report per wake-up, not a burst: SP-API allows report creation at about one a minute after a small burst, and the trigger
+  // fires every ten minutes. A backfill takes a night or two; after that a pass is two reports (each brand's current week).
+  var job = jobs[0];
+  if (left() < 45000) return false;
+  setBrand_(job.brand);
+  var end = Utilities.formatDate(new Date(new Date(job.week + 'T00:00:00Z').getTime() + 6 * 86400000), 'UTC', 'yyyy-MM-dd');
+  try {
+    var c = trafficCreate_(job.week, end);
+    if (!c.reportId) return false;
+    // Waited on here rather than across wake-ups: these are small and usually quick.
+    var got = null, none = false;
+    for (var k = 0; k < 12 && left() > 25000; k++) {
+      Utilities.sleep(10000);
+      var s = trafficStatus_(c.reportId);
+      if (s.dead) { got = {}; none = true; break; }            // no data that week — a real answer
+      if (s.ready) { got = (trafficFetch_(s.doc).asins || {}); break; }
     }
+    if (got == null) return false;
+    var slice = {};
+    Object.keys(got).forEach(function (a) { slice[a] = [got[a][0], got[a][1]]; });
+    accStart_(st, 'sessions');
+    accAppend_('sessions', { k: 'sess|' + job.brand + '|' + job.week, brand: job.brand, week: job.week, d: slice });
+    if (job.week === current) st.sessCur[job.brand] = 1;
+    else st.sessHave[job.brand + '|' + job.week] = (none || !Object.keys(slice).length) ? 2 : 1;
+    nSaveState_(st);
+  } catch (e) {
+    var m = String(e.message || e);
+    st.lastErrorAt = nowStamp_(); st.lastError = 'sessions: ' + m.slice(0, 160);
+    // A quota refusal is not a failure to retry harder at — it is a request to come back later.
+    if (/429|quota/i.test(m)) return false;
+    return false;
   }
-  // Written out after every week collected, so a run that stops half way still leaves the sessions
-  // it did gather usable rather than holding them hostage until the whole backfill finishes.
+  // Written out after every week collected, so a run that stops half way still leaves what it gathered usable.
   cacheWrite_('sessions', { at: nowStamp_(), d: nMergeSessions_() });
   return false;
 }

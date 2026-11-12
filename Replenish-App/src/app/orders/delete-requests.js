@@ -44,7 +44,8 @@ async function odrLoad(force) {
 
 /** The count on Sales Orders — only for somebody who can answer. */
 function odrBadge() {
-  const n = odrCanAnswer() ? odrPending().length : 0;
+  /* The screen's own list wins once it is loaded; until then, the count the sign-in asked for (core/pending-badges.js). */
+  const n = odrCanAnswer() ? (ODR.rows === null ? pbCount('odr') : odrPending().length) : 0;
   const el = $('soDelBadge');
   if (el) { el.textContent = n ? String(n) : ''; el.classList.toggle('hide', !n); }
   /* The quantity sheet writes quantities, so it is the approvers' button, like the single change. */
@@ -276,7 +277,7 @@ async function odrKeepRun(ids) {
   return '';
 }
 
-$('sxDelReqs').onclick = async () => { await odrLoad(true); if (!PTG.ob) await ptLoadGates(); odrListOpen(); };
+$('sxDelReqs').onclick = async () => { await odrLoad(true); await ptNeed(PTG_ALL, { why: 'delete-requests', has: 'ob' }); odrListOpen(); };
 
 $('sxQtyTpl').onclick = soQtyTemplate;
 $('sxQtyImp').onclick = () => $('sxQtyFile').click();

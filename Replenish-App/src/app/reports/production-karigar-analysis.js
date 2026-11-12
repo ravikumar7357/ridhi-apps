@@ -30,11 +30,11 @@ const paDayIso = ms => repWkIso(new Date(ms));
 
 async function ensurePa() {
   if (PA.busy) return;
-  const need = !PTG.mdb || !PT.base || !PTE.emp || HR.rate === null || ATT.rows === null || PA.team === null || !KA.levels;
+  const need = ptLack(PTG_ALL, ['mdb', 'base']) || !PTE.emp || HR.rate === null || ATT.rows === null || PA.team === null || !KA.levels;
   if (need) {
     PA.busy = true; renderPa(); renderKa();
     try {
-      await ptLoadGates();
+      await ptNeed(PTG_ALL, { why: 'karigar analysis' });
       if (!PTE.emp) await ptLoadEmp();
       if (HR.rate === null) HR.rate = ptList(await ptGet('pt_rateList')).map(hrRow).filter(x => x.length && x[1]);
       if (ATT.rows === null) { ATT.rows = ptList(await ptGet('pt_attend')); ATT.at = ptStamp(); }

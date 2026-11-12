@@ -2,6 +2,7 @@
  * the order, among those carrying that size or cloth, on which they raised a requirement nearest in
  * time. Dry run unless --apply. Only ADDS orderId to each row; nothing is moved or deleted. */
 const fs = require('fs'), https = require('https'), pathm = require('path');
+const NW = require('./_noted-write.js');     // writes to a synced register leave their change note (Step 4d)
 const FTL = 'C:/Users/ravik/AppData/Roaming/npm/node_modules/firebase-tools/lib/';
 const DB = 'https://price-research-48ff3-default-rtdb.asia-southeast1.firebasedatabase.app';
 const APPLY = process.argv.includes('--apply');
@@ -41,5 +42,5 @@ const APPLY = process.argv.includes('--apply');
     }
   }
   console.log('\n' + Object.keys(patch).length + ' to tag');
-  if (APPLY && Object.keys(patch).length) { await req('PATCH', '', patch); console.log('applied'); }
+  if (APPLY && Object.keys(patch).length) { await req(...NW.noted('PATCH', '', patch)); console.log('applied'); }
 })().catch(e => { console.error(e.message); process.exit(1); });

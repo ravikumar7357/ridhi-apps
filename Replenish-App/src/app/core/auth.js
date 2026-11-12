@@ -31,7 +31,21 @@ $('resetLink').onclick = async () => {
   $('resetLink').disabled = false;
 };
 /* Sign out wipes this device's copy of the Shopify orders first (shopify/shopify-copy.js) — customer details included. */
-$('logoutBtn').onclick = async () => { try { await soCopyWipe(); } catch (e) { /* nothing kept */ } signOut(auth); };
+$('logoutBtn').onclick = async () => {
+  try { await soCopyWipe(); } catch (e) { /* nothing kept */ }
+  /* On a shared computer, the downloaded factory data goes too (core/delta-sync.js deltaWipe). */
+  try { if (authSharedOn() && typeof deltaWipe === 'function') await deltaWipe('shared sign-out'); } catch (e) { /* nothing kept */ }
+  signOut(auth);
+};
+/* Shared computer tick on the sign-in form: remembered per device. Ticked, the downloaded copy is deleted at sign-out. */
+function authSharedOn() { try { return localStorage.getItem('sharedDevice') === '1'; } catch (e) { return false; } }
+{
+  const sh = $('sharedDevice');
+  if (sh) {
+    sh.checked = authSharedOn();
+    sh.onchange = () => { try { if (sh.checked) localStorage.setItem('sharedDevice', '1'); else localStorage.removeItem('sharedDevice'); } catch (e) { /* not kept */ } };
+  }
+}
 
 let AUTH_SEEN = false;
 onAuthStateChanged(auth, async user => {
@@ -51,6 +65,8 @@ onAuthStateChanged(auth, async user => {
   ME = { email: (user.email || '').toLowerCase(), admin: false, repl: false, tabs: [], tabsExplicit: false, projEdit: false, prodEdit: false, rateApprove: false, shopAssign: false, b2bAssign: false,
     accEntry: false, accEdit: false, vlogAccept: false, soApprove: false, mdbEdit: false,
     attendMark: false, vreqApprove: false, rfdApprove: false, rfdSend: false, fgiEdit: false, fgiEntry: false, empEdit: false, hrEmpOnly: false };
+  /* A downloaded copy kept by ANOTHER account (or by nobody we know) is deleted before this one is used (core/delta-sync.js). */
+  try { if (typeof deltaSignedIn === 'function') await deltaSignedIn(ME.email); } catch (e) { /* nothing kept */ }
   try {
     const s = await getDoc(doc(db, 'perms', ME.email));
     if (s.exists()) { const d = s.data(); ME.admin = d.admin === true; ME.repl = d.repl === true;
@@ -64,6 +80,9 @@ onAuthStateChanged(auth, async user => {
       ME.projEdit = d.replProj === true;     // separate right: may change the monthly projections
       // …and another: may CHANGE a production entry someone has already made. Entering is not editing.
       ME.prodEdit = d.prodEdit === true;
+      /* THE BOARD'S OWN BUTTONS (Ravi, 4 Nov: "jisko jis cheej ka access du wo hi kar pay — cut, issue, receive, qc, press"): one right
+       * per step of the SHP / AMZ / B2B / SPY boards (orders/shp-board.js shpbMay). */
+      (typeof SHPB_BD_RIGHTS !== 'undefined' ? SHPB_BD_RIGHTS : []).forEach(k => { ME[k] = d[k] === true; });
       /* …and another: may make a proposed VENDOR RATE count. A rate prices every order line it
        * matches, so proposing one and approving one are separate rights. */
       ME.rateApprove = d.rateApprove === true;
@@ -95,14 +114,19 @@ onAuthStateChanged(auth, async user => {
       ME.fgiEntry = d.fgiEntry === true;
       /* …and: may add, change and DELETE people on the employee list. It opens the Employee list on
        * its own — pay, rates and slips stay shut unless Finance & HR is granted as well. */
-      ME.empEdit = d.empEdit === true; }
+      ME.empEdit = d.empEdit === true;
+      /* …and: may SEE the Access page (who can open what) and change nothing (core/access-host.js). */
+      ME.accessView = d.accessView === true; }
   } catch (e) { /* no perms = no access */ }
   /* A perms read that fails leaves ME.tabs empty, which is the correct answer — but the cover still
    * has to come off, or a denied account sits looking at nothing at all. */
   if (ME.empEdit && !ME.tabs.includes('hr')) { ME.tabs = ME.tabs.concat('hr'); ME.hrEmpOnly = true; }
   if (ME.email === 'ravi@thefabricrush.com') ME.admin = true;
+  if (ME.admin) (typeof SHPB_BD_RIGHTS !== 'undefined' ? SHPB_BD_RIGHTS : []).forEach(k => { ME[k] = true; });
   if (ME.admin) { ME.tabs = REPL_TABS.slice(); ME.projEdit = true; ME.prodEdit = true; ME.rateApprove = true; ME.shopAssign = true; ME.b2bAssign = true;
     ME.accEntry = true; ME.accEdit = true; ME.vlogAccept = true; ME.soApprove = true; ME.mdbEdit = true; ME.attendMark = true; ME.vreqApprove = true; ME.rfdApprove = true; ME.rfdSend = true; ME.fgiEdit = true; ME.fgiEntry = true; ME.empEdit = true; ME.hrEmpOnly = false; }
+  /* THE ACCESS PAGE (4 Nov): admins, and Access viewers, see it; it is not a box anybody is given */
+  if ((ME.admin || ME.accessView) && !ME.tabs.includes('access')) ME.tabs = ME.tabs.concat('access');
   /* FROM QC — TO ACCEPT (Ravi, 27 Oct: "From QC — to accept - access me jodo"): its own box in Access, for whoever accepts what
    * passed QC into the India store and does nothing else there. A grant, not a screen: on its own it opens Finished Goods on that
    * one list (ME.fgAccOnly, finished-goods.js); with Finished Goods ticked as well it adds nothing. */
@@ -215,13 +239,41 @@ onAuthStateChanged(auth, async user => {
    * with its own sign-in, and the three read-only views read the factory's database over REST. An
    * account holding only those would otherwise spend its login on reads the rules must refuse, and
    * land on a red "ask an admin for perms.repl" message about a permission it does not need. */
-  const FACTORY_TABS = ['dash', 'att', 'pmdb', 'mst', 'pbase', 'pcut', 'ppress', 'qc', 'qcalt', 'qcret', 'ord', 'so', 'vord', 'vreq', 'rfd', 'vend', 'palloc', 'fgi', 'fba', 'fab', 'acc', 'rep', 'pa', 'ka', 'hr',
+  const FACTORY_TABS = ['access', 'dash', 'att', 'pmdb', 'mst', 'pbase', 'pcut', 'ppress', 'qc', 'qcalt', 'qcret', 'ord', 'so', 'vord', 'vreq', 'rfd', 'vend', 'palloc', 'fgi', 'fba', 'fab', 'acc', 'rep', 'pa', 'ka', 'hr',
     /* History and Customer Orders are factory screens too; missing here, a login holding History loaded
      * the Replenishment snapshot at sign-in — a vendor's among them. */
     'vlog', 'cx', ...FLOW_TABS,
     /* The Greige Desk's four rights (2026-10-13) are factory screens too. */
     'gdesk', 'gdled', 'gdledit', 'gdappr'];
   const FACTORY_ONLY = ME.tabs.every(t => FACTORY_TABS.includes(t));
+  /* DATA METER (Step 0): remember what kind of user this is, ask the Firestore flag config/flags.dataMeter in the
+   * background and keep its answer for the NEXT page load. Never waits, never blocks sign-in; a missing document or a
+   * refused read leaves the meter off. */
+  try {
+    const dmKind = ME.admin ? 'admin' : FACTORY_ONLY ? 'factory' : 'office';
+    if (typeof dmSaveFlag === 'function') {
+      getDoc(doc(db, 'config', 'flags')).then(f => {
+        const d = f.exists() ? f.data() : null;
+        dmSaveFlag(!!d && (d.dataMeter === true || d.dataMeter === 1 || d.dataMeter === '1' || d.dataMeter === 'on'), dmKind);
+        /* The same single read also answers the pending-badges switch (core/pending-badges.js); it applies from the next page load. */
+        if (typeof pbSaveFlag === 'function') pbSaveFlag(!!d && (d.pendingBadges === true || d.pendingBadges === 1 || d.pendingBadges === '1' || d.pendingBadges === 'on'));
+        /* ...and the order strip's plain-line switch (orders/order-ticker.js), also from the next page load. */
+        if (typeof otkSaveFlag === 'function') otkSaveFlag(!!d && (d.tickerPlain === true || d.tickerPlain === 1 || d.tickerPlain === '1' || d.tickerPlain === 'on'));
+        /* ...and the order alert list's build switch (orders/order-alerts.js), also from the next page load. */
+        if (typeof oalSaveFlag === 'function') oalSaveFlag(!!d && (d.alertListBuild === true || d.alertListBuild === 1 || d.alertListBuild === '1' || d.alertListBuild === 'on'));
+        /* ...and the order strip's alert-list switch (orders/order-ticker.js), also from the next page load. */
+        if (typeof otkListSaveFlag === 'function') otkListSaveFlag(!!d && (d.alertList === true || d.alertList === 1 || d.alertList === '1' || d.alertList === 'on'));
+        /* ...and the page registers switch (core/gates.js), also from the next page load. */
+        if (typeof prSaveFlag === 'function') prSaveFlag(!!d && (d.pageRegisters === true || d.pageRegisters === 1 || d.pageRegisters === '1' || d.pageRegisters === 'on'));
+        /* ...and the one-request-with-its-note switch (core/history.js), also from the next page load. */
+        if (typeof saSaveFlag === 'function') saSaveFlag(!!d && (d.syncAtomic === true || d.syncAtomic === 1 || d.syncAtomic === '1' || d.syncAtomic === 'on'));
+        /* ...and the downloaded-copy switch (core/delta-sync.js), also from the next page load. */
+        if (typeof deltaSaveFlag === 'function') deltaSaveFlag(!!d && (d.deltaUse === true || d.deltaUse === 1 || d.deltaUse === '1' || d.deltaUse === 'on'));
+      })
+        .catch(() => { dmSaveFlag(false, dmKind); if (typeof pbSaveFlag === 'function') pbSaveFlag(false); if (typeof otkSaveFlag === 'function') otkSaveFlag(false); if (typeof prSaveFlag === 'function') prSaveFlag(false); if (typeof oalSaveFlag === 'function') oalSaveFlag(false); if (typeof otkListSaveFlag === 'function') otkListSaveFlag(false); if (typeof saSaveFlag === 'function') saSaveFlag(false); if (typeof deltaSaveFlag === 'function') deltaSaveFlag(false); });
+    }
+    if (typeof dmStart === 'function') dmStart();
+  } catch (e) { console.warn('[data meter]', e); }
 
   if (!FACTORY_ONLY) try {
     const c = await getDoc(doc(db, 'config', 'replapi'));
@@ -249,16 +301,19 @@ onAuthStateChanged(auth, async user => {
    * reload. showTab itself sends anything else to the first screen this account has. */
   showTab(navHashTab() || ME.tabs[0]);
   /* Somebody who approves requests is told how many are waiting without having to open the tab. */
-  if (ME.tabs.includes('vreq') && vrqCanApprove()) ptGet('pt_vendorOrderReqs')
-    .then(v => { if (VRQ.rows === null) VRQ.rows = ptList(v).filter(r => r && r.id); vrqBadge(); }).catch(() => {});
+  /* With the pending-badges switch on (core/pending-badges.js) the four request counts below come from asking the database
+   * for the pending rows only; the screens' own lists are not filled here and load in full when each screen is opened.
+   * Switched off, or if that question fails, each one reads its whole list exactly as before. */
+  if (ME.tabs.includes('vreq') && vrqCanApprove()) pbLogin('vrq', vrqBadge, () => ptGet('pt_vendorOrderReqs')
+    .then(v => { if (VRQ.rows === null) VRQ.rows = ptList(v).filter(r => r && r.id); vrqBadge(); })).catch(() => {});
   /* The RFD count needs the orders as well as the decisions, because the requirements live inside
    * the orders — so it is filled when the screen is opened, not on the way in. */
-  if (ME.tabs.includes('rfd') && rfdCanApprove() && RFD.decisions === null) ptGet('pt_rfdDecisions')
+  if (ME.tabs.includes('rfd') && rfdCanApprove() && RFD.decisions === null && !pbSkipRfdRead()) ptGet('pt_rfdDecisions')
     .then(v => { if (RFD.decisions === null) RFD.decisions = v || {}; rfdBadge(); }).catch(() => {});
-  if (ME.tabs.includes('so') && odrCanAnswer()) odrLoad().catch(() => {});
-  if (ME.tabs.includes('fgi') && (ME.admin || ME.fgiEdit)) fgiCorrLoad().catch(() => {});
+  if (ME.tabs.includes('so') && odrCanAnswer()) pbLogin('odr', odrBadge, () => odrLoad()).catch(() => {});
+  if (ME.tabs.includes('fgi') && (ME.admin || ME.fgiEdit)) pbLogin('fgc', fgiCorrBadge, () => fgiCorrLoad()).catch(() => {});
   /* Job Work corrections waiting: the badge is for whoever may answer them. */
-  if (ME.tabs.includes('pbase') && ptCanEdit()) jwCorrLoad().catch(() => {});
+  if (ME.tabs.includes('pbase') && ptCanEdit()) pbLogin('jwc', jwCorrBadge, () => jwCorrLoad()).catch(() => {});
   if (ME.tabs.includes('fgi')) ptGet('pt_amzListings').then(idx => { LST.map = lstParse(idx); LST.at = (idx && idx.at) || ''; return lstLoadAlerts(); }).catch(() => {});
   // Background-load POs once so the Follow-ups nav badge shows without opening the tab.
   /* Purchase orders are the planners' (firestore.rules → po, 2026-10-14); anybody else would only be refused. */

@@ -1,0 +1,946 @@
+[
+ {
+  "key": "stale|c-repl-42",
+  "kind": "stale",
+  "tab": "repl",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-repl-42 is about the note “Lead times used to decide whether a month's shortfall can still be covered by sea, or has” on Replenishment, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-vend-267",
+  "kind": "stale",
+  "tab": "vend",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-vend-267 is about the box “Search order no, SKU, fabric” on Vendor Portal, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-palloc-421",
+  "kind": "stale",
+  "tab": "palloc",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-palloc-421 is about the button “Delete” on Printer Allocation, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-ka-462",
+  "kind": "stale",
+  "tab": "ka",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-ka-462 is about the option “Custom dates” on Karigar Analysis, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-dash-476",
+  "kind": "stale",
+  "tab": "dash",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-dash-476 is about the box “Search person, register, SKU, order” on Dashboard, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-flow-611",
+  "kind": "stale",
+  "tab": "flow",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-flow-611 is about the box “Search PO, SKU, colour, fabric, printer” on Production flow, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-qc-664",
+  "kind": "stale",
+  "tab": "qc",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-qc-664 is about the option “Employment type” on Quality Control, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-pbase-768",
+  "kind": "stale",
+  "tab": "pbase",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-pbase-768 is about the option “Employment type” on Job Work Register, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-pbase-788",
+  "kind": "stale",
+  "tab": "pbase",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-pbase-788 is about the box “Search karigar, item, SKU, order or remarks” on Job Work Register, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-pcut-841",
+  "kind": "stale",
+  "tab": "pcut",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-pcut-841 is about the option “Select an Order ID” on Cutting Data, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-pcut-844",
+  "kind": "stale",
+  "tab": "pcut",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-pcut-844 is about the note “Metres taken off the roll for this cut. Worked out from the size — type over it with what” on Cutting Data, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-shop-858",
+  "kind": "stale",
+  "tab": "shop",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-shop-858 is about the note “Cancelled comes from Shopify. Chargeback and MCF done are read from the order's tags, its” on Shopify Orders, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-adj-903",
+  "kind": "stale",
+  "tab": "adj",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-adj-903 is about the button “Accept” on Adjustments, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-adj-905",
+  "kind": "stale",
+  "tab": "adj",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-adj-905 is about the button “Received” on Adjustments, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-adj-941",
+  "kind": "stale",
+  "tab": "adj",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-adj-941 is about the button “Choose CSV” on Adjustments, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-adj-1040",
+  "kind": "stale",
+  "tab": "adj",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-adj-1040 is about the button “Import file” on Adjustments, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-adj-1044",
+  "kind": "stale",
+  "tab": "adj",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-adj-1044 is about the box “Add a note (e.g. 'Fabric ordered', 'Production started', 'Ready to ship')” on Adjustments, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-any-1047",
+  "kind": "stale",
+  "tab": "",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-any-1047 is about the option “Select an Order ID” on every screen, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-any-1061",
+  "kind": "stale",
+  "tab": "",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-any-1061 is about the button “Show … more · … of” on every screen, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-any-1065",
+  "kind": "stale",
+  "tab": "",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-any-1065 is about the box “Search” on every screen, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-dash-1069",
+  "kind": "stale",
+  "tab": "dash",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-dash-1069 is about the note “Open” on Dashboard, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-flow-1114",
+  "kind": "stale",
+  "tab": "flow",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-flow-1114 is about the box “Embroidery by” on Production flow, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-flow-1130",
+  "kind": "stale",
+  "tab": "flow",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-flow-1130 is about the box “Save to master data when this line is raised” on Production flow, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-flow-1138",
+  "kind": "stale",
+  "tab": "flow",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-flow-1138 is about the box “Undo this plan — send the line back to PPC (its fabric-ready and reservation go too)” on Production flow, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-flow-1146",
+  "kind": "stale",
+  "tab": "flow",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-flow-1146 is about the column “= 3 && i” on Production flow, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-flow-1181",
+  "kind": "stale",
+  "tab": "flow",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-flow-1181 is about the button “Receive” on Production flow, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-flow-1182",
+  "kind": "stale",
+  "tab": "flow",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-flow-1182 is about the column “What comes back” on Production flow, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-flow-1183",
+  "kind": "stale",
+  "tab": "flow",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-flow-1183 is about the column “Cloth with printer” on Production flow, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-flow-1184",
+  "kind": "stale",
+  "tab": "flow",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-flow-1184 is about the column “Not sent yet” on Production flow, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-flow-1187",
+  "kind": "stale",
+  "tab": "flow",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-flow-1187 is about the box “SKU, colour, order, printed fabric” on Production flow, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-flow-1195",
+  "kind": "stale",
+  "tab": "flow",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-flow-1195 is about the note “still to come:” on Production flow, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-flow-1196",
+  "kind": "stale",
+  "tab": "flow",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-flow-1196 is about the note “the printer was changed — the cloth stands with” on Production flow, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-flow-1238",
+  "kind": "stale",
+  "tab": "flow",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-flow-1238 is about the button “x.s.key).join(','))}\" style=\"width:auto;padding:3px 10px;font-size:12px\">Plan together ·” on Production flow, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-flow-1252",
+  "kind": "stale",
+  "tab": "flow",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-flow-1252 is about the button “Ruffle challan →” on Production flow, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-flow-1253",
+  "kind": "stale",
+  "tab": "flow",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-flow-1253 is about the button “Mark fabric ready” on Production flow, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-flow-1273",
+  "kind": "stale",
+  "tab": "flow",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-flow-1273 is about the box “Search PO, SKU, colour” on Production flow, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-acc-1450",
+  "kind": "stale",
+  "tab": "acc",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-acc-1450 is about the column “= 0 ? ' class=\"num\"' : '')}>” on Accessories, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-fba-1462",
+  "kind": "stale",
+  "tab": "fba",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-fba-1462 is about the box “FBA15” on FBA Dispatch, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-fgi-1567",
+  "kind": "stale",
+  "tab": "fgi",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-fgi-1567 is about the button “Paste plan” on Finished Goods, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-fgi-1568",
+  "kind": "stale",
+  "tab": "fgi",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-fgi-1568 is about the box “Amazon shipment plan Paste plan” on Finished Goods, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-fab-1596",
+  "kind": "stale",
+  "tab": "fab",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-fab-1596 is about the column “= 0 ? ' class=\"num\"' : '')}>” on Fabric Inventory, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-fab-1605",
+  "kind": "stale",
+  "tab": "fab",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-fab-1605 is about the note “The printer still holds pieces for that very order — the delivery has not been entered in” on Fabric Inventory, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-mst-1622",
+  "kind": "stale",
+  "tab": "mst",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-mst-1622 is about the note “Cut” on Masters, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-mst-1623",
+  "kind": "stale",
+  "tab": "mst",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-mst-1623 is about the note “Issued” on Masters, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-mst-1624",
+  "kind": "stale",
+  "tab": "mst",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-mst-1624 is about the note “Made” on Masters, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-mst-1626",
+  "kind": "stale",
+  "tab": "mst",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-mst-1626 is about the column “Made against” on Masters, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-mst-1634",
+  "kind": "stale",
+  "tab": "mst",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-mst-1634 is about the option “Custom dates” on Masters, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-pmdb-1668",
+  "kind": "stale",
+  "tab": "pmdb",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-pmdb-1668 is about the column “= 0 ? ' class=\"num\"' : '')}>” on Master Database, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-mst-1674",
+  "kind": "stale",
+  "tab": "mst",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-mst-1674 is about the column “= 0 ? ' class=\"num\"' : '')}>” on Masters, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-cx-1716",
+  "kind": "stale",
+  "tab": "cx",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-cx-1716 is about the column “= 6 && i” on Customer Orders, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-ord-1747",
+  "kind": "stale",
+  "tab": "ord",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-ord-1747 is about the note “… open line(s) behind this SKU” on Order Console, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-ord-1752",
+  "kind": "stale",
+  "tab": "ord",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-ord-1752 is about the note “Passed by QC, not handed over yet — the shipping team takes it in From production” on Order Console, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-so-1826",
+  "kind": "stale",
+  "tab": "so",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-so-1826 is about the column “= 5 && i” on Sales Orders, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-so-1831",
+  "kind": "stale",
+  "tab": "so",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-so-1831 is about the column “= 2 && i” on Sales Orders, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-ord-1846",
+  "kind": "stale",
+  "tab": "ord",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-ord-1846 is about the column “= 2 && i” on Order Console, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-hr-1852",
+  "kind": "stale",
+  "tab": "hr",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-hr-1852 is about the column “= numFrom ? ' class=\"num\"' : '')}>” on Finance & HR, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-hr-1856",
+  "kind": "stale",
+  "tab": "hr",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-hr-1856 is about the column “= 5 ? ' class=\"num\"' : '')}>” on Finance & HR, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-hr-1861",
+  "kind": "stale",
+  "tab": "hr",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-hr-1861 is about the column “= 3 && i” on Finance & HR, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-hr-1864",
+  "kind": "stale",
+  "tab": "hr",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-hr-1864 is about the column “= 1 && i” on Finance & HR, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-att-1872",
+  "kind": "stale",
+  "tab": "att",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-att-1872 is about the column “= 3 ? ' class=\"num\"' : '')}>” on Attendance, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-pbase-1877",
+  "kind": "stale",
+  "tab": "pbase",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-pbase-1877 is about the note “Changed by” on Job Work Register, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-pbase-1880",
+  "kind": "stale",
+  "tab": "pbase",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-pbase-1880 is about the column “= 0 ? ' class=\"num\"' : '')}>” on Job Work Register, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-qc-1883",
+  "kind": "stale",
+  "tab": "qc",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-qc-1883 is about the column “= 7 && i” on Quality Control, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-qc-1887",
+  "kind": "stale",
+  "tab": "qc",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-qc-1887 is about the column “= 0 ? ' class=\"num\"' : '')}>” on Quality Control, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-pack-1943",
+  "kind": "stale",
+  "tab": "pack",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-pack-1943 is about the note “Type the whole line's weight off the scale and the per-piece figure is worked back out of” on Packing List, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-india-1965",
+  "kind": "stale",
+  "tab": "india",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-india-1965 is about the note “Units of India stock consumed in” on India Stock, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-india-1980",
+  "kind": "stale",
+  "tab": "india",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-india-1980 is about the column “Lands, picked up” on India Stock, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-pack-2009",
+  "kind": "stale",
+  "tab": "pack",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-pack-2009 is about the box “FBA account (a new list)” on Packing List, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-pack-2026",
+  "kind": "stale",
+  "tab": "pack",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-pack-2026 is about the button “Start box” on Packing List, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-pack-2027",
+  "kind": "stale",
+  "tab": "pack",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-pack-2027 is about the button “Back to box” on Packing List, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-pack-2028",
+  "kind": "stale",
+  "tab": "pack",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-pack-2028 is about the button “Box …” on Packing List, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-pack-2031",
+  "kind": "stale",
+  "tab": "pack",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-pack-2031 is about the option “FBA account” on Packing List, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-pack-2045",
+  "kind": "stale",
+  "tab": "pack",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-pack-2045 is about the box “Invoice #” on Packing List, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-pack-2046",
+  "kind": "stale",
+  "tab": "pack",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-pack-2046 is about the box “FBA account” on Packing List, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-repl-2052",
+  "kind": "stale",
+  "tab": "repl",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-repl-2052 is about the note “Every marketplace is showing. Switch the picker back to “US marketplace only” to hide the” on Replenishment, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-target-2088",
+  "kind": "stale",
+  "tab": "target",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-target-2088 is about the note “Full-pipeline days of cover (Total Stock + AWD Avail + AWD Transit) ÷ Avg/day. Keep-level” on Revenue Target, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-target-2090",
+  "kind": "stale",
+  "tab": "target",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-target-2090 is about the note “The warehouse list is still being read — it is the slowest thing this screen asks for, so” on Revenue Target, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-shopify-2110",
+  "kind": "stale",
+  "tab": "shopify",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-shopify-2110 is about the column “Plan” on Shopify Stock, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-rep-2130",
+  "kind": "stale",
+  "tab": "rep",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-rep-2130 is about the box “Working days” on Reports, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-rep-2136",
+  "kind": "stale",
+  "tab": "rep",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-rep-2136 is about the column “week of” on Reports, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-shop-2180",
+  "kind": "stale",
+  "tab": "shop",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-shop-2180 is about the column “Handed over” on Shopify Orders, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-shop-2182",
+  "kind": "stale",
+  "tab": "shop",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-shop-2182 is about the column “Store” on Shopify Orders, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-shop-2185",
+  "kind": "stale",
+  "tab": "shop",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-shop-2185 is about the column “Pcs” on Shopify Orders, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-shop-2186",
+  "kind": "stale",
+  "tab": "shop",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-shop-2186 is about the column “By” on Shopify Orders, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-shop-2187",
+  "kind": "stale",
+  "tab": "shop",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-shop-2187 is about the column “Accepted by” on Shopify Orders, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-shop-2188",
+  "kind": "stale",
+  "tab": "shop",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-shop-2188 is about the column “Shopify” on Shopify Orders, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-shop-2189",
+  "kind": "stale",
+  "tab": "shop",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-shop-2189 is about the column “Tracking” on Shopify Orders, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-shop-2192",
+  "kind": "stale",
+  "tab": "shop",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-shop-2192 is about the column “Made” on Shopify Orders, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-shop-2193",
+  "kind": "stale",
+  "tab": "shop",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-shop-2193 is about the column “Taken so far” on Shopify Orders, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-shop-2194",
+  "kind": "stale",
+  "tab": "shop",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-shop-2194 is about the column “Arrived now” on Shopify Orders, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-shop-2195",
+  "kind": "stale",
+  "tab": "shop",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-shop-2195 is about the note “Sent to the customer from stock, or not needed — close the production line” on Shopify Orders, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-shop-2204",
+  "kind": "stale",
+  "tab": "shop",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-shop-2204 is about the note “What production has made and pressed — fill in what arrived and accept” on Shopify Orders, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-shop-2205",
+  "kind": "stale",
+  "tab": "shop",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-shop-2205 is about the note “Every hand-over to shipping: the day, the pieces, who took them, and whether Shopify has s” on Shopify Orders, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-shop-2214",
+  "kind": "stale",
+  "tab": "shop",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-shop-2214 is about the option “Shipped or not” on Shopify Orders, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-shop-2215",
+  "kind": "stale",
+  "tab": "shop",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-shop-2215 is about the option “Handed over, not shipped” on Shopify Orders, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-shop-2216",
+  "kind": "stale",
+  "tab": "shop",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-shop-2216 is about the option “Shipped” on Shopify Orders, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-shop-2217",
+  "kind": "stale",
+  "tab": "shop",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-shop-2217 is about the note “Has the parcel left?” on Shopify Orders, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-ord-2243",
+  "kind": "stale",
+  "tab": "ord",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-ord-2243 is about the box “Only for extra” on Order Console, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-ord-2252",
+  "kind": "stale",
+  "tab": "ord",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-ord-2252 is about the button “Assign printer to” on Order Console, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-ord-2253",
+  "kind": "stale",
+  "tab": "ord",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-ord-2253 is about the button “Ask sales to delete” on Order Console, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-shop-2264",
+  "kind": "stale",
+  "tab": "shop",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-shop-2264 is about the note “Close this production line with a reason — shipped from stock, cancelled” on Shopify Orders, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-vord-2340",
+  "kind": "stale",
+  "tab": "vord",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-vord-2340 is about the column “= 0 ? ' class=\"num\"' : '')}>” on Vendor Orders, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-vord-2342",
+  "kind": "stale",
+  "tab": "vord",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-vord-2342 is about the button “Send …” on Vendor Orders, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-vord-2345",
+  "kind": "stale",
+  "tab": "vord",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-vord-2345 is about the column “= 2 ? ' class=\"num\"' : '')}>” on Vendor Orders, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-vord-2355",
+  "kind": "stale",
+  "tab": "vord",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-vord-2355 is about the box “Optional — GPO-” on Vendor Orders, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-ord-2384",
+  "kind": "stale",
+  "tab": "ord",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-ord-2384 is about the column “= 6 && i” on Order Console, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-ord-2389",
+  "kind": "stale",
+  "tab": "ord",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-ord-2389 is about the column “= 0 ? ' class=\"num\"' : ''}>” on Order Console, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-ord-2418",
+  "kind": "stale",
+  "tab": "ord",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-ord-2418 is about the box “Priority” on Order Console, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-vend-2446",
+  "kind": "stale",
+  "tab": "vend",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-vend-2446 is about the column “= 0 ? ' class=\"num\"' : ''}>” on Vendor Portal, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-vend-2466",
+  "kind": "stale",
+  "tab": "vend",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-vend-2466 is about the note “How many metres of this you already have for THIS order. It comes off what is left to ask” on Vendor Portal, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-vend-2483",
+  "kind": "stale",
+  "tab": "vend",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-vend-2483 is about the button “Ask for the whole order (…)” on Vendor Portal, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-vord-2518",
+  "kind": "stale",
+  "tab": "vord",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-vord-2518 is about the note “Added by hand” on Vendor Orders, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-vord-2519",
+  "kind": "stale",
+  "tab": "vord",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-vord-2519 is about the note “From” on Vendor Orders, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-vord-2520",
+  "kind": "stale",
+  "tab": "vord",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-vord-2520 is about the column “= 0 ? ' class=\"num\"' : '')}…>” on Vendor Orders, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-rfd-2531",
+  "kind": "stale",
+  "tab": "rfd",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-rfd-2531 is about the column “= 6 && i” on RFD Requirements, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-rfd-2534",
+  "kind": "stale",
+  "tab": "rfd",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-rfd-2534 is about the button “Send …” on RFD Requirements, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-rfd-2535",
+  "kind": "stale",
+  "tab": "rfd",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-rfd-2535 is about the column “= 3 ? ' class=\"num\"' : '')}>” on RFD Requirements, which no screen shows by that name now — keep, reword or take out."
+ },
+ {
+  "key": "stale|c-rfd-2547",
+  "kind": "stale",
+  "tab": "rfd",
+  "at": "",
+  "made": "2026-11-02",
+  "what": "Answer c-rfd-2547 is about the column “= 5 ? ' class=\"num\"' : '')}>” on RFD Requirements, which no screen shows by that name now — keep, reword or take out."
+ }
+]

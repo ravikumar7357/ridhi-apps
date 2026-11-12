@@ -62,6 +62,12 @@ jobs:
       - name: The page is what src/ makes
         run: node tests/assemble.js --check
 
+      # MEERA KEEPS UP WITH THE SCREENS (switch "autobank", 2 Nov 2026) — a REPORT only, in this run's summary: what autobank
+      # would add, rename or take out. It never changes what is deployed here, so the live site never drifts from the
+      # repository; its changes come as a pull request to approve (meera-autobank.yml).
+      - name: Meera — her answers and the screens (report)
+        run: node ../meera/tools/autobank.cjs --ci
+
       # prod-test is not here: it reads a backup of the live production data (C:/AMAZON/backups/…), which never goes to
       # GitHub — this repository is public. It is run on the office computer before every push to main.
       - name: Tests

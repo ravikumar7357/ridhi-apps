@@ -2,45 +2,72 @@
 
 Meera answers staff questions about the ERP (English, Hindi, Hinglish), walks people through jobs on the real screen,
 helps when they are stuck, and asks a free AI only when she is not sure. The full plan for her rebuild is
-`C:\AMAZON\handoff\meera-v2-plan-2026-10-29.md`.
+`C:\AMAZON\handoff\meera-v2-plan-2026-10-29.md`; why things are built the way they are is in `docs/decisions/`.
 
 ## Where she lives
 
 ```
 meera/
-  client/            Meera in the browser
-    src/legacy/      her code today (moved from Replenish-App/src/app/core/guide*.js on 29 Oct)
-    src/start.ts     the start of meera.js (TypeScript)      src/finish.ts   its end
-    meera.css        her look
-    build.cjs        builds Replenish-App/public/meera/meera.js + meera.webp (her picture)
-  router/            her AI router — a Cloudflare Worker (meera-router.erp-9a0.workers.dev); deploys on its own
-  shared/            the contract: what the ERP gives her (bridge.d.ts)
-  bank/evals/        her test questions        bank/baseline/   the 29 Oct baseline and 580 golden answers
-  tests/             her checks (below)        tools/           one-off scripts of the rebuild
+  client/                  Meera in the browser (TypeScript)
+    src/start.ts           the start of meera.js                 src/finish.ts   its end
+    src/config.ts          EVERY threshold and timing in one place (how sure, how near, how long to wait)
+    src/understand.ts      spelling mistakes (Phase 2)           src/design.ts   her new look (Phase 3)
+    src/learn.ts           learning from staff (Phase 4)         src/server.ts   search on her router (Phase 5)
+    src/legacy/*.ts        her older code (moved from the ERP on 29 Oct; TypeScript since 2 Nov, relaxed rules)
+    meera.css, design.css  her look
+    build.cjs              builds Replenish-App/public/meera/ (meera.<hash>.js, meera.webp, backup lists)
+    tsconfig.json          strict check of the new files     tsconfig.legacy.json   all files together
+    eslint.config.mjs      her ESLint rules (eslint.rules.mjs holds them; .prettierrc.json her format)
+  router/                  her router — a Cloudflare Worker (meera-router.erp-9a0.workers.dev); deploys on its own
+  shared/bridge.d.ts       the contract: everything the ERP gives her, and nothing more
+  bank/evals/              her test questions       bank/baseline/   the 29 Oct baseline and 580 golden answers
+  tests/                   her checks (below)       tools/           scripts of the rebuild
+  docs/decisions/          one page per big choice  ROLLOUT.md       how each switch goes live, and how to undo it
 Replenish-App/src/app/core/meera-bridge.js     the ONLY Meera file inside the ERP: the bridge + her switches
 ```
 
-Her answers, walk-throughs and meaning file are still in `Replenish-App/public/guide/` (meera-bank.json,
-meera-walks.json, meera-words.bin); they move to the server in Phase 5.
+Her answers, walk-throughs and meaning file are in `Replenish-App/public/guide/` (meera-bank.json, meera-walks.json,
+meera-words.bin). With the "serveruse" switch the router searches them instead of the browser.
 
-## Two ways she can run (the "lazy" switch)
+## Her switches (all OFF for everyone; `MEERA_SWITCHES` in meera-bridge.js)
 
-- **Off (everyone today):** her files are joined into the ERP's page (`@meera/…` lines in `Replenish-App/src/app/ORDER`)
-  and start with it, exactly as before.
-- **On:** the page leaves her out of its start and, once loaded and idle, fetches `/meera/meera.js` — the same files in
-  one closed box, talking to the ERP only through the bridge. Turn it on for one browser with
-  `localStorage['meera.lazy'] = '1'`, for one visit with `?meera=lazy` at the end of the address, or for everyone in
-  `MEERA_SWITCHES` (core/meera-bridge.js) — "live karo" first.
+| switch | what it does | needs |
+|---|---|---|
+| lazy | she loads as her own file after the ERP is ready, instead of inside the page | — |
+| spell | reads spelling mistakes ("karigr", "maaal") and says how she read the question | lazy |
+| design | her new look, in her own sealed box (Shadow DOM) | lazy |
+| learn | missed / not sure / 👎 / spellings go, cleaned, to her router; "Meera's learning" page for admins | lazy |
+| server | her router searches side by side (she still answers as before; differences are kept for an admin) | lazy |
+| serveruse | her router's search answers; her own copy is the fallback | lazy, router deployed |
+| screenfirst | the open screen's own answers first; another screen's answer says which screen it is for | — |
+| autobank | on every push her answers follow the screens: new part → answer from its label and help text, renamed → reworded, removed → taken out; new screen or job → a draft on the admin page (meera/tools/autobank.cjs, list in meera/bank/CHANGES.md) | — (read by the build) |
+
+Try one for a single visit with `?meera=lazy,spell` at the end of the address, or for one browser with
+`localStorage['meera.spell'] = '1'`. Turning one on for everyone is a change in `MEERA_SWITCHES` — only on Ravi's
+"live karo". To undo: set it back to `false` and push, or (one browser) remove the localStorage line.
 
 ## After any change
 
 ```
 node meera/client/build.cjs                 rebuild meera.js (GitHub checks it with --check)
 node Replenish-App/tests/assemble.js        rebuild the page
-node meera/tests/never-break.cjs            the never-break list (28 checks; the rest by hand: tests/NEVER-BREAK.md)
+node meera/tests/type-check.cjs             both TypeScript checks
+node meera/tools/lint.cjs                   ESLint (0 errors allowed)
+node meera/tests/never-break.cjs            the never-break list (30 checks; the rest by hand: tests/NEVER-BREAK.md)
 node meera/tests/gate.cjs                   no worse than the baseline — scores and 580 golden answers, Meera in the page
 node meera/tests/gate.cjs --bundle          the same for meera.js
+node meera/tests/ci-gate.cjs                everything GitHub runs before a deploy, in one go
 ```
 
-Plus the ERP's own tests (`Replenish-App/tests/*-test.js`). GitHub runs all of this before every deploy; nothing goes
-live if Meera got worse. Pushing to `main` deploys the live site — only on Ravi's "live karo".
+`bash meera/tools/phase6-save.sh` runs the lot and commits only if all pass. GitHub runs the same before every deploy
+(`meera/tests/ci-gate.cjs`, from replenish-hosting.yml) and blocks it if Meera got worse; an ERP change that does not
+touch her only warns. A meant change to her answers is accepted with `node meera/tests/gate.cjs --accept "why"`.
+Pushing to `main` deploys the live site — only on Ravi's "live karo". The test link is the `preview/meera-v2` branch.
+
+## Rules she keeps
+
+- She never changes the ERP: no saving, no deleting, no clicking a save button for anyone.
+- She shows only what the person's account can open (the bridge gives her their screens, nothing else).
+- Nothing personal leaves the browser: names, phones, order numbers, amounts and emails are cleaned out of every
+  question before it reaches the AI or her router (checked by `meera/tools/phase4-privacy.mjs` before every deploy).
+- No key or password is ever in her code (the repository is public); the router keeps its keys as Cloudflare secrets.

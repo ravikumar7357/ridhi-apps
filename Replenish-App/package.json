@@ -9,7 +9,7 @@
   },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "check": "node tests/assemble.js --check && node tests/shopify-copy-test.js && node tests/delta-test.js"
+    "check": "node tests/assemble.js --check && node tests/shopify-copy-test.js && node tests/delta-test.js && node tests/data-meter-test.js && node tests/pending-badges-test.js && node tests/order-ticker-test.js && node tests/order-alerts-test.js && node tests/alert-list-ticker-test.js && node tests/page-registers-test.js && node tests/sync-test.js && node tests/teeth/teeth-sync.js && node tests/delta-live-test.js && node tests/probe-writes-test.js"
   },
   "keywords": [],
   "author": "",

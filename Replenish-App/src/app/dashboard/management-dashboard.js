@@ -63,7 +63,8 @@ function dashFacts() {
     let pcs = 0, m = 0, late = 0, lateDays = 0;
     vo.forEach(o => voLines(o).forEach(l => {
       if (!l || l.cancelled) return;
-      const owed = Math.max(0, voQty(o, l) - (parseFloat(voDone(l)) || 0));
+      /* a PPC line comes back on its RFD challan, not on the vendor order — voDueOf reads that (3 Nov) */
+      const x = voDueOf(o, l), owed = x ? x.left : 0;
       if (voUnit(o) === 'm') m += owed; else pcs += owed;
       const d = voLateBy(o, l); if (d != null) { late++; lateDays = Math.max(lateDays, d); }
     }));
@@ -140,7 +141,7 @@ function renderDash() {
     + sec('Printers', 'vendor orders open now', (p
       ? card(nf(p.orders), 'Open vendor orders', 'box', 'blue', 'vord', nf(p.printers) + ' printer(s)')
         + card(p.owed, 'Still owed by printers', 'clock', 'blue', 'vord', 'ordered, not yet delivered')
-        + card(nf(p.late), 'Late lines', 'alert', p.late ? 'red' : 'green', 'vord', p.late ? 'the latest ' + nf(p.lateDays) + ' day(s) over' : 'nothing overdue')
+        + card(nf(p.late), 'Late lines', 'alert', p.late ? 'red' : 'green', 'flrem', p.late ? 'the latest ' + nf(p.lateDays) + ' day(s) over · remind' : 'nothing overdue')
       : card(dash, 'Open vendor orders', 'box', 'blue', 'vord'))
       + (r ? card(r.toSend, 'RFD cloth still to send', 'up', r.toSend !== '—' ? 'red' : 'green', 'rfd', nf(r.orders) + ' order(s) from ' + RFD_TRACK_FROM)
           + card(r.onWay, 'Sent, not yet confirmed', 'clock', r.onWay !== '—' ? 'amber' : 'blue', 'rfd', 'the printer confirms in their portal')
@@ -165,8 +166,10 @@ function renderDash() {
   $('dashMsg').textContent = (DASH.at ? 'Read ' + DASH.at + ' · ' : '') + 'every figure is the same one its own screen shows — click a card to open that screen'
     + (DASH.err.length ? ' · could not read: ' + DASH.err.join(' · ') : '');
 }
-$('dashBody').addEventListener('click', e => { const t = e.target.closest('[data-dash-go]'); if (t) showTab(t.getAttribute('data-dash-go')); });
-$('dashBody').addEventListener('keydown', e => { const t = e.target.closest('[data-dash-go]'); if (t && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); showTab(t.getAttribute('data-dash-go')); } });
+/* 'flrem' is the Production flow at Printed fabric in → Due dates · remind (3 Nov), where a late line is chased. */
+const dashGoTo = k => { if (k === 'flrem') { try { FLOW_VIEW = 'dhist'; FLOW_ANGLE.dhist = 'remind'; } catch (e) { /* the flow opens where it was */ } return showTab('flow'); } return showTab(k); };
+$('dashBody').addEventListener('click', e => { const t = e.target.closest('[data-dash-go]'); if (t) dashGoTo(t.getAttribute('data-dash-go')); });
+$('dashBody').addEventListener('keydown', e => { const t = e.target.closest('[data-dash-go]'); if (t && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); dashGoTo(t.getAttribute('data-dash-go')); } });
 $('dashGo').onclick = () => {
   /* Read again, every register — the tiles are only as fresh as the registers behind them. */
   VO.rows = null; FGI.rows = null; SOX.rows = null; ATT.rows = null; FAB.rows = null; RFD.decisions = null; VRQ.rows = null; ACC.ledger = null;

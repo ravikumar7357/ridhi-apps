@@ -1,5 +1,6 @@
 /* What "Fill from look-alikes" would write on the live data — the page's own functions, read-only. */
 const fs = require('fs'), https = require('https'), pathm = require('path');
+const NW = require('./_noted-write.js');     // writes to a synced register leave their change note (Step 4d)
 const FTL = 'C:/Users/ravik/AppData/Roaming/npm/node_modules/firebase-tools/lib/';
 const DB = 'https://price-research-48ff3-default-rtdb.asia-southeast1.firebasedatabase.app';
 const src = fs.readFileSync(pathm.join(__dirname, '..', '..', 'public', 'index.html'), 'utf8').replace(/\r\n/g, '\n');
@@ -34,7 +35,7 @@ const block = src.slice(a, z).replace("if ($('ptmLookalike')) $('ptmLookalike').
     fs.writeFileSync(undo, JSON.stringify(before, null, 1));
     const keys = Object.keys(upd);
     const patch = body => new Promise((res, rej) => { const rq = https.request(DB + '/.json', { method: 'PATCH', headers: { Authorization: 'Bearer ' + at, 'Content-Type': 'application/json' } }, r => { let d = ''; r.on('data', c => d += c); r.on('end', () => r.statusCode === 200 ? res() : rej(new Error(r.statusCode + ' ' + d.slice(0, 200)))); }); rq.on('error', rej); rq.end(JSON.stringify(body)); });
-    for (let i = 0; i < keys.length; i += 400) { const b = {}; keys.slice(i, i + 400).forEach(k => { b[k] = upd[k]; }); await patch(b); }
+    for (let i = 0; i < keys.length; i += 400) { const b = {}; keys.slice(i, i + 400).forEach(k => { b[k] = upd[k]; }); await patch(NW.noted('PATCH', '', b)[2]); }
     console.log('WRITTEN', keys.length, 'paths · undo:', undo);
   }
 })().catch(e => { console.error('FAILED', e.stack || e); process.exit(1); });

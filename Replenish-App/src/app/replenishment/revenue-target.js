@@ -360,7 +360,7 @@ $('rMarket').addEventListener('change', () => {
  * comes back from Amazon's catalogue with no colour, size or sub-category, while the Master Database has them. Only a
  * BLANK is filled — what Amazon says is kept. The master is read once for this tab when nothing else has read it. */
 let REPL_MDB = null, REPL_MDB_BUSY = false;
-const replMaster = () => (typeof PTG !== 'undefined' && PTG.mdb) || REPL_MDB;
+const replMaster = () => (typeof PTG !== 'undefined' && (typeof ptPeek === 'function' ? ptPeek('mdb') : PTG.mdb)) || REPL_MDB;
 async function replMasterLoad() {
   if (replMaster() || REPL_MDB_BUSY) return;
   REPL_MDB_BUSY = true;
@@ -588,6 +588,7 @@ function renderRepl() {
         if (!r.awdTransfer) return v ? nf(v) : '<span class="muted">—</span>';
         return `<span class="amber" title="FBA stock (warehouse + inb-recv) is running low — transfer these ${nf(v)}u from AWD → FBA (they're already in the US)">⇄ ${nf(v)}</span>`; } },
     { k: 'awdTransit', t: 'AWD Transit', num: 1 },
+    { k: 'last7', t: 'L7', num: 1 }, { k: 'last14', t: 'L14', num: 1 },
     { k: 'last30', t: 'L30', num: 1 }, { k: 'last90', t: 'L90', num: 1 },
     { k: 'l90amt', t: 'L90 $', num: 1, money: 1 },
     // ABC/D by average monthly revenue (L90$ ÷ 3); the category decides which average Avg/day uses.

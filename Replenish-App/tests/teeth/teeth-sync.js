@@ -4,13 +4,19 @@ const fs = require('fs'), path = require('path'), { spawnSync } = require('child
 const FILE = path.join(__dirname, '..', '..', 'src', 'app', 'core', 'history.js');
 const src = fs.readFileSync(FILE, 'utf8').replace(/\r\n/g, '\n');
 const breaks = {
-  'ptPatch forgets to note': s => s.replace("  ptSyncNote(Object.keys(updates || {}), false);\n", ''),
+  'ptPatch forgets to note': s => s.replace("  if (!merged) ptSyncNote(Object.keys(updates || {}), false);\n", ''),
   'the note is awaited and can throw': s => s.replace('ptAuditWrite(u).catch(() => {});', 'return ptAuditWrite(u);')
-    .replace("  ptSyncNote([path], true);\n  return out;", "  await ptSyncNote([path], true);\n  return out;"),
-  'the note goes before the save': s => s.replace("  auditLog('patch', updates || {});\n  ptSyncNote(Object.keys(updates || {}), false);\n", "  auditLog('patch', updates || {});\n")
-    .replace("  ptLiveWrote(Object.keys(updates || {}));\n  const r = await fetch(`${PT_URL}/.json`", "  ptSyncNote(Object.keys(updates || {}), false);\n  ptLiveWrote(Object.keys(updates || {}));\n  const r = await fetch(`${PT_URL}/.json`"),
+    .replace("  if (!merged) ptSyncNote([path], true);\n  if (typeof oalAfterSave === 'function') oalAfterSave(path, value, 'put');", "  if (!merged) await ptSyncNote([path], true);\n  if (typeof oalAfterSave === 'function') oalAfterSave(path, value, 'put');"),
+  'the note goes before the save': s => s.replace("  auditLog('patch', updates || {});\n  if (!merged) ptSyncNote(Object.keys(updates || {}), false);\n", "  auditLog('patch', updates || {});\n")
+    .replace("  ptLiveWrote(Object.keys(updates || {}));\n  let r = null, merged = false;", "  ptSyncNote(Object.keys(updates || {}), false);\n  ptLiveWrote(Object.keys(updates || {}));\n  let r = null, merged = false;"),
+  /* Step 4b: the one-request save */
+  'ptPatch drops the merge (note always sent after)': s => s.replace("r = await saSend(Object.assign({}, updates, nl));", "r = await saSend(Object.assign({}, updates));"),
+  'ptPatch sends the note after the save as well as inside': s => s.replace("  if (!merged) ptSyncNote(Object.keys(updates || {}), false);\n", "  ptSyncNote(Object.keys(updates || {}), false);\n"),
+  'the hook is given the note keys': s => s.replace("oalAfterSave('', updates, 'patch')", "oalAfterSave('', Object.assign({}, updates, nl || {}), 'patch')"),
+  'ptCas takes the combined request': s => s.replace("  auditLog('put', { [path]: next });\n  ptSyncNote([path], true);", "  auditLog('put', { [path]: next });\n  saNoteLines([path], true, null);"),
+  'a refused combined request is not retried': s => s.replace("if (r.status === 403) { saRefused(Object.keys(updates || {}), 403); r = null; } else merged = true;", "merged = true;"),
   'a field write is noted as the field, not the row': s => s.replace("out['pt_sync/' + seg[0] + '/' + key]", "out['pt_sync/' + seg.join('/')]"),
-  'ptDelete forgets to note': s => s.replace("  auditLog('delete', { [path]: null });\n  ptSyncNote([path], true);\n", "  auditLog('delete', { [path]: null });\n"),
+  'ptDelete forgets to note': s => s.replace("  auditLog('delete', { [path]: null });\n  if (!merged) ptSyncNote([path], true);\n", "  auditLog('delete', { [path]: null });\n"),
 };
 let bad = 0;
 for (const [name, f] of Object.entries(breaks)) {

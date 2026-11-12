@@ -54,6 +54,15 @@ const { readersOf, NODES } = require('./read-model');
 const readExpr = node => { const r = readersOf(node);
   return `auth != null && ${NOT_VENDOR} && (${[ADMIN].concat(r.tabs.map(tab), r.rights.map(right)).join(' || ')})`; };
 
+/* STEP 4a — A CHANGE NOTE MUST BE A SERVER CLOCK READING, NEVER ANYTHING ELSE (null still deletes). The master list and the
+ * master database are saved by right-holders who are not always staff-wide writers of every register, so their note may be
+ * written by staff OR whoever may write that register - in the same save. The other six registers' notes stay staff. */
+const STAMP = "newData.isNumber() && newData.val() === now";
+const SYNC_WRITE = {
+  pt_masterDB: `(${STAFF}) || (${any(ADMIN, right('mdbEdit'), right('prodEdit'))})`,
+  pt_masters: `(${STAFF}) || (${any(ADMIN, right('accEdit'), right('prodEdit'), right('mdbEdit'))})`,
+};
+
 const rules = {
 
   pt_perms: { '.write': any(ADMIN) },
@@ -101,6 +110,9 @@ const rules = {
   },
 
   pt_vendorOrders: { '.write': STAFF, $code: { '.read': OWN_BRANCH, '.write': OWN_BRANCH } },
+  /* THE PRINTER'S DAILY CHALLAN (Ravi, 4 Nov; Replenish vendors/portal/daily-challan.js): their own branch, as their orders are —
+   * a printer makes and reads only its own challans; staff read (read-model.js) and write the lot. */
+  pt_vendorChallans: { '.write': STAFF, $code: { '.read': OWN_BRANCH, '.write': OWN_BRANCH } },
 
   /* WHAT A PRINTER SAYS IS ALREADY ON THEIR FLOOR, per size, so the factory stops sending cloth they
    * have. Their own branch and nobody else's, exactly as their orders are — one printer must not be
@@ -126,8 +138,29 @@ const rules = {
    * `pt_sync/_reset/<register>` when a whole register is written. Nothing in a register itself changes.
    * Read by whoever may read that register; indexed on the time so "changed since T" is one small query. */
   pt_sync: Object.assign(
-    Object.fromEntries(SYNC_NODES.map(n => [n, { '.read': readExpr(n), '.write': STAFF, '.indexOn': ['.value'] }])),
-    { _reset: { '.read': STAFF, '.write': STAFF } }),
+    Object.fromEntries(SYNC_NODES.map(n => [n, { '.read': readExpr(n), '.write': SYNC_WRITE[n] || STAFF, '.indexOn': ['.value'], $key: { '.validate': STAMP } }])),
+    { _reset: { '.read': STAFF, '.write': STAFF, $reg: { '.validate': STAMP } } }),
+
+  /* THE DATA METER (Step 0): one daily line per person per device, at pt_dataMeter/<day>/<emailKey>/<deviceId>.
+   * Each member of staff writes only their own line (the key is their own email, as pt_perms is keyed);
+   * only an admin reads what everyone's lines say. The day must look like YYYY-MM-DD. Named here, above
+   * "$other", so it is not left open to every staff account. */
+  pt_dataMeter: {
+    '.read': any(ADMIN),
+    $day: {
+      '.validate': "$day.matches(/^\\d{4}-\\d{2}-\\d{2}$/)",
+      $emailKey: { '.write': `${STAFF} && $emailKey === ${KEY}` },
+    },
+  },
+
+  /* PENDING BADGES (Step 1): the app asks these four request lists for the rows with status 'pending' only, to show the red
+   * numbers at sign-in without downloading the whole list (Replenish-App core/pending-badges.js). That query needs an
+   * index on status. Who may read or write them does not change - the staff write they had is repeated here, as for the
+   * other indexed nodes, and each one still gets its read from NODES below. */
+  pt_vendorOrderReqs: staffIndexed(['status']),
+  pt_obDeleteReqs: staffIndexed(['status']),
+  pt_fgiCorrReqs: staffIndexed(['status']),
+  pt_jwCorrReqs: staffIndexed(['status']),
 
   $other: { '.read': any(ADMIN), '.write': STAFF },
 };

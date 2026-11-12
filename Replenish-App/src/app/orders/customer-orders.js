@@ -38,7 +38,7 @@ let CX = { rows: null, err: '', busy: false, at: '', shown: [] };
 async function ensureCx() {
   if (CX.rows === null) {
     CX.busy = true; renderCx();
-    if (!PTG.mdb) await ptLoadGates();
+    await ptNeed(PTG_MASTER, { why: 'customer-orders', has: 'mdb' });
     if (FGI.rows === null) { try { FGI.rows = ptList(await ptGet('pt_fgiLedger')); } catch (e) { FGI.rows = []; } }
     try { CX.rows = ptList(await ptGet('pt_cxOrders')); CX.err = ''; }
     catch (e) { CX.err = e.message || String(e); CX.rows = CX.rows || []; }

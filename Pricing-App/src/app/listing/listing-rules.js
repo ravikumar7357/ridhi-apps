@@ -1,3 +1,13 @@
+/* ================= LISTING · LISTING RULES: the rules themselves — defaults, calendar maths, detectors, and healthOf, the scorer =================
+ * Screens: none of its own. Listing Health scores every listing with healthOf; the Listing Rules tab edits LR and reads the
+ *          detector list; Listing Errors / Listing Content use the title rules (lrSuggest, lrSizeOk …). The two listing tests
+ *          in Pricing-App/tests run this file in a stub page.
+ * Does: holds the built-in rules (LR_DEFAULT: issues, title templates, season calendar) and the saved ones (LR); works out
+ *       when each occasion falls and whether it is in season; reads sizes out of titles; builds the title a template would
+ *       write (lrSuggest); one detector per rule (LR_DET); hCtx gathers what every listing is judged against (rules, today,
+ *       each parent's children, Amazon's own status) and healthOf turns that into { score, bucket, grade, found … }.
+ * Main functions: lrEaster, lrEventDate, lrSeason, hTitleSizes, hTitleText, lrTemplateFor, lrParts, lrSuggest, LR_DET,
+ *                 amzEnsure, hCtx, healthOf, hAreaSev, lrLoad, lrLoadCatalog. */
 /* ---------- LISTING RULES: the issues, the title templates, the season calendar (Ravi, 2026-09-15) ----------
  *
  * Ravi: "me tumko issue bucket bhej diya tha, tum unko apne app ke backend me save kar lena and ek tab
@@ -21,8 +31,15 @@
  *
  * Health = 100 − 40 per critical − 10 per attention − 3 per review, never below 0.
  */
+// Bucket key → the grade shown on screen.
 const H_BUCKETS = { critical: 'Critical', action: 'Attention', review: 'Review', monitor: 'Monitor', healthy: 'Healthy', unchecked: 'Not checked' };
-const LR_SEV = { critical: { label: 'Critical', cls: 'sev-c', rank: 3 }, action: { label: 'Attention', cls: 'sev-a', rank: 2 }, review: { label: 'Review', cls: 'sev-r', rank: 1 } };
+// The three severities an issue can have: label, CSS class of its dot, and rank (higher = worse).
+const LR_SEV = {
+  critical: { label: 'Critical', cls: 'sev-c', rank: 3 },
+  action: { label: 'Attention', cls: 'sev-a', rank: 2 },
+  review: { label: 'Review', cls: 'sev-r', rank: 1 }
+};
+// The areas of a listing an issue can belong to (the columns of the Listing Health table).
 const LR_AREAS = ['Amazon', 'Title', 'Size', 'Variation', 'Images', 'Content', 'Inventory', 'Price'];
 
 /** What each detector means, and the settings it takes. */
@@ -137,57 +154,70 @@ const LR_DEFAULT = {
 };
 
 let LR = null;             // the rules in force: saved config, or the defaults
-let LR_SAVED_AT = null;
-let LR_CAT = { SP: null, CPC: null };
+let LR_SAVED_AT = null;    // when the saved config was written, or null while the defaults are in use
+let LR_CAT = { SP: null, CPC: null };   // brand → { sku: { color, size, subcat } } from the brand catalogue, once read
 
 /* ---- the calendar ---- */
-function lrEaster(y) {
-  const a = y % 19, b = Math.floor(y / 100), c = y % 100, d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25);
+// Easter Sunday of a year (UTC midnight). The anonymous Gregorian algorithm; the single letters are its own names.
+function lrEaster(year) {
+  const a = year % 19, b = Math.floor(year / 100), c = year % 100, d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25);
   const g = Math.floor((b - f + 1) / 3), h = (19 * a + b - d - g + 15) % 30, i = Math.floor(c / 4), k = c % 4;
   const l = (32 + 2 * e + 2 * i - h - k) % 7, m = Math.floor((a + 11 * h + 22 * l) / 451);
   const month = Math.floor((h + l - 7 * m + 114) / 31), day = ((h + l - 7 * m + 114) % 31) + 1;
-  return new Date(Date.UTC(y, month - 1, day));
+  return new Date(Date.UTC(year, month - 1, day));
 }
 /** The date of an occasion in a given year (UTC midnight), or null when the rule cannot be read. */
-function lrEventDate(ev, y, events) {
-  const w = ev.when || {};
-  if (w.type === 'fixed') return new Date(Date.UTC(y, w.m - 1, w.d));
-  if (w.type === 'easter') { const d = lrEaster(y); d.setUTCDate(d.getUTCDate() + (w.off || 0)); return d; }
-  if (w.type === 'nth') {
-    if (w.n > 0) {
-      const first = new Date(Date.UTC(y, w.m - 1, 1));
-      const add = (w.wd - first.getUTCDay() + 7) % 7 + (w.n - 1) * 7;
-      return new Date(Date.UTC(y, w.m - 1, 1 + add));
-    }
-    const last = new Date(Date.UTC(y, w.m, 0));
-    return new Date(Date.UTC(y, w.m - 1, last.getUTCDate() - ((last.getUTCDay() - w.wd + 7) % 7)));
+function lrEventDate(ev, year, events) {
+  const when = ev.when || {};
+  if (when.type === 'fixed') return new Date(Date.UTC(year, when.m - 1, when.d));
+  if (when.type === 'easter') {
+    const date = lrEaster(year);
+    date.setUTCDate(date.getUTCDate() + (when.off || 0));
+    return date;
   }
-  if (w.type === 'after') {
-    const base = (events || []).find(e => e.id === w.event);
-    const d = base && base.when && base.when.type !== 'after' ? lrEventDate(base, y, events) : null;
-    if (!d) return null;
-    d.setUTCDate(d.getUTCDate() + (w.days || 0));
-    return d;
+  if (when.type === 'nth') {
+    // --- the n-th weekday of the month, or the last one when n is -1 ---
+    if (when.n > 0) {
+      const first = new Date(Date.UTC(year, when.m - 1, 1));
+      const add = (when.wd - first.getUTCDay() + 7) % 7 + (when.n - 1) * 7;
+      return new Date(Date.UTC(year, when.m - 1, 1 + add));
+    }
+    const last = new Date(Date.UTC(year, when.m, 0));
+    return new Date(Date.UTC(year, when.m - 1, last.getUTCDate() - ((last.getUTCDay() - when.wd + 7) % 7)));
+  }
+  if (when.type === 'after') {
+    // --- so many days after another occasion (which must not itself be an 'after') ---
+    const base = (events || []).find(other => other.id === when.event);
+    const date = base && base.when && base.when.type !== 'after' ? lrEventDate(base, year, events) : null;
+    if (!date) return null;
+    date.setUTCDate(date.getUTCDate() + (when.days || 0));
+    return date;
   }
   return null;
 }
-const LR_DAY = 86400000;
+const LR_DAY = 86400000;   // one day in milliseconds
 /** Where today stands against an occasion: { inSeason, next (the date to talk about), from, to }. */
+// Looks at last year's, this year's and next year's date; the first window that holds today wins, else the nearest coming one.
 function lrSeason(ev, today, events) {
-  const t = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
-  const y = today.getFullYear();
+  const todayMs = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
+  const year = today.getFullYear();
   let best = null;
-  for (const yy of [y - 1, y, y + 1]) {
-    const d = lrEventDate(ev, yy, events); if (!d) continue;
-    const from = d.getTime() - (ev.lead || 0) * LR_DAY, to = d.getTime() + (ev.lag || 0) * LR_DAY;
-    if (t >= from && t <= to) return { inSeason: true, next: d, from: new Date(from), to: new Date(to) };
-    if (to >= t && (!best || d < best.next)) best = { inSeason: false, next: d, from: new Date(from), to: new Date(to) };
+  for (const eachYear of [year - 1, year, year + 1]) {
+    const date = lrEventDate(ev, eachYear, events);
+    if (!date) continue;
+    const from = date.getTime() - (ev.lead || 0) * LR_DAY;
+    const to = date.getTime() + (ev.lag || 0) * LR_DAY;
+    if (todayMs >= from && todayMs <= to) return { inSeason: true, next: date, from: new Date(from), to: new Date(to) };
+    if (to >= todayMs && (!best || date < best.next)) best = { inSeason: false, next: date, from: new Date(from), to: new Date(to) };
   }
   return best || { inSeason: false, next: null, from: null, to: null };
 }
-const lrWords = s => String(s || '').split(',').map(x => x.trim()).filter(Boolean);
+// "a, b, c" → ['a', 'b', 'c'].
+const lrWords = str => String(str || '').split(',').map(word => word.trim()).filter(Boolean);
+// Whole-word, case-blind test for a word (or phrase) in a text.
 const lrHas = (text, word) => new RegExp('(^|[^a-z0-9])' + word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s+') + '(?=$|[^a-z0-9])', 'i').test(text);
-const lrFmtDate = d => d ? d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }) : '—';
+// "25 Dec 2026", or — for no date.
+const lrFmtDate = date => date ? date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }) : '—';
 
 /* ---- sizes ---- */
 /** The approved way to write a size, taken from the example the rule carries ("14 x 36 Inch"). */
@@ -196,30 +226,36 @@ function lrSizeOk(text, example) {
   return String(text).replace(/\d+(?:\.\d+)?/g, 'N') === shape || String(text).replace(/\d+(?:\.\d+)?/g, 'N') === shape.replace('N x N', 'N x N x N');
 }
 /** Every W x H (or W x H x D) written in a title, exactly as written, with the unit that follows it. */
-function hTitleSizes(t) {
+// Returns [{ text, a, b, c }]: the text as written, the two or three numbers (c is null for W x H).
+function hTitleSizes(title) {
   const out = [];
-  const u = '(?:"|”|″|in\\.?(?![a-z])|inch(?:es)?(?![a-z])|cm(?![a-z]))';
-  const re = new RegExp(`(\\d+(?:\\.\\d+)?)\\s*${u}?\\s*[x×X*]\\s*(\\d+(?:\\.\\d+)?)(?:\\s*${u}?\\s*[x×X*]\\s*(\\d+(?:\\.\\d+)?))?(\\s*${u})?`, 'gi');
-  let m;
-  while ((m = re.exec(String(t || '')))) out.push({ text: m[0].trim(), a: +m[1], b: +m[2], c: m[3] ? +m[3] : null });
+  const unit = '(?:"|”|″|in\\.?(?![a-z])|inch(?:es)?(?![a-z])|cm(?![a-z]))';
+  const re = new RegExp(`(\\d+(?:\\.\\d+)?)\\s*${unit}?\\s*[x×X*]\\s*(\\d+(?:\\.\\d+)?)(?:\\s*${unit}?\\s*[x×X*]\\s*(\\d+(?:\\.\\d+)?))?(\\s*${unit})?`, 'gi');
+  let match;
+  while ((match = re.exec(String(title || '')))) {
+    out.push({ text: match[0].trim(), a: +match[1], b: +match[2], c: match[3] ? +match[3] : null });
+  }
   return out;
 }
 /** A size's written shape — "60x90" and "60 x 90 Inch" are different shapes of the same size. */
-const lrSizeShape = s => String(s).replace(/\d+(?:\.\d+)?/g, 'N').replace(/\s+/g, ' ').toLowerCase();
+const lrSizeShape = str => String(str).replace(/\d+(?:\.\d+)?/g, 'N').replace(/\s+/g, ' ').toLowerCase();
 /**
  * The title text to judge — the catalog's full title first, else the listings report's. A title cached
  * before 15 Sept was cut at 60 characters; one of exactly 60 that is not marked full is not judged.
  */
-const hTitleText = r => (r.content && r.content.title) || ((r.titleFull || String(r.title || '').length !== 60) ? (r.title || '') : '');
+const hTitleText = row => (row.content && row.content.title) || ((row.titleFull || String(row.title || '').length !== 60) ? (row.title || '') : '');
 
 /* ---- the template ---- */
-function lrTemplateFor(r, cfg) {
-  const cat = lrCatOf(r);
+// The first template for this listing's brand whose `match` is in its catalogue sub-category ('' matches anything), or null.
+function lrTemplateFor(row, cfg) {
+  const cat = lrCatOf(row);
   if (!cat) return null;
-  return (cfg.templates || []).find(t => (t.brand === 'ALL' || t.brand === r.brand)
-    && (!t.match || String(cat.subcat || '').toLowerCase().includes(String(t.match).toLowerCase()))) || null;
+  return (cfg.templates || []).find(tpl => (tpl.brand === 'ALL' || tpl.brand === row.brand)
+    && (!tpl.match || String(cat.subcat || '').toLowerCase().includes(String(tpl.match).toLowerCase()))) || null;
 }
-const lrCatOf = r => (LR_CAT[r.brand] && LR_CAT[r.brand][r.sku]) || null;
+// This listing's catalogue row { color, size, subcat }, or null.
+const lrCatOf = row => (LR_CAT[row.brand] && LR_CAT[row.brand][row.sku]) || null;
+// The shape word in a sub-category ("Rectangle Tablecloth" → "Rectangle"), or ''.
 const lrShape = sub => (String(sub || '').match(/\b(Rectangle|Rectangular|Round|Square|Oval)\b/i) || [])[1] || '';
 /** "60x90" from the catalog, written the approved way. */
 const lrSizeText = (size, example) => {
@@ -229,25 +265,28 @@ const lrSizeText = (size, example) => {
 };
 /** Occasions in season today, in the order they fall. */
 function lrOccasionsNow(cfg, today) {
-  return (cfg.events || []).map(e => ({ e, s: lrSeason(e, today, cfg.events) })).filter(x => x.s.inSeason)
-    .sort((a, b) => a.s.next - b.s.next).map(x => x.e.name.replace(/'s$/, "'s"));
+  return (cfg.events || []).map(e => ({ e, s: lrSeason(e, today, cfg.events) })).filter(each => each.s.inSeason)
+    .sort((a, b) => a.s.next - b.s.next).map(each => each.e.name.replace(/'s$/, "'s"));
 }
 /** The parts a template asks for, filled from what this SKU is. */
-function lrParts(r, t, cfg, today) {
-  const cat = lrCatOf(r) || {};
-  const example = ((cfg.issues || []).find(i => i.detector === 'size_format') || {}).params;
+function lrParts(row, tpl, cfg, today) {
+  const cat = lrCatOf(row) || {};
+  const example = ((cfg.issues || []).find(issue => issue.detector === 'size_format') || {}).params;   // the size_format rule's settings
   return {
-    brand: BRAND_NAME[r.brand] || r.brand, product: t.product || '', shape: lrShape(cat.subcat),
-    material: t.material || '', size: lrSizeText(cat.size, example && example.example), pattern: t.pattern || '',
-    uses: t.uses || '', occasions: lrOccasionsNow(cfg, today).join(' '), color: cat.color || '',
+    brand: BRAND_NAME[row.brand] || row.brand, product: tpl.product || '', shape: lrShape(cat.subcat),
+    material: tpl.material || '', size: lrSizeText(cat.size, example && example.example), pattern: tpl.pattern || '',
+    uses: tpl.uses || '', occasions: lrOccasionsNow(cfg, today).join(' '), color: cat.color || '',
   };
 }
 /** The title the template would write for this listing. */
-function lrSuggest(r, cfg, today) {
-  cfg = cfg || LR || LR_DEFAULT; today = today || new Date();
-  const t = lrTemplateFor(r, cfg); if (!t) return '';
-  const p = lrParts(r, t, cfg, today);
-  const fill = drop => String(t.template || '').replace(/\{(\w+)\}/g, (_, k) => (drop.includes(k) ? '' : (p[k] || '')))
+// Fills the template's tokens from lrParts, tidies the spaces and dashes, and drops occasions, then uses, to fit 200 characters.
+function lrSuggest(row, cfg, today) {
+  cfg = cfg || LR || LR_DEFAULT;
+  today = today || new Date();
+  const tpl = lrTemplateFor(row, cfg);
+  if (!tpl) return '';
+  const parts = lrParts(row, tpl, cfg, today);
+  const fill = drop => String(tpl.template || '').replace(/\{(\w+)\}/g, (_, key) => (drop.includes(key) ? '' : (parts[key] || '')))
     .replace(/\s+-\s+(?=-|$)/g, ' ').replace(/\s{2,}/g, ' ').replace(/\s+-\s*$/, '').replace(/^\s*-\s+/, '').trim();
   let out = fill([]);
   // Amazon's hard limit is 200 characters: occasions go first, then the uses phrase.
@@ -257,78 +296,114 @@ function lrSuggest(r, cfg, today) {
 }
 
 /* ---- the detectors: each answers '' (fine) or what it found ---- */
+// Each detector is (row, ctx, params) → '' or the detail text; ctx is what hCtx built, params the rule's settings.
 const LR_DET = {
-  inactive_with_stock: r => (/inactive/i.test(r.status || '') && r.qty > 0) ? `${r.qty} in stock but the listing is Inactive` : '',
-  no_price: r => r.price === 0 ? 'no price' : '',
-  amazon_suppressed: (r, c) => {
-    const a = c.amz && c.amz.get(r.brand + '|' + r.sku); if (!a || !a.st) return '';
-    const st = String(a.st).toUpperCase();
-    return st.includes('BUYABLE') && !st.includes('DISCOVERABLE') ? 'buyable by direct link, not in search' : '';
+  inactive_with_stock: row => (/inactive/i.test(row.status || '') && row.qty > 0) ? `${row.qty} in stock but the listing is Inactive` : '',
+  no_price: row => row.price === 0 ? 'no price' : '',
+  amazon_suppressed: (row, ctx) => {
+    const amz = ctx.amz && ctx.amz.get(row.brand + '|' + row.sku);
+    if (!amz || !amz.st) return '';
+    const status = String(amz.st).toUpperCase();
+    return status.includes('BUYABLE') && !status.includes('DISCOVERABLE') ? 'buyable by direct link, not in search' : '';
   },
-  amazon_error: (r, c) => {
-    const a = c.amz && c.amz.get(r.brand + '|' + r.sku);
-    return a && a.ie ? (a.im || a.ie + ' error(s) reported by Amazon') : '';
+  amazon_error: (row, ctx) => {
+    const amz = ctx.amz && ctx.amz.get(row.brand + '|' + row.sku);
+    return amz && amz.ie ? (amz.im || amz.ie + ' error(s) reported by Amazon') : '';
   },
-  no_main_image: r => (r.content && !r.content.images) ? 'no image' : '',
-  aplus_missing: r => r.aplus === false ? 'no A+ published' : '',
-  images_below: (r, c, p) => (r.content && r.content.images && r.content.images < (+p.n || 6)) ? `${r.content.images} of ${+p.n || 6}` : '',
-  images_between: (r, c, p) => (r.content && r.content.images >= (+p.min || 0) && r.content.images <= (+p.max || 0)) ? `${r.content.images} images` : '',
-  bullets_below: (r, c, p) => (r.content && r.content.bullets < (+p.n || 5)) ? `${r.content.bullets} of ${+p.n || 5}` : '',
-  desc_below: (r, c, p) => (r.content && r.content.descLen < (+p.n || 200)) ? (r.content.descLen ? `${r.content.descLen} characters` : 'none') : '',
-  title_length: (r, c, p) => (r.content && (r.content.titleLen < (+p.min || 0) || r.content.titleLen > (+p.max || 999))) ? `${r.content.titleLen} characters` : '',
-  size_format: (r, c, p) => { const s = hTitleSizes(hTitleText(r)).find(x => !lrSizeOk(x.text, p.example)); return s ? `"${s.text}", approved is "${p.example || '14 x 36 Inch'}"` : ''; },
-  dimension_order: r => { const s = hTitleSizes(hTitleText(r)).find(x => x.c === null && x.a > x.b); return s ? `${s.a} x ${s.b} should be ${s.b} x ${s.a}` : ''; },
-  variation_value_missing: (r, c) => {
-    const t = hTitleText(r); if (!t || !r.parent) return '';
-    const g = c.parents.get(r.parent + '|' + r.brand);
-    return g && g.sized > 0 && !hTitleSizes(t).length ? `no size in the title; ${g.sized} sibling(s) name theirs` : '';
+  no_main_image: row => (row.content && !row.content.images) ? 'no image' : '',
+  aplus_missing: row => row.aplus === false ? 'no A+ published' : '',
+  images_below: (row, ctx, params) => (row.content && row.content.images && row.content.images < (+params.n || 6))
+    ? `${row.content.images} of ${+params.n || 6}` : '',
+  images_between: (row, ctx, params) => (row.content && row.content.images >= (+params.min || 0) && row.content.images <= (+params.max || 0))
+    ? `${row.content.images} images` : '',
+  bullets_below: (row, ctx, params) => (row.content && row.content.bullets < (+params.n || 5))
+    ? `${row.content.bullets} of ${+params.n || 5}` : '',
+  desc_below: (row, ctx, params) => (row.content && row.content.descLen < (+params.n || 200))
+    ? (row.content.descLen ? `${row.content.descLen} characters` : 'none') : '',
+  title_length: (row, ctx, params) => (row.content && (row.content.titleLen < (+params.min || 0) || row.content.titleLen > (+params.max || 999)))
+    ? `${row.content.titleLen} characters` : '',
+  size_format: (row, ctx, params) => {
+    const bad = hTitleSizes(hTitleText(row)).find(size => !lrSizeOk(size.text, params.example));
+    return bad ? `"${bad.text}", approved is "${params.example || '14 x 36 Inch'}"` : '';
   },
-  variation_naming: (r, c) => {
-    const s = hTitleSizes(hTitleText(r))[0]; if (!s || !r.parent) return '';
-    const g = c.parents.get(r.parent + '|' + r.brand); if (!g || g.shapes.size < 2) return '';
-    const mine = lrSizeShape(s.text);
-    return mine !== g.common ? `"${s.text}" while most siblings write "${g.commonExample}"` : '';
+  dimension_order: row => {
+    const wrong = hTitleSizes(hTitleText(row)).find(size => size.c === null && size.a > size.b);
+    return wrong ? `${wrong.a} x ${wrong.b} should be ${wrong.b} x ${wrong.a}` : '';
   },
-  title_keyword: (r, c, p) => { const t = hTitleText(r); const w = lrWords(p.words); return (t && w.length && !w.some(x => lrHas(t, x))) ? `no "${w.join('" or "')}"` : ''; },
-  title_contains: (r, c, p) => { const t = hTitleText(r); const hit = t ? lrWords(p.words).find(x => lrHas(t, x)) : null; return hit ? `says "${hit}"` : ''; },
-  title_template: (r, c) => {
-    const title = hTitleText(r); const t = lrTemplateFor(r, c.cfg); if (!title || !t) return '';
+  variation_value_missing: (row, ctx) => {
+    const title = hTitleText(row);
+    if (!title || !row.parent) return '';
+    const group = ctx.parents.get(row.parent + '|' + row.brand);
+    return group && group.sized > 0 && !hTitleSizes(title).length ? `no size in the title; ${group.sized} sibling(s) name theirs` : '';
+  },
+  variation_naming: (row, ctx) => {
+    const size = hTitleSizes(hTitleText(row))[0];
+    if (!size || !row.parent) return '';
+    const group = ctx.parents.get(row.parent + '|' + row.brand);
+    if (!group || group.shapes.size < 2) return '';
+    const mine = lrSizeShape(size.text);
+    return mine !== group.common ? `"${size.text}" while most siblings write "${group.commonExample}"` : '';
+  },
+  title_keyword: (row, ctx, params) => {
+    const title = hTitleText(row);
+    const words = lrWords(params.words);
+    return (title && words.length && !words.some(word => lrHas(title, word))) ? `no "${words.join('" or "')}"` : '';
+  },
+  title_contains: (row, ctx, params) => {
+    const title = hTitleText(row);
+    const hit = title ? lrWords(params.words).find(word => lrHas(title, word)) : null;
+    return hit ? `says "${hit}"` : '';
+  },
+  title_template: (row, ctx) => {
+    const title = hTitleText(row);
+    const tpl = lrTemplateFor(row, ctx.cfg);
+    if (!title || !tpl) return '';
     const low = title.toLowerCase().replace(/table\s+cloth/g, 'tablecloth');
-    const parts = lrParts(r, t, c.cfg, c.today);
-    const need = lrWords(t.required || 'brand,product,size,color');
-    const where = k => {
-      const v = parts[k]; if (!v) return -2;                          // nothing to look for: not judged
-      if (k === 'size') { const s = hTitleSizes(title)[0]; return s ? title.indexOf(s.text) : -1; }   // how it is written is size_format's job
-      if (k === 'material') return low.search(/cotton|linen|polyester|jute|velvet/);
-      if (k === 'product') {
-        const words = String(v).toLowerCase().replace(/table\s+cloth/g, 'tablecloth').split(/\s+/).filter(w => w.length > 3).map(w => w.replace(/s$/, ''));
-        const at = words.map(w => low.indexOf(w)).filter(i => i >= 0);
+    const parts = lrParts(row, tpl, ctx.cfg, ctx.today);
+    const need = lrWords(tpl.required || 'brand,product,size,color');
+    // --- where each required part sits in the title: -2 nothing to look for, -1 missing, else its position ---
+    const where = key => {
+      const value = parts[key];
+      if (!value) return -2;                          // nothing to look for: not judged
+      if (key === 'size') {                           // how it is written is size_format's job
+        const size = hTitleSizes(title)[0];
+        return size ? title.indexOf(size.text) : -1;
+      }
+      if (key === 'material') return low.search(/cotton|linen|polyester|jute|velvet/);
+      if (key === 'product') {
+        const words = String(value).toLowerCase().replace(/table\s+cloth/g, 'tablecloth').split(/\s+/)
+          .filter(word => word.length > 3).map(word => word.replace(/s$/, ''));
+        const at = words.map(word => low.indexOf(word)).filter(idx => idx >= 0);
         return at.length ? Math.min(...at) : -1;
       }
-      if (k === 'color') {
+      if (key === 'color') {
         /* A colour is found when any real word of it is in the title — the catalog says Neutral Ivory Grey, the title says Grey. */
-        const at = String(v).toLowerCase().split(/[^a-z]+/).filter(w => w.length > 2).map(w => low.search(new RegExp('\\b' + w + '\\b'))).filter(i => i >= 0);
+        const at = String(value).toLowerCase().split(/[^a-z]+/).filter(word => word.length > 2)
+          .map(word => low.search(new RegExp('\\b' + word + '\\b'))).filter(idx => idx >= 0);
         return at.length ? Math.min(...at) : -1;
       }
-      return low.indexOf(String(v).toLowerCase());
+      return low.indexOf(String(value).toLowerCase());
     };
-    const order = String(t.template).match(/\{(\w+)\}/g).map(x => x.slice(1, -1)).filter(k => need.includes(k));
-    const pos = order.map(k => [k, where(k)]).filter(([, i]) => i !== -2);
-    const missing = pos.filter(([, i]) => i < 0).map(([k]) => k);
-    const found = pos.filter(([, i]) => i >= 0).map(([, i]) => i);
-    const outOfOrder = found.some((v, i) => i && v < found[i - 1]);
+    // --- the required parts in template order: which are missing, and are the found ones in that order ---
+    const order = String(tpl.template).match(/\{(\w+)\}/g).map(token => token.slice(1, -1)).filter(key => need.includes(key));
+    const pos = order.map(key => [key, where(key)]).filter(([, idx]) => idx !== -2);
+    const missing = pos.filter(([, idx]) => idx < 0).map(([key]) => key);
+    const found = pos.filter(([, idx]) => idx >= 0).map(([, idx]) => idx);
+    const outOfOrder = found.some((position, idx) => idx && position < found[idx - 1]);
     if (!missing.length && !outOfOrder) return '';
     return [missing.length ? 'missing ' + missing.join(', ') : '', outOfOrder ? 'parts in a different order' : ''].filter(Boolean).join(' · ');
   },
-  seasonal_keyword: (r, c) => {
-    const title = hTitleText(r); if (!title) return '';
-    const cat = lrCatOf(r) || {};
-    for (const ev of (c.cfg.events || [])) {
-      const w = lrWords(ev.words).find(x => lrHas(title, x)); if (!w) continue;
-      if (lrWords(ev.except).some(x => lrHas(String(cat.subcat || '') + ' ' + String(cat.color || ''), x))) continue;
-      const s = lrSeason(ev, c.today, c.cfg.events);
-      if (s.inSeason) continue;
-      return `"${w}" — ${ev.name} is ${s.next ? lrFmtDate(s.next) : 'not dated'}; it belongs in the title from ${s.from ? lrFmtDate(s.from) : '—'}`;
+  seasonal_keyword: (row, ctx) => {
+    const title = hTitleText(row);
+    if (!title) return '';
+    const cat = lrCatOf(row) || {};
+    for (const ev of (ctx.cfg.events || [])) {
+      const word = lrWords(ev.words).find(each => lrHas(title, each));
+      if (!word) continue;
+      if (lrWords(ev.except).some(each => lrHas(String(cat.subcat || '') + ' ' + String(cat.color || ''), each))) continue;
+      const season = lrSeason(ev, ctx.today, ctx.cfg.events);
+      if (season.inSeason) continue;
+      return `"${word}" — ${ev.name} is ${season.next ? lrFmtDate(season.next) : 'not dated'}; it belongs in the title from ${season.from ? lrFmtDate(season.from) : '—'}`;
     }
     return '';
   },
@@ -341,21 +416,22 @@ let H_CTX = null;
  * Status and Amazon's own issue list come back free on a call that walk already makes, so Listing
  * Health reads that snapshot rather than asking Amazon about 3,653 listings a second time.
  * Key is "<brand>|<sku>". Without a snapshot the two Amazon rules simply find nothing. */
-const AMZ = { map: null, at: 0, busy: false };
+const AMZ = { map: null, at: 0, busy: false };   // map: "<brand>|<sku>" → { st, ie, iw, im }; at: when it was read
+// Read the Image Manager's snapshot chunks for both brands into AMZ.map, once.
 async function amzEnsure() {
   if (AMZ.busy || AMZ.map) return;
   AMZ.busy = true;
   const map = new Map();
   try {
-    for (const b of ['SP', 'CPC']) {
-      const head = await getDoc(doc(db, 'imgsnap', b));
+    for (const brand of ['SP', 'CPC']) {
+      const head = await getDoc(doc(db, 'imgsnap', brand));
       if (!head.exists()) continue;
-      const n = head.data().chunks || 0;
-      const got = await Promise.all(Array.from({ length: n }, (_, i) => getDoc(doc(db, 'imgrows', b + '_' + i))));
-      got.forEach(g => {
-        if (!g.exists()) return;
-        (g.data().r || []).forEach(x => {
-          if (x && x.sku) map.set(b + '|' + x.sku, { st: x.st || '', ie: x.ie || 0, iw: x.iw || 0, im: x.im || '' });
+      const nChunks = head.data().chunks || 0;
+      const got = await Promise.all(Array.from({ length: nChunks }, (_, i) => getDoc(doc(db, 'imgrows', brand + '_' + i))));
+      got.forEach(chunk => {
+        if (!chunk.exists()) return;
+        (chunk.data().r || []).forEach(item => {
+          if (item && item.sku) map.set(brand + '|' + item.sku, { st: item.st || '', ie: item.ie || 0, iw: item.iw || 0, im: item.im || '' });
         });
       });
     }
@@ -367,40 +443,58 @@ async function amzEnsure() {
   }
   AMZ.busy = false;
 }
+// Build (or reuse) the context every detector reads: the rules, today, each parent's children's sizes, Amazon's status map.
 function hCtx(rowsAll) {
   const cfg = LR || LR_DEFAULT;
-  const rows = rowsAll || ['SP', 'CPC'].flatMap(b => ((HEALTH[b] && HEALTH[b].rows) || []).map(r => (r.brand ? r : Object.assign({ brand: b }, r))));
-  const withContent = rows.reduce((n, r) => n + (r.content ? 1 : 0), 0);
+  const rows = rowsAll || ['SP', 'CPC'].flatMap(b => ((HEALTH[b] && HEALTH[b].rows) || [])
+    .map(row => (row.brand ? row : Object.assign({ brand: b }, row))));
+  // --- reuse the last context while nothing it depends on has changed ---
+  const withContent = rows.reduce((count, row) => count + (row.content ? 1 : 0), 0);
   const key = [rows.length, withContent, LR_CAT.SP ? 1 : 0, LR_CAT.CPC ? 1 : 0, AMZ.at].join('|');
   if (H_CTX && H_CTX.cfg === cfg && H_CTX.sp === HEALTH.SP && H_CTX.cpc === HEALTH.CPC && H_CTX.key === key
       && H_CTX.day === new Date().toDateString()) return H_CTX;
+  // --- per parent: how many children name a size, and how they write it ---
   const parents = new Map();
-  rows.forEach(r => {
-    if (!r.parent) return;
-    const k = r.parent + '|' + r.brand;
-    const g = parents.get(k) || { sized: 0, shapes: new Map(), examples: new Map() };
-    const s = hTitleSizes(hTitleText(r))[0];
-    if (s) { g.sized++; const sh = lrSizeShape(s.text); g.shapes.set(sh, (g.shapes.get(sh) || 0) + 1); if (!g.examples.has(sh)) g.examples.set(sh, s.text); }
-    parents.set(k, g);
+  rows.forEach(row => {
+    if (!row.parent) return;
+    const parentKey = row.parent + '|' + row.brand;
+    const group = parents.get(parentKey) || { sized: 0, shapes: new Map(), examples: new Map() };
+    const size = hTitleSizes(hTitleText(row))[0];
+    if (size) {
+      group.sized++;
+      const shape = lrSizeShape(size.text);
+      group.shapes.set(shape, (group.shapes.get(shape) || 0) + 1);
+      if (!group.examples.has(shape)) group.examples.set(shape, size.text);
+    }
+    parents.set(parentKey, group);
   });
-  parents.forEach(g => {
-    const top = [...g.shapes.entries()].sort((a, b) => b[1] - a[1])[0];
-    g.common = top ? top[0] : ''; g.commonExample = top ? g.examples.get(top[0]) : '';
+  parents.forEach(group => {
+    const top = [...group.shapes.entries()].sort((a, b) => b[1] - a[1])[0];
+    group.common = top ? top[0] : '';
+    group.commonExample = top ? group.examples.get(top[0]) : '';
   });
   H_CTX = { cfg, today: new Date(), parents, amz: AMZ.map, sp: HEALTH.SP, cpc: HEALTH.CPC, key, day: new Date().toDateString() };
   return H_CTX;
 }
 
-function healthOf(r, ctx) {
+// Score one listing: run every rule that is on, then { score, bucket, grade, critical[], action[], review[], found[], blocking[], content[] }.
+function healthOf(row, ctx) {
   ctx = ctx || hCtx();
+  // --- run the detectors ---
   const found = [];
   (ctx.cfg.issues || []).forEach(rule => {
     if (rule.on === false || !LR_SEV[rule.sev]) return;
-    const det = LR_DET[rule.detector]; if (!det) return;
-    let d = '';
-    try { d = det(r, ctx, rule.params || {}) || ''; } catch (e) { d = ''; }
-    if (d) found.push({ id: rule.id, name: rule.name, sev: rule.sev, area: rule.area, detail: d, detector: rule.detector });
+    const det = LR_DET[rule.detector];
+    if (!det) return;
+    let result = '';
+    try {
+      result = det(row, ctx, rule.params || {}) || '';
+    } catch (e) {
+      result = '';
+    }
+    if (result) found.push({ id: rule.id, name: rule.name, sev: rule.sev, area: rule.area, detail: result, detector: rule.detector });
   });
+  // --- out of stock softens Critical to Attention, except the HARD list ---
   /* NOTHING IN STOCK IS NEVER CRITICAL (Ravi, 15 Sept). A listing with 0 units is not losing sales today,
    * so what would be critical waits one step down, as Attention, and says why. Unknown stock (null) is
    * not zero and changes nothing. */
@@ -408,51 +502,71 @@ function healthOf(r, ctx) {
   /* AND NOT WHAT AMAZON ITSELF REPORTS (9 Oct 2026): a suppression or an Amazon ERROR is a fault in
    * the listing, not a sale being missed today — it survives the restock, so it stays red. */
   const HARD = ['no_main_image', 'amazon_suppressed', 'amazon_error'];
-  if (r.qty === 0) found.forEach(f => { if (f.sev === 'critical' && HARD.indexOf(f.detector) < 0) { f.sev = 'action'; f.detail += ' (0 in stock, so not critical)'; } });
-  const list = s => found.filter(f => f.sev === s).map(f => f.name + ' — ' + f.detail);
-  const critical = list('critical'), action = list('action'), review = list('review');
-  const notSelling = r.qty === 0 || /inactive/i.test(r.status || '');
+  if (row.qty === 0) found.forEach(hit => {
+    if (hit.sev === 'critical' && HARD.indexOf(hit.detector) < 0) {
+      hit.sev = 'action';
+      hit.detail += ' (0 in stock, so not critical)';
+    }
+  });
+  // --- bucket, grade and score ---
+  const list = sev => found.filter(hit => hit.sev === sev).map(hit => hit.name + ' — ' + hit.detail);
+  const critical = list('critical');
+  const action = list('action');
+  const review = list('review');
+  const notSelling = row.qty === 0 || /inactive/i.test(row.status || '');
   const bucket = critical.length ? 'critical' : action.length ? 'action' : review.length ? 'review'
-    : (notSelling ? 'monitor' : (r.content ? 'healthy' : 'unchecked'));
+    : (notSelling ? 'monitor' : (row.content ? 'healthy' : 'unchecked'));
   const score = Math.max(0, Math.min(100, 100 - critical.length * 40 - action.length * 10 - review.length * 3));
-  return { score, bucket, grade: H_BUCKETS[bucket], critical, action, review, found, blocking: critical, content: action.concat(review) };
+  return { score, bucket, grade: H_BUCKETS[bucket], critical, action, review, found,
+    blocking: critical, content: action.concat(review) };
 }
 
 /** The worst severity found in one area of a listing: 'critical' | 'action' | 'review' | '' (none). */
-const hAreaSev = (h, area) => h.found.filter(f => f.area === area).sort((a, b) => LR_SEV[b.sev].rank - LR_SEV[a.sev].rank)[0] || null;
+const hAreaSev = (health, area) => health.found.filter(hit => hit.area === area).sort((a, b) => LR_SEV[b.sev].rank - LR_SEV[a.sev].rank)[0] || null;
 
+// Read the saved rules from Firestore into LR (or the defaults when there are none), adding any default rule saved before it existed.
 async function lrLoad() {
   try {
-    const s = await getDoc(doc(db, 'listingrules', 'config'));
-    if (s.exists()) {
-      const d = s.data();
+    const snap = await getDoc(doc(db, 'listingrules', 'config'));
+    if (snap.exists()) {
+      const data = snap.data();
       /* A RULE ADDED AFTER THE LAST SAVE MUST STILL RUN. The saved document holds the whole list, so a
        * new default would otherwise stay invisible until somebody pressed Save in the Rules tab. */
-      const saved = d.issues || LR_DEFAULT.issues;
-      const have = new Set(saved.map(i => i.id));
-      const added = LR_DEFAULT.issues.filter(i => !have.has(i.id));
-      LR = { issues: added.concat(saved), templates: d.templates || LR_DEFAULT.templates, events: d.events || LR_DEFAULT.events };
-      LR_SAVED_AT = d.at && d.at.toDate ? d.at.toDate() : null;
+      const saved = data.issues || LR_DEFAULT.issues;
+      const have = new Set(saved.map(issue => issue.id));
+      const added = LR_DEFAULT.issues.filter(issue => !have.has(issue.id));
+      LR = { issues: added.concat(saved), templates: data.templates || LR_DEFAULT.templates, events: data.events || LR_DEFAULT.events };
+      LR_SAVED_AT = data.at && data.at.toDate ? data.at.toDate() : null;
     } else LR = JSON.parse(JSON.stringify(LR_DEFAULT));
-  } catch (e) { LR = LR || JSON.parse(JSON.stringify(LR_DEFAULT)); }
+  } catch (e) {
+    LR = LR || JSON.parse(JSON.stringify(LR_DEFAULT));
+  }
   H_CTX = null;
 }
 
 /** The brand catalog (colour, size, sub-category per SKU), kept a day in Firestore — reading the workbook is slow. */
+// Fill LR_CAT for both brands: the day-old Firestore copy if fresh, else the backend (and cache it); `force` re-reads.
 async function lrLoadCatalog(force) {
   for (const b of ['SP', 'CPC']) {
     if (LR_CAT[b] && !force) continue;
     try {
-      const s = await getDoc(doc(db, 'listingrules', 'catalog_' + b));
-      const d = s.exists() ? s.data() : null;
-      const fresh = d && d.at && d.at.toDate && Date.now() - d.at.toDate().getTime() < 24 * 3600 * 1000;
-      if (d && d.map && (fresh || !force)) { LR_CAT[b] = d.map; if (fresh) continue; }
+      const snap = await getDoc(doc(db, 'listingrules', 'catalog_' + b));
+      const data = snap.exists() ? snap.data() : null;
+      const fresh = data && data.at && data.at.toDate && Date.now() - data.at.toDate().getTime() < 24 * 3600 * 1000;
+      if (data && data.map && (fresh || !force)) {
+        LR_CAT[b] = data.map;
+        if (fresh) continue;
+      }
       const got = await baCall({ sales: 'cat', brand: b });
       if (got && got.map) {
         const map = {};
-        Object.entries(got.map).forEach(([sku, v]) => { map[sku] = { color: v.color || '', size: v.size || '', subcat: v.subcat || '' }; });
+        Object.entries(got.map).forEach(([sku, entry]) => {
+          map[sku] = { color: entry.color || '', size: entry.size || '', subcat: entry.subcat || '' };
+        });
         LR_CAT[b] = map;
-        try { await setDoc(doc(db, 'listingrules', 'catalog_' + b), { map, at: serverTimestamp() }); } catch (e) { /* cached next time */ }
+        try {
+          await setDoc(doc(db, 'listingrules', 'catalog_' + b), { map, at: serverTimestamp() });
+        } catch (e) { /* cached next time */ }
       }
     } catch (e) { /* no catalog: templates and occasions are simply not judged */ }
   }

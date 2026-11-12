@@ -455,26 +455,31 @@ async function loadShopStock() {
   SHOP_STOCK = {}; SHOP_STOCK_CASE = {};
   SHOP_STOCK_BY = { SP: {}, CPC: {} }; SHOP_STOCK_CASE_BY = { SP: {}, CPC: {} };
   SHOP_STOCK_AT = { SP: null, CPC: null }; SHOP_STOCK_SRC = { SP: '', CPC: '' };
-  /* The Replenishment snapshot's Fulfillable, from the Shopify copy every Replenishment account may read. A failed read
-   * just leaves Sellora's figure in charge, exactly as before. */
+  /* ONLY AMAZON'S FULFILLABLE (Ravi, 12 Nov: "tumko is fulfillable se hi data lena h" — the Fulfillable column of
+   * Replenishment). Sellora's stock report (stock/{brand}, "available") is no longer read here: it can count units Amazon
+   * will not ship today, and it was left a month old while the newer-of-the-two rule still let it in on a day the snapshot
+   * was not read. The figure is the Replenishment snapshot's own (REPL_SHOP when that screen has it, else its Shopify copy
+   * replshop/{brand}). No Fulfillable read = nothing loaded = "SKU ?" — never another figure in its place. */
+  const isDenied = e => /permission|insufficient/i.test(String((e && (e.code || e.message)) || ''));
   let RSS = {};
-  try { if (typeof loadReplShopStock === 'function') RSS = await loadReplShopStock(); } catch (e) { /* Sellora's figure stands */ }
+  try { if (typeof loadReplShopStock === 'function') RSS = await loadReplShopStock(); } catch (e) { if (isDenied(e)) SHOP_STOCK_DENIED = true; }
   for (const b of ['SP', 'CPC']) {
     try {
-      /* Sellora's figure refused is not the end: the Replenishment one below may still answer. */
-      let s = null;
-      try { s = await getDoc(doc(db, 'stock', b)); }
-      catch (e) { if (/permission|insufficient/i.test(String((e && (e.code || e.message)) || ''))) SHOP_STOCK_DENIED = true; }
-      if (!s) s = { exists: () => false, data: () => ({}) };
-      const sAt = s.exists() && s.data().at && s.data().at.toDate ? s.data().at.toDate() : null;
-      const rs = RSS[b] || null;
-      const useFul = !!(rs && rs.ful && Object.keys(rs.ful).length && rs.at && (!sAt || rs.at >= sAt));
-      const map = useFul ? rs.ful
-        : (s.exists() ? (s.data().m || {}) : null);
-      if (!map) continue;
-      SHOP_STOCK_AT[b] = useFul ? rs.at : sAt;
-      SHOP_STOCK_SRC[b] = useFul ? 'fulfillable' : 'available';
-      Object.entries(map).forEach(([sku, q]) => {
+      let rs = RSS[b] || null;
+      if (!rs || !rs.ful || !Object.keys(rs.ful).length) {
+        rs = null;
+        try {
+          const m = await getDoc(doc(db, 'replshop', b));
+          if (m.exists() && m.data().ful) {
+            const d = m.data();
+            rs = { ful: d.ful, at: typeof replShopAt === 'function' ? replShopAt(d) : (d.at && d.at.toDate ? d.at.toDate() : null) };
+          }
+        } catch (e) { if (isDenied(e)) SHOP_STOCK_DENIED = true; }
+      }
+      if (!rs || !rs.ful || !Object.keys(rs.ful).length) continue;
+      SHOP_STOCK_AT[b] = rs.at || null;
+      SHOP_STOCK_SRC[b] = 'fulfillable';
+      Object.entries(rs.ful).forEach(([sku, q]) => {
         const k = String(sku).trim().toUpperCase();
         SHOP_STOCK[k] = Math.max(SHOP_STOCK[k] || 0, Number(q) || 0);
         if (!SHOP_STOCK_CASE[k]) SHOP_STOCK_CASE[k] = String(sku).trim();
@@ -482,9 +487,8 @@ async function loadShopStock() {
         if (!SHOP_STOCK_CASE_BY[b][k]) SHOP_STOCK_CASE_BY[b][k] = String(sku).trim();
       });
     } catch (e) {
-      /* NOT ALLOWED IS NOT "NO STOCK" (2026-09-26): an account without the Sellora Shopify tab is refused this read, and
-       * every order then looked unreadable with no word why. Said once, by name. */
-      if (/permission|insufficient/i.test(String((e && (e.code || e.message)) || ''))) SHOP_STOCK_DENIED = true;
+      /* NOT ALLOWED IS NOT "NO STOCK" (2026-09-26): an account refused this read is told so, once, by name. */
+      if (isDenied(e)) SHOP_STOCK_DENIED = true;
     }
   }
   // Loaded means "we asked and got an answer", which is what lets the column say "not in Amazon"
@@ -653,6 +657,17 @@ function soMcf(order) {
  */
 let SO_INDIA_TAKEN = {};      // order id → { sku key → { stock, before, got, need } }
 
+/* WHAT A LINE STILL OWES FROM THE SHELF (Ravi, 12 Nov: "jo order pahle se Shopify me fulfill ho chuke h kanhi unke liye bhi
+ * stock reserve to nahi ho rha"). It was: the queue holds every loaded order — two months, shipped ones too — and a shipped
+ * line still asked for its full quantity, so an order sent weeks ago stood first in line and the 7 Queen quilts on the
+ * shelf were "promised" to parcels already delivered, leaving the new order "To produce". Now a line Shopify has shipped
+ * takes nothing; a part-shipped one takes only what Shopify says is still to fulfil (fulfillable_quantity). */
+function soIndiaOwed(i) {
+  const live = soLive(i);
+  if (/^ful/i.test(String(i.ffl || ''))) return 0;                       // this line went out already
+  return i.fq != null && isFinite(Number(i.fq)) ? Math.min(live, Math.max(0, Number(i.fq) || 0)) : live;
+}
+
 /** The key an India row was actually found under — the Shopify code or the Amazon one. */
 function soIndiaKey(sku) {
   const shop = String(sku || '').trim().toUpperCase();
@@ -672,10 +687,11 @@ function soAllocIndia(orders) {
 
   queue.forEach(o => {
     if (o.cancelled) return;
+    if (/^ful/i.test(String(o.ff || ''))) return;     // Shopify shipped the whole order: it holds nothing on the shelf
     const sm = SHOP_META[o.id] || {};
     if (sm.mcfId && !Array.isArray(sm.mcfSkus)) return; // the whole order went to Amazon
     /* A part-order: the lines Amazon did not take still need India, or production. */
-    const lines = o.items.filter(i => soSendQty(o.id, i.sku, soLive(i)) > 0 && !soMcfHas(o.id, i.sku));
+    const lines = o.items.filter(i => soIndiaOwed(i) > 0 && soSendQty(o.id, i.sku, soIndiaOwed(i)) > 0 && !soMcfHas(o.id, i.sku));
     if (!lines.length) return;
     if (soMcf(o).v === 'yes') return;                  // Amazon has it covered; leave India alone
 
@@ -686,7 +702,7 @@ function soAllocIndia(orders) {
       const row = SHOP_INDIA[key];
       const stock = Number(row[0]) || 0;
       if (left[key] == null) left[key] = stock;
-      const need = soSendQty(o.id, i.sku, soLive(i));
+      const need = soSendQty(o.id, i.sku, soIndiaOwed(i));
       const got = Math.max(0, Math.min(need, left[key]));
       // `before` is what earlier orders already hold. It is the whole explanation for a row that
       // reads "No stock" while the warehouse column still shows a number, so it is carried through

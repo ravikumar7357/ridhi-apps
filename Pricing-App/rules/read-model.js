@@ -22,11 +22,16 @@ const BY_HAND = {
   pt_salesOrders: { rights: ['mdbEdit'], tabs: ['vord', 'vreq'] },
   /* Assigning a Shopify line to a printer (spMirror) reads that printer's order from the Order Console. */
   pt_vendorOrders: { rights: ['mdbEdit'], tabs: ['ord', 'shopprod'] },
+  /* The order alert list (Replenish-App orders/order-alerts.js): the three screens that show the order strip read it. */
+  pt_orderAlerts: { tabs: ['ord', 'shopprod', 'so'] },
   /* KEPT, NOT DERIVED. These four could read the approval requests while the audit still followed the tab
    * switcher into every tab; with that fixed the call graph no longer reaches it from them. Taking a read
    * AWAY is the direction that breaks a screen, and a list of pending approvals is not a secret — so the
    * grant stays until somebody has watched those four screens work without it. */
   pt_approvals: { tabs: ['ka', 'pa', 'palloc', 'shop'] },
+  /* The printers' daily challans (4 Nov): the office sees them, and the lines sent outside any order, through the printer's portal
+   * as the printer (vpview) and from the printed-fabric and vendor screens. */
+  pt_vendorChallans: { tabs: ['vpview', 'flchl', 'vord', 'vlog'] },
 };
 
 /* THE PRODUCTION FLOW AND THE GREIGE DESK (test link, 2026-10-13). Their rights are steps of one screen, not tabs the

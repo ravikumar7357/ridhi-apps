@@ -7,7 +7,10 @@ research/costing-maths.js
 core/auth.js
 core/access.js
 core/admin-access.js
+core/access-design.js
 core/nav.js
+core/theme.js
+core/fx.js
 core/settings.js
 research/fee-tables.js
 core/backend.js
@@ -43,4 +46,5 @@ listing/image-manager.js
 listing/listing-errors.js
 listing/listing-content.js
 listing/bought-together.js
+ads/ppc-new.js
 core/version-check.js

@@ -1,3 +1,25 @@
+/* ================= ADS · PPC & ORGANIC: the weekly tab, and the store the new tab shares =================
+ * Screens: PPC & Organic (tab 'weekly', pane paneWeekly; core/nav.js calls ensureWeekly). Two modes (wModeGrid,
+ * wModeRange): the weekly GRID — brand (wBrand), Parent / Child (wView), metric (wMetric), how many weeks
+ * (wWeeks), the filter (wFilter), the card (wKpis), the table (wTable), the alerts (wAlerts) and the change log
+ * (wLog, its box wLogModal) — and the RANGE report over chosen dates (wFrom, wTo, wRangeNote, wRangeTable).
+ * Also Refresh / Stop (wRefresh) with its span (wScope), Export (wExport), the message line (wMsg), and the
+ * cross-check banner (wCheckBanner; plCheckBanner on Parent Listing Review). ads/ppc-new.js reads this file's
+ * stores and date helpers.
+ * Does: WEEKLY is the store — per ASIN per Sunday week: units, sales, ad spend, ad sales, clicks, ad orders,
+ * sessions, page views — cached in Firestore audit/weekly plus weeklyrows/n chunks (loadWeekly, saveWeekly), with
+ * its change log in audit/weeklylog. WDAY is the per-day store, memory only. wNightly folds last night's caches
+ * in once each (by their stamps), holding back weeks the nightly cross-check refused; weeklyRefresh rescans the
+ * Orders workbooks, asks Amazon for ad reports in 31-day slices (collected by wCollect, now or later) and for one
+ * traffic report per brand per week. renderWeekly draws the grid (W_METRIC decides the cell), renderWeeklyKpis
+ * the card, renderWeeklyRange the range report (wRangePlan picks the store by the dates), renderWeeklyAlerts the
+ * falls with a worked-out cause (wCause), renderWeeklyLog the change log.
+ * Main functions: wMsg, wWeekDone, wDaysIn, wLabel, wKeyOfDate, wWeeksList, loadWeekly, saveWeekly,
+ * saveWeeklyLog, wClearFields, wNightly, wDefaultWeek, wSetDefaultRange, ensureWeekly, weeklyRefresh, wCollect,
+ * wAwaitTrafficReport, wBuildLookups, wTitle, wParentOf, wRenderCheck, wAddCell, wRows, renderWeekly,
+ * renderWeeklyKpis, wDayAdsReady, wDaysBetween, wRangePlan, renderWeeklyRange, renderWeeklyAlerts, wCause,
+ * renderWeeklyLog, openWeeklyLog, wSetMode, and the control, change-log and Export handlers. */
+
 /* ================= PPC & ORGANIC (weekly) =================
  * One row per ASIN, one column per week, and a metric picker deciding what sits in the cells.
  * Everything on this tab is derived from three stored numbers per ASIN per week — total sales, ad
@@ -33,9 +55,15 @@ let W_RANGE_TOUCHED = false;
  */
 let WDAY = { rows: {}, from: '', at: '' };
 
-function wMsg(t, bad) { const m = $('wMsg'); m.textContent = t || ''; m.className = bad ? 'err' : 'muted'; }
+// Write the tab's message line; bad = true shows it in red (class err), otherwise muted.
+function wMsg(t, bad) {
+  const m = $('wMsg');
+  m.textContent = t || '';
+  m.className = bad ? 'err' : 'muted';
+}
 
 /* ---------- weeks ---------- */
+// Month names, and a UTC Date from a yyyy-MM-dd key.
 const W_MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const wDate = k => new Date(k + 'T00:00:00Z');
 /* Has this week FINISHED?
@@ -48,17 +76,20 @@ const wDate = k => new Date(k + 'T00:00:00Z');
  * date handling follows. `sdToday()` is already PT, and the week key is a UTC Sunday, so the end day
  * is derived in UTC and the two are compared as plain YYYY-MM-DD strings with no conversion between
  * them. Converting either one is how every date bug in this app has started. */
+// True when the week's Saturday is before today (PT).
 function wWeekDone(k) {
   const end = new Date(wDate(k).getTime() + 6 * 86400000).toISOString().slice(0, 10);
   return end < sdToday();
 }
 /** How many of a running week's days have finished, for saying so out loud. */
+// 0 to 7 finished days of the week starting on k.
 function wDaysIn(k) {
   const start = wDate(k).getTime();
   const today = new Date(sdToday() + 'T00:00:00Z').getTime();
   return Math.max(0, Math.min(7, Math.round((today - start) / 86400000)));
 }
 /** '2026-05-10' → 'May 10-16'; spans a month end as 'May 31-Jun 6', exactly like Seller Central. */
+// The label of a week key.
 function wLabel(k) {
   const a = wDate(k), b = new Date(a.getTime() + 6 * 86400000);
   const am = W_MON[a.getUTCMonth()], bm = W_MON[b.getUTCMonth()];
@@ -67,11 +98,13 @@ function wLabel(k) {
     : `${am} ${a.getUTCDate()}-${bm} ${b.getUTCDate()}`;
 }
 /** The Sunday starting the week containing a yyyy-MM-dd date. Mirrors the backend's weekKeyOf_. */
+// The week key of a date; '' for a date that does not parse.
 function wKeyOfDate(iso) {
   const d = new Date(iso + 'T00:00:00Z');
   if (isNaN(d)) return '';
   return new Date(d.getTime() - d.getUTCDay() * 86400000).toISOString().slice(0, 10);
 }
+// The last n week keys, oldest first, ending with the week running today (UTC).
 function wWeeksList(n) {
   const today = new Date();
   const utc = new Date(Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()));
@@ -82,11 +115,14 @@ function wWeeksList(n) {
 }
 
 /* ---------- storage ---------- */
+// The cell of one ASIN for one week in WEEKLY, created (empty) when it is not there yet.
 const wCell = (asin, wk) => {
   const r = WEEKLY.rows[asin] || (WEEKLY.rows[asin] = { brand: '', weeks: {} });
   return r.weeks[wk] || (r.weeks[wk] = {});
 };
+// Read audit/weekly, its weeklyrows chunks and audit/weeklylog from Firestore into WEEKLY and W_LOG.
 async function loadWeekly() {
+  // --- the store ---
   try {
     const meta = await getDoc(doc(db, 'audit', 'weekly'));
     if (!meta.exists()) return;
@@ -101,17 +137,21 @@ async function loadWeekly() {
     WEEKLY.check = d.check || null;              // the nightly cross-check's last verdict
     let rows = {};
     if (d.chunks) {
-      const got = await Promise.all(Array.from({ length: d.chunks }, (_, i) => getDoc(doc(db, 'weeklyrows', String(i)))));
+      const got = await Promise.all(Array.from({ length: d.chunks },
+        (_, i) => getDoc(doc(db, 'weeklyrows', String(i)))));
       got.forEach(s => { if (s.exists()) Object.assign(rows, s.data().r || {}); });
     }
     WEEKLY.rows = rows;
   } catch (e) { /* nothing stored yet, or no read access */ }
+  // --- the change log ---
   try {
     const l = await getDoc(doc(db, 'audit', 'weeklylog'));
     if (l.exists()) W_LOG = l.data().entries || [];
   } catch (e) { /* same */ }
 }
+// Write WEEKLY to Firestore: the rows in weeklyrows/n chunks of W_CHUNK ASINs, then audit/weekly.
 async function saveWeekly() {
+  // --- the row chunks ---
   const asins = Object.keys(WEEKLY.rows);
   const chunks = Math.ceil(asins.length / W_CHUNK) || 1;
   for (let i = 0; i < chunks; i++) {
@@ -119,16 +159,26 @@ async function saveWeekly() {
     asins.slice(i * W_CHUNK, (i + 1) * W_CHUNK).forEach(a => { slice[a] = WEEKLY.rows[a]; });
     await setDoc(doc(db, 'weeklyrows', String(i)), { r: slice });
   }
+  // --- the one document ---
   await setDoc(doc(db, 'audit', 'weekly'), {
-    chunks, n: asins.length, weeks: WEEKLY.weeks, at: WEEKLY.at, adAt: WEEKLY.adAt,
+    chunks,
+    n: asins.length,
+    weeks: WEEKLY.weeks,
+    at: WEEKLY.at,
+    adAt: WEEKLY.adAt,
     nAt: WEEKLY.nAt || {},
-    doneWeeks: WEEKLY.doneWeeks, pending: WEEKLY.pending, adDone: WEEKLY.adDone,
+    doneWeeks: WEEKLY.doneWeeks,
+    pending: WEEKLY.pending,
+    adDone: WEEKLY.adDone,
     check: WEEKLY.check || null,
-    by: ME.email, saved: serverTimestamp(),
+    by: ME.email,
+    saved: serverTimestamp(),
   });
 }
+// Write the change log to audit/weeklylog.
 async function saveWeeklyLog() {
-  await setDoc(doc(db, 'audit', 'weeklylog'), { entries: W_LOG, n: W_LOG.length, by: ME.email, saved: serverTimestamp() });
+  await setDoc(doc(db, 'audit', 'weeklylog'),
+    { entries: W_LOG, n: W_LOG.length, by: ME.email, saved: serverTimestamp() });
 }
 
 /**
@@ -138,6 +188,7 @@ async function saveWeeklyLog() {
  * spend at all simply has no row in it. Without this clear, that week would keep whatever it last
  * had and quietly report spend that stopped weeks ago.
  */
+// Delete the fields given from every cell of the brand's rows in the weeks given.
 function wClearFields(brand, weeks, fields) {
   if (!weeks.size) return;
   Object.values(WEEKLY.rows).forEach(row => {
@@ -159,6 +210,8 @@ function wClearFields(brand, weeks, fields) {
  * double any week a Refresh had already collected.
  */
 let W_NIGHT_RUN = 0;
+// Merge last night's caches (weekly sales, per-ASIN ads, sessions, the per-day store) into WEEKLY and WDAY,
+// each once per stamp; save when anything changed; return the run's stamp ('' when nothing changed).
 async function wNightly() {
   const brands = adBrands();
   let changed = false, at = '', adAt = '';
@@ -205,7 +258,10 @@ async function wNightly() {
       Object.values(byAsin).forEach(byWeek => Object.keys(byWeek).forEach(w => weeks.add(w)));
       // Dropped from the CLEAR list as well as the write list. Clearing a week and then declining to
       // refill it would leave it empty, which is a worse answer than the one being rejected.
-      held.forEach(k => { const cut = k.indexOf('|'); if (k.slice(0, cut) === b) weeks.delete(k.slice(cut + 1)); });
+      held.forEach(k => {
+        const cut = k.indexOf('|');
+        if (k.slice(0, cut) === b) weeks.delete(k.slice(cut + 1));
+      });
       wClearFields(b, weeks, ['u', 'rev']);
       Object.entries(byAsin).forEach(([a, byWeek]) => {
         const row = WEEKLY.rows[a] || (WEEKLY.rows[a] = { brand: b, weeks: {} });
@@ -309,6 +365,7 @@ async function wNightly() {
     }));
   } catch (e) { /* sales-only daily ranges still work; the ad columns just show a dash */ }
 
+  // --- save ---
   if (changed) {
     WEEKLY.weeks = wWeeksList(26);
     // Stamped with when the run actually produced the figures, not with now — "as at 05:12" is the
@@ -329,6 +386,7 @@ async function wNightly() {
  * opened onto an empty grid saying "nothing in this range", which reads as broken rather than as
  * "the week just started".
  */
+// The newest week key with any figures, else the last complete week; '' when there are no weeks.
 function wDefaultWeek() {
   const all = WEEKLY.weeks.length ? WEEKLY.weeks : wWeeksList(26);
   if (!all.length) return '';
@@ -341,6 +399,7 @@ function wDefaultWeek() {
   // began this morning.
   return all[all.length > 1 ? all.length - 2 : 0];
 }
+// Put the default week into the range report's From and To boxes.
 function wSetDefaultRange() {
   const wk = wDefaultWeek();
   if (!wk) return;
@@ -348,15 +407,21 @@ function wSetDefaultRange() {
   $('wTo').value = new Date(wDate(wk).getTime() + 6 * 86400000).toISOString().slice(0, 10);
 }
 
+// Called when the tab opens: load Listing Health and the store, draw, fold in last night's run (at most every ten
+// minutes), and collect any ad reports Amazon has finished since last time.
 async function ensureWeekly() {
+  // --- load data ---
   if (!H_LOADED) await loadHealthCache();          // ASIN → brand, title and parent all come from here
   if (!WEEKLY.weeks.length && !Object.keys(WEEKLY.rows).length) {
-    wMsg('Loading…'); await loadWeekly(); wMsg('');
+    wMsg('Loading…');
+    await loadWeekly();
+    wMsg('');
   }
   // Draw what is stored FIRST. The nightly merge below reads three cache sheets and can take a few
   // seconds; leaving the grid blank until it returns makes a working tab look empty.
   if (!$('wFrom').value) wSetDefaultRange();
   renderWeekly();
+  // --- last night's run ---
   // Fold in last night's run, so the grid is current on arrival rather than one long click later.
   // Throttled: switching between tabs must not re-read the cache sheets every time.
   if (!W_BUSY && Date.now() - W_NIGHT_RUN > 600000) {
@@ -369,6 +434,7 @@ async function ensureWeekly() {
     renderWeekly();
     wMsg(from ? `Up to date — nightly run of ${from}.` : '');
   }
+  // --- queued ad reports ---
   // One cheap sweep for ad reports that finished since last time — opening the tab is the reminder.
   if (WEEKLY.pending.length) {
     wMsg(`Checking ${WEEKLY.pending.length} ad report${WEEKLY.pending.length === 1 ? '' : 's'} queued earlier…`);
@@ -380,9 +446,17 @@ async function ensureWeekly() {
 }
 
 /* ---------- the refresh: sales, then ads, then sessions ---------- */
+// Refresh (or Stop, when one is running): rescan the Orders workbooks for 26 weeks of sales, ask Amazon for the
+// ad reports of the chosen span and collect the quick ones, then one traffic report per brand per week.
 async function weeklyRefresh() {
-  if (W_BUSY) { W_STOP = true; wMsg('Stopping after the current step — everything fetched so far is saved.'); return; }
-  W_BUSY = true; W_STOP = false;
+  if (W_BUSY) {
+    W_STOP = true;
+    wMsg('Stopping after the current step — everything fetched so far is saved.');
+    return;
+  }
+  // --- busy ---
+  W_BUSY = true;
+  W_STOP = false;
   $('wRefresh').textContent = 'Stop';
   const weeks = wWeeksList(26);
   WEEKLY.weeks = weeks;
@@ -431,14 +505,18 @@ async function weeklyRefresh() {
         // sessions come from elsewhere and must survive.
         Object.values(WEEKLY.rows).forEach(row => {
           if (row.brand !== brand) return;
-          Object.values(row.weeks || {}).forEach(c => { delete c.u; delete c.rev; });
+          Object.values(row.weeks || {}).forEach(c => {
+            delete c.u;
+            delete c.rev;
+          });
         });
         Object.entries(fresh).forEach(([a, byWeek]) => {
           const row = WEEKLY.rows[a] || (WEEKLY.rows[a] = { brand, weeks: {} });
           row.brand = row.brand || brand;
           Object.entries(byWeek).forEach(([wk, v]) => {
             const c = row.weeks[wk] || (row.weeks[wk] = {});
-            c.u = v.u; c.rev = v.rev;
+            c.u = v.u;
+            c.rev = v.rev;
           });
         });
       } catch (err) {
@@ -476,7 +554,10 @@ async function weeklyRefresh() {
           if (W_STOP) break;
           // Settled and already collected — an ad week older than the attribution window never
           // changes again, so re-fetching it is pure waiting.
-          if (WEEKLY.adDone[tSliceKey(brand, s, e)] && e < settled) { wSkipped++; continue; }
+          if (WEEKLY.adDone[tSliceKey(brand, s, e)] && e < settled) {
+            wSkipped++;
+            continue;
+          }
           if (WEEKLY.pending.some(p => p.brand === brand && p.start === s && p.end === e)) continue;
           try {
             wMsg(`Ad spend — ${BRAND_NAME[brand]}, ${s} → ${e}: asking Amazon…`);
@@ -532,6 +613,7 @@ async function weeklyRefresh() {
       }
     }
 
+    // --- save, redraw, report ---
     await saveWeekly();
     renderWeekly();
     // Every problem is listed at the end. A run that half worked is the hardest kind to diagnose
@@ -548,7 +630,9 @@ async function weeklyRefresh() {
       + (/permission/i.test(m) ? ' — your account needs the “PPC & Organic” permission (Settings → Access).' : ''), true);
     try { await saveWeekly(); } catch (x) { /* nothing more to do */ }
   }
-  W_BUSY = false; W_STOP = false;
+  // --- back to normal ---
+  W_BUSY = false;
+  W_STOP = false;
   $('wRefresh').textContent = 'Refresh';
 }
 
@@ -556,15 +640,20 @@ async function weeklyRefresh() {
  * Download every queued per-ASIN ad report Amazon has finished, and leave the rest queued.
  * The twin of tCollect on the Ad Console — same reasoning, different shape of data.
  */
+// Collect the finished reports in WEEKLY.pending into the rows (replacing each report's weeks); returns how many.
 async function wCollect(rounds, wait) {
   if (!WEEKLY.pending.length) return 0;
   let done = 0;
   for (let r = 0; r < rounds && WEEKLY.pending.length && !W_STOP; r++) {
+    // --- one pass over the queue ---
     for (const job of [...WEEKLY.pending]) {
       if (W_STOP) break;
       try {
         const s = await tCall({ ads: 'ppcStatus', brand: job.brand, id: job.id });
-        if (/fail|cancel/i.test(s.status || '')) { WEEKLY.pending = WEEKLY.pending.filter(p => p.id !== job.id); continue; }
+        if (/fail|cancel/i.test(s.status || '')) {
+          WEEKLY.pending = WEEKLY.pending.filter(p => p.id !== job.id);
+          continue;
+        }
         if (!s.ready) continue;
         const d = await tCall({ ads: 'ppcFetch', brand: job.brand, id: job.id });
         // Cleared only now that the replacement is in hand — clearing at request time would wipe
@@ -572,7 +661,12 @@ async function wCollect(rounds, wait) {
         Object.values(WEEKLY.rows).forEach(row => {
           if (row.brand !== job.brand) return;
           Object.entries(row.weeks || {}).forEach(([wk, c]) => {
-            if (wk >= job.start && wk <= job.end) { delete c.clicks; delete c.spend; delete c.adOrders; delete c.adSales; }
+            if (wk >= job.start && wk <= job.end) {
+              delete c.clicks;
+              delete c.spend;
+              delete c.adOrders;
+              delete c.adSales;
+            }
           });
         });
         Object.entries(d.asins || {}).forEach(([a, byWeek]) => {
@@ -589,9 +683,11 @@ async function wCollect(rounds, wait) {
         WEEKLY.pending = WEEKLY.pending.filter(p => p.id !== job.id);
         WEEKLY.adDone[tSliceKey(job.brand, job.start, job.end)] = 1;
         done++;
-        await saveWeekly(); renderWeekly();
+        await saveWeekly();
+        renderWeekly();
       } catch (e) { /* still building, or a blip — it stays queued */ }
     }
+    // --- drop the stale, then wait for the next pass ---
     WEEKLY.pending = WEEKLY.pending.filter(p => !p.asked || Date.now() - p.asked < 86400000);
     if (!WEEKLY.pending.length || r === rounds - 1) break;
     wMsg(`Waiting on ${WEEKLY.pending.length} ad report${WEEKLY.pending.length === 1 ? '' : 's'} Amazon is still building — ${done} collected so far…`);
@@ -603,6 +699,7 @@ async function wCollect(rounds, wait) {
 /** Poll an Ads report to completion; returns its per-ASIN-per-week map, or null. */
 
 /** Poll a Sales & Traffic report; null when Amazon has no data for that week (a normal answer). */
+// Poll one traffic report every W_POLL_MS up to W_POLL_MAX times; { asin → [sessions, pageViews] }, or null.
 async function wAwaitTrafficReport(brand, id, label) {
   for (let t = 0; t < W_POLL_MAX; t++) {
     if (W_STOP) return null;
@@ -621,13 +718,18 @@ async function wAwaitTrafficReport(brand, id, label) {
 
 /* ---------- the numbers a cell can show ---------- */
 // Everything here is derived from the four stored figures, so no two views can drift apart.
+// Organic sales of a cell: total sales less ad sales, floored at 0; null when sales are unknown.
 const wOrganic = c => (c.rev == null ? null : Math.max(0, (c.rev || 0) - (c.adSales || 0)));
+// The metric picker: key → title, how to format (money / pct / split), the value from a cell (get), an optional
+// sub-line (sub), a colour band (band) or week-on-week colouring (wow).
 const W_METRIC = {
   /* `sub` prints UNDER the number, in the same cell. TACoS only means anything against the sales it
    * was spent on, and reading it off a different metric view means holding two grids in your head. */
   sales:    { t: 'Total sales', money: 1, get: c => c.rev,
-              sub: c => (c.spend != null && c.rev ? { txt: 'TACoS ' + (c.spend / c.rev * 100).toFixed(c.spend / c.rev * 100 < 10 ? 1 : 0) + '%',
-                cls: (c.spend / c.rev * 100) <= 10 ? 'gd-good' : (c.spend / c.rev * 100) <= 20 ? 'gd-warn' : 'gd-bad' } : null) },
+              sub: c => (c.spend != null && c.rev
+                ? { txt: 'TACoS ' + (c.spend / c.rev * 100).toFixed(c.spend / c.rev * 100 < 10 ? 1 : 0) + '%',
+                  cls: (c.spend / c.rev * 100) <= 10 ? 'gd-good' : (c.spend / c.rev * 100) <= 20 ? 'gd-warn' : 'gd-bad' }
+                : null) },
   spend:    { t: 'Ad spend', money: 1, get: c => c.spend },
   adsales:  { t: 'Ad sales', money: 1, get: c => c.adSales },
   organic:  { t: 'Organic sales', money: 1, get: c => (c.rev == null ? null : wOrganic(c)) },
@@ -643,26 +745,38 @@ const W_METRIC = {
               band: v => v <= 30 ? 'gd-good' : v <= 60 ? 'gd-warn' : 'gd-bad' },
   cvr:      { t: 'CVR', pct: 1, get: c => (c.u != null && c.sessions ? c.u / c.sessions * 100 : null),
               wow: 1, band: v => v >= 15 ? 'gd-good' : v >= 8 ? 'gd-warn' : 'gd-bad' },
-  split:    { t: 'Ad % / Organic %', split: 1, get: c => (c.rev && c.adSales != null ? c.adSales / c.rev * 100 : null) },
+  split:    { t: 'Ad % / Organic %', split: 1,
+              get: c => (c.rev && c.adSales != null ? c.adSales / c.rev * 100 : null) },
 };
 
 // Built once and reused: scanning the health snapshot per ASIN per render turned a 40-column grid
 // into a linear search inside a nested loop.
 let W_TITLES = null, W_PARENT = null;
+// Build asin → title and asin → parent from both brands' Listing Health rows, once.
 function wBuildLookups() {
   if (W_TITLES) return;
-  W_TITLES = {}; W_PARENT = {};
+  W_TITLES = {};
+  W_PARENT = {};
   ['SP', 'CPC'].forEach(b => (HEALTH[b]?.rows || []).forEach(r => {
-    const a = String(r.asin || '').trim().toUpperCase(); if (!a) return;
+    const a = String(r.asin || '').trim().toUpperCase();
+    if (!a) return;
     if (!W_TITLES[a] && r.title) W_TITLES[a] = r.title;
     const p = String(r.parent || '').trim().toUpperCase();
     if (!W_PARENT[a]) W_PARENT[a] = p || a;      // no parent recorded → it IS its own parent
   }));
 }
-function wTitle(asin) { wBuildLookups(); return W_TITLES[asin] || ''; }
+// An ASIN's title from Listing Health, or ''.
+function wTitle(asin) {
+  wBuildLookups();
+  return W_TITLES[asin] || '';
+}
 // An ASIN the health snapshot has never seen still has to land somewhere, so it stands alone rather
 // than being dropped — a product missing from the grid is far worse than one shown on its own row.
-function wParentOf(asin) { wBuildLookups(); return W_PARENT[asin] || asin; }
+// An ASIN's parent from Listing Health, or itself.
+function wParentOf(asin) {
+  wBuildLookups();
+  return W_PARENT[asin] || asin;
+}
 
 /* ---------- render ---------- */
 /**
@@ -672,8 +786,10 @@ function wParentOf(asin) { wBuildLookups(); return W_PARENT[asin] || asin; }
  * Parent Listing Review — a held-back week sits inside its six-week average, where it is invisible.
  * Silence here would mean the safest thing the pipeline does is also the thing nobody knows about.
  */
+// Fill (or hide) the cross-check banners wCheckBanner and plCheckBanner from WEEKLY.check.
 function wRenderCheck() {
-  const esc = s => String(s == null ? '' : s).replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
+  const esc = s => String(s == null ? '' : s)
+    .replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
   const bad = (WEEKLY.check && WEEKLY.check.bad) || [];
   const html = !bad.length ? '' : '<b>Sales held back for ' + bad.length + ' week'
     + (bad.length === 1 ? '' : 's') + '.</b> The nightly run\'s own figures for '
@@ -694,6 +810,7 @@ function wRenderCheck() {
 // out afterwards from the parent's totals, because averaging children's percentages would weight a
 // child that sold twice the same as one that sold two thousand.
 const W_SUM_FIELDS = ['u', 'rev', 'spend', 'adSales', 'clicks', 'adOrders', 'sessions', 'pv'];
+// Add one cell's stored figures into another (money rounded to cents); a missing field stays missing.
 function wAddCell(into, from) {
   W_SUM_FIELDS.forEach(f => {
     if (from[f] == null) return;
@@ -704,17 +821,21 @@ function wAddCell(into, from) {
   if (into.adSales != null) into.adSales = Math.round(into.adSales * 100) / 100;
 }
 
+// The grid's rows: one per ASIN, or one per parent with its children's cells added up (weeks and days), filtered
+// by brand and text and sorted by total sales.
 function wRows() {
   const brand = $('wBrand').value;
   const byParent = $('wView').value === 'parent';
   const q = $('wFilter').value.trim().toLowerCase();
 
+  // --- group by parent, or one row per ASIN ---
   let out;
   if (byParent) {
     const g = {};
     Object.entries(WEEKLY.rows).forEach(([asin, r]) => {
       const key = wParentOf(asin);
-      const o = g[key] || (g[key] = { asin: key, brand: r.brand || '', title: '', weeks: {}, days: {}, kids: 0 });
+      const o = g[key] || (g[key] = {
+        asin: key, brand: r.brand || '', title: '', weeks: {}, days: {}, kids: 0 });
       o.brand = o.brand || r.brand || '';
       o.kids++;
       // The parent's own name if Amazon or a person gave it one; otherwise borrow a child's title,
@@ -741,6 +862,7 @@ function wRows() {
   }
   out.forEach(r => { r.total = Object.values(r.weeks).reduce((s, c) => s + (c.rev || 0), 0); });
 
+  // --- filter and sort ---
   if (brand !== 'ALL') out = out.filter(r => r.brand === brand);
   if (q) out = out.filter(r => (r.asin + ' ' + r.title).toLowerCase().includes(q));
   // Biggest sellers first — that is the order anybody reads this in.
@@ -748,9 +870,13 @@ function wRows() {
   return out;
 }
 
+// Draw the tab: the cross-check banner, the weekly grid for the chosen metric, then the card, the range report,
+// the alerts and the change log.
 function renderWeekly() {
   wRenderCheck();
-  const esc = s => String(s == null ? '' : s).replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
+  const esc = s => String(s == null ? '' : s)
+    .replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
+  // --- the weeks, the metric and the rows ---
   const nWeeks = Number($('wWeeks').value) || 13;
   const weeks = (WEEKLY.weeks.length ? WEEKLY.weeks : wWeeksList(26)).slice(-nWeeks);
   const mk = $('wMetric').value, M = W_METRIC[mk] || W_METRIC.sales;
@@ -764,6 +890,7 @@ function renderWeekly() {
     return Math.round(v).toLocaleString('en-US');
   };
 
+  // --- build table: header ---
   const byParent = $('wView').value === 'parent';
   const head = `<thead><tr><th class="frz">${byParent ? 'Parent ASIN' : 'ASIN'}</th><th class="frz2">Product</th>`
     + (byParent ? '<th class="num">Children</th>' : '') + '<th class="num">Total / Avg</th>'
@@ -775,6 +902,7 @@ function renderWeekly() {
       }).join('')
     + '</tr></thead>';
 
+  // --- build table: one row per ASIN or parent ---
   const body = rows.map(r => {
     const cells = weeks.map((w, wi) => {
       const c = r.weeks[w] || {};
@@ -835,16 +963,21 @@ function renderWeekly() {
     || `<tr><td colspan="${weeks.length + (byParent ? 4 : 3)}" class="muted" style="padding:14px">Nothing stored yet — hit “Refresh”. The first run backfills the window and takes a while.</td></tr>`)
     + '</tbody>';
 
+  // --- the rest of the tab ---
   renderWeeklyKpis(rows, weeks);
   renderWeeklyRange();
   renderWeeklyAlerts(rows, weeks);
   renderWeeklyLog();
 }
 
+// Draw the card (wKpis) for the latest week shown: sales, TACoS, ad spend, ACoS, organic share, sessions and CVR,
+// each against the week before when the week has finished.
 function renderWeeklyKpis(rows, weeks) {
-  const esc = s => String(s == null ? '' : s).replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
+  const esc = s => String(s == null ? '' : s)
+    .replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
   const nf = v => Math.round(v || 0).toLocaleString('en-US');
   const money = v => '$' + nf(v);
+  // --- add up the latest week and the one before ---
   const last = weeks[weeks.length - 1], prev = weeks[weeks.length - 2];
   const sum = (wk, f) => rows.reduce((s, r) => s + (f(r.weeks[wk] || {}) || 0), 0);
   const sales = sum(last, c => c.rev), spend = sum(last, c => c.spend);
@@ -873,6 +1006,7 @@ function renderWeeklyKpis(rows, weeks) {
       ? `<span class="muted">${txt} · no week before</span>`
       : `<span class="${d >= 0 ? 'up' : 'dn'}">${txt} · ${d > 0 ? '+' : ''}${d.toFixed(d > -10 && d < 10 ? 1 : 0)}%</span>`;
 
+  // --- the card ---
   $('wKpis').innerHTML = `<div class="kpi" style="flex-basis:100%">
     <div class="kpihead"><span class="kpiname">Latest week — ${esc(wLabel(last))}${
       wWeekDone(last) ? '' : ` <span class="muted" style="font-weight:400;font-size:12px">· still running, ${wDaysIn(last)} of 7 days</span>`}</span>
@@ -881,15 +1015,15 @@ function renderWeeklyKpis(rows, weeks) {
     <div class="metrics">
       <div class="metric">
         <div class="v" style="font-size:15px">${money(sales)}</div><div class="l">Total sales</div>
-        <div class="sub" style="color:${done && delta != null && delta < 0 ? 'var(--bad)' : 'inherit'}">${
+        <div class="sub" style="color:${done && delta != null && delta < 0 ? 'var(--bad-ink)' : 'inherit'}">${
           !done ? running : delta == null ? '— vs week before' : (delta > 0 ? '+' : '') + delta + '% vs week before'}</div>
         <div class="sub" title="Ad spend ÷ TOTAL sales — what all of the sales cost in advertising.">TACoS <b style="color:${
-          tacos != null && tacos > 20 ? 'var(--bad)' : 'inherit'}">${tacos == null ? '—' : tacos + '%'}</b></div>
+          tacos != null && tacos > 20 ? 'var(--bad-ink)' : 'inherit'}">${tacos == null ? '—' : tacos + '%'}</b></div>
       </div>
       <div class="metric">
         <div class="v" style="font-size:15px">${money(spend)}</div><div class="l">Ad spend</div>
         <div class="sub" title="Ad spend ÷ AD sales only — what the advertised sales cost.">ACoS <b style="color:${
-          acos != null && acos > 60 ? 'var(--bad)' : 'inherit'}">${acos == null ? '—' : acos + '%'}</b></div>
+          acos != null && acos > 60 ? 'var(--bad-ink)' : 'inherit'}">${acos == null ? '—' : acos + '%'}</b></div>
       </div>
       <div class="metric"><div class="v">${organicPct == null ? '—' : organicPct + '%'}</div><div class="l">Organic share</div></div>
       <div class="metric">
@@ -906,6 +1040,7 @@ function renderWeeklyKpis(rows, weeks) {
 // The stored data is weekly, so a chosen range SNAPS to whole Sunday→Saturday weeks. Said plainly
 // under the date boxes rather than quietly rounded: a total that silently covers different days
 // than the dates on screen is the kind of thing that gets found out during an argument.
+// The range report's sort: column key and direction.
 let W_RANGE_SORT = { k: 'sales', dir: -1 };
 
 /**
@@ -915,12 +1050,14 @@ let W_RANGE_SORT = { k: 'sales', dir: -1 };
  * finishes hours later. So a day range can legitimately have sales and no spend for a while, and the
  * report needs to be able to say which of the two it is looking at.
  */
+// True when any day in WDAY carries a spend figure.
 function wDayAdsReady() {
   return Object.values(WDAY.rows).some(r =>
     Object.values(r.days || {}).some(c => c.spend != null));
 }
 
 /** Every date from `lo` to `hi` inclusive, as yyyy-MM-dd. */
+// The list of days in a range.
 function wDaysBetween(lo, hi) {
   const out = [];
   for (let d = lo; d <= hi; d = sdShift(d, 1)) out.push(d);
@@ -939,6 +1076,7 @@ function wDaysBetween(lo, hi) {
  *    range you ask for, with no date on it, so per-day sessions would mean one report per day per
  *    brand at roughly one report a minute. Those two columns show a dash instead of a wrong number.
  */
+// { mode: 'week' | 'day', keys, prev (the comparison keys), lo, hi, outside?, haveFrom? } for the dates in the boxes.
 function wRangePlan() {
   const all = WEEKLY.weeks.length ? WEEKLY.weeks : wWeeksList(26);
   const a = $('wFrom').value, b = $('wTo').value;
@@ -948,6 +1086,7 @@ function wRangePlan() {
   }
   const lo = a <= b ? a : b, hi = a <= b ? b : a;
 
+  // --- whole weeks: the weekly store ---
   // A Sunday start and a Saturday end — the shape the weekly store can answer exactly.
   const wholeWeeks = wKeyOfDate(lo) === lo && wKeyOfDate(sdShift(hi, 1)) === sdShift(hi, 1);
   if (wholeWeeks) {
@@ -959,6 +1098,7 @@ function wRangePlan() {
     }
   }
 
+  // --- anything else: the per-day store, inside its window ---
   // Day resolution. Only over the window the nightly run keeps — outside it the honest answer is
   // that there is nothing to show, not a total quietly built from the wrong days.
   const days = wDaysBetween(lo, hi);
@@ -973,11 +1113,15 @@ function wRangePlan() {
   return { mode: 'day', keys: [], prev: [], lo, hi, outside: true, haveFrom };
 }
 
+// Draw the range report: the note under the dates, then one row per parent (or ASIN) over the chosen dates,
+// with a TOTAL row, sorted by the clicked column.
 function renderWeeklyRange() {
-  const esc = s => String(s == null ? '' : s).replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
+  const esc = s => String(s == null ? '' : s)
+    .replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
   const money = v => (v == null ? '<span class="muted">—</span>' : '$' + Math.round(v).toLocaleString('en-US'));
   const pct1 = v => (v == null ? '<span class="muted">—</span>' : (v * 100).toFixed(1) + '%');
   const nf = v => Math.round(v || 0).toLocaleString('en-US');
+  // --- the plan and the note under the dates ---
   const plan = wRangePlan();
   const { mode, keys, prev, lo, hi } = plan;
   const byParent = $('wView').value === 'parent';
@@ -1012,6 +1156,7 @@ function renderWeeklyRange() {
         + (wDayAdsReady() ? '' : ' · daily ad figures arrive with tonight\'s run — until then Ad Spend, ACOS and Organic stay blank')
       : '');
 
+  // --- the rows: this period and the one before, per parent ---
   const add = (into, r, ks) => ks.forEach(k => {
     const c = mode === 'day' ? (r.days || {})[k] : r.weeks[k];
     if (c) wAddCell(into, c);
@@ -1019,7 +1164,8 @@ function renderWeeklyRange() {
 
   let rows = wRows().map(r => {
     const cur = {}, was = {};
-    add(cur, r, keys); add(was, r, prev);
+    add(cur, r, keys);
+    add(was, r, prev);
     const sales = cur.rev || 0;
     // UNKNOWN and ZERO are kept apart all the way through. A week whose ad report has not been
     // pulled has `spend`/`adSales` absent, not 0 — and if that were flattened to 0 here, organic
@@ -1044,6 +1190,7 @@ function renderWeeklyRange() {
     };
   }).filter(r => r.sales || r.units || r.adSpend);
 
+  // --- the totals over the view ---
   // Budget share is each parent's slice of the ad spend ACROSS THE VIEW, so it answers "where is the
   // money going" for whatever is on screen — not for a catalogue you have filtered away.
   const totSpend = rows.reduce((s, r) => s + (r.adSpend || 0), 0);
@@ -1051,12 +1198,17 @@ function renderWeeklyRange() {
   rows.forEach(r => { r.budgetShare = (r.adSpend != null && totSpend > 0) ? r.adSpend / totSpend : null; });
 
   const T = rows.reduce((a, r) => ({
-    units: a.units + r.units, sales: a.sales + r.sales, spend: a.spend + (r.adSpend || 0),
-    adSales: a.adSales + (r.adSales || 0), sessions: a.sessions + (r.sessions || 0), prev: a.prev + r.prevSales,
+    units: a.units + r.units,
+    sales: a.sales + r.sales,
+    spend: a.spend + (r.adSpend || 0),
+    adSales: a.adSales + (r.adSales || 0),
+    sessions: a.sessions + (r.sessions || 0),
+    prev: a.prev + r.prevSales,
   }), { units: 0, sales: 0, spend: 0, adSales: 0, sessions: 0, prev: 0 });
   const anyAdSales = rows.some(r => r.adSales != null);
   const tOrganic = anyAdSales ? Math.max(0, T.sales - T.adSales) : null;
 
+  // --- sort ---
   // Sorting by a column that this mode does not have would leave every row equal and no arrow to
   // explain it, so a day range falls back to Sales.
   if (mode !== 'week' && (W_RANGE_SORT.k === 'sessions' || W_RANGE_SORT.k === 'cvr')) {
@@ -1067,6 +1219,7 @@ function renderWeeklyRange() {
     ? String(a[k] || '').localeCompare(String(b[k] || '')) * dir
     : ((a[k] == null ? -Infinity : a[k]) - (b[k] == null ? -Infinity : b[k])) * dir);
 
+  // --- build table: columns, header and the TOTAL row ---
   const COLS = [
     { k: 'asin', t: byParent ? 'Parent ASIN' : 'ASIN', frz: 1 },
     { k: 'title', t: 'Title' },
@@ -1107,6 +1260,7 @@ function renderWeeklyRange() {
       : '')
     + `<th class="num">${pct1(T.prev > 0 ? (T.sales - T.prev) / T.prev : null)}</th></tr></thead>`;
 
+  // --- build table: body (first 300 rows) ---
   const shareCls = v => v == null ? '' : v >= 0.5 ? 'gd-good' : v >= 0.25 ? 'gd-warn' : 'gd-bad';
   const body = rows.slice(0, 300).map(r => `<tr>`
     + `<td class="frz" style="font-family:ui-monospace,monospace">${esc(r.asin)}</td>`
@@ -1114,17 +1268,17 @@ function renderWeeklyRange() {
     + `<td class="num">${nf(r.units)}</td>`
     + `<td class="num" style="font-weight:700">${money(r.sales)}</td>`
     + `<td class="num"${r.adSpend == null ? ' title="No ad report has been pulled for this range yet"' : ''}>${money(r.adSpend)}</td>`
-    + `<td class="num" style="color:#6d28d9;font-weight:600">${pct1(r.budgetShare)}</td>`
+    + `<td class="num" style="color:var(--violet-ink);font-weight:600">${pct1(r.budgetShare)}</td>`
     + `<td class="num"><span class="muted">${r.adSales == null ? '—' : '$' + Math.round(r.adSales).toLocaleString('en-US')}</span></td>`
     + `<td class="num" style="font-weight:600"${r.organic == null ? ' title="Needs the ad figures — organic is total sales minus ad sales, and the ad side is not in yet"' : ''}>${money(r.organic)}</td>`
     + `<td class="num">${r.organicShare == null ? '<span class="muted">—</span>' : `<span class="gd ${shareCls(r.organicShare)}">${(r.organicShare * 100).toFixed(1)}%</span>`}</td>`
     + `<td class="num">${pct1(r.acos)}</td>`
-    + `<td class="num" style="color:#166534">${pct1(r.tacos)}</td>`
+    + `<td class="num" style="color:var(--accent-ink)">${pct1(r.tacos)}</td>`
     + (mode === 'week'
       ? `<td class="num">${r.sessions == null ? '<span class="muted">—</span>' : nf(r.sessions)}</td>`
         + `<td class="num">${r.cvr == null ? '<span class="muted">—</span>' : (r.cvr * 100).toFixed(1) + '%'}</td>`
       : '')
-    + `<td class="num"${r.vsPrev != null && r.vsPrev < 0 ? ' style="color:var(--bad);font-weight:700"' : ''}>${
+    + `<td class="num"${r.vsPrev != null && r.vsPrev < 0 ? ' style="color:var(--bad-ink);font-weight:700"' : ''}>${
         r.vsPrev == null ? '<span class="muted">—</span>' : (r.vsPrev > 0 ? '+' : '') + (r.vsPrev * 100).toFixed(1) + '%'}</td>`
     + `</tr>`).join('');
 
@@ -1132,6 +1286,7 @@ function renderWeeklyRange() {
     || `<tr><td colspan="${COLS.length}" class="muted" style="padding:14px">Nothing in this range — hit “Refresh”, or widen the dates.</td></tr>`)
     + '</tbody>';
 
+  // --- pin the TOTAL row ---
   // Pin the TOTAL row directly under the title row. Measured in rAF, not synchronously: reading a
   // height here would force a full layout of the table that was just inserted.
   requestAnimationFrame(() => {
@@ -1146,12 +1301,16 @@ function renderWeeklyRange() {
 // short list somebody actually reads, not every wobble in the data.
 const W_ALERT = { drop: 30, organic: 30, sessions: 30, acos: 60 };
 
+// Draw the alerts table (wAlerts): every week-on-week fall or high ACoS in the weeks shown, worst first, with
+// its likely cause.
 function renderWeeklyAlerts(rows, weeks) {
-  const esc = s => String(s == null ? '' : s).replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
+  const esc = s => String(s == null ? '' : s)
+    .replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
   const money = v => '$' + Math.round(v || 0).toLocaleString('en-US');
   const pctDrop = (now, was) => (was > 0 ? Math.round((now - was) / was * 100) : null);
   const out = [];
 
+  // --- find the falls ---
   rows.forEach(r => {
     for (let i = 1; i < weeks.length; i++) {
       const c = r.weeks[weeks[i]], p = r.weeks[weeks[i - 1]];
@@ -1177,6 +1336,7 @@ function renderWeeklyAlerts(rows, weeks) {
   // Worst first, and only the most recent weeks matter most — sort by severity of the sales fall.
   out.sort((a, b) => (a.dSales - b.dSales) || (b.c.rev || 0) - (a.c.rev || 0));
 
+  // --- build table ---
   const byParent = $('wView').value === 'parent';
   const cols = [byParent ? 'Parent ASIN' : 'ASIN', 'Product', 'Week', 'Sales', 'Prev', 'Δ%',
     'Ad spend', 'Prev', 'Ad sales', 'Organic', 'Organic %', 'Org Δ%', 'Sessions', 'ACoS', 'Likely cause', 'Flags'];
@@ -1194,7 +1354,7 @@ function renderWeeklyAlerts(rows, weeks) {
       + `<td title="${esc(x.r.title)}">${esc(x.r.title.slice(0, 28)) || '<span class="muted">—</span>'}</td>`
       + `<td>${esc(wLabel(x.wk))}</td>`
       + `<td class="num">${money(x.c.rev)}</td><td class="num"><span class="muted">${money(x.p.rev)}</span></td>`
-      + `<td class="num"${d < 0 ? ' style="color:var(--bad);font-weight:700"' : ''}>${d ? (d > 0 ? '+' : '') + d + '%' : '—'}</td>`
+      + `<td class="num"${d < 0 ? ' style="color:var(--bad-ink);font-weight:700"' : ''}>${d ? (d > 0 ? '+' : '') + d + '%' : '—'}</td>`
       + `<td class="num">${x.c.spend == null ? '<span class="muted">—</span>' : money(x.c.spend)}</td>`
       + `<td class="num"><span class="muted">${x.p.spend == null ? '—' : money(x.p.spend)}</span></td>`
       + `<td class="num">${x.c.adSales == null ? '<span class="muted">—</span>' : money(x.c.adSales)}</td>`
@@ -1203,7 +1363,7 @@ function renderWeeklyAlerts(rows, weeks) {
       // the goal; a collapsing one means ads are the only thing still selling it.
       + `<td class="num">${orgPct == null ? '<span class="muted">—</span>'
           : `<span class="gd ${orgPct >= 50 ? 'gd-good' : orgPct >= 25 ? 'gd-warn' : 'gd-bad'}">${orgPct}%</span>`}</td>`
-      + `<td class="num"${dOrg != null && dOrg < 0 ? ' style="color:var(--bad)"' : ''}>${dOrg == null ? '<span class="muted">—</span>' : (dOrg > 0 ? '+' : '') + dOrg + '%'}</td>`
+      + `<td class="num"${dOrg != null && dOrg < 0 ? ' style="color:var(--bad-ink)"' : ''}>${dOrg == null ? '<span class="muted">—</span>' : (dOrg > 0 ? '+' : '') + dOrg + '%'}</td>`
       + `<td class="num">${x.c.sessions == null ? '<span class="muted">—</span>' : Math.round(x.c.sessions).toLocaleString('en-US')}</td>`
       + `<td class="num">${x.acos == null ? '<span class="muted">—</span>' : x.acos + '%'}</td>`
       + `<td title="${esc(cause.why)}"><span class="st ${cause.cls}">${esc(cause.t)}</span></td>`
@@ -1227,6 +1387,7 @@ function renderWeeklyAlerts(rows, weeks) {
  * Where the data needed to tell those apart is missing, it says so instead of picking one — a
  * confident wrong diagnosis costs more than an honest "not enough data".
  */
+// { t: the short cause, cls: its badge class, why: the sentence } for one alert row.
 function wCause(x) {
   const c = x.c, p = x.p;
   const rel = (now, was) => (was > 0 ? (now - was) / was * 100 : null);
@@ -1253,7 +1414,8 @@ function wCause(x) {
   }
   if (dSess == null) {
     return { t: 'Need sessions', cls: 'st-draft',
-      why: 'Spend held, so this is either lost traffic or lost conversion — and those need opposite fixes. Sessions for this week have not been pulled, so the app will not guess. Refresh with sessions included.' };
+      why: 'Spend held, so this is either lost traffic or lost conversion — and those need opposite fixes. '
+        + 'Sessions for this week have not been pulled, so the app will not guess. Refresh with sessions included.' };
   }
   if (dSess <= -W_ALERT.sessions) {
     return { t: 'Traffic-driven', cls: 'st-rejected',
@@ -1264,15 +1426,20 @@ function wCause(x) {
       why: `Traffic held but conversion fell ${Math.abs(Math.round(dCvr))}%. The same people came and stopped buying — price, main image, reviews, a return badge, or a stock/delivery message.` };
   }
   return { t: 'Unexplained', cls: 'st-draft',
-    why: 'Spend, sessions and conversion all held, yet sales fell. Worth opening the listing itself — this is the pattern of a price change, a buy-box loss or a seasonal drop.' };
+    why: 'Spend, sessions and conversion all held, yet sales fell. Worth opening the listing itself — '
+      + 'this is the pattern of a price change, a buy-box loss or a seasonal drop.' };
 }
 
 /* ---------- change log ---------- */
+// The index in W_LOG of the entry open in the box; null for a new one.
 let W_LOG_EDIT = null;
 
+// Draw the change log (wLog), newest first, with the before / after week worked out from the stored figures.
 function renderWeeklyLog() {
-  const esc = s => String(s == null ? '' : s).replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
+  const esc = s => String(s == null ? '' : s)
+    .replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
   const money = v => (v == null ? '<span class="muted">—</span>' : '$' + Math.round(v).toLocaleString('en-US'));
+  // --- build table ---
   const cols = ['Date', 'ASIN', 'Product', 'Type', 'What changed', 'Why', 'Sales before', 'Sales after', 'Δ%',
     'Sessions before', 'Sessions after', 'CVR before', 'CVR after', 'Result / notes'];
   const head = '<thead><tr>' + cols.map((h, i) => `<th${i === 0 ? ' class="frz"' : ''}>${h}</th>`).join('') + '</tr></thead>';
@@ -1296,7 +1463,7 @@ function renderWeeklyLog() {
       + `<td title="${esc(e.what || '')}">${esc(String(e.what || '').slice(0, 48))}</td>`
       + `<td title="${esc(e.why || '')}">${esc(String(e.why || '').slice(0, 32))}</td>`
       + `<td class="num">${money(prev?.rev)}</td><td class="num">${money(cur?.rev)}</td>`
-      + `<td class="num"${d != null && d < 0 ? ' style="color:var(--bad);font-weight:700"' : ''}>${d == null ? '—' : (d > 0 ? '+' : '') + d + '%'}</td>`
+      + `<td class="num"${d != null && d < 0 ? ' style="color:var(--bad-ink);font-weight:700"' : ''}>${d == null ? '—' : (d > 0 ? '+' : '') + d + '%'}</td>`
       + `<td class="num">${prev?.sessions == null ? '<span class="muted">—</span>' : Math.round(prev.sessions).toLocaleString('en-US')}</td>`
       + `<td class="num">${cur?.sessions == null ? '<span class="muted">—</span>' : Math.round(cur.sessions).toLocaleString('en-US')}</td>`
       + `<td class="num">${cvr(prev) == null ? '<span class="muted">—</span>' : cvr(prev).toFixed(1) + '%'}</td>`
@@ -1309,8 +1476,11 @@ function renderWeeklyLog() {
     + '</tbody>';
 }
 
+// Open the change-log box for the entry at row ix of the sorted table, or (null) for a new entry dated today.
 function openWeeklyLog(ix) {
-  const e = ix == null ? { date: new Date().toISOString().slice(0, 10) } : ([...W_LOG].sort((a, b) => String(b.date || '').localeCompare(String(a.date || ''))))[ix];
+  const e = ix == null
+    ? { date: new Date().toISOString().slice(0, 10) }
+    : ([...W_LOG].sort((a, b) => String(b.date || '').localeCompare(String(a.date || ''))))[ix];
   W_LOG_EDIT = ix == null ? null : W_LOG.indexOf(e);
   $('wlDate').value = e.date || '';
   $('wlAsin').value = e.asin || '';
@@ -1325,6 +1495,7 @@ function openWeeklyLog(ix) {
 }
 
 /* ---------- wiring ---------- */
+// Brand, Parent / Child, metric and weeks redraw at once.
 ['wBrand', 'wView', 'wMetric', 'wWeeks'].forEach(id => $(id).addEventListener('change', renderWeekly));
 
 // The dates are taken exactly as picked. They used to be snapped onto whole weeks because that was
@@ -1338,6 +1509,7 @@ function openWeeklyLog(ix) {
 // Week columns vs one row per parent over a span — the same numbers, two questions. "How is this
 // trending" and "what did this period cost me" are rarely asked at the same moment, so only one is
 // on screen at a time.
+// Switch between the weekly grid and the range report (range = true), showing the range-only controls.
 function wSetMode(range) {
   $('wModeGrid').classList.toggle('on', !range);
   $('wModeRange').classList.toggle('on', range);
@@ -1348,21 +1520,32 @@ function wSetMode(range) {
 }
 $('wModeGrid').onclick = () => wSetMode(false);
 $('wModeRange').onclick = () => wSetMode(true);
+// A click on a range-report header sorts by it; a second click flips the direction.
 $('wRangeTable').addEventListener('click', e => {
-  const th = e.target.closest('[data-wsort]'); if (!th) return;
+  const th = e.target.closest('[data-wsort]');
+  if (!th) return;
   const k = th.dataset.wsort;
   W_RANGE_SORT = { k, dir: W_RANGE_SORT.k === k ? -W_RANGE_SORT.dir : (k === 'asin' || k === 'title' ? 1 : -1) };
   renderWeeklyRange();
 });
+// Typing in the filter redraws after a short pause; Refresh; the change log's Add and row clicks.
 let W_FILTER_T = null;
-$('wFilter').addEventListener('input', () => { clearTimeout(W_FILTER_T); W_FILTER_T = setTimeout(renderWeekly, 250); });
+$('wFilter').addEventListener('input', () => {
+  clearTimeout(W_FILTER_T);
+  W_FILTER_T = setTimeout(renderWeekly, 250);
+});
 $('wRefresh').onclick = weeklyRefresh;
 $('wLogAdd').onclick = () => openWeeklyLog(null);
 $('wLog').addEventListener('click', e => {
-  const tr = e.target.closest('[data-wlog]'); if (!tr) return;
+  const tr = e.target.closest('[data-wlog]');
+  if (!tr) return;
   openWeeklyLog(Number(tr.dataset.wlog));
 });
-$('wlCancel').onclick = () => { $('wLogModal').classList.add('hide'); W_LOG_EDIT = null; };
+// The change-log box: Cancel, Save (new or edited entry) and Delete.
+$('wlCancel').onclick = () => {
+  $('wLogModal').classList.add('hide');
+  W_LOG_EDIT = null;
+};
 $('wlSave').onclick = async () => {
   const entry = {
     date: $('wlDate').value.trim(),
@@ -1373,33 +1556,52 @@ $('wlSave').onclick = async () => {
     note: $('wlNote').value.trim(),
     by: ME.email,
   };
-  if (!entry.date || !entry.asin) { $('wlMsg').textContent = 'A date and an ASIN are needed.'; return; }
-  if (W_LOG_EDIT == null) W_LOG.push(entry); else W_LOG[W_LOG_EDIT] = entry;
-  $('wLogModal').classList.add('hide'); W_LOG_EDIT = null;
+  if (!entry.date || !entry.asin) {
+    $('wlMsg').textContent = 'A date and an ASIN are needed.';
+    return;
+  }
+  if (W_LOG_EDIT == null) W_LOG.push(entry);
+  else W_LOG[W_LOG_EDIT] = entry;
+  $('wLogModal').classList.add('hide');
+  W_LOG_EDIT = null;
   renderWeeklyLog();
-  try { await saveWeeklyLog(); wMsg('Change log saved.'); }
-  catch (e) { wMsg('Could not save the change log: ' + (e.message || e), true); }
+  try {
+    await saveWeeklyLog();
+    wMsg('Change log saved.');
+  } catch (e) { wMsg('Could not save the change log: ' + (e.message || e), true); }
 };
 $('wlDelete').onclick = async () => {
   if (W_LOG_EDIT == null) return;
   if (!confirm('Delete this change-log entry?')) return;
   W_LOG.splice(W_LOG_EDIT, 1);
-  $('wLogModal').classList.add('hide'); W_LOG_EDIT = null;
+  $('wLogModal').classList.add('hide');
+  W_LOG_EDIT = null;
   renderWeeklyLog();
-  try { await saveWeeklyLog(); } catch (e) { wMsg('Could not save: ' + (e.message || e), true); }
+  try {
+    await saveWeeklyLog();
+  } catch (e) { wMsg('Could not save: ' + (e.message || e), true); }
 };
+// Export: the weekly grid for the chosen metric and weeks as a CSV, one row per ASIN or parent.
 $('wExport').onclick = () => {
   const weeks = (WEEKLY.weeks.length ? WEEKLY.weeks : wWeeksList(26)).slice(-(Number($('wWeeks').value) || 13));
   const M = W_METRIC[$('wMetric').value] || W_METRIC.sales;
-  const cell = v => { const s = String(v == null ? '' : v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+  const cell = v => {
+    const s = String(v == null ? '' : v);
+    return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  };
   const lines = [['ASIN', 'Product', 'Brand', ...weeks.map(wLabel)].map(cell).join(',')];
   wRows().forEach(r => lines.push([r.asin, r.title, BRAND_NAME[r.brand] || '',
-    ...weeks.map(w => { const v = M.get(r.weeks[w] || {}); return v == null ? '' : (M.pct ? v.toFixed(1) : Math.round(v)); })]
+    ...weeks.map(w => {
+      const v = M.get(r.weeks[w] || {});
+      return v == null ? '' : (M.pct ? v.toFixed(1) : Math.round(v));
+    })]
     .map(cell).join(',')));
   const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
-  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
   a.download = `ppc-organic-${$('wMetric').value}-${new Date().toISOString().slice(0, 10)}.csv`;
-  a.click(); URL.revokeObjectURL(a.href);
+  a.click();
+  URL.revokeObjectURL(a.href);
 };
 
 

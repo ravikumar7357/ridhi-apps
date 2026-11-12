@@ -18,9 +18,9 @@
 let QC = { checks: null, issue: null, ret: null, err: '', busy: false, at: '' };
 
 async function ensureQc() {
-  if (QC.checks === null || !PTG.mdb) {
+  if (QC.checks === null || ptLack(PTG_ALL, 'mdb')) {
     QC.busy = true; renderQc();
-    if (!PTG.mdb) await ptLoadGates();
+    await ptNeed(PTG_ALL, { why: 'quality-control', has: 'mdb' });
     if (!PTE.emp) await ptLoadEmp();
     try {
       const [c, i, t] = await Promise.all([ptGet('pt_qcChecks'), ptGet('pt_qcIssuance'), ptGet('pt_qcReturns')]);
@@ -478,6 +478,8 @@ $('qcwSave').onclick = async () => {
 
   /* AN ORDER, WHEREVER THERE IS ONE TO NAME. Every other register is keyed by order, and the Order
    * Console shows this figure as an order's own QC — a check with no order is invisible there. */
+  /* Page registers: a QC check is never saved against a half-read order book (switch on only; never reached with it off). */
+  if (prOn() && !ptHas(PTG_ALL)) return qcCheckMsg(ptStillReading(), true);
   const onOrders = qcOrdersFor(sku), ordTyped = obUC(($('qcwOrd') || {}).value);
   const waitOn = onOrders.filter(o => qcOrderAvail(o.orderNo, sku) > 0);
   /* A free inspection of pieces no order has received (the "any" source) may go on no order — it is shared out by SKU on the
@@ -1009,6 +1011,11 @@ $('qcExport').onclick = () => {
       .concat(I.map(x2 => [new Date(x2.last).toLocaleString('en-GB'), x2.r.empName, x2.r.sku, [x2.r.articleSubtype, x2.r.color, x2.r.size].filter(Boolean).join(' · '), x2.r.orderNo, x2.since, x2.accepted, x2.wait].map(csvCell).join(','))));
   }
   const rows = QC.rows || []; if (!rows.length) return;
+  /* Pieces back from alteration have their own columns: what came back, what was mended, what is still wrong. */
+  if (v === 'ret') {
+    return ptDownload('qc-back-from-alteration', [['Date', 'SKU', 'Article', 'Subtype', 'Color', 'Size', 'Back', 'Mended', 'Still wrong', 'From', 'Received by', 'Remarks'].map(csvCell).join(',')]
+      .concat(rows.map(r => [r.date, r.sku, r.articleType, r.subtype, r.color, r.size, ptNum(r.received), ptNum(r.reworkedOk), ptNum(r.stillRejected), r.employee, r.receivedBy, r.remarks].map(csvCell).join(','))));
+  }
   const checks = qcView() === 'checks';
   const head = checks
     ? ['Date', 'SKU', 'Article', 'Subtype', 'Color', 'Size', 'Checked', 'OK', 'For alteration', 'Rejected', 'Checked by', 'Remarks']

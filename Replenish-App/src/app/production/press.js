@@ -10,7 +10,7 @@
 let PP = { err: '', busy: false, at: '', freeze: null };
 
 async function ensurePpress() {
-  if (!PTG.mdb) { PP.busy = true; renderPpress(); await ptLoadGates(); PP.busy = false; }
+  if (ptLack(PTG_ALL, 'mdb')) { PP.busy = true; renderPpress(); await ptNeed(PTG_ALL, { why: 'ppress', has: 'mdb' }); PP.busy = false; }
   if (PP.freeze === null) { try { PP.freeze = (await ptGet('pt_pressFreezes')) || {}; } catch (e) { PP.freeze = {}; } }
   PP.at = ptStamp();
   renderPpress();
@@ -198,7 +198,7 @@ $('pwToggle').onclick = async () => {
   box.classList.toggle('hide', !open);
   $('pwToggle').textContent = open ? 'Close' : '+ New press entry';
   if (open) {
-    if (!PTG.mdb) { pressFormMsg('Reading the master database and the order book…'); await ptLoadGates(); }
+    await ptNeed(PTG_ALL, { why: 'ppress', has: 'mdb', note: () => pressFormMsg('Reading the master database and the order book…') });
     await ptEnsureCustom();
     if (!$('pwDate').value) $('pwDate').value = dToday();
     pressFormMsg('');

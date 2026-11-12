@@ -73,6 +73,8 @@ function flowDirOpts(r, p) {
   if (m.cuttingRequired === false) return { dirs: [], cur: '' };
   const dirs = flowFabDirs(fab, String(m.color || r.color || '').trim(), ordColCodeOf(r.sku));
   const cur = (p.print && p.print.dir) || flowDirDefault(m, fab) || (dirs.length === 1 ? dirs[0] : '');
+  /* only a piping / ruffle tablecloth is asked (flowDirAsked): any other line takes its way by itself and the form shows no box */
+  if (!flowDirAsked(r)) return { dirs: [], cur: cur || flowDirAuto(dirs) };
   return { dirs, cur };
 }
 
@@ -355,7 +357,8 @@ function flowMasterPatch(rows, plans, pick, need) {
 function flowPpcOpen(orderNo, onlySku, keys) {
   /* SAME SKU, SAME DAY, ONE PLAN (Ravi, 15 Oct: "1 SKU ka same day order aay to wo sare order combine hokar dikhe PPC team
    * ko"): `keys` names lines of several orders, planned in one go — each keeps its own plan, its own print order. */
-  const rows = flowRows().filter(x => keys && keys.length ? keys.includes(x.s.key) && x.s.bucket === 'ppc'
+  /* The SHP board's own lines (bucket 'board', never in PPC) come in too when the board names them — its bulk Plan (2 Nov). */
+  const rows = flowRows().filter(x => keys && keys.length ? keys.includes(x.s.key) && (x.s.bucket === 'ppc' || x.s.bucket === 'board')
     : x.r.orderNo === orderNo && (onlySku ? obUC(x.r.sku) === obUC(onlySku) : x.s.bucket === 'ppc'));
   if (!rows.length) return;
   if (keys && keys.length) orderNo = [...new Set(rows.map(x => x.r.orderNo))].join(', ');
@@ -617,7 +620,8 @@ function flowPpcOpen(orderNo, onlySku, keys) {
       const r = rows[i].r, colour = String(((cutSkuOf(r.sku) || {}).color) || r.color || '').trim();
       const cur = Object.assign({}, p, { route, fabric: Object.assign({}, p.fabric, { name: fname, metres }),
         print: Object.assign({}, p.print, { dir: val(i, 'print.dir') ?? flowDirOpts(r, p).cur }) });
-      const w = flowPrinted(route) && !noRfd ? flowPrintWhat(r, cur) : null, xw = flowPrinted(route) && !noRfd ? flowPrintExtras(r, cur) : [];
+      const remX = rows[i].s ? flowPoRemOf(rows[i].r, rows[i].s) : 1;   // pieces already made need no ruffle cloth (4 Nov)
+      const w = flowPrinted(route) && !noRfd ? flowPrintWhat(r, cur) : null, xw = flowPrinted(route) && !noRfd ? flowPrintExtras(r, cur, remX) : [];
       const pg = document.querySelector(`[data-pget="${i}"]`);
       const embTo = route === 'emb' ? flowEmbWho(val(i, 'emb.code') ?? (p.emb && p.emb.code)).name : '';
       const embDeptOn = route === 'emb' && flowEmbWho(val(i, 'emb.code') ?? (p.emb && p.emb.code)).code === FLOW_EMB_DEPT.code;
@@ -662,7 +666,8 @@ function flowPpcOpen(orderNo, onlySku, keys) {
         if (noRfd && x.unit === 'm') { h.push(`<tr><td colspan="4" class="muted" style="text-align:left">${esc(x.what)} · ${nf(+x.qty || 0)} m — in hand with the printed cloth, no RFD</td></tr>`); return; }
         if (x.unit !== 'm') { h.push(flowMatRow(esc(x.what), +x.qty || 0, 0, 0, ' ' + esc(x.unit || ''), false)); return; }
         const name = String(x.what).replace(/^Ruffle — /, ''), k = flowFabKey(name), ruf = /^Ruffle — /.test(x.what);
-        let need = +x.qty || 0;
+        /* a ruffle: only for the pieces still to make (4 Nov) — the cut pieces had theirs */
+        let need = ruf ? flowR2((+x.qty || 0) * rem) : (+x.qty || 0);
         if (ruf && w) {
           /* the ruffle cloth: printed stock first too (Ravi, 10 Oct: printed LSB in the store is used — a printed ruffle
            * needs no printer). The store does not yet take ruffle cloth out at the Job Work issue, so its figure can read
@@ -674,7 +679,7 @@ function flowPpcOpen(orderNo, onlySku, keys) {
           run.printed[pk] = flowR2((run.printed[pk] || 0) + use); cover[i].extra[j] = use; need = flowR2(need - use);
         }
         const before = (com.extra[k] || 0) + (run.extra[k] || 0); if (ruf) names['x|' + k] = name;
-        h.push(flowMatRow(ruf ? `RFD · <b>${esc(name)}</b> <span class="muted">(ruffle${need < (+x.qty || 0) ? ', the rest' : ''})</span>` : `<b>${esc(x.what)}</b>`, need, ruf ? flowRfdStock(name) : 0, before, ' m', ruf && flowFabKnown(name)));
+        h.push(flowMatRow(ruf ? `RFD · <b>${esc(name)}</b> <span class="muted">(ruffle${doneP > 0 ? ` — ${nf(doneP)} pcs already cut or issued, for the other ${nf(qtyP - doneP)}` : need < (+x.qty || 0) ? ', the rest' : ''})</span>` : `<b>${esc(x.what)}</b>`, need, ruf ? flowRfdStock(name) : 0, before, ' m', ruf && flowFabKnown(name)));
         run.extra[k] = flowR2((run.extra[k] || 0) + need); });
       /* ZIPPERS GO OUT WITH THE ISSUE (27 Oct): pieces Job Work has already issued on the line took theirs off the shelf, so the
        * plan holds only the share not yet issued — the same share a reservation holds (flowHeld). */
@@ -688,9 +693,9 @@ function flowPpcOpen(orderNo, onlySku, keys) {
           extra: (p.extra || []).map((x, j) => Object.assign({}, x, { fromPrinted: cover[i].extra[j] || 0 })) });
         const pcV = val(i, 'printer.code') ?? (p.printer && p.printer.code) ?? '', rcV = val(i, 'rufflePrinter.code') ?? (p.rufflePrinter && p.rufflePrinter.code) ?? '';
         Object.assign(curC, { printer: pcV ? { code: pcV } : null, rufflePrinter: rcV ? { code: rcV } : null });
-        flowPoParts(r, curC).forEach(x => combo.push(Object.assign({}, x.item, { printer: (x.printer && x.printer.code) || '' }))); } catch (e) { /* the line's own box still shows it */ } }
+        flowPoParts(r, curC, remX).forEach(x => combo.push(Object.assign({}, x.item, { printer: (x.printer && x.printer.code) || '' }))); } catch (e) { /* the line's own box still shows it */ } }
       const allPrinted = w && (cover[i].unit === 'pcs' ? cover[i].fab >= (+p.qty || 0) : cover[i].fab >= metres - 0.01)
-        && (p.extra || []).every((x, j) => !/^Ruffle — /.test(String(x.what || '')) || (cover[i].extra[j] || 0) >= (+x.qty || 0) - 0.01);
+        && (p.extra || []).every((x, j) => !/^Ruffle — /.test(String(x.what || '')) || (cover[i].extra[j] || 0) >= (+x.qty || 0) * rem - 0.01);
       if (pg && allPrinted) pg.innerHTML = `<div style="color:#166534;font-weight:600">✓ All already printed, in the store — nothing goes to the printer. The line goes straight to Cutting.</div>`
         + `<div style="font-size:11.5px">${flowPrintTxt(w)}${Object.values(cover[i].extra).some(v => v > 0) ? ' · ruffle ' + nf(Object.values(cover[i].extra).reduce((a, v) => a + v, 0)) + ' m' : ''}</div>`;
       else if (pg && w && (cover[i].fab > 0 || Object.values(cover[i].extra).some(v => v > 0))) {
@@ -782,7 +787,8 @@ function flowPpcXlRead(sheet) {
   const H = sheet[0].map(h => String(h == null ? '' : h).replace(/^\uFEFF/, '').trim().toLowerCase());
   const at = n => H.indexOf(String(n).toLowerCase()), iK = at('Line ID'), iR = H.findIndex(h => /^raise/.test(h));
   if (iK < 0 || iR < 0) return { err: 'The file needs the "Line ID" and "Raise (yes/no)" columns — download the PPC list as Excel and fill that one.' };
-  const byKey = new Map(flowRows().filter(x => x.s.bucket === 'ppc').map(x => [x.s.key, x]));
+  /* the SHP board's own lines (bucket 'board') are planned from its sheet the same way (2 Nov) */
+  const byKey = new Map(flowRows().filter(x => x.s.bucket === 'ppc' || x.s.bucket === 'board').map(x => [x.s.key, x]));
   let vens = []; try { vens = flowChVendors(); } catch (e) { vens = []; }
   const venOf = s => { const t = String(s || '').trim().toLowerCase(); if (!t) return '';
     const v = vens.find(y => String(y.code).toLowerCase() === t) || vens.find(y => String(y.desc || y.name || '').trim().toLowerCase() === t); return v ? String(v.code) : null; };
@@ -820,7 +826,7 @@ function flowPpcXlRead(sheet) {
 /* The imported lines still in PPC, opened in the form a batch at a time. */
 let FLOW_XL_IMP = [];
 const FLOW_XL_BATCH = 40;
-const flowXlLeft = () => { const inPpc = new Set(flowRows().filter(x => x.s.bucket === 'ppc').map(x => x.s.key)); return FLOW_XL_IMP.filter(k => inPpc.has(k)); };
+const flowXlLeft = () => { const inPpc = new Set(flowRows().filter(x => x.s.bucket === 'ppc' || x.s.bucket === 'board').map(x => x.s.key)); return FLOW_XL_IMP.filter(k => inPpc.has(k)); };
 function flowXlOpenNext() {
   const left = flowXlLeft(); if (!left.length) { FLOW_XL_IMP = []; return; }
   const batch = left.slice(0, FLOW_XL_BATCH);
@@ -828,7 +834,7 @@ function flowXlOpenNext() {
   /* the imported lines are ticked "Raise now" — that is what the sheet said */
   document.querySelectorAll('[data-fpick]').forEach(el => { el.checked = true; try { el.dispatchEvent(new Event('change')); } catch (e) { /* no events here */ } });
 }
-function flowPpcXlOut(rows) {
+function flowPpcXlOut(rows, fileName) {
   const col = n => FLOW_XL_COLS.indexOf(n);
   let prn = []; try { prn = [...new Set(flowChVendors().map(v => v.desc || v.name || v.code).filter(Boolean))]; } catch (e) { prn = []; }
   let emb = []; try { emb = flowEmbVendors().map(v => v.dept ? v.name : (v.desc || v.name || v.code)); } catch (e) { emb = []; }
@@ -839,15 +845,16 @@ function flowPpcXlOut(rows) {
     { name: 'Embroiderers', values: emb, cols: [col('Embroidery by')] }] });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
-  a.download = 'ppc-plan-' + dToday() + '.xlsx';
+  a.download = (fileName || 'ppc-plan') + '-' + dToday() + '.xlsx';
   a.click(); URL.revokeObjectURL(a.href);
 }
-async function flowPpcXlIn(file) {
+async function flowPpcXlIn(file, msgId) {
   if (!file) return;
+  const msg = (typeof $ === 'function' && $(msgId || 'flMsg')) || $('flMsg');
   let sheet; try { sheet = /\.xlsx$/i.test(file.name) ? await pkReadXlsx(new Uint8Array(await file.arrayBuffer())) : parseCsv(await file.text()); }
-  catch (e) { $('flMsg').className = 'err'; $('flMsg').textContent = 'Could not read the file: ' + (e.message || e); return; }
+  catch (e) { msg.className = 'err'; msg.textContent = 'Could not read the file: ' + (e.message || e); return; }
   const rd = flowPpcXlRead(sheet);
-  if (rd.err) { $('flMsg').className = 'err'; $('flMsg').textContent = rd.err; return; }
+  if (rd.err) { msg.className = 'err'; msg.textContent = rd.err; return; }
   const list = (a, n) => a.length ? `<div style="margin-top:6px"><b>${nf(a.length)}</b> ${n}:<div class="muted" style="font-size:12px">${a.slice(0, 12).map(esc).join('<br>')}${a.length > 12 ? '<br>…' : ''}</div></div>` : '';
   const pos = new Set(rd.keys.map(k => k.split('__')[0]));
   ptOpenDialog({

@@ -656,15 +656,15 @@ function prTemplate() {
   /* One example of each shape the list holds: printing by the metre, plain piecework, and filling —
    * which is the one that needs the filler and the weight to tell two rates apart. */
   ptDownload('vendor-rate-template', [PR_COLS.join(','),
-    'RBP-Bagru,Block print,Voil 92,Vertical,,,,,,14',   // a fabric means metres
-    'Choudhary Hand Block,Block print,,,Tablecloth,Square Tablecloth,60X60,,,22',
-    'Alisha Garmnets,Filling,,,Quilt,Twin Quilt,60x90,Surgical Cotton,1,550',
-    'Alisha Garmnets,Filling,,,Quilt,Twin Quilt,60x90,Cotton,1,450',
-    'Yakum Ansari,Filling,,,Seat Pad,Seat Pad,16x16,Recron,0.65,80',
+    'RBP-Bagru,Block print,Voil 92,Vertical,,,,,,,14',   // a fabric means metres
+    'Choudhary Hand Block,Block print,,,Tablecloth,Square Tablecloth,60X60,,,,22',
+    'Alisha Garmnets,Filling,,,Quilt,Twin Quilt,60x90,,Surgical Cotton,1,550',
+    'Alisha Garmnets,Filling,,,Quilt,Twin Quilt,60x90,,Cotton,1,450',
+    'Yakum Ansari,Filling,,,Seat Pad,Seat Pad,16x16,,Recron,0.65,80',
     /* A fabricator is TWO rates, not one — cutting and stitching are separate jobs at separate
      * prices, so the template shows them as separate rows rather than one "Fabricator". */
-    'Jatin Singh,Cutting,,,Napkin,Border Napkin,20x20,,,3',
-    'Jatin Singh,Stitching,,,Napkin,Border Napkin,20x20,,,6']);
+    'Jatin Singh,Cutting,,,Napkin,Border Napkin,20x20,,,,3',
+    'Jatin Singh,Stitching,,,Napkin,Border Napkin,20x20,,,,6']);
 }
 
 /** Rows out of a file, in the shape prCheck and prRec already understand. */
@@ -1279,7 +1279,7 @@ $('hrExport').onclick = () => {
     const out = [PR_COLS.join(',')];
     (HR.rows || []).forEach(({ r }) => out.push([voName(r.vendor), r.service || 'Block print',
       r.fabric || '', r.print || '', r.articleType || '', r.subtype || '', r.size || '',
-      r.filler || '', r.weight || '', r.rate, r.notes || ''].map(csvCell).join(',')));
+      r.colours || '', r.filler || '', r.weight || '', r.rate, r.notes || ''].map(csvCell).join(',')));
     return ptDownload('vendor-rate-list', out);
   } else if (view === 'rate') {
     head = ['Article type', 'Subtype', 'Size', 'Applicable for', 'Rate', 'Commission'];

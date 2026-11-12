@@ -27,15 +27,1313 @@ Each entry: when, why, and what it changed. Made by `node meera/tests/gate.cjs -
 
 - no score or answer changed (only the record refreshed)
 
-## 2026-11-02 06:54 — R-one test link only: R-one's own answers (name, My work today, Job Work corrections, PPC) are in its bank, so 23 of the 580 recorded answers differ from live
+## 2026-11-02 09:49 — 2 Nov: four close answer pairs reworded (Cutting not-issued vs used/unused, Job Work filters vs SKU-not-in-master, Sales Orders approve vs locked, Order Console quantity approve) — 2 questions now answered right outright, 1 'did you mean' list changed; no score worse
+
+- answer `eval|shop|apna sales order edit nhi ho rha approve hone ke baad`
+  - before: - · Aapka sawaal ek se zyada jawaabon se milta hai. Aap kaunsa poochh rahe hain? sales order e
+  - after: or-so-locked · Apna order tabhi badal sakte hain jab woh Draft ya Returned ho. Place ya approve hone ke b
+- answer `eval|shop|kitna cut pada hai jo abhi karigar ko nhi gaya`
+  - before: - · Aapka sawaal ek se zyada jawaabon se milta hai. Aap kaunsa poochh rahe hain? used partly u
+  - after: pr-cut-not-issued · Pehle box mein Cut, not yet issued chuniye. Har order line par kate, issue hue aur baaki p
+- answer `eval2|shop|embroidery line got cut but never went to any karigar, where are those pieces now`
+  - before: - · I'm not fully sure what you mean. Is it one of these? embroidery cutting goes where how to
+  - after: - · I'm not fully sure what you mean. Is it one of these? embroidery cutting goes where cut no
+
+## 2026-11-04 10:27 — Choices with the same words carry their screen and open that answer (Ravi, 4 Nov: "CPC-002" looped on four "CPC" buttons)
+
+- answer `eval|shop|order console kis kaam aata hai`
+  - before: - · Aapka sawaal ek se zyada jawaabon se milta hai. Aap kaunsa poochh rahe hain? Order Console
+  - after: - · Aapka sawaal ek se zyada jawaabon se milta hai. Aap kaunsa poochh rahe hain? Order Console
+- answer `eval|shop|स्टेटस में 25 to make का मतलब क्या है`
+  - before: - · आपका सवाल एक से ज़्यादा जवाबों से मिलता है। आप कौन-सा पूछ रहे हैं? Pending, In Progress, C
+  - after: - · आपका सवाल एक से ज़्यादा जवाबों से मिलता है। आप कौन-सा पूछ रहे हैं? Pending, In Progress, C
+- answer `eval2|shop|sab log sku sku bolte rehte h, iska matlab kya hua`
+  - before: - · Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? SKU kya hai sku kya h
+  - after: - · Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? SKU kya hai · Shopify
+- answer `eval2|shop|karigar matlab darzi hi na? ya koi aur`
+  - before: - · Your question fits more than one answer. Which one do you mean? how to filter Karigar Kari
+  - after: - · Your question fits more than one answer. Which one do you mean? how to filter Karigar · Ma
+- answer `eval2|shop|what's the difference between article type and subtype`
+  - before: - · Your question fits more than one answer. Which one do you mean? -- Article type -- what is
+  - after: - · Your question fits more than one answer. Which one do you mean? -- Article type -- · Quali
+- answer `eval2|shop|master database aur masters dono alag h kya`
+  - before: - · Aapka sawaal ek se zyada jawaabon se milta hai. Aap kaunsa poochh rahe hain? master databa
+  - after: - · Aapka sawaal ek se zyada jawaabon se milta hai. Aap kaunsa poochh rahe hain? master databa
+- answer `eval2|shop|mark sent dabaya to bol raha pehle row select karo`
+  - before: - · Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? Mark sent kya hai Mar
+  - after: - · Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? Mark sent kya hai · A
+- answer `eval2|shop|is there a way to see more info about a number without clicking on it`
+  - before: - · I'm not fully sure what you mean. Is it one of these? Click to see only these Click to see
+  - after: - · I'm not fully sure what you mean. Is it one of these? Click to see only these · In Product
+- answer `eval2|shop|it won't let me type 10.5 pieces`
+  - before: - · Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? box me akshar nahi ja
+  - after: - · Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? box me akshar nahi ja
+- answer `parts|mst|Cut किसलिए है`
+  - before: - · आपका सवाल एक से ज़्यादा जवाबों से मिलता है। आप कौन-सा पूछ रहे हैं? Cut क्या है Cut क्या है
+  - after: - · आपका सवाल एक से ज़्यादा जवाबों से मिलता है। आप कौन-सा पूछ रहे हैं? Cut क्या है · Masters (
+- answer `parts|gdesk|what does Date show`
+  - before: - · Your question fits more than one answer. Which one do you mean? Date * Date Date
+  - after: - · Your question fits more than one answer. Which one do you mean? Date * Date · Greige Desk 
+- answer `parts|pack|what does Invoice # show`
+  - before: - · Your question fits more than one answer. Which one do you mean? Invoice # Invoice # Invoic
+  - after: - · Your question fits more than one answer. Which one do you mean? Invoice # · Packing List (
+- answer `parts|flow|what does Printer show`
+  - before: - · Your question fits more than one answer. Which one do you mean? Printer Printer + Printer
+  - after: - · Your question fits more than one answer. Which one do you mean? Printer · Production flow 
+- answer `parts|flow|what does Date show`
+  - before: - · Your question fits more than one answer. Which one do you mean? Date Date Date
+  - after: - · Your question fits more than one answer. Which one do you mean? Date · Production flow (bo
+- answer `parts|adj|what does Low show`
+  - before: - · Your question fits more than one answer. Which one do you mean? Low Low when does status s
+  - after: - · Your question fits more than one answer. Which one do you mean? Low · Adjustments Low · Fi
+
+## 2026-11-04 11:24 — check means looking, not QC; Shopify Orders answers for this bucket, No stock, checking an order (Ravi, 4 Nov)
+
+- answer `eval|shop|चेक हो गए पीस ठीक हैं, क्यूसी में ओके कैसे करूं`
+  - before: - · मैं पक्का नहीं समझ पाई। क्या आप इनमें से कुछ पूछ रहे हैं? Checks फ़ॉर्म में available कैसे
+  - after: - · आपका सवाल एक से ज़्यादा जवाबों से मिलता है। आप कौन-सा पूछ रहे हैं? QC क्या है QC कितने पीस
+- answer `eval|shop|प्रिंटर ने जो भेजा वो पोर्टल में कहाँ दिखेगा`
+  - before: or-shop-bucket · फ़िल्टर के पास Bucket आइकन दबाएँ, Needs production में लाइनें टिक करें और Open ticked prod
+  - after: or-shop-bucket · Bucket में वे Shopify लाइनें रहती हैं जिन्हें बनाना है — वे उसके Needs production टैब पर ह
+- answer `eval2|shop|वेटिंग फॉर क्यूसी में 30 है पर चेक्स फॉर्म 120 बचे बता रहा, कौन सही है`
+  - before: - · मैं पक्का नहीं समझ पाई। क्या आप इनमें से कुछ पूछ रहे हैं? QC में पीस पास कैसे करें QC में 
+  - after: - · मैं पक्का नहीं समझ पाई। क्या आप इनमें से कुछ पूछ रहे हैं? QC चेक एडिट क्यों नहीं हो रहा QC
+
+## 2026-11-05 09:31 — Fuller answers (what it is for, how it works, when to use it) checked against every screen; wrong one-line answers corrected; answers filed under the wrong screen moved; SKU card as Ravi asked; word-for-word questions answered directly (Ravi, 5 Nov)
+
+- answer `eval|shop|password bhul gaya sir ab login kaise kru`
+  - before: gn-forgot-password · Sign-in page par Email box me apna email likhiye, phir Forgot password? dabaiye — us email
+  - after: gn-forgot-password · Sign-in page par Email box me apna email likhiye, phir Forgot password? dabaiye — us email
+- answer `eval|shop|i clicked forgot password but no mail came in inbox, waited 10 min`
+  - before: gn-reset-mail-missing · Look in the spam folder first, and check the email you typed is exactly the one your accou
+  - after: gn-reset-mail-missing · Look in the spam folder first, and check the email you typed is exactly the one your accou
+- answer `eval|shop|ईमेल नहीं है मेरे पास, फ़ोन और पिन से अंदर कैसे जाऊं`
+  - before: gn-pin-signin · साइन-इन बॉक्स के नीचे Sign in with cellphone and PIN दबाएँ, अपना 10 अंकों का Cellphone और 
+  - after: gn-pin-signin · साइन-इन बॉक्स के नीचे Sign in with cellphone and PIN दबाएँ, अपना 10 अंकों का Cellphone और 
+- answer `eval|shop|लॉगआउट का बटन कहाँ है`
+  - before: gn-signout · मेनू बार के आखिर में Sign out दबाएँ। फ़ोन पर नीचे More खोलें और Sign out दबाएँ। क्यों साझा
+  - after: gn-signout · मेनू बार के आखिर में Sign out दबाएँ। फ़ोन पर नीचे More खोलें और Sign out दबाएँ। यह किस लिए
+- answer `eval|shop|admin just gave me the cutting screen but i still dont see it`
+  - before: gn-right-just-given · Kripya Sign out karke dobara login kijiye — nayi permission ya nayi screen agli baar login
+  - after: gn-right-just-given · Kripya Sign out karke dobara login kijiye — nayi permission ya nayi screen agli baar login
+- answer `eval|shop|excel upload fails every time, says wrong format`
+  - before: or-shop-import-cols · The file is missing columns the import needs. Press Download template , copy your orders i
+  - after: or-shop-import-cols · The file is missing columns the import needs. Press Download template , copy your orders i
+- answer `eval|shop|phone me scan pe camera nhi khul rha`
+  - before: in-pk-camera · Camera na khule to hand scanner use kijiye ya neeche box me FNSKU likhkar Add dabaiye; and
+  - after: in-pk-camera · Camera na khule to hand scanner use kijiye ya neeche box me FNSKU likhkar Add dabaiye; and
+- answer `eval|shop|फोन पर टेबल बहुत छोटी दिख रही है, बड़ी कैसे करूँ`
+  - before: gn-phone-zoom · Table view में दो उँगलियों से ज़ूम करें, या दो बार टैप करके बड़ा करें; − और + बटन भी यही क
+  - after: gn-phone-zoom · Table view में दो उँगलियों से पिंच करके ज़ूम करें, या बड़ा करने के लिए डबल-टैप करें। जब वह
+- answer `eval|shop|phone ki home screen pe app ka icon kaise lagaye`
+  - before: gn-install-app · Neeche More kholiye aur Install app dabaiye. iPhone par steps dikhte hain: Safari me Share
+  - after: gn-install-app · Neeche More kholiye aur Install app dabaiye. iPhone par steps dikhte hain: Safari me Share
+- answer `eval|shop|how do i remove all the filters at once`
+  - before: gn-filter-clear · Press ✕ on a filter's chip to remove that one, or open Filters and press Clear these filte
+  - after: gn-filter-clear · Press ✕ on a filter's chip to remove that one, or open Filters and press Clear these filte
+- answer `eval|shop|ye meera baar baar aa jati hai band kaise kre`
+  - before: gn-helper-off · Upar ki patti me Helper On switch dabaiye taaki Helper Off likha aaye (ya uske bubble me T
+  - after: gn-helper-off · Meera ka gol button neeche daayen kone me kholiye aur Helper on dabaiye taaki woh Helper o
+- answer `eval|shop|phone pe notification chalu krna hai naye kaam ka`
+  - before: gn-phone-alerts · More kholiye aur Turn on alerts dabaiye, phir phone pooche to notifications Allow kijiye. 
+  - after: gn-phone-alerts · More kholiye aur Turn on alerts dabaiye, phir phone pooche to notifications Allow kijiye. 
+- answer `eval|shop|error says month is frozen but i need to put an entry for last month`
+  - before: dx-correct-closed-period · A Cutting or Press entry dated in a frozen month cannot be added or changed, so ask an adm
+  - after: dx-correct-closed-period · A Cutting or Press entry dated in a frozen month cannot be added or changed, so ask an adm
+- answer `eval|shop|naye karigar ka naam list me nhi aa rha issue krte time`
+  - before: pr-jw-emp-missing · Pehle Employment type… chuniye, phir list se naam chuniye — naya naam haath se nahi likh s
+  - after: pr-jw-emp-missing · Pehle Employment type… chuniye, phir list se naam chuniye — naya naam haath se nahi likh s
+- answer `eval|shop|job work says sku not in master, what do i do`
+  - before: dx-new-sku-not-found · Factory screens keep the master database for up to half an hour, so a SKU added just now m
+  - after: dx-new-sku-not-found · Factory screens keep the master database for up to half an hour, so a SKU added just now m
+- answer `eval|shop|issue nhi ho rha bol rha at most itne hi allowed`
+  - before: pr-jw-over-order · Aap is SKU ke liye order mein bache pieces se zyada issue kar rahe hain. Issue pieces utne
+  - after: pr-jw-over-order · Aap is SKU ke liye order mein bache pieces se zyada issue kar rahe hain. Issue pieces utne
+- answer `eval|shop|zip wala cushion issue nhi ho rha, zipper stock ka error`
+  - before: pr-jw-zipper · Zip wala item shelf par zipper ke bina nahi ja sakta. Store se Accessories mein zipper ki 
+  - after: pr-jw-zipper · Zip wala item shelf par zipper ke bina nahi ja sakta. Store se Accessories mein zipper ki 
+- answer `eval|shop|receiving 50 back but it says received plus rejected more than issued`
+  - before: pr-jw-recv-over · Received plus rejected cannot be more than the pieces given out on that row. Check the num
+  - after: pr-jw-recv-over · Received plus rejected cannot be more than the pieces given out on that row. Check the num
+- answer `eval|shop|row pe change asked likha hai iska kya matlab`
+  - before: pr-jw-change-asked · "Change asked" ka matlab hai is entry ka ek correction pehle se manzoori ke liye ruka hai.
+  - after: pr-jw-change-asked · "Change asked" ka matlab hai is entry ka ek correction pehle se manzoori ke liye ruka hai.
+- answer `eval|shop|whatsapp didnt open after issue, says no number`
+  - before: pr-jw-wa-auto · When you press Issue or save a receipt, WhatsApp opens on the karigar's number with the me
+  - after: pr-jw-wa-auto · WhatsApp does not open by itself after Issue or Receive. Press ⋯ on the row and choose Wha
+- answer `eval|shop|need all job work data in excel for the month`
+  - before: pr-jw-export · Press ⇣ Export — it downloads every row that matches the filters, not only the ones drawn 
+  - after: pr-jw-export · Press ⇣ Export — it downloads every row that matches the filters, not only the ones drawn 
+- answer `eval|shop|स्टोर में तैयार माल कैसे चढ़ाएं`
+  - before: in-fg-what · Finished Goods खोलें: पहले ड्रॉप-डाउन में India Store पर हर SKU का Opening, Received, Issu
+  - after: in-fg-what · Finished Goods खोलें: पहले ड्रॉप-डाउन में India Store पर हर SKU का Opening, Received, Issu
+- answer `eval|shop|fba bhejne ki entry kaha se kre finished goods me`
+  - before: in-fg-send-fba · + Stock entry dabaiye, Send to FBA · out chuniye, FBA account (Ridhi FBA ya CPC FBA) chuni
+  - after: in-fg-send-fba · + Stock entry dabaiye, Send to FBA · out chuniye, FBA account (Ridhi FBA ya CPC FBA) chuni
+- answer `eval|shop|scanning shows unknown code in scan in / out`
+  - before: in-fg-scan-unknown · That label is not on the FNSKU list : take it off with × or forget , or update the list wi
+  - after: in-fg-scan-unknown · That label is not on the FNSKU list: press forget on the red Unknown code line, or update 
+- answer `eval|shop|इश्यू करते समय स्टॉक कम है वाला एरर आ रहा है`
+  - before: in-fg-not-enough · इंडिया स्टोर में उस SKU के पीस आपके भेजे से कम हैं: पीस कम करें, या पहले आए हुए पीस रिसीव 
+  - after: in-fg-not-enough · इंडिया स्टोर में उस SKU के पीस आपके भेजे से कम हैं: पीस कम करें, या पहले आए हुए पीस रिसीव 
+- answer `eval|shop|finished goods me galat entry ho gyi, request correction kaise dalte hai`
+  - before: in-fg-corr-request · Every movement chuniye, apni entry par Request correction dabaiye, Correct this entry ya R
+  - after: in-fg-corr-request · Every movement chuniye, apni entry par Request correction dabaiye, Correct this entry ya R
+- answer `eval|shop|did a physical count, store figure is different, how do i update it`
+  - before: in-fg-physical-count · In India Store press Edit on the SKU, type the counted figure in In stock (counted) , fill
+  - after: in-fg-physical-count · In India Store press Edit on the SKU, type the counted figure in In stock (counted) , fill
+- answer `eval|shop|how to see the full in and out history of one sku in store`
+  - before: in-fg-sku-history · Click the SKU code in the India Store list: it opens every movement of that SKU. Why For a
+  - after: in-fg-sku-history · Click the SKU code in the India Store list: it opens every movement of that SKU. What it's
+- answer `eval|shop|pack & verify wala button kis liye hai bhai`
+  - before: c-fgi-393 · Pack &amp; verify — Finished Goods par button: Pack &amp; verify kholta hai: order ya Amaz
+  - after: c-fgi-393 · Pack &amp; verify — Finished Goods par button: Pack &amp; verify kholta hai: order ya Amaz
+- answer `eval|shop|स्टेटस में 25 to make का मतलब क्या है`
+  - before: - · आपका सवाल एक से ज़्यादा जवाबों से मिलता है। आप कौन-सा पूछ रहे हैं? Pending, In Progress, C
+  - after: - · आपका सवाल एक से ज़्यादा जवाबों से मिलता है। आप कौन-सा पूछ रहे हैं? Pending, In Progress, C
+- answer `eval|shop|mera order kaha atka hai kaise pta kre`
+  - before: or-ord-journey · Kisi bhi line mein order number par click kijiye; Order … — start to finish window mein ha
+  - after: or-ord-journey · Kisi bhi line mein order number par click kijiye; Order … — start to finish window mein ha
+- answer `eval|shop|sales changed the quantity, where do i approve it`
+  - before: or-ord-qty-approve · Press the N quantity changes to approve button (or Answer on the line), tick the changes a
+  - after: or-ord-qty-approve · Press the N quantity changes to approve button (or Answer on the line), tick the changes a
+- answer `eval|shop|order book se line hatani hai, sales ko kaise bolu`
+  - before: or-ord-del-ask · Order book — pending mein line tick kijiye, Ask sales to delete N dabaiye, Why should thes
+  - after: or-ord-del-ask · Order book — pending mein line tick kijiye, Ask sales to delete N dabaiye, Why should thes
+- answer `eval|shop|a shopify order came 2 days back but order console doesnt have it`
+  - before: or-ord-shop-empty · A Shopify order appears here only after it is opened from the Production bucket on Shopify
+  - after: or-ord-shop-empty · A Shopify order appears here only after it is opened from the Production bucket on Shopify
+- answer `eval|shop|orders ke liye kitna kapda chahiye wo report kaha hai`
+  - before: or-ord-demand · Pehle box mein Demand — printing &amp; cloth , Demand — by colour &amp; product ya Demand 
+  - after: or-ord-demand · Pehle box mein Demand — printing &amp; cloth , Demand — by colour &amp; product ya Demand 
+- answer `eval|shop|shopify ke naye order kaise laye screen pe`
+  - before: or-shop-what · Shopify Orders Shopify, CPC Shopify aur Etsy stores ki shipping list hai: har order, woh k
+  - after: or-shop-what · Shopify Orders Shopify, CPC Shopify aur Etsy stores ki shipping list hai: har order, woh k
+- answer `eval|shop|सिर्फ़ जो ऑर्डर अभी तक नहीं भेजे वो कैसे दिखें`
+  - before: or-shop-notshipped · Every order वाले बॉक्स में Not yet shipped चुनें।
+  - after: or-shop-notshipped · Every order वाले बॉक्स में Not yet shipped चुनें। यह किस लिए है भेजे जा चुके ऑर्डर सूची भर
+- answer `eval|shop|ship from column me MCF ready ka kya matlab`
+  - before: or-shop-shipfrom · Ship from column batata hai ki order kahan se ja sakta hai: MCF ready (Amazon FBA mein hai
+  - after: or-shop-shipfrom · Ship from column batata hai ki order kahan se ja sakta hai: MCF ready (Amazon FBA mein hai
+- answer `eval|shop|theres a small pencil icon beside the order number?`
+  - before: or-shop-pencil · The pencil means the customer left a note; hover it, or open the order to read it at the t
+  - after: or-shop-pencil · The pencil means the customer left a note; hover it, or open the order to read it at the t
+- answer `eval|shop|order me shelf bin number kaise daale`
+  - before: or-shop-shelf · Order kholiye; Shelf · qty column ke pehle box mein bin likhiye aur doosre mein us shelf p
+  - after: or-shop-shelf · Order kholiye; Shelf · qty column ke pehle box mein bin likhiye aur doosre mein us shelf p
+- answer `eval|shop|where do i get the tracking no for an mcf order`
+  - before: or-shop-mcf-status · Open the order and press Check status ; once Amazon gives a tracking number, Shopify is ma
+  - after: or-shop-mcf-status · Open the order and press Check status ; once Amazon gives a tracking number, Shopify is ma
+- answer `eval|shop|line pe no sku likha aa rha shopify se`
+  - before: or-shop-nosku · Shopify ne woh line bina SKU ke bheji hai. Order kholiye aur no SKU on Shopify ke paas wal
+  - after: or-shop-nosku · Shopify ne woh line bina SKU ke bheji hai. Order kholiye aur no SKU on Shopify ke paas wal
+- answer `eval|shop|dhl file nhi ban rhi, invoice number aur hs code maang rha`
+  - before: or-shop-dhl-refuse · DHL file ke liye har order par invoice number aur date, aur har SKU par HS code chahiye; m
+  - after: or-shop-dhl-refuse · DHL file ke liye har order par invoice number aur date, aur har SKU par HS code chahiye; m
+- answer `eval|shop|कई ऑर्डर की पिक शीट एक साथ प्रिंट कैसे करें`
+  - before: or-shop-print · कई ऑर्डर के लिए: टिक करें, More ▾ खोलें और Print orders दबाएँ। एक ऑर्डर के लिए: उसे खोलें 
+  - after: or-shop-print · कई ऑर्डर के लिए: टिक करें, More ▾ खोलें और Print orders दबाएँ। एक ऑर्डर के लिए: उसे खोलें 
+- answer `eval|shop|customer got a damaged piece, need to send a replacement`
+  - before: or-shop-replace · In Returns , press Send replacement on the case, check it and press Send by MCF , Mark sen
+  - after: or-shop-replace · In Returns , press Send replacement on the case, check it and press Send by MCF , Mark sen
+- answer `eval|shop|US zip code pe kitne din me delivery hogi kaise dekhe`
+  - before: or-shop-days · More ▾ kholiye, Delivery days dabaiye, From the USA warehouse ya From India · DHL / FedEx 
+  - after: or-shop-days · More ▾ kholiye, Delivery days dabaiye, From the USA warehouse ya From India · DHL / FedEx 
+- answer `eval|shop|adjustment production ko de diya, mark kaise kre`
+  - before: or-adj-sent · Kaam tick kijiye aur Mark sent dabaiye; woh With production mein chale jaate hain. Kyun Ye
+  - after: or-adj-sent · Kaam tick kijiye aur Mark sent dabaiye; woh With production mein chale jaate hain. Yeh kis
+- answer `eval|shop|why are some adjustment rows red`
+  - before: or-adj-late · A red row is past its promised date and not yet received. Pick Past the promised date in t
+  - after: or-adj-late · A red row is past its promised date and not yet received. Pick Past the promised date in t
+- answer `eval|shop|amazon ke liye order daalna hai sales order wala, kaha se shuru kru`
+  - before: or-so-new · + New sales order dabaiye, Channel aur Order date chuniye, + Add line se lines jodiye, phi
+  - after: or-so-new · + New sales order dabaiye, Channel aur Order date chuniye, + Add line se lines jodiye, phi
+- answer `eval|shop|sales order wont save, its asking air or sea`
+  - before: or-so-airsea · An Amazon (AMZ) order must say how it ships. Pick AIR or SEA in the Shipping box, then sav
+  - after: or-so-airsea · An Amazon (AMZ) order must say how it ships. Pick AIR or SEA in the Shipping box, then sav
+- answer `eval|shop|ड्राफ्ट सेव और प्लेस ऑर्डर में क्या फर्क है`
+  - before: or-so-draft · Save draft ऑर्डर को Draft में आपके पास रखता है; Place order उसे approval के लिए भेजता है (
+  - after: or-so-draft · Save draft ऑर्डर को Draft में आपके पास रखता है; Place order उसे approval के लिए भेजता है (
+- answer `eval|shop|apna sales order edit nhi ho rha approve hone ke baad`
+  - before: or-so-locked · Apna order tabhi badal sakte hain jab woh Draft ya Returned ho. Place ya approve hone ke b
+  - after: or-so-locked · Apna order tabhi badal sakte hain jab woh Draft ya Returned ho. Place ya approve hone ke b
+- answer `eval|shop|how much of my sales order has been cut and made so far`
+  - before: or-so-progress · Each approved order shows Cut and Made as a percentage; press Open to see every SKU with Q
+  - after: or-so-progress · Each approved order shows Cut and Made as a percentage; press Open to see every SKU with Q
+- answer `eval|shop|customer orders ki file upload krni hai`
+  - before: or-cx-upload · Upload orders dabaiye, dhaanche ke liye Template dabaiye, bhariye, Choose a file dabaiye, 
+  - after: or-cx-upload · Upload orders dabaiye, dhaanche ke liye Template dabaiye, bhariye, Choose a file dabaiye, 
+- answer `eval|shop|आज टेबल पर 200 पीस कटे, कहाँ लिखूं`
+  - before: bs-cutting · Cutting Data कटिंग रजिस्टर है: किसी SKU के कितने पीस कटे, किस ऑर्डर के लिए, किस कपड़े से, 
+  - after: bs-cutting · Cutting Data कटिंग रजिस्टर है: किसी SKU के कितने पीस कटे, किस ऑर्डर के लिए, किस कपड़े से, 
+- answer `eval|shop|waste % showing red in cutting data`
+  - before: pr-cut-waste-tiles · Waste above 10% of the fabric used shows in red. A dash (—) means nobody measured the clot
+  - after: pr-cut-waste-tiles · Waste above 10% of the fabric used shows in red. A dash (—) means nobody measured the clot
+- answer `eval|shop|kitna cut pada hai jo abhi karigar ko nhi gaya`
+  - before: pr-cut-not-issued · Pehle box mein Cut, not yet issued chuniye. Har order line par kate, issue hue aur baaki p
+  - after: pr-cut-not-issued · Pehle box mein Cut, not yet issued chuniye. Har order line par kate, issue hue aur baaki p
+- answer `eval|shop|press ki entry save nhi ho rhi ab`
+  - before: pr-press-stopped · Pressing ab darj nahi ki jaati (5 Oct 2026 se). QC pass karte hi piece bana hua maana jaat
+  - after: pr-press-stopped · Pressing ab darj nahi ki jaati (5 Oct 2026 se). QC pass karte hi piece bana hua maana jaat
+- answer `eval|shop|daag wale piece spotting me kaise bheje`
+  - before: pr-qc-spot-touch · Waiting for QC mein pieces likhiye aur daag ke liye Spotting , chhooti ya tooti chhapai ke
+  - after: pr-qc-spot-touch · Waiting for QC mein pieces likhiye aur daag ke liye Spotting , chhooti ya tooti chhapai ke
+- answer `eval|shop|qc se alteration ke liye piece karigar ko dena hai`
+  - before: pr-qc-alt-issue · Issued for alteration chuniye, + Issue for alteration dabaiye, — Select a flagged article 
+  - after: pr-qc-alt-issue · Issued for alteration chuniye, + Issue for alteration dabaiye, — Select a flagged article 
+- answer `eval|shop|need a day wise qc summary`
+  - before: pr-qc-ledger · Choose QC ledger (day-wise) . One row a day shows what came back from karigars, QC pass, s
+  - after: pr-qc-ledger · Choose QC ledger (day-wise) . One row a day shows what came back from karigars, QC pass, s
+- answer `eval|shop|attendance me in time kaise lagaye`
+  - before: pr-att-punch · Attendance kholiye, upar date dekhiye, phir vyakti ke aane par uski line mein In aur jaane
+  - after: pr-att-punch · Attendance kholiye, upar date dekhiye, phir vyakti ke aane par uski line mein In aur jaane
+- answer `eval|shop|new helper joined today, his name is not in attendance`
+  - before: pr-att-new-person · The names come from the employee list in Finance &amp; HR . Get the new person added there
+  - after: pr-att-new-person · The names come from the employee list in Finance &amp; HR. Get the new person added there 
+- answer `eval|shop|PO ka ppc plan kaise raise kre`
+  - before: pr-flow-ppc-plan · PPC bucket kholiye aur Plan this PO dabaiye (ek SKU ke liye This line ). Kapda, banne ka t
+  - after: pr-flow-ppc-plan · PPC bucket kholiye aur Plan this PO dabaiye (ek SKU ke liye This line ). Kapda, banne ka t
+- answer `eval|shop|what are the options in how it is made`
+  - before: pr-flow-route · In the PPC form, How it is made sets the route: Printing, Printing + Embroidery, Cutting (
+  - after: pr-flow-route · In the PPC form, How it is made sets the route: Printing, Printing + Embroidery, Cutting (
+- answer `eval|shop|rfd me laal rang me short likha aa rha`
+  - before: pr-flow-short · Laal "⚑ Short" ka matlab hai stock ka RFD line ki zaroorat poori nahi karta. Har kapde ka 
+  - after: pr-flow-short · Laal "⚑ Short" ka matlab hai stock ka RFD line ki zaroorat poori nahi karta. Har kapde ka 
+- answer `eval|shop|greige ka PO kaise banate hai`
+  - before: pr-gd-new-po · Greige POs mein + Greige PO dabaiye, supplier chuniye, + Add a line se lines jodiye, aur S
+  - after: pr-gd-new-po · Greige POs mein + Greige PO dabaiye, supplier chuniye, + Add a line se lines jodiye, aur S
+- answer `eval|shop|greige bales arrived from the mill, how to enter them`
+  - before: pr-gd-receive-greige · Press Receive greige on the open PO. Fill the supplier's challan no. and date, type each b
+  - after: pr-gd-receive-greige · Press Receive greige on the open PO. Fill the supplier's challan no. and date, type each b
+- answer `eval|shop|supplier ka gstin galat bata rha 13 character wala`
+  - before: pr-gd-gstin · Supplier ka likha GSTIN ek akshar mein galat hai. Use supplier ke bill se milaiye: 13va ak
+  - after: pr-gd-gstin · App mein supplier Setup → Master Database mein save hota hai, aur wahan GSTIN 15 akshar ka
+- answer `eval|shop|fba dispatch ka maal haath me aa gya accept kaise kre`
+  - before: in-fba-accept · Jab pieces aapke haath me hon, line par Accept dabaiye, ya kai lines tick karke Accept tic
+  - after: in-fba-accept · Jab pieces aapke haath me hon, line par Accept dabaiye, ya kai lines tick karke Accept tic
+- answer `eval|shop|how to put the shipment id on fba dispatch`
+  - before: in-fba-ship · Press Ship on the row (or tick rows and press Ship ticked ), type the Shipment id and Ship
+  - after: in-fba-ship · Press Ship on the row (or tick rows and press Ship ticked ), type the Shipment id and Ship
+- answer `eval|shop|make a packing list from a box sheet file`
+  - before: in-pk-new-file · Press Template for a sample, fill it, press New from file and choose it; fill Title , Invo
+  - after: in-pk-new-file · Press Template for a sample, fill it, press New from file and choose it; fill Title , Invo
+- answer `eval|shop|carton pe lagane wale box label kaise print kre`
+  - before: in-pk-labels · List par Labels dabaiye (ya Open ke andar Box labels ), Invoice number, Consignee / wareho
+  - after: in-pk-labels · List par Labels dabaiye (ya Open ke andar Box labels ), Invoice number, Consignee / wareho
+- answer `eval|shop|अमेज़न की बॉक्स कंटेंट फाइल कैसे भरें`
+  - before: in-pk-fba-file · सेव की गई लिस्ट पर FBA file दबाएँ और Amazon से डाउनलोड किया box-content टेम्पलेट (.xlsx) च
+  - after: in-pk-fba-file · सेव की गई लिस्ट पर FBA file दबाएँ और Amazon से डाउनलोड किया box-content टेम्पलेट (.xlsx) च
+- answer `eval|shop|box is full, how do i start the next carton`
+  - before: in-pk-box-done · Press Box done → next , type L, W, H and Gross kg if you have them (optional), then press 
+  - after: in-pk-box-done · Press Box done → next , type L, W, H and Gross kg if you have them (optional), then press 
+- answer `eval|shop|galti se ek extra piece scan ho gya`
+  - before: in-pk-undo · Aakhri scan wapas lene ke liye ↶ Undo dabaiye, ya box ki line par −1 ya ✕ dabaiye; pichhla
+  - after: in-pk-undo · Aakhri scan wapas lene ke liye ↶ Undo dabaiye, ya box ki line par −1 ya ✕ dabaiye; pichhla
+- answer `eval|shop|एक पैकेट में 4 पीस हैं, एक स्कैन में 4 कैसे गिनें`
+  - before: in-pk-per-scan · नीचे Pcs / scan बदलें: फिर हर स्कैन उतने पीस जोड़ता है। कोई पीस दो बार गिन गया हो तो ↶ Und
+  - after: in-pk-per-scan · नीचे Pcs / scan बदलें: फिर हर स्कैन उतने पीस जोड़ता है। कोई पीस दो बार गिन गया हो तो ↶ Und
+- answer `eval|shop|done packing all boxes, what next to close it`
+  - before: c-pack-2020 · Box done → next — button on Packing List: Closes this box (it must have something in it) a
+  - after: c-pack-2020 · Box done → next — button on Packing List: Closes this box (it must have something in it) a
+- answer `eval|shop|printed kapda store me kaise chadhaye fabric inventory me`
+  - before: in-fab-store-entry · + Store entry dabaiye, What this is chuniye (opening stock, taken in, taken out, ya correc
+  - after: in-fab-store-entry · + Store entry dabaiye, What this is chuniye (opening stock, taken in, taken out, ya correc
+- answer `eval|shop|fabric inventory balance is in minus and red, whats wrong`
+  - before: in-fab-red · Fill what the red line asks: How many (above 0), the fabric for cloth, or a SKU from the m
+  - after: in-fab-red · Fill what the red line asks: How many (above 0), the fabric for cloth, or a SKU from the m
+- answer `eval|shop|accessory me minus quantity nhi daal pa rha`
+  - before: in-acc-negative · Sudhaar ke liye ADJUST movement chuniye aur sign khud likhiye, jaise 20 ghatane ke liye −2
+  - after: in-acc-negative · Sudhaar ke liye ADJUST movement chuniye aur sign khud likhiye, jaise 20 ghatane ke liye −2
+- answer `eval|shop|replenishment me latest stock aur sale kaise laye`
+  - before: pl-repl-refresh · Table har teen ghante mein FabriCrush Inventory se apne-aap update hoti hai; abhi taaza fi
+  - after: pl-repl-refresh · Table har teen ghante mein FabriCrush Inventory se apne-aap update hoti hai; abhi taaza fi
+- answer `eval|shop|what does runs out in mean`
+  - before: pl-repl-runsout · The Runs out in buttons group SKUs by how soon FBA stock runs out: Out · sold in 90d is em
+  - after: pl-repl-runsout · The Runs out in buttons group SKUs by how soon FBA stock runs out: Out · sold in 90d is em
+- answer `eval|shop|lead days ka box kya hai prod disp wala`
+  - before: pl-repl-lead · Lead days box (prod, disp, air, sea) mein production, India se dispatch, air aur sea mein 
+  - after: pl-repl-lead · Lead days box (prod, disp, air, sea) mein production, India se dispatch, air aur sea mein 
+- answer `eval|shop|sku band krna hai, discontinue kaise kre`
+  - before: pl-repl-status · SKU ki Status patti ke bagal wale chhote ▾ par click kijiye aur Listed, Need Listing, Disc
+  - after: pl-repl-status · SKU ki Status patti ke bagal wale chhote ▾ par click kijiye aur Listed, Need Listing, Disc
+- answer `eval|shop|cat A B C D kya hota hai`
+  - before: pl-repl-cat · Cat SKU ki mahine ki sale hai: A $3,000 ya zyada, B $1,500–3,000, C $1,500 se kam, D 90 di
+  - after: pl-repl-cat · Cat SKU ki mahine ki sale hai: A $3,000 ya zyada, B $1,500–3,000, C $1,500 se kam, D 90 di
+- answer `eval|shop|P1 P2 का मतलब क्या है`
+  - before: c-article-98 · P2 — article पर बटन: सिर्फ़ P2 SKU दिखाता है — 20 से 40 दिन का माल।
+  - after: c-article-98 · P2 — Article Review पर बटन: सिर्फ़ P2 SKU दिखाता है — 20 से 40 दिन का माल। यह किस लिए है P
+- answer `eval|shop|a sku is missing from article review`
+  - before: pl-ar-missing · Discontinued and Use In Mix SKUs are left out of Article Review , and only the first 300 r
+  - after: pl-ar-missing · Discontinued and Use In Mix SKUs are left out of Article Review , and only the first 300 r
+- answer `eval|shop|is mahine ka revenue target kaise dale`
+  - before: pl-tg-how · Revenue Target par brand aur mahina chuniye, Month target $ mein amount likhiye aur bahar 
+  - after: pl-tg-how · Revenue Target par brand aur mahina chuniye, Month target $ mein amount likhiye aur bahar 
+- answer `eval|shop|if i set the revenue target will replenishment numbers change`
+  - before: pl-tg-planning-only · No — Revenue Target is for planning only; it does not change the Replenishment projection,
+  - after: pl-tg-planning-only · No — Revenue Target is for planning only; it does not change the Replenishment projection,
+- answer `eval|shop|top asin wali table khali hai`
+  - before: pl-top-empty · Yeh list Replenishment ke data se banti hai, jo har teen ghante mein FabriCrush Inventory 
+  - after: pl-top-empty · Yeh list Replenishment ke data se banti hai, jo har teen ghante mein FabriCrush Inventory 
+- answer `eval|shop|डैशबोर्ड नहीं खुल रहा, बोल रहा एडमिन के लिए है`
+  - before: pl-dash-admin · डैशबोर्ड सिर्फ़ admin के लिए है, क्योंकि यह एक साथ सारे रजिस्टर पढ़ता है — कोई आँकड़ा चाहि
+  - after: pl-dash-admin · डैशबोर्ड सिर्फ़ admin के लिए है, क्योंकि यह एक साथ सारे रजिस्टर पढ़ता है — कोई आँकड़ा चाहि
+- answer `eval|shop|pichle hafte qc pass ki report kaha milegi`
+  - before: pl-rep-wow · Reports mein Last week · QC passed, week on week chuniye aur hafta chuniye; har hafte QC m
+  - after: pl-rep-wow · Reports mein Last week · QC passed, week on week chuniye aur hafta chuniye; har hafte QC m
+- answer `eval|shop|शॉपिफाई ऑर्डर डिस्पैच की रिपोर्ट कहाँ है`
+  - before: pl-rep-shpd · Shopify dispatch चुनें और महीना चुनें; इसमें लगे ऑर्डर, MCF, FedEx, DHL या Other से गए, अभ
+  - after: pl-rep-shpd · Shopify dispatch चुनें और महीना चुनें; इसमें लगे ऑर्डर, MCF, FedEx, DHL या Other से गए, अभ
+- answer `eval|shop|meeting report me action point kaise jode`
+  - before: pl-rep-mtg-actions · Action points mein What has to be done mein kaam, Who mein person likhiye, date chuniye au
+  - after: pl-rep-mtg-actions · Action points mein What has to be done mein kaam, Who mein person likhiye, date chuniye au
+- answer `eval|shop|change weekly production target from 20000`
+  - before: pl-pa-what · Production Analysis shows how far this week's pieces made are from the weekly target, how 
+  - after: pl-pa-what · Production Analysis shows how far this week's pieces made are from the weekly target, how 
+- answer `eval|shop|ek karigar ki puri detail dekhni hai`
+  - before: pl-ka-detail · Karigar study mein karigar ki line par click kijiye; card khulega — bane pieces, labour va
+  - after: pl-ka-detail · Karigar study mein karigar ki line par click kijiye; card khulega — bane pieces, labour va
+- answer `eval|shop|vendor orders menu se gayab ho gya`
+  - before: vm-vord-where · Vendor Orders ab menu me nahi hai: printer ka order ab PPC · Production flow me banta hai.
+  - after: vm-vord-where · Vendor Orders ab menu me nahi hai: printer ka order ab PPC · Production flow me banta hai.
+- answer `eval|shop|why does mine say request vendor order instead of new`
+  - before: vm-vord-request-button · You see + Request vendor order because your account cannot approve vendor orders; your ord
+  - after: vm-vord-request-button · You see + Request vendor order because your account cannot approve vendor orders; your ord
+- answer `eval|shop|vendor order me over the cap aa rha`
+  - before: vm-vord-over-cap · Over the cap ka matlab hai ki yeh SKU approved sales orders ki maang + 10% se zyada ho jay
+  - after: vm-vord-over-cap · Over the cap ka matlab: is SKU ka aankda approved sales orders ki maang + 10% se upar jaay
+- answer `eval|shop|order dusre printer ko shift krna hai`
+  - before: vm-vord-move · Admin order par Move dabate hain, Move it to me printer chunte hain aur Move it dabate hai
+  - after: vm-vord-move · Admin order par Move dabate hain, Move it to me printer chunte hain aur Move it dabate hai
+- answer `eval|shop|printer ko login dena hai pin bana ke`
+  - before: vm-vord-setup-pin · Admin Printers kholkar vendor ki row par Set up dabate hain; chhe digit ka PIN ek baar dik
+  - after: vm-vord-setup-pin · Admin Printers kholkar vendor ki row par Set up dabate hain; chhe digit ka PIN ek baar dik
+- answer `eval|shop|filling order asking which filler`
+  - before: vm-vord-filler · A filling order must name its filler: type it in the Filler box (for example Surgical Cott
+  - after: vm-vord-filler · A filling order must name its filler: type it in the Filler box (for example Surgical Cott
+- answer `eval|shop|वेंडर की रिक्वेस्ट अप्रूव करनी है, बटन कहाँ है`
+  - before: vm-vreq-no-permission · आपके अकाउंट में "Can approve vendor order requests" नहीं है; मंज़ूरी देना आपका काम हो तो ए
+  - after: vm-vreq-no-permission · आपके अकाउंट में "Can approve vendor order requests" नहीं है; मंज़ूरी देना आपका काम हो तो ए
+- answer `eval|shop|how do i reject a vendor order request`
+  - before: vm-vreq-reject · Open Approve / reject , write the reason in the Note box, then press Reject ; a reason is 
+  - after: vm-vreq-reject · Open Approve / reject , write the reason in the Note box, then press Reject ; a reason is 
+- answer `eval|shop|new pin not accepted, what are the rules`
+  - before: vm-vend-pin-rules · A PIN must be 6 to 10 digits and hard to guess: not all the same digit, not digits in orde
+  - after: vm-vend-pin-rules · A PIN must be 6 to 10 digits and hard to guess: not all the same digit, not digits in orde
+- answer `eval|shop|vendor portal me acknowledge ka button nhi hai`
+  - before: vm-vend-view-only · Printer ko kya diya aur kya wapas aaya, ye office darj karta hai. Portal par printer apne 
+  - after: vm-vend-view-only · Printer ko kya diya aur kya wapas aaya, ye office darj karta hai. Portal par printer apne 
+- answer `eval|shop|प्रिंटर ने जो भेजा वो पोर्टल में कहाँ दिखेगा`
+  - before: or-shop-bucket · Bucket में वे Shopify लाइनें रहती हैं जिन्हें बनाना है — वे उसके Needs production टैब पर ह
+  - after: or-shop-bucket · Bucket में वे Shopify लाइनें रहती हैं जिन्हें बनाना है — वे उसके Needs production टैब पर ह
+- answer `eval|shop|i want to see exactly what the printer sees on his portal`
+  - before: vm-vend-admin-view · An admin opens Printer’s portal (view) under Production → Printing and picks the printer a
+  - after: vm-vend-admin-view · An admin opens Printer’s portal (view) under Production → Printing and picks the printer a
+- answer `eval|shop|difference between short and returned`
+  - before: vm-vlog-returned-vs-short · Short means the pieces never arrived; Returned means they arrived but were rejected and se
+  - after: vm-vlog-returned-vs-short · Short means the pieces never arrived; Returned means they arrived but were rejected and se
+- answer `eval|shop|डिलीवरी आई ही नहीं, क्या करें`
+  - before: vm-vlog-never-arrived · लाइन पर Didn’t arrive दबाएँ; इसकी गिनती शून्य होगी और प्रिंटर पर बाकी रहेगा। बाद में आ जाए
+  - after: vm-vlog-never-arrived · लाइन पर Didn’t arrive दबाएँ; इसकी गिनती शून्य होगी और प्रिंटर पर बाकी रहेगा। बाद में आ जाए
+- answer `eval|shop|har printer mahine me kitna kar skta hai wo figure kaise aata hai`
+  - before: dv-pal-capacity-formula · Mahine ki capacity = (tables × delivery record wale printers ka aam pieces per table per m
+  - after: dv-pal-capacity-formula · Mahine ki capacity = (tables × delivery record wale printers ka aam pieces per table per m
+- answer `eval|shop|मास्टर में नया एसकेयू कैसे जोड़ें`
+  - before: vm-pmdb-new-sku · Master database पेज में + New SKU दबाएँ, SKU, Article type, Article subtype, Colour और Siz
+  - after: vm-pmdb-new-sku · Master database पेज में + New SKU दबाएँ, SKU, Article type, Article subtype, Colour और Siz
+- answer `eval|shop|can i delete an old sku from master`
+  - before: vm-pmdb-delete · Only an admin can delete a SKU, with Delete in its Edit box; a SKU used in any record (Job
+  - after: vm-pmdb-delete · Only an admin can delete a SKU, with Delete in its Edit box; a SKU used in any record (Job
+- answer `eval|shop|asin dalte time error not an asin`
+  - before: vm-pmdb-asin-invalid · An ASIN is exactly ten letters and digits, like B0CHW5KTPB; check for spaces or missing ch
+  - after: vm-pmdb-asin-invalid · An ASIN is exactly ten letters and digits, like B0CHW5KTPB; check for spaces or missing ch
+- answer `eval|shop|new colour launched, need to create all its skus`
+  - before: vm-pmdb-sku-codes · Pick the view SKU codes — a new colour’s SKUs , fill Brand , Colour and Colour code , then
+  - after: vm-pmdb-sku-codes · Pick the view SKU codes — a new colour’s SKUs , fill Brand , Colour and Colour code , then
+- answer `eval|shop|zip yes kiya to chain length maang rha`
+  - before: vm-pmdb-zip-ruffle · When Zip, Ruffle, Piping dori or Filler fabric is Yes, fill its figure: zip size (chain le
+  - after: vm-pmdb-zip-ruffle · When Zip, Ruffle, Piping dori or Filler fabric is Yes, fill its figure: zip size (chain le
+- answer `eval|shop|masters me naya colour add krna hai`
+  - before: vm-mst-add · Masters me pehle drop-down se list chuniye (Colour, Size waghera), + Add dabaiye, Code aur
+  - after: vm-mst-add · Masters me pehle drop-down se list chuniye (Colour, Size waghera), + Add dabaiye, Code aur
+- answer `eval|shop|where do i put fabric width in inches`
+  - before: vm-mst-fabric-width · In Masters pick Fabric type ; an admin types Width (inches) (1 to 200) and the Greige name
+  - after: vm-mst-fabric-width · In Masters pick Fabric type ; an admin types Width (inches) (1 to 200) and the Greige name
+- answer `eval|shop|naya karigar employee list me kaise jode`
+  - before: vm-hr-new-employee · Employee list chuniye, + New employee dabaiye, Name , Employment type , Department aur Pho
+  - after: vm-hr-new-employee · Employee list chuniye, + New employee dabaiye, Name , Employment type , Department aur Pho
+- answer `eval|shop|सिलाई का प्रति पीस रेट कहाँ भरें`
+  - before: wf-masters-hr-rate-edit · Finance &amp; HR में Rate list चुनें, रेट की लाइन पर Edit दबाएँ, Rate (Rs.) या दूसरे खाने 
+  - after: wf-masters-hr-rate-edit · Finance &amp; HR में Rate list चुनें, रेट की लाइन पर Edit दबाएँ, Rate (Rs.) या दूसरे खाने 
+- answer `eval|shop|कारीगर को एडवांस दिया, कहाँ लिखूं`
+  - before: vm-hr-advance · Advance payout चुनें, व्यक्ति पर Set दबाएँ, महीने का Advance paid (Rs.) लिखें और सेव करें।
+  - after: vm-hr-advance · Advance payout चुनें, व्यक्ति पर Set दबाएँ, महीने का Advance paid (Rs.) लिखें और सेव करें।
+- answer `eval|shop|aaj kitne order aaye shopify pe`
+  - before: or-shop-dates · Pehle do date box mein woh din shaamil kijiye jis din order aaya tha; list apne aap phir s
+  - after: or-shop-dates · Pehle do date box mein woh din shaamil kijiye jis din order aaya tha; list apne aap phir s
+- answer `eval|shop|आज कितने कारीगर आए`
+  - before: pl-pa-karigars · How many karigars … needs कार्ड देखें: एक कारीगर का हफ़्ता = प्रति कारीगर प्रति दिन पीस × 
+  - after: pl-pa-karigars · How many karigars … needs कार्ड देखें: एक कारीगर का हफ़्ता = प्रति कारीगर प्रति दिन पीस × 
+- answer `eval|shop|e-way bill kaise banaye erp se`
+  - before: gn-signin-ways · Do tarike hain: apna Email aur Password daal kar Sign in , ya Sign in with cellphone and P
+  - after: gn-signin-ways · Do tarike hain: apna Email aur Password daal kar Sign in , ya Sign in with cellphone and P
+- answer `eval|shop|AMZ-01092026-01 me kitna bacha hai`
+  - before: gn-stock-check · Finished Goods kholiye, view India Store par rakhiye, aur search box me SKU, colour ya siz
+  - after: gn-stock-check · Finished Goods kholiye, view India Store par rakhiye, aur search box me SKU, colour ya siz
+- answer `eval|shop|amazon ka ppc bid kaise badhaye`
+  - before: pr-flow-ppc-plan · PPC bucket kholiye aur Plan this PO dabaiye (ek SKU ke liye This line ). Kapda, banne ka t
+  - after: pr-flow-ppc-plan · PPC bucket kholiye aur Plan this PO dabaiye (ek SKU ke liye This line ). Kapda, banne ka t
+- answer `eval2|shop|sab log sku sku bolte rehte h, iska matlab kya hua`
+  - before: - · Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? SKU kya hai · Shopify
+  - after: - · Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? SKU kya hai · Shopify
+- answer `eval2|shop|the sticker with the X00 barcode on every piece, what is that called`
+  - before: bs-fnsku · The FNSKU is the Amazon barcode label stuck on each piece. You scan it in Finished Goods →
+  - after: bs-fnsku · The FNSKU is the Amazon barcode label stuck on each piece. You scan it in Finished Goods →
+- answer `eval2|shop|ek order me 5 line likha hai, line ka kya matlab`
+  - before: bs-order-line · Line kisi order par ek SKU hai. Paanch SKU wale order mein paanch line hoti hain, aur Orde
+  - after: bs-order-line · Line kisi order par ek SKU hai. Paanch SKU wale order mein paanch line hoti hain, aur Orde
+- answer `eval2|shop|पीस और सेट में फर्क क्या है, फैक्ट्री किसमें गिनती करती है`
+  - before: bs-piece-set · फ़ैक्ट्री पीस में गिनती करती है: कटिंग, जॉब वर्क इश्यू और पेमेंट सब पीस के हिसाब से। ग्राह
+  - after: bs-piece-set · फ़ैक्ट्री पीस में गिनती करती है: कटिंग, जॉब वर्क इश्यू और पेमेंट सब पीस के हिसाब से। ग्राह
+- answer `eval2|shop|karigar matlab darzi hi na? ya koi aur`
+  - before: - · Your question fits more than one answer. Which one do you mean? how to filter Karigar · Ma
+  - after: - · Your question fits more than one answer. Which one do you mean? how to filter Karigar · Pr
+- answer `eval2|shop|maal issue karna aur receive karna me kya antar h`
+  - before: bs-issue-receive · Issue ka matlab piece bahar dena (karigar ko, ya store se bahar); Receive ka matlab piece 
+  - after: bs-issue-receive · Issue ka matlab piece bahar dena (karigar ko, ya store se bahar); Receive ka matlab piece 
+- answer `eval2|shop|qc stands for what?`
+  - before: bs-qc · QC (Quality Control) is checking the stitched pieces. On Quality Control you record how ma
+  - after: bs-qc · QC (Quality Control) is checking the stitched pieces. On Quality Control you record how ma
+- answer `eval2|shop|स्क्रीन पर FG लिखा है, ये क्या होता है`
+  - before: in-fg-what · Finished Goods खोलें: पहले ड्रॉप-डाउन में India Store पर हर SKU का Opening, Received, Issu
+  - after: in-fg-what · Finished Goods खोलें: पहले ड्रॉप-डाउन में India Store पर हर SKU का Opening, Received, Issu
+- answer `eval2|shop|awd wala warehouse kaha hai, kya cheez hai ye`
+  - before: bs-awd · AWD America mein Amazon ka storage godown hai jo FBA jaane se pehle hamara stock rakhta ha
+  - after: bs-awd · AWD America mein Amazon ka storage godown hai jo FBA jaane se pehle hamara stock rakhta ha
+- answer `eval2|shop|rfd cloth means?`
+  - before: bs-rfd · RFD is the cloth that has come back from the processor, ready to be printed and cut. On th
+  - after: bs-rfd · RFD is the cloth that has come back from the processor, ready to be printed and cut. On th
+- answer `eval2|shop|ग्रेज कपड़ा मतलब कौन सा कपड़ा`
+  - before: bs-greige · Greige मिल से खरीदा कच्चा कपड़ा है, प्रोसेसिंग से पहले। यह Greige Desk पर Greige PO से खरी
+  - after: bs-greige · Greige मिल से खरीदा कच्चा कपड़ा है, प्रोसेसिंग से पहले। यह Greige Desk पर Greige PO से खरी
+- answer `eval2|shop|the column just says cover, what does that number tell me`
+  - before: dl-repl-cannotcover · Cannot cover un mahino ki kul kam units hai jahan na sea na air time par pahunch sakta (LA
+  - after: dl-repl-cannotcover · Cannot cover un mahino ki kul kam units hai jahan na sea na air time par pahunch sakta (LA
+- answer `eval2|shop|replenishment wali screen kis kaam ki hai`
+  - before: bs-replenishment · Replenishment ka matlab Amazon ka stock khatam hone se pehle phir se bharna. Replenishment
+  - after: bs-replenishment · Replenishment ka matlab Amazon ka stock khatam hone se pehle phir se bharna. Replenishment
+- answer `eval2|shop|ridhi aur cpc alag alag brand h kya`
+  - before: or-shop-store · Upar wale switch se chuniye: Both , Ridhi ya CPC .
+  - after: or-shop-store · Upar wale switch se chuniye: Both , Ridhi ya CPC . Yeh kis liye hai Ridhi aur CPC alag sto
+- answer `eval2|shop|P1 P2 on article review, which one is urgent`
+  - before: bs-priority · P1 is the most urgent and P4 the least; Excess means there is more than enough. On Article
+  - after: bs-priority · P1 is the most urgent and P4 the least; Excess means there is more than enough. On Article
+- answer `eval2|shop|how do i select 3 colours together in the colour filter`
+  - before: pr-flow-search · Type a PO, SKU, colour, fabric or printer in the search box. Filters holds platform, PO, a
+  - after: pr-flow-search · Type a PO, SKU, colour, fabric or printer in the search box. Filters holds platform, PO, a
+- answer `eval2|shop|got a red line under the form after i clicked`
+  - before: bs-red-green-box · A red message means it was not done: read it, it names what is wrong. A green message mean
+  - after: bs-red-green-box · A red message means it was not done: read it, it names what is wrong. A green message mean
+- answer `eval2|shop|क्या अपने आप सेव हो जाता है या कोई बटन दबाना पड़ेगा`
+  - before: bs-save-what · Save (या फ़ॉर्म का मुख्य बटन, जैसे Issue या Save entry ) आपकी एंट्री पक्की करता है ताकि सब
+  - after: bs-save-what · Save (या फ़ॉर्म का मुख्य बटन, जैसे Issue या Save entry ) आपकी एंट्री पक्की करता है ताकि सब
+- answer `eval2|shop|if I hit clear will my old entry get deleted`
+  - before: bs-clear · Clear only empties the boxes on your screen: in a form it wipes what you typed without sav
+  - after: bs-clear · Clear only empties the boxes on your screen: in a form it wipes what you typed without sav
+- answer `eval2|shop|saving... likha aa raha h kaafi der se, dobara dabau?`
+  - before: bs-saving-wait · Jab Saving… likha aaye, kripya rukiye aur dobara na dabaiye — button jaanboojhkar grey hot
+  - after: bs-saving-wait · Jab Saving… likha aaye, kripya rukiye aur dobara na dabaiye — button jaanboojhkar grey hot
+- answer `eval2|shop|गलती से कोई और बटन दब गया, कुछ खराब तो नहीं हुआ`
+  - before: bs-pressed-wrong · सेव बटन दबाने तक कुछ पक्का नहीं होता, इसलिए बस बंद कर दें: Cancel , ✕ दबाएँ, या विंडो के ब
+  - after: bs-pressed-wrong · सेव बटन दबाने तक कुछ पक्का नहीं होता, इसलिए बस बंद कर दें: Cancel , ✕ दबाएँ, या विंडो के ब
+- answer `eval2|shop|galti se tab band ho gaya, jo bhara tha sab gaya kya`
+  - before: - · Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? tab band karu to data
+  - after: - · Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? tab band karu to data
+- answer `eval2|shop|ये लिस्ट एक्सेल में कैसे निकालूँ`
+  - before: bs-export · Export आपकी स्क्रीन की लाइनें एक फ़ाइल (CSV) में डाउनलोड करता है जो Excel में खुलती है। पह
+  - after: bs-export · Export आपकी स्क्रीन की लाइनें एक फ़ाइल (CSV) में डाउनलोड करता है जो Excel में खुलती है। पह
+- answer `eval2|shop|kaun kaun se khane bharna zaroori h, sab bharna padega?`
+  - before: bs-required-box · Jis box par required likha hai use bharna zaroori hai warna entry save nahi hogi; jis par 
+  - after: bs-required-box · Jis box par required likha hai use bharna zaroori hai warna entry save nahi hogi; jis par 
+- answer `eval2|shop|shopify line shows 3d late, how are those days counted, is sunday included?`
+  - before: do-ord-mto-due · A Shopify or Online line is due 5 working days after it was opened in production (Monday–S
+  - after: do-ord-mto-due · A Shopify or Online line is due 5 working days after it was opened in production (Monday–S
+- answer `eval2|shop|ready for shipping tile me number kaise aata h, kya ghatta h usme se`
+  - before: do-ord-ready-shipping · Ready for shipping = khuli Shopify lines ke QC pass pieces (order se zyada nahi) minus jo 
+  - after: do-ord-ready-shipping · Ready for shipping woh pcs hain jo open Shopify lines par QC pass hue (order se zyada nahi
+- answer `eval2|shop|QC check got saved without any order number, which order gets those pieces`
+  - before: do-ord-qc-shared · A QC check that names an order counts on that order; a check made without an order number 
+  - after: do-ord-qc-shared · A QC check that names an order counts on that order; a check made without an order number 
+- answer `eval2|shop|shopify pe cancelled dikha raha par console me line abhi bhi khuli h`
+  - before: do-ord-shopify-says · Ye pill sirf batati hai ki Shopify kya kehta hai; isse kuch nahi badalta. Line tab tak khu
+  - after: do-ord-shopify-says · Ye pill sirf batati hai ki Shopify kya kehta hai; isse kuch nahi badalta. Line tab tak khu
+- answer `eval2|shop|printing column shows 40 back of 60 with a name under it, what is that`
+  - before: do-ord-printing-col · The Printing column reads the vendor orders: "N back of M" is how many came back from the 
+  - after: do-ord-printing-col · The Printing column reads the vendor orders: "N back of M" is how many came back from the 
+- answer `eval2|shop|cpc ke shopify order pe ridhi ka fba stock count hota h kya mcf ready ke liye`
+  - before: do-shop-mcf-ready-rule · MCF ready tabhi dikhta hai jab order ke apne Amazon account (CPC order ke liye CPC, baaki 
+  - after: do-shop-mcf-ready-rule · MCF ready tabhi dikhta hai jab order ke apne Amazon account (CPC order ke liye CPC, baaki 
+- answer `eval2|shop|मैनुअल डीएचएल फाइल में सेट 1 है और एमसीएफ फाइल में 3, ऐसा क्यों`
+  - before: do-shop-courier-qty · MCF फ़ाइल Amazon पैक गिनती है (12 का सेट 4 के 3 पैक की तरह), जबकि DHL और FedEx फ़ाइल वह गि
+  - after: do-shop-courier-qty · MCF फ़ाइल Amazon पैक गिनती है (12 का सेट 4 के 3 पैक की तरह), जबकि DHL और FedEx फ़ाइल वह गि
+- answer `eval2|shop|if i tick rows and receive them all together, does it count any rejects`
+  - before: pr-jw-bulk-receive · Tick the rows in the first column, then press ✓ Receive selected in the bar at the bottom.
+  - after: pr-jw-bulk-receive · Tick the rows in the first column, then press ✓ Receive selected in the bar at the bottom.
+- answer `eval2|shop|कटिंग एंट्री पर Used, Partly, Unused कैसे तय होता है`
+  - before: dp-cut-used-fill · किसी ऑर्डर और SKU पर इश्यू हुए सारे पीस उस ऑर्डर की कटिंग एंट्री को सबसे पुरानी से भरते है
+  - after: dp-cut-used-fill · किसी ऑर्डर और SKU पर इश्यू हुए सारे पीस उस ऑर्डर की कटिंग एंट्री को सबसे पुरानी से भरते है
+- answer `eval2|shop|प्रिंटर से कपड़ा दिए से ज़्यादा वापस आया, रिसीव करने पर error आ रहा`
+  - before: dp-flow-challan-receive · हर Received now box 0 से शुरू होता है — सिर्फ़ जो आया वह लिखें, जिस यूनिट में गया उसी में:
+  - after: dp-flow-challan-receive · हर Received now box 0 से शुरू होता है — सिर्फ़ जो आया वह लिखें, जिस यूनिट में गया उसी में:
+- answer `eval2|shop|shrinkage % on the greige desk, how is it computed and what happens above 5`
+  - before: pr-gd-what · Greige Desk (under Store) follows the cloth: greige POs received bale by bale, issued to a
+  - after: pr-gd-what · Greige Desk (in the Store menu, Materials column) follows the cloth: greige POs received b
+- answer `eval2|shop|ek receive entry delete ki aur stock kam ho gaya, aisa kyu`
+  - before: di-fg-delete-moves-stock · Kyunki stock sirf movements ka jod hai: receive delete karne se wo pieces stock se phir ni
+  - after: di-fg-delete-moves-stock · Kyunki stock sirf movements ka jod hai: receive delete karne se wo pieces stock se phir ni
+- answer `eval2|shop|रिसीव करते वक्त ऑर्डर नंबर अपने आप कोई और भर देता है`
+  - before: di-fg-recv-order-auto · Order No बॉक्स अपने आप इस SKU का वह Order Console ऑर्डर भरता है जिसके पीस अभी आने बाकी हैं
+  - after: di-fg-recv-order-auto · Order No बॉक्स अपने आप इस SKU का वह Order Console ऑर्डर भरता है जिसके पीस अभी आने बाकी हैं
+- answer `eval2|shop|the delete button on a sku row in india store, how much does it wipe`
+  - before: di-fg-delete-sku · Delete on a SKU row (or Delete this SKU from the store ) deletes every movement that SKU h
+  - after: di-fg-delete-sku · Delete on a SKU row (or Delete this SKU from the store ) deletes every movement that SKU h
+- answer `eval2|shop|स्कैनर कैसे पहचानता है कि X00 वाला कोड किस SKU का है`
+  - before: di-fg-scan-resolve · स्कैन हुआ कोड पहले Master Database में SKU के रूप में देखा जाता है, फिर FNSKU list में (ले
+  - after: di-fg-scan-resolve · स्कैन हुआ कोड पहले Master Database में SKU के रूप में देखा जाता है, फिर FNSKU list में (ले
+- answer `eval2|shop|return wala galat lag gaya fba dispatch me, undo sirf ek step peeche jaata h, return kaise hatau`
+  - before: di-fba-undo-return · Undo ek kadam peeche jaata hai: shipped → accepted, accepted → waiting. Return wahan undo 
+  - after: di-fba-undo-return · Undo ek kadam peeche jaata hai: shipped → accepted, accepted → waiting. Return wahan undo 
+- answer `eval2|shop|gross weight on the packing list, where does the extra 1.5 come from`
+  - before: di-pk-weights · Per box: net = each line's qty × its per-piece weight, added up; gross = net + Packing wt 
+  - after: di-pk-weights · Per box: net = each line's qty × its per-piece weight, added up; gross = net + Packing wt 
+- answer `eval2|shop|file se packing list banayi to FG ka stock ghata kya`
+  - before: di-pk-file-no-stock · Nahi. New from file se bani list sirf box aur kaagaz banati hai; Finished Goods ko nahi ch
+  - after: di-pk-file-no-stock · Nahi. New from file se bani list sirf box aur kaagaz banati hai; Finished Goods ko nahi ch
+- answer `eval2|shop|accessories ka balance kaise banta h, return aur in alag kyu likhte`
+  - before: di-acc-balance · Balance = OPENING + IN + RETURN − OUT, ± ADJUST (adjustment apna chinh khud rakhta hai). W
+  - after: di-acc-balance · Balance = OPENING + IN + RETURN − OUT, ± ADJUST (adjustment apna chinh khud rakhta hai). W
+- answer `eval2|shop|SEA by की तारीख कैसे निकलती है और LATE कब लग जाता है`
+  - before: dl-repl-lane-calc · ऐप पहले देखता है माल इंडिया से कब निकल सकता है — इंडिया स्टॉक हो तो आज + disp दिन, बन रहा 
+  - after: dl-repl-lane-calc · ऐप पहले देखता है माल इंडिया से कब निकल सकता है — इंडिया स्टॉक हो तो आज + disp दिन, बन रहा 
+- answer `eval2|shop|PO pehle hi daal diya supplier ko phir bhi air req utna hi dikha raha`
+  - before: dl-repl-po-double · Nahi — Air Req, Sea Req aur Create PO khule purchase order nahi ghatate; woh sirf FBA ya A
+  - after: dl-repl-po-double · Nahi — Air Req, Sea Req aur Create PO khule purchase order nahi ghatate; woh sirf FBA ya A
+- answer `eval2|shop|I set a sku to discontinue, what else stops for it`
+  - before: pl-repl-status · Click the small ▾ beside the SKU's Status pill and pick Listed, Need Listing, Discontinue 
+  - after: pl-repl-status · Click the small ▾ beside the SKU's Status pill and pick Listed, Need Listing, Discontinue 
+- answer `eval2|shop|आर्टिकल रिव्यू में कवर 25 दिन है फिर भी P3 क्यों दिखा रहा`
+  - before: dl-ar-transit · प्रायोरिटी Cover (d) से शुरू होती है (P1 20 से कम, P2 20–40, P3 40–60, P4 60 से ऊपर, Exces
+  - after: dl-ar-transit · प्रायोरिटी Cover (d) से शुरू होती है (P1 20 से कम, P2 20–40, P3 40–60, P4 60 से ऊपर, Exces
+- answer `eval2|shop|the req qty i typed on article review, will create po pick it up`
+  - before: dl-ar-reqqty-po · No — a typed Req. Qty is saved only for Article Review and its Export; Air Req, Sea Req, S
+  - after: dl-ar-reqqty-po · No — a typed Req. Qty is saved only for Article Review and its Export; Air Req, Sea Req, S
+- answer `eval2|shop|revenue target me vs run rate 2.5x laal dikha raha, matlab kya`
+  - before: dl-tg-runrate · vs run rate = Units needed ÷ article us mahine apni 90 din ki raftaar se waise bhi kitna b
+  - after: dl-tg-runrate · vs run rate = Units needed ÷ article us mahine apni 90 din ki raftaar se waise bhi kitna b
+- answer `eval2|shop|production analysis says enough karigars but not enough pieces a day, what does that mean`
+  - before: dl-pa-verdict · The verdict is one of three: Target reached ; N more karigar(s) needed when the target nee
+  - after: dl-pa-verdict · The verdict is one of three: Target reached ; N more karigar(s) needed when the target nee
+- answer `eval2|shop|rate list has no rate for this exact article, which rate does the payout fall back to`
+  - before: dv-prate-match · A vendor rate prices a line only on an exact match: the same vendor and work, and for cut 
+  - after: dv-prate-match · A vendor rate prices a line only on an exact match: the same vendor and work, and for cut 
+- answer `eval2|shop|full month me rate column me 'mixed' likha h`
+  - before: dv-hr-full-month · Full month dono fortnight ka jod hai, amount-dar-amount — har half apne aap me frozen ya l
+  - after: dv-hr-full-month · Full month dono fortnight ka jod hai, amount-dar-amount — har half apne aap me frozen ya l
+- answer `eval2|shop|एडवांस पखवाड़े के पैसे से कटेगा या महीने के`
+  - before: dv-hr-advance-rules · एडवांस हर व्यक्ति का हर महीने एक ही आंकड़ा होता है और सिर्फ Full month पेआउट से कटता है, प
+  - after: dv-hr-advance-rules · एडवांस हर व्यक्ति का हर महीने एक ही आंकड़ा होता है और सिर्फ Full month पेआउट से कटता है, प
+- answer `eval2|shop|night shift extra hours 22:00 to 02:00, will it count or error`
+  - before: dv-hr-extra-hours-calc · Hours = To (HH:MM) − From (HH:MM) , rounded to two decimals; if To is earlier than From th
+  - after: dv-hr-extra-hours-calc · Hours = To (HH:MM) − From (HH:MM) , rounded to two decimals; if To is earlier than From th
+- answer `eval2|shop|vendor fortnight won't freeze, it complains about a rate`
+  - before: vm-hr-freeze · An admin picks a fortnight ( 1st – 15th or 16th – end ) and presses Freeze ; a later rate 
+  - after: vm-hr-freeze · An admin picks a fortnight ( 1st – 15th or 16th – end ) and presses Freeze ; a later rate 
+- answer `eval2|shop|प्रिंटिंग रेट में 1-4 कलर और 5+ वाला, कौन सा लगेगा`
+  - before: dv-prate-colours · प्रिंटिंग में रेट किसी कलर रेंज ( 1-4 , 5+ , एक नंबर) का हो सकता है, या खाली मतलब कोई भी। 
+  - after: dv-prate-colours · प्रिंटिंग में रेट किसी कलर रेंज ( 1-4 , 5+ , एक नंबर) का हो सकता है, या खाली मतलब कोई भी। 
+- answer `eval2|shop|goods never showed up from the printer, should i accept 0 or something else`
+  - before: vm-vlog-where · Open Fabric Inventory , pick Fabric flow , choose the To accept stage and press Accept del
+  - after: vm-vlog-where · History is no longer on the left menu; it is the list of deliveries printers recorded on o
+- answer `eval2|shop|नए कलर का SKU कोड बेस कोड से कैसे बनता है`
+  - before: dv-pmdb-sku-code-rule · कलर की SKU = बेस कोड में कलर कोड डालकर: पहले डैश से पहले (RTC-6060 + 327 → RTC327-6060), ब
+  - after: dv-pmdb-sku-code-rule · कलर की SKU = बेस कोड में कलर कोड डालकर: पहले डैश से पहले (RTC-6060 + 327 → RTC327-6060), ब
+- answer `eval2|shop|renamed a colour in masters but old entries still show the old name`
+  - before: dv-mst-rename-records · Renaming a master row does NOT change the records that already carry the old text — they k
+  - after: dv-mst-rename-records · Renaming a master row does NOT change the records that already carry the old text — they k
+- answer `eval2|shop|wholesale buyer order, what's its route through the system till it's sent`
+  - before: - · I'm not fully sure what you mean. Is it one of these? b2b order full process how to receiv
+  - after: - · I'm not fully sure what you mean. Is it one of these? b2b order full process Route how to 
+- answer `eval2|shop|register total says 500 issued but order console shows only 380 issued`
+  - before: dx-no-order-id-gap · The Order Console counts only entries that carry that order's number and SKU; register til
+  - after: dx-no-order-id-gap · The Order Console counts only entries that carry that order's number and SKU; register til
+- answer `eval2|shop|karigar returned half the pieces but his payout shows nothing for that row yet`
+  - before: dx-pay-vs-received · A Job Work row is paid only once it is complete — nothing left pending — on the pieces rec
+  - after: dx-pay-vs-received · A Job Work row is paid only once it is complete — nothing left pending — on the pieces rec
+- answer `eval2|shop|maine change maanga tha, ab khud approve kyu nahi kar pa raha`
+  - before: dx-no-self-approve · Koi bhi apna correction khud approve nahi kar sakta — kisi aur ko karna hoga — aur jo requ
+  - after: dx-no-self-approve · Koi bhi apna correction khud approve nahi kar sakta — kisi aur ko karna hoga — aur jo requ
+- answer `eval2|shop|deleted a packing list by mistake and it's not in the recycle bin`
+  - before: dx-not-in-recycle-bin · Packing lists and purchase orders are deleted for good — they are not kept in the Recycle 
+  - after: dx-not-in-recycle-bin · Packing lists and purchase orders are deleted for good — they are not kept in the Recycle 
+- answer `eval2|shop|pichle mahine ki cutting entry galat h par month freeze ho gaya, ab?`
+  - before: pr-cut-frozen · Woh mahina entry ke liye band hai. Kisi khule mahine ki date daaliye, ya entry sach mein u
+  - after: pr-cut-frozen · Woh mahina entry ke liye band hai. Kisi khule mahine ki date daaliye, ya entry sach mein u
+- answer `eval2|shop|GST invoice kaise banau is ERP me`
+  - before: gn-signin-ways · Do tarike hain: apna Email aur Password daal kar Sign in , ya Sign in with cellphone and P
+  - after: gn-signin-ways · Do tarike hain: apna Email aur Password daal kar Sign in , ya Sign in with cellphone and P
+- answer `eval2|shop|meesho pe order aaya wo kaise chadhau`
+  - before: in-fg-receive · Finished Goods me + Stock entry dabaiye, Receive · in chuniye, order chuniye, pieces aur R
+  - after: in-fg-receive · Finished Goods me + Stock entry dabaiye, Receive · in chuniye, order chuniye, pieces aur R
+- answer `parts|pmdb|+ New SKU button kya karta h`
+  - before: c-pmdb-745 · + New SKU — Master Database par button: Naya SKU (ya Fabric for printing mein fabric row) 
+  - after: c-pmdb-745 · + New SKU — Master Database par button: Naya SKU (ya Fabric for printing mein fabric row) 
+- answer `parts|fgi|ye Re-order level kis kaam ka hai`
+  - before: c-fgi-1485 · Re-order level — Finished Goods par box: Is level ya usse kam par stock Low dikhta hai; kh
+  - after: c-fgi-1485 · Re-order level — Finished Goods par box: Is level ya usse kam par stock Low dikhta hai; kh
+- answer `parts|ord|what happens if i press Days open`
+  - before: c-ord-1711 · Days open — column on Order Console: Days since the line was opened in production.
+  - after: c-ord-1711 · Days open — column on Order Console: Days since the line was opened in production. What it
+- answer `parts|mst|Cut किसलिए है`
+  - before: - · आपका सवाल एक से ज़्यादा जवाबों से मिलता है। आप कौन-सा पूछ रहे हैं? Cut क्या है · Masters (
+  - after: (none)
+- answer `parts|so|Open ka kya matlab hota hai`
+  - before: c-so-1827 · Open — Sales Orders par button: Order kholta hai: har SKU Qty, Cut, Made, Owed aur In orde
+  - after: c-so-1827 · Open — Sales Orders par button: Order kholta hai: har SKU Qty, Cut, Made, Owed aur In orde
+- answer `parts|cx|what does Raise an adjustment show`
+  - before: c-cx-1719 · Raise an adjustment — button on Customer Orders: Marks the line Adjustment Raised — it is 
+  - after: c-cx-1719 · Raise an adjustment — button on Customer Orders: Marks the line Adjustment Raised — it is 
+- answer `parts|fgi|Order Console orders button kya karta h`
+  - before: c-fgi-1566 · Order Console orders — Finished Goods par box: Is session me jin orders par pack hoga; ye 
+  - after: c-fgi-1566 · Order Console orders — Finished Goods par box: Is session me jin orders par pack hoga; ye 
+- answer `parts|fgi|what happens if i press Reason on the entry`
+  - before: c-fgi-1493 · Reason on the entry — box on Finished Goods: The reason written on the entry; correct it i
+  - after: c-fgi-1493 · Reason on the entry — box on Finished Goods: The reason written on the entry; correct it i
+- answer `parts|mst|₹ / piece किसलिए है`
+  - before: c-mst-1641 · ₹ / piece — mst पर कॉलम: उस article का प्रति पीस औसत मज़दूरी मूल्य: रकम ÷ पीस।
+  - after: (none)
+- answer `parts|fgi|Edit ka kya matlab hota hai`
+  - before: c-fgi-1550 · Edit — Finished Goods par button: Is SKU ka Edit kholta hai: gina hua stock, re-order leve
+  - after: c-fgi-1550 · Edit — Finished Goods par button: Is SKU ka Edit kholta hai: gina hua stock, re-order leve
+- answer `parts|fba|what does Pieces shipped show`
+  - before: c-fba-1465 · Pieces shipped — box on FBA Dispatch: Only when shipping one row: how many pieces are goin
+  - after: c-fba-1465 · Pieces shipped — box on FBA Dispatch: Only when shipping one row: how many pieces are goin
+- answer `parts|hr|ye Cancelled after this was taken in. Still owed. kis kaam ka hai`
+  - before: c-hr-1862 · Cancelled after this was taken in. Still owed. — Finance &amp; HR par note: Maal lene ke b
+  - after: c-hr-1862 · Cancelled after this was taken in. Still owed. — Finance &amp; HR par note: Maal lene ke b
+- answer `parts|article|what happens if i press SKU`
+  - before: pr-press-edit · Press Edit on the row, change Pieces or Remarks and press Save . The SKU cannot change; th
+  - after: pr-press-edit · Press Edit on the row, change Pieces or Remarks and press Save . The SKU cannot change; th
+- answer `parts|ord|To quilt team किसलिए है`
+  - before: c-ord-1758 · To quilt team — Order Console पर बटन: इस क्विल्ट लाइन को क्विल्ट टीम को सौंपा हुआ दर्ज करत
+  - after: c-ord-1758 · To quilt team — Order Console पर बटन: इस क्विल्ट लाइन को क्विल्ट टीम को सौंपा हुआ दर्ज करत
+- answer `parts|gdesk|Transport / LR button kya karta h`
+  - before: c-gdesk-1346 · Transport / LR — gdesk par column: Challan ke saath likhe transporter, LR number aur invoi
+  - after: c-gdesk-1346 · Transport / LR — Greige Desk par column: Challan ke saath likhe transporter, LR number aur
+- answer `parts|fgi|what happens if i press pieces of this order in the India Store`
+  - before: c-fgi-1584 · pieces of this order in the India Store — note on Finished Goods: The bracket number is ho
+  - after: c-fgi-1584 · pieces of this order in the India Store — note on Finished Goods: The bracket number is ho
+- answer `parts|gdesk|Our RFD challan no. किसलिए है`
+  - before: c-gdesk-1308 · Our RFD challan no. — gdesk पर बॉक्स: Processor को हमारा challan number, सेव करते समय अपनी
+  - after: c-gdesk-1308 · Our RFD challan no. — Greige Desk पर बॉक्स: Processor को हमारा challan number, सेव करते सम
+- answer `parts|gdesk|By PO ' + nf((DB.gpo || []).length) + ' ka kya matlab hota hai`
+  - before: c-gdesk-1360 · By PO ' + nf((DB.gpo || []).length) + ' — gdesk par button: Greige PO ki list; number bata
+  - after: c-gdesk-1360 · By PO ' + nf((DB.gpo || []).length) + ' — Greige Desk par button: Greige PO ki list; numbe
+- answer `parts|so|what does Work booked show`
+  - before: c-so-1728 · Work booked — column on Sales Orders: Work already recorded on the line — cut, issued, rec
+  - after: c-so-1728 · Work booked — column on Sales Orders: Work already recorded on the line — cut, issued, rec
+- answer `parts|ord|Show … more button kya karta h`
+  - before: c-ord-1761 · Show … more — Order Console par button: Dikh rahi lines ke neeche agli 600 lines dikhata h
+  - after: c-ord-1761 · Show … more — Order Console par button: Dikh rahi lines ke neeche agli 600 lines dikhata h
+- answer `parts|fgi|ye Ordered kis kaam ka hai`
+  - before: c-fgi-1578 · Ordered — Finished Goods par column: Orders me maange kul pieces, store me unke liye jitne
+  - after: c-fgi-1578 · Ordered — Finished Goods par column: Us line par orders jitne pieces maangte hain unka kul
+- answer `parts|fgi|what happens if i press Start another session`
+  - before: c-fgi-1595 · Start another session — button on Finished Goods: After Finish, closes this session and op
+  - after: c-fgi-1595 · Start another session — button on Finished Goods: After Finish, closes this session and op
+- answer `parts|so|Upload किसलिए है`
+  - before: c-so-1790 · Upload — Sales Orders पर बटन: भरी लाइनों की फ़ाइल पढ़कर लाइनें जोड़ता या बदलता है; एक भी ग
+  - after: c-so-1790 · Upload — Sales Orders पर बटन: भरी लाइनों की फ़ाइल पढ़कर लाइनें जोड़ता या बदलता है; एक भी ग
+- answer `parts|mst|In the app ka kya matlab hota hai`
+  - before: c-mst-1667 · In the app — mst par column: App ki apni vendor list mein milta vendor code, ya 'not in th
+  - after: (none)
+- answer `parts|gdesk|+ Supplement PO for ' + m1(extra) + ' m button kya karta h`
+  - before: c-gdesk-1375 · + Supplement PO for ' + m1(extra) + ' m — gdesk par button: Jab line 10% allowance se upar
+  - after: c-gdesk-1375 · + Supplement PO for ' + m1(extra) + ' m — Greige Desk par button: Jab line 10% chhoot se u
+- answer `parts|mst|ye ' + (group === 'article' ? 'Article' : group === 'dept' ? 'Department' : 'Karigar') + ' kis kaam ka hai`
+  - before: c-mst-1635 · ' + (group === 'article' ? 'Article' : group === 'dept' ? 'Department' : 'Karigar') + ' — 
+  - after: (none)
+- answer `parts|so|what happens if i press Reference`
+  - before: c-so-1786 · Reference — box on Sales Orders: Your own reference, such as an old system number; the app
+  - after: c-so-1786 · Reference — box on Sales Orders: Your own reference, such as an old system number; the app
+- answer `parts|gdesk|Due on किसलिए है`
+  - before: c-gdesk-1336 · Due on — gdesk पर कॉलम: जिस दिन supplier को यह line देनी है।
+  - after: c-gdesk-1336 · Due on — Greige Desk पर कॉलम: जिस दिन supplier को यह line देनी है। यह किस लिए है यह मिल की
+- answer `parts|so|Color ka kya matlab hota hai`
+  - before: c-so-1805 · Color — Sales Orders par column: Buyer ka diya colour ka naam.
+  - after: c-so-1805 · Color — Sales Orders par column: Buyer ka diya colour ka naam. Yeh kis liye hai Colour se 
+- answer `parts|mst|All departments button kya karta h`
+  - before: c-mst-1632 · All departments — mst par option: Karigar Analysis par sabhi department ke karigar dikhata
+  - after: (none)
+- answer `parts|gdesk|ye Terms of delivery kis kaam ka hai`
+  - before: c-gdesk-1306 · Terms of delivery — gdesk par box: Optional delivery terms, jaise hamare godown tak, bhaad
+  - after: c-gdesk-1306 · Terms of delivery — Greige Desk par box: Optional delivery terms, jaise hamare godown tak,
+- answer `parts|fgi|what happens if i press Reopen`
+  - before: c-fgi-1585 · Reopen — button on Finished Goods: Reopens a closed box so the next scans go into it.
+  - after: c-fgi-1585 · Reopen — button on Finished Goods: Reopens a closed box so the next scans go into it. What
+- answer `parts|gdesk|' + esc(o.greige) + ' किसलिए है`
+  - before: c-gdesk-1377 · ' + esc(o.greige) + ' — gdesk पर विकल्प: PO line का greige fabric चुनें; RFD fabric और des
+  - after: c-gdesk-1377 · ' + esc(o.greige) + ' — Greige Desk पर विकल्प: PO line का greige fabric चुनें; RFD fabric 
+- answer `parts|shop|what does DHL CSV show`
+  - before: c-shop-882 · DHL CSV — option on Shopify Orders: The DHL CSV upload file. Needs an invoice number and d
+  - after: c-shop-882 · DHL CSV — option on Shopify Orders: The DHL CSV upload file. Needs an invoice number and d
+- answer `parts|flow|Challan button kya karta h`
+  - before: c-flow-1169 · Challan — Production flow par column: Challan number aur date.
+  - after: c-flow-1169 · Challan — Production flow par column: Challan number aur date. Yeh kis liye hai Printer ko
+- answer `parts|flow|ye … · issued … on … · … still out kis kaam ka hai`
+  - before: c-flow-1123 · … · issued … on … · … still out — Production flow par button: Chuniye kis karigar ka issue
+  - after: c-flow-1123 · … · issued … on … · … still out — Production flow par button: Chuniye kis karigar ka issue
+- answer `parts|flow|what happens if i press Make challan`
+  - before: c-flow-1226 · Make challan — button on Production flow: Asks how many pieces of each size go now, fills 
+  - after: c-flow-1226 · Make challan — button on Production flow: Asks how many pieces of each size go now, fills 
+- answer `parts|pbase|= 0 ? ' class="num"' : '')}> किसलिए है`
+  - before: c-pbase-1880 · = 0 ? ' class=&quot;num&quot;' : '')}&gt; — Job Work Register पर कॉलम: रजिस्टर के कॉलम: Is
+  - after: c-pbase-1880 · = 0 ? ' class=&quot;num&quot;' : '')}&gt; — Job Work Register पर कॉलम: रजिस्टर के कॉलम: Is
+- answer `parts|so|Select all ka kya matlab hota hai`
+  - before: c-so-1813 · Select all — Sales Orders par button: Ready to give a printer ke har SKU ko tick karta hai
+  - after: (none)
+- answer `parts|mst|what does e.g. Greige Sheeting 67 show`
+  - before: c-mst-1676 · e.g. Greige Sheeting 67 — box on mst: In Fabric type, an admin types the greige name sent 
+  - after: c-mst-1676 · e.g. Greige Sheeting 67 — box on Masters: In Fabric type, an admin types the greige name s
+- answer `parts|fgi|Auto — oldest orders first button kya karta h`
+  - before: c-fgi-1508 · Auto — oldest orders first — Finished Goods par option: Pieces un orders me baant-ta hai j
+  - after: c-fgi-1508 · Auto — oldest orders first — Finished Goods par option: Pieces un orders me baant-ta hai j
+- answer `parts|fgi|ye L cm kis kaam ka hai`
+  - before: c-fgi-1586 · L cm — Finished Goods par box: Box ki lambai cm me; pichhle box ke naap se bhara aata hai.
+  - after: c-fgi-1586 · L cm — Finished Goods par box: Box ki lambai cm me; pichhle box ke naap se bhara aata hai.
+- answer `parts|pbase|what happens if i press Anyone's entry`
+  - before: c-pbase-791 · Anyone's entry — option on Job Work Register: Shows entries made or changed by one person,
+  - after: c-pbase-791 · Anyone's entry — option on Job Work Register: Shows entries made or changed by one person,
+- answer `parts|fgi|Waiting to be counted in किसलिए है`
+  - before: c-fgi-367 · Waiting to be counted in — Finished Goods पर विकल्प: प्रेस से भेजे गए वे पीस दिखाता है जो 
+  - after: c-fgi-367 · Waiting to be counted in — Finished Goods पर विकल्प: प्रेस से भेजे गए वे पीस दिखाता है जो 
+- answer `parts|pbase|Reject ka kya matlab hota hai`
+  - before: c-pbase-1874 · Reject — Job Work Register par button: Correction mana karta hai; kaaran likhna zaroori ha
+  - after: c-pbase-1874 · Reject — Job Work Register par button: Correction mana karta hai; kaaran likhna zaroori ha
+- answer `parts|mst|what does Refresh show`
+  - before: c-mst-228 · Refresh — button on mst: Reads the master lists and the master database again, so you see 
+  - after: c-mst-228 · Refresh — button on Masters: Reads the master lists and the master database again, so you 
+- answer `parts|fgi|FBA account … `).join('')} button kya karta h`
+  - before: c-fgi-1562 · FBA account … `).join('')} — Finished Goods par box: FBA account chuniye (Ridhi FBA ya CPC
+  - after: c-fgi-1562 · FBA account … `).join('')} — Finished Goods par box: FBA account chuniye (Ridhi FBA ya CPC
+- answer `parts|pcut|ye All subtypes kis kaam ka hai`
+  - before: c-pcut-824 · All subtypes — Cutting Data par option: Ek subtype ki cutting dikhata hai.
+  - after: c-pcut-824 · All subtypes — Cutting Data par option: Ek subtype ki cutting dikhata hai. Yeh kis liye ha
+- answer `parts|pbase|Issued किसलिए है`
+  - before: c-pbase-803 · Issued — Job Work Register पर विकल्प: सिर्फ़ issue की तारीख देखता है।
+  - after: c-pbase-803 · Issued — Job Work Register पर विकल्प: सिर्फ़ issue की तारीख देखता है। यह किस लिए है चुनी त
+- answer `parts|india|Import ka kya matlab hota hai`
+  - before: c-india-157 · Import — india par button: Band hai: India stock Finished Goods se aata hai, upload ki zar
+  - after: c-india-157 · Import — India Stock par button: Band hai: India stock Finished Goods se aata hai, upload 
+- answer `parts|pack|ye Net kis kaam ka hai`
+  - before: c-pack-1945 · Net — Packing List par column: Box ka net weight: har line ka qty × ek piece ka weight, jo
+  - after: c-pack-1945 · Net — Packing List par column: Box ka net weight: har line ka qty × ek piece ka weight, jo
+- answer `parts|repl|what happens if i press ⇄ Move from AWD`
+  - before: c-repl-29 · ⇄ Move from AWD — option on Replenishment: Shows SKUs where AWD holds stock, the SKU sells
+  - after: c-repl-29 · ⇄ Move from AWD — option on Replenishment: Shows SKUs where AWD holds stock, the SKU sells
+- answer `parts|fgi|Order Console ka kya matlab hota hai`
+  - before: c-fgi-1500 · Order Console — Finished Goods par option: Receipt Order Console ke order par hai; list se
+  - after: c-fgi-1500 · Order Console — Finished Goods par option: Receipt Order Console ke order par hai; list se
+- answer `parts|pack|what does Invoice # show`
+  - before: - · Your question fits more than one answer. Which one do you mean? Invoice # · Packing List (
+  - after: - · Your question fits more than one answer. Which one do you mean? Invoice # · Packing List (
+- answer `parts|india|e.g. 07001 button kya karta h`
+  - before: c-india-1973 · e.g. 07001 — india par box: USA warehouse ka 5 ankon ka zip likhiye; ye agli baar ke liye 
+  - after: (none)
+- answer `parts|gdesk|ye Ordered kis kaam ka hai`
+  - before: c-gdesk-1337 · Ordered — gdesk par column: Is line par mangaye metres.
+  - after: c-gdesk-1337 · Ordered — Greige Desk par column: Is line par mangaye metres. Yeh kis liye hai Jo metre aa
+- answer `parts|pack|what happens if i press Done — write Send to FBA`
+  - before: c-pack-2034 · Done — write Send to FBA — button on Packing List: Writes one Send to FBA row per SKU into
+  - after: c-pack-2034 · Done — write Send to FBA — button on Packing List: Writes one Send to FBA row per SKU into
+- answer `parts|india|Not in the Amazon snapshot AND not in the Catalog — check the SKU spelling, or it really i किसलिए है`
+  - before: c-india-1970 · Not in the Amazon snapshot AND not in the Catalog — check the SKU spelling, or it really i
+  - after: c-india-1970 · Not in the Amazon snapshot AND not in the Catalog — check the SKU spelling, or it really i
+- answer `parts|vend|Change my PIN ka kya matlab hota hai`
+  - before: c-vend-268 · Change my PIN — vend par button: Change my PIN kholta hai, jahan aap naya PIN rakhte hain 
+  - after: c-vend-268 · Change my PIN — Vendor Portal par button: Change my PIN kholta hai, jahan aap naya PIN rak
+- answer `parts|adj|what does Filter id / order / SKU / product show`
+  - before: c-adj-900 · Filter id / order / SKU / product — box on adj: Type an adjustment id, order number, SKU o
+  - after: c-adj-900 · Filter id / order / SKU / product — box on Adjustments: Type an Adjustmentsustment id, ord
+- answer `parts|repl|Export button kya karta h`
+  - before: c-repl-34 · Export — Replenishment par button: Screen par dikh rahi rows hi CSV file mein download kar
+  - after: c-repl-34 · Export — Replenishment par button: Screen par dikh rahi rows hi CSV file mein download kar
+- answer `parts|pack|ye Shipment date to kis kaam ka hai`
+  - before: c-pack-197 · Shipment date to — Packing List par note: Sirf is date ya usse pehle ki packing lists dikh
+  - after: c-pack-197 · Shipment date to — Packing List par note: Sirf is date ya usse pehle ki packing lists dikh
+- answer `parts|pbase|what happens if i press Move completed entries`
+  - before: c-pbase-809 · Move completed entries — button on Job Work Register: Admins only: moves completed entries
+  - after: c-pbase-809 · Move completed entries — button on Job Work Register: Admins only: moves completed entries
+- answer `parts|fgi|Undo last scan किसलिए है`
+  - before: c-fgi-1582 · Undo last scan — Finished Goods पर बटन: आख़िरी स्कैन वापस लेता है।
+  - after: c-fgi-1582 · Undo last scan — Finished Goods पर बटन: आख़िरी स्कैन वापस लेता है। यह किस लिए है बिना हाथ 
+- answer `parts|fgi|For which order * Auto — oldest orders first ka kya matlab hota hai`
+  - before: c-fgi-1507 · For which order * Auto — oldest orders first — Finished Goods par box: Issue ya FBA send m
+  - after: c-fgi-1507 · For which order * Auto — oldest orders first — Finished Goods par box: Issue ya FBA send m
+- answer `parts|vend|what does By product one card per SKU show`
+  - before: c-vend-259 · By product one card per SKU — option on vend: Shows one card per SKU, with that SKU's line
+  - after: c-vend-259 · By product one card per SKU — option on Vendor Portal: Shows one card per SKU, with that S
+- answer `parts|flow|Fixed — send to PPC button kya karta h`
+  - before: c-flow-1081 · Fixed — send to PPC — Production flow par button: Theek karne ke baad ise dabaiye, What wa
+  - after: c-flow-1081 · Fixed — send to PPC — Production flow par button: Theek karne ke baad ise dabaiye, What wa
+- answer `parts|follow|ye The warehouse list is still being read. kis kaam ka hai`
+  - before: c-follow-2054 · The warehouse list is still being read. — follow par note: India Stock mein … ka matlab go
+  - after: c-follow-2054 · The warehouse list is still being read. — Ongoing Purchase Order par note: India Stock mei
+- answer `parts|gdesk|what happens if i press Greige has come on this line, so its fabric stays.`
+  - before: c-gdesk-1376 · Greige has come on this line, so its fabric stays. — note on gdesk: On an edited PO line t
+  - after: c-gdesk-1376 · Greige has come on this line, so its fabric stays. — note on Greige Desk: On an edited PO 
+- answer `parts|pcut|Filled in from the item on the left. Typing a SKU here works too and fills the item back. किसलिए है`
+  - before: c-pcut-840 · Filled in from the item on the left. Typing a SKU here works too and fills the item back. 
+  - after: c-pcut-840 · Filled in from the item on the left. Typing a SKU here works too and fills the item back. 
+- answer `parts|follow|Not found on Amazon (not in the Replenishment snapshot) — needs a listing ka kya matlab hota hai`
+  - before: c-follow-1957 · Not found on Amazon (not in the Replenishment snapshot) — needs a listing — follow par not
+  - after: c-follow-1957 · Not found on Amazon (not in the Replenishment snapshot) — needs a listing — Ongoing Purcha
+- answer `parts|india|what does ' + esc(ln.st ? `………` : 'Nothing recorded yet.') + ' show`
+  - before: - · If you see that message: A box the ERP needs is still empty or not chosen — it will not sa
+  - after: (none)
+- answer `parts|flow|Passed QC, not in India stock yet — accept or reject them button kya karta h`
+  - before: c-flow-1150 · Passed QC, not in India stock yet — accept or reject them — Production flow par note: QC p
+  - after: c-flow-1150 · Passed QC, not in India stock yet — accept or reject them — Production flow par note: QC p
+- answer `parts|pack|ye Orders (a new list) kis kaam ka hai`
+  - before: c-pack-2011 · Orders (a new list) — Packing List par box: Pack by order scan ke liye: ye nayi list kin o
+  - after: c-pack-2011 · Orders (a new list) — Packing List par box: Pack by order scan ke liye: ye nayi list kin o
+- answer `parts|vend|what happens if i press Search order no, SKU, fabric`
+  - before: c-vend-267 · Search order no, SKU, fabric — box on vend: Type an order number, SKU, fabric, colour, art
+  - after: c-vend-267 · Search order no, SKU, fabric — box on Vendor Portal: Type an order number, SKU, fabric, co
+- answer `parts|mst|+ Add vendor ka kya matlab hota hai`
+  - before: c-mst-1665 · + Add vendor — mst par button: Sirf admin: Vendors page par naya vendor (greige, RFD, quil
+  - after: (none)
+- answer `parts|palloc|Capacity from history — m² a week button kya karta h`
+  - before: c-palloc-406 · Capacity from history — m² a week — palloc par option: Har printer ne hafte-dar-hafte asal
+  - after: c-palloc-406 · Capacity from history — m² a week — Printer Allocation par option: Har printer ne hafte-da
+- answer `parts|shop|what happens if i press Sign in`
+  - before: c-any-2 · Sign in : Signs you in with the Email and Password typed above.
+  - after: c-any-2 · Sign in : Signs you in with the Email and Password typed above. What it's for This is the 
+- answer `parts|gdesk|Reopen the PO किसलिए है`
+  - before: c-gdesk-1352 · Reopen the PO — gdesk पर बटन: बंद PO को फिर खोलता है, ताकि न आए metres फिर से बाकी गिने जा
+  - after: c-gdesk-1352 · Reopen the PO — Greige Desk पर बटन: बंद PO को फिर खोलता है, ताकि न आए metres फिर से बाकी ग
+- answer `parts|cx|what does Cancel this line show`
+  - before: c-cx-1720 · Cancel this line — button on Customer Orders: Marks the line Cancelled; nothing is issued 
+  - after: c-cx-1720 · Cancel this line — button on Customer Orders: Marks the line Cancelled; nothing is issued 
+- answer `parts|pack|+ A new packing list button kya karta h`
+  - before: c-pack-2006 · + A new packing list — Packing List par option: Open list jaari rakhne ki jagah nayi packi
+  - after: c-pack-2006 · + A new packing list — Packing List par option: Open list jaari rakhne ki jagah nayi packi
+- answer `parts|flow|ye Use the master data kis kaam ka hai`
+  - before: c-flow-1133 · Use the master data — Production flow par button: Purane plan ki jagah master ka fabric au
+  - after: c-flow-1133 · Use the master data — Production flow par button: Purane plan ki jagah master ka fabric au
+- answer `parts|india|what happens if i press ' + esc(why) + '`
+  - before: c-india-2005 · ' + esc(why) + ' — note on india: can't ship: hover to see Amazon's reason this speed cann
+  - after: (none)
+- answer `parts|ord|… open line(s) behind this SKU ka kya matlab hota hai`
+  - before: c-ord-1747 · … open line(s) behind this SKU — Order Console par note: Is SKU ke peeche ki har khuli lin
+  - after: c-ord-1747 · … open line(s) behind this SKU — Order Console par note: Is SKU ke peeche ki har khuli lin
+- answer `parts|ord|what does This article is not cut — nothing to record show`
+  - before: c-ord-1750 · This article is not cut — nothing to record — note on Order Console: not needed: this arti
+  - after: c-ord-1750 · This article is not cut — nothing to record — note on Order Console: not needed: this arti
+- answer `parts|shop|Desktop view the computer layout, scaled button kya karta h`
+  - before: c-any-1056 · Desktop view the computer layout, scaled : Phone par computer wala layout chhota karke dik
+  - after: c-any-1056 · Desktop view the computer layout, scaled : Phone par computer wala layout chhota karke dik
+- answer `parts|gdesk|ye Received kis kaam ka hai`
+  - before: c-gdesk-1338 · Received — gdesk par column: Supplier ke challans se is line par ab tak aaye metres.
+  - after: c-gdesk-1338 · Received — Greige Desk par column: Supplier ke challans se is line par ab tak aaye metres.
+- answer `parts|qc|what happens if i press Employment type`
+  - before: c-qc-664 · Employment type — option on Quality Control: Pick the employment type first; the Employee 
+  - after: c-qc-664 · Employment type — option on Quality Control: Pick the employment type first; the Employee 
+- answer `parts|target|Article किसलिए है`
+  - before: c-target-2064 · Article — target पर कॉलम: article (sub-category); SKU बँटवारा खोलने या बंद करने के लिए उसक
+  - after: c-target-2064 · Article — Revenue Target पर कॉलम: article (sub-category); SKU बँटवारा खोलने या बंद करने के
+- answer `parts|target|India stock does not stretch to the end of this month ka kya matlab hota hai`
+  - before: c-target-2091 · India stock does not stretch to the end of this month — target par note: dry: is mahine me
+  - after: (none)
+- answer `parts|ord|ye Save all kis kaam ka hai`
+  - before: c-ord-2225 · Save all — Order Console par button: Confirm ke baad grid mein likha har number save karta
+  - after: c-ord-2225 · Save all — Order Console par button: Confirm ke baad grid mein likha har number save karta
+- answer `parts|flow|what happens if i press Mark fabric ready`
+  - before: c-flow-1253 · Mark fabric ready — button on Production flow: Says the fabric for this line is ready: fab
+  - after: c-flow-1253 · Mark fabric ready — button on Production flow: Ready: says the fabric for this line is rea
+- answer `parts|prod|Need = Air + Sea Req किसलिए है`
+  - before: c-prod-1961 · Need = Air + Sea Req — prod पर विकल्प: NEED = SKU का Air Req + Sea Req; AWD Req नहीं जोड़ा
+  - after: c-prod-1961 · Need = Air + Sea Req — In Production पर विकल्प: NEED = SKU का Air Req + Sea Req; AWD Req न
+- answer `parts|ord|Balance ka kya matlab hota hai`
+  - before: c-ord-2427 · Balance — Order Console par column: Abhi kitna aana baaki hai: quantity minus bheja.
+  - after: c-ord-2427 · Balance — Order Console par column: Abhi kitna aana baaki hai: quantity minus bheja. Yeh k
+- answer `parts|hr|what does Extra hours show`
+  - before: c-hr-535 · Extra hours — option on Finance &amp; HR: Extra hours logged for staff, with From and To t
+  - after: c-hr-535 · Extra hours — option on Finance &amp; HR: Extra hours logged for staff, with From and To t
+- answer `parts|fba|Returned to the store button kya karta h`
+  - before: c-fba-428 · Returned to the store — FBA Dispatch par option: Wo dispatches dikhata hai jinka har piece
+  - after: c-fba-428 · Returned to the store — FBA Dispatch par option: Wo dispatches dikhata hai jinka har piece
+- answer `parts|adj|ye Delivery date kis kaam ka hai`
+  - before: c-adj-1012 · Delivery date — adj par box: Purchase order: delivery ki ummeed wali date (ETA).
+  - after: (none)
+- answer `parts|fgi|what happens if i press Pack & verify`
+  - before: c-fgi-393 · Pack &amp; verify — button on Finished Goods: Opens Pack &amp; verify: scan pieces against
+  - after: c-fgi-393 · Pack &amp; verify — button on Finished Goods: Opens Pack &amp; verify: scan pieces against
+- answer `parts|india|From India · DHL / FedEx किसलिए है`
+  - before: c-india-1972 · From India · DHL / FedEx — india पर बटन: Delivery days में, pickup date से India से DHL Ex
+  - after: (none)
+- answer `parts|adj|SKU ka kya matlab hota hai`
+  - before: c-adj-1021 · SKU — adj par column: PO line: order kiya SKU.
+  - after: (none)
+- answer `parts|shopify|what does Article show`
+  - before: c-shopify-2101 · Article — column on shopify: The product type, from the Master Database; grey italic means
+  - after: c-shopify-2101 · Article — column on Shopify Stock: The product type, from the Master Database; grey italic
+- answer `parts|pack|ye By kis kaam ka hai`
+  - before: pr-jw-issue · Job Work Register kholiye, + New Job Work dabaiye, order, karigar aur item chuniye, pieces
+  - after: pr-jw-issue · Job Work Register kholiye, + New Job Work dabaiye, order, karigar aur item chuniye, pieces
+- answer `parts|rep|what happens if i press Sunday to Saturday, the same weeks as Last week · received`
+  - before: c-rep-491 · Sunday to Saturday, the same weeks as Last week · received — note on Reports: Pick the wee
+  - after: c-rep-491 · Sunday to Saturday, the same weeks as Last week · received — note on Reports: Pick the wee
+- answer `parts|cx|= q0 ? '' : ' disabled'}>Fulfil from India किसलिए है`
+  - before: c-cx-1718 · = q0 ? '' : ' disabled'}&gt;Fulfil from India — Customer Orders पर बटन: इस ऑर्डर के नाम पर
+  - after: c-cx-1718 · = q0 ? '' : ' disabled'}&gt;Fulfil from India — Customer Orders पर बटन: इस ऑर्डर के नाम पर
+- answer `parts|ord|This order, start to finish ka kya matlab hota hai`
+  - before: c-ord-1736 · This order, start to finish — Order Console par note: Order number dabaiye to yeh order sh
+  - after: c-ord-1736 · This order, start to finish — Order Console par note: Order number dabaiye to yeh order sh
+- answer `parts|adj|what does Add a note (e.g. 'Fabric ordered', 'Production started', 'Ready to ship') show`
+  - before: c-adj-1044 · Add a note (e.g. 'Fabric ordered', 'Production started', 'Ready to ship') — box on adj: Pr
+  - after: (none)
+- answer `parts|pcut|Clear button kya karta h`
+  - before: c-pcut-832 · Clear — Cutting Data par button: Item, order, platform, person, search aur date ke filter 
+  - after: c-pcut-832 · Clear — Cutting Data par button: Item, order, platform, person, search aur date ke filter 
+- answer `parts|gdesk|ye Show what makes this up kis kaam ka hai`
+  - before: c-gdesk-1416 · Show what makes this up — gdesk par note: Kisi figure par click kijiye to uske PO ya lots 
+  - after: c-gdesk-1416 · Show what makes this up — Greige Desk par note: Kisi figure par click kijiye to uske PO ya
+- answer `parts|pbase|what happens if i press Export selected`
+  - before: c-pbase-1903 · Export selected — button on Job Work Register: Downloads only the ticked rows as a CSV fil
+  - after: c-pbase-1903 · Export selected — button on Job Work Register: Downloads only the ticked rows as a CSV fil
+- answer `parts|pbase|Keep it ka kya matlab hota hai`
+  - before: c-pbase-1907 · Keep it — Job Work Register par button: Admin: delete ki request band karta hai aur entry 
+  - after: c-pbase-1907 · Keep it — Job Work Register par button: Admin: delete ki request band karta hai aur entry 
+- answer `parts|flow|Use for another order button kya karta h`
+  - before: c-flow-1159 · Use for another order — Production flow par button: Sirf admin: usi printer aur fabric ki 
+  - after: c-flow-1159 · Use for another order — Production flow par button: Sirf admin: usi printer aur fabric ki 
+- answer `parts|rep|ye Nothing of this was pressed the week before, so there is no percentage to give. kis kaam ka hai`
+  - before: c-rep-2119 · Nothing of this was pressed the week before, so there is no percentage to give. — Reports 
+  - after: c-rep-2119 · Nothing of this was pressed the week before, so there is no percentage to give. — Reports 
+- answer `parts|fab|what happens if i press + Store entry`
+  - before: c-fab-513 · + Store entry — button on Fabric Inventory: Opens the store entry form: opening stock, tak
+  - after: c-fab-513 · + Store entry — button on Fabric Inventory: Opens the store entry form: opening stock, tak
+- answer `parts|vreq|SKU lines ⤓ ka kya matlab hota hai`
+  - before: c-vreq-315 · SKU lines ⤓ — vreq par button: Har request ki har SKU ki ek row download karta hai, reques
+  - after: c-vreq-315 · SKU lines ⤓ — Vendor Order Requests par button: Har request ki har SKU ki ek row download 
+- answer `parts|so|what does Add the … missing show`
+  - before: c-so-1830 · Add the … missing — button on Sales Orders: Admin only: some approved SKUs never reached t
+  - after: c-so-1830 · Add the … missing — button on Sales Orders: Admin only: some approved SKUs never reached t
+- answer `parts|qc|Spotting & touching button kya karta h`
+  - before: c-qc-633 · Spotting &amp; touching — Quality Control par option: Spotting (daag) ya touching (chhooti
+  - after: c-qc-633 · Spotting &amp; touching — Quality Control par option: Spotting (daag) ya touching (chhooti
+- answer `parts|repl|ye Every marketplace is showing. Switch the picker back to “US marketplace only” to hide the kis kaam ka hai`
+  - before: c-repl-2052 · Every marketplace is showing. Switch the picker back to “US marketplace only” to hide the 
+  - after: (none)
+- answer `parts|palloc|what happens if i press Search design / group / printer`
+  - before: c-palloc-413 · Search design / group / printer — box on palloc: Type a design colour, group or printer na
+  - after: c-palloc-413 · Search design / group / printer — box on Printer Allocation: Type a design colour, group o
+- answer `parts|repl|Hidden SKUs किसलिए है`
+  - before: c-repl-36 · Hidden SKUs — Replenishment पर बटन: टेबल में सिर्फ़ छिपाए गए SKU उनके असली स्टॉक और बिक्री
+  - after: c-repl-36 · Hidden SKUs — Replenishment पर बटन: टेबल में सिर्फ़ छिपाए गए SKU उनके असली स्टॉक और बिक्री
+- answer `parts|article|Cover (d) button kya karta h`
+  - before: c-article-1922 · Cover (d) — article par column: Maal kitne din chalega: (Total Stock + AWD + AWD in transi
+  - after: c-article-1922 · Cover (d) — Article Review par column: Maal kitne din chalega: (Total Stock + AWD + AWD in
+- answer `parts|prod|ye Filter SKU kis kaam ka hai`
+  - before: c-prod-192 · Filter SKU — prod par box: Sirf un rows ke liye SKU ka kuch hissa likhiye.
+  - after: c-prod-192 · Filter SKU — In Production par box: Sirf un rows ke liye SKU ka kuch hissa likhiye.
+- answer `parts|india|what happens if i press Express / overnight`
+  - before: c-india-1983 · Express / overnight — column on india: Business days by express / overnight service.
+  - after: (none)
+- answer `parts|pcut|All orders ka kya matlab hota hai`
+  - before: c-pcut-822 · All orders — Cutting Data par option: Ek order ki cutting dikhata hai.
+  - after: c-pcut-822 · All orders — Cutting Data par option: Ek order ki cutting dikhata hai. Yeh kis liye hai Ek
+- answer `parts|prod|All orders button kya karta h`
+  - before: c-prod-179 · All orders — prod par option: Har order par ban rahe SKU dikhata hai; ek order chuniye to 
+  - after: c-prod-179 · All orders — In Production par option: Har order par ban rahe SKU dikhata hai; ek order ch
+- answer `parts|ord|Fabric · colour किसलिए है`
+  - before: c-ord-1769 · Fabric · colour — Order Console पर कॉलम: इस लाइन के कपड़े का फ़ैब्रिक और कलर।
+  - after: c-ord-1769 · Fabric · colour — Order Console पर कॉलम: इस लाइन के कपड़े का फ़ैब्रिक और कलर। यह किस लिए ह
+- answer `parts|rep|Working days ka kya matlab hota hai`
+  - before: c-rep-2130 · Working days — Reports par box: Is hafte ke kaam ke din (khaali ho to 6, zyada se zyada 7)
+  - after: c-rep-2130 · Working days — Reports par box: Is hafte ke kaam ke din (khaali ho to 6, zyada se zyada 7)
+- answer `parts|flow|what does Open order show`
+  - before: c-flow-1080 · Open order — button on Production flow: Opens the sales order of that line so you can corr
+  - after: c-flow-1080 · Open order — button on Production flow: Opens the sales order of that line so you can corr
+- answer `parts|pbase|Approve button kya karta h`
+  - before: c-pbase-1873 · Approve — Job Work Register par button: Correction approve karta hai: entry theek waise ba
+  - after: c-pbase-1873 · Approve — Job Work Register par button: Correction approve karta hai: entry theek waise ba
+- answer `parts|so|ye Send to a printer kis kaam ka hai`
+  - before: c-so-1814 · Send to a printer — Sales Orders par button: Tick kiye SKU ko cut line banakar naya vendor
+  - after: (none)
+- answer `parts|so|New dev किसलिए है`
+  - before: c-so-1796 · New dev — Sales Orders पर विकल्प: यह लाइन New development ऑर्डर है।
+  - after: c-so-1796 · New dev — Sales Orders पर विकल्प: यह लाइन New development ऑर्डर है। यह किस लिए है बाकी ord
+- answer `parts|india|Product ka kya matlab hota hai`
+  - before: c-india-1985 · Product — india par column: Photo, naam, Shopify code aur jis Amazon code se jayega; dono 
+  - after: (none)
+- answer `parts|so|what does Needed show`
+  - before: c-so-1815 · Needed — column on Sales Orders: Pieces the approved sales orders ask for of this SKU.
+  - after: (none)
+- answer `parts|shop|I have confirmed it — check again button kya karta h`
+  - before: c-any-20 · I have confirmed it — check again : Email wala link kholne ke baad ise dabaiye; yeh dobara
+  - after: c-any-20 · I have confirmed it — check again : Email wala link kholne ke baad ise dabaiye; yeh dobara
+- answer `parts|rep|ye Export kis kaam ka hai`
+  - before: c-rep-493 · Export — Reports par button: Screen wali report CSV file mein download karta hai.
+  - after: c-rep-493 · Export — Reports par button: Screen wali report CSV file mein download karta hai. Yeh kis 
+- answer `parts|so|what happens if i press Order date`
+  - before: c-so-1779 · Order date — box on Sales Orders: The order date; required, and part of the order number (
+  - after: c-so-1779 · Order date — box on Sales Orders: The order date; required, and part of the order number (
+- answer `parts|repl|Both brands किसलिए है`
+  - before: c-repl-21 · Both brands — Replenishment पर विकल्प: Replenishment पर Ridhi और CPC दोनों दिखाता है।
+  - after: c-repl-21 · Both brands — Replenishment पर विकल्प: Replenishment पर Ridhi और CPC दोनों दिखाता है। यह क
+- answer `parts|vord|… of … issued ka kya matlab hota hai`
+  - before: c-vord-2522 · … of … issued — Vendor Orders par note: Partly issue: in pieces me se kitne karigaron ko g
+  - after: (none)
+- answer `parts|fgi|what does Invoice # show`
+  - before: c-fgi-1563 · Invoice # — box on Finished Goods: Optional invoice number for this packing list.
+  - after: c-fgi-1563 · Invoice # — box on Finished Goods: Optional invoice number for this packing list. What it'
+- answer `parts|article|ye MOM kis kaam ka hai`
+  - before: c-article-1928 · MOM — article par column: Aakhri meeting note, date aur likhne wale ke saath; + MOM ya + N
+  - after: c-article-1928 · MOM — Article Review par column: Aakhri meeting note, date aur likhne wale ke saath; + MOM
+- answer `parts|pcut|Has this cutting gone to a karigar? The order's issues fill its cutting oldest first. किसलिए है`
+  - before: c-pcut-815 · Has this cutting gone to a karigar? The order's issues fill its cutting oldest first. — Cu
+  - after: c-pcut-815 · Has this cutting gone to a karigar? The order's issues fill its cutting oldest first. — Cu
+- answer `parts|vend|On order ka kya matlab hota hai`
+  - before: c-vend-2454 · On order — vend par column: Is order ko kul kitna chahiye.
+  - after: c-vend-2454 · On order — Vendor Portal par column: Is order ko kul kitna chahiye.
+- answer `parts|flow|what does … orders` : 'Challan'} show`
+  - before: c-flow-1231 · … orders` : 'Challan'} — button on Production flow: Opens one challan for every line of th
+  - after: c-flow-1231 · … orders` : 'Challan'} — button on Production flow: Opens one challan for every line of th
+- answer `parts|mst|ye Custom dates kis kaam ka hai`
+  - before: c-mst-1634 · Custom dates — mst par option: Karigar Analysis ke Day by day mein apni shuru aur aakhri d
+  - after: (none)
+- answer `parts|so|what happens if i press Sale month`
+  - before: c-so-1780 · Sale month — box on Sales Orders: The month this order is meant to sell in, for example Ja
+  - after: c-so-1780 · Sale month — box on Sales Orders: The month this order is meant to sell in, for example Ja
+- answer `parts|so|Deletion requests किसलिए है`
+  - before: c-so-246 · Deletion requests — Sales Orders पर बटन: वे ऑर्डर लाइनें खोलता है जिन्हें प्रोडक्शन ने डिल
+  - after: c-so-246 · Deletion requests — Sales Orders पर बटन: वे ऑर्डर लाइनें खोलता है जिन्हें प्रोडक्शन ने डिल
+- answer `parts|ord|Save quantities ka kya matlab hota hai`
+  - before: c-ord-2398 · Save quantities — Order Console par button: Sirf admin: is card par likhi quantities save 
+  - after: c-ord-2398 · Save quantities — Order Console par button: Sirf admin: is card par likhi quantities save 
+- answer `parts|flow|what does Date show`
+  - before: - · Your question fits more than one answer. Which one do you mean? Date · Production flow (bo
+  - after: - · Your question fits more than one answer. Which one do you mean? Date · Production flow (bo
+- answer `parts|fgi|Scan here button kya karta h`
+  - before: c-fgi-1572 · Scan here — Finished Goods par box: Har piece yahan scan kijiye; har scan khule box me ek 
+  - after: c-fgi-1572 · Scan here — Finished Goods par box: Har piece yahan scan kijiye; har scan khule box me ek 
+- answer `parts|vend|ye How many of these you already have for THIS order. It comes off what is left to ask for on kis kaam ka hai`
+  - before: c-vend-2465 · How many of these you already have for THIS order. It comes off what is left to ask for on
+  - after: c-vend-2465 · How many of these you already have for THIS order. It comes off what is left to ask for on
+- answer `parts|mst|what happens if i press Item`
+  - before: - · Your question fits more than one answer. Which one do you mean? Press count it in does not
+  - after: (none)
+- answer `parts|hr|CC payout किसलिए है`
+  - before: c-hr-527 · CC payout — Finance &amp; HR पर विकल्प: Company Contractor का भुगतान: वापस मिले पीस × रेट,
+  - after: c-hr-527 · CC payout — Finance &amp; HR पर विकल्प: Company Contractor का भुगतान: वापस मिले पीस × रेट,
+- answer `parts|adj|what does Low show`
+  - before: - · Your question fits more than one answer. Which one do you mean? Low · Adjustments Low · Fi
+  - after: (none)
+- answer `parts|gdesk|Asked by button kya karta h`
+  - before: c-gdesk-1401 · Asked by — gdesk par column: Receipt kisne aur kis din save ki.
+  - after: c-gdesk-1401 · Asked by — Greige Desk par column: Receipt kisne aur kis din save ki. Yeh kis liye hai Rec
+- answer `parts|ka|what happens if i press Set targets`
+  - before: c-ka-464 · Set targets — button on ka: Admin only: sets the ₹ labour value target a month per person,
+  - after: c-ka-464 · Set targets — button on Karigar Analysis: Admin only: sets the ₹ labour value target a mon
+- answer `parts|vend|Sent to you किसलिए है`
+  - before: c-vend-2455 · Sent to you — vend पर कॉलम: Store ने इस ऑर्डर के लिए अब तक आपको कितना भेजा है।
+  - after: c-vend-2455 · Sent to you — Vendor Portal पर कॉलम: Store ने इस ऑर्डर के लिए अब तक आपको कितना भेजा है।
+- answer `parts|fba|what does From the Ready Goods sheet show`
+  - before: c-fba-429 · From the Ready Goods sheet — option on FBA Dispatch: Shows old dispatches brought in from 
+  - after: c-fba-429 · From the Ready Goods sheet — option on FBA Dispatch: Shows old dispatches brought in from 
+- answer `parts|so|From button kya karta h`
+  - before: c-so-1834 · From — Sales Orders par column: Badlaav se pehle ki quantity.
+  - after: c-so-1834 · From — Sales Orders par column: Badlaav se pehle ki quantity. Yeh kis liye hai Pehle aankd
+- answer `parts|gdesk|ye From kis kaam ka hai`
+  - before: c-gdesk-1357 · From — gdesk par box: Is din ya uske baad ke PO aur challans dikhata hai.
+  - after: c-gdesk-1357 · From — Greige Desk par box: Is din ya uske baad ke PO aur challans dikhata hai. Yeh kis li
+- answer `parts|ord|what happens if i press Direction * — Horizontal Vertical`
+  - before: c-ord-2413 · Direction * — Horizontal Vertical — box on Order Console: Pick the print direction, Horizo
+  - after: c-ord-2413 · Direction * — Horizontal Vertical — box on Order Console: Pick the print direction, Horizo
+- answer `parts|ord|More cloth has gone out under this name than ever came in — is its opening stock entered u किसलिए है`
+  - before: c-ord-1774 · More cloth has gone out under this name than ever came in — is its opening stock entered u
+  - after: c-ord-1774 · More cloth has gone out under this name than ever came in — is its opening stock entered u
+- answer `parts|prod|Both brands ka kya matlab hota hai`
+  - before: c-prod-176 · Both brands — prod par option: In Production par Ridhi aur CPC dono dikhata hai.
+  - after: c-prod-176 · Both brands — In Production par option: In Production par Ridhi aur CPC dono dikhata hai.
+- answer `parts|rep|what does Add show`
+  - before: c-dash-477 · Show — button on Dashboard: Reads and shows the change history or the recycle bin for the 
+  - after: c-dash-477 · Show — button on Dashboard: Reads and shows the change history or the recycle bin for the 
+- answer `parts|gdesk|ye This is the whole lot back (close it) kis kaam ka hai`
+  - before: c-gdesk-1394 · This is the whole lot back (close it) — gdesk par box: Jab lot ka aakhri maal ho tab tick 
+  - after: c-gdesk-1394 · This is the whole lot back (close it) — Greige Desk par box: Jab lot ka aakhri maal ho tab
+- answer `parts|pa|Cut किसलिए है`
+  - before: (none)
+  - after: - · आपका सवाल एक से ज़्यादा जवाबों से मिलता है। आप कौन-सा पूछ रहे हैं? Cut क्या है · Productio
+- answer `parts|ka|₹ / piece किसलिए है`
+  - before: (none)
+  - after: c-mst-1641 · ₹ / piece — Karigar Analysis पर कॉलम: उस article का प्रति पीस औसत मज़दूरी मूल्य: रकम ÷ पीस
+- answer `parts|pmdb|In the app ka kya matlab hota hai`
+  - before: (none)
+  - after: c-mst-1667 · In the app — Master Database par column: App ki apni vendor list mein milta vendor code, y
+- answer `parts|ka|ye ' + (group === 'article' ? 'Article' : group === 'dept' ? 'Department' : 'Karigar') + ' kis kaam ka hai`
+  - before: (none)
+  - after: c-mst-1635 · ' + (group === 'article' ? 'Article' : group === 'dept' ? 'Department' : 'Karigar') + ' — 
+- answer `parts|ka|All departments button kya karta h`
+  - before: (none)
+  - after: c-mst-1632 · All departments — Karigar Analysis par option: Karigar Analysis par sabhi department ke Ka
+- answer `parts|vord|Select all ka kya matlab hota hai`
+  - before: (none)
+  - after: c-so-1813 · Select all — Vendor Orders par button: Ready to give a printer ke har SKU ko tick karta ha
+- answer `parts|shop|e.g. 07001 button kya karta h`
+  - before: (none)
+  - after: c-india-1973 · e.g. 07001 — Shopify Orders par box: USA warehouse ka 5 ankon ka zip likhiye; ye agli baar
+- answer `parts|shop|what does ' + esc(ln.st ? `………` : 'Nothing recorded yet.') + ' show`
+  - before: (none)
+  - after: - · If you see that message: A box the ERP needs is still empty or not chosen — it will not sa
+- answer `parts|pmdb|+ Add vendor ka kya matlab hota hai`
+  - before: (none)
+  - after: c-mst-1665 · + Add vendor — Master Database par button: Sirf admin: Vendors page par naya vendor (greig
+- answer `parts|shop|what happens if i press ' + esc(why) + '`
+  - before: (none)
+  - after: c-india-2005 · ' + esc(why) + ' — note on Shopify Orders: can't ship: hover to see Amazon's reason this s
+- answer `parts|repl|India stock does not stretch to the end of this month ka kya matlab hota hai`
+  - before: (none)
+  - after: c-target-2091 · India stock does not stretch to the end of this month — Replenishment par note: dry: is ma
+- answer `parts|repl|ye Delivery date kis kaam ka hai`
+  - before: (none)
+  - after: c-adj-1012 · Delivery date — Replenishment par box: Purchase order: delivery ki ummeed wali date (ETA).
+- answer `parts|shop|From India · DHL / FedEx किसलिए है`
+  - before: (none)
+  - after: c-india-1972 · From India · DHL / FedEx — Shopify Orders पर बटन: Delivery days में, pickup date से India 
+- answer `parts|repl|SKU ka kya matlab hota hai`
+  - before: (none)
+  - after: c-adj-1021 · SKU — Replenishment par column: PO line: order kiya SKU. Yeh kis liye hai Har line mein ma
+- answer `parts|top|what does Add a note (e.g. 'Fabric ordered', 'Production started', 'Ready to ship') show`
+  - before: (none)
+  - after: c-adj-1044 · Add a note (e.g. 'Fabric ordered', 'Production started', 'Ready to ship') — box on Top ASI
+- answer `parts|article|ye Every marketplace is showing. Switch the picker back to “US marketplace only” to hide the kis kaam ka hai`
+  - before: (none)
+  - after: c-repl-2052 · Every marketplace is showing. Switch the picker back to “US marketplace only” to hide the 
+- answer `parts|shop|what happens if i press Express / overnight`
+  - before: (none)
+  - after: c-india-1983 · Express / overnight — column on Shopify Orders: Business days by express / overnight servi
+- answer `parts|vord|ye Send to a printer kis kaam ka hai`
+  - before: (none)
+  - after: c-so-1814 · Send to a printer — Vendor Orders par button: Tick kiye SKU ko cut line banakar naya vendo
+- answer `parts|shop|Product ka kya matlab hota hai`
+  - before: (none)
+  - after: c-india-1985 · Product — Shopify Orders par column: Photo, naam, Shopify code aur jis Amazon code se jaye
+- answer `parts|vord|what does Needed show`
+  - before: (none)
+  - after: c-so-1815 · Needed — column on Vendor Orders: Pieces the approved sales orders ask for of this SKU. Wh
+- answer `parts|pcut|… of … issued ka kya matlab hota hai`
+  - before: (none)
+  - after: c-vord-2522 · … of … issued — Cutting Data par note: Partly issue: in pieces me se kitne karigaron ko ga
+- answer `parts|ka|ye Custom dates kis kaam ka hai`
+  - before: (none)
+  - after: c-ka-462 · Custom dates — Karigar Analysis par option: Karigar study mein hafton wale box Karigar Ana
+- answer `parts|pmdb|what happens if i press Item`
+  - before: (none)
+  - after: - · Your question fits more than one answer. Which one do you mean? Press count it in does not
+- answer `parts|repl|what does Low show`
+  - before: (none)
+  - after: - · Your question fits more than one answer. Which one do you mean? Low · Replenishment Low · 
+
+## 2026-11-10 05:16 — Part answers named by their real on-screen names (99 had a scrap of code as their name, so nobody could ask for them; 2 written twice removed); her test questions that asked by the old names now ask by the new; order date answers; Ravi, 10 Nov
+
+- score: spelling-mistake questions: right 85→85, offered 115→114, wrong 8→8, not sure 30→31
+- score: spelling set 2 (held back, scoring only): right 193→191, offered 162→162, wrong 12→13, not sure 80→81
+- answer `eval|shop|customer ne return bheja hai entry kaise kre`
+  - before: - · Aapka sawaal ek se zyada jawaabon se milta hai. Aap kaunsa poochh rahe hain? return kaise 
+  - after: or-shop-return · More ▾ kholiye, Returns dabaiye, + New dabaiye, order number likhiye, lines aur kitne piec
+- answer `eval|shop|can you translate this message to english for the customer`
+  - before: - · I'm not fully sure what you mean. Is it one of these? what is the pencil mark next to orde
+  - after: - · I'm not fully sure what you mean. Is it one of these? what is the pencil mark next to orde
+- answer `eval2|shop|pressed went up but To make didn't drop at all, why`
+  - before: - · I'm not fully sure what you mean. Is it one of these? why did stock change when i deleted 
+  - after: - · I'm not fully sure what you mean. Is it one of these? why did stock change when i deleted 
+- answer `parts|gdesk|By PO ' + nf((DB.gpo || []).length) + ' ka kya matlab hota hai`
+  - before: c-gdesk-1360 · By PO ' + nf((DB.gpo || []).length) + ' — Greige Desk par button: Greige PO ki list; numbe
+  - after: (none)
+- answer `parts|gdesk|+ Supplement PO for ' + m1(extra) + ' m button kya karta h`
+  - before: c-gdesk-1375 · + Supplement PO for ' + m1(extra) + ' m — Greige Desk par button: Jab line 10% chhoot se u
+  - after: (none)
+- answer `parts|ka|ye ' + (group === 'article' ? 'Article' : group === 'dept' ? 'Department' : 'Karigar') + ' kis kaam ka hai`
+  - before: c-mst-1635 · ' + (group === 'article' ? 'Article' : group === 'dept' ? 'Department' : 'Karigar') + ' — 
+  - after: (none)
+- answer `parts|gdesk|' + esc(o.greige) + ' किसलिए है`
+  - before: c-gdesk-1377 · ' + esc(o.greige) + ' — Greige Desk पर विकल्प: PO line का greige fabric चुनें; RFD fabric 
+  - after: (none)
+- answer `parts|pbase|= 0 ? ' class="num"' : '')}> किसलिए है`
+  - before: c-pbase-1880 · = 0 ? ' class=&quot;num&quot;' : '')}&gt; — Job Work Register पर कॉलम: रजिस्टर के कॉलम: Is
+  - after: (none)
+- answer `parts|fgi|FBA account … `).join('')} button kya karta h`
+  - before: c-fgi-1562 · FBA account … `).join('')} — Finished Goods par box: FBA account chuniye (Ridhi FBA ya CPC
+  - after: (none)
+- answer `parts|ord|what does Closed from Shopify ' + esc(ptIsoDate(r.shopDoneAt) || '') + ' show`
+  - before: c-ord-1742 · Closed from Shopify ' + esc(ptIsoDate(r.shopDoneAt) || '') + ' — note on Order Console: Th
+  - after: (none)
+- answer `parts|shop|what does ' + esc(ln.st ? `………` : 'Nothing recorded yet.') + ' show`
+  - before: - · If you see that message: A box the ERP needs is still empty or not chosen — it will not sa
+  - after: (none)
+- answer `parts|shop|what happens if i press ' + esc(why) + '`
+  - before: c-india-2005 · ' + esc(why) + ' — note on Shopify Orders: can't ship: hover to see Amazon's reason this s
+  - after: (none)
+- answer `parts|cx|= q0 ? '' : ' disabled'}>Fulfil from India किसलिए है`
+  - before: c-cx-1718 · = q0 ? '' : ' disabled'}&gt;Fulfil from India — Customer Orders पर बटन: इस ऑर्डर के नाम पर
+  - after: (none)
+- answer `parts|gdesk|By PO tab ka kya matlab hota hai`
+  - before: (none)
+  - after: c-gdesk-1360 · By PO tab — Greige Desk par button: Greige PO ki list; number batata hai kitne hain. Yeh k
+- answer `parts|gdesk|Supplement PO button kya karta h`
+  - before: (none)
+  - after: c-gdesk-1375 · Supplement PO — Greige Desk par button: Jab line 10% chhoot se upar ho: extra metre ka usi
+- answer `parts|ka|ye First column (Karigar, Article or Department) kis kaam ka hai`
+  - before: (none)
+  - after: c-mst-1635 · First column (Karigar, Article or Department) — Karigar Analysis par column: Karigar Analy
+- answer `parts|gdesk|Greige fabric for the PO line किसलिए है`
+  - before: (none)
+  - after: c-gdesk-1377 · Greige fabric for the PO line — Greige Desk पर विकल्प: PO line का greige fabric चुनें; RFD
+- answer `parts|pbase|Job Work register table किसलिए है`
+  - before: (none)
+  - after: c-pbase-1880 · Job Work register table — Job Work Register पर जानकारी: रजिस्टर के कॉलम: Issue Date, Karig
+- answer `parts|fgi|FBA account button kya karta h`
+  - before: (none)
+  - after: c-fgi-1562 · FBA account — Finished Goods par box: FBA account chuniye (Ridhi FBA ya CPC FBA) jiske liy
+- answer `parts|ord|what does Closed from Shopify show`
+  - before: (none)
+  - after: c-ord-1742 · Closed from Shopify — note on Order Console: The line was closed from Shopify; hover to se
+- answer `parts|shop|what does Who changed the line status show`
+  - before: (none)
+  - after: c-india-2001 · Who changed the line status — note on Shopify Orders: Hover the line status to see who typ
+- answer `parts|shop|what happens if i press Can't ship`
+  - before: (none)
+  - after: c-india-2005 · Can't ship — note on Shopify Orders: can't ship: hover to see Amazon's reason this speed c
+- answer `parts|cx|Fulfil from India किसलिए है`
+  - before: (none)
+  - after: c-cx-1718 · Fulfil from India — Customer Orders पर बटन: इस ऑर्डर के नाम पर India Store से पीस इश्यू कर
+
+## 2026-11-12 07:11 — R-one test link only: R-one's own answers (name, My work today, Job Work corrections, PPC) are in its bank — Meera in the page
 
 - score: test set 2: right 54→53, offered 66→67, wrong 6→7, not sure 34→33
-- score: spelling-mistake questions: right 83→81, offered 116→118, wrong 8→8, not sure 31→31
-- score: spelling set 2 (held back, scoring only): right 189→188, offered 165→166, wrong 12→12, not sure 81→81
-- score: Hindi-script spelling mistakes: right 50→50, offered 40→39, wrong 0→0, not sure 24→25
+- score: spelling-mistake questions: right 85→83, offered 114→116, wrong 8→8, not sure 31→31
+- score: spelling set 2 (held back, scoring only): right 191→190, offered 162→163, wrong 13→13, not sure 81→81
+- score: Hindi-script spelling mistakes: right 50→50, offered 41→40, wrong 0→0, not sure 23→24
+- answer `eval|shop|can i keep two screens open in different tabs`
+  - before: - · I'm not fully sure what you mean. Is it one of these? open screen in new tab how to go to 
+  - after: - · I'm not fully sure what you mean. Is it one of these? open screen in new tab why sales ord
 - answer `eval|shop|karigar se receive kiya, ab wo piece aage kis screen pe milenge`
   - before: - · Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? karigar se maal wapas
   - after: - · Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? hara button kya karta
+- answer `eval|shop|AB-TBL-RED-M ka stock kitna hai kaise dekhu`
+  - before: - · Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? stock kitna hai low a
+  - after: - · Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? stock kitna hai finis
 - answer `eval|shop|date ke aage 8d laal kyu dikh rha`
   - before: - · Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? low aur out ka matlab
   - after: - · Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? low aur out ka matlab
@@ -47,7 +1345,7 @@ Each entry: when, why, and what it changed. Made by `node meera/tests/gate.cjs -
   - after: - · मैं पक्का नहीं समझ पाई। क्या आप इनमें से कुछ पूछ रहे हैं? सब एक साथ अप्रूव कैसे करें करेक्
 - answer `eval|shop|goods came in, how to close the po as received`
   - before: - · I'm not fully sure what you mean. Is it one of these? how to receive stock in store close 
-  - after: - · I'm not fully sure what you mean. Is it one of these? close greige po Close the PO how to 
+  - after: - · I'm not fully sure what you mean. Is it one of these? close greige po how to receive stock
 - answer `eval|shop|कौन सा आर्टिकल मुश्किल है ये लेवल कहाँ भरते हैं`
   - before: - · मैं पक्का नहीं समझ पाई। क्या आप इनमें से कुछ पूछ रहे हैं? शॉपिफाई के कितने ऑर्डर गए आसान/क
   - after: - · मैं पक्का नहीं समझ पाई। क्या आप इनमें से कुछ पूछ रहे हैं? आसान/कठिन आर्टिकल कैसे तय करें श
@@ -67,7 +1365,7 @@ Each entry: when, why, and what it changed. Made by `node meera/tests/gate.cjs -
   - before: - · मैं पक्का नहीं समझ पाई। क्या आप इनमें से कुछ पूछ रहे हैं? Track क्या है Tracking क्या है T
   - after: - · मैं पक्का नहीं समझ पाई। क्या आप इनमें से कुछ पूछ रहे हैं? चालान पर अब भी Ridhi Home &amp; 
 - answer `eval2|shop|karigar matlab darzi hi na? ya koi aur`
-  - before: - · Your question fits more than one answer. Which one do you mean? how to filter Karigar Kari
+  - before: - · Your question fits more than one answer. Which one do you mean? how to filter Karigar · Pr
   - after: gn-filters-button · Press Filters in the screen's toolbar, choose what you want in each box, then press Done .
 - answer `eval2|shop|fba bolte h wo kaunsa godown h`
   - before: - · I'm not fully sure what you mean. Is it one of these? what is fba pick which one these pie
@@ -75,9 +1373,6 @@ Each entry: when, why, and what it changed. Made by `node meera/tests/gate.cjs -
 - answer `eval2|shop|ye chhota arrow wala dabba kaise kholte h`
   - before: - · Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? menu kaise band kare 
   - after: - · Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? drop down kya hai men
-- answer `eval2|shop|galti se tab band ho gaya, jo bhara tha sab gaya kya`
-  - before: - · Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? tab band karu to data
-  - after: - · Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? tab band karu to data
 - answer `eval2|shop|upar jo bade number wale dabbe h unpe click karne se kya hota h`
   - before: - · Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? upar ke number kya ha
   - after: - · Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? upar ke number kya ha
@@ -87,12 +1382,18 @@ Each entry: when, why, and what it changed. Made by `node meera/tests/gate.cjs -
 - answer `eval2|shop|क्वांटिटी घटाने की रिक्वेस्ट मांगते वक्त ठीक थी, अप्रूव करते समय मना क्यों कर दिया`
   - before: - · मैं पक्का नहीं समझ पाई। क्या आप इनमें से कुछ पूछ रहे हैं? क्वांटिटी बदलाव मना कैसे करें मा
   - after: - · मैं पक्का नहीं समझ पाई। क्या आप इनमें से कुछ पूछ रहे हैं? क्वांटिटी बदलाव मना कैसे करें रि
+- answer `eval2|shop|how does finished goods arrive at the in-stock figure for one sku`
+  - before: - · Your question fits more than one answer. Which one do you mean? how to receive stock in st
+  - after: - · Your question fits more than one answer. Which one do you mean? what are the figures on to
 - answer `eval2|shop|after freezing a fortnight, if I change a rate does the payout move`
   - before: - · Your question fits more than one answer. Which one do you mean? freeze payout what happens
   - after: - · Your question fits more than one answer. Which one do you mean? freeze payout what happens
 - answer `eval2|shop|एक कटिंग एंट्री सेव करने से बाकी किन स्क्रीन पर फर्क पड़ता है`
   - before: - · मैं पक्का नहीं समझ पाई। क्या आप इनमें से कुछ पूछ रहे हैं? कटिंग एंट्री सेव करने से और क्या
   - after: - · मैं पक्का नहीं समझ पाई। क्या आप इनमें से कुछ पूछ रहे हैं? कटिंग की एंट्री कैसे करें कटिंग 
+- answer `eval2|shop|karigar ko maal de diya par cutting chadhayi hi nahi thi, ab system rok raha`
+  - before: - · Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? used partly unused ka
+  - after: - · Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? kata hua jo abhi issu
 - answer `eval2|shop|printer typed 100 in his portal but we accepted 92, which one gets paid`
   - before: - · I'm not fully sure what you mean. Is it one of these? print the print order vendor portal 
   - after: - · I'm not fully sure what you mean. Is it one of these? print the print order printer says s
