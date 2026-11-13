@@ -16541,14 +16541,19 @@ function spNext(cfg, today) {
   return (cfg.events || []).filter(ev => !spIsSale(ev)).map(ev => ({ ev, w: spWindow(ev, today, cfg.events) })).filter(e => e.w.expired && e.w.from)
     .sort((a, b) => a.w.from - b.w.from)[0] || null;
 }
-// The OUT-OF-SEASON seasons (the final spec, 13 Nov 2026): every calendar season, sale days included, that is NOT ACTIVE now by the one
-// season-date rule (lrSeasonState: active = lead days before → the day) — already over (the day after it: Christmas on 26 Dec) or not
-// started yet — and the four plain seasons out of their months. Their words are "still shown" when Item Highlights or the search words say
-// them as an occasion: taken out by the fix (and to make room). (The Listing Rules title check keeps its "days after" before it flags a
-// title — the planner never touches the title.)
+// The OUT-OF-SEASON seasons, by the one season-date rule Listing Rules uses (lrSeasonState): every calendar season, sale days included,
+// that is EXPIRED — past its "days after" from the Listing Rules calendar (Christmas: from 2 Jan) or not started yet — and the four plain
+// seasons out of their months. Their words are "still shown" when Item Highlights or the search words say them as an occasion: taken out
+// by the fix (and to make room). Between the day and its "days after" a season is KEPT (spKept): neither added nor removed.
 function spExpired(cfg, today) {
-  return (cfg.events || []).concat(SP_SEASONS).filter(ev => !lrSeasonState(ev, today, cfg.events).active).map(ev => ({ ev }));
+  return (cfg.events || []).concat(SP_SEASONS).filter(ev => lrSeasonState(ev, today, cfg.events).expired).map(ev => ({ ev }));
 }
+// The seasons that just ended (the day has passed, its "days after" not yet): [{ ev, until }] — "Christmas just ended — kept until 1 Jan".
+function spKept(cfg, today) {
+  return (cfg.events || []).filter(ev => !spIsSale(ev)).map(ev => ({ ev, st: lrSeasonState(ev, today, cfg.events) })).filter(e => e.st.keep)
+    .map(e => ({ ev: e.ev, until: e.st.until }));
+}
+const spKeptText = k => `${spSeasonIcon(k.ev.id)} ${k.ev.name} just ended — kept until ${spDate(k.until)}`;
 // "Thanksgiving", "Thanksgiving and Christmas", "A, B and C".
 const spNames = names => (names.length < 2 ? names[0] || '' : names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1]);
 // A season is the product here (the calendar's "Skip if product is" in the sub-category or colour, or the title uses the word to describe
@@ -17447,7 +17452,8 @@ function spNowHtml() {
   const on = spActive(spCfg(), today);
   const next = spNext(spCfg(), today);
   const now = on.length ? on.map(e => `${spSeasonIcon(e.ev.id)} ${lrEsc(e.ev.name)} (${spDate(e.w.date)})`).join(', ') : 'no season';
-  return `<p class="sp-today sp-now"><b>Now:</b> ${now}${next ? ` · <b>Next:</b> ${lrEsc(next.ev.name)}` : ''}</p>`;
+  const kept = spKept(spCfg(), today).map(k => ` · <span class="sp-dim">${lrEsc(spKeptText(k))}</span>`).join('');
+  return `<p class="sp-today sp-now"><b>Now:</b> ${now}${kept}${next ? ` · <b>Next:</b> ${lrEsc(next.ev.name)}` : ''}</p>`;
 }
 // One parent card's line: "36 listings · 🎄 Christmas missing · 14 · 🦃 Thanksgiving missing · 20", or "✓ Ready for the season".
 function spParentLine(g) {
@@ -17720,7 +17726,11 @@ function spWhereHtml(item) {
     return `<div class="sp-where-s" data-sp-season="old:${lrEsc(e.ev.id)}"><p class="sp-where-h">${spSeasonIcon(e.ev.id)} <b>${lrEsc(e.ev.name)}</b> — out of season</p>${rows.map(line).join('')}</div>`;
   });
   const over = item.kwOver ? [`<div class="sp-where-s" data-sp-season="kwover"><p class="sp-rem" data-sp-where="kw">✕ Search words too long — Amazon may ignore the extra words (${spNf(lrKwBytes(item.kw))} of ${spNf(item.kwMax)})</p></div>`] : [];
-  const body = on.concat(old, over).join('') || '<p class="sp-dim">No season on now applies to this listing.</p>';
+  // a season that just ended and is still said: kept until its "days after" (neither added nor removed)
+  const cat = lrCatOf(item.row) || {};
+  const kept = spKept(spCfg(), spToday()).filter(k => spApplies(k.ev, cat, item.title) && ((item.hl && spFindSeason(item.hl.join(' · '), k.ev)) || (item.kw && spFindSeason(item.kw, k.ev))))
+    .map(k => `<div class="sp-where-s" data-sp-season="kept:${lrEsc(k.ev.id)}"><p class="sp-dim">${lrEsc(spKeptText(k))}</p></div>`);
+  const body = on.concat(old, kept, over).join('') || '<p class="sp-dim">No season on now applies to this listing.</p>';
   return `<div class="sp-card2 sp-chg sp-where"><h4>Where seasons are</h4>${body}</div>`;
 }
 // The child row's short words, per season on now: "🎄 ✓ highlights ✕ search words".

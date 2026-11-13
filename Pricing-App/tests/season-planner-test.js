@@ -286,7 +286,7 @@ const TITLE = color => `Ridhi Cloth Napkins 100% Cotton 18 x 18 Inch Block Print
     ok('a listing never read: "not read yet" — not missing, not ready, and counted nowhere', by.W3.kind === 'check' && by.W3.status === 'reading' && !C.spMissing(by.W3, 'christmas'));
   }
 
-  console.log('== ONE season-date rule for every screen: active (lead → day); the planner: every season not active is out of season ==');
+  console.log('== ONE season-date rule for every screen: add (lead → day) · just ended, kept (days after) · removed (after them) ==');
   {
     const { C, put, done } = setup();
     put('H1', 'Ridhi Cloth Napkins Cotton 18 x 18 Inch Thanksgiving - Blue', { kw: 'cotton', hl: ['Soft cotton'] });
@@ -300,23 +300,37 @@ const TITLE = color => `Ridhi Cloth Napkins 100% Cotton 18 x 18 Inch Block Print
     ok('Christmas (7 days after): 25 Dec add · 1 Jan just past · 2 Jan expired; 10 Oct expired, 11 Oct add (75 days before)',
       word(st('christmas', D(2026, 12, 25))) === 'add' && word(st('christmas', D(2027, 1, 1))) === 'keep' && word(st('christmas', D(2027, 1, 2))) === 'expired'
       && word(st('christmas', D(2026, 10, 10))) === 'expired' && word(st('christmas', D(2026, 10, 11))) === 'add');
-    // the planner reads the same function day by day: active ⇔ added; not active ⇔ out of season (taken out). The Listing Rules title check
-    // (the title is not the planner's) flags a title only once the planner also counts the season out of season.
+    // the planner and Listing Rules read the same function day by day: active ⇔ added; expired (after the "days after") ⇔ the planner takes
+    // the word out ⇔ Listing Rules flags a title naming it; just ended (keep) ⇔ neither
     const flagged = (sku, day) => { const row = C.HEALTH.SP.rows.find(r => r.sku === sku); return C.healthOf(Object.assign({}, row), Object.assign({}, C.hCtx(), { today: day })).found.some(h => h.detector === 'seasonal_keyword'); };
     let agree = true;
     const bad = [];
     for (let t = D(2026, 11, 20); t <= D(2027, 1, 6); t = new Date(t.getTime() + 86400000)) {
       const exp = new Set(C.spExpired(C.getLR(), t).map(e => e.ev.id));
       const act = new Set(C.spActive(C.getLR(), t).map(e => e.ev.id));
+      const kept = new Set(C.spKept(C.getLR(), t).map(e => e.ev.id));
       [['H1', 'thanksgiving'], ['H2', 'christmas']].forEach(([sku, id]) => {
-        const on = st(id, t).active;
+        const s1 = st(id, t);
         const f = flagged(sku, t);
-        if (act.has(id) !== on || exp.has(id) === on || (f && !exp.has(id))) { agree = false; bad.push(`${ymd(t)} ${id}: active ${on}, planner adds ${act.has(id)}, out ${exp.has(id)}, rule ${f}`); }
+        if (act.has(id) !== s1.active || exp.has(id) !== s1.expired || kept.has(id) !== s1.keep || f !== exp.has(id)) { agree = false; bad.push(`${ymd(t)} ${id}: ${word(s1)}, planner adds ${act.has(id)}, removes ${exp.has(id)}, kept ${kept.has(id)}, rule ${f}`); }
       });
     }
-    ok('20 Nov – 6 Jan, every day: the planner adds a season ⇔ lrSeasonState says active; out of season ⇔ not active; a flagged title is always out of season', agree, bad.slice(0, 4).join(' | '));
-    ok('Christmas inactive on 26 Dec: not added, out of season (its words come out of Item Highlights and the search words)', !st('christmas', D(2026, 12, 26)).active
-      && !C.spActive(C.getLR(), D(2026, 12, 26)).some(e => e.ev.id === 'christmas') && C.spExpired(C.getLR(), D(2026, 12, 26)).some(e => e.ev.id === 'christmas'));
+    ok('20 Nov – 6 Jan, every day: planner and Listing Rules agree — added ⇔ active; removed ⇔ Listing Rules flags ⇔ after the "days after"; kept in between', agree, bad.slice(0, 4).join(' | '));
+    // a listing that still says Christmas: 26 Dec kept (not added, not removed), 2 Jan removed
+    put('H3', TITLE('Blue'), { kw: 'cotton christmas', hl: ['Christmas table decor, soft cotton'] });
+    done();
+    const on = day => C.spCompute(day).find(i => i.sku === 'H3');
+    const dec26 = on(D(2026, 12, 26));
+    ok('26 Dec: Christmas just ended — kept: not added, not removed (Item Highlights and search words still say it); Listing Rules does not flag it', !dec26.old.some(e => e.ev.id === 'christmas') && !dec26.add.some(e => e.ev.id === 'christmas')
+      && /^Christmas and New Year's table decor, soft cotton$/.test(dec26.hlAfter.join(' ')) && /^cotton christmas /.test(dec26.kwAfter) && !dec26.removed.hl.includes('Christmas') && !dec26.removed.kw.includes('Christmas')
+      && !C.spExpired(C.getLR(), D(2026, 12, 26)).some(e => e.ev.id === 'christmas') && !flagged('H2', D(2026, 12, 26)), JSON.stringify([dec26.old.map(e => e.ev.id), dec26.hlAfter, dec26.kwAfter]));
+    C.SP.today = D(2026, 12, 26);
+    ok('…the words say so: "🎄 Christmas just ended — kept until 1 Jan" on the top line and in the child panel', /🎄 Christmas just ended — kept until 1 Jan/.test(C.spNowHtml()) && /Christmas just ended — kept until 1 Jan/.test(C.spWhereHtml(dec26)),
+      strip(C.spNowHtml()) + ' | ' + strip(C.spWhereHtml(dec26)).slice(0, 300));
+    const jan2 = on(D(2027, 1, 2));
+    ok('2 Jan: Christmas removed from Item Highlights and the search words (and Listing Rules flags a title naming it)', jan2.old.some(e => e.ev.id === 'christmas') && !/christmas/i.test(jan2.hlAfter.join(' ') + ' ' + jan2.kwAfter)
+      && flagged('H2', D(2027, 1, 2)), JSON.stringify([jan2.status, jan2.hlAfter, jan2.kwAfter]));
+    C.SP.today = NOV;
   }
 
   console.log('== "Check all parents": every parent read in the background, 20 a call ==');
