@@ -2222,6 +2222,31 @@
   .sq-chips .sp-chip{min-height:30px;padding:0 10px;font-size:12px}
   .sq-row.is-held .sq-st{color:var(--rev-ink)}
   .sq-none{color:var(--muted)}
+  /* Listing History (listing-history.js): the app's own toolbar and table look, scoped to its page. */
+  #paneLhist .lh-tb{padding:12px 14px}
+  #paneLhist .lh-tb select,#paneLhist .lh-tb input[type=search],#paneLhist .lh-tb input[type=date]{width:auto;min-width:0}
+  #paneLhist .lh-tb input[type=search]{min-width:220px}
+  #paneLhist .lh-count{margin-top:8px;font-size:12.5px}
+  #paneLhist .lh-wrap{margin-top:12px;max-height:none}
+  #paneLhist .lh-tbl td{vertical-align:top;text-align:left;white-space:normal}
+  #paneLhist .lh-tbl th{text-align:left}
+  #paneLhist .lh-when{white-space:nowrap;color:var(--muted)}
+  #paneLhist .lh-listing b{display:block;font-weight:600}
+  #paneLhist .lh-listing small{display:block;font-family:ui-monospace,monospace;font-size:11px;color:var(--faint)}
+  #paneLhist .lh-listing a{font-size:12px}
+  #paneLhist .lh-change{min-width:260px;max-width:460px}
+  #paneLhist .lh-change .sq-chg{margin:0}
+  #paneLhist .lh-result{white-space:nowrap}
+  #paneLhist .lh-row.is-rejected .lh-result{color:var(--bad-ink)}
+  #paneLhist .lh-row.is-accepted .lh-result{color:var(--accent-ink)}
+  #paneLhist .lh-row.is-working .lh-result{color:var(--rev-ink)}
+  #paneLhist .lh-acts{white-space:nowrap}
+  #paneLhist .lh-b{padding:4px 10px;font-size:12px;margin:0 4px 4px 0}
+  #paneLhist .lh-group{cursor:pointer;background:var(--soft)}
+  #paneLhist .lh-group:hover,#paneLhist .lh-group:focus-visible{background:var(--hover);outline:none}
+  #paneLhist .lh-row.is-child>td:first-child{box-shadow:inset 3px 0 0 var(--line)}
+  #paneLhist .lh-pager{display:flex;justify-content:flex-end;align-items:center;gap:8px;margin:10px 0}
+  #paneLhist .lh-empty{margin-top:12px;padding:16px}
   .sq-chg .sq-add{color:var(--accent-ink);font-weight:600}
   .sq-chg .sq-rem{color:var(--bad-ink)}
   .sq-chg .sq-size{color:var(--faint)}

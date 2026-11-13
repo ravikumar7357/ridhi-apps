@@ -1551,9 +1551,10 @@ function spRecordSent(item, sub) {
 function spChangeList(item) {
   const out = [];
   const info = item.hlInfo || {};
-  if (spHlChanged(item)) out.push({ field: 'Item Highlights', old: item.hl.join(' · '), new: item.hlAfter.join(' · '),
+  if (spHlChanged(item)) out.push({ field: 'Item Highlights', old: item.hl.join(' · '), new: item.hlAfter.join(' · '), attr: SP_HL_ATTR, oldV: item.hl.map(value => ({ value, language_tag: 'en_US' })),
     size: info.items > 1 ? `${spNf(item.hlAfter.length)} of ${spNf(info.items)} entries` : `${spNf((item.hlAfter[0] || '').length)} of ${spNf(info.max || SP_HL_MAX)}` });
-  if (item.kwAfter != null && item.kwAfter !== item.kw) out.push({ field: 'Hidden search words', old: item.kw || '', new: item.kwAfter, max: item.kwMax, unit: 'bytes' });
+  if (item.kwAfter != null && item.kwAfter !== item.kw) out.push({ field: 'Hidden search words', old: item.kw || '', new: item.kwAfter, max: item.kwMax, unit: 'bytes',
+    attr: 'generic_keyword', oldV: item.kw ? [{ value: item.kw, language_tag: 'en_US' }] : [] });
   return out;
 }
 // "Fix by hand" / Edit: Listing Errors opens for the listing with the hidden search words of the plan filled in (never the title).

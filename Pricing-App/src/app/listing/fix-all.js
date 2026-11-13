@@ -457,8 +457,8 @@ function faStart(gk, onlySku) {
 // A plan's change, in words, for the popup: the title before → after, the season words (Item Highlights, search words), the spec copied.
 function faChangeList(p) {
   if (p.item && typeof spChangeList === 'function') return spChangeList(p.item);
-  if (p.sent && p.sent.spec) return [{ field: sqField(p.sent.spec), old: '(empty)', new: p.after }];
-  return [{ field: 'Title', old: p.oldTitle || p.before, new: p.after, max: FA_TITLE_MAX, unit: 'letters' }];
+  if (p.sent && p.sent.spec) return [{ field: sqField(p.sent.spec), old: '(empty)', new: p.after, attr: p.sent.spec, oldV: [] }];
+  return [{ field: 'Title', old: p.oldTitle || p.before, new: p.after, max: FA_TITLE_MAX, unit: 'letters', attr: 'item_name', oldV: [{ value: p.oldTitle || p.before, language_tag: 'en_US' }] }];
 }
 // What a sent change is kept as: the OLD value of every field it changed, so Put back can send it again.
 function faRecord(it, run, now, sub) {

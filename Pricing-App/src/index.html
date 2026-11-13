@@ -87,7 +87,7 @@
       <button id="tabBa" class="nav">Analytics</button>
     </div></div>
 
-    <div class="navwrap"><button class="navgrp" id="grpListing" type="button" aria-controls="secListing" data-grp="listing" data-tabs="opt,img,lerr,basket,health,lrules,audit,bsr">
+    <div class="navwrap"><button class="navgrp" id="grpListing" type="button" aria-controls="secListing" data-grp="listing" data-tabs="opt,img,lerr,basket,health,lrules,audit,bsr,lhist">
       <span class="caret">&#9656;</span> Listing</button>
     <div class="navsec" id="secListing">
       <button id="tabOpt" class="nav">Listing Optimiser</button>
@@ -98,6 +98,7 @@
       <button id="tabLrules" class="nav">Listing Rules</button>
       <button id="tabAudit" class="nav">Listing Audit</button>
       <button id="tabBsr" class="nav">BSR Audit</button>
+      <button id="tabLhist" class="nav">Listing History</button>
     </div></div>
 
     <div class="navwrap"><button class="navgrp" id="grpAds" type="button" aria-controls="secAds" data-grp="ads" data-tabs="trends,weekly,ppcn,st,plc,deals">
@@ -867,6 +868,9 @@
       </div>
     </div>
   </div><!-- /paneBsr -->
+
+  <!-- Listing History: every change sent to Amazon (listing/listing-history.js draws it) -->
+  <div id="paneLhist" class="hide"><div id="lhPane"></div></div>
 
   <!-- ============ PPC & Organic · New (test): drawn whole by app/ads/ppc-new.js ============ -->
   <div id="panePpcn" class="hide"></div>

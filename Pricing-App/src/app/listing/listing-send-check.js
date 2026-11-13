@@ -23,7 +23,9 @@
 
 const SQ_LOG_COLL = 'history';      // the existing collection every listing user may write (firestore.rules: canAny())
 const SQ_LOG_ROWS = 200;            // rows per log document: ~1 KB a row at most (values cut at SQ_CUT) → ~200 KB, far under 1 MB
-const SQ_CUT = 300;                 // a value kept in the log is cut here
+const SQ_CUT = 2000;                // a value kept in the log is cut here (the whole title, search words, Item Highlights; a long description cut)
+const SQ_LOG_BYTES = 400000;        // …and a log document never holds more than this (~0.4 MB, Firestore's limit is 1 MB): a new one starts first
+const SQ_OLDV_MAX = 3000;           // the OLD value as Amazon held it (for Put back) is kept when it is no bigger than this
 let SQ = { run: null };             // the popup's run: { jobs, opts, step: check|review|send|verify|done|test, done, total, cancel, resolve }
 
 /* ----- small helpers ----- */
@@ -324,7 +326,7 @@ function sqChangeLine(c) {
     what = parts.join(' · ') || (oldText !== newText ? 'the same words, in a new order' : 'no change');
   }
   const full = `<details class="sq-full"><summary>› Show full text</summary><div><small>Before</small> ${sqEsc(oldText || '(empty)')}</div><div><small>After</small> ${sqEsc(newText || '(empty)')}</div></details>`;
-  return `<div class="sp-m-now sq-chg"><small>${sqEsc(c.field)}:</small> ${what}${size ? ` <span class="sq-size">(${size})</span>` : ''}${full}</div>`;
+  return `<div class="sp-m-now sq-chg">${c.field ? `<small>${sqEsc(c.field)}:</small> ` : ''}${what}${size ? ` <span class="sq-size">(${size})</span>` : ''}${full}</div>`;
 }
 function sqChangesHtml(job) {
   return sqChanges(job).map(sqChangeLine).join('');
@@ -429,10 +431,19 @@ if (typeof document !== 'undefined' && document.addEventListener) document.addEv
 
 /* ----- the send log: every send, accepted or rejected (Listing History reads it later) ----- */
 // One row per changed field of one listing.
+// One row per changed field of one listing — what Listing History shows: when, who (the name only), the listing (name, SKU, ASIN), the
+// field, old → new, the screen, the result; and what it needs to Check again and Put back: the attribute or picture slot, the API, the
+// product type and the OLD value as Amazon held it (when small enough). `run` / `runTitle` / `runN` group a Fix all.
 function sqLogRows(job, run) {
   const at = job.sentAt || Date.now();
-  return sqChanges(job).map((c, i) => ({ id: `${at}-${job.brand}-${job.sku}-${i}`, kind: 'listing', at, by: sqBy(), name: sqName(sqBy()), brand: job.brand, sku: job.sku, asin: job.asin || '',
-    field: c.field, old: sqCut(c.old, SQ_CUT), new: sqCut(c.new, SQ_CUT), screen: run.opts.screen || '', result: job.state, why: job.why || '', sub: job.sub || '' }));
+  const b = job.body || {};
+  return sqChanges(job).map((c, i) => {
+    let oldV = c.oldV === undefined ? null : c.oldV;
+    if (oldV != null && JSON.stringify(oldV).length > SQ_OLDV_MAX) oldV = null;
+    return { id: `${at}-${job.brand}-${job.sku}-${i}`, kind: 'listing', at, by: sqBy(), name: sqName(sqBy()), approvedBy: sqName(sqBy()), brand: job.brand, sku: job.sku, asin: job.asin || '',
+      label: sqCut(job.label || '', 120), field: c.field, old: sqCut(c.old, SQ_CUT), new: sqCut(c.new, SQ_CUT), pic: !!c.pic, attr: c.attr || '', api: b.limg ? 'limg' : 'lfix', pt: b.productType || '', oldV,
+      screen: run.opts.screen || '', run: run.at, runTitle: run.opts.title || '', runN: run.jobs.length, result: job.state, why: job.why || '', sub: job.sub || '' };
+  });
 }
 /** THE ONE LOG FUNCTION. rows: [{ id, kind: 'listing', at, by, name, brand, sku, asin, field, old, new, screen, result, why }]. Written to the
  *  existing /history collection as documents of their own — history/listing_<YYYY-MM-DD>_<run>-<n>, { kind: 'listing', day, rows: { <id>:
@@ -444,12 +455,23 @@ async function lhistAdd(rows, run) {
   const place = (run && run.logDocs) || new Map();      // row id → its document
   const stamp = (run && run.at) || Date.now();
   const fresh = rows.filter(row => !place.has(row.id));
-  const start = new Set(place.values()).size;
-  for (let i = 0; i < fresh.length; i += SQ_LOG_ROWS) {
-    const day = new Date(fresh[i].at).toISOString().slice(0, 10);
-    const id = `listing_${day}_${stamp}-${start + i / SQ_LOG_ROWS + 1}`;
-    fresh.slice(i, i + SQ_LOG_ROWS).forEach(row => place.set(row.id, id));
-  }
+  // new rows fill new documents: a new one starts before SQ_LOG_ROWS rows or SQ_LOG_BYTES bytes
+  let n = new Set(place.values()).size;
+  let cur = '';
+  let curRows = 0;
+  let curBytes = 0;
+  fresh.forEach(row => {
+    const bytes = JSON.stringify(row).length + 40;
+    if (!cur || curRows >= SQ_LOG_ROWS || curBytes + bytes > SQ_LOG_BYTES) {
+      n++;
+      cur = `listing_${new Date(row.at).toISOString().slice(0, 10)}_${stamp}-${n}`;
+      curRows = 0;
+      curBytes = 0;
+    }
+    place.set(row.id, cur);
+    curRows++;
+    curBytes += bytes;
+  });
   if (run) run.logDocs = place;
   const byDoc = new Map();
   rows.forEach(row => {

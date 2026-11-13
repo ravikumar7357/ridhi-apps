@@ -479,7 +479,8 @@ async function leSend(apply) {
     const listing = LE;
     const edits = JSON.parse(JSON.stringify(LE_EDIT));
     return sqSendWithCheck([{ brand, sku: listing.sku, asin: listing.asin, label: listing.title, body: { lfix: 'patch', brand, sku: listing.sku, productType: listing.productType, patches },
-      changes: Object.keys(edits).map(name => ({ field: sqField(name), old: sqValText((listing.attributes || {})[name]), new: edits[name].del ? '(removed)' : sqValText(edits[name].vals) })) }], {
+      changes: Object.keys(edits).map(name => ({ field: sqField(name), old: sqValText((listing.attributes || {})[name]), new: edits[name].del ? '(removed)' : sqValText(edits[name].vals),
+        attr: name, oldV: JSON.parse(JSON.stringify((listing.attributes || {})[name] || [])) })) }], {
       screen: 'Listing Errors', title: 'Listing Errors · ' + listing.sku,
       // sent: what was sent is now what the listing holds, as far as this screen knows
       onSent: () => { Object.entries(edits).forEach(([name, edit]) => { if (edit.del) delete listing.attributes[name]; else listing.attributes[name] = edit.vals; }); if (LE === listing) LE_EDIT = {}; },

@@ -570,7 +570,8 @@ async function lcUpSend(apply) {
   if (apply) {
     const up = LC_UP;
     return sqSendWithCheck(todo.map(row => ({ brand: up.brand, sku: row.sku, asin: '', label: row.sku, row, body: { lfix: 'patch', brand: up.brand, sku: row.sku, productType: row.productType, patches: row.patches },
-      changes: row.fields.map(change => Object.assign({ field: LC_LABEL[change.name] || change.name, old: change.old.join(' | '), new: change.new.join(' | ') },
+      changes: row.fields.map(change => Object.assign({ field: LC_LABEL[change.name] || change.name, old: change.old.join(' | '), new: change.new.join(' | '),
+        attr: change.name, oldV: change.old.map(value => ({ value, language_tag: 'en_US' })) },
         change.name === 'generic_keyword' ? { max: 249, unit: 'bytes' } : {})) })), {
       screen: 'Listing Content upload', title: 'Upload: ' + up.file,
       onSent: (job, reply) => { job.row.state = 'sent'; job.row.msg = reply.submissionId ? '(' + reply.submissionId.slice(0, 8) + '…)' : ''; },

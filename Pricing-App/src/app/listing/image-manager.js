@@ -866,7 +866,7 @@ async function imSend(apply) {
     const im = IM;
     const start = Object.assign({}, IM_START);
     return sqSendWithCheck([{ brand: im.brand, sku: im.sku, asin: im.asin || '', label: im.title || im.sku, body: { limg: 'patch', brand: im.brand, sku: im.sku, productType: im.productType, set },
-      changes: Object.keys(set).map(slot => ({ field: sqField(slot), old: start[slot] || '(none)', new: set[slot] || '(removed)', pic: true })) }], {
+      changes: Object.keys(set).map(slot => ({ field: sqField(slot), old: start[slot] || '(none)', new: set[slot] || '(removed)', pic: true, attr: slot, oldV: start[slot] || '' })) }], {
       screen: 'Image Manager', title: 'Image Manager · ' + im.sku,
       onSent: () => { if (IM === im) IM_START = Object.assign({}, IM_NOW); IML_DIRTY = true; },   // what we sent is now the baseline
       onEdit: () => {},                                   // the picture stack is right here, as it was
@@ -1013,7 +1013,7 @@ async function imPasteMany(skus) {
     if (!Object.keys(set).length) { held.push({ sku, why: 'already holds these pictures' }); continue; }
     if (!row.pt) { held.push({ sku, why: 'no product type in the snapshot — open it and paste there' }); continue; }
     jobs.push({ brand: brandKey, sku, asin: row.asin || '', label: [row.c, row.z].filter(Boolean).join(' · ') || sku, row, body: { limg: 'patch', brand: brandKey, sku, productType: row.pt, set },
-      changes: Object.keys(set).map(slot => ({ field: sqField(slot), old: (row.img || {})[slot] || '(none)', new: set[slot], pic: true })) });
+      changes: Object.keys(set).map(slot => ({ field: sqField(slot), old: (row.img || {})[slot] || '(none)', new: set[slot], pic: true, attr: slot, oldV: (row.img || {})[slot] || '' })) });
   }
   const out = $('imBulk');
   $('imPasteSel').disabled = true;
