@@ -13,9 +13,14 @@ for (const f of fs.readdirSync(DIR).filter(f => /\.ya?ml$/.test(f))) {
   const y = fs.readFileSync(path.join(DIR, f), 'utf8');
   const lines = y.split(/\r?\n/).filter(l => !/^\s*#/.test(l));
   const write = lines.some(l => /^\s*contents:\s*write\b/.test(l));
-  ok(!write || f === 'meera-autobank.yml', `${f}: only meera-autobank.yml may write to the repository`);
-  lines.filter(l => /\bgit\s+push\b/.test(l)).forEach(l => {
-    ok(/refs\/heads\/\$HEAD"?\s*$/.test(l.trim()) || /\bautobank\//.test(l), `${f}: a push that does not name an autobank/* branch: ${l.trim()}`);
+  const pushes = lines.filter(l => /\bgit\s+push\b/.test(l));
+  // The one exception: the ERP release (replenish-hosting.yml) moves the "live-site" marker after putting main live.
+  // That marker is a tag, not a branch, so it cannot change main; any other push in that file still fails.
+  const liveTag = l => f === 'replenish-hosting.yml' && /\bgit\s+push\s+-f\s+origin\s+refs\/tags\/live-site\s*$/.test(l.trim());
+  const tagOnly = pushes.length > 0 && pushes.every(liveTag);
+  ok(!write || f === 'meera-autobank.yml' || tagOnly, `${f}: only meera-autobank.yml may write to the repository (and replenish-hosting.yml only its live-site marker)`);
+  pushes.forEach(l => {
+    ok(/refs\/heads\/\$HEAD"?\s*$/.test(l.trim()) || /\bautobank\//.test(l) || liveTag(l), `${f}: a push that does not name an autobank/* branch: ${l.trim()}`);
     ok(!/\b(main|master|preview\/)\b/.test(l), `${f}: a push naming main or a test link: ${l.trim()}`);
   });
   ok(!lines.some(l => /\bgh\s+pr\s+merge\b|--auto\b|enablePullRequestAutoMerge/.test(l)), `${f}: no workflow merges a pull request by itself`);

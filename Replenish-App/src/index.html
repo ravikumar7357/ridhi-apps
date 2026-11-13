@@ -723,6 +723,10 @@
           <input id="vpQ" placeholder="Search order no, SKU, fabric…" style="flex:1 1 220px;min-width:0">
           <button id="vpPinBtn" class="ghost">Change my PIN</button>
           <button id="vpExport" class="ghost">Download Excel</button>
+          <!-- VENDOR SENT FROM EXCEL (12 Nov): the printer's own sign-in only — vendors/portal/vendor-sent-excel.js -->
+          <button id="vpVsxDl" class="ghost hide" title="Every open line, to type what you are sending">Sent sheet (Excel)</button>
+          <button id="vpVsxUp" class="ghost hide" title="Upload the filled sheet — you see the list before anything is saved">Upload sent sheet</button>
+          <input id="vpVsxFile" type="file" accept=".xlsx,.csv" class="hide">
           <button id="vpGo">Refresh</button>
         </div>
         <!-- These narrow the LINES inside an order, the way they do on the buyer's own screen. -->

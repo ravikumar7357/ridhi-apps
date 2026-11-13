@@ -413,6 +413,7 @@ function renderVp() {
   const rfdTab = VP.tab === 'rfd', dchTab = VP.tab === 'dch';
   ['vpBar2', 'vpBar3'].forEach(id => { if ($(id)) $(id).classList.toggle('hide', rfdTab || dchTab || (id === 'vpBar3' && vpViewAll())); });
   ['vpView', 'vpStatus', 'vpType', 'vpQ', 'vpExport'].forEach(id => { if ($(id)) $(id).classList.toggle('hide', rfdTab || dchTab || (VP.tab === 'shop' && (id === 'vpView' || id === 'vpType'))); });
+  if (typeof vsxSync === 'function') vsxSync();   // Sent sheet / Upload sent sheet (vendor-sent-excel.js)
   if (rfdTab) { vpRfdRender(matched, nag); return; }
   /* DAILY CHALLAN (4 Nov, daily-challan.js): the printer's own delivery challan, and theirs by date */
   if (dchTab && typeof vpDchRender === 'function') { vpDchRender(); return; }
@@ -552,13 +553,40 @@ function vpHistTable(rows) {
 /** RECEIVED BY US (Ravi, 2 Nov: "yaha apna challan banda receive karta h uska column show nahi ho rha h"): what our challan man took in for
  *  this line — a PPC line is received on its RFD challan (flowChIndex: what came back on every challan of the line), which the vendor order
  *  never hears of; any other line by the vendor order's own deliveries (voDone). { qty, how } — how names the challan(s). */
-function vpRecvOf(l) {
-  const ix = l && l.flowKey && typeof flowChIndex === 'function' && typeof FLOW !== 'undefined' && FLOW && FLOW.ch ? flowChIndex() : null;
-  const e = ix ? ix[l.flowKey + (/\|ruffle$/.test(String(l.flowPart || '')) && typeof FLOW_RUF !== 'undefined' ? FLOW_RUF : '')] : null;
+/* THE PRINTER'S OWN SIGN-IN SAW "—" (Ravi, 12 Nov: VPO-261021-I24 — 1 pc received on its challan, the office's printer's view said 1,
+ * the printer's own screen said nothing). A printer's sign-in may not read the RFD challans, so it reads the copy the office writes
+ * onto its vendor order (flowProg.items, flow-printorder.js — the same copy its Due date reads). Each part of the line counts, shared
+ * over the order's lines that stand for it: every SKU of a combined line, the ruffle cloth, a quilt's Front and Back half each. The
+ * office, which reads the challans, counts them as they are now. */
+const VP_RECV_CNT = new WeakMap();
+const vpRecvKey = p => { const [k, part] = String(p || '').split('|'); return part === 'ruffle' ? k + (typeof FLOW_RUF !== 'undefined' ? FLOW_RUF : '~ruffle') : k; };
+function vpRecvCnt(o, l) {
+  const ls = o ? voLines(o) : [l], c = o && VP_RECV_CNT.get(o);
+  if (c && c.lines === o.lines) return c.cnt;
+  const cnt = {}; ls.forEach(x => voParts(x).forEach(p => { const k = vpRecvKey(p); cnt[k] = (cnt[k] || 0) + 1; }));
+  if (o) VP_RECV_CNT.set(o, { lines: o.lines, cnt });
+  return cnt;
+}
+function vpRecvOf(l, o) {
   const vo = voDone(l) || 0;
-  if (e && e.recv > vo) return { qty: Math.round(e.recv * 100) / 100, how: 'on challan ' + (e.no || '') };
+  const parts = l ? (voParts(l).length ? voParts(l) : (l.flowKey ? [l.flowKey] : [])) : [];
+  const share = items => { let q = 0, hit = false; const cnt = vpRecvCnt(o, l), nos = [];
+    parts.forEach(p => { const k = vpRecvKey(p), e = items[k]; if (!e) return; hit = true; q += (+e.v || 0) / (cnt[k] || 1); if (e.no) nos.push(e.no); });
+    return hit ? { qty: Math.round(q * 100) / 100, nos: [...new Set(nos)] } : null; };
+  let got = null;
+  if (parts.length && typeof flowChIndex === 'function' && typeof FLOW !== 'undefined' && FLOW && FLOW.ch) {
+    const ix = flowChIndex(), items = {}; parts.forEach(p => { const k = vpRecvKey(p); if (ix[k]) items[k] = { v: ix[k].recv, no: ix[k].no }; });
+    got = share(items); if (got) got.how = 'on challan ' + got.nos.join(', ');
+  }
+  if (!got && parts.length && o && o.flowProg && o.flowProg.items) {
+    const items = {}; Object.entries(o.flowProg.items).forEach(([k, e]) => { if (e) items[k] = { v: e.back }; });
+    got = share(items); if (got) got.how = 'on our challan';
+  }
+  if (got && got.qty > vo) return { qty: got.qty, how: got.how };
   return { qty: vo, how: vo ? 'on the vendor order' : '' };
 }
+/** Everything ordered on the line has reached us — nothing is left for the printer to say it sent. */
+const vpRecvAll = (o, l) => { const ord = vpQty(o, l); return ord > 0 && vpRecvOf(l, o).qty >= ord - 0.01; };
 function vpCustomSheet(rows, f) {
   /* DUE DATE (Ravi, 3 Nov: "due date vendor ko bhi dikhe"): the date we need it by, red with the days once it is past. */
   const COLS = ['Date', 'Order Number', 'Image', 'Article', 'Size', 'Ordered', 'Vendor Sent', 'Received', 'Due date', 'Vendor Date'];
@@ -588,7 +616,7 @@ function vpCustomSheet(rows, f) {
       + `<td style="font-size:12.5px">${esc(run ? '' : (l.size || '')) || '<span class="muted">—</span>'}</td>`
       + `<td class="num" style="font-weight:700">${nf(ord)} <span class="muted" style="font-weight:400;font-size:10px">${unit}</span></td>`
       + vpVsHtml(o, l, i, ord, unit, 'td')
-      + (rc => `<td class="num" title="${esc(rc.how)}">${rc.qty > 0 ? `<b style="color:#166534">${nf(rc.qty)}</b> <span class="muted" style="font-size:10px">${unit}</span>` : '<span class="muted">—</span>'}</td>`)(vpRecvOf(l))
+      + (rc => `<td class="num" title="${esc(rc.how)}">${rc.qty > 0 ? `<b style="color:#166534">${nf(rc.qty)}</b> <span class="muted" style="font-size:10px">${unit}</span>` : '<span class="muted">—</span>'}</td>`)(vpRecvOf(l, o))
       + `<td style="font-size:12px;text-align:left;white-space:nowrap">${voDueHtml(voDueOf(o, l), voWant(l))}</td>`
       + `<td>${vpViewAll() || flowVpViewOnly(o) || bal <= 0 ? `<span style="font-size:12px">${esc(voProm(l) ? dShow(voProm(l)) : '') || '<span class="muted">—</span>'}</span>`
           : `<input data-vpprom="${esc(o.id)}" data-i="${i}" type="date" value="${esc(voProm(l))}" style="width:146px">`}</td>`
@@ -797,7 +825,8 @@ function vpVsHtml(o, l, i, ord, unit, shape) {
   return (td ? '<td class="vpvs-td">' : `<div class="vpb-vs${shape === 'flat' ? ' flat' : ''}">`)
     + (td ? `<b>${vs > 0 ? q(vs) : '<span class="muted">—</span>'}</b>` : `<span class="muted">Vendor sent</span> <b>${vs > 0 ? q(vs) + ' ' + unit : '—'}</b>`)
     + (list.length ? ` <details><summary>${nf(live)} batch${live === 1 ? '' : 'es'}</summary>${batches}</details>` : '')
-    + (vpVsCan() && left > 0 && !l.cancelled ? `${td ? '' : '<span style="flex:1"></span>'}<span class="vpvs-add"><input data-vsq="${esc(o.id)}" data-i="${i}" type="number" min="0" max="${left}" step="${unit === 'm' ? '0.01' : '1'}" placeholder="qty" aria-label="Quantity sent">`
+    /* RECEIVED IN FULL, NO BOX (Ravi, 12 Nov): once all of it has reached us, the printer cannot say it sent it a second time. */
+    + (vpVsCan() && left > 0 && !l.cancelled && !vpRecvAll(o, l) ?`${td ? '' : '<span style="flex:1"></span>'}<span class="vpvs-add"><input data-vsq="${esc(o.id)}" data-i="${i}" type="number" min="0" max="${left}" step="${unit === 'm' ? '0.01' : '1'}" placeholder="qty" aria-label="Quantity sent">`
       + `<button class="ghost" data-vsadd="${esc(o.id)}" data-i="${i}">Add</button></span>` : '') + (td ? '</td>' : '</div>');
 }
 async function vpVsAdd(id, i) {
@@ -806,6 +835,7 @@ async function vpVsAdd(id, i) {
   if (!o || !l || !el || !vpVsCan()) return;
   const run = o.orderType === 'running', unit = run ? 'm' : 'pcs', typed = parseFloat(el.value);
   if (!(typed > 0)) return vpSay(id, 'Type how much you are sending first.', true);
+  if (vpRecvAll(o, l)) return vpSay(id, 'All of this line has already reached us — nothing is left to send.', true);
   const left = Math.max(0, Math.round((vpQty(o, l) - vpVsSum(vpVsOf(o, l))) * 100) / 100);
   const qty = run ? Math.round(Math.min(typed, left) * 100) / 100 : Math.min(Math.floor(typed), Math.floor(left));
   if (!(qty > 0)) return vpSay(id, left > 0 ? 'Pieces are whole numbers — type 1 or more.' : 'You have already said all of it is sent.', true);
