@@ -30,7 +30,8 @@ const W_POLL_MS = 15000;
 const W_POLL_MAX = 40;
 const W_ADS_LOOKBACK = 95;   // Amazon keeps Sponsored Products data about this long. Not a choice.
 
-// rows[asin] = { brand, weeks: { '2026-05-10': { u, rev, spend, adSales, clicks, adOrders, sessions, pv } } }
+// rows[asin] = { brand, weeks: { '2026-05-10': { u, rev, spend, adSales, clicks, adOrders, sessions, pv, bbv } } }
+// (bbv: page views that had the Buy Box — from 12 Nov, see wNightly)
 // `nAt` records which nightly cache each shape was last merged from, by that cache's own stamp.
 // See wNightly: a cache is folded in ONCE, so a manual Refresh is not undone by re-merging the same
 // night's figures over the top of it the next time somebody opens the tab.
@@ -323,6 +324,11 @@ async function wNightly() {
           const c = row.weeks[wk] || (row.weeks[wk] = {});
           c.sessions = v[0] || 0;
           c.pv = v[1] || 0;
+          /* BUY BOX (12 Nov): v[2] = page views that had the Buy Box (Amazon's buyBoxPercentage × page views), kept by
+           * the nightly from the same traffic report. Stored as a COUNT, not a %, so sizes and weeks simply add up;
+           * the % is worked out from the totals. Absent on weeks collected before the change = not known, never 0. */
+          if (v[2] != null) c.bbv = v[2];
+          else delete c.bbv;
           WEEKLY.doneWeeks[b + '|' + wk] = 1;
           changed = true;
         });
@@ -600,6 +606,8 @@ async function weeklyRefresh() {
               const cell = row.weeks[wk] || (row.weeks[wk] = {});
               cell.sessions = (cell.sessions || 0) + (v[0] || 0);
               cell.pv = (cell.pv || 0) + (v[1] || 0);
+              // [4] = page views with the Buy Box (trafficFetch_), when the backend sends it
+              if (v[4] != null) cell.bbv = (cell.bbv || 0) + v[4];
             });
           }
           // Marked done even when Amazon had nothing: an empty week is an answer, and re-asking it
@@ -753,8 +761,13 @@ const W_METRIC = {
 // into a linear search inside a nested loop.
 let W_TITLES = null, W_PARENT = null;
 // Build asin → title and asin → parent from both brands' Listing Health rows, once.
+// Rebuilt whenever Listing Health's rows are replaced (13 Nov): built once for good, a lookup made before the
+// snapshot had loaded left every ASIN as its own parent for the rest of the session.
+let W_LOOK_SRC = null;
 function wBuildLookups() {
-  if (W_TITLES) return;
+  const src = [HEALTH.SP?.rows, HEALTH.CPC?.rows];
+  if (W_TITLES && W_LOOK_SRC && W_LOOK_SRC[0] === src[0] && W_LOOK_SRC[1] === src[1]) return;
+  W_LOOK_SRC = src;
   W_TITLES = {};
   W_PARENT = {};
   ['SP', 'CPC'].forEach(b => (HEALTH[b]?.rows || []).forEach(r => {
@@ -762,7 +775,9 @@ function wBuildLookups() {
     if (!a) return;
     if (!W_TITLES[a] && r.title) W_TITLES[a] = r.title;
     const p = String(r.parent || '').trim().toUpperCase();
-    if (!W_PARENT[a]) W_PARENT[a] = p || a;      // no parent recorded → it IS its own parent
+    // An ASIN can have several SKU rows; a row that names a parent wins over one that does not.
+    if (p && (!W_PARENT[a] || W_PARENT[a] === a)) W_PARENT[a] = p;
+    else if (!W_PARENT[a]) W_PARENT[a] = a;      // no parent recorded → it IS its own parent
   }));
 }
 // An ASIN's title from Listing Health, or ''.
@@ -809,7 +824,7 @@ function wRenderCheck() {
 // Cells add up field by field. Only the four STORED figures are summed here — every ratio is worked
 // out afterwards from the parent's totals, because averaging children's percentages would weight a
 // child that sold twice the same as one that sold two thousand.
-const W_SUM_FIELDS = ['u', 'rev', 'spend', 'adSales', 'clicks', 'adOrders', 'sessions', 'pv'];
+const W_SUM_FIELDS = ['u', 'rev', 'spend', 'adSales', 'clicks', 'adOrders', 'sessions', 'pv', 'bbv'];
 // Add one cell's stored figures into another (money rounded to cents); a missing field stays missing.
 function wAddCell(into, from) {
   W_SUM_FIELDS.forEach(f => {

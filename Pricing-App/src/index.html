@@ -105,7 +105,7 @@
     <div class="navsec" id="secAds">
       <button id="tabTrends" class="nav">Ad Console</button>
       <button id="tabWeekly" class="nav">PPC &amp; Organic</button>
-      <button id="tabPpcn" class="nav">PPC &amp; Organic · New <span class="navtag">TEST</span></button>
+      <button id="tabPpcn" class="nav">Product Performance</button>
       <button id="tabSt" class="nav">Search Terms</button>
       <button id="tabPlc" class="nav">Placement</button>
       <button id="tabDeals" class="nav">Deal Calendar</button>
@@ -401,8 +401,8 @@
             <label><input type="checkbox" class="accbrand" data-br="SP"> Ridhi</label>
             <label><input type="checkbox" class="accbrand" data-br="CPC"> CPC</label>
             <span class="muted">(none ticked = both)</span></div>
-          <div class="accg-note">Hides the other brand in PPC &amp; Organic, Ad Console, Search Terms and Placement only — every other screen shows both. A display limit, not isolation: fine for colleagues, not for a separate party.</div>
-          <button id="accessAdOnly" class="ghost accg-preset" type="button" title="Ticks PPC & Organic, Ad Console, Search Terms and Placement and unticks everything else in both apps">Ad data only — untick everything else</button>
+          <div class="accg-note">Hides the other brand in Product Performance, Ad Console, Search Terms and Placement only — every other screen shows both. A display limit, not isolation: fine for colleagues, not for a separate party.</div>
+          <button id="accessAdOnly" class="ghost accg-preset" type="button" title="Ticks Product Performance, Ad Console, Search Terms and Placement and unticks everything else in both apps">Ad data only — untick everything else</button>
         </div></section>
 
       <section class="accg" data-accg="research"><header><h4>Research</h4><span class="accg-n"></span><span class="accg-app">Sellora</span><button type="button" class="ghost accg-all">All</button><button type="button" class="ghost accg-none">None</button></header>
@@ -868,10 +868,10 @@
     </div>
   </div><!-- /paneBsr -->
 
-  <!-- ============ PPC & Organic · New (test): drawn whole by app/ads/ppc-new.js ============ -->
+  <!-- ============ Product Performance (was PPC & Organic · New): drawn whole by app/ads/ppc-new.js ============ -->
   <div id="panePpcn" class="hide"></div>
 
-  <!-- ============ PPC & Organic: one row per ASIN, one column per week ============ -->
+  <!-- ============ PPC & Organic (old view, off the menu since 12 Nov): one row per ASIN, one column per week ============ -->
   <div id="paneWeekly" class="hide">
     <!-- Sales that failed the nightly cross-check. Held back rather than shown, and said so here. -->
     <div id="wCheckBanner" class="card hide"
