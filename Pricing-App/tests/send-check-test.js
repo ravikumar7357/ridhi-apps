@@ -135,6 +135,27 @@ const box = C => C.el('spModalBox').innerHTML;
     C.sqClose();
   }
 
+  console.log('== Listing Errors: Apply → the same popup ==');
+  {
+    const posts = [];
+    const amazon = {};
+    const C = load({ sq: true, le: true, post: b => { posts.push(b); if (b.apply) amazon[b.sku] = Object.fromEntries(b.patches.map(p => [p.path.replace('/attributes/', ''), p.value])); return b.apply ? { ok: true, submissionId: 's1' } : { ok: true, previewOnly: true, issues: [] }; },
+      baCall: async q => (q.lfix === 'get' ? { attributes: amazon[q.sku] || {}, issues: [] } : {}) });
+    C.el('leBrand').value = 'SP';
+    C.setLE({ sku: 'LE1', asin: 'B0LE1', title: 'Napkins', productType: 'NAPKIN', status: [], issues: [], attributes: { material: [{ value: 'Linen', language_tag: 'en_US' }] } },
+      { material: { vals: [{ value: 'Cotton', language_tag: 'en_US' }] } });
+    const run = C.leSend(true);
+    await C.SQ.run.checked;
+    ok('Apply → the Amazon check popup (no browser confirm): "✓ Amazon will accept", material Linen → Cotton', C.SQ.screens.slice(-1)[0] === 'Listing Errors' && C.SQ.run.jobs[0].state === 'ok'
+      && C.SQ.run.jobs[0].changes[0].field === 'material' && C.SQ.run.jobs[0].changes[0].old === 'Linen' && C.SQ.run.jobs[0].changes[0].new === 'Cotton' && posts.length === 1 && posts[0].apply === false);
+    await C.sqApprove();
+    C.sqClose();
+    await run;
+    const le = C.getLE();
+    ok('…Approve & send: sent once, read again, accepted; the editor shows the answer and holds the new value', posts.filter(p => p.apply).length === 1 && /✅ Amazon accepted/.test(le.LE_RESULT)
+      && le.LE.attributes.material[0].value === 'Cotton' && !Object.keys(le.LE_EDIT).length, le.LE_RESULT);
+  }
+
   console.log('== the send points that go through the ONE function ==');
   ok('Season planner (Fix, Fix all, Remove all, Fix all seasons) → sqSendWithCheck', F.C.SQ.screens.includes('Season planner'));
 

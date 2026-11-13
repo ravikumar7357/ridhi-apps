@@ -469,13 +469,28 @@ function leFixWire() {
   if ($('leApply')) $('leApply').onclick = () => leSend(true);
 }
 
-// Check (apply = false) or Apply (apply = true): send the patches through imPost and show what Amazon answered.
+// Check (apply = false): ask Amazon and show its answer here. Apply (apply = true): THE ONE SEND PATH (#10, listing-send-check.js) — the
+// Amazon check popup: Amazon checks the change, the person approves, it is sent and the listing read again; the answer shows here after.
 async function leSend(apply) {
   const patches = lePatches();
   if (!patches.length) return;
-  if (apply && !confirm('Send ' + patches.length + ' change(s) for ' + LE.sku + ' to Amazon?\n\n'
-      + patches.map(patch => (patch.op === 'delete' ? 'remove ' : 'set ') + patch.path.replace('/attributes/', '')).join('\n')
-      + '\n\nAmazon checks it first; if it reports a problem nothing is sent.')) return;
+  if (apply) {
+    const brand = $('leBrand').value;
+    const listing = LE;
+    const edits = JSON.parse(JSON.stringify(LE_EDIT));
+    return sqSendWithCheck([{ brand, sku: listing.sku, asin: listing.asin, label: listing.title, body: { lfix: 'patch', brand, sku: listing.sku, productType: listing.productType, patches },
+      changes: Object.keys(edits).map(name => ({ field: sqField(name), old: sqValText((listing.attributes || {})[name]), new: edits[name].del ? '(removed)' : sqValText(edits[name].vals) })) }], {
+      screen: 'Listing Errors', title: 'Listing Errors · ' + listing.sku,
+      // sent: what was sent is now what the listing holds, as far as this screen knows
+      onSent: () => { Object.entries(edits).forEach(([name, edit]) => { if (edit.del) delete listing.attributes[name]; else listing.attributes[name] = edit.vals; }); if (LE === listing) LE_EDIT = {}; },
+      onEdit: () => {},                                   // the editor is right here: the boxes stay as they were
+      onDone: sum => {
+        if (LE !== listing) return;
+        const text = sqSummaryText(sum);
+        if (text) LE_RESULT = `<div style="margin-top:8px;font-size:12.5px" class="${/rejected|says no/i.test(text) && !/✅/.test(text) ? 'err' : ''}">${leEsc(text)}</div>`;
+        leFixRender();
+      } });
+  }
   $('leCheck').disabled = $('leApply').disabled = true;
   $('leSendMsg').textContent = apply ? 'Sending to Amazon…' : 'Asking Amazon…';
   // --- send ---

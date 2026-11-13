@@ -19088,6 +19088,14 @@ function sqEdit() {
   sqClose();
   if (typeof run.opts.onEdit === 'function') run.opts.onEdit(job);
 }
+// The outcome in one line, for a screen's own result box after the popup closed: "✅ Amazon accepted", "✅ 7 accepted · ❌ 1 rejected · ⏳ 0".
+function sqSummaryText(sum) {
+  if (!sum) return '';
+  if (sum.test && sum.step === 'test') return 'Test site — not sent to Amazon.';
+  if (sum.step !== 'done') return sum.no.length && sum.jobs.length === 1 ? `Amazon says no: ${sum.no[0].why} — ${sum.no[0].how}` : '';
+  if (sum.jobs.length === 1) { const job = sum.jobs[0]; return `${SQ_STATE[job.state] || ''}${job.why ? ': ' + job.why : ''}`; }
+  return `✅ ${sqNf(sum.accepted)} accepted · ❌ ${sqNf(sum.rejected)} rejected · ⏳ ${sqNf(sum.working)}${sum.no.length ? ` · ✗ ${sqNf(sum.no.length)} Amazon said no` : ''}`;
+}
 // The popup is waiting on Amazon (a send or a read): Esc and a click outside do not close it then.
 const sqBusy = () => !!(SQ.run && !SQ.run.closed && (SQ.run.step === 'send' || SQ.run.step === 'verify'));
 const sqIsOpen = () => !!(SQ.run && !SQ.run.closed);
@@ -32694,13 +32702,28 @@ function leFixWire() {
   if ($('leApply')) $('leApply').onclick = () => leSend(true);
 }
 
-// Check (apply = false) or Apply (apply = true): send the patches through imPost and show what Amazon answered.
+// Check (apply = false): ask Amazon and show its answer here. Apply (apply = true): THE ONE SEND PATH (#10, listing-send-check.js) — the
+// Amazon check popup: Amazon checks the change, the person approves, it is sent and the listing read again; the answer shows here after.
 async function leSend(apply) {
   const patches = lePatches();
   if (!patches.length) return;
-  if (apply && !confirm('Send ' + patches.length + ' change(s) for ' + LE.sku + ' to Amazon?\n\n'
-      + patches.map(patch => (patch.op === 'delete' ? 'remove ' : 'set ') + patch.path.replace('/attributes/', '')).join('\n')
-      + '\n\nAmazon checks it first; if it reports a problem nothing is sent.')) return;
+  if (apply) {
+    const brand = $('leBrand').value;
+    const listing = LE;
+    const edits = JSON.parse(JSON.stringify(LE_EDIT));
+    return sqSendWithCheck([{ brand, sku: listing.sku, asin: listing.asin, label: listing.title, body: { lfix: 'patch', brand, sku: listing.sku, productType: listing.productType, patches },
+      changes: Object.keys(edits).map(name => ({ field: sqField(name), old: sqValText((listing.attributes || {})[name]), new: edits[name].del ? '(removed)' : sqValText(edits[name].vals) })) }], {
+      screen: 'Listing Errors', title: 'Listing Errors · ' + listing.sku,
+      // sent: what was sent is now what the listing holds, as far as this screen knows
+      onSent: () => { Object.entries(edits).forEach(([name, edit]) => { if (edit.del) delete listing.attributes[name]; else listing.attributes[name] = edit.vals; }); if (LE === listing) LE_EDIT = {}; },
+      onEdit: () => {},                                   // the editor is right here: the boxes stay as they were
+      onDone: sum => {
+        if (LE !== listing) return;
+        const text = sqSummaryText(sum);
+        if (text) LE_RESULT = `<div style="margin-top:8px;font-size:12.5px" class="${/rejected|says no/i.test(text) && !/✅/.test(text) ? 'err' : ''}">${leEsc(text)}</div>`;
+        leFixRender();
+      } });
+  }
   $('leCheck').disabled = $('leApply').disabled = true;
   $('leSendMsg').textContent = apply ? 'Sending to Amazon…' : 'Asking Amazon…';
   // --- send ---
@@ -33345,11 +33368,22 @@ const lcStateHtml = row => ({
 
 /** One SKU at a time, each previewed by Amazon (the backend sends for real only when the preview is clean). Stops after
  *  three refusals in a row: the fourth would fail the same way. */
-// Check all (apply = false) or Apply all (apply = true) for the rows that are ready, updating each row's state as it goes.
+// Check all (apply = false): ask Amazon about each ready row, here. Apply all (apply = true): THE ONE SEND PATH (#10, listing-send-check.js)
+// — the Amazon check popup for every ready row; each row's state follows what Amazon did.
 async function lcUpSend(apply) {
   const todo = LC_UP.rows.filter(row => ['ready', 'checked'].includes(row.state));
   if (!todo.length) return;
-  if (apply && !confirm(`Send the changes for ${todo.length} listing(s) to Amazon?\n\nEach is checked by Amazon first; one Amazon objects to is not sent and is named.`)) return;
+  if (apply) {
+    const up = LC_UP;
+    return sqSendWithCheck(todo.map(row => ({ brand: up.brand, sku: row.sku, asin: '', label: row.sku, row, body: { lfix: 'patch', brand: up.brand, sku: row.sku, productType: row.productType, patches: row.patches },
+      changes: row.fields.map(change => ({ field: LC_LABEL[change.name] || change.name, old: change.old.join(' | '), new: change.new.join(' | ') })) })), {
+      screen: 'Listing Content upload', title: 'Upload: ' + up.file,
+      onSent: (job, reply) => { job.row.state = 'sent'; job.row.msg = reply.submissionId ? '(' + reply.submissionId.slice(0, 8) + '…)' : ''; },
+      onDone: sum => {
+        sum.jobs.forEach(job => { if (job.state === 'no' || job.state === 'rejected') { job.row.state = 'fail'; job.row.msg = (job.state === 'no' ? 'Amazon says no: ' : 'Amazon rejected: ') + job.why; } });
+        if (LC_UP === up) lcUpRender();
+      } });
+  }
   $('lcUpCheck').disabled = $('lcUpApply').disabled = true;
   let refusals = 0;     // refusals in a row
   let i = 0;

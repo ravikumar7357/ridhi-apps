@@ -75,9 +75,12 @@ function load(opts) {
     lrEsc: s => String(s == null ? '' : s).replace(/[<>&"]/g, ch => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[ch])),
   };
   Object.assign(ctx, opts.ctx || {});   // a test's own stubs (fix-all-test: the Image Manager / Listing Errors hand-offs)
-  if (opts.tab) delete ctx.lrEsc;   // the Rules tab file defines its own
+  if (opts.tab) delete ctx.lrEsc;
+  if (opts.le) delete ctx.lcBytes;      // listing-content.js has its own
+  if (opts.im) { delete ctx.imLoad; delete ctx.imPost; delete ctx.IM_SKU_CHOICES; delete ctx.IML; delete ctx.IM_SLOTS; }   // image-manager.js has its own   // the Rules tab file defines its own
   const src = (opts.src || L('listing-rules.js')) + (opts.ws ? '\n' + L('listing-workspace.js') + '\n' + L('listing-kid.js') : '') + (opts.sp ? '\n' + L('season-planner.js') : '')
-    + (opts.pc ? '\n' + L('picture-check.js') : '') + (opts.tab ? '\n' + L('listing-rules-tab.js') : '') + (opts.fa ? '\n' + L('fix-all.js') : '') + (opts.sp || opts.fa || opts.sq ? '\n' + L('listing-send-check.js') : '');
+    + (opts.pc ? '\n' + L('picture-check.js') : '') + (opts.tab ? '\n' + L('listing-rules-tab.js') : '') + (opts.fa ? '\n' + L('fix-all.js') : '') + (opts.sp || opts.fa || opts.sq ? '\n' + L('listing-send-check.js') : '')
+    + (opts.le ? '\n' + L('listing-content.js') + '\n' + L('listing-errors.js') : '') + (opts.im ? '\n' + L('image-manager.js') : '');
   const tail = '\n;LR = JSON.parse(JSON.stringify(LR_DEFAULT)); LR_CAT.SP = ' + JSON.stringify(CAT.SP) + '; LR_CAT.CPC = ' + JSON.stringify(CAT.CPC) + ';'
     + '\n;return { rows: HEALTH.SP.rows.concat(HEALTH.CPC.rows), LR_DEFAULT, getLR: () => LR, healthOf, hCtx: () => hCtx(), reset: () => { H_CTX = null; }, hTitleSizes,'
     + ' lrAnswer, lrAnswerHtml, lrPicId, lrLooks, setHealthAt: d => { HEALTH.SP.at = d; HEALTH.CPC.at = d; },'
@@ -89,6 +92,8 @@ function load(opts) {
     + (opts.ws ? ' LI_WS, LI_WS_AUDIT, liWsParents: (brands) => liWsParents(brands, hCtx(), Date.now()), liWsDetail, liWsAuditBox, liWsKidTable, liWsRender, liWsRecheck, liWsCheckNow, liWsLiveMap, liWsProblems, liWsPanelOpen, liWsPanelClose, liWsPanelMove, liWsPanelRender, liWsOff, liWsToolbarSync, liWsPanelSync, liWsPanelSchedule, liWsPanelKeep, liWsPanelKid, liWsPanelKidBack, lkHtml, lkKid, LK, liWsReconcile, liWsErrorsCsv, liWsDlButton, liWsSearch, LI_WS_DL_COLS, liWsJob,' : '')
     + (opts.sp ? ' SP, spCompute, spPlan, spChecks, spStrip, spInsert, spDiffHtml, spWordDiff, spKidHtml, spRowHtml, spParentBodyHtml, spParentCardHtml, spGroups, spGroupOf, spOpenParent, spCloseParent, spOpenKid, spCloseKid, spRender, spApprove, spRecordSent, spPatches, spLogLoad, spEvents, SP_SEASONS, spHlInfo, spHighlightsCount, spActive, spWindow, spNext, spExpired, spPlanFor, spBuild, spFixSeasons, spSeasonRows, spOldRows, spTitleOld, spModal, spNowHtml, spChips, spSeasonChecks, spHlAdd, spKwAdd, spWhereHtml, spChangesHtml, spResultHtml, spMissing, spChanges, spCheckAll, spOn, lrSeasonState: typeof lrSeasonState === "function" ? lrSeasonState : null, lrEventDate, lrEaster, spEnsureReads, spApprove, spProgText, spPanelsRender, spAfterRead, spFindSeason, spWhere, spWhereCount, spMarkHtml, setHealthLoaded: v => { H_LOADED = v; }, setCat: (b, m) => { LR_CAT[b] = Object.assign(LR_CAT[b] || {}, m); H_CTX = null; },' : '')
     + (opts.sp || opts.fa || opts.sq ? ' SQ, sqSendWithCheck, sqApprove, sqClose, sqCheckAgain, sqEdit, sqPlain, sqHow, sqName, lhistAdd, sqIsOpen, sqBusy,' : '')
+    + (opts.le ? ' leSend, setLE: (le, edit) => { LE = le; LE_EDIT = edit; }, getLE: () => ({ LE, LE_EDIT, LE_RESULT }), lcUpSend,' : '')
+    + (opts.im ? ' imSend, imPasteMany, setIM: (im, start, now) => { IM = im; IM_START = start; IM_NOW = now; }, getIM: () => ({ IM, IM_START, IM_NOW }), IM_SEL, setClip: c => { IM_CLIP = c; }, IML,' : '')
     + (opts.fa ? ' FA, faBlockHtml, faGroups, faCards, faPlan, faPlans, faShortTitle, faStart, faApprove, faVerify, faReject, faPutBack, faPutSend, faOnGet, faKids, faClick, faRunHtml, faHistHtml, faLogLoad, faOpenImg, faOpenLerr, spParentPanelHtml, liWsPanelList,' : '') + ' };';
   const api = new Function(...Object.keys(ctx), src + tail)(...Object.values(ctx));
   // api.rows ARE the HEALTH rows (the same objects, brand on each): a test that changes one changes what every screen judges.

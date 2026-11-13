@@ -253,6 +253,14 @@ function sqEdit() {
   sqClose();
   if (typeof run.opts.onEdit === 'function') run.opts.onEdit(job);
 }
+// The outcome in one line, for a screen's own result box after the popup closed: "✅ Amazon accepted", "✅ 7 accepted · ❌ 1 rejected · ⏳ 0".
+function sqSummaryText(sum) {
+  if (!sum) return '';
+  if (sum.test && sum.step === 'test') return 'Test site — not sent to Amazon.';
+  if (sum.step !== 'done') return sum.no.length && sum.jobs.length === 1 ? `Amazon says no: ${sum.no[0].why} — ${sum.no[0].how}` : '';
+  if (sum.jobs.length === 1) { const job = sum.jobs[0]; return `${SQ_STATE[job.state] || ''}${job.why ? ': ' + job.why : ''}`; }
+  return `✅ ${sqNf(sum.accepted)} accepted · ❌ ${sqNf(sum.rejected)} rejected · ⏳ ${sqNf(sum.working)}${sum.no.length ? ` · ✗ ${sqNf(sum.no.length)} Amazon said no` : ''}`;
+}
 // The popup is waiting on Amazon (a send or a read): Esc and a click outside do not close it then.
 const sqBusy = () => !!(SQ.run && !SQ.run.closed && (SQ.run.step === 'send' || SQ.run.step === 'verify'));
 const sqIsOpen = () => !!(SQ.run && !SQ.run.closed);
