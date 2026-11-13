@@ -28403,7 +28403,10 @@ function shpbRow(r) {
   const k = shpbKey(r.orderNo, r.sku), s = shpbStages([r]), rd = shpbReadyOf(r), edit = shpbCanEdit(), late = rd.date && rd.date < dToday();
   const prn = shpbPrinterOf(r);
   const tips = { prcv: 'Owed by the printer − printed cloth received back on the challan', cut: 'Still to cut − cut so far', issue: 'Cut and not yet issued − issued to karigars', receive: 'Out with karigars − received back', qc: 'Received, not checked − passed QC', press: 'Passed QC, not pressed − pressed' };
-  return '<tr><td class="frz" style="' + SHPB_PAD + 'text-align:left;white-space:nowrap;font-size:12px">' + esc(shpbDmy(ptIsoDate(r.orderDate))) + '</td>'
+  const stuck = shpbStuck(r);
+  return (stuck ? '<tr style="background:#fef2f2;box-shadow:inset 4px 0 0 #dc2626">' : '<tr>') + '<td class="frz" style="' + SHPB_PAD + 'text-align:left;white-space:nowrap;font-size:12px">' + esc(shpbDmy(ptIsoDate(r.orderDate)))
+    + (stuck ? `<div title="Nothing done on this line since ${esc(shpbDmy(stuck.since))} — Sundays not counted"><span class="pill" style="background:#dc2626;color:#fff;font-size:10px">Stuck ${nf(stuck.days)} day${stuck.days === 1 ? '' : 's'}</span></div>`
+      + `<div style="font-size:10.5px;color:#b91c1c;white-space:normal;max-width:110px">last step: ${esc(stuck.at)} · since ${esc(shpbDmy(stuck.since))}</div>` : '') + '</td>'
     + '<td style="' + SHPB_PAD + 'text-align:left;white-space:nowrap;line-height:1.25"><a href="#" data-ordj="' + esc(r.orderNo) + '" style="color:inherit;text-decoration:underline dotted;font-weight:700">'
     + esc(String(r.shopOrderNo || r.orderNo).replace(/^#\s*/, '')) + '</a>'
     + '</td>'
@@ -28437,13 +28440,49 @@ function shpbStatusCell(r, k, rd, late, edit) {
 }
 
 /** What the board shows now. PENDING = lines with pieces not yet pressed; COMPLETE = lines pressed (waiting for shipping, or handed over) and closed ones. */
+/* STUCK IN ONE PLACE (Ravi, 13 Nov: "yadi koi order 1 hi jagah 24 hours se jyada pada h aage move nahi hua h wo highlight ho jay";
+ * Sundays not counted). The last day anything happened to a pending line — every date its own flow shows: ordered/opened, plan,
+ * printer, cloth back, cut, issued, received, QC, filler, press — and if a whole working day (Mon–Sat) has passed since with
+ * nothing, the line is stuck: its row goes red with where it waits and for how long, and "Stuck > 24h" shows only those.
+ * Days, not hours: the registers keep the day of a step, not its time — so a line moved on Monday is stuck from Wednesday. */
+const shpbIsoOf = d => { const m = String(d || '').match(/(\d{2})-(\d{2})-(\d{4})/); return m ? m[3] + '-' + m[2] + '-' + m[1] : ''; };
+function shpbLastMove(r) {
+  let best = '';
+  try { shpbSteps(r).forEach(x => String(x.when || '').replace(/(\d{2})-(\d{2})-(\d{4})/g, (t, d, mo, y) => { const iso = y + '-' + mo + '-' + d; if (iso > best) best = iso; return t; })); }
+  catch (e) { /* a line whose flow cannot be read is never called stuck */ }
+  return best;
+}
+/** Working days (Monday–Saturday) wholly between two ISO days. */
+function shpbWorkDaysBetween(a, b) {
+  const t0 = Date.parse(a + 'T00:00:00Z'), t1 = Date.parse(b + 'T00:00:00Z');
+  if (!(t0 < t1)) return 0;
+  let n = 0;
+  for (let t = t0 + 864e5; t < t1; t += 864e5) if (new Date(t).getUTCDay() !== 0) n++;
+  return n;
+}
+let SHPB_STUCKC = { sig: null, map: new Map() };
+/** { since, days, at } for a pending line stuck a working day or more, else null. */
+function shpbStuck(r) {
+  const today = shpbToday(), sig = [today, PT.base, PT.cut, (typeof QC !== 'undefined' && QC.checks) || null, SHPB.ready, SHPB.press, (typeof FLOW !== 'undefined' && FLOW && FLOW.ch) || null];
+  if (!SHPB_STUCKC.sig || SHPB_STUCKC.sig.some((x, i) => x !== sig[i])) SHPB_STUCKC = { sig, map: new Map() };
+  const k = shpbKey(r.orderNo, r.sku);
+  if (SHPB_STUCKC.map.has(k)) return SHPB_STUCKC.map.get(k);
+  let out = null;
+  if (r.open) {
+    const last = shpbLastMove(r), days = last ? shpbWorkDaysBetween(last, today) : 0;
+    if (days >= 1) out = { since: last, days, at: shpbStatusInfo(r).label };
+  }
+  SHPB_STUCKC.map.set(k, out);
+  return out;
+}
 function shpbView() {
   const f = ordFilters(), all = ordLines().filter(shpbBelongs), shown = ordApply(all, f);
   const sOf = r => shpbStages([r]);
   const pend = shown.filter(r => r.open && sOf(r).prsD + sOf(r).stk < (+r.qty || 0));
   const done = shown.filter(r => { if (!r.open) return true; return sOf(r).prsD > 0 || sOf(r).stk > 0; });
   const stg = SHPB_STAGES.find(x => x[0] === SHPB.stage);
-  const list = SHPB.tab === 'done' ? (stg && stg[0] === 'hand' ? done.filter(r => sOf(r)[stg[3]] > 0) : done) : (stg && stg[0] !== 'hand' ? pend.filter(r => sOf(r)[stg[3]] > 0) : pend);
+  let list = SHPB.tab === 'done' ? (stg && stg[0] === 'hand' ? done.filter(r => sOf(r)[stg[3]] > 0) : done) : (stg && stg[0] !== 'hand' ? pend.filter(r => sOf(r)[stg[3]] > 0) : pend);
+  if (SHPB.stuck && SHPB.tab !== 'done') list = list.filter(shpbStuck);
   return { f, all, pend, done, list };
 }
 
@@ -28473,6 +28512,9 @@ function renderShpBoard() {
   /* ONE LINE: the stage buckets, and the two tabs at the right end (Ravi, 28 Oct: no "Waiting at:", no long note, the tabs up with the buckets). */
   $('odKpis').innerHTML = ME.shpAccOnly ? `<div style="margin:2px 0 8px;font-weight:700;font-size:15px">Shipping to accept · ${nf(done.filter(r => r.open && shpbStages([r]).handW > 0).length)} line(s)</div>`
     : `<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:2px 0 8px">${shpbStagesShown().map(bucket).join('')}`
+    + (() => { const n = pend.filter(shpbStuck).length, on = !!SHPB.stuck;
+        return `<button type="button" data-shpb-stuck="1" title="Pending lines with nothing done for a whole working day (Sundays not counted)" style="height:36px;padding:0 14px;border-radius:999px;font:inherit;font-weight:700;cursor:pointer;box-shadow:none;transform:none;`
+          + (on ? 'background:#b91c1c;color:#fff;border:1px solid #b91c1c' : 'background:#fef2f2;color:#b91c1c;border:1px solid #fecaca') + `">Stuck &gt; 24h · ${nf(n)}</button>`; })()
     + `<div style="display:flex;gap:8px;margin-left:auto">${tabBtn('pending', 'Order pending · ' + nf(pend.length))}${tabBtn('done', 'Complete · ' + nf(done.length))}</div></div>`
     + (tab === 'pending' && shpbMay('plan') ? (() => {
       const can = shpbToPlan(pend).length, left = typeof FLOW_XL_IMP !== 'undefined' && FLOW_XL_IMP.length ? flowXlLeft().length : 0;
@@ -28589,7 +28631,36 @@ async function shpbCutSave(r, v) {
   try { return await shpbDrive({ cwOrd: r.orderNo, cwPcs: String(pcs), cwFabric: other ? CUT_OTHER_CLOTH[other] : v.fabric, cwDate: v.date || shpbToday() }, 'cwSave', 'cwMsg'); }
   finally { CUT_FROM = ''; CUT_OWN_OK = ''; }
 }
+/* ISSUE TO AN EMBROIDERY VENDOR (Ravi, 13 Nov: "embroidery piece ke liye job work bhi karwata hu to karigar ke sath sath mene bahar kis
+ * vendor ko diye h embroidery ke liye wo bhi mention kar saku jisase order aage move ho" — "bas only embroidery wale orders ke liye").
+ * An embroidery line (its article says Embroidery, or its PPC route is 'emb') may be issued to a vendor instead of a karigar. It is
+ * the same Job Work register entry, so Receive brings it back and the line moves on exactly as it does for a karigar — only its type
+ * is 'Embroidery vendor' (with the vendor's code), which no karigar payout counts (payouts.js reads Company / External Contractor). */
+const SHPB_EMB_TYPE = 'Embroidery vendor';
+const shpbIsEmb = r => /embroid/i.test([r.articleSubtype, r.articleType, r.itemName].filter(Boolean).join(' '))
+  || (typeof flowPlanRouteOf === 'function' && flowPlanRouteOf(r.orderNo, r.sku) === 'emb');
+const shpbEmbVendors = () => { let all = []; try { all = voAllVendors(); } catch (e) { all = []; }
+  const f = all.filter(x => /embroid/i.test(String(x.category || ''))); return f.length ? f : all; };
+async function shpbIssueVendorSave(r, v) {
+  const pcs = parseInt(v.pcs, 10), ven = shpbEmbVendors().find(x => String(x.code) === String(v.ven));
+  if (!ven) return 'Pick the embroidery vendor.';
+  if (!(pcs > 0)) return 'Type how many pieces are being issued.';
+  const s = shpbStages([r]);
+  if (pcs > s.issW) return `Only ${nf(s.issW)} piece(s) can be issued now.`;
+  if (typeof bdGuard === 'function') { const g = bdGuard(r.orderNo, r.sku, pcs); if (g) return g; }
+  const m = (typeof cutSkuOf === 'function' ? cutSkuOf(r.sku) : null) || {};
+  const day = v.date || shpbToday(), name = String(ven.desc || ven.name || ven.code);
+  const e = { id: 'bd_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8), empType: SHPB_EMB_TYPE, empName: name, vendorCode: String(ven.code),
+    sku: obUC(r.sku), articleType: m.articleType || r.articleType || '', articleSubtype: m.subtype || r.articleSubtype || '', color: m.color || r.color || '',
+    size: m.size || r.size || '', orderNo: r.orderNo, issuePieces: pcs, issueDate: typeof ptStampDate === 'function' ? ptStampDate(day) : day,
+    receivedPieces: 0, rejectionPieces: 0, receivingDate: '', pendingPieces: pcs, remarks: 'Embroidery — outside vendor', frozen: false,
+    addedBy: ME.email, addedAt: new Date().toISOString() };
+  try { await ptPut('pt_baseData/' + e.id, e); } catch (x) { return 'Not saved: ' + (x.message || x); }
+  PT.base = (PT.base || []).concat(Object.assign({ _key: e.id }, e));
+  return '';
+}
 async function shpbIssueSave(r, v) {
+  if (v.to === 'vendor') return shpbIssueVendorSave(r, v);
   const pcs = parseInt(v.pcs, 10), name = String(v.emp || '').trim();
   if (!name) return 'Pick the karigar.';
   if (!(pcs > 0)) return 'Type how many pieces are being issued.';
@@ -28671,16 +28742,20 @@ function shpbDialog(act, key) {
       saveLabel: 'Save cutting', onSave: async v => { const err = await shpbCutSave(r, v); if (!err) shpbAfter(); return err; } });
   }
   if (act === 'issue') {
-    const go = () => ptOpenDialog({ title: 'Issue to a karigar — ' + who, subtitle: nf(s.issW) + ' can be issued now. Saved in the Job Work register, against this order.',
-      fields: [{ key: 'emp', label: 'Karigar / contractor', list: (PTE.emp || []).map(e => String(e[1]).trim()).filter(Boolean), value: '' },
-        { key: 'pcs', label: 'Pieces issued', type: 'number', min: 1, value: s.issW || '' }, { key: 'date', label: 'Issue date', type: 'date', value: shpbToday() }],
+    const emb = shpbIsEmb(r);
+    const go = () => ptOpenDialog({ title: (emb ? 'Issue to a karigar or an embroidery vendor — ' : 'Issue to a karigar — ') + who,
+      subtitle: nf(s.issW) + ' can be issued now. Saved in the Job Work register, against this order.' + (emb ? ' An embroidery vendor\'s pieces come back with Receive, like a karigar\'s; they are not in any karigar payout.' : ''),
+      fields: (emb ? [{ key: 'to', label: 'Issue to', type: 'select', options: [['karigar', 'Karigar'], ['vendor', 'Embroidery vendor (outside)']], value: 'karigar' },
+          { key: 'ven', label: 'Embroidery vendor (if vendor)', type: 'select', options: [['', '— pick —']].concat(shpbEmbVendors().map(x => [String(x.code), String(x.desc || x.name || x.code)])), value: '' }] : [])
+        .concat([{ key: 'emp', label: emb ? 'Karigar / contractor (if karigar)' : 'Karigar / contractor', list: (PTE.emp || []).map(e => String(e[1]).trim()).filter(Boolean), value: '' },
+        { key: 'pcs', label: 'Pieces issued', type: 'number', min: 1, value: s.issW || '' }, { key: 'date', label: 'Issue date', type: 'date', value: shpbToday() }]),
       saveLabel: 'Issue', onSave: async v => { const err = await shpbIssueSave(r, v); if (!err) shpbAfter(); return err; } });
     if (PTE.emp) return go();
     return ptLoadEmp().then(go).catch(e => { $('odMsg').className = 'err'; $('odMsg').textContent = 'Could not read the employee list: ' + (e.message || e); });
   }
   if (act === 'receive') {
     const open = (PT.base || []).filter(b => b && !b.frozen && obUC(b.orderNo) === r.orderNo && obUC(b.sku) === r.sku && ptNum(b.pendingPieces) > 0);
-    return ptOpenDialog({ title: 'Receive from karigar — ' + who, subtitle: open.length ? 'Pick the entry the pieces came back on.' : 'Nothing is out with a karigar on this line.',
+    return ptOpenDialog({ title: 'Receive back — ' + who, subtitle: open.length ? 'Pick the entry the pieces came back on.' : 'Nothing is out with a karigar on this line.',
       html: open.map(b => `<div style="display:flex;align-items:center;gap:10px;margin:6px 0"><div style="flex:1"><b>${esc(b.empName)}</b> <span class="muted">· ${nf(ptNum(b.issuePieces))} issued ${esc(String(b.issueDate || '').slice(0, 10))} · ${nf(ptNum(b.receivedPieces))} back · <b>${nf(ptNum(b.pendingPieces))} out</b></span></div>`
         + `<button type="button" data-shpb-recv="${esc(b.id)}" style="width:auto">Receive</button></div>`).join('') });
   }
@@ -28815,6 +28890,7 @@ if ($('odKpis') && $('odKpis').addEventListener) $('odKpis').addEventListener('c
   }
   if (e.target.closest && e.target.closest('[data-shpb-xlin]')) { const f = document.querySelector('[data-shpb-xlfile]'); if (f) f.click(); return; }
   if (e.target.closest && e.target.closest('[data-shpb-xlnext]')) { flowXlOpenNext(); return; }
+  if (e.target.closest && e.target.closest('[data-shpb-stuck]')) { SHPB.stuck = !SHPB.stuck; if (SHPB.stuck) SHPB.tab = 'pending'; renderShpBoard(); return; }
   const g = e.target.closest && e.target.closest('[data-shpb-stage]');
   if (g) { SHPB.stage = SHPB.stage === g.dataset.shpbStage ? '' : g.dataset.shpbStage; SHPB.tab = SHPB.stage === 'hand' ? 'done' : 'pending'; renderShpBoard(); }
 });
