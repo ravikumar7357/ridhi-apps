@@ -53,4 +53,5 @@ listing/listing-errors.js
 listing/listing-content.js
 listing/bought-together.js
 ads/ppc-new.js
+ads/product-why.js
 core/version-check.js

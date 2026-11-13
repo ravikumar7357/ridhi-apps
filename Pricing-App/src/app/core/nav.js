@@ -17,7 +17,7 @@ const capId = t => t[0].toUpperCase() + t.slice(1);
 // The title shown at the top of the page for each tab.
 const TAB_TITLE = { link: 'By Amazon Link', new: 'New Product', pr: 'Product Research', kw: 'Keywords', ba: 'Analytics',
   age: 'Inventory Age', health: 'Listing Health', lrules: 'Listing Rules', audit: 'Listing Audit', bsr: 'BSR Audit',
-  weekly: 'PPC & Organic', ppcn: 'PPC & Organic · New',
+  weekly: 'PPC & Organic (old view)', ppcn: 'Product Performance',
   trends: 'Ad Console', st: 'Search Terms', plc: 'Placement', deals: 'Deal Calendar', sales: 'Sales Dashboard',
   profit: 'Profit & Margin', sa: 'Sales Analysis', plaudit: 'Parent Listing Review', shop: 'Shopify Orders',
   adj: 'Adjustments', tiktok: 'TikTok Toolkit', carousel: 'Carousel Builder', opt: 'Listing Optimiser',
@@ -25,10 +25,14 @@ const TAB_TITLE = { link: 'By Amazon Link', new: 'New Product', pr: 'Product Res
 
 // Tabs hidden from the sidebar. Everything (panes, JS, backend) stays wired up — take a name out of
 // this list and that tab is back, no other change needed.
-const HIDDEN_TABS = ['link', 'kw', 'ba'];
+/* 'weekly' (12 Nov): the old PPC & Organic screen is retired from the menu — Product Performance ('ppcn') replaces
+ * it. Its KEY stays: it is the permission everybody holds (perms/{email}.tabs, the Firestore rules on the weekly
+ * store, TAB_INHERIT below), and its code still runs so Product Performance's "Old view" link can open it during
+ * the change-over. */
+const HIDDEN_TABS = ['link', 'kw', 'ba', 'weekly'];
 HIDDEN_TABS.forEach(t => $('tab' + capId(t)).classList.add('hide'));
 
-// Tabs nobody is granted on their own: they come with another tab. PPC & Organic · New reads exactly
+// Tabs nobody is granted on their own: they come with another tab. Product Performance reads exactly
 // the documents PPC & Organic reads, and the Firestore rules gate those on `weekly` — so granting the
 // new tab by itself would only ever open an empty screen. Kept out of the Access form for that reason.
 const TAB_INHERIT = { ppcn: 'weekly' };

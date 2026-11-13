@@ -255,7 +255,7 @@ const ADSX = (() => {
       + `<div class="adx-l"><span class="adx-ic"><svg viewBox="0 0 24 24" aria-hidden="true">${ICON.sessions}</svg></span>Sessions<span class="adx-i" title="${esc(b.tip)}">i</span></div>`
       + `<div class="adx-v"><b>${v}</b>${pill}</div><div class="adx-note" title="${esc(note)}">${esc(note)}</div>${sp}</div>`;
     const blank = note => box('—', '', note, spark([]));
-    if (!sessRight()) return blank('needs the PPC & Organic right');
+    if (!sessRight()) return blank('needs the Product Performance right');
     if (T_GRAN === 'day') return blank('weekly figures: pick Week, Month or Quarter');
     if (SESS.st === 'idle' || SESS.st === 'loading') return blank('loading the sessions…');
     if (SESS.st === 'failed') return blank('the sessions could not be read');
