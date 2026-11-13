@@ -14,7 +14,7 @@
  *       list) and a child's side panel (#spKid: Problem, Why it matters, What we'll do, Where each season is, What changes, Checks).
  * Main functions: spActive / spWindow / spExpired (which seasons), spPlan / spBuild / spPlanFor (one listing, all seasons or one),
  *                 spHlAdd / spKwAdd (the two places), spSeasonChecks, spSeasonRows (the counts every screen shares), spFixSeasons (THE
- *                 one fix path), spSendAll, spAfterRead (redraw when reads land).
+ *                 one fix path, through sqSendWithCheck — the Amazon check popup), spRecordSent, spAfterRead (redraw when reads land).
  */
 const SP_TITLE_MAX = 75;                 // Amazon asks for 75 or less (Item Highlights); the house rule too
 const SP_AMZ_MAX = 200;                  // Amazon's hard limit
@@ -1494,42 +1494,35 @@ function spFixSeasons(keys, seasonId) {
     spRedrawAll();
     return { todo, held };
   }
-  const n = todo.length;
-  const test = spIsTest();
   const sid = String(seasonId || '').replace(/^old:/, '');
   const word = seasonId ? (spEvents(spCfg(), spToday()).find(e => e.ev.id === sid) || { ev: { name: '' } }).ev.name + (/^old:/.test(seasonId) ? ' out' : '') : '';
-  const body = `<div class="sp-m-h"><b>${test ? 'Test site — not sent to Amazon' : `You are about to change ${spPlural(n, 'listing')} on Amazon${word ? ` (${lrEsc(word)})` : ''}`}</b>`
-    + `<p>${test ? 'On live Sellora this would send what is listed below.' : 'Only Item Highlights and the hidden search words change — never the title. Amazon checks each one first.'}</p>`
-    + (held.length ? `<p>${spPlural(held.length, 'more listing')} need${held.length === 1 ? 's' : ''} your OK and ${held.length === 1 ? 'is' : 'are'} not in this list.</p>` : '') + '</div>'
-    + `<div class="sp-m-list">${todo.map(t => `<div class="sp-m-row"><b>${lrEsc(spFacts(t.item))}</b><small>${lrEsc(t.item.sku)}</small>${spModalLines(t.item)}</div>`).join('')}</div>`
-    + `<div class="sp-m-a"><button type="button" class="sp-main" id="spSendBtn">${test ? 'Close — not sent to Amazon' : `Send ${spPlural(n, 'listing')}`}</button><button type="button" class="sp-btn" id="spCancelBtn">Cancel</button></div>`;
-  spModal(body);
-  $('spCancelBtn').onclick = () => spModal('');
-  $('spSendBtn').onclick = () => {
-    if (test) {
-      SP.result = { test: true, results: todo.map(t => ({ ok: true, sku: t.item.sku, brand: t.item.brand })), held };
-      spModal('');
-      return spRedrawAll();
-    }
-    spSendAll(todo, held);
-  };
-  if ($('spSendBtn').focus) $('spSendBtn').focus();
-  return { todo, held };
+  // THE ONE SEND PATH (#10): the Amazon check popup — Amazon checks every change, the person approves, it is sent and read again
+  const records = [];
+  const run = sqSendWithCheck(todo.map(t => ({ brand: t.item.brand, sku: t.item.sku, asin: t.item.asin, label: spFacts(t.item), item: t.item,
+    body: { lfix: 'patch', brand: t.item.brand, sku: t.item.sku, productType: t.item.pt, patches: t.patches }, changes: spChangeList(t.item) })), {
+    screen: 'Season planner', title: word ? 'Season planner · ' + word : 'Season planner', held,
+    onSent: job => records.push(spRecordSent(job.item, job.sub)),
+    onEdit: job => spFixHand(job.item, 'Amazon says no: ' + job.why),
+    onDone: async sum => {
+      if (sum.step !== 'done' && sum.step !== 'test') return;     // cancelled before anything was sent: nothing to say
+      const sent = sum.jobs.filter(job => ['accepted', 'working', 'notsent'].includes(job.state));
+      SP.result = { test: sum.test, logErr: '',
+        results: sent.map(job => ({ ok: true, sku: job.sku, brand: job.brand })).concat(sum.jobs.filter(job => job.state === 'rejected').map(job => ({ ok: false, sku: job.sku, brand: job.brand, why: job.why, todo: job.how }))),
+        held: held.concat(sum.no.map(job => ({ sku: job.sku, brand: job.brand, why: 'Amazon says no: ' + job.why }))) };
+      spRedrawAll();
+      // the planner's own record with the old values (Put back); a failure is said in the result
+      const result = SP.result;
+      const logErr = records.length ? await spLogAdd(records) : '';
+      if (logErr && SP.result === result) { result.logErr = logErr; spRedrawAll(); }
+    } });
+  return { todo, held, run };
 }
 // One listing (its child panel, its row's Fix): every season it misses.
 const spApprove = keys => spFixSeasons(keys, '');
-// The confirm window's lines for one listing: what is added (and taken out) in the two places.
-function spModalLines(item) {
-  const out = [];
-  if (spHlChanged(item)) out.push(`<div class="sp-m-now">Item Highlights: ${spDiffHtml(item.hl.join(' · '), item.hlAfter.join(' · '))}</div>`);
-  if (item.kwAdd && item.kwAdd.length) out.push(`<div class="sp-m-kw">+ Hidden search words: ${lrEsc(item.kwAdd.join(' '))}</div>`);
-  const gone = (item.removed.hl || []).concat(item.removed.kw || []);
-  if (gone.length) out.push(`<div class="sp-m-kw">− Old season words: ${lrEsc([...new Set(gone)].join(', '))}</div>`);
-  return out.join('');
-}
-function spModal(html) {
+function spModal(html, fromSq) {
   const modal = $('spModal');
   if (!modal) return;
+  if (!html && !fromSq && typeof sqIsOpen === 'function' && sqIsOpen()) return sqClose();
   if (!html) {
     modal.classList.add('hide');
     $('spModalBox').innerHTML = '';
@@ -1538,49 +1531,34 @@ function spModal(html) {
   $('spModalBox').innerHTML = html;
   modal.classList.remove('hide');
 }
-// Send one by one through the existing path (Amazon's check first, then the real change, logged by the backend), with a progress bar;
-// then record each one sent with its OLD values (listingrules/seasonlog).
-async function spSendAll(todo, held) {
-  SP.sending = { done: 0, total: todo.length };
-  const bar = () => `<div class="sp-m-h"><b>Sending ${spNf(SP.sending.done)} of ${spNf(SP.sending.total)}…</b><p>Amazon checks each one first. Please keep this window open.</p></div><div class="sp-pbar" role="progressbar" aria-valuemin="0" aria-valuemax="${SP.sending.total}" aria-valuenow="${SP.sending.done}"><span style="width:${Math.round(SP.sending.done * 100 / SP.sending.total)}%"></span></div>`;
-  spModal(bar());
-  const results = [];
-  const records = [];
+// One listing sent (sqSendWithCheck's onSent): its record with the OLD values (listingrules/seasonlog, so Put back knows them), and what
+// was sent becomes what the listing holds as far as every screen knows (the title is untouched).
+function spRecordSent(item, sub) {
   const now = Date.now();
-  for (const t of todo) {
-    const item = t.item;
-    let reply;
-    try {
-      reply = await imPost({ lfix: 'patch', brand: item.brand, sku: item.sku, productType: item.pt, patches: t.patches, apply: true, by: ME.email });
-    } catch (e) {
-      reply = { ok: false, error: String((e && e.message) || e) };
-    }
-    if (reply.ok && !reply.previewOnly) {
-      results.push({ ok: true, sku: item.sku, brand: item.brand });
-      records.push({ brand: item.brand, sku: item.sku, asin: item.asin, kind: 'add', seasons: item.only ? [item.only] : item.seasons.slice(), at: now, by: (typeof ME !== 'undefined' && ME.email) || '',
-        before: Object.assign({ title: item.title, kw: item.kw }, item.hl ? { hl: item.hl.slice() } : {}),
-        after: Object.assign({ title: item.title, kw: item.kwAfter != null ? item.kwAfter : item.kw }, item.hl ? { hl: (item.hlAfter || item.hl).slice() } : {}), sub: reply.submissionId || '' });
-      // what was sent is now what the listing holds, as far as every screen knows (the title is untouched)
-      if (typeof liWsEntry === 'function') {
-        const entry = liWsEntry(item.brand, item.sku);
-        Object.assign(entry, { at: now, err: '', cErr: '' });
-        if (item.kwAfter != null && item.kwAfter !== item.kw) Object.assign(entry, { kw: item.kwAfter.slice(0, 300), kwBytes: lrKwBytes(item.kwAfter) }, entry.cAt ? { cAt: now } : {});
-        if (spHlChanged(item)) Object.assign(entry, { hl: item.hlAfter.slice(), hlAt: now });
-        LI_WS.liveV++;
-        if (typeof liWsStoreSave === 'function') liWsStoreSave();
-      }
-    } else {
-      const raw = String(reply.error || 'Amazon did not accept it').replace(/^Amazon would reject this:\s*/i, '');
-      results.push({ ok: false, sku: item.sku, brand: item.brand, why: spPlainReason(raw), todo: spTodo(raw) });
-    }
-    SP.sending.done++;
-    spModal(bar());
+  if (typeof liWsEntry === 'function') {
+    const entry = liWsEntry(item.brand, item.sku);
+    Object.assign(entry, { at: now, err: '', cErr: '' });
+    if (item.kwAfter != null && item.kwAfter !== item.kw) Object.assign(entry, { kw: item.kwAfter.slice(0, 300), kwBytes: lrKwBytes(item.kwAfter) }, entry.cAt ? { cAt: now } : {});
+    if (spHlChanged(item)) Object.assign(entry, { hl: item.hlAfter.slice(), hlAt: now });
+    LI_WS.liveV++;
+    if (typeof liWsStoreSave === 'function') liWsStoreSave();
   }
-  const logErr = records.length ? await spLogAdd(records) : '';
-  SP.sending = null;
-  SP.result = { results, held: held || [], logErr };
-  spModal('');
-  spRedrawAll();
+  return { brand: item.brand, sku: item.sku, asin: item.asin, kind: 'add', seasons: item.only ? [item.only] : item.seasons.slice(), at: now, by: (typeof ME !== 'undefined' && ME.email) || '',
+    before: Object.assign({ title: item.title, kw: item.kw }, item.hl ? { hl: item.hl.slice() } : {}),
+    after: Object.assign({ title: item.title, kw: item.kwAfter != null ? item.kwAfter : item.kw }, item.hl ? { hl: (item.hlAfter || item.hl).slice() } : {}), sub: sub || '' };
+}
+// The changes of one listing's fix, in words, for the Amazon check popup: Item Highlights and the hidden search words, before → after.
+function spChangeList(item) {
+  const out = [];
+  if (spHlChanged(item)) out.push({ field: 'Item Highlights', old: item.hl.join(' · '), new: item.hlAfter.join(' · ') });
+  if (item.kwAfter != null && item.kwAfter !== item.kw) out.push({ field: 'Hidden search words', old: item.kw || '', new: item.kwAfter });
+  return out;
+}
+// "Fix by hand" / Edit: Listing Errors opens for the listing with the hidden search words of the plan filled in (never the title).
+function spFixHand(item, hint) {
+  if (typeof LC_PREFILL !== 'undefined') LC_PREFILL = { brand: item.brand, sku: item.sku, title: '', kw: item.kwAfter != null && item.kwAfter !== item.kw ? item.kwAfter : null, hint: hint || item.hint || item.why, done: false };
+  spPanelsClose();
+  if (typeof lrFixOpen === 'function') lrFixOpen('lerr', item.brand, item.sku, []);
 }
 // After a fix: "N fixed · M need your OK (reason)", and what Amazon did not accept, in plain words.
 function spResultHtml(res) {
@@ -1700,11 +1678,7 @@ if (typeof document !== 'undefined' && document.addEventListener && $('spSwitch'
     if (act === 'fixhand') {
       const item = spCompute().find(each => each.key === key);
       if (!item) return;
-      // the title is never suggested; the hidden search words are, when the plan changes them
-      if (typeof LC_PREFILL !== 'undefined') LC_PREFILL = { brand: item.brand, sku: item.sku, title: '', kw: item.kwAfter != null && item.kwAfter !== item.kw ? item.kwAfter : null, hint: item.hint || item.why, done: false };
-      spPanelsClose();
-      if (typeof lrFixOpen === 'function') lrFixOpen('lerr', item.brand, item.sku, []);
-      return;
+      return spFixHand(item);   // the title is never suggested; the hidden search words are, when the plan changes them
     }
     // One child: its own approval (Ready or Needs your OK). A row's Fix: that Ready child only.
     if (act === 'to-health') {
@@ -1763,7 +1737,7 @@ if (typeof document !== 'undefined' && document.addEventListener && $('spSwitch'
     const typing = e.target && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName || '');
     const modalOpen = $('spModal') && !$('spModal').classList.contains('hide');
     if (e.key === 'Escape') {
-      if (modalOpen) { if (!SP.sending) spModal(''); e.preventDefault(); e.stopPropagation(); return; }
+      if (modalOpen) { if (!SP.sending && !(typeof sqBusy === 'function' && sqBusy())) spModal(''); e.preventDefault(); e.stopPropagation(); return; }
       if (SP.kid) { spCloseKid(true); e.preventDefault(); e.stopPropagation(); return; }
       if (SP.panel) { spCloseParent(true); e.preventDefault(); e.stopPropagation(); }
       return;
@@ -1785,5 +1759,5 @@ if (typeof document !== 'undefined' && document.addEventListener && $('spSwitch'
       return;
     }
   });
-  if ($('spModal')) $('spModal').addEventListener('click', e => { if (e.target === $('spModal') && !SP.sending) spModal(''); });
+  if ($('spModal')) $('spModal').addEventListener('click', e => { if (e.target === $('spModal') && !SP.sending && !(typeof sqBusy === 'function' && sqBusy())) spModal(''); });
 }

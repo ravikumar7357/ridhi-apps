@@ -774,6 +774,7 @@ async function liWsJob(job) {
       });
     } else if (job.t === 'get') {
       const reply = await baCall({ lfix: 'get', brand, sku: job.sku });
+      job.reply = reply;                                    // the whole answer, for the send check's re-read (listing-send-check.js)
       const at = reply.attributes || {};
       const filled = name => (at[name] || []).some(e => e && Object.keys(e).some(key => key !== 'marketplace_id' && key !== 'language_tag' && e[key] != null && e[key] !== ''));
       const first = name => String(((at[name] || []).find(e => e && e.value != null && e.value !== '') || {}).value || '');

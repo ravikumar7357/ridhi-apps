@@ -18,7 +18,19 @@ const ymd = date => date.toISOString().slice(0, 10);
 function setup(opts) {
   opts = opts || {};
   const posts = [];
-  const C = load({ ws: true, sp: true, window: opts.window, baCall: opts.baCall, post: body => { posts.push(body); return { ok: true, status: 'ACCEPTED', submissionId: 'sub-' + body.sku }; } });
+  // the fake Amazon: Amazon's check (apply false) answers ok (or opts.no(body) → an ERROR); a real send is kept, and ?lfix=get returns it
+  const held = {};
+  const post = body => {
+    posts.push(body);
+    const no = opts.no && opts.no(body);
+    if (no) return { ok: false, previewOnly: !body.apply, error: 'Amazon would reject this: ' + no, issues: [{ severity: 'ERROR', message: no }] };
+    if (!body.apply) return { ok: true, previewOnly: true, status: 'VALID', issues: [] };
+    held[body.sku] = Object.assign(held[body.sku] || {}, Object.fromEntries((body.patches || []).map(p => [p.path.replace('/attributes/', ''), p.value])));
+    return { ok: true, status: 'ACCEPTED', submissionId: 'sub-' + body.sku };
+  };
+  const baCall = opts.baCall || (async q => (q.lfix === 'get' ? { productType: 'NAPKIN', attributes: held[q.sku] || {}, issues: [] } : {}));
+  const saved = [];
+  const C = load({ ws: true, sp: true, window: opts.window, baCall, post, setDoc: async (ref, data, o) => { saved.push({ path: ref.path, data: JSON.parse(JSON.stringify(data)), merge: !!(o && o.merge) }); } });
   C.setHealthLoaded(true);
   C.LI_WS.stored = true;
   C.SP.log = [];
@@ -45,8 +57,11 @@ function setup(opts) {
     if (opts.only) ['SP', 'CPC'].forEach(b => { const keep = C.HEALTH[b].rows.filter(r => cat[r.sku]); C.HEALTH[b].rows.splice(0, C.HEALTH[b].rows.length, ...keep); });
     C.setCat('SP', cat); C.LI_WS.liveV++; C.reset(); C.SP.itemsKey = '';
   };
-  return { C, put, done, posts };
+  return { C, put, done, posts, saved };
 }
+// The Amazon check popup, step by step: wait for Amazon's check; approve and wait for the send and the re-read; close.
+const checked = C => C.SQ.run.checked;
+const approve = async C => { await C.sqApprove(); };
 const byId = list => Object.fromEntries(list.map(item => [item.sku, item]));
 const TITLE = color => `Ridhi Cloth Napkins 100% Cotton 18 x 18 Inch Block Print - ${color}`;   // 63–66 letters
 
@@ -198,11 +213,14 @@ const TITLE = color => `Ridhi Cloth Napkins 100% Cotton 18 x 18 Inch Block Print
     const x9 = C.spCompute().find(item => item.sku === 'X9');
     ok('X9 (Thanksgiving in both, Christmas in neither): ✓ for Thanksgiving, ✕ for Christmas', /✓ Item Highlights: “Thanksgiving” found/.test(C.spKidHtml(x9, g)) && /✕ Item Highlights: Christmas missing/.test(C.spKidHtml(x9, g)));
 
-    console.log('== ONE fix function: confirm window, the same checks, "N fixed · M need your OK" ==');
+    console.log('== ONE fix function: the Amazon check popup, the same checks, "N fixed · M need your OK" ==');
     C.SP.on = true;
     const r = C.spFixSeasons(xmas.kids.map(item => item.key), 'christmas');
+    ok('Fix all 10 (Christmas): the popup opens "Checking with Amazon…" — nothing changes on Amazon', /Checking with Amazon…/.test(C.el('spModalBox').innerHTML) && /nothing changes on Amazon yet/.test(C.el('spModalBox').innerHTML));
+    await checked(C);
     const modal = C.el('spModalBox').innerHTML;
-    ok('Fix all 10 (Christmas): the confirm window lists the 10, says the title never changes', r.todo.length === 10 && /You are about to change 10 listings on Amazon \(Christmas\)/.test(modal) && /never the title/.test(modal) && /id="spSendBtn">Send 10 listings</.test(modal));
+    ok('…then Amazon\'s answer: "10 Amazon will accept · 0 Amazon says no" [Approve & send 10] [Cancel]', r.todo.length === 10 && /10 Amazon will accept · 0 Amazon says no/.test(strip(modal)) && /data-sq="approve">Approve &amp; send 10</.test(modal) && /data-sq="cancel">Cancel</.test(modal), strip(modal).slice(0, 300));
+    C.sqClose();
     ok('…each with only Christmas added (Thanksgiving is already there)', r.todo.every(t => t.item.hlAdd && /^Christmas/.test(t.item.hlAdd) && !/thanksgiving/i.test(t.item.kwAdd.join(' '))), JSON.stringify(r.todo[0].item.hlAfter));
   }
 
@@ -216,9 +234,16 @@ const TITLE = color => `Ridhi Cloth Napkins 100% Cotton 18 x 18 Inch Block Print
     const g = C.spGroupOf('SP|PQ');
     const xmas = C.spSeasonRows(g).find(r => r.e.ev.id === 'christmas');
     const r = C.spFixSeasons(xmas.kids.map(item => item.key), 'christmas');
-    await C.spSendAll(r.todo, r.held);
-    ok('one listing sent through POST lfix=patch (apply), only search words and Item Highlights — never item_name', posts.length === 1 && posts[0].apply === true && posts[0].productType === 'NAPKIN'
-      && posts[0].patches.every(p => p.path !== '/attributes/item_name') && posts[0].patches.some(p => p.path === '/attributes/generic_keyword' && p.value[0].value === 'cotton christmas'), JSON.stringify(posts[0] && posts[0].patches));
+    await checked(C);
+    ok('one listing: "✓ Amazon will accept" + the change before → after; the one that needs your OK is named, not sent', /✓ Amazon will accept/.test(C.el('spModalBox').innerHTML) && /<del>cotton<\/del> → <ins>cotton christmas<\/ins>/.test(C.el('spModalBox').innerHTML)
+      && /1 need your OK/.test(C.el('spModalBox').innerHTML), strip(C.el('spModalBox').innerHTML).slice(0, 400));
+    await approve(C);
+    ok('Approve & send → read again → "✅ Amazon accepted"', /✅ Amazon accepted/.test(C.el('spModalBox').innerHTML), strip(C.el('spModalBox').innerHTML).slice(0, 200));
+    C.sqClose();
+    await r.run;
+    const sent = posts.filter(p => p.apply);
+    ok('Amazon checked first (apply false), then ONE send through POST lfix=patch (apply), only search words and Item Highlights — never item_name', posts[0].apply === false && sent.length === 1 && sent[0].productType === 'NAPKIN'
+      && sent[0].patches.every(p => p.path !== '/attributes/item_name') && sent[0].patches.some(p => p.path === '/attributes/generic_keyword' && p.value[0].value === 'cotton christmas'), JSON.stringify(posts.map(p => p.apply)));
     C.SP.panel = null; C.spRender();
     const res = strip(C.el('spPane').innerHTML);
     ok('the result: "✓ 1 fixed · 1 need your OK (no room in Item Highlights …)"', /✓ 1 fixed · 1 need your OK \(no room in Item Highlights/.test(res), res.slice(0, 400));
@@ -232,8 +257,11 @@ const TITLE = color => `Ridhi Cloth Napkins 100% Cotton 18 x 18 Inch Block Print
     done();
     C.SP.on = true;
     C.spApprove(['SP|S1']);
-    ok('the test site: the window says "Test site — not sent to Amazon"', /Test site — not sent to Amazon/.test(C.el('spModalBox').innerHTML));
-    C.el('spSendBtn').onclick();
+    await checked(C);
+    ok('the test site: the popup says Amazon\'s check cannot run here, the change is shown, Approve & send is there', /Test site — Amazon's check cannot run here/.test(C.el('spModalBox').innerHTML) && /data-sq="approve"/.test(C.el('spModalBox').innerHTML));
+    await approve(C);
+    ok('…Approve: "Test site — not sent to Amazon"', /<b>Test site — not sent to Amazon<\/b>/.test(C.el('spModalBox').innerHTML));
+    C.sqClose();
     C.SP.panel = null; C.spRender();
     ok('…Close: nothing sent; "Test site — not sent to Amazon. 1 would be fixed"', posts.length === 0 && /Test site — not sent to Amazon\. 1 would be fixed/.test(strip(C.el('spPane').innerHTML)));
   }
@@ -401,17 +429,22 @@ const TITLE = color => `Ridhi Cloth Napkins 100% Cotton 18 x 18 Inch Block Print
     ok('"What changes": the removed word struck through (<del>), nothing else added; the title stays the same', /<del>spring<\/del>/i.test(kid) && /The title stays the same/.test(kid) && o0.hlAfter[0] === OK_HL && o0.kwAfter === OK_KW, JSON.stringify([o0.hlAfter, o0.kwAfter]));
     // Remove all 7, through the one fix path
     const r = C.spFixSeasons(old[0].kids.map(i => i.key), 'old:sp_spring');
-    ok('Remove all 7: the confirm window lists 7, each change only takes Spring out', r.todo.length === 7 && r.todo.every(t => !/spring/i.test((t.item.hlAfter || []).join(' ') + ' ' + t.item.kwAfter) && !t.item.kwAdd.length && !t.item.hlAdd)
-      && /You are about to change 7 listings on Amazon \(Spring out\)/.test(C.el('spModalBox').innerHTML));
+    await checked(C);
+    ok('Remove all 7: the popup "7 Amazon will accept · 0 Amazon says no", each change only takes Spring out', r.todo.length === 7 && r.todo.every(t => !/spring/i.test((t.item.hlAfter || []).join(' ') + ' ' + t.item.kwAfter) && !t.item.kwAdd.length && !t.item.hlAdd)
+      && /7 Amazon will accept · 0 Amazon says no/.test(strip(C.el('spModalBox').innerHTML)) && /Season planner · Spring out/.test(C.el('spModalBox').innerHTML));
     C.spModal('');
+    ok('…closing the window (Esc, Cancel) closes the popup: nothing sent', !C.sqIsOpen() && !posts.some(p => p.apply));
     // Fix all seasons for A1: Christmas + Thanksgiving in, Spring out — ONE patch
     const a1 = C.spCompute().find(i => i.sku === 'A1');
     ok('A1: one plan adds Thanksgiving and Christmas AND takes Spring out (Item Highlights and search words)', a1.status === 'ready' && a1.hlAfter[0] === 'Thanksgiving and Christmas table decor, soft cotton'
       && a1.kwAfter === 'cotton thanksgiving christmas' && a1.removed.hl.includes('Spring') && a1.removed.kw.includes('Spring'), JSON.stringify([a1.status, a1.why, a1.hlAfter, a1.kwAfter]));
     const ga = C.spGroupOf('SP|PA');
     const rr = C.spFixSeasons(ga.todo.map(i => i.key), '');
-    await C.spSendAll(rr.todo, rr.held);
-    const sent = posts.filter(p => p.sku === 'A1');
+    await checked(C);
+    await approve(C);
+    C.sqClose();
+    await rr.run;
+    const sent = posts.filter(p => p.sku === 'A1' && p.apply);
     ok('"Fix all seasons" sends ONE patch for A1: search words and Item Highlights together, never the title', sent.length === 1 && sent[0].patches.length === 2 && sent[0].patches.every(p => p.path !== '/attributes/item_name')
       && sent[0].patches.some(p => p.path === '/attributes/generic_keyword' && /christmas/.test(p.value[0].value) && !/spring/.test(p.value[0].value)), JSON.stringify(sent.map(p => p.patches)));
     C.SP.panel = null; C.spRender();
@@ -424,7 +457,9 @@ const TITLE = color => `Ridhi Cloth Napkins 100% Cotton 18 x 18 Inch Block Print
     C.SP.on = true;
     const g = C.spGroupOf('SP|PO');
     C.spFixSeasons(C.spOldRows(g)[0].kids.map(i => i.key), 'old:sp_spring');
-    C.el('spSendBtn').onclick();
+    await checked(C);
+    await approve(C);
+    C.sqClose();
     C.SP.panel = null; C.spRender();
     ok('the test site: "Test site — not sent to Amazon. 1 would be fixed", nothing sent', posts.length === 0 && /Test site — not sent to Amazon\. 1 would be fixed/.test(strip(C.el('spPane').innerHTML)));
   }
