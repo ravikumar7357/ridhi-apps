@@ -6746,6 +6746,10 @@ console.log('\n== Order Console: what the vendors hold, order by order ==');
 {
   ok('an embroidery line is known by its article', A.shpbIsEmb({ articleSubtype: 'Embroidery Napkin' }) && A.shpbIsEmb({ articleType: 'Rectangle Embroidery Placemat' })
     && !A.shpbIsEmb({ articleSubtype: 'Ruffle Pillow Cover', orderNo: 'X', sku: 'Y' }));
+  /* an embroidery article is not cut (Ravi, 13 Nov) — even where the master row still says it is */
+  ok('an embroidery SKU reads as not cut; any other keeps what the master says',
+    A.mdbYnFix({ sku: 'CPCNE043-8', subtype: 'Embroidery Napkin', cuttingRequired: true }).cuttingRequired === false
+    && A.mdbYnFix({ sku: 'RTC1-6060', subtype: 'Square Tablecloth', cuttingRequired: true }).cuttingRequired === true);
   /* Sundays are not counted (Ravi, 13 Nov): Saturday → Tuesday has only Monday wholly between */
   ok('working days between two days leave Sunday out', A.shpbWorkDaysBetween('2026-11-07', '2026-11-10') === 1
     && A.shpbWorkDaysBetween('2026-11-09', '2026-11-10') === 0 && A.shpbWorkDaysBetween('2026-11-09', '2026-11-11') === 1);

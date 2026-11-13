@@ -168,6 +168,7 @@ let CUST_IX = { src: null, map: null };
  * this rule instead. true / false for a tablecloth, null for anything else. */
 function ptTcCutReq(articleType, subtype) {
   const t = String(articleType || '') + ' ' + String(subtype || '');
+  if (/embroid/i.test(t)) return false;            // an embroidery article is never cut (Ravi, 13 Nov) — masters/asin-from-amazon.js
   if (!/table\s*cloth/i.test(t)) return null;
   return /ruffle|scallop/i.test(t);
 }
