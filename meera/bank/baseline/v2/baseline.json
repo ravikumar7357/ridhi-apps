@@ -1,5 +1,5 @@
 {
- "made": "2026-11-10",
+ "made": "2026-11-13",
  "scores": {
   "eval": {
    "right": 116,
@@ -41,6 +41,13 @@
    "offered": 38,
    "wrong": 0,
    "none": 23
+  },
+  "everyday": {
+   "count": 531,
+   "right": 135,
+   "offered": 71,
+   "wrong": 184,
+   "none": 141
   }
  },
  "sizes": {
@@ -57,13 +64,13 @@
    "gzip": 118316
   },
   "code in the page": {
-   "raw": 461589,
-   "gzip": 195350,
+   "raw": 461690,
+   "gzip": 195385,
    "files": 10
   }
  },
  "timing": {
-  "loadMs": 1369,
-  "msPerAnswer": 38.1
+  "loadMs": 1304,
+  "msPerAnswer": 40.5
  }
 }

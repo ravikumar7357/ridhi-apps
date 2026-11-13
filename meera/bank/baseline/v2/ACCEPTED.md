@@ -29,3 +29,8 @@ choices, 3 now answered right. The gate checks against this record while MEERA_V
 
 - 10 recorded answers now in the language they were asked in (English questions in English, Hinglish in Hinglish), each the same answer or the same choices; every score the same
 
+
+## 2026-11-13 08:38 — Everyday Hinglish and Hindi questions (531, written the way staff type them, never tuned on) added as a scored set — its score can only go up from here; Ravi, 11 Nov
+
+- a new scored set; no answer changed
+
