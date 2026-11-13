@@ -1,7 +1,7 @@
 # THE REPLENISH APP GOES LIVE FROM GITHUB (Ravi, 22 Oct: "mujhe abhi ka firebase host direct github ki main branch se krna hai").
 #
 #   main          every push that touches Replenish-App/ (or shared/) is tested and built, NOT put live.
-#                 TWO RELEASES A DAY (Ravi, 12 Nov): at 1:30 pm and 7:00 pm India time GitHub puts whatever main has on
+#                 TWO RELEASES A DAY (Ravi, 12 Nov): at 1:17 pm and 6:47 pm India time (off the half hour, when GitHub's timer is on time) GitHub puts whatever main has on
 #                 the live site, https://fabricrush-replenish.web.app — only if main changed since the last release
 #                 (the tag live-site marks what is live), so open ERP tabs reload at most twice a day.
 #                 URGENT FIX: Actions → "Replenish app — test, build, deploy" → Run workflow → branch main,
@@ -21,8 +21,8 @@ on:
     branches: [main, 'preview/**']
     paths: ['Replenish-App/**', 'shared/**', 'meera/**', '.github/workflows/replenish-hosting.yml']
   schedule:
-    - cron: '0 8 * * *'     # 1:30 pm India time (08:00 UTC)
-    - cron: '30 13 * * *'   # 7:00 pm India time (13:30 UTC)
+    - cron: '47 7 * * *'    # 1:17 pm India time (07:47 UTC)
+    - cron: '17 13 * * *'   # 6:47 pm India time (13:17 UTC)
   workflow_dispatch:
     inputs:
       live_now:
@@ -55,7 +55,7 @@ jobs:
         with:
           fetch-depth: 0   # Meera's gate compares this push with the commit before it
 
-      # RELEASE OR NOT: only the 1:30 / 7:00 timer, or "Put it live now", on main, puts the site live — and the timer
+      # RELEASE OR NOT: only the 1:17 / 6:47 timer, or "Put it live now", on main, puts the site live — and the timer
       # only when main has moved since the live-site tag. A plain push to main stops after the tests and the build.
       - name: Release now?
         id: rel
@@ -138,7 +138,7 @@ jobs:
 
       - name: Waiting for the next release
         if: github.ref == 'refs/heads/main' && steps.rel.outputs.go != 'true'
-        run: echo "::notice::Tested and built. Goes live at the next 1:30 pm or 7:00 pm release, or with Run workflow → Put it live now."
+        run: echo "::notice::Tested and built. Goes live at the next 1:17 pm or 6:47 pm release, or with Run workflow → Put it live now."
 
       - name: Test link name
         id: ch
