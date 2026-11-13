@@ -30,6 +30,14 @@ let LE_SCHEMA = {};     // attribute name → what Amazon allows for it (the ?lf
 let LE_EDIT = {};       // attribute name → { vals } edited so far, or { del: true }
 let LE_RESULT = '';     // HTML of the last Check / Apply result, kept across redraws
 let LE_EXTRA = [];      // attribute names the caller asked to edit as well (the Workspace's empty specs), beside the ones Amazon names
+let LE_ONLY = null;     // { skus: Set, label } — only these listings, picked in Listing Health's Fix all (fix-all.js), until "Show every listing"
+// Show only these listings — with or without an issue in the snapshot — every kind, no search, page 1; empty → every listing again.
+function leOnly(skus, label) {
+  LE_ONLY = skus && skus.length ? { skus: new Set(skus), label: label || '' } : null;
+  LE_PAGE = 0;
+  $('leKind').value = 'all';
+  $('leQ').value = '';
+}
 const LE_PER = 50;      // listings per page
 const LE_KINDS = [
   ['image', 'Image'], ['title', 'Title too long'], ['value', 'Wrong / old value'],
@@ -94,9 +102,10 @@ function leRows() {
   const out = [];
   data.items.forEach(x => {
     if (x.lvl === 'parent') return;
+    if (LE_ONLY && !LE_ONLY.skus.has(x.sku)) return;
     let iss = (x.iss || []).filter(issue => issue.s === 'E' || (warn && issue.s === 'W'));
     if (!iss.length && x.ie && !x.iss) iss = [{ s: 'E', m: x.im || '', a: [] }];       // a snapshot from before `iss`
-    if (!iss.length && sev !== 'any') return;          // "Every listing": its content can be edited with no issue at all
+    if (!iss.length && sev !== 'any' && !LE_ONLY) return;          // "Every listing": its content can be edited with no issue at all
     if (kind !== 'all' && !iss.some(issue => leKind(issue) === kind)) return;
     if (search && ![x.sku, x.asin, x.c, x.z, x.t].concat(iss.map(issue => issue.m)).join(' ').toLowerCase().includes(search)) return;
     out.push({ x, iss: iss.slice().sort((p, r) => (p.s === 'E' ? 0 : 1) - (r.s === 'E' ? 0 : 1)) });
@@ -138,7 +147,10 @@ function leRender() {
       <button class="ghost im-b" data-lepg="-1" ${LE_PAGE ? '' : 'disabled'}>◀ Prev</button>
       <span class="muted" style="font-size:12px">Page ${LE_PAGE + 1} of ${pages}</span>
       <button class="ghost im-b" data-lepg="1" ${LE_PAGE < pages - 1 ? '' : 'disabled'}>Next ▶</button></div>` : '';
-  el.innerHTML = `
+  const only = LE_ONLY ? `<div class="card" style="padding:8px 14px;margin-bottom:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:12.5px">`
+    + `<span>Showing the <b>${leNf(LE_ONLY.skus.size)}</b> listing(s) picked in Listing Health${LE_ONLY.label ? ': ' + leEsc(LE_ONLY.label) : ''}.</span>`
+    + '<button class="ghost im-b" data-leonly="off">Show every listing</button></div>' : '';
+  el.innerHTML = only + `
     <div class="card" style="padding:10px 14px;margin-bottom:10px">
       <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
         <span class="muted" style="font-size:12px">Listings with an error, by kind:</span>
@@ -185,6 +197,10 @@ function leRender() {
     window.scrollTo(0, 0);
   });
   el.querySelectorAll('[data-fix]').forEach(btn => btn.onclick = () => leOpen(btn.dataset.fix));
+  el.querySelectorAll('[data-leonly]').forEach(btn => btn.onclick = () => {
+    leOnly(null);
+    leRender();
+  });
   el.querySelectorAll('[data-img]').forEach(btn => btn.onclick = () => {
     showTab('img');
     $('imBrand').value = $('leBrand').value;
@@ -500,6 +516,7 @@ let LE_T = 0;     // debounce timer for the search box
 // Brand changed: back to the list, page 1, and that brand's snapshot.
 $('leBrand').onchange = () => {
   LE_PAGE = 0;
+  LE_ONLY = null;
   leShow(false);
   leListEnsure();
 };

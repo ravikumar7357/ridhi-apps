@@ -74,9 +74,10 @@ function load(opts) {
     navigator: { clipboard: null },
     lrEsc: s => String(s == null ? '' : s).replace(/[<>&"]/g, ch => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[ch])),
   };
+  Object.assign(ctx, opts.ctx || {});   // a test's own stubs (fix-all-test: the Image Manager / Listing Errors hand-offs)
   if (opts.tab) delete ctx.lrEsc;   // the Rules tab file defines its own
   const src = (opts.src || L('listing-rules.js')) + (opts.ws ? '\n' + L('listing-workspace.js') + '\n' + L('listing-kid.js') : '') + (opts.sp ? '\n' + L('season-planner.js') : '')
-    + (opts.pc ? '\n' + L('picture-check.js') : '') + (opts.tab ? '\n' + L('listing-rules-tab.js') : '');
+    + (opts.pc ? '\n' + L('picture-check.js') : '') + (opts.tab ? '\n' + L('listing-rules-tab.js') : '') + (opts.fa ? '\n' + L('fix-all.js') : '');
   const tail = '\n;LR = JSON.parse(JSON.stringify(LR_DEFAULT)); LR_CAT.SP = ' + JSON.stringify(CAT.SP) + '; LR_CAT.CPC = ' + JSON.stringify(CAT.CPC) + ';'
     + '\n;return { rows: HEALTH.SP.rows.concat(HEALTH.CPC.rows), LR_DEFAULT, getLR: () => LR, healthOf, hCtx: () => hCtx(), reset: () => { H_CTX = null; }, hTitleSizes,'
     + ' lrAnswer, lrAnswerHtml, lrPicId, lrLooks, setHealthAt: d => { HEALTH.SP.at = d; HEALTH.CPC.at = d; },'
@@ -86,7 +87,8 @@ function load(opts) {
     + ' lrKwBytes: typeof lrKwBytes === "function" ? lrKwBytes : null, lrBrandWords, lrFind, lrLevel: typeof lrLevel === "function" ? lrLevel : null, lrNotesHtml: typeof lrNotesHtml === "function" ? lrNotesHtml : null, IML,'
     + ' lrWholeCut: typeof lrWholeCut === "function" ? lrWholeCut : null, AMZ: typeof AMZ === "undefined" ? null : AMZ,'
     + (opts.ws ? ' LI_WS, LI_WS_AUDIT, liWsParents: (brands) => liWsParents(brands, hCtx(), Date.now()), liWsDetail, liWsAuditBox, liWsKidTable, liWsRender, liWsRecheck, liWsCheckNow, liWsLiveMap, liWsProblems, liWsPanelOpen, liWsPanelClose, liWsPanelMove, liWsPanelRender, liWsOff, liWsToolbarSync, liWsPanelSync, liWsPanelSchedule, liWsPanelKeep, liWsPanelKid, liWsPanelKidBack, lkHtml, lkKid, LK, liWsReconcile, liWsErrorsCsv, liWsDlButton, liWsSearch, LI_WS_DL_COLS, liWsJob,' : '')
-    + (opts.sp ? ' SP, spCompute, spPlan, spChecks, spStrip, spInsert, spDiffHtml, spWordDiff, spKidHtml, spRowHtml, spParentBodyHtml, spParentCardHtml, spGroups, spGroupOf, spOpenParent, spCloseParent, spOpenKid, spCloseKid, spRender, spApprove, spSendAll, spPatches, spLogLoad, spEvents, SP_SEASONS, spHlInfo, spHlTry, spHighlightsCount, spEnsureReads, spApprove, spProgText, spPanelsRender, spAfterRead, spFindSeason, spWhere, spTipOf, spWhereCount, spMarkHtml, setHealthLoaded: v => { H_LOADED = v; }, setCat: (b, m) => { LR_CAT[b] = Object.assign(LR_CAT[b] || {}, m); H_CTX = null; },' : '') + ' };';
+    + (opts.sp ? ' SP, spCompute, spPlan, spChecks, spStrip, spInsert, spDiffHtml, spWordDiff, spKidHtml, spRowHtml, spParentBodyHtml, spParentCardHtml, spGroups, spGroupOf, spOpenParent, spCloseParent, spOpenKid, spCloseKid, spRender, spApprove, spSendAll, spPatches, spLogLoad, spEvents, SP_SEASONS, spHlInfo, spHlTry, spHighlightsCount, spEnsureReads, spApprove, spProgText, spPanelsRender, spAfterRead, spFindSeason, spWhere, spTipOf, spWhereCount, spMarkHtml, setHealthLoaded: v => { H_LOADED = v; }, setCat: (b, m) => { LR_CAT[b] = Object.assign(LR_CAT[b] || {}, m); H_CTX = null; },' : '')
+    + (opts.fa ? ' FA, faBlockHtml, faGroups, faCards, faPlan, faPlans, faShortTitle, faStart, faApprove, faVerify, faReject, faPutBack, faPutSend, faOnGet, faKids, faClick, faRunHtml, faHistHtml, faLogLoad, faOpenImg, faOpenLerr, spParentPanelHtml, liWsPanelList,' : '') + ' };';
   const api = new Function(...Object.keys(ctx), src + tail)(...Object.values(ctx));
   // api.rows ARE the HEALTH rows (the same objects, brand on each): a test that changes one changes what every screen judges.
   api.score = sku => { const r = api.rows.find(x => x.sku === sku); return api.healthOf(r, api.hCtx()); };
@@ -349,15 +351,17 @@ if (require.main === module) {
   C.LI_WS.card = ''; C.liWsRender();
   C.liWsPanelOpen('SP|P1');
   const P = C.el('lsPanel');
-  ok('a parent opens in the side panel: header (name, ASIN · brand · live count), Read from Amazon now, Open in Parent ASINs, three tabs',
-    C.LI_WS.panel && C.LI_WS.panel.key === 'SP|P1' && C.LI_WS.panel.tab === 'fix' && P.hidden === false && /class="ls-panel-h"/.test(P.innerHTML) && /Parent P1/.test(P.innerHTML)
+  // (13 Nov 2026) the panel opens on Listings: the grouped problems with Fix all on top (fix-all.js), the children list below
+  ok('a parent opens in the side panel: header (name, ASIN · brand · live count), Read from Amazon now, Open in Parent ASINs, three tabs, Listings showing',
+    C.LI_WS.panel && C.LI_WS.panel.key === 'SP|P1' && C.LI_WS.panel.tab === 'list' && P.hidden === false && /class="ls-panel-h"/.test(P.innerHTML) && /Parent P1/.test(P.innerHTML)
     && /<span class="ui-mono">P1<\/span> · Ridhi · 7 live of 7 listings/.test(P.innerHTML) && /data-li-ws-again="SP\|P1"[^>]*>Read from Amazon now</.test(P.innerHTML) && /data-li-ws-open="SP\|P1">Open in Parent ASINs</.test(P.innerHTML)
-    && /data-li-ws-ptab="fix" aria-selected="true"/.test(P.innerHTML) && /data-li-ws-ptab="list"/.test(P.innerHTML) && /data-li-ws-ptab="audit"/.test(P.innerHTML), P.innerHTML.slice(0, 700));
+    && /data-li-ws-ptab="fix" aria-selected="false"/.test(P.innerHTML) && /data-li-ws-ptab="list" aria-selected="true"/.test(P.innerHTML) && /data-li-ws-ptab="audit"/.test(P.innerHTML), P.innerHTML.slice(0, 700));
+  C.LI_WS.panel.tab = 'fix'; C.liWsPanelRender();
   ok('What to fix: one row per rule, Errors first (Secondary images missing — 1 listing), then Needs attention (Size formatting — 2 listings), each with the level word, the SKUs, how to fix, a tag and Fix',
     (() => { const h = P.innerHTML; const a = h.indexOf('is-c">✕ Error: fix first</span>Secondary images missing — 1 listing'), b = h.indexOf('is-a">✕ Needs attention</span>Size formatting inconsistent — 2 listings'); return a > 0 && b > a && /<small title="R13">R13<\/small>/.test(h) && /ls-rec-how">Add 2 more pictures/.test(h) && /data-lr-fix="img\|SP\|R13"/.test(h) && /class="ls-rec is-err"/.test(h) && /class="ls-rec is-att"/.test(h); })(), P.innerHTML.slice(P.innerHTML.indexOf('ls-recs'), P.innerHTML.indexOf('ls-recs') + 900));
   ok('…Errors from old data read "Error? Check again" in the panel too', (() => {
     const r = C.rows.find(x => x.sku === 'R14'); r.content.images = 0; r.checked = NOW - 21 * DAY; C.reset(); C.liWsRender();
-    C.liWsPanelOpen('SP|P4'); const h = C.el('lsPanel').innerHTML;
+    C.liWsPanelOpen('SP|P4'); C.LI_WS.panel.tab = 'fix'; C.liWsPanelRender(); const h = C.el('lsPanel').innerHTML;
     r.content.images = 8; r.checked = NOW; C.reset(); C.liWsRender();
     return /class="ls-rec is-chk"/.test(h) && /Error\? Check again<\/span>Main image missing/.test(h); })(), C.el('lsPanel').innerHTML.slice(0, 300));
   C.liWsPanelOpen('SP|P1');

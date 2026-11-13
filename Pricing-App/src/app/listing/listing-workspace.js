@@ -786,6 +786,7 @@ async function liWsJob(job) {
         hl: (at[LI_WS_HL] || []).map(e => (e && e.value != null ? String(e.value) : '')).filter(Boolean).map(v => v.slice(0, 300)), hlAt: now,
         // a few short facts Amazon holds for the listing, for an Item Highlights line built only from what is verified
         facts: { material: first('material').slice(0, 60), care: first('care_instructions').slice(0, 60), items: first('number_of_items').slice(0, 6) } });
+      if (typeof faOnGet === 'function') faOnGet(brand, job.sku, at);   // the spec values, for Fix all's copy from the siblings (fix-all.js)
       if (entry.pt) liWsNeedSchema(brand, entry.pt, job.pk);
     } else if (job.t === 'limg') {
       // The catalogue's picture slots — what shoppers see. The reply also carries our own listing's slots and the open issues,
@@ -1518,7 +1519,7 @@ function liWsPanelOpen(key) {
   const p = LI_WS.byKey.get(key);
   if (!p) return;
   const was = LI_WS.panel;
-  LI_WS.panel = { key, tab: was && was.key === key ? was.tab : 'fix', table: was && was.key === key ? was.table : false,
+  LI_WS.panel = { key, tab: was && was.key === key ? was.tab : 'list', table: was && was.key === key ? was.table : false,   // Listings first: the grouped problems on top (fix-all.js), the children below
     kid: was && was.key === key ? was.kid || '' : '', listPlace: was && was.key === key ? was.listPlace || null : null };
   LI_WS.panelSig = null;
   LI_WS.panelResort = true;
@@ -1644,7 +1645,7 @@ function liWsPanelPlace(panel) {
   const active = typeof document !== 'undefined' ? document.activeElement : null;
   let focus = '';
   if (active && active !== panel && panel.contains && panel.contains(active)) {
-    focus = [...active.attributes].filter(at => /^data-(li-ws|lr)-/.test(at.name)).map(at => `[${at.name}="${CSS.escape(at.value)}"]`).join('');
+    focus = [...active.attributes].filter(at => /^data-(li-ws|lr|fa)-/.test(at.name)).map(at => `[${at.name}="${CSS.escape(at.value)}"]`).join('');
   }
   const place = { top: body ? body.scrollTop : 0, sku: '', off: 0, focus, hadFocus: !!active && panel.contains && panel.contains(active) };
   if (!body || !body.scrollTop) return place;
@@ -1721,7 +1722,8 @@ function liWsPanelRender() {
   const reading = p.data.state === 'reading';
   const name = p.name || p.parent;
   const tabs = [['fix', 'What to fix', groups.length], ['list', 'Listings', p.inMode.length], ['audit', 'Audit', p.audit ? p.audit.fail : 0]];
-  const body = tab === 'fix' ? liWsPanelFix(p, groups) : tab === 'list' ? liWsPanelList(p) : liWsPanelAudit(p);   // first: it says whether rows are held (panelMoved)
+  // Listings: the parent's problems grouped by type, with Fix all (fix-all.js), on top of the children list, which is drawn as it always was
+  const body = tab === 'fix' ? liWsPanelFix(p, groups) : tab === 'list' ? (typeof faBlockHtml === 'function' ? faBlockHtml(p.brand, p.parent, p.kids) : '') + liWsPanelList(p) : liWsPanelAudit(p);   // first: it says whether rows are held (panelMoved)
   LI_WS.panelResort = false;
   const resort = LI_WS.panelMoved ? '<button type="button" class="ls-btn" data-li-ws-psort="1" title="New answers from Amazon would put these rows in another order; the panel keeps its order until you press this">Sort again</button>' : '';
   const head =`<div class="ls-panel-h">${liWsPicHtml(p.pic, true)}<div class="ls-panel-t"><b title="${lrEsc(name)}">${lrEsc(name)}</b>`

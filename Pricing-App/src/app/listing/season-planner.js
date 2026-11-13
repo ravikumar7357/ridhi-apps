@@ -1293,7 +1293,8 @@ function spRowHtml(item) {
 function spParentPanelHtml(g) {
   return `<div class="sp-side-h"><div class="sp-hc">${spPic(g.brand, (g.todo[0] || g.all[0]).sku, true)}<div class="sp-hc-t"><b title="${lrEsc(g.name)}">${lrEsc(g.name)}</b>`
     + `<span>${lrEsc(BRAND_NAME[g.brand] || g.brand)} · ${spPlural(g.all.length, 'listing')}${spProgText(g) ? ` · <span class="sp-reading">${spProgText(g)}</span>` : ''}</span></div><button type="button" class="sp-x" data-sp-act="close-parent" aria-label="Close">×</button></div></div>`
-    + `<div class="sp-side-b">${spParentBodyHtml(g)}</div>`;
+    // the parent's problems grouped by type, with Fix all (fix-all.js), on top of the planner's own children list
+    + `<div class="sp-side-b">${typeof faBlockHtml === 'function' ? faBlockHtml(g.brand, g.parent) : ''}${spParentBodyHtml(g)}</div>`;
 }
 
 /* ----- level 3: one child ----- */

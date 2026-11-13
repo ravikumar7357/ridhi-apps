@@ -65,6 +65,15 @@ let IM_OWNER = new Map();       // image file -> the listing of ours that submit
 
 let IM_CLIP = null;     // { brand, sku, asin, c, z, slots: {MAIN..PT08, SWCH}, n }
 const IM_SEL = new Set();   // SKUs ticked in the list, for pasting into several at once
+let IM_ONLY = null;         // { skus: Set, label } — only these listings, picked in Listing Health's Fix all (fix-all.js), until "Show every listing"
+// Show only these listings (ticked, page 1, no search), with a bar naming where they were picked; empty → every listing again.
+function imOnly(skus, label) {
+  IM_ONLY = skus && skus.length ? { skus: new Set(skus), label: label || '' } : null;
+  IML_PAGE = 0;
+  $('imQ').value = '';
+  $('imFilter').value = 'all';
+  if (typeof imShowEditor === 'function') imShowEditor(false);
+}
 try {
   IM_CLIP = JSON.parse(localStorage.getItem('sellora.imgclip') || 'null');
 } catch (e) {
@@ -406,9 +415,10 @@ function imListRender() {
   imOwnerBuild(data.items);
   const groups = [];
   imListGroups(data.items).forEach(group => {
-    let show = group.kids.filter(kid => imKidMatch(kid, filter, search));
+    const picked = kid => !IM_ONLY || IM_ONLY.skus.has(kid.sku);
+    let show = group.kids.filter(kid => picked(kid) && imKidMatch(kid, filter, search));
     // A search that names the PARENT shows the whole family.
-    if (!show.length && search && group.parent && imKidMatch(group.parent, 'all', search)) show = group.kids.filter(kid => imKidMatch(kid, filter, ''));
+    if (!show.length && search && group.parent && imKidMatch(group.parent, 'all', search)) show = group.kids.filter(kid => picked(kid) && imKidMatch(kid, filter, ''));
     if (show.length) groups.push(Object.assign({}, group, { show }));
   });
   groups.sort((a, b) => (b.kids.length - a.kids.length)
@@ -438,7 +448,10 @@ function imListRender() {
   const nHijack = kids0.filter(imHijack).length;
   const nSup = kids0.filter(item => imState(item).k === 'sup').length;
   const nErr = kids0.filter(item => (item.ie || 0) > 0).length;
-  el.innerHTML = `<div class="muted" style="font-size:12px;margin-bottom:6px">${groups.length} group(s), ${nKids} listing(s) of ${data.items.length}
+  const only = IM_ONLY ? `<div class="card" style="padding:8px 14px;margin-bottom:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:12.5px">`
+    + `<span>Showing the <b>${IM_ONLY.skus.size}</b> listing(s) picked in Listing Health${IM_ONLY.label ? ': ' + imEsc(IM_ONLY.label) : ''} — ticked.</span>`
+    + `<button class="ghost im-b" id="imOnlyOff">Show every listing</button></div>` : '';
+  el.innerHTML = only + `<div class="muted" style="font-size:12px;margin-bottom:6px">${groups.length} group(s), ${nKids} listing(s) of ${data.items.length}
       · snapshot ${data.at ? data.at.toLocaleString() : '—'}${IML_BUSY ? ' · refreshing…' : ''}
       · showing <b>${IML_VIEW === 'live' ? 'what Amazon serves' : 'the pictures you submitted'}</b>
       · <span style="color:var(--act-ink)">orange ring</span> = Amazon serves a different picture in that slot
@@ -483,6 +496,10 @@ function imListRender() {
     imListRender();
   };
   if ($('imPasteSel')) $('imPasteSel').onclick = () => imPasteMany([...IM_SEL]);
+  if ($('imOnlyOff')) $('imOnlyOff').onclick = () => {
+    imOnly(null);
+    imListRender();
+  };
   el.querySelectorAll('[data-edit]').forEach(btn => btn.onclick = () => {
     $('imQ').value = btn.dataset.edit;
     IM_SKU_CHOICES = null;
@@ -1069,6 +1086,7 @@ $('imView').onchange = imListAgain;
 $('imBrand').onchange = () => {
   IML_PAGE = 0;
   IM_SEL.clear();
+  IM_ONLY = null;
   imShowEditor(false);
   imListEnsure();
 };
