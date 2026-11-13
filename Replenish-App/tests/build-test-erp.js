@@ -278,6 +278,16 @@ fs.writeFileSync(path.join(OUT, '.nojekyll'), '');
   });
   /* R-one: its wordmark, the barcode reader and the guide are also loaded from the site root */
   html = must(html, /(["'])\/(r-one-wordmark\.png|vendor\/|guide\/)/g, "$1$2", null, 'factory ERP sub-folder paths');
+  /* Meera: the page loads her from /meera/ (meera.version.json, then meera.<hash>.js) — at the site root that is GitHub's
+   * own root, a 404, so Meera never opened on the test ERP. Her files sit in the test folder's meera/. */
+  html = must(html, /(["'])\/meera\//g, '$1meera/', null, 'factory ERP Meera files');
+  /* …and Meera's own script asks for her answers, walks and words at /guide/ and /meera/ the same way. Only quoted paths
+   * that start a string are changed; her code is otherwise the same file. */
+  const MD = path.join(dst, 'meera');
+  if (fs.existsSync(MD)) for (const f of fs.readdirSync(MD).filter(n => /\.js$/.test(n))) {
+    const p = path.join(MD, f);
+    fs.writeFileSync(p, fs.readFileSync(p, 'utf8').replace(/(["'`])\/(meera|guide)\//g, '$1$2/'));
+  }
   html = must(html, "navigator.serviceWorker.register('/sw.js')", 'Promise.resolve()', 1, 'factory ERP service worker');
   html = must(html, "fetch('/', { method: 'HEAD'", "fetch('./', { method: 'HEAD'", 1, 'factory ERP version check');
   /* R1: the test ERP's own name and mark, so nobody mistakes it for the real one. Screens only: documents (POs,
