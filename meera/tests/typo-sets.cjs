@@ -67,7 +67,8 @@ function makeAll() {
   const hi = make(all.filter(x => /[ऀ-ॿ]/.test(x.q)), rng(5112026), w => /[ऀ-ॿ]{2,}/.test(w) && /^[ऀ-ॿ]+$/.test(w), (words, i, r) => hindiSlip(words[i], r));
   return { held, hindi: hi };
 }
-const FILES = { held: 'typos-held.json', hindi: 'typos-hi.json' };
+/* everyday: Hinglish and Hindi questions written the way staff type them (11 Nov), the held-back half — never tuned on */
+const FILES = { held: 'typos-held.json', hindi: 'typos-hi.json', everyday: 'hinglish-held.json' };
 /** the frozen sets, or none if not made yet */
 function load() {
   const out = {};

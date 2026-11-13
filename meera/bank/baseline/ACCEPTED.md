@@ -1319,3 +1319,36 @@ Each entry: when, why, and what it changed. Made by `node meera/tests/gate.cjs -
   - before: (none)
   - after: c-cx-1718 · Fulfil from India — Customer Orders पर बटन: इस ऑर्डर के नाम पर India Store से पीस इश्यू कर
 
+## 2026-11-10 12:27 — Language told right: "me" and "par" alone no longer make an English question Hinglish ("tell me the total…"), and rha, likha, aa, laal, rang, h and the like now mark Hinglish; brand product counts ("how many products are there of cpc"); Ravi, 11 Nov
+
+- answer `eval|shop|it says too many tries and wont let me log in`
+  - before: - · Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? too many attempts aa 
+  - after: - · I'm not fully sure what you mean. Is it one of these? too many attempts wrong email or pas
+- answer `eval|shop|admin just gave me the cutting screen but i still dont see it`
+  - before: gn-right-just-given · Kripya Sign out karke dobara login kijiye — nayi permission ya nayi screen agli baar login
+  - after: gn-right-just-given · Please Sign out and sign in again — a new right or a new screen takes effect from your nex
+- answer `eval|shop|zip yes kiya to chain length maang rha`
+  - before: vm-pmdb-zip-ruffle · When Zip, Ruffle, Piping dori or Filler fabric is Yes, fill its figure: zip size (chain le
+  - after: vm-pmdb-zip-ruffle · Jab Zip, Ruffle, Piping dori ya Filler fabric Yes ho, to uska figure bhariye: zip size (ch
+- answer `eval|shop|tell me a joke meera`
+  - before: - · Tablecloth kabhi khota kyun nahi? Kyunki us par hamesha uska SKU laga rehta hai. 😄 Ab bat
+  - after: - · Why did the tablecloth never get lost? Because it always had its SKU on it. 😄 Now — what 
+- answer `eval2|shop|reject wale piece kise bolte h`
+  - before: - · I'm not fully sure what you mean. Is it one of these? what is reject how to receive pieces
+  - after: - · Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? reject ka matlab kari
+- answer `eval2|shop|fba bolte h wo kaunsa godown h`
+  - before: - · I'm not fully sure what you mean. Is it one of these? what is fba pick which one these pie
+  - after: - · Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? fba kya hai qc mein o
+- answer `eval2|shop|printer gave me a paper slip with the goods, is that a challan? what do i do with it`
+  - before: - · Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? challan kya hai print
+  - after: - · I'm not fully sure what you mean. Is it one of these? what is challan print the print orde
+- answer `eval2|shop|the column just says cover, what does that number tell me`
+  - before: dl-repl-cannotcover · Cannot cover un mahino ki kul kam units hai jahan na sea na air time par pahunch sakta (LA
+  - after: dl-repl-cannotcover · Cannot cover is the total of units short in months that neither sea nor air can reach in t
+- answer `eval2|shop|custom order wala tick kab lagate h`
+  - before: - · Your question fits more than one answer. Which one do you mean? what is custom order tick 
+  - after: - · Aapka sawaal ek se zyada jawaabon se milta hai. Aap kaunsa poochh rahe hain? custom order 
+- answer `eval2|shop|it won't let me type 10.5 pieces`
+  - before: - · Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? box me akshar nahi ja
+  - after: - · I'm not fully sure what you mean. Is it one of these? box not accepting letters Pieces · Q
+

@@ -57,13 +57,13 @@
    "gzip": 118316
   },
   "code in the page": {
-   "raw": 451258,
-   "gzip": 191688,
+   "raw": 461590,
+   "gzip": 195353,
    "files": 10
   }
  },
  "timing": {
-  "loadMs": 1620,
-  "msPerAnswer": 43.4
+  "loadMs": 1490,
+  "msPerAnswer": 39
  }
 }

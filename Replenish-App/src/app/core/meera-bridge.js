@@ -362,6 +362,10 @@ const MEERA_SWITCHES = {
   /* Phase 7 — answers from the ERP's own figures (where is an order, what a karigar holds, a SKU's stock, what waits at
    * a stage, today's counts, late orders), READ ONLY from this page's memory (ERP_MEERA.data). meera.js only: ?meera=lazy,data */
   data: MEERA_V2_ON,
+  /* Hinglish and Hindi words read through what she learnt from her own three-language answers (Ravi, 11 Nov: "linking of
+   * hinglish words and its meaning and formation"): a word's link, its sound, its family. meera/tools/hinglish-learn.cjs
+   * writes /guide/meera-links.json. Off until proven: ?meera=hglinks */
+  hglinks: false,
 };
 /* THE EMERGENCY OFF (Ravi, 3 Nov: "the router's setting on the admin page should turn all seven off within seconds").
  * Each page asks her router once as it opens (GET /flags: no sign-in, no data, only on/off) and keeps the answer in this

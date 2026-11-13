@@ -79740,6 +79740,10 @@ const MEERA_SWITCHES = {
   /* Phase 7 — answers from the ERP's own figures (where is an order, what a karigar holds, a SKU's stock, what waits at
    * a stage, today's counts, late orders), READ ONLY from this page's memory (ERP_MEERA.data). meera.js only: ?meera=lazy,data */
   data: MEERA_V2_ON,
+  /* Hinglish and Hindi words read through what she learnt from her own three-language answers (Ravi, 11 Nov: "linking of
+   * hinglish words and its meaning and formation"): a word's link, its sound, its family. meera/tools/hinglish-learn.cjs
+   * writes /guide/meera-links.json. Off until proven: ?meera=hglinks */
+  hglinks: false,
 };
 /* THE EMERGENCY OFF (Ravi, 3 Nov: "the router's setting on the admin page should turn all seven off within seconds").
  * Each page asks her router once as it opens (GET /flags: no sign-in, no data, only on/off) and keeps the answer in this
@@ -83448,7 +83452,7 @@ const GUIDE_SYN = (() => {
 const GUIDE_STOP = new Set("a an the is are was were be to of in on at for by it this that these my me i we our your and or but so if hai h ha he hain ho hoga hogi tha thi the ka ki ke ko se me mein mai main mera meri mere mujhe muje mujhko hum ham ye yeh wo woh kar karna karu karun kare karo karte karta karti krna kr kro kiya kiye raha rahi rahe rha rhi rhe hota hoti hote hua hui gaya gayi gya gyi gaye gye ab do does did get want need use using kindly just aa aata aati aate rha please plz pls sir ji bhai yaar aur ya par pe bhi abhi kuch koi ek sab toh to sakta sakti sakte skta chahiye chahta chahti \u0939\u0948 \u0939\u0948\u0902 \u0925\u093E \u0925\u0940 \u0915\u093E \u0915\u0940 \u0915\u0947 \u0915\u094B \u0938\u0947 \u092E\u0947\u0902 \u092E\u0948\u0902 \u092E\u0941\u091D\u0947 \u092F\u0939 \u0935\u0939 \u0915\u0930 \u0915\u0930\u0928\u093E \u0915\u0930\u0947\u0902 \u0915\u0930\u094B \u0930\u0939\u093E \u0930\u0939\u0940 \u0939\u094B \u0917\u092F\u093E \u0917\u0908 \u092D\u0940 \u0914\u0930 \u092F\u093E \u0915\u0941\u091B \u0915\u094B\u0908 here am yahan yaha yahaan idhar idar \u092F\u0939\u093E\u0901 \u092F\u0939\u093E\u0902 \u0907\u0927\u0930".split(/\s+/));
 const GA_HERE_RE = /\b(here|yahan|yaha|yahaan|idhar|idar|(this|is|ye|yeh|iss) (screen|page|pej)|is pe|is par|isme|is me)\b|यहाँ|यहां|इधर|इस (स्क्रीन|पेज)|इसमें/i;
 const GA_WHEREAMI_RE = /\b(which|what|kaun ?s[ia]|kaunsi|konsi|kis)\s+(page|screen|pej)\b.*\b(am i|i am|i'?m|hoon|hu|hun|hai|h|on)\b|\b(page|screen)\s+(i am|i'?m|im)\s+on\b|\bwhere am i\b|\b(main|mai|me)\s+(kahan|kaha|kidhar)\s+(hoon|hu|hun)\b|मैं कहाँ हूँ|कौन सी (स्क्रीन|पेज)|किस (स्क्रीन|पेज) पर/i;
-const GUIDE_HG = new Set("kaise kese kya kyu kyun nahi nahin nhi hai ho karna kar ko ka ki ke mein me kahan kaha raha rahi de dena wapas vapas bata batao mujhe kaun kon aap tum ji bhai yaar galat galti theek thik dikh dikhta khul khulta band karu kare hota hua gaya gayi dhanyavad dhanyawad shukriya banaye banana lagana sakti hoon hu hun kis par pe kahan kaha kaunsi konsi kaise kese".split(" "));
+const GUIDE_HG = new Set("rha rhi rhe likha likhi aa aaya aya gya hui laal rang kuch bhi h kaise kese kya kyu kyun nahi nahin nhi hai ho karna kar ko ka ki ke mein me kahan kaha raha rahi de dena wapas vapas bata batao mujhe kaun kon aap tum ji bhai yaar galat galti theek thik dikh dikhta khul khulta band karu kare hota hua gaya gayi dhanyavad dhanyawad shukriya banaye banana lagana sakti hoon hu hun kis par pe kahan kaha kaunsi konsi kaise kese".split(" "));
 const GUIDE_FAQ = [
   {
     id: "slow",
@@ -84097,8 +84101,47 @@ function gaSkelAdd(words) {
     GA_SKEL.set(k, c);
   });
 }
+let GA_LINKS = null, GA_LINKS_P = null, GA_HG_ALL = false;
+function gaLinksLoad() {
+  if (GA_LINKS || !meeraOn("hglinks")) return Promise.resolve(GA_LINKS);
+  if (!GA_LINKS_P) GA_LINKS_P = fetch("/guide/meera-links.json", { cache: "no-cache" }).then((r) => r.ok ? r.json() : null).catch(() => null).then((j) => {
+    if (j && j.hg) {
+      GA_LINKS = j;
+      GA_MEAN.clear();
+    }
+    return GA_LINKS;
+  });
+  return GA_LINKS_P;
+}
+const gaLinkSound = (w) => w.replace(/ee/g, "i").replace(/oo/g, "u").replace(/aa/g, "a").replace(/ph/g, "f").replace(/ck/g, "k").replace(/q/g, "k").replace(/c(?!h)/g, "k").replace(/w/g, "v").replace(/z/g, "j").replace(/(?<=[aeiou])h(?![aeiou])/g, "").replace(/n$/, "").replace(/(.)\1+/g, "$1");
+function gaLinkOf(w) {
+  const L = GA_LINKS;
+  if (!L) return "";
+  if (/[ऀ-ॿ]/.test(w)) return L.hi[w] || L.hi[w.normalize("NFC")] || "";
+  if (!/^[a-z]{3,}$/.test(w)) return "";
+  if (L.hg[w]) return L.hg[w];
+  const s = L.sounds[gaLinkSound(w)];
+  if (s) return s;
+  if (w.length < 5) return "";
+  const end = (L.endings || []).find((x) => w.length - x.length >= 4 && w.endsWith(x)), root = end ? w.slice(0, -end.length) : "";
+  if (!root) return "";
+  if (L.roots[root]) return L.roots[root];
+  const votes = /* @__PURE__ */ new Map();
+  for (const k in L.hg) if (k.length <= root.length + 5 && k.startsWith(root)) votes.set(L.hg[k], (votes.get(L.hg[k]) || 0) + 1);
+  const best = [...votes].sort((a, b) => b[1] - a[1]);
+  return best.length && (best.length === 1 || best[0][1] > best[1][1]) ? best[0][0] : "";
+}
+function gaLinkMean(w, m) {
+  if (!GA_LINKS || !GA_BANK || GA_BANK.df.has(m)) return m;
+  const ln = gaLinkOf(w);
+  return ln && ln !== w ? gaMean(ln) : m;
+}
 function gaMeanOf(w) {
   if (GUIDE_SYN[w]) return GUIDE_SYN[w];
+  if (GA_LINKS && (/[ऀ-ॿ]/.test(w) || GA_HG_ALL)) {
+    const ln = gaLinkOf(w);
+    if (ln) return GUIDE_SYN[ln] || (/^[a-z]{5,}$/.test(ln) ? ln.replace(/(ing|ed|es|e|s)$/, "") : ln);
+  }
   if (/[ऀ-ॿ]/.test(w) && GA_SKEL.size) {
     const c = GA_SKEL.get(gaSkel(w));
     if (c) {
@@ -84133,11 +84176,11 @@ function gaMeanOf(w) {
 }
 function gaRead(q) {
   const words = gaWords(q);
-  let lang = /[ऀ-ॿ]/.test(q) ? "hi" : words.some((w) => GUIDE_HG.has(w)) ? "hg" : "en";
+  let lang = /[ऀ-ॿ]/.test(q) ? "hi" : words.some((w) => GUIDE_HG.has(w) && w !== "me" && w !== "par") ? "hg" : "en";
   if (typeof meeraDesignLang === "function" && meeraDesignLang() === "hi") lang = "hi";
   if (GA_LANG_FORCE) lang = GA_LANG_FORCE;
   const people = gaPeople();
-  let means = [...new Set(words.filter((w) => !GUIDE_STOP.has(w) && !/^\d+$/.test(w)).map((w) => people.has(w) ? "karigar" : gaMean(w)))];
+  let means = [...new Set(words.filter((w) => !GUIDE_STOP.has(w) && !/^\d+$/.test(w)).map((w) => people.has(w) ? "karigar" : gaLinkMean(w, gaMean(w))))];
   const came = /\b(aa|a)\s+(gaya|gya|gayi|gyi|gaye|gye|chuka|chuki|chuke)\b|आ\s*(गया|गई|गए|चुका|चुकी)/i.test(q);
   if (came && !means.includes("receive")) means.push("receive");
   const toThem = /\bko\b[^,.?]*\b(wapas|vapas|waapas|wapis)\s+(de|dena|dene|dedo|bhej)|को[^,.?]*वापस\s*(दे|भेज)|\b(send|give)\b[^,.?]*\bback\b|\bback\s+to\b/i.test(q);
@@ -84680,7 +84723,7 @@ function gaBankLoad() {
       throw new Error("bank not loaded");
     }
     return list;
-  }).then((list) => typeof gaAiLearned === "function" ? gaAiLearned(Array.isArray(list) ? list : []) : list).then((list) => typeof gaWalksLoad === "function" ? gaWalksLoad().then(() => list, () => list) : list).then((list) => {
+  }).then((list) => typeof gaAiLearned === "function" ? gaAiLearned(Array.isArray(list) ? list : []) : list).then((list) => typeof gaWalksLoad === "function" ? gaWalksLoad().then(() => list, () => list) : list).then((list) => gaLinksLoad().then(() => list, () => list)).then((list) => {
     GA_DICT = null;
     return GA_BANK = gaBankIndex(Array.isArray(list) ? list : []);
   }).then((b) => {
@@ -84733,6 +84776,10 @@ function gaVec(text) {
     if (GA_SEM_SKIP && GUIDE_STOP.has(w)) continue;
     let i = W.at.get(w);
     if (i === void 0) i = W.at.get(gaMean(w));
+    if (i === void 0 && GA_LINKS) {
+      const ln = gaLinkOf(w);
+      if (ln) i = W.at.get(ln) ?? W.at.get(gaMean(ln));
+    }
     if (i === void 0) continue;
     const c = W.cnt[i], k = W.scale[i] * c, base = i * W.D;
     for (let d = 0; d < W.D; d++) v[d] += W.rows[base + d] * k;

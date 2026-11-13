@@ -24,3 +24,8 @@ choices, 3 now answered right. The gate checks against this record while MEERA_V
 
 - 10 test questions that used a part's old scrap name replaced by the same question with its real name, each answered by that part; "customer ne return bheja hai entry kaise kre" now the Returns steps; two not-sure questions offer different choices; every score the same or better
 
+
+## 2026-11-10 12:28 — Language told right: "me" and "par" alone no longer make an English question Hinglish ("tell me the total…"), and rha, likha, aa, laal, rang, h and the like now mark Hinglish; brand product counts ("how many products are there of cpc"); Ravi, 11 Nov
+
+- 10 recorded answers now in the language they were asked in (English questions in English, Hinglish in Hinglish), each the same answer or the same choices; every score the same
+

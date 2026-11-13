@@ -35,6 +35,8 @@ const ppcWorld = M => { const c = M.ctx; c.FLOW = { ppc: {}, at: Date.now() };
     { r: { orderNo: 'AMZ-25102026-01', sku: 'RTBX72', qty: 120, orderDate: '25/10/2026' }, s: { bucket: 'ppc' } },
     { r: { orderNo: 'B2B-20102026-01', sku: 'RBC101-M', qty: 200, orderDate: '20/10/2026' }, s: { bucket: 'cut', plan: {} } },
     { r: { orderNo: 'LEG-17102026-01', sku: 'CPC210-02', qty: 80, orderDate: '17/10/2026' }, s: { bucket: 'done' } }]; };
+/* the sample's CPC SKUs carry their brand (the sample gives it to CPC008-04 only): two products, CPC008 cushion covers and a CPC210 runner */
+const cpcAll = M => M.ctx.PTG.mdb.forEach(r => { if (/^CPC008/.test(r.sku)) Object.assign(r, { brand: 'CPC', articleType: 'Cushion Cover' }); if (r.sku === 'CPC210-02') Object.assign(r, { brand: 'CPC', articleType: 'Table Runner' }); });
 /* these SKUs get piping in the master too (the sample's CPC008-04 has it already) */
 const piping = (M, skus) => M.ctx.PTG.mdb.forEach(r => { if (skus.includes(r.sku)) r.isPiping = true; });
 /* a screen's lines, as Meera reads them (gaRowFind): made-up rows, first cell = the line's name */
@@ -89,6 +91,11 @@ const CHATS = [
     want: /^3 order lines? .*(PPC|planning).*SHP-1001.*AMZ-25102026-01.*SPY-28102026-03/, not: /LEG-17102026|not fully sure|admin team/, acts: /^flow\|/ },
   { day: '11 Nov', tab: 'flow', q: 'kitne order planning ke liye pending hai', data: true, setup: ppcWorld, want: /^3 order lines?/ },
   { day: '11 Nov', tab: 'flow', q: 'planning kaise kare', not: /order lines? .*waiting/ },
+  /* 11 Nov: how many products a brand has — the SKUs of CPC in the Master Database (the sample has CPC008-04/06/08 and CPC210-02) */
+  { day: '11 Nov', tab: 'pmdb', q: 'how many products are there of cpc', data: true, setup: cpcAll, want: /^4 SKUs — Brand CPC.*2 products/, not: /Which one do you mean|not fully sure/ },
+  { day: '11 Nov', tab: 'pmdb', q: 'tell me the total number of products in cpc', data: true, setup: cpcAll, want: /^4 SKUs — Brand CPC/, not: /not fully sure|admin team/ },
+  { day: '11 Nov', tab: 'pmdb', q: 'cpc ke kitne product hai', data: true, setup: cpcAll, want: /^4 SKU — Brand CPC/ },
+  { day: '11 Nov', tab: 'pmdb', q: 'what is cpc', not: /SKUs? — Brand CPC/ },
 ];
 
 let pass = 0, fail = 0;

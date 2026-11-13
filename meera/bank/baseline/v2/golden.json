@@ -28,7 +28,7 @@
   "off": false
  },
  "eval|shop|it says too many tries and wont let me log in": {
-  "text": "Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? too many attempts aa raha hai wrong email or password aa raha hai received plus rejected zyada error",
+  "text": "I'm not fully sure what you mean. Is it one of these? too many attempts wrong email or password received plus rejected would be more than issued",
   "acts": [],
   "bank": null,
   "miss": "near",
@@ -49,7 +49,7 @@
   "off": false
  },
  "eval|shop|admin just gave me the cutting screen but i still dont see it": {
-  "text": "Kripya Sign out karke dobara login kijiye — nayi permission ya nayi screen agli baar login karne par lagti hai. Yeh kis liye hai Adhikaar sign-in ke samay ek baar padhe jate hain. Isiliye admin ka badlav pehle se khuli screen par nahi dikhta. Yeh kaise kaam karta hai Sign out dabaiye, phir dobara sign-in kijiye. ERP aapka account phir padhta hai aur menu naya banata hai. Phir bhi mana ho to admin dekhe ki adhikaar aapke account par save hua ya nahi. Kab use karein Jab admin bataye ki screen ya adhikaar jod diya gaya hai. Kyun Dobara login ke baad bhi mana kare, to admin se check karwaiye ki permission aapke account par save hui hai.",
+  "text": "Please Sign out and sign in again — a new right or a new screen takes effect from your next sign-in. What it's for Rights are read once, when you sign in. That is why a change made by the admin does not show on a screen already open. How it works Press Sign out , then sign in again. The ERP re-reads your account and rebuilds the menu. If it is still refused, the admin should check the right was saved on your account. When to use it Right after an admin tells you a screen or right has been added. Why If it is still refused after signing in again, ask your admin to check that the right was saved on your account.",
   "acts": [],
   "bank": "gn-right-just-given",
   "miss": null,
@@ -1649,7 +1649,7 @@
   "off": false
  },
  "eval|shop|zip yes kiya to chain length maang rha": {
-  "text": "This is on Master Database , not on this screen. When Zip, Ruffle, Piping dori or Filler fabric is Yes, fill its figure: zip size (chain length), ruffle metres, piping metres or the standard filling quantity. What it's for A Yes without its figure makes a SKU look complete while the factory cannot work out how many zips, how much ruffle cloth, piping cord or filling to issue. How it works If Zip is Yes, fill Zip size / chain length (in) ; Zips per piece may be left blank and then counts as one. If Ruffle is Yes, fill Ruffle fabric consumption (m) ; if the recipe for that product and size already has ruffle metres, that is accepted. If Piping dori is Yes, fill the dori metres; if Filler fabric is Yes, fill Standard filling qty . A SKU that is bought finished needs none of these. When to use it When saving a SKU, or an Import row, is refused with one of these messages. Why Ruffle metres can also come from the recipe for that product and size.",
+  "text": "Ye Master Database par hai, is screen par nahi. Jab Zip, Ruffle, Piping dori ya Filler fabric Yes ho, to uska figure bhariye: zip size (chain length), ruffle metres, piping metres ya standard filling quantity. Yeh kis liye hai Figure ke bina Yes se SKU poora dikhta hai, par factory nahi nikal paati ki kitni zip, ruffle cloth, piping dori ya filling deni hai. Yeh kaise kaam karta hai Zip Yes ho to Zip size / chain length (in) bhariye; Zips per piece khali chhod sakte hain, tab ek ginti hai. Ruffle Yes ho to Ruffle fabric consumption (m) bhariye; agar us product aur size ki recipe mein ruffle metres pehle se hain to wahi maan liye jate hain. Piping dori Yes ho to dori ke metres bhariye; Filler fabric Yes ho to Standard filling qty bhariye. Jo SKU bana-banaya kharida jata hai usse inme se kuch nahi chahiye. Kab use karein Jab SKU ya Import row save karte waqt inme se koi message aaye. Kyun Ruffle metres us product aur size ki recipe se bhi aa sakte hain.",
   "acts": [
    "wdo:w-masters-pmdb-new-sku",
    "wshow:w-masters-pmdb-new-sku",
@@ -1828,7 +1828,7 @@
   "off": false
  },
  "eval|shop|tell me a joke meera": {
-  "text": "Tablecloth kabhi khota kyun nahi? Kyunki us par hamesha uska SKU laga rehta hai. 😄 Ab bataiye — kya help karun?",
+  "text": "Why did the tablecloth never get lost? Because it always had its SKU on it. 😄 Now — what can I help you with?",
   "acts": [],
   "bank": null,
   "miss": null,
@@ -1976,7 +1976,7 @@
   "off": false
  },
  "eval2|shop|reject wale piece kise bolte h": {
-  "text": "I'm not fully sure what you mean. Is it one of these? what is reject how to receive pieces back from karigar qc rejected pieces where in flow",
+  "text": "Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? reject ka matlab karigar se maal wapas kaise le qc reject piece flow me kahan jaate hai",
   "acts": [],
   "bank": null,
   "miss": "near",
@@ -2010,7 +2010,7 @@
   "off": false
  },
  "eval2|shop|fba bolte h wo kaunsa godown h": {
-  "text": "I'm not fully sure what you mean. Is it one of these? what is fba pick which one these pieces are for what is fba dispatch",
+  "text": "Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? fba kya hai qc mein order number maang raha hai fba dispatch kya hai",
   "acts": [],
   "bank": null,
   "miss": "near",
@@ -2060,7 +2060,7 @@
   "off": false
  },
  "eval2|shop|printer gave me a paper slip with the goods, is that a challan? what do i do with it": {
-  "text": "Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? challan kya hai print order kaise print kare printer ko kapda kaise bheje",
+  "text": "I'm not fully sure what you mean. Is it one of these? what is challan print the print order how to send rfd fabric to printer",
   "acts": [],
   "bank": null,
   "miss": "near",
@@ -2074,7 +2074,7 @@
   "off": false
  },
  "eval2|shop|the column just says cover, what does that number tell me": {
-  "text": "Ye Replenishment par hai, is screen par nahi. Cannot cover un mahino ki kul kam units hai jahan na sea na air time par pahunch sakta (LATE wale mahine) — woh stock-out ab bhejkar roka nahi ja sakta. Yeh kis liye hai Yeh woh kami jodta hai jise ab koi shipment theek nahi kar sakta, taaki pata chale kitna pehle hi haath se nikal chuka hai. Yeh kaise kaam karta hai Yeh LATE mahino ki kami ka total hai, jahan na sea aur na air time par FBA pahunch sakta hai (ya sub-category air se nahi ja sakti). Yeh lead days aur India se maal nikalne ki tareekh par chalta hai. Kam lead days, haath mein India stock, ban rahe order ki jaldi delivery tareekh ya kam projection kisi mahine ko LATE se bahar la sakte hain. Kab use karein Jab jaanna ho ki kaun se SKU kuch bhi karein khatam honge. Kyun Yeh lead days aur India se maal nikalne ki tareekh se nikalta hai. Kam lead days, haath mein India stock, batch ki jaldi taiyaar tareekh ya kam projection ise badal sakte hain.",
+  "text": "This is on Replenishment , not on this screen. Cannot cover is the total of units short in months that neither sea nor air can reach in time (the LATE months) — that stock-out can no longer be prevented by shipping. What it's for It adds up the shortage that no shipment can fix any more, so you can see how much is already lost. How it works It is the total of units short in LATE months, where neither sea nor air can reach FBA in time (or the sub-category cannot fly). It follows the lead days and the date goods can leave India. Shorter lead days, India stock on hand, an earlier delivery date on the order being made, or a lower projection can bring a month out of LATE. When to use it When you want to know which SKUs will run out whatever you do. Why It is worked out from the lead days and the dates goods can leave India. Shorter lead days, India stock in hand, an earlier ready date on the batch, or a lower projection can change it.",
   "acts": [
    "open:repl"
   ],
@@ -2108,7 +2108,7 @@
   "off": false
  },
  "eval2|shop|custom order wala tick kab lagate h": {
-  "text": "I'm not fully sure what you mean. Is it one of these? what is custom order tick how to make a custom order entry in job work Custom orders",
+  "text": "Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? custom order tick kya hai custom order entry kaise kare Custom orders kya hai",
   "acts": [],
   "bank": null,
   "miss": "near",
@@ -2330,7 +2330,7 @@
   "off": false
  },
  "eval2|shop|it won't let me type 10.5 pieces": {
-  "text": "Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? box me akshar nahi ja rahe Pieces kya hai · Quality Control Pieces kya hai · Cutting Data",
+  "text": "I'm not fully sure what you mean. Is it one of these? box not accepting letters Pieces · Quality Control Pieces · Cutting Data",
   "acts": [],
   "bank": null,
   "miss": "near",

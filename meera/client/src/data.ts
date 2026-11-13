@@ -257,7 +257,9 @@ function mdParse(q0: string, D: ErpMeeraData): MdAsk | null {
       const exact = terms.some(x => x.hits.some(h => h.x));
       /* without "which SKUs": an article or type among them, and at least one word spelt as the master spells it */
       const product = terms.length >= 2 && terms.some(x => x.hits.some(h => h.f === 'articleType' || h.f === 'subtype')) && exact;
-      if (product || (terms.length && MD_SKUWORD.test(low) && (MD_FIND_ASK.test(low) || (terms.length >= 2 && exact)))) return { kind: 'skufind', terms };
+      /* "how many products are there of cpc", "cpc ke kitne product hai" (Ravi, 11 Nov): products or items counted, of master words */
+      const counted = terms.length && exact && /\b(products?|items?|skus?)\b|प्रोडक्ट/.test(low) && (MD_COUNT.test(low) || /\b(number of|no of|kitne|kitni)\b/.test(low));
+      if (product || counted || (terms.length && MD_SKUWORD.test(low) && (MD_FIND_ASK.test(low) || (terms.length >= 2 && exact)))) return { kind: 'skufind', terms };
       /* "iska sku kya hai", "how many products use this cloth" — right after she answered about a line (a cloth on Fabric
        * Inventory, Ravi 10 Nov): that line's words, the fabric and colour it names */
       if (!terms.length && MD_LINE && Date.now() - MD_LINE.at < MD_LAST_MS && MD_THISTHING.test(low) && (MD_SKUWORD.test(low) || MD_COUNT.test(low) || MD_USES.test(low))) {
@@ -489,7 +491,10 @@ function mdAnswer(a: MdAsk, q: string, D: ErpMeeraData, lang: MdLang): { html: s
     const SHOW = 40, n = hit.length;
     let html: string;
     if (n) {
-      html = `<div class="ga-a">${L(`<b>${mdNf(n)}</b> SKU${n === 1 ? '' : 's'} — ${desc}:`, `<b>${mdNf(n)}</b> SKU — ${desc}:`, `<b>${mdNf(n)}</b> SKU — ${desc}:`)}</div>`
+      /* how many products they make: an article and its type is one product, in all its sizes and colours */
+      const np = new Set(hit.map(x => (x.articleType || '') + '|' + (x.subtype || ''))).size;
+      const prods = L(` in ${mdNf(np)} product${np === 1 ? '' : 's'} (article and type)`, ` — ${mdNf(np)} प्रोडक्ट (आर्टिकल और टाइप)`, ` — ${mdNf(np)} product (article aur type)`);
+      html = `<div class="ga-a">${L(`<b>${mdNf(n)}</b> SKU${n === 1 ? '' : 's'} — ${desc}${prods}:`, `<b>${mdNf(n)}</b> SKU — ${desc}${prods}:`, `<b>${mdNf(n)}</b> SKU — ${desc}${prods}:`)}</div>`
         + mdChips('', hit.slice(0, SHOW).map(x => ({ label: x.sku + (x.size ? ' · ' + x.size : ''), q: x.sku })))
         + (n > SHOW ? `<div>${L(`Showing the first ${SHOW}. Add a size, brand or type to narrow it.`, `पहले ${SHOW} दिखाए हैं। कम करने के लिए साइज़, ब्रांड या टाइप भी लिखें।`,
           `Pehle ${SHOW} dikhaye hain. Kam karne ke liye size, brand ya type bhi likhiye.`)}</div>` : '')

@@ -128,7 +128,7 @@ const GA_HERE_RE = /\b(here|yahan|yaha|yahaan|idhar|idar|(this|is|ye|yeh|iss) (s
 /* "Which page am I on?" — answered with the screen's name, never with a guess from the bank. */
 const GA_WHEREAMI_RE = /\b(which|what|kaun ?s[ia]|kaunsi|konsi|kis)\s+(page|screen|pej)\b.*\b(am i|i am|i'?m|hoon|hu|hun|hai|h|on)\b|\b(page|screen)\s+(i am|i'?m|im)\s+on\b|\bwhere am i\b|\b(main|mai|me)\s+(kahan|kaha|kidhar)\s+(hoon|hu|hun)\b|मैं कहाँ हूँ|कौन सी (स्क्रीन|पेज)|किस (स्क्रीन|पेज) पर/i;
 /* Hinglish is told from English by these: a question with one of them in Latin letters is answered in Hinglish. */
-const GUIDE_HG = new Set('kaise kese kya kyu kyun nahi nahin nhi hai ho karna kar ko ka ki ke mein me kahan kaha raha rahi de dena wapas vapas bata batao mujhe kaun kon aap tum ji bhai yaar galat galti theek thik dikh dikhta khul khulta band karu kare hota hua gaya gayi dhanyavad dhanyawad shukriya banaye banana lagana sakti hoon hu hun kis par pe kahan kaha kaunsi konsi kaise kese'.split(' '));
+const GUIDE_HG = new Set('rha rhi rhe likha likhi aa aaya aya gya hui laal rang kuch bhi h kaise kese kya kyu kyun nahi nahin nhi hai ho karna kar ko ka ki ke mein me kahan kaha raha rahi de dena wapas vapas bata batao mujhe kaun kon aap tum ji bhai yaar galat galti theek thik dikh dikhta khul khulta band karu kare hota hua gaya gayi dhanyavad dhanyawad shukriya banaye banana lagana sakti hoon hu hun kis par pe kahan kaha kaunsi konsi kaise kese'.split(' '));
 
 /* ---------- everyday trouble with the site ---------- */
 const GUIDE_FAQ = [
@@ -541,8 +541,49 @@ function gaSkelAdd(words) {
   words.forEach(w => { if (!/^[a-z]{3,}$/.test(w)) return; const k = gaSkel(w); if (k.length < 3) return;
     const c = GA_SKEL.get(k) || new Map(); c.set(w, (c.get(w) || 0) + 1); GA_SKEL.set(k, c); });
 }
+/* ---------- Hinglish and Hindi words she learnt herself (/guide/meera-links.json, switch "hglinks") ----------
+ * Made by meera/tools/hinglish-learn.cjs from her own answers, written in English, Hindi and Hinglish sentence for sentence:
+ * a word's English link ("kholiye" → open, "कहाँ" → where), one sound written several ways ("kahaan" is "kahan"), and the
+ * families — a root and its endings ("dikhao" is dikh- + ao, as "dikhaiye" is dikh- + aiye). Used only for a word her own
+ * list does not know; an English word, or one her English answers use too, is never relinked. */
+let GA_LINKS = null, GA_LINKS_P = null, GA_HG_ALL = false;   // GA_HG_ALL: Latin-letter Hinglish read through its links everywhere too (tried 11 Nov)
+function gaLinksLoad() {
+  if (GA_LINKS || !meeraOn('hglinks')) return Promise.resolve(GA_LINKS);
+  if (!GA_LINKS_P) GA_LINKS_P = fetch('/guide/meera-links.json', { cache: 'no-cache' }).then(r => (r.ok ? r.json() : null)).catch(() => null)
+    .then(j => { if (j && j.hg) { GA_LINKS = j; GA_MEAN.clear(); } return GA_LINKS; });
+  return GA_LINKS_P;
+}
+/* the same sound however it is written — as hinglish-learn.cjs works it out */
+const gaLinkSound = w => w.replace(/ee/g, 'i').replace(/oo/g, 'u').replace(/aa/g, 'a').replace(/ph/g, 'f').replace(/ck/g, 'k').replace(/q/g, 'k')
+  .replace(/c(?!h)/g, 'k').replace(/w/g, 'v').replace(/z/g, 'j').replace(/(?<=[aeiou])h(?![aeiou])/g, '').replace(/n$/, '').replace(/(.)\1+/g, '$1');
+function gaLinkOf(w) {
+  const L = GA_LINKS; if (!L) return '';
+  if (/[ऀ-ॿ]/.test(w)) return L.hi[w] || L.hi[w.normalize('NFC')] || '';
+  if (!/^[a-z]{3,}$/.test(w)) return '';
+  if (L.hg[w]) return L.hg[w];
+  const s = L.sounds[gaLinkSound(w)]; if (s) return s;
+  /* a family: the root without its ending, then the forms she knows that start with it and agree on one meaning */
+  if (w.length < 5) return '';
+  const end = (L.endings || []).find(x => w.length - x.length >= 4 && w.endsWith(x)), root = end ? w.slice(0, -end.length) : '';
+  if (!root) return '';
+  if (L.roots[root]) return L.roots[root];
+  const votes = new Map();
+  for (const k in L.hg) if (k.length <= root.length + 5 && k.startsWith(root)) votes.set(L.hg[k], (votes.get(L.hg[k]) || 0) + 1);
+  const best = [...votes].sort((a, b) => b[1] - a[1]);
+  return best.length && (best.length === 1 || best[0][1] > best[1][1]) ? best[0][0] : '';
+}
+/** A question's word she has never met in her answers, read through its learnt link — only then, and only in a question:
+ * every word her answers use keeps its own meaning, so her answers match each other exactly as before */
+function gaLinkMean(w, m) {
+  if (!GA_LINKS || !GA_BANK || GA_BANK.df.has(m)) return m;
+  const ln = gaLinkOf(w);
+  return ln && ln !== w ? gaMean(ln) : m;
+}
 function gaMeanOf(w) {
   if (GUIDE_SYN[w]) return GUIDE_SYN[w];
+  /* a Hindi-letter word is read through its learnt English link everywhere — in her answers and in the question alike —
+   * so "चुनें" in a question meets "pick" in every answer, not only answers that happen to use that Hindi word */
+  if (GA_LINKS && (/[ऀ-ॿ]/.test(w) || GA_HG_ALL)) { const ln = gaLinkOf(w); if (ln) return GUIDE_SYN[ln] || (/^[a-z]{5,}$/.test(ln) ? ln.replace(/(ing|ed|es|e|s)$/, '') : ln); }
   if (/[ऀ-ॿ]/.test(w) && GA_SKEL.size) {
     const c = GA_SKEL.get(gaSkel(w));
     if (c) { const best = [...c].sort((a, b) => b[1] - a[1])[0][0]; return gaMean(best); }
@@ -565,11 +606,12 @@ function gaMeanOf(w) {
 }
 function gaRead(q) {
   const words = gaWords(q);
-  let lang = /[ऀ-ॿ]/.test(q) ? 'hi' : words.some(w => GUIDE_HG.has(w)) ? 'hg' : 'en';
+  /* "me" and "par" are English words too ("tell me the total…" is English — Ravi, 11 Nov): Hinglish only beside another Hinglish word */
+  let lang = /[ऀ-ॿ]/.test(q) ? 'hi' : words.some(w => GUIDE_HG.has(w) && w !== 'me' && w !== 'par') ? 'hg' : 'en';
   if (typeof meeraDesignLang === 'function' && meeraDesignLang() === 'hi') lang = 'hi';   // her new look: हिंदी chosen in the Ask box
   if (GA_LANG_FORCE) lang = GA_LANG_FORCE;   // "hinglish main samjhao": the last answer again, in that language
   const people = gaPeople();
-  let means = [...new Set(words.filter(w => !GUIDE_STOP.has(w) && !/^\d+$/.test(w)).map(w => people.has(w) ? 'karigar' : gaMean(w)))];
+  let means = [...new Set(words.filter(w => !GUIDE_STOP.has(w) && !/^\d+$/.test(w)).map(w => people.has(w) ? 'karigar' : gaLinkMean(w, gaMean(w))))];
   /* "maal aa gaya", "आ गया": it came in — a receipt (both words are fillers on their own) */
   const came = /\b(aa|a)\s+(gaya|gya|gayi|gyi|gaye|gye|chuka|chuki|chuke)\b|आ\s*(गया|गई|गए|चुका|चुकी)/i.test(q);
   if (came && !means.includes('receive')) means.push('receive');
@@ -1009,6 +1051,7 @@ function gaBankLoad() {
     .then(list => { if (!Array.isArray(list)) { GA_BANK_P = null; throw new Error('bank not loaded'); } return list; })   // tried again next time
     .then(list => (typeof gaAiLearned === 'function' ? gaAiLearned(Array.isArray(list) ? list : []) : list))
     .then(list => (typeof gaWalksLoad === 'function' ? gaWalksLoad().then(() => list, () => list) : list))   // the walk-throughs (guide-walks.js)
+    .then(list => gaLinksLoad().then(() => list, () => list))   // the Hinglish and Hindi words she learnt (switch "hglinks")
     .then(list => { GA_DICT = null; return (GA_BANK = gaBankIndex(Array.isArray(list) ? list : [])); })
     .then(b => { gaWordsLoad().then(() => setTimeout(gaSemIndex, 0)); return b; });
   /* a question asked while it failed is answered from the short built-in lists, as without the bank */
@@ -1050,6 +1093,7 @@ function gaVec(text) {
     if (GA_SEM_SKIP && GUIDE_STOP.has(w)) continue;
     let i = W.at.get(w);
     if (i === undefined) i = W.at.get(gaMean(w));
+    if (i === undefined && GA_LINKS) { const ln = gaLinkOf(w); if (ln) i = W.at.get(ln) ?? W.at.get(gaMean(ln)); }   // a word not in the table: its learnt link's meaning
     if (i === undefined) continue;
     const c = W.cnt[i], k = W.scale[i] * c, base = i * W.D;
     for (let d = 0; d < W.D; d++) v[d] += W.rows[base + d] * k;
