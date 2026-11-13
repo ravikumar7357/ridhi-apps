@@ -432,9 +432,9 @@ async function mdbImgCacheSave() {
     for (let i = 0; i < chunks; i++) {
       const m = {};
       keys.slice(i * IMG_CHUNK, (i + 1) * IMG_CHUNK).forEach(k => { m[k] = MDBIMG.map[k]; });
-      await setDoc(doc(db, 'repl_skuimg', String(i)), { m });
+      await fsSetDoc(doc(db, 'repl_skuimg', String(i)), { m });
     }
-    await setDoc(doc(db, 'repl', 'skuimg'), { chunks, n: keys.length, at: serverTimestamp(), by: ME.email });
+    await fsSetDoc(doc(db, 'repl', 'skuimg'), { chunks, n: keys.length, at: serverTimestamp(), by: ME.email });
   } catch (e) {
     console.warn('[img] cache not saved:', e.message || e);
   }

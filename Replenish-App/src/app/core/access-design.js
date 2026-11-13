@@ -1072,7 +1072,7 @@ async function acxWrite(email, a, roleKey) {
   if (!acxCanEdit()) throw new Error('view only — only an admin can change access');
   if (SIDE === 'erp' && email === String(ME.email || '').toLowerCase() && !a.admin) throw new Error('you cannot take away your own admin rights');
   const rec = acxRecord(acxOld(email), a, roleKey);
-  await setDoc(doc(db, 'perms', email), Object.assign({}, rec, { at: serverTimestamp(), by: ME.email }));
+  await fsSetDoc(doc(db, 'perms', email), Object.assign({}, rec, { at: serverTimestamp(), by: ME.email }));
   try { await permMirror(email, rec); } catch (e) { throw new Error('saved, but NOT in the production database copy (' + (e.message || e) + ') — do it again'); }
 }
 /** Remove: this side's half only. When nothing is left anywhere, the record goes too. */
@@ -1083,13 +1083,13 @@ async function acxRemoveSide(email) {
   if (old.admin === true && SIDE !== 'erp') throw new Error(email + ' is an admin — that is changed in the ERP Access page');
   const rec = acxRecord(old, { admin: false, sellora: [], erp: [], rights: [] }, '');
   if (acxBare(rec)) return acxDel(email);
-  await setDoc(doc(db, 'perms', email), Object.assign({}, rec, { at: serverTimestamp(), by: ME.email }));
+  await fsSetDoc(doc(db, 'perms', email), Object.assign({}, rec, { at: serverTimestamp(), by: ME.email }));
   try { await permMirror(email, rec); } catch (e) { throw new Error('saved, but NOT in the production database copy (' + (e.message || e) + ') — do it again'); }
 }
 async function acxDel(email) {
   if (!acxCanEdit()) throw new Error('view only — only an admin can change access');
   if (email === String(ME.email || '').toLowerCase()) throw new Error('you cannot remove your own access');
-  await deleteDoc(doc(db, 'perms', email));
+  await fsDeleteDoc(doc(db, 'perms', email));
   try { await permMirror(email, null); } catch (e) { throw new Error('removed, but their copy in the production database is still there (' + (e.message || e) + ') — remove again'); }
 }
 /** The roles as they stand — their boxes, and roles added here — into config/accessRoles. */
@@ -1098,7 +1098,7 @@ async function acxSaveRoles() {
   const out = {};
   ROLES.forEach(r => { out[r.key] = { access: S.roles[r.key] }; });
   (S.customRoles || []).forEach(r => { out[r.key] = Object.assign({}, out[r.key], { custom: { name: r.name, dept: r.dept, group: r.group, limit: r.limit || '', cannot: r.cannot || '' } }); });
-  await setDoc(doc(db, 'config', 'accessRoles'), { roles: out, at: serverTimestamp(), by: ME.email });
+  await fsSetDoc(doc(db, 'config', 'accessRoles'), { roles: out, at: serverTimestamp(), by: ME.email });
 }
 /** Ask, do it, say so, read the list again. */
 async function acxDo(ask, fn, ok) {

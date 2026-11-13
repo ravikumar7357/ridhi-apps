@@ -481,12 +481,12 @@ async function b2bImgSave(list, orderNo) {
   for (const x of list) {
     const id = b2bImgId(x.sku);
     try {
-      await setDoc(doc(db, 'b2bimg', id), { sku: obUC(x.sku), d: x.d, order: orderNo || '', by: ME.email || '', at });
+      await fsSetDoc(doc(db, 'b2bimg', id), { sku: obUC(x.sku), d: x.d, order: orderNo || '', by: ME.email || '', at });
       ok.add(obUC(x.sku)); idx[id] = at; B2BIMG.map[obUC(x.sku)] = x.d; B2BIMG.asked.add(obUC(x.sku));
     } catch (e) { failed++; }
   }
   if (ok.size) {
-    try { await setDoc(doc(db, 'b2bimg', '_index'), { skus: idx }, { merge: true }); if (B2BIMG.idx) Object.assign(B2BIMG.idx, idx); }
+    try { await fsSetDoc(doc(db, 'b2bimg', '_index'), { skus: idx }, { merge: true }); if (B2BIMG.idx) Object.assign(B2BIMG.idx, idx); }
     catch (e) { failed += ok.size; ok.clear(); }
   }
   return { saved: ok.size, failed, ok };

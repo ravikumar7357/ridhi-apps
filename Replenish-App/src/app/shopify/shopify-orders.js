@@ -103,7 +103,7 @@ async function loadShopMeta() {
   } catch (e) { /* nothing saved yet, or no read access */ }
 }
 async function saveShopMeta() {
-  await setDoc(doc(db, 'audit', 'shoporders'),
+  await fsSetDoc(doc(db, 'audit', 'shoporders'),
     { m: SHOP_META, n: Object.keys(SHOP_META).length, by: ME.email, saved: serverTimestamp() });
 }
 
@@ -147,7 +147,7 @@ async function loadShopSku() {
   } catch (e) { /* nothing saved yet, or no read access */ }
 }
 async function saveShopSku() {
-  await setDoc(doc(db, 'audit', 'skumeta'),
+  await fsSetDoc(doc(db, 'audit', 'skumeta'),
     { m: SHOP_SKU, n: Object.keys(SHOP_SKU).length, by: ME.email, saved: serverTimestamp() });
 }
 const soSku = sku => SHOP_SKU[String(sku || '').trim().toUpperCase()] || {};
@@ -441,7 +441,7 @@ async function saveStockDoc(brand, map) {
       + 'so nothing was saved — the quantities you already had are untouched. '
       + 'Amazon is usually still building the report; try again in a few minutes.');
   }
-  await setDoc(doc(db, 'stock', brand), { m: map, n, at: serverTimestamp() });
+  await fsSetDoc(doc(db, 'stock', brand), { m: map, n, at: serverTimestamp() });
   return n;
 }
 

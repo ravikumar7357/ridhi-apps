@@ -127,9 +127,9 @@ function replMasterSync() {
 async function saveReplCache(brand, rows, recCols, catalogSkus) {
   const chunks = Math.ceil(rows.length / REPL_CHUNK) || 1;
   for (let i = 0; i < chunks; i++) {
-    await setDoc(doc(db, 'replrows', `${brand}_${i}`), { r: rows.slice(i * REPL_CHUNK, (i + 1) * REPL_CHUNK) });
+    await fsSetDoc(doc(db, 'replrows', `${brand}_${i}`), { r: rows.slice(i * REPL_CHUNK, (i + 1) * REPL_CHUNK) });
   }
-  await setDoc(doc(db, 'repl', brand), { chunks, n: rows.length, recCols: recCols || [], catalogSkus: catalogSkus || [], rows: null, at: serverTimestamp() });
+  await fsSetDoc(doc(db, 'repl', brand), { chunks, n: rows.length, recCols: recCols || [], catalogSkus: catalogSkus || [], rows: null, at: serverTimestamp() });
   await saveReplSlim(brand, rows, catalogSkus);
 }
 /** The slim copy, written every time the full one is: what a SKU is and what FBA holds, nothing else. */
@@ -137,9 +137,9 @@ async function saveReplSlim(brand, rows, catalogSkus) {
   const slim = (rows || []).map(replSlimRow);
   const chunks = Math.ceil(slim.length / REPL_SLIM_CHUNK) || 1;
   for (let i = 0; i < chunks; i++) {
-    await setDoc(doc(db, 'replslimrows', `${brand}_${i}`), { r: slim.slice(i * REPL_SLIM_CHUNK, (i + 1) * REPL_SLIM_CHUNK) });
+    await fsSetDoc(doc(db, 'replslimrows', `${brand}_${i}`), { r: slim.slice(i * REPL_SLIM_CHUNK, (i + 1) * REPL_SLIM_CHUNK) });
   }
-  await setDoc(doc(db, 'replslim', brand), { chunks, n: slim.length, catalogSkus: catalogSkus || [], at: serverTimestamp() });
+  await fsSetDoc(doc(db, 'replslim', brand), { chunks, n: slim.length, catalogSkus: catalogSkus || [], at: serverTimestamp() });
   await saveReplShop(brand, rows);
 }
 
@@ -161,14 +161,14 @@ async function saveReplShop(brand, rows, dataAt) {
   const out = (rows || []).map(r => { const o = {}; REPL_SHOP_FIELDS.forEach(k => { if (r && r[k] != null && r[k] !== '') o[k] = r[k]; }); return o; });
   const chunks = Math.ceil(out.length / REPL_SHOP_CHUNK) || 1;
   for (let i = 0; i < chunks; i++) {
-    await setDoc(doc(db, 'replshoprows', `${brand}_${i}`), { r: out.slice(i * REPL_SHOP_CHUNK, (i + 1) * REPL_SHOP_CHUNK) });
+    await fsSetDoc(doc(db, 'replshoprows', `${brand}_${i}`), { r: out.slice(i * REPL_SHOP_CHUNK, (i + 1) * REPL_SHOP_CHUNK) });
   }
   /* `dataAt` is WHEN AMAZON'S FIGURES WERE READ — the snapshot's own time, not the moment this copy was written. A copy
    * written today from last week's snapshot must say last week, or it looks fresher than it is. `ful` is SKU → Fulfillable
    * on its own (well under 100 KB), so Shopify Orders reads this one record and never the rows. */
   const ful = {};
   out.forEach(r => { if (r.sku) ful[r.sku] = Number(r.fulfillable) || 0; });
-  await setDoc(doc(db, 'replshop', brand), { chunks, n: out.length, at: serverTimestamp(), dataAt: dataAt || serverTimestamp(), ful });
+  await fsSetDoc(doc(db, 'replshop', brand), { chunks, n: out.length, at: serverTimestamp(), dataAt: dataAt || serverTimestamp(), ful });
 }
 /** When the copy's figures were read from Amazon: `dataAt`, or — for a copy written before it existed — `at`. */
 const replShopAt = d => { const t = (d && (d.dataAt || d.at)) || null; return t && t.toDate ? t.toDate() : null; };
@@ -421,7 +421,7 @@ $('rTable').addEventListener('change', async e => {
   if (val) STATUS_OVR[skuU] = val; else delete STATUS_OVR[skuU];
   PROJ_VER++;                                            // stopped feeds the forecast too → drop its cache
   renderRepl();                                          // status change flips stopped → Req columns + subtotals
-  try { await setDoc(doc(db, 'repl', 'prodstatus'), { statusOverride: { [skuU]: val || null } }, { merge: true }); }
+  try { await fsSetDoc(doc(db, 'repl', 'prodstatus'), { statusOverride: { [skuU]: val || null } }, { merge: true }); }
   catch (err) { rMsg('Could not save status: ' + (err.message || err), true); }
 });
 $('rTable').addEventListener('focusout', e => {                 // opened but clicked away with no change → back to the pill
@@ -444,7 +444,7 @@ async function saveProjOvr(inp) {
   if (val == null) delete PROJ_OVR[key]; else PROJ_OVR[key] = val;
   PROJ_VER++;                                            // a manual Proj changes the forecast → drop its cache
   renderRepl();                                          // Excess + every later month carry from this
-  try { await setDoc(doc(db, 'repl', 'projoverride'), { map: { [key]: val }, by: ME.email, at: serverTimestamp() }, { merge: true }); }
+  try { await fsSetDoc(doc(db, 'repl', 'projoverride'), { map: { [key]: val }, by: ME.email, at: serverTimestamp() }, { merge: true }); }
   catch (err) { rMsg('Could not save the projection: ' + (err.message || err), true); }
 }
 $('rTable').addEventListener('click', e => {
@@ -516,7 +516,7 @@ $('pjFile').onchange = async e => {
     if (!confirm(`Set the ${mLabel} projection for ${n} SKU(s)?${bad ? `\n(${bad} row(s) had no usable QTY and will be skipped.)` : ''}\n\nSKUs not in this file keep whatever they already have.`)) return;
     Object.assign(PROJ_OVR, patch); PROJ_VER++;
     renderRepl();
-    await setDoc(doc(db, 'repl', 'projoverride'), { map: patch, by: ME.email, at: serverTimestamp() }, { merge: true });
+    await fsSetDoc(doc(db, 'repl', 'projoverride'), { map: patch, by: ME.email, at: serverTimestamp() }, { merge: true });
     pjHave();
     rMsg(`${mLabel} projection set for ${nf(n)} SKU(s).`);
     $('projModal').classList.add('hide');
@@ -531,7 +531,7 @@ $('pjClear').onclick = async () => {
   keys.forEach(k => { patch[k] = null; delete PROJ_OVR[k]; }); PROJ_VER++;
   renderRepl();
   try {
-    await setDoc(doc(db, 'repl', 'projoverride'), { map: patch, by: ME.email, at: serverTimestamp() }, { merge: true });
+    await fsSetDoc(doc(db, 'repl', 'projoverride'), { map: patch, by: ME.email, at: serverTimestamp() }, { merge: true });
     pjHave(); pjErr('');
     rMsg(`Cleared ${keys.length} manual projection(s) for ${mLabel}.`);
   } catch (err) { pjErr('Could not clear: ' + (err.message || err)); }

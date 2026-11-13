@@ -215,7 +215,7 @@ async function saveHidden(patch) {
   Object.entries(patch).forEach(([k, v]) => { if (v) HIDDEN[k] = 1; else delete HIDDEN[k]; });
   R_VER++;
   try {
-    await setDoc(doc(db, 'repl', 'prodstatus'), { hidden: patch }, { merge: true });
+    await fsSetDoc(doc(db, 'repl', 'prodstatus'), { hidden: patch }, { merge: true });
     renderHideList();
     renderRepl();
   } catch (e) {
