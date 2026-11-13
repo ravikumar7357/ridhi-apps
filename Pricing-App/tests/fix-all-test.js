@@ -23,18 +23,20 @@ function setup(opts) {
   const handed = [];
   const saved = [];
   let C;
+  // the title last sent for a SKU (a real send: apply true), as Amazon would hold it
+  const sentTitle = sku => { const p = C.calls.filter(c => c.lfix === 'patch' && c.apply && c.sku === sku).slice(-1)[0]; const t = p && p.patches.find(x => x.path === '/attributes/item_name'); return t ? t.value[0].value : ''; };
   const amazon = opts.amazon || {};             // what the re-read answers: { work: sku (old title still), rej: sku (an ERROR on item_name) }
   const baCall = async q => {
     if (q.lfix === 'content') {
       const items = {};
       q.skus.split(',').forEach(sku => {
-        const it = C.FA.run && C.FA.run.items.find(each => each.sku === sku);
-        const title = it && sku !== amazon.work ? it.after : (C.LI_WS.live.SP[sku] || {}).catTitle;
+        const title = sku !== amazon.work && sentTitle(sku) || (C.LI_WS.live.SP[sku] || {}).catTitle;
         items[sku] = { productType: 'NAPKIN', item_name: [{ value: title }], bullet_point: [1, 2, 3, 4, 5].map(n => ({ value: 'b' + n })), product_description: [{ value: 'd'.repeat(300) }], generic_keyword: [{ value: 'cotton' }] };
       });
       return { items };
     }
-    if (q.lfix === 'get') return { productType: 'NAPKIN', status: ['BUYABLE', 'DISCOVERABLE'], attributes: (opts.attrs && opts.attrs[q.sku]) || {},
+    if (q.lfix === 'get') return { productType: 'NAPKIN', status: ['BUYABLE', 'DISCOVERABLE'],
+      attributes: Object.assign({}, (opts.attrs && opts.attrs[q.sku]) || {}, q.sku !== amazon.work && sentTitle(q.sku) ? { item_name: [{ value: sentTitle(q.sku), language_tag: 'en_US' }] } : {}),
       issues: q.sku === amazon.rej ? [{ severity: 'ERROR', message: 'The provided value for item_name is not a valid value', attrs: ['item_name'] }] : [] };
     return {};
   };
@@ -101,59 +103,66 @@ const patchCalls = (C, apply) => C.calls.filter(c => c.lfix === 'patch' && c.app
       strip(open).slice(0, 900));
     C.FA.open.clear();
 
-    console.log('== 1 click → 10 items, each with its own size and colour; Amazon checks each first ==');
-    await C.faStart('SP|PB|title');
-    const run = C.FA.run;
-    ok('Amazon checks all 10 first (apply: false = VALIDATION_PREVIEW), nothing sent', patchCalls(C, false).length === 10 && patchCalls(C, true).length === 0 && run.step === 'review' && run.items.length === 10);
-    ok('each child gets ITS OWN title: its own colour after " - ", its own size, 10 different titles', run.items.every(it => it.after.endsWith(' - ' + A.cat[it.sku].color) && it.after.includes(sizeText(A.cat[it.sku].size)) && it.after.length <= 75)
-      && new Set(run.items.map(it => it.after)).size === 10, run.items.map(it => it.sku + ': ' + it.after).join(' | '));
-    ok('…and each patch names only that child: item_name with its own title', patchCalls(C, false).every(c => c.patches.length === 1 && c.patches[0].path === '/attributes/item_name'
-      && c.patches[0].value[0].value === run.items.find(it => it.sku === c.sku).after));
-    ok('…brand, product, size, colour, material and print kept; the long "uses" words go', run.items.every(it => /^Ridhi Cloth Napkins 100% Cotton \d+ x \d+ Inch Block Print - \w+$/.test(it.after)));
-    const rh = C.faBlockHtml('SP', 'PB');
-    ok('the answer: "10 Amazon will accept · 0 Amazon says no", To send (10), Approve & send 10, Reject all', /10 Amazon will accept · 0 Amazon says no/.test(strip(rh)) && /To send \(10\)/.test(rh)
-      && /data-fa-act="approve">Approve &amp; send 10</.test(rh) && /data-fa-act="reject">Reject all</.test(rh), strip(rh).slice(0, 400));
-    A.review = Object.fromEntries(run.items.map(it => [it.sku, JSON.stringify(it.patches)]));
+    console.log('== 1 click → the Amazon check popup: 10 items, each with its own size and colour; Amazon checks each first ==');
+    const r = C.faStart('SP|PB|title');
+    await C.SQ.run.checked;
+    const run = C.SQ.run;
+    const afterOf = sku => run.jobs.find(j => j.sku === sku).plan.after;
+    ok('Amazon checks all 10 first (apply: false = VALIDATION_PREVIEW), nothing sent', patchCalls(C, false).length === 10 && patchCalls(C, true).length === 0 && run.step === 'review' && run.jobs.length === 10
+      && C.SQ.screens.slice(-1)[0] === 'Listing Health');
+    ok('each child gets ITS OWN title: its own colour after " - ", its own size, 10 different titles', run.jobs.every(j => afterOf(j.sku).endsWith(' - ' + A.cat[j.sku].color) && afterOf(j.sku).includes(sizeText(A.cat[j.sku].size)) && afterOf(j.sku).length <= 75)
+      && new Set(run.jobs.map(j => afterOf(j.sku))).size === 10, run.jobs.map(j => j.sku + ': ' + afterOf(j.sku)).join(' | '));
+    ok('…and each patch names only that child: item_name with its own title', patchCalls(C, false).every(c => c.patches.length === 1 && c.patches[0].path === '/attributes/item_name' && c.patches[0].value[0].value === afterOf(c.sku)));
+    ok('…brand, product, size, colour, material and print kept; the long "uses" words go', run.jobs.every(j => /^Ridhi Cloth Napkins 100% Cotton \d+ x \d+ Inch Block Print - \w+$/.test(afterOf(j.sku))));
+    const pop = C.el('spModalBox').innerHTML;
+    ok('the popup: "10 Amazon will accept · 0 Amazon says no", each title before → after, [Approve & send 10] [Cancel]', /10 Amazon will accept · 0 Amazon says no/.test(strip(pop))
+      && /<small>Title<\/small> <del>Ridhi Cloth Napkins 100% Cotton 18 x 18 Inch Block Print Reusable Dinner Napkins for Kitchen Party Wedding - Blue<\/del> → <ins>Ridhi Cloth Napkins 100% Cotton 18 x 18 Inch Block Print - Blue<\/ins>/.test(pop)
+      && /data-sq="approve">Approve &amp; send 10</.test(pop) && /data-sq="cancel">Cancel</.test(pop), strip(pop).slice(0, 400));
+    A.review = Object.fromEntries(run.jobs.map(j => [j.sku, JSON.stringify(j.body.patches)]));
 
     console.log('== Approve & send → read again → Accepted / Rejected / Amazon working ==');
-    await C.faApprove();
+    await C.sqApprove();
     ok('the 10 are sent for real (apply: true), one by one', patchCalls(C, true).length === 10);
-    ok('every change is kept with its OLD title in listingrules/fixlog', C.FA.log.length === 10 && A.saved.some(s => s.path === 'listingrules/fixlog' && s.data.rows.length === 10)
+    const st = Object.fromEntries(run.jobs.map(j => [j.sku, j.state]));
+    ok('after the re-read: ✅ Accepted where Amazon holds the new title, ⏳ still working where not yet, ❌ Rejected + why on an ERROR',
+      Object.entries(st).filter(([sku]) => !['L7', 'L8'].includes(sku)).every(([, v]) => v === 'accepted') && st.L7 === 'working' && st.L8 === 'rejected', JSON.stringify(st));
+    ok('…the reason in plain words', /A value Amazon does not accept/.test(run.jobs.find(j => j.sku === 'L8').why), run.jobs.find(j => j.sku === 'L8').why);
+    ok('the popup says so: "✅ 8 accepted · ❌ 1 rejected (…) · ⏳ 1" and Check again', /✅ 8 accepted · ❌ 1 rejected \(A value Amazon does not accept\) · ⏳ 1/.test(strip(C.el('spModalBox').innerHTML)) && /data-sq="again"/.test(C.el('spModalBox').innerHTML), strip(C.el('spModalBox').innerHTML).slice(0, 300));
+    C.sqClose();
+    await r;
+    ok('every change is kept with its OLD title in listingrules/fixlog, with Amazon\'s answer', C.FA.log.length === 10 && A.saved.some(x => x.path === 'listingrules/fixlog' && x.data.rows.length === 10)
       && C.FA.log.every(rec => rec.before.title && rec.before.title.length > 75 && rec.after.title.length <= 75 && rec.row === 'title'), JSON.stringify(C.FA.log[0]));
+    ok('…and the records follow (History)', C.FA.log.filter(x => x.state === 'accepted').length === 8 && C.FA.log.find(x => x.sku === 'L8').state === 'rejected' && C.FA.log.find(x => x.sku === 'L7').state === 'working');
+    ok('…and each send is in the send log too (lhistAdd, Listing History)', A.saved.some(x => /^listingrules\/sendlog_/.test(x.path) && Object.values(x.data.rows).some(row => row.sku === 'L0' && row.field === 'Title' && row.screen === 'Listing Health')));
     await idle(C);
-    const st = Object.fromEntries(C.FA.run.items.map(it => [it.sku, it.state]));
-    ok('after the re-read: ✅ Accepted where Amazon holds the new title, ⏳ Amazon working where not yet, ❌ Rejected + why on an ERROR',
-      Object.entries(st).filter(([sku]) => !['L7', 'L8'].includes(sku)).every(([, s]) => s === 'accepted') && st.L7 === 'working' && st.L8 === 'rejected', JSON.stringify(st));
-    const L8 = C.FA.run.items.find(it => it.sku === 'L8');
-    ok('…the reason in plain words', /not one Amazon accepts/.test(L8.why), L8.why);
-    const sh = strip(C.faBlockHtml('SP', 'PB'));
-    ok('the run says so: "✅ 8 accepted · ⏳ 1 Amazon working · ❌ 1 rejected"', /✅ 8 accepted · ⏳ 1 Amazon working · ❌ 1 rejected/.test(sh), sh.slice(0, 300));
-    ok('…and the records follow (History)', C.FA.log.filter(r => r.state === 'accepted').length === 8 && C.FA.log.find(r => r.sku === 'L8').state === 'rejected');
     const g2 = C.faGroups('SP', 'PB', C.faKids('SP', 'PB')).find(g => g.key === 'title');
     ok('the rows update: the 9 sent wait for Amazon to show the new title; only the rejected one is still in the row', g2 && g2.kids.length === 1 && g2.kids[0].sku === 'L8' && g2.waiting.length === 9,
       g2 && JSON.stringify({ kids: g2.kids.map(k => k.sku), waiting: g2.waiting.length }));
-    ok('…our submitted titles are the new ones on every screen (the live entries)', C.LI_WS.live.SP.L0.title === C.FA.run.items.find(it => it.sku === 'L0').after);
-    C.faReject();
+    ok('…our submitted titles are the new ones on every screen (the live entries)', C.LI_WS.live.SP.L0.title === afterOf('L0'));
     const hist = C.faBlockHtml('SP', 'PB');
     ok('History lists the 10 changes with their state and Put back', /History · 10 changes sent from here/.test(hist) && (hist.match(/data-fa-act="putback"/g) || []).length === 10);
 
-    console.log('== Put back: Amazon checks the old title first, then it is sent ==');
-    const rec = C.FA.log.find(r => r.sku === 'L0');
-    await C.faPutBack(rec.id);
+    console.log('== Put back: the same popup — Amazon checks the old title first, then it is sent ==');
+    const rec = C.FA.log.find(x => x.sku === 'L0');
+    const pr = C.faPutBack(rec.id);
+    await C.SQ.run.checked;
     const pc = patchCalls(C, false).slice(-1)[0];
-    ok('Put back asks Amazon about the OLD title (nothing sent yet)', C.FA.putting && C.FA.putting.step === 'ok' && pc.sku === 'L0' && pc.patches[0].value[0].value === rec.before.title);
-    await C.faPutSend();
-    ok('…Send put back sends it; the record says when', patchCalls(C, true).slice(-1)[0].patches[0].value[0].value === rec.before.title && rec.back > 0 && !C.FA.putting
-      && /↺ Put back/.test(C.faHistHtml('SP', 'PB')));
+    ok('Put back → the popup: Amazon checks the OLD title (nothing sent yet), "✓ Amazon will accept"', pc.sku === 'L0' && pc.patches[0].value[0].value === rec.before.title && /✓ Amazon will accept/.test(C.el('spModalBox').innerHTML)
+      && C.SQ.screens.slice(-1)[0] === 'Listing Health · Put back');
+    await C.sqApprove();
+    C.sqClose();
+    await pr;
+    ok('…Approve & send sends it; the record says when', patchCalls(C, true).slice(-1)[0].patches[0].value[0].value === rec.before.title && rec.back > 0 && /↺ Put back/.test(C.faHistHtml('SP', 'PB')));
   }
 
   console.log('== one child\'s Fix gives exactly what Fix all gives that child ==');
   {
     const { C } = setup();
     for (const sku of ['L0', 'L3', 'L9']) {
-      C.FA.run = null;
-      await C.faStart('SP|PB|title', sku);
-      ok(`${sku}: one child alone → one item, the same patch as in Fix all`, C.FA.run.items.length === 1 && JSON.stringify(C.FA.run.items[0].patches) === A.review[sku], C.FA.run.items.map(it => it.sku).join());
+      C.faStart('SP|PB|title', sku);
+      await C.SQ.run.checked;
+      ok(`${sku}: one child alone → the popup with one item, the same patch as in Fix all`, C.SQ.run.jobs.length === 1 && JSON.stringify(C.SQ.run.jobs[0].body.patches) === A.review[sku], C.SQ.run.jobs.map(j => j.sku).join());
+      C.sqClose();
     }
   }
 
@@ -166,32 +175,42 @@ const patchCalls = (C, apply) => C.calls.filter(c => c.lfix === 'patch' && c.app
     ok('L5 says Linen: the template would write "Cotton" — a word made up → not safe, with the reason', g.kids.length === 10 && !p5.ok && /cotton/i.test(p5.why), p5.why);
     ok('L6 has no size in the catalogue → not safe ("the catalogue has no size")', !p6.ok && /no size/.test(p6.why), p6.why);
     ok('the row offers "Fix all 8"', />Fix all 8</.test(C.faBlockHtml('SP', 'PB')));
-    await C.faStart('SP|PB|title');
-    ok('Fix all sends only the 8 to Amazon\'s check; the 2 wait for your OK', patchCalls(C, false).length === 8 && C.FA.run.held.length === 2 && !C.FA.run.items.some(it => ['L5', 'L6'].includes(it.sku)));
-    ok('"8 Amazon will accept · 0 Amazon says no · 2 need your OK (reason)"', /8 Amazon will accept · 0 Amazon says no · 2 need your OK \(.+\)/.test(strip(C.faRunHtml(C.FA.run))), strip(C.faRunHtml(C.FA.run)).slice(0, 300));
+    C.faStart('SP|PB|title');
+    await C.SQ.run.checked;
+    ok('Fix all sends only the 8 to Amazon\'s check; the 2 wait for your OK', patchCalls(C, false).length === 8 && C.SQ.run.opts.held.length === 2 && !C.SQ.run.jobs.some(j => ['L5', 'L6'].includes(j.sku)));
+    ok('the popup: "8 Amazon will accept · 0 Amazon says no" and "2 need your OK — not in this send", each with its reason', /8 Amazon will accept · 0 Amazon says no/.test(strip(C.el('spModalBox').innerHTML))
+      && /2 need your OK — not in this send/.test(C.el('spModalBox').innerHTML) && /L6: the catalogue has no size/.test(C.el('spModalBox').innerHTML), strip(C.el('spModalBox').innerHTML).slice(0, 300));
+    C.sqClose();
   }
 
-  console.log('== Amazon says no to one in its check → only the others can be sent; Reject all sends nothing ==');
+  console.log('== Amazon says no to one in its check → only the others can be sent; Cancel sends nothing ==');
   {
     const { C } = setup({ post: body => (body.sku === 'L2' && !body.apply ? { ok: false, previewOnly: true, error: 'Amazon would reject this: The value is not a valid value for item_name' } : { ok: true, previewOnly: !body.apply, submissionId: 'sub-' + body.sku }) });
-    await C.faStart('SP|PB|title');
-    const h = strip(C.faRunHtml(C.FA.run));
-    ok('"9 Amazon will accept · 1 Amazon says no", with the reason', /9 Amazon will accept · 1 Amazon says no/.test(h) && /Amazon says no \(1\)/.test(h) && /not one Amazon accepts/.test(h), h.slice(0, 400));
-    C.faReject();
-    ok('Reject all: nothing is sent, the plan is gone', patchCalls(C, true).length === 0 && C.FA.run === null);
-    await C.faStart('SP|PB|title');
-    await C.faApprove();
+    C.faStart('SP|PB|title');
+    await C.SQ.run.checked;
+    const h = strip(C.el('spModalBox').innerHTML);
+    ok('"9 Amazon will accept · 1 Amazon says no", with the reason', /9 Amazon will accept · 1 Amazon says no/.test(h) && /Amazon says no \(1\)/.test(h) && /A value Amazon does not accept/.test(h), h.slice(0, 400));
+    C.sqClose();
+    ok('Cancel: nothing is sent, the popup is gone', patchCalls(C, true).length === 0 && !C.sqIsOpen());
+    C.faStart('SP|PB|title');
+    await C.SQ.run.checked;
+    await C.sqApprove();
+    C.sqClose();
     ok('Approve & send 9: L2 is not sent', patchCalls(C, true).length === 9 && !patchCalls(C, true).some(c => c.sku === 'L2'));
   }
 
   console.log('== the test site: "not sent to Amazon" ==');
   {
     const { C } = setup({ window: { __TEST_ERP: true } });
-    await C.faStart('SP|PB|title');
-    ok('no call to Amazon at all; the 10 say "Test site — not sent to Amazon"', patchCalls(C, false).length === 0 && C.FA.run.items.length === 10 && C.FA.run.items.every(it => it.state === 'test')
-      && /Test site — not sent to Amazon/.test(C.faRunHtml(C.FA.run)));
-    await C.faApprove();
-    ok('…Close: still nothing sent, nothing written', patchCalls(C, true).length === 0 && C.FA.run.items.every(it => it.state === 'notsent') && C.FA.log.length === 0);
+    const r = C.faStart('SP|PB|title');
+    await C.SQ.run.checked;
+    ok('no call to Amazon at all; the popup says Amazon\'s check cannot run here, with the 10 changes', patchCalls(C, false).length === 0 && C.SQ.run.jobs.length === 10 && C.SQ.run.jobs.every(j => j.state === 'test')
+      && /Test site — Amazon's check cannot run here/.test(C.el('spModalBox').innerHTML));
+    await C.sqApprove();
+    ok('…Approve: "Test site — not sent to Amazon"; still nothing sent', patchCalls(C, true).length === 0 && C.SQ.run.jobs.every(j => j.state === 'notsent') && /<b>Test site — not sent to Amazon<\/b>/.test(C.el('spModalBox').innerHTML));
+    C.sqClose();
+    await r;
+    ok('…Close: nothing written', C.FA.log.length === 0);
   }
 
   console.log('== an empty spec: copied only when every sibling that has it uses the same value ==');
@@ -235,9 +254,12 @@ const patchCalls = (C, apply) => C.calls.filter(c => c.lfix === 'patch' && c.app
     const plans = C.faPlans(g, C.hCtx());
     const same = items.every(item => { const p = plans.find(each => each.sku === item.sku); return p && p.ok && JSON.stringify(p.patches) === JSON.stringify(C.spPatches(item, item.after)); });
     ok('every ready child: the very patches the planner\'s own Fix sends (title if room, else Item Highlights, else hidden search words)', same && plans.filter(p => p.ok).length === items.length);
-    await C.faStart('SP|PB|season');
-    const n = C.FA.run.items.length;
-    await C.faApprove();
+    const rs = C.faStart('SP|PB|season');
+    await C.SQ.run.checked;
+    const n = C.SQ.run.jobs.length;
+    await C.sqApprove();
+    C.sqClose();
+    await rs;
     await idle(C);
     ok('sent: written to the fix log AND the planner\'s own log (its Put back keeps working)', C.FA.log.length === n && C.SP.log.length === n && C.SP.log.every(r => r.before && r.after && r.seasons.length), `${C.FA.log.length} / ${C.SP.log.length} / ${n}`);
   }

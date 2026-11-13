@@ -94,7 +94,7 @@ function load(opts) {
     + (opts.sp || opts.fa || opts.sq ? ' SQ, sqSendWithCheck, sqApprove, sqClose, sqCheckAgain, sqEdit, sqPlain, sqHow, sqName, lhistAdd, sqIsOpen, sqBusy,' : '')
     + (opts.le ? ' leSend, setLE: (le, edit) => { LE = le; LE_EDIT = edit; }, getLE: () => ({ LE, LE_EDIT, LE_RESULT }), lcUpSend,' : '')
     + (opts.im ? ' imSend, imPasteMany, setIM: (im, start, now) => { IM = im; IM_START = start; IM_NOW = now; }, getIM: () => ({ IM, IM_START, IM_NOW }), IM_SEL, setClip: c => { IM_CLIP = c; }, IML,' : '')
-    + (opts.fa ? ' FA, faBlockHtml, faGroups, faCards, faPlan, faPlans, faShortTitle, faStart, faApprove, faVerify, faReject, faPutBack, faPutSend, faOnGet, faKids, faClick, faRunHtml, faHistHtml, faLogLoad, faOpenImg, faOpenLerr, spParentPanelHtml, liWsPanelList,' : '') + ' };';
+    + (opts.fa ? ' FA, faBlockHtml, faGroups, faCards, faPlan, faPlans, faShortTitle, faStart, faPutBack, faChangeList, faOnGet, faKids, faClick, faHistHtml, faLogLoad, faOpenImg, faOpenLerr, spParentPanelHtml, liWsPanelList,' : '') + ' };';
   const api = new Function(...Object.keys(ctx), src + tail)(...Object.values(ctx));
   // api.rows ARE the HEALTH rows (the same objects, brand on each): a test that changes one changes what every screen judges.
   api.score = sku => { const r = api.rows.find(x => x.sku === sku); return api.healthOf(r, api.hCtx()); };

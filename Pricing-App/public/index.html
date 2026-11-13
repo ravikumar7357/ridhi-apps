@@ -18044,13 +18044,13 @@ if (typeof document !== 'undefined' && document.addEventListener && $('spSwitch'
  *   A fix must pass the same checks as a single listing's (spChecks: nothing lost, nothing made up…), must not add a Listing Rules
  *   problem and must clear the problem itself — else that child "needs your OK" with the reason. Pictures, suppressed listings and
  *   Amazon errors have no automatic fix: Open in Image Manager / Listing Errors with those children already picked.
- * Flow: Amazon checks every change first (POST lfix=patch apply:false → VALIDATION_PREVIEW) → "X Amazon will accept · Y Amazon says
- *   no" → To send (X) → Approve & send X / Reject all → each sent child is read again → ✅ Accepted / ❌ Rejected + why / ⏳ Amazon working.
+ * Flow (#10): THE ONE SEND PATH, listing-send-check.js's Amazon check popup — Amazon checks every change first (VALIDATION_PREVIEW) →
+ *   "X Amazon will accept · Y Amazon says no" → Approve & send X / Cancel → each sent child is read again → ✅ / ❌ + why / ⏳.
  *   Every change sent is kept with its OLD value in listingrules/fixlog (the backend's own log keeps no old values) — the block's
  *   History lists them and Put back sends the old value again (Amazon's check first). Season changes are also written to the Season
  *   planner's own log (listingrules/seasonlog), so its Put back keeps working. The test site sends nothing: "not sent to Amazon".
  * No backend change: lfix=patch / ?lfix=content / ?lfix=get as they are; the Workspace's read queue (liWsQueue) does the reads.
- * Main functions: faBlockHtml, faGroups, faCards, faPlan, faShortTitle, faStart, faApprove, faVerify, faPutBack, faOpenImg, faOpenLerr.
+ * Main functions: faBlockHtml, faGroups, faCards, faPlan, faShortTitle, faStart (through sqSendWithCheck), faPutBack, faOpenImg, faOpenLerr.
  * Pricing-App/tests/fix-all-test.js runs this file with the rules, the Workspace and the planner in a stub page. */
 
 const FA_TITLE_MAX = 75;                 // Amazon asks for 75 or less (Item Highlights); the house rule too
@@ -18061,7 +18061,6 @@ const FA_SHOW = 8;                       // children shown under "› Show all N
 let FA = {
   open: new Set(),           // "brand|parent|row" whose children are showing
   more: new Set(),           // …and showing every one of them
-  run: null,                 // the Fix all on its way: { brand, parent, row, name, step: check|review|send|sent, items, held, done, total, test }
   log: null,                 // the change records, once read: [{ id, brand, sku, parent, row, name, attr, before, after, at, by, sub, state, why, back }]
   logErr: '',
   logLoading: false,
@@ -18069,11 +18068,9 @@ let FA = {
   valsV: 0,
   reading: new Set(),        // "brand|sku" whose values are being read for a spec copy
   hist: new Set(),           // "brand|parent" whose History is unfolded
-  putting: null,             // Put back on its way: { id, step: check|ok|no|send|done, why }
 };
 const faNf = n => Number(n || 0).toLocaleString('en-US');
 const faPl = (n, word) => `${faNf(n)} ${word}${n === 1 ? '' : 's'}`;
-const faIsTest = () => typeof window !== 'undefined' && !!window.__TEST_ERP;
 const faCut = (text, n) => { const t = String(text == null ? '' : text); return t.length > n ? t.slice(0, n - 1).replace(/\s+\S*$/, '') + '…' : t; };
 const faKidKey = kid => kid.brand + '|' + kid.sku;
 const faKidsN = n => (n === 1 ? '1 child' : faNf(n) + ' children');
@@ -18390,7 +18387,7 @@ function faDoLine(g, plans) {
 // The row's ONE button: Fix all N (the safe ones), else where a person fixes it, with those children already picked.
 function faRowButton(gk, g, plans) {
   const safe = plans.filter(p => p.ok).length;
-  const busy = FA.run && FA.run.step !== 'sent';
+  const busy = typeof sqIsOpen === 'function' && sqIsOpen();
   if (safe) return `<button type="button" class="fa-btn fa-main" data-fa-act="fix" data-fa-row="${lrEsc(gk)}"${busy ? ' disabled title="Finish the Fix all that is open first"' : ''}>Fix all ${faNf(safe)}</button>`;
   if (plans.some(p => p.wait)) return '<button type="button" class="fa-btn" disabled>Checking…</button>';
   if (g.kind === 'img') return `<button type="button" class="fa-btn" data-fa-act="img" data-fa-row="${lrEsc(gk)}">Open in Image Manager</button>`;
@@ -18410,7 +18407,7 @@ function faKidsHtml(gk, g, plans) {
   const all = FA.more.has(gk);
   const shown = all ? g.kids : g.kids.slice(0, FA_SHOW);
   const safeKind = g.kind === 'title' || g.kind === 'season' || g.kind === 'spec';
-  const busy = FA.run && FA.run.step !== 'sent';
+  const busy = typeof sqIsOpen === 'function' && sqIsOpen();
   const rows = shown.map(kid => {
     const plan = plans[g.kids.indexOf(kid)];
     const one = safeKind && plan.ok ? `<button type="button" class="fa-btn fa-small" data-fa-act="one" data-fa-row="${lrEsc(gk)}" data-fa-sku="${lrEsc(kid.sku)}"${busy ? ' disabled' : ''} title="Fix only this child">Fix</button>` : '';
@@ -18452,102 +18449,49 @@ function faBlockInner(brand, parent, kids) {
   const att = groups.filter(g => g.sev !== 'critical');
   const sec = (title, list) => (list.length ? `<div class="fa-sec"><div class="fa-sec-h">${title}</div>${list.map(row).join('')}</div>` : '');
   const okLine = `<div class="fa-okline"><span aria-hidden="true">✓</span> ${n.ok === 1 ? '1 child has' : faNf(n.ok) + ' children have'} no problem · Nothing to do${n.unk ? ` · ${faNf(n.unk)} not checked yet` : ''}</div>`;
-  const run = FA.run && FA.run.brand === brand && FA.run.parent === parent ? faRunHtml(FA.run) : '';
-  return `<section class="fa" aria-label="This parent's problems">${cards}${run}${sec('Fix first', first)}${sec('Needs attention', att)}${okLine}${faHistHtml(brand, parent)}</section>`;
+  return `<section class="fa" aria-label="This parent's problems">${cards}${sec('Fix first', first)}${sec('Needs attention', att)}${okLine}${faHistHtml(brand, parent)}</section>`;
 }
 
-/* ----- Fix all: Amazon's check, the review, the send, the re-read ----- */
-// Start a Fix all on one row (or one child of it): plan each child, keep the safe ones, ask Amazon about each (nothing is sent yet).
-async function faStart(gk, onlySku) {
-  if (FA.run && FA.run.step !== 'sent') return;
+/* ----- Fix all: THE ONE SEND PATH (#10, listing-send-check.js) — the Amazon check popup ----- */
+// Fix all on one row (or one child of it): every child's own plan; the safe ones go to the popup (Amazon checks each, the person approves,
+// each is sent and read again); the others are named there with their reason. Each one sent is kept with its old value (History, Put back).
+function faStart(gk, onlySku) {
+  if (typeof sqIsOpen === 'function' && sqIsOpen()) return null;
   const [brand, parent, ...rest] = gk.split('|');
   const rowKey = rest.join('|');
   const kids = faKids(brand, parent);
   const g = faGroups(brand, parent, kids).find(each => each.key === rowKey);
-  if (!g) return;
+  if (!g) return null;
   const ctx = hCtx();
   const plans = faPlans(g, ctx).filter(p => !onlySku || p.sku === onlySku);
-  const run = { brand, parent, row: rowKey, gk, name: g.name, kind: g.kind, attr: g.attr || '', step: 'check', items: plans.filter(p => p.ok).map(p => Object.assign({}, p, { state: 'checking' })),
-    held: plans.filter(p => !p.ok), done: 0, total: 0, test: faIsTest(), at: Date.now() };
-  run.total = run.items.length;
-  FA.run = run;
-  faRedraw();
-  if (!run.items.length) { run.step = 'review'; return faRedraw(); }
-  if (run.test) {
-    run.items.forEach(it => { it.state = 'test'; });
-    run.step = 'review';
-    return faRedraw();
-  }
-  for (const it of run.items) {
-    if (FA.run !== run) return;                        // Reject all pressed meanwhile
-    const reply = await faPost(it, false);
-    it.state = reply.ok ? 'ok' : 'no';
-    it.why = reply.ok ? '' : faReason(reply);
-    run.done++;
-    faRedraw();
-  }
-  run.step = 'review';
-  faRedraw();
-}
-// One call to the backend's patch: apply false = Amazon's check only (VALIDATION_PREVIEW), true = the real change (checked again first).
-async function faPost(it, apply) {
-  try {
-    return await imPost({ lfix: 'patch', brand: it.brand, sku: it.sku, productType: it.pt, patches: it.patches, apply, by: (typeof ME !== 'undefined' && ME.email) || '' });
-  } catch (e) {
-    return { ok: false, error: String((e && e.message) || e) };
-  }
-}
-// Amazon's reason in plain words (the planner's wording when it is there).
-function faReason(reply) {
-  const errs = (reply.issues || []).filter(issue => String(issue.severity || '').toUpperCase() === 'ERROR').map(issue => issue.message);
-  const raw = String(reply.error || errs[0] || 'Amazon did not accept it').replace(/^Amazon would reject this:\s*/i, '');
-  return typeof spPlainReason === 'function' ? spPlainReason(raw) : faCut(raw, 220);
-}
-// Approve & send: the ones Amazon accepted, one by one; each kept with its old value; then each is read again from Amazon.
-async function faApprove() {
-  const run = FA.run;
-  if (!run || run.step !== 'review') return;
-  const todo = run.items.filter(it => it.state === 'ok');
-  if (run.test) {
-    run.items.forEach(it => { it.state = 'notsent'; });
-    run.step = 'sent';
-    return faRedraw();
-  }
-  if (!todo.length) return;
-  run.step = 'send';
-  run.done = 0;
-  run.total = todo.length;
-  faRedraw();
+  const run = { brand, parent, row: rowKey, name: g.name, attr: g.attr || '' };
   const records = [];
   const seasonRecs = [];
   const now = Date.now();
-  for (const it of todo) {
-    const reply = await faPost(it, true);
-    if (reply.ok && !reply.previewOnly) {
-      it.state = 'working';
-      it.sub = reply.submissionId || '';
-      it.sentAt = Date.now();
-      const rec = faRecord(it, run, now, it.sub);
+  return sqSendWithCheck(plans.filter(p => p.ok).map(p => ({ brand, sku: p.sku, asin: p.asin, label: p.label, plan: p,
+    body: { lfix: 'patch', brand, sku: p.sku, productType: p.pt, patches: p.patches }, changes: faChangeList(p) })), {
+    screen: 'Listing Health', title: `Fix all: ${g.name}`, held: plans.filter(p => !p.ok).map(p => ({ sku: p.sku, why: p.why })),
+    onSent: job => {
+      const it = Object.assign(job.plan, { sub: job.sub });
+      const rec = faRecord(it, run, now, job.sub);
+      job.rec = rec;
       records.push(rec);
-      it.rec = rec.id;
       if (it.item) seasonRecs.push(faSeasonRecord(it, now));
       faLiveAfterSend(it, now);
-    } else {
-      it.state = 'rejected';
-      it.why = faReason(reply);
-    }
-    run.done++;
-    faRedraw();
-  }
-  run.logErr = records.length ? await faLogAdd(records) : '';
-  if (seasonRecs.length && typeof spLogAdd === 'function') {
-    const err = await spLogAdd(seasonRecs);
-    if (err && !run.logErr) run.logErr = err;
-    if (typeof spRedrawAll === 'function') SP.itemsKey = '';
-  }
-  run.step = 'sent';
-  faReread(run.items.filter(it => it.state === 'working'));
-  faRedraw();
+    },
+    onEdit: job => faOpenKid(null, job.brand + '|' + job.sku),
+    onDone: async sum => {
+      sum.jobs.forEach(job => { if (job.rec) { job.rec.state = job.state; job.rec.why = job.why || ''; } });
+      if (records.length) await faLogAdd(records);
+      if (seasonRecs.length && typeof spLogAdd === 'function') { await spLogAdd(seasonRecs); if (typeof SP !== 'undefined') SP.itemsKey = ''; }
+      faRedraw();
+    } });
+}
+// A plan's change, in words, for the popup: the title before → after, the season words (Item Highlights, search words), the spec copied.
+function faChangeList(p) {
+  if (p.item && typeof spChangeList === 'function') return spChangeList(p.item);
+  if (p.sent && p.sent.spec) return [{ field: sqField(p.sent.spec), old: '(empty)', new: p.after }];
+  return [{ field: 'Title', old: p.oldTitle || p.before, new: p.after }];
 }
 // What a sent change is kept as: the OLD value of every field it changed, so Put back can send it again.
 function faRecord(it, run, now, sub) {
@@ -18581,93 +18525,6 @@ function faLiveAfterSend(it, now) {
   LI_WS.liveV++;
   if (typeof liWsStoreSave === 'function') liWsStoreSave();
 }
-// Read the sent children again from Amazon (content: title and search words; get: issues, Item Highlights, specs); when both reads of
-// a child are in, say what Amazon did with it.
-function faReread(items) {
-  if (typeof liWsQueue !== 'function' || !items.length) return;
-  const by = { SP: [], CPC: [] };
-  items.forEach(it => { it.left = 2; by[it.brand].push(it); });
-  const landed = it => () => {
-    it.left--;
-    if (it.left <= 0) faVerify(it);
-    faRedraw();
-  };
-  ['SP', 'CPC'].forEach(brand => {
-    for (let i = 0; i < by[brand].length; i += LI_WS_BATCH) {
-      const batch = by[brand].slice(i, i + LI_WS_BATCH);
-      const done = batch.map(landed);
-      liWsQueue({ t: 'content', brand, skus: batch.map(it => it.sku), units: batch.length, pk: '', mark: batch.map(it => it.key), done: () => done.forEach(fn => fn()) });
-    }
-    by[brand].forEach(it => liWsQueue({ t: 'get', brand, sku: it.sku, units: 1, pk: '', mark: [it.key], done: landed(it) }));
-  });
-}
-// After the re-read: ❌ Rejected when Amazon now reports an ERROR on a field we changed, ✅ Accepted when the listing holds what was
-// sent, else ⏳ Amazon is still working on it. The record follows.
-function faVerify(it) {
-  const entry = (LI_WS.live[it.brand] || {})[it.sku];
-  if (!entry) return;
-  const attrs = it.patches.map(p => p.path.replace('/attributes/', ''));
-  const err = (entry.iss || []).find(issue => issue.s === 'E' && (issue.a || []).some(a => attrs.includes(a)));
-  const s = it.sent;
-  const same = (s.title == null || lrSameTitle(entry.title, s.title)) && (s.kw == null || String(entry.kw || '') === s.kw.slice(0, 300))
-    && (s.hl == null || JSON.stringify(entry.hl || []) === JSON.stringify(s.hl.map(v => v.slice(0, 300)))) && (!s.spec || !!(entry.specs && entry.specs[s.spec]));
-  if (err) { it.state = 'rejected'; it.why = typeof spPlainReason === 'function' ? spPlainReason(err.m) : err.m; }
-  else it.state = same ? 'accepted' : 'working';
-  const rec = (FA.log || []).find(each => each.id === it.rec);
-  if (rec && rec.state !== it.state) {
-    rec.state = it.state;
-    rec.why = it.why || '';
-    faLogSave();
-  }
-}
-// Reject all: nothing is sent; the plan is dropped.
-function faReject() {
-  FA.run = null;
-  faRedraw();
-}
-// The run, in plain words: Amazon's check (progress), its answer and To send, the send (progress), each child's outcome.
-function faRunHtml(run) {
-  const st = { checking: '… Asking Amazon', ok: '✓ Amazon will accept', no: '✕ Amazon says no', test: 'Test site — not sent to Amazon', working: '⏳ Amazon working',
-    accepted: '✅ Accepted', rejected: '❌ Rejected', notsent: 'Not sent to Amazon (test site)' };
-  const line = it => `<div class="fa-item is-${it.state}"><button type="button" class="fa-kid-o" data-fa-act="kid" data-fa-kid="${lrEsc(it.key)}"><b>${lrEsc(it.label)}</b><small>${lrEsc(it.sku)}</small>`
-    + `<span class="fa-chg">${it.after != null && it.before !== it.after ? `<span class="fa-was">${lrEsc(faCut(it.before, 80))}</span> → <span class="fa-new">${lrEsc(faCut(it.after, 80))}</span>` : `<span class="fa-new">${lrEsc(it.what || '')}</span>`}</span></button>`
-    + `<span class="fa-st">${st[it.state] || ''}${it.why ? ` <span class="fa-why">${lrEsc(it.why)}</span>` : ''}</span></div>`;
-  const held = run.held.length ? `<details class="fa-held"><summary>⚠ ${faKidsN(run.held.length)} need${run.held.length === 1 ? 's' : ''} your OK</summary>`
-    + run.held.map(p => `<div class="fa-item"><button type="button" class="fa-kid-o" data-fa-act="kid" data-fa-kid="${lrEsc(p.key)}"><b>${lrEsc(p.label)}</b><small>${lrEsc(p.sku)}</small><span class="fa-chg"><span class="fa-why">${lrEsc(p.why)}</span></span></button></div>`).join('') + '</details>' : '';
-  const okN = run.items.filter(it => it.state === 'ok').length;
-  const noN = run.items.filter(it => it.state === 'no').length;
-  const heldWhy = run.held.length ? ` · ${faNf(run.held.length)} need your OK (${lrEsc(faCut([...new Set(run.held.map(p => p.why))].slice(0, 2).join('; '), 120))})` : '';
-  let head;
-  let body = '';
-  let bar = '';
-  if (run.step === 'check') {
-    head = `Asking Amazon about ${faPl(run.total, 'change')}… ${faNf(run.done)} of ${faNf(run.total)}`;
-    body = `<div class="fa-pbar" role="progressbar" aria-valuemin="0" aria-valuemax="${run.total}" aria-valuenow="${run.done}"><span style="width:${run.total ? Math.round(run.done * 100 / run.total) : 0}%"></span></div>`;
-    bar = '<button type="button" class="fa-btn" data-fa-act="reject">Stop</button>';
-  } else if (run.step === 'review') {
-    if (run.test) head = `Test site — not sent to Amazon. ${faPl(run.items.length, 'change')} would go to Amazon's check${heldWhy}`;
-    else if (!run.items.length) head = `Nothing can be fixed automatically here${heldWhy}`;
-    else head = `${faNf(okN)} Amazon will accept · ${faNf(noN)} Amazon says no${heldWhy}`;
-    const go = run.items.filter(it => it.state === 'ok' || it.state === 'test');
-    const no = run.items.filter(it => it.state === 'no');
-    body = (go.length ? `<div class="fa-sub">To send (${faNf(go.length)})</div>${go.map(line).join('')}` : '') + (no.length ? `<div class="fa-sub">Amazon says no (${faNf(no.length)})</div>${no.map(line).join('')}` : '') + held;
-    bar = run.test ? '<button type="button" class="fa-btn fa-main" data-fa-act="approve">Close — not sent to Amazon</button>'
-      : (okN ? `<button type="button" class="fa-btn fa-main" data-fa-act="approve">Approve &amp; send ${faNf(okN)}</button>` : '') + `<button type="button" class="fa-btn" data-fa-act="reject">${okN ? 'Reject all' : 'Close'}</button>`;
-  } else if (run.step === 'send') {
-    head = `Sending ${faNf(run.done)} of ${faNf(run.total)}… Amazon checks each one again first.`;
-    body = `<div class="fa-pbar" role="progressbar" aria-valuemin="0" aria-valuemax="${run.total}" aria-valuenow="${run.done}"><span style="width:${run.total ? Math.round(run.done * 100 / run.total) : 0}%"></span></div>`;
-  } else {
-    const c = k => run.items.filter(it => it.state === k).length;
-    head = run.test ? 'Test site — not sent to Amazon.' : [c('accepted') ? `✅ ${faNf(c('accepted'))} accepted` : '', c('working') ? `⏳ ${faNf(c('working'))} Amazon working` : '',
-      c('rejected') ? `❌ ${faNf(c('rejected'))} rejected` : '', c('no') ? `✕ ${faNf(c('no'))} Amazon said no` : ''].filter(Boolean).join(' · ') + heldWhy;
-    const reading = run.items.some(it => it.left > 0);
-    body = run.items.map(line).join('') + held + (run.logErr ? `<div class="fa-err">⚠ Sent, but the note of the old values could not be saved (${lrEsc(run.logErr)}) — keep a copy.</div>` : '');
-    bar = (run.test ? '' : `<button type="button" class="fa-btn" data-fa-act="recheck"${reading ? ' disabled' : ''}>${reading ? 'Reading from Amazon…' : 'Check again'}</button>`)
-      + '<button type="button" class="fa-btn" data-fa-act="close">Close</button>';
-  }
-  return `<div class="fa-run" role="status"><div class="fa-run-h"><b>Fix all: ${lrEsc(run.name)}</b><span>${head}</span></div>${body}<div class="fa-run-a">${bar}</div></div>`;
-}
-
 /* ----- the change records: listingrules/fixlog — History and Put back ----- */
 async function faLogLoad() {
   if (FA.log || FA.logLoading) return FA.log;
@@ -18706,16 +18563,8 @@ function faHistHtml(brand, parent) {
   const st = { working: '⏳ Amazon working', accepted: '✅ Accepted', rejected: '❌ Rejected', sent: 'Sent' };
   const day = at => new Date(at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
   const text = (rec, side) => { const v = rec[side] || {}; return v.title != null ? v.title : v.kw != null ? 'Search words: ' + v.kw : v.hl ? 'Item Highlights: ' + v.hl.join(' · ') : v.spec ? faValText(v.spec) : '(empty)'; };
-  const put = rec => {
-    const p = FA.putting && FA.putting.id === rec.id ? FA.putting : null;
-    if (rec.back) return `<span class="fa-st">↺ Put back ${day(rec.back)}</span>`;
-    if (!p) return `<button type="button" class="fa-btn fa-small" data-fa-act="putback" data-fa-id="${lrEsc(rec.id)}"${FA.putting ? ' disabled' : ''}>Put back</button>`;
-    if (p.step === 'check') return '<span class="fa-st">… Asking Amazon</span>';
-    if (p.step === 'send') return '<span class="fa-st">Sending…</span>';
-    if (p.step === 'no') return `<span class="fa-st">✕ Amazon says no <span class="fa-why">${lrEsc(p.why)}</span></span><button type="button" class="fa-btn fa-small" data-fa-act="putcancel">Close</button>`;
-    if (p.step === 'test') return '<span class="fa-st">Test site — not sent to Amazon</span><button type="button" class="fa-btn fa-small" data-fa-act="putcancel">Close</button>';
-    return `<span class="fa-st">✓ Amazon will accept</span><button type="button" class="fa-btn fa-small fa-main" data-fa-act="putsend">Send put back</button><button type="button" class="fa-btn fa-small" data-fa-act="putcancel">Cancel</button>`;
-  };
+  const put = rec => (rec.back ? `<span class="fa-st">↺ Put back ${day(rec.back)}</span>`
+    : `<button type="button" class="fa-btn fa-small" data-fa-act="putback" data-fa-id="${lrEsc(rec.id)}">Put back</button>`);
   return `<details class="fa-hist"${open ? ' open' : ''}><summary data-fa-act="hist" data-fa-g="${lrEsc(pk)}">History · ${faPl(recs.length, 'change')} sent from here</summary>`
     + recs.slice(0, 40).map(rec => `<div class="fa-item"><div class="fa-kid-o"><b>${lrEsc(rec.label || rec.sku)}</b><small>${lrEsc(rec.sku)} · ${lrEsc(rec.name)} · ${day(rec.at)}${rec.by ? ' · ' + lrEsc(String(rec.by).split('@')[0]) : ''}</small>`
       + `<span class="fa-chg"><span class="fa-was">${lrEsc(faCut(text(rec, 'before'), 80))}</span> → <span class="fa-new">${lrEsc(faCut(text(rec, 'after'), 80))}</span></span></div>`
@@ -18731,40 +18580,27 @@ function faBackPatches(rec) {
   if ('spec' in b && rec.attr) out.push({ op: 'delete', path: '/attributes/' + rec.attr });
   return out;
 }
-// Put back, step 1: Amazon's check of the old values (nothing is sent yet).
-async function faPutBack(id) {
+// Put back: the record's OLD values through THE ONE SEND PATH (the Amazon check popup); once sent, the record says when, and the
+// listing holds the old values again as far as every screen knows.
+function faPutBack(id) {
   const rec = (FA.log || []).find(each => each.id === id);
-  if (!rec || FA.putting) return;
-  FA.putting = { id, step: 'check', why: '' };
-  faRedraw();
-  if (faIsTest()) { FA.putting.step = 'test'; return faRedraw(); }
-  const reply = await faPost({ brand: rec.brand, sku: rec.sku, pt: rec.pt, patches: faBackPatches(rec) }, false);
-  if (!FA.putting || FA.putting.id !== id) return;
-  FA.putting.step = reply.ok ? 'ok' : 'no';
-  FA.putting.why = reply.ok ? '' : faReason(reply);
-  faRedraw();
-}
-// …step 2: send it, mark the record, and the listing holds the old values again as far as every screen knows.
-async function faPutSend() {
-  const p = FA.putting;
-  const rec = p && (FA.log || []).find(each => each.id === p.id);
-  if (!rec || p.step !== 'ok') return;
-  p.step = 'send';
-  faRedraw();
-  const reply = await faPost({ brand: rec.brand, sku: rec.sku, pt: rec.pt, patches: faBackPatches(rec) }, true);
-  if (reply.ok && !reply.previewOnly) {
-    rec.back = Date.now();
-    rec.backBy = (typeof ME !== 'undefined' && ME.email) || '';
-    const b = rec.before || {};
-    faLiveAfterSend({ brand: rec.brand, sku: rec.sku, sent: { title: b.title, kw: b.kw, hl: b.hl } }, rec.back);
-    if ('spec' in b && rec.attr && typeof liWsEntry === 'function') { const entry = liWsEntry(rec.brand, rec.sku); entry.specs = Object.assign({}, entry.specs || {}, { [rec.attr]: false }); }
-    FA.putting = null;
-    await faLogSave();
-  } else {
-    p.step = 'no';
-    p.why = faReason(reply);
-  }
-  faRedraw();
+  if (!rec || (typeof sqIsOpen === 'function' && sqIsOpen())) return null;
+  const b = rec.before || {};
+  const a = rec.after || {};
+  const changes = [];
+  if (b.title != null) changes.push({ field: 'Title', old: a.title || '', new: b.title });
+  if (b.kw != null) changes.push({ field: 'Hidden search words', old: a.kw || '', new: b.kw || '(removed)' });
+  if (b.hl != null) changes.push({ field: 'Item Highlights', old: (a.hl || []).join(' · '), new: b.hl.join(' · ') || '(removed)' });
+  if ('spec' in b && rec.attr) changes.push({ field: sqField(rec.attr), old: faValText(a.spec), new: '(removed)' });
+  return sqSendWithCheck([{ brand: rec.brand, sku: rec.sku, asin: '', label: rec.label || rec.sku, body: { lfix: 'patch', brand: rec.brand, sku: rec.sku, productType: rec.pt, patches: faBackPatches(rec) }, changes }], {
+    screen: 'Listing Health · Put back', title: 'Put back: ' + (rec.label || rec.sku),
+    onSent: () => {
+      rec.back = Date.now();
+      rec.backBy = (typeof ME !== 'undefined' && ME.email) || '';
+      faLiveAfterSend({ brand: rec.brand, sku: rec.sku, sent: { title: b.title, kw: b.kw, hl: b.hl } }, rec.back);
+      if ('spec' in b && rec.attr && typeof liWsEntry === 'function') { const entry = liWsEntry(rec.brand, rec.sku); entry.specs = Object.assign({}, entry.specs || {}, { [rec.attr]: false }); }
+    },
+    onDone: async () => { if (rec.back) await faLogSave(); faRedraw(); } });
 }
 
 /* ----- where a person fixes it: Image Manager / Listing Errors, those children already picked ----- */
@@ -18818,13 +18654,8 @@ function faClick(btn) {
   if (act === 'kid') return faOpenKid(btn, btn.dataset.faKid);
   if (act === 'img') return faOpenImg(gk);
   if (act === 'lerr') return faOpenLerr(gk);
-  if (act === 'approve') return faApprove();
-  if (act === 'reject' || act === 'close') return faReject();
-  if (act === 'recheck') return FA.run && faReread(FA.run.items.filter(it => !!it.rec));
   if (act === 'hist') { const pk = btn.dataset.faG; if (FA.hist.has(pk)) FA.hist.delete(pk); else FA.hist.add(pk); return faRedraw(); }
   if (act === 'putback') return faPutBack(btn.dataset.faId);
-  if (act === 'putsend') return faPutSend();
-  if (act === 'putcancel') { FA.putting = null; return faRedraw(); }
 }
 if (typeof document !== 'undefined' && document.addEventListener) document.addEventListener('click', e => {
   const btn = e.target && e.target.closest ? e.target.closest('[data-fa-act]') : null;
