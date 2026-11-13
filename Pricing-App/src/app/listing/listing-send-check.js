@@ -178,8 +178,10 @@ async function sqVerifyAll(run, jobs) {
     run.done++;
     sqDraw();
   }
-  // the Workspace's own copies follow (title and search words), so every screen shows the new values when the popup closes
-  const lfix = jobs.filter(job => job.body.lfix);
+  // the Workspace's own copies follow, so every screen shows the new values when the popup closes: what Amazon ACCEPTED goes into the
+  // shared saved copy at once (listing-saved.js — the search words and Item Highlights need no second read); the rest (a title, bullets,
+  // or a change Amazon is still working on) is read again
+  const lfix = jobs.filter(job => job.body.lfix && !(job.state === 'accepted' && typeof svFromSend === 'function' && svFromSend(job)));
   if (typeof liWsQueue === 'function' && typeof LI_WS_BATCH !== 'undefined') {
     ['SP', 'CPC'].forEach(brand => {
       const list = lfix.filter(job => job.brand === brand);

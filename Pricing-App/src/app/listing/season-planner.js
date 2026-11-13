@@ -784,19 +784,23 @@ function spCheckAll() {
   if (typeof liWsQueue !== 'function' || spCheckRunning()) return 0;
   if (!LI_WS.stored) liWsStoreLoad();
   SP.checkStarted = true;
-  const items = spCompute().filter(item => (item.kind === 'add' || item.kind === 'check') && !item.liveFresh && !item.readErr && !SP.reading.has(item.key));
+  const retry = typeof SV_RETRY_MS !== 'undefined' ? SV_RETRY_MS : 3600000;
+  const failed = item => !!(item.live && item.live.cErr && Date.now() - (item.live.cErrAt || item.live.at || 0) < retry);   // failed within the hour: skipped for now
+  const age = item => (item.live && item.live.cAt) || 0;
+  const items = spCompute().filter(item => item.kind !== 'none' && !item.liveFresh && !failed(item) && !SP.reading.has(item.key)).sort((a, b) => age(a) - age(b));   // oldest first
   const byParent = new Map();
   items.forEach(item => { const pk = item.brand + '|' + spParentOf(item); if (!byParent.has(pk)) byParent.set(pk, []); byParent.get(pk).push(item); });
   const check = { total: byParent.size, done: 0, left: new Map(), at: Date.now() };
   SP.check = check;
+  byParent.forEach((list, pk) => check.left.set(pk, list.length));
+  // batches of 20 (one brand each), the oldest listings first
   const lists = { SP: [], CPC: [] };
-  byParent.forEach((list, pk) => { check.left.set(pk, list.length); list.forEach(item => lists[item.brand].push(item)); });
-  ['SP', 'CPC'].forEach(brand => {
-    for (let i = 0; i < lists[brand].length; i += LI_WS_BATCH) {
-      const batch = lists[brand].slice(i, i + LI_WS_BATCH);
-      batch.forEach(item => { SP.reading.add(item.key); SP.bgKeys.add(item.key); });
-      liWsQueue({ t: 'content', brand, skus: batch.map(item => item.sku), units: batch.length, pk: '', mark: batch.map(item => item.key), bg: true, done: () => spCheckDone(check, batch) });
-    }
+  items.forEach(item => lists[item.brand].push(item));
+  const batches = [];
+  ['SP', 'CPC'].forEach(brand => { for (let i = 0; i < lists[brand].length; i += LI_WS_BATCH) batches.push({ brand, list: lists[brand].slice(i, i + LI_WS_BATCH) }); });
+  batches.sort((a, b) => age(a.list[0]) - age(b.list[0])).forEach(({ brand, list: batch }) => {
+    batch.forEach(item => { SP.reading.add(item.key); SP.bgKeys.add(item.key); });
+    liWsQueue({ t: 'content', brand, skus: batch.map(item => item.sku), units: batch.length, pk: '', mark: batch.map(item => item.key), bg: true, done: () => spCheckDone(check, batch) });
   });
   if (SP.on) spRender();
   return check.total;
@@ -1135,11 +1139,41 @@ function spParentLine(g) {
   else if (!badges.length) parts.push(n.reading.length ? `<span class="sp-dim">${spNf(n.reading.length)} not read yet — open to check</span>` : '<span class="sp-ok">✓ Ready for the season</span>');
   return parts.join(' · ');
 }
+// "checked 3 h ago · [Read again]" (Read again = read that parent from Amazon now); "Reading from Amazon…" while a read a person asked
+// for is out (the background refresh says nothing here).
+function spCheckedHtml(g, items) {
+  const list = (items || g.all).filter(item => item.kind !== 'none');
+  if (!list.length || typeof svCheckedText !== 'function') return '';
+  const busy = list.some(item => (SP.reading.has(item.key) || SP.reading.has(item.key + '|get')) && !SP.bgKeys.has(item.key));
+  return `<small class="sp-checked">${busy ? '<span class="sp-reading">Reading from Amazon…</span>' : lrEsc(svCheckedText(list)) + ` · <button type="button" class="sp-link" data-sp-act="read-again" data-sp-group="${lrEsc(g.key)}">Read again</button>`}</small>`;
+}
+// Read again: every listing of this parent from Amazon now — titles and search words 20 a call, then Item Highlights — ahead of the
+// background refresh; the saved copy follows as the answers land.
+function spReadAgain(key) {
+  const g = spGroupOf(key);
+  if (!g || typeof liWsQueue !== 'function') return 0;
+  const items = g.all.filter(item => item.kind !== 'none');
+  if (SP.panel && SP.panel.key === key) SP.prog = { key, items: new Map() };
+  const token = t => { SP.reading.add(t); spProgAdd(t); return () => { SP.reading.delete(t); spAfterRead(); }; };
+  ['SP', 'CPC'].forEach(brand => {
+    const list = items.filter(item => item.brand === brand && !SP.reading.has(item.key));
+    for (let i = 0; i < list.length; i += LI_WS_BATCH) {
+      const batch = list.slice(i, i + LI_WS_BATCH);
+      const done = batch.map(item => token(item.key));
+      liWsQueue({ t: 'content', brand, skus: batch.map(item => item.sku), units: batch.length, pk: '', mark: batch.map(item => item.key), done: () => done.forEach(fn => fn()) });
+    }
+  });
+  items.filter(item => item.pt && !(item.hlInfo && item.hlInfo.state === 'none') && !SP.reading.has(item.key + '|get')).forEach(item => {
+    liWsQueue({ t: 'get', brand: item.brand, sku: item.sku, units: 1, pk: '', mark: [item.key], done: token(item.key + '|get') });
+  });
+  spRedrawAll();
+  return items.length;
+}
 function spParentCardHtml(g) {
   const open = SP.panel && SP.panel.key === g.key;
   const done = !g.todo.length;
   return `<div class="card sp-pc${open ? ' is-open' : ''}${done ? ' is-done' : ''}" role="button" tabindex="0" data-sp-act="open-parent" data-sp-group="${lrEsc(g.key)}" aria-label="Open ${lrEsc(g.name)}">`
-    + `${spPic(g.brand, (g.todo[0] || g.all[0]).sku, false)}<div class="sp-pc-t"><b title="${lrEsc(g.name)}">${lrEsc(g.name)}</b><span>${spParentLine(g)}</span></div>`
+    + `${spPic(g.brand, (g.todo[0] || g.all[0]).sku, false)}<div class="sp-pc-t"><b title="${lrEsc(g.name)}">${lrEsc(g.name)}</b><span>${spParentLine(g)}</span>${spCheckedHtml(g)}</div>`
     + '<span class="sp-pc-open" aria-hidden="true">Open ›</span></div>';
 }
 // The chips: All · one per season on now missing · Old season words · Needs your OK · Fix by hand · Up to date — each with its parents.
@@ -1323,7 +1357,7 @@ function spRowHtml(item) {
 // The parent side panel: header card, then the body.
 function spParentPanelHtml(g) {
   return `<div class="sp-side-h"><div class="sp-hc">${spPic(g.brand, (g.todo[0] || g.all[0]).sku, true)}<div class="sp-hc-t"><b title="${lrEsc(g.name)}">${lrEsc(g.name)}</b>`
-    + `<span>${lrEsc(BRAND_NAME[g.brand] || g.brand)} · ${spPlural(g.all.length, 'listing')}${spProgText(g) ? ` · <span class="sp-reading">${spProgText(g)}</span>` : ''}</span></div><button type="button" class="sp-x" data-sp-act="close-parent" aria-label="Close">×</button></div></div>`
+    + `<span>${lrEsc(BRAND_NAME[g.brand] || g.brand)} · ${spPlural(g.all.length, 'listing')}${spProgText(g) ? ` · <span class="sp-reading">${spProgText(g)}</span>` : ''}</span>${spProgText(g) ? '' : spCheckedHtml(g)}</div><button type="button" class="sp-x" data-sp-act="close-parent" aria-label="Close">×</button></div></div>`
     + `<div class="sp-side-b">${spParentBodyHtml(g)}</div>`;
 }
 
@@ -1332,7 +1366,7 @@ function spKidHtml(item, g) {
   const st = SP_STATE[spBucket(item)] || SP_STATE.look;
   const parentNameText = g ? g.name : spParentOf(item);
   const back = `<button type="button" class="sp-back" data-sp-act="close-kid">← Back to ${lrEsc(parentNameText)}</button>`;
-  const head = `<div class="sp-side-h">${back}<div class="sp-hc">${spPic(item.brand, item.sku, true)}<div class="sp-hc-t"><b>${lrEsc(spFacts(item))}</b><span>${lrEsc(parentNameText)}</span><small>${lrEsc(item.sku)}</small>`
+  const head = `<div class="sp-side-h">${back}<div class="sp-hc">${spPic(item.brand, item.sku, true)}<div class="sp-hc-t"><b>${lrEsc(spFacts(item))}</b><span>${lrEsc(parentNameText)}</span><small>${lrEsc(item.sku)}</small>${g ? spCheckedHtml(g, [item]) : ''}`
     + `<span class="sp-chip-s ${st.cls}"><i aria-hidden="true">${st.i}</i>${st.t}</span></div><button type="button" class="sp-x" data-sp-act="close-kid" aria-label="Close">×</button></div></div>`;
   const card = (cls, title, body) => `<div class="sp-card2 ${cls}"><h4>${title}</h4>${body}</div>`;
   const b = spBucket(item);
@@ -1481,6 +1515,7 @@ function spCloseParent(returnFocus) {
   SP.panel = null;
   const box = $('spPanel');
   if (box) { box.hidden = true; box.innerHTML = ''; }
+  if (typeof liWsPump === 'function') liWsPump();     // background reads paused while the panel was open go on
   if (SP.on) spRender();
   if (returnFocus && key) {
     const card = $('spPane') && $('spPane').querySelector ? $('spPane').querySelector(`[data-sp-act="open-parent"][data-sp-group="${CSS.escape(key)}"]`) : null;
@@ -1693,22 +1728,29 @@ async function spOn() {
   if (pane) pane.classList.remove('hide');
   if (one) one.classList.add('hide');
   $('spSwitch').querySelectorAll('[data-sp-view]').forEach(btn => { const on = btn.dataset.spView === 'season'; btn.classList.toggle('on', on); btn.setAttribute('aria-pressed', String(on)); });
-  if (!H_LOADED || !SP.log) {
+  // the shared saved copy of the live reads (listing-saved.js): read with the snapshot, so the counts, badges and tiles show at once —
+  // the screen never waits for Amazon
+  const saved = typeof svLoad === 'function' ? svLoad() : null;
+  if (!H_LOADED || !SP.log || (saved && SV.state === 'loading')) {
     SP.loading = true;
     SP.loadErr = '';
     spRender();
     try {
       if (!H_LOADED) await ensureHealth();
       if (typeof liWsStoreLoad === 'function' && !LI_WS.stored) liWsStoreLoad();
-      await spLogLoad();
+      await Promise.all([spLogLoad(), saved]);
     } catch (e) {
       SP.loadErr = String((e && e.message) || e);
     }
     SP.loading = false;
+    SP.itemsKey = '';
   }
   spRender();
-  if (!SP.checkStarted && !SP.loadErr && H_LOADED) spCheckAll();   // "Check all parents" starts once by itself, in the background
+  if (spCheckDue() && !SP.loadErr && H_LOADED) spCheckAll();   // the background refresh: only what is older than 24 h
 }
+// The background refresh starts by itself when the planner opens — again on a later open once the last run is an hour old (a failed read
+// is tried again then).
+const spCheckDue = () => !SP.check || (!spCheckRunning() && Date.now() - SP.check.at > (typeof SV_RETRY_MS !== 'undefined' ? SV_RETRY_MS : 3600000));
 function spOff() {
   SP.on = false;
   try { localStorage.setItem(SP_STORE_VIEW, 'one'); } catch (e) { /* no storage */ }
@@ -1755,6 +1797,7 @@ if (typeof document !== 'undefined' && document.addEventListener && $('spSwitch'
     if (act === 'show-done') { SP.showDone = !SP.showDone; spRender(); return refocus('[data-sp-act="show-done"]'); }
     if (act === 'reload') { H_LOADED = false; return spOn(); }
     if (act === 'check-all') { spCheckAll(); return refocus('.sp-checkall'); }
+    if (act === 'read-again') { spReadAgain(el.dataset.spGroup); return; }
     if (act === 'result-close') { SP.result = null; return spRedrawAll(); }
     if (act === 'open-parent') return spOpenParent(el.dataset.spGroup);
     if (act === 'close-parent') return spCloseParent(true);

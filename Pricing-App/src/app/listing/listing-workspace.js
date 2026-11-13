@@ -159,8 +159,10 @@ async function liWsLoad() {
   LI_WS.loading = true;
   liWsDraw();
   try {
+    const saved = typeof svLoad === 'function' ? svLoad() : null;   // the shared saved copy of the live reads (listing-saved.js), at the same time
     if (!H_LOADED || !LR) await ensureHealth();
     for (const brand of ['SP', 'CPC']) if (!(brand in IML)) await imListLoad(brand);
+    if (saved) await saved;
   } catch (e) {
     LI_WS.loading = false;
     if (LI_WS.on) $('liWs').innerHTML = `<div class="card xlwrap"><div class="ui-error">Could not load: ${lrEsc((e && e.message) || e)}</div></div>`;
@@ -699,12 +701,18 @@ function liWsQueue(job) {
   else LI_WS.q.splice(at, 0, job);
   liWsPump();
 }
+// Background reads (job.bg — they always wait at the end of the queue) go at most SV_BG at a time, and not at all while a parent's
+// side panel is open (the Workspace's or the Season planner's): the person's own reads come first.
+const liWsBgPaused = () => !!(LI_WS.panel || (typeof SP !== 'undefined' && SP.panel));
 function liWsPump() {
   while (LI_WS.inflight < LI_WS_INFLIGHT && LI_WS.q.length) {
+    if (LI_WS.q[0].bg && (liWsBgPaused() || (LI_WS.bgIn || 0) >= (typeof SV_BG !== 'undefined' ? SV_BG : 2))) break;
     const job = LI_WS.q.shift();
     LI_WS.inflight++;
+    if (job.bg) LI_WS.bgIn = (LI_WS.bgIn || 0) + 1;
     liWsJob(job).catch(() => {}).then(() => {
       LI_WS.inflight--;
+      if (job.bg) LI_WS.bgIn--;
       LI_WS.liveV++;
       if (typeof job.done === 'function') job.done();   // the caller's own "this read is in" (the Season planner's progress)
       const prog = LI_WS.prog[job.pk];
@@ -760,6 +768,7 @@ async function liWsJob(job) {
         const item = items[sku];
         if (!item) {
           entry.err = entry.cErr = 'not found on Amazon by SKU';   // cErr: the content read's own error, which a later ?lfix=get must not clear
+          entry.cErrAt = now;                                     // when it failed: the background refresh tries again an hour later
           return;
         }
         const values = key => (item[key] || []).map(v => (v && v.value != null ? String(v.value) : '')).filter(Boolean);
@@ -771,6 +780,7 @@ async function liWsJob(job) {
           words: { emb: /embroider/.test(text), bp: text.includes('block print'), hb: text.includes('hand block') } });   // only WHICH rule words were found, never the text; kwBytes the way Amazon counts (no spaces, no ; , .)
         if (values('brand')[0]) entry.brand = values('brand')[0].slice(0, 60);
         if (entry.pt && !job.sweep) liWsNeedSchema(brand, entry.pt, job.pk);
+        if (typeof svNote === 'function') svNote(brand, sku);   // the shared saved copy (listing-saved.js)
       });
     } else if (job.t === 'get') {
       const reply = await baCall({ lfix: 'get', brand, sku: job.sku });
@@ -791,6 +801,7 @@ async function liWsJob(job) {
         // a few short facts Amazon holds for the listing, for an Item Highlights line built only from what is verified
         facts: { material: first('material').slice(0, 60), care: first('care_instructions').slice(0, 60), items: first('number_of_items').slice(0, 6) } });
       if (typeof faOnGet === 'function') faOnGet(brand, job.sku, at);   // the spec values, for Fix all's copy from the siblings (fix-all.js)
+      if (typeof svNote === 'function') svNote(brand, job.sku);         // Item Highlights into the shared saved copy
       if (entry.pt) liWsNeedSchema(brand, entry.pt, job.pk);
     } else if (job.t === 'limg') {
       // The catalogue's picture slots — what shoppers see. The reply also carries our own listing's slots and the open issues,
@@ -823,7 +834,7 @@ async function liWsJob(job) {
     }
   } catch (e) {
     const why = String((e && e.message) || e);
-    if (job.t === 'content') job.skus.forEach(sku => { const entry = liWsEntry(brand, sku); entry.err = entry.cErr = why; });
+    if (job.t === 'content') job.skus.forEach(sku => { const entry = liWsEntry(brand, sku); entry.err = entry.cErr = why; entry.cErrAt = now; });
     else if (job.t === 'get') liWsEntry(brand, job.sku).err = why;
     else if (job.t === 'limg') liWsEntry(brand, job.sku).iErr = why;
     else if (job.t === 'aplus') { /* the A+ answers stay as they were: "could not tell" is never "missing" */ }
@@ -1552,6 +1563,7 @@ function liWsPanelClose(returnFocus) {
     panel.innerHTML = '';
   }
   liWsRowMark('');
+  liWsPump();                                           // background reads paused while the panel was open go on
   if (returnFocus) {
     const row = $('liWs').querySelector ? $('liWs').querySelector(`[data-li-ws-row="${CSS.escape(key)}"]`) : null;
     if (row && row.focus) row.focus({ preventScroll: true });

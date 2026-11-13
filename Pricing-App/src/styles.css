@@ -2360,6 +2360,8 @@
   .sp-hc-t span{display:block;margin-top:2px;font-size:12.5px;color:var(--muted)}
   .sp-hc-t small{display:block;font-family:ui-monospace,monospace;font-size:11px;color:var(--faint)}
   .sp-hc-t .sp-chip-s{display:inline-flex;margin-top:6px}
+  .sp-pc-t .sp-checked,.sp-hc-t .sp-checked{display:block;margin-top:2px;font-family:inherit;font-size:11.5px;color:var(--faint)}
+  .sp-checked .sp-link{font-size:inherit}
   .sp-kp .sp-hc-t b{white-space:normal}
   .sp-x{flex:none;display:grid;place-items:center;width:40px;height:40px;margin:0;padding:0;border:0;border-radius:50%;background:var(--hover);color:var(--muted);font-size:20px;line-height:1;box-shadow:none;cursor:pointer}
   .sp-x:hover{background:color-mix(in srgb,var(--ink) 12%,transparent);color:var(--ink)}

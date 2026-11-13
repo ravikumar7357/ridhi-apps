@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <!-- ================================================================================================
-     GENERATED FILE. DO NOT READ OR EDIT THE CODE HERE — it is the 56 files of src/ joined into one page.
+     GENERATED FILE. DO NOT READ OR EDIT THE CODE HERE — it is the 57 files of src/ joined into one page.
      The real, grouped source: Pricing-App/src/   (map and workflow: src/README.md)
        src/index.html   page markup        src/styles.css   stylesheet        src/app/ORDER   join order
        src/app/<group>/ the code, by group: core, research, sales, inventory, listing, ads
@@ -2385,6 +2385,8 @@
   .sp-hc-t span{display:block;margin-top:2px;font-size:12.5px;color:var(--muted)}
   .sp-hc-t small{display:block;font-family:ui-monospace,monospace;font-size:11px;color:var(--faint)}
   .sp-hc-t .sp-chip-s{display:inline-flex;margin-top:6px}
+  .sp-pc-t .sp-checked,.sp-hc-t .sp-checked{display:block;margin-top:2px;font-family:inherit;font-size:11.5px;color:var(--faint)}
+  .sp-checked .sp-link{font-size:inherit}
   .sp-kp .sp-hc-t b{white-space:normal}
   .sp-x{flex:none;display:grid;place-items:center;width:40px;height:40px;margin:0;padding:0;border:0;border-radius:50%;background:var(--hover);color:var(--muted);font-size:20px;line-height:1;box-shadow:none;cursor:pointer}
   .sp-x:hover{background:color-mix(in srgb,var(--ink) 12%,transparent);color:var(--ink)}
@@ -14164,8 +14166,10 @@ async function liWsLoad() {
   LI_WS.loading = true;
   liWsDraw();
   try {
+    const saved = typeof svLoad === 'function' ? svLoad() : null;   // the shared saved copy of the live reads (listing-saved.js), at the same time
     if (!H_LOADED || !LR) await ensureHealth();
     for (const brand of ['SP', 'CPC']) if (!(brand in IML)) await imListLoad(brand);
+    if (saved) await saved;
   } catch (e) {
     LI_WS.loading = false;
     if (LI_WS.on) $('liWs').innerHTML = `<div class="card xlwrap"><div class="ui-error">Could not load: ${lrEsc((e && e.message) || e)}</div></div>`;
@@ -14704,12 +14708,18 @@ function liWsQueue(job) {
   else LI_WS.q.splice(at, 0, job);
   liWsPump();
 }
+// Background reads (job.bg — they always wait at the end of the queue) go at most SV_BG at a time, and not at all while a parent's
+// side panel is open (the Workspace's or the Season planner's): the person's own reads come first.
+const liWsBgPaused = () => !!(LI_WS.panel || (typeof SP !== 'undefined' && SP.panel));
 function liWsPump() {
   while (LI_WS.inflight < LI_WS_INFLIGHT && LI_WS.q.length) {
+    if (LI_WS.q[0].bg && (liWsBgPaused() || (LI_WS.bgIn || 0) >= (typeof SV_BG !== 'undefined' ? SV_BG : 2))) break;
     const job = LI_WS.q.shift();
     LI_WS.inflight++;
+    if (job.bg) LI_WS.bgIn = (LI_WS.bgIn || 0) + 1;
     liWsJob(job).catch(() => {}).then(() => {
       LI_WS.inflight--;
+      if (job.bg) LI_WS.bgIn--;
       LI_WS.liveV++;
       if (typeof job.done === 'function') job.done();   // the caller's own "this read is in" (the Season planner's progress)
       const prog = LI_WS.prog[job.pk];
@@ -14765,6 +14775,7 @@ async function liWsJob(job) {
         const item = items[sku];
         if (!item) {
           entry.err = entry.cErr = 'not found on Amazon by SKU';   // cErr: the content read's own error, which a later ?lfix=get must not clear
+          entry.cErrAt = now;                                     // when it failed: the background refresh tries again an hour later
           return;
         }
         const values = key => (item[key] || []).map(v => (v && v.value != null ? String(v.value) : '')).filter(Boolean);
@@ -14776,6 +14787,7 @@ async function liWsJob(job) {
           words: { emb: /embroider/.test(text), bp: text.includes('block print'), hb: text.includes('hand block') } });   // only WHICH rule words were found, never the text; kwBytes the way Amazon counts (no spaces, no ; , .)
         if (values('brand')[0]) entry.brand = values('brand')[0].slice(0, 60);
         if (entry.pt && !job.sweep) liWsNeedSchema(brand, entry.pt, job.pk);
+        if (typeof svNote === 'function') svNote(brand, sku);   // the shared saved copy (listing-saved.js)
       });
     } else if (job.t === 'get') {
       const reply = await baCall({ lfix: 'get', brand, sku: job.sku });
@@ -14796,6 +14808,7 @@ async function liWsJob(job) {
         // a few short facts Amazon holds for the listing, for an Item Highlights line built only from what is verified
         facts: { material: first('material').slice(0, 60), care: first('care_instructions').slice(0, 60), items: first('number_of_items').slice(0, 6) } });
       if (typeof faOnGet === 'function') faOnGet(brand, job.sku, at);   // the spec values, for Fix all's copy from the siblings (fix-all.js)
+      if (typeof svNote === 'function') svNote(brand, job.sku);         // Item Highlights into the shared saved copy
       if (entry.pt) liWsNeedSchema(brand, entry.pt, job.pk);
     } else if (job.t === 'limg') {
       // The catalogue's picture slots — what shoppers see. The reply also carries our own listing's slots and the open issues,
@@ -14828,7 +14841,7 @@ async function liWsJob(job) {
     }
   } catch (e) {
     const why = String((e && e.message) || e);
-    if (job.t === 'content') job.skus.forEach(sku => { const entry = liWsEntry(brand, sku); entry.err = entry.cErr = why; });
+    if (job.t === 'content') job.skus.forEach(sku => { const entry = liWsEntry(brand, sku); entry.err = entry.cErr = why; entry.cErrAt = now; });
     else if (job.t === 'get') liWsEntry(brand, job.sku).err = why;
     else if (job.t === 'limg') liWsEntry(brand, job.sku).iErr = why;
     else if (job.t === 'aplus') { /* the A+ answers stay as they were: "could not tell" is never "missing" */ }
@@ -15557,6 +15570,7 @@ function liWsPanelClose(returnFocus) {
     panel.innerHTML = '';
   }
   liWsRowMark('');
+  liWsPump();                                           // background reads paused while the panel was open go on
   if (returnFocus) {
     const row = $('liWs').querySelector ? $('liWs').querySelector(`[data-li-ws-row="${CSS.escape(key)}"]`) : null;
     if (row && row.focus) row.focus({ preventScroll: true });
@@ -16099,6 +16113,164 @@ if (typeof document !== 'undefined' && document.addEventListener) {
     if (e.target.closest('#lsPanel,[data-li-ws-row],[data-li-ws-panel],.modal,.modalbox,#hModeSeg,#hRecheck')) return;
     liWsPanelClose(false);
   });
+}
+/* ============================== FILE: src/app/listing/listing-saved.js ============================== */
+/* ============================================================================================================================
+ * THE SAVED COPY of the live reads (13 Nov 2026) — one copy in Sellora's database, shared by every user, so the Season planner and
+ * the Workspace open INSTANTLY from it and never wait for Amazon to show the screen.
+ *
+ * WHERE: the existing collection /history (firestore.rules: `match /history/{doc} { allow read, write: if canAny(); }` — every listing
+ * user and the Listing Optimiser can already read and write it; NO rule change). Documents `history/lcache_<brand>_<0..9>`, kind
+ * "lcache", one map `items` → SKU → its record; a SKU always lands in the same document (a hash of the SKU). They have no `day` field,
+ * so Listing History (which lists /history by `day`) never sees them.
+ * WHAT, per SKU (only what the planner and the Workspace's content checks read): the content read — title, its length, the hidden search
+ * words and their count, the product type, bullets (how many), description (how long), which rule words the text holds, Amazon's brand,
+ * and when (c) — and Item Highlights with when they were read (h). About 0.6 KB a SKU: ~0.6 MB per 1,000 SKUs, spread over 10 documents
+ * a brand (each well under Firestore's 1 MB).
+ * WHEN: written a few seconds after a read lands (svNote), and at once after Amazon accepts a send (svFromSend) — never a second read.
+ * Read once when a screen opens (svLoad); a record only ever replaces an OLDER one, so a fresher read in this browser always wins.
+ * TEST SITE / LOCAL (saving off) or no access: the browser's own copy (the Workspace's localStorage, 24 h) does the same job.
+ * ============================================================================================================================ */
+const SV_COLL = 'history';
+const SV_SHARDS = 10;                    // documents per brand
+const SV_FLUSH_MS = 3000;                // reads landing close together are written in one go
+const SV_BG = 2;                         // background reads ("Check all parents") out at once
+const SV_RETRY_MS = 3600000;             // a read that failed is tried again after an hour
+let SV = {
+  state: 'idle',                         // idle | loading | ready | off (test site, no access: the browser copy only)
+  loading: null,                         // the promise of the one load
+  err: '',                               // the last load or save error
+  n: 0,                                  // SKUs taken from the saved copy
+  dirty: new Map(),                      // document id → { brand, items: { sku: record } } waiting to be written
+  flushT: 0,
+  writes: 0,                             // documents written (for the tests and the console)
+};
+const svIsOff = () => SV.state === 'off' || (typeof window !== 'undefined' && !!window.__TEST_ERP);
+function svShard(sku) {
+  let h = 0;
+  for (const ch of String(sku)) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return h % SV_SHARDS;
+}
+const svDocId = (brand, sku) => `lcache_${brand}_${svShard(sku)}`;
+// One SKU's record from the Workspace's live entry; null when nothing of it was read yet.
+function svRec(entry) {
+  if (!entry || (!entry.cAt && !entry.hlAt)) return null;
+  const r = {};
+  if (entry.cAt) Object.assign(r, { c: entry.cAt, t: String(entry.title || ''), tl: entry.titleLen || 0, kw: String(entry.kw || ''), kb: entry.kwBytes || 0, pt: entry.pt || '',
+    bul: entry.bul || 0, desc: entry.desc || 0, w: entry.words || {}, br: entry.brand || '' });
+  if (entry.hlAt) Object.assign(r, { h: entry.hlAt, hl: (entry.hl || []).slice(0, 10) });
+  return r;
+}
+// A saved record into the live entry — only the parts NEWER than what this browser holds. True when something was taken.
+function svMerge(brand, sku, rec) {
+  if (!rec || typeof LI_WS === 'undefined' || !LI_WS.live[brand]) return false;
+  const entry = liWsEntry(brand, sku);
+  let took = false;
+  if (rec.c && rec.c > (entry.cAt || 0)) {
+    Object.assign(entry, { cAt: rec.c, title: rec.t || '', titleLen: rec.tl || String(rec.t || '').length, kw: rec.kw || '', kwBytes: rec.kb != null ? rec.kb : lrKwBytes(rec.kw || ''),
+      pt: rec.pt || entry.pt || '', bul: rec.bul || 0, desc: rec.desc || 0, words: rec.w || {}, cErr: '' });
+    if (rec.br) entry.brand = rec.br;
+    took = true;
+  }
+  if (rec.h && rec.h > (entry.hlAt || 0)) {
+    Object.assign(entry, { hl: (rec.hl || []).map(String), hlAt: rec.h });
+    took = true;
+  }
+  if (took) entry.at = Math.max(entry.at || 0, rec.c || 0, rec.h || 0);
+  return took;
+}
+/** Read the saved copy once (both brands, every document at the same time) into the live reads. Resolves with how many SKUs it gave. */
+function svLoad() {
+  if (SV.loading) return SV.loading;
+  if (typeof LI_WS !== 'undefined' && !LI_WS.stored && typeof liWsStoreLoad === 'function') liWsStoreLoad();   // the browser copy first
+  if (svIsOff()) {
+    SV.state = 'off';
+    SV.loading = Promise.resolve(0);
+    return SV.loading;
+  }
+  SV.state = 'loading';
+  SV.loading = (async () => {
+    const ids = ['SP', 'CPC'].flatMap(brand => Array.from({ length: SV_SHARDS }, (_, i) => [brand, `lcache_${brand}_${i}`]));
+    let fails = 0;
+    const snaps = await Promise.all(ids.map(([brand, id]) => getDoc(doc(db, SV_COLL, id)).then(snap => [brand, snap]).catch(e => { fails++; SV.err = String((e && e.message) || e); return [brand, null]; })));
+    let n = 0;
+    snaps.forEach(([brand, snap]) => {
+      if (!snap || !snap.exists()) return;
+      Object.entries((snap.data() || {}).items || {}).forEach(([sku, rec]) => { if (svMerge(brand, sku, rec)) n++; });
+    });
+    SV.n = n;
+    SV.state = fails === ids.length ? 'off' : 'ready';      // no access at all: the browser copy only
+    if (n && typeof LI_WS !== 'undefined') {
+      LI_WS.liveV++;
+      if (typeof liWsStoreSave === 'function') liWsStoreSave();
+    }
+    return n;
+  })();
+  return SV.loading;
+}
+/** A read of this SKU landed (listing-workspace.js): its record is written to the saved copy a few seconds later, with the others. */
+function svNote(brand, sku) {
+  if (svIsOff() || typeof LI_WS === 'undefined') return;
+  const rec = svRec(LI_WS.live[brand] && LI_WS.live[brand][sku]);
+  if (!rec) return;
+  const id = svDocId(brand, sku);
+  if (!SV.dirty.has(id)) SV.dirty.set(id, { brand, items: {} });
+  SV.dirty.get(id).items[sku] = rec;
+  clearTimeout(SV.flushT);
+  SV.flushT = setTimeout(svFlush, SV_FLUSH_MS);
+}
+// Write what is waiting: one merge per document (only the SKUs that changed are touched; other users' SKUs stay).
+async function svFlush() {
+  clearTimeout(SV.flushT);
+  SV.flushT = 0;
+  const work = [...SV.dirty.entries()];
+  SV.dirty.clear();
+  for (const [id, part] of work) {
+    try {
+      await setDoc(doc(db, SV_COLL, id), { kind: 'lcache', brand: part.brand, items: part.items, at: serverTimestamp() }, { merge: true });
+      SV.writes++;
+    } catch (e) { SV.err = String((e && e.message) || e); }   // this browser keeps its copy; the next read writes it again
+  }
+}
+/** Amazon ACCEPTED a send (listing-send-check.js): the values sent become the copy at once — no second read. Returns true when every
+ *  change was one the copy holds whole (the hidden search words, Item Highlights), so nothing needs reading again. */
+function svFromSend(job) {
+  const b = job && job.body;
+  if (!b || !b.lfix || typeof LI_WS === 'undefined' || !LI_WS.live[job.brand]) return false;
+  const entry = liWsEntry(job.brand, job.sku);
+  const now = Date.now();
+  const text = p => (p.op === 'delete' ? [] : (p.value || []).map(v => (v && v.value != null ? String(v.value) : '')).filter(Boolean));
+  let whole = true;
+  (b.patches || []).forEach(p => {
+    const name = String(p.path || '').replace('/attributes/', '');
+    if (name === 'generic_keyword' && entry.cAt) {
+      const kw = text(p).join(' ');
+      Object.assign(entry, { kw: kw.slice(0, 300), kwBytes: lrKwBytes(kw), cAt: now });
+    } else if (name === LI_WS_HL) Object.assign(entry, { hl: text(p).map(v => v.slice(0, 300)), hlAt: now });
+    else whole = false;                                       // a title, bullets, a spec…: the content read after the send fills it
+  });
+  entry.at = now;
+  LI_WS.liveV++;
+  if (typeof liWsStoreSave === 'function') liWsStoreSave();
+  svNote(job.brand, job.sku);
+  return whole;
+}
+// "just now", "12 min ago", "3 h ago", "2 d ago".
+function svAgo(ms) {
+  if (ms < 60000) return 'just now';
+  if (ms < 3600000) return Math.round(ms / 60000) + ' min ago';
+  if (ms < 86400000) return Math.round(ms / 3600000) + ' h ago';
+  return Math.round(ms / 86400000) + ' d ago';
+}
+// "checked 3 h ago" — the OLDEST content read among these listings (honest for a parent: every child is at least this fresh), and how
+// many were never read; '' when there are none.
+function svCheckedText(items) {
+  const at = items.map(item => (item.live && item.live.cAt) || 0);
+  if (!at.length) return '';
+  const read = at.filter(Boolean);
+  const unread = at.length - read.length;
+  if (!read.length) return 'not read yet';
+  return 'checked ' + svAgo(Date.now() - Math.min(...read)) + (unread ? ` · ${unread} not read yet` : '');
 }
 /* ============================== FILE: src/app/listing/listing-kid.js ============================== */
 /* ================= LISTING · ONE CHILD LISTING AS A SIDEBAR: the same component on Child listings and in the Workspace panel =================
@@ -17117,19 +17289,23 @@ function spCheckAll() {
   if (typeof liWsQueue !== 'function' || spCheckRunning()) return 0;
   if (!LI_WS.stored) liWsStoreLoad();
   SP.checkStarted = true;
-  const items = spCompute().filter(item => (item.kind === 'add' || item.kind === 'check') && !item.liveFresh && !item.readErr && !SP.reading.has(item.key));
+  const retry = typeof SV_RETRY_MS !== 'undefined' ? SV_RETRY_MS : 3600000;
+  const failed = item => !!(item.live && item.live.cErr && Date.now() - (item.live.cErrAt || item.live.at || 0) < retry);   // failed within the hour: skipped for now
+  const age = item => (item.live && item.live.cAt) || 0;
+  const items = spCompute().filter(item => item.kind !== 'none' && !item.liveFresh && !failed(item) && !SP.reading.has(item.key)).sort((a, b) => age(a) - age(b));   // oldest first
   const byParent = new Map();
   items.forEach(item => { const pk = item.brand + '|' + spParentOf(item); if (!byParent.has(pk)) byParent.set(pk, []); byParent.get(pk).push(item); });
   const check = { total: byParent.size, done: 0, left: new Map(), at: Date.now() };
   SP.check = check;
+  byParent.forEach((list, pk) => check.left.set(pk, list.length));
+  // batches of 20 (one brand each), the oldest listings first
   const lists = { SP: [], CPC: [] };
-  byParent.forEach((list, pk) => { check.left.set(pk, list.length); list.forEach(item => lists[item.brand].push(item)); });
-  ['SP', 'CPC'].forEach(brand => {
-    for (let i = 0; i < lists[brand].length; i += LI_WS_BATCH) {
-      const batch = lists[brand].slice(i, i + LI_WS_BATCH);
-      batch.forEach(item => { SP.reading.add(item.key); SP.bgKeys.add(item.key); });
-      liWsQueue({ t: 'content', brand, skus: batch.map(item => item.sku), units: batch.length, pk: '', mark: batch.map(item => item.key), bg: true, done: () => spCheckDone(check, batch) });
-    }
+  items.forEach(item => lists[item.brand].push(item));
+  const batches = [];
+  ['SP', 'CPC'].forEach(brand => { for (let i = 0; i < lists[brand].length; i += LI_WS_BATCH) batches.push({ brand, list: lists[brand].slice(i, i + LI_WS_BATCH) }); });
+  batches.sort((a, b) => age(a.list[0]) - age(b.list[0])).forEach(({ brand, list: batch }) => {
+    batch.forEach(item => { SP.reading.add(item.key); SP.bgKeys.add(item.key); });
+    liWsQueue({ t: 'content', brand, skus: batch.map(item => item.sku), units: batch.length, pk: '', mark: batch.map(item => item.key), bg: true, done: () => spCheckDone(check, batch) });
   });
   if (SP.on) spRender();
   return check.total;
@@ -17468,11 +17644,41 @@ function spParentLine(g) {
   else if (!badges.length) parts.push(n.reading.length ? `<span class="sp-dim">${spNf(n.reading.length)} not read yet — open to check</span>` : '<span class="sp-ok">✓ Ready for the season</span>');
   return parts.join(' · ');
 }
+// "checked 3 h ago · [Read again]" (Read again = read that parent from Amazon now); "Reading from Amazon…" while a read a person asked
+// for is out (the background refresh says nothing here).
+function spCheckedHtml(g, items) {
+  const list = (items || g.all).filter(item => item.kind !== 'none');
+  if (!list.length || typeof svCheckedText !== 'function') return '';
+  const busy = list.some(item => (SP.reading.has(item.key) || SP.reading.has(item.key + '|get')) && !SP.bgKeys.has(item.key));
+  return `<small class="sp-checked">${busy ? '<span class="sp-reading">Reading from Amazon…</span>' : lrEsc(svCheckedText(list)) + ` · <button type="button" class="sp-link" data-sp-act="read-again" data-sp-group="${lrEsc(g.key)}">Read again</button>`}</small>`;
+}
+// Read again: every listing of this parent from Amazon now — titles and search words 20 a call, then Item Highlights — ahead of the
+// background refresh; the saved copy follows as the answers land.
+function spReadAgain(key) {
+  const g = spGroupOf(key);
+  if (!g || typeof liWsQueue !== 'function') return 0;
+  const items = g.all.filter(item => item.kind !== 'none');
+  if (SP.panel && SP.panel.key === key) SP.prog = { key, items: new Map() };
+  const token = t => { SP.reading.add(t); spProgAdd(t); return () => { SP.reading.delete(t); spAfterRead(); }; };
+  ['SP', 'CPC'].forEach(brand => {
+    const list = items.filter(item => item.brand === brand && !SP.reading.has(item.key));
+    for (let i = 0; i < list.length; i += LI_WS_BATCH) {
+      const batch = list.slice(i, i + LI_WS_BATCH);
+      const done = batch.map(item => token(item.key));
+      liWsQueue({ t: 'content', brand, skus: batch.map(item => item.sku), units: batch.length, pk: '', mark: batch.map(item => item.key), done: () => done.forEach(fn => fn()) });
+    }
+  });
+  items.filter(item => item.pt && !(item.hlInfo && item.hlInfo.state === 'none') && !SP.reading.has(item.key + '|get')).forEach(item => {
+    liWsQueue({ t: 'get', brand: item.brand, sku: item.sku, units: 1, pk: '', mark: [item.key], done: token(item.key + '|get') });
+  });
+  spRedrawAll();
+  return items.length;
+}
 function spParentCardHtml(g) {
   const open = SP.panel && SP.panel.key === g.key;
   const done = !g.todo.length;
   return `<div class="card sp-pc${open ? ' is-open' : ''}${done ? ' is-done' : ''}" role="button" tabindex="0" data-sp-act="open-parent" data-sp-group="${lrEsc(g.key)}" aria-label="Open ${lrEsc(g.name)}">`
-    + `${spPic(g.brand, (g.todo[0] || g.all[0]).sku, false)}<div class="sp-pc-t"><b title="${lrEsc(g.name)}">${lrEsc(g.name)}</b><span>${spParentLine(g)}</span></div>`
+    + `${spPic(g.brand, (g.todo[0] || g.all[0]).sku, false)}<div class="sp-pc-t"><b title="${lrEsc(g.name)}">${lrEsc(g.name)}</b><span>${spParentLine(g)}</span>${spCheckedHtml(g)}</div>`
     + '<span class="sp-pc-open" aria-hidden="true">Open ›</span></div>';
 }
 // The chips: All · one per season on now missing · Old season words · Needs your OK · Fix by hand · Up to date — each with its parents.
@@ -17656,7 +17862,7 @@ function spRowHtml(item) {
 // The parent side panel: header card, then the body.
 function spParentPanelHtml(g) {
   return `<div class="sp-side-h"><div class="sp-hc">${spPic(g.brand, (g.todo[0] || g.all[0]).sku, true)}<div class="sp-hc-t"><b title="${lrEsc(g.name)}">${lrEsc(g.name)}</b>`
-    + `<span>${lrEsc(BRAND_NAME[g.brand] || g.brand)} · ${spPlural(g.all.length, 'listing')}${spProgText(g) ? ` · <span class="sp-reading">${spProgText(g)}</span>` : ''}</span></div><button type="button" class="sp-x" data-sp-act="close-parent" aria-label="Close">×</button></div></div>`
+    + `<span>${lrEsc(BRAND_NAME[g.brand] || g.brand)} · ${spPlural(g.all.length, 'listing')}${spProgText(g) ? ` · <span class="sp-reading">${spProgText(g)}</span>` : ''}</span>${spProgText(g) ? '' : spCheckedHtml(g)}</div><button type="button" class="sp-x" data-sp-act="close-parent" aria-label="Close">×</button></div></div>`
     + `<div class="sp-side-b">${spParentBodyHtml(g)}</div>`;
 }
 
@@ -17665,7 +17871,7 @@ function spKidHtml(item, g) {
   const st = SP_STATE[spBucket(item)] || SP_STATE.look;
   const parentNameText = g ? g.name : spParentOf(item);
   const back = `<button type="button" class="sp-back" data-sp-act="close-kid">← Back to ${lrEsc(parentNameText)}</button>`;
-  const head = `<div class="sp-side-h">${back}<div class="sp-hc">${spPic(item.brand, item.sku, true)}<div class="sp-hc-t"><b>${lrEsc(spFacts(item))}</b><span>${lrEsc(parentNameText)}</span><small>${lrEsc(item.sku)}</small>`
+  const head = `<div class="sp-side-h">${back}<div class="sp-hc">${spPic(item.brand, item.sku, true)}<div class="sp-hc-t"><b>${lrEsc(spFacts(item))}</b><span>${lrEsc(parentNameText)}</span><small>${lrEsc(item.sku)}</small>${g ? spCheckedHtml(g, [item]) : ''}`
     + `<span class="sp-chip-s ${st.cls}"><i aria-hidden="true">${st.i}</i>${st.t}</span></div><button type="button" class="sp-x" data-sp-act="close-kid" aria-label="Close">×</button></div></div>`;
   const card = (cls, title, body) => `<div class="sp-card2 ${cls}"><h4>${title}</h4>${body}</div>`;
   const b = spBucket(item);
@@ -17814,6 +18020,7 @@ function spCloseParent(returnFocus) {
   SP.panel = null;
   const box = $('spPanel');
   if (box) { box.hidden = true; box.innerHTML = ''; }
+  if (typeof liWsPump === 'function') liWsPump();     // background reads paused while the panel was open go on
   if (SP.on) spRender();
   if (returnFocus && key) {
     const card = $('spPane') && $('spPane').querySelector ? $('spPane').querySelector(`[data-sp-act="open-parent"][data-sp-group="${CSS.escape(key)}"]`) : null;
@@ -18026,22 +18233,29 @@ async function spOn() {
   if (pane) pane.classList.remove('hide');
   if (one) one.classList.add('hide');
   $('spSwitch').querySelectorAll('[data-sp-view]').forEach(btn => { const on = btn.dataset.spView === 'season'; btn.classList.toggle('on', on); btn.setAttribute('aria-pressed', String(on)); });
-  if (!H_LOADED || !SP.log) {
+  // the shared saved copy of the live reads (listing-saved.js): read with the snapshot, so the counts, badges and tiles show at once —
+  // the screen never waits for Amazon
+  const saved = typeof svLoad === 'function' ? svLoad() : null;
+  if (!H_LOADED || !SP.log || (saved && SV.state === 'loading')) {
     SP.loading = true;
     SP.loadErr = '';
     spRender();
     try {
       if (!H_LOADED) await ensureHealth();
       if (typeof liWsStoreLoad === 'function' && !LI_WS.stored) liWsStoreLoad();
-      await spLogLoad();
+      await Promise.all([spLogLoad(), saved]);
     } catch (e) {
       SP.loadErr = String((e && e.message) || e);
     }
     SP.loading = false;
+    SP.itemsKey = '';
   }
   spRender();
-  if (!SP.checkStarted && !SP.loadErr && H_LOADED) spCheckAll();   // "Check all parents" starts once by itself, in the background
+  if (spCheckDue() && !SP.loadErr && H_LOADED) spCheckAll();   // the background refresh: only what is older than 24 h
 }
+// The background refresh starts by itself when the planner opens — again on a later open once the last run is an hour old (a failed read
+// is tried again then).
+const spCheckDue = () => !SP.check || (!spCheckRunning() && Date.now() - SP.check.at > (typeof SV_RETRY_MS !== 'undefined' ? SV_RETRY_MS : 3600000));
 function spOff() {
   SP.on = false;
   try { localStorage.setItem(SP_STORE_VIEW, 'one'); } catch (e) { /* no storage */ }
@@ -18088,6 +18302,7 @@ if (typeof document !== 'undefined' && document.addEventListener && $('spSwitch'
     if (act === 'show-done') { SP.showDone = !SP.showDone; spRender(); return refocus('[data-sp-act="show-done"]'); }
     if (act === 'reload') { H_LOADED = false; return spOn(); }
     if (act === 'check-all') { spCheckAll(); return refocus('.sp-checkall'); }
+    if (act === 'read-again') { spReadAgain(el.dataset.spGroup); return; }
     if (act === 'result-close') { SP.result = null; return spRedrawAll(); }
     if (act === 'open-parent') return spOpenParent(el.dataset.spGroup);
     if (act === 'close-parent') return spCloseParent(true);
@@ -19023,8 +19238,10 @@ async function sqVerifyAll(run, jobs) {
     run.done++;
     sqDraw();
   }
-  // the Workspace's own copies follow (title and search words), so every screen shows the new values when the popup closes
-  const lfix = jobs.filter(job => job.body.lfix);
+  // the Workspace's own copies follow, so every screen shows the new values when the popup closes: what Amazon ACCEPTED goes into the
+  // shared saved copy at once (listing-saved.js — the search words and Item Highlights need no second read); the rest (a title, bullets,
+  // or a change Amazon is still working on) is read again
+  const lfix = jobs.filter(job => job.body.lfix && !(job.state === 'accepted' && typeof svFromSend === 'function' && svFromSend(job)));
   if (typeof liWsQueue === 'function' && typeof LI_WS_BATCH !== 'undefined') {
     ['SP', 'CPC'].forEach(brand => {
       const list = lfix.filter(job => job.brand === brand);

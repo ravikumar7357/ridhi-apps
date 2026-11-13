@@ -372,12 +372,12 @@ const TITLE = color => `Ridhi Cloth Napkins 100% Cotton 18 x 18 Inch Block Print
     done();
     C.SP.on = true; C.SP.brand = 'SP';
     C.spCheckAll();
+    ok('the background refresh: at most 2 reads out at once (10 batches of 20 waiting)', C.LI_WS.bgIn === 2 && C.LI_WS.inflight === 2 && C.LI_WS.q.length === 8 && C.LI_WS.q.every(job => job.bg), `${C.LI_WS.bgIn} / ${C.LI_WS.inflight} / ${C.LI_WS.q.length}`);
     C.spOpenParent('SP|PQ9');
-    const first = C.LI_WS.q.findIndex(job => (job.mark || []).some(key => /Q9x/.test(key)));
-    const lastMine = C.LI_WS.q.map(job => !job.bg).lastIndexOf(true);
-    const firstBg = C.LI_WS.q.findIndex(job => job.bg);
-    ok('every read a person asked for (the opened parent\'s) waits ahead of every background batch', firstBg > 0 && lastMine < firstBg, `${lastMine} < ${firstBg} of ${C.LI_WS.q.length}`);
-    ok('the opened parent\'s batch moved ahead of the other background batches', first >= 0 && C.LI_WS.q.slice(0, first).every(job => !job.bg) && C.LI_WS.q[first].bg === false, first + ' / ' + C.LI_WS.q.length);
+    const mine = C.LI_WS.q.findIndex(job => (job.mark || []).some(key => /Q9x/.test(key)));
+    ok('the opened parent\'s batch goes out at once, ahead of every background batch', mine < 0 && C.LI_WS.inflight === 3 && C.LI_WS.q.every(job => job.bg), `${mine} / ${C.LI_WS.inflight} / ${C.LI_WS.q.length}`);
+    for (let i = 0; i < 100 && C.LI_WS.inflight; i++) await new Promise(r => setTimeout(r, 3));
+    ok('…and while its panel is open no background read starts (the queue waits)', C.LI_WS.inflight === 0 && C.LI_WS.q.length === 7 && C.LI_WS.q.every(job => job.bg), `${C.LI_WS.inflight} / ${C.LI_WS.q.length}`);
     C.spCloseParent(false);
     const before = C.el('spPane').innerHTML;
     C.SP.scrollAt = Date.now();
