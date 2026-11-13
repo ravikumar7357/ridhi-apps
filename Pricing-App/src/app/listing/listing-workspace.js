@@ -693,7 +693,10 @@ function liWsSearch(rows) {
 
 /* ----- the live reads: a queue with LI_WS_INFLIGHT calls out at once ----- */
 function liWsQueue(job) {
-  LI_WS.q.push(job);
+  // background reads (the Season planner's "Check all parents", job.bg) always wait behind the reads a person asked for
+  const at = job.bg ? -1 : LI_WS.q.findIndex(other => other.bg);
+  if (at < 0) LI_WS.q.push(job);
+  else LI_WS.q.splice(at, 0, job);
   liWsPump();
 }
 function liWsPump() {

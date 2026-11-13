@@ -100,6 +100,9 @@ let SP = {
   prog: null,                // the open parent's reads: { key, items: Map("brand|sku" → Set(read tokens)) } — "Reading 40 of 469" in its header
   lastDraw: 0,               // when the planner last redrew for landed reads (at most every SP_DRAW_MS)
   scrollAt: 0,               // when the list or a panel was last scrolled (no redraw for SP_SCROLL_MS after)
+  check: null,               // "Check all parents": { total, done (parents), left: Map(parent → listings still out), at } — spCheckAll
+  checkStarted: false,       // it starts once by itself when the planner opens
+  bgKeys: new Set(),         // "brand|sku" waiting in a background batch (moved to the front when their parent opens)
   hlTried: new Set(),        // "brand|sku" whose Item Highlights were asked for (?lfix=get) — an error after that is said, not waited on
   tipAdd: new Set(),         // "brand|sku" where "Add to Item Highlights" (the optional tip) was pressed
   redrawT: 0,                // the debounced redraw for landed reads
@@ -205,19 +208,12 @@ async function spLogAdd(rows) {
  *   those two places first — never a word that describes the product; still no room → "Fix by hand" with the reason. A title over 75
  *   still gets Item Highlights, with a note that Amazon shows them only when the title is 75 letters or less. */
 const SP_HL75_NOTE = `Amazon shows Item Highlights only when the title is ${SP_TITLE_MAX} letters or less.`;
-// Where today stands against one calendar season, by the planner's rule: { active, date, from, to } — `date` the season's day (this
-// year's, or the next one), `from` its lead days before, `to` the day itself. A typed date in the calendar wins (lrEventDate).
+// Where today stands against one calendar season — THE one season-date rule of Listing Rules (lrSeasonState), so the planner and
+// every other screen agree: { active (time to add: lead days before → the day), keep (just past), expired (after its "days after"),
+// date, from, to (the day) }.
 function spWindow(ev, today, events) {
-  const t = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
-  let best = null;
-  for (const year of [today.getFullYear() - 1, today.getFullYear(), today.getFullYear() + 1]) {
-    const date = lrEventDate(ev, year, events);
-    if (!date) continue;
-    const from = date.getTime() - (ev.lead || 0) * LR_DAY;
-    if (t >= from && t <= date.getTime()) return { active: true, date, from: new Date(from), to: date };
-    if (from > t && (!best || from < best.from.getTime())) best = { active: false, date, from: new Date(from), to: date };
-  }
-  return best || { active: false, date: null, from: null, to: null };
+  const st = lrSeasonState(ev, today, events);
+  return Object.assign({}, st, { to: st.date });
 }
 // The seasons on now (running or starting soon), nearest day first: [{ ev, w, s }] (`s` in the old shape for the shared helpers).
 function spActive(cfg, today) {
@@ -226,15 +222,14 @@ function spActive(cfg, today) {
 }
 // The next season to come on (never a sale day), or null.
 function spNext(cfg, today) {
-  return (cfg.events || []).filter(ev => !spIsSale(ev)).map(ev => ({ ev, w: spWindow(ev, today, cfg.events) })).filter(e => !e.w.active && e.w.from)
+  return (cfg.events || []).filter(ev => !spIsSale(ev)).map(ev => ({ ev, w: spWindow(ev, today, cfg.events) })).filter(e => e.w.expired && e.w.from)
     .sort((a, b) => a.w.from - b.w.from)[0] || null;
 }
-// The EXPIRED seasons — every calendar season not on now (sale days by their own window) and the four plain seasons out of their months:
-// their words may be taken out of Item Highlights and the hidden search words to make room.
+// The EXPIRED seasons (lrSeasonState: after the calendar's "days after") — every calendar season, sale days included, and the four plain
+// seasons out of their months: their words may be taken out of Item Highlights and the hidden search words to make room. A season just
+// past (its "days after") is neither added nor taken out.
 function spExpired(cfg, today) {
-  const on = new Set(spActive(cfg, today).map(e => e.ev.id));
-  return (cfg.events || []).filter(ev => !on.has(ev.id) && !(spIsSale(ev) && lrSeason(ev, today, cfg.events).inSeason))
-    .concat(SP_SEASONS.filter(ev => !lrSeason(ev, today, cfg.events).inSeason)).map(ev => ({ ev }));
+  return (cfg.events || []).concat(SP_SEASONS).filter(ev => lrSeasonState(ev, today, cfg.events).expired).map(ev => ({ ev }));
 }
 // "Thanksgiving", "Thanksgiving and Christmas", "A, B and C".
 const spNames = names => (names.length < 2 ? names[0] || '' : names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1]);
@@ -657,6 +652,7 @@ const spSkipped = item => { const skips = spSkips(); return !!skips[item.key + '
 function spEnsureReads(items, first) {
   if (typeof liWsQueue !== 'function' || !items.length) return 0;
   if (!LI_WS.stored) liWsStoreLoad();
+  spCheckPromote(items.map(item => item.key));        // this parent's listings already waiting in "Check all parents": read them first
   const front = new Set(first || []);
   const order = front.size ? items.filter(item => front.has(item.key)).concat(items.filter(item => !front.has(item.key))) : items;
   const token = t => { SP.reading.add(t); spProgAdd(t); return () => { SP.reading.delete(t); }; };
@@ -689,6 +685,62 @@ function spEnsureReads(items, first) {
     }
   });
   return want.length + hlN;
+}
+/* ----- "Check all parents" (13 Nov 2026): every parent's hidden search words, read in the background ----- */
+// ?lfix=content, 20 a call, for every listing a season on now applies to that was not read in the last 24 h (the Workspace's cache, kept
+// 24 h), parent by parent so parents finish one after another, behind every read a person asks for (job.bg). The product type's schema
+// (does it have Item Highlights?) follows once per type. Item Highlights themselves need ?lfix=get, one call a listing: they are read
+// when a parent is opened. Progress counts parents: "Reading 120 of 362 — you can keep working"; the page redraws as answers land (at
+// most every SP_DRAW_MS, never while scrolled — spAfterRead). Starts once by itself when the planner opens (spOn).
+function spCheckAll() {
+  if (typeof liWsQueue !== 'function' || spCheckRunning()) return 0;
+  if (!LI_WS.stored) liWsStoreLoad();
+  SP.checkStarted = true;
+  const items = spCompute().filter(item => (item.kind === 'add' || item.kind === 'check') && !item.liveFresh && !item.readErr && !SP.reading.has(item.key));
+  const byParent = new Map();
+  items.forEach(item => { const pk = item.brand + '|' + spParentOf(item); if (!byParent.has(pk)) byParent.set(pk, []); byParent.get(pk).push(item); });
+  const check = { total: byParent.size, done: 0, left: new Map(), at: Date.now() };
+  SP.check = check;
+  const lists = { SP: [], CPC: [] };
+  byParent.forEach((list, pk) => { check.left.set(pk, list.length); list.forEach(item => lists[item.brand].push(item)); });
+  ['SP', 'CPC'].forEach(brand => {
+    for (let i = 0; i < lists[brand].length; i += LI_WS_BATCH) {
+      const batch = lists[brand].slice(i, i + LI_WS_BATCH);
+      batch.forEach(item => { SP.reading.add(item.key); SP.bgKeys.add(item.key); });
+      liWsQueue({ t: 'content', brand, skus: batch.map(item => item.sku), units: batch.length, pk: '', mark: batch.map(item => item.key), bg: true, done: () => spCheckDone(check, batch) });
+    }
+  });
+  if (SP.on) spRender();
+  return check.total;
+}
+const spCheckRunning = () => !!(SP.check && SP.check.done < SP.check.total);
+// One background batch is in: its listings are read; a parent is done when the last of its listings is.
+function spCheckDone(check, batch) {
+  batch.forEach(item => {
+    SP.reading.delete(item.key);
+    SP.bgKeys.delete(item.key);
+    const pk = item.brand + '|' + spParentOf(item);
+    const left = (check.left.get(pk) || 1) - 1;
+    check.left.set(pk, left);
+    if (!left) check.done++;
+  });
+}
+// A parent opened while "Check all parents" runs: its background batches move to the front, as the person's own reads.
+function spCheckPromote(keys) {
+  if (typeof LI_WS === 'undefined' || !SP.bgKeys.size) return;
+  const want = new Set(keys.filter(key => SP.bgKeys.has(key)));
+  if (!want.size) return;
+  const jobs = LI_WS.q.filter(job => job.bg && (job.mark || []).some(key => want.has(key)));
+  if (!jobs.length) return;
+  LI_WS.q = LI_WS.q.filter(job => !jobs.includes(job));
+  jobs.forEach(job => { job.bg = false; liWsQueue(job); });
+}
+// The button and its progress, in the page's toolbar.
+function spCheckHtml() {
+  const c = SP.check;
+  if (spCheckRunning()) return `<div class="sp-checkall"><button type="button" class="sp-btn" disabled>Checking…</button><span class="sp-reading" role="status">Reading ${spNf(c.done)} of ${spNf(c.total)} — you can keep working</span></div>`;
+  return `<div class="sp-checkall"><button type="button" class="sp-btn" data-sp-act="check-all" title="Reads every parent's hidden search words from Amazon (20 listings a call; kept 24 h)">Check all parents</button>`
+    + (c && c.total ? `<span class="sp-dim">✓ ${spNf(c.total)} parent${c.total === 1 ? '' : 's'} read</span>` : '') + '</div>';
 }
 // The open parent's progress: each listing counts once, done when every read queued for it is in.
 function spProgAdd(t) {
@@ -1005,7 +1057,7 @@ function spRender() {
   const shown = groups.filter(keep).sort((a, b) => (b.missN - a.missN) || (spCheckN(b) - spCheckN(a)) || a.name.localeCompare(b.name));
   const page = shown.slice(0, SP.shown);
   const toolbar = `<div class="card sp-tb"><div class="sp-seg" role="group" aria-label="Brand">${[['ALL', 'Both brands'], ['SP', BRAND_NAME.SP || 'SP'], ['CPC', BRAND_NAME.CPC || 'CPC']].map(([v, t]) => `<button type="button" class="${SP.brand === v ? 'on' : ''}" data-sp-act="brand" data-sp-brand="${v}" aria-pressed="${SP.brand === v}">${lrEsc(t)}</button>`).join('')}</div>`
-    + `<label class="sp-search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="spQ" value="${lrEsc(SP.q)}" placeholder="Search a product, SKU or ASIN" aria-label="Search"></label></div>`;
+    + `<label class="sp-search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="spQ" value="${lrEsc(SP.q)}" placeholder="Search a product, SKU or ASIN" aria-label="Search"></label>${spCheckHtml()}</div>`;
   const empty = !shown.length ? `<div class="card sp-empty"><b>${SP.q || SP.list !== 'all' ? 'Nothing here with these filters.' : 'No season is on now.'}</b><br>${SP.q || SP.list !== 'all' ? 'Clear the search or pick “All” to see everything.' : 'The next one shows here by itself when it starts.'}</div>` : '';
   const more = shown.length > page.length ? `<div class="sp-foot"><span>${spNf(page.length)} of ${spNf(shown.length)} parents</span><button type="button" class="sp-btn" data-sp-act="more">Show ${spNf(Math.min(SP_PAGE, shown.length - page.length))} more</button></div>` : '';
   const result = SP.result && !SP.panel ? spResultHtml(SP.result) : '';
@@ -1499,6 +1551,7 @@ async function spOn() {
     SP.loading = false;
   }
   spRender();
+  if (!SP.checkStarted && !SP.loadErr && H_LOADED) spCheckAll();   // "Check all parents" starts once by itself, in the background
 }
 function spOff() {
   SP.on = false;
@@ -1544,6 +1597,7 @@ if (typeof document !== 'undefined' && document.addEventListener && $('spSwitch'
     if (act === 'more') { SP.shown += SP_PAGE; return spRender(); }
     if (act === 'show-done') { SP.showDone = !SP.showDone; spRender(); return refocus('[data-sp-act="show-done"]'); }
     if (act === 'reload') { H_LOADED = false; return spOn(); }
+    if (act === 'check-all') { spCheckAll(); return refocus('.sp-checkall'); }
     if (act === 'result-close') { SP.result = null; return spRedrawAll(); }
     if (act === 'open-parent') return spOpenParent(el.dataset.spGroup);
     if (act === 'close-parent') return spCloseParent(true);

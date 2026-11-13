@@ -18,7 +18,7 @@ const ymd = date => date.toISOString().slice(0, 10);
 function setup(opts) {
   opts = opts || {};
   const posts = [];
-  const C = load({ ws: true, sp: true, window: opts.window, post: body => { posts.push(body); return { ok: true, status: 'ACCEPTED', submissionId: 'sub-' + body.sku }; } });
+  const C = load({ ws: true, sp: true, window: opts.window, baCall: opts.baCall, post: body => { posts.push(body); return { ok: true, status: 'ACCEPTED', submissionId: 'sub-' + body.sku }; } });
   C.setHealthLoaded(true);
   C.LI_WS.stored = true;
   C.SP.log = [];
@@ -40,7 +40,11 @@ function setup(opts) {
     }
     return row;
   };
-  const done = () => { C.setCat('SP', cat); C.LI_WS.liveV++; C.reset(); C.SP.itemsKey = ''; };
+  const done = () => {
+    // opts.only: the page holds only the listings this test put (the shared sample's parents left out)
+    if (opts.only) ['SP', 'CPC'].forEach(b => { const keep = C.HEALTH[b].rows.filter(r => cat[r.sku]); C.HEALTH[b].rows.splice(0, C.HEALTH[b].rows.length, ...keep); });
+    C.setCat('SP', cat); C.LI_WS.liveV++; C.reset(); C.SP.itemsKey = '';
+  };
   return { C, put, done, posts };
 }
 const byId = list => Object.fromEntries(list.map(item => [item.sku, item]));
@@ -245,6 +249,103 @@ const TITLE = color => `Ridhi Cloth Napkins 100% Cotton 18 x 18 Inch Block Print
     ok('"Xmas" counts as Christmas; "CHRISTMAS-themed" too', by.W1.miss.christmas.kw === 'found' && by.W1.miss.christmas.hl === 'found');
     ok('"christmastree" is not the word Christmas (whole words only)', by.W2.miss.christmas.kw === 'missing');
     ok('a listing never read: "not read yet" — not missing, not ready, and counted nowhere', by.W3.kind === 'check' && by.W3.status === 'reading' && !C.spMissing(by.W3, 'christmas'));
+  }
+
+  console.log('== ONE season-date rule for every screen: add (lead → day) · just past (days after) · expired (after them) ==');
+  {
+    const { C, put, done } = setup();
+    put('H1', 'Ridhi Cloth Napkins Cotton 18 x 18 Inch Thanksgiving - Blue', { kw: 'cotton', hl: ['Soft cotton'] });
+    put('H2', 'Ridhi Cloth Napkins Cotton 18 x 18 Inch Christmas - Red', { kw: 'cotton', hl: ['Soft cotton'] });
+    done();
+    const ev = id => C.getLR().events.find(e => e.id === id);
+    const st = (id, d) => C.lrSeasonState(ev(id), d, C.getLR().events);
+    const word = s => (s.active ? 'add' : s.keep ? 'keep' : 'expired');
+    ok('Thanksgiving 2026 (3 days after): 26 Nov add · 27–29 Nov just past · 30 Nov expired',
+      word(st('thanksgiving', D(2026, 11, 26))) === 'add' && word(st('thanksgiving', D(2026, 11, 27))) === 'keep' && word(st('thanksgiving', D(2026, 11, 29))) === 'keep' && word(st('thanksgiving', D(2026, 11, 30))) === 'expired');
+    ok('Christmas (7 days after): 25 Dec add · 1 Jan just past · 2 Jan expired; 10 Oct expired, 11 Oct add (75 days before)',
+      word(st('christmas', D(2026, 12, 25))) === 'add' && word(st('christmas', D(2027, 1, 1))) === 'keep' && word(st('christmas', D(2027, 1, 2))) === 'expired'
+      && word(st('christmas', D(2026, 10, 10))) === 'expired' && word(st('christmas', D(2026, 10, 11))) === 'add');
+    // Listing Rules flags a title naming a season exactly when the planner may take the word out: the same function, day by day
+    const flagged = (sku, day) => { const row = C.HEALTH.SP.rows.find(r => r.sku === sku); return C.healthOf(Object.assign({}, row), Object.assign({}, C.hCtx(), { today: day })).found.some(h => h.detector === 'seasonal_keyword'); };
+    let agree = true;
+    const bad = [];
+    for (let t = D(2026, 11, 20); t <= D(2027, 1, 6); t = new Date(t.getTime() + 86400000)) {
+      const exp = new Set(C.spExpired(C.getLR(), t).map(e => e.ev.id));
+      const act = new Set(C.spActive(C.getLR(), t).map(e => e.ev.id));
+      [['H1', 'thanksgiving'], ['H2', 'christmas']].forEach(([sku, id]) => {
+        const f = flagged(sku, t);
+        if (f !== exp.has(id) || (act.has(id) && (f || exp.has(id)))) { agree = false; bad.push(`${ymd(t)} ${id}: rule ${f}, planner expired ${exp.has(id)}, active ${act.has(id)}`); }
+      });
+    }
+    ok('20 Nov – 6 Jan, every day: Listing Rules flags the title ⇔ the planner counts the season as expired; never both "add" and flagged', agree, bad.slice(0, 4).join(' | '));
+    ok('just past (27 Nov): the planner neither adds Thanksgiving nor takes it out; Listing Rules does not flag it',
+      !C.spActive(C.getLR(), D(2026, 11, 27)).some(e => e.ev.id === 'thanksgiving') && !C.spExpired(C.getLR(), D(2026, 11, 27)).some(e => e.ev.id === 'thanksgiving') && !flagged('H1', D(2026, 11, 27)));
+  }
+
+  console.log('== "Check all parents": every parent read in the background, 20 a call ==');
+  {
+    const calls = [];
+    const baCall = async q => {
+      calls.push(q);
+      await new Promise(r => setTimeout(r, 2));
+      if (q.lfix !== 'content') return {};
+      const items = {};
+      q.skus.split(',').forEach(sku => { items[sku] = { productType: 'NAPKIN', item_name: [{ value: TITLE('Blue') }], generic_keyword: [{ value: /^K[0-9]$|^K1[0-9]$/.test(sku) ? 'cotton thanksgiving christmas' : 'cotton' }] }; });
+      return { items };
+    };
+    const { C, put, done } = setup({ baCall, only: true });
+    ['K', 'L', 'M'].forEach((p, n) => { for (let i = 0; i < 25; i++) put(p + i, TITLE('Blue'), { parent: 'P' + p }); });   // never read
+    done();
+    C.SP.on = true; C.SP.brand = 'SP';
+    C.spRender();
+    ok('before: the three parents say "25 not read yet — open to check"', (C.el('spPane').innerHTML.match(/25 not read yet — open to check/g) || []).length === 3);
+    const n = C.spCheckAll();
+    ok('started: 3 parents, "Reading 0 of 3 — you can keep working", the button waits', n === 3 && /Reading 0 of 3 — you can keep working/.test(C.el('spPane').innerHTML) && /sp-btn" disabled>Checking…/.test(C.el('spPane').innerHTML));
+    for (let i = 0; i < 400 && (C.LI_WS.inflight || C.LI_WS.q.length); i++) await new Promise(r => setTimeout(r, 3));
+    const content = calls.filter(q => q.lfix === 'content');
+    ok(`75 listings in ${content.length} content calls of at most 20 (+ the schema once)`, content.length === 4 && content.every(q => q.skus.split(',').length <= 20) && calls.filter(q => q.lfix === 'schema').length <= 1, JSON.stringify(calls.map(q => q.lfix)));
+    ok('done: "3 of 3"; every parent counted once', C.SP.check.done === 3 && C.SP.check.total === 3);
+    C.SP.itemsKey = ''; C.spRender();
+    const page = strip(C.el('spPane').innerHTML);
+    ok('the badges filled in from the search words: PK "Christmas missing · 5", PL and PM "· 25" each', /Parent PK 25 listings · 🦃 Thanksgiving missing · 5 🎄 Christmas missing · 5/.test(page) && (page.match(/Christmas missing · 25/g) || []).length === 2, page.slice(0, 900));
+    ok('…and the chips: "Christmas missing 3"', /🎄 Christmas missing 3/.test(page), (page.match(/All \d+.*?Ready \d+/) || [''])[0]);
+    ok('the reads are kept (24 h, the Workspace\'s store): "Check all parents" again reads nothing', C.spCheckAll() === 0 && calls.filter(q => q.lfix === 'content').length === 4);
+    ok('…and the button says so: "✓ 3 parents read"', /✓ 3 parents read/.test(C.el('spPane').innerHTML) || (C.spRender(), /Check all parents/.test(C.el('spPane').innerHTML)));
+  }
+  {
+    // a parent opened while the background reads run: its batches go first; a scroll holds the redraw
+    const calls = [];
+    const baCall = async q => { calls.push(q); await new Promise(r => setTimeout(r, 5)); return q.lfix === 'content' ? { items: Object.fromEntries(q.skus.split(',').map(sku => [sku, { productType: 'NAPKIN', item_name: [{ value: TITLE('Blue') }], generic_keyword: [{ value: 'cotton' }] }])) } : {}; };
+    const { C, put, done } = setup({ baCall, only: true });
+    for (let p = 0; p < 10; p++) for (let i = 0; i < 20; i++) put(`Q${p}x${i}`, TITLE('Blue'), { parent: 'PQ' + p });
+    done();
+    C.SP.on = true; C.SP.brand = 'SP';
+    C.spCheckAll();
+    C.spOpenParent('SP|PQ9');
+    const first = C.LI_WS.q.findIndex(job => (job.mark || []).some(key => /Q9x/.test(key)));
+    const lastMine = C.LI_WS.q.map(job => !job.bg).lastIndexOf(true);
+    const firstBg = C.LI_WS.q.findIndex(job => job.bg);
+    ok('every read a person asked for (the opened parent\'s) waits ahead of every background batch', firstBg > 0 && lastMine < firstBg, `${lastMine} < ${firstBg} of ${C.LI_WS.q.length}`);
+    ok('the opened parent\'s batch moved ahead of the other background batches', first >= 0 && C.LI_WS.q.slice(0, first).every(job => !job.bg) && C.LI_WS.q[first].bg === false, first + ' / ' + C.LI_WS.q.length);
+    C.spCloseParent(false);
+    const before = C.el('spPane').innerHTML;
+    C.SP.scrollAt = Date.now();
+    C.SP.lastDraw = 0;
+    C.spAfterRead();
+    await new Promise(r => setTimeout(r, 150));
+    ok('while the list is scrolled, landing reads do not redraw it', C.el('spPane').innerHTML === before);
+    for (let i = 0; i < 600 && (C.LI_WS.inflight || C.LI_WS.q.length); i++) await new Promise(r => setTimeout(r, 5));
+  }
+  {
+    const calls = [];
+    const { C, put, done } = setup({ baCall: async q => { calls.push(q); return {}; }, only: true });
+    put('A1', TITLE('Blue'), { parent: 'PA' });
+    done();
+    await C.spOn();
+    const n1 = calls.filter(q => q.lfix === 'content').length;
+    C.SP.on = false; await C.spOn();
+    ok('it starts once by itself when the planner opens, not again when it is opened again', n1 === 1 && calls.filter(q => q.lfix === 'content').length === 1 && C.SP.checkStarted, n1 + ' / ' + calls.length);
+    for (let i = 0; i < 200 && (C.LI_WS.inflight || C.LI_WS.q.length); i++) await new Promise(r => setTimeout(r, 3));
   }
 
   console.log(`\n${pass} passed, ${fail} failed`);

@@ -2565,10 +2565,12 @@
   /* Season planner (13 Nov 2026 season rules): the season badges on a parent card, the "Now: … · Next: …" line, the calendar's dates. */
   .sp-sbadge{display:inline-flex;align-items:center;gap:4px;padding:1px 8px;border-radius:var(--r-pill);background:var(--rev-bg);color:var(--rev-ink);font-size:12px;font-weight:600;white-space:nowrap}
   .sp-now b{color:var(--ink)}
+  .sp-checkall{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:12.5px;color:var(--muted)}
   .sp-pc-t>span span{display:inline;margin:0}
   .sp-pc-t>span .sp-sbadge{display:inline-flex;margin:2px 4px 0 0}
   .sp-seasons .fa-row-t b{font-size:13.5px}
   #paneLrules .lr-dates{margin:2px 0 4px;font-size:11.5px;white-space:nowrap}
+  #paneLrules #lrTable input.lr-on{width:140px}
 
   /* ===== MODULE: ADS ===== */
   /* Ad Console chart (drawn in placement.js), and the Placement chart's grid. The theme's colours over

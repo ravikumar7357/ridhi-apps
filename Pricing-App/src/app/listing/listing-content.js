@@ -67,7 +67,7 @@ function lcCheck(field, vals, ctx) {
     const cfg = LR || LR_DEFAULT;
     (cfg.events || []).forEach(ev => {
       const season = lrSeason(ev, today, cfg.events);
-      if (!season.inSeason && lrWords(ev.words).some(word => lrHas(title, word))
+      if (lrSeasonState(ev, today, cfg.events).expired && lrWords(ev.words).some(word => lrHas(title, word))   // the one season-date rule
           && !lrWords(ev.except).some(word => lrHas(ctx.subcat || '', word) || lrHas(ctx.color || '', word))) {
         push(false, `Names ${ev.name}, which is out of season now (in season ${lrFmtDate(season.from)} – ${lrFmtDate(season.to)}).`);
       }

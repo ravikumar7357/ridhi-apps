@@ -242,10 +242,10 @@ function renderLrules() {
         <td><input class="w-s" data-lre="${i}" data-f="name" value="${lrEsc(occasion.name)}"></td>
         <td><input class="w-m" data-lre="${i}" data-f="words" value="${lrEsc(occasion.words)}" title="${lrEsc(occasion.words)}"></td>
         <td>${lrEsc(whenText(occasion))}<div class="muted lr-dates" title="${lrEsc(dates.map(d => `${occasion.name} ${d.year}: ${short(d.date)}`).join(' · '))}">${dates.map(d => `${d.year}: ${short(d.date)}${d.typed ? ' (typed)' : ''}`).join(' · ')}</div>`
-          + `<input type="date" class="w-s" data-lre="${i}" data-f="on" value="${lrEsc(typedVal)}" title="Type a date only to use it instead of the worked-out one (for that year); clear it to go back"></td>
+          + `<input type="date" class="lr-on" data-lre="${i}" data-f="on" value="${lrEsc(typedVal)}" title="Type a date only to use it instead of the worked-out one (for that year); clear it to go back"></td>
         <td>${season.next ? short(season.next) + " '" + String(season.next.getUTCFullYear()).slice(2) : '—'}</td>
         <td>${season.from ? short(season.from) + ' → ' + short(season.to) : '—'}</td>
-        <td><span class="lr-pill ${season.inSeason ? 'lr-in' : 'lr-out'}">${season.inSeason ? 'in season' : 'out'}</span></td>
+        <td>${(st => `<span class="lr-pill ${st.expired ? 'lr-out' : 'lr-in'}" title="${st.active ? 'Time to add it (from its days before up to the day)' : st.keep ? 'Just past: not added any more, not removed or flagged yet' : 'Over: OK to remove, and a title naming it is flagged'}">${st.active ? 'in season' : st.keep ? 'just past' : 'out'}</span>`)(lrSeasonState(occasion, today, cfg.events))}</td>
         <td class="num" style="white-space:nowrap"><input class="w-xs" data-lre="${i}" data-f="lead" type="number" min="0" value="${occasion.lead || 0}" title="days before">
           <span class="muted">·</span> <input class="w-xs" data-lre="${i}" data-f="lag" type="number" min="0" value="${occasion.lag || 0}" title="days after"></td>
         <td><input class="w-s" data-lre="${i}" data-f="except" value="${lrEsc(occasion.except || '')}" placeholder="e.g. Tree Skirt" title="${lrEsc(occasion.except || '')}"></td>

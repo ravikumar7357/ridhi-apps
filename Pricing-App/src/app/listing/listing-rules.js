@@ -251,21 +251,31 @@ function lrEventDate(ev, year, events) {
   return null;
 }
 const LR_DAY = 86400000;   // one day in milliseconds
-/** Where today stands against an occasion: { inSeason, next (the date to talk about), from, to }. */
-// Looks at last year's, this year's and next year's date; the first window that holds today wins, else the nearest coming one.
-function lrSeason(ev, today, events) {
-  const todayMs = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
-  const year = today.getFullYear();
-  let best = null;
-  for (const eachYear of [year - 1, year, year + 1]) {
-    const date = lrEventDate(ev, eachYear, events);
+/** THE SEASON-DATE RULE every screen uses (13 Nov 2026) — the Season planner, the Listing Rules check of titles, Listing Content and the
+ *  calendar, so they all agree. For one occasion on one day:
+ *    active  = time to ADD it: from its lead days before the occasion up to the day itself;
+ *    keep    = just past: the day after up to its "days after" (lag) — not added any more, not removed or flagged yet;
+ *    expired = after its "days after" (until its next lead window opens): OK to remove, and a title naming it is flagged.
+ *  { active, keep, expired, date (this occurrence while active / keep, else the next one), from (add from), until (flagged after) }.
+ *  Looks at last year's, this year's and next year's date (a date typed in the calendar wins — lrEventDate). */
+function lrSeasonState(ev, today, events) {
+  const t = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
+  let next = null;
+  for (const year of [today.getFullYear() - 1, today.getFullYear(), today.getFullYear() + 1]) {
+    const date = lrEventDate(ev, year, events);
     if (!date) continue;
-    const from = date.getTime() - (ev.lead || 0) * LR_DAY;
-    const to = date.getTime() + (ev.lag || 0) * LR_DAY;
-    if (todayMs >= from && todayMs <= to) return { inSeason: true, next: date, from: new Date(from), to: new Date(to) };
-    if (to >= todayMs && (!best || date < best.next)) best = { inSeason: false, next: date, from: new Date(from), to: new Date(to) };
+    const from = new Date(date.getTime() - (ev.lead || 0) * LR_DAY);
+    const until = new Date(date.getTime() + (ev.lag || 0) * LR_DAY);
+    if (t >= from.getTime() && t <= date.getTime()) return { active: true, keep: false, expired: false, date, from, until };
+    if (t > date.getTime() && t <= until.getTime()) return { active: false, keep: true, expired: false, date, from, until };
+    if (from.getTime() > t && (!next || from < next.from)) next = { date, from, until };
   }
-  return best || { inSeason: false, next: null, from: null, to: null };
+  return Object.assign({ active: false, keep: false, expired: true, date: null, from: null, until: null }, next || {});
+}
+/** Where today stands against an occasion, in the older shape: { inSeason (active or keep: a title may name it), next, from, to }. */
+function lrSeason(ev, today, events) {
+  const st = lrSeasonState(ev, today, events);
+  return { inSeason: st.active || st.keep, next: st.date, from: st.from, to: st.until };
 }
 // "a, b, c" → ['a', 'b', 'c'].
 const lrWords = str => String(str || '').split(',').map(word => word.trim()).filter(Boolean);
@@ -422,9 +432,9 @@ const lrSizeText = (size, example) => {
   if (!nums || nums.length < 2 || nums.length > 3) return '';
   return nums.join(' x ') + ' ' + (String(example || '14 x 36 Inch').replace(/^[\d.\sx]+/i, '') || 'Inch');
 };
-/** Occasions in season today, in the order they fall. */
+/** Occasions to ADD today (lrSeasonState active), in the order they fall. */
 function lrOccasionsNow(cfg, today) {
-  return (cfg.events || []).map(e => ({ e, s: lrSeason(e, today, cfg.events) })).filter(each => each.s.inSeason)
+  return (cfg.events || []).map(e => ({ e, s: lrSeason(e, today, cfg.events), st: lrSeasonState(e, today, cfg.events) })).filter(each => each.st.active)
     .sort((a, b) => a.s.next - b.s.next).map(each => each.e.name.replace(/'s$/, "'s"));
 }
 /** The parts a template asks for, filled from what this SKU is. */
@@ -639,9 +649,9 @@ const LR_DET = {
       const word = lrWords(ev.words).find(each => lrHas(title, each));
       if (!word) continue;
       if (lrWords(ev.except).some(each => lrHas(String(cat.subcat || '') + ' ' + String(cat.color || ''), each))) continue;
-      const season = lrSeason(ev, ctx.today, ctx.cfg.events);
-      if (season.inSeason) continue;
-      return `"${word}" — ${ev.name} is ${season.next ? lrFmtDate(season.next) : 'not dated'}; it belongs in the title from ${season.from ? lrFmtDate(season.from) : '—'}`;
+      const season = lrSeasonState(ev, ctx.today, ctx.cfg.events);   // the one season-date rule: flagged only once it is expired
+      if (!season.expired) continue;
+      return `"${word}" — ${ev.name} is ${season.date ? lrFmtDate(season.date) : 'not dated'}; it belongs in the title from ${season.from ? lrFmtDate(season.from) : '—'}`;
     }
     return '';
   },
