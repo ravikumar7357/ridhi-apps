@@ -322,7 +322,8 @@ function sqDraw() {
     const wk = n('working');
     const head = one ? `${SQ_STATE[jobs[0].state] || ''}${jobs[0].why ? ': ' + sqEsc(jobs[0].why) : ''}`
       : `✅ ${sqNf(acc)} accepted · ❌ ${sqNf(rej.length)} rejected${rej.length ? ` (${sqEsc([...new Set(rej.map(job => job.why))].slice(0, 2).join('; '))})` : ''} · ⏳ ${sqNf(wk)}`;
-    const sent = jobs.filter(job => ['accepted', 'rejected', 'working'].includes(job.state));
+    const rank = { rejected: 0, working: 1, accepted: 2 };     // what needs a look first: rejected, then still working, then accepted
+    const sent = jobs.filter(job => job.state in rank).sort((x, y) => rank[x.state] - rank[y.state]);
     html = `<div class="sp-m-h"><b>${head}</b><p>${wk ? 'Amazon usually finishes within minutes to a few hours — press Check again later.' : 'Every change has an answer from Amazon.'}`
       + `${run.logErr ? ` <span class="sq-warn">The note for Listing History could not be saved (${sqEsc(run.logErr)}).</span>` : ''}</p></div>`
       + `<div class="sp-m-list">${sent.map(job => sqRowHtml(job, true)).join('')}</div>`

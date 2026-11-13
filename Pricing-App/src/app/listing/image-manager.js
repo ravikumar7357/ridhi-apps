@@ -855,14 +855,29 @@ async function imUpload(slot, file) {
   }
 }
 
-// Check (apply = false) or Apply (apply = true) the changed slots through imPost, and show what Amazon answered.
+// Check (apply = false): ask Amazon about the changed slots and show its answer here. Apply (apply = true): THE ONE SEND PATH (#10,
+// listing-send-check.js) — the Amazon check popup (the picture preview stays here): Amazon checks, the person approves, it is sent and
+// the listing read again; the answer shows here after.
 async function imSend(apply) {
   const set = imChanges();
   const nChanges = Object.keys(set).length;
   if (!nChanges) return;
-  if (apply && !confirm('Send ' + nChanges + ' image change(s) for ' + IM.sku + ' to Amazon?\n\n'
-      + Object.entries(set).map(([slot, url]) => slot + ': ' + (url ? 'new picture' : 'remove')).join('\n')
-      + '\n\nAmazon checks it first; if it reports an error nothing is sent.')) return;
+  if (apply) {
+    const im = IM;
+    const start = Object.assign({}, IM_START);
+    return sqSendWithCheck([{ brand: im.brand, sku: im.sku, asin: im.asin || '', label: im.title || im.sku, body: { limg: 'patch', brand: im.brand, sku: im.sku, productType: im.productType, set },
+      changes: Object.keys(set).map(slot => ({ field: sqField(slot), old: start[slot] || '(none)', new: set[slot] || '(removed)' })) }], {
+      screen: 'Image Manager', title: 'Image Manager · ' + im.sku,
+      onSent: () => { if (IM === im) IM_START = Object.assign({}, IM_NOW); IML_DIRTY = true; },   // what we sent is now the baseline
+      onEdit: () => {},                                   // the picture stack is right here, as it was
+      onDone: sum => {
+        if (IM !== im) return;
+        const text = sqSummaryText(sum);
+        if (text) IM_RESULT = `<div style="margin-top:8px;font-size:12.5px" class="${/rejected|says no/i.test(text) && !/✅/.test(text) ? 'err' : ''}">${imEsc(text)}</div>`;
+        imRender();
+        imHistory();
+      } });
+  }
   $('imCheck').disabled = $('imApply').disabled = true;
   $('imSendMsg').textContent = apply ? 'Sending to Amazon…' : 'Asking Amazon…';
   // --- send ---
@@ -981,66 +996,38 @@ async function imPasteMany(skus) {
   // --- warn when the targets are a different colour from the copied listing ---
   const colours = [...new Set(skus.map(each => (by.get(each) || {}).c).filter(Boolean))];
   const warn = colours.filter(colour => colour && IM_CLIP.c && colour !== IM_CLIP.c);
-  if (!confirm('Put ' + IM_CLIP.sku + "'s " + IM_CLIP.n + ' picture(s)' + (withSw ? ' and its swatch' : '')
-      + ' on ' + skus.length + ' listing(s)?\n\n' + skus.slice(0, 12).join(', ') + (skus.length > 12 ? ' …' : '')
-      + (warn.length ? '\n\nCAREFUL: ' + warn.length + ' of them are a different colour (' + warn.slice(0, 4).join(', ')
-        + ') and ' + IM_CLIP.sku + ' is ' + IM_CLIP.c + '.' : '')
-      + '\n\nAmazon checks each one first; any it objects to is skipped and named.')) return;
-  // --- one send per SKU: only the slots that differ, stop after three refusals in a row ---
-  const out = $('imBulk');
-  $('imPasteSel').disabled = true;
-  let done = 0;
-  let failed = 0;
-  let refusals = 0;     // refusals in a row
-  const lines = [];
+  const careful = warn.length ? `CAREFUL: ${warn.length} of them are a different colour (${warn.slice(0, 4).join(', ')}) and ${IM_CLIP.sku} is ${IM_CLIP.c}.` : '';
+  // --- one change per SKU (only the slots that differ) through THE ONE SEND PATH (#10): the Amazon check popup — Amazon checks each,
+  //     the person approves, each is sent and read again; the ones that cannot be sent are named there ---
+  const jobs = [];
+  const held = [];
   for (const sku of skus) {
     const row = by.get(sku);
-    if (!row) {
-      lines.push(sku + ' — not in this snapshot');
-      continue;
-    }
+    if (!row) { held.push({ sku, why: 'not in this snapshot' }); continue; }
     const set = {};
     IM_SLOTS.forEach(slot => {
       const url = IM_CLIP.slots[slot];
       if (url && (row.img || {})[slot] !== url) set[slot] = url;
     });
     if (withSw && IM_CLIP.slots.SWCH && (row.img || {}).SWCH !== IM_CLIP.slots.SWCH) set.SWCH = IM_CLIP.slots.SWCH;
-    if (!Object.keys(set).length) {
-      lines.push(sku + ' — already holds these');
-      continue;
-    }
-    if (!row.pt) {
-      lines.push(sku + ' — no product type in the snapshot; open it and paste there');
-      continue;
-    }
-    out.innerHTML = 'Sending ' + (done + failed + 1) + ' of ' + skus.length + '…<br>' + lines.join('<br>');
-    let reply;
-    try {
-      reply = await imPost({ limg: 'patch', brand: brandKey, sku, productType: row.pt, set, apply: true, by: ME.email });
-    } catch (e) {
-      reply = { ok: false, error: String(e.message || e) };
-    }
-    if (reply.ok && !reply.previewOnly) {
-      done++;
-      refusals = 0;
-      row.img = Object.assign({}, row.img, set);        // what was sent, so the strip stops lying
-      lines.push('<span style="color:var(--accent-ink)">' + sku + ' — accepted (' + Object.keys(set).length + ' slot(s))</span>');
-    } else {
-      failed++;
-      refusals++;
-      lines.push('<span class="err">' + sku + ' — ' + imEsc(reply.error || 'refused') + '</span>');
-      if (refusals >= 3) {
-        lines.push('<b>Stopped after three refusals in a row.</b>');
-        break;
-      }
-    }
+    if (!Object.keys(set).length) { held.push({ sku, why: 'already holds these pictures' }); continue; }
+    if (!row.pt) { held.push({ sku, why: 'no product type in the snapshot — open it and paste there' }); continue; }
+    jobs.push({ brand: brandKey, sku, asin: row.asin || '', label: [row.c, row.z].filter(Boolean).join(' · ') || sku, row, body: { limg: 'patch', brand: brandKey, sku, productType: row.pt, set },
+      changes: Object.keys(set).map(slot => ({ field: sqField(slot), old: (row.img || {})[slot] ? 'a picture' : '(none)', new: IM_CLIP.sku + "'s picture" })) });
   }
-  out.innerHTML = '<b>' + done + ' sent, ' + failed + ' refused.</b> Amazon processes them in the background; '
-    + 'press Refresh from Amazon later to see what is live.<br>' + lines.join('<br>');
-  IML_DIRTY = true;
-  IM_SEL.clear();
-  imListRender();
-  $('imBulk').innerHTML = out.innerHTML;
+  const out = $('imBulk');
+  $('imPasteSel').disabled = true;
+  return sqSendWithCheck(jobs, {
+    screen: 'Image Manager · paste', title: `Paste ${IM_CLIP.sku}'s pictures${careful ? ' — ' + careful : ''}`, held,
+    onSent: job => { job.row.img = Object.assign({}, job.row.img, job.body.set); },   // what was sent, so the strip stops lying
+    onDone: sum => {
+      IML_DIRTY = true;
+      IM_SEL.clear();
+      imListRender();
+      const lines = sum.jobs.map(job => job.sku + ' — ' + (job.state === 'accepted' ? 'accepted' : job.state === 'working' ? 'sent, Amazon is still working' : job.state === 'notsent' ? 'test site — not sent'
+        : job.why ? (job.state === 'no' ? 'Amazon says no: ' : 'Amazon rejected: ') + job.why : 'not sent')).concat(held.map(h => h.sku + ' — ' + h.why));
+      if ($('imBulk')) $('imBulk').innerHTML = '<b>' + imEsc(sqSummaryText(sum) || 'Nothing sent.') + '</b><br>' + lines.map(imEsc).join('<br>');
+    } });
 }
 
 /* ============================================================================================

@@ -156,8 +156,45 @@ const box = C => C.el('spModalBox').innerHTML;
       && le.LE.attributes.material[0].value === 'Cotton' && !Object.keys(le.LE_EDIT).length, le.LE_RESULT);
   }
 
+  console.log('== Image Manager: Apply and paste → the same popup (the picture preview stays on its own screen) ==');
+  {
+    const posts = [];
+    const amazon = {};
+    const post = b => { posts.push(b); if (b.apply) amazon[b.sku] = Object.assign({}, amazon[b.sku] || {}, b.set); return b.apply ? { ok: true, submissionId: 's1' } : { ok: true, previewOnly: true, issues: [] }; };
+    // image-manager.js brings its own imPost (the real POST): the backend it talks to is a stub that answers like Amazon
+    const C = load({ sq: true, im: true, baCall: async q => (q.limg === 'get' ? { listing: amazon[q.sku] || {}, issues: [] } : {}),
+      ctx: { API: { url: 'https://backend.stub/exec' }, API_ERR: '', auth: { currentUser: null }, fetch: async (url, init) => ({ text: async () => JSON.stringify(post(JSON.parse(init.body))) }) } });
+    C.el('imBrand').value = 'SP';
+    C.setIM({ brand: 'SP', sku: 'IM1', asin: 'B0IM1', productType: 'NAPKIN', title: 'Napkins' }, { MAIN: 'https://m.media-amazon.com/images/I/old.jpg' }, { MAIN: 'https://m.media-amazon.com/images/I/new.jpg' });
+    const run = C.imSend(true);
+    await C.SQ.run.checked;
+    ok('Apply → the Amazon check popup (no browser confirm): Main picture old → new, "✓ Amazon will accept"', C.SQ.screens.slice(-1)[0] === 'Image Manager' && C.SQ.run.jobs[0].state === 'ok'
+      && C.SQ.run.jobs[0].changes[0].field === 'Main picture' && /old\.jpg/.test(C.SQ.run.jobs[0].changes[0].old) && /new\.jpg/.test(C.SQ.run.jobs[0].changes[0].new) && posts[0].limg === 'patch' && posts[0].apply === false);
+    await C.sqApprove();
+    ok('…Approve & send: sent, the listing read again (?limg=get) — "✅ Amazon accepted"', posts.filter(p => p.apply).length === 1 && C.SQ.run.jobs[0].state === 'accepted');
+    C.sqClose();
+    await run;
+    ok('…what was sent is now the baseline of the picture stack', /new\.jpg/.test(C.getIM().IM_START.MAIN));
+    // paste into several ticked listings
+    C.IML.SP = { at: new Date(), items: [{ sku: 'P1', asin: 'B0P1', pt: 'NAPKIN', c: 'Blue', img: { MAIN: 'https://m.media-amazon.com/images/I/a.jpg' } },
+      { sku: 'P2', asin: 'B0P2', pt: '', c: 'Blue', img: {} }, { sku: 'P3', asin: 'B0P3', pt: 'NAPKIN', c: 'Red', img: { MAIN: 'https://m.media-amazon.com/images/I/new.jpg' } }] };
+    C.setClip({ brand: 'SP', sku: 'SRC', n: 1, c: 'Blue', slots: { MAIN: 'https://m.media-amazon.com/images/I/new.jpg' } });
+    const paste = C.imPasteMany(['P1', 'P2', 'P3', 'P4']);
+    await C.SQ.run.checked;
+    ok('Paste into 4 ticked listings → the popup: "1 Amazon will accept · 0 Amazon says no", the other 3 named with why (no product type, already holds it, not in the snapshot)',
+      C.SQ.screens.slice(-1)[0] === 'Image Manager · paste' && C.SQ.run.jobs.length === 1 && C.SQ.run.jobs[0].sku === 'P1' && C.SQ.run.opts.held.length === 3
+      && C.SQ.run.opts.held.some(h => h.sku === 'P2' && /no product type/.test(h.why)) && C.SQ.run.opts.held.some(h => h.sku === 'P3' && /already holds these pictures/.test(h.why))
+      && C.SQ.run.opts.held.some(h => h.sku === 'P4' && /not in this snapshot/.test(h.why)) && /different colour/.test(C.SQ.run.opts.title), JSON.stringify(C.SQ.run.opts.held));
+    await C.sqApprove();
+    C.sqClose();
+    await paste;
+    ok('…Approve & send: P1 sent once, read again; the strip holds the new picture', posts.filter(p => p.apply && p.sku === 'P1').length === 1 && /new\.jpg/.test(C.IML.SP.items[0].img.MAIN));
+    C.SQ.screens.forEach(sc => F.C.SQ.screens.push(sc));
+  }
+
   console.log('== the send points that go through the ONE function ==');
   ok('Season planner (Fix, Fix all, Remove all, Fix all seasons) → sqSendWithCheck', F.C.SQ.screens.includes('Season planner'));
+  ok('Image Manager (Apply, paste into ticked listings) → sqSendWithCheck', F.C.SQ.screens.includes('Image Manager') && F.C.SQ.screens.includes('Image Manager · paste'));
 
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
