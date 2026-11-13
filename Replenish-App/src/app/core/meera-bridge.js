@@ -43,8 +43,8 @@ const ERP_MEERA = {
   phone: () => meeraSafe(() => typeof mobOn === 'function' && !!mobOn(), false),
   words: () => meeraSafe(() => {
     const out = new Set(), add = v => { if (typeof v === 'string' && v.length < 80) out.add(v); };
-    Object.values((PTG && PTG.masters) || {}).forEach(list => Object.values(list || {}).forEach(e => { if (e && typeof e === 'object') ['name', 'desc', 'code', 'label'].forEach(k => add(e[k])); else add(e); }));
-    ((PTG && PTG.mdb) || []).forEach(r => { if (r) ['sku', 'brand', 'color', 'colour'].forEach(k => add(r[k])); });
+    Object.values(mdHeld('masters') || {}).forEach(list => Object.values(list || {}).forEach(e => { if (e && typeof e === 'object') ['name', 'desc', 'code', 'label'].forEach(k => add(e[k])); else add(e); }));
+    (mdHeld('mdb') || []).forEach(r => { if (r) ['sku', 'brand', 'color', 'colour'].forEach(k => add(r[k])); });
     return [...out];
   }, []),
   on: (event, fn) => { (MEERA_EVENTS[event] = MEERA_EVENTS[event] || []).push(fn); },
@@ -59,10 +59,12 @@ try { window.ERP_MEERA = ERP_MEERA; } catch (e) { /* no window: the page itself 
  * data a screen has not read yet is "not loaded" (she asks the person to open that screen), never fetched — the quota
  * fix stands. Each answer says which screen it comes from and when that screen last read it. A screen the account
  * cannot open answers "not allowed", with no data. open() is called only from a button the person presses. */
-const MEERA_DATA_SCREENS = { ord: 'Order Console', pbase: 'Job Work Register', fgi: 'Finished Goods', qc: 'Quality Control', pmdb: 'Master Database' };
+const MEERA_DATA_SCREENS = { ord: 'Order Console', pbase: 'Job Work Register', fgi: 'Finished Goods', qc: 'Quality Control', pmdb: 'Master Database', shop: 'Shopify Orders', vord: 'Vendor Orders' };
 const mdMay = tab => (typeof mobMay === 'function' ? !!mobMay(tab) : true);
 const mdNum = v => Number(v) || 0;
 const mdLeft = r => mdNum(r.issuePieces) - mdNum(r.receivedPieces) - mdNum(r.rejectionPieces);
+/* A register as the page holds it WITHOUT asking for it (Meera never starts a read). Without the gates (a test page) it is the field itself. */
+const mdHeld = r => (typeof ptPeek === 'function' ? ptPeek(r) : (typeof PTG !== 'undefined' ? PTG[r] : undefined));
 const mdTime = ms => (ms ? new Date(ms).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '');
 const mdToday = () => { const d = new Date(), p = n => String(n).padStart(2, '0'); return p(d.getDate()) + '/' + p(d.getMonth() + 1) + '/' + d.getFullYear(); };
 const mdDayMs = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d.getTime(); };
@@ -72,7 +74,9 @@ function mdFrom(tab, loaded, asOf) {
   if (!loaded) return { tab, name: MEERA_DATA_SCREENS[tab] || tab, notLoaded: true };
   return { tab, name: MEERA_DATA_SCREENS[tab] || tab, asOf: asOf || '' };
 }
-const mdOrdFrom = () => mdFrom('ord', typeof PTG !== 'undefined' && Array.isArray(PTG.ob) && typeof ordLines === 'function', typeof PTG !== 'undefined' ? mdTime(PTG.at) : '');
+/* The order book must be there (as always); with page registers on, every register the order lines use must be too. */
+const mdOrdReady = () => typeof PTG !== 'undefined' && (typeof ptHas !== 'function' || ptHas(PTG_ALL)) && Array.isArray(mdHeld('ob'));
+const mdOrdFrom = () => mdFrom('ord', mdOrdReady() && typeof ordLines === 'function', typeof PTG !== 'undefined' ? mdTime(PTG.at) : '');
 const mdBaseFrom = () => mdFrom('pbase', typeof PT !== 'undefined' && Array.isArray(PT.base), typeof PT !== 'undefined' && PT.at ? PT.at.base : '');
 const mdOrdLines = () => { try { return ordLines() || []; } catch (e) { return []; } };
 ERP_MEERA.data = {
@@ -91,7 +95,7 @@ ERP_MEERA.data = {
     return { from, order: { orderNo: NO, lines: rows.map(r => ({ sku: r.sku, qty: mdNum(r.qty), at: typeof ordWaitingAt === 'function' ? ordWaitingAt(r) : '' })),
       pcs: rows.reduce((a, r) => a + mdNum(r.qty), 0), open,
       karigars: typeof ordKarigarsOf === 'function' ? [...ordKarigarsOf(NO).entries()].sort((a, b) => b[1] - a[1]) : [],
-      last: last ? { ms: last.ms, by: last.by || '', kind: last.kind || '' } : null, idle, late: open && idle >= (typeof ORD_PIPE_STALE_DAYS !== 'undefined' ? ORD_PIPE_STALE_DAYS : 5) } };
+      last: last ? { ms: last.ms, by: last.by || '', kind: last.kind || '' } : null, placed, idle, late: open && idle >= (typeof ORD_PIPE_STALE_DAYS !== 'undefined' ? ORD_PIPE_STALE_DAYS : 5) } };
   }, { from: { tab: 'ord', notLoaded: true } }),
   /** the karigars this page knows (the employee list and the Job Work rows) */
   karigars: () => meeraSafe(() => {
@@ -110,7 +114,7 @@ ERP_MEERA.data = {
       rows: rows.map(r => ({ orderNo: r.orderNo || '', sku: r.sku || '', pcs: mdLeft(r), given: String(r.issueDate || '').slice(0, 10) })).sort((a, b) => b.pcs - a.pcs) };
   }, { from: { tab: 'pbase', notLoaded: true } }),
   /** the SKU codes the Master Database has (for finding the one meant) */
-  skus: () => meeraSafe(() => ((typeof PTG !== 'undefined' && PTG.mdb) || []).map(r => String((r && r.sku) || '').toUpperCase()).filter(Boolean), []),
+  skus: () => meeraSafe(() => (mdHeld('mdb') || []).map(r => String((r && r.sku) || '').toUpperCase()).filter(Boolean), []),
   /** one SKU in the India store (Finished Goods' own count) */
   skuStock: sku => meeraSafe(() => {
     const from = mdFrom('fgi', typeof FGI !== 'undefined' && Array.isArray(FGI.rows) && typeof fgiOf === 'function', typeof FGI !== 'undefined' ? FGI.at : '');
@@ -164,7 +168,7 @@ ERP_MEERA.data = {
    * screen shows, for accounts that may open it — NEVER the cost value (inventoryValuationPrice) or the maker
    * (manufacturer), to anyone. Fabric width from the fabric master (ptFabricWidths). */
   skuInfo: sku => meeraSafe(() => {
-    const from = mdFrom('pmdb', typeof PTG !== 'undefined' && Array.isArray(PTG.mdb), typeof PTG !== 'undefined' ? mdTime(PTG.at) : '');
+    const from = mdFrom('pmdb', Array.isArray(mdHeld('mdb')), typeof PTG !== 'undefined' ? mdTime(PTG.at) : '');
     if (from.denied || from.notLoaded) return { from };
     const m = typeof mdbOf === 'function' ? mdbOf(sku) : null;
     if (!m) return { from, none: true };
@@ -186,11 +190,104 @@ ERP_MEERA.data = {
       .map(r => ({ orderNo: r.orderNo, qty: mdNum(r.qty), at: typeof ordWaitingAt === 'function' ? ordWaitingAt(r) : '' }));
     return { from, sku: S, lines };
   }, { from: { tab: 'ord', notLoaded: true } }),
+  /** A SKU's family — every size of the same design ("CPC002-04", "CPC002-06" … are CPC002) — from the Master Database */
+  skuFamily: said => meeraSafe(() => {
+    const from = mdFrom('pmdb', Array.isArray(mdHeld('mdb')), typeof PTG !== 'undefined' ? mdTime(PTG.at) : '');
+    if (from.denied || from.notLoaded) return { from, skus: [] };
+    const bare = s => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    const fam = s => { const u = String(s || '').toUpperCase(); return bare(u.includes('-') ? u.replace(/-[^-]*$/, '') : u); };
+    const U = String(said || '').toUpperCase(), key = (mdHeld('mdb') || []).some(r => r && String(r.sku || '').toUpperCase() === U) ? fam(U) : bare(U);
+    const skus = (mdHeld('mdb') || []).filter(r => r && r.sku && fam(r.sku) === key)
+      .map(r => ({ sku: String(r.sku).toUpperCase(), size: r.size || '', color: r.color || '' })).slice(0, 40);
+    return { from, family: key, skus };
+  }, { from: { tab: 'pmdb', notLoaded: true }, skus: [] }),
+  /** EVERY SKU's OWN WORDS IN THE MASTER DATABASE (Ravi, 7 Nov: "the sku of table cloth that comes under Appetite Green"):
+   * article, type, colour, brand, size and fabric — what she finds SKUs by. Never the cost value or the maker. A SKU
+   * merged into another is left out: it is not made any more. */
+  skuList: () => meeraSafe(() => {
+    const from = mdFrom('pmdb', typeof PTG !== 'undefined' && Array.isArray(PTG.mdb), typeof PTG !== 'undefined' ? mdTime(PTG.at) : '');
+    if (from.denied || from.notLoaded) return { from, rows: [] };
+    const t = v => String(v == null ? '' : v).trim();
+    const rows = (PTG.mdb || []).filter(r => r && r.sku && !t(r.mergedInto))
+      .map(r => ({ sku: String(r.sku).toUpperCase(), articleType: t(r.articleType), subtype: t(r.subtype), color: t(r.color), brand: t(r.brand), size: t(r.size), fabric: t(r.fabric) }));
+    return { from, rows };
+  }, { from: { tab: 'pmdb', notLoaded: true }, rows: [] }),
+  /** THE VENDORS' NAMES (printers, fabricators, filling houses): the vendor master, and any code on a vendor order the master no
+   * longer has — for finding the one meant ("chaudhry handbooks ke paas apna kitna maal hai", Ravi 7 Nov) */
+  vendors: () => meeraSafe(() => {
+    const seen = new Map();
+    const add = (code, name) => { const c = String(code || '').trim(), n = String(name || '').trim(); if (c && n && !seen.has(c)) seen.set(c, n); };
+    if (typeof voAllVendors === 'function') voAllVendors().forEach(v => add(v.code, v.desc || v.name));
+    if (typeof VO !== 'undefined' && Array.isArray(VO.rows) && typeof voName === 'function') VO.rows.forEach(o => o && add(o.vendorCode, voName(o.vendorCode)));
+    return [...seen].map(([code, name]) => ({ code, name }));
+  }, []),
+  /** WHAT ONE VENDOR HOLDS OF OURS, from Vendor Orders: on every open line, what was given less what came back (voDueOf withV —
+   * the Vendor Orders screen's own figure), pieces and metres apart. A cancelled line, or an order Cancelled or Received, holds
+   * nothing. A line with nothing given yet is counted apart: that cloth is still ours to send. */
+  vendorHolding: code => meeraSafe(() => {
+    const from = mdFrom('vord', typeof VO !== 'undefined' && Array.isArray(VO.rows), typeof VO !== 'undefined' ? VO.at : '');
+    if (from.denied || from.notLoaded) return { from };
+    const C = String(code || ''), lines = [];
+    let pcs = 0, m = 0, toSend = 0;
+    VO.rows.forEach(o => {
+      if (!o || String(o.vendorCode) !== C || o.status === 'Cancelled' || o.status === 'Received') return;
+      voLines(o).forEach(l => {
+        if (!l || l.cancelled) return;
+        const x = voDueOf(o, l);
+        if (!x) return;
+        if (!(x.withV > 0.001)) { toSend += x.left; return; }
+        if (x.unit === 'm') m += x.withV; else pcs += x.withV;
+        lines.push({ vpo: String(o.orderNo || o.id || ''), what: String(l.sku || [l.fabricType || l.fabric, l.color].filter(Boolean).join(' ') || ''),
+          qty: Math.round(x.withV * 100) / 100, unit: x.unit, due: x.due || '', late: x.st === 'late' });
+      });
+    });
+    lines.sort((a, b) => (b.late - a.late) || String(a.due || '9').localeCompare(String(b.due || '9')));
+    return { from, code: C, name: typeof voName === 'function' ? voName(C) : C, pcs: Math.round(pcs * 100) / 100, m: Math.round(m * 100) / 100,
+      toSend: Math.round(toSend * 100) / 100, lines };
+  }, { from: { tab: 'vord', notLoaded: true } }),
+  /** Amazon FBA units of a SKU, as Shopify Orders last read them (both accounts, the larger) */
+  skuFba: sku => meeraSafe(() => {
+    const from = mdFrom('shop', typeof SHOP_STOCK_LOADED !== 'undefined' && SHOP_STOCK_LOADED, typeof SHOP !== 'undefined' ? SHOP.at : '');
+    if (from.denied || from.notLoaded) return { from };
+    const S = String(sku || '').toUpperCase();
+    return { from, fba: S in SHOP_STOCK ? mdNum(SHOP_STOCK[S]) : null };
+  }, { from: { tab: 'shop', notLoaded: true } }),
+  /** where a SKU sells: Amazon when the Master Database has its ASIN; the others from the orders this page has seen
+   *  (Order Console lines by their number, Shopify orders by their store) — each only for whoever may see that screen */
+  skuPlatforms: sku => meeraSafe(() => {
+    const S = String(sku || '').toUpperCase(), seen = new Map(), add = (name, no) => { const m = seen.get(name) || new Set(); if (no) m.add(no); seen.set(name, m); };
+    let asin = '';
+    if (mdMay('pmdb') && typeof mdbOf === 'function') { const m = mdbOf(S); if (m && m.asin) { asin = String(m.asin); add('Amazon'); } }
+    const NAME = { AMZ: 'Amazon', SHP: 'Shopify', SPY: 'Shopify', B2B: 'B2B', ONL: 'Online', ETSY: 'Etsy' };
+    if (mdMay('ord') && mdOrdReady()) mdOrdLines().forEach(r => {
+      if (String(r.sku || '').toUpperCase() !== S) return;
+      const p = String(r.orderNo || '').split('-')[0].toUpperCase(), ch = String(r.custChannel || r.src || '').toUpperCase();
+      const n = NAME[ch] || NAME[p]; if (n) add(n, r.orderNo);
+    });
+    if (mdMay('shop') && typeof SHOP !== 'undefined' && Array.isArray(SHOP.orders)) SHOP.orders.forEach(o => {
+      if ((o.items || []).some(i => String(i.sku || '').toUpperCase() === S)) add('Shopify' + (typeof soStoreOf === 'function' ? ' (' + soStoreOf(o) + ')' : ''), o.name || o.id || '');
+    });
+    return { asin, list: [...seen.entries()].map(([name, nos]) => ({ name, orders: nos.size, nos: [...nos] })) };
+  }, { asin: '', list: [] }),
   /** the person pressed the answer's button: the screen, on the line (an order's journey, a karigar's rows, a SKU) */
   open: (kind, key) => meeraSafe(() => {
     if (kind === 'order' && mdMay('ord') && typeof ordJourney === 'function') { ordJourney(key); return true; }
     if (kind === 'karigar' && mdMay('pbase') && typeof mobSearchOpen === 'function') { mobSearchOpen('kar|' + key); return true; }
     if (kind === 'sku' && typeof mobSkuSheet === 'function') { mobSkuSheet(key); return true; }
+    /* ONE CLOTH ON THE MASTER DATABASE (Ravi, 10 Nov): the fabric page, that fabric's row opened with its products, searched to the
+     * colour when one was named. Only what the screen itself does when somebody types in its search and opens the row. */
+    if (kind === 'pmdbfab' && mdMay('pmdb')) {
+      showTab('pmdb');
+      if (typeof FM !== 'undefined' && typeof fmRender === 'function' && typeof fmProducts === 'function') {
+        const [fab, col] = String(key || '').split('|'), k = s => String(s || '').trim().toLowerCase();
+        if (typeof fmSetView === 'function' && FM.view !== 'fabric') fmSetView('fabric');
+        const p = fmProducts().find(x => k(x.fabName) === k(fab));
+        FM.q = col || fab || '';
+        if (p && p.fab) FM.open.add(p.fab);
+        fmRender();
+      }
+      return true;
+    }
     if (MEERA_DATA_SCREENS[kind] && mdMay(kind)) { showTab(kind); return true; }
     return false;
   }, false),

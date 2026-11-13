@@ -403,13 +403,13 @@
   "q": "Cut कसलिए है",
   "from": "Cut किसलिए है",
   "id": "c-mst-1627",
-  "tab": "mst"
+  "tab": "pa"
  },
  {
   "q": "₹ / piece किसलिए हे",
   "from": "₹ / piece किसलिए है",
   "id": "c-mst-1641",
-  "tab": "mst"
+  "tab": "ka"
  },
  {
   "q": "To quilt team कसलिए है",
@@ -436,13 +436,13 @@
   "tab": "gdesk"
  },
  {
-  "q": "' + esc(o.greige) + ' कीसलीए है",
+  "q": "Greige fabric for the PO line कीसलीए है",
   "from": "' + esc(o.greige) + ' किसलिए है",
   "id": "c-gdesk-1377",
   "tab": "gdesk"
  },
  {
-  "q": "= 0 ? ' class=\"num\"' : '')}> किसलिए ह",
+  "q": "Job Work register table किसलिए ह",
   "from": "= 0 ? ' class=\"num\"' : '')}> किसलिए है",
   "id": "c-pbase-1880",
   "tab": "pbase"
@@ -517,10 +517,10 @@
   "q": "From India · DHL / FedEx किसलिए हे",
   "from": "From India · DHL / FedEx किसलिए है",
   "id": "c-india-1972",
-  "tab": "india"
+  "tab": "shop"
  },
  {
-  "q": "= q0 ? '' : ' disabled'}>Fulfil from India क़िसलिए है",
+  "q": "Fulfil from India क़िसलिए है",
   "from": "= q0 ? '' : ' disabled'}>Fulfil from India किसलिए है",
   "id": "c-cx-1718",
   "tab": "cx"

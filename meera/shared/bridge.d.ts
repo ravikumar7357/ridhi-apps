@@ -44,7 +44,7 @@ interface ErpMeeraFrom { tab: string; name?: string; asOf?: string; denied?: boo
 interface ErpMeeraData {
   orders(): string[];
   findOrder(no: string): { from: ErpMeeraFrom; none?: boolean; order?: { orderNo: string; lines: { sku: string; qty: number; at: string }[]; pcs: number; open: boolean;
-    karigars: [string, number][]; last: { ms: number; by: string; kind: string } | null; idle: number; late: boolean } };
+    karigars: [string, number][]; last: { ms: number; by: string; kind: string } | null; placed?: number; idle: number; late: boolean } };
   karigars(): string[];
   karigarHolding(name: string): { from: ErpMeeraFrom; name?: string; pieces?: number; rows?: { orderNo: string; sku: string; pcs: number; given: string }[] };
   skus(): string[];
@@ -56,6 +56,18 @@ interface ErpMeeraData {
   skuInfo(sku: string): { from: ErpMeeraFrom; none?: boolean; row?: Record<string, string | number | boolean>; fabricWidthIn?: number | null };
   /** one SKU's open order lines on the Order Console, with their stage */
   skuOrders(sku: string): { from: ErpMeeraFrom; sku?: string; lines?: { orderNo: string; qty: number; at: string }[] };
+  /** every size of the same design (Master Database) */
+  skuFamily(said: string): { from: ErpMeeraFrom; family?: string; skus: { sku: string; size: string; color: string }[] };
+  /** every SKU's article, type, colour, brand, size and fabric (Master Database) — for finding SKUs by those words */
+  skuList(): { from: ErpMeeraFrom; rows: { sku: string; articleType: string; subtype: string; color: string; brand: string; size: string; fabric: string }[] };
+  /** the vendors' names (vendor master, and codes on vendor orders) */
+  vendors(): { code: string; name: string }[];
+  /** what one vendor holds of ours on Vendor Orders: given less what came back, pieces and metres apart */
+  vendorHolding(code: string): { from: ErpMeeraFrom; code?: string; name?: string; pcs?: number; m?: number; toSend?: number; lines?: { vpo: string; what: string; qty: number; unit: string; due: string; late: boolean }[] };
+  /** Amazon FBA units, as Shopify Orders last read them */
+  skuFba(sku: string): { from: ErpMeeraFrom; fba?: number | null };
+  /** where it sells: Amazon by its ASIN, the rest from the orders seen */
+  skuPlatforms(sku: string): { asin: string; list: { name: string; orders: number; nos?: string[] }[] };
   /** only from a button the person pressed: 'order' | 'karigar' | 'sku' | a screen */
   open(kind: string, key: string): boolean;
 }

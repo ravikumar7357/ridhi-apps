@@ -1,7 +1,9 @@
 /* DELTA SYNC, phase 2 — the shadow (core/delta-sync.js) against a fake database, a fake IndexedDB and a fake live copy.
  *   node tests/delta-test.js            (DELTA_SRC=<file> to test another copy — teeth/teeth-delta.js does)
  * What must hold: it rebuilds the same data the full read has; it finds every change made without a pt_sync line;
- * it never writes anywhere but pt_syncAudit; it never downloads a whole register; nothing it does can throw. */
+ * it never writes anywhere but pt_syncAudit; it never downloads a whole register; nothing it does can throw.
+ * Step 4d/4e/4f: a mismatch is explained (field diff, note, upFor), a copy is saved only after 60 s connected, the copy
+ * carries fullAt, and a wipe deletes it. */
 const fs = require('fs'), path = require('path');
 const SRC = fs.readFileSync(process.env.DELTA_SRC || path.join(__dirname, '..', 'src', 'app', 'core', 'delta-sync.js'), 'utf8');
 let pass = 0, fail = 0;
@@ -15,7 +17,7 @@ function world(opts) {
     pt_masterDB: { m1: { sku: 'M1', color: 'Red' } },
     pt_sync: { pt_orderBook: {}, pt_masterDB: {}, _reset: {} },
   };
-  const calls = [], logs = [];
+  const calls = [], logs = [], meter = [], ls = Object.assign({}, opts.ls);
   const at = p => p.split('/').filter(Boolean).reduce((o, k) => (o == null ? undefined : o[k]), S);
   const fetch = async (url, init) => {
     init = init || {};
@@ -35,28 +37,31 @@ function world(opts) {
   const indexedDB = { open: () => {
     const req = {};
     const db = { objectStoreNames: { contains: () => true }, createObjectStore: () => {}, close: () => {},
-      transaction: () => { const tx = {}; const st = {
+      transaction: () => { if (opts.putFails) { const tx = {}; setTimeout(() => tx.onerror && tx.onerror(), 0); tx.objectStore = () => ({ get: k => { setTimeout(() => tx.oncomplete && tx.oncomplete(), 0); return { result: clone(store.get(k)) }; }, put: () => ({}) }); return tx; } const tx = {}; const st = {
         get: k => { const q = { result: clone(store.get(k)) }; setTimeout(() => tx.oncomplete && tx.oncomplete(), 0); return q; },
         put: (v, k) => { store.set(k, clone(v)); const q = { result: k }; setTimeout(() => tx.oncomplete && tx.oncomplete(), 0); return q; } };
         tx.objectStore = () => st; return tx; } };
     setTimeout(() => { req.result = db; req.onsuccess && req.onsuccess(); }, 0);
-    return req; } };
+    return req; },
+    deleteDatabase: () => { const req = {}; if (opts.hangWipe) return req; if (!opts.keepOnWipe) store.clear(); setTimeout(() => req.onsuccess && req.onsuccess(), 0); return req; } };
   const PT_LIVE = new Map(['pt_orderBook', 'pt_masterDB'].map(n => [n, { dead: false, wroteSeq: 0, evSeq: 1, snap: { val: () => clone(S[n]) } }]));
   const ctx = {
     fetch, indexedDB, PT_URL: 'https://db', ptAuthQuery: async () => '?auth=t', ptPath: p => String(p).split('/').filter(Boolean).map(encodeURIComponent).join('/'),
     PT_SYNC_NODES: new Set(['pt_orderBook', 'pt_masterDB']), PT_LIVE, PT_LIVE_UP: true, PT_LIVE_UID: opts.uid || 'u1', PT_LIVE_NO: { none: true }, PT_LIVE_SETTLE_MS: 5000,
-    ptLiveDb: async () => ({ m: { ref: () => ({}), onValue: (r, cb) => { setTimeout(() => cb({ val: () => 0 }), 0); return () => {}; } }, db: {} }),
+    ptLiveDb: async () => ({ m: { ref: (d, p) => ({ path: p }), onValue: (r, cb) => { setTimeout(() => cb({ val: () => (r.path === '.info/connected' ? true : 0) }), 0); return () => {}; } }, db: {} }),
     auth: { currentUser: { uid: opts.uid || 'u1' } }, ME: { email: 'x@y' }, AUDIT: { on: !opts.auditOff },
     spIsVendor: () => !!opts.vendor, auditId: () => Math.random().toString(36).slice(2),
     ptAuditWrite: async u => { logs.push(u); return true; },
-    localStorage: { getItem: k => (opts.off && k === 'deltaShadowOff' ? '1' : null) }, setTimeout,
+    localStorage: { getItem: k => (opts.off && k === 'deltaShadowOff' ? '1' : k in ls ? ls[k] : null), setItem: (k, v) => { ls[k] = String(v); }, removeItem: k => { delete ls[k]; } }, setTimeout,
+    dmCount: (p, n, how) => meter.push({ p, n, how }),
   };
-  const fn = new Function(...Object.keys(ctx), SRC + '\n;return { DELTA, deltaShadowRun, deltaShadowSoon };');
+  const fn = new Function(...Object.keys(ctx), SRC + '\n;return { DELTA, deltaShadowRun, deltaShadowSoon, deltaWipe, deltaSignedIn, deltaNetWatch };');
   const api = fn(...Object.values(ctx));
   api.DELTA.delayMs = 0;
+  api.DELTA.minUpMs = opts.minUp || 0;     // the 60 s rule is tested apart, below
   if (!opts.keepSwitch) api.DELTA.on = true;   // the shipped switch is tested apart, below
   const lastLog = () => { const l = logs[logs.length - 1]; return l ? Object.values(l)[0] : null; };
-  return Object.assign(api, { S, calls, logs, store, lastLog, sync: (node, k) => { S.pt_sync[node][k] = Date.now(); } });
+  return Object.assign(api, { S, calls, logs, store, lastLog, meter, ls, sync: (node, k) => { S.pt_sync[node][k] = Date.now(); } });
 }
 const wait = ms => new Promise(r => setTimeout(r, ms || 20));
 
@@ -146,6 +151,84 @@ const wait = ms => new Promise(r => setTimeout(r, ms || 20));
   ok('never for a vendor', W.logs.length === 0);
   W = world({ off: true }); W.deltaShadowSoon(); await wait(40);
   ok('off with localStorage deltaShadowOff', W.logs.length === 0);
+
+  console.log('== 4d: a mismatch is explained ==');
+  const seed = new Map(); await world({ store: seed }).deltaShadowRun();       // this account's copy of the three rows
+  W = world({ store: new Map(seed) });
+  W.S.pt_orderBook = clone(seed.get('pt_orderBook').v);
+  W.S.pt_orderBook.d.qty = 40;                                       // edited, no line
+  W.S.pt_orderBook.a.sku = 'x'.repeat(100);                          // edited, no line, a long value
+  await W.deltaShadowRun();
+  L = W.lastLog().nodes.pt_orderBook;
+  ok('the diff names the row, field, type and both sides', /d\.qty number\/number "4" vs "40"/.test(L.diff), L.diff);
+  ok('…cuts a long value to 40 characters', L.diff.includes('"' + 'x'.repeat(40) + '"') && !L.diff.includes('x'.repeat(41)), L.diff);
+  ok('…says there was no change line', /no note/.test(L.diff), L.diff);
+  ok('upFor is logged in seconds', typeof L.upFor === 'number', JSON.stringify(L));
+  W = world({ store: new Map(seed) });
+  W.S.pt_orderBook = clone(seed.get('pt_orderBook').v);
+  W.S.pt_orderBook.d.qty = 40;
+  W.S.pt_sync.pt_orderBook.d = Date.now() - 10 * 60 * 1000;          // a change line, but from BEFORE the copy
+  await W.deltaShadowRun();
+  L = W.lastLog().nodes.pt_orderBook;
+  ok('a row with an older change line shows it against the copy\'s time', /note -\d+s vs copy/.test(L.diff), L.diff);
+  W = world({ store: new Map(seed) });
+  W.S.pt_orderBook = {}; for (let i = 0; i < 30; i++) W.S.pt_orderBook['r' + i] = { f: 'y'.repeat(300) + i };
+  W.store.set('pt_orderBook', Object.assign(clone(W.store.get('pt_orderBook')), { v: Object.fromEntries(Array.from({ length: 30 }, (_, i) => ['r' + i, { f: 'z' + i }])) }));
+  await W.deltaShadowRun();
+  L = W.lastLog().nodes.pt_orderBook;
+  ok('at most 3 rows are explained, within 600 characters', L.diff.split(' ;; ').length <= 3 && L.diff.length <= 600, String(L.diff.length));
+  ok('bad rows past the first 20 are reported as unchecked, and still counted', L.unchecked === 10 && L.mismatch === 30, JSON.stringify({ u: L.unchecked, m: L.mismatch }));
+  ok('a run with no mismatch carries no diff', (W = world({ store: new Map(store) }), await W.deltaShadowRun(), W.lastLog().nodes.pt_masterDB.diff === undefined));
+
+  console.log('== 4d: a copy is saved only after 60 s connected ==');
+  const fresh = () => { const st = new Map(); const w = world({ store: st }); return { st, w }; };
+  let F1 = fresh(); await F1.w.deltaShadowRun();                       // a first copy, minimum 0
+  const old = clone(F1.st.get('pt_orderBook'));
+  W = world({ store: F1.st, minUp: 60000 });
+  W.S.pt_orderBook.a.qty = 77; W.sync('pt_orderBook', 'a');           // the live register moved on
+  W.DELTA.upAt = Date.now() - 5000;                                   // the connection came back 5 s ago
+  await W.deltaShadowRun();
+  ok('connected for only 5 s: the old copy is kept', JSON.stringify(W.store.get('pt_orderBook')) === JSON.stringify(old), JSON.stringify(W.store.get('pt_orderBook')).slice(0, 120));
+  ok('…and the run says so, with upFor', W.lastLog().nodes.pt_orderBook.kept === 'old copy kept' && W.lastLog().nodes.pt_orderBook.upFor === 5, JSON.stringify(W.lastLog().nodes.pt_orderBook));
+  W = world({ store: F1.st, minUp: 60000 });
+  W.DELTA.upAt = Date.now() - 70000;
+  await W.deltaShadowRun();
+  ok('connected for 70 s: the copy is replaced', W.store.get('pt_orderBook').at > old.at || W.store.get('pt_orderBook').mark > old.mark);
+  ok('…and carries its full-download time', typeof W.store.get('pt_orderBook').fullAt === 'number');
+  W = world({ minUp: 60000 }); W.deltaShadowSoon(); W.deltaShadowSoon(); await wait(60);
+  ok('its own connection listener starts the clock', typeof W.DELTA.upAt === 'number' && W.DELTA.netOn === true);
+  ok('the first run waits for the minimum before it starts', W.logs.length === 0);
+
+  console.log('== 4d: reads are metered as delta-shadow ==');
+  W = world({ store: new Map(seed) });
+  W.S.pt_orderBook.a.qty = 5; W.sync('pt_orderBook', 'a');
+  await W.deltaShadowRun();
+  ok('every read the shadow makes is counted as delta-shadow', W.meter.length > 0 && W.meter.every(x => x.how === 'delta-shadow'), JSON.stringify(W.meter.slice(0, 3)));
+
+  console.log('== 4f: the copy can be wiped, and a cleared or full store means a full download ==');
+  W = world({ store: new Map(store) });
+  ok('there is a copy to wipe', W.store.size > 0);
+  await W.deltaWipe('signed out on a shared computer'); await W.deltaWipe('signed out on a shared computer');
+  ok('a wipe deletes the whole copy', W.store.size === 0);
+  ok('…and logs its reason once', W.logs.filter(l => Object.values(l)[0].wipe === 'signed out on a shared computer').length === 1, JSON.stringify(W.logs));
+  W = world({ store: new Map(store) });
+  W.DELTA.upAt = Date.now() - 70000;
+  const running = W.deltaShadowRun(); await W.deltaWipe('x'); await running;
+  ok('a run under way when the copy is wiped does not write one back', W.store.size === 0, String(W.store.size));
+  W = world({ store: new Map(store) });
+  await W.deltaSignedIn('Ravi@x.com');
+  ok('a copy with no known owner is deleted at sign-in', W.store.size === 0);
+  W = world({ store: new Map(store), ls: { deltaOwner: 'ravi@x.com' } });
+  await W.deltaSignedIn('RAVI@x.com');
+  ok('the same person signing in again keeps it', W.store.size > 0);
+  await W.deltaSignedIn('other@x.com');
+  ok('another person signing in deletes it, and becomes the owner', W.store.size === 0 && W.ls.deltaOwner === 'other@x.com');
+  W = world({ store: new Map(store), hangWipe: true });
+  const tw = Date.now(); const got = await W.deltaWipe('hung');
+  ok('a delete that never answers still lets the caller carry on (within the timeout)', got === false && Date.now() - tw < 3600, String(Date.now() - tw));
+  W = world({ putFails: true });
+  err = null; try { await W.deltaShadowRun(); } catch (e) { err = e; }
+  ok('a full or refused store never throws; the run is logged', !err && /error/.test(W.lastLog().nodes.pt_orderBook.mode), JSON.stringify(W.lastLog() && W.lastLog().nodes.pt_orderBook));
 
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);

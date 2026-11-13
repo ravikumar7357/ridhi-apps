@@ -2,6 +2,7 @@
  * Uses the app's own recipeApplyPlan (fill part only). Read-only unless run with --write, which PATCHes exactly
  * those blank fields through the same field tidying recipeApplyRun does (2026-09-25, the ruffle permanent fix). */
 const fs = require('fs'), https = require('https'), pathm = require('path');
+const NW = require('./_noted-write.js');     // writes to a synced register leave their change note (Step 4d)
 const FTL = 'C:/Users/ravik/AppData/Roaming/npm/node_modules/firebase-tools/lib/';
 const DB = 'https://price-research-48ff3-default-rtdb.asia-southeast1.firebasedatabase.app';
 const WRITE = process.argv.includes('--write');
@@ -37,6 +38,6 @@ const WRITE = process.argv.includes('--write');
   const bf = pathm.join(__dirname, 'recipe-blanks-backup-' + new Date().toISOString().replace(/[:.]/g, '-') + '.json');
   fs.writeFileSync(bf, JSON.stringify(backup));
   const out = {}; keys.forEach(k => { out[k.slice('pt_masterDB/'.length)] = patch[k]; });
-  const r = await req('PATCH', 'pt_masterDB', out);
+  const r = await req(...NW.noted('PATCH', 'pt_masterDB', out));
   console.log('WROTE', keys.length, 'fields · backup of the previous (blank) values:', bf, r && r.error ? 'ERROR ' + r.error : 'ok');
 })().catch(e => { console.error('FAILED', e.message || e); process.exit(1); });

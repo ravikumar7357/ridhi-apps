@@ -38,6 +38,8 @@ core/mirror.js
 core/monitor.js
 core/gates.js
 core/delta-sync.js
+core/data-meter.js
+core/pending-badges.js
 core/lookups.js
 core/look-alike-skus.js
 production/job-work-entry.js
@@ -63,6 +65,7 @@ orders/shp-board.js
 orders/shopify-pipeline-team.js
 orders/orders-one-line.js
 orders/order-ticker.js
+orders/order-alerts.js
 flow/flow-core.js
 flow/flow-ppc.js
 flow/flow-demand.js
@@ -102,6 +105,7 @@ vendors/orders/same-colour-twice.js
 orders/reserve.js
 vendors/portal/vendor-portal.js
 vendors/portal/daily-challan.js
+vendors/portal/vendor-sent-excel.js
 vendors/portal/vendor-master.js
 vendors/portal/phone-pin.js
 inventory/finished-goods.js
@@ -166,6 +170,8 @@ core/installed-app.js
 core/version-check.js
 core/mobile.js
 core/meera-bridge.js
+core/access-host.js
+core/access-design.js
 @meera/config.ts
 @meera/legacy/guide-art.ts
 @meera/legacy/guide-tours.ts

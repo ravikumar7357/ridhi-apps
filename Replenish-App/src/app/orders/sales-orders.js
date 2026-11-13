@@ -31,7 +31,7 @@ async function ensureSox() {
     SOX.busy = true; renderSox();
     /* Read together — none of the three needs another's answer. */
     await Promise.all([
-      PTG.ob ? null : ptLoadGates(),
+      ptNeed(PTG_ALL, { why: 'sales-orders', has: 'ob' }),
       ptGet('pt_salesOrders').then(v => { SOX.rows = ptList(v); SOX.err = ''; },
         e => { SOX.err = e.message || String(e); SOX.rows = SOX.rows || []; }),
       odrLoad(true),

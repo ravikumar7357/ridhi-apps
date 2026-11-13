@@ -23,7 +23,7 @@ async function ensureShopify() {
   renderShopify();
   /* The master list names the SKUs (Ravi, 2026-09-29: "i have updated my masterdata please check and fill the blank
    * data"); when it is not in hand yet the table is drawn again once it is. */
-  if (!PTG.mdb && typeof ptLoadGates === 'function') { try { await ptLoadGates(); renderShopify(); } catch (e) { /* the snapshot names stay */ } }
+  if (ptLack(PTG_MASTER, 'mdb') && typeof ptNeed === 'function') { try { await ptNeed(PTG_MASTER, { why: 'shopify stock', has: 'mdb' }); renderShopify(); } catch (e) { /* the snapshot names stay */ } }
 }
 async function loadShopify() {
   const store = shStore();
@@ -69,7 +69,7 @@ function shDetails() {
     const r = typeof mdbOf === 'function' ? mdbOf(k) : null, s = m[k] || {};
     if (r) { m[k] = { subcat: pick(r.subtype, pick(r.articleType, s.subcat)), color: pick(r.color, s.color), size: pick(r.size, s.size) }; return; }
     if (s.subcat && s.color && s.size) return;
-    const g = PTG.mdb && typeof skuLookalike === 'function' ? skuLookalike(k) : null;
+    const g = (typeof ptPeek === 'function' ? ptPeek('mdb') : PTG.mdb) && typeof skuLookalike === 'function' ? skuLookalike(k) : null;
     if (g) m[k] = { subcat: s.subcat || g.subtype || g.articleType || '', color: s.color || g.color || '', size: s.size || g.size || '', guess: true };
   });
   return m;
@@ -220,7 +220,7 @@ async function shOpenSo() {
   const lines = picked.filter(r => r.need > 0).map(r => ({ sku: obUC(r.sku), qty: r.need, deliveryDate: '', orderTypeKey: 'regular', priority: '' }));
   const skipped = picked.length - lines.length;
   if (!lines.length) return shMsg('None of the ticked SKUs has anything to send.', true);
-  if (!PTG.masters || !PTG.mdb) await ptLoadGates();
+  await ptNeed(PTG_ALL, { why: 'shopify stock', has: ['masters', 'mdb'] });
   if (SOX.rows === null) { try { SOX.rows = ptList(await ptGet('pt_salesOrders')); } catch (e) { SOX.rows = SOX.rows || []; } }
   soFormOpen();
   const cpc = shStore() === 'CPC', chans = soChannels();

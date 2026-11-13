@@ -51,7 +51,9 @@ function slim(e, lang) {
   const out = {};
   for (const [k, v] of Object.entries(e)) {
     if (['phr', 'all', 'body', 'raw', 'pn', 'pw'].includes(k)) continue;   // her search's own working, not the answer
-    out[k] = k === 'q' ? { en: (v.en || []).slice(0, 1), [lang]: (v[lang] || []).slice(0, 1) } : pick(v);
+    /* the fuller explanation is three parts, each in three languages: each part cut the same way (5 Nov) */
+    out[k] = k === 'q' ? { en: (v.en || []).slice(0, 1), [lang]: (v[lang] || []).slice(0, 1) }
+      : k === 'more' && v ? { for: pick(v.for), how: pick(v.how), when: pick(v.when) } : pick(v);
   }
   return out;
 }

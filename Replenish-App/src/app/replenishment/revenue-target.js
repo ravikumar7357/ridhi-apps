@@ -360,7 +360,7 @@ $('rMarket').addEventListener('change', () => {
  * comes back from Amazon's catalogue with no colour, size or sub-category, while the Master Database has them. Only a
  * BLANK is filled — what Amazon says is kept. The master is read once for this tab when nothing else has read it. */
 let REPL_MDB = null, REPL_MDB_BUSY = false;
-const replMaster = () => (typeof PTG !== 'undefined' && PTG.mdb) || REPL_MDB;
+const replMaster = () => (typeof PTG !== 'undefined' && (typeof ptPeek === 'function' ? ptPeek('mdb') : PTG.mdb)) || REPL_MDB;
 async function replMasterLoad() {
   if (replMaster() || REPL_MDB_BUSY) return;
   REPL_MDB_BUSY = true;

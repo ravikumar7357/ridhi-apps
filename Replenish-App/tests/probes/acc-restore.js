@@ -18,6 +18,7 @@
  * NOTHING ON THE LIST NOW IS CHANGED OR REMOVED. The current list is read, and only appended to.
  */
 const fs = require('fs'), https = require('https'), pathm = require('path');
+const NW = require('./_noted-write.js');     // writes to a synced register leave their change note (Step 4d)
 const FTL = 'C:/Users/ravik/AppData/Roaming/npm/node_modules/firebase-tools/lib/';
 const HOST = 'price-research-48ff3-default-rtdb.asia-southeast1.firebasedatabase.app';
 const APPLY = process.argv.includes('--apply');
@@ -63,7 +64,7 @@ const list = v => !v ? [] : (Array.isArray(v) ? v : Object.values(v)).filter(Boo
   if (!APPLY) return console.log('\n(dry run — nothing written. Run with --apply to write.)');
 
   const next = now.concat(add.map(a => a.rec));
-  const w = await call('PUT', 'pt_masters/accessories', next);
+  const w = await call(...NW.noted('PUT', 'pt_masters/accessories', next));
   if (w.status !== 200) throw new Error('write refused: HTTP ' + w.status + ' ' + JSON.stringify(w.j).slice(0, 200));
   const back = list((await call('GET', 'pt_masters/accessories')).j);
   console.log('\nwritten. The list now holds ' + back.length + ': ' + back.map(x => JSON.stringify(x.code)).join(', '));

@@ -90,14 +90,17 @@ async function loadReplCacheRun(full) {
 let REPL_MDB_IX = { src: null, map: null };
 const replMasterRow = sku => {
   const k = obUC(sku);
-  if (PTG.mdb && PTG.mdb.length) return mdbOf(k);
+  /* The master as the page holds it, WITHOUT asking for it: the snapshot below answers when it is not loaded. */
+  const held = typeof ptPeek === 'function' ? ptPeek('mdb') : PTG.mdb;
+  if (held && held.length) return mdbOf(k);
   const src = typeof REPL_MDB !== 'undefined' ? REPL_MDB : null; if (!src || !src.length) return null;
   if (REPL_MDB_IX.src !== src) { const m = new Map(); src.forEach(r => { if (r && r.sku) { const kk = obUC(r.sku); if (!m.has(kk)) m.set(kk, r); } }); REPL_MDB_IX = { src, map: m }; }
   return REPL_MDB_IX.map.get(k);
 };
 function replMasterSync() {
   let changed = false;
-  const sig = [PTG.mdb, (PTG.mdb || []).length, typeof REPL_MDB !== 'undefined' ? REPL_MDB : null, typeof MDBIMG !== 'undefined' ? MDBIMG.map : null, typeof PTIMG !== 'undefined' ? PTIMG.map : null];
+  const heldMdb = typeof ptPeek === 'function' ? ptPeek('mdb') : PTG.mdb;
+  const sig = [heldMdb, (heldMdb || []).length, typeof REPL_MDB !== 'undefined' ? REPL_MDB : null, typeof MDBIMG !== 'undefined' ? MDBIMG.map : null, typeof PTIMG !== 'undefined' ? PTIMG.map : null];
   const pick = (a, b) => (String(a == null ? '' : a).trim() || b || '');
   const fix = X => {
     if (!X || !Array.isArray(X.rows) || !X.rows.length) return;

@@ -133,6 +133,9 @@ const baseDayOf = s => { const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})/.exec(String(
 /** The entries that may move now: complete, came back before today, no correction waiting, still on the open side. */
 function baseArchivePlan(rows, now) {
   const today = new Date(now || Date.now()); today.setHours(0, 0, 0, 0);
+  /* With the pending-badges switch on, the sign-in no longer reads every correction request; nothing moves until the
+   * Job Work screen has read them in full, so an entry with a correction waiting is never moved. */
+  if (typeof pbOn === 'function' && pbOn() && !(typeof JWC !== 'undefined' && JWC && JWC.full)) return { rows: [], byDay: {} };
   const waiting = new Set(Object.values((typeof JWC !== 'undefined' && JWC && JWC.rows) || {})
     .filter(q => q && q.status === 'pending').map(q => q.rowId || q.row || q.id));
   const take = (rows || []).filter(r => r && r.id && r.frozen === true && ptNum(r.pendingPieces) <= 0
@@ -175,7 +178,8 @@ async function baseArchiveRun(onStep, opts) {
 /** THE AUTOMATIC MOVE: run from whoever has Job Work open, quietly, at most every BASE_AUTO_EVERY_MS across everybody,
  *  and only once pt_baseDone/_auto.enabled is true. Never in the way: any failure is only logged. */
 async function baseAutoMove(now) {
-  if (!BASE.on || BASE.autoBusy || baseOnPreview() || !Array.isArray(PT.base) || !BASE.openIds) return { skipped: 'not ready' };
+  if (!BASE.on || BASE.autoBusy || baseOnPreview() || !Array.isArray(PT.base) || !BASE.openIds
+    || (typeof pbOn === 'function' && pbOn() && !(typeof JWC !== 'undefined' && JWC && JWC.full))) return { skipped: 'not ready' };
   BASE.autoBusy = true;
   try {
     const st = (await ptGet(DONE_NODE + '/_auto', true)) || {};

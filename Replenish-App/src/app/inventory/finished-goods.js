@@ -34,6 +34,26 @@ const fgiNewId = p => (p || 'FGI') + '-' + Date.now().toString(36).toUpperCase()
 
 let FGI = { rows: null, err: '', busy: false, at: '', view: 'stock', shown: [], recips: null, set: {} };
 
+/** Finished Goods "light open" switch (config/flags.fgLite, read once in core/auth.js and kept in fgFlagLast for the NEXT page load;
+ *  localStorage fgLite '1'/'0' overrides on one device). ON: opening this screen no longer reads the whole production flow just to
+ *  paint the "From QC" count; the count shows "…" until the flow data is in memory and the full chain is read when "From QC" is opened.
+ *  Off by default, never for vendors or test harnesses. Asked only when the screen opens, never while the page loads. */
+function fgLiteOn() {
+  try {
+    const s = localStorage.getItem('fgLite');
+    if (s === '0') return false;
+    if (typeof AUDIT === 'undefined' || !AUDIT.on) return false;
+    if (typeof spIsVendor === 'function' && spIsVendor()) return false;
+    if (typeof NAV_IS_VENDOR !== 'undefined' && NAV_IS_VENDOR) return false;
+    if (s === '1') return true;
+    return localStorage.getItem('fgFlagLast') === '1';
+  } catch (e) { return false; }
+}
+/** Keep the flag's last answer for the next page load. */
+function fgLiteSaveFlag(on) {
+  try { if (on) localStorage.setItem('fgFlagLast', '1'); else localStorage.removeItem('fgFlagLast'); } catch (e) { /* no storage: stays off */ }
+}
+
 async function ensureFgi() {
   if (FGI.rows === null) { FGI.busy = true; renderFgi(); await fgiLoad(); }
   renderFgi();
@@ -68,7 +88,7 @@ async function fgiLoadRun(quiet) {
   if (!quiet) FGI.busy = true;
   try {
     /* The ledger with the order book, not after it — nothing below needs the order book's answer. */
-    const [, [led, rec, set]] = await Promise.all([PTG.mdb ? null : ptLoadGates(),
+    const [, [led, rec, set]] = await Promise.all([ptNeed(PTG_ALL, { why: 'finished-goods', has: 'mdb' }),
       Promise.all([ptGet('pt_fgiLedger'), ptGet('pt_issueRecipients'), ptGet('pt_fgiSettings')])]);
     FGI.rows = ptList(led);
     FGI.set = set || {};
@@ -83,7 +103,7 @@ async function fgiLoadRun(quiet) {
   /* Three reads that do not wait on each other, read together; each keeps what it had when its own read fails. */
   await Promise.all([lstLoad(), fgiCorrLoad(), fnLoad()]);
   fgiOverBadge();
-  if (typeof FLOW_ON !== 'undefined' && FLOW_ON && typeof flowFgBadgeLoad === 'function') flowFgBadgeLoad();
+  if (typeof FLOW_ON !== 'undefined' && FLOW_ON && typeof flowFgBadgeLoad === 'function') { if (fgLiteOn() && typeof flowFgBadgeLite === 'function') flowFgBadgeLite(); else flowFgBadgeLoad(); }
   lstMaybeRefresh();
 }
 
@@ -124,7 +144,7 @@ const fgiOf = sku => fgiStock().get(obUC(sku)) || { current: 0, pending: 0, open
  * ledger cannot be read, so the caller says so instead of showing nothing in India.
  */
 async function indiaFromFg() {
-  if (!PTG.mdb) { try { await ptLoadGates(); } catch (e) { /* no master: the pack rule still answers */ } }
+  try { await ptNeed(PTG_ALL, { why: 'finished-goods', has: 'mdb' }); } catch (e) { /* no master: the pack rule still answers */ }
   if (FGI.rows === null || FGI.rows === undefined) FGI.rows = ptList(await ptGet('pt_fgiLedger'));
   const d = {};
   fgiStock().forEach((b, sku) => {
@@ -436,7 +456,7 @@ let FGT = { picked: new Map() };
 
 async function fgiTransferOpen() {
   if (!ME.admin) return;
-  if (!PTG.press) await ptLoadGates();
+  await ptNeed(PTG_ALL, { why: 'finished-goods', has: 'press' });
   FGT = { picked: new Map() };
   const rows = (PTG.press || []).filter(r => r && fgiPressLeft(r) > 0)
     .sort((a, b) => ptDtMs(b.entryDate || b.addedAt) - ptDtMs(a.entryDate || a.addedAt));

@@ -4,6 +4,7 @@
  *   "yes"/"no" text left anywhere becomes true/false. Dry run unless WRITE=1; undo file + pt_audit line.
  *   node probes/cut-rule-1005.js */
 const fs = require('fs'), https = require('https'), pathm = require('path');
+const NW = require('./_noted-write.js');     // writes to a synced register leave their change note (Step 4d)
 const FTL = 'C:/Users/ravik/AppData/Roaming/npm/node_modules/firebase-tools/lib/';
 const DB = 'https://price-research-48ff3-default-rtdb.asia-southeast1.firebasedatabase.app';
 const cutRule = r => {
@@ -42,7 +43,7 @@ if (require.main === module) (async () => {
   const undoFile = pathm.join(__dirname, 'cut-rule-undo-' + now.replace(/[:.]/g, '-') + '.json');
   fs.writeFileSync(undoFile, JSON.stringify(undo, null, 1));
   const keys = Object.keys(patch);
-  for (let i = 0; i < keys.length; i += 500) { const sl = {}; keys.slice(i, i + 500).forEach(k => { sl[k] = patch[k]; }); await call('PATCH', '', sl); }
+  for (let i = 0; i < keys.length; i += 500) { const sl = {}; keys.slice(i, i + 500).forEach(k => { sl[k] = patch[k]; }); await call(...NW.noted('PATCH', '', sl)); }
   await call('PATCH', '', { ['pt_audit/' + now.slice(0, 7) + '/' + Date.now().toString(36) + 'cut']: { at: now, by: who, tab: 'fix', kind: 'patch', n: keys.length, paths: keys.slice(0, 50),
     note: "Ravi's cutting rule (quilt cut; embroidery, plain tablecloth, plain runner, border napkin no cut). Undo: " + pathm.basename(undoFile) } });
   console.log('WRITTEN · undo file ' + undoFile);

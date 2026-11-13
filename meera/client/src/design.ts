@@ -102,8 +102,8 @@ function meeraDesignSay(d: HTMLElement, src: string): void {
   try {
     d.dataset.mdSrc = src;
     d.querySelectorAll<HTMLElement>('.ga-act').forEach(mdAct);
-    d.querySelectorAll('.ga-why>b, .ga-do>b, .ga-fb>span, .ga-rel>span, .ga-note').forEach(mdRelabel);
-    const und = d.querySelector('.ga-und'); if (und) mdUnd(und);
+    d.querySelectorAll('.ga-why>b, .ga-do>b, .ga-more>b, .ga-fb>span, .ga-rel>span, .ga-note').forEach(mdRelabel);
+    const und = d.querySelector('.ga-und.ga-spell'); if (und) mdUnd(und);   // only the spelling note: a data answer's source line and 'This is on X' keep their words
     const a = d.querySelector(':scope > .ga-a');
     if (!a) return;   // a short reply (hello, not sure, did you mean): as a plain note
     const card = document.createElement('div');
@@ -115,6 +115,7 @@ function meeraDesignSay(d: HTMLElement, src: string): void {
     }
     d.insertBefore(card, a);
     card.appendChild(a);
+    d.querySelectorAll(':scope > .ga-more').forEach(x => card.appendChild(x));   // what it is for, how it works, when: shown, not folded away (Ravi, 5 Nov)
     const acts = d.querySelector(':scope > .ga-acts');
     if (acts) { card.appendChild(acts); const first = acts.querySelector('.ga-act'); if (first) first.classList.add('md-main'); }
     const fold = Array.from(d.querySelectorAll(':scope > .ga-do')).concat(Array.from(d.querySelectorAll(':scope > .ga-why')));
@@ -168,8 +169,8 @@ function mdHead(): void {
 /** an earlier message's buttons and labels, again in the switch's language (its answer stays as it was) */
 function mdRelabelMsg(d: HTMLElement): void {
   d.querySelectorAll<HTMLElement>('.ga-act').forEach(mdAct);
-  d.querySelectorAll('.ga-why>b, .ga-do>b, .ga-fb>span, .ga-rel>span, .ga-note').forEach(mdRelabel);
-  const und = d.querySelector('.ga-und'); if (und) mdUnd(und);
+  d.querySelectorAll('.ga-why>b, .ga-do>b, .ga-more>b, .ga-fb>span, .ga-rel>span, .ga-note').forEach(mdRelabel);
+  const und = d.querySelector('.ga-und.ga-spell'); if (und) mdUnd(und);   // only the spelling note: a data answer's source line and 'This is on X' keep their words
   const s = d.querySelector('.md-srct'), src = MD_SRC[d.dataset.mdSrc || ''];
   if (s && src) s.textContent = mdL(src[0], src[1]);
   const sum = d.querySelector('.md-more summary');

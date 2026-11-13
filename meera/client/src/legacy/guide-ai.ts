@@ -47,6 +47,10 @@ async function gaAiCall(path, body, method = 'POST') {
 const gaMd = s => esc(String(s || '')).replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>');
 const gaLL = lang => (en, hi, hg) => (lang === 'hi' ? hi : lang === 'hg' ? hg : en);
 
+/** An answer's steps with words in them: an empty step is left out (Ravi, 7 Nov: "Steps and why (2)" opened on 1. and 2. with nothing) */
+function gaAiSteps(steps) {
+  return (Array.isArray(steps) ? steps : []).map(s => String(s && typeof s === 'object' ? (s.text || s.step || s.en || '') : (s == null ? '' : s)).trim()).filter(Boolean);
+}
 /** The question, cleaned, to the router; the answer, a ticket, or — when there is neither — `own`, Meera's own reply
  * ({html, acts}), shown as it would have been without AI. */
 async function gaAiAsk(q, own?) {
@@ -67,7 +71,7 @@ async function gaAiAsk(q, own?) {
     const a = b.answer;
     const html = `<div class="ga-a">${gaMd(a.a)}</div>`
       + (a.why ? `<div class="ga-why"><b>${L('Why', 'क्यों', 'Kyun')}</b>${gaMd(a.why)}</div>` : '')
-      + (a.steps && a.steps.length ? `<div class="ga-do"><b>${L('What to do', 'क्या करें', 'Kya karein')}</b><ol>${a.steps.map(s => `<li>${gaMd(s)}</li>`).join('')}</ol></div>` : '')
+      + (gaAiSteps(a.steps).length ? `<div class="ga-do"><b>${L('What to do', 'क्या करें', 'Kya karein')}</b><ol>${gaAiSteps(a.steps).map(s => `<li>${gaMd(s)}</li>`).join('')}</ol></div>` : '')
       + `<div class="ga-note">${b.source === 'saved' ? L('Answer checked by an admin.', 'एडमिन का जाँचा हुआ जवाब।', 'Admin ka jaancha hua jawaab.') : L('Written by AI from Meera\'s notes — not yet checked by an admin.', 'मीरा के नोट्स से AI का लिखा — एडमिन ने अभी जाँचा नहीं।', 'Meera ke notes se AI ka likha — admin ne abhi jaancha nahi.')}</div>`;
     const fb = `<div class="ga-fb"><span>${L('Did this help?', 'क्या इससे मदद मिली?', 'Kya isse madad mili?')}</span><button type="button" class="ga-fbb" data-ga="aifb" data-id="up:${+b.answerId || 0}" aria-label="Yes">👍</button><button type="button" class="ga-fbb" data-ga="aifb" data-id="down:${+b.answerId || 0}" aria-label="No">👎</button></div>`;
     gaSay(html, [], fb, b.source === 'saved' ? 'checked' : 'ai');
@@ -103,7 +107,7 @@ async function gaAiLearned(list) {
     return list.concat(got.map(x => {
       const a = x.answer || {}, one = v => ({ en: v, hi: v, hg: v });
       return { id: 'learned-' + x.id, tab: x.screen || '', q: { en: [x.question], hi: [x.question], hg: [x.question] }, a: one(gaMd(a.a)),
-        why: a.why ? one(gaMd(a.why)) : undefined, steps: a.steps && a.steps.length ? one(a.steps.map(gaMd)) : undefined };
+        why: a.why ? one(gaMd(a.why)) : undefined, steps: gaAiSteps(a.steps).length ? one(gaAiSteps(a.steps).map(gaMd)) : undefined };
     }));
   } catch (e) { return list; }
 }

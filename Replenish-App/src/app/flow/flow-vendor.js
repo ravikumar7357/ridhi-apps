@@ -51,6 +51,9 @@ function flowTestVos() {
 async function flowVoExtra() {
   if (!FLOW_ON || typeof VO === 'undefined' || !Array.isArray(VO.rows)) return;
   try { await flowLoad(); } catch (e) { /* without the flow there is nothing to add */ }
+  /* The test orders are worked out from the Order Console's lines (every register). With page registers on, a screen that
+   * opened on the master alone reads the rest first — and only when test orders are switched on at all. */
+  if (typeof prOn === 'function' && prOn() && flowTestsOn()) { try { await ptNeed(PTG_ALL, { why: 'vendor orders (test)' }); } catch (e) { /* the test orders are then built from what is there */ } }
   VO.rows = VO.rows.filter(o => !(o && o.virtual)).concat(flowTestVos());
 }
 

@@ -782,7 +782,7 @@ async function mobSearchLoad() {
   if (MOB_SR.loading) return;
   MOB_SR.loading = true;
   const tries = [];
-  if (typeof ptLoadGates === 'function' && !(PTG.mdb && PTG.mdb.length)) tries.push(ptLoadGates());
+  if (typeof ptNeed === 'function' && !(PTG.mdb && PTG.mdb.length)) tries.push(ptNeed(PTG_ALL, { why: 'phone search' }));
   if (typeof loadPk === 'function' && typeof PK_LOADED !== 'undefined' && !PK_LOADED) tries.push(loadPk());
   if (typeof fnLoad === 'function') tries.push(fnLoad());
   await Promise.all(tries.map(x => Promise.resolve(x).catch(() => null)));
@@ -797,7 +797,7 @@ function mobSearchAll(q) {
   const skuQ = fn ? String(fn).toUpperCase() : '';
   const skuHit = s => hit(s) || (skuQ && String(s || '').toUpperCase() === skuQ);
   try {
-    if (mobMay('ord') || mobMay('shopprod')) {
+    if ((mobMay('ord') || mobMay('shopprod')) && (!prOn() || ptHas(PTG_ALL))) {
       const by = new Map();
       ordLines().forEach(l => { if ((hit(l.orderNo) || hit(l.shopOrderNo) || skuHit(l.sku)) && !by.has(l.orderNo)) by.set(l.orderNo, l); });
       add('Orders', [...by.values()].map(l => ({ id: 'ord|' + l.orderNo, t: l.shopOrderNo || l.orderNo, s: [l.shopOrderNo ? l.orderNo : '', l.src, l.orderDate].filter(Boolean).join(' · ') })));

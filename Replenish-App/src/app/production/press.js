@@ -10,10 +10,10 @@
 let PP = { err: '', busy: false, at: '', freeze: null };
 
 async function ensurePpress() {
-  if (!PTG.mdb) { PP.busy = true; renderPpress(); }
+  if (ptLack(PTG_ALL, 'mdb')) { PP.busy = true; renderPpress(); }
   /* The freezes with the order book, not after it. */
   await Promise.all([
-    PTG.mdb ? null : ptLoadGates(),
+    ptNeed(PTG_ALL, { why: 'ppress', has: 'mdb' }),
     PP.freeze === null ? ptGet('pt_pressFreezes').then(v => { PP.freeze = v || {}; }, () => { PP.freeze = {}; }) : null,
   ]);
   PP.busy = false;
@@ -203,7 +203,7 @@ $('pwToggle').onclick = async () => {
   box.classList.toggle('hide', !open);
   $('pwToggle').textContent = open ? 'Close' : '+ New press entry';
   if (open) {
-    if (!PTG.mdb) { pressFormMsg('Reading the master database and the order book…'); await ptLoadGates(); }
+    await ptNeed(PTG_ALL, { why: 'ppress', has: 'mdb', note: () => pressFormMsg('Reading the master database and the order book…') });
     await ptEnsureCustom();
     if (!$('pwDate').value) $('pwDate').value = dToday();
     pressFormMsg('');

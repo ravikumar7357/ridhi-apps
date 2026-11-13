@@ -40,7 +40,7 @@ async function ensureCx() {
     CX.busy = true; renderCx();
     /* Read together: the ledger and the orders need nothing from the order book. */
     await Promise.all([
-      PTG.mdb ? null : ptLoadGates(),
+      ptNeed(PTG_MASTER, { why: 'customer-orders', has: 'mdb' }),
       FGI.rows === null && ptGet('pt_fgiLedger').then(v => { FGI.rows = ptList(v); }, () => { FGI.rows = []; }),
       ptGet('pt_cxOrders').then(v => { CX.rows = ptList(v); CX.err = ''; },
         e => { CX.err = e.message || String(e); CX.rows = CX.rows || []; }),

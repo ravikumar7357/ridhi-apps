@@ -40,7 +40,7 @@ function vfNeeded(user) {
 }
 
 async function vmOpen() {
-  if (!PTG.masters) await ptLoadGates();
+  await ptNeed(PTG_MASTER, { why: 'vendor-master', has: 'masters' });
   if (VO.rows === null) await ensureVo();
   /* EVERY vendor, not only the printers — a filling firm has an address and a phone like anybody
    * else, and hiding it here is why three of the four on the quilt sheet were never entered. */

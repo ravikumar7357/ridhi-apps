@@ -108,6 +108,8 @@ function obCutQty(orderNo, sku, exclId) {
 const obIsLegacy = no => /^LEG-/i.test(String(no || '').trim());
 const OB_LEGACY_SHUT = no => `${obUC(no)} is the legacy order — it only holds the pieces made before 15 Oct and takes no new cutting or issue. Pick the order these pieces are for.`;
 function cutGuard(orderNo, sku, qty, exclId, allowExtra) {
+  /* Page registers: a cutting entry is never checked against a half-read order book (switch on only; never reached with it off). */
+  if (prOn() && !ptHas(PTG_ALL)) return ptStillReading();
   if (obIsLegacy(orderNo) && !exclId) return OB_LEGACY_SHUT(orderNo);
   const ordered = obOrderedQty(orderNo, sku);
   if (!ordered) return `Order ${orderNo} has no line for SKU ${obUC(sku)} — pick the correct Order ID.`;
@@ -360,7 +362,7 @@ function cutFillFabrics() {
 }
 
 async function ensureCutForm() {
-  if (!PTG.mdb) { cutFormMsg('Reading the master database and the order book…'); await ptLoadGates(); }
+  await ptNeed(PTG_ALL, { why: 'pcut', has: 'mdb', note: () => cutFormMsg('Reading the master database and the order book…') });
   await ptEnsureCustom();
   if (PTG.err) { cutFormMsg('Could not read what the checks need: ' + PTG.err, true); return; }
   cutFormMsg('');

@@ -171,7 +171,7 @@ async function resSend() {
 
 async function resOpen() {
   if (VO.rows === null) await ensureVo();
-  if (!PTG.mdb) await ptLoadGates();
+  await ptNeed(PTG_ALL, { why: 'reserve', has: 'mdb' });
   if (SOX.rows === null) { try { SOX.rows = ptList(await ptGet('pt_salesOrders')); } catch (e) { SOX.rows = SOX.rows || []; } }
   RES_PICK.clear();
   ptOpenDialog({
@@ -526,7 +526,7 @@ async function voPlace(given) {
    * request or order alike, so one order never gets two printer orders. */
   if (FLOW_ON) {
     let fo = [];
-    try { if (!PTG.ob) await ptLoadGates(); fo = flowOwnedIn(voStampOrders(VOF.lines.map(l => Object.assign({}, l)), channel)); } catch (e) { fo = []; }
+    try { await ptNeed(PTG_ALL, { why: 'reserve', has: 'ob' }); fo = flowOwnedIn(voStampOrders(VOF.lines.map(l => Object.assign({}, l)), channel)); } catch (e) { fo = []; }
     if (fo.length) return 'Not placed — ' + flowOwnsMsg(fo, 'PPC raises its printer order in PPC · Production flow. Take those SKUs off this order.');
   }
   /* A REQUEST STOPS HERE — checked exactly as an order is, and stored where no vendor can read it. */
@@ -564,7 +564,7 @@ async function voPlace(given) {
   /* EVERY LINE SAYS WHICH SALES ORDERS IT IS FOR. The order book is needed to say it; if it cannot be
    * read the order is still placed — an unstamped line is shared out by rule, as every older one is —
    * because refusing to order cloth over a missing annotation would be the wrong way round. */
-  try { if (!PTG.ob) await ptLoadGates(); order.lines = voStampOrders(order.lines, channel); } catch (e) { /* placed unstamped */ }
+  try { await ptNeed(PTG_ALL, { why: 'reserve', has: 'ob' }); order.lines = voStampOrders(order.lines, channel); } catch (e) { /* placed unstamped */ }
 
   await ptPut('pt_vendorOrders/' + code + '/' + order.id, order);
   /* The vendor list the portal reads is a separate node, and it only gets written when the master

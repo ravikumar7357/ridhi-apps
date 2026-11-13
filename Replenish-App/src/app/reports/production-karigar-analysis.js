@@ -30,13 +30,13 @@ const paDayIso = ms => repWkIso(new Date(ms));
 
 async function ensurePa() {
   if (PA.busy) return;
-  const need = !PTG.mdb || !PT.base || !PTE.emp || HR.rate === null || ATT.rows === null || PA.team === null || !KA.levels;
+  const need = ptLack(PTG_ALL, ['mdb', 'base']) || !PTE.emp || HR.rate === null || ATT.rows === null || PA.team === null || !KA.levels;
   if (need) {
     PA.busy = true; renderPa(); renderKa();
     try {
       /* ALL AT ONCE. Only the employee list waits for the order book (it takes the accessories from its masters). */
       await Promise.all([
-        ptLoadGates().then(() => (PTE.emp ? null : ptLoadEmp())),
+        ptNeed(PTG_ALL, { why: 'karigar analysis' }).then(() => (PTE.emp ? null : ptLoadEmp())),
         HR.rate === null && ptGet('pt_rateList').then(v => { HR.rate = ptList(v).map(hrRow).filter(x => x.length && x[1]); }),
         ATT.rows === null && ptGet('pt_attend').then(v => { ATT.rows = ptList(v); ATT.at = ptStamp(); }),
         PA.team === null && ptGet('pt_teamSize').then(v => { PA.team = v || {}; }),

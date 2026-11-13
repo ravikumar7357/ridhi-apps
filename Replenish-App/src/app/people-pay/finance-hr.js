@@ -100,7 +100,7 @@ async function ensureHr() {
     /* The printer rates are read against the vendor orders — the usage count and the pickers are
      * both built from them, and without them every rate would read as matching nothing. */
     if (VO.rows === null && !hrEmpOnly()) { try { await ensureVo(); } catch (e) { /* the rates still list */ } }
-    if (!PTG.mdb) { try { await ptLoadGates(); } catch (e) { /* a cut rate falls back to the line */ } }
+    try { await ptNeed(PTG_MASTER, { why: 'finance-hr', has: 'mdb' }); } catch (e) { /* a cut rate falls back to the line */ }
   }
   renderHr();
 }

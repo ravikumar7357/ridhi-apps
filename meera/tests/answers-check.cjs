@@ -27,6 +27,17 @@ function check(bank, walks) {
     else if (ids.has(e.id)) say(where, 'the same id as an earlier answer');
     else ids.add(e.id);
     if (typeof e.tab !== 'string') say(where, 'no screen ("tab" — "" for any screen)');
+    /* the fuller explanation (Ravi, 5 Nov): what it is for, how it works (a list), when to use it — English at least */
+    if (e.more != null) {
+      const mo = e.more;
+      if (typeof mo !== 'object') say(where, '"more" is not { for, how, when }');
+      else {
+        if (!mo.for || !isText(mo.for.en)) say(where, 'the fuller explanation has no "what it is for" in English (more.for.en)');
+        for (const k of ['for', 'when']) if (mo[k]) for (const l of LANGS) if (mo[k][l] != null && typeof mo[k][l] !== 'string') say(where, `more.${k}.${l} is not text`);
+        if (mo.how) for (const l of LANGS) if (mo.how[l] != null && (!Array.isArray(mo.how[l]) || mo.how[l].some(x => !isText(x)))) say(where, `more.how (${l}) must be a list of sentences`);
+        for (const k of ['for', 'when']) for (const l of LANGS) { const x = mo[k] && mo[k][l]; if (typeof x === 'string' && (x.match(/<b>/g) || []).length !== (x.match(/<\/b>/g) || []).length) say(where, `more.${k}.${l} opens and closes <b> unevenly`); }
+      }
+    }
     if (e.p) {
       if (!Array.isArray(e.p) || e.p.length < 5) return say(where, 'a part of a screen needs [label, kind, English, Hindi, Hinglish]');
       if (!isText(e.p[0])) say(where, 'the part has no label');

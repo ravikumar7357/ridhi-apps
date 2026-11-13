@@ -37,7 +37,7 @@ async function ensureAcc() {
     ACC.busy = true; renderAcc();
     try {
       /* The ledger with the masters, not after them; the items are taken from the masters once both are in. */
-      const [, led] = await Promise.all([PTG.masters ? null : ptLoadGates(), ptGet('pt_accLedger')]);
+      const [, led] = await Promise.all([ptNeed(PTG_MASTER, { why: 'accessories', has: 'masters' }), ptGet('pt_accLedger')]);
       ACC.items = ptList((PTG.masters || {}).accessories);
       ACC.ledger = ptList(led);
       ACC.err = '';
@@ -657,7 +657,7 @@ $('acClear').onclick = () => {
   renderAcc();
 };
 ptDebounce('acQ', renderAcc);
-$('acGo').onclick = async () => { ACC.items = null; await ptLoadGates(true); await ensureAcc(); };
+$('acGo').onclick = async () => { ACC.items = null; await ptNeed(PTG_MASTER, { force: true }); await ensureAcc(); };
 $('acExport').onclick = () => {
   const view = $('acView').value, rows = ACC.shown || []; if (!rows.length) return;
   const itemOf = code => (ACC.items || []).find(x => accCode(x.code) === accCode(code));

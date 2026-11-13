@@ -48,7 +48,9 @@ const GUIDE_SYN = (() => {
   add('stock', 'stock stok inventory maal mal store godown स्टॉक माल गोदाम');
   add('shopify', 'shopify shopfy shopifi शॉपिफाई website etsy');
   add('amazon', 'amazon amzon fba अमेज़न');
-  add('qc', 'qc quality check checking checked alteration alter चेक क्वालिटी');
+  /* "check" alone is looking at something ("order kaise check kare"), not QC — QC is "qc", "quality" (Ravi, 4 Nov) */
+  add('qc', 'qc quality alteration alter क्वालिटी');
+  add('check', 'check checking checked chek चेक');
   add('attendance', 'attendance attendence hajri haziri hazri haajri punch present हाजिरी');
   add('wrong', 'wrong mistake mistakes galat galti glt error errors गलत गलती');
   add('delete', 'delete deleted hatana hatao hata remove mitana mitao cancel हटा हटाना मिटा');
@@ -755,6 +757,29 @@ function gaGuideFind(means) {
   return bs >= need ? best : null;
 }
 
+/* A PART NAMED WORD FOR WORD, ON THE SCREEN OPEN NOW ("In column kya hai", "Out column", "Save button") — Ravi, 10 Nov: "toh isme
+ * yeh In column kya hai" on Fabric Inventory was refused. "In", "Out", "To" are words her search leaves out, so here the name is read
+ * as typed, followed by what it is (column, button, box, option); the longest name that fits wins. Only "what is it" questions
+ * ("save button hi nahi h, hua ya nahi?" is a problem, not this), and not when a longer name on the screen is in the question
+ * ("+ A new packing list button" is that option, not the Packing list button). */
+const GA_PART_SAID = { column: 'columns?|col|colum|coloumn|kolam|कॉलम', button: 'buttons?|btn|बटन', box: 'box|बॉक्स', option: 'options?' };
+const GA_PART_WHAT = /\b(kya|what|matlab|mtlb|meaning|means?|mean|explain|samjha\w*|batao|bataiye|kis liye|for what|used for|karta|karti|karte|hota|hoti)\b|क्या|मतलब/i;
+function gaPartNamed(q) {
+  const B = GA_BANK, here = gaHere();
+  if (!B || !B.list || !here || !GA_PART_WHAT.test(String(q || ''))) return null;
+  const norm = s => String(s || '').toLowerCase().replace(/[^\p{L}\p{M}\p{N}]+/gu, ' ').trim();
+  const t = ' ' + norm(q) + ' ';
+  let best = null, bl = 0, longest = 0;
+  for (const e of B.list) {
+    if (!e.p || e.tab !== here) continue;
+    const n = norm(e.p[0]);
+    if (!n || n.length > 40) continue;
+    if (n.length > longest && t.includes(' ' + n + ' ')) longest = n.length;
+    if (!GA_PART_SAID[e.p[1]] || n.length <= bl) continue;
+    if (new RegExp(' ' + n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ' (' + GA_PART_SAID[e.p[1]] + ') ').test(t)) { best = e; bl = n.length; }
+  }
+  return best && longest <= bl ? best : null;
+}
 /** The answer to one question: { html, acts: [{t:'task'|'tour'|'open'|'guide', id|tab, label}] }. */
 /* ---------- a line on the screen ("what is this 92 Dark Salmon Pink", "ye RQL354-K wali line kya hai") ----------
  * Only what the person already sees: the visible rows of the screen in front. A row is taken when the question's own
@@ -771,7 +796,9 @@ function gaRowFind(q) {
   /* at least one word that names a thing, not the ERP: a number, or a word the answers hardly use */
   const own = w => /\d/.test(w) || !B || (B.df.get(gaMean(w)) || 0) <= 3;
   if (!words.some(own)) return null;
-  const rows = [...root.querySelectorAll('tbody tr, .ml-row')].filter(x => x.offsetParent !== null).slice(0, 4000);
+  /* a "row" that holds other rows or a whole table is a screen drawn inside one cell (Printer Allocation's colour groups,
+   * Ravi 7 Nov: "what is this 51 not given" got the whole screen) — not a line; its own rows are */
+  const rows = [...root.querySelectorAll('tbody tr, .ml-row')].filter(x => x.offsetParent !== null && !x.querySelector('table, tr, .ml-row')).slice(0, 4000);
   let best = null, bs = 0, bown = 0, ties = [];
   for (const row of rows) {
     const t = ' ' + (row.textContent || '').toLowerCase().replace(/[^\p{L}\p{M}\p{N}]+/gu, ' ') + ' ';
@@ -781,11 +808,18 @@ function gaRowFind(q) {
     else if (hit && hit === bs && hitOwn === bown) ties.push(row);
   }
   if (!best || !bown || bs < Math.min(2, words.length) || bs / words.length < 0.6) return null;
+  /* several lines fit: the one whose name holds the fewest words that were not asked wins ("92 · Dark Salmon Pink" is that
+   * line, not "Voil 92 · Dark Salmon Pink" — Ravi, 10 Nov: she offered both, the first twice, again and again) */
+  if (ties.length > 1) {
+    const asked = new Set(words), lead = x => ((x.tagName === 'TR' ? x.children[0] : x) || x).textContent.toLowerCase().replace(/[^\p{L}\p{M}\p{N}]+/gu, ' ').trim().split(' ').filter(Boolean);
+    const extra = x => lead(x).filter(w => !asked.has(w)).length, least = Math.min(...ties.map(extra)), fewest = ties.filter(x => extra(x) === least);
+    if (fewest.length === 1) { best = fewest[0]; ties = fewest; }
+  }
   best.gaTies = ties;
   return best;
 }
 function gaRowAnswer(row, lang, L) {
-  const name = esc(gaTabName(gaHere()));
+  const name = esc(GA_TAB_TITLE[gaHere()] || gaTabName(gaHere()));   // the screen's title ("Printer Allocation", not "palloc")
   const ties = row.gaTies || [row];
   if (ties.length > 1) {
     const first = x => ((x.tagName === 'TR' ? x.children[0] : x) || x).textContent.replace(/\s+/g, ' ').trim().slice(0, 60);
@@ -800,6 +834,7 @@ function gaRowAnswer(row, lang, L) {
   const parts = cells.map((c, i) => (c && c !== lead ? (heads[i] ? `<li><b>${esc(heads[i])}</b>: ${esc(c)}</li>` : `<li>${esc(c)}</li>`) : '')).filter(Boolean);
   const tour = GUIDE_TOURS[gaHere()], intro = tour && tour[0] && !tour[0].sel ? (lang === 'hi' ? tour[0].hi : tour[0].en) : '';
   GA.fix = [row];
+  if (typeof mdNoteLine === 'function') mdNoteLine(lead);   // "iska sku", "how many products use this cloth" next: this line's words
   return { html: L(`That is a line on <b>${name}</b>: <b>${esc(lead)}</b>.`, `यह <b>${name}</b> की एक लाइन है: <b>${esc(lead)}</b>।`, `Ye <b>${name}</b> ki ek line hai: <b>${esc(lead)}</b>.`)
       + (parts.length ? `<div class="ga-do"><b>${L('What it shows', 'इसमें क्या है', 'Isme kya hai')}</b><ul>${parts.slice(0, 10).join('')}</ul></div>` : '')
       + (intro ? `<div class="ga-why"><b>${L('This screen', 'यह स्क्रीन', 'Ye screen')}</b>${intro}</div>` : ''),
@@ -829,6 +864,7 @@ async function gaAnswer1(q) {
     'Sorry, site ya main kaise bani hoon, ya company ki policy (jaise privacy) ke baare me main baat nahi kar sakti. Iske liye admin ya management se poochiye. ERP chalane me — koi bhi screen, koi bhi kaam, koi bhi dikkat — main khushi se help karungi.'), acts: [] };
   if (/^(meera\s+)?(unanswered|missed|miss)(\s+(questions|list))?\s*$/i.test(q.trim())) return gaMissList(L);
   await gaBankLoad();
+  { const pe = gaPartNamed(q); if (pe) return gaBankAnswer(pe, lang, L, []); }   // "In column", named word for word on this screen
   { const row = gaRowFind(q); if (row) return gaRowAnswer(row, lang, L); }
   /* "ab kya karu", "what next", "atak gaya" with a form half filled in: its next box */
   if (typeof GA_NEXT_RE !== 'undefined' && GA_NEXT_RE.test(q)) { const n = gaWalkNext(lang, L); if (n) return n; }
@@ -868,6 +904,11 @@ async function gaAnswer1(q) {
   if (GA_W === null) await Promise.race([gaWordsLoad(), new Promise(ok => setTimeout(ok, MEERA_CONFIG.wordsWaitMs))]);
   const hits = gaBankFind(means, words, q);
   if (!(top && top.kind === 'talk' && top.s >= 1.4) && hits[0] && hits[0].s >= (GA_W || gaRemote() ? GA_BANK_SURE_SEM : GA_BANK_SURE)) {
+    /* the question is word for word one of an answer's own ways of asking ("bucket kya hai"): that answer, no "which one"
+     * (Ravi, 5 Nov: "what is this bucket" got three choices) — only when exactly one of the close answers has it */
+    const qn = gaQNorm(q), ex0 = hits.slice(0, 3).filter(h => hits[0].s - h.s < GA_BANK_GAP && gaHasQ(h.e, qn)), here0 = gaHere();
+    const exact = ex0.length > 1 ? ex0.filter(h => h.e.tab && h.e.tab === here0) : ex0;   // two have it: the one on this screen
+    if (exact.length === 1 && hits[1] && hits[0].s - hits[1].s < GA_BANK_GAP) return gaBankAnswer(exact[0].e, lang, L, hits.filter(h => h !== exact[0]).slice(0, 2).filter(h => h.s >= GA_BANK_NEAR));
     /* two answers fit almost equally ("short by kya hai": the screen, or its Short by column): ask which, never guess */
     if (hits[1] && hits[0].s - hits[1].s < GA_BANK_GAP && hits[1].e.id !== hits[0].e.id)
       return { html: L('Your question fits more than one answer. Which one do you mean?', 'आपका सवाल एक से ज़्यादा जवाबों से मिलता है। आप कौन-सा पूछ रहे हैं?', 'Aapka sawaal ek se zyada jawaabon se milta hai. Aap kaunsa poochh rahe hain?')
@@ -1055,6 +1096,9 @@ function gaPartOpen(e) {
     hg: [`${L} kya hai`, `${L} kya karta hai`, `${L} ka matlab`, `${L} ${K[2]}`] };
   const where = { en: scr ? ` — ${K[0]} on ${scr}` : '', hi: scr ? ` — ${scr} पर ${K[1]}` : '', hg: scr ? ` — ${scr} par ${K[2]}` : '' };
   e.a = { en: `<b>${esc(L)}</b>${esc(where.en)}: ${esc(en)}`, hi: `<b>${esc(L)}</b>${esc(where.hi)}: ${esc(hi || en)}`, hg: `<b>${esc(L)}</b>${esc(where.hg)}: ${esc(hg || en)}` };
+  /* what she shows names the screen by its title ("Ongoing Purchase Order", not "follow"); the answer she matches on stays as it was */
+  const title = e.tab && GA_TAB_TITLE[e.tab];
+  if (title && title !== scr) e.aShow = { en: e.a.en.split(esc(scr)).join(esc(title)), hi: e.a.hi.split(esc(scr)).join(esc(title)), hg: e.a.hg.split(esc(scr)).join(esc(title)) };
   if (sel) e.sel = sel;
 }
 function gaBankIndex(list) {
@@ -1082,7 +1126,7 @@ const GA_PART_ASK = new Set(('what does do happens happen press click tap mean m
  * two words her answers do use, leaving out the asking words below. Set on 380 test questions, 200 part questions and
  * 11,335 made from every part's name: none of them refused; 12 of the 41 she cannot answer caught (the rest are
  * about the business — GST, Flipkart — and go on to the AI and a ticket). */
-const GA_OFF_IGNORE = new Set(["what","how","where","why","not","can","help","ok","date","time","tomorrow","yesterday","good","best","tell","give","make","want","need","see","show","new","one","all","more","last","week","month","day","year","name","you","who","hello","thanks","bye","joke","language","meera","about","writ","count","correct","open","find","screen","button","do","get","please","work","job","wala","wali","wale","वाली","वाला","kab","milega","aayegi","rahega","raha","kaisa","ऐसा","ऐसे","वैसा","जबकि","क्यों","kyu","kyun","bhai","yaar","sir","ji","madam","plz","acha","accha","theek","haan","nahi","किसलिए","किसलिये","kisliye","kislie","kisliy","किस","लिए","liye","क्यूँ","क्यूं","कैसा","कैसी","कौनसा","कौन","konsa","kaunsa","matlab","मतलब","बताओ","बताइए","batao","bataiye","samjhao","समझाओ","hota","होता","hoti","होती","karta","करता","karti","करती"]);
+const GA_OFF_IGNORE = new Set(["isme","ismein","ismai","usme","usmein","inme","unme","iske","uske","iska","uska","iski","uski","yahan","yaha","yahaan","wahan","waha","idhar","udhar","toh","bhi","what","how","where","why","not","can","help","ok","date","time","tomorrow","yesterday","good","best","tell","give","make","want","need","see","show","new","one","all","more","last","week","month","day","year","name","you","who","hello","thanks","bye","joke","language","meera","about","writ","count","correct","open","find","screen","button","do","get","please","work","job","wala","wali","wale","वाली","वाला","kab","milega","aayegi","rahega","raha","kaisa","ऐसा","ऐसे","वैसा","जबकि","क्यों","kyu","kyun","bhai","yaar","sir","ji","madam","plz","acha","accha","theek","haan","nahi","किसलिए","किसलिये","kisliye","kislie","kisliy","किस","लिए","liye","क्यूँ","क्यूं","कैसा","कैसी","कौनसा","कौन","konsa","kaunsa","matlab","मतलब","बताओ","बताइए","batao","bataiye","samjhao","समझाओ","hota","होता","hoti","होती","karta","करता","karti","करती"]);
 /** Phase 5, switch "serveruse": her router searched (with meanings) — its scores are read with the meaning-search bar */
 const gaRemote = () => typeof meeraServerServed === 'function' && meeraServerServed();   // only when the router did answer this question
 function gaOffTopic(means) {
@@ -1188,10 +1232,19 @@ let GA_BANK_GAP = MEERA_CONFIG.gap;   // config.ts
 /* from here up, a not-sure question gets the bank's nearest answers to choose from rather than the older lists */
 let GA_BANK_ASK = MEERA_CONFIG.ask;   // config.ts
 const gaL3 = (o, lang) => (o ? (lang === 'hi' ? o.hi : lang === 'hg' ? (o.hg || o.en) : o.en) || o.en || '' : '');
+/* a question as words only, for "is it word for word one of this answer's ways of asking" */
+const gaQNorm = s => String(s || '').toLowerCase().replace(/[?!.,।;:"'()]/g, ' ').replace(/\s+/g, ' ').trim();
+const gaHasQ = (e, qn) => { const q = e.q || {}; return [].concat(q.en || [], q.hi || [], q.hg || []).some(x => gaQNorm(x) === qn); };
 const gaAskOf = (e, lang) => { const q = e.q || {}; return ((lang === 'hi' ? q.hi : lang === 'hg' ? q.hg : q.en) || q.en || [])[0] || ''; };
 /** One answer from the bank: the answer, why, what to do, and the buttons that do it. */
 function gaBankAnswer(e, lang, L, near) {
-  let html = `<div class="ga-a">${gaL3(e.a, lang)}</div>`;
+  let html = `<div class="ga-a">${gaL3(e.aShow || e.a, lang)}</div>`;
+  /* the fuller explanation — what it is for, how it works, when to use it (Ravi, 5 Nov: "answers that are actually usable").
+   * Kept apart from the answer line so it is shown but never used to pick which answer fits a question. */
+  const mo = e.more, mFor = mo && gaL3(mo.for, lang), mHow = mo && mo.how ? gaL3(mo.how, lang) : null, mWhen = mo && gaL3(mo.when, lang);
+  if (mFor) html += `<div class="ga-more"><b>${L("What it's for", 'यह किस लिए है', 'Yeh kis liye hai')}</b>${mFor}</div>`;
+  if (mHow && mHow.length) html += `<div class="ga-more"><b>${L('How it works', 'यह कैसे काम करता है', 'Yeh kaise kaam karta hai')}</b><ol>${mHow.map(s => `<li>${s}</li>`).join('')}</ol></div>`;
+  if (mWhen) html += `<div class="ga-more"><b>${L('When to use it', 'कब इस्तेमाल करें', 'Kab use karein')}</b>${mWhen}</div>`;
   const why = gaL3(e.why, lang);
   if (why) html += `<div class="ga-why"><b>${L('Why', 'क्यों', 'Kyun')}</b>${why}</div>`;
   const st = e.steps ? gaL3(e.steps, lang) : null;
@@ -1216,7 +1269,23 @@ function gaBankAnswer(e, lang, L, near) {
 const GA_TAB_TITLE = { dash: 'Dashboard', repl: 'Replenishment', article: 'Article Review', target: 'Revenue Target', follow: 'Ongoing Purchase Order', top: 'Top ASIN Status', india: 'India Stock', shopify: 'Shopify Stock', prod: 'In Production', pack: 'Packing List', plan: 'Action Plan',
   att: 'Attendance', pmdb: 'Master Database', mst: 'Masters', pbase: 'Job Work Register', pcut: 'Cutting Data', ppress: 'Press Inventory', qc: 'Quality Control', ord: 'Order Console', so: 'Sales Orders', vord: 'Vendor Orders', vreq: 'Vendor Order Requests', rfd: 'RFD Requirements', vend: 'Vendor Portal', vlog: 'History — what printers have sent', cx: 'Customer Orders', palloc: 'Printer Allocation', fgi: 'Finished Goods', fba: 'FBA Dispatch', fab: 'Fabric Inventory', acc: 'Accessories', rep: 'Reports', pa: 'Production Analysis', ka: 'Karigar Analysis', hr: 'Finance & HR', shop: 'Shopify Orders', adj: 'Adjustments', flow: 'Production flow', gdesk: 'Greige Desk' };
 function gaNearHtml(near, lang, head) {
-  return `<div class="ga-rel"><span>${head}</span>${near.map(n => { const t = gaAskOf(n.e, lang); return t ? `<button type="button" class="ga-chip" data-gq="${esc(t)}">${esc(t)}</button>` : ''; }).join('')}</div>`;
+  /* two choices with the same words ("CPC" — a button on Shopify Orders, an option on Replenishment …) carry their screen,
+   * and pressing one opens that very answer: asking the words again only asked which again (Ravi, 4 Nov: "CPC-002") */
+  const ts = near.map(n => gaAskOf(n.e, lang)), same = t => ts.filter(x => x.toLowerCase() === t.toLowerCase()).length > 1;
+  const lab = near.map((n, i) => { const t = ts[i]; if (!t || !same(t)) return t; const tb = n.e.tab ? (GA_TAB_TITLE[n.e.tab] || gaTabName(n.e.tab)) : ''; return tb ? `${t} · ${tb}` : t; });
+  const kind = lab.map((t, i) => (t && lab.filter(x => x === t).length > 1 && n0(near[i]) ? `${t} (${n0(near[i])})` : t));
+  function n0(n) { return n.e.p && n.e.p[1] ? String(n.e.p[1]) : ''; }
+  return `<div class="ga-rel"><span>${head}</span>${near.map((n, i) => { const t = kind[i]; if (!t) return ''; const one = t !== ts[i];
+    return `<button type="button" class="ga-chip" data-gq="${esc(t)}"${one ? ` data-gid="${esc(n.e.id)}"` : ''}>${esc(t)}</button>`; }).join('')}</div>`;
+}
+/** a choice that names one answer (gaNearHtml): that answer, not the same question again */
+function gaAskEntry(id, label) {
+  const e = GA_BANK && GA_BANK.list.find(x => x.id === id);
+  if (!e) { gaAsk(label); return; }
+  gaMine(label);
+  const lang = gaRead(label).lang, L = (en, hi, hg) => (lang === 'hi' ? hi : lang === 'hg' ? (hg || en) : en);
+  const r = gaBankAnswer(e, lang, L, []);
+  gaSay(r.html, r.acts, r.after);
 }
 /* ---------- questions she could not answer, kept on this device so the bank can learn them ---------- */
 function gaMissKeep(q, why) {
@@ -1265,7 +1334,7 @@ function guideAskBuild() {
   box.addEventListener('click', e => {
     const a = (e.target as HTMLElement).closest<HTMLElement>('[data-ga]');
     if (a) { if (a.dataset.ga === 'fb' && a.closest('.ga-fb')) a.closest('.ga-fb').remove(); gaAct(a.dataset.ga, a.dataset.id || '', a.dataset.tab || ''); return; }
-    const c = (e.target as HTMLElement).closest<HTMLElement>('[data-gq]'); if (c) { if (typeof meeraLearnTap === 'function') meeraLearnTap(c.dataset.gq); gaAsk(c.dataset.gq); }
+    const c = (e.target as HTMLElement).closest<HTMLElement>('[data-gq]'); if (c) { if (typeof meeraLearnTap === 'function') meeraLearnTap(c.dataset.gq); if (c.dataset.gid) gaAskEntry(c.dataset.gid, c.dataset.gq); else gaAsk(c.dataset.gq); }
   });
   box.addEventListener('keydown', e => { if (e.key === 'Escape') guideAskClose(); });
 }
@@ -1323,8 +1392,11 @@ async function gaAsk(q) {
   /* "this screen" means the one open now — when that is all the question asks ("ye screen kya hai"), not "keyboard
    * shortcut kya hai is page ke", which has an answer of its own */
   const rest = gaRead(q).means.filter(m => !['what', 'screen', 'show', 'help', 'about', 'how', 'job', 'why'].includes(m) && !/^(page|pej|पेज|about|samjha|samjhao|batao|bataiye|tell|explain|kaam|kam|work|purpose|use|kis|liye|lie|for|iss|isse|इस|काम|किस|लिए)$/.test(m));
-  const here = !rest.length && (/\b(this|is|iss|es|yeh|ye|yah)\s+(screen|page|pej)\b|(यह|इस) (स्क्रीन|पेज)|ye screen|is screen/i.test(q)) && gaHere();
-  const r = here && /what|kya|क्या|about|samjha|batao|kaam|liye|purpose|why|काम|लिए/i.test(q) ? gaScreenAnswer(here, gaRead(q).lang, (en, hi, hg) => { const l = gaRead(q).lang; return l === 'hi' ? hi : l === 'hg' ? (hg || en) : en; }) : await gaAnswer(q);
+  /* …or "the screen I am on", however it is said (Ravi, 7 Nov: "yeh page jispe main hoon voh kya kaam karta hai" was refused as
+   * not about the ERP; "jis screen par hoon main uski baat kar raha hoon") */
+  const onIt = /\b(jis|jo|jispe|jisme|jahan|jaha)\b[^?.!]{0,14}\b(screen|page|pej)\b|\b(screen|page|pej)\s+(jispe|jisme|jis pe|jis par|jahan|jaha)\b|\b(screen|page) (i am|i'm|im) (on|in)\b|\bcurrent (screen|page)\b|जिस (स्क्रीन|पेज)/i.test(q);
+  const here = (onIt || (!rest.length && (/\b(this|is|iss|es|yeh|ye|yah)\s+(screen|page|pej)\b|(यह|इस) (स्क्रीन|पेज)|ye screen|is screen/i.test(q)))) && gaHere();
+  const r = here && /what|kya|क्या|about|samjha|batao|kaam|liye|purpose|why|baat|काम|लिए|बात/i.test(q) ? gaScreenAnswer(here, gaRead(q).lang, (en, hi, hg) => { const l = gaRead(q).lang; return l === 'hi' ? hi : l === 'hg' ? (hg || en) : en; }) : await gaAnswer(q);
   if (r.miss) gaMissKeep(q, r.miss === true ? 'none' : r.miss);
   if (typeof meeraLearnAnswered === 'function') meeraLearnAnswered(q, r);
   if (typeof meeraServerAfter === 'function') meeraServerAfter(q);   // Phase 5, switch "server": her router's search, side by side   // Phase 4, switch "learn": a miss or "not sure" kept (cleaned)
@@ -1335,7 +1407,7 @@ async function gaAsk(q) {
   const auto = !!r.miss && !r.off && typeof gaAiAuto === 'function' && gaAiAuto();   // not about the ERP: never to the AI
   if (auto && r.miss === true) { gaAiAsk(q, { html: r.html, acts: r.acts }); gaChipsDraw(); return; }
   /* spelling (Phase 2): she says how she read the question, with a way back to it as typed */
-  const und = r.understood ? `<div class="ga-und">${LL('Showing results for', 'इसके नतीजे', 'Iske results')} <b>${esc(r.understood.text)}</b>${LL(' — did you mean something else?', ' — कुछ और पूछना था?', ' — kuch aur poochna tha?')}`
+  const und = r.understood ? `<div class="ga-und ga-spell">${LL('Showing results for', 'इसके नतीजे', 'Iske results')} <b>${esc(r.understood.text)}</b>${LL(' — did you mean something else?', ' — कुछ और पूछना था?', ' — kuch aur poochna tha?')}`
     + ` <button type="button" class="ga-und-b" data-ga="astyped">${LL('Search what I typed', 'जैसा लिखा वैसा खोजें', 'Jaisa likha waisa khojiye')}</button></div>` : '';
   /* Phase 5: her router could not be reached (or its search is off) — said; answered on this computer (her own copy, or with no internet her small list) */
   const off = r.offline ? `<div class="ga-und">${LL('My search on the server is not available right now — I answered on this computer.', 'सर्वर पर मेरी खोज अभी उपलब्ध नहीं — मैंने इसी कंप्यूटर पर जवाब दिया।', 'Server par meri khoj abhi available nahi — maine isi computer par jawaab diya.')}</div>` : '';
