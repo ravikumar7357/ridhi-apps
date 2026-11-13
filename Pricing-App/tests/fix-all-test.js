@@ -230,7 +230,8 @@ const patchCalls = (C, apply) => C.calls.filter(c => c.lfix === 'patch' && c.app
     C.FA.log = [];
     const items = C.spCompute(NOV).filter(it => it.row.parent === 'PB' && it.status === 'ready');
     const g = C.faGroups('SP', 'PB', C.faKids('SP', 'PB')).find(each => each.key === 'season');
-    ok('a "Season word missing: “Christmas”" row, its children = the planner\'s to-do for the parent', g && /Christmas/.test(g.name) && g.kids.length >= items.length && items.length > 0, g && g.name + ' ' + g.kids.length + '/' + items.length);
+    // (13 Nov 2026 season rules) Thanksgiving and Christmas are both on; the row is named by the nearest one missing
+    ok('a "Season word missing: “Thanksgiving”" row, its children = the planner\'s to-do for the parent', g && /Season word missing: “Thanksgiving”/.test(g.name) && g.kids.length >= items.length && items.length > 0, g && g.name + ' ' + g.kids.length + '/' + items.length);
     const plans = C.faPlans(g, C.hCtx());
     const same = items.every(item => { const p = plans.find(each => each.sku === item.sku); return p && p.ok && JSON.stringify(p.patches) === JSON.stringify(C.spPatches(item, item.after)); });
     ok('every ready child: the very patches the planner\'s own Fix sends (title if room, else Item Highlights, else hidden search words)', same && plans.filter(p => p.ok).length === items.length);
@@ -257,7 +258,8 @@ const patchCalls = (C, apply) => C.calls.filter(c => c.lfix === 'patch' && c.app
     C.liWsPanelClose(false);
     C.spOpenParent('SP|PB');
     const sp = C.el('spPanel').innerHTML;
-    ok('Season planner panel: the block on top of the planner\'s own body', sp.indexOf('<section class="fa"') > sp.indexOf('sp-side-b') && sp.indexOf('</section>') < sp.indexOf('sp-psent'), sp.slice(0, 200));
+    // (13 Nov 2026 season rules) ONLY SEASONS in the Season planner: the Workspace's block (titles, pictures, specs) is not there
+    ok('Season planner panel: only the season rows on top of its children list — no Workspace block', sp.indexOf('<section class="fa"') < 0 && sp.indexOf('sp-readyl') > sp.indexOf('sp-side-b') && sp.indexOf('sp-readyl') < sp.indexOf('class="sp-rows"'), sp.slice(0, 300));
     C.faClick({ dataset: { faAct: 'kid', faKid: 'SP|L4' }, closest: sel => (sel === '#spPanel' ? {} : null) });
     ok('…a child clicked there opens the planner\'s child panel', C.SP.kid && C.SP.kid.key === 'SP|L4');
   }

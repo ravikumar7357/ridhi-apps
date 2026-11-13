@@ -54,7 +54,8 @@ const T = i => `Ridhi Rectangle Tablecloth 60 x 90 Inch Dining Table Cover Ref N
   await sleep(50);
   ok(`the parent list of ${N + OTHER} listings draws in ${listMs} ms and reads nothing from Amazon`, calls.length === 0 && listMs < 3000, calls.length + ' calls');
   ok('…no "being read" on any parent card', !/being read/.test(C.el('spPane').innerHTML));
-  ok('…its counts show at once: "469 listings · 🎄 469 need “Christmas”"', /Parent TM<\/b><span>469 listings · 🎄 469 need “Christmas”/.test(C.el('spPane').innerHTML), (C.el('spPane').innerHTML.match(/Parent TM<\/b><span>[^<]*/) || [''])[0]);
+  // (13 Nov 2026 season rules) nothing is read for the list, so nothing is known about the two places yet: "not read yet", never a count of 0
+  ok('…its line shows at once: "469 listings · 469 not read yet — open to check"', /Parent TM<\/b><span>469 listings · <span class="sp-dim">469 not read yet — open to check/.test(C.el('spPane').innerHTML), (C.el('spPane').innerHTML.match(/Parent TM<\/b><span>.{0,160}/) || [''])[0]);
 
   console.log('== one parent: reads only its own listings ==');
   t0 = Date.now();
@@ -88,7 +89,8 @@ const T = i => `Ridhi Rectangle Tablecloth 60 x 90 Inch Dining Table Cover Ref N
   ok('…the progress is gone once every read is in', !/Reading \d+ of/.test(C.el('spPanel').innerHTML), (C.el('spPanel').innerHTML.match(/Reading[^<]*/) || [''])[0]);
   const g = C.spGroupOf('SP|TM');
   const it = g.all[0];
-  ok('…and the plan uses them: Christmas at the start of Item Highlights', it.place === 'hl' && it.hlAfter[0] === 'Christmas table decor, hand block printed cotton', JSON.stringify([it.place, it.hlAfter]));
+  ok('…and the plan uses them: both seasons on now at the start of Item Highlights, the title untouched', it.status === 'ready' && it.hlAfter[0] === 'Thanksgiving and Christmas table decor, hand block printed cotton' && it.after === it.title,
+    JSON.stringify([it.status, it.hlAfter, it.why]));
 
   console.log('== opening it again reads nothing ==');
   const n0 = calls.length;
@@ -111,8 +113,9 @@ const T = i => `Ridhi Rectangle Tablecloth 60 x 90 Inch Dining Table Cover Ref N
     D.LI_WS.liveV++; D.reset();
     const z = D.spCompute(new Date(2026, 10, 12)).find(x => x.sku === 'Z1');
     const row = D.spRowHtml(z);
-    ok('the row: what we will do, the state chip, and "Item Highlights: checking…"; its Fix waits', z.hlChecking && z.status === 'ready' && /Item Highlights: checking…/.test(row) && /data-sp-act="row-fix"[^>]*disabled/.test(row), row.slice(0, 400));
-    ok('…the child panel says why its main button waits', /sp-reason">Item Highlights: checking…</.test(D.spKidHtml(z, null)));
+    ok('the row: missing in the search words (known), Item Highlights not read yet → Reading; its button waits', z.status === 'reading' && z.miss.christmas.kw === 'missing' && z.miss.christmas.hl === 'unknown'
+      && /Reading this listing from Amazon…/.test(row) && /✕ search words/.test(row) && /disabled>Wait</.test(row), row.slice(0, 500));
+    ok('…the child panel says so: Item Highlights "Not read yet", its main button waits', /sp-main" disabled>Reading from Amazon…/.test(D.spKidHtml(z, null)) && /Item Highlights: Not read yet/.test(D.spKidHtml(z, null)));
   }
 
   console.log(`\n  timings: parent list ${listMs} ms (${N + OTHER} listings, no reads) · open "Tablecloth Main" ${openMs} ms · all ${N} reads in ${readMs} ms with a 20 ms stub`);

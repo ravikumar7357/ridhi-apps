@@ -5,7 +5,7 @@
  *       dot · problem · what we will do · how many children · one button; "› Show all N" lists those children (name · SKU · before →
  *       after) and a click on one opens the panel's own child view. A green line counts the children with no problem.
  * FIX ALL only where the fix is safe and automatic, each child getting ITS OWN fix (its own size, colour, current title):
- *   - season word: the Season planner's own plan for that child (title if room, else Item Highlights, else hidden search words);
+ *   - season word: the Season planner's own plan for that child (Item Highlights and the hidden search words — never the title);
  *   - title too long: the title template with the brand, product, size and colour (and every part the template requires) kept, ≤ 75;
  *   - an empty spec: only when every sibling that has it uses the SAME value (copied); never a child's own colour or size.
  *   A fix must pass the same checks as a single listing's (spChecks: nothing lost, nothing made up…), must not add a Listing Rules
@@ -79,7 +79,6 @@ function faLabel(kid, ctx) {
 // What kind of fix a Listing Rules finding has: season (the planner), title (shorten), img (Image Manager), lerr (Listing Errors).
 const FA_IMG = ['no_main_image', 'images_below', 'images_between', 'images_small', 'main_not_square', 'images_duplicate', 'main_photo_check'];
 function faKindOf(hit, kid) {
-  if (hit.detector === 'seasonal_keyword') return 'season';
   if (hit.detector === 'title_length' && (parseInt(hit.detail, 10) || 0) > FA_TITLE_MAX) return 'title';
   if (FA_IMG.includes(hit.detector)) return 'img';
   return 'lerr';
@@ -89,7 +88,7 @@ function faSeasonItems(brand, parent) {
   const out = new Map();
   if (typeof spCompute !== 'function') return out;
   spCompute().forEach(item => {
-    if (item.brand !== brand || spParentOf(item) !== parent || item.kind === 'ok' || item.kind === 'none' || spSkipped(item)) return;
+    if (item.brand !== brand || spParentOf(item) !== parent || item.kind !== 'add' || spSkipped(item)) return;   // a season word missing somewhere
     out.set(item.key, item);
   });
   return out;
@@ -128,8 +127,7 @@ function faGroups(brand, parent, kids) {
   if (sg && typeof spTopSeason === 'function') {
     const items = sg.kids.map(kid => season.get(faKidKey(kid))).filter(Boolean);
     const top = spTopSeason(items);
-    const rem = spTopRemove(items);
-    sg.name = top ? `Season word missing: “${top.e.ev.name}”` : rem ? `Old season word: “${rem.e.ev.name}”` : items.some(item => item.kind === 'restore') ? 'Season over: old titles can go back' : 'Out-of-season word in the title';
+    sg.name = top ? `Season word missing: “${top.e.ev.name}”` : 'Season word missing';
   }
   // a fix sent lately: the child waits for Amazon, out of the row's count
   const sent = faSentMap(brand);
@@ -169,23 +167,20 @@ function faPlan(g, kid, ctx) {
   if (g.kind === 'spec') return Object.assign(base, faSpecPlan(g, kid));
   return Object.assign(base, { why: g.kind === 'img' ? 'pictures are changed by a person in Image Manager' : 'no safe automatic fix — a person fixes it in Listing Errors' });
 }
-// Season: exactly the Season planner's plan for the child (what its own Fix button would send).
+// Season: exactly the Season planner's plan for the child (what its own Fix button would send): Item Highlights and the hidden search
+// words only — the title is never changed.
 function faSeasonPlan(g, kid) {
   const item = g.season && g.season.get(faKidKey(kid));
-  if (!item) return { why: 'the Season planner has no safe change for it (the word may describe the product)' };
-  const out = { item, before: item.title, after: item.after, pt: item.pt };
-  if (item.status === 'reading' || item.hlChecking) return Object.assign(out, { wait: true, why: 'reading it from Amazon first' });
+  if (!item) return { why: 'the Season planner has nothing to add here' };
+  const out = { item, before: '', after: null, pt: item.pt };
+  if (item.status === 'reading') return Object.assign(out, { wait: true, why: 'reading it from Amazon first' });
   if (item.status === 'fix') return Object.assign(out, { why: item.why || 'no safe automatic change' });
-  if (item.status === 'look') {
-    const warn = (item.checks || []).find(check => check.ok === 'warn' && !check.pre);
-    return Object.assign(out, { why: warn ? warn.t : 'one word in the title would change' });
-  }
   if (item.status !== 'ready' || !item.pt) return Object.assign(out, { why: item.status === 'ok' ? 'already up to date' : 'not read from Amazon yet' });
-  if (!spChanges(item, item.after)) return Object.assign(out, { why: 'nothing would change' });
-  const sent = { title: item.after };
+  if (!spChanges(item)) return Object.assign(out, { why: 'nothing would change' });
+  const sent = {};
   if (item.kwAfter != null && item.kwAfter !== item.kw) sent.kw = item.kwAfter;
   if (spHlChanged(item)) sent.hl = item.hlAfter.slice();
-  return Object.assign(out, { ok: true, patches: spPatches(item, item.after), sent, what: spDoLineWords(item),
+  return Object.assign(out, { ok: true, patches: spPatches(item), sent, what: spDoLineWords(item),
     beforeKw: item.kw, beforeHl: item.hl ? item.hl.slice() : null });
 }
 // The title the template writes for this child at 75 letters or less: every part it REQUIRES kept (brand, product, size, colour…),
@@ -345,8 +340,8 @@ function faDoLine(g, plans) {
   const safe = plans.filter(p => p.ok);
   if (g.kind === 'season') {
     const top = typeof spTopSeason === 'function' ? spTopSeason(safe.map(p => p.item)) : null;
-    return top ? `Add “${top.e.ev.name}” — to the title where there is room, else Item Highlights, else the hidden search words`
-      : safe.length ? 'Take the old season word out, or put the old title back' : 'Each change needs a person to look at it first';
+    return top ? `Add “${top.e.ev.name}” to Item Highlights and the hidden search words where it is missing — the title never changes`
+      : 'Each change needs a person to look at it first';
   }
   if (g.kind === 'title') return `Shorten to ${FA_TITLE_MAX} letters with the title template — brand, product, size and colour kept`;
   if (g.kind === 'spec') {

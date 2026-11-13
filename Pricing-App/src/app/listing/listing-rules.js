@@ -218,8 +218,11 @@ function lrEaster(year) {
   const month = Math.floor((h + l - 7 * m + 114) / 31), day = ((h + l - 7 * m + 114) % 31) + 1;
   return new Date(Date.UTC(year, month - 1, day));
 }
-/** The date of an occasion in a given year (UTC midnight), or null when the rule cannot be read. */
+/** The date of an occasion in a given year (UTC midnight), or null when the rule cannot be read. Worked out every year by itself (fixed
+ *  days, the n-th weekday, Easter by the computus); a date someone typed in the calendar for that year (ev.on["2027"] = "2027-03-28") wins. */
 function lrEventDate(ev, year, events) {
+  const typed = ev.on && ev.on[String(year)];
+  if (typed && /^\d{4}-\d{2}-\d{2}$/.test(typed)) return new Date(Date.UTC(+typed.slice(0, 4), +typed.slice(5, 7) - 1, +typed.slice(8, 10)));
   const when = ev.when || {};
   if (when.type === 'fixed') return new Date(Date.UTC(year, when.m - 1, when.d));
   if (when.type === 'easter') {

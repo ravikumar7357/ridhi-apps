@@ -233,10 +233,16 @@ function renderLrules() {
     + '<th class="num" title="Titles in the listings snapshot that name it">Titles</th><th></th></tr></thead><tbody>'
     + cfg.events.map((occasion, i) => {
       const season = lrSeason(occasion, today, cfg.events);
+      // this year's and next year's date, worked out by themselves (or typed: a typed date wins) — "Easter 2027: 28 Mar"
+      const y = today.getFullYear();
+      const typedOf = year => !!(occasion.on && occasion.on[String(year)]);
+      const dates = [y, y + 1].map(year => ({ year, date: lrEventDate(occasion, year, cfg.events), typed: typedOf(year) }));
+      const typedVal = (occasion.on && (occasion.on[String(y)] || occasion.on[String(y + 1)])) || '';
       return `<tr>
         <td><input class="w-s" data-lre="${i}" data-f="name" value="${lrEsc(occasion.name)}"></td>
         <td><input class="w-m" data-lre="${i}" data-f="words" value="${lrEsc(occasion.words)}" title="${lrEsc(occasion.words)}"></td>
-        <td>${lrEsc(whenText(occasion))}</td>
+        <td>${lrEsc(whenText(occasion))}<div class="muted lr-dates" title="${lrEsc(dates.map(d => `${occasion.name} ${d.year}: ${short(d.date)}`).join(' · '))}">${dates.map(d => `${d.year}: ${short(d.date)}${d.typed ? ' (typed)' : ''}`).join(' · ')}</div>`
+          + `<input type="date" class="w-s" data-lre="${i}" data-f="on" value="${lrEsc(typedVal)}" title="Type a date only to use it instead of the worked-out one (for that year); clear it to go back"></td>
         <td>${season.next ? short(season.next) + " '" + String(season.next.getUTCFullYear()).slice(2) : '—'}</td>
         <td>${season.from ? short(season.from) + ' → ' + short(season.to) : '—'}</td>
         <td><span class="lr-pill ${season.inSeason ? 'lr-in' : 'lr-out'}">${season.inSeason ? 'in season' : 'out'}</span></td>
@@ -273,7 +279,14 @@ $('lrTable').addEventListener('change', e => {
   } else if (el.hasAttribute('data-lre')) {
     const occasion = cfg.events[+el.getAttribute('data-lre')];
     if (!occasion) return;
-    occasion[field] = (field === 'lead' || field === 'lag') ? Math.max(0, parseInt(val, 10) || 0) : val;
+    if (field === 'on') {
+      // a typed date for its own year wins over the worked-out one; an empty box goes back to the worked-out dates
+      const y = new Date().getFullYear();
+      occasion.on = Object.assign({}, occasion.on || {});
+      if (/^\d{4}-\d{2}-\d{2}$/.test(val)) occasion.on[val.slice(0, 4)] = val;
+      else { delete occasion.on[String(y)]; delete occasion.on[String(y + 1)]; }
+      if (!Object.keys(occasion.on).length) delete occasion.on;
+    } else occasion[field] = (field === 'lead' || field === 'lag') ? Math.max(0, parseInt(val, 10) || 0) : val;
   } else return;
   LR_DIRTY = true;
   H_CTX = null;
