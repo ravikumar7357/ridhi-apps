@@ -15025,7 +15025,7 @@ function renderPmdb() {
     + `<td class="num">${mdbM2Txt(r.consumption) === '' ? '<span class="muted">—</span>' : esc(mdbM2Txt(r.consumption))}</td>`
     + `<td class="num">${esc(r.packOf)}</td><td style="text-align:left">${packCell(r)}</td><td>${yn(r.cuttingRequired)}</td><td>${zipCell(r)}</td>`
     + `<td>${rufCell(r)}</td><td>${pipCell(r)}</td><td>${yn(r.fillerFabricRequired)}</td>`
-    + `<td>${custom ? '<span class="muted">—</span>'
+    + `<td>${custom ? `<button class="ghost" data-mdb-cedit="${esc(r.sku)}" style="padding:3px 10px;font-size:12px">Edit</button>`
       : `<button class="ghost" data-mdb-edit="${esc(r.sku)}" style="padding:3px 10px;font-size:12px">Edit</button>`}</td></tr>`).join('');
   $('ptmTable').innerHTML = head + '<tbody>' + body + '</tbody>';
 
@@ -22122,14 +22122,12 @@ function mdbFields(r) {
     /* THE INDIA LISTING STATUS (Ravi, 25 Oct: "master data base me set karenge") — it was the sheet's India Stock tab.
      * Discontinue or Use In Mix stops the SKU in Replenishment: nothing more is planned for it. */
     { key: 'listingStatus', label: 'Listing status', type: 'select', value: m('listingStatus', ''), options: MDB_LISTING },
-    { key: 'articleType', label: 'Article type', type: 'select', value: m('articleType', ''),
-      options: [''].concat(listOr('articleType', m('articleType', ''))) },
-    { key: 'subtype', label: 'Article subtype', type: 'select', value: m('subtype', ''),
-      options: [''].concat(listOr('articleSubtype', m('subtype', ''))) },
-    { key: 'color', label: 'Colour', type: 'select', value: m('color', ''),
-      options: [''].concat(listOr('colour', m('color', ''))) },
-    { key: 'size', label: 'Size', type: 'select', value: m('size', ''),
-      options: [''].concat(listOr('size', m('size', ''))) },
+    /* TYPE OR PICK (Ravi, 13 Nov: "mere color name and article khud ke manual enter kar saku — abhi dropdown me se select karte h"):
+     * the masters' lists are offered as you type, and a name that is not on them yet can be typed. */
+    { key: 'articleType', label: 'Article type', value: m('articleType', ''), list: listOr('articleType', m('articleType', '')) },
+    { key: 'subtype', label: 'Article subtype', value: m('subtype', ''), list: listOr('articleSubtype', m('subtype', '')) },
+    { key: 'color', label: 'Colour', value: m('color', ''), list: listOr('colour', m('color', '')) },
+    { key: 'size', label: 'Size', value: m('size', ''), list: listOr('size', m('size', '')) },
     /* FROM THE FABRIC TYPE MASTER — the same list, by the same rule, that Cutting picks from. A
      * spelling typed here used to become a fabric nobody had agreed to, with no width and no ledger.
      * The row's own spelling is kept at the top of the list so an edit can never change its cloth. */
@@ -22276,6 +22274,36 @@ function mdbEdit(sku) {
   });
 }
 
+/* EDIT A CUSTOM SKU (Ravi, 13 Nov: "me custom sku bhi edit kar saku"). The same form as the master's, written back onto the
+ * Custom SKUs list (pt_customSkus/<key>), never into the master. The SKU itself stays as it is (orders point at it); every field
+ * the list already holds and the form does not show — the Shopify name, the picture, who added it — is kept. */
+function mdbEditCustom(sku) {
+  if (!(mdbCanEdit() || ME.prodEdit)) { $('ptmMsg').className = 'err'; $('ptmMsg').textContent = MDB_NO_EDIT; return; }
+  const r = (MDBX.custom || []).find(x => x && obUC(x.sku) === obUC(sku));
+  if (!r || !r._key) return;
+  ptOpenDialog({
+    title: 'Edit custom SKU',
+    subtitle: `${obUC(r.sku)}${r.shopName ? '  ·  ' + r.shopName : ''}`,
+    note: 'Saved on the Custom SKUs list, not in the master database. The SKU code stays as it is — orders already point at it.',
+    fields: mdbFields(r).map(f => (f.key === 'sku' ? Object.assign({}, f, { readonly: true }) : f)),
+    onSave: async v => {
+      v.sku = r.sku;
+      const err = mdbValidate(v, r.sku);
+      if (err) return err;
+      const old = Object.assign({}, r); delete old._key;
+      const rec = Object.assign(old, mdbRecord(v, true), { isCustom: true, updatedAt: new Date().toISOString(), updatedBy: ME.email || '' });
+      Object.keys(rec).forEach(k => { if (rec[k] === undefined) delete rec[k]; });
+      try { await ptPut('pt_customSkus/' + r._key, rec); } catch (e) { return 'Not saved: ' + (e.message || e); }
+      MDBX.custom = (MDBX.custom || []).map(x => (x && x._key === r._key ? Object.assign({ _key: r._key }, rec) : x));
+      if (typeof CUST_IX !== 'undefined') CUST_IX = { src: null, map: null };
+      renderPmdb();
+      $('ptmMsg').className = 'muted';
+      $('ptmMsg').textContent = `Updated custom SKU ${obUC(rec.sku)}.`;
+      return '';
+    },
+  });
+}
+
 /* SIX COLUMNS, and the recipe does the rest — the file for adding a colour's SKUs in bulk. */
 const MDB_SHORT_COLS = ['SKU', 'Brand', 'Article', 'Subtype', 'Color', 'Size'];
 $('ptmTplShort').onclick = () => {
@@ -22299,6 +22327,8 @@ $('ptmNew').onclick = async () => {
 $('ptmTable').addEventListener('click', e => {
   const fe = e.target.closest('[data-fs-edit]');
   if (fe) return fsManualEdit(fe.getAttribute('data-fs-edit'));
+  const ce = e.target.closest('[data-mdb-cedit]');
+  if (ce) return mdbEditCustom(ce.getAttribute('data-mdb-cedit'));
   const b = e.target.closest('[data-mdb-edit]'); if (!b) return;
   mdbEdit(b.getAttribute('data-mdb-edit'));
 });

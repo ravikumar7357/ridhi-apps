@@ -300,7 +300,7 @@ function renderPmdb() {
     + `<td class="num">${mdbM2Txt(r.consumption) === '' ? '<span class="muted">—</span>' : esc(mdbM2Txt(r.consumption))}</td>`
     + `<td class="num">${esc(r.packOf)}</td><td style="text-align:left">${packCell(r)}</td><td>${yn(r.cuttingRequired)}</td><td>${zipCell(r)}</td>`
     + `<td>${rufCell(r)}</td><td>${pipCell(r)}</td><td>${yn(r.fillerFabricRequired)}</td>`
-    + `<td>${custom ? '<span class="muted">—</span>'
+    + `<td>${custom ? `<button class="ghost" data-mdb-cedit="${esc(r.sku)}" style="padding:3px 10px;font-size:12px">Edit</button>`
       : `<button class="ghost" data-mdb-edit="${esc(r.sku)}" style="padding:3px 10px;font-size:12px">Edit</button>`}</td></tr>`).join('');
   $('ptmTable').innerHTML = head + '<tbody>' + body + '</tbody>';
 
