@@ -2235,6 +2235,14 @@
   .sq-held .sq-st{font-weight:400}
   .sq-fold>summary{padding:10px 0;font-size:13px;font-weight:600;cursor:pointer}
   .sq-warn{color:var(--bad-ink)}
+  .sq-chg .sq-add{color:var(--accent-ink);font-weight:600}
+  .sq-chg .sq-rem{color:var(--bad-ink)}
+  .sq-chg .sq-size{color:var(--faint)}
+  .sq-full>summary{display:inline-block;list-style:none;margin-left:6px;font-size:12px;color:var(--brand-ink);cursor:pointer}
+  .sq-full>summary::-webkit-details-marker{display:none}
+  .sq-full[open]>summary{display:block;margin:2px 0 0}
+  .sq-full>div{margin-top:2px;font-size:12px;color:var(--ink)}
+  .sq-full>div small{margin-right:4px;color:var(--faint)}
   .sp-m-a{display:flex;gap:10px;padding:14px 22px 18px;border-top:1px solid var(--line)}
   .sp-pbar{height:8px;margin:0 22px 22px;border-radius:var(--r-pill);background:var(--hover);overflow:hidden}
   .sp-pbar span{display:block;height:100%;border-radius:var(--r-pill);background:var(--accent);transition:width .25s ease}
@@ -17832,8 +17840,10 @@ function spRecordSent(item, sub) {
 // The changes of one listing's fix, in words, for the Amazon check popup: Item Highlights and the hidden search words, before → after.
 function spChangeList(item) {
   const out = [];
-  if (spHlChanged(item)) out.push({ field: 'Item Highlights', old: item.hl.join(' · '), new: item.hlAfter.join(' · ') });
-  if (item.kwAfter != null && item.kwAfter !== item.kw) out.push({ field: 'Hidden search words', old: item.kw || '', new: item.kwAfter });
+  const info = item.hlInfo || {};
+  if (spHlChanged(item)) out.push({ field: 'Item Highlights', old: item.hl.join(' · '), new: item.hlAfter.join(' · '),
+    size: info.items > 1 ? `${spNf(item.hlAfter.length)} of ${spNf(info.items)} entries` : `${spNf((item.hlAfter[0] || '').length)} of ${spNf(info.max || SP_HL_MAX)}` });
+  if (item.kwAfter != null && item.kwAfter !== item.kw) out.push({ field: 'Hidden search words', old: item.kw || '', new: item.kwAfter, max: item.kwMax, unit: 'bytes' });
   return out;
 }
 // "Fix by hand" / Edit: Listing Errors opens for the listing with the hidden search words of the plan filled in (never the title).
@@ -18504,7 +18514,7 @@ function faStart(gk, onlySku) {
 function faChangeList(p) {
   if (p.item && typeof spChangeList === 'function') return spChangeList(p.item);
   if (p.sent && p.sent.spec) return [{ field: sqField(p.sent.spec), old: '(empty)', new: p.after }];
-  return [{ field: 'Title', old: p.oldTitle || p.before, new: p.after }];
+  return [{ field: 'Title', old: p.oldTitle || p.before, new: p.after, max: FA_TITLE_MAX, unit: 'letters' }];
 }
 // What a sent change is kept as: the OLD value of every field it changed, so Put back can send it again.
 function faRecord(it, run, now, sub) {
@@ -18692,12 +18702,16 @@ if (typeof document !== 'undefined' && document.addEventListener) document.addEv
  * The test site sends NOTHING: its guard blocks every backend POST, so Amazon's check cannot run there and the popup says so; Approve says
  * "Test site — not sent to Amazon".
  * Every send (accepted or rejected) is written down by ONE function, lhistAdd: date, who (the name from the signed-in e-mail), the listing
- * (SKU, ASIN), the field, old → new, the screen and the result — in listingrules/sendlog_<YYYY-MM-DD> (one document a day, each send merged
- * in under its own key, so two people sending at once never overwrite each other). The Listing History page reads it later.
+ * (SKU, ASIN), the field, old → new, the screen and the result — in the existing /history collection (its rule lets every listing user
+ * write: Listing Health, Listing Rules, Image Manager, Listing Errors), as documents of their own, kind "listing":
+ * history/listing_<YYYY-MM-DD>_<run>-<n>, at most SQ_LOG_ROWS rows each (a Fix all of 246 listings is a few small documents, never near
+ * Firestore's 1 MB). A run writes only its own documents, so two people sending at once never overwrite each other. The Listing History
+ * page reads them later.
  * No backend change: the existing POST lfix=patch / limg=patch (imPost) and ?lfix=get / ?limg=get.
  * Main functions: sqSendWithCheck (the one entry point), sqPost, sqCheckAll, sqApprove, sqVerify, sqClose, sqPlain, sqHow, lhistAdd. */
 
-const SQ_LOG_PREFIX = 'sendlog_';   // listingrules/sendlog_2026-11-13
+const SQ_LOG_COLL = 'history';      // the existing collection every listing user may write (firestore.rules: canAny())
+const SQ_LOG_ROWS = 200;            // rows per log document: ~1 KB a row at most (values cut at SQ_CUT) → ~200 KB, far under 1 MB
 const SQ_CUT = 300;                 // a value kept in the log is cut here
 let SQ = { run: null };             // the popup's run: { jobs, opts, step: check|review|send|verify|done|test, done, total, cancel, resolve }
 
@@ -18762,7 +18776,7 @@ async function sqPost(job, apply) {
 function sqChanges(job) {
   if (job.changes && job.changes.length) return job.changes;
   const b = job.body || {};
-  if (b.set) return Object.keys(b.set).map(slot => ({ field: sqField(slot), old: '', new: b.set[slot] ? 'new picture' : '(removed)' }));
+  if (b.set) return Object.keys(b.set).map(slot => ({ field: sqField(slot), old: 'a picture', new: b.set[slot] || '(removed)', pic: true }));
   return (b.patches || []).map(p => ({ field: sqField(String(p.path || '').replace('/attributes/', '')), old: '', new: p.op === 'delete' ? '(removed)' : sqValText(p.value) }));
 }
 
@@ -18839,7 +18853,7 @@ async function sqApprove() {
   sqDraw();
   await sqVerifyAll(run, go.filter(job => job.state === 'sent'));
   // every send, accepted or rejected, is written down once
-  run.logErr = await lhistAdd(go.flatMap(job => sqLogRows(job, run)));
+  run.logErr = await lhistAdd(go.flatMap(job => sqLogRows(job, run)), run);
   run.step = 'done';
   sqDraw();
 }
@@ -18907,7 +18921,7 @@ async function sqCheckAgain() {
   run.total = again.length;
   sqDraw();
   await sqVerifyAll(run, again);
-  run.logErr = await lhistAdd(again.flatMap(job => sqLogRows(job, run)));
+  run.logErr = await lhistAdd(again.flatMap(job => sqLogRows(job, run)), run);
   run.step = 'done';
   sqDraw();
 }
@@ -18947,8 +18961,62 @@ const sqIsOpen = () => !!(SQ.run && !SQ.run.closed);
 /* ----- the popup (the existing confirm window, #spModal, same look) ----- */
 const SQ_STATE = { ok: '✓ Amazon will accept', no: '✗ Amazon says no', test: 'Not checked — test site', notsent: 'Test site — not sent to Amazon', sent: 'Sent',
   accepted: '✅ Amazon accepted', rejected: '❌ Amazon rejected', working: '⏳ Amazon is still working', checking: '… checking' };
+// The words that come out and go in, as a person reads them ("summer" out; "thanksgiving christmas" in): each word as often as its count
+// changed, in the order the text has it; case aside.
+function sqWordDiff(before, after) {
+  const tok = t => String(t || '').split(/[\s,;·|]+/).map(w => w.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}'%]+$/gu, '')).filter(Boolean);
+  const a = tok(before);
+  const b = tok(after);
+  const count = list => { const m = new Map(); list.forEach(w => { const k = w.toLowerCase(); m.set(k, (m.get(k) || 0) + 1); }); return m; };
+  const ca = count(a);
+  const cb = count(b);
+  // by count only (very long texts): each word as often as its count changed, the first ones
+  const pick = (list, more, less) => { const used = new Map(); return list.filter(w => { const k = w.toLowerCase(); const extra = (more.get(k) || 0) - (less.get(k) || 0); const u = used.get(k) || 0; if (extra > u) { used.set(k, u + 1); return true; } return false; }); };
+  if (a.length * b.length > 160000) return { added: pick(b, cb, ca), removed: pick(a, ca, cb) };
+  // lined up word by word (the longest common run), so the occurrence that really went is the one named ("Reusable Dinner Napkins"),
+  // then a word that only moved (out here, in there) is no change
+  const n = a.length;
+  const m = b.length;
+  const L = Array.from({ length: n + 1 }, () => new Int32Array(m + 1));
+  for (let i = n - 1; i >= 0; i--) for (let j = m - 1; j >= 0; j--) L[i][j] = a[i].toLowerCase() === b[j].toLowerCase() ? L[i + 1][j + 1] + 1 : Math.max(L[i + 1][j], L[i][j + 1]);
+  const keptA = new Set();
+  const keptB = new Set();
+  for (let i = 0, j = 0; i < n && j < m;) {
+    if (a[i].toLowerCase() === b[j].toLowerCase()) { keptA.add(i); keptB.add(j); i++; j++; } else if (L[i + 1][j] >= L[i][j + 1]) i++; else j++;
+  }
+  let removed = a.filter((w, i) => !keptA.has(i));
+  let added = b.filter((w, j) => !keptB.has(j));
+  const moved = new Map();
+  removed.forEach(w => { const k = w.toLowerCase(); moved.set(k, (moved.get(k) || 0) + 1); });
+  const both = new Map();
+  added.forEach(w => { const k = w.toLowerCase(); if (moved.get(k)) { moved.set(k, moved.get(k) - 1); both.set(k, (both.get(k) || 0) + 1); } });
+  const drop = list => { const left = new Map(both); return list.filter(w => { const k = w.toLowerCase(); if (left.get(k)) { left.set(k, left.get(k) - 1); return false; } return true; }); };
+  removed = drop(removed);
+  added = drop(added);
+  return { added, removed };
+}
+// One change in one line — ONLY what changes: "Hidden search words: − summer · + thanksgiving christmas (238 of 249)"; a picture: "Main
+// picture: replaced by a new picture" — and "› Show full text" folded under it (before and after in full).
+// A change: { field, old, new, pic (a picture slot), size ("41 of 125"), or max + unit ('bytes' | 'letters') to count the new text }.
+function sqChangeLine(c) {
+  const oldText = c.old == null ? '' : String(c.old);
+  const newText = c.new == null ? '' : String(c.new);
+  const size = c.size || (c.max ? `${sqNf(c.unit === 'bytes' && typeof lrKwBytes === 'function' ? lrKwBytes(newText) : newText.length)} of ${sqNf(c.max)}` : '');
+  let what;
+  if (c.pic) what = !oldText || oldText === '(none)' ? '<span class="sq-add">+ a new picture</span>' : newText === '(removed)' ? '<span class="sq-rem">− the picture taken away</span>' : 'replaced by a new picture';
+  else if (newText === '(removed)') what = '<span class="sq-rem">− all of it (removed)</span>';
+  else {
+    const d = sqWordDiff(oldText, newText);
+    const parts = [];
+    if (d.removed.length) parts.push(`<span class="sq-rem">− ${sqEsc(d.removed.join(' '))}</span>`);
+    if (d.added.length) parts.push(`<span class="sq-add">+ ${sqEsc(d.added.join(' '))}</span>`);
+    what = parts.join(' · ') || (oldText !== newText ? 'the same words, in a new order' : 'no change');
+  }
+  const full = `<details class="sq-full"><summary>› Show full text</summary><div><small>Before</small> ${sqEsc(oldText || '(empty)')}</div><div><small>After</small> ${sqEsc(newText || '(empty)')}</div></details>`;
+  return `<div class="sp-m-now sq-chg"><small>${sqEsc(c.field)}:</small> ${what}${size ? ` <span class="sq-size">(${size})</span>` : ''}${full}</div>`;
+}
 function sqChangesHtml(job) {
-  return sqChanges(job).map(c => `<div class="sp-m-now sq-chg"><small>${sqEsc(c.field)}</small> ${c.old !== '' && c.old != null ? `<del>${sqEsc(sqCut(c.old, 160))}</del> → ` : ''}<ins>${sqEsc(sqCut(c.new, 160))}</ins></div>`).join('');
+  return sqChanges(job).map(sqChangeLine).join('');
 }
 function sqRowHtml(job, withChange) {
   return `<div class="sp-m-row sq-row is-${job.state}"><b>${sqEsc(job.label || job.sku)}</b><small>${sqEsc(job.sku)}${job.asin ? ' · ' + sqEsc(job.asin) : ''}</small>`
@@ -19027,22 +19095,34 @@ if (typeof document !== 'undefined' && document.addEventListener) document.addEv
 // One row per changed field of one listing.
 function sqLogRows(job, run) {
   const at = job.sentAt || Date.now();
-  return sqChanges(job).map((c, i) => ({ id: `${at}-${job.brand}-${job.sku}-${i}`, at, by: sqBy(), name: sqName(sqBy()), brand: job.brand, sku: job.sku, asin: job.asin || '',
+  return sqChanges(job).map((c, i) => ({ id: `${at}-${job.brand}-${job.sku}-${i}`, kind: 'listing', at, by: sqBy(), name: sqName(sqBy()), brand: job.brand, sku: job.sku, asin: job.asin || '',
     field: c.field, old: sqCut(c.old, SQ_CUT), new: sqCut(c.new, SQ_CUT), screen: run.opts.screen || '', result: job.state, why: job.why || '', sub: job.sub || '' }));
 }
-/** THE ONE LOG FUNCTION. rows: [{ id, at, by, name, brand, sku, asin, field, old, new, screen, result, why }]. Written into that day's
- *  document, listingrules/sendlog_<YYYY-MM-DD>, as { rows: { <id>: row } } merged in (no read first: never overwrites another person's
- *  send). Returns '' or why it could not be saved. Nothing is written on the test site. */
-async function lhistAdd(rows) {
+/** THE ONE LOG FUNCTION. rows: [{ id, kind: 'listing', at, by, name, brand, sku, asin, field, old, new, screen, result, why }]. Written to the
+ *  existing /history collection as documents of their own — history/listing_<YYYY-MM-DD>_<run>-<n>, { kind: 'listing', day, rows: { <id>:
+ *  row } } — at most SQ_LOG_ROWS rows each, so no document ever nears Firestore's 1 MB. `run` remembers which document each row went to:
+ *  a row written again (Check again) updates its own place, merged in, never another person's. Returns '' or why it could not be saved.
+ *  Nothing is written on the test site. */
+async function lhistAdd(rows, run) {
   if (!rows || !rows.length || sqIsTest()) return '';
-  const byDay = new Map();
+  const place = (run && run.logDocs) || new Map();      // row id → its document
+  const stamp = (run && run.at) || Date.now();
+  const fresh = rows.filter(row => !place.has(row.id));
+  const start = new Set(place.values()).size;
+  for (let i = 0; i < fresh.length; i += SQ_LOG_ROWS) {
+    const day = new Date(fresh[i].at).toISOString().slice(0, 10);
+    const id = `listing_${day}_${stamp}-${start + i / SQ_LOG_ROWS + 1}`;
+    fresh.slice(i, i + SQ_LOG_ROWS).forEach(row => place.set(row.id, id));
+  }
+  if (run) run.logDocs = place;
+  const byDoc = new Map();
   rows.forEach(row => {
-    const day = new Date(row.at).toISOString().slice(0, 10);
-    if (!byDay.has(day)) byDay.set(day, {});
-    byDay.get(day)[row.id] = row;
+    const id = place.get(row.id);
+    if (!byDoc.has(id)) byDoc.set(id, {});
+    byDoc.get(id)[row.id] = Object.assign({ kind: 'listing' }, row);
   });
   try {
-    for (const [day, map] of byDay) await setDoc(doc(db, 'listingrules', SQ_LOG_PREFIX + day), { rows: map, at: serverTimestamp() }, { merge: true });
+    for (const [id, map] of byDoc) await setDoc(doc(db, SQ_LOG_COLL, id), { kind: 'listing', day: id.slice(8, 18), rows: map, at: serverTimestamp() }, { merge: true });
     return '';
   } catch (e) {
     return String((e && e.message) || e);
@@ -31605,7 +31685,7 @@ async function imSend(apply) {
     const im = IM;
     const start = Object.assign({}, IM_START);
     return sqSendWithCheck([{ brand: im.brand, sku: im.sku, asin: im.asin || '', label: im.title || im.sku, body: { limg: 'patch', brand: im.brand, sku: im.sku, productType: im.productType, set },
-      changes: Object.keys(set).map(slot => ({ field: sqField(slot), old: start[slot] || '(none)', new: set[slot] || '(removed)' })) }], {
+      changes: Object.keys(set).map(slot => ({ field: sqField(slot), old: start[slot] || '(none)', new: set[slot] || '(removed)', pic: true })) }], {
       screen: 'Image Manager', title: 'Image Manager · ' + im.sku,
       onSent: () => { if (IM === im) IM_START = Object.assign({}, IM_NOW); IML_DIRTY = true; },   // what we sent is now the baseline
       onEdit: () => {},                                   // the picture stack is right here, as it was
@@ -31752,7 +31832,7 @@ async function imPasteMany(skus) {
     if (!Object.keys(set).length) { held.push({ sku, why: 'already holds these pictures' }); continue; }
     if (!row.pt) { held.push({ sku, why: 'no product type in the snapshot — open it and paste there' }); continue; }
     jobs.push({ brand: brandKey, sku, asin: row.asin || '', label: [row.c, row.z].filter(Boolean).join(' · ') || sku, row, body: { limg: 'patch', brand: brandKey, sku, productType: row.pt, set },
-      changes: Object.keys(set).map(slot => ({ field: sqField(slot), old: (row.img || {})[slot] ? 'a picture' : '(none)', new: IM_CLIP.sku + "'s picture" })) });
+      changes: Object.keys(set).map(slot => ({ field: sqField(slot), old: (row.img || {})[slot] || '(none)', new: set[slot], pic: true })) });
   }
   const out = $('imBulk');
   $('imPasteSel').disabled = true;
@@ -33208,7 +33288,8 @@ async function lcUpSend(apply) {
   if (apply) {
     const up = LC_UP;
     return sqSendWithCheck(todo.map(row => ({ brand: up.brand, sku: row.sku, asin: '', label: row.sku, row, body: { lfix: 'patch', brand: up.brand, sku: row.sku, productType: row.productType, patches: row.patches },
-      changes: row.fields.map(change => ({ field: LC_LABEL[change.name] || change.name, old: change.old.join(' | '), new: change.new.join(' | ') })) })), {
+      changes: row.fields.map(change => Object.assign({ field: LC_LABEL[change.name] || change.name, old: change.old.join(' | '), new: change.new.join(' | ') },
+        change.name === 'generic_keyword' ? { max: 249, unit: 'bytes' } : {})) })), {
       screen: 'Listing Content upload', title: 'Upload: ' + up.file,
       onSent: (job, reply) => { job.row.state = 'sent'; job.row.msg = reply.submissionId ? '(' + reply.submissionId.slice(0, 8) + '…)' : ''; },
       onDone: sum => {

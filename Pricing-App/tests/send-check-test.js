@@ -58,7 +58,9 @@ const box = C => C.el('spModalBox').innerHTML;
     ok('Fix → the popup opens on "Checking with Amazon…" (Amazon\'s VALIDATION_PREVIEW: nothing changes on Amazon)', /Checking with Amazon…/.test(box(C)) && /nothing changes on Amazon yet/.test(box(C)));
     await C.SQ.run.checked;
     ok('…the check is apply:false (never a send)', posts.length === 1 && posts[0].apply === false && posts[0].lfix === 'patch');
-    ok('…"✓ Amazon will accept" + the change, before → after, [Approve & send] [Cancel]', /✓ Amazon will accept/.test(box(C)) && /<small>Hidden search words<\/small> <del>cotton<\/del> → <ins>cotton thanksgiving christmas<\/ins>/.test(box(C))
+    ok('…"✓ Amazon will accept" + ONLY what changes: "Item Highlights: + Thanksgiving and Christmas table decor (51 of 125)", "Hidden search words: + thanksgiving christmas (27 of 249)", [Approve & send] [Cancel]',
+      /✓ Amazon will accept/.test(box(C)) && /Item Highlights: \+ Thanksgiving and Christmas table decor \(51 of 125\)/.test(strip(box(C))) && /Hidden search words: \+ thanksgiving christmas \(27 of 249\)/.test(strip(box(C)))
+      && !/<del>/.test(box(C)) && (box(C).match(/› Show full text/g) || []).length === 2 && /<small>Before<\/small> Soft cotton<\/div><div><small>After<\/small> Thanksgiving and Christmas table decor, soft cotton</.test(box(C))
       && /data-sq="approve">Approve &amp; send</.test(box(C)) && /data-sq="cancel">Cancel</.test(box(C)), strip(box(C)).slice(0, 400));
     C.sqClose();
     await r.run;
@@ -110,10 +112,11 @@ const box = C => C.el('spModalBox').innerHTML;
   console.log('== every send is written down once (lhistAdd) ==');
   {
     const day = new Date().toISOString().slice(0, 10);
-    const logs = F.saved.filter(s => s.path === 'listingrules/sendlog_' + day);
+    const logs = F.saved.filter(s => s.path.startsWith('history/listing_' + day + '_'));
     const rows = Object.assign({}, ...logs.map(s => s.data.rows));
     const list = Object.values(rows);
-    ok(`listingrules/sendlog_${day}, merged in (never overwriting another send)`, logs.length >= 1 && logs.every(s => s.merge));
+    ok(`the existing /history collection: history/listing_${day}_<run>-1, kind "listing", merged in; nothing in listingrules`, logs.length >= 1 && logs.every(s => s.merge && s.data.kind === 'listing' && /-1$/.test(s.path))
+      && !F.saved.some(s => /listingrules\/sendlog/.test(s.path)), F.saved.map(s => s.path).join());
     ok('one row per changed field of each of the 8 sends: date, user (name from the e-mail), SKU, ASIN, field, old → new, screen, result', list.length === 16
       && list.every(r => r.at && r.by === 'test@example.com' && r.name === 'Test' && /^N\d$/.test(r.sku) && r.asin === 'B0' + r.sku && r.field && r.screen === 'Season planner' && r.result)
       && list.some(r => r.field === 'Hidden search words' && r.old === 'cotton' && r.new === 'cotton thanksgiving christmas'), JSON.stringify(list[0]));
@@ -129,9 +132,9 @@ const box = C => C.el('spModalBox').innerHTML;
     done();
     C.spFixSeasons(['SP|T1', 'SP|T2'], '');
     await C.SQ.run.checked;
-    ok('the popup still shows the check step: "Amazon\'s check cannot run here" with the changes and Approve & send 2', /Test site — Amazon's check cannot run here/.test(box(C)) && /Approve &amp; send 2/.test(box(C)) && /<del>cotton<\/del>/.test(box(C)));
+    ok('the popup still shows the check step: "Amazon\'s check cannot run here" with the changes and Approve & send 2', /Test site — Amazon's check cannot run here/.test(box(C)) && /Approve &amp; send 2/.test(box(C)) && /Hidden search words:<\/small> <span class="sq-add">\+ thanksgiving christmas/.test(box(C)));
     await C.sqApprove();
-    ok('Approve: "Test site — not sent to Amazon"; no call to the backend, nothing written', /<b>Test site — not sent to Amazon<\/b>/.test(box(C)) && posts.length === 0 && !saved.some(s => /sendlog/.test(s.path)));
+    ok('Approve: "Test site — not sent to Amazon"; no call to the backend, nothing written', /<b>Test site — not sent to Amazon<\/b>/.test(box(C)) && posts.length === 0 && !saved.some(s => /history|sendlog/.test(s.path)));
     C.sqClose();
   }
 
@@ -190,6 +193,56 @@ const box = C => C.el('spModalBox').innerHTML;
     await paste;
     ok('…Approve & send: P1 sent once, read again; the strip holds the new picture', posts.filter(p => p.apply && p.sku === 'P1').length === 1 && /new\.jpg/.test(C.IML.SP.items[0].img.MAIN));
     C.SQ.screens.forEach(sc => F.C.SQ.screens.push(sc));
+  }
+
+  console.log('== the popup shows ONLY what changes, with "› Show full text" ==');
+  {
+    const { C, put, done } = setup();
+    put('K1', 'cotton napkins summer', ['Soft cotton']);
+    done();
+    C.spApprove(['SP|K1']);
+    await C.SQ.run.checked;
+    const t = strip(box(C));
+    const kw = C.spCompute().find(i => i.sku === 'K1').kwAfter;
+    ok(`"Hidden search words: − summer · + thanksgiving christmas (${C.lrKwBytes(kw)} of 249)" — the old season word out, the new ones in`, new RegExp(`Hidden search words: − summer · \\+ thanksgiving christmas \\(${C.lrKwBytes(kw)} of 249\\)`).test(t), t.slice(0, 400));
+    ok('…"Item Highlights: + Thanksgiving and Christmas table decor (51 of 125)"', /Item Highlights: \+ Thanksgiving and Christmas table decor \(51 of 125\)/.test(t));
+    ok('…never the whole field struck and the whole field green; "› Show full text" under each, before and after in full', !/<del>|<ins>/.test(box(C)) && (box(C).match(/<details class="sq-full"><summary>› Show full text<\/summary>/g) || []).length === 2
+      && /<small>Before<\/small> cotton napkins summer<\/div><div><small>After<\/small> cotton napkins thanksgiving christmas</.test(box(C)));
+    C.sqClose();
+    ok('Listing Errors row: "material: − Linen · + Cotton"', /material:<\/small> <span class="sq-rem">− Linen<\/span> · <span class="sq-add">\+ Cotton<\/span>/.test(C.sqChangeLine({ field: 'material', old: 'Linen', new: 'Cotton' })));
+    ok('…a value taken away: "− all of it (removed)"', /− all of it \(removed\)/.test(C.sqChangeLine({ field: 'pattern', old: 'Floral', new: '(removed)' })));
+    ok('Image Manager rows: "Main picture: replaced by a new picture" / "+ a new picture", the links under Show full text', /Main picture:<\/small> replaced by a new picture/.test(C.sqChangeLine({ field: 'Main picture', old: 'https://x/a.jpg', new: 'https://x/b.jpg', pic: true }))
+      && /\+ a new picture/.test(C.sqChangeLine({ field: 'Picture 2', old: '(none)', new: 'https://x/b.jpg', pic: true })) && /<small>After<\/small> https:\/\/x\/b\.jpg/.test(C.sqChangeLine({ field: 'Main picture', old: 'https://x/a.jpg', new: 'https://x/b.jpg', pic: true })));
+    const d = C.sqWordDiff('Ridhi Cloth Napkins 100% Cotton 18 x 18 Inch Block Print Reusable Dinner Napkins for Kitchen - Blue', 'Ridhi Cloth Napkins 100% Cotton 18 x 18 Inch Block Print - Blue');
+    ok('a title shortened: the words that really went ("Reusable Dinner Napkins for Kitchen"), not the first "Napkins"; a word that only moved is no change', d.removed.join(' ') === 'Reusable Dinner Napkins for Kitchen' && !d.added.length
+      && !C.sqWordDiff('blue cotton napkins', 'cotton napkins blue').removed.length, JSON.stringify(d));
+  }
+
+  console.log('== the send log: the existing /history collection, small documents, every listing user ==');
+  {
+    const { C, put, done, saved } = setup();
+    for (let i = 0; i < 246; i++) put('H' + i, 'cotton', ['Soft cotton']);
+    done();
+    const r = C.spFixSeasons(C.spGroupOf('SP|PP').todo.map(i => i.key), '');
+    await C.SQ.run.checked;
+    await C.sqApprove();
+    C.sqClose();
+    await r;
+    const day = new Date().toISOString().slice(0, 10);
+    const docs = saved.filter(s => s.path.startsWith('history/listing_' + day + '_'));
+    const rows = docs.flatMap(s => Object.values(s.data.rows));
+    const size = Math.max(...docs.map(s => JSON.stringify(s.data).length));
+    ok(`Fix all of 246: ${rows.length} rows split over ${docs.length} documents of at most 200 rows (largest ${Math.round(size / 1024)} KB — far under 1 MB)`, rows.length === 492 && docs.length === 3 && docs.every(s => Object.keys(s.data.rows).length <= 200) && size < 300000);
+    ok('…named history/listing_<date>_<run>-1, -2, -3, kind "listing" on the document and every row', docs.map(s => s.path.slice(-2)).sort().join() === '-1,-2,-3' && docs.every(s => s.data.kind === 'listing' && s.data.day === day) && rows.every(row => row.kind === 'listing'));
+    const rules = require('fs').readFileSync(require('path').join(__dirname, '..', 'firestore.rules'), 'utf8');
+    const anyTabs = (rules.match(/function canAny\(\)[^]*?hasAny\(\[([^]*?)\]\)/) || [])[1] || '';
+    ok('the rule for /history (canAny) lets every listing user write: Listing Health, Listing Rules, Image Manager, Listing Errors — no rule change', /match \/history\/\{doc\} \{\s*allow read, write: if canAny\(\);/.test(rules)
+      && ['health', 'lrules', 'img', 'lerr'].every(tab => anyTabs.includes(`'${tab}'`)));
+  }
+  {
+    const day = new Date().toISOString().slice(0, 10);
+    const n6 = F.saved.filter(s => s.path.startsWith('history/listing_' + day) && Object.values(s.data.rows).some(row => row.sku === 'N6'));
+    ok('Check again writes the updated rows into the SAME document (merged), never a new one', new Set(n6.map(s => s.path)).size === 1 && n6.length === 2 && n6.every(s => s.merge));
   }
 
   console.log('== the send points that go through the ONE function ==');

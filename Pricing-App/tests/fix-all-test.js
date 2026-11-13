@@ -116,7 +116,8 @@ const patchCalls = (C, apply) => C.calls.filter(c => c.lfix === 'patch' && c.app
     ok('…brand, product, size, colour, material and print kept; the long "uses" words go', run.jobs.every(j => /^Ridhi Cloth Napkins 100% Cotton \d+ x \d+ Inch Block Print - \w+$/.test(afterOf(j.sku))));
     const pop = C.el('spModalBox').innerHTML;
     ok('the popup: "10 Amazon will accept · 0 Amazon says no", each title before → after, [Approve & send 10] [Cancel]', /10 Amazon will accept · 0 Amazon says no/.test(strip(pop))
-      && /<small>Title<\/small> <del>Ridhi Cloth Napkins 100% Cotton 18 x 18 Inch Block Print Reusable Dinner Napkins for Kitchen Party Wedding - Blue<\/del> → <ins>Ridhi Cloth Napkins 100% Cotton 18 x 18 Inch Block Print - Blue<\/ins>/.test(pop)
+      && /<small>Title:<\/small> <span class="sq-rem">− Reusable Dinner Napkins for Kitchen Party Wedding<\/span> <span class="sq-size">\(63 of 75\)<\/span>/.test(pop)
+      && /› Show full text/.test(pop) && /<small>After<\/small> Ridhi Cloth Napkins 100% Cotton 18 x 18 Inch Block Print - Blue</.test(pop)
       && /data-sq="approve">Approve &amp; send 10</.test(pop) && /data-sq="cancel">Cancel</.test(pop), strip(pop).slice(0, 400));
     A.review = Object.fromEntries(run.jobs.map(j => [j.sku, JSON.stringify(j.body.patches)]));
 
@@ -133,7 +134,7 @@ const patchCalls = (C, apply) => C.calls.filter(c => c.lfix === 'patch' && c.app
     ok('every change is kept with its OLD title in listingrules/fixlog, with Amazon\'s answer', C.FA.log.length === 10 && A.saved.some(x => x.path === 'listingrules/fixlog' && x.data.rows.length === 10)
       && C.FA.log.every(rec => rec.before.title && rec.before.title.length > 75 && rec.after.title.length <= 75 && rec.row === 'title'), JSON.stringify(C.FA.log[0]));
     ok('…and the records follow (History)', C.FA.log.filter(x => x.state === 'accepted').length === 8 && C.FA.log.find(x => x.sku === 'L8').state === 'rejected' && C.FA.log.find(x => x.sku === 'L7').state === 'working');
-    ok('…and each send is in the send log too (lhistAdd, Listing History)', A.saved.some(x => /^listingrules\/sendlog_/.test(x.path) && Object.values(x.data.rows).some(row => row.sku === 'L0' && row.field === 'Title' && row.screen === 'Listing Health')));
+    ok('…and each send is in the send log too (lhistAdd, Listing History)', A.saved.some(x => /^history\/listing_/.test(x.path) && Object.values(x.data.rows).some(row => row.sku === 'L0' && row.field === 'Title' && row.screen === 'Listing Health')));
     await idle(C);
     const g2 = C.faGroups('SP', 'PB', C.faKids('SP', 'PB')).find(g => g.key === 'title');
     ok('the rows update: the 9 sent wait for Amazon to show the new title; only the rejected one is still in the row', g2 && g2.kids.length === 1 && g2.kids[0].sku === 'L8' && g2.waiting.length === 9,

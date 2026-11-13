@@ -235,7 +235,7 @@ const TITLE = color => `Ridhi Cloth Napkins 100% Cotton 18 x 18 Inch Block Print
     const xmas = C.spSeasonRows(g).find(r => r.e.ev.id === 'christmas');
     const r = C.spFixSeasons(xmas.kids.map(item => item.key), 'christmas');
     await checked(C);
-    ok('one listing: "✓ Amazon will accept" + the change before → after; the one that needs your OK is named, not sent', /✓ Amazon will accept/.test(C.el('spModalBox').innerHTML) && /<del>cotton<\/del> → <ins>cotton christmas<\/ins>/.test(C.el('spModalBox').innerHTML)
+    ok('one listing: "✓ Amazon will accept" + the change before → after; the one that needs your OK is named, not sent', /✓ Amazon will accept/.test(C.el('spModalBox').innerHTML) && /Hidden search words:<\/small> <span class="sq-add">\+ christmas<\/span> <span class="sq-size">\(15 of 249\)<\/span>/.test(C.el('spModalBox').innerHTML)
       && /1 need your OK/.test(C.el('spModalBox').innerHTML), strip(C.el('spModalBox').innerHTML).slice(0, 400));
     await approve(C);
     ok('Approve & send → read again → "✅ Amazon accepted"', /✅ Amazon accepted/.test(C.el('spModalBox').innerHTML), strip(C.el('spModalBox').innerHTML).slice(0, 200));

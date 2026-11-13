@@ -458,7 +458,7 @@ function faStart(gk, onlySku) {
 function faChangeList(p) {
   if (p.item && typeof spChangeList === 'function') return spChangeList(p.item);
   if (p.sent && p.sent.spec) return [{ field: sqField(p.sent.spec), old: '(empty)', new: p.after }];
-  return [{ field: 'Title', old: p.oldTitle || p.before, new: p.after }];
+  return [{ field: 'Title', old: p.oldTitle || p.before, new: p.after, max: FA_TITLE_MAX, unit: 'letters' }];
 }
 // What a sent change is kept as: the OLD value of every field it changed, so Put back can send it again.
 function faRecord(it, run, now, sub) {
