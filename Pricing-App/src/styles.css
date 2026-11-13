@@ -2210,6 +2210,18 @@
   .sq-held .sq-st{font-weight:400}
   .sq-fold>summary{padding:10px 0;font-size:13px;font-weight:600;cursor:pointer}
   .sq-warn{color:var(--bad-ink)}
+  /* The popup's frame: the top (title, counts, chips) and the buttons stay put; ONLY the list in the middle scrolls — mouse wheel, scroll bar,
+     a finger on a phone — and it never pulls the page behind it. Rows off screen are not laid out (fast with 200+). */
+  .modalbox.sp-modal{max-height:calc(100vh - 32px);max-height:calc(100dvh - 32px)}
+  .sq-pop{flex:1 1 auto;min-height:0;display:flex;flex-direction:column}
+  .sq-pop>.sp-m-h,.sq-pop>.sp-m-a,.sq-pop>.sp-pbar{flex:none}
+  .sq-pop>.sp-m-list{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+  .sq-pop .sq-row{content-visibility:auto;contain-intrinsic-size:auto 96px}
+  .sq-top .sq-sum{margin-top:6px;font-weight:600;color:var(--ink)}
+  .sq-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+  .sq-chips .sp-chip{min-height:30px;padding:0 10px;font-size:12px}
+  .sq-row.is-held .sq-st{color:var(--rev-ink)}
+  .sq-none{color:var(--muted)}
   .sq-chg .sq-add{color:var(--accent-ink);font-weight:600}
   .sq-chg .sq-rem{color:var(--bad-ink)}
   .sq-chg .sq-size{color:var(--faint)}

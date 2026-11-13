@@ -340,57 +340,82 @@ function sqDraw() {
   const jobs = run.jobs;
   const n = state => jobs.filter(job => job.state === state).length;
   const one = jobs.length === 1;
-  const held = (run.opts.held || []).length ? `<div class="sp-m-row sq-held"><b>${sqNf(run.opts.held.length)} need your OK — not in this send</b>`
-    + run.opts.held.slice(0, 50).map(h => `<div class="sq-st">${sqEsc(h.sku)}: ${sqEsc(h.why)}</div>`).join('') + '</div>' : '';
   const bar = (done, total) => `<div class="sp-pbar" role="progressbar" aria-valuemin="0" aria-valuemax="${total}" aria-valuenow="${done}"><span style="width:${total ? Math.round(done * 100 / total) : 0}%"></span></div>`;
   const btn = (act, text, main, disabled) => `<button type="button" class="${main ? 'sp-main' : 'sp-btn'}" data-sq="${act}"${disabled ? ' disabled' : ''}>${text}</button>`;
   let html;
   if (run.step === 'check') {
     html = `<div class="sp-m-h"><b>Checking with Amazon…</b><p>${one ? '' : `${sqNf(run.done)} of ${sqNf(run.total)} · `}Amazon checks each change first — nothing changes on Amazon yet.</p></div>${bar(run.done, run.total)}`
       + `<div class="sp-m-a">${btn('cancel', 'Cancel')}</div>`;
+  } else if (run.step === 'review' && one && !run.test && !(run.opts.held || []).length) {
+    // one listing: Amazon's answer in the heading, the change below
+    if (n('ok')) html = `<div class="sp-m-h"><b>✓ Amazon will accept</b><p>${sqEsc(jobs[0].label || jobs[0].sku)} · ${sqEsc(jobs[0].sku)} — what changes:</p></div>`
+      + `<div class="sp-m-list">${sqChangesHtml(jobs[0])}</div><div class="sp-m-a">${btn('approve', 'Approve &amp; send', true)}${btn('cancel', 'Cancel')}</div>`;
+    else html = `<div class="sp-m-h"><b>✗ Amazon says no: ${sqEsc(jobs[0].why)}</b><p>How to fix: ${sqEsc(jobs[0].how)}</p></div>`
+      + `<div class="sp-m-list">${sqChangesHtml(jobs[0])}</div><div class="sp-m-a">${run.opts.onEdit ? btn('edit', 'Edit', true) : ''}${btn('cancel', 'Close')}</div>`;
   } else if (run.step === 'review') {
-    const ok = n('ok');
-    const no = jobs.filter(job => job.state === 'no');
-    const test = n('test');
-    if (run.test) {
-      html = `<div class="sp-m-h"><b>Test site — Amazon's check cannot run here</b><p>The test site blocks every call that could change Amazon. On live Sellora, Amazon checks ${one ? 'this change' : `these ${sqNf(test)} changes`} here first.</p></div>`
-        + `<div class="sp-m-list">${jobs.map(job => sqRowHtml(job, true)).join('')}${held}</div><div class="sp-m-a">${btn('approve', one ? 'Approve &amp; send' : `Approve &amp; send ${sqNf(test)}`, true)}${btn('cancel', 'Cancel')}</div>`;
-    } else if (one && ok) {
-      html = `<div class="sp-m-h"><b>✓ Amazon will accept</b><p>${sqEsc(jobs[0].label || jobs[0].sku)} · ${sqEsc(jobs[0].sku)} — what changes:</p></div>`
-        + `<div class="sp-m-list">${sqChangesHtml(jobs[0])}${held}</div><div class="sp-m-a">${btn('approve', 'Approve &amp; send', true)}${btn('cancel', 'Cancel')}</div>`;
-    } else if (one) {
-      html = `<div class="sp-m-h"><b>✗ Amazon says no: ${sqEsc(jobs[0].why)}</b><p>How to fix: ${sqEsc(jobs[0].how)}</p></div>`
-        + `<div class="sp-m-list">${sqChangesHtml(jobs[0])}${held}</div><div class="sp-m-a">${run.opts.onEdit ? btn('edit', 'Edit', true) : ''}${btn('cancel', 'Close')}</div>`;
-    } else {
-      html = `<div class="sp-m-h"><b>${sqNf(ok)} Amazon will accept · ${sqNf(no.length)} Amazon says no</b><p>${run.opts.title ? sqEsc(run.opts.title) + ' — ' : ''}only the ones Amazon will accept are sent.</p></div>`
-        + `<div class="sp-m-list">${no.length ? `<div class="sp-m-row sq-sub"><b>Amazon says no (${sqNf(no.length)})</b></div>${no.map(job => sqRowHtml(job, false)).join('')}` : ''}`
-        + `${ok ? `<details class="sq-fold"${no.length ? '' : ' open'}><summary>The ${sqNf(ok)} change${ok === 1 ? '' : 's'} Amazon will accept</summary>${jobs.filter(job => job.state === 'ok').map(job => sqRowHtml(job, true)).join('')}</details>` : ''}${held}</div>`
-        + `<div class="sp-m-a">${ok ? btn('approve', `Approve &amp; send ${sqNf(ok)}`, true) : ''}${btn('cancel', ok ? 'Cancel' : 'Close')}</div>`;
-    }
+    // several (or some held back): a fixed top — the title, the counts, the filter chips — the list scrolling in the middle (Amazon says no
+    // first, then not checked, then will accept), the buttons fixed at the bottom
+    const items = jobs.map(job => ({ job, cat: job.state === 'ok' ? 'ok' : job.state === 'no' ? 'no' : 'unchecked' }))
+      .concat((run.opts.held || []).map(held => ({ held, cat: 'unchecked' })));
+    const cnt = k => items.filter(i => i.cat === k).length;
+    const order = { no: 0, unchecked: 1, ok: 2 };
+    const f = sqFilter(run, ['all', 'ok', 'no', 'unchecked']);
+    const shown = items.filter(i => f === 'all' || i.cat === f).sort((a, b) => order[a.cat] - order[b.cat]);
+    const go = run.test ? n('test') : cnt('ok');
+    const sum = `${sqNf(items.length)} change${items.length === 1 ? '' : 's'} · ✓ ${sqNf(cnt('ok'))} will accept · ✗ ${sqNf(cnt('no'))} says no · ⚠ ${sqNf(cnt('unchecked'))} not checked`;
+    const head = run.test ? "Test site — Amazon's check cannot run here" : (run.opts.title || 'Amazon check');
+    const note = run.test ? 'The test site blocks every call that could change Amazon. On live Sellora, Amazon checks each change here first.' : 'Only the ones Amazon will accept are sent.';
+    html = `<div class="sp-m-h sq-top"><b>${sqEsc(head)}</b><p class="sq-sum">${sum}</p><p>${note}</p>`
+      + sqChipsHtml([['all', 'All', items.length], ['ok', 'Will accept', cnt('ok')], ['no', 'Says no', cnt('no')], ['unchecked', 'Not checked', cnt('unchecked')]], f) + '</div>'
+      + `<div class="sp-m-list">${shown.map(i => (i.held ? sqHeldHtml(i.held) : sqRowHtml(i.job, true))).join('') || '<div class="sp-m-row sq-none">Nothing here.</div>'}</div>`
+      + `<div class="sp-m-a">${go ? btn('approve', `Approve &amp; send ${sqNf(go)}`, true) : ''}${btn('cancel', go ? 'Cancel' : 'Close')}</div>`;
   } else if (run.step === 'send') {
     html = `<div class="sp-m-h"><b>Sending ${sqNf(run.done)} of ${sqNf(run.total)}…</b><p>Amazon checks each one again first. Please keep this window open.</p></div>${bar(run.done, run.total)}`;
   } else if (run.step === 'verify') {
     html = `<div class="sp-m-h"><b>Reading ${one ? 'the listing' : 'the listings'} again from Amazon… ${one ? '' : `${sqNf(run.done)} of ${sqNf(run.total)}`}</b><p>To see what Amazon did with ${one ? 'the change' : 'each change'}.</p></div>${bar(run.done, run.total)}`;
   } else if (run.step === 'test') {
-    html = `<div class="sp-m-h"><b>Test site — not sent to Amazon</b><p>Nothing was sent. On live Sellora ${one ? 'this change goes' : `these ${sqNf(n('notsent'))} changes go`} to Amazon here.</p></div>`
+    html = `<div class="sp-m-h sq-top"><b>Test site — not sent to Amazon</b><p class="sq-sum">${sqNf(n('notsent'))} change${n('notsent') === 1 ? '' : 's'} · nothing was sent</p><p>On live Sellora ${one ? 'this change goes' : 'these changes go'} to Amazon here.</p></div>`
       + `<div class="sp-m-list">${jobs.map(job => sqRowHtml(job, true)).join('')}</div><div class="sp-m-a">${btn('close', 'Close', true)}</div>`;
   } else {
-    const acc = n('accepted');
+    // the results the same way: rejected first, then still working, then accepted, then the ones never sent; chips to show one kind
+    const cat = job => (job.state === 'rejected' ? 'rejected' : job.state === 'working' ? 'working' : job.state === 'accepted' ? 'accepted' : 'notsent');
+    const items = jobs.map(job => ({ job, cat: cat(job) })).concat((run.opts.held || []).map(held => ({ held, cat: 'notsent' })));
+    const cnt = k => items.filter(i => i.cat === k).length;
+    const order = { rejected: 0, working: 1, accepted: 2, notsent: 3 };
+    const f = sqFilter(run, ['all', 'rejected', 'working', 'accepted', 'notsent']);
+    const shown = items.filter(i => f === 'all' || i.cat === f).sort((a, b) => order[a.cat] - order[b.cat]);
     const rej = jobs.filter(job => job.state === 'rejected');
-    const wk = n('working');
+    const wk = cnt('working');
     const head = one ? `${SQ_STATE[jobs[0].state] || ''}${jobs[0].why ? ': ' + sqEsc(jobs[0].why) : ''}`
-      : `✅ ${sqNf(acc)} accepted · ❌ ${sqNf(rej.length)} rejected${rej.length ? ` (${sqEsc([...new Set(rej.map(job => job.why))].slice(0, 2).join('; '))})` : ''} · ⏳ ${sqNf(wk)}`;
-    const rank = { rejected: 0, working: 1, accepted: 2 };     // what needs a look first: rejected, then still working, then accepted
-    const sent = jobs.filter(job => job.state in rank).sort((x, y) => rank[x.state] - rank[y.state]);
-    html = `<div class="sp-m-h"><b>${head}</b><p>${wk ? 'Amazon usually finishes within minutes to a few hours — press Check again later.' : 'Every change has an answer from Amazon.'}`
-      + `${run.logErr ? ` <span class="sq-warn">The note for Listing History could not be saved (${sqEsc(run.logErr)}).</span>` : ''}</p></div>`
-      + `<div class="sp-m-list">${sent.map(job => sqRowHtml(job, true)).join('')}</div>`
+      : `✅ ${sqNf(cnt('accepted'))} accepted · ❌ ${sqNf(rej.length)} rejected${rej.length ? ` (${sqEsc([...new Set(rej.map(job => job.why))].slice(0, 2).join('; '))})` : ''} · ⏳ ${sqNf(wk)}`;
+    html = `<div class="sp-m-h sq-top"><b>${head}</b><p>${wk ? 'Amazon usually finishes within minutes to a few hours — press Check again later.' : 'Every change sent has an answer from Amazon.'}`
+      + `${run.logErr ? ` <span class="sq-warn">The note for Listing History could not be saved (${sqEsc(run.logErr)}).</span>` : ''}</p>`
+      + (one ? '' : sqChipsHtml([['all', 'All', items.length], ['rejected', 'Rejected', cnt('rejected')], ['working', 'Still working', wk], ['accepted', 'Accepted', cnt('accepted')], ['notsent', 'Not sent', cnt('notsent')]], f)) + '</div>'
+      + `<div class="sp-m-list">${shown.map(i => (i.held ? sqHeldHtml(i.held) : sqRowHtml(i.job, true))).join('') || '<div class="sp-m-row sq-none">Nothing here.</div>'}</div>`
       + `<div class="sp-m-a">${wk ? btn('again', 'Check again') : ''}${btn('close', 'Close', true)}</div>`;
   }
+  // the list keeps its place across a redraw (a filter chip starts it at the top again); the page behind never moves
+  const box = typeof $ === 'function' ? $('spModalBox') : null;
+  const list = box && box.querySelector ? box.querySelector('.sp-m-list') : null;
+  const keep = list && run.drawnStep === run.step && !run.filterMoved ? list.scrollTop : 0;
+  run.drawnStep = run.step;
+  run.filterMoved = false;
   spModal(`<div class="sq-pop" data-sq-step="${run.step}">${html}</div>`, true);
+  const again = box && box.querySelector ? box.querySelector('.sp-m-list') : null;
+  if (again && keep) again.scrollTop = keep;
 }
+// The filter chip on for this step ('all' when the step changed or the chip is not one of this step's).
+function sqFilter(run, keys) {
+  if (run.filterStep !== run.step || !keys.includes(run.filter)) { run.filter = 'all'; run.filterStep = run.step; }
+  return run.filter;
+}
+// Small filter chips: [key, words, count].
+const sqChipsHtml = (list, on) => '<div class="sq-chips" role="group" aria-label="Show">' + list.map(([k, t, c]) => `<button type="button" class="sp-chip${on === k ? ' is-on' : ''}" data-sq="filter" data-sq-f="${k}" aria-pressed="${on === k}">${t}<span class="sp-n">${sqNf(c)}</span></button>`).join('') + '</div>';
+// One listing held back by the screen (needs your OK): never checked by Amazon, never sent.
+const sqHeldHtml = h => `<div class="sp-m-row sq-row is-held"><b>${sqEsc(h.label || h.sku)}</b><small>${sqEsc(h.sku)}</small><div class="sq-st">⚠ Not checked — needs your OK: ${sqEsc(h.why)}</div></div>`;
 // The popup's buttons.
-function sqClick(act) {
+function sqClick(act, btn) {
+  if (act === 'filter') { if (SQ.run && btn) { SQ.run.filter = btn.dataset.sqF; SQ.run.filterMoved = true; sqDraw(); } return; }
   if (act === 'approve') return sqApprove();
   if (act === 'again') return sqCheckAgain();
   if (act === 'edit') return sqEdit();
@@ -399,7 +424,7 @@ function sqClick(act) {
 if (typeof document !== 'undefined' && document.addEventListener) document.addEventListener('click', e => {
   const btn = e.target && e.target.closest ? e.target.closest('[data-sq]') : null;
   if (!btn || btn.disabled) return;
-  sqClick(btn.dataset.sq);
+  sqClick(btn.dataset.sq, btn);
 });
 
 /* ----- the send log: every send, accepted or rejected (Listing History reads it later) ----- */

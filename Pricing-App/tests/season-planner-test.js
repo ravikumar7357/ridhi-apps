@@ -219,7 +219,7 @@ const TITLE = color => `Ridhi Cloth Napkins 100% Cotton 18 x 18 Inch Block Print
     ok('Fix all 10 (Christmas): the popup opens "Checking with Amazon…" — nothing changes on Amazon', /Checking with Amazon…/.test(C.el('spModalBox').innerHTML) && /nothing changes on Amazon yet/.test(C.el('spModalBox').innerHTML));
     await checked(C);
     const modal = C.el('spModalBox').innerHTML;
-    ok('…then Amazon\'s answer: "10 Amazon will accept · 0 Amazon says no" [Approve & send 10] [Cancel]', r.todo.length === 10 && /10 Amazon will accept · 0 Amazon says no/.test(strip(modal)) && /data-sq="approve">Approve &amp; send 10</.test(modal) && /data-sq="cancel">Cancel</.test(modal), strip(modal).slice(0, 300));
+    ok('…then Amazon\'s answer: "10 Amazon will accept · 0 Amazon says no" [Approve & send 10] [Cancel]', r.todo.length === 10 && /10 changes · ✓ 10 will accept · ✗ 0 says no · ⚠ 0 not checked/.test(strip(modal)) && /data-sq="approve">Approve &amp; send 10</.test(modal) && /data-sq="cancel">Cancel</.test(modal), strip(modal).slice(0, 300));
     C.sqClose();
     ok('…each with only Christmas added (Thanksgiving is already there)', r.todo.every(t => t.item.hlAdd && /^Christmas/.test(t.item.hlAdd) && !/thanksgiving/i.test(t.item.kwAdd.join(' '))), JSON.stringify(r.todo[0].item.hlAfter));
   }
@@ -235,8 +235,8 @@ const TITLE = color => `Ridhi Cloth Napkins 100% Cotton 18 x 18 Inch Block Print
     const xmas = C.spSeasonRows(g).find(r => r.e.ev.id === 'christmas');
     const r = C.spFixSeasons(xmas.kids.map(item => item.key), 'christmas');
     await checked(C);
-    ok('one listing: "✓ Amazon will accept" + the change before → after; the one that needs your OK is named, not sent', /✓ Amazon will accept/.test(C.el('spModalBox').innerHTML) && /Hidden search words:<\/small> <span class="sq-add">\+ christmas<\/span> <span class="sq-size">\(15 of 249\)<\/span>/.test(C.el('spModalBox').innerHTML)
-      && /1 need your OK/.test(C.el('spModalBox').innerHTML), strip(C.el('spModalBox').innerHTML).slice(0, 400));
+    ok('one listing: "✓ Amazon will accept" + the change before → after; the one that needs your OK is named, not sent', /2 changes · ✓ 1 will accept · ✗ 0 says no · ⚠ 1 not checked/.test(strip(C.el('spModalBox').innerHTML)) && /Hidden search words:<\/small> <span class="sq-add">\+ christmas<\/span> <span class="sq-size">\(15 of 249\)<\/span>/.test(C.el('spModalBox').innerHTML)
+      && /⚠ Not checked — needs your OK: no room in Item Highlights/.test(C.el('spModalBox').innerHTML), strip(C.el('spModalBox').innerHTML).slice(0, 400));
     await approve(C);
     ok('Approve & send → read again → "✅ Amazon accepted"', /✅ Amazon accepted/.test(C.el('spModalBox').innerHTML), strip(C.el('spModalBox').innerHTML).slice(0, 200));
     C.sqClose();
@@ -431,7 +431,7 @@ const TITLE = color => `Ridhi Cloth Napkins 100% Cotton 18 x 18 Inch Block Print
     const r = C.spFixSeasons(old[0].kids.map(i => i.key), 'old:sp_spring');
     await checked(C);
     ok('Remove all 7: the popup "7 Amazon will accept · 0 Amazon says no", each change only takes Spring out', r.todo.length === 7 && r.todo.every(t => !/spring/i.test((t.item.hlAfter || []).join(' ') + ' ' + t.item.kwAfter) && !t.item.kwAdd.length && !t.item.hlAdd)
-      && /7 Amazon will accept · 0 Amazon says no/.test(strip(C.el('spModalBox').innerHTML)) && /Season planner · Spring out/.test(C.el('spModalBox').innerHTML));
+      && /7 changes · ✓ 7 will accept · ✗ 0 says no/.test(strip(C.el('spModalBox').innerHTML)) && /Season planner · Spring out/.test(C.el('spModalBox').innerHTML));
     C.spModal('');
     ok('…closing the window (Esc, Cancel) closes the popup: nothing sent', !C.sqIsOpen() && !posts.some(p => p.apply));
     // Fix all seasons for A1: Christmas + Thanksgiving in, Spring out — ONE patch

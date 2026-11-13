@@ -94,8 +94,9 @@ const box = C => C.el('spModalBox').innerHTML;
     const g = C.spGroupOf('SP|PP');
     const r = C.spFixSeasons(g.todo.map(i => i.key), '');
     await C.SQ.run.checked;
-    ok('"8 Amazon will accept · 2 Amazon says no", [Approve & send 8] [Cancel]', /8 Amazon will accept · 2 Amazon says no/.test(strip(box(C))) && /data-sq="approve">Approve &amp; send 8</.test(box(C)) && /data-sq="cancel">Cancel</.test(box(C)), strip(box(C)).slice(0, 200));
-    ok('…the 2 listed with their reason, in the list that scrolls inside the popup', /Amazon says no \(2\)/.test(box(C)) && /N8[^]*A value Amazon does not accept/.test(box(C)) && /N9[^]*Value too long — max 249/.test(box(C)) && /class="sp-m-list"/.test(box(C)));
+    ok('fixed top: "10 changes · ✓ 8 will accept · ✗ 2 says no · ⚠ 0 not checked" + chips; [Approve & send 8] [Cancel] fixed at the bottom', /10 changes · ✓ 8 will accept · ✗ 2 says no · ⚠ 0 not checked/.test(strip(box(C)))
+      && /data-sq="filter" data-sq-f="all"[^>]*>All<span class="sp-n">10</.test(box(C)) && /data-sq-f="no"[^>]*>Says no<span class="sp-n">2</.test(box(C)) && /data-sq="approve">Approve &amp; send 8</.test(box(C)) && /data-sq="cancel">Cancel</.test(box(C)), strip(box(C)).slice(0, 200));
+    ok('…the 2 listed FIRST with their reason, in the list that scrolls inside the popup', box(C).indexOf('<small>N8') > 0 && box(C).indexOf('<small>N8') < box(C).indexOf('<small>N0') && /N8[^]*A value Amazon does not accept/.test(box(C)) && /N9[^]*Value too long — max 249/.test(box(C)) && /class="sp-m-list"/.test(box(C)));
     await C.sqApprove();
     const sent = posts.filter(p => p.apply).map(p => p.sku);
     ok('Approve & send 8: only the 8 Amazon will accept are sent', sent.length === 8 && !sent.includes('N8') && !sent.includes('N9'), sent.join());
@@ -243,6 +244,53 @@ const box = C => C.el('spModalBox').innerHTML;
     const day = new Date().toISOString().slice(0, 10);
     const n6 = F.saved.filter(s => s.path.startsWith('history/listing_' + day) && Object.values(s.data.rows).some(row => row.sku === 'N6'));
     ok('Check again writes the updated rows into the SAME document (merged), never a new one', new Set(n6.map(s => s.path)).size === 1 && n6.length === 2 && n6.every(s => s.merge));
+  }
+
+  console.log('== 210 changes: a fixed top and bottom, the list scrolls in between; filter chips; fast ==');
+  {
+    const no = {};
+    for (let i = 0; i < 6; i++) no['B' + i] = 'The value for title_differentiation must be 125 characters or less';
+    const { C, put, done } = setup({ no });
+    for (let i = 0; i < 210; i++) put('B' + i, 'cotton napkins summer', ['Soft cotton']);
+    done();
+    const g = C.spGroupOf('SP|PP');
+    // 4 of them held back by the screen (need your OK): the popup names them as "not checked"
+    const keys = g.todo.map(i => i.key);
+    C.spFixSeasons(keys.slice(0, 206), '');
+    C.SQ.run.opts.held = keys.slice(206).map(k => ({ sku: k.split('|')[1], why: 'needs a look first' }));
+    await C.SQ.run.checked;
+    const t0 = Date.now();
+    C.SQ.run.drawnStep = '';
+    C.sqClick('filter', { dataset: { sqF: 'all' } });
+    const ms = Date.now() - t0;
+    const html = box(C);
+    ok('the top: "210 changes · ✓ 200 will accept · ✗ 6 says no · ⚠ 4 not checked" + chips All · Will accept · Says no · Not checked', /210 changes · ✓ 200 will accept · ✗ 6 says no · ⚠ 4 not checked/.test(strip(html))
+      && ['All<span class="sp-n">210', 'Will accept<span class="sp-n">200', 'Says no<span class="sp-n">6', 'Not checked<span class="sp-n">4'].every(x => html.includes(x)), strip(html).slice(0, 300));
+    const top = html.indexOf('class="sp-m-h sq-top"'), list = html.indexOf('class="sp-m-list"'), bottom = html.indexOf('class="sp-m-a"');
+    ok('ONE frame: the top, then the list, then the buttons [Approve & send 200] [Cancel] — the top and the buttons outside the list, so they never scroll away', top > 0 && top < list && list < bottom
+      && /data-sq="approve">Approve &amp; send 200</.test(html.slice(bottom)) && (html.slice(list, bottom).match(/class="sp-m-row sq-row/g) || []).length === 210);
+    ok('"Says no" first, then "Not checked", then "Will accept"', html.indexOf('is-no') < html.indexOf('is-held') && html.indexOf('is-held') < html.indexOf('is-ok'));
+    ok(`all 210 drawn in ${ms} ms (fast)`, ms < 400, ms + ' ms');
+    C.sqClick('filter', { dataset: { sqF: 'no' } });
+    const only = box(C);
+    ok('chip "Says no": only the 6, with their reason', (only.match(/class="sp-m-row sq-row is-no"/g) || []).length === 6 && !/is-ok"/.test(only) && /data-sq-f="no" aria-pressed="true"/.test(only) && /Value too long — max 125/.test(only));
+    C.sqClick('filter', { dataset: { sqF: 'unchecked' } });
+    ok('chip "Not checked": the 4 held back', (box(C).match(/is-held/g) || []).length === 4);
+    C.sqClick('filter', { dataset: { sqF: 'ok' } });
+    ok('chip "Will accept": the 200, each with ONLY what changes', (box(C).match(/is-ok"/g) || []).length === 200 && (box(C).match(/class="sq-add">\+ thanksgiving christmas/g) || []).length === 200);
+    const css = require('fs').readFileSync(require('path').join(__dirname, '..', 'src', 'styles.css'), 'utf8');
+    ok('the CSS: the frame is a column, the top and the buttons do not shrink, the list scrolls (wheel, bar, finger) and never pulls the page', /\.sq-pop\{flex:1 1 auto;min-height:0;display:flex;flex-direction:column\}/.test(css)
+      && /\.sq-pop>\.sp-m-h,\.sq-pop>\.sp-m-a,\.sq-pop>\.sp-pbar\{flex:none\}/.test(css) && /\.sq-pop>\.sp-m-list\{[^}]*overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch\}/.test(css)
+      && /\.modalbox\.sp-modal\{max-height:calc\(100vh - 32px\);max-height:calc\(100dvh - 32px\)\}/.test(css));
+    // the list keeps its place when the popup redraws (a step's progress, Check again): only a chip starts it at the top
+    const lists = [];
+    C.el('spModalBox').querySelector = sel => { if (sel !== '.sp-m-list') return null; const el = { scrollTop: lists.length ? 0 : 1234 }; lists.push(el); return el; };
+    C.SQ.run.drawnStep = C.SQ.run.step;
+    C.SQ.run.filterMoved = false;
+    C.sqDraw();
+    const keepTop = lists.length === 2 ? lists[1].scrollTop : -1;
+    ok('a redraw keeps the list where it was (no jump)', keepTop === 1234);
+    C.sqClose();
   }
 
   console.log('== the send points that go through the ONE function ==');

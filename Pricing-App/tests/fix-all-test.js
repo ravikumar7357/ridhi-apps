@@ -115,7 +115,7 @@ const patchCalls = (C, apply) => C.calls.filter(c => c.lfix === 'patch' && c.app
     ok('…and each patch names only that child: item_name with its own title', patchCalls(C, false).every(c => c.patches.length === 1 && c.patches[0].path === '/attributes/item_name' && c.patches[0].value[0].value === afterOf(c.sku)));
     ok('…brand, product, size, colour, material and print kept; the long "uses" words go', run.jobs.every(j => /^Ridhi Cloth Napkins 100% Cotton \d+ x \d+ Inch Block Print - \w+$/.test(afterOf(j.sku))));
     const pop = C.el('spModalBox').innerHTML;
-    ok('the popup: "10 Amazon will accept · 0 Amazon says no", each title before → after, [Approve & send 10] [Cancel]', /10 Amazon will accept · 0 Amazon says no/.test(strip(pop))
+    ok('the popup: "10 Amazon will accept · 0 Amazon says no", each title before → after, [Approve & send 10] [Cancel]', /10 changes · ✓ 10 will accept · ✗ 0 says no · ⚠ 0 not checked/.test(strip(pop))
       && /<small>Title:<\/small> <span class="sq-rem">− Reusable Dinner Napkins for Kitchen Party Wedding<\/span> <span class="sq-size">\(63 of 75\)<\/span>/.test(pop)
       && /› Show full text/.test(pop) && /<small>After<\/small> Ridhi Cloth Napkins 100% Cotton 18 x 18 Inch Block Print - Blue</.test(pop)
       && /data-sq="approve">Approve &amp; send 10</.test(pop) && /data-sq="cancel">Cancel</.test(pop), strip(pop).slice(0, 400));
@@ -179,8 +179,8 @@ const patchCalls = (C, apply) => C.calls.filter(c => c.lfix === 'patch' && c.app
     C.faStart('SP|PB|title');
     await C.SQ.run.checked;
     ok('Fix all sends only the 8 to Amazon\'s check; the 2 wait for your OK', patchCalls(C, false).length === 8 && C.SQ.run.opts.held.length === 2 && !C.SQ.run.jobs.some(j => ['L5', 'L6'].includes(j.sku)));
-    ok('the popup: "8 Amazon will accept · 0 Amazon says no" and "2 need your OK — not in this send", each with its reason', /8 Amazon will accept · 0 Amazon says no/.test(strip(C.el('spModalBox').innerHTML))
-      && /2 need your OK — not in this send/.test(C.el('spModalBox').innerHTML) && /L6: the catalogue has no size/.test(C.el('spModalBox').innerHTML), strip(C.el('spModalBox').innerHTML).slice(0, 300));
+    ok('the popup: "8 Amazon will accept · 0 Amazon says no" and "2 need your OK — not in this send", each with its reason', /10 changes · ✓ 8 will accept · ✗ 0 says no · ⚠ 2 not checked/.test(strip(C.el('spModalBox').innerHTML))
+      && /Not checked — needs your OK: the catalogue has no size/.test(C.el('spModalBox').innerHTML), strip(C.el('spModalBox').innerHTML).slice(0, 300));
     C.sqClose();
   }
 
@@ -190,7 +190,7 @@ const patchCalls = (C, apply) => C.calls.filter(c => c.lfix === 'patch' && c.app
     C.faStart('SP|PB|title');
     await C.SQ.run.checked;
     const h = strip(C.el('spModalBox').innerHTML);
-    ok('"9 Amazon will accept · 1 Amazon says no", with the reason', /9 Amazon will accept · 1 Amazon says no/.test(h) && /Amazon says no \(1\)/.test(h) && /A value Amazon does not accept/.test(h), h.slice(0, 400));
+    ok('"9 Amazon will accept · 1 Amazon says no", with the reason', /10 changes · ✓ 9 will accept · ✗ 1 says no/.test(h) && /Says no 1/.test(h) && /A value Amazon does not accept/.test(h), h.slice(0, 400));
     C.sqClose();
     ok('Cancel: nothing is sent, the popup is gone', patchCalls(C, true).length === 0 && !C.sqIsOpen());
     C.faStart('SP|PB|title');
