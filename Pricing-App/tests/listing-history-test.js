@@ -181,8 +181,14 @@ const runAll = async (C, r) => { await C.SQ.run.checked; await C.sqApprove(); C.
     const nav = fs.readFileSync(path.join(__dirname, '..', 'src', 'app', 'core', 'nav.js'), 'utf8');
     const html = fs.readFileSync(path.join(__dirname, '..', 'src', 'index.html'), 'utf8');
     ok('nav.js: one tab "lhist", "Listing History", given with Listing Health (TAB_INHERIT)', /'basket', 'lhist'\]/.test(nav) && /lhist: 'Listing History'/.test(nav) && /lhist: 'health'/.test(nav));
-    ok('index.html: the menu entry LAST in the Listing menu (after BSR Audit), and its page', /data-tabs="opt,img,lerr,basket,health,lrules,audit,bsr,lhist"/.test(html)
-      && /<button id="tabBsr" class="nav">BSR Audit<\/button>\r\n\s*<button id="tabLhist" class="nav">Listing History<\/button>\r\n\s*<\/div><\/div>/.test(html) && /<div id="paneLhist" class="hide"><div id="lhPane"><\/div><\/div>/.test(html));
+    ok('index.html: the menu entry LAST in the Listing menu (its own column "4 · Records"), and its page', /data-tabs="opt,img,lerr,basket,health,lrules,audit,bsr,lhist"/.test(html)
+      && /<div class="navcol"><div class="navcol-h">4 · Records<\/div>\r\n\s*<button id="tabLhist" class="nav">Listing History<\/button><\/div>\r\n\s*<\/div><\/div>/.test(html) && /<div id="paneLhist" class="hide"><div id="lhPane"><\/div><\/div>/.test(html));
+    // the Listing drop-down (13 Nov 2026): four columns, every Listing screen once, in this order; the other menus untouched
+    const sec = (html.match(/<div class="navsec" id="secListing">([^]*?)\r\n    <\/div><\/div>/) || ['', ''])[1];
+    const cols = [...sec.matchAll(/<div class="navcol"><div class="navcol-h">([^<]+)<\/div>([^]*?)<\/div>(?=\r\n|$)/g)].map(m => [m[1], [...m[2].matchAll(/id="tab(\w+)"/g)].map(x => x[1]).join(',')]);
+    ok('the Listing menu: 1 · Fix & improve (Optimiser, Errors, Image Manager) · 2 · Check (Health, Audit, BSR) · 3 · Rules & ideas (Rules, Bought Together) · 4 · Records (History)',
+      JSON.stringify(cols) === JSON.stringify([['1 · Fix &amp; improve', 'Opt,Lerr,Img'], ['2 · Check', 'Health,Audit,Bsr'], ['3 · Rules &amp; ideas', 'Lrules,Basket'], ['4 · Records', 'Lhist']]), JSON.stringify(cols));
+    ok('…and only the Listing menu has columns', (html.match(/class="navcol"/g) || []).length === 4 && /<div class="navsec" id="secAds">\r\n\s*<button /.test(html));
     const cases = [[['img'], true], [['lerr'], true], [['lrules'], true], [['health'], true], [['weekly', 'trends'], false], [['sales'], false]];
     const res = cases.map(([tabs, want]) => {
       const { C } = setup({ me: { tabs } });
