@@ -85,7 +85,7 @@ function faSeasonItems(brand, parent) {
   const out = new Map();
   if (typeof spCompute !== 'function') return out;
   spCompute().forEach(item => {
-    if (item.brand !== brand || spParentOf(item) !== parent || item.kind !== 'add' || spSkipped(item)) return;   // a season word missing somewhere
+    if (item.brand !== brand || spParentOf(item) !== parent || item.kind !== 'add') return;   // a season word missing somewhere
     out.set(item.key, item);
   });
   return out;
@@ -172,6 +172,7 @@ function faSeasonPlan(g, kid) {
   const out = { item, before: '', after: null, pt: item.pt };
   if (item.status === 'reading') return Object.assign(out, { wait: true, why: 'reading it from Amazon first' });
   if (item.status === 'fix') return Object.assign(out, { why: item.why || 'no safe automatic change' });
+  if (item.status === 'look') return Object.assign(out, { why: 'needs your OK in the Season planner: ' + item.why });
   if (item.status !== 'ready' || !item.pt) return Object.assign(out, { why: item.status === 'ok' ? 'already up to date' : 'not read from Amazon yet' });
   if (!spChanges(item)) return Object.assign(out, { why: 'nothing would change' });
   const sent = {};

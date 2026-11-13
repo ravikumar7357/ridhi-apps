@@ -30,7 +30,7 @@ function setup(opts) {
   };
   const baCall = opts.baCall || (async q => (q.lfix === 'get' ? { productType: 'NAPKIN', attributes: held[q.sku] || {}, issues: [] } : {}));
   const saved = [];
-  const C = load({ ws: true, sp: true, window: opts.window, baCall, post, setDoc: async (ref, data, o) => { saved.push({ path: ref.path, data: JSON.parse(JSON.stringify(data)), merge: !!(o && o.merge) }); } });
+  const C = load({ ws: true, sp: true, window: opts.window, ctx: opts.ctx, baCall, post, setDoc: async (ref, data, o) => { saved.push({ path: ref.path, data: JSON.parse(JSON.stringify(data)), merge: !!(o && o.merge) }); } });
   C.setHealthLoaded(true);
   C.LI_WS.stored = true;
   C.SP.log = [];
@@ -94,7 +94,7 @@ const TITLE = color => `Ridhi Cloth Napkins 100% Cotton 18 x 18 Inch Block Print
     ok('a season starts showing its lead days before (Christmas: 75 days → from 11 Oct)', ids(D(2026, 10, 11)).includes('christmas') && !ids(D(2026, 10, 10)).includes('christmas'));
     C.SP.today = NOV;
     const line = strip(C.spNowHtml());
-    ok('the top line: "Now: 🦃 Thanksgiving (26 Nov), 🎄 Christmas (25 Dec) · Next: 🎆 New Year\'s"', /Now: 🦃 Thanksgiving \(26 Nov\), 🎄 Christmas \(25 Dec\) · Next: 🎆 New Year's/.test(line), line);
+    ok('the top line: "Now: 🦃 Thanksgiving (26 Nov), 🎄 Christmas (25 Dec) · Next: New Year\'s"', /^ ?Now: 🦃 Thanksgiving \(26 Nov\), 🎄 Christmas \(25 Dec\) · Next: New Year's ?$/.test(line), line);
   }
 
   console.log('== two places only — the title is never changed; added only where missing ==');
@@ -125,7 +125,7 @@ const TITLE = color => `Ridhi Cloth Napkins 100% Cotton 18 x 18 Inch Block Print
       && by.N1.checks.some(c => c.k === 'hl' && /within their limit \(65 of 125\)/.test(c.t)) && by.N1.checks.some(c => c.k === 'kw' && c.ok === true), JSON.stringify(by.N1.checks.map(c => c.t)));
   }
 
-  console.log('== limits: 125 and 249; expired season words out first; else "Fix by hand" ==');
+  console.log('== limits: 125 and 249; expired season words out first; then the suggested trim (Needs your OK); else "Fix by hand" ==');
   {
     const { C, put, done } = setup();
     const pad = (text, n) => (text + ', machine washable, set of four, soft and absorbent, everyday dining').slice(0, n).replace(/[\s,]+$/, '');
@@ -143,11 +143,13 @@ const TITLE = color => `Ridhi Cloth Napkins 100% Cotton 18 x 18 Inch Block Print
     ok(`M1: Item Highlights (${hlOld.length}) have no room → "Spring" and "Easter" (over) come out first, then it fits, within 125`,
       by.M1.status === 'ready' && by.M1.removed.hl.includes('Spring') && by.M1.removed.hl.includes('Easter') && !/spring|easter/i.test(by.M1.hlAfter[0]) && /^Thanksgiving and Christmas table decor, hand block printed cotton/.test(by.M1.hlAfter[0]) && by.M1.hlAfter[0].length <= 125,
       JSON.stringify([by.M1.status, by.M1.why, by.M1.hlAfter]));
-    ok('M2: Item Highlights full and no old season word → "Fix by hand" with the reason', by.M2.status === 'fix' && /no room in Item Highlights/.test(by.M2.why), by.M2.status + ' ' + by.M2.why);
+    ok('M2: Item Highlights full, no old season word, but "machine washable, set of four" said twice → the repeat comes out: Needs your OK', by.M2.status === 'look' && by.M2.trim.hl.length > 0
+      && by.M2.trim.hl.every(w => /^(machine|washable|set|of|four)$/i.test(w)) && /machine washable, set of four/i.test(by.M2.hlAfter[0]) && by.M2.hlAfter[0].length <= 125, JSON.stringify([by.M2.status, by.M2.trim.hl, by.M2.hlAfter]));
     ok(`M3: hidden search words full (${C.lrKwBytes(by.M3.kw)}) → "spring" and "easter" out, the two names in, within 249`, by.M3.status === 'ready' && by.M3.removed.kw.length === 2 && /thanksgiving christmas$/.test(by.M3.kwAfter) && C.lrKwBytes(by.M3.kwAfter) <= 249,
       JSON.stringify([by.M3.status, by.M3.why, C.lrKwBytes(by.M3.kwAfter)]));
-    ok('M4: search words full and nothing old in them → "Fix by hand": "the hidden search words are full"', by.M4.status === 'fix' && /hidden search words are full/.test(by.M4.why), by.M4.why);
-    ok('M5: "Spring" describes the product (Spring Floral Tablecloth) → never taken out, even when that leaves no room', by.M5.status === 'fix' && /spring floral/.test(by.M5.kw) && !by.M5.removed.kw.length, by.M5.status + ' ' + by.M5.why);
+    ok('M4: search words full, nothing old, no repeat, no title word, no filler → "Fix by hand": "search words full: 243 of 249, nothing safe to remove"', by.M4.status === 'fix' && /^search words full: \d+ of 249, nothing safe to remove$/.test(by.M4.why), by.M4.why);
+    ok('M5: "Spring" describes the product (Spring Floral Tablecloth) → never taken out; the trim takes a repeat ("floral" said twice) and a title word instead', by.M5.status === 'look' && /^spring floral /.test(by.M5.kwAfter) && !by.M5.removed.kw.length
+      && !by.M5.trim.kw.some(w => /spring/i.test(w)) && C.lrKwBytes(by.M5.kwAfter) <= 249, JSON.stringify([by.M5.status, by.M5.why, by.M5.trim.kw]));
   }
 
   console.log('== title over 75: Item Highlights still added, with the note ==');
@@ -177,11 +179,11 @@ const TITLE = color => `Ridhi Cloth Napkins 100% Cotton 18 x 18 Inch Block Print
     ok('PZ: "🦃 Thanksgiving missing · 3   🎄 Christmas missing · 3"', /🦃 Thanksgiving missing · 3 🎄 Christmas missing · 3/.test(card('PZ')), card('PZ'));
     ok('PY: no season problem → "✓ Ready for the season"', /✓ Ready for the season/.test(card('PY')), card('PY'));
     const chips = strip((page.match(/<div class="sp-chips">[^]*?<\/div>/) || [''])[0]);
-    ok('the chips: All · 🦃 Thanksgiving missing · 🎄 Christmas missing · Old season words · ✓ Ready, each with its parents', /All \d+ 🦃 Thanksgiving missing 1 🎄 Christmas missing 2 Old season words 0 ✓ Ready \d+/.test(chips), chips);
+    ok('the chips: All · 🦃 Thanksgiving missing · 🎄 Christmas missing · Old season words · Needs your OK · Fix by hand · Up to date, each with its parents', /All \d+ 🦃 Thanksgiving missing 1 🎄 Christmas missing 2 Old season words 0 Needs your OK 0 Fix by hand 0 Up to date \d+/.test(chips), chips);
     C.SP.list = 'miss:christmas'; C.spRender();
     ok('"Christmas missing" shows PX and PZ only', /SP\|PX/.test(C.el('spPane').innerHTML) && /SP\|PZ/.test(C.el('spPane').innerHTML) && !/SP\|PY/.test(C.el('spPane').innerHTML));
-    C.SP.list = 'ready'; C.spRender();
-    ok('"Ready" shows PY (and no parent with a season missing)', /SP\|PY/.test(C.el('spPane').innerHTML) && !/SP\|PX"/.test(C.el('spPane').innerHTML) && !/SP\|PZ"/.test(C.el('spPane').innerHTML));
+    C.SP.list = 'done'; C.spRender();
+    ok('"Up to date" shows PY (and no parent with a season missing)', /SP\|PY/.test(C.el('spPane').innerHTML) && !/SP\|PX"/.test(C.el('spPane').innerHTML) && !/SP\|PZ"/.test(C.el('spPane').innerHTML));
     C.SP.list = 'all';
 
     console.log('== the parent panel: one row per season; the counts agree everywhere ==');
@@ -189,7 +191,10 @@ const TITLE = color => `Ridhi Cloth Napkins 100% Cotton 18 x 18 Inch Block Print
     const P = C.el('spPanel').innerHTML;
     ok('PX: one row "🎄 Christmas missing — Item Highlights 10 · Search words 8 — 10 children [Fix all 10]"',
       /🎄 Christmas missing<\/b><small>Item Highlights 10 · Search words 8<\/small>/.test(P) && /fa-n">10 children</.test(P) && />Fix all 10</.test(P) && !/Thanksgiving missing/.test(P), strip(P).slice(0, 500));
-    ok('then "4 children ready for the season", then the children list as it was', /4 children ready for the season/.test(strip(P)) && P.indexOf('sp-readyl') < P.indexOf('class="sp-rows"'));
+    ok('the three tiles on top: READY 10 [Fix all 10] · NEEDS YOUR OK 0 · FIX BY HAND 0', /data-sp-tile="ready"[^]*?Ready<b>10<\/b>[^]*?data-sp-act="fix-ready"[^>]*>Fix all 10</.test(P) && /Needs your OK<b>0<\/b>/.test(P) && /Fix by hand<b>0<\/b>/.test(P)
+      && P.indexOf('sp-scs') < P.indexOf('Season words missing'), strip(P).slice(0, 300));
+    ok('then the rows, [Fix all seasons], "4 children up to date", then the children list as it was', /4 children up to date/.test(strip(P)) && P.indexOf('Season words missing') < P.indexOf('data-sp-act="fix-every"')
+      && P.indexOf('data-sp-act="fix-every"') < P.indexOf('sp-readyl') && P.indexOf('sp-readyl') < P.indexOf('class="sp-rows"'));
     C.spCloseParent(false);
     C.spOpenParent('SP|PZ');
     const Z = C.el('spPanel').innerHTML;
@@ -208,8 +213,10 @@ const TITLE = color => `Ridhi Cloth Napkins 100% Cotton 18 x 18 Inch Block Print
     const kid = C.spKidHtml(z0, C.spGroupOf('SP|PZ'));
     ok('"Where seasons are": Thanksgiving and Christmas, Item Highlights ✕ and Hidden search words ✕ "to add" — no title line', /Where seasons are/.test(kid) && /🦃 <b>Thanksgiving<\/b> — on now/.test(kid) && /🎄 <b>Christmas<\/b> — on now/.test(kid)
       && /✕ Item Highlights: Christmas missing — to add/.test(kid) && /✕ Hidden search words: Christmas missing — to add/.test(kid) && !/data-sp-where="title"/.test(kid) && !/✓ Title|✕ Title/.test(kid));
-    ok('"What changes": Item Highlights and the hidden search words before → after; "The title stays the same"', /Item Highlights before/.test(kid) && /Hidden search words before/.test(kid) && /The title stays the same/.test(kid) && !/Title before/.test(kid));
-    ok('…one main button "Fix — send to Amazon" and "Not now" (no title Edit box)', /data-sp-act="approve"[^>]*>Fix — send to Amazon</.test(kid) && /Not now/.test(kid) && !/data-sp-act="edit"/.test(kid));
+    ok('"What changes": Item Highlights and the hidden search words only, before → after, with "N of 125" / "N of 249"; no title', /Item Highlights before/.test(kid) && /Hidden search words before/.test(kid)
+      && /Item Highlights: 51 of 125\./.test(kid) && /Hidden search words: 27 of 249\./.test(kid) && !/Title before|title stays/i.test(kid), strip(kid).slice(0, 900));
+    ok('…the status pill "Ready to fix" and ONE button "Fix" (no "Not now", no title Edit box)', /sp-chip-s is-ready"><i aria-hidden="true">✓<\/i>Ready to fix/.test(kid) && /data-sp-act="approve"[^>]*>Fix</.test(kid)
+      && (kid.match(/class="sp-main"/g) || []).length === 1 && !/Not now/.test(kid) && !/data-sp-act="edit"/.test(kid));
     const x9 = C.spCompute().find(item => item.sku === 'X9');
     ok('X9 (Thanksgiving in both, Christmas in neither): ✓ for Thanksgiving, ✕ for Christmas', /✓ Item Highlights: “Thanksgiving” found/.test(C.spKidHtml(x9, g)) && /✕ Item Highlights: Christmas missing/.test(C.spKidHtml(x9, g)));
 
@@ -236,7 +243,7 @@ const TITLE = color => `Ridhi Cloth Napkins 100% Cotton 18 x 18 Inch Block Print
     const r = C.spFixSeasons(xmas.kids.map(item => item.key), 'christmas');
     await checked(C);
     ok('one listing: "✓ Amazon will accept" + the change before → after; the one that needs your OK is named, not sent', /2 changes · ✓ 1 will accept · ✗ 0 says no · ⚠ 1 not checked/.test(strip(C.el('spModalBox').innerHTML)) && /Hidden search words:<\/small> <span class="sq-add">\+ christmas<\/span> <span class="sq-size">\(15 of 249\)<\/span>/.test(C.el('spModalBox').innerHTML)
-      && /⚠ Not checked — needs your OK: no room in Item Highlights/.test(C.el('spModalBox').innerHTML), strip(C.el('spModalBox').innerHTML).slice(0, 400));
+      && /⚠ Not checked — needs your OK: takes out your words “[^”]+” to make room/.test(C.el('spModalBox').innerHTML), strip(C.el('spModalBox').innerHTML).slice(0, 400));
     await approve(C);
     ok('Approve & send → read again → "✅ Amazon accepted"', /✅ Amazon accepted/.test(C.el('spModalBox').innerHTML), strip(C.el('spModalBox').innerHTML).slice(0, 200));
     C.sqClose();
@@ -246,7 +253,7 @@ const TITLE = color => `Ridhi Cloth Napkins 100% Cotton 18 x 18 Inch Block Print
       && sent[0].patches.every(p => p.path !== '/attributes/item_name') && sent[0].patches.some(p => p.path === '/attributes/generic_keyword' && p.value[0].value === 'cotton christmas'), JSON.stringify(posts.map(p => p.apply)));
     C.SP.panel = null; C.spRender();
     const res = strip(C.el('spPane').innerHTML);
-    ok('the result: "✓ 1 fixed · 1 need your OK (no room in Item Highlights …)"', /✓ 1 fixed · 1 need your OK \(no room in Item Highlights/.test(res), res.slice(0, 400));
+    ok('the result: "✓ 1 fixed · 1 need your OK (takes out your words …)"', /✓ 1 fixed · 1 need your OK \(takes out your words/.test(res), res.slice(0, 400));
     ok('…recorded with the old values (listingrules/seasonlog); the title the same before and after', C.SP.log.length === 1 && C.SP.log[0].before.kw === 'cotton' && C.SP.log[0].after.kw === 'cotton christmas' && C.SP.log[0].before.title === C.SP.log[0].after.title);
     const s1 = C.spCompute().find(item => item.sku === 'S1');
     ok('…and every screen now sees Christmas in the search words (the live entry); Thanksgiving is still missing', s1.miss.christmas.kw === 'found' && s1.miss.thanksgiving.kw === 'missing', JSON.stringify(s1.miss));
@@ -279,7 +286,7 @@ const TITLE = color => `Ridhi Cloth Napkins 100% Cotton 18 x 18 Inch Block Print
     ok('a listing never read: "not read yet" — not missing, not ready, and counted nowhere', by.W3.kind === 'check' && by.W3.status === 'reading' && !C.spMissing(by.W3, 'christmas'));
   }
 
-  console.log('== ONE season-date rule for every screen: add (lead → day) · just past (days after) · expired (after them) ==');
+  console.log('== ONE season-date rule for every screen: active (lead → day); the planner: every season not active is out of season ==');
   {
     const { C, put, done } = setup();
     put('H1', 'Ridhi Cloth Napkins Cotton 18 x 18 Inch Thanksgiving - Blue', { kw: 'cotton', hl: ['Soft cotton'] });
@@ -293,7 +300,8 @@ const TITLE = color => `Ridhi Cloth Napkins 100% Cotton 18 x 18 Inch Block Print
     ok('Christmas (7 days after): 25 Dec add · 1 Jan just past · 2 Jan expired; 10 Oct expired, 11 Oct add (75 days before)',
       word(st('christmas', D(2026, 12, 25))) === 'add' && word(st('christmas', D(2027, 1, 1))) === 'keep' && word(st('christmas', D(2027, 1, 2))) === 'expired'
       && word(st('christmas', D(2026, 10, 10))) === 'expired' && word(st('christmas', D(2026, 10, 11))) === 'add');
-    // Listing Rules flags a title naming a season exactly when the planner may take the word out: the same function, day by day
+    // the planner reads the same function day by day: active ⇔ added; not active ⇔ out of season (taken out). The Listing Rules title check
+    // (the title is not the planner's) flags a title only once the planner also counts the season out of season.
     const flagged = (sku, day) => { const row = C.HEALTH.SP.rows.find(r => r.sku === sku); return C.healthOf(Object.assign({}, row), Object.assign({}, C.hCtx(), { today: day })).found.some(h => h.detector === 'seasonal_keyword'); };
     let agree = true;
     const bad = [];
@@ -301,13 +309,14 @@ const TITLE = color => `Ridhi Cloth Napkins 100% Cotton 18 x 18 Inch Block Print
       const exp = new Set(C.spExpired(C.getLR(), t).map(e => e.ev.id));
       const act = new Set(C.spActive(C.getLR(), t).map(e => e.ev.id));
       [['H1', 'thanksgiving'], ['H2', 'christmas']].forEach(([sku, id]) => {
+        const on = st(id, t).active;
         const f = flagged(sku, t);
-        if (f !== exp.has(id) || (act.has(id) && (f || exp.has(id)))) { agree = false; bad.push(`${ymd(t)} ${id}: rule ${f}, planner expired ${exp.has(id)}, active ${act.has(id)}`); }
+        if (act.has(id) !== on || exp.has(id) === on || (f && !exp.has(id))) { agree = false; bad.push(`${ymd(t)} ${id}: active ${on}, planner adds ${act.has(id)}, out ${exp.has(id)}, rule ${f}`); }
       });
     }
-    ok('20 Nov – 6 Jan, every day: Listing Rules flags the title ⇔ the planner counts the season as expired; never both "add" and flagged', agree, bad.slice(0, 4).join(' | '));
-    ok('just past (27 Nov): the planner neither adds Thanksgiving nor takes it out; Listing Rules does not flag it',
-      !C.spActive(C.getLR(), D(2026, 11, 27)).some(e => e.ev.id === 'thanksgiving') && !C.spExpired(C.getLR(), D(2026, 11, 27)).some(e => e.ev.id === 'thanksgiving') && !flagged('H1', D(2026, 11, 27)));
+    ok('20 Nov – 6 Jan, every day: the planner adds a season ⇔ lrSeasonState says active; out of season ⇔ not active; a flagged title is always out of season', agree, bad.slice(0, 4).join(' | '));
+    ok('Christmas inactive on 26 Dec: not added, out of season (its words come out of Item Highlights and the search words)', !st('christmas', D(2026, 12, 26)).active
+      && !C.spActive(C.getLR(), D(2026, 12, 26)).some(e => e.ev.id === 'christmas') && C.spExpired(C.getLR(), D(2026, 12, 26)).some(e => e.ev.id === 'christmas'));
   }
 
   console.log('== "Check all parents": every parent read in the background, 20 a call ==');
@@ -405,15 +414,15 @@ const TITLE = color => `Ridhi Cloth Napkins 100% Cotton 18 x 18 Inch Block Print
     const P = C.el('spPanel').innerHTML;
     ok('…drawn below the "missing" rows: "🌸 Spring still shown — Item Highlights 7 · Search words 4 — 7 children [Remove all 7]"',
       /Old season words/.test(P) && /🌸 Spring still shown<\/b><small>Item Highlights 7 · Search words 4<\/small>/.test(P) && /fa-n">7 children</.test(P) && />Remove all 7</.test(P), strip(P).slice(0, 600));
-    ok('…and ONE button on top: "Fix all seasons"', P.indexOf('data-sp-act="fix-every"') > 0 && P.indexOf('data-sp-act="fix-every"') < P.indexOf('Old season words') && /Fix all seasons \(7\)/.test(P));
+    ok('…and below the rows ONE big button: "Fix all seasons (7)"', P.indexOf('data-sp-act="fix-every"') > P.indexOf('Old season words') && /Fix all seasons \(7\)/.test(P));
     const pf = byId(C.spCompute(NOV));
-    ok('"Spring Floral" (title, Item Highlights, search words) and "Christmas print" are never flagged or taken out', !pf.F1.old.length && !pf.F1.oldTitle.length && pf.F1.kind === 'ok'
+    ok('"Spring Floral" (title, Item Highlights, search words) and "Christmas print" are never flagged or taken out', !pf.F1.old.length && pf.F1.kind === 'ok'
       && !pf.F2.old.length && pf.F2.kind === 'ok', JSON.stringify([pf.F1.kind, pf.F1.old.map(e => e.ev.id), pf.F2.kind]));
     C.spCloseParent(false);
     C.spOpenParent('SP|PT');
     const T = strip(C.el('spPanel').innerHTML);
-    ok('Spring in the TITLE: only the info line "Spring is in the title of 3 children — change by hand › Open in Listing Errors", no fix button for it',
-      /🌸 Spring is in the title of 3 children — change by hand › Open in Listing Errors/.test(T) && !/Spring still shown/.test(T) && !/Remove all/.test(T) && C.spCompute().filter(i => i.row.parent === 'PT').every(i => i.kind === 'ok'), T.slice(0, 400));
+    ok('Spring in the TITLE: the title is never shown as a problem — no line, no button, every child up to date', !/title/i.test(T.replace(/data-[a-z-]+="[^"]*"/g, '')) && !/Spring/.test(T) && !/Remove all/.test(T)
+      && C.spCompute().filter(i => i.row.parent === 'PT').every(i => i.kind === 'ok'), T.slice(0, 400));
     C.spCloseParent(false);
     C.spRender();
     const page = strip(C.el('spPane').innerHTML);
@@ -426,7 +435,7 @@ const TITLE = color => `Ridhi Cloth Napkins 100% Cotton 18 x 18 Inch Block Print
     const kid = C.spKidHtml(o0, go);
     ok('child panel "Where seasons are": 🌸 Spring — out of season: ✕ Item Highlights … to remove, ✕ Hidden search words … to remove', /Where seasons are/.test(kid) && /🌸 <b>Spring<\/b> — out of season/.test(kid)
       && /✕ Item Highlights: “Spring” — out of season, to remove/.test(kid) && /✕ Hidden search words: “spring” — out of season, to remove/.test(kid));
-    ok('"What changes": the removed word struck through (<del>), nothing else added; the title stays the same', /<del>spring<\/del>/i.test(kid) && /The title stays the same/.test(kid) && o0.hlAfter[0] === OK_HL && o0.kwAfter === OK_KW, JSON.stringify([o0.hlAfter, o0.kwAfter]));
+    ok('"What changes": the removed word struck through (<del>), nothing else added; no title line', /<del>spring<\/del>/i.test(kid) && !/title stays/i.test(kid) && o0.hlAfter[0] === OK_HL && o0.kwAfter === OK_KW, JSON.stringify([o0.hlAfter, o0.kwAfter]));
     // Remove all 7, through the one fix path
     const r = C.spFixSeasons(old[0].kids.map(i => i.key), 'old:sp_spring');
     await checked(C);
@@ -462,6 +471,133 @@ const TITLE = color => `Ridhi Cloth Napkins 100% Cotton 18 x 18 Inch Block Print
     C.sqClose();
     C.SP.panel = null; C.spRender();
     ok('the test site: "Test site — not sent to Amazon. 1 would be fixed", nothing sent', posts.length === 0 && /Test site — not sent to Amazon\. 1 would be fixed/.test(strip(C.el('spPane').innerHTML)));
+  }
+
+  console.log('== the final spec: the suggested trim, Needs your OK, Fix by hand ==');
+  // the page's own buttons: the click listener the planner puts on the document, pressed with a fake button
+  const clicker = () => {
+    const on = {};
+    const ctx = { document: { addEventListener: (type, fn) => { (on[type] = on[type] || []).push(fn); }, querySelectorAll: () => [], createElement: () => ({ click() {} }) } };
+    const press = (act, data) => {
+      const el = { tagName: (data && data.tag) || 'BUTTON', dataset: Object.assign({ spAct: act }, data || {}), closest: sel => (sel === '[data-sp-act]' ? el : null), focus() {} };
+      delete el.dataset.tag;
+      (on.click || []).forEach(fn => fn({ target: el }));
+    };
+    return { ctx, press };
+  };
+  // search words of exactly `bytes` letters: unique pad words in front of `core` (never a repeat, a title word or a filler)
+  const PAD = 'alpha bravo delta echo foxtrot golf hotel india juliet kilo lima mike november oscar papa quebec romeo sierra tango uniform victor whiskey xray yankee zulu amber coral ivory olive pearl ruby'.split(' ');
+  const sized = (C, core, bytes) => {
+    let pad = [];
+    for (let i = 0; C.lrKwBytes([...pad, core].join(' ')) < bytes - 12 && i < PAD.length; i++) pad.push(PAD[i]);
+    const left = bytes - C.lrKwBytes([...pad, core].join(' '));
+    if (left > 0) pad.push('z'.repeat(left));
+    const kw = [...pad, core].join(' ');
+    if (C.lrKwBytes(kw) !== bytes) throw new Error('sized ' + C.lrKwBytes(kw) + ' ≠ ' + bytes);
+    return kw;
+  };
+  {
+    const { C, put, done } = setup({ only: true });
+    const HL = ['Thanksgiving and Christmas table decor'];
+    // TR: the order — a) repeats, b) words the title says, c) fillers — one at a time from the end, until "thanksgiving christmas" fits
+    const kwTR = sized(C, 'cotton blue ridhi wedding reusable napkin for the with block print reusable napkins', 259);
+    put('TR', TITLE('Blue'), { parent: 'PT1', kw: kwTR, hl: HL });
+    // PB: only brand, colour, size, product type, material words and other words — nothing safe to take out
+    const kwPB = sized(C, 'ridhi whimsical corner cpc cotton linen blue 18 inch napkin tablecloth runner placemat wedding brunch', 240);
+    put('PB', TITLE('Blue'), { parent: 'PT1', kw: kwPB, hl: HL });
+    // OV: 263 letters with both seasons already there: "Search words too long" → trimmed to ≤ 249 (repeats), with your OK
+    const kwOV = sized(C, 'thanksgiving christmas cotton napkin reusable reusable washable washable dinner dinner napkins', 263);
+    put('OV', TITLE('Blue'), { parent: 'PT1', kw: kwOV, hl: HL });
+    // NS: 263 letters, both seasons there, nothing safe → Fix by hand with the reason
+    put('NS', TITLE('Blue'), { parent: 'PT1', kw: sized(C, 'thanksgiving christmas cotton napkin wedding brunch', 263), hl: HL });
+    done();
+    const by = byId(C.spCompute(NOV));
+    ok('TR: trim → "Needs your OK", words taken out in the order a) repeats b) title words c) fillers, from the end, until it fits',
+      by.TR.status === 'look' && JSON.stringify(by.TR.trim.kw) === JSON.stringify(['napkins', 'reusable', 'print', 'block', 'with', 'the']) && C.lrKwBytes(by.TR.kwAfter) <= 249
+        && /\bfor\b/.test(by.TR.kwAfter) && / thanksgiving christmas$/.test(by.TR.kwAfter), JSON.stringify([by.TR.status, by.TR.why, by.TR.trim.kw, C.lrKwBytes(by.TR.kwAfter)]));
+    ok('…its product, colour, brand and material words stay (cotton, blue, ridhi, napkin) and every other word too', ['cotton', 'blue', 'ridhi', 'napkin', 'wedding', 'alpha'].every(w => new RegExp('\\b' + w + '\\b').test(by.TR.kwAfter)), by.TR.kwAfter);
+    ok('PB: brand (Ridhi, Whimsical Corner, CPC), colour, size, product type and material words are never taken out → Fix by hand: "search words full: 240 of 249, nothing safe to remove"',
+      by.PB.status === 'fix' && by.PB.why === 'search words full: 240 of 249, nothing safe to remove' && by.PB.kwAfter === by.PB.kw, by.PB.status + ' ' + by.PB.why);
+    ok('OV: 263 of 249 → "Search words too long" → trimmed to ≤ 249, Needs your OK', by.OV.kwOver && by.OV.status === 'look' && C.lrKwBytes(by.OV.kw) === 263 && C.lrKwBytes(by.OV.kwAfter) <= 249
+      && by.OV.trim.kw.every(w => /^(reusable|washable|dinner|napkins)$/.test(w)), JSON.stringify([by.OV.status, by.OV.trim.kw, C.lrKwBytes(by.OV.kwAfter)]));
+    ok('NS: 263 of 249 and nothing safe → Fix by hand: "search words full: 263 of 249, nothing safe to remove"', by.NS.status === 'fix' && by.NS.why === 'search words full: 263 of 249, nothing safe to remove', by.NS.why);
+    ok('the trim never touches the title, and no patch names it', Object.values(by).every(item => item.after === item.title && C.spPatches(item).every(p => p.path !== '/attributes/item_name')));
+    const ov = C.spKidHtml(by.OV, C.spGroupOf('SP|PT1'));
+    ok('child panel: "Where seasons are" says "Search words too long — Amazon may ignore the extra words (263 of 249)"', /✕ Search words too long — Amazon may ignore the extra words \(263 of 249\)/.test(ov));
+    ok('…pill "Needs your OK", the removed words struck in "What changes", ONE button "OK — fix" that names them', /sp-chip-s is-look"><i aria-hidden="true">⚠<\/i>Needs your OK/.test(ov) && /<del>(?:napkins|dinner|washable)<\/del>/.test(ov)
+      && /data-sp-act="approve-ok"[^>]*>OK — fix</.test(ov) && /sp-reason">Takes out “[a-z]+”/.test(ov) && (ov.match(/class="sp-main"/g) || []).length === 1, strip(ov).slice(0, 600));
+    const ns = C.spKidHtml(by.NS, C.spGroupOf('SP|PT1'));
+    ok('…Fix by hand: ONE button "Open in Listing Errors" with the reason', /data-sp-act="fixhand"[^>]*>Open in Listing Errors</.test(ns) && /sp-reason">search words full: 263 of 249, nothing safe to remove</.test(ns));
+    C.SP.on = true; C.SP.brand = 'SP';
+    C.spOpenParent('SP|PT1');
+    const P = C.el('spPanel').innerHTML;
+    ok('the parent panel: a row "✂ Search words too long — Amazon may ignore the extra words — 2 children"', /Search words too long — Amazon may ignore the extra words<\/b>/.test(P) && /fa-n">2 children</.test(P));
+  }
+
+  console.log('== the final spec: Review & OK all, Fix all seasons, the counts ==');
+  {
+    const { ctx, press } = clicker();
+    const { C, put, done } = setup({ only: true, ctx });
+    // PR: three children that fit only with a trim (repeats), one that fits as it is, one up to date
+    const core = 'cotton napkin wedding reusable reusable napkins';
+    for (let i = 0; i < 3; i++) put('Q' + i, TITLE('Blue'), { parent: 'PR', kw: sized(C, core, 238), hl: ['Thanksgiving and Christmas table decor'] });
+    put('Q3', TITLE('Red'), { parent: 'PR', kw: 'cotton', hl: ['Thanksgiving and Christmas table decor'] });
+    put('Q4', TITLE('Green'), { parent: 'PR', kw: 'cotton thanksgiving christmas', hl: ['Thanksgiving and Christmas table decor'] });
+    done();
+    C.SP.on = true; C.SP.brand = 'SP'; C.SP.list = 'all';
+    const by = byId(C.spCompute(NOV));
+    ok('Q0–Q2 Needs your OK (a repeat comes out), Q3 Ready, Q4 up to date', ['Q0', 'Q1', 'Q2'].every(k => by[k].status === 'look') && by.Q3.status === 'ready' && C.spBucket(by.Q4) === 'ok',
+      JSON.stringify(Object.values(by).map(i => [i.sku, i.status, i.why])));
+    // the counts: the card, the chips, the tiles, the rows' pills, the child panels — one function
+    C.spRender();
+    const card = strip((C.el('spPane').innerHTML.match(/data-sp-group="SP\|PR"[^]*?Open ›/) || [''])[0]);
+    const chips = strip((C.el('spPane').innerHTML.match(/<div class="sp-chips">[^]*?<\/div>/) || [''])[0]);
+    C.spOpenParent('SP|PR');
+    const P = C.el('spPanel').innerHTML;
+    const g = C.spGroupOf('SP|PR');
+    const pills = { ready: 0, look: 0, fix: 0 };
+    g.all.forEach(item => { const k = C.spKidHtml(item, g); if (/sp-chip-s is-ready/.test(k)) pills.ready++; if (/sp-chip-s is-look/.test(k)) pills.look++; if (/sp-chip-s is-fix/.test(k)) pills.fix++; });
+    const n = C.spCounts(g);
+    ok('counts identical everywhere: card "Ready 1 · Needs your OK 3 · Fix by hand 0" = tiles = rows = child panels', /Ready 1 · Needs your OK 3 · Fix by hand 0/.test(card)
+      && /Ready<b>1<\/b>/.test(P) && /Needs your OK<b>3<\/b>/.test(P) && /Fix by hand<b>0<\/b>/.test(P) && (P.match(/sp-row is-look/g) || []).length === 3 && (P.match(/sp-row is-ready/g) || []).length === 1
+      && pills.ready === n.ready.length && pills.look === n.look.length && pills.fix === n.fix.length && n.ready.length === 1 && n.look.length === 3, card + ' | ' + JSON.stringify(pills));
+    ok('the chips: "Needs your OK 1" (parents), "Fix by hand 0"', /Needs your OK 1 Fix by hand 0/.test(chips), chips);
+    ok('the tiles: [Fix all 1] · [Review & OK all 3] · Fix by hand (none: no button)', /data-sp-act="fix-ready"[^>]*>Fix all 1</.test(P) && /data-sp-act="review"[^>]*>Review &amp; OK all 3</.test(P) && !/data-sp-act="hand-lerr"/.test(P));
+    // Review & OK all → each child "Remove: … · Add: … → 238 of 249", all ticked; untick Q1; ONE button sends the ticked ones only
+    press('review', { spGroup: 'SP|PR' });
+    let R = C.el('spPanel').innerHTML;
+    ok('Review & OK all 3: the list, each "Search words: Remove: <struck> · Add: <green> → N of 249", all ticked', (R.match(/data-sp-act="tick"[^>]* checked/g) || []).length === 3
+      && /Search words: Remove: <del class="sp-rem">reusable, napkins<\/del> · Add: <span class="sp-add">thanksgiving, christmas<\/span> → \d+ of 249/.test(R) && /data-sp-act="review-ok"[^>]*>OK — fix all 3</.test(R), strip(R).slice(0, 700));
+    press('tick', { spKey: 'SP|Q1', tag: 'INPUT' });
+    R = C.el('spPanel').innerHTML;
+    ok('…untick Q1: "OK — fix all 2"', (R.match(/data-sp-act="tick"[^>]* checked/g) || []).length === 2 && /OK — fix all 2</.test(R));
+    press('review-ok', { spGroup: 'SP|PR' });
+    ok('OK — fix all 2: the Amazon check popup with ONLY the ticked children (Q0, Q2) — Q1 stays in Needs your OK, the Ready one is not in it', C.sqIsOpen()
+      && C.SQ.run.jobs.map(j => j.sku).sort().join() === 'Q0,Q2' && C.spCompute().find(i => i.sku === 'Q1').status === 'look', C.SQ.run.jobs.map(j => j.sku).join());
+    await checked(C);
+    C.sqClose();
+    // Fix all seasons: Needs your OK children exist → the Review & OK list first; its one button sends them AND the Ready ones together
+    press('fix-every', { spGroup: 'SP|PR' });
+    R = C.el('spPanel').innerHTML;
+    ok('Fix all seasons: the Review & OK list opens first — "OK — fix all 4", "with the 1 Ready child"', !C.sqIsOpen() && /OK — fix all 4</.test(R) && /with the 1 Ready child/.test(R), strip(R).slice(0, 400));
+    press('review-ok', { spGroup: 'SP|PR' });
+    ok('…then everything together: the popup has the 3 OK\'d children and the Ready one (4)', C.sqIsOpen() && C.SQ.run.jobs.map(j => j.sku).sort().join() === 'Q0,Q1,Q2,Q3', C.SQ.run.jobs.map(j => j.sku).join());
+    await checked(C);
+    C.sqClose();
+    ok('a child that needs your OK is never sent without it: Fix all on the Ready tile sends Q3 only', (press('fix-ready', { spGroup: 'SP|PR' }), C.SQ.run.jobs.map(j => j.sku).join() === 'Q3'));
+    await checked(C);
+    C.sqClose();
+  }
+  {
+    // sale days are never added — on Black Friday and Cyber Monday too
+    const { C, put, done } = setup({ only: true });
+    put('BF', TITLE('Blue'), { kw: 'cotton', hl: ['Soft cotton'] });
+    done();
+    const days = [D(2026, 11, 27), D(2026, 11, 30)];
+    ok('sale words never added (27 and 30 Nov): no Black Friday, Cyber Monday, sale or deal in Item Highlights or the search words', days.every(day => {
+      const item = C.spCompute(day).find(i => i.sku === 'BF');
+      return item && !/black friday|cyber monday|\bsale|\bdeal/i.test((item.hlAfter || []).join(' ') + ' ' + item.kwAfter) && /christmas/i.test(item.kwAfter);
+    }));
   }
 
   console.log(`\n${pass} passed, ${fail} failed`);

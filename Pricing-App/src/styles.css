@@ -2596,6 +2596,8 @@
   .fa-run-h b{font-size:13.5px;font-weight:650;color:var(--ink)}
   .fa-run-h span{font-size:12.5px;color:var(--muted)}
   .fa-run .fa-item .fa-kid-o{padding-left:12px}
+  .fa-item.sp-rv>input[type=checkbox]{flex:none;width:16px;height:16px;margin:0 0 0 12px}
+  .sp-review{margin:0 0 12px}
   .fa-sub{padding:8px 12px 4px;border-top:1px solid var(--line);font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--faint)}
   .fa-st{flex:none;max-width:45%;font-size:12px;font-weight:600;color:var(--muted);text-align:right}
   .fa-st .fa-why{display:block;font-weight:400}

@@ -21,8 +21,6 @@ const SP_AMZ_MAX = 200;                  // Amazon's hard limit
 const SP_SOON_DAYS = 30;                 // a season starting within this many days is shown as "coming"
 const SP_PAGE = 25;                      // parents shown at once
 const SP_LOG_MAX = 1500;                 // change records kept in listingrules/seasonlog (one document; well under its size limit)
-const SP_SKIP_DAYS = 120;                // "Not now" lasts this long in this browser
-const SP_STORE_SKIP = 'selloraSeasonSkip';   // localStorage: "brand|sku|what" → when "Not now" was pressed
 const SP_STORE_VIEW = 'selloraOptView';      // localStorage: 'one' | 'season' — the pill last chosen in the Listing Optimiser
 const SP_STORE_HELP = 'selloraSeasonHelp';   // localStorage: '1' when the "How it works" strip is folded away
 /* SPEED + NO JUMPING (12 Nov 2026): the parent list reads nothing — it shows what is held (the full refresh and the Workspace's live
@@ -93,10 +91,8 @@ let SP = {
   season: '',                // an event id, or ''
   q: '',
   shown: SP_PAGE,
-  edits: new Map(),          // "brand|sku" → the title as typed in Edit (cleared on Approve / Not now)
   choice: new Map(),         // "brand|sku" → the season the person switched to ("Also possible: …")
   editing: new Set(),        // the cards whose Edit box is open
-  skip: null,                // the "Not now" records, once read from localStorage
   reading: new Set(),        // "brand|sku" queued for a content read from Amazon ("brand|sku|get": for Item Highlights); cleared when that read is done
   prog: null,                // the open parent's reads: { key, items: Map("brand|sku" → Set(read tokens)) } — "Reading 40 of 469" in its header
   lastDraw: 0,               // when the planner last redrew for landed reads (at most every SP_DRAW_MS)
@@ -157,20 +153,6 @@ function spInsert(title, names) {
   if (dash >= 0 && title.length - dash <= 32) return spTidy(title.slice(0, dash) + ' ' + text + title.slice(dash));
   return spTidy(title + ' ' + text);
 }
-// "Not now" records: "brand|sku|what" → when. Read once; old ones dropped.
-function spSkips() {
-  if (SP.skip) return SP.skip;
-  SP.skip = {};
-  try {
-    const data = JSON.parse(localStorage.getItem(SP_STORE_SKIP) || '{}');
-    const cut = Date.now() - SP_SKIP_DAYS * LR_DAY;
-    Object.keys(data).forEach(key => { if (data[key] > cut) SP.skip[key] = data[key]; });
-  } catch (e) { /* no storage: nothing is hidden */ }
-  return SP.skip;
-}
-function spSkipSave() {
-  try { localStorage.setItem(SP_STORE_SKIP, JSON.stringify(SP.skip || {})); } catch (e) { /* no storage */ }
-}
 
 /* ----- the change records: what this planner sent, with the OLD title (listingrules/seasonlog) ----- */
 async function spLogLoad() {
@@ -226,12 +208,13 @@ function spNext(cfg, today) {
   return (cfg.events || []).filter(ev => !spIsSale(ev)).map(ev => ({ ev, w: spWindow(ev, today, cfg.events) })).filter(e => e.w.expired && e.w.from)
     .sort((a, b) => a.w.from - b.w.from)[0] || null;
 }
-// The OUT-OF-SEASON (expired) seasons, by the one season-date rule (lrSeasonState): every calendar season, sale days included, that is not
-// on now — already over (after its "days after") or not started yet (before its lead days) — and the four plain seasons out of their
-// months. Their words are "still shown" when Item Highlights or the search words say them as an occasion: taken out by the fix (and to
-// make room). A season just past (its "days after") is neither added nor taken out — the Listing Rules title check agrees.
+// The OUT-OF-SEASON seasons (the final spec, 13 Nov 2026): every calendar season, sale days included, that is NOT ACTIVE now by the one
+// season-date rule (lrSeasonState: active = lead days before → the day) — already over (the day after it: Christmas on 26 Dec) or not
+// started yet — and the four plain seasons out of their months. Their words are "still shown" when Item Highlights or the search words say
+// them as an occasion: taken out by the fix (and to make room). (The Listing Rules title check keeps its "days after" before it flags a
+// title — the planner never touches the title.)
 function spExpired(cfg, today) {
-  return (cfg.events || []).concat(SP_SEASONS).filter(ev => lrSeasonState(ev, today, cfg.events).expired).map(ev => ({ ev }));
+  return (cfg.events || []).concat(SP_SEASONS).filter(ev => !lrSeasonState(ev, today, cfg.events).active).map(ev => ({ ev }));
 }
 // "Thanksgiving", "Thanksgiving and Christmas", "A, B and C".
 const spNames = names => (names.length < 2 ? names[0] || '' : names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1]);
@@ -284,22 +267,21 @@ function spPlan(row, ctx, today) {
   const active = spActive(cfg, today).filter(e => spApplies(e.ev, cat, title));   // home products only (or what the season itself names)
   const item = { key, brand, sku: row.sku, asin: row.asin || '', row, name: title || row.title || '', title, kw, kwMax, pt: live && live.pt ? live.pt : '', live, liveFresh, readErr,
     hl, hlInfo, active, miss: {}, add: [], remove: [], seasons: [], kind: 'none', status: 'ok', after: title, hlAfter: hl ? hl.slice() : null, kwAfter: kw, hlAdd: '', kwAdd: [],
-    removed: { hl: [], kw: [] }, checks: [], why: '', hint: '', note: '', titleOver: title.length > SP_TITLE_MAX, pick: active[0] || null };
+    removed: { hl: [], kw: [] }, trim: { hl: [], kw: [] }, kwOver: false, checks: [], why: '', hint: '', note: '', titleOver: title.length > SP_TITLE_MAX, pick: active[0] || null };
   const hlText = hl ? hl.join(' · ') : '';
   // OLD season words still shown: every out-of-season season (that applies to the product) whose word Item Highlights or the search words
-  // say as an occasion → to take out; in the TITLE → only said (the title is never changed)
+  // say as an occasion → to take out. The title is never looked at for this: it is never changed or shown as a problem here.
   item.oldIn = {};
   item.old = [];
-  item.oldTitle = [];
   spExpired(cfg, today).filter(e => spApplies(e.ev, cat, title)).forEach(e => {
-    const where = { hl: !!hl && hl.some(entry => spRemovable(item, entry, e.ev)), kw: kw != null && spRemovable(item, kw, e.ev),
-      title: !!title && lrWords(e.ev.words).some(word => lrHas(title, word)) && !spIsProduct(item, e.ev) && spSeasonUse(title, e.ev) === 'use' };
-    if (!where.hl && !where.kw && !where.title) return;
+    const where = { hl: !!hl && hl.some(entry => spRemovable(item, entry, e.ev)), kw: kw != null && spRemovable(item, kw, e.ev) };
+    if (!where.hl && !where.kw) return;
     item.oldIn[e.ev.id] = where;
-    if (where.hl || where.kw) item.old.push(e);
-    if (where.title) item.oldTitle.push(e);
+    item.old.push(e);
   });
   if (!active.length && !item.old.length) return item;
+  // the search words already over their limit: "Search words too long — Amazon may ignore the extra words" (trimmed, with your OK)
+  item.kwOver = kw != null && lrKwBytes(kw) > kwMax;
   active.forEach(e => {
     item.miss[e.ev.id] = {
       hl: hlInfo.state === 'none' ? 'na' : hl ? (spFindSeason(hlText, e.ev) ? 'found' : 'missing') : hlInfo.state === 'err' ? 'err' : 'unknown',
@@ -310,7 +292,7 @@ function spPlan(row, ctx, today) {
   item.seasons = item.add.map(e => e.ev.id).concat(item.old.map(e => 'old:' + e.ev.id));
   item.pick = item.add[0] || active[0] || null;
   const open = active.some(e => ['unknown', 'err'].includes(item.miss[e.ev.id].hl) || ['unknown', 'err'].includes(item.miss[e.ev.id].kw));
-  item.kind = item.add.length || item.old.length ? 'add' : open ? 'check' : 'ok';
+  item.kind = item.add.length || item.old.length || item.kwOver ? 'add' : open ? 'check' : 'ok';
   return Object.assign(item, spBuild(item, item.add, today, item.old));
 }
 // Missing from at least one of the two places (as far as is known).
@@ -326,11 +308,11 @@ function spPlanFor(item, id) {
 // why, hint, note }.
 function spBuild(item, adds, today, removes) {
   removes = removes || [];
-  const out = { hlAfter: item.hl ? item.hl.slice() : null, kwAfter: item.kw, hlAdd: '', kwAdd: [], removed: { hl: [], kw: [] }, checks: [], status: 'ok', why: '', hint: '', note: '' };
+  const out = { hlAfter: item.hl ? item.hl.slice() : null, kwAfter: item.kw, hlAdd: '', kwAdd: [], removed: { hl: [], kw: [] }, trim: { hl: [], kw: [] }, checks: [], status: 'ok', why: '', hint: '', note: '' };
   const fix = (why, hint) => Object.assign(out, { status: 'fix', why, hint: hint || '' });
   if (item.kind === 'none' || item.kind === 'ok') return out;
   const places = item.active.map(e => item.miss[e.ev.id]);
-  if (!adds.length && !removes.length) {
+  if (!adds.length && !removes.length && !item.kwOver) {
     if (places.some(m => m.hl === 'unknown' || m.kw === 'unknown') && !item.readErr) return Object.assign(out, { status: 'reading', why: 'reading this listing from Amazon first' });
     const err = (item.hlInfo.state === 'err' && item.hlInfo.err) || item.readErr;
     return fix(`Amazon could not be read for this listing${err ? ` (${err})` : ''}`, 'Read it again from Amazon, or check it in Listing Errors.');
@@ -359,12 +341,21 @@ function spBuild(item, adds, today, removes) {
     if (!r.ok) return fix(r.why, `Make room in Item Highlights, then add “${spNames(hlNeed.map(e => e.ev.name))}”.`);
     Object.assign(out, { hlAfter: r.after, hlAdd: r.said });
     r.removed.forEach(n => keep(out.removed.hl, n));
+    out.trim.hl = r.trimmed || [];
   }
   if (kwNeed.length) {
     const r = spKwAdd(item, kwNeed, expired, out.kwAfter);
     if (!r.ok) return fix(r.why, `Shorten the hidden search words, then add “${r.words.join(' ')}”.`);
     Object.assign(out, { kwAfter: r.after, kwAdd: r.words });
     r.removed.forEach(n => keep(out.removed.kw, n));
+    out.trim.kw = r.trimmed || [];
+  }
+  // 3 the search words still over their limit (already so before): the same trim, or by hand
+  if (out.kwAfter != null && lrKwBytes(out.kwAfter) > item.kwMax) {
+    const t = spTrim(item, out.kwAfter, text => lrKwBytes(text) <= item.kwMax);
+    if (!t) return fix(`search words full: ${spNf(lrKwBytes(item.kw))} of ${spNf(item.kwMax)}, nothing safe to remove`, 'Shorten the hidden search words by hand.');
+    out.kwAfter = t.text;
+    out.trim.kw = out.trim.kw.concat(t.removed);
   }
   if (hlNeed.length && item.titleOver) out.note = SP_HL75_NOTE;
   out.checks = spSeasonChecks(item, out, today);
@@ -374,6 +365,9 @@ function spBuild(item, adds, today, removes) {
     if (item.live && item.live.cAt) return fix('Amazon did not say what kind of product this is, so the change cannot be sent from here', 'Send the change from Listing Errors.');
     return Object.assign(out, { status: 'reading', why: 'reading this listing from Amazon first (the product kind is needed to send)' });
   }
+  // words of the customer's own text come out to make room: a person must OK it
+  const cut = out.trim.hl.concat(out.trim.kw);
+  if (cut.length) return Object.assign(out, { status: 'look', why: `takes out your words “${[...new Set(cut)].join(' ')}” to make room` });
   out.status = 'ready';
   return out;
 }
@@ -461,8 +455,18 @@ function spHlAdd(item, adds, expired, start) {
     r = tryIn(less);
     if (r) return Object.assign({ ok: true, removed }, r);
   }
-  const size = info.items > 1 ? `${now.length} of ${info.items} entries` : `${(now[0] || '').length} of ${info.max} letters`;
-  return { ok: false, why: `no room in Item Highlights for “${word}” (${size})${removed.length ? ` — even without ${spNames(removed.map(n => '“' + n + '”'))}` : ''}` };
+  // the suggested trim of the first entry (needs your OK)
+  const base = removed.length ? less : now;
+  if (base.length) {
+    const list = text => [spHlTidy(text)].filter(Boolean).concat(base.slice(1));
+    const t = spTrim(item, base[0], text => !!tryIn(list(text)));
+    if (t) {
+      r = tryIn(list(t.text));
+      if (r) return Object.assign({ ok: true, removed, trimmed: t.removed }, r);
+    }
+  }
+  const size = info.items > 1 ? `${now.length} of ${info.items} entries` : `${(now[0] || '').length} of ${info.max}`;
+  return { ok: false, why: `no room in Item Highlights for “${word}”: ${size}, nothing safe to remove` };
 }
 /* ----- the hidden search words ----- */
 // Add the missing season names at the end (lower case, words only), within the byte limit; no room: the expired season words come out
@@ -471,12 +475,56 @@ function spKwAdd(item, adds, expired, start) {
   const words = adds.map(e => e.ev.name.toLowerCase());
   const base = start != null ? start : item.kw;
   const join = text => [String(text || '').trim()].concat(words).filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
-  let after = join(base);
-  if (lrKwBytes(after) <= item.kwMax) return { ok: true, after, words, removed: [] };
+  const fits = text => lrKwBytes(join(text)) <= item.kwMax;
+  if (fits(base)) return { ok: true, after: join(base), words, removed: [], trimmed: [] };
   const s = spStripExpired(item, base, expired);
-  after = join(s.text);
-  if (s.removed.length && lrKwBytes(after) <= item.kwMax) return { ok: true, after, words, removed: s.removed };
-  return { ok: false, words, why: `the hidden search words are full (${spNf(lrKwBytes(item.kw))} of ${spNf(item.kwMax)}; “${words.join(' ')}” needs ${spNf(lrKwBytes(words.join('')))} more)${s.removed.length ? ` — even without ${spNames(s.removed.map(n => '“' + n + '”'))}` : ''}` };
+  if (s.removed.length && fits(s.text)) return { ok: true, after: join(s.text), words, removed: s.removed, trimmed: [] };
+  // the suggested trim (needs your OK)
+  const t = spTrim(item, s.text, fits);
+  if (t) return { ok: true, after: join(t.text), words, removed: s.removed, trimmed: t.removed };
+  return { ok: false, words, why: `search words full: ${spNf(lrKwBytes(item.kw))} of ${spNf(item.kwMax)}, nothing safe to remove` };
+}
+/* ----- SUGGESTED TRIM (the final spec, 13 Nov 2026) -----
+ * When the season words do not fit, words of the CUSTOMER'S OWN text come out, one at a time from the end, in this order, until it
+ * fits: a) a word said twice, or the singular and the plural of one word (one stays); b) a word the title already says; c) a filler —
+ * and, the, for, with, a, an, of. Never a product, colour, size, material, brand (Ridhi, CPC, Whimsical Corner…) or season word, and
+ * never any other word. A trim makes the child "Needs your OK": a person OKs every word taken out. */
+const SP_TRIM_FILL = new Set(['and', 'the', 'for', 'with', 'a', 'an', 'of']);
+const SP_MATERIAL = 'Cotton, Linen, Polyester, Jute, Silk, Wool, Velvet, Burlap, Muslin, Canvas, Bamboo, Satin, Chiffon, Lace, Voile, Flannel, Fleece, Khadi, Rayon, Viscose';
+// One word as it is compared: no punctuation around it, lower case, a plural read as its singular (lrNorm).
+const spTrimKey = word => lrNorm(String(word || '').replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}']+$/gu, ''));
+// The words never taken out of this listing: brand, colour, size, product type, material, the seasons on now.
+function spKeepWords(item) {
+  const cfg = spCfg();
+  const cat = lrCatOf(item.row) || {};
+  const tpl = typeof lrTemplateFor === 'function' ? lrTemplateFor(item.row, cfg) : null;
+  const text = [lrBrandWords(item.row, cfg).join(' '), lrAllow(cfg).ourBrands, lrColorOf(item.row), cat.color, cat.size, cat.subcat, cat.material,
+    tpl && tpl.product, tpl && tpl.material, String(item.pt || '').replace(/_/g, ' '), SP_HOME, SP_MATERIAL, 'inch inches cm ft x',
+    item.active.map(e => e.ev.name + ' ' + e.ev.words).join(' ')].filter(Boolean).join(' ');
+  return new Set(text.split(/[\s,]+/).map(spTrimKey).filter(Boolean));
+}
+// `fits(text)` → true when the text leaves room. { text, removed: [words] } once it fits, or null when nothing safe is left to take out.
+function spTrim(item, text, fits) {
+  const words = String(text || '').split(/\s+/).filter(Boolean);
+  if (fits(words.join(' '))) return { text: words.join(' '), removed: [] };
+  const keep = spKeepWords(item);
+  const steps = [
+    (w, i) => words.slice(0, i).some(o => o && spTrimKey(o) === spTrimKey(w)),                        // a) said before (or its plural)
+    w => !keep.has(spTrimKey(w)) && !/\d/.test(w) && lrHas(item.title, spTrimKey(w)),                  // b) the title says it
+    w => SP_TRIM_FILL.has(spTrimKey(w)),                                                                // c) a filler
+  ];
+  const removed = [];
+  for (const step of steps) {
+    for (let i = words.length - 1; i >= 0; i--) {
+      const w = words[i];
+      if (!w || !spTrimKey(w) || !step(w, i)) continue;
+      words[i] = (w.match(/[,;]+$/) || [''])[0];   // a comma after it stays
+      removed.push(w.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}']+$/gu, ''));
+      const now = words.filter(Boolean).join(' ').replace(/\s+([,;])/g, '$1').replace(/([,;])(?:\s*[,;])+/g, '$1').replace(/^[,;\s]+|[,;\s]+$/g, '');
+      if (fits(now)) return { text: now, removed };
+    }
+  }
+  return null;
 }
 /* ----- the checks: the same list for every season fix ----- */
 // [{ k, t, ok: true | false | 'warn', why, pre }] — `ok: false` stops the fix ("Fix by hand"); `pre` = already so before the change
@@ -677,9 +725,8 @@ function spCompute(today) {
   SP.itemsKey = key;
   return SP.items;
 }
-// A listing to do: a season missing somewhere, or not read yet (the parent panel's children list; "Not now" left out).
+// A listing to do: a season missing somewhere, an old one still shown, search words too long, or not read yet.
 const spToDo = item => item.kind === 'add' || item.kind === 'check';
-const spSkipped = item => { const skips = spSkips(); return !!skips[item.key + '|' + item.kind + ':' + item.seasons.join('+')]; };
 // Reads from Amazon the listings whose plan needs the live read (the hidden search words, the product kind): 20 a call through the
 // Workspace's queue, content only. Returns how many were queued.
 // Reads from Amazon what these listings' plans still need — only ever for the parent that is open (spPanelsRender): titles and search
@@ -977,6 +1024,16 @@ const spDiffHtml = (from, to) => spMarkHtml(to, spWordDiff(from, to).added, 'ins
 // The "before" text with what goes marked, by position.
 const spDelHtml = (from, to) => spMarkHtml(from, spWordDiff(from, to).removed, 'del', to);
 
+/* ----- THE ONE COUNT (the final spec, 13 Nov 2026): each child in exactly one bucket, by its whole plan — the parent card, the chips,
+ * the tiles, the rows' pills and the child panel all read it, so they always agree. ----- */
+// 'ready' | 'look' (Needs your OK) | 'fix' (Fix by hand) | 'reading' (not read from Amazon yet) | 'ok' (up to date, or no season applies).
+const spBucket = item => (item.kind === 'none' || item.kind === 'ok' ? 'ok' : ['ready', 'look', 'fix', 'reading'].includes(item.status) ? item.status : 'ok');
+function spCounts(g) {
+  const n = { ready: [], look: [], fix: [], reading: [], ok: [] };
+  g.all.forEach(item => n[spBucket(item)].push(item));
+  return n;
+}
+
 /* ----- the groups: one per parent ----- */
 const spParentOf = item => item.row.parent || item.asin || item.sku;
 // Every parent in view (brand and search), with all its listings and the ones to do (the list and season filters, "Not now" left out).
@@ -998,8 +1055,8 @@ function spGroups(items) {
   const out = [];
   by.forEach(g => {
     if (!g.match) return;
-    g.todo = g.all.filter(item => spToDo(item) && !spSkipped(item));
-    ['ready', 'fix', 'reading'].forEach(st => { g[st] = g.todo.filter(item => item.status === st); });
+    g.todo = g.all.filter(spToDo);
+    Object.assign(g, spCounts(g));
     out.push(g);
   });
   return out;
@@ -1018,11 +1075,11 @@ function spTopRemove(list) {
 }
 
 /* ----- one parent's season problems: the parent card's badges, the panel's rows and each child's panel all read this ----- */
-// One entry per season on now that a child of this parent misses somewhere: { e, kids, hlN, kwN } ("Not now" left out). Nearest season first.
+// One entry per season on now that a child of this parent misses somewhere: { e, kids, hlN, kwN }. Nearest season first.
 function spSeasonRows(g) {
   return spActive(spCfg(), spToday()).map(e => {
     const id = e.ev.id;
-    const kids = g.all.filter(item => spMissing(item, id) && !spSkipped(item));
+    const kids = g.all.filter(item => spMissing(item, id));
     return { e, key: id, kids, hlN: kids.filter(item => item.miss[id].hl === 'missing').length, kwN: kids.filter(item => item.miss[id].kw === 'missing').length };
   }).filter(r => r.kids.length);
 }
@@ -1031,21 +1088,14 @@ function spSeasonRows(g) {
 function spOldRows(g) {
   const by = new Map();
   g.all.forEach(item => {
-    if (spSkipped(item)) return;
     (item.old || []).forEach(e => { if (!by.has(e.ev.id)) by.set(e.ev.id, { e, key: 'old:' + e.ev.id, old: true, kids: [] }); by.get(e.ev.id).kids.push(item); });
   });
   return [...by.values()].map(r => Object.assign(r, { hlN: r.kids.filter(item => item.oldIn[r.e.ev.id].hl).length, kwN: r.kids.filter(item => item.oldIn[r.e.ev.id].kw).length }))
     .sort((a, b) => (b.kids.length - a.kids.length) || a.e.ev.name.localeCompare(b.e.ev.name));
 }
-// Old season words in the TITLE (never changed here): { e, kids } per season — said as an info line only.
-function spTitleOld(g) {
-  const by = new Map();
-  g.all.forEach(item => (item.oldTitle || []).forEach(e => { if (!by.has(e.ev.id)) by.set(e.ev.id, { e, kids: [] }); by.get(e.ev.id).kids.push(item); }));
-  return [...by.values()];
-}
 // Children of a parent not read from Amazon yet (nothing known about their two places) — never counted as missing or as ready.
-const spCheckN = g => g.all.filter(item => item.kind === 'check').length;
-const spReadyN = g => g.all.filter(item => item.kind === 'ok').length;
+const spCheckN = g => spCounts(g).reading.length;
+const spReadyN = g => spCounts(g).ok.length;
 
 /* ----- level 1: the page ----- */
 function spHowHtml() {
@@ -1055,41 +1105,43 @@ function spHowHtml() {
   const step = (n, icon, t, s) => `<div class="sp-step"><span class="sp-step-n">${n}</span><span class="sp-step-i">${SP_ICON[icon]}</span><div><b>${t}</b><small>${s}</small></div></div>`;
   return `<div class="sp-how" role="note"><div class="sp-steps">${step(1, 'pick', 'Seasons on now', 'Picked by date from the calendar')}${step(2, 'check', 'Check', 'Open a product to see what is missing')}${step(3, 'fix', 'Fix', 'Amazon checks each change first; the title never changes')}</div>`
     + `<div class="sp-how-a"><button type="button" class="sp-q" data-sp-act="help-more" aria-expanded="${SP.helpOpen ? 'true' : 'false'}" aria-label="What does this do?">?</button><button type="button" class="sp-link" data-sp-act="help-hide">Hide</button></div>`
-    + (SP.helpOpen ? `<div class="sp-help">Every season that is on now or starting soon (from the Listing Rules calendar) should be in two places of each listing: Item Highlights (shown under the title, up to 125 letters) and the hidden search words. This page shows where it is missing and adds it — in natural words, within the limits. When there is no room, old season words (seasons that are over) are taken out first. The title is never changed. Amazon checks every change before it goes live.</div>` : '')
+    + (SP.helpOpen ? `<div class="sp-help">Every season that is on now or starting soon (from the Listing Rules calendar) should be in two places of each listing: Item Highlights (shown under the title, up to 125 letters) and the hidden search words. This page shows where it is missing and adds it — in natural words, within the limits. When there is no room, old season words (seasons that are over) are taken out first; then, only with your OK, a few of your own words (a word said twice, a word the title already says, small words like “and”). The title is never changed. Amazon checks every change before it goes live.</div>` : '')
     + '</div>';
 }
-// "Now: 🦃 Thanksgiving (26 Nov), 🎄 Christmas (25 Dec) · Next: 🎆 New Year's" — the seasons change by themselves as the dates pass.
+// "Now: 🦃 Thanksgiving (26 Nov), 🎄 Christmas (25 Dec) · Next: New Year's" — the seasons change by themselves as the dates pass.
 function spNowHtml() {
   const today = spToday();
   const on = spActive(spCfg(), today);
   const next = spNext(spCfg(), today);
   const now = on.length ? on.map(e => `${spSeasonIcon(e.ev.id)} ${lrEsc(e.ev.name)} (${spDate(e.w.date)})`).join(', ') : 'no season';
-  return `<p class="sp-today sp-now"><b>Now:</b> ${now}${next ? ` · <b>Next:</b> ${spSeasonIcon(next.ev.id)} ${lrEsc(next.ev.name)} <span class="sp-dim">(from ${spDate(next.w.from)})</span>` : ''}</p>`;
+  return `<p class="sp-today sp-now"><b>Now:</b> ${now}${next ? ` · <b>Next:</b> ${lrEsc(next.ev.name)}` : ''}</p>`;
 }
 // One parent card's line: "36 listings · 🎄 Christmas missing · 14 · 🦃 Thanksgiving missing · 20", or "✓ Ready for the season".
 function spParentLine(g) {
   const rows = spSeasonRows(g);
   const old = spOldRows(g);
+  const n = spCounts(g);
   const parts = [spPlural(g.all.length, 'listing')];
   const badges = rows.map(r => `<span class="sp-sbadge">${spSeasonIcon(r.e.ev.id)} ${lrEsc(r.e.ev.name)} missing · ${spNf(r.kids.length)}</span>`)
     .concat(old.map(r => `<span class="sp-sbadge is-old">${spSeasonIcon(r.e.ev.id)} ${lrEsc(r.e.ev.name)} still shown · ${spNf(r.kids.length)}</span>`));
   if (badges.length) parts.push(badges.join(' '));   // the badges side by side
-  const unread = spCheckN(g);
-  if (!badges.length) parts.push(unread ? `<span class="sp-dim">${spNf(unread)} not read yet — open to check</span>` : '<span class="sp-ok">✓ Ready for the season</span>');
+  if (n.ready.length || n.look.length || n.fix.length) parts.push(`Ready ${spNf(n.ready.length)} · Needs your OK ${spNf(n.look.length)} · Fix by hand ${spNf(n.fix.length)}`);
+  else if (!badges.length) parts.push(n.reading.length ? `<span class="sp-dim">${spNf(n.reading.length)} not read yet — open to check</span>` : '<span class="sp-ok">✓ Ready for the season</span>');
   return parts.join(' · ');
 }
 function spParentCardHtml(g) {
   const open = SP.panel && SP.panel.key === g.key;
-  const done = !spSeasonRows(g).length && !spOldRows(g).length && !spCheckN(g);
+  const done = !g.todo.length;
   return `<div class="card sp-pc${open ? ' is-open' : ''}${done ? ' is-done' : ''}" role="button" tabindex="0" data-sp-act="open-parent" data-sp-group="${lrEsc(g.key)}" aria-label="Open ${lrEsc(g.name)}">`
     + `${spPic(g.brand, (g.todo[0] || g.all[0]).sku, false)}<div class="sp-pc-t"><b title="${lrEsc(g.name)}">${lrEsc(g.name)}</b><span>${spParentLine(g)}</span></div>`
     + '<span class="sp-pc-open" aria-hidden="true">Open ›</span></div>';
 }
-// The chips: All · 🎄 Christmas missing · 🦃 Thanksgiving missing · ✓ Ready — each with how many parents it shows.
+// The chips: All · one per season on now missing · Old season words · Needs your OK · Fix by hand · Up to date — each with its parents.
 function spChips(groups) {
   const on = spActive(spCfg(), spToday());
   const list = [['all', 'All', groups.length]].concat(on.map(e => ['miss:' + e.ev.id, `${spSeasonIcon(e.ev.id)} ${e.ev.name} missing`, groups.filter(g => g.rows.some(r => r.e.ev.id === e.ev.id)).length]),
-    [['old', 'Old season words', groups.filter(g => g.oldRows.length).length], ['ready', '✓ Ready', groups.filter(g => g.ready).length]]);
+    [['old', 'Old season words', groups.filter(g => g.oldRows.length).length], ['look', 'Needs your OK', groups.filter(g => g.look.length).length],
+      ['fix', 'Fix by hand', groups.filter(g => g.fix.length).length], ['done', 'Up to date', groups.filter(g => g.done).length]]);
   return '<div class="sp-chips">' + list.map(([k, t, n]) => `<button type="button" class="sp-chip${SP.list === k ? ' is-on' : ''}" data-sp-act="list" data-sp-list="${lrEsc(k)}" aria-pressed="${SP.list === k}">${lrEsc(t)}<span class="sp-n">${spNf(n)}</span></button>`).join('') + '</div>';
 }
 // The whole page.
@@ -1107,9 +1159,10 @@ function spRender() {
   }
   const items = spCompute();                           // what is held now — the list reads nothing from Amazon
   const groups = spGroups(items);
-  groups.forEach(g => { g.rows = spSeasonRows(g); g.oldRows = spOldRows(g); g.ready = !g.rows.length && !g.oldRows.length && !spCheckN(g); g.missN = new Set(g.rows.concat(g.oldRows).flatMap(r => r.kids)).size; });
-  if (SP.list !== 'all' && SP.list !== 'ready' && SP.list !== 'old' && !spActive(spCfg(), spToday()).some(e => 'miss:' + e.ev.id === SP.list)) SP.list = 'all';   // a season that went by
-  const keep = g => (SP.list === 'all' ? true : SP.list === 'ready' ? g.ready : SP.list === 'old' ? g.oldRows.length > 0 : g.rows.some(r => 'miss:' + r.e.ev.id === SP.list));
+  groups.forEach(g => { g.rows = spSeasonRows(g); g.oldRows = spOldRows(g); g.done = !g.todo.length; g.missN = g.todo.length; });
+  if (!['all', 'old', 'look', 'fix', 'done'].includes(SP.list) && !spActive(spCfg(), spToday()).some(e => 'miss:' + e.ev.id === SP.list)) SP.list = 'all';   // a season that went by
+  const keep = g => (SP.list === 'all' ? true : SP.list === 'done' ? g.done : SP.list === 'old' ? g.oldRows.length > 0 : SP.list === 'look' ? g.look.length > 0
+    : SP.list === 'fix' ? g.fix.length > 0 : g.rows.some(r => 'miss:' + r.e.ev.id === SP.list));
   const shown = groups.filter(keep).sort((a, b) => (b.missN - a.missN) || (spCheckN(b) - spCheckN(a)) || a.name.localeCompare(b.name));
   const page = shown.slice(0, SP.shown);
   const toolbar = `<div class="card sp-tb"><div class="sp-seg" role="group" aria-label="Brand">${[['ALL', 'Both brands'], ['SP', BRAND_NAME.SP || 'SP'], ['CPC', BRAND_NAME.CPC || 'CPC']].map(([v, t]) => `<button type="button" class="${SP.brand === v ? 'on' : ''}" data-sp-act="brand" data-sp-brand="${v}" aria-pressed="${SP.brand === v}">${lrEsc(t)}</button>`).join('')}</div>`
@@ -1150,7 +1203,7 @@ function spSeasonRowHtml(g, r) {
     const after = p.status !== 'ready' ? '' : r.old
       ? [m.hl === 'missing' ? `Item Highlights: “${spCut((p.hlAfter || [])[0] || '(empty)', 70)}”` : '', m.kw === 'missing' ? `Search words: − ${r.e.ev.name.toLowerCase()}` : ''].filter(Boolean).join(' · ')
       : [p.hlAdd ? `Item Highlights: “${spCut(p.hlAfter[0] || p.hlAdd, 70)}”` : '', p.kwAdd.length ? `Search words: + ${p.kwAdd.join(' ')}` : ''].filter(Boolean).join(' · ');
-    const why = p.status === 'ready' ? '' : p.status === 'reading' ? '… reading it from Amazon first' : `⚠ Needs your OK: ${p.why}`;
+    const why = p.status === 'ready' ? '' : p.status === 'reading' ? '… reading it from Amazon first' : p.status === 'look' ? `⚠ Needs your OK: ${p.why}` : `✎ Fix by hand: ${p.why}`;
     return `<div class="fa-kid"><button type="button" class="fa-kid-o" data-sp-act="open-kid" data-sp-key="${lrEsc(item.key)}"><b>${lrEsc(spFacts(item))}</b><small>${lrEsc(item.sku)}</small>`
       + `<span class="fa-chg">${lrEsc(missing)}${after ? ` → <span class="fa-new">${lrEsc(after)}</span>` : ''}${why ? ` <span class="fa-why">${lrEsc(why)}</span>` : ''}${p.note && p.status === 'ready' ? ` <span class="fa-why">${lrEsc(p.note)}</span>` : ''}</span></button></div>`;
   }).join('');
@@ -1158,31 +1211,80 @@ function spSeasonRowHtml(g, r) {
   return head + `<div class="fa-kids">${rows}${more}</div>`;
 }
 const spCut = (text, n) => { const t = String(text || ''); return t.length > n ? t.slice(0, n - 1).replace(/\s+\S*$/, '') + '…' : t; };
-// The parent side panel's body: the result of the last fix, one row per season, "N children ready for the season", then the children
-// list as it always was (the ones to do, then the ones up to date, folded away).
+// The parent side panel's body, top to bottom: the result of the last fix; the three tiles (Ready [Fix all N] · Needs your OK [Review & OK
+// all N] · Fix by hand [Open in Listing Errors]); the Review & OK list when open; one row per season; [Fix all seasons]; "N children up to
+// date"; then the children list as it always was (the ones to do, then the ones up to date, folded away).
 function spParentBodyHtml(g) {
   const rows = spSeasonRows(g);
   const old = spOldRows(g);
+  const over = g.all.filter(item => item.kwOver);
+  const n = spCounts(g);
+  const gk = lrEsc(g.key);
+  const busy = SP.sending ? ' disabled' : '';
   const result = SP.result ? spResultHtml(SP.result) : '';
-  // ONE button on top: every child's whole plan — the seasons on now added, the old ones taken out — in one go (one change per child)
-  const every = g.todo.filter(item => item.status === 'ready' && spChanges(item));
-  const top = rows.length || old.length ? `<div class="sp-fixall"><button type="button" class="fa-btn fa-main" data-sp-act="fix-every" data-sp-group="${lrEsc(g.key)}"${every.length && !SP.sending ? '' : ' disabled'}>Fix all seasons${every.length ? ` (${spNf(every.length)})` : ''}</button>`
-    + '<span class="sp-dim">Adds the seasons on now and takes the old ones out, for every child, in one change each.</span></div>' : '';
-  const titles = spTitleOld(g).map(t => `<p class="sp-dim sp-titleold">${spSeasonIcon(t.e.ev.id)} ${lrEsc(t.e.ev.name)} is in the title of ${t.kids.length === 1 ? '1 child' : spNf(t.kids.length) + ' children'} — change by hand `
-    + `<button type="button" class="sp-link" data-sp-act="title-lerr" data-sp-group="${lrEsc(g.key)}" data-sp-id="${lrEsc(t.e.ev.id)}">› Open in Listing Errors</button></p>`).join('');
-  const block = rows.length || old.length || titles ? `<div class="fa sp-seasons">${top}`
+  // 1 the three tiles
+  const tile = (cls, icon, title, list, words, btn) => `<div class="sp-sc ${cls}${list.length ? '' : ' is-zero'}" data-sp-tile="${cls.slice(3)}"><div class="sp-sc-h"><span class="sp-sc-i" aria-hidden="true">${icon}</span>${title}<b>${spNf(list.length)}</b></div>`
+    + `<p>${words}</p>${list.length ? btn : ''}</div>`;
+  const tiles = n.ready.length || n.look.length || n.fix.length ? '<div class="sp-scs">'
+    + tile('is-ready', '✓', 'Ready', n.ready, 'Fits as it is — none of your words come out.', `<button type="button" class="sp-main" data-sp-act="fix-ready" data-sp-group="${gk}"${busy}>Fix all ${spNf(n.ready.length)}</button>`)
+    + tile('is-look', '⚠', 'Needs your OK', n.look, 'Fits once a few of your own words come out.', `<button type="button" class="sp-btn" data-sp-act="review" data-sp-group="${gk}"${busy}>Review &amp; OK all ${spNf(n.look.length)}</button>`)
+    + tile('is-fix', '✎', 'Fix by hand', n.fix, 'No safe change — the reason is on each child.', `<button type="button" class="sp-btn" data-sp-act="hand-lerr" data-sp-group="${gk}">Open in Listing Errors</button>`)
+    + '</div>' : '';
+  const review = SP.panel && SP.panel.review && n.look.length ? spReviewHtml(g, n) : '';
+  // 2 one row per season (missing, still shown), and the search words already too long
+  const openSet = (SP.panel && SP.panel.open) || new Set();
+  const overRow = over.length ? `<div class="fa-row is-att"><span class="fa-dot" aria-hidden="true"></span><div class="fa-row-t"><b>✂ Search words too long — Amazon may ignore the extra words</b>`
+    + `<small>Over ${spNf(over[0].kwMax)} — shortened with the trim (Needs your OK), or by hand</small><button type="button" class="fa-link" data-sp-act="season-more" data-sp-id="kwover" aria-expanded="${openSet.has('kwover')}">${openSet.has('kwover') ? '⌄ Hide' : '› Show all ' + spNf(over.length)}</button></div>`
+    + `<span class="fa-n">${over.length === 1 ? '1 child' : spNf(over.length) + ' children'}</span></div>`
+    + (openSet.has('kwover') ? `<div class="fa-kids">${over.map(item => `<div class="fa-kid"><button type="button" class="fa-kid-o" data-sp-act="open-kid" data-sp-key="${lrEsc(item.key)}"><b>${lrEsc(spFacts(item))}</b><small>${lrEsc(item.sku)}</small>`
+      + `<span class="fa-chg">${spNf(lrKwBytes(item.kw))} of ${spNf(item.kwMax)} · ${lrEsc((SP_STATE[spBucket(item)] || SP_STATE.look).t)}</span></button></div>`).join('')}</div>` : '') : '';
+  const block = rows.length || old.length || over.length ? '<div class="fa sp-seasons">'
     + (rows.length ? `<div class="fa-sec"><div class="fa-sec-h">Season words missing</div>${rows.map(r => spSeasonRowHtml(g, r)).join('')}</div>` : '')
-    + (old.length ? `<div class="fa-sec"><div class="fa-sec-h">Old season words</div>${old.map(r => spSeasonRowHtml(g, r)).join('')}</div>` : '') + titles + '</div>' : '';
-  const readyN = spReadyN(g);
-  const unread = spCheckN(g);
-  const ok = `<div class="fa-okline sp-readyl"><span aria-hidden="true">✓</span> ${readyN === 1 ? '1 child' : spNf(readyN) + ' children'} ready for the season${unread ? ` · ${spNf(unread)} not read yet` : ''}</div>`;
+    + (old.length ? `<div class="fa-sec"><div class="fa-sec-h">Old season words</div>${old.map(r => spSeasonRowHtml(g, r)).join('')}</div>` : '')
+    + (over.length ? `<div class="fa-sec"><div class="fa-sec-h">Search words</div>${overRow}</div>` : '') + '</div>' : '';
+  // 3 the big button: every Ready child; the ones that need your OK are reviewed first, then all go together
+  const every = n.ready.length + n.look.length;
+  const big = block ? `<div class="sp-fixall"><button type="button" class="fa-btn fa-main" data-sp-act="fix-every" data-sp-group="${gk}"${every && !SP.sending ? '' : ' disabled'}>Fix all seasons${every ? ` (${spNf(every)})` : ''}</button>`
+    + `<span class="sp-dim">${n.look.length ? `The ${spNf(n.look.length)} that need your OK are shown first; then everything goes together.` : 'Adds the seasons on now and takes the old ones out, for every Ready child, in one change each.'}</span></div>` : '';
+  // 4 "N children up to date", then the children list as it always was
+  const ok = `<div class="fa-okline sp-readyl"><span aria-hidden="true">✓</span> ${n.ok.length === 1 ? '1 child' : spNf(n.ok.length) + ' children'} up to date${n.reading.length ? ` · ${spNf(n.reading.length)} not read yet` : ''}</div>`;
   const none = spActive(spCfg(), spToday()).length ? '' : '<p class="sp-today sp-psent">✓ <b>No season is on now.</b> The next one shows here by itself when it starts.</p>';
   SP.kidOrder = g.todo.map(item => item.key);
   const upToDate = g.all.filter(item => !g.todo.includes(item));
-  return `${none}${result}${block}${ok}`
+  return `${none}${result}${tiles}${review}${block}${big}${ok}`
     + `<div class="sp-rows">${g.todo.map(item => spRowHtml(item)).join('')}</div>`
     + (upToDate.length ? `<details class="sp-fold sp-uptodate"${SP.panel && SP.panel.okOpen ? ' open' : ''}><summary class="sp-more-ok">✓ ${spNf(upToDate.length)} more listing${upToDate.length === 1 ? ' is' : 's are'} up to date.</summary>`
       + `<div class="sp-rows">${upToDate.map(item => spRowHtml(item)).join('')}</div></details>` : '');
+}
+// "Review & OK all": each child that needs your OK — "Remove: <struck> · Add: <green> → 238 of 249" — with a tick (all ticked). ONE button:
+// the ticked ones are OK'd and sent in the same click (the Amazon check popup → Approve & send); unticked ones stay in Needs your OK.
+// From "Fix all seasons" (review 'every') the Ready children go with them.
+function spReviewHtml(g, n) {
+  const off = SP.panel.untick || new Set();
+  const ticked = n.look.filter(item => !off.has(item.key));
+  const every = SP.panel.review === 'every';
+  const total = ticked.length + (every ? n.ready.length : 0);
+  const rows = n.look.map(item => `<div class="fa-item sp-rv"><input type="checkbox" data-sp-act="tick" data-sp-key="${lrEsc(item.key)}"${off.has(item.key) ? '' : ' checked'} aria-label="OK ${lrEsc(spFacts(item))}">`
+    + `<button type="button" class="fa-kid-o" data-sp-act="open-kid" data-sp-key="${lrEsc(item.key)}"><b>${lrEsc(spFacts(item))}</b><small>${lrEsc(item.sku)}</small><span class="fa-chg">${spDeltaHtml(item)}</span></button></div>`).join('');
+  return `<div class="fa-run sp-review" role="region" aria-label="Review and OK"><div class="fa-run-h"><b>Needs your OK — ${n.look.length === 1 ? '1 child' : spNf(n.look.length) + ' children'}</b>`
+    + '<span>These fit only when some of your own words come out (struck through). Untick any child you want to leave as it is.</span></div>'
+    + rows + `<div class="fa-run-a"><button type="button" class="fa-btn fa-main" data-sp-act="review-ok" data-sp-group="${lrEsc(g.key)}"${total && !SP.sending ? '' : ' disabled'}>OK — fix all ${spNf(total)}</button>`
+    + `<button type="button" class="fa-btn" data-sp-act="review-close">Cancel</button>${every && n.ready.length ? `<span class="sp-dim">with the ${spNf(n.ready.length)} Ready ${n.ready.length === 1 ? 'child' : 'children'}</span>` : ''}</div></div>`;
+}
+// Item Highlights or the search words at this size: "62 of 125" / "2 of 3 entries" / "238 of 249".
+const spHlSize = (item, list) => { const info = item.hlInfo || {}; return info.items > 1 ? `${spNf(list.length)} of ${spNf(info.items)} entries` : `${spNf((list[0] || '').length)} of ${spNf(info.max || SP_HL_MAX)}`; };
+// Only what changes, per place: "Search words: Remove: <del>napkins the</del> · Add: <span>thanksgiving christmas</span> → 238 of 249".
+function spDeltaHtml(item) {
+  const parts = [];
+  const one = (label, from, to, size) => {
+    const d = spWordDiff(from, to);
+    if (!d.added.length && !d.removed.length) return;
+    parts.push(`${label}: ${d.removed.length ? `Remove: <del class="sp-rem">${spWordList(d.removed)}</del>` : ''}${d.removed.length && d.added.length ? ' · ' : ''}`
+      + `${d.added.length ? `Add: <span class="sp-add">${spWordList(d.added)}</span>` : ''} → ${size}`);
+  };
+  if (spHlChanged(item)) one('Item Highlights', item.hl.join(' · '), item.hlAfter.join(' · '), spHlSize(item, item.hlAfter));
+  if (item.kwAfter != null && item.kw != null && item.kwAfter !== item.kw) one('Search words', item.kw, item.kwAfter, `${spNf(lrKwBytes(item.kwAfter))} of ${spNf(item.kwMax)}`);
+  return parts.join('<br>');
 }
 // What we will do for one listing, in one short line.
 function spDoLine(item) {
@@ -1221,55 +1323,30 @@ function spParentPanelHtml(g) {
 
 /* ----- level 3: one child ----- */
 function spKidHtml(item, g) {
-  const st = SP_STATE[item.status] || SP_STATE.look;
+  const st = SP_STATE[spBucket(item)] || SP_STATE.look;
   const parentNameText = g ? g.name : spParentOf(item);
   const back = `<button type="button" class="sp-back" data-sp-act="close-kid">← Back to ${lrEsc(parentNameText)}</button>`;
   const head = `<div class="sp-side-h">${back}<div class="sp-hc">${spPic(item.brand, item.sku, true)}<div class="sp-hc-t"><b>${lrEsc(spFacts(item))}</b><span>${lrEsc(parentNameText)}</span><small>${lrEsc(item.sku)}</small>`
     + `<span class="sp-chip-s ${st.cls}"><i aria-hidden="true">${st.i}</i>${st.t}</span></div><button type="button" class="sp-x" data-sp-act="close-kid" aria-label="Close">×</button></div></div>`;
-  if (item.kind === 'ok' || item.kind === 'none') {
-    const words = item.kind === 'none' ? 'No season on now applies to this listing.' : 'Every season on now is in Item Highlights and the hidden search words.';
-    return head + `<div class="sp-side-b"><div class="sp-card2 is-ok"><h4>✓ Ready for the season</h4><p>${words}</p></div>${spWhereHtml(item)}</div>`
-      + '<div class="sp-bar"><button type="button" class="sp-main" data-sp-act="close-kid">Close</button></div>';
-  }
-  const products = spProducts(item.row);
   const card = (cls, title, body) => `<div class="sp-card2 ${cls}"><h4>${title}</h4>${body}</div>`;
-  // 2 the problem: each season on now, where it is missing
-  const problem = item.add.length || item.old.length ? item.add.map(e => {
-    const m = item.miss[e.ev.id];
-    const where = [m.hl === 'missing' ? 'Item Highlights' : '', m.kw === 'missing' ? 'the hidden search words' : ''].filter(Boolean).join(' and ');
-    return `${spSeasonIcon(e.ev.id)} ${lrEsc(e.ev.name)} ${spSeasonWord(e)} (${spDate(e.w.date)}) and this listing doesn't have it in ${where}.`;
-  }).concat(item.old.map(e => {
-    const o = item.oldIn[e.ev.id];
-    const where = [o.hl ? 'Item Highlights' : '', o.kw ? 'the hidden search words' : ''].filter(Boolean).join(' and ');
-    return `${spSeasonIcon(e.ev.id)} ${lrEsc(e.ev.name)} is out of season, but ${where} still ${o.hl && o.kw ? 'say' : 'says'} it.`;
-  })).join('<br>') : 'We are reading this listing from Amazon first, to see where the season words are.';
-  // 3 why it matters
-  const first = item.add[0] || (item.old.length ? null : item.pick);
-  const why = first ? `Shoppers searching “${lrEsc(first.ev.name.toLowerCase())} ${lrEsc(products)}” may not find it.` : item.old.length ? 'An old season word makes the listing look out of date to shoppers.' : '';
-  // 4 what we'll do
-  let todo;
-  if (item.status === 'fix') todo = `We can't add it safely by ourselves: ${lrEsc(item.why)}. ${item.hint ? lrEsc(item.hint) + ' ' : ''}Listing Errors opens with the suggestion filled in — nothing is sent until you press Send there.`;
-  else if (item.status === 'reading') todo = 'We are reading this listing from Amazon first. This takes a moment.';
-  else {
-    const bits = [];
-    if (item.hlAdd) bits.push(`Add “${lrEsc(item.hlAdd)}” to Item Highlights (shown under the title).`);
-    if (item.kwAdd.length) bits.push(`Add “${lrEsc(item.kwAdd.join(' '))}” to the hidden search words.`);
-    if (item.removed.hl.length) bits.push(`Take the old season word${item.removed.hl.length === 1 ? '' : 's'} ${lrEsc(spNames(item.removed.hl.map(n => '“' + n + '”')))} out of Item Highlights.`);
-    if (item.removed.kw.length) bits.push(`Take the old season word${item.removed.kw.length === 1 ? '' : 's'} ${lrEsc(spNames(item.removed.kw.map(n => '“' + n + '”')))} out of the hidden search words.`);
-    bits.push('The title stays the same.');
-    todo = bits.join(' ') + (item.note ? `<br><span class="sp-dim">${lrEsc(item.note)}</span>` : '');
-  }
-  const changes = item.status === 'reading' ? '' : card('sp-chg', 'What changes', spChangesHtml(item));
-  const checksHtml = item.checks.length ? card('sp-chk-c', 'Checks', spChecksHtml(item.checks)) + spPreCardHtml(item.checks, item) : '';
-  // the action bar
-  const canSend = item.status === 'ready' && !!item.pt && !SP.sending && spChanges(item);
+  const b = spBucket(item);
+  const note = item.note && (b === 'ready' || b === 'look') ? `<p class="sp-dim">${lrEsc(item.note)}</p>` : '';
+  let lead = '';
+  if (b === 'look') lead = card('sp-prob', '⚠ Needs your OK', `<p>To make room for the season words, some of your own words come out: ${lrEsc(spNames([...new Set(item.trim.hl.concat(item.trim.kw))].map(w => '“' + w + '”')))}. Check them below.</p>${note}`);
+  else if (b === 'fix') lead = card('sp-prob', '✎ Fix by hand', `<p>${lrEsc(item.why)}.${item.hint ? ' ' + lrEsc(item.hint) : ''} Listing Errors opens with the suggestion filled in — nothing is sent until you press Send there.</p>`);
+  else if (b === 'reading') lead = card('sp-prob', 'Reading from Amazon', '<p>We are reading this listing from Amazon first, to see where the season words are.</p>');
+  else if (b === 'ok') lead = card('is-ok', '✓ Up to date', `<p>${item.kind === 'none' ? 'No season on now applies to this listing.' : 'Every season on now is in Item Highlights and the search words, no old season words, within the limits.'}</p>`);
+  else if (note) lead = card('sp-do', 'Good to know', note);
+  const changes = b === 'ready' || b === 'look' ? card('sp-chg', 'What changes', spChangesHtml(item)) : '';
+  // ONE button, by status
   let main;
-  if (item.status === 'fix') main = `<button type="button" class="sp-main" data-sp-act="fixhand" data-sp-key="${lrEsc(item.key)}">Open in Listing Errors</button>`;
-  else if (item.status === 'reading') main = '<button type="button" class="sp-main" disabled>Reading from Amazon…</button>';
-  else main = `<button type="button" class="sp-main" data-sp-act="approve" data-sp-key="${lrEsc(item.key)}"${canSend ? '' : ' disabled'}>Fix — send to Amazon</button>`;
-  const bar = `<div class="sp-bar">${main}<button type="button" class="sp-btn sp-quiet" data-sp-act="skip" data-sp-key="${lrEsc(item.key)}" title="Hide this for this season, in this browser">Not now</button>`
-    + `<span class="sp-reason" hidden></span></div>`;
-  return head + `<div class="sp-side-b">${card('sp-prob', 'Problem', `<p>${problem}</p>`)}${why ? card('sp-whyc', 'Why it matters', `<p>${why}</p>`) : ''}${card('sp-do', 'What we’ll do', `<p>${todo}</p>`)}${spWhereHtml(item)}${changes}${checksHtml}</div>` + bar;
+  if (b === 'ready') main = `<button type="button" class="sp-main" data-sp-act="approve" data-sp-key="${lrEsc(item.key)}"${item.pt && !SP.sending && spChanges(item) ? '' : ' disabled'}>Fix</button>`;
+  else if (b === 'look') main = `<button type="button" class="sp-main" data-sp-act="approve-ok" data-sp-key="${lrEsc(item.key)}"${item.pt && !SP.sending && spChanges(item) ? '' : ' disabled'}>OK — fix</button>`
+    + `<span class="sp-reason">Takes out ${lrEsc(spNames([...new Set(item.trim.hl.concat(item.trim.kw))].map(w => '“' + w + '”')))}</span>`;
+  else if (b === 'fix') main = `<button type="button" class="sp-main" data-sp-act="fixhand" data-sp-key="${lrEsc(item.key)}">Open in Listing Errors</button><span class="sp-reason">${lrEsc(item.why)}</span>`;
+  else if (b === 'reading') main = '<button type="button" class="sp-main" disabled>Reading from Amazon…</button>';
+  else main = '<button type="button" class="sp-main" data-sp-act="close-kid">Close</button>';
+  return head + `<div class="sp-side-b">${lead}${spWhereHtml(item)}${changes}</div><div class="sp-bar">${main}</div>`;
 }
 // Where one season is on this listing now: Item Highlights ✓ / ✕ and the hidden search words ✓ / ✕ — never the title.
 // [{ k: 'hl' | 'kw', st: found | missing | na | checking, text }].
@@ -1297,20 +1374,20 @@ function spWhere(item, e) {
   return [hlRow, kwRow];
 }
 // "Where seasons are", in the style of "What changes": for each season on now ✓ found (green) / ✕ missing — to add (red); for each old
-// season still shown ✕ … — to remove (red) / ✓ not there (green); not available / checking (grey); an old word in the title, an info line.
+// season still shown ✕ … — to remove (red) / ✓ not there (green); not available / checking (grey); search words too long (red). Never the title.
 function spWhereHtml(item) {
   const line = r => `<p class="${r.st === 'found' ? 'sp-add' : r.st === 'missing' ? 'sp-rem' : 'sp-dim'}" data-sp-where="${r.k}">${lrEsc(r.text)}</p>`;
   const on = item.active.map(e => `<div class="sp-where-s" data-sp-season="${lrEsc(e.ev.id)}"><p class="sp-where-h">${spSeasonIcon(e.ev.id)} <b>${lrEsc(e.ev.name)}</b> — on now</p>`
     + spWhere(item, e).map(r => line(r.st === 'missing' ? Object.assign({}, r, { text: r.text.replace(/ missing/, ' missing — to add') }) : r)).join('') + '</div>');
-  const old = item.old.concat(item.oldTitle.filter(e => !item.old.includes(e))).map(e => {
+  const old = item.old.map(e => {
     const o = item.oldIn[e.ev.id];
     const rows = [];
     if (item.hl != null) rows.push(o.hl ? { k: 'hl', st: 'missing', text: `✕ Item Highlights: “${e.ev.name}” — out of season, to remove` } : { k: 'hl', st: 'found', text: `✓ Item Highlights: no “${e.ev.name}”` });
     if (item.kw != null) rows.push(o.kw ? { k: 'kw', st: 'missing', text: `✕ Hidden search words: “${e.ev.name.toLowerCase()}” — out of season, to remove` } : { k: 'kw', st: 'found', text: `✓ Hidden search words: no “${e.ev.name.toLowerCase()}”` });
-    if (o.title) rows.push({ k: 'title', st: 'na', text: `· Title: “${e.ev.name}” — the title is never changed here; change it by hand in Listing Errors` });
     return `<div class="sp-where-s" data-sp-season="old:${lrEsc(e.ev.id)}"><p class="sp-where-h">${spSeasonIcon(e.ev.id)} <b>${lrEsc(e.ev.name)}</b> — out of season</p>${rows.map(line).join('')}</div>`;
   });
-  const body = on.concat(old).join('') || '<p class="sp-dim">No season on now applies to this listing.</p>';
+  const over = item.kwOver ? [`<div class="sp-where-s" data-sp-season="kwover"><p class="sp-rem" data-sp-where="kw">✕ Search words too long — Amazon may ignore the extra words (${spNf(lrKwBytes(item.kw))} of ${spNf(item.kwMax)})</p></div>`] : [];
+  const body = on.concat(old, over).join('') || '<p class="sp-dim">No season on now applies to this listing.</p>';
   return `<div class="sp-card2 sp-chg sp-where"><h4>Where seasons are</h4>${body}</div>`;
 }
 // The child row's short words, per season on now: "🎄 ✓ highlights ✕ search words".
@@ -1341,19 +1418,20 @@ function spWhereCount() {
   if (typeof console !== 'undefined' && console.table) console.table(out);
   return out;
 }
-// "What changes": Item Highlights and the hidden search words, before → after (only the changed words marked). Never the title.
+// "What changes": Item Highlights and the hidden search words only, before → after (removed words struck, added words green), with their size.
 function spChangesHtml(item) {
   const out = [];
   if (spHlChanged(item)) {
     const before = item.hl.join(' · ');
     const after = item.hlAfter.join(' · ');
-    out.push(`<div class="sp-ba"><small>Item Highlights before</small><p>${before ? spDelHtml(before, after) : '(none)'}</p><small>Item Highlights after</small><p class="sp-change-after">${spDiffHtml(before, after)}</p></div>`);
+    out.push(`<div class="sp-ba"><small>Item Highlights before</small><p>${before ? spDelHtml(before, after) : '(none)'}</p><small>Item Highlights after</small><p class="sp-change-after">${spDiffHtml(before, after)}</p></div>`
+      + `<p class="sp-dim">Item Highlights: ${spHlSize(item, item.hlAfter)}.</p>`);
   }
   if (item.kwAfter != null && item.kw != null && item.kwAfter !== item.kw) {
     out.push(`<div class="sp-ba"><small>Hidden search words before</small><p>${item.kw ? spDelHtml(item.kw, item.kwAfter) : '(none)'}</p><small>Hidden search words after</small><p class="sp-change-after">${spDiffHtml(item.kw, item.kwAfter)}</p></div>`
       + `<p class="sp-dim">Hidden search words: ${spNf(lrKwBytes(item.kwAfter))} of ${spNf(item.kwMax)}.</p>`);
   }
-  return (out.join('') || '<p class="sp-dim">Nothing changes.</p>') + '<p class="sp-dim">The title stays the same.</p>';
+  return out.join('') || '<p class="sp-dim">Nothing changes.</p>';
 }
 // "Already there before — not caused by this change": the checks that failed before the change too, and a way to fix them in
 // Listing Health (Child listings, this listing's sidebar). Always in the page (hidden when empty) so the Edit box can fill it.
@@ -1478,15 +1556,16 @@ function spPatches(item) {
   return patches;
 }
 /** THE ONE FIX FUNCTION. `keys`: the listings ("brand|sku"); `seasonId`: only that season (a parent's season row), or '' for every season
- *  each listing misses. The ready ones go to the confirm window (Amazon checks each, then it is sent); the others are named with their
+ *  each listing misses; `okKeys`: the "Needs your OK" listings a person OK'd (a Set) — only those go; the others wait. The ready ones go to the confirm window (Amazon checks each, then it is sent); the others are named with their
  *  reason ("need your OK"). The test site sends nothing. Returns { todo, held } — what would go and what waits. */
-function spFixSeasons(keys, seasonId) {
+function spFixSeasons(keys, seasonId, okKeys) {
   const items = spCompute().filter(item => keys.includes(item.key));
   const todo = [];
   const held = [];
   items.forEach(item => {
     const plan = seasonId ? spPlanFor(item, seasonId) : item;
-    if (plan.status === 'ready' && plan.pt && spChanges(plan)) todo.push({ item: plan, patches: spPatches(plan) });
+    const go = plan.status === 'ready' || (plan.status === 'look' && !!okKeys && okKeys.has(plan.key));
+    if (go && plan.pt && spChanges(plan)) todo.push({ item: plan, patches: spPatches(plan) });
     else if (plan.kind === 'add' || plan.kind === 'check') held.push({ sku: plan.sku, brand: plan.brand, why: plan.status === 'reading' ? 'still reading it from Amazon' : plan.why || 'nothing safe to add' });
   });
   if (!todo.length) {
@@ -1652,6 +1731,7 @@ if (typeof document !== 'undefined' && document.addEventListener && $('spSwitch'
   document.addEventListener('click', e => {
     const el = e.target && e.target.closest ? e.target.closest('[data-sp-act]') : null;
     if (!el || el.tagName === 'SELECT') return;
+    if (el.tagName === 'INPUT' && el.dataset.spAct !== 'tick') return;
     const act = el.dataset.spAct;
     const key = el.dataset.spKey || '';
     const root = el.closest('#spKid') ? $('spKid') : el.closest('#spPanel') ? $('spPanel') : $('spPane');
@@ -1670,14 +1750,6 @@ if (typeof document !== 'undefined' && document.addEventListener && $('spSwitch'
     if (act === 'close-parent') return spCloseParent(true);
     if (act === 'open-kid') return spOpenKid(key);
     if (act === 'close-kid') return spCloseKid(true);
-    if (act === 'skip') {
-      const item = spCompute().find(each => each.key === key);
-      if (!item) return;
-      spSkips()[item.key + '|' + item.kind + ':' + item.seasons.join('+')] = Date.now();
-      spSkipSave();
-      spCloseKid(false);
-      return spRedrawAll();
-    }
     if (act === 'fixhand') {
       const item = spCompute().find(each => each.key === key);
       if (!item) return;
@@ -1695,6 +1767,38 @@ if (typeof document !== 'undefined' && document.addEventListener && $('spSwitch'
       return;
     }
     if (act === 'approve') return spApprove([key]);
+    if (act === 'approve-ok') return spFixSeasons([key], '', new Set([key]));
+    // the tiles: Fix all Ready · Review & OK all · Open the Fix-by-hand children in Listing Errors
+    if (act === 'fix-ready') { const g = spGroupOf(el.dataset.spGroup); return g ? spFixSeasons(g.ready.map(item => item.key), '') : undefined; }
+    if (act === 'review') { if (!SP.panel) return; SP.panel.review = 'look'; SP.panel.untick = new Set(); spPanelsRender(); return refocus('.sp-review [data-sp-act="review-ok"]'); }
+    if (act === 'review-close') { if (SP.panel) SP.panel.review = null; return spPanelsRender(); }
+    if (act === 'tick') {
+      if (!SP.panel) return;
+      const off = SP.panel.untick || (SP.panel.untick = new Set());
+      if (off.has(key)) off.delete(key); else off.add(key);
+      spPanelsRender();
+      return refocus(`.sp-review [data-sp-act="tick"][data-sp-key="${CSS.escape(key)}"]`);
+    }
+    if (act === 'review-ok') {
+      const g = spGroupOf(el.dataset.spGroup);
+      if (!g || !SP.panel) return;
+      const off = SP.panel.untick || new Set();
+      const ok = g.look.filter(item => !off.has(item.key)).map(item => item.key);
+      const keys = ok.concat(SP.panel.review === 'every' ? g.ready.map(item => item.key) : []);
+      SP.panel.review = null;
+      return keys.length ? spFixSeasons(keys, '', new Set(ok)) : spPanelsRender();
+    }
+    if (act === 'hand-lerr') {
+      const g = spGroupOf(el.dataset.spGroup);
+      if (!g || !g.fix.length) return;
+      if (typeof leOnly === 'function') leOnly(g.fix.map(item => item.sku), `${g.name} · Season planner — fix by hand`);
+      if ($('leBrand')) $('leBrand').value = g.brand;
+      spPanelsClose();
+      if (typeof showTab === 'function') showTab('lerr');
+      if (typeof leShow === 'function') leShow(false);
+      if (typeof leListEnsure === 'function') leListEnsure();
+      return;
+    }
     if (act === 'row-fix') { const item = spCompute().find(each => each.key === key); return item && item.status === 'ready' ? spApprove([key]) : undefined; }
     // A season row: show its children (and all of them); Fix all = that season for every child of the parent that misses it — the ONE
     // fix path; the ones that cannot be done safely are named with their reason.
@@ -1709,23 +1813,20 @@ if (typeof document !== 'undefined' && document.addEventListener && $('spSwitch'
       const r = g ? spSeasonRows(g).concat(spOldRows(g)).find(each => each.key === el.dataset.spId) : null;
       return r ? spFixSeasons(r.kids.map(item => item.key), el.dataset.spId) : undefined;
     }
-    // Fix all seasons: every child's whole plan (the seasons on now added, the old ones taken out) through the same one path
+    // Fix all seasons: every Ready child's whole plan (the seasons on now added, the old ones taken out) through the same one path; when
+    // children need your OK, the Review & OK list opens first and its one button sends them all together
     if (act === 'fix-every') {
       const g = spGroupOf(el.dataset.spGroup);
-      return g ? spFixSeasons(g.todo.map(item => item.key), '') : undefined;
-    }
-    // an old season word in the title: Listing Errors with those children picked (the title is never changed here)
-    if (act === 'title-lerr') {
-      const g = spGroupOf(el.dataset.spGroup);
-      const t = g ? spTitleOld(g).find(each => each.e.ev.id === el.dataset.spId) : null;
-      if (!t) return;
-      if (typeof leOnly === 'function') leOnly(t.kids.map(item => item.sku), `${g.name} · ${t.e.ev.name} in the title`);
-      if ($('leBrand')) $('leBrand').value = g.brand;
-      spPanelsClose();
-      if (typeof showTab === 'function') showTab('lerr');
-      if (typeof leShow === 'function') leShow(false);
-      if (typeof leListEnsure === 'function') leListEnsure();
-      return;
+      if (!g) return;
+      if (g.look.length && SP.panel) {
+        SP.panel.review = 'every';
+        SP.panel.untick = new Set();
+        spPanelsRender();
+        const box = $('spPanel') && $('spPanel').querySelector ? $('spPanel').querySelector('.sp-review') : null;
+        if (box && box.scrollIntoView) box.scrollIntoView({ block: 'nearest' });
+        return refocus('.sp-review [data-sp-act="review-ok"]');
+      }
+      return spFixSeasons(g.ready.map(item => item.key), '');
     }
   });
   // The cards and rows that are not buttons (role="button") open on Enter or Space, like a button.
