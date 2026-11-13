@@ -17320,7 +17320,7 @@ async function deltaLiveFull(L, node, why, idb) {
  *
  * EVERY meter error goes to the console only. Nothing is thrown and nothing is written because of one: a failing
  * meter leaves the read or the save exactly as it was before it existed. */
-const DM = { tab: '', day: '', T: {}, rl: 0, ra: 0, rb: 0, pk: 1, dirty: false, started: false, sendSet: false };
+const DM = { tab: '', day: '', T: {}, rl: 0, ra: 0, rb: 0, pk: 1, dirty: false, started: false, sendSet: false, rollSend: 0 };
 const DM_GIVE_UP_DAYS = 7;
 const dmWarn = e => { try { console.warn('[data meter]', e); } catch (x) { /* nowhere to say it */ } };
 const dmDay = () => new Date().toISOString().slice(0, 10);
@@ -17389,6 +17389,19 @@ function dmCount(node, chars, how) {
 function dmRoll() {
   dmSave(true);
   DM.T = {}; DM.rl = 0; DM.ra = 0; DM.rb = 0; DM.pk = 1; DM.day = dmDay(); DM.dirty = false;
+  dmSendSoon();
+}
+/** SENT WHEN THE DAY ENDS (13 Nov 2026): tabs now stay open for days (new versions about once a day), so a finished day
+ *  waited for somebody to open a fresh tab. It is now also sent 1.5 to 2.5 minutes after the day ends, giving the other
+ *  open tabs (they save every 30 seconds) time to save their part first. Once per day change; the "sent" mark stops a
+ *  second tab sending it again. */
+function dmSendSoon() {
+  try {
+    if (DM.rollSend) return;
+    const t = setTimeout(() => { DM.rollSend = 0; dmSendDays(); }, 90000 + Math.floor(Math.random() * 60000));
+    DM.rollSend = t || 1;
+    if (t && typeof t.unref === 'function') t.unref();
+  } catch (e) { dmWarn(e); }
 }
 function dmSave(force) {
   try {
@@ -17424,10 +17437,25 @@ async function dmJson(r, node, how) {
 }
 
 /* ---- the live copy: the meter listens to the same register, so no second download ---- */
+/* REGISTERS KEPT PER PRINTER (13 Nov 2026): Vendor Orders is <printer code>/<order>. One changed order there arrives as the
+ * printer's whole block (1-2 MB) though the wire carries only that order, so the meter counted about 1.4 MB per change
+ * (1.1 GB on one PC on 12 Nov, when printers began marking what they sent). For these registers the meter keeps each
+ * order's text and counts only the orders that differ, plus the key of an order that went. */
+const DM_NESTED = { pt_vendorOrders: 1 };
+/** Each child of a block as its text, to compare the next time the block changes. */
+const dmTexts = v => { const m = new Map(); if (v && typeof v === 'object') Object.keys(v).forEach(k => m.set(k, JSON.stringify(v[k]))); return m; };
+/** The characters of a block's change: the orders that are new or differ, and the keys of the orders that went. */
+function dmBlockChange(key, now, was) {
+  let c = 0;
+  now.forEach((t, id) => { if (was.get(id) !== t) c += key.length + 1 + id.length + String(t).length; });
+  was.forEach((t, id) => { if (!now.has(id)) c += key.length + 1 + id.length; });
+  return c;
+}
 function dmLiveWatch(node, L) {
   try {
     if (!dmOn() || typeof ptLiveDb !== 'function') return;
     let stop = false, offs = [], ready = false, sized = false;
+    const nested = !!DM_NESTED[node], blocks = new Map();
     const off = () => { stop = true; offs.forEach(f => { try { f(); } catch (e) { /* gone */ } }); offs = []; };
     /* The app dropped or replaced this copy (another account, a refusal): the meter lets go of the register too. */
     const gone = () => { try { return !!L.dead || (typeof PT_LIVE !== 'undefined' && PT_LIVE.get(node) !== L); } catch (e) { return false; } };
@@ -17437,8 +17465,16 @@ function dmLiveWatch(node, L) {
       /* A changed row: its key and its whole row. Reads slightly high (the wire carries only the changed part), never low. */
       const row = sn => {
         try {
-          if (!ready || stop) return;
+          if (stop) return;
+          if (!ready) { if (nested) blocks.set(String(sn.key || ''), dmTexts(sn.val())); return; }   // the blocks already there, kept to compare
           if (gone()) return off();
+          if (nested) {
+            const k = String(sn.key || ''), v = sn.val(), was = blocks.get(k);
+            blocks.set(k, dmTexts(v));
+            if (was && v && typeof v === 'object') { dmCount(node, dmBlockChange(k, blocks.get(k), was), 'live-change'); return; }
+            dmCount(node, k.length + String(JSON.stringify(v)).length, 'live-change');   // a new printer: the whole block is new
+            return;
+          }
           dmCount(node, String(sn.key || '').length + String(JSON.stringify(sn.val())).length, 'live-change');
         } catch (e) { dmWarn(e); }
       };
@@ -17450,6 +17486,8 @@ function dmLiveWatch(node, L) {
           if (gone()) return off();
           if (sized) return;                 // later changes come through the row listeners above
           sized = true; ready = true;
+          /* No row came first (the blocks arrived only as the whole register): keep them now, so the next change compares. */
+          if (nested && !blocks.size) { const all = sn.val() || {}; Object.keys(all).forEach(k => blocks.set(k, dmTexts(all[k]))); }
           /* A moment after it arrives, so the screen is not held up by the counting. */
           setTimeout(() => { try { dmCount(node, String(JSON.stringify(sn.val())).length, 'live-first'); } catch (e) { dmWarn(e); } }, 50);
         } catch (e) { dmWarn(e); }

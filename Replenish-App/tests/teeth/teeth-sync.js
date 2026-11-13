@@ -13,10 +13,10 @@ const breaks = {
   'ptPatch drops the merge (note always sent after)': s => s.replace("r = await saSend(Object.assign({}, updates, nl));", "r = await saSend(Object.assign({}, updates));"),
   'ptPatch sends the note after the save as well as inside': s => s.replace("  if (!merged) ptSyncNote(Object.keys(updates || {}), false);\n", "  ptSyncNote(Object.keys(updates || {}), false);\n"),
   'the hook is given the note keys': s => s.replace("oalAfterSave('', updates, 'patch')", "oalAfterSave('', Object.assign({}, updates, nl || {}), 'patch')"),
-  'ptCas takes the combined request': s => s.replace("  auditLog('put', { [path]: next });\n  ptSyncNote([path], true);", "  auditLog('put', { [path]: next });\n  saNoteLines([path], true, null);"),
+  'ptCas takes the combined request': s => s.replace(" ptMirror('put', { [path]: next });\n  ptSyncNote([path], true);", " ptMirror('put', { [path]: next });\n  saNoteLines([path], true, null);"),
   'a refused combined request is not retried': s => s.replace("if (r.status === 403) { saRefused(Object.keys(updates || {}), 403); r = null; } else merged = true;", "merged = true;"),
   'a field write is noted as the field, not the row': s => s.replace("out['pt_sync/' + seg[0] + '/' + key]", "out['pt_sync/' + seg.join('/')]"),
-  'ptDelete forgets to note': s => s.replace("  auditLog('delete', { [path]: null });\n  if (!merged) ptSyncNote([path], true);\n", "  auditLog('delete', { [path]: null });\n"),
+  'ptDelete forgets to note': s => s.replace(" ptMirror('delete', { [path]: null });\n  if (!merged) ptSyncNote([path], true);\n", " ptMirror('delete', { [path]: null });\n"),
 };
 let bad = 0;
 for (const [name, f] of Object.entries(breaks)) {

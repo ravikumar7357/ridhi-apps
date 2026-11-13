@@ -86,6 +86,7 @@ function world(o) {
     auditLog: () => {}, ptSyncNote: () => {}, obUC: s => String(s).toUpperCase(), mdbOf: () => null, PTG: { mdb: [] }, PT: { mdb: [] },
     BASE: { on: false }, BASE_NODE: 'pt_baseData', baseRoutePath: () => null, baseReadAll: async () => ({}),
   };
+  if (o.timers) ctx.setTimeout = (f, ms) => { o.timers.push({ f, ms }); return o.timers.length; };   // timers held, run by hand
   const warns = [];
   const fakeConsole = { warn: (...a) => warns.push(a), log: () => {}, error: () => {} };
   const code = SRC_DM + '\n' + LIVE_BLOCK.replace(URL_, 'Promise.resolve(FAKE)') + '\n' + [cut(DBR, 'ptGet'), cut(HIS, 'ptGetFresh'), cut(HIS, 'audRead'), cut(HIS, 'ptCas'), cut(LOK, 'mdbFetchSku'), cut(DLT, 'deltaRead')].join('\n')
@@ -175,6 +176,49 @@ const dmKeysOf = W => [...W.LS.keys()].filter(k => k.indexOf('dm') === 0);
   const pre = W.ptGet('pt_orderBook'); await tick(); W.pushTrue(); await tick(); await pre; await wait(120);
   ok('the first copy is counted once at full length', W.chars('pt_orderBook', 'live-first') === JSON.stringify(full).length && W.DM.T.so.pt_orderBook.how['live-first'].n === 1);
   ok('…and the rows that were already there are not counted again', !W.DM.T.so.pt_orderBook.how['live-change']);
+
+  console.log('== Vendor Orders (kept per printer): only the order that changed is counted, not the printer\'s block ==');
+  W = world({ ls: { dataMeter: '1' }, live: true });
+  W.setTab('ord');
+  const vo1 = { P1: { o1: { sku: 'A', qty: 5, note: 'नमस्ते' }, o2: { sku: 'B', qty: 2 } }, P2: { o9: { sku: 'C', qty: 1 } } };
+  const fv = W.ptGet('pt_vendorOrders'); await tick(); W.pushTrue(); await tick(); W.push('pt_vendorOrders', vo1); await fv; await wait(120);
+  ok('the first copy is still counted once at full length', W.chars('pt_vendorOrders', 'live-first') === JSON.stringify(vo1).length && !W.DM.T.ord.pt_vendorOrders.how['live-change']);
+  const vo2 = JSON.parse(JSON.stringify(vo1)); vo2.P1.o1.vSent = { k1: { qty: 3 } };
+  W.push('pt_vendorOrders', vo2);
+  const vOne = 'P1'.length + 1 + 'o1'.length + JSON.stringify(vo2.P1.o1).length;
+  ok('one changed order counts that order only', W.chars('pt_vendorOrders', 'live-change') === vOne, W.chars('pt_vendorOrders', 'live-change') + ' vs ' + vOne + ' (the whole block would be ' + ('P1'.length + JSON.stringify(vo2.P1).length) + ')');
+  const vo3 = JSON.parse(JSON.stringify(vo2)); delete vo3.P1.o2; vo3.P1.o3 = { sku: 'D', qty: 4 };
+  W.push('pt_vendorOrders', vo3);
+  const vTwo = vOne + ('P1'.length + 1 + 'o3'.length + JSON.stringify(vo3.P1.o3).length) + ('P1'.length + 1 + 'o2'.length);
+  ok('a new order counts its text, an order that went counts its key', W.chars('pt_vendorOrders', 'live-change') === vTwo, W.chars('pt_vendorOrders', 'live-change') + ' vs ' + vTwo);
+  const vo4 = Object.assign(JSON.parse(JSON.stringify(vo3)), { P3: { o5: { sku: 'E', qty: 1 } } });
+  W.push('pt_vendorOrders', vo4);
+  ok('a new printer counts its whole block', W.chars('pt_vendorOrders', 'live-change') === vTwo + 'P3'.length + JSON.stringify(vo4.P3).length);
+  W.push('pt_vendorOrders', vo4);
+  ok('nothing changed: nothing more counted', W.chars('pt_vendorOrders', 'live-change') === vTwo + 'P3'.length + JSON.stringify(vo4.P3).length);
+  W = world({ ls: { dataMeter: '1' }, live: true });
+  W.setTab('ord'); W.STATE.pt_vendorOrders = vo1;
+  const fv2 = W.ptGet('pt_vendorOrders'); await tick(); W.pushTrue(); await tick(); await fv2; await wait(120);
+  W.push('pt_vendorOrders', vo2);
+  ok('a copy already in the browser: the blocks are kept on arrival, so the first change counts one order too', W.chars('pt_vendorOrders', 'live-change') === vOne, String(W.chars('pt_vendorOrders', 'live-change')));
+
+  console.log('== the day ends with the tab open: the finished day is sent 1½–2½ minutes later, once ==');
+  const TM = [];
+  W = world({ ls: { dataMeter: '1' }, timers: TM });
+  await W.ptGet('pt_orderBook'); W.dmTick();
+  ok('during the day nothing is planned to be sent', !TM.some(t => t.ms >= 90000));
+  const dEnd = daysAgo(1);
+  W.DM.day = dEnd; W.dmTick();
+  const sendT = TM.filter(t => t.ms >= 90000 && t.ms <= 150000);
+  ok('the day changes: one send is planned, 1½–2½ minutes on', sendT.length === 1, TM.map(t => t.ms).join(','));
+  ok('…the finished day is saved under its own date, and today starts clean', JSON.parse(W.LS.get('dm:t:' + dEnd + ':' + W.DM.tab)).pages.ord.pt_orderBook.c === TEXT.pt_orderBook.length && JSON.stringify(W.DM.T) === '{}');
+  sendT[0].f(); await wait(20);
+  const sentKeys = W.writes.flatMap(u => Object.keys(u));
+  ok('when it runs, that day\'s line is written once, with what was counted', W.writes.length === 1 && sentKeys.length === 1 && sentKeys[0].indexOf('pt_dataMeter/' + dEnd + '/') === 0 && W.writes[0][sentKeys[0]].pages.ord.pt_orderBook.kb > 0, sentKeys.join(','));
+  ok('…today is not sent', sentKeys.every(k => k.indexOf('/' + today() + '/') < 0));
+  await W.dmSendDays();
+  ok('another tab trying later does not send it again', W.writes.length === 1);
+  ok('a later day change can plan a send again', W.DM.rollSend === 0);
 
   console.log('== switch off: nothing stored, nothing written, the same read as today ==');
   W = world({});
@@ -313,6 +357,13 @@ const dmKeysOf = W => [...W.LS.keys()].filter(k => k.indexOf('dm') === 0);
     const caught = r.status !== 0;
     console.log((caught ? '  BITES  ' : '  MISSED ') + 'sizing off by one' + (caught ? '' : ' — the suite still passed'));
     if (!caught) process.exit(1);
+    /* and against a meter that counts a printer's whole block again */
+    const bad2 = SRC_DM.replace("if (was && v && typeof v === 'object')", "if (false)");
+    if (bad2 === SRC_DM) { console.log('  COULD NOT BREAK IT (Vendor Orders anchor missing)'); process.exit(1); }
+    fs.writeFileSync(tmp, bad2);
+    const r2 = spawnSync(process.execPath, [__filename], { env: Object.assign({}, process.env, { DM_SRC: tmp }), encoding: 'utf8', timeout: 120000 });
+    console.log((r2.status !== 0 ? '  BITES  ' : '  MISSED ') + 'Vendor Orders counted as whole blocks' + (r2.status !== 0 ? '' : ' — the suite still passed'));
+    if (r2.status === 0) process.exit(1);
   }
   process.exit(fail ? 1 : 0);
 })();

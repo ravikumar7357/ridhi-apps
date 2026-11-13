@@ -370,11 +370,12 @@ console.log('Nothing writes to the database except the four helpers');
 /* Every place that can write: a fetch with PUT / PATCH / DELETE, or a Firestore write. The list is what exists today. */
 const WRITERS = {
   http: { 'core/history.js': 5 },                                 // ptAuditWrite (1) + ptPut, ptCas, ptPatch, ptDelete
-  post: { 'replenishment/india-usa-express.js': 1, 'vendors/portal/phone-pin.js': 2 },      // Apps Script / sign-in PIN, not the database
+  post: { 'replenishment/india-usa-express.js': 1, 'vendors/portal/phone-pin.js': 2, 'core/mirror.js': 1 },      // Apps Script / sign-in PIN / the copy sent to the new database (Supabase), not Firebase
   fire: { 'core/access-design.js': 4, 'masters/master-database-edit.js': 2, 'orders/custom-order-skus.js': 2, 'replenishment/article-review.js': 3,
     'replenishment/fba-box-template.js': 1, 'replenishment/follow-ups.js': 3, 'replenishment/minutes-of-meeting.js': 1, 'replenishment/packing-list-labels.js': 2,
     'replenishment/priority.js': 1, 'replenishment/purchase-orders.js': 3, 'replenishment/replenishment.js': 10, 'replenishment/revenue-target.js': 3,
-    'replenishment/top-asin.js': 4, 'shopify/shopify-orders.js': 3, 'vendors/portal/phone-pin.js': 2 },   // Firestore documents (settings, requests), not the production database
+    'replenishment/top-asin.js': 4, 'shopify/shopify-orders.js': 3, 'vendors/portal/phone-pin.js': 2,
+    'core/mirror.js': 1 },   // Firestore documents (settings, requests), not the production database; core/mirror.js: only a comment naming setDoc
 };
 function srcFiles(dir, rel) { rel = rel || ''; return fs.readdirSync(path.join(dir, rel), { withFileTypes: true }).flatMap(d => d.isDirectory() ? srcFiles(dir, path.posix.join(rel, d.name)) : (d.name.endsWith('.js') ? [path.posix.join(rel, d.name)] : [])); }
 function scanWrites(files) {
