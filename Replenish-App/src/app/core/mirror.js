@@ -22,8 +22,9 @@ const MIR = {
   key: 'sb_publishable_ybYG7Y1iAZerulnwWREWaw_EzubVDPT',   // its publishable key (made for browsers; opens only the doors)
   store: 'r1.mirror.queue', q: [], busy: false, timer: null, refused: false, sent: 0, lastError: '',
 };
-/* Lists that are bookkeeping, not data: never sent. */
-const MIR_SKIP = /^pt_(audit|trash|sync|syncAudit|dataMeter|flowRev)(\/|$)/;
+/* Lists that are bookkeeping, not data: never sent. The log (pt_audit) and the recycle bin (pt_trash) ARE sent (13 Nov):
+ * they are data — Supabase keeps them in schema history. */
+const MIR_SKIP = /^pt_(sync|syncAudit|dataMeter|flowRev)(\/|$)/;
 
 /** A Firestore value as plain JSON: server time → now, a date → its ISO text. */
 function mirPlain(v) {

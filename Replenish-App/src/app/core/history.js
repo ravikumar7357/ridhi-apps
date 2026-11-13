@@ -73,6 +73,7 @@ async function ptAuditWrite(updates, raw) {
   });
   if (raw) return r;                                  // Step 4b: a save that wants the answer itself (see saSend)
   if (!r.ok) throw new Error('audit ' + r.status);
+  if (typeof ptMirror === 'function') ptMirror('patch', updates);   // live mirror (core/mirror.js): the log and the bin too — never waits, never throws
   return true;
 }
 /* ---- DELTA SYNC, phase 1 (2026-10-09): which rows of the gate registers changed, and when ----
