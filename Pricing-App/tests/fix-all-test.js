@@ -3,7 +3,7 @@
  * One parent with 100 children, 10 of them with the same problem (a title over 75) → one row "10 children" → one click → 10 changes,
  * each with its own size and colour; a child whose fix would break a rule needs your OK; one child's Fix = Fix all for that child;
  * Amazon's check → To send → send → read again → Accepted / Rejected / Amazon working; the test site sends nothing; Put back; the spec
- * copy; the season word; the block on top of both side panels; the cards = Listing Health's numbers. */
+ * copy; no season rows (the Season planner's alone); the block on top of the Workspace panel; the cards = Listing Health's numbers. */
 const { load } = require('./listing-rules-test.js');
 let pass = 0, fail = 0;
 const ok = (name, cond, extra) => { if (cond) { pass++; console.log('  PASS ' + name); } else { fail++; console.log('  FAIL ' + name + (extra ? ' — ' + extra : '')); } };
@@ -244,25 +244,36 @@ const patchCalls = (C, apply) => C.calls.filter(c => c.lfix === 'patch' && c.app
     ok('a colour is never copied: each child has its own', col.length === 1 && !col[0].ok && /its own color/.test(col[0].why), col[0] && col[0].why);
   }
 
-  console.log('== the season word: exactly the Season planner\'s own plan ==');
+  console.log('== no season rows on the Workspace: season words are the Season planner\'s alone (14 Nov 2026) ==');
   {
-    const { C } = setup({ today: NOV });
+    // 12 Nov: Thanksgiving and Christmas are on, the planner has a to-do for this parent — and a child's title still names Valentine's Day
+    const V = "Ridhi Cloth Napkins 100% Cotton 18 x 18 Inch Valentine's Day - Blue";
+    const { C } = setup({ today: NOV, mod: { G40: { title: V } } });
     C.FA.log = [];
-    const items = C.spCompute(NOV).filter(it => it.row.parent === 'PB' && it.status === 'ready');
-    const g = C.faGroups('SP', 'PB', C.faKids('SP', 'PB')).find(each => each.key === 'season');
-    // (13 Nov 2026 season rules) Thanksgiving and Christmas are both on; the row is named by the nearest one missing
-    ok('a "Season word missing: “Thanksgiving”" row, its children = the planner\'s to-do for the parent', g && /Season word missing: “Thanksgiving”/.test(g.name) && g.kids.length >= items.length && items.length > 0, g && g.name + ' ' + g.kids.length + '/' + items.length);
-    const plans = C.faPlans(g, C.hCtx());
-    const same = items.every(item => { const p = plans.find(each => each.sku === item.sku); return p && p.ok && JSON.stringify(p.patches) === JSON.stringify(C.spPatches(item, item.after)); });
-    ok('every ready child: the very patches the planner\'s own Fix sends (title if room, else Item Highlights, else hidden search words)', same && plans.filter(p => p.ok).length === items.length);
-    const rs = C.faStart('SP|PB|season');
-    await C.SQ.run.checked;
-    const n = C.SQ.run.jobs.length;
-    await C.sqApprove();
-    C.sqClose();
-    await rs;
-    await idle(C);
-    ok('sent: written to the fix log AND the planner\'s own log (its Put back keeps working)', C.FA.log.length === n && C.SP.log.length === n && C.SP.log.every(r => r.before && r.after && r.seasons.length), `${C.FA.log.length} / ${C.SP.log.length} / ${n}`);
+    const todo = C.spCompute(NOV).filter(it => it.row.parent === 'PB' && it.kind === 'add');
+    ok('the Season planner still has its own to-do for the parent (it stays exactly as it is)', todo.length > 0, String(todo.length));
+    const groups = C.faGroups('SP', 'PB', C.faKids('SP', 'PB'));
+    ok('Fix all block: no season row at all — no "Season word missing", no out-of-season row', !groups.some(g => g.kind === 'season' || g.key === 'season' || /season/i.test(g.name) || g.detector === 'seasonal_keyword'),
+      groups.map(g => g.name).join(' | '));
+    C.el('hBrandView').value = 'SP';
+    C.LI_WS.on = true; C.LI_WS.mode = 'all'; C.LI_WS.card = ''; C.LI_WS.chip = 'all';
+    C.liWsRender();
+    C.liWsPanelOpen('SP|PB');
+    const h = strip(C.el('lsPanel').innerHTML);
+    ok('Workspace parent panel: no season words anywhere in it (problems, counts, Fix all)', !/season/i.test(h), (h.match(/.{60}season.{60}/i) || [''])[0]);
+    ok('no Fix all row can be started for a season', C.faStart('SP|PB|season') === null);
+    C.liWsPanelClose(false);
+    // Listing Health's scorer: a title naming an occasion out of season is no problem (and so no count, no badge)
+    const row = C.HEALTH.SP.rows.find(r => r.sku === 'G40');
+    const h1 = C.healthOf(Object.assign({}, row), Object.assign({}, C.hCtx(), { today: new Date(2026, 6, 15) }));
+    ok('healthOf: "Valentine\'s Day" in a July title is no finding (Listing Health / Workspace never show a season problem)', !h1.found.some(hit => /season|occasion/i.test(hit.name + ' ' + (hit.area || '')) || hit.detector === 'seasonal_keyword'),
+      h1.found.map(hit => hit.name).join(' | '));
+    ok('the out-of-season rule is gone from the default rules', !C.LR_DEFAULT.issues.some(it => it.detector === 'seasonal_keyword'));
+    // a rules list saved before 14 Nov still holds it: it finds nothing (its detector is gone; lrLoad also drops it from the list)
+    C.getLR().issues.push({ id: 'season', name: 'Out-of-season occasion in title', sev: 'action', area: 'Title', detector: 'seasonal_keyword' });
+    C.reset();
+    const h2 = C.healthOf(Object.assign({}, row), Object.assign({}, C.hCtx(), { today: new Date(2026, 6, 15) }));
+    ok('an old saved rules list with the season rule: still no season finding', !h2.found.some(hit => hit.detector === 'seasonal_keyword') && h2.bucket === h1.bucket, h2.bucket + ' vs ' + h1.bucket);
   }
 
   console.log('== on top of both side panels; the children list below, as it was ==');

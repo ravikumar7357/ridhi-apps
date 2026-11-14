@@ -1,11 +1,12 @@
 /* ================= LISTING · FIX ALL: one parent's problems grouped by type, on top of its side panel =================
- * Screens: the parent side panel of the Workspace (Listing Health, #lsPanel) and of the Season planner (Listing Optimiser, #spPanel).
+ * Screens: the parent side panel of the Workspace (Listing Health, #lsPanel).
+ *   NO SEASON ROWS (14 Nov 2026): a season word missing / an old season word is shown, counted and fixed ONLY in the Season planner
+ *   (Listing Optimiser), never here.
  * Does: above the panel's own children list (which stays exactly as it was), three cards — to fix first / need attention / no problem,
  *       Listing Health's own numbers for this parent — then ONE row per problem type in two sections (FIX FIRST, NEEDS ATTENTION):
  *       dot · problem · what we will do · how many children · one button; "› Show all N" lists those children (name · SKU · before →
  *       after) and a click on one opens the panel's own child view. A green line counts the children with no problem.
  * FIX ALL only where the fix is safe and automatic, each child getting ITS OWN fix (its own size, colour, current title):
- *   - season word: the Season planner's own plan for that child (Item Highlights and the hidden search words — never the title);
  *   - title too long: the title template with the brand, product, size and colour (and every part the template requires) kept, ≤ 75;
  *   - an empty spec: only when every sibling that has it uses the SAME value (copied); never a child's own colour or size.
  *   A fix must pass the same checks as a single listing's (spChecks: nothing lost, nothing made up…), must not add a Listing Rules
@@ -14,8 +15,7 @@
  * Flow (#10): THE ONE SEND PATH, listing-send-check.js's Amazon check popup — Amazon checks every change first (VALIDATION_PREVIEW) →
  *   "X Amazon will accept · Y Amazon says no" → Approve & send X / Cancel → each sent child is read again → ✅ / ❌ + why / ⏳.
  *   Every change sent is kept with its OLD value in listingrules/fixlog (the backend's own log keeps no old values) — the block's
- *   History lists them and Put back sends the old value again (Amazon's check first). Season changes are also written to the Season
- *   planner's own log (listingrules/seasonlog), so its Put back keeps working. The test site sends nothing: "not sent to Amazon".
+ *   History lists them and Put back sends the old value again (Amazon's check first). The test site sends nothing: "not sent to Amazon".
  * No backend change: lfix=patch / ?lfix=content / ?lfix=get as they are; the Workspace's read queue (liWsQueue) does the reads.
  * Main functions: faBlockHtml, faGroups, faCards, faPlan, faShortTitle, faStart (through sqSendWithCheck), faPutBack, faOpenImg, faOpenLerr.
  * Pricing-App/tests/fix-all-test.js runs this file with the rules, the Workspace and the planner in a stub page. */
@@ -73,26 +73,16 @@ function faLabel(kid, ctx) {
 }
 
 /* ----- the problem types ----- */
-// What kind of fix a Listing Rules finding has: season (the planner), title (shorten), img (Image Manager), lerr (Listing Errors).
+// What kind of fix a Listing Rules finding has: title (shorten), img (Image Manager), lerr (Listing Errors).
 const FA_IMG = ['no_main_image', 'images_below', 'images_between', 'images_small', 'main_not_square', 'images_duplicate', 'main_photo_check'];
 function faKindOf(hit, kid) {
   if (hit.detector === 'title_length' && (parseInt(hit.detail, 10) || 0) > FA_TITLE_MAX) return 'title';
   if (FA_IMG.includes(hit.detector)) return 'img';
   return 'lerr';
 }
-// The Season planner's to-do for one parent: "brand|sku" → its plan (add a season word, take an old one out, put an old title back).
-function faSeasonItems(brand, parent) {
-  const out = new Map();
-  if (typeof spCompute !== 'function') return out;
-  spCompute().forEach(item => {
-    if (item.brand !== brand || spParentOf(item) !== parent || item.kind !== 'add') return;   // a season word missing somewhere
-    out.set(item.key, item);
-  });
-  return out;
-}
 // One row per problem type over these children: { key, kind, name, sev, stale, kids, hits (key → hit), attr, waiting, why }.
-// Listing Rules findings grouped by rule (as "What to fix" groups them; a title over 75 is its own row, "Title too long"), the season
-// word from the Season planner, and each empty spec (from the live read) as its own row. A child sent a fix for this row in the last
+// Listing Rules findings grouped by rule (as "What to fix" groups them; a title over 75 is its own row, "Title too long") and each
+// empty spec (from the live read) as its own row — never a season row (the Season planner's alone). A child sent a fix for this row in the last
 // FA_WAIT_DAYS days waits in `waiting` (Amazon takes a while to show a change), not in the row's count.
 function faGroups(brand, parent, kids) {
   const by = new Map();
@@ -105,27 +95,15 @@ function faGroups(brand, parent, kids) {
     if (((LR_SEV[hit.sev] || {}).rank || 0) > ((LR_SEV[g.sev] || {}).rank || 0)) g.sev = hit.sev;
     by.set(key, g);
   };
-  const season = faSeasonItems(brand, parent);
   kids.forEach(kid => {
     kid.found.forEach(hit => {
       const kind = faKindOf(hit, kid);
-      if (kind === 'season') return add('season', { kind, name: 'Season word', sev: hit.sev, rule: hit.id }, kid, hit);
       if (kind === 'title') return add('title', { kind, name: 'Title too long', sev: hit.sev, rule: hit.id }, kid, hit);
       add('rule:' + (hit.id || hit.detector), { kind, name: hit.name, sev: hit.sev, rule: hit.id, detector: hit.detector }, kid, hit);
     });
     ((kid.c.spec && kid.c.spec.attrs) || []).forEach(attr => add('spec:' + attr, { kind: 'spec', attr, name: `Empty spec: ${attr.replace(/_/g, ' ')}`, sev: 'action' }, kid,
       { sev: 'action', name: 'Specs', detail: attr, fix: '' }));
-    const item = season.get(faKidKey(kid));
-    if (item) add('season', { kind: 'season', name: 'Season word', sev: 'action' }, kid, { sev: 'action', name: 'Season word', detail: item.kind });
   });
-  // the season row's name: the season most of its children need, or the one to take out
-  const sg = by.get('season');
-  if (sg) sg.season = season;
-  if (sg && typeof spTopSeason === 'function') {
-    const items = sg.kids.map(kid => season.get(faKidKey(kid))).filter(Boolean);
-    const top = spTopSeason(items);
-    sg.name = top ? `Season word missing: “${top.e.ev.name}”` : 'Season word missing';
-  }
   // a fix sent lately: the child waits for Amazon, out of the row's count
   const sent = faSentMap(brand);
   by.forEach(g => {
@@ -155,31 +133,13 @@ function faSentMap(brand) {
 }
 
 /* ----- one child's fix: the SAME function for Fix all and for one child alone ----- */
-// { key, brand, sku, label, ok, wait, why, before, after, patches, pt, sent: { title, kw, hl, spec }, item }. `ok`: safe to send.
+// { key, brand, sku, label, ok, wait, why, before, after, patches, pt, sent: { title, spec } }. `ok`: safe to send.
 // `wait`: not known yet (reading from Amazon). Nothing here reads or writes; the same inputs always give the same answer.
 function faPlan(g, kid, ctx) {
   const base = { key: faKidKey(kid), brand: kid.brand, sku: kid.sku, asin: kid.asin, label: faLabel(kid, ctx), row: g.key, kind: g.kind, attr: g.attr || '', ok: false, wait: false, why: '' };
-  if (g.kind === 'season') return Object.assign(base, faSeasonPlan(g, kid));
   if (g.kind === 'title') return Object.assign(base, faTitlePlan(g, kid, ctx));
   if (g.kind === 'spec') return Object.assign(base, faSpecPlan(g, kid));
   return Object.assign(base, { why: g.kind === 'img' ? 'pictures are changed by a person in Image Manager' : 'no safe automatic fix — a person fixes it in Listing Errors' });
-}
-// Season: exactly the Season planner's plan for the child (what its own Fix button would send): Item Highlights and the hidden search
-// words only — the title is never changed.
-function faSeasonPlan(g, kid) {
-  const item = g.season && g.season.get(faKidKey(kid));
-  if (!item) return { why: 'the Season planner has nothing to add here' };
-  const out = { item, before: '', after: null, pt: item.pt };
-  if (item.status === 'reading') return Object.assign(out, { wait: true, why: 'reading it from Amazon first' });
-  if (item.status === 'fix') return Object.assign(out, { why: item.why || 'no safe automatic change' });
-  if (item.status === 'look') return Object.assign(out, { why: 'needs your OK in the Season planner: ' + item.why });
-  if (item.status !== 'ready' || !item.pt) return Object.assign(out, { why: item.status === 'ok' ? 'already up to date' : 'not read from Amazon yet' });
-  if (!spChanges(item)) return Object.assign(out, { why: 'nothing would change' });
-  const sent = {};
-  if (item.kwAfter != null && item.kwAfter !== item.kw) sent.kw = item.kwAfter;
-  if (spHlChanged(item)) sent.hl = item.hlAfter.slice();
-  return Object.assign(out, { ok: true, patches: spPatches(item), sent, what: spDoLineWords(item),
-    beforeKw: item.kw, beforeHl: item.hl ? item.hl.slice() : null });
 }
 // The title the template writes for this child at 75 letters or less: every part it REQUIRES kept (brand, product, size, colour…),
 // the others left out one by one — the season names first (a shortened title never gains a season word), then the uses, the print,
@@ -320,8 +280,7 @@ function faNeedVals(brand, skus) {
 const FA_PLAN_KEEP = new WeakMap();
 function faPlans(g, ctx) {
   return g.kids.map(kid => {
-    const item = g.season ? g.season.get(faKidKey(kid)) || null : null;
-    const sig = [ctx, item, g.key, FA.valsV, g.attr ? LI_WS.liveV : 0, g.attr ? g.all.length : 0];
+    const sig = [ctx, g.key, FA.valsV, g.attr ? LI_WS.liveV : 0, g.attr ? g.all.length : 0];
     let keep = FA_PLAN_KEEP.get(kid);
     if (!keep) FA_PLAN_KEEP.set(kid, keep = new Map());
     const was = keep.get(g.key);
@@ -336,11 +295,6 @@ function faPlans(g, ctx) {
 // One plain line: what we will do for this row.
 function faDoLine(g, plans) {
   const safe = plans.filter(p => p.ok);
-  if (g.kind === 'season') {
-    const top = typeof spTopSeason === 'function' ? spTopSeason(safe.map(p => p.item)) : null;
-    return top ? `Add “${top.e.ev.name}” to Item Highlights and the hidden search words where it is missing — the title never changes`
-      : 'Each change needs a person to look at it first';
-  }
   if (g.kind === 'title') return `Shorten to ${FA_TITLE_MAX} letters with the title template — brand, product, size and colour kept`;
   if (g.kind === 'spec') {
     if (FA_OWN_SPECS.includes(g.attr)) return `Each child has its own ${g.attr} — fill it in by hand in Listing Errors`;
@@ -368,13 +322,13 @@ function faKidChange(g, plan, kid) {
     if (plan.after != null && plan.before !== plan.after) return `<span class="fa-was">${lrEsc(faCut(plan.before, 90))}</span> → <span class="fa-new">${lrEsc(faCut(plan.after, 90))}</span>`;
     return `<span class="fa-new">${lrEsc(plan.what || 'Ready')}</span>`;
   }
-  if (g.kind === 'title' || g.kind === 'season' || g.kind === 'spec') return `<span class="fa-why">${plan.wait ? '… ' : '⚠ Needs your OK: '}${lrEsc(plan.why)}</span>`;
+  if (g.kind === 'title' || g.kind === 'spec') return `<span class="fa-why">${plan.wait ? '… ' : '⚠ Needs your OK: '}${lrEsc(plan.why)}</span>`;
   return `<span class="fa-why">${lrEsc(hit ? (hit.what || hit.detail || hit.name) : '')}</span>`;
 }
 function faKidsHtml(gk, g, plans) {
   const all = FA.more.has(gk);
   const shown = all ? g.kids : g.kids.slice(0, FA_SHOW);
-  const safeKind = g.kind === 'title' || g.kind === 'season' || g.kind === 'spec';
+  const safeKind = g.kind === 'title' || g.kind === 'spec';
   const busy = typeof sqIsOpen === 'function' && sqIsOpen();
   const rows = shown.map(kid => {
     const plan = plans[g.kids.indexOf(kid)];
@@ -434,7 +388,6 @@ function faStart(gk, onlySku) {
   const plans = faPlans(g, ctx).filter(p => !onlySku || p.sku === onlySku);
   const run = { brand, parent, row: rowKey, name: g.name, attr: g.attr || '' };
   const records = [];
-  const seasonRecs = [];
   const now = Date.now();
   return sqSendWithCheck(plans.filter(p => p.ok).map(p => ({ brand, sku: p.sku, asin: p.asin, label: p.label, plan: p,
     body: { lfix: 'patch', brand, sku: p.sku, productType: p.pt, patches: p.patches }, changes: faChangeList(p) })), {
@@ -444,20 +397,17 @@ function faStart(gk, onlySku) {
       const rec = faRecord(it, run, now, job.sub);
       job.rec = rec;
       records.push(rec);
-      if (it.item) seasonRecs.push(faSeasonRecord(it, now));
       faLiveAfterSend(it, now);
     },
     onEdit: job => faOpenKid(null, job.brand + '|' + job.sku),
     onDone: async sum => {
       sum.jobs.forEach(job => { if (job.rec) { job.rec.state = job.state; job.rec.why = job.why || ''; } });
       if (records.length) await faLogAdd(records);
-      if (seasonRecs.length && typeof spLogAdd === 'function') { await spLogAdd(seasonRecs); if (typeof SP !== 'undefined') SP.itemsKey = ''; }
       faRedraw();
     } });
 }
-// A plan's change, in words, for the popup: the title before → after, the season words (Item Highlights, search words), the spec copied.
+// A plan's change, in words, for the popup: the title before → after, or the spec copied.
 function faChangeList(p) {
-  if (p.item && typeof spChangeList === 'function') return spChangeList(p.item);
   if (p.sent && p.sent.spec) return [{ field: sqField(p.sent.spec), old: '(empty)', new: p.after, attr: p.sent.spec, oldV: [] }];
   return [{ field: 'Title', old: p.oldTitle || p.before, new: p.after, max: FA_TITLE_MAX, unit: 'letters', attr: 'item_name', oldV: [{ value: p.oldTitle || p.before, language_tag: 'en_US' }] }];
 }
@@ -471,13 +421,6 @@ function faRecord(it, run, now, sub) {
   if (it.sent.spec) { before.spec = null; after.spec = it.patches[0].value; }
   return { id: `${it.brand}|${it.sku}|${now}|${run.row}`, brand: it.brand, sku: it.sku, parent: run.parent, row: run.row, name: run.name, attr: run.attr,
     label: it.label, pt: it.pt, before, after, at: now, by: (typeof ME !== 'undefined' && ME.email) || '', sub: sub || '', state: 'working', why: '' };
-}
-// The Season planner's own record for a season change (its Put back reads listingrules/seasonlog).
-function faSeasonRecord(it, now) {
-  const item = it.item;
-  return { brand: item.brand, sku: item.sku, asin: item.asin, kind: item.kind, seasons: item.seasons.slice(), at: now, by: (typeof ME !== 'undefined' && ME.email) || '',
-    before: Object.assign({ title: item.title, kw: item.kw }, item.hl ? { hl: item.hl.slice() } : {}),
-    after: Object.assign({ title: item.after, kw: item.kwAfter != null ? item.kwAfter : item.kw }, item.hl ? { hl: (item.hlAfter || item.hl).slice() } : {}), sub: it.sub || '' };
 }
 // What was sent is now what the listing holds, as far as every screen knows (our submitted values; the title Amazon SHOWS stays
 // as read until Amazon shows the new one).

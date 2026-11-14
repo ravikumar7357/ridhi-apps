@@ -49,7 +49,7 @@ const LI_WS_CHECKS = [
   { k: 'amz', t: 'Amazon', w: 'Amazon error', fix: 'lerr', tip: 'Amazon reports no error on this listing, and it shows in search (not suppressed)' },
   { k: 'main', t: 'Main img', w: 'Main image', fix: 'img', tip: "Amazon's catalogue shows a main picture — what shoppers see, not our own MAIN slot (Listing Rules: Main image missing)" },
   { k: 'img', t: 'Images', w: 'Images', fix: 'img', tip: 'Enough gallery pictures in the catalogue (MAIN + PT01–PT08; the swatch is not a picture), by the Listing Rules for images — the same as Listing Health' },
-  { k: 'title', t: 'Title', w: 'Title', fix: 'lerr', tip: 'The Listing Rules for the title: its length, required words and out-of-season words — the same as Listing Health' },
+  { k: 'title', t: 'Title', w: 'Title', fix: 'lerr', tip: 'The Listing Rules for the title: its length and required words — the same as Listing Health (season words: the Season planner only)' },
   { k: 'tpl', t: 'Template', w: 'Template', fix: 'lerr', tip: 'The title follows the word order set in Listing Rules' },
   { k: 'bul', t: 'Bullets', w: 'Bullets', fix: 'lerr', tip: 'Enough bullet points (Listing Rules: Missing bullet)' },
   { k: 'desc', t: 'Desc', w: 'Description', fix: 'lerr', tip: 'The description is long enough (Listing Rules: Description weak) — not judged when A+ is live, because Amazon shows the A+ instead' },
@@ -403,7 +403,7 @@ const LI_WS_COL_AREA = { Amazon: 'amz', Images: 'img', Title: 'title' };
 const liWsColOf = hit => LI_WS_COL_DET[hit.detector] || LI_WS_COL_AREA[hit.area] || 'other';
 // The short word in a ✗ pill, per kind of finding.
 const LI_WS_SHORT = { amazon_error: 'Error', amazon_suppressed: 'Suppressed', no_main_image: 'None', aplus_missing: 'None',
-  title_keyword: 'Keyword', seasonal_keyword: 'Season', title_contains: 'Word', size_format: 'Size', dimension_order: 'Size order',
+  title_keyword: 'Keyword', title_contains: 'Word', size_format: 'Size', dimension_order: 'Size order',
   variation_value_missing: 'No size', variation_naming: 'Naming', inactive_with_stock: 'Inactive', no_price: 'No price',
   images_small: 'Small', main_not_square: 'Not square', images_duplicate: 'Repeat', main_photo_check: 'Not OK' };
 function liWsShort(hit) {

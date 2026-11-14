@@ -87,7 +87,6 @@ const LR_DETECTORS = {
   title_template: { label: 'Title missing parts of its template, or in another order', params: [] },
   title_keyword: { label: 'Title missing a required word (comma-separated: any one is enough)', params: ['words'] },
   title_contains: { label: 'Title contains a word (comma-separated)', params: ['words'] },
-  seasonal_keyword: { label: 'Title names an occasion that is out of season (see the calendar)', params: [] },
   amazon_suppressed: { label: 'Amazon has taken the listing out of search (buyable but not discoverable)', params: [] },
   amazon_error: { label: 'Amazon itself reports an error on the listing', params: [] },
 };
@@ -136,7 +135,6 @@ const LR_DEFAULT = {
     { id: 'img_text', name: 'Image text inconsistent with listing', sev: 'action', area: 'Images', detector: 'manual', desc: "Same product but formatting/naming doesn't match" },
     { id: 'aplus_old', name: 'A+ incorrect/outdated', sev: 'action', area: 'Content', detector: 'manual', desc: 'A+ exists but wrong/old content assigned' },
     { id: 'backend_field', name: 'Backend/catalog field incomplete', sev: 'action', area: 'Content', detector: 'manual', desc: "Important searchable attribute isn't populated" },
-    { id: 'season', name: 'Out-of-season occasion in title', sev: 'action', area: 'Title', detector: 'seasonal_keyword', desc: 'e.g. the title still says Thanksgiving when Thanksgiving is months away' },
     /* Needs review */
     { id: 'style_attr', name: 'Style attribute questionable', sev: 'review', area: 'Title', detector: 'title_contains', params: { words: 'Rustic' }, desc: '“Rustic” when CPC primarily calls it Cottagecore' },
     { id: 'img_low', name: 'Low image count but minimum met', sev: 'review', area: 'Images', detector: 'images_between', params: { min: 6, max: 7 }, desc: '6 images when ideal is 8' },
@@ -641,20 +639,6 @@ const LR_DET = {
     if (!missing.length && !outOfOrder) return '';
     return [missing.length ? 'missing ' + missing.join(', ') : '', outOfOrder ? 'parts in a different order' : ''].filter(Boolean).join(' · ');
   },
-  seasonal_keyword: (row, ctx) => {
-    const title = hTitleText(row);
-    if (!title) return '';
-    const cat = lrCatOf(row) || {};
-    for (const ev of (ctx.cfg.events || [])) {
-      const word = lrWords(ev.words).find(each => lrHas(title, each));
-      if (!word) continue;
-      if (lrWords(ev.except).some(each => lrHas(String(cat.subcat || '') + ' ' + String(cat.color || ''), each))) continue;
-      const season = lrSeasonState(ev, ctx.today, ctx.cfg.events);   // the one season-date rule: flagged only once it is expired
-      if (!season.expired) continue;
-      return `"${word}" — ${ev.name} is ${season.date ? lrFmtDate(season.date) : 'not dated'}; it belongs in the title from ${season.from ? lrFmtDate(season.from) : '—'}`;
-    }
-    return '';
-  },
 };
 
 /** Why a listing should say "Block Print" (Part A4), in words — or null when it should not be asked: its colour is an embroidery
@@ -1088,10 +1072,6 @@ const LR_FIX_TEXT = {
     if (!missing.length) return `Put the title's parts in the template's order: ${orderWords}.`;
     return `Add ${missing.map(key => lrPartWords(key, parts)).join(', ')} to the title${wrongOrder ? `, in the template's order: ${orderWords}` : ''}.`;
   },
-  seasonal_keyword: hit => {
-    const m = String(hit.detail).match(/^"([^"]+)" — .+; it belongs in the title from (.+)$/);
-    return m ? `Remove "${m[1]}" from the title until its season (from ${m[2]}).` : 'Remove the occasion from the title until its season.';
-  },
 };
 // The fix sentence of one finding; a detector without one, or one that fails, falls back to naming the rule.
 function lrFixText(hit, row, ctx) {
@@ -1235,7 +1215,9 @@ async function lrLoad() {
       const data = snap.data();
       /* A RULE ADDED AFTER THE LAST SAVE MUST STILL RUN. The saved document holds the whole list, so a
        * new default would otherwise stay invisible until somebody pressed Save in the Rules tab. */
-      const saved = data.issues || LR_DEFAULT.issues;
+      /* NO SEASON RULE (14 Nov 2026): season words are the Season planner's alone (Listing Optimiser), never a Listing Health /
+       * Workspace problem. The retired out-of-season rule is dropped from a saved list, so it can neither run nor be saved back. */
+      const saved = (data.issues || LR_DEFAULT.issues).filter(issue => issue.detector !== 'seasonal_keyword');
       const have = new Set(saved.map(issue => issue.id));
       const added = LR_DEFAULT.issues.filter(issue => !have.has(issue.id));
       LR = { issues: added.concat(saved), templates: data.templates || LR_DEFAULT.templates, events: data.events || LR_DEFAULT.events,
