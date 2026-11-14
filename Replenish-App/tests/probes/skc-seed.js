@@ -1,5 +1,6 @@
 /* SKU CODES: load Ravi's 90-row sheet (tests/sku-codes-327.tsv) into pt_masters/skuCode — only if it is empty. */
 const fs = require('fs'), https = require('https'), pathm = require('path');
+const NW = require('./_noted-write.js');     // writes to a synced register leave their change note (Step 4d)
 const FTL = 'C:/Users/ravik/AppData/Roaming/npm/node_modules/firebase-tools/lib/';
 const DB = 'https://price-research-48ff3-default-rtdb.asia-southeast1.firebasedatabase.app';
 (async () => {
@@ -12,7 +13,7 @@ const DB = 'https://price-research-48ff3-default-rtdb.asia-southeast1.firebaseda
   const rows = fs.readFileSync(pathm.join(__dirname, '..', 'sku-codes-327.tsv'), 'utf8').trim().split(/\r?\n/).slice(1).map(l => l.split('\t'));
   const now = new Date().toISOString(), t = Date.now().toString(36), patch = {};
   rows.forEach((r, i) => { patch['skc_' + t + '_' + String(i).padStart(2, '0')] = { article: r[0], subtype: r[1], size: r[2], base: r[3].toUpperCase(), by: 'ravi@thefabricrush.com', at: now, src: 'Ravi sheet 2026-09-22' }; });
-  await req('PATCH', 'pt_masters/skuCode', patch);
+  await req(...NW.noted('PATCH', 'pt_masters/skuCode', patch));
   const back = await req('GET', 'pt_masters/skuCode');
   console.log('written', Object.keys(back || {}).length);
 })().catch(e => { console.error(e.message); process.exit(1); });

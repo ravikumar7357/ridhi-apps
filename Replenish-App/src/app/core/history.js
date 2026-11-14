@@ -64,14 +64,16 @@ function ptSaveFailed(kind, paths, status) {
 async function ptGetFresh(path) {
   const r = await fetch(`${PT_URL}/${ptPath(path)}.json` + await ptAuthQuery());
   if (!r.ok) throw new Error('read ' + r.status);
-  return r.json();
+  return typeof dmJson === 'function' ? dmJson(r, path, 'plain') : r.json();
 }
 /** The history's own write: a root PATCH that is never itself logged. */
-async function ptAuditWrite(updates) {
+async function ptAuditWrite(updates, raw) {
   const r = await fetch(`${PT_URL}/.json` + await ptAuthQuery(), {
     method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updates),
   });
+  if (raw) return r;                                  // Step 4b: a save that wants the answer itself (see saSend)
   if (!r.ok) throw new Error('audit ' + r.status);
+  if (typeof ptMirror === 'function') ptMirror('patch', updates);   // live mirror (core/mirror.js): the log and the bin too — never waits, never throws
   return true;
 }
 /* ---- DELTA SYNC, phase 1 (2026-10-09): which rows of the gate registers changed, and when ----
@@ -107,6 +109,46 @@ function ptSyncNote(paths, fromUrl) {
   if (!Object.keys(u).length) return;
   ptAuditWrite(u).catch(() => {});
 }
+/* ---- ONE REQUEST, DATA + NOTE TOGETHER (Step 4b, switch syncAtomic) ----
+ * The change note above goes out as a second request after the save, so a tab closed between the two leaves a changed
+ * row with no note. With the switch ON, a save on a register path carries its note in the SAME request (a root PATCH),
+ * so both land or neither does. Off, or for a vendor login, or with the history off: today's two requests, unchanged.
+ * Compare-and-set saves (ptCas) never use this. If the database refuses the combined request (403: the note rule is
+ * not live or this login may not write the note), the save is retried the old way and the refusal is logged. */
+function saOn() {
+  try {
+    const s = localStorage.getItem('syncAtomic');
+    if (s === '0') return false;
+    if (typeof AUDIT === 'undefined' || !AUDIT.on) return false;
+    if (typeof spIsVendor === 'function' && spIsVendor()) return false;
+    if (s === '1') return true;
+    return localStorage.getItem('saFlagLast') === '1';
+  } catch (e) { return false; }
+}
+/** Keep the flag's last answer for the next page load. */
+function saSaveFlag(on) {
+  try { if (on) localStorage.setItem('saFlagLast', '1'); else localStorage.removeItem('saFlagLast'); } catch (e) { /* no storage: stays off */ }
+}
+/** The note lines to send together with a save, or null when this save goes the old way (switch off, no register path,
+ *  a note key that is also being written). */
+function saNoteLines(paths, fromUrl, written) {
+  if (!saOn()) return null;
+  const n = ptSyncPaths(paths, fromUrl);
+  const ks = Object.keys(n);
+  if (!ks.length) return null;
+  if (ks.some(k => written && Object.prototype.hasOwnProperty.call(written, k))) return null;
+  return n;
+}
+/** A path as a root-PATCH key: the database key as it is (no %xx), the same form ptSyncPaths notes. */
+function saRawPath(path) {
+  return String(path == null ? '' : path).split('/').filter(s => s !== '')
+    .map(s => { if (!/%[0-9A-Fa-f]{2}/.test(s)) return s; try { return decodeURIComponent(s); } catch (e) { return s; } }).join('/');
+}
+async function saSend(body) { return ptAuditWrite(body, true); }
+/** The combined request was refused: leave a line in pt_syncAudit (never awaited, never throws). */
+function saRefused(paths, status) {
+  try { ptAuditWrite({ ['pt_syncAudit/' + auditId()]: { at: new Date().toISOString(), by: auditWho().by, noteRefused: true, status, paths: (paths || []).slice(0, 20) } }).catch(() => {}); } catch (e) { /* only a log */ }
+}
 
 /** Put a record from the recycle bin back where it was — only if nothing has been written there since. Admins. */
 async function auditRestore(trashId) {
@@ -134,7 +176,7 @@ async function audRead(node, n) {
   const r = await fetch(`${PT_URL}/${ptPath(node)}.json?orderBy=%22%24key%22&limitToLast=${n}` + (q ? '&' + q.slice(1) : ''));
   if (r.status === 401 || r.status === 403) throw new Error('only an admin can read the change history');
   if (!r.ok) throw new Error('the database answered ' + r.status);
-  const v = await r.json();
+  const v = await (typeof dmJson === 'function' ? dmJson(r, node, 'plain') : r.json());
   return Object.entries(v || {}).map(([id, x]) => Object.assign({ _id: id }, x)).filter(x => x && x.at)
     .sort((a, b) => String(b.at).localeCompare(String(a.at)));
 }
@@ -206,7 +248,13 @@ async function ptPut(path, value) {
     if (baseRoutePath(path)) return ptPatch({ [path]: value });
   }
   ptLiveWrote([path]);
-  const r = await fetch(`${PT_URL}/${ptPath(path)}.json` + await ptAuthQuery(), {
+  let r = null, merged = false;
+  const nl = value === undefined ? null : saNoteLines([path], true, null);
+  if (nl) {
+    r = await saSend(Object.assign({ [saRawPath(path)]: value }, nl));
+    if (r.status === 403) { saRefused([path], 403); r = null; } else merged = true;
+  }
+  if (!r) r = await fetch(`${PT_URL}/${ptPath(path)}.json` + await ptAuthQuery(), {
     method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(value),
   });
   ptLiveWrote([path]);
@@ -215,10 +263,11 @@ async function ptPut(path, value) {
     throw new Error('The production database refused the write (permission denied). Sign out and '
       + 'sign in again; if it keeps happening, this account is not allowed to change production data.');
   if (!r.ok) throw new Error(`The production database answered ${r.status} ${r.statusText || ''}`.trim());
-  const out = await r.json();
+  const out = merged ? value : await r.json();
   auditLog('put', { [path]: value });
   if (typeof ptMirror === 'function') ptMirror('put', { [path]: value });   // live mirror (core/mirror.js): never waits, never throws
-  ptSyncNote([path], true);
+  if (!merged) ptSyncNote([path], true);
+  if (typeof oalAfterSave === 'function') oalAfterSave(path, value, 'put');
   return out;
 }
 
@@ -233,7 +282,7 @@ async function ptCas(path, expect, next) {
   const g = await fetch(url, { headers: { 'X-Firebase-ETag': 'true' } });
   if (g.status === 401 || g.status === 403) throw new Error('The production database refused the read (permission denied).');
   if (!g.ok) throw new Error(`The production database answered ${g.status} ${g.statusText || ''}`.trim());
-  const cur = await g.json(), tag = g.headers.get('ETag');
+  const cur = await (typeof dmJson === 'function' ? dmJson(g, path, 'plain') : g.json()), tag = g.headers.get('ETag');
   if (JSON.stringify(cur == null ? null : cur) !== JSON.stringify(expect == null ? null : expect)) return 'changed';
   ptLiveWrote([path]);
   const r = await fetch(url, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'if-match': tag }, body: JSON.stringify(next) });
@@ -246,6 +295,7 @@ async function ptCas(path, expect, next) {
   auditLog('put', { [path]: next });
   if (typeof ptMirror === 'function') ptMirror('put', { [path]: next });
   ptSyncNote([path], true);
+  if (typeof oalAfterSave === 'function') oalAfterSave(path, next, 'put');
   return '';
 }
 
@@ -266,7 +316,13 @@ async function ptPatch(updates, opts) {
     && (k.split('/').filter(Boolean).length <= 2 || /^pt_baseDone\/\d{4}-\d{2}-\d{2}\/[^/]+$/.test(k)));
   if (gone.length) await auditTrash(gone, 'patch');
   ptLiveWrote(Object.keys(updates || {}));
-  const r = await fetch(`${PT_URL}/.json` + await ptAuthQuery(), {
+  let r = null, merged = false;
+  const nl = saNoteLines(Object.keys(updates || {}), false, updates);
+  if (nl) {
+    r = await saSend(Object.assign({}, updates, nl));
+    if (r.status === 403) { saRefused(Object.keys(updates || {}), 403); r = null; } else merged = true;
+  }
+  if (!r) r = await fetch(`${PT_URL}/.json` + await ptAuthQuery(), {
     method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updates),
   });
   ptLiveWrote(Object.keys(updates || {}));
@@ -278,7 +334,8 @@ async function ptPatch(updates, opts) {
   const out = await r.json();
   auditLog('patch', updates || {});
   if (typeof ptMirror === 'function') ptMirror('patch', updates || {});
-  ptSyncNote(Object.keys(updates || {}), false);
+  if (!merged) ptSyncNote(Object.keys(updates || {}), false);
+  if (typeof oalAfterSave === 'function') oalAfterSave('', updates, 'patch');
   if (baseMonths.length) await baseForget(baseMonths);
   return out;
 }
@@ -292,12 +349,19 @@ async function ptDelete(path) {
   }
   await auditTrash([path], 'delete');
   ptLiveWrote([path]);
-  const r = await fetch(`${PT_URL}/${ptPath(path)}.json` + await ptAuthQuery(), { method: 'DELETE' });
+  let r = null, merged = false;
+  const nl = saNoteLines([path], true, null);
+  if (nl) {
+    r = await saSend(Object.assign({ [saRawPath(path)]: null }, nl));
+    if (r.status === 403) { saRefused([path], 403); r = null; } else merged = true;
+  }
+  if (!r) r = await fetch(`${PT_URL}/${ptPath(path)}.json` + await ptAuthQuery(), { method: 'DELETE' });
   ptLiveWrote([path]);
   if (!r.ok) ptSaveFailed('delete', [path], r.status);
   if (!r.ok) throw new Error(`The production database answered ${r.status} ${r.statusText || ''}`.trim());
   auditLog('delete', { [path]: null });
   if (typeof ptMirror === 'function') ptMirror('delete', { [path]: null });
-  ptSyncNote([path], true);
+  if (!merged) ptSyncNote([path], true);
+  if (typeof oalAfterSave === 'function') oalAfterSave(path, null, 'delete');
   return true;
 }

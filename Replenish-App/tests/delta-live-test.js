@@ -63,25 +63,29 @@ function world(opts) {
     failRows: v => { opts.rowFails = v; },
   };
   const store = opts.store || new Map();
-  const indexedDB = { open: () => { const req = {}; const db = { objectStoreNames: { contains: () => true }, createObjectStore: () => {}, close: () => {},
+  const indexedDB = { open: () => { const req = {}; if (opts.idbFails) { setTimeout(() => req.onerror && req.onerror(), 0); return req; } const db = { objectStoreNames: { contains: () => true }, createObjectStore: () => {}, close: () => {},
     transaction: () => { const tx = {}; const st = {
       get: k => { const q = { result: clone(store.get(k)) }; setTimeout(() => tx.oncomplete && tx.oncomplete(), 0); return q; },
-      put: (v, k) => { store.set(k, clone(v)); const q = { result: k }; setTimeout(() => tx.oncomplete && tx.oncomplete(), 0); return q; } };
+      put: (v, k) => { if (opts.putFails) { setTimeout(() => tx.onerror && tx.onerror(), 0); return {}; } store.set(k, clone(v)); const q = { result: k }; setTimeout(() => tx.oncomplete && tx.oncomplete(), 0); return q; } };
       tx.objectStore = () => st; return tx; } };
     setTimeout(() => { req.result = db; req.onsuccess && req.onsuccess(); }, 0); return req; } };
-  const ls = { deltaUse: opts.use === undefined ? '1' : opts.use };
+  const ls = { deltaUse: opts.use === undefined ? '1' : opts.use }, meter = [];
+  if (ls.deltaUse === null) delete ls.deltaUse;
   const ctx = {
     fetch, indexedDB, PT_URL: 'https://db', ptAuthQuery: async () => '?auth=t', ptPath: p => String(p).split('/').filter(Boolean).map(encodeURIComponent).join('/'),
     PT_SYNC_NODES: new Set(['pt_orderBook']), PT_LIVE: new Map(), PT_LIVE_UP: true, PT_LIVE_UID: 'u1', PT_LIVE_NO: { none: true }, PT_LIVE_SETTLE_MS: 5000, PT_LIVE_SEQ: 0,
     ptLiveDb: async () => ({ m: Object.assign({}, m, { onValue: (r, cb, e) => r.path === '.info/serverTimeOffset' ? (setTimeout(() => cb({ val: () => 0 }), 0), () => {}) : m.onValue(r, cb, e) }), db: {} }),
     auth: { currentUser: { uid: opts.uid || 'u1' } }, ME: { email: 'x@y' }, AUDIT: { on: true }, spIsVendor: () => false, auditId: () => Math.random().toString(36).slice(2),
     ptAuditWrite: async u => { logs.push(Object.values(u)[0]); Object.keys(u).forEach(k => calls.push({ method: 'AUDIT', path: k })); return true; },
-    localStorage: { getItem: k => (k in ls ? ls[k] : null) }, setTimeout, structuredClone: undefined,
+    localStorage: { getItem: k => (k in ls ? ls[k] : null), setItem: (k, v) => { ls[k] = String(v); }, removeItem: k => { delete ls[k]; } }, setTimeout, structuredClone: undefined,
+    dmCount: (p, n, how) => meter.push({ p, n, how }),
   };
-  const fn = new Function(...Object.keys(ctx), SRC + '\n;return { DELTA, deltaLiveOpen, deltaUseOn, deltaShadowSoon };');
+  const fn = new Function(...Object.keys(ctx), SRC + '\n;return { DELTA, deltaLiveOpen, deltaUseOn, deltaShadowSoon, deltaSaveFlag };');
   const D = fn(...Object.values(ctx));
-  if (opts.globalUse) D.DELTA.use = true;
-  return Object.assign(D, api, { S, store, calls, logs, L_, ls });
+  D.DELTA.sampleRate = opts.sampleRate || 0;    // the 1-in-10 share is tested apart, below (never random in a test)
+  D.DELTA.delayMs = 0; D.DELTA.minUpMs = 0;
+  if (opts.globalUse) ls.deltaFlagLast = '1';
+  return Object.assign(D, api, { S, store, calls, logs, L_, ls, meter });
 }
 async function open(W) { const L = W.deltaLiveOpen('pt_orderBook'); if (!L) return null; await L.first; await wait(); return L; }
 
@@ -89,7 +93,7 @@ async function open(W) { const L = W.deltaLiveOpen('pt_orderBook'); if (!L) retu
   console.log('== switched off, it is not there ==');
   let W = world({ use: null });
   ok('off as shipped: the register is opened today\'s way', W.deltaLiveOpen('pt_orderBook') === null);
-  W = world({ use: '0', globalUse: true });
+  W = world({ use: '0', globalUse: true });   // the switch is on for everyone, this device says 0
   ok('deltaUse = 0 on a device turns it off even when switched on for everyone', W.deltaLiveOpen('pt_orderBook') === null);
   W = world({ use: '1' });
   ok('deltaUse = 1 on one device turns it on there', W.deltaUseOn() === true);
@@ -171,6 +175,59 @@ async function open(W) { const L = W.deltaLiveOpen('pt_orderBook'); if (!L) retu
   await wait(60);
   ok('a changed row that cannot be read: the whole register', W2.fullListeners('pt_orderBook') === 1 && same(L2.snap.val(), W2.S.pt_orderBook)
     && W2.logs.some(l => l.why === 'a changed row could not be read'));
+
+  console.log('== 4e: the full-download time ==');
+  const full0 = clone(store.get('pt_orderBook'));
+  ok('a full open stamps the copy with fullAt', typeof full0.fullAt === 'number');
+  W = world({ S, store: new Map(store) });
+  W.save('pt_orderBook', 'a', { sku: 'A', qty: 31 });
+  L = await open(W);
+  ok('a delta open leaves fullAt exactly as it was', W.fullListeners('pt_orderBook') === 0 && W.store.get('pt_orderBook').fullAt === full0.fullAt
+    && W.store.get('pt_orderBook').mark > full0.mark, JSON.stringify(W.store.get('pt_orderBook')).slice(0, 80));
+  let st4 = new Map(store); let c4 = clone(st4.get('pt_orderBook')); delete c4.fullAt; st4.set('pt_orderBook', c4);
+  W = world({ S, store: st4 }); L = await open(W);
+  ok('a copy with no full-download time goes the full way', W.fullListeners('pt_orderBook') === 1 && W.logs.some(l => l.why === 'no full download time'));
+  st4 = new Map(store); c4 = clone(st4.get('pt_orderBook')); c4.fullAt -= 2 * DAY; st4.set('pt_orderBook', c4);   // fresh by mark, old by full download
+  W = world({ S, store: st4 }); L = await open(W);
+  ok('fresh changes do not hide a full download older than a day', W.fullListeners('pt_orderBook') === 1 && W.logs.some(l => l.why === 'copy older than a day'));
+  ok('…and the full open makes a new fullAt', W.store.get('pt_orderBook').fullAt > c4.fullAt);
+
+  console.log('== 4f: nothing to read from means a full download ==');
+  W = world({ S, store: new Map() });
+  L = await open(W);
+  ok('a cleared store: the whole register, and a new copy', W.fullListeners('pt_orderBook') === 1 && same(L.snap.val(), W.S.pt_orderBook) && W.store.size === 1);
+  const st5 = new Map(store); const c5 = clone(st5.get('pt_orderBook')); c5.keysAt = 0; st5.set('pt_orderBook', c5);
+  W = world({ S, store: st5, putFails: true });
+  L = await open(W);
+  ok('a full store that refuses the copy: the screen still reads the database', same(L.snap.val(), W.S.pt_orderBook), JSON.stringify(L.snap.val()) + ' vs ' + JSON.stringify(W.S.pt_orderBook));
+  W = world({ S, store: new Map(store), idbFails: true });
+  L = W.deltaLiveOpen('pt_orderBook'); await L.first; await wait(60);
+  ok('no IndexedDB at all: the whole register, live', W.fullListeners('pt_orderBook') === 1 && same(L.snap.val(), W.S.pt_orderBook));
+
+  console.log('== 4g: the switch, the 1-in-10 share, the meter labels ==');
+  W = world({ use: null });
+  ok('no flag, no override: off', W.deltaUseOn() === false && W.deltaLiveOpen('pt_orderBook') === null);
+  W.deltaSaveFlag(true);
+  ok('the flag read from config is kept, and turns it on at the next page load', W.ls.deltaFlagLast === '1' && W.deltaUseOn() === true);
+  W.deltaSaveFlag(false);
+  ok('…and off again when the flag goes off', !('deltaFlagLast' in W.ls) && W.deltaUseOn() === false);
+  W = world({ use: null, globalUse: true, S, store: new Map(store) });
+  L = await open(W);
+  ok('on for everyone: the copy is used', L && W.fullListeners('pt_orderBook') === 0);
+  W = world({ use: null, globalUse: true, sampleRate: 1, S, store: new Map(store) });
+  ok('a session picked for the full path reads the whole register as today', W.deltaLiveOpen('pt_orderBook') === null);
+  W.deltaShadowSoon(); await wait(80);
+  ok('…and runs the shadow', W.logs.some(l => l.nodes));
+  W = world({ use: '1', sampleRate: 1, S, store: new Map(store) });
+  ok('a device that chose deltaUse = 1 is never picked', W.deltaLiveOpen('pt_orderBook') !== null);
+  W = world({ S, store: new Map(store) });
+  W.save('pt_orderBook', 'a', { sku: 'A', qty: 41 });
+  L = await open(W);
+  W.save('pt_orderBook', 'b', { sku: 'B', qty: 42 });
+  await wait(60);
+  ok('rows read at open and on a note are metered as delta, the note itself as delta-notes',
+    W.meter.some(x => x.how === 'delta' && x.p === 'pt_orderBook/a') && W.meter.some(x => x.how === 'delta-notes' && x.p === 'pt_sync/pt_orderBook')
+    && W.meter.every(x => x.how === 'delta' || x.how === 'delta-notes'), JSON.stringify(W.meter));
 
   console.log('== closing, and what it must never do ==');
   W = world({ S, store: new Map(store) });

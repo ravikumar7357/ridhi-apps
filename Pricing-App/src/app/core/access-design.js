@@ -835,7 +835,7 @@ const SELLORA_GROUPS = [
   { name: 'Research', items: [['new', 'New Product'], ['pr', 'Product Research']] },
   { name: 'Sales', items: [['sales', 'Sales Dashboard'], ['profit', 'Profit & Margin'], ['sa', 'Sales Analysis'], ['plaudit', 'Parent Listing Review'], ['shop', 'Shopify Orders'], ['adj', 'Adjustments']] },
   { name: 'Listing', items: [['opt', 'Listing Optimiser'], ['img', 'Image Manager'], ['lerr', 'Listing Errors'], ['basket', 'Bought Together'], ['health', 'Listing Health'], ['lrules', 'Listing Rules'], ['audit', 'Listing Audit'], ['bsr', 'BSR Audit']] },
-  { name: 'Advertising', items: [['trends', 'Ad Console'], ['weekly', 'PPC & Organic'], ['st', 'Search Terms'], ['plc', 'Placement'], ['deals', 'Deal Calendar']] },
+  { name: 'Advertising', items: [['trends', 'Ad Console'], ['weekly', 'Product Performance'], ['st', 'Search Terms'], ['plc', 'Placement'], ['deals', 'Deal Calendar']] },
   { name: 'Inventory & social', items: [['age', 'Inventory Age'], ['tiktok', 'TikTok Toolkit'], ['carousel', 'Carousel Builder']] },
 ];
 const SELLORA_HIDDEN = ['link', 'kw', 'ba'];
@@ -880,9 +880,19 @@ const RIGHTS = [
   /* ACCESS VIEWER (3 Nov): sees this page — everybody's access — and changes nothing */
   ['accessView', 'See the Access page (view only)'],
   /* THE BOARDS' BUTTONS (4 Nov): given any of these, a person does exactly these steps on the SHP / AMZ / B2B / SPY boards */
-  ['bdCut', 'Board — Cut'], ['bdIssue', 'Board — Issue'], ['bdRecv', 'Board — Receive'], ['bdQc', 'Board — QC pass'], ['bdPress', 'Board — Press'],
+  ['bdCut', 'Board — Cut'], ['bdIssue', 'Board — Issue'], ['bdRecv', 'Board — Receive'], ['bdQc', 'Board — QC pass'], ['bdPress', 'Board — Press'], ['bdFill', 'Board — Filler vendor (quilts)'],
 ];
 
+/* TWO PAGES, ONE CODE (Ravi, 4 Nov: "sellora access ko replenish app me shift — sellora me sirf amazon ke access rahe"). This file is the same
+ * in both apps (Replenish-App/src/app/core/access-design.js is a copy, and a test keeps them equal); ACX_SIDE, set by the app before it,
+ * says which half this page shows and changes: 'sellora' = Sellora's screens and its own rights, 'erp' = the ERP's screens and rights.
+ * A person has a role on each side (accessRole = ERP, selloraRole = Sellora), matched on that side's boxes only; saving here never
+ * touches the other half. Admin is given and taken only on the ERP side; deleting a login altogether too. */
+const SIDE = (typeof ACX_SIDE !== 'undefined' && ACX_SIDE === 'erp') ? 'erp' : 'sellora';
+const SELLORA_RIGHTS = ['approve', 'accessView'];
+const SIDE_RIGHT = k => SIDE === 'sellora' ? SELLORA_RIGHTS.includes(k) : (k !== 'approve');
+const SIDE_NAME = SIDE === 'erp' ? 'the ERP' : 'Sellora';
+const ROLE_TAG = SIDE === 'erp' ? 'accessRole' : 'selloraRole';
 const ALL_SELLORA = SELLORA_GROUPS.flatMap(g => g.items.map(i => i[0]));
 const ALL_ERP = ERP_GROUPS.flatMap(g => g.items.map(i => i[0]));
 
@@ -913,12 +923,18 @@ function personAccess(p) {
 }
 
 const sameSet = (a, b) => a.length === b.length && a.every(x => b.includes(x));
+const sideOf = a => ({ admin: !!a.admin, sellora: SIDE === 'sellora' ? a.sellora : [], erp: SIDE === 'erp' ? a.erp : [], rights: a.rights.filter(SIDE_RIGHT) });
+/** These boxes on this side, the other side's from base — what a role keeps when one page edits its half. */
+const withOther = (next, base) => ({ admin: !!next.admin, sellora: SIDE === 'sellora' ? next.sellora : (base ? base.sellora : []), erp: SIDE === 'erp' ? next.erp : (base ? base.erp : []),
+  rights: next.rights.filter(SIDE_RIGHT).concat(base ? base.rights.filter(k => !SIDE_RIGHT(k)) : []) });
 function sameAccess(a, b) {
-  if (a.admin || b.admin) return a.admin === b.admin;
+  if (a.admin || b.admin) return !!a.admin === !!b.admin;
+  a = sideOf(a); b = sideOf(b);
   return sameSet(a.sellora, b.sellora) && sameSet(a.erp, b.erp) && sameSet(a.rights, b.rights);
 }
 /* What a person has beyond a role (+) and what the role has that they lack (−). */
 function accessDiff(person, role) {
+  person = sideOf(person); role = sideOf(role);
   const plus = [], minus = [];
   [['sellora', person.sellora, role.sellora], ['erp', person.erp, role.erp], ['rights', person.rights, role.rights]].forEach(([kind, mine, theirs]) => {
     mine.forEach(k => { if (!theirs.includes(k)) plus.push([kind, k]); });
@@ -980,10 +996,10 @@ SELLORA_GROUPS.forEach(g => g.items.forEach(([k, l]) => { LABEL.sellora[k] = l; 
 ERP_GROUPS.forEach(g => g.items.forEach(([k, l]) => { LABEL.erp[k] = l; }));
 RIGHTS.forEach(([k, l]) => { LABEL.rights[k] = l; });
 const APPS = [
-  { kind: 'sellora', name: 'Sellora', groups: SELLORA_GROUPS },
-  { kind: 'erp', name: 'Fabricrush', groups: ERP_GROUPS },
-  { kind: 'rights', name: 'Extra rights', groups: [{ name: 'Can also', items: RIGHTS.filter(r => !/^bd/.test(r[0])) },
-    { name: 'SHP / AMZ / B2B / SPY boards — only these buttons', items: RIGHTS.filter(r => /^bd/.test(r[0])) }] },
+  /* the page is one app's already, so its block is called what it holds, not the app (Ravi, 4 Nov) */
+  SIDE === 'sellora' ? { kind: 'sellora', name: 'Access points', groups: SELLORA_GROUPS } : { kind: 'erp', name: 'Access points', groups: ERP_GROUPS },
+  { kind: 'rights', name: 'Extra rights', groups: [{ name: 'Can also', items: RIGHTS.filter(r => SIDE_RIGHT(r[0]) && !/^bd/.test(r[0])) },
+    { name: 'SHP / AMZ / B2B / SPY boards — only these buttons', items: RIGHTS.filter(r => SIDE_RIGHT(r[0]) && /^bd/.test(r[0])) }].filter(g => g.items.length) },
 ];
 
 const DATA = { source: 'live', readAt: '', people: [] };
@@ -998,10 +1014,12 @@ function freshState() {
   buildRoles();
   const roles = {};
   ROLES.forEach(r => { roles[r.key] = roleAccess(r); });
-  const people = DATA.people.map(rec => {
+  /* this page lists who has something on its side — and, on the ERP side, logins with nothing at all, so they can be cleaned away */
+  const here = rec => { const a = personAccess(rec); return a.admin || !isEmptyAccess(a) || (SIDE === 'erp' && !a.sellora.length && !a.erp.length && !a.rights.length); };
+  const people = DATA.people.filter(here).map(rec => {
     const email = String(rec.email || '').toLowerCase();
     if (email === OWNER_EMAIL) return { email, role: 'owner', special: null };
-    const acc = personAccess(rec), tag = String(rec.accessRole || '');
+    const acc = personAccess(rec), tag = String(rec[ROLE_TAG] || (SIDE === 'sellora' ? rec.accessRole : '') || '');
     if (tag === '__special') return { email, role: null, special: acc };
     if (tag && roles[tag] && (roles[tag].admin ? acc.admin : sameAccess(acc, roles[tag]))) return { email, role: tag, special: null };
     if (acc.admin) return { email, role: 'owneradmin', special: null };
@@ -1030,22 +1048,41 @@ const acxOld = email => DATA.people.find(p => p.email === email) || null;
 function acxRecord(old, a, roleKey) {
   old = old || {};
   const keepS = (old.tabs || []).filter(t => !ALL_SELLORA.includes(t)), keepE = (old.replTabs || []).filter(t => !ALL_ERP.includes(t));
-  const rec = { admin: !!a.admin, brands: old.brands || [], prod: !!old.prod };
-  if (a.admin) { rec.tabs = old.tabs || []; rec.replTabs = old.replTabs || []; rec.repl = !!old.repl; RIGHTS.forEach(([k]) => { rec[k] = old[k] === true; }); }
+  /* admin is the ERP side's to give or take */
+  const rec = { admin: SIDE === 'erp' ? !!a.admin : old.admin === true, brands: old.brands || [], prod: !!old.prod };
+  if (rec.admin) { rec.tabs = old.tabs || []; rec.replTabs = old.replTabs || []; rec.repl = !!old.repl; RIGHTS.forEach(([k]) => { rec[k] = old[k] === true; }); }
   else {
-    rec.tabs = [...new Set(a.sellora.concat(keepS))]; rec.replTabs = [...new Set(a.erp.concat(keepE))];
-    /* only a section that reads Firestore turns repl on (Save access's rule); the old "whole app" flag stays only while no section is ticked */
-    rec.repl = (old.repl === true && !(old.replTabs || []).length && !a.erp.length) || rec.replTabs.some(t => !FACTORY_SECTIONS.includes(t));
-    RIGHTS.forEach(([k]) => { rec[k] = a.rights.includes(k); });
+    /* the other side's half stays exactly as it was */
+    rec.tabs = SIDE === 'sellora' ? [...new Set(a.sellora.concat(keepS))] : (old.tabs || []);
+    if (SIDE === 'erp') {
+      rec.replTabs = [...new Set(a.erp.concat(keepE))];
+      /* only a section that reads Firestore turns repl on (Save access's rule); the old "whole app" flag stays only while no section is ticked */
+      rec.repl = (old.repl === true && !(old.replTabs || []).length && !a.erp.length) || rec.replTabs.some(t => !FACTORY_SECTIONS.includes(t));
+    } else { rec.replTabs = old.replTabs || []; rec.repl = old.repl === true; }
+    RIGHTS.forEach(([k]) => { rec[k] = SIDE_RIGHT(k) ? a.rights.includes(k) : old[k] === true; });
   }
-  rec.accessRole = roleKey || '';
+  rec.accessRole = SIDE === 'erp' ? (roleKey || '') : String(old.accessRole || '');
+  rec.selloraRole = SIDE === 'sellora' ? (roleKey || '') : String(old.selloraRole || '');
   return rec;
 }
+/** Nothing left anywhere: no screen in either app, no right, not admin. */
+const acxBare = rec => !rec.admin && !(rec.tabs || []).length && !(rec.replTabs || []).length && !rec.repl && !RIGHTS.some(([k]) => rec[k] === true);
 const acxCanEdit = () => !!(ME && ME.admin);
 async function acxWrite(email, a, roleKey) {
   if (!acxCanEdit()) throw new Error('view only — only an admin can change access');
-  if (email === String(ME.email || '').toLowerCase() && !a.admin) throw new Error('you cannot take away your own admin rights');
+  if (SIDE === 'erp' && email === String(ME.email || '').toLowerCase() && !a.admin) throw new Error('you cannot take away your own admin rights');
   const rec = acxRecord(acxOld(email), a, roleKey);
+  await setDoc(doc(db, 'perms', email), Object.assign({}, rec, { at: serverTimestamp(), by: ME.email }));
+  try { await permMirror(email, rec); } catch (e) { throw new Error('saved, but NOT in the production database copy (' + (e.message || e) + ') — do it again'); }
+}
+/** Remove: this side's half only. When nothing is left anywhere, the record goes too. */
+async function acxRemoveSide(email) {
+  if (!acxCanEdit()) throw new Error('view only — only an admin can change access');
+  if (email === String(ME.email || '').toLowerCase()) throw new Error('you cannot remove your own access');
+  const old = acxOld(email) || {};
+  if (old.admin === true && SIDE !== 'erp') throw new Error(email + ' is an admin — that is changed in the ERP Access page');
+  const rec = acxRecord(old, { admin: false, sellora: [], erp: [], rights: [] }, '');
+  if (acxBare(rec)) return acxDel(email);
   await setDoc(doc(db, 'perms', email), Object.assign({}, rec, { at: serverTimestamp(), by: ME.email }));
   try { await permMirror(email, rec); } catch (e) { throw new Error('saved, but NOT in the production database copy (' + (e.message || e) + ') — do it again'); }
 }
@@ -1074,26 +1111,34 @@ const membersOf = key => S.people.filter(p => p.role === key);
 const specials = () => S.people.filter(p => !p.role);
 const personBy = email => S.people.find(p => p.email === email);
 const accessOf = p => p.role === 'owner' ? personAccess({ email: OWNER_EMAIL }) : p.role ? S.roles[p.role] : p.special;
-const isEmptyAccess = a => !a.admin && !a.sellora.length && !a.erp.length && !a.rights.length;
+const isEmptyAccess = a => { if (a.admin) return false; const m = sideOf(a); return !m.sellora.length && !m.erp.length && !m.rights.length; };
+/* A role is shown on this side when it gives something here, is Admin, or somebody is in it. */
+const shown = r => !!r && (r.admin || !isEmptyAccess(S.roles[r.key] || { sellora: [], erp: [], rights: [] }) || membersOf(r.key).length > 0);
+const shownRoles = () => ROLES.filter(shown);
+/* The Sellora side never makes anybody admin: the admin roles are not offered there. */
+const pickable = r => shown(r) && !(SIDE !== 'erp' && r.admin);
 const placeOf = p => p.role === 'owner' ? { dept: 'Owner', role: 'Owner / Admin' } : p.role ? { dept: roleByKey(p.role).deptName, role: roleByKey(p.role).name } : { dept: 'Special cases', role: 'Own boxes' };
 function countPills(a) {
   if (a.admin) return '<span class="pill admin">Everything · Admin</span>';
   if (isEmptyAccess(a)) return '<span class="pill grey">Nothing granted</span>';
+  a = sideOf(a);
   const p = [];
-  if (a.sellora.length) p.push(`<span class="pill grey">${a.sellora.length} Sellora</span>`);
-  if (a.erp.length) p.push(`<span class="pill grey">${a.erp.length} Fabricrush</span>`);
+  /* the page is one app's already, so the pill says how many screens, not which app (Ravi, 4 Nov: "45 access points") */
+  const pts = a.sellora.length + a.erp.length;
+  if (pts) p.push(`<span class="pill grey">${plural(pts, 'access point')}</span>`);
   if (a.rights.length) p.push(`<span class="pill grey">${plural(a.rights.length, 'right')}</span>`);
   return '<span class="counts">' + p.join('') + '</span>';
 }
 function summaryText(a) {
   if (a.admin) return 'Everything in both apps';
-  if (isEmptyAccess(a)) return 'Nothing granted';
+  if (isEmptyAccess(a)) return 'Nothing granted in ' + SIDE_NAME;
+  a = sideOf(a);
   const pages = a.sellora.length + a.erp.length;
-  return plural(pages, 'page') + (a.rights.length ? ' · ' + plural(a.rights.length, 'right') : '');
+  return plural(pages, 'access point') + (a.rights.length ? ' · ' + plural(a.rights.length, 'right') : '');
 }
 function closestRole(a) {
   let best = null;
-  ROLES.filter(r => !r.admin).forEach(r => {
+  ROLES.filter(r => !r.admin && shown(r)).forEach(r => {
     const d = accessDiff(a, S.roles[r.key]);
     const n = d.plus.length + d.minus.length;
     if (!best || n < best.n) best = { role: r, diff: d, n };
@@ -1130,13 +1175,14 @@ function renderNav() {
     return `<button class="nav-item ${cls} ${on ? 'on' : ''}" type="button" data-nav="${page}" ${dept ? `data-dept="${dept}"` : ''}>${icon}<span>${esc(label)}</span><span class="n">${n}</span></button>`;
   };
   const deptCount = d => ROLES.filter(r => r.dept === d.key).reduce((n, r) => n + membersOf(r.key).length, 0);
+  const depts = DEPARTMENTS.filter(d => shownRoles().some(r => r.dept === d.key));
   $('sidenav').innerHTML = item('overview', null, IC.grid, 'Overview', S.people.length)
     + '<div class="nav-label">Departments</div>'
-    + DEPARTMENTS.map(d => item('dept', d.key, IC[d.key], d.name, deptCount(d))).join('')
+    + depts.map(d => item('dept', d.key, IC[d.key], d.name, deptCount(d))).join('')
     + '<div class="nav-sep"></div>'
     + item('special', null, IC.star, 'Special cases', specials().length, 'special-nav')
     + item('people', null, IC.people, 'All people', S.people.length)
-    + (acxCanEdit() ? '<p class="nav-note">Changes here are real: they change what people can open, in Sellora and the ERP. Each one asks first.</p>'
+    + (acxCanEdit() ? '<p class="nav-note">Changes here are real: they change what people can open in ' + SIDE_NAME + '. ' + (SIDE === 'erp' ? 'Sellora screens are given in Sellora → Access.' : 'ERP screens, admins and deleting a login are in the ERP → Access.') + ' Each one asks first.</p>'
       : '<p class="nav-note">View only. You can see who can open what; changing it needs an admin.</p>');
 }
 
@@ -1148,7 +1194,7 @@ function roleTable(roles, q) {
       const m = membersOf(r.key);
       const head = r.group !== lastGroup ? `<tr class="grp"><td colspan="4">${esc(r.group)}</td></tr>` : '';
       lastGroup = r.group;
-      const hit = q && (m.some(p => p.email.includes(q)) || roleHit(r, q));
+      const hit = q && (m.some(p => p.email.includes(q)) || roleHit(r, q) || accessHit(S.roles[r.key], q));
       return head + `<tr class="row ${hit ? 'hit' : ''}" data-open-role="${r.key}" tabindex="0">
         <td><div class="cell-title">${esc(r.name)} ${r.admin ? '<span class="pill admin">Admin</span>' : ''} ${r.limit ? '<span class="pill limit">Limit</span>' : ''} ${r.custom ? '<span class="pill grey">Added here</span>' : ''}</div></td>
         <td class="hide-sm">${countPills(S.roles[r.key])}</td>
@@ -1161,8 +1207,21 @@ function roleTable(roles, q) {
 /* SEARCH BY ROLE TOO (Ravi, 3 Nov: "also add search by role in search button"): a word finds people by their email, their role's name,
  * its group or department — "cutting" lists the Cutting master's people, "amazon" everyone in the Amazon group. */
 const roleHit = (r, q) => !!r && [r.name, r.group, r.deptName].some(x => String(x || '').toLowerCase().includes(q));
+/* SEARCH BY AN ACCESS TOO (Ravi, 4 Nov: "access ka naam dala jaise sales dashboard toh voh saare users ke mails dikha de"): a word that
+ * names a screen or a right on this side finds everybody who holds it. */
+function accessHit(a, q) {
+  if (!a || !q) return false;
+  if (a.admin) return false;
+  const m = sideOf(a);
+  return m.sellora.some(k => String(LABEL.sellora[k] || k).toLowerCase().includes(q)) || m.erp.some(k => String(LABEL.erp[k] || k).toLowerCase().includes(q))
+    || m.rights.some(k => String(LABEL.rights[k] || k).toLowerCase().includes(q));
+}
+/** The screens and rights of this side whose name has the word in it. */
+const accessNamed = q => !q ? [] : [].concat(SIDE === 'sellora' ? SELLORA_GROUPS : ERP_GROUPS).flatMap(g => g.items).concat(RIGHTS.filter(r => SIDE_RIGHT(r[0])))
+  .filter(([k, l]) => String(l).toLowerCase().includes(q)).map(x => x[1]);
 function personHit(p, q) {
   if (p.email.includes(q)) return true;
+  if (accessHit(accessOf(p), q)) return true;
   const pl = placeOf(p);
   return [pl.role, pl.dept].some(x => String(x || '').toLowerCase().includes(q)) || roleHit(p.role && p.role !== 'owner' ? roleByKey(p.role) : null, q);
 }
@@ -1171,18 +1230,18 @@ function renderMain() {
   const c = $('content');
   const sp = specials();
   if (VIEW.page === 'overview') {
-    const used = ROLES.filter(r => membersOf(r.key).length).length;
+    const used = ROLES.filter(r => membersOf(r.key).length).length, roleN = shownRoles().length;
     const admins = S.people.filter(p => p.role === 'owner' || !!(roleByKey(p.role) || {}).admin).length;
     c.innerHTML = `<div class="page-head"><div><h1>Overview</h1><p class="muted">Every person sits in one role, or in Special cases. Click a role to see its access.</p></div>
       <button class="btn" type="button" data-add-role="">${IC.plus} Add role</button></div>
       <div class="stats">
-        <button class="stat" type="button" data-nav="people"><div class="v">${S.people.length}</div><div class="l">People with a login</div></button>
-        <div class="stat"><div class="v">${used}<span class="muted" style="font-size:15px"> / ${ROLES.length}</span></div><div class="l">Roles in use</div></div>
+        <button class="stat" type="button" data-nav="people"><div class="v">${S.people.length}</div><div class="l">People with ${SIDE === 'erp' ? 'ERP' : 'Sellora'} access</div></button>
+        <div class="stat"><div class="v">${used}<span class="muted" style="font-size:15px"> / ${roleN}</span></div><div class="l">Roles in use</div></div>
         <button class="stat special" type="button" data-nav="special"><div class="v">${sp.length}</div><div class="l">Special cases</div></button>
         <div class="stat"><div class="v">${admins}</div><div class="l">Admins</div></div>
       </div>
-      <div class="dept-grid">` + DEPARTMENTS.map(d => {
-        const roles = ROLES.filter(r => r.dept === d.key);
+      <div class="dept-grid">` + DEPARTMENTS.filter(d => shownRoles().some(r => r.dept === d.key)).map(d => {
+        const roles = shownRoles().filter(r => r.dept === d.key);
         const n = roles.reduce((s, r) => s + membersOf(r.key).length, 0);
         return `<section class="card"><div class="card-head"><div><h2>${esc(d.name)}</h2><p class="muted">${plural(roles.length, 'role')} · ${plural(n, 'person')}</p></div>
           <button class="btn sm" type="button" data-nav="dept" data-dept="${d.key}">Open ${IC.chev}</button></div>
@@ -1196,7 +1255,7 @@ function renderMain() {
   }
   if (VIEW.page === 'dept') {
     const d = DEPARTMENTS.find(x => x.key === VIEW.dept);
-    const roles = ROLES.filter(r => r.dept === d.key);
+    const roles = shownRoles().filter(r => r.dept === d.key);
     const n = roles.reduce((s, r) => s + membersOf(r.key).length, 0);
     c.innerHTML = `<div class="page-head"><div><h1>${esc(d.name)}</h1><p class="muted">${deptGroups(d).map(esc).join(' · ')} — ${plural(roles.length, 'role')}, ${plural(n, 'person')}</p></div>
       <div class="top-actions"><button class="btn" type="button" data-add-role="${d.key}">${IC.plus} Add role</button><button class="btn" type="button" data-add-in="${d.key}">${IC.plus} Add person</button></div></div>
@@ -1222,7 +1281,10 @@ function renderMain() {
   }
   /* All people */
   const list = S.people.filter(p => !q || personHit(p, q)).sort((a, b) => a.email.localeCompare(b.email));
-  c.innerHTML = `<div class="page-head"><div><h1>All people</h1><p class="muted">${q ? plural(list.length, 'match') + ' for “' + esc(q) + '”' : plural(S.people.length, 'person') + ' with a login'}</p></div></div>
+  const named = accessNamed(q);
+  c.innerHTML = `<div class="page-head"><div><h1>All people</h1><p class="muted">${q ? plural(list.length, 'match') + ' for “' + esc(q) + '”'
+      + (named.length ? ' — including everybody who can open ' + named.slice(0, 4).map(n => '<b>' + esc(n) + '</b>').join(', ') + (named.length > 4 ? ' and ' + (named.length - 4) + ' more' : '') : '')
+      : plural(S.people.length, 'person') + ' with ' + (SIDE === 'erp' ? 'ERP' : 'Sellora') + ' access'}</p></div></div>
     <section class="card">` + (list.length ? `<table class="t"><thead><tr><th>Person</th><th class="hide-sm">Department</th><th>Role</th><th class="hide-sm">Access</th><th class="chev"></th></tr></thead><tbody>`
       + list.map(p => {
         const pl = placeOf(p);
@@ -1243,7 +1305,7 @@ function render() { renderSource(); renderNav(); renderMain(); if (D) renderDraw
 /* ---------- access list: every page of each app, ticked or not ---------- */
 function accessBlocks(a, { editing = false, onlyGranted = true, base = null } = {}) {
   if (a.admin) return `<div class="callout limit">${IC.lock}<div><b>Everything.</b> Every page in Sellora and Fabricrush, every right, pay and rates, and the Access page itself.</div></div>`;
-  if (!editing && isEmptyAccess(a)) return `<div class="callout info">${IC.info}<div>Nothing granted. This person sees a “No access” page after signing in.</div></div>`;
+  if (!editing && isEmptyAccess(a)) return `<div class="callout info">${IC.info}<div>Nothing granted in ${SIDE_NAME}.</div></div>`;
   return APPS.map(app => {
     const keys = a[app.kind];
     const total = app.groups.reduce((n, g) => n + g.items.length, 0);
@@ -1263,7 +1325,7 @@ function accessBlocks(a, { editing = false, onlyGranted = true, base = null } = 
     }).join('');
     if (!editing && onlyGranted && !keys.length) return '';
     return `<div class="app-block"><div class="app-block-head"><b>${app.name}</b><span class="of">${keys.length} of ${total}</span></div>${secs || '<div class="sec muted">None</div>'}</div>`;
-  }).join('') || `<div class="callout info">${IC.info}<div>No pages in either app.</div></div>`;
+  }).join('') || `<div class="callout info">${IC.info}<div>No pages in ${SIDE_NAME}.</div></div>`;
 }
 function readBoxes() {
   const a = { admin: false, sellora: [], erp: [], rights: [] };
@@ -1274,7 +1336,7 @@ function roleNotes(r) {
   return (r.limit ? `<div class="callout limit">${IC.info}<div><b>Limit:</b> ${esc(r.limit)}</div></div>` : '')
     + (r.cannot ? `<div class="callout cannot">${IC.ban}<div><b>Cannot:</b> ${esc(r.cannot)}</div></div>` : '');
 }
-const roleOptions = (current, withSpecial) => DEPARTMENTS.map(d => `<optgroup label="${esc(d.name)}">` + ROLES.filter(r => r.dept === d.key)
+const roleOptions = (current, withSpecial) => DEPARTMENTS.filter(d => ROLES.some(r => r.dept === d.key && (pickable(r) || r.key === current))).map(d => `<optgroup label="${esc(d.name)}">` + ROLES.filter(r => r.dept === d.key && (pickable(r) || r.key === current))
   .map(r => `<option value="${r.key}" ${r.key === current ? 'selected' : ''}>${esc(r.name)}</option>`).join('') + '</optgroup>').join('')
   + (withSpecial ? `<option value="__special" ${current === '__special' ? 'selected' : ''}>Special case (own boxes)</option>` : '');
 
@@ -1328,7 +1390,7 @@ function renderRoleDrawer() {
       };
       const rm = row.querySelector('[data-remove]');
       rm.onclick = () => {
-        if (rm.dataset.sure) { acxDo('', () => acxDel(p.email), p.email + ' removed — no access'); return; }
+        if (rm.dataset.sure) { acxDo('', () => acxRemoveSide(p.email), p.email + ' — ' + SIDE_NAME + ' access removed'); return; }
         rm.dataset.sure = '1'; rm.textContent = 'Sure?';
       };
     });
@@ -1362,7 +1424,7 @@ function renderRoleDrawer() {
     update();
     foot.querySelector('[data-cancel]').onclick = () => { D.editing = false; renderDrawer(); };
     foot.querySelector('[data-save]').onclick = () => {
-      const next = readBoxes(), d = accessDiff(next, a), key = D.key, was = S.roles[key];
+      const next = withOther(readBoxes(), a), d = accessDiff(next, a), key = D.key, was = S.roles[key];
       acxDo(m.length ? `Save ${r.name}: +${d.plus.length} / −${d.minus.length}. This changes the access of ${m.length === 1 ? '1 person' : m.length + ' people'} now:\n` + m.map(p => p.email).join('\n') : `Save ${r.name}?`,
         async () => { S.roles[key] = next; try { await acxSaveRoles(); } catch (e) { S.roles[key] = was; throw e; }
           const bad = []; for (const p of m) { try { await acxWrite(p.email, next, key); } catch (e) { bad.push(p.email + ': ' + (e.message || e)); } }
@@ -1405,7 +1467,7 @@ function openAddRole(deptKey, w) {
         <div class="field"><label for="acx-arGroup">Group</label><select id="acx-arGroup">${groups.map(g => `<option value="${esc(g)}" ${g === w.group ? 'selected' : ''}>${esc(g)}</option>`).join('')}<option value="__new" ${w.group === '__new' ? 'selected' : ''}>New group…</option></select></div>
       </div>
       ${w.group === '__new' ? `<div class="field"><label for="acx-arNewGroup">New group name</label><input type="text" id="acx-arNewGroup" value="${esc(w.newGroup)}" placeholder="e.g. Cutting" autocomplete="off"></div>` : ''}
-      <div class="field"><label for="acx-arCopy">Start from</label><select id="acx-arCopy"><option value="">Nothing ticked</option>${ROLES.filter(r => !r.admin).map(r => `<option value="${r.key}" ${r.key === w.copy ? 'selected' : ''}>${esc(r.deptName)} · ${esc(r.name)}</option>`).join('')}</select>
+      <div class="field"><label for="acx-arCopy">Start from</label><select id="acx-arCopy"><option value="">Nothing ticked</option>${shownRoles().filter(r => !r.admin).map(r => `<option value="${r.key}" ${r.key === w.copy ? 'selected' : ''}>${esc(r.deptName)} · ${esc(r.name)}</option>`).join('')}</select>
         <p class="muted">Copies that role's boxes below, so you only change what differs.</p></div>
       <div class="form-row">
         <div class="field"><label for="acx-arLimit">Limit <span class="muted">(optional)</span></label><input type="text" id="acx-arLimit" value="${esc(w.limit)}" placeholder="e.g. Own department only" autocomplete="off"></div>
@@ -1513,9 +1575,20 @@ function renderPersonDrawer() {
   wireRemove(foot.querySelector('[data-remove]'), p);
 }
 function wireRemove(btn, p) {
+  btn.textContent = 'Remove ' + (SIDE === 'erp' ? 'ERP' : 'Sellora') + ' access';
+  btn.title = 'Takes away what this person has in ' + SIDE_NAME + ' only' + (SIDE === 'erp' ? '' : ' — their ERP access stays');
   btn.onclick = () => {
-    if (btn.dataset.sure) { acxDo('', () => acxDel(p.email), p.email + ' removed — no access').then(() => closeDrawer()); return; }
+    if (btn.dataset.sure) { acxDo('', () => acxRemoveSide(p.email), p.email + ' — ' + SIDE_NAME + ' access removed').then(() => closeDrawer()); return; }
     btn.dataset.sure = '1'; btn.textContent = 'Sure? Remove';
+  };
+  /* deleting the login's whole access record (both apps) is the ERP side's */
+  if (SIDE !== 'erp' || !btn.parentNode) return;
+  const del = document.createElement('button');
+  del.type = 'button'; del.className = 'btn sm danger'; del.setAttribute('data-remove', ''); del.textContent = 'Delete login'; del.title = 'Removes everything this person has, in the ERP and in Sellora';
+  btn.insertAdjacentElement('afterend', del);
+  del.onclick = () => {
+    if (del.dataset.sure) { acxDo('', () => acxDel(p.email), p.email + ' deleted — no access in either app').then(() => closeDrawer()); return; }
+    del.dataset.sure = '1'; del.textContent = 'Sure? Delete in both apps';
   };
 }
 function whyNotEmail(email) {
@@ -1543,7 +1616,7 @@ function openAdd(w = { step: 1, email: '', dept: '', role: '' }) {
   if (w.step === 1) {
     openModal('Add a user', 'The role you pick already carries the access — nothing to tick.',
       stepper(1) + `<div class="field"><label for="acx-addEmail">Sign-in email</label><input type="email" id="acx-addEmail" placeholder="name@thefabricrush.com" value="${esc(w.email)}" autocomplete="off">
-        <p class="muted">The address they use to sign in to Sellora and Fabricrush.</p><div class="err" id="acx-addErr"></div></div>`,
+        <p class="muted">The address they use to sign in to Sellora and Fabricrush. This gives them ${SIDE_NAME} screens; anything they have in the other app stays.</p><div class="err" id="acx-addErr"></div></div>`,
       `<button class="btn ghost" type="button" data-cancel>Cancel</button><button class="btn primary" type="button" data-next>Next ${IC.chev}</button>`);
     const next = () => {
       const email = $('addEmail').value.trim().toLowerCase();
@@ -1560,8 +1633,8 @@ function openAdd(w = { step: 1, email: '', dept: '', role: '' }) {
   }
   if (w.step === 2) {
     openModal('Add a user', esc(w.email),
-      stepper(2) + '<div class="choice-grid">' + DEPARTMENTS.map(d => {
-        const n = ROLES.filter(r => r.dept === d.key).length;
+      stepper(2) + '<div class="choice-grid">' + DEPARTMENTS.filter(d => ROLES.some(r => r.dept === d.key && pickable(r))).map(d => {
+        const n = ROLES.filter(r => r.dept === d.key && pickable(r)).length;
         return `<button class="choice" type="button" data-dept="${d.key}"><span class="ic">${IC[d.key]}</span><span><span class="t">${esc(d.name)}</span><span class="s">${deptGroups(d).map(esc).join(', ')}</span><span class="s">${plural(n, 'role')}</span></span></button>`;
       }).join('') + `<button class="choice special-choice" type="button" data-dept="__special"><span class="ic">${IC.star}</span><span><span class="t">Special case</span><span class="s">Fits no role. Kept apart; you tick their boxes one by one.</span></span></button></div>`,
       `<button class="btn ghost" type="button" data-back>Back</button>`);
@@ -1587,7 +1660,7 @@ function openAdd(w = { step: 1, email: '', dept: '', role: '' }) {
   const d = DEPARTMENTS.find(x => x.key === w.dept);
   const picked = w.role ? roleByKey(w.role) : null;
   openModal('Add a user', esc(w.email) + ' · ' + esc(d.name), stepper(3)
-    + `<div class="pick-layout"><div class="role-list">` + deptGroups(d).map(gn => `<div class="g">${esc(gn)}</div>` + ROLES.filter(r => r.dept === d.key && r.group === gn).map(r =>
+    + `<div class="pick-layout"><div class="role-list">` + deptGroups(d).map(gn => `<div class="g">${esc(gn)}</div>` + ROLES.filter(r => r.dept === d.key && r.group === gn && pickable(r)).map(r =>
       `<button class="role-opt ${w.role === r.key ? 'on' : ''}" type="button" data-pick="${r.key}"><span class="t">${esc(r.name)}</span><span class="s">${esc(summaryText(S.roles[r.key]))} · ${plural(membersOf(r.key).length, 'member')}</span></button>`).join('')).join('')
     + `</div><div class="role-preview">` + (picked
       ? `<h2>${esc(picked.name)}</h2><p class="muted">${esc(picked.group)} · ${esc(w.email)} will get exactly this</p>${accessBlocks(S.roles[picked.key])}${roleNotes(picked)}`

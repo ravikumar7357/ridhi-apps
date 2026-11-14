@@ -237,6 +237,16 @@ function mdbAddNew() {
 
 function mdbEdit(sku) {
   if (!mdbCanEdit()) { $('ptmMsg').className = 'err'; $('ptmMsg').textContent = MDB_NO_EDIT; return; }
+  /* The edit window says where the SKU is in use (order book, Job Work, cutting, press, QC), and Delete refuses a SKU in use:
+   * with page registers on, the Master Database opens on the master alone, so the rest is read now, before the window opens. */
+  if (prOn() && !ptHas(PTG_ALL)) {
+    $('ptmMsg').className = 'muted'; $('ptmMsg').textContent = 'Reading where this SKU is used…';
+    ptNeed(PTG_ALL, { why: 'pmdb edit' }).then(() => {
+      if (ptHas(PTG_ALL)) { $('ptmMsg').textContent = ''; mdbEdit(sku); }
+      else { $('ptmMsg').className = 'err'; $('ptmMsg').textContent = 'Could not read the orders: ' + (PTG.err || 'try again'); }
+    });
+    return;
+  }
   const r = mdbOf(sku);
   if (!r) return;
   const use = mdbUsage(r.sku);
@@ -297,7 +307,7 @@ $('ptmTplShort').onclick = () => {
 };
 
 $('ptmNew').onclick = async () => {
-  if (!PTG.mdb) { $('ptmMsg').textContent = 'Reading the master database…'; await ptLoadGates(); }
+  await ptNeed(PTG_MASTER, { why: 'pmdb edit', has: 'mdb', note: () => { $('ptmMsg').textContent = 'Reading the master database…'; } });
   if (($('ptmView') || {}).value === 'fabric') return fsManualEdit('');
   mdbAddNew();
 };
@@ -422,9 +432,9 @@ async function mdbImgCacheSave() {
     for (let i = 0; i < chunks; i++) {
       const m = {};
       keys.slice(i * IMG_CHUNK, (i + 1) * IMG_CHUNK).forEach(k => { m[k] = MDBIMG.map[k]; });
-      await setDoc(doc(db, 'repl_skuimg', String(i)), { m });
+      await fsSetDoc(doc(db, 'repl_skuimg', String(i)), { m });
     }
-    await setDoc(doc(db, 'repl', 'skuimg'), { chunks, n: keys.length, at: serverTimestamp(), by: ME.email });
+    await fsSetDoc(doc(db, 'repl', 'skuimg'), { chunks, n: keys.length, at: serverTimestamp(), by: ME.email });
   } catch (e) {
     console.warn('[img] cache not saved:', e.message || e);
   }

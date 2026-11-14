@@ -49,7 +49,7 @@
  },
  {
   "q": "Add ka matlab kya hai",
-  "tab": "adj",
+  "tab": "repl",
   "id": "c-adj-1032",
   "kind": "part"
  },
@@ -61,7 +61,7 @@
  },
  {
   "q": "what is Air here",
-  "tab": "adj",
+  "tab": "repl",
   "id": "c-adj-1010",
   "kind": "part"
  },
@@ -151,7 +151,7 @@
  },
  {
   "q": "All departments kya karta hai",
-  "tab": "mst",
+  "tab": "ka",
   "id": "c-mst-1632",
   "kind": "part"
  },
@@ -187,7 +187,7 @@
  },
  {
   "q": "All movements kya karta hai",
-  "tab": "vord",
+  "tab": "fab",
   "id": "c-vord-2344",
   "kind": "part"
  },
@@ -433,7 +433,7 @@
  },
  {
   "q": "what does Brand do",
-  "tab": "adj",
+  "tab": "repl",
   "id": "c-adj-1005",
   "kind": "part"
  },
@@ -451,13 +451,13 @@
  },
  {
   "q": "Cancel क्या है",
-  "tab": "vord",
+  "tab": "fab",
   "id": "c-vord-2363",
   "kind": "part"
  },
  {
   "q": "what is Cancelled here",
-  "tab": "adj",
+  "tab": "repl",
   "id": "c-adj-1020",
   "kind": "part"
  },
@@ -499,7 +499,7 @@
  },
  {
   "q": "Clear filters button kis kaam ka hai",
-  "tab": "mst",
+  "tab": "pmdb",
   "id": "c-mst-1647",
   "kind": "part"
  },
@@ -517,7 +517,7 @@
  },
  {
   "q": "Close ka matlab kya hai",
-  "tab": "fba",
+  "tab": "fgi",
   "id": "c-fba-1453",
   "kind": "part"
  },
@@ -529,7 +529,7 @@
  },
  {
   "q": "what is Color here",
-  "tab": "adj",
+  "tab": "repl",
   "id": "c-adj-1023",
   "kind": "part"
  },

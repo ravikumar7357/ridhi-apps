@@ -132,6 +132,7 @@ async function accessShadow(user, permsDoc, firebaseMs) {
       await skusShadow(token);      // section 4: every SKU record (at most once an hour per browser — ~4 MB)
       await ordersShadow(token);    // section 5: every order (at most once an hour per browser — ~13 MB)
       await stockShadow(token);     // section 6: every stock line (at most once an hour per browser — ~5 MB)
+      for (const s of ASH_MORE) await ashMoreShadow(s, token);   // sections 7–10: HR, Production, listings, this month's history (each at most once an hour)
     } catch (e) { console.warn('[shadow] stopped:', e && e.message); }
   })();
 }
@@ -618,4 +619,105 @@ function ashShow(r) {
     const place = () => { const sw2 = document.getElementById('ashSwitch'); const r = (sw2 || el).getBoundingClientRect(); b.style.left = Math.round(r.right + 8) + 'px'; };
     place(); new ResizeObserver(place).observe(el);
   }
+}
+
+/* ================= HR · PRODUCTION · LISTINGS · HISTORY · SHADOW TESTS (Ravi, 13 Nov) =================
+ * The same check as Stock and Orders for the four sections moved last: every record in live Firebase against Supabase's
+ * fingerprints (core.hr_fp / production_fp / listings_fp / history_fp_month — fingerprints only; rows whose Firebase
+ * record is gone are left out). One line each above the Stock line; at most once an hour per browser; click to run now.
+ * A list this login may not read is left out on both sides and named on the line. Keep the paths the same as
+ * migration/tools/make-hr.js, make-production.js, make-leftovers.js, make-history.js. */
+const ashRec = x => x && typeof x === 'object' && !Array.isArray(x);
+const ASH_MORE = [
+  { id: 'ashHr', key: 'r1.testerp.hrShadowAt', label: 'HR', noun: 'records', bottom: 318, door: 'hr_fp',
+    lists: ['pt_empList', 'pt_attend', 'pt_extraHours', 'pt_rateList', 'pt_teamSize', 'pt_contractorHeads', 'pt_ehFreezes', 'pt_payoutFreezes', 'pt_advances',
+            'pt_loginDir', 'pt_vendorByEmail', 'pt_vendorMap', 'pt_printers', 'pt_perms'],
+    paths(v, out) {
+      for (const n of ['pt_empList', 'pt_rateList']) ashEnt(v[n]).forEach(([i, x]) => { if (Array.isArray(x)) out.set(`${n}/${i}`, x); });
+      for (const n of ['pt_attend', 'pt_extraHours', 'pt_loginDir', 'pt_vendorByEmail', 'pt_vendorMap', 'pt_printers', 'pt_perms']) ashEnt(v[n]).forEach(([k, x]) => { if (ashRec(x)) out.set(`${n}/${k}`, x); });
+      for (const n of ['pt_ehFreezes', 'pt_payoutFreezes', 'pt_advances']) ashEnt(v[n]).forEach(([k, x]) => out.set(`${n}/${k}`, x));
+      ashEnt(v.pt_teamSize).forEach(([k, x]) => { if (ashRec(x)) ashEnt(x.sizes).forEach(([j, s]) => out.set(`pt_teamSize/${k}/sizes/${j}`, s)); });
+      ashEnt(v.pt_contractorHeads).forEach(([w, x]) => { if (x && typeof x === 'object') ashEnt(x).forEach(([c, y]) => out.set(`pt_contractorHeads/${w}/${c}`, y)); else out.set(`pt_contractorHeads/${w}`, x); });
+    } },
+  { id: 'ashProd', key: 'r1.testerp.prodShadowAt', label: 'Production', noun: 'records', bottom: 362, door: 'production_fp',
+    lists: ['pt_ppc', 'pt_flowDemand', 'pt_blockNeed', 'pt_flowChallans', 'pt_flowPrintOrders', 'pt_cuttingData', 'pt_baseData', 'pt_baseDone', 'pt_qcChecks', 'pt_qcIssuance',
+            'pt_qcReturns', 'pt_flowFgSend', 'pt_shpBoardPress', 'pt_shpBoardTest'],
+    paths(v, out) {
+      for (const n of this.lists) {
+        if (n === 'pt_blockNeed' || n === 'pt_baseDone') continue;
+        ashEnt(v[n]).forEach(([k, x]) => { if (ashRec(x)) out.set(`${n}/${k}`, x); });
+      }
+      ashEnt(v.pt_baseDone).forEach(([g, grp]) => { if (!g.startsWith('_') && ashRec(grp)) ashEnt(grp).forEach(([k, x]) => { if (ashRec(x)) out.set(`pt_baseDone/${g}/${k}`, x); }); });
+      const B = v.pt_blockNeed || {}, info = ashRec(B.info) ? B.info : {}, map = ashRec(B.map) ? B.map : {};
+      for (const bc of new Set([...Object.keys(info), ...Object.keys(map)])) {
+        const rec = {}; if (info[bc] != null) rec.info = info[bc]; if (map[bc] != null) rec.map = map[bc]; out.set(`pt_blockNeed:${bc}`, rec);
+      }
+    } },
+  { id: 'ashList', key: 'r1.testerp.listShadowAt', label: 'Listings', noun: 'records', bottom: 406, door: 'listings_fp',
+    lists: ['pt_listingAlerts', 'pt_amzListings'],
+    paths(v, out) {
+      ashEnt(v.pt_listingAlerts).forEach(([k, x]) => { if (ashRec(x)) out.set(`pt_listingAlerts/${k}`, x); });
+      String((v.pt_amzListings || {}).list || '').split('\n').forEach((line, i) => { if (line !== '') out.set(`pt_amzListings/list#${i + 1}`, line); });
+    } },
+  { id: 'ashHist', key: 'r1.testerp.histShadowAt', label: 'History', noun: 'log lines (this month) + bin', bottom: 450,
+    month() { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); },
+    get door() { return 'history_fp_month'; }, body() { return { p_month: this.month() }; },
+    get lists() { return ['pt_audit/' + this.month(), 'pt_trash']; },
+    paths(v, out) {
+      ashEnt(v['pt_audit/' + this.month()]).forEach(([k, x]) => { if (ashRec(x)) out.set(`pt_audit/${this.month()}/${k}`, x); });
+      ashEnt(v.pt_trash).forEach(([k, x]) => { if (ashRec(x)) out.set(`pt_trash/${k}`, x); });
+    } },
+];
+async function ashMoreShadow(s, token, force) {
+  let last = 0; try { last = Number(localStorage.getItem(s.key)) || 0; } catch (e) { /* no storage: run */ }
+  if (!force && Date.now() - last < 3600e3) { ashShowMore(s, { waiting: true, at: last, token }); return; }
+  ashShowMore(s, { running: true, token });
+  try {
+    const read = n => (typeof ptGetFresh === 'function' ? ptGetFresh(n) : ptGet(n, true));
+    const t0 = performance.now();
+    const lists = s.lists, v = {}, blocked = [];
+    const got = await Promise.allSettled(lists.map(read));
+    got.forEach((g, i) => { if (g.status === 'fulfilled') v[lists[i]] = g.value; else blocked.push(lists[i]); });
+    const firebaseMs = Math.round(performance.now() - t0);
+    const fb = new Map(); s.paths(v, fb);
+    const t1 = performance.now();
+    const j = await ashCall(s.door, token, s.body ? s.body() : undefined);
+    const supabaseMs = Math.round(performance.now() - t1);
+    const sb = new Map(Object.entries(j || {}));
+    const copyOf = sb.get('#copy_of') || ''; sb.delete('#copy_of');
+    // a list this login could not read: left out on both sides (it would only show as "gone")
+    if (blocked.length) for (const p of [...sb.keys()]) if (blocked.some(b => p === b || p.startsWith(b + '/') || p.startsWith(b + ':'))) sb.delete(p);
+    const t2 = performance.now();
+    const { missing, changed, extra } = await ashCompare(fb, sb);
+    const compareMs = Math.round(performance.now() - t2);
+    const matched = !missing.length && !changed.length && !extra.length;
+    try { localStorage.setItem(s.key, String(Date.now())); } catch (e) { /* fine */ }
+    ashShowMore(s, { matched, total: fb.size, missing, changed, extra, firebaseMs, supabaseMs, compareMs, copyOf, blocked, token });
+    ashCall('shadow_report', token, { p_section: s.label.toLowerCase() + ' · records', p_matched: matched, p_firebase_ms: firebaseMs, p_supabase_ms: supabaseMs,
+      p_missing: missing.concat(changed.map(p => p + ' (changed)')).slice(0, 500), p_extra: extra.slice(0, 500), p_build: (window.__TEST_ERP && window.__TEST_ERP.sha) || 'local' }).catch(() => {});
+    console.info('[shadow] ' + s.label, matched ? 'same' : 'DIFFERS', { total: fb.size, missing: missing.length, changed: changed.length, extra: extra.length, firebaseMs, supabaseMs, blocked });
+  } catch (e) { ashShowMore(s, { error: e.message, token }); }
+}
+function ashShowMore(s, r) {
+  let el = document.getElementById(s.id);
+  if (!el) {
+    el = document.createElement('button'); el.id = s.id; el.type = 'button';
+    el.style.cssText = `position:fixed;left:calc(12px + env(safe-area-inset-left,0px));bottom:calc(${s.bottom}px + env(safe-area-inset-bottom,0px));z-index:10000;`
+      + 'font:12px/1.3 system-ui,sans-serif;padding:7px 11px;border-radius:999px;border:1px solid rgba(0,0,0,.15);cursor:pointer;max-width:calc(100vw - 24px);text-align:left;color:#1b1b1b';
+    document.body.appendChild(el);
+    el.onclick = () => { const x = el._r || {}; if (x.waiting || x.error) { ashMoreShadow(s, x.token, true); return; } el.dataset.open = el.dataset.open ? '' : '1'; ashShowMore(s, x); };
+  }
+  el._r = r; el.style.whiteSpace = 'pre-line';
+  if (r.running) { el.style.background = '#eef1f7'; ashShape(el, false); el.textContent = s.label + ' · comparing every record with Firebase…'; return; }
+  if (r.waiting) { el.style.background = '#eef1f7'; ashShape(el, false); el.textContent = s.label + ' · last compared ' + new Date(r.at).toLocaleTimeString('en-IN') + ' · click to compare again now'; return; }
+  if (r.error) { el.style.background = '#fff4d6'; ashShape(el, false); el.textContent = '! ' + s.label + ' · not compared: ' + String(r.error).slice(0, 120) + ' · click to retry'; return; }
+  el.style.background = r.matched ? '#e3f4ea' : '#fde4e1';
+  const n = r.missing.length + r.changed.length + r.extra.length;
+  let t = s.label + ' · ' + r.total.toLocaleString('en-IN') + ' ' + s.noun + ' · ' + (r.matched ? '✓ every one the same as Firebase' : '✗ ' + n.toLocaleString('en-IN') + ' differ' + (r.copyOf ? ' (Supabase copy ' + r.copyOf + ')' : ''))
+    + ' · Firebase ' + r.firebaseMs + ' ms · Supabase ' + r.supabaseMs + ' ms · compare ' + r.compareMs + ' ms' + (r.blocked && r.blocked.length ? ' · not readable here: ' + r.blocked.join(', ') : '');
+  const open = !!(el.dataset.open && n);
+  if (open) t += '\n' + [...r.changed.map(p => 'changed: ' + p), ...r.missing.map(p => 'new in Firebase: ' + p), ...r.extra.map(p => 'gone from Firebase: ' + p)].join('\n')
+    + '\nA difference here usually means a record saved in the ERP that has not reached Supabase yet. Click to close.';
+  ashShape(el, open);
+  el.textContent = t;
 }

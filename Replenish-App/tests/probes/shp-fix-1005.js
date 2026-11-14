@@ -4,6 +4,7 @@
  * Reads Shopify's word from truth.json (shp-truth.js), re-reads pt_orderBook live. Dry run unless WRITE=1.
  * Saves an undo file (path → value before) and a pt_audit line.   node probes/shp-fix-1005.js <truth.json> */
 const fs = require('fs'), https = require('https'), pathm = require('path');
+const NW = require('./_noted-write.js');     // writes to a synced register leave their change note (Step 4d)
 const FTL = 'C:/Users/ravik/AppData/Roaming/npm/node_modules/firebase-tools/lib/';
 const DB = 'https://price-research-48ff3-default-rtdb.asia-southeast1.firebasedatabase.app';
 (async () => {
@@ -43,7 +44,7 @@ const DB = 'https://price-research-48ff3-default-rtdb.asia-southeast1.firebaseda
   const stamp = now.replace(/[:.]/g, '-');
   const undoFile = pathm.join(__dirname, 'shp-fix-undo-' + stamp + '.json');
   fs.writeFileSync(undoFile, JSON.stringify(undo, null, 1));
-  await call('PATCH', '', patch);
+  await call(...NW.noted('PATCH', '', patch));
   const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
   const keys = Object.keys(patch);
   await call('PATCH', '', { ['pt_audit/' + now.slice(0, 7) + '/' + id]: { at: now, by: who, tab: 'fix', kind: 'patch', n: keys.length, paths: keys.slice(0, 50), note: 'Reopened note-closed lines Shopify still has to ship; closed open lines Shopify fulfilled/cancelled. Undo: ' + pathm.basename(undoFile) } });

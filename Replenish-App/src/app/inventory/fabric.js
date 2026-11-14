@@ -67,9 +67,13 @@ async function ensureFab() {
   if (FAB.rows === null) {
     FAB.busy = true; renderFab();
     /* The ledger and what is taken off it, read together. */
+    /* The Fabric tab holds the Store, which reads the order book and the factory registers, so it asks for the whole set itself.
+     * The RFD stock dialog's own load (fabAutoLoad) needs only the master since page registers were narrowed.
+     * Only with page registers on: with the switch off, fabAutoLoad's own read does exactly what it did before. */
     await Promise.all([
       ptGet('pt_fabInvLedger').then(v => { FAB.rows = ptList(v); FAB.err = ''; },
         e => { FAB.err = e.message || String(e); FAB.rows = FAB.rows || []; }),
+      prOn() ? ptNeed(PTG_ALL, { why: 'fabric', has: 'mdb' }).catch(() => { /* the store says so if it cannot read */ }) : null,
       fabAutoLoad(),
     ]);
     FAB.at = ptStamp(); FAB.busy = false;

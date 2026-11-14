@@ -87,6 +87,8 @@ async function loadAccessList() {
  * grants read AND WRITE on repl/*, replrows/*, po/*, packlist/* and READ of config/api — the Amazon
  * backend key. An outside printer holding only the Vendor Portal must never pick that up on the way
  * past, which is what happened while any ticked section set the flag. */
+/* Sellora's Access page shows and changes Sellora's half only (4 Nov) — the ERP's half is in the ERP's own Access page. */
+const ACX_SIDE = 'sellora';
 const FACTORY_SECTIONS = ['pmdb', 'mst', 'pbase', 'pcut', 'ppress', 'qc', 'qcalt', 'qcret', 'ord', 'so', 'vord', 'vreq', 'rfd', 'att',
   'vend', 'cx', 'fgi', 'fgacc', 'shpacc', 'vpview', 'fba', 'fab', 'acc', 'rep', 'pa', 'ka', 'hr',
   /* History and Printer Allocation were missing, so ticking History alone set perms.repl — and with it

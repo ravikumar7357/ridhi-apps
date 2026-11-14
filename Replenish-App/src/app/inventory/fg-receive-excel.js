@@ -477,7 +477,7 @@ async function fgiSeedSave(india, press, known) {
 async function fgiWipeOpen() {
   if (!ME.admin) return;
   if (FGI.rows === null) await ensureFgi();
-  if (!PTG.press) await ptLoadGates();
+  await ptNeed(PTG_ALL, { why: 'fg-receive-excel', has: 'press' });
   const rows = FGI.rows || [];
   const byType = {}, bySrc = {};
   rows.forEach(r => { byType[r.txnType] = (byType[r.txnType] || 0) + 1;

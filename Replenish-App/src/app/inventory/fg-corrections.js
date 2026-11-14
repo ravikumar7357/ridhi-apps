@@ -33,7 +33,8 @@ async function fgiCorrLoad() {
 
 function fgiCorrBadge() {
   const el = $('fgiCorrBadge'); if (!el) return;
-  const n = fgiCanEdit() ? fgiCorrPending().length : 0;
+  /* The screen's own list wins once it is loaded; until then, the count the sign-in asked for (core/pending-badges.js). */
+  const n = fgiCanEdit() ? (FGC.rows === null ? pbCount('fgc') : fgiCorrPending().length) : 0;
   el.textContent = n ? String(n) : '';
   el.classList.toggle('hide', !n);
 }

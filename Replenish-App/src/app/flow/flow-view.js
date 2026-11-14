@@ -32,7 +32,7 @@ async function flowEnsureData() {
   /* QC checks and the Finished Goods ledger: the QC bucket and the hand-over read them. */
   if (typeof QC !== 'undefined' && QC.checks == null && PTG.qc && PTG.qc.length) QC.checks = PTG.qc;
   errs.push(...await flowReads([
-    ['the order book and registers', PTG.mdb ? null : ptLoadGates()],
+    ['the order book and registers', ptLack(PTG_ALL, 'mdb') ? ptNeed(PTG_ALL, { why: 'flow' }) : null],
     ['QC checks', typeof QC !== 'undefined' && QC.checks == null ? ptGet('pt_qcChecks').then(v => { QC.checks = ptList(v); }) : null],
     ['Finished Goods', typeof FGI !== 'undefined' && FGI.rows == null && typeof fgiLoad === 'function' ? fgiLoad() : null],
     ['plans and challans', flowLoad()], ['the fabric register', flowFabLoad()],

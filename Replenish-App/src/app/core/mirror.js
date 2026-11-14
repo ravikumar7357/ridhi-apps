@@ -22,8 +22,9 @@ const MIR = {
   key: 'sb_publishable_ybYG7Y1iAZerulnwWREWaw_EzubVDPT',   // its publishable key (made for browsers; opens only the doors)
   store: 'r1.mirror.queue', q: [], busy: false, timer: null, refused: false, sent: 0, lastError: '',
 };
-/* Lists that are bookkeeping, not data: never sent. */
-const MIR_SKIP = /^pt_(audit|trash|sync|syncAudit|dataMeter|flowRev)(\/|$)/;
+/* Lists that are bookkeeping, not data: never sent. The log (pt_audit) and the recycle bin (pt_trash) ARE sent (13 Nov):
+ * they are data — Supabase keeps them in schema history. */
+const MIR_SKIP = /^pt_(sync|syncAudit|dataMeter|flowRev)(\/|$)/;
 
 /** A Firestore value as plain JSON: server time → now, a date → its ISO text. */
 function mirPlain(v) {
@@ -58,16 +59,38 @@ function ptMirror(kind, updates) {
 /** Called after a Firestore save of a moved list worked. kind: put · merge · delete; path: "po/<id>". */
 function fsMirror(kind, path, data) {
   try {
-    if (!MIR.on || MIR.refused) return;
+    if (!MIR.on || MIR.refused || !path) return;
     const base = 'fs/' + String(path || '').replace(/^\/+/, ''), t = new Date().toISOString();
     if (kind === 'delete') MIR.q.push({ k: 'delete', p: base, v: null, t });
     else if (kind === 'merge') {
-      /* setDoc(…, { merge: true }): only the fields given change — each top-level field as its own change */
-      const d = mirPlain(data) || {};
-      for (const f of Object.keys(d)) MIR.q.push({ k: 'patch', p: base + '/' + f, v: d[f], t });
+      /* setDoc(…, { merge: true }): Firestore merges maps inside maps too, so each leaf is its own change
+       * ({ remark: { S1: 'x' } } changes remark/S1 only, never the whole remark map). A list is one value (Firestore replaces it). */
+      const out = [];
+      const leaves = (o, pre) => { for (const k of Object.keys(o)) { const v = o[k], p = pre + '/' + k;
+        if (v && typeof v === 'object' && !Array.isArray(v) && !(v.constructor && v.constructor.name !== 'Object') && Object.keys(v).length) leaves(v, p);
+        else out.push([p, v && v._methodName === 'deleteField' ? null : mirPlain(v)]); } };
+      if (data && typeof data === 'object') leaves(data, base);
+      for (const [p, v] of out) MIR.q.push({ k: 'patch', p, v, t });
     } else MIR.q.push({ k: 'put', p: base, v: mirPlain(data), t });
     mirSave(); mirSoon();
   } catch (e) { /* never in the way of the save */ }
+}
+/* Firestore saves that also go to the mirror: the same call as Firestore's own (same answer, same errors), then the change
+ * to the mirror. Used by every ERP screen that saves to Firestore (13 Nov). */
+async function fsSetDoc(ref, data, opts) {
+  const r = opts === undefined ? await setDoc(ref, data) : await setDoc(ref, data, opts);
+  if (typeof fsMirror === 'function') fsMirror(opts && opts.merge ? 'merge' : 'put', ref && ref.path, data);
+  return r;
+}
+async function fsAddDoc(col, data) {
+  const ref = await addDoc(col, data);
+  if (ref && ref.path && typeof fsMirror === 'function') fsMirror('put', ref.path, data);
+  return ref;
+}
+async function fsDeleteDoc(ref) {
+  const r = await deleteDoc(ref);
+  if (typeof fsMirror === 'function') fsMirror('delete', ref && ref.path);
+  return r;
 }
 
 async function mirFlush() {

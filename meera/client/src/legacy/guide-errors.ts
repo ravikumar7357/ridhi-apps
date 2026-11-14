@@ -1,9 +1,12 @@
 /* EVERY ERROR THE ERP CAN SHOW, for Meera: [the message's longest fixed piece, lower case; the screen it belongs to].
  * Read off the screens' own code (every red message line, and every rule a form checks before it saves), so when
  * someone pastes or asks about a message, Meera knows which screen it is from and why it happens (gaWhy in
- * guide-ask.ts). 611 messages. MADE BY meera/tools/make-errors.cjs — do not edit; when screens change, it is
+ * guide-ask.ts). 622 messages. MADE BY meera/tools/make-errors.cjs — do not edit; when screens change, it is
  * made again (her gate says so on every push). */
 const GUIDE_ERRS = [
+  ["everything in both apps", ""],
+  ["type an email address first.", ""],
+  ["that does not look like an email address.", ""],
   ["⚠️ backend not configured — create firestore doc config/replapi with {url, key}.", ""],
   ["not deleted", ""],
   ["pieces must be at least 1.", ""],
@@ -91,6 +94,7 @@ const GUIDE_ERRS = [
   ["type what came back on at least one line.", "flow"],
   ["nothing is owed by that printer any more — press refresh.", "flow"],
   ["type what came back for at least one line.", "flow"],
+  ["'s is past its due date.", "flow"],
   ["nothing is owed by a printer.", "flow"],
   ["pieces are whole", "flow"],
   ["more came back than was given for", "flow"],
@@ -283,6 +287,7 @@ const GUIDE_ERRS = [
   ["those requests are no longer waiting — somebody has answered them.", "so"],
   ["only the sales team (the sales orders tab) can answer a request.", "so"],
   ["say why these lines stay — production asked for a reason, and gets one back.", "so"],
+  ["sales orders are not loaded on this page", ""],
   ["that line is no longer on the order.", "ord"],
   ["which employment type?", "ord"],
   ["which karigar is it going to?", "ord"],
@@ -346,6 +351,11 @@ const GUIDE_ERRS = [
   ["this order is not yours to change.", "so"],
   ["that sku is not on this order.", "so"],
   ["pick the delivery date.", "so"],
+  ["pick the filler vendor, or type its name.", ""],
+  ["quantities cannot be below 0.", ""],
+  ["piece(s) on this line", ""],
+  ["piece(s) have passed qc — a quilt goes to the filler after qc.", ""],
+  ["cannot come back.", ""],
   ["handing pieces to shipping needs the shopify tab.", ""],
   ["piece(s) of this line still need to be made.", ""],
   ["type how many pieces were cut.", ""],
@@ -590,6 +600,7 @@ const GUIDE_ERRS = [
   ["put a quantity against at least one line you are sending now.", "vend"],
   ["only an admin can give a vendor portal access.", "vend"],
   ["no vendor in the vendor master has an email address or a cellphone, so there is nothing to", "vend"],
+  ["upload the sheet again for the rest — the saved ones are no longer open for that much.", ""],
   ["nothing to write — choose \"remove these\" to take the missing colours off the list.", "palloc"],
   ["no order number", "palloc"],
   ["tick what to delete.", "palloc"],

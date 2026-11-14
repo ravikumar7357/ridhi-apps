@@ -75,7 +75,7 @@ async function savePkWt(patchM, patchD) {
   const body = { by: ME.email || '', at: serverTimestamp() };
   if (patchM) body.m = patchM;
   if (patchD) body.d = patchD;
-  await setDoc(doc(db, 'repl', 'packwt'), body, { merge: true });
+  await fsSetDoc(doc(db, 'repl', 'packwt'), body, { merge: true });
 }
 function pkLookupSku(sku) {
   const k = String(sku || '').trim().toUpperCase();

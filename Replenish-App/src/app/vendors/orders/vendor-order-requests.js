@@ -88,7 +88,7 @@ async function ensureVrq(force) {
       ptGet('pt_vendorOrderReqs').then(v => { VRQ.rows = ptList(v).filter(r => r && r.id); VRQ.err = ''; },
         e => { VRQ.err = e.message || String(e); VRQ.rows = VRQ.rows || []; }),
       VO.rows === null ? ensureVo().catch(() => { /* progress shows as unknown */ }) : null,
-      PTG.mdb ? null : ptLoadGates().catch(() => { /* codes show instead of names */ }),
+      ptNeed(PTG_MASTER, { why: 'vendor-order-requests', has: 'mdb' }).catch(() => { /* codes show instead of names */ }),
     ]);
     VRQ.at = ptStamp(); VRQ.busy = false;
   }
@@ -98,7 +98,8 @@ async function ensureVrq(force) {
 /** The red count on the sidebar — only for somebody who can do something about it. */
 function vrqBadge() {
   const el = $('vreqBadge'); if (!el) return;
-  const n = vrqCanApprove() ? (VRQ.rows || []).filter(r => r && r.status === 'pending').length : 0;
+  /* The screen's own list wins once it is loaded; until then, the count the sign-in asked for (core/pending-badges.js). */
+  const n = vrqCanApprove() ? (VRQ.rows === null ? pbCount('vrq') : VRQ.rows.filter(r => r && r.status === 'pending').length) : 0;
   el.textContent = n ? String(n) : '';
   el.classList.toggle('hide', !n);
 }
@@ -146,6 +147,9 @@ async function vrqSubmit(d) {
  */
 async function vrqApprove(id, opts) {
   if (!vrqCanApprove()) return VRQ_NO_APPROVE;
+  /* Page registers on: this screen opens on the master alone, but approving stamps each line with the sales orders it is for and checks
+   * the printer cap against the order book. The whole set is read first; a save never runs on part of it. */
+  if (prOn()) { await ptNeed(PTG_ALL, { why: 'vendor-order-requests approve' }); const wait = ptStillReading(); if (wait) return wait; }
   const r = vrqOf(id);
   if (!r) return 'That request is gone — press Refresh.';
   if (r.status !== 'pending') return `${r.reqNo || id} is not waiting for approval any more (${r.status}).`;
@@ -262,6 +266,8 @@ async function vrqWithdraw(id) {
 
 /** A rejected or withdrawn request, back in the form to fix and send again. */
 async function vrqCopy(id) {
+  /* Page registers on: the order form works out the demand and the printer cap from the order book and the factory registers, so they are read first. */
+  if (prOn()) await ptNeed(PTG_ALL, { why: 'vendor-order-requests copy' });
   const r = vrqOf(id); if (!r) return;
   await voFormOpen('request');
   if ($('vof_vendor')) $('vof_vendor').value = r.vendorCode || '';

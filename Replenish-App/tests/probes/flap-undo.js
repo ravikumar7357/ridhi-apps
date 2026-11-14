@@ -8,6 +8,7 @@
  * `node flap-undo.js` shows; `node flap-undo.js go` writes.
  */
 const fs = require('fs'), https = require('https'), pathm = require('path');
+const NW = require('./_noted-write.js');     // writes to a synced register leave their change note (Step 4d)
 const FTL = 'C:/Users/ravik/AppData/Roaming/npm/node_modules/firebase-tools/lib/';
 const DB = 'https://price-research-48ff3-default-rtdb.asia-southeast1.firebasedatabase.app';
 const norm = v => String(v == null ? '' : v).trim().toLowerCase().replace(/\s+/g, ' ').replace(/\s*[x×]\s*/g, 'x');
@@ -62,8 +63,8 @@ const path = k => k.replace(/[.#$/[\]]/g, '_');
   const keys = Object.keys(patch);
   for (let i = 0; i < keys.length; i += 400) {
     const slice = {}; keys.slice(i, i + 400).forEach(k => { slice[k] = patch[k]; });
-    await req('PATCH', 'pt_masterDB', slice);
+    await req(...NW.noted('PATCH', 'pt_masterDB', slice));
   }
-  await req('PATCH', 'pt_masters/recipe', recPatch);
+  await req(...NW.noted('PATCH', 'pt_masters/recipe', recPatch));
   console.log('\nwritten.');
 })().catch(e => { console.error(e.message); process.exit(1); });

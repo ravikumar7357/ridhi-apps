@@ -17,7 +17,7 @@ const JWC_FIELDS = [['empName', 'Karigar'], ['issuePieces', 'Issued'], ['receive
 const JWC_ADMIN_ONLY = ['sku', 'issueDate', 'receivingDate'];
 
 async function jwCorrLoad() {
-  try { const v = await ptGet('pt_jwCorrReqs'); JWC.rows = v && typeof v === 'object' ? v : {}; }
+  try { const v = await ptGet('pt_jwCorrReqs'); JWC.rows = v && typeof v === 'object' ? v : {}; JWC.full = true; }
   catch (e) { JWC.rows = JWC.rows || {}; }
   jwCorrBadge();
 }
@@ -142,7 +142,8 @@ async function jwCorrReject(id, note) {
 }
 
 function jwCorrBadge() {
-  const n = ptCanEdit() ? jwCorrPending().length : 0;
+  /* The screen's own list wins once it is loaded; until then, the count the sign-in asked for (core/pending-badges.js). */
+  const n = ptCanEdit() ? (JWC.rows === null ? pbCount('jwc') : jwCorrPending().length) : 0;
   const el = $('jwCorrBadge');
   if (el) { el.textContent = n ? String(n) : ''; el.classList.toggle('hide', !n); }
   const b = $('pbCorr');

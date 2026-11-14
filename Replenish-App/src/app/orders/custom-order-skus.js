@@ -340,7 +340,7 @@ function mdbRenamePreview() {
 const MDB_RENAME_MAX = 200;
 
 $('ptmRename').onclick = async () => {
-  if (!PTG.mdb) { $('ptmMsg').textContent = 'Reading the master database…'; await ptLoadGates(); }
+  await ptNeed(PTG_ALL, { why: 'custom skus', has: 'mdb', note: () => { $('ptmMsg').textContent = 'Reading the master database…'; } });
   MDBREN = { pairs: null, name: '' };
   ptOpenDialog({
     title: 'Change a SKU code',
@@ -405,7 +405,7 @@ $('ptmRename').onclick = async () => {
     if (!got.rows.length) { ptDlgMsg('That file has no rows under the header.', true); return; }
     ptDlgMsg('');
     /* The master database has to be in memory before the preview can count what moves. */
-    if (!PTG.mdb) await ptLoadGates();
+    await ptNeed(PTG_ALL, { why: 'custom-order-skus', has: 'mdb' });
     await mdbRenameLoadAll();
     MDBREN = { pairs: got.rows, name: f.name };
     const plan = mdbRenamePlan(got.rows);
@@ -481,12 +481,12 @@ async function b2bImgSave(list, orderNo) {
   for (const x of list) {
     const id = b2bImgId(x.sku);
     try {
-      await setDoc(doc(db, 'b2bimg', id), { sku: obUC(x.sku), d: x.d, order: orderNo || '', by: ME.email || '', at });
+      await fsSetDoc(doc(db, 'b2bimg', id), { sku: obUC(x.sku), d: x.d, order: orderNo || '', by: ME.email || '', at });
       ok.add(obUC(x.sku)); idx[id] = at; B2BIMG.map[obUC(x.sku)] = x.d; B2BIMG.asked.add(obUC(x.sku));
     } catch (e) { failed++; }
   }
   if (ok.size) {
-    try { await setDoc(doc(db, 'b2bimg', '_index'), { skus: idx }, { merge: true }); if (B2BIMG.idx) Object.assign(B2BIMG.idx, idx); }
+    try { await fsSetDoc(doc(db, 'b2bimg', '_index'), { skus: idx }, { merge: true }); if (B2BIMG.idx) Object.assign(B2BIMG.idx, idx); }
     catch (e) { failed += ok.size; ok.clear(); }
   }
   return { saved: ok.size, failed, ok };
@@ -509,7 +509,7 @@ async function soImgShrink(bytes, ext) {
  * order-book line (shopImg), not with Amazon. sku -> that picture; rebuilt only when either list changes. */
 let _imgLineMap = null, _imgLineFor = null;
 function ptImgLines() {
-  const cust = (typeof MDBX !== 'undefined' && MDBX.custom) || null, ob = PTG.ob || null;
+  const cust = (typeof MDBX !== 'undefined' && MDBX.custom) || null, ob = (typeof ptPeek === 'function' ? ptPeek('ob') : PTG.ob) || null;
   if (_imgLineMap && _imgLineFor && _imgLineFor[0] === cust && _imgLineFor[1] === ob) return _imgLineMap;
   const m = new Map();
   const pic = u => /^(https?:|data:)/i.test(u || '') && !/kommodo\.ai\/i\//i.test(u);     // a share page is not a picture

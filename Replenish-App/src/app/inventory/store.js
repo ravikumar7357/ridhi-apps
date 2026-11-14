@@ -70,7 +70,7 @@ async function ensureStoreRead() {
     ptGet('pt_storeChecks').then(v => { STORE.checks = v || {}; }, () => { STORE.checks = STORE.checks || {}; }),
     /* The Job Work Register and the cutting table after the order book, as before: the order book reads both, and
      * a second read is then answered from what the first one left (or skipped, when it filled them). */
-    (PTG.mdb ? Promise.resolve() : ptLoadGates().catch(() => { errs[1] = 'the master database'; }))
+    ptNeed(PTG_ALL, { why: 'store', has: 'mdb' }).catch(() => { errs[1] = 'the master database'; })
       .then(() => Promise.all([
         PT.base ? null : ptGet('pt_baseData').then(v => { PT.base = ptList(v); }, () => { errs[2] = 'the Job Work Register'; }),
         /* The cutting table: a printed-cloth cut takes from the store (stFlowMoves). */

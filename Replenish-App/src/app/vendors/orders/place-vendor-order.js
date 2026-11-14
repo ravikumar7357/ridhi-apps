@@ -184,7 +184,7 @@ let VOF = { kind: 'running', lines: [] };
 
 async function voFormOpen(mode) {
   if (VO.rows === null) await ensureVo();
-  if (!PTG.mdb) await ptLoadGates();
+  await ptNeed(PTG_ALL, { why: 'place-vendor-order', has: 'mdb' });
   if (SOX.rows === null) { try { SOX.rows = ptList(await ptGet('pt_salesOrders')); } catch (e) { SOX.rows = SOX.rows || []; } }
   /* REQUEST OR ORDER. Somebody who may approve places the order; everybody else asks for it, and
    * the same form builds the request so every check below applies to both. */

@@ -34,11 +34,11 @@ function ordMoreBtn(n) {
  * fourteen round trips before the table could draw; together the wait is the slowest one. Each keeps the fallback
  * it always had: a read that fails leaves its column blank and the rest of the screen still opens. */
 async function ensureOrd() {
-  const need = !PTG.mdb || !PTE.emp || QC.checks === null || ORD.req === null || FGI.rows === null || VO.rows === null
+  const need = ptLack(PTG_ALL, 'mdb') || !PTE.emp || QC.checks === null || ORD.req === null || FGI.rows === null || VO.rows === null
     || !PTE.priority || MDBX.custom === null || !ODR.rows || SOX.rows === null;
   if (need) { ORD.busy = true; renderOrd(); }
   await Promise.all([
-    (PTG.mdb ? Promise.resolve() : ptLoadGates()).then(() => (PTE.emp ? null : ptLoadEmp())),
+    ptNeed(PTG_ALL, { why: 'ord', has: 'mdb' }).then(() => (PTE.emp ? null : ptLoadEmp())),
     QC.checks === null && Promise.all([
       ptGet('pt_qcChecks').then(v => { QC.checks = ptList(v); }, () => { QC.checks = QC.checks || []; }),
       ptGet('pt_qcIssuance').then(v => { QC.issue = ptList(v); }, () => { QC.issue = QC.issue || []; }),

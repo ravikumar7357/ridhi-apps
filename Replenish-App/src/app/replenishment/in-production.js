@@ -18,7 +18,7 @@ let INPROD_ROWS = [], INPROD_AT = null, INPROD_LOADED = false, PD_LAST = [], INP
 async function loadInProd() {
   INPROD_ROWS = []; INPROD_AT = null; INPROD_ERR = '';
   try {
-    if (!PTG.mdb) await ptLoadGates();
+    await ptNeed(PTG_ALL, { why: 'in-production', has: 'mdb' });
     if (PTG.err) throw new Error(PTG.err);
     if (SOX.rows === null) SOX.rows = ptList(await ptGet('pt_salesOrders'));
     INPROD_ROWS = ordProdRows();

@@ -241,7 +241,7 @@ $('tgTable').addEventListener('change', async e => {
   const n = raw === '' ? null : Math.max(0, Math.round(Number(raw)));
   if (n == null) delete REV_TGT[key]; else REV_TGT[key] = n;
   renderTarget();
-  try { await setDoc(doc(db, 'repl', 'revtarget'), { map: { [key]: n }, by: ME.email, at: serverTimestamp() }, { merge: true }); }
+  try { await fsSetDoc(doc(db, 'repl', 'revtarget'), { map: { [key]: n }, by: ME.email, at: serverTimestamp() }, { merge: true }); }
   catch (err) { $('tgMsg').textContent = 'Could not save the target: ' + (err.message || err); }
 });
 // The month target. Every article without an override moves when this changes, so the table is
@@ -257,7 +257,7 @@ $('tgTotal').addEventListener('change', async () => {
   const n = raw === '' ? null : Math.max(0, Math.round(Number(raw)));
   if (n == null) delete REV_TOT[key]; else REV_TOT[key] = n;
   renderTarget();
-  try { await setDoc(doc(db, 'repl', 'revtarget'), { total: { [key]: n }, by: ME.email, at: serverTimestamp() }, { merge: true }); }
+  try { await fsSetDoc(doc(db, 'repl', 'revtarget'), { total: { [key]: n }, by: ME.email, at: serverTimestamp() }, { merge: true }); }
   catch (err) { $('tgMsg').textContent = 'Could not save the month target: ' + (err.message || err); }
 });
 $('tgBrand').addEventListener('change', renderTarget);
@@ -343,7 +343,7 @@ $('tgClear').onclick = async () => {
   if (hasTot) delete REV_TOT[tk];
   renderTarget();
   try {
-    await setDoc(doc(db, 'repl', 'revtarget'),
+    await fsSetDoc(doc(db, 'repl', 'revtarget'),
       { map: patch, total: hasTot ? { [tk]: null } : {}, by: ME.email, at: serverTimestamp() }, { merge: true });
   } catch (err) { $('tgMsg').textContent = 'Could not clear: ' + (err.message || err); }
 };
@@ -360,7 +360,7 @@ $('rMarket').addEventListener('change', () => {
  * comes back from Amazon's catalogue with no colour, size or sub-category, while the Master Database has them. Only a
  * BLANK is filled — what Amazon says is kept. The master is read once for this tab when nothing else has read it. */
 let REPL_MDB = null, REPL_MDB_BUSY = false;
-const replMaster = () => (typeof PTG !== 'undefined' && PTG.mdb) || REPL_MDB;
+const replMaster = () => (typeof PTG !== 'undefined' && (typeof ptPeek === 'function' ? ptPeek('mdb') : PTG.mdb)) || REPL_MDB;
 async function replMasterLoad() {
   if (replMaster() || REPL_MDB_BUSY) return;
   REPL_MDB_BUSY = true;
