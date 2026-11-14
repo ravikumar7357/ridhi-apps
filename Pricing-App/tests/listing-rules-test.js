@@ -4,7 +4,7 @@
  * Runs the real files in a stub page over SAMPLE — a small set of listings of both brands, written the way people write them.
  * The sample is exported so a report can run another version of the rules over the same listings (before / after). */
 const fs = require('fs'), path = require('path');
-const L = f => fs.readFileSync(path.join(__dirname, '..', 'src', 'app', 'listing', f), 'utf8');
+const L0 = f => fs.readFileSync(path.join(__dirname, '..', 'src', 'app', 'listing', f), 'utf8');
 let pass = 0, fail = 0;
 const ok = (name, cond, extra) => { if (cond) { pass++; console.log('  PASS ' + name); } else { fail++; console.log('  FAIL ' + name + (extra ? ' — ' + extra : '')); } };
 
@@ -56,6 +56,7 @@ const TITLE_LEN = { R1: 75, R2: 62, R3: 74, R4: 73, R5: 75, R6: 71, R13: 73, C1a
 /** The rules (and, with `ws`, the Workspace) in a stub page, over SAMPLE. `src` may be another version of listing-rules.js. */
 function load(opts) {
   opts = opts || {};
+  const L = f => (opts.files && f in opts.files ? opts.files[f] : L0(f));   // opts.files: a file's text from another commit (bf-test: the layout before B / F)
   const els = {};
   const el = id => els[id] || (els[id] = { id, value: id === 'hBrandView' ? 'ALL' : '', innerHTML: '', textContent: '', dataset: {}, style: {},
     classList: { add() {}, remove() {}, toggle() {}, contains: () => false }, addEventListener() {}, setAttribute() {}, querySelector: () => null, querySelectorAll: () => [] });
@@ -78,7 +79,7 @@ function load(opts) {
   if (opts.tab) delete ctx.lrEsc;
   if (opts.le) delete ctx.lcBytes;      // listing-content.js has its own
   if (opts.im) { delete ctx.imLoad; delete ctx.imPost; delete ctx.IM_SKU_CHOICES; delete ctx.IML; delete ctx.IM_SLOTS; }   // image-manager.js has its own   // the Rules tab file defines its own
-  const src = (opts.src || L('listing-rules.js')) + (opts.ws ? '\n' + L('listing-workspace.js') + '\n' + L('listing-saved.js') + '\n' + L('listing-kid.js') : '') + (opts.sp ? '\n' + L('season-planner.js') : '')
+  const src = (opts.src || L('listing-rules.js')) + (opts.ws ? '\n' + L('listing-workspace.js') + '\n' + L('listing-saved.js') + '\n' + L('listing-kid.js') + '\n' + L('listing-bf.js') : '') + (opts.sp ? '\n' + L('season-planner.js') : '')
     + (opts.pc ? '\n' + L('picture-check.js') : '') + (opts.tab ? '\n' + L('listing-rules-tab.js') : '') + (opts.fa ? '\n' + L('fix-all.js') : '') + (opts.sp || opts.fa || opts.sq ? '\n' + L('listing-send-check.js') : '')
     + (opts.le ? '\n' + L('listing-content.js') + '\n' + L('listing-errors.js') : '') + (opts.im ? '\n' + L('image-manager.js') : '') + (opts.lh ? '\n' + L('listing-history.js') : '');
   const tail = '\n;LR = JSON.parse(JSON.stringify(LR_DEFAULT)); LR_CAT.SP = ' + JSON.stringify(CAT.SP) + '; LR_CAT.CPC = ' + JSON.stringify(CAT.CPC) + ';'
@@ -89,7 +90,7 @@ function load(opts) {
     + ' lrAllow: typeof lrAllow === "function" ? lrAllow : null, lrFixOpen: typeof lrFixOpen === "function" ? lrFixOpen : null,'
     + ' lrKwBytes: typeof lrKwBytes === "function" ? lrKwBytes : null, lrBrandWords, lrFind, lrLevel: typeof lrLevel === "function" ? lrLevel : null, lrNotesHtml: typeof lrNotesHtml === "function" ? lrNotesHtml : null, IML,'
     + ' lrWholeCut: typeof lrWholeCut === "function" ? lrWholeCut : null, AMZ: typeof AMZ === "undefined" ? null : AMZ,'
-    + (opts.ws ? ' SV, svLoad, svNote, svFlush, svFromSend, svMerge, svRec, svDocId, svCheckedText, liWsPump, LI_WS, LI_WS_AUDIT, liWsParents: (brands) => liWsParents(brands, hCtx(), Date.now()), liWsDetail, liWsAuditBox, liWsKidTable, liWsRender, liWsRecheck, liWsCheckNow, liWsLiveMap, liWsProblems, liWsPanelOpen, liWsPanelClose, liWsPanelMove, liWsPanelRender, liWsOff, liWsToolbarSync, liWsPanelSync, liWsPanelSchedule, liWsPanelKeep, liWsPanelKid, liWsPanelKidBack, lkHtml, lkKid, LK, liWsReconcile, liWsErrorsCsv, liWsDlButton, liWsSearch, LI_WS_DL_COLS, liWsJob,' : '')
+    + (opts.ws ? ' BF, bfOf, bfSpec, bfWho, bfCalc, bfLineHtml, bfKidHtml, bfDue, bfTick, bfPump, bfFirstLoad, bfSave, lsGet, lsSave, lkHtml, SV, svLoad, svNote, svFlush, svFromSend, svMerge, svRec, svDocId, svCheckedText, liWsPump, LI_WS, LI_WS_AUDIT, liWsParents: (brands) => liWsParents(brands, hCtx(), Date.now()), liWsDetail, liWsAuditBox, liWsKidTable, liWsRender, liWsRecheck, liWsCheckNow, liWsLiveMap, liWsProblems, liWsPanelOpen, liWsPanelClose, liWsPanelMove, liWsPanelRender, liWsOff, liWsToolbarSync, liWsPanelSync, liWsPanelSchedule, liWsPanelKeep, liWsPanelKid, liWsPanelKidBack, lkHtml, lkKid, LK, liWsReconcile, liWsErrorsCsv, liWsDlButton, liWsSearch, LI_WS_DL_COLS, liWsJob,' : '')
     + (opts.sp ? ' SP, spCompute, spPlan, spChecks, spStrip, spInsert, spDiffHtml, spWordDiff, spKidHtml, spRowHtml, spParentBodyHtml, spParentCardHtml, spGroups, spGroupOf, spOpenParent, spCloseParent, spOpenKid, spCloseKid, spRender, spApprove, spRecordSent, spPatches, spLogLoad, spEvents, SP_SEASONS, spHlInfo, spHighlightsCount, spActive, spWindow, spNext, spExpired, spPlanFor, spBuild, spFixSeasons, spSeasonRows, spOldRows, spKept, spCounts, spBucket, spTrim, spReviewHtml, spDeltaHtml, spModal, spNowHtml, spChips, spSeasonChecks, spHlAdd, spKwAdd, spWhereHtml, spChangesHtml, spResultHtml, spMissing, spChanges, spCheckAll, spCheckedHtml, spReadAgain, spOn, lrSeasonState: typeof lrSeasonState === "function" ? lrSeasonState : null, lrEventDate, lrEaster, spEnsureReads, spApprove, spProgText, spPanelsRender, spAfterRead, spFindSeason, spWhere, spWhereCount, spMarkHtml, setHealthLoaded: v => { H_LOADED = v; }, setCat: (b, m) => { LR_CAT[b] = Object.assign(LR_CAT[b] || {}, m); H_CTX = null; },' : '')
     + (opts.sp || opts.fa || opts.sq ? ' SQ, sqClick, sqDraw, sqChangeLine, sqWordDiff, sqSendWithCheck, sqApprove, sqClose, sqCheckAgain, sqEdit, sqPlain, sqHow, sqName, lhistAdd, sqIsOpen, sqBusy,' : '')
     + (opts.lh ? ' LH, lhLoad, lhFiltered, lhItems, lhGroupLine, lhWhat, lhScreen, lhCsv, lhCheckAgain, lhPutBack, lhDraw, lhBuild, lhClick, lhMenuAccess, lhOpen, LH_CSV_COLS,' : '')
