@@ -3616,6 +3616,12 @@ html.mob #gdNudge{right:14px;left:14px;max-width:none;bottom:144px}
             <option value="SHP">Shopify</option>
             <option value="B2B">B2B</option>
           </select>
+          <!-- NEW DEVELOPMENT (14 Nov): the Order type the sales order was raised with. -->
+          <select id="odType" style="flex:0 0 160px" title="Regular or New development, as the sales order was raised">
+            <option value="">Any order type</option>
+            <option value="newdev">New development</option>
+            <option value="regular">Regular</option>
+          </select>
           <select id="odBrand" style="flex:0 0 130px" title="The brand the SKU belongs to, from the master database">
             <option value="">All brands</option>
           </select>
@@ -25491,10 +25497,34 @@ const ordFgAt = (orderNo, sku) => ordFgIndex().get(obKeyOf(orderNo, sku)) || nul
 /** Pieces of this order sitting in the India Store right now. */
 const ordFgOf = (orderNo, sku) => { const e = ordFgAt(orderNo, sku); return e ? e.store : 0; };
 
+/* NEW DEVELOPMENT (Ravi, 14 Nov: "amazon me hum new development ke order open krte h but hamare pas koi aisa filter nahi h jis par
+ * hum filter laga kar check kar sake ki ye order new development ke liye h"). The sales order already says it — Order type
+ * Regular / New development, on the order and on each line (raise-sales-order.js orderTypeKey) — but the order-book row it
+ * puts on the book does not carry it. So it is read back from the sales order: a line is new development when any line of
+ * that SKU on that sales order is (the line's own type first, else the order's). Nothing is written. */
+let ORD_ND = { src: null, n: -1, set: null };
+function ordNewDevSet() {
+  const s = (typeof SOX !== 'undefined' && Array.isArray(SOX.rows)) ? SOX.rows : [];
+  if (ORD_ND.set && ORD_ND.src === s && ORD_ND.n === s.length) return ORD_ND.set;
+  const set = new Set();
+  s.forEach(o => {
+    if (!o || !o._id) return;
+    const head = o.orderTypeKey === 'newdev' ? 'newdev' : 'regular';
+    (Array.isArray(o.lines) ? o.lines : []).forEach(l => {
+      if (!l || !l.sku) return;
+      const t = (l.orderTypeKey === 'newdev' || l.orderTypeKey === 'regular') ? l.orderTypeKey : head;
+      if (t === 'newdev') set.add(obUC(o._id) + '|' + obUC(l.sku));
+    });
+  });
+  ORD_ND = { src: s, n: s.length, set };
+  return set;
+}
+const ordIsNewDev = r => !!(r && ordNewDevSet().has(obUC(r.orderNo) + '|' + obUC(r.sku)));
+
 function ordFilters() {
   const v = id => ($(id) || {}).value || '';
   return { ord: v('odOrd'), art: v('odArt'), sub: v('odSub'), col: v('odCol'), sz: v('odSz'),
-    st: v('odStatus'), src: v('odSrc'), brand: v('odBrand'), q: v('odQ').trim().toLowerCase(),
+    st: v('odStatus'), src: v('odSrc'), brand: v('odBrand'), type: v('odType'), q: v('odQ').trim().toLowerCase(),
     d1: v('odD1'), d2: v('odD2') };
 }
 
@@ -25509,6 +25539,7 @@ function ordApply(rows, f, skip) {
     /* The order number says what kind of order it is: AMZ- a sales order, SHP- a Shopify one, B2B- wholesale. */
     if (skip !== 'src' && f.src && ordSrcOf(r.orderNo) !== f.src) return false;
     if (skip !== 'brand' && f.brand && ordBrandOf(r.sku) !== f.brand) return false;
+    if (skip !== 'type' && f.type && (f.type === 'newdev') !== ordIsNewDev(r)) return false;
     if (skip !== 'st' && f.st === 'open' && !r.open) return false;
     if (skip !== 'st' && f.st === 'done' && r.open) return false;
     if (skip !== 'st' && f.st === 'tocut' && r.pendingCut <= 0) return false;
@@ -25733,7 +25764,8 @@ const SHP_DONE_TXT = why => ({ fulfilled: 'Fulfilled by shipping team', cancelle
 const SHP_SAYS_TXT = why => ({ fulfilled: 'Shopify: shipped — not handed over by production', cancelled: 'Shopify: cancelled — production to decide',
   refunded: 'Shopify: refunded — production to decide', 'marked done': 'Shopify note says DONE / READY — not handed over' })[why] || '';
 /* A line PPC sent back to the sales team says so first (flow/flow-back.js). */
-function ordStatePill(r) { return (typeof flowBackPill === 'function' && r.open ? flowBackPill(r) : '') + ordStatePill0(r); }
+function ordStatePill(r) { return (typeof ordIsNewDev === 'function' && ordIsNewDev(r) ? '<span class="pill" title="Raised as New development on its sales order">New dev</span> ' : '')
+  + (typeof flowBackPill === 'function' && r.open ? flowBackPill(r) : '') + ordStatePill0(r); }
 function ordStatePill0(r) {
   const canC = typeof ordCanClose === 'function' && ordCanClose() && ordIsMto(r.orderNo);
   const key = esc(r.orderNo + '|' + r.sku);
@@ -27779,7 +27811,7 @@ if ($('odSort')) $('odSort').addEventListener('change', () => { ORD_CAP = 600; r
 ptDebounce('odQ', renderOrd);
 /* Clear means clear. Source and brand were added later and never joined this list, so Clear left two
  * of its own filters set and the screen kept hiding rows somebody had just asked to see. */
-$('odClear').onclick = () => { ['odOrd', 'odArt', 'odSub', 'odCol', 'odSz', 'odStatus', 'odSrc', 'odBrand', 'odQ', 'odD1', 'odD2'].forEach(id => { if ($(id)) $(id).value = ''; }); ORD_KPI = ''; renderOrd(); };
+$('odClear').onclick = () => { ['odOrd', 'odArt', 'odSub', 'odCol', 'odSz', 'odStatus', 'odSrc', 'odBrand', 'odType', 'odQ', 'odD1', 'odD2'].forEach(id => { if ($(id)) $(id).value = ''; }); ORD_KPI = ''; renderOrd(); };
 function ordKpiClick(e) {
   const t = e.target.closest('[data-odkpi]');
   if (!t) return;
@@ -27872,7 +27904,7 @@ $('odTable').addEventListener('click', ordQtyOpenClick);
 
 $('odKpis').addEventListener('click', ordKpiClick);
 $('odKpis').addEventListener('keydown', ordKpiClick);
-['odSrc', 'odBrand', 'odD1', 'odD2'].forEach(id => { const el = $(id); if (el) el.addEventListener('change', renderOrd); });
+['odSrc', 'odBrand', 'odType', 'odD1', 'odD2'].forEach(id => { const el = $(id); if (el) el.addEventListener('change', renderOrd); });
 $('odGo').onclick = async () => { await ptLoadGates(true); ORD.req = null; QC.checks = null; FGI.rows = null; await ensureOrd(); };
 $('odView').addEventListener('change', () => { ORD.pick = new Set(); renderOrd(); });
 /** A SKU's priority tag (P1–P4), '' when it has none. */
@@ -58040,7 +58072,7 @@ function mtgOpenOrders() {
   });
   const chans = [...by.values()].sort((a, b) => b.left - a.left);
   /* The Order Console's own filters must not narrow the meeting — they are cleared for the one call and put back. */
-  const ids = ['odOrd', 'odArt', 'odSub', 'odCol', 'odSz', 'odStatus', 'odSrc', 'odBrand', 'odQ', 'odD1', 'odD2'];
+  const ids = ['odOrd', 'odArt', 'odSub', 'odCol', 'odSz', 'odStatus', 'odSrc', 'odBrand', 'odType', 'odQ', 'odD1', 'odD2'];
   const kept = ids.map(i => ($(i) || {}).value); ids.forEach(i => { if ($(i)) $(i).value = ''; });
   let dem = null; try { dem = ordDemandRows(); } catch (e) { dem = null; }
   ids.forEach((i, k) => { if ($(i)) $(i).value = kept[k]; });

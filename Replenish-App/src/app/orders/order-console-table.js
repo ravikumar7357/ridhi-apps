@@ -82,7 +82,8 @@ const SHP_DONE_TXT = why => ({ fulfilled: 'Fulfilled by shipping team', cancelle
 const SHP_SAYS_TXT = why => ({ fulfilled: 'Shopify: shipped — not handed over by production', cancelled: 'Shopify: cancelled — production to decide',
   refunded: 'Shopify: refunded — production to decide', 'marked done': 'Shopify note says DONE / READY — not handed over' })[why] || '';
 /* A line PPC sent back to the sales team says so first (flow/flow-back.js). */
-function ordStatePill(r) { return (typeof flowBackPill === 'function' && r.open ? flowBackPill(r) : '') + ordStatePill0(r); }
+function ordStatePill(r) { return (typeof ordIsNewDev === 'function' && ordIsNewDev(r) ? '<span class="pill" title="Raised as New development on its sales order">New dev</span> ' : '')
+  + (typeof flowBackPill === 'function' && r.open ? flowBackPill(r) : '') + ordStatePill0(r); }
 function ordStatePill0(r) {
   const canC = typeof ordCanClose === 'function' && ordCanClose() && ordIsMto(r.orderNo);
   const key = esc(r.orderNo + '|' + r.sku);

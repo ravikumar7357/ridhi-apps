@@ -597,10 +597,34 @@ const ordFgAt = (orderNo, sku) => ordFgIndex().get(obKeyOf(orderNo, sku)) || nul
 /** Pieces of this order sitting in the India Store right now. */
 const ordFgOf = (orderNo, sku) => { const e = ordFgAt(orderNo, sku); return e ? e.store : 0; };
 
+/* NEW DEVELOPMENT (Ravi, 14 Nov: "amazon me hum new development ke order open krte h but hamare pas koi aisa filter nahi h jis par
+ * hum filter laga kar check kar sake ki ye order new development ke liye h"). The sales order already says it — Order type
+ * Regular / New development, on the order and on each line (raise-sales-order.js orderTypeKey) — but the order-book row it
+ * puts on the book does not carry it. So it is read back from the sales order: a line is new development when any line of
+ * that SKU on that sales order is (the line's own type first, else the order's). Nothing is written. */
+let ORD_ND = { src: null, n: -1, set: null };
+function ordNewDevSet() {
+  const s = (typeof SOX !== 'undefined' && Array.isArray(SOX.rows)) ? SOX.rows : [];
+  if (ORD_ND.set && ORD_ND.src === s && ORD_ND.n === s.length) return ORD_ND.set;
+  const set = new Set();
+  s.forEach(o => {
+    if (!o || !o._id) return;
+    const head = o.orderTypeKey === 'newdev' ? 'newdev' : 'regular';
+    (Array.isArray(o.lines) ? o.lines : []).forEach(l => {
+      if (!l || !l.sku) return;
+      const t = (l.orderTypeKey === 'newdev' || l.orderTypeKey === 'regular') ? l.orderTypeKey : head;
+      if (t === 'newdev') set.add(obUC(o._id) + '|' + obUC(l.sku));
+    });
+  });
+  ORD_ND = { src: s, n: s.length, set };
+  return set;
+}
+const ordIsNewDev = r => !!(r && ordNewDevSet().has(obUC(r.orderNo) + '|' + obUC(r.sku)));
+
 function ordFilters() {
   const v = id => ($(id) || {}).value || '';
   return { ord: v('odOrd'), art: v('odArt'), sub: v('odSub'), col: v('odCol'), sz: v('odSz'),
-    st: v('odStatus'), src: v('odSrc'), brand: v('odBrand'), q: v('odQ').trim().toLowerCase(),
+    st: v('odStatus'), src: v('odSrc'), brand: v('odBrand'), type: v('odType'), q: v('odQ').trim().toLowerCase(),
     d1: v('odD1'), d2: v('odD2') };
 }
 
@@ -615,6 +639,7 @@ function ordApply(rows, f, skip) {
     /* The order number says what kind of order it is: AMZ- a sales order, SHP- a Shopify one, B2B- wholesale. */
     if (skip !== 'src' && f.src && ordSrcOf(r.orderNo) !== f.src) return false;
     if (skip !== 'brand' && f.brand && ordBrandOf(r.sku) !== f.brand) return false;
+    if (skip !== 'type' && f.type && (f.type === 'newdev') !== ordIsNewDev(r)) return false;
     if (skip !== 'st' && f.st === 'open' && !r.open) return false;
     if (skip !== 'st' && f.st === 'done' && r.open) return false;
     if (skip !== 'st' && f.st === 'tocut' && r.pendingCut <= 0) return false;
