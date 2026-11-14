@@ -75,11 +75,12 @@ function svLoad() {
   SV.loading = (async () => {
     const ids = ['SP', 'CPC'].flatMap(brand => Array.from({ length: SV_SHARDS }, (_, i) => [brand, `lcache_${brand}_${i}`]));
     let fails = 0;
-    const snaps = await Promise.all(ids.map(([brand, id]) => getDoc(doc(db, SV_COLL, id)).then(snap => [brand, snap]).catch(e => { fails++; SV.err = String((e && e.message) || e); return [brand, null]; })));
+    // through the one data door (lsGet / lsSave, listing-bf.js)
+    const snaps = await Promise.all(ids.map(([brand, id]) => lsGet(SV_COLL, id).then(data => [brand, data]).catch(e => { fails++; SV.err = String((e && e.message) || e); return [brand, null]; })));
     let n = 0;
-    snaps.forEach(([brand, snap]) => {
-      if (!snap || !snap.exists()) return;
-      Object.entries((snap.data() || {}).items || {}).forEach(([sku, rec]) => { if (svMerge(brand, sku, rec)) n++; });
+    snaps.forEach(([brand, data]) => {
+      if (!data) return;
+      Object.entries(data.items || {}).forEach(([sku, rec]) => { if (svMerge(brand, sku, rec)) n++; });
     });
     SV.n = n;
     SV.state = fails === ids.length ? 'off' : 'ready';      // no access at all: the browser copy only
@@ -110,7 +111,7 @@ async function svFlush() {
   SV.dirty.clear();
   for (const [id, part] of work) {
     try {
-      await setDoc(doc(db, SV_COLL, id), { kind: 'lcache', brand: part.brand, items: part.items, at: serverTimestamp() }, { merge: true });
+      await lsSave(SV_COLL, id, { kind: 'lcache', brand: part.brand, items: part.items, at: serverTimestamp() });
       SV.writes++;
     } catch (e) { SV.err = String((e && e.message) || e); }   // this browser keeps its copy; the next read writes it again
   }

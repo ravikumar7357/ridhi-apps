@@ -148,5 +148,7 @@ onAuthStateChanged(auth, async user => {
   }
   // --- settings (core/settings.js): the costing numbers, category fees and size tiers, New Product defaults ---
   await loadSettings();
+  // --- the Sellora sync (listing/listing-sync.js): one open browser keeps Seller Central, the shop page and Sellora in step ---
+  if (typeof lyStart === 'function' && (ME.admin || ['health', 'lrules', 'img', 'lerr', 'opt'].some(tab => ME.tabs.includes(tab)))) lyStart();
 });
 

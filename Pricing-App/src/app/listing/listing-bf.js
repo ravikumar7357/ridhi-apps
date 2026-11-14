@@ -13,17 +13,15 @@
  *   B🔴 F🔴 our team (true error) · B🔴 F🟢 "Our team — shoppers not affected yet" (Seller Central has a wrong value; the page looks
  *   fine, but Amazon can suppress it later). F is 🔴 for a suppressed or not-buyable listing (bfShop), ○ only when not known.
  * DISPLAY ONLY: it tags, it never moves a problem between levels — Listing Health's / the Workspace's counts are healthOf's, untouched.
- * AUTO RE-CHECK: every BF_RECHECK_MS while Sellora is open, only the B🟢 F🔴 children are read again on the frontend side (the catalogue,
- *   A+ or the status), at most BF_INFLIGHT calls at a time, through the Workspace's read queue. When Amazon shows the fix the child
- *   leaves its row by itself. Still B🟢 F🔴 BF_MAX_DAYS after it was first seen: no more re-checks, "open a case with Amazon".
+ * RE-CHECK: the Sellora sync (listing-sync.js, ONE browser for everybody, every 15 minutes) reads the B🟢 F🔴 children first — bfDue
+ *   names them. When Amazon shows the fix the child leaves its row by itself. Still B🟢 F🔴 BF_MAX_DAYS after it was first seen: no
+ *   more re-checks, "open a case with Amazon".
  * DATA: the reads already held (the saved copy and this browser's copy, listing-saved.js / listing-workspace.js) — nothing is read
  *   from Amazon to draw this. The one new thing kept, when each child was first seen B🟢 F🔴, goes through lsGet / lsSave: THE ONE
  *   small data door for new reads and writes (Firestore today; one place to change for another database). Document
  *   /history/bfwait_<brand> (kind "bfwait", no `day` field, so Listing History never lists it; /history is canAny — no rule change).
- * Main functions: lsGet, lsSave, bfShop, bfOf, bfSpec, bfWho, bfLineHtml, bfKidHtml, bfEnsure, bfTick, bfDue, bfPump.
+ * Main functions: lsGet, lsSave, bfShop, bfOf, bfSpec, bfWho, bfLineHtml, bfKidHtml, bfEnsure, bfDue.
  * Pricing-App/tests/bf-test.js runs it with the real rules, Workspace and Fix all in a stub page. */
-const BF_RECHECK_MS = 10 * 60 * 1000;      // the re-check of the B🟢 F🔴 children: every 10 minutes
-const BF_INFLIGHT = 2;                     // …at most two calls out at a time
 const BF_MAX_DAYS = 3;                     // still not showing after 3 days: open a case with Amazon
 const BF_COLL = 'history';
 const BF = {
@@ -33,11 +31,7 @@ const BF = {
   loading: {},
   dirty: { SP: {}, CPC: {} },   // brand → "sku|problem" → record waiting to be written
   saveT: 0,
-  timer: 0,                // the 10-minute re-check
-  q: [],                   // re-check reads waiting
-  queued: new Set(),       // "brand|sku|kind" waiting or out
-  inflight: 0,
-  reads: 0,                // re-check reads done (tests, console)
+  started: false,          // the saved first-seen dates asked for
 };
 
 /* ----- THE ONE DATA DOOR for new reads and writes (easy switch to another database later) ----- */
@@ -242,15 +236,14 @@ function bfLineHtml(kids, bfs) {
   return out.length ? `<div class="fa-bf">${out.join(' · ')}</div>` : '';
 }
 
-/* ----- the 10-minute re-check of the B🟢 F🔴 children ----- */
+/* ----- which children the sync reads first (listing-sync.js) ----- */
 // Which frontend read answers a rule again: the catalogue (title, pictures), A+, or the listing's status.
 const bfRead = det => (BF_TITLE.includes(det) || BF_PICS.includes(det) || BF_PICS_F.includes(det) || det === 'title_not_live' ? 'limg'
   : det === 'aplus_missing' ? 'aplus' : 'get');
-/** Start the re-check (once) and load the saved first-seen dates. */
+/** Load the saved first-seen dates (once). */
 function bfEnsure() {
-  if (BF.timer) return;
-  BF.timer = setInterval(() => bfTick(), BF_RECHECK_MS);
-  if (BF.timer && typeof BF.timer.unref === 'function') BF.timer.unref();   // never keeps a test run alive
+  if (BF.started) return;
+  BF.started = true;
   ['SP', 'CPC'].forEach(bfFirstLoad);
 }
 /** Every child that is B🟢 F🔴 now and not past BF_MAX_DAYS: { brand, sku, asin, parent, t } per frontend read it needs. */
@@ -278,30 +271,4 @@ function bfDue(now) {
     });
   });
   return out;
-}
-/** One re-check round: queue the frontend reads of the B🟢 F🔴 children (each once), BF_INFLIGHT at a time. */
-function bfTick(now) {
-  bfDue(now).forEach(item => {
-    if (BF.queued.has(item.key)) return;
-    BF.queued.add(item.key);
-    BF.q.push(item);
-  });
-  bfPump();
-  return BF.q.length + BF.inflight;
-}
-function bfPump() {
-  while (BF.inflight < BF_INFLIGHT && BF.q.length) {
-    const item = BF.q.shift();
-    const done = () => {
-      BF.inflight--;
-      BF.reads++;
-      BF.queued.delete(item.key);
-      bfPump();
-    };
-    const asins = [item.asin, item.parent].filter(asin => /^[A-Z0-9]{10}$/.test(String(asin || '')));
-    if (item.t === 'aplus' && !asins.length) { BF.queued.delete(item.key); continue; }
-    BF.inflight++;
-    liWsQueue(item.t === 'aplus' ? { t: 'aplus', brand: item.brand, asins, pk: '', units: asins.length, done }
-      : { t: item.t, brand: item.brand, sku: item.sku, pk: '', units: 1, done });
-  }
 }

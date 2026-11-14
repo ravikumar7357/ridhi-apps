@@ -28,6 +28,7 @@ listing/listing-workspace.js
 listing/listing-saved.js
 listing/listing-kid.js
 listing/listing-bf.js
+listing/listing-sync.js
 listing/season-planner.js
 listing/fix-all.js
 listing/listing-send-check.js

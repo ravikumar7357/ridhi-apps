@@ -3,8 +3,8 @@
  * Workspace, child component and Fix all, in a stub page.
  *   node tests/bf-test.js
  * The four combinations · the row's line · the layout before B / F is unchanged (only the line and the dots are added: compared with
- * the code of commit 43dec5b) · the counts are unchanged · the 10-minute re-check reads only the B🟢 F🔴 children, two at a time, and
- * a child Amazon now shows leaves its row by itself · after 3 days: no more re-checks, "open a case with Amazon" · the one data door. */
+ * the code of commit 43dec5b) · the counts are unchanged · the false errors the sync reads first · after 3 days: no more re-checks,
+ * "open a case with Amazon" · the one data door. */
 const cp = require('child_process');
 const { load } = require('./listing-rules-test.js');
 let pass = 0, fail = 0;
@@ -70,7 +70,7 @@ function setup(opts) {
   C.reset();
   return { C, limg, saved, got };
 }
-const idle = async C => { for (let i = 0; i < 400 && (C.LI_WS.inflight || C.LI_WS.q.length || (C.BF && (C.BF.inflight || C.BF.q.length))); i++) await new Promise(r => setTimeout(r, 2)); await new Promise(r => setTimeout(r, 5)); };
+const idle = async C => { for (let i = 0; i < 400 && (C.LI_WS.inflight || C.LI_WS.q.length); i++) await new Promise(r => setTimeout(r, 2)); await new Promise(r => setTimeout(r, 5)); };
 const rowOf = (C, test) => C.faGroups('SP', 'PB', C.faKids('SP', 'PB')).find(test);
 const kidOf = (C, sku) => C.faKids('SP', 'PB').find(kid => kid.sku === sku);
 const hitOf = (kid, det) => kid.found.find(hit => hit.detector === det);
@@ -136,7 +136,9 @@ const hitOf = (kid, det) => kid.found.find(hit => hit.detector === det);
   {
     const files = {};
     ['fix-all.js', 'listing-kid.js', 'listing-rules.js'].forEach(f => { files[f] = git(f); });
-    files['listing-bf.js'] = 'const BF = null, bfOf = null, bfSpec = null, bfWho = null, bfCalc = null, bfLineHtml = null, bfKidHtml = null, bfDue = null, bfTick = null, bfPump = null, bfFirstLoad = null, bfSave = null, lsGet = null, lsSave = null;';   // the names the test loader hands back; the old code never calls them
+    // the names the test loader hands back (B / F and the sync came later); the old code never calls them
+    files['listing-bf.js'] = 'const BF = null, bfOf = null, bfSpec = null, bfWho = null, bfCalc = null, bfShop = null, bfLineHtml = null, bfKidHtml = null, bfDue = null, bfFirstLoad = null, bfSave = null, lsGet = null, lsSave = null;';
+    files['listing-sync.js'] = 'const LY = null, lyStart = null, lyBeat = null, lyCycle = null, lyPick = null, lyPull = null, lyFlush = null, lyMerge = null, lyRec = null, lyLineHtml = null, lySyncNow = null, lyEnd = null;';
     if (Object.values(files).some(t => t === null)) ok('commit ' + BEFORE + ' readable with git', false);
     else {
       const now = setup(), was = setup({ files });
@@ -165,24 +167,12 @@ const hitOf = (kid, det) => kid.found.find(hit => hit.detector === det);
     }
   }
 
-  console.log('== the 10-minute re-check: only B🟢 F🔴, two at a time; Amazon shows it → the child leaves the row ==');
+  console.log('== the false errors the Sellora sync reads first (bfDue; the reads themselves: sync-test.js) ==');
   {
-    const { C, limg } = setup();
+    const { C } = setup();
     await idle(C);
     const due = C.bfDue();
-    ok('due: only the Amazon\'s-side children L4, L5 (one catalogue read each)', due.map(d => d.sku + ':' + d.t).sort().join(' ') === 'L4:limg L5:limg', due.map(d => d.sku + ':' + d.t).join(' '));
-    // three more B🟢 F🔴 children, so the "two at a time" shows
-    ['L0', 'L1', 'L2'].forEach(sku => { const e = C.LI_WS.live.SP[sku]; e.title = GOOD('18x18', 'Blue'); e.titleLen = e.title.length; });
-    C.LI_WS.liveV++; C.reset();
-    limg.title.L4 = GOOD('16x16', 'Mustard');          // Amazon now shows L4's fixed title
-    C.bfTick();
-    C.bfTick();                                        // a second tick before the first is done queues nothing twice
-    await idle(C);
-    ok('5 children read once each, never more than 2 calls at a time', limg.calls.slice().sort().join(' ') === 'L0 L1 L2 L4 L5' && limg.max === 2, limg.calls.join(' ') + ' max ' + limg.max);
-    ok('nothing else read: our team\'s / not-read children are not re-checked', !limg.calls.some(sku => ['L3', 'L6', 'L7', 'L8', 'L9', 'G10'].includes(sku)));
-    const title = rowOf(C, g => g.key === 'title');
-    ok('L4 now shown fixed → it left "Title too long" by itself; L5 still waits on Amazon\'s side', !title.kids.some(kid => kid.sku === 'L4') && title.bf.get('SP|L5').who === 'amazon',
-      title.kids.map(kid => kid.sku).join(' '));
+    ok('due: only the Amazon’s-side children L4, L5 (one catalogue read each)', due.map(d => d.sku + ':' + d.t).sort().join(' ') === 'L4:limg L5:limg', due.map(d => d.sku + ':' + d.t).join(' '));
   }
 
   console.log('== after 3 days: no more re-checks, "open a case with Amazon" ==');
@@ -199,9 +189,6 @@ const hitOf = (kid, det) => kid.found.find(hit => hit.detector === det);
     ok('…its child line says "Amazon still not showing after 3 days — open a case with Amazon"', /Amazon still not showing after 3 days — open a case with Amazon/.test(C.bfKidHtml(bf)));
     const title = rowOf(C, g => g.key === 'title');
     ok('…the row\'s line says "(1 over 3 days — open a case)"', /Amazon’s side 2 \(1 over 3 days — open a case\)/.test(strip(C.bfLineHtml(title.kids, title.bf))), strip(C.bfLineHtml(title.kids, title.bf)));
-    C.bfTick();
-    await idle(C);
-    ok('a tick reads L4 only', limg.calls.join(' ') === 'L4', limg.calls.join(' '));
   }
 
   console.log('== the one data door: lsGet / lsSave ==');
