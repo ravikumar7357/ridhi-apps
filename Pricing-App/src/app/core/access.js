@@ -107,7 +107,7 @@ function applyPerms() {
   // --- menu groups, and the tab to open ---
   syncNavGroups(allowed);
   const first = TABS.find(t => !HIDDEN_TABS.includes(t) && allowed(t));
-  TAB_OK = t => TABS.includes(t) && !HIDDEN_TABS.includes(t) && allowed(t);   // may the address (#img) open this tab? (core/nav.js)
+  TAB_OK = t => TABS.includes(t) && !HIDDEN_TABS.includes(t) && (allowed(t) || (t === 'lhist' && typeof LH_LISTING_TABS !== 'undefined' && LH_LISTING_TABS.some(x => ME.tabs.includes(x))));   // may the address (#img) open this tab? (core/nav.js) — #lhist: Listing History's own menu rule (listing-history.js lhMenuAccess)
   if (first) {
     $('noAccess').classList.add('hide');
     // The tab the address names (#img: a refresh, a deep link, the page before sign-in) when this account may see it, else the first.

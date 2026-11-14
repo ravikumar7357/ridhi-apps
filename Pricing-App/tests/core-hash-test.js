@@ -31,6 +31,8 @@ function boot(hash, tabs) {
     getDoc: async ref => (ref.path.startsWith('perms/') && tabs ? { exists: () => true, data: () => ({ tabs }) } : { exists: () => false, data: () => ({}) }),
     signInWithEmailAndPassword() {}, signOut() {}, sendEmailVerification() {}, showMsg() {}, loadSettings: async () => {}, API: {}, API_ERR: '',
     matchMedia: () => ({ matches: false, addEventListener() {} }), innerWidth: 1400,
+    // Listing History's own menu rule, read from the real file (listing/listing-history.js)
+    LH_LISTING_TABS: JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'src', 'app', 'listing', 'listing-history.js'), 'utf8').match(/const LH_LISTING_TABS = (\[[^\]]*\])/)[1].replace(/'/g, '"')),
   };
   ['loadNiches', 'ensureAge', 'ensureHealth', 'ensureLrules', 'ensureAudit', 'ensureBsr', 'ensureWeekly', 'ensurePpcn', 'ensureTrends', 'ensureSt', 'ensurePlc',
     'ensureDeals', 'ensureSales', 'ensureProfit', 'ensureSa', 'ensurePlaudit', 'ensureOpt', 'ensureImg', 'ensureLerr', 'ensureBasket', 'ensureTiktok', 'ensureCarousel']
@@ -88,6 +90,27 @@ const LISTING = ['new', 'health', 'img', 'lerr', 'lrules'];
     const B = boot('', LISTING);
     await B.signIn(user);
     ok('no #tab → the first allowed tab, as before', B.tabNow() === 'new' && B.hash() === '#new');
+  }
+
+  {
+    const B = boot('#lhist', ['img']);
+    await B.signIn(user);
+    ok('Image Manager only: refresh on #lhist stays on Listing History (its menu rule: any of img, lerr, health, lrules)', B.tabNow() === 'lhist' && B.hash() === '#lhist');
+  }
+  for (const tab of ['lerr', 'lrules']) {
+    const B = boot('#lhist', [tab, 'new']);
+    await B.signIn(user);
+    ok('…' + tab + ' only (+ New Product): #lhist stays on Listing History', B.tabNow() === 'lhist');
+  }
+  {
+    const B = boot('#lhist', ['new', 'sales']);
+    await B.signIn(user);
+    ok('no Listing access: #lhist → the first allowed tab', B.tabNow() === 'new' && B.hash() === '#new');
+  }
+  {
+    const B = boot('#sales', ['img']);
+    await B.signIn(user);
+    ok('…only #lhist got the extra rule: #sales for an img-only user → Image Manager (its first tab)', B.tabNow() === 'img');
   }
 
   console.log('== signed out → sign in → the same page; a deep link ==');
