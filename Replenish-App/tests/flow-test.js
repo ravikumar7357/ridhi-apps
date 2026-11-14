@@ -357,13 +357,13 @@ const K = 'AMZ-1__S1';
           /line\(s\) late at printers/.test(rt) && /waiting for our RFD cloth/.test(rt) && /data-flrem="P1"/.test(rt) && /data-flremshow="P1"/.test(rt) && /Hide lines/.test(rt) && /AMZ-5/.test(rt) && !/<td[^>]*><b>AMZ-7/.test(rt), rt.slice(0, 600));
         DU.FLOW_REM().open = '';
         DU.setAngle('dhist', 'remind'); DU.setView('dhist'); DU.renderFlow();
-        ok('…it is the "Due dates · remind" switch of Printed fabric in, with the late count on it', /data-flang="remind" class=""/.test(DU.els.flPanel.innerHTML) && /1 late/.test(DU.els.flPanel.innerHTML) && /data-flrem="P1"/.test(DU.els.flTable.innerHTML));
+        ok('…it is the "Due dates · remind" switch of Printed fabric in, with the late count on it', /<option value="remind" selected>Due dates · remind — 1 late/.test(DU.els.flPanel.innerHTML) && /data-flrem="P1"/.test(DU.els.flTable.innerHTML));
         DU.setAngle('dhist', 'due');
         delete DU.FLOW().ppc['AMZ-5__T2'].dates; delete DU.FLOW().ppc['AMZ-7__T3'].dates; DU.ctx.PTG.masters = undefined;
       }
       DU.setAngle('dhist', 'due'); DU.setView('dhist'); DU.renderFlow();
-      ok('…it is the "Coming from printers" switch of Printed fabric in, with its Excel', /data-flang="due"/.test(DU.els.flPanel.innerHTML) && /data-fldxl/.test(DU.els.flPanel.innerHTML) && /data-fldprn/.test(DU.els.flPanel.innerHTML) && /data-fldsave/.test(DU.els.flPanel.innerHTML) && /Vendor sent/.test(DU.els.flTable.innerHTML));
-    ok('…it is where Printed fabric in opens, with Receive for each printer', (() => { const D2 = load({ me: { admin: true } }); D2.setView('dhist'); D2.renderFlow(); return /data-flang="due" class=""/.test(D2.els.flPanel.innerHTML); })() && /data-fldrq="P1\|/.test(dt));
+      ok('…it is the "Coming from printers" switch of Printed fabric in, with its Excel', /<option value="due"/.test(DU.els.flPanel.innerHTML) && /data-fldxl/.test(DU.els.flPanel.innerHTML) && /data-fldprn/.test(DU.els.flPanel.innerHTML) && /data-fldsave/.test(DU.els.flPanel.innerHTML) && /Vendor sent/.test(DU.els.flTable.innerHTML));
+    ok('…it is where Printed fabric in opens, with Receive for each printer', (() => { const D2 = load({ me: { admin: true } }); D2.setView('dhist'); D2.renderFlow(); return /<option value="due" selected>/.test(D2.els.flPanel.innerHTML); })() && /data-fldrq="P1\|/.test(dt));
     /* 23 Oct ("bahi par challan wala banda receiving le"): received from the printer against the order */
     DU.flowDueRecvOpen('P1');
     ok('…the Receive dialog has a search box, each line findable by order, SKU and colour', /id="fldrQ"/.test(DU.ctx.__dlg.html) && /data-hay="amz-7 t3[^"]*"/i.test(DU.ctx.__dlg.html) && /data-fldq="1"/.test(DU.ctx.__dlg.html), (DU.ctx.__dlg.html.match(/data-hay="[^"]*"/g) || []).join(' '));
@@ -403,7 +403,7 @@ const K = 'AMZ-1__S1';
     RD.FLOW().readErr = errs; RD.renderFlow();
     ok('…and the screen is drawn, saying what could not be read', /Could not read the Greige Desk/.test(RD.els.flMsg.textContent) && RD.els.flMsg.className === 'err', RD.els.flMsg.textContent); }
   { const HV = load({ me: { admin: true } }); HV.setView('dhist'); HV.renderFlow();
-    ok('Printed fabric in: By challan | Received by date', /data-flang="challan"/.test(HV.els.flPanel.innerHTML) && /data-flang="day"/.test(HV.els.flPanel.innerHTML) && !/data-flhd=/.test(HV.els.flPanel.innerHTML), HV.els.flPanel.innerHTML.slice(0, 300));
+    ok('Printed fabric in: By challan | Received by date — in its drop-down (14 Nov)', /<option value="challan"/.test(HV.els.flPanel.innerHTML) && /<option value="day"/.test(HV.els.flPanel.innerHTML) && !/data-flhd=/.test(HV.els.flPanel.innerHTML), HV.els.flPanel.innerHTML.slice(0, 300));
     HV.setAngle('dhist', 'day'); HV.renderFlow();
     ok('…by date: From / To (today), a day back / on, Excel', /data-flhd="from"/.test(HV.els.flPanel.innerHTML) && /data-flhdxl/.test(HV.els.flPanel.innerHTML) && /Received on/.test(HV.els.flTable.innerHTML), HV.els.flPanel.innerHTML.slice(0, 400)); }
   A.setAngle('drfd', 'line'); A.renderFlow();
