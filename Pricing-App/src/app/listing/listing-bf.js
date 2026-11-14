@@ -10,7 +10,8 @@
  *   The problem's OWN rule (LR_DET, listing-rules.js) is run once over the backend values and once over the frontend values — no
  *   second copy of any rule. Data not read yet is ○ — never a guess.
  *   B🟢 F🟢 fixed and showing → the child leaves the row (fix-all.js) · B🟢 F🔴 Amazon's side (false error, Amazon not showing yet) ·
- *   B🔴 F🔴 our team (true error) · B🔴 F🟢 shoppers see it fine, but our Seller Central value is wrong.
+ *   B🔴 F🔴 our team (true error) · B🔴 F🟢 "Our team — shoppers not affected yet" (Seller Central has a wrong value; the page looks
+ *   fine, but Amazon can suppress it later). F is 🔴 for a suppressed or not-buyable listing (bfShop), ○ only when not known.
  * DISPLAY ONLY: it tags, it never moves a problem between levels — Listing Health's / the Workspace's counts are healthOf's, untouched.
  * AUTO RE-CHECK: every BF_RECHECK_MS while Sellora is open, only the B🟢 F🔴 children are read again on the frontend side (the catalogue,
  *   A+ or the status), at most BF_INFLIGHT calls at a time, through the Workspace's read queue. When Amazon shows the fix the child
@@ -19,7 +20,7 @@
  *   from Amazon to draw this. The one new thing kept, when each child was first seen B🟢 F🔴, goes through lsGet / lsSave: THE ONE
  *   small data door for new reads and writes (Firestore today; one place to change for another database). Document
  *   /history/bfwait_<brand> (kind "bfwait", no `day` field, so Listing History never lists it; /history is canAny — no rule change).
- * Main functions: lsGet, lsSave, bfOf, bfSpec, bfWho, bfLineHtml, bfKidHtml, bfEnsure, bfTick, bfDue, bfPump.
+ * Main functions: lsGet, lsSave, bfShop, bfOf, bfSpec, bfWho, bfLineHtml, bfKidHtml, bfEnsure, bfTick, bfDue, bfPump.
  * Pricing-App/tests/bf-test.js runs it with the real rules, Workspace and Fix all in a stub page. */
 const BF_RECHECK_MS = 10 * 60 * 1000;      // the re-check of the B🟢 F🔴 children: every 10 minutes
 const BF_INFLIGHT = 2;                     // …at most two calls out at a time
@@ -63,6 +64,17 @@ const BF_PICS_F = ['images_small', 'main_not_square', 'images_duplicate', 'main_
 // Rules on values shoppers never see as such, or the catalogue does not give back: B only.
 const BF_B_ONLY = ['bullets_below', 'desc_below', 'keyword_bytes'];
 const BF_BUY = ['inactive_with_stock', 'no_price'];
+// Amazon's codes that mean the listing is suppressed (hidden from shoppers) even when its status still says BUYABLE.
+const BF_SUPPRESS = ['18320'];
+/** What shoppers get (F) from Amazon's status and issues: 'r' suppressed or not buyable (no BUYABLE, BUYABLE but not DISCOVERABLE —
+ *  not in search —, or a suppression code / message), 'g' buyable and in search, 'u' only when the status is not known. */
+function bfShop(amz) {
+  if (!amz || amz.st == null || amz.st === '') return 'u';
+  const st = String(amz.st).toUpperCase().split(/[\s,]+/).filter(Boolean);
+  if (!st.includes('BUYABLE') || !st.includes('DISCOVERABLE')) return 'r';
+  const said = (amz.errs || []).map(issue => issue.c + ' ' + issue.m).join(' ') + ' ' + (amz.im || '');
+  return BF_SUPPRESS.some(code => said.includes(code)) || /suppress/i.test(said) ? 'r' : 'g';
+}
 
 /** Who fixes it, from the two answers: 'team' | 'amazon' | 'scwrong' | 'unread' | 'done' | 'none'. */
 function bfWho(b, f) {
@@ -84,7 +96,7 @@ function bfCalc(kid, hit, ctx) {
   };
   const withPics = pics => Object.assign({}, row, { _f: Object.assign({}, facts, { pics }) });
   const amz = facts.amz;
-  const buy = amz && amz.st != null && amz.st !== '' ? (/BUYABLE/i.test(String(amz.st)) ? 'g' : 'r') : 'u';
+  const buy = bfShop(amz);
   const shownRead = row.titleSrc === 'live' || row.titleSrc === 'snapshot';
   const catPics = facts.pics && (facts.pics.src === 'live' || facts.pics.src === 'iml');
   if (det === 'title_not_live') return { b: row.submittedTitle ? 'g' : 'u', f: row.submittedTitle && shownRead ? run(row) : 'u' };
@@ -104,7 +116,7 @@ function bfCalc(kid, hit, ctx) {
   if (BF_PICS_F.includes(det)) return { b: 'n', f: catPics || det === 'main_photo_check' ? run(row) : 'u' };
   if (det === 'aplus_missing') return { b: 'n', f: facts.aplus && facts.aplus.v !== undefined ? run(row) : 'u' };
   if (det === 'amazon_error') return { b: amz ? (amz.ie ? 'r' : 'g') : 'u', f: buy };
-  if (det === 'amazon_suppressed') return { b: amz ? (amz.ie ? 'r' : 'g') : 'u', f: amz ? run(row) : 'u' };
+  if (det === 'amazon_suppressed') return { b: amz ? (amz.ie ? 'r' : 'g') : 'u', f: buy };
   if (BF_BUY.includes(det)) return { b: run(row), f: buy };
   if (BF_B_ONLY.includes(det)) return { b: det === 'keyword_bytes' ? (row.kw == null ? 'u' : run(row)) : (row.content ? run(row) : 'u'), f: 'n' };
   return { b: 'n', f: 'n' };                        // a rule a person checks (manual): no B / F
@@ -186,10 +198,12 @@ const bfDot = s => (s === 'n' ? '<span class="fa-bfn" aria-hidden="true">–</sp
 const BF_SIDE = { g: 'fine', r: 'the problem is there', u: 'not read yet', n: 'no such value' };
 const bfTip = bf => `Seller Central (B): ${BF_SIDE[bf.b]} · What shoppers see (F): ${BF_SIDE[bf.f]}`;
 const BF_OVER = 'Amazon still not showing after 3 days — open a case with Amazon';
+const BF_SCWRONG = 'Our team — shoppers not affected yet';
+const BF_SCWRONG_TIP = 'Seller Central has a wrong value; the page looks fine, but Amazon can suppress it later';
 function bfWords(bf) {
   if (bf.who === 'team') return 'Our team';
   if (bf.who === 'amazon') return bf.over ? BF_OVER : 'Amazon’s side';
-  if (bf.who === 'scwrong') return 'Seller Central wrong';
+  if (bf.who === 'scwrong') return BF_SCWRONG;
   if (bf.who === 'unread') return 'not read yet';
   if (bf.who === 'done') return 'fixed and showing';
   return '';
@@ -197,7 +211,7 @@ function bfWords(bf) {
 /** A child's tiny "B ● F ● Our team" (the "Show all" list, the child side panel). '' for a problem with no B / F. */
 function bfKidHtml(bf) {
   if (!bf || bf.who === 'none') return '';
-  return `<span class="fa-bfk${bf.over ? ' is-old' : ''}" title="${lrEsc(bfTip(bf))}">B${bfDot(bf.b)} F${bfDot(bf.f)} ${lrEsc(bfWords(bf))}</span>`;
+  return `<span class="fa-bfk${bf.over ? ' is-old' : ''}" title="${lrEsc((bf.who === 'scwrong' ? BF_SCWRONG_TIP + ' · ' : '') + bfTip(bf))}">B${bfDot(bf.b)} F${bfDot(bf.f)} ${lrEsc(bfWords(bf))}</span>`;
 }
 /** The row's one line: "B🔴F🔴 Our team 14 · B🟢F🔴 Amazon's side 5 · B🔴F🟢 1 · ○ not read yet 2" — only the parts above 0.
  *  `kids` the row's children, `bfs` key → answer. */
@@ -219,8 +233,8 @@ function bfLineHtml(kids, bfs) {
   const keys = [...parts.keys()].sort((a, b) => ((order.indexOf(a) + 1 || 9) - (order.indexOf(b) + 1 || 9)) || a.localeCompare(b));
   const out = keys.map(k => {
     const { bf, n } = parts.get(k);
-    const words = bf.who === 'scwrong' ? '' : bf.who === 'amazon' ? 'Amazon’s side ' : 'Our team ';
-    const tip = bf.who === 'scwrong' ? 'Shoppers see it fine, but our Seller Central value is wrong' : bf.who === 'amazon' ? 'We fixed it; Amazon is not showing it yet' : 'Not fixed yet';
+    const words = bf.who === 'scwrong' ? BF_SCWRONG + ' ' : bf.who === 'amazon' ? 'Amazon’s side ' : 'Our team ';
+    const tip = bf.who === 'scwrong' ? BF_SCWRONG_TIP : bf.who === 'amazon' ? 'We fixed it; Amazon is not showing it yet' : 'Not fixed yet';
     const late = bf.who === 'amazon' && over ? ` (${faNf(over)} over 3 days — open a case)` : '';
     return `<span class="fa-bfp" title="${lrEsc(tip + ' · ' + bfTip(bf))}">B${bfDot(bf.b)}F${bfDot(bf.f)} ${words}${faNf(n)}${late}</span>`;
   });

@@ -94,6 +94,19 @@ const hitOf = (kid, det) => kid.found.find(hit => hit.detector === det);
     ok('…drawn as a grey hollow dot with "not read yet"', /fa-bfd is-u/.test(html) && /not read yet/.test(strip(html)), html);
   }
 
+  console.log('== suppressed / not buyable → F🔴 automatically; ○ only when not known ==');
+  {
+    const shop = (st, iss) => { const { C } = setup(); const e = C.LI_WS.live.SP.G10; e.st = st; if (iss) e.iss = iss; C.LI_WS.liveV++; C.reset();
+      const kid = kidOf(C, 'G10'); return C.bfOf(kid, hitOf(kid, 'amazon_error'), C.hCtx()); };
+    const e18320 = [{ s: 'E', c: '18320', m: 'Missing information: the listing is suppressed', a: [] }];
+    const a = shop(['BUYABLE', 'DISCOVERABLE'], e18320), b = shop(['DISCOVERABLE']), c = shop(['BUYABLE']), d = shop(['BUYABLE', 'DISCOVERABLE']), u = shop([]);
+    ok('ERROR 18320 while the status still says BUYABLE → F🔴 (B🔴 F🔴 Our team)', a.f === 'r' && a.who === 'team', JSON.stringify(a));
+    ok('status not BUYABLE → F🔴', b.f === 'r', JSON.stringify(b));
+    ok('BUYABLE but not DISCOVERABLE (not in search) → F🔴', c.f === 'r', JSON.stringify(c));
+    ok('buyable and in search, an ordinary error → F🟢 (Our team — shoppers not affected yet)', d.f === 'g' && d.who === 'scwrong' && /Our team — shoppers not affected yet/.test(load({ ws: true }).bfKidHtml(d)), JSON.stringify(d));
+    ok('no status known → grey ○', u.f === 'u', JSON.stringify(u));
+  }
+
   console.log('== the row\'s line: the right split ==');
   {
     const { C } = setup();
@@ -104,7 +117,8 @@ const hitOf = (kid, det) => kid.found.find(hit => hit.detector === det);
     ok('"Title too long": "B F Our team 7 · B F Amazon’s side 2 · not read yet 1" — in that order, nothing else', strip(ht) === 'B F Our team 7 · B F Amazon’s side 2 · not read yet 1'
       && /is-r[^]*is-r[^]*Our team[^]*is-g[^]*is-r[^]*Amazon/.test(ht), strip(ht));
     const he = C.bfLineHtml(err.kids, err.bf);
-    ok('Amazon error row: "B🔴F🟢 1" (shoppers see it fine, Seller Central wrong)', strip(he) === 'B F 1' && /is-r[^]*is-g/.test(he) && /Shoppers see it fine/.test(he), he);
+    ok('Amazon error row: "B🔴F🟢 Our team — shoppers not affected yet 1" (hover: Seller Central has a wrong value…)', strip(he) === 'B F Our team — shoppers not affected yet 1' && /is-r[^]*is-g/.test(he)
+      && /Seller Central has a wrong value; the page looks fine, but Amazon can suppress it later/.test(he), he);
     C.el('hBrandView').value = 'SP';
     C.LI_WS.on = true; C.LI_WS.mode = 'all'; C.LI_WS.card = ''; C.LI_WS.chip = 'all';
     C.liWsRender();
