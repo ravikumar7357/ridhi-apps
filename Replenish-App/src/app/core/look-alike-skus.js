@@ -51,7 +51,10 @@ function skuLookalike(sku) {
 }
 
 function obWhat(r) {
-  const m = typeof mdbOf === 'function' ? mdbOf(r && r.sku) : null;
+  /* Not in the master: the Custom SKUs list next (Ravi, 14 Nov: "custom sku - custom sku tab me rahe and orders ke liye data bahi se
+   * read kare") — its article, subtype, colour and size fill the order line. */
+  const m = (typeof mdbOf === 'function' ? mdbOf(r && r.sku) : null)
+    || (typeof ptCustomOf === 'function' && typeof MDBX !== 'undefined' ? ptCustomOf(r && r.sku) : null);
   const pick = (a, b) => (String(a == null ? '' : a).trim() ? String(a).trim() : (b || ''));
   if (m) return { articleType: pick(m.articleType, r.articleType), articleSubtype: pick(m.subtype, r.articleSubtype),
     color: pick(m.color, r.color), size: pick(m.size, r.size) };
