@@ -55,6 +55,7 @@ sales/sales-analysis.js
 listing/listing-optimiser.js
 listing/image-quality.js
 listing/image-manager.js
+listing/image-colour.js
 listing/picture-check.js
 listing/listing-errors.js
 listing/listing-content.js
