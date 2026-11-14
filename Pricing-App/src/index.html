@@ -1804,12 +1804,12 @@
   <div id="paneImg" class="hide">
     <!-- The toolbar sticks under the menu bar (--im-top, measured by imStick in image-manager.js). -->
     <div id="imTb" class="card im-tb" style="padding:12px 14px;margin-bottom:12px">
-      <div class="toolbar">
-        <select id="imBrand" style="flex:0 0 110px">
+      <div class="toolbar im-tbar">
+        <select id="imBrand" aria-label="Brand">
           <option value="SP">Ridhi</option><option value="CPC">CPC</option>
         </select>
-        <input id="imQ" placeholder="Search SKU, ASIN, title, colour" style="flex:0 0 260px">
-        <select id="imFilter" style="flex:0 0 220px">
+        <label class="im-search"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="imQ" placeholder="Search SKU, ASIN, title, colour" aria-label="Search SKU, ASIN, title or colour"><kbd title="Press / to search">/</kbd></label>
+        <select id="imFilter" aria-label="Filter">
           <option value="all">All listings</option>
           <option value="nomain">No main at all</option>
           <option value="pcbad">Main not OK (Picture check)</option>
@@ -1823,16 +1823,19 @@
           <option value="noswatch">No swatch</option>
           <option value="nobuy">Not buyable</option>
         </select>
-        <select id="imView" style="flex:0 0 210px" title="Which picture each tile shows first">
+        <select id="imView" title="Which picture each tile shows first" aria-label="Which picture each tile shows">
           <option value="mine">Show the pictures you sent</option>
           <option value="live">Show what Amazon serves</option>
         </select>
+        <span class="im-dense" role="group" aria-label="Row size"><button type="button" data-im-dense="comfortable" title="Big pictures">Comfortable</button><button type="button" data-im-dense="compact" title="More rows on screen">Compact</button></span>
         <!-- Picture check: the main pictures a person must judge (listing/picture-check.js). -->
         <button id="imPcChip" type="button" class="sp-chip" aria-pressed="false">◐ Picture check</button>
-        <button id="imGo" class="ghost" style="flex:0 0 120px" title="Open the editor for exactly this SKU or ASIN">Open editor</button>
-        <button id="imRefresh" class="ghost" style="flex:0 0 190px">Refresh from Amazon</button>
         <span style="flex:1"></span>
-        <span id="imMsg" class="muted" style="align-self:center;font-size:12px"></span>
+        <button id="imGo" class="ghost" title="Open the editor for exactly the SKU or ASIN typed in the search">Open editor</button>
+        <button id="imRefresh" class="ghost" title="Read every listing's pictures from Amazon again (about two minutes)">Refresh</button>
+        <button type="button" class="ghost im-helpbtn" data-im-help="open" title="Keys and tips (?)" aria-label="Keys and tips">?</button>
+        <!-- Messages: shown as toasts (bottom right); this line stays for screen readers. -->
+        <span id="imMsg" class="im-sr" role="status" aria-live="polite"></span>
       </div>
       <div id="imProg" class="im-prog" role="progressbar" aria-label="Reading listings from Amazon" hidden></div>
     </div>
@@ -1843,6 +1846,10 @@
     </aside>
     <div id="imListWrap"><div id="imList"></div></div>
     <div id="imPcWrap" class="hide"></div>
+    <!-- The picture viewer (image-manager.js imViewOpen), the file chooser behind a tile's Replace, the toasts. -->
+    <div id="imViewer" class="im-vw" hidden></div>
+    <input type="file" id="imFile2" accept="image/jpeg,image/png,image/tiff,image/gif" class="hide">
+    <div id="imToasts" class="im-toasts" aria-live="polite"></div>
   </div>
 
   <div id="paneLerr" class="hide">

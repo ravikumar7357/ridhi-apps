@@ -244,6 +244,95 @@ function picture(W, H, box, edge) {
     ok('Close: the panel goes, the list is still there', P.el('imEditWrap').classList.contains('hide') && !P.el('imListWrap').classList.contains('hide'));
   }
 
+  console.log('== the cleaner list: one status chip, quality summary, families, density, Shift-range, keys ==');
+  const cl = init => { const s = new Set(init || []); return { add: c => s.add(c), remove: c => s.delete(c), contains: c => s.has(c),
+    toggle: (c, on) => ((on === undefined ? !s.has(c) : on) ? s.add(c) : s.delete(c)) }; };
+  {
+    const store = {};
+    const ls = { getItem: k => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = String(v); }, removeItem: k => { delete store[k]; } };
+    const P = load({ im: true, ctx: { localStorage: ls, sqSendWithCheck: async () => {}, sqField: s => s, sqSummaryText: () => '' } });
+    P.el('imBrand').value = 'SP';
+    P.el('imFilter').value = 'all';
+    P.IML.SP = { at: new Date(), items: ITEMS() };
+    const it = sku => P.IML.SP.items.find(i => i.sku === sku);
+    ok('ONE status chip, the worst picture problem first: K3 "Amazon picture error", K5 "No main at all", K2 "Using the family\'s main", K4 "Search suppressed", K1 "Buyable"',
+      P.imKidChip(it('K3')).t === 'Amazon picture error' && P.imKidChip(it('K5')).t === 'No main at all' && P.imKidChip(it('K2')).t === 'Using the family\'s main'
+      && P.imKidChip(it('K4')).t === 'Search suppressed' && P.imKidChip(it('K1')).t === 'Buyable');
+    P.IMQ.dims = new Map([['k3MAIN', [1500, 1500]], ['k3PT01', [800, 800]]]);
+    ok('quality summary: K3 "5/9 pictures · 2 below 2000 · no swatch"; K1 "9/9 pictures"', P.imKidSummary(it('K3')).replace(/<[^>]+>/g, '') === '5/9 pictures · 2 below 2000 · no swatch'
+      && P.imKidSummary(it('K1')) === '9/9 pictures');
+    P.imListRender();
+    let html = P.el('imList').innerHTML;
+    ok('family card: "4 children · 4 need pictures", Copy main of this family, Select all children, Expand / Collapse all', /5 children · <b class="is-need">4 need pictures<\/b>/.test(html)
+      && /data-fammain="PAR"/.test(html) && /data-famsel="PAR"/.test(html) && /data-foldall="1"/.test(html), (html.match(/\d+ children[^<]*<b[^>]*>[^<]*/) || [''])[0]);
+    ok('tiles: 160 px thumbnails for Amazon pictures (_SL160_), hover View · Copy · Replace', /_SL160_\.jpg/.test(html) && /data-view="K1" data-slot="PT01"/.test(html) && /data-repl="K1" data-slot="PT01"/.test(html) && /data-copy1="K1"/.test(html));
+    P.IM_FOLD.add('PAR');
+    P.imListRender();
+    html = P.el('imList').innerHTML;
+    ok('a folded family shows only its header (no child rows), ▸ to open', !/data-sku="K1"/.test(html.replace(/data-fold[^>]*/g, '')) && /im-grp is-folded/.test(html) && /aria-expanded="false"/.test(html) && /data-sku="S1"/.test(html));
+    P.IM_FOLD.clear();
+    // density
+    P.el('paneImg').classList = cl();
+    P.imDensity('compact');
+    ok('density: Compact is applied (im-compact on the page) and remembered in this browser', P.el('paneImg').classList.contains('im-compact') && store['sellora.imgdensity'] === 'compact');
+    const P2 = load({ im: true, ctx: { localStorage: ls } });
+    ok('…a new visit starts Compact', P2.getDense() === 'compact');
+    P.imDensity('comfortable');
+    ok('…back to Comfortable', !P.el('paneImg').classList.contains('im-compact') && store['sellora.imgdensity'] === 'comfortable');
+    // Shift-range
+    ok('Shift+click ticks a range in screen order (either direction); the first tick off-screen → just this one', P.imRangeSel(['a', 'b', 'c', 'd', 'e'], 'b', 'd').join() === 'b,c,d'
+      && P.imRangeSel(['a', 'b', 'c', 'd', 'e'], 'e', 'c').join() === 'c,d,e' && P.imRangeSel(['a', 'b'], 'zz', 'b').join() === 'b');
+    // keys
+    P.el('spModal').classList = cl(['hide']);
+    let focused = 0;
+    P.el('imQ').focus = () => { focused++; };
+    ok('"/" focuses the search; letters typed into a box are left alone', P.imKey({ key: '/', target: { tagName: 'BODY' } }) === true && focused === 1
+      && P.imKey({ key: 'e', target: { tagName: 'INPUT' } }) === false && P.imKey({ key: 'v', target: { tagName: 'BODY' }, ctrlKey: true }) === false);
+    P.setHover({ sku: 'K1', slot: 'PT02' });
+    P.setClip(null);
+    P.imKey({ key: 'c', target: { tagName: 'BODY' } });
+    ok('"C" over a tile copies that picture', P.getClip() && P.getClip().slots.PT02 === A('k1PT02') && Object.keys(P.getClip().slots).length === 1);
+    P.setHover({ sku: 'K2', slot: '' });
+    P.imKey({ key: 'C', target: { tagName: 'BODY' } });
+    ok('"C" over a row copies all its pictures', P.getClip().sku === 'K2' && P.getClip().n === 9);
+  }
+
+  console.log('== the picture viewer ==');
+  {
+    const P = load({ im: true, ctx: { sqSendWithCheck: async () => {}, sqField: s => s, sqSummaryText: () => '' } });
+    P.el('imBrand').value = 'SP';
+    P.el('imFilter').value = 'all';
+    P.IML.SP = { at: new Date(), items: ITEMS() };
+    P.IMQ.dims = new Map([['k1MAIN', [2400, 2400]]]);
+    P.imViewOpen('K1', 'MAIN');
+    let v = P.el('imViewer');
+    ok('a tile opens the viewer: the picture big (the full picture, not the thumbnail), slot name, "1 of 10", size and the picture rules', P.getVW().slot === 'MAIN' && v.hidden === false
+      && new RegExp(`<img src="${A('k1MAIN').replace(/[.?]/g, '\\$&')}"`).test(v.innerHTML) && /Main <span class="muted">\(1 of 10\)/.test(v.innerHTML) && /2400 × 2400 px/.test(v.innerHTML));
+    ok('…buttons: Copy · Replace in editor · Open on Amazon (amazon.com/dp/ASIN)', /data-vw="copy"/.test(v.innerHTML) && /data-vw="repl"/.test(v.innerHTML) && /amazon\.com\/dp\/B0K1/.test(v.innerHTML));
+    P.imKey({ key: 'ArrowRight', target: { tagName: 'BODY' } });
+    ok('→ moves to PT01', P.getVW().slot === 'PT01' && /PT01 <span class="muted">\(2 of 10\)/.test(P.el('imViewer').innerHTML));
+    P.imKey({ key: 'ArrowLeft', target: { tagName: 'BODY' } });
+    P.imKey({ key: 'ArrowLeft', target: { tagName: 'BODY' } });
+    ok('← ← goes back past Main to the swatch (MAIN … PT08, swatch, round)', P.getVW().slot === 'SWCH');
+    P.imViewOpen('K3', 'PT04');
+    P.imViewMove(1);
+    ok('…a listing with 5 pictures: PT04 → back to Main (empty slots are skipped)', P.getVW().slot === 'MAIN');
+    P.imKey({ key: 'Escape', target: { tagName: 'BODY' } });
+    ok('Esc closes it', P.getVW() === null && P.el('imViewer').hidden === true);
+    P.imViewOpen('K4', 'MAIN');
+    v = P.el('imViewer');
+    ok('when ours and what shoppers see differ: "Ours vs What shoppers see"', /data-vw="both"/.test(v.innerHTML) && /Ours vs What shoppers see/.test(v.innerHTML));
+    P.imViewAct('both');
+    ok('…side by side: ours (B) and what shoppers see (F)', /is-both/.test(P.el('imViewer').innerHTML) && /Ours — the picture we sent \(B\)/.test(P.el('imViewer').innerHTML)
+      && /What shoppers see \(F\)/.test(P.el('imViewer').innerHTML) && new RegExp(A('k1MAIN').replace(/[.?]/g, '\\$&')).test(P.el('imViewer').innerHTML));
+    P.setClip(null);
+    P.imViewAct('copy');
+    ok('Copy in the viewer copies that picture', P.getClip().slots.MAIN === A('k4MAIN'));
+    P.imViewOpen('K1', 'MAIN');
+    ok('…the same picture both sides: no toggle, "the same picture"', !/data-vw="both"/.test(P.el('imViewer').innerHTML) && /are the same picture/.test(P.el('imViewer').innerHTML));
+    P.imViewClose();
+  }
+
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
 })();
