@@ -2217,6 +2217,68 @@
   .modalbox.sa-plcard{width:min(660px,100%);max-height:88vh;overflow:auto}
 
   /* ===== MODULE: LISTING ===== */
+  /* ----- BSR Audit (listing/bsr-audit.js): number cards as filters, the table, the parent side panel with its chart. Scoped to #paneBsr. ----- */
+  #paneBsr #bKpis{display:block}
+  #paneBsr .bs-boxes{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin:0 0 10px}
+  #paneBsr .bs-box{--c:var(--brand);position:relative;overflow:hidden;min-width:0;display:flex;flex-direction:column;align-items:stretch;gap:2px;width:auto;height:auto;
+    min-height:0;margin:0;padding:10px 12px 8px;background:var(--card);border:1px solid var(--card-line);border-radius:var(--r-card);box-shadow:var(--sh-1);
+    color:var(--ink);font:inherit;text-align:left;line-height:1.3;cursor:pointer;transition:transform .15s cubic-bezier(.2,.7,.2,1),box-shadow .15s ease,border-color .15s ease}
+  #paneBsr .bs-box::after{content:"";position:absolute;right:-55px;top:-65px;width:140px;height:140px;border-radius:50%;
+    background:radial-gradient(circle,var(--c) 0,transparent 68%);opacity:.12;pointer-events:none}
+  #paneBsr .bs-box:hover{transform:translateY(-2px);background:var(--card);color:var(--ink);box-shadow:var(--sh-2);border-color:color-mix(in srgb,var(--c) 40%,var(--card-line))}
+  #paneBsr .bs-box:focus-visible{outline:none;box-shadow:0 0 0 3px color-mix(in srgb,var(--c) 35%,transparent)}
+  #paneBsr .bs-box.is-on{border-color:color-mix(in srgb,var(--c) 55%,var(--card-line));box-shadow:0 0 0 3px color-mix(in srgb,var(--c) 35%,transparent)}
+  #paneBsr .bs-box span{font-size:11.5px;font-weight:600;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #paneBsr .bs-box b{font-size:20px;font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums;color:var(--ink)}
+  #paneBsr .bs-box small{min-height:14px;font-size:11px;color:var(--faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #paneBsr .bs-box.is-bad{--c:var(--bad)} #paneBsr .bs-box.is-bad b{color:var(--bad-ink)}
+  #paneBsr .bs-box.is-ok{--c:var(--accent)} #paneBsr .bs-box.is-ok b{color:var(--accent-ink)}
+  #paneBsr .bs-box.is-att{--c:var(--rev)} #paneBsr .bs-box.is-att b{color:var(--rev-ink)}
+  #paneBsr .bs-box.is-off{--c:var(--faint)} #paneBsr .bs-box.is-off b{color:var(--muted)}
+  #paneBsr .bs-meta{display:flex;flex-wrap:wrap;gap:4px 14px;margin:0 0 8px;font-size:12px;color:var(--muted)}
+  /* the table: rows open the side panel; nothing cut off (names wrap) */
+  #paneBsr #bTable tbody tr.bs-row{cursor:pointer}
+  #paneBsr #bTable tbody tr.bs-row:hover td{background:var(--hover)}
+  #paneBsr #bTable tbody tr.is-open td{background:color-mix(in srgb,var(--brand) 9%,var(--card))}
+  #paneBsr #bTable td.bs-wrap{white-space:normal;min-width:180px;max-width:320px;line-height:1.35}
+  #paneBsr #bTable td.bs-why{white-space:normal;min-width:200px;max-width:340px;font-size:12px;line-height:1.35;color:var(--muted)}
+  #paneBsr .bs-grey{color:var(--faint)}
+  #paneBsr .bs-act{display:inline-block;padding:1px 8px;border-radius:var(--r-pill);background:var(--hover);color:var(--ink);font-size:11.5px;font-weight:650;white-space:nowrap}
+  #paneBsr .bs-act.is-bad{background:var(--bad-bg);color:var(--bad-ink)}
+  #paneBsr .bs-act.is-att{background:var(--rev-bg);color:var(--rev-ink)}
+  #paneBsr .bs-act.is-ok{background:var(--accent-bg);color:var(--accent-ink)}
+  #paneBsr .bs-prio{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:650;white-space:nowrap}
+  #paneBsr .bs-prio::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--faint)}
+  #paneBsr .bs-prio.is-High::before{background:var(--bad)}
+  #paneBsr .bs-prio.is-Medium::before{background:var(--rev)}
+  #paneBsr .bs-prio.is-Low::before{background:var(--accent)}
+  #paneBsr .bs-tag{display:inline-block;margin:2px 4px 0 0;padding:0 6px;border-radius:var(--r-pill);background:var(--hover);color:var(--muted);font-size:10.5px;font-weight:600}
+  #paneBsr .bs-follow{display:block;margin-top:2px;font-size:11px;color:var(--muted)}
+  /* the side panel: one parent */
+  #paneBsr .bs-panel{position:fixed;top:var(--bs-top,0px);right:0;bottom:0;z-index:50;width:min(560px,calc(100vw - 16px));margin:8px;
+    max-height:calc(100vh - var(--bs-top,0px) - 16px);overflow:auto;overscroll-behavior:contain;padding:0 16px 16px;background:var(--card);
+    border:1px solid var(--line);border-radius:16px;box-shadow:0 18px 50px rgba(0,0,0,.28)}
+  #paneBsr .bs-panel[hidden]{display:none}
+  #paneBsr .bs-ph{position:sticky;top:0;z-index:2;display:flex;align-items:flex-start;gap:10px;margin:0 -16px 10px;padding:14px 16px 10px;background:var(--card);border-bottom:1px solid var(--line)}
+  #paneBsr .bs-ph>div{flex:1 1 auto;min-width:0}
+  #paneBsr .bs-ph b{display:block;font-size:15px;font-weight:650;color:var(--ink)}
+  #paneBsr .bs-ph span{display:block;margin-top:2px;font-size:12px;color:var(--muted)}
+  #paneBsr .bs-ph span span{display:inline;margin:0}
+  #paneBsr .bs-sec{margin:14px 0 6px;font-size:12px;font-weight:700;letter-spacing:.02em;text-transform:uppercase;color:var(--muted)}
+  #paneBsr .bs-facts{margin:0;padding-left:18px;font-size:13px;line-height:1.6;color:var(--ink)}
+  #paneBsr .bs-facts .bs-nk{color:var(--faint)}
+  #paneBsr .bs-links{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+  #paneBsr .bs-kids{width:100%;border-collapse:collapse;font-size:12.5px}
+  #paneBsr .bs-kids th,#paneBsr .bs-kids td{padding:5px 6px;border-bottom:1px solid var(--line);text-align:left}
+  #paneBsr .bs-kids th{font-size:11px;color:var(--muted);font-weight:650}
+  #paneBsr .bs-kids td.num,#paneBsr .bs-kids th.num{text-align:right;font-variant-numeric:tabular-nums}
+  #paneBsr .bs-kids tr.is-fall td{background:color-mix(in srgb,var(--bad) 8%,transparent)}
+  #paneBsr .bs-chart{width:100%;height:auto;display:block}
+  #paneBsr .bs-chart .ax{stroke:var(--line);stroke-width:1}
+  #paneBsr .bs-chart .ln{fill:none;stroke:var(--brand);stroke-width:2}
+  #paneBsr .bs-chart .pt{fill:var(--card);stroke:var(--brand);stroke-width:2}
+  #paneBsr .bs-chart text{fill:var(--muted);font-size:10px;font-family:inherit}
+  @media (max-width:860px){#paneBsr .bs-panel{top:0;width:100vw;margin:0;max-height:100vh;border-radius:0}}
   /* ----- One look for every problem (listing/listing-rules.js, lrProblemHtml): Listing Health's Why column and one-parent view,
      the Workspace's detail and audit, the suggested-title dialog — the severity dot, what is wrong, how to fix it in plain words,
      a small grey source line, a tag for whose rule it is, and Fix. ----- */
