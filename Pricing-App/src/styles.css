@@ -1121,6 +1121,34 @@
   .imq-chip.is-ok{background:var(--accent-bg);color:var(--accent-ink)}
   .imq-chip.is-warn{background:var(--rev-bg,var(--act-bg));color:var(--rev-ink,var(--act-ink))}
   .imq-chip.is-bad{background:var(--bad-bg);color:var(--bad-ink)}
+  /* Image Manager top: the sticky toolbar, the thin reading bar, the number cards (the Listing .ls-box look, scoped here). */
+  #paneImg .card.im-tb{position:sticky;top:var(--im-top,0px);z-index:20}
+  #paneImg .im-prog{display:flex;align-items:center;gap:10px;margin-top:8px;font-size:11.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+  #paneImg .im-prog[hidden]{display:none}
+  #paneImg .im-prog-bar{flex:1 1 auto;height:4px;border-radius:2px;background:var(--hover);overflow:hidden}
+  #paneImg .im-prog-bar i{display:block;height:100%;border-radius:2px;background:var(--brand);transition:width .3s ease}
+  #paneImg .im-boxes{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:8px;margin:0 0 8px}
+  #paneImg .im-box{--c:var(--brand);position:relative;overflow:hidden;min-width:0;display:flex;flex-direction:column;align-items:stretch;gap:2px;width:auto;height:auto;
+    min-height:0;margin:0;padding:10px 12px 8px;background:var(--card);border:1px solid var(--card-line);border-radius:var(--r-card);box-shadow:var(--sh-1);
+    color:var(--ink);font:inherit;text-align:left;line-height:1.3;cursor:pointer;transition:transform .15s cubic-bezier(.2,.7,.2,1),box-shadow .15s ease,border-color .15s ease}
+  #paneImg .im-box::after{content:"";position:absolute;right:-55px;top:-65px;width:140px;height:140px;border-radius:50%;
+    background:radial-gradient(circle,var(--c) 0,transparent 68%);opacity:.12;pointer-events:none}
+  #paneImg .im-box:hover{transform:translateY(-2px);background:var(--card);color:var(--ink);box-shadow:var(--sh-2);border-color:color-mix(in srgb,var(--c) 40%,var(--card-line))}
+  #paneImg .im-box:focus-visible{outline:none;box-shadow:0 0 0 3px color-mix(in srgb,var(--c) 35%,transparent)}
+  #paneImg .im-box.is-on{border-color:color-mix(in srgb,var(--c) 55%,var(--card-line));box-shadow:0 0 0 3px color-mix(in srgb,var(--c) 35%,transparent)}
+  #paneImg .im-box-l{font-size:11.5px;font-weight:600;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #paneImg .im-box b{font-size:20px;font-weight:700;letter-spacing:-.02em;line-height:1.2;font-variant-numeric:tabular-nums;color:var(--ink)}
+  #paneImg .im-box small{min-height:14px;font-size:11px;color:var(--faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #paneImg .im-box.is-err{--c:var(--bad)}
+  #paneImg .im-box.is-err b{color:var(--bad-ink)}
+  #paneImg .im-box.is-att{--c:var(--rev)}
+  #paneImg .im-box.is-att b{color:var(--rev-ink)}
+  #paneImg .im-box.is-act{--c:var(--act)}
+  #paneImg .im-box.is-act b{color:var(--act-ink)}
+  #paneImg .im-box.is-zero b{color:var(--muted)}
+  #paneImg .im-meta{font-size:12px;margin:0 0 8px}
+  @media (max-width:1280px){#paneImg .im-boxes{grid-template-columns:repeat(4,minmax(0,1fr))}}
+  @media (max-width:560px){#paneImg .im-boxes{grid-template-columns:repeat(2,minmax(0,1fr))}}
 
   /* PPC & ORGANIC · NEW (test). Everything is under #panePpcn and prefixed px-, and the app's own
      button / input / label / table rules are undone inside it first — so this page cannot change the

@@ -63,6 +63,39 @@ function picture(W, H, box, edge) {
     ok('white / fill are judged on MAIN only', !C.imqCheck({ slot: 'PT01', w: 2400, h: 2400, white: false, fill: 0.2 }).chips.some(c => /Background|fills/.test(c.t)));
   }
 
+  console.log('== the number cards (they set the filter picker) ==');
+  const full = (p, n) => Object.fromEntries(['MAIN', 'PT01', 'PT02', 'PT03', 'PT04', 'PT05', 'PT06', 'PT07', 'PT08'].slice(0, n || 9).map(s => [s, A(p + s)]));
+  const ITEMS = () => [
+    { sku: 'PAR', lvl: 'parent', asin: 'B0PAR', t: 'Napkins parent', img: { MAIN: A('par') }, live: { MAIN: A('par') } },
+    { sku: 'K1', psku: 'PAR', asin: 'B0K1', pt: 'NAPKIN', c: 'Blue', z: '18x18', st: 'BUYABLE,DISCOVERABLE', img: Object.assign(full('k1'), { SWCH: A('k1sw') }), live: full('k1') },
+    { sku: 'K2', psku: 'PAR', asin: 'B0K2', pt: 'NAPKIN', c: 'Blue', z: '20x20', st: 'BUYABLE,DISCOVERABLE', img: Object.assign(full('k2'), { MAIN: undefined }), live: full('k2') },
+    { sku: 'K3', psku: 'PAR', asin: 'B0K3', pt: 'NAPKIN', c: 'Red', z: '18x18', st: 'BUYABLE,DISCOVERABLE', ie: 2, im: 'bad value', img: full('k3', 5), live: full('k3', 5) },
+    { sku: 'K4', psku: 'PAR', asin: 'B0K4', pt: 'NAPKIN', c: 'Red', z: '20x20', st: 'BUYABLE', img: full('k4'), live: Object.assign(full('k4'), { MAIN: A('k1MAIN') }), },
+    { sku: 'S1', asin: 'B0S1', pt: 'TABLECLOTH', c: 'Green', z: '60x90', st: 'BUYABLE,DISCOVERABLE', img: full('s1'), live: full('s1') },
+  ];
+  {
+    const P = load({ im: true, sq: true, pc: true });
+    P.el('imBrand').value = 'SP';
+    P.el('imFilter').value = 'all';
+    P.IML.SP = { at: new Date(), items: ITEMS() };
+    P.PC.marks.SP = { k2MAIN: { v: 'bad' }, k3MAIN: { v: 'ok' } };
+    P.IMQ.dims = new Map([['k3PT01', [1500, 1500]], ['k1MAIN', [2400, 2400]]]);
+    P.imListRender();
+    const html = P.el('imList').innerHTML;
+    const n = k => { const m = html.match(new RegExp(`data-im-card="${k}"[^>]*>.*?<b>(\\d+)</b>`)); return m ? +m[1] : null; };
+    ok('8 cards in the order asked: Main missing · Main not OK · Too small · Fewer than 7 · Amazon error · Search suppressed · Another SKU\'s pictures · No swatch',
+      (html.match(/data-im-card="(\w+)"/g) || []).map(s => s.slice(14, -1)).join(',') === 'nomain,pcbad,small,few,amzerr,sup,other,noswatch');
+    ok('numbers: Main missing 1 (K2) · Main not OK 1 (K2, Picture check) · Too small 1 (K3 PT01 1500) · Fewer than 7 1 (K3) · Amazon error 1 · suppressed 1 (K4) · another SKU 1 (K4 shows K1) · no swatch 4',
+      n('nomain') === 1 && n('pcbad') === 1 && n('small') === 1 && n('few') === 1 && n('amzerr') === 1 && n('sup') === 1 && n('other') === 1 && n('noswatch') === 4,
+      ['nomain', 'pcbad', 'small', 'few', 'amzerr', 'sup', 'other', 'noswatch'].map(k => k + '=' + n(k)).join(' '));
+    ok('"Too small" says how many are measured so far: "2 of 5 measured"', /under 2000 · 2 of 5 measured/.test(html));
+    ok('the long grey summary line is gone (no "carry another SKU\'s pictures" text)', !/carry another SKU/.test(html) && /im-meta/.test(html));
+    ok('the dropdown has the same filters: Main missing / Main not OK / Too small filter the list too', ['nomain', 'pcbad', 'small'].every(k => {
+      P.el('imFilter').value = k; P.imListRender(); return (P.el('imList').innerHTML.match(/class="im-kid"/g) || []).length === 1 && new RegExp(`data-im-card="${k}" aria-pressed="true"`).test(P.el('imList').innerHTML);
+    }));
+    P.el('imFilter').value = 'all';
+  }
+
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
 })();

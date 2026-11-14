@@ -1802,7 +1802,8 @@
   </div>
 
   <div id="paneImg" class="hide">
-    <div class="card" style="padding:12px 14px;margin-bottom:12px">
+    <!-- The toolbar sticks under the menu bar (--im-top, measured by imStick in image-manager.js). -->
+    <div id="imTb" class="card im-tb" style="padding:12px 14px;margin-bottom:12px">
       <div class="toolbar">
         <select id="imBrand" style="flex:0 0 110px">
           <option value="SP">Ridhi</option><option value="CPC">CPC</option>
@@ -1810,6 +1811,9 @@
         <input id="imQ" placeholder="Search SKU, ASIN, title, colour" style="flex:0 0 260px">
         <select id="imFilter" style="flex:0 0 220px">
           <option value="all">All listings</option>
+          <option value="nomain">Main missing (none of your own)</option>
+          <option value="pcbad">Main not OK (Picture check)</option>
+          <option value="small">Too small (under 2000)</option>
           <option value="diff">Live image differs from yours</option>
           <option value="other">Amazon shows another SKU's pictures</option>
           <option value="sup">Search suppressed</option>
@@ -1830,6 +1834,7 @@
         <span style="flex:1"></span>
         <span id="imMsg" class="muted" style="align-self:center;font-size:12px"></span>
       </div>
+      <div id="imProg" class="im-prog" role="progressbar" aria-label="Reading listings from Amazon" hidden></div>
     </div>
     <div id="imEditWrap" class="hide">
       <div style="margin-bottom:8px"><button id="imBack" class="ghost" style="width:auto;padding:5px 14px">&larr; All listings</button></div>

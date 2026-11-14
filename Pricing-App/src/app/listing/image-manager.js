@@ -59,6 +59,7 @@ const IML = {};                 // brand -> {at, items}
 let IML_DIRTY = false;          // the snapshot changed since it was drawn
 let IML_PAGE = 0;               // page of the list on screen (0-based)
 let IML_BUSY = false;           // a rebuild from Amazon is running
+let IML_PROG = null;            // { name, done, total } while it runs: the thin bar under the toolbar
 const IML_PER = 40;             // listings per screen
 const IML_CHUNK = 500;          // listings per Firestore chunk doc
 let IML_VIEW = 'mine';          // which picture a tile shows first: ours, or what Amazon serves
@@ -140,7 +141,38 @@ const imThumb = url => /m\.media-amazon\.com\/images\/I\/[^/]+\.(jpg|png)$/i.tes
  */
 
 // First visit to the tab (called from showTab).
-function ensureImg() { imListEnsure(); }
+function ensureImg() {
+  imStick();
+  imListEnsure();
+}
+
+// The thin progress bar under the toolbar while the brand is read from Amazon: "Reading Ridhi listings: 2,339 of 2,831".
+function imProg() {
+  const el = $('imProg');
+  if (!el) return;
+  if (!IML_PROG) {
+    el.hidden = true;
+    el.innerHTML = '';
+    return;
+  }
+  const { name, done, total } = IML_PROG;
+  const pct = total ? Math.min(100, done * 100 / total) : 0;
+  el.hidden = false;
+  el.setAttribute('aria-valuenow', String(Math.round(pct)));
+  el.innerHTML = `<span class="im-prog-bar"><i style="width:${pct.toFixed(1)}%"></i></span>`
+    + `<span>Reading ${imEsc(name)} listings: ${done.toLocaleString('en-US')}${total ? ' of ' + total.toLocaleString('en-US') : ''}</span>`;
+}
+/* The toolbar sticks under Sellora's menu bar (like Listing Health's): the bar's height is measured, because it wraps onto a second
+ * line on narrower screens and is a drawer (not sticky) on phones — then the offset is 0. */
+function imStick() {
+  try {
+    const pane = $('paneImg');
+    if (!pane || !pane.style || !pane.style.setProperty || typeof getComputedStyle !== 'function' || !document.querySelector) return;
+    const side = document.querySelector('.side');
+    const top = side && getComputedStyle(side).position === 'sticky' ? Math.round(side.getBoundingClientRect().height) : 0;
+    pane.style.setProperty('--im-top', top + 'px');
+  } catch (e) { /* no layout to measure (a test page) */ }
+}
 
 // Show the editor (true) or the list (false).
 function imShowEditor(on) {
@@ -214,6 +246,7 @@ async function imListBuild(brandKey) {
      * So the catalogue is read in created-date windows, halved until each holds fewer. */
     const iso = ms => new Date(ms).toISOString();
     const wins = [];
+    let grand = 0;                 // listings in every window: the progress bar's "of N"
     const todo = [[Date.parse('2010-01-01T00:00:00Z'), Date.now() + 864e5]];
     imMsg('Counting ' + name + ' listings…');
     while (todo.length) {
@@ -226,12 +259,15 @@ async function imListBuild(brandKey) {
         continue;
       }
       wins.push([from, to]);
+      grand += total;
     }
     // --- read every window, page by page ---
     for (const [from, to] of wins) {
       let token = '';
       do {
-        imMsg('Reading ' + name + ' listings from Amazon… ' + items.length);
+        IML_PROG = { name, done: items.length, total: grand };
+        imProg();
+        imMsg('');
         const reply = await baCall({ limg: 'page', brand: brandKey, token, pages: 40, after: iso(from), before: iso(to) });
         items = items.concat(reply.items || []);
         token = reply.next || '';
@@ -257,6 +293,8 @@ async function imListBuild(brandKey) {
     imMsg('Reading from Amazon stopped after ' + items.length + ' listings: ' + (e.message || e), true);
     if (items.length && !IML[brandKey]) IML[brandKey] = { at: new Date(), items };
   }
+  IML_PROG = null;
+  imProg();
   IML_BUSY = false;
   $('imRefresh').disabled = false;
   if ($('imBrand').value === brandKey) imListRender();
@@ -326,6 +364,53 @@ function imState(item) {
 /** True when the listing itself submitted no main image — what shows comes from the family. */
 const imNoOwnMain = item => !(item.img || {}).MAIN && !!(item.live || {}).MAIN;
 
+/** The main picture shoppers see was marked Not OK in the Picture check (picture-check.js keeps the marks per picture id). */
+const imPcBad = (brand, item) => typeof PC !== 'undefined' && !!(item.live || {}).MAIN && ((PC.marks[brand] || {})[imqId(item.live.MAIN)] || {}).v === 'bad';
+/** A picture of the stack (ours or what shoppers see; not the swatch) whose size is known and under 2000 on its shortest side. */
+const imSmall = item => IM_SLOTS.some(slot => [(item.img || {})[slot], (item.live || {})[slot]].some(url => {
+  const wh = imqDims(url);
+  return !!wh && imqSize(wh[0], wh[1]) !== 'g';
+}));
+const imMeasured = item => IM_SLOTS.some(slot => !!imqDims((item.img || {})[slot] || (item.live || {})[slot]));
+
+/* THE NUMBER CARDS at the top of the list. Each is one of the filter picker's own filters (the picker stays and follows the card):
+ * a click shows only those listings, a second click shows all again. Counted over every child listing of the brand. */
+const IM_CARDS = [
+  { k: 'nomain', t: 'Main missing', cls: 'is-err', tip: 'Your listing sent no main picture of its own; what shows comes from the family, and Amazon can suppress it' },
+  { k: 'pcbad', t: 'Main not OK', note: 'Picture check', cls: 'is-err', tip: 'Main pictures a person marked Not OK in the Picture check' },
+  { k: 'small', t: 'Too small', note: 'under 2000', cls: 'is-att', tip: 'A picture under 2000 × 2000 (company minimum). Counted from the sizes known so far: the Workspace\'s catalogue reads and the tiles measured on screen' },
+  { k: 'few', t: 'Fewer than 7', note: 'pictures', cls: 'is-att', tip: 'Fewer than 7 pictures in the stack' },
+  { k: 'amzerr', t: 'Amazon error', cls: 'is-err', tip: 'Amazon reports an error on the listing' },
+  { k: 'sup', t: 'Search suppressed', cls: 'is-err', tip: 'Buyable from a direct link, but taken out of search results' },
+  { k: 'other', t: 'Shows another SKU\'s pictures', cls: 'is-act', tip: 'Amazon\'s catalogue serves another SKU\'s main picture on this ASIN' },
+  { k: 'noswatch', t: 'No swatch', cls: 'is-att', tip: 'No swatch picture, ours or live' },
+];
+/** The cards' numbers: [{ k, t, note, cls, tip, n }] over every child listing in `items` (IM_OWNER must be built for them). */
+function imCardsData(items) {
+  const kids = items.filter(item => item.lvl !== 'parent');
+  return IM_CARDS.map(card => {
+    const n = kids.filter(kid => imKidMatch(kid, card.k, '')).length;
+    const note = card.k === 'small' ? `under 2000 · ${kids.filter(imMeasured).length.toLocaleString('en-US')} of ${kids.length.toLocaleString('en-US')} measured` : card.note || '';
+    return Object.assign({}, card, { n, note });
+  });
+}
+function imCardsHtml(cards, filter) {
+  return cards.map(card => `<button type="button" class="im-box ${card.cls}${card.n ? '' : ' is-zero'}${filter === card.k ? ' is-on' : ''}" data-im-card="${card.k}"`
+    + ` aria-pressed="${filter === card.k}" title="${imEsc(card.tip)} — click to show only these; click again to show all">`
+    + `<span class="im-box-l">${imEsc(card.t)}</span><b>${card.n.toLocaleString('en-US')}</b><small>${imEsc(card.note)}</small></button>`).join('');
+}
+// Sizes landed (tiles measured on screen): the cards follow, at most once a second, without redrawing the list.
+let IM_CARDS_T = 0;
+function imCardsSoon() {
+  if (IM_CARDS_T) return;
+  IM_CARDS_T = setTimeout(() => {
+    IM_CARDS_T = 0;
+    const box = $('imCards');
+    const data = IML[$('imBrand').value];
+    if (box && data && box.isConnected !== false) box.innerHTML = imCardsHtml(imCardsData(data.items), $('imFilter').value);
+  }, 1000);
+}
+
 // Does one listing pass the filter picker (`filter`) and the search box (`search`, lower case)?
 function imKidMatch(item, filter, search) {
   const live = item.live || {};
@@ -334,6 +419,9 @@ function imKidMatch(item, filter, search) {
     const hay = [item.sku, item.asin, item.pa, item.psku, item.t, item.c, item.z].join(' ').toLowerCase();
     if (!search.split(/\s+/).every(word => hay.includes(word))) return false;
   }
+  if (filter === 'nomain') return !img.MAIN;
+  if (filter === 'pcbad') return imPcBad($('imBrand').value, item);
+  if (filter === 'small') return imSmall(item);
   if (filter === 'diff') return IM_SLOTS.some(slot => img[slot] && live[slot] && img[slot] !== live[slot]);
   if (filter === 'few') return IM_SLOTS.filter(slot => live[slot] || img[slot]).length < 7;
   if (filter === 'noswatch') return !img.SWCH && !live.SWCH;
@@ -348,6 +436,9 @@ function imKidMatch(item, filter, search) {
 /* ============================================================================================
  * 6. LIST: DRAWING — tiles, one row per child, the page
  */
+
+// The key under the cards.
+const IM_LEGEND = '<span style="color:var(--act-ink)">orange ring</span> = Amazon serves a different picture in that slot';
 
 // One thumbnail in a listing's strip; `sw` marks the swatch tile. An orange ring = live and submitted pictures differ.
 function imTile(slot, liveUrl, mineUrl, sw) {
@@ -444,21 +535,16 @@ function imListRender() {
       <button class="ghost im-b" data-pg="-1" ${IML_PAGE ? '' : 'disabled'}>◀ Prev</button>
       <span class="muted" style="font-size:12px">Page ${IML_PAGE + 1} of ${pages}</span>
       <button class="ghost im-b" data-pg="1" ${IML_PAGE < pages - 1 ? '' : 'disabled'}>Next ▶</button></div>` : '';
-  // --- the summary line, the clipboard bar, the groups ---
-  const kids0 = data.items.filter(item => item.lvl !== 'parent');
-  const nHijack = kids0.filter(imHijack).length;
-  const nSup = kids0.filter(item => imState(item).k === 'sup').length;
-  const nErr = kids0.filter(item => (item.ie || 0) > 0).length;
+  // --- the number cards (they replace the old grey summary line), the clipboard bar, the groups ---
+  imqSeed(brand);
+  const cards = `<div id="imCards" class="im-boxes" role="group" aria-label="Filter the listings">${imCardsHtml(imCardsData(data.items), filter)}</div>`;
   const only = IM_ONLY ? `<div class="card" style="padding:8px 14px;margin-bottom:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:12.5px">`
     + `<span>Showing the <b>${IM_ONLY.skus.size}</b> listing(s) picked in Listing Health${IM_ONLY.label ? ': ' + imEsc(IM_ONLY.label) : ''} — ticked.</span>`
     + `<button class="ghost im-b" id="imOnlyOff">Show every listing</button></div>` : '';
-  el.innerHTML = only + `<div class="muted" style="font-size:12px;margin-bottom:6px">${groups.length} group(s), ${nKids} listing(s) of ${data.items.length}
+  el.innerHTML = only + cards + `<div class="im-meta muted">${nKids.toLocaleString('en-US')} listing(s) in ${groups.length.toLocaleString('en-US')} group(s) of ${data.items.length.toLocaleString('en-US')}
       · snapshot ${data.at ? data.at.toLocaleString() : '—'}${IML_BUSY ? ' · refreshing…' : ''}
-      · showing <b>${IML_VIEW === 'live' ? 'what Amazon serves' : 'the pictures you submitted'}</b>
-      · <span style="color:var(--act-ink)">orange ring</span> = Amazon serves a different picture in that slot
-      ${nHijack ? `· <b style="color:var(--act-ink)">${nHijack}</b> carry another SKU's pictures` : ''}
-      ${nSup ? `· <b style="color:var(--bad-ink)">${nSup}</b> suppressed from search` : ''}
-      ${nErr ? `· <b style="color:var(--bad-ink)">${nErr}</b> with an error from Amazon` : ''}</div>
+      · tiles show <b>${IML_VIEW === 'live' ? 'what Amazon serves' : 'the pictures you submitted'}</b>
+      · ${IM_LEGEND}</div>
     ${imClipBar('list')}
     ${pager}
     ${slice.map(group => {
@@ -1101,3 +1187,13 @@ $('imBrand').onchange = () => {
 };
 // Refresh from Amazon: rebuild this brand's snapshot.
 $('imRefresh').onclick = () => imListBuild($('imBrand').value);
+// A number card: that filter in the picker (the picker follows), from page 1; the same card again shows every listing.
+$('imList').addEventListener('click', e => {
+  const card = e.target && e.target.closest ? e.target.closest('[data-im-card]') : null;
+  if (!card) return;
+  $('imFilter').value = $('imFilter').value === card.dataset.imCard ? 'all' : card.dataset.imCard;
+  imListAgain();
+});
+// Sizes measured on screen (image-quality.js) move the "Too small" card.
+IMQ.onSize = imCardsSoon;
+if (typeof window !== 'undefined' && window.addEventListener) window.addEventListener('resize', imStick);
