@@ -59,7 +59,11 @@ const GUARD = `<script>/* TEST ERP GUARD — added by Replenish-App/tests/build-
       headers: { apikey: sb.key, Authorization: 'Bearer ' + (tok || sb.key), 'Content-Type': 'application/json', 'Content-Profile': 'core', 'Accept-Profile': 'core' },
       body: JSON.stringify(body) }).then(function (r) {
         return r.text().then(function (t) {
-          if (!r.ok) return new Response(JSON.stringify({ error: 'ERP data: ' + t.slice(0, 200) }), { status: r.status === 400 ? 403 : 503, headers: { 'Content-Type': 'application/json' } });
+          if (!r.ok) {   /* the real reason goes into the message the screen shows ("…answered 503 ERP data 401: <why>") */
+            var why = t; try { var j = JSON.parse(t); why = [j.message, j.hint].filter(Boolean).join(' · ') || t; } catch (e) {}
+            try { console.warn('[TEST ERP] ERP data refused the read of ' + p + ': ' + r.status + ' ' + why); } catch (e) {}
+            return new Response(JSON.stringify({ error: why }), { status: 503, statusText: ('ERP data ' + r.status + ': ' + why).replace(/[^\\x20-\\x7e]/g, ' ').slice(0, 180), headers: { 'Content-Type': 'application/json' } });
+          }
           var v = t ? JSON.parse(t) : null;
           if (q.get('shallow') === 'true' && v && typeof v === 'object') { var o = {}; Object.keys(v).forEach(function (k) { o[k] = true; }); v = o; }
           return new Response(JSON.stringify(v), { status: 200, headers: { 'Content-Type': 'application/json', ETag: 'sb' } });
