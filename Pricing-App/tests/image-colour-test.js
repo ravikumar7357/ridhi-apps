@@ -53,9 +53,7 @@ const kids = P => P.IML.SP.items.filter(i => i.lvl !== 'parent' && i.psku === 'P
     ok('Blue: the colour stack is the majority per slot (MAIN a 4 of 5, 02 c, swatch sw)', blue.stack.MAIN === A('a') && blue.stack.PT01 === A('b1') && blue.stack.PT02 === A('c') && blue.stack.SWCH === A('sw'), JSON.stringify(blue.stack));
     ok('…a slot most sizes leave empty stays empty (03 – 08)', ['PT03', 'PT04', 'PT05', 'PT07', 'PT08'].every(s => blue.stack[s] === ''));
     const red = cols.find(c => c.name === 'Red');
-    ok('Red: a tie on every slot goes to the Buyable size (R1: MAIN r1, 01 r1a)', red.stack.MAIN === A('r1') && red.stack.PT01 === A('r1a'), JSON.stringify(red.stack));
-    ok('…02: R1 is empty there, so it does not vote — the stack takes R2\'s picture (the only non-empty one)', red.stack.PT02 === A('r2b'));
-    ok('…R1 "≠ missing 02": the stack has a picture where R1 is empty', red.sizes.find(s => s.kid.sku === 'R1').diff.join() === 'PT02');
+    ok('Red: a tie on every slot goes to the Buyable size (R1: MAIN r1, 01 r1a; 02 empty as R1 has none)', red.stack.MAIN === A('r1') && red.stack.PT01 === A('r1a') && red.stack.PT02 === '', JSON.stringify(red.stack));
     const P2 = page();
     P2.IML.SP.items.find(i => i.sku === 'R2').st = OKST;
     const red2 = P2.imcColours(kids(P2), ['PT06']).find(c => c.name === 'Red');
@@ -66,8 +64,7 @@ const kids = P => P.IML.SP.items.filter(i => i.lvl !== 'parent' && i.psku === 'P
     ok('…06 (per size) never counts as a difference, though every size has its own size chart', !Object.values(diff).some(d => d.includes('PT06')));
     ok('…Red 20x20 has an 02 the stack does not: not a difference (Sync never removes a picture)', red.sizes.find(s => s.kid.sku === 'R2').diff.join(',') === 'MAIN,PT01', red.sizes.find(s => s.kid.sku === 'R2').diff.join(','));
     const html = P.imcRowHtml(Object.assign(blue, { fam: 'PAR' }));
-    ok('the row: ✓ chips for matching sizes, ≠ for B3 with its slots named on hover', /class="imc-sz is-same[^"]*" data-imc-size="B1"/.test(html) && /class="imc-sz is-diff[^"]*" data-imc-size="B3" title="differs in Main, 02 · missing Swatch/.test(html));
-    ok('…a slot empty in all sizes says so on the stack ("empty in all sizes")', /03<small>empty in all sizes<\/small>/.test(html));
+    ok('the row: ✓ chips for matching sizes, ≠ for B3 with its slots named on hover', /class="imc-sz is-same[^"]*" data-imc-size="B1"/.test(html) && /class="imc-sz is-diff[^"]*" data-imc-size="B3" title="Differs from the colour stack in: Main, 02, Swatch/.test(html));
     ok('…"Sync 2 sizes" (B3 and NOPT), Edit stack, Copy to another colour', />Sync 2 sizes</.test(html) && />Edit stack</.test(html) && />Copy to another colour</.test(html));
     ok('…the stack tiles: 06 says "per size"', /06<small>per size<\/small>/.test(html));
     const allSame = P.imcRowHtml(Object.assign(cols.find(c => c.name === 'Green'), { fam: 'PAR' }));
@@ -216,37 +213,6 @@ const kids = P => P.IML.SP.items.filter(i => i.lvl !== 'parent' && i.psku === 'P
     ok('…sends through sqSendWithCheck: only B3 (B2 / B4 already the same, NOPT has no product type)', P.box.sent.length === 1 && P.box.sent[0].jobs.map(j => j.sku).join() === 'B3', JSON.stringify(P.box.sent.map(s => s.jobs.map(j => j.sku))));
   }
 
-  console.log('== Safety: Sync never empties a slot, never reduces a size ==');
-  {
-    const P = page();
-    // Pink: most sizes have 03 EMPTY (2 of 3) — the old "empty wins" rule would have emptied E1's 03. 05 is empty in all sizes.
-    P.IML.SP.items.push(
-      { sku: 'E1', psku: 'PAR', asin: 'B0E1', pt: 'NAPKIN', c: 'Pink', z: '18x18', st: OKST, img: { MAIN: A('pm'), PT01: A('pp'), PT03: A('pq') }, live: {} },
-      { sku: 'E2', psku: 'PAR', asin: 'B0E2', pt: 'NAPKIN', c: 'Pink', z: '20x20', st: OKST, img: { MAIN: A('pm'), PT01: A('pp') }, live: {} },
-      { sku: 'E3', psku: 'PAR', asin: 'B0E3', pt: 'NAPKIN', c: 'Pink', z: '22x22', st: OKST, img: { MAIN: A('pm2'), PT01: A('pp'), PT04: A('px') }, live: {} });
-    const pink = P.imcColours(kids(P), ['PT06']).find(c => c.name === 'Pink');
-    ok('stack = the most common NON-EMPTY picture: 03 = pq (1 size has it, 2 are empty), 04 = px, MAIN pm (2 of 3)', pink.stack.PT03 === A('pq') && pink.stack.PT04 === A('px') && pink.stack.MAIN === A('pm'));
-    ok('…a slot no size fills stays empty ("empty in all sizes")', pink.stack.PT05 === '' && /05<small>empty in all sizes<\/small>/.test(P.imcRowHtml(Object.assign(pink, { fam: 'PAR' }))));
-    const d = Object.fromEntries(pink.sizes.map(s => [s.kid.sku, P.imcDiff(s.kid, pink.stack, ['PT06']).join()]));
-    ok('≠ rule: E1 missing 04; E2 missing 03, 04; E3 differs in MAIN, missing 03', d.E1 === 'PT04' && d.E2 === 'PT03,PT04' && d.E3 === 'MAIN,PT03', JSON.stringify(d));
-    const html = P.imcRowHtml(Object.assign(pink, { fam: 'PAR' }));
-    ok('hover words: "differs in Main · missing 03" (E3), "missing 03, 04" (E2)', /data-imc-size="E3" title="differs in Main · missing 03/.test(html) && /data-imc-size="E2" title="missing 03, 04/.test(html));
-    P.imcSyncOpen('PAR', 'pink');
-    const cp = P.getCP();
-    const plans = P.imcTabPlans(cp, P.imcTargets(cp.src, P.IML.SP.items, P.IM_SEL, '').colour);
-    ok('Sync ticks all three; nothing in any plan is empty', [...cp.picked].sort().join() === 'E1,E2,E3' && plans.every(p => Object.values(p.set).every(Boolean)));
-    const e3 = plans.find(p => p.sku === 'E3');
-    ok('E3 (more pictures in 04 than most): MAIN replaced, 03 filled, its own 01 and 04 kept — nothing removed', e3.replaced.join() === 'MAIN' && e3.filled.join() === 'PT03' && e3.kept.join() === 'PT01,PT04');
-    ok('the preview says replaced / filled / kept per size — never "removed"', /1 replaced · 1 filled · 2 kept/.test(P.box.modal.html) && /<small class="imc-fate">filled<\/small>/.test(P.box.modal.html)
-      && /<small class="imc-fate">replaced<\/small>/.test(P.box.modal.html) && !/removed/i.test(P.box.modal.html));
-    await P.imcSend();
-    const after = Object.fromEntries(P.box.sent[0].jobs.map(j => [j.sku, Object.assign({}, j.row.img, j.body.set)]));
-    ok('after the send no size has fewer pictures than before, and no value sent is empty', ['E1', 'E2', 'E3'].every(sku => {
-      const before = P.IML.SP.items.find(i => i.sku === sku).img;
-      return Object.keys(before).every(slot => !before[slot] || (after[sku] || before)[slot]);
-    }) && P.box.sent[0].jobs.every(j => Object.values(j.body.set).every(Boolean) && !('PT05' in j.body.set)));
-  }
-
   console.log('== Edit stack: a change goes to every size of the colour, per-size slots excluded ==');
   {
     const P = page();
@@ -255,12 +221,10 @@ const kids = P => P.IML.SP.items.filter(i => i.lvl !== 'parent' && i.psku === 'P
     const start = { MAIN: A('a'), PT01: A('b1'), PT02: A('c'), PT06: A('ch18'), SWCH: A('sw') };
     const { jobs, held } = P.imcEditJobs({ skus: ['B1', 'B2', 'B3', 'B4', 'NOPT'] }, im, start, { PT01: A('new1'), PT06: A('newch'), PT02: '' }, items);
     const by = Object.fromEntries(jobs.map(j => [j.sku, j.body.set]));
-    ok('the open size (B1) gets every real picture, 06 included — the emptied 02 is NOT sent', JSON.stringify(by.B1) === JSON.stringify({ PT01: A('new1'), PT06: A('newch') }));
-    ok('the other sizes get 01 only: never 06, never an emptied slot', ['B2', 'B3', 'B4'].every(sku => JSON.stringify(by[sku]) === JSON.stringify({ PT01: A('new1') })));
-    ok('NO send ever carries an empty slot; no change line says "removed"', jobs.every(j => Object.values(j.body.set).every(Boolean) && j.changes.every(c => c.new && c.new !== '(removed)')));
-    ok('the emptied slot is named ("use Edit only B1"); a size with no product type is named, not sent', held.map(h => h.sku).join() === 'B1,NOPT' && /emptying 02 is not sent from Edit stack/.test(held[0].why) && !by.NOPT);
-    const onlyEmpty = P.imcEditJobs({ skus: ['B1', 'B2'] }, im, start, { PT02: '' }, items);
-    ok('an edit that only empties a slot sends nothing', !onlyEmpty.jobs.length && onlyEmpty.held.length === 1);
+    ok('the open size (B1) gets every change, 06 included', JSON.stringify(by.B1) === JSON.stringify({ PT01: A('new1'), PT06: A('newch'), PT02: '' }));
+    ok('the other sizes get 01; never 06; 02 is emptied only where it held the same picture (B2, B4 — not B3 with its own)', JSON.stringify(by.B2) === JSON.stringify({ PT01: A('new1'), PT02: '' })
+      && JSON.stringify(by.B3) === JSON.stringify({ PT01: A('new1') }) && JSON.stringify(by.B4) === JSON.stringify({ PT01: A('new1'), PT02: '' }));
+    ok('a size with no product type is named, not sent', held.map(h => h.sku).join() === 'NOPT' && !by.NOPT);
     // through the editor's own Apply (imSend → imcEditSend), one Amazon check popup
     const Pe = page({ ctx: { Image: class { set src(v) {} }, document: { addEventListener() {}, querySelectorAll: () => [], querySelector: () => null, createElement: () => ({ click() {} }) } },
       opts: { baCall: async q => ({ brand: 'SP', sku: q.sku, asin: 'B0' + q.sku, title: 't', productType: 'NAPKIN', listing: ITEMS().find(i => i.sku === q.sku).img, catalog: {}, issues: [] }) } });

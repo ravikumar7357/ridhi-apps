@@ -1413,8 +1413,6 @@
   #paneImg .imc-act{display:flex;flex-wrap:wrap;gap:4px}
   #paneImg .imc-ps .im-th{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:11px;font-weight:600}
   #paneImg .imc-ps small{font-size:10px;font-weight:500}
-  #paneImg .imc-none-all{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:0 4px;text-align:center;font-size:11px;font-weight:600}
-  #paneImg .imc-none-all small{font-size:9.5px;font-weight:500;line-height:1.15}
   #paneImg .imc-err{position:absolute;left:3px;bottom:3px;display:grid;place-items:center;width:15px;height:15px;border-radius:50%;background:var(--bad);color:#fff;
     font:700 10px/1 system-ui,sans-serif;font-style:normal;box-shadow:0 0 0 1.5px var(--card)}
   #paneImg.im-compact .imc-row{padding:6px 16px;gap:4px 12px}
@@ -1480,7 +1478,6 @@
   .imc-t-ch{display:flex;flex-wrap:wrap;gap:6px 14px;min-width:0}
   .imc-ch{display:inline-flex;align-items:center;gap:5px;flex-wrap:wrap}
   .imc-ch>b{min-width:30px;font-size:11.5px}
-  .imc-fate{font-size:10.5px;color:var(--muted)}
   .imc-ch.is-out{opacity:.55}
   .imc-ch.is-fail .im-pv-pic.is-new{border-color:var(--bad);box-shadow:0 0 0 1px var(--bad)}
   .imc-ch-q{display:inline-flex;flex-wrap:wrap;align-items:center;gap:4px}
