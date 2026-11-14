@@ -1810,60 +1810,52 @@
   </div>
 
   <div id="paneImg" class="hide">
-    <!-- The toolbar sticks under the menu bar (--im-top, measured by imStick in image-manager.js). -->
-    <div id="imTb" class="card im-tb" style="padding:12px 14px;margin-bottom:12px">
-      <div class="toolbar im-tbar">
-        <select id="imBrand" aria-label="Brand">
-          <option value="SP">Ridhi</option><option value="CPC">CPC</option>
+    <!-- Image Manager (image-manager.js, redesign 14 Nov 2026): a sticky sidebar (search, brand, Show, the families) beside the main area
+         (the family's cards); the edit drawer opens on the right; the clipboard bar slides up at the bottom while something is copied. -->
+    <div class="imx">
+      <aside class="imx-side" id="imSide" aria-label="Search and families">
+        <div class="imx-side-h"><b>Image Manager</b><span style="flex:1"></span>
+          <button type="button" class="ghost imx-btn imx-help" data-im-help="open" title="Keys and tips (?)" aria-label="Keys and tips">?</button></div>
+        <label class="im-search"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="imQ" placeholder="Search SKU, ASIN, colour" aria-label="Search SKU, ASIN or colour"><kbd title="Press / to search">/</kbd></label>
+        <div class="imx-brand" role="group" aria-label="Brand"><button type="button" data-im-brand="SP">Ridhi</button><button type="button" data-im-brand="CPC">CPC</button></div>
+        <!-- The brand, the filter and the picture choice the code reads (the buttons and chips above set them). -->
+        <select id="imBrand" class="hide" aria-hidden="true" tabindex="-1"><option value="SP">Ridhi</option><option value="CPC">CPC</option></select>
+        <select id="imFilter" class="hide" aria-hidden="true" tabindex="-1">
+          <option value="all">All listings</option><option value="nomain">No main at all</option><option value="pcbad">Main not OK (Picture check)</option>
+          <option value="small">Too small (under 2000)</option><option value="diff">Live image differs from yours</option><option value="other">Amazon shows another SKU's pictures</option>
+          <option value="sup">Search suppressed</option><option value="amzerr">Amazon picture error</option><option value="noown">Using the family's main (none of your own)</option>
+          <option value="few">Fewer than 7 images</option><option value="noswatch">No swatch</option><option value="nobuy">Not buyable</option>
         </select>
-        <label class="im-search"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="imQ" placeholder="Search SKU, ASIN, title, colour" aria-label="Search SKU, ASIN, title or colour"><kbd title="Press / to search">/</kbd></label>
-        <select id="imFilter" aria-label="Filter">
-          <option value="all">All listings</option>
-          <option value="nomain">No main at all</option>
-          <option value="pcbad">Main not OK (Picture check)</option>
-          <option value="small">Too small (under 2000)</option>
-          <option value="diff">Live image differs from yours</option>
-          <option value="other">Amazon shows another SKU's pictures</option>
-          <option value="sup">Search suppressed</option>
-          <option value="amzerr">Amazon picture error</option>
-          <option value="noown">Using the family's main (none of your own)</option>
-          <option value="few">Fewer than 7 images</option>
-          <option value="noswatch">No swatch</option>
-          <option value="nobuy">Not buyable</option>
-        </select>
-        <select id="imView" title="Which picture each tile shows first" aria-label="Which picture each tile shows">
-          <option value="mine">Show the pictures you sent</option>
-          <option value="live">Show what Amazon serves</option>
-        </select>
-        <!-- The view (image-colour.js): By colour = a row per colour with its sizes; List = a row per listing. Remembered in this browser. -->
-        <span class="im-dense imc-layout" role="group" aria-label="View"><button type="button" data-imc-layout="colour" title="Inside each family: one row per colour, its sizes and the colour's pictures">By colour</button><button type="button" data-imc-layout="list" title="One row per listing">List</button></span>
-        <details id="imcPerSize" class="imc-psset"><summary title="Slots each size keeps for itself: never part of the colour's pictures, never changed by Sync">Per-size slots: <b id="imcPerSizeTxt">06</b></summary>
-          <div class="imc-ps-pop"><span class="muted">Each size keeps its own picture in these slots (06 = size chart). Sync never changes them.</span>
-            <label><input type="checkbox" data-imc-ps="PT01"> 01</label><label><input type="checkbox" data-imc-ps="PT02"> 02</label><label><input type="checkbox" data-imc-ps="PT03"> 03</label><label><input type="checkbox" data-imc-ps="PT04"> 04</label>
-            <label><input type="checkbox" data-imc-ps="PT05"> 05</label><label><input type="checkbox" data-imc-ps="PT06"> 06</label><label><input type="checkbox" data-imc-ps="PT07"> 07</label><label><input type="checkbox" data-imc-ps="PT08"> 08</label></div></details>
-        <span class="im-dense" role="group" aria-label="Row size"><button type="button" data-im-dense="comfortable" title="Big pictures">Comfortable</button><button type="button" data-im-dense="compact" title="More rows on screen">Compact</button></span>
-        <!-- Picture check: the main pictures a person must judge (listing/picture-check.js). -->
-        <button id="imPcChip" type="button" class="sp-chip" aria-pressed="false">◐ Picture check</button>
-        <span style="flex:1"></span>
-        <button id="imcGuided" type="button" class="ghost" title="Copy pictures step by step: copy from, which pictures, paste into, check &amp; send">Guided copy</button>
-        <button id="imGo" class="ghost" title="Open the editor for exactly the SKU or ASIN typed in the search">Open editor</button>
-        <button id="imRefresh" class="ghost" title="Read every listing's pictures from Amazon again (about two minutes)">Refresh</button>
-        <button type="button" class="ghost im-helpbtn" data-im-help="open" title="Keys and tips (?)" aria-label="Keys and tips">?</button>
-        <!-- Messages: shown as toasts (bottom right); this line stays for screen readers. -->
-        <span id="imMsg" class="im-sr" role="status" aria-live="polite"></span>
-      </div>
-      <div id="imProg" class="im-prog" role="progressbar" aria-label="Reading listings from Amazon" hidden></div>
+        <select id="imView" class="hide" aria-hidden="true" tabindex="-1"><option value="mine">Show the pictures you sent</option><option value="live">Show what Amazon serves</option></select>
+        <div class="imx-lbl">Show</div>
+        <div id="imShow" class="imx-show" role="group" aria-label="Show"></div>
+        <div class="imx-lbl">Families</div>
+        <div id="imFams" class="imx-fams"></div>
+        <div class="imx-side-foot">
+          <span id="imSnap"></span>
+          <span class="imx-side-btns"><button id="imRefresh" class="ghost imx-btn" type="button" title="Read every listing's pictures from Amazon again (about two minutes)">Refresh</button>
+            <!-- Picture check: the main pictures a person must judge (listing/picture-check.js). -->
+            <button id="imPcChip" type="button" class="sp-chip" aria-pressed="false">◐ Picture check</button>
+            <button id="imGo" class="ghost hide" type="button">Open editor</button></span>
+          <div id="imProg" class="im-prog" role="progressbar" aria-label="Reading listings from Amazon" hidden></div>
+          <!-- Messages: shown as toasts (bottom right); this line stays for screen readers. -->
+          <span id="imMsg" class="im-sr" role="status" aria-live="polite"></span>
+        </div>
+      </aside>
+      <main class="imx-main">
+        <div id="imListWrap"><div id="imList"></div></div>
+        <div id="imPcWrap" class="hide"></div>
+      </main>
     </div>
-    <!-- The editor opens as a panel on the right; the list stays where it was (image-manager.js imShowEditor). -->
-    <aside id="imEditWrap" class="im-side hide" role="dialog" aria-label="Edit pictures">
-      <div class="im-side-h"><b>Edit pictures</b><span style="flex:1"></span><button id="imBack" class="ghost" type="button" style="width:auto;padding:5px 14px" title="Close (Esc)">&#10005; Close</button></div>
+    <!-- The edit drawer (image-manager.js imRender): the cards stay behind it. -->
+    <aside id="imEditWrap" class="im-side imx-drawer hide" role="dialog" aria-label="Edit pictures">
+      <div class="im-side-h"><b>Edit pictures</b><span style="flex:1"></span><button id="imBack" class="ghost imx-btn" type="button" title="Close (Esc)">&#10005; Close</button></div>
       <div id="imBody"></div>
     </aside>
-    <div id="imListWrap"><div id="imList"></div></div>
-    <div id="imPcWrap" class="hide"></div>
-    <!-- The picture viewer (image-manager.js imViewOpen), the file chooser behind a tile's Replace, the toasts. -->
+    <!-- The picture viewer (imViewOpen), the file choosers behind Replace and Upload pictures, the toasts. -->
     <div id="imViewer" class="im-vw" hidden></div>
     <input type="file" id="imFile2" accept="image/jpeg,image/png,image/tiff,image/gif" class="hide">
+    <input type="file" id="imFiles2" accept="image/jpeg,image/png,image/tiff,image/gif" multiple class="hide">
     <div id="imToasts" class="im-toasts" aria-live="polite"></div>
   </div>
 
