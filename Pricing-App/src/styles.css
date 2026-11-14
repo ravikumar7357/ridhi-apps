@@ -1114,6 +1114,13 @@
   .im-th.im-empty{background:var(--bg);color:var(--faint);font-size:9px}
   .im-th.im-diff{outline:2px solid var(--act);outline-offset:-2px}
   .im-th.im-sw{width:40px;height:40px;border-radius:50%}
+  /* Picture rules (image-quality.js): chips under a picture in the editor and the paste preview, the size dot on a tile. */
+  #paneImg .imq-chips{display:flex;flex-wrap:wrap;gap:3px;justify-content:center;margin-top:3px}
+  .imq-chip{display:inline-block;max-width:100%;padding:1px 6px;border-radius:var(--r-pill);font-size:10px;line-height:1.5;font-weight:600;text-align:center;
+    background:var(--hover);color:var(--muted)}
+  .imq-chip.is-ok{background:var(--accent-bg);color:var(--accent-ink)}
+  .imq-chip.is-warn{background:var(--rev-bg,var(--act-bg));color:var(--rev-ink,var(--act-ink))}
+  .imq-chip.is-bad{background:var(--bad-bg);color:var(--bad-ink)}
 
   /* PPC & ORGANIC · NEW (test). Everything is under #panePpcn and prefixed px-, and the app's own
      button / input / label / table rules are undone inside it first — so this page cannot change the

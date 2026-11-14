@@ -53,6 +53,7 @@ let IM_RESULT = '';     // the last answer from Amazon, kept across redraws
 let IM_SKU_CHOICES = null;   // the SKUs a typed search matched, while the person picks one
 
 let IM_FILE_SLOT = '';  // the slot a chosen file goes into
+const IM_QFILE = {};    // uploaded url -> what the local file showed (image-quality.js imqReadFile: w, h, bytes, white, fill)
 
 const IML = {};                 // brand -> {at, items}
 let IML_DIRTY = false;          // the snapshot changed since it was drawn
@@ -603,8 +604,17 @@ function imCard(slot, url, opts) {
       <div class="im-pic">${url ? `<a href="${imEsc(url)}" target="_blank" rel="noopener" draggable="false">${pic}</a>` : pic}</div>
       <div style="font-size:11px;font-weight:600;margin-top:3px">${label}${changed ? ' · changed' : ''}</div>
       <div class="muted" style="font-size:10.5px${small ? ';color:var(--bad-ink)' : ''}">${dim || '&nbsp;'}${small ? ' · no zoom' : ''}</div>
+      ${url ? imCardChips(slot, url, dW, dH, opt.dup) : ''}
       ${tools}
     </div>`;
+}
+
+// The picture rules (image-quality.js) under one card: size words, shape, the same picture twice, and for a file uploaded here its
+// white border and fill. The plain "2400 × 2400" is left out — the line above already says it.
+function imCardChips(slot, url, w, h, dup) {
+  const q = imqCheck(Object.assign({ slot, w, h, dup }, IM_QFILE[url] ? { white: IM_QFILE[url].white, fill: IM_QFILE[url].fill } : {}));
+  const chips = q.chips.filter(chip => chip.t !== `${w} × ${h}`);
+  return chips.length ? `<div class="imq-chips">${imqChipsHtml(chips)}</div>` : '';
 }
 
 // Draw the editor for the open listing: header, Amazon's issues, the live stack, your editable stack with Check / Apply, the history box.
@@ -615,10 +625,12 @@ function imRender() {
     if (IM_NOW[slot]) imMeasure(IM_NOW[slot]);
   });
   const cat = listing.catalog || {};
-  const live = IM_SLOTS.map(slot => imCard(slot, cat[slot] && cat[slot].link, cat[slot] || {})).join('')
+  const dupLive = imqDups(Object.fromEntries([...IM_SLOTS, 'SWCH'].map(slot => [slot, cat[slot] && cat[slot].link])));
+  const dupMine = imqDups(IM_NOW);
+  const live = IM_SLOTS.map(slot => imCard(slot, cat[slot] && cat[slot].link, Object.assign({ dup: dupLive[slot] }, cat[slot] || {}))).join('')
     + `<div class="im-sep"></div>` + imCard('SWCH', cat.SWCH && cat.SWCH.link, cat.SWCH || {});
-  const mine = IM_SLOTS.map(slot => imCard(slot, IM_NOW[slot], { edit: true })).join('')
-    + `<div class="im-sep"></div>` + imCard('SWCH', IM_NOW.SWCH, { edit: true });
+  const mine = IM_SLOTS.map(slot => imCard(slot, IM_NOW[slot], { edit: true, dup: dupMine[slot] })).join('')
+    + `<div class="im-sep"></div>` + imCard('SWCH', IM_NOW.SWCH, { edit: true, dup: dupMine.SWCH });
   const changes = imChanges();
   const nChanges = Object.keys(changes).length;
   const choices = (listing.skuChoices && listing.skuChoices.length > 1)
@@ -829,6 +841,14 @@ async function imUpload(slot, file) {
     imMsg('Amazon refuses images over 10 MB.', true);
     return;
   }
+  // --- the picture rules (image-quality.js): read the file here first; refused = never uploaded ---
+  const info = await imqReadFile(file, slot);
+  const qual = imqCheck(Object.assign({ slot, upload: true }, info));
+  if (qual.block) {
+    imMsg(slot + ': ' + qual.block, true);
+    return;
+  }
+  const warns = qual.chips.filter(chip => chip.lv !== 'ok').map(chip => chip.t);
   imMsg('Uploading ' + file.name + '…');
   try {
     const b64 = await new Promise((resolve, reject) => {
@@ -847,9 +867,11 @@ async function imUpload(slot, file) {
       imRender();
     };
     img.src = local;
+    IM_QFILE[reply.url] = info;          // the chips under this picture in the editor (white border, fill, file size)
+    if (info.w) IM_DIMS[reply.url] = { w: info.w, h: info.h };
     IM_NOW[slot] = reply.url;
     imRender();
-    imMsg('Uploaded into ' + slot + '. Not on Amazon yet — press Apply.');
+    imMsg('Uploaded into ' + slot + '. Not on Amazon yet — press Apply.' + (warns.length ? ' Check: ' + warns.join(' · ') + '.' : ''), warns.length > 0 && qual.level === 'bad');
   } catch (e) {
     imMsg(String(e.message || e), true);
   }
