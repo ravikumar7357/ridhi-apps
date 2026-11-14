@@ -438,10 +438,41 @@ function imKidMatch(item, filter, search) {
  */
 
 // The key under the cards.
-const IM_LEGEND = '<span style="color:var(--act-ink)">orange ring</span> = Amazon serves a different picture in that slot';
+const IM_LEGEND = '<span class="im-bf-key">B<i class="fa-bfd is-g"></i> F<i class="fa-bfd is-r"></i></span> on a picture: B = the picture we sent,'
+  + ' F = what shoppers see (green = that picture, red = shoppers see another, ○ = not live yet, – = none) · dot = size: '
+  + '<i class="imq-dot is-g"></i> 2000+ <i class="imq-dot is-y"></i> under 2000 <i class="imq-dot is-r"></i> no zoom';
 
-// One thumbnail in a listing's strip; `sw` marks the swatch tile. An orange ring = live and submitted pictures differ.
-function imTile(slot, liveUrl, mineUrl, sw) {
+/** B / F of one slot, the same meaning as the Workspace's: B = what our listing sent (Seller Central), F = what shoppers see.
+ *  { b, f } with g (that picture) / r (shoppers see another) / u (not live yet) / n (none); `differs` when F is not B's picture. */
+function imBfOf(liveUrl, mineUrl) {
+  const b = mineUrl ? 'g' : 'n';
+  const f = !liveUrl ? (mineUrl ? 'u' : 'n') : (mineUrl && liveUrl !== mineUrl ? 'r' : 'g');
+  return { b, f, differs: b + f !== 'gg' && b + f !== 'nn' };
+}
+const IM_BF_TIP = { gg: 'Shoppers see the picture we sent', gr: 'We sent a picture; shoppers see another one in this slot', gu: 'We sent this picture; it is not live yet',
+  ng: 'Shoppers see a picture our listing did not send (from the family or another contributor)' };
+const imBfDot = s => (s === 'n' ? '<span class="fa-bfn" aria-hidden="true">–</span>' : `<i class="fa-bfd is-${s}" aria-hidden="true"></i>`);
+
+// One thumbnail in a listing's strip; `sw` marks the swatch tile. B / F shows when what shoppers see is not the picture we sent (the
+// .im-diff class — the old orange ring — is still set underneath); a dot gives the size; hover offers "Copy this picture".
+function imTile(slot, liveUrl, mineUrl, sw, sku) {
+  const tile = imTileA(slot, liveUrl, mineUrl, sw);
+  const url = IML_VIEW === 'live' ? (liveUrl || mineUrl) : (mineUrl || liveUrl);
+  if (!url) return tile;
+  const bf = imBfOf(liveUrl, mineUrl);
+  // The swatch has no B / F: Amazon's catalogue never returns a swatch, so F would read 'not live' on every one.
+  const tag = sw ? '' : `<span class="im-bf${bf.differs ? ' is-diff' : ''}" title="${imEsc((IM_BF_TIP[bf.b + bf.f] || '') + ' · B = the picture we sent, F = what shoppers see')}">B${imBfDot(bf.b)}F${imBfDot(bf.f)}</span>`;
+  let dot = '';
+  if (!sw) {
+    const wh = imqDims(url);
+    const size = wh ? imqSize(wh[0], wh[1]) : '';
+    dot = size ? `<i class="imq-dot is-${size}" data-imq="${imEsc(imqId(url))}" title="${wh[0]} × ${wh[1]} — ${imEsc(IMQ_WORDS[size])}"></i>`
+      : `<i class="imq-dot" data-imq="${imEsc(imqId(url))}" data-imq-url="${imEsc(url)}" title="Size not known yet"></i>`;
+  }
+  const copy = sku ? `<button type="button" class="im-tcopy" data-copy1="${imEsc(sku)}" data-slot="${slot}" data-url="${imEsc(url)}" title="Copy this picture (${slot === 'SWCH' ? 'the swatch' : slot}) to the clipboard">Copy</button>` : '';
+  return `<span class="im-tw${sw ? ' im-tw-sw' : ''}">${tile}${tag}${dot}${copy}</span>`;
+}
+function imTileA(slot, liveUrl, mineUrl, sw) {
   /* THE TILE SHOWS YOUR OWN PICTURE BY DEFAULT. Amazon's catalogue often serves another child's
    * pictures on a listing that has no offer of its own, so a live-first strip drew green tablecloths
    * under a Pink Coral SKU. The orange ring still says the two disagree; the view picker swaps them. */
@@ -460,8 +491,8 @@ function imTile(slot, liveUrl, mineUrl, sw) {
 function imKidRow(item) {
   const live = item.live || {};
   const img = item.img || {};
-  const tiles = IM_SLOTS.map(slot => imTile(slot, live[slot], img[slot])).join('')
-    + '<span style="width:8px"></span>' + imTile('SWCH', live.SWCH, img.SWCH, true);
+  const tiles = IM_SLOTS.map(slot => imTile(slot, live[slot], img[slot], false, item.sku)).join('')
+    + '<span style="width:8px"></span>' + imTile('SWCH', live.SWCH, img.SWCH, true, item.sku);
   const state = imState(item);
   const hijack = imHijack(item);
   const chip = (text, fill, ink, tip) => `<span class="st" style="background:${fill};color:${ink}"`
@@ -476,7 +507,9 @@ function imKidRow(item) {
         ${chip(state.label, state.fill, state.ink, state.k === 'sup'
           ? 'Amazon still allows a direct-link sale but has taken this listing out of search results.' : '')}
         <button class="ghost im-b" data-edit="${imEsc(item.sku)}">Edit</button>
-        <button class="ghost im-b" data-copy="${imEsc(item.sku)}" title="Copy this listing's pictures">Copy</button></div>
+        <button class="ghost im-b" data-copy="${imEsc(item.sku)}" title="Copy this listing's pictures (the ones we sent; a slot we never sent takes what shoppers see)">Copy all</button>
+        <button class="ghost im-b" data-copy="${imEsc(item.sku)}" data-copy-live="1" title="Copy what shoppers see on this listing (Amazon's catalogue), not the pictures we sent">Copy live</button>
+        ${IM_CLIP ? `<button class="ghost im-b" data-paste1="${imEsc(item.sku)}" title="Paste the clipboard's ticked slots into this listing (a preview first)">Paste here</button>` : ''}</div>
       ${item.ie ? `<div style="margin-top:3px">${chip('Amazon: ' + item.ie + ' error' + (item.ie > 1 ? 's' : ''), 'var(--bad-bg)', 'var(--bad-ink)', item.im || '')}</div>
         <div class="muted" style="font-size:10.5px;margin-top:2px">${imEsc(String(item.im || '').slice(0, 90))}${String(item.im || '').length > 90 ? '…' : ''}</div>` : ''}
       ${imNoOwnMain(item) ? `<div style="margin-top:3px">${chip('No image of your own', 'var(--act-bg)', 'var(--act-ink)',
@@ -550,7 +583,7 @@ function imListRender() {
     ${slice.map(group => {
       const parent = group.parent;
       const head = parent
-        ? `<div class="im-grp-h">${imTile('MAIN', (parent.live || {}).MAIN, (parent.img || {}).MAIN)}
+        ? `<div class="im-grp-h">${imTile('MAIN', (parent.live || {}).MAIN, (parent.img || {}).MAIN, false, parent.sku)}
             <div style="min-width:0;flex:1"><div style="font-weight:600">${imEsc(parent.t)}</div>
             <div class="muted" style="font-size:12px">Parent ${imEsc(parent.sku)} · ${imEsc(parent.asin)} · ${group.kids.length} child listing(s)`
             + `${group.show.length < group.kids.length ? ', ' + group.show.length + ' on this page' : ''}${group.cont ? ' · continued' : ''}</div></div></div>`
@@ -565,10 +598,21 @@ function imListRender() {
   el.querySelectorAll('[data-copy]').forEach(btn => btn.onclick = () => {
     const item = (IML[$('imBrand').value] || { items: [] }).items.find(each => each.sku === btn.dataset.copy);
     if (!item) return;
-    imClipTake({ brand: $('imBrand').value, sku: item.sku, asin: item.asin, c: item.c, z: item.z, own: item.img || {}, live: item.live || {} });
+    const shop = !!btn.dataset.copyLive;
+    imClipTake({ brand: $('imBrand').value, sku: item.sku, asin: item.asin, c: item.c, z: item.z, psku: item.psku, own: item.img || {}, live: item.live || {}, prefer: shop ? 'live' : '' });
     imListRender();
-    imMsg('Copied ' + IM_CLIP.n + ' picture(s) from ' + IM_CLIP.sku + '.');
+    imMsg('Copied ' + IM_CLIP.n + ' picture(s) from ' + IM_CLIP.sku + (shop ? ' — what shoppers see' : '') + '.');
   });
+  // --- one picture (the hover button on a tile) / paste into one listing ---
+  el.querySelectorAll('[data-copy1]').forEach(btn => btn.onclick = e => {
+    e.preventDefault();
+    const item = (IML[$('imBrand').value] || { items: [] }).items.find(each => each.sku === btn.dataset.copy1);
+    if (!item) return;
+    imClipCopyOne({ brand: $('imBrand').value, sku: item.sku, asin: item.asin, c: item.c, z: item.z, psku: item.psku, slot: btn.dataset.slot, url: btn.dataset.url });
+    imListRender();
+    imMsg('Copied ' + (btn.dataset.slot === 'SWCH' ? 'the swatch' : btn.dataset.slot) + ' of ' + item.sku + ' to the clipboard.');
+  });
+  el.querySelectorAll('[data-paste1]').forEach(btn => btn.onclick = () => imPasteGo([btn.dataset.paste1]));
   el.querySelectorAll('.im-sel').forEach(cb => cb.onchange = () => {
     if (cb.checked) IM_SEL.add(cb.dataset.sku);
     else IM_SEL.delete(cb.dataset.sku);
@@ -598,6 +642,8 @@ function imListRender() {
     imListRender();
     window.scrollTo(0, 0);
   });
+  // --- tiles whose size is not known yet are measured when they come on screen (image-quality.js) ---
+  imqWatch(el);
 }
 
 /* ============================================================================================
@@ -1049,16 +1095,47 @@ function imClipSave() {
 
 /** Copy a stack. `own` first, because what WE submitted is the thing worth copying; the catalogue
  *  fills a slot we never sent, which is usually the family's picture and still better than nothing. */
-// src: { brand, sku, asin, c, z, own: { slot: url }, live: { slot: url } }.
+// src: { brand, sku, asin, c, z, psku, own: { slot: url }, live: { slot: url }, prefer: 'live' = what shoppers see first }.
+// Every slot copied is ticked (`tick`), and `from` names the listing each came from (one picture can be added from another: imClipCopyOne).
 function imClipTake(src) {
   const slots = {};
   [...IM_SLOTS, 'SWCH'].forEach(slot => {
-    const url = src.own[slot] || src.live[slot] || '';
+    const url = src.prefer === 'live' ? (src.live[slot] || src.own[slot] || '') : (src.own[slot] || src.live[slot] || '');
     if (url) slots[slot] = url;
   });
-  IM_CLIP = { brand: src.brand, sku: src.sku, asin: src.asin || '', c: src.c || '', z: src.z || '',
-    slots, n: IM_SLOTS.filter(slot => slots[slot]).length, at: Date.now() };
+  IM_CLIP = { brand: src.brand, sku: src.sku, asin: src.asin || '', c: src.c || '', z: src.z || '', psku: src.psku || '', shop: src.prefer === 'live',
+    slots, n: IM_SLOTS.filter(slot => slots[slot]).length, at: Date.now(),
+    from: Object.fromEntries(Object.keys(slots).map(slot => [slot, src.sku])), tick: Object.fromEntries(Object.keys(slots).map(slot => [slot, slot !== 'SWCH'])) };
   imClipSave();
+}
+/** Copy ONE picture (a tile's "Copy"): it goes into the clipboard at its own slot, ticked. A clipboard of the same brand keeps its other
+ *  slots (so a stack can be put together from several listings); another brand's is replaced. one: { brand, sku, asin, c, z, psku, slot, url }. */
+function imClipCopyOne(one) {
+  if (!one || !one.url || ![...IM_SLOTS, 'SWCH'].includes(one.slot)) return;
+  if (!IM_CLIP || IM_CLIP.brand !== one.brand) {
+    IM_CLIP = { brand: one.brand, sku: one.sku, asin: one.asin || '', c: one.c || '', z: one.z || '', psku: one.psku || '', slots: {}, from: {}, tick: {}, n: 0 };
+  }
+  IM_CLIP.slots = Object.assign({}, IM_CLIP.slots, { [one.slot]: one.url });
+  IM_CLIP.from = Object.assign({}, IM_CLIP.from || {}, { [one.slot]: one.sku });
+  IM_CLIP.tick = Object.assign({}, IM_CLIP.tick || {}, { [one.slot]: true });
+  IM_CLIP.n = IM_SLOTS.filter(slot => IM_CLIP.slots[slot]).length;
+  IM_CLIP.at = Date.now();
+  imClipSave();
+}
+/** The slots a paste puts in: the copied ones that are ticked (a clipboard from before ticks existed: every slot), the swatch only with
+ *  `withSw`. { slot: url }. */
+function imClipSlots(withSw) {
+  const out = {};
+  if (!IM_CLIP) return out;
+  IM_SLOTS.forEach(slot => {
+    if (IM_CLIP.slots[slot] && (!IM_CLIP.tick || IM_CLIP.tick[slot] !== false)) out[slot] = IM_CLIP.slots[slot];
+  });
+  if (withSw && IM_CLIP.slots.SWCH) out.SWCH = IM_CLIP.slots.SWCH;
+  return out;
+}
+// Paste into these listings from the list (a row's "Paste here", the clip bar's button).
+function imPasteGo(skus) {
+  return imPasteMany(skus);
 }
 
 // Forget the copied stack.

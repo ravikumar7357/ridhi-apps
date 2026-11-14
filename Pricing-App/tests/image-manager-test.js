@@ -96,6 +96,37 @@ function picture(W, H, box, edge) {
     P.el('imFilter').value = 'all';
   }
 
+  console.log('== tiles: B / F instead of the orange ring, the size dot, Copy this picture ==');
+  {
+    const P = load({ im: true, sq: true });
+    P.el('imBrand').value = 'SP';
+    const bf = (l, m) => { const x = P.imBfOf(l, m); return x.b + x.f + (x.differs ? '!' : ''); };
+    ok('B / F: same picture gg · shoppers see another gr! · not live yet gu! · not ours ng! · none nn', bf(A('a'), A('a')) === 'gg' && bf(A('b'), A('a')) === 'gr!'
+      && bf('', A('a')) === 'gu!' && bf(A('a'), '') === 'ng!' && bf('', '') === 'nn');
+    P.IMQ.dims = new Map([['a', [2400, 2400]], ['b', [1200, 1200]]]);
+    const same = P.imTile('PT01', A('a'), A('a'), false, 'K1');
+    const diff = P.imTile('MAIN', A('b'), A('a'), false, 'K1');
+    ok('same picture: B / F only on hover (no is-diff), green dot "2400 × 2400"', /class="im-bf"/.test(same) && /imq-dot is-g/.test(same) && /2400 × 2400/.test(same));
+    ok('shoppers see another: "B● F●" always shown (is-diff), the old .im-diff class still there underneath', /class="im-bf is-diff"/.test(diff) && /im-th im-diff/.test(diff)
+      && /fa-bfd is-g.*fa-bfd is-r/.test(diff));
+    P.IMQ.dims = new Map();
+    const unknown = P.imTile('PT02', A('c'), A('c'), false, 'K1');
+    ok('size not known: the dot waits to be measured when on screen (data-imq-url, the full picture)', new RegExp(`data-imq-url="${A('c').replace(/[.?]/g, '\\$&')}"`).test(unknown));
+    ok('the swatch has no B / F and no size dot (Amazon\'s catalogue never returns a swatch)', !/im-bf|imq-dot/.test(P.imTile('SWCH', '', A('sw'), true, 'K1')));
+    ok('every tile with a picture carries "Copy" for that one picture', /data-copy1="K1" data-slot="PT01"/.test(same) && !/data-copy1/.test(P.imTile('PT03', '', '', false, 'K1')));
+    P.setClip(null);
+    P.imClipTake({ brand: 'SP', sku: 'K1', c: 'Blue', own: { MAIN: A('k1m'), PT01: A('k1a') }, live: { MAIN: A('k1live'), PT02: A('k1b') } });
+    ok('Copy all: our own first, a slot we never sent takes what shoppers see; each slot ticked and named from K1', P.getClip().slots.MAIN === A('k1m') && P.getClip().slots.PT02 === A('k1b')
+      && P.getClip().tick.MAIN && P.getClip().from.PT02 === 'K1' && P.getClip().n === 3);
+    P.imClipTake({ brand: 'SP', sku: 'K1', own: { MAIN: A('k1m') }, live: { MAIN: A('k1live') }, prefer: 'live' });
+    ok('Copy live: what shoppers see first', P.getClip().slots.MAIN === A('k1live') && P.getClip().shop === true);
+    P.imClipCopyOne({ brand: 'SP', sku: 'K2', slot: 'PT03', url: A('k2c') });
+    ok('Copy this picture: added at its own slot, ticked, from K2 — the rest of the clipboard stays', P.getClip().slots.MAIN === A('k1live') && P.getClip().slots.PT03 === A('k2c')
+      && P.getClip().from.PT03 === 'K2' && P.getClip().tick.PT03 === true && P.getClip().n === 2);
+    P.imClipCopyOne({ brand: 'CPC', sku: 'C9', slot: 'PT01', url: A('c9') });
+    ok('…a picture from the other brand starts a new clipboard', P.getClip().brand === 'CPC' && Object.keys(P.getClip().slots).join() === 'PT01');
+  }
+
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
 })();

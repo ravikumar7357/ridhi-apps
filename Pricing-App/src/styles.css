@@ -1149,6 +1149,28 @@
   #paneImg .im-meta{font-size:12px;margin:0 0 8px}
   @media (max-width:1280px){#paneImg .im-boxes{grid-template-columns:repeat(4,minmax(0,1fr))}}
   @media (max-width:560px){#paneImg .im-boxes{grid-template-columns:repeat(2,minmax(0,1fr))}}
+  /* Tiles: B / F in place of the orange ring (the .im-diff class stays underneath), the size dot, "Copy" on hover. */
+  #paneImg .im-th.im-diff{outline:none}
+  #paneImg .im-tw{position:relative;display:inline-flex;flex:none}
+  #paneImg .im-bf{position:absolute;left:2px;top:2px;display:none;align-items:center;gap:1px;padding:0 3px;border-radius:3px;
+    background:color-mix(in srgb,var(--card) 88%,transparent);color:var(--muted);font-size:8.5px;font-weight:700;line-height:12px;pointer-events:none}
+  #paneImg .im-bf .fa-bfd{width:5px;height:5px}
+  #paneImg .im-bf .fa-bfn{font-size:8px}
+  #paneImg .im-bf.is-diff,#paneImg .im-tw:hover .im-bf,#paneImg .im-tw:focus-within .im-bf{display:inline-flex}
+  #paneImg .im-tw-sw .im-bf{left:-4px;top:-4px}
+  .imq-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:transparent;box-shadow:inset 0 0 0 1px var(--faint);vertical-align:0}
+  .imq-dot.is-g{background:var(--accent);box-shadow:none}
+  .imq-dot.is-y{background:var(--rev);box-shadow:none}
+  .imq-dot.is-r{background:var(--bad);box-shadow:none}
+  #paneImg .im-tw>.imq-dot{position:absolute;right:3px;top:3px;box-shadow:0 0 0 1.5px var(--card)}
+  #paneImg .im-tw>.imq-dot:not([class*="is-"]){visibility:hidden}
+  #paneImg .im-tcopy{position:absolute;right:2px;bottom:2px;display:none;width:auto;height:auto;min-height:0;margin:0;padding:1px 5px;border:0;border-radius:3px;
+    background:var(--ink);color:var(--card);font-size:9.5px;font-weight:600;line-height:14px;cursor:pointer;box-shadow:var(--sh-1)}
+  #paneImg .im-tcopy:hover{background:var(--brand);color:#fff}
+  #paneImg .im-tw:hover .im-tcopy,#paneImg .im-tw:focus-within .im-tcopy,#paneImg .im-tw.is-hover .im-tcopy,#paneImg .im-tw.is-hover .im-bf{display:inline-flex}
+  #paneImg .im-tw-sw .im-tcopy{right:-6px;bottom:-4px}
+  #paneImg .im-bf-key{display:inline-flex;align-items:center;gap:1px;font-weight:700}
+  #paneImg .im-meta .imq-dot{margin:0 1px 0 4px}
 
   /* PPC & ORGANIC · NEW (test). Everything is under #panePpcn and prefixed px-, and the app's own
      button / input / label / table rules are undone inside it first — so this page cannot change the
