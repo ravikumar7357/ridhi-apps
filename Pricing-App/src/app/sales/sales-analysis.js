@@ -174,10 +174,10 @@ async function saRebuild() {
     saMsg('Saving…');
     const chunks = Math.ceil(skuRows.length / SA_CHUNK) || 1;
     for (let i = 0; i < chunks; i++) {
-      await setDoc(doc(db, 'sarows', `${SA.brand}_${i}`),
+      await fsSetDoc(doc(db, 'sarows', `${SA.brand}_${i}`),
         { r: skuRows.slice(i * SA_CHUNK, (i + 1) * SA_CHUNK) });
     }
-    await setDoc(doc(db, 'salesanalysis', SA.brand), {
+    await fsSetDoc(doc(db, 'salesanalysis', SA.brand), {
       months, labels, at, color, article, skuChunks: chunks,
       rows: lastRow, by: ME.email, saved: serverTimestamp(),
     });

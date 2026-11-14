@@ -75,10 +75,10 @@ async function saveHealthCache(brand) {
   if (!health) return;
   const chunks = Math.ceil(health.rows.length / H_CHUNK) || 1;
   for (let i = 0; i < chunks; i++) {
-    await setDoc(doc(db, 'healthrows', `${brand}_${i}`),
+    await fsSetDoc(doc(db, 'healthrows', `${brand}_${i}`),
       { r: health.rows.slice(i * H_CHUNK, (i + 1) * H_CHUNK).map(packRow) });
   }
-  await setDoc(doc(db, 'health', brand), {
+  await fsSetDoc(doc(db, 'health', brand), {
     chunks, n: health.rows.length,
     rows: null,                                      // clear the old single-doc payload if present
     scope: health.scope || null,

@@ -157,10 +157,10 @@ async function saveWeekly() {
   for (let i = 0; i < chunks; i++) {
     const slice = {};
     asins.slice(i * W_CHUNK, (i + 1) * W_CHUNK).forEach(a => { slice[a] = WEEKLY.rows[a]; });
-    await setDoc(doc(db, 'weeklyrows', String(i)), { r: slice });
+    await fsSetDoc(doc(db, 'weeklyrows', String(i)), { r: slice });
   }
   // --- the one document ---
-  await setDoc(doc(db, 'audit', 'weekly'), {
+  await fsSetDoc(doc(db, 'audit', 'weekly'), {
     chunks,
     n: asins.length,
     weeks: WEEKLY.weeks,
@@ -177,7 +177,7 @@ async function saveWeekly() {
 }
 // Write the change log to audit/weeklylog.
 async function saveWeeklyLog() {
-  await setDoc(doc(db, 'audit', 'weeklylog'),
+  await fsSetDoc(doc(db, 'audit', 'weeklylog'),
     { entries: W_LOG, n: W_LOG.length, by: ME.email, saved: serverTimestamp() });
 }
 

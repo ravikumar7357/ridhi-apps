@@ -95,12 +95,12 @@ async function saveDeals(withRecs) {
   if (withRecs) {
     const chunks = Math.ceil(DEALS.recs.length / D_CHUNK) || 1;
     for (let i = 0; i < chunks; i++) {
-      await setDoc(doc(db, 'dealrows', String(i)), { r: DEALS.recs.slice(i * D_CHUNK, (i + 1) * D_CHUNK) });
+      await fsSetDoc(doc(db, 'dealrows', String(i)), { r: DEALS.recs.slice(i * D_CHUNK, (i + 1) * D_CHUNK) });
     }
     DEALS.chunks = chunks;
   }
   // --- the one document ---
-  await setDoc(doc(db, 'audit', 'deals'), {
+  await fsSetDoc(doc(db, 'audit', 'deals'), {
     chunks: DEALS.chunks || Math.ceil(DEALS.recs.length / D_CHUNK) || 1,
     n: DEALS.recs.length,
     at: DEALS.at,

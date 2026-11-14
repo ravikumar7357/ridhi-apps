@@ -67,7 +67,7 @@ async function loadCosts() {
 // Write the whole of COST and the model to audit/costs, stamped with now and who saved it.
 async function saveCosts() {
   COST_AT = new Date().toISOString().slice(0, 16).replace('T', ' ');
-  await setDoc(doc(db, 'audit', 'costs'), {
+  await fsSetDoc(doc(db, 'audit', 'costs'), {
     c: COST, model: PF_MODEL, at: COST_AT, n: Object.keys(COST).length,
     by: ME.email, saved: serverTimestamp(),
   });

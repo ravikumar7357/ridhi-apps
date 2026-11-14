@@ -26,7 +26,7 @@ async function accessRemove(who) {
     return;
   }
   if (typeof confirm === 'function' && !confirm(`Remove all access for ${who}?`)) return;
-  await deleteDoc(doc(db, 'perms', who));
+  await fsDeleteDoc(doc(db, 'perms', who));
   let gone = '';
   try { await permMirror(who, null); } catch (e) { gone = e.message || String(e); }
   $('accessMsg').textContent = `Removed ${who}. They keep their sign-in but can no longer see anything.`

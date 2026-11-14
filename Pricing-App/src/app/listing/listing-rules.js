@@ -565,7 +565,7 @@ async function lrLoadCatalog(force) {
         });
         LR_CAT[b] = map;
         try {
-          await setDoc(doc(db, 'listingrules', 'catalog_' + b), { map, at: serverTimestamp() });
+          await fsSetDoc(doc(db, 'listingrules', 'catalog_' + b), { map, at: serverTimestamp() });
         } catch (e) { /* cached next time */ }
       }
     } catch (e) { /* no catalog: templates and occasions are simply not judged */ }

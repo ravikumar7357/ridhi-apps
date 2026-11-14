@@ -92,7 +92,7 @@ async function loadAgeCache() {
 }
 // Write one brand's snapshot to Firestore age/{brand} with compact keys and at most 1500 rows.
 async function saveAgeCache(brand, cols, rows) {
-  await setDoc(doc(db, 'age', brand), {
+  await fsSetDoc(doc(db, 'age', brand), {
     cols,
     rows: rows.slice(0, 1500).map(r => ({                 // compact keys + capped, to stay under 1 MB
       s: r.sku,

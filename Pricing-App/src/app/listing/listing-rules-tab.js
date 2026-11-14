@@ -314,7 +314,7 @@ $('lrSave').onclick = async () => {
   }
   $('lrSave').disabled = true;
   try {
-    await setDoc(doc(db, 'listingrules', 'config'), Object.assign(clean, { at: serverTimestamp(), by: ME.email }));
+    await fsSetDoc(doc(db, 'listingrules', 'config'), Object.assign(clean, { at: serverTimestamp(), by: ME.email }));
     LR_SAVED_AT = new Date();
     LR_DIRTY = false;
     H_CTX = null;
@@ -405,7 +405,7 @@ async function loadParentNames() {
 }
 // Write one brand's hand-typed names back.
 async function saveParentNames(brand) {
-  await setDoc(doc(db, 'parentnames', brand), { n: PNAME[brand] || {}, at: serverTimestamp() });
+  await fsSetDoc(doc(db, 'parentnames', brand), { n: PNAME[brand] || {}, at: serverTimestamp() });
 }
 
 /**

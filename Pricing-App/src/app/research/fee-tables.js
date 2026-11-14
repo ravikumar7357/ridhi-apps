@@ -129,7 +129,7 @@ KEYS.forEach(k => $('s_' + k).addEventListener('input', noteMult));
 $('saveSettings').onclick = async () => {
   SET = readSettings();
   try {
-    await setDoc(doc(db, 'settings', 'default'), SET);
+    await fsSetDoc(doc(db, 'settings', 'default'), SET);
     $('setMsg').textContent = 'Saved ✅';
   } catch (e) {
     $('setMsg').textContent = 'Save failed: ' + e.message;

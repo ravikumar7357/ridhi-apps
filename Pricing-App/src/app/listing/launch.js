@@ -156,7 +156,7 @@ async function saveAuditCache(brand) {
   if (size > 800000) {
     aMsg(`Attachment index for ${BRAND_NAME[brand]} is ${Math.round(size / 1024)} KB — close to Firestore's 1 MB limit. Export a backup and tell me; it needs splitting across documents.`, true);
   }
-  await setDoc(doc(db, 'audit', brand), { docs, n: Object.keys(docs).length, at: serverTimestamp() });
+  await fsSetDoc(doc(db, 'audit', brand), { docs, n: Object.keys(docs).length, at: serverTimestamp() });
 }
 // The hand-typed parents (products not on Amazon yet), per brand.
 async function loadManualParents() {
@@ -170,7 +170,7 @@ async function loadManualParents() {
   }
 }
 async function saveManualParents(brand) {
-  await setDoc(doc(db, 'auditmanual', brand), { p: AUDIT_MANUAL[brand] || {}, at: serverTimestamp() });
+  await fsSetDoc(doc(db, 'auditmanual', brand), { p: AUDIT_MANUAL[brand] || {}, at: serverTimestamp() });
 }
 // The launch details, per brand.
 async function loadLaunch() {
@@ -195,7 +195,7 @@ async function saveLaunch(brand) {
     if (details && FIELDS.some(field => details[field] !== '' && details[field] != null && details[field] !== false && details[field] !== 0)) p[parent] = details;
   });
   LAUNCH[brand] = p;
-  await setDoc(doc(db, 'auditlaunch', brand), { p, n: Object.keys(p).length, at: serverTimestamp() });
+  await fsSetDoc(doc(db, 'auditlaunch', brand), { p, n: Object.keys(p).length, at: serverTimestamp() });
 }
 /** The cached sales figures. Missing/unreadable is normal (nobody has pulled yet) — never an error. */
 async function loadSales30() {
@@ -306,7 +306,7 @@ async function pullPpc30() {
     PPC30 = { asins: merged, at: new Date().toISOString().slice(0, 16).replace('T', ' '), start: start || '', end: end || '' };
     renderAudit();
     try {
-      await setDoc(doc(db, 'audit', 'ppc30'), { asins: merged, at: PPC30.at, start: PPC30.start, end: PPC30.end, n, by: ME.email, saved: serverTimestamp() });
+      await fsSetDoc(doc(db, 'audit', 'ppc30'), { asins: merged, at: PPC30.at, start: PPC30.start, end: PPC30.end, n, by: ME.email, saved: serverTimestamp() });
       aMsg(`PPC updated — ${n.toLocaleString('en-US')} advertised ASINs, ${window_}.`
         + (failed.length ? ` (${failed.join(' · ')})` : ''), failed.length > 0);
     } catch (e) {
@@ -373,7 +373,7 @@ async function pullSales30() {
     const n = Object.keys(merged).length;
     renderAudit();
     try {
-      await setDoc(doc(db, 'audit', 'sales30'), { asins: merged, at: SALES30.at, n, by: ME.email, saved: serverTimestamp() });
+      await fsSetDoc(doc(db, 'audit', 'sales30'), { asins: merged, at: SALES30.at, n, by: ME.email, saved: serverTimestamp() });
       aMsg(`Sales updated — ${n.toLocaleString('en-US')} ASINs, as at ${SALES30.at}.`);
     } catch (e) {
       // The numbers are already on screen and usable; only sharing them with everyone else failed.

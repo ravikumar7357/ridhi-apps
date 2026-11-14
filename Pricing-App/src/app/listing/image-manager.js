@@ -233,9 +233,9 @@ async function imListBuild(brandKey) {
     });
     const chunks = Math.ceil(packed.length / IML_CHUNK) || 1;
     for (let i = 0; i < chunks; i++) {
-      await setDoc(doc(db, 'imgrows', brandKey + '_' + i), { r: packed.slice(i * IML_CHUNK, (i + 1) * IML_CHUNK) });
+      await fsSetDoc(doc(db, 'imgrows', brandKey + '_' + i), { r: packed.slice(i * IML_CHUNK, (i + 1) * IML_CHUNK) });
     }
-    await setDoc(doc(db, 'imgsnap', brandKey), { chunks, n: packed.length, at: serverTimestamp(), by: ME.email });
+    await fsSetDoc(doc(db, 'imgsnap', brandKey), { chunks, n: packed.length, at: serverTimestamp(), by: ME.email });
     IML[brandKey] = { at: new Date(), items };
     imMsg('');
   } catch (e) {

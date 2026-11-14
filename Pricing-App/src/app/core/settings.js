@@ -194,7 +194,7 @@ $('accessSave').onclick = async () => {
       admin, approve: $('accessApprove').checked, repl, replTabs, replProj, prodEdit, fgiEdit, fgiEntry, rateApprove,
       shopAssign, b2bAssign, accEntry, accEdit, mdbEdit, soApprove, vlogAccept,
       vreqApprove, rfdApprove, rfdSend, attendMark, empEdit, prod, tabs, brands };
-    await setDoc(doc(db, 'perms', email), Object.assign({}, rights, { at: serverTimestamp(), by: ME.email }));
+    await fsSetDoc(doc(db, 'perms', email), Object.assign({}, rights, { at: serverTimestamp(), by: ME.email }));
     /* AND THE DATABASE'S COPY. A failure here is said out loud and not swallowed: the screen would
      * show a right the database does not honour, and the person would be refused with no reason. */
     let mirrorErr = '';

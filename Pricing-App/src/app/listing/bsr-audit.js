@@ -184,12 +184,12 @@ $('bSnap').onclick = async () => {
       // snapshot twice into the same week; previous weeks are never touched.
       // `takenOn` records the REAL capture date, so a backdated snapshot can never be mistaken for a
       // genuine reading from that week.
-      await setDoc(doc(db, 'bsrweeks', `${brand}__${week}`), {
+      await fsSetDoc(doc(db, 'bsrweeks', `${brand}__${week}`), {
         r: byParent, at: serverTimestamp(),
         takenOn: today.toISOString().slice(0, 10), backdated: back,
       });
       const weeks = [...new Set([...(BSR_WEEKS[brand] || []), week])].sort();
-      await setDoc(doc(db, 'bsr', brand), { weeks, at: serverTimestamp() });
+      await fsSetDoc(doc(db, 'bsr', brand), { weeks, at: serverTimestamp() });
       BSR_WEEKS[brand] = weeks;
       BSR[brand][week] = byParent;
       BSR_META[`${brand}__${week}`] = { takenOn: today.toISOString().slice(0, 10), backdated: back };

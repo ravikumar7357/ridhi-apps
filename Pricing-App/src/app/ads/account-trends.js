@@ -71,7 +71,7 @@ async function loadTrends() {
 }
 // Write the whole of TREND to Firestore audit/trends, stamped with who saved it and when.
 async function saveTrends() {
-  await setDoc(doc(db, 'audit', 'trends'), {
+  await fsSetDoc(doc(db, 'audit', 'trends'), {
     SP: TREND.d.SP,
     CPC: TREND.d.CPC,
     at: TREND.at,
