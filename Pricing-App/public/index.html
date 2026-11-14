@@ -3620,6 +3620,119 @@
   }
   @media (max-width:520px){.adx-boxes{grid-template-columns:minmax(0,1fr)}}
 
+  /* ----- Search Term Analysis (paneSt, ads/search-terms.js): the bar, four analysis boxes, the view card, the dialogs,
+     the review list. Reuses .card / .toolbar / .seg / table.xl / .ui-badge / .adx-box / .modal; sta- adds only the layout. ----- */
+  #paneSt .hide{display:none}
+  .sta-msg{margin-top:10px;font-size:12.5px;color:var(--muted);display:flex;gap:6px 18px;flex-wrap:wrap}
+  .sta-msg b{color:var(--ink);font-weight:600}
+  .sta-msg .sta-ok{color:var(--accent-ink);font-weight:600}
+  .sta-msg .sta-bad{color:var(--bad-ink);font-weight:600}
+  .sta-rl{position:relative}
+  .sta-n{display:inline-grid;place-items:center;min-width:20px;height:20px;padding:0 6px;margin-left:8px;border-radius:999px;
+    background:var(--brand);color:var(--on-brand);font-size:11px;font-weight:700}
+  .sta-boxes{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:12px 0}
+  button.adx-box.sta-box,button.adx-box.sta-box:hover,button.adx-box.sta-box:active{display:block;width:100%;cursor:pointer;padding:14px 16px 12px;
+    text-align:left;font:inherit;font-weight:400;color:var(--ink);background:var(--card);border:1px solid var(--card-line);border-radius:var(--r-card)}
+  .sta-box.on{box-shadow:inset 0 0 0 2px var(--c),var(--sh-2)}
+  .sta-box:focus-visible{outline:2px solid var(--c);outline-offset:2px}
+  .sta-q{font-size:12.5px;color:var(--muted);margin:6px 0 0;line-height:1.4}
+  .sta-big{display:flex;align-items:baseline;gap:8px;margin:8px 0 0}
+  .sta-big b{font-size:24px;font-weight:700;letter-spacing:-.025em;color:var(--ink);font-variant-numeric:tabular-nums}
+  .sta-big span{font-size:12.5px;color:var(--muted)}
+  .sta-go{display:flex;justify-content:space-between;align-items:center;margin-top:10px;padding-top:9px;border-top:1px solid var(--line);
+    font-size:12.5px;font-weight:600;color:var(--brand-ink)}
+  .sta-tcard{padding:0;overflow:hidden}
+  .sta-thead{display:flex;justify-content:space-between;align-items:center;gap:10px 16px;flex-wrap:wrap;padding:12px 16px;border-bottom:1px solid var(--line)}
+  .sta-thead .tt b{display:block;font-size:14.5px;font-weight:650;color:var(--ink);letter-spacing:-.01em}
+  .sta-thead .tt small{display:block;font-size:12px;color:var(--muted);margin-top:2px;max-width:760px}
+  .sta-thead .seg .segbtn{padding:6px 12px;font-size:13px}
+  .sta-tools{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .sta-wrap{overflow:auto;max-height:70vh}
+  #paneSt table.xl{font-size:13px}
+  #paneSt table.xl td{vertical-align:middle}
+  #paneSt table.xl th{white-space:nowrap}
+  .sta-term{font-weight:600;color:var(--ink);white-space:nowrap}
+  .sta-under{display:flex;gap:5px;flex-wrap:wrap;margin-top:4px}
+  .sta-path{min-width:230px}
+  .sta-path b{display:block;font-weight:500;color:var(--ink);white-space:nowrap;max-width:320px;overflow:hidden;text-overflow:ellipsis}
+  .sta-path small,.sta-s{display:block;font-size:11.5px;color:var(--faint);white-space:nowrap;margin-top:1px}
+  .sta-s.up{color:var(--muted)}
+  #paneSt table.xl td.sta-ev{min-width:320px;max-width:430px;white-space:normal;font-size:12.5px;color:var(--muted);line-height:1.45}
+  .sta-ev b{color:var(--ink);font-weight:600}
+  .sta-money{font-weight:700;color:var(--bad-ink)}
+  .sta-next{white-space:nowrap}
+  .sta-next small{display:block;font-size:11.5px;color:var(--muted);margin-bottom:5px}
+  .sta-inrl{font-size:12.5px;color:var(--brand-ink);font-weight:600}
+  button.sta-btn{font-size:12.5px;padding:6px 12px;border-radius:var(--r-sm);font-weight:600;background:var(--card);color:var(--brand-ink);
+    box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--brand) 45%,var(--card))}
+  button.sta-btn:hover{background:var(--brand-bg)}
+  button.sta-btn.neg{color:var(--bad-ink);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--bad) 45%,var(--card))}
+  button.sta-btn.neg:hover{background:var(--bad-bg)}
+  button.sta-btn.dim{color:var(--muted);box-shadow:inset 0 0 0 1px var(--line)}
+  .sta-dash{color:var(--faint)}
+  .sta-cb{width:16px;height:16px;accent-color:var(--brand);vertical-align:middle;margin:0}
+  #paneSt table.xl tr.sel td{background:color-mix(in srgb,var(--brand) 5%,var(--card))}
+  #paneSt table.xl tr.tot td{background:var(--soft);font-weight:700;color:var(--ink)}
+  #paneSt table.xl tr.grp td{background:var(--soft);padding-top:11px;padding-bottom:11px}
+  .sta-grp b{font-size:13.5px;color:var(--ink)}
+  .sta-grp span{color:var(--muted);font-size:12.5px;margin-left:8px}
+  .sta-grp span em{font-style:normal;color:var(--bad-ink);font-weight:600}
+  .sta-limit{background:color-mix(in srgb,var(--rev) 10%,var(--card));border-radius:var(--r-sm);padding:7px 10px;font-size:12.5px;color:var(--rev-ink);
+    white-space:normal;max-width:360px;line-height:1.45}
+  .sta-more{display:flex;justify-content:space-between;align-items:center;gap:8px 16px;flex-wrap:wrap;padding:10px 16px;font-size:12.5px;
+    color:var(--muted);border-top:1px solid var(--line)}
+  .sta-more.err{color:var(--bad-ink)}
+  .sta-more button{font-size:12.5px;padding:5px 12px}
+  .sta-selbar{position:sticky;bottom:14px;z-index:20;display:flex;align-items:center;gap:12px;margin:12px auto 0;width:max-content;max-width:100%;
+    padding:10px 12px 10px 18px;background:var(--ink);color:var(--card);border-radius:14px;box-shadow:var(--sh-3);font-size:13px}
+  .sta-selbar b{font-weight:700}
+  .sta-selbar button{font-size:12.5px;padding:7px 14px}
+  .sta-selbar button.ghost{background:color-mix(in srgb,var(--card) 14%,transparent);color:var(--card)}
+  .modal.sta-modal .modalbox{width:min(620px,100%);padding:0;max-height:calc(100vh - 32px);display:flex;flex-direction:column;overflow:hidden}
+  .modal.sta-wide .modalbox{width:min(1320px,100%)}
+  .sta-mh{padding:18px 22px 14px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:12px}
+  .sta-mh b{display:block;font-size:16.5px;font-weight:700;letter-spacing:-.015em;color:var(--ink)}
+  .sta-mh small{display:block;font-size:12.5px;color:var(--muted);margin-top:3px;line-height:1.45}
+  .sta-mh small b{display:inline;font-size:12.5px;font-weight:600;letter-spacing:0}
+  .sta-x{width:30px;height:30px;padding:0;border-radius:50%;background:var(--hover);color:var(--muted);font-size:16px;flex:none}
+  .sta-mb{padding:16px 22px;overflow:auto}
+  .sta-figs{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px;background:var(--soft);border:1px solid var(--line);
+    border-radius:var(--r-row);padding:12px 14px}
+  .sta-figs small{display:block;font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}
+  .sta-figs b{display:block;font-size:15px;font-weight:650;color:var(--ink);margin-top:3px;font-variant-numeric:tabular-nums}
+  .sta-figs-7{font-size:12px;color:var(--muted);margin:7px 2px 0;line-height:1.45}
+  .sta-row2{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px}
+  .sta-f label{display:block;font-size:12.5px;font-weight:600;color:var(--ink);margin:0 0 6px;text-transform:none;letter-spacing:0}
+  .sta-f select,.sta-f input{width:100%;height:40px;box-sizing:border-box}
+  .sta-f small{display:block;font-size:12px;color:var(--muted);margin-top:6px;line-height:1.4}
+  .sta-checks{margin:14px 0 0;padding:10px 12px;border-radius:var(--r-row);background:color-mix(in srgb,var(--accent) 6%,var(--card));
+    border:1px solid color-mix(in srgb,var(--accent) 20%,var(--card));font-size:12.5px;color:var(--ink);line-height:1.6}
+  .sta-checks div{display:flex;gap:7px;padding:2px 0}
+  .sta-checks i{font-style:normal;font-weight:700;flex:none;width:14px;text-align:center}
+  .sta-checks .ck-ok i{color:var(--accent-ink)}
+  .sta-checks .ck-warn i{color:var(--rev-ink)}
+  .sta-checks .ck-bad{color:var(--bad-ink)}
+  .sta-checks .ck-bad i{color:var(--bad-ink)}
+  .sta-mf{padding:14px 22px;border-top:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:12px}
+  .sta-mf small{font-size:12px;color:var(--muted);max-width:340px;line-height:1.4}
+  .sta-mf .btns{display:flex;gap:8px;flex:none}
+  .sta-mf button:disabled{opacity:.5;cursor:not-allowed}
+  .sta-calc{font-size:12px;color:var(--muted);margin-top:8px;line-height:1.5}
+  .sta-calc b{color:var(--ink)}
+  .sta-rlseg{margin:12px 22px 0;width:max-content}
+  .sta-rlbody{padding:12px 0 0}
+  .sta-rlnote{margin:12px 22px 0;padding:10px 12px;border-radius:var(--r-row);background:var(--brand-bg);color:var(--brand-ink);font-size:12.5px;line-height:1.5}
+  .sta-rlnote.warn{background:var(--rev-bg);color:var(--rev-ink)}
+  .modal.sta-wide table.xl td{white-space:normal}
+  .modal.sta-wide table.xl td.sta-ev{min-width:220px;max-width:300px}
+  .modal.sta-wide .sta-term{white-space:normal;min-width:130px}
+  .modal.sta-wide .sta-rlcp{max-width:230px;min-width:160px}
+  .modal.sta-wide .sta-rlwhat{max-width:230px}
+  .modal.sta-wide table.xl th:first-child,.modal.sta-wide table.xl td:first-child{padding-left:22px}
+  .modal.sta-wide table.xl th:last-child,.modal.sta-wide table.xl td:last-child{padding-right:24px}
+  @media (max-width:1100px){.sta-boxes{grid-template-columns:repeat(2,minmax(0,1fr))}}
+  @media (max-width:620px){.sta-boxes{grid-template-columns:minmax(0,1fr)}.sta-figs{grid-template-columns:repeat(3,minmax(0,1fr))}.sta-row2{grid-template-columns:1fr}}
+
   /* ===== MODULE: INVENTORY ===== */</style>
 </head>
 <body>
@@ -3711,10 +3824,10 @@
     <div class="navwrap"><button class="navgrp" id="grpAds" type="button" aria-controls="secAds" data-grp="ads" data-tabs="trends,weekly,ppcn,st,plc,deals">
       <span class="caret">&#9656;</span> Advertising</button>
     <div class="navsec" id="secAds">
-      <button id="tabTrends" class="nav">Ad Console</button>
+      <button id="tabTrends" class="nav">Overview</button>
       <button id="tabWeekly" class="nav">PPC &amp; Organic</button>
       <button id="tabPpcn" class="nav">Product Performance</button>
-      <button id="tabSt" class="nav">Search Terms</button>
+      <button id="tabSt" class="nav">Search Term Analysis</button>
       <button id="tabPlc" class="nav">Placement</button>
       <button id="tabDeals" class="nav">Deal Calendar</button>
     </div></div>
@@ -4009,8 +4122,8 @@
             <label><input type="checkbox" class="accbrand" data-br="SP"> Ridhi</label>
             <label><input type="checkbox" class="accbrand" data-br="CPC"> CPC</label>
             <span class="muted">(none ticked = both)</span></div>
-          <div class="accg-note">Hides the other brand in Product Performance, Ad Console, Search Terms and Placement only — every other screen shows both. A display limit, not isolation: fine for colleagues, not for a separate party.</div>
-          <button id="accessAdOnly" class="ghost accg-preset" type="button" title="Ticks Product Performance, Ad Console, Search Terms and Placement and unticks everything else in both apps">Ad data only — untick everything else</button>
+          <div class="accg-note">Hides the other brand in Product Performance, Overview, Search Term Analysis and Placement only — every other screen shows both. A display limit, not isolation: fine for colleagues, not for a separate party.</div>
+          <button id="accessAdOnly" class="ghost accg-preset" type="button" title="Ticks Product Performance, Overview, Search Term Analysis and Placement and unticks everything else in both apps">Ad data only — untick everything else</button>
         </div></section>
 
       <section class="accg" data-accg="research"><header><h4>Research</h4><span class="accg-n"></span><span class="accg-app">Sellora</span><button type="button" class="ghost accg-all">All</button><button type="button" class="ghost accg-none">None</button></header>
@@ -4566,34 +4679,69 @@
     </div>
   </div><!-- /paneWeekly -->
 
-  <!-- ============ Search Terms: what people typed vs what we bid on ============ -->
+  <!-- ============ Search Term Analysis: what people typed vs what we bid on, and what to do about it ============ -->
   <div id="paneSt" class="hide">
     <div class="card" style="padding:12px 14px">
       <div class="toolbar">
         <select id="stBrand" style="flex:0 0 160px">
           <option value="ALL">Both brands</option><option value="SP">Ridhi</option><option value="CPC">CPC</option>
         </select>
-        <div class="seg" id="stViewSeg">
-          <button class="segbtn on" data-v="harvest" title="Search terms that produced orders but are not in your target list.">Harvest</button>
-          <button class="segbtn" data-v="waste" title="Targets you added that spent money and produced no order.">Waste</button>
-          <button class="segbtn" data-v="neg" title="Search terms that spent money and produced no order.">Negative</button>
-          <button class="segbtn" data-v="all" title="Every search term with the target that caught it. Nothing filtered out.">All terms</button>
-          <button class="segbtn" data-v="cp" title="Every campaign × product: how it did over 30 days, what to do about it, and the FBA stock behind it.">Campaign × Product</button>
-        </div>
-        <select id="stCpShow" class="hide" style="flex:0 0 150px" title="Show only one kind of verdict">
-          <option value="">Every verdict</option><option value="bad">Bad only</option><option value="good">Good only</option><option value="watch">Watch only</option><option value="running">Running ads only</option><option value="stopped">Paused / archived only</option>
-        </select>
-        <input id="stCpTarget" class="hide" type="number" min="1" max="100" step="1" style="flex:0 0 120px" placeholder="Target ACoS %"
-          title="The ACoS a product is judged against when its unit cost is not known. Where the cost is known, its own break-even ACoS is used instead.">
-        <input id="stFilter" style="flex:1 1 150px;min-width:0" placeholder="Filter term / campaign / ASIN">
+        <input id="stFilter" style="flex:1 1 220px;min-width:0" placeholder="Filter term / campaign / ASIN">
         <input id="stMinSpend" type="number" min="0" step="1" style="flex:0 0 130px" placeholder="Min spend $">
-        <button id="stCsv" class="ghost">Export</button>
+        <button id="stRlBtn" class="ghost sta-rl" type="button" title="Changes picked here, waiting to be approved and downloaded as an Amazon bulk file">Review list<span id="stRlN" class="sta-n hide">0</span></button>
+        <button id="stCsv" class="ghost" type="button" title="Every row of the view on screen, as a CSV">Export</button>
       </div>
-      <div id="stMsg" class="muted" style="margin-top:8px;font-size:13px"></div>
+      <div id="stMsg" class="sta-msg"></div>
     </div>
-    <div class="card xlwrap" style="margin-top:12px;overflow:auto;max-height:70vh">
-      <table id="stTable" class="xl"></table>
+    <div id="stBoxes" class="sta-boxes"></div>
+    <div class="card sta-tcard">
+      <div class="sta-thead">
+        <div class="tt"><b id="stTitle">Every search term</b><small id="stSub"></small></div>
+        <div class="sta-tools">
+          <div class="seg hide" id="stBurnSeg">
+            <button class="segbtn on" type="button" data-s="term" title="One row per search term">By search term</button>
+            <button class="segbtn" type="button" data-s="target" title="One row per keyword or target: the ones that lost money across many small search terms">By target</button>
+          </div>
+          <select id="stCpShow" class="hide" style="flex:0 0 150px" title="Show only one kind of verdict">
+            <option value="">Every verdict</option><option value="bad">Bad only</option><option value="good">Good only</option><option value="watch">Watch only</option><option value="running">Running ads only</option><option value="stopped">Paused / archived only</option>
+          </select>
+          <input id="stCpTarget" class="hide" type="number" min="1" max="100" step="1" style="flex:0 0 120px" placeholder="Target ACoS %"
+            title="The ACoS a product is judged against when its unit cost is not known. Where the cost is known, its own break-even ACoS is used instead.">
+          <div class="seg" id="stViewSeg">
+            <button class="segbtn" type="button" data-v="burn" title="Search terms that spent with no sales, or sold above break-even ACoS">Burning money</button>
+            <button class="segbtn" type="button" data-v="scale" title="Search terms selling under their campaign's target ACoS, with room to grow">Worth scaling</button>
+            <button class="segbtn" type="button" data-v="paths" title="Search terms that reach you through more than one keyword or target">Competing paths</button>
+            <button class="segbtn on" type="button" data-v="all" title="Every search term with the target that caught it, a verdict and the next step">All terms</button>
+            <button class="segbtn" type="button" data-v="cp" title="Every campaign × product: how it did over 30 days, what to do about it, and the FBA stock behind it.">Campaign × Product</button>
+          </div>
+        </div>
+      </div>
+      <div class="sta-wrap"><table id="stTable" class="xl"></table></div>
+      <div id="stFoot" class="sta-more"></div>
     </div>
+    <div id="stSelBar" class="sta-selbar hide"><span id="stSelTxt"></span><button id="stSelAdd" type="button">Add to the review list</button><button id="stSelClear" class="ghost" type="button">Clear</button></div>
+
+    <!-- One dialog for every change: Add negative, Raise / Reduce bid, Pause, Add as exact. Filled by staOpen. -->
+    <div id="stDlg" class="modal sta-modal hide"><div class="modalbox">
+      <div class="sta-mh"><div><b id="stDlgTitle"></b><small id="stDlgSub"></small></div><button id="stDlgX" class="sta-x" type="button" title="Close">✕</button></div>
+      <div id="stDlgBody" class="sta-mb"></div>
+      <div class="sta-mf"><small id="stDlgNote"></small>
+        <div class="btns"><button id="stDlgCancel" class="ghost" type="button">Cancel</button><button id="stDlgOk" type="button">Add to review list</button></div></div>
+    </div></div>
+
+    <!-- The review list: changes waiting, approved, downloaded. -->
+    <div id="stRl" class="modal sta-modal sta-wide hide"><div class="modalbox">
+      <div class="sta-mh"><div><b>Review list</b><small id="stRlSub"></small></div><button id="stRlX" class="sta-x" type="button" title="Close">✕</button></div>
+      <div class="seg sta-rlseg" id="stRlSeg">
+        <button class="segbtn on" type="button" data-r="open">Open</button>
+        <button class="segbtn" type="button" data-r="done">Downloaded and done</button>
+        <button class="segbtn" type="button" data-r="removed">Removed</button>
+      </div>
+      <div class="sta-mb sta-rlbody"><table id="stRlTable" class="xl"></table></div>
+      <div id="stRlNote" class="sta-rlnote"></div>
+      <div class="sta-mf"><small id="stRlSel"></small>
+        <div class="btns"><button id="stRlRemove" class="ghost" type="button">Remove</button><button id="stRlApprove" class="ghost" type="button">Approve</button><button id="stRlDl" type="button">Download bulk file</button></div></div>
+    </div></div>
   </div><!-- /paneSt -->
 
   <!-- ============ Placement: where the ad was shown, and what each spot bought ============ -->
@@ -7466,7 +7614,7 @@ const SELLORA_GROUPS = [
   { name: 'Research', items: [['new', 'New Product'], ['pr', 'Product Research']] },
   { name: 'Sales', items: [['sales', 'Sales Dashboard'], ['profit', 'Profit & Margin'], ['sa', 'Sales Analysis'], ['plaudit', 'Parent Listing Review'], ['shop', 'Shopify Orders'], ['adj', 'Adjustments']] },
   { name: 'Listing', items: [['opt', 'Listing Optimiser'], ['img', 'Image Manager'], ['lerr', 'Listing Errors'], ['basket', 'Bought Together'], ['health', 'Listing Health'], ['lrules', 'Listing Rules'], ['audit', 'Listing Audit'], ['bsr', 'BSR Audit']] },
-  { name: 'Advertising', items: [['trends', 'Ad Console'], ['weekly', 'Product Performance'], ['st', 'Search Terms'], ['plc', 'Placement'], ['deals', 'Deal Calendar']] },
+  { name: 'Advertising', items: [['trends', 'Overview'], ['weekly', 'Product Performance'], ['st', 'Search Term Analysis'], ['plc', 'Placement'], ['deals', 'Deal Calendar']] },
   { name: 'Inventory & social', items: [['age', 'Inventory Age'], ['tiktok', 'TikTok Toolkit'], ['carousel', 'Carousel Builder']] },
 ];
 const SELLORA_HIDDEN = ['link', 'kw', 'ba'];
@@ -8365,7 +8513,7 @@ const capId = t => t[0].toUpperCase() + t.slice(1);
 const TAB_TITLE = { link: 'By Amazon Link', new: 'New Product', pr: 'Product Research', kw: 'Keywords', ba: 'Analytics',
   age: 'Inventory Age', health: 'Listing Health', lrules: 'Listing Rules', audit: 'Listing Audit', bsr: 'BSR Audit',
   weekly: 'PPC & Organic (old view)', ppcn: 'Product Performance',
-  trends: 'Ad Console', st: 'Search Terms', plc: 'Placement', deals: 'Deal Calendar', sales: 'Sales Dashboard',
+  trends: 'Overview', st: 'Search Term Analysis', plc: 'Placement', deals: 'Deal Calendar', sales: 'Sales Dashboard',
   profit: 'Profit & Margin', sa: 'Sales Analysis', plaudit: 'Parent Listing Review', shop: 'Shopify Orders',
   adj: 'Adjustments', tiktok: 'TikTok Toolkit', carousel: 'Carousel Builder', opt: 'Listing Optimiser',
   img: 'Image Manager', lerr: 'Listing Errors', basket: 'Bought Together', lhist: 'Listing History' };
@@ -24306,20 +24454,41 @@ async function tNightly() {
   return changed ? (stamp || 'last night') : '';
 }
 /* ============================== FILE: src/app/ads/search-terms.js ============================== */
-/* ================= ADS · SEARCH TERMS: search terms against targets, and Campaign × Product =================
- * Screens: Search Terms (tab 'st', pane paneSt; core/nav.js calls ensureSt when it opens). Five views on the
- * segmented control (stViewSeg): Harvest, Waste, Negative and All terms share one table; Campaign × product (cp)
- * has its own table, the Show picker (stCpShow) and the target ACoS box (stCpTarget). Shared by all five: the
- * brand picker (stBrand), the text filter (stFilter), the minimum-spend box (stMinSpend), Export (stCsv) and the
- * message line (stMsg), which doubles as the summary under the table.
- * Does: ST holds three nightly caches read through baCall — search terms, targets, and ad groups with their
- * products. stRows joins them for the chosen view (stTargetSet, stProductsOf, nm), renderSt draws the capped table
- * and the summary, and the stCsv handler exports every row of the view. The Campaign × product half: ensureCp
- * loads the FBA stock, weekly sales and unit costs; cpBase works out everything that does not depend on the target
- * ACoS once per load (cpPace, cpBreakEven); cpRows applies the filters and cpVerdict (running? → stock → evidence
- * → money); renderCp draws it and cpCsv exports it. Advice only — nothing here changes anything at Amazon.
- * Main functions: stMsg, ensureSt, stTargetSet, stProductsOf, nm, stRows, renderSt, ensureCp, cpPace,
- * cpBreakEven, cpVerdict, cpBase, cpRows, renderCp, cpCsv, and the view, filter and Export handlers. */
+/* ================= ADS · SEARCH TERM ANALYSIS: what shoppers typed, what it cost, what to do — and Campaign × Product =================
+ * Screen: Search Term Analysis (tab 'st', pane paneSt; core/nav.js calls ensureSt when it opens). The tab was called
+ * "Search Terms" until 14 Nov 2026; its key stays 'st' because permissions are stored under it.
+ *
+ * Layout, top to bottom:
+ *   the bar        brand (stBrand), filter (stFilter), minimum spend (stMinSpend), Review list (stRlBtn), Export (stCsv),
+ *                  and the data line (stMsg): which window the verdicts are judged on, and whether both brands arrived.
+ *   four boxes     (stBoxes) Burning money, Worth scaling, Competing paths, Review list. A click opens that view.
+ *   the view card  title (stTitle / stSub), the view switch (stViewSeg: burn / scale / paths / all / cp), the table (stTable),
+ *                  the footer (stFoot). Burning money has its own switch (stBurnSeg: by search term / by target) and a
+ *                  selection bar (stSelBar) for adding several negatives at once. All terms opens first.
+ *   one dialog     (stDlg) for every change: Add negative, Raise / Reduce bid, Pause, Add as exact, Target this ASIN.
+ *   the review list (stRl): the changes picked here, waiting → approved → downloaded as an Amazon bulk file → seen at Amazon.
+ *
+ * SELLORA CHANGES NOTHING AT AMAZON. Approved changes leave as a bulk file the user uploads in the Ads console
+ * (Campaign manager → Bulk operations). When edit access is confirmed, the same review items will be applied by the
+ * backend (route POST ?ads=act, AdsActions.gs, not written yet) — the item shape below is what it will read.
+ *
+ * Data: ST holds the three nightly caches read through baCall (search terms, targets, ad groups with their products) —
+ * the Overview's recommendations may hand them over already loaded (ads-health.js share) — plus five optional caches
+ * that switch parts on when the backend starts writing them:
+ *   adEntities              Amazon's IDs, current bids, states and existing negatives (Pricing-API AdsEntities.gs).
+ *                           Without it: current bids show "—", bid and pause changes wait in the review list, and the
+ *                           "no negative yet" check can only look at the review list.
+ *   stSettled / stRecent    search terms over days 8–37 and the last 7, with 7-day sales (Pricing-API AdsDecide.gs).
+ *   tgtSettled / tgtRecent  the same for targets. Without them: verdicts are judged on the 30-day caches.
+ * Break-even and target ACoS per ad group come from Overview's lines (ADSX.lines: Profit & Margin's unit costs and fee
+ * model, weighted by the ad group's ad sales); FBA stock and pace from Campaign × Product's loader (cpLoadBasics).
+ *
+ * The review list is the Firestore collection adsActions/{id}. Until its rules are deployed (Ravi, firestore.rules),
+ * a read is refused and the list is kept in this browser instead (localStorage 'staReview'), and the bar says so.
+ *
+ * Main functions: ensureSt, staModel (every verdict, once per load), renderSt and the view drawers (staDrawAll,
+ * staDrawBurn, staDrawBurnTgt, staDrawScale, staDrawPaths), staOpen (the dialog), the review list (staRlLoad,
+ * staRlSave, staRlDraw), the bulk file (staBulkRow, staXlsx, staDownload), and the Campaign × Product half below. */
 
 /* ================= SEARCH TERMS =================
  *
@@ -24331,52 +24500,177 @@ async function tNightly() {
  * group holds more than one ASIN the term belongs to all of them. It is shown that way rather than
  * picking one, because picking one would be a made-up answer that reads like a real one.
  *
- * Terms with no clicks never leave the backend: nothing here can be said about a term on the
- * strength of an impression, and they are the bulk of the rows.
+ * A PATH is one way a search term reaches us: the campaign, ad group and keyword or target that caught it. The same
+ * term can come through several paths — that is the Competing paths view. Bids belong to the path's keyword or target,
+ * never to the search term, so a bid change moves every search term of that target.
  */
-// The three caches: terms = search terms, tgts = targets, ag = ad groups → products, each per brand; at = when built.
-let ST = { at: '', terms: {}, tgts: {}, ag: {}, loaded: false, dropped: 0, from: '', to: '' };
-// ST_VIEW: harvest / waste / neg / all / cp. ST_LAST: the rows of the last draw, for the export.
-let ST_VIEW = 'harvest', ST_LAST = [];
-// Write the message line (HTML allowed); bad = true shows it in red (class err), otherwise muted.
+// The three caches (terms, tgts, ag, each per brand; at = when built; loaded once they are in) and the optional five
+// (ent, set, rec, tset, trec; extra once asked for — each null when the backend has not written it).
+let ST = { at: '', terms: {}, tgts: {}, ag: {}, loaded: false, extra: false,
+  ent: null, set: null, rec: null, tset: null, trec: null, costs: true };
+// ST_VIEW: burn / scale / paths / all / cp. ST_SUB: Burning money by 'term' or 'target'. ST_LAST: the rows of the last
+// draw, for the export. ST_SHOW: rows drawn before "Show more". ST_SEL: the ticked rows of Burning money, by key.
+let ST_VIEW = 'all', ST_SUB = 'term', ST_LAST = [], ST_SHOW = 100;
+const ST_SEL = new Map();
+let ST_FT = null;
+
+/* THE LINES EVERY VERDICT IS DRAWN WITH. One place, so the dialog's explanations and the tables cannot disagree. */
+const STA = {
+  MIN_CLICKS: 10,      // clicks before "no order" is evidence at all (Campaign × Product's CP_MIN_CLICKS)
+  CHANCE: 0.05,        // below this chance of 0 orders by bad luck, "unlikely to be chance"
+  RATE_ORDERS: 3,      // orders a target or campaign needs before its own conversion rate is used
+  SCALE_ORDERS: 3,     // orders before a raise is suggested
+  SCALE_SHARE: 0.75,   // a raise needs ACoS at or under 75% of the target
+  EXACT_ORDERS: 2,     // orders before "add as exact" is suggested for a term that is not its own keyword
+  STEP: 0.20,          // a bid moves at most 20% a step, up or down
+  MIN_BID: 0.02,       // Amazon's lowest Sponsored Products bid (USD)
+  NOT_LIMIT: 3,        // a bid this many times the CPC is not what holds a term back
+  COOLDOWN: 3,         // days to wait after a bid change before the next one
+  RAISE_COVER: 30,     // days of FBA stock a raise needs
+  TGT: 30, BE: 35,     // target and break-even ACoS % when the unit cost is not known (Overview's 25–35% range)
+  PAGE: 100,           // rows drawn per "Show more"
+  // Amazon's limits on keyword text: a negative exact up to 10 words, a negative phrase up to 4; 80 characters each.
+  NEG: { negativeExact: { words: 10, chars: 80, t: 'Negative exact' }, negativePhrase: { words: 4, chars: 80, t: 'Negative phrase' } },
+  KW: { words: 10, chars: 80 },
+};
+// The columns of Amazon's Sponsored Products bulk sheet that an upload uses (the same headers as Amazon's blank
+// template, without its "Informational only" and performance columns). If Amazon ever rejects the headers, this is the
+// one list to change.
+const STA_BULK_COLS = ['Product', 'Entity', 'Operation', 'Campaign ID', 'Ad Group ID', 'Portfolio ID', 'Ad ID', 'Keyword ID',
+  'Product Targeting ID', 'Campaign Name', 'Ad Group Name', 'Start Date', 'End Date', 'Targeting Type', 'State', 'Daily Budget',
+  'SKU', 'Ad Group Default Bid', 'Bid', 'Keyword Text', 'Native Language Keyword', 'Native Language Locale', 'Match Type',
+  'Bidding Strategy', 'Placement', 'Percentage', 'Product Targeting Expression'];
+
+/* ---------- small helpers ---------- */
+const staEsc = s => String(s == null ? '' : s)
+  .replace(/[<>&"']/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&#39;' }[c]));
+const staMoney = v => '$' + (Number(v) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const staMoney0 = v => '$' + Math.round(Number(v) || 0).toLocaleString('en-US');
+const staPct = v => v == null || !isFinite(v) ? '—' : v.toFixed(1) + '%';
+const staInt = v => (Number(v) || 0).toLocaleString('en-US');
+const staLow = s => String(s || '').toLowerCase().trim();
+const staIsAsin = t => /^b0[a-z0-9]{8}$/i.test(String(t || '').trim());
+const staDash = '<span class="sta-dash">—</span>';
+const staBadge = (t, k, tip) => `<span class="ui-badge${k ? ' is-' + k : ''}"${tip ? ` title="${staEsc(tip)}"` : ''}>${staEsc(t)}</span>`;
+const staBtn = (t, act, key, cls) => `<button type="button" class="sta-btn${cls ? ' ' + cls : ''}" data-act="${act}" data-k="${staEsc(key)}">${staEsc(t)}</button>`;
+const staCan = t => ME.admin || (ME.tabs || []).includes(t);
+const staKwMt = mt => /^(BROAD|PHRASE|EXACT)$/i.test(mt || '');
+const staAutoMt = mt => /PREDEFINED/i.test(mt || '');
+const staBrandName = b => (typeof BRAND_NAME !== 'undefined' && BRAND_NAME[b]) || b;
+const staR2 = v => Math.round(v * 100) / 100;
+const staDay = ms => ms ? new Date(ms).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '';
+// "yyyy-MM-dd HH:mm" as the backend writes it (script time zone, India) → ms; 0 when it cannot be read.
+const staStamp = s => {
+  const m = /^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2})/.exec(String(s || ''));
+  return m ? Date.parse(m[1] + 'T' + m[2] + ':00+05:30') || 0 : 0;
+};
+
+// Write the data line under the toolbar (HTML allowed); bad = true shows it in red.
 function stMsg(t, bad) {
   const m = $('stMsg');
   m.innerHTML = t || '';
-  m.className = bad ? 'err' : 'muted';
+  m.classList.toggle('err', !!bad);
+}
+// Write the footer under the table (HTML allowed); bad = true shows it in red.
+function stFoot(t, bad) {
+  const m = $('stFoot');
+  m.innerHTML = t || '';
+  m.classList.toggle('err', !!bad);
 }
 
-// Called when the tab opens: fetch the three caches once (all at the same time), then draw.
+// The words a target is shown with: "tablecloth (broad)", "Auto · close-match", 'asin="B0…"'.
+function staPathLabel(kw, mt) {
+  const M = String(mt || '').toUpperCase();
+  if (staKwMt(M)) return `${kw || '—'} (${M.toLowerCase()})`;
+  if (staAutoMt(M)) return 'Auto · ' + (kw || 'target not reported');
+  return kw || 'Target not reported';
+}
+
+/* ---------- loading ---------- */
+
+// Called when the tab opens: the three caches (unless the Overview already handed them over), the five optional ones,
+// the stock / sales / costs the break-even needs, and the review list — all at the same time — then draw.
 async function ensureSt() {
-  if (!ST.loaded) {
-    // --- load data ---
-    stMsg('Loading…');
-    /* Each cache ONCE, and the three at the same time (2026-10-03: "ye bahut hang ho rha h"). The search-term cache is
-     * 3.8 MB and was fetched twice — once only to read its date — and the three came one after another. */
+  if (!ST.loaded || !ST.extra) {
+    stMsg('Loading the search terms, targets, ad groups and the review list…');
+    $('stTable').innerHTML = '';
+    stFoot('');
+    // Each cache ONCE, all at the same time (2026-10-03: "ye bahut hang ho rha h"). A cache the backend has not
+    // written yet answers "nothing cached" — that is null here, not an error.
     const grab = async name => {
       try {
         const r = await baCall({ cache: name });
-        return (r && r.data) || {};
-      } catch (e) { return {}; }
+        return (r && r.data) || null;
+      } catch (e) { return null; }
     };
-    const [t, g, a] = await Promise.all([grab('srchTerm'), grab('targeting'), grab('adGroup')]);
-    ST.terms = t.d || {};
-    ST.tgts = g.d || {};
-    ST.ag = a.d || {};
-    ST.at = t.at || '';
-    ST.loaded = true;
-    stMsg('');
+    const jobs = [];
+    if (!ST.loaded) {
+      jobs.push(Promise.all([grab('srchTerm'), grab('targeting'), grab('adGroup')]).then(([t, g, a]) => {
+        ST.terms = (t && t.d) || {};
+        ST.tgts = (g && g.d) || {};
+        ST.ag = (a && a.d) || {};
+        ST.at = (t && t.at) || '';
+        ST.loaded = true;
+      }));
+    }
+    if (!ST.extra) {
+      const ok = x => (x && x.d ? x : null);
+      jobs.push(Promise.all(['adEntities', 'stSettled', 'stRecent', 'tgtSettled', 'tgtRecent'].map(grab)).then(([e, s, r, ts, tr]) => {
+        ST.ent = ok(e);
+        ST.set = ok(s);
+        ST.rec = ok(r);
+        ST.tset = ok(ts);
+        ST.trec = ok(tr);
+        ST.extra = true;
+        Object.keys(STA_ENTX).forEach(k => delete STA_ENTX[k]);
+      }));
+      jobs.push(cpLoadBasics().catch(() => { /* break-even and stock stay unknown */ }));
+      jobs.push(staRlLoad());
+    }
+    await Promise.all(jobs);
+    await staRlSeen();
+    ST.costs = Object.keys(COST || {}).length > 0;
+    STM = null;
   }
   renderSt();
 }
 
-/** The targets we bid on, as a set per ad group — what "is this term already a keyword" is asked of. */
-// Set of 'adGroupId|target text' for the brands given.
-function stTargetSet(brands) {
-  const set = new Set();
-  brands.forEach(b => ((ST.tgts[b] || {}).rows || []).forEach(r => {
-    if (r.t) set.add(r.ag + '|' + String(r.t).toLowerCase().trim());
-  }));
-  return set;
+/* ---------- the figures each verdict is drawn from ---------- */
+
+// The search terms of one brand to judge on: the settled window when the backend writes it, else the 30-day cache.
+function staTermsOf(b) {
+  const s = ST.set && ST.set.d && ST.set.d[b];
+  if (s && s.rows) return Object.assign({ settled: true }, s);
+  return Object.assign({ settled: false }, ST.terms[b] || {});
+}
+// The same for targets.
+function staTgtsOf(b) {
+  const s = ST.tset && ST.tset.d && ST.tset.d[b];
+  if (s && s.rows) return Object.assign({ settled: true }, s);
+  return Object.assign({ settled: false }, ST.tgts[b] || {});
+}
+// The last 7 days of one brand, by 'ag|term' (or 'ag|target|match' for targets) → { c, sp, o, s }. Empty without stRecent.
+function staRecentOf(b, tgt) {
+  const src = tgt ? ST.trec : ST.rec;
+  const rows = (src && src.d && src.d[b] && src.d[b].rows) || [];
+  const m = new Map();
+  rows.forEach(x => m.set(tgt ? x.ag + '|' + staLow(x.t) + '|' + staLow(x.mt) : x.ag + '|' + staLow(x.t), x));
+  return m;
+}
+// A campaign's or ad group's name, from whichever cache knows it.
+function staName(b, id) {
+  if (!id) return '';
+  const look = [ST.set && ST.set.d && ST.set.d[b], ST.terms[b], ST.tset && ST.tset.d && ST.tset.d[b], ST.tgts[b], ST.ag[b]];
+  for (const p of look) {
+    const n = p && p.names && p.names[id];
+    if (n) return n;
+  }
+  const E = ST.ent && ST.ent.d && ST.ent.d[b];
+  if (E) {
+    if (E.cp && E.cp[id]) return E.cp[id][0] || '';
+    if (E.ag && E.ag[id]) return E.ag[id][1] || '';
+  }
+  return '';
 }
 
 /** The products behind an ad group, with their parents. A list, because a group can hold several. */
@@ -24390,173 +24684,1357 @@ function stProductsOf(brand, agId) {
   return { asins: g.a, parents };
 }
 
-/* Campaign and ad-group names are stored ONCE per id, not on every row — see the fold in the
- * backend. Joined back here, where it costs nothing. */
-// The name of a campaign or ad group by id, from the cache given ('terms' or 'tgts'); '' when unknown.
-const nm = (brand, which, id) => (((ST[which] || {})[brand] || {}).names || {})[id] || '';
+/* AMAZON'S OWN RECORD (adEntities): keywords, targets, negatives, campaigns and ad groups with their IDs and bids, as
+ * read from Amazon's lists by AdsEntities.gs. Indexed once per load and brand. */
+const STA_ENTX = {};
+// { kw, tg, neg, negPh, cp, ag, at } for one brand, or null when adEntities has nothing for it.
+function staEnt(b) {
+  if (b in STA_ENTX) return STA_ENTX[b];
+  const E = ST.ent && ST.ent.d && ST.ent.d[b];
+  if (!E || !E.kw) return (STA_ENTX[b] = null);
+  const kw = new Map(), tg = new Map(), neg = new Set(), negPh = [];
+  (E.kw || []).forEach(k => kw.set(k[1] + '|' + staLow(k[3]) + '|' + staLow(k[4]), { id: String(k[0]), ag: k[1], cid: k[2], bid: k[5], st: k[6], kind: 'kw' }));
+  (E.tg || []).forEach(t => tg.set(t[1] + '|' + staLow(t[3]), { id: String(t[0]), ag: t[1], cid: t[2], bid: t[4], st: t[5], kind: 'tg' }));
+  // A negative, by where it sits ('cp|campaign' or 'ag|ad group'), its text and its kind (nx exact, np phrase, na ASIN).
+  (E.neg || []).forEach(n => {
+    const kind = /PHRASE/i.test(n[5]) ? 'np' : /EXACT/i.test(n[5]) ? 'nx' : 'na';
+    const where = n[0] === 'cp' ? 'cp|' + n[2] : 'ag|' + n[3];
+    neg.add(where + '|' + staLow(n[4]) + '|' + kind);
+    if (kind === 'np') negPh.push({ where, text: staLow(n[4]) });
+  });
+  return (STA_ENTX[b] = { kw, tg, neg, negPh, cp: E.cp || {}, ag: E.ag || {}, at: E.at || (ST.ent && ST.ent.at) || '' });
+}
+// The keyword or target behind a path at Amazon: { id, bid, st, kind } with the ad group's default bid when the
+// keyword has none of its own; null when adEntities does not know it.
+function staEntOf(b, ag, kw, mt) {
+  const E = staEnt(b);
+  if (!E) return null;
+  const hit = staKwMt(mt) ? E.kw.get(ag + '|' + staLow(kw) + '|' + staLow(mt)) : E.tg.get(ag + '|' + staLow(kw));
+  if (!hit) return null;
+  const out = Object.assign({}, hit);
+  if (!(out.bid > 0)) {
+    const g = E.ag[ag];
+    out.bid = g && g[2] > 0 ? g[2] : null;
+  }
+  return out;
+}
+// Is there already a negative for this term at Amazon, where a new one would go? where = 'cp|campaignId' or 'ag|adGroupId'.
+function staNegAtAmazon(b, where, term, kind) {
+  const E = staEnt(b);
+  if (!E) return null;   // not known
+  const t = staLow(term);
+  if (kind === 'na') return E.neg.has(where + '|asin="' + t + '"|na');
+  if (E.neg.has(where + '|' + t + '|nx') && kind === 'nx') return true;
+  // A phrase negative blocks every term holding its words in that order.
+  const words = ' ' + t + ' ';
+  return E.negPh.some(p => p.where === where && words.includes(' ' + p.text + ' '));
+}
 
-// The rows of the current view (not cp): joined, filtered by brand, text and minimum spend, and sorted.
-function stRows() {
-  // --- the filters ---
+/* ---------- the model: every verdict, worked out once per load, brand and review-list change ---------- */
+let STM = null;
+
+// Every row of the screen for the brand picked: rows (one per term and path, with its verdict), tgtRows (Burning money
+// by target), groups (Competing paths), byKey (key → row, for the buttons), and the per-brand figures behind them.
+function staModel() {
   const pick = $('stBrand').value;
-  const brands = (pick === 'ALL' ? ['SP', 'CPC'] : [pick]);
-  const targets = stTargetSet(brands);
+  const key = pick + '|' + ST_RL.stamp;
+  if (STM && STM.key === key) return STM;
+  const brands = pick === 'ALL' ? ['SP', 'CPC'] : [pick];
+  const M = { key, brands, rows: [], tgtRows: [], groups: [], byKey: new Map(), settled: false, have: {} };
+  try { ADSX.paceFresh(); } catch (e) { /* Overview's lines are not there: defaults below */ }
+  const lineOf = a => {
+    try { return ADSX.lines(a); } catch (e) { return null; }
+  };
+  const rlOpen = staRlIndex();
+  brands.forEach(b => staModelBrand(b, M, lineOf, rlOpen));
+  STM = M;
+  return M;
+}
+
+// One brand's share of the model (see staModel).
+function staModelBrand(b, M, lineOf, rlOpen) {
+  const src = staTermsOf(b), tsrc = staTgtsOf(b);
+  const terms = src.rows || [], tgts = tsrc.rows || [];
+  M.have[b] = { terms: terms.length, tgts: tgts.length, ag: ((ST.ag[b] || {}).rows || []).length, settled: src.settled,
+    from: src.from || '', to: src.to || '', dropped: src.dropped || 0, dropSpend: src.dropSpend || 0, minClicks: src.minClicks || 3 };
+  if (src.settled) M.settled = true;
+  if (!terms.length && !tgts.length) return;
+  const rec = staRecentOf(b, false), trec = staRecentOf(b, true);
+
+  // --- targets: by path, per campaign, the brand, what kind of ad group each one is ---
+  const tIdx = new Map(), tIdx2 = new Map(), cAgg = new Map(), bAgg = { c: 0, o: 0 };
+  const kwAg = new Set(), ptAg = new Set(), autoCp = new Set(), exactBy = new Map(), ptBy = new Map();
+  const addAgg = (m, k, x) => {
+    const a = m.get(k) || { c: 0, o: 0, sp: 0, s: 0 };
+    a.c += x.c || 0; a.o += x.o || 0; a.sp += x.sp || 0; a.s += x.s || 0;
+    m.set(k, a);
+  };
+  tgts.forEach(x => {
+    const t = staLow(x.t);
+    tIdx.set(x.ag + '|' + t + '|' + staLow(x.mt), x);
+    addAgg(tIdx2, x.ag + '|' + t, x);
+    addAgg(cAgg, x.cid, x);
+    bAgg.c += x.c || 0; bAgg.o += x.o || 0;
+    if (staKwMt(x.mt)) kwAg.add(x.ag);
+    if (staAutoMt(x.mt)) autoCp.add(x.cid);
+    if (/^asin=/i.test(t) && !staAutoMt(x.mt)) ptAg.add(x.ag);
+    if (/^EXACT$/i.test(x.mt)) (exactBy.get(t) || exactBy.set(t, []).get(t)).push(x);
+    const am = /^asin="?([a-z0-9]{10})"?$/i.exec(t);
+    if (am) (ptBy.get(am[1].toLowerCase()) || ptBy.set(am[1].toLowerCase(), []).get(am[1].toLowerCase())).push(x);
+  });
+  terms.forEach(x => { if (staAutoMt(x.mt)) autoCp.add(x.cid); });
+  if (!tgts.length) terms.forEach(x => { addAgg(cAgg, x.cid, x); bAgg.c += x.c || 0; bAgg.o += x.o || 0; });
+  const E = staEnt(b);
+  if (E) {
+    Object.keys(E.cp).forEach(cid => { if (/AUTO/i.test(E.cp[cid][7] || '')) autoCp.add(cid); });
+    E.kw.forEach(k => {
+      if (/^(ENABLED|PAUSED)$/i.test(k.st || 'ENABLED')) kwAg.add(k.ag);
+    });
+    E.kw.forEach((k, key) => {
+      const parts = key.split('|');
+      if (parts[2] === 'exact' && !/ARCHIVED/i.test(k.st || '')) {
+        const t = parts[1];
+        const list = exactBy.get(t) || exactBy.set(t, []).get(t);
+        if (!list.some(y => y.ag === k.ag)) list.push({ ag: k.ag, cid: k.cid, t, mt: 'EXACT', c: 0, o: 0, sp: 0, s: 0 });
+      }
+    });
+  }
+
+  // --- break-even and target per ad group, from its products' unit costs, weighted by their ad sales ---
+  const agRows = new Map();
+  ((ST.ag[b] || {}).rows || []).forEach(x => (agRows.get(x.ag) || agRows.set(x.ag, []).get(x.ag)).push(x));
+  const linesMemo = new Map();
+  const agLines = ag => {
+    if (linesMemo.has(ag)) return linesMemo.get(ag);
+    const list = agRows.get(ag) || [];
+    let w = 0, tw = 0, bw = 0, cover = null;
+    const stock = CP.stock[b];
+    list.forEach(x => {
+      const ln = lineOf(x.a);
+      if (ln && ln.tgt != null) {
+        const wt = (x.s || 0) + (x.sp || 0) * 0.01 + 0.001;   // ad sales, and a little spend so a group with none still counts
+        w += wt; tw += wt * ln.tgt; bw += wt * ln.be;
+      }
+      const st = stock && x.sku && Object.prototype.hasOwnProperty.call(stock, x.sku) ? Number(stock[x.sku]) || 0 : null;
+      if (st != null && ln && ln.perDay > 0) {
+        const cv = st / ln.perDay;
+        cover = cover == null ? cv : Math.min(cover, cv);
+      }
+    });
+    const out = w > 0 ? { tgt: tw / w, be: bw / w, known: true, cover }
+      : { tgt: STA.TGT, be: STA.BE, known: false, cover };
+    linesMemo.set(ag, out);
+    return out;
+  };
+
+  // --- protected: brand words and own ASINs are never negated ---
+  const ownAsins = new Set();
+  ['SP', 'CPC'].forEach(x => ((ST.ag[x] || {}).rows || []).forEach(r => r.a && ownAsins.add(String(r.a).toLowerCase())));
+  Object.keys((typeof WEEKLY !== 'undefined' && WEEKLY.rows) || {}).forEach(a => ownAsins.add(a.toLowerCase()));
+  const brandTerms = new Set(['ridhi']);
+  tgts.forEach(x => {
+    if (/brand/i.test(staName(b, x.cid)) && staKwMt(x.mt)) brandTerms.add(staLow(x.t));
+  });
+  M.protect = M.protect || {};
+  M.protect[b] = { ownAsins, brandTerms };
+
+  // --- one row per search term and path ---
+  const mine = [];
+  terms.forEach(x => {
+    const term = String(x.t || ''), tl = staLow(term);
+    const kw = x.kw || '', mt = x.mt || '';
+    const r7 = rec.get(x.ag + '|' + tl) || null;
+    const tr = tIdx.get(x.ag + '|' + staLow(kw) + '|' + staLow(mt)) || tIdx2.get(x.ag + '|' + staLow(kw)) || null;
+    const ln = agLines(x.ag);
+    const p = stProductsOf(b, x.ag);
+    const row = {
+      key: 't:' + b + '|' + x.ag + '|' + tl, type: 'term', brand: b, term, tl, kw, mt, ag: x.ag, cid: x.cid,
+      cn: staName(b, x.cid), agn: staName(b, x.ag), i: x.i || 0, c: x.c || 0, sp: x.sp || 0, o: x.o || 0, s: x.s || 0,
+      r7, tr, ln, asins: p.asins, parents: p.parents, auto: autoCp.has(x.cid), asin: staIsAsin(term), kid: x.kid || '',
+    };
+    row.acos = row.s > 0 ? row.sp / row.s * 100 : null;
+    row.cpc = row.c > 0 ? row.sp / row.c : null;
+    row.own = (/^EXACT$/i.test(mt) && staLow(kw) === tl) || (row.asin && /^asin=/i.test(staLow(kw)) && staLow(kw).includes(tl));
+    row.ent = staEntOf(b, x.ag, kw, mt);
+    row.pathKey = 'p:' + b + '|' + x.ag + '|' + staLow(kw) + '|' + staLow(mt);
+    // The conversion rate this term is held to: its target's, else its campaign's, else the brand's.
+    const ca = cAgg.get(x.cid);
+    row.rate = tr && tr.o >= STA.RATE_ORDERS && tr.c > 0 ? { p: tr.o / tr.c, w: 'its target' }
+      : ca && ca.o >= STA.RATE_ORDERS && ca.c > 0 ? { p: ca.o / ca.c, w: 'its campaign' }
+        : bAgg.o > 0 && bAgg.c > 0 ? { p: bAgg.o / bAgg.c, w: 'the brand' } : null;
+    row.chance = row.rate ? Math.pow(1 - row.rate.p, row.c) : null;
+    row.tgtAcos = tr && tr.s > 0 ? tr.sp / tr.s * 100 : null;
+    row.exactElsewhere = (exactBy.get(tl) || []).filter(y => y.ag !== x.ag);
+    row.ptElsewhere = row.asin ? (ptBy.get(tl) || []).filter(y => y.ag !== x.ag) : [];
+    row.rl = rlOpen.get(row.key) || null;
+    row.rlPath = rlOpen.get(row.pathKey) || null;
+    row.negated = staTermNegated(b, row, rlOpen);
+    row.hay = (term + ' ' + kw + ' ' + row.cn + ' ' + row.agn + ' ' + p.asins.join(' ') + ' ' + p.parents.join(' ')).toLowerCase();
+    mine.push(row);
+  });
+
+  // --- competing paths: the same term through two or more ad groups of this brand ---
+  const byTerm = new Map();
+  mine.forEach(r => { if (r.sp > 0 || r.o > 0) (byTerm.get(r.tl) || byTerm.set(r.tl, []).get(r.tl)).push(r); });
+  byTerm.forEach((list, tl) => {
+    if (list.length < 2) return;
+    const ranked = list.slice().sort((p, q) => (q.o - p.o) || ((p.acos == null ? 1e9 : p.acos) - (q.acos == null ? 1e9 : q.acos)) || (q.c - p.c));
+    const lead = ranked[0];
+    if (!(lead.o > 0)) return;
+    const la = lead.sp / lead.s;   // the lead path's ACoS, as a fraction
+    let excess = 0;
+    ranked.slice(1).forEach(r => {
+      // A path already negated is stopped: what it spent is history, not overlap still running.
+      r.excess = r.negated ? 0 : Math.max(0, r.sp - r.s * la);
+      excess += r.excess;
+    });
+    if (!(excess > 0.005)) return;
+    const g = { key: 'g:' + b + '|' + tl, brand: b, term: lead.term, tl, lead, paths: ranked, excess,
+      campaigns: new Set(ranked.map(r => r.cid)).size };
+    lead.role = 'lead';
+    lead.group = g;
+    ranked.slice(1).forEach(r => {
+      r.role = 'other';
+      r.group = g;
+      r.leadAcos = la * 100;
+      // Where the negative goes: the campaign, unless the lead path is in the same campaign (it would block that too).
+      r.pathLevel = r.cid === lead.cid || r.asin ? 'ag' : 'cp';
+      r.dupExact = r.own;   // the term is its own exact keyword here too: a duplicate keyword, paused rather than negated
+    });
+    M.groups.push(g);
+  });
+
+  // --- the verdict of each row ---
+  mine.forEach(r => {
+    staVerdict(r);
+    M.rows.push(r);
+    M.byKey.set(r.key, r);
+  });
+
+  // --- Burning money by target: the keywords and targets themselves ---
+  tgts.forEach(x => {
+    if (!(x.sp > 0) || (x.c || 0) < STA.MIN_CLICKS) return;
+    const ln = agLines(x.ag);
+    const acos = x.s > 0 ? x.sp / x.s * 100 : null;
+    const ca = cAgg.get(x.cid);
+    const rate = ca && ca.o >= STA.RATE_ORDERS ? { p: ca.o / ca.c, w: 'its campaign' } : bAgg.o > 0 ? { p: bAgg.o / bAgg.c, w: 'the brand' } : null;
+    const noSale = !(x.o > 0);
+    if (!noSale && !(acos > ln.be)) return;
+    const r = {
+      key: 'g:' + b + '|' + x.ag + '|' + staLow(x.t) + '|' + staLow(x.mt), type: 'target', brand: b, term: x.t, kw: x.t, mt: x.mt,
+      ag: x.ag, cid: x.cid, cn: staName(b, x.cid), agn: staName(b, x.ag), i: x.i || 0, c: x.c || 0, sp: x.sp || 0, o: x.o || 0, s: x.s || 0,
+      acos, cpc: x.c > 0 ? x.sp / x.c : null, ln, rate, auto: autoCp.has(x.cid), kid: x.kid || '',
+      r7: trec.get(x.ag + '|' + staLow(x.t) + '|' + staLow(x.mt)) || null,
+    };
+    r.pathKey = 'p:' + b + '|' + x.ag + '|' + staLow(x.t) + '|' + staLow(x.mt);
+    r.ent = staEntOf(b, x.ag, x.t, x.mt);
+    r.tgtAcos = acos;
+    r.chance = rate ? Math.pow(1 - rate.p, r.c) : null;
+    r.rl = rlOpen.get(r.pathKey) || null;
+    r.paused = r.ent && /PAUSED|ARCHIVED/i.test(r.ent.st || '');
+    r.hay = (x.t + ' ' + r.cn + ' ' + r.agn).toLowerCase();
+    if (noSale) {
+      r.burned = r.sp;
+      r.kind = 'none';
+      r.next = r.chance != null && r.chance < STA.CHANCE ? 'pause' : 'reduce';
+    } else {
+      r.burned = r.sp - r.s * ln.be / 100;
+      r.kind = 'be';
+      r.next = 'reduce';
+    }
+    if (r.paused || r.rl) r.next = null;
+    M.tgtRows.push(r);
+    M.byKey.set(r.key, r);
+  });
+
+  // --- what the dialog needs: the ad groups a new exact keyword or ASIN target can go into ---
+  M.dest = M.dest || {};
+  M.dest[b] = { kwAg, ptAg, agRows };
+}
+
+// Is this term already negated where it ran — at Amazon (adEntities) or by a review item that has been done?
+function staTermNegated(b, r, rlOpen) {
+  const done = rlOpen.get('done:' + r.key);
+  if (done) return 'Negative added ' + staDay(done.exportedAt || done.at);
+  const kind = r.asin ? 'na' : 'nx';
+  if (staNegAtAmazon(b, 'cp|' + r.cid, r.term, kind) || staNegAtAmazon(b, 'ag|' + r.ag, r.term, kind)) return 'Negative at Amazon';
+  return '';
+}
+
+/* THE VERDICT of one search term on one path: its badges, the money it burned, the evidence, and the one next step.
+ * In order: queued or negated already → no sales → above break-even → a weaker competing path → worth scaling. */
+function staVerdict(r) {
+  const ln = r.ln, b = [];
+  r.badges = b;
+  r.next = null;
+  r.cat = '';
+  r.burned = 0;
+  const chancePct = r.chance != null ? (r.chance * 100).toFixed(1) + '%' : '';
+  // --- no sales ---
+  if (!(r.o > 0)) {
+    if (r.c < STA.MIN_CLICKS) {
+      b.push(['Too few clicks', '', `${r.c} click${r.c === 1 ? '' : 's'} and no order: not enough to judge (${STA.MIN_CLICKS} needed).`]);
+    } else {
+      r.cat = 'burn';
+      r.kind = 'none';
+      r.burned = r.sp;
+      b.push(['No sales', 'bad']);
+      const sure = r.chance != null && r.chance < STA.CHANCE;
+      if (!sure) b.push(['Could be chance', '', 'With this few clicks, no order can still be bad luck.']);
+      r.ev = r.rate
+        ? `0 orders in <b>${staInt(r.c)} clicks</b> · ${chancePct} chance of that if it converted like ${r.rate.w} (${(r.rate.p * 100).toFixed(1)}%)`
+          + (sure ? ', <b>unlikely to be chance</b>' : ', so it <b>could still be chance</b>')
+        : `0 orders in <b>${staInt(r.c)} clicks</b> · nothing in this brand has sold yet to compare with`;
+      r.next = 'neg';
+    }
+  } else if (r.acos > ln.be && r.c >= STA.MIN_CLICKS) {
+    // --- sells, but above break-even ---
+    r.cat = 'burn';
+    r.kind = 'be';
+    r.burned = Math.max(0, r.sp - r.s * ln.be / 100);
+    b.push(['Above break-even', 'bad']);
+    r.ev = `ACoS <b>${staPct(r.acos)}</b> vs break-even ${staPct(ln.be)} (target ${staPct(ln.tgt)})`
+      + (ln.known ? '' : ' — no unit cost in Profit &amp; Margin, so the default range is used')
+      + `: spent ${staMoney(r.burned)} more than break-even allows`;
+    // The bid belongs to the target: lower it only when the target as a whole is over target; otherwise this one term is
+    // the problem, and a negative stops it without touching the terms that sell.
+    if (r.role === 'other') {
+      // It sells better through another path: a negative here sends it there, and leaves this target's other terms alone.
+      r.next = 'neg';
+      r.ev += `. It sells at ${staPct(r.leadAcos)} through ${staEsc(r.group.lead.cn)}, so a negative here sends it there`;
+    } else {
+      r.next = r.tgtAcos != null && r.tgtAcos > ln.tgt && r.kw ? 'reduce' : 'neg';
+      if (r.next === 'neg') r.ev += `. Its target sells at ${staPct(r.tgtAcos)} overall, so a negative for this term is safer than a lower bid`;
+    }
+  } else if (r.acos > ln.tgt) {
+    b.push(['Over target', 'warn', `ACoS ${staPct(r.acos)} is between the target ${staPct(ln.tgt)} and break-even ${staPct(ln.be)}: it pays its costs, not its share of overhead and salary.`]);
+  } else {
+    b.push([r.o >= STA.SCALE_ORDERS ? 'Winner' : 'Selling', 'ok']);
+  }
+  // --- a weaker path of a competing term ---
+  if (!r.cat && r.role === 'other' && r.excess > 0.005) {
+    r.cat = 'paths';
+    r.next = r.dupExact ? 'pause' : 'neg';
+  }
+  if (r.role) b.push([r.role === 'lead' ? 'Lead path' : 'Competing path', 'info', r.role === 'lead'
+    ? 'Of the paths this term comes through, this one brings the most orders.'
+    : `This term also comes through another path that sells it at ${staPct(r.leadAcos)} ACoS.`]);
+  // --- worth scaling ---
+  if (!r.cat && r.o > 0 && r.acos != null && r.acos <= ln.tgt) {
+    if (r.own && r.o >= STA.SCALE_ORDERS && r.acos <= ln.tgt * STA.SCALE_SHARE) {
+      r.cat = 'scale';
+      r.scaleKind = 'raise';
+      b.push(['Room to grow', 'ok', `ACoS ${staPct(r.acos)} is at or under ${Math.round(STA.SCALE_SHARE * 100)}% of the target ${staPct(ln.tgt)}.`]);
+      r.ceil = r.cpc * ln.tgt / r.acos;
+      const bid = r.ent && r.ent.bid;
+      if (bid > 0 && r.cpc > 0 && bid >= r.cpc * STA.NOT_LIMIT) r.next = 'limit';
+      else if (ln.cover != null && ln.cover < STA.RAISE_COVER) r.next = 'lowstock';
+      else {
+        r.next = 'raise';
+        if (bid > 0) r.sugBid = Math.max(STA.MIN_BID, staR2(bid * Math.min(1 + STA.STEP, ln.tgt / r.acos)));
+      }
+    } else if (!r.own && r.o >= STA.EXACT_ORDERS && !r.exactElsewhere.length && !r.ptElsewhere.length) {
+      r.cat = 'scale';
+      r.scaleKind = r.asin ? 'asinT' : 'exact';
+      b.push([r.asin ? 'Not its own target' : 'Not its own keyword', 'info',
+        r.asin ? 'No product target for this ASIN yet.' : 'No exact keyword for this term in this brand yet.']);
+      r.ceil = r.cpc * ln.tgt / r.acos;
+      r.sugBid = Math.max(STA.MIN_BID, staR2(Math.min(r.cpc * (1 + STA.STEP), r.ceil)));
+      r.next = r.scaleKind;
+    }
+  }
+  if (!r.own && (r.exactElsewhere.length || r.ptElsewhere.length) && !r.role) b.push(['Promoted', 'ok', 'It already has its own exact keyword or product target in this brand.']);
+  // --- already queued, or already negated: nothing more to do ---
+  if (r.negated) {
+    // Already stopped at Amazon: shown in All terms, left out of what is still burning, scaling or competing.
+    r.status = 'Negated';
+    r.next = null;
+    r.cat = '';
+  } else if (r.rl || (r.rlPath && /^(reduce|raise|pause)$/.test(r.next || ''))) {
+    r.status = 'In review';
+  } else if (!r.own && (r.exactElsewhere.length || r.ptElsewhere.length)) {
+    r.status = 'Promoted';
+  } else {
+    r.status = 'Active';
+  }
+}
+
+/* ---------- filtering ---------- */
+
+// The text filter and the minimum spend, as one test for a row.
+function staPass() {
   const q = $('stFilter').value.trim().toLowerCase();
   const minSp = Number($('stMinSpend').value) || 0;
-  let rows = [];
-
-  // --- one row per target (waste) or per search term (harvest, neg, all) ---
-  if (ST_VIEW === 'waste') {
-    // The targets WE added: money out, nothing back. One row per target, not per search term.
-    brands.forEach(b => ((ST.tgts[b] || {}).rows || []).forEach(r => {
-      if (!(r.sp > 0) || r.o > 0) return;
-      const p = stProductsOf(b, r.ag);
-      rows.push({
-        brand: b, term: r.t, kind: 'target', mt: r.mt,
-        cn: nm(b, 'tgts', r.cid), agn: nm(b, 'tgts', r.ag),
-        i: r.i, c: r.c, sp: r.sp, o: r.o, s: r.s,
-        asins: p.asins, parents: p.parents, inList: true
-      });
-    }));
-  } else {
-    brands.forEach(b => ((ST.terms[b] || {}).rows || []).forEach(r => {
-      const inList = targets.has(r.ag + '|' + String(r.t).toLowerCase().trim());
-      if (ST_VIEW === 'harvest' && (!(r.o > 0) || inList)) return;
-      if (ST_VIEW === 'neg' && (!(r.sp > 0) || r.o > 0)) return;
-      const p = stProductsOf(b, r.ag);
-      rows.push({
-        brand: b, term: r.t, kind: 'term', mt: r.mt,
-        cn: nm(b, 'terms', r.cid), agn: nm(b, 'terms', r.ag), kw: r.kw,
-        i: r.i, c: r.c, sp: r.sp, o: r.o, s: r.s,
-        asins: p.asins, parents: p.parents, inList
-      });
-    }));
-  }
-
-  // --- filter and sort ---
-  if (minSp > 0) rows = rows.filter(r => r.sp >= minSp);
-  if (q) rows = rows.filter(r => (r.term + ' ' + (r.kw || '') + ' ' + r.cn + ' ' + r.agn
-    + ' ' + r.asins.join(' ') + ' ' + r.parents.join(' ')).toLowerCase().includes(q));
-  // Harvest by what it earned, everything else by what it cost — in each view the biggest number is
-  // the one worth acting on first.
-  rows.sort((a, b) => ST_VIEW === 'harvest' ? (b.s - a.s || b.o - a.o) : (b.sp - a.sp || b.c - a.c));
-  return rows;
+  return r => (!minSp || r.sp >= minSp) && (!q || r.hay.includes(q));
 }
-
-// Draw the current view: the table (first 500 rows) and the summary in the message line; cp goes to renderCp.
-function renderSt() {
-  if (ST_VIEW === 'cp') {
-    renderCp();
-    return;
-  }
-  const esc = s => String(s == null ? '' : s)
-    .replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
-  const money = v => '$' + (Math.round((v || 0) * 100) / 100).toLocaleString('en-US');
-  // --- nothing collected yet ---
-  const haveAny = Object.keys(ST.terms).length || Object.keys(ST.tgts).length;
-  if (!haveAny) {
-    $('stTable').innerHTML = '';
-    stMsg('The nightly run has not collected any search-term data yet. It asks Amazon for these '
-      + 'reports overnight and picks them up on a later wake-up, so they appear the morning after '
-      + 'the first run that includes them.', true);
-    return;
-  }
-  // --- rows ---
-  const rows = stRows();
-  ST_LAST = rows;
-
-  const CAP = 500;
-  const shown = rows.slice(0, CAP);
-  const isWaste = ST_VIEW === 'waste';
-  // --- build table: header ---
-  const head = '<thead><tr>'
-    + `<th class="frz">${isWaste ? 'Target we added' : 'Search term'}</th>`
-    + (isWaste ? '' : '<th title="The target that caught this search term. Blank means Amazon did not report one.">Matched target</th>')
-    + '<th>Match</th>'
-    + '<th title="The ASINs advertised in the ad group this ran in. More than one means the term cannot be pinned to a single product.">Product</th>'
-    + '<th>Parent</th><th>Campaign</th>'
-    + '<th class="num">Impr</th><th class="num">Clicks</th><th class="num">Spend</th>'
-    + '<th class="num">Orders</th><th class="num">Sales</th>'
-    + '<th class="num" title="Spend ÷ sales. Blank when there are no sales to divide by.">ACOS</th>'
-    + '</tr></thead>';
-
-  // --- build table: the Product and Parent cells (first one, then "+n" for the rest) ---
-  const prod = r => !r.asins.length
-    ? '<span class="muted" title="No advertised-product row for this ad group in the same window.">—</span>'
-    : r.asins.length === 1
-      ? esc(r.asins[0])
-      : `<span title="${esc(r.asins.join(', '))}">${esc(r.asins[0])} <span class="muted">+${r.asins.length - 1}</span></span>`;
-  const par = r => !r.parents.length ? '<span class="muted">—</span>'
-    : r.parents.length === 1 ? esc(r.parents[0])
-    : `<span title="${esc(r.parents.join(', '))}">${esc(r.parents[0])} <span class="muted">+${r.parents.length - 1}</span></span>`;
-
-  // --- build table: body ---
-  const body = shown.map(r => '<tr>'
-    + `<td class="frz" style="font-weight:600">${esc(r.term)}`
-      + (!isWaste && r.inList ? ' <span class="st st-draft" title="Already in your target list.">bidding</span>' : '')
-      + '</td>'
-    + (isWaste ? '' : `<td>${r.kw ? esc(r.kw) : '<span class="muted">—</span>'}</td>`)
-    + `<td>${r.mt ? esc(r.mt) : '<span class="muted">—</span>'}</td>`
-    + `<td style="font-family:ui-monospace,monospace">${prod(r)}</td>`
-    + `<td style="font-family:ui-monospace,monospace">${par(r)}</td>`
-    + `<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.cn + ' · ' + r.agn)}">${esc(r.cn)}</td>`
-    + `<td class="num">${(r.i || 0).toLocaleString('en-US')}</td>`
-    + `<td class="num">${r.c || 0}</td>`
-    + `<td class="num">${money(r.sp)}</td>`
-    + `<td class="num"${r.o ? ' style="font-weight:700"' : ''}>${r.o || 0}</td>`
-    + `<td class="num">${money(r.s)}</td>`
-    + `<td class="num">${r.s > 0 ? Math.round(r.sp * 100 / r.s) + '%' : '<span class="muted">—</span>'}</td>`
-    + '</tr>').join('');
-
-  $('stTable').innerHTML = head + '<tbody>' + (body
-    || `<tr><td colspan="${isWaste ? 11 : 12}" class="muted" style="padding:14px">Nothing matches.</td></tr>`) + '</tbody>';
-
-  // --- the summary in the message line ---
-  const spend = rows.reduce((s, r) => s + r.sp, 0), sales = rows.reduce((s, r) => s + r.s, 0);
-  const WHAT = {
-    harvest: 'search terms that produced orders and are NOT in your target list — the list to add',
-    waste: 'targets you added that spent and produced nothing — the list to cut or re-bid',
-    neg: 'search terms that spent and produced nothing — the list to negative',
-    all: 'every search term that got at least one click',
+// What each view lists, after the filters: all, burn (by term), burnTgt, scale, paths (groups with at least one path left).
+function staLists() {
+  const M = staModel(), ok = staPass();
+  const all = M.rows.filter(ok);
+  const groups = M.groups.map(g => Object.assign({}, g, { shown: g.paths.filter(ok) }))
+    .filter(g => g.shown.length && g.shown.some(r => r.role === 'other'));
+  return {
+    M, all,
+    burn: all.filter(r => r.cat === 'burn').sort((p, q) => q.burned - p.burned || q.sp - p.sp),
+    burnTgt: M.tgtRows.filter(ok).sort((p, q) => q.burned - p.burned || q.sp - p.sp),
+    scale: all.filter(r => r.cat === 'scale').sort((p, q) => (q.s - p.s) || (q.o - p.o)),
+    groups: groups.sort((p, q) => q.excess - p.excess),
   };
-  stMsg(`<b>${rows.length.toLocaleString('en-US')}</b> ${WHAT[ST_VIEW]}`
-    + ` · ${money(spend)} spent, ${money(sales)} back`
-    + (rows.length > CAP ? ` · showing the first ${CAP} — narrow it to see the rest` : '')
-    + (ST.at ? ` · built ${esc(ST.at)}` : '')
-    + ' · a 30-day window'
-    // Said plainly. A cap nobody is told about reads as "this is everything", and a decision made on
-    // that belief is a decision made on a lie.
-    + (() => {
-        const b = brands.reduce((a, x) => {
-          const p = ST.terms[x] || {};
-          a.n += p.dropped || 0;
-          a.sp += p.dropSpend || 0;
-          a.min = p.minClicks || a.min;
-          return a;
-        }, { n: 0, sp: 0, min: 3 });
-        return b.n
-          ? ` · <b>${b.n.toLocaleString('en-US')} more term(s) not shown</b>: fewer than ${b.min} clicks and no order`
-            + ` (${money(b.sp)} between them — too little traffic each to call one way or the other)`
-          : '';
-      })());
 }
 
-// A click on the segmented control switches the view; the cp controls show only for cp, which loads on first use.
-$('stViewSeg').addEventListener('click', e => {
-  const b = e.target.closest('[data-v]');
-  if (!b) return;
-  ST_VIEW = b.dataset.v;
-  $('stViewSeg').querySelectorAll('[data-v]').forEach(x => x.classList.toggle('on', x === b));
-  $('stCpShow').classList.toggle('hide', ST_VIEW !== 'cp');
-  $('stCpTarget').classList.toggle('hide', ST_VIEW !== 'cp');
-  if (ST_VIEW === 'cp' && !CP.loaded) {
+/* ---------- drawing ---------- */
+
+// Draw the whole screen: data line, boxes, the view's title and table, the footer and the selection bar.
+function renderSt() {
+  const isCp = ST_VIEW === 'cp';
+  $('stViewSeg').querySelectorAll('[data-v]').forEach(x => x.classList.toggle('on', x.dataset.v === ST_VIEW));
+  $('stBurnSeg').classList.toggle('hide', ST_VIEW !== 'burn');
+  $('stBurnSeg').querySelectorAll('[data-s]').forEach(x => x.classList.toggle('on', x.dataset.s === ST_SUB));
+  $('stCpShow').classList.toggle('hide', !isCp);
+  $('stCpTarget').classList.toggle('hide', !isCp);
+  staRlBadge();
+  // --- nothing collected yet ---
+  const haveAny = ['SP', 'CPC'].some(b => ((ST.terms[b] || {}).rows || []).length || ((ST.tgts[b] || {}).rows || []).length
+    || (ST.set && ST.set.d && ST.set.d[b]));
+  if (!haveAny && !isCp) {
+    $('stBoxes').innerHTML = '';
+    $('stTable').innerHTML = '';
+    $('stTitle').textContent = 'No search terms yet';
+    $('stSub').textContent = '';
+    stMsg('The nightly run has not collected any search-term data yet. It asks Amazon for these reports overnight and picks '
+      + 'them up on a later wake-up, so they appear the morning after the first run that includes them.', true);
+    stFoot('');
+    staSelBar();
+    return;
+  }
+  const L = staLists();
+  staDataLine(L.M);
+  staBoxes(L);
+  if (isCp) {
+    $('stTitle').textContent = 'Which campaign × product is working?';
+    $('stSub').textContent = 'One row per campaign, ad group and SKU over 30 days, with whether the ad runs, its FBA stock and a verdict. Advice only.';
+    renderCp();
+  } else if (ST_VIEW === 'burn' && ST_SUB === 'target') staDrawBurnTgt(L);
+  else if (ST_VIEW === 'burn') staDrawBurn(L);
+  else if (ST_VIEW === 'scale') staDrawScale(L);
+  else if (ST_VIEW === 'paths') staDrawPaths(L);
+  else staDrawAll(L);
+  staSelBar();
+}
+
+// The data line: which window the verdicts are judged on, whether both brands arrived, what Amazon's own record holds.
+function staDataLine(M) {
+  const parts = [];
+  const h = M.have;
+  if (M.settled) {
+    const x = M.brands.map(b => h[b]).find(y => y && y.from) || {};
+    parts.push(`Judged on <b>settled clicks${x.from ? ', ' + staEsc(staShortDay(x.from)) + ' – ' + staEsc(staShortDay(x.to)) : ''}</b>: older than Amazon's 7-day window, so their sales are final.`);
+    if (ST.rec) parts.push('The last 7 days show under each figure in Burning money and are not counted yet.');
+  } else {
+    parts.push(`Judged on <b>the last 30 days</b>${ST.at ? ' (nightly run ' + staEsc(ST.at) + ')' : ''}, with sales Amazon credits within 30 days of a click. The newest days can still gain orders.`);
+  }
+  // Both brands there? A missing brand is said, never left to look like a quiet month.
+  const miss = M.brands.filter(b => !(h[b] && (h[b].terms || h[b].tgts)));
+  const old = ST.at && Date.now() - staStamp(ST.at) > 36 * 3600 * 1000;
+  if (miss.length) parts.push(`<span class="sta-bad">✗ ${miss.map(staBrandName).join(' and ')}: no search terms in the last run</span>`);
+  else if (old) parts.push(`<span class="sta-bad">✗ The search terms are from ${staEsc(ST.at)}: last night's run did not replace them</span>`);
+  else parts.push(`<span class="sta-ok">✓ ${M.brands.map(staBrandName).join(' and ')}${M.brands.length > 1 ? ' both' : ''} complete</span>`);
+  if (!ST.costs) parts.push('No unit costs readable for this account: every product is held to the default 30% target and 35% break-even.');
+  const E = ST.ent;
+  parts.push(E ? `Amazon IDs and current bids read ${staEsc(E.at || '')}` : 'Amazon IDs and current bids are not read yet: bid and pause changes wait in the review list');
+  if (ST_RL.where === 'local') parts.push('<span class="sta-bad">The review list is kept in this browser only until it is switched on for everyone</span>');
+  stMsg(parts.map(p => `<span>${p}</span>`).join(''));
+}
+// "2026-10-08" → "8 Oct".
+const staShortDay = iso => {
+  const t = Date.parse(String(iso || '').slice(0, 10) + 'T12:00:00Z');
+  return t ? new Date(t).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' }) : String(iso || '');
+};
+
+// The four boxes over the table. Each opens its view; the last opens the review list.
+function staBoxes(L) {
+  const IC = {
+    burn: '<path d="M12 2c1 4 5 5.5 5 10a5 5 0 0 1-10 0c0-2.5 1.5-3.5 2-6 1.5 1 2 2.5 2 4 1-1 1.5-4 1-8Z"/>',
+    scale: '<path d="M3 17l6-6 4 4 8-8"/><path d="M14 7h7v7"/>',
+    paths: '<path d="M6 3v6a6 6 0 0 0 6 6h6"/><path d="M18 3v6"/><path d="M15 18l3-3-3-3"/>',
+    rl: '<path d="M9 11l3 3 8-8"/><path d="M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9"/>',
+  };
+  const box = (k, c, label, big, unit, q, go) => `
+    <button type="button" class="adx-box sta-box${ST_VIEW === k ? ' on' : ''}" data-box="${k}" style="--c:${c};--adx-glow:.10">
+      <div class="adx-l"><span class="adx-ic"><svg viewBox="0 0 24 24">${IC[k]}</svg></span>${label}</div>
+      <div class="sta-big"><b>${big}</b><span>${unit}</span></div>
+      <div class="sta-q">${q}</div>
+      <div class="sta-go"><span>${go} →</span></div>
+    </button>`;
+  const burned = L.burn.reduce((t, r) => t + r.burned, 0);
+  const none = L.burn.filter(r => r.kind === 'none').length, be = L.burn.length - none;
+  const exact = L.scale.filter(r => r.scaleKind !== 'raise').length;
+  const excess = L.groups.reduce((t, g) => t + g.shown.filter(r => r.role === 'other').reduce((u, r) => u + (r.excess || 0), 0), 0);
+  const open = ST_RL.items.filter(x => x.status === 'review' || x.status === 'approved');
+  const appr = open.filter(x => x.status === 'approved').length;
+  $('stBoxes').innerHTML =
+    box('burn', 'var(--bad)', 'Burning money', staMoney0(burned), `on ${staInt(L.burn.length)} search term${L.burn.length === 1 ? '' : 's'}`,
+      `${staInt(none)} with no sales and ${staInt(be)} selling above break-even ACoS.`, 'Add negatives, reduce bids')
+    + box('scale', 'var(--accent)', 'Worth scaling', staInt(L.scale.length), 'search terms',
+      `Selling under their campaign's target ACoS with room to grow${exact ? ` · ${staInt(exact)} not their own keyword yet` : ''}.`, 'Raise bids, add as exact')
+    + box('paths', 'var(--brand)', 'Competing paths', staInt(L.groups.length), 'search terms',
+      `Reach you through more than one target · the other paths spent ${staMoney0(excess)} above the lead path's ACoS.`, 'Keep one path, negate the rest')
+    + box('rl', 'var(--violet-ink)', 'Review list', staInt(open.length), 'waiting',
+      appr ? `${staInt(appr)} approved, ready to download as an Amazon bulk file.` : 'Changes picked here wait to be approved, then download as an Amazon bulk file.', 'Open the review list');
+}
+
+// The view's title and sub-line.
+function staHead(title, sub) {
+  $('stTitle').textContent = title;
+  $('stSub').innerHTML = sub;
+}
+// The footer: "N of M · sorted by …" and a Show more button when rows are left.
+function staMore(shown, total, sortTxt, extra) {
+  stFoot(`<span>${staInt(shown)} of ${staInt(total)} · sorted by ${sortTxt}${extra ? ' · ' + extra : ''}</span>`
+    + (total > shown ? `<button type="button" class="ghost" data-more="1">Show ${Math.min(STA.PAGE, total - shown)} more</button>` : ''));
+}
+// The term cell: the term, then its badges and brand underneath.
+function staTermCell(r, badges) {
+  return `<td><div class="sta-term">${staEsc(r.term)}</div><div class="sta-under">${(badges || []).map(x => staBadge(x[0], x[1], x[2])).join('')}`
+    + `${staBadge(staBrandName(r.brand))}</div></td>`;
+}
+// The path cell: campaign, then ad group · target.
+function staPathCell(r) {
+  const label = staPathLabel(r.kw, r.mt);
+  const agn = r.agn && !label.toLowerCase().includes(r.agn.toLowerCase()) ? r.agn + ' · ' : '';
+  return `<td class="sta-path" title="${staEsc(r.cn + ' · ' + r.agn)}"><b>${staEsc(r.cn || 'Campaign ' + r.cid)}</b>`
+    + `<small>${staEsc(agn)}${staEsc(label)}</small></td>`;
+}
+// The "+n last 7 days" line under a figure; blank without the recent cache.
+function staUp(r, k, money) {
+  if (!r.r7) return '';
+  const v = r.r7[k] || 0;
+  return `<small class="sta-s up">${v ? '+' + (money ? staMoney(v) : staInt(v)) + ' last 7 days' : '&nbsp;'}</small>`;
+}
+// The next-step cell of a row.
+function staNextCell(r) {
+  if (r.status === 'In review') return '<td class="sta-next"><span class="sta-inrl">In the review list</span></td>';
+  if (r.status === 'Negated') return `<td class="sta-next"><span class="sta-dash">${staEsc(r.negated)}</span></td>`;
+  const n = r.next;
+  if (n === 'neg') return `<td class="sta-next">${staBtn('Add negative', 'neg', r.key, 'neg')}</td>`;
+  if (n === 'reduce') return `<td class="sta-next">${staBtn('Reduce bid', 'reduce', r.key)}</td>`;
+  if (n === 'raise') return `<td class="sta-next">${r.sugBid ? `<small>Raise the bid to ${staMoney(r.sugBid)}.</small>` : ''}${staBtn('Raise bid', 'raise', r.key)}</td>`;
+  if (n === 'exact') return `<td class="sta-next"><small>Add it as an exact keyword at ${staMoney(r.sugBid)}.</small>${staBtn('Add as exact', 'exact', r.key)}</td>`;
+  if (n === 'asinT') return `<td class="sta-next"><small>Target this ASIN at ${staMoney(r.sugBid)}.</small>${staBtn('Target this ASIN', 'asinT', r.key)}</td>`;
+  if (n === 'pause') return `<td class="sta-next">${staBtn(r.type === 'term' ? 'Pause duplicate' : 'Pause', 'pause', r.key, 'neg')}</td>`;
+  if (n === 'limit') {
+    const x = r.ent && r.cpc ? (r.ent.bid / r.cpc).toFixed(1) : '';
+    return `<td class="sta-next"><div class="sta-limit"><b>The bid isn't the limit.</b> It is already ${x}× what is paid, so a higher bid buys nothing. Check this campaign's budget and top-of-search placement instead.</div></td>`;
+  }
+  if (n === 'lowstock') return `<td class="sta-next"><div class="sta-limit"><b>Low stock.</b> About ${Math.round(r.ln.cover)} days of FBA stock: no raise under ${STA.RAISE_COVER} days.</div></td>`;
+  return `<td class="sta-next">${staDash}</td>`;
+}
+// The status chip of a row.
+function staStatus(r) {
+  const s = r.status || 'Active';
+  return s === 'In review' ? staBadge(s, 'info') : s === 'Promoted' ? staBadge(s, 'ok') : s === 'Negated' ? staBadge(s, 'warn') : staBadge(s);
+}
+
+// All terms: one row per search term and path, with its verdict and next step. Opens first.
+function staDrawAll(L) {
+  const rows = L.all.slice().sort((p, q) => q.c - p.c || q.sp - p.sp);
+  ST_LAST = rows;
+  const shown = rows.slice(0, ST_SHOW);
+  staHead('Every search term', 'One row per search term and the target that caught it, with what Sellora makes of it and the next step.');
+  const body = shown.map(r => `<tr>
+    <td><div class="sta-term">${staEsc(r.term)}</div><small class="sta-s">${staEsc(staBrandName(r.brand))}</small></td>
+    ${staPathCell(r)}
+    <td>${staStatus(r)}</td>
+    <td class="num">${staInt(r.c)}</td><td class="num">${staMoney(r.sp)}</td><td class="num">${staMoney(r.s)}</td><td class="num">${staInt(r.o)}</td>
+    <td class="num"><b>${r.acos != null ? staPct(r.acos) : staDash}</b></td>
+    <td class="num">${r.sp > 0 ? (r.s / r.sp).toFixed(2) : staDash}</td>
+    <td class="num">${r.c > 0 ? staPct(r.o / r.c * 100) : staDash}</td>
+    <td class="num">${r.cpc != null ? staMoney(r.cpc) : staDash}</td>
+    <td class="num ui-dim">${staInt(r.i)}</td>
+    <td><div class="sta-under" style="margin:0">${r.badges.map(x => staBadge(x[0], x[1], x[2])).join('')}</div></td>
+    ${staNextCell(r)}</tr>`).join('');
+  $('stTable').innerHTML = `<thead><tr><th>Search term</th><th>Path · campaign and target</th><th>Status</th><th class="num">Clicks</th>
+    <th class="num">Spend</th><th class="num">Sales</th><th class="num">Orders</th><th class="num">ACoS</th><th class="num">ROAS</th>
+    <th class="num">CVR</th><th class="num">CPC</th><th class="num">Impr.</th><th>Verdict</th><th>Next step</th></tr></thead><tbody>`
+    + (body || '<tr><td colspan="14" class="muted" style="padding:14px">Nothing matches.</td></tr>') + '</tbody>';
+  const dropped = L.M.brands.reduce((a, b) => {
+    const h = L.M.have[b] || {};
+    a.n += h.dropped || 0;
+    a.sp += h.dropSpend || 0;
+    a.min = h.minClicks || a.min;
+    return a;
+  }, { n: 0, sp: 0, min: 3 });
+  // Said plainly. A cap nobody is told about reads as "this is everything".
+  staMore(shown.length, rows.length, 'clicks', dropped.n
+    ? `${staInt(dropped.n)} more terms not shown: fewer than ${dropped.min} clicks and no order (${staMoney(dropped.sp)} between them)` : '');
+}
+
+// Burning money, by search term: ticks, the last 7 days under each figure, money burned, evidence, next step.
+function staDrawBurn(L) {
+  const rows = L.burn;
+  ST_LAST = rows;
+  const shown = rows.slice(0, ST_SHOW);
+  const tot = rows.reduce((t, r) => t + r.burned, 0), totSp = shown.reduce((t, r) => t + r.sp, 0), totB = shown.reduce((t, r) => t + r.burned, 0);
+  const none = rows.filter(r => r.kind === 'none').length;
+  staHead('Which search terms are burning money?', `${staInt(rows.length)} terms earned no profit: ${staInt(none)} with no sales and ${staInt(rows.length - none)} above break-even ACoS.`
+    + (L.M.settled ? ' Settled clicks only.' : ` At least ${STA.MIN_CLICKS} clicks each.`));
+  const canTick = r => r.next === 'neg' && r.status !== 'In review' && r.status !== 'Negated';
+  const body = shown.map(r => {
+    const sel = ST_SEL.has(r.key);
+    return `<tr${sel ? ' class="sel"' : ''}>
+      <td>${canTick(r) ? `<input type="checkbox" class="sta-cb" data-sel="${staEsc(r.key)}"${sel ? ' checked' : ''}>` : ''}</td>
+      ${staTermCell(r, r.badges.filter(x => x[1] === 'bad' || x[0] === 'Could be chance'))}
+      ${staPathCell(r)}
+      <td class="num">${staInt(r.c)}${staUp(r, 'c')}</td>
+      <td class="num">${staMoney(r.sp)}${staUp(r, 'sp', true)}</td>
+      <td class="num">${staInt(r.o)}${staUp(r, 'o')}</td>
+      <td class="num sta-money">${staMoney(r.burned)}</td>
+      <td class="sta-ev">${r.ev || ''}</td>
+      ${staNextCell(r)}</tr>`;
+  }).join('');
+  const ticks = shown.filter(canTick);
+  const allOn = ticks.length && ticks.every(r => ST_SEL.has(r.key));
+  $('stTable').innerHTML = `<thead><tr><th style="width:28px"><input type="checkbox" class="sta-cb" data-selall="1"${allOn ? ' checked' : ''} title="Tick every row that can take a negative"></th>
+    <th>Search term</th><th>Path</th><th class="num">Clicks</th><th class="num">Spend</th><th class="num">Orders</th>
+    <th class="num">Money burned</th><th>Evidence</th><th>Next step</th></tr></thead><tbody>`
+    + (body || '<tr><td colspan="9" class="muted" style="padding:14px">Nothing is burning money in this view.</td></tr>')
+    + (shown.length ? `<tr class="tot"><td></td><td colspan="3">${staInt(shown.length)} of ${staInt(rows.length)} shown</td><td class="num">${staMoney(totSp)}</td><td></td>
+      <td class="num sta-money">${staMoney(totB)}</td><td colspan="2" style="font-weight:500;color:var(--muted)">of ${staMoney(tot)} burned across all ${staInt(rows.length)}</td></tr>` : '')
+    + '</tbody>';
+  staMore(shown.length, rows.length, 'money burned', '"By target" lists keywords and targets that lost money across many small search terms');
+}
+
+// Burning money, by target: the keywords and targets themselves, for a lower bid or a pause.
+function staDrawBurnTgt(L) {
+  const rows = L.burnTgt;
+  ST_LAST = rows;
+  const shown = rows.slice(0, ST_SHOW);
+  const tot = rows.reduce((t, r) => t + r.burned, 0);
+  staHead('Which keywords and targets are burning money?', `${staInt(rows.length)} keywords and targets spent ${staMoney0(tot)} more than they earned back at break-even,`
+    + ` with at least ${STA.MIN_CLICKS} clicks. A bid or a pause here moves every search term of that target.`);
+  const body = shown.map(r => {
+    const chancePct = r.chance != null ? (r.chance * 100).toFixed(1) + '%' : '';
+    const ev = r.kind === 'none'
+      ? (r.rate ? `0 orders in <b>${staInt(r.c)} clicks</b> · ${chancePct} chance of that if it converted like ${r.rate.w} (${(r.rate.p * 100).toFixed(1)}%)`
+        + (r.chance < STA.CHANCE ? ', <b>unlikely to be chance</b>' : ', so it <b>could still be chance</b>') : `0 orders in <b>${staInt(r.c)} clicks</b>`)
+      : `ACoS <b>${staPct(r.acos)}</b> vs break-even ${staPct(r.ln.be)} (target ${staPct(r.ln.tgt)}): spent ${staMoney(r.burned)} more than break-even allows`;
+    const st = r.paused ? 'Paused at Amazon' : r.rl ? 'In review' : '';
+    const fake = Object.assign({}, r, { status: st === 'In review' ? 'In review' : 'Active', badges: [] });
+    return `<tr>
+      <td><div class="sta-term">${staEsc(staPathLabel(r.kw, r.mt))}</div><div class="sta-under">${staBadge(r.kind === 'none' ? 'No sales' : 'Above break-even', 'bad')}${staBadge(staBrandName(r.brand))}${st === 'Paused at Amazon' ? staBadge(st, 'warn') : ''}</div></td>
+      <td class="sta-path"><b>${staEsc(r.cn)}</b><small>${staEsc(r.agn)}</small></td>
+      <td class="num">${staInt(r.c)}${staUp(r, 'c')}</td><td class="num">${staMoney(r.sp)}${staUp(r, 'sp', true)}</td><td class="num">${staInt(r.o)}${staUp(r, 'o')}</td>
+      <td class="num">${r.acos != null ? staPct(r.acos) : staDash}</td>
+      <td class="num sta-money">${staMoney(r.burned)}</td>
+      <td class="sta-ev">${ev}</td>
+      ${staNextCell(fake)}</tr>`;
+  }).join('');
+  $('stTable').innerHTML = `<thead><tr><th>Keyword / target</th><th>Campaign · ad group</th><th class="num">Clicks</th><th class="num">Spend</th>
+    <th class="num">Orders</th><th class="num">ACoS</th><th class="num">Money burned</th><th>Evidence</th><th>Next step</th></tr></thead><tbody>`
+    + (body || '<tr><td colspan="9" class="muted" style="padding:14px">No keyword or target is burning money in this view.</td></tr>') + '</tbody>';
+  staMore(shown.length, rows.length, 'money burned', 'no sales and unlikely to be chance → pause; otherwise → a lower bid');
+}
+
+// Worth scaling: raise the bid of a term's own keyword, or add a term that sells as its own exact keyword.
+function staDrawScale(L) {
+  const rows = L.scale;
+  ST_LAST = rows;
+  const shown = rows.slice(0, ST_SHOW);
+  staHead('Which search terms are worth scaling?', `${staInt(rows.length)} terms sell under their campaign's target ACoS`
+    + (ST.costs ? ' (from Profit &amp; Margin costs)' : '') + ' with enough orders to trust it. Ceiling = the CPC that would land exactly on target.');
+  const body = shown.map(r => {
+    const under = r.ln.tgt - r.acos;
+    const bid = r.ent && r.ent.bid;
+    let bidCell;
+    if (r.scaleKind === 'raise') {
+      bidCell = !bid ? `<b>+${Math.round(STA.STEP * 100)}%</b><small class="sta-s">on the current bid (not read yet)</small>`
+        : r.next === 'limit' ? `${staMoney(bid)} → ${staDash}<small class="sta-s">bid is ${(bid / r.cpc).toFixed(1)}× the CPC</small>`
+          : !r.sugBid ? `${staMoney(bid)} → ${staDash}<small class="sta-s">no raise: low stock</small>`
+          : `${staMoney(bid)} → <b>${staMoney(r.sugBid || bid)}</b><small class="sta-s">+${((r.sugBid / bid - 1) * 100).toFixed(1)}%${r.sugBid >= staR2(bid * (1 + STA.STEP)) - 0.001 ? ' · safety limit' : ''}</small>`;
+    } else {
+      bidCell = `<span class="sta-dash">new</span> → <b>${staMoney(r.sugBid)}</b><small class="sta-s">CPC +${Math.round(STA.STEP * 100)}%, under the ceiling</small>`;
+    }
+    return `<tr>
+      ${staTermCell(r, r.badges.filter(x => x[1] === 'info' && x[0] !== 'Lead path'))}
+      ${staPathCell(r)}
+      <td class="num">${staInt(r.o)}</td>
+      <td class="num"><b>${staPct(r.acos)}</b><small class="sta-s">${under.toFixed(1)} pts under ${staPct(r.ln.tgt)}${r.ln.known ? '' : ' (default)'}</small></td>
+      <td class="num">${staMoney(r.cpc)} → ${staMoney(r.ceil)}</td>
+      <td class="num">${bidCell}</td>
+      ${staNextCell(r)}</tr>`;
+  }).join('');
+  $('stTable').innerHTML = `<thead><tr><th>Search term</th><th>Path</th><th class="num">Orders</th><th class="num">ACoS</th>
+    <th class="num">CPC → ceiling</th><th class="num">Bid → suggested</th><th>Next step</th></tr></thead><tbody>`
+    + (body || '<tr><td colspan="7" class="muted" style="padding:14px">Nothing in this view is ready to scale.</td></tr>') + '</tbody>';
+  staMore(shown.length, rows.length, 'sales', `no raise on a product with under ${STA.RAISE_COVER} days of FBA stock · raises are capped at +${Math.round(STA.STEP * 100)}% a step`);
+}
+
+// Competing paths: grouped by term, the lead path first, the others with what they spent above its ACoS.
+function staDrawPaths(L) {
+  const groups = L.groups;
+  ST_LAST = groups;
+  const shown = groups.slice(0, ST_SHOW);
+  staHead('Which paths compete for the same search term?', `${staInt(groups.length)} terms reach you through more than one target. The lead path brings the most orders;`
+    + ' for the others, the money spent above its ACoS is an estimate of what the overlap costs.');
+  let html = '';
+  shown.forEach(g => {
+    const ps = g.shown;
+    const sum = ps.filter(r => r.role === 'other').reduce((t, r) => t + (r.excess || 0), 0);
+    html += `<tr class="grp"><td colspan="8" class="sta-grp"><b>"${staEsc(g.term)}"</b><span>${staInt(g.paths.length)} paths · ${staInt(g.campaigns)} campaign${g.campaigns === 1 ? '' : 's'} · ${staEsc(staBrandName(g.brand))}`
+      + ` · other paths spent <em>${staMoney(sum)}</em> above the lead path's ACoS</span></td></tr>`;
+    ps.forEach(r => {
+      const lead = r.role === 'lead';
+      const txt = lead ? `Keep: this path brings the most orders for this term (${staInt(r.o)}).`
+        : r.dupExact ? 'A second exact keyword for the same term: pause this one so the lead path takes it.'
+          : r.pathLevel === 'ag' ? 'Negative exact at ad-group level here (the lead path is in the same campaign), so the term goes through the lead path.'
+            : 'Negative exact at campaign level here, so the term goes through the lead path.';
+      const act = lead || r.status === 'In review' || r.status === 'Negated' ? (r.status === 'In review' ? '<span class="sta-inrl">In the review list</span>' : r.status === 'Negated' ? `<span class="sta-dash">${staEsc(r.negated)}</span>` : '')
+        : r.dupExact ? staBtn('Pause duplicate', 'pause', r.key, 'neg') : staBtn('Add negative', 'neg', r.key, 'neg');
+      html += `<tr>${staPathCell(r)}<td class="num">${staInt(r.c)}</td><td class="num">${staMoney(r.sp)}</td>
+        <td class="num">${staInt(r.o)}</td><td class="num">${r.acos != null ? staPct(r.acos) : staDash}</td><td class="num">${r.cpc != null ? staMoney(r.cpc) : staDash}</td>
+        <td>${lead ? staBadge('Lead path', 'info') : staBadge('Other path') + `<small class="sta-s" style="margin-top:4px">${staMoney(r.excess)} above lead ACoS</small>`}</td>
+        <td class="sta-next"><div style="display:flex;justify-content:space-between;align-items:center;gap:16px;min-width:380px">
+          <span style="color:var(--muted);white-space:normal">${txt}</span>${act}</div></td></tr>`;
+    });
+  });
+  $('stTable').innerHTML = `<thead><tr><th>Path</th><th class="num">Clicks</th><th class="num">Spend</th><th class="num">Orders</th>
+    <th class="num">ACoS</th><th class="num">CPC</th><th>Role</th><th>Recommendation</th></tr></thead><tbody>`
+    + (html || '<tr><td colspan="8" class="muted" style="padding:14px">No search term competes with itself in this view.</td></tr>') + '</tbody>';
+  staMore(shown.length, groups.length, 'money above the lead path', 'only paths inside the same brand\'s ad account compete');
+}
+
+// The selection bar under Burning money: how many are ticked and what they burned.
+function staSelBar() {
+  const on = ST_VIEW === 'burn' && ST_SUB === 'term' && ST_SEL.size > 0;
+  $('stSelBar').classList.toggle('hide', !on);
+  if (!on) return;
+  const rows = [...ST_SEL.values()];
+  $('stSelTxt').innerHTML = `<b>${staInt(rows.length)} selected</b> · ${staMoney(rows.reduce((t, r) => t + r.burned, 0))} burned`;
+  $('stSelAdd').textContent = `Add ${rows.length} negative${rows.length === 1 ? '' : 's'} to the review list`;
+}
+
+/* ================= THE DIALOG: one for every change =================
+ * staOpen fills stDlg for one row and one kind: neg (Add negative), raise / reduce (bid), pause, exact (Add as exact) and
+ * asinT (Target this ASIN). Every check is worked out again on each change of a field (staDlgCheck); a failed check that
+ * matters (a brand term, too long, already there, over the safety limit) disables "Add to review list". */
+let STD = null;   // { kind, row, fields… } of the open dialog
+
+// The six figures at the top of every dialog, and the line under them (window, last 7 days).
+function staFigs(r) {
+  const fig = (l, v) => `<div><small>${l}</small><b>${v}</b></div>`;
+  const win = (STM && STM.settled) ? 'Settled clicks' : 'The last 30 days';
+  const r7 = r.r7 ? ` Last 7 days: ${staInt(r.r7.c || 0)} more clicks, ${staMoney(r.r7.sp || 0)}, ${staInt(r.r7.o || 0)} orders.` : '';
+  return `<div class="sta-figs">${fig('Clicks', staInt(r.c))}${fig('Spend', staMoney(r.sp))}${fig('Sales', staMoney(r.s))}`
+    + `${fig('Orders', staInt(r.o))}${fig('ACoS', r.acos != null ? staPct(r.acos) : '—')}${fig('ROAS', r.sp > 0 ? (r.s / r.sp).toFixed(2) : '—')}</div>`
+    + `<div class="sta-figs-7">${win}.${r7}${r.acos == null ? ' ACoS shows — because there are no sales.' : ''}</div>`;
+}
+// One line of the checks box: st = ok / warn / bad.
+const staCheck = (st, t) => `<div class="ck-${st}"><i>${st === 'ok' ? '✓' : st === 'warn' ? '!' : '✗'}</i><span>${t}</span></div>`;
+
+// Open the dialog for one row (key from the table) and one kind of change.
+function staOpen(kind, key) {
+  const M = staModel();
+  const r = M.byKey.get(key);
+  if (!r) return;
+  STD = { kind, row: r };
+  const by = $('stDlgBody');
+  const sub = $('stDlgSub');
+  const ok = $('stDlgOk');
+  ok.textContent = 'Add to review list';
+  $('stDlgNote').textContent = 'Goes to the review list. Approved items download as an Amazon bulk file; Sellora changes nothing at Amazon yet.';
+  const where = `${staEsc(r.cn)} · ${staEsc(staBrandName(r.brand))}`;
+  if (kind === 'neg') {
+    const asin = r.type === 'term' && r.asin;
+    $('stDlgTitle').textContent = asin ? 'Add negative ASIN' : 'Add negative';
+    sub.innerHTML = `"${staEsc(r.term)}" in ${where}<br>It came through ${staEsc(r.auto ? 'the auto target ' + (r.kw || '') : staPathLabel(r.kw, r.mt))}.`;
+    const lvl = r.pathLevel || (asin ? 'ag' : 'cp');
+    by.innerHTML = staFigs(r) + `<div class="sta-row2">
+      <div class="sta-f"><label for="stNegType">Type</label>${asin
+        ? '<select id="stNegType" disabled><option value="na">Negative ASIN target</option></select><small>Stops this product page from showing the ad.</small>'
+        : `<select id="stNegType"><option value="negativeExact">Negative exact</option><option value="negativePhrase">Negative phrase</option></select>
+          <small id="stNegTypeTip"></small>`}</div>
+      <div class="sta-f"><label for="stNegLvl">Where</label><select id="stNegLvl"${asin ? ' disabled' : ''}>
+        <option value="cp"${lvl === 'cp' ? ' selected' : ''}>This campaign</option><option value="ag"${lvl === 'ag' ? ' selected' : ''}>This ad group only</option></select>
+        <small id="stNegLvlTip"></small></div></div>
+      <div id="stDlgChecks" class="sta-checks"></div>`;
+  } else if (kind === 'raise' || kind === 'reduce') {
+    const up = kind === 'raise';
+    const isTgt = r.type === 'target';
+    $('stDlgTitle').textContent = (up ? 'Raise' : 'Reduce') + ' bid on the ' + (isTgt ? 'target' : 'source target');
+    sub.innerHTML = isTgt ? `${staEsc(staPathLabel(r.kw, r.mt))} in ${where}. The new bid applies to every search term of this target.`
+      : `Search terms aren't bid on directly. "${staEsc(r.term)}" is matched by <b>${staEsc(staPathLabel(r.kw, r.mt))}</b>, so the new bid applies to every search term of that target.`;
+    const cur = r.ent && r.ent.bid > 0 ? r.ent.bid : null;
+    const acos = isTgt ? r.acos : (r.tgtAcos != null && !up ? r.tgtAcos : r.acos);
+    const f = acos > 0 ? r.ln.tgt / acos : 1 - STA.STEP;
+    const lim = up ? Math.min(1 + STA.STEP, f) : Math.max(1 - STA.STEP, Math.min(1, f));
+    const sug = cur ? Math.max(STA.MIN_BID, staR2(cur * lim)) : null;
+    STD.cur = cur;
+    STD.lim = lim;
+    STD.acos = acos;
+    by.innerHTML = staFigs(r) + `<div class="sta-row2">
+      <div class="sta-f"><label for="stBidNew">New bid (USD)</label><input id="stBidNew" type="number" min="0.02" step="0.01" value="${sug != null ? sug.toFixed(2) : ''}"></div>
+      <div class="sta-f"><label for="stBidCur">Current bid</label><input id="stBidCur" type="number" min="0.02" step="0.01" value="${cur != null ? cur.toFixed(2) : ''}"${cur != null ? ' disabled' : ' placeholder="Type it from the console"'}>
+        ${cur == null ? '<small>Not read from Amazon yet: type the bid shown in the Ads console to work the suggestion out.</small>' : ''}</div></div>
+      <div id="stBidCalc" class="sta-calc"></div><div id="stDlgChecks" class="sta-checks"></div>`;
+  } else if (kind === 'pause') {
+    const isTgt = r.type === 'target';
+    $('stDlgTitle').textContent = isTgt ? 'Pause this target' : 'Pause the duplicate keyword';
+    sub.innerHTML = isTgt ? `${staEsc(staPathLabel(r.kw, r.mt))} in ${where}. Pausing stops every search term of this target; it can be turned back on.`
+      : `"${staEsc(r.term)}" is an exact keyword here and in ${staEsc(r.group ? r.group.lead.cn : 'another campaign')}, which sells it better. Pausing this one sends the term through the lead path.`;
+    by.innerHTML = staFigs(r) + '<div id="stDlgChecks" class="sta-checks"></div>';
+  } else if (kind === 'exact' || kind === 'asinT') {
+    const asin = kind === 'asinT';
+    $('stDlgTitle').textContent = asin ? 'Target this ASIN' : 'Add as exact keyword';
+    sub.innerHTML = asin ? `"${staEsc(r.term.toUpperCase())}" sold through ${staEsc(staPathLabel(r.kw, r.mt))} in ${where}. A product target bids on that page directly.`
+      : `"${staEsc(r.term)}" sold through ${staEsc(staPathLabel(r.kw, r.mt))} in ${where}. Its own exact keyword gets its own bid and its own figures.`;
+    const cands = staDestinations(r, asin);
+    STD.cands = cands;
+    by.innerHTML = staFigs(r) + `<div class="sta-row2">
+      <div class="sta-f"><label for="stExDest">Into ad group</label><select id="stExDest">${cands.length
+        ? cands.map((c, i) => `<option value="${i}">${staEsc(c.cn)} · ${staEsc(c.agn)}</option>`).join('')
+        : '<option value="">No ad group fits</option>'}</select>
+        <small>${asin ? 'Manual product-targeting ad groups' : 'Manual keyword ad groups'} advertising the same product, the most exact-heavy first.</small></div>
+      <div class="sta-f"><label for="stExBid">Starting bid (USD)</label><input id="stExBid" type="number" min="0.02" step="0.01" value="${(r.sugBid || STA.MIN_BID).toFixed(2)}">
+        <small>CPC ${staMoney(r.cpc)} +${Math.round(STA.STEP * 100)}%, kept under the ceiling ${staMoney(r.ceil)} (the CPC that lands on the ${staPct(r.ln.tgt)} target).</small></div></div>
+      <div id="stDlgChecks" class="sta-checks"></div>`;
+  }
+  staDlgCheck();
+  $('stDlg').classList.remove('hide');
+  const first = by.querySelector('select:not([disabled]),input:not([disabled])');
+  if (first) first.focus();
+}
+
+// The ad groups a new exact keyword (or ASIN target) for this row can go into: same brand, a manual keyword (or product)
+// ad group, advertising at least one of the same products; the most exact-heavy and same-campaign first.
+function staDestinations(r, asin) {
+  const D = (STM.dest || {})[r.brand];
+  if (!D) return [];
+  const pool = asin ? D.ptAg : D.kwAg;
+  const mine = new Set(r.asins);
+  const tg = staTgtsOf(r.brand).rows || [];
+  const exactN = new Map(), allN = new Map(), cidOf = new Map();
+  tg.forEach(x => {
+    allN.set(x.ag, (allN.get(x.ag) || 0) + 1);
+    if (/^EXACT$/i.test(x.mt)) exactN.set(x.ag, (exactN.get(x.ag) || 0) + 1);
+    cidOf.set(x.ag, x.cid);
+  });
+  const out = [];
+  pool.forEach(ag => {
+    const p = stProductsOf(r.brand, ag);
+    if (mine.size && !p.asins.some(a => mine.has(a))) return;
+    const eAg = (staEnt(r.brand) || { ag: {} }).ag[ag];
+    const cid = cidOf.get(ag) || (eAg ? eAg[0] : '');
+    const cn = staName(r.brand, cid), agn = staName(r.brand, ag);
+    const share = (exactN.get(ag) || 0) / Math.max(1, allN.get(ag) || 1);
+    out.push({ ag, cid, cn, agn, score: share * 10 + (/exact/i.test(cn + ' ' + agn) ? 5 : 0) + (ag === r.ag ? 1 : 0) });
+  });
+  return out.sort((p, q) => q.score - p.score).slice(0, 40);
+}
+
+// Work the dialog's checks out again for what is in its fields now, and enable or disable "Add to review list".
+function staDlgCheck() {
+  if (!STD) return;
+  const { kind, row: r } = STD;
+  const out = [];
+  let block = false;
+  const bad = t => { out.push(staCheck('bad', t)); block = true; };
+  const P = (STM.protect || {})[r.brand] || { ownAsins: new Set(), brandTerms: new Set() };
+  const idNote = () => out.push(staCheck('warn', "Amazon's ID for this target is not read yet, so the change can't go into the bulk file until it is (backend step 1). It waits in the review list."));
+  if (kind === 'neg') {
+    const asin = r.type === 'term' && r.asin;
+    const type = asin ? 'na' : $('stNegType').value;
+    const lvl = $('stNegLvl').value;
+    STD.type = type;
+    STD.lvl = asin ? 'ag' : lvl;
+    if (!asin) {
+      $('stNegTypeTip').textContent = type === 'negativeExact'
+        ? `Exact blocks only "${r.term}" (and its plurals).` : `Phrase also blocks longer searches holding "${r.term}", like "${r.term} set".`;
+      $('stNegLvlTip').textContent = lvl === 'cp' ? `Applies to every ad group in ${r.cn}.` : `Applies only to ${r.agn || 'this ad group'}.`;
+    } else {
+      $('stNegLvlTip').textContent = 'ASIN negatives go in at ad-group level: the bulk file takes them there in every kind of campaign.';
+    }
+    // 1. Not a brand term or one of our own ASINs.
+    const tl = r.tl;
+    const brandHit = [...P.brandTerms].find(w => w && (tl === w || (' ' + tl + ' ').includes(' ' + w + ' ')));
+    if (asin && P.ownAsins.has(tl)) bad(`${r.term.toUpperCase()} is one of your own ASINs: it is never negated.`);
+    else if (brandHit) bad(`Holds your brand term "${staEsc(brandHit)}": brand searches are never negated here.`);
+    else out.push(staCheck('ok', asin ? 'Not one of your own ASINs' : 'Not one of your brand terms or your own ASINs'));
+    // 2. No negative there yet — at Amazon, or in the review list.
+    const whereKey = STD.lvl === 'cp' ? 'cp|' + r.cid : 'ag|' + r.ag;
+    const nk = asin ? 'na' : type === 'negativePhrase' ? 'np' : 'nx';
+    const at = staNegAtAmazon(r.brand, whereKey, r.term, nk);
+    const queued = ST_RL.items.some(x => (x.status === 'review' || x.status === 'approved' || x.status === 'exported') && x.kind === 'neg'
+      && x.brand === r.brand && staLow(x.term) === tl && (x.neg.level === 'cp' ? x.cid === r.cid : x.ag === r.ag));
+    const place = STD.lvl === 'cp' ? 'this campaign' : 'this ad group';
+    if (at) bad(`A negative for "${staEsc(r.term)}" is already in ${place} at Amazon.`);
+    else if (queued) bad(`A negative for "${staEsc(r.term)}" in ${place} is already in the review list.`);
+    else if (at === null) out.push(staCheck('warn', `Not in the review list yet. Amazon's existing negatives are not read yet (backend step 1), so check ${place} in the console before uploading.`));
+    else out.push(staCheck('ok', `No negative for "${staEsc(r.term)}" in ${place} yet`));
+    // 3. Sales through other paths.
+    const others = STM.rows.filter(x => x.brand === r.brand && x.tl === tl && x.ag !== r.ag && x.o > 0);
+    const sameCp = others.filter(x => x.cid === r.cid);
+    if (STD.lvl === 'cp' && sameCp.length) bad(`A campaign-level negative would also block it in ${staEsc(sameCp[0].agn || 'another ad group')}, where it sold ${staInt(sameCp[0].o)}: choose "This ad group only".`);
+    else if (others.length) out.push(staCheck('ok', `It sells through ${staEsc(others[0].cn)} (${staInt(others.reduce((t, x) => t + x.o, 0))} orders): that path is left alone, and the term goes there.`));
+    else out.push(staCheck('ok', 'No sales through any other path in the window'));
+    // 4. Amazon's length limits.
+    if (!asin) {
+      const lim = STA.NEG[type];
+      const words = r.term.trim().split(/\s+/).length, chars = r.term.length;
+      if (words > lim.words || chars > lim.chars) bad(`Too long for a ${lim.t.toLowerCase()}: ${words} words, ${chars} characters (Amazon allows up to ${lim.words} words, ${lim.chars} characters).`);
+      else out.push(staCheck('ok', `Fits as a ${lim.t.toLowerCase()}: ${words} word${words === 1 ? '' : 's'} (Amazon allows up to ${lim.words} words, ${lim.chars} characters)`));
+    }
+  } else if (kind === 'raise' || kind === 'reduce') {
+    const up = kind === 'raise';
+    const curIn = Number($('stBidCur').value);
+    const cur = STD.cur || (curIn > 0 ? curIn : null);
+    const nb = Number($('stBidNew').value);
+    if (!STD.cur && cur && !$('stBidNew').dataset.touched) {
+      $('stBidNew').value = Math.max(STA.MIN_BID, staR2(cur * STD.lim)).toFixed(2);
+    }
+    const nbv = Number($('stBidNew').value) || nb;
+    STD.from = cur;
+    STD.to = nbv;
+    const ceil = r.cpc && STD.acos ? r.cpc * r.ln.tgt / STD.acos : null;
+    $('stBidCalc').innerHTML = cur
+      ? `Suggested <b>${staMoney(Math.max(STA.MIN_BID, staR2(cur * STD.lim)))}</b>: the bid × target ${staPct(r.ln.tgt)} ÷ ACoS ${staPct(STD.acos)}`
+        + `${ceil ? ` (ceiling CPC ${staMoney(ceil)}, CPC now ${staMoney(r.cpc)})` : ''}, limited to ${up ? '+' : '−'}${Math.round(STA.STEP * 100)}% a step by the safety limit.`
+        + ` Target ACoS ${staPct(r.ln.tgt)} · break-even ${staPct(r.ln.be)}${r.ln.known ? '' : ' (defaults: no unit cost)'}.`
+      : `Suggested: the current bid × target ${staPct(r.ln.tgt)} ÷ ACoS ${staPct(STD.acos)}, limited to ${up ? '+' : '−'}${Math.round(STA.STEP * 100)}% a step. Type the current bid to see it.`;
+    if (!(nbv >= STA.MIN_BID)) bad(`The new bid must be at least ${staMoney(STA.MIN_BID)}.`);
+    if (up) {
+      const cv = r.ln.cover;
+      if (cv == null) out.push(staCheck('warn', 'FBA stock cover is not known for this product: check it before raising.'));
+      else if (cv < STA.RAISE_COVER) bad(`FBA stock: about ${Math.round(cv)} days of cover (a raise needs ${STA.RAISE_COVER} or more).`);
+      else out.push(staCheck('ok', `FBA stock: ${Math.round(cv)} days of cover (a raise needs ${STA.RAISE_COVER} or more)`));
+    }
+    const last = staLastChange(r);
+    if (last && Date.now() - last < STA.COOLDOWN * 86400000) out.push(staCheck('warn', `Last change to this bid from Sellora: ${staDay(last)} — wait at least ${STA.COOLDOWN} days so it can show in the figures.`));
+    else out.push(staCheck('ok', last ? `Last change to this bid from Sellora: ${Math.floor((Date.now() - last) / 86400000)} days ago (wait at least ${STA.COOLDOWN})` : `No change to this bid recorded by Sellora (wait at least ${STA.COOLDOWN} days between changes)`));
+    if (cur && nbv > 0) {
+      const step = nbv / cur - 1;
+      if ((up && step <= 0) || (!up && step >= 0)) bad(`The new bid is not ${up ? 'above' : 'below'} the current ${staMoney(cur)}.`);
+      else if (Math.abs(step) > STA.STEP + 0.0001) bad(`${(step * 100).toFixed(1)}% is past the safety limit of ${Math.round(STA.STEP * 100)}% a step.`);
+      else out.push(staCheck('ok', `Within the safety limit of ${Math.round(STA.STEP * 100)}% a step (${step > 0 ? '+' : ''}${(step * 100).toFixed(1)}%)`));
+    } else if (!cur) bad('Type the current bid (from the Ads console) so the step can be checked.');
+    if (!r.kw) bad("Amazon didn't report which target caught this term, so there is no bid to change. A negative is the way to stop it.");
+    if (!r.ent && !r.kid) idNote();
+  } else if (kind === 'pause') {
+    out.push(staCheck('ok', r.type === 'target' ? (r.kind === 'none' && r.chance != null
+      ? `0 orders in ${staInt(r.c)} clicks: a ${(r.chance * 100).toFixed(1)}% chance of that by bad luck` : 'Spends without paying back')
+      : `The lead path sells it at ${staPct(r.leadAcos)} ACoS`));
+    if (!r.ent && !r.kid) idNote();
+  } else if (kind === 'exact' || kind === 'asinT') {
+    const asin = kind === 'asinT';
+    const c = STD.cands[Number($('stExDest').value)];
+    STD.dest = c || null;
+    STD.bid = Number($('stExBid').value);
+    if (!c) bad(asin ? 'No manual product-targeting ad group advertises this product. Create one in the Ads console first.'
+      : 'No manual keyword ad group advertises this product. Create one in the Ads console first.');
+    else {
+      const there = (staTgtsOf(r.brand).rows || []).some(x => x.ag === c.ag && (asin ? staLow(x.t).includes(r.tl) : staLow(x.t) === r.tl && /^EXACT$/i.test(x.mt)));
+      const queued = ST_RL.items.some(x => (x.status === 'review' || x.status === 'approved' || x.status === 'exported') && x.kind === kind
+        && x.brand === r.brand && staLow(x.term) === r.tl && x.dest && x.dest.ag === c.ag);
+      if (there) bad(`${staEsc(c.agn)} already has ${asin ? 'a target for this ASIN' : 'this exact keyword'}.`);
+      else if (queued) bad('Already in the review list for this ad group.');
+      else out.push(staCheck('ok', `${staEsc(c.agn)} has no ${asin ? 'target for this ASIN' : 'exact keyword for it'} yet`));
+    }
+    if (!asin) {
+      const words = r.term.trim().split(/\s+/).length, chars = r.term.length;
+      if (words > STA.KW.words || chars > STA.KW.chars) bad(`Too long for a keyword: ${words} words, ${chars} characters (Amazon allows up to ${STA.KW.words} words, ${STA.KW.chars}).`);
+      else out.push(staCheck('ok', `Fits as a keyword: ${words} word${words === 1 ? '' : 's'}`));
+    }
+    if (!(STD.bid >= STA.MIN_BID)) bad(`The bid must be at least ${staMoney(STA.MIN_BID)}.`);
+    else if (r.ceil && STD.bid > r.ceil * 1.0001) out.push(staCheck('warn', `${staMoney(STD.bid)} is above the ceiling ${staMoney(r.ceil)}: at that CPC the ACoS would pass the target.`));
+    else out.push(staCheck('ok', `Under the ceiling CPC ${staMoney(r.ceil)}`));
+    out.push(staCheck('ok', `Competing paths will show the old path once the new ${asin ? 'target' : 'keyword'} starts taking the term.`));
+  }
+  $('stDlgChecks').innerHTML = out.join('');
+  $('stDlgOk').disabled = block;
+}
+
+// When Sellora last sent a bid or state change for this path (exported or done), in ms; 0 when never.
+function staLastChange(r) {
+  let t = 0;
+  ST_RL.items.forEach(x => {
+    if ((x.kind === 'bid' || x.kind === 'pause') && (x.status === 'exported' || x.status === 'done') && x.pathKey === r.pathKey) t = Math.max(t, x.exportedAt || 0);
+  });
+  return t;
+}
+
+// Close the dialog.
+function staClose() {
+  $('stDlg').classList.add('hide');
+  STD = null;
+}
+
+// "Add to review list": turn the dialog into one review item and save it.
+async function staDlgOk() {
+  if (!STD || $('stDlgOk').disabled) return;
+  const { kind, row: r } = STD;
+  let it;
+  if (kind === 'neg') it = staNegItem(r, STD.type, STD.lvl);
+  else if (kind === 'raise' || kind === 'reduce') {
+    it = staItem(r, 'bid', {
+      bid: { from: STD.from, to: staR2(STD.to), dir: kind === 'raise' ? 'up' : 'down' },
+      what: `${staMoney(STD.from)} → ${staMoney(STD.to)}`,
+      why: kind === 'raise' ? `ACoS ${staPct(r.acos)} vs target ${staPct(r.ln.tgt)} · ${staInt(r.o)} orders`
+        : `${r.type === 'term' ? '"' + r.term + '" ' : ''}ACoS ${staPct(STD.acos)} vs break-even ${staPct(r.ln.be)}`,
+    });
+  } else if (kind === 'pause') {
+    it = staItem(r, 'pause', { what: 'Pause', why: r.type === 'target' ? (r.kind === 'none' ? `0 orders in ${staInt(r.c)} clicks` : `ACoS ${staPct(r.acos)} vs break-even ${staPct(r.ln.be)}`)
+      : `Duplicate exact keyword · lead path at ${staPct(r.leadAcos)} ACoS` });
+  } else {
+    const c = STD.dest;
+    it = staItem(r, kind, {
+      dest: { ag: c.ag, cid: c.cid, cn: c.cn, agn: c.agn }, newBid: staR2(STD.bid),
+      what: `New ${kind === 'asinT' ? 'ASIN target' : 'exact keyword'} at ${staMoney(STD.bid)} in ${c.agn}`,
+      why: `${staInt(r.o)} orders at ACoS ${staPct(r.acos)} through ${staPathLabel(r.kw, r.mt)}`,
+    });
+  }
+  $('stDlgOk').disabled = true;
+  try {
+    await staRlSave(it);
+    staClose();
+    STM = null;
+    renderSt();
+    stFoot(`<span>Added to the review list: ${staEsc(staKindName(it))} · ${staEsc(it.term || it.target)}.</span>`);
+  } catch (e) {
+    $('stDlgOk').disabled = false;
+    $('stDlgChecks').insertAdjacentHTML('beforeend', staCheck('bad', 'Could not save: ' + staEsc(e.message || e)));
+  }
+}
+
+/* ================= THE REVIEW LIST =================
+ * One item per change, in the shape the backend's apply route will read later:
+ *   { v, brand, kind: neg | bid | pause | exact | asinT, key (term rows) / pathKey, term, target (the keyword or target),
+ *     mt, cid, ag, cn, agn, neg: { type, level }, bid: { from, to, dir }, dest: { ag, cid, cn, agn }, newBid,
+ *     what, why, ev: { c, sp, o, s, win }, status: review → approved → exported → done (or removed), by, at, exportedAt, up }
+ * Kept in Firestore adsActions/{id}; in this browser (localStorage) while the rules for it are not deployed. */
+let ST_RL = { items: [], where: '', stamp: 0, err: '', tab: 'open', sel: new Set() };
+const STA_LOCAL = 'staReview';
+
+// Read the review list: Firestore first; when the database refuses (rules not deployed yet), this browser's copy.
+async function staRlLoad() {
+  try {
+    const snap = await getDocs(query(collection(db, 'adsActions'), orderBy('at', 'desc'), limit(500)));
+    ST_RL.items = snap.docs.map(d => Object.assign({}, d.data(), { id: d.id }));
+    ST_RL.where = 'fs';
+  } catch (e) {
+    ST_RL.where = 'local';
+    ST_RL.err = String((e && (e.code || e.message)) || e);
+    try { ST_RL.items = JSON.parse(localStorage.getItem(STA_LOCAL) || '[]'); } catch (x) { ST_RL.items = []; }
+  }
+  ST_RL.stamp++;
+}
+// Save one item (new or changed). Falls back to this browser if the database refuses the write.
+async function staRlSave(it) {
+  it.up = Date.now();
+  const clean = JSON.parse(JSON.stringify(it));   // Firestore takes no undefined values
+  delete clean.id;
+  if (ST_RL.where === 'fs') {
+    try {
+      await setDoc(doc(db, 'adsActions', it.id), clean);
+    } catch (e) {
+      ST_RL.where = 'local';
+      ST_RL.err = String((e && (e.code || e.message)) || e);
+    }
+  }
+  const i = ST_RL.items.findIndex(x => x.id === it.id);
+  if (i >= 0) ST_RL.items[i] = it; else ST_RL.items.unshift(it);
+  if (ST_RL.where === 'local') {
+    try { localStorage.setItem(STA_LOCAL, JSON.stringify(ST_RL.items.slice(0, 500))); } catch (e) { throw new Error('this browser would not store it'); }
+  }
+  ST_RL.stamp++;
+}
+// Index of the open items (review / approved / exported) by row key and path key, and of the done ones by 'done:' + key.
+function staRlIndex() {
+  const m = new Map();
+  ST_RL.items.forEach(x => {
+    const open = x.status === 'review' || x.status === 'approved' || x.status === 'exported';
+    if (open) {
+      if (x.key) m.set(x.key, x);
+      if ((x.kind === 'bid' || x.kind === 'pause') && x.pathKey) m.set(x.pathKey, x);
+    } else if (x.status === 'done' && x.kind === 'neg' && x.key) m.set('done:' + x.key, x);
+  });
+  return m;
+}
+// The count on the toolbar's Review list button.
+function staRlBadge() {
+  const n = ST_RL.items.filter(x => x.status === 'review' || x.status === 'approved').length;
+  $('stRlN').textContent = n;
+  $('stRlN').classList.toggle('hide', !n);
+}
+// A new review item for one row, with the figures it was based on.
+function staItem(r, kind, extra) {
+  const who = String(ME.email || '').split('@')[0].split(/[._]/)[0];
+  return Object.assign({
+    id: 'a' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8), v: 1, brand: r.brand, kind,
+    key: r.type === 'term' ? r.key : '', pathKey: r.pathKey, term: r.type === 'term' ? r.term : '', target: staPathLabel(r.kw, r.mt),
+    kw: r.kw || '', mt: r.mt || '', kid: r.kid || '', cid: r.cid, ag: r.ag, cn: r.cn, agn: r.agn,
+    ev: { c: r.c, sp: staR2(r.sp), o: r.o, s: staR2(r.s), win: STM && STM.settled ? 'settled' : '30d' },
+    status: 'review', by: who ? who[0].toUpperCase() + who.slice(1) : '', byEmail: ME.email || '', at: Date.now(),
+  }, extra);
+}
+// A negative item: type negativeExact / negativePhrase / na (ASIN), level cp / ag.
+function staNegItem(r, type, level) {
+  const why = r.kind === 'none' ? `0 orders in ${staInt(r.c)} clicks${r.chance != null ? ' · ' + (r.chance * 100).toFixed(1) + '% chance' : ''}`
+    : r.kind === 'be' ? `ACoS ${staPct(r.acos)} vs break-even ${staPct(r.ln.be)}`
+      : r.role === 'other' ? `Competing path · ${staMoney(r.excess)} above the lead path's ACoS` : `ACoS ${staPct(r.acos)}`;
+  return staItem(r, 'neg', {
+    neg: { type, level },
+    what: (type === 'na' ? 'Negative ASIN' : STA.NEG[type].t) + ' · ' + (level === 'cp' ? 'campaign level' : 'ad-group level'), why,
+  });
+}
+// "Add negative exact", "Raise bid"… for the review list.
+function staKindName(x) {
+  if (x.kind === 'neg') return x.neg.type === 'na' ? 'Add negative ASIN' : 'Add ' + STA.NEG[x.neg.type].t.toLowerCase();
+  if (x.kind === 'bid') return x.bid.dir === 'up' ? 'Raise bid' : 'Reduce bid';
+  if (x.kind === 'pause') return 'Pause';
+  if (x.kind === 'exact') return 'Add as exact';
+  return 'Target this ASIN';
+}
+
+/* DONE, SEEN AT AMAZON. An item that went out in a bulk file is "done" once Amazon's own record (adEntities) shows it:
+ * the negative there, the keyword created, the bid at the new value, the target paused. Written back once. */
+async function staRlSeen() {
+  if (!ST.ent) return;
+  const jobs = [];
+  ST_RL.items.forEach(x => {
+    if (x.status !== 'exported') return;
+    const E = staEnt(x.brand);
+    if (!E) return;
+    let seen = false;
+    if (x.kind === 'neg') {
+      const where = x.neg.level === 'cp' ? 'cp|' + x.cid : 'ag|' + x.ag;
+      seen = staNegAtAmazon(x.brand, where, x.term, x.neg.type === 'na' ? 'na' : x.neg.type === 'negativePhrase' ? 'np' : 'nx') === true;
+    } else if (x.kind === 'exact') seen = E.kw.has(x.dest.ag + '|' + staLow(x.term) + '|exact');
+    else if (x.kind === 'asinT') seen = E.tg.has(x.dest.ag + '|asin="' + staLow(x.term) + '"');
+    else {
+      const hit = staEntOf(x.brand, x.ag, x.kw, x.mt);
+      seen = !!hit && (x.kind === 'pause' ? /PAUSED/i.test(hit.st || '') : Math.abs((hit.bid || 0) - x.bid.to) < 0.005);
+    }
+    if (seen) {
+      x.status = 'done';
+      x.doneAt = Date.now();
+      jobs.push(staRlSave(x).catch(() => { /* shown as done anyway; written next time */ }));
+    }
+  });
+  await Promise.all(jobs);
+}
+
+// Open the review list.
+function staRlOpen() {
+  ST_RL.sel = new Set();
+  $('stRl').classList.remove('hide');
+  staRlDraw();
+}
+// Draw the review list for the tab picked (open / done / removed).
+function staRlDraw() {
+  const tab = ST_RL.tab;
+  $('stRlSeg').querySelectorAll('[data-r]').forEach(x => x.classList.toggle('on', x.dataset.r === tab));
+  const list = ST_RL.items.filter(x => tab === 'open' ? (x.status === 'review' || x.status === 'approved')
+    : tab === 'done' ? (x.status === 'exported' || x.status === 'done') : x.status === 'removed');
+  const open = ST_RL.items.filter(x => x.status === 'review' || x.status === 'approved');
+  const appr = open.filter(x => x.status === 'approved').length;
+  $('stRlSub').textContent = `${open.length} change${open.length === 1 ? '' : 's'} waiting${appr ? `: ${appr} approved` : ''}. Each one keeps the figures it was based on, so you can see why it was suggested.`;
+  const chip = x => x.status === 'review' ? staBadge('Waiting') : x.status === 'approved' ? staBadge('Approved', 'ok')
+    : x.status === 'exported' ? staBadge('In bulk file · ' + staDay(x.exportedAt), 'info') : x.status === 'done' ? staBadge('Done · seen at Amazon', 'ok') : staBadge('Removed', 'warn');
+  const when = x => `${staEsc(x.by || '')}<br>${new Date(x.at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}`;
+  const body = list.map(x => {
+    const blocked = staBulkRow(x).skip;
+    return `<tr>
+      <td>${tab === 'open' ? `<input type="checkbox" class="sta-cb" data-rl="${staEsc(x.id)}"${ST_RL.sel.has(x.id) ? ' checked' : ''}>` : ''}</td>
+      <td><b>${staEsc(staKindName(x))}</b><small class="sta-s">${staEsc(staBrandName(x.brand))}</small></td>
+      <td class="sta-term">${staEsc(x.term || x.target)}${x.term && x.kind !== 'neg' ? `<small class="sta-s">${staEsc(x.target)}</small>` : ''}</td>
+      <td class="sta-rlcp" title="${staEsc(x.cn + ' · ' + x.agn)}">${staEsc(x.cn)}<small class="sta-s">${staEsc(x.agn)}</small></td>
+      <td class="sta-rlwhat">${staEsc(x.what || '')}${blocked && tab === 'open' ? `<small class="sta-s" style="color:var(--rev-ink);white-space:normal">${staEsc(blocked)}</small>` : ''}</td>
+      <td class="sta-ev">${staEsc(x.why || '')}<br><span class="sta-dash">${staInt(x.ev.c)} clicks · ${staMoney(x.ev.sp)} · ${staInt(x.ev.o)} orders</span></td>
+      <td style="color:var(--muted);white-space:nowrap">${when(x)}</td>
+      <td>${chip(x)}</td></tr>`;
+  }).join('');
+  $('stRlTable').innerHTML = `<thead><tr><th style="width:28px">${tab === 'open' ? '<input type="checkbox" class="sta-cb" data-rlall="1">' : ''}</th><th>Change</th><th>Search term / target</th>
+    <th>Campaign</th><th>What changes</th><th>Why</th><th>Added</th><th>Status</th></tr></thead><tbody>`
+    + (body || `<tr><td colspan="8" class="muted" style="padding:14px 22px">${tab === 'open' ? 'Nothing waiting. Pick a change from any view with its button.' : 'Nothing here yet.'}</td></tr>`) + '</tbody>';
+  const note = $('stRlNote');
+  note.classList.toggle('warn', ST_RL.where === 'local');
+  note.innerHTML = (ST_RL.where === 'local'
+    ? '<b>Kept in this browser only.</b> The shared review list needs its database rules switched on (Ravi: adsActions in firestore.rules). Until then, what is added here is not seen on another computer. '
+    : '')
+    + 'Sellora changes nothing at Amazon yet. Approved changes download as an Amazon bulk file, one per brand, to upload in the Ads console '
+    + '(Campaign manager → Bulk operations). Once edit access is confirmed, Approve will apply them directly, with an undo.';
+  staRlSelTxt();
+}
+// The footer of the review list: how many are ticked, and what the buttons will do.
+function staRlSelTxt() {
+  const sel = [...ST_RL.sel].map(id => ST_RL.items.find(x => x.id === id)).filter(Boolean);
+  const appr = ST_RL.items.filter(x => x.status === 'approved');
+  const ready = appr.filter(x => !staBulkRow(x).skip).length;
+  $('stRlSel').textContent = ST_RL.tab !== 'open' ? '' : sel.length ? `${sel.length} selected` : 'Tick changes to approve or remove them.';
+  $('stRlApprove').textContent = sel.length ? `Approve ${sel.filter(x => x.status === 'review').length}` : 'Approve';
+  $('stRlApprove').disabled = ST_RL.tab !== 'open' || !sel.some(x => x.status === 'review');
+  $('stRlRemove').disabled = ST_RL.tab !== 'open' || !sel.length;
+  $('stRlDl').textContent = `Download bulk file · ${ready} approved`;
+  $('stRlDl').disabled = !ready;
+}
+// Approve or remove the ticked items.
+async function staRlSet(status) {
+  const ids = [...ST_RL.sel];
+  for (const id of ids) {
+    const x = ST_RL.items.find(y => y.id === id);
+    if (!x || (status === 'approved' && x.status !== 'review')) continue;
+    x.status = status;
+    if (status === 'approved') {
+      x.approvedBy = String(ME.email || '');
+      x.approvedAt = Date.now();
+    }
+    try { await staRlSave(x); } catch (e) { /* the next save writes it */ }
+  }
+  ST_RL.sel = new Set();
+  STM = null;
+  staRlDraw();
+  renderSt();
+}
+
+/* ================= THE BULK FILE =================
+ * One row of Amazon's Sponsored Products bulk sheet per approved item, in the columns of STA_BULK_COLS. Negatives and new
+ * keywords need only the campaign and ad-group IDs the reports already carry; a bid or a pause changes an existing
+ * keyword or target and needs its own ID, which only Amazon's record (adEntities) holds — without it the item waits. */
+// { row: { column → value } } for one item, or { skip: why it cannot go into a file yet }.
+function staBulkRow(x) {
+  const base = { 'Product': 'Sponsored Products', 'Campaign ID': x.cid };
+  if (!x.cid) return { skip: 'No campaign ID on record.' };
+  if (x.kind === 'neg') {
+    if (x.neg.type === 'na') {
+      if (!x.ag) return { skip: 'No ad-group ID on record.' };
+      return { row: Object.assign(base, { 'Entity': 'Negative Product Targeting', 'Operation': 'Create', 'Ad Group ID': x.ag, 'State': 'enabled',
+        'Product Targeting Expression': 'asin="' + String(x.term).toUpperCase() + '"' }) };
+    }
+    const cp = x.neg.level === 'cp';
+    if (!cp && !x.ag) return { skip: 'No ad-group ID on record.' };
+    return { row: Object.assign(base, { 'Entity': cp ? 'Campaign Negative Keyword' : 'Negative Keyword', 'Operation': 'Create',
+      'Ad Group ID': cp ? '' : x.ag, 'State': 'enabled', 'Keyword Text': x.term, 'Match Type': x.neg.type }) };
+  }
+  if (x.kind === 'exact' || x.kind === 'asinT') {
+    const d = x.dest || {};
+    if (!d.cid || !d.ag) return { skip: 'No destination ad group on record.' };
+    return { row: Object.assign(base, { 'Campaign ID': d.cid, 'Ad Group ID': d.ag, 'Operation': 'Create', 'State': 'enabled', 'Bid': x.newBid },
+      x.kind === 'exact' ? { 'Entity': 'Keyword', 'Keyword Text': x.term, 'Match Type': 'exact' }
+        : { 'Entity': 'Product Targeting', 'Product Targeting Expression': 'asin="' + String(x.term).toUpperCase() + '"' }) };
+  }
+  // bid / pause: the keyword's or target's own ID.
+  // Amazon's record first; else the ID the settled report carried (stSettled / tgtSettled keywordId).
+  const hit = staEntOf(x.brand, x.ag, x.kw, x.mt) || (x.kid ? { id: x.kid, kind: staKwMt(x.mt) ? 'kw' : 'tg' } : null);
+  if (!hit) return { skip: ST.ent ? "Not found in Amazon's record of keywords and targets (it may have been archived)." : "Waits for Amazon's keyword and target IDs (backend step 1)." };
+  const kwRow = hit.kind === 'kw';
+  return { row: Object.assign(base, { 'Entity': kwRow ? 'Keyword' : 'Product Targeting', 'Operation': 'Update', 'Ad Group ID': x.ag,
+    [kwRow ? 'Keyword ID' : 'Product Targeting ID']: hit.id }, x.kind === 'pause' ? { 'State': 'paused' } : { 'Bid': x.bid.to }) };
+}
+
+// An .xlsx of one sheet (rows[0] the heading) — Listing Content's zip and XML helpers, a plain bold heading, IDs as text.
+function staXlsx(sheet, rows) {
+  const cell = (v, ref, rowIx) => {
+    if (typeof v === 'number' && isFinite(v)) return `<c r="${ref}"${rowIx === 0 ? ' s="1"' : ''}><v>${v}</v></c>`;
+    const s = String(v == null ? '' : v);
+    if (s === '') return '';
+    return `<c r="${ref}" t="inlineStr"${rowIx === 0 ? ' s="1"' : ''}><is><t xml:space="preserve">${lcXml(s)}</t></is></c>`;
+  };
+  const x = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
+  const ws = x + '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>'
+    + rows.map((cells, i) => `<row r="${i + 1}">${cells.map((v, j) => cell(v, lcColName(j) + (i + 1), i)).join('')}</row>`).join('')
+    + '</sheetData></worksheet>';
+  const styles = x + '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+    + '<fonts count="2"><font><sz val="10"/><name val="Arial"/></font><font><b/><sz val="10"/><name val="Arial"/></font></fonts>'
+    + '<fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills>'
+    + '<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>'
+    + '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>'
+    + '<cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/></cellXfs></styleSheet>';
+  return lcZip([
+    ['[Content_Types].xml', x + '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+      + '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/>'
+      + '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>'
+      + '<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'
+      + '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>'],
+    ['_rels/.rels', x + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+      + '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>'],
+    ['xl/workbook.xml', x + '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+      + `<sheets><sheet name="${lcXml(sheet)}" sheetId="1" r:id="rId1"/></sheets></workbook>`],
+    ['xl/_rels/workbook.xml.rels', x + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+      + '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>'
+      + '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>'],
+    ['xl/worksheets/sheet1.xml', ws],
+    ['xl/styles.xml', styles],
+  ]);
+}
+
+// Download every approved item that can go into a file, one file per brand (each brand is its own ad account), and mark
+// them "in bulk file". Items that still wait for an ID stay approved.
+async function staDownload() {
+  const ready = ST_RL.items.filter(x => x.status === 'approved').map(x => ({ x, b: staBulkRow(x) })).filter(y => !y.b.skip);
+  if (!ready.length) return;
+  const day = new Date().toISOString().slice(0, 10);
+  const brands = [...new Set(ready.map(y => y.x.brand))];
+  for (const b of brands) {
+    const mine = ready.filter(y => y.x.brand === b);
+    const rows = [STA_BULK_COLS].concat(mine.map(y => STA_BULK_COLS.map(c => y.b.row[c] == null ? '' : y.b.row[c])));
+    const blob = new Blob([staXlsx('Sponsored Products Campaigns', rows)], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `sellora-bulk-${staBrandName(b)}-${day}.xlsx`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    // A second download straight after the first is sometimes held back by the browser.
+    if (brands.length > 1) await new Promise(res => setTimeout(res, 700));
+  }
+  for (const y of ready) {
+    y.x.status = 'exported';
+    y.x.exportedAt = Date.now();
+    y.x.exportedBy = String(ME.email || '');
+    try { await staRlSave(y.x); } catch (e) { /* the next save writes it */ }
+  }
+  STM = null;
+  staRlDraw();
+  renderSt();
+}
+
+/* ================= EVENTS ================= */
+
+// The view switch: a box, or a segment of stViewSeg ('neg' and 'harvest' still open, from older links).
+function staSetView(v) {
+  if (v === 'neg' || v === 'waste') {
+    ST_SUB = v === 'waste' ? 'target' : 'term';
+    v = 'burn';
+  }
+  if (v === 'harvest') v = 'scale';
+  ST_VIEW = v;
+  ST_SHOW = STA.PAGE;
+  if (v === 'cp' && !CP.loaded) {
     ensureCp().then(renderSt);
     return;
   }
   renderSt();
+}
+$('stViewSeg').addEventListener('click', e => {
+  const b = e.target.closest('[data-v]');
+  if (b) staSetView(b.dataset.v);
 });
-// Brand and Show pickers redraw at once.
-$('stBrand').addEventListener('change', renderSt);
+$('stBoxes').addEventListener('click', e => {
+  const b = e.target.closest('[data-box]');
+  if (!b) return;
+  if (b.dataset.box === 'rl') staRlOpen(); else staSetView(b.dataset.box);
+});
+$('stBurnSeg').addEventListener('click', e => {
+  const b = e.target.closest('[data-s]');
+  if (!b) return;
+  ST_SUB = b.dataset.s;
+  ST_SHOW = STA.PAGE;
+  renderSt();
+});
+// The brand picker redraws at once; a new brand empties the ticks.
+$('stBrand').addEventListener('change', () => {
+  ST_SEL.clear();
+  ST_SHOW = STA.PAGE;
+  renderSt();
+});
 $('stCpShow').addEventListener('change', renderSt);
 // The target ACoS typed last time comes back from localStorage.
 try {
@@ -24569,22 +26047,122 @@ $('stCpTarget').addEventListener('input', () => {
   clearTimeout(ST_FT);
   ST_FT = setTimeout(renderSt, 250);
 });
-let ST_FT = null;
 // Typing in the filter or the minimum spend redraws after the same short pause.
 ['stFilter', 'stMinSpend'].forEach(id =>
   $(id).addEventListener('input', () => {
     clearTimeout(ST_FT);
+    ST_SHOW = STA.PAGE;
     ST_FT = setTimeout(renderSt, 250);
   }));
+// The table: a next-step button opens the dialog; a tick selects a row for the selection bar.
+$('stTable').addEventListener('click', e => {
+  const b = e.target.closest('button[data-act]');
+  if (b) {
+    staOpen(b.dataset.act, b.dataset.k);
+    return;
+  }
+  const cb = e.target.closest('input[data-sel],input[data-selall]');
+  if (!cb) return;
+  const M = staModel();
+  if (cb.dataset.selall) {
+    $('stTable').querySelectorAll('input[data-sel]').forEach(x => {
+      const r = M.byKey.get(x.dataset.sel);
+      if (!r) return;
+      if (cb.checked) ST_SEL.set(r.key, r); else ST_SEL.delete(r.key);
+    });
+  } else {
+    const r = M.byKey.get(cb.dataset.sel);
+    if (r) { if (cb.checked) ST_SEL.set(r.key, r); else ST_SEL.delete(r.key); }
+  }
+  renderSt();
+});
+$('stFoot').addEventListener('click', e => {
+  if (!e.target.closest('[data-more]')) return;
+  ST_SHOW += STA.PAGE;
+  renderSt();
+});
+// The selection bar: every ticked row becomes a negative exact (campaign level, or ad group where the campaign also sells
+// the term; ASINs at ad group), after the same checks the dialog runs. Rows a check stops are left out and named.
+$('stSelAdd').addEventListener('click', async () => {
+  const M = staModel();
+  const rows = [...ST_SEL.values()];
+  let added = 0;
+  const skipped = [];
+  for (const r of rows) {
+    const asin = r.asin;
+    const sameCp = M.rows.some(x => x.brand === r.brand && x.tl === r.tl && x.ag !== r.ag && x.cid === r.cid && x.o > 0);
+    const level = asin || sameCp || r.pathLevel === 'ag' ? 'ag' : 'cp';
+    const type = asin ? 'na' : 'negativeExact';
+    const P = (M.protect || {})[r.brand] || { ownAsins: new Set(), brandTerms: new Set() };
+    const words = r.term.trim().split(/\s+/).length;
+    const brandHit = [...P.brandTerms].some(w => w && (' ' + r.tl + ' ').includes(' ' + w + ' '));
+    const where = level === 'cp' ? 'cp|' + r.cid : 'ag|' + r.ag;
+    if ((asin && P.ownAsins.has(r.tl)) || brandHit) { skipped.push(`"${r.term}" (brand term or own ASIN)`); continue; }
+    if (!asin && (words > STA.NEG.negativeExact.words || r.term.length > STA.NEG.negativeExact.chars)) { skipped.push(`"${r.term}" (too long)`); continue; }
+    if (staNegAtAmazon(r.brand, where, r.term, asin ? 'na' : 'nx')) { skipped.push(`"${r.term}" (already negated)`); continue; }
+    try {
+      await staRlSave(staNegItem(r, type, level));
+      added++;
+    } catch (e) { skipped.push(`"${r.term}" (${e.message || e})`); }
+  }
+  ST_SEL.clear();
+  STM = null;
+  renderSt();
+  stFoot(`<span>Added ${added} negative${added === 1 ? '' : 's'} to the review list${skipped.length ? ` · left out ${skipped.length}: ${staEsc(skipped.slice(0, 4).join(', '))}${skipped.length > 4 ? '…' : ''}` : ''}.</span>`);
+});
+$('stSelClear').addEventListener('click', () => {
+  ST_SEL.clear();
+  renderSt();
+});
+// The dialog: every field change re-runs the checks; the buttons; Escape and the backdrop close it.
+$('stDlgBody').addEventListener('input', e => {
+  if (e.target.id === 'stBidNew') e.target.dataset.touched = '1';
+  staDlgCheck();
+});
+$('stDlgBody').addEventListener('change', staDlgCheck);
+$('stDlgOk').addEventListener('click', staDlgOk);
+$('stDlgCancel').addEventListener('click', staClose);
+$('stDlgX').addEventListener('click', staClose);
+$('stDlg').addEventListener('click', e => { if (e.target === $('stDlg')) staClose(); });
+// The review list: open, tabs, ticks, the three buttons, close.
+$('stRlBtn').addEventListener('click', staRlOpen);
+$('stRlX').addEventListener('click', () => $('stRl').classList.add('hide'));
+$('stRl').addEventListener('click', e => { if (e.target === $('stRl')) $('stRl').classList.add('hide'); });
+$('stRlSeg').addEventListener('click', e => {
+  const b = e.target.closest('[data-r]');
+  if (!b) return;
+  ST_RL.tab = b.dataset.r;
+  ST_RL.sel = new Set();
+  staRlDraw();
+});
+$('stRlTable').addEventListener('change', e => {
+  const cb = e.target.closest('input[data-rl],input[data-rlall]');
+  if (!cb) return;
+  if (cb.dataset.rlall) {
+    $('stRlTable').querySelectorAll('input[data-rl]').forEach(x => {
+      x.checked = cb.checked;
+      if (cb.checked) ST_RL.sel.add(x.dataset.rl); else ST_RL.sel.delete(x.dataset.rl);
+    });
+  } else if (cb.checked) ST_RL.sel.add(cb.dataset.rl); else ST_RL.sel.delete(cb.dataset.rl);
+  staRlSelTxt();
+});
+$('stRlApprove').addEventListener('click', () => staRlSet('approved'));
+$('stRlRemove').addEventListener('click', () => staRlSet('removed'));
+$('stRlDl').addEventListener('click', staDownload);
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  if (!$('stDlg').classList.contains('hide')) staClose();
+  else if (!$('stRl').classList.contains('hide')) $('stRl').classList.add('hide');
+});
 
-// Export: every row of the current view (not just the 500 drawn) as a CSV; the cp view has its own (cpCsv).
+// Export: every row of the current view (not just the ones drawn) as a CSV; the cp view has its own (cpCsv).
 $('stCsv').onclick = () => {
   if (ST_VIEW === 'cp') {
     cpCsv();
     return;
   }
   if (!ST_LAST.length) {
-    stMsg('Nothing to export.', true);
+    stFoot('Nothing to export.', true);
     return;
   }
   // --- one CSV cell: quoted when it holds a comma, a quote or a line break ---
@@ -24592,21 +26170,24 @@ $('stCsv').onclick = () => {
     const s = String(v == null ? '' : v);
     return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
   };
-  // --- header line, then one line per row ---
-  const cols = ['Brand', 'View', ST_VIEW === 'waste' ? 'Target' : 'Search term', 'Matched target',
-    'Match type', 'ASINs', 'Parents', 'Campaign', 'Ad group', 'Impressions', 'Clicks', 'Spend',
-    'Orders', 'Sales', 'Already bidding'];
+  const strip = h => String(h || '').replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+  const pct = v => v == null ? '' : Math.round(v * 10) / 10;
+  const cols = ['Brand', 'View', ST_VIEW === 'burn' && ST_SUB === 'target' ? 'Keyword / target' : 'Search term', 'Target', 'Match type',
+    'Campaign', 'Ad group', 'ASINs', 'Impressions', 'Clicks', 'Spend', 'Orders', 'Sales', 'ACoS %', 'Target ACoS %', 'Break-even ACoS %',
+    'Verdict', 'Money burned', 'Next step', 'Status', 'Evidence'];
   const lines = [cols.map(cell).join(',')];
-  // Everything in the view, not just the 500 drawn — the table is capped for the browser's sake and
-  // an export that silently matched that cap would be a plan with the tail cut off.
-  ST_LAST.forEach(r => lines.push([r.brand, ST_VIEW, r.term, r.kw || '', r.mt || '',
-    r.asins.join(' '), r.parents.join(' '), r.cn, r.agn, r.i, r.c, r.sp, r.o, r.s,
-    r.inList ? 'yes' : 'no'].map(cell).join(',')));
+  const NEXT = { neg: 'Add negative', reduce: 'Reduce bid', raise: 'Raise bid', exact: 'Add as exact', asinT: 'Target this ASIN',
+    pause: 'Pause', limit: 'Bid is not the limit', lowstock: 'Low stock: no raise' };
+  const rows = ST_VIEW === 'paths' ? ST_LAST.flatMap(g => g.shown) : ST_LAST;
+  rows.forEach(r => lines.push([staBrandName(r.brand), ST_VIEW + (ST_VIEW === 'burn' ? ' by ' + ST_SUB : ''), r.term, r.kw || '', r.mt || '',
+    r.cn, r.agn, (r.asins || []).join(' '), r.i, r.c, r.sp, r.o, r.s, pct(r.acos), pct(r.ln && r.ln.tgt), pct(r.ln && r.ln.be),
+    (r.badges || []).map(x => x[0]).join('; ') || (r.kind === 'none' ? 'No sales' : r.kind === 'be' ? 'Above break-even' : ''),
+    r.burned ? staR2(r.burned) : '', NEXT[r.next] || '', r.status || '', strip(r.ev)].map(cell).join(',')));
   // --- download ---
   const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = 'search-terms-' + ST_VIEW + '-' + new Date().toISOString().slice(0, 10) + '.csv';
+  a.download = 'search-term-analysis-' + ST_VIEW + '-' + new Date().toISOString().slice(0, 10) + '.csv';
   a.click();
   URL.revokeObjectURL(a.href);
 };
@@ -24645,15 +26226,31 @@ const CP_STATE = {
   '?': { t: 'Not found', tip: "Not in Amazon's lists when they were last read." },
 };
 // stock = per brand { sku → FBA units }, stockAt = when each was saved, base = cpBase's list once worked out.
-let CP = { loaded: false, stock: {}, stockAt: {}, base: null };
+let CP = { loaded: false, basics: null, stock: {}, stockAt: {}, base: null };
 // The rows of the last cp draw, for the export.
 let CP_LAST = [];
 
-// First use of the cp view: load the FBA stock of both brands, Listing Health, the weekly sales and the unit costs.
+// First use of the cp view: the stock, sales and costs (cpLoadBasics, often already in from Search Term Analysis), and
+// Listing Health for the product titles.
 async function ensureCp() {
   if (CP.loaded) return;
-  stMsg('Loading the FBA stock, weekly sales and unit costs…');
-  // --- load data, all at the same time ---
+  stMsg('Loading the FBA stock, weekly sales, unit costs and product titles…');
+  await Promise.all([
+    cpLoadBasics(),
+    (async () => {
+      try {
+        if (!H_LOADED) await loadHealthCache();
+      } catch (e) { /* titles stay blank */ }
+    })(),
+  ]);
+  CP.loaded = true;
+  CP.base = null;
+  stMsg('');
+}
+// The FBA stock of both brands, the weekly sales and the unit costs — what every break-even and every stock check needs.
+// Once per session, all at the same time; a second caller waits on the same promise.
+function cpLoadBasics() {
+  if (CP.basics) return CP.basics;
   const stockOf = async b => {
     try {
       const snap = await getDoc(doc(db, 'stock', b));
@@ -24663,13 +26260,8 @@ async function ensureCp() {
       CP.stockAt[b] = d.at && d.at.toDate ? d.at.toDate() : null;
     } catch (e) { /* no read access, or never saved — stock shows as unknown */ }
   };
-  await Promise.all([
+  CP.basics = Promise.all([
     stockOf('SP'), stockOf('CPC'),
-    (async () => {
-      try {
-        if (!H_LOADED) await loadHealthCache();
-      } catch (e) { /* titles stay blank */ }
-    })(),
     (async () => {
       try {
         if (!WEEKLY.weeks.length && !Object.keys(WEEKLY.rows).length) await loadWeekly();
@@ -24681,9 +26273,7 @@ async function ensureCp() {
       } catch (e) { /* break-even unknown */ }
     })(),
   ]);
-  CP.loaded = true;
-  CP.base = null;
-  stMsg('');
+  return CP.basics;
 }
 
 /** Units a day, price and the ASIN's TACoS, from the last four FINISHED weeks of its sales. Null when there are none. */
@@ -24850,7 +26440,7 @@ function renderCp() {
   const haveRows = ['SP', 'CPC'].some(b => ((ST.ag[b] || {}).rows || []).length);
   if (!haveRows) {
     $('stTable').innerHTML = '';
-    stMsg('No campaign × product figures yet. The nightly run keeps them, so they appear here the morning after, for the '
+    stFoot('No campaign × product figures yet. The nightly run keeps them, so they appear here the morning after, for the '
       + 'same 30 days as the search terms.', true);
     return;
   }
@@ -24925,7 +26515,7 @@ function renderCp() {
   const stockAt = Object.entries(CP.stockAt).filter(([, d]) => d)
     .map(([b, d]) => `${BRAND_NAME[b] || b} ${d.toLocaleDateString('en-GB')}`).join(', ');
   const stAt = ['SP', 'CPC'].map(b => (ST.ag[b] || {}).stAt).filter(Boolean)[0];
-  stMsg(`<b>${rows.length.toLocaleString('en-US')}</b> campaign × product rows`
+  stFoot(`<span><b>${rows.length.toLocaleString('en-US')}</b> campaign × product rows`
     + ` (${running.toLocaleString('en-US')} running, ${stopped.toLocaleString('en-US')} paused or archived)`
     + ` · <b style="color:var(--bad-ink)">${bad.n} bad</b> (${money(bad.sp)} spent, ${money(bad.s)} back)`
     + ` · <b>${watch.n} watch</b> (${money(watch.sp)} spent)`
@@ -24935,13 +26525,13 @@ function renderCp() {
     + (stAt ? ` · ad status read ${esc(stAt)}` : '')
     + (stockAt ? ` · FBA stock as saved ${esc(stockAt)}`
       : ' · <b>no FBA stock saved yet</b> — refresh Listing Health once to fill it')
-    + ' · advice only: nothing here changes a bid at Amazon');
+    + ' · advice only: nothing here changes a bid at Amazon</span>');
 }
 
 // Export the cp view: every row of the last draw as a CSV.
 function cpCsv() {
   if (!CP_LAST.length) {
-    stMsg('Nothing to export.', true);
+    stFoot('Nothing to export.', true);
     return;
   }
   // --- one CSV cell: quoted when it holds a comma, a quote or a line break ---
@@ -25467,7 +27057,7 @@ async function trendsRefresh() {
   } catch (e) {
     const m = String(e.message || e);
     tMsg('Refresh failed: ' + m
-      + (/permission/i.test(m) ? ' — your account needs the “Ad Console” permission (Settings → Access).' : ''), true);
+      + (/permission/i.test(m) ? ' — your account needs the “Overview” permission (Settings → Access).' : ''), true);
     try { await saveTrends(); } catch (x) { /* nothing more to do */ }
   }
   // --- back to normal ---
@@ -27122,7 +28712,7 @@ const ADSX = (() => {
     const goneSp = dollars(gone.reduce((t, x) => t + x.sp, 0));
     if (!rows.length) {
       el.innerHTML = head + (gone.length
-        ? `<div class="adx-cmiss"><b>${who}'s campaign report did not arrive last night.</b> The Ad Console shows ${goneSp} of ${who} ad spend in the last 30 days with ad figures, and none of it is in the campaign figures. It has to come in through the nightly run — Recommendation → Data shows exactly what is missing.</div>`
+        ? `<div class="adx-cmiss"><b>${who}'s campaign report did not arrive last night.</b> Overview shows ${goneSp} of ${who} ad spend in the last 30 days with ad figures, and none of it is in the campaign figures. It has to come in through the nightly run — Recommendation → Data shows exactly what is missing.</div>`
         : '<div class="ui-empty">No campaign figures yet. The nightly run keeps them, so they appear here the morning after.</div>');
       return;
     }
@@ -27304,7 +28894,7 @@ const ADSH = (() => {
   };
   // Where a figure came from — the tags under each suggestion.
   const SRC = {
-    ADS: 'Amazon Ads reports — Sponsored Products only, sales credited within 30 days of a click. The nightly caches Search Terms reads.',
+    ADS: 'Amazon Ads reports — Sponsored Products only, sales credited within 30 days of a click. The nightly caches Search Term Analysis reads.',
     STOCK: 'FBA stock as Listing Health last saved it.',
     DERIVED: 'Worked out here from the figures above.',
   };
@@ -27635,7 +29225,7 @@ const ADSH = (() => {
             n: list.length, rows: list.slice(0, EV_CAP).map(r => ({ c: [esc(r.t), esc(cname(r.brand, r.cid)), String(r.c), dollars(r.sp)], k: r.brand + '|' + r.cid })),
             tot: ['Total', '', cnt(sum(list, r => r.c)), dollars(burned)] },
           how: `Search terms with no order after ${need} or more clicks in the 30 days: enough for ${BURN_EXPECT} orders at the account's own conversion rate (orders ÷ clicks over every search term in view), and never fewer than ${CP_MIN_CLICKS}.`,
-          src: ['ADS', 'DERIVED'], link: { tab: 'St', v: 'neg', t: 'Open Search Terms · Negative' } });
+          src: ['ADS', 'DERIVED'], link: { tab: 'St', v: 'burn', t: 'Open Search Term Analysis · Burning money' } });
       }
     }
 
@@ -27758,7 +29348,7 @@ const ADSH = (() => {
             }),
             tot: ['Total', '', '', cnt(sum(list, x => x.o)), dollars(sales), pct(sum(list, x => x.sp) / sales * 100), '', ''] },
           how: `Paused (not archived) ads with 3 or more orders in the 30 days at an ACoS of ${BAND.high}% or less, stock in hand and at least ${LOW_COVER} days of it.${stockHow}`,
-          src: ['ADS', 'STOCK'], link: { tab: 'St', v: 'cp', t: 'Open Search Terms · Campaign × product' } });
+          src: ['ADS', 'STOCK'], link: { tab: 'St', v: 'cp', t: 'Open Search Term Analysis · Campaign × product' } });
       }
     }
 
@@ -27780,7 +29370,7 @@ const ADSH = (() => {
           + ` — about ${dollars(missing)} of ad spend from ${dayTxt(w.from)} to ${dayTxt(w.to)} is missing, so the suggestions here `
           + (gone ? (others.length ? `cover ${others.join(' and ')} only` : `cannot see ${namesOf(short)}`) : `may miss some of ${namesOf(short)}'s campaigns`)
           + '. It needs the nightly run to bring it in.',
-        ev: { head: ['Brand', 'Ad Console', 'Campaign figures', 'Search-term figures'], num: [1, 2, 3],
+        ev: { head: ['Brand', 'Overview', 'Campaign figures', 'Search-term figures'], num: [1, 2, 3],
           rows: cover.map(x => [esc(x.name), dollars(x.tr), cell(x.ag, x.agP), x.st == null ? '…' : cell(x.st, x.stP)]) } });
     }
     // --- figures that are old ---
@@ -35696,7 +37286,7 @@ const PX_TIPS = {
   spend: 'Sponsored Products spend', adSales: 'Sales Amazon attributes to an ad click',
   roas: 'ROAS = ad sales ÷ ad spend', adO: 'Orders attributed to an ad click', adU: 'Units attributed to an ad click',
   cl: 'Ad clicks', cpc: 'CPC = ad spend ÷ clicks',
-  cr: 'Conv. rate = ad orders ÷ clicks — the share of ad clicks that became an order (the Ad Console\'s CVR). Units ÷ sessions is Unit session %, in Columns', acos: 'ACoS = ad spend ÷ ad sales',
+  cr: 'Conv. rate = ad orders ÷ clicks — the share of ad clicks that became an order (Overview\'s CVR). Units ÷ sessions is Unit session %, in Columns', acos: 'ACoS = ad spend ÷ ad sales',
   tacos: 'TACoS = ad spend ÷ total sales', ou: 'Organic units = units − ad units',
   os: 'Organic sales = sales − ad sales (never below 0)', op: 'Organic share = organic sales ÷ sales',
   vp: 'Sales against the same number of days just before',
@@ -36779,7 +38369,7 @@ function pxRecs(ctx) {
   const hiAcos = live.filter(e => { const o = S.get(e); return o.spend >= 50 && o.acos != null && o.acos >= 55; })
     .sort((a, b) => (S.get(b).spend - S.get(b).adSales * 0.35) - (S.get(a).spend - S.get(a).adSales * 0.35));
   add({ id: 'acos', sev: 'high', cat: 'Ads', title: `${hiAcos.length} product${hiAcos.length === 1 ? '' : 's'} spending too much per sale (ACoS 55%+)`,
-    act: 'Lower bids on these products’ campaigns, or pause the keywords that spend without selling (Ad Console → Search Terms).',
+    act: 'Lower bids on these products’ campaigns, or pause the keywords that spend without selling (Search Term Analysis).',
     why: `Ad spend is 55% or more of the ad sales it brought, ${dTxt}.`,
     how: 'Ad spend of at least $50, ACoS = ad spend ÷ ad sales of 55% or more. "Over target" is the spend above a 35% ACoS.',
     cols: ['Product', 'Ad spend', 'Ad sales', 'ACoS', 'Over target'] }, hiAcos,
@@ -37609,11 +39199,11 @@ const PW_CAUSES = ['traffic', 'ads', 'conv', 'bb', 'stock', 'price'];
 // Each cause: its name, what it measures, and the first things to check when it is the main reason for a fall.
 const PW_META = {
   traffic: { t: 'Traffic', m: 'Organic sessions', check: [
-    'Search Terms: has a top keyword lost its rank or its impressions?',
+    'Search Term Analysis: has a top keyword lost its rank or its impressions?',
     'Is a competitor or a new listing sitting above you in search?',
     'Listing Health: is the listing or a variation suppressed?'] },
   ads: { t: 'Ad spend', m: 'Paid clicks', check: [
-    'Ad Console: was a budget capped, a campaign paused or bids cut?',
+    'Overview: was a budget capped, a campaign paused or bids cut?',
     'If ACoS was the reason, cut the worst search terms rather than the whole budget.'] },
   conv: { t: 'Conversion', m: 'Units per session', check: [
     'Reviews and rating: a new 1–2★ review on the top sizes?',

@@ -18,7 +18,7 @@ const capId = t => t[0].toUpperCase() + t.slice(1);
 const TAB_TITLE = { link: 'By Amazon Link', new: 'New Product', pr: 'Product Research', kw: 'Keywords', ba: 'Analytics',
   age: 'Inventory Age', health: 'Listing Health', lrules: 'Listing Rules', audit: 'Listing Audit', bsr: 'BSR Audit',
   weekly: 'PPC & Organic (old view)', ppcn: 'Product Performance',
-  trends: 'Ad Console', st: 'Search Terms', plc: 'Placement', deals: 'Deal Calendar', sales: 'Sales Dashboard',
+  trends: 'Overview', st: 'Search Term Analysis', plc: 'Placement', deals: 'Deal Calendar', sales: 'Sales Dashboard',
   profit: 'Profit & Margin', sa: 'Sales Analysis', plaudit: 'Parent Listing Review', shop: 'Shopify Orders',
   adj: 'Adjustments', tiktok: 'TikTok Toolkit', carousel: 'Carousel Builder', opt: 'Listing Optimiser',
   img: 'Image Manager', lerr: 'Listing Errors', basket: 'Bought Together', lhist: 'Listing History' };

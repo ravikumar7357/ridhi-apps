@@ -780,7 +780,7 @@ const PX_TIPS = {
   spend: 'Sponsored Products spend', adSales: 'Sales Amazon attributes to an ad click',
   roas: 'ROAS = ad sales ÷ ad spend', adO: 'Orders attributed to an ad click', adU: 'Units attributed to an ad click',
   cl: 'Ad clicks', cpc: 'CPC = ad spend ÷ clicks',
-  cr: 'Conv. rate = ad orders ÷ clicks — the share of ad clicks that became an order (the Ad Console\'s CVR). Units ÷ sessions is Unit session %, in Columns', acos: 'ACoS = ad spend ÷ ad sales',
+  cr: 'Conv. rate = ad orders ÷ clicks — the share of ad clicks that became an order (Overview\'s CVR). Units ÷ sessions is Unit session %, in Columns', acos: 'ACoS = ad spend ÷ ad sales',
   tacos: 'TACoS = ad spend ÷ total sales', ou: 'Organic units = units − ad units',
   os: 'Organic sales = sales − ad sales (never below 0)', op: 'Organic share = organic sales ÷ sales',
   vp: 'Sales against the same number of days just before',
@@ -1863,7 +1863,7 @@ function pxRecs(ctx) {
   const hiAcos = live.filter(e => { const o = S.get(e); return o.spend >= 50 && o.acos != null && o.acos >= 55; })
     .sort((a, b) => (S.get(b).spend - S.get(b).adSales * 0.35) - (S.get(a).spend - S.get(a).adSales * 0.35));
   add({ id: 'acos', sev: 'high', cat: 'Ads', title: `${hiAcos.length} product${hiAcos.length === 1 ? '' : 's'} spending too much per sale (ACoS 55%+)`,
-    act: 'Lower bids on these products’ campaigns, or pause the keywords that spend without selling (Ad Console → Search Terms).',
+    act: 'Lower bids on these products’ campaigns, or pause the keywords that spend without selling (Search Term Analysis).',
     why: `Ad spend is 55% or more of the ad sales it brought, ${dTxt}.`,
     how: 'Ad spend of at least $50, ACoS = ad spend ÷ ad sales of 55% or more. "Over target" is the spend above a 35% ACoS.',
     cols: ['Product', 'Ad spend', 'Ad sales', 'ACoS', 'Over target'] }, hiAcos,

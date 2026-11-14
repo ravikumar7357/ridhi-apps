@@ -3595,4 +3595,117 @@
   }
   @media (max-width:520px){.adx-boxes{grid-template-columns:minmax(0,1fr)}}
 
+  /* ----- Search Term Analysis (paneSt, ads/search-terms.js): the bar, four analysis boxes, the view card, the dialogs,
+     the review list. Reuses .card / .toolbar / .seg / table.xl / .ui-badge / .adx-box / .modal; sta- adds only the layout. ----- */
+  #paneSt .hide{display:none}
+  .sta-msg{margin-top:10px;font-size:12.5px;color:var(--muted);display:flex;gap:6px 18px;flex-wrap:wrap}
+  .sta-msg b{color:var(--ink);font-weight:600}
+  .sta-msg .sta-ok{color:var(--accent-ink);font-weight:600}
+  .sta-msg .sta-bad{color:var(--bad-ink);font-weight:600}
+  .sta-rl{position:relative}
+  .sta-n{display:inline-grid;place-items:center;min-width:20px;height:20px;padding:0 6px;margin-left:8px;border-radius:999px;
+    background:var(--brand);color:var(--on-brand);font-size:11px;font-weight:700}
+  .sta-boxes{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:12px 0}
+  button.adx-box.sta-box,button.adx-box.sta-box:hover,button.adx-box.sta-box:active{display:block;width:100%;cursor:pointer;padding:14px 16px 12px;
+    text-align:left;font:inherit;font-weight:400;color:var(--ink);background:var(--card);border:1px solid var(--card-line);border-radius:var(--r-card)}
+  .sta-box.on{box-shadow:inset 0 0 0 2px var(--c),var(--sh-2)}
+  .sta-box:focus-visible{outline:2px solid var(--c);outline-offset:2px}
+  .sta-q{font-size:12.5px;color:var(--muted);margin:6px 0 0;line-height:1.4}
+  .sta-big{display:flex;align-items:baseline;gap:8px;margin:8px 0 0}
+  .sta-big b{font-size:24px;font-weight:700;letter-spacing:-.025em;color:var(--ink);font-variant-numeric:tabular-nums}
+  .sta-big span{font-size:12.5px;color:var(--muted)}
+  .sta-go{display:flex;justify-content:space-between;align-items:center;margin-top:10px;padding-top:9px;border-top:1px solid var(--line);
+    font-size:12.5px;font-weight:600;color:var(--brand-ink)}
+  .sta-tcard{padding:0;overflow:hidden}
+  .sta-thead{display:flex;justify-content:space-between;align-items:center;gap:10px 16px;flex-wrap:wrap;padding:12px 16px;border-bottom:1px solid var(--line)}
+  .sta-thead .tt b{display:block;font-size:14.5px;font-weight:650;color:var(--ink);letter-spacing:-.01em}
+  .sta-thead .tt small{display:block;font-size:12px;color:var(--muted);margin-top:2px;max-width:760px}
+  .sta-thead .seg .segbtn{padding:6px 12px;font-size:13px}
+  .sta-tools{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .sta-wrap{overflow:auto;max-height:70vh}
+  #paneSt table.xl{font-size:13px}
+  #paneSt table.xl td{vertical-align:middle}
+  #paneSt table.xl th{white-space:nowrap}
+  .sta-term{font-weight:600;color:var(--ink);white-space:nowrap}
+  .sta-under{display:flex;gap:5px;flex-wrap:wrap;margin-top:4px}
+  .sta-path{min-width:230px}
+  .sta-path b{display:block;font-weight:500;color:var(--ink);white-space:nowrap;max-width:320px;overflow:hidden;text-overflow:ellipsis}
+  .sta-path small,.sta-s{display:block;font-size:11.5px;color:var(--faint);white-space:nowrap;margin-top:1px}
+  .sta-s.up{color:var(--muted)}
+  #paneSt table.xl td.sta-ev{min-width:320px;max-width:430px;white-space:normal;font-size:12.5px;color:var(--muted);line-height:1.45}
+  .sta-ev b{color:var(--ink);font-weight:600}
+  .sta-money{font-weight:700;color:var(--bad-ink)}
+  .sta-next{white-space:nowrap}
+  .sta-next small{display:block;font-size:11.5px;color:var(--muted);margin-bottom:5px}
+  .sta-inrl{font-size:12.5px;color:var(--brand-ink);font-weight:600}
+  button.sta-btn{font-size:12.5px;padding:6px 12px;border-radius:var(--r-sm);font-weight:600;background:var(--card);color:var(--brand-ink);
+    box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--brand) 45%,var(--card))}
+  button.sta-btn:hover{background:var(--brand-bg)}
+  button.sta-btn.neg{color:var(--bad-ink);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--bad) 45%,var(--card))}
+  button.sta-btn.neg:hover{background:var(--bad-bg)}
+  button.sta-btn.dim{color:var(--muted);box-shadow:inset 0 0 0 1px var(--line)}
+  .sta-dash{color:var(--faint)}
+  .sta-cb{width:16px;height:16px;accent-color:var(--brand);vertical-align:middle;margin:0}
+  #paneSt table.xl tr.sel td{background:color-mix(in srgb,var(--brand) 5%,var(--card))}
+  #paneSt table.xl tr.tot td{background:var(--soft);font-weight:700;color:var(--ink)}
+  #paneSt table.xl tr.grp td{background:var(--soft);padding-top:11px;padding-bottom:11px}
+  .sta-grp b{font-size:13.5px;color:var(--ink)}
+  .sta-grp span{color:var(--muted);font-size:12.5px;margin-left:8px}
+  .sta-grp span em{font-style:normal;color:var(--bad-ink);font-weight:600}
+  .sta-limit{background:color-mix(in srgb,var(--rev) 10%,var(--card));border-radius:var(--r-sm);padding:7px 10px;font-size:12.5px;color:var(--rev-ink);
+    white-space:normal;max-width:360px;line-height:1.45}
+  .sta-more{display:flex;justify-content:space-between;align-items:center;gap:8px 16px;flex-wrap:wrap;padding:10px 16px;font-size:12.5px;
+    color:var(--muted);border-top:1px solid var(--line)}
+  .sta-more.err{color:var(--bad-ink)}
+  .sta-more button{font-size:12.5px;padding:5px 12px}
+  .sta-selbar{position:sticky;bottom:14px;z-index:20;display:flex;align-items:center;gap:12px;margin:12px auto 0;width:max-content;max-width:100%;
+    padding:10px 12px 10px 18px;background:var(--ink);color:var(--card);border-radius:14px;box-shadow:var(--sh-3);font-size:13px}
+  .sta-selbar b{font-weight:700}
+  .sta-selbar button{font-size:12.5px;padding:7px 14px}
+  .sta-selbar button.ghost{background:color-mix(in srgb,var(--card) 14%,transparent);color:var(--card)}
+  .modal.sta-modal .modalbox{width:min(620px,100%);padding:0;max-height:calc(100vh - 32px);display:flex;flex-direction:column;overflow:hidden}
+  .modal.sta-wide .modalbox{width:min(1320px,100%)}
+  .sta-mh{padding:18px 22px 14px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:12px}
+  .sta-mh b{display:block;font-size:16.5px;font-weight:700;letter-spacing:-.015em;color:var(--ink)}
+  .sta-mh small{display:block;font-size:12.5px;color:var(--muted);margin-top:3px;line-height:1.45}
+  .sta-mh small b{display:inline;font-size:12.5px;font-weight:600;letter-spacing:0}
+  .sta-x{width:30px;height:30px;padding:0;border-radius:50%;background:var(--hover);color:var(--muted);font-size:16px;flex:none}
+  .sta-mb{padding:16px 22px;overflow:auto}
+  .sta-figs{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px;background:var(--soft);border:1px solid var(--line);
+    border-radius:var(--r-row);padding:12px 14px}
+  .sta-figs small{display:block;font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}
+  .sta-figs b{display:block;font-size:15px;font-weight:650;color:var(--ink);margin-top:3px;font-variant-numeric:tabular-nums}
+  .sta-figs-7{font-size:12px;color:var(--muted);margin:7px 2px 0;line-height:1.45}
+  .sta-row2{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px}
+  .sta-f label{display:block;font-size:12.5px;font-weight:600;color:var(--ink);margin:0 0 6px;text-transform:none;letter-spacing:0}
+  .sta-f select,.sta-f input{width:100%;height:40px;box-sizing:border-box}
+  .sta-f small{display:block;font-size:12px;color:var(--muted);margin-top:6px;line-height:1.4}
+  .sta-checks{margin:14px 0 0;padding:10px 12px;border-radius:var(--r-row);background:color-mix(in srgb,var(--accent) 6%,var(--card));
+    border:1px solid color-mix(in srgb,var(--accent) 20%,var(--card));font-size:12.5px;color:var(--ink);line-height:1.6}
+  .sta-checks div{display:flex;gap:7px;padding:2px 0}
+  .sta-checks i{font-style:normal;font-weight:700;flex:none;width:14px;text-align:center}
+  .sta-checks .ck-ok i{color:var(--accent-ink)}
+  .sta-checks .ck-warn i{color:var(--rev-ink)}
+  .sta-checks .ck-bad{color:var(--bad-ink)}
+  .sta-checks .ck-bad i{color:var(--bad-ink)}
+  .sta-mf{padding:14px 22px;border-top:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:12px}
+  .sta-mf small{font-size:12px;color:var(--muted);max-width:340px;line-height:1.4}
+  .sta-mf .btns{display:flex;gap:8px;flex:none}
+  .sta-mf button:disabled{opacity:.5;cursor:not-allowed}
+  .sta-calc{font-size:12px;color:var(--muted);margin-top:8px;line-height:1.5}
+  .sta-calc b{color:var(--ink)}
+  .sta-rlseg{margin:12px 22px 0;width:max-content}
+  .sta-rlbody{padding:12px 0 0}
+  .sta-rlnote{margin:12px 22px 0;padding:10px 12px;border-radius:var(--r-row);background:var(--brand-bg);color:var(--brand-ink);font-size:12.5px;line-height:1.5}
+  .sta-rlnote.warn{background:var(--rev-bg);color:var(--rev-ink)}
+  .modal.sta-wide table.xl td{white-space:normal}
+  .modal.sta-wide table.xl td.sta-ev{min-width:220px;max-width:300px}
+  .modal.sta-wide .sta-term{white-space:normal;min-width:130px}
+  .modal.sta-wide .sta-rlcp{max-width:230px;min-width:160px}
+  .modal.sta-wide .sta-rlwhat{max-width:230px}
+  .modal.sta-wide table.xl th:first-child,.modal.sta-wide table.xl td:first-child{padding-left:22px}
+  .modal.sta-wide table.xl th:last-child,.modal.sta-wide table.xl td:last-child{padding-right:24px}
+  @media (max-width:1100px){.sta-boxes{grid-template-columns:repeat(2,minmax(0,1fr))}}
+  @media (max-width:620px){.sta-boxes{grid-template-columns:minmax(0,1fr)}.sta-figs{grid-template-columns:repeat(3,minmax(0,1fr))}.sta-row2{grid-template-columns:1fr}}
+
   /* ===== MODULE: INVENTORY ===== */

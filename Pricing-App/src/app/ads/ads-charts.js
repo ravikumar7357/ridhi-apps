@@ -1205,7 +1205,7 @@ const ADSX = (() => {
     const goneSp = dollars(gone.reduce((t, x) => t + x.sp, 0));
     if (!rows.length) {
       el.innerHTML = head + (gone.length
-        ? `<div class="adx-cmiss"><b>${who}'s campaign report did not arrive last night.</b> The Ad Console shows ${goneSp} of ${who} ad spend in the last 30 days with ad figures, and none of it is in the campaign figures. It has to come in through the nightly run — Recommendation → Data shows exactly what is missing.</div>`
+        ? `<div class="adx-cmiss"><b>${who}'s campaign report did not arrive last night.</b> Overview shows ${goneSp} of ${who} ad spend in the last 30 days with ad figures, and none of it is in the campaign figures. It has to come in through the nightly run — Recommendation → Data shows exactly what is missing.</div>`
         : '<div class="ui-empty">No campaign figures yet. The nightly run keeps them, so they appear here the morning after.</div>');
       return;
     }

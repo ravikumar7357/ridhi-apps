@@ -35,11 +35,11 @@ const PW_CAUSES = ['traffic', 'ads', 'conv', 'bb', 'stock', 'price'];
 // Each cause: its name, what it measures, and the first things to check when it is the main reason for a fall.
 const PW_META = {
   traffic: { t: 'Traffic', m: 'Organic sessions', check: [
-    'Search Terms: has a top keyword lost its rank or its impressions?',
+    'Search Term Analysis: has a top keyword lost its rank or its impressions?',
     'Is a competitor or a new listing sitting above you in search?',
     'Listing Health: is the listing or a variation suppressed?'] },
   ads: { t: 'Ad spend', m: 'Paid clicks', check: [
-    'Ad Console: was a budget capped, a campaign paused or bids cut?',
+    'Overview: was a budget capped, a campaign paused or bids cut?',
     'If ACoS was the reason, cut the worst search terms rather than the whole budget.'] },
   conv: { t: 'Conversion', m: 'Units per session', check: [
     'Reviews and rating: a new 1–2★ review on the top sizes?',

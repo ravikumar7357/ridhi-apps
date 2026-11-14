@@ -108,10 +108,10 @@
     <div class="navwrap"><button class="navgrp" id="grpAds" type="button" aria-controls="secAds" data-grp="ads" data-tabs="trends,weekly,ppcn,st,plc,deals">
       <span class="caret">&#9656;</span> Advertising</button>
     <div class="navsec" id="secAds">
-      <button id="tabTrends" class="nav">Ad Console</button>
+      <button id="tabTrends" class="nav">Overview</button>
       <button id="tabWeekly" class="nav">PPC &amp; Organic</button>
       <button id="tabPpcn" class="nav">Product Performance</button>
-      <button id="tabSt" class="nav">Search Terms</button>
+      <button id="tabSt" class="nav">Search Term Analysis</button>
       <button id="tabPlc" class="nav">Placement</button>
       <button id="tabDeals" class="nav">Deal Calendar</button>
     </div></div>
@@ -406,8 +406,8 @@
             <label><input type="checkbox" class="accbrand" data-br="SP"> Ridhi</label>
             <label><input type="checkbox" class="accbrand" data-br="CPC"> CPC</label>
             <span class="muted">(none ticked = both)</span></div>
-          <div class="accg-note">Hides the other brand in Product Performance, Ad Console, Search Terms and Placement only — every other screen shows both. A display limit, not isolation: fine for colleagues, not for a separate party.</div>
-          <button id="accessAdOnly" class="ghost accg-preset" type="button" title="Ticks Product Performance, Ad Console, Search Terms and Placement and unticks everything else in both apps">Ad data only — untick everything else</button>
+          <div class="accg-note">Hides the other brand in Product Performance, Overview, Search Term Analysis and Placement only — every other screen shows both. A display limit, not isolation: fine for colleagues, not for a separate party.</div>
+          <button id="accessAdOnly" class="ghost accg-preset" type="button" title="Ticks Product Performance, Overview, Search Term Analysis and Placement and unticks everything else in both apps">Ad data only — untick everything else</button>
         </div></section>
 
       <section class="accg" data-accg="research"><header><h4>Research</h4><span class="accg-n"></span><span class="accg-app">Sellora</span><button type="button" class="ghost accg-all">All</button><button type="button" class="ghost accg-none">None</button></header>
@@ -963,34 +963,69 @@
     </div>
   </div><!-- /paneWeekly -->
 
-  <!-- ============ Search Terms: what people typed vs what we bid on ============ -->
+  <!-- ============ Search Term Analysis: what people typed vs what we bid on, and what to do about it ============ -->
   <div id="paneSt" class="hide">
     <div class="card" style="padding:12px 14px">
       <div class="toolbar">
         <select id="stBrand" style="flex:0 0 160px">
           <option value="ALL">Both brands</option><option value="SP">Ridhi</option><option value="CPC">CPC</option>
         </select>
-        <div class="seg" id="stViewSeg">
-          <button class="segbtn on" data-v="harvest" title="Search terms that produced orders but are not in your target list.">Harvest</button>
-          <button class="segbtn" data-v="waste" title="Targets you added that spent money and produced no order.">Waste</button>
-          <button class="segbtn" data-v="neg" title="Search terms that spent money and produced no order.">Negative</button>
-          <button class="segbtn" data-v="all" title="Every search term with the target that caught it. Nothing filtered out.">All terms</button>
-          <button class="segbtn" data-v="cp" title="Every campaign × product: how it did over 30 days, what to do about it, and the FBA stock behind it.">Campaign × Product</button>
-        </div>
-        <select id="stCpShow" class="hide" style="flex:0 0 150px" title="Show only one kind of verdict">
-          <option value="">Every verdict</option><option value="bad">Bad only</option><option value="good">Good only</option><option value="watch">Watch only</option><option value="running">Running ads only</option><option value="stopped">Paused / archived only</option>
-        </select>
-        <input id="stCpTarget" class="hide" type="number" min="1" max="100" step="1" style="flex:0 0 120px" placeholder="Target ACoS %"
-          title="The ACoS a product is judged against when its unit cost is not known. Where the cost is known, its own break-even ACoS is used instead.">
-        <input id="stFilter" style="flex:1 1 150px;min-width:0" placeholder="Filter term / campaign / ASIN">
+        <input id="stFilter" style="flex:1 1 220px;min-width:0" placeholder="Filter term / campaign / ASIN">
         <input id="stMinSpend" type="number" min="0" step="1" style="flex:0 0 130px" placeholder="Min spend $">
-        <button id="stCsv" class="ghost">Export</button>
+        <button id="stRlBtn" class="ghost sta-rl" type="button" title="Changes picked here, waiting to be approved and downloaded as an Amazon bulk file">Review list<span id="stRlN" class="sta-n hide">0</span></button>
+        <button id="stCsv" class="ghost" type="button" title="Every row of the view on screen, as a CSV">Export</button>
       </div>
-      <div id="stMsg" class="muted" style="margin-top:8px;font-size:13px"></div>
+      <div id="stMsg" class="sta-msg"></div>
     </div>
-    <div class="card xlwrap" style="margin-top:12px;overflow:auto;max-height:70vh">
-      <table id="stTable" class="xl"></table>
+    <div id="stBoxes" class="sta-boxes"></div>
+    <div class="card sta-tcard">
+      <div class="sta-thead">
+        <div class="tt"><b id="stTitle">Every search term</b><small id="stSub"></small></div>
+        <div class="sta-tools">
+          <div class="seg hide" id="stBurnSeg">
+            <button class="segbtn on" type="button" data-s="term" title="One row per search term">By search term</button>
+            <button class="segbtn" type="button" data-s="target" title="One row per keyword or target: the ones that lost money across many small search terms">By target</button>
+          </div>
+          <select id="stCpShow" class="hide" style="flex:0 0 150px" title="Show only one kind of verdict">
+            <option value="">Every verdict</option><option value="bad">Bad only</option><option value="good">Good only</option><option value="watch">Watch only</option><option value="running">Running ads only</option><option value="stopped">Paused / archived only</option>
+          </select>
+          <input id="stCpTarget" class="hide" type="number" min="1" max="100" step="1" style="flex:0 0 120px" placeholder="Target ACoS %"
+            title="The ACoS a product is judged against when its unit cost is not known. Where the cost is known, its own break-even ACoS is used instead.">
+          <div class="seg" id="stViewSeg">
+            <button class="segbtn" type="button" data-v="burn" title="Search terms that spent with no sales, or sold above break-even ACoS">Burning money</button>
+            <button class="segbtn" type="button" data-v="scale" title="Search terms selling under their campaign's target ACoS, with room to grow">Worth scaling</button>
+            <button class="segbtn" type="button" data-v="paths" title="Search terms that reach you through more than one keyword or target">Competing paths</button>
+            <button class="segbtn on" type="button" data-v="all" title="Every search term with the target that caught it, a verdict and the next step">All terms</button>
+            <button class="segbtn" type="button" data-v="cp" title="Every campaign × product: how it did over 30 days, what to do about it, and the FBA stock behind it.">Campaign × Product</button>
+          </div>
+        </div>
+      </div>
+      <div class="sta-wrap"><table id="stTable" class="xl"></table></div>
+      <div id="stFoot" class="sta-more"></div>
     </div>
+    <div id="stSelBar" class="sta-selbar hide"><span id="stSelTxt"></span><button id="stSelAdd" type="button">Add to the review list</button><button id="stSelClear" class="ghost" type="button">Clear</button></div>
+
+    <!-- One dialog for every change: Add negative, Raise / Reduce bid, Pause, Add as exact. Filled by staOpen. -->
+    <div id="stDlg" class="modal sta-modal hide"><div class="modalbox">
+      <div class="sta-mh"><div><b id="stDlgTitle"></b><small id="stDlgSub"></small></div><button id="stDlgX" class="sta-x" type="button" title="Close">✕</button></div>
+      <div id="stDlgBody" class="sta-mb"></div>
+      <div class="sta-mf"><small id="stDlgNote"></small>
+        <div class="btns"><button id="stDlgCancel" class="ghost" type="button">Cancel</button><button id="stDlgOk" type="button">Add to review list</button></div></div>
+    </div></div>
+
+    <!-- The review list: changes waiting, approved, downloaded. -->
+    <div id="stRl" class="modal sta-modal sta-wide hide"><div class="modalbox">
+      <div class="sta-mh"><div><b>Review list</b><small id="stRlSub"></small></div><button id="stRlX" class="sta-x" type="button" title="Close">✕</button></div>
+      <div class="seg sta-rlseg" id="stRlSeg">
+        <button class="segbtn on" type="button" data-r="open">Open</button>
+        <button class="segbtn" type="button" data-r="done">Downloaded and done</button>
+        <button class="segbtn" type="button" data-r="removed">Removed</button>
+      </div>
+      <div class="sta-mb sta-rlbody"><table id="stRlTable" class="xl"></table></div>
+      <div id="stRlNote" class="sta-rlnote"></div>
+      <div class="sta-mf"><small id="stRlSel"></small>
+        <div class="btns"><button id="stRlRemove" class="ghost" type="button">Remove</button><button id="stRlApprove" class="ghost" type="button">Approve</button><button id="stRlDl" type="button">Download bulk file</button></div></div>
+    </div></div>
   </div><!-- /paneSt -->
 
   <!-- ============ Placement: where the ad was shown, and what each spot bought ============ -->

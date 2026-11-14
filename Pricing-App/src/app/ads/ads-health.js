@@ -38,7 +38,7 @@ const ADSH = (() => {
   };
   // Where a figure came from — the tags under each suggestion.
   const SRC = {
-    ADS: 'Amazon Ads reports — Sponsored Products only, sales credited within 30 days of a click. The nightly caches Search Terms reads.',
+    ADS: 'Amazon Ads reports — Sponsored Products only, sales credited within 30 days of a click. The nightly caches Search Term Analysis reads.',
     STOCK: 'FBA stock as Listing Health last saved it.',
     DERIVED: 'Worked out here from the figures above.',
   };
@@ -369,7 +369,7 @@ const ADSH = (() => {
             n: list.length, rows: list.slice(0, EV_CAP).map(r => ({ c: [esc(r.t), esc(cname(r.brand, r.cid)), String(r.c), dollars(r.sp)], k: r.brand + '|' + r.cid })),
             tot: ['Total', '', cnt(sum(list, r => r.c)), dollars(burned)] },
           how: `Search terms with no order after ${need} or more clicks in the 30 days: enough for ${BURN_EXPECT} orders at the account's own conversion rate (orders ÷ clicks over every search term in view), and never fewer than ${CP_MIN_CLICKS}.`,
-          src: ['ADS', 'DERIVED'], link: { tab: 'St', v: 'neg', t: 'Open Search Terms · Negative' } });
+          src: ['ADS', 'DERIVED'], link: { tab: 'St', v: 'burn', t: 'Open Search Term Analysis · Burning money' } });
       }
     }
 
@@ -492,7 +492,7 @@ const ADSH = (() => {
             }),
             tot: ['Total', '', '', cnt(sum(list, x => x.o)), dollars(sales), pct(sum(list, x => x.sp) / sales * 100), '', ''] },
           how: `Paused (not archived) ads with 3 or more orders in the 30 days at an ACoS of ${BAND.high}% or less, stock in hand and at least ${LOW_COVER} days of it.${stockHow}`,
-          src: ['ADS', 'STOCK'], link: { tab: 'St', v: 'cp', t: 'Open Search Terms · Campaign × product' } });
+          src: ['ADS', 'STOCK'], link: { tab: 'St', v: 'cp', t: 'Open Search Term Analysis · Campaign × product' } });
       }
     }
 
@@ -514,7 +514,7 @@ const ADSH = (() => {
           + ` — about ${dollars(missing)} of ad spend from ${dayTxt(w.from)} to ${dayTxt(w.to)} is missing, so the suggestions here `
           + (gone ? (others.length ? `cover ${others.join(' and ')} only` : `cannot see ${namesOf(short)}`) : `may miss some of ${namesOf(short)}'s campaigns`)
           + '. It needs the nightly run to bring it in.',
-        ev: { head: ['Brand', 'Ad Console', 'Campaign figures', 'Search-term figures'], num: [1, 2, 3],
+        ev: { head: ['Brand', 'Overview', 'Campaign figures', 'Search-term figures'], num: [1, 2, 3],
           rows: cover.map(x => [esc(x.name), dollars(x.tr), cell(x.ag, x.agP), x.st == null ? '…' : cell(x.st, x.stP)]) } });
     }
     // --- figures that are old ---

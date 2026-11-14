@@ -835,7 +835,7 @@ const SELLORA_GROUPS = [
   { name: 'Research', items: [['new', 'New Product'], ['pr', 'Product Research']] },
   { name: 'Sales', items: [['sales', 'Sales Dashboard'], ['profit', 'Profit & Margin'], ['sa', 'Sales Analysis'], ['plaudit', 'Parent Listing Review'], ['shop', 'Shopify Orders'], ['adj', 'Adjustments']] },
   { name: 'Listing', items: [['opt', 'Listing Optimiser'], ['img', 'Image Manager'], ['lerr', 'Listing Errors'], ['basket', 'Bought Together'], ['health', 'Listing Health'], ['lrules', 'Listing Rules'], ['audit', 'Listing Audit'], ['bsr', 'BSR Audit']] },
-  { name: 'Advertising', items: [['trends', 'Ad Console'], ['weekly', 'Product Performance'], ['st', 'Search Terms'], ['plc', 'Placement'], ['deals', 'Deal Calendar']] },
+  { name: 'Advertising', items: [['trends', 'Overview'], ['weekly', 'Product Performance'], ['st', 'Search Term Analysis'], ['plc', 'Placement'], ['deals', 'Deal Calendar']] },
   { name: 'Inventory & social', items: [['age', 'Inventory Age'], ['tiktok', 'TikTok Toolkit'], ['carousel', 'Carousel Builder']] },
 ];
 const SELLORA_HIDDEN = ['link', 'kw', 'ba'];

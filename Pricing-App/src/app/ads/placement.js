@@ -491,7 +491,7 @@ async function trendsRefresh() {
   } catch (e) {
     const m = String(e.message || e);
     tMsg('Refresh failed: ' + m
-      + (/permission/i.test(m) ? ' — your account needs the “Ad Console” permission (Settings → Access).' : ''), true);
+      + (/permission/i.test(m) ? ' — your account needs the “Overview” permission (Settings → Access).' : ''), true);
     try { await saveTrends(); } catch (x) { /* nothing more to do */ }
   }
   // --- back to normal ---

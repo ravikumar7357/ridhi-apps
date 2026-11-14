@@ -214,6 +214,14 @@ service cloud.firestore {
     match /audit/trends {
       allow read, write: if can('trends') || can('audit');
     }
+    // Search Term Analysis: the review list of ad changes (14 Nov 2026). One document per change — picked, approved,
+    // downloaded as an Amazon bulk file, seen at Amazon. Anybody with the tab may add, approve and remove one; nobody may
+    // delete one, so the list is also the record of what was sent to Amazon ("removed" is a status, not a deletion).
+    // Until this block is deployed the screen keeps the list in each person's own browser and says so.
+    match /adsActions/{id} {
+      allow read, create, update: if can('st') || can('audit');
+      allow delete: if false;
+    }
     // Unit costs, per ASIN, plus the percentage model the profit figures are built on. Amazon has no
     // API for what goods cost, so this document is typed by hand and is the ONLY copy — nothing can
     // regenerate it. Gated on the Profit tab, so an account granted the ad tabs cannot read margins.
