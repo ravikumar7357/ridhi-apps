@@ -54,8 +54,16 @@ const GUARD = `<script>/* TEST ERP GUARD — added by Replenish-App/tests/build-
     var body = { p_path: p, p_order_by: null, p_equal_to: null, p_limit_last: null };
     try { if (q.get('orderBy')) body.p_order_by = JSON.parse(q.get('orderBy')); if (q.get('equalTo')) body.p_equal_to = JSON.parse(q.get('equalTo')); } catch (e) {}
     if (q.get('limitToLast')) body.p_limit_last = Number(q.get('limitToLast'));
-    var sb = window.__TEST_ERP.sb; window.__TEST_ERP.sbReads++;
-    return origFetch(sb.url + '/rest/v1/rpc/rt_get', { method: 'POST',
+    var sb = window.__TEST_ERP.sb;
+    /* What was loaded is kept 2 minutes (like the live copy the ERP keeps of Firebase), and screens asking for the same thing
+     * at the same moment share one request — so reopening a screen asks ERP data nothing. (Saving is off here: nothing this
+     * page does can make the copy wrong.) */
+    var memoKey = JSON.stringify(body) + (q.get('shallow') || '');
+    var M = window.__TEST_ERP.sbMemo || (window.__TEST_ERP.sbMemo = {});
+    var hit = M[memoKey];
+    if (hit && Date.now() - hit.t < 120000) return hit.p.then(function (x) { return new Response(x.text, { status: x.status, statusText: x.statusText, headers: { 'Content-Type': 'application/json', ETag: 'sb' } }); });
+    window.__TEST_ERP.sbReads++;
+    var p0 = origFetch(sb.url + '/rest/v1/rpc/rt_get', { method: 'POST',
       headers: { apikey: sb.key, Authorization: 'Bearer ' + (tok || sb.key), 'Content-Type': 'application/json', 'Content-Profile': 'core', 'Accept-Profile': 'core' },
       body: JSON.stringify(body) }).then(function (r) {
         return r.text().then(function (t) {
@@ -69,6 +77,11 @@ const GUARD = `<script>/* TEST ERP GUARD — added by Replenish-App/tests/build-
           return new Response(JSON.stringify(v), { status: 200, headers: { 'Content-Type': 'application/json', ETag: 'sb' } });
         });
       });
+    /* kept only when it worked: a refused or failed read is asked again next time */
+    var keep = p0.then(function (r) { return r.clone().text().then(function (t) { if (!r.ok) delete M[memoKey]; return { text: t, status: r.status, statusText: r.statusText }; }); });
+    keep.catch(function () { delete M[memoKey]; });
+    M[memoKey] = { t: Date.now(), p: keep };
+    return p0;
   }
   function tell(what) {
     window.__TEST_ERP.blocked++;
