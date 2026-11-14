@@ -18997,20 +18997,22 @@ function bdCustomLists() {
   if ($('bwColList')) $('bwColList').innerHTML = of('color', r => (!at || ptNorm(r.articleType) === at) && (!sub || ptNorm(r.subtype) === sub));
   if ($('bwSzList')) $('bwSzList').innerHTML = of('size', r => (!at || ptNorm(r.articleType) === at) && (!sub || ptNorm(r.subtype) === sub));
 }
-/** A new custom SKU into the master — or, for somebody the master is closed to, onto the Custom SKUs list the forms also read. */
+/** A new custom SKU onto the Custom SKUs list the forms also read — never into the master.
+ * MASTER STAYS MASTER (Ravi, 14 Nov: "mera real masterdata master database me hi rhna chahiye — custom sku wala sirf sku padhne ke kam
+ * aay, orders me data fill krne ke kam aay"). Until 14 Nov a custom SKU minted here went into pt_masterDB whenever the person could edit
+ * the master (291 rows by then, source 'Custom Order (Job Work)'); now it always goes to pt_customSkus. */
 async function bdCustomMaster(e) {
   if (!e || !e.sku || mdbOf(e.sku) || (typeof ptCustomOf === 'function' && ptCustomOf(e.sku))) return '';
   const tc = typeof ptTcCutReq === 'function' ? ptTcCutReq(e.articleType, e.articleSubtype) : null;
   const rec = { sku: e.sku, articleType: e.articleType, subtype: e.articleSubtype, color: e.color, size: e.size, brand: '', packOf: '',
     cuttingRequired: tc == null ? true : tc, isCustom: true, customOrder: e.custOrder || '', source: 'Custom Order (Job Work)',
     addedBy: ME.email || '', addedAt: new Date().toISOString() };
-  const master = (typeof mdbCanEdit === 'function' && mdbCanEdit()) || !!ME.prodEdit;
   try {
-    if (master) { const key = 'mdb_' + Date.now(); await ptPut('pt_masterDB/' + key, rec); PTG.mdb = (PTG.mdb || []).concat(Object.assign({ _key: key }, rec)); return ` ${e.sku} added to the master database.`; }
     await ptPut('pt_customSkus/' + e.sku, rec);
     if (typeof MDBX !== 'undefined') MDBX.custom = (MDBX.custom || []).concat(Object.assign({ _key: e.sku }, rec));
-    return ` ${e.sku} added to the Custom SKUs list (the master database needs that permission).`;
-  } catch (er) { return ` ${e.sku} could NOT be added to the master: ${er.message || er}.`; }
+    if (typeof CUST_IX !== 'undefined') CUST_IX = { src: null, map: null };
+    return ` ${e.sku} added to the Custom SKUs list.`;
+  } catch (er) { return ` ${e.sku} could NOT be added to the Custom SKUs list: ${er.message || er}.`; }
 }
 
 /** The master rows in play: everything in Custom mode, otherwise only what the picked order needs. */
