@@ -840,8 +840,10 @@ function vpVsHtml(o, l, i, ord, unit, shape) {
   return (td ? '<td class="vpvs-td">' : `<div class="vpb-vs${shape === 'flat' ? ' flat' : ''}">`)
     + (td ? `<b>${vs > 0 ? q(vs) : '<span class="muted">—</span>'}</b>` : `<span class="muted">Vendor sent</span> <b>${vs > 0 ? q(vs) + ' ' + unit : '—'}</b>`)
     + (list.length ? ` <details><summary>${nf(live)} batch${live === 1 ? '' : 'es'}</summary>${batches}</details>` : '')
-    /* RECEIVED IN FULL, NO BOX (Ravi, 12 Nov): once all of it has reached us, the printer cannot say it sent it a second time. */
-    + (vpVsCan() && left > 0 && !l.cancelled && !vpRecvAll(o, l) ?`${td ? '' : '<span style="flex:1"></span>'}<span class="vpvs-add"><input data-vsq="${esc(o.id)}" data-i="${i}" type="number" min="0" max="${left}" step="${unit === 'm' ? '0.01' : '1'}" placeholder="qty" aria-label="Quantity sent">`
+    /* THE BOX STAYS AFTER WE RECEIVE (Ravi, 14 Nov: "challan wale bande ne receive kar liye but vendor apni sent qty enter nahi kar pa
+     * rha h — isko bhi vendor apni entry kar paye"). Was hidden once received in full (12 Nov); now the printer can still record what
+     * it sent, up to what was ordered, whether or not it has reached us. */
+    + (vpVsCan() && left > 0 && !l.cancelled ?`${td ? '' : '<span style="flex:1"></span>'}<span class="vpvs-add"><input data-vsq="${esc(o.id)}" data-i="${i}" type="number" min="0" max="${left}" step="${unit === 'm' ? '0.01' : '1'}" placeholder="qty" aria-label="Quantity sent">`
       + `<button class="ghost" data-vsadd="${esc(o.id)}" data-i="${i}">Add</button></span>` : '') + (td ? '</td>' : '</div>');
 }
 async function vpVsAdd(id, i) {
@@ -850,7 +852,6 @@ async function vpVsAdd(id, i) {
   if (!o || !l || !el || !vpVsCan()) return;
   const run = o.orderType === 'running', unit = run ? 'm' : 'pcs', typed = parseFloat(el.value);
   if (!(typed > 0)) return vpSay(id, 'Type how much you are sending first.', true);
-  if (vpRecvAll(o, l)) return vpSay(id, 'All of this line has already reached us — nothing is left to send.', true);
   const left = Math.max(0, Math.round((vpQty(o, l) - vpVsSum(vpVsOf(o, l))) * 100) / 100);
   const qty = run ? Math.round(Math.min(typed, left) * 100) / 100 : Math.min(Math.floor(typed), Math.floor(left));
   if (!(qty > 0)) return vpSay(id, left > 0 ? 'Pieces are whole numbers — type 1 or more.' : 'You have already said all of it is sent.', true);

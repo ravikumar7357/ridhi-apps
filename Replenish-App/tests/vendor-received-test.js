@@ -44,7 +44,7 @@ const ruf = { orderType: 'running', flowProg: { items: { 'SHP-2__R': { back: 9 }
   lines: [{ flowKey: 'SHP-2__R', flowPart: 'SHP-2__R|body', meters: 9 }, { flowKey: 'SHP-2__R', flowPart: 'SHP-2__R|ruffle', meters: 2 }] };
 ok('…the ruffle cloth counts on its own line', P.vpRecvOf(ruf.lines[0], ruf).qty === 9 && P.vpRecvOf(ruf.lines[1], ruf).qty === 2);
 ok('…received in full is "all in"; part-received is not', P.vpRecvAll(one, one.lines[0]) && !P.vpRecvAll(comb, comb.lines[0]));
-ok('…no box on a line received in full', !/data-vsadd/.test(P.vpVsHtml(one, one.lines[0], 0, 1, 'pcs', 'td')));
+ok('…the printer can still record what it sent on a line we received in full (14 Nov)', /data-vsadd/.test(P.vpVsHtml(one, one.lines[0], 0, 1, 'pcs', 'td')));
 ok('…the box stays on a part-received line', /data-vsadd/.test(P.vpVsHtml(comb, comb.lines[0], 0, 10, 'm', 'td')));
 
 /* ---- the office: the challans themselves ---- */
