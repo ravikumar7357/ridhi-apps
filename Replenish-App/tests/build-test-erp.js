@@ -86,20 +86,39 @@ const GUARD = `<script>/* TEST ERP GUARD — added by Replenish-App/tests/build-
     if (val == null) delete cur[segs[segs.length - 1]]; else cur[segs[segs.length - 1]] = val;
     for (var j = segs.length - 2; j >= 0; j--) { if (Object.keys(path[j + 1]).length === 0) delete path[j][segs[j]]; else break; }
   }
+  /* FAST (Ravi, 14 Nov: "more fast"): the copy is kept as ready JSON TEXT (in this page's memory + IndexedDB), so it is never
+   * converted back and forth on an open; a screen gets it AT ONCE, and "what changed since" is asked in the background right
+   * after (one at a time per list) — the next open has the changes. Only a list never seen here waits for ERP data. */
+  var SBMEM = {}, SBBUSY = {};
+  function sbStore(key, m) { SBMEM[key] = m; sbCopy(key, { text: m.text, upto: m.upto, at: m.at }); }
+  function sbFull(key, p, tok, origFetch) {
+    return sbRpc('rt_get_v', { p_path: p }, tok, origFetch).then(function (r) {
+      var m = { text: JSON.stringify(r.v === undefined ? null : r.v), upto: r.upto, at: Date.now() }; sbStore(key, m); return m;
+    });
+  }
+  function sbRefresh(key, p, tok, origFetch) {
+    if (SBBUSY[key]) return SBBUSY[key];
+    var m = SBMEM[key];
+    var job = sbRpc('rt_changes', { p_reg: p, p_upto: m.upto }, tok, origFetch).then(function (r) {
+      if (!r || r.full) return sbFull(key, p, tok, origFetch);
+      var ks = Object.keys(r.ch || {});
+      if (!ks.length) { if (r.upto !== m.upto) sbStore(key, { text: m.text, upto: r.upto, at: m.at }); return SBMEM[key]; }
+      var v = JSON.parse(m.text);
+      if (Array.isArray(v) || v == null || typeof v !== 'object') return sbFull(key, p, tok, origFetch);
+      ks.forEach(function (k) { sbSet(v, k.split('/'), r.ch[k]); });
+      var n = { text: JSON.stringify(v), upto: r.upto, at: m.at }; sbStore(key, n); return n;
+    }).catch(function (e) { try { console.warn('[TEST ERP] could not ask ERP data for changes of ' + p + ': ' + e.message); } catch (x) {} return SBMEM[key]; })
+      .then(function (x) { delete SBBUSY[key]; return x; });
+    SBBUSY[key] = job;
+    return job;
+  }
   function sbWhole(p, tok, origFetch) {
     var key = window.__TEST_ERP.sb.url + '|' + p;
-    function full() { return sbRpc('rt_get_v', { p_path: p }, tok, origFetch).then(function (r) { sbCopy(key, { v: r.v, upto: r.upto, at: Date.now() }); return r.v; }); }
-    return sbCopy(key).then(function (c) {
-      if (!c || c.upto == null || Date.now() - (c.at || 0) > 6 * 3600000) return full();
-      return sbRpc('rt_changes', { p_reg: p, p_upto: c.upto }, tok, origFetch).then(function (r) {
-        if (!r || r.full) return full();
-        var ks = Object.keys(r.ch || {});
-        if (!ks.length) { if (r.upto !== c.upto) sbCopy(key, { v: c.v, upto: r.upto, at: c.at }); return c.v; }
-        if (Array.isArray(c.v) || c.v == null || typeof c.v !== 'object') return full();
-        ks.forEach(function (k) { sbSet(c.v, k.split('/'), r.ch[k]); });
-        sbCopy(key, { v: c.v, upto: r.upto, at: c.at });
-        return c.v;
-      });
+    var fromMem = SBMEM[key] ? Promise.resolve(SBMEM[key]) : sbCopy(key).then(function (c) { if (c && typeof c.text === 'string' && c.upto != null) SBMEM[key] = c; return SBMEM[key] || null; });
+    return fromMem.then(function (m) {
+      if (!m || Date.now() - (m.at || 0) > 6 * 3600000) return sbFull(key, p, tok, origFetch).then(function (x) { return x.text; });
+      sbRefresh(key, p, tok, origFetch);                 /* in the background: the next open has the changes */
+      return m.text;
     });
   }
   function sbRtdb(url, origFetch) {
@@ -115,12 +134,14 @@ const GUARD = `<script>/* TEST ERP GUARD — added by Replenish-App/tests/build-
     var memoKey = JSON.stringify(body) + (q.get('shallow') || '');
     var M = window.__TEST_ERP.sbMemo || (window.__TEST_ERP.sbMemo = {});
     var hit = M[memoKey];
-    if (hit && Date.now() - hit.t < 20000) return hit.p.then(function (x) { return new Response(x.text, { status: x.status, statusText: x.statusText, headers: { 'Content-Type': 'application/json', ETag: 'sb' } }); });
+    var isWhole = p && p.indexOf('/') < 0 && !body.p_order_by && !q.get('shallow');   /* whole lists have their own copy (sbWhole) */
+    if (!isWhole && hit && Date.now() - hit.t < 20000) return hit.p.then(function (x) { return new Response(x.text, { status: x.status, statusText: x.statusText, headers: { 'Content-Type': 'application/json', ETag: 'sb' } }); });
     window.__TEST_ERP.sbReads++;
     /* a WHOLE list (the big reads every page makes): from this browser's own copy + only the records saved since */
     var whole = p && p.indexOf('/') < 0 && !body.p_order_by && !q.get('shallow');
     var vp = whole ? sbWhole(p, tok, origFetch) : sbRpc('rt_get', body, tok, origFetch);
     var p0 = vp.then(function (v) {
+      if (typeof v === 'string') return new Response(v, { status: 200, headers: { 'Content-Type': 'application/json', ETag: 'sb' } });   /* a whole list: its ready text */
       if (q.get('shallow') === 'true' && v && typeof v === 'object') { var o = {}; Object.keys(v).forEach(function (k) { o[k] = true; }); v = o; }
       return new Response(JSON.stringify(v), { status: 200, headers: { 'Content-Type': 'application/json', ETag: 'sb' } });
     }, function (e) {   /* the real reason goes into the message the screen shows ("…answered 503 ERP data 500: <why>") */
@@ -128,9 +149,9 @@ const GUARD = `<script>/* TEST ERP GUARD — added by Replenish-App/tests/build-
       return new Response(JSON.stringify({ error: e.message }), { status: 503, statusText: String(e.message).replace(/[^\\x20-\\x7e]/g, ' ').slice(0, 180), headers: { 'Content-Type': 'application/json' } });
     });
     /* kept only when it worked: a refused or failed read is asked again next time */
-    var keep = p0.then(function (r) { return r.clone().text().then(function (t) { if (!r.ok) delete M[memoKey]; return { text: t, status: r.status, statusText: r.statusText }; }); });
-    keep.catch(function () { delete M[memoKey]; });
-    M[memoKey] = { t: Date.now(), p: keep };
+    var keep = isWhole ? null : p0.then(function (r) { return r.clone().text().then(function (t) { if (!r.ok) delete M[memoKey]; return { text: t, status: r.status, statusText: r.statusText }; }); });
+    if (keep) keep.catch(function () { delete M[memoKey]; });
+    if (!isWhole) M[memoKey] = { t: Date.now(), p: keep };
     return p0;
   }
   function tell(what) {
