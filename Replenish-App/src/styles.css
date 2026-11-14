@@ -1840,13 +1840,8 @@ button.otk-it{cursor:pointer}button.otk-it:hover{text-decoration:underline}
 .fr-homenav{display:flex;align-items:center;gap:6px;border:0;background:var(--brand-bg,#E9EFF6);color:var(--brand-ink,#3A5573);font-weight:700;
   border-radius:var(--r-pill,999px);padding:8px 14px;margin-right:6px;cursor:pointer;white-space:nowrap;font-size:13px}
 .fr-homenav.on{background:var(--brand,#4A6A92);color:#fff}
-.fr-homenav b,#frWorkBtn b{background:var(--bad,#850000);color:#fff;border-radius:999px;padding:0 7px;line-height:18px;font-size:11px;min-width:20px;text-align:center}
 /* Top bar buttons. */
-#frCtl{display:flex;align-items:center;gap:6px;margin-left:auto;margin-right:8px}
-#frCtl button{display:inline-flex;align-items:center;gap:7px;height:34px;padding:0 12px;border-radius:var(--r-pill,999px);font-size:12.5px;font-weight:700;white-space:nowrap;cursor:pointer}
-#frWorkBtn{background:var(--brand,#4A6A92);color:#fff;border:0}
-#frFindBtn{background:var(--soft,#F7F9FB);color:var(--muted,#5A6472);border:1px solid var(--line,#E8EDF3);font-weight:600}
-#frFindBtn kbd,#frPal kbd,#frHome kbd{font:11px ui-monospace,Consolas,monospace;background:#fff;border:1px solid var(--line,#E8EDF3);border-radius:5px;padding:1px 5px;color:var(--muted,#5A6472)}
+#frPal kbd,#frHome kbd{font:11px ui-monospace,Consolas,monospace;background:#fff;border:1px solid var(--line,#E8EDF3);border-radius:5px;padding:1px 5px;color:var(--muted,#5A6472)}
 
 /* The screen: it takes the place of the app's screens while it is open. */
 .main.fr-home-on > *:not(.topbar):not(#frHome){display:none!important}
@@ -1895,9 +1890,6 @@ div.fr-stat{cursor:default}
   .fr-card{flex-wrap:wrap}
   .fr-go{margin-left:46px}
 }
-html.mob #frCtl{margin:0 4px 0 auto}
-html.mob #frFindBtn span,html.mob #frFindBtn kbd,html.mob #frWorkBtn{display:none}
-html.mob #frCtl button{height:30px;padding:0 9px}
 
 /* One card per approval: its own Approve and Open; Approve all; red counts on the menu groups; the "done" note. */
 .fr-grp h3{display:flex;align-items:center;justify-content:space-between;gap:10px}
@@ -1926,9 +1918,6 @@ html.mob #frCtl button{height:30px;padding:0 9px}
 .side a.nav .fr-tcnt{background:var(--bad,#850000);color:#fff;border-radius:999px;padding:0 6px;line-height:17px;font-size:10.5px;min-width:18px;text-align:center;margin-left:auto;font-variant-numeric:tabular-nums}
 .side a.nav .fr-tcnt.hide{display:none}
 /* The bell. */
-#frBell{position:relative;width:34px;padding:0!important;justify-content:center;background:#fff;color:var(--muted,#5A6472);border:1px solid var(--line,#E8EDF3)}
-#frBell i{position:absolute;top:6px;right:7px;width:8px;height:8px;border-radius:50%;background:var(--bad,#850000);box-shadow:0 0 0 2px #fff;display:none}
-#frBell.fr-unread i{display:block}
 .fr-bell{display:flex;flex-direction:column;gap:8px;max-height:52vh;overflow:auto}
 .fr-bell > div{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:12px;background:var(--soft,#F7F9FB)}
 .fr-bell span{flex:1;min-width:0;display:flex;flex-direction:column}
@@ -1985,3 +1974,7 @@ html.mob #frCtl button{height:30px;padding:0 9px}
 .fr-alertask{display:flex;align-items:center;gap:12px;background:var(--brand-bg,#E9EFF6);color:var(--brand-ink,#3A5573);border-radius:14px;padding:10px 12px 10px 16px;margin-bottom:14px;flex-wrap:wrap}
 .fr-alertask span{flex:1;min-width:220px}
 .fr-alertask .fr-yes{background:var(--brand,#4A6A92)}
+
+/* Search points at the part it found (14 Nov): a ring for a few seconds */
+.fr-spot{outline:3px solid #E07A1F!important;outline-offset:3px;border-radius:6px;animation:frSpot 1s ease-in-out 3}
+@keyframes frSpot{50%{outline-color:rgba(224,122,31,.25)}}

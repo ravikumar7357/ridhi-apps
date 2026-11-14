@@ -1895,13 +1895,8 @@ button.otk-it{cursor:pointer}button.otk-it:hover{text-decoration:underline}
 .fr-homenav{display:flex;align-items:center;gap:6px;border:0;background:var(--brand-bg,#E9EFF6);color:var(--brand-ink,#3A5573);font-weight:700;
   border-radius:var(--r-pill,999px);padding:8px 14px;margin-right:6px;cursor:pointer;white-space:nowrap;font-size:13px}
 .fr-homenav.on{background:var(--brand,#4A6A92);color:#fff}
-.fr-homenav b,#frWorkBtn b{background:var(--bad,#850000);color:#fff;border-radius:999px;padding:0 7px;line-height:18px;font-size:11px;min-width:20px;text-align:center}
 /* Top bar buttons. */
-#frCtl{display:flex;align-items:center;gap:6px;margin-left:auto;margin-right:8px}
-#frCtl button{display:inline-flex;align-items:center;gap:7px;height:34px;padding:0 12px;border-radius:var(--r-pill,999px);font-size:12.5px;font-weight:700;white-space:nowrap;cursor:pointer}
-#frWorkBtn{background:var(--brand,#4A6A92);color:#fff;border:0}
-#frFindBtn{background:var(--soft,#F7F9FB);color:var(--muted,#5A6472);border:1px solid var(--line,#E8EDF3);font-weight:600}
-#frFindBtn kbd,#frPal kbd,#frHome kbd{font:11px ui-monospace,Consolas,monospace;background:#fff;border:1px solid var(--line,#E8EDF3);border-radius:5px;padding:1px 5px;color:var(--muted,#5A6472)}
+#frPal kbd,#frHome kbd{font:11px ui-monospace,Consolas,monospace;background:#fff;border:1px solid var(--line,#E8EDF3);border-radius:5px;padding:1px 5px;color:var(--muted,#5A6472)}
 
 /* The screen: it takes the place of the app's screens while it is open. */
 .main.fr-home-on > *:not(.topbar):not(#frHome){display:none!important}
@@ -1950,9 +1945,6 @@ div.fr-stat{cursor:default}
   .fr-card{flex-wrap:wrap}
   .fr-go{margin-left:46px}
 }
-html.mob #frCtl{margin:0 4px 0 auto}
-html.mob #frFindBtn span,html.mob #frFindBtn kbd,html.mob #frWorkBtn{display:none}
-html.mob #frCtl button{height:30px;padding:0 9px}
 
 /* One card per approval: its own Approve and Open; Approve all; red counts on the menu groups; the "done" note. */
 .fr-grp h3{display:flex;align-items:center;justify-content:space-between;gap:10px}
@@ -1981,9 +1973,6 @@ html.mob #frCtl button{height:30px;padding:0 9px}
 .side a.nav .fr-tcnt{background:var(--bad,#850000);color:#fff;border-radius:999px;padding:0 6px;line-height:17px;font-size:10.5px;min-width:18px;text-align:center;margin-left:auto;font-variant-numeric:tabular-nums}
 .side a.nav .fr-tcnt.hide{display:none}
 /* The bell. */
-#frBell{position:relative;width:34px;padding:0!important;justify-content:center;background:#fff;color:var(--muted,#5A6472);border:1px solid var(--line,#E8EDF3)}
-#frBell i{position:absolute;top:6px;right:7px;width:8px;height:8px;border-radius:50%;background:var(--bad,#850000);box-shadow:0 0 0 2px #fff;display:none}
-#frBell.fr-unread i{display:block}
 .fr-bell{display:flex;flex-direction:column;gap:8px;max-height:52vh;overflow:auto}
 .fr-bell > div{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:12px;background:var(--soft,#F7F9FB)}
 .fr-bell span{flex:1;min-width:0;display:flex;flex-direction:column}
@@ -2040,6 +2029,10 @@ html.mob #frCtl button{height:30px;padding:0 9px}
 .fr-alertask{display:flex;align-items:center;gap:12px;background:var(--brand-bg,#E9EFF6);color:var(--brand-ink,#3A5573);border-radius:14px;padding:10px 12px 10px 16px;margin-bottom:14px;flex-wrap:wrap}
 .fr-alertask span{flex:1;min-width:220px}
 .fr-alertask .fr-yes{background:var(--brand,#4A6A92)}
+
+/* Search points at the part it found (14 Nov): a ring for a few seconds */
+.fr-spot{outline:3px solid #E07A1F!important;outline-offset:3px;border-radius:6px;animation:frSpot 1s ease-in-out 3}
+@keyframes frSpot{50%{outline-color:rgba(224,122,31,.25)}}
 /* ================= THE GUIDE CHARACTER (guide.js, 2026-10-21) =================
    Above everything, the scanner included (9999): the dim, the lit box, the arrow, Master ji and his bubble. */
 #gdRoot{position:fixed;inset:0;z-index:10050;pointer-events:none}
@@ -86835,8 +86828,7 @@ if (typeof GUIDE_TOURS !== 'undefined') GUIDE_TOURS.mywork = [
   { sel: '.fr-grp[data-fr-grp="wait"] .fr-card', en: '<b>Waiting for you</b>: one card per kind of work. <b>Open list</b> opens that list on its own screen.', hi: '<b>Waiting for you</b>: हर तरह के काम का एक कार्ड। <b>Open list</b> से वो लिस्ट उसकी अपनी स्क्रीन पर खुलती है।' },
   { sel: '.fr-grp[data-fr-grp="bad"] .fr-card', en: '<b>Problems</b>: things to put right, like SKUs selling but out of stock on Amazon.', hi: '<b>Problems</b>: जो ठीक करना है, जैसे Amazon पर बिकते SKU जिनका स्टॉक खत्म है।' },
   { sel: '.side', en: 'The red numbers on the menu say how many items wait on each screen.', hi: 'मेन्यू पर लाल नंबर बताते हैं कि किस स्क्रीन पर कितना काम बाकी है।' },
-  { sel: '#frBell', en: 'The bell lists what is new since you last looked.', hi: 'घंटी में वो काम दिखते हैं जो पिछली बार के बाद आए।' },
-  { sel: '#frFindBtn', en: '<b>Search</b> (or Ctrl K): type a screen, an order, a SKU or a name, and jump straight to it.', hi: '<b>Search</b> (या Ctrl K): स्क्रीन, ऑर्डर, SKU या नाम लिखें, और सीधे वहाँ पहुँचें।' },
+  { en: 'Meera’s round button (bottom right) holds <b>What’s new</b>, <b>My work today</b> and <b>Search</b> — Ctrl K opens Search from any screen. A red number on her circle means something new is waiting.', hi: 'मीरा के गोल बटन (नीचे दाईं ओर) में <b>What’s new</b>, <b>My work today</b> और <b>Search</b> हैं — किसी भी स्क्रीन पर Ctrl K से Search खुलता है। उसके गोले पर लाल नंबर मतलब कुछ नया आया है।' },
   { sel: '#frHome .fr-hright', en: '<b>How this page works</b> replays this. Admins also get <b>Viewing as</b> and <b>Roles</b>: the page as each team sees it.', hi: '<b>How this page works</b> से यह फिर से चलता है। एडमिन को <b>Viewing as</b> और <b>Roles</b> भी मिलते हैं: हर टीम को पेज कैसा दिखता है।' }
 ];
 
@@ -86881,7 +86873,8 @@ function frCount() {
   const cards = frCards(), byTab = {};
   cards.forEach(c => { byTab[c.tab] = (byTab[c.tab] || 0) + c.n; });
   const total = cards.reduce((s, c) => s + c.n, 0), cnt = n => n > 999 ? '999+' : n.toLocaleString('en-IN');
-  ['frWorkN', 'frHomeN'].forEach(id => { const c = $(id); if (c) { c.textContent = cnt(total); c.classList.toggle('hide', !total); } });
+  FR.total = total;
+  ['frHomeN'].forEach(id => { const c = $(id); if (c) { c.textContent = cnt(total); c.classList.toggle('hide', !total); } });
   document.querySelectorAll('.side .navgrp[data-tabs]').forEach(b => {
     const n = b.dataset.tabs.split(',').reduce((s, t) => s + (byTab[t.trim()] || 0), 0);
     let c = b.querySelector('.fr-gcnt');
@@ -86895,7 +86888,7 @@ function frCount() {
     if (!c) { c = document.createElement('b'); c.className = 'fr-tcnt'; a.appendChild(c); }
     c.textContent = cnt(n); c.classList.toggle('hide', !n || own);
   });
-  const bell = $('frBell'); if (bell) bell.classList.toggle('fr-unread', frNew(cards).length > 0);
+  frMeeraBadge(frNew(cards).length);
 }
 
 /* ---------- Later ---------- */
@@ -87024,7 +87017,7 @@ function frScreens() {
     const tab = a.getAttribute('href').slice(1);
     const name = ((a.querySelector('.nav-t') || a).textContent || '').replace(/\d+\s*$/, '').trim();
     const grp = a.closest('.navsec') && a.closest('.navsec').previousElementSibling;
-    return { tab, name, grp: grp && grp.classList.contains('navgrp') ? grp.textContent.replace(/\d+\s*$/, '').trim() : '', a };   // the group's red count is not part of its name
+    return { tab, name, grp: grp && grp.classList.contains('navgrp') ? grp.textContent.replace(/\d+\s*$/, '').replace(/^[^\p{L}\p{N}]+/u, '').trim() : '', a };   // the group's red count and its ▸ are not part of its name
   }).filter(s => s.tab && s.name && !seen.has(s.tab) && seen.add(s.tab)
     && s.a.style.display !== 'none' && !s.a.closest('.hide') && (!ME.tabs || !ME.tabs.length || ME.tabs.includes(s.tab)));
 }
@@ -87034,22 +87027,120 @@ function frSearchBox(tab) {
   if (!pane) return null;
   return [...pane.querySelectorAll('input')].find(i => /search|filter/i.test(i.placeholder || '') && !/^(employee|sku \(|colour|size|pieces|remarks)/i.test(i.placeholder)) || null;
 }
+/* SEARCH FINDS EVERY PART OF EVERY SCREEN (Ravi, 14 Nov: "it does not know all the features and buttons of the site — even
+ * if I am searching for fabric leader in the greige desk it is able to find it", "with recent search of last 3").
+ * The parts are Meera's: every button, tab, column, box and option she can explain is one of her answers with p =
+ * [name, kind, …, where it is] (/guide/meera-bank.json, read once when Search first opens — her own copy, so the browser
+ * mostly has it already). A word may be misspelt by a letter or two ("leader" still finds "ledger"). Picking a part opens
+ * its screen and points at it. The last three things picked come first, for this person in this browser.
+ * If her list cannot be read, Search simply finds screens as before. */
+const FR_KIND = { button: 'Button', tab: 'Tab', column: 'Column', box: 'Box', option: 'Option', check: 'Tick box', link: 'Link', filter: 'Filter' };
+const frWordsOf = t => String(t || '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim().split(' ').filter(Boolean);
+/** Letters to change to turn one word into the other (stops once it is more than 2). */
+function frLev(a, b) {
+  if (Math.abs(a.length - b.length) > 2) return 3;
+  let prev = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i++) {
+    const row = [i];
+    for (let j = 1; j <= b.length; j++) row[j] = Math.min(prev[j] + 1, row[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    prev = row;
+  }
+  return prev[b.length];
+}
+/** How well one typed word fits a name's words: 2 the same or its start, 1 misspelt (a letter off — "lst" for list; two in a long word), 0 not at all. */
+function frWordHit(w, words) {
+  let best = 0;
+  for (const t of words) {
+    if (t === w || (w.length >= 2 && t.startsWith(w))) return 2;
+    if (w.length >= 3 && frLev(w, t) <= (w.length >= 6 ? 2 : 1)) best = 1;
+  }
+  return best;
+}
+/** Every typed word must fit the name or its screen; the name counts more. { s, inName } — s 0 when a word fits nowhere. */
+function frScore(words, nameWords, screenWords) {
+  let s = 0, inName = 0;
+  for (const w of words) {
+    const n = frWordHit(w, nameWords), o = frWordHit(w, screenWords) * 0.6;
+    if (!n && !o) return { s: 0, inName: 0 };
+    s += Math.max(n, o); if (n) inName++;
+  }
+  return { s, inName };
+}
+function frPartsLoad() {
+  if (FR.parts) return;
+  FR.parts = [];
+  fetch('/guide/meera-bank.json').then(r => (r.ok ? r.json() : [])).then(list => {
+    /* Over 40 letters it is a hint read out of a box ("Mill's lot no, or leave blank on a delivery"), not a name. */
+    FR.parts = (Array.isArray(list) ? list : []).filter(e => e && Array.isArray(e.p) && e.p[0] && e.tab && String(e.p[0]).trim().length <= 40)
+      .map(e => ({ id: e.id, tab: e.tab, label: String(e.p[0]).trim(), kind: String(e.p[1] || ''), sel: e.p[5] || '', w: frWordsOf(e.p[0]) }));
+    if (!$('frPal').classList.contains('hide')) frPalDraw();
+  }).catch(() => { /* her list could not be read: Search finds screens, as before */ });
+}
+/** The parts that fit, on the screens this person can open: best first, one per name per screen. */
+function frPartHits(words, scr) {
+  const names = new Map(scr.map(s => [s.tab, s.name])), seen = new Set();
+  return (FR.parts || []).filter(p => names.has(p.tab))
+    .map(p => Object.assign({ r: frScore(words, p.w, frWordsOf(names.get(p.tab))) }, p))
+    .filter(p => p.r.inName)
+    .sort((a, b) => b.r.s - a.r.s || a.label.length - b.label.length)
+    .filter(p => { const k = p.tab + '|' + p.label.toLowerCase(); return !seen.has(k) && seen.add(k); })
+    .slice(0, 8).map(p => Object.assign(p, { screen: names.get(p.tab) }));
+}
+/** The part on its screen, once the screen is open: by Meera's own pointer, else by its name on a button, tab or heading. */
+function frPartEl(p) {
+  const pane = $('pane' + p.tab.charAt(0).toUpperCase() + p.tab.slice(1)) || document;
+  const vis = el => el && el.offsetParent !== null;
+  if (p.sel) { try { const el = [...pane.querySelectorAll(p.sel), ...document.querySelectorAll(p.sel)].find(vis); if (el) return el; } catch (e) { /* not a pointer this page knows */ } }
+  const want = p.label.toLowerCase();
+  const el = [...pane.querySelectorAll('button, [role="tab"], a, th, label, summary, h2, h3, h4, option')]
+    .find(x => (x.textContent || '').replace(/\s+/g, ' ').trim().replace(/\s*\d+$/, '').toLowerCase() === want && vis(x.tagName === 'OPTION' ? x.closest('select') : x));
+  return el ? (el.tagName === 'OPTION' ? el.closest('select') : el) : null;
+}
+/** Open the part's screen and ring the part. Some parts show only once something is open on the screen (Save packing
+ *  list needs a packing list): after 5 s of looking, say so instead of leaving the person wondering. */
+function frGoPart(p, n = 25) {
+  if (n === 25) showTab(p.tab);
+  const el = frPartEl(p);
+  if (el) { el.scrollIntoView({ block: 'center', behavior: 'smooth' }); el.classList.add('fr-spot'); setTimeout(() => el.classList.remove('fr-spot'), 4000); return; }
+  if (n > 0) { setTimeout(() => frGoPart(p, n - 1), 200); return; }
+  const where = (frScreens().find(s => s.tab === p.tab) || { name: 'this screen' }).name;
+  frToast(`“${p.label}” is not showing on ${where} right now — it appears once its list or entry is open.`);
+}
+function frFindIn(tab, q) {
+  showTab(tab);
+  setTimeout(() => { const box = frSearchBox(tab); if (!box) return; box.value = q; box.focus();
+    ['input', 'keyup', 'change'].forEach(ev => box.dispatchEvent(new Event(ev, { bubbles: true }))); }, 250);
+}
+/* THE LAST THREE PICKS — kept in this browser for this person: what was picked, to open it again. */
+const frRecentKey = () => 'fr.recent.' + ((ME && ME.email) || '');
+function frRecent() { try { return (JSON.parse(localStorage.getItem(frRecentKey()) || '[]') || []).slice(0, 3); } catch (e) { return []; } }
+function frRecentAdd(it) {
+  const r = { label: it.label, sm: it.sm || '', rec: it.rec }, k = JSON.stringify(it.rec);
+  try { localStorage.setItem(frRecentKey(), JSON.stringify([r].concat(frRecent().filter(x => JSON.stringify(x.rec) !== k)).slice(0, 3))); } catch (e) { /* this visit only */ }
+}
+function frRecentRun(rec) {
+  if (rec.t === 'mywork') return frHomeShow();
+  if (rec.t === 'screen') return showTab(rec.tab);
+  if (rec.t === 'find') return frFindIn(rec.tab, rec.q);
+  if (rec.t === 'part') { frPartsLoad(); frWhen(() => (FR.parts || []).some(p => p.id === rec.id), () => frGoPart(FR.parts.find(p => p.id === rec.id)), 40); }
+}
 function frItems(q) {
-  const words = q.toLowerCase().split(/\s+/).filter(Boolean), scr = frScreens(), out = [];
-  const match = t => words.every(w => t.toLowerCase().includes(w));
-  if (!q || match('my work today')) out.push({ sec: 'Screens', label: 'My work today', sm: 'Everything waiting for you', run: frHomeShow });
-  scr.filter(s => !q || match(s.name + ' ' + s.grp)).forEach(s => out.push({ sec: 'Screens', label: s.name, sm: s.grp, run: () => showTab(s.tab) }));
-  if (q) {
+  const words = frWordsOf(q), scr = frScreens(), out = [];
+  const fits = (name, where) => !words.length || frScore(words, frWordsOf(name), frWordsOf(where)).s > 0;
+  if (!words.length) frRecent().forEach(r => out.push({ sec: 'Recent', label: r.label, sm: r.sm, rec: r.rec, run: () => frRecentRun(r.rec) }));
+  if (fits('My work today', '')) out.push({ sec: 'Screens', label: 'My work today', sm: 'Everything waiting for you', rec: { t: 'mywork' }, run: frHomeShow });
+  scr.filter(s => fits(s.name, s.grp)).forEach(s => out.push({ sec: 'Screens', label: s.name, sm: s.grp, rec: { t: 'screen', tab: s.tab }, run: () => showTab(s.tab) }));
+  if (words.length) {
+    frPartHits(words, scr).forEach(p => out.push({ sec: 'Buttons and parts', label: p.label, sm: `${FR_KIND[p.kind] || 'Part'} · ${p.screen}`,
+      rec: { t: 'part', id: p.id }, run: () => frGoPart(p) }));
     const now = FR.shown ? '' : (typeof TAB_NOW !== 'undefined' ? TAB_NOW : '');
-    scr.filter(s => frSearchBox(s.tab)).sort((a, b) => (b.tab === now) - (a.tab === now)).forEach(s => out.push({
-      sec: 'Find it', label: `Find “${q}” in ${s.name}`, sm: frSearchBox(s.tab).placeholder,
-      run: () => { showTab(s.tab); setTimeout(() => { const box = frSearchBox(s.tab); if (!box) return; box.value = q; box.focus();
-        ['input', 'keyup', 'change'].forEach(ev => box.dispatchEvent(new Event(ev, { bubbles: true }))); }, 250); } }));
+    scr.filter(s => frSearchBox(s.tab)).sort((a, b) => (b.tab === now) - (a.tab === now)).slice(0, 6).forEach(s => out.push({
+      sec: 'Find it', label: `Find “${q}” in ${s.name}`, sm: frSearchBox(s.tab).placeholder, rec: { t: 'find', tab: s.tab, q }, run: () => frFindIn(s.tab, q) }));
   }
   [{ label: 'Walk me round this screen (Meera)', run: () => guideStart(TAB_NOW, true), if: typeof guideStart === 'function' },
    { label: 'Open the written guide · गाइड', run: () => $('guideBtn').click(), if: !!$('guideBtn') }]
-    .filter(a => a.if && (!q || match(a.label))).forEach(a => out.push({ sec: 'Help', label: a.label, sm: '', run: a.run }));
-  return out.slice(0, 16);
+    .filter(a => a.if && fits(a.label, '')).forEach(a => out.push({ sec: 'Help', label: a.label, sm: '', run: a.run }));
+  return out.slice(0, 24);
 }
 function frPalDraw() {
   const q = $('frQ').value.trim();
@@ -87065,9 +87156,50 @@ function frPalMove(d) {
   FR.sel = (FR.sel + d + rows.length) % rows.length;
   rows.forEach((r, i) => r.classList.toggle('on', i === FR.sel)); rows[FR.sel].scrollIntoView({ block: 'nearest' });
 }
-function frPalGo(i) { const it = FR.items[i]; frPalClose(); if (it) it.run(); }
-function frPalOpen() { $('frPal').classList.remove('hide'); $('frQ').value = ''; frPalDraw(); setTimeout(() => $('frQ').focus(), 10); }
+function frPalGo(i) { const it = FR.items[i]; frPalClose(); if (!it) return; FR.touched = true; if (it.rec) frRecentAdd(it); it.run(); }
+function frPalOpen() { frPartsLoad(); $('frPal').classList.remove('hide'); $('frQ').value = ''; frPalDraw(); setTimeout(() => $('frQ').focus(), 10); }
 function frPalClose() { $('frPal').classList.add('hide'); }
+
+/* ---------- In Meera's circle ----------
+ * Ravi, 14 Nov: "put these notification and search feature inside meera's circle". The bell, My work and Search are not
+ * in the top bar any more: they are the first items of the menu on Meera's own round button (#gdLaunch / #gdMenu — made
+ * by Meera's files, which are not changed here). Her menu is drawn afresh each time it opens, so these items are put back
+ * on top whenever it is. Her button may sit in a layer of its own (#meera-host, Meera's design switch), so it is looked
+ * for there too, and the items carry their own look. The red number on her circle is what is new since you last looked
+ * (the bell's), not the whole of My work. With Meera off there is no circle: My work today is still the menu's first
+ * item, and Ctrl K still opens Search. */
+const frGd = id => document.getElementById(id) || ((($('meera-host') || {}).shadowRoot) || { getElementById: () => null }).getElementById(id);
+const FR_MNUM = 'margin-left:auto;background:#850000;color:#fff;border-radius:999px;font-size:11px;font-weight:700;padding:1px 8px;line-height:16px';
+function frMenuItems() {
+  const fresh = frNew(frCards()).length, tot = FR.total || 0, cnt = n => (n > 999 ? '999+' : n.toLocaleString('en-IN'));
+  const item = (m, icon, title, sub, right) => `<button type="button" data-frm="${m}">${icon}<span><b>${title}</b><small>${sub}</small></span>${right || ''}</button>`;
+  return item('new', '🔔', 'What’s new', 'Since you last looked', fresh ? `<i style="${FR_MNUM};font-style:normal">${cnt(fresh)}</i>` : '')
+    + item('work', '✅', 'My work today', 'Approvals, waiting, problems', tot ? `<i style="${FR_MNUM};font-style:normal">${cnt(tot)}</i>` : '')
+    + item('find', '🔍', 'Search', 'Screens, buttons, orders, SKUs', '<i style="margin-left:auto;white-space:nowrap;font:10.5px ui-monospace,Consolas,monospace;font-style:normal;border:1px solid #D5DCE5;border-radius:5px;padding:0 5px;color:#5A6472">Ctrl K</i>')
+    + (frAlertCan() ? item('alerts', '🖥️', 'Desktop alerts ' + (frAlertOn() ? 'on' : 'off'), 'A pop-up for each new approval') : '');
+}
+function frMeeraMenu() {
+  frWhen(() => frGd('gdMenu') && frGd('gdLaunch'), () => {
+    const menu = frGd('gdMenu');
+    const put = () => { if (!menu.classList.contains('hide') && !menu.querySelector('[data-frm]')) menu.insertAdjacentHTML('afterbegin', frMenuItems()); };
+    new MutationObserver(put).observe(menu, { childList: true, attributes: true, attributeFilter: ['class'] });
+    menu.addEventListener('click', e => {
+      const b = e.target.closest && e.target.closest('[data-frm]'); if (!b) return;
+      const m = b.dataset.frm;
+      if (m === 'alerts') { frAlertSet(!frAlertOn()).then(() => { menu.querySelectorAll('[data-frm]').forEach(x => x.remove()); put(); }); return; }
+      menu.classList.add('hide'); FR.touched = true;
+      if (m === 'new') frBellOpen(); else if (m === 'work') frHomeShow(); else if (m === 'find') frPalOpen();
+    });
+    frMeeraBadge(frNew(frCards()).length);
+  }, 600);   // Meera arrives a little after the page (when the computer is idle): up to two minutes
+}
+/** The red number on her circle: what is new since you last looked. */
+function frMeeraBadge(n) {
+  const go = frGd('gdLaunch'); if (!go) return;
+  let b = go.querySelector('[data-frbadge]');
+  if (!b) { b = document.createElement('span'); b.dataset.frbadge = ''; b.style.cssText = 'position:absolute;top:-3px;right:-3px;min-width:18px;height:18px;padding:0 5px;border-radius:999px;background:#850000;color:#fff;font:700 11px/18px system-ui,sans-serif;text-align:center;box-shadow:0 0 0 2px #fff;pointer-events:none'; go.appendChild(b); }
+  b.textContent = n > 99 ? '99+' : String(n); b.style.display = n ? '' : 'none';
+}
 
 /* ---------- the pieces on the page ---------- */
 
@@ -87086,25 +87218,14 @@ function frBuild() {
   home.id = 'frHome'; home.className = 'hide';
   const top = document.querySelector('main.main > .topbar');
   top.parentNode.insertBefore(home, top.nextSibling);
-  /* Top bar: My work and Search (on a phone, in its header). */
-  const ctl = document.createElement('span');
-  ctl.id = 'frCtl';
-  ctl.innerHTML = `<button type="button" id="frBell" title="What is new since you last looked" aria-label="What's new"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg><i></i></button>`
-    + `<button type="button" id="frWorkBtn" title="Everything waiting for you">My work <b id="frWorkN" class="hide">0</b></button>`
-    + `<button type="button" id="frFindBtn" title="Search screens, orders, SKUs — Ctrl K"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><span>Search</span><kbd>Ctrl K</kbd></button>`;
-  const phone = typeof mobOn === 'function' && mobOn() && $('mobHead'), host = $('topActs');
-  if (phone) phone.appendChild(ctl); else if (host && host.parentNode) host.parentNode.insertBefore(ctl, host); else document.body.appendChild(ctl);
   const wrap = document.createElement('div');
   wrap.innerHTML = `<div id="frPal" class="hide" role="dialog" aria-label="Search"><div class="fr-box">
       <input id="frQ" autocomplete="off" placeholder="Type a screen, an order no., a SKU or a name…">
       <div id="frList"></div>
       <div class="fr-foot"><span><kbd>↑</kbd> <kbd>↓</kbd> move</span><span><kbd>Enter</kbd> open</span><span><kbd>Esc</kbd> close</span></div></div></div>`;
   document.body.appendChild(wrap);
-  $('frWorkBtn').onclick = frHomeShow;
-  $('frBell').onclick = frBellOpen;
   document.addEventListener('keydown', frKeys);
   setInterval(frPoll, FR_POLL_MS);
-  $('frFindBtn').onclick = frPalOpen;
   $('frQ').oninput = frPalDraw;
   $('frQ').onkeydown = e => {
     if (e.key === 'ArrowDown') { e.preventDefault(); frPalMove(1); }
@@ -87125,13 +87246,14 @@ function frBuild() {
     const a = FR.shown && e.target.closest && e.target.closest('.side a.nav[href^="#"]');
     if (a && a.getAttribute('href').slice(1) === TAB_NOW) { frHomeHide(); showTab(TAB_NOW); }
   }, true);
+  frMeeraMenu();
   /* The badges change as their lists arrive after sign-in: keep the counts and the screen up to date. */
   const mo = new MutationObserver(() => { clearTimeout(FR.t); FR.t = setTimeout(() => { frCount(); frDraw(); }, 200); });
   document.querySelectorAll('.navbadge').forEach(b => mo.observe(b, { attributes: true, childList: true, characterData: true, subtree: true }));
   /* After sign-in, once the app has opened its first screen: My work today, and a few re-draws while the
    * background lists arrive. Shown once per sign-in; the menu item brings it back. */
-  /* …unless the person has already gone somewhere from the menu: then it never jumps in on top of their screen. */
-  document.addEventListener('click', e => { if (e.target.closest && e.target.closest('.side, #frCtl, #mobHead')) FR.touched = true; }, true);
+  /* …unless the person has already gone somewhere from the menu, Search or Meera's circle: then it never jumps in on top of their screen. */
+  document.addEventListener('click', e => { if (e.target.closest && e.target.closest('.side, #mobHead')) FR.touched = true; }, true);
   frWhen(() => !$('appView').classList.contains('hide') && typeof TAB_NOW !== 'undefined' && TAB_NOW && ME.email, () => {
     if (!FR.touched) frHomeShow();
     [1500, 4000, 8000, 15000].forEach(ms => setTimeout(() => { frCount(); frDraw(); }, ms));
