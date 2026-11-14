@@ -28988,9 +28988,14 @@ const shpbIsEmb = r => /embroid/i.test([r.articleSubtype, r.articleType, r.itemN
   || (typeof flowPlanRouteOf === 'function' && flowPlanRouteOf(r.orderNo, r.sku) === 'emb');
 const shpbEmbVendors = () => { let all = []; try { all = voAllVendors(); } catch (e) { all = []; }
   const f = all.filter(x => /embroid/i.test(String(x.category || ''))); return f.length ? f : all; };
+/* TYPED WHEN NOT ON THE LIST (Ravi, 14 Nov: "yadi dropdown me vendor ka name nahi h to me manually type kar saku"): the box offers the
+ * vendors as you type; a name on the list is saved with its vendor code, any other name is saved as typed (no code). */
+const shpbEmbName = x => String(x.desc || x.name || x.code);
 async function shpbIssueVendorSave(r, v) {
-  const pcs = parseInt(v.pcs, 10), ven = shpbEmbVendors().find(x => String(x.code) === String(v.ven));
-  if (!ven) return 'Pick the embroidery vendor.';
+  const typed = String(v.ven || '').trim(), low = typed.toLowerCase();
+  const pcs = parseInt(v.pcs, 10), ven = shpbEmbVendors().find(x => shpbEmbName(x).trim().toLowerCase() === low || String(x.code).toLowerCase() === low)
+    || (typed ? { code: '', desc: typed } : null);
+  if (!ven) return 'Pick or type the embroidery vendor.';
   if (!(pcs > 0)) return 'Type how many pieces are being issued.';
   const s = shpbStages([r]);
   if (pcs > s.issW) return `Only ${nf(s.issW)} piece(s) can be issued now.`;
@@ -29120,7 +29125,7 @@ function shpbDialog(act, key) {
     const go = () => ptOpenDialog({ title: (emb ? 'Issue to a karigar or an embroidery vendor — ' : 'Issue to a karigar — ') + who,
       subtitle: nf(s.issW) + ' can be issued now. Saved in the Job Work register, against this order.' + (emb ? ' An embroidery vendor\'s pieces come back with Receive, like a karigar\'s; they are not in any karigar payout.' : ''),
       fields: (emb ? [{ key: 'to', label: 'Issue to', type: 'select', options: [['karigar', 'Karigar'], ['vendor', 'Embroidery vendor (outside)']], value: 'karigar' },
-          { key: 'ven', label: 'Embroidery vendor (if vendor)', type: 'select', options: [['', '— pick —']].concat(shpbEmbVendors().map(x => [String(x.code), String(x.desc || x.name || x.code)])), value: '' }] : [])
+          { key: 'ven', label: 'Embroidery vendor (if vendor) — pick or type', list: [...new Set(shpbEmbVendors().map(shpbEmbName))], value: '' }] : [])
         .concat([{ key: 'emp', label: emb ? 'Karigar / contractor (if karigar)' : 'Karigar / contractor', list: (PTE.emp || []).map(e => String(e[1]).trim()).filter(Boolean), value: '' },
         { key: 'pcs', label: 'Pieces issued', type: 'number', min: 1, value: s.issW || '' }, { key: 'date', label: 'Issue date', type: 'date', value: shpbToday() }]),
       saveLabel: 'Issue', onSave: async v => { const err = await shpbIssueSave(r, v); if (!err) shpbAfter(); return err; } });
