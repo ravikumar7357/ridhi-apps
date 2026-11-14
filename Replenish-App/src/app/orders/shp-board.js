@@ -310,6 +310,13 @@ function shpbStatusCell(r, k, rd, late, edit) {
       + (rd.how ? ' <span class="muted" style="font-size:10px">' + (rd.how === 'set' ? 'set' + (rd.by ? ' · ' + esc(rd.by) : '') : esc(rd.how)) + '</span>' : '') + '</div>'
     + (stk ? '<div><span class="pill" style="background:#dcfce7;color:#166534" title="Completed from the ready stock in the India store, handed to shipping">' + nf(stk) + ' from stock</span></div>' : '')
     + (edit && left > 0 && have !== 0 && shpbIsShp() && shpbMay('stock') ? '<div><button type="button" class="ghost" data-shpb-act="stock" data-key="' + esc(k) + '" style="width:auto;padding:0 7px;font-size:10.5px;line-height:18px" title="Complete this order from pieces already made and held in the India store">From stock' + (have ? ' (' + nf(have) + ')' : '') + '</button></div>' : '')
+    /* SHIP BY MCF / BACK TO SALES (Ravi, 14 Nov: "ek option or add krna h back to sales team ya direct ek option that show ki ye order MCF me
+     * baha se ship karo jisase ye order yaha se close ho sake"). MCF closes the line here with that reason (orders/close-lines.js); Back to
+     * sales puts it with the sales team (flow/flow-back.js) — it leaves the board until they send it again. */
+    + (r.open && shpbIsShp() && (shpbCanMcf() || shpbCanBack()) ? '<div style="display:flex;gap:4px;margin-top:2px">'
+      + (shpbCanMcf() ? '<button type="button" class="ghost" data-shpb-act="mcf" data-key="' + esc(k) + '" style="width:auto;padding:0 7px;font-size:10.5px;line-height:18px" title="Ship this line from Amazon by MCF — it closes here">Ship by MCF</button>' : '')
+      + (shpbCanBack() ? '<button type="button" class="ghost" data-shpb-act="back" data-key="' + esc(k) + '" style="width:auto;padding:0 7px;font-size:10.5px;line-height:18px" title="Send to the sales team with what is wrong">Back to sales</button>' : '')
+      + '</div>' : '')
     + '</td>';
 }
 
@@ -350,7 +357,7 @@ function shpbStuck(r) {
   return out;
 }
 function shpbView() {
-  const f = ordFilters(), all = ordLines().filter(shpbBelongs), shown = ordApply(all, f);
+  const f = ordFilters(), all = ordLines().filter(r => shpbBelongs(r) && !(typeof flowIsBack === 'function' && flowIsBack(r))), shown = ordApply(all, f);
   const sOf = r => shpbStages([r]);
   const pend = shown.filter(r => r.open && sOf(r).prsD + sOf(r).stk < (+r.qty || 0));
   const done = shown.filter(r => { if (!r.open) return true; return sOf(r).prsD > 0 || sOf(r).stk > 0; });
@@ -562,11 +569,38 @@ async function shpbPressSave(r, v) {
 }
 const shpbAfter = () => { try { renderOrd(); } catch (e) { /* the next draw shows it */ } };
 
+const shpbCanMcf = () => typeof ordCanClose === 'function' && ordCanClose() && typeof ordCloseRun === 'function';
+const shpbCanBack = () => typeof flowBackWrite === 'function' && !!(ME.admin || shpbMay('plan') || (typeof flowCanBack === 'function' && flowCanBack()));
 function shpbDialog(act, key) {
   const r = shpbLineOf(key); if (!r) return;
   if (!shpbMay(act)) { $('odMsg').className = 'err'; $('odMsg').textContent = 'You do not have the right for this step — ask an admin.'; return; }
   const s = shpbStages([r]), who = (r.shopOrderNo || r.orderNo) + ' · ' + r.sku;
   if (act === 'print' || act === 'plan') { if (typeof flowPpcOpen === 'function') flowPpcOpen(r.orderNo, r.sku); return; }
+  if (act === 'mcf') {
+    if (!shpbCanMcf()) return;
+    return ptOpenDialog({ title: 'Ship by MCF — ' + who, subtitle: `${nf(+r.qty || 0)} pcs. The line closes on this board as "Ship by MCF" — the shipping team sends it from Amazon. Reopen it from the Order Console's Close lines if needed.`,
+      fields: [{ key: 'note', label: 'Note (optional)', value: '' }],
+      saveLabel: 'Close — ship by MCF',
+      onSave: async v => { const res = await ordCloseRun([{ orderNo: r.orderNo, sku: r.sku }], 'mcf', String(v.note || '').trim());
+        if (res && res.err) return res.err; if (res && res.skipped && res.skipped.length && !res.closed) return res.skipped.join(' · ');
+        shpbAfter(); return ''; } });
+  }
+  if (act === 'back') {
+    if (!shpbCanBack()) return;
+    return ptOpenDialog({ title: 'Back to the sales team — ' + who, subtitle: 'The line leaves this board and waits on top of Sales Orders until the sales team puts it right and sends it again.',
+      html: `<label>What is wrong<select id="shpbBkWhy">${FLOW_BACK_WHY.map(([x, t]) => `<option value="${x}">${esc(t)}</option>`).join('')}</select></label>`
+        + '<label>Note for the sales team<textarea id="shpbBkNote" rows="3" placeholder="What needs fixing"></textarea></label>',
+      saveLabel: 'Send back',
+      onSave: async () => {
+        const why = $('shpbBkWhy').value, note = $('shpbBkNote').value.trim();
+        if (why === 'other' && !note) return 'Write why it goes back.';
+        const at = new Date().toISOString(), by = ME.email || '';
+        const err = await flowBackWrite([{ orderNo: r.orderNo, sku: r.sku }], old => ({ at, by, why, note,
+          log: (old && Array.isArray(old.log) ? old.log.slice(-19) : []).concat([{ act: 'back', why, note, at, by }]) }));
+        if (err) return err;
+        shpbAfter(); return '';
+      } });
+  }
   if (act === 'stock') {
     return (async () => {
       try { if (!Array.isArray(FGI.rows)) FGI.rows = ptList(await ptGet('pt_fgiLedger')); } catch (e) { $('odMsg').className = 'err'; $('odMsg').textContent = 'Could not read the India store: ' + (e.message || e); return; }

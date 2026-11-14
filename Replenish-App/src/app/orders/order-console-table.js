@@ -76,7 +76,7 @@ function ordHead(cols, tick) {
 /** What a line is waiting for, in the Job Work pills. */
 /** Completed because of Shopify, in words the floor and the shipping team both read. */
 const SHP_DONE_TXT = why => ({ fulfilled: 'Fulfilled by shipping team', cancelled: 'Cancelled on Shopify', refunded: 'Refunded on Shopify',
-  'marked done': 'Marked done by shipping team', stock: 'Shipped from stock', partial: 'Closed at what was handed over',
+  'marked done': 'Marked done by shipping team', mcf: 'Ship by MCF', stock: 'Shipped from stock', partial: 'Closed at what was handed over',
   outside: 'Made outside', duplicate: 'Duplicate — closed', other: 'Closed by hand' })[why] || 'Fulfilled by shipping team';
 /** Shopify's word on a line production still has open: it changes nothing, so it says what to do. */
 const SHP_SAYS_TXT = why => ({ fulfilled: 'Shopify: shipped — not handed over by production', cancelled: 'Shopify: cancelled — production to decide',

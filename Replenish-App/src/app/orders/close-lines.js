@@ -15,6 +15,8 @@
 const ORD_CLOSE_WHY = [
   ['shopify', 'Shopify done — shipped / cancelled / refunded on Shopify'],
   ['stock', 'Shipped from stock (India / FBA / MCF), not from production'],
+  /* SHIP IT BY MCF (Ravi, 14 Nov: "ek option that show ki ye order MCF me baha se ship karo jisase ye order yaha se close ho sake") */
+  ['mcf', 'Ship by Amazon MCF — not made here'],
   ['partial', 'Rest not needed — close at what was handed over'],
   ['cancelled', 'Cancelled by the customer'],
   ['refunded', 'Refunded'],
@@ -25,7 +27,7 @@ const ORD_CLOSE_WHY = [
 const ordCanClose = () => !spIsVendor() && !!(ME.admin || (ME.tabs || []).indexOf('ord') >= 0 || (ME.tabs || []).indexOf('shop') >= 0);
 const ORD_CLOSE_NO = 'Closing lines needs the Order Console or the Shopify Orders tab.';
 /** What a close says on screen, by the reason it was given. */
-const ORD_CLOSE_TXT = { stock: 'Shipped from stock', partial: 'Closed at what was handed over', outside: 'Made outside', duplicate: 'Duplicate — closed', other: 'Closed by hand' };
+const ORD_CLOSE_TXT = { mcf: 'Ship by MCF', stock: 'Shipped from stock', partial: 'Closed at what was handed over', outside: 'Made outside', duplicate: 'Duplicate — closed', other: 'Closed by hand' };
 
 /** The order-book rows behind one order and SKU (a line can be more than one row). */
 const ordCloseRows = (orderNo, sku) => (PTG.ob || []).filter(r => r && obUC(r.orderNo) === obUC(orderNo) && obUC(r.sku) === obUC(sku));
