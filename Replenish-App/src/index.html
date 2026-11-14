@@ -697,6 +697,8 @@
         <div class="toolbar" id="vpTabs" style="margin-bottom:8px">
           <button id="vpTabBulk" class="ghost">Bulk orders</button>
           <button id="vpTabShop" class="ghost">Custom orders</button>
+          <!-- Lines the printer has said are sent in full, waiting for us to receive them (14 Nov). -->
+          <button id="vpTabVs" class="ghost hide">Vendor sent</button>
           <!-- Every line already sent in full, closed or cancelled — out of the way of the work still to do. -->
           <button id="vpTabDone" class="ghost">Completed</button>
           <!-- What they have sent, and what was kept. Built from their own branch, so it can only
@@ -721,6 +723,9 @@
             <option value="running">Running &mdash; metres</option>
           </select>
           <input id="vpQ" placeholder="Search order no, SKU, fabric…" style="flex:1 1 220px;min-width:0">
+          <!-- ORDER DATE FROM – TO (14 Nov) -->
+          <label class="muted" style="display:inline-flex;align-items:center;gap:4px;font-size:12px;flex:0 0 auto">From <input id="vpFrom" type="date" style="width:140px"></label>
+          <label class="muted" style="display:inline-flex;align-items:center;gap:4px;font-size:12px;flex:0 0 auto">To <input id="vpTo" type="date" style="width:140px"></label>
           <button id="vpPinBtn" class="ghost">Change my PIN</button>
           <button id="vpExport" class="ghost">Download Excel</button>
           <!-- VENDOR SENT FROM EXCEL (12 Nov): the printer's own sign-in only — vendors/portal/vendor-sent-excel.js -->

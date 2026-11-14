@@ -72,7 +72,12 @@ const vpIsCustom = o => vpIsShop(o) || vpIsPpcShop(o);
 let VP_PART = '';
 const vpLineIsDone = (o, l) => !!(l && (l.cancelled || ['Received', 'Cancelled'].indexOf((o && o.status) || '') >= 0
   || (vpQty(o, l) > 0 && vpQty(o, l) - vpDone(l) <= 0)));
-const vpPartOk = (o, l) => !VP_PART || (VP_PART === 'done') === vpLineIsDone(o, l);
+/* SENT BY THE PRINTER (Ravi, 14 Nov: "vendor apni qty enter vendor sent me to uske bad wo order vendor ko pending order list me show
+ * nahi hona chahiye — wo vendor sent me show hona chahiye"): a line the printer has said is sent in full (Vendor sent ≥ ordered) and
+ * that is not done yet leaves Bulk / Custom orders for its own tab, "Vendor sent", until it is received. Part-sent stays pending. */
+const vpLineIsVs = (o, l) => !!(l && !vpLineIsDone(o, l) && vpQty(o, l) > 0 && vpVsSum(vpVsOf(o, l)) >= vpQty(o, l));
+const vpPartOk = (o, l) => !VP_PART || (VP_PART === 'done' ? vpLineIsDone(o, l)
+  : VP_PART === 'vsent' ? vpLineIsVs(o, l) : (!vpLineIsDone(o, l) && !vpLineIsVs(o, l)));
 /** True when this account signs in with a cellphone and a PIN rather than a real email address. */
 const vpOnPin = () => String(ME.email || '').toLowerCase().indexOf('@vendors-tfr.app') >= 0;
 
@@ -259,7 +264,12 @@ const vpF = () => ({
   at: ($('vpAt') || {}).value || '', sub: ($('vpSub') || {}).value || '',
   col: ($('vpCol') || {}).value || '', sz: ($('vpSz') || {}).value || '',
   pri: ($('vpPri') || {}).value || '',
+  /* ORDER DATE FROM – TO (Ravi, 14 Nov: "vendor date range laga kar dekhna chahe ki kis date ke order pending h") */
+  from: ($('vpFrom') || {}).value || '', to: ($('vpTo') || {}).value || '',
 });
+/** An order's date (dd/mm/yyyy as written) as yyyy-mm-dd, or ''. */
+const vpOrderIso = o => { const m = String((o && o.orderDate) || '').match(/(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})/);
+  return m ? m[3] + '-' + m[2].padStart(2, '0') + '-' + m[1].padStart(2, '0') : (/^\d{4}-\d{2}-\d{2}/.test(String((o && o.orderDate) || '')) ? String(o.orderDate).slice(0, 10) : ''); };
 const vpLineOn = f => !!(f.at || f.sub || f.col || f.sz || f.pri);
 /* A SEARCH NARROWS THE LINES TOO (Ravi, 22 Oct: "mene particular sku search kiya but result me bahut kuch dikha rha h" —
  * CPC007-5454 found 2 orders and showed all 65 of their products). When the words are found in some lines of an order, only
@@ -278,6 +288,7 @@ function vpQOk(o, l, f, everyDue) {
 }
 /** Does this order survive the order-level filters? */
 function vpOrderMatches(o, f) {
+  if (f.from || f.to) { const d = vpOrderIso(o); if (!d || (f.from && d < f.from) || (f.to && d > f.to)) return false; }
   if (f.status && String(o.status || 'Placed') !== f.status) return false;
   if (f.type && (o.orderType || 'cut') !== f.type) return false;
   if (f.q) {
@@ -319,8 +330,10 @@ function renderVp() {
   const matched = all.filter(o => vpOrderMatches(o, f));
   /* THE TABS ARE COUNTED BEFORE THE SPLIT, so a printer can see there is Shopify work waiting even
    * while they are looking at the bulk orders. A tab with nothing behind it is not drawn at all. */
-  const hasOpen = o => voLines(o).some(l => l && !vpLineIsDone(o, l));
+  const hasOpen = o => voLines(o).some(l => l && !vpLineIsDone(o, l) && !vpLineIsVs(o, l));
   const hasDone = o => voLines(o).some(l => l && vpLineIsDone(o, l));
+  const hasVs = o => voLines(o).some(l => l && vpLineIsVs(o, l));
+  const vsN = matched.reduce((t, o) => t + voLines(o).filter(l => l && vpLineIsVs(o, l)).length, 0);
   const openOrders = matched.filter(hasOpen);
   const shopN = openOrders.filter(vpIsCustom).length, bulkN = openOrders.length - shopN;
   const doneN = matched.reduce((t, o) => t + voLines(o).filter(l => l && vpLineIsDone(o, l)).length, 0);
@@ -330,6 +343,7 @@ function renderVp() {
     if (!shopN && VP.tab === 'shop') VP.tab = 'bulk';
     $('vpTabDone').classList.toggle('hide', !doneN);
     if (!doneN && VP.tab === 'done') VP.tab = 'bulk';
+    if ($('vpTabVs')) $('vpTabVs').classList.toggle('hide', !vsN && VP.tab !== 'vsent');
     $('vpTabShop').classList.toggle('hide', !shopN);
     const paint = (id, on, label, n) => {
       const b = $(id); if (!b) return;
@@ -338,6 +352,7 @@ function renderVp() {
     };
     paint('vpTabBulk', VP.tab === 'bulk', 'Bulk orders', bulkN);
     paint('vpTabShop', VP.tab === 'shop', 'Custom orders', shopN);
+    paint('vpTabVs', VP.tab === 'vsent', 'Vendor sent', vsN);
     paint('vpTabDone', VP.tab === 'done', 'Completed', doneN);
     paint('vpTabHist', VP.tab === 'hist', 'What I have sent', vpHistRows().length);
     /* Counted as things still to hear about, not as things ever asked — a printer wants to know what
@@ -346,9 +361,9 @@ function renderVp() {
       vpRfdRows().filter(r => r.stage === 'pending' || r.stage === 'approved').length);
     paint('vpTabDch', VP.tab === 'dch', 'Daily challan', 0);   // daily-challan.js
   }
-  const doneTab = VP.tab === 'done';
-  VP_PART = doneTab ? 'done' : 'open';
-  const rows = doneTab ? matched.filter(hasDone) : openOrders.filter(o => (VP.tab === 'shop') === vpIsCustom(o));
+  const doneTab = VP.tab === 'done', vsTab = VP.tab === 'vsent';
+  VP_PART = doneTab ? 'done' : vsTab ? 'vsent' : 'open';
+  const rows = doneTab ? matched.filter(hasDone) : vsTab ? matched.filter(hasVs) : openOrders.filter(o => (VP.tab === 'shop') === vpIsCustom(o));
   VP.shown = rows;
   const open = rows.filter(o => ['Received', 'Dispatched'].indexOf(o.status || 'Placed') < 0).length;
   /* Over the live lines of the orders on screen, in one pass: what is still owed, and — the thing
@@ -1402,7 +1417,7 @@ $('vpSaveProm').onclick = vpPromiseAll;
 /* Today, because that is the day a vendor is almost always recording. */
 if ($('vpSendDate') && !$('vpSendDate').value) $('vpSendDate').value = dToday();
 $('vpClear').onclick = () => {
-  ['vpStatus', 'vpType', 'vpAt', 'vpSub', 'vpCol', 'vpSz', 'vpPri', 'vpQ'].forEach(id => {
+  ['vpStatus', 'vpType', 'vpAt', 'vpSub', 'vpCol', 'vpSz', 'vpPri', 'vpQ', 'vpFrom', 'vpTo'].forEach(id => {
     const el = $(id); if (el) el.value = '';
   });
   renderVp();
@@ -1410,6 +1425,8 @@ $('vpClear').onclick = () => {
 $('vpTabBulk').onclick = () => { VP.tab = 'bulk'; renderVp(); };
 $('vpTabShop').onclick = () => { VP.tab = 'shop'; renderVp(); };
 $('vpTabDone').onclick = () => { VP.tab = 'done'; renderVp(); };
+if ($('vpTabVs')) $('vpTabVs').onclick = () => { VP.tab = 'vsent'; renderVp(); };
+['vpFrom', 'vpTo'].forEach(id => { if ($(id)) $(id).onchange = renderVp; });
 $('vpTabHist').onclick = () => { VP.tab = 'hist'; renderVp(); };
 $('vpTabRfd').onclick = () => { VP.tab = 'rfd'; renderVp(); };
 $('vpGo').onclick = async () => { VP.rows = null; await ensureVp(); };
