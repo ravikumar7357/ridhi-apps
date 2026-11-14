@@ -32,12 +32,57 @@ const WHEN = new Date().toISOString().slice(0, 16).replace('T', ' ') + ' UTC';
  * tokens have the fulfilment permissions and Ravi says to switch it on; then true, and only that one POST goes through —
  * every other write stays stopped. */
 const HUB_SHOPIFY_WRITES = false;
+/* THE FACTORY ERP LOADS FROM SUPABASE (Ravi, 14 Nov: "the test link loads from ERP data … remove these badges"). Its data
+ * comes from ERP data (Supabase project R-one MAIN), not Firebase: every read of the factory registers is answered by the
+ * door core.rt_get, every Firestore document by core.fs_get / fs_list — the same data in the same shape (proven record for
+ * record: migration/rt-proof.md, fs-proof.md). Only a Firestore config document that holds an API key is still read from
+ * Firebase (keys are never copied into Supabase). Sign-in stays the ERP login (Supabase checks it). Saving stays OFF.
+ * The live Firebase connection (live copies, delta sync, data meter) is not opened. The check badges are off. */
+const SB_DATA = { url: 'https://xkpktnsdmpkwaingvdbd.supabase.co', key: 'sb_publishable_niq2DDjeCaqJl3_ccv0vtQ_BS8bqQ2Q' };   // ERP data — publishable key, made for browsers
 
 /* ---- what runs first on every page of the test ERP ---- */
 const GUARD = `<script>/* TEST ERP GUARD — added by Replenish-App/tests/build-test-erp.js; not in the real ERP. */
 (function () {
   var MSG = 'Saving is off in the TEST ERP \\u2014 nothing was saved.';
-  window.__TEST_ERP = { sha: ${JSON.stringify(SHA)}, branch: ${JSON.stringify(BRANCH)}, built: ${JSON.stringify(WHEN)}, blocked: 0, hubShopifyWrites: ${HUB_SHOPIFY_WRITES} };
+  window.__TEST_ERP = { sha: ${JSON.stringify(SHA)}, branch: ${JSON.stringify(BRANCH)}, built: ${JSON.stringify(WHEN)}, blocked: 0, hubShopifyWrites: ${HUB_SHOPIFY_WRITES},
+    sb: ${JSON.stringify(SB_DATA)}, sbReads: 0, sbOn: !!window.__TEST_ERP_SB_PAGE };
+  /* A read of the factory registers (Firebase Realtime Database REST: <path>.json?auth=<sign-in>&orderBy=…) answered by ERP data's
+   * door core.rt_get with the same sign-in — same data, same shape. Only pages that turn it on (the factory ERP) use it. */
+  function sbRtdb(url, origFetch) {
+    var u = new URL(url), q = u.searchParams, tok = q.get('auth') || '';
+    var p = decodeURIComponent(u.pathname.replace(/\\.json$/, '').replace(/^\\/+/, ''));
+    var body = { p_path: p, p_order_by: null, p_equal_to: null, p_limit_last: null };
+    try { if (q.get('orderBy')) body.p_order_by = JSON.parse(q.get('orderBy')); if (q.get('equalTo')) body.p_equal_to = JSON.parse(q.get('equalTo')); } catch (e) {}
+    if (q.get('limitToLast')) body.p_limit_last = Number(q.get('limitToLast'));
+    var sb = window.__TEST_ERP.sb;
+    /* What was loaded is kept 2 minutes (like the live copy the ERP keeps of Firebase), and screens asking for the same thing
+     * at the same moment share one request — so reopening a screen asks ERP data nothing. (Saving is off here: nothing this
+     * page does can make the copy wrong.) */
+    var memoKey = JSON.stringify(body) + (q.get('shallow') || '');
+    var M = window.__TEST_ERP.sbMemo || (window.__TEST_ERP.sbMemo = {});
+    var hit = M[memoKey];
+    if (hit && Date.now() - hit.t < 120000) return hit.p.then(function (x) { return new Response(x.text, { status: x.status, statusText: x.statusText, headers: { 'Content-Type': 'application/json', ETag: 'sb' } }); });
+    window.__TEST_ERP.sbReads++;
+    var p0 = origFetch(sb.url + '/rest/v1/rpc/rt_get', { method: 'POST',
+      headers: { apikey: sb.key, Authorization: 'Bearer ' + (tok || sb.key), 'Content-Type': 'application/json', 'Content-Profile': 'core', 'Accept-Profile': 'core' },
+      body: JSON.stringify(body) }).then(function (r) {
+        return r.text().then(function (t) {
+          if (!r.ok) {   /* the real reason goes into the message the screen shows ("…answered 503 ERP data 401: <why>") */
+            var why = t; try { var j = JSON.parse(t); why = [j.message, j.hint].filter(Boolean).join(' · ') || t; } catch (e) {}
+            try { console.warn('[TEST ERP] ERP data refused the read of ' + p + ': ' + r.status + ' ' + why); } catch (e) {}
+            return new Response(JSON.stringify({ error: why }), { status: 503, statusText: ('ERP data ' + r.status + ': ' + why).replace(/[^\\x20-\\x7e]/g, ' ').slice(0, 180), headers: { 'Content-Type': 'application/json' } });
+          }
+          var v = t ? JSON.parse(t) : null;
+          if (q.get('shallow') === 'true' && v && typeof v === 'object') { var o = {}; Object.keys(v).forEach(function (k) { o[k] = true; }); v = o; }
+          return new Response(JSON.stringify(v), { status: 200, headers: { 'Content-Type': 'application/json', ETag: 'sb' } });
+        });
+      });
+    /* kept only when it worked: a refused or failed read is asked again next time */
+    var keep = p0.then(function (r) { return r.clone().text().then(function (t) { if (!r.ok) delete M[memoKey]; return { text: t, status: r.status, statusText: r.statusText }; }); });
+    keep.catch(function () { delete M[memoKey]; });
+    M[memoKey] = { t: Date.now(), p: keep };
+    return p0;
+  }
   function tell(what) {
     window.__TEST_ERP.blocked++;
     try { console.warn('[TEST ERP] blocked: ' + what); } catch (e) {}
@@ -69,6 +114,7 @@ const GUARD = `<script>/* TEST ERP GUARD — added by Replenish-App/tests/build-
       } catch (e) { /* not that request: stays stopped */ }
     }
     if (write) return window.__testErpBlock(what + ' ' + url.replace(/[?#].*$/, '').slice(0, 120));
+    if (window.__TEST_ERP.sbOn && /firebasedatabase\\.app|firebaseio\\.com/.test(url) && method === 'GET') return sbRtdb(url, origFetch);   // the factory ERP loads from ERP data
     if (url.indexOf('accounts:signInWithPassword') >= 0) slStart('sign-in');
     /* Firestore's listen / write channels stay open for good: not waited for, or no screen would ever be "done". */
     var held = url.indexOf('/channel') < 0;
@@ -231,15 +277,43 @@ function must(text, find, repl, count, label) {
 }
 
 /** The Firestore import: setDoc / addDoc / deleteDoc are renamed, and the names the app uses now refuse. */
-function blockFirestoreWrites(html, label) {
+function blockFirestoreWrites(html, label, sbReads) {
   const WRITES = ['setDoc', 'addDoc', 'deleteDoc', 'updateDoc', 'writeBatch', 'runTransaction'];
+  const READS = sbReads ? ['getDoc', 'getDocs', 'getDocsFromServer', 'onSnapshot'] : [];
   return must(html, /import\s*\{([^}]*)\}\s*from\s*"(https:\/\/www\.gstatic\.com\/firebasejs\/[^"]+\/firebase-firestore\.js)";/g, (all, names, url) => {
     const list = names.split(',').map(s => s.trim()).filter(Boolean);
     const blocked = list.filter(n => WRITES.includes(n));
-    const kept = list.map(n => (WRITES.includes(n) ? `${n} as __real_${n}` : n));
+    const read = list.filter(n => READS.includes(n));
+    const kept = list.map(n => (WRITES.includes(n) || READS.includes(n) ? `${n} as __real_${n}` : n));
     const stubs = blocked.map(n => `const ${n} = (...a) => window.__testErpBlock('Firestore ${n}');`).join('\n');
-    return `import { ${kept.join(', ')} }\n  from "${url}";\n/* TEST ERP: Firestore writes are refused (build-test-erp.js). */\n${stubs}`;
+    return `import { ${kept.join(', ')} }\n  from "${url}";\n/* TEST ERP: Firestore writes are refused (build-test-erp.js). */\n${stubs}` + (read.length ? '\n' + sbFirestoreReads(read) : '');
   }, 1, label + ' Firestore import');
+}
+/* TEST ERP: Firestore READS answered by ERP data (core.fs_get / fs_list) with the person's own sign-in — the same documents.
+ * A config document is read from Firebase (only it may hold an API key, and keys are never in Supabase). The time fields
+ * Firestore keeps as timestamps (at, dataAt, saved, updatedAt) come back as timestamps, so "last updated" still shows. */
+function sbFirestoreReads(names) {
+  const has = n => names.includes(n);
+  return `/* TEST ERP: Firestore reads come from ERP data (build-test-erp.js) */
+const __sbTs = s => { const d = new Date(s); return { toDate: () => new Date(d), toMillis: () => d.getTime(), seconds: Math.floor(d.getTime() / 1000), nanoseconds: 0, toJSON: () => s, toString: () => s, valueOf: () => d.getTime() }; };
+const __sbDoc = (ref, v) => { const out = v == null ? undefined : JSON.parse(JSON.stringify(v));
+  if (out && typeof out === 'object') for (const f of ['at', 'dataAt', 'saved', 'updatedAt']) if (typeof out[f] === 'string' && /^\\d{4}-\\d\\d-\\d\\dT\\d\\d:\\d\\d:\\d\\d(\\.\\d+)?Z$/.test(out[f])) out[f] = __sbTs(out[f]);
+  return { id: ref.id, ref, exists: () => v != null, data: () => out, get: f => (out || {})[f] }; };
+async function __sbRpc(fn, body) {
+  const sb = window.__TEST_ERP.sb, tok = (typeof auth !== 'undefined' && auth && auth.currentUser) ? await auth.currentUser.getIdToken() : '';
+  const r = await fetch(sb.url + '/rest/v1/rpc/' + fn, { method: 'POST', body: JSON.stringify(body),
+    headers: { apikey: sb.key, Authorization: 'Bearer ' + (tok || sb.key), 'Content-Type': 'application/json', 'Content-Profile': 'core', 'Accept-Profile': 'core' } });
+  const t = await r.text(); if (!r.ok) throw new Error('ERP data: ' + t.slice(0, 200)); window.__TEST_ERP.sbReads++; return t ? JSON.parse(t) : null;
+}
+const __sbIsKeyDoc = ref => String(ref && ref.path || '').split('/')[0] === 'config';
+${has('getDoc') ? `const getDoc = async ref => __sbIsKeyDoc(ref) ? __real_getDoc(ref) : __sbDoc(ref, await __sbRpc('fs_get', { p_coll: ref.parent.id, p_id: ref.id }));` : ''}
+${has('getDocs') || has('getDocsFromServer') ? `const __sbGetDocs = async col => { const coll = String(col.path || col.id); const list = await __sbRpc('fs_list', { p_coll: coll }) || [];
+  const docs = list.map(x => __sbDoc({ id: x.id, path: coll + '/' + x.id, parent: col }, x.data));
+  return { docs, size: docs.length, empty: !docs.length, forEach: f => docs.forEach(f) }; };` : ''}
+${has('getDocs') ? 'const getDocs = __sbGetDocs;' : ''}
+${has('getDocsFromServer') ? 'const getDocsFromServer = __sbGetDocs;' : ''}
+${has('onSnapshot') ? `const onSnapshot = (ref, next, err) => { let off = false; const run = () => getDoc(ref).then(s => { if (!off) next(s); }).catch(e => { if (!off && typeof err === 'function') err(e); });
+  run(); const t = setInterval(run, 60000); return () => { off = true; clearInterval(t); }; };   /* asked again every minute (no live channel) */` : ''}`;
 }
 
 /* The guard goes just before the page's first <title>, which is the real top of the page in both apps (the factory
@@ -272,7 +346,12 @@ fs.writeFileSync(path.join(OUT, '.nojekyll'), '');
   copyDir(src, dst, ['index.html']);
   let html = fs.readFileSync(path.join(src, 'index.html'), 'utf8');
   html = guardPage(html, 'factory ERP');
-  html = blockFirestoreWrites(html, 'factory ERP');
+  html = blockFirestoreWrites(html, 'factory ERP', true);
+  /* LOADS FROM ERP DATA: the registers' reads go to Supabase (the guard's sbRtdb), the live Firebase connection is not
+   * opened (its library is not loaded — every screen then reads plainly, which the guard answers), the check badges are off. */
+  html = must(html, '<script>/* TEST ERP GUARD', '<script>/* TEST ERP GUARD (factory ERP: loads from ERP data) */ window.__TEST_ERP_SB_PAGE = true; </script><script>/* TEST ERP GUARD', 1, 'factory ERP loads from ERP data');
+  html = must(html, "import('https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js')", "Promise.reject(new Error('test ERP: no live Firebase connection — data comes from ERP data'))", null, 'factory ERP no live Firebase connection');
+  html = must(html, /const ASH = \{(\r?\n)(\s*)on: /, 'const ASH = {$1$2on: false && ', 1, 'factory ERP check badges off');
   ['logo.png', 'manifest.webmanifest', 'apple-touch-icon.png', 'wordmark.png'].forEach(f => {
     html = must(html, new RegExp(`(href|src)="/${f.replace('.', '\\.')}"`, 'g'), `$1="${f}"`, null, 'factory ERP ' + f);
   });
@@ -332,7 +411,7 @@ a.card{display:block;background:#fff;border:1px solid #e2e4e8;border-radius:12px
 a.card b{display:block;font-size:18px}small,p{color:#5d636b}@media(prefers-color-scheme:dark){body{background:#111214;color:#e9eaec}a.card{background:#18191c;border-color:#2a2c30}small,p{color:#a0a4ab}}</style></head>
 <body><main><img src="replenish/r1-logo.svg" alt="R1" width="200" style="justify-self:start"><span class="tag">TEST ERP</span><h1>R1 · the test ERP</h1>
 <p>The same apps as the real ERP, built from the <b>${BRANCH}</b> branch on GitHub. They show the <b>live data</b>, and <b>saving is switched off</b>, so nothing here can change the real ERP.</p>
-<a class="card" href="replenish/"><b>Factory ERP</b><small>Replenishment, production, vendors, stock</small></a>
+<a class="card" href="replenish/"><b>Factory ERP</b><small>Replenishment, production, vendors, stock · loads from ERP data (Supabase)</small></a>
 <a class="card" href="sellora/"><b>Sellora</b><small>Research, sales, listings, advertising</small></a>
 <small>Built from commit ${SHA} · ${WHEN}</small></main></body></html>`);
 
