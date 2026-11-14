@@ -69,7 +69,15 @@ let IM_CLIP = null;     // { brand, sku, asin, c, z, slots: {MAIN..PT08, SWCH}, 
 const IM_SEL = new Set();   // SKUs ticked in the list, for pasting into several at once
 let IM_PASTE_MODE = 'replace';  // the clipboard bar's mode: 'replace' these slots | 'gaps' = only fill empty slots
 let IM_PV = null;
-const IM_FOLD = new Set();   // families folded to their header (imGroupKey)
+/* FAMILIES OPEN / CLOSED. On load every family is closed (its header only). The person opens one (▸ or its header) and it shows ALL its
+ * children, drawn IM_CHUNK rows at a time as they come near the screen (a block far away is emptied again, keeping its height, so the
+ * page never moves). A search or a filter opens the families it matches — unless the person closed one of them. Kept while on the screen. */
+const IM_OPEN = new Set();   // families the person opened (imGroupKey)
+const IM_SHUT = new Set();   // families the person closed while a search / filter opens the matching ones (cleared when those change)
+const IM_CHUNK = 25;         // rows drawn at a time inside an open family
+const IM_CHUNK_H = new Map();// 'key|i' → measured height of a block of rows: a redraw keeps the page where it was
+const IM_ROWS = new Map();   // family key → the rows it shows (the open families on screen)
+let IM_CHUNK_OBS = null;
 let IML_LOADING = false;    // the saved snapshot is being read (the list shows its skeleton)           // the paste preview while it is open: { skus, plan, inc: Set('sku|slot') of pictures failing the rules but ticked in }
 let IM_ONLY = null;         // { skus: Set, label } — only these listings, picked in Listing Health's Fix all (fix-all.js), until "Show every listing"
 // Show only these listings (ticked, page 1, no search), with a bar naming where they were picked; empty → every listing again.
@@ -611,22 +619,96 @@ function imGroupHtml(group) {
   const parent = group.parent;
   const first = group.kids[0];
   const need = group.kids.filter(imNeeds).length;
-  const folded = IM_FOLD.has(key);
+  const folded = !imIsOpen(key);
   const title = parent ? parent.t : group.psku ? 'Parent ' + group.psku : first.t;
   const sub = parent ? `Parent <span class="im-mono">${imEsc(parent.sku)}</span> · ${imEsc(parent.asin)}`
     : group.psku ? `${imEsc(first.pa || '')} · the parent listing itself was not found` : 'No variation parent';
   const thumb = parent ? imTile('MAIN', (parent.live || {}).MAIN, (parent.img || {}).MAIN, false, parent.sku) : imTile('MAIN', (first.live || {}).MAIN, (first.img || {}).MAIN, false, first.sku);
   const famMain = parent && ((parent.img || {}).MAIN || (parent.live || {}).MAIN);
   const head = `<div class="im-grp-h">
-      <button type="button" class="im-fold" data-fold="${imEsc(key)}" aria-expanded="${!folded}" title="${folded ? 'Show' : 'Hide'} this family's listings">${folded ? '▸' : '▾'}</button>
+      <button type="button" class="im-fold" data-fold="${imEsc(key)}" aria-expanded="${!folded}" title="${folded ? 'Open' : 'Close'} this family">${folded ? '▸' : '▾'}</button>
       ${thumb}
       <div class="im-grp-t"><b title="${imEsc(title)}">${imEsc(title)}</b>
-        <span class="muted">${sub} · ${group.kids.length} child${group.kids.length === 1 ? '' : 'ren'}${need ? ` · <b class="is-need">${need} need pictures</b>` : ' · pictures fine'}`
-        + `${!folded && group.show.length < group.kids.length ? ` · ${group.show.length} shown` : ''}${group.cont ? ' · continued' : ''}</span></div>
+        <span class="muted">${sub} · ${group.kids.length} child${group.kids.length === 1 ? '' : 'ren'}${need ? ` · <b class="is-need">${need} need pictures</b>` : ' · pictures fine'}</span></div>
       <div class="im-grp-act">${famMain ? `<button type="button" class="ghost im-b" data-fammain="${imEsc(key)}" title="Copy the parent's main picture into the clipboard's Main slot">Copy main of this family</button>` : ''}
         <button type="button" class="ghost im-b" data-famsel="${imEsc(key)}" title="Tick every child of this family">Select all children</button></div>
     </div>`;
-  return `<div class="card im-grp${folded ? ' is-folded' : ''}" data-grp="${imEsc(key)}">${head}${group.show.map(imKidRow).join('')}</div>`;
+  return `<div class="card im-grp${folded ? ' is-folded' : ''}" data-grp="${imEsc(key)}">${head}${folded ? '' : imRowsHtml(key, group.show)}</div>`;
+}
+/** Is this family open? Opened by the person, or matched by a search / filter (or the Listing Health pick) and not closed by the person. */
+const imAutoOpen = () => ($('imFilter').value || 'all') !== 'all' || !!($('imQ').value || '').trim() || !!IM_ONLY;
+const imIsOpen = key => IM_OPEN.has(key) || (imAutoOpen() && !IM_SHUT.has(key));
+const imRowEst = () => (IM_DENSE === 'compact' ? 66 : 112);     // a row's height before it is drawn (then measured)
+/* An open family's rows: every one of them, in blocks of IM_CHUNK. A block is an empty box of the right height until it comes near the
+ * screen (imChunkFill); a page with no IntersectionObserver (a test page) gets every row at once. */
+function imRowsHtml(key, rows) {
+  IM_ROWS.set(key, rows);
+  if (typeof IntersectionObserver === 'undefined') return rows.map(imKidRow).join('');
+  let out = '';
+  for (let i = 0; i * IM_CHUNK < rows.length; i++) {
+    const n = Math.min(IM_CHUNK, rows.length - i * IM_CHUNK);
+    out += `<div class="im-chunk" data-chunk="${imEsc(key)}" data-i="${i}" style="height:${IM_CHUNK_H.get(key + '|' + i) || n * imRowEst()}px"></div>`;
+  }
+  return out;
+}
+function imChunkFill(box) {
+  const key = box.dataset.chunk;
+  const i = Number(box.dataset.i);
+  box.innerHTML = (IM_ROWS.get(key) || []).slice(i * IM_CHUNK, (i + 1) * IM_CHUNK).map(imKidRow).join('');
+  box.style.height = '';
+  box.dataset.on = '1';
+  imRowsWire(box);
+  imqWatch(box);
+  IM_CHUNK_H.set(key + '|' + i, box.offsetHeight);
+}
+function imChunkEmpty(box) {
+  const h = box.offsetHeight;
+  IM_CHUNK_H.set(box.dataset.chunk + '|' + box.dataset.i, h);
+  box.style.height = h + 'px';
+  box.innerHTML = '';
+  box.dataset.on = '';
+}
+// Blocks within 1,500 px of the screen are drawn; the ones that move further away are emptied (their height stays).
+function imChunksWatch(root, keep) {
+  if (!root || !root.querySelectorAll || typeof IntersectionObserver === 'undefined') return;
+  if (!IM_CHUNK_OBS) {
+    IM_CHUNK_OBS = new IntersectionObserver(entries => entries.forEach(entry => {
+      if (entry.isIntersecting && !entry.target.dataset.on) imChunkFill(entry.target);
+      else if (!entry.isIntersecting && entry.target.dataset.on) imChunkEmpty(entry.target);
+    }), { rootMargin: '1500px 0px' });
+  } else if (!keep) IM_CHUNK_OBS.disconnect();
+  root.querySelectorAll('.im-chunk').forEach(box => IM_CHUNK_OBS.observe(box));
+}
+/** Open or close one family. Only its card is drawn again, and its header is kept where it was on the screen (no jump). */
+function imFamToggle(key) {
+  if (imIsOpen(key)) {
+    IM_OPEN.delete(key);
+    IM_SHUT.add(key);
+  } else {
+    IM_OPEN.add(key);
+    IM_SHUT.delete(key);
+  }
+  return imFamRedraw(key);
+}
+function imFamRedraw(key) {
+  const list = $('imList');
+  const card = list && list.querySelector ? list.querySelector(`.im-grp[data-grp="${typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(key) : key}"]`) : null;
+  const data = IML[$('imBrand').value];
+  const group = data && imShownGroups(data.items, $('imFilter').value, ($('imQ').value || '').trim().toLowerCase()).find(each => imGroupKey(each) === key);
+  if (!card || !group || !card.replaceWith || typeof document === 'undefined' || !document.createElement) return imListRender();
+  const head = card.querySelector('.im-grp-h');
+  const before = head && head.getBoundingClientRect ? head.getBoundingClientRect().top : null;
+  const box = document.createElement('div');
+  box.innerHTML = imGroupHtml(group);
+  const fresh = box.firstElementChild;
+  card.replaceWith(fresh);
+  imRowsWire(fresh);
+  imqWatch(fresh);
+  imChunksWatch(fresh, true);
+  const head2 = fresh.querySelector('.im-grp-h');
+  const after = head2 && head2.getBoundingClientRect ? head2.getBoundingClientRect().top : null;
+  if (before != null && after != null && Math.abs(after - before) > 0.5 && typeof window !== 'undefined' && window.scrollBy) window.scrollBy(0, after - before);
+  return fresh;
 }
 // The list's shape while it is read: two families of grey rows.
 function imSkeleton(text) {
@@ -674,6 +756,10 @@ function imDensity(v, keep) {
   }
   const pane = $('paneImg');
   if (pane && pane.classList) pane.classList.toggle('im-compact', IM_DENSE === 'compact');
+  if (!keep) {
+    IM_CHUNK_H.clear();                // rows change height: the blocks are measured again
+    if (IML[$('imBrand').value]) imListRender();
+  }
   if (typeof document !== 'undefined' && document.querySelectorAll) {
     document.querySelectorAll('[data-im-dense]').forEach(btn => {
       btn.classList.toggle('on', btn.dataset.imDense === IM_DENSE);
@@ -894,29 +980,9 @@ function imListRender() {
   groups.sort((a, b) => (b.kids.length - a.kids.length)
     || String((a.parent || a.kids[0]).t || '').localeCompare(String((b.parent || b.kids[0]).t || '')));
   const nKids = groups.reduce((sum, group) => sum + group.show.length, 0);
-  // --- the page: IML_PER listings, a family may run over the page edge ---
-  /* PAGED BY LISTING, not by parent: one Ridhi parent holds 455 children, and twenty groups a page
-   * drew 6 MB of tiles. A family longer than a page carries on, its header repeated as "continued".
-   * A FOLDED family (only its header shows) takes one place on the page, not one per child. */
-  const units = group => (IM_FOLD.has(imGroupKey(group)) ? 1 : group.show.length);
-  const nUnits = groups.reduce((sum, group) => sum + units(group), 0);
-  const pages = Math.max(1, Math.ceil(nUnits / IML_PER));
-  if (IML_PAGE >= pages) IML_PAGE = 0;
-  const from = IML_PAGE * IML_PER;
-  const to = from + IML_PER;
-  const slice = [];
-  let at = 0;
-  groups.forEach(group => {
-    const n = units(group);
-    const start = Math.max(from, at);
-    const end = Math.min(to, at + n);
-    if (start < end) slice.push(Object.assign({}, group, { show: IM_FOLD.has(imGroupKey(group)) ? [] : group.show.slice(start - at, end - at), cont: start > at, folded: IM_FOLD.has(imGroupKey(group)) }));
-    at += n;
-  });
-  const pager = pages > 1 ? `<div class="im-pager">
-      <button class="ghost im-b" data-pg="-1" ${IML_PAGE ? '' : 'disabled'}>◀ Prev</button>
-      <span class="muted">Page ${IML_PAGE + 1} of ${pages}</span>
-      <button class="ghost im-b" data-pg="1" ${IML_PAGE < pages - 1 ? '' : 'disabled'}>Next ▶</button></div>` : '';
+  /* NO PAGES: every family's header is drawn (one small picture each); an open family draws its rows in blocks as they come near the
+   * screen (imRowsHtml / imChunksWatch). One Ridhi parent holds 455 children: never cut at a page edge. */
+  IM_ROWS.clear();
   // --- the number cards (they replace the old grey summary line), the clipboard bar, the groups ---
   imqSeed(brand);
   const cards = `<div id="imCards" class="im-boxes" role="group" aria-label="Filter the listings">${imCardsHtml(imCardsData(data.items), filter)}</div>`;
@@ -929,16 +995,28 @@ function imListRender() {
   el.innerHTML = only + cards + `<div class="im-meta muted"><span>${nKids.toLocaleString('en-US')} listing(s) in ${groups.length.toLocaleString('en-US')} famil${groups.length === 1 ? 'y' : 'ies'} of ${data.items.length.toLocaleString('en-US')}
       · snapshot ${data.at ? data.at.toLocaleString() : '—'}${IML_BUSY ? ' · refreshing…' : ''}
       · tiles show <b>${IML_VIEW === 'live' ? 'what Amazon serves' : 'the pictures you submitted'}</b></span>
-      ${groups.length > 1 ? '<span class="im-meta-act"><button class="ghost im-b" data-foldall="0">Expand all</button><button class="ghost im-b" data-foldall="1">Collapse all</button></span>' : ''}
+      ${groups.length ? '<span class="im-meta-act"><button class="ghost im-b" data-foldall="0" title="Open every family">Open all</button><button class="ghost im-b" data-foldall="1" title="Close every family">Close all</button></span>' : ''}
       <details class="im-key"><summary>Key</summary>${IM_LEGEND}</details></div>
     ${IM_CLIP ? '<div id="imBulk" class="muted" style="font-size:12px;margin-bottom:8px"></div>' : ''}
     ${empty}
-    ${pager}
-    ${slice.map(group => imGroupHtml(group)).join('')}
-    ${pager}
+    ${groups.map(group => imGroupHtml(group)).join('')}
     <div id="imSelBar" class="im-selbar" role="status"${IM_SEL.size && !IM_CLIP ? '' : ' hidden'}>${imSelBarHtml()}</div>
     ${imClipBar('list')}`;
-  // --- the buttons in what was just drawn ---
+  // --- the buttons in what was just drawn (rows drawn later, in blocks, are wired when drawn) ---
+  imRowsWire(el);
+  imClipWire(el);
+  if ($('imOnlyOff')) $('imOnlyOff').onclick = () => {
+    imOnly(null);
+    imListRender();
+  };
+  // --- tiles whose size is not known yet are measured when they come on screen (image-quality.js); rows drawn as they come near ---
+  imqWatch(el);
+  imChunksWatch(el);
+}
+// The buttons of the rows in `root` (the list, a family card, a block of rows): Copy all / live, a tile's Copy, Paste here, ticks, Edit.
+function imRowsWire(root) {
+  if (!root || !root.querySelectorAll) return;
+  const el = root;
   el.querySelectorAll('[data-copy]').forEach(btn => btn.onclick = () => {
     const item = (IML[$('imBrand').value] || { items: [] }).items.find(each => each.sku === btn.dataset.copy);
     if (!item) return;
@@ -962,20 +1040,8 @@ function imListRender() {
     else IM_SEL.delete(cb.dataset.sku);
     imSelUpdate();
   });
-  imClipWire(el);
-  if ($('imOnlyOff')) $('imOnlyOff').onclick = () => {
-    imOnly(null);
-    imListRender();
-  };
-  // Edit: the editor opens in the side panel; the search box, the page and the scroll stay as they are.
+  // Edit: the editor opens in the side panel; the search box and the scroll stay as they are.
   el.querySelectorAll('[data-edit]').forEach(btn => btn.onclick = () => imEditOpen(btn.dataset.edit));
-  el.querySelectorAll('[data-pg]').forEach(btn => btn.onclick = () => {
-    IML_PAGE += Number(btn.dataset.pg);
-    imListRender();
-    window.scrollTo(0, 0);
-  });
-  // --- tiles whose size is not known yet are measured when they come on screen (image-quality.js) ---
-  imqWatch(el);
 }
 
 /* ============================================================================================
@@ -1765,6 +1831,7 @@ let IML_T = 0;          // debounce timer for the search box
 // Redraw the list from page 1 (search, filter and view changes).
 const imListAgain = () => {
   IML_PAGE = 0;
+  IM_SHUT.clear();
   imShowEditor(false);
   imListRender();
 };
@@ -1829,15 +1896,13 @@ $('imList').addEventListener('click', e => {
   const repl = on('[data-repl]');
   if (repl) return imReplace(repl.dataset.repl, repl.dataset.slot);
   const fold = on('[data-fold]');
-  if (fold) {
-    if (IM_FOLD.has(fold.dataset.fold)) IM_FOLD.delete(fold.dataset.fold);
-    else IM_FOLD.add(fold.dataset.fold);
-    return imListRender();
-  }
+  if (fold) return imFamToggle(fold.dataset.fold);
   const all = on('[data-foldall]');
   if (all) {
-    IM_FOLD.clear();
-    if (all.dataset.foldall === '1') imListGroups((IML[$('imBrand').value] || { items: [] }).items).forEach(group => IM_FOLD.add(imGroupKey(group)));
+    const keys = imListGroups((IML[$('imBrand').value] || { items: [] }).items).map(imGroupKey);
+    IM_OPEN.clear();
+    IM_SHUT.clear();
+    keys.forEach(key => (all.dataset.foldall === '1' ? IM_SHUT : IM_OPEN).add(key));
     return imListRender();
   }
   const fam = on('[data-fammain],[data-famsel]');
@@ -1854,6 +1919,12 @@ $('imList').addEventListener('click', e => {
     imClipCopyOne({ brand: $('imBrand').value, sku: p.sku, asin: p.asin, c: '', z: '', psku: p.sku, slot: 'MAIN', url: (p.img || {}).MAIN || (p.live || {}).MAIN });
     imListRender();
     return imMsg(`Copied the main picture of ${p.sku} into the clipboard's Main slot.`);
+  }
+  // A click on a family's header (not on its buttons or picture) opens / closes it, like ▸.
+  const head = on('.im-grp-h');
+  if (head && !on('button,a,input,label,.im-tw')) {
+    const card = head.closest('.im-grp');
+    if (card && card.dataset.grp) return imFamToggle(card.dataset.grp);
   }
   if (on('#imClearFilter')) {
     $('imFilter').value = 'all';

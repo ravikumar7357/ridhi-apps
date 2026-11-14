@@ -108,6 +108,7 @@ function picture(W, H, box, edge) {
     P.el('imBrand').value = 'SP';
     P.el('imFilter').value = 'all';
     P.IML.SP = { at: new Date(), items: ITEMS() };
+    P.IM_OPEN.add('PAR'); P.IM_OPEN.add('solo:S1');   // families start closed: open them to see the rows
     P.imListRender();
     const html = P.el('imList').innerHTML;
     ok('rows: K3 shows "1 picture error" with the 18320 words; no row shows the 90244 words', /The main image is missing or incorrect/.test(html) && !/Unit Count/.test(html));
@@ -182,6 +183,7 @@ function picture(W, H, box, edge) {
     P.el('imPick').value = 'colour';
     // the select's change handler is wired in imListRender; call what it does
     P.IM_SEL.clear(); picks.colour.skus.forEach(s => P.IM_SEL.add(s));
+    P.IM_OPEN.add('PAR'); P.IM_OPEN.add('solo:S1');   // families start closed: open them to see the rows
     P.imListRender();
     ok('a pick ticks those listings in the list: K2 ticked, the button says "Preview · paste into 1 ticked listing(s)"', /data-sku="K2" checked/.test(P.el('imList').innerHTML)
       && /Preview · paste into 1 ticked listing\(s\)/.test(P.el('imList').innerHTML));
@@ -261,16 +263,17 @@ function picture(W, H, box, edge) {
     P.IMQ.dims = new Map([['k3MAIN', [1500, 1500]], ['k3PT01', [800, 800]]]);
     ok('quality summary: K3 "5/9 pictures · 2 below 2000 · no swatch"; K1 "9/9 pictures"', P.imKidSummary(it('K3')).replace(/<[^>]+>/g, '') === '5/9 pictures · 2 below 2000 · no swatch'
       && P.imKidSummary(it('K1')) === '9/9 pictures');
+    P.IM_OPEN.add('PAR'); P.IM_OPEN.add('solo:S1');   // families start closed: open them to see the rows
     P.imListRender();
     let html = P.el('imList').innerHTML;
-    ok('family card: "4 children · 4 need pictures", Copy main of this family, Select all children, Expand / Collapse all', /5 children · <b class="is-need">4 need pictures<\/b>/.test(html)
+    ok('family card: "4 children · 4 need pictures", Copy main of this family, Select all children, Open all / Close all', /5 children · <b class="is-need">4 need pictures<\/b>/.test(html)
       && /data-fammain="PAR"/.test(html) && /data-famsel="PAR"/.test(html) && /data-foldall="1"/.test(html), (html.match(/\d+ children[^<]*<b[^>]*>[^<]*/) || [''])[0]);
     ok('tiles: 160 px thumbnails for Amazon pictures (_SL160_), hover View · Copy · Replace', /_SL160_\.jpg/.test(html) && /data-view="K1" data-slot="PT01"/.test(html) && /data-repl="K1" data-slot="PT01"/.test(html) && /data-copy1="K1"/.test(html));
-    P.IM_FOLD.add('PAR');
+    P.IM_OPEN.delete('PAR');
     P.imListRender();
     html = P.el('imList').innerHTML;
-    ok('a folded family shows only its header (no child rows), ▸ to open', !/data-sku="K1"/.test(html.replace(/data-fold[^>]*/g, '')) && /im-grp is-folded/.test(html) && /aria-expanded="false"/.test(html) && /data-sku="S1"/.test(html));
-    P.IM_FOLD.clear();
+    ok('a closed family shows only its header (no child rows), ▸ to open', !/data-sku="K1"/.test(html.replace(/data-fold[^>]*/g, '')) && /im-grp is-folded/.test(html) && /aria-expanded="false"/.test(html) && /data-sku="S1"/.test(html));
+    P.IM_OPEN.clear();
     // density
     P.el('paneImg').classList = cl();
     P.imDensity('compact');
@@ -359,6 +362,64 @@ function picture(W, H, box, edge) {
     ok('…more files than empty slots: the rest are named, not uploaded', /No empty slot left: 1 file\(s\) not uploaded \(ok2\.png\)/.test(P.el('imMsg').textContent) && posts.length === 3);
     ok('a single file dropped on a slot still goes through imUpload\'s rules (11 MB refused)', (await P.imUpload('PT01', f('big.jpg', 11 * MB)), posts.length === 3 && /10 MB/.test(P.el('imMsg').textContent)));
     ok('"Picture rules" line: Main pure white, ~85%, 2000 × 2000, JPEG/PNG, 2–10 MB (one line, opens for more)', /<details class="im-rules"><summary><b>Picture rules:<\/b> Main pure white, product fills ~85%, at least 2000 × 2000, JPEG\/PNG, 2–10 MB<\/summary>/.test(P.imRulesHtml()));
+  }
+
+  console.log('== families: closed on load, open shows ALL children, close, no scroll jump, open all / close all, search opens ==');
+  {
+    const P = load({ im: true, ctx: { sqSendWithCheck: async () => {}, sqField: s => s, sqSummaryText: () => '' } });
+    P.el('imBrand').value = 'SP';
+    P.el('imFilter').value = 'all';
+    P.el('imQ').value = '';
+    // a big family: 195 children (more than any old page of 40)
+    const big = [{ sku: 'BIG', lvl: 'parent', asin: 'B0BIG', t: 'Big family', img: { MAIN: A('bigm') }, live: { MAIN: A('bigm') } }]
+      .concat(Array.from({ length: 195 }, (_, i) => ({ sku: 'B' + i, psku: 'BIG', asin: 'B0B' + i, pt: 'NAPKIN', c: 'C' + (i % 7), z: '18x18', st: 'BUYABLE,DISCOVERABLE', img: full('b' + i, 3), live: full('b' + i, 3) })));
+    P.IML.SP = { at: new Date(), items: ITEMS().concat(big) };
+    P.imListRender();
+    let html = P.el('imList').innerHTML;
+    const rows = h => (h.match(/class="im-kid[ "]/g) || []).length;
+    ok('on load every family is CLOSED: headers only, no child row drawn', rows(html) === 0 && (html.match(/class="card im-grp is-folded"/g) || []).length === 3 && !/im-pager|data-pg=/.test(html));
+    ok('…the header counts stay: "195 children · 195 need pictures"', /195 children · <b class="is-need">195 need pictures<\/b>/.test(html));
+    P.imFamToggle('BIG');
+    html = P.el('imList').innerHTML;
+    ok('▸ opens the family: ALL 195 children (no page limit, no "N shown" line)', rows(html) === 195 && !/d+ shown/.test(html) && !/continued/.test(html) && P.imIsOpen('BIG'));
+    P.imFamToggle('BIG');
+    ok('▾ closes it again', rows(P.el('imList').innerHTML) === 0 && !P.imIsOpen('BIG'));
+    // no scroll jump: only that card is drawn again, and the header is put back where it was
+    const scrolled = [];
+    const P2 = load({ im: true, window: { scrollBy: (x, y) => scrolled.push(y), scrollTo() {} }, ctx: { CSS: { escape: s => s }, sqSendWithCheck: async () => {}, sqField: s => s, sqSummaryText: () => '' } });
+    P2.el('imBrand').value = 'SP'; P2.el('imFilter').value = 'all'; P2.el('imQ').value = '';
+    P2.IML.SP = { at: new Date(), items: ITEMS() };
+    let replaced = null;
+    let listDrawn = 0;
+    const oldCard = { querySelector: () => ({ getBoundingClientRect: () => ({ top: 300 }) }), replaceWith: x => { replaced = x; } };
+    const freshCard = { querySelector: s => (s === '.im-grp-h' ? { getBoundingClientRect: () => ({ top: 340 }) } : null), querySelectorAll: () => [] };
+    P2.el('imList').querySelector = sel => (/data-grp="PAR"/.test(sel) ? oldCard : null);
+    Object.defineProperty(P2.el('imList'), 'innerHTML', { set() { listDrawn++; }, get() { return ''; } });
+    const doc = { addEventListener() {}, querySelectorAll: () => [], querySelector: () => null, createElement: () => { const box = {}; Object.defineProperty(box, 'innerHTML', { set(h) { doc.html = h; } }); box.firstElementChild = freshCard; return box; } };
+    const P3 = load({ im: true, window: { scrollBy: (x, y) => scrolled.push(y), scrollTo() {} }, ctx: { document: doc, CSS: { escape: s => s }, sqSendWithCheck: async () => {}, sqField: s => s, sqSummaryText: () => '' } });
+    P3.el('imBrand').value = 'SP'; P3.el('imFilter').value = 'all'; P3.el('imQ').value = '';
+    P3.IML.SP = { at: new Date(), items: ITEMS() };
+    P3.el('imList').querySelector = P2.el('imList').querySelector;
+    let drawn = 0;
+    Object.defineProperty(P3.el('imList'), 'innerHTML', { set() { drawn++; }, get() { return ''; } });
+    P3.imFamToggle('PAR');
+    ok('opening a family draws only its card again (not the whole list) and keeps its header where it was: moved 40 px → scrolled back 40 px',
+      replaced === freshCard && drawn === 0 && scrolled.length === 1 && scrolled[0] === 40 && /data-sku="K1"/.test(doc.html || ''), JSON.stringify({ drawn, scrolled }));
+    // remembered while on the screen; open all / close all; a search / filter opens the families it matches
+    P.IM_OPEN.add('PAR');
+    P.el('imFilter').value = 'few';
+    P.imListRender();
+    ok('a filter opens the families it matches (K3, fewer than 7) — and the family opened before stays open', /data-sku="K3"/.test(P.el('imList').innerHTML) && P.imIsOpen('PAR'));
+    P.imFamToggle('PAR');
+    ok('…a family closed by hand under that filter stays closed', !P.imIsOpen('PAR') && !/data-sku="K3"/.test(P.el('imList').innerHTML));
+    P.el('imFilter').value = 'all';
+    P.el('imQ').value = 'b17';
+    P.imListAgain();      // what typing in the search does
+    ok('a search that matches children opens their family (B17 in BIG)', /data-sku="B17"/.test(P.el('imList').innerHTML) && P.imIsOpen('BIG'));
+    P.el('imQ').value = '';
+    P.imListAgain();
+    ok('…search cleared: BIG closes again (it was opened by the search, not by hand)', !P.imIsOpen('BIG'));
+    ok('Open all / Close all in the bar', /data-foldall="0"[^>]*>Open all/.test(P.el('imList').innerHTML) && /data-foldall="1"[^>]*>Close all/.test(P.el('imList').innerHTML));
   }
 
   console.log(`\n${pass} passed, ${fail} failed`);

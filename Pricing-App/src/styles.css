@@ -1267,6 +1267,9 @@
   /* rows */
   #paneImg .im-kid{display:grid;grid-template-columns:20px 236px minmax(0,1fr);gap:4px 14px;align-items:start;margin:0;padding:12px 16px;border-top:1px solid var(--line)}
   #paneImg .im-grp-h+.im-kid{border-top:0}
+  #paneImg .im-grp-h+.im-chunk>.im-kid:first-child{border-top:0}
+  #paneImg .im-grp-h{cursor:pointer}
+  #paneImg .im-grp-h .im-grp-act,#paneImg .im-grp-h .im-tw{cursor:auto}
   #paneImg .im-kid:hover{background:color-mix(in srgb,var(--hover) 55%,transparent)}
   #paneImg .im-kid.is-open{background:color-mix(in srgb,var(--brand) 9%,transparent);box-shadow:inset 3px 0 0 var(--brand)}
   #paneImg .im-kid-sel{display:flex;padding-top:2px;cursor:pointer}
