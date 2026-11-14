@@ -34,8 +34,8 @@ function load(opts) {
   };
   const names = ['bsrUsed', 'bsrMove', 'bsrNoise', 'bsrDecide', 'bsrAtRisk', 'bsrPriority', 'bsrCatTrend', 'bsrSortRisk', 'bsrFactList', 'bsrFacts', 'bsrUnknown', 'bsrSalesWeek',
     'bsrMonday', 'bsrWeeksApart', 'bsrBest', 'bsrCollect', 'bsrDailyDue', 'bsrAvgEntry', 'bsrWeekEntries', 'bsrFollow', 'bsrActsRemember', 'bsrChartSvg', 'bsrKids', 'renderBsr',
-    'bsrPanelOpen', 'bsrPanelDraw', 'isoWeek', 'bsrLoadSources'];
-  const tail = '\n;return {' + names.join(',') + ', BSR, BSR_WEEKS, BSR_SRC, BSR_DAYDOC, setDays: d => { BSR_DAYS = d; }, getRender: () => BSR_RENDER, setActs: a => { BSR_ACTS = a; }, getActs: () => BSR_ACTS, setCard: c => { BSR_CARD = c; } };';
+    'bsrPanelOpen', 'bsrPanelDraw', 'isoWeek', 'bsrLoadSources', 'renderBsrHistory'];
+  const tail = '\n;return {' + names.join(',') + ', BSR, BSR_WEEKS, BSR_SRC, BSR_DAYDOC, setDays: d => { BSR_DAYS = d; }, getRender: () => BSR_RENDER, setActs: a => { BSR_ACTS = a; }, getActs: () => BSR_ACTS, setCard: c => { BSR_CARD = c; }, setHistKind: k => { BSR_HIST_KIND = k; } };';
   const api = new Function(...Object.keys(ctx), SRC + tail)(...Object.values(ctx));
   return Object.assign(api, { $, docs, writes, ctx });
 }
@@ -222,6 +222,31 @@ function load(opts) {
     const best = B.bsrBest(rows, { C1: { rank: 5000, cat: 'Home', sub: 300, subCat: 'Towels' }, C2: { rank: 4000, cat: 'Home', sub: 250, subCat: 'Towels' } });
     ok('best child by main rank (C2 4,000, its sub 250 with it); every ranked child kept; avg price $25; stock 6 (unknown not counted)', best.P.rank === 4000 && best.P.sub === 250
       && JSON.stringify(best.P.k) === '{"C1":[5000,300],"C2":[4000,250]}' && best.P.p === 25 && best.P.q === 6 && best.P.n === 2);
+  }
+
+  console.log('== Full history: the sub-category rank by default, Main category on the toggle ==');
+  {
+    const Hs = load({ HEALTH: { SP: { rows: [] }, CPC: { rows: [] } } });
+    Hs.BSR_WEEKS.SP = ['2026-W43', '2026-W44', '2026-W45'];
+    Hs.BSR.SP['2026-W43'] = { PA: { rank: 9000, cat: 'Home', sub: 1000, subCat: 'Bath Towels' }, PB: { rank: 50000, cat: 'Home' } };
+    Hs.BSR.SP['2026-W44'] = { PA: { rank: 9500, cat: 'Home', sub: 0 }, PB: { rank: 52000, cat: 'Home' } };
+    Hs.BSR.SP['2026-W45'] = { PA: { rank: 9900, cat: 'Home', sub: 1300, subCat: 'Bath Towels' }, PB: { rank: 48000, cat: 'Home' } };
+    Hs.$('bBrandView').value = 'SP'; Hs.$('bHistWeeks').value = '6'; Hs.$('bFilter').value = '';
+    await Hs.renderBsrHistory();
+    const t = Hs.$('bTable').innerHTML;
+    const r = Hs.getRender();
+    const pa = r.rows.find(x => x.parent === 'PA');
+    const pb = r.rows.find(x => x.parent === 'PB');
+    ok('default = sub-category rank: PA 1,000 · — · 1,300 (the week without a sub rank is "—", never the main 9,500)', pa.kind === 'sub' && pa.ranks['2026-W43'] === 1000 && !pa.ranks['2026-W44'] && pa.ranks['2026-W45'] === 1300
+      && /Bath Towels/.test(t) && !/9,500/.test(t));
+    ok('…Δ over the window on the sub rank: +300', pa.trend === 300);
+    ok('PB has no sub-category rank → its main rank, tagged "main"', pb.kind === 'main' && pb.ranks['2026-W45'] === 48000 && /data-pname="SP\|PB".*?bs-tag[^>]*>main</s.test(t));
+    ok('…Export says it: "Home (main — no sub-category rank)"', r.val(pb, r.defs.find(d => d.k === 'catShown')) === 'Home (main — no sub-category rank)' && r.val(pa, r.defs.find(d => d.k === 'w_2026-W45')) === 1300);
+    ok('the card says which rank: "· sub-category rank"', /sub-category rank<\/span>/.test(Hs.$('bKpis').innerHTML));
+    Hs.setHistKind('main');
+    await Hs.renderBsrHistory();
+    const m = Hs.getRender().rows.find(x => x.parent === 'PA');
+    ok('toggle Main category: PA 9,000 · 9,500 · 9,900, column "Main cat."', m.kind === 'main' && m.ranks['2026-W44'] === 9500 && /Main cat\./.test(Hs.$('bTable').innerHTML) && /main-category rank/.test(Hs.$('bKpis').innerHTML));
   }
 
   console.log(`\n${pass} passed, ${fail} failed`);

@@ -854,6 +854,10 @@
           <option value="20">Last 20 weeks</option>
           <option value="999">All weeks</option>
         </select>
+        <div id="bHistKind" class="seg histOnly hide" role="group" aria-label="Which rank Full history shows">
+          <button type="button" class="segbtn on" data-kind="sub" aria-pressed="true">Sub category</button>
+          <button type="button" class="segbtn" data-kind="main" aria-pressed="false">Main category</button>
+        </div>
         <input id="bFilter" style="flex:1 1 140px;min-width:0" placeholder="Filter parent / name">
         <button id="bCsv" class="ghost">Export</button>
         <select id="bSaveAs" style="flex:0 0 150px" title="Which week to file this snapshot under">

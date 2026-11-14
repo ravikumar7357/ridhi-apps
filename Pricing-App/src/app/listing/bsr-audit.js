@@ -759,6 +759,17 @@ $('bWeekB').addEventListener('change', async () => {
   renderBsr();
 });
 $('bHistWeeks').addEventListener('change', () => renderBsr());
+// Full history: Sub category / Main category.
+$('bHistKind').addEventListener('click', e => {
+  const btn = e.target && e.target.closest ? e.target.closest('[data-kind]') : null;
+  if (!btn) return;
+  BSR_HIST_KIND = btn.dataset.kind === 'main' ? 'main' : 'sub';
+  $('bHistKind').querySelectorAll('[data-kind]').forEach(b => {
+    b.classList.toggle('on', b.dataset.kind === BSR_HIST_KIND);
+    b.setAttribute('aria-pressed', String(b.dataset.kind === BSR_HIST_KIND));
+  });
+  renderBsr();
+});
 $('bModeCompare').onclick = () => setBsrMode('compare');
 $('bModeHistory').onclick = () => setBsrMode('history');
 
@@ -1170,8 +1181,12 @@ function bsrPanelLink(what) {
   window.scrollTo(0, 0);
 }
 
+/* Which rank Full history shows: 'sub' (the default — the same rank Compare decides on) or 'main'. A parent with no sub-category rank
+ * in any week shown falls back to its main rank, and says so ("main"). Sub and main are never mixed in one row: a week without a
+ * sub rank is "—" there, not the main number. */
+let BSR_HIST_KIND = 'sub';
 /**
- * Full history: every stored week as a column, one row per parent, MAIN rank in each cell.
+ * Full history: every stored week as a column, one row per parent, the SUB-CATEGORY rank in each cell (or main: the toggle).
  *
  * Older weeks are loaded on demand here — the tab only pre-loads the latest two for speed, so this
  * fetches whatever else the chosen window needs. Each cell is coloured against the PREVIOUS week's
@@ -1210,14 +1225,24 @@ async function renderBsrHistory() {
     Object.entries(BSR[brandKey][week] || {}).forEach(([parentAsin, entry]) => {
       const key = parentAsin + '|' + brandKey;
       const item = byKey[key] || (byKey[key] = { parent: parentAsin, brand: brandKey, title: parentName(brandKey, parentAsin, ''),
-        cat: '', ranks: {} });
+        cat: '', subCat: '', mains: {}, subs: {} });
       if (entry.rank > 0) {
-        item.ranks[week] = entry.rank;
+        item.mains[week] = entry.rank;
         item.cat = entry.cat || item.cat;
+      }
+      if (entry.sub > 0) {
+        item.subs[week] = entry.sub;
+        item.subCat = entry.subCat || item.subCat;
       }
     });
   }));
   let rows = Object.values(byKey);
+  // The rank shown: the sub-category rank when the toggle says so and the parent has one in the window, else the main rank.
+  rows.forEach(row => {
+    row.kind = BSR_HIST_KIND === 'sub' && Object.keys(row.subs).length ? 'sub' : 'main';
+    row.ranks = row.kind === 'sub' ? row.subs : row.mains;
+    row.catShown = row.kind === 'sub' ? row.subCat : row.cat;
+  });
 
   const search = $('bFilter').value.trim().toLowerCase();
   if (search) rows = rows.filter(row => (row.parent + ' ' + (row.title || '')).toLowerCase().includes(search));
@@ -1238,8 +1263,12 @@ async function renderBsrHistory() {
   const defs = [{ k: 'parent', t: 'Parent ASIN', frz: 1, mono: 1 }];
   if (multiBrand) defs.push({ k: 'brand', t: 'Brand', map: row => BRAND_NAME[row.brand] });
   defs.push({ k: 'title', t: 'Parent name', trunc: 26, cell: row => parentNameCell(row.brand, row.parent, row.title, 26) });
+  const kindWord = BSR_HIST_KIND === 'sub' ? 'Sub-category' : 'Main-category';
+  defs.push({ k: 'catShown', t: BSR_HIST_KIND === 'sub' ? 'Sub cat.' : 'Main cat.', map: row => (row.catShown || '') + (BSR_HIST_KIND === 'sub' && row.kind === 'main' ? ' (main — no sub-category rank)' : ''),
+    cell: row => `${bsrEsc(row.catShown || '—')}${BSR_HIST_KIND === 'sub' && row.kind === 'main' ? ' <span class="bs-tag" title="No sub-category rank: the main category rank is shown">main</span>' : ''}`,
+    tip: 'The category of the rank shown in the week columns.' });
   weeks.forEach(wk => defs.push({ k: 'w_' + wk, t: wk, num: 1, week: wk,
-    tip: `Main-category rank in ${wk}. Lower is better.` }));
+    tip: `${kindWord} rank in ${wk} (main where a parent has no sub-category rank). Lower is better.` }));
   defs.push({ k: 'trend', t: `Δ ${weeks.length}w`, num: 1, signed: 1,
     tip: `Change from ${earliest} to ${latest}. Negative = improved.` });
 
@@ -1290,7 +1319,7 @@ async function renderBsrHistory() {
   const improved = rows.filter(row => row.trend < 0).length;
   const worsened = rows.filter(row => row.trend > 0).length;
   $('bKpis').innerHTML = `<div class="kpi">
-    <div class="kpihead"><span class="kpiname">History · ${weeks.length} weeks (${earliest} → ${latest})</span>
+    <div class="kpihead"><span class="kpiname">History · ${weeks.length} weeks (${earliest} → ${latest}) · ${BSR_HIST_KIND === 'sub' ? 'sub-category' : 'main-category'} rank</span>
       <span class="kpiwhen">${rows.length.toLocaleString('en-US')} parents</span></div>
     <div class="metrics">
       <div class="metric"><div class="v" style="color:var(--accent-ink)">${improved.toLocaleString('en-US')}</div><div class="l">Improved over window</div></div>
