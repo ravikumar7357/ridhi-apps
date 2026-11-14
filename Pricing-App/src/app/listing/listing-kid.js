@@ -54,6 +54,7 @@ function lkHtml(kid, opts) {
   const rec = (hit, fill) => lrRecHtml({ sev: hit.sev, stale: hit.stale, fill, bare: true, name: hit.what || hit.name,
     sub: [hit.what ? '' : hit.detail, hit.sev === 'critical' && hit.stale ? `from data ${ageOf(hit)} — Check now reads it again` : ''].filter(Boolean).join(' · '),
     fix: hit.fix, tag: hit.tag, kind: hit.kind, detector: hit.detector,
+    bfHtml: typeof bfKidHtml === 'function' ? bfKidHtml(fill ? bfSpec(kid, '') : bfOf(kid, hit, hCtx())) : '',   // B / F dots (listing-bf.js)
     attrs: fill ? ((kid.c.spec && kid.c.spec.attrs) || []) : ((kid.c[liWsColOf(hit)] || {}).attrs || []) }, { brand: kid.brand, sku: kid.sku });
   const group = (cls, title, items) => (items.length ? `<div class="ls-kidhead lk-gh ${cls}">${lrEsc(title)}<span class="ls-n">${liWsNf(items.length)}</span></div><div class="ls-recs">${items.join('')}</div>` : '');
   const errs = found.filter(hit => hit.sev === 'critical').map(hit => rec(hit, false));

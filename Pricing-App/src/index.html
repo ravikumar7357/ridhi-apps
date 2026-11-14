@@ -22,7 +22,9 @@
 <body>
 
 <!-- ============ LOGIN ============ -->
-<div id="loginView" class="wrap login">
+<!-- Shown until Firebase says whether this browser is signed in (core/auth.js): no sign-in flash on a refresh. -->
+<div id="bootView" class="wrap" role="status" style="max-width:340px;margin:30vh auto;text-align:center;color:var(--muted);font-size:14px">Loading Sellora…</div>
+<div id="loginView" class="wrap login hide">
   <!-- The moving background, behind the card: soft drifting light (styles.css) and faint drifting dots
        joined by lines (app/core/fx.js draws them). Inside this screen, so it goes when the screen does. -->
   <div class="fx-aurora" aria-hidden="true"><i></i><i></i><i></i></div>
@@ -852,6 +854,10 @@
           <option value="20">Last 20 weeks</option>
           <option value="999">All weeks</option>
         </select>
+        <div id="bHistKind" class="seg histOnly hide" role="group" aria-label="Which rank Full history shows">
+          <button type="button" class="segbtn on" data-kind="sub" aria-pressed="true">Sub category</button>
+          <button type="button" class="segbtn" data-kind="main" aria-pressed="false">Main category</button>
+        </div>
         <input id="bFilter" style="flex:1 1 140px;min-width:0" placeholder="Filter parent / name">
         <button id="bCsv" class="ghost">Export</button>
         <select id="bSaveAs" style="flex:0 0 150px" title="Which week to file this snapshot under">
@@ -871,6 +877,8 @@
         <div id="bRules" class="muted" style="font-size:12px"></div>
       </div>
     </div>
+    <!-- One parent: its children, its rank by week, the facts behind the action (listing/bsr-audit.js bsrPanelOpen). -->
+    <aside id="bPanel" class="bs-panel" role="dialog" aria-label="Parent details" hidden></aside>
   </div><!-- /paneBsr -->
 
   <!-- Listing History: every change sent to Amazon (listing/listing-history.js draws it) -->
@@ -1802,41 +1810,54 @@
   </div>
 
   <div id="paneImg" class="hide">
-    <div class="card" style="padding:12px 14px;margin-bottom:12px">
-      <div class="toolbar">
-        <select id="imBrand" style="flex:0 0 110px">
+    <!-- The toolbar sticks under the menu bar (--im-top, measured by imStick in image-manager.js). -->
+    <div id="imTb" class="card im-tb" style="padding:12px 14px;margin-bottom:12px">
+      <div class="toolbar im-tbar">
+        <select id="imBrand" aria-label="Brand">
           <option value="SP">Ridhi</option><option value="CPC">CPC</option>
         </select>
-        <input id="imQ" placeholder="Search SKU, ASIN, title, colour" style="flex:0 0 260px">
-        <select id="imFilter" style="flex:0 0 220px">
+        <label class="im-search"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="imQ" placeholder="Search SKU, ASIN, title, colour" aria-label="Search SKU, ASIN, title or colour"><kbd title="Press / to search">/</kbd></label>
+        <select id="imFilter" aria-label="Filter">
           <option value="all">All listings</option>
+          <option value="nomain">No main at all</option>
+          <option value="pcbad">Main not OK (Picture check)</option>
+          <option value="small">Too small (under 2000)</option>
           <option value="diff">Live image differs from yours</option>
           <option value="other">Amazon shows another SKU's pictures</option>
           <option value="sup">Search suppressed</option>
-          <option value="amzerr">Amazon reports an error</option>
-          <option value="noown">No main image of your own</option>
+          <option value="amzerr">Amazon picture error</option>
+          <option value="noown">Using the family's main (none of your own)</option>
           <option value="few">Fewer than 7 images</option>
           <option value="noswatch">No swatch</option>
           <option value="nobuy">Not buyable</option>
         </select>
-        <select id="imView" style="flex:0 0 210px" title="Which picture each tile shows first">
+        <select id="imView" title="Which picture each tile shows first" aria-label="Which picture each tile shows">
           <option value="mine">Show the pictures you sent</option>
           <option value="live">Show what Amazon serves</option>
         </select>
+        <span class="im-dense" role="group" aria-label="Row size"><button type="button" data-im-dense="comfortable" title="Big pictures">Comfortable</button><button type="button" data-im-dense="compact" title="More rows on screen">Compact</button></span>
         <!-- Picture check: the main pictures a person must judge (listing/picture-check.js). -->
         <button id="imPcChip" type="button" class="sp-chip" aria-pressed="false">◐ Picture check</button>
-        <button id="imGo" class="ghost" style="flex:0 0 120px" title="Open the editor for exactly this SKU or ASIN">Open editor</button>
-        <button id="imRefresh" class="ghost" style="flex:0 0 190px">Refresh from Amazon</button>
         <span style="flex:1"></span>
-        <span id="imMsg" class="muted" style="align-self:center;font-size:12px"></span>
+        <button id="imGo" class="ghost" title="Open the editor for exactly the SKU or ASIN typed in the search">Open editor</button>
+        <button id="imRefresh" class="ghost" title="Read every listing's pictures from Amazon again (about two minutes)">Refresh</button>
+        <button type="button" class="ghost im-helpbtn" data-im-help="open" title="Keys and tips (?)" aria-label="Keys and tips">?</button>
+        <!-- Messages: shown as toasts (bottom right); this line stays for screen readers. -->
+        <span id="imMsg" class="im-sr" role="status" aria-live="polite"></span>
       </div>
+      <div id="imProg" class="im-prog" role="progressbar" aria-label="Reading listings from Amazon" hidden></div>
     </div>
-    <div id="imEditWrap" class="hide">
-      <div style="margin-bottom:8px"><button id="imBack" class="ghost" style="width:auto;padding:5px 14px">&larr; All listings</button></div>
+    <!-- The editor opens as a panel on the right; the list stays where it was (image-manager.js imShowEditor). -->
+    <aside id="imEditWrap" class="im-side hide" role="dialog" aria-label="Edit pictures">
+      <div class="im-side-h"><b>Edit pictures</b><span style="flex:1"></span><button id="imBack" class="ghost" type="button" style="width:auto;padding:5px 14px" title="Close (Esc)">&#10005; Close</button></div>
       <div id="imBody"></div>
-    </div>
+    </aside>
     <div id="imListWrap"><div id="imList"></div></div>
     <div id="imPcWrap" class="hide"></div>
+    <!-- The picture viewer (image-manager.js imViewOpen), the file chooser behind a tile's Replace, the toasts. -->
+    <div id="imViewer" class="im-vw" hidden></div>
+    <input type="file" id="imFile2" accept="image/jpeg,image/png,image/tiff,image/gif" class="hide">
+    <div id="imToasts" class="im-toasts" aria-live="polite"></div>
   </div>
 
   <div id="paneLerr" class="hide">

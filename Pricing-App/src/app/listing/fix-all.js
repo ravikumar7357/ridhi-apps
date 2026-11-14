@@ -115,6 +115,19 @@ function faGroups(brand, parent, kids) {
     });
     g.kids = keep;
   });
+  // B / F (listing-bf.js): each child tagged Seller Central / what shoppers see; one fixed AND showing (B🟢 F🟢) leaves the row.
+  // A tag only — the cards above and Listing Health's levels are healthOf's and never change for it.
+  const ctx = hCtx();
+  by.forEach(g => {
+    g.bf = new Map();
+    if (typeof bfOf !== 'function') return;
+    g.kids = g.kids.filter(kid => {
+      const key = faKidKey(kid);
+      const bf = g.kind === 'spec' ? bfSpec(kid, g.attr) : bfOf(kid, g.hits.get(key), ctx);
+      g.bf.set(key, bf);
+      return bf.who !== 'done';
+    });
+  });
   by.forEach(g => { g.all = kids; });
   const rank = g => (g.sev === 'critical' ? (g.stale ? 3 : 4) : 1);
   return [...by.values()].filter(g => g.kids.length || g.waiting.length)
@@ -334,7 +347,7 @@ function faKidsHtml(gk, g, plans) {
     const plan = plans[g.kids.indexOf(kid)];
     const one = safeKind && plan.ok ? `<button type="button" class="fa-btn fa-small" data-fa-act="one" data-fa-row="${lrEsc(gk)}" data-fa-sku="${lrEsc(kid.sku)}"${busy ? ' disabled' : ''} title="Fix only this child">Fix</button>` : '';
     return `<div class="fa-kid"><button type="button" class="fa-kid-o" data-fa-act="kid" data-fa-kid="${lrEsc(faKidKey(kid))}"><b>${lrEsc(plan.label)}</b><small>${lrEsc(kid.sku)}</small>`
-      + `<span class="fa-chg">${faKidChange(g, plan, kid)}</span></button>${one}</div>`;
+      + `<span class="fa-chg">${typeof bfKidHtml === 'function' ? bfKidHtml(g.bf.get(faKidKey(kid))) : ''}${faKidChange(g, plan, kid)}</span></button>${one}</div>`;
   }).join('');
   const more = g.kids.length > shown.length ? `<button type="button" class="fa-link" data-fa-act="kmore" data-fa-row="${lrEsc(gk)}">Show the other ${faNf(g.kids.length - shown.length)}</button>` : '';
   const wait = g.waiting.length ? `<div class="fa-waitl">⏳ ${faKidsN(g.waiting.length)} sent lately — waiting for Amazon to show the change: ${g.waiting.slice(0, 6).map(w => lrEsc(w.kid.sku)).join(', ')}${g.waiting.length > 6 ? '…' : ''}</div>` : '';
@@ -364,7 +377,7 @@ function faBlockInner(brand, parent, kids) {
     const cls = g.sev === 'critical' ? (g.stale ? 'is-chk' : 'is-err') : 'is-att';
     const count = g.kids.length ? faKidsN(g.kids.length) : 'waiting';
     const show = g.kids.length ? `<button type="button" class="fa-link" data-fa-act="more" data-fa-row="${lrEsc(gk)}" aria-expanded="${open}">${open ? '⌄ Hide' : '› Show all ' + faNf(g.kids.length)}</button>` : '';
-    return `<div class="fa-row ${cls}"><span class="fa-dot" aria-hidden="true"></span><div class="fa-row-t"><b>${lrEsc(g.name)}</b><small>${lrEsc(faDoLine(g, plans))}</small>${show}</div>`
+    return `<div class="fa-row ${cls}"><span class="fa-dot" aria-hidden="true"></span><div class="fa-row-t"><b>${lrEsc(g.name)}</b><small>${lrEsc(faDoLine(g, plans))}</small>${typeof bfLineHtml === 'function' ? bfLineHtml(g.kids, g.bf) : ''}${show}</div>`
       + `<span class="fa-n">${count}</span>${g.kids.length ? faRowButton(gk, g, plans) : ''}</div>` + (open || (!g.kids.length && g.waiting.length) ? faKidsHtml(gk, g, plans) : '');
   };
   const first = groups.filter(g => g.sev === 'critical');
