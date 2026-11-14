@@ -48,6 +48,60 @@ const GUARD = `<script>/* TEST ERP GUARD — added by Replenish-App/tests/build-
     sb: ${JSON.stringify(SB_DATA)}, sbReads: 0, sbOn: !!window.__TEST_ERP_SB_PAGE };
   /* A read of the factory registers (Firebase Realtime Database REST: <path>.json?auth=<sign-in>&orderBy=…) answered by ERP data's
    * door core.rt_get with the same sign-in — same data, same shape. Only pages that turn it on (the factory ERP) use it. */
+  /* one call to an ERP data door with the person's sign-in; the answer, or an error that says why */
+  function sbRpc(fn, body, tok, origFetch) {
+    var sb = window.__TEST_ERP.sb;
+    return origFetch(sb.url + '/rest/v1/rpc/' + fn, { method: 'POST', body: JSON.stringify(body),
+      headers: { apikey: sb.key, Authorization: 'Bearer ' + (tok || sb.key), 'Content-Type': 'application/json', 'Content-Profile': 'core', 'Accept-Profile': 'core' } })
+      .then(function (r) { return r.text().then(function (t) {
+        if (r.ok) return t ? JSON.parse(t) : null;
+        var why = t; try { var j = JSON.parse(t); why = [j.message, j.hint].filter(Boolean).join(' · ') || t; } catch (e) {}
+        throw new Error('ERP data ' + r.status + ': ' + why);
+      }); });
+  }
+  /* THIS BROWSER'S COPY of each whole list (IndexedDB, kept across reloads), with the inbox number it is complete up to.
+   * A list is downloaded whole only the first time (or after 6 hours); after that only the records saved since arrive —
+   * a few KB instead of 22 MB a page. If anything looks off, the whole list is fetched again. */
+  var SBDB = null;
+  function sbIdb() {
+    if (!SBDB) SBDB = new Promise(function (res) {
+      try { var r = indexedDB.open('r1-erpdata-copies', 1); r.onupgradeneeded = function () { r.result.createObjectStore('lists'); };
+        r.onsuccess = function () { res(r.result); }; r.onerror = function () { res(null); }; } catch (e) { res(null); }
+    });
+    return SBDB;
+  }
+  function sbCopy(k, v) {
+    return sbIdb().then(function (db) {
+      if (!db) return null;
+      return new Promise(function (res) {
+        try { var st = db.transaction('lists', v === undefined ? 'readonly' : 'readwrite').objectStore('lists');
+          var q = v === undefined ? st.get(k) : st.put(v, k); q.onsuccess = function () { res(v === undefined ? (q.result || null) : true); }; q.onerror = function () { res(null); };
+        } catch (e) { res(null); }
+      });
+    });
+  }
+  function sbSet(o, segs, val) {    /* one record into the copy (null = gone; an emptied group goes too, as in Firebase) */
+    var path = [o], cur = o;
+    for (var i = 0; i < segs.length - 1; i++) { if (!cur[segs[i]] || typeof cur[segs[i]] !== 'object') cur[segs[i]] = {}; cur = cur[segs[i]]; path.push(cur); }
+    if (val == null) delete cur[segs[segs.length - 1]]; else cur[segs[segs.length - 1]] = val;
+    for (var j = segs.length - 2; j >= 0; j--) { if (Object.keys(path[j + 1]).length === 0) delete path[j][segs[j]]; else break; }
+  }
+  function sbWhole(p, tok, origFetch) {
+    var key = window.__TEST_ERP.sb.url + '|' + p;
+    function full() { return sbRpc('rt_get_v', { p_path: p }, tok, origFetch).then(function (r) { sbCopy(key, { v: r.v, upto: r.upto, at: Date.now() }); return r.v; }); }
+    return sbCopy(key).then(function (c) {
+      if (!c || c.upto == null || Date.now() - (c.at || 0) > 6 * 3600000) return full();
+      return sbRpc('rt_changes', { p_reg: p, p_upto: c.upto }, tok, origFetch).then(function (r) {
+        if (!r || r.full) return full();
+        var ks = Object.keys(r.ch || {});
+        if (!ks.length) { if (r.upto !== c.upto) sbCopy(key, { v: c.v, upto: r.upto, at: c.at }); return c.v; }
+        if (Array.isArray(c.v) || c.v == null || typeof c.v !== 'object') return full();
+        ks.forEach(function (k) { sbSet(c.v, k.split('/'), r.ch[k]); });
+        sbCopy(key, { v: c.v, upto: r.upto, at: c.at });
+        return c.v;
+      });
+    });
+  }
   function sbRtdb(url, origFetch) {
     var u = new URL(url), q = u.searchParams, tok = q.get('auth') || '';
     var p = decodeURIComponent(u.pathname.replace(/\\.json$/, '').replace(/^\\/+/, ''));
@@ -61,22 +115,18 @@ const GUARD = `<script>/* TEST ERP GUARD — added by Replenish-App/tests/build-
     var memoKey = JSON.stringify(body) + (q.get('shallow') || '');
     var M = window.__TEST_ERP.sbMemo || (window.__TEST_ERP.sbMemo = {});
     var hit = M[memoKey];
-    if (hit && Date.now() - hit.t < 120000) return hit.p.then(function (x) { return new Response(x.text, { status: x.status, statusText: x.statusText, headers: { 'Content-Type': 'application/json', ETag: 'sb' } }); });
+    if (hit && Date.now() - hit.t < 20000) return hit.p.then(function (x) { return new Response(x.text, { status: x.status, statusText: x.statusText, headers: { 'Content-Type': 'application/json', ETag: 'sb' } }); });
     window.__TEST_ERP.sbReads++;
-    var p0 = origFetch(sb.url + '/rest/v1/rpc/rt_get', { method: 'POST',
-      headers: { apikey: sb.key, Authorization: 'Bearer ' + (tok || sb.key), 'Content-Type': 'application/json', 'Content-Profile': 'core', 'Accept-Profile': 'core' },
-      body: JSON.stringify(body) }).then(function (r) {
-        return r.text().then(function (t) {
-          if (!r.ok) {   /* the real reason goes into the message the screen shows ("…answered 503 ERP data 401: <why>") */
-            var why = t; try { var j = JSON.parse(t); why = [j.message, j.hint].filter(Boolean).join(' · ') || t; } catch (e) {}
-            try { console.warn('[TEST ERP] ERP data refused the read of ' + p + ': ' + r.status + ' ' + why); } catch (e) {}
-            return new Response(JSON.stringify({ error: why }), { status: 503, statusText: ('ERP data ' + r.status + ': ' + why).replace(/[^\\x20-\\x7e]/g, ' ').slice(0, 180), headers: { 'Content-Type': 'application/json' } });
-          }
-          var v = t ? JSON.parse(t) : null;
-          if (q.get('shallow') === 'true' && v && typeof v === 'object') { var o = {}; Object.keys(v).forEach(function (k) { o[k] = true; }); v = o; }
-          return new Response(JSON.stringify(v), { status: 200, headers: { 'Content-Type': 'application/json', ETag: 'sb' } });
-        });
-      });
+    /* a WHOLE list (the big reads every page makes): from this browser's own copy + only the records saved since */
+    var whole = p && p.indexOf('/') < 0 && !body.p_order_by && !q.get('shallow');
+    var vp = whole ? sbWhole(p, tok, origFetch) : sbRpc('rt_get', body, tok, origFetch);
+    var p0 = vp.then(function (v) {
+      if (q.get('shallow') === 'true' && v && typeof v === 'object') { var o = {}; Object.keys(v).forEach(function (k) { o[k] = true; }); v = o; }
+      return new Response(JSON.stringify(v), { status: 200, headers: { 'Content-Type': 'application/json', ETag: 'sb' } });
+    }, function (e) {   /* the real reason goes into the message the screen shows ("…answered 503 ERP data 500: <why>") */
+      try { console.warn('[TEST ERP] ERP data refused the read of ' + p + ': ' + e.message); } catch (x) {}
+      return new Response(JSON.stringify({ error: e.message }), { status: 503, statusText: String(e.message).replace(/[^\\x20-\\x7e]/g, ' ').slice(0, 180), headers: { 'Content-Type': 'application/json' } });
+    });
     /* kept only when it worked: a refused or failed read is asked again next time */
     var keep = p0.then(function (r) { return r.clone().text().then(function (t) { if (!r.ok) delete M[memoKey]; return { text: t, status: r.status, statusText: r.statusText }; }); });
     keep.catch(function () { delete M[memoKey]; });
