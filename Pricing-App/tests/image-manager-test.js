@@ -127,6 +127,67 @@ function picture(W, H, box, edge) {
     ok('…a picture from the other brand starts a new clipboard', P.getClip().brand === 'CPC' && Object.keys(P.getClip().slots).join() === 'PT01');
   }
 
+  console.log('== the clipboard bar: paste only the ticked slots, the quick picks, the mode, the preview ==');
+  {
+    const sent = [];
+    const modal = { html: '' };
+    const P = load({ im: true, ctx: { sqSendWithCheck: async (jobs, opts) => { sent.push({ jobs, opts }); }, sqField: s => s, sqSummaryText: () => '', spModal: h => { modal.html = h || ''; } } });
+    P.el('imBrand').value = 'SP';
+    P.el('imFilter').value = 'all';
+    P.IML.SP = { at: new Date(), items: ITEMS() };
+    const k1 = P.IML.SP.items.find(i => i.sku === 'K1');
+    P.imClipTake({ brand: 'SP', sku: 'K1', c: 'Blue', z: '18x18', psku: 'PAR', own: k1.img, live: k1.live });
+    P.getClip().tick.PT08 = false;
+    P.imListRender();
+    const bar = P.el('imList').innerHTML;
+    ok('the bar: one cell per slot (Main, 01–08, Swatch) with a tick; the swatch tick is today\'s "also the swatch", off at first', (bar.match(/class="im-cs[ "]/g) || []).length === 10
+      && /id="imClipSw"(?! checked)/.test(bar) && /data-clip-tick="PT08"(?! checked)/.test(bar) && /data-clip-tick="MAIN" checked/.test(bar) && /position|im-clip/.test(bar));
+    const plan = P.imPastePlan(['S1'], {});
+    ok('paste only the ticked slots: PT08 unticked and the swatch off → MAIN, PT01–PT07 only', Object.keys(plan.jobs[0].body.set).join() === 'MAIN,PT01,PT02,PT03,PT04,PT05,PT06,PT07');
+    ok('…with the swatch ticked: the swatch too', Object.keys(P.imPastePlan(['S1'], { withSw: true }).jobs[0].body.set).includes('SWCH'));
+    const gaps = P.imPastePlan(['K3'], { mode: 'gaps' });
+    ok('mode "Only fill empty slots": K3 holds MAIN–PT04 → only PT05, PT06, PT07 (PT08 unticked)', Object.keys(gaps.jobs[0].body.set).join() === 'PT05,PT06,PT07');
+    const full9 = P.imPastePlan(['K4'], { mode: 'gaps' });
+    ok('…a listing with every slot filled: not changed, "no empty slot to fill"', !full9.jobs.length && full9.held[0].why === 'no empty slot to fill');
+    const picks = Object.fromEntries(P.imPicks().map(p => [p.k, p]));
+    ok('quick picks: all children of PAR = K2, K3, K4 (never the copied K1)', picks.kids && picks.kids.skus.join() === 'K2,K3,K4' && /All children of PAR/.test(picks.kids.label));
+    ok('…same colour (Blue) in this parent = K2; same size (18x18) = K3', picks.colour.skus.join() === 'K2' && /Same colour \(Blue\) in this parent/.test(picks.colour.label) && picks.size.skus.join() === 'K3');
+    ok('…everything in the current filter (All) = K2, K3, K4, S1', picks.filter.skus.slice().sort().join() === 'K2,K3,K4,S1');
+    P.el('imFilter').value = 'few';
+    ok('…with the filter "Fewer than 7": only K3', P.imPicks().find(p => p.k === 'filter').skus.join() === 'K3');
+    P.el('imFilter').value = 'all';
+    ok('…"This listing" only while the editor is open', !picks.this);
+    P.el('imPick').value = 'colour';
+    // the select's change handler is wired in imListRender; call what it does
+    P.IM_SEL.clear(); picks.colour.skus.forEach(s => P.IM_SEL.add(s));
+    P.imListRender();
+    ok('a pick ticks those listings in the list: K2 ticked, the button says "Preview · paste into 1 ticked listing(s)"', /data-sku="K2" checked/.test(P.el('imList').innerHTML)
+      && /Preview · paste into 1 ticked listing\(s\)/.test(P.el('imList').innerHTML));
+
+    // --- the preview ---
+    P.IMQ.dims = new Map([[P.imqId(k1.img.PT01), [1500, 1500]], [P.imqId(k1.img.MAIN), [2400, 2400]]]);
+    P.imPastePreview(['K2', 'S1', 'NOPE']);
+    const h = modal.html;
+    ok('PREVIEW before sending: per listing the slots that change, old → new picture', /im-pv-l/.test(h) && (h.match(/class="im-pv-l"/g) || []).length === 2 && /K2.*S1/s.test(h)
+      && (h.match(/im-pv-arrow/g) || []).length === 16 && sent.length === 0);
+    ok('…a picture failing the rules (PT01 1500 × 1500) is marked, left out, and needs its own "Include anyway" tick', (h.match(/data-pv-inc=/g) || []).length === 2
+      && /1500 × 1500 · below 2000 — company minimum/.test(h) && /2 left out/.test(h) && /14 picture\(s\) go in/.test(h));
+    ok('…a picture that passes says so (2400 × 2400), one not measured says "Size not known"', /imq-chip is-ok"[^>]*>2400 × 2400/.test(h) && /Size not known/.test(h));
+    ok('…listings that will not change are named (NOPE — not in this snapshot)', /NOPE<\/span> — not in this snapshot/.test(h));
+    P.getPV().inc.add('K2|PT01');
+    await P.imPreviewGo();
+    const s1 = sent[0];
+    ok('Continue → the Amazon check popup (#10) with what the preview kept: K2 with PT01 (ticked in), S1 without it', sent.length === 1
+      && 'PT01' in s1.jobs.find(j => j.sku === 'K2').body.set && !('PT01' in s1.jobs.find(j => j.sku === 'S1').body.set)
+      && s1.jobs.find(j => j.sku === 'S1').changes.every(c => c.attr !== 'PT01') && s1.opts.screen === 'Image Manager · paste' && s1.opts.held.some(x => x.sku === 'NOPE'));
+    // a listing with only failing pictures left
+    Object.keys(P.getClip().tick).forEach(s => { P.getClip().tick[s] = s === 'PT01'; });
+    P.imPastePreview(['S1']);
+    await P.imPreviewGo();
+    ok('…a listing whose every picture was left out is not sent: "every picture was left out in the preview"', !sent[1].jobs.length
+      && sent[1].opts.held[0].why === 'every picture was left out in the preview (picture rules)');
+  }
+
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
 })();

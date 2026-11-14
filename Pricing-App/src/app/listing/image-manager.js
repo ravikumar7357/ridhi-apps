@@ -67,6 +67,8 @@ let IM_OWNER = new Map();       // image file -> the listing of ours that submit
 
 let IM_CLIP = null;     // { brand, sku, asin, c, z, slots: {MAIN..PT08, SWCH}, n }
 const IM_SEL = new Set();   // SKUs ticked in the list, for pasting into several at once
+let IM_PASTE_MODE = 'replace';  // the clipboard bar's mode: 'replace' these slots | 'gaps' = only fill empty slots
+let IM_PV = null;           // the paste preview while it is open: { skus, plan, inc: Set('sku|slot') of pictures failing the rules but ticked in }
 let IM_ONLY = null;         // { skus: Set, label } — only these listings, picked in Listing Health's Fix all (fix-all.js), until "Show every listing"
 // Show only these listings (ticked, page 1, no search), with a bar naming where they were picked; empty → every listing again.
 function imOnly(skus, label) {
@@ -521,6 +523,19 @@ function imKidRow(item) {
   </div>`;
 }
 
+// The groups the list shows for this filter and search (and the listings picked in Listing Health, IM_ONLY): [{ parent, kids, psku, show }].
+function imShownGroups(items, filter, search) {
+  const groups = [];
+  imListGroups(items).forEach(group => {
+    const picked = kid => !IM_ONLY || IM_ONLY.skus.has(kid.sku);
+    let show = group.kids.filter(kid => picked(kid) && imKidMatch(kid, filter, search));
+    // A search that names the PARENT shows the whole family.
+    if (!show.length && search && group.parent && imKidMatch(group.parent, 'all', search)) show = group.kids.filter(kid => picked(kid) && imKidMatch(kid, filter, ''));
+    if (show.length) groups.push(Object.assign({}, group, { show }));
+  });
+  return groups;
+}
+
 // Draw the list: group by parent, apply the filter and the search, page by listing, then wire the buttons.
 function imListRender() {
   const el = $('imList');
@@ -538,14 +553,7 @@ function imListRender() {
   const search = ($('imQ').value || '').trim().toLowerCase();
   IML_VIEW = ($('imView') || {}).value || 'mine';
   imOwnerBuild(data.items);
-  const groups = [];
-  imListGroups(data.items).forEach(group => {
-    const picked = kid => !IM_ONLY || IM_ONLY.skus.has(kid.sku);
-    let show = group.kids.filter(kid => picked(kid) && imKidMatch(kid, filter, search));
-    // A search that names the PARENT shows the whole family.
-    if (!show.length && search && group.parent && imKidMatch(group.parent, 'all', search)) show = group.kids.filter(kid => picked(kid) && imKidMatch(kid, filter, ''));
-    if (show.length) groups.push(Object.assign({}, group, { show }));
-  });
+  const groups = imShownGroups(data.items, filter, search);
   groups.sort((a, b) => (b.kids.length - a.kids.length)
     || String((a.parent || a.kids[0]).t || '').localeCompare(String((b.parent || b.kids[0]).t || '')));
   const nKids = groups.reduce((sum, group) => sum + group.show.length, 0);
@@ -578,7 +586,7 @@ function imListRender() {
       · snapshot ${data.at ? data.at.toLocaleString() : '—'}${IML_BUSY ? ' · refreshing…' : ''}
       · tiles show <b>${IML_VIEW === 'live' ? 'what Amazon serves' : 'the pictures you submitted'}</b>
       · ${IM_LEGEND}</div>
-    ${imClipBar('list')}
+    ${IM_CLIP ? '<div id="imBulk" class="muted" style="font-size:12px;margin-bottom:8px"></div>' : ''}
     ${pager}
     ${slice.map(group => {
       const parent = group.parent;
@@ -593,7 +601,8 @@ function imListRender() {
           : `<div class="im-grp-h"><div style="font-weight:600">${imEsc(group.kids[0].t)}</div><span class="muted" style="font-size:12px">No variation parent</span></div>`;
       return `<div class="card im-grp">${head}${group.show.map(imKidRow).join('')}</div>`;
     }).join('')}
-    ${pager}`;
+    ${pager}
+    ${imClipBar('list')}`;
   // --- the buttons in what was just drawn ---
   el.querySelectorAll('[data-copy]').forEach(btn => btn.onclick = () => {
     const item = (IML[$('imBrand').value] || { items: [] }).items.find(each => each.sku === btn.dataset.copy);
@@ -619,14 +628,36 @@ function imListRender() {
     const pasteBtn = $('imPasteSel');
     if (pasteBtn) {
       pasteBtn.disabled = !IM_SEL.size;
-      pasteBtn.textContent = 'Paste into ' + IM_SEL.size + ' ticked listing(s)';
+      pasteBtn.textContent = 'Preview · paste into ' + IM_SEL.size + ' ticked listing(s)';
     }
+    const pickBox = $('imPick');
+    if (pickBox && pickBox.options && pickBox.options[0]) pickBox.options[0].textContent = 'Ticked listings (' + IM_SEL.size + ')';
   });
   if ($('imClipClear')) $('imClipClear').onclick = () => {
     imClipClear();
     imListRender();
   };
-  if ($('imPasteSel')) $('imPasteSel').onclick = () => imPasteMany([...IM_SEL]);
+  if ($('imPasteSel')) $('imPasteSel').onclick = () => imPasteGo([...IM_SEL]);
+  // --- the clipboard bar: a tick per slot, the swatch tick, the quick picks, the mode ---
+  el.querySelectorAll('[data-clip-tick]').forEach(cb => cb.onchange = () => {
+    IM_CLIP.tick = Object.assign({}, IM_CLIP.tick || {}, { [cb.dataset.clipTick]: cb.checked });
+    imClipSave();
+    cb.closest('.im-cs').classList.toggle('is-on', cb.checked);
+  });
+  if ($('imClipSw')) $('imClipSw').onchange = () => {
+    IM_CLIP.tick = Object.assign({}, IM_CLIP.tick || {}, { SWCH: $('imClipSw').checked });
+    imClipSave();
+    $('imClipSw').closest('.im-cs').classList.toggle('is-on', $('imClipSw').checked);
+  };
+  if ($('imPick')) $('imPick').onchange = () => {
+    const pick = imPicks().find(p => p.k === $('imPick').value);
+    if (!pick) return;
+    IM_SEL.clear();
+    pick.skus.forEach(sku => IM_SEL.add(sku));
+    imListRender();
+    imMsg(`Ticked ${pick.skus.length} listing(s): ${pick.label}. Check the ticks, then press Preview.`);
+  };
+  el.querySelectorAll('input[name="imMode"]').forEach(radio => radio.onchange = () => { if (radio.checked) IM_PASTE_MODE = radio.value; });
   if ($('imOnlyOff')) $('imOnlyOff').onclick = () => {
     imOnly(null);
     imListRender();
@@ -928,8 +959,9 @@ function imWire() {
     if (!IM_CLIP) return;
     const withSw = $('imPasteSw') && $('imPasteSw').checked;
     let nFilled = 0;
+    const ticked = imClipSlots(false);     // only the slots ticked in the clipboard bar
     IM_SLOTS.forEach(slot => {
-      const url = IM_CLIP.slots[slot] || '';
+      const url = ticked[slot] || '';
       if (!url || (gapsOnly && IM_NOW[slot])) return;
       if (IM_NOW[slot] !== url) {
         IM_NOW[slot] = url;
@@ -1133,9 +1165,9 @@ function imClipSlots(withSw) {
   if (withSw && IM_CLIP.slots.SWCH) out.SWCH = IM_CLIP.slots.SWCH;
   return out;
 }
-// Paste into these listings from the list (a row's "Paste here", the clip bar's button).
+// Paste into these listings from the list (a row's "Paste here", the clip bar's button): the preview first.
 function imPasteGo(skus) {
-  return imPasteMany(skus);
+  return imPastePreview(skus);
 }
 
 // Forget the copied stack.
@@ -1146,62 +1178,186 @@ function imClipClear() {
 
 /** The banner that says what is held. Shown in both views so a copy is never invisible. */
 // `where` is 'list' or 'editor': the list's banner also carries the swatch tick box and "Paste into N ticked listing(s)".
+/* THE CLIPBOARD BAR sticks to the bottom of the list: the copied pictures one by one (MAIN, 01–08, swatch) with a tick each — a paste
+ * puts in only the ticked slots —, where each came from, the "Paste into…" quick picks, the mode, and the button that opens the preview.
+ * The swatch tick is today's "also the swatch" (#imClipSw), off until ticked. */
 function imClipBar(where) {
   if (!IM_CLIP) return '';
   const clip = IM_CLIP;
-  const main = clip.slots.MAIN || '';
   const sel = where === 'list' ? IM_SEL.size : 0;
-  return `<div class="card" style="padding:8px 12px;margin-bottom:10px;border-color:var(--accent);display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-    ${main ? `<img src="${imEsc(imThumb(main))}" alt="" style="width:40px;height:40px;object-fit:contain;background:#fff;border:1px solid var(--line);border-radius:4px">` : ''}
-    <div style="min-width:0">
-      <div style="font-size:12.5px"><b>Copied:</b> <span style="font-family:ui-monospace,monospace">${imEsc(clip.sku)}</span>
-        ${clip.c ? '<span class="muted"> · ' + imEsc(clip.c) + '</span>' : ''}
-        <span class="muted"> · ${clip.n} picture(s)${clip.slots.SWCH ? ' + swatch' : ''}</span></div>
-      <div class="muted" style="font-size:11px">Nothing has been sent. Open a listing and paste, or tick listings below and paste into all of them.</div>
-    </div>
-    <span style="flex:1"></span>
-    ${where === 'list' ? `<label class="muted" style="font-size:11.5px;display:flex;gap:4px;align-items:center">
-        <input type="checkbox" id="imClipSw" style="width:auto"> also the swatch</label>
-      <button class="ghost im-b" id="imPasteSel" ${sel ? '' : 'disabled'}>Paste into ${sel} ticked listing(s)</button>` : ''}
-    <button class="ghost im-b" id="imClipClear">Forget it</button>
-  </div>
-  <div id="imBulk" class="muted" style="font-size:12px;margin-bottom:8px"></div>`;
+  const tick = slot => (slot === 'SWCH' ? !!(clip.tick && clip.tick.SWCH) : !clip.tick || clip.tick[slot] !== false);
+  const cells = [...IM_SLOTS, 'SWCH'].map(slot => {
+    const url = clip.slots[slot];
+    const name = slot === 'SWCH' ? 'Swatch' : slot === 'MAIN' ? 'Main' : slot.slice(2);
+    if (!url) return `<span class="im-cs is-empty" title="${name}: nothing copied"><span class="im-cs-pic"></span><span class="im-cs-n">${name}</span></span>`;
+    const from = clip.from && clip.from[slot] && clip.from[slot] !== clip.sku ? clip.from[slot] : '';
+    return `<label class="im-cs${tick(slot) ? ' is-on' : ''}" title="${imEsc(name + (from ? ' — from ' + from : ' — from ' + clip.sku) + '. Ticked = pasted.')}">`
+      + `<span class="im-cs-pic"><img src="${imEsc(imThumb(url))}" alt="" loading="lazy"></span>`
+      + `<span class="im-cs-n"><input type="checkbox" ${slot === 'SWCH' ? 'id="imClipSw"' : `data-clip-tick="${slot}"`}${tick(slot) ? ' checked' : ''}> ${name}</span>`
+      + (from ? `<small class="im-cs-from">${imEsc(from)}</small>` : '') + '</label>';
+  }).join('');
+  const picks = where === 'list' ? imPicks() : [];
+  const pickSel = picks.length ? `<label class="im-clip-l">Paste into <select id="imPick" aria-label="Paste into">`
+    + `<option value="">Ticked listings (${sel})</option>${picks.map(p => `<option value="${p.k}">${imEsc(p.label)} (${p.skus.length})</option>`).join('')}</select></label>` : '';
+  const mode = `<span class="im-seg" role="group" aria-label="How to paste">`
+    + `<label><input type="radio" name="imMode" value="replace"${IM_PASTE_MODE === 'gaps' ? '' : ' checked'}> Replace these slots</label>`
+    + `<label><input type="radio" name="imMode" value="gaps"${IM_PASTE_MODE === 'gaps' ? ' checked' : ''}> Only fill empty slots</label></span>`;
+  return `<div class="im-clip" id="imClipBar" role="region" aria-label="Clipboard">
+    <div class="im-clip-h"><b>Clipboard</b><span class="muted">from <span class="im-mono">${imEsc(clip.sku)}</span>${clip.c || clip.z ? ' · ' + imEsc([clip.c, clip.z].filter(Boolean).join(' · ')) : ''}`
+    + `${clip.shop ? ' · what shoppers see' : ''} · ${clip.n} picture(s)${clip.slots.SWCH ? ' + swatch' : ''} · nothing sent yet — only the ticked slots are pasted</span>
+      <span style="flex:1"></span><button class="ghost im-b" id="imClipClear">Forget it</button></div>
+    <div class="im-clip-row"><div class="im-cs-list">${cells}</div>
+    ${where === 'list' ? `<div class="im-clip-go">${pickSel}${mode}
+      <button class="im-b im-go" id="imPasteSel" ${sel ? '' : 'disabled'}>Preview · paste into ${sel} ticked listing(s)</button></div>` : ''}</div>
+  </div>`;
+}
+
+/* "PASTE INTO…" QUICK PICKS. Each ticks a set of listings (the row ticks show them), then the usual button pastes into the ticked ones.
+ * Colour and size stay inside the copied listing's family (its parent, else its product type): a blue tablecloth's pictures are never
+ * offered to every blue napkin. The source listing itself is never picked. Returns [{ k, label, skus }], only picks with listings. */
+function imPicks() {
+  const data = IML[$('imBrand').value];
+  if (!IM_CLIP || !data) return [];
+  const clip = IM_CLIP;
+  const kids = data.items.filter(item => item.lvl !== 'parent' && item.sku !== clip.sku);
+  const src = data.items.find(item => item.sku === clip.sku) || {};
+  const psku = clip.psku || src.psku || '';
+  const family = kids.filter(item => (psku ? item.psku === psku : !!src.pt && item.pt === src.pt));
+  const famWord = psku ? 'in this parent' : 'of this product type';
+  const out = [];
+  if (IM && $('imEditWrap') && !$('imEditWrap').classList.contains('hide') && IM.sku !== clip.sku) out.push({ k: 'this', label: 'This listing: ' + IM.sku, skus: [IM.sku] });
+  if (psku) out.push({ k: 'kids', label: 'All children of ' + psku, skus: family.map(item => item.sku) });
+  if (clip.c) out.push({ k: 'colour', label: `Same colour (${clip.c}) ${famWord}`, skus: family.filter(item => item.c === clip.c).map(item => item.sku) });
+  if (clip.z) out.push({ k: 'size', label: `Same size (${clip.z}) ${famWord}`, skus: family.filter(item => item.z === clip.z).map(item => item.sku) });
+  const shown = imShownGroups(data.items, $('imFilter').value, ($('imQ').value || '').trim().toLowerCase());
+  out.push({ k: 'filter', label: 'Everything in the current filter', skus: [].concat(...shown.map(group => group.show.map(item => item.sku))).filter(sku => sku !== clip.sku) });
+  return out.filter(p => p.skus.length);
 }
 
 /* PASTE INTO SEVERAL LISTINGS. One send per SKU, each previewed by Amazon first (the backend only
  * sends for real when the preview is clean), each reported on its own line. It stops after three
  * failures in a row, because the fourth will fail the same way and the rest can wait for a fix. */
 // Paste the copied stack into every ticked SKU: one send each, applied straight away (the backend previews first), reported line by line.
-async function imPasteMany(skus) {
-  if (!IM_CLIP || !skus.length) return;
+/** What a paste would do, per listing, without sending: { jobs, held, careful, qual }. Only the clipboard's ticked slots (the swatch with
+ *  `withSw`); mode 'gaps' leaves a slot that already holds a picture (ours or live) alone. `qual`: sku → slot → { q (imqCheck), wh, fail }:
+ *  a picture fails when the rules say anything but OK (under 2000, no zoom, not square, the same picture twice in the stack it lands in). */
+function imPastePlan(skus, opts) {
+  const o = opts || {};
   const brandKey = $('imBrand').value;
   const items = (IML[brandKey] || { items: [] }).items;
   const by = new Map(items.map(item => [item.sku, item]));
-  const withSw = $('imClipSw') && $('imClipSw').checked;
   // --- warn when the targets are a different colour from the copied listing ---
   const colours = [...new Set(skus.map(each => (by.get(each) || {}).c).filter(Boolean))];
   const warn = colours.filter(colour => colour && IM_CLIP.c && colour !== IM_CLIP.c);
   const careful = warn.length ? `CAREFUL: ${warn.length} of them are a different colour (${warn.slice(0, 4).join(', ')}) and ${IM_CLIP.sku} is ${IM_CLIP.c}.` : '';
-  // --- one change per SKU (only the slots that differ) through THE ONE SEND PATH (#10): the Amazon check popup — Amazon checks each,
-  //     the person approves, each is sent and read again; the ones that cannot be sent are named there ---
+  const want = imClipSlots(o.withSw);
   const jobs = [];
   const held = [];
+  const qual = new Map();
   for (const sku of skus) {
     const row = by.get(sku);
     if (!row) { held.push({ sku, why: 'not in this snapshot' }); continue; }
+    const img = row.img || {};
     const set = {};
-    IM_SLOTS.forEach(slot => {
-      const url = IM_CLIP.slots[slot];
-      if (url && (row.img || {})[slot] !== url) set[slot] = url;
+    let filled = 0;
+    Object.keys(want).forEach(slot => {
+      if (o.mode === 'gaps' && (img[slot] || (row.live || {})[slot])) { filled++; return; }
+      if (img[slot] !== want[slot]) set[slot] = want[slot];
     });
-    if (withSw && IM_CLIP.slots.SWCH && (row.img || {}).SWCH !== IM_CLIP.slots.SWCH) set.SWCH = IM_CLIP.slots.SWCH;
-    if (!Object.keys(set).length) { held.push({ sku, why: 'already holds these pictures' }); continue; }
+    if (!Object.keys(set).length) { held.push({ sku, why: filled ? 'no empty slot to fill' : 'already holds these pictures' }); continue; }
     if (!row.pt) { held.push({ sku, why: 'no product type in the snapshot — open it and paste there' }); continue; }
+    // --- the picture rules on each picture that would go in, in the stack it lands in ---
+    const after = Object.assign({}, row.live || {}, img, set);
+    const dups = imqDups(after);
+    const per = {};
+    Object.keys(set).forEach(slot => {
+      const wh = imqDims(set[slot]);
+      const q = imqCheck({ slot, w: wh ? wh[0] : 0, h: wh ? wh[1] : 0, dup: dups[slot] });
+      per[slot] = { q, wh, fail: q.level !== 'ok' };
+    });
+    qual.set(sku, per);
     jobs.push({ brand: brandKey, sku, asin: row.asin || '', label: [row.c, row.z].filter(Boolean).join(' · ') || sku, row, body: { limg: 'patch', brand: brandKey, sku, productType: row.pt, set },
-      changes: Object.keys(set).map(slot => ({ field: sqField(slot), old: (row.img || {})[slot] || '(none)', new: set[slot], pic: true, attr: slot, oldV: (row.img || {})[slot] || '' })) });
+      changes: Object.keys(set).map(slot => ({ field: sqField(slot), old: img[slot] || '(none)', new: set[slot], pic: true, attr: slot, oldV: img[slot] || '' })) });
   }
+  return { jobs, held, careful, qual };
+}
+
+/* THE PREVIEW before anything goes to Amazon: per listing, which slots change (old → new picture) and what the picture rules say about
+ * each new one. A picture that fails the rules is left out unless its own "Include anyway" box is ticked. "Continue" goes on to the usual
+ * Amazon check popup (#10) and Listing History — the same send as always. */
+function imPastePreview(skus) {
+  if (!IM_CLIP || !skus.length) return;
+  const withSw = !!($('imClipSw') && $('imClipSw').checked);
+  const plan = imPastePlan(skus, { withSw, mode: IM_PASTE_MODE });
+  IM_PV = { skus, plan, inc: new Set() };
+  imModal(imPreviewHtml(plan, IM_PV.inc));
+}
+function imPreviewHtml(plan, inc) {
+  const clip = IM_CLIP;
+  const pic = (url, cls) => (url ? `<span class="im-pv-pic${cls || ''}"><img src="${imEsc(imThumb(url))}" alt="" loading="lazy"></span>` : '<span class="im-pv-pic is-none">none</span>');
+  let nIn = 0;
+  let nOut = 0;
+  const blocks = plan.jobs.map(job => {
+    const per = plan.qual.get(job.sku) || {};
+    const lines = Object.keys(job.body.set).map(slot => {
+      const info = per[slot] || { q: { chips: [] } };
+      const key = job.sku + '|' + slot;
+      const on = !info.fail || inc.has(key);
+      if (on) nIn++;
+      else nOut++;
+      const chips = info.wh ? info.q.chips : [{ lv: 'na', t: 'Size not known', tip: 'Not measured yet: open the listing, or let its tiles show on screen' }].concat(info.q.chips);
+      return `<div class="im-pv-row${info.fail ? ' is-fail' : ''}${on ? '' : ' is-out'}"><b class="im-pv-slot">${slot === 'SWCH' ? 'Swatch' : slot === 'MAIN' ? 'Main' : slot}</b>`
+        + `${pic((job.row.img || {})[slot])}<span class="im-pv-arrow" aria-hidden="true">→</span>${pic(job.body.set[slot], ' is-new')}`
+        + `<span class="im-pv-q">${imqChipsHtml(chips)}${info.fail ? `<label class="im-pv-inc"><input type="checkbox" data-pv-inc="${imEsc(key)}"${on ? ' checked' : ''}> Include anyway</label>` : ''}</span></div>`;
+    }).join('');
+    return `<div class="im-pv-l"><div class="im-pv-h"><b class="im-mono">${imEsc(job.sku)}</b> <span class="muted">${imEsc(job.label)} · ${Object.keys(job.body.set).length} slot(s) change</span></div><div class="im-pv-rows">${lines}</div></div>`;
+  }).join('');
+  const held = plan.held.length ? `<div class="im-pv-held"><b>Not changed (${plan.held.length})</b>${plan.held.map(h => `<div><span class="im-mono">${imEsc(h.sku)}</span> — ${imEsc(h.why)}</div>`).join('')}</div>` : '';
+  return `<div class="im-pv" role="document">
+    <div class="im-pv-top"><b>Preview — paste ${imEsc(clip.sku)}'s pictures</b>
+      <span class="muted">${plan.jobs.length} listing(s) change · ${nIn} picture(s) go in${nOut ? ` · <span class="im-pv-outn">${nOut} left out (they fail the picture rules — tick “Include anyway” to send them)</span>` : ''}
+      · ${IM_PASTE_MODE === 'gaps' ? 'only empty slots are filled' : 'the ticked slots are replaced'}. Nothing is sent yet.</span>
+      ${plan.careful ? `<div class="err" style="font-size:12px;margin-top:4px">${imEsc(plan.careful)}</div>` : ''}</div>
+    <div class="im-pv-list">${blocks || '<div class="muted">Nothing would change.</div>'}${held}</div>
+    <div class="im-pv-foot"><button class="ghost im-b" data-im-pv="cancel">Cancel</button>
+      <button class="im-b im-go" data-im-pv="go" ${nIn ? '' : 'disabled'}>Continue to the Amazon check (${nIn} picture(s))</button></div>
+  </div>`;
+}
+/** "Continue": the preview's choices → the send. Failing pictures not ticked in are dropped; a listing left with nothing is named in "held". */
+function imPreviewGo() {
+  if (!IM_PV) return;
+  const { skus, plan, inc } = IM_PV;
+  const jobs = [];
+  const held = plan.held.slice();
+  plan.jobs.forEach(job => {
+    const per = plan.qual.get(job.sku) || {};
+    const keep = Object.keys(job.body.set).filter(slot => !(per[slot] && per[slot].fail) || inc.has(job.sku + '|' + slot));
+    if (!keep.length) { held.push({ sku: job.sku, why: 'every picture was left out in the preview (picture rules)' }); return; }
+    const set = Object.fromEntries(keep.map(slot => [slot, job.body.set[slot]]));
+    jobs.push(Object.assign({}, job, { body: Object.assign({}, job.body, { set }), changes: job.changes.filter(change => keep.includes(change.attr)) }));
+  });
+  IM_PV = null;
+  return imPasteMany(skus, { jobs, held, careful: plan.careful });
+}
+// The popup frame the Season planner and the Amazon check use (#spModal); the preview shows in it, then the check takes it over.
+function imModal(html) {
+  if (typeof spModal === 'function') return spModal(html);
+  const modal = $('spModal');
+  if (!modal) return;
+  $('spModalBox').innerHTML = html || '';
+  modal.classList.toggle('hide', !html);
+}
+
+/** Paste into several listings. `pre` = the plan the preview approved; without it the plan is made here (every ticked slot). */
+async function imPasteMany(skus, pre) {
+  if (!IM_CLIP || !skus.length) return;
+  const withSw = $('imClipSw') && $('imClipSw').checked;
+  const plan = pre || imPastePlan(skus, { withSw, mode: IM_PASTE_MODE });
+  const { jobs, held, careful } = plan;
+  // --- one change per SKU (only the slots that differ) through THE ONE SEND PATH (#10): the Amazon check popup — Amazon checks each,
+  //     the person approves, each is sent and read again; the ones that cannot be sent are named there ---
   const out = $('imBulk');
-  $('imPasteSel').disabled = true;
+  if ($('imPasteSel')) $('imPasteSel').disabled = true;
   return sqSendWithCheck(jobs, {
     screen: 'Image Manager · paste', title: `Paste ${IM_CLIP.sku}'s pictures${careful ? ' — ' + careful : ''}`, held,
     onSent: job => { job.row.img = Object.assign({}, job.row.img, job.body.set); },   // what was sent, so the strip stops lying
@@ -1271,6 +1427,28 @@ $('imList').addEventListener('click', e => {
   $('imFilter').value = $('imFilter').value === card.dataset.imCard ? 'all' : card.dataset.imCard;
   imListAgain();
 });
+// The paste preview (in the #spModal frame): Cancel / Continue, and the "Include anyway" box of a picture that fails the rules.
+if (typeof document !== 'undefined' && document.addEventListener) {
+  document.addEventListener('click', e => {
+    const btn = e.target && e.target.closest ? e.target.closest('[data-im-pv]') : null;
+    if (!btn || !IM_PV) return;
+    if (btn.dataset.imPv === 'cancel') {
+      IM_PV = null;
+      imModal('');
+    } else if (btn.dataset.imPv === 'go') imPreviewGo();
+  });
+  document.addEventListener('change', e => {
+    const cb = e.target;
+    if (!cb || !cb.dataset || cb.dataset.pvInc == null || !IM_PV) return;
+    if (cb.checked) IM_PV.inc.add(cb.dataset.pvInc);
+    else IM_PV.inc.delete(cb.dataset.pvInc);
+    const list = $('spModalBox') && $('spModalBox').querySelector('.im-pv-list');
+    const keep = list ? list.scrollTop : 0;
+    imModal(imPreviewHtml(IM_PV.plan, IM_PV.inc));
+    const again = $('spModalBox') && $('spModalBox').querySelector('.im-pv-list');
+    if (again) again.scrollTop = keep;
+  });
+}
 // Sizes measured on screen (image-quality.js) move the "Too small" card.
 IMQ.onSize = imCardsSoon;
 if (typeof window !== 'undefined' && window.addEventListener) window.addEventListener('resize', imStick);
