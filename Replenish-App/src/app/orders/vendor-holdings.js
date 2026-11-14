@@ -167,8 +167,10 @@ function ordWaitingAt(r) {
   const vGiven = r.printer ? r.qty : (v ? v.given : 0), vBack = r.printer ? r.printed : (v ? v.back : 0);
   if (vGiven > vBack && (r.cutReq ? r.cut < vGiven : r.received < vGiven)) return 'Vendor — ' + nf(vGiven - vBack) + ' to come back';
   if (r.pendingCut > 0) return 'Cutting — ' + nf(r.pendingCut) + ' to cut';
-  if (r.issued < r.qty) return 'Issue — ' + nf(r.qty - r.issued) + ' not given to a karigar';
-  if (r.received < r.issued) return 'Karigar — ' + nf(r.issued - r.received) + ' out';
+  /* A piece rejected at karigar receive is with nobody: it is back to Issue (net issued), not "out". */
+  const netIss = (r.issued || 0) - (r.rejected || 0);
+  if (netIss < r.qty) return 'Issue — ' + nf(r.qty - netIss) + ' not given to a karigar';
+  if (r.received < netIss) return 'Karigar — ' + nf(netIss - r.received) + ' out';
   if (r.pressed < r.received) {
     const q = ordQcOf(r.orderNo, r.sku), d = q && q.dept > 0 ? Math.min(q.dept, r.received - r.pressed) : 0;
     if (!d) return 'QC — ' + nf(r.received - r.pressed) + ' to check';

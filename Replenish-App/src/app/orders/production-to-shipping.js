@@ -247,6 +247,7 @@ function ordLinesBuild() {
     const b = obBaseIndex().get(obKeyOf(l.orderNo, l.sku));
     const issued = Math.max(own('issued'), b ? b.issued : 0);
     const received = Math.max(own('received'), b ? b.received : 0);
+    const rejected = b ? b.rejected || 0 : 0;   // rejected at karigar receive — goes back to Issue on the board
     /* NO CUTTING OWED (Ravi, 24 Oct: "legacy order se entry ki thi kareegaro ki usme bhi koi glitch"): a legacy order is pieces
      * already made on the floor before the app had an order for them (LEG-17102026-01, 1–15 Oct) — 59 of its lines, all made,
      * read "to cut" for ever because no cutting entry was ever made for them; and a line PPC sent straight to Job Work skips the
@@ -268,7 +269,7 @@ function ordLinesBuild() {
     /* PIECES COMPLETED FROM READY STOCK count as made and pressed, and as cut — the floor owes nothing for them. */
     const stk = Math.min(l.qty, l.fromStock || 0), made = received + stk;
     return Object.assign({}, l, {
-      cut, pressed: pressed + stk, issued, received, made, cutReq, cutPct, cutDone,
+      cut, pressed: pressed + stk, issued, received, rejected, made, cutReq, cutPct, cutDone,
       pendingCut: cutReq ? Math.max(0, l.qty - cut - stk) : 0,
       pendingMake: Math.max(0, l.qty - made),
       /* MORE CAME BACK THAN WAS ORDERED. "Still to make" is floored at zero per line, because extra

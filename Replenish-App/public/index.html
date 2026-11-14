@@ -17764,9 +17764,12 @@ function obBaseIndex() {
   rows.forEach(r => {
     if (!r) return;
     const k = obKeyOf(r.orderNo, r.sku);
-    let e = m.get(k); if (!e) { e = { issued: 0, received: 0 }; m.set(k, e); }
+    let e = m.get(k); if (!e) { e = { issued: 0, received: 0, rejected: 0 }; m.set(k, e); }
     e.issued += ptNum(r.issuePieces);
     e.received += ptNum(r.receivedPieces);
+    /* Rejected when it came back from the karigar: the entry closes on it, so it is no longer out with anybody. Issued stays
+     * gross (reports show what went out); the board and the issue allowance take this off themselves. */
+    e.rejected += ptNum(r.rejectionPieces);
   });
   BASE_IX = { src: rows, n: rows.length, map: m };
   return m;
@@ -18605,14 +18608,15 @@ function obIssueUsed(orderNo, sku, exclId) {
    * walk, so that rule lives in exactly one place. */
   if (!exclId) {
     const b = obBaseIndex().get(obKeyOf(orderNo, sku));
-    return Math.max(b ? b.issued : 0, obPressQty(orderNo, sku));
+    /* A piece the karigar's receive REJECTED frees its room: its replacement is a new piece, not the same one issued twice. */
+    return Math.max(b ? b.issued - (b.rejected || 0) : 0, obPressQty(orderNo, sku));
   }
   const o = obUC(orderNo), s = obUC(sku);
   let iss = 0;
   (PT.base || []).forEach(r => {
     if (!r || obUC(r.orderNo) !== o || obUC(r.sku) !== s) return;
     if (exclId && r.id === exclId) return;      // the row being edited does not count against itself
-    iss += parseInt(r.issuePieces, 10) || 0;
+    iss += (parseInt(r.issuePieces, 10) || 0) - (parseInt(r.rejectionPieces, 10) || 0);
   });
   return Math.max(iss, obPressQty(orderNo, sku));
 }
@@ -24351,6 +24355,7 @@ function ordLinesBuild() {
     const b = obBaseIndex().get(obKeyOf(l.orderNo, l.sku));
     const issued = Math.max(own('issued'), b ? b.issued : 0);
     const received = Math.max(own('received'), b ? b.received : 0);
+    const rejected = b ? b.rejected || 0 : 0;   // rejected at karigar receive — goes back to Issue on the board
     /* NO CUTTING OWED (Ravi, 24 Oct: "legacy order se entry ki thi kareegaro ki usme bhi koi glitch"): a legacy order is pieces
      * already made on the floor before the app had an order for them (LEG-17102026-01, 1–15 Oct) — 59 of its lines, all made,
      * read "to cut" for ever because no cutting entry was ever made for them; and a line PPC sent straight to Job Work skips the
@@ -24372,7 +24377,7 @@ function ordLinesBuild() {
     /* PIECES COMPLETED FROM READY STOCK count as made and pressed, and as cut — the floor owes nothing for them. */
     const stk = Math.min(l.qty, l.fromStock || 0), made = received + stk;
     return Object.assign({}, l, {
-      cut, pressed: pressed + stk, issued, received, made, cutReq, cutPct, cutDone,
+      cut, pressed: pressed + stk, issued, received, rejected, made, cutReq, cutPct, cutDone,
       pendingCut: cutReq ? Math.max(0, l.qty - cut - stk) : 0,
       pendingMake: Math.max(0, l.qty - made),
       /* MORE CAME BACK THAN WAS ORDERED. "Still to make" is floored at zero per line, because extra
@@ -24813,8 +24818,10 @@ function ordWaitingAt(r) {
   const vGiven = r.printer ? r.qty : (v ? v.given : 0), vBack = r.printer ? r.printed : (v ? v.back : 0);
   if (vGiven > vBack && (r.cutReq ? r.cut < vGiven : r.received < vGiven)) return 'Vendor — ' + nf(vGiven - vBack) + ' to come back';
   if (r.pendingCut > 0) return 'Cutting — ' + nf(r.pendingCut) + ' to cut';
-  if (r.issued < r.qty) return 'Issue — ' + nf(r.qty - r.issued) + ' not given to a karigar';
-  if (r.received < r.issued) return 'Karigar — ' + nf(r.issued - r.received) + ' out';
+  /* A piece rejected at karigar receive is with nobody: it is back to Issue (net issued), not "out". */
+  const netIss = (r.issued || 0) - (r.rejected || 0);
+  if (netIss < r.qty) return 'Issue — ' + nf(r.qty - netIss) + ' not given to a karigar';
+  if (r.received < netIss) return 'Karigar — ' + nf(netIss - r.received) + ' out';
   if (r.pressed < r.received) {
     const q = ordQcOf(r.orderNo, r.sku), d = q && q.dept > 0 ? Math.min(q.dept, r.received - r.pressed) : 0;
     if (!d) return 'QC — ' + nf(r.received - r.pressed) + ' to check';
@@ -28310,7 +28317,10 @@ function shpbStages(lines) {
   lines.forEach(r => {
     /* q = what is still to be MADE: the line less the pieces completed from ready stock (those go straight to shipping). */
     const q0 = +r.qty || 0, stk = shpbStockOf(r), q = q0 - stk, cap = n => Math.max(0, Math.min(q, +n || 0));
-    const iss = cap(r.issued), rec = cap(r.received), qc = cap(r.pressed);
+    /* A PIECE REJECTED AT KARIGAR RECEIVE GOES BACK TO ISSUE (Ravi, 14 Nov: order 8180 sat "Stuck" at Receive with nobody holding it —
+     * the register closes the entry on a rejection, the board still counted it out). Issued is net of it, so Receive stops waiting
+     * on it and Issue shows it again to give out. */
+    const iss = cap((+r.issued || 0) - (+r.rejected || 0)), rec = cap(r.received), qc = cap(r.pressed);
     const sp = (typeof spOf === 'function' ? spOf(r.orderNo, r.sku) : null) || {}, got = Math.min(q0, Number(sp.handedQty) || (r.handedAt ? q0 : 0));
     /* A QUILT IS NOT PRESSED (Ravi, 4 Nov: "quilt artile press nahi hota h direct filling ke liye jata h"): after QC it goes to the filler
      * vendor, and what comes back filled stands where pressed pieces stand — so Complete, shipping and the reports need no other change. */

@@ -142,7 +142,10 @@ function shpbStages(lines) {
   lines.forEach(r => {
     /* q = what is still to be MADE: the line less the pieces completed from ready stock (those go straight to shipping). */
     const q0 = +r.qty || 0, stk = shpbStockOf(r), q = q0 - stk, cap = n => Math.max(0, Math.min(q, +n || 0));
-    const iss = cap(r.issued), rec = cap(r.received), qc = cap(r.pressed);
+    /* A PIECE REJECTED AT KARIGAR RECEIVE GOES BACK TO ISSUE (Ravi, 14 Nov: order 8180 sat "Stuck" at Receive with nobody holding it —
+     * the register closes the entry on a rejection, the board still counted it out). Issued is net of it, so Receive stops waiting
+     * on it and Issue shows it again to give out. */
+    const iss = cap((+r.issued || 0) - (+r.rejected || 0)), rec = cap(r.received), qc = cap(r.pressed);
     const sp = (typeof spOf === 'function' ? spOf(r.orderNo, r.sku) : null) || {}, got = Math.min(q0, Number(sp.handedQty) || (r.handedAt ? q0 : 0));
     /* A QUILT IS NOT PRESSED (Ravi, 4 Nov: "quilt artile press nahi hota h direct filling ke liye jata h"): after QC it goes to the filler
      * vendor, and what comes back filled stands where pressed pieces stand — so Complete, shipping and the reports need no other change. */

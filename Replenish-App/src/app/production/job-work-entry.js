@@ -62,14 +62,15 @@ function obIssueUsed(orderNo, sku, exclId) {
    * walk, so that rule lives in exactly one place. */
   if (!exclId) {
     const b = obBaseIndex().get(obKeyOf(orderNo, sku));
-    return Math.max(b ? b.issued : 0, obPressQty(orderNo, sku));
+    /* A piece the karigar's receive REJECTED frees its room: its replacement is a new piece, not the same one issued twice. */
+    return Math.max(b ? b.issued - (b.rejected || 0) : 0, obPressQty(orderNo, sku));
   }
   const o = obUC(orderNo), s = obUC(sku);
   let iss = 0;
   (PT.base || []).forEach(r => {
     if (!r || obUC(r.orderNo) !== o || obUC(r.sku) !== s) return;
     if (exclId && r.id === exclId) return;      // the row being edited does not count against itself
-    iss += parseInt(r.issuePieces, 10) || 0;
+    iss += (parseInt(r.issuePieces, 10) || 0) - (parseInt(r.rejectionPieces, 10) || 0);
   });
   return Math.max(iss, obPressQty(orderNo, sku));
 }

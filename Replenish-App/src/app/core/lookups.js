@@ -114,9 +114,12 @@ function obBaseIndex() {
   rows.forEach(r => {
     if (!r) return;
     const k = obKeyOf(r.orderNo, r.sku);
-    let e = m.get(k); if (!e) { e = { issued: 0, received: 0 }; m.set(k, e); }
+    let e = m.get(k); if (!e) { e = { issued: 0, received: 0, rejected: 0 }; m.set(k, e); }
     e.issued += ptNum(r.issuePieces);
     e.received += ptNum(r.receivedPieces);
+    /* Rejected when it came back from the karigar: the entry closes on it, so it is no longer out with anybody. Issued stays
+     * gross (reports show what went out); the board and the issue allowance take this off themselves. */
+    e.rejected += ptNum(r.rejectionPieces);
   });
   BASE_IX = { src: rows, n: rows.length, map: m };
   return m;
