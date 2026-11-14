@@ -633,7 +633,9 @@ function imGroupHtml(group) {
       <div class="im-grp-act">${famMain ? `<button type="button" class="ghost im-b" data-fammain="${imEsc(key)}" title="Copy the parent's main picture into the clipboard's Main slot">Copy main of this family</button>` : ''}
         <button type="button" class="ghost im-b" data-famsel="${imEsc(key)}" title="Tick every child of this family">Select all children</button></div>
     </div>`;
-  return `<div class="card im-grp${folded ? ' is-folded' : ''}" data-grp="${imEsc(key)}">${head}${folded ? '' : imRowsHtml(key, group.show)}</div>`;
+  // By colour (image-colour.js): the open family shows one row per colour instead of one per listing.
+  const body = folded ? '' : typeof imcOn === 'function' && imcOn() ? imcFamHtml(group) : imRowsHtml(key, group.show);
+  return `<div class="card im-grp${folded ? ' is-folded' : ''}" data-grp="${imEsc(key)}">${head}${body}</div>`;
 }
 /** Is this family open? Opened by the person, or matched by a search / filter (or the Listing Health pick) and not closed by the person. */
 const imAutoOpen = () => ($('imFilter').value || 'all') !== 'all' || !!($('imQ').value || '').trim() || !!IM_ONLY;
@@ -641,9 +643,11 @@ const imIsOpen = key => IM_OPEN.has(key) || (imAutoOpen() && !IM_SHUT.has(key));
 const imRowEst = () => (IM_DENSE === 'compact' ? 66 : 112);     // a row's height before it is drawn (then measured)
 /* An open family's rows: every one of them, in blocks of IM_CHUNK. A block is an empty box of the right height until it comes near the
  * screen (imChunkFill); a page with no IntersectionObserver (a test page) gets every row at once. */
+// One row of an open family: a listing (the List view), or a colour (By colour, image-colour.js).
+const imRowHtml = row => (row && row.imcColour && typeof imcRowHtml === 'function' ? imcRowHtml(row) : imKidRow(row));
 function imRowsHtml(key, rows) {
   IM_ROWS.set(key, rows);
-  if (typeof IntersectionObserver === 'undefined') return rows.map(imKidRow).join('');
+  if (typeof IntersectionObserver === 'undefined') return rows.map(imRowHtml).join('');
   let out = '';
   for (let i = 0; i * IM_CHUNK < rows.length; i++) {
     const n = Math.min(IM_CHUNK, rows.length - i * IM_CHUNK);
@@ -654,7 +658,7 @@ function imRowsHtml(key, rows) {
 function imChunkFill(box) {
   const key = box.dataset.chunk;
   const i = Number(box.dataset.i);
-  box.innerHTML = (IM_ROWS.get(key) || []).slice(i * IM_CHUNK, (i + 1) * IM_CHUNK).map(imKidRow).join('');
+  box.innerHTML = (IM_ROWS.get(key) || []).slice(i * IM_CHUNK, (i + 1) * IM_CHUNK).map(imRowHtml).join('');
   box.style.height = '';
   box.dataset.on = '1';
   imRowsWire(box);
@@ -871,7 +875,12 @@ function imViewAct(act) {
     const url = IML_VIEW === 'live' ? ((item.live || {})[slot] || (item.img || {})[slot]) : ((item.img || {})[slot] || (item.live || {})[slot]);
     imClipCopyOne({ brand: $('imBrand').value, sku: item.sku, asin: item.asin, c: item.c, z: item.z, psku: item.psku, slot, url });
     imListRender();
-    return imMsg('Copied ' + (slot === 'SWCH' ? 'the swatch' : slot) + ' of ' + item.sku + ' to the clipboard.');
+    imMsg('Copied ' + (slot === 'SWCH' ? 'the swatch' : slot) + ' of ' + item.sku + ' to the clipboard.');
+    if (typeof imcFromClip === 'function') {     // the copy popup (image-colour.js) opens on that picture
+      imViewClose();
+      imcFromClip(slot);
+    }
+    return;
   }
   if (act === 'repl') {
     imViewClose();
@@ -883,6 +892,7 @@ function imViewAct(act) {
 // Open one listing in the editor panel and mark its row (the list does not move).
 function imEditOpen(sku) {
   IM_SKU_CHOICES = null;
+  if (typeof imcEditOff === 'function') imcEditOff();     // a colour stack edit (image-colour.js) ends when a listing is opened
   if (typeof document !== 'undefined' && document.querySelectorAll) {
     document.querySelectorAll('#imList .im-kid.is-open').forEach(row => row.classList.remove('is-open'));
     document.querySelectorAll('#imList .im-kid').forEach(row => { if (row.dataset && row.dataset.sku === sku) row.classList.add('is-open'); });
@@ -1024,6 +1034,7 @@ function imRowsWire(root) {
     imClipTake({ brand: $('imBrand').value, sku: item.sku, asin: item.asin, c: item.c, z: item.z, psku: item.psku, own: item.img || {}, live: item.live || {}, prefer: shop ? 'live' : '' });
     imListRender();
     imMsg('Copied ' + IM_CLIP.n + ' picture(s) from ' + IM_CLIP.sku + (shop ? ' — what shoppers see' : '') + '.');
+    if (typeof imcFromClip === 'function') imcFromClip('');      // the copy popup (image-colour.js) opens on it
   });
   // --- one picture (the hover button on a tile) / paste into one listing ---
   el.querySelectorAll('[data-copy1]').forEach(btn => btn.onclick = e => {
@@ -1033,6 +1044,7 @@ function imRowsWire(root) {
     imClipCopyOne({ brand: $('imBrand').value, sku: item.sku, asin: item.asin, c: item.c, z: item.z, psku: item.psku, slot: btn.dataset.slot, url: btn.dataset.url });
     imListRender();
     imMsg('Copied ' + (btn.dataset.slot === 'SWCH' ? 'the swatch' : btn.dataset.slot) + ' of ' + item.sku + ' to the clipboard.');
+    if (typeof imcFromClip === 'function') imcFromClip(btn.dataset.slot);     // the copy popup opens on that picture
   });
   el.querySelectorAll('[data-paste1]').forEach(btn => btn.onclick = () => imPasteGo([btn.dataset.paste1]));
   el.querySelectorAll('.im-sel').forEach(cb => cb.onchange = () => {
@@ -1195,6 +1207,7 @@ function imRender() {
         <a href="https://www.amazon.com/dp/${imEsc(listing.asin)}" target="_blank" rel="noopener">Open on Amazon ↗</a>
       </div>
     </div>
+    ${typeof imcEditBanner === 'function' ? imcEditBanner() : ''}
     ${issues}
     <div class="card" style="padding:10px 14px;margin-bottom:12px">
       <div style="font-weight:600;font-size:13px">Live on Amazon now</div>
@@ -1476,6 +1489,8 @@ async function imSend(apply) {
   const nChanges = Object.keys(set).length;
   if (!nChanges) return;
   if (apply) {
+    const colourSend = typeof imcEditSend === 'function' ? imcEditSend(set) : null;   // a colour stack edit: every size (image-colour.js)
+    if (colourSend) return colourSend;
     const im = IM;
     const start = Object.assign({}, IM_START);
     return sqSendWithCheck([{ brand: im.brand, sku: im.sku, asin: im.asin || '', label: im.title || im.sku, body: { limg: 'patch', brand: im.brand, sku: im.sku, productType: im.productType, set },

@@ -1835,10 +1835,17 @@
           <option value="mine">Show the pictures you sent</option>
           <option value="live">Show what Amazon serves</option>
         </select>
+        <!-- The view (image-colour.js): By colour = a row per colour with its sizes; List = a row per listing. Remembered in this browser. -->
+        <span class="im-dense imc-layout" role="group" aria-label="View"><button type="button" data-imc-layout="colour" title="Inside each family: one row per colour, its sizes and the colour's pictures">By colour</button><button type="button" data-imc-layout="list" title="One row per listing">List</button></span>
+        <details id="imcPerSize" class="imc-psset"><summary title="Slots each size keeps for itself: never part of the colour's pictures, never changed by Sync">Per-size slots: <b id="imcPerSizeTxt">06</b></summary>
+          <div class="imc-ps-pop"><span class="muted">Each size keeps its own picture in these slots (06 = size chart). Sync never changes them.</span>
+            <label><input type="checkbox" data-imc-ps="PT01"> 01</label><label><input type="checkbox" data-imc-ps="PT02"> 02</label><label><input type="checkbox" data-imc-ps="PT03"> 03</label><label><input type="checkbox" data-imc-ps="PT04"> 04</label>
+            <label><input type="checkbox" data-imc-ps="PT05"> 05</label><label><input type="checkbox" data-imc-ps="PT06"> 06</label><label><input type="checkbox" data-imc-ps="PT07"> 07</label><label><input type="checkbox" data-imc-ps="PT08"> 08</label></div></details>
         <span class="im-dense" role="group" aria-label="Row size"><button type="button" data-im-dense="comfortable" title="Big pictures">Comfortable</button><button type="button" data-im-dense="compact" title="More rows on screen">Compact</button></span>
         <!-- Picture check: the main pictures a person must judge (listing/picture-check.js). -->
         <button id="imPcChip" type="button" class="sp-chip" aria-pressed="false">◐ Picture check</button>
         <span style="flex:1"></span>
+        <button id="imcGuided" type="button" class="ghost" title="Copy pictures step by step: copy from, which pictures, paste into, check &amp; send">Guided copy</button>
         <button id="imGo" class="ghost" title="Open the editor for exactly the SKU or ASIN typed in the search">Open editor</button>
         <button id="imRefresh" class="ghost" title="Read every listing's pictures from Amazon again (about two minutes)">Refresh</button>
         <button type="button" class="ghost im-helpbtn" data-im-help="open" title="Keys and tips (?)" aria-label="Keys and tips">?</button>
