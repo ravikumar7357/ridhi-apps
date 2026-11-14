@@ -1834,3 +1834,154 @@ button.otk-it{cursor:pointer}button.otk-it:hover{text-decoration:underline}
 .acx .scrim { z-index: 940; }
 .acx .drawer { z-index: 945; }
 .acx .toast { z-index: 946; }
+
+/* ================= MY WORK TODAY + SEARCH EVERYTHING (friendly add-on, friendly.js) ================= */
+/* The menu's first item. */
+.fr-homenav{display:flex;align-items:center;gap:6px;border:0;background:var(--brand-bg,#E9EFF6);color:var(--brand-ink,#3A5573);font-weight:700;
+  border-radius:var(--r-pill,999px);padding:8px 14px;margin-right:6px;cursor:pointer;white-space:nowrap;font-size:13px}
+.fr-homenav.on{background:var(--brand,#4A6A92);color:#fff}
+.fr-homenav b,#frWorkBtn b{background:var(--bad,#850000);color:#fff;border-radius:999px;padding:0 7px;line-height:18px;font-size:11px;min-width:20px;text-align:center}
+/* Top bar buttons. */
+#frCtl{display:flex;align-items:center;gap:6px;margin-left:auto;margin-right:8px}
+#frCtl button{display:inline-flex;align-items:center;gap:7px;height:34px;padding:0 12px;border-radius:var(--r-pill,999px);font-size:12.5px;font-weight:700;white-space:nowrap;cursor:pointer}
+#frWorkBtn{background:var(--brand,#4A6A92);color:#fff;border:0}
+#frFindBtn{background:var(--soft,#F7F9FB);color:var(--muted,#5A6472);border:1px solid var(--line,#E8EDF3);font-weight:600}
+#frFindBtn kbd,#frPal kbd,#frHome kbd{font:11px ui-monospace,Consolas,monospace;background:#fff;border:1px solid var(--line,#E8EDF3);border-radius:5px;padding:1px 5px;color:var(--muted,#5A6472)}
+
+/* The screen: it takes the place of the app's screens while it is open. */
+.main.fr-home-on > *:not(.topbar):not(#frHome){display:none!important}
+#frHome{max-width:1100px;margin:0 auto;padding:6px 0 40px}
+.fr-head2{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin:4px 0 14px;flex-wrap:wrap}
+.fr-head2 h1{font-size:24px;margin:0;letter-spacing:-.02em}
+.fr-sub2{color:var(--muted,#5A6472);margin-top:4px}
+.fr-ref{height:36px;border-radius:var(--r-ctl,12px);border:1px solid var(--line,#E8EDF3);background:#fff;color:var(--ink,#14181F);padding:0 14px;font-weight:600;cursor:pointer}
+.fr-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px}
+.fr-stat{background:var(--card,#fff);border-radius:var(--r-card,18px);box-shadow:var(--sh-1,0 2px 10px rgba(20,24,31,.05));padding:14px 16px;border:0;text-align:left;display:flex;flex-direction:column;gap:2px;cursor:pointer;font:inherit}
+div.fr-stat{cursor:default}
+.fr-stat{color:var(--ink,#14181F)}
+.fr-stat b{font-size:26px;font-weight:800;font-variant-numeric:tabular-nums;color:var(--ink,#14181F)}
+.fr-stat span{color:var(--muted,#5A6472);font-size:12.5px}
+.fr-stat.fr-warn b{color:var(--warn-ink,#8A5A12)} .fr-stat.fr-bad b{color:var(--bad,#850000)} .fr-stat.fr-ok b{color:var(--accent,#4A5A3C);font-size:20px;padding:3px 0}
+.fr-grp{margin-bottom:18px}
+.fr-grp h3{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted,#5A6472);margin:0 0 8px}
+.fr-card{display:flex;align-items:flex-start;gap:12px;background:var(--card,#fff);border-radius:16px;box-shadow:var(--sh-1,0 2px 10px rgba(20,24,31,.05));padding:12px 14px;margin-bottom:8px}
+.fr-dot{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;flex:0 0 auto;font-size:15px;font-weight:800}
+.fr-dot.fr-warn{background:var(--warn-bg,#FFF3D6);color:var(--warn-ink,#8A5A12)} .fr-dot.fr-go{background:var(--brand-bg,#E9EFF6);color:var(--brand-ink,#3A5573)} .fr-dot.fr-bad{background:var(--bad-bg,#FBE9E9);color:var(--bad,#850000)}
+.fr-body{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.fr-body b{font-weight:700;margin-bottom:2px}
+.fr-body span{color:var(--muted,#5A6472);font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fr-body .fr-more{color:var(--brand-ink,#3A5573);font-weight:600}
+.fr-body em{font-style:normal;font-size:11.5px;background:var(--chip,#EFF2F6);color:var(--muted,#5A6472);border-radius:999px;padding:1px 8px;align-self:flex-start;margin-top:4px}
+.fr-go{border:0;background:var(--brand,#4A6A92);color:#fff;border-radius:10px;height:34px;padding:0 14px;font-weight:700;cursor:pointer;white-space:nowrap;flex:0 0 auto;align-self:center}
+.fr-go:hover{filter:brightness(.92)}
+.fr-empty{font-size:44px;color:var(--accent,#4A5A3C);text-align:center;padding:30px 0}
+.fr-tip2{margin-top:10px;color:var(--muted,#5A6472);font-size:12.5px;text-align:center}
+
+/* Search. */
+#frPal{position:fixed;inset:0;z-index:9002;display:flex;align-items:flex-start;justify-content:center;padding-top:12vh;background:rgba(20,24,31,.35)}
+#frPal.hide{display:none}
+#frPal .fr-box{width:620px;max-width:calc(100% - 24px);background:#fff;border-radius:16px;box-shadow:0 24px 64px rgba(20,24,31,.2);overflow:hidden}
+#frQ{width:100%;border:0;border-bottom:1px solid var(--line,#E8EDF3);padding:16px 18px;font-size:16px;outline:0}
+#frList{max-height:52vh;overflow:auto;padding:6px}
+.fr-sec{font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--faint,#98A1AE);padding:10px 12px 4px}
+.fr-row{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:10px;cursor:pointer}
+.fr-row.on,.fr-row:hover{background:var(--brand-bg,#E9EFF6)}
+.fr-row small{margin-left:auto;color:var(--muted,#5A6472);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:45%}
+.fr-none{padding:22px;text-align:center;color:var(--muted,#5A6472)}
+.fr-foot{display:flex;gap:14px;padding:8px 16px;border-top:1px solid var(--line,#E8EDF3);color:var(--muted,#5A6472);font-size:12px}
+
+@media (max-width:760px){
+  .fr-stats{grid-template-columns:repeat(2,1fr)}
+  .fr-card{flex-wrap:wrap}
+  .fr-go{margin-left:46px}
+}
+html.mob #frCtl{margin:0 4px 0 auto}
+html.mob #frFindBtn span,html.mob #frFindBtn kbd,html.mob #frWorkBtn{display:none}
+html.mob #frCtl button{height:30px;padding:0 9px}
+
+/* One card per approval: its own Approve and Open; Approve all; red counts on the menu groups; the "done" note. */
+.fr-grp h3{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.fr-all{border:0;background:none;color:var(--brand-ink,#3A5573);font-weight:700;font-size:13px;cursor:pointer;text-transform:none;letter-spacing:0}
+.fr-all:hover{text-decoration:underline}
+.fr-acts{display:flex;gap:6px;align-items:center;flex:0 0 auto;align-self:center}
+.fr-acts .fr-go{background:#fff;color:var(--ink,#14181F);border:1px solid var(--line,#E8EDF3)}
+.fr-yes{border:0;background:var(--accent,#4A5A3C);color:#fff;border-radius:10px;height:34px;padding:0 14px;font-weight:700;cursor:pointer;white-space:nowrap}
+.fr-yes:hover{filter:brightness(.92)}
+.fr-yes.fr-danger{background:var(--bad,#850000)}
+.side .navgrp .fr-gcnt,.fr-homenav b{background:var(--bad,#850000);color:#fff;border-radius:999px;padding:0 6px;line-height:17px;font-size:10.5px;min-width:18px;text-align:center;margin-left:5px;font-variant-numeric:tabular-nums}
+.side .navgrp .fr-gcnt.hide{display:none}
+.fr-toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#14181F;color:#fff;border-radius:12px;padding:11px 18px;z-index:10060;box-shadow:0 12px 32px rgba(20,24,31,.25);font-weight:600}
+@media (max-width:760px){.fr-acts{width:100%;padding-left:46px}}
+
+/* Header: "Last checked · Refresh" under the greeting; Viewing as and How this page works on the right. */
+.fr-when{font-size:12px;color:var(--faint,#98A1AE);margin-top:6px}
+.fr-when button{border:0;background:none;color:var(--brand-ink,#3A5573);font-weight:600;cursor:pointer;padding:0;font-size:12px}
+.fr-hright{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.fr-view{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--muted,#5A6472)}
+.fr-view select{height:36px;border:1px solid var(--line,#E8EDF3);border-radius:var(--r-pill,999px);padding:0 10px;background:#fff;color:var(--ink,#14181F)}
+.fr-how{height:38px;border-radius:12px;border:1px solid var(--line,#E8EDF3);background:#fff;color:var(--ink,#14181F);padding:0 16px;font-weight:600;cursor:pointer;box-shadow:var(--sh-1,0 2px 10px rgba(20,24,31,.05))}
+.fr-stat.fr-done b{color:var(--accent,#4A5A3C)}
+.fr-new{font-style:normal;font-size:10px;font-weight:800;background:var(--brand,#4A6A92);color:#fff;border-radius:999px;padding:1px 7px;margin-left:8px;vertical-align:2px}
+/* Each screen's own count on its menu link. */
+.side a.nav .fr-tcnt{background:var(--bad,#850000);color:#fff;border-radius:999px;padding:0 6px;line-height:17px;font-size:10.5px;min-width:18px;text-align:center;margin-left:auto;font-variant-numeric:tabular-nums}
+.side a.nav .fr-tcnt.hide{display:none}
+/* The bell. */
+#frBell{position:relative;width:34px;padding:0!important;justify-content:center;background:#fff;color:var(--muted,#5A6472);border:1px solid var(--line,#E8EDF3)}
+#frBell i{position:absolute;top:6px;right:7px;width:8px;height:8px;border-radius:50%;background:var(--bad,#850000);box-shadow:0 0 0 2px #fff;display:none}
+#frBell.fr-unread i{display:block}
+.fr-bell{display:flex;flex-direction:column;gap:8px;max-height:52vh;overflow:auto}
+.fr-bell > div{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:12px;background:var(--soft,#F7F9FB)}
+.fr-bell span{flex:1;min-width:0;display:flex;flex-direction:column}
+.fr-bell small{color:var(--muted,#5A6472);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fr-bell .fr-go{background:#fff;color:var(--ink,#14181F);border:1px solid var(--line,#E8EDF3);height:30px}
+
+/* Later, the card chosen with J/K, and the pop-ups with a button. */
+.fr-later{border:0;background:none;color:var(--muted,#5A6472);font-weight:600;font-size:12.5px;cursor:pointer;padding:0 6px;height:34px}
+.fr-later:hover{color:var(--ink,#14181F);text-decoration:underline}
+.fr-card.fr-kf{box-shadow:0 0 0 2px var(--brand,#4A6A92),var(--sh-2,0 4px 16px rgba(20,24,31,.08))}
+.fr-snz{text-align:center;color:var(--muted,#5A6472);font-size:13px;margin:6px 0 4px}
+.fr-snz button{border:0;background:none;color:var(--brand-ink,#3A5573);font-weight:700;text-decoration:underline;cursor:pointer}
+.fr-toast{display:flex;align-items:center;gap:14px;max-width:calc(100% - 32px);transition:bottom .2s ease}
+.fr-toast span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fr-toast button{background:transparent;border:1px solid rgba(255,255,255,.35);color:#FFD98A;border-radius:9px;padding:4px 12px;font-weight:700;cursor:pointer;flex:0 0 auto}
+
+/* Roles (admins): the 19 roles, each with its screens and permissions. */
+.fr-roles{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px;max-height:62vh;overflow:auto}
+.fr-role{background:var(--soft,#F7F9FB);border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:5px;font-size:12.5px}
+.fr-role-h{display:flex;align-items:center;gap:8px}
+.fr-role-h b{font-size:14px}
+.fr-role-h span{color:var(--muted,#5A6472)}
+.fr-role-h .fr-go{margin-left:auto;height:28px;padding:0 10px;background:#fff;color:var(--ink,#14181F);border:1px solid var(--line,#E8EDF3);font-size:12px}
+.fr-role p{margin:0;color:var(--muted,#5A6472)}
+.fr-role i{font-style:normal;font-weight:700;color:var(--faint,#98A1AE);text-transform:uppercase;font-size:10.5px;letter-spacing:.05em;margin-right:4px}
+.fr-role em{font-style:normal;display:inline-block;background:#fff;border:1px solid var(--line,#E8EDF3);border-radius:999px;padding:1px 8px;margin:2px 4px 0 0}
+.fr-role small{color:var(--warn-ink,#8A5A12)}
+
+/* Approvals in groups: a group per kind, each with a tick-all box and "Approve all N"; tick boxes on the cards; a bar
+   at the bottom for "Approve N ticked". */
+.fr-sub{background:var(--card,#fff);border-radius:16px;box-shadow:var(--sh-1,0 2px 10px rgba(20,24,31,.05));padding:4px 6px 6px;margin-bottom:12px}
+.fr-sub .fr-card{box-shadow:none;border-radius:12px;margin:0;padding:10px 10px;border-top:1px solid var(--line,#E8EDF3)}
+.fr-sub .fr-card:hover{background:var(--soft,#F7F9FB)}
+.fr-sub .fr-card.fr-ticked{background:var(--brand-bg,#E9EFF6)}
+.fr-sub .fr-card.fr-kf{box-shadow:0 0 0 2px var(--brand,#4A6A92)}
+.fr-subh{display:flex;align-items:center;gap:10px;padding:8px 10px}
+.fr-subh b{font-size:14px}
+.fr-subn{background:var(--warn-bg,#FFF3D6);color:var(--warn-ink,#8A5A12);border-radius:999px;padding:0 8px;font-size:12px;font-weight:700;line-height:20px}
+.fr-suball{margin-left:auto;border:1px solid var(--accent,#4A5A3C);background:#fff;color:var(--accent,#4A5A3C);border-radius:10px;height:30px;padding:0 12px;font-weight:700;font-size:12.5px;cursor:pointer;white-space:nowrap}
+.fr-suball:hover{background:var(--accent,#4A5A3C);color:#fff}
+.fr-tick{width:34px;height:34px;display:grid;place-items:center;flex:0 0 auto;cursor:pointer}
+.fr-subh .fr-tick{width:22px;height:22px}
+.fr-tick input{width:18px;height:18px;margin:0;cursor:pointer;accent-color:var(--brand,#4A6A92)}
+.fr-showall{display:block;width:100%;border:0;border-top:1px solid var(--line,#E8EDF3);background:none;color:var(--brand-ink,#3A5573);font-weight:700;font-size:13px;padding:10px;cursor:pointer;border-radius:0 0 12px 12px}
+.fr-showall:hover{background:var(--soft,#F7F9FB)}
+.fr-tickbar{position:sticky;bottom:16px;z-index:5;display:flex;align-items:center;gap:12px;margin:14px auto 0;width:max-content;max-width:100%;background:#14181F;color:#fff;border-radius:14px;padding:8px 10px 8px 18px;box-shadow:0 12px 32px rgba(20,24,31,.25)}
+.fr-tickbar.hide{display:none}
+.fr-tickbar .fr-later{color:#C9D2DE}
+.fr-tickbar .fr-later:hover{color:#fff}
+@media (max-width:760px){.fr-suball{margin-left:0}.fr-subh{flex-wrap:wrap}.fr-sub .fr-acts{padding-left:46px}}
+
+
+/* Desktop alerts: the one-time "Turn on" line on My work today. */
+.fr-alertask{display:flex;align-items:center;gap:12px;background:var(--brand-bg,#E9EFF6);color:var(--brand-ink,#3A5573);border-radius:14px;padding:10px 12px 10px 16px;margin-bottom:14px;flex-wrap:wrap}
+.fr-alertask span{flex:1;min-width:220px}
+.fr-alertask .fr-yes{background:var(--brand,#4A6A92)}

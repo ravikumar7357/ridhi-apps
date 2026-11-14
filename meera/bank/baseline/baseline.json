@@ -1,5 +1,5 @@
 {
- "made": "2026-11-13",
+ "made": "2026-11-14",
  "scores": {
   "eval": {
    "right": 115,
@@ -10,8 +10,8 @@
   "eval2": {
    "right": 54,
    "offered": 66,
-   "wrong": 6,
-   "none": 34
+   "wrong": 7,
+   "none": 33
   },
   "parts": {
    "right": 187,
@@ -23,9 +23,9 @@
  "typos": {
   "count": 238,
   "right": 85,
-  "offered": 114,
+  "offered": 115,
   "wrong": 8,
-  "none": 31
+  "none": 30
  },
  "extra": {
   "held": {
@@ -45,15 +45,15 @@
   "everyday": {
    "count": 531,
    "right": 135,
-   "offered": 70,
+   "offered": 69,
    "wrong": 183,
-   "none": 143
+   "none": 144
   }
  },
  "sizes": {
   "meera-bank.json": {
-   "raw": 8144601,
-   "gzip": 2017783
+   "raw": 8220179,
+   "gzip": 2036176
   },
   "meera-words.bin": {
    "raw": 1591833,
@@ -64,13 +64,13 @@
    "gzip": 118316
   },
   "code in the page": {
-   "raw": 461691,
-   "gzip": 195388,
+   "raw": 461256,
+   "gzip": 195350,
    "files": 10
   }
  },
  "timing": {
-  "loadMs": 1475,
-  "msPerAnswer": 46.5
+  "loadMs": 1542,
+  "msPerAnswer": 41.7
  }
 }

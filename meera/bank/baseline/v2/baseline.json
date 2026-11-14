@@ -1,5 +1,5 @@
 {
- "made": "2026-11-13",
+ "made": "2026-11-14",
  "scores": {
   "eval": {
    "right": 116,
@@ -10,8 +10,8 @@
   "eval2": {
    "right": 56,
    "offered": 64,
-   "wrong": 6,
-   "none": 34
+   "wrong": 7,
+   "none": 33
   },
   "parts": {
    "right": 187,
@@ -44,16 +44,16 @@
   },
   "everyday": {
    "count": 531,
-   "right": 135,
+   "right": 134,
    "offered": 71,
    "wrong": 184,
-   "none": 141
+   "none": 142
   }
  },
  "sizes": {
   "meera-bank.json": {
-   "raw": 8144601,
-   "gzip": 2017783
+   "raw": 8220179,
+   "gzip": 2036176
   },
   "meera-words.bin": {
    "raw": 1591833,
@@ -70,7 +70,7 @@
   }
  },
  "timing": {
-  "loadMs": 1304,
-  "msPerAnswer": 40.5
+  "loadMs": 1491,
+  "msPerAnswer": 40.6
  }
 }

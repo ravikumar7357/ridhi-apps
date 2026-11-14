@@ -289,7 +289,7 @@
   "off": false
  },
  "eval|shop|whatsapp didnt open after issue, says no number": {
-  "text": "WhatsApp does not open by itself after Issue or Receive. Press ⋯ on the row and choose WhatsApp — issue message or WhatsApp — receipt message: WhatsApp opens on the karigar's number with an English text ready, and you press Send there. Why The issue message also says which label (Ridhi or CPC) goes on the pieces.",
+  "text": "WhatsApp opens by itself on the karigar's number as soon as you save an Issue , and after a Receive when one issue takes the pieces — with the message ready in Hindi. You still press Send in WhatsApp. When several issues take a receipt, or for lines saved from a sheet, it does not open by itself: press ⋯ on the row and choose WhatsApp — issue message or WhatsApp — receipt message. Why The issue message also says which label (Ridhi or CPC) goes on the pieces.",
   "acts": [
    "open:pbase"
   ],
@@ -555,7 +555,7 @@
   "off": false
  },
  "eval|shop|date ke aage 8d laal kyu dikh rha": {
-  "text": "Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? low aur out ka matlab cell me dash ka matlab rfd kam hai laal dikh raha",
+  "text": "Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? low aur out ka matlab rfd kam hai laal dikh raha cell me dash ka matlab",
   "acts": [],
   "bank": null,
   "miss": "near",
@@ -954,7 +954,7 @@
   "off": false
  },
  "eval|shop|सिकुड़न 5% से ज़्यादा है, अप्रूव कैसे करें": {
-  "text": "मैं पक्का नहीं समझ पाई। क्या आप इनमें से कुछ पूछ रहे हैं? करेक्शन रिक्वेस्ट कैसे अप्रूव करें वेंडर ऑर्डर रिक्वेस्ट कैसे मंज़ूर करें correction request कैसे मंज़ूर करें",
+  "text": "मैं पक्का नहीं समझ पाई। क्या आप इनमें से कुछ पूछ रहे हैं? सब एक साथ अप्रूव कैसे करें करेक्शन रिक्वेस्ट कैसे अप्रूव करें My work today से अप्रूव कैसे करें",
   "acts": [],
   "bank": null,
   "miss": "near",
@@ -1376,7 +1376,7 @@
   "off": false
  },
  "eval|shop|कौन सा आर्टिकल मुश्किल है ये लेवल कहाँ भरते हैं": {
-  "text": "मैं पक्का नहीं समझ पाई। क्या आप इनमें से कुछ पूछ रहे हैं? शॉपिफाई के कितने ऑर्डर गए आसान/कठिन आर्टिकल कैसे तय करें Level क्या है",
+  "text": "मैं पक्का नहीं समझ पाई। क्या आप इनमें से कुछ पूछ रहे हैं? आसान/कठिन आर्टिकल कैसे तय करें शॉपिफाई के कितने ऑर्डर गए Level क्या है",
   "acts": [],
   "bank": null,
   "miss": "near",
@@ -1669,7 +1669,7 @@
   "off": false
  },
  "eval|shop|पुराना रंग अब नहीं बनता, मास्टर लिस्ट से निकालना है": {
-  "text": "मैं पक्का नहीं समझ पाई। क्या आप इनमें से कुछ पूछ रहे हैं? नया रंग कैसे जोड़ें मास्टर से रंग कैसे हटाएँ मास्टर लिस्ट सिर्फ़ एडमिन बदल सकते हैं",
+  "text": "मैं पक्का नहीं समझ पाई। क्या आप इनमें से कुछ पूछ रहे हैं? नया रंग कैसे जोड़ें मास्टर से रंग कैसे हटाएँ नए ऑर्डर नहीं दिख रहे",
   "acts": [],
   "bank": null,
   "miss": "near",
@@ -1946,9 +1946,9 @@
   "off": false
  },
  "eval2|shop|karigar matlab darzi hi na? ya koi aur": {
-  "text": "Your question fits more than one answer. Which one do you mean? how to filter Karigar · Production Analysis Karigar · Order Console",
+  "text": "Press Filters in the screen's toolbar, choose what you want in each box, then press Done . The number on the button shows how many filters are on, and each one shows as a chip under the toolbar. What it's for Screens with many drop-downs would fill the page, so they are folded into one Filters button. How it works A card with three or more filters gets one Filters button in its toolbar. Pick values in the panel and press Done . The number on the button counts the filters on; each shows as a chip under the toolbar. Filters only narrow what you see; they never change an entry. When to use it When you want only one brand, status, karigar or date range. Why Filters only narrow what you see — they never change any entry.",
   "acts": [],
-  "bank": null,
+  "bank": "gn-filters-button",
   "miss": null,
   "off": false
  },
@@ -2008,7 +2008,7 @@
   "off": false
  },
  "eval2|shop|fba bolte h wo kaunsa godown h": {
-  "text": "Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? fba kya hai qc mein order number maang raha hai fba dispatch kya hai",
+  "text": "Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? fba kya hai fba dispatch kya hai qc mein order number maang raha hai",
   "acts": [],
   "bank": null,
   "miss": "near",
@@ -2417,7 +2417,7 @@
   "off": false
  },
  "eval2|shop|क्वांटिटी घटाने की रिक्वेस्ट मांगते वक्त ठीक थी, अप्रूव करते समय मना क्यों कर दिया": {
-  "text": "मैं पक्का नहीं समझ पाई। क्या आप इनमें से कुछ पूछ रहे हैं? क्वांटिटी बदलाव मना कैसे करें माँगते समय ठीक था अब मात्रा बदलाव रिजेक्ट क्यों रिक्वेस्ट रिजेक्ट कैसे करें",
+  "text": "मैं पक्का नहीं समझ पाई। क्या आप इनमें से कुछ पूछ रहे हैं? क्वांटिटी बदलाव मना कैसे करें रिक्वेस्ट रिजेक्ट कैसे करें माँगते समय ठीक था अब मात्रा बदलाव रिजेक्ट क्यों",
   "acts": [],
   "bank": null,
   "miss": "near",
@@ -2566,7 +2566,7 @@
   "off": false
  },
  "eval2|shop|how does finished goods arrive at the in-stock figure for one sku": {
-  "text": "Your question fits more than one answer. Which one do you mean? how to receive stock in store what are the figures on top of finished goods sku with zero stock showing",
+  "text": "Your question fits more than one answer. Which one do you mean? what are the figures on top of finished goods how to receive stock in store sku with zero stock showing",
   "acts": [],
   "bank": null,
   "miss": null,
@@ -2823,7 +2823,7 @@
   "off": false
  },
  "eval2|shop|after freezing a fortnight, if I change a rate does the payout move": {
-  "text": "Your question fits more than one answer. Which one do you mean? freeze payout what happens when i freeze payout which entries get frozen",
+  "text": "Your question fits more than one answer. Which one do you mean? freeze payout what happens when i freeze payout cannot freeze vendor payout no approved rate",
   "acts": [],
   "bank": null,
   "miss": null,
@@ -2915,7 +2915,7 @@
   "off": false
  },
  "eval2|shop|amazon ka order shuru se FBA bhejne tak kaun kaun si screen se guzarta h": {
-  "text": "Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? cutting entry save karne se aur kya badalta h report kaise dekhe production me order ka poora safar",
+  "text": "Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? cutting entry save karne se aur kya badalta h report kaise dekhe fba kya hai",
   "acts": [],
   "bank": null,
   "miss": "near",
@@ -2929,7 +2929,7 @@
   "off": false
  },
  "eval2|shop|एक कटिंग एंट्री सेव करने से बाकी किन स्क्रीन पर फर्क पड़ता है": {
-  "text": "मैं पक्का नहीं समझ पाई। क्या आप इनमें से कुछ पूछ रहे हैं? कटिंग एंट्री सेव करने से और क्या बदलता है कटिंग की एंट्री कैसे करें कटिंग डेटा क्या है",
+  "text": "मैं पक्का नहीं समझ पाई। क्या आप इनमें से कुछ पूछ रहे हैं? कटिंग की एंट्री कैसे करें कटिंग एंट्री सेव करने से और क्या बदलता है कटिंग डेटा क्या है",
   "acts": [],
   "bank": null,
   "miss": "near",

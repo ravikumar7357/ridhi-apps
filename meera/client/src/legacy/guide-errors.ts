@@ -1,7 +1,7 @@
 /* EVERY ERROR THE ERP CAN SHOW, for Meera: [the message's longest fixed piece, lower case; the screen it belongs to].
  * Read off the screens' own code (every red message line, and every rule a form checks before it saves), so when
  * someone pastes or asks about a message, Meera knows which screen it is from and why it happens (gaWhy in
- * guide-ask.ts). 622 messages. MADE BY meera/tools/make-errors.cjs — do not edit; when screens change, it is
+ * guide-ask.ts). 627 messages. MADE BY meera/tools/make-errors.cjs — do not edit; when screens change, it is
  * made again (her gate says so on every push). */
 const GUIDE_ERRS = [
   ["everything in both apps", ""],
@@ -12,6 +12,8 @@ const GUIDE_ERRS = [
   ["pieces must be at least 1.", ""],
   ["enter the fabric.", ""],
   ["pick the order id these pieces were cut for.", ""],
+  ["this rate has changed — open finance & hr.", ""],
+  ["could not load the details", ""],
   ["only an admin can restore a deleted record.", ""],
   ["that entry is not in the recycle bin.", ""],
   ["already restored on", ""],
@@ -360,8 +362,10 @@ const GUIDE_ERRS = [
   ["piece(s) of this line still need to be made.", ""],
   ["type how many pieces were cut.", ""],
   ["pick the cloth this was cut from.", ""],
-  ["pick the karigar.", ""],
+  ["pick the embroidery vendor.", ""],
   ["type how many pieces are being issued.", ""],
+  ["piece(s) can be issued now.", ""],
+  ["pick the karigar.", ""],
   ["\" is not on the employee list.", ""],
   ["pick the pressman.", ""],
   ["type how many pieces were pressed.", ""],
@@ -459,6 +463,7 @@ const GUIDE_ERRS = [
   ["row not found", ""],
   ["nothing received on this row yet", ""],
   ["already sent — only an admin can re-send", ""],
+  ["no pieces came back", ""],
   ["type the pieces that came back, or change the rejects.", ""],
   ["received plus rejected would be more than was issued.", ""],
   ["that list has no boxes in it yet.", "pack"],

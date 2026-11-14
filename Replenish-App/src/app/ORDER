@@ -177,3 +177,4 @@ core/access-design.js
 @meera/legacy/guide-fill.ts
 @meera/legacy/guide-walks.ts
 @meera/legacy/guide-ai.ts
+core/friendly.js
