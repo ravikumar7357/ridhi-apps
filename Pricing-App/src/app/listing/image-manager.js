@@ -368,6 +368,27 @@ function imState(item) {
 
 /** True when the listing itself submitted no main image — what shows comes from the family. */
 const imNoOwnMain = item => !(item.img || {}).MAIN && !!(item.live || {}).MAIN;
+/** No main picture at all: none sent by us, none shown to shoppers. */
+const imNoMain = item => !(item.img || {}).MAIN && !(item.live || {}).MAIN;
+
+/* PICTURE PROBLEMS ONLY. Image Manager shows only Amazon's issues about pictures: the issue names a picture slot's attribute, carries a
+ * picture error code, or its message is about an image / picture / photo / swatch. Everything else (ERROR 90244 Unit Count, specs, the
+ * title…) belongs to Listing Errors and is hidden here. Works on the list's issues ({ s, c, m, a }) and the editor's
+ * ({ severity, code, message, attrs }). */
+const IM_PIC_ATTR = /^(main_product_image_locator|other_product_image_locator_[1-8]|swatch_product_image_locator)$/;
+const IM_PIC_CODES = ['18320'];        // "The main image is missing or incorrect" (RTC203-6060, 9 Oct)
+const IM_PIC_WORDS = /\b(image|images|picture|pictures|photo|photos|swatch)\b/i;
+function imIsPicIssue(issue) {
+  if (!issue) return false;
+  const attrs = issue.a || issue.attrs || [];
+  return attrs.some(attr => IM_PIC_ATTR.test(String(attr))) || IM_PIC_CODES.includes(String(issue.c || issue.code || ''))
+    || IM_PIC_WORDS.test(String(issue.m || issue.message || ''));
+}
+/** A listing's Amazon ERRORs about pictures (from the snapshot's issues; a snapshot from before they were kept: the first error's words). */
+function imPicErrs(item) {
+  if (Array.isArray(item.iss)) return item.iss.filter(issue => issue && issue.s === 'E' && imIsPicIssue(issue));
+  return item.ie && imIsPicIssue({ m: item.im }) ? [{ s: 'E', c: '', m: item.im || '', a: [] }] : [];
+}
 
 /** The main picture shoppers see was marked Not OK in the Picture check (picture-check.js keeps the marks per picture id). */
 const imPcBad = (brand, item) => typeof PC !== 'undefined' && !!(item.live || {}).MAIN && ((PC.marks[brand] || {})[imqId(item.live.MAIN)] || {}).v === 'bad';
@@ -381,11 +402,12 @@ const imMeasured = item => IM_SLOTS.some(slot => !!imqDims((item.img || {})[slot
 /* THE NUMBER CARDS at the top of the list. Each is one of the filter picker's own filters (the picker stays and follows the card):
  * a click shows only those listings, a second click shows all again. Counted over every child listing of the brand. */
 const IM_CARDS = [
-  { k: 'nomain', t: 'Main missing', cls: 'is-err', tip: 'Your listing sent no main picture of its own; what shows comes from the family, and Amazon can suppress it' },
+  { k: 'nomain', t: 'No main at all', cls: 'is-err', tip: 'No main picture: none sent by us and none shown to shoppers' },
+  { k: 'noown', t: 'Using the family\'s main', cls: 'is-att', tip: 'Your listing sent no main picture of its own; shoppers see the family\'s, and Amazon can suppress it' },
   { k: 'pcbad', t: 'Main not OK', note: 'Picture check', cls: 'is-err', tip: 'Main pictures a person marked Not OK in the Picture check' },
   { k: 'small', t: 'Too small', note: 'under 2000', cls: 'is-att', tip: 'A picture under 2000 × 2000 (company minimum). Counted from the sizes known so far: the Workspace\'s catalogue reads and the tiles measured on screen' },
   { k: 'few', t: 'Fewer than 7', note: 'pictures', cls: 'is-att', tip: 'Fewer than 7 pictures in the stack' },
-  { k: 'amzerr', t: 'Amazon error', cls: 'is-err', tip: 'Amazon reports an error on the listing' },
+  { k: 'amzerr', t: 'Amazon picture error', cls: 'is-err', tip: 'Amazon reports an error about the pictures (other errors are in Listing Errors)' },
   { k: 'sup', t: 'Search suppressed', cls: 'is-err', tip: 'Buyable from a direct link, but taken out of search results' },
   { k: 'other', t: 'Shows another SKU\'s pictures', cls: 'is-act', tip: 'Amazon\'s catalogue serves another SKU\'s main picture on this ASIN' },
   { k: 'noswatch', t: 'No swatch', cls: 'is-att', tip: 'No swatch picture, ours or live' },
@@ -424,7 +446,7 @@ function imKidMatch(item, filter, search) {
     const hay = [item.sku, item.asin, item.pa, item.psku, item.t, item.c, item.z].join(' ').toLowerCase();
     if (!search.split(/\s+/).every(word => hay.includes(word))) return false;
   }
-  if (filter === 'nomain') return !img.MAIN;
+  if (filter === 'nomain') return imNoMain(item);
   if (filter === 'pcbad') return imPcBad($('imBrand').value, item);
   if (filter === 'small') return imSmall(item);
   if (filter === 'diff') return IM_SLOTS.some(slot => img[slot] && live[slot] && img[slot] !== live[slot]);
@@ -432,7 +454,7 @@ function imKidMatch(item, filter, search) {
   if (filter === 'noswatch') return !img.SWCH && !live.SWCH;
   if (filter === 'other') return !!imHijack(item);
   if (filter === 'sup') return imState(item).k === 'sup';
-  if (filter === 'amzerr') return (item.ie || 0) > 0;
+  if (filter === 'amzerr') return imPicErrs(item).length > 0;
   if (filter === 'noown') return imNoOwnMain(item);
   if (filter === 'nobuy') return !/BUYABLE/.test(item.st || '');
   return true;
@@ -500,6 +522,7 @@ function imKidRow(item) {
     + '<span style="width:8px"></span>' + imTile('SWCH', live.SWCH, img.SWCH, true, item.sku);
   const state = imState(item);
   const hijack = imHijack(item);
+  const picErrs = imPicErrs(item);
   const chip = (text, fill, ink, tip) => `<span class="st" style="background:${fill};color:${ink}"`
     + `${tip ? ` title="${imEsc(tip)}"` : ''}>${imEsc(text)}</span>`;
   const open = IM && IM.sku === item.sku && $('imEditWrap') && !$('imEditWrap').classList.contains('hide');
@@ -516,8 +539,8 @@ function imKidRow(item) {
         <button class="ghost im-b" data-copy="${imEsc(item.sku)}" title="Copy this listing's pictures (the ones we sent; a slot we never sent takes what shoppers see)">Copy all</button>
         <button class="ghost im-b" data-copy="${imEsc(item.sku)}" data-copy-live="1" title="Copy what shoppers see on this listing (Amazon's catalogue), not the pictures we sent">Copy live</button>
         ${IM_CLIP ? `<button class="ghost im-b" data-paste1="${imEsc(item.sku)}" title="Paste the clipboard's ticked slots into this listing (a preview first)">Paste here</button>` : ''}</div>
-      ${item.ie ? `<div style="margin-top:3px">${chip('Amazon: ' + item.ie + ' error' + (item.ie > 1 ? 's' : ''), 'var(--bad-bg)', 'var(--bad-ink)', item.im || '')}</div>
-        <div class="muted" style="font-size:10.5px;margin-top:2px">${imEsc(String(item.im || '').slice(0, 90))}${String(item.im || '').length > 90 ? '…' : ''}</div>` : ''}
+      ${picErrs.length ? `<div style="margin-top:3px">${chip('Amazon: ' + picErrs.length + ' picture error' + (picErrs.length > 1 ? 's' : ''), 'var(--bad-bg)', 'var(--bad-ink)', picErrs[0].m || '')}</div>
+        <div class="muted" style="font-size:10.5px;margin-top:2px">${imEsc(String(picErrs[0].m || '').slice(0, 90))}${String(picErrs[0].m || '').length > 90 ? '…' : ''}</div>` : ''}
       ${imNoOwnMain(item) ? `<div style="margin-top:3px">${chip('No image of your own', 'var(--act-bg)', 'var(--act-ink)',
         'Your listing submitted no main image. What shows on Amazon comes from the family, and Amazon can suppress a listing for it.')}</div>` : ''}
       ${hijack ? `<div style="margin-top:3px">${chip('Amazon shows ' + hijack.sku + (hijack.c ? ' · ' + hijack.c : ''), 'var(--act-bg)', 'var(--act-ink)',
@@ -824,9 +847,10 @@ function imRender() {
         `<option value="${imEsc(choice.sku)}"${choice.sku === listing.sku ? ' selected' : ''}>${imEsc(choice.sku)}${
           choice.status ? ' · ' + imEsc(choice.status) : ''}</option>`).join('')}</select>`
     : `<b>${imEsc(listing.sku)}</b>`;
-  const issues = (listing.issues || []).length
-    ? `<div class="card" style="padding:10px 14px;margin-bottom:12px"><div style="font-weight:600;font-size:13px;margin-bottom:4px">Amazon's open issues on this listing</div>
-        ${listing.issues.map(issue => `<div style="font-size:12px;margin:3px 0"><span class="st ${issue.severity === 'ERROR' ? 'st-rejected' : 'st-draft'}">${
+  const picIssues = (listing.issues || []).filter(imIsPicIssue);       // picture problems only; the rest is Listing Errors' work
+  const issues = picIssues.length
+    ? `<div class="card" style="padding:10px 14px;margin-bottom:12px"><div style="font-weight:600;font-size:13px;margin-bottom:4px">Amazon's open picture issues on this listing</div>
+        ${picIssues.map(issue => `<div style="font-size:12px;margin:3px 0"><span class="st ${issue.severity === 'ERROR' ? 'st-rejected' : 'st-draft'}">${
           imEsc(issue.severity)}</span> ${imEsc(issue.message)}</div>`).join('')}</div>` : '';
   const onlyCatalog = [...IM_SLOTS, 'SWCH'].filter(slot => !(listing.listing || {})[slot] && cat[slot]);
   /* The catalogue sometimes serves a sibling's whole stack on a listing of its own, most often one

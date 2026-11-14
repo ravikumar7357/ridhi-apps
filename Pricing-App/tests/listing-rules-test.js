@@ -96,7 +96,7 @@ function load(opts) {
     + (opts.lh ? ' LH, lhLoad, lhFiltered, lhItems, lhGroupLine, lhWhat, lhScreen, lhCsv, lhCheckAgain, lhPutBack, lhDraw, lhBuild, lhClick, lhMenuAccess, lhOpen, LH_CSV_COLS,' : '')
     + (opts.le ? ' leSend, setLE: (le, edit) => { LE = le; LE_EDIT = edit; }, getLE: () => ({ LE, LE_EDIT, LE_RESULT }), lcUpSend,' : '')
     + (opts.im ? ['imqCheck', 'imqSize', 'imqPixels', 'imqDups', 'imqId', 'imqDims', 'IMQ', 'imPastePlan', 'imPicks', 'imPreviewHtml', 'imPreviewGo', 'imClipTake', 'imClipSlots', 'imClipCopyOne',
-      'imCardsData', 'imKidMatch', 'imTile', 'imBfOf', 'imListRender', 'imPastePreview', 'imRender', 'imHistLink', 'imShowEditor'].map(n => ` ${n}: typeof ${n} === "undefined" ? null : ${n},`).join('')
+      'imCardsData', 'imKidMatch', 'imIsPicIssue', 'imPicErrs', 'imTile', 'imBfOf', 'imListRender', 'imPastePreview', 'imRender', 'imHistLink', 'imShowEditor'].map(n => ` ${n}: typeof ${n} === "undefined" ? null : ${n},`).join('')
       + ' getPV: () => (typeof IM_PV === "undefined" ? null : IM_PV), getClip: () => IM_CLIP, imSend, imPasteMany, setIM: (im, start, now) => { IM = im; IM_START = start; IM_NOW = now; }, getIM: () => ({ IM, IM_START, IM_NOW }), IM_SEL, setClip: c => { IM_CLIP = c; }, IML,' : '')
     + (opts.fa ? ' FA, faBlockHtml, faGroups, faCards, faPlan, faPlans, faShortTitle, faStart, faPutBack, faChangeList, faOnGet, faKids, faClick, faHistHtml, faLogLoad, faOpenImg, faOpenLerr, spParentPanelHtml, liWsPanelList,' : '') + ' };';
   const api = new Function(...Object.keys(ctx), src + tail)(...Object.values(ctx));
