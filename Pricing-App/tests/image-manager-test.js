@@ -188,6 +188,40 @@ function picture(W, H, box, edge) {
       && sent[1].opts.held[0].why === 'every picture was left out in the preview (picture rules)');
   }
 
+  console.log('== the editor in a side panel: the list stays, chips under each picture, Listing History link ==');
+  {
+    const cl = init => { const s = new Set(init || []); return { add: c => s.add(c), remove: c => s.delete(c), contains: c => s.has(c),
+      toggle: (c, on) => ((on === undefined ? !s.has(c) : on) ? s.add(c) : s.delete(c)) }; };
+    const scrolled = [];
+    const asked = [];
+    const P = load({ im: true, lh: true, window: { scrollTo: (x, y) => scrolled.push([x, y]) },
+      baCall: async q => { asked.push(q); return q.limg === 'get' ? { brand: 'SP', sku: q.sku, asin: 'B0K2', title: 'Napkins K2', productType: 'NAPKIN', status: ['BUYABLE'],
+        listing: { MAIN: A('k2m'), PT01: A('k2a'), PT02: A('k2a') }, catalog: { MAIN: { link: A('k2m'), w: 2400, h: 2400 } }, issues: [] } : { rows: [] }; },
+      ctx: { sqSendWithCheck: async () => {}, sqField: s => s, sqSummaryText: () => '', Image: class { set src(v) {} }, document: { addEventListener() {}, querySelectorAll: () => [], querySelector: () => null, createElement: () => ({ click() {} }) } } });
+    P.el('imBrand').value = 'SP';
+    P.el('imFilter').value = 'all';
+    P.el('imQ').value = '';
+    P.el('imEditWrap').classList = cl(['hide']);
+    P.el('imListWrap').classList = cl();
+    P.IML.SP = { at: new Date(), items: ITEMS() };
+    const btn = { dataset: { edit: 'K2' }, closest: () => ({ classList: cl() }) };
+    P.el('imList').querySelectorAll = sel => (sel === '[data-edit]' ? [btn] : []);
+    P.imListRender();
+    await btn.onclick();
+    ok('Edit opens the editor beside the list: the list is not hidden, the panel is', !P.el('imListWrap').classList.contains('hide') && !P.el('imEditWrap').classList.contains('hide'));
+    ok('…no scroll jump and the search box is left alone (it used to be set to the SKU, which filtered the list)', !scrolled.length && P.el('imQ').value === '');
+    ok('…the listing read is the one clicked (?limg=get sku=K2)', asked.some(q => q.limg === 'get' && q.sku === 'K2'));
+    const body = P.el('imBody').innerHTML;
+    ok('today\'s editor unchanged inside it: Live on Amazon now, Your stack, Check with Amazon / Apply / Discard', /Live on Amazon now/.test(body) && /Your stack/.test(body)
+      && /id="imCheck"/.test(body) && /id="imApply"/.test(body) && /id="imReset"/.test(body) && /data-act="file"/.test(body) && /data-act="url"/.test(body));
+    ok('quality chips under each picture: PT02 is the same picture as PT01', /imq-chip is-warn"[^>]*>Same picture as PT01/.test(body));
+    ok('the old "Changes sent for this SKU" list → a link to Listing History', /id="imHistLink"/.test(body) && /See them in Listing History/.test(body) && !/id="imHist"/.test(body));
+    P.imHistLink('K2');
+    ok('…the link opens Listing History, every date, searched for K2', P.calls.some(c => c.tab === 'lhist') && P.LH.f.q === 'K2' && P.LH.f.range === 'all' && P.LH.built === false);
+    P.imShowEditor(false);
+    ok('Close: the panel goes, the list is still there', P.el('imEditWrap').classList.contains('hide') && !P.el('imListWrap').classList.contains('hide'));
+  }
+
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
 })();

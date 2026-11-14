@@ -176,10 +176,13 @@ function imStick() {
   } catch (e) { /* no layout to measure (a test page) */ }
 }
 
-// Show the editor (true) or the list (false).
+/* Show the editor (true) or close it (false). THE EDITOR IS A PANEL ON THE RIGHT: the list stays on screen, where it was (no scroll, no
+ * redraw), so the next listing is one click away. The open listing's row is marked; the clipboard bar's quick picks learn "This listing". */
 function imShowEditor(on) {
   $('imEditWrap').classList.toggle('hide', !on);
-  $('imListWrap').classList.toggle('hide', on);
+  $('imListWrap').classList.remove('hide');
+  if (!on && document.querySelectorAll) document.querySelectorAll('#imList .im-kid.is-open').forEach(row => row.classList.remove('is-open'));
+  imClipRefresh();
 }
 
 /* ============================================================================================
@@ -499,7 +502,8 @@ function imKidRow(item) {
   const hijack = imHijack(item);
   const chip = (text, fill, ink, tip) => `<span class="st" style="background:${fill};color:${ink}"`
     + `${tip ? ` title="${imEsc(tip)}"` : ''}>${imEsc(text)}</span>`;
-  return `<div class="im-kid">
+  const open = IM && IM.sku === item.sku && $('imEditWrap') && !$('imEditWrap').classList.contains('hide');
+  return `<div class="im-kid${open ? ' is-open' : ''}">
     <div class="im-kid-info">
       <div><b style="font-family:ui-monospace,monospace">${imEsc(item.sku)}</b> <span class="muted">${imEsc(item.asin)}</span></div>
       <div class="muted">${imEsc([item.c, item.z].filter(Boolean).join(' · ') || String(item.t || '').slice(0, 60))}</div>
@@ -534,6 +538,45 @@ function imShownGroups(items, filter, search) {
     if (show.length) groups.push(Object.assign({}, group, { show }));
   });
   return groups;
+}
+
+// The clipboard bar's controls (imClipBar): Forget it, Preview, a tick per slot, the swatch tick, the quick picks, the mode.
+function imClipWire(el) {
+  if (!el) return;
+  if ($('imClipClear')) $('imClipClear').onclick = () => {
+    imClipClear();
+    imListRender();
+  };
+  if ($('imPasteSel')) $('imPasteSel').onclick = () => imPasteGo([...IM_SEL]);
+  // --- the clipboard bar: a tick per slot, the swatch tick, the quick picks, the mode ---
+  el.querySelectorAll('[data-clip-tick]').forEach(cb => cb.onchange = () => {
+    IM_CLIP.tick = Object.assign({}, IM_CLIP.tick || {}, { [cb.dataset.clipTick]: cb.checked });
+    imClipSave();
+    cb.closest('.im-cs').classList.toggle('is-on', cb.checked);
+  });
+  if ($('imClipSw')) $('imClipSw').onchange = () => {
+    IM_CLIP.tick = Object.assign({}, IM_CLIP.tick || {}, { SWCH: $('imClipSw').checked });
+    imClipSave();
+    $('imClipSw').closest('.im-cs').classList.toggle('is-on', $('imClipSw').checked);
+  };
+  if ($('imPick')) $('imPick').onchange = () => {
+    const pick = imPicks().find(p => p.k === $('imPick').value);
+    if (!pick) return;
+    IM_SEL.clear();
+    pick.skus.forEach(sku => IM_SEL.add(sku));
+    imListRender();
+    imMsg(`Ticked ${pick.skus.length} listing(s): ${pick.label}. Check the ticks, then press Preview.`);
+  };
+  el.querySelectorAll('input[name="imMode"]').forEach(radio => radio.onchange = () => { if (radio.checked) IM_PASTE_MODE = radio.value; });
+}
+// Draw the list's clipboard bar again on its own (the editor panel opened or closed: "This listing" comes and goes).
+function imClipRefresh() {
+  const old = $('imClipBar');
+  if (!old || !old.parentNode || typeof document === 'undefined' || !document.createElement) return;
+  const box = document.createElement('div');
+  box.innerHTML = imClipBar('list');
+  if (box.firstElementChild) old.replaceWith(box.firstElementChild);
+  imClipWire($('imList'));
 }
 
 // Draw the list: group by parent, apply the filter and the search, page by listing, then wire the buttons.
@@ -633,40 +676,17 @@ function imListRender() {
     const pickBox = $('imPick');
     if (pickBox && pickBox.options && pickBox.options[0]) pickBox.options[0].textContent = 'Ticked listings (' + IM_SEL.size + ')';
   });
-  if ($('imClipClear')) $('imClipClear').onclick = () => {
-    imClipClear();
-    imListRender();
-  };
-  if ($('imPasteSel')) $('imPasteSel').onclick = () => imPasteGo([...IM_SEL]);
-  // --- the clipboard bar: a tick per slot, the swatch tick, the quick picks, the mode ---
-  el.querySelectorAll('[data-clip-tick]').forEach(cb => cb.onchange = () => {
-    IM_CLIP.tick = Object.assign({}, IM_CLIP.tick || {}, { [cb.dataset.clipTick]: cb.checked });
-    imClipSave();
-    cb.closest('.im-cs').classList.toggle('is-on', cb.checked);
-  });
-  if ($('imClipSw')) $('imClipSw').onchange = () => {
-    IM_CLIP.tick = Object.assign({}, IM_CLIP.tick || {}, { SWCH: $('imClipSw').checked });
-    imClipSave();
-    $('imClipSw').closest('.im-cs').classList.toggle('is-on', $('imClipSw').checked);
-  };
-  if ($('imPick')) $('imPick').onchange = () => {
-    const pick = imPicks().find(p => p.k === $('imPick').value);
-    if (!pick) return;
-    IM_SEL.clear();
-    pick.skus.forEach(sku => IM_SEL.add(sku));
-    imListRender();
-    imMsg(`Ticked ${pick.skus.length} listing(s): ${pick.label}. Check the ticks, then press Preview.`);
-  };
-  el.querySelectorAll('input[name="imMode"]').forEach(radio => radio.onchange = () => { if (radio.checked) IM_PASTE_MODE = radio.value; });
+  imClipWire(el);
   if ($('imOnlyOff')) $('imOnlyOff').onclick = () => {
     imOnly(null);
     imListRender();
   };
+  // Edit: the editor opens in the side panel; the search box, the page and the scroll stay as they are.
   el.querySelectorAll('[data-edit]').forEach(btn => btn.onclick = () => {
-    $('imQ').value = btn.dataset.edit;
     IM_SKU_CHOICES = null;
+    el.querySelectorAll('.im-kid.is-open').forEach(row => row.classList.remove('is-open'));
+    if (btn.closest) btn.closest('.im-kid').classList.add('is-open');
     imLoad(btn.dataset.edit);
-    window.scrollTo(0, 0);
   });
   el.querySelectorAll('[data-pg]').forEach(btn => btn.onclick = () => {
     IML_PAGE += Number(btn.dataset.pg);
@@ -684,7 +704,7 @@ function imListRender() {
 // Open one listing in the editor: by the SKU picked from the choices, by ASIN, or by the SKU typed; then draw and load its history.
 async function imLoad(skuPick) {
   const typed = ($('imQ').value || '').trim();
-  if (!typed) {
+  if (!typed && !skuPick) {
     imMsg('Type a SKU or an ASIN.', true);
     return;
   }
@@ -711,6 +731,7 @@ async function imLoad(skuPick) {
     imRender();
     imMsg('');
     imHistory();
+    imClipRefresh();         // the quick picks' "This listing" names the listing now open
   } catch (e) {
     IM = null;
     $('imBody').innerHTML = '';
@@ -773,10 +794,12 @@ function imCard(slot, url, opts) {
 }
 
 // The picture rules (image-quality.js) under one card: size words, shape, the same picture twice, and for a file uploaded here its
-// white border and fill. The plain "2400 × 2400" is left out — the line above already says it.
+// white border and fill. The size line above already gives "2400×2400" and "no zoom", so the size chip keeps only "below 2000 — company minimum".
 function imCardChips(slot, url, w, h, dup) {
   const q = imqCheck(Object.assign({ slot, w, h, dup }, IM_QFILE[url] ? { white: IM_QFILE[url].white, fill: IM_QFILE[url].fill } : {}));
-  const chips = q.chips.filter(chip => chip.t !== `${w} × ${h}`);
+  const sized = `${w} × ${h}`;
+  const chips = q.chips.filter(chip => !chip.t.startsWith(sized) || q.size === 'y')
+    .map(chip => (chip.t.startsWith(sized) ? Object.assign({}, chip, { t: IMQ_WORDS.y }) : chip));
   return chips.length ? `<div class="imq-chips">${imqChipsHtml(chips)}</div>` : '';
 }
 
@@ -851,9 +874,9 @@ function imRender() {
       </div>
       <div id="imResult">${IM_RESULT}</div>
     </div>
-    <div class="card" style="padding:10px 14px;margin-bottom:12px">
-      <div style="font-weight:600;font-size:13px;margin-bottom:4px">Changes sent for this SKU</div>
-      <div id="imHist" class="muted" style="font-size:12px">…</div>
+    <div class="card" style="padding:10px 14px;margin-bottom:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <div style="font-weight:600;font-size:13px">Changes sent for this SKU</div>
+      <button class="ghost im-b" id="imHistLink" type="button" title="Every change sent for ${imEsc(listing.sku)}, from every screen: when, who, old → new, Amazon's answer">See them in Listing History →</button>
     </div>
     <input type="file" id="imFile" accept="image/jpeg,image/png,image/tiff,image/gif" class="hide">`;
   imWire();
@@ -951,8 +974,9 @@ function imWire() {
     const cat = (IM && IM.catalog) || {};
     const live = {};
     [...IM_SLOTS, 'SWCH'].forEach(slot => { if (cat[slot] && cat[slot].link) live[slot] = cat[slot].link; });
-    imClipTake({ brand: IM.brand, sku: IM.sku, asin: IM.asin, c: IM.color, z: IM.size, own: IM_NOW, live });
+    imClipTake({ brand: IM.brand, sku: IM.sku, asin: IM.asin, c: IM.color, z: IM.size, psku: IM.parent || '', own: IM_NOW, live });
     imRender();
+    imListRender();          // the list beside the panel shows the clipboard bar
     imMsg('Copied ' + IM_CLIP.n + ' picture(s) from ' + IM_CLIP.sku + '. Open another listing and press Paste.');
   };
   const paste = gapsOnly => {
@@ -981,7 +1005,9 @@ function imWire() {
   if ($('imClipClear')) $('imClipClear').onclick = () => {
     imClipClear();
     imRender();
+    imListRender();
   };
+  if ($('imHistLink')) $('imHistLink').onclick = () => imHistLink(IM.sku);
   // --- Check / Apply / Discard ---
   $('imCheck').onclick = () => imSend(false);
   $('imApply').onclick = () => imSend(true);
@@ -1094,6 +1120,15 @@ async function imSend(apply) {
   }
 }
 
+/** "See them in Listing History →": the Listing History page, every date, searched for this SKU. */
+function imHistLink(sku) {
+  if (typeof LH !== 'undefined' && LH && LH.f) {
+    LH.f = Object.assign({}, LH.f, { range: 'all', q: sku });
+    LH.page = 0;
+    LH.built = false;        // its toolbar is drawn again with the search filled in
+  }
+  if (typeof showTab === 'function') showTab('lhist');
+}
 // The "Changes sent for this SKU" box: the last 20 sends from Sellora, from the backend's log.
 async function imHistory() {
   const el = $('imHist');
@@ -1382,7 +1417,7 @@ $('imGo').onclick = () => {
   imLoad();
 };
 
-// Back from the editor to the list, redrawing it if a send changed anything.
+// Close the editor panel, redrawing the list if a send changed anything.
 $('imBack').onclick = () => {
   imShowEditor(false);
   if (IML_DIRTY) {
@@ -1427,6 +1462,14 @@ $('imList').addEventListener('click', e => {
   $('imFilter').value = $('imFilter').value === card.dataset.imCard ? 'all' : card.dataset.imCard;
   imListAgain();
 });
+// Esc closes the editor panel (a popup open on top closes first, by its own Esc).
+if (typeof document !== 'undefined' && document.addEventListener) {
+  document.addEventListener('keydown', e => {
+    if (e.key !== 'Escape' || !$('imEditWrap') || $('imEditWrap').classList.contains('hide')) return;
+    if ($('spModal') && !$('spModal').classList.contains('hide')) return;
+    $('imBack').onclick();
+  });
+}
 // The paste preview (in the #spModal frame): Cancel / Continue, and the "Include anyway" box of a picture that fails the rules.
 if (typeof document !== 'undefined' && document.addEventListener) {
   document.addEventListener('click', e => {

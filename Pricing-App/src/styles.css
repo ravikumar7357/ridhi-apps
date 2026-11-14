@@ -1224,6 +1224,14 @@
   .im-pv-held b{display:block;color:var(--ink)}
   .im-pv-foot{display:flex;justify-content:flex-end;gap:8px;padding:12px 20px;border-top:1px solid var(--line)}
   .im-pv-foot .im-b{padding:6px 14px;font-size:12.5px}
+  /* The editor as a panel on the right (the list stays where it was); the open listing's row is marked. */
+  #paneImg #imEditWrap.im-side{position:fixed;top:var(--im-top,0px);right:0;bottom:0;z-index:50;width:min(800px,calc(100vw - 16px));margin:8px;
+    max-height:calc(100vh - var(--im-top,0px) - 16px);overflow:auto;overscroll-behavior:contain;padding:0 14px 14px;background:var(--bg);
+    border:1px solid var(--line);border-radius:16px;box-shadow:0 18px 50px rgba(0,0,0,.28)}
+  #paneImg .im-side-h{position:sticky;top:0;z-index:3;display:flex;align-items:center;gap:8px;margin:0 -14px 10px;padding:12px 14px 10px;
+    background:var(--bg);border-bottom:1px solid var(--line);font-size:14px}
+  #paneImg .im-kid.is-open{background:color-mix(in srgb,var(--brand) 9%,transparent);box-shadow:inset 3px 0 0 var(--brand)}
+  @media (max-width:860px){#paneImg #imEditWrap.im-side{top:0;width:100vw;margin:0;max-height:100vh;border-radius:0}}
 
   /* PPC & ORGANIC · NEW (test). Everything is under #panePpcn and prefixed px-, and the app's own
      button / input / label / table rules are undone inside it first — so this page cannot change the
