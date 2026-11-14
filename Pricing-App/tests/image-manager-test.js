@@ -333,6 +333,34 @@ function picture(W, H, box, edge) {
     P.imViewClose();
   }
 
+  console.log('== the editor: drop files from the computer (same picture rules), the picture rules line ==');
+  {
+    const posts = [];
+    const DIMS = { 'big.jpg': 3000, 'small.jpg': 1500, 'ok1.jpg': 2400, 'ok2.png': 2200 };
+    const P = load({ im: true, ctx: {
+      API: { url: 'https://backend.stub/exec' }, API_ERR: '', auth: { currentUser: null },
+      fetch: async (url, init) => { const b = JSON.parse(init.body); posts.push(b); return { text: async () => JSON.stringify({ ok: true, url: 'https://drive.stub/' + b.name }) }; },
+      FileReader: class { readAsDataURL() { setTimeout(() => { this.result = 'data:image/jpeg;base64,AAAA'; this.onload(); }); } },
+      URL: { createObjectURL: f => 'blob:' + (f && f.name), revokeObjectURL() {} },
+      Image: class { set src(v) { const n = DIMS[String(v).replace('blob:', '')]; if (n) { this.naturalWidth = n; this.naturalHeight = n; setTimeout(() => this.onload && this.onload()); } } },
+      document: { addEventListener() {}, querySelectorAll: () => [], querySelector: () => null, createElement: () => ({ click() {} }) },
+      sqSendWithCheck: async () => {}, sqField: s => s, sqSummaryText: () => '' } });
+    P.el('imBrand').value = 'SP';
+    const filled = { MAIN: A('m'), PT01: A('a'), PT02: A('b'), PT03: A('c'), PT04: A('d'), PT05: A('e') };
+    P.setIM({ brand: 'SP', sku: 'K1', listing: {}, catalog: {}, issues: [] }, Object.assign({}, filled), Object.assign({}, filled));
+    ok('several files fill the empty slots in order (PT06, PT07, PT08), never the swatch', P.imDropSlots(3, filled).join() === 'PT06,PT07,PT08' && P.imDropSlots(9, filled).length === 3);
+    const MB = 1024 * 1024;
+    const f = (name, size, type) => ({ name, size, type: type || 'image/jpeg' });
+    await P.imUploadMany([f('big.jpg', 11 * MB), f('small.jpg', 3 * MB), f('ok1.jpg', 3 * MB), f('ok2.png', 4 * MB, 'image/png')]);
+    const now = P.getIM().IM_NOW;
+    ok('the same checks as one upload: 11 MB refused, 1500 × 1500 refused ("Company rule"), the next files take those slots: PT06 ← ok1, PT07 ← ok2',
+      posts.length === 2 && posts.every(p => p.limg === 'upload') && /ok1\.jpg$/.test(now.PT06) && /ok2\.png$/.test(now.PT07) && !now.PT08, JSON.stringify(now));
+    await P.imUploadMany([f('ok1.jpg', 3 * MB), f('ok2.png', 3 * MB)]);
+    ok('…more files than empty slots: the rest are named, not uploaded', /No empty slot left: 1 file\(s\) not uploaded \(ok2\.png\)/.test(P.el('imMsg').textContent) && posts.length === 3);
+    ok('a single file dropped on a slot still goes through imUpload\'s rules (11 MB refused)', (await P.imUpload('PT01', f('big.jpg', 11 * MB)), posts.length === 3 && /10 MB/.test(P.el('imMsg').textContent)));
+    ok('"Picture rules" line: Main pure white, ~85%, 2000 × 2000, JPEG/PNG, 2–10 MB (one line, opens for more)', /<details class="im-rules"><summary><b>Picture rules:<\/b> Main pure white, product fills ~85%, at least 2000 × 2000, JPEG\/PNG, 2–10 MB<\/summary>/.test(P.imRulesHtml()));
+  }
+
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
 })();

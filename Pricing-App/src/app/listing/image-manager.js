@@ -1143,9 +1143,10 @@ function imRender() {
         ${IM_CLIP && IM_CLIP.sku !== listing.sku ? `<button class="ghost im-b" id="imPaste" title="Put ${imEsc(IM_CLIP.sku)}'s pictures in every slot">Paste ${imEsc(IM_CLIP.sku)}</button>
           <button class="ghost im-b" id="imPasteGaps" title="Only fill the slots that are empty">Fill the empty slots</button>
           <label class="muted" style="font-size:11.5px;display:flex;gap:4px;align-items:center"><input type="checkbox" id="imPasteSw" style="width:auto"> with its swatch</label>` : ''}
-        <span class="muted" style="font-size:11.5px">Drag to reorder. Nothing reaches Amazon until Apply.</span>
+        <span class="muted" style="font-size:11.5px">Drag to reorder. Drop files from your computer: one on a slot replaces it, several fill the empty slots in order. Nothing reaches Amazon until Apply.</span>
       </div>
 
+      ${imRulesHtml()}
       <div class="im-row" id="imMine" style="margin-top:8px">${mine}</div>
       ${onlyCatalog.length ? `<div class="muted" style="font-size:11.5px;margin-top:6px">${onlyCatalog.join(', ')} come from the catalogue, not from your listing. Emptying one of those here may not remove it from Amazon if another contributor supplied it.</div>` : ''}
       <div style="display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap">
@@ -1221,8 +1222,13 @@ function imWire() {
     card.ondrop = e => {
       e.preventDefault();
       card.classList.remove('im-over');
-      // A dropped FILE goes into this slot; a dragged card moves here and the rest shift along.
-      const file = e.dataTransfer.files && e.dataTransfer.files[0];
+      // A dropped FILE goes into this slot (SEVERAL files: the empty slots in order); a dragged card moves here and the rest shift along.
+      const files = e.dataTransfer.files ? [...e.dataTransfer.files] : [];
+      if (files.length > 1) {
+        imUploadMany(files);
+        return;
+      }
+      const file = files[0];
       if (file) {
         imUpload(card.dataset.slot, file);
         return;
@@ -1237,6 +1243,25 @@ function imWire() {
       imRender();
     };
   });
+  // --- files dropped between the cards: into the empty slots in order ---
+  const mineRow = $('imMine');
+  if (mineRow) {
+    mineRow.ondragover = e => {
+      if (e.dataTransfer && [...(e.dataTransfer.types || [])].includes('Files')) {
+        e.preventDefault();
+        mineRow.classList.add('im-drop');
+      }
+    };
+    mineRow.ondragleave = e => { if (e.target === mineRow) mineRow.classList.remove('im-drop'); };
+    mineRow.ondrop = e => {
+      mineRow.classList.remove('im-drop');
+      if (e.target && e.target.closest && e.target.closest('.im-card')) return;     // a card's own drop handles it
+      const files = e.dataTransfer && e.dataTransfer.files ? [...e.dataTransfer.files] : [];
+      if (!files.length) return;
+      e.preventDefault();
+      imUploadMany(files);
+    };
+  }
   const sw = document.querySelector('#imMine .im-card[data-slot="SWCH"]');
   if (sw) {
     sw.ondragover = e => e.preventDefault();
@@ -1347,6 +1372,34 @@ async function imUpload(slot, file) {
   } catch (e) {
     imMsg(String(e.message || e), true);
   }
+}
+
+/** The empty slots of the stack (MAIN … PT08, not the swatch), in order: where dropped files go. */
+const imDropSlots = (n, now) => IM_SLOTS.filter(slot => !(now || {})[slot]).slice(0, n);
+/* SEVERAL FILES DROPPED: each goes into the next empty slot, one after another, through imUpload — the same picture rules as any upload
+ * (a refused file leaves its slot empty for the next file). Files with no empty slot left are named, not uploaded. */
+async function imUploadMany(files) {
+  const list = [...(files || [])];
+  let done = 0;
+  for (let i = 0; i < list.length; i++) {
+    const slot = imDropSlots(1, IM_NOW)[0];
+    if (!slot) {
+      imMsg(`No empty slot left: ${list.length - i} file(s) not uploaded (${list.slice(i).map(f => f.name).join(', ')}). Empty a slot or drop a file on the one to replace.`, true);
+      return done;
+    }
+    await imUpload(slot, list[i]);
+    if (IM_NOW[slot]) done++;
+  }
+  return done;
+}
+// The one-line picture rules over the stack; "more" opens the whole list (the rules image-quality.js checks).
+function imRulesHtml() {
+  return `<details class="im-rules"><summary><b>Picture rules:</b> Main pure white, product fills ~85%, at least 2000 × 2000, JPEG/PNG, 2–10 MB</summary>
+    <ul><li>Size: 2000 × 2000 or more (company rule — smaller files are refused on upload). Under 1000 px on the long side Amazon cannot zoom.</li>
+      <li>File: JPEG, PNG, TIFF or GIF; over 10 MB Amazon refuses it; under 2 MB is allowed but often soft — check it is sharp.</li>
+      <li>Main: pure white background (255, 255, 255), the product fills about 85% of the picture, no text, logo or extra items (the Picture check asks a person).</li>
+      <li>Shape: square, or close to it (width ÷ height 0.9–1.1). The same picture twice in one stack is a warning.</li>
+      <li>Swatch: a small colour sample — the size and shape rules do not apply.</li></ul></details>`;
 }
 
 // Check (apply = false): ask Amazon about the changed slots and show its answer here. Apply (apply = true): THE ONE SEND PATH (#10,
