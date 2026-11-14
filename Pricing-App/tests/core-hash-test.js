@@ -95,9 +95,9 @@ const LISTING = ['new', 'health', 'img', 'lerr', 'lrules'];
   {
     const B = boot('#lhist', ['img']);
     await B.signIn(user);
-    ok('Image Manager only: refresh on #lhist stays on Listing History (its menu rule: any of img, lerr, health, lrules)', B.tabNow() === 'lhist' && B.hash() === '#lhist');
+    ok('Image Manager only: refresh on #lhist stays on Listing History (its menu rule: any of img, lerr, health, lrules, opt)', B.tabNow() === 'lhist' && B.hash() === '#lhist');
   }
-  for (const tab of ['lerr', 'lrules']) {
+  for (const tab of ['lerr', 'lrules', 'opt']) {
     const B = boot('#lhist', [tab, 'new']);
     await B.signIn(user);
     ok('…' + tab + ' only (+ New Product): #lhist stays on Listing History', B.tabNow() === 'lhist');

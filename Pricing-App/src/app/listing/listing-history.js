@@ -14,7 +14,7 @@
 
 const LH_PER = 50;                                         // items (a group counts once) per page
 const LH_DOCS = 800;                                       // log documents read, newest day first (each up to 200 rows: 160 000 rows)
-const LH_LISTING_TABS = ['img', 'lerr', 'health', 'lrules'];
+const LH_LISTING_TABS = ['img', 'lerr', 'health', 'lrules', 'opt'];
 // The screen a change came from, in the words people know it by.
 const LH_SCREEN = { 'Season planner': 'Season planner', 'Listing Errors': 'Listing Errors', 'Listing Content upload': 'Content upload', 'Listing Health': 'Workspace',
   'Listing Health · Put back': 'Workspace · Put back', 'Image Manager': 'Image Manager', 'Image Manager · paste': 'Image Manager · paste', 'Listing History · Put back': 'Listing History · Put back' };

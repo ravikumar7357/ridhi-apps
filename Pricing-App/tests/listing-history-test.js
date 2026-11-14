@@ -189,14 +189,14 @@ const runAll = async (C, r) => { await C.SQ.run.checked; await C.sqApprove(); C.
     ok('the Listing menu: 1 · Fix & improve (Optimiser, Errors, Image Manager) · 2 · Check (Health, Audit, BSR) · 3 · Rules & ideas (Rules, Bought Together) · 4 · Records (History)',
       JSON.stringify(cols) === JSON.stringify([['1 · Fix &amp; improve', 'Opt,Lerr,Img'], ['2 · Check', 'Health,Audit,Bsr'], ['3 · Rules &amp; ideas', 'Lrules,Basket'], ['4 · Records', 'Lhist']]), JSON.stringify(cols));
     ok('…and only the Listing menu has columns', (html.match(/class="navcol"/g) || []).length === 4 && /<div class="navsec" id="secAds">\r\n\s*<button /.test(html));
-    const cases = [[['img'], true], [['lerr'], true], [['lrules'], true], [['health'], true], [['weekly', 'trends'], false], [['sales'], false]];
+    const cases = [[['img'], true], [['lerr'], true], [['lrules'], true], [['health'], true], [['opt'], true], [['weekly', 'trends'], false], [['sales'], false]];
     const res = cases.map(([tabs, want]) => {
       const { C } = setup({ me: { tabs } });
       const btn = C.el('tabLhist');
       btn.classList = { _h: true, contains() { return this._h; }, remove() { this._h = false; }, add() { this._h = true; }, toggle() {} };
       return C.lhMenuAccess() === want && btn.classList._h === !want;
     });
-    ok('the entry shows for Image Manager, Listing Errors, Listing Rules and Listing Health users; not for PPC- or Sales-only users', res.every(Boolean), JSON.stringify(res));
+    ok('the entry shows for Image Manager, Listing Errors, Listing Rules, Listing Health and Listing Optimiser users; not for PPC- or Sales-only users', res.every(Boolean), JSON.stringify(res));
   }
 
   console.log(`\n${pass} passed, ${fail} failed`);
