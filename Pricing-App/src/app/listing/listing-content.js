@@ -67,7 +67,7 @@ function lcCheck(field, vals, ctx) {
     const cfg = LR || LR_DEFAULT;
     (cfg.events || []).forEach(ev => {
       const season = lrSeason(ev, today, cfg.events);
-      if (!season.inSeason && lrWords(ev.words).some(word => lrHas(title, word))
+      if (lrSeasonState(ev, today, cfg.events).expired && lrWords(ev.words).some(word => lrHas(title, word))   // the one season-date rule
           && !lrWords(ev.except).some(word => lrHas(ctx.subcat || '', word) || lrHas(ctx.color || '', word))) {
         push(false, `Names ${ev.name}, which is out of season now (in season ${lrFmtDate(season.from)} – ${lrFmtDate(season.to)}).`);
       }
@@ -562,11 +562,24 @@ const lcStateHtml = row => ({
 
 /** One SKU at a time, each previewed by Amazon (the backend sends for real only when the preview is clean). Stops after
  *  three refusals in a row: the fourth would fail the same way. */
-// Check all (apply = false) or Apply all (apply = true) for the rows that are ready, updating each row's state as it goes.
+// Check all (apply = false): ask Amazon about each ready row, here. Apply all (apply = true): THE ONE SEND PATH (#10, listing-send-check.js)
+// — the Amazon check popup for every ready row; each row's state follows what Amazon did.
 async function lcUpSend(apply) {
   const todo = LC_UP.rows.filter(row => ['ready', 'checked'].includes(row.state));
   if (!todo.length) return;
-  if (apply && !confirm(`Send the changes for ${todo.length} listing(s) to Amazon?\n\nEach is checked by Amazon first; one Amazon objects to is not sent and is named.`)) return;
+  if (apply) {
+    const up = LC_UP;
+    return sqSendWithCheck(todo.map(row => ({ brand: up.brand, sku: row.sku, asin: '', label: row.sku, row, body: { lfix: 'patch', brand: up.brand, sku: row.sku, productType: row.productType, patches: row.patches },
+      changes: row.fields.map(change => Object.assign({ field: LC_LABEL[change.name] || change.name, old: change.old.join(' | '), new: change.new.join(' | '),
+        attr: change.name, oldV: change.old.map(value => ({ value, language_tag: 'en_US' })) },
+        change.name === 'generic_keyword' ? { max: 249, unit: 'bytes' } : {})) })), {
+      screen: 'Listing Content upload', title: 'Upload: ' + up.file,
+      onSent: (job, reply) => { job.row.state = 'sent'; job.row.msg = reply.submissionId ? '(' + reply.submissionId.slice(0, 8) + '…)' : ''; },
+      onDone: sum => {
+        sum.jobs.forEach(job => { if (job.state === 'no' || job.state === 'rejected') { job.row.state = 'fail'; job.row.msg = (job.state === 'no' ? 'Amazon says no: ' : 'Amazon rejected: ') + job.why; } });
+        if (LC_UP === up) lcUpRender();
+      } });
+  }
   $('lcUpCheck').disabled = $('lcUpApply').disabled = true;
   let refusals = 0;     // refusals in a row
   let i = 0;

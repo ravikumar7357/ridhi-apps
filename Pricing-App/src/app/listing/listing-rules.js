@@ -87,7 +87,6 @@ const LR_DETECTORS = {
   title_template: { label: 'Title missing parts of its template, or in another order', params: [] },
   title_keyword: { label: 'Title missing a required word (comma-separated: any one is enough)', params: ['words'] },
   title_contains: { label: 'Title contains a word (comma-separated)', params: ['words'] },
-  seasonal_keyword: { label: 'Title names an occasion that is out of season (see the calendar)', params: [] },
   amazon_suppressed: { label: 'Amazon has taken the listing out of search (buyable but not discoverable)', params: [] },
   amazon_error: { label: 'Amazon itself reports an error on the listing', params: [] },
 };
@@ -136,7 +135,6 @@ const LR_DEFAULT = {
     { id: 'img_text', name: 'Image text inconsistent with listing', sev: 'action', area: 'Images', detector: 'manual', desc: "Same product but formatting/naming doesn't match" },
     { id: 'aplus_old', name: 'A+ incorrect/outdated', sev: 'action', area: 'Content', detector: 'manual', desc: 'A+ exists but wrong/old content assigned' },
     { id: 'backend_field', name: 'Backend/catalog field incomplete', sev: 'action', area: 'Content', detector: 'manual', desc: "Important searchable attribute isn't populated" },
-    { id: 'season', name: 'Out-of-season occasion in title', sev: 'action', area: 'Title', detector: 'seasonal_keyword', desc: 'e.g. the title still says Thanksgiving when Thanksgiving is months away' },
     /* Needs review */
     { id: 'style_attr', name: 'Style attribute questionable', sev: 'review', area: 'Title', detector: 'title_contains', params: { words: 'Rustic' }, desc: '“Rustic” when CPC primarily calls it Cottagecore' },
     { id: 'img_low', name: 'Low image count but minimum met', sev: 'review', area: 'Images', detector: 'images_between', params: { min: 6, max: 7 }, desc: '6 images when ideal is 8' },
@@ -218,8 +216,11 @@ function lrEaster(year) {
   const month = Math.floor((h + l - 7 * m + 114) / 31), day = ((h + l - 7 * m + 114) % 31) + 1;
   return new Date(Date.UTC(year, month - 1, day));
 }
-/** The date of an occasion in a given year (UTC midnight), or null when the rule cannot be read. */
+/** The date of an occasion in a given year (UTC midnight), or null when the rule cannot be read. Worked out every year by itself (fixed
+ *  days, the n-th weekday, Easter by the computus); a date someone typed in the calendar for that year (ev.on["2027"] = "2027-03-28") wins. */
 function lrEventDate(ev, year, events) {
+  const typed = ev.on && ev.on[String(year)];
+  if (typed && /^\d{4}-\d{2}-\d{2}$/.test(typed)) return new Date(Date.UTC(+typed.slice(0, 4), +typed.slice(5, 7) - 1, +typed.slice(8, 10)));
   const when = ev.when || {};
   if (when.type === 'fixed') return new Date(Date.UTC(year, when.m - 1, when.d));
   if (when.type === 'easter') {
@@ -248,21 +249,31 @@ function lrEventDate(ev, year, events) {
   return null;
 }
 const LR_DAY = 86400000;   // one day in milliseconds
-/** Where today stands against an occasion: { inSeason, next (the date to talk about), from, to }. */
-// Looks at last year's, this year's and next year's date; the first window that holds today wins, else the nearest coming one.
-function lrSeason(ev, today, events) {
-  const todayMs = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
-  const year = today.getFullYear();
-  let best = null;
-  for (const eachYear of [year - 1, year, year + 1]) {
-    const date = lrEventDate(ev, eachYear, events);
+/** THE SEASON-DATE RULE every screen uses (13 Nov 2026) — the Season planner, the Listing Rules check of titles, Listing Content and the
+ *  calendar, so they all agree. For one occasion on one day:
+ *    active  = time to ADD it: from its lead days before the occasion up to the day itself;
+ *    keep    = just past: the day after up to its "days after" (lag) — not added any more, not removed or flagged yet;
+ *    expired = after its "days after" (until its next lead window opens): OK to remove, and a title naming it is flagged.
+ *  { active, keep, expired, date (this occurrence while active / keep, else the next one), from (add from), until (flagged after) }.
+ *  Looks at last year's, this year's and next year's date (a date typed in the calendar wins — lrEventDate). */
+function lrSeasonState(ev, today, events) {
+  const t = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
+  let next = null;
+  for (const year of [today.getFullYear() - 1, today.getFullYear(), today.getFullYear() + 1]) {
+    const date = lrEventDate(ev, year, events);
     if (!date) continue;
-    const from = date.getTime() - (ev.lead || 0) * LR_DAY;
-    const to = date.getTime() + (ev.lag || 0) * LR_DAY;
-    if (todayMs >= from && todayMs <= to) return { inSeason: true, next: date, from: new Date(from), to: new Date(to) };
-    if (to >= todayMs && (!best || date < best.next)) best = { inSeason: false, next: date, from: new Date(from), to: new Date(to) };
+    const from = new Date(date.getTime() - (ev.lead || 0) * LR_DAY);
+    const until = new Date(date.getTime() + (ev.lag || 0) * LR_DAY);
+    if (t >= from.getTime() && t <= date.getTime()) return { active: true, keep: false, expired: false, date, from, until };
+    if (t > date.getTime() && t <= until.getTime()) return { active: false, keep: true, expired: false, date, from, until };
+    if (from.getTime() > t && (!next || from < next.from)) next = { date, from, until };
   }
-  return best || { inSeason: false, next: null, from: null, to: null };
+  return Object.assign({ active: false, keep: false, expired: true, date: null, from: null, until: null }, next || {});
+}
+/** Where today stands against an occasion, in the older shape: { inSeason (active or keep: a title may name it), next, from, to }. */
+function lrSeason(ev, today, events) {
+  const st = lrSeasonState(ev, today, events);
+  return { inSeason: st.active || st.keep, next: st.date, from: st.from, to: st.until };
 }
 // "a, b, c" → ['a', 'b', 'c'].
 const lrWords = str => String(str || '').split(',').map(word => word.trim()).filter(Boolean);
@@ -419,9 +430,9 @@ const lrSizeText = (size, example) => {
   if (!nums || nums.length < 2 || nums.length > 3) return '';
   return nums.join(' x ') + ' ' + (String(example || '14 x 36 Inch').replace(/^[\d.\sx]+/i, '') || 'Inch');
 };
-/** Occasions in season today, in the order they fall. */
+/** Occasions to ADD today (lrSeasonState active), in the order they fall. */
 function lrOccasionsNow(cfg, today) {
-  return (cfg.events || []).map(e => ({ e, s: lrSeason(e, today, cfg.events) })).filter(each => each.s.inSeason)
+  return (cfg.events || []).map(e => ({ e, s: lrSeason(e, today, cfg.events), st: lrSeasonState(e, today, cfg.events) })).filter(each => each.st.active)
     .sort((a, b) => a.s.next - b.s.next).map(each => each.e.name.replace(/'s$/, "'s"));
 }
 /** The parts a template asks for, filled from what this SKU is. */
@@ -627,20 +638,6 @@ const LR_DET = {
     const outOfOrder = found.some((position, idx) => idx && position < found[idx - 1]);
     if (!missing.length && !outOfOrder) return '';
     return [missing.length ? 'missing ' + missing.join(', ') : '', outOfOrder ? 'parts in a different order' : ''].filter(Boolean).join(' · ');
-  },
-  seasonal_keyword: (row, ctx) => {
-    const title = hTitleText(row);
-    if (!title) return '';
-    const cat = lrCatOf(row) || {};
-    for (const ev of (ctx.cfg.events || [])) {
-      const word = lrWords(ev.words).find(each => lrHas(title, each));
-      if (!word) continue;
-      if (lrWords(ev.except).some(each => lrHas(String(cat.subcat || '') + ' ' + String(cat.color || ''), each))) continue;
-      const season = lrSeason(ev, ctx.today, ctx.cfg.events);
-      if (season.inSeason) continue;
-      return `"${word}" — ${ev.name} is ${season.next ? lrFmtDate(season.next) : 'not dated'}; it belongs in the title from ${season.from ? lrFmtDate(season.from) : '—'}`;
-    }
-    return '';
   },
 };
 
@@ -1075,10 +1072,6 @@ const LR_FIX_TEXT = {
     if (!missing.length) return `Put the title's parts in the template's order: ${orderWords}.`;
     return `Add ${missing.map(key => lrPartWords(key, parts)).join(', ')} to the title${wrongOrder ? `, in the template's order: ${orderWords}` : ''}.`;
   },
-  seasonal_keyword: hit => {
-    const m = String(hit.detail).match(/^"([^"]+)" — .+; it belongs in the title from (.+)$/);
-    return m ? `Remove "${m[1]}" from the title until its season (from ${m[2]}).` : 'Remove the occasion from the title until its season.';
-  },
 };
 // The fix sentence of one finding; a detector without one, or one that fails, falls back to naming the rule.
 function lrFixText(hit, row, ctx) {
@@ -1222,7 +1215,9 @@ async function lrLoad() {
       const data = snap.data();
       /* A RULE ADDED AFTER THE LAST SAVE MUST STILL RUN. The saved document holds the whole list, so a
        * new default would otherwise stay invisible until somebody pressed Save in the Rules tab. */
-      const saved = data.issues || LR_DEFAULT.issues;
+      /* NO SEASON RULE (14 Nov 2026): season words are the Season planner's alone (Listing Optimiser), never a Listing Health /
+       * Workspace problem. The retired out-of-season rule is dropped from a saved list, so it can neither run nor be saved back. */
+      const saved = (data.issues || LR_DEFAULT.issues).filter(issue => issue.detector !== 'seasonal_keyword');
       const have = new Set(saved.map(issue => issue.id));
       const added = LR_DEFAULT.issues.filter(issue => !have.has(issue.id));
       LR = { issues: added.concat(saved), templates: data.templates || LR_DEFAULT.templates, events: data.events || LR_DEFAULT.events,

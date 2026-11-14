@@ -49,7 +49,7 @@ const LI_WS_CHECKS = [
   { k: 'amz', t: 'Amazon', w: 'Amazon error', fix: 'lerr', tip: 'Amazon reports no error on this listing, and it shows in search (not suppressed)' },
   { k: 'main', t: 'Main img', w: 'Main image', fix: 'img', tip: "Amazon's catalogue shows a main picture — what shoppers see, not our own MAIN slot (Listing Rules: Main image missing)" },
   { k: 'img', t: 'Images', w: 'Images', fix: 'img', tip: 'Enough gallery pictures in the catalogue (MAIN + PT01–PT08; the swatch is not a picture), by the Listing Rules for images — the same as Listing Health' },
-  { k: 'title', t: 'Title', w: 'Title', fix: 'lerr', tip: 'The Listing Rules for the title: its length, required words and out-of-season words — the same as Listing Health' },
+  { k: 'title', t: 'Title', w: 'Title', fix: 'lerr', tip: 'The Listing Rules for the title: its length and required words — the same as Listing Health (season words: the Season planner only)' },
   { k: 'tpl', t: 'Template', w: 'Template', fix: 'lerr', tip: 'The title follows the word order set in Listing Rules' },
   { k: 'bul', t: 'Bullets', w: 'Bullets', fix: 'lerr', tip: 'Enough bullet points (Listing Rules: Missing bullet)' },
   { k: 'desc', t: 'Desc', w: 'Description', fix: 'lerr', tip: 'The description is long enough (Listing Rules: Description weak) — not judged when A+ is live, because Amazon shows the A+ instead' },
@@ -159,8 +159,10 @@ async function liWsLoad() {
   LI_WS.loading = true;
   liWsDraw();
   try {
+    const saved = typeof svLoad === 'function' ? svLoad() : null;   // the shared saved copy of the live reads (listing-saved.js), at the same time
     if (!H_LOADED || !LR) await ensureHealth();
     for (const brand of ['SP', 'CPC']) if (!(brand in IML)) await imListLoad(brand);
+    if (saved) await saved;
   } catch (e) {
     LI_WS.loading = false;
     if (LI_WS.on) $('liWs').innerHTML = `<div class="card xlwrap"><div class="ui-error">Could not load: ${lrEsc((e && e.message) || e)}</div></div>`;
@@ -401,7 +403,7 @@ const LI_WS_COL_AREA = { Amazon: 'amz', Images: 'img', Title: 'title' };
 const liWsColOf = hit => LI_WS_COL_DET[hit.detector] || LI_WS_COL_AREA[hit.area] || 'other';
 // The short word in a ✗ pill, per kind of finding.
 const LI_WS_SHORT = { amazon_error: 'Error', amazon_suppressed: 'Suppressed', no_main_image: 'None', aplus_missing: 'None',
-  title_keyword: 'Keyword', seasonal_keyword: 'Season', title_contains: 'Word', size_format: 'Size', dimension_order: 'Size order',
+  title_keyword: 'Keyword', title_contains: 'Word', size_format: 'Size', dimension_order: 'Size order',
   variation_value_missing: 'No size', variation_naming: 'Naming', inactive_with_stock: 'Inactive', no_price: 'No price',
   images_small: 'Small', main_not_square: 'Not square', images_duplicate: 'Repeat', main_photo_check: 'Not OK' };
 function liWsShort(hit) {
@@ -693,15 +695,24 @@ function liWsSearch(rows) {
 
 /* ----- the live reads: a queue with LI_WS_INFLIGHT calls out at once ----- */
 function liWsQueue(job) {
-  LI_WS.q.push(job);
+  // background reads (the Season planner's "Check all parents", job.bg) always wait behind the reads a person asked for
+  const at = job.bg ? -1 : LI_WS.q.findIndex(other => other.bg);
+  if (at < 0) LI_WS.q.push(job);
+  else LI_WS.q.splice(at, 0, job);
   liWsPump();
 }
+// Background reads (job.bg — they always wait at the end of the queue) go at most SV_BG at a time, and not at all while a parent's
+// side panel is open (the Workspace's or the Season planner's): the person's own reads come first.
+const liWsBgPaused = () => !!(LI_WS.panel || (typeof SP !== 'undefined' && SP.panel));
 function liWsPump() {
   while (LI_WS.inflight < LI_WS_INFLIGHT && LI_WS.q.length) {
+    if (LI_WS.q[0].bg && (liWsBgPaused() || (LI_WS.bgIn || 0) >= (typeof SV_BG !== 'undefined' ? SV_BG : 2))) break;
     const job = LI_WS.q.shift();
     LI_WS.inflight++;
+    if (job.bg) LI_WS.bgIn = (LI_WS.bgIn || 0) + 1;
     liWsJob(job).catch(() => {}).then(() => {
       LI_WS.inflight--;
+      if (job.bg) LI_WS.bgIn--;
       LI_WS.liveV++;
       if (typeof job.done === 'function') job.done();   // the caller's own "this read is in" (the Season planner's progress)
       const prog = LI_WS.prog[job.pk];
@@ -757,6 +768,7 @@ async function liWsJob(job) {
         const item = items[sku];
         if (!item) {
           entry.err = entry.cErr = 'not found on Amazon by SKU';   // cErr: the content read's own error, which a later ?lfix=get must not clear
+          entry.cErrAt = now;                                     // when it failed: the background refresh tries again an hour later
           return;
         }
         const values = key => (item[key] || []).map(v => (v && v.value != null ? String(v.value) : '')).filter(Boolean);
@@ -768,9 +780,11 @@ async function liWsJob(job) {
           words: { emb: /embroider/.test(text), bp: text.includes('block print'), hb: text.includes('hand block') } });   // only WHICH rule words were found, never the text; kwBytes the way Amazon counts (no spaces, no ; , .)
         if (values('brand')[0]) entry.brand = values('brand')[0].slice(0, 60);
         if (entry.pt && !job.sweep) liWsNeedSchema(brand, entry.pt, job.pk);
+        if (typeof svNote === 'function') svNote(brand, sku);   // the shared saved copy (listing-saved.js)
       });
     } else if (job.t === 'get') {
       const reply = await baCall({ lfix: 'get', brand, sku: job.sku });
+      job.reply = reply;                                    // the whole answer, for the send check's re-read (listing-send-check.js)
       const at = reply.attributes || {};
       const filled = name => (at[name] || []).some(e => e && Object.keys(e).some(key => key !== 'marketplace_id' && key !== 'language_tag' && e[key] != null && e[key] !== ''));
       const first = name => String(((at[name] || []).find(e => e && e.value != null && e.value !== '') || {}).value || '');
@@ -786,6 +800,8 @@ async function liWsJob(job) {
         hl: (at[LI_WS_HL] || []).map(e => (e && e.value != null ? String(e.value) : '')).filter(Boolean).map(v => v.slice(0, 300)), hlAt: now,
         // a few short facts Amazon holds for the listing, for an Item Highlights line built only from what is verified
         facts: { material: first('material').slice(0, 60), care: first('care_instructions').slice(0, 60), items: first('number_of_items').slice(0, 6) } });
+      if (typeof faOnGet === 'function') faOnGet(brand, job.sku, at);   // the spec values, for Fix all's copy from the siblings (fix-all.js)
+      if (typeof svNote === 'function') svNote(brand, job.sku);         // Item Highlights into the shared saved copy
       if (entry.pt) liWsNeedSchema(brand, entry.pt, job.pk);
     } else if (job.t === 'limg') {
       // The catalogue's picture slots — what shoppers see. The reply also carries our own listing's slots and the open issues,
@@ -818,7 +834,7 @@ async function liWsJob(job) {
     }
   } catch (e) {
     const why = String((e && e.message) || e);
-    if (job.t === 'content') job.skus.forEach(sku => { const entry = liWsEntry(brand, sku); entry.err = entry.cErr = why; });
+    if (job.t === 'content') job.skus.forEach(sku => { const entry = liWsEntry(brand, sku); entry.err = entry.cErr = why; entry.cErrAt = now; });
     else if (job.t === 'get') liWsEntry(brand, job.sku).err = why;
     else if (job.t === 'limg') liWsEntry(brand, job.sku).iErr = why;
     else if (job.t === 'aplus') { /* the A+ answers stay as they were: "could not tell" is never "missing" */ }
@@ -1518,7 +1534,7 @@ function liWsPanelOpen(key) {
   const p = LI_WS.byKey.get(key);
   if (!p) return;
   const was = LI_WS.panel;
-  LI_WS.panel = { key, tab: was && was.key === key ? was.tab : 'fix', table: was && was.key === key ? was.table : false,
+  LI_WS.panel = { key, tab: was && was.key === key ? was.tab : 'list', table: was && was.key === key ? was.table : false,   // Listings first: the grouped problems on top (fix-all.js), the children below
     kid: was && was.key === key ? was.kid || '' : '', listPlace: was && was.key === key ? was.listPlace || null : null };
   LI_WS.panelSig = null;
   LI_WS.panelResort = true;
@@ -1547,6 +1563,7 @@ function liWsPanelClose(returnFocus) {
     panel.innerHTML = '';
   }
   liWsRowMark('');
+  liWsPump();                                           // background reads paused while the panel was open go on
   if (returnFocus) {
     const row = $('liWs').querySelector ? $('liWs').querySelector(`[data-li-ws-row="${CSS.escape(key)}"]`) : null;
     if (row && row.focus) row.focus({ preventScroll: true });
@@ -1644,7 +1661,7 @@ function liWsPanelPlace(panel) {
   const active = typeof document !== 'undefined' ? document.activeElement : null;
   let focus = '';
   if (active && active !== panel && panel.contains && panel.contains(active)) {
-    focus = [...active.attributes].filter(at => /^data-(li-ws|lr)-/.test(at.name)).map(at => `[${at.name}="${CSS.escape(at.value)}"]`).join('');
+    focus = [...active.attributes].filter(at => /^data-(li-ws|lr|fa)-/.test(at.name)).map(at => `[${at.name}="${CSS.escape(at.value)}"]`).join('');
   }
   const place = { top: body ? body.scrollTop : 0, sku: '', off: 0, focus, hadFocus: !!active && panel.contains && panel.contains(active) };
   if (!body || !body.scrollTop) return place;
@@ -1721,7 +1738,8 @@ function liWsPanelRender() {
   const reading = p.data.state === 'reading';
   const name = p.name || p.parent;
   const tabs = [['fix', 'What to fix', groups.length], ['list', 'Listings', p.inMode.length], ['audit', 'Audit', p.audit ? p.audit.fail : 0]];
-  const body = tab === 'fix' ? liWsPanelFix(p, groups) : tab === 'list' ? liWsPanelList(p) : liWsPanelAudit(p);   // first: it says whether rows are held (panelMoved)
+  // Listings: the parent's problems grouped by type, with Fix all (fix-all.js), on top of the children list, which is drawn as it always was
+  const body = tab === 'fix' ? liWsPanelFix(p, groups) : tab === 'list' ? (typeof faBlockHtml === 'function' ? faBlockHtml(p.brand, p.parent, p.kids) : '') + liWsPanelList(p) : liWsPanelAudit(p);   // first: it says whether rows are held (panelMoved)
   LI_WS.panelResort = false;
   const resort = LI_WS.panelMoved ? '<button type="button" class="ls-btn" data-li-ws-psort="1" title="New answers from Amazon would put these rows in another order; the panel keeps its order until you press this">Sort again</button>' : '';
   const head =`<div class="ls-panel-h">${liWsPicHtml(p.pic, true)}<div class="ls-panel-t"><b title="${lrEsc(name)}">${lrEsc(name)}</b>`

@@ -2,7 +2,8 @@
  *   node tests/listing-content-test.js */
 const fs = require('fs'), path = require('path');
 const L = f => fs.readFileSync(path.join(__dirname, '..', 'src', 'app', 'listing', f), 'utf8');
-const SRC = L('listing-rules.js') + '\n' + L('listing-content.js');
+// (#10) Apply all goes through the one send path, the Amazon check popup (listing-send-check.js)
+const SRC = L('listing-rules.js') + '\n' + L('listing-content.js') + '\n' + L('listing-send-check.js');
 let pass = 0, fail = 0;
 const ok = (name, cond, extra) => { if (cond) { pass++; console.log('  PASS ' + name); } else { fail++; console.log('  FAIL ' + name + (extra ? ' — ' + extra : '')); } };
 
@@ -20,7 +21,7 @@ function load(opts) {
     TextEncoder, TextDecoder, DecompressionStream, Response, Uint8Array, DataView,
   };
   const api = new Function(...Object.keys(ctx), SRC + '\n;LR = JSON.parse(JSON.stringify(LR_DEFAULT)); LR_CAT.SP = ' + JSON.stringify(opts.cat || {}) + '; LR_CAT.CPC = {};'
-    + '\n;return { lcCheck, lcTemplateTitle, lcSuggestKeywords, lcColumns, lcXlsx, lcReadXlsx, lcCsv, lcBytes, lcUpload, lcUpSend, getUp: () => LC_UP, LR_DEFAULT };')(...Object.values(ctx));
+    + '\n;return { lcCheck, lcTemplateTitle, lcSuggestKeywords, lcColumns, lcXlsx, lcReadXlsx, lcCsv, lcBytes, lcUpload, lcUpSend, getUp: () => LC_UP, LR_DEFAULT, SQ, sqApprove, sqClose };')(...Object.values(ctx));
   return Object.assign(api, { els, el, calls });
 }
 const has = (list, re) => list.some(f => re.test(f.msg));
@@ -85,18 +86,28 @@ const has = (list, re) => list.some(f => re.test(f.msg));
   await U.lcUpSend(false);
   const checks = U.calls.filter(c => c.lfix === 'patch');
   ok('Check sends previews only', checks.length === 1 && checks[0].apply === false && r1.state === 'checked');
-  await U.lcUpSend(true);
+  const done = U.lcUpSend(true);
+  await U.SQ.run.checked;
+  ok('Apply all opens the Amazon check popup: Amazon checks the row again first (apply false), nothing sent yet', U.calls.filter(c => c.lfix === 'patch').length === 2 && !U.calls.some(c => c.lfix === 'patch' && c.apply)
+    && U.SQ.run.screens !== null && U.SQ.screens.slice(-1)[0] === 'Listing Content upload');
+  await U.sqApprove();
+  U.sqClose();
+  await done;
   const applies = U.calls.filter(c => c.lfix === 'patch' && c.apply);
-  ok('Apply sends the checked row for real, and nothing else', applies.length === 1 && applies[0].sku === 'RTC1-6090' && r1.state === 'sent');
+  ok('Approve & send sends the checked row for real, and nothing else', applies.length === 1 && applies[0].sku === 'RTC1-6090' && r1.state === 'sent');
   const BadRules = load({ cat, content });
   await BadRules.lcUpload({ name: 'b.xlsx', arrayBuffer: async () => BadRules.lcXlsx([head, ['RTC1-6090', '', 'y'.repeat(230), '', '', '', '', '']]).buffer });
   ok('a row the rules refuse (title over 200) is never sent', BadRules.getUp().rows[0].state === 'bad');
   await BadRules.lcUpSend(true);
-  ok('…not even on Apply all', !BadRules.calls.some(c => c.lfix === 'patch'));
+  ok('…not even on Apply all (no popup either)', !BadRules.calls.some(c => c.lfix === 'patch') && !BadRules.SQ.run);
   const Stops = load({ cat, content: Object.fromEntries([1, 2, 3, 4, 5].map(i => ['S' + i, content['RTC1-6090']])), post: () => ({ ok: false, error: 'nope' }) });
   await Stops.lcUpload({ name: 's.xlsx', arrayBuffer: async () => Stops.lcXlsx([head].concat([1, 2, 3, 4, 5].map(i => ['S' + i, '', 'Title ' + i, '', '', '', '', '']))).buffer });
-  await Stops.lcUpSend(true);
-  ok('three refusals in a row stop the run', Stops.calls.filter(c => c.lfix === 'patch').length === 3);
+  const stopped = Stops.lcUpSend(true);
+  await Stops.SQ.run.checked;
+  ok('Amazon says no to all 5 in its check: "0 Amazon will accept · 5 Amazon says no" — nothing can be sent', Stops.SQ.run.jobs.every(j => j.state === 'no') && !Stops.calls.some(c => c.lfix === 'patch' && c.apply));
+  Stops.sqClose();
+  await stopped;
+  ok('…each row says why', Stops.getUp().rows.every(r => r.state === 'fail' && /Amazon says no: nope/.test(r.msg)), JSON.stringify(Stops.getUp().rows.map(r => r.msg)));
 
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);

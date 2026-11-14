@@ -11,7 +11,7 @@
 // for which tab opens first: the first one the account is allowed.
 const TABS = ['link', 'new', 'pr', 'sales', 'profit', 'sa', 'plaudit', 'shop', 'adj', 'kw', 'ba', 'age', 'health',
   'lrules', 'audit', 'bsr', 'weekly', 'ppcn', 'trends', 'st', 'plc', 'deals', 'tiktok', 'carousel', 'opt', 'img',
-  'lerr', 'basket'];
+  'lerr', 'basket', 'lhist'];
 // 'health' → 'Health': a tab key as it appears inside element ids.
 const capId = t => t[0].toUpperCase() + t.slice(1);
 // The title shown at the top of the page for each tab.
@@ -21,7 +21,7 @@ const TAB_TITLE = { link: 'By Amazon Link', new: 'New Product', pr: 'Product Res
   trends: 'Ad Console', st: 'Search Terms', plc: 'Placement', deals: 'Deal Calendar', sales: 'Sales Dashboard',
   profit: 'Profit & Margin', sa: 'Sales Analysis', plaudit: 'Parent Listing Review', shop: 'Shopify Orders',
   adj: 'Adjustments', tiktok: 'TikTok Toolkit', carousel: 'Carousel Builder', opt: 'Listing Optimiser',
-  img: 'Image Manager', lerr: 'Listing Errors', basket: 'Bought Together' };
+  img: 'Image Manager', lerr: 'Listing Errors', basket: 'Bought Together', lhist: 'Listing History' };
 
 // Tabs hidden from the sidebar. Everything (panes, JS, backend) stays wired up — take a name out of
 // this list and that tab is back, no other change needed.
@@ -35,7 +35,7 @@ HIDDEN_TABS.forEach(t => $('tab' + capId(t)).classList.add('hide'));
 // Tabs nobody is granted on their own: they come with another tab. Product Performance reads exactly
 // the documents PPC & Organic reads, and the Firestore rules gate those on `weekly` — so granting the
 // new tab by itself would only ever open an empty screen. Kept out of the Access form for that reason.
-const TAB_INHERIT = { ppcn: 'weekly' };
+const TAB_INHERIT = { ppcn: 'weekly', lhist: 'health' };   // Listing History: with Listing Health (Image Manager, Listing Errors, Listing Rules: listing/listing-history.js)
 
 /* ---------- sidebar: collapsible groups + the 3-line menu button ---------- */
 // Read straight off the markup, so adding a group is an HTML edit and nothing here changes.
