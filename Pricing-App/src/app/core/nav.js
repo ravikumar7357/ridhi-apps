@@ -124,10 +124,23 @@ showTab(FIRST_TAB);                       // open on the first tab that's actual
 // overlaps when it opens.
 /* var, not let: showTab runs while the page is still being set up, before a let would exist. */
 var TAB_NOW = '';
+/* THE ADDRESS KEEPS THE SCREEN (#img). 'off' until the account's tabs are known (core/access.js applyPerms), so the load-time showTab
+ * above and the sign-in screen never overwrite a deep link; 'replace' while applyPerms opens the first screen; then 'push' — every
+ * screen opened is one Back / Forward step. TAB_OK(t): may this account open t from the address (set by applyPerms). */
+var TAB_HASH = 'off';
+var TAB_OK = () => false;
+const tabFromHash = () => { try { return decodeURIComponent(String(location.hash || '').slice(1)); } catch (e) { return ''; } };
+// Back / Forward (or a typed #tab): open that screen when this account may see it.
+window.addEventListener('hashchange', () => {
+  const t = tabFromHash();
+  if (TAB_HASH === 'push' && t !== TAB_NOW && TAB_OK(t)) showTab(t);
+});
 // Open one tab: mark its button, show its pane and hide every other pane and panel, set the page title,
 // mark the menu group it sits in, and call its ensure… loader (each screen's own file) so it fills itself.
 function showTab(which) {
   TAB_NOW = which;
+  // (TAB_HASH is still undefined during the load-time showTab above: only 'replace' / 'push' write the address)
+  if ((TAB_HASH === 'replace' || TAB_HASH === 'push') && location.hash !== '#' + which) history[TAB_HASH === 'push' ? 'pushState' : 'replaceState'](null, '', '#' + which);
   // --- buttons and panes ---
   TABS.forEach(t => {
     $('tab' + capId(t)).classList.toggle('on', which === t);

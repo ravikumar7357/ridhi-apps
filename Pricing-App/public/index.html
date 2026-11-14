@@ -3925,7 +3925,9 @@
 <body>
 
 <!-- ============ LOGIN ============ -->
-<div id="loginView" class="wrap login">
+<!-- Shown until Firebase says whether this browser is signed in (core/auth.js): no sign-in flash on a refresh. -->
+<div id="bootView" class="wrap" role="status" style="max-width:340px;margin:30vh auto;text-align:center;color:var(--muted);font-size:14px">Loading Sellora…</div>
+<div id="loginView" class="wrap login hide">
   <!-- The moving background, behind the card: soft drifting light (styles.css) and faint drifting dots
        joined by lines (app/core/fx.js draws them). Inside this screen, so it goes when the screen does. -->
   <div class="fx-aurora" aria-hidden="true"><i></i><i></i><i></i></div>
@@ -6421,6 +6423,8 @@ vfWire();
 // view or the app view, and on sign-in starts the session — permissions, menu, email check, backend
 // address and key, settings.
 onAuthStateChanged(auth, async user => {
+  $('bootView').classList.add('hide');            // the first answer has come: no more "Loading Sellora…"
+  if (!user) TAB_HASH = 'off';                    // signed out: the address keeps its #tab for after the sign-in (core/nav.js)
   $('loginView').classList.toggle('hide', !!user);
   $('appView').classList.toggle('hide', !user);
   if (!user) return;
@@ -6591,9 +6595,14 @@ function applyPerms() {
   // --- menu groups, and the tab to open ---
   syncNavGroups(allowed);
   const first = TABS.find(t => !HIDDEN_TABS.includes(t) && allowed(t));
+  TAB_OK = t => TABS.includes(t) && !HIDDEN_TABS.includes(t) && allowed(t);   // may the address (#img) open this tab? (core/nav.js)
   if (first) {
     $('noAccess').classList.add('hide');
-    showTab(first);
+    // The tab the address names (#img: a refresh, a deep link, the page before sign-in) when this account may see it, else the first.
+    const asked = tabFromHash();
+    TAB_HASH = 'replace';
+    showTab(TAB_OK(asked) ? asked : first);
+    TAB_HASH = 'push';                            // from now on each screen opened is a Back / Forward step
   } else {
     // Signed in but granted nothing. Say so plainly instead of showing an empty shell that looks broken.
     TABS.forEach(t => $('pane' + capId(t)).classList.add('hide'));
@@ -8786,10 +8795,23 @@ showTab(FIRST_TAB);                       // open on the first tab that's actual
 // overlaps when it opens.
 /* var, not let: showTab runs while the page is still being set up, before a let would exist. */
 var TAB_NOW = '';
+/* THE ADDRESS KEEPS THE SCREEN (#img). 'off' until the account's tabs are known (core/access.js applyPerms), so the load-time showTab
+ * above and the sign-in screen never overwrite a deep link; 'replace' while applyPerms opens the first screen; then 'push' — every
+ * screen opened is one Back / Forward step. TAB_OK(t): may this account open t from the address (set by applyPerms). */
+var TAB_HASH = 'off';
+var TAB_OK = () => false;
+const tabFromHash = () => { try { return decodeURIComponent(String(location.hash || '').slice(1)); } catch (e) { return ''; } };
+// Back / Forward (or a typed #tab): open that screen when this account may see it.
+window.addEventListener('hashchange', () => {
+  const t = tabFromHash();
+  if (TAB_HASH === 'push' && t !== TAB_NOW && TAB_OK(t)) showTab(t);
+});
 // Open one tab: mark its button, show its pane and hide every other pane and panel, set the page title,
 // mark the menu group it sits in, and call its ensure… loader (each screen's own file) so it fills itself.
 function showTab(which) {
   TAB_NOW = which;
+  // (TAB_HASH is still undefined during the load-time showTab above: only 'replace' / 'push' write the address)
+  if ((TAB_HASH === 'replace' || TAB_HASH === 'push') && location.hash !== '#' + which) history[TAB_HASH === 'push' ? 'pushState' : 'replaceState'](null, '', '#' + which);
   // --- buttons and panes ---
   TABS.forEach(t => {
     $('tab' + capId(t)).classList.toggle('on', which === t);

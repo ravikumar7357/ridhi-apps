@@ -107,9 +107,14 @@ function applyPerms() {
   // --- menu groups, and the tab to open ---
   syncNavGroups(allowed);
   const first = TABS.find(t => !HIDDEN_TABS.includes(t) && allowed(t));
+  TAB_OK = t => TABS.includes(t) && !HIDDEN_TABS.includes(t) && allowed(t);   // may the address (#img) open this tab? (core/nav.js)
   if (first) {
     $('noAccess').classList.add('hide');
-    showTab(first);
+    // The tab the address names (#img: a refresh, a deep link, the page before sign-in) when this account may see it, else the first.
+    const asked = tabFromHash();
+    TAB_HASH = 'replace';
+    showTab(TAB_OK(asked) ? asked : first);
+    TAB_HASH = 'push';                            // from now on each screen opened is a Back / Forward step
   } else {
     // Signed in but granted nothing. Say so plainly instead of showing an empty shell that looks broken.
     TABS.forEach(t => $('pane' + capId(t)).classList.add('hide'));

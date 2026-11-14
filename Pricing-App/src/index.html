@@ -22,7 +22,9 @@
 <body>
 
 <!-- ============ LOGIN ============ -->
-<div id="loginView" class="wrap login">
+<!-- Shown until Firebase says whether this browser is signed in (core/auth.js): no sign-in flash on a refresh. -->
+<div id="bootView" class="wrap" role="status" style="max-width:340px;margin:30vh auto;text-align:center;color:var(--muted);font-size:14px">Loading Sellora…</div>
+<div id="loginView" class="wrap login hide">
   <!-- The moving background, behind the card: soft drifting light (styles.css) and faint drifting dots
        joined by lines (app/core/fx.js draws them). Inside this screen, so it goes when the screen does. -->
   <div class="fx-aurora" aria-hidden="true"><i></i><i></i><i></i></div>
