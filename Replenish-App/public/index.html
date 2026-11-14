@@ -19024,8 +19024,13 @@ function bdScope() {
   if (bdIsCustom()) return all;
   const o = obUC($('bwOrd').value);
   if (!o) return all;
-  const open = new Set(obLines().filter(l => l.orderNo === o).map(l => l.sku));
-  return all.filter(r => open.has(obUC(r.sku)));
+  const open = new Set(obLines().filter(l => l.orderNo === o).map(l => obUC(l.sku)));
+  /* A SKU OF THE ORDER THAT IS ONLY ON THE CUSTOM SKUs LIST (Ravi, 14 Nov video: CPCN005-8 typed, SHP-8252 picked, and article,
+   * subtype, colour, size and SKU all went blank). The order's SKUs were looked for in the master alone, so a custom SKU left
+   * nothing to pick. Its Custom SKUs record now stands in for the master row. */
+  const inMaster = all.filter(r => open.has(obUC(r.sku))), have = new Set(inMaster.map(r => obUC(r.sku)));
+  const cust = typeof ptCustomOf === 'function' ? [...open].filter(s => !have.has(s)).map(s => ptCustomOf(s)).filter(Boolean) : [];
+  return inMaster.concat(cust);
 }
 
 function bdFill(id, values, label) {
@@ -19297,8 +19302,14 @@ $('bwClear').onclick = () => {
   bdFormMsg('Cleared — nothing was saved.');
 };
 ['bwCustom', 'bwOrd', 'bwType', 'bwAt', 'bwSub', 'bwCol', 'bwSz', 'bwColTxt', 'bwSzTxt', 'bwAtTxt', 'bwSubTxt'].filter(id => $(id)).forEach(id => {
-  // Changing anything above the SKU means the typed SKU no longer stands.
-  const reset = () => { if (id !== 'bwType') $('bwSku').dataset.typed = ''; renderBdForm(); };
+  // Changing anything above the SKU means the typed SKU no longer stands — except picking an order that the typed SKU is on
+  // (the order list follows the typed SKU, so the order picked is one of its own).
+  const reset = () => {
+    const keep = id === 'bwType' || (id === 'bwOrd' && $('bwSku').dataset.typed && $('bwOrd').value
+      && obLines().some(l => l.orderNo === obUC($('bwOrd').value) && obUC(l.sku) === obUC($('bwSku').value)));
+    if (!keep) $('bwSku').dataset.typed = '';
+    renderBdForm();
+  };
   $(id).addEventListener('change', reset);
   $(id).addEventListener('input', reset);
 });
