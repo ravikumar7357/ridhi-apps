@@ -81,7 +81,7 @@ function load(opts) {
   if (opts.im) { delete ctx.imLoad; delete ctx.imPost; delete ctx.IM_SKU_CHOICES; delete ctx.IML; delete ctx.IM_SLOTS; }   // image-manager.js has its own   // the Rules tab file defines its own
   const src = (opts.src || L('listing-rules.js')) + (opts.ws ? '\n' + L('listing-workspace.js') + '\n' + L('listing-saved.js') + '\n' + L('listing-kid.js') + '\n' + L('listing-bf.js') + '\n' + L('listing-sync.js') : '') + (opts.sp ? '\n' + L('season-planner.js') : '')
     + (opts.pc ? '\n' + L('picture-check.js') : '') + (opts.tab ? '\n' + L('listing-rules-tab.js') : '') + (opts.fa ? '\n' + L('fix-all.js') : '') + (opts.sp || opts.fa || opts.sq ? '\n' + L('listing-send-check.js') : '')
-    + (opts.le ? '\n' + L('listing-content.js') + '\n' + L('listing-errors.js') : '') + (opts.im ? '\n' + L('image-quality.js') + '\n' + L('image-manager.js') : '') + (opts.lh ? '\n' + L('listing-history.js') : '');
+    + (opts.le ? '\n' + L('listing-content.js') + '\n' + L('listing-errors.js') : '') + (opts.im ? '\n' + L('image-quality.js') + '\n' + L('image-manager.js') + (opts.imc ? '\n' + L('image-colour.js') : '') : '') + (opts.lh ? '\n' + L('listing-history.js') : '');
   const tail = '\n;LR = JSON.parse(JSON.stringify(LR_DEFAULT)); LR_CAT.SP = ' + JSON.stringify(CAT.SP) + '; LR_CAT.CPC = ' + JSON.stringify(CAT.CPC) + ';'
     + '\n;return { rows: HEALTH.SP.rows.concat(HEALTH.CPC.rows), LR_DEFAULT, getLR: () => LR, healthOf, hCtx: () => hCtx(), reset: () => { H_CTX = null; }, hTitleSizes,'
     + ' lrAnswer, lrAnswerHtml, lrPicId, lrLooks, setHealthAt: d => { HEALTH.SP.at = d; HEALTH.CPC.at = d; },'
@@ -98,9 +98,10 @@ function load(opts) {
     + (opts.im ? ['imqCheck', 'imqSize', 'imqPixels', 'imqDups', 'imqId', 'imqDims', 'IMQ', 'imPastePlan', 'imPicks', 'imPreviewHtml', 'imPreviewGo', 'imClipTake', 'imClipSlots', 'imClipCopyOne',
       'imCardsData', 'imKidMatch', 'imIsPicIssue', 'imPicErrs', 'imViewOpen', 'imViewMove', 'imViewAct', 'imViewClose', 'imDensity', 'imRangeSel', 'imKey', 'imKidChip', 'imKidSummary', 'imReplace', 'imReplaceFile', 'imHelp', 'IM_OPEN', 'IM_SHUT', 'imFamToggle', 'imIsOpen', 'imListAgain', 'imUpload', 'imUploadMany', 'imDropSlots', 'imMsg', 'imRulesHtml', 'imTile', 'imBfOf', 'imListRender', 'imPastePreview', 'imRender', 'imHistLink', 'imShowEditor'].map(n => ` ${n}: typeof ${n} === "undefined" ? null : ${n},`).join('')
       + ' getPV: () => (typeof IM_PV === "undefined" ? null : IM_PV), getVW: () => (typeof IM_VW === "undefined" ? null : IM_VW), getDense: () => (typeof IM_DENSE === "undefined" ? null : IM_DENSE), setHover: h => { IM_HOVER = h; }, getClip: () => IM_CLIP, imSend, imPasteMany, setIM: (im, start, now) => { IM = im; IM_START = start; IM_NOW = now; }, getIM: () => ({ IM, IM_START, IM_NOW }), IM_SEL, setClip: c => { IM_CLIP = c; }, IML,' : '')
-    + (opts.im ? ['imFamilies', 'imSections', 'imCardHtml', 'imCardPreview', 'imClipBar', 'imCopyAll', 'imGroupSet', 'imSelUpdate', 'imSideRender', 'imChangeLines', 'imUploadPick', 'imClipWithSw', 'imHeadHtml', 'imChipsHtml', 'imEditOpen']
-      .map(n => ` ${n}: typeof ${n} === "undefined" ? null : ${n},`).join('')
-      + ' getGroup: () => (typeof IM_GROUP === "undefined" ? null : IM_GROUP), setFam: k => { IM_FAM = k; }, getFam: () => IM_FAM, setShow: k => { IM_SHOW = k; }, getShown: () => IM_SHOWN, setEdv: v => { IM_EDV = v; },' : '')
+    + (opts.imc ? ['imcColours', 'imcStack', 'imcDiff', 'imcRank', 'imcRowHtml', 'imcFamHtml', 'imcPlanRow', 'imcTargets', 'imcJobs', 'imcSrcListing', 'imcSrcColour', 'imcWant',
+      'imcCpOpen', 'imcCpHtml', 'imcSyncOpen', 'imcCopyColour', 'imcSend', 'imcFind', 'imcEditJobs', 'imcEditSend', 'imcEditStack', 'imcEditBanner', 'imcLayout', 'imcPerSize',
+      'imcFromClip', 'imcSetAll', 'imcTab', 'imcTabPlans', 'imcKidMark', 'imcClick', 'imcChange', 'IMC_TABS'].map(n => ` ${n},`).join('')
+      + ' getCP: () => IMC_CP, getEdit: () => IMC_EDIT, getLayout: () => IMC_LAYOUT, getPerSize: () => IMC_PERSIZE,' : '')
     + (opts.fa ? ' FA, faBlockHtml, faGroups, faCards, faPlan, faPlans, faShortTitle, faStart, faPutBack, faChangeList, faOnGet, faKids, faClick, faHistHtml, faLogLoad, faOpenImg, faOpenLerr, spParentPanelHtml, liWsPanelList,' : '') + ' };';
   const api = new Function(...Object.keys(ctx), src + tail)(...Object.values(ctx));
   // api.rows ARE the HEALTH rows (the same objects, brand on each): a test that changes one changes what every screen judges.

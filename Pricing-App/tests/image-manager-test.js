@@ -63,7 +63,7 @@ function picture(W, H, box, edge) {
     ok('white / fill are judged on MAIN only', !C.imqCheck({ slot: 'PT01', w: 2400, h: 2400, white: false, fill: 0.2 }).chips.some(c => /Background|fills/.test(c.t)));
   }
 
-  console.log('== the page: sidebar Show + families, filter chips, the card grid ==');
+  console.log('== the number cards (they set the filter picker) ==');
   const full = (p, n) => Object.fromEntries(['MAIN', 'PT01', 'PT02', 'PT03', 'PT04', 'PT05', 'PT06', 'PT07', 'PT08'].slice(0, n || 9).map(s => [s, A(p + s)]));
   const ITEMS = () => [
     { sku: 'PAR', lvl: 'parent', asin: 'B0PAR', t: 'Napkins parent', img: { MAIN: A('par') }, live: { MAIN: A('par') } },
@@ -84,30 +84,18 @@ function picture(W, H, box, edge) {
     P.PC.marks.SP = { k2MAIN: { v: 'bad' }, k3MAIN: { v: 'ok' } };
     P.IMQ.dims = new Map([['k3PT01', [1500, 1500]], ['k1MAIN', [2400, 2400]]]);
     P.imListRender();
-    const cards = Object.fromEntries(P.imCardsData(P.IML.SP.items).map(c => [c.k, c.n]));
-    ok('the problem counts (one rule each): No main 1 (K5) · family\'s main 1 (K2) · Main not OK 1 (K2) · Too small 1 (K3 PT01 1500) · Fewer than 7 1 (K3) · Amazon picture error 1 (K3 18320; K5 has only 90244) · suppressed 1 (K4) · another SKU 1 (K4) · no swatch 5',
-      cards.nomain === 1 && cards.noown === 1 && cards.pcbad === 1 && cards.small === 1 && cards.few === 1 && cards.amzerr === 1 && cards.sup === 1 && cards.other === 1 && cards.noswatch === 5, JSON.stringify(cards));
-    P.imListRender();
-    const side = P.el('imShow').innerHTML;
-    const showN = k => +((side.match(new RegExp(`data-im-show="${k}"[^>]*><span>[^<]*</span><b>(\\d+)</b>`)) || [])[1]);
-    ok('sidebar Show with counts: All listings 6 · Needs fixing 5 · Below 2000 px 1 · All good 1 (K1)', showN('all') === 6 && showN('need') === 5 && showN('small') === 1 && showN('good') === 1,
-      ['all', 'need', 'small', 'good'].map(k => k + '=' + showN(k)).join(' '));
-    const fams = P.el('imFams').innerHTML;
-    ok('FAMILIES: "All families", then each family with its picture, name, "N listings" and a problem badge (red: a red problem)', /data-im-fam=""[^>]*aria-pressed="true"/.test(fams)
-      && /data-im-fam="PAR".*Napkins parent.*5 listings.*imx-badge is-bad[^>]*>4</s.test(fams) && /data-im-fam="solo:S1"/.test(fams));
     const html = P.el('imList').innerHTML;
-    const chip = k => +((html.match(new RegExp(`data-im-chip="${k}"[^>]*>[^<]*<b>(\\d+)</b>`)) || [])[1]);
-    ok('filter chips with counts: All 6 · No main 1 · Amazon picture error 1 · Below 2000 1 · Fewer than 7 1 · Shows another SKU\'s 1', chip('all') === 6 && chip('nomain') === 1 && chip('amzerr') === 1
-      && chip('small') === 1 && chip('few') === 1 && chip('other') === 1, ['all', 'nomain', 'amzerr', 'small', 'few', 'other'].map(k => k + '=' + chip(k)).join(' '));
-    ok('cards: one per listing (6), the long summary line and the old number cards are gone', (html.match(/class="imx-card[ "]/g) || []).length === 6 && !/im-box|im-meta|carry another SKU/.test(html));
-    ['nomain', 'amzerr', 'small'].forEach(k => {
-      P.el('imFilter').value = k;
-      P.imListRender();
-      ok(`chip "${k}" shows only its card (1), the chip is on`, (P.el('imList').innerHTML.match(/class="imx-card[ "]/g) || []).length === 1 && new RegExp(`data-im-chip="${k}" aria-pressed="true"`).test(P.el('imList').innerHTML));
-    });
-    P.el('imFilter').value = 'noswatch';
-    P.imListRender();
-    ok('a filter set elsewhere (Listing Health: No swatch) shows as one more chip, ✕ to clear', /class="imx-chip is-on" data-im-chip="all"[^>]*>No swatch <b>5<\/b> ✕/.test(P.el('imList').innerHTML));
+    const n = k => { const m = html.match(new RegExp(`data-im-card="${k}"[^>]*>.*?<b>(\\d+)</b>`)); return m ? +m[1] : null; };
+    ok('9 cards: No main at all · Using the family\'s main · Main not OK · Too small · Fewer than 7 · Amazon picture error · Search suppressed · Another SKU\'s pictures · No swatch',
+      (html.match(/data-im-card="(\w+)"/g) || []).map(s => s.slice(14, -1)).join(',') === 'nomain,noown,pcbad,small,few,amzerr,sup,other,noswatch' && /Amazon picture error/.test(html) && /No main at all/.test(html));
+    ok('numbers: No main at all 1 (K5) · family\'s main 1 (K2) · Main not OK 1 (K2) · Too small 1 (K3 PT01 1500) · Fewer than 7 1 (K3) · Amazon picture error 1 (K3 18320; K5 has only 90244: not counted) · suppressed 1 (K4) · another SKU 1 (K4) · no swatch 5',
+      n('nomain') === 1 && n('noown') === 1 && n('pcbad') === 1 && n('small') === 1 && n('few') === 1 && n('amzerr') === 1 && n('sup') === 1 && n('other') === 1 && n('noswatch') === 5,
+      ['nomain', 'noown', 'pcbad', 'small', 'few', 'amzerr', 'sup', 'other', 'noswatch'].map(k => k + '=' + n(k)).join(' '));
+    ok('"Too small" says how many are measured so far: "2 of 6 measured"', /under 2000 · 2 of 6 measured/.test(html));
+    ok('the long grey summary line is gone (no "carry another SKU\'s pictures" text)', !/carry another SKU/.test(html) && /im-meta/.test(html));
+    ok('the dropdown has the same filters: Main missing / Main not OK / Too small filter the list too', ['nomain', 'noown', 'pcbad', 'small', 'amzerr'].every(k => {
+      P.el('imFilter').value = k; P.imListRender(); return (P.el('imList').innerHTML.match(/class="im-kid"/g) || []).length === 1 && new RegExp(`data-im-card="${k}" aria-pressed="true"`).test(P.el('imList').innerHTML);
+    }));
     P.el('imFilter').value = 'all';
   }
 
@@ -120,9 +108,10 @@ function picture(W, H, box, edge) {
     P.el('imBrand').value = 'SP';
     P.el('imFilter').value = 'all';
     P.IML.SP = { at: new Date(), items: ITEMS() };
+    P.IM_OPEN.add('PAR'); P.IM_OPEN.add('solo:S1');   // families start closed: open them to see the rows
     P.imListRender();
     const html = P.el('imList').innerHTML;
-    ok('cards: K3 shows "picture error" with the 18320 words; no card shows the 90244 words', /title="18320: The main image is missing or incorrect">picture error/.test(html) && !/Unit Count/.test(html));
+    ok('rows: K3 shows "1 picture error" with the 18320 words; no row shows the 90244 words', /The main image is missing or incorrect/.test(html) && !/Unit Count/.test(html));
     P.setIM({ brand: 'SP', sku: 'K3', listing: {}, catalog: {}, issues: [{ severity: 'ERROR', code: '90244', message: 'The value for Ounce / Unit Count is missing', attrs: ['unit_count'] },
       { severity: 'ERROR', code: '18320', message: 'The main image is missing or incorrect', attrs: ['main_product_image_locator'] }] }, {}, {});
     try { P.imRender(); } catch (e) { /* the stub page has no layout: only the HTML matters */ }
@@ -161,7 +150,7 @@ function picture(W, H, box, edge) {
     ok('…a picture from the other brand starts a new clipboard', P.getClip().brand === 'CPC' && Object.keys(P.getClip().slots).join() === 'PT01');
   }
 
-  console.log('== Copy all → the clipboard bar; tick cards → Paste all into N selected → the preview → the Amazon check ==');
+  console.log('== the clipboard bar: paste only the ticked slots, the quick picks, the mode, the preview ==');
   {
     const sent = [];
     const modal = { html: '' };
@@ -170,127 +159,94 @@ function picture(W, H, box, edge) {
     P.el('imFilter').value = 'all';
     P.IML.SP = { at: new Date(), items: ITEMS() };
     const k1 = P.IML.SP.items.find(i => i.sku === 'K1');
-    P.imCopyAll('K1');
-    let html = P.el('imList').innerHTML;
-    ok('Copy all on K1: all 9 pictures AND the swatch are in the clipboard (the swatch ticked)', P.getClip().sku === 'K1' && P.getClip().n === 9 && P.getClip().tick.SWCH === true && P.imClipWithSw());
-    ok('…the K1 card says "COPIED ✓" (green border)', /class="imx-card is-copied" data-sku="K1"/.test(html) && /COPIED ✓/.test(html));
-    ok('…the clipboard bar: "Copied all 9 pictures + swatch from K1", 10 pictures, the mode, Clear, "Paste all into 0 selected →" (off)', /Copied all 9 pictures \+ swatch from <span class="im-mono">K1<\/span>/.test(html)
-      && (html.match(/data-clip-slot="/g) || []).length === 10 && /id="imClipMode"/.test(html) && /id="imClipClear"/.test(html) && /id="imPasteSel" disabled>Paste all into 0 selected →/.test(html));
-    ok('…the other cards offer "Paste all here"', /data-paste1="K2"/.test(html) && !/data-paste1="K1"/.test(html));
+    P.imClipTake({ brand: 'SP', sku: 'K1', c: 'Blue', z: '18x18', psku: 'PAR', own: k1.img, live: k1.live });
     P.getClip().tick.PT08 = false;
     P.imListRender();
-    html = P.el('imList').innerHTML;
-    ok('click a picture in the bar to leave it out: PT08 off → "Copied 8 of 9 pictures"', /data-clip-slot="PT08" aria-pressed="false"/.test(html) && /Copied 8 of 9 pictures/.test(html));
-    const plan = P.imPastePlan(['S1'], { withSw: P.imClipWithSw() });
-    ok('a paste puts in only what is on: MAIN, 01–07 and the swatch (PT08 left out)', Object.keys(plan.jobs[0].body.set).join() === 'MAIN,PT01,PT02,PT03,PT04,PT05,PT06,PT07,SWCH');
-    // tick 4 cards
-    ['K2', 'K3', 'K4', 'S1'].forEach(s => P.IM_SEL.add(s));
-    P.IMQ.dims = new Map([[P.imqId(k1.img.PT01), [1500, 1500]], [P.imqId(k1.img.MAIN), [2400, 2400]]]);
-    P.imListRender();
-    html = P.el('imList').innerHTML;
-    ok('tick 4 cards → "Paste all into 4 selected →"', /id="imPasteSel" >Paste all into 4 selected →/.test(html));
-    const pv = sku => (html.match(new RegExp(`data-sku="${sku}"[\\s\\S]*?imx-pv[^"]*">([^<]*)<`)) || [])[1];
-    ok('…every ticked card shows what will change: K2 "9 will change · 1 quality warning" (PT01 1500 px), S1 the same', pv('K2') === '9 will change · 1 quality warning' && pv('S1') === '9 will change · 1 quality warning', pv('K2') + ' / ' + pv('S1'));
-    P.getClip().slots = Object.assign({}, k1.img);           // the clipboard = exactly K1's own pictures
-    P.IML.SP.items.find(i => i.sku === 'K4').img = Object.assign({}, k1.img);
-    P.imListRender();
-    ok('…a card already holding those pictures says "already the same"', /data-sku="K4"[\s\S]*?imx-pv[^"]*">already the same</.test(P.el('imList').innerHTML));
-    P.IML.SP.items.find(i => i.sku === 'K4').img = full('k4');
-    // only empty slots
-    P.el('imClipMode').value = 'gaps';
-    const gaps = P.imPastePlan(['K3'], { mode: 'gaps', withSw: true });
-    ok('mode "Only empty slots": K3 holds MAIN–PT04 → only 05, 06, 07 and the swatch are filled; nothing it holds is touched or emptied', Object.keys(gaps.jobs[0].body.set).join() === 'PT05,PT06,PT07,SWCH'
-      && Object.values(gaps.jobs[0].body.set).every(Boolean));
+    const bar = P.el('imList').innerHTML;
+    ok('the bar: one cell per slot (Main, 01–08, Swatch) with a tick; the swatch tick is today\'s "also the swatch", off at first', (bar.match(/class="im-cs[ "]/g) || []).length === 10
+      && /id="imClipSw"(?! checked)/.test(bar) && /data-clip-tick="PT08"(?! checked)/.test(bar) && /data-clip-tick="MAIN" checked/.test(bar) && /position|im-clip/.test(bar));
+    const plan = P.imPastePlan(['S1'], {});
+    ok('paste only the ticked slots: PT08 unticked and the swatch off → MAIN, PT01–PT07 only', Object.keys(plan.jobs[0].body.set).join() === 'MAIN,PT01,PT02,PT03,PT04,PT05,PT06,PT07');
+    ok('…with the swatch ticked: the swatch too', Object.keys(P.imPastePlan(['S1'], { withSw: true }).jobs[0].body.set).includes('SWCH'));
+    const gaps = P.imPastePlan(['K3'], { mode: 'gaps' });
+    ok('mode "Only fill empty slots": K3 holds MAIN–PT04 → only PT05, PT06, PT07 (PT08 unticked)', Object.keys(gaps.jobs[0].body.set).join() === 'PT05,PT06,PT07');
     const full9 = P.imPastePlan(['K4'], { mode: 'gaps' });
-    ok('…a listing with every slot filled is skipped: "no empty slot to fill"', !full9.jobs.length && full9.held[0].why === 'no empty slot to fill');
-    ok('no paste plan ever empties a slot (any mode, any listing)', ['replace', 'gaps'].every(mode => P.imPastePlan(['K2', 'K3', 'K4', 'K5', 'S1'], { mode, withSw: true }).jobs
-      .every(j => Object.values(j.body.set).every(Boolean))));
-    // the preview
-    P.IM_SEL.clear();
-    ['K2', 'S1', 'NOPE'].forEach(s => P.IM_SEL.add(s));
-    P.imPastePreview([...P.IM_SEL]);
+    ok('…a listing with every slot filled: not changed, "no empty slot to fill"', !full9.jobs.length && full9.held[0].why === 'no empty slot to fill');
+    const picks = Object.fromEntries(P.imPicks().map(p => [p.k, p]));
+    ok('quick picks: all children of PAR = K2, K3, K4, K5 (never the copied K1)', picks.kids && picks.kids.skus.slice().sort().join() === 'K2,K3,K4,K5' && /All children of PAR/.test(picks.kids.label));
+    ok('…same colour (Blue) in this parent = K2; same size (18x18) = K3', picks.colour.skus.join() === 'K2' && /Same colour \(Blue\) in this parent/.test(picks.colour.label) && picks.size.skus.join() === 'K3');
+    ok('…everything in the current filter (All) = K2, K3, K4, K5, S1', picks.filter.skus.slice().sort().join() === 'K2,K3,K4,K5,S1');
+    P.el('imFilter').value = 'few';
+    ok('…with the filter "Fewer than 7": only K3', P.imPicks().find(p => p.k === 'filter').skus.join() === 'K3');
+    P.el('imFilter').value = 'all';
+    ok('…"This listing" only while the editor is open', !picks.this);
+    P.el('imPick').value = 'colour';
+    // the select's change handler is wired in imListRender; call what it does
+    P.IM_SEL.clear(); picks.colour.skus.forEach(s => P.IM_SEL.add(s));
+    P.IM_OPEN.add('PAR'); P.IM_OPEN.add('solo:S1');   // families start closed: open them to see the rows
+    P.imListRender();
+    ok('a pick ticks those listings in the list: K2 ticked, the button says "Preview · paste into 1 ticked listing(s)"', /data-sku="K2" checked/.test(P.el('imList').innerHTML)
+      && /Preview · paste into 1 ticked listing\(s\)/.test(P.el('imList').innerHTML));
+
+    // --- the preview ---
+    P.IMQ.dims = new Map([[P.imqId(k1.img.PT01), [1500, 1500]], [P.imqId(k1.img.MAIN), [2400, 2400]]]);
+    P.imPastePreview(['K2', 'S1', 'NOPE']);
     const h = modal.html;
-    ok('Paste all → PREVIEW before sending: per listing the slots that change, old → new picture', /im-pv-l/.test(h) && (h.match(/class="im-pv-l"/g) || []).length === 2 && /K2.*S1/s.test(h)
-      && (h.match(/im-pv-arrow/g) || []).length === 18 && sent.length === 0, (h.match(/im-pv-arrow/g) || []).length);
+    ok('PREVIEW before sending: per listing the slots that change, old → new picture', /im-pv-l/.test(h) && (h.match(/class="im-pv-l"/g) || []).length === 2 && /K2.*S1/s.test(h)
+      && (h.match(/im-pv-arrow/g) || []).length === 16 && sent.length === 0);
     ok('…a picture failing the rules (PT01 1500 × 1500) is marked, left out, and needs its own "Include anyway" tick', (h.match(/data-pv-inc=/g) || []).length === 2
-      && /1500 × 1500 · below 2000 — company minimum/.test(h) && /2 left out/.test(h) && /16 picture\(s\) go in/.test(h));
+      && /1500 × 1500 · below 2000 — company minimum/.test(h) && /2 left out/.test(h) && /14 picture\(s\) go in/.test(h));
+    ok('…a picture that passes says so (2400 × 2400), one not measured says "Size not known"', /imq-chip is-ok"[^>]*>2400 × 2400/.test(h) && /Size not known/.test(h));
     ok('…listings that will not change are named (NOPE — not in this snapshot)', /NOPE<\/span> — not in this snapshot/.test(h));
     P.getPV().inc.add('K2|PT01');
     await P.imPreviewGo();
     const s1 = sent[0];
-    ok('Continue → the Amazon check popup (sqSendWithCheck) with what the preview kept: K2 with PT01 (ticked in), S1 without it', sent.length === 1
+    ok('Continue → the Amazon check popup (#10) with what the preview kept: K2 with PT01 (ticked in), S1 without it', sent.length === 1
       && 'PT01' in s1.jobs.find(j => j.sku === 'K2').body.set && !('PT01' in s1.jobs.find(j => j.sku === 'S1').body.set)
       && s1.jobs.find(j => j.sku === 'S1').changes.every(c => c.attr !== 'PT01') && s1.opts.screen === 'Image Manager · paste' && s1.opts.held.some(x => x.sku === 'NOPE'));
+    // a listing with only failing pictures left
     Object.keys(P.getClip().tick).forEach(s => { P.getClip().tick[s] = s === 'PT01'; });
     P.imPastePreview(['S1']);
     await P.imPreviewGo();
-    ok('…a listing whose every picture was left out is not sent', !sent[1].jobs.length && sent[1].opts.held[0].why === 'every picture was left out in the preview (picture rules)');
-    // Clear
-    P.setClip(null);
-    P.imListRender();
-    ok('Clear: no bar, no COPIED, no "Paste all here"', !/imx-clip|COPIED|data-paste1/.test(P.el('imList').innerHTML));
+    ok('…a listing whose every picture was left out is not sent: "every picture was left out in the preview"', !sent[1].jobs.length
+      && sent[1].opts.held[0].why === 'every picture was left out in the preview (picture rules)');
   }
 
-  console.log('== the edit drawer: the cards stay, 10 slots with ⋯, Copy all / Paste all / Fill empty only / Ours ⇄ Shoppers see, changes ready ==');
+  console.log('== the editor in a side panel: the list stays, chips under each picture, Listing History link ==');
   {
     const cl = init => { const s = new Set(init || []); return { add: c => s.add(c), remove: c => s.delete(c), contains: c => s.has(c),
       toggle: (c, on) => ((on === undefined ? !s.has(c) : on) ? s.add(c) : s.delete(c)) }; };
     const scrolled = [];
     const asked = [];
-    const sent = [];
     const P = load({ im: true, lh: true, window: { scrollTo: (x, y) => scrolled.push([x, y]) },
-      baCall: async q => { asked.push(q); return q.limg === 'get' ? { brand: 'SP', sku: q.sku, asin: 'B0K2', title: 'Napkins K2', color: 'Blue', size: '20x20', productType: 'NAPKIN', status: ['BUYABLE'],
-        listing: { MAIN: A('k2m'), PT01: A('k2a'), PT02: A('k2a') }, catalog: { MAIN: { link: A('k2live'), w: 2400, h: 2400 }, PT03: { link: A('k2c') } }, issues: [] } : { rows: [] }; },
-      ctx: { sqSendWithCheck: async (jobs, opts) => { sent.push({ jobs, opts }); }, sqField: s => s, sqSummaryText: () => '', Image: class { set src(v) {} },
-        document: { addEventListener() {}, querySelectorAll: () => [], querySelector: () => null, createElement: () => ({ click() {} }) } } });
+      baCall: async q => { asked.push(q); return q.limg === 'get' ? { brand: 'SP', sku: q.sku, asin: 'B0K2', title: 'Napkins K2', productType: 'NAPKIN', status: ['BUYABLE'],
+        listing: { MAIN: A('k2m'), PT01: A('k2a'), PT02: A('k2a') }, catalog: { MAIN: { link: A('k2m'), w: 2400, h: 2400 } }, issues: [] } : { rows: [] }; },
+      ctx: { sqSendWithCheck: async () => {}, sqField: s => s, sqSummaryText: () => '', Image: class { set src(v) {} }, document: { addEventListener() {}, querySelectorAll: () => [], querySelector: () => null, createElement: () => ({ click() {} }) } } });
     P.el('imBrand').value = 'SP';
     P.el('imFilter').value = 'all';
     P.el('imQ').value = '';
     P.el('imEditWrap').classList = cl(['hide']);
     P.el('imListWrap').classList = cl();
     P.IML.SP = { at: new Date(), items: ITEMS() };
+    const btn = { dataset: { edit: 'K2' }, closest: () => ({ classList: cl() }) };
+    P.el('imList').querySelectorAll = sel => (sel === '[data-edit]' ? [btn] : []);
     P.imListRender();
-    await P.imEditOpen('K2');
-    ok('Edit (a card click) opens the drawer: the cards are not hidden, the drawer is', !P.el('imListWrap').classList.contains('hide') && !P.el('imEditWrap').classList.contains('hide'));
-    ok('…no scroll jump and the search box is left alone', !scrolled.length && P.el('imQ').value === '');
+    await btn.onclick();
+    ok('Edit opens the editor beside the list: the list is not hidden, the panel is', !P.el('imListWrap').classList.contains('hide') && !P.el('imEditWrap').classList.contains('hide'));
+    ok('…no scroll jump and the search box is left alone (it used to be set to the SKU, which filtered the list)', !scrolled.length && P.el('imQ').value === '');
     ok('…the listing read is the one clicked (?limg=get sku=K2)', asked.some(q => q.limg === 'get' && q.sku === 'K2'));
-    let body = P.el('imBody').innerHTML;
-    ok('header: SKU · colour · size, ASIN, Open on Amazon', /<b class="im-mono">K2<\/b><span class="muted">Blue · 20x20<\/span>/.test(body) && /ASIN <b>B0K2<\/b>/.test(body) && /amazon\.com\/dp\/B0K2/.test(body));
-    ok('buttons: Copy all, Ours ⇄ Shoppers see (Paste all only with a clipboard)', /id="imCopy"[^>]*>Copy all/.test(body) && /data-edv="ours" class="is-on"/.test(body) && /data-edv="shop"/.test(body) && !/id="imPaste"/.test(body));
-    ok('10 slot tiles (MAIN, 01–08, swatch); empty ones say "drop file" (6: 03 comes from the catalogue); each has a ⋯ menu (view big, replace, URL, remove, move)', (body.match(/class="im-card imx-slot/g) || []).length === 10
-      && (body.match(/drop file/g) || []).length === 6 && /data-act="view" data-slot="PT01"/.test(body) && /data-act="file" data-slot="PT01"/.test(body) && /data-act="url"/.test(body)
-      && /data-act="del" data-slot="PT01"/.test(body) && /data-act="left" data-slot="PT01"/.test(body) && /data-act="right" data-slot="PT01"/.test(body) && !/data-act="del" data-slot="MAIN"/.test(body));
-    ok('…a big drop zone for files (several fill the empty slots in order)', /id="imDrop"/.test(body) && /several fill the empty slots in order/.test(body) && /id="imFiles"[^>]*multiple/.test(body));
-    ok('…the picture rules under a tile: PT02 is the same picture as PT01; B / F where shoppers see another main', /imq-chip is-warn"[^>]*>Same picture as PT01/.test(body) && /data-slot="MAIN"[\s\S]*?im-bf is-diff/.test(body));
-    ok('footer: Discard (off), History, "Check with Amazon" (off: no changes)', /id="imReset"[^>]*disabled/.test(body) && /id="imHistLink"[^>]*>History/.test(body) && /id="imApply"[^>]*disabled>Check with Amazon</.test(body) && /No changes yet/.test(body));
-    // a clipboard from K1 → Paste all (K1) / Fill empty only; the changes-ready list names where each came from
-    P.setClip({ brand: 'SP', sku: 'K1', slots: { MAIN: A('k1m'), PT03: A('k1c'), PT05: A('k1e') }, from: { MAIN: 'K1', PT03: 'K1', PT05: 'K1' }, tick: { MAIN: true, PT03: true, PT05: true }, n: 3 });
-    P.imRender();
-    body = P.el('imBody').innerHTML;
-    ok('with a clipboard: "Paste all (K1)" and "Fill empty only"', /id="imPaste"[^>]*>Paste all \(K1\)/.test(body) && /id="imPasteGaps"[^>]*>Fill empty only/.test(body));
-    const st = P.getIM();
-    P.setIM(st.IM, st.IM_START, Object.assign({}, st.IM_START, { MAIN: A('k1m'), PT05: A('k1e'), PT02: A('k2a') === st.IM_START.PT02 ? A('k2a') : A('k2a') }));
-    const st2 = P.getIM();
-    st2.IM_NOW.PT04 = st2.IM_START.PT01;      // moved 01 → 04
-    P.imRender();
-    body = P.el('imBody').innerHTML;
-    ok('"3 changes ready": MAIN ← K1, 04 ← moved from 01, 05 ← K1; the button "Check with Amazon (3 changes)"', /3 changes ready/.test(body) && /<b>MAIN<\/b> ← K1/.test(body)
-      && /<b>PT04<\/b> ← moved from 01/.test(body) && /<b>PT05<\/b> ← K1/.test(body) && /id="imApply"[^>]*>Check with Amazon \(3 changes\)/.test(body));
-    await P.imSend(true);
-    ok('Check with Amazon → sqSendWithCheck (the Amazon check popup) with the 3 changed slots', sent.length === 1 && Object.keys(sent[0].jobs[0].body.set).sort().join() === 'MAIN,PT04,PT05' && sent[0].opts.screen === 'Image Manager');
-    P.setEdv('shop');
-    P.imRender();
-    body = P.el('imBody').innerHTML;
-    ok('"Shoppers see": the catalogue\'s pictures, read only (no ⋯ menus, no drop zone)', /data-edv="shop" class="is-on"/.test(body) && new RegExp(A('k2live').replace(/[.?]/g, '\\$&')).test(body)
-      && !/imx-menu/.test(body) && !/id="imDrop"/.test(body) && /What shoppers see now/.test(body));
-    P.setEdv('ours');
+    const body = P.el('imBody').innerHTML;
+    ok('today\'s editor unchanged inside it: Live on Amazon now, Your stack, Check with Amazon / Apply / Discard', /Live on Amazon now/.test(body) && /Your stack/.test(body)
+      && /id="imCheck"/.test(body) && /id="imApply"/.test(body) && /id="imReset"/.test(body) && /data-act="file"/.test(body) && /data-act="url"/.test(body));
+    ok('quality chips under each picture: PT02 is the same picture as PT01', /imq-chip is-warn"[^>]*>Same picture as PT01/.test(body));
+    ok('the old "Changes sent for this SKU" list → a link to Listing History', /id="imHistLink"/.test(body) && /See them in Listing History/.test(body) && !/id="imHist"/.test(body));
     P.imHistLink('K2');
-    ok('History opens Listing History, every date, searched for K2', P.calls.some(c => c.tab === 'lhist') && P.LH.f.q === 'K2' && P.LH.f.range === 'all' && P.LH.built === false);
+    ok('…the link opens Listing History, every date, searched for K2', P.calls.some(c => c.tab === 'lhist') && P.LH.f.q === 'K2' && P.LH.f.range === 'all' && P.LH.built === false);
     P.imShowEditor(false);
-    ok('Close: the drawer goes, the cards are still there', P.el('imEditWrap').classList.contains('hide') && !P.el('imListWrap').classList.contains('hide'));
+    ok('Close: the panel goes, the list is still there', P.el('imEditWrap').classList.contains('hide') && !P.el('imListWrap').classList.contains('hide'));
   }
 
-  console.log('== cards: status pill, strip rings, chips; grouping Colour / Family / None (remembered); Shift-range; keys ==');
+  console.log('== the cleaner list: one status chip, quality summary, families, density, Shift-range, keys ==');
   const cl = init => { const s = new Set(init || []); return { add: c => s.add(c), remove: c => s.delete(c), contains: c => s.has(c),
     toggle: (c, on) => ((on === undefined ? !s.has(c) : on) ? s.add(c) : s.delete(c)) }; };
   {
@@ -301,35 +257,31 @@ function picture(W, H, box, edge) {
     P.el('imFilter').value = 'all';
     P.IML.SP = { at: new Date(), items: ITEMS() };
     const it = sku => P.IML.SP.items.find(i => i.sku === sku);
-    ok('the worst picture problem of a listing: K3 "Amazon picture error", K5 "No main at all", K2 "Using the family\'s main", K4 "Search suppressed", K1 "Buyable"',
+    ok('ONE status chip, the worst picture problem first: K3 "Amazon picture error", K5 "No main at all", K2 "Using the family\'s main", K4 "Search suppressed", K1 "Buyable"',
       P.imKidChip(it('K3')).t === 'Amazon picture error' && P.imKidChip(it('K5')).t === 'No main at all' && P.imKidChip(it('K2')).t === 'Using the family\'s main'
       && P.imKidChip(it('K4')).t === 'Search suppressed' && P.imKidChip(it('K1')).t === 'Buyable');
     P.IMQ.dims = new Map([['k3MAIN', [1500, 1500]], ['k3PT01', [800, 800]]]);
-    const card = sku => P.imCardHtml(it(sku));
-    ok('K3 card: big main (_SL400_), tick, "Buyable" pill, 9-slot strip (4 empty = dashed), yellow ring on MAIN (1500), red on 01 (800) and a red error ring on MAIN',
-      /_SL400_\.jpg/.test(card('K3')) && /class="im-sel" data-sku="K3"/.test(card('K3')) && /imx-pill is-ok">Buyable/.test(card('K3')) && (card('K3').match(/class="imx-ms/g) || []).length === 9
-      && (card('K3').match(/imx-ms is-empty/g) || []).length === 4 && /imx-ms is-err" data-view="K3" data-slot="MAIN"[^>]*>.*?imq-dot is-y/.test(card('K3')) && /data-slot="PT01"[^>]*>.*?imq-dot is-r/.test(card('K3')));
-    ok('…chips: "5/9" · "2 below 2000" · "picture error"', /imx-c">5\/9/.test(card('K3')) && /2 below 2000/.test(card('K3')) && />picture error</.test(card('K3')));
-    ok('K5 (no main at all): a red "No main picture" box and a "No main" chip', /imx-nomain"><b>No main picture/.test(card('K5')) && /imx-c is-bad">No main/.test(card('K5')));
-    ok('K4: "Suppressed" pill; K2 "Family\'s main"; hover buttons Copy all / Edit on every card', /imx-pill is-bad"[^>]*>Suppressed/.test(card('K4')) && /Family's main/.test(card('K2'))
-      && /data-copy="K1"[^>]*>Copy all/.test(card('K1')) && /data-edit="K1"[^>]*>Edit/.test(card('K1')));
-    // grouping
-    P.setFam('PAR');
+    ok('quality summary: K3 "5/9 pictures · 2 below 2000 · no swatch"; K1 "9/9 pictures"', P.imKidSummary(it('K3')).replace(/<[^>]+>/g, '') === '5/9 pictures · 2 below 2000 · no swatch'
+      && P.imKidSummary(it('K1')) === '9/9 pictures');
+    P.IM_OPEN.add('PAR'); P.IM_OPEN.add('solo:S1');   // families start closed: open them to see the rows
     P.imListRender();
     let html = P.el('imList').innerHTML;
-    ok('Group = Colour (the default): headings "Blue · 2 sizes", "Red · 2 sizes", "Teal · 1 listing"; the family title and parent SKU on top', P.getGroup() === 'colour'
-      && /<h3 class="imx-sec-h">Blue · 2 sizes<\/h3>/.test(html) && /Red · 2 sizes/.test(html) && /Teal · 1 listing/.test(html) && /<h2>Napkins parent<\/h2>/.test(html) && /Parent <span class="im-mono">PAR<\/span> · B0PAR/.test(html));
-    ok('…cards in a colour by size: K1 (18x18) before K2 (20x20)', html.indexOf('data-sku="K1"') < html.indexOf('data-sku="K2"') && P.getShown().join() === 'K1,K2,K3,K4,K5');
-    P.imGroupSet('none');
+    ok('family card: "4 children · 4 need pictures", Copy main of this family, Select all children, Open all / Close all', /5 children · <b class="is-need">4 need pictures<\/b>/.test(html)
+      && /data-fammain="PAR"/.test(html) && /data-famsel="PAR"/.test(html) && /data-foldall="1"/.test(html), (html.match(/\d+ children[^<]*<b[^>]*>[^<]*/) || [''])[0]);
+    ok('tiles: 160 px thumbnails for Amazon pictures (_SL160_), hover View · Copy · Replace', /_SL160_\.jpg/.test(html) && /data-view="K1" data-slot="PT01"/.test(html) && /data-repl="K1" data-slot="PT01"/.test(html) && /data-copy1="K1"/.test(html));
+    P.IM_OPEN.delete('PAR');
+    P.imListRender();
     html = P.el('imList').innerHTML;
-    ok('Group = None: one grid, no headings; remembered in this browser', !/imx-sec-h/.test(html) && (html.match(/class="imx-card[ "]/g) || []).length === 5 && store['sellora.imggroup'] === 'none');
-    P.setFam('');
-    P.imGroupSet('family');
-    html = P.el('imList').innerHTML;
-    ok('Group = Family (All families): one heading per family', /Napkins parent · 5 listings/.test(html) && /imx-sec-h">[^<]*· 1 listing/.test(html));
+    ok('a closed family shows only its header (no child rows), ▸ to open', !/data-sku="K1"/.test(html.replace(/data-fold[^>]*/g, '')) && /im-grp is-folded/.test(html) && /aria-expanded="false"/.test(html) && /data-sku="S1"/.test(html));
+    P.IM_OPEN.clear();
+    // density
+    P.el('paneImg').classList = cl();
+    P.imDensity('compact');
+    ok('density: Compact is applied (im-compact on the page) and remembered in this browser', P.el('paneImg').classList.contains('im-compact') && store['sellora.imgdensity'] === 'compact');
     const P2 = load({ im: true, ctx: { localStorage: ls } });
-    ok('…the next visit starts on the group chosen', P2.getGroup() === 'family');
-    P.imGroupSet('colour');
+    ok('…a new visit starts Compact', P2.getDense() === 'compact');
+    P.imDensity('comfortable');
+    ok('…back to Comfortable', !P.el('paneImg').classList.contains('im-compact') && store['sellora.imgdensity'] === 'comfortable');
     // Shift-range
     ok('Shift+click ticks a range in screen order (either direction); the first tick off-screen → just this one', P.imRangeSel(['a', 'b', 'c', 'd', 'e'], 'b', 'd').join() === 'b,c,d'
       && P.imRangeSel(['a', 'b', 'c', 'd', 'e'], 'e', 'c').join() === 'c,d,e' && P.imRangeSel(['a', 'b'], 'zz', 'b').join() === 'b');
@@ -342,10 +294,10 @@ function picture(W, H, box, edge) {
     P.setHover({ sku: 'K1', slot: 'PT02' });
     P.setClip(null);
     P.imKey({ key: 'c', target: { tagName: 'BODY' } });
-    ok('"C" over one picture of a strip copies that picture', P.getClip() && P.getClip().slots.PT02 === A('k1PT02') && Object.keys(P.getClip().slots).length === 1);
+    ok('"C" over a tile copies that picture', P.getClip() && P.getClip().slots.PT02 === A('k1PT02') && Object.keys(P.getClip().slots).length === 1);
     P.setHover({ sku: 'K2', slot: '' });
     P.imKey({ key: 'C', target: { tagName: 'BODY' } });
-    ok('"C" over a card copies all its pictures', P.getClip().sku === 'K2' && P.getClip().n === 9);
+    ok('"C" over a row copies all its pictures', P.getClip().sku === 'K2' && P.getClip().n === 9);
   }
 
   console.log('== the picture viewer ==');
@@ -412,51 +364,62 @@ function picture(W, H, box, edge) {
     ok('"Picture rules" line: Main pure white, ~85%, 2000 × 2000, JPEG/PNG, 2–10 MB (one line, opens for more)', /<details class="im-rules"><summary><b>Picture rules:<\/b> Main pure white, product fills ~85%, at least 2000 × 2000, JPEG\/PNG, 2–10 MB<\/summary>/.test(P.imRulesHtml()));
   }
 
-  console.log('== families in the sidebar, Show, search (filters families and cards), a big family, Select all ==');
+  console.log('== families: closed on load, open shows ALL children, close, no scroll jump, open all / close all, search opens ==');
   {
     const P = load({ im: true, ctx: { sqSendWithCheck: async () => {}, sqField: s => s, sqSummaryText: () => '' } });
     P.el('imBrand').value = 'SP';
     P.el('imFilter').value = 'all';
     P.el('imQ').value = '';
+    // a big family: 195 children (more than any old page of 40)
     const big = [{ sku: 'BIG', lvl: 'parent', asin: 'B0BIG', t: 'Big family', img: { MAIN: A('bigm') }, live: { MAIN: A('bigm') } }]
       .concat(Array.from({ length: 195 }, (_, i) => ({ sku: 'B' + i, psku: 'BIG', asin: 'B0B' + i, pt: 'NAPKIN', c: 'C' + (i % 7), z: '18x18', st: 'BUYABLE,DISCOVERABLE', img: full('b' + i, 3), live: full('b' + i, 3) })));
     P.IML.SP = { at: new Date(), items: ITEMS().concat(big) };
     P.imListRender();
-    let fams = P.el('imFams').innerHTML;
-    ok('families sorted by listings to fix: Big family (195) first, then Napkins parent (4)', fams.indexOf('data-im-fam="BIG"') < fams.indexOf('data-im-fam="PAR"') && /Big family.*195 listings.*is-att[^>]*>195</s.test(fams));
-    P.setFam('BIG');
-    P.imListRender();
     let html = P.el('imList').innerHTML;
-    ok('click a family → the main area shows it: ALL 195 cards (drawn in blocks on a real page), 7 colour headings', (html.match(/class="imx-card[ "]/g) || []).length === 195
-      && (html.match(/imx-sec-h/g) || []).length === 7 && /<h2>Big family<\/h2>/.test(html) && /aria-pressed="true"[^>]*title="Big family"|data-im-fam="BIG" aria-pressed="true"/.test(P.el('imFams').innerHTML));
-    P.setFam('');
-    P.el('imQ').value = 'k3';
-    P.imListAgain();
+    const rows = h => (h.match(/class="im-kid[ "]/g) || []).length;
+    ok('on load every family is CLOSED: headers only, no child row drawn', rows(html) === 0 && (html.match(/class="card im-grp is-folded"/g) || []).length === 3 && !/im-pager|data-pg=/.test(html));
+    ok('…the header counts stay: "195 children · 195 need pictures"', /195 children · <b class="is-need">195 need pictures<\/b>/.test(html));
+    P.imFamToggle('BIG');
     html = P.el('imList').innerHTML;
-    fams = P.el('imFams').innerHTML;
-    ok('search "k3": only the families with a match in the sidebar, only the matching card in the main area', /data-im-fam="PAR"/.test(fams) && !/data-im-fam="BIG"/.test(fams) && !/data-im-fam="solo:S1"/.test(fams)
-      && (html.match(/class="imx-card[ "]/g) || []).length === 1 && /data-sku="K3"/.test(html));
-    P.el('imQ').value = 'napkins parent';
-    P.imListAgain();
-    ok('a search that names the PARENT keeps its whole family (5 cards)', (P.el('imList').innerHTML.match(/class="imx-card[ "]/g) || []).length === 5);
-    P.el('imQ').value = 'zzz';
-    P.imListAgain();
-    ok('nothing matches: "No listings match the search" and a Show everything button', /No listings match the search “zzz”/.test(P.el('imList').innerHTML) && /id="imClearFilter"/.test(P.el('imList').innerHTML)
-      && /No family matches/.test(P.el('imFams').innerHTML));
-    P.el('imQ').value = '';
-    P.setShow('good');
-    P.imListAgain();
-    ok('Show "All good": only K1 and the Big family\'s fine listings — none of the ones needing work', !/data-sku="K3"/.test(P.el('imList').innerHTML) && /data-sku="K1"/.test(P.el('imList').innerHTML));
-    P.setShow('all');
-    P.setFam('PAR');
-    P.imListAgain();
-    P.IM_SEL.clear();
-    P.getShown().forEach(s => P.IM_SEL.add(s));
-    ok('Select all ticks every card on the page (the 5 of the family)', P.IM_SEL.size === 5 && P.getShown().join() === 'K1,K2,K3,K4,K5');
+    ok('▸ opens the family: ALL 195 children (no page limit, no "N shown" line)', rows(html) === 195 && !/d+ shown/.test(html) && !/continued/.test(html) && P.imIsOpen('BIG'));
+    P.imFamToggle('BIG');
+    ok('▾ closes it again', rows(P.el('imList').innerHTML) === 0 && !P.imIsOpen('BIG'));
+    // no scroll jump: only that card is drawn again, and the header is put back where it was
+    const scrolled = [];
+    const P2 = load({ im: true, window: { scrollBy: (x, y) => scrolled.push(y), scrollTo() {} }, ctx: { CSS: { escape: s => s }, sqSendWithCheck: async () => {}, sqField: s => s, sqSummaryText: () => '' } });
+    P2.el('imBrand').value = 'SP'; P2.el('imFilter').value = 'all'; P2.el('imQ').value = '';
+    P2.IML.SP = { at: new Date(), items: ITEMS() };
+    let replaced = null;
+    let listDrawn = 0;
+    const oldCard = { querySelector: () => ({ getBoundingClientRect: () => ({ top: 300 }) }), replaceWith: x => { replaced = x; } };
+    const freshCard = { querySelector: s => (s === '.im-grp-h' ? { getBoundingClientRect: () => ({ top: 340 }) } : null), querySelectorAll: () => [] };
+    P2.el('imList').querySelector = sel => (/data-grp="PAR"/.test(sel) ? oldCard : null);
+    Object.defineProperty(P2.el('imList'), 'innerHTML', { set() { listDrawn++; }, get() { return ''; } });
+    const doc = { addEventListener() {}, querySelectorAll: () => [], querySelector: () => null, createElement: () => { const box = {}; Object.defineProperty(box, 'innerHTML', { set(h) { doc.html = h; } }); box.firstElementChild = freshCard; return box; } };
+    const P3 = load({ im: true, window: { scrollBy: (x, y) => scrolled.push(y), scrollTo() {} }, ctx: { document: doc, CSS: { escape: s => s }, sqSendWithCheck: async () => {}, sqField: s => s, sqSummaryText: () => '' } });
+    P3.el('imBrand').value = 'SP'; P3.el('imFilter').value = 'all'; P3.el('imQ').value = '';
+    P3.IML.SP = { at: new Date(), items: ITEMS() };
+    P3.el('imList').querySelector = P2.el('imList').querySelector;
+    let drawn = 0;
+    Object.defineProperty(P3.el('imList'), 'innerHTML', { set() { drawn++; }, get() { return ''; } });
+    P3.imFamToggle('PAR');
+    ok('opening a family draws only its card again (not the whole list) and keeps its header where it was: moved 40 px → scrolled back 40 px',
+      replaced === freshCard && drawn === 0 && scrolled.length === 1 && scrolled[0] === 40 && /data-sku="K1"/.test(doc.html || ''), JSON.stringify({ drawn, scrolled }));
+    // remembered while on the screen; open all / close all; a search / filter opens the families it matches
+    P.IM_OPEN.add('PAR');
+    P.el('imFilter').value = 'few';
     P.imListRender();
-    ok('…the button then says "Untick all"', /data-im-selall="1"[^>]*>Untick all/.test(P.el('imList').innerHTML));
-    P.imUploadPick();
-    ok('Upload pictures with 5 ticked and nothing open: asks to tick one card (or open one)', /Tick one card \(or open one\)/.test(P.el('imMsg').textContent));
+    ok('a filter opens the families it matches (K3, fewer than 7) — and the family opened before stays open', /data-sku="K3"/.test(P.el('imList').innerHTML) && P.imIsOpen('PAR'));
+    P.imFamToggle('PAR');
+    ok('…a family closed by hand under that filter stays closed', !P.imIsOpen('PAR') && !/data-sku="K3"/.test(P.el('imList').innerHTML));
+    P.el('imFilter').value = 'all';
+    P.el('imQ').value = 'b17';
+    P.imListAgain();      // what typing in the search does
+    ok('a search that matches children opens their family (B17 in BIG)', /data-sku="B17"/.test(P.el('imList').innerHTML) && P.imIsOpen('BIG'));
+    P.el('imQ').value = '';
+    P.imListAgain();
+    ok('…search cleared: BIG closes again (it was opened by the search, not by hand)', !P.imIsOpen('BIG'));
+    ok('Open all / Close all in the bar', /data-foldall="0"[^>]*>Open all/.test(P.el('imList').innerHTML) && /data-foldall="1"[^>]*>Close all/.test(P.el('imList').innerHTML));
   }
 
   console.log(`\n${pass} passed, ${fail} failed`);
