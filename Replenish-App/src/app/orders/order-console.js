@@ -67,8 +67,11 @@ async function ensureOrd() {
 /** Does this SKU need cutting: the override first, then the master row, then yes. */
 function ordCutReq(sku) {
   const k = obUC(sku);
-  if (ORD.req && k in ORD.req) return ORD.req[k] !== false;
   const m = cutSkuOf(sku);
+  /* EMBROIDERY IS NEVER CUT — permanent (Ravi, 15 Nov: "embroidery ke liye cut not required hota h permanent"), whatever a record
+   * or an override says. 77 records still said "cutting required" (63 custom, 14 master) and were set to false the same day. */
+  if (m && /embroid/i.test(String(m.articleType || '') + ' ' + String(m.subtype || ''))) return false;
+  if (ORD.req && k in ORD.req) return ORD.req[k] !== false;
   return !m || m.cuttingRequired !== false;
 }
 

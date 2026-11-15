@@ -182,10 +182,14 @@ function ordLines() {
       && ORD_IX.press === press && ORD_IX.pressN === press.length
       && ORD_IX.qc === qcSrc && ORD_IX.qcN === qcSrc.length
       /* The hand-overs and a quilt's old counters live on pt_shopProd — a changed record must move the line. */
-      && ORD_IX.sp === (PTG.shopProd || null)) return ORD_IX.rows;
+      && ORD_IX.sp === (PTG.shopProd || null)
+      /* …and the Custom SKUs list (15 Nov): lines built before it arrived read a custom SKU as "not known — cutting required"
+       * (CPCFP011-24, an embroidery placemat, showed Cut on the SHP board) and kept that until something else changed. */
+      && ORD_IX.cust === ((typeof MDBX !== 'undefined' && MDBX.custom) || null)) return ORD_IX.rows;
   const out = ordLinesBuild();
   ORD_IX = { ob, obN: ob.length, base, baseN: base.length, cut, cutN: cut.length,
-    press, pressN: press.length, mdb: mdbSrc, mdbN: mdbSrc.length, qc: qcSrc, qcN: qcSrc.length, sp: PTG.shopProd || null, rows: out };
+    press, pressN: press.length, mdb: mdbSrc, mdbN: mdbSrc.length, qc: qcSrc, qcN: qcSrc.length, sp: PTG.shopProd || null,
+    cust: (typeof MDBX !== 'undefined' && MDBX.custom) || null, rows: out };
   return out;
 }
 function ordLinesBuild() {
