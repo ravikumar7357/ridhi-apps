@@ -186,8 +186,10 @@ function obPcsPerPack(sku, articleType, articleSubtype) {
   const hay = [articleType, articleSubtype].join(' ');
   /* A SET WRITES ITS SIZE INTO THE SKU. RCNB374-12 is twelve napkins; RTME-147-8 eight mats. */
   if (/napkin|placemat|place mat|table ?mat/i.test(hay) || /^(RCN|RCCN|CPCN|RTME)/.test(s)) {
-    const n = s.match(/-(\d{1,2})$/);
-    if (n && +n[1] >= 1 && +n[1] <= 48) return +n[1];
+    /* …and -100 is a set of a hundred (Ravi, 15 Nov: "SKU ke end me 100 h meaning 100 pcs" — RCNE502-100; 226 such SKUs, the
+     * master's pack box empty on them). Other numbers past 48 are design or size codes (RTME-502, RCNB33-2020), not a count. */
+    const n = s.match(/-(\d{1,3})$/);
+    if (n && ((+n[1] >= 1 && +n[1] <= 48) || +n[1] === 100)) return +n[1];
     /* A CPC NAPKIN CODE WITH NO SIZE AFTER IT IS A SET OF FOUR (Ravi, 29 Oct: CPCN007 = 4 pcs, CPCN005-12 = 12 pcs). */
     if (/^CPCN/.test(s) && !/-\d+$/.test(s)) return 4;
   }

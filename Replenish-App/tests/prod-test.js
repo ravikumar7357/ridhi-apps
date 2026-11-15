@@ -10168,6 +10168,8 @@ console.log('\n== a Shopify order is packs, the factory makes pieces ==');
   ok('a pillow cover the master packs in 2 is 2 pieces a pack', A.obPcsPerPack('RPCRU212-2424') === 2);
   ok('a napkin not in the master is the number after its last dash', A.obPcsPerPack('RCNB374-12') === 12
      && A.obPcsPerPack('RTME-147-8') === 8);
+  ok('…and a napkin ending -100 is a set of a hundred (15 Nov); -502 is a design code, not a count', A.obPcsPerPack('RCNE502-100') === 100
+     && A.obPcsPerPack('RTME-502') !== 502);
   /* ===== a sales-team line completed by hand from ready stock (29 Oct) ===== */
   { const keepG = A.PTG(), keepF = A.FGI(), wasN = NET.on, wasA = ME.admin; ME.admin = true; NET.on = true; NET.store = {}; NET.calls = [];
     A.setPTG(Object.assign({}, keepG, { ob: [{ id: 'ob_so1', orderNo: 'SO-STK-1', sku: 'FLT-9', qty: 10, src: 'SO', orderDate: '2026-10-20' }] }));
