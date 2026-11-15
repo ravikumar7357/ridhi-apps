@@ -28562,6 +28562,10 @@ const shpbIsShp = () => shpbKind() === 'shp';
 function shpbBelongs(r) {
   const k = SHPB_KINDS[typeof ordView === 'function' ? ordView() : ''];
   if (!k || k[0] === 'shp') return shpbOwns(r);
+  /* EVERY AMAZON ORDER (Ravi, 15 Nov: "jitne bhi amazon ke order h unko amz board me shift krdo"): the AMZ board shows Amazon lines made
+   * by another maker too (12 Shree Sai lampshades were missing, CPCLS-CO-002…); only a pillow insert stays off, as it never opens in
+   * production. The B2B and SPY boards still show Ridhi's own lines. */
+  if (k[0] === 'amz') return String(r.orderNo || '').split('-')[0] === 'AMZ' && !(typeof shpInsertProduct === 'function' && shpInsertProduct(r.sku));
   return String(r.orderNo || '').split('-')[0] === k[2] && shpbIsMine(r);
 }
 /** The date typed for a line, else the date PPC planned it ready, else its make-to-order due date. */
