@@ -10170,6 +10170,9 @@ console.log('\n== a Shopify order is packs, the factory makes pieces ==');
      && A.obPcsPerPack('RTME-147-8') === 8);
   ok('…and a napkin ending -100 is a set of a hundred (15 Nov); -502 is a design code, not a count', A.obPcsPerPack('RCNE502-100') === 100
      && A.obPcsPerPack('RTME-502') !== 502);
+  { const keep = A.MDBX().custom; A.MDBX().custom = [{ sku: 'CPCFP014-12', articleType: 'Placemat', subtype: 'Embroidery Placemat' }];
+    ok('…and a placemat set on the Custom SKUs list only is read from there: CPCFP014-12 is 12', A.obPcsPerPack('CPCFP014-12') === 12);
+    A.MDBX().custom = keep; }
   /* ===== a sales-team line completed by hand from ready stock (29 Oct) ===== */
   { const keepG = A.PTG(), keepF = A.FGI(), wasN = NET.on, wasA = ME.admin; ME.admin = true; NET.on = true; NET.store = {}; NET.calls = [];
     A.setPTG(Object.assign({}, keepG, { ob: [{ id: 'ob_so1', orderNo: 'SO-STK-1', sku: 'FLT-9', qty: 10, src: 'SO', orderDate: '2026-10-20' }] }));

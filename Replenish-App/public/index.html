@@ -17986,9 +17986,12 @@ function obPackFamily(sku) {
 function obPcsPerPack(sku, articleType, articleSubtype) {
   const s = obUC(sku);
   const m = mdbOf(s);
-  const p = m ? parseInt(String(m.packOf || '').replace(/[^0-9]/g, ''), 10) : 0;
+  /* NOT IN THE MASTER: the Custom SKUs list says what it is (Ravi, 15 Nov: CPCFP014-12, an embroidery placemat set of 12, read as 1 —
+   * the order line carried no article and CPCFP is not one of the set prefixes below). */
+  const cu = !m && typeof ptCustomOf === 'function' ? ptCustomOf(s) : null;
+  const p = (m || cu) ? parseInt(String((m || cu).packOf || '').replace(/[^0-9]/g, ''), 10) : 0;
   if (p > 0) return p;
-  const hay = [articleType, articleSubtype].join(' ');
+  const hay = [articleType || (cu && cu.articleType), articleSubtype || (cu && cu.subtype)].join(' ');
   /* A SET WRITES ITS SIZE INTO THE SKU. RCNB374-12 is twelve napkins; RTME-147-8 eight mats. */
   if (/napkin|placemat|place mat|table ?mat/i.test(hay) || /^(RCN|RCCN|CPCN|RTME)/.test(s)) {
     /* …and -100 is a set of a hundred (Ravi, 15 Nov: "SKU ke end me 100 h meaning 100 pcs" — RCNE502-100; 226 such SKUs, the
