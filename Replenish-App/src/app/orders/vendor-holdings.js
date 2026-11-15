@@ -648,7 +648,8 @@ function ordApply(rows, f, skip) {
      * dropdown still offers the values it would reach. The dates have no dropdown to fill — and the
      * lists they DO narrow should stay narrowed, so that picking a month leaves only the orders of
      * that month in "All orders". */
-    if (!ptInRange(r && r.orderDate, f.d1, f.d2)) return false;
+    /* f.dateOf: a screen that dates its lines another way (the SHP board: the day a line came to production, 15 Nov) */
+    if (!ptInRange(r && (f.dateOf ? f.dateOf(r) : r.orderDate), f.d1, f.d2)) return false;
     if (skip !== 'q' && f.q) {
       /* The Shopify order number and the adjustment id are searched too. Somebody chasing an order
        * has the customer's number in front of them, not ADJ-1001 — and a search box that cannot

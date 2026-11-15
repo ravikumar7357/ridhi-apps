@@ -25564,7 +25564,8 @@ function ordApply(rows, f, skip) {
      * dropdown still offers the values it would reach. The dates have no dropdown to fill — and the
      * lists they DO narrow should stay narrowed, so that picking a month leaves only the orders of
      * that month in "All orders". */
-    if (!ptInRange(r && r.orderDate, f.d1, f.d2)) return false;
+    /* f.dateOf: a screen that dates its lines another way (the SHP board: the day a line came to production, 15 Nov) */
+    if (!ptInRange(r && (f.dateOf ? f.dateOf(r) : r.orderDate), f.d1, f.d2)) return false;
     if (skip !== 'q' && f.q) {
       /* The Shopify order number and the adjustment id are searched too. Somebody chasing an order
        * has the customer's number in front of them, not ADJ-1001 — and a search box that cannot
@@ -28760,7 +28761,7 @@ function shpbRow(r) {
   const prn = shpbPrinterOf(r);
   const tips = { prcv: 'Owed by the printer − printed cloth received back on the challan', cut: 'Still to cut − cut so far', issue: 'Cut and not yet issued − issued to karigars', receive: 'Out with karigars − received back', qc: 'Received, not checked − passed QC', press: 'Passed QC, not pressed − pressed' };
   const stuck = shpbStuck(r);
-  return (stuck ? '<tr style="background:#fef2f2;box-shadow:inset 4px 0 0 #dc2626">' : '<tr>') + '<td class="frz" style="' + SHPB_PAD + 'text-align:left;white-space:nowrap;font-size:12px">' + esc(shpbDmy(ptIsoDate(r.orderDate)))
+  return (stuck ? '<tr style="background:#fef2f2;box-shadow:inset 4px 0 0 #dc2626">' : '<tr>') + '<td class="frz" style="' + SHPB_PAD + 'text-align:left;white-space:nowrap;font-size:12px">' + esc(shpbDmy(shpbDateOf(r)))
     + (stuck ? `<div title="Nothing done on this line since ${esc(shpbDmy(stuck.since))} — Sundays not counted"><span class="pill" style="background:#dc2626;color:#fff;font-size:10px">Stuck ${nf(stuck.days)} day${stuck.days === 1 ? '' : 's'}</span></div>`
       + `<div style="font-size:10.5px;color:#b91c1c;white-space:normal;max-width:110px">last step: ${esc(stuck.at)} · since ${esc(shpbDmy(stuck.since))}</div>` : '') + '</td>'
     + '<td style="' + SHPB_PAD + 'text-align:left;white-space:nowrap;line-height:1.25"><a href="#" data-ordj="' + esc(r.orderNo) + '" style="color:inherit;text-decoration:underline dotted;font-weight:700">'
@@ -28839,7 +28840,7 @@ function shpbStuck(r) {
   return out;
 }
 function shpbView() {
-  const f = ordFilters(), all = ordLines().filter(r => shpbBelongs(r) && !(typeof flowIsBack === 'function' && flowIsBack(r))), shown = ordApply(all, f);
+  const f = Object.assign(ordFilters(), { dateOf: shpbDateOf }), all = ordLines().filter(r => shpbBelongs(r) && !(typeof flowIsBack === 'function' && flowIsBack(r))), shown = ordApply(all, f);
   const sOf = r => shpbStages([r]);
   const pend = shown.filter(r => r.open && sOf(r).prsD + sOf(r).stk < (+r.qty || 0));
   const done = shown.filter(r => { if (!r.open) return true; return sOf(r).prsD > 0 || sOf(r).stk > 0; });
@@ -28894,7 +28895,7 @@ function renderShpBoard() {
   if (tab === 'done') return renderShpBoardDone(list);
   if (!list.length) { ptEmpty('odTable', SHPB.stage ? 'No line is waiting at that stage.' : 'No ' + ({ shp: 'Shopify', amz: 'Amazon', b2b: 'B2B', spy: 'SPY' }[shpbKind()]) + ' order is pending.'); return; }
   SHPB_FILLCOL = list.some(shpbIsQuilt);   // the Filler vendor column only when a quilt is on the list
-  const rows = ordNewest(list.slice().sort((a, b) => String(a.orderDate).localeCompare(String(b.orderDate)) || a.orderNo.localeCompare(b.orderNo) || a.sku.localeCompare(b.sku)));
+  const rows = ordNewest(list.slice().sort((a, b) => shpbDateOf(a).localeCompare(shpbDateOf(b)) || a.orderNo.localeCompare(b.orderNo) || a.sku.localeCompare(b.sku)));
   const th = (t, c) => `<th class="${c || ''}" style="${SHPB_PAD}${c === 'num' ? SHPB_STAGE_BG : ''}">${t}</th>`;
   const head = '<thead><tr><th class="frz" style="' + SHPB_PAD + 'text-align:left">Date</th><th style="' + SHPB_PAD + 'text-align:left">Order ID</th><th style="' + SHPB_PAD + 'text-align:left">Item</th>'
     + '<th class="num" style="' + SHPB_PAD + '">Pcs</th><th style="' + SHPB_PAD + 'text-align:left">Printer</th>'
@@ -28916,7 +28917,7 @@ function renderShpBoardDone(list) {
     return { s, press: pr + (stk ? `<div style="font-size:11px"><b>${nf(stk)}</b> from stock</div>` : '') || '<span class="muted">—</span>' }; };
   const link = r => `<a href="#" data-ordj="${esc(r.orderNo)}" style="color:inherit;text-decoration:underline dotted;font-weight:700">${esc(String(r.shopOrderNo || r.orderNo).replace(/^#\s*/, ''))}</a>`;
   const wRow = r => { const { s, press } = common(r), k = shpbKey(r.orderNo, r.sku), ns = (SHPB.ship || {})[k], pd = ((SHPB.pressBy || {})[k] || {}).last || '';
-    return `<tr><td style="${SHPB_PAD}white-space:nowrap;font-size:12px">${esc(shpbDmy(pd || ptIsoDate(r.orderDate)))}</td><td style="${SHPB_PAD}text-align:left">${link(r)}</td>${shpbItem(r)}<td class="num" style="${SHPB_PAD}"><b>${nf(r.qty)}</b></td>`
+    return `<tr><td style="${SHPB_PAD}white-space:nowrap;font-size:12px">${esc(shpbDmy(pd || shpbDateOf(r)))}</td><td style="${SHPB_PAD}text-align:left">${link(r)}</td>${shpbItem(r)}<td class="num" style="${SHPB_PAD}"><b>${nf(r.qty)}</b></td>`
       + `<td style="${SHPB_PAD}text-align:left;white-space:nowrap">${press}</td><td class="num" style="${SHPB_PAD}">${nf(s.handD)}</td>`
       + `<td style="${SHPB_PAD}text-align:left;white-space:nowrap">${nf(s.handW)} to accept `
       + (ns && ns.state === 'notrecv' ? `<span class="pill pill-out" title="${esc((ns.by || '').split('@')[0] + ' · ' + (ns.note || ''))}">not received${ns.note ? ' · ' + esc(String(ns.note).slice(0, 30)) : ''}</span> ` : '')
@@ -29056,6 +29057,11 @@ async function shpbPressSave(r, v) {
 }
 const shpbAfter = () => { try { renderOrd(); } catch (e) { /* the next draw shows it */ } };
 
+/* THE DATE IT CAME TO PRODUCTION (Ravi, 15 Nov: "yaha production me jab order aay wo date show honi chahiye n ki jis date me order aaya
+ * — aaj ke order date se implement hona chahiye, old order mat chhuna"). A line put on the book from 15 Nov shows (and is filtered and
+ * sorted by) the day it was opened in production (openIso: openedAt / uploadedAt); every line before that keeps its order date. */
+const SHPB_PROD_DATE_FROM = '2026-11-15';
+const shpbDateOf = r => (r && r.openIso && String(r.openIso) >= SHPB_PROD_DATE_FROM) ? String(r.openIso).slice(0, 10) : (ptIsoDate(r && r.orderDate) || '');
 const shpbCanMcf = () => typeof ordCanClose === 'function' && ordCanClose() && typeof ordCloseRun === 'function';
 const shpbCanBack = () => typeof flowBackWrite === 'function' && !!(ME.admin || shpbMay('plan') || (typeof flowCanBack === 'function' && flowCanBack()));
 function shpbDialog(act, key) {
