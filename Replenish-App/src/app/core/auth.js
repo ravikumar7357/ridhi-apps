@@ -215,6 +215,11 @@ onAuthStateChanged(auth, async user => {
     if (b) { b.style.display = ''; const t = b.querySelector && b.querySelector('.nav-t'); (t || b).textContent = 'Shopify Orders'; }
     ['book', 'bookdone'].forEach(k => { const o = $('odView') && $('odView').querySelector('option[value="' + k + '"]'); if (o) o.remove(); });
     if ($('odView')) $('odView').value = 'shopsku';
+  } else {
+    /* THE SHOPIFY / ONLINE BY-SKU VIEW IS GONE (Ravi, 15 Nov: "remove this window" — the whole Shopify view). Shopify lines are worked
+     * on the SHP board; the Order Console opens on the order book. A Shopify-only account keeps it — it is the one screen it has. */
+    const o = $('odView') && $('odView').querySelector('option[value="shopsku"]'); if (o) o.remove();
+    if ($('odView') && (!$('odView').value || $('odView').value === 'shopsku')) $('odView').value = 'book';
   }
   /* THE SHOPIFY RETURNS TEAM (15 Oct): its one screen is Shopify Orders in the narrow form (returns-team.js). */
   if (typeof SHOP_RET_ONLY === 'function' && SHOP_RET_ONLY()) {

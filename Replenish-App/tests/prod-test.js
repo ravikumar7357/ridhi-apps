@@ -22630,7 +22630,7 @@ console.log('\n== Orders — one line per order (Ravi, 28 Sep: picked "Clean she
   ok('an order with no work for 20 days is late', a && a.late === true && !s.late);
   els.odView.value = 'orders'; A.renderOrd();
   ok('the view draws one row per order with its step', /data-ordj="SHP-8001"/.test(els.odTable.innerHTML) && (els.odTable.innerHTML.match(/data-ordj="SHP-8001"/g) || []).length === 1 && /With karigar/.test(els.odTable.innerHTML));
-  ok('…with the step tiles and the platform buttons above', /data-odkpi="os:karigar"/.test(els.odKpis.innerHTML) && /data-ordsrc="SHP"/.test(els.odKpis.innerHTML));
+  ok('…with the step tiles and the platform buttons above — Shopify no longer among them (15 Nov)', /data-odkpi="os:karigar"/.test(els.odKpis.innerHTML) && /data-ordsrc="AMZ"/.test(els.odKpis.innerHTML) && !/data-ordsrc="SHP"/.test(els.odKpis.innerHTML));
   A.setORD_KPI('os:late'); A.renderOrd();
   ok('the Late tile shows only the late order', /AMZ-01092026-09/.test(els.odTable.innerHTML) && !/data-ordj="SHP-8001"/.test(els.odTable.innerHTML));
   A.setORD_KPI(''); els.odSrc.value = 'SHP'; A.renderOrd();
@@ -22661,9 +22661,8 @@ await (async () => {
   const err = vend ? await A.voPlace() : 'no vendor in the harness';
   ok('a vendor order without its sales channel is refused, saying what to pick', /Pick who this order is for/.test(err || ''), err);
   delete els.vof_channel; els.vof_vendor.value = wasV; A.setVOF(wasVOF);
-  /* The platform buttons: Shopify is worked on the combined view, the others in the order book. */
-  els.odView.value = 'shopsku';
-  ok('on the combined view Shopify is lit', /data-ordsrc="SHP" style="[^"]*background:#17202B/.test(A.ordSrcChips()));
+  /* The platform buttons: Shopify and Online left them with their by-SKU view (Ravi, 15 Nov: "remove this window"). */
+  ok('the platform buttons no longer offer Shopify or Online', !/data-ordsrc="(SHP|ONL)"/.test(A.ordSrcChips()) && /data-ordsrc="AMZ"/.test(A.ordSrcChips()));
   els.odView.value = 'book'; els.odSrc.value = 'AMZ';
   ok('in the order book the chosen platform is lit', /data-ordsrc="AMZ" style="[^"]*background:#17202B/.test(A.ordSrcChips()));
   els.odSrc.value = '';

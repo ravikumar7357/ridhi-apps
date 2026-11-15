@@ -84,7 +84,7 @@ function renderOrdSheet() {
     + (src === v ? 'background:#17202B;color:#fff;border:1px solid #17202B' : 'background:#fff;color:#17202B;border:1px solid #D5DCE5') + `">${l}</button>`;
   $('odKpis').innerHTML = `<div style="display:flex;flex-direction:column;gap:10px;width:100%;margin-bottom:14px">
     <div style="display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:8px">${ORD_SHEET_STEPS.map(tile).join('') + tile(ORD_SHEET_LATE)}</div>
-    ${SHOP_ONLY() ? '' : `<div style="display:flex;gap:8px;flex-wrap:wrap">${chip('', 'All')}${chip('SHP', 'Shopify')}${chip('AMZ', 'Amazon')}${chip('B2B', 'B2B')}</div>`}</div>`;
+    ${SHOP_ONLY() ? '' : `<div style="display:flex;gap:8px;flex-wrap:wrap">${chip('', 'All')}${chip('AMZ', 'Amazon')}${chip('B2B', 'B2B')}</div>`}</div>`;
   const pill = st => { const x = ORD_SHEET_STEPS.find(y => y[0] === st) || ORD_SHEET_STEPS[0];
     return `<span style="display:inline-block;padding:3px 10px;border-radius:999px;font-weight:700;font-size:12.5px;background:${x[3]};color:${x[2]}">${esc(x[1])}</span>`; };
   const head = ordHead([['Order', ''], ['Platform', ''], ['Pcs', 'num'], ['Step', ''], ['With', ''], ['Done', ''], ['Days', 'num']]);
@@ -127,7 +127,8 @@ function ordSrcChips() {
   const on = ordView() === 'shopsku' ? (ORD.mtoSrc === 'ONL' ? 'ONL' : 'SHP') : ((($('odSrc') || {}).value) || '');
   const chip = (v, l) => `<button type="button" data-ordsrc="${v}" style="height:38px;padding:0 16px;border-radius:999px;font:inherit;font-weight:700;cursor:pointer;box-shadow:none;transform:none;`
     + (on === v ? 'background:#17202B;color:#fff;border:1px solid #17202B' : 'background:#fff;color:#17202B;border:1px solid #D5DCE5') + `">${l}</button>`;
-  return `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;width:100%">${chip('', 'All')}${chip('SHP', 'Shopify')}${chip('ONL', 'Online')}${chip('AMZ', 'Amazon')}${chip('B2B', 'B2B')}</div>`;
+  /* Shopify and Online left the chips with their by-SKU view (15 Nov) — the SHP board is where they are worked. */
+  return `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;width:100%">${chip('', 'All')}${chip('AMZ', 'Amazon')}${chip('B2B', 'B2B')}</div>`;
 }
 
 function renderOrdTrack() {
