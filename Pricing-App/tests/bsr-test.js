@@ -8,6 +8,11 @@ const fs = require('fs'), path = require('path');
 let pass = 0, fail = 0;
 const ok = (name, cond, extra) => { if (cond) { pass++; console.log('  PASS ' + name); } else { fail++; console.log('  FAIL ' + name + (extra ? ' — ' + extra : '')); } };
 const SRC = fs.readFileSync(path.join(__dirname, '..', 'src', 'app', 'listing', 'bsr-audit.js'), 'utf8');
+// THE ONE "Suppressed" rule, from the real listing-rules.js (lrWholeCut + the rule's block)
+const RULES = fs.readFileSync(path.join(__dirname, '..', 'src', 'app', 'listing', 'listing-rules.js'), 'utf8');
+const cutAt = RULES.indexOf('function lrWholeCut');
+const SHOP = new Function(RULES.slice(cutAt, RULES.indexOf('\n}', cutAt) + 2) + '\n'
+  + RULES.slice(RULES.indexOf('const LR_SUPPRESS_ACTS'), RULES.indexOf('// The same, for one listing')) + '\nreturn { lrShopOf };')();
 const strip = h => String(h).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
 
 function load(opts) {
@@ -28,7 +33,7 @@ function load(opts) {
     lrPictures: (row) => (o.gaps && o.gaps.includes(row.sku) ? { main: '' } : { main: 'x' }), lrAplus: () => ({ v: true }),
     parentName: (b, a) => 'Name of ' + a, parentNameCell: (b, a, t) => `<span data-pname="${b}|${a}">${t}</span>`, wireParentNameCells() {},
     WEEKLY: o.WEEKLY || { rows: {} }, loadWeekly: async () => {}, D_HDA: o.D_HDA || [], D_PLAN: o.D_PLAN || {}, dPlanSpan: (w, p) => ({ start: (p && p.s) || w, end: o.planEnd || w }),
-    loadDeals: async () => {}, AMZ: { map: o.AMZ || new Map() }, amzEnsure: async () => {}, LH: { rows: o.LH || [], err: '', f: {} }, lhLoad: async () => o.LH || [],
+    loadDeals: async () => {}, lrShopOf: SHOP.lrShopOf, AMZ: { map: o.AMZ || new Map() }, amzEnsure: async () => {}, LH: { rows: o.LH || [], err: '', f: {} }, lhLoad: async () => o.LH || [],
     lhWhat: row => row.field || 'Title', showTab() {}, ME: { email: 'v@x.com', tabs: ['bsr'] }, API: { url: 'x' },
     setInterval: () => 0, clearInterval() {}, setTimeout: (fn) => 0, clearTimeout() {},
   };

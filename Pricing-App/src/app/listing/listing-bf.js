@@ -11,7 +11,7 @@
  *   second copy of any rule. Data not read yet is ○ — never a guess.
  *   B🟢 F🟢 fixed and showing → the child leaves the row (fix-all.js) · B🟢 F🔴 Amazon's side (false error, Amazon not showing yet) ·
  *   B🔴 F🔴 our team (true error) · B🔴 F🟢 "Our team — shoppers not affected yet" (Seller Central has a wrong value; the page looks
- *   fine, but Amazon can suppress it later). F is 🔴 for a suppressed or not-buyable listing (bfShop), ○ only when not known.
+ *   fine, but Amazon can suppress it later). F is 🔴 only for a suppressed or (live) not-buyable listing (bfShop → lrShopOf), ○ only when not checked.
  * DISPLAY ONLY: it tags, it never moves a problem between levels — Listing Health's / the Workspace's counts are healthOf's, untouched.
  * RE-CHECK: the Sellora sync (listing-sync.js, ONE browser for everybody, every 15 minutes) reads the B🟢 F🔴 children first — bfDue
  *   names them. When Amazon shows the fix the child leaves its row by itself. Still B🟢 F🔴 BF_MAX_DAYS after it was first seen: no
@@ -58,16 +58,10 @@ const BF_PICS_F = ['images_small', 'main_not_square', 'images_duplicate', 'main_
 // Rules on values shoppers never see as such, or the catalogue does not give back: B only.
 const BF_B_ONLY = ['bullets_below', 'desc_below', 'keyword_bytes'];
 const BF_BUY = ['inactive_with_stock', 'no_price'];
-// Amazon's codes that mean the listing is suppressed (hidden from shoppers) even when its status still says BUYABLE.
-const BF_SUPPRESS = ['18320'];
-/** What shoppers get (F) from Amazon's status and issues: 'r' suppressed or not buyable (no BUYABLE, BUYABLE but not DISCOVERABLE —
- *  not in search —, or a suppression code / message), 'g' buyable and in search, 'u' only when the status is not known. */
-function bfShop(amz) {
-  if (!amz || amz.st == null || amz.st === '') return 'u';
-  const st = String(amz.st).toUpperCase().split(/[\s,]+/).filter(Boolean);
-  if (!st.includes('BUYABLE') || !st.includes('DISCOVERABLE')) return 'r';
-  const said = (amz.errs || []).map(issue => issue.c + ' ' + issue.m).join(' ') + ' ' + (amz.im || '');
-  return BF_SUPPRESS.some(code => said.includes(code)) || /suppress/i.test(said) ? 'r' : 'g';
+/** What shoppers get (F): THE ONE RULE (lrShopOf, listing-rules.js) — 'r' suppressed or not buyable (live), 'u' not checked, 'g'
+ *  otherwise. An ERROR issue alone keeps F green (B shows the error). */
+function bfShop(amz, row) {
+  return lrShopF(lrShopOfAmz(amz, row));
 }
 
 /** Who fixes it, from the two answers: 'team' | 'amazon' | 'scwrong' | 'unread' | 'done' | 'none'. */
@@ -90,7 +84,7 @@ function bfCalc(kid, hit, ctx) {
   };
   const withPics = pics => Object.assign({}, row, { _f: Object.assign({}, facts, { pics }) });
   const amz = facts.amz;
-  const buy = bfShop(amz);
+  const buy = bfShop(amz, row);
   const shownRead = row.titleSrc === 'live' || row.titleSrc === 'snapshot';
   const catPics = facts.pics && (facts.pics.src === 'live' || facts.pics.src === 'iml');
   if (det === 'title_not_live') return { b: row.submittedTitle ? 'g' : 'u', f: row.submittedTitle && shownRead ? run(row) : 'u' };

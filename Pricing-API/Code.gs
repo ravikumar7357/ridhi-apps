@@ -205,7 +205,7 @@ function doGet(e) {
     if (p.shopSkuBuild) return json_(shopSkuBuild_(String(p.shop || ''), Date.now() + 300000));
     // Whatever the nightly run has already worked out. One fast read instead of the whole grind.
     if (p.cache) {
-      var c = cacheRead_(String(p.cache));
+      var c = /^lm(Meta$|Listings_|Catalog_)/.test(String(p.cache)) ? lmCacheRead_(String(p.cache)) : cacheRead_(String(p.cache));   // lm* tabs: ListingMatch.gs's own spreadsheet
       return json_(c ? { ok: true, name: p.cache, data: c } : { ok: false, error: 'nothing cached for "' + p.cache + '" yet' });
     }
     if (p.cacheState) return json_({ ok: true, state: nState_() });
@@ -223,6 +223,7 @@ function doGet(e) {
     if (p.lfix === 'schema') return json_(lfixSchema_(p));
     if (p.lfix === 'history') return json_(lfixHistory_(p.sku));
     if (p.lfix === 'content') return json_(lfixContent_(p));
+    if (p.lfix === 'cat') { setBrand_(p.brand); var r = limgSp_('/catalog/2022-04-01/items?marketplaceIds=' + marketplaceId_() + '&identifiers=' + String(p.asins || '').split(',').map(function (s) { return s.trim(); }).filter(function (s) { return /^[A-Z0-9]{10}$/.test(s); }).slice(0, 20).join(',') + '&identifiersType=ASIN&pageSize=20&includedData=relationships,attributes', 'get'); return json_(r.code >= 300 ? limgErr_(r, 'Reading catalog') : { ok: true, items: r.body.items || [] }); }
     if (p.limg === 'history') return json_(limgHistory_(p.sku));
     if (p.limg === 'page') return json_(limgPage_(p));
     if (p.listing === 'audit') { setBrand_(p.brand); return json_(listingAudit_(p.asin)); }

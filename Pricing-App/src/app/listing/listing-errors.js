@@ -166,7 +166,7 @@ function leRender() {
       + `<th>Status</th><th style="text-align:left">What Amazon says</th><th></th></tr></thead>
       <tbody>${slice.map(({ x, iss }) => {
         const pic = (x.live || {}).MAIN || (x.img || {}).MAIN;
-        const state = imState(x);
+        const state = imState(x, brand);
         const hasImg = iss.some(issue => leKind(issue) === 'image');
         const hasOther = iss.some(issue => leKind(issue) !== 'image');
         return `<tr>
