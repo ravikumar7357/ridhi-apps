@@ -368,8 +368,8 @@ function doPost(e) {
     if (p.mcf === 'preview') return json_(mcfPreview_(p.order || {}));
     if (p.mcf === 'create')  return json_(mcfCreate_(p.order || {}));
     if (p.mcf === 'status')  return json_(mcfStatus_(p.mcfId, p.brand));
-    /* Tell Creator Setu what happened to a gift (CreatorOrders.gs). Needs a confirmed sign-in whatever REQUIRE_SIGNIN says. */
-    if (p.creator === 'report') return json_(coReport_(p, who));
+    /* Tell Creator Setu what happened to a gift (CreatorOrders.gs). The same line as main's Code.gs, which has no "who". */
+    if (p.creator === 'report') return json_(coReport_(p, typeof who === 'undefined' ? null : who));
     if (p.shopify === 'fulfil') {
       /* The tracking has to go to the store the order is actually in. */
       setShopBrand_(p.shop);

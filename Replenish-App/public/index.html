@@ -76853,6 +76853,12 @@ const croMoney = v => '$' + (Math.round((v || 0) * 100) / 100).toLocaleString('e
 function croMsg(t, bad) { CRO.msg = t || ''; CRO.bad = !!bad; const m = $('croMsg'); if (m) { m.textContent = CRO.msg; m.className = bad ? 'err' : 'muted'; } }
 
 /* ---------------- reading and writing ---------------- */
+/** A Firestore save: through the live mirror's fsSetDoc where this ERP has one (core/mirror.js on dev), else Firestore's
+ *  own setDoc — the same call, the same answer. typeof on a name that is not declared is safe. */
+function croSetDoc(ref, data, opt) {
+  const f = typeof fsSetDoc === 'function' ? fsSetDoc : setDoc;
+  return opt ? f(ref, data, opt) : f(ref, data);
+}
 async function croLoad(force) {
   if (CRO.loading && !force) return CRO.loading;
   CRO.loading = (async () => {
@@ -76881,7 +76887,7 @@ async function croSave(ref, patch, what) {
   /* MERGED, and never with "setu": that field is the backend's record of what Creator Setu has been told, and this page's
    * copy of it may be older than the backend's. */
   const write = Object.assign({}, next); delete write.setu;
-  try { await fsSetDoc(doc(db, CRO_COL, String(ref)), write, { merge: true }); }
+  try { await croSetDoc(doc(db, CRO_COL, String(ref)), write, { merge: true }); }
   catch (e) { return 'Not saved: ' + (e.message || e); }
   CRO.list[CRO.list.indexOf(o)] = next;
   if (next.status !== o.status) croReportSoon(ref);
@@ -77351,7 +77357,7 @@ function croNewOpen() {
         lines: [{ sku: v.sku, asin: '', title: (f && f.title) || '', color: (f && f.color) || '', size: (f && f.size) || '', quantity: v.qty, priceUsd: 0 }],
         status: 'New', source: 'team', approvedAt: now, createdAt: now, createdBy: ME.email, notes: '',
         log: [{ at: now, by: ME.email, what: 'typed by the team' }] };
-      try { await fsSetDoc(doc(db, CRO_COL, ref), rec); } catch (e) { return 'Not saved: ' + (e.message || e); }
+      try { await croSetDoc(doc(db, CRO_COL, ref), rec); } catch (e) { return 'Not saved: ' + (e.message || e); }
       CRO.list.unshift(rec);
       croMsg(ref + ' created — check it and send it.');
       setTimeout(() => { croRender(); croOpen(ref); }, 0);

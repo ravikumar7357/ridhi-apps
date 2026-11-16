@@ -186,15 +186,21 @@ function coMayReport_(email) {
   return p.admin === true || has(p.tabs) || (p.repl === true && has(p.replTabs));
 }
 /**
- * Tell Creator Setu about one order. who = { email } from Code.gs writerOf_. Answers
+ * Tell Creator Setu about one order. Answers
  *   { ok:true, reported, setu } · { ok:true, already|skipped } · { ok:false, error [, setu] }.
+ *
+ * WHO MAY ASK. Code.gs has already checked the apps' key. who = { email } where that backend also checks the person's
+ * Firebase sign-in (writerOf_, on dev since 17 Oct); an older Code.gs has no such check and passes nothing. With a
+ * person known, they must hold Shopify Orders. Without one, the ask is still served — on purpose, and safely: what is
+ * told is read HERE from Firestore, never taken from the request, and each status is told once. The worst an ask can do
+ * is send a true status a little sooner. Nothing on the order changes except the record of what was told.
  */
 function coReport_(p, who, nowMs) {
   var email = String((who && who.email) || '').toLowerCase();
-  if (!email) return { ok: false, error: 'Sign in to the ERP again — the backend could not confirm who you are.' };
   var ref = coStr_(p && p.reference, 60);
   if (!/^[A-Za-z0-9][A-Za-z0-9_-]{2,59}$/.test(ref)) return { ok: false, error: 'reference is missing' };
-  if (!coMayReport_(email)) return { ok: false, error: 'This account does not hold Shopify Orders.' };
+  if (email && !coMayReport_(email)) return { ok: false, error: 'This account does not hold Shopify Orders.' };
+  if (!email) email = 'ERP';
   var path = CO.col + '/' + encodeURIComponent(ref);
   var o = coRead_(path);
   if (!o) return { ok: false, error: 'Order ' + ref + ' not found.' };

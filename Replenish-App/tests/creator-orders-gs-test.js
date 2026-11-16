@@ -124,7 +124,9 @@ d = run('coReport_', { reference: 'CGE-12AB34CD' }, { email: 'repl@x.com' });
 ok(d.ok && d.reported === 'shipped' && SETU[1].body.tracking === '1Z999' && SETU[1].body.carrier === 'UPS', 'Shipped → with carrier and tracking (a Replenishment Shopify account may ask)');
 ok(!run('coReport_', { reference: 'CGE-12AB34CD' }, { email: 'other@x.com' }).ok, 'an account without Shopify Orders is refused');
 ok(!run('coReport_', { reference: 'CGE-12AB34CD' }, { email: 'nobody@x.com' }).ok, 'an account with no rights is refused');
-ok(!run('coReport_', { reference: 'CGE-12AB34CD' }, {}).ok, 'no confirmed sign-in is refused');
+/* An older Code.gs has no sign-in check and passes no person: served, because what is told comes from Firestore. */
+const ns = run('coReport_', { reference: 'CGE-12AB34CD' }, null);
+ok(ns.ok && ns.already, 'with no person known (older backend) the ask is served — and still tells nothing twice');
 ok(SETU.length === 2, 'none of the refused asks reached Creator Setu');
 setDoc('creatorOrders/ERP-CC-0001', { reference: 'ERP-CC-0001', source: 'team', status: 'Delivered' });
 d = run('coReport_', { reference: 'ERP-CC-0001' }, { email: 'team@x.com' });
@@ -141,10 +143,15 @@ ok(d.ok && d.reported === 'delivered' && !plain('CGE-12AB34CD').setu.error, 'ask
 ok(run('coSetuReport_', { status: 'Problem' }) === null && run('coSetuReport_', { status: 'Cancelled', updAt: '2026-11-18T00:00:00Z' }).status === 'cancelled', 'Problem is not reported; Cancelled is');
 
 console.log('== Code.gs routes ==');
-const iDoor = CODE.indexOf("creator === 'order') return json_(coOrderIn_(p))"), iKey = CODE.indexOf("var wkey = prop_('WRITE_KEY')"), iLog = CODE.indexOf("console.log('POST '");
-ok(iDoor > 0 && iDoor < iKey && iDoor < iLog, 'Creator Setu\'s door is answered before the write-key check and before anything is logged');
-const iRep = CODE.indexOf("p.creator === 'report') return json_(coReport_(p, who))");
-ok(iRep > iKey, 'the report goes through the write key and the sign-in check');
+/* Either Code.gs: dev's (WRITE_KEY + sign-in, and a log line) or main's (API_KEY only). */
+const iPost = CODE.indexOf('function doPost(');
+const iDoor = CODE.indexOf("creator === 'order') return json_(coOrderIn_(p))", iPost);
+const iKey = Math.max(CODE.indexOf("var wkey = prop_('WRITE_KEY')", iPost), CODE.indexOf("var key = prop_('API_KEY')", iPost));
+const iLog = CODE.indexOf("console.log('POST '", iPost);
+ok(iDoor > 0 && iKey > 0 && iDoor < iKey && (iLog < 0 || iDoor < iLog), 'Creator Setu\'s door is answered before the apps\' key check and before anything is logged');
+const iRep = CODE.indexOf("p.creator === 'report') return json_(coReport_(p, typeof who === 'undefined' ? null : who))");
+ok(iRep > iKey, 'the report goes through the apps\' key check, and works whether or not this Code.gs knows "who"');
+ok(/^ {4}"CreatorOrders\.gs",$/m.test(fs.readFileSync(path.join(__dirname, '..', '..', 'Pricing-API', '.clasp.json'), 'utf8')), 'CreatorOrders.gs is in .clasp.json, so clasp pushes it');
 
 console.log('== the log ==');
 const all = LOG.join('\n');
