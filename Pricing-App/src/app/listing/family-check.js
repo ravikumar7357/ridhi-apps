@@ -57,6 +57,7 @@ let FC = { tab: 'fam', brand: 'ALL', q: '', card: '', built: false, loading: fal
   open: '',                     // the ONE open family (fk); '' = all closed
   sel: new Set(), bulkAsk: false, bulkReason: '', bulkMsg: '',   // the ticked rows ("brand|sku") and the bar's reason box
   limit: FC_STEP, order: null, io: null,                         // family lines drawn so far; the order they were first drawn in
+  relinked: new Map(),          // "brand|sku" → fk: children Amazon accepted a Link to family for, this visit (the picture's "Relinked ✓")
   failed: new Set(),            // families whose catalog read failed this visit (fk): counted as asked, not saved
   refresh: { on: false, step: '', done: 0, total: 0, left: new Map(), at: 0 },   // the Refresh button's run ("Families 40 / 91")
   newer: false, newT: 0,        // a newer saved snapshot exists ("New data available — Refresh"); the 5-minute check
@@ -630,7 +631,7 @@ async function fcLinkMany(keys) {
     if (!jobs.length) return null;
     return sqSendWithCheck(jobs, { screen: 'Family Check', held,
       title: jobs.length === 1 ? `Link ${jobs[0].sku} to ${f.name || f.psku}` : `Link ${jobs.length} children to ${f.name || f.psku}`,
-      onDone: sum => fcAfterSend(sum, job => { const r = fcCatOf(job.brand, job.asin); if (r) Object.assign(r, { pa: f.pa || r.pa || 'linked', at: Date.now() }); }) });
+      onDone: sum => fcAfterSend(sum, job => { const r = fcCatOf(job.brand, job.asin); if (r) Object.assign(r, { pa: f.pa || r.pa || 'linked', at: Date.now() }); FC.relinked.set(fcKey(job.brand, job.sku), f.fk); }) });
   } finally {
     mine.forEach(k => { FC.busy.delete(k); if (FC.note[k] === FC_READING) FC.note[k] = ''; });
     fcDrawAll();
@@ -952,7 +953,50 @@ function fcGroupHtml(g) {
   return `<tbody class="fc-grp${open ? ' is-open' : ''}"><tr class="fc-head" data-fc="grp" data-fc-v="${fcEsc(f.fk)}" tabindex="0" aria-expanded="${open}"><td colspan="${FC_COLS}">`
     + `<button type="button" class="fc-arrow" data-fc="grp" data-fc-v="${fcEsc(f.fk)}" aria-label="${open ? 'Close' : 'Open'} ${fcEsc(f.name)}">${open ? '▾' : '▸'}</button>`
     + `<b>${fcEsc(f.name)}</b> <small class="muted">${fcEsc(fcBrandName(f.brand))} · parent SKU ${fcEsc(f.psku || '—')} · ${fcEsc(f.pa || '—')} · ${fcNf(f.live.length)} live children${fcEsc(theme)}</small> ${chips}${info}${state}${selAll}${again}</td></tr>`
-    + (open ? FC_COLHEAD + g.rows.map(fcRowHtml).join('') : '') + '</tbody>';
+    + (open ? fcMapHtml(g) + FC_COLHEAD + g.rows.map(fcRowHtml).join('') : '') + '</tbody>';
+}
+/** The open family as a small picture (roadmap #4): the parent box on top, one box per live child with its Amazon values and a status —
+ *  Linked / Not in family / Duplicate / Relinked ✓ (after Amazon accepted a Link) / not read — and two numbers: the children Amazon shows under
+ *  this parent of all live children, and the orphans found. Drawing only: the same data as the rows. Removed-on-purpose children stay hidden. */
+function fcMapHtml(g) {
+  const f = g.f, v = FC.view;
+  const removed = new Set(v ? v.removed : []);
+  const rowOf = new Map(g.rows.map(r => [r.c, r]));
+  const kids = [];
+  const add = c => { if (c && !removed.has(c) && !kids.includes(c)) kids.push(c); };
+  f.live.forEach(add);
+  g.rows.forEach(r => add(r.c));
+  if (v) v.cands.forEach(c => { if (FC.relinked.get(fcKey(c.brand, c.sku)) === f.fk) add(c); });   // a linked parentless one leaves the rows
+  const tattrs = f.amz && f.amz.tattrs ? f.amz.tattrs : [];
+  const label = c => {
+    const vals = c.amz && c.amz.vals;
+    const t = (c.tattrs || tattrs).map(a => (vals && vals[a]) || '').filter(Boolean);
+    return t.length ? t.join(' / ') : '';
+  };
+  const status = c => {
+    const r = rowOf.get(c), has = k => !!(r && r.probs.some(p => p.k === k));
+    if (FC.relinked.get(fcKey(c.brand, c.sku)) === f.fk) return ['ok', 'Relinked ✓'];
+    if (has('orphan')) return ['r', 'Not in family'];
+    if (has('dup')) return ['r', 'Duplicate'];
+    if (c.amz && !c.amz.nf && c.amz.pa) return ['l', 'Linked'];
+    return ['g', 'not read'];
+  };
+  const shown = c => !!(c.amz && !c.amz.nf && c.amz.pa && (!f.pa || c.amz.pa === f.pa));
+  kids.sort((a, b) => label(a).localeCompare(label(b), undefined, { numeric: true }) || String(a.sku).localeCompare(String(b.sku)));
+  const visible = kids.filter(shown).length;
+  const orphans = g.rows.filter(r => r.probs.some(p => p.k === 'orphan')).length;
+  const rated = kids.filter(c => c.rt);
+  const box = c => {
+    const [k, t] = status(c), l = label(c);
+    return `<div class="fc-kid is-${k}"><b>${l ? fcEsc(l) : '<span class="fc-none">—</span>'}</b><small>${fcEsc(c.sku)}</small>`
+      + (c.rt ? `<small>${fcEsc(c.rt.rating)} ★ (${fcNf(c.rt.reviews)})</small>` : '') + `<span class="fc-chip is-${k === 'l' || k === 'ok' ? 'ok' : k}">${fcEsc(t)}</span></div>`;
+  };
+  return `<tr class="fc-mapr"><td colspan="${FC_COLS}"><div class="fc-map" role="group" aria-label="${fcEsc(f.name)} — family picture">`
+    + `<div class="fc-par"><span>Parent</span><b>${fcEsc(f.psku || f.pa || '—')}</b><small>${fcEsc(f.pa || '—')}${f.amz && f.amz.theme ? ' · ' + fcEsc(f.amz.theme) : ''}</small></div>`
+    + `<div class="fc-kids">${kids.map(box).join('') || '<span class="fc-none">no live children</span>'}</div>`
+    + `<div class="fc-nums"><span><b>${fcNf(visible)} of ${fcNf(kids.length)}</b> sizes visible to shoppers</span><span><b>${fcNf(orphans)}</b> orphan${orphans === 1 ? '' : 's'} found</span>`
+    + `<span class="fc-revs">${rated.length ? `reviews: from Sellora's data for ${fcNf(rated.length)} of ${fcNf(kids.length)}` : 'reviews: not available (Amazon doesn\'t provide them)'}</span></div>`
+    + '</div></td></tr>';
 }
 /** What is ticked, as rows still on the page: { orphan: [c…], fix: [c…] } (a tick whose row has gone is dropped). */
 function fcSelected(v) {

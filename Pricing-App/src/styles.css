@@ -3051,6 +3051,25 @@
   #paneFam .fc-old{color:var(--rev-ink);font-weight:650}
   #paneFam .fc-newer{display:flex;align-items:center;gap:8px;margin:4px 0;padding:6px 10px;border-radius:8px;background:var(--brand-bg);color:var(--brand-ink);font-weight:600}
   #paneFam .fc-newer .fc-b{margin:0}
+  #paneFam .fc-chip.is-ok{background:var(--accent-bg);color:var(--accent-ink)}
+  #paneFam .fc-mapr>td{background:var(--card);border-bottom:1px solid var(--line)}
+  #paneFam .fc-map{display:flex;flex-direction:column;align-items:center;gap:0;padding:6px 0 4px}
+  #paneFam .fc-par{display:flex;flex-direction:column;align-items:center;min-width:180px;padding:6px 14px;border:1px solid var(--card-line);border-radius:10px;background:var(--soft);text-align:center}
+  #paneFam .fc-par span{font-size:10.5px;font-weight:650;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+  #paneFam .fc-par b{font-family:ui-monospace,monospace;font-size:12.5px}
+  #paneFam .fc-par small,#paneFam .fc-kid small{font-size:11px;color:var(--faint)}
+  #paneFam .fc-par::after{content:"";display:block;width:1px;height:10px;margin:6px auto -16px;background:var(--line)}
+  #paneFam .fc-kids{display:flex;flex-wrap:wrap;justify-content:center;gap:6px;width:100%;margin-top:10px;padding-top:10px;border-top:1px solid var(--line)}
+  #paneFam .fc-kid{display:flex;flex-direction:column;align-items:center;gap:1px;min-width:96px;max-width:170px;padding:5px 8px;border:1px solid var(--card-line);border-radius:8px;background:var(--card);text-align:center}
+  #paneFam .fc-kid b{font-size:12px;font-weight:650;line-height:1.3;overflow-wrap:anywhere}
+  #paneFam .fc-kid small{font-family:ui-monospace,monospace}
+  #paneFam .fc-kid .fc-chip{margin:3px 0 0}
+  #paneFam .fc-kid.is-r{border-color:color-mix(in srgb,var(--bad) 45%,var(--card-line))}
+  #paneFam .fc-kid.is-ok{border-color:color-mix(in srgb,var(--accent) 55%,var(--card-line))}
+  #paneFam .fc-kid.is-g{border-style:dashed}
+  #paneFam .fc-nums{display:flex;flex-wrap:wrap;justify-content:center;gap:4px 16px;margin-top:8px;font-size:12px;color:var(--muted)}
+  #paneFam .fc-nums b{color:var(--ink);font-variant-numeric:tabular-nums}
+  #paneFam .fc-revs{color:var(--faint)}
   #paneFam .fc-vals{min-width:150px;max-width:260px;font-size:12px;line-height:1.4;white-space:normal}
   #paneFam .fc-row>td:first-child{box-shadow:inset 3px 0 0 var(--line)}
   #paneFam .fc-row.is-orphan>td:first-child{box-shadow:inset 3px 0 0 var(--bad)}

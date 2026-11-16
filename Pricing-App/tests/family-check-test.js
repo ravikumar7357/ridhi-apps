@@ -460,6 +460,51 @@ const ready = async opts => { const C = setup(opts); await C.fcOpen(); await flu
     await flushAll(C);
   }
 
+  console.log('== the family picture (drawing only) ==');
+  {
+    const kid = (html, sku) => {
+      const box = html.split('<div class="fc-kid ').slice(1).map(x => x.split('</div>')[0]).find(x => x.includes('<small>' + sku + '</small>'));
+      const m = box && /^is-(\w+)"><b>(.*?)<\/b><small>.*<span class="fc-chip is-\w+">([^<]+)<\/span>$/.exec(box);
+      return m ? { k: m[1], label: strip(m[2]).trim(), status: m[3] } : null;
+    };
+    const C = await ready();
+    const c0 = C.counts();
+    ok('closed: no picture', !/fc-map/.test(C.body()));
+    C.fcToggle(RTC);
+    const h = C.body();
+    ok('open: the picture sits above the column header', h.indexOf('class="fc-mapr"') > -1 && h.indexOf('class="fc-mapr"') < h.indexOf('class="fc-colh"'));
+    ok('the parent box on top: parent SKU, ASIN, theme', /<div class="fc-par"><span>Parent<\/span><b>RTC14-P<\/b><small>BPARENT014 · SIZE\/COLOR<\/small><\/div>/.test(h));
+    ok('one box per live child (6 linked + 2 not in family)', (h.match(/class="fc-kid /g) || []).length === 8);
+    ok('a box: its Amazon values as the label, the SKU, "Linked"', JSON.stringify(kid(h, 'RTC14-1')) === JSON.stringify({ k: 'l', label: '60x90 / Blue', status: 'Linked' }), JSON.stringify(kid(h, 'RTC14-1')));
+    ok('"Not in family" (red) for the orphans', kid(h, 'RTC14-7').status === 'Not in family' && kid(h, 'RTC14-7').k === 'r' && kid(h, 'RTC14-11').status === 'Not in family');
+    ok('"Duplicate" (red) for the two with the same size + colour', kid(h, 'RTC14-5').status === 'Duplicate' && kid(h, 'RTC14-6').status === 'Duplicate');
+    ok('an empty value is shown as empty, never guessed', kid(h, 'RTC14-4').label === '60x90' && kid(h, 'RTC14-4').status === 'Linked');
+    ok('"6 of 8 sizes visible to shoppers" · "2 orphans found"', /<b>6 of 8<\/b> sizes visible to shoppers/.test(h) && /<b>2<\/b> orphans found/.test(h), strip(h.slice(h.indexOf('fc-nums'), h.indexOf('fc-nums') + 300)));
+    ok('reviews: "not available (Amazon doesn\'t provide them)"', h.includes('reviews: not available (Amazon doesn&#39;t provide them)') || h.includes('reviews: not available (Amazon doesn\'t provide them)'));
+    ok('drawing only: the cards and rows are the same', C.counts() === c0 && drawnRows(h) === 6, C.counts());
+    ok('no page jump (nothing scrolled)', C.scrolls.length === 0);
+    await C.fcLink('SP', 'RTC14-7');
+    C.sends[0].opts.onDone({ jobs: [{ brand: 'SP', sku: 'RTC14-7', asin: A('RTC14-7'), state: 'accepted' }] });
+    const h2 = C.body();
+    ok('after Amazon accepted the Link: "Relinked ✓" (green), 7 of 8 visible, 1 orphan', JSON.stringify(kid(h2, 'RTC14-7')) === JSON.stringify({ k: 'ok', label: '60x90 / Yellow', status: 'Relinked ✓' })
+      && /<b>7 of 8<\/b> sizes visible/.test(h2) && /<b>1<\/b> orphan found/.test(h2), JSON.stringify(kid(h2, 'RTC14-7')));
+    const W = await ready();
+    await W.fcLink('SP', 'RTC14-11');
+    W.sends[0].opts.onDone({ jobs: [{ brand: 'SP', sku: 'RTC14-11', asin: A('RTC14-11'), state: 'working' }] });
+    W.fcToggle(RTC);
+    ok('still working: no "Relinked ✓" yet', kid(W.body(), 'RTC14-11').status === 'Not in family');
+    await W.fcOkSet('SP', 'RTC14-7', 'low rating');
+    ok('removed on purpose stays hidden in the picture too', !kid(W.body(), 'RTC14-7') && /<b>6 of 7<\/b> sizes visible/.test(W.body()));
+    const U = await ready({ failCat: 'BPARENT020' });
+    U.fcToggle(RNP);
+    const hu = U.body();
+    ok('a family Amazon could not be read for: grey "not read" boxes, none counted as visible', /is-g">not read</.test(hu) && /<b>0 of \d+<\/b> sizes visible/.test(hu) && !/>Linked</.test(hu), strip(hu.slice(hu.indexOf('fc-map'), hu.indexOf('fc-map') + 400)));
+    await flushAll(U);
+    const css = fs.readFileSync(path.join(__dirname, '..', 'src', 'styles.css'), 'utf8');
+    const mine = css.split(/\r?\n/).filter(l => /#paneFam \.fc-(map|par|kids?|nums|revs|chip\.is-ok)/.test(l));
+    ok('the picture uses the theme colours only (light + dark): no fixed colours', mine.length >= 10 && mine.every(l => !/#[0-9a-f]{3,6}\b|rgb\(/i.test(l)));
+  }
+
   console.log('== other screens unchanged ==');
   {
     const assigns = SRC.match(/\b(HEALTH|IML|LR_CAT|LI_WS|AMZ|H_CTX|H_LOADED|LR|SP|LH|SQ)\s*(\[[^\]]*\])*\s*(\.\w+)*\s*=(?!=)/g) || [];
