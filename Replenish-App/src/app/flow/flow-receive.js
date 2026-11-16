@@ -319,13 +319,16 @@ function flowDueRows(q, testOnly) {
   flowRows().forEach(({ r, s }) => {
     const p = s.plan; if (!p || !flowPrinted(s.route) || s.fromStock || flowInHand(p) || (testOnly && !r.__t)) return;
     const pr = p.printer || {}; if (!pr.code && !pr.name) return;
-    const qty = +r.qty || 0; if (s.back >= qty) return;
-    const cx = s.challan || null, need = flowR2(+s.fabNeed || 0), sent = flowR2(+s.fabSent || 0), back = flowR2(cx ? +cx.recv || 0 : 0);
+    /* EXTRA AN ADMIN APPROVED (16 Nov, vpVsCounts): the printer sent more than ordered and it was approved, so the line owes that
+     * much more and stays here until it is in. Pieces only — cloth already has its 10% allowance. */
+    const unit = s.fabUnit || 'm', extra = unit === 'pcs' && !r.__t && typeof vpVsApproved === 'function' ? flowR2(flowVsOfKey(s.key, false, unit, s.po, vpVsApproved) || 0) : 0;
+    const qty = +r.qty || 0; if (s.back >= qty + extra) return;
+    const cx = s.challan || null, need = flowR2((+s.fabNeed || 0) + extra), sent = flowR2(+s.fabSent || 0), back = flowR2(cx ? +cx.recv || 0 : 0);
     const left = flowR2(need - back); if (!(left > 0.001)) return;
     const l = { key: s.key, sku: obUC(r.sku), item: flowChItem(r), print: flowPrintWhat(r, p), fabric: (p.fabric && p.fabric.name) || '' };
     const tp = flowToPrint(r, p), mPerPc = tp.pcs ? flowR2(tp.metres / tp.pcs) : (+(p.fabric && p.fabric.perPc) || 0);
     out.push({ printer: pr.name || String(pr.code), code: String(pr.code || ''), orderNo: r.orderNo, sku: obUC(r.sku), orderDate: ptIsoDate(r.orderDate) || '', l, r, mPerPc,
-      unit: s.fabUnit || 'm', need, sent, back, left, withPrinter: flowR2(Math.max(0, sent - back)), notSent: flowR2(Math.max(0, need - Math.max(sent, back))),
+      unit, extra, need, sent, back, left, withPrinter: flowR2(Math.max(0, sent - back)), notSent: flowR2(Math.max(0, need - Math.max(sent, back))),
       challan: cx ? cx.no : '', po: s.po || '', test: !!r.__t, due: String((p.dates && p.dates.cut) || '').slice(0, 10) });
   });
   /* the colour, the article and the size too (Ravi, 4 Nov: "search bar me color name dale to bhi … printer receive window me") */
@@ -338,24 +341,32 @@ function flowDueRows(q, testOnly) {
  * when order received"): one row per line a printer still owes, eight columns and nothing else — Date, Order Number, Image, Article, Size, Ordered,
  * Vendor Sent, Received. Vendor Sent is the printer's own word from its portal (vSent); Received is typed here, and Save received takes it in on the open
  * challans exactly as the Receive dialog does, dated TODAY by itself. Date shows the day the line was last received. A printer is picked above. */
-const FLOW_DUE = { printer: '', typed: {} };
+const FLOW_DUE = { printer: '', typed: {}, less: '' };   // less: the line whose "fewer came?" box is open (16 Nov)
 /** What the printer said it sent for this line (its portal's batches), shared over the vendor-order lines that stand for it; null when not known. */
 function flowVendorSentOf(x) { return flowVsOfKey(x.l.key, false, x.unit, x.po); }
 /** What the printer says it sent for one flow line — its key, the ruffle cloth or not, in the unit it was given — from the batches
  * on its portal (vSent), shared over the vendor-order lines that stand for it; null when no vendor order of this line is known. */
-function flowVsOfKey(key, ruffle, unit, poNo) {
+/** Every vendor order by printer and id, built once per list of vendor orders: the receiving sheet asks it for every line. */
+let FLOW_VOIX = { src: null, map: new Map() };
+function flowVoIndex() {
+  const rows = (typeof VO !== 'undefined' && VO.rows) || [];
+  if (FLOW_VOIX.src !== rows) FLOW_VOIX = { src: rows, map: new Map(rows.filter(Boolean).map(o => [o.vendorCode + '/' + o.id, o])) };
+  return FLOW_VOIX.map;
+}
+function flowVsOfKey(key, ruffle, unit, poNo, sumOf) {
   try {
     if (typeof vpVsOf !== 'function' || typeof VO === 'undefined' || !VO.rows) return null;
+    sumOf = sumOf || vpVsSum;   // what counts as sent; vpVsApproved gives the extra an admin approved (16 Nov)
     const ik = ruffle ? key + FLOW_RUF : key, kOf = p => { const [k, part] = String(p).split('|'); return part === 'ruffle' ? k + FLOW_RUF : k; };
     const pos = poNo && (FLOW.po || {})[poNo] ? [FLOW.po[poNo]] : Object.values(FLOW.po || {}).filter(o => o && !o.cancelled && o.items && o.items[ik]);
     let sum = 0, hit = false;
     pos.forEach(po => {
       const ref = po && po.vo && po.vo[unit === 'pcs' ? 'cut' : 'running']; if (!ref) return;
-      const o = VO.rows.find(r => r && r.vendorCode === ref.code && r.id === ref.id); if (!o) return;
+      const o = flowVoIndex().get(ref.code + '/' + ref.id); if (!o) return;
       voLines(o).forEach(l => {
         const keys = (Array.isArray(l.parts) ? l.parts : String(l.flowPart || '').split('+')).filter(Boolean).map(kOf);
         if (!keys.includes(ik)) return;
-        hit = true; sum += vpVsSum(vpVsOf(o, l)) / new Set(keys).size;
+        hit = true; sum += sumOf(vpVsOf(o, l)) / new Set(keys).size;
       });
     });
     return hit ? flowR2(sum) : null;
@@ -386,7 +397,7 @@ if (typeof document !== 'undefined' && typeof document.addEventListener === 'fun
   document.addEventListener('change', e => { const t = e.target; if (!t || !t.dataset || t.dataset.flfill == null) return;
     const td = t.closest && t.closest('td'), inp = td && td.querySelector('input[type="number"]'); if (!inp) return;
     inp.value = t.checked ? t.dataset.flfill : ''; inp.dispatchEvent(new Event('input', { bubbles: true })); });
-  document.addEventListener('input', e => { const t = e.target; if (!t || t.type !== 'number' || !t.max || !(t.dataset && (t.dataset.fldrq != null || t.dataset.fldq != null || t.dataset.flrm != null))) return;
+  document.addEventListener('input', e => { const t = e.target; if (!t || t.type !== 'number' || !t.max || !(t.dataset && (t.dataset.fldrq != null || t.dataset.fldq != null || t.dataset.flrm != null || t.dataset.fldless != null))) return;
     if (+t.value > +t.max) t.value = t.max;
     const td = t.closest && t.closest('td'), tick = td && td.querySelector('[data-flfill]'); if (tick) tick.checked = +t.value >= +t.max && +t.value > 0; }, true);
 }
@@ -415,7 +426,7 @@ function flowDueTable(q, testOnly) {
   /* THE SHP BOARD'S LOOK (Ravi, 31 Oct, "ok deploy krdo"): Date, Order ID, Item (picture, article, colour · SKU), Size, Ordered, Vendor sent, Received — a peach band
    * over each printer with what it holds. A line with a figure typed shows TODAY in Date: the day it is received on, filled in by itself. */
   const by = new Map(); rows.forEach(x => { const e = by.get(x.printer) || by.set(x.printer, { rows: [], w: [], n: [] }).get(x.printer); e.rows.push(x); if (x.withPrinter) e.w.push([x.withPrinter, x.unit]); if (x.notSent) e.n.push([x.notSent, x.unit]); });
-  const body = [...by.entries()].map(([nm, g]) => `<tr><td colspan="7" style="text-align:left;background:#fdf0e8;font-weight:700;font-size:13px;padding:7px 12px">${esc(nm)} — ${nf(g.rows.length)} line(s)`
+  const body = [...by.entries()].map(([nm, g]) => `<tr><td colspan="8" style="text-align:left;background:#fdf0e8;font-weight:700;font-size:13px;padding:7px 12px">${esc(nm)} — ${nf(g.rows.length)} line(s)`
     + ` <span style="font-weight:500;color:#6b7686;font-size:12px;margin-left:10px">${g.w.length ? flowMixTxt(g.w) + ' of cloth with them' : ''}${g.w.length && g.n.length ? ' · ' : ''}${g.n.length ? `<span style="color:#b45309">${flowMixTxt(g.n)} RFD not sent yet</span>` : ''}</span></td></tr>`
     + g.rows.map(x => { const pk = x.code || x.printer, id = pk + '|' + x.l.key, vs = flowVendorSentOf(x), day = flowDueLastRecv(x.l.key), m = (typeof mdbOf === 'function' && mdbOf(x.sku)) || {};
       const typed = +FLOW_DUE.typed[id] > 0, colour = x.r.color || m.color || '';
@@ -424,25 +435,119 @@ function flowDueTable(q, testOnly) {
       <td style="text-align:left;vertical-align:middle"><div style="display:flex;gap:8px;align-items:center">${typeof ptImgSpan === 'function' ? ptImgSpan(x.sku, 36) : ''}<div style="line-height:1.3"><div style="font-weight:600;font-size:12.5px">${esc(x.r.articleSubtype || m.subtype || x.r.articleType || m.articleType || '—')}</div>
         <div style="font-size:11px;color:#6b7686">${colour ? esc(colour) + ' · ' : ''}<span style="font-family:ui-monospace,monospace">${esc(x.sku)}</span></div></div></div></td>
       <td style="font-size:12.5px;vertical-align:middle;text-align:center"${String(x.r.size || m.size || '').length > 40 ? ` title="${esc(x.r.size || m.size)}"` : ''}>${esc((s => s.length > 40 ? s.slice(0, 38) + '…' : s)(String(x.r.size || m.size || ''))) || '<span class="muted">—</span>'}</td>
-      <td class="num" style="font-weight:700;vertical-align:middle">${flowQtyTxt(x.need, x.unit)}</td>
+      <td class="num" style="font-weight:700;vertical-align:middle">${flowQtyTxt(x.need, x.unit)}${x.extra ? `<div class="muted" style="font-size:10.5px;font-weight:400">incl. +${esc(flowQtyTxt(x.extra, x.unit))} approved</div>` : ''}</td>
       <td class="num" style="vertical-align:middle">${vs ? `<b>${flowQtyTxt(vs, x.unit)}</b>` : '<span class="muted">—</span>'}</td>
-      <td class="num" style="vertical-align:middle;white-space:nowrap">${x.test || !flowVsRuleOn()
+      <td class="num" style="vertical-align:middle">${x.back > 0 ? `<b style="color:#166534">${flowQtyTxt(x.back, x.unit)}</b>` : '<span class="muted">—</span>'}</td>
+      <td class="num" style="vertical-align:middle;white-space:nowrap">${flowDueTyped(x)
         ? `<input data-fldrq="${esc(id)}" type="number" min="0" step="${x.unit === 'pcs' ? 1 : 0.01}" value="${esc(FLOW_DUE.typed[id] || '')}" placeholder="${esc(String(x.left))}" onfocus="this.select()" style="width:84px;padding:3px 6px;font-size:12px;text-align:right" title="${esc(flowQtyTxt(x.left, x.unit))} still to come">`
-        : flowVsRecvCell('data-fldrq', id, flowVsPending(x.l.key, false, x.unit, x.po), x.unit, FLOW_DUE.typed[id] || '')}</td></tr>`; }).join('')).join('');
+        : flowDueRecvCell(x, id)}</td></tr>`; }).join('')).join('');
   if (typeof ptImgFill === 'function' && typeof setTimeout === 'function') setTimeout(() => { try { ptImgFill(rows.map(x => x.sku), false, typeof ptImgPatch === 'function' ? ptImgPatch : null); } catch (e) { /* the pictures follow */ } }, 0);
-  return '<colgroup><col style="width:9%"><col style="width:11%"><col style="width:38%"><col style="width:11%"><col style="width:10%"><col style="width:9%"><col style="width:12%"></colgroup>'
-    + `<thead><tr><th style="text-align:left">Date</th><th style="text-align:left">Order ID</th><th style="text-align:left">Item</th><th>Size</th><th>Ordered</th><th>Vendor sent</th><th>Received</th></tr></thead><tbody>`
-    + (body || `<tr><td colspan="7" class="muted" style="padding:16px">Nothing is owed by ${FLOW_DUE.printer ? 'that printer' : 'a printer'}${q ? ` for “${esc(q)}”` : ''}.</td></tr>`) + '</tbody>';
+  return '<colgroup><col style="width:8%"><col style="width:11%"><col style="width:31%"><col style="width:9%"><col style="width:9%"><col style="width:9%"><col style="width:9%"><col style="width:14%"></colgroup>'
+    + `<thead><tr><th style="text-align:left">Date</th><th style="text-align:left">Order ID</th><th style="text-align:left">Item</th><th>Size</th><th>Ordered</th><th>Printer sent</th><th>Received</th><th>Receive</th></tr></thead><tbody>`
+    + (body || `<tr><td colspan="8" class="muted" style="padding:16px">Nothing is owed by ${FLOW_DUE.printer ? 'that printer' : 'a printer'}${q ? ` for “${esc(q)}”` : ''}.</td></tr>`) + '</tbody>';
 }
-/** The printer dropdown (name and its lines), the day it is received on, and Save received — the bar over the sheet. */
+/* ONE BUTTON ON THE ORDER LINE (Ravi, 16 Nov: "on receiving page the receive button should be at the place where the order number line
+ * lies"). Each line offers what the printer entered as sent and we have not taken in: "Receive 3 pcs" takes it in at once, dated today,
+ * through the same save as every receive screen (flowDueRecvSave). "fewer came?" opens a box filled with that figure that can only go
+ * down. A line the printer has entered nothing for has no button. Errors: a failed save is said in red under the toolbar and nothing is
+ * taken in. A TEST line, or the automated flow tests (recvFree), keep the old typed figure and Save received. */
+const flowDueTyped = x => !!(x.test || !flowVsRuleOn());
+function flowDueRecvCell(x, id) {
+  const pv = flowVsPending(x.l.key, false, x.unit, x.po), n = flowR2(Math.min(pv.pending, x.unit === 'pcs' ? x.left : x.left * 1.1));
+  const wait = typeof vpVsWait === 'function' ? flowR2(flowVsOfKey(x.l.key, false, x.unit, x.po, vpVsWait) || 0) : 0;
+  const waitTxt = wait > 0 ? `<div style="font-size:11px;color:#b45309;margin-top:3px">+${esc(flowQtyTxt(wait, x.unit))} waiting approval</div>` : '';
+  if (pv.blocked) return `<span class="pill pill-out" title="Ask the printer to enter what it sent on its portal">Printer has not entered pieces</span>${waitTxt}`;
+  if (!(n > 0)) return `<span class="muted" style="font-size:12px">All sent is in</span>${waitTxt}`;
+  if (FLOW_DUE.less === id) return `<span style="display:inline-flex;gap:4px;align-items:center"><input data-fldless="${esc(id)}" type="number" min="${x.unit === 'pcs' ? 1 : 0.01}" max="${esc(String(n))}" step="${x.unit === 'pcs' ? 1 : 0.01}" value="${esc(String(n))}" style="width:70px;padding:3px 6px;font-size:12px;text-align:right" aria-label="What came">`
+    + `<button type="button" data-fldgo="${esc(id)}" style="width:auto;padding:4px 10px;font-size:12px">Receive</button><button type="button" class="ghost" data-fldlessx="1" style="width:auto;padding:4px 8px;font-size:12px">Cancel</button></span>`
+    + `<div class="muted" style="font-size:11px;margin-top:3px">At most ${esc(flowQtyTxt(n, x.unit))} — what the printer entered</div>`;
+  return `<button type="button" data-fldgo="${esc(id)}" data-q="${esc(String(n))}" style="width:auto;padding:5px 12px;font-size:12.5px;background:#166534;border-color:#166534">Receive ${esc(flowQtyTxt(n, x.unit))}</button>`
+    + `<div style="margin-top:3px"><a href="#" data-fldless="${esc(id)}" style="font-size:11.5px">fewer came?</a></div>${waitTxt}`;
+}
+/** Take one line in from the sheet: the printer's figure, or what was typed in "fewer came?" — never more than the printer entered. */
+async function flowDueRecvOne(id, q) {
+  const [pk, lk] = String(id).split('|'), x = flowDueRows('', false).find(y => (y.code || y.printer) === pk && y.l.key === lk);
+  if (!x) return 'That line is not owed any more — press Refresh.';
+  if (!(q > 0)) return `Type how much came for ${x.orderNo} ${x.sku}.`;
+  const er = await flowDueRecvSave(pk, { [lk]: q }, { date: dToday(), note: '', deduct: true });
+  if (er) return er;
+  FLOW_DUE.less = '';
+  FLOW.said = flowDueRecvSave.said + " The printer's portal shows it in a few seconds.";
+  return '';
+}
+/* EXTRA PIECES TO APPROVE (Ravi, 16 Nov: "if it's more than that, don't count them until approved by Ravi"; any admin may answer).
+ * Every batch a printer entered beyond its order (vSent ask, vendor-portal.js) that nobody has answered. Approve: it counts as sent and
+ * the line's order grows by it, so the challan person can receive it. Reject: it never counts. The answer is written on the batch itself,
+ * so the printer's portal shows it at once. Errors: a failed save is said in the window in red and nothing changes. */
+function flowExtraAsks() {
+  if (typeof vpVsAll !== 'function' || typeof VO === 'undefined' || !VO.rows) return [];
+  const out = [];
+  VO.rows.forEach(o => { if (!o) return;
+    vpVsAll(o).filter(vpVsWaits).forEach(b => {
+      const l = voLines(o).find(x => vpVsOf(o, x).some(y => y.key === b.key)) || null;
+      out.push({ o, b, l: l || {}, ord: l ? vpOrdOf(o, l) : 0, before: l ? vpVsSum(vpVsOf(o, l)) : 0 });
+    }); });
+  return out.sort((a, b) => String(a.b.at).localeCompare(String(b.b.at)));
+}
+function flowExtraHtml() {
+  const asks = flowExtraAsks();
+  if (!asks.length) return '<div class="muted" style="padding:16px;text-align:center">Nothing is waiting for approval.</div>';
+  return `<table class="xl" style="width:100%"><thead><tr><th style="text-align:left">Printer</th><th style="text-align:left">Order</th><th style="text-align:left">Item</th><th>Ordered</th><th>Sent before</th><th>Extra asked</th><th></th></tr></thead><tbody>`
+    + asks.map(a => { const k = a.o.vendorCode + '|' + a.o.id + '|' + a.b.key, u = a.b.unit || 'pcs';
+      return `<tr><td style="text-align:left"><b>${esc(a.o.vendorName || a.o.vendorCode)}</b></td><td style="text-align:left">${esc(a.o.orderNo || a.o.id)}<div class="muted" style="font-size:11px">${esc(vpVsWhen(a.b.at))}</div></td>`
+        + `<td style="text-align:left">${esc(a.l.articleSubtype || a.l.articleType || a.l.fabricType || '')}<div class="muted" style="font-size:11px">${esc([a.l.color, a.b.sku].filter(Boolean).join(' · '))}</div></td>`
+        + `<td class="num">${esc(flowQtyTxt(a.ord, u))}</td><td class="num">${esc(flowQtyTxt(a.before, u))}</td><td class="num"><b style="color:#b45309">+${esc(flowQtyTxt(+a.b.qty, u))}</b></td>`
+        + `<td style="white-space:nowrap"><button type="button" data-flxok="${esc(k)}" style="width:auto;padding:4px 12px;font-size:12px;background:#166534;border-color:#166534">Approve</button> `
+        + `<button type="button" class="ghost" data-flxno="${esc(k)}" style="width:auto;padding:4px 12px;font-size:12px">Reject</button></td></tr>`; }).join('') + '</tbody></table>';
+}
+async function flowExtraAnswer(k, yes) {
+  if (!ME.admin) return 'Only an admin can approve extra pieces.';
+  const [code, id, key] = String(k).split('|'), o = flowVoIndex().get(code + '/' + id), b = o && o.vSent && o.vSent[key];
+  if (!b || !vpVsWaits(b)) return 'That request is not waiting any more — press Refresh.';
+  const val = { at: new Date().toISOString(), by: ME.email || '' }, field = yes ? 'approved' : 'rejected';
+  try { await ptPut(`pt_vendorOrders/${code}/${id}/vSent/${key}/${field}`, val); } catch (e) { return 'Could not save: ' + (e.message || e); }
+  o.vSent = Object.assign({}, o.vSent, { [key]: Object.assign({}, b, { [field]: val }) });
+  flowExtraAnswer.said = `${yes ? 'Approved' : 'Rejected'}: +${flowQtyTxt(+b.qty, b.unit || 'pcs')} on ${o.orderNo || o.id}${yes ? ' — it can be received now.' : ' — it does not count.'}`;
+  return '';
+}
+function flowExtraOpen() {
+  ptOpenDialog({ title: 'Extra pieces to approve',
+    subtitle: 'A printer entered more than was ordered. The extra does not count, and cannot be received, until it is approved.',
+    html: '<div id="flxBody">' + flowExtraHtml() + '</div><div id="flxMsg" class="muted" style="margin-top:8px"></div>',
+    saveLabel: 'Done', onSave: async () => { renderFlow(); return ''; } });
+}
+if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') document.addEventListener('click', async e => {
+  const t = e.target; if (!t || !t.closest) return;
+  if (t.closest('[data-flxopen]')) { e.preventDefault(); flowExtraOpen(); return; }
+  const b = t.closest('[data-flxok], [data-flxno]'); if (!b || b.disabled) return;
+  e.preventDefault(); b.disabled = true;
+  const yes = b.hasAttribute('data-flxok'), er = await flowExtraAnswer(b.getAttribute(yes ? 'data-flxok' : 'data-flxno'), yes);
+  const body = document.getElementById('flxBody'), msg = document.getElementById('flxMsg');
+  if (body) body.innerHTML = flowExtraHtml();
+  if (msg) { msg.className = er ? 'err' : 'muted'; msg.textContent = er || flowExtraAnswer.said; }
+});
+/** The printer dropdown (name and its lines), the day it is received on, Save received for typed lines, and (admins) the extra pieces to approve. */
 function flowDueBar(testOnly) {
-  const n = Object.values(FLOW_DUE.typed).filter(v => +v > 0).length, cnt = new Map();
-  flowDueRows('', testOnly).forEach(x => { const k = x.code || x.printer; cnt.set(k, (cnt.get(k) || 0) + 1); });
+  const n = Object.values(FLOW_DUE.typed).filter(v => +v > 0).length, cnt = new Map(), due = flowDueRows('', testOnly);
+  due.forEach(x => { const k = x.code || x.printer; cnt.set(k, (cnt.get(k) || 0) + 1); });
+  const asks = ME.admin ? flowExtraAsks().length : 0;
   return `<select data-fldprn style="width:auto;min-width:250px;margin-left:8px;padding:8px 12px;font-size:13.5px;font-weight:700;border-radius:12px;background:#fdf0e8;border:1px solid #f0cdb5" title="Pick a printer to see only its goods"><option value="">All printers · ${nf([...cnt.values()].reduce((a, v) => a + v, 0))} lines</option>`
     + flowDuePrinters(testOnly).map(([k, nm]) => `<option value="${esc(k)}"${k === FLOW_DUE.printer ? ' selected' : ''}>${esc(nm)} · ${nf(cnt.get(k) || 0)} lines</option>`).join('') + '</select>'
     + ` <span style="font-size:12.5px;color:#6b7686;margin-left:10px">Received on <b style="color:#17202b">${esc(flowDueDay(dToday()))}</b> — today, by itself</span>`
-    + ` <button type="button" data-fldsave="1" style="width:auto;padding:8px 18px;font-size:13px;border-radius:12px;margin-left:6px"${n ? '' : ' disabled'}>Save received${n ? ' (' + nf(n) + ')' : ''}</button>`;
+    + (due.some(flowDueTyped) ? ` <button type="button" data-fldsave="1" style="width:auto;padding:8px 18px;font-size:13px;border-radius:12px;margin-left:6px"${n ? '' : ' disabled'}>Save received${n ? ' (' + nf(n) + ')' : ''}</button>` : '')
+    + (asks ? ` <button type="button" data-flxopen="1" style="width:auto;padding:8px 14px;font-size:13px;border-radius:12px;margin-left:6px;background:#b45309;border-color:#b45309">Extra pieces to approve <span class="navbadge" style="position:static;background:#fff;color:#b45309">${nf(asks)}</span></button>` : '');
 }
+if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') document.addEventListener('click', async e => {
+  const t = e.target; if (!t || !t.closest) return;
+  const less = t.closest('a[data-fldless]'); if (less) { e.preventDefault(); FLOW_DUE.less = less.getAttribute('data-fldless'); renderFlow(); return; }
+  if (t.closest('[data-fldlessx]')) { e.preventDefault(); FLOW_DUE.less = ''; renderFlow(); return; }
+  const go = t.closest('[data-fldgo]'); if (!go || go.disabled) return;
+  e.preventDefault(); go.disabled = true;
+  const id = go.getAttribute('data-fldgo'), box = document.querySelector(`input[data-fldless="${CSS.escape(id)}"]`);
+  const q = flowR2(+(box ? box.value : go.getAttribute('data-q')) || 0);
+  const er = await flowDueRecvOne(id, q);
+  renderFlow(); $('flMsg').className = er ? 'err' : 'muted'; $('flMsg').textContent = er || FLOW.said;
+});
 /** Take in everything typed on the sheet: one receipt per printer, dated today, through the same save the Receive dialog uses. */
 async function flowDueSaveTyped() {
   const by = new Map();

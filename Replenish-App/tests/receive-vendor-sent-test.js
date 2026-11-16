@@ -10,11 +10,13 @@ const rd = f => fs.readFileSync(f, 'utf8').replace(/\r\n/g, '\n');
 const APP = path.join(__dirname, '..', 'src', 'app');
 const FR = rd(path.join(APP, 'flow/flow-receive.js')), VP = rd(path.join(APP, 'vendors/portal/vendor-portal.js')), VO = rd(path.join(APP, 'vendors/orders/vendor-orders.js'));
 const cut = (src, name) => { const i = src.indexOf('function ' + name + '('); if (i < 0) throw new Error(name + ' not found'); return src.slice(i, src.indexOf('\n}', i) + 2); };
+/* the sent / waiting / approved helpers of vendor-portal.js (16 Nov), as one block */
+const vsBlock = s => { const i = s.indexOf('const vpVsRound ='); return s.slice(i, s.indexOf(String.fromCharCode(10) + '/** Only the printer', i) + 1); };
 const line = (src, head) => { const i = src.indexOf(head); if (i < 0) throw new Error(head + ' not found'); return src.slice(i, src.indexOf('\n', i)) + '\n'; };
 const PARTS = [line(VO, 'const voLines ='), line(VP, 'const vpVsKey ='), (s => { const i = s.indexOf('const vpVsAll ='); return s.slice(i, s.indexOf(';\n', i) + 2); })(VP),
-  cut(VP, 'vpVsOf'), line(VP, 'const vpVsSum ='),
+  cut(VP, 'vpVsOf'), line(VP, 'const vpQty ='), vsBlock(VP),
   line(FR, 'const flowChUnit ='), line(FR, 'const flowChSent ='), line(FR, 'const flowQtyTxt ='), line(FR, 'let FLOW_CHX ='), line(FR, 'const flowChMoved ='), cut(FR, 'flowChIndex'), cut(FR, 'flowChRecv'),
-  cut(FR, 'flowVsOfKey'), cut(FR, 'flowVsPending'), cut(FR, 'flowVsRecvCell'), cut(FR, 'flowVsCheck')].join('\n');
+  line(FR, 'let FLOW_VOIX ='), cut(FR, 'flowVoIndex'), cut(FR, 'flowVsOfKey'), cut(FR, 'flowVsPending'), cut(FR, 'flowVsRecvCell'), cut(FR, 'flowVsCheck')].join('\n');
 let pass = 0, fail = 0;
 const ok = (n, c, d) => { if (c) { pass++; console.log('  PASS ' + n); } else { fail++; console.log('  FAIL ' + n + (d ? ' — ' + d : '')); } };
 
