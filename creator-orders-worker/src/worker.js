@@ -14,7 +14,9 @@
  *
  * NEVER LOGGED: the address, the phone, the email — no body is ever written to the log, only the reference and why.
  */
-export const VERSION = 'creator-orders-2026-11-16';
+import { verify } from './auth.js';
+
+export const VERSION = 'creator-orders-2026-11-16b';
 const BRANDS = ['ridhi', 'cotton-print-club'];
 const COLLECTION = 'creatorOrders';
 
@@ -113,6 +115,113 @@ async function accessToken(env, fetcher, now) {
 }
 export function resetToken() { TOKEN = { key: '', value: '', until: 0 }; }
 
+/** Firestore's typed value back to plain JavaScript. */
+export function fsPlain(v) {
+  if (!v || typeof v !== 'object') return null;
+  if ('nullValue' in v) return null;
+  if ('booleanValue' in v) return v.booleanValue;
+  if ('integerValue' in v) return Number(v.integerValue);
+  if ('doubleValue' in v) return v.doubleValue;
+  if ('stringValue' in v) return v.stringValue;
+  if ('timestampValue' in v) return v.timestampValue;
+  if ('arrayValue' in v) return ((v.arrayValue && v.arrayValue.values) || []).map(fsPlain);
+  if ('mapValue' in v) return Object.fromEntries(Object.entries((v.mapValue && v.mapValue.fields) || {}).map(([k, x]) => [k, fsPlain(x)]));
+  return null;
+}
+const docUrl = (env, path) => `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(env.FIREBASE_PROJECT_ID)}/databases/(default)/documents/${path}`;
+/** One document as plain JavaScript, or null when it is not there. */
+async function readDoc(env, fetcher, now, path) {
+  const token = await accessToken(env, fetcher, now);
+  const r = await fetcher(docUrl(env, path), { headers: { authorization: 'Bearer ' + token } });
+  if (r.status === 404) return null;
+  if (!r.ok) throw new Error('Firestore answered ' + r.status);
+  const d = await r.json();
+  return fsPlain({ mapValue: { fields: d.fields || {} } });
+}
+/** Write ONE field of a document that exists, leaving every other field as it is. */
+async function writeField(env, fetcher, now, path, field, value) {
+  const token = await accessToken(env, fetcher, now);
+  const r = await fetcher(docUrl(env, path) + '?updateMask.fieldPaths=' + encodeURIComponent(field) + '&currentDocument.exists=true', {
+    method: 'PATCH', headers: { authorization: 'Bearer ' + token, 'content-type': 'application/json' },
+    body: JSON.stringify({ fields: { [field]: fsValue(value) } }) });
+  if (!r.ok) throw new Error('Firestore answered ' + r.status);
+}
+
+/* ---------------- REPORT-BACK: the ERP tells Creator Setu what happened to a gift ---------------- */
+/** The ERP's status → Creator Setu's word. Anything else (New, Checked, Problem) is not reported. */
+export const SETU_STATUS = { 'Sent to Amazon': 'sent_to_amazon', 'Shipped': 'shipped', 'Delivered': 'delivered', 'Cancelled': 'cancelled' };
+/** What Creator Setu is told for this order as it stands now, or null when there is nothing to tell. */
+export function setuReport(o) {
+  const status = SETU_STATUS[o && o.status];
+  if (!status) return null;
+  const a = (o && o.amazon) || {};
+  const at = (status === 'sent_to_amazon' && a.sentAt) || (status === 'shipped' && (a.shippedAt || a.checkedAt))
+    || (status === 'delivered' && a.deliveredAt) || o.updAt || '';
+  const iso = at && !isNaN(Date.parse(at)) ? new Date(Date.parse(at)).toISOString() : new Date().toISOString();
+  return { status, amazonOrderId: a.orderId || '', carrier: a.carrier || '', tracking: a.tracking || '', at: iso };
+}
+/** May this ERP person ask for a report? The same right the Firestore rule gives: an admin, or Shopify Orders. */
+async function mayReport(env, fetcher, now, email) {
+  if (!email) return false;
+  const owners = String(env.ADMIN_EMAILS || '').toLowerCase().split(/[\s,]+/).filter(Boolean);
+  if (owners.includes(email)) return true;
+  const p = await readDoc(env, fetcher, now, 'perms/' + encodeURIComponent(email));
+  if (!p) return false;
+  const has = l => Array.isArray(l) && l.includes('shop');
+  return p.admin === true || has(p.tabs) || (p.repl === true && has(p.replTabs));
+}
+function cors(req, env) {
+  const origin = req.headers.get('origin') || '';
+  const allowed = String(env.ALLOWED_ORIGINS || '').split(/[\s,]+/).filter(Boolean);
+  return allowed.includes(origin) ? { 'access-control-allow-origin': origin, 'access-control-allow-headers': 'authorization, content-type',
+    'access-control-allow-methods': 'POST, OPTIONS', 'access-control-max-age': '86400', vary: 'origin' } : null;
+}
+/**
+ * POST /creator-orders/report { reference }, Authorization: Bearer <the ERP person's Firebase sign-in>.
+ * The page only says WHICH order changed. What is reported is read here from Firestore, so a caller can never make
+ * Creator Setu believe something the ERP does not hold. Told once per status: the last status sent is kept on the order
+ * (field "setu"), and the same status is not sent again.
+ */
+async function report(req, env, fetcher, now) {
+  const h = cors(req, env);
+  const out = (body, status) => { const r = reply(body, status); if (h) Object.entries(h).forEach(([k, v]) => r.headers.set(k, v)); return r; };
+  if (!h) return reply({ ok: false, error: 'origin' }, 403);
+  const tok = /^Bearer\s+(.+)$/i.exec(req.headers.get('authorization') || '');
+  const who = tok ? await verify(tok[1].trim(), env, fetcher) : null;
+  if (!who) return out({ ok: false, error: 'sign in to the ERP again' }, 401);
+  let body; try { body = JSON.parse(await req.text()); } catch (e) { return out({ ok: false, error: 'the body is not JSON' }, 400); }
+  const ref = str(body && body.reference, 60);
+  if (!/^[A-Za-z0-9][A-Za-z0-9_-]{2,59}$/.test(ref)) return out({ ok: false, error: 'reference is missing' }, 400);
+  try {
+    if (!(await mayReport(env, fetcher, now, who.email))) return out({ ok: false, error: 'this account does not hold Shopify Orders' }, 403);
+    const o = await readDoc(env, fetcher, now, COLLECTION + '/' + encodeURIComponent(ref));
+    if (!o) return out({ ok: false, error: 'order ' + ref + ' not found' }, 404);
+    if (o.source !== 'creator-setu') return out({ ok: true, skipped: 'typed in the ERP — Creator Setu does not know it' }, 200);
+    const rep = setuReport(o);
+    if (!rep) return out({ ok: true, skipped: 'nothing to report for ' + (o.status || 'New') }, 200);
+    if (o.setu && o.setu.status === rep.status && !o.setu.error) return out({ ok: true, already: true, setu: o.setu }, 200);
+    const base = String(env.SETU_REPORT_URL || 'https://creator-growth-engine.netlify.app/api/erp/orders/');
+    const r = await fetcher(base + encodeURIComponent(ref), { method: 'POST',
+      headers: { authorization: 'Bearer ' + env.CREATOR_SETU_SECRET, 'content-type': 'application/json' }, body: JSON.stringify(rep) });
+    const at = new Date(now).toISOString();
+    if (!r.ok) {
+      const why = r.status === 401 ? 'Creator Setu refused the key (401) — the two keys differ'
+        : r.status === 404 ? 'Creator Setu does not know ' + ref + ' (404)' : 'Creator Setu answered ' + r.status;
+      const setu = { status: (o.setu && o.setu.status) || '', tried: rep.status, error: why, at, by: who.email };
+      try { await writeField(env, fetcher, now, COLLECTION + '/' + encodeURIComponent(ref), 'setu', setu); } catch (e) { /* the answer still says it */ }
+      console.log('creator-orders: report refused', ref, r.status);
+      return out({ ok: false, error: why, setu }, 502);
+    }
+    const setu = { status: rep.status, at, by: who.email };
+    await writeField(env, fetcher, now, COLLECTION + '/' + encodeURIComponent(ref), 'setu', setu);
+    console.log('creator-orders: reported', ref, rep.status);
+    return out({ ok: true, reported: rep.status, setu }, 200);
+  } catch (e) {
+    console.log('creator-orders: report failed', ref, String(e && e.message || e).slice(0, 120));
+    return out({ ok: false, error: 'could not report right now — it is tried again when the page is opened' }, 503);
+  }
+}
+
 /** Create the document if, and only if, it is not there. 'created' | 'exists'. */
 async function createOnce(env, fetcher, now, id, data) {
   const project = env.FIREBASE_PROJECT_ID;
@@ -132,6 +241,11 @@ export async function handle(req, env, deps = {}) {
   const now = deps.now ? deps.now() : Date.now();
   const url = new URL(req.url);
   if (url.pathname === '/health' && req.method === 'GET') return reply({ ok: true, v: VERSION, firestore: !!(env.FIREBASE_SERVICE_ACCOUNT && env.FIREBASE_PROJECT_ID), key: String(env.CREATOR_SETU_SECRET || '').length >= 24 }, 200);
+  if (url.pathname === '/creator-orders/report') {
+    if (req.method === 'OPTIONS') { const h = cors(req, env); return h ? new Response(null, { status: 204, headers: h }) : new Response(null, { status: 403 }); }
+    if (req.method !== 'POST') return reply({ ok: false, error: 'POST only' }, 405);
+    return report(req, env, fetcher, now);
+  }
   if (url.pathname !== '/creator-orders') return reply({ ok: false, error: 'not found' }, 404);
   if (req.method !== 'POST') return reply({ ok: false, error: 'POST only' }, 405);
   /* 1. The key, before anything is read. Wrong → 401, nothing saved. */

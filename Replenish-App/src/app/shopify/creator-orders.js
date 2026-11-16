@@ -83,10 +83,66 @@ async function croSave(ref, patch, what) {
   const now = new Date().toISOString();
   const next = Object.assign({}, o, patch, { updAt: now, updBy: ME.email,
     log: (o.log || []).concat(what ? [{ at: now, by: ME.email, what: String(what).slice(0, 300) }] : []).slice(-60) });
-  try { await fsSetDoc(doc(db, CRO_COL, String(ref)), next); }
+  /* MERGED, and never with "setu": that field is the Worker's record of what Creator Setu has been told, and this page's
+   * copy of it may be older than the Worker's. */
+  const write = Object.assign({}, next); delete write.setu;
+  try { await fsSetDoc(doc(db, CRO_COL, String(ref)), write, { merge: true }); }
   catch (e) { return 'Not saved: ' + (e.message || e); }
   CRO.list[CRO.list.indexOf(o)] = next;
+  if (next.status !== o.status) croReportSoon(ref);
   return '';
+}
+
+/* ---------------- REPORT-BACK: Creator Setu is told when a gift is sent, shipped, delivered or cancelled ----------------
+ * Through the creator-orders Worker, which holds the shared key (never this page). The page says only WHICH order changed,
+ * with the signed-in person's Firebase sign-in; the Worker reads the order from Firestore itself, tells Creator Setu, and
+ * writes what it told on the order (field "setu"), so each status is told once. Whatever could not be told is tried again
+ * the next time this page is opened. Only from the real ERP: the Worker answers no other address. */
+const CRO_WORKER = 'https://creator-orders.erp-9a0.workers.dev';
+const CRO_SETU = { 'Sent to Amazon': 'sent_to_amazon', 'Shipped': 'shipped', 'Delivered': 'delivered', 'Cancelled': 'cancelled' };
+const croReportOn = () => typeof location !== 'undefined' && /^fabricrush-replenish\.(web\.app|firebaseapp\.com)$/.test(location.hostname);
+/** Does Creator Setu still have to hear about this order's status? */
+function croNeedsReport(o) {
+  const want = o && o.source === 'creator-setu' ? CRO_SETU[o.status] : '';
+  if (!want) return false;
+  const s = o.setu || {};
+  if (s.status === want && !s.error) return false;
+  /* A refusal (unknown reference, a key that differs) is not asked again on every open: once in six hours. */
+  if (s.error && s.tried === want && Date.now() - Date.parse(s.at || 0) < 6 * 36e5) return false;
+  return true;
+}
+/** Ask the Worker to tell Creator Setu about one order. '' or why not. */
+async function croReport(ref) {
+  if (!croReportOn()) return 'Creator Setu is told only from the real ERP.';
+  const o = croOf(ref); if (!o || !croNeedsReport(o)) return '';
+  let token = '';
+  try { token = auth.currentUser ? await auth.currentUser.getIdToken() : ''; } catch (e) { /* the Worker says so */ }
+  let d = null;
+  try {
+    const r = await fetch(CRO_WORKER + '/creator-orders/report', { method: 'POST',
+      headers: { authorization: 'Bearer ' + token, 'content-type': 'application/json' }, body: JSON.stringify({ reference: String(ref) }) });
+    d = await r.json().catch(() => null);
+  } catch (e) { return 'Creator Setu could not be reached: ' + (e.message || e); }
+  const cur = croOf(ref);
+  if (d && d.setu && cur) CRO.list[CRO.list.indexOf(cur)] = Object.assign({}, cur, { setu: d.setu });
+  return d && d.ok ? '' : ((d && d.error) || 'Creator Setu was not told.');
+}
+function croReportSoon(ref) { croReport(ref).then(err => { if (err && croReportOn()) croMsg(ref + ': ' + err, true); croRender(); }).catch(() => {}); }
+/** Everything not yet told, one at a time, in the background — at most 25 a visit. */
+let CRO_REPORTING = false;
+async function croReportPending() {
+  if (CRO_REPORTING || !croReportOn()) return;
+  CRO_REPORTING = true;
+  try { for (const o of CRO.list.filter(croNeedsReport).slice(0, 25)) await croReport(o.reference); }
+  finally { CRO_REPORTING = false; croRender(); }
+}
+/** One line for the order window: what Creator Setu knows. */
+function croSetuLine(o) {
+  if (o.source !== 'creator-setu') return '';
+  const s = o.setu || {}, words = { sent_to_amazon: 'sent to Amazon', shipped: 'shipped', delivered: 'delivered', cancelled: 'cancelled' };
+  if (s.error) return `<div class="err" style="font-size:12px;margin-top:6px">Creator Setu was not told: ${esc(s.error)}</div>`;
+  if (s.status) return `<div class="muted" style="font-size:12px;margin-top:6px">Creator Setu knows: <b>${esc(words[s.status] || s.status)}</b>${s.at ? ' · ' + esc(croDay(s.at)) : ''}</div>`;
+  return CRO_SETU[o.status] ? '<div class="muted" style="font-size:12px;margin-top:6px">Creator Setu has not been told yet.</div>' : '';
 }
 
 /* ---------------- stock: the Shopify screens' own figures, read only ---------------- */
@@ -255,6 +311,7 @@ function croOpen(ref) {
         <div class="card" style="padding:10px 12px;margin:0">
           <div class="muted" style="font-size:11.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px">Send to Amazon (MCF)</div>
           ${mcfBox}
+          ${croSetuLine(o)}
           <label style="margin-top:10px;display:block">Order status<select id="croStatus">${CRO_STATUSES.map(x => `<option${x === (o.status || 'New') ? ' selected' : ''}>${x}</option>`).join('')}</select></label>
           <label style="margin-top:8px;display:block">Notes<textarea id="croNotes" rows="3" style="width:100%">${esc(o.notes || '')}</textarea></label>
         </div>
@@ -588,6 +645,7 @@ if ($('secShopify') && $('paneShop') && typeof $('paneShop').after === 'function
       if (croOf(r)) croOpen(r); else croMsg('Order ' + r + ' not found.', true);
     }
     if (ptReady) ptReady.then(() => { CRO_SKUS = null; });
+    croReportPending();
   }
 
   const croShowTabReal = showTab;

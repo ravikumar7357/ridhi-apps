@@ -12,6 +12,11 @@ workers_dev = true
 FIREBASE_PROJECT_ID = "price-research-48ff3"
 # Where the team opens an order; the reference is put on the end.
 ERP_ORDER_URL = "https://fabricrush-replenish.web.app/#creators?ref="
+# REPORT-BACK: Creator Setu's receiver (Khushi, 16 Nov); the reference is put on the end. Same key as the door above.
+SETU_REPORT_URL = "https://creator-growth-engine.netlify.app/api/erp/orders/"
+# Only the ERP's own pages may ask for a report-back, and the person must hold Shopify Orders (or be named here).
+ALLOWED_ORIGINS = "https://fabricrush-replenish.web.app https://fabricrush-replenish.firebaseapp.com"
+ADMIN_EMAILS = "ravi@thefabricrush.com"
 
 # The secrets are NOT here (this repository is public). Typed into Cloudflare once:
 #   npx wrangler secret put CREATOR_SETU_SECRET        (24+ characters; the same key in Creator Setu's Netlify settings)
