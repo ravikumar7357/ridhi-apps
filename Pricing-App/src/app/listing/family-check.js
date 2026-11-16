@@ -8,7 +8,7 @@
  *     our listing names (psku), colour (c), size (z), and the parent ASIN the catalogue shows (pa);
  *   • the Listing Health snapshot (HEALTH[brand].rows): stock (qty) and the parent ASIN of the listings report;
  *   • the brand catalogue (LR_CAT, the workbook): the colour and size WE gave a SKU — the only value a fix may send by itself;
- *   • ?lfix=get, one listing at a time, only when asked ("Read variation themes", and right before a fix): the variation theme, which no
+ *   • ?lfix=get, one listing at a time, only for the family being opened, and right before a fix: the variation theme, which no
  *     snapshot keeps, and the current values a fix replaces. Those reads are kept in this browser for 14 days (fresher than the snapshot only).
  * RULE 1 — only LIVE children: buyable (status has BUYABLE) AND stock > 0. Anything else is not shown and not counted, anywhere on this page.
  * RULE 2 — Not in family (red): a live child with no parent (no parent SKU on our listing, no parent ASIN in the catalogue or the report)
@@ -23,9 +23,12 @@
  *       (parentage_level, child_parent_sku_relationship, variation_theme) and Set colour/size (the catalogue's value). Only values that are
  *       certain; anything else is "Fix by hand" with Open in Listing Errors.
  * No backend change. No other screen's data or counts change: this file only reads HEALTH / IML / LR_CAT and keeps its own state in FC.
- * Main functions: fcBuild, fcSuggest, fcProblems, fcDraw, fcLink, fcSetValue, fcOkSet, fcOkUndo, fcReadThemes, fcCsv, fcOpen. */
+ * The list: every family one closed line (chips from what is in memory); ONE family open at a time (fcToggle — the clicked line stays put,
+ *       Esc closes it), its children drawn only then and its theme read then (fcReadFamily). Ticks on "Not in family" and duplicate /
+ *       missing rows; the bar: Removed on purpose (N, one reason) · Link to family (N, one family only) · Open in Listing Errors (N).
+ * Main functions: fcBuild, fcSuggest, fcProblems, fcDrawAll, fcToggle, fcReadFamily, fcLinkMany, fcSetValue, fcOkSetMany, fcOkUndo, fcCsv, fcOpen. */
 
-const FC_PER = 30;                                   // families per page
+const FC_STEP = 60;                                  // family lines drawn at a time; more as the list scrolls
 const FC_INFLIGHT = 2;                               // ?lfix=get reads out at once
 const FC_READ_DAYS = 14;                             // a kept read is used this long (and only when newer than the snapshot)
 const FC_STORE = 'fcReads1';                         // this browser's copy of the reads (localStorage)
@@ -39,9 +42,12 @@ const FC_KINDS = [
   { k: 'missing', t: 'Missing value', sev: 'r', tip: 'A live child without the colour or size its family varies by.' },
   { k: 'theme', t: 'Different theme', sev: 'y', tip: 'A live child whose variation theme is not the one its siblings use.' },
 ];
-let FC = { tab: 'fam', brand: 'ALL', q: '', card: '', page: 0, built: false, loading: false, loaded: false, err: '', msg: '',
+let FC = { tab: 'fam', brand: 'ALL', q: '', card: '', built: false, loading: false, loaded: false, err: '', msg: '',
   got: {}, gotLoaded: false, ok: { SP: {}, CPC: {} }, okLoaded: false, okNote: '', showOk: false, ask: '', busy: new Set(), note: {},
-  closed: new Set(), reads: { q: [], inflight: 0, total: 0, done: 0, on: false, fails: 0 }, view: null, drawT: 0 };
+  open: '',                     // the ONE open family (fk); '' = all closed
+  sel: new Set(), bulkAsk: false, bulkReason: '', bulkMsg: '',   // the ticked rows ("brand|sku") and the bar's reason box
+  limit: FC_STEP, order: null, io: null,                         // family lines drawn so far; the order they were first drawn in
+  reading: new Map(), reads: { q: [], inflight: 0, fails: 0 }, view: null, drawT: 0 };   // reading: fk → theme reads still out
 const fcEsc = s => String(s == null ? '' : s).replace(/[<>&"]/g, ch => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[ch]));
 const fcNf = n => Number(n || 0).toLocaleString('en-US');
 const fcKey = (brand, sku) => brand + '|' + sku;
@@ -129,53 +135,44 @@ function fcRead(brand, sku) {
   const snapAt = typeof IML !== 'undefined' && IML[brand] && IML[brand].at ? IML[brand].at.getTime() : 0;
   return r.at > snapAt ? r : null;
 }
-// Queue reads (two at a time); the page redraws as they land.
-function fcQueueReads(list) {
+// Queue reads (two at a time); `fk` is the family they are for (its header says "Reading theme…" until the last lands).
+function fcQueueReads(list, fk) {
   const R = FC.reads;
   const have = new Set(R.q.map(j => fcKey(j.brand, j.sku)));
-  list.forEach(j => { const k = fcKey(j.brand, j.sku); if (!have.has(k)) { have.add(k); R.q.push(j); R.total++; } });
-  R.on = R.q.length > 0 || R.inflight > 0;
+  let n = 0;
+  list.forEach(j => { const k = fcKey(j.brand, j.sku); if (!have.has(k)) { have.add(k); R.q.push(Object.assign({ fk: fk || '' }, j)); n++; } });
+  if (n && fk) FC.reading.set(fk, (FC.reading.get(fk) || 0) + n);
   fcPump();
+  return n;
 }
 function fcPump() {
   const R = FC.reads;
-  while (R.on && R.inflight < FC_INFLIGHT && R.q.length) {
+  while (R.inflight < FC_INFLIGHT && R.q.length) {
     const job = R.q.shift();
     R.inflight++;
     fcReadOne(job.brand, job.sku).catch(() => { R.fails++; }).then(() => {
       R.inflight--;
-      R.done++;
-      if (!R.q.length && !R.inflight) { R.on = false; fcGotSave(); }
-      else if (R.done % 20 === 0) fcGotSave();
+      if (job.fk && FC.reading.has(job.fk)) {
+        const left = FC.reading.get(job.fk) - 1;
+        if (left > 0) FC.reading.set(job.fk, left);
+        else FC.reading.delete(job.fk);
+      }
+      if (!R.q.length && !R.inflight) fcGotSave();
       fcSchedule();
       fcPump();
     });
   }
 }
-function fcStopReads() {
-  const R = FC.reads;
-  R.total -= R.q.length;
-  R.q = [];
-  R.on = R.inflight > 0;
-  fcGotSave();
-  fcDrawAll();
-}
-// "Read variation themes": every live child of the families on this page's brand(s) plus each family's parent, not read lately.
-function fcReadThemes(fk) {
+/** A family was opened: read its variation theme — its parent, and its live children (for "Different theme") — only the ones this
+ *  session or the saved copy (this browser, FC_READ_DAYS) does not hold yet. Nothing is read for a closed family. */
+function fcReadFamily(fk) {
   const v = FC.view || fcBuild();
+  const f = v.families.find(x => x.fk === fk);
+  if (!f) return 0;
   const jobs = [];
-  v.families.forEach(f => {
-    if (fk && f.fk !== fk) return;
-    if (!fk && FC.brand !== 'ALL' && f.brand !== FC.brand) return;
-    if (f.psku && !fcRead(f.brand, f.psku)) jobs.push({ brand: f.brand, sku: f.psku });
-    f.live.forEach(c => { if (!fcRead(c.brand, c.sku)) jobs.push({ brand: c.brand, sku: c.sku }); });
-  });
-  if (!fk) v.orphans.forEach(c => { if (c.sug && !fcRead(c.brand, c.sku)) jobs.push({ brand: c.brand, sku: c.sku }); });
-  if (!jobs.length) { FC.msg = 'Every variation theme here was read in the last ' + FC_READ_DAYS + ' days.'; return fcDrawAll(); }
-  FC.msg = '';
-  fcQueueReads(jobs);
-  fcDrawAll();
-  return jobs.length;
+  if (f.psku && !fcRead(f.brand, f.psku)) jobs.push({ brand: f.brand, sku: f.psku });
+  f.live.forEach(c => { if (!fcRead(c.brand, c.sku)) jobs.push({ brand: c.brand, sku: c.sku }); });
+  return fcQueueReads(jobs, fk);
 }
 
 /* ----- the removed-on-purpose marks (listingrules/famok_<brand>) ----- */
@@ -190,33 +187,43 @@ async function fcOkLoad() {
   }
 }
 const fcIsOk = (brand, sku) => !!(FC.ok[brand] && FC.ok[brand][sku] && FC.ok[brand][sku].on);
-async function fcOkWrite(brand, sku, entry) {
-  FC.ok[brand][sku] = entry;
+// Save marks for one brand (several at once, one write): the page shows them at once; the save follows.
+async function fcOkWrite(brand, entries) {
+  Object.assign(FC.ok[brand], entries);
   FC.okNote = '';
   fcDrawAll();
   try {
-    const saved = typeof lsSave === 'function' ? await lsSave(FC_OK_COLL, FC_OK_DOC(brand), { kind: 'famok', items: { [sku]: entry } }) : false;
+    const saved = typeof lsSave === 'function' ? await lsSave(FC_OK_COLL, FC_OK_DOC(brand), { kind: 'famok', items: entries }) : false;
     if (!saved) FC.okNote = fcIsTest() ? 'Test site — the mark is kept on this page only, not saved.' : 'Not saved — the mark is kept on this page only.';
   } catch (e) {
     FC.okNote = 'Could not save the mark (' + ((e && e.message) || e) + ') — it is kept on this page only and will show again after a reload.';
   }
   fcDrawAll();
-  return entry;
+  return entries;
 }
-/** Removed on purpose: the child leaves the red list at once and for good; who / when / reason are saved. */
-function fcOkSet(brand, sku, reason) {
+/** Removed on purpose, for one or many children (keys "brand|sku"), one reason for all: they leave the red list at once and for good;
+ *  who / when / reason are saved. */
+async function fcOkSetMany(keys, reason) {
   const v = FC.view || fcBuild();
-  const c = v.orphans.find(o => o.brand === brand && o.sku === sku);
-  const by = fcWho();
+  const by = fcWho(), at = Date.now(), why = String(reason || '').trim().slice(0, 120) || FC_REASON;
+  const per = {};
+  keys.forEach(k => {
+    const c = v.orphans.find(o => fcKey(o.brand, o.sku) === k);
+    if (!c) return;
+    (per[c.brand] = per[c.brand] || {})[c.sku] = { on: true, reason: why, by, name: fcName(by), at, fam: c.sug ? c.sug.psku || c.sug.pa || '' : '', asin: c.asin || '' };
+    FC.sel.delete(k);
+  });
   FC.ask = '';
-  return fcOkWrite(brand, sku, { on: true, reason: String(reason || '').trim().slice(0, 120) || FC_REASON, by, name: fcName(by), at: Date.now(),
-    fam: c && c.sug ? c.sug.psku || c.sug.pa || '' : '', asin: (c && c.asin) || '' });
+  FC.bulkAsk = false;
+  await Promise.all(Object.entries(per).map(([brand, entries]) => fcOkWrite(brand, entries)));
+  return Object.values(per).reduce((n, e) => n + Object.keys(e).length, 0);
 }
+const fcOkSet = (brand, sku, reason) => fcOkSetMany([fcKey(brand, sku)], reason);
 /** Undo (a mistake): the child is an error again; who undid it is kept beside the first mark. */
 function fcOkUndo(brand, sku) {
   const old = (FC.ok[brand] || {})[sku] || {};
   const by = fcWho();
-  return fcOkWrite(brand, sku, Object.assign({}, old, { on: false, undoneBy: by, undoneName: fcName(by), undoneAt: Date.now() }));
+  return fcOkWrite(brand, { [sku]: Object.assign({}, old, { on: false, undoneBy: by, undoneName: fcName(by), undoneAt: Date.now() }) });
 }
 
 /* ----- building the picture: families, live children, the orphans and their suggested family ----- */
@@ -431,48 +438,73 @@ const fcRow = (brand, sku) => {
   return null;
 };
 const fcCopyEntry = (old, value) => { const e = Object.assign({}, (old && old[0]) || {}); delete e.marketplace_id; e.value = value; if (!e.language_tag) e.language_tag = 'en_US'; return [e]; };
-/** Link to family: the child's current values read again, the family's theme read from its parent; then Amazon's check popup. */
-async function fcLink(brand, sku) {
-  const hit = fcRow(brand, sku);
-  if (!hit || typeof sqSendWithCheck !== 'function') return null;
-  const { g, r } = hit;
-  const c = r.c, f = g.f, key = fcKey(brand, sku);
-  if (FC.busy.has(key)) return null;
-  FC.busy.add(key);
-  FC.note[key] = 'Reading the listing and its family…';
+const FC_READING = 'Reading the listing and its family…';
+/** Link to family, for one or many "Not in family" children (keys "brand|sku") — all of ONE suggested family. The family's theme is read
+ *  from its parent; each child is read again (its current values, for the popup and Put back). A child that cannot be linked safely
+ *  (no theme, no colour/size the theme needs, the same colour + size as a sibling or another ticked child, already linked) is held back
+ *  and named in the popup — Fix by hand. Then Amazon's check popup (sqSendWithCheck). */
+async function fcLinkMany(keys) {
+  const v = FC.view || fcBuild();
+  const list = keys.map(k => v.orphans.find(o => fcKey(o.brand, o.sku) === k)).filter(Boolean);
+  if (!list.length || typeof sqSendWithCheck !== 'function') return null;
+  const why = fcLinkWhyNot(list, v);
+  if (why) { FC.bulkMsg = why; fcDrawAll(); return null; }
+  const f = v.families.find(x => x.fk === list[0].sug.fk);
+  const mine = list.map(c => fcKey(c.brand, c.sku));
+  if (mine.some(k => FC.busy.has(k))) return null;
+  mine.forEach(k => { FC.busy.add(k); FC.note[k] = FC_READING; });
+  FC.bulkMsg = '';
   fcDrawAll();
   try {
-    const kid = await fcReadOne(brand, sku);
-    const at = (kid && kid.attributes) || {};
-    const now = FC.got[key];
-    if (now.psku) { FC.note[key] = 'Already linked to ' + now.psku + ' on Amazon.'; return null; }
     let theme = '';
-    try { await fcReadOne(brand, f.psku); theme = FC.got[fcKey(brand, f.psku)].theme || ''; } catch (e) { theme = ''; }   // the parent's own theme first
+    try { await fcReadOne(f.brand, f.psku); theme = FC.got[fcKey(f.brand, f.psku)].theme || ''; } catch (e) { theme = ''; }   // the parent's own theme first
     if (!theme) theme = fcFamTheme(f).raw || '';                                                                      // else what most children say
-    if (!theme) { FC.note[key] = 'Fix by hand: the family\'s variation theme could not be read.'; return null; }
     const d = fcThemeDims(fcTheme(theme));
-    if ((d.c && !now.color) || (d.s && !now.size)) { FC.note[key] = `Fix by hand: the family varies by ${theme} and this listing has no ${d.c && !now.color ? 'colour' : 'size'}.`; return null; }
-    const pt = now.pt || c.pt;
-    const changes = [
-      { field: 'Parent (family)', old: sqValText(at.child_parent_sku_relationship) || '(none)', new: 'variation ' + f.psku, attr: 'child_parent_sku_relationship', oldV: JSON.parse(JSON.stringify(at.child_parent_sku_relationship || [])) },
-      { field: 'Parentage', old: sqValText(at.parentage_level) || '(none)', new: 'child', attr: 'parentage_level', oldV: JSON.parse(JSON.stringify(at.parentage_level || [])) },
-      { field: 'Variation theme', old: sqValText(at.variation_theme) || '(none)', new: theme, attr: 'variation_theme', oldV: JSON.parse(JSON.stringify(at.variation_theme || [])) },
-    ];
-    const body = { lfix: 'patch', brand, sku, productType: pt, patches: [
-      { op: 'replace', path: '/attributes/parentage_level', value: [{ value: 'child' }] },
-      { op: 'replace', path: '/attributes/child_parent_sku_relationship', value: [{ child_relationship_type: 'variation', parent_sku: f.psku }] },
-      { op: 'replace', path: '/attributes/variation_theme', value: [{ name: theme }] }] };
-    FC.note[key] = '';
-    return sqSendWithCheck([{ brand, sku, asin: c.asin, label: c.title || sku, body, changes }], {
-      screen: 'Family Check', title: `Link ${sku} to ${f.name || f.psku}`,
-      onDone: sum => fcAfterSend(sum, key, { psku: f.psku, theme, lvl: 'child' }) });
-  } catch (e) {
-    FC.note[key] = 'Could not read the listing: ' + ((e && e.message) || e);
-    return null;
+    const used = new Map(f.live.map(o => [fcValKey(o, d), o.sku]));
+    const jobs = [], held = [];
+    for (const c of list) {
+      const key = fcKey(c.brand, c.sku);
+      let reply;
+      try { reply = await fcReadOne(c.brand, c.sku); } catch (e) { held.push({ sku: c.sku, why: 'could not read it from Amazon' }); continue; }
+      const at = (reply && reply.attributes) || {};
+      const now = FC.got[key];
+      const pt = now.pt || c.pt;
+      if (now.psku) { held.push({ sku: c.sku, why: 'already linked to ' + now.psku + ' on Amazon' }); continue; }
+      if (!theme) { held.push({ sku: c.sku, why: 'the family\'s variation theme could not be read' }); continue; }
+      if ((d.c && !now.color) || (d.s && !now.size)) { held.push({ sku: c.sku, why: `the family varies by ${theme} and it has no ${d.c && !now.color ? 'colour' : 'size'}` }); continue; }
+      if (!pt) { held.push({ sku: c.sku, why: 'its product type is not known' }); continue; }
+      const vk = fcValKey(now, d);
+      if ((d.c || d.s) && used.has(vk)) { held.push({ sku: c.sku, why: `its colour + size is already used by ${used.get(vk)}` }); continue; }
+      used.set(vk, c.sku);
+      jobs.push({ brand: c.brand, sku: c.sku, asin: c.asin, label: c.title || c.sku,
+        body: { lfix: 'patch', brand: c.brand, sku: c.sku, productType: pt, patches: [
+          { op: 'replace', path: '/attributes/parentage_level', value: [{ value: 'child' }] },
+          { op: 'replace', path: '/attributes/child_parent_sku_relationship', value: [{ child_relationship_type: 'variation', parent_sku: f.psku }] },
+          { op: 'replace', path: '/attributes/variation_theme', value: [{ name: theme }] }] },
+        changes: [
+          { field: 'Parent (family)', old: sqValText(at.child_parent_sku_relationship) || '(none)', new: 'variation ' + f.psku, attr: 'child_parent_sku_relationship', oldV: JSON.parse(JSON.stringify(at.child_parent_sku_relationship || [])) },
+          { field: 'Parentage', old: sqValText(at.parentage_level) || '(none)', new: 'child', attr: 'parentage_level', oldV: JSON.parse(JSON.stringify(at.parentage_level || [])) },
+          { field: 'Variation theme', old: sqValText(at.variation_theme) || '(none)', new: theme, attr: 'variation_theme', oldV: JSON.parse(JSON.stringify(at.variation_theme || [])) }] });
+    }
+    mine.forEach(k => { if (FC.note[k] === FC_READING) FC.note[k] = ''; });
+    held.forEach(h => { FC.note[fcKey(f.brand, h.sku)] = 'Fix by hand: ' + h.why + '.'; });
+    if (!jobs.length) return null;
+    return sqSendWithCheck(jobs, { screen: 'Family Check', held,
+      title: jobs.length === 1 ? `Link ${jobs[0].sku} to ${f.name || f.psku}` : `Link ${jobs.length} children to ${f.name || f.psku}`,
+      onDone: sum => fcAfterSend(sum, () => ({ psku: f.psku, theme, lvl: 'child' })) });
   } finally {
-    FC.busy.delete(key);
+    mine.forEach(k => { FC.busy.delete(k); if (FC.note[k] === FC_READING) FC.note[k] = ''; });
     fcDrawAll();
   }
+}
+const fcLink = (brand, sku) => fcLinkMany([fcKey(brand, sku)]);
+/** Why the ticked children cannot be linked in one go ('' when they can): they must share ONE suggested family with a known parent SKU. */
+function fcLinkWhyNot(list, v) {
+  const fks = [...new Set(list.map(c => c.sug && c.sug.fk))];
+  if (fks.length > 1) return `Link to family links children of one family at a time — the ticked ones belong to ${fks.length} families.`;
+  const f = v.families.find(x => x.fk === fks[0]);
+  if (!f || !f.psku) return 'The family\'s parent SKU is not known here — fix by hand.';
+  return '';
 }
 /** Set colour / size: the catalogue's value (the only certain one), after reading what the listing holds now. */
 async function fcSetValue(brand, sku, kind) {
@@ -498,30 +530,36 @@ async function fcSetValue(brand, sku, kind) {
     FC.note[key] = '';
     return sqSendWithCheck([{ brand, sku, asin: c.asin, label: c.title || sku, body: { lfix: 'patch', brand, sku, productType: pt, patches }, changes }], {
       screen: 'Family Check', title: `Set ${changes.map(x => x.field.toLowerCase()).join(' and ')} on ${sku}`,
-      onDone: sum => fcAfterSend(sum, key, p.fix.set) });
+      onDone: sum => fcAfterSend(sum, () => p.fix.set) });
   } catch (e) {
     FC.note[key] = 'Could not read the listing: ' + ((e && e.message) || e);
     return null;
   } finally {
     FC.busy.delete(key);
+    if (FC.note[key] === 'Reading the listing…') FC.note[key] = '';
     fcDrawAll();
   }
 }
-// After the popup closed: what Amazon accepted is what this page now knows (the child leaves the list); still working says so on the row.
-function fcAfterSend(sum, key, values) {
-  const job = sum && sum.jobs && sum.jobs[0];
-  if (job && job.state === 'accepted') {
-    FC.got[key] = Object.assign({}, FC.got[key] || {}, values, { at: Date.now() });
-    FC.note[key] = '';
-    fcGotSave();
-  } else if (job && (job.state === 'working' || job.state === 'sent')) FC.note[key] = 'Sent — Amazon is still working on it (Listing History has it).';
-  else if (sum && sum.test) FC.note[key] = 'Test site — not sent to Amazon.';
+// After the popup closed, per listing: what Amazon accepted is what this page now knows (the child leaves the list, its tick goes);
+// still working says so on its row.
+function fcAfterSend(sum, valuesFor) {
+  ((sum && sum.jobs) || []).forEach(job => {
+    const key = fcKey(job.brand, job.sku);
+    if (job.state === 'accepted') {
+      FC.got[key] = Object.assign({}, FC.got[key] || {}, valuesFor(job), { at: Date.now() });
+      FC.note[key] = '';
+      FC.sel.delete(key);
+    } else if (job.state === 'working' || job.state === 'sent') FC.note[key] = 'Sent — Amazon is still working on it (Listing History has it).';
+    else if (sum.test) FC.note[key] = 'Test site — not sent to Amazon.';
+  });
+  fcGotSave();
   fcDrawAll();
 }
-// Fix by hand: the listing in Listing Errors (that one SKU in its list).
-function fcOpenLerr(brand, sku) {
+// Fix by hand: the listing(s) in Listing Errors (just those SKUs in its list). One brand at a time — Listing Errors shows one brand.
+function fcOpenLerr(brand, skus) {
+  const list = Array.isArray(skus) ? skus : [skus];
   if ($('leBrand')) $('leBrand').value = brand;
-  if (typeof leOnly === 'function') leOnly([sku], 'Family Check · ' + sku);
+  if (typeof leOnly === 'function') leOnly(list, 'Family Check · ' + (list.length === 1 ? list[0] : list.length + ' listings'));
   showTab('lerr');
   if (typeof leShow === 'function') leShow(false);
   if (typeof leListEnsure === 'function') leListEnsure();
@@ -549,15 +587,18 @@ function fcDownload() {
 }
 
 /* ----- drawing ----- */
-// The groups the filters keep (brand, search, the card picked); a row keeps only the picked card's problem.
+// The groups the filters keep (brand, search, the card picked); a row keeps only the picked card's problem. The order stays the one the
+// families were first drawn in, so a family never moves under the mouse when a theme read lands.
 function fcGroups(v) {
   const q = fcNorm(FC.q);
+  if (!FC.order) FC.order = new Map();
+  v.groups.forEach(g => { if (!FC.order.has(g.f.fk)) FC.order.set(g.f.fk, FC.order.size); });
   return v.groups.filter(g => FC.brand === 'ALL' || g.f.brand === FC.brand).map(g => {
     const famHit = q && (fcNorm(g.f.name).includes(q) || fcNorm(g.f.psku).includes(q) || fcNorm(g.f.pa).includes(q));
     const rows = g.rows.filter(r => (!FC.card || r.probs.some(p => p.k === FC.card))
       && (!q || famHit || fcNorm(r.c.sku).includes(q) || fcNorm(r.c.asin).includes(q) || fcNorm(r.c.title).includes(q)));
     return rows.length ? { f: g.f, rows } : null;
-  }).filter(Boolean);
+  }).filter(Boolean).sort((a, b) => FC.order.get(a.f.fk) - FC.order.get(b.f.fk));
 }
 function fcShell() {
   const box = $('fcPane');
@@ -566,8 +607,7 @@ function fcShell() {
   box.innerHTML = `<div class="card fc-tb"><div class="toolbar"><div class="seg" role="group" aria-label="Which check">${seg}</div>`
     + `<span class="fc-famonly"><select data-fc-f="brand" aria-label="Brand"><option value="ALL">Both brands</option><option value="SP">Ridhi</option><option value="CPC">CPC</option></select></span>`
     + `<input type="search" class="fc-famonly" data-fc-f="q" placeholder="Search SKU, ASIN or family" aria-label="Search">`
-    + `<span style="flex:1"></span><span class="fc-famonly" id="fcReadBtn"></span>`
-    + `<button type="button" class="ghost fc-famonly" data-fc="csv">Export CSV</button></div><div class="fc-meta muted" id="fcMeta"></div></div><div id="fcBody"></div>`;
+    + `<span style="flex:1"></span><button type="button" class="ghost fc-famonly" data-fc="csv">Export CSV</button></div><div class="fc-meta muted" id="fcMeta"></div></div><div id="fcBody"></div>`;
   FC.built = true;
 }
 function fcDrawAll() {
@@ -587,10 +627,6 @@ function fcDrawCat() {
 }
 function fcDrawTools(v) {
   document.querySelectorAll('#fcPane .fc-famonly').forEach(el => el.classList.remove('hide'));
-  const R = FC.reads;
-  const btn = $('fcReadBtn');
-  if (btn) btn.innerHTML = R.on ? `<button type="button" class="ghost" data-fc="stop">Stop reading (${fcNf(R.done)} / ${fcNf(R.total)})</button>`
-    : '<button type="button" class="ghost" data-fc="read" title="Reads each live child once from Amazon (2 at a time) — the theme is in no snapshot">Read variation themes</button>';
   const meta = $('fcMeta');
   if (!meta) return;
   const at = (store, b) => (typeof store !== 'undefined' && store && store[b] && store[b].at && store[b].at.getTime ? store[b].at.getTime() : 0);
@@ -602,11 +638,14 @@ function fcDrawTools(v) {
   meta.innerHTML = parts.map(fcEsc).join(' · ') + (FC.err ? `<div class="err">${fcEsc(FC.err)}</div>` : '') + (FC.msg ? `<div>${fcEsc(FC.msg)}</div>` : '')
     + v.notes.map(n => `<div>${fcEsc(n)}</div>`).join('') + (FC.okNote ? `<div class="fc-oknote">${fcEsc(FC.okNote)}</div>` : '');
 }
+const FC_COLS = 9;
+// A row can be ticked when it is "Not in family" (Removed on purpose / Link to family) or a duplicate / missing value (Open in Listing Errors).
+const fcTickKind = r => (r.probs.some(p => p.k === 'orphan') ? 'orphan' : r.probs.some(p => p.k === 'dup' || p.k === 'missing') ? 'fix' : '');
 function fcFixHtml(r, p) {
   const key = fcKey(r.c.brand, r.c.sku);
   const busy = FC.busy.has(key);
   const a = `data-fc-b="${fcEsc(r.c.brand)}" data-fc-s="${fcEsc(r.c.sku)}"`;
-  if (p.fix.kind === 'link') return `<button type="button" class="fc-b" data-fc="link" ${a}${busy ? ' disabled' : ''}>${busy ? 'Reading…' : fcEsc('Link to family')}</button>`;
+  if (p.fix.kind === 'link') return `<button type="button" class="fc-b" data-fc="link" ${a}${busy ? ' disabled' : ''}>${busy ? 'Reading…' : 'Link to family'}</button>`;
   if (p.fix.kind === 'set') return `<button type="button" class="fc-b" data-fc="set" data-fc-k="${p.k}" ${a}${busy ? ' disabled' : ''}>${busy ? 'Reading…' : 'Set colour/size'}</button>`;
   return `<button type="button" class="ghost fc-b" data-fc="lerr" ${a}>Open in Listing Errors</button>`;
 }
@@ -615,41 +654,77 @@ function fcRowHtml(r) {
   const a = `data-fc-b="${fcEsc(c.brand)}" data-fc-s="${fcEsc(c.sku)}"`;
   const probs = r.probs.filter(p => !FC.card || p.k === FC.card);
   const orphan = r.probs.some(p => p.k === 'orphan');
+  const tick = fcTickKind(r) ? `<input type="checkbox" class="fc-tick" data-fc="tick" ${a}${FC.sel.has(key) ? ' checked' : ''} aria-label="Tick ${fcEsc(c.sku)}">` : '';
   const ask = FC.ask === key ? `<div class="fc-ask"><label>Reason <input type="text" data-fc-f="reason" value="${fcEsc(FC_REASON)}" maxlength="120"></label>`
     + `<button type="button" class="fc-b" data-fc="oksave" ${a}>Save</button><button type="button" class="ghost fc-b" data-fc="okcancel">Cancel</button></div>` : '';
   const btns = probs.map(p => fcFixHtml(r, p)).filter((h, i, all) => all.indexOf(h) === i).join('')
     + (orphan ? `<button type="button" class="ghost fc-b" data-fc="ok" ${a}>Removed on purpose</button>` : '');
   const amz = c.asin ? `<a href="https://www.amazon.com/dp/${fcEsc(c.asin)}" target="_blank" rel="noopener">${fcEsc(c.asin)}</a>` : '—';
-  return `<tr class="fc-row${orphan ? ' is-orphan' : ''}"><td class="fc-sku"><b>${fcEsc(c.sku)}</b><small>${fcEsc(String(c.title || '').slice(0, 70))}</small></td><td class="ui-mono">${amz}</td>`
+  return `<tr class="fc-row${orphan ? ' is-orphan' : ''}${FC.sel.has(key) ? ' is-sel' : ''}"><td class="fc-tk">${tick}</td><td class="fc-sku"><b>${fcEsc(c.sku)}</b><small>${fcEsc(String(c.title || '').slice(0, 70))}</small></td><td class="ui-mono">${amz}</td>`
     + `<td>${c.color ? fcEsc(c.color) : '<span class="fc-none">none</span>'}</td><td>${c.size ? fcEsc(c.size) : '<span class="fc-none">none</span>'}</td><td class="num">${fcNf(c.stock)}</td>`
     + `<td class="fc-prob">${probs.map(p => `<div class="fc-p is-${p.sev}">${fcEsc(p.text)}</div>`).join('')}</td>`
     + `<td class="fc-fix">${probs.map(p => `<div>${p.fix.kind === 'hand' ? '<b>Fix by hand:</b> ' : ''}${fcEsc(p.fix.text)}</div>`).join('')}${FC.note[key] ? `<div class="fc-note">${fcEsc(FC.note[key])}</div>` : ''}</td>`
     + `<td class="fc-acts">${btns}${ask}</td></tr>`;
 }
+const FC_COLHEAD = '<tr class="fc-colh"><th class="fc-tk"></th><th>SKU</th><th>ASIN</th><th>Colour</th><th>Size</th><th class="num">Stock</th><th>Problem</th><th>Suggested fix</th><th></th></tr>';
+// One family: a single line while closed (chips from what is in memory); open, its column header and its children's rows.
 function fcGroupHtml(g) {
   const f = g.f;
-  const open = !FC.closed.has(f.fk);
+  const open = FC.open === f.fk;
   const n = k => g.rows.filter(r => r.probs.some(p => p.k === k)).length;
   const chips = FC_KINDS.map(k => (n(k.k) ? `<span class="fc-chip is-${k.sev}">${fcNf(n(k.k))} ${fcEsc(k.t.toLowerCase())}</span>` : '')).join('');
-  const unread = f.live.some(c => !c.theme) || (f.psku && !fcRead(f.brand, f.psku));
-  const theme = f.theme && f.theme.raw ? 'theme ' + f.theme.raw : 'theme not read';
-  return `<tbody class="fc-grp"><tr class="fc-head" data-fc="grp" data-fc-v="${fcEsc(f.fk)}" tabindex="0" aria-expanded="${open}"><td colspan="8">`
-    + `<b>${open ? '▾' : '▸'} ${fcEsc(f.name)}</b> <small class="muted">${fcEsc(fcBrandName(f.brand))} · parent SKU ${fcEsc(f.psku || '—')} · ${fcEsc(f.pa || '—')} · ${fcNf(f.live.length)} live children · ${fcEsc(theme)}</small> ${chips}`
-    + (unread && !FC.reads.on ? ` <button type="button" class="ghost fc-b fc-read1" data-fc="read1" data-fc-v="${fcEsc(f.fk)}">Read themes</button>` : '') + '</td></tr>'
-    + (open ? g.rows.map(fcRowHtml).join('') : '') + '</tbody>';
+  const reading = FC.reading.has(f.fk) ? ' <span class="fc-reading">Reading theme…</span>' : '';
+  const orph = g.rows.filter(r => fcTickKind(r) === 'orphan').map(r => fcKey(r.c.brand, r.c.sku));
+  const allOn = orph.length && orph.every(k => FC.sel.has(k));
+  const selAll = open && orph.length ? ` <button type="button" class="ghost fc-b fc-selall" data-fc="selfam" data-fc-v="${fcEsc(f.fk)}">${allOn ? 'Clear this family' : 'Select all in this family'}</button>` : '';
+  const theme = f.theme && f.theme.raw ? ' · theme ' + f.theme.raw : '';
+  return `<tbody class="fc-grp${open ? ' is-open' : ''}"><tr class="fc-head" data-fc="grp" data-fc-v="${fcEsc(f.fk)}" tabindex="0" aria-expanded="${open}"><td colspan="${FC_COLS}">`
+    + `<button type="button" class="fc-arrow" data-fc="grp" data-fc-v="${fcEsc(f.fk)}" aria-label="${open ? 'Close' : 'Open'} ${fcEsc(f.name)}">${open ? '▾' : '▸'}</button>`
+    + `<b>${fcEsc(f.name)}</b> <small class="muted">${fcEsc(fcBrandName(f.brand))} · parent SKU ${fcEsc(f.psku || '—')} · ${fcEsc(f.pa || '—')} · ${fcNf(f.live.length)} live children${fcEsc(theme)}</small> ${chips}${reading}${selAll}</td></tr>`
+    + (open ? FC_COLHEAD + g.rows.map(fcRowHtml).join('') : '') + '</tbody>';
+}
+/** What is ticked, as rows still on the page: { orphan: [c…], fix: [c…] } (a tick whose row has gone is dropped). */
+function fcSelected(v) {
+  const out = { orphan: [], fix: [] };
+  const seen = new Set();
+  v.groups.forEach(g => g.rows.forEach(r => {
+    const key = fcKey(r.c.brand, r.c.sku), kind = fcTickKind(r);
+    if (!kind || !FC.sel.has(key)) return;
+    seen.add(key);
+    out[kind].push(r.c);
+  }));
+  [...FC.sel].forEach(k => { if (!seen.has(k)) FC.sel.delete(k); });
+  return out;
+}
+// The bar while something is ticked: "N selected · [Removed on purpose (N)] [Link to family (N)] [Open in Listing Errors (N)] [Clear]".
+function fcBarHtml(v) {
+  const s = fcSelected(v);
+  const total = s.orphan.length + s.fix.length;
+  if (!total) { FC.bulkAsk = false; return ''; }
+  const linkWhy = s.orphan.length ? fcLinkWhyNot(s.orphan, v) : '';
+  const brands = new Set(s.fix.map(c => c.brand));
+  const lerrWhy = brands.size > 1 ? 'Listing Errors shows one brand at a time — tick one brand\'s listings.' : '';
+  const busy = s.orphan.some(c => FC.busy.has(fcKey(c.brand, c.sku)));
+  const btn = (act, text, why) => `<button type="button" class="fc-b${act === 'bclear' ? ' ghost' : ''}" data-fc="${act}"${why ? ` disabled title="${fcEsc(why)}"` : ''}${busy && act !== 'bclear' ? ' disabled' : ''}>${text}</button>`;
+  const ask = FC.bulkAsk && s.orphan.length ? `<span class="fc-ask"><label>Reason for all ${fcNf(s.orphan.length)} <input type="text" data-fc-f="breason" value="${fcEsc(FC.bulkReason || FC_REASON)}" maxlength="120"></label>`
+    + `<button type="button" class="fc-b" data-fc="boksave">Save</button><button type="button" class="ghost fc-b" data-fc="bokcancel">Cancel</button></span>` : '';
+  const whys = [linkWhy, lerrWhy, FC.bulkMsg].filter(Boolean);
+  return `<div class="fc-bar" role="region" aria-label="Ticked listings"><b>${fcNf(total)} selected</b>`
+    + (s.orphan.length ? btn('bok', `Removed on purpose (${fcNf(s.orphan.length)})`) + btn('blink', `Link to family (${fcNf(s.orphan.length)})`, linkWhy) : '')
+    + (s.fix.length ? btn('blerr', `Open in Listing Errors (${fcNf(s.fix.length)})`, lerrWhy) : '') + btn('bclear', 'Clear') + ask
+    + (whys.length ? `<div class="fc-why">${whys.map(fcEsc).join(' ')}</div>` : '') + '</div>';
 }
 function fcDrawBody(v) {
   const body = $('fcBody');
   const cards = FC_KINDS.map(k => `<button type="button" class="fc-box is-${k.sev}${FC.card === k.k ? ' is-on' : ''}" data-fc="card" data-fc-v="${k.k}" aria-pressed="${FC.card === k.k}" title="${fcEsc(k.tip)}">`
     + `<span>${fcEsc(k.t)}</span><b>${fcNf(fcCount(v, k.k))}</b><small>${k.sev === 'r' ? 'error' : 'check'}</small></button>`).join('');
   const groups = fcGroups(v);
-  const pages = Math.max(1, Math.ceil(groups.length / FC_PER));
-  if (FC.page >= pages) FC.page = pages - 1;
-  const page = groups.slice(FC.page * FC_PER, (FC.page + 1) * FC_PER);
-  const pager = pages > 1 ? `<div class="fc-pager"><button type="button" class="ghost" data-fc="page" data-fc-v="-1"${FC.page ? '' : ' disabled'}>◀ Back</button><span class="muted">Page ${fcNf(FC.page + 1)} of ${fcNf(pages)}</span>`
-    + `<button type="button" class="ghost" data-fc="page" data-fc-v="1"${FC.page < pages - 1 ? '' : ' disabled'}>Next ▶</button></div>` : '';
-  const head = '<thead><tr><th>SKU</th><th>ASIN</th><th>Colour</th><th>Size</th><th class="num">Stock</th><th>Problem</th><th>Suggested fix</th><th></th></tr></thead>';
-  const table = groups.length ? `<div class="card xlwrap fc-wrap"><table class="xl fc-tbl">${head}${page.map(fcGroupHtml).join('')}</table></div>${pager}`
+  if (FC.open && !groups.some(g => g.f.fk === FC.open)) FC.open = '';
+  // only the first FC.limit family lines are drawn; more as the list scrolls (or "Show more")
+  const shown = groups.slice(0, FC.limit);
+  const more = groups.length - shown.length;
+  const table = groups.length ? `<div class="card xlwrap fc-wrap"><table class="xl fc-tbl">${shown.map(fcGroupHtml).join('')}</table></div>`
+    + (more ? `<div class="fc-more" id="fcMore"><button type="button" class="ghost" data-fc="more">Show more families (${fcNf(more)} left)</button></div>` : '')
     : `<div class="card fc-empty">${v.live ? '<b>No family problems</b> in the live children' + (FC.card || FC.q || FC.brand !== 'ALL' ? ' that match these filters.' : '.') : '<b>No live children to check</b> — the snapshots are empty or nothing is buyable and in stock.'}</div>`;
   const rem = fcRemoved(v);
   const removed = rem.length ? `<div class="fc-rem"><button type="button" class="fc-link" data-fc="showok" aria-expanded="${FC.showOk}">${fcNf(rem.length)} removed on purpose › ${FC.showOk ? 'Hide' : 'Show'}</button>`
@@ -659,7 +734,16 @@ function fcDrawBody(v) {
       return `<tr><td><b>${fcEsc(c.sku)}</b></td><td class="ui-mono">${fcEsc(c.asin || '—')}</td><td>${fcEsc(c.sug ? c.sug.name : '')}</td><td>${auto ? `rating ${fcEsc(c.rt.rating)} ★ (${fcNf(c.rt.reviews)} reviews) — automatic` : fcEsc(e.reason || FC_REASON)}</td>`
         + `<td>${auto ? '—' : fcEsc(e.name || fcName(e.by)) + ' · ' + fcEsc(e.at ? fcWhen(e.at) : '')}</td><td>${auto ? '' : `<button type="button" class="ghost fc-b" data-fc="undo" data-fc-b="${fcEsc(c.brand)}" data-fc-s="${fcEsc(c.sku)}">Undo</button>`}</td></tr>`;
     }).join('')}</tbody></table></div>` : '') + '</div>' : '';
-  body.innerHTML = `<div class="fc-boxes">${cards}</div>${table}${removed}`;
+  body.innerHTML = `<div class="fc-boxes">${cards}</div>${table}${fcBarHtml(v)}${removed}`;
+  fcWatchMore();
+}
+// "Show more" comes in by itself when it scrolls near the screen.
+function fcWatchMore() {
+  if (typeof IntersectionObserver !== 'function') return;
+  if (!FC.io) FC.io = new IntersectionObserver(seen => { if (seen.some(e => e.isIntersecting)) { FC.limit += FC_STEP; fcDrawAll(); } }, { rootMargin: '400px' });
+  FC.io.disconnect();
+  const more = $('fcMore');
+  if (more) FC.io.observe(more);
 }
 // A card's number: the live children with that problem, within the brand and search filters (the card itself is not a filter on its own count).
 function fcCount(v, k) {
@@ -672,13 +756,27 @@ function fcCount(v, k) {
 // The removed-on-purpose children still to list: live, still without a parent (a linked or no-longer-live child is simply not here).
 const fcRemoved = v => v.removed.filter(c => FC.brand === 'ALL' || c.brand === FC.brand);
 
+/* ----- open / close (one family at a time) ----- */
+/** Open a family (closing the one open before) or close it. Opening reads its theme; the clicked line stays where it was on the screen. */
+function fcToggle(fk, el) {
+  const line = el && el.closest ? el.closest('.fc-head') || el : null;
+  const top0 = line && line.getBoundingClientRect ? line.getBoundingClientRect().top : null;
+  FC.open = FC.open === fk ? '' : fk;
+  if (FC.open) fcReadFamily(fk);
+  fcDrawAll();
+  if (top0 == null || typeof document === 'undefined' || !document.querySelector) return;
+  const again = document.querySelector(`#fcBody .fc-head[data-fc-v="${typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(fk) : fk}"]`);
+  if (again && again.getBoundingClientRect && typeof window !== 'undefined' && window.scrollBy) window.scrollBy(0, again.getBoundingClientRect().top - top0);
+}
+
 /* ----- events ----- */
 function fcClick(el) {
   const act = el.dataset.fc, v = el.dataset.fcV, brand = el.dataset.fcB, sku = el.dataset.fcS;
+  const view = () => FC.view || fcBuild();
   if (act === 'tab') { FC.tab = v; FC.built = false; return fcDrawAll(); }
-  if (act === 'card') { FC.card = FC.card === v ? '' : v; FC.page = 0; return fcDrawAll(); }
-  if (act === 'grp') { if (FC.closed.has(v)) FC.closed.delete(v); else FC.closed.add(v); return fcDrawAll(); }
-  if (act === 'page') { FC.page = Math.max(0, FC.page + Number(v)); fcDrawAll(); const top = $('fcBody'); if (top && top.scrollIntoView) top.scrollIntoView({ block: 'start' }); return; }
+  if (act === 'card') { FC.card = FC.card === v ? '' : v; FC.limit = FC_STEP; return fcDrawAll(); }
+  if (act === 'grp') return fcToggle(v, el);
+  if (act === 'more') { FC.limit += FC_STEP; return fcDrawAll(); }
   if (act === 'link') return fcLink(brand, sku);
   if (act === 'set') return fcSetValue(brand, sku, el.dataset.fcK);
   if (act === 'lerr') return fcOpenLerr(brand, sku);
@@ -691,22 +789,40 @@ function fcClick(el) {
   }
   if (act === 'undo') return fcOkUndo(brand, sku);
   if (act === 'showok') { FC.showOk = !FC.showOk; return fcDrawAll(); }
-  if (act === 'read') return fcReadThemes('');
-  if (act === 'read1') return fcReadThemes(v);
-  if (act === 'stop') return fcStopReads();
   if (act === 'csv') return fcDownload();
+  // ticks and the bar
+  if (act === 'tick') { const k = fcKey(brand, sku); if (FC.sel.has(k)) FC.sel.delete(k); else FC.sel.add(k); FC.bulkMsg = ''; return fcDrawAll(); }
+  if (act === 'selfam') {
+    const g = view().groups.find(x => x.f.fk === v);
+    const keys = g ? g.rows.filter(r => fcTickKind(r) === 'orphan').map(r => fcKey(r.c.brand, r.c.sku)) : [];
+    const allOn = keys.length && keys.every(k => FC.sel.has(k));
+    keys.forEach(k => (allOn ? FC.sel.delete(k) : FC.sel.add(k)));
+    FC.bulkMsg = '';
+    return fcDrawAll();
+  }
+  if (act === 'bclear') { FC.sel.clear(); FC.bulkAsk = false; FC.bulkMsg = ''; return fcDrawAll(); }
+  if (act === 'bok') { FC.bulkAsk = true; FC.bulkReason = FC_REASON; return fcDrawAll(); }
+  if (act === 'bokcancel') { FC.bulkAsk = false; return fcDrawAll(); }
+  if (act === 'boksave') return fcOkSetMany(fcSelected(view()).orphan.map(c => fcKey(c.brand, c.sku)), FC.bulkReason || FC_REASON);
+  if (act === 'blink') return fcLinkMany(fcSelected(view()).orphan.map(c => fcKey(c.brand, c.sku)));
+  if (act === 'blerr') {
+    const list = fcSelected(view()).fix;
+    if (!list.length || new Set(list.map(c => c.brand)).size > 1) return null;
+    return fcOpenLerr(list[0].brand, list.map(c => c.sku));
+  }
 }
 let FC_T = 0;
 function fcFilter(el) {
   const k = el.dataset.fcF;
   if (k === 'reason') return;
+  if (k === 'breason') { FC.bulkReason = el.value; return; }
   FC[k] = el.value;
-  FC.page = 0;
+  FC.limit = FC_STEP;
   clearTimeout(FC_T);
-  if (k === 'q') FC_T = setTimeout(fcDrawAll, 200);
+  if (k === 'q') FC_T = setTimeout(fcDrawAll, 250);
   else fcDrawAll();
 }
-/** Opening the page: the snapshots Sellora already holds (read once), the saved marks, then draw. */
+/** Opening the page: the snapshots Sellora already holds (read once), the saved marks, then draw — every family closed. */
 async function fcOpen() {
   fcShell();
   fcDrawAll();
@@ -725,17 +841,29 @@ async function fcOpen() {
   FC.loaded = true;
   fcDrawAll();
 }
+const fcPaneOn = () => { const pane = $('paneFam'); return !!(pane && !pane.classList.contains('hide')); };
 if (typeof document !== 'undefined' && document.addEventListener && $('fcPane')) {
   $('fcPane').addEventListener('click', e => {
     const el = e.target && e.target.closest ? e.target.closest('[data-fc]') : null;
     if (el && !el.disabled) fcClick(el);
   });
   $('fcPane').addEventListener('keydown', e => {
-    if ((e.key === 'Enter' || e.key === ' ') && e.target && e.target.dataset && e.target.dataset.fc === 'grp') { e.preventDefault(); fcClick(e.target); }
-    if (e.key === 'Enter' && e.target && e.target.dataset && e.target.dataset.fcF === 'reason') { e.preventDefault(); const b = e.target.closest('.fc-ask').querySelector('[data-fc="oksave"]'); if (b) fcClick(b); }
+    const t = e.target && e.target.dataset ? e.target : null;
+    if (t && (e.key === 'Enter' || e.key === ' ') && t.dataset.fc === 'grp' && t.tagName !== 'BUTTON') { e.preventDefault(); fcClick(t); }
+    if (t && e.key === 'Enter' && (t.dataset.fcF === 'reason' || t.dataset.fcF === 'breason')) {
+      e.preventDefault();
+      const b = t.closest('.fc-ask').querySelector(t.dataset.fcF === 'reason' ? '[data-fc="oksave"]' : '[data-fc="boksave"]');
+      if (b) fcClick(b);
+    }
   });
   $('fcPane').addEventListener('change', e => { if (e.target && e.target.dataset && e.target.dataset.fcF) fcFilter(e.target); });
-  $('fcPane').addEventListener('input', e => { if (e.target && e.target.dataset && e.target.dataset.fcF === 'q') fcFilter(e.target); });
+  $('fcPane').addEventListener('input', e => { if (e.target && e.target.dataset && (e.target.dataset.fcF === 'q' || e.target.dataset.fcF === 'breason')) fcFilter(e.target); });
+  // Esc closes the open family (not while Amazon's check popup is open — Esc is that popup's)
+  document.addEventListener('keydown', e => {
+    if (e.key !== 'Escape' || !FC.open || !fcPaneOn() || (typeof sqIsOpen === 'function' && sqIsOpen())) return;
+    FC.open = '';
+    fcDrawAll();
+  });
   const pane = $('paneFam');
   if (pane && typeof MutationObserver === 'function') new MutationObserver(() => { if (!pane.classList.contains('hide')) fcOpen(); }).observe(pane, { attributes: true, attributeFilter: ['class'] });
 }
