@@ -602,6 +602,8 @@ function vpRecvOf(l, o) {
 }
 /** Everything ordered on the line has reached us — nothing is left for the printer to say it sent. */
 const vpRecvAll = (o, l) => { const ord = vpQty(o, l); return ord > 0 && vpRecvOf(l, o).qty >= ord - 0.01; };
+/** A row's colour for its due date (voDueTone, vendor-orders.js): 'vo-late' red, 'vo-near' yellow, '' white. */
+const vpDueClass = x => { const t = voDueTone(x); return t ? 'vo-' + t : ''; };
 function vpCustomSheet(rows, f) {
   /* DUE DATE (Ravi, 3 Nov: "due date vendor ko bhi dikhe"): the date we need it by, red with the days once it is past. */
   const COLS = ['Date', 'Order Number', 'Image', 'Article', 'Size', 'Ordered', 'Vendor Sent', 'Received', 'Due date', 'Vendor Date'];
@@ -623,7 +625,8 @@ function vpCustomSheet(rows, f) {
     const what = run ? [l.fabricType, l.printDirection].filter(Boolean).join(' · ') : (l.articleSubtype || l.articleType || '');
     const sub = [l.color, run ? (l.sku || '') : l.sku].filter(Boolean).join(' · ');
     const pic = l.img ? ptImgCellSrc(l.sku, l.img) : (run ? vpRunPic(l, 38, true) : ptImgCell(l.sku));
-    return '<tr>'
+    const due = voDueOf(o, l);
+    return `<tr class="${vpDueClass(due)}">`
       + `<td style="text-align:left;white-space:nowrap;font-size:12px">${esc(o.orderDate) || '<span class="muted">—</span>'}</td>`
       + `<td style="text-align:left;font-weight:700;font-size:12.5px">${esc(vpIsShop(o) && (l.shopRef || l.shopOrderNo) ? (l.shopRef || l.shopOrderNo) : (o.orderNo || o.id))}${first ? `<div data-vpmsg="${esc(o.id)}" class="muted" style="font-size:11px;font-weight:400"></div>` : ''}</td>`
       + pic
@@ -632,7 +635,7 @@ function vpCustomSheet(rows, f) {
       + `<td class="num" style="font-weight:700">${nf(ord)} <span class="muted" style="font-weight:400;font-size:10px">${unit}</span></td>`
       + vpVsHtml(o, l, i, ord, unit, 'td')
       + (rc => `<td class="num" title="${esc(rc.how)}">${rc.qty > 0 ? `<b style="color:#166534">${nf(rc.qty)}</b> <span class="muted" style="font-size:10px">${unit}</span>` : '<span class="muted">—</span>'}</td>`)(vpRecvOf(l, o))
-      + `<td style="font-size:12px;text-align:left;white-space:nowrap">${voDueHtml(voDueOf(o, l), voWant(l))}</td>`
+      + `<td style="font-size:12px;text-align:left;white-space:nowrap">${voDueHtml(due, voWant(l))}</td>`
       + `<td>${vpViewAll() || flowVpViewOnly(o) || bal <= 0 ? `<span style="font-size:12px">${esc(voProm(l) ? dShow(voProm(l)) : '') || '<span class="muted">—</span>'}</span>`
           : `<input data-vpprom="${esc(o.id)}" data-i="${i}" type="date" value="${esc(voProm(l))}" style="width:146px">`}</td>`
       + '</tr>';
@@ -944,7 +947,7 @@ function vpBoard(rows, f) {
           : x.raw <= 0 ? '<span class="vpb-no">no raw yet</span>'
           : `<span class="vpb-raw">raw ${q(x.raw)}${x.raw >= x.ord - 0.01 ? ' ✓' : ''}</span>`;
         const pic = run ? vpRunPic(x.l, 44) : ptImgSpan(x.l.sku, 44);
-        return `<div class="vpb-line">${pic}<div class="vpb-what"><span class="vpb-sku">${esc(run ? (x.l.sku || x.l.fabricType) : x.l.sku)}</span>
+        return `<div class="vpb-line ${vpDueClass(voDueOf(o, x.l))}">${pic}<div class="vpb-what"><span class="vpb-sku">${esc(run ? (x.l.sku || x.l.fabricType) : x.l.sku)}</span>
           <span class="muted">${esc(run ? [x.l.fabricType, x.l.printDirection].filter(Boolean).join(' · ') : [x.l.articleSubtype || x.l.articleType, x.l.size].filter(Boolean).join(' · '))}</span></div>
           <div class="vpb-n"><b>${q(x.ord)}</b><span class="muted">ordered</span></div><div class="vpb-n">${chip}<span class="muted">${x.sent > 0 ? 'sent ' + q(x.sent) : 'none sent'}</span></div>
           ${voWant(x.l) ? `<div class="vpb-n" style="font-size:12px">${voDueHtml(voDueOf(o, x.l), voWant(x.l))}<span class="muted">due date</span></div>` : ''}</div>${vpVsHtml(o, x.l, x.i, x.ord, unit)}`;
@@ -993,7 +996,7 @@ function vpProductBoard(rows, f) {
     const forOf = x => [...new Set((x.l.forOrders || []).map(fo => fo && fo.orderNo).filter(Boolean))].join(', ') || (x.o.channel ? 'For ' + x.o.channel : '');
     const rowsH = g.items.slice().sort((a, b) => String(a.want || '9').localeCompare(String(b.want || '9')) || String(a.o.orderNo).localeCompare(String(b.o.orderNo))).map(x => {
       const chip = x.raw == null ? '' : x.raw <= 0 ? '<span class="vpb-no">no raw yet</span>' : `<span class="vpb-raw">raw ${q(x.raw)}</span>`;
-      return `<div class="vpb-line" style="align-items:flex-start"><div class="vpb-what"><b style="font-size:12.5px">${esc(x.o.orderNo || x.o.id)}</b>`
+      return `<div class="vpb-line ${vpDueClass(x.due)}" style="align-items:flex-start"><div class="vpb-what"><b style="font-size:12.5px">${esc(x.o.orderNo || x.o.id)}</b>`
         + `<span class="muted">${esc(forOf(x))}${forOf(x) ? ' · ' : ''}raised ${esc(x.o.orderDate || '—')}</span></div>`
         + (x.want ? `<div class="vpb-n" style="font-size:12px">${voDueHtml(x.due, x.want)}<span class="muted">due date</span></div>` : '')
         + `<div class="vpb-n"><b>${q(x.ord)}</b><span class="muted">${x.sent > 0 ? 'sent ' + q(x.sent) : 'none sent'}</span>${chip}</div></div>`
@@ -1068,7 +1071,7 @@ function vpTable(rows, f) {
       const ord = vpQty(o, l), done = vpDone(l), bal = Math.max(0, ord - done);
       const dead = l.cancelled === true;
       const dels = (Array.isArray(l.deliveries) ? l.deliveries : Object.values(l.deliveries || {})).filter(Boolean);
-      return `<tr${dead ? ' style="opacity:.5"' : ''}>`
+      return `<tr${dead ? ' style="opacity:.5"' : ` class="${vpDueClass(voDueOf(o, l))}"`}>`
         + `<td style="text-align:left;font-family:ui-monospace,monospace;font-size:12px">${esc(run ? (l.sku || l.fabricType) : l.sku)}${run && l.sku ? `<div class="muted" style="font-size:10.5px;font-family:inherit">${esc(l.fabricType)}</div>` : ''}</td>`
         + (run ? vpRunPic(l, 30, true) : ptImgCell(l.sku, 30))
         + `<td style="text-align:left;font-size:12px">${esc(run
@@ -1125,7 +1128,7 @@ function vpCard(o, f) {
       ? `<td style="text-align:left">${esc(l.fabricType)}${l.sku ? `<div class="muted" style="font-family:ui-monospace,monospace;font-size:11px">${esc(l.sku)}</div>` : ''}</td><td>${esc(l.color)}</td><td>${esc(l.printDirection)}</td>`
       : `<td style="font-family:ui-monospace,monospace;text-align:left">${esc(l.sku)}</td>${ptImgCell(l.sku)}`
         + `<td style="text-align:left;font-size:11.5px">${esc([l.articleType, l.articleSubtype, l.color, l.size].filter(Boolean).join(' · '))}</td>`;
-    return `<tr${dead ? ' style="opacity:.5"' : ''}>` + lead
+    return `<tr${dead ? ' style="opacity:.5"' : ` class="${vpDueClass(voDueOf(o, l))}"`}>` + lead
       + `<td>${esc(l.priority) || '<span class="muted">—</span>'}</td>`
       + `<td class="num" style="font-weight:700">${nf(ord)}</td>`
       + `<td class="num" style="color:#166534">${done ? nf(done) : '<span class="muted">—</span>'}`
