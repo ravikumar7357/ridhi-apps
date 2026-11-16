@@ -535,6 +535,83 @@ function pxStats(asins, p, withPrev) {
   return o;
 }
 
+/* ---------- Seller Central's own totals for whole brands (16 Nov 2026) ----------
+ * The rows above add up the Orders workbooks per ASIN (v2_dailyAsin / WDAY), and a workbook saved before Amazon had
+ * finished a day stays short (5 Oct, Ridhi: $16,827 / 428 units against Seller Central's $16,944.03 / 432). The Sales
+ * Dashboard and the Ad Console already lay Seller Central's Business Report by date (matchBiz — T_MATCH, tMatchEnsure,
+ * tMatchBizDays in ads/account-trends.js) over their days. This does the same for every WHOLE-BRAND figure here — the
+ * All row, the tiles, the period cards and "vs prev" — for the days Amazon has published: Sales, Units, Order items
+ * (Total Order Items, as Seller Central counts), and Sessions when every day of the range is published. Nothing is
+ * laid over a searched list (it is not a whole brand), over a range with an older day missing, or over the newest
+ * day or two Amazon has not published yet (those keep the workbook figures, as on the other two screens).
+ * The product rows still add up the workbooks; pxAmzGapRow says by how much they differ from Seller Central. */
+// Seller Central's days for the brands in view from lo, up to the last one in a row every brand has published:
+// { cut, s: [sales, units, order items, sessions, page views] }, or null when none is, or when an older day is missing.
+function pxAmzDays(lo, hi) {
+  if (typeof T_MATCH === 'undefined' || !T_MATCH.biz) return null;
+  const bs = PX.brand === 'ALL' ? adBrands() : [PX.brand];
+  const maps = bs.map(b => tMatchBizDays(b)), fresh = sdShift(pxToday(), -3);
+  const s = [0, 0, 0, 0, 0];
+  let cut = '';
+  for (const d of wDaysBetween(lo, hi)) {
+    const vs = maps.map(m => m[d]);
+    if (vs.some(v => !v)) {
+      if (d < fresh) return null;            // a hole in the older days: not "not published yet" — no overlay
+      break;                                 // the newest days Amazon has not published: they keep the workbooks
+    }
+    vs.forEach(v => { for (let i = 0; i < 5; i++) s[i] += Number(v[i]) || 0; });
+    cut = d;
+  }
+  return cut ? { cut, s } : null;
+}
+// Lay Seller Central's totals over a whole-brand totals object `o` (from pxStats, with o.o already the account's
+// orders) for plan p. Sales and units move by the gap between Seller Central and the products over the published
+// days, so the days after them keep what they had; the ratios are worked out again. Returns o.amz
+// ({ cut, dRev, dU }) or null when nothing was laid over.
+function pxAmzOver(o, asins, p) {
+  if (!o || !o.has || !p || p.src === 'none' || PX.q.trim()) return null;
+  const amz = pxAmzDays(p.lo, p.hi);
+  if (!amz) return null;
+  const own = pxStats(asins, pxPlan(p.lo, amz.cut));        // what the products add up to over the same days
+  if (!own.has) return null;
+  const dRev = amz.s[0] - own.rev, dU = amz.s[1] - own.u;
+  o.rev += dRev;
+  o.u += dU;
+  // The ad ratios set ad figures against sales over the days the ad report covers (revA / uA, see pxDerive).
+  if (!o.adTo || o.adTo >= amz.cut) {
+    o.revA += dRev;
+    o.uA += dU;
+  } else {
+    const a2 = pxAmzDays(p.lo, o.adTo), own2 = a2 && pxStats(asins, pxPlan(p.lo, a2.cut));
+    if (a2 && own2 && own2.has) {
+      o.revA += a2.s[0] - own2.rev;
+      o.uA += a2.s[1] - own2.u;
+    }
+  }
+  // Order items: Seller Central's over the published days, the account's own count over the days after them.
+  const rest = amz.cut < p.hi ? pxAcctOrders(pxPlan(sdShift(amz.cut, 1), p.hi)) : 0;
+  o.o = amz.s[2] + (rest || 0);
+  // Sessions (and page views): Seller Central's daily Sessions - Total, only when every day is published.
+  if (amz.cut === p.hi) {
+    o.se = amz.s[3];
+    o.pv = amz.s[4];
+    o.seAmz = true;
+  }
+  o.amz = { cut: amz.cut, dRev, dU };
+  pxDerive(o);
+  return o.amz;
+}
+// The line under the All row: how far the product rows are from Seller Central's own totals, when they are.
+function pxAmzGapRow(tot) {
+  const g = tot && tot.amz;
+  if (!g || (Math.abs(g.dRev) < 1 && !g.dU)) return '';
+  const more = g.dRev >= 0 ? 'more' : 'less', u = Math.round(Math.abs(g.dU));
+  return `<tr class="px-amzgap"><td class="l px-dim" colspan="99"><small>The All row is Seller Central’s own total`
+    + ` (Business Reports, to ${pxEsc(pxDM(g.cut))}): <b>${pxMoney(Math.abs(g.dRev))}</b> and <b>${u.toLocaleString('en-US')}</b>`
+    + ` unit${u === 1 ? '' : 's'} ${more} than the products below add up to — orders Amazon counts that the Orders`
+    + ` workbooks do not have yet. The products catch up when those days are read again.</small></td></tr>`;
+}
+
 /* ---------- products: parents, children, names, SKUs, pictures ---------- */
 let PX_LOOK = null;          // asin → { brand, sku } from the Listing Health snapshot
 // asin → { brand, sku } over both brands' Listing Health rows, built once (reset when health reloads).
@@ -1122,7 +1199,7 @@ function pxRangeTable(rows, ctx, tot) {
   const whole = pxWholeWeeks(ctx.span);
   const head = grp + '<tr>' + pxTh('Product', 't', 'l stick', '', '', pxI('table', 'The table', pxTableInfo(ctx))) + (sku ? pxTh('SKU', 'sku', 'l') : '')
     + vis.map(x => (x[0] === 'tr' ? `<th class="px-th-tr" title="${pxEsc(PX_TIPS.tr)}">8-week trend</th>`
-      : pxTh(x[1], x[0], '', !whole && (x[0] === 'se' || x[0] === 'usp') ? 'whole weeks only' : '', PX_TIPS[x[0]]))).join('')
+      : pxTh(x[1], x[0], '', !whole && !(tot && tot.seAmz) && (x[0] === 'se' || x[0] === 'usp') ? 'whole weeks only' : '', PX_TIPS[x[0]]))).join('')
     + '</tr>';
   // --- build table: the All row and the body ---
   const totRow = `<tr class="px-total"><td class="l stick">${pxAllLabel(ctx)}</td>${sku ? '<td></td>' : ''}${pxRangeCells(tot, true, { asins: ctx.found.flatMap(x => x.asins) })}</tr>`;
@@ -1137,7 +1214,7 @@ function pxRangeTable(rows, ctx, tot) {
     }
     return h + pxWhyRow(e, ctx);
   }).join('');
-  return `<table class="px-tbl"><thead>${head}</thead><tbody>${totRow}${body || `<tr><td class="l px-dim" colspan="99">Nothing matches.</td></tr>`}</tbody></table>`;
+  return `<table class="px-tbl"><thead>${head}</thead><tbody>${totRow}${pxAmzGapRow(tot)}${body || `<tr><td class="l px-dim" colspan="99">Nothing matches.</td></tr>`}</tbody></table>`;
 }
 // The Columns by date table: one column per date range showing the chosen metric as a figure and a bar, plus the change.
 function pxColTable(rows, ctx) {
@@ -1291,6 +1368,7 @@ function pxCards(asins) {
   return '<div class="px-pcards" role="group" aria-label="Periods">' + PX_PCARDS.map((k, i) => {
     const [lo, hi] = PX_DATES[k][1](t), p = pxPlan(lo, hi), o = pxStats(asins, p);
     o.o = pxAcctOrders(p);
+    pxAmzOver(o, asins, p);                        // Seller Central's own totals, as the All row
     const on = PX.mode === 'range' && PX.dkey === k;
     const line = (l, v) => `<span class="px-pc-l"><small>${l}</small><b>${v}</b></span>`;
     // Today: Amazon's day runs on Pacific time and its orders land through the day, its ads with tonight's run —
@@ -1992,11 +2070,15 @@ function pxRender(focusSel) {
   const allAsins = ctx.found.flatMap(e => e.asins);
   const tot = pxStats(allAsins, ctx.span);
   tot.o = pxAcctOrders(ctx.span);                  // unique order ids, not the rows added up
+  pxAmzOver(tot, allAsins, ctx.span);              // Seller Central's own totals over the days it has published
   // The same figures over the same number of days just before — for a finished period only, exactly as "vs prev"
   // is judged everywhere on this page — so every tile in the strip can say which way it moved.
   const pp = ctx.span.src !== 'none' && ctx.span.hi < pxToday() ? pxPrevPlan(ctx.span) : null;
   const prv = pp && pp.src !== 'none' ? pxStats(allAsins, pp) : null;
-  if (prv) prv.o = pxAcctOrders(pp);
+  if (prv) {
+    prv.o = pxAcctOrders(pp);
+    pxAmzOver(prv, allAsins, pp);                  // so "vs prev" sets like against like
+  }
   tot.vp = prv && prv.has && tot.has && prv.rev ? (tot.rev - prv.rev) / prv.rev * 100 : null;
   const P = k => (prv && prv.has ? prv[k] : null);
 
@@ -2084,9 +2166,9 @@ function pxRender(focusSel) {
       pxSpark(sv(x => x.tacos), 'px-sp-act'))
     + tile('Organic share', pxPct(tot.op), `${pxMoney(tot.os)} organic`, pxDelta(tot.op, P('op'), 'pt', 'up'), PX_TIPS.op,
       pxSpark(sv(x => x.op), 'px-sp-org'))
-    + tile('Sessions', whole ? pxN(tot.se) : '—',
-      whole ? `unit session % ${pxPct(tot.usp)}` : cm ? 'whole Sun–Sat weeks only' : 'Custom ▾ → Last week or Last 4 weeks',
-      whole ? pxDelta(tot.se, P('se'), '', 'up') : '', PX_TIPS.se, pxSpark(sessWk, 'px-sp-brand'))
+    + tile('Sessions', whole || tot.seAmz ? pxN(tot.se) : '—',
+      whole || tot.seAmz ? `unit session % ${pxPct(tot.usp)}` : cm ? 'whole Sun–Sat weeks only' : 'Custom ▾ → Last week or Last 4 weeks',
+      whole || tot.seAmz ? pxDelta(tot.se, P('se'), '', 'up') : '', PX_TIPS.se, pxSpark(sessWk, 'px-sp-brand'))
     + '</div></div>';
 
   // --- the bar over the table: date chips (range) or the column set-up (cols), with its pop-up ---
@@ -2639,6 +2721,9 @@ async function ensurePpcn() {
   if (Date.now() - PXN.run > 600000) {
     try { await pxExtra(); } catch (e) { /* "—" until the next open */ }
   }
+  // Seller Central's own day totals for the whole-brand figures (pxAmzOver) — shared with the Sales Dashboard and
+  // the Ad Console, one read every ten minutes whichever screen asks.
+  try { await tMatchEnsure(); } catch (e) { /* the workbook figures stay */ }
   PX.loading = false;
   pxRender();
   pxImages();                                       // pictures fill in when they arrive
