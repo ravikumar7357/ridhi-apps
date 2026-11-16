@@ -129,6 +129,13 @@ const hitOf = (kid, det) => kid.found.find(hit => hit.detector === det);
     ok('Not checked: no status (the read failed) → grey ○, never Suppressed', u.f === 'u' && !u.sup, JSON.stringify(u.f));
     const L = load({ ws: true });
     const k = x => L.lrShopOf(x).k;
+    // the backend's two shapes: ?lfix=get now sends acts (and still enforced), the saved snapshot sends e
+    const lfixShape = { severity: 'ERROR', code: '5665', message: 'Removed from search', attrs: [], cats: [], enforced: true, acts: ['SEARCH_SUPPRESSED'] };
+    ok('rule b from the backend: ?lfix=get\'s acts → Suppressed; an old reply with only enforced: true (no names) → not suppressed; the snapshot\'s e → Suppressed',
+      k({ st: 'BUYABLE,DISCOVERABLE', iss: [lfixShape] }) === 'sup' && k({ st: 'BUYABLE,DISCOVERABLE', iss: [{ severity: 'ERROR', code: '5665', enforced: true }] }) === 'ok'
+      && k({ st: 'BUYABLE,DISCOVERABLE', iss: [{ s: 'E', c: '5665', m: 'm', e: ['LISTING_SUPPRESSED'] }] }) === 'sup');
+    const wsSrc = require('fs').readFileSync(require('path').join(__dirname, '..', 'src', 'app', 'listing', 'listing-workspace.js'), 'utf8');
+    ok('…the Workspace\'s live read keeps them on each issue (e: lrIssueActs(issue) — the names in acts)', /lrIssueActs\(issue\)\.length \? \{ e: lrIssueActs\(issue\) \}/.test(wsSrc));
     ok('lrShopOf by itself: CO-007 ok · a sup · b sup · c sup · not buyable (live) nobuy · no stock off · no status unk',
       k({ st: 'BUYABLE,DISCOVERABLE', iss: swatch }) === 'ok' && k({ st: 'BUYABLE' }) === 'sup' && k({ st: ['BUYABLE', 'DISCOVERABLE'], iss: [{ c: '1', enforcements: { actions: [{ action: 'LISTING_SUPPRESSED' }] } }] }) === 'sup'
       && k({ st: 'BUYABLE,DISCOVERABLE', fyp: 'Missing information' }) === 'sup' && k({ st: 'DISCOVERABLE', qty: 3 }) === 'nobuy' && k({ st: 'DISCOVERABLE', qty: 0 }) === 'off'

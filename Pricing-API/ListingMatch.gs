@@ -677,6 +677,8 @@ function lmJoin_(ctx, sku, old) {
     rec.fyp = f ? { r: f[0], d: f[1], at: f[2] } : null;
     delete rec.fypStale;
   } else if (old && old.fyp !== undefined) { rec.fyp = old.fyp; rec.fypStale = 1; }
+  // In Amazon's Suppressed listings report: true / false; null when that report has never been read for this SKU.
+  rec.inSupReport = rec.fyp === undefined ? null : !!rec.fyp;
   if (ctx.S) {
     var m = ctx.S.m || {};
     rec.fba = Object.prototype.hasOwnProperty.call(m, sku) ? m[sku] : null;
@@ -688,11 +690,15 @@ function lmJoin_(ctx, sku, old) {
 
 function lmStale_(old) { var r = JSON.parse(JSON.stringify(old)); r.stale = 1; return r; }
 
-/** "Suppressed" only from the Suppressed listings report, or from a status that is BUYABLE without DISCOVERABLE. */
+/** "Suppressed" — the same three-part rule as Sellora's lrShopOf: a status that is BUYABLE without DISCOVERABLE, an issue whose
+ *  enforcement action is SEARCH_SUPPRESSED or LISTING_SUPPRESSED, or the Suppressed listings report. An ERROR alone never is. */
+var LM_SUPPRESS_ACTS = ['SEARCH_SUPPRESSED', 'LISTING_SUPPRESSED'];
 function lmSup_(rec) {
-  if (rec.fyp) return { src: 'report', why: rec.fyp.r + (rec.fyp.d ? ' — ' + rec.fyp.d : '') };
   var s = String(rec.as || '');
   if (/BUYABLE/.test(s) && !/DISCOVERABLE/.test(s)) return { src: 'status', why: 'Buyable but not discoverable (Amazon status ' + s + ')' };
+  var hit = (rec.iss || []).filter(function (i) { return (i.e || []).some(function (a) { return LM_SUPPRESS_ACTS.indexOf(a) >= 0; }); })[0];
+  if (hit) return { src: 'enforcement', why: hit.e.filter(function (a) { return LM_SUPPRESS_ACTS.indexOf(a) >= 0; })[0] + ' (' + hit.c + ') — ' + String(hit.m || '').slice(0, 140) };
+  if (rec.fyp) return { src: 'report', why: rec.fyp.r + (rec.fyp.d ? ' — ' + rec.fyp.d : '') };
   return null;
 }
 
@@ -704,8 +710,9 @@ function lmCounts_(b, tabsL, tabsC, x) {
       var r = p.items[s];
       c.skus++;
       c.status[r.rs || '(none)'] = (c.status[r.rs || '(none)'] || 0) + 1;
-      if (r.sup && r.sup.src === 'report') c.supReport++;
-      else if (r.sup && r.sup.src === 'status') c.supStatus++;
+      if (r.inSupReport) c.supReport++;                 // Amazon's own count: everything its report lists
+      if (r.sup && r.sup.src === 'status') c.supStatus++;
+      else if (r.sup && r.sup.src === 'enforcement') c.supEnforced = (c.supEnforced || 0) + 1;
       if (r.fba != null) c.fba++;
       if (r.stale) c.stale++;
       if (r.noRead) c.noRead++;
@@ -848,8 +855,12 @@ function lmItem_(it, now) {
     bl: vals('bullet_point', 500), d: vals('product_description', LM_TEXT_MAX).join('\n').slice(0, LM_TEXT_MAX),
     hl: vals('title_differentiation', 200), kw: vals('generic_keyword', 500).join(' '),
     lvl: one('parentage_level'), psku: rel ? String(rel.parent_sku || '') : '', theme: one('variation_theme', 'name'), va: va, img: img,
+    // e = Amazon's enforcement action names (SEARCH_SUPPRESSED, LISTING_SUPPRESSED, …), only when it names some
     iss: (it.issues || []).slice(0, 12).map(function (i) {
-      return { c: String(i.code || ''), s: String(i.severity || ''), m: String(i.message || '').slice(0, 300), a: (i.attributeNames || []).slice(0, 4) };
+      var o = { c: String(i.code || ''), s: String(i.severity || ''), m: String(i.message || '').slice(0, 300), a: (i.attributeNames || []).slice(0, 4) };
+      var e = ((i.enforcements && i.enforcements.actions) || []).map(function (x) { return String((x && x.action) || ''); }).filter(Boolean);
+      if (e.length) o.e = e;
+      return o;
     }),
     upd: s.lastUpdatedDate || '', cr: s.createdDate || '', readAt: now,
   };

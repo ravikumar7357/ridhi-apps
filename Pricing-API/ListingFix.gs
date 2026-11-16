@@ -14,7 +14,7 @@
 
 function lfixIssue_(i) {
   return { severity: i.severity, code: i.code, message: i.message, attrs: i.attributeNames || [],
-    cats: i.categories || [], enforced: !!(i.enforcements && i.enforcements.actions && i.enforcements.actions.length) };
+    cats: i.categories || [], enforced: !!(i.enforcements && i.enforcements.actions && i.enforcements.actions.length), acts: ((i.enforcements && i.enforcements.actions) || []).map(function (x) { return String((x && x.action) || ''); }).filter(Boolean) };
 }
 
 function lfixGet_(p) {

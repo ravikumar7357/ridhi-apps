@@ -3,7 +3,7 @@
 // node Replenish-App/tests/listing-match-test.js
 const fs = require('fs'), vm = require('vm'), path = require('path');
 const P = path.join(__dirname, '..', '..', 'Pricing-API') + '/';
-const FILES = ['SpApi.gs', 'Code.gs', 'MailPo.gs', 'Nightly.gs', 'ListingImages.gs', 'InventoryAge.gs', 'Research.gs', 'ListingMatch.gs'];
+const FILES = ['SpApi.gs', 'Code.gs', 'MailPo.gs', 'Nightly.gs', 'ListingImages.gs', 'ListingFix.gs', 'InventoryAge.gs', 'Research.gs', 'ListingMatch.gs'];
 const SRC = FILES.map(f => fs.readFileSync(P + f, 'utf8')).join('\n;\n');
 let pass = 0, fail = 0;
 const ok = (n, c, i) => { if (c) { pass++; console.log('  PASS ' + n); } else { fail++; console.log('  FAIL ' + n + (i !== undefined ? '  ' + i : '')); } };
@@ -67,7 +67,7 @@ function listingItem(sku, x) {
     variation_theme: [{ name: x.theme }] };
   Object.keys(x.img).forEach(k => { at[k] = [{ media_location: x.img[k] }]; });
   return { sku, summaries: [{ asin: x.asin, status: x.as, productType: x.pt, itemName: x.t, lastUpdatedDate: x.upd, createdDate: '2025-01-01T00:00:00Z' }], attributes: at,
-    issues: x.iss.map(i => ({ code: i.c, severity: i.s, message: i.m, attributeNames: i.a || [] })) };
+    issues: x.iss.map(i => Object.assign({ code: i.c, severity: i.s, message: i.m, attributeNames: i.a || [] }, i.e ? { enforcements: { actions: i.e.map(a => ({ action: a })), exemption: { status: 'NOT_EXEMPT' } } } : {})) };
 }
 function catalogItem(asin, c) {
   const rel = c.kids ? [{ type: 'VARIATION', childAsins: c.kids, variationTheme: { theme: c.theme, attributes: c.tattrs } }] : [{ type: 'VARIATION', parentAsins: c.pa }];
@@ -298,6 +298,34 @@ const tabs = T => [...T.sheets.keys()];
     const E = setup({ hour: 13, repStatus: (type, b) => (type === 'GET_MERCHANTS_LISTINGS_FYP_REPORT' ? 'CANCELLED' : 'DONE') });
     E.fullPass();
     ok('a Suppressed report CANCELLED by Amazon ("no data") means none suppressed — the pass goes on', E.read('lmMeta').counts.SP.supReport === 0 && E.read('lmMeta').lastFull.brands.length === 2);
+  }
+
+  console.log('== enforcement action names and the Suppressed-report flag (rules b and c) ==');
+  {
+    const W = world();
+    W.SP.skus['RTC14-11'].iss = [{ c: '5665', s: 'ERROR', m: 'Removed from search: prohibited keyword', a: ['generic_keyword'], e: ['SEARCH_SUPPRESSED'] }];
+    W.SP.skus['RTC14-12'].iss = [{ c: '99300', s: 'WARNING', m: 'The colour value is hidden', a: ['color'], e: ['ATTRIBUTE_SUPPRESSED'] }];
+    W.SP.skus['RTC14-13'].iss = [{ c: '8541', s: 'ERROR', m: 'The swatch image is missing; the listing may be suppressed', a: ['swatch_product_image_locator'] }];
+    W.SP.fyp['RTC14-14'] = ['Missing information', 'no main image'];
+    const T = setup({ W, hour: 13 });
+    T.fullPass();
+    const it = T.allItems('listings', 'SP').items;
+    ok('lmListings keeps each issue\'s enforcement action names (e), only where Amazon names some', JSON.stringify(it['RTC14-11'].iss[0].e) === '["SEARCH_SUPPRESSED"]'
+      && JSON.stringify(it['RTC14-12'].iss[0].e) === '["ATTRIBUTE_SUPPRESSED"]' && it['RTC14-13'].iss[0].e === undefined);
+    ok('b) SEARCH_SUPPRESSED → suppressed (by enforcement), even while BUYABLE + DISCOVERABLE', it['RTC14-11'].sup && it['RTC14-11'].sup.src === 'enforcement' && /^SEARCH_SUPPRESSED \(5665\)/.test(it['RTC14-11'].sup.why));
+    ok('…ATTRIBUTE_SUPPRESSED is not one of the two: not suppressed; an ERROR alone: not suppressed', it['RTC14-12'].sup === null && it['RTC14-13'].sup === null);
+    ok('c) the Suppressed-report flag per SKU: inSupReport true for the SKU in the report, false for the others', it['RTC14-14'].inSupReport === true && it['RTC14-14'].sup.src === 'report'
+      && it['RTC14-1'].inSupReport === false && it['RTC14-11'].inSupReport === false);
+    const c = T.read('lmMeta').counts.SP;
+    ok('lmMeta counts: suppressed by report 1 (Amazon\'s own count), by enforcement 1', c.supReport === 1 && c.supEnforced === 1, JSON.stringify(c));
+    ok('the live read (?lfix=get): lfixIssue_ passes the action names (acts) and keeps the old yes/no flag (enforced)',
+      JSON.stringify(T.run('lfixIssue_({ severity: "ERROR", code: "5665", message: "m", attributeNames: ["a"], enforcements: { actions: [{ action: "SEARCH_SUPPRESSED" }, { action: "LISTING_SUPPRESSED" }] } })'))
+        === JSON.stringify({ severity: 'ERROR', code: '5665', message: 'm', attrs: ['a'], cats: [], enforced: true, acts: ['SEARCH_SUPPRESSED', 'LISTING_SUPPRESSED'] })
+      && JSON.stringify(T.run('lfixIssue_({ severity: "ERROR", code: "8541", message: "m" })')) === JSON.stringify({ severity: 'ERROR', code: '8541', message: 'm', attrs: [], cats: [], enforced: false, acts: [] }));
+    const sh = T.run('limgShape_(' + JSON.stringify({ sku: 'X', summaries: [{ asin: 'B0X', status: ['BUYABLE', 'DISCOVERABLE'] }], attributes: {},
+      issues: [{ severity: 'ERROR', code: '5665', message: 'm', attributeNames: [], enforcements: { actions: [{ action: 'SEARCH_SUPPRESSED' }] } }, { severity: 'WARNING', code: '1', message: 'w' }] }) + ')');
+    ok('the saved list snapshot (?limg=page): each issue keeps e = the action names, nothing added when there are none', JSON.stringify(sh.iss[0].e) === '["SEARCH_SUPPRESSED"]' && !('e' in sh.iss[1])
+      && sh.iss[0].c === '5665' && sh.ie === 1);
   }
 
   console.log('== a failed read never wipes data ==');
