@@ -717,6 +717,126 @@ fs.writeFileSync(path.join(OUT, '.nojekyll'), '');
   fs.writeFileSync(path.join(dst, 'index.html'), html);
 }
 
+/* THE FIRESTORE COPIER (Ravi, 16 Nov: "copier tab B"). Some Firestore documents are written by Apps Script (the Pricing API's
+ * ReplSnap / ShopifyCache, Sellora's backends), never by a browser, so no save of the test link carries them into ERP data.
+ * This page does what the Apps Script reader would: an ADMIN signed in to the test link opens …/copier/ and leaves it open; it
+ * reads Firestore with their own sign-in (names + update times first, then only the changed documents) and hands them to ERP
+ * data (core.fs_copy_put — admins only). The collections the scripts write: every 5 minutes; every collection the rules name:
+ * every hour. It never writes to Firebase; API keys (config/*: key / secret / token / password fields) are never sent. */
+{
+  const fsrc = fs.readFileSync(path.join(ROOT, 'Replenish-App', 'public', 'index.html'), 'utf8');
+  const key = (fsrc.match(/const FB_KEY = "([^"]+)"/) || [])[1];
+  const cfgM = fsrc.match(/const firebaseConfig = \{([\s\S]*?)\};/);
+  if (!key || !cfgM) throw new Error('copier: the Firebase web settings were not found in the factory ERP');
+  const cfg = '{' + cfgM[1].replace('apiKey: FB_KEY', 'apiKey: ' + JSON.stringify(key)) + '}';
+  const rules = fs.readFileSync(path.join(ROOT, 'Pricing-App', 'firestore.rules'), 'utf8');
+  const colls = [...new Set([...rules.matchAll(/match\s+\/([A-Za-z_]+)\//g)].map(m => m[1]).filter(c => c !== 'databases'))].sort();
+  if (colls.length < 20) throw new Error('copier: the collections were not read from firestore.rules');
+  const OFTEN = ['repl', 'replrows', 'replslim', 'replslimrows', 'replshop', 'replshoprows', 'shopify_cache', 'shopify_cache_days'].filter(c => colls.includes(c));
+  const dst = path.join(OUT, 'copier'); fs.mkdirSync(dst, { recursive: true });
+  fs.writeFileSync(path.join(dst, 'index.html'), `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex"><title>R1 · Firestore copier</title><link rel="icon" href="../replenish/r1-icon.svg" type="image/svg+xml">
+<style>body{margin:0;font:14px/1.5 system-ui,sans-serif;background:#f6f7f9;color:#15171a;padding:16px}main{max-width:820px;margin:0 auto;display:grid;gap:12px}
+h1{margin:0;font-size:22px}.tag{display:inline-block;background:#b45309;color:#fff;font-weight:700;font-size:12px;padding:2px 8px;border-radius:6px}
+.card{background:#fff;border:1px solid #e2e4e8;border-radius:12px;padding:12px 14px}table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{text-align:left;padding:4px 6px;border-bottom:1px solid #eceef1}td.n{text-align:right;font-variant-numeric:tabular-nums}.bad{color:#b91c1c}.ok{color:#166534}
+@media(prefers-color-scheme:dark){body{background:#111214;color:#e9eaec}.card{background:#18191c;border-color:#2a2c30}th,td{border-color:#2a2c30}}</style></head>
+<body><main><span class="tag">TEST ERP</span><h1>Firestore copier</h1>
+<div class="card" id="who">Checking your sign-in…</div>
+<div class="card"><b>Keep this tab open while people test.</b> It copies what the Apps Scripts write to Firestore (Sellora, the Replenishment
+snapshots, the Shopify cache) into ERP data: the scripts' collections every 5 minutes, all collections every hour. It only <b>reads</b>
+Firebase, and never copies API keys.<div id="state" style="margin-top:6px"></div></div>
+<div class="card"><table><thead><tr><th>Collection</th><th>Documents</th><th>Copied</th><th>Last looked</th><th></th></tr></thead><tbody id="rows"></tbody></table></div>
+</main>
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+const app = initializeApp(${cfg});
+const auth = getAuth(app);
+const SB = ${JSON.stringify(SB_DATA)};
+const PROJ = 'price-research-48ff3', BASE = 'https://firestore.googleapis.com/v1/projects/' + PROJ + '/databases/(default)/documents';
+const COLLS = ${JSON.stringify(colls)}, OFTEN = ${JSON.stringify(OFTEN)};
+const SECRET = /key|secret|token|pass/i, $ = id => document.getElementById(id), esc = s => String(s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+const ST = {}; let busy = false, user = null;
+const tok = () => user.getIdToken();
+const dec = v => { if (!v || typeof v !== 'object') return v; if ('stringValue' in v) return v.stringValue; if ('integerValue' in v) return Number(v.integerValue);
+  if ('doubleValue' in v) return Number(v.doubleValue); if ('booleanValue' in v) return v.booleanValue; if ('nullValue' in v) return null;
+  if ('timestampValue' in v) return v.timestampValue; if ('referenceValue' in v) return v.referenceValue; if ('geoPointValue' in v) return v.geoPointValue;
+  if ('bytesValue' in v) return v.bytesValue; if ('arrayValue' in v) return (v.arrayValue.values || []).map(dec);
+  if ('mapValue' in v) { const o = {}, f = v.mapValue.fields || {}; for (const k of Object.keys(f)) o[k] = dec(f[k]); return o; } return v; };
+const docOf = d => { const o = {}, f = d.fields || {}; for (const k of Object.keys(f)) o[k] = dec(f[k]); return o; };
+const safe = (coll, v) => { if (coll !== 'config' || !v || typeof v !== 'object') return v; const o = {}; for (const k of Object.keys(v)) if (!SECRET.test(k)) o[k] = v[k]; return o; };
+const idOf = n => String(n).split('/').pop();
+const seenGet = c => { try { return JSON.parse(localStorage.getItem('r1copier.seen.' + c) || 'null'); } catch (e) { return null; } };
+const seenSet = (c, m) => { try { localStorage.setItem('r1copier.seen.' + c, JSON.stringify(m)); } catch (e) { /* too big: sent again next round */ } };
+async function fsReq(url, opt) {
+  for (let i = 0; i < 3; i++) {
+    const r = await fetch(url, Object.assign({}, opt || {}, { headers: Object.assign({ Authorization: 'Bearer ' + await tok(), 'Content-Type': 'application/json' }, (opt || {}).headers || {}) }));
+    if (r.ok) return r.json();
+    if (r.status === 403 || r.status === 404) return null;            // not allowed / not there: skipped
+    if (r.status !== 429 && r.status < 500) throw new Error('Firestore ' + r.status + ': ' + (await r.text()).slice(0, 200));
+    await new Promise(z => setTimeout(z, 1500 * (i + 1)));
+  }
+  throw new Error('Firestore did not answer');
+}
+async function list(coll) {
+  const out = {}; let pt = '';
+  do { const j = await fsReq(BASE + '/' + encodeURIComponent(coll) + '?pageSize=300&mask.fieldPaths=__name__' + (pt ? '&pageToken=' + encodeURIComponent(pt) : ''));
+    if (j === null) return null; for (const d of j.documents || []) out[idOf(d.name)] = d.updateTime; pt = j.nextPageToken || ''; } while (pt);
+  return out;
+}
+async function getDocs(coll, ids) {
+  const arr = await fsReq(BASE + ':batchGet', { method: 'POST', body: JSON.stringify({ documents: ids.map(id => 'projects/' + PROJ + '/databases/(default)/documents/' + coll + '/' + id) }) }) || [];
+  const out = {}; for (const x of arr) if (x.found) out[idOf(x.found.name)] = { v: safe(coll, docOf(x.found)), t: x.found.updateTime }; return out;
+}
+async function send(docs) {
+  let batch = [], size = 0;
+  const flush = async () => { if (!batch.length) return;
+    const r = await fetch(SB.url + '/rest/v1/rpc/fs_copy_put', { method: 'POST', body: JSON.stringify({ p_docs: batch }),
+      headers: { apikey: SB.key, Authorization: 'Bearer ' + await tok(), 'Content-Type': 'application/json', 'Content-Profile': 'core', 'Accept-Profile': 'core' } });
+    if (!r.ok) throw new Error('ERP data ' + r.status + ': ' + (await r.text()).slice(0, 200)); batch = []; size = 0; };
+  for (const d of docs) { const s = JSON.stringify(d).length; if (batch.length && (size + s > 3000000 || batch.length >= 300)) await flush(); batch.push(d); size += s; }
+  await flush();
+}
+function draw() {
+  $('rows').innerHTML = COLLS.map(c => { const s = ST[c] || {}; return '<tr><td>' + esc(c) + (OFTEN.includes(c) ? ' <small>(scripts)</small>' : '') + '</td><td class="n">' + (s.docs == null ? '' : s.docs)
+    + '</td><td class="n">' + (s.copied || 0) + '</td><td>' + (s.at ? new Date(s.at).toLocaleTimeString() : '') + '</td><td class="' + (s.err ? 'bad' : 'ok') + '">' + esc(s.err || (s.skip ? 'not readable' : s.at ? 'ok' : '')) + '</td></tr>'; }).join('');
+}
+async function one(coll) {
+  const s = ST[coll] = ST[coll] || {};
+  try {
+    const now = await list(coll); s.at = Date.now();
+    if (now === null) { s.skip = true; s.err = ''; return; }
+    s.docs = Object.keys(now).length; s.skip = false;
+    const seen = seenGet(coll) || {};
+    const changed = Object.keys(now).filter(id => seen[id] !== now[id]), gone = Object.keys(seen).filter(id => !(id in now));
+    for (let i = 0; i < changed.length; i += 40) {
+      const ids = changed.slice(i, i + 40), got = await getDocs(coll, ids);
+      const ch = ids.filter(id => got[id]).map(id => ({ k: 'put', p: coll + '/' + id, v: got[id].v, t: got[id].t })).sort((a, b) => (a.t < b.t ? -1 : a.t > b.t ? 1 : 0));
+      await send(ch); ids.forEach(id => { if (got[id]) seen[id] = got[id].t; }); seenSet(coll, seen); s.copied = (s.copied || 0) + ch.length; draw();
+    }
+    if (gone.length) { await send(gone.map(id => ({ k: 'delete', p: coll + '/' + id, v: null, t: new Date().toISOString() }))); gone.forEach(id => delete seen[id]); seenSet(coll, seen); s.copied = (s.copied || 0) + gone.length; }
+    s.err = '';
+  } catch (e) { s.err = String(e && e.message || e).slice(0, 120); }
+}
+async function round() {
+  if (busy || !user) return; busy = true;
+  const last = Number(localStorage.getItem('r1copier.all') || 0), all = Date.now() - last > 59 * 60000;
+  $('state').textContent = 'Copying ' + (all ? 'every collection' : 'the scripts\\' collections') + '…';
+  for (const c of (all ? COLLS : OFTEN)) { await one(c); draw(); }
+  if (all) localStorage.setItem('r1copier.all', String(Date.now()));
+  $('state').textContent = 'Last round ' + new Date().toLocaleTimeString() + ' — next in 5 minutes.';
+  busy = false;
+}
+onAuthStateChanged(auth, u => {
+  user = u;
+  if (!u) { $('who').innerHTML = '<span class="bad">Not signed in.</span> Sign in on the <a href="../replenish/">factory ERP</a> first (with an admin account), then come back here.'; return; }
+  $('who').innerHTML = 'Signed in as <b>' + esc(u.email) + '</b>. Only an admin can copy.';
+  draw(); round(); setInterval(round, 5 * 60000);
+});
+</script></body></html>`);
+}
+
 /* The front page of the test ERP */
 fs.writeFileSync(path.join(OUT, 'index.html'), `<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>R1 · test ERP</title>
@@ -729,6 +849,7 @@ a.card b{display:block;font-size:18px}small,p{color:#5d636b}@media(prefers-color
 <p>The same apps as the real ERP, built from the <b>${BRANCH}</b> branch on GitHub. Nothing here can change the real ERP: both apps read and <b>save to ERP data (Supabase) only</b> — test saves are wiped when the real switch happens. E-mails, Shopify, Amazon and logins stay switched off.</p>
 <a class="card" href="replenish/"><b>Factory ERP</b><small>Replenishment, production, vendors, stock · loads from and saves to ERP data (Supabase)</small></a>
 <a class="card" href="sellora/"><b>Sellora</b><small>Research, sales, listings, advertising · loads from and saves to ERP data (Supabase)</small></a>
+<a class="card" href="copier/"><b>Firestore copier</b><small>Admins: keep it open while people test — copies what the Apps Scripts write into ERP data</small></a>
 <small>Built from commit ${SHA} · ${WHEN}</small></main></body></html>`);
 
 console.log(`test ERP built into _site/ from ${BRANCH} @ ${SHA}: factory ERP + Sellora, saving off.`);
