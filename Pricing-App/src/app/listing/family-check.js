@@ -3,54 +3,61 @@
  *       and Categories (a placeholder until the automatic refresh reads browse nodes).
  * Who sees it: whoever has Listing Health (TAB_INHERIT fam: 'health' in core/nav.js); the saved marks are guarded by the listingrules rule
  *       (can('health') || can('lrules')), the same as the Listing Health data.
- * Data (nothing new is read in bulk — only what Sellora already holds):
- *   • the Image Manager snapshot (IML[brand].items, imgsnap/imgrows): status (BUYABLE…), product type, title, parentage level, the parent SKU
- *     our listing names (psku), colour (c), size (z), and the parent ASIN the catalogue shows (pa);
- *   • the Listing Health snapshot (HEALTH[brand].rows): stock (qty) and the parent ASIN of the listings report;
- *   • the brand catalogue (LR_CAT, the workbook): the colour and size WE gave a SKU — the only value a fix may send by itself;
- *   • ?lfix=get, one listing at a time, only for the family being opened, and right before a fix: the variation theme, which no
- *     snapshot keeps, and the current values a fix replaces. Those reads are kept in this browser for 14 days (fresher than the snapshot only).
- * RULE 1 — only LIVE children: buyable (status has BUYABLE) AND stock > 0. Anything else is not shown and not counted, anywhere on this page.
- * RULE 2 — Not in family (red): a live child with no parent (no parent SKU on our listing, no parent ASIN in the catalogue or the report)
- *       whose SKU (RTC14-7 next to RTC14-1…6), product type and title clearly belong to ONE existing family. A rating below 4 (if Sellora ever
- *       holds ratings: fcRating) counts as removed on purpose by itself; no rating, 0 reviews or 4+ is an error.
- * RULE 3 — Removed on purpose: the team's mark (reason, default "low rating"), saved with who / when / reason in listingrules/famok_<brand>
- *       (the collection Sellora keeps listing data in: the catalogue, the season log). Marked children never show as errors again; the page
- *       shows only "N removed on purpose › Show" (with Undo). A child that is linked again or stops being live leaves every list by itself.
- * Other problems, live children only: Duplicate colour + size in one family (red) · Missing colour or size for the family's theme (red) ·
- *       Different variation theme than its siblings (yellow).
- * Fixes go through THE ONE SEND PATH (sqSendWithCheck: Amazon's check → Approve & send → read again → Listing History): Link to family
- *       (parentage_level, child_parent_sku_relationship, variation_theme) and Set colour/size (the catalogue's value). Only values that are
- *       certain; anything else is "Fix by hand" with Open in Listing Errors.
- * No backend change. No other screen's data or counts change: this file only reads HEALTH / IML / LR_CAT and keeps its own state in FC.
- * The list: every family one closed line (chips from what is in memory); ONE family open at a time (fcToggle — the clicked line stays put,
- *       Esc closes it), its children drawn only then and its theme read then (fcReadFamily). Ticks on "Not in family" and duplicate /
- *       missing rows; the bar: Removed on purpose (N, one reason) · Link to family (N, one family only) · Open in Listing Errors (N).
- * No guessing: a family is judged for Duplicate / Missing value only once Amazon's theme is read (fcReadAllThemes in the background after
- *       the page opens, one read per family, kept); until then its line says "theme not read" and nothing is counted.
- * Main functions: fcBuild, fcSuggest, fcProblems, fcDrawAll, fcToggle, fcReadFamily, fcReadAllThemes, fcLinkMany, fcSetValue, fcOkSetMany, fcOkUndo, fcCsv, fcOpen. */
+ * EVERY FLAG COMES FROM AMAZON'S OWN DATA — nothing is guessed:
+ *   • Amazon's catalog, ?lfix=cat (Catalog Items, includedData=relationships,attributes; up to 20 ASINs a call): which parent ASIN Amazon
+ *     shows for each child, the parent's variationTheme (the theme and its attribute names) and child ASINs, and each child's catalog value
+ *     for every theme attribute. Read when a family is opened, for every family in the background after the page opens (2 calls at most,
+ *     paused while a family is open), and again on "Read again"; kept in this browser (localStorage fcCat1, FC_CAT_DAYS).
+ *   • Amazon's issues on each SKU (Listings API, in the Image Manager snapshot: IML[brand].items[].iss — code, message, attributes).
+ * What Sellora's own data still does: which listings are live (RULE 1: status BUYABLE in the Image Manager snapshot AND stock > 0 in the
+ *       Listing Health snapshot), how families are grouped on the page (our parent SKU / ASIN), and the SKU guess — shown ONLY as "Suggested
+ *       family" (it picks which parentless listings to ask Amazon about; Amazon decides the flag).
+ * FLAGS (live children only; anything Amazon has not answered yet is a grey "not read", never an error):
+ *   Not in family (red) — Amazon's catalog shows NO parent for the child.
+ *   Duplicate (red)     — an Amazon issue says duplicate variation, OR two live children of the same Amazon parent have equal catalog values on
+ *                         ALL the theme's attributes.
+ *   Missing value (red) — an Amazon issue says a variation value is missing, OR the catalog value of a theme attribute is empty.
+ *   Different theme (yellow) — an Amazon issue about the variation theme.
+ *   Each problem says where it came from and when: "Amazon catalog · read 10 min ago" / "Amazon issue 8541 · read 3 h ago".
+ * Removed on purpose: the team's mark (reason, default "low rating"), saved with who / when / reason in listingrules/famok_<brand>; marked
+ *       children never show as errors again; "N removed on purpose › Show" (with Undo). A rating below 4 (if Sellora ever holds ratings:
+ *       fcRating) counts as removed on purpose by itself. A child Amazon shows in a family again, or one that stops being live, leaves every list.
+ * Fixes go through THE ONE SEND PATH (sqSendWithCheck → Listing History): Link to family (parentage_level, child_parent_sku_relationship,
+ *       variation_theme — the theme read from the parent listing) and Set colour/size (the brand catalogue's value, only for a missing colour /
+ *       size). Anything else is "Fix by hand" with Open in Listing Errors.
+ * The list: every family one closed line; ONE family open at a time (fcToggle — the clicked line stays put, Esc closes it), its children drawn
+ *       only then; ticks + the bar (Removed on purpose · Link to family · Open in Listing Errors).
+ * Console: fcFamilyReport('Desk Organizer') — one family as Amazon returned it (theme, attributes, each child's values) and the card counts.
+ * Main functions: fcBuild, fcProblems, fcCatTake, fcReadCat, fcReadAllCat, fcIssueKind, fcDrawAll, fcToggle, fcLinkMany, fcSetValue, fcOkSetMany,
+ *       fcOkUndo, fcCsv, fcFamilyReport, fcOpen. */
 
 const FC_STEP = 60;                                  // family lines drawn at a time; more as the list scrolls
-const FC_INFLIGHT = 2;                               // ?lfix=get reads out at once
-const FC_READ_DAYS = 14;                             // a kept read is used this long (and only when newer than the snapshot)
-const FC_STORE = 'fcReads1';                         // this browser's copy of the reads (localStorage)
-const FC_STORE_MAX = 8000;                           // reads kept at most
+const FC_INFLIGHT = 2;                               // Amazon calls out at once
+const FC_CAT_BATCH = 20;                             // ASINs per ?lfix=cat call (the backend's cap)
+const FC_CAT_DAYS = 14;                              // a kept catalog read is used this long
+const FC_CAT_STORE = 'fcCat1';                       // this browser's copy of the catalog reads (localStorage)
+const FC_CAT_MAX = 15000;                            // catalog records kept at most
+const FC_READ_DAYS = 14;                             // a kept ?lfix=get read (before a fix) is used this long
+const FC_STORE = 'fcReads1';
+const FC_STORE_MAX = 8000;
 const FC_OK_COLL = 'listingrules';                   // where the "removed on purpose" marks are saved (existing collection, existing rule)
 const FC_OK_DOC = brand => 'famok_' + brand;
 const FC_REASON = 'low rating';
 const FC_KINDS = [
-  { k: 'orphan', t: 'Not in family', sev: 'r', tip: 'Live children with no parent that clearly belong to a family.' },
-  { k: 'dup', t: 'Duplicate colour/size', sev: 'r', tip: 'Two live children of one family with the same colour and size.' },
-  { k: 'missing', t: 'Missing value', sev: 'r', tip: 'A live child without the colour or size its family varies by.' },
-  { k: 'theme', t: 'Different theme', sev: 'y', tip: 'A live child whose variation theme is not the one its siblings use.' },
+  { k: 'orphan', t: 'Not in family', sev: 'r', tip: 'Live children Amazon\'s catalog shows with no parent.' },
+  { k: 'dup', t: 'Duplicate', sev: 'r', tip: 'Amazon says duplicate variation, or two live children of one Amazon parent have the same values on every theme attribute.' },
+  { k: 'missing', t: 'Missing value', sev: 'r', tip: 'Amazon says a variation value is missing, or the catalog value of a theme attribute is empty.' },
+  { k: 'theme', t: 'Different theme', sev: 'y', tip: 'An Amazon issue about the variation theme.' },
 ];
 let FC = { tab: 'fam', brand: 'ALL', q: '', card: '', built: false, loading: false, loaded: false, err: '', msg: '',
-  got: {}, gotLoaded: false, ok: { SP: {}, CPC: {} }, okLoaded: false, okNote: '', showOk: false, ask: '', busy: new Set(), note: {},
+  cat: {}, catLoaded: false,    // Amazon's catalog per "brand|ASIN": { at, pa, kids?, theme?, tattrs?, vals?, nf? }
+  got: {}, gotLoaded: false,    // ?lfix=get reads made right before a fix (the listing's own values, for the popup and Put back)
+  ok: { SP: {}, CPC: {} }, okLoaded: false, okNote: '', showOk: false, ask: '', busy: new Set(), note: {},
   open: '',                     // the ONE open family (fk); '' = all closed
   sel: new Set(), bulkAsk: false, bulkReason: '', bulkMsg: '',   // the ticked rows ("brand|sku") and the bar's reason box
   limit: FC_STEP, order: null, io: null,                         // family lines drawn so far; the order they were first drawn in
-  failed: new Set(),            // reads that failed this visit ("brand|sku"): counted as asked, not saved
-  reading: new Map(), reads: { q: [], inflight: 0, fails: 0 }, view: null, drawT: 0 };   // reading: fk → theme reads still out
+  failed: new Set(),            // families whose catalog read failed this visit (fk): counted as asked, not saved
+  reading: new Map(), reads: { q: [], inflight: 0, bgIn: 0, fails: 0 }, view: null, drawT: 0 };   // reading: fk → catalog calls still out
 const fcEsc = s => String(s == null ? '' : s).replace(/[<>&"]/g, ch => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[ch]));
 const fcNf = n => Number(n || 0).toLocaleString('en-US');
 const fcKey = (brand, sku) => brand + '|' + sku;
@@ -59,20 +66,11 @@ const fcBrandName = b => (typeof BRAND_NAME !== 'undefined' && BRAND_NAME[b]) ||
 const fcIsTest = () => typeof window !== 'undefined' && !!window.__TEST_ERP;
 const fcWho = () => (typeof ME !== 'undefined' && ME && ME.email) || '';
 const fcName = email => (typeof sqName === 'function' ? sqName(email) : String(email || '').split('@')[0]);
-const fcAgo = ms => { if (!ms) return 'never'; const h = (Date.now() - ms) / 36e5; return h < 1 ? 'under an hour ago' : h < 48 ? Math.round(h) + ' h ago' : Math.round(h / 24) + ' days ago'; };
+const fcAgo = ms => { if (!ms) return 'never'; const m = (Date.now() - ms) / 6e4; return m < 1 ? 'just now' : m < 60 ? Math.round(m) + ' min ago' : m < 48 * 60 ? Math.round(m / 60) + ' h ago' : Math.round(m / 1440) + ' days ago'; };
 const fcWhen = at => new Date(at).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+const fcIsAsin = a => /^[A-Z0-9]{10}$/.test(String(a || ''));
 
 /* ----- small rules ----- */
-/** A variation theme as a comparable key: "SIZE/COLOR", "SizeName-ColorName", "color_size" → "COLOR+SIZE". '' when none. */
-function fcTheme(name) {
-  const words = String(name || '').toUpperCase().replace(/COLOUR/g, 'COLOR').split(/[^A-Z]+/).filter(Boolean)
-    .map(w => (w.length > 4 ? w.replace(/NAME$/, '') : w)).filter(Boolean);
-  return [...new Set(words)].sort().join('+');
-}
-const fcThemeDims = key => ({ c: /(^|\+)COLOR(\+|$)/.test(key), s: /(^|\+)SIZE(\+|$)/.test(key) });
-/** A theme made only of colour and/or size: the values Sellora holds can judge it. Any other part (SET_NAME, STYLE, PATTERN…) needs Amazon's
- *  own theme attributes (?lfix=cat, not live yet) — until then such a family gets no Duplicate / Missing value, only "Waiting for Amazon theme data". */
-const fcCsOnly = key => /^(COLOR|SIZE|COLOR\+SIZE)$/.test(key);
 /** The SKU's family stem: "RTC14-7" → "RTC14", "R-CP-351" → "R-CP", "ABC12" → "ABC". '' when there is no clear one. */
 function fcStem(sku) {
   const s = String(sku || '').trim().toUpperCase();
@@ -103,8 +101,161 @@ function fcRating(item, row) {
 }
 // Rating below 4 with at least one review: treated as removed on purpose. No rating, 0 reviews or 4 and above: an error.
 const fcLowRated = rt => !!(rt && rt.rating != null && rt.reviews > 0 && rt.rating < 4);
+/** What an Amazon issue (Listings API: { s, c, m, a }) says about the family: 'dup' | 'missing' | 'theme' | '' (not about variations). */
+function fcIssueKind(i) {
+  if (!i || !/^[EW]/i.test(String(i.s || ''))) return '';
+  const text = String(i.m || ''), attrs = (i.a || []).join(' ');
+  if (!/variation|parentage|child_parent/i.test(text + ' ' + attrs)) return '';
+  if (/duplicate|already (exists|used|assigned|has)|same (variation|combination|values)|identical/i.test(text)) return 'dup';
+  if (/missing|requir|must (be|have|include|contain|provide)|not provided|is empty|blank/i.test(text)) return 'missing';
+  if (/theme/i.test(text + ' ' + attrs)) return 'theme';
+  return '';
+}
+/** One catalog attribute's value as plain text ('' when empty): { value } entries, or the first non-marketplace field of an object. */
+function fcAttrVal(list) {
+  const e = (Array.isArray(list) ? list : [list]).find(x => x != null && x !== '');
+  if (e == null) return '';
+  if (typeof e !== 'object') return String(e).trim();
+  if (e.value != null) return typeof e.value === 'object' ? fcAttrVal(e.value) : String(e.value).trim();
+  const k = Object.keys(e).find(key => key !== 'marketplace_id' && key !== 'language_tag' && e[key] != null && e[key] !== '');
+  return k ? (typeof e[k] === 'object' ? fcAttrVal(e[k]) : String(e[k]).trim()) : '';
+}
 
-/* ----- the reads (?lfix=get), kept in this browser ----- */
+/* ----- Amazon's catalog (?lfix=cat), kept in this browser ----- */
+function fcCatLoad() {
+  if (FC.catLoaded) return;
+  FC.catLoaded = true;
+  try {
+    const data = JSON.parse(localStorage.getItem(FC_CAT_STORE) || 'null');
+    const cut = Date.now() - FC_CAT_DAYS * 864e5;
+    if (data && data.cat) Object.entries(data.cat).forEach(([k, v]) => { if (v && v.at > cut) FC.cat[k] = v; });
+  } catch (e) { /* no storage: the reads live for this visit only */ }
+}
+function fcCatSave() {
+  try {
+    const all = Object.entries(FC.cat).sort((a, b) => b[1].at - a[1].at).slice(0, FC_CAT_MAX);
+    localStorage.setItem(FC_CAT_STORE, JSON.stringify({ v: 1, cat: Object.fromEntries(all) }));
+  } catch (e) { /* quota: the copy in memory still works */ }
+}
+const fcCatOf = (brand, asin) => (asin ? FC.cat[fcKey(brand, asin)] || null : null);
+/** One ?lfix=cat answer into FC.cat. A parent keeps its child ASINs, theme and theme attributes; a child its Amazon parent and its values for
+ *  the theme's attributes (known from a parent in the same answer or one kept before). An ASIN asked but not returned: { nf: 1 }. */
+function fcCatTake(brand, asked, items, hintPa) {
+  const now = Date.now();
+  const recs = (items || []).map(it => {
+    const rels = [];
+    (it.relationships || []).forEach(block => (block.relationships || []).forEach(r => rels.push(r)));
+    const r = { asin: it.asin, pa: '', kids: null, theme: '', tattrs: null, attrs: it.attributes || {} };
+    rels.forEach(rel => {
+      if (!r.pa && (rel.parentAsins || []).length) r.pa = rel.parentAsins[0];
+      if ((rel.childAsins || []).length) {
+        r.kids = rel.childAsins.slice();
+        if (rel.variationTheme) { r.theme = rel.variationTheme.theme || ''; r.tattrs = (rel.variationTheme.attributes || []).slice(); }
+      }
+    });
+    return r;
+  });
+  const parentIn = new Map(recs.filter(r => r.kids).map(r => [r.asin, r]));
+  recs.forEach(r => {
+    const rec = { at: now, pa: r.pa };
+    if (r.kids) Object.assign(rec, { kids: r.kids, theme: r.theme, tattrs: r.tattrs || [] });
+    const pa = r.pa || (r.kids ? '' : hintPa || '');                       // a parentless listing asked with a family: that family's attributes
+    const par = pa ? parentIn.get(pa) || fcCatOf(brand, pa) : null;
+    if (par && par.tattrs) rec.vals = Object.fromEntries(par.tattrs.map(a => [a, fcAttrVal(r.attrs[a]).slice(0, 80)]));
+    FC.cat[fcKey(brand, r.asin)] = rec;
+  });
+  const got = new Set(recs.map(r => r.asin));
+  asked.forEach(a => { if (!got.has(a)) FC.cat[fcKey(brand, a)] = { at: now, nf: 1, pa: '' }; });
+  return recs;
+}
+// Queue catalog calls (two at a time); `fk` is the family they are for (its line says "Reading from Amazon…" until the last lands).
+// A person's reads go before the background ones; the background ones wait while a family is open.
+function fcQueueCat(jobs, fk, bg, front) {
+  const R = FC.reads;
+  jobs.forEach(j => {
+    const job = Object.assign({ fk: fk || '', bg: !!bg }, j);
+    const at = front ? 0 : bg ? -1 : R.q.findIndex(x => x.bg);
+    if (at < 0) R.q.push(job); else R.q.splice(at, 0, job);
+  });
+  if (jobs.length && fk) FC.reading.set(fk, (FC.reading.get(fk) || 0) + jobs.length);
+  fcPump();
+  return jobs.length;
+}
+function fcPump() {
+  const R = FC.reads;
+  while (R.inflight < FC_INFLIGHT && R.q.length) {
+    if (R.q[0].bg && FC.open) break;                                       // the background reads pause while a family is open
+    const job = R.q.shift();
+    R.inflight++;
+    if (job.bg) R.bgIn++;
+    baCall({ lfix: 'cat', brand: job.brand, asins: job.asins.join(',') }).then(reply => {
+      if (!reply || reply.ok === false) throw new Error((reply && reply.error) || 'no answer');
+      const recs = fcCatTake(job.brand, job.asins, reply.items, job.pa);
+      // children whose parent was not in this call (and is not kept): one more call with that parent, so their values can be read
+      if (!job.follow) {
+        const byPa = new Map();
+        recs.forEach(r => { if (r.pa && !r.kids && !(FC.cat[fcKey(job.brand, r.asin)] || {}).vals) byPa.set(r.pa, (byPa.get(r.pa) || []).concat([r.asin])); });
+        byPa.forEach((kids, pa) => fcQueueCat(fcChunks([pa], kids).map(asins => ({ brand: job.brand, asins, pa, follow: 1 })), job.fk, job.bg, !job.bg));
+      }
+    }).catch(() => { R.fails++; if (job.fk) FC.failed.add(job.fk); }).then(() => {
+      R.inflight--;
+      if (job.bg) R.bgIn--;
+      if (job.fk && FC.reading.has(job.fk)) {
+        const left = FC.reading.get(job.fk) - 1;
+        if (left > 0) FC.reading.set(job.fk, left);
+        else FC.reading.delete(job.fk);
+      }
+      if (!R.q.length && !R.inflight) fcCatSave();
+      fcSchedule();
+      fcPump();
+    });
+  }
+}
+// ASIN lists of FC_CAT_BATCH, the `first` ones (the parent) at the head of the first call.
+function fcChunks(first, rest) {
+  const all = [...new Set(first.concat(rest).filter(fcIsAsin))];
+  const out = [];
+  for (let i = 0; i < all.length; i += FC_CAT_BATCH) out.push(all.slice(i, i + FC_CAT_BATCH));
+  return out;
+}
+// The ASINs one family's read asks Amazon about: its parent, its live children, and the parentless listings suggested to it.
+function fcFamAsins(f, v) {
+  const cands = (v.cands || []).filter(c => c.sug && c.sug.fk === f.fk).map(c => c.asin);
+  return fcChunks(f.pa ? [f.pa] : [], f.live.map(c => c.asin).concat(cands));
+}
+/** Has Amazon answered for this family? Its parent (with its theme) and every live child (and suggested listing) are kept. */
+function fcFamRead(f, v) {
+  if (f.pa && !fcCatOf(f.brand, f.pa)) return false;                      // any answer for the parent counts (even "not a parent" / nothing)
+  const cands = ((v || FC.view || {}).cands || []).filter(c => c.sug && c.sug.fk === f.fk);
+  return f.live.concat(cands).every(c => !fcIsAsin(c.asin) || !!fcCatOf(c.brand, c.asin));
+}
+/** Read one family from Amazon (on open, or "Read again" with force). */
+function fcReadCat(fk, force) {
+  const v = FC.view || fcBuild();
+  const f = v.families.find(x => x.fk === fk);
+  if (!f || (!force && fcFamRead(f, v)) || FC.reading.has(fk)) return 0;
+  FC.failed.delete(fk);
+  return fcQueueCat(fcFamAsins(f, v).map(asins => ({ brand: f.brand, asins, pa: f.pa })), fk, false);
+}
+/** After the page opens: every family not read before, in the background — 2 calls at most, paused while a family is open. The saved copy
+ *  keeps the answers, so this happens once (FC_CAT_DAYS). */
+function fcReadAllCat() {
+  const v = FC.view || fcBuild();
+  let n = 0;
+  v.families.forEach(f => {
+    if (!f.live.length || fcFamRead(f, v) || FC.reading.has(f.fk)) return;
+    n += fcQueueCat(fcFamAsins(f, v).map(asins => ({ brand: f.brand, asins, pa: f.pa })), f.fk, true);
+  });
+  return n;
+}
+// "Reading Amazon… 120 of 416": the families with live children Amazon has answered for, while the background reads run.
+function fcCatProgress(v) {
+  const fams = v.families.filter(f => f.live.length);
+  const busy = FC.reads.q.some(j => j.bg) || FC.reads.bgIn > 0;
+  return { done: fams.filter(f => fcFamRead(f, v) || FC.failed.has(f.fk)).length, total: fams.length, busy };
+}
+
+/* ----- ?lfix=get reads (right before a fix), kept in this browser ----- */
 function fcGotLoad() {
   if (FC.gotLoaded) return;
   FC.gotLoaded = true;
@@ -112,15 +263,15 @@ function fcGotLoad() {
     const data = JSON.parse(localStorage.getItem(FC_STORE) || 'null');
     const cut = Date.now() - FC_READ_DAYS * 864e5;
     if (data && data.got) Object.entries(data.got).forEach(([k, v]) => { if (v && v.at > cut) FC.got[k] = v; });
-  } catch (e) { /* no storage: reads live for this visit only */ }
+  } catch (e) { /* no storage */ }
 }
 function fcGotSave() {
   try {
     const all = Object.entries(FC.got).sort((a, b) => b[1].at - a[1].at).slice(0, FC_STORE_MAX);
     localStorage.setItem(FC_STORE, JSON.stringify({ v: 1, got: Object.fromEntries(all) }));
-  } catch (e) { /* quota: the copy in memory still works */ }
+  } catch (e) { /* quota */ }
 }
-/** One ?lfix=get answer → what this page keeps: the theme (as Amazon wrote it), colour, size, parent SKU, parentage, the product type. */
+/** One ?lfix=get answer → the listing's theme (as our listing holds it), colour, size, parent SKU, parentage, the product type. */
 function fcFromReply(reply) {
   const at = (reply && reply.attributes) || {};
   const first = (name, f) => String(((at[name] || []).find(e => e && e[f || 'value'] != null && e[f || 'value'] !== '') || {})[f || 'value'] || '');
@@ -133,87 +284,6 @@ async function fcReadOne(brand, sku) {
   if (!reply || reply.ok === false) throw new Error((reply && reply.error) || 'no answer');
   FC.got[fcKey(brand, sku)] = fcFromReply(reply);
   return reply;
-}
-// The read used for a SKU: only when it is newer than the Image Manager snapshot it would replace.
-const fcGotTheme = (brand, sku) => { const r = FC.got[fcKey(brand, sku)]; return r ? r.theme || '' : null; };   // null = never read
-function fcRead(brand, sku) {
-  const r = FC.got[fcKey(brand, sku)];
-  if (!r) return null;
-  const snapAt = typeof IML !== 'undefined' && IML[brand] && IML[brand].at ? IML[brand].at.getTime() : 0;
-  return r.at > snapAt ? r : null;
-}
-// Queue reads (two at a time); `fk` is the family they are for (its header says "Reading theme…" until the last lands).
-function fcQueueReads(list, fk, bg) {
-  const R = FC.reads;
-  const have = new Set(R.q.map(j => fcKey(j.brand, j.sku)));
-  let n = 0;
-  list.forEach(j => {
-    const k = fcKey(j.brand, j.sku);
-    if (have.has(k)) return;
-    have.add(k);
-    const job = Object.assign({ fk: fk || '', bg: !!bg }, j);
-    const at = bg ? -1 : R.q.findIndex(x => x.bg);                     // a family someone opened goes before the background reads
-    if (at < 0) R.q.push(job); else R.q.splice(at, 0, job);
-    n++;
-  });
-  if (n && fk) FC.reading.set(fk, (FC.reading.get(fk) || 0) + n);
-  fcPump();
-  return n;
-}
-function fcPump() {
-  const R = FC.reads;
-  while (R.inflight < FC_INFLIGHT && R.q.length) {
-    if (R.q[0].bg && FC.open) break;                                       // the background reads pause while a family is open
-    const job = R.q.shift();
-    R.inflight++;
-    if (job.bg) R.bgIn = (R.bgIn || 0) + 1;
-    fcReadOne(job.brand, job.sku).catch(() => { R.fails++; FC.failed.add(fcKey(job.brand, job.sku)); }).then(() => {   // a failed read: asked, for this visit only (tried again next time)
-      R.inflight--;
-      if (job.bg) R.bgIn--;
-      if (job.fk && FC.reading.has(job.fk)) {
-        const left = FC.reading.get(job.fk) - 1;
-        if (left > 0) FC.reading.set(job.fk, left);
-        else FC.reading.delete(job.fk);
-      }
-      if (!R.q.length && !R.inflight) fcGotSave();
-      fcSchedule();
-      fcPump();
-    });
-  }
-}
-/** A family was opened: read its variation theme — its parent, and its live children (for "Different theme") — only the ones this
- *  session or the saved copy (this browser, FC_READ_DAYS) does not hold yet. Nothing is read for a closed family. */
-function fcReadFamily(fk) {
-  const v = FC.view || fcBuild();
-  const f = v.families.find(x => x.fk === fk);
-  if (!f) return 0;
-  const jobs = [];
-  if (f.psku && fcGotTheme(f.brand, f.psku) == null) jobs.push({ brand: f.brand, sku: f.psku });
-  f.live.forEach(c => { if (fcGotTheme(c.brand, c.sku) == null) jobs.push({ brand: c.brand, sku: c.sku }); });
-  return fcQueueReads(jobs, fk);
-}
-/** After the page opens: every family's theme, in the background, so the cards fill without opening anything — ONE read per family (its
- *  parent; two live children when the parent SKU is not known), only families never read (the saved copy keeps the answers, so this
- *  happens once), two calls at most, paused while a family is open. */
-function fcReadAllThemes() {
-  const v = FC.view || fcBuild();
-  const jobs = [];
-  v.families.forEach(f => {
-    if (!f.live.length || fcFamTried(f)) return;
-    if (f.psku) jobs.push({ brand: f.brand, sku: f.psku });
-    else f.live.slice(0, 2).forEach(c => { if (fcGotTheme(c.brand, c.sku) == null) jobs.push({ brand: c.brand, sku: c.sku }); });
-  });
-  return fcQueueReads(jobs, '', true);
-}
-// Has Amazon been asked for this family's theme? (the parent read, or — with no parent SKU — two children read)
-const fcAsked = (brand, sku) => fcGotTheme(brand, sku) != null || FC.failed.has(fcKey(brand, sku));
-const fcFamTried = f => (f.psku ? fcAsked(f.brand, f.psku) : f.live.filter(c => fcAsked(c.brand, c.sku)).length >= Math.min(2, f.live.length));
-const fcFamFailed = f => (f.psku ? FC.failed.has(fcKey(f.brand, f.psku)) : f.live.slice(0, 2).every(c => FC.failed.has(fcKey(c.brand, c.sku))));
-// "Checking themes… 120 of 416": the families with live children whose theme has been asked, while the background reads run.
-function fcThemeProgress(v) {
-  const fams = v.families.filter(f => f.live.length);
-  const busy = FC.reads.q.some(j => j.bg) || FC.reads.bgIn > 0;
-  return { done: fams.filter(fcFamTried).length, total: fams.length, busy };
 }
 
 /* ----- the removed-on-purpose marks (listingrules/famok_<brand>) ----- */
@@ -242,8 +312,8 @@ async function fcOkWrite(brand, entries) {
   fcDrawAll();
   return entries;
 }
-/** Removed on purpose, for one or many children (keys "brand|sku"), one reason for all: they leave the red list at once and for good;
- *  who / when / reason are saved. */
+/** Removed on purpose, for one or many "Not in family" children (keys "brand|sku"), one reason for all: they leave the red list at once and for
+ *  good; who / when / reason are saved. */
 async function fcOkSetMany(keys, reason) {
   const v = FC.view || fcBuild();
   const by = fcWho(), at = Date.now(), why = String(reason || '').trim().slice(0, 120) || FC_REASON;
@@ -267,19 +337,21 @@ function fcOkUndo(brand, sku) {
   return fcOkWrite(brand, { [sku]: Object.assign({}, old, { on: false, undoneBy: by, undoneName: fcName(by), undoneAt: Date.now() }) });
 }
 
-/* ----- building the picture: families, live children, the orphans and their suggested family ----- */
-/** Everything the page shows, from the data in memory. { families, orphans, removed, kids, counts, notes, rating } — live children only. */
+/* ----- building the picture ----- */
+/** Everything the page shows, from the data in memory: { families, orphans (Amazon: no parent), cands (parentless listings with a suggested
+ *  family), removed, live, all, notes, ratingFound, groups, counts } — live children only. */
 function fcBuild() {
+  fcCatLoad();
   fcGotLoad();
-  const families = new Map();                       // fk → family
-  const orphans = [];
-  const removed = [];
-  const stemFams = new Map();                        // stem → Map(fk → children with that stem)
+  const families = new Map();
+  const loose = [];                                  // live listings our data gives no parent
+  const stemFams = new Map();
   const notes = [];
   let live = 0, all = 0, ratingFound = 0;
   ['SP', 'CPC'].forEach(brand => {
     const snap = typeof IML !== 'undefined' ? IML[brand] : null;
     const items = (snap && snap.items) || [];
+    const snapAt = snap && snap.at && snap.at.getTime ? snap.at.getTime() : 0;
     const hrows = (typeof HEALTH !== 'undefined' && HEALTH[brand] && HEALTH[brand].rows) || [];
     if (!items.length) { notes.push(`${fcBrandName(brand)}: no Image Manager snapshot yet — open Image Manager once to read it.`); return; }
     if (!hrows.length) notes.push(`${fcBrandName(brand)}: no Listing Health snapshot — stock is unknown, so no child counts as live.`);
@@ -300,23 +372,21 @@ function fcBuild() {
       if (/^parent$/i.test(it.lvl || '')) return;
       all++;
       const row = rowOf.get(it.sku) || null;
-      const read = fcRead(brand, it.sku);
       const stock = row && row.qty != null ? Number(row.qty) : null;
       const isLive = /BUYABLE/.test(String(it.st || '')) && stock != null && stock > 0;
       const pa = it.pa || (row && row.parent && row.parent !== row.asin ? row.parent : '') || '';
-      const psku = (read ? read.psku : it.psku) || (pa ? parentByAsin.get(pa) || '' : '');   // a fresh read wins over the snapshot's parent SKU
+      const psku = it.psku || (pa ? parentByAsin.get(pa) || '' : '');
       const fk = psku ? brand + '|S:' + psku : pa ? brand + '|A:' + pa : '';
       const rt = fcRating(it, row);
       if (rt) ratingFound++;
-      const c = { brand, sku: it.sku, asin: it.asin || (row && row.asin) || '', title: it.t || (row && row.title) || '', pt: (read && read.pt) || it.pt || '',
-        color: read ? read.color : it.c || '', size: read ? read.size : it.z || '', theme: fcGotTheme(brand, it.sku), stock, live: isLive, fk, rt,
-        stem: fcStem(it.sku), cat: (typeof LR_CAT !== 'undefined' && LR_CAT[brand] && LR_CAT[brand][it.sku]) || null };
+      const c = { brand, sku: it.sku, asin: it.asin || (row && row.asin) || '', title: it.t || (row && row.title) || '', pt: it.pt || '', stock, live: isLive, fk, rt,
+        iss: it.iss || [], issAt: snapAt, stem: fcStem(it.sku), book: (typeof LR_CAT !== 'undefined' && LR_CAT[brand] && LR_CAT[brand][it.sku]) || null };
       if (fk) {
         const f = famOf(fk, psku, pa);
         f.kids.push(c);
         if (c.pt) f.pts[c.pt] = (f.pts[c.pt] || 0) + 1;
         if (!f.title && c.title) f.title = c.title;
-        if (c.stem && isLive) {                                                 // the evidence counts live children only (rule 1)
+        if (c.stem && isLive) {
           const m = stemFams.get(brand + '|' + c.stem) || new Map();
           m.set(fk, (m.get(fk) || 0) + 1);
           stemFams.set(brand + '|' + c.stem, m);
@@ -324,7 +394,7 @@ function fcBuild() {
         if (isLive) { f.live.push(c); live++; }
       } else if (isLive) {
         live++;
-        orphans.push(c);
+        loose.push(c);
       }
     });
   });
@@ -332,35 +402,30 @@ function fcBuild() {
     f.pt = Object.entries(f.pts).sort((a, b) => b[1] - a[1]).map(e => e[0])[0] || '';
     f.name = (typeof parentName === 'function' && f.pa ? parentName(f.brand, f.pa, f.title) : '') || f.title || f.psku || f.pa;
   });
-  // the orphans: which family each clearly belongs to (or none — a product of its own)
-  const kept = [];
-  orphans.forEach(c => {
-    c.sug = fcSuggest(c, families, stemFams);
-    if (!c.sug) return;                                                     // a product of its own: not an error
-    if (fcIsOk(c.brand, c.sku)) { removed.push(Object.assign(c, { why: 'team' })); return; }
-    if (fcLowRated(c.rt)) { removed.push(Object.assign(c, { why: 'rating' })); return; }
-    kept.push(c);
-  });
-  const v = { families: [...families.values()], orphans: kept, removed, live, all, notes, ratingFound, at: Date.now() };
+  // parentless listings our SKU guess puts next to a family: Amazon is asked about them with that family (the guess never decides a flag)
+  const cands = [];
+  loose.forEach(c => { c.sug = fcSuggest(c, families, stemFams); if (c.sug) cands.push(c); });
+  const v = { families: [...families.values()], cands, orphans: [], removed: [], live, all, notes, ratingFound, at: Date.now() };
   fcProblems(v);
   FC.view = v;
   return v;
 }
-/** The one family a child with no parent clearly belongs to: { fk, psku, pa, name, why } or null. SKU stem first, then the title alone. */
+/** The one family a parentless listing looks like it belongs to: { fk, psku, pa, name, why } or null. SKU stem first, then the title alone.
+ *  Shown ONLY as "Suggested family" — Amazon's catalog decides whether it is "Not in family". */
 function fcSuggest(c, families, stemFams) {
   let fam = null, why = [];
   const m = c.stem ? stemFams.get(c.brand + '|' + c.stem) : null;
   if (m) {
-    const fks = [...m.entries()].filter(([, n]) => n >= 1);
-    if (fks.length === 1 && fks[0][1] >= 2) {                                // the stem is ONE family's, with at least two children
+    const fks = [...m.entries()];
+    if (fks.length === 1 && fks[0][1] >= 2) {
       fam = families.get(fks[0][0]);
       why.push(`SKU like ${fks[0][1]} children of this family (${c.stem}-…)`);
       const alike = fam ? Math.max(0, ...fam.kids.map(k => fcAlike(c.title, k.title) || 0)) : 0;
-      if (fam && c.title && fam.kids.some(k => k.title) && alike < 0.3) fam = null;   // a different product with a reused SKU stem: not clear
+      if (fam && c.title && fam.kids.some(k => k.title) && alike < 0.3) fam = null;
       else if (alike >= 0.3) why.push('the title matches');
     }
   }
-  if (!fam && c.title) {                                                    // no SKU clue: a title nearly the same as one family's (and no other)
+  if (!fam && c.title) {
     const scored = [];
     families.forEach(f => {
       if (f.brand !== c.brand) return;
@@ -371,97 +436,102 @@ function fcSuggest(c, families, stemFams) {
     if (scored.length && scored[0][1] >= 0.8 && (scored.length === 1 || scored[1][1] < 0.6)) { fam = scored[0][0]; why = ['the title is almost the same as this family\'s']; }
   }
   if (!fam) return null;
-  if (c.pt && fam.pt && c.pt !== fam.pt) return null;                        // another product type: not the same family
+  if (c.pt && fam.pt && c.pt !== fam.pt) return null;
   if (c.pt && fam.pt) why.push('same product type');
   return { fk: fam.fk, psku: fam.psku, pa: fam.pa, name: fam.name, why: why.join(' · ') };
 }
-/** The family's theme: the parent's read, else what most read children say. { key, raw, src: 'parent' | 'children' | '' }. */
-function fcFamTheme(f) {
-  const pt = f.psku ? fcGotTheme(f.brand, f.psku) : null;
-  if (pt) return { key: fcTheme(pt), raw: pt, src: 'parent' };
-  const counts = {};
-  const raws = {};
-  f.live.forEach(c => { if (c.theme) { const k = fcTheme(c.theme); counts[k] = (counts[k] || 0) + 1; raws[k] = raws[k] || c.theme; } });
-  const read = Object.values(counts).reduce((a, b) => a + b, 0);
-  const top = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
-  if (top && top[1] >= 2 && top[1] > read / 2) return { key: top[0], raw: raws[top[0]], src: 'children' };
-  return { key: '', raw: '', src: '' };
-}
-/** What the family varies by: from Amazon's theme only. A family whose theme is not read is not judged (no guessing from the siblings). */
-function fcDims(f, theme) {
-  return theme.key ? Object.assign(fcThemeDims(theme.key), { src: 'theme' }) : { c: false, s: false, src: '' };
-}
-const fcValKey = (c, d) => (d.c ? fcNorm(c.color) : '') + '|' + (d.s ? fcNorm(c.size) : '');
-// The colour/size a child would carry after a catalogue fix (only the missing or clashing parts change).
-function fcCatPlan(c, d, need) {
-  if (!c.cat) return null;
+const fcSrcCat = rec => ({ src: 'Amazon catalog', at: rec.at });
+const fcSrcIss = (c, i) => ({ src: 'Amazon issue' + (i.c ? ' ' + i.c : ''), at: c.issAt });
+// The catalog values of a child, in the order of the theme's attributes: "color: Black · set_name: 3 Piece".
+const fcValsText = (vals, tattrs) => (tattrs || []).map(a => `${a}: ${vals && vals[a] ? vals[a] : '—'}`).join(' · ');
+// A brand-catalogue value for a missing colour / size (the only value a fix may send by itself).
+function fcBookPlan(c, missing) {
+  if (!c.book) return null;
   const set = {};
-  if (d.c && need.c && c.cat.color && fcNorm(c.cat.color) !== fcNorm(c.color)) set.color = String(c.cat.color);
-  if (d.s && need.s && c.cat.size && fcNorm(c.cat.size) !== fcNorm(c.size)) set.size = String(c.cat.size);
+  missing.forEach(a => { if ((a === 'color' || a === 'size') && c.book[a]) set[a] = String(c.book[a]); });
   return Object.keys(set).length ? set : null;
 }
-/** Every live child's problems, the family groups to draw and the card counts. */
+/** Every live child's problems from Amazon's data, the family groups to draw and the card counts. */
 function fcProblems(v) {
-  const counts = { orphan: 0, dup: 0, missing: 0, theme: 0, wait: 0 };
+  const counts = { orphan: 0, dup: 0, missing: 0, theme: 0 };
   const groups = new Map();
   const group = f => groups.get(f.fk) || (groups.set(f.fk, { f, rows: [] }), groups.get(f.fk));
   const famByFk = new Map(v.families.map(f => [f.fk, f]));
+  const orphanRow = (c, f, rec, why) => {
+    if (fcIsOk(c.brand, c.sku)) { v.removed.push(Object.assign(c, { why: 'team' })); return; }
+    if (fcLowRated(c.rt)) { v.removed.push(Object.assign(c, { why: 'rating' })); return; }
+    v.orphans.push(c);
+    counts.orphan++;
+    const fix = !f.psku ? { kind: 'hand', text: 'The family\'s parent SKU is not known here' }
+      : !c.pt ? { kind: 'hand', text: 'This listing\'s product type is not known here' }
+        : { kind: 'link', text: `Link to ${f.psku}`, why };
+    group(f).rows.unshift({ c, probs: [Object.assign({ k: 'orphan', sev: 'r', text: 'Not in family — Amazon\'s catalog shows no parent', fix, sug: `${f.name} (${why})` }, fcSrcCat(rec))] });
+  };
   v.families.forEach(f => {
-    const theme = fcFamTheme(f);
-    const d = fcDims(f, theme);
-    f.theme = theme;
-    f.dims = d;
-    f.wait = !!theme.key && !fcCsOnly(theme.key);
-    f.unread = !theme.key;                                // grey "theme not read": no Duplicate / Missing value until Amazon's theme is in         // e.g. COLOR/SET_NAME: colour + size alone cannot tell these children apart
-    const byVal = new Map();
-    if (d.c || d.s) f.live.forEach(c => {
-      if ((d.c && !c.color) || (d.s && !c.size)) return;
-      const k = fcValKey(c, d);
-      byVal.set(k, (byVal.get(k) || []).concat([c]));
-    });
+    const par = fcCatOf(f.brand, f.pa);
+    f.amz = par && par.kids ? { theme: par.theme || '', tattrs: par.tattrs || [], kids: par.kids.length, at: par.at } : null;
+    f.read = fcFamRead(f, v);
+    const judged = [];
     f.live.forEach(c => {
+      const rec = fcCatOf(c.brand, c.asin);
+      c.amz = rec;
+      if (rec && !rec.nf && !rec.pa) { c.tattrs = f.amz ? f.amz.tattrs : null; return orphanRow(c, f, rec, 'our listing names this family'); }   // Amazon: no parent
+      judged.push(c);
+    });
+    // the children of each Amazon parent, judged on that parent's theme attributes
+    const byPa = new Map();
+    judged.forEach(c => { if (c.amz && c.amz.pa) byPa.set(c.amz.pa, (byPa.get(c.amz.pa) || []).concat([c])); });
+    const sameAs = new Map();
+    byPa.forEach((kids, pa) => {
+      const p = fcCatOf(f.brand, pa);
+      const tattrs = p && p.tattrs && p.tattrs.length ? p.tattrs : null;
+      kids.forEach(c => { c.tattrs = tattrs; });
+      if (!tattrs) return;
+      const full = kids.filter(c => c.amz.vals && tattrs.every(a => c.amz.vals[a]));
+      const byKey = new Map();
+      full.forEach(c => { const k = tattrs.map(a => fcNorm(c.amz.vals[a])).join('|'); byKey.set(k, (byKey.get(k) || []).concat([c])); });
+      byKey.forEach(list => { if (list.length > 1) list.forEach(c => sameAs.set(c, list.filter(o => o !== c))); });
+    });
+    judged.forEach(c => {
       const probs = [];
-      const miss = { c: d.c && !c.color, s: d.s && !c.size };
-      const same = (d.c || d.s) && !miss.c && !miss.s ? (byVal.get(fcValKey(c, d)) || []).filter(o => o !== c) : [];
-      if (f.wait && (miss.c || miss.s || same.length)) probs.push({ k: 'wait', sev: 'g', text: `Waiting for Amazon theme data — the theme is ${theme.raw}`, fix: { kind: 'none', text: '' } });
-      if (!f.wait && (miss.c || miss.s)) {
-        const what = miss.c && miss.s ? 'colour and size' : miss.c ? 'colour' : 'size';
-        const plan = fcCatPlan(c, d, miss);
-        const after = plan ? Object.assign({}, c, plan) : null;
-        const clash = after && (!d.c || after.color) && (!d.s || after.size) && (byVal.get(fcValKey(after, d)) || []).length > 0;
-        probs.push({ k: 'missing', sev: 'r', text: `No ${what} — the theme is ${theme.raw}`,
-          fix: plan && !clash ? { kind: 'set', set: plan, text: 'Set ' + Object.entries(plan).map(([k, val]) => `${k === 'color' ? 'colour' : 'size'} "${val}"`).join(' and ') + ' (from the catalogue)' }
-            : { kind: 'hand', text: plan ? 'The catalogue\'s value is already used by another child' : 'No certain value — the catalogue has none for this SKU' } });
-      }
-      if (!f.wait && same.length) {
-        const plan = fcCatPlan(c, d, { c: true, s: true });
-        const after = plan ? Object.assign({}, c, plan) : null;
-        const free = after && !(byVal.get(fcValKey(after, d)) || []).some(o => o !== c);
-        probs.push({ k: 'dup', sev: 'r', text: `Same ${[d.c ? 'colour' : '', d.s ? 'size' : ''].filter(Boolean).join(' + ')} as ${same.map(o => o.sku).join(', ')}`,
-          fix: plan && free ? { kind: 'set', set: plan, text: 'Set ' + Object.entries(plan).map(([k, val]) => `${k === 'color' ? 'colour' : 'size'} "${val}"`).join(' and ') + ' (from the catalogue)' }
-            : { kind: 'hand', text: 'Decide which child keeps it, then change the other' } });
-      }
-      if (theme.key && c.theme && fcTheme(c.theme) !== theme.key) {
-        probs.push({ k: 'theme', sev: 'y', text: `Theme ${c.theme}; the family uses ${theme.raw}`, fix: { kind: 'hand', text: 'Change the theme in Listing Errors' } });
+      const issues = (c.iss || []).map(i => [fcIssueKind(i), i]).filter(([k]) => k);
+      const has = k => probs.some(p => p.k === k);
+      issues.forEach(([k, i]) => {
+        if (has(k)) return;
+        probs.push(Object.assign({ k, sev: k === 'theme' ? 'y' : 'r', text: String(i.m || '').slice(0, 200),
+          fix: { kind: 'hand', text: k === 'theme' ? 'Change the theme in Listing Errors' : 'Fix it in Listing Errors' } }, fcSrcIss(c, i)));
+      });
+      const rec = c.amz;
+      if (rec && rec.vals && c.tattrs) {
+        const missing = c.tattrs.filter(a => !rec.vals[a]);
+        if (missing.length && !has('missing')) {
+          const plan = fcBookPlan(c, missing);
+          probs.push(Object.assign({ k: 'missing', sev: 'r', text: `No ${missing.join(', ')} on Amazon — the theme is ${(fcCatOf(f.brand, rec.pa) || {}).theme || '?'}`,
+            fix: plan && Object.keys(plan).length === missing.length ? { kind: 'set', set: plan, text: 'Set ' + Object.entries(plan).map(([a, val]) => `${a === 'color' ? 'colour' : a} "${val}"`).join(' and ') + ' (from the catalogue)' }
+              : { kind: 'hand', text: 'No certain value — add it in Listing Errors' } }, fcSrcCat(rec)));
+        }
+        const same = sameAs.get(c);
+        if (same && !has('dup')) {
+          probs.push(Object.assign({ k: 'dup', sev: 'r', text: `Same ${fcValsText(rec.vals, c.tattrs)} as ${same.map(o => o.sku).join(', ')}`,
+            fix: { kind: 'hand', text: 'Decide which child keeps it, then change the other' } }, fcSrcCat(rec)));
+        }
       }
       if (!probs.length) return;
       probs.forEach(p => { counts[p.k]++; });
       group(f).rows.push({ c, probs });
     });
   });
-  v.orphans.forEach(c => {
+  // parentless listings next to a family (SKU guess): Amazon decides — no parent → Not in family; a parent → nothing; not read → grey
+  v.cands.forEach(c => {
     const f = famByFk.get(c.sug.fk);
     if (!f) return;
-    const d = f.dims || { c: false, s: false };
-    const lacks = (d.c && !c.color) || (d.s && !c.size);
-    const clash = !lacks && !f.wait && (d.c || d.s) && f.live.some(o => fcValKey(o, d) === fcValKey(c, d));
-    const fix = !f.psku ? { kind: 'hand', text: 'The family\'s parent SKU is not known here' }
-      : !c.pt ? { kind: 'hand', text: 'This listing\'s product type is not known here' }
-        : lacks ? { kind: 'hand', text: `It has no ${d.c && !c.color ? 'colour' : 'size'} — add it first` }
-          : clash ? { kind: 'hand', text: 'Its colour + size is already used by a child of this family' }
-            : { kind: 'link', text: `Link to ${f.psku}`, why: c.sug.why };
-    counts.orphan++;
-    group(f).rows.unshift({ c, probs: [{ k: 'orphan', sev: 'r', text: 'Not in family — ' + c.sug.why, fix }] });
+    const rec = fcCatOf(c.brand, c.asin);
+    c.amz = rec;
+    c.tattrs = f.amz ? f.amz.tattrs : null;                                 // its values, on the family's theme attributes
+    if (rec && !rec.nf && !rec.pa) return orphanRow(c, f, rec, c.sug.why);
+    if (rec && !rec.nf) return;                                            // Amazon shows it in a family: nothing to do
+    group(f).rows.push({ c, probs: [{ k: 'unread', sev: 'g', text: rec && rec.nf ? 'Amazon\'s catalog returned nothing for this ASIN' : 'Not read from Amazon yet',
+      fix: { kind: 'none', text: '' }, sug: `${f.name} (${c.sug.why})` }] });
   });
   v.groups = [...groups.values()].sort((a, b) => {
     const red = g => g.rows.filter(r => r.probs.some(p => p.sev === 'r')).length;
@@ -479,17 +549,19 @@ const fcRow = (brand, sku) => {
 };
 const fcCopyEntry = (old, value) => { const e = Object.assign({}, (old && old[0]) || {}); delete e.marketplace_id; e.value = value; if (!e.language_tag) e.language_tag = 'en_US'; return [e]; };
 const FC_READING = 'Reading the listing and its family…';
-/** Link to family, for one or many "Not in family" children (keys "brand|sku") — all of ONE suggested family. The family's theme is read
- *  from its parent; each child is read again (its current values, for the popup and Put back). A child that cannot be linked safely
- *  (no theme, no colour/size the theme needs, the same colour + size as a sibling or another ticked child, already linked) is held back
- *  and named in the popup — Fix by hand. Then Amazon's check popup (sqSendWithCheck). */
+// The family a "Not in family" child would join (its row's group).
+const fcOrphanFam = (c, v) => { const g = v.groups.find(x => x.rows.some(r => r.c === c)); return g ? g.f : null; };
+/** Link to family, for one or many "Not in family" children (keys "brand|sku") — all of ONE family. The theme is read from the parent
+ *  listing (?lfix=get: the value our listings carry); each child is read again (its current values, for the popup and Put back). A child that
+ *  cannot be linked safely (no theme, already linked, Amazon's catalog values the same as a sibling's or another ticked child's on every theme
+ *  attribute) is held back and named in the popup — Fix by hand. Then Amazon's check popup (sqSendWithCheck). */
 async function fcLinkMany(keys) {
   const v = FC.view || fcBuild();
   const list = keys.map(k => v.orphans.find(o => fcKey(o.brand, o.sku) === k)).filter(Boolean);
   if (!list.length || typeof sqSendWithCheck !== 'function') return null;
   const why = fcLinkWhyNot(list, v);
   if (why) { FC.bulkMsg = why; fcDrawAll(); return null; }
-  const f = v.families.find(x => x.fk === list[0].sug.fk);
+  const f = fcOrphanFam(list[0], v);
   const mine = list.map(c => fcKey(c.brand, c.sku));
   if (mine.some(k => FC.busy.has(k))) return null;
   mine.forEach(k => { FC.busy.add(k); FC.note[k] = FC_READING; });
@@ -497,10 +569,10 @@ async function fcLinkMany(keys) {
   fcDrawAll();
   try {
     let theme = '';
-    try { await fcReadOne(f.brand, f.psku); theme = FC.got[fcKey(f.brand, f.psku)].theme || ''; } catch (e) { theme = ''; }   // the parent's own theme first
-    if (!theme) theme = fcFamTheme(f).raw || '';                                                                      // else what most children say
-    const d = fcThemeDims(fcTheme(theme));
-    const used = new Map(f.live.map(o => [fcValKey(o, d), o.sku]));
+    try { await fcReadOne(f.brand, f.psku); theme = FC.got[fcKey(f.brand, f.psku)].theme || ''; } catch (e) { theme = ''; }
+    const tattrs = f.amz ? f.amz.tattrs : [];
+    const keyOf = rec => (rec && rec.vals && tattrs.length && tattrs.every(a => rec.vals[a]) ? tattrs.map(a => fcNorm(rec.vals[a])).join('|') : '');
+    const used = new Map(f.live.filter(o => !list.includes(o)).map(o => [keyOf(o.amz), o.sku]).filter(([k]) => k));
     const jobs = [], held = [];
     for (const c of list) {
       const key = fcKey(c.brand, c.sku);
@@ -511,11 +583,10 @@ async function fcLinkMany(keys) {
       const pt = now.pt || c.pt;
       if (now.psku) { held.push({ sku: c.sku, why: 'already linked to ' + now.psku + ' on Amazon' }); continue; }
       if (!theme) { held.push({ sku: c.sku, why: 'the family\'s variation theme could not be read' }); continue; }
-      if ((d.c && !now.color) || (d.s && !now.size)) { held.push({ sku: c.sku, why: `the family varies by ${theme} and it has no ${d.c && !now.color ? 'colour' : 'size'}` }); continue; }
       if (!pt) { held.push({ sku: c.sku, why: 'its product type is not known' }); continue; }
-      const vk = fcValKey(now, d);
-      if ((d.c || d.s) && fcCsOnly(fcTheme(theme)) && used.has(vk)) { held.push({ sku: c.sku, why: `its colour + size is already used by ${used.get(vk)}` }); continue; }
-      used.set(vk, c.sku);
+      const vk = keyOf(c.amz);
+      if (vk && used.has(vk)) { held.push({ sku: c.sku, why: `Amazon shows the same ${fcValsText(c.amz.vals, tattrs)} as ${used.get(vk)}` }); continue; }
+      if (vk) used.set(vk, c.sku);
       jobs.push({ brand: c.brand, sku: c.sku, asin: c.asin, label: c.title || c.sku,
         body: { lfix: 'patch', brand: c.brand, sku: c.sku, productType: pt, patches: [
           { op: 'replace', path: '/attributes/parentage_level', value: [{ value: 'child' }] },
@@ -531,22 +602,21 @@ async function fcLinkMany(keys) {
     if (!jobs.length) return null;
     return sqSendWithCheck(jobs, { screen: 'Family Check', held,
       title: jobs.length === 1 ? `Link ${jobs[0].sku} to ${f.name || f.psku}` : `Link ${jobs.length} children to ${f.name || f.psku}`,
-      onDone: sum => fcAfterSend(sum, () => ({ psku: f.psku, theme, lvl: 'child' })) });
+      onDone: sum => fcAfterSend(sum, job => { const r = fcCatOf(job.brand, job.asin); if (r) Object.assign(r, { pa: f.pa || r.pa || 'linked', at: Date.now() }); }) });
   } finally {
     mine.forEach(k => { FC.busy.delete(k); if (FC.note[k] === FC_READING) FC.note[k] = ''; });
     fcDrawAll();
   }
 }
 const fcLink = (brand, sku) => fcLinkMany([fcKey(brand, sku)]);
-/** Why the ticked children cannot be linked in one go ('' when they can): they must share ONE suggested family with a known parent SKU. */
+/** Why the ticked children cannot be linked in one go ('' when they can): they must all be in ONE family with a known parent SKU. */
 function fcLinkWhyNot(list, v) {
-  const fks = [...new Set(list.map(c => c.sug && c.sug.fk))];
-  if (fks.length > 1) return `Link to family links children of one family at a time — the ticked ones belong to ${fks.length} families.`;
-  const f = v.families.find(x => x.fk === fks[0]);
-  if (!f || !f.psku) return 'The family\'s parent SKU is not known here — fix by hand.';
+  const fams = [...new Set(list.map(c => fcOrphanFam(c, v)))];
+  if (fams.length > 1) return `Link to family links children of one family at a time — the ticked ones belong to ${fams.length} families.`;
+  if (!fams[0] || !fams[0].psku) return 'The family\'s parent SKU is not known here — fix by hand.';
   return '';
 }
-/** Set colour / size: the catalogue's value (the only certain one), after reading what the listing holds now. */
+/** Set colour / size: the brand catalogue's value (the only certain one) for a value Amazon's catalog has empty, after reading the listing. */
 async function fcSetValue(brand, sku, kind) {
   const hit = fcRow(brand, sku);
   if (!hit || typeof sqSendWithCheck !== 'function') return null;
@@ -565,12 +635,12 @@ async function fcSetValue(brand, sku, kind) {
     const patches = [], changes = [];
     Object.entries(p.fix.set).forEach(([attr, val]) => {
       patches.push({ op: 'replace', path: '/attributes/' + attr, value: fcCopyEntry(at[attr], val) });
-      changes.push({ field: attr === 'color' ? 'Colour' : 'Size', old: sqValText(at[attr]) || '(none)', new: val, attr, oldV: JSON.parse(JSON.stringify(at[attr] || [])) });
+      changes.push({ field: attr === 'color' ? 'Colour' : attr === 'size' ? 'Size' : attr, old: sqValText(at[attr]) || '(none)', new: val, attr, oldV: JSON.parse(JSON.stringify(at[attr] || [])) });
     });
     FC.note[key] = '';
     return sqSendWithCheck([{ brand, sku, asin: c.asin, label: c.title || sku, body: { lfix: 'patch', brand, sku, productType: pt, patches }, changes }], {
       screen: 'Family Check', title: `Set ${changes.map(x => x.field.toLowerCase()).join(' and ')} on ${sku}`,
-      onDone: sum => fcAfterSend(sum, () => p.fix.set) });
+      onDone: sum => fcAfterSend(sum, job => { const r = fcCatOf(job.brand, job.asin); if (r && r.vals) Object.assign(r.vals, p.fix.set); }) });
   } catch (e) {
     FC.note[key] = 'Could not read the listing: ' + ((e && e.message) || e);
     return null;
@@ -580,18 +650,19 @@ async function fcSetValue(brand, sku, kind) {
     fcDrawAll();
   }
 }
-// After the popup closed, per listing: what Amazon accepted is what this page now knows (the child leaves the list, its tick goes);
-// still working says so on its row.
-function fcAfterSend(sum, valuesFor) {
+// After the popup closed, per listing: what Amazon accepted is what this page now knows (`apply` updates the kept catalog record, so the child
+// leaves the list and its tick goes); still working says so on its row. "Read again" asks Amazon's catalog itself.
+function fcAfterSend(sum, apply) {
   ((sum && sum.jobs) || []).forEach(job => {
     const key = fcKey(job.brand, job.sku);
     if (job.state === 'accepted') {
-      FC.got[key] = Object.assign({}, FC.got[key] || {}, valuesFor(job), { at: Date.now() });
+      apply(job);
       FC.note[key] = '';
       FC.sel.delete(key);
     } else if (job.state === 'working' || job.state === 'sent') FC.note[key] = 'Sent — Amazon is still working on it (Listing History has it).';
     else if (sum.test) FC.note[key] = 'Test site — not sent to Amazon.';
   });
+  fcCatSave();
   fcGotSave();
   fcDrawAll();
 }
@@ -607,12 +678,15 @@ function fcOpenLerr(brand, skus) {
 }
 
 /* ----- the CSV: the red problems only ----- */
-const FC_CSV_COLS = ['Brand', 'Family', 'Parent SKU', 'Parent ASIN', 'SKU', 'ASIN', 'Colour', 'Size', 'Stock', 'Problem', 'Suggested fix'];
+const FC_CSV_COLS = ['Brand', 'Family', 'Parent SKU', 'Parent ASIN', 'SKU', 'ASIN', 'Amazon values', 'Stock', 'Problem', 'Source', 'Read at', 'Suggested fix'];
 function fcCsv(v) {
   const q = val => { const s = String(val == null ? '' : val); return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+  const two = n => String(n).padStart(2, '0');
+  const stamp = ms => { if (!ms) return ''; const d = new Date(ms); return `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())} ${two(d.getHours())}:${two(d.getMinutes())}`; };
   const lines = [];
   fcGroups(v).forEach(g => g.rows.forEach(r => r.probs.filter(p => p.sev === 'r').forEach(p => {
-    lines.push([fcBrandName(r.c.brand), g.f.name, g.f.psku, g.f.pa, r.c.sku, r.c.asin, r.c.color, r.c.size, r.c.stock, p.text, (p.fix.kind === 'hand' ? 'Fix by hand: ' : '') + p.fix.text].map(q).join(','));
+    lines.push([fcBrandName(r.c.brand), g.f.name, g.f.psku, g.f.pa, r.c.sku, r.c.asin, r.c.amz && r.c.amz.vals ? fcValsText(r.c.amz.vals, r.c.tattrs) : '', r.c.stock, p.text, p.src || '', stamp(p.at),
+      (p.fix.kind === 'hand' ? 'Fix by hand: ' : '') + p.fix.text].map(q).join(','));
   })));
   return { n: lines.length, text: '﻿' + [FC_CSV_COLS.join(',')].concat(lines).join('\r\n') + '\r\n' };
 }
@@ -626,9 +700,38 @@ function fcDownload() {
   return out;
 }
 
+/* ----- one family as Amazon returned it (the browser console) ----- */
+/** fcFamilyReport('Desk Organizer'): reads the family from Amazon if it is not kept, then returns its theme, attribute names, each live child's
+ *  catalog values and Amazon parent, its problems, and the card counts. */
+async function fcFamilyReport(name, force) {
+  const v0 = FC.view || fcBuild();
+  const q = fcNorm(name);
+  const f0 = v0.families.find(f => fcNorm(f.name).includes(q) || fcNorm(f.psku) === q || fcNorm(f.pa) === q);
+  if (!f0) return { error: 'No family matches "' + name + '"' };
+  if (force || !fcFamRead(f0, v0)) {
+    fcReadCat(f0.fk, force);
+    for (let i = 0; i < 600 && FC.reading.has(f0.fk); i++) await new Promise(r => setTimeout(r, 100));
+  }
+  const v = fcBuild();
+  const f = v.families.find(x => x.fk === f0.fk);
+  const g = v.groups.find(x => x.f.fk === f.fk);
+  const out = {
+    family: f.name, brand: fcBrandName(f.brand), parentSku: f.psku, parentAsin: f.pa,
+    theme: f.amz ? f.amz.theme : '(not read)', attributes: f.amz ? f.amz.tattrs : [], amazonChildren: f.amz ? f.amz.kids : 0,
+    readAt: f.amz ? fcWhen(f.amz.at) : '',
+    children: f.live.map(c => ({ sku: c.sku, asin: c.asin, amazonParent: c.amz ? c.amz.pa || '(none)' : '(not read)',
+      values: c.amz && c.amz.vals ? c.amz.vals : '(not read)', problems: ((g && g.rows.find(r => r.c === c)) || { probs: [] }).probs.map(p => `${p.k}: ${p.text} [${p.src || ''}]`) })),
+    familyCounts: Object.fromEntries(FC_KINDS.map(k => [k.t, g ? g.rows.filter(r => r.probs.some(p => p.k === k.k)).length : 0])),
+    cards: Object.fromEntries(FC_KINDS.map(k => [k.t, fcCount(v, k.k)])),
+  };
+  if (typeof console !== 'undefined' && console.table) console.table(out.children.map(c => Object.assign({ sku: c.sku, asin: c.asin, parent: c.amazonParent }, typeof c.values === 'object' ? c.values : { values: c.values })));
+  return out;
+}
+if (typeof window !== 'undefined') window.fcFamilyReport = fcFamilyReport;
+
 /* ----- drawing ----- */
 // The groups the filters keep (brand, search, the card picked); a row keeps only the picked card's problem. The order stays the one the
-// families were first drawn in, so a family never moves under the mouse when a theme read lands.
+// families were first drawn in, so a family never moves under the mouse when a read lands.
 function fcGroups(v) {
   const q = fcNorm(FC.q);
   if (!FC.order) FC.order = new Map();
@@ -672,13 +775,14 @@ function fcDrawTools(v) {
   const at = (store, b) => (typeof store !== 'undefined' && store && store[b] && store[b].at && store[b].at.getTime ? store[b].at.getTime() : 0);
   const oldest = store => { const t = ['SP', 'CPC'].map(b => at(store, b)).filter(Boolean); return t.length ? Math.min(...t) : 0; };
   const parts = [`Live children only (buyable and in stock): ${fcNf(v.live)} of ${fcNf(v.all)}`,
-    `Image Manager snapshot ${fcAgo(oldest(typeof IML !== 'undefined' ? IML : null))}`,
+    'flags from Amazon\'s catalog and Amazon\'s issues only',
+    `Amazon issues from the Image Manager snapshot ${fcAgo(oldest(typeof IML !== 'undefined' ? IML : null))}`,
     `stock from Listing Health ${fcAgo(oldest(typeof HEALTH !== 'undefined' ? HEALTH : null))}`,
     v.ratingFound ? `ratings found for ${fcNf(v.ratingFound)} listings: below 4 ★ counts as removed on purpose` : 'ratings: none in Sellora\'s data — the team marks children removed for a low rating'];
   meta.innerHTML = parts.map(fcEsc).join(' · ') + (FC.err ? `<div class="err">${fcEsc(FC.err)}</div>` : '') + (FC.msg ? `<div>${fcEsc(FC.msg)}</div>` : '')
     + v.notes.map(n => `<div>${fcEsc(n)}</div>`).join('') + (FC.okNote ? `<div class="fc-oknote">${fcEsc(FC.okNote)}</div>` : '');
 }
-const FC_COLS = 9;
+const FC_COLS = 8;
 // A row can be ticked when it is "Not in family" (Removed on purpose / Link to family) or a duplicate / missing value (Open in Listing Errors).
 const fcTickKind = r => (r.probs.some(p => p.k === 'orphan') ? 'orphan' : r.probs.some(p => p.k === 'dup' || p.k === 'missing') ? 'fix' : '');
 function fcFixHtml(r, p) {
@@ -690,6 +794,8 @@ function fcFixHtml(r, p) {
   if (p.fix.kind === 'none') return '';
   return `<button type="button" class="ghost fc-b" data-fc="lerr" ${a}>Open in Listing Errors</button>`;
 }
+// The source of a problem and when Amazon was read: "Amazon catalog · read 10 min ago".
+const fcSrcHtml = p => (p.src ? `<small class="fc-src">${fcEsc(p.src)} · read ${fcEsc(fcAgo(p.at))}</small>` : '');
 function fcRowHtml(r) {
   const c = r.c, key = fcKey(c.brand, c.sku);
   const a = `data-fc-b="${fcEsc(c.brand)}" data-fc-s="${fcEsc(c.sku)}"`;
@@ -701,29 +807,32 @@ function fcRowHtml(r) {
   const btns = probs.map(p => fcFixHtml(r, p)).filter((h, i, all) => all.indexOf(h) === i).join('')
     + (orphan ? `<button type="button" class="ghost fc-b" data-fc="ok" ${a}>Removed on purpose</button>` : '');
   const amz = c.asin ? `<a href="https://www.amazon.com/dp/${fcEsc(c.asin)}" target="_blank" rel="noopener">${fcEsc(c.asin)}</a>` : '—';
+  const vals = c.amz && c.amz.vals && c.tattrs ? fcEsc(fcValsText(c.amz.vals, c.tattrs)) : c.amz && !c.amz.nf ? '<span class="fc-none">—</span>' : '<span class="fc-none">not read</span>';
+  const sug = probs.map(p => p.sug).filter(Boolean)[0];
   return `<tr class="fc-row${orphan ? ' is-orphan' : ''}${FC.sel.has(key) ? ' is-sel' : ''}"><td class="fc-tk">${tick}</td><td class="fc-sku"><b>${fcEsc(c.sku)}</b><small>${fcEsc(String(c.title || '').slice(0, 70))}</small></td><td class="ui-mono">${amz}</td>`
-    + `<td>${c.color ? fcEsc(c.color) : '<span class="fc-none">none</span>'}</td><td>${c.size ? fcEsc(c.size) : '<span class="fc-none">none</span>'}</td><td class="num">${fcNf(c.stock)}</td>`
-    + `<td class="fc-prob">${probs.map(p => `<div class="fc-p is-${p.sev}">${fcEsc(p.text)}</div>`).join('')}</td>`
-    + `<td class="fc-fix">${probs.map(p => `<div>${p.fix.kind === 'hand' ? '<b>Fix by hand:</b> ' : ''}${fcEsc(p.fix.text)}</div>`).join('')}${FC.note[key] ? `<div class="fc-note">${fcEsc(FC.note[key])}</div>` : ''}</td>`
+    + `<td class="fc-vals">${vals}</td><td class="num">${fcNf(c.stock)}</td>`
+    + `<td class="fc-prob">${probs.map(p => `<div class="fc-p is-${p.sev}">${fcEsc(p.text)}</div>${fcSrcHtml(p)}`).join('')}</td>`
+    + `<td class="fc-fix">${sug ? `<div><b>Suggested family:</b> ${fcEsc(sug)}</div>` : ''}${probs.map(p => (p.fix.text ? `<div>${p.fix.kind === 'hand' ? '<b>Fix by hand:</b> ' : ''}${fcEsc(p.fix.text)}</div>` : '')).join('')}${FC.note[key] ? `<div class="fc-note">${fcEsc(FC.note[key])}</div>` : ''}</td>`
     + `<td class="fc-acts">${btns}${ask}</td></tr>`;
 }
-const FC_COLHEAD = '<tr class="fc-colh"><th class="fc-tk"></th><th>SKU</th><th>ASIN</th><th>Colour</th><th>Size</th><th class="num">Stock</th><th>Problem</th><th>Suggested fix</th><th></th></tr>';
+const FC_COLHEAD = '<tr class="fc-colh"><th class="fc-tk"></th><th>SKU</th><th>ASIN</th><th>Amazon values</th><th class="num">Stock</th><th>Problem</th><th>Suggested fix</th><th></th></tr>';
 // One family: a single line while closed (chips from what is in memory); open, its column header and its children's rows.
 function fcGroupHtml(g) {
   const f = g.f;
   const open = FC.open === f.fk;
   const n = k => g.rows.filter(r => r.probs.some(p => p.k === k)).length;
   const chips = FC_KINDS.map(k => (n(k.k) ? `<span class="fc-chip is-${k.sev}">${fcNf(n(k.k))} ${fcEsc(k.t.toLowerCase())}</span>` : '')).join('');
-  const waiting = n('wait') ? '<span class="fc-chip is-g">Waiting for Amazon theme data</span>' : '';
-  const unread = f.unread && !FC.reading.has(f.fk) ? `<span class="fc-chip is-g">${fcFamFailed(f) ? 'theme could not be read' : fcFamTried(f) ? 'no theme on Amazon' : 'theme not read'}</span>` : '';
-  const reading = FC.reading.has(f.fk) ? ' <span class="fc-reading">Reading theme…</span>' : '';
+  const busy = FC.reading.has(f.fk);
+  const state = busy ? ' <span class="fc-reading">Reading from Amazon…</span>'
+    : FC.failed.has(f.fk) ? '<span class="fc-chip is-g">Amazon could not be read</span>' : !f.read ? '<span class="fc-chip is-g">not read</span>' : '';
   const orph = g.rows.filter(r => fcTickKind(r) === 'orphan').map(r => fcKey(r.c.brand, r.c.sku));
   const allOn = orph.length && orph.every(k => FC.sel.has(k));
   const selAll = open && orph.length ? ` <button type="button" class="ghost fc-b fc-selall" data-fc="selfam" data-fc-v="${fcEsc(f.fk)}">${allOn ? 'Clear this family' : 'Select all in this family'}</button>` : '';
-  const theme = f.theme && f.theme.raw ? ' · theme ' + f.theme.raw : '';
+  const again = open ? ` <button type="button" class="ghost fc-b fc-selall" data-fc="reread" data-fc-v="${fcEsc(f.fk)}"${busy ? ' disabled' : ''}>Read again</button>` : '';
+  const theme = f.amz ? ` · theme ${f.amz.theme || '—'}${f.amz.tattrs.length ? ' (' + f.amz.tattrs.join(', ') + ')' : ''} · read ${fcAgo(f.amz.at)}` : '';
   return `<tbody class="fc-grp${open ? ' is-open' : ''}"><tr class="fc-head" data-fc="grp" data-fc-v="${fcEsc(f.fk)}" tabindex="0" aria-expanded="${open}"><td colspan="${FC_COLS}">`
     + `<button type="button" class="fc-arrow" data-fc="grp" data-fc-v="${fcEsc(f.fk)}" aria-label="${open ? 'Close' : 'Open'} ${fcEsc(f.name)}">${open ? '▾' : '▸'}</button>`
-    + `<b>${fcEsc(f.name)}</b> <small class="muted">${fcEsc(fcBrandName(f.brand))} · parent SKU ${fcEsc(f.psku || '—')} · ${fcEsc(f.pa || '—')} · ${fcNf(f.live.length)} live children${fcEsc(theme)}</small> ${chips}${waiting}${unread}${reading}${selAll}</td></tr>`
+    + `<b>${fcEsc(f.name)}</b> <small class="muted">${fcEsc(fcBrandName(f.brand))} · parent SKU ${fcEsc(f.psku || '—')} · ${fcEsc(f.pa || '—')} · ${fcNf(f.live.length)} live children${fcEsc(theme)}</small> ${chips}${state}${selAll}${again}</td></tr>`
     + (open ? FC_COLHEAD + g.rows.map(fcRowHtml).join('') : '') + '</tbody>';
 }
 /** What is ticked, as rows still on the page: { orphan: [c…], fix: [c…] } (a tick whose row has gone is dropped). */
@@ -759,12 +868,11 @@ function fcBarHtml(v) {
 }
 function fcDrawBody(v) {
   const body = $('fcBody');
-  const prog = fcThemeProgress(v);
+  const prog = fcCatProgress(v);
   const cards = FC_KINDS.map(k => `<button type="button" class="fc-box is-${k.sev}${FC.card === k.k ? ' is-on' : ''}" data-fc="card" data-fc-v="${k.k}" aria-pressed="${FC.card === k.k}" title="${fcEsc(k.tip)}">`
-    + `<span>${fcEsc(k.t)}</span><b>${fcNf(fcCount(v, k.k))}</b><small>${prog.busy && k.k !== 'orphan' ? `Checking themes… ${fcNf(prog.done)} of ${fcNf(prog.total)}` : k.sev === 'r' ? 'error' : 'check'}</small></button>`).join('');
+    + `<span>${fcEsc(k.t)}</span><b>${fcNf(fcCount(v, k.k))}</b><small>${prog.busy ? `Reading Amazon… ${fcNf(prog.done)} of ${fcNf(prog.total)}` : k.sev === 'r' ? 'error' : 'check'}</small></button>`).join('');
   const groups = fcGroups(v);
   if (FC.open && !groups.some(g => g.f.fk === FC.open)) FC.open = '';
-  // only the first FC.limit family lines are drawn; more as the list scrolls (or "Show more")
   const shown = groups.slice(0, FC.limit);
   const more = groups.length - shown.length;
   const table = groups.length ? `<div class="card xlwrap fc-wrap"><table class="xl fc-tbl">${shown.map(fcGroupHtml).join('')}</table></div>`
@@ -775,7 +883,8 @@ function fcDrawBody(v) {
     + (FC.showOk ? `<div class="card xlwrap fc-wrap"><table class="xl fc-tbl"><thead><tr><th>SKU</th><th>ASIN</th><th>Family it would join</th><th>Reason</th><th>Who · when</th><th></th></tr></thead><tbody>${rem.map(c => {
       const e = (FC.ok[c.brand] || {})[c.sku] || {};
       const auto = c.why === 'rating';
-      return `<tr><td><b>${fcEsc(c.sku)}</b></td><td class="ui-mono">${fcEsc(c.asin || '—')}</td><td>${fcEsc(c.sug ? c.sug.name : '')}</td><td>${auto ? `rating ${fcEsc(c.rt.rating)} ★ (${fcNf(c.rt.reviews)} reviews) — automatic` : fcEsc(e.reason || FC_REASON)}</td>`
+      const fam = (FC.view && FC.view.families.find(f => f.fk === c.fk || (c.sug && f.fk === c.sug.fk))) || null;
+      return `<tr><td><b>${fcEsc(c.sku)}</b></td><td class="ui-mono">${fcEsc(c.asin || '—')}</td><td>${fcEsc(fam ? fam.name : '')}</td><td>${auto ? `rating ${fcEsc(c.rt.rating)} ★ (${fcNf(c.rt.reviews)} reviews) — automatic` : fcEsc(e.reason || FC_REASON)}</td>`
         + `<td>${auto ? '—' : fcEsc(e.name || fcName(e.by)) + ' · ' + fcEsc(e.at ? fcWhen(e.at) : '')}</td><td>${auto ? '' : `<button type="button" class="ghost fc-b" data-fc="undo" data-fc-b="${fcEsc(c.brand)}" data-fc-s="${fcEsc(c.sku)}">Undo</button>`}</td></tr>`;
     }).join('')}</tbody></table></div>` : '') + '</div>' : '';
   body.innerHTML = `<div class="fc-boxes">${cards}</div>${table}${fcBarHtml(v)}${removed}`;
@@ -797,16 +906,16 @@ function fcCount(v, k) {
   FC.card = card;
   return n;
 }
-// The removed-on-purpose children still to list: live, still without a parent (a linked or no-longer-live child is simply not here).
+// The removed-on-purpose children still to list: live, still without a parent on Amazon (a linked or no-longer-live child is simply not here).
 const fcRemoved = v => v.removed.filter(c => FC.brand === 'ALL' || c.brand === FC.brand);
 
 /* ----- open / close (one family at a time) ----- */
-/** Open a family (closing the one open before) or close it. Opening reads its theme; the clicked line stays where it was on the screen. */
+/** Open a family (closing the one open before) or close it. Opening reads it from Amazon (if not kept); the clicked line stays where it was. */
 function fcToggle(fk, el) {
   const line = el && el.closest ? el.closest('.fc-head') || el : null;
   const top0 = line && line.getBoundingClientRect ? line.getBoundingClientRect().top : null;
   FC.open = FC.open === fk ? '' : fk;
-  if (FC.open) fcReadFamily(fk);
+  if (FC.open) fcReadCat(fk);
   else fcPump();                                                           // closed: the background reads go on
   fcDrawAll();
   if (top0 == null || typeof document === 'undefined' || !document.querySelector) return;
@@ -821,6 +930,7 @@ function fcClick(el) {
   if (act === 'tab') { FC.tab = v; FC.built = false; return fcDrawAll(); }
   if (act === 'card') { FC.card = FC.card === v ? '' : v; FC.limit = FC_STEP; return fcDrawAll(); }
   if (act === 'grp') return fcToggle(v, el);
+  if (act === 'reread') { fcReadCat(v, true); return fcDrawAll(); }
   if (act === 'more') { FC.limit += FC_STEP; return fcDrawAll(); }
   if (act === 'link') return fcLink(brand, sku);
   if (act === 'set') return fcSetValue(brand, sku, el.dataset.fcK);
@@ -867,7 +977,8 @@ function fcFilter(el) {
   if (k === 'q') FC_T = setTimeout(fcDrawAll, 250);
   else fcDrawAll();
 }
-/** Opening the page: the snapshots Sellora already holds (read once), the saved marks, then draw — every family closed. */
+/** Opening the page: the snapshots Sellora already holds (read once), the saved marks, then draw — every family closed — and Amazon's catalog
+ *  for every family not read before, in the background. */
 async function fcOpen() {
   fcShell();
   fcDrawAll();
@@ -884,7 +995,8 @@ async function fcOpen() {
   }
   FC.loading = false;
   FC.loaded = true;
-  fcReadAllThemes();                                                       // queued first, so the cards say "Checking themes… 0 of N" at once
+  fcBuild();
+  fcReadAllCat();                                                          // queued first, so the cards say "Reading Amazon… 0 of N" at once
   fcDrawAll();
 }
 const fcPaneOn = () => { const pane = $('paneFam'); return !!(pane && !pane.classList.contains('hide')); };
