@@ -8,14 +8,16 @@ const SRC = FILES.map(f => fs.readFileSync(P + f, 'utf8')).join('\n;\n');
 let pass = 0, fail = 0;
 const ok = (n, c, i) => { if (c) { pass++; console.log('  PASS ' + n); } else { fail++; console.log('  FAIL ' + n + (i !== undefined ? '  ' + i : '')); } };
 
-/* ---------- a time zone in which the hour is H right now (the schedule reads the script's time zone) ---------- */
-function tzAt(H) {
-  let off = H - new Date().getUTCHours();
-  if (off > 14) off -= 24;
-  if (off < -12) off += 24;
-  return off === 0 ? 'UTC' : 'Etc/GMT' + (off > 0 ? '-' : '+') + Math.abs(off);
+/* ---------- a "time zone" in which the time is H:M right now (the schedule reads the script's time zone) ---------- */
+function tzAt(H, M) {
+  const d = new Date();
+  let off = (H * 60 + (M || 0)) - (d.getUTCHours() * 60 + d.getUTCMinutes());
+  if (off >= 720) off -= 1440;
+  if (off < -720) off += 1440;
+  return 'OFF:' + off;                          // minutes; fmt below shifts the clock by them
 }
 function fmt(d, tz, pat) {
+  if (/^OFF:/.test(tz)) { d = new Date(d.getTime() + Number(tz.slice(4)) * 60000); tz = 'UTC'; }
   const p = Object.fromEntries(new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
     .formatToParts(d).map(x => [x.type, x.value]));
   if (pat === 'H') return String(+p.hour);
@@ -86,6 +88,8 @@ function setup(o) {
   const W = o.W || world(o);
   const props = Object.assign({ API_KEY: 'K', CACHE_SHEET_ID: 'CACHE', SP_SELLER_ID: 'SELLER-SP', CPC_SELLER_ID: 'SELLER-CPC' }, o.noBook ? {} : { LM_CACHE_ID: 'LMBOOK' }, o.props || {});
   // two spreadsheets: the nightly cache (with a tab of its own) and "Sellora Listing Cache"
+  // a fake clock for the tick budget: o.msPerCall per SP-API call, Utilities.sleep and o.msPerWrite per sheet write move it on
+  let skew = 0;
   const books = new Map(), created = [];
   const log = [], calls = [], triggers = [];
   let repN = 0;
@@ -96,7 +100,7 @@ function setup(o) {
       getName: () => name, clear: () => { s.rows = []; },
       getLastRow: () => s.rows.length, getMaxRows: () => Math.max(1, s.rows.length), getMaxColumns: () => 1, deleteColumns() {}, deleteRows() {},
       getRange: (r, c, n) => ({
-        setValues: v => { if (o.failWrite && o.failWrite(name)) throw new Error('Service Spreadsheets failed'); s.rows = v.map(x => x[0]); },
+        setValues: v => { if (o.failWrite && o.failWrite(name)) throw new Error('Service Spreadsheets failed'); if (o.msPerWrite) skew += o.msPerWrite; s.rows = v.map(x => x[0]); },
         getValues: () => s.rows.slice(r - 1, r - 1 + n).map(x => [x]),
         setValue: v => { s.rows[r - 1] = v; },
       }),
@@ -123,6 +127,7 @@ function setup(o) {
   const brand = () => ctx.ACTIVE_PREFIX;
   const fetch = (url, opt) => {
     opt = opt || {};
+    if (o.msPerCall) skew += o.msPerCall;
     const u = new URL(url), q = u.searchParams, p = u.pathname;
     const b = brand();
     calls.push({ b, p, q: Object.fromEntries(q), m: opt.method || 'get' });
@@ -179,13 +184,15 @@ function setup(o) {
     ContentService: { createTextOutput: t => ({ setMimeType() { return this; }, text: t }), MimeType: { JSON: 'json' } },
     PropertiesService: { getScriptProperties: () => ({ getProperty: k => (k in props ? props[k] : null), setProperty: (k, v) => { props[k] = String(v); }, deleteProperty: k => { delete props[k]; }, getProperties: () => props }) },
     CacheService: { getScriptCache: () => ({ get: () => 'tok', put() {} }) },
-    Utilities: { sleep() {}, formatDate: fmt, ungzip: b => b },
-    Session: { getScriptTimeZone: () => o.tz || tzAt(o.hour == null ? 13 : o.hour), getEffectiveUser: () => ({ getEmail: () => (o.mail != null ? o.mail : 'ops@workspace.example') }) },
+    Utilities: { sleep: ms => { if (o.msPerCall) skew += ms; }, formatDate: fmt, ungzip: b => b },
+    Session: { getScriptTimeZone: () => o.tz || tzAt(o.hour == null ? 13 : o.hour, o.min == null ? 5 : o.min), getEffectiveUser: () => ({ getEmail: () => (o.mail != null ? o.mail : 'ops@workspace.example') }) },
     ScriptApp: { getProjectTriggers: () => triggers, deleteTrigger: t => triggers.splice(triggers.indexOf(t), 1),
       newTrigger: h => ({ timeBased: () => ({ everyMinutes: m => ({ create: () => triggers.push({ getHandlerFunction: () => h, m }) }) }) }) },
     Logger: { log: s => log.push(String(s)) }, console,
   };
+  ctx.__skew = () => skew;
   vm.createContext(ctx);
+  if (o.msPerCall) vm.runInContext('(function () { var real = Date.now; Date.now = function () { return real() + __skew(); }; })();', ctx);
   vm.runInContext(SRC, ctx);
   if (o.tune) vm.runInContext(o.tune, ctx);
   const read = n => vm.runInContext('lmGet_(' + JSON.stringify(n) + ')', ctx);
@@ -200,7 +207,7 @@ function setup(o) {
   const fullPass = (max) => { let n = 0; do { run('lmTick()'); n++; } while (state().run && n < (max || 60)); return n; };
   const get = q => JSON.parse(vm.runInContext('doGet({ parameter: ' + JSON.stringify(Object.assign({ key: 'K' }, q)) + ' }).text', ctx));
   return { W, props, get sheets() { const b = books.get(props.LM_CACHE_ID); return b ? b.sheets : new Map(); }, books, created, log, calls, triggers, reps, ctx, read, run, state, allItems, fullPass, get,
-    setHour: h => { o.tz = tzAt(h); }, opts: o };
+    setHour: h => { o.tz = null; o.hour = h; }, setTime: (h, m) => { o.tz = null; o.hour = h; o.min = m; }, opts: o };
 }
 const tabs = T => [...T.sheets.keys()];
 
@@ -263,8 +270,13 @@ const tabs = T => [...T.sheets.keys()];
 
   console.log('== batching and resume ==');
   {
-    // tiny scratch tabs: every tick stops after one call and writes what it read; one call dies on the network
-    const T = setup({ hour: 13, tune: 'LM_SCR_MAX = 3000;', netFail: (c, n) => c.p.indexOf('/listings/') === 0 && c.q.identifiers && c.q.identifiers.split(',')[0] === 'RTC14-28' && !global.__died && (global.__died = 1) });
+    // tiny scratch tabs: a full one is written and the reading goes on in the SAME tick (it used to end the tick)
+    const S = setup({ hour: 13, tune: 'LM_SCR_MAX = 3000;' });
+    const sTicks = S.fullPass();
+    const sp1 = S.allItems('listings', 'SP');
+    ok('a full scratch buffer is written and the tick reads on: the whole pass in ' + sTicks + ' tick, every SKU once', sTicks === 1 && Object.keys(sp1.items).length === 47 && !sp1.dup.length);
+    // a slow Amazon (a minute a call on a fake clock): every tick stops at its time budget; one call dies on the network
+    const T = setup({ hour: 13, msPerCall: 60000, netFail: (c, n) => c.p.indexOf('/listings/') === 0 && c.q.identifiers && c.q.identifiers.split(',')[0] === 'RTC14-28' && !global.__died && (global.__died = 1) });
     const ticks = T.fullPass();
     const sp = T.allItems('listings', 'SP');
     ok('many ticks (' + ticks + '), each carrying on where the last stopped: every SKU once', ticks >= 4 && Object.keys(sp.items).length === 47 && !sp.dup.length);
@@ -374,6 +386,13 @@ const tabs = T => [...T.sheets.keys()];
     ok('a part past LM_PART_MAX: the brand is laid out in twice the parts (' + meta.parts.listings.SP.length + '), every part under the limit', meta.parts.listings.SP.length >= 4 && sizes.every(s => s <= 40000), sizes.join());
     const sp = T.allItems('listings', 'SP');
     ok('…still every SKU once', Object.keys(sp.items).length === 47 && !sp.dup.length);
+    T.log.length = 0; T.run('lmStatus()');
+    const SL = T.log.join('\n');
+    ok('lmStatus prints "listings laid out in N parts" as a note, never under "error"', /^note       \[[^\]]+\] Ridhi: listings laid out in \d+ parts$/m.test(SL) && /^last pass  note: \[[^\]]+\] Ridhi: listings laid out/m.test(SL)
+      && !/^error .*laid out/m.test(SL) && !/^last pass  \[.*laid out/m.test(SL), SL);
+    const old = T.state(); old.errors = (old.errors || []).concat(['[2026-11-16 17:20] Ridhi: listings laid out in 32 parts']); T.props.LM_STATE = JSON.stringify(old);
+    T.log.length = 0; T.run('lmStatus()');
+    ok('…also a line an older version filed under errors', /^note       \[2026-11-16 17:20\] Ridhi: listings laid out in 32 parts$/m.test(T.log.join('\n')));
     ok('…no tab of the too-small layout is left behind', tabs(T).filter(n => /^lmListings_SP_/.test(n)).sort().join() === meta.parts.listings.SP.slice().sort().join(), tabs(T).filter(n => /^lmListings_SP_/.test(n)).join());
     const C = setup({ hour: 13, longText: 1900, tune: 'LM_PART_MAX = 200000;' });
     C.fullPass();
@@ -463,6 +482,68 @@ const tabs = T => [...T.sheets.keys()];
     ok('18:00: the second full pass starts (its reports are asked for)', T.calls.filter(c => c.m === 'post').length === 6);
   }
 
+  console.log('== faster full passes: reports 30 minutes early, reads while waiting, a 5-minute timer ==');
+  {
+    const T = setup({ hour: 10, repStatus: (type, b, polls) => (polls >= 2 ? 'DONE' : 'IN_PROGRESS') });
+    T.run('lmSetup()');
+    T.run('lmTick()');
+    ok('a full pass starting: the timer becomes every 5 minutes (still one timer)', T.triggers.length === 1 && T.triggers[0].m === 5 && T.props.LM_TIMER_MIN === '5');
+    T.fullPass();
+    ok('…and back to every 10 minutes when it is done', T.triggers.length === 1 && T.triggers[0].m === 10 && T.props.LM_TIMER_MIN === '10');
+    // next: a SKU new on Amazon, one gone; the All Listings report takes 5 polls, the stock report 7
+    T.W.SP.skus['RTC14-48'] = Object.assign({}, T.W.SP.skus['RTC14-1'], { asin: A('SP', 48), t: 'Title RTC14-48' });
+    T.W.SP.cat[A('SP', 48)] = Object.assign({}, T.W.SP.cat[A('SP', 1)], { t: 'Shown RTC14-48' });
+    delete T.W.SP.skus['RTC14-47'];
+    T.opts.repStatus = (type, b, polls) => (type === 'GET_MERCHANT_LISTINGS_ALL_DATA' ? (polls >= 5 ? 'DONE' : 'IN_PROGRESS') : type === 'GET_FBA_INVENTORY_PLANNING_DATA' ? (polls >= 7 ? 'DONE' : 'IN_PROGRESS') : 'DONE');
+    const reads = () => T.calls.filter(c => /^\/listings\/2021-08-01\/items\/[^/]+$/.test(c.p) || c.p === '/catalog/2022-04-01/items').length;
+    const finished = T.read('lmMeta').finishedAt;
+    T.setTime(12, 20); T.calls.length = 0; T.run('lmTick()');
+    ok('12:20: nothing starts yet', !T.state().run && !T.calls.some(c => c.m === 'post'));
+    T.setTime(12, 35); T.calls.length = 0; T.run('lmTick()');
+    ok('12:35: the 13:00 pass starts — its 6 reports are asked now, nothing is read before 13:00', !!T.state().run && T.calls.filter(c => c.m === 'post').length === 6 && reads() === 0 && T.state().run.readFrom.slice(11) === '13:00');
+    ok('…the timer is every 5 minutes', T.triggers[0].m === 5);
+    T.log.length = 0; T.run('lmStatus()');
+    ok('…lmStatus says so', /reports asked early; listings are read from 13:00/.test(T.log.join('\n')) && /timer      every 5 minutes/.test(T.log.join('\n')), T.log.join('\n'));
+    T.setTime(12, 50); T.calls.length = 0; T.run('lmTick()');
+    ok('12:50: the reports are polled, still nothing read', reads() === 0 && T.calls.some(c => /^\/reports\/2021-06-30\/reports\/R/.test(c.p)));
+    T.setTime(13, 1); T.calls.length = 0; T.run('lmTick()');
+    const x = T.state().run.B.SP;
+    ok('13:01: listings AND catalog are read while the All Listings and stock reports are still not ready (SKU list of the last pass)',
+      reads() > 0 && T.calls.some(c => c.p === '/catalog/2022-04-01/items') && x.rep.L.st === 'asked' && x.rep.S.st === 'asked' && x.ks === 'cache' && x.ki === 1 && !x.kf, JSON.stringify(x));
+    ok('…nothing is written to lmListings before every report is in', T.read('lmMeta').finishedAt === finished && !!T.state().run);
+    let n = 0; while (T.state().run && n < 20) { T.run('lmTick()'); n++; }
+    const it = T.allItems('listings', 'SP').items, cat = T.allItems('catalog', 'SP').items;
+    ok('the pass finishes once the reports are in (' + n + ' more ticks): the new SKU is read (fresh, not "not read"), the gone one has left with its catalog entry',
+      !T.state().run && it['RTC14-48'] && !it['RTC14-48'].stale && !it['RTC14-48'].noRead && it['RTC14-48'].t === 'Title RTC14-48' && cat[A('SP', 48)] && cat[A('SP', 48)].t === 'Shown RTC14-48'
+      && !it['RTC14-47'] && !cat[A('SP', 47)] && Object.keys(it).length === 47 && !!cat.B0SPPARENT);
+    ok('…stock from the stock report that came last; the timer back to 10 minutes', it['RTC14-3'].fba === 6 && !it['RTC14-3'].fbaStale && T.triggers.length === 1 && T.triggers[0].m === 10);
+    const asked = {};
+    T.calls.filter(c => /^\/listings\/2021-08-01\/items\/[^/]+$/.test(c.p) && c.b === 'SP').forEach(c => c.q.identifiers.split(',').forEach(s => { asked[s] = (asked[s] || 0) + 1; }));
+    ok('…no SKU was read twice', Object.keys(asked).length > 40 && Object.keys(asked).every(s => asked[s] === 1), JSON.stringify(asked));
+    T.setTime(17, 40); T.calls.length = 0; T.opts.repStatus = null; T.run('lmTick()');
+    ok('17:40: the 18:00 pass starts early the same way', !!T.state().run && T.state().run.readFrom.slice(11) === '18:00' && T.calls.filter(c => c.m === 'post').length === 6 && reads() === 0);
+    T.setTime(18, 2); n = 0; while (T.state().run && n < 20) { T.run('lmTick()'); n++; }
+    ok('…reports ready when the reading starts: done in ' + n + ' tick', n === 1 && !T.state().run);
+    // lmRunNow: reads at once; no timer installed: a tick never makes one
+    const R = setup({ hour: 15 });
+    R.run('lmRunNow()'); R.run('lmTick()');
+    ok('lmRunNow: reads at once (no waiting for an hour); no timer installed → none made', !R.state().run && R.read('lmMeta').kind === 'full' && !R.triggers.length);
+    // a pass begun by the older version: begun again with the new steps
+    const O = setup({ hour: 15 });
+    O.props.LM_STATE = JSON.stringify({ run: { kind: 'full', startedAt: '2026-11-16 15:24', B: { SP: { ph: 'items', rep: {}, i: 40 }, CPC: { ph: 'rep', rep: {} } }, errors: [] } });
+    O.run('lmTick()');
+    ok('a pass the older version began is started again with the new steps (a note says so)', !O.state().run && O.read('lmMeta').kind === 'full' && O.state().notes.some(l => /started again with the new steps/.test(l)));
+  }
+
+  console.log('== how long a full pass takes (simulated clock) ==');
+  {
+    // 4,400 SKUs (Ridhi 2,680, CPC 1,720); 1.2 s a call plus our gaps; 1.5 s a sheet write; reports ready at 13:00
+    const T = setup({ hour: 13, min: 0, n: { SP: 2680, CPC: 1720 }, msPerCall: 1200, msPerWrite: 1500 });
+    const ticks = T.fullPass(30);
+    const m = T.read('lmMeta');
+    ok('a full pass of 4,400 SKUs: ' + ticks + ' five-minute ticks after 13:00 (≈ ' + ticks * 5 + ' minutes), every SKU there', ticks <= 6 && m.counts.SP.skus === 2680 && m.counts.CPC.skus === 1720, ticks);
+  }
+
   console.log('== lmCheck: the proof ==');
   {
     const W = world({ n: { SP: 5, CPC: 5 } });
@@ -472,6 +553,8 @@ const tabs = T => [...T.sheets.keys()];
     T.run('Math.random = (function () { var i = 0; var seq = [0.0, 0.2, 0.4, 0.6, 0.8]; return function () { return seq[i++ % seq.length]; }; })();');
     T.W.SP.skus['RTC14-3'].t = 'Changed on Amazon';
     T.W.SP.skus['RTC14-4'].fbaLive = 0;
+    T.W.SP.skus['RTC14-1'].as = ['DISCOVERABLE', 'BUYABLE'];       // the same status, Amazon's words in the other order
+    T.W.SP.skus['RTC14-5'].as = ['BUYABLE'];                       // a real change
     T.log.length = 0;
     T.run('lmCheck()');
     const L = T.log.join('\n');
@@ -479,6 +562,8 @@ const tabs = T => [...T.sheets.keys()];
     ok('10 SKUs (5 a brand), each with a live Listings, catalog and stock read', (L.match(/── (Ridhi|CPC) · /g) || []).length === 10);
     const block = sku => (L.split('── ').find(x => x.indexOf(sku + ' · ') > 0 && x.indexOf('Ridhi · ' + sku + ' ') === 0) || '');
     ok('a title changed since: DIFFERENT with both values; status, issues, pictures OK', /title \(ours\)\s+DIFFERENT cache: Title RTC14-3\s+·\s+live: Changed on Amazon/.test(block('RTC14-3')) && /status\s+OK/.test(block('RTC14-3')) && /issues\s+OK/.test(block('RTC14-3')) && /our pictures\s+OK/.test(block('RTC14-3')), block('RTC14-3'));
+    ok('status values are sorted before comparing: BUYABLE,DISCOVERABLE = DISCOVERABLE,BUYABLE (OK); BUYABLE alone is DIFFERENT',
+      /status\s+OK\s+BUYABLE,DISCOVERABLE/.test(block('RTC14-1')) && /status\s+DIFFERENT cache: BUYABLE,DISCOVERABLE\s+·\s+live: BUYABLE\s*$/m.test(block('RTC14-5')), block('RTC14-1') + block('RTC14-5'));
     ok('…stock that moved: DIFFERENT', /stock \(Available\)\s+DIFFERENT cache: 8\s+·\s+live: 0/.test(block('RTC14-4')), block('RTC14-4'));
     ok('…the catalog lines: title shoppers see, live pictures (with size), parent ASIN', /title shoppers see\s+OK/.test(block('RTC14-1')) && /live pictures\s+OK\s+MAIN=RTC14-1-live\.jpg\(1500x1500\)/.test(block('RTC14-1')) && /parent ASIN\s+OK/.test(block('RTC14-1')), block('RTC14-1'));
     T.W.CPC.skus['CPC-99'] = Object.assign({}, T.W.CPC.skus['CPC-1'], { asin: A('CPC', 99) });
