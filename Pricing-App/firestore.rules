@@ -261,6 +261,22 @@ service cloud.firestore {
       allow read: if can('shop') || can('adj') || can('audit') || canReplShop();
       allow write: if false;
     }
+    // CONTENT CREATORS (16 Nov 2026): gift orders for creators, one document per gift, id = its reference. Creator Setu's
+    // orders are written by the Pricing API (CreatorOrders.gs) with its owner's token, which these rules do not govern.
+    // Whoever holds Shopify Orders (Sellora tabs or the Replenishment app's replTabs) reads and updates them, and may
+    // create only the team's own kind ("+ Create order": source "team", status "New", an ERP-CC- reference). The reference
+    // and the source never change. Nobody deletes. Holds creators' addresses: the same audience as the Shopify orders'.
+    function canCreators() { return can('shop') || canReplTab('shop'); }
+    match /creatorOrders/{ref} {
+      allow read: if canCreators();
+      allow create: if canCreators()
+        && request.resource.data.reference == ref && ref.matches('^ERP-CC-[A-Z0-9]+$')
+        && request.resource.data.source == 'team' && request.resource.data.status == 'New';
+      allow update: if canCreators()
+        && request.resource.data.reference == resource.data.reference
+        && request.resource.data.source == resource.data.source;
+      allow delete: if false;
+    }
     // Per-SKU master: shelf bin, HS code, GST rate, invoice rate. Facts about the PRODUCT, written
     // by whoever is picking or preparing the invoice.
     // Orders IMPORTED from a shop with no API key (CPC Shopify, the Etsy stores). Same audience as
