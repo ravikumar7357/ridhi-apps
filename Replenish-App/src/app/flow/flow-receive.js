@@ -375,11 +375,14 @@ function flowVsPending(key, ruffle, unit, poNo) {
   return { vs, pending: flowR2(Math.max(0, vs - got)), blocked: false };
 }
 /** The Received cell for one line under the rule above: a tick that fills the printer's figure, and the box (at most that much). */
+/* NOT MANDATORY ANY MORE (Ravi, 16 Nov: "jab tak vendor nahi bhej raha h me receive nahi kar pa rha hu — isko mandatory mat karo"). What
+ * the printer said it sent is still offered as a tick that fills the box; but a line it said nothing about, or more than it said, can be
+ * typed — up to what is still to come on the line, which every save checks. */
 function flowVsRecvCell(attr, id, pv, unit, value, extra) {
-  if (pv.blocked) return `<span style="font-size:11.5px;color:#b45309" title="Ask the printer to enter what it sent on its portal (Vendor Sent)">printer has not said it sent</span>`;
-  if (!(pv.pending > 0)) return `<span class="muted" style="font-size:11.5px" title="${esc(flowQtyTxt(pv.vs, unit))} said sent — all of it is in">all sent is in</span>`;
+  const box = `<input ${attr}="${esc(id)}" type="number" min="0" step="${unit === 'pcs' ? 1 : 0.01}" value="${esc(String(value || ''))}" placeholder="0" onfocus="this.select()" style="width:72px;padding:3px 6px;font-size:12px;text-align:right"${extra || ''}>`;
+  if (pv.blocked || !(pv.pending > 0)) return box + `<div style="font-size:10.5px;color:#b45309;white-space:normal">${pv.blocked ? 'printer has not said it sent' : 'all the printer said is in'}</div>`;
   return `<label style="display:inline-flex;gap:4px;align-items:center;margin:0 6px 0 0;font-size:12px;white-space:nowrap" title="Take in what the printer says it sent"><input type="checkbox" data-flfill="${esc(String(pv.pending))}" style="width:auto;margin:0"${+value >= pv.pending ? ' checked' : ''}>${esc(flowQtyTxt(pv.pending, unit))}</label>`
-    + `<input ${attr}="${esc(id)}" type="number" min="0" max="${esc(String(pv.pending))}" step="${unit === 'pcs' ? 1 : 0.01}" value="${esc(String(value || ''))}" placeholder="0" onfocus="this.select()" style="width:72px;padding:3px 6px;font-size:12px;text-align:right"${extra || ''}>`;
+    + box;
 }
 if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
   /* the tick fills the box with the printer's figure (or clears it); a figure typed over it comes back down to it */
@@ -392,6 +395,8 @@ if (typeof document !== 'undefined' && typeof document.addEventListener === 'fun
 }
 /** The save-side check of the same rule: '' when fine, else what is wrong with this line. */
 function flowVsCheck(key, ruffle, unit, poNo, q, what) {
+  const must = false;   // 16 Nov: not mandatory — the line's own "still to come" is the only limit
+  if (!must) return '';
   const pv = flowVsPending(key, ruffle, unit, poNo);
   if (pv.blocked) return `${what}: the printer has not said it sent this — ask them to enter it on their portal`;
   if (q > pv.pending + 1e-9) return `${what}: ${flowQtyTxt(q, unit)} is more than the ${flowQtyTxt(pv.pending, unit)} the printer says it sent and we have not taken in`;
