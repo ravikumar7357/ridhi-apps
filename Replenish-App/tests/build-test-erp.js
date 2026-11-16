@@ -227,7 +227,7 @@ const GUARD = `<script>/* TEST ERP GUARD — added by Replenish-App/tests/build-
       return new Response(JSON.stringify(v), { status: 200, headers: { 'Content-Type': 'application/json', ETag: 'sb' } });
     }, function (e) {   /* the real reason goes into the message the screen shows ("…answered 503 ERP data 500: <why>") */
       try { console.warn('[TEST ERP] ERP data refused the read of ' + p + ': ' + e.message); } catch (x) {}
-      return new Response(JSON.stringify({ error: e.message }), { status: 503, statusText: String(e.message).replace(/[^\\x20-\\x7e]/g, ' ').slice(0, 180), headers: { 'Content-Type': 'application/json' } });
+      return new Response(JSON.stringify({ error: e.message }), { status: /not an ERP sign-in|permission denied/.test(String(e.message)) ? 401 : 503, statusText: String(e.message).replace(/[^\\x20-\\x7e]/g, ' ').slice(0, 180), headers: { 'Content-Type': 'application/json' } });
     });
     /* kept only when it worked: a refused or failed read is asked again next time */
     var keep = isWhole ? null : p0.then(function (r) { return r.clone().text().then(function (t) { if (!r.ok) delete M[memoKey]; return { text: t, status: r.status, statusText: r.statusText }; }); });
@@ -295,9 +295,11 @@ const GUARD = `<script>/* TEST ERP GUARD — added by Replenish-App/tests/build-
     else if (method === 'PATCH') { Object.keys(body || {}).forEach(function (k) { var p = join(base, trimS(k)), v = body[k]; if (p) ch.push({ k: 'patch', p: p, v: v === undefined ? null : v, t: t }); }); answer = body; }
     else if (method === 'DELETE') { if (base) ch.push({ k: 'delete', p: base, v: null, t: t }); answer = null; }
     else if (method === 'POST') { var id = sbPushId(); ch.push({ k: 'put', p: join(base, id), v: body, t: t }); answer = { name: id }; }
+    /* bookkeeping, not data (as the live mirror skips them): answered, not saved — ERP data keeps its own "what changed" */
+    ch = ch.filter(function (c) { return !/^pt_(sync|syncAudit|dataMeter)(\\/|$)/.test(c.p); });
     var ok = function () { return new Response(JSON.stringify(answer === undefined ? null : answer), { status: 200, headers: { 'Content-Type': 'application/json' } }); };
     var fail = function (e) {
-      var m = String((e && e.message) || e), st = /not an ERP sign-in|only an admin|API keys/.test(m) ? 403 : 503;
+      var m = String((e && e.message) || e), st = /not an ERP sign-in|only an admin|API keys|permission denied/.test(m) ? 403 : 503;
       try { console.warn('[TEST ERP] ERP data did not take the save of ' + base + ': ' + m); } catch (x) {}
       return new Response(JSON.stringify({ error: m }), { status: st, statusText: m.replace(/[^\\x20-\\x7e]/g, ' ').slice(0, 180), headers: { 'Content-Type': 'application/json' } });
     };
@@ -537,7 +539,9 @@ function sbFirestoreWrite(n, hasDoc) {
 /** The Firestore import: setDoc / addDoc / deleteDoc are renamed, and the names the app uses now refuse. */
 function blockFirestoreWrites(html, label, sbReads) {
   const WRITES = ['setDoc', 'addDoc', 'deleteDoc', 'updateDoc', 'writeBatch', 'runTransaction'];
-  const READS = sbReads ? ['getDoc', 'getDocs', 'getDocsFromServer', 'onSnapshot'] : [];
+  /* query / orderBy / limit / where become plain descriptions that the ERP data getDocs below answers (Sellora reads its
+   * lists as query(collection, orderBy(…), limit(…))) */
+  const READS = sbReads ? ['getDoc', 'getDocs', 'getDocsFromServer', 'onSnapshot', 'query', 'orderBy', 'limit', 'where'] : [];
   return must(html, /import\s*\{([^}]*)\}\s*from\s*"(https:\/\/www\.gstatic\.com\/firebasejs\/[^"]+\/firebase-firestore\.js)";/g, (all, names, url) => {
     const list = names.split(',').map(s => s.trim()).filter(Boolean);
     const blocked = list.filter(n => WRITES.includes(n));
@@ -570,8 +574,22 @@ async function __sbRpc(fn, body) {
 }
 const __sbIsKeyDoc = ref => String(ref && ref.path || '').split('/')[0] === 'config';
 ${has('getDoc') ? `const getDoc = async ref => __sbIsKeyDoc(ref) ? __real_getDoc(ref) : __sbDoc(ref, await __sbRpc('fs_get', { p_coll: ref.parent.id, p_id: ref.id }));` : ''}
-${has('getDocs') || has('getDocsFromServer') ? `const __sbGetDocs = async col => { const coll = String(col.path || col.id); const list = await __sbRpc('fs_list', { p_coll: coll }) || [];
-  const docs = list.map(x => __sbDoc({ id: x.id, path: coll + '/' + x.id, parent: col }, x.data));
+${has('query') ? 'const query = (col, ...cs) => ({ __sbq: true, col, cs, type: "query" });' : ''}
+${has('orderBy') ? 'const orderBy = (f, dir) => ({ __ob: String(f), dir: dir === "desc" ? -1 : 1 });' : ''}
+${has('limit') ? 'const limit = n => ({ __lim: Number(n) });' : ''}
+${has('where') ? 'const where = (f, op, v) => ({ __wf: String(f), op, v });' : ''}
+${has('getDocs') || has('getDocsFromServer') ? `const __sbField = (o, f) => String(f).split('.').reduce((x, k) => (x == null ? undefined : x[k]), o);
+const __sbCmp = (a, b) => { const v = x => (x && typeof x.toMillis === 'function') ? x.toMillis() : x; a = v(a); b = v(b); return a === b ? 0 : a === undefined || a === null ? -1 : b === undefined || b === null ? 1 : a < b ? -1 : 1; };
+const __sbGetDocs = async q => { const col = q && q.__sbq ? q.col : q, cs = (q && q.__sbq ? q.cs : []) || [];
+  const coll = String(col.path || col.id); const list = await __sbRpc('fs_list', { p_coll: coll }) || [];
+  let docs = list.map(x => __sbDoc({ id: x.id, path: coll + '/' + x.id, parent: col }, x.data));
+  for (const c of cs) if (c && c.__wf) docs = docs.filter(d => { const a = __sbField(d.data(), c.__wf), b = c.v;
+    switch (c.op) { case '==': return __sbCmp(a, b) === 0; case '!=': return __sbCmp(a, b) !== 0; case '<': return __sbCmp(a, b) < 0; case '<=': return __sbCmp(a, b) <= 0;
+      case '>': return __sbCmp(a, b) > 0; case '>=': return __sbCmp(a, b) >= 0; case 'in': return (b || []).some(x => __sbCmp(a, x) === 0);
+      case 'array-contains': return Array.isArray(a) && a.some(x => __sbCmp(x, b) === 0); default: return true; } });
+  const obs = cs.filter(c => c && c.__ob);
+  if (obs.length) docs.sort((x, y) => { for (const o of obs) { const r = o.__ob === '__name__' ? __sbCmp(x.id, y.id) : __sbCmp(__sbField(x.data(), o.__ob), __sbField(y.data(), o.__ob)); if (r) return r * o.dir; } return 0; });
+  const lim = cs.find(c => c && c.__lim); if (lim) docs = docs.slice(0, lim.__lim);
   return { docs, size: docs.length, empty: !docs.length, forEach: f => docs.forEach(f) }; };` : ''}
 ${has('getDocs') ? 'const getDocs = __sbGetDocs;' : ''}
 ${has('getDocsFromServer') ? 'const getDocsFromServer = __sbGetDocs;' : ''}
@@ -664,7 +682,11 @@ fs.writeFileSync(path.join(OUT, '.nojekyll'), '');
   copyDir(src, dst, ['index.html']);
   let html = fs.readFileSync(path.join(src, 'index.html'), 'utf8');
   html = guardPage(html, 'Sellora');
-  html = blockFirestoreWrites(html, 'Sellora');
+  /* SELLORA ON ERP DATA (Ravi, 16 Nov): its Firestore reads (getDoc / getDocs with query, orderBy, limit) are answered by ERP
+   * data, its saves go to ERP data only (fs/<collection>/<id>), as the factory ERP's do; a settings document with an API key is
+   * still read from Firebase and never saved. Its few database reads/writes (the rights copy, pt_perms) go to ERP data too. */
+  html = must(html, '<script>/* TEST ERP GUARD', '<script>/* TEST ERP GUARD (Sellora: loads from ERP data) */ window.__TEST_ERP_SB_PAGE = true; </script><script>/* TEST ERP GUARD', 1, 'Sellora loads from ERP data');
+  html = blockFirestoreWrites(html, 'Sellora', true);
   html = must(html, /(href|src)="\/logo\.png"/g, '$1="logo.png"', null, 'Sellora logo');
   html = must(html, "fetch('/', { method: 'HEAD'", "fetch('./', { method: 'HEAD'", 1, 'Sellora version check');
   fs.writeFileSync(path.join(dst, 'index.html'), html);
@@ -679,9 +701,9 @@ main{max-width:520px;width:100%;display:grid;gap:14px}h1{margin:0;font-size:28px
 a.card{display:block;background:#fff;border:1px solid #e2e4e8;border-radius:12px;padding:16px 18px;text-decoration:none;color:inherit}a.card:hover{border-color:#2b3a8c}
 a.card b{display:block;font-size:18px}small,p{color:#5d636b}@media(prefers-color-scheme:dark){body{background:#111214;color:#e9eaec}a.card{background:#18191c;border-color:#2a2c30}small,p{color:#a0a4ab}}</style></head>
 <body><main><img src="replenish/r1-logo.svg" alt="R1" width="200" style="justify-self:start"><span class="tag">TEST ERP</span><h1>R1 · the test ERP</h1>
-<p>The same apps as the real ERP, built from the <b>${BRANCH}</b> branch on GitHub. Nothing here can change the real ERP: the factory ERP reads and <b>saves to ERP data (Supabase) only</b> — test saves are wiped when the real switch happens — and Sellora has <b>saving switched off</b>.</p>
+<p>The same apps as the real ERP, built from the <b>${BRANCH}</b> branch on GitHub. Nothing here can change the real ERP: both apps read and <b>save to ERP data (Supabase) only</b> — test saves are wiped when the real switch happens. E-mails, Shopify, Amazon and logins stay switched off.</p>
 <a class="card" href="replenish/"><b>Factory ERP</b><small>Replenishment, production, vendors, stock · loads from and saves to ERP data (Supabase)</small></a>
-<a class="card" href="sellora/"><b>Sellora</b><small>Research, sales, listings, advertising · live data, saving off</small></a>
+<a class="card" href="sellora/"><b>Sellora</b><small>Research, sales, listings, advertising · loads from and saves to ERP data (Supabase)</small></a>
 <small>Built from commit ${SHA} · ${WHEN}</small></main></body></html>`);
 
 console.log(`test ERP built into _site/ from ${BRANCH} @ ${SHA}: factory ERP + Sellora, saving off.`);
