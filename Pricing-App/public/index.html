@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <!-- ================================================================================================
-     GENERATED FILE. DO NOT READ OR EDIT THE CODE HERE — it is the 61 files of src/ joined into one page.
+     GENERATED FILE. DO NOT READ OR EDIT THE CODE HERE — it is the 62 files of src/ joined into one page.
      The real, grouped source: Pricing-App/src/   (map and workflow: src/README.md)
        src/index.html   page markup        src/styles.css   stylesheet        src/app/ORDER   join order
        src/app/<group>/ the code, by group: core, research, sales, inventory, listing, ads
@@ -545,6 +545,7 @@
   #tabHealth{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M22 12h-4l-3 9L9 3l-3 9H2'/%3E%3C/svg%3E")}
   #tabAudit{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='8' y='2' width='8' height='4' rx='1'/%3E%3Cpath d='M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2'/%3E%3Cpath d='m9 14 2 2 4-4'/%3E%3C/svg%3E")}
   #tabBsr{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 3v18h18'/%3E%3Cpath d='M8 17v-3M13 17V8M18 17V5'/%3E%3C/svg%3E")}
+  #tabFam{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='9' y='2' width='6' height='6' rx='1'/%3E%3Crect x='2' y='16' width='6' height='6' rx='1'/%3E%3Crect x='16' y='16' width='6' height='6' rx='1'/%3E%3Cpath d='M12 8v4M5 16v-4h14v4'/%3E%3C/svg%3E")}
   #tabLrules{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6'/%3E%3C/svg%3E")}
   #tabBasket{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9 17H7A5 5 0 0 1 7 7h2M15 7h2a5 5 0 1 1 0 10h-2M8 12h8'/%3E%3C/svg%3E")}
   #tabLhist{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 12a9 9 0 1 0 3-6.7L3 8'/%3E%3Cpath d='M3 3v5h5'/%3E%3Cpath d='M12 7v5l4 2'/%3E%3C/svg%3E")}
@@ -3040,6 +3041,55 @@
   #paneLhist .lh-row.is-child>td:first-child{box-shadow:inset 3px 0 0 var(--line)}
   #paneLhist .lh-pager{display:flex;justify-content:flex-end;align-items:center;gap:8px;margin:10px 0}
   #paneLhist .lh-empty{margin-top:12px;padding:16px}
+  /* ----- Family & Category Check (listing/family-check.js): number cards as filters, rows grouped by family. Scoped to #paneFam. ----- */
+  #paneFam .fc-tb{padding:12px 14px}
+  #paneFam .fc-tb select,#paneFam .fc-tb input[type=search]{width:auto;min-width:0}
+  #paneFam .fc-tb input[type=search]{min-width:220px}
+  #paneFam .fc-meta{margin-top:8px;font-size:12px;line-height:1.5}
+  #paneFam .fc-oknote{color:var(--rev-ink)}
+  #paneFam .fc-boxes{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin:12px 0 10px}
+  #paneFam .fc-box{--c:var(--bad);position:relative;min-width:0;display:flex;flex-direction:column;align-items:stretch;gap:2px;width:auto;height:auto;padding:10px 12px;
+    text-align:left;background:var(--card);color:var(--ink);border:1px solid var(--card-line);border-radius:12px;box-shadow:none;cursor:pointer;transition:transform .12s ease,box-shadow .12s ease}
+  #paneFam .fc-box:hover{transform:translateY(-2px);background:var(--card);color:var(--ink);box-shadow:var(--sh-2);border-color:color-mix(in srgb,var(--c) 40%,var(--card-line))}
+  #paneFam .fc-box:focus-visible{outline:none;box-shadow:0 0 0 3px color-mix(in srgb,var(--c) 35%,transparent)}
+  #paneFam .fc-box.is-on{border-color:color-mix(in srgb,var(--c) 55%,var(--card-line));box-shadow:0 0 0 3px color-mix(in srgb,var(--c) 35%,transparent)}
+  #paneFam .fc-box span{font-size:11.5px;font-weight:600;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #paneFam .fc-box b{font-size:20px;font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums;color:var(--bad-ink)}
+  #paneFam .fc-box small{font-size:11px;color:var(--faint)}
+  #paneFam .fc-box.is-y{--c:var(--rev)} #paneFam .fc-box.is-y b{color:var(--rev-ink)}
+  #paneFam .fc-wrap{margin-top:0;max-height:none}
+  #paneFam .fc-tbl td,#paneFam .fc-tbl th{text-align:left;vertical-align:top;white-space:normal}
+  #paneFam .fc-tbl td.num,#paneFam .fc-tbl th.num{text-align:right;font-variant-numeric:tabular-nums}
+  #paneFam .fc-head{cursor:pointer;background:var(--soft)}
+  #paneFam .fc-head:hover,#paneFam .fc-head:focus-visible{background:var(--hover);outline:none}
+  #paneFam .fc-head small{margin-left:4px}
+  #paneFam .fc-chip{display:inline-block;margin:2px 0 0 6px;padding:0 7px;border-radius:var(--r-pill);font-size:11px;font-weight:650;white-space:nowrap}
+  #paneFam .fc-chip.is-r{background:var(--bad-bg);color:var(--bad-ink)}
+  #paneFam .fc-chip.is-y{background:var(--rev-bg);color:var(--rev-ink)}
+  #paneFam .fc-row>td:first-child{box-shadow:inset 3px 0 0 var(--line)}
+  #paneFam .fc-row.is-orphan>td:first-child{box-shadow:inset 3px 0 0 var(--bad)}
+  #paneFam .fc-sku b{display:block;font-family:ui-monospace,monospace;font-size:12.5px;font-weight:650}
+  #paneFam .fc-sku small{display:block;max-width:260px;font-size:11.5px;color:var(--faint)}
+  #paneFam .fc-none{color:var(--faint);font-style:italic}
+  #paneFam .fc-prob{min-width:200px;max-width:320px}
+  #paneFam .fc-p{display:flex;gap:6px;font-size:12.5px;line-height:1.4}
+  #paneFam .fc-p::before{content:"";flex:none;width:8px;height:8px;margin-top:5px;border-radius:50%;background:var(--bad)}
+  #paneFam .fc-p.is-y::before{background:var(--rev)}
+  #paneFam .fc-fix{min-width:180px;max-width:300px;font-size:12px;line-height:1.4;color:var(--muted)}
+  #paneFam .fc-fix b{color:var(--ink);font-weight:650}
+  #paneFam .fc-note{margin-top:4px;color:var(--rev-ink)}
+  #paneFam .fc-acts{white-space:nowrap}
+  #paneFam .fc-b{padding:4px 10px;font-size:12px;margin:0 4px 4px 0}
+  #paneFam .fc-read1{margin:0 0 0 8px;padding:2px 8px}
+  #paneFam .fc-ask{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:4px;font-size:12px;white-space:normal}
+  #paneFam .fc-ask input{width:160px;padding:4px 8px;font-size:12px}
+  #paneFam .fc-pager{display:flex;justify-content:flex-end;align-items:center;gap:8px;margin:10px 0}
+  #paneFam .fc-empty{margin-top:12px;padding:16px}
+  #paneFam .fc-rem{margin:14px 0 4px}
+  #paneFam .fc-link{padding:0;background:none;border:0;box-shadow:none;color:var(--faint);font-size:12px;font-weight:500;cursor:pointer}
+  #paneFam .fc-link:hover{background:none;color:var(--muted);text-decoration:underline}
+  #paneFam .fc-rem .fc-wrap{margin-top:8px}
+  @media (max-width:860px){#paneFam .fc-tb input[type=search]{min-width:0;flex:1 1 140px}#paneFam .fc-prob,#paneFam .fc-fix{min-width:160px}}
   .sq-chg .sq-add{color:var(--accent-ink);font-weight:600}
   .sq-chg .sq-rem{color:var(--bad-ink)}
   .sq-chg .sq-size{color:var(--faint)}
@@ -4054,7 +4104,7 @@
       <button id="tabBa" class="nav">Analytics</button>
     </div></div>
 
-    <div class="navwrap"><button class="navgrp" id="grpListing" type="button" aria-controls="secListing" data-grp="listing" data-tabs="opt,img,lerr,basket,health,lrules,audit,bsr,lhist">
+    <div class="navwrap"><button class="navgrp" id="grpListing" type="button" aria-controls="secListing" data-grp="listing" data-tabs="opt,img,lerr,basket,health,lrules,audit,bsr,fam,lhist">
       <span class="caret">&#9656;</span> Listing</button>
     <div class="navsec" id="secListing">
       <div class="navcol"><div class="navcol-h">1 · Fix &amp; improve</div>
@@ -4064,7 +4114,8 @@
       <div class="navcol"><div class="navcol-h">2 · Check</div>
       <button id="tabHealth" class="nav">Listing Health</button>
       <button id="tabAudit" class="nav">Listing Audit</button>
-      <button id="tabBsr" class="nav">BSR Audit</button></div>
+      <button id="tabBsr" class="nav">BSR Audit</button>
+      <button id="tabFam" class="nav">Family &amp; Category Check</button></div>
       <div class="navcol"><div class="navcol-h">3 · Rules &amp; ideas</div>
       <button id="tabLrules" class="nav">Listing Rules</button>
       <button id="tabBasket" class="nav">Bought Together</button></div>
@@ -4848,6 +4899,9 @@
 
   <!-- Listing History: every change sent to Amazon (listing/listing-history.js draws it) -->
   <div id="paneLhist" class="hide"><div id="lhPane"></div></div>
+
+  <!-- Family & Category Check: children out of their family, duplicate / missing colour-size, theme (listing/family-check.js draws it) -->
+  <div id="paneFam" class="hide"><div id="fcPane"></div></div>
 
   <!-- ============ Product Performance (was PPC & Organic · New): drawn whole by app/ads/ppc-new.js ============ -->
   <div id="panePpcn" class="hide"></div>
@@ -8750,7 +8804,7 @@ $('search').addEventListener('input', () => {
 // for which tab opens first: the first one the account is allowed.
 const TABS = ['link', 'new', 'pr', 'sales', 'profit', 'sa', 'plaudit', 'shop', 'adj', 'kw', 'ba', 'age', 'health',
   'lrules', 'audit', 'bsr', 'weekly', 'ppcn', 'trends', 'st', 'plc', 'deals', 'tiktok', 'carousel', 'opt', 'img',
-  'lerr', 'basket', 'lhist'];
+  'lerr', 'basket', 'lhist', 'fam'];
 // 'health' → 'Health': a tab key as it appears inside element ids.
 const capId = t => t[0].toUpperCase() + t.slice(1);
 // The title shown at the top of the page for each tab.
@@ -8760,7 +8814,8 @@ const TAB_TITLE = { link: 'By Amazon Link', new: 'New Product', pr: 'Product Res
   trends: 'Ad Console', st: 'Search Terms', plc: 'Placement', deals: 'Deal Calendar', sales: 'Sales Dashboard',
   profit: 'Profit & Margin', sa: 'Sales Analysis', plaudit: 'Parent Listing Review', shop: 'Shopify Orders',
   adj: 'Adjustments', tiktok: 'TikTok Toolkit', carousel: 'Carousel Builder', opt: 'Listing Optimiser',
-  img: 'Image Manager', lerr: 'Listing Errors', basket: 'Bought Together', lhist: 'Listing History' };
+  img: 'Image Manager', lerr: 'Listing Errors', basket: 'Bought Together', lhist: 'Listing History',
+  fam: 'Family & Category Check' };
 
 // Tabs hidden from the sidebar. Everything (panes, JS, backend) stays wired up — take a name out of
 // this list and that tab is back, no other change needed.
@@ -8774,7 +8829,7 @@ HIDDEN_TABS.forEach(t => $('tab' + capId(t)).classList.add('hide'));
 // Tabs nobody is granted on their own: they come with another tab. Product Performance reads exactly
 // the documents PPC & Organic reads, and the Firestore rules gate those on `weekly` — so granting the
 // new tab by itself would only ever open an empty screen. Kept out of the Access form for that reason.
-const TAB_INHERIT = { ppcn: 'weekly', lhist: 'health' };   // Listing History: with Listing Health (Image Manager, Listing Errors, Listing Rules: listing/listing-history.js)
+const TAB_INHERIT = { ppcn: 'weekly', lhist: 'health', fam: 'health' };   // Listing History: with Listing Health (Image Manager, Listing Errors, Listing Rules: listing/listing-history.js); Family & Category Check: with Listing Health (listing/family-check.js)
 
 /* ---------- sidebar: collapsible groups + the 3-line menu button ---------- */
 // Read straight off the markup, so adding a group is an HTML edit and nothing here changes.
@@ -22729,6 +22784,748 @@ $('bCsv').onclick = () => {
   anchor.click();
   URL.revokeObjectURL(anchor.href);
 };
+/* ============================== FILE: src/app/listing/family-check.js ============================== */
+/* ================= LISTING · FAMILY & CATEGORY CHECK: children that left their family, and families that are built wrong (roadmap #4) =================
+ * Screens: Listing → 2 · Check → Family & Category Check (tab 'fam', #paneFam, drawn whole into #fcPane). Two tabs: Families (this file)
+ *       and Categories (a placeholder until the automatic refresh reads browse nodes).
+ * Who sees it: whoever has Listing Health (TAB_INHERIT fam: 'health' in core/nav.js); the saved marks are guarded by the listingrules rule
+ *       (can('health') || can('lrules')), the same as the Listing Health data.
+ * Data (nothing new is read in bulk — only what Sellora already holds):
+ *   • the Image Manager snapshot (IML[brand].items, imgsnap/imgrows): status (BUYABLE…), product type, title, parentage level, the parent SKU
+ *     our listing names (psku), colour (c), size (z), and the parent ASIN the catalogue shows (pa);
+ *   • the Listing Health snapshot (HEALTH[brand].rows): stock (qty) and the parent ASIN of the listings report;
+ *   • the brand catalogue (LR_CAT, the workbook): the colour and size WE gave a SKU — the only value a fix may send by itself;
+ *   • ?lfix=get, one listing at a time, only when asked ("Read variation themes", and right before a fix): the variation theme, which no
+ *     snapshot keeps, and the current values a fix replaces. Those reads are kept in this browser for 14 days (fresher than the snapshot only).
+ * RULE 1 — only LIVE children: buyable (status has BUYABLE) AND stock > 0. Anything else is not shown and not counted, anywhere on this page.
+ * RULE 2 — Not in family (red): a live child with no parent (no parent SKU on our listing, no parent ASIN in the catalogue or the report)
+ *       whose SKU (RTC14-7 next to RTC14-1…6), product type and title clearly belong to ONE existing family. A rating below 4 (if Sellora ever
+ *       holds ratings: fcRating) counts as removed on purpose by itself; no rating, 0 reviews or 4+ is an error.
+ * RULE 3 — Removed on purpose: the team's mark (reason, default "low rating"), saved with who / when / reason in listingrules/famok_<brand>
+ *       (the collection Sellora keeps listing data in: the catalogue, the season log). Marked children never show as errors again; the page
+ *       shows only "N removed on purpose › Show" (with Undo). A child that is linked again or stops being live leaves every list by itself.
+ * Other problems, live children only: Duplicate colour + size in one family (red) · Missing colour or size for the family's theme (red) ·
+ *       Different variation theme than its siblings (yellow).
+ * Fixes go through THE ONE SEND PATH (sqSendWithCheck: Amazon's check → Approve & send → read again → Listing History): Link to family
+ *       (parentage_level, child_parent_sku_relationship, variation_theme) and Set colour/size (the catalogue's value). Only values that are
+ *       certain; anything else is "Fix by hand" with Open in Listing Errors.
+ * No backend change. No other screen's data or counts change: this file only reads HEALTH / IML / LR_CAT and keeps its own state in FC.
+ * Main functions: fcBuild, fcSuggest, fcProblems, fcDraw, fcLink, fcSetValue, fcOkSet, fcOkUndo, fcReadThemes, fcCsv, fcOpen. */
+
+const FC_PER = 30;                                   // families per page
+const FC_INFLIGHT = 2;                               // ?lfix=get reads out at once
+const FC_READ_DAYS = 14;                             // a kept read is used this long (and only when newer than the snapshot)
+const FC_STORE = 'fcReads1';                         // this browser's copy of the reads (localStorage)
+const FC_STORE_MAX = 8000;                           // reads kept at most
+const FC_OK_COLL = 'listingrules';                   // where the "removed on purpose" marks are saved (existing collection, existing rule)
+const FC_OK_DOC = brand => 'famok_' + brand;
+const FC_REASON = 'low rating';
+const FC_KINDS = [
+  { k: 'orphan', t: 'Not in family', sev: 'r', tip: 'Live children with no parent that clearly belong to a family.' },
+  { k: 'dup', t: 'Duplicate colour/size', sev: 'r', tip: 'Two live children of one family with the same colour and size.' },
+  { k: 'missing', t: 'Missing value', sev: 'r', tip: 'A live child without the colour or size its family varies by.' },
+  { k: 'theme', t: 'Different theme', sev: 'y', tip: 'A live child whose variation theme is not the one its siblings use.' },
+];
+let FC = { tab: 'fam', brand: 'ALL', q: '', card: '', page: 0, built: false, loading: false, loaded: false, err: '', msg: '',
+  got: {}, gotLoaded: false, ok: { SP: {}, CPC: {} }, okLoaded: false, okNote: '', showOk: false, ask: '', busy: new Set(), note: {},
+  closed: new Set(), reads: { q: [], inflight: 0, total: 0, done: 0, on: false, fails: 0 }, view: null, drawT: 0 };
+const fcEsc = s => String(s == null ? '' : s).replace(/[<>&"]/g, ch => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[ch]));
+const fcNf = n => Number(n || 0).toLocaleString('en-US');
+const fcKey = (brand, sku) => brand + '|' + sku;
+const fcNorm = v => String(v == null ? '' : v).trim().toLowerCase().replace(/\s+/g, ' ');
+const fcBrandName = b => (typeof BRAND_NAME !== 'undefined' && BRAND_NAME[b]) || b;
+const fcIsTest = () => typeof window !== 'undefined' && !!window.__TEST_ERP;
+const fcWho = () => (typeof ME !== 'undefined' && ME && ME.email) || '';
+const fcName = email => (typeof sqName === 'function' ? sqName(email) : String(email || '').split('@')[0]);
+const fcAgo = ms => { if (!ms) return 'never'; const h = (Date.now() - ms) / 36e5; return h < 1 ? 'under an hour ago' : h < 48 ? Math.round(h) + ' h ago' : Math.round(h / 24) + ' days ago'; };
+const fcWhen = at => new Date(at).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+/* ----- small rules ----- */
+/** A variation theme as a comparable key: "SIZE/COLOR", "SizeName-ColorName", "color_size" → "COLOR+SIZE". '' when none. */
+function fcTheme(name) {
+  const words = String(name || '').toUpperCase().replace(/COLOUR/g, 'COLOR').split(/[^A-Z]+/).filter(Boolean)
+    .map(w => (w.length > 4 ? w.replace(/NAME$/, '') : w)).filter(Boolean);
+  return [...new Set(words)].sort().join('+');
+}
+const fcThemeDims = key => ({ c: /(^|\+)COLOR(\+|$)/.test(key), s: /(^|\+)SIZE(\+|$)/.test(key) });
+/** The SKU's family stem: "RTC14-7" → "RTC14", "R-CP-351" → "R-CP", "ABC12" → "ABC". '' when there is no clear one. */
+function fcStem(sku) {
+  const s = String(sku || '').trim().toUpperCase();
+  const m = s.match(/^(.*[A-Z0-9])[-_ .]+[A-Z0-9]+$/);
+  if (m && m[1].length >= 2) return m[1];
+  const d = s.match(/^(.*?[A-Z])\d{1,3}$/);
+  return d && d[1].length >= 3 ? d[1] : '';
+}
+const FC_STOP = new Set(['and', 'the', 'for', 'with', 'set', 'pack', 'inch', 'inches', 'cotton', 'ridhi', 'cpc', 'of', 'in']);
+const fcWords = t => new Set(String(t || '').toLowerCase().split(/[^a-z]+/).filter(w => w.length >= 3 && !FC_STOP.has(w)));
+/** How alike two titles are: shared words / all words (0…1); null when either is missing. */
+function fcAlike(a, b) {
+  const A = fcWords(a), B = fcWords(b);
+  if (!A.size || !B.size) return null;
+  let both = 0;
+  A.forEach(w => { if (B.has(w)) both++; });
+  return both / (A.size + B.size - both);
+}
+/** A rating and review count, if Sellora's data ever holds one for this listing (none of today's snapshots do): { rating, reviews } or null. */
+function fcRating(item, row) {
+  for (const src of [item, row]) {
+    if (!src) continue;
+    const r = [src.rating, src.stars, src.rt].find(v => v != null && v !== '' && !isNaN(Number(v)));
+    const n = [src.reviews, src.reviewCount, src.ratings, src.rc].find(v => v != null && v !== '' && !isNaN(Number(v)));
+    if (r != null || n != null) return { rating: r == null ? null : Number(r), reviews: n == null ? 0 : Number(n) };
+  }
+  return null;
+}
+// Rating below 4 with at least one review: treated as removed on purpose. No rating, 0 reviews or 4 and above: an error.
+const fcLowRated = rt => !!(rt && rt.rating != null && rt.reviews > 0 && rt.rating < 4);
+
+/* ----- the reads (?lfix=get), kept in this browser ----- */
+function fcGotLoad() {
+  if (FC.gotLoaded) return;
+  FC.gotLoaded = true;
+  try {
+    const data = JSON.parse(localStorage.getItem(FC_STORE) || 'null');
+    const cut = Date.now() - FC_READ_DAYS * 864e5;
+    if (data && data.got) Object.entries(data.got).forEach(([k, v]) => { if (v && v.at > cut) FC.got[k] = v; });
+  } catch (e) { /* no storage: reads live for this visit only */ }
+}
+function fcGotSave() {
+  try {
+    const all = Object.entries(FC.got).sort((a, b) => b[1].at - a[1].at).slice(0, FC_STORE_MAX);
+    localStorage.setItem(FC_STORE, JSON.stringify({ v: 1, got: Object.fromEntries(all) }));
+  } catch (e) { /* quota: the copy in memory still works */ }
+}
+/** One ?lfix=get answer → what this page keeps: the theme (as Amazon wrote it), colour, size, parent SKU, parentage, the product type. */
+function fcFromReply(reply) {
+  const at = (reply && reply.attributes) || {};
+  const first = (name, f) => String(((at[name] || []).find(e => e && e[f || 'value'] != null && e[f || 'value'] !== '') || {})[f || 'value'] || '');
+  const rel = (at.child_parent_sku_relationship || []).find(e => e && e.parent_sku) || null;
+  return { at: Date.now(), theme: first('variation_theme', 'name') || first('variation_theme'), color: first('color').slice(0, 60), size: first('size').slice(0, 60),
+    psku: rel ? String(rel.parent_sku) : '', lvl: first('parentage_level'), pt: String((reply && reply.productType) || '') };
+}
+async function fcReadOne(brand, sku) {
+  const reply = await baCall({ lfix: 'get', brand, sku });
+  if (!reply || reply.ok === false) throw new Error((reply && reply.error) || 'no answer');
+  FC.got[fcKey(brand, sku)] = fcFromReply(reply);
+  return reply;
+}
+// The read used for a SKU: only when it is newer than the Image Manager snapshot it would replace.
+function fcRead(brand, sku) {
+  const r = FC.got[fcKey(brand, sku)];
+  if (!r) return null;
+  const snapAt = typeof IML !== 'undefined' && IML[brand] && IML[brand].at ? IML[brand].at.getTime() : 0;
+  return r.at > snapAt ? r : null;
+}
+// Queue reads (two at a time); the page redraws as they land.
+function fcQueueReads(list) {
+  const R = FC.reads;
+  const have = new Set(R.q.map(j => fcKey(j.brand, j.sku)));
+  list.forEach(j => { const k = fcKey(j.brand, j.sku); if (!have.has(k)) { have.add(k); R.q.push(j); R.total++; } });
+  R.on = R.q.length > 0 || R.inflight > 0;
+  fcPump();
+}
+function fcPump() {
+  const R = FC.reads;
+  while (R.on && R.inflight < FC_INFLIGHT && R.q.length) {
+    const job = R.q.shift();
+    R.inflight++;
+    fcReadOne(job.brand, job.sku).catch(() => { R.fails++; }).then(() => {
+      R.inflight--;
+      R.done++;
+      if (!R.q.length && !R.inflight) { R.on = false; fcGotSave(); }
+      else if (R.done % 20 === 0) fcGotSave();
+      fcSchedule();
+      fcPump();
+    });
+  }
+}
+function fcStopReads() {
+  const R = FC.reads;
+  R.total -= R.q.length;
+  R.q = [];
+  R.on = R.inflight > 0;
+  fcGotSave();
+  fcDrawAll();
+}
+// "Read variation themes": every live child of the families on this page's brand(s) plus each family's parent, not read lately.
+function fcReadThemes(fk) {
+  const v = FC.view || fcBuild();
+  const jobs = [];
+  v.families.forEach(f => {
+    if (fk && f.fk !== fk) return;
+    if (!fk && FC.brand !== 'ALL' && f.brand !== FC.brand) return;
+    if (f.psku && !fcRead(f.brand, f.psku)) jobs.push({ brand: f.brand, sku: f.psku });
+    f.live.forEach(c => { if (!fcRead(c.brand, c.sku)) jobs.push({ brand: c.brand, sku: c.sku }); });
+  });
+  if (!fk) v.orphans.forEach(c => { if (c.sug && !fcRead(c.brand, c.sku)) jobs.push({ brand: c.brand, sku: c.sku }); });
+  if (!jobs.length) { FC.msg = 'Every variation theme here was read in the last ' + FC_READ_DAYS + ' days.'; return fcDrawAll(); }
+  FC.msg = '';
+  fcQueueReads(jobs);
+  fcDrawAll();
+  return jobs.length;
+}
+
+/* ----- the removed-on-purpose marks (listingrules/famok_<brand>) ----- */
+async function fcOkLoad() {
+  if (FC.okLoaded) return;
+  FC.okLoaded = true;
+  for (const b of ['SP', 'CPC']) {
+    try {
+      const data = typeof lsGet === 'function' ? await lsGet(FC_OK_COLL, FC_OK_DOC(b)) : null;
+      if (data && data.items) FC.ok[b] = Object.assign({}, data.items, FC.ok[b]);
+    } catch (e) { FC.err = 'Could not read the "removed on purpose" marks: ' + ((e && e.message) || e); }
+  }
+}
+const fcIsOk = (brand, sku) => !!(FC.ok[brand] && FC.ok[brand][sku] && FC.ok[brand][sku].on);
+async function fcOkWrite(brand, sku, entry) {
+  FC.ok[brand][sku] = entry;
+  FC.okNote = '';
+  fcDrawAll();
+  try {
+    const saved = typeof lsSave === 'function' ? await lsSave(FC_OK_COLL, FC_OK_DOC(brand), { kind: 'famok', items: { [sku]: entry } }) : false;
+    if (!saved) FC.okNote = fcIsTest() ? 'Test site — the mark is kept on this page only, not saved.' : 'Not saved — the mark is kept on this page only.';
+  } catch (e) {
+    FC.okNote = 'Could not save the mark (' + ((e && e.message) || e) + ') — it is kept on this page only and will show again after a reload.';
+  }
+  fcDrawAll();
+  return entry;
+}
+/** Removed on purpose: the child leaves the red list at once and for good; who / when / reason are saved. */
+function fcOkSet(brand, sku, reason) {
+  const v = FC.view || fcBuild();
+  const c = v.orphans.find(o => o.brand === brand && o.sku === sku);
+  const by = fcWho();
+  FC.ask = '';
+  return fcOkWrite(brand, sku, { on: true, reason: String(reason || '').trim().slice(0, 120) || FC_REASON, by, name: fcName(by), at: Date.now(),
+    fam: c && c.sug ? c.sug.psku || c.sug.pa || '' : '', asin: (c && c.asin) || '' });
+}
+/** Undo (a mistake): the child is an error again; who undid it is kept beside the first mark. */
+function fcOkUndo(brand, sku) {
+  const old = (FC.ok[brand] || {})[sku] || {};
+  const by = fcWho();
+  return fcOkWrite(brand, sku, Object.assign({}, old, { on: false, undoneBy: by, undoneName: fcName(by), undoneAt: Date.now() }));
+}
+
+/* ----- building the picture: families, live children, the orphans and their suggested family ----- */
+/** Everything the page shows, from the data in memory. { families, orphans, removed, kids, counts, notes, rating } — live children only. */
+function fcBuild() {
+  fcGotLoad();
+  const families = new Map();                       // fk → family
+  const orphans = [];
+  const removed = [];
+  const stemFams = new Map();                        // stem → Map(fk → children with that stem)
+  const notes = [];
+  let live = 0, all = 0, ratingFound = 0;
+  ['SP', 'CPC'].forEach(brand => {
+    const snap = typeof IML !== 'undefined' ? IML[brand] : null;
+    const items = (snap && snap.items) || [];
+    const hrows = (typeof HEALTH !== 'undefined' && HEALTH[brand] && HEALTH[brand].rows) || [];
+    if (!items.length) { notes.push(`${fcBrandName(brand)}: no Image Manager snapshot yet — open Image Manager once to read it.`); return; }
+    if (!hrows.length) notes.push(`${fcBrandName(brand)}: no Listing Health snapshot — stock is unknown, so no child counts as live.`);
+    const rowOf = new Map(hrows.map(r => [r.sku, r]));
+    const parents = new Map(), parentByAsin = new Map();
+    items.forEach(it => { if (/^parent$/i.test(it.lvl || '')) { parents.set(it.sku, it); if (it.asin) parentByAsin.set(it.asin, it.sku); } });
+    const famOf = (fk, psku, pa) => {
+      let f = families.get(fk);
+      if (!f) {
+        const p = psku ? parents.get(psku) : null;
+        f = { fk, brand, psku: psku || '', pa: (p && p.asin) || pa || '', title: (p && p.t) || '', pt: '', kids: [], live: [], pts: {} };
+        families.set(fk, f);
+      }
+      if (!f.pa && pa) f.pa = pa;
+      return f;
+    };
+    items.forEach(it => {
+      if (/^parent$/i.test(it.lvl || '')) return;
+      all++;
+      const row = rowOf.get(it.sku) || null;
+      const read = fcRead(brand, it.sku);
+      const stock = row && row.qty != null ? Number(row.qty) : null;
+      const isLive = /BUYABLE/.test(String(it.st || '')) && stock != null && stock > 0;
+      const pa = it.pa || (row && row.parent && row.parent !== row.asin ? row.parent : '') || '';
+      const psku = (read ? read.psku : it.psku) || (pa ? parentByAsin.get(pa) || '' : '');   // a fresh read wins over the snapshot's parent SKU
+      const fk = psku ? brand + '|S:' + psku : pa ? brand + '|A:' + pa : '';
+      const rt = fcRating(it, row);
+      if (rt) ratingFound++;
+      const c = { brand, sku: it.sku, asin: it.asin || (row && row.asin) || '', title: it.t || (row && row.title) || '', pt: (read && read.pt) || it.pt || '',
+        color: read ? read.color : it.c || '', size: read ? read.size : it.z || '', theme: read ? read.theme : null, stock, live: isLive, fk, rt,
+        stem: fcStem(it.sku), cat: (typeof LR_CAT !== 'undefined' && LR_CAT[brand] && LR_CAT[brand][it.sku]) || null };
+      if (fk) {
+        const f = famOf(fk, psku, pa);
+        f.kids.push(c);
+        if (c.pt) f.pts[c.pt] = (f.pts[c.pt] || 0) + 1;
+        if (!f.title && c.title) f.title = c.title;
+        if (c.stem && isLive) {                                                 // the evidence counts live children only (rule 1)
+          const m = stemFams.get(brand + '|' + c.stem) || new Map();
+          m.set(fk, (m.get(fk) || 0) + 1);
+          stemFams.set(brand + '|' + c.stem, m);
+        }
+        if (isLive) { f.live.push(c); live++; }
+      } else if (isLive) {
+        live++;
+        orphans.push(c);
+      }
+    });
+  });
+  families.forEach(f => {
+    f.pt = Object.entries(f.pts).sort((a, b) => b[1] - a[1]).map(e => e[0])[0] || '';
+    f.name = (typeof parentName === 'function' && f.pa ? parentName(f.brand, f.pa, f.title) : '') || f.title || f.psku || f.pa;
+  });
+  // the orphans: which family each clearly belongs to (or none — a product of its own)
+  const kept = [];
+  orphans.forEach(c => {
+    c.sug = fcSuggest(c, families, stemFams);
+    if (!c.sug) return;                                                     // a product of its own: not an error
+    if (fcIsOk(c.brand, c.sku)) { removed.push(Object.assign(c, { why: 'team' })); return; }
+    if (fcLowRated(c.rt)) { removed.push(Object.assign(c, { why: 'rating' })); return; }
+    kept.push(c);
+  });
+  const v = { families: [...families.values()], orphans: kept, removed, live, all, notes, ratingFound, at: Date.now() };
+  fcProblems(v);
+  FC.view = v;
+  return v;
+}
+/** The one family a child with no parent clearly belongs to: { fk, psku, pa, name, why } or null. SKU stem first, then the title alone. */
+function fcSuggest(c, families, stemFams) {
+  let fam = null, why = [];
+  const m = c.stem ? stemFams.get(c.brand + '|' + c.stem) : null;
+  if (m) {
+    const fks = [...m.entries()].filter(([, n]) => n >= 1);
+    if (fks.length === 1 && fks[0][1] >= 2) {                                // the stem is ONE family's, with at least two children
+      fam = families.get(fks[0][0]);
+      why.push(`SKU like ${fks[0][1]} children of this family (${c.stem}-…)`);
+      const alike = fam ? Math.max(0, ...fam.kids.map(k => fcAlike(c.title, k.title) || 0)) : 0;
+      if (fam && c.title && fam.kids.some(k => k.title) && alike < 0.3) fam = null;   // a different product with a reused SKU stem: not clear
+      else if (alike >= 0.3) why.push('the title matches');
+    }
+  }
+  if (!fam && c.title) {                                                    // no SKU clue: a title nearly the same as one family's (and no other)
+    const scored = [];
+    families.forEach(f => {
+      if (f.brand !== c.brand) return;
+      const best = Math.max(0, ...f.kids.map(k => fcAlike(c.title, k.title) || 0));
+      if (best >= 0.6) scored.push([f, best]);
+    });
+    scored.sort((a, b) => b[1] - a[1]);
+    if (scored.length && scored[0][1] >= 0.8 && (scored.length === 1 || scored[1][1] < 0.6)) { fam = scored[0][0]; why = ['the title is almost the same as this family\'s']; }
+  }
+  if (!fam) return null;
+  if (c.pt && fam.pt && c.pt !== fam.pt) return null;                        // another product type: not the same family
+  if (c.pt && fam.pt) why.push('same product type');
+  return { fk: fam.fk, psku: fam.psku, pa: fam.pa, name: fam.name, why: why.join(' · ') };
+}
+/** The family's theme: the parent's read, else what most read children say. { key, raw, src: 'parent' | 'children' | '' }. */
+function fcFamTheme(f) {
+  const p = f.psku ? fcRead(f.brand, f.psku) : null;
+  if (p && p.theme) return { key: fcTheme(p.theme), raw: p.theme, src: 'parent' };
+  const counts = {};
+  const raws = {};
+  f.live.forEach(c => { if (c.theme) { const k = fcTheme(c.theme); counts[k] = (counts[k] || 0) + 1; raws[k] = raws[k] || c.theme; } });
+  const read = Object.values(counts).reduce((a, b) => a + b, 0);
+  const top = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
+  if (top && top[1] >= 2 && top[1] > read / 2) return { key: top[0], raw: raws[top[0]], src: 'children' };
+  return { key: '', raw: '', src: '' };
+}
+/** What the family varies by: from its theme when read, else from what most of its live children carry. */
+function fcDims(f, theme) {
+  if (theme.key) return Object.assign(fcThemeDims(theme.key), { src: 'theme' });
+  const n = f.live.length;
+  if (n < 2) return { c: false, s: false, src: '' };
+  const has = k => f.live.filter(c => c[k]).length;
+  return { c: has('color') / n >= 2 / 3, s: has('size') / n >= 2 / 3, src: 'children' };
+}
+const fcValKey = (c, d) => (d.c ? fcNorm(c.color) : '') + '|' + (d.s ? fcNorm(c.size) : '');
+// The colour/size a child would carry after a catalogue fix (only the missing or clashing parts change).
+function fcCatPlan(c, d, need) {
+  if (!c.cat) return null;
+  const set = {};
+  if (d.c && need.c && c.cat.color && fcNorm(c.cat.color) !== fcNorm(c.color)) set.color = String(c.cat.color);
+  if (d.s && need.s && c.cat.size && fcNorm(c.cat.size) !== fcNorm(c.size)) set.size = String(c.cat.size);
+  return Object.keys(set).length ? set : null;
+}
+/** Every live child's problems, the family groups to draw and the card counts. */
+function fcProblems(v) {
+  const counts = { orphan: 0, dup: 0, missing: 0, theme: 0 };
+  const groups = new Map();
+  const group = f => groups.get(f.fk) || (groups.set(f.fk, { f, rows: [] }), groups.get(f.fk));
+  const famByFk = new Map(v.families.map(f => [f.fk, f]));
+  v.families.forEach(f => {
+    const theme = fcFamTheme(f);
+    const d = fcDims(f, theme);
+    f.theme = theme;
+    f.dims = d;
+    const byVal = new Map();
+    if (d.c || d.s) f.live.forEach(c => {
+      if ((d.c && !c.color) || (d.s && !c.size)) return;
+      const k = fcValKey(c, d);
+      byVal.set(k, (byVal.get(k) || []).concat([c]));
+    });
+    f.live.forEach(c => {
+      const probs = [];
+      const miss = { c: d.c && !c.color, s: d.s && !c.size };
+      if (miss.c || miss.s) {
+        const what = miss.c && miss.s ? 'colour and size' : miss.c ? 'colour' : 'size';
+        const plan = fcCatPlan(c, d, miss);
+        const after = plan ? Object.assign({}, c, plan) : null;
+        const clash = after && (!d.c || after.color) && (!d.s || after.size) && (byVal.get(fcValKey(after, d)) || []).length > 0;
+        probs.push({ k: 'missing', sev: 'r', text: `No ${what}` + (d.src === 'children' ? ' — most children of this family have one (theme not read yet)' : ` — the theme is ${theme.raw}`),
+          fix: plan && !clash ? { kind: 'set', set: plan, text: 'Set ' + Object.entries(plan).map(([k, val]) => `${k === 'color' ? 'colour' : 'size'} "${val}"`).join(' and ') + ' (from the catalogue)' }
+            : { kind: 'hand', text: plan ? 'The catalogue\'s value is already used by another child' : 'No certain value — the catalogue has none for this SKU' } });
+      }
+      const same = (d.c || d.s) && !miss.c && !miss.s ? (byVal.get(fcValKey(c, d)) || []).filter(o => o !== c) : [];
+      if (same.length) {
+        const plan = fcCatPlan(c, d, { c: true, s: true });
+        const after = plan ? Object.assign({}, c, plan) : null;
+        const free = after && !(byVal.get(fcValKey(after, d)) || []).some(o => o !== c);
+        probs.push({ k: 'dup', sev: 'r', text: `Same ${[d.c ? 'colour' : '', d.s ? 'size' : ''].filter(Boolean).join(' + ')} as ${same.map(o => o.sku).join(', ')}`,
+          fix: plan && free ? { kind: 'set', set: plan, text: 'Set ' + Object.entries(plan).map(([k, val]) => `${k === 'color' ? 'colour' : 'size'} "${val}"`).join(' and ') + ' (from the catalogue)' }
+            : { kind: 'hand', text: 'Decide which child keeps it, then change the other' } });
+      }
+      if (theme.key && c.theme && fcTheme(c.theme) !== theme.key) {
+        probs.push({ k: 'theme', sev: 'y', text: `Theme ${c.theme}; the family uses ${theme.raw}`, fix: { kind: 'hand', text: 'Change the theme in Listing Errors' } });
+      }
+      if (!probs.length) return;
+      probs.forEach(p => { counts[p.k]++; });
+      group(f).rows.push({ c, probs });
+    });
+  });
+  v.orphans.forEach(c => {
+    const f = famByFk.get(c.sug.fk);
+    if (!f) return;
+    const d = f.dims || { c: false, s: false };
+    const lacks = (d.c && !c.color) || (d.s && !c.size);
+    const clash = !lacks && (d.c || d.s) && f.live.some(o => fcValKey(o, d) === fcValKey(c, d));
+    const fix = !f.psku ? { kind: 'hand', text: 'The family\'s parent SKU is not known here' }
+      : !c.pt ? { kind: 'hand', text: 'This listing\'s product type is not known here' }
+        : lacks ? { kind: 'hand', text: `It has no ${d.c && !c.color ? 'colour' : 'size'} — add it first` }
+          : clash ? { kind: 'hand', text: 'Its colour + size is already used by a child of this family' }
+            : { kind: 'link', text: `Link to ${f.psku}`, why: c.sug.why };
+    counts.orphan++;
+    group(f).rows.unshift({ c, probs: [{ k: 'orphan', sev: 'r', text: 'Not in family — ' + c.sug.why, fix }] });
+  });
+  v.groups = [...groups.values()].sort((a, b) => {
+    const red = g => g.rows.filter(r => r.probs.some(p => p.sev === 'r')).length;
+    return red(b) - red(a) || String(a.f.name).localeCompare(String(b.f.name));
+  });
+  v.counts = counts;
+  return v;
+}
+
+/* ----- the fixes (THE ONE SEND PATH) ----- */
+const fcRow = (brand, sku) => {
+  const v = FC.view || fcBuild();
+  for (const g of v.groups) { const r = g.rows.find(x => x.c.brand === brand && x.c.sku === sku); if (r) return { g, r }; }
+  return null;
+};
+const fcCopyEntry = (old, value) => { const e = Object.assign({}, (old && old[0]) || {}); delete e.marketplace_id; e.value = value; if (!e.language_tag) e.language_tag = 'en_US'; return [e]; };
+/** Link to family: the child's current values read again, the family's theme read from its parent; then Amazon's check popup. */
+async function fcLink(brand, sku) {
+  const hit = fcRow(brand, sku);
+  if (!hit || typeof sqSendWithCheck !== 'function') return null;
+  const { g, r } = hit;
+  const c = r.c, f = g.f, key = fcKey(brand, sku);
+  if (FC.busy.has(key)) return null;
+  FC.busy.add(key);
+  FC.note[key] = 'Reading the listing and its family…';
+  fcDrawAll();
+  try {
+    const kid = await fcReadOne(brand, sku);
+    const at = (kid && kid.attributes) || {};
+    const now = FC.got[key];
+    if (now.psku) { FC.note[key] = 'Already linked to ' + now.psku + ' on Amazon.'; return null; }
+    let theme = '';
+    try { await fcReadOne(brand, f.psku); theme = FC.got[fcKey(brand, f.psku)].theme || ''; } catch (e) { theme = ''; }   // the parent's own theme first
+    if (!theme) theme = fcFamTheme(f).raw || '';                                                                      // else what most children say
+    if (!theme) { FC.note[key] = 'Fix by hand: the family\'s variation theme could not be read.'; return null; }
+    const d = fcThemeDims(fcTheme(theme));
+    if ((d.c && !now.color) || (d.s && !now.size)) { FC.note[key] = `Fix by hand: the family varies by ${theme} and this listing has no ${d.c && !now.color ? 'colour' : 'size'}.`; return null; }
+    const pt = now.pt || c.pt;
+    const changes = [
+      { field: 'Parent (family)', old: sqValText(at.child_parent_sku_relationship) || '(none)', new: 'variation ' + f.psku, attr: 'child_parent_sku_relationship', oldV: JSON.parse(JSON.stringify(at.child_parent_sku_relationship || [])) },
+      { field: 'Parentage', old: sqValText(at.parentage_level) || '(none)', new: 'child', attr: 'parentage_level', oldV: JSON.parse(JSON.stringify(at.parentage_level || [])) },
+      { field: 'Variation theme', old: sqValText(at.variation_theme) || '(none)', new: theme, attr: 'variation_theme', oldV: JSON.parse(JSON.stringify(at.variation_theme || [])) },
+    ];
+    const body = { lfix: 'patch', brand, sku, productType: pt, patches: [
+      { op: 'replace', path: '/attributes/parentage_level', value: [{ value: 'child' }] },
+      { op: 'replace', path: '/attributes/child_parent_sku_relationship', value: [{ child_relationship_type: 'variation', parent_sku: f.psku }] },
+      { op: 'replace', path: '/attributes/variation_theme', value: [{ name: theme }] }] };
+    FC.note[key] = '';
+    return sqSendWithCheck([{ brand, sku, asin: c.asin, label: c.title || sku, body, changes }], {
+      screen: 'Family Check', title: `Link ${sku} to ${f.name || f.psku}`,
+      onDone: sum => fcAfterSend(sum, key, { psku: f.psku, theme, lvl: 'child' }) });
+  } catch (e) {
+    FC.note[key] = 'Could not read the listing: ' + ((e && e.message) || e);
+    return null;
+  } finally {
+    FC.busy.delete(key);
+    fcDrawAll();
+  }
+}
+/** Set colour / size: the catalogue's value (the only certain one), after reading what the listing holds now. */
+async function fcSetValue(brand, sku, kind) {
+  const hit = fcRow(brand, sku);
+  if (!hit || typeof sqSendWithCheck !== 'function') return null;
+  const p = hit.r.probs.find(x => x.k === kind && x.fix.kind === 'set');
+  if (!p) return null;
+  const c = hit.r.c, key = fcKey(brand, sku);
+  if (FC.busy.has(key)) return null;
+  FC.busy.add(key);
+  FC.note[key] = 'Reading the listing…';
+  fcDrawAll();
+  try {
+    const reply = await fcReadOne(brand, sku);
+    const at = (reply && reply.attributes) || {};
+    const pt = FC.got[key].pt || c.pt;
+    if (!pt) { FC.note[key] = 'Fix by hand: the product type is not known.'; return null; }
+    const patches = [], changes = [];
+    Object.entries(p.fix.set).forEach(([attr, val]) => {
+      patches.push({ op: 'replace', path: '/attributes/' + attr, value: fcCopyEntry(at[attr], val) });
+      changes.push({ field: attr === 'color' ? 'Colour' : 'Size', old: sqValText(at[attr]) || '(none)', new: val, attr, oldV: JSON.parse(JSON.stringify(at[attr] || [])) });
+    });
+    FC.note[key] = '';
+    return sqSendWithCheck([{ brand, sku, asin: c.asin, label: c.title || sku, body: { lfix: 'patch', brand, sku, productType: pt, patches }, changes }], {
+      screen: 'Family Check', title: `Set ${changes.map(x => x.field.toLowerCase()).join(' and ')} on ${sku}`,
+      onDone: sum => fcAfterSend(sum, key, p.fix.set) });
+  } catch (e) {
+    FC.note[key] = 'Could not read the listing: ' + ((e && e.message) || e);
+    return null;
+  } finally {
+    FC.busy.delete(key);
+    fcDrawAll();
+  }
+}
+// After the popup closed: what Amazon accepted is what this page now knows (the child leaves the list); still working says so on the row.
+function fcAfterSend(sum, key, values) {
+  const job = sum && sum.jobs && sum.jobs[0];
+  if (job && job.state === 'accepted') {
+    FC.got[key] = Object.assign({}, FC.got[key] || {}, values, { at: Date.now() });
+    FC.note[key] = '';
+    fcGotSave();
+  } else if (job && (job.state === 'working' || job.state === 'sent')) FC.note[key] = 'Sent — Amazon is still working on it (Listing History has it).';
+  else if (sum && sum.test) FC.note[key] = 'Test site — not sent to Amazon.';
+  fcDrawAll();
+}
+// Fix by hand: the listing in Listing Errors (that one SKU in its list).
+function fcOpenLerr(brand, sku) {
+  if ($('leBrand')) $('leBrand').value = brand;
+  if (typeof leOnly === 'function') leOnly([sku], 'Family Check · ' + sku);
+  showTab('lerr');
+  if (typeof leShow === 'function') leShow(false);
+  if (typeof leListEnsure === 'function') leListEnsure();
+  if (typeof window !== 'undefined' && window.scrollTo) window.scrollTo(0, 0);
+}
+
+/* ----- the CSV: the red problems only ----- */
+const FC_CSV_COLS = ['Brand', 'Family', 'Parent SKU', 'Parent ASIN', 'SKU', 'ASIN', 'Colour', 'Size', 'Stock', 'Problem', 'Suggested fix'];
+function fcCsv(v) {
+  const q = val => { const s = String(val == null ? '' : val); return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+  const lines = [];
+  fcGroups(v).forEach(g => g.rows.forEach(r => r.probs.filter(p => p.sev === 'r').forEach(p => {
+    lines.push([fcBrandName(r.c.brand), g.f.name, g.f.psku, g.f.pa, r.c.sku, r.c.asin, r.c.color, r.c.size, r.c.stock, p.text, (p.fix.kind === 'hand' ? 'Fix by hand: ' : '') + p.fix.text].map(q).join(','));
+  })));
+  return { n: lines.length, text: '﻿' + [FC_CSV_COLS.join(',')].concat(lines).join('\r\n') + '\r\n' };
+}
+function fcDownload() {
+  const out = fcCsv(FC.view || fcBuild());
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([out.text], { type: 'text/csv;charset=utf-8' }));
+  a.download = `Sellora-family-check-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  return out;
+}
+
+/* ----- drawing ----- */
+// The groups the filters keep (brand, search, the card picked); a row keeps only the picked card's problem.
+function fcGroups(v) {
+  const q = fcNorm(FC.q);
+  return v.groups.filter(g => FC.brand === 'ALL' || g.f.brand === FC.brand).map(g => {
+    const famHit = q && (fcNorm(g.f.name).includes(q) || fcNorm(g.f.psku).includes(q) || fcNorm(g.f.pa).includes(q));
+    const rows = g.rows.filter(r => (!FC.card || r.probs.some(p => p.k === FC.card))
+      && (!q || famHit || fcNorm(r.c.sku).includes(q) || fcNorm(r.c.asin).includes(q) || fcNorm(r.c.title).includes(q)));
+    return rows.length ? { f: g.f, rows } : null;
+  }).filter(Boolean);
+}
+function fcShell() {
+  const box = $('fcPane');
+  if (!box || FC.built) return;
+  const seg = [['fam', 'Families'], ['cat', 'Categories']].map(([k, t]) => `<button type="button" class="segbtn${FC.tab === k ? ' on' : ''}" data-fc="tab" data-fc-v="${k}" aria-pressed="${FC.tab === k}">${t}</button>`).join('');
+  box.innerHTML = `<div class="card fc-tb"><div class="toolbar"><div class="seg" role="group" aria-label="Which check">${seg}</div>`
+    + `<span class="fc-famonly"><select data-fc-f="brand" aria-label="Brand"><option value="ALL">Both brands</option><option value="SP">Ridhi</option><option value="CPC">CPC</option></select></span>`
+    + `<input type="search" class="fc-famonly" data-fc-f="q" placeholder="Search SKU, ASIN or family" aria-label="Search">`
+    + `<span style="flex:1"></span><span class="fc-famonly" id="fcReadBtn"></span>`
+    + `<button type="button" class="ghost fc-famonly" data-fc="csv">Export CSV</button></div><div class="fc-meta muted" id="fcMeta"></div></div><div id="fcBody"></div>`;
+  FC.built = true;
+}
+function fcDrawAll() {
+  if (!$('fcPane')) return;
+  fcShell();
+  if (FC.tab === 'cat') return fcDrawCat();
+  if (FC.loading && !FC.loaded) { $('fcBody').innerHTML = '<div class="card fc-empty muted">Reading the Listing Health and Image Manager snapshots…</div>'; return; }
+  const v = fcBuild();
+  fcDrawTools(v);
+  fcDrawBody(v);
+}
+function fcSchedule() { clearTimeout(FC.drawT); FC.drawT = setTimeout(fcDrawAll, 300); }
+function fcDrawCat() {
+  document.querySelectorAll('#fcPane .fc-famonly').forEach(el => el.classList.add('hide'));
+  if ($('fcMeta')) $('fcMeta').textContent = '';
+  $('fcBody').innerHTML = '<div class="card fc-empty"><b>Categories</b><p class="muted">Coming with the automatic refresh — browse nodes.</p></div>';
+}
+function fcDrawTools(v) {
+  document.querySelectorAll('#fcPane .fc-famonly').forEach(el => el.classList.remove('hide'));
+  const R = FC.reads;
+  const btn = $('fcReadBtn');
+  if (btn) btn.innerHTML = R.on ? `<button type="button" class="ghost" data-fc="stop">Stop reading (${fcNf(R.done)} / ${fcNf(R.total)})</button>`
+    : '<button type="button" class="ghost" data-fc="read" title="Reads each live child once from Amazon (2 at a time) — the theme is in no snapshot">Read variation themes</button>';
+  const meta = $('fcMeta');
+  if (!meta) return;
+  const at = (store, b) => (typeof store !== 'undefined' && store && store[b] && store[b].at && store[b].at.getTime ? store[b].at.getTime() : 0);
+  const oldest = store => { const t = ['SP', 'CPC'].map(b => at(store, b)).filter(Boolean); return t.length ? Math.min(...t) : 0; };
+  const parts = [`Live children only (buyable and in stock): ${fcNf(v.live)} of ${fcNf(v.all)}`,
+    `Image Manager snapshot ${fcAgo(oldest(typeof IML !== 'undefined' ? IML : null))}`,
+    `stock from Listing Health ${fcAgo(oldest(typeof HEALTH !== 'undefined' ? HEALTH : null))}`,
+    v.ratingFound ? `ratings found for ${fcNf(v.ratingFound)} listings: below 4 ★ counts as removed on purpose` : 'ratings: none in Sellora\'s data — the team marks children removed for a low rating'];
+  meta.innerHTML = parts.map(fcEsc).join(' · ') + (FC.err ? `<div class="err">${fcEsc(FC.err)}</div>` : '') + (FC.msg ? `<div>${fcEsc(FC.msg)}</div>` : '')
+    + v.notes.map(n => `<div>${fcEsc(n)}</div>`).join('') + (FC.okNote ? `<div class="fc-oknote">${fcEsc(FC.okNote)}</div>` : '');
+}
+function fcFixHtml(r, p) {
+  const key = fcKey(r.c.brand, r.c.sku);
+  const busy = FC.busy.has(key);
+  const a = `data-fc-b="${fcEsc(r.c.brand)}" data-fc-s="${fcEsc(r.c.sku)}"`;
+  if (p.fix.kind === 'link') return `<button type="button" class="fc-b" data-fc="link" ${a}${busy ? ' disabled' : ''}>${busy ? 'Reading…' : fcEsc('Link to family')}</button>`;
+  if (p.fix.kind === 'set') return `<button type="button" class="fc-b" data-fc="set" data-fc-k="${p.k}" ${a}${busy ? ' disabled' : ''}>${busy ? 'Reading…' : 'Set colour/size'}</button>`;
+  return `<button type="button" class="ghost fc-b" data-fc="lerr" ${a}>Open in Listing Errors</button>`;
+}
+function fcRowHtml(r) {
+  const c = r.c, key = fcKey(c.brand, c.sku);
+  const a = `data-fc-b="${fcEsc(c.brand)}" data-fc-s="${fcEsc(c.sku)}"`;
+  const probs = r.probs.filter(p => !FC.card || p.k === FC.card);
+  const orphan = r.probs.some(p => p.k === 'orphan');
+  const ask = FC.ask === key ? `<div class="fc-ask"><label>Reason <input type="text" data-fc-f="reason" value="${fcEsc(FC_REASON)}" maxlength="120"></label>`
+    + `<button type="button" class="fc-b" data-fc="oksave" ${a}>Save</button><button type="button" class="ghost fc-b" data-fc="okcancel">Cancel</button></div>` : '';
+  const btns = probs.map(p => fcFixHtml(r, p)).filter((h, i, all) => all.indexOf(h) === i).join('')
+    + (orphan ? `<button type="button" class="ghost fc-b" data-fc="ok" ${a}>Removed on purpose</button>` : '');
+  const amz = c.asin ? `<a href="https://www.amazon.com/dp/${fcEsc(c.asin)}" target="_blank" rel="noopener">${fcEsc(c.asin)}</a>` : '—';
+  return `<tr class="fc-row${orphan ? ' is-orphan' : ''}"><td class="fc-sku"><b>${fcEsc(c.sku)}</b><small>${fcEsc(String(c.title || '').slice(0, 70))}</small></td><td class="ui-mono">${amz}</td>`
+    + `<td>${c.color ? fcEsc(c.color) : '<span class="fc-none">none</span>'}</td><td>${c.size ? fcEsc(c.size) : '<span class="fc-none">none</span>'}</td><td class="num">${fcNf(c.stock)}</td>`
+    + `<td class="fc-prob">${probs.map(p => `<div class="fc-p is-${p.sev}">${fcEsc(p.text)}</div>`).join('')}</td>`
+    + `<td class="fc-fix">${probs.map(p => `<div>${p.fix.kind === 'hand' ? '<b>Fix by hand:</b> ' : ''}${fcEsc(p.fix.text)}</div>`).join('')}${FC.note[key] ? `<div class="fc-note">${fcEsc(FC.note[key])}</div>` : ''}</td>`
+    + `<td class="fc-acts">${btns}${ask}</td></tr>`;
+}
+function fcGroupHtml(g) {
+  const f = g.f;
+  const open = !FC.closed.has(f.fk);
+  const n = k => g.rows.filter(r => r.probs.some(p => p.k === k)).length;
+  const chips = FC_KINDS.map(k => (n(k.k) ? `<span class="fc-chip is-${k.sev}">${fcNf(n(k.k))} ${fcEsc(k.t.toLowerCase())}</span>` : '')).join('');
+  const unread = f.live.some(c => !c.theme) || (f.psku && !fcRead(f.brand, f.psku));
+  const theme = f.theme && f.theme.raw ? 'theme ' + f.theme.raw : 'theme not read';
+  return `<tbody class="fc-grp"><tr class="fc-head" data-fc="grp" data-fc-v="${fcEsc(f.fk)}" tabindex="0" aria-expanded="${open}"><td colspan="8">`
+    + `<b>${open ? '▾' : '▸'} ${fcEsc(f.name)}</b> <small class="muted">${fcEsc(fcBrandName(f.brand))} · parent SKU ${fcEsc(f.psku || '—')} · ${fcEsc(f.pa || '—')} · ${fcNf(f.live.length)} live children · ${fcEsc(theme)}</small> ${chips}`
+    + (unread && !FC.reads.on ? ` <button type="button" class="ghost fc-b fc-read1" data-fc="read1" data-fc-v="${fcEsc(f.fk)}">Read themes</button>` : '') + '</td></tr>'
+    + (open ? g.rows.map(fcRowHtml).join('') : '') + '</tbody>';
+}
+function fcDrawBody(v) {
+  const body = $('fcBody');
+  const cards = FC_KINDS.map(k => `<button type="button" class="fc-box is-${k.sev}${FC.card === k.k ? ' is-on' : ''}" data-fc="card" data-fc-v="${k.k}" aria-pressed="${FC.card === k.k}" title="${fcEsc(k.tip)}">`
+    + `<span>${fcEsc(k.t)}</span><b>${fcNf(fcCount(v, k.k))}</b><small>${k.sev === 'r' ? 'error' : 'check'}</small></button>`).join('');
+  const groups = fcGroups(v);
+  const pages = Math.max(1, Math.ceil(groups.length / FC_PER));
+  if (FC.page >= pages) FC.page = pages - 1;
+  const page = groups.slice(FC.page * FC_PER, (FC.page + 1) * FC_PER);
+  const pager = pages > 1 ? `<div class="fc-pager"><button type="button" class="ghost" data-fc="page" data-fc-v="-1"${FC.page ? '' : ' disabled'}>◀ Back</button><span class="muted">Page ${fcNf(FC.page + 1)} of ${fcNf(pages)}</span>`
+    + `<button type="button" class="ghost" data-fc="page" data-fc-v="1"${FC.page < pages - 1 ? '' : ' disabled'}>Next ▶</button></div>` : '';
+  const head = '<thead><tr><th>SKU</th><th>ASIN</th><th>Colour</th><th>Size</th><th class="num">Stock</th><th>Problem</th><th>Suggested fix</th><th></th></tr></thead>';
+  const table = groups.length ? `<div class="card xlwrap fc-wrap"><table class="xl fc-tbl">${head}${page.map(fcGroupHtml).join('')}</table></div>${pager}`
+    : `<div class="card fc-empty">${v.live ? '<b>No family problems</b> in the live children' + (FC.card || FC.q || FC.brand !== 'ALL' ? ' that match these filters.' : '.') : '<b>No live children to check</b> — the snapshots are empty or nothing is buyable and in stock.'}</div>`;
+  const rem = fcRemoved(v);
+  const removed = rem.length ? `<div class="fc-rem"><button type="button" class="fc-link" data-fc="showok" aria-expanded="${FC.showOk}">${fcNf(rem.length)} removed on purpose › ${FC.showOk ? 'Hide' : 'Show'}</button>`
+    + (FC.showOk ? `<div class="card xlwrap fc-wrap"><table class="xl fc-tbl"><thead><tr><th>SKU</th><th>ASIN</th><th>Family it would join</th><th>Reason</th><th>Who · when</th><th></th></tr></thead><tbody>${rem.map(c => {
+      const e = (FC.ok[c.brand] || {})[c.sku] || {};
+      const auto = c.why === 'rating';
+      return `<tr><td><b>${fcEsc(c.sku)}</b></td><td class="ui-mono">${fcEsc(c.asin || '—')}</td><td>${fcEsc(c.sug ? c.sug.name : '')}</td><td>${auto ? `rating ${fcEsc(c.rt.rating)} ★ (${fcNf(c.rt.reviews)} reviews) — automatic` : fcEsc(e.reason || FC_REASON)}</td>`
+        + `<td>${auto ? '—' : fcEsc(e.name || fcName(e.by)) + ' · ' + fcEsc(e.at ? fcWhen(e.at) : '')}</td><td>${auto ? '' : `<button type="button" class="ghost fc-b" data-fc="undo" data-fc-b="${fcEsc(c.brand)}" data-fc-s="${fcEsc(c.sku)}">Undo</button>`}</td></tr>`;
+    }).join('')}</tbody></table></div>` : '') + '</div>' : '';
+  body.innerHTML = `<div class="fc-boxes">${cards}</div>${table}${removed}`;
+}
+// A card's number: the live children with that problem, within the brand and search filters (the card itself is not a filter on its own count).
+function fcCount(v, k) {
+  const card = FC.card;
+  FC.card = '';
+  const n = fcGroups(v).reduce((sum, g) => sum + g.rows.filter(r => r.probs.some(p => p.k === k)).length, 0);
+  FC.card = card;
+  return n;
+}
+// The removed-on-purpose children still to list: live, still without a parent (a linked or no-longer-live child is simply not here).
+const fcRemoved = v => v.removed.filter(c => FC.brand === 'ALL' || c.brand === FC.brand);
+
+/* ----- events ----- */
+function fcClick(el) {
+  const act = el.dataset.fc, v = el.dataset.fcV, brand = el.dataset.fcB, sku = el.dataset.fcS;
+  if (act === 'tab') { FC.tab = v; FC.built = false; return fcDrawAll(); }
+  if (act === 'card') { FC.card = FC.card === v ? '' : v; FC.page = 0; return fcDrawAll(); }
+  if (act === 'grp') { if (FC.closed.has(v)) FC.closed.delete(v); else FC.closed.add(v); return fcDrawAll(); }
+  if (act === 'page') { FC.page = Math.max(0, FC.page + Number(v)); fcDrawAll(); const top = $('fcBody'); if (top && top.scrollIntoView) top.scrollIntoView({ block: 'start' }); return; }
+  if (act === 'link') return fcLink(brand, sku);
+  if (act === 'set') return fcSetValue(brand, sku, el.dataset.fcK);
+  if (act === 'lerr') return fcOpenLerr(brand, sku);
+  if (act === 'ok') { FC.ask = fcKey(brand, sku); return fcDrawAll(); }
+  if (act === 'okcancel') { FC.ask = ''; return fcDrawAll(); }
+  if (act === 'oksave') {
+    const box = el.closest ? el.closest('.fc-ask') : null;
+    const input = box && box.querySelector ? box.querySelector('input') : null;
+    return fcOkSet(brand, sku, input ? input.value : FC_REASON);
+  }
+  if (act === 'undo') return fcOkUndo(brand, sku);
+  if (act === 'showok') { FC.showOk = !FC.showOk; return fcDrawAll(); }
+  if (act === 'read') return fcReadThemes('');
+  if (act === 'read1') return fcReadThemes(v);
+  if (act === 'stop') return fcStopReads();
+  if (act === 'csv') return fcDownload();
+}
+let FC_T = 0;
+function fcFilter(el) {
+  const k = el.dataset.fcF;
+  if (k === 'reason') return;
+  FC[k] = el.value;
+  FC.page = 0;
+  clearTimeout(FC_T);
+  if (k === 'q') FC_T = setTimeout(fcDrawAll, 200);
+  else fcDrawAll();
+}
+/** Opening the page: the snapshots Sellora already holds (read once), the saved marks, then draw. */
+async function fcOpen() {
+  fcShell();
+  fcDrawAll();
+  if (FC.loaded || FC.loading) return;
+  FC.loading = true;
+  try {
+    if (typeof loadParentNames === 'function') await loadParentNames();
+    if (typeof H_LOADED !== 'undefined' && !H_LOADED && typeof loadHealthCache === 'function') await loadHealthCache();
+    for (const b of ['SP', 'CPC']) if (typeof IML !== 'undefined' && !(b in IML) && typeof imListLoad === 'function') await imListLoad(b);
+    await fcOkLoad();
+    if (typeof lrLoadCatalog === 'function' && typeof LR_CAT !== 'undefined' && (!LR_CAT.SP || !LR_CAT.CPC)) lrLoadCatalog().then(fcSchedule).catch(() => {});
+  } catch (e) {
+    FC.err = 'Could not read the snapshots: ' + ((e && e.message) || e);
+  }
+  FC.loading = false;
+  FC.loaded = true;
+  fcDrawAll();
+}
+if (typeof document !== 'undefined' && document.addEventListener && $('fcPane')) {
+  $('fcPane').addEventListener('click', e => {
+    const el = e.target && e.target.closest ? e.target.closest('[data-fc]') : null;
+    if (el && !el.disabled) fcClick(el);
+  });
+  $('fcPane').addEventListener('keydown', e => {
+    if ((e.key === 'Enter' || e.key === ' ') && e.target && e.target.dataset && e.target.dataset.fc === 'grp') { e.preventDefault(); fcClick(e.target); }
+    if (e.key === 'Enter' && e.target && e.target.dataset && e.target.dataset.fcF === 'reason') { e.preventDefault(); const b = e.target.closest('.fc-ask').querySelector('[data-fc="oksave"]'); if (b) fcClick(b); }
+  });
+  $('fcPane').addEventListener('change', e => { if (e.target && e.target.dataset && e.target.dataset.fcF) fcFilter(e.target); });
+  $('fcPane').addEventListener('input', e => { if (e.target && e.target.dataset && e.target.dataset.fcF === 'q') fcFilter(e.target); });
+  const pane = $('paneFam');
+  if (pane && typeof MutationObserver === 'function') new MutationObserver(() => { if (!pane.classList.contains('hide')) fcOpen(); }).observe(pane, { attributes: true, attributeFilter: ['class'] });
+}
 
 /* ####################################################################################################
  * GROUP: src/app/research/
