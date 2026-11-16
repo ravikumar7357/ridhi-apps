@@ -67,6 +67,9 @@ function fcTheme(name) {
   return [...new Set(words)].sort().join('+');
 }
 const fcThemeDims = key => ({ c: /(^|\+)COLOR(\+|$)/.test(key), s: /(^|\+)SIZE(\+|$)/.test(key) });
+/** A theme made only of colour and/or size: the values Sellora holds can judge it. Any other part (SET_NAME, STYLE, PATTERN…) needs Amazon's
+ *  own theme attributes (?lfix=cat, not live yet) — until then such a family gets no Duplicate / Missing value, only "Waiting for Amazon theme data". */
+const fcCsOnly = key => /^(COLOR|SIZE|COLOR\+SIZE)$/.test(key);
 /** The SKU's family stem: "RTC14-7" → "RTC14", "R-CP-351" → "R-CP", "ABC12" → "ABC". '' when there is no clear one. */
 function fcStem(sku) {
   const s = String(sku || '').trim().toUpperCase();
@@ -365,7 +368,7 @@ function fcCatPlan(c, d, need) {
 }
 /** Every live child's problems, the family groups to draw and the card counts. */
 function fcProblems(v) {
-  const counts = { orphan: 0, dup: 0, missing: 0, theme: 0 };
+  const counts = { orphan: 0, dup: 0, missing: 0, theme: 0, wait: 0 };
   const groups = new Map();
   const group = f => groups.get(f.fk) || (groups.set(f.fk, { f, rows: [] }), groups.get(f.fk));
   const famByFk = new Map(v.families.map(f => [f.fk, f]));
@@ -374,6 +377,7 @@ function fcProblems(v) {
     const d = fcDims(f, theme);
     f.theme = theme;
     f.dims = d;
+    f.wait = !!theme.key && !fcCsOnly(theme.key);         // e.g. COLOR/SET_NAME: colour + size alone cannot tell these children apart
     const byVal = new Map();
     if (d.c || d.s) f.live.forEach(c => {
       if ((d.c && !c.color) || (d.s && !c.size)) return;
@@ -383,7 +387,9 @@ function fcProblems(v) {
     f.live.forEach(c => {
       const probs = [];
       const miss = { c: d.c && !c.color, s: d.s && !c.size };
-      if (miss.c || miss.s) {
+      const same = (d.c || d.s) && !miss.c && !miss.s ? (byVal.get(fcValKey(c, d)) || []).filter(o => o !== c) : [];
+      if (f.wait && (miss.c || miss.s || same.length)) probs.push({ k: 'wait', sev: 'g', text: `Waiting for Amazon theme data — the theme is ${theme.raw}`, fix: { kind: 'none', text: '' } });
+      if (!f.wait && (miss.c || miss.s)) {
         const what = miss.c && miss.s ? 'colour and size' : miss.c ? 'colour' : 'size';
         const plan = fcCatPlan(c, d, miss);
         const after = plan ? Object.assign({}, c, plan) : null;
@@ -392,8 +398,7 @@ function fcProblems(v) {
           fix: plan && !clash ? { kind: 'set', set: plan, text: 'Set ' + Object.entries(plan).map(([k, val]) => `${k === 'color' ? 'colour' : 'size'} "${val}"`).join(' and ') + ' (from the catalogue)' }
             : { kind: 'hand', text: plan ? 'The catalogue\'s value is already used by another child' : 'No certain value — the catalogue has none for this SKU' } });
       }
-      const same = (d.c || d.s) && !miss.c && !miss.s ? (byVal.get(fcValKey(c, d)) || []).filter(o => o !== c) : [];
-      if (same.length) {
+      if (!f.wait && same.length) {
         const plan = fcCatPlan(c, d, { c: true, s: true });
         const after = plan ? Object.assign({}, c, plan) : null;
         const free = after && !(byVal.get(fcValKey(after, d)) || []).some(o => o !== c);
@@ -414,7 +419,7 @@ function fcProblems(v) {
     if (!f) return;
     const d = f.dims || { c: false, s: false };
     const lacks = (d.c && !c.color) || (d.s && !c.size);
-    const clash = !lacks && (d.c || d.s) && f.live.some(o => fcValKey(o, d) === fcValKey(c, d));
+    const clash = !lacks && !f.wait && (d.c || d.s) && f.live.some(o => fcValKey(o, d) === fcValKey(c, d));
     const fix = !f.psku ? { kind: 'hand', text: 'The family\'s parent SKU is not known here' }
       : !c.pt ? { kind: 'hand', text: 'This listing\'s product type is not known here' }
         : lacks ? { kind: 'hand', text: `It has no ${d.c && !c.color ? 'colour' : 'size'} — add it first` }
@@ -474,7 +479,7 @@ async function fcLinkMany(keys) {
       if ((d.c && !now.color) || (d.s && !now.size)) { held.push({ sku: c.sku, why: `the family varies by ${theme} and it has no ${d.c && !now.color ? 'colour' : 'size'}` }); continue; }
       if (!pt) { held.push({ sku: c.sku, why: 'its product type is not known' }); continue; }
       const vk = fcValKey(now, d);
-      if ((d.c || d.s) && used.has(vk)) { held.push({ sku: c.sku, why: `its colour + size is already used by ${used.get(vk)}` }); continue; }
+      if ((d.c || d.s) && fcCsOnly(fcTheme(theme)) && used.has(vk)) { held.push({ sku: c.sku, why: `its colour + size is already used by ${used.get(vk)}` }); continue; }
       used.set(vk, c.sku);
       jobs.push({ brand: c.brand, sku: c.sku, asin: c.asin, label: c.title || c.sku,
         body: { lfix: 'patch', brand: c.brand, sku: c.sku, productType: pt, patches: [
@@ -647,6 +652,7 @@ function fcFixHtml(r, p) {
   const a = `data-fc-b="${fcEsc(r.c.brand)}" data-fc-s="${fcEsc(r.c.sku)}"`;
   if (p.fix.kind === 'link') return `<button type="button" class="fc-b" data-fc="link" ${a}${busy ? ' disabled' : ''}>${busy ? 'Reading…' : 'Link to family'}</button>`;
   if (p.fix.kind === 'set') return `<button type="button" class="fc-b" data-fc="set" data-fc-k="${p.k}" ${a}${busy ? ' disabled' : ''}>${busy ? 'Reading…' : 'Set colour/size'}</button>`;
+  if (p.fix.kind === 'none') return '';
   return `<button type="button" class="ghost fc-b" data-fc="lerr" ${a}>Open in Listing Errors</button>`;
 }
 function fcRowHtml(r) {
@@ -673,6 +679,7 @@ function fcGroupHtml(g) {
   const open = FC.open === f.fk;
   const n = k => g.rows.filter(r => r.probs.some(p => p.k === k)).length;
   const chips = FC_KINDS.map(k => (n(k.k) ? `<span class="fc-chip is-${k.sev}">${fcNf(n(k.k))} ${fcEsc(k.t.toLowerCase())}</span>` : '')).join('');
+  const waiting = n('wait') ? '<span class="fc-chip is-g">Waiting for Amazon theme data</span>' : '';
   const reading = FC.reading.has(f.fk) ? ' <span class="fc-reading">Reading theme…</span>' : '';
   const orph = g.rows.filter(r => fcTickKind(r) === 'orphan').map(r => fcKey(r.c.brand, r.c.sku));
   const allOn = orph.length && orph.every(k => FC.sel.has(k));
@@ -680,7 +687,7 @@ function fcGroupHtml(g) {
   const theme = f.theme && f.theme.raw ? ' · theme ' + f.theme.raw : '';
   return `<tbody class="fc-grp${open ? ' is-open' : ''}"><tr class="fc-head" data-fc="grp" data-fc-v="${fcEsc(f.fk)}" tabindex="0" aria-expanded="${open}"><td colspan="${FC_COLS}">`
     + `<button type="button" class="fc-arrow" data-fc="grp" data-fc-v="${fcEsc(f.fk)}" aria-label="${open ? 'Close' : 'Open'} ${fcEsc(f.name)}">${open ? '▾' : '▸'}</button>`
-    + `<b>${fcEsc(f.name)}</b> <small class="muted">${fcEsc(fcBrandName(f.brand))} · parent SKU ${fcEsc(f.psku || '—')} · ${fcEsc(f.pa || '—')} · ${fcNf(f.live.length)} live children${fcEsc(theme)}</small> ${chips}${reading}${selAll}</td></tr>`
+    + `<b>${fcEsc(f.name)}</b> <small class="muted">${fcEsc(fcBrandName(f.brand))} · parent SKU ${fcEsc(f.psku || '—')} · ${fcEsc(f.pa || '—')} · ${fcNf(f.live.length)} live children${fcEsc(theme)}</small> ${chips}${waiting}${reading}${selAll}</td></tr>`
     + (open ? FC_COLHEAD + g.rows.map(fcRowHtml).join('') : '') + '</tbody>';
 }
 /** What is ticked, as rows still on the page: { orphan: [c…], fix: [c…] } (a tick whose row has gone is dropped). */

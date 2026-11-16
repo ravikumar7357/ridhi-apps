@@ -3041,6 +3041,9 @@
   #paneFam .fc-chip{display:inline-block;margin:2px 0 0 6px;padding:0 7px;border-radius:var(--r-pill);font-size:11px;font-weight:650;white-space:nowrap}
   #paneFam .fc-chip.is-r{background:var(--bad-bg);color:var(--bad-ink)}
   #paneFam .fc-chip.is-y{background:var(--rev-bg);color:var(--rev-ink)}
+  #paneFam .fc-chip.is-g{background:var(--hover);color:var(--muted);font-weight:600}
+  #paneFam .fc-p.is-g{color:var(--muted)}
+  #paneFam .fc-p.is-g::before{background:var(--faint)}
   #paneFam .fc-row>td:first-child{box-shadow:inset 3px 0 0 var(--line)}
   #paneFam .fc-row.is-orphan>td:first-child{box-shadow:inset 3px 0 0 var(--bad)}
   #paneFam .fc-sku b{display:block;font-family:ui-monospace,monospace;font-size:12.5px;font-weight:650}

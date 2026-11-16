@@ -35,12 +35,18 @@ function sample(o) {
     nk('RNP20-9', { c: 'Navy', psku: '', lvl: '' }),                                     // live, no parent: belongs to RNP20
     { sku: 'ZZ-100', asin: 'B0ZZ100', st: 'BUYABLE,DISCOVERABLE', pt: 'PILLOW', t: 'Velvet cushion cover 18x18', lvl: '', c: 'Blue', z: '18x18' },   // a product of its own
   ];
+  if (o.desk) {                                                                          // a COLOR/SET_NAME family: colour alone is not the variation
+    const D = c => `CPC Desk Organizer Set Bamboo Drawer Tray Office - ${c}`;
+    const dk = (sku, x) => Object.assign({ sku, asin: 'B0' + sku.replace(/\W/g, ''), st: 'BUYABLE,DISCOVERABLE', pt: 'STORAGE_BOX', t: D((x && x.c) || ''), lvl: 'child', psku: 'ROD-P', c: '', z: '' }, x || {});
+    items.push({ sku: 'ROD-P', asin: 'BPARENTOD', st: 'DISCOVERABLE', pt: 'STORAGE_BOX', t: 'CPC Desk Organizer Set', lvl: 'parent' },
+      dk('ROD-1', { c: 'Black' }), dk('ROD-2', { c: 'Black' }), dk('ROD-3', { c: '' }), dk('ROD-9', { c: 'Black', psku: '', lvl: '' }));
+  }
   const qty = { 'RTC14-8': 0, 'RTC14-10': 0 };
   const rows = items.filter(i => i.lvl !== 'parent').map(i => ({ sku: i.sku, asin: i.asin, parent: '', title: i.t, qty: qty[i.sku] != null ? qty[i.sku] : 5, status: 'Active' }));
   return { items, rows };
 }
 // Amazon's answers to ?lfix=get: the variation theme (the parents SIZE/COLOR, RTC14-3 COLOR only) and the values.
-const THEME = { 'RTC14-P': 'SIZE/COLOR', 'RNP20-P': 'SIZE/COLOR', 'RTC14-3': 'COLOR' };
+const THEME = { 'RTC14-P': 'SIZE/COLOR', 'RNP20-P': 'SIZE/COLOR', 'RTC14-3': 'COLOR', 'ROD-P': 'COLOR/SET_NAME', 'ROD-1': 'COLOR/SET_NAME', 'ROD-2': 'COLOR/SET_NAME', 'ROD-3': 'COLOR/SET_NAME' };
 
 function setup(opts) {
   opts = opts || {};
@@ -255,6 +261,29 @@ const drawnRows = html => (html.match(/class="fc-row/g) || []).length;
     await H.fcLinkMany(['SP|RTC14-7', 'SP|RTC14-11']);
     const hs = H.sends[0];
     ok('two ticked with the same colour + size: one sent, the other held back and named', hs && hs.jobs.length === 1 && hs.opts.held.length === 1 && /already used by RTC14-7/.test(hs.opts.held[0].why), JSON.stringify(hs && hs.opts.held));
+  }
+
+  console.log('== a theme that is not colour + size: waiting for Amazon theme data ==');
+  {
+    const ROD = 'SP|S:ROD-P';
+    const C = setup({ desk: true });
+    await C.fcOpen();
+    C.fcToggle(ROD);
+    await flush();
+    const vv = C.FC.view;
+    const h = C.body();
+    ok('COLOR/SET_NAME family, two children both Black: NO duplicate', !probOf(vv, 'ROD-1', 'dup') && !probOf(vv, 'ROD-2', 'dup'));
+    ok('…a child with no colour: NO missing value', !probOf(vv, 'ROD-3', 'missing'));
+    ok('…instead grey "Waiting for Amazon theme data" on those rows and in the family line', ['ROD-1', 'ROD-2', 'ROD-3'].every(s => { const p = probOf(vv, s, 'wait'); return p && p.sev === 'g' && /Waiting for Amazon theme data — the theme is COLOR\/SET_NAME/.test(p.text); })
+      && /<span class="fc-chip is-g">Waiting for Amazon theme data<\/span>/.test(h));
+    const row1 = (h.match(/<tr class="fc-row[^"]*"><td class="fc-tk">(?:(?!<\/tr>)[^])*<b>ROD-1<\/b>(?:(?!<\/tr>)[^])*<\/tr>/) || [''])[0];
+    ok('…no button, no tick box on a waiting row', row1 && !/data-fc="tick"/.test(row1) && !/<button/.test(row1), row1.slice(0, 300));
+    ok('…not counted on the cards (only ROD-9 "Not in family" adds one), not in the CSV', C.counts() === '4,4,1,0' && !/ROD-[123]/.test(C.fcCsv(vv).text), C.counts());
+    ok('the colour + size families are unchanged (RTC14-5 / RTC14-6 still duplicate, RTC14-4 still missing)', !!probOf(vv, 'RTC14-5', 'dup') && !!probOf(vv, 'RTC14-4', 'missing'));
+    ok('a stray child of that family is still "Not in family" (Amazon shows no parent)', !!probOf(vv, 'ROD-9', 'orphan'));
+    await C.fcLinkMany(['SP|ROD-9']);
+    const s = C.sends[0];
+    ok('…and Link to family is not held back because a sibling is also Black (colour alone is not the variation)', s && s.jobs.length === 1 && !(s.opts.held || []).length && s.jobs[0].body.patches[2].value[0].name === 'COLOR/SET_NAME', JSON.stringify(s && s.opts.held));
   }
 
   console.log('== counts unchanged by the list ==');
