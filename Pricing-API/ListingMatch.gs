@@ -25,11 +25,15 @@
  *                                 A+ is NOT in the catalog API: `aplus` stays null ("not read"), never false.
  *
  * WHEN (script time zone, Asia/Kolkata):
- *   full pass   at 13:00 and 18:00 — the three reports, then every SKU and every ASIN read again;
+ *   full pass   for 13:00 and 18:00 — the three reports are asked LM_EARLY_MIN minutes early (12:30 / 17:30) so they
+ *               are ready when the reading starts; at 13:00 / 18:00 every SKU and every ASIN is read again. The reading
+ *               does not wait for the reports: it starts from the SKU list of the last pass and adds the report's new
+ *               SKUs when the All Listings report is in. Only the final write waits for all three reports.
+ *               Ready about 20–30 minutes after 13:00 / 18:00.
  *   light pass  09:00–21:00, on the first tick at least LM_LIGHT_EVERY_MIN minutes after the last one — only the
  *               listings Amazon says changed since the last pass (lastUpdatedAfter), and their catalog entries;
  *               if Amazon refuses that question, the LM_LIGHT_MAX listings read longest ago instead.
- *   lmTick every 10 minutes drives both. A full pass spans several ticks (Amazon builds reports in minutes).
+ *   lmTick drives both: every 10 minutes, every 5 while a full pass runs (lmTimer_ swaps the timer and back).
  *
  * NEVER EMPTY BECAUSE A READ FAILED. A report, page or batch that fails is asked again (LM_TRIES); if it still
  * fails, the listings it would have refreshed KEEP their previous record (`stale: 1`, the old readAt). An All
@@ -65,7 +69,8 @@
  *
  * CALLS AND QUOTAS (about 4,400 SKUs: Ridhi ~2,680, CPC ~1,720 — measured 9 Oct; see lmQuota_ for the arithmetic):
  *   full pass  ≈ 6 report requests + ~40 report polls, ~220 Listings Items calls, ~240 Catalog Items calls
- *              ≈ 510 SP-API calls, ~10–14 minutes of script time spread over ~5–8 ticks;
+ *              ≈ 510 SP-API calls, ~10–14 minutes of script time in ~4–6 five-minute ticks after 13:00 / 18:00
+ *              (a tick keeps reading until its time is used; a full scratch buffer is written and the reading goes on);
  *   light pass ≈ 2–4 calls per brand when little changed, at most ~22 per brand (200 changed listings);
  *   per day    ≈ 1,000 (two full passes) + 150–1,800 (36 light passes) ≈ 1,200–2,800 UrlFetch calls, of the
  *              20,000 (Gmail) / 100,000 (Workspace) Apps Script allows; ~45–60 minutes of trigger time.
@@ -76,6 +81,8 @@
 
 var LM_BUDGET_MS = 4.5 * 60000;
 var LM_FULL_HOURS = [13, 18];          // script time zone (Asia/Kolkata)
+var LM_EARLY_MIN = 30;                 // the reports of a full pass are asked this many minutes before its hour
+var LM_TICK_MIN = 10, LM_TICK_FULL_MIN = 5;   // the timer: every 10 minutes, every 5 while a full pass runs
 var LM_LIGHT_FROM = 9, LM_LIGHT_TO = 21, LM_LIGHT_EVERY_MIN = 15;
 var LM_TRIES = 3;
 var LM_BRANDS = ['SP', 'CPC'];
@@ -86,7 +93,7 @@ var LM_LIST_GAP_MS = 250;              // Listings Items allows 5 requests a sec
 var LM_CAT_GAP_MS = 600;               // Catalog Items allows 2 requests a second
 var LM_PART_SKUS = 250;                // records per part when a brand is laid out for the first time
 var LM_PART_MAX = 1000000;             // characters per part tab (25 cells of 40,000); past this the brand is laid out in twice the parts
-var LM_SCR_MAX = 1200000;              // characters per scratch tab before a new one is started
+var LM_SCR_MAX = 1200000;              // characters per scratch tab: then it is written, a new one started, the reading goes on
 var LM_LIGHT_MAX = 200;                // listings a light pass reads at most per brand
 var LM_LIGHT_OVERLAP_MS = 5 * 60000;   // a light pass asks from a little before the last one, so nothing slips between
 var LM_TEXT_MAX = 2000;                // Amazon's own limit for a description; bullets are cut at 500
@@ -219,12 +226,13 @@ function lmSetup() {
   ScriptApp.getProjectTriggers().forEach(function (t) {
     if (t.getHandlerFunction() === 'lmTick') ScriptApp.deleteTrigger(t);
   });
-  ScriptApp.newTrigger('lmTick').timeBased().everyMinutes(10).create();
+  ScriptApp.newTrigger('lmTick').timeBased().everyMinutes(LM_TICK_MIN).create();
+  PropertiesService.getScriptProperties().setProperty('LM_TIMER_MIN', String(LM_TICK_MIN));
   var st = lmState_(); st.reset = true; lmSave_(st);
-  Logger.log('✅ lmTick now runs every 10 minutes.');
+  Logger.log('✅ lmTick now runs every ' + LM_TICK_MIN + ' minutes (every ' + LM_TICK_FULL_MIN + ' while a full pass runs).');
   Logger.log('   The first full pass starts on the next tick: three reports per brand, then every SKU and ASIN.');
-  Logger.log('   It takes about an hour (Amazon builds the reports first). Watch it with lmStatus().');
-  Logger.log('   After that: full passes at ' + LM_FULL_HOURS.join(':00 and ') + ':00, light passes ' + LM_LIGHT_FROM + ':00–' + LM_LIGHT_TO + ':00 ('
+  Logger.log('   The very first one waits for the All Listings report before reading (there is no SKU list yet): about 30–45 minutes. Watch it with lmStatus().');
+  Logger.log('   After that: full passes for ' + LM_FULL_HOURS.join(':00 and ') + ':00 (reports asked ' + LM_EARLY_MIN + ' minutes early), light passes ' + LM_LIGHT_FROM + ':00–' + LM_LIGHT_TO + ':00 ('
     + Session.getScriptTimeZone() + '). When the first pass is done, run lmCheck() for the proof.');
 }
 
@@ -233,6 +241,7 @@ function lmStop() {
   ScriptApp.getProjectTriggers().forEach(function (t) {
     if (t.getHandlerFunction() === 'lmTick') { ScriptApp.deleteTrigger(t); n++; }
   });
+  PropertiesService.getScriptProperties().deleteProperty('LM_TIMER_MIN');
   Logger.log(n ? 'lmTick timer removed. The lm* tabs are left as they are.' : 'No lmTick timer was installed.');
 }
 
@@ -245,18 +254,24 @@ function lmStatus() {
   var st = lmState_();
   var run = st.run;
   if (run) {
-    Logger.log('running    ' + run.kind + ' pass, started ' + run.startedAt);
+    Logger.log('running    ' + run.kind + ' pass, started ' + run.startedAt
+      + (run.readFrom && lmNow_() < run.readFrom ? ' — reports asked early; listings are read from ' + run.readFrom.slice(11) : ''));
     LM_BRANDS.forEach(function (b) {
       var x = run.B && run.B[b];
       if (!x) return;
       var rep = Object.keys(LM_REPORTS).map(function (k) { var j = x.rep[k]; return LM_REPORT_NAME[k] + ' ' + (j ? j.st + (j.t ? ' (try ' + j.t + ')' : '') : '—'); }).join(' · ');
-      Logger.log(LM_LABEL[b] + '  step ' + x.ph + '  ·  listings ' + (x.i || 0) + '/' + (x.n || '?') + '  ·  catalog ' + (x.ci || 0) + '/' + (x.cn || '?')
-        + (x.miss ? '  ·  ' + x.miss + ' not read (old kept)' : '') + (x.err ? '  ·  ' + x.err : ''));
+      var step = x.ph === 'go' ? 'reading' + (x.kl ? '' : ' (waits for the All Listings report: no SKU list yet)') : x.ph;
+      Logger.log(LM_LABEL[b] + '  step ' + step + '  ·  listings ' + (x.i || 0) + '/' + (x.n || '?') + (x.kl && !x.kx ? ' (SKU list of the last pass; the report adds new ones)' : '')
+        + '  ·  catalog ' + (x.ci || 0) + '/' + (x.cn || '?') + (x.miss ? '  ·  ' + x.miss + ' not read (old kept)' : '') + (x.err ? '  ·  ' + x.err : ''));
       Logger.log('        ' + rep);
     });
   } else Logger.log('running    nothing' + (st.reset ? ' — a full pass is asked for' : ''));
   Logger.log('next       ' + lmNextRun_(st));
-  (st.errors || []).forEach(function (e) { Logger.log('error      ' + e); });
+  Logger.log('timer      ' + (ScriptApp.getProjectTriggers().some(function (t) { return t.getHandlerFunction() === 'lmTick'; })
+    ? 'every ' + (prop_('LM_TIMER_MIN') || LM_TICK_MIN) + ' minutes' : 'not installed — run lmSetup()'));
+  // a part layout that grew is a fact, not a fault (older versions filed it under errors)
+  (st.errors || []).forEach(function (e) { Logger.log((lmIsNote_(e) ? 'note       ' : 'error      ') + e); });
+  (st.notes || []).forEach(function (e) { Logger.log('note       ' + e); });
   var meta = prop_('LM_CACHE_ID') ? lmGet_('lmMeta') : null;
   Logger.log('— what the cache holds —');
   if (!meta) { Logger.log(prop_('LM_CACHE_ID') ? 'nothing yet (lmMeta is empty)' : 'no "' + LM_BOOK_NAME + '" yet — run lmSetup()'); lmUsageLog_(); return; }
@@ -267,7 +282,8 @@ function lmStatus() {
       + ' by status  ·  ' + lmNf_(c.asins) + ' ASINs  ·  stock for ' + lmNf_(c.fba) + '  ·  ' + lmNf_(c.stale) + ' kept from an older read'
       + '  ·  ' + (((meta.parts || {}).listings || {})[b] || []).length + '+' + (((meta.parts || {}).catalog || {})[b] || []).length + ' tabs');
   });
-  (meta.errors || []).forEach(function (e) { Logger.log('last pass  ' + e); });
+  (meta.errors || []).forEach(function (e) { Logger.log('last pass  ' + (lmIsNote_(e) ? 'note: ' : '') + e); });
+  (meta.notes || []).forEach(function (e) { Logger.log('last pass  note: ' + e); });
   lmUsageLog_();
 }
 
@@ -308,6 +324,7 @@ function lmTick() {
     try { lmBook_(); }                     // no spreadsheet (or one that will not open): nothing is asked of Amazon
     catch (e) { var st = lmState_(); lmErr_(st, String(e.message || e)); lmSave_(st); Logger.log('lmTick: ' + (e.message || e)); return; }
     lmTick_();
+    lmTimer_();
   } finally {
     props.deleteProperty('LM_LEASE');
     lmUsageAdd_(t0);
@@ -320,15 +337,24 @@ function lmTick_() {
   var st = lmState_();
   var now = new Date(), tz = Session.getScriptTimeZone();
   var today = Utilities.formatDate(now, tz, 'yyyy-MM-dd'), hour = Number(Utilities.formatDate(now, tz, 'H'));
+  var mins = hour * 60 + Number(Utilities.formatDate(now, tz, 'mm'));
   st.slots = st.slots || {};
-  var due = LM_FULL_HOURS.filter(function (h) { return hour >= h && !st.slots[today + '|' + h]; });
+  if (st.run && st.run.v !== 2) {          // a pass begun by the version before this one: begin it again with these steps
+    lmNote_(st, 'a full pass begun by the older ListingMatch was started again with the new steps');
+    st.run = null; st.reset = true;
+  }
+  // a slot is due LM_EARLY_MIN minutes before its hour: the reports are asked then, the reading waits for the hour
+  var due = LM_FULL_HOURS.filter(function (h) { return mins >= h * 60 - LM_EARLY_MIN && !st.slots[today + '|' + h]; });
   if (!st.run && (st.reset || due.length)) {
     due.forEach(function (h) { st.slots[today + '|' + h] = 1; });       // one pass covers every slot that is due
     Object.keys(st.slots).forEach(function (k) { if (k.slice(0, 10) < lmAddDays_(today, -2)) delete st.slots[k]; });
-    st.run = lmPlanFull_();
+    var last = due.length ? due[due.length - 1] : null;
+    var readFrom = !st.reset && last != null && mins < last * 60 ? today + ' ' + lmHH_(last) + ':00' : '';
+    LM_BRANDS.forEach(function (b) { lmDropScratch_(b); });          // nothing left from a pass that was cut short
+    st.run = lmPlanFull_(readFrom);
     st.reset = false;
     lmSave_(st);
-    Logger.log('lmTick: full pass started.');
+    Logger.log('lmTick: full pass started' + (readFrom ? ' — reports asked now, listings read from ' + readFrom.slice(11) : '') + '.');
   }
   if (st.run) {
     try { lmFullStep_(st, left); }
@@ -342,25 +368,42 @@ function lmTick_() {
   }
 }
 
-function lmPlanFull_() {
+/** A brand's progress (kept in LM_STATE, so the names are short):
+ *    ph   'go' (reports and reads together) → 'write' → 'done' | 'gave' (no All Listings report: nothing touched)
+ *    kl   the SKU list is in scratch tab K (ks: 'report', or 'cache' = the last pass's SKUs while the report is not in)
+ *    kx   the report's SKUs the list did not have are added      ki  every SKU of the list so far is read
+ *    kf   listings finished (kx and ki)                          i / n   listings read / in the list
+ *    ca   the ASIN list (scratch A) is started                   cx  it has every ASIN of kf's listings and the report
+ *    cf   catalog finished (cx and every ASIN read)              ci / cn  ASINs read / in the list
+ *    bt / cbt  tries of the current Listings / Catalog call     nL / nC  scratch tabs written    wp / wc  parts written */
+function lmPlanFull_(readFrom) {
   var B = {};
   LM_BRANDS.forEach(function (b) {
-    B[b] = { ph: 'rep', rep: { L: { st: 'new', t: 0 }, F: { st: 'new', t: 0 }, S: { st: 'new', t: 0 } }, i: 0, n: 0, ci: 0, cn: 0, nL: 0, nC: 0, wp: 0, wc: 0, bt: 0, miss: 0 };
+    B[b] = { ph: 'go', rep: { L: { st: 'new', t: 0 }, F: { st: 'new', t: 0 }, S: { st: 'new', t: 0 } }, kl: 0, ks: '', kx: 0, ki: 0, kf: 0, i: 0, n: 0,
+      ca: 0, cx: 0, cf: 0, ci: 0, cn: 0, nL: 0, nC: 0, wp: 0, wc: 0, bt: 0, cbt: 0, miss: 0 };
   });
-  return { kind: 'full', startedAt: lmNow_(), startMs: Date.now(), B: B, errors: [] };
+  // readFrom 'yyyy-MM-dd HH:mm' (script time): the listings and the catalog are read from then on; '' = at once
+  return { v: 2, kind: 'full', startedAt: lmNow_(), startMs: Date.now(), readFrom: readFrom || '', B: B, errors: [], notes: [] };
 }
 
-/** One tick of a full pass: every brand moves as far as the time allows. Steps: rep → items → cat → write → done. */
+/** One tick of a full pass: every brand moves as far as the time allows. The reports are polled first; the listings
+ *  and the catalog are read in the same tick, whether or not the reports are in yet. The write waits for both. */
 function lmFullStep_(st, left) {
   var run = st.run;
+  var reading = !run.readFrom || lmNow_() >= run.readFrom;
   try {
     for (var k = 0; k < LM_BRANDS.length && left() > 30000; k++) {
       var b = LM_BRANDS[k], x = run.B[b];
+      if (x.ph !== 'go' && x.ph !== 'write') continue;
       setBrand_(b);
-      if (x.ph === 'rep') lmReports_(st, b, x, left);
-      if (x.ph === 'items') lmItems_(st, b, x, left);
-      if (x.ph === 'cat') lmCatalogStep_(st, b, x, left);
-      if (x.ph === 'write') lmWrite_(st, b, x, left);
+      if (x.ph === 'go') {
+        lmReports_(st, b, x, left);
+        if (x.ph === 'go' && !x.kl) lmSkuList_(st, b, x);
+        if (x.ph === 'go' && reading && x.kl && !x.kf) lmItems_(st, b, x, left);
+        if (x.ph === 'go' && reading && x.ki && !x.cf) lmCatalogStep_(st, b, x, left);
+        if (x.ph === 'go' && x.kf && x.cf && lmReportsIn_(x)) { x.ph = 'write'; x.wp = 0; x.wc = 0; }
+      }
+      if (x.ph === 'write' && left() > 30000) lmWrite_(st, b, x, left);
     }
   } catch (e) {
     var m = String(e.message || e);
@@ -407,13 +450,31 @@ function lmReports_(st, b, x, left) {
   if (L.st === 'gave') {                     // no SKU list: nothing of this brand is touched
     x.ph = 'gave'; x.err = 'All Listings report could not be read — the cache keeps the last good data';
     lmDropScratch_(b);
-    return;
   }
-  var waiting = Object.keys(LM_REPORTS).some(function (k) { return x.rep[k].st === 'new' || x.rep[k].st === 'asked' || x.rep[k].st === 'got'; });
-  if (waiting) return;
-  var Rr = loadR();
-  x.n = Object.keys(Rr.L || {}).length;
-  x.ph = 'items'; x.i = 0;
+}
+
+/** Every report is in (or given up on after LM_TRIES — the All Listings report never is: then the brand is 'gave'). */
+function lmReportsIn_(x) {
+  return !Object.keys(LM_REPORTS).some(function (k) { var s = x.rep[k].st; return s === 'new' || s === 'asked' || s === 'got'; });
+}
+
+/** The SKUs to read: the All Listings report's when it is in, else the last pass's (so the reading need not wait for
+ *  the report — lmItems_ adds the report's new SKUs later). The very first pass has no last pass: it waits. */
+function lmSkuList_(st, b, x) {
+  var list = null, src = '';
+  if (x.rep.L.st === 'done') {
+    var R = lmGet_(lmScr_(b, 'R'));
+    if (R && R.L) { list = Object.keys(R.L.m || R.L).sort(); src = 'report'; }
+  }
+  if (!list) {
+    var meta = lmGet_('lmMeta') || {}, seen = {};
+    (((meta.parts || {}).listings || {})[b] || []).forEach(function (t) { var p = lmGet_(t); Object.keys((p && p.items) || {}).forEach(function (s) { seen[s] = 1; }); });
+    if (Object.keys(seen).length) { list = Object.keys(seen).sort(); src = 'cache'; }
+  }
+  if (!list) return;
+  try { lmPut_(lmScr_(b, 'K'), { list: list }); }
+  catch (we) { lmErr_(st, LM_LABEL[b] + ': could not write the SKU list — next tick: ' + String(we.message || we).slice(0, 120)); return; }
+  x.kl = 1; x.ks = src; x.kx = src === 'report' ? 1 : 0; x.n = list.length; x.i = 0;
 }
 
 function lmRepRetry_(st, b, k, j, msg) {
@@ -488,13 +549,39 @@ function lmDoc_(docId) {
 
 /* ----- step 2: every SKU from the Listings Items API, 20 a call ----- */
 function lmItems_(st, b, x, left) {
-  var R = lmGet_(lmScr_(b, 'R'));
-  if (!R || !R.L) { x.ph = 'rep'; x.rep.L = { st: 'new', t: 0 }; lmErr_(st, LM_LABEL[b] + ': the report scratch tab is gone — asking again'); return; }
-  var skus = Object.keys(R.L.m || R.L).sort();
+  var K = lmGet_(lmScr_(b, 'K'));
+  if (!K || !K.list) {
+    lmErr_(st, LM_LABEL[b] + ': the SKU list scratch tab is gone — reading the listings again');
+    x.kl = 0; x.kx = 0; x.ki = 0; x.kf = 0; x.i = 0; x.nL = 0; x.ca = 0; x.cx = 0; x.cf = 0; x.ci = 0; x.nC = 0;
+    return;
+  }
+  var skus = K.list;
+  if (!x.kx && x.rep.L.st === 'done') {        // the All Listings report is in: its SKUs the list did not have (new since the last pass)
+    var R = lmGet_(lmScr_(b, 'R'));
+    if (!R || !R.L) { x.rep.L = { st: 'new', t: 0 }; lmErr_(st, LM_LABEL[b] + ': the report scratch tab is gone — asking again'); return; }
+    var inK = {};
+    skus.forEach(function (s) { inK[s] = 1; });
+    var extra = Object.keys(R.L.m || R.L).filter(function (s) { return !inK[s]; }).sort();
+    if (extra.length) {
+      skus = skus.concat(extra);
+      try { lmPut_(lmScr_(b, 'K'), { list: skus }); }
+      catch (we0) { lmErr_(st, LM_LABEL[b] + ': could not write the SKU list — next tick: ' + String(we0.message || we0).slice(0, 120)); return; }
+    }
+    x.kx = 1;
+  }
   x.n = skus.length;
   var seller = limgSeller_('');
   var buf = {}, size = 0, i = x.i, stop = '';
-  while (i < skus.length && left() > 40000 && size < LM_SCR_MAX) {
+  // a full buffer goes to a scratch tab and the reading goes on in the same tick; x.i moves only once it is in the sheet
+  var flush = function () {
+    if (Object.keys(buf).length) {
+      try { lmPut_(lmScr_(b, 'L', x.nL), { items: buf }); x.nL++; }
+      catch (we) { lmErr_(st, LM_LABEL[b] + ': could not write the cache sheet — those listings are read again: ' + String(we.message || we).slice(0, 120)); return false; }
+    }
+    buf = {}; size = 0; x.i = i;
+    return true;
+  };
+  while (i < skus.length && left() > 40000) {
     var batch = skus.slice(i, i + LM_PAGE), r;
     try {
       r = limgSp_('/listings/2021-08-01/items/' + seller + '?marketplaceIds=' + marketplaceId_() + '&identifiers=' + batch.map(encodeURIComponent).join(',')
@@ -513,48 +600,55 @@ function lmItems_(st, b, x, left) {
     // A SKU Amazon did not return keeps its last good record at write time.
     (r.body.items || []).forEach(function (it) { var rec = lmItem_(it, now); buf[rec.sku] = rec; size += JSON.stringify(rec).length; });
     i += batch.length;
+    if (size >= LM_SCR_MAX && !flush()) return;
     Utilities.sleep(LM_LIST_GAP_MS);
   }
   if (stop) lmErr_(st, LM_LABEL[b] + ': ' + stop);
-  if (Object.keys(buf).length) {
-    try { lmPut_(lmScr_(b, 'L', x.nL), { items: buf }); x.nL++; }
-    catch (we) { lmErr_(st, LM_LABEL[b] + ': could not write the cache sheet — those listings are read again: ' + String(we.message || we).slice(0, 120)); return; }
-  }
-  x.i = i;                                  // moved on only once what was read is in the sheet
-  if (i >= skus.length) {
-    // the catalog list: every ASIN of a listing read now (or in the report), parents are added as Amazon names them
-    var asins = {};
-    for (var n = 0; n < x.nL; n++) {
-      var part = lmGet_(lmScr_(b, 'L', n));
-      Object.keys((part && part.items) || {}).forEach(function (s) { var a = part.items[s].asin; if (lmIsAsin_(a)) asins[a] = 1; });
-    }
-    Object.keys(R.L.m || R.L).forEach(function (s) { var a = (R.L.m || R.L)[s][0]; if (lmIsAsin_(a)) asins[a] = 1; });
-    var list = Object.keys(asins).sort();
-    try { lmPut_(lmScr_(b, 'A'), { list: list }); } catch (we2) { lmErr_(st, LM_LABEL[b] + ': could not write the ASIN list — next tick'); return; }
-    x.ph = 'cat'; x.ci = 0; x.cn = list.length;
-  }
+  if (!flush()) return;
+  if (x.i >= skus.length) { x.ki = 1; if (x.kx) x.kf = 1; }
 }
 
 /* ----- step 3: every ASIN from the catalog, 20 a call; parents are added as children name them ----- */
+/** Starts once the SKU list is read (the report need not be in); the ASINs of the report and of its new SKUs are
+ *  added when the listings are finished (kf), and only then can the catalog finish. */
 function lmCatalogStep_(st, b, x, left) {
-  var A = lmGet_(lmScr_(b, 'A'));
-  if (!A || !A.list) { lmErr_(st, LM_LABEL[b] + ': the ASIN list is gone — reading listings again'); x.ph = 'items'; x.i = 0; x.nL = 0; return; }
+  var A = x.ca ? lmGet_(lmScr_(b, 'A')) : null;
+  if (x.ca && (!A || !A.list)) { lmErr_(st, LM_LABEL[b] + ': the ASIN list is gone — reading the catalog again'); x.ca = 0; x.cx = 0; x.ci = 0; x.nC = 0; A = null; }
+  if (!x.ca || (x.kf && !x.cx)) {
+    // every ASIN of a listing read so far (and of the All Listings report once it is in); parents are added as Amazon names them
+    var cur = A ? A.list : [], had = {};
+    cur.forEach(function (a) { had[a] = 1; });
+    var R = x.rep.L.st === 'done' ? lmGet_(lmScr_(b, 'R')) : null;
+    var more = lmAsinsRead_(b, x, R).filter(function (a) { return !had[a]; });
+    A = { list: cur.concat(more) };
+    try { lmPut_(lmScr_(b, 'A'), A); } catch (we2) { lmErr_(st, LM_LABEL[b] + ': could not write the ASIN list — next tick'); return; }
+    if (!x.ca) { x.ca = 1; x.ci = 0; }
+    if (x.kf) x.cx = 1;
+  }
   var list = A.list, have = {};
   list.forEach(function (a) { have[a] = 1; });
   var buf = {}, size = 0, i = x.ci, stop = '', added = 0;
-  while (i < list.length && left() > 40000 && size < LM_SCR_MAX) {
+  var flush = function () {
+    try {
+      if (Object.keys(buf).length) { lmPut_(lmScr_(b, 'C', x.nC), { items: buf }); x.nC++; }
+      if (added) lmPut_(lmScr_(b, 'A'), { list: list });
+    } catch (we) { lmErr_(st, LM_LABEL[b] + ': could not write the cache sheet — those entries are read again: ' + String(we.message || we).slice(0, 120)); return false; }
+    buf = {}; size = 0; added = 0; x.ci = i; x.cn = list.length;
+    return true;
+  };
+  while (i < list.length && left() > 40000) {
     var batch = list.slice(i, i + LM_CAT_BATCH), r;
     try { r = lmCatRead_(batch); }
     catch (e) { stop = 'Catalog batch at ' + batch[0] + ': ' + String(e.message || e).slice(0, 140) + ' — next tick'; break; }
     if (r.code === 429) { stop = 'Amazon asked us to slow down (Catalog) — next tick'; break; }
     if (r.code >= 300) {
-      x.bt = (x.bt || 0) + 1;
-      if (x.bt < LM_TRIES) { stop = 'Catalog batch at ' + batch[0] + ': answered ' + r.code + ' — trying again'; break; }
+      x.cbt = (x.cbt || 0) + 1;
+      if (x.cbt < LM_TRIES) { stop = 'Catalog batch at ' + batch[0] + ': answered ' + r.code + ' — trying again'; break; }
       lmErr_(st, LM_LABEL[b] + ': gave up on ' + batch.length + ' catalog entries from ' + batch[0] + ' — their last good data is kept');
-      x.bt = 0; i += batch.length;
+      x.cbt = 0; i += batch.length;
       continue;
     }
-    x.bt = 0;
+    x.cbt = 0;
     var now = Date.now();
     (r.body.items || []).forEach(function (it) {
       var c = lmCat_(it, now);
@@ -562,15 +656,24 @@ function lmCatalogStep_(st, b, x, left) {
       (c.pa || []).forEach(function (p) { if (lmIsAsin_(p) && !have[p]) { have[p] = 1; list.push(p); added++; } });
     });
     i += batch.length;
+    if (size >= LM_SCR_MAX && !flush()) return;
     Utilities.sleep(LM_CAT_GAP_MS);
   }
   if (stop) lmErr_(st, LM_LABEL[b] + ': ' + stop);
-  try {
-    if (Object.keys(buf).length) { lmPut_(lmScr_(b, 'C', x.nC), { items: buf }); x.nC++; }
-    if (added) lmPut_(lmScr_(b, 'A'), { list: list });
-  } catch (we) { lmErr_(st, LM_LABEL[b] + ': could not write the cache sheet — those entries are read again: ' + String(we.message || we).slice(0, 120)); return; }
-  x.ci = i; x.cn = list.length;
-  if (i >= list.length) { x.ph = 'write'; x.wp = 0; x.wc = 0; }
+  if (!flush()) return;
+  if (x.ci >= list.length && x.cx) x.cf = 1;
+}
+
+/** Every ASIN of a listing read in this pass (scratch L tabs) and, once it is in, of the All Listings report — sorted. */
+function lmAsinsRead_(b, x, R) {
+  var asins = {};
+  for (var n = 0; n < x.nL; n++) {
+    var part = lmGet_(lmScr_(b, 'L', n));
+    Object.keys((part && part.items) || {}).forEach(function (s) { var a = part.items[s].asin; if (lmIsAsin_(a)) asins[a] = 1; });
+  }
+  var L = R && R.L ? (R.L.m || R.L) : {};
+  Object.keys(L).forEach(function (s) { var a = L[s][0]; if (lmIsAsin_(a)) asins[a] = 1; });
+  return Object.keys(asins).sort();
 }
 
 function lmCatRead_(asins) {
@@ -588,7 +691,13 @@ function lmWrite_(st, b, x, left) {
   for (var n = 0; n < x.nL; n++) { var p = lmGet_(lmScr_(b, 'L', n)); lmMerge_(fresh, p && p.items); }
   for (var m = 0; m < x.nC; m++) { var q = lmGet_(lmScr_(b, 'C', m)); lmMerge_(freshC, q && q.items); }
   var A = lmGet_(lmScr_(b, 'A')) || { list: [] };
-  var skus = Object.keys(L).sort(), asins = A.list.slice();
+  var skus = Object.keys(L).sort();
+  // Only the ASINs of the report's SKUs and their parents: a SKU read from the last pass's list but gone from the
+  // report takes its catalog entry with it.
+  var want = {};
+  skus.forEach(function (s) { var a = (L[s] || [])[0], f = fresh[s]; if (lmIsAsin_(a)) want[a] = 1; if (f && lmIsAsin_(f.asin)) want[f.asin] = 1; });
+  Object.keys(want).forEach(function (a) { ((freshC[a] || {}).pa || []).forEach(function (p) { want[p] = 1; }); });
+  var asins = A.list.filter(function (a) { return want[a]; });
   // The layout: kept unless a part would pass LM_PART_MAX (then twice the parts, under new tab names).
   if (!x.P) {
     x.P = Math.max(oldL.length || 0, Math.ceil(skus.length / LM_PART_SKUS) || 1);
@@ -604,7 +713,7 @@ function lmWrite_(st, b, x, left) {
     var obj = { b: b, part: x.wp, of: x.P, at: lmNow_(), items: items };
     if (JSON.stringify(obj).length > LM_PART_MAX && x.P < 512) {        // too big: lay the brand out again in twice the parts
       lmDropNew_(oldL, 'lmListings', b, x.P, x.wp);
-      x.P = x.P * 2; x.wp = 0; lmErr_(st, LM_LABEL[b] + ': listings laid out in ' + x.P + ' parts');
+      x.P = x.P * 2; x.wp = 0; lmNote_(st, LM_LABEL[b] + ': listings laid out in ' + x.P + ' parts');
       continue;
     }
     lmPut_(tab, obj);
@@ -622,7 +731,11 @@ function lmWrite_(st, b, x, left) {
       if (c) citems[a] = c;
     });
     var cobj = { b: b, part: x.wc, of: x.PC, at: lmNow_(), items: citems };
-    if (JSON.stringify(cobj).length > LM_PART_MAX && x.PC < 512) { lmDropNew_(oldC, 'lmCatalog', b, x.PC, x.wc); x.PC = x.PC * 2; x.wc = 0; continue; }
+    if (JSON.stringify(cobj).length > LM_PART_MAX && x.PC < 512) {
+      lmDropNew_(oldC, 'lmCatalog', b, x.PC, x.wc);
+      x.PC = x.PC * 2; x.wc = 0; lmNote_(st, LM_LABEL[b] + ': catalog laid out in ' + x.PC + ' parts');
+      continue;
+    }
     lmPut_(ctab, cobj);
     x.wc++;
   }
@@ -728,6 +841,7 @@ function lmFinishFull_(st) {
   var gave = LM_BRANDS.filter(function (b) { return run.B[b].ph === 'gave'; });
   M.kind = 'full'; M.startedAt = run.startedAt; M.finishedAt = lmNow_(); M.upTo = run.startedAt;
   M.errors = (run.errors || []).slice(-8);
+  M.notes = (run.notes || []).slice(-6);
   M.lastFull = { startedAt: run.startedAt, finishedAt: M.finishedAt, brands: LM_BRANDS.filter(function (b) { return run.B[b].ph === 'done'; }), gaveUp: gave };
   st.run = null;
   st.lightAt = Date.now();
@@ -979,7 +1093,7 @@ function lmCheck() {
       var r = limgSp_('/listings/2021-08-01/items/' + seller + '/' + encodeURIComponent(rec.sku) + '?marketplaceIds=' + marketplaceId_() + '&includedData=summaries,attributes,issues', 'get');
       if (r.code >= 300) { Logger.log('   live read failed: ' + limgErr_(r, 'Listing').error.slice(0, 200)); return; }
       var live = lmItem_(r.body, Date.now());
-      lmCompare_('status', rec.as, live.as);
+      lmCompare_('status', lmStatusKey_(rec.as), lmStatusKey_(live.as));   // BUYABLE,DISCOVERABLE = DISCOVERABLE,BUYABLE
       lmCompare_('issues', lmIssKey_(rec.iss), lmIssKey_(live.iss));
       lmCompare_('title (ours)', rec.t, live.t);
       lmCompare_('our pictures', lmImgKey_(rec.img), lmImgKey_(live.img));
@@ -1024,6 +1138,7 @@ function lmCompare_(label, cache, live) {
   Logger.log('   ' + lmPad_(label, 22) + (same ? 'OK        ' : 'DIFFERENT ') + (same ? lmCut_(a, 90) : 'cache: ' + lmCut_(a, 70) + '  ·  live: ' + lmCut_(b, 70)));
   return same;
 }
+function lmStatusKey_(s) { return String(s || '').split(',').map(function (x) { return x.trim(); }).filter(Boolean).sort().join(','); }
 function lmIssKey_(iss) { return (iss || []).map(function (i) { return i.s.charAt(0) + i.c; }).sort().join(' ') || 'none'; }
 function lmImgKey_(img) { return Object.keys(img || {}).sort().map(function (k) { return k + '=' + String(img[k]).split('/').pop(); }).join(' ') || 'none'; }
 function lmLiveKey_(img) { return Object.keys(img || {}).sort().map(function (k) { return k + '=' + String(img[k].u).split('/').pop() + '(' + img[k].w + 'x' + img[k].h + ')'; }).join(' ') || 'none'; }
@@ -1065,6 +1180,8 @@ function lmSave_(st) {
   var s = JSON.stringify(st);
   while (s.length > 8800 && st.errors && st.errors.length) { st.errors.shift(); s = JSON.stringify(st); }
   while (s.length > 8800 && st.run && st.run.errors && st.run.errors.length) { st.run.errors.shift(); s = JSON.stringify(st); }
+  while (s.length > 8800 && st.notes && st.notes.length) { st.notes.shift(); s = JSON.stringify(st); }
+  while (s.length > 8800 && st.run && st.run.notes && st.run.notes.length) { st.run.notes.shift(); s = JSON.stringify(st); }
   PropertiesService.getScriptProperties().setProperty('LM_STATE', s);
 }
 function lmErr_(st, msg) {
@@ -1072,6 +1189,37 @@ function lmErr_(st, msg) {
   st.errors = (st.errors || []).concat([line]).slice(-8);
   if (st.run) st.run.errors = (st.run.errors || []).concat([line]).slice(-8);
 }
+/** Something worth knowing that is not a fault (a part layout that grew). lmStatus prints it as "note". */
+function lmNote_(st, msg) {
+  var line = '[' + lmNow_() + '] ' + String(msg).slice(0, 180);
+  st.notes = (st.notes || []).concat([line]).slice(-6);
+  if (st.run) st.run.notes = (st.run.notes || []).concat([line]).slice(-6);
+}
+/** Lines older versions filed under errors that are notes. */
+function lmIsNote_(line) { return /laid out in \d+ parts/.test(String(line)); }
+
+/** The timer: every LM_TICK_FULL_MIN minutes while a full pass runs, else every LM_TICK_MIN. Apps Script cannot say
+ *  how often a trigger runs, so Script Property LM_TIMER_MIN remembers it (none = the 10 minutes lmSetup made). The new
+ *  timer is made before the old one goes, so a failure leaves the old one; it is tried again on the next tick. Never
+ *  makes a timer when there is none (lmStop). */
+function lmTimer_() {
+  var st = lmState_(), want = st.run ? LM_TICK_FULL_MIN : LM_TICK_MIN;
+  var props = PropertiesService.getScriptProperties();
+  if (Number(props.getProperty('LM_TIMER_MIN') || LM_TICK_MIN) === want) return;
+  try {
+    var old = ScriptApp.getProjectTriggers().filter(function (t) { return t.getHandlerFunction() === 'lmTick'; });
+    if (!old.length) return;
+    ScriptApp.newTrigger('lmTick').timeBased().everyMinutes(want).create();
+    old.forEach(function (t) { ScriptApp.deleteTrigger(t); });
+    props.setProperty('LM_TIMER_MIN', String(want));
+    if (st.timerErr) { delete st.timerErr; lmSave_(st); }
+    Logger.log('lmTick: the timer now runs every ' + want + ' minutes.');
+  } catch (e) {
+    var m = 'could not set the timer to every ' + want + ' minutes: ' + String(e.message || e).slice(0, 120);
+    if (st.timerErr !== m) { st.timerErr = m; lmErr_(st, m + ' — the old timer is kept'); lmSave_(st); }
+  }
+}
+function lmHH_(h) { return (h < 10 ? '0' : '') + h; }
 function lmNow_() { return Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm'); }
 function lmIso_(ms) { return ms ? Utilities.formatDate(new Date(ms), Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm') : ''; }
 function lmAddDays_(iso, n) { return Utilities.formatDate(new Date(Date.parse(iso + 'T12:00:00Z') + n * 86400000), 'UTC', 'yyyy-MM-dd'); }
@@ -1097,7 +1245,8 @@ function lmNextRun_(st) {
   if (st.reset) return 'a full pass on the next tick';
   var full = LM_FULL_HOURS.filter(function (h) { return !(st.slots || {})[today + '|' + h] && h > hour; })[0];
   var light = hour >= LM_LIGHT_FROM && hour < LM_LIGHT_TO ? lmIso_((st.lightAt || Date.now()) + LM_LIGHT_EVERY_MIN * 60000) : today + ' ' + (hour < LM_LIGHT_FROM ? '' : 'tomorrow ') + LM_LIGHT_FROM + ':00';
-  return (full != null ? 'full pass at ' + full + ':00 · ' : '') + 'light pass from ' + light;
+  var early = function (h) { var m = h * 60 - LM_EARLY_MIN; return lmHH_(Math.floor(m / 60)) + ':' + lmHH_(m % 60); };
+  return (full != null ? 'full pass at ' + full + ':00 (its reports asked at ' + early(full) + ') · ' : '') + 'light pass from ' + light;
 }
 function lmStatusLine_(m) { return Object.keys(m || {}).sort().map(function (k) { return k + ' ' + lmNf_(m[k]); }).join(', ') || '—'; }
 function lmLine_(label, amazon, cache) {
