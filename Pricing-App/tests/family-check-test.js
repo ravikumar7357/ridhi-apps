@@ -88,7 +88,7 @@ function setup(opts) {
   const IML = { SP: { at: new Date(Date.now() - 3 * 3600e3), items: S.items }, CPC: { at: new Date(Date.now() - 3 * 3600e3), items: [] } };
   const HEALTH = { SP: { at: new Date(), rows: S.rows }, CPC: { at: new Date(), rows: [] } };
   const LR_CAT = { SP: { 'RTC14-4': { color: 'Green', size: '60x90' }, 'RTC14-5': { color: 'Grey', size: '60x90' }, 'RTC14-6': { color: 'Black', size: '60x90' } }, CPC: {} };
-  const sends = [], calls = [], reads = [], cats = [], docKeys = [], scrolls = [];
+  const sends = [], calls = [], reads = [], cats = [], docKeys = [], scrolls = [], loads = [];
   const listing = sku => {
     const i = S.items.find(x => x.sku === sku) || {};
     const at = {};
@@ -134,15 +134,20 @@ function setup(opts) {
     sqName: e => String(e || '').split('@')[0].split(/[._-]+/).map(w => w[0].toUpperCase() + w.slice(1)).join(' '),
     sqValText: v => (Array.isArray(v) ? v.map(e => e.value || e.name || e.parent_sku || '').join(' · ') : ''),
     showTab: t => calls.push({ tab: t }), leOnly: (skus, label) => calls.push({ leOnly: skus, label }), leShow() {}, leListEnsure() {},
+    // the saved snapshots (Refresh reloads them; it never rebuilds them from Amazon) and their meta documents (the "New data" check)
+    imListLoad: async b => { loads.push('iml:' + b); if (opts.onImlLoad) opts.onImlLoad(b, IML); }, imListBuild: () => loads.push('BUILD'),
+    loadHealthCache: async () => { loads.push('health'); if (opts.onHealthLoad) opts.onHealthLoad(HEALTH); },
+    getDoc: async ref => ({ exists: () => !!(opts.saved && opts.saved[ref.path]), data: () => ({ at: { toDate: () => new Date(opts.saved[ref.path]) } }) }),
+    doc: (d, coll, id) => ({ path: coll + '/' + id }), db: {},
   };
   const tail = '\n;return { FC, fcBuild, fcSuggest, fcProblems, fcStem, fcAlike, fcRating, fcLowRated, fcIssueKind, fcAttrVal, fcCatTake, fcDrawAll, fcOpen, fcOkSet, fcOkSetMany, fcOkUndo,'
-    + ' fcLink, fcLinkMany, fcSetValue, fcAfterSend, fcOpenLerr, fcCsv, fcGroups, fcCount, fcClick, fcToggle, fcReadCat, fcReadAllCat, fcSelected, fcFamilyReport, FC_CSV_COLS, FC_STEP };';
+    + ' fcLink, fcLinkMany, fcSetValue, fcAfterSend, fcOpenLerr, fcCsv, fcGroups, fcCount, fcClick, fcToggle, fcReadCat, fcReadAllCat, fcSelected, fcFamilyReport, fcRefresh, fcCheckNewer, fcClock, FC_CSV_COLS, FC_STEP };';
   const C = new Function(...Object.keys(ctx), SRC + tail)(...Object.values(ctx));
   const body = () => el('fcBody').innerHTML;
   const click = (fc, data) => C.fcClick(Object.assign({ dataset: Object.assign({ fc }, data || {}), closest: () => null }));
   const tick = sku => click('tick', { fcB: 'SP', fcS: sku });
   const counts = () => ['orphan', 'dup', 'missing', 'theme'].map(k => C.fcCount(C.FC.view, k)).join(',');
-  return Object.assign(C, { el, store, sends, calls, reads, cats, S, IML, HEALTH, LR_CAT, mem, body, click, tick, counts, docKeys, scrolls });
+  return Object.assign(C, { el, store, sends, calls, reads, cats, S, IML, HEALTH, LR_CAT, mem, body, click, tick, counts, docKeys, scrolls, loads });
 }
 const flush = async () => { for (let i = 0; i < 8; i++) await new Promise(r => setImmediate(r)); };
 const flushAll = async C => { for (let i = 0; i < 4000 && (C.FC.reads.inflight || (C.FC.reads.q.length && !(C.FC.reads.q[0].bg && C.FC.open))); i++) await new Promise(r => setImmediate(r)); await flush(); };
@@ -403,6 +408,56 @@ const ready = async opts => { const C = setup(opts); await C.fcOpen(); await flu
     ok(`152 families with a problem: ${C.FC_STEP} lines drawn, then "Show more families (92 left)"`, heads(h) === 60 && /Show more families \(92 left\)/.test(h), heads(h));
     ok('one Amazon call per family (152)', C.cats.length === 152, C.cats.length);
     ok('the cards count every family', C.fcCount(C.FC.view, 'dup') === 304);
+  }
+
+  console.log('== Refresh: the latest saved data, and Amazon again ==');
+  {
+    const C = await ready();
+    const pane = C.el('fcPane').innerHTML;
+    ok('[Refresh] sits next to Export CSV', /id="fcRefresh" data-fc="refresh"[^>]*>Refresh<\/button><button type="button" class="ghost fc-famonly" data-fc="csv">Export CSV<\/button>/.test(pane));
+    const again = setup({ mem: C.mem, onHealthLoad: H => { H.SP = { at: new Date(), rows: H.SP.rows.map(r => Object.assign({}, r, r.sku === 'RTC14-7' ? { qty: 0 } : {})) }; } });
+    await again.fcOpen();
+    ok('(the saved copy: a new page load reads nothing)', again.cats.length === 0 && again.counts() === '3,4,1,1');
+    again.fcToggle(RTC);
+    const run = again.fcRefresh();
+    ok('click: the button is disabled and says "Refreshing…"', again.el('fcRefresh').disabled === true && again.el('fcRefresh').textContent === 'Refreshing…');
+    await run;
+    ok('the saved snapshots are reloaded from storage (Image Manager both brands, Listing Health) — never rebuilt from Amazon', again.loads.join() === 'iml:SP,iml:CPC,health');
+    ok('then every family is read from Amazon again, ignoring the saved copy, 2 calls at a time — "Families 0 / 2"', again.cats.length === 2 && again.FC.reads.inflight === 2
+      && again.el('fcRefresh').textContent === 'Refreshing… Families 0 / 2' && /<b>Families 0 \/ 2<\/b>/.test(again.el('fcMeta').innerHTML), again.el('fcRefresh').textContent);
+    ok('…even with a family open (the open family stays open)', again.FC.open === RTC);
+    await flushAll(again);
+    ok('done: the button is back, the cards and rows show the new data (RTC14-7 out of stock → Not in family 2)', again.el('fcRefresh').disabled === false && again.el('fcRefresh').textContent === 'Refresh'
+      && again.counts() === '2,4,1,1' && !probOf(again.FC.view, 'RTC14-7', 'orphan') && again.FC.open === RTC, again.counts());
+    ok('no page jump (nothing scrolled)', again.scrolls.length === 0);
+    ok('…and the new reads are kept', JSON.parse(again.mem.fcCat1).cat['SP|BPARENT014'].at >= JSON.parse(C.mem.fcCat1).cat['SP|BPARENT014'].at);
+    ok('per-family [Read again] is still there', /data-fc="reread"/.test(again.body()));
+  }
+  {
+    const C = await ready();
+    const m = C.el('fcMeta').innerHTML;
+    const t = ms => C.fcClock(ms);
+    ok('the top line: "Errors/status saved <time> · stock saved <time> · families read <time>"', m.includes(`Errors/status saved ${t(C.IML.SP.at.getTime())}`) && m.includes(`stock saved ${t(C.HEALTH.SP.at.getTime())}`)
+      && /families read \d{1,2}:\d\d [AP]M/.test(m), strip(m));
+    ok('…today as "1:42 PM"', /^\d{1,2}:\d\d [AP]M$/.test(C.fcClock(Date.now())));
+    ok('…none older than 24 h: no yellow', !/class="fc-old"/.test(m));
+    const O = setup();
+    O.IML.SP.at = new Date(Date.now() - 30 * 3600e3); O.IML.CPC.at = new Date(Date.now() - 30 * 3600e3);
+    await O.fcOpen(); await flushAll(O);
+    const mo = O.el('fcMeta').innerHTML;
+    ok('a saved part older than 24 h is yellow (only that part)', /<span class="fc-old">Errors\/status saved [^<]+<\/span>/.test(mo) && /<span class="">stock saved/.test(mo), strip(mo));
+  }
+  {
+    const C = await ready({ saved: { 'imgsnap/SP': Date.now() + 5000, 'health/SP': Date.now() - 864e5 } });
+    ok('no newer snapshot: nothing shown', !/New data available/.test(C.el('fcMeta').innerHTML));
+    ok('a newer saved Image Manager snapshot (the 1 PM / 6 PM refresh): "New data available — [Refresh]"', (await C.fcCheckNewer()) === true
+      && /New data available — <button type="button" class="fc-b" data-fc="refresh">Refresh<\/button>/.test(C.el('fcMeta').innerHTML));
+    const H = await ready({ saved: { 'health/CPC': Date.now() + 5000 } });
+    H.HEALTH.CPC.at = new Date(Date.now() - 3600e3);
+    ok('…a newer Listing Health snapshot too', (await H.fcCheckNewer()) === true);
+    C.click('refresh');
+    ok('clicking it starts the Refresh and the message goes', C.FC.refresh.on === true && !/New data available/.test(C.el('fcMeta').innerHTML));
+    await flushAll(C);
   }
 
   console.log('== other screens unchanged ==');

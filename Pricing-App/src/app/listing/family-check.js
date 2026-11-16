@@ -58,6 +58,8 @@ let FC = { tab: 'fam', brand: 'ALL', q: '', card: '', built: false, loading: fal
   sel: new Set(), bulkAsk: false, bulkReason: '', bulkMsg: '',   // the ticked rows ("brand|sku") and the bar's reason box
   limit: FC_STEP, order: null, io: null,                         // family lines drawn so far; the order they were first drawn in
   failed: new Set(),            // families whose catalog read failed this visit (fk): counted as asked, not saved
+  refresh: { on: false, step: '', done: 0, total: 0, left: new Map(), at: 0 },   // the Refresh button's run ("Families 40 / 91")
+  newer: false, newT: 0,        // a newer saved snapshot exists ("New data available — Refresh"); the 5-minute check
   reading: new Map(), reads: { q: [], inflight: 0, bgIn: 0, fails: 0 }, view: null, drawT: 0 };   // reading: fk → catalog calls still out
 const fcEsc = s => String(s == null ? '' : s).replace(/[<>&"]/g, ch => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[ch]));
 const fcNf = n => Number(n || 0).toLocaleString('en-US');
@@ -196,7 +198,11 @@ function fcPump() {
       if (!job.follow) {
         const byPa = new Map();
         recs.forEach(r => { if (r.pa && !r.kids && !(FC.cat[fcKey(job.brand, r.asin)] || {}).vals) byPa.set(r.pa, (byPa.get(r.pa) || []).concat([r.asin])); });
-        byPa.forEach((kids, pa) => fcQueueCat(fcChunks([pa], kids).map(asins => ({ brand: job.brand, asins, pa, follow: 1 })), job.fk, job.bg, !job.bg));
+        byPa.forEach((kids, pa) => {
+          const more = fcChunks([pa], kids).map(asins => ({ brand: job.brand, asins, pa, follow: 1, ref: job.ref }));
+          if (job.ref && FC.refresh.left.has(job.fk)) FC.refresh.left.set(job.fk, FC.refresh.left.get(job.fk) + more.length);
+          fcQueueCat(more, job.fk, job.bg, !job.bg);
+        });
       }
     }).catch(() => { R.fails++; if (job.fk) FC.failed.add(job.fk); }).then(() => {
       R.inflight--;
@@ -205,6 +211,12 @@ function fcPump() {
         const left = FC.reading.get(job.fk) - 1;
         if (left > 0) FC.reading.set(job.fk, left);
         else FC.reading.delete(job.fk);
+      }
+      if (job.ref && FC.refresh.on && FC.refresh.left.has(job.fk)) {             // a Refresh read: the family is done when its last call lands
+        const left = FC.refresh.left.get(job.fk) - 1;
+        if (left > 0) FC.refresh.left.set(job.fk, left);
+        else { FC.refresh.left.delete(job.fk); FC.refresh.done++; }
+        if (!FC.refresh.left.size) fcRefreshDone();
       }
       if (!R.q.length && !R.inflight) fcCatSave();
       fcSchedule();
@@ -745,6 +757,77 @@ async function fcFamilyReport(name, force) {
 }
 if (typeof window !== 'undefined') window.fcFamilyReport = fcFamilyReport;
 
+/* ----- Refresh: the latest saved data, and Amazon's catalog read again ----- */
+// A time as people read it: "1:42 PM" today, "15 Nov, 6:02 PM" before.
+function fcClock(ms) {
+  const d = new Date(ms), now = new Date();
+  const t = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  return d.toDateString() === now.toDateString() ? t : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) + ', ' + t;
+}
+/** [Refresh]: reload the LATEST SAVED snapshots from the places Image Manager and Listing Health read them (imgsnap / health — no new Amazon
+ *  rebuild of either), then read every family's catalog from Amazon again, ignoring the saved copy (2 calls at a time; "Families 40 / 91").
+ *  The open family stays open; the page does not move. */
+async function fcRefresh() {
+  if (FC.refresh.on) return null;
+  FC.refresh = { on: true, step: 'saved', done: 0, total: 0, left: new Map(), at: FC.refresh.at };
+  FC.newer = false;
+  fcDrawAll();
+  try {
+    for (const b of ['SP', 'CPC']) if (typeof imListLoad === 'function') await imListLoad(b);   // Amazon errors + status: the saved Image Manager snapshot
+    if (typeof loadHealthCache === 'function') await loadHealthCache();                         // stock: the saved Listing Health snapshot
+  } catch (e) {
+    FC.err = 'Could not reload the saved snapshots: ' + ((e && e.message) || e);
+  }
+  const v = fcBuild();
+  // this run replaces the background reads still waiting
+  const R = FC.reads;
+  R.q = R.q.filter(j => {
+    if (!j.bg) return true;
+    if (j.fk && FC.reading.has(j.fk)) { const n = FC.reading.get(j.fk) - 1; if (n > 0) FC.reading.set(j.fk, n); else FC.reading.delete(j.fk); }
+    return false;
+  });
+  const fams = v.families.filter(x => x.live.length);
+  Object.assign(FC.refresh, { step: 'cat', total: fams.length });
+  fams.forEach(x => {
+    FC.failed.delete(x.fk);
+    const jobs = fcFamAsins(x, v).map(asins => ({ brand: x.brand, asins, pa: x.pa, ref: 1 }));
+    if (!jobs.length) { FC.refresh.done++; return; }
+    FC.refresh.left.set(x.fk, jobs.length);
+    fcQueueCat(jobs, x.fk, false);
+  });
+  if (!FC.refresh.left.size) fcRefreshDone();
+  fcDrawAll();
+  return FC.refresh.total;
+}
+function fcRefreshDone() {
+  Object.assign(FC.refresh, { on: false, step: '', at: Date.now() });
+  fcCatSave();
+  fcSchedule();
+}
+/** Is a newer snapshot saved than the one on the page (after the 1 PM / 6 PM refresh, or someone's Refresh in Image Manager / Listing Health)?
+ *  Reads only the two small meta documents per brand. */
+async function fcCheckNewer() {
+  if (typeof getDoc !== 'function' || typeof doc !== 'function' || FC.refresh.on) return FC.newer;
+  const atOf = data => (data && data.at && data.at.toDate ? data.at.toDate().getTime() : 0);
+  const have = (store, b) => (store && store[b] && store[b].at && store[b].at.getTime ? store[b].at.getTime() : 0);
+  let newer = false;
+  for (const b of ['SP', 'CPC']) {
+    try {
+      const [im, he] = await Promise.all([getDoc(doc(db, 'imgsnap', b)), getDoc(doc(db, 'health', b))]);
+      const imAt = im && im.exists() ? atOf(im.data()) : 0, heAt = he && he.exists() ? atOf(he.data()) : 0;
+      if (imAt > have(typeof IML !== 'undefined' ? IML : null, b) + 1000 || heAt > have(typeof HEALTH !== 'undefined' ? HEALTH : null, b) + 1000) newer = true;
+    } catch (e) { /* no answer: ask again next time */ }
+  }
+  if (newer !== FC.newer) { FC.newer = newer; fcDrawAll(); }
+  return newer;
+}
+// Every 5 minutes while the page is open.
+function fcWatchNewer() {
+  if (FC.newT || typeof setInterval !== 'function') return;
+  FC.newT = setInterval(() => { if (fcPaneOn()) fcCheckNewer(); }, 5 * 60e3);
+  if (FC.newT && FC.newT.unref) FC.newT.unref();
+}
+
 /* ----- drawing ----- */
 // The groups the filters keep (brand, search, the card picked); a row keeps only the picked card's problem. The order stays the one the
 // families were first drawn in, so a family never moves under the mouse when a read lands.
@@ -766,7 +849,7 @@ function fcShell() {
   box.innerHTML = `<div class="card fc-tb"><div class="toolbar"><div class="seg" role="group" aria-label="Which check">${seg}</div>`
     + `<span class="fc-famonly"><select data-fc-f="brand" aria-label="Brand"><option value="ALL">Both brands</option><option value="SP">Ridhi</option><option value="CPC">CPC</option></select></span>`
     + `<input type="search" class="fc-famonly" data-fc-f="q" placeholder="Search SKU, ASIN or family" aria-label="Search">`
-    + `<span style="flex:1"></span><button type="button" class="ghost fc-famonly" data-fc="csv">Export CSV</button></div><div class="fc-meta muted" id="fcMeta"></div></div><div id="fcBody"></div>`;
+    + `<span style="flex:1"></span><button type="button" class="ghost fc-famonly" id="fcRefresh" data-fc="refresh" title="Reload the latest saved Image Manager and Listing Health snapshots, and read every family from Amazon again">Refresh</button><button type="button" class="ghost fc-famonly" data-fc="csv">Export CSV</button></div><div class="fc-meta muted" id="fcMeta"></div></div><div id="fcBody"></div>`;
   FC.built = true;
 }
 function fcDrawAll() {
@@ -792,10 +875,21 @@ function fcDrawTools(v) {
   const oldest = store => { const t = ['SP', 'CPC'].map(b => at(store, b)).filter(Boolean); return t.length ? Math.min(...t) : 0; };
   const parts = [`Live children only (buyable and in stock): ${fcNf(v.live)} of ${fcNf(v.all)} ASINs (our SKUs on one ASIN are one child; Amazon resale SKUs left out)`,
     'flags from Amazon\'s catalog and Amazon\'s issues only',
-    `Amazon issues from the Image Manager snapshot ${fcAgo(oldest(typeof IML !== 'undefined' ? IML : null))}`,
-    `stock from Listing Health ${fcAgo(oldest(typeof HEALTH !== 'undefined' ? HEALTH : null))}`,
     v.ratingFound ? `ratings found for ${fcNf(v.ratingFound)} listings: below 4 ★ counts as removed on purpose` : 'ratings: none in Sellora\'s data — the team marks children removed for a low rating'];
-  meta.innerHTML = parts.map(fcEsc).join(' · ') + (FC.err ? `<div class="err">${fcEsc(FC.err)}</div>` : '') + (FC.msg ? `<div>${fcEsc(FC.msg)}</div>` : '')
+  // when each part was saved / read: "Errors/status saved 1:42 PM · stock saved 1:42 PM · families read 12:50 PM" (yellow when older than 24 h)
+  const famAt = v.families.filter(x => x.live.length && x.amz).map(x => x.amz.at);
+  const when = (label, ms) => `<span class="${!ms || Date.now() - ms > 864e5 ? 'fc-old' : ''}">${fcEsc(label)} ${ms ? fcEsc(fcClock(ms)) : 'never'}</span>`;
+  const times = [when('Errors/status saved', oldest(typeof IML !== 'undefined' ? IML : null)), when('stock saved', oldest(typeof HEALTH !== 'undefined' ? HEALTH : null)),
+    when('families read', famAt.length ? Math.min(...famAt) : 0)].join(' · ');
+  const R = FC.refresh;
+  const btn = $('fcRefresh');
+  if (btn) {
+    btn.disabled = R.on;
+    btn.textContent = !R.on ? 'Refresh' : R.step === 'saved' ? 'Refreshing…' : `Refreshing… Families ${fcNf(R.done)} / ${fcNf(R.total)}`;
+  }
+  meta.innerHTML = `<div class="fc-times">${times}${R.on && R.step === 'cat' ? ` · <b>Families ${fcNf(R.done)} / ${fcNf(R.total)}</b>` : ''}</div>`
+    + (FC.newer && !R.on ? '<div class="fc-newer">New data available — <button type="button" class="fc-b" data-fc="refresh">Refresh</button></div>' : '')
+    + parts.map(fcEsc).join(' · ') + (FC.err ? `<div class="err">${fcEsc(FC.err)}</div>` : '') + (FC.msg ? `<div>${fcEsc(FC.msg)}</div>` : '')
     + v.notes.map(n => `<div>${fcEsc(n)}</div>`).join('') + (FC.okNote ? `<div class="fc-oknote">${fcEsc(FC.okNote)}</div>` : '');
 }
 const FC_COLS = 8;
@@ -956,6 +1050,7 @@ function fcClick(el) {
   if (act === 'card') { FC.card = FC.card === v ? '' : v; FC.limit = FC_STEP; return fcDrawAll(); }
   if (act === 'grp') return fcToggle(v, el);
   if (act === 'reread') { fcReadCat(v, true); return fcDrawAll(); }
+  if (act === 'refresh') return fcRefresh();
   if (act === 'more') { FC.limit += FC_STEP; return fcDrawAll(); }
   if (act === 'link') return fcLink(brand, sku);
   if (act === 'set') return fcSetValue(brand, sku, el.dataset.fcK);
@@ -1021,6 +1116,7 @@ async function fcOpen() {
   FC.loading = false;
   FC.loaded = true;
   fcBuild();
+  fcWatchNewer();
   fcReadAllCat();                                                          // queued first, so the cards say "Reading Amazon… 0 of N" at once
   fcDrawAll();
 }

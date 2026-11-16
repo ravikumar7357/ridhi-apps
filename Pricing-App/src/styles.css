@@ -3047,6 +3047,10 @@
   #paneFam .fc-src{display:block;margin:1px 0 4px 14px;font-size:11px;color:var(--faint)}
   #paneFam .fc-also{display:block;font-size:11.5px;color:var(--muted)}
   #paneFam .fc-also .fc-chip{margin-left:4px}
+  #paneFam .fc-times{margin-bottom:2px;color:var(--ink)}
+  #paneFam .fc-old{color:var(--rev-ink);font-weight:650}
+  #paneFam .fc-newer{display:flex;align-items:center;gap:8px;margin:4px 0;padding:6px 10px;border-radius:8px;background:var(--brand-bg);color:var(--brand-ink);font-weight:600}
+  #paneFam .fc-newer .fc-b{margin:0}
   #paneFam .fc-vals{min-width:150px;max-width:260px;font-size:12px;line-height:1.4;white-space:normal}
   #paneFam .fc-row>td:first-child{box-shadow:inset 3px 0 0 var(--line)}
   #paneFam .fc-row.is-orphan>td:first-child{box-shadow:inset 3px 0 0 var(--bad)}
