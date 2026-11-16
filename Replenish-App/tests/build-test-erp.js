@@ -93,16 +93,50 @@ const GUARD = `<script>/* TEST ERP GUARD — added by Replenish-App/tests/build-
   function sbStore(key, m) { SBMEM[key] = m; sbCopy(key, { text: m.text, upto: m.upto, at: m.at }); }
   /* a whole list, downloaded: first the tiny "up to which save" number, then the list itself as it is (16 Nov: packing the
    * list and its number into one answer made ERP data rebuild 5–7 MB per read). The number first: a copy can only be newer. */
+  /* C (16 Nov): ERP data also keeps each whole list as a FILE in its file storage; manifest.json says up to which save each file
+   * is complete (only confirmed uploads are listed). A first load downloads the file — the database does no work — and the
+   * changes since come from rt_changes in the background as usual. No file yet / not allowed / any trouble: the database. */
+  var SBMAN = null;
+  function sbStorageGet(path, tok, origFetch) {
+    var sb = window.__TEST_ERP.sb;
+    return origFetch(sb.url + '/storage/v1/object/authenticated/erp-lists/' + path, { headers: { apikey: sb.key, Authorization: 'Bearer ' + (tok || sb.key) }, cache: 'no-store' })
+      .then(function (r) { return r.ok ? r.text() : null; }).catch(function () { return null; });
+  }
+  function sbManifest(tok, origFetch) {
+    if (!SBMAN) SBMAN = sbStorageGet('manifest.json?t=' + Date.now(), tok, origFetch).then(function (t) { try { return t ? JSON.parse(t) : null; } catch (e) { return null; } });
+    return SBMAN;
+  }
   function sbFull(key, p, tok, origFetch) {
+    return sbManifest(tok, origFetch).then(function (man) {
+      var e = man && man[p];
+      if (!e || e.upto == null) return sbFullDb(key, p, tok, origFetch);
+      return sbStorageGet(p + '.json?v=' + e.upto, tok, origFetch).then(function (t) {
+        if (!t) return sbFullDb(key, p, tok, origFetch);
+        var m = { text: t, upto: e.upto, at: Date.now(), from: 'file' }; sbStore(key, m); return m;
+      });
+    });
+  }
+  /* B (16 Nov): from the database the list comes as plain text ("Accept: text/plain") — handed over as it is, no checking step */
+  function sbFullDb(key, p, tok, origFetch) {
     var sb = window.__TEST_ERP.sb;
     return sbRpc('rt_list_upto', { p_reg: p }, tok, origFetch).then(function (upto) {
-      return origFetch(sb.url + '/rest/v1/rpc/rt_get_json', { method: 'POST', body: JSON.stringify({ p_path: p }),   /* the list's ready text (16 Nov) */
-        headers: { apikey: sb.key, Authorization: 'Bearer ' + (tok || sb.key), 'Content-Type': 'application/json', 'Content-Profile': 'core', 'Accept-Profile': 'core' } })
+      return origFetch(sb.url + '/rest/v1/rpc/rt_get_text', { method: 'POST', body: JSON.stringify({ p_path: p }),
+        headers: { apikey: sb.key, Authorization: 'Bearer ' + (tok || sb.key), 'Content-Type': 'application/json', Accept: 'text/plain', 'Content-Profile': 'core', 'Accept-Profile': 'core' } })
         .then(function (r) { return r.text().then(function (t) {
+          if (r.status === 406) return sbFullJson(key, p, upto, tok, origFetch);     /* plain text refused: the JSON answer instead */
           if (!r.ok) { var why = t; try { var j = JSON.parse(t); why = [j.message, j.hint].filter(Boolean).join(' · ') || t; } catch (e) {} throw new Error('ERP data ' + r.status + ': ' + why); }
-          var m = { text: t || 'null', upto: upto, at: Date.now() }; sbStore(key, m); return m;   /* the answer's own text: never parsed and written again */
+          var m = { text: t || 'null', upto: upto, at: Date.now(), from: 'database' }; sbStore(key, m); return m;   /* the answer's own text: never parsed and written again */
         }); });
     });
+  }
+  function sbFullJson(key, p, upto, tok, origFetch) {
+    var sb = window.__TEST_ERP.sb;
+    return origFetch(sb.url + '/rest/v1/rpc/rt_get_json', { method: 'POST', body: JSON.stringify({ p_path: p }),
+      headers: { apikey: sb.key, Authorization: 'Bearer ' + (tok || sb.key), 'Content-Type': 'application/json', 'Content-Profile': 'core', 'Accept-Profile': 'core' } })
+      .then(function (r) { return r.text().then(function (t) {
+        if (!r.ok) { var why = t; try { var j = JSON.parse(t); why = [j.message, j.hint].filter(Boolean).join(' · ') || t; } catch (e) {} throw new Error('ERP data ' + r.status + ': ' + why); }
+        var m = { text: t || 'null', upto: upto, at: Date.now(), from: 'database' }; sbStore(key, m); return m;
+      }); });
   }
   function sbRefresh(key, p, tok, origFetch) {
     if (SBBUSY[key]) return SBBUSY[key];
@@ -175,7 +209,8 @@ const GUARD = `<script>/* TEST ERP GUARD — added by Replenish-App/tests/build-
     var vp = whole ? sbWhole(p, tok, origFetch)
       : part ? sbWhole('pt_baseDone', tok, origFetch).then(function (t) { return sbPart(window.__TEST_ERP.sb.url + '|pt_baseDone', t, p.split('/').slice(1)); })
       : sbRpc('rt_get', body, tok, origFetch);
-    vp.then(function (v) { sbNote(p, how, Date.now() - t0, typeof v === 'string' ? v.length : JSON.stringify(v === undefined ? null : v).length, ''); },
+    vp.then(function (v) { var mm = whole ? SBMEM[window.__TEST_ERP.sb.url + '|' + p] : null;
+                           sbNote(p, how === 'whole' && mm && mm.from ? 'whole from ' + mm.from : how, Date.now() - t0, typeof v === 'string' ? v.length : JSON.stringify(v === undefined ? null : v).length, ''); },
             function (e) { sbNote(p, how, Date.now() - t0, 0, e.message); });
     var p0 = vp.then(function (v) {
       if (typeof v === 'string') return new Response(v, { status: 200, headers: { 'Content-Type': 'application/json', ETag: 'sb' } });   /* a whole list: its ready text */
