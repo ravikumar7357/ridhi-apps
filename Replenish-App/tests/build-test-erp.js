@@ -96,7 +96,7 @@ const GUARD = `<script>/* TEST ERP GUARD — added by Replenish-App/tests/build-
   function sbFull(key, p, tok, origFetch) {
     var sb = window.__TEST_ERP.sb;
     return sbRpc('rt_list_upto', { p_reg: p }, tok, origFetch).then(function (upto) {
-      return origFetch(sb.url + '/rest/v1/rpc/rt_get', { method: 'POST', body: JSON.stringify({ p_path: p }),
+      return origFetch(sb.url + '/rest/v1/rpc/rt_get_json', { method: 'POST', body: JSON.stringify({ p_path: p }),   /* the list's ready text (16 Nov) */
         headers: { apikey: sb.key, Authorization: 'Bearer ' + (tok || sb.key), 'Content-Type': 'application/json', 'Content-Profile': 'core', 'Accept-Profile': 'core' } })
         .then(function (r) { return r.text().then(function (t) {
           if (!r.ok) { var why = t; try { var j = JSON.parse(t); why = [j.message, j.hint].filter(Boolean).join(' · ') || t; } catch (e) {} throw new Error('ERP data ' + r.status + ': ' + why); }
@@ -460,6 +460,9 @@ fs.writeFileSync(path.join(OUT, '.nojekyll'), '');
   html = must(html, '<script>/* TEST ERP GUARD', '<script>/* TEST ERP GUARD (factory ERP: loads from ERP data) */ window.__TEST_ERP_SB_PAGE = true; </script><script>/* TEST ERP GUARD', 1, 'factory ERP loads from ERP data');
   html = must(html, "import('https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js')", "Promise.reject(new Error('test ERP: no live Firebase connection — data comes from ERP data'))", null, 'factory ERP no live Firebase connection');
   html = must(html, /const ASH = \{(\r?\n)(\s*)on: /, 'const ASH = {$1$2on: false && ', 1, 'factory ERP check badges off');
+  /* no read first tries the live Firebase connection that is not there (16 Nov: each read failed on it first — wasted work and
+   * "[data meter] Error" in the console); every read goes straight to the plain read, which the guard answers */
+  html = must(html, 'const ptLiveable = node => typeof app', 'const ptLiveable = node => false && typeof app', 1, 'factory ERP no live-copy attempt');
   ['logo.png', 'manifest.webmanifest', 'apple-touch-icon.png', 'wordmark.png'].forEach(f => {
     html = must(html, new RegExp(`(href|src)="/${f.replace('.', '\\.')}"`, 'g'), `$1="${f}"`, null, 'factory ERP ' + f);
   });
