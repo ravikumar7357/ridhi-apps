@@ -91,9 +91,17 @@ const GUARD = `<script>/* TEST ERP GUARD — added by Replenish-App/tests/build-
    * after (one at a time per list) — the next open has the changes. Only a list never seen here waits for ERP data. */
   var SBMEM = {}, SBBUSY = {};
   function sbStore(key, m) { SBMEM[key] = m; sbCopy(key, { text: m.text, upto: m.upto, at: m.at }); }
+  /* a whole list, downloaded: first the tiny "up to which save" number, then the list itself as it is (16 Nov: packing the
+   * list and its number into one answer made ERP data rebuild 5–7 MB per read). The number first: a copy can only be newer. */
   function sbFull(key, p, tok, origFetch) {
-    return sbRpc('rt_get_v', { p_path: p }, tok, origFetch).then(function (r) {
-      var m = { text: JSON.stringify(r.v === undefined ? null : r.v), upto: r.upto, at: Date.now() }; sbStore(key, m); return m;
+    var sb = window.__TEST_ERP.sb;
+    return sbRpc('rt_list_upto', { p_reg: p }, tok, origFetch).then(function (upto) {
+      return origFetch(sb.url + '/rest/v1/rpc/rt_get', { method: 'POST', body: JSON.stringify({ p_path: p }),
+        headers: { apikey: sb.key, Authorization: 'Bearer ' + (tok || sb.key), 'Content-Type': 'application/json', 'Content-Profile': 'core', 'Accept-Profile': 'core' } })
+        .then(function (r) { return r.text().then(function (t) {
+          if (!r.ok) { var why = t; try { var j = JSON.parse(t); why = [j.message, j.hint].filter(Boolean).join(' · ') || t; } catch (e) {} throw new Error('ERP data ' + r.status + ': ' + why); }
+          var m = { text: t || 'null', upto: upto, at: Date.now() }; sbStore(key, m); return m;   /* the answer's own text: never parsed and written again */
+        }); });
     });
   }
   function sbRefresh(key, p, tok, origFetch) {
