@@ -655,6 +655,86 @@ function pxAmzGapRow(tot) {
   return parts.length ? `<tr class="px-amzgap"><td class="l px-dim" colspan="99"><small>${parts.join(' ')}</small></td></tr>` : '';
 }
 
+/* ---------- ads by campaign type: Sponsored Products, Brands and Display apart (16 Nov 2026) ----------
+ * The page's ad columns are Sponsored Products only, and the Ad Console shows the three types added up — nowhere said
+ * what each type did. This card reads the same matchAds days the Ad Console adds up (Campaign manager's campaign
+ * reports, per type, per day — Pricing-API/AmazonMatch.gs) and lays the three types side by side for the dates and
+ * brand(s) in view, each with its funnel (impressions → clicks → orders) and how its sales are counted:
+ *   sp: [impressions, clicks, cost, sales7d, purchases7d, sales14d, purchases14d, sales30d, purchases30d, spend]
+ *   sb / sd: [impressions, clicks, cost, sales*, orders*, salesAll, ordersAll, salesClicks, ordersClicks]
+ *     * the console's rule: vCPM campaigns count sales from views too, CPC campaigns from clicks only.
+ * Campaign reports are whole-brand: a search does not narrow this card. */
+// The last day every brand in view has campaign figures for ('' when none).
+function pxTypeEnd() {
+  if (typeof T_MATCH === 'undefined' || !T_MATCH.ads || !T_MATCH.ads.d) return '';
+  const bs = PX.brand === 'ALL' ? adBrands() : [PX.brand];
+  const ends = bs.map(b => Object.keys(T_MATCH.ads.d[b] || {}).filter(d => (T_MATCH.ads.d[b][d] || {}).sp).sort().pop() || '');
+  return ends.some(e => !e) ? '' : ends.sort()[0];
+}
+// The three types added up over lo..hi for the brands in view: { sp, sb, sd } arrays, or null when a day is missing.
+function pxTypeSums(lo, hi) {
+  if (!lo || !hi || lo > hi) return null;
+  const bs = PX.brand === 'ALL' ? adBrands() : [PX.brand];
+  const out = { sp: Array(10).fill(0), sb: Array(9).fill(0), sd: Array(9).fill(0) };
+  for (const d of wDaysBetween(lo, hi)) {
+    for (const b of bs) {
+      const k = (T_MATCH.ads.d[b] || {})[d];
+      if (!k || !k.sp) return null;                       // Sponsored Products is always there on a day that is in
+      ['sp', 'sb', 'sd'].forEach(t => (k[t] || []).forEach((v, i) => { if (i < out[t].length) out[t][i] += Number(v) || 0; }));
+    }
+  }
+  return out;
+}
+function pxTypeCard(ctx) {
+  const p = ctx.span;
+  if (!p || p.src === 'none' || typeof T_MATCH === 'undefined' || !T_MATCH.ads) return '';
+  const end = pxTypeEnd();
+  const hi = end && end < p.hi ? end : p.hi;
+  const who = PX.brand === 'ALL' ? 'Both brands' : BRAND_NAME[PX.brand] || PX.brand;
+  const head = sub => `<div class="px-sech px-types-h"><b>Ads by campaign type</b><span>${sub}</span>`
+    + pxI('types', 'Ads by campaign type', '<p>Amazon’s Campaign manager, one row per campaign type, for the dates and brand(s) in view — the figures Ads console → Campaign manager shows when you filter by type. <b>All types</b> is what the Ad Console page adds up.</p>'
+      + '<ul><li><b>Sponsored Products</b>: sales and orders within <b>7 days</b> of the click, as the console counts them. Under it, the same clicks counted over 14 and 30 days — the product rows of this page still count 30 days, which is why they add up to more.</li>'
+      + '<li><b>Sponsored Brands / Display</b>: the console counts sales from <b>clicks</b>, and for vCPM (pay-per-thousand-views) campaigns from <b>views</b> too. Under each: what came from clicks, and what came from views.</li></ul>'
+      + '<p><b>Funnel</b>: impressions → clicks (CTR = clicks ÷ impressions) → orders (CVR = orders ÷ clicks). <b>TACoS</b> sets all ad spend against Seller Central’s own sales for the same days.</p>'
+      + '<p>Campaign reports are whole-brand: searching the table does not narrow this card. The newest day comes with tonight’s run.</p>') + '</div>';
+  const sums = pxTypeSums(p.lo, hi);
+  if (!sums) {
+    const why = !end ? 'no campaign figures yet' : p.lo > end ? `the ad report reaches ${pxEsc(pxDM(end))} — these dates come with tonight’s run`
+      : 'not every day of these dates is in (Amazon keeps about 95 days of campaign reports)';
+    return `<div class="px-card px-types">${head(pxEsc(who) + ' · ' + pxEsc(pxFmtRange(p.lo, p.hi)))}<p class="px-dim px-types-none">${why}</p></div>`;
+  }
+  const { sp, sb, sd } = sums;
+  // [impressions, clicks, spend, sales (console), orders (console)] per row; All = the three added up.
+  const row = a => a.slice(0, 5);
+  const all = [0, 1, 2, 3, 4].map(i => sp[i] + sb[i] + sd[i]);
+  const biz = pxAmzDays(p.lo, hi), allSales = biz && biz.cut === hi ? biz.s[0] : null;
+  const pctOf = (a, b) => (b ? a / b * 100 : null);
+  const views = (a, i, j) => Math.max(0, a[i] - a[j]);          // all sales/orders − those from clicks
+  const tr = (cls, name, f, note) => {
+    const [im, cl, sp$, s$, o] = f;
+    return `<tr class="${cls}"><td class="l"><b>${name}</b>${note ? `<small>${note}</small>` : ''}</td>`
+      + `<td>${pxN(im)}</td><td>${pxN(cl)}</td><td>${pxPct(pctOf(cl, im))}</td><td>${pxC2(cl ? sp$ / cl : null)}</td>`
+      + `<td><b>${pxMoney(sp$)}</b></td><td>${pxPct(pctOf(sp$, all[2]))}</td>`
+      + `<td><b>${pxMoney(s$)}</b></td><td>${pxN(o)}</td><td>${pxPct(pctOf(o, cl))}</td>`
+      + `<td>${pxPct(pctOf(sp$, s$))}</td><td>${s$ && sp$ ? pxX(s$ / sp$) : '—'}</td></tr>`;
+  };
+  const spNote = `7-day, as the console · 14-day ${pxMoney(sp[5])} / ${pxN(sp[6])} · 30-day ${pxMoney(sp[7])} / ${pxN(sp[8])}`;
+  const vNote = a => `from clicks ${pxMoney(a[7])} / ${pxN(a[8])} · from views ${pxMoney(views(a, 5, 7))} / ${pxN(views(a, 6, 8))}`
+    + (a[5] - a[3] >= 0.5 ? ` · views of CPC campaigns not counted: ${pxMoney(a[5] - a[3])}` : '');
+  const allNote = allSales != null
+    ? `TACoS ${pxPct(pctOf(all[2], allSales))} of Seller Central’s ${pxMoney(allSales)} · ad sales ${pxPct(pctOf(all[3], allSales))} of all sales`
+    : 'the Ad Console page’s figure';
+  const sub = `${pxEsc(who)} · ${pxEsc(pxFmtRange(p.lo, hi))}${hi < p.hi ? ` · <span class="px-adto">ads to ${pxEsc(pxDM(hi))}</span>` : ''}${PX.q.trim() ? ' · whole brand (the search does not narrow it)' : ''}`;
+  return `<div class="px-card px-flush px-types">${head(sub)}<div class="px-tw"><table class="px-tbl px-ttbl"><thead><tr>`
+    + '<th class="l">Campaign type</th><th>Impressions</th><th>Clicks</th><th>CTR</th><th>CPC</th><th>Spend</th><th>Share of spend</th>'
+    + '<th>Ad sales</th><th>Ad orders</th><th>CVR</th><th>ACoS</th><th>ROAS</th></tr></thead><tbody>'
+    + tr('px-t-sp', 'Sponsored Products', row(sp), spNote)
+    + tr('px-t-sb', 'Sponsored Brands', row(sb), vNote(sb))
+    + tr('px-t-sd', 'Sponsored Display', row(sd), vNote(sd))
+    + tr('px-total', 'All types', all, allNote)
+    + '</tbody></table></div></div>';
+}
+
 /* ---------- products: parents, children, names, SKUs, pictures ---------- */
 let PX_LOOK = null;          // asin → { brand, sku } from the Listing Health snapshot
 // asin → { brand, sku } over both brands' Listing Health rows, built once (reset when health reloads).
@@ -2311,7 +2391,7 @@ function pxRender(focusSel) {
     <div class="px-ph"><div class="px-tb">${fresh}</div><span class="px-note">Click a product’s name for <b>Why did it move?</b> · press <kbd>/</kbd> to search · <button class="px-link" data-px="old" title="The retired PPC &amp; Organic screen, kept for the change-over">old view</button></span></div>
     <div class="px-card px-toolbar"><div class="px-tb">${viewSeg}<span class="px-vsep"></span>${brandSeg}${lvl}${search}${showBtn}<button class="px-btn" data-px="csv">Download</button></div>
       <div class="px-row2">${chips}</div>${PX.pop === 'show' ? pxShowPop() : ''}</div>
-    ${bcards}${empty ? '' : pcap}${pxCards(allAsins)}${strip}${empty ? '' : pxRecsCard(ctx)}
+    ${bcards}${empty ? '' : pcap}${pxCards(allAsins)}${strip}${empty ? '' : pxTypeCard(ctx)}${empty ? '' : pxRecsCard(ctx)}
     <div class="px-card px-flush">${hbar}${warn}${hint}${table}</div>
     ${endSec}</div>`;
 
