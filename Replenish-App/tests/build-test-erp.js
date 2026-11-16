@@ -65,7 +65,7 @@ const GUARD = `<script>/* TEST ERP GUARD — added by Replenish-App/tests/build-
   var SBDB = null;
   function sbIdb() {
     if (!SBDB) SBDB = new Promise(function (res) {
-      try { var r = indexedDB.open('r1-erpdata-copies', 1); r.onupgradeneeded = function () { r.result.createObjectStore('lists'); };
+      try { var r = indexedDB.open('r1-erpdata-copies-2', 1);   /* -2 (16 Nov): copies from before the job-work fix are not used */ r.onupgradeneeded = function () { r.result.createObjectStore('lists'); };
         r.onsuccess = function () { res(r.result); }; r.onerror = function () { res(null); }; } catch (e) { res(null); }
     });
     return SBDB;
@@ -121,6 +121,27 @@ const GUARD = `<script>/* TEST ERP GUARD — added by Replenish-App/tests/build-
       return m.text;
     });
   }
+  /* a part of a list from the page's parsed copy (parsed once per version of the copy) */
+  function sbPart(key, text, segs) {
+    var m = SBMEM[key]; if (!m) return null;
+    if (m.objText !== text) { m.obj = JSON.parse(text); m.objText = text; }
+    var v = m.obj; for (var i = 0; i < segs.length; i++) { if (v == null || typeof v !== 'object') return null; v = v[segs[i]]; }
+    return v === undefined ? null : v;
+  }
+  /* THE SPEED LOG of ERP data reads (16 Nov): in the console, __TEST_ERP.sbReport() shows every read — what, how it was
+   * answered (copy = from this browser · whole = downloaded · read = asked · part of copy), how long, how big. */
+  window.__TEST_ERP.sbLog = [];
+  function sbNote(p, how, ms, chars, err) {
+    var L = window.__TEST_ERP.sbLog; L.push({ at: new Date().toTimeString().slice(0, 8), screen: String(location.hash || '').slice(1, 30), what: p.slice(0, 60), how: how, ms: ms, kb: Math.round(chars / 1024), error: err || '' });
+    if (L.length > 500) L.shift();
+  }
+  window.__TEST_ERP.sbReport = function () {
+    var L = window.__TEST_ERP.sbLog.slice().sort(function (a, b) { return b.ms - a.ms; });
+    try { console.table(L.slice(0, 60)); } catch (e) {}
+    var by = {}; window.__TEST_ERP.sbLog.forEach(function (r) { var k = r.how; by[k] = by[k] || { reads: 0, ms: 0, kb: 0 }; by[k].reads++; by[k].ms += r.ms; by[k].kb += r.kb; });
+    try { console.table(by); } catch (e) {}
+    return 'ERP data reads: ' + window.__TEST_ERP.sbLog.length + ' · slowest: ' + L.slice(0, 8).map(function (r) { return r.what + ' ' + r.how + ' ' + r.ms + 'ms ' + r.kb + 'KB' + (r.error ? ' ERR ' + r.error : ''); }).join(' | ');
+  };
   function sbRtdb(url, origFetch) {
     var u = new URL(url), q = u.searchParams, tok = q.get('auth') || '';
     var p = decodeURIComponent(u.pathname.replace(/\\.json$/, '').replace(/^\\/+/, ''));
@@ -139,7 +160,15 @@ const GUARD = `<script>/* TEST ERP GUARD — added by Replenish-App/tests/build-
     window.__TEST_ERP.sbReads++;
     /* a WHOLE list (the big reads every page makes): from this browser's own copy + only the records saved since */
     var whole = p && p.indexOf('/') < 0 && !body.p_order_by && !q.get('shallow');
-    var vp = whole ? sbWhole(p, tok, origFetch) : sbRpc('rt_get', body, tok, origFetch);
+    /* a part of completed job work (pt_baseDone/<day>, /_ver, /_auto — the job-work screens read ~70 days ONE AFTER ANOTHER):
+     * answered from this browser's one copy of the whole list, at once (16 Nov) */
+    var part = !whole && !body.p_order_by && !q.get('shallow') && /^pt_baseDone\\/[^/]+$/.test(p);
+    var t0 = Date.now(), how = whole ? (SBMEM[window.__TEST_ERP.sb.url + '|' + p] ? 'copy' : 'whole') : part ? 'part of copy' : 'read';
+    var vp = whole ? sbWhole(p, tok, origFetch)
+      : part ? sbWhole('pt_baseDone', tok, origFetch).then(function (t) { return sbPart(window.__TEST_ERP.sb.url + '|pt_baseDone', t, p.split('/').slice(1)); })
+      : sbRpc('rt_get', body, tok, origFetch);
+    vp.then(function (v) { sbNote(p, how, Date.now() - t0, typeof v === 'string' ? v.length : JSON.stringify(v === undefined ? null : v).length, ''); },
+            function (e) { sbNote(p, how, Date.now() - t0, 0, e.message); });
     var p0 = vp.then(function (v) {
       if (typeof v === 'string') return new Response(v, { status: 200, headers: { 'Content-Type': 'application/json', ETag: 'sb' } });   /* a whole list: its ready text */
       if (q.get('shallow') === 'true' && v && typeof v === 'object') { var o = {}; Object.keys(v).forEach(function (k) { o[k] = true; }); v = o; }
