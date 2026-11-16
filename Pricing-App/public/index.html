@@ -40043,7 +40043,10 @@ function pxStats(asins, p, withPrev) {
  * (Total Order Items, as Seller Central counts), and Sessions when every day of the range is published. Nothing is
  * laid over a searched list (it is not a whole brand), over a range with an older day missing, or over the newest
  * day or two Amazon has not published yet (those keep the workbook figures, as on the other two screens).
- * The product rows still add up the workbooks; pxAmzGapRow says by how much they differ from Seller Central. */
+ * The ad figures of the same whole-brand totals take Campaign manager's Sponsored Products days (matchAds, 7-day sales,
+ * as the console shows them) — the products' own ad report (AdsApi.gs) asks Amazon for 30-day sales, which read
+ * 7–15% higher (5 Oct, Ridhi: $14,454 against the console's $13,404.08).
+ * The product rows still add up the workbooks and the 30-day ad report; pxAmzGapRow says so under the All row. */
 // Seller Central's days for the brands in view from lo, up to the last one in a row every brand has published:
 // { cut, s: [sales, units, order items, sessions, page views] }, or null when none is, or when an older day is missing.
 function pxAmzDays(lo, hi) {
@@ -40063,52 +40066,92 @@ function pxAmzDays(lo, hi) {
   }
   return cut ? { cut, s } : null;
 }
-// Lay Seller Central's totals over a whole-brand totals object `o` (from pxStats, with o.o already the account's
-// orders) for plan p. Sales and units move by the gap between Seller Central and the products over the published
-// days, so the days after them keep what they had; the ratios are worked out again. Returns o.amz
-// ({ cut, dRev, dU }) or null when nothing was laid over.
+// Lay Amazon's own totals over a whole-brand totals object `o` (from pxStats, with o.o already the account's orders)
+// for plan p, then work the ratios out again. Returns o.amz ({ cut, dRev, dU }, cut '' when only the ads were laid over)
+// or null when nothing was.
+//  - Seller Central (matchBiz): sales and units move by the gap between Seller Central and the products over the
+//    published days, so the days after them keep what they had; Order items and, when every day is published,
+//    Sessions are Seller Central's.
+//  - Campaign manager (matchAds, Sponsored Products — the ads this page counts — on 7-day sales as the console shows
+//    them): spend, ad sales, ad orders and clicks over the days the ad report covers here (to o.adTo), and only when
+//    every one of those days is in for every brand in view. Ad units stay the products' own (Amazon's campaign report
+//    has none).
 function pxAmzOver(o, asins, p) {
   if (!o || !o.has || !p || p.src === 'none' || PX.q.trim()) return null;
   const amz = pxAmzDays(p.lo, p.hi);
-  if (!amz) return null;
-  const own = pxStats(asins, pxPlan(p.lo, amz.cut));        // what the products add up to over the same days
-  if (!own.has) return null;
-  const dRev = amz.s[0] - own.rev, dU = amz.s[1] - own.u;
-  o.rev += dRev;
-  o.u += dU;
-  // The ad ratios set ad figures against sales over the days the ad report covers (revA / uA, see pxDerive).
-  if (!o.adTo || o.adTo >= amz.cut) {
-    o.revA += dRev;
-    o.uA += dU;
-  } else {
-    const a2 = pxAmzDays(p.lo, o.adTo), own2 = a2 && pxStats(asins, pxPlan(p.lo, a2.cut));
-    if (a2 && own2 && own2.has) {
-      o.revA += a2.s[0] - own2.rev;
-      o.uA += a2.s[1] - own2.u;
+  const own = amz && pxStats(asins, pxPlan(p.lo, amz.cut));   // what the products add up to over the same days
+  let did = false;
+  if (amz && own.has) {
+    const dRev = amz.s[0] - own.rev, dU = amz.s[1] - own.u;
+    o.rev += dRev;
+    o.u += dU;
+    // The ad ratios set ad figures against sales over the days the ad report covers (revA / uA, see pxDerive).
+    if (!o.adTo || o.adTo >= amz.cut) {
+      o.revA += dRev;
+      o.uA += dU;
+    } else {
+      const a2 = pxAmzDays(p.lo, o.adTo), own2 = a2 && pxStats(asins, pxPlan(p.lo, a2.cut));
+      if (a2 && own2 && own2.has) {
+        o.revA += a2.s[0] - own2.rev;
+        o.uA += a2.s[1] - own2.u;
+      }
     }
+    // Order items: Seller Central's over the published days, the account's own count over the days after them.
+    const rest = amz.cut < p.hi ? pxAcctOrders(pxPlan(sdShift(amz.cut, 1), p.hi)) : 0;
+    o.o = amz.s[2] + (rest || 0);
+    // Sessions (and page views): Seller Central's daily Sessions - Total, only when every day is published.
+    if (amz.cut === p.hi) {
+      o.se = amz.s[3];
+      o.pv = amz.s[4];
+      o.seAmz = true;
+    }
+    o.amz = { cut: amz.cut, dRev, dU };
+    did = true;
   }
-  // Order items: Seller Central's over the published days, the account's own count over the days after them.
-  const rest = amz.cut < p.hi ? pxAcctOrders(pxPlan(sdShift(amz.cut, 1), p.hi)) : 0;
-  o.o = amz.s[2] + (rest || 0);
-  // Sessions (and page views): Seller Central's daily Sessions - Total, only when every day is published.
-  if (amz.cut === p.hi) {
-    o.se = amz.s[3];
-    o.pv = amz.s[4];
-    o.seAmz = true;
+  const ad = o.spend != null ? pxAmzAds(p.lo, o.adTo && o.adTo < p.hi ? o.adTo : p.hi) : null;
+  if (ad) {
+    o.cl = ad[1];
+    o.spend = ad[2];
+    o.adSales = ad[3];
+    o.adO = ad[4];
+    o.adAmz = true;
+    if (!o.amz) o.amz = { cut: '', dRev: 0, dU: 0 };
+    did = true;
   }
-  o.amz = { cut: amz.cut, dRev, dU };
+  if (!did) return null;
   pxDerive(o);
   return o.amz;
 }
-// The line under the All row: how far the product rows are from Seller Central's own totals, when they are.
+// Campaign manager's Sponsored Products figures for the brands in view over lo..hi — [impressions, clicks, cost,
+// sales7d, purchases7d] added up — or null unless every day is in for every brand.
+function pxAmzAds(lo, hi) {
+  if (typeof T_MATCH === 'undefined' || !T_MATCH.ads || !T_MATCH.ads.d || !lo || !hi || lo > hi) return null;
+  const bs = PX.brand === 'ALL' ? adBrands() : [PX.brand], s = [0, 0, 0, 0, 0];
+  for (const d of wDaysBetween(lo, hi)) {
+    for (const b of bs) {
+      const k = (T_MATCH.ads.d[b] || {})[d];
+      if (!k || !k.sp) return null;
+      for (let i = 0; i < 5; i++) s[i] += Number(k.sp[i]) || 0;
+    }
+  }
+  return s;
+}
+// The line under the All row: which of its figures are Amazon's own, and how far the product rows are from them.
 function pxAmzGapRow(tot) {
   const g = tot && tot.amz;
-  if (!g || (Math.abs(g.dRev) < 1 && !g.dU)) return '';
-  const more = g.dRev >= 0 ? 'more' : 'less', u = Math.round(Math.abs(g.dU));
-  return `<tr class="px-amzgap"><td class="l px-dim" colspan="99"><small>The All row is Seller Central’s own total`
-    + ` (Business Reports, to ${pxEsc(pxDM(g.cut))}): <b>${pxMoney(Math.abs(g.dRev))}</b> and <b>${u.toLocaleString('en-US')}</b>`
-    + ` unit${u === 1 ? '' : 's'} ${more} than the products below add up to — orders Amazon counts that the Orders`
-    + ` workbooks do not have yet. The products catch up when those days are read again.</small></td></tr>`;
+  if (!g) return '';
+  const parts = [];
+  if (g.cut && (Math.abs(g.dRev) >= 1 || g.dU)) {
+    const more = g.dRev >= 0 ? 'more' : 'less', u = Math.round(Math.abs(g.dU));
+    parts.push(`Sales, units and order items are Seller Central’s own (Business Reports, to ${pxEsc(pxDM(g.cut))}):`
+      + ` <b>${pxMoney(Math.abs(g.dRev))}</b> and <b>${u.toLocaleString('en-US')}</b> unit${u === 1 ? '' : 's'} ${more}`
+      + ' than the products below add up to — orders Amazon counts that the Orders workbooks do not have yet.');
+  }
+  if (tot.adAmz) {
+    parts.push('Ad spend, ad sales and ad orders are Campaign manager’s (Sponsored Products, 7-day sales, as the console'
+      + ' shows them); the products below count ad sales over 30 days, so theirs add up to more.');
+  }
+  return parts.length ? `<tr class="px-amzgap"><td class="l px-dim" colspan="99"><small>${parts.join(' ')}</small></td></tr>` : '';
 }
 
 /* ---------- products: parents, children, names, SKUs, pictures ---------- */
