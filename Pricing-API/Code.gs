@@ -222,6 +222,7 @@ function doGet(e) {
     if (p.lfix === 'schema') return json_(lfixSchema_(p));
     if (p.lfix === 'history') return json_(lfixHistory_(p.sku));
     if (p.lfix === 'content') return json_(lfixContent_(p));
+    if (p.lfix === 'cat') { setBrand_(p.brand); var r = limgSp_('/catalog/2022-04-01/items?marketplaceIds=' + marketplaceId_() + '&identifiers=' + String(p.asins || '').split(',').filter(function (s) { return /^[A-Z0-9]{10}$/.test(s.trim()); }).slice(0, 20).join(',') + '&identifiersType=ASIN&pageSize=20&includedData=relationships,attributes', 'get'); return json_(r.code >= 300 ? limgErr_(r, 'Reading catalog') : { ok: true, items: r.body.items || [] }); }
     if (p.limg === 'history') return json_(limgHistory_(p.sku));
     if (p.limg === 'page') return json_(limgPage_(p));
     if (p.listing === 'audit') { setBrand_(p.brand); return json_(listingAudit_(p.asin)); }
