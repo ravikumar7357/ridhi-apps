@@ -36,7 +36,13 @@
  * Listings report with no rows is a failure, not "no listings": that brand's whole pass is dropped and the cache is
  * left as it was. Only a SKU that is missing from a good All Listings report leaves the cache.
  *
- * WHAT IT WRITES (cache spreadsheet, through cacheWrite_; Sellora reads each tab with ?cache=<tab>, no redeploy):
+ * WHERE IT WRITES: its OWN spreadsheet, "Sellora Listing Cache" — never the nightly cache spreadsheet. lmSetup creates it
+ * once and keeps its id in Script Property LM_CACHE_ID (never in the code). A tab is stored the way cacheWrite_ stores
+ * one (JSON cut into CACHE_CELL-character cells in column A, the sheet trimmed with cacheTrim_), and no tab passes
+ * LM_PART_MAX characters. Sellora reads each tab with ?cache=<tab>: Code.gs sends lmMeta / lmListings_* / lmCatalog_*
+ * here (lmCacheRead_) and every other name to the nightly cache exactly as before.
+ *
+ * WHAT IT WRITES:
  *   lmMeta                         { v, kind: 'full'|'light', startedAt, finishedAt, upTo, nextRun, counts per brand,
  *                                    errors, lastFull, lastLight, hash: 'h31', parts: { listings: {SP: [tabs]},
  *                                    catalog: {SP: [tabs]} } } — read this first, then the tabs it names.
@@ -47,12 +53,15 @@
  *   Scratch tabs lmScr_* exist only while a full pass runs and are deleted at its end.
  *
  * RUN FROM THE EDITOR
- *   lmSetup()          once: checks the cache sheet can be written, installs the timer, starts the first full pass
- *   lmStatus()         what it is doing, what the cache holds, any errors
+ *   lmSetup()          once: creates (or finds) "Sellora Listing Cache", checks it can be written, installs the timer,
+ *                      starts the first full pass
+ *   lmStatus()         what it is doing, what the cache holds, any errors, today's script minutes — with a warning
+ *                      when the project looks near Apps Script's daily trigger limit
  *   lmRunNow()         a full pass on the next tick instead of waiting for 13:00 / 18:00
  *   lmSku('RTC14-1')   one SKU from the cache: the listing, its catalog entry, its stock
  *   lmCheck()          THE PROOF: the cache against Amazon right now (counts vs fresh reports, 10 SKUs vs live reads)
- *   lmStop()           removes the timer. To undo everything: lmStop, delete this file, delete the lm* tabs.
+ *   lmStop()           removes the timer. To undo everything: lmStop, delete this file and the lmCacheRead_ line in
+ *                      Code.gs, the "Sellora Listing Cache" spreadsheet and the Script Properties LM_*.
  *
  * CALLS AND QUOTAS (about 4,400 SKUs: Ridhi ~2,680, CPC ~1,720 — measured 9 Oct; see lmQuota_ for the arithmetic):
  *   full pass  ≈ 6 report requests + ~40 report polls, ~220 Listings Items calls, ~240 Catalog Items calls
@@ -76,7 +85,7 @@ var LM_CAT_BATCH = 20;                 // searchCatalogItems: ASINs per call (Am
 var LM_LIST_GAP_MS = 250;              // Listings Items allows 5 requests a second
 var LM_CAT_GAP_MS = 600;               // Catalog Items allows 2 requests a second
 var LM_PART_SKUS = 250;                // records per part when a brand is laid out for the first time
-var LM_PART_MAX = 1500000;             // characters per part tab; past this the brand is laid out in twice the parts
+var LM_PART_MAX = 1000000;             // characters per part tab (25 cells of 40,000); past this the brand is laid out in twice the parts
 var LM_SCR_MAX = 1200000;              // characters per scratch tab before a new one is started
 var LM_LIGHT_MAX = 200;                // listings a light pass reads at most per brand
 var LM_LIGHT_OVERLAP_MS = 5 * 60000;   // a light pass asks from a little before the last one, so nothing slips between
@@ -85,24 +94,128 @@ var LM_REPORT_WAIT_MS = 50 * 60000;    // a report Amazon has not finished after
 var LM_REPORTS = { L: 'GET_MERCHANT_LISTINGS_ALL_DATA', F: 'GET_MERCHANTS_LISTINGS_FYP_REPORT', S: 'GET_FBA_INVENTORY_PLANNING_DATA' };
 var LM_REPORT_NAME = { L: 'All Listings report', F: 'Suppressed listings report', S: 'FBA stock report' };
 // Variation attributes kept per listing and per catalog entry (a theme names some of these; Sellora reads the parent's).
+var LM_BOOK_NAME = 'Sellora Listing Cache';
+var LM_TICK_GAP_MIN = 25;              // no tick for this long while the timer is on: Apps Script is skipping it
 var LM_VAR_ATTRS = ['color', 'size', 'set_name', 'style', 'pattern', 'pattern_name', 'material', 'item_shape', 'scent',
   'flavor', 'number_of_items', 'item_package_quantity', 'unit_count', 'size_name', 'color_name', 'style_name', 'team_name'];
+
+/* ============================== its own spreadsheet ============================== */
+
+/** "Sellora Listing Cache". Its id lives in Script Property LM_CACHE_ID. Created only when `create` (lmSetup). A sheet
+ *  that will not open is an emergency, not a reason to start over (the same rule as cacheSheet_): retry once, then throw. */
+function lmBook_(create) {
+  var id = prop_('LM_CACHE_ID');
+  if (id) {
+    try { return SpreadsheetApp.openById(id); }
+    catch (e1) {
+      Utilities.sleep(2000);
+      try { return SpreadsheetApp.openById(id); }
+      catch (e2) {
+        throw new Error('The "' + LM_BOOK_NAME + '" spreadsheet ' + id + ' will not open: ' + (e2.message || e2) + '. Nothing was rebuilt. '
+          + 'To deliberately start a new one, clear Script Property LM_CACHE_ID and run lmSetup().');
+      }
+    }
+  }
+  if (!create) throw new Error('No "' + LM_BOOK_NAME + '" yet — run lmSetup() once.');
+  var ss = SpreadsheetApp.create(LM_BOOK_NAME);
+  PropertiesService.getScriptProperties().setProperty('LM_CACHE_ID', ss.getId());
+  return ss;
+}
+
+/** Store one tab: JSON cut into CACHE_CELL-character cells down column A (exactly as cacheWrite_), trimmed with cacheTrim_. */
+function lmPut_(name, obj) {
+  var ss = lmBook_();
+  var sh = ss.getSheetByName(name) || ss.insertSheet(name);
+  var s = JSON.stringify(obj), rows = [];
+  for (var i = 0; i < s.length; i += CACHE_CELL) rows.push(["'" + s.substr(i, CACHE_CELL)]);
+  if (!rows.length) rows.push(["'{}"]);
+  sh.clear();
+  sh.getRange(1, 1, rows.length, 1).setValues(rows);
+  cacheTrim_(sh, rows.length);
+  return rows.length;
+}
+
+function lmGet_(name) {
+  var sh = lmBook_().getSheetByName(name);
+  if (!sh || sh.getLastRow() < 1) return null;
+  var vals = sh.getRange(1, 1, sh.getLastRow(), 1).getValues(), s = '';
+  for (var i = 0; i < vals.length; i++) s += String(vals[i][0] || '').replace(/^'/, '');
+  try { return JSON.parse(s); } catch (e) { return null; }
+}
+
+/** For Code.gs ?cache=lmMeta / lmListings_* / lmCatalog_*: null (→ "nothing cached yet") until lmSetup has run. */
+function lmCacheRead_(name) {
+  if (!prop_('LM_CACHE_ID')) return null;
+  return lmGet_(name);
+}
+
+/* ============================== script minutes ============================== */
+
+/** After every tick: today's minutes, runs, the longest run, and any long gap between two ticks (Apps Script stops
+ *  running a project's timers for the rest of the day once its daily trigger time is used up). Script Property LM_USAGE. */
+function lmUsageAdd_(t0) {
+  try {
+    var props = PropertiesService.getScriptProperties(), now = Date.now();
+    var day = Utilities.formatDate(new Date(t0), Session.getScriptTimeZone(), 'yyyy-MM-dd');
+    var u = {};
+    try { u = JSON.parse(props.getProperty('LM_USAGE') || '{}'); } catch (e) { u = {}; }
+    if (u.day !== day) u = { day: day, ms: 0, runs: 0, longest: 0, gaps: [] };
+    if (u.last && t0 - u.last > LM_TICK_GAP_MIN * 60000) {
+      u.gaps = (u.gaps || []).concat([lmIso_(u.last).slice(11) + '–' + lmIso_(t0).slice(11)]).slice(-6);
+    }
+    u.ms += now - t0; u.runs++; u.longest = Math.max(u.longest || 0, now - t0); u.last = now;
+    props.setProperty('LM_USAGE', JSON.stringify(u));
+  } catch (e) { /* counting must never fail a tick */ }
+}
+
+/** The daily trigger-time limit of the account the timers run as: 90 minutes (Gmail) or 6 hours (Google Workspace). */
+function lmDailyLimit_() {
+  var mail = '';
+  try { mail = String(Session.getEffectiveUser().getEmail() || ''); } catch (e) { mail = ''; }
+  if (/@(gmail|googlemail)\.com$/i.test(mail)) return { min: 90, kind: 'a Gmail account' };
+  if (mail) return { min: 360, kind: 'a Google Workspace account' };
+  return { min: 90, kind: 'account not known — the stricter Gmail limit assumed' };
+}
+
+function lmUsageLog_() {
+  var u = {};
+  try { u = JSON.parse(PropertiesService.getScriptProperties().getProperty('LM_USAGE') || '{}'); } catch (e) { u = {}; }
+  var today = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  if (u.day !== today) u = { day: today, ms: 0, runs: 0, longest: 0, gaps: [] };
+  var lim = lmDailyLimit_(), mins = Math.round(u.ms / 6000) / 10, share = mins / lim.min;
+  var others = [];
+  ScriptApp.getProjectTriggers().forEach(function (t) { var h = t.getHandlerFunction(); if (h !== 'lmTick' && others.indexOf(h) < 0) others.push(h); });
+  Logger.log('— script time today (' + today + ') —');
+  Logger.log('ListingMatch  ' + mins + ' min in ' + u.runs + ' run(s)' + (u.runs ? ', longest ' + Math.round((u.longest || 0) / 6000) / 10 + ' min' : ''));
+  Logger.log('daily limit   ' + lim.min + ' min of timer time for the WHOLE project (' + lim.kind + '). Apps Script does not tell a script');
+  Logger.log('              the project\'s total — only ListingMatch\'s own minutes are counted here.');
+  Logger.log('other timers  ' + (others.length ? others.join(', ') : 'none') + ' (they share that limit)');
+  var warn = [];
+  if (share >= 1 / 3) warn.push('ListingMatch alone has used ' + Math.round(share * 100) + '% of the daily limit today. With ' + (others.length ? others.join(', ') : 'the other timers')
+    + ' on top, the project may run out — a light pass every 30 minutes (LM_LIGHT_EVERY_MIN = 30) would about halve ListingMatch\'s share.');
+  if ((u.gaps || []).length) warn.push('lmTick did not run ' + u.gaps.join(', ') + ' today, although its timer is every 10 minutes. Apps Script stops a project\'s timers'
+    + ' when its daily trigger time is used up (or during a Google outage): the project looks NEAR OR OVER ITS DAILY LIMIT. Check Executions in the editor.');
+  if (warn.length) warn.forEach(function (w) { Logger.log('⚠️ ' + w); });
+  else Logger.log('✓ no sign of the daily limit today');
+}
 
 /* ============================== editor functions ============================== */
 
 function lmSetup() {
+  var had = !!prop_('LM_CACHE_ID'), ss;
   try {
-    var ss = cacheSheet_();
+    ss = lmBook_(true);
     var probe = ss.getSheetByName('lmProbe') || ss.insertSheet('lmProbe');
     probe.getRange(1, 1).setValue('ok ' + lmNow_());
     ss.deleteSheet(probe);
   } catch (e) {
-    var id = PropertiesService.getScriptProperties().getProperty('CACHE_SHEET_ID') || '';
-    Logger.log('❌ cannot edit the cache spreadsheet: ' + (e.message || e));
-    if (id) Logger.log('   Ask Ravi to share it with you as Editor: https://docs.google.com/spreadsheets/d/' + id + '/edit');
+    Logger.log('❌ cannot use the "' + LM_BOOK_NAME + '" spreadsheet: ' + (e.message || e));
+    Logger.log('   If it exists but is not yours, ask its owner to share it with you as Editor (Script Property LM_CACHE_ID).');
     Logger.log('   Then run lmSetup again. Nothing was installed.');
     return;
   }
+  Logger.log((had ? 'Using' : 'Created') + ' the spreadsheet "' + LM_BOOK_NAME + '": ' + ss.getUrl());
+  Logger.log('   Its id is kept in Script Property LM_CACHE_ID. The nightly cache spreadsheet is not touched.');
   ScriptApp.getProjectTriggers().forEach(function (t) {
     if (t.getHandlerFunction() === 'lmTick') ScriptApp.deleteTrigger(t);
   });
@@ -144,9 +257,9 @@ function lmStatus() {
   } else Logger.log('running    nothing' + (st.reset ? ' — a full pass is asked for' : ''));
   Logger.log('next       ' + lmNextRun_(st));
   (st.errors || []).forEach(function (e) { Logger.log('error      ' + e); });
-  var meta = cacheRead_('lmMeta');
+  var meta = prop_('LM_CACHE_ID') ? lmGet_('lmMeta') : null;
   Logger.log('— what the cache holds —');
-  if (!meta) { Logger.log('nothing yet (lmMeta is empty)'); return; }
+  if (!meta) { Logger.log(prop_('LM_CACHE_ID') ? 'nothing yet (lmMeta is empty)' : 'no "' + LM_BOOK_NAME + '" yet — run lmSetup()'); lmUsageLog_(); return; }
   Logger.log('last full  ' + ((meta.lastFull && meta.lastFull.finishedAt) || 'never') + '   ·   last light ' + ((meta.lastLight && meta.lastLight.finishedAt) || 'never'));
   LM_BRANDS.forEach(function (b) {
     var c = (meta.counts && meta.counts[b]) || {};
@@ -155,26 +268,27 @@ function lmStatus() {
       + '  ·  ' + (((meta.parts || {}).listings || {})[b] || []).length + '+' + (((meta.parts || {}).catalog || {})[b] || []).length + ' tabs');
   });
   (meta.errors || []).forEach(function (e) { Logger.log('last pass  ' + e); });
+  lmUsageLog_();
 }
 
 /** One SKU from the cache, laid out to compare with Seller Central. */
 function lmSku(sku) {
   sku = String(sku || '').trim();
   if (!sku) { Logger.log('Give a SKU, like lmSku("RTC14-1").'); return; }
-  var meta = cacheRead_('lmMeta');
+  var meta = lmGet_('lmMeta');
   if (!meta || !meta.parts) { Logger.log('Nothing cached yet — run lmSetup and wait for the first pass.'); return; }
   var found = false;
   LM_BRANDS.forEach(function (b) {
     var tabs = (meta.parts.listings || {})[b] || [];
     if (!tabs.length) return;
-    var part = cacheRead_(tabs[lmHash_(sku) % tabs.length]);
+    var part = lmGet_(tabs[lmHash_(sku) % tabs.length]);
     var r = part && part.items && part.items[sku];
     if (!r) return;
     found = true;
     Logger.log('━━ ' + LM_LABEL[b] + ' · ' + sku + ' · ASIN ' + (r.asin || '—') + ' · read ' + lmWhen_(r.readAt) + (r.stale ? '  ⚠ kept from an older read' : ''));
     lmLogItem_(r);
     var ctabs = (meta.parts.catalog || {})[b] || [];
-    var cp = r.asin && ctabs.length ? cacheRead_(ctabs[lmHash_(r.asin) % ctabs.length]) : null;
+    var cp = r.asin && ctabs.length ? lmGet_(ctabs[lmHash_(r.asin) % ctabs.length]) : null;
     var c = cp && cp.items && cp.items[r.asin];
     Logger.log('Catalog (what shoppers see)' + (c ? ' · read ' + lmWhen_(c.readAt) : ''));
     if (c) lmLogCat_(c); else Logger.log('   not in the cache');
@@ -188,9 +302,16 @@ function lmTick() {
   var props = PropertiesService.getScriptProperties();
   var lease = Number(props.getProperty('LM_LEASE') || 0);
   if (lease && Date.now() - lease < 7 * 60000) { Logger.log('lmTick: another run is still going — skipped.'); return; }
-  props.setProperty('LM_LEASE', String(Date.now()));
-  try { lmTick_(); }
-  finally { props.deleteProperty('LM_LEASE'); }
+  var t0 = Date.now();
+  props.setProperty('LM_LEASE', String(t0));
+  try {
+    try { lmBook_(); }                     // no spreadsheet (or one that will not open): nothing is asked of Amazon
+    catch (e) { var st = lmState_(); lmErr_(st, String(e.message || e)); lmSave_(st); Logger.log('lmTick: ' + (e.message || e)); return; }
+    lmTick_();
+  } finally {
+    props.deleteProperty('LM_LEASE');
+    lmUsageAdd_(t0);
+  }
 }
 
 function lmTick_() {
@@ -263,7 +384,7 @@ function lmReports_(st, b, x, left) {
   });
   lmSave_(st);
   var R = null;
-  var loadR = function () { if (!R) R = cacheRead_(lmScr_(b, 'R')) || { L: null, F: null, S: null }; return R; };
+  var loadR = function () { if (!R) R = lmGet_(lmScr_(b, 'R')) || { L: null, F: null, S: null }; return R; };
   var dirty = false;
   Object.keys(LM_REPORTS).forEach(function (k) {
     var j = x.rep[k];
@@ -279,7 +400,7 @@ function lmReports_(st, b, x, left) {
     } catch (e) { lmRepRetry_(st, b, k, j, String(e.message || e)); }
   });
   if (dirty) {
-    try { cacheWrite_(lmScr_(b, 'R'), R); Object.keys(LM_REPORTS).forEach(function (k) { if (x.rep[k].st === 'got') x.rep[k].st = 'done'; }); }
+    try { lmPut_(lmScr_(b, 'R'), R); Object.keys(LM_REPORTS).forEach(function (k) { if (x.rep[k].st === 'got') x.rep[k].st = 'done'; }); }
     catch (we) { lmErr_(st, LM_LABEL[b] + ': could not write the cache sheet: ' + String(we.message || we).slice(0, 160)); Object.keys(LM_REPORTS).forEach(function (k) { if (x.rep[k].st === 'got') x.rep[k].st = 'new'; }); }
   }
   var L = x.rep.L;
@@ -367,7 +488,7 @@ function lmDoc_(docId) {
 
 /* ----- step 2: every SKU from the Listings Items API, 20 a call ----- */
 function lmItems_(st, b, x, left) {
-  var R = cacheRead_(lmScr_(b, 'R'));
+  var R = lmGet_(lmScr_(b, 'R'));
   if (!R || !R.L) { x.ph = 'rep'; x.rep.L = { st: 'new', t: 0 }; lmErr_(st, LM_LABEL[b] + ': the report scratch tab is gone — asking again'); return; }
   var skus = Object.keys(R.L.m || R.L).sort();
   x.n = skus.length;
@@ -396,7 +517,7 @@ function lmItems_(st, b, x, left) {
   }
   if (stop) lmErr_(st, LM_LABEL[b] + ': ' + stop);
   if (Object.keys(buf).length) {
-    try { cacheWrite_(lmScr_(b, 'L', x.nL), { items: buf }); x.nL++; }
+    try { lmPut_(lmScr_(b, 'L', x.nL), { items: buf }); x.nL++; }
     catch (we) { lmErr_(st, LM_LABEL[b] + ': could not write the cache sheet — those listings are read again: ' + String(we.message || we).slice(0, 120)); return; }
   }
   x.i = i;                                  // moved on only once what was read is in the sheet
@@ -404,19 +525,19 @@ function lmItems_(st, b, x, left) {
     // the catalog list: every ASIN of a listing read now (or in the report), parents are added as Amazon names them
     var asins = {};
     for (var n = 0; n < x.nL; n++) {
-      var part = cacheRead_(lmScr_(b, 'L', n));
+      var part = lmGet_(lmScr_(b, 'L', n));
       Object.keys((part && part.items) || {}).forEach(function (s) { var a = part.items[s].asin; if (lmIsAsin_(a)) asins[a] = 1; });
     }
     Object.keys(R.L.m || R.L).forEach(function (s) { var a = (R.L.m || R.L)[s][0]; if (lmIsAsin_(a)) asins[a] = 1; });
     var list = Object.keys(asins).sort();
-    try { cacheWrite_(lmScr_(b, 'A'), { list: list }); } catch (we2) { lmErr_(st, LM_LABEL[b] + ': could not write the ASIN list — next tick'); return; }
+    try { lmPut_(lmScr_(b, 'A'), { list: list }); } catch (we2) { lmErr_(st, LM_LABEL[b] + ': could not write the ASIN list — next tick'); return; }
     x.ph = 'cat'; x.ci = 0; x.cn = list.length;
   }
 }
 
 /* ----- step 3: every ASIN from the catalog, 20 a call; parents are added as children name them ----- */
 function lmCatalogStep_(st, b, x, left) {
-  var A = cacheRead_(lmScr_(b, 'A'));
+  var A = lmGet_(lmScr_(b, 'A'));
   if (!A || !A.list) { lmErr_(st, LM_LABEL[b] + ': the ASIN list is gone — reading listings again'); x.ph = 'items'; x.i = 0; x.nL = 0; return; }
   var list = A.list, have = {};
   list.forEach(function (a) { have[a] = 1; });
@@ -445,8 +566,8 @@ function lmCatalogStep_(st, b, x, left) {
   }
   if (stop) lmErr_(st, LM_LABEL[b] + ': ' + stop);
   try {
-    if (Object.keys(buf).length) { cacheWrite_(lmScr_(b, 'C', x.nC), { items: buf }); x.nC++; }
-    if (added) cacheWrite_(lmScr_(b, 'A'), { list: list });
+    if (Object.keys(buf).length) { lmPut_(lmScr_(b, 'C', x.nC), { items: buf }); x.nC++; }
+    if (added) lmPut_(lmScr_(b, 'A'), { list: list });
   } catch (we) { lmErr_(st, LM_LABEL[b] + ': could not write the cache sheet — those entries are read again: ' + String(we.message || we).slice(0, 120)); return; }
   x.ci = i; x.cn = list.length;
   if (i >= list.length) { x.ph = 'write'; x.wp = 0; x.wc = 0; }
@@ -459,14 +580,14 @@ function lmCatRead_(asins) {
 
 /* ----- step 4: the parts — new reads, the reports, and the last good record where a read failed ----- */
 function lmWrite_(st, b, x, left) {
-  var R = cacheRead_(lmScr_(b, 'R')) || {};
+  var R = lmGet_(lmScr_(b, 'R')) || {};
   var L = (R.L && (R.L.m || R.L)) || {};
-  var meta = cacheRead_('lmMeta') || {};
+  var meta = lmGet_('lmMeta') || {};
   var oldL = ((meta.parts || {}).listings || {})[b] || [], oldC = ((meta.parts || {}).catalog || {})[b] || [];
   var fresh = {}, freshC = {};
-  for (var n = 0; n < x.nL; n++) { var p = cacheRead_(lmScr_(b, 'L', n)); lmMerge_(fresh, p && p.items); }
-  for (var m = 0; m < x.nC; m++) { var q = cacheRead_(lmScr_(b, 'C', m)); lmMerge_(freshC, q && q.items); }
-  var A = cacheRead_(lmScr_(b, 'A')) || { list: [] };
+  for (var n = 0; n < x.nL; n++) { var p = lmGet_(lmScr_(b, 'L', n)); lmMerge_(fresh, p && p.items); }
+  for (var m = 0; m < x.nC; m++) { var q = lmGet_(lmScr_(b, 'C', m)); lmMerge_(freshC, q && q.items); }
+  var A = lmGet_(lmScr_(b, 'A')) || { list: [] };
   var skus = Object.keys(L).sort(), asins = A.list.slice();
   // The layout: kept unless a part would pass LM_PART_MAX (then twice the parts, under new tab names).
   if (!x.P) {
@@ -486,7 +607,7 @@ function lmWrite_(st, b, x, left) {
       x.P = x.P * 2; x.wp = 0; lmErr_(st, LM_LABEL[b] + ': listings laid out in ' + x.P + ' parts');
       continue;
     }
-    cacheWrite_(tab, obj);
+    lmPut_(tab, obj);
     x.wp++;
   }
   if (x.wp < x.P) return;
@@ -502,7 +623,7 @@ function lmWrite_(st, b, x, left) {
     });
     var cobj = { b: b, part: x.wc, of: x.PC, at: lmNow_(), items: citems };
     if (JSON.stringify(cobj).length > LM_PART_MAX && x.PC < 512) { lmDropNew_(oldC, 'lmCatalog', b, x.PC, x.wc); x.PC = x.PC * 2; x.wc = 0; continue; }
-    cacheWrite_(ctab, cobj);
+    lmPut_(ctab, cobj);
     x.wc++;
   }
   if (x.wc < x.PC) return;
@@ -511,13 +632,13 @@ function lmWrite_(st, b, x, left) {
   for (var i = 0; i < x.P; i++) tabsL.push(lmTab_('lmListings', b, x.P, i));
   for (var j = 0; j < x.PC; j++) tabsC.push(lmTab_('lmCatalog', b, x.PC, j));
   var counts = lmCounts_(b, tabsL, tabsC, x);
-  var M = cacheRead_('lmMeta') || {};
+  var M = lmGet_('lmMeta') || {};
   M.v = 1; M.hash = 'h31';
   M.parts = M.parts || {}; M.parts.listings = M.parts.listings || {}; M.parts.catalog = M.parts.catalog || {};
   M.parts.listings[b] = tabsL; M.parts.catalog[b] = tabsC;
   M.counts = M.counts || {}; M.counts[b] = counts;
   M.readAt = M.readAt || {}; M.readAt[b] = { listings: st.run.startedAt, reports: { L: lmIso_(R.L && R.L.at), F: R.F ? lmIso_(R.F.at) : '', S: R.S ? lmIso_(R.S.at) : '' } };
-  cacheWrite_('lmMeta', M);
+  lmPut_('lmMeta', M);
   // Tabs of an older layout go only now, after lmMeta has moved on.
   [[oldL, tabsL], [oldC, tabsC]].forEach(function (pr) { pr[0].forEach(function (t) { if (pr[1].indexOf(t) < 0) lmDropTab_(t); }); });
   lmDropScratch_(b);
@@ -530,9 +651,9 @@ function lmMerge_(into, items) { Object.keys(items || {}).forEach(function (k) {
  *  into `all`). */
 function lmOldPart_(oldTabs, P, i, all) {
   if (!oldTabs.length) return {};
-  if (oldTabs.length === P) { var o = cacheRead_(oldTabs[i]); return (o && o.items) || {}; }
+  if (oldTabs.length === P) { var o = lmGet_(oldTabs[i]); return (o && o.items) || {}; }
   if (!all.__read) {
-    oldTabs.forEach(function (t) { var p = cacheRead_(t); lmMerge_(all, p && p.items); });
+    oldTabs.forEach(function (t) { var p = lmGet_(t); lmMerge_(all, p && p.items); });
     Object.defineProperty(all, '__read', { value: 1, enumerable: false });
   }
   return all;
@@ -578,7 +699,7 @@ function lmSup_(rec) {
 function lmCounts_(b, tabsL, tabsC, x) {
   var c = { skus: 0, status: {}, supReport: 0, supStatus: 0, fba: 0, stale: 0, noRead: 0, asins: 0, missing: x ? x.miss || 0 : 0 };
   tabsL.forEach(function (t) {
-    var p = cacheRead_(t);
+    var p = lmGet_(t);
     Object.keys((p && p.items) || {}).forEach(function (s) {
       var r = p.items[s];
       c.skus++;
@@ -590,13 +711,13 @@ function lmCounts_(b, tabsL, tabsC, x) {
       if (r.noRead) c.noRead++;
     });
   });
-  tabsC.forEach(function (t) { var p = cacheRead_(t); c.asins += Object.keys((p && p.items) || {}).length; });
+  tabsC.forEach(function (t) { var p = lmGet_(t); c.asins += Object.keys((p && p.items) || {}).length; });
   return c;
 }
 
 function lmFinishFull_(st) {
   var run = st.run;
-  var M = cacheRead_('lmMeta') || {};
+  var M = lmGet_('lmMeta') || {};
   var gave = LM_BRANDS.filter(function (b) { return run.B[b].ph === 'gave'; });
   M.kind = 'full'; M.startedAt = run.startedAt; M.finishedAt = lmNow_(); M.upTo = run.startedAt;
   M.errors = (run.errors || []).slice(-8);
@@ -606,7 +727,7 @@ function lmFinishFull_(st) {
   st.lightFrom = st.lightFrom || {};
   LM_BRANDS.forEach(function (b) { if (M.lastFull.brands.indexOf(b) >= 0) st.lightFrom[b] = run.startMs; });
   M.nextRun = lmNextRun_(st);
-  try { cacheWrite_('lmMeta', M); } catch (e) { lmErr_(st, 'could not write lmMeta: ' + String(e.message || e).slice(0, 120)); }
+  try { lmPut_('lmMeta', M); } catch (e) { lmErr_(st, 'could not write lmMeta: ' + String(e.message || e).slice(0, 120)); }
   if (gave.length && typeof jobAlert_ === 'function') {
     jobAlert_('ListingMatch', 'The full listing pass could not read ' + gave.map(function (b) { return LM_LABEL[b]; }).join(' and ')
       + ' (All Listings report failed ' + LM_TRIES + ' times). The cache keeps the last good data.');
@@ -619,7 +740,7 @@ function lmFinishFull_(st) {
 /** Only what changed since the last pass: listings Amazon says were updated (lastUpdatedAfter), and their catalog
  *  entries. Reports are not re-read (they are a full-pass thing); a listing keeps its report facts and stock. */
 function lmLight_(st, left) {
-  var meta = cacheRead_('lmMeta');
+  var meta = lmGet_('lmMeta');
   if (!meta || !meta.parts) return;                     // no full pass yet: nothing to update
   var startMs = Date.now(), n = {};
   st.lightFrom = st.lightFrom || {};
@@ -656,10 +777,10 @@ function lmLight_(st, left) {
     if (left() > 20000) st.lightFrom[b] = got.until || startMs;
   });
   st.lightAt = Date.now();
-  var M = cacheRead_('lmMeta') || meta;
+  var M = lmGet_('lmMeta') || meta;
   M.kind = 'light'; M.lastLight = { startedAt: lmIso_(startMs), finishedAt: lmNow_(), brands: n };
   M.finishedAt = M.lastLight.finishedAt; M.upTo = lmIso_(startMs); M.nextRun = lmNextRun_(st);
-  try { cacheWrite_('lmMeta', M); } catch (e) { lmErr_(st, 'could not write lmMeta: ' + String(e.message || e).slice(0, 120)); }
+  try { lmPut_('lmMeta', M); } catch (e) { lmErr_(st, 'could not write lmMeta: ' + String(e.message || e).slice(0, 120)); }
 }
 
 /** The listings changed since `fromMs`: { recs: { sku: record }, how } — or the LM_LIGHT_MAX read longest ago. */
@@ -681,7 +802,7 @@ function lmChanged_(b, fromMs, tabs, left) {
   }
   // oldest-first: the LM_LIGHT_MAX listings whose last read is oldest
   var all = [];
-  tabs.forEach(function (t) { var p = cacheRead_(t); Object.keys((p && p.items) || {}).forEach(function (s) { all.push([s, p.items[s].readAt || 0]); }); });
+  tabs.forEach(function (t) { var p = lmGet_(t); Object.keys((p && p.items) || {}).forEach(function (s) { all.push([s, p.items[s].readAt || 0]); }); });
   all.sort(function (x, y) { return x[1] - y[1]; });
   var pick = all.slice(0, LM_LIGHT_MAX).map(function (x) { return x[0]; });
   recs = {};
@@ -701,11 +822,11 @@ function lmUpdateParts_(tabs, recs, take) {
   var byPart = {};
   Object.keys(recs).forEach(function (k) { var i = lmHash_(k) % tabs.length; (byPart[i] = byPart[i] || []).push(k); });
   Object.keys(byPart).forEach(function (i) {
-    var p = cacheRead_(tabs[i]);
+    var p = lmGet_(tabs[i]);
     if (!p || !p.items) return;                       // a part that will not read is left alone, never replaced
     byPart[i].forEach(function (k) { p.items[k] = take(p.items[k], recs[k]); });
     p.at = lmNow_();
-    cacheWrite_(tabs[i], p);
+    lmPut_(tabs[i], p);
   });
 }
 
@@ -782,7 +903,7 @@ function lmPath_(it) {
  *  waited for up to ~4.5 minutes; run again if Amazon is slower — the reports asked are remembered for an hour).
  *  Then 10 random SKUs (5 a brand): a live Listings read, a live catalog read and the live FBA stock, field by field. */
 function lmCheck() {
-  var meta = cacheRead_('lmMeta');
+  var meta = lmGet_('lmMeta');
   if (!meta || !meta.parts) { Logger.log('Nothing cached yet — run lmSetup and wait for the first full pass.'); return; }
   var props = PropertiesService.getScriptProperties();
   var pend = {};
@@ -851,7 +972,7 @@ function lmCheck() {
       lmCompare_('issues', lmIssKey_(rec.iss), lmIssKey_(live.iss));
       lmCompare_('title (ours)', rec.t, live.t);
       lmCompare_('our pictures', lmImgKey_(rec.img), lmImgKey_(live.img));
-      var cp = rec.asin && ctabs.length ? cacheRead_(ctabs[lmHash_(rec.asin) % ctabs.length]) : null;
+      var cp = rec.asin && ctabs.length ? lmGet_(ctabs[lmHash_(rec.asin) % ctabs.length]) : null;
       var cc = cp && cp.items && cp.items[rec.asin];
       var cr = rec.asin ? lmCatRead_([rec.asin]) : null;
       var lc = cr && cr.code < 300 && cr.body.items && cr.body.items[0] ? lmCat_(cr.body.items[0], Date.now()) : null;
@@ -877,7 +998,7 @@ function lmPickSkus_(tabs, n) {
   var out = [], tries = 0;
   while (out.length < n && tries < n * 4) {
     tries++;
-    var p = cacheRead_(tabs[Math.floor(Math.random() * tabs.length)]);
+    var p = lmGet_(tabs[Math.floor(Math.random() * tabs.length)]);
     var keys = Object.keys((p && p.items) || {}).filter(function (s) { return !p.items[s].noRead; });
     if (!keys.length) continue;
     var r = p.items[keys[Math.floor(Math.random() * keys.length)]];
@@ -950,11 +1071,11 @@ function lmHash_(s) { s = String(s); var h = 0; for (var i = 0; i < s.length; i+
 function lmTab_(base, b, P, i) { return base + '_' + b + '_' + P + '_' + i; }
 function lmScr_(b, kind, n) { return 'lmScr_' + b + '_' + kind + (n == null ? '' : '_' + n); }
 function lmDropTab_(name) {
-  try { var ss = cacheSheet_(), sh = ss.getSheetByName(name); if (sh) ss.deleteSheet(sh); } catch (e) { /* housekeeping only */ }
+  try { var ss = lmBook_(), sh = ss.getSheetByName(name); if (sh) ss.deleteSheet(sh); } catch (e) { /* housekeeping only */ }
 }
 function lmDropScratch_(b) {
   try {
-    var ss = cacheSheet_();
+    var ss = lmBook_();
     ss.getSheets().forEach(function (sh) { if (sh.getName().indexOf('lmScr_' + b + '_') === 0) ss.deleteSheet(sh); });
   } catch (e) { /* housekeeping only */ }
 }
@@ -977,7 +1098,7 @@ function lmCut_(s, n) { s = String(s == null ? '' : s).replace(/\s+/g, ' '); ret
 
 /** Editor: the arithmetic behind the call estimates in the header, from what the cache holds now. */
 function lmQuota_() {
-  var meta = cacheRead_('lmMeta') || {}, skus = 0, asins = 0;
+  var meta = lmGet_('lmMeta') || {}, skus = 0, asins = 0;
   LM_BRANDS.forEach(function (b) { var c = (meta.counts || {})[b] || {}; skus += c.skus || 0; asins += c.asins || 0; });
   skus = skus || 4400; asins = asins || 4600;
   var full = 6 + 40 + Math.ceil(skus / LM_PAGE) + Math.ceil(asins / LM_CAT_BATCH);

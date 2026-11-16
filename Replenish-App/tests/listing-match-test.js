@@ -3,7 +3,7 @@
 // node Replenish-App/tests/listing-match-test.js
 const fs = require('fs'), vm = require('vm'), path = require('path');
 const P = path.join(__dirname, '..', '..', 'Pricing-API') + '/';
-const FILES = ['SpApi.gs', 'Code.gs', 'Nightly.gs', 'ListingImages.gs', 'InventoryAge.gs', 'Research.gs', 'ListingMatch.gs'];
+const FILES = ['SpApi.gs', 'Code.gs', 'MailPo.gs', 'Nightly.gs', 'ListingImages.gs', 'InventoryAge.gs', 'Research.gs', 'ListingMatch.gs'];
 const SRC = FILES.map(f => fs.readFileSync(P + f, 'utf8')).join('\n;\n');
 let pass = 0, fail = 0;
 const ok = (n, c, i) => { if (c) { pass++; console.log('  PASS ' + n); } else { fail++; console.log('  FAIL ' + n + (i !== undefined ? '  ' + i : '')); } };
@@ -84,8 +84,9 @@ function catalogItem(asin, c) {
 function setup(o) {
   o = o || {};
   const W = o.W || world(o);
-  const props = Object.assign({ CACHE_SHEET_ID: 'CACHE', SP_SELLER_ID: 'SELLER-SP', CPC_SELLER_ID: 'SELLER-CPC' }, o.props || {});
-  const sheets = new Map();
+  const props = Object.assign({ API_KEY: 'K', CACHE_SHEET_ID: 'CACHE', SP_SELLER_ID: 'SELLER-SP', CPC_SELLER_ID: 'SELLER-CPC' }, o.noBook ? {} : { LM_CACHE_ID: 'LMBOOK' }, o.props || {});
+  // two spreadsheets: the nightly cache (with a tab of its own) and "Sellora Listing Cache"
+  const books = new Map(), created = [];
   const log = [], calls = [], triggers = [];
   let repN = 0;
   const reps = {};
@@ -102,12 +103,20 @@ function setup(o) {
     };
     return s;
   };
-  const SS = {
-    getSheetByName: n => (sheets.has(n) ? sheets.get(n).api : null),
-    insertSheet: n => { const s = sheet(n); sheets.set(n, s); return s.api; },
-    deleteSheet: api => { sheets.delete(api.getName()); },
-    getSheets: () => [...sheets.values()].map(s => s.api),
+  const book = (id, name) => {
+    const sheets = new Map();
+    const SS = {
+      getId: () => id, getUrl: () => 'https://docs.google.com/spreadsheets/d/' + id + '/edit', getName: () => name,
+      getSheetByName: n => (sheets.has(n) ? sheets.get(n).api : null),
+      insertSheet: n => { const s = sheet(n); sheets.set(n, s); return s.api; },
+      deleteSheet: api => { sheets.delete(api.getName()); },
+      getSheets: () => [...sheets.values()].map(s => s.api),
+    };
+    books.set(id, { id, name, sheets, SS });
+    return SS;
   };
+  book('CACHE', 'Amazon Research — nightly cache').insertSheet('matchBiz').getRange(1, 1, 1, 1).setValues([["'{\"d\":{\"SP\":{\"2026-11-01\":[1]}}}"]]);
+  if (!o.noBook) book('LMBOOK', 'Sellora Listing Cache');
   const resp = (code, body) => ({ getResponseCode: () => code, getContentText: () => (typeof body === 'string' ? body : JSON.stringify(body)),
     getBlob: () => ({ setContentType() { return this; }, getDataAsString: () => (typeof body === 'string' ? body : JSON.stringify(body)) }) });
   let ctx;
@@ -163,11 +172,15 @@ function setup(o) {
   };
   ctx = {
     UrlFetchApp: { fetch },
-    SpreadsheetApp: { openById: () => SS, create: () => SS },
+    SpreadsheetApp: {
+      openById: id => { if (o.badBook && id === props.LM_CACHE_ID) throw new Error('Document is missing'); if (!books.has(id)) throw new Error('Document ' + id + ' is missing'); return books.get(id).SS; },
+      create: name => { const id = 'NEW' + (created.length + 1); created.push(name); return book(id, name); },
+    },
+    ContentService: { createTextOutput: t => ({ setMimeType() { return this; }, text: t }), MimeType: { JSON: 'json' } },
     PropertiesService: { getScriptProperties: () => ({ getProperty: k => (k in props ? props[k] : null), setProperty: (k, v) => { props[k] = String(v); }, deleteProperty: k => { delete props[k]; }, getProperties: () => props }) },
     CacheService: { getScriptCache: () => ({ get: () => 'tok', put() {} }) },
     Utilities: { sleep() {}, formatDate: fmt, ungzip: b => b },
-    Session: { getScriptTimeZone: () => o.tz || tzAt(o.hour == null ? 13 : o.hour) },
+    Session: { getScriptTimeZone: () => o.tz || tzAt(o.hour == null ? 13 : o.hour), getEffectiveUser: () => ({ getEmail: () => (o.mail != null ? o.mail : 'ops@workspace.example') }) },
     ScriptApp: { getProjectTriggers: () => triggers, deleteTrigger: t => triggers.splice(triggers.indexOf(t), 1),
       newTrigger: h => ({ timeBased: () => ({ everyMinutes: m => ({ create: () => triggers.push({ getHandlerFunction: () => h, m }) }) }) }) },
     Logger: { log: s => log.push(String(s)) }, console,
@@ -175,7 +188,7 @@ function setup(o) {
   vm.createContext(ctx);
   vm.runInContext(SRC, ctx);
   if (o.tune) vm.runInContext(o.tune, ctx);
-  const read = n => vm.runInContext('cacheRead_(' + JSON.stringify(n) + ')', ctx);
+  const read = n => vm.runInContext('lmGet_(' + JSON.stringify(n) + ')', ctx);
   const run = s => vm.runInContext(s, ctx);
   const state = () => JSON.parse(props.LM_STATE || '{}');
   const allItems = (kind, b) => {
@@ -185,19 +198,26 @@ function setup(o) {
   };
   // ticks until the full pass is done (a 13:00 tick starts it)
   const fullPass = (max) => { let n = 0; do { run('lmTick()'); n++; } while (state().run && n < (max || 60)); return n; };
-  return { W, props, sheets, log, calls, triggers, reps, ctx, read, run, state, allItems, fullPass, setHour: h => { o.tz = tzAt(h); }, opts: o };
+  const get = q => JSON.parse(vm.runInContext('doGet({ parameter: ' + JSON.stringify(Object.assign({ key: 'K' }, q)) + ' }).text', ctx));
+  return { W, props, get sheets() { const b = books.get(props.LM_CACHE_ID); return b ? b.sheets : new Map(); }, books, created, log, calls, triggers, reps, ctx, read, run, state, allItems, fullPass, get,
+    setHour: h => { o.tz = tzAt(h); }, opts: o };
 }
 const tabs = T => [...T.sheets.keys()];
 
 (async () => {
   console.log('== setup and the first full pass ==');
   {
-    const T = setup({ hour: 10 });
+    const T = setup({ hour: 10, noBook: true });
+    const cacheBefore = JSON.stringify([...T.books.get('CACHE').sheets.values()].map(x => [x.name, x.rows]));
+    T.run('lmTick()');
+    ok('a tick before lmSetup: nothing is asked of Amazon, nothing written, it says to run lmSetup', !T.calls.length && !T.created.length && T.log.some(l => /run lmSetup\(\) once/.test(l)));
     T.run('lmSetup()');
-    ok('lmSetup: the cache sheet is checked (probe written and removed), lmTick every 10 minutes, a full pass asked for',
+    ok('lmSetup: creates the spreadsheet "Sellora Listing Cache" and keeps its id in Script Property LM_CACHE_ID (not in the code)',
+      T.created.join() === 'Sellora Listing Cache' && T.props.LM_CACHE_ID === 'NEW1' && T.log.some(l => /Created the spreadsheet "Sellora Listing Cache": https:\/\/docs\.google\.com\/spreadsheets\/d\/NEW1/.test(l)));
+    ok('…checks it can be written (probe written and removed), lmTick every 10 minutes, a full pass asked for',
       T.triggers.length === 1 && T.triggers[0].getHandlerFunction() === 'lmTick' && T.triggers[0].m === 10 && !T.sheets.has('lmProbe') && T.state().reset === true);
     T.run('lmSetup()');
-    ok('…run twice: still one timer', T.triggers.length === 1);
+    ok('…run twice: the same spreadsheet (no second one), still one timer', T.created.length === 1 && T.props.LM_CACHE_ID === 'NEW1' && T.triggers.length === 1 && T.log.some(l => /^Using the spreadsheet/.test(l)));
     const ticks = T.fullPass();
     const meta = T.read('lmMeta');
     ok('the full pass finishes (' + ticks + ' tick(s)) and lmMeta names the parts per brand', !T.state().run && meta.kind === 'full' && meta.parts.listings.SP.length >= 1 && meta.parts.catalog.CPC.length >= 1, JSON.stringify(meta.parts));
@@ -226,6 +246,19 @@ const tabs = T => [...T.sheets.keys()];
       Object.values(T.reps).map(r => r.b + ':' + r.type).sort().join() === ['CPC:GET_FBA_INVENTORY_PLANNING_DATA', 'CPC:GET_MERCHANTS_LISTINGS_FYP_REPORT', 'CPC:GET_MERCHANT_LISTINGS_ALL_DATA',
         'SP:GET_FBA_INVENTORY_PLANNING_DATA', 'SP:GET_MERCHANTS_LISTINGS_FYP_REPORT', 'SP:GET_MERCHANT_LISTINGS_ALL_DATA'].join());
     ok('no lock: the lease is our own and released', T.props.LM_LEASE === undefined);
+    ok('every lm tab is in "Sellora Listing Cache"; the nightly cache spreadsheet is exactly as it was', tabs(T).includes('lmMeta') && tabs(T).some(n => /^lmListings_SP_/.test(n))
+      && JSON.stringify([...T.books.get('CACHE').sheets.values()].map(x => [x.name, x.rows])) === cacheBefore);
+    const g = T.get({ cache: 'lmMeta' }), g2 = T.get({ cache: 'matchBiz' }), g3 = T.get({ cache: meta.parts.listings.SP[0] });
+    ok('Code.gs ?cache=lmMeta and ?cache=lmListings_… read "Sellora Listing Cache"', g.ok && g.data.kind === 'full' && g3.ok && g3.data.items['RTC14-1'] !== undefined === (T.run('lmHash_("RTC14-1")') % meta.parts.listings.SP.length === 0), JSON.stringify(g).slice(0, 120));
+    ok('…every other ?cache= tab works exactly as before (matchBiz from the nightly cache)', g2.ok && g2.data.d.SP['2026-11-01'][0] === 1);
+    ok('…an lm tab that does not exist: the usual "nothing cached" answer', T.get({ cache: 'lmCatalog_SP_9_9' }).error === 'nothing cached for "lmCatalog_SP_9_9" yet');
+    const N = setup({ noBook: true });
+    ok('…before lmSetup has ever run: ?cache=lmMeta says nothing is cached (no spreadsheet is created by a read)', N.get({ cache: 'lmMeta' }).error === 'nothing cached for "lmMeta" yet' && !N.created.length);
+    const Bd = setup({ hour: 13, badBook: true });
+    Bd.run('lmSetup()');
+    ok('a "Sellora Listing Cache" that will not open: lmSetup says so and never makes a new one, installs nothing', !Bd.created.length && !Bd.triggers.length && Bd.log.some(l => /cannot use the "Sellora Listing Cache"/.test(l)));
+    Bd.run('lmTick()');
+    ok('…and a tick asks Amazon nothing, the error is in the state', !Bd.calls.length && Bd.state().errors.some(e => /will not open/.test(e)));
   }
 
   console.log('== batching and resume ==');
@@ -433,9 +466,40 @@ const tabs = T => [...T.sheets.keys()];
     ok('lmStatus: what the cache holds per brand', /Ridhi  5 SKUs \(Active 5\)/.test(T.log.join('\n')), T.log.join('\n'));
   }
 
+  console.log('== script minutes today (lmStatus) ==');
+  {
+    const T = setup({ hour: 13 });
+    T.fullPass();
+    const u = JSON.parse(T.props.LM_USAGE);
+    ok('every tick adds its minutes to today\'s count (Script Property LM_USAGE)', u.runs >= 1 && u.ms >= 0 && u.day.length === 10);
+    T.log.length = 0; T.run('lmStatus()');
+    let L = T.log.join('\n');
+    ok('lmStatus: today\'s ListingMatch minutes and runs, the daily limit of a Workspace account (360 min)', /ListingMatch  [\d.]+ min in \d+ run\(s\)/.test(L) && /daily limit   360 min of timer time for the WHOLE project \(a Google Workspace account\)/.test(L) && /no sign of the daily limit today/.test(L), L);
+    T.triggers.push({ getHandlerFunction: () => 'matchTick' }, { getHandlerFunction: () => 'nightlyTick' });
+    const G = setup({ hour: 13, mail: 'someone@gmail.com' });
+    G.log.length = 0; G.run('lmStatus()');
+    ok('…a Gmail account: 90 min', /daily limit   90 min .*\(a Gmail account\)/.test(G.log.join('\n')));
+    const v = JSON.parse(T.props.LM_USAGE); v.ms = 130 * 60000; T.props.LM_USAGE = JSON.stringify(v);
+    T.log.length = 0; T.run('lmStatus()'); L = T.log.join('\n');
+    ok('ListingMatch alone past a third of the limit: a warning that names the other timers and what to change', /⚠️ ListingMatch alone has used 36% of the daily limit today\. With matchTick, nightlyTick on top/.test(L) && /LM_LIGHT_EVERY_MIN = 30/.test(L), L);
+    const w = JSON.parse(T.props.LM_USAGE); w.ms = 0; w.last = Date.now() - 70 * 60000; T.props.LM_USAGE = JSON.stringify(w);
+    T.setHour(14);
+    const st = T.state(); st.lightAt = Date.now(); T.props.LM_STATE = JSON.stringify(st);
+    T.run('lmTick()');
+    T.log.length = 0; T.run('lmStatus()'); L = T.log.join('\n');
+    ok('a tick that did not come for over 25 minutes: "the project looks NEAR OR OVER ITS DAILY LIMIT"', /⚠️ lmTick did not run \d\d:\d\d–\d\d:\d\d today/.test(L) && /NEAR OR OVER ITS DAILY LIMIT/.test(L), L);
+    const y = JSON.parse(T.props.LM_USAGE); y.day = '2000-01-01'; T.props.LM_USAGE = JSON.stringify(y);
+    T.log.length = 0; T.run('lmStatus()');
+    ok('a new day starts the count again', /ListingMatch  0 min in 0 run\(s\)/.test(T.log.join('\n')));
+  }
+
   console.log('== this file changes nothing else ==');
   {
     const src = fs.readFileSync(P + 'ListingMatch.gs', 'utf8');
+    const code = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+    ok('ListingMatch never opens the nightly cache spreadsheet (no cacheSheet_ / cacheRead_ / cacheWrite_ call)', !/cacheSheet_\(|cacheRead_\(|cacheWrite_\(/.test(code));
+    const codeGs = fs.readFileSync(P + 'Code.gs', 'utf8');
+    ok('Code.gs: one line — lm tabs from lmCacheRead_, everything else from cacheRead_ as before; CRLF kept', /var c = \/\^lm\(Meta\$\|Listings_\|Catalog_\)\/\.test\(String\(p\.cache\)\) \? lmCacheRead_\(String\(p\.cache\)\) : cacheRead_\(String\(p\.cache\)\);/.test(codeGs) && !/(^|[^\r])\n/.test(codeGs));
     ok('no LockService, no writes to Amazon (only report requests and reads)', !/LockService\./.test(src) && !/'(put|patch|delete)'/.test(src) && !/method:\s*'(put|patch|delete)'/.test(src));
     ok('no keys in the code', !/(CLIENT_SECRET|REFRESH_TOKEN|Atzr\||amzn1\.application)/.test(src.replace(/prop_\(|getProperty\(/g, '')));
     ok('the line endings are one kind (CRLF, like most of Pricing-API)', !/(^|[^\r])\n/.test(src) && /\r\n/.test(src));

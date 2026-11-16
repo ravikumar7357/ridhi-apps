@@ -204,7 +204,7 @@ function doGet(e) {
     if (p.shopSkuBuild) return json_(shopSkuBuild_(String(p.shop || ''), Date.now() + 300000));
     // Whatever the nightly run has already worked out. One fast read instead of the whole grind.
     if (p.cache) {
-      var c = cacheRead_(String(p.cache));
+      var c = /^lm(Meta$|Listings_|Catalog_)/.test(String(p.cache)) ? lmCacheRead_(String(p.cache)) : cacheRead_(String(p.cache));   // lm* tabs: ListingMatch.gs's own spreadsheet
       return json_(c ? { ok: true, name: p.cache, data: c } : { ok: false, error: 'nothing cached for "' + p.cache + '" yet' });
     }
     if (p.cacheState) return json_({ ok: true, state: nState_() });
