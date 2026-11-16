@@ -43,6 +43,11 @@ function sample(o) {
     items.push({ sku: 'ROD-P', asin: 'BPARENTDSK', st: 'DISCOVERABLE', pt: 'STORAGE_BOX', t: 'CPC Desk Organizer Set', lvl: 'parent' },
       dk('ROD-1', { set: '3 Piece' }), dk('ROD-2', { set: '5 Piece' }), dk('ROD-3', { set: '7 Piece' }));
   }
+  if (o.sameAsin) {                                                                     // "Tablecloth 2": two of our SKUs on one ASIN, Amazon resale SKUs
+    items.push(it('RTC-14-5', { asin: A('RTC14-5'), c: 'Grey' }),                        // a second SKU of ours on RTC14-5's ASIN
+      it('amzn.gr.RTC14-6-W7Q2', { asin: A('RTC14-6'), c: 'Grey', psku: '', lvl: '' }),  // Amazon's resale SKU on RTC14-6's ASIN
+      it('amzn.gr.RTC14-12-K9', { asin: A('RTC14-12'), c: 'Teal', psku: '', lvl: '' })); // a resale SKU with an ASIN of its own, no parent
+  }
   (o.iss || []).forEach(([sku, i]) => { items.find(x => x.sku === sku).iss = [i]; });
   const qty = { 'RTC14-8': 0, 'RTC14-10': 0 };
   const rows = items.filter(i => i.lvl !== 'parent').map(i => ({ sku: i.sku, asin: i.asin, parent: '', title: i.t, qty: qty[i.sku] != null ? qty[i.sku] : 5, status: 'Active' }));
@@ -55,6 +60,7 @@ function catalog(S, o) {
   const parentOf = sku => S.items.find(x => x.sku === sku);
   const allItems = S.items.concat(o.noNapkinParent ? [{ sku: 'RNP20-P', asin: 'BPARENT020', lvl: 'parent' }] : []);
   allItems.forEach(i => {
+    if (/^amzn\.gr\./.test(i.sku)) return;                                               // the catalog is per ASIN; a resale SKU is not an entry of its own
     const val = v => (v ? [{ value: v, language_tag: 'en_US', marketplace_id: 'ATVPDKIKX0DER' }] : undefined);
     if (i.lvl === 'parent') {
       const th = CAT_THEME[i.sku] || (/^ZQ/.test(i.sku) ? ['SIZE/COLOR', ['size', 'color']] : null);
@@ -236,6 +242,32 @@ const ready = async opts => { const C = setup(opts); await C.fcOpen(); await flu
   {
     const C = await ready({ failCat: 'BPARENT020' });
     ok('Amazon could not be read: grey "Amazon could not be read", nothing counted for that family', /Amazon could not be read/.test(C.body()) && !probOf(C.FC.view, 'RNP20-2', 'dup') && !!probOf(C.FC.view, 'RTC14-5', 'dup'));
+  }
+
+  console.log('== one row per ASIN; Amazon resale SKUs left out ==');
+  {
+    const C = await ready({ sameAsin: true });
+    const vv = C.FC.view;
+    const r5 = rowsOf(vv).find(r => r.c.asin === A('RTC14-5'));
+    ok('same ASIN with 2 of our SKUs (RTC14-5, RTC-14-5): ONE child, no duplicate between them', r5 && r5.c.skus.slice().sort().join() === 'RTC-14-5,RTC14-5' && rowsOf(vv).filter(r => r.c.asin === A('RTC14-5')).length === 1
+      && !/RTC-14-5/.test((probOf(vv, r5.c.sku, 'dup') || {}).text || ''), r5 && JSON.stringify(r5.c.skus));
+    ok('two DIFFERENT ASINs with equal size + color (RTC14-5 / RTC14-6) are still a duplicate', !!probOf(vv, r5.c.sku, 'dup') && /as RTC14-6$/.test(probOf(vv, r5.c.sku, 'dup').text) && !!probOf(vv, 'RTC14-6', 'dup'));
+    ok('the counts are per ASIN: Duplicate 4, Not in family 3 (as without the extra SKUs); live 13 of 16 ASINs', C.counts() === '3,4,1,1' && vv.live === 13 && vv.all === 16, `${C.counts()} ${vv.live}/${vv.all}`);
+    ok('amzn.gr. SKUs: no flag, no row of their own, never asked about (the resale ASIN of its own is not read)', !rowsOf(vv).some(r => /^amzn\.gr\./.test(r.c.sku)) && !C.cats.flat().includes(A('RTC14-12')) && !vv.cands.some(c => /^amzn/.test(c.sku)));
+    C.fcToggle(RTC);
+    const h = C.body();
+    const other = r5.c.skus.find(x => x !== r5.c.sku);
+    ok('the ASIN row lists its other SKU and a grey "2 SKUs on one ASIN" (information, not counted)', h.includes(`<small class="fc-also">also ${other} <span class="fc-chip is-g">2 SKUs on one ASIN</span></small>`), strip(h).slice(0, 600));
+    ok('…and the resale SKU only inside its ASIN\'s row: "Amazon resale SKU: amzn.gr.RTC14-6-W7Q2"', /<b>RTC14-6<\/b><small class="fc-also">Amazon resale SKU: amzn\.gr\.RTC14-6-W7Q2<\/small>/.test(h));
+    const line = (h.match(/<tr class="fc-head" data-fc="grp" data-fc-v="SP\|S:RTC14-P"(?:(?!<\/tr>)[^])*<\/tr>/) || [''])[0];
+    ok('…the family line says it too (grey)', line.includes('<span class="fc-chip is-g">2 SKUs on one ASIN</span>'), strip(line));
+    ok('the CSV names every SKU of the ASIN', /RTC-14-5 \/ RTC14-5|RTC14-5 \/ RTC-14-5/.test(C.fcCsv(vv).text));
+    const M = await ready({ sameAsin: true, kidNoParent: ['RTC14-5', 'RTC-14-5'] });
+    const row = rowsOf(M.FC.view).find(r => r.c.asin === A('RTC14-5'));
+    const notShown = row.c.skus.find(x => x !== row.c.sku);
+    await M.fcOkSet('SP', row.c.sku, 'low rating');
+    M.FC.ok.SP[notShown] = M.FC.ok.SP[row.c.sku]; delete M.FC.ok.SP[row.c.sku];        // the mark sits on the ASIN's other SKU
+    ok('a Removed-on-purpose mark on ANY of the ASIN\'s SKUs holds', !rowsOf(M.fcBuild()).some(r => r.c.asin === A('RTC14-5') && r.probs.some(p => p.k === 'orphan')));
   }
 
   console.log('== read on open, Read again, the saved copy ==');

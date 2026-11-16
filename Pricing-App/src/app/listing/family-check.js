@@ -43,6 +43,7 @@ const FC_STORE_MAX = 8000;
 const FC_OK_COLL = 'listingrules';                   // where the "removed on purpose" marks are saved (existing collection, existing rule)
 const FC_OK_DOC = brand => 'famok_' + brand;
 const FC_REASON = 'low rating';
+const FC_RESALE = /^amzn\.gr\./i;                    // Amazon's own resale SKUs (Amazon Resale / Warehouse): never judged, only named in their ASIN's row
 const FC_KINDS = [
   { k: 'orphan', t: 'Not in family', sev: 'r', tip: 'Live children Amazon\'s catalog shows with no parent.' },
   { k: 'dup', t: 'Duplicate', sev: 'r', tip: 'Amazon says duplicate variation, or two live children of one Amazon parent have the same values on every theme attribute.' },
@@ -368,28 +369,43 @@ function fcBuild() {
       if (!f.pa && pa) f.pa = pa;
       return f;
     };
+    // ONE ROW PER ASIN: our SKUs on the same ASIN are one child (several SKUs can sell one ASIN — that is no duplicate). Amazon's resale SKUs
+    // ("amzn.gr.…") are left out of every flag and count; they are only named inside their ASIN's row.
+    const resale = new Map();
+    const byAsin = new Map();
     items.forEach(it => {
       if (/^parent$/i.test(it.lvl || '')) return;
-      all++;
       const row = rowOf.get(it.sku) || null;
+      const asin = it.asin || (row && row.asin) || '';
+      if (FC_RESALE.test(it.sku)) { if (asin) resale.set(asin, (resale.get(asin) || []).concat([it.sku])); return; }
       const stock = row && row.qty != null ? Number(row.qty) : null;
-      const isLive = /BUYABLE/.test(String(it.st || '')) && stock != null && stock > 0;
       const pa = it.pa || (row && row.parent && row.parent !== row.asin ? row.parent : '') || '';
       const psku = it.psku || (pa ? parentByAsin.get(pa) || '' : '');
-      const fk = psku ? brand + '|S:' + psku : pa ? brand + '|A:' + pa : '';
-      const rt = fcRating(it, row);
+      const m = { it, row, asin, stock, pa, psku, live: /BUYABLE/.test(String(it.st || '')) && stock != null && stock > 0 };
+      const k = asin || 'sku:' + it.sku;
+      byAsin.set(k, (byAsin.get(k) || []).concat([m]));
+    });
+    byAsin.forEach((ms, k) => {
+      all++;
+      const liveMs = ms.filter(m => m.live);
+      const isLive = liveMs.length > 0;
+      const use = (isLive ? liveMs : ms).slice().sort((a, b) => (b.psku ? 1 : 0) - (a.psku ? 1 : 0) || (b.pa ? 1 : 0) - (a.pa ? 1 : 0) || (b.stock || 0) - (a.stock || 0) || String(a.it.sku).localeCompare(String(b.it.sku)));
+      const rep = use[0], it = rep.it, row = rep.row;
+      const fk = rep.psku ? brand + '|S:' + rep.psku : rep.pa ? brand + '|A:' + rep.pa : '';
+      const rt = use.map(m => fcRating(m.it, m.row)).find(Boolean) || null;
       if (rt) ratingFound++;
-      const c = { brand, sku: it.sku, asin: it.asin || (row && row.asin) || '', title: it.t || (row && row.title) || '', pt: it.pt || '', stock, live: isLive, fk, rt,
-        iss: it.iss || [], issAt: snapAt, stem: fcStem(it.sku), book: (typeof LR_CAT !== 'undefined' && LR_CAT[brand] && LR_CAT[brand][it.sku]) || null };
+      const c = { brand, sku: it.sku, skus: use.map(m => m.it.sku), resale: rep.asin ? resale.get(rep.asin) || [] : [], asin: rep.asin, title: it.t || (row && row.title) || '', pt: it.pt || '',
+        stock: isLive ? liveMs.reduce((n, m) => n + m.stock, 0) : rep.stock, live: isLive, fk, rt,
+        iss: [].concat(...use.map(m => m.it.iss || [])), issAt: snapAt, stem: fcStem(it.sku), book: (typeof LR_CAT !== 'undefined' && LR_CAT[brand] && LR_CAT[brand][it.sku]) || null };
       if (fk) {
-        const f = famOf(fk, psku, pa);
+        const f = famOf(fk, rep.psku, rep.pa);
         f.kids.push(c);
         if (c.pt) f.pts[c.pt] = (f.pts[c.pt] || 0) + 1;
         if (!f.title && c.title) f.title = c.title;
         if (c.stem && isLive) {
-          const m = stemFams.get(brand + '|' + c.stem) || new Map();
-          m.set(fk, (m.get(fk) || 0) + 1);
-          stemFams.set(brand + '|' + c.stem, m);
+          const sm = stemFams.get(brand + '|' + c.stem) || new Map();
+          sm.set(fk, (sm.get(fk) || 0) + 1);
+          stemFams.set(brand + '|' + c.stem, sm);
         }
         if (isLive) { f.live.push(c); live++; }
       } else if (isLive) {
@@ -458,7 +474,7 @@ function fcProblems(v) {
   const group = f => groups.get(f.fk) || (groups.set(f.fk, { f, rows: [] }), groups.get(f.fk));
   const famByFk = new Map(v.families.map(f => [f.fk, f]));
   const orphanRow = (c, f, rec, why) => {
-    if (fcIsOk(c.brand, c.sku)) { v.removed.push(Object.assign(c, { why: 'team' })); return; }
+    if ((c.skus || [c.sku]).some(x => fcIsOk(c.brand, x))) { v.removed.push(Object.assign(c, { why: 'team' })); return; }
     if (fcLowRated(c.rt)) { v.removed.push(Object.assign(c, { why: 'rating' })); return; }
     v.orphans.push(c);
     counts.orphan++;
@@ -685,7 +701,7 @@ function fcCsv(v) {
   const stamp = ms => { if (!ms) return ''; const d = new Date(ms); return `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())} ${two(d.getHours())}:${two(d.getMinutes())}`; };
   const lines = [];
   fcGroups(v).forEach(g => g.rows.forEach(r => r.probs.filter(p => p.sev === 'r').forEach(p => {
-    lines.push([fcBrandName(r.c.brand), g.f.name, g.f.psku, g.f.pa, r.c.sku, r.c.asin, r.c.amz && r.c.amz.vals ? fcValsText(r.c.amz.vals, r.c.tattrs) : '', r.c.stock, p.text, p.src || '', stamp(p.at),
+    lines.push([fcBrandName(r.c.brand), g.f.name, g.f.psku, g.f.pa, (r.c.skus || [r.c.sku]).join(' / '), r.c.asin, r.c.amz && r.c.amz.vals ? fcValsText(r.c.amz.vals, r.c.tattrs) : '', r.c.stock, p.text, p.src || '', stamp(p.at),
       (p.fix.kind === 'hand' ? 'Fix by hand: ' : '') + p.fix.text].map(q).join(','));
   })));
   return { n: lines.length, text: '﻿' + [FC_CSV_COLS.join(',')].concat(lines).join('\r\n') + '\r\n' };
@@ -739,7 +755,7 @@ function fcGroups(v) {
   return v.groups.filter(g => FC.brand === 'ALL' || g.f.brand === FC.brand).map(g => {
     const famHit = q && (fcNorm(g.f.name).includes(q) || fcNorm(g.f.psku).includes(q) || fcNorm(g.f.pa).includes(q));
     const rows = g.rows.filter(r => (!FC.card || r.probs.some(p => p.k === FC.card))
-      && (!q || famHit || fcNorm(r.c.sku).includes(q) || fcNorm(r.c.asin).includes(q) || fcNorm(r.c.title).includes(q)));
+      && (!q || famHit || (r.c.skus || [r.c.sku]).some(x => fcNorm(x).includes(q)) || fcNorm(r.c.asin).includes(q) || fcNorm(r.c.title).includes(q)));
     return rows.length ? { f: g.f, rows } : null;
   }).filter(Boolean).sort((a, b) => FC.order.get(a.f.fk) - FC.order.get(b.f.fk));
 }
@@ -774,7 +790,7 @@ function fcDrawTools(v) {
   if (!meta) return;
   const at = (store, b) => (typeof store !== 'undefined' && store && store[b] && store[b].at && store[b].at.getTime ? store[b].at.getTime() : 0);
   const oldest = store => { const t = ['SP', 'CPC'].map(b => at(store, b)).filter(Boolean); return t.length ? Math.min(...t) : 0; };
-  const parts = [`Live children only (buyable and in stock): ${fcNf(v.live)} of ${fcNf(v.all)}`,
+  const parts = [`Live children only (buyable and in stock): ${fcNf(v.live)} of ${fcNf(v.all)} ASINs (our SKUs on one ASIN are one child; Amazon resale SKUs left out)`,
     'flags from Amazon\'s catalog and Amazon\'s issues only',
     `Amazon issues from the Image Manager snapshot ${fcAgo(oldest(typeof IML !== 'undefined' ? IML : null))}`,
     `stock from Listing Health ${fcAgo(oldest(typeof HEALTH !== 'undefined' ? HEALTH : null))}`,
@@ -809,11 +825,18 @@ function fcRowHtml(r) {
   const amz = c.asin ? `<a href="https://www.amazon.com/dp/${fcEsc(c.asin)}" target="_blank" rel="noopener">${fcEsc(c.asin)}</a>` : '—';
   const vals = c.amz && c.amz.vals && c.tattrs ? fcEsc(fcValsText(c.amz.vals, c.tattrs)) : c.amz && !c.amz.nf ? '<span class="fc-none">—</span>' : '<span class="fc-none">not read</span>';
   const sug = probs.map(p => p.sug).filter(Boolean)[0];
-  return `<tr class="fc-row${orphan ? ' is-orphan' : ''}${FC.sel.has(key) ? ' is-sel' : ''}"><td class="fc-tk">${tick}</td><td class="fc-sku"><b>${fcEsc(c.sku)}</b><small>${fcEsc(String(c.title || '').slice(0, 70))}</small></td><td class="ui-mono">${amz}</td>`
+  return `<tr class="fc-row${orphan ? ' is-orphan' : ''}${FC.sel.has(key) ? ' is-sel' : ''}"><td class="fc-tk">${tick}</td><td class="fc-sku"><b>${fcEsc(c.sku)}</b>${fcSkusHtml(c)}<small>${fcEsc(String(c.title || '').slice(0, 70))}</small></td><td class="ui-mono">${amz}</td>`
     + `<td class="fc-vals">${vals}</td><td class="num">${fcNf(c.stock)}</td>`
     + `<td class="fc-prob">${probs.map(p => `<div class="fc-p is-${p.sev}">${fcEsc(p.text)}</div>${fcSrcHtml(p)}`).join('')}</td>`
     + `<td class="fc-fix">${sug ? `<div><b>Suggested family:</b> ${fcEsc(sug)}</div>` : ''}${probs.map(p => (p.fix.text ? `<div>${p.fix.kind === 'hand' ? '<b>Fix by hand:</b> ' : ''}${fcEsc(p.fix.text)}</div>` : '')).join('')}${FC.note[key] ? `<div class="fc-note">${fcEsc(FC.note[key])}</div>` : ''}</td>`
     + `<td class="fc-acts">${btns}${ask}</td></tr>`;
+}
+// The ASIN row's other SKUs: our own ("also RTC78-6060", and the grey "2 SKUs on one ASIN" — information, not an error, not counted) and
+// Amazon's resale SKUs ("Amazon resale SKU: amzn.gr.…").
+function fcSkusHtml(c) {
+  const more = (c.skus || []).filter(x => x !== c.sku);
+  return (more.length ? `<small class="fc-also">also ${more.map(fcEsc).join(', ')} <span class="fc-chip is-g">${fcNf(more.length + 1)} SKUs on one ASIN</span></small>` : '')
+    + (c.resale || []).map(x => `<small class="fc-also">Amazon resale SKU: ${fcEsc(x)}</small>`).join('');
 }
 const FC_COLHEAD = '<tr class="fc-colh"><th class="fc-tk"></th><th>SKU</th><th>ASIN</th><th>Amazon values</th><th class="num">Stock</th><th>Problem</th><th>Suggested fix</th><th></th></tr>';
 // One family: a single line while closed (chips from what is in memory); open, its column header and its children's rows.
@@ -822,6 +845,8 @@ function fcGroupHtml(g) {
   const open = FC.open === f.fk;
   const n = k => g.rows.filter(r => r.probs.some(p => p.k === k)).length;
   const chips = FC_KINDS.map(k => (n(k.k) ? `<span class="fc-chip is-${k.sev}">${fcNf(n(k.k))} ${fcEsc(k.t.toLowerCase())}</span>` : '')).join('');
+  const multi = f.live.filter(c => (c.skus || []).length > 1).length;
+  const info = multi ? `<span class="fc-chip is-g">${multi === 1 ? fcNf(f.live.find(c => c.skus.length > 1).skus.length) + ' SKUs on one ASIN' : fcNf(multi) + ' ASINs with 2+ SKUs'}</span>` : '';
   const busy = FC.reading.has(f.fk);
   const state = busy ? ' <span class="fc-reading">Reading from Amazon…</span>'
     : FC.failed.has(f.fk) ? '<span class="fc-chip is-g">Amazon could not be read</span>' : !f.read ? '<span class="fc-chip is-g">not read</span>' : '';
@@ -832,7 +857,7 @@ function fcGroupHtml(g) {
   const theme = f.amz ? ` · theme ${f.amz.theme || '—'}${f.amz.tattrs.length ? ' (' + f.amz.tattrs.join(', ') + ')' : ''} · read ${fcAgo(f.amz.at)}` : '';
   return `<tbody class="fc-grp${open ? ' is-open' : ''}"><tr class="fc-head" data-fc="grp" data-fc-v="${fcEsc(f.fk)}" tabindex="0" aria-expanded="${open}"><td colspan="${FC_COLS}">`
     + `<button type="button" class="fc-arrow" data-fc="grp" data-fc-v="${fcEsc(f.fk)}" aria-label="${open ? 'Close' : 'Open'} ${fcEsc(f.name)}">${open ? '▾' : '▸'}</button>`
-    + `<b>${fcEsc(f.name)}</b> <small class="muted">${fcEsc(fcBrandName(f.brand))} · parent SKU ${fcEsc(f.psku || '—')} · ${fcEsc(f.pa || '—')} · ${fcNf(f.live.length)} live children${fcEsc(theme)}</small> ${chips}${state}${selAll}${again}</td></tr>`
+    + `<b>${fcEsc(f.name)}</b> <small class="muted">${fcEsc(fcBrandName(f.brand))} · parent SKU ${fcEsc(f.psku || '—')} · ${fcEsc(f.pa || '—')} · ${fcNf(f.live.length)} live children${fcEsc(theme)}</small> ${chips}${info}${state}${selAll}${again}</td></tr>`
     + (open ? FC_COLHEAD + g.rows.map(fcRowHtml).join('') : '') + '</tbody>';
 }
 /** What is ticked, as rows still on the page: { orphan: [c…], fix: [c…] } (a tick whose row has gone is dropped). */
