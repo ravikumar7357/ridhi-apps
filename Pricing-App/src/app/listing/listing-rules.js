@@ -468,11 +468,12 @@ const LR_DET = {
   inactive_with_stock: row => (/inactive/i.test(row.status || '') && row.qty > 0) ? `${row.qty} in stock but the listing is Inactive` : '',
   no_price: row => row.price === 0 ? 'no price' : '',
   // Amazon's own verdict: the Workspace's live read of the listing first, else the Image Manager snapshot (lrAmz).
+  // Suppressed only by THE ONE RULE (lrShopOf): an ERROR issue alone is never a suppression.
   amazon_suppressed: (row, ctx) => {
     const amz = lrFactsOf(row, ctx).amz;
-    if (!amz || !amz.st) return '';
-    const status = String(amz.st).toUpperCase();
-    return status.includes('BUYABLE') && !status.includes('DISCOVERABLE') ? 'buyable by direct link, not in search' : '';
+    if (!amz) return '';
+    const shop = lrShopOfAmz(amz, row);
+    return shop.k === 'sup' ? shop.why : '';
   },
   amazon_error: (row, ctx) => {
     const amz = lrFactsOf(row, ctx).amz;
@@ -680,7 +681,7 @@ async function amzEnsure() {
         if (!chunk.exists()) return;
         (chunk.data().r || []).forEach(item => {
           // `im` is Amazon's first error cut at 140 characters; the issue list (`iss`) keeps each message to 220, so the errors come from there.
-          if (item && item.sku) map.set(brand + '|' + item.sku, { st: item.st || '', ie: item.ie || 0, iw: item.iw || 0, im: item.im || '',
+          if (item && item.sku) map.set(brand + '|' + item.sku, { st: item.st || '', ie: item.ie || 0, iw: item.iw || 0, im: item.im || '', iss: item.iss || [],
             em: (item.iss || []).filter(issue => issue && issue.s === 'E').map(issue => (issue.c ? `ERROR ${issue.c}: ` : '') + lrWholeCut(String(issue.m || ''), 220)) });
         });
       });
@@ -774,10 +775,71 @@ function lrAmz(row, ctx) {
   const live = lrLiveOf(row, ctx);
   if (live && live.gAt) {
     const errs = (live.iss || []).filter(issue => issue.s === 'E');
-    return { st: (live.st || []).join(','), ie: errs.length, im: errs.map(issue => `ERROR ${issue.c}: ${issue.m}`).join(' · '), errs, at: live.gAt, src: 'live' };
+    return { st: (live.st || []).join(','), ie: errs.length, im: errs.map(issue => `ERROR ${issue.c}: ${issue.m}`).join(' · '), errs, iss: live.iss || [], at: live.gAt, src: 'live' };
   }
   const amz = ctx.amz && ctx.amz.get(row.brand + '|' + row.sku);
-  return amz ? { st: amz.st, ie: amz.ie, im: amz.em && amz.em.length ? amz.em.join(' · ') : lrWholeCut(amz.im, 140), errs: null, at: (ctx.amzAt && ctx.amzAt[row.brand]) || 0, src: 'iml' } : null;
+  return amz ? { st: amz.st, ie: amz.ie, im: amz.em && amz.em.length ? amz.em.join(' · ') : lrWholeCut(amz.im, 140), errs: null, iss: amz.iss || [], at: (ctx.amzAt && ctx.amzAt[row.brand]) || 0, src: 'iml' } : null;
+}
+
+/* ================= SUPPRESSED · NOT BUYABLE · NOT CHECKED — THE ONE RULE (16 Nov 2026) =================
+ * CPCLS-CO-007 (BUYABLE + DISCOVERABLE, one ERROR about its colour swatch) showed "Suppressed": an ERROR was read as a suppression
+ * (a list of codes, and the word "suppress" in Amazon's message). Every screen now asks lrShopOf, and nothing else decides it:
+ *   'unk'   no status from Amazon (the read failed, or it was never read) → "Not checked" — never Suppressed
+ *   'sup'   a) the status has BUYABLE but not DISCOVERABLE (hidden from search), or
+ *           b) an Amazon issue's enforcement action is SEARCH_SUPPRESSED or LISTING_SUPPRESSED, or
+ *           c) the SKU is in Amazon's Suppressed listings report (LR_FYP — when Sellora has that report)
+ *   'nobuy' no BUYABLE, and live: stock > 0 and not closed on purpose → "Not buyable", apart from Suppressed
+ *   'off'   no BUYABLE, and not live (no stock, stock not known, or closed) — nothing shoppers miss
+ *   'ok'    buyable and in search. An ERROR issue alone stays 'ok' here: it is an error at its own severity (the Listing Rules
+ *           rule "Amazon reports an error"), never a suppression.
+ * Shoppers are affected — the F dot red — only for 'sup' and 'nobuy' (lrShopF). */
+const LR_SUPPRESS_ACTS = ['SEARCH_SUPPRESSED', 'LISTING_SUPPRESSED'];
+const LR_SHOP_WORD = { sup: 'Suppressed', nobuy: 'Not buyable', ok: 'Buyable', off: 'Not buyable (no stock)', unk: 'Not checked' };
+// Amazon's Suppressed listings report, per brand: Map sku → Amazon's reason. Empty until Sellora reads that report.
+const LR_FYP = { SP: null, CPC: null };
+// An issue's enforcement actions, as Amazon names them (['SEARCH_SUPPRESSED', …]) — from whichever shape the read kept.
+function lrIssueActs(issue) {
+  if (!issue) return [];
+  const list = issue.acts || issue.e || (issue.enforcements && issue.enforcements.actions) || [];
+  return (Array.isArray(list) ? list : []).map(act => String((act && act.action) || act || '').toUpperCase()).filter(Boolean);
+}
+/** THE ONE RULE. x = { st: Amazon's status ('BUYABLE,DISCOVERABLE' or an array; null / '' = not read), iss: Amazon's issues,
+ *  qty: stock (null = not known), closed: closed on purpose, brand, sku, fyp: the Suppressed report's reason (else LR_FYP) }
+ *  → { k: 'sup' | 'nobuy' | 'ok' | 'off' | 'unk', why, how: 'a' | 'b' | 'c' | '' }. */
+function lrShopOf(x) {
+  x = x || {};
+  const raw = x.st == null ? '' : Array.isArray(x.st) ? x.st.join(',') : String(x.st);
+  const st = raw.toUpperCase().split(/[\s,]+/).filter(Boolean);
+  if (!st.length) return { k: 'unk', why: "Not checked — Amazon's status was not read", how: '' };
+  const buy = st.includes('BUYABLE'), disc = st.includes('DISCOVERABLE');
+  if (buy && !disc) return { k: 'sup', why: 'buyable by direct link, not in search', how: 'a' };
+  const hit = (x.iss || []).find(issue => lrIssueActs(issue).some(act => LR_SUPPRESS_ACTS.includes(act)));
+  if (hit) {
+    const act = lrIssueActs(hit).find(a => LR_SUPPRESS_ACTS.includes(a));
+    return { k: 'sup', why: `Amazon: ${act}${hit.c || hit.code ? ' (' + (hit.c || hit.code) + ')' : ''}${hit.m || hit.message ? ' — ' + lrWholeCut(String(hit.m || hit.message), 140) : ''}`, how: 'b' };
+  }
+  const fyp = x.fyp != null ? x.fyp : (x.brand && x.sku && LR_FYP[x.brand] ? LR_FYP[x.brand].get(x.sku) : null);
+  if (fyp) return { k: 'sup', why: "in Amazon's Suppressed listings report" + (typeof fyp === 'string' ? ': ' + fyp : ''), how: 'c' };
+  if (!buy) {
+    const live = x.qty != null && Number(x.qty) > 0 && !x.closed;
+    return live ? { k: 'nobuy', why: `not buyable on Amazon (status ${st.join(', ')}) with ${Number(x.qty)} in stock`, how: '' }
+      : { k: 'off', why: `not buyable on Amazon (status ${st.join(', ')})${x.qty == null ? ', stock not known' : x.closed ? ', closed' : ', no stock'}`, how: '' };
+  }
+  return { k: 'ok', why: 'buyable and in search', how: '' };
+}
+// The same, for one listing's Amazon facts (lrAmz) and its row (stock, the report's status).
+const lrShopOfAmz = (amz, row) => lrShopOf({ st: amz ? amz.st : null, iss: amz ? amz.iss || amz.errs || [] : [], qty: row ? row.qty : null,
+  closed: !!(row && /closed/i.test(row.status || '')), brand: row && row.brand, sku: row && row.sku });
+// What shoppers get (the F dot): 'r' suppressed or not buyable, 'u' not checked, 'g' otherwise (an ERROR alone keeps it green).
+const lrShopF = shop => (shop.k === 'sup' || shop.k === 'nobuy' ? 'r' : shop.k === 'unk' ? 'u' : 'g');
+// One listing's stock from the Listing Health snapshot (null = not known) — for screens that hold no stock of their own.
+const LR_QTY_IX = new WeakMap();
+function lrQtyOf(brand, sku) {
+  const rows = typeof HEALTH !== 'undefined' && HEALTH[brand] && HEALTH[brand].rows;
+  if (!rows) return null;
+  let ix = LR_QTY_IX.get(rows);
+  if (!ix) { ix = new Map(rows.map(row => [row.sku, row.qty == null ? null : Number(row.qty)])); LR_QTY_IX.set(rows, ix); }
+  return ix.has(sku) ? ix.get(sku) : null;
 }
 /** The listing with the freshest content on it: the live read's title / bullets / description / search terms, brand, colour and
  *  rule words (lrFresh), else exactly the Health row. `contentAt` says when that content was read; `kw` is only ever live. */

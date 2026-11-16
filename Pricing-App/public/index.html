@@ -10740,11 +10740,12 @@ const LR_DET = {
   inactive_with_stock: row => (/inactive/i.test(row.status || '') && row.qty > 0) ? `${row.qty} in stock but the listing is Inactive` : '',
   no_price: row => row.price === 0 ? 'no price' : '',
   // Amazon's own verdict: the Workspace's live read of the listing first, else the Image Manager snapshot (lrAmz).
+  // Suppressed only by THE ONE RULE (lrShopOf): an ERROR issue alone is never a suppression.
   amazon_suppressed: (row, ctx) => {
     const amz = lrFactsOf(row, ctx).amz;
-    if (!amz || !amz.st) return '';
-    const status = String(amz.st).toUpperCase();
-    return status.includes('BUYABLE') && !status.includes('DISCOVERABLE') ? 'buyable by direct link, not in search' : '';
+    if (!amz) return '';
+    const shop = lrShopOfAmz(amz, row);
+    return shop.k === 'sup' ? shop.why : '';
   },
   amazon_error: (row, ctx) => {
     const amz = lrFactsOf(row, ctx).amz;
@@ -10952,7 +10953,7 @@ async function amzEnsure() {
         if (!chunk.exists()) return;
         (chunk.data().r || []).forEach(item => {
           // `im` is Amazon's first error cut at 140 characters; the issue list (`iss`) keeps each message to 220, so the errors come from there.
-          if (item && item.sku) map.set(brand + '|' + item.sku, { st: item.st || '', ie: item.ie || 0, iw: item.iw || 0, im: item.im || '',
+          if (item && item.sku) map.set(brand + '|' + item.sku, { st: item.st || '', ie: item.ie || 0, iw: item.iw || 0, im: item.im || '', iss: item.iss || [],
             em: (item.iss || []).filter(issue => issue && issue.s === 'E').map(issue => (issue.c ? `ERROR ${issue.c}: ` : '') + lrWholeCut(String(issue.m || ''), 220)) });
         });
       });
@@ -11046,10 +11047,71 @@ function lrAmz(row, ctx) {
   const live = lrLiveOf(row, ctx);
   if (live && live.gAt) {
     const errs = (live.iss || []).filter(issue => issue.s === 'E');
-    return { st: (live.st || []).join(','), ie: errs.length, im: errs.map(issue => `ERROR ${issue.c}: ${issue.m}`).join(' · '), errs, at: live.gAt, src: 'live' };
+    return { st: (live.st || []).join(','), ie: errs.length, im: errs.map(issue => `ERROR ${issue.c}: ${issue.m}`).join(' · '), errs, iss: live.iss || [], at: live.gAt, src: 'live' };
   }
   const amz = ctx.amz && ctx.amz.get(row.brand + '|' + row.sku);
-  return amz ? { st: amz.st, ie: amz.ie, im: amz.em && amz.em.length ? amz.em.join(' · ') : lrWholeCut(amz.im, 140), errs: null, at: (ctx.amzAt && ctx.amzAt[row.brand]) || 0, src: 'iml' } : null;
+  return amz ? { st: amz.st, ie: amz.ie, im: amz.em && amz.em.length ? amz.em.join(' · ') : lrWholeCut(amz.im, 140), errs: null, iss: amz.iss || [], at: (ctx.amzAt && ctx.amzAt[row.brand]) || 0, src: 'iml' } : null;
+}
+
+/* ================= SUPPRESSED · NOT BUYABLE · NOT CHECKED — THE ONE RULE (16 Nov 2026) =================
+ * CPCLS-CO-007 (BUYABLE + DISCOVERABLE, one ERROR about its colour swatch) showed "Suppressed": an ERROR was read as a suppression
+ * (a list of codes, and the word "suppress" in Amazon's message). Every screen now asks lrShopOf, and nothing else decides it:
+ *   'unk'   no status from Amazon (the read failed, or it was never read) → "Not checked" — never Suppressed
+ *   'sup'   a) the status has BUYABLE but not DISCOVERABLE (hidden from search), or
+ *           b) an Amazon issue's enforcement action is SEARCH_SUPPRESSED or LISTING_SUPPRESSED, or
+ *           c) the SKU is in Amazon's Suppressed listings report (LR_FYP — when Sellora has that report)
+ *   'nobuy' no BUYABLE, and live: stock > 0 and not closed on purpose → "Not buyable", apart from Suppressed
+ *   'off'   no BUYABLE, and not live (no stock, stock not known, or closed) — nothing shoppers miss
+ *   'ok'    buyable and in search. An ERROR issue alone stays 'ok' here: it is an error at its own severity (the Listing Rules
+ *           rule "Amazon reports an error"), never a suppression.
+ * Shoppers are affected — the F dot red — only for 'sup' and 'nobuy' (lrShopF). */
+const LR_SUPPRESS_ACTS = ['SEARCH_SUPPRESSED', 'LISTING_SUPPRESSED'];
+const LR_SHOP_WORD = { sup: 'Suppressed', nobuy: 'Not buyable', ok: 'Buyable', off: 'Not buyable (no stock)', unk: 'Not checked' };
+// Amazon's Suppressed listings report, per brand: Map sku → Amazon's reason. Empty until Sellora reads that report.
+const LR_FYP = { SP: null, CPC: null };
+// An issue's enforcement actions, as Amazon names them (['SEARCH_SUPPRESSED', …]) — from whichever shape the read kept.
+function lrIssueActs(issue) {
+  if (!issue) return [];
+  const list = issue.acts || issue.e || (issue.enforcements && issue.enforcements.actions) || [];
+  return (Array.isArray(list) ? list : []).map(act => String((act && act.action) || act || '').toUpperCase()).filter(Boolean);
+}
+/** THE ONE RULE. x = { st: Amazon's status ('BUYABLE,DISCOVERABLE' or an array; null / '' = not read), iss: Amazon's issues,
+ *  qty: stock (null = not known), closed: closed on purpose, brand, sku, fyp: the Suppressed report's reason (else LR_FYP) }
+ *  → { k: 'sup' | 'nobuy' | 'ok' | 'off' | 'unk', why, how: 'a' | 'b' | 'c' | '' }. */
+function lrShopOf(x) {
+  x = x || {};
+  const raw = x.st == null ? '' : Array.isArray(x.st) ? x.st.join(',') : String(x.st);
+  const st = raw.toUpperCase().split(/[\s,]+/).filter(Boolean);
+  if (!st.length) return { k: 'unk', why: "Not checked — Amazon's status was not read", how: '' };
+  const buy = st.includes('BUYABLE'), disc = st.includes('DISCOVERABLE');
+  if (buy && !disc) return { k: 'sup', why: 'buyable by direct link, not in search', how: 'a' };
+  const hit = (x.iss || []).find(issue => lrIssueActs(issue).some(act => LR_SUPPRESS_ACTS.includes(act)));
+  if (hit) {
+    const act = lrIssueActs(hit).find(a => LR_SUPPRESS_ACTS.includes(a));
+    return { k: 'sup', why: `Amazon: ${act}${hit.c || hit.code ? ' (' + (hit.c || hit.code) + ')' : ''}${hit.m || hit.message ? ' — ' + lrWholeCut(String(hit.m || hit.message), 140) : ''}`, how: 'b' };
+  }
+  const fyp = x.fyp != null ? x.fyp : (x.brand && x.sku && LR_FYP[x.brand] ? LR_FYP[x.brand].get(x.sku) : null);
+  if (fyp) return { k: 'sup', why: "in Amazon's Suppressed listings report" + (typeof fyp === 'string' ? ': ' + fyp : ''), how: 'c' };
+  if (!buy) {
+    const live = x.qty != null && Number(x.qty) > 0 && !x.closed;
+    return live ? { k: 'nobuy', why: `not buyable on Amazon (status ${st.join(', ')}) with ${Number(x.qty)} in stock`, how: '' }
+      : { k: 'off', why: `not buyable on Amazon (status ${st.join(', ')})${x.qty == null ? ', stock not known' : x.closed ? ', closed' : ', no stock'}`, how: '' };
+  }
+  return { k: 'ok', why: 'buyable and in search', how: '' };
+}
+// The same, for one listing's Amazon facts (lrAmz) and its row (stock, the report's status).
+const lrShopOfAmz = (amz, row) => lrShopOf({ st: amz ? amz.st : null, iss: amz ? amz.iss || amz.errs || [] : [], qty: row ? row.qty : null,
+  closed: !!(row && /closed/i.test(row.status || '')), brand: row && row.brand, sku: row && row.sku });
+// What shoppers get (the F dot): 'r' suppressed or not buyable, 'u' not checked, 'g' otherwise (an ERROR alone keeps it green).
+const lrShopF = shop => (shop.k === 'sup' || shop.k === 'nobuy' ? 'r' : shop.k === 'unk' ? 'u' : 'g');
+// One listing's stock from the Listing Health snapshot (null = not known) — for screens that hold no stock of their own.
+const LR_QTY_IX = new WeakMap();
+function lrQtyOf(brand, sku) {
+  const rows = typeof HEALTH !== 'undefined' && HEALTH[brand] && HEALTH[brand].rows;
+  if (!rows) return null;
+  let ix = LR_QTY_IX.get(rows);
+  if (!ix) { ix = new Map(rows.map(row => [row.sku, row.qty == null ? null : Number(row.qty)])); LR_QTY_IX.set(rows, ix); }
+  return ix.has(sku) ? ix.get(sku) : null;
 }
 /** The listing with the freshest content on it: the live read's title / bullets / description / search terms, brand, colour and
  *  rule words (lrFresh), else exactly the Health row. `contentAt` says when that content was read; `kw` is only ever live. */
@@ -15287,13 +15349,15 @@ function liWsChild(row, brand, hc, imlMap, now) {
   if (amz && amz.src === 'live') {
     const st = String(amz.st || '').toUpperCase();
     const errs = amz.errs || [];
-    const sup = st.includes('BUYABLE') && !st.includes('DISCOVERABLE');
+    const shop = lrShopOfAmz(amz, scored);                 // THE ONE RULE (listing-rules.js)
+    const sup = shop.k === 'sup';
+    const shopWord = sup ? 'Suppressed — ' + shop.why : shop.k === 'nobuy' ? 'Not buyable — ' + shop.why : shop.k === 'unk' ? 'Not checked — no status from Amazon' : '';
     const fields = [...new Set(errs.flatMap(issue => issue.a || []))];
     const worst = amzHits.slice().sort((a, b) => LR_SEV[b.sev].rank - LR_SEV[a.sev].rank)[0];
     c.amz = { pass: !amzHits.length, hits: amzHits, sev: worst ? worst.sev : '',
-      cell: errs.length ? 'Error' : 'Suppressed', need: amzNeed, src: liWsSrc('live', amz.at),
-      found: errs.length ? amz.im : sup ? 'Suppressed from search (BUYABLE, not DISCOVERABLE)' : (st ? 'Status ' + st.split(',').join(', ') : 'No status from Amazon'),
-      miss: errs.length ? (fields.length ? 'Fields Amazon names: ' + fields.join(', ') : "See Amazon's message") : sup ? 'Suppressed from search' : '' };
+      cell: errs.length ? 'Error' : LR_SHOP_WORD[shop.k === 'ok' || shop.k === 'off' ? 'sup' : shop.k], need: amzNeed, src: liWsSrc('live', amz.at),
+      found: errs.length ? amz.im : shopWord || 'Status ' + st.split(',').join(', '),
+      miss: errs.length ? (fields.length ? 'Fields Amazon names: ' + fields.join(', ') : "See Amazon's message") : sup ? 'Suppressed' : shop.k === 'nobuy' ? 'Not buyable' : '' };
   } else {
     c.amz = liWsRuleCell(amzHits, { known: !!AMZ.map, need: amzNeed, src: liWsSrc('iml', amz ? amz.at : (AMZ.snapAt[brand] || AMZ.at)),
       value: 'Nothing reported', unknown: 'No Amazon status yet', bang: readErr });
@@ -15799,7 +15863,8 @@ async function liWsJob(job) {
       if (reply.title) Object.assign(entry, { catTitle: String(reply.title).slice(0, 250), tAt: now });
       Object.assign(entry, { at: now, gAt: now, pt: reply.productType || entry.pt || '', st: reply.status || [], brand: first('brand').slice(0, 60) || entry.brand || '',
         color: first('color').slice(0, 40) || entry.color || '',
-        iss: (reply.issues || []).slice(0, 8).map(issue => ({ s: String(issue.severity || '').charAt(0), c: String(issue.code || ''), m: lrWholeCut(String(issue.message || ''), issue.severity === 'ERROR' ? 1000 : 220), a: (issue.attrs || []).slice(0, 4) })),
+        iss: (reply.issues || []).slice(0, 8).map(issue => Object.assign({ s: String(issue.severity || '').charAt(0), c: String(issue.code || ''), m: lrWholeCut(String(issue.message || ''), issue.severity === 'ERROR' ? 1000 : 220), a: (issue.attrs || []).slice(0, 4) },
+          lrIssueActs(issue).length ? { e: lrIssueActs(issue) } : {})),
         slots: IM_SLOTS.filter(slot => (at[LI_WS_SLOT_ATTR[slot]] || []).some(e => e && e.media_location)),
         specs: Object.fromEntries(LI_WS_SPECS.map(name => [name, filled(name)])), err: '',
         hl: (at[LI_WS_HL] || []).map(e => (e && e.value != null ? String(e.value) : '')).filter(Boolean).map(v => v.slice(0, 300)), hlAt: now,
@@ -17516,7 +17581,7 @@ if (typeof document !== 'undefined' && document.addEventListener && $('hTable') 
  *   second copy of any rule. Data not read yet is ○ — never a guess.
  *   B🟢 F🟢 fixed and showing → the child leaves the row (fix-all.js) · B🟢 F🔴 Amazon's side (false error, Amazon not showing yet) ·
  *   B🔴 F🔴 our team (true error) · B🔴 F🟢 "Our team — shoppers not affected yet" (Seller Central has a wrong value; the page looks
- *   fine, but Amazon can suppress it later). F is 🔴 for a suppressed or not-buyable listing (bfShop), ○ only when not known.
+ *   fine, but Amazon can suppress it later). F is 🔴 only for a suppressed or (live) not-buyable listing (bfShop → lrShopOf), ○ only when not checked.
  * DISPLAY ONLY: it tags, it never moves a problem between levels — Listing Health's / the Workspace's counts are healthOf's, untouched.
  * RE-CHECK: the Sellora sync (listing-sync.js, ONE browser for everybody, every 15 minutes) reads the B🟢 F🔴 children first — bfDue
  *   names them. When Amazon shows the fix the child leaves its row by itself. Still B🟢 F🔴 BF_MAX_DAYS after it was first seen: no
@@ -17563,16 +17628,10 @@ const BF_PICS_F = ['images_small', 'main_not_square', 'images_duplicate', 'main_
 // Rules on values shoppers never see as such, or the catalogue does not give back: B only.
 const BF_B_ONLY = ['bullets_below', 'desc_below', 'keyword_bytes'];
 const BF_BUY = ['inactive_with_stock', 'no_price'];
-// Amazon's codes that mean the listing is suppressed (hidden from shoppers) even when its status still says BUYABLE.
-const BF_SUPPRESS = ['18320'];
-/** What shoppers get (F) from Amazon's status and issues: 'r' suppressed or not buyable (no BUYABLE, BUYABLE but not DISCOVERABLE —
- *  not in search —, or a suppression code / message), 'g' buyable and in search, 'u' only when the status is not known. */
-function bfShop(amz) {
-  if (!amz || amz.st == null || amz.st === '') return 'u';
-  const st = String(amz.st).toUpperCase().split(/[\s,]+/).filter(Boolean);
-  if (!st.includes('BUYABLE') || !st.includes('DISCOVERABLE')) return 'r';
-  const said = (amz.errs || []).map(issue => issue.c + ' ' + issue.m).join(' ') + ' ' + (amz.im || '');
-  return BF_SUPPRESS.some(code => said.includes(code)) || /suppress/i.test(said) ? 'r' : 'g';
+/** What shoppers get (F): THE ONE RULE (lrShopOf, listing-rules.js) — 'r' suppressed or not buyable (live), 'u' not checked, 'g'
+ *  otherwise. An ERROR issue alone keeps F green (B shows the error). */
+function bfShop(amz, row) {
+  return lrShopF(lrShopOfAmz(amz, row));
 }
 
 /** Who fixes it, from the two answers: 'team' | 'amazon' | 'scwrong' | 'unread' | 'done' | 'none'. */
@@ -17595,7 +17654,7 @@ function bfCalc(kid, hit, ctx) {
   };
   const withPics = pics => Object.assign({}, row, { _f: Object.assign({}, facts, { pics }) });
   const amz = facts.amz;
-  const buy = bfShop(amz);
+  const buy = bfShop(amz, row);
   const shownRead = row.titleSrc === 'live' || row.titleSrc === 'snapshot';
   const catPics = facts.pics && (facts.pics.src === 'live' || facts.pics.src === 'iml');
   if (det === 'title_not_live') return { b: row.submittedTitle ? 'g' : 'u', f: row.submittedTitle && shownRead ? run(row) : 'u' };
@@ -17934,14 +17993,15 @@ function lyLook(brand, sku, now) {
   const kid = liWsChildKept(row, brand, ctx, liWsImlIndex(brand), now);
   if (!kid) return null;
   const facts = lrFactsOf(lrFresh(Object.assign({}, row, { brand }), ctx), ctx);
-  return { err: kid.bucket === 'critical', shop: bfShop(facts.amz), late: kid.found.some(hit => bfOf(kid, hit, ctx, now).who === 'amazon') };
+  const fresh = Object.assign({}, row, { brand });
+  return { err: kid.bucket === 'critical', shop: bfShop(facts.amz, fresh), kind: lrShopOfAmz(facts.amz, fresh).k, late: kid.found.some(hit => bfOf(kid, hit, ctx, now).who === 'amazon') };
 }
 function lyChanged(was, now) {
   if (!was || !now) return [];
   const out = [];
   if (was.err && !now.err) out.push('error fixed');
   if (!was.err && now.err) out.push('new error');
-  if (was.shop !== 'r' && now.shop === 'r') out.push('suppressed');
+  if (was.shop !== 'r' && now.shop === 'r') out.push(now.kind === 'nobuy' ? 'not buyable' : 'suppressed');
   else if ((was.shop === 'r' && now.shop === 'g') || (was.late && !now.late)) out.push('now showing to shoppers');
   return out;
 }
@@ -18124,7 +18184,7 @@ function lyTime(t) {
   return `${h % 12 || 12}${m ? ':' + String(m).padStart(2, '0') : ''} ${h < 12 ? 'AM' : 'PM'}`;
 }
 const lyAgo = (now, t) => { const m = Math.floor((now - t) / 60000); return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : `${Math.floor(m / 60)} h ago`; };
-const LY_WHAT_CLS = { 'error fixed': 'is-fixed', 'new error': 'is-new', 'now showing to shoppers': 'is-shown', suppressed: 'is-supp' };
+const LY_WHAT_CLS = { 'error fixed': 'is-fixed', 'new error': 'is-new', 'now showing to shoppers': 'is-shown', suppressed: 'is-supp', 'not buyable': 'is-supp' };
 /** The line and, when open, the "What changed" list. */
 function lyLineHtml(now) {
   now = now || LY.now();
@@ -22025,12 +22085,13 @@ function bsrFacts(brand, parent, wA, wB, ctx) {
   }
   // --- suppressed / not buyable: NOW (Image Manager snapshot), only when week A is the latest ---
   if (c.latest && BSR_SRC.amz === 'ok') {
-    const states = kids.map(row => AMZ.map.get(brand + '|' + row.sku)).filter(Boolean).map(x => String(x.st || '').toUpperCase());
+    // THE ONE RULE (lrShopOf, listing-rules.js) per child; a child whose status was not read is left out.
+    const states = kids.map(row => { const x = AMZ.map.get(brand + '|' + row.sku); return x ? lrShopOf({ st: x.st, iss: x.iss, qty: row.qty, closed: /closed/i.test(row.status || ''), brand, sku: row.sku }).k : ''; })
+      .filter(k => k && k !== 'unk');
     if (states.length) {
-      const sup = states.filter(st => st.includes('BUYABLE') && !st.includes('DISCOVERABLE')).length;
-      const buyable = states.filter(st => st.includes('BUYABLE')).length;
-      // The family is "not buyable" only when none of its children can be bought; suppressed when any of them is.
-      f.status = { sup: sup > 0 ? sup : 0, nobuy: buyable === 0, n: states.length };
+      const sup = states.filter(k => k === 'sup').length;
+      // The family is "not buyable" only when none of its children can be bought and one with stock is not buyable; suppressed when any is.
+      f.status = { sup, nobuy: !states.some(k => k === 'ok' || k === 'sup') && states.includes('nobuy'), n: states.length };
     }
   }
   // --- our own changes sent in these weeks (Listing History), newest first ---
@@ -35736,14 +35797,17 @@ function imHijack(item) {
  * BUYABLE WITHOUT DISCOVERABLE IS A SUPPRESSED LISTING — it can still be bought from a direct link
  * and cannot be found in search. RTC203-6060 sat like that under a green "Buyable" chip here while
  * Seller Central said "Search suppressed", because the chip only tested /BUYABLE/. */
-// The status chip for one listing: { k: short key, label, fill, ink }.
-function imState(item) {
+// The status chip for one listing: { k: short key, label, fill, ink } — THE ONE RULE (lrShopOf, listing-rules.js) decides
+// Suppressed / Not buyable / Not checked; stock comes from the Listing Health snapshot (lrQtyOf).
+function imState(item, brand) {
+  const b = brand || (typeof $ === 'function' && $('imBrand') ? $('imBrand').value : '');
+  const shop = lrShopOf({ st: item.st, iss: item.iss, qty: lrQtyOf(b, item.sku), brand: b, sku: item.sku });
+  if (shop.k === 'sup') return { k: 'sup', label: shop.how === 'a' ? 'Search suppressed' : 'Suppressed', why: shop.why, fill: 'var(--bad-bg)', ink: 'var(--bad-ink)' };
+  if (shop.k === 'nobuy') return { k: 'nobuy', label: 'Not buyable', why: shop.why, fill: 'var(--bad-bg)', ink: 'var(--bad-ink)' };
+  if (shop.k === 'unk') return { k: 'unk', label: 'Not checked', fill: 'var(--hover)', ink: 'var(--muted)' };
+  if (shop.k === 'ok') return { k: 'ok', label: 'Buyable', fill: 'var(--accent-bg)', ink: 'var(--accent-ink)' };
   const status = String(item.st || '').toUpperCase();
-  const buy = status.includes('BUYABLE');
-  const disc = status.includes('DISCOVERABLE');
-  if (buy && !disc) return { k: 'sup', label: 'Search suppressed', fill: 'var(--bad-bg)', ink: 'var(--bad-ink)' };
-  if (buy && disc) return { k: 'ok', label: 'Buyable', fill: 'var(--accent-bg)', ink: 'var(--accent-ink)' };
-  if (disc && !buy) return { k: 'nooffer', label: 'No offer', fill: 'var(--hover)', ink: 'var(--muted)' };
+  if (status.includes('DISCOVERABLE')) return { k: 'nooffer', label: 'No offer', fill: 'var(--hover)', ink: 'var(--muted)' };
   return { k: 'none', label: item.st || 'Not buyable', fill: 'var(--hover)', ink: 'var(--muted)' };
 }
 
@@ -35837,7 +35901,7 @@ function imKidMatch(item, filter, search) {
   if (filter === 'sup') return imState(item).k === 'sup';
   if (filter === 'amzerr') return imPicErrs(item).length > 0;
   if (filter === 'noown') return imNoOwnMain(item);
-  if (filter === 'nobuy') return !/BUYABLE/.test(item.st || '');
+  if (filter === 'nobuy') return imState(item).k === 'nobuy';
   return true;
 }
 
@@ -35904,7 +35968,8 @@ function imKidChip(item) {
   const errs = imPicErrs(item);
   if (errs.length) return { t: errs.length > 1 ? errs.length + ' Amazon picture errors' : 'Amazon picture error', cls: 'is-bad', tip: errs.map(e => (e.c ? e.c + ': ' : '') + e.m).join(' · ') };
   const state = imState(item);
-  if (state.k === 'sup') return { t: 'Search suppressed', cls: 'is-bad', tip: 'Amazon still allows a direct-link sale but has taken this listing out of search results.' };
+  if (state.k === 'sup') return { t: state.label, cls: 'is-bad', tip: state.why === 'buyable by direct link, not in search' ? 'Amazon still allows a direct-link sale but has taken this listing out of search results.' : 'Suppressed — ' + state.why };
+  if (state.k === 'nobuy') return { t: 'Not buyable', cls: 'is-bad', tip: 'Not buyable — ' + state.why };
   if (imNoMain(item)) return { t: 'No main at all', cls: 'is-bad', tip: 'No main picture: none sent by us and none shown to shoppers' };
   if (imNoOwnMain(item)) return { t: 'Using the family\'s main', cls: 'is-att', tip: 'Your listing submitted no main image. What shows on Amazon comes from the family, and Amazon can suppress a listing for it.' };
   const hijack = imHijack(item);
@@ -37807,7 +37872,7 @@ function leRender() {
       + `<th>Status</th><th style="text-align:left">What Amazon says</th><th></th></tr></thead>
       <tbody>${slice.map(({ x, iss }) => {
         const pic = (x.live || {}).MAIN || (x.img || {}).MAIN;
-        const state = imState(x);
+        const state = imState(x, brand);
         const hasImg = iss.some(issue => leKind(issue) === 'image');
         const hasOther = iss.some(issue => leKind(issue) !== 'image');
         return `<tr>

@@ -544,12 +544,13 @@ function bsrFacts(brand, parent, wA, wB, ctx) {
   }
   // --- suppressed / not buyable: NOW (Image Manager snapshot), only when week A is the latest ---
   if (c.latest && BSR_SRC.amz === 'ok') {
-    const states = kids.map(row => AMZ.map.get(brand + '|' + row.sku)).filter(Boolean).map(x => String(x.st || '').toUpperCase());
+    // THE ONE RULE (lrShopOf, listing-rules.js) per child; a child whose status was not read is left out.
+    const states = kids.map(row => { const x = AMZ.map.get(brand + '|' + row.sku); return x ? lrShopOf({ st: x.st, iss: x.iss, qty: row.qty, closed: /closed/i.test(row.status || ''), brand, sku: row.sku }).k : ''; })
+      .filter(k => k && k !== 'unk');
     if (states.length) {
-      const sup = states.filter(st => st.includes('BUYABLE') && !st.includes('DISCOVERABLE')).length;
-      const buyable = states.filter(st => st.includes('BUYABLE')).length;
-      // The family is "not buyable" only when none of its children can be bought; suppressed when any of them is.
-      f.status = { sup: sup > 0 ? sup : 0, nobuy: buyable === 0, n: states.length };
+      const sup = states.filter(k => k === 'sup').length;
+      // The family is "not buyable" only when none of its children can be bought and one with stock is not buyable; suppressed when any is.
+      f.status = { sup, nobuy: !states.some(k => k === 'ok' || k === 'sup') && states.includes('nobuy'), n: states.length };
     }
   }
   // --- our own changes sent in these weeks (Listing History), newest first ---

@@ -282,13 +282,15 @@ function liWsChild(row, brand, hc, imlMap, now) {
   if (amz && amz.src === 'live') {
     const st = String(amz.st || '').toUpperCase();
     const errs = amz.errs || [];
-    const sup = st.includes('BUYABLE') && !st.includes('DISCOVERABLE');
+    const shop = lrShopOfAmz(amz, scored);                 // THE ONE RULE (listing-rules.js)
+    const sup = shop.k === 'sup';
+    const shopWord = sup ? 'Suppressed — ' + shop.why : shop.k === 'nobuy' ? 'Not buyable — ' + shop.why : shop.k === 'unk' ? 'Not checked — no status from Amazon' : '';
     const fields = [...new Set(errs.flatMap(issue => issue.a || []))];
     const worst = amzHits.slice().sort((a, b) => LR_SEV[b.sev].rank - LR_SEV[a.sev].rank)[0];
     c.amz = { pass: !amzHits.length, hits: amzHits, sev: worst ? worst.sev : '',
-      cell: errs.length ? 'Error' : 'Suppressed', need: amzNeed, src: liWsSrc('live', amz.at),
-      found: errs.length ? amz.im : sup ? 'Suppressed from search (BUYABLE, not DISCOVERABLE)' : (st ? 'Status ' + st.split(',').join(', ') : 'No status from Amazon'),
-      miss: errs.length ? (fields.length ? 'Fields Amazon names: ' + fields.join(', ') : "See Amazon's message") : sup ? 'Suppressed from search' : '' };
+      cell: errs.length ? 'Error' : LR_SHOP_WORD[shop.k === 'ok' || shop.k === 'off' ? 'sup' : shop.k], need: amzNeed, src: liWsSrc('live', amz.at),
+      found: errs.length ? amz.im : shopWord || 'Status ' + st.split(',').join(', '),
+      miss: errs.length ? (fields.length ? 'Fields Amazon names: ' + fields.join(', ') : "See Amazon's message") : sup ? 'Suppressed' : shop.k === 'nobuy' ? 'Not buyable' : '' };
   } else {
     c.amz = liWsRuleCell(amzHits, { known: !!AMZ.map, need: amzNeed, src: liWsSrc('iml', amz ? amz.at : (AMZ.snapAt[brand] || AMZ.at)),
       value: 'Nothing reported', unknown: 'No Amazon status yet', bang: readErr });
@@ -794,7 +796,8 @@ async function liWsJob(job) {
       if (reply.title) Object.assign(entry, { catTitle: String(reply.title).slice(0, 250), tAt: now });
       Object.assign(entry, { at: now, gAt: now, pt: reply.productType || entry.pt || '', st: reply.status || [], brand: first('brand').slice(0, 60) || entry.brand || '',
         color: first('color').slice(0, 40) || entry.color || '',
-        iss: (reply.issues || []).slice(0, 8).map(issue => ({ s: String(issue.severity || '').charAt(0), c: String(issue.code || ''), m: lrWholeCut(String(issue.message || ''), issue.severity === 'ERROR' ? 1000 : 220), a: (issue.attrs || []).slice(0, 4) })),
+        iss: (reply.issues || []).slice(0, 8).map(issue => Object.assign({ s: String(issue.severity || '').charAt(0), c: String(issue.code || ''), m: lrWholeCut(String(issue.message || ''), issue.severity === 'ERROR' ? 1000 : 220), a: (issue.attrs || []).slice(0, 4) },
+          lrIssueActs(issue).length ? { e: lrIssueActs(issue) } : {})),
         slots: IM_SLOTS.filter(slot => (at[LI_WS_SLOT_ATTR[slot]] || []).some(e => e && e.media_location)),
         specs: Object.fromEntries(LI_WS_SPECS.map(name => [name, filled(name)])), err: '',
         hl: (at[LI_WS_HL] || []).map(e => (e && e.value != null ? String(e.value) : '')).filter(Boolean).map(v => v.slice(0, 300)), hlAt: now,

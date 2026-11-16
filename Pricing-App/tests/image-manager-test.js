@@ -260,6 +260,17 @@ function picture(W, H, box, edge) {
     ok('ONE status chip, the worst picture problem first: K3 "Amazon picture error", K5 "No main at all", K2 "Using the family\'s main", K4 "Search suppressed", K1 "Buyable"',
       P.imKidChip(it('K3')).t === 'Amazon picture error' && P.imKidChip(it('K5')).t === 'No main at all' && P.imKidChip(it('K2')).t === 'Using the family\'s main'
       && P.imKidChip(it('K4')).t === 'Search suppressed' && P.imKidChip(it('K1')).t === 'Buyable');
+    // THE ONE "Suppressed" rule (lrShopOf) in Image Manager's status chip and its filters
+    const co7 = { sku: 'CPCLS-CO-007', st: 'BUYABLE,DISCOVERABLE', iss: [{ s: 'E', c: '8541', m: 'The swatch image for colour is missing; the listing may be suppressed', a: ['swatch_product_image_locator'] }] };
+    P.HEALTH.SP = Object.assign(P.HEALTH.SP || {}, { rows: [{ sku: 'NB1', qty: 4 }, { sku: 'NB0', qty: 0 }] });
+    ok('Image Manager: CPCLS-CO-007 (BUYABLE + DISCOVERABLE, one ERROR) → "Buyable", never Search suppressed', P.imState(co7, 'SP').k === 'ok' && P.imState(co7, 'SP').label === 'Buyable');
+    ok('…BUYABLE without DISCOVERABLE → "Search suppressed"; SEARCH_SUPPRESSED enforcement → "Suppressed"', P.imState({ sku: 'X', st: 'BUYABLE' }, 'SP').label === 'Search suppressed'
+      && P.imState({ sku: 'X', st: 'BUYABLE,DISCOVERABLE', iss: [{ s: 'E', c: '1', m: 'm', e: ['SEARCH_SUPPRESSED'] }] }, 'SP').label === 'Suppressed');
+    ok('…no BUYABLE with stock → "Not buyable" (its own chip, not Suppressed); no stock → not a problem chip; no status → "Not checked"',
+      P.imState({ sku: 'NB1', st: 'DISCOVERABLE' }, 'SP').k === 'nobuy' && P.imState({ sku: 'NB1', st: 'DISCOVERABLE' }, 'SP').label === 'Not buyable'
+      && P.imState({ sku: 'NB0', st: 'DISCOVERABLE' }, 'SP').k === 'nooffer' && P.imState({ sku: 'NB1', st: '' }, 'SP').label === 'Not checked');
+    ok('…the filters follow: "sup" only the suppressed, "nobuy" only the live not-buyable', P.imKidMatch(co7, 'sup', '') === false && P.imKidMatch({ sku: 'NB1', st: 'DISCOVERABLE' }, 'nobuy', '') === true
+      && P.imKidMatch({ sku: 'NB0', st: 'DISCOVERABLE' }, 'nobuy', '') === false);
     P.IMQ.dims = new Map([['k3MAIN', [1500, 1500]], ['k3PT01', [800, 800]]]);
     ok('quality summary: K3 "5/9 pictures · 2 below 2000 · no swatch"; K1 "9/9 pictures"', P.imKidSummary(it('K3')).replace(/<[^>]+>/g, '') === '5/9 pictures · 2 below 2000 · no swatch'
       && P.imKidSummary(it('K1')) === '9/9 pictures');

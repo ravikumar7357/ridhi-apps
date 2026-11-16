@@ -154,14 +154,15 @@ function lyLook(brand, sku, now) {
   const kid = liWsChildKept(row, brand, ctx, liWsImlIndex(brand), now);
   if (!kid) return null;
   const facts = lrFactsOf(lrFresh(Object.assign({}, row, { brand }), ctx), ctx);
-  return { err: kid.bucket === 'critical', shop: bfShop(facts.amz), late: kid.found.some(hit => bfOf(kid, hit, ctx, now).who === 'amazon') };
+  const fresh = Object.assign({}, row, { brand });
+  return { err: kid.bucket === 'critical', shop: bfShop(facts.amz, fresh), kind: lrShopOfAmz(facts.amz, fresh).k, late: kid.found.some(hit => bfOf(kid, hit, ctx, now).who === 'amazon') };
 }
 function lyChanged(was, now) {
   if (!was || !now) return [];
   const out = [];
   if (was.err && !now.err) out.push('error fixed');
   if (!was.err && now.err) out.push('new error');
-  if (was.shop !== 'r' && now.shop === 'r') out.push('suppressed');
+  if (was.shop !== 'r' && now.shop === 'r') out.push(now.kind === 'nobuy' ? 'not buyable' : 'suppressed');
   else if ((was.shop === 'r' && now.shop === 'g') || (was.late && !now.late)) out.push('now showing to shoppers');
   return out;
 }
@@ -344,7 +345,7 @@ function lyTime(t) {
   return `${h % 12 || 12}${m ? ':' + String(m).padStart(2, '0') : ''} ${h < 12 ? 'AM' : 'PM'}`;
 }
 const lyAgo = (now, t) => { const m = Math.floor((now - t) / 60000); return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : `${Math.floor(m / 60)} h ago`; };
-const LY_WHAT_CLS = { 'error fixed': 'is-fixed', 'new error': 'is-new', 'now showing to shoppers': 'is-shown', suppressed: 'is-supp' };
+const LY_WHAT_CLS = { 'error fixed': 'is-fixed', 'new error': 'is-new', 'now showing to shoppers': 'is-shown', suppressed: 'is-supp', 'not buyable': 'is-supp' };
 /** The line and, when open, the "What changed" list. */
 function lyLineHtml(now) {
   now = now || LY.now();
