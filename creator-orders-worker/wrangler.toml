@@ -1,0 +1,18 @@
+# Creator orders — the door Creator Setu sends a creator's gift order through, into the ERP (Firestore creatorOrders).
+# Its own Worker, apart from Meera's router: this one holds a key to one ERP collection, that one holds none.
+# Deploy by hand (README.md): npx wrangler deploy, from this folder.
+name = "creator-orders"
+main = "src/worker.js"
+account_id = "9a01c041fd44e0d34dc483b6ada6c300"
+compatibility_date = "2026-10-01"
+# Its address: https://creator-orders.erp-9a0.workers.dev
+workers_dev = true
+
+[vars]
+FIREBASE_PROJECT_ID = "price-research-48ff3"
+# Where the team opens an order; the reference is put on the end.
+ERP_ORDER_URL = "https://fabricrush-replenish.web.app/#creators?ref="
+
+# The secrets are NOT here (this repository is public). Typed into Cloudflare once:
+#   npx wrangler secret put CREATOR_SETU_SECRET        (24+ characters; the same key in Creator Setu's Netlify settings)
+#   npx wrangler secret put FIREBASE_SERVICE_ACCOUNT   (the whole JSON key of a service account with "Cloud Datastore User")

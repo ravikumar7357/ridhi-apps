@@ -18,6 +18,7 @@
 !/.github/
 !/meera-router/
 !/meera/
+!/creator-orders-worker/
 
 # Firebase's local deploy cache, and anything installed.
 .firebase/
