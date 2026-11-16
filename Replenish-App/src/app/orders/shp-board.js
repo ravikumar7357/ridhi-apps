@@ -630,7 +630,10 @@ function shpbDialog(act, key) {
   if (act === 'prcv') {
     const fl = shpbFlowOf(r);
     if (!fl || !fl.printer || typeof flowDueRecvOpen !== 'function') { $('odMsg').className = 'err'; $('odMsg').textContent = 'This line has no printer in the PPC plan.'; return; }
-    return flowDueRecvOpen(fl.printer);   // the printer's open lines, with search — the same dialog as Printed fabric in
+    /* Only this order's lines from the printer (16 Nov) — the same dialog as Printed fabric in, narrowed to the row it was opened from. */
+    return flowDueRecvOpen(fl.printer, { orderNo: r.orderNo, sku: r.sku,
+      none: () => { $('odMsg').className = 'err'; $('odMsg').textContent = `${r.shopOrderNo || r.orderNo} has nothing still to come from ${fl.printer.name || fl.printer.code || fl.printer} — it is not on that printer's challans.`; },
+      after: said => { shpbAfter(); $('odMsg').className = 'muted'; $('odMsg').textContent = said || ''; } });
   }
   if (act === 'fill') {
     const f = shpbFillOf(r) || {}, iss = shpbFillSum(f, 'iss'), rec = shpbFillSum(f, 'rec'), vs = shpbFillers();

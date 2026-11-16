@@ -530,8 +530,17 @@ async function flowDueRecvSave(key, got, o) {
   flowDueRecvSave.said = `Received from ${rows[0].printer}${per.size ? ` on ${[...per.keys()].join(', ')}` : ''}${made.length ? `${per.size ? '; ' : ' — '}no RFD challan for some of it, recorded on ${made.join(', ')}` : ''}.`;
   return '';
 }
-function flowDueRecvOpen(key) {
-  const rows = flowDueOf(key); if (!rows.length) return;
+function flowDueRecvOpen(key, only) {
+  /* ONE ORDER ONLY (Ravi, 16 Nov: "SHP board me yadi kisi printer se receive kare to only bahi order receive ho n ki sabhi orders show ho"):
+   * opened from a board row, the dialog holds that order's lines from this printer — its own SKU first, else every line of the order. */
+  let rows = flowDueOf(key);
+  if (only && only.orderNo) {
+    const U = s => String(s || '').trim().toUpperCase(), ord = rows.filter(x => U(x.orderNo) === U(only.orderNo));
+    const mine = ord.filter(x => U(x.sku) === U(only.sku));
+    rows = mine.length ? mine : ord;
+    if (!rows.length) { if (typeof only.none === 'function') only.none(); return; }
+  }
+  if (!rows.length) return;
   const pic = sku => (typeof ptImgSpan === 'function' ? ptImgSpan(sku, 40) : '');
   ptOpenDialog({
     title: `Receive from ${rows[0].printer}`,
@@ -556,7 +565,9 @@ function flowDueRecvOpen(key) {
       const got = {}; rows.forEach((x, i) => { const v = +((document.querySelector(`[data-fldq="${i}"]`) || {}).value || 0); if (v > 0) got[x.l.key] = v; });
       const er = await flowDueRecvSave(key, got, { date: $('fldrDate').value, note: ($('fldrNote').value || '').trim(), deduct: !!$('fldrDed').checked });
       if (er) return er;
-      renderFlow(); $('flMsg').className = 'muted'; $('flMsg').textContent = flowDueRecvSave.said; return '';
+      renderFlow(); $('flMsg').className = 'muted'; $('flMsg').textContent = flowDueRecvSave.said;
+      if (only && typeof only.after === 'function') only.after(flowDueRecvSave.said);
+      return '';
     },
   });
   const qb = typeof document !== 'undefined' && document.getElementById && document.getElementById('fldrQ');
