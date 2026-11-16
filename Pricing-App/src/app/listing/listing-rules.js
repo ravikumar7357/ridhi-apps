@@ -832,6 +832,48 @@ const lrShopOfAmz = (amz, row) => lrShopOf({ st: amz ? amz.st : null, iss: amz ?
   closed: !!(row && /closed/i.test(row.status || '')), brand: row && row.brand, sku: row && row.sku });
 // What shoppers get (the F dot): 'r' suppressed or not buyable, 'u' not checked, 'g' otherwise (an ERROR alone keeps it green).
 const lrShopF = shop => (shop.k === 'sup' || shop.k === 'nobuy' ? 'r' : shop.k === 'unk' ? 'u' : 'g');
+/** CONSOLE ONLY (16 Nov 2026): what THE ONE RULE changes, over the saved snapshots — the Image Manager snapshot (status, issues) and
+ *  Listing Health's (stock). `await lrShopReport()` in a signed-in Sellora tab. The old checks are copied here only to compare. */
+async function lrShopReport() {
+  const oldF = it => {                                   // the F dot before 16 Nov (bfShop with its code list and "suppress" words)
+    const st = String(it.st || '').toUpperCase().split(/[\s,]+/).filter(Boolean);
+    if (!st.length) return 'u';
+    if (!st.includes('BUYABLE') || !st.includes('DISCOVERABLE')) return 'r';
+    const said = (it.iss || []).filter(i => i.s === 'E').map(i => i.c + ' ' + i.m).join(' ') + ' ' + (it.im || '');
+    return /18320/.test(said) || /suppress/i.test(said) ? 'r' : 'g';
+  };
+  // the saved snapshots: loaded only when this page does not hold them yet
+  if (typeof loadHealthCache === 'function' && typeof HEALTH !== 'undefined' && !(HEALTH.SP && HEALTH.SP.rows) && !(HEALTH.CPC && HEALTH.CPC.rows)) await loadHealthCache();
+  const out = {};
+  for (const brand of ['SP', 'CPC']) {
+    if (typeof imListLoad === 'function' && !(typeof IML !== 'undefined' && IML[brand] && (IML[brand].items || []).length)) await imListLoad(brand);
+    const items = ((typeof IML !== 'undefined' && IML[brand] && IML[brand].items) || []).filter(it => it.lvl !== 'parent');
+    const r = { listings: items.length, supBefore: 0, supNow: 0, fRedBefore: 0, fRedNow: 0, errorOnlyNowGreen: [], noStockNowGreen: 0, notBuyableNow: 0,
+      notCheckedNow: 0, nobuyFilterBefore: 0, nobuyFilterNow: 0 };
+    items.forEach(it => {
+      const shop = lrShopOf({ st: it.st || null, iss: it.iss, qty: lrQtyOf(brand, it.sku), brand, sku: it.sku });
+      const st = String(it.st || '').toUpperCase();
+      const was = oldF(it), now = lrShopF(shop);
+      if (st.includes('BUYABLE') && !st.includes('DISCOVERABLE')) r.supBefore++;
+      if (shop.k === 'sup') r.supNow++;
+      if (was === 'r') r.fRedBefore++;
+      if (now === 'r') r.fRedNow++;
+      if (was === 'r' && now === 'g' && shop.k === 'ok') r.errorOnlyNowGreen.push(it.sku);
+      if (was === 'r' && now !== 'r' && shop.k === 'off') r.noStockNowGreen++;
+      if (shop.k === 'nobuy') r.notBuyableNow++;
+      if (shop.k === 'unk') r.notCheckedNow++;
+      if (!/BUYABLE/.test(it.st || '')) r.nobuyFilterBefore++;
+      if (shop.k === 'nobuy') r.nobuyFilterNow++;
+    });
+    out[brand] = r;
+    console.log(`${brand}: ${r.listings} listings · Suppressed ${r.supBefore} → ${r.supNow} · shoppers-affected (F red) ${r.fRedBefore} → ${r.fRedNow}`
+      + ` · an ERROR alone, now F green: ${r.errorOnlyNowGreen.length}${r.errorOnlyNowGreen.length ? ' (' + r.errorOnlyNowGreen.slice(0, 15).join(', ') + (r.errorOnlyNowGreen.length > 15 ? ', …' : '') + ')' : ''}`
+      + ` · not buyable with no stock, now F green: ${r.noStockNowGreen} · Not buyable (live) ${r.notBuyableNow} · Not checked ${r.notCheckedNow}`
+      + ` · Image Manager "Not buyable" filter ${r.nobuyFilterBefore} → ${r.nobuyFilterNow}`);
+  }
+  return out;
+}
+if (typeof window !== 'undefined') window.lrShopReport = lrShopReport;
 // One listing's stock from the Listing Health snapshot (null = not known) — for screens that hold no stock of their own.
 const LR_QTY_IX = new WeakMap();
 function lrQtyOf(brand, sku) {

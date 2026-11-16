@@ -269,6 +269,19 @@ function picture(W, H, box, edge) {
     ok('…no BUYABLE with stock → "Not buyable" (its own chip, not Suppressed); no stock → not a problem chip; no status → "Not checked"',
       P.imState({ sku: 'NB1', st: 'DISCOVERABLE' }, 'SP').k === 'nobuy' && P.imState({ sku: 'NB1', st: 'DISCOVERABLE' }, 'SP').label === 'Not buyable'
       && P.imState({ sku: 'NB0', st: 'DISCOVERABLE' }, 'SP').k === 'nooffer' && P.imState({ sku: 'NB1', st: '' }, 'SP').label === 'Not checked');
+    {
+      const keep = P.IML.SP, logs = [], log0 = console.log;
+      P.IML.SP = { at: new Date(), items: [co7, { sku: 'S1', st: 'BUYABLE' }, { sku: 'NB1', st: 'DISCOVERABLE' }, { sku: 'NB0', st: 'DISCOVERABLE' }, { sku: 'U1', st: '' }, { sku: 'OK1', st: 'BUYABLE,DISCOVERABLE' }] };
+      P.IML.CPC = { at: new Date(), items: [] };
+      console.log = (...a) => logs.push(a.join(' '));
+      const rep = await P.lrShopReport();
+      console.log = log0;
+      const r = rep.SP;
+      ok('lrShopReport (console): before → now over the saved snapshots — Suppressed 1 → 1, F red 4 → 2, CO-007 now green, NB0 (no stock) now green, filter 3 → 1',
+        r.supBefore === 1 && r.supNow === 1 && r.fRedBefore === 4 && r.fRedNow === 2 && r.errorOnlyNowGreen.join() === 'CPCLS-CO-007' && r.noStockNowGreen === 1 && r.notBuyableNow === 1
+        && r.notCheckedNow === 1 && r.nobuyFilterBefore === 3 && r.nobuyFilterNow === 1 && /SP: 6 listings · Suppressed 1 → 1/.test(logs[0]), JSON.stringify(r) + ' ' + logs[0]);
+      P.IML.SP = keep;
+    }
     ok('…the filters follow: "sup" only the suppressed, "nobuy" only the live not-buyable', P.imKidMatch(co7, 'sup', '') === false && P.imKidMatch({ sku: 'NB1', st: 'DISCOVERABLE' }, 'nobuy', '') === true
       && P.imKidMatch({ sku: 'NB0', st: 'DISCOVERABLE' }, 'nobuy', '') === false);
     P.IMQ.dims = new Map([['k3MAIN', [1500, 1500]], ['k3PT01', [800, 800]]]);
