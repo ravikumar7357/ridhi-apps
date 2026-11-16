@@ -224,7 +224,9 @@ function coReport_(p, who, nowMs) {
 /** Editor check: is the door set up? Prints whether the key is set and whether Firestore answers. Changes nothing. */
 function creatorOrdersCheck() {
   Logger.log('CREATOR_SETU_SECRET set: %s (%s characters)', coSecret_().length >= 24, coSecret_().length);
-  try { coRead_(CO.col + '/__check__'); Logger.log('Firestore: answers'); }
+  /* A name that cannot be an order (and not "__…__": Firestore refuses those with a 400). Not there → null, and that is the answer. */
+  try { coRead_(CO.col + '/setup-check'); Logger.log('Firestore: answers'); }
   catch (e) { Logger.log('Firestore: FAILED — %s', e.message || e); }
-  Logger.log('Creator Setu sends to: %s?creator=order', ScriptApp.getService().getUrl());
+  /* In the editor this is the private /dev address; Creator Setu needs the deployment's /exec one (Deploy → Manage deployments). */
+  Logger.log('Creator Setu sends to: <the Web app URL ending in /exec, from Deploy → Manage deployments>?creator=order');
 }
