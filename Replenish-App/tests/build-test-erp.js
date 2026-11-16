@@ -518,7 +518,7 @@ const __sbFsPlain = v => { if (v === null || v === undefined) return null; if (v
 async function __sbFsSave(path, changes) {
   if (String(path || '').split('/')[0] === 'config') return window.__testErpBlock('Firestore settings (API keys stay in Firebase)');
   const tok = (typeof auth !== 'undefined' && auth && auth.currentUser) ? await auth.currentUser.getIdToken() : '';
-  await window.__TEST_ERP.sbSave(changes, null, tok);
+  await window.__TEST_ERP.sbSave(changes, null, tok).catch(e => { if (/permission denied|not an ERP sign-in|only an admin/.test(String(e && e.message))) e.code = 'permission-denied'; throw e; });
 }
 const __sbFsLeaves = (o, pre, out, t) => { for (const k of Object.keys(o)) { const v = o[k], p = pre + '/' + k;
   if (v && typeof v === 'object' && !Array.isArray(v) && !v._methodName && !(v.constructor && v.constructor.name !== 'Object') && Object.keys(v).length) __sbFsLeaves(v, p, out, t);
@@ -570,7 +570,9 @@ async function __sbRpc(fn, body) {
   const sb = window.__TEST_ERP.sb, tok = (typeof auth !== 'undefined' && auth && auth.currentUser) ? await auth.currentUser.getIdToken() : '';
   const r = await fetch(sb.url + '/rest/v1/rpc/' + fn, { method: 'POST', body: JSON.stringify(body),
     headers: { apikey: sb.key, Authorization: 'Bearer ' + (tok || sb.key), 'Content-Type': 'application/json', 'Content-Profile': 'core', 'Accept-Profile': 'core' } });
-  const t = await r.text(); if (!r.ok) throw new Error('ERP data: ' + t.slice(0, 200)); window.__TEST_ERP.sbReads++; return t ? JSON.parse(t) : null;
+  const t = await r.text();
+  if (!r.ok) { const er = new Error('ERP data: ' + t.slice(0, 200)); if (/permission denied|not an ERP sign-in/.test(t)) er.code = 'permission-denied'; throw er; }   /* as Firestore says it */
+  window.__TEST_ERP.sbReads++; return t ? JSON.parse(t) : null;
 }
 const __sbIsKeyDoc = ref => String(ref && ref.path || '').split('/')[0] === 'config';
 ${has('getDoc') ? `const getDoc = async ref => __sbIsKeyDoc(ref) ? __real_getDoc(ref) : __sbDoc(ref, await __sbRpc('fs_get', { p_coll: ref.parent.id, p_id: ref.id }));` : ''}
