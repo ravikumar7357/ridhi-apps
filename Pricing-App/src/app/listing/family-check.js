@@ -26,7 +26,9 @@
  * The list: every family one closed line (chips from what is in memory); ONE family open at a time (fcToggle — the clicked line stays put,
  *       Esc closes it), its children drawn only then and its theme read then (fcReadFamily). Ticks on "Not in family" and duplicate /
  *       missing rows; the bar: Removed on purpose (N, one reason) · Link to family (N, one family only) · Open in Listing Errors (N).
- * Main functions: fcBuild, fcSuggest, fcProblems, fcDrawAll, fcToggle, fcReadFamily, fcLinkMany, fcSetValue, fcOkSetMany, fcOkUndo, fcCsv, fcOpen. */
+ * No guessing: a family is judged for Duplicate / Missing value only once Amazon's theme is read (fcReadAllThemes in the background after
+ *       the page opens, one read per family, kept); until then its line says "theme not read" and nothing is counted.
+ * Main functions: fcBuild, fcSuggest, fcProblems, fcDrawAll, fcToggle, fcReadFamily, fcReadAllThemes, fcLinkMany, fcSetValue, fcOkSetMany, fcOkUndo, fcCsv, fcOpen. */
 
 const FC_STEP = 60;                                  // family lines drawn at a time; more as the list scrolls
 const FC_INFLIGHT = 2;                               // ?lfix=get reads out at once
@@ -47,6 +49,7 @@ let FC = { tab: 'fam', brand: 'ALL', q: '', card: '', built: false, loading: fal
   open: '',                     // the ONE open family (fk); '' = all closed
   sel: new Set(), bulkAsk: false, bulkReason: '', bulkMsg: '',   // the ticked rows ("brand|sku") and the bar's reason box
   limit: FC_STEP, order: null, io: null,                         // family lines drawn so far; the order they were first drawn in
+  failed: new Set(),            // reads that failed this visit ("brand|sku"): counted as asked, not saved
   reading: new Map(), reads: { q: [], inflight: 0, fails: 0 }, view: null, drawT: 0 };   // reading: fk → theme reads still out
 const fcEsc = s => String(s == null ? '' : s).replace(/[<>&"]/g, ch => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[ch]));
 const fcNf = n => Number(n || 0).toLocaleString('en-US');
@@ -132,6 +135,7 @@ async function fcReadOne(brand, sku) {
   return reply;
 }
 // The read used for a SKU: only when it is newer than the Image Manager snapshot it would replace.
+const fcGotTheme = (brand, sku) => { const r = FC.got[fcKey(brand, sku)]; return r ? r.theme || '' : null; };   // null = never read
 function fcRead(brand, sku) {
   const r = FC.got[fcKey(brand, sku)];
   if (!r) return null;
@@ -139,11 +143,19 @@ function fcRead(brand, sku) {
   return r.at > snapAt ? r : null;
 }
 // Queue reads (two at a time); `fk` is the family they are for (its header says "Reading theme…" until the last lands).
-function fcQueueReads(list, fk) {
+function fcQueueReads(list, fk, bg) {
   const R = FC.reads;
   const have = new Set(R.q.map(j => fcKey(j.brand, j.sku)));
   let n = 0;
-  list.forEach(j => { const k = fcKey(j.brand, j.sku); if (!have.has(k)) { have.add(k); R.q.push(Object.assign({ fk: fk || '' }, j)); n++; } });
+  list.forEach(j => {
+    const k = fcKey(j.brand, j.sku);
+    if (have.has(k)) return;
+    have.add(k);
+    const job = Object.assign({ fk: fk || '', bg: !!bg }, j);
+    const at = bg ? -1 : R.q.findIndex(x => x.bg);                     // a family someone opened goes before the background reads
+    if (at < 0) R.q.push(job); else R.q.splice(at, 0, job);
+    n++;
+  });
   if (n && fk) FC.reading.set(fk, (FC.reading.get(fk) || 0) + n);
   fcPump();
   return n;
@@ -151,10 +163,13 @@ function fcQueueReads(list, fk) {
 function fcPump() {
   const R = FC.reads;
   while (R.inflight < FC_INFLIGHT && R.q.length) {
+    if (R.q[0].bg && FC.open) break;                                       // the background reads pause while a family is open
     const job = R.q.shift();
     R.inflight++;
-    fcReadOne(job.brand, job.sku).catch(() => { R.fails++; }).then(() => {
+    if (job.bg) R.bgIn = (R.bgIn || 0) + 1;
+    fcReadOne(job.brand, job.sku).catch(() => { R.fails++; FC.failed.add(fcKey(job.brand, job.sku)); }).then(() => {   // a failed read: asked, for this visit only (tried again next time)
       R.inflight--;
+      if (job.bg) R.bgIn--;
       if (job.fk && FC.reading.has(job.fk)) {
         const left = FC.reading.get(job.fk) - 1;
         if (left > 0) FC.reading.set(job.fk, left);
@@ -173,9 +188,32 @@ function fcReadFamily(fk) {
   const f = v.families.find(x => x.fk === fk);
   if (!f) return 0;
   const jobs = [];
-  if (f.psku && !fcRead(f.brand, f.psku)) jobs.push({ brand: f.brand, sku: f.psku });
-  f.live.forEach(c => { if (!fcRead(c.brand, c.sku)) jobs.push({ brand: c.brand, sku: c.sku }); });
+  if (f.psku && fcGotTheme(f.brand, f.psku) == null) jobs.push({ brand: f.brand, sku: f.psku });
+  f.live.forEach(c => { if (fcGotTheme(c.brand, c.sku) == null) jobs.push({ brand: c.brand, sku: c.sku }); });
   return fcQueueReads(jobs, fk);
+}
+/** After the page opens: every family's theme, in the background, so the cards fill without opening anything — ONE read per family (its
+ *  parent; two live children when the parent SKU is not known), only families never read (the saved copy keeps the answers, so this
+ *  happens once), two calls at most, paused while a family is open. */
+function fcReadAllThemes() {
+  const v = FC.view || fcBuild();
+  const jobs = [];
+  v.families.forEach(f => {
+    if (!f.live.length || fcFamTried(f)) return;
+    if (f.psku) jobs.push({ brand: f.brand, sku: f.psku });
+    else f.live.slice(0, 2).forEach(c => { if (fcGotTheme(c.brand, c.sku) == null) jobs.push({ brand: c.brand, sku: c.sku }); });
+  });
+  return fcQueueReads(jobs, '', true);
+}
+// Has Amazon been asked for this family's theme? (the parent read, or — with no parent SKU — two children read)
+const fcAsked = (brand, sku) => fcGotTheme(brand, sku) != null || FC.failed.has(fcKey(brand, sku));
+const fcFamTried = f => (f.psku ? fcAsked(f.brand, f.psku) : f.live.filter(c => fcAsked(c.brand, c.sku)).length >= Math.min(2, f.live.length));
+const fcFamFailed = f => (f.psku ? FC.failed.has(fcKey(f.brand, f.psku)) : f.live.slice(0, 2).every(c => FC.failed.has(fcKey(c.brand, c.sku))));
+// "Checking themes… 120 of 416": the families with live children whose theme has been asked, while the background reads run.
+function fcThemeProgress(v) {
+  const fams = v.families.filter(f => f.live.length);
+  const busy = FC.reads.q.some(j => j.bg) || FC.reads.bgIn > 0;
+  return { done: fams.filter(fcFamTried).length, total: fams.length, busy };
 }
 
 /* ----- the removed-on-purpose marks (listingrules/famok_<brand>) ----- */
@@ -271,7 +309,7 @@ function fcBuild() {
       const rt = fcRating(it, row);
       if (rt) ratingFound++;
       const c = { brand, sku: it.sku, asin: it.asin || (row && row.asin) || '', title: it.t || (row && row.title) || '', pt: (read && read.pt) || it.pt || '',
-        color: read ? read.color : it.c || '', size: read ? read.size : it.z || '', theme: read ? read.theme : null, stock, live: isLive, fk, rt,
+        color: read ? read.color : it.c || '', size: read ? read.size : it.z || '', theme: fcGotTheme(brand, it.sku), stock, live: isLive, fk, rt,
         stem: fcStem(it.sku), cat: (typeof LR_CAT !== 'undefined' && LR_CAT[brand] && LR_CAT[brand][it.sku]) || null };
       if (fk) {
         const f = famOf(fk, psku, pa);
@@ -339,8 +377,8 @@ function fcSuggest(c, families, stemFams) {
 }
 /** The family's theme: the parent's read, else what most read children say. { key, raw, src: 'parent' | 'children' | '' }. */
 function fcFamTheme(f) {
-  const p = f.psku ? fcRead(f.brand, f.psku) : null;
-  if (p && p.theme) return { key: fcTheme(p.theme), raw: p.theme, src: 'parent' };
+  const pt = f.psku ? fcGotTheme(f.brand, f.psku) : null;
+  if (pt) return { key: fcTheme(pt), raw: pt, src: 'parent' };
   const counts = {};
   const raws = {};
   f.live.forEach(c => { if (c.theme) { const k = fcTheme(c.theme); counts[k] = (counts[k] || 0) + 1; raws[k] = raws[k] || c.theme; } });
@@ -349,13 +387,9 @@ function fcFamTheme(f) {
   if (top && top[1] >= 2 && top[1] > read / 2) return { key: top[0], raw: raws[top[0]], src: 'children' };
   return { key: '', raw: '', src: '' };
 }
-/** What the family varies by: from its theme when read, else from what most of its live children carry. */
+/** What the family varies by: from Amazon's theme only. A family whose theme is not read is not judged (no guessing from the siblings). */
 function fcDims(f, theme) {
-  if (theme.key) return Object.assign(fcThemeDims(theme.key), { src: 'theme' });
-  const n = f.live.length;
-  if (n < 2) return { c: false, s: false, src: '' };
-  const has = k => f.live.filter(c => c[k]).length;
-  return { c: has('color') / n >= 2 / 3, s: has('size') / n >= 2 / 3, src: 'children' };
+  return theme.key ? Object.assign(fcThemeDims(theme.key), { src: 'theme' }) : { c: false, s: false, src: '' };
 }
 const fcValKey = (c, d) => (d.c ? fcNorm(c.color) : '') + '|' + (d.s ? fcNorm(c.size) : '');
 // The colour/size a child would carry after a catalogue fix (only the missing or clashing parts change).
@@ -377,7 +411,8 @@ function fcProblems(v) {
     const d = fcDims(f, theme);
     f.theme = theme;
     f.dims = d;
-    f.wait = !!theme.key && !fcCsOnly(theme.key);         // e.g. COLOR/SET_NAME: colour + size alone cannot tell these children apart
+    f.wait = !!theme.key && !fcCsOnly(theme.key);
+    f.unread = !theme.key;                                // grey "theme not read": no Duplicate / Missing value until Amazon's theme is in         // e.g. COLOR/SET_NAME: colour + size alone cannot tell these children apart
     const byVal = new Map();
     if (d.c || d.s) f.live.forEach(c => {
       if ((d.c && !c.color) || (d.s && !c.size)) return;
@@ -394,7 +429,7 @@ function fcProblems(v) {
         const plan = fcCatPlan(c, d, miss);
         const after = plan ? Object.assign({}, c, plan) : null;
         const clash = after && (!d.c || after.color) && (!d.s || after.size) && (byVal.get(fcValKey(after, d)) || []).length > 0;
-        probs.push({ k: 'missing', sev: 'r', text: `No ${what}` + (d.src === 'children' ? ' — most children of this family have one (theme not read yet)' : ` — the theme is ${theme.raw}`),
+        probs.push({ k: 'missing', sev: 'r', text: `No ${what} — the theme is ${theme.raw}`,
           fix: plan && !clash ? { kind: 'set', set: plan, text: 'Set ' + Object.entries(plan).map(([k, val]) => `${k === 'color' ? 'colour' : 'size'} "${val}"`).join(' and ') + ' (from the catalogue)' }
             : { kind: 'hand', text: plan ? 'The catalogue\'s value is already used by another child' : 'No certain value — the catalogue has none for this SKU' } });
       }
@@ -680,6 +715,7 @@ function fcGroupHtml(g) {
   const n = k => g.rows.filter(r => r.probs.some(p => p.k === k)).length;
   const chips = FC_KINDS.map(k => (n(k.k) ? `<span class="fc-chip is-${k.sev}">${fcNf(n(k.k))} ${fcEsc(k.t.toLowerCase())}</span>` : '')).join('');
   const waiting = n('wait') ? '<span class="fc-chip is-g">Waiting for Amazon theme data</span>' : '';
+  const unread = f.unread && !FC.reading.has(f.fk) ? `<span class="fc-chip is-g">${fcFamFailed(f) ? 'theme could not be read' : fcFamTried(f) ? 'no theme on Amazon' : 'theme not read'}</span>` : '';
   const reading = FC.reading.has(f.fk) ? ' <span class="fc-reading">Reading theme…</span>' : '';
   const orph = g.rows.filter(r => fcTickKind(r) === 'orphan').map(r => fcKey(r.c.brand, r.c.sku));
   const allOn = orph.length && orph.every(k => FC.sel.has(k));
@@ -687,7 +723,7 @@ function fcGroupHtml(g) {
   const theme = f.theme && f.theme.raw ? ' · theme ' + f.theme.raw : '';
   return `<tbody class="fc-grp${open ? ' is-open' : ''}"><tr class="fc-head" data-fc="grp" data-fc-v="${fcEsc(f.fk)}" tabindex="0" aria-expanded="${open}"><td colspan="${FC_COLS}">`
     + `<button type="button" class="fc-arrow" data-fc="grp" data-fc-v="${fcEsc(f.fk)}" aria-label="${open ? 'Close' : 'Open'} ${fcEsc(f.name)}">${open ? '▾' : '▸'}</button>`
-    + `<b>${fcEsc(f.name)}</b> <small class="muted">${fcEsc(fcBrandName(f.brand))} · parent SKU ${fcEsc(f.psku || '—')} · ${fcEsc(f.pa || '—')} · ${fcNf(f.live.length)} live children${fcEsc(theme)}</small> ${chips}${waiting}${reading}${selAll}</td></tr>`
+    + `<b>${fcEsc(f.name)}</b> <small class="muted">${fcEsc(fcBrandName(f.brand))} · parent SKU ${fcEsc(f.psku || '—')} · ${fcEsc(f.pa || '—')} · ${fcNf(f.live.length)} live children${fcEsc(theme)}</small> ${chips}${waiting}${unread}${reading}${selAll}</td></tr>`
     + (open ? FC_COLHEAD + g.rows.map(fcRowHtml).join('') : '') + '</tbody>';
 }
 /** What is ticked, as rows still on the page: { orphan: [c…], fix: [c…] } (a tick whose row has gone is dropped). */
@@ -723,8 +759,9 @@ function fcBarHtml(v) {
 }
 function fcDrawBody(v) {
   const body = $('fcBody');
+  const prog = fcThemeProgress(v);
   const cards = FC_KINDS.map(k => `<button type="button" class="fc-box is-${k.sev}${FC.card === k.k ? ' is-on' : ''}" data-fc="card" data-fc-v="${k.k}" aria-pressed="${FC.card === k.k}" title="${fcEsc(k.tip)}">`
-    + `<span>${fcEsc(k.t)}</span><b>${fcNf(fcCount(v, k.k))}</b><small>${k.sev === 'r' ? 'error' : 'check'}</small></button>`).join('');
+    + `<span>${fcEsc(k.t)}</span><b>${fcNf(fcCount(v, k.k))}</b><small>${prog.busy && k.k !== 'orphan' ? `Checking themes… ${fcNf(prog.done)} of ${fcNf(prog.total)}` : k.sev === 'r' ? 'error' : 'check'}</small></button>`).join('');
   const groups = fcGroups(v);
   if (FC.open && !groups.some(g => g.f.fk === FC.open)) FC.open = '';
   // only the first FC.limit family lines are drawn; more as the list scrolls (or "Show more")
@@ -770,6 +807,7 @@ function fcToggle(fk, el) {
   const top0 = line && line.getBoundingClientRect ? line.getBoundingClientRect().top : null;
   FC.open = FC.open === fk ? '' : fk;
   if (FC.open) fcReadFamily(fk);
+  else fcPump();                                                           // closed: the background reads go on
   fcDrawAll();
   if (top0 == null || typeof document === 'undefined' || !document.querySelector) return;
   const again = document.querySelector(`#fcBody .fc-head[data-fc-v="${typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(fk) : fk}"]`);
@@ -846,6 +884,7 @@ async function fcOpen() {
   }
   FC.loading = false;
   FC.loaded = true;
+  fcReadAllThemes();                                                       // queued first, so the cards say "Checking themes… 0 of N" at once
   fcDrawAll();
 }
 const fcPaneOn = () => { const pane = $('paneFam'); return !!(pane && !pane.classList.contains('hide')); };
@@ -869,6 +908,7 @@ if (typeof document !== 'undefined' && document.addEventListener && $('fcPane'))
   document.addEventListener('keydown', e => {
     if (e.key !== 'Escape' || !FC.open || !fcPaneOn() || (typeof sqIsOpen === 'function' && sqIsOpen())) return;
     FC.open = '';
+    fcPump();
     fcDrawAll();
   });
   const pane = $('paneFam');

@@ -65,13 +65,13 @@ function setup(opts) {
     const at = {};
     if (i.c) at.color = [{ value: i.c, language_tag: 'en_US', marketplace_id: 'M' }];
     if (i.z) at.size = [{ value: i.z, language_tag: 'en_US', marketplace_id: 'M' }];
-    const th = THEME[sku] || (i.lvl === 'child' ? 'SizeName-ColorName' : '');
+    const th = THEME[sku] || (i.lvl === 'child' ? 'SizeName-ColorName' : i.lvl === 'parent' && /^ZQ/.test(sku) ? 'SIZE/COLOR' : '');
     if (th) at.variation_theme = [{ name: th, marketplace_id: 'M' }];
     if (i.psku) at.child_parent_sku_relationship = [{ child_relationship_type: 'variation', parent_sku: i.psku, marketplace_id: 'M' }];
     if (i.lvl) at.parentage_level = [{ value: i.lvl, marketplace_id: 'M' }];
     return { ok: true, sku, productType: i.pt || '', attributes: at, issues: [] };
   };
-  const mem = {};
+  const mem = opts.mem || {};                       // this browser's saved copy (a second page load can share it)
   const ctx = {
     $: el,
     document: { addEventListener: (ev, fn) => docKeys.push(fn), querySelectorAll: () => [], createElement: () => ({ click() {} }),
@@ -81,7 +81,7 @@ function setup(opts) {
     URL: { createObjectURL: () => 'blob:x', revokeObjectURL() {} }, Blob: class { constructor(p) { this.p = p; } }, CSS: { escape: s => s },
     BRAND_NAME: { SP: 'Ridhi', CPC: 'CPC' }, IML, HEALTH, LR_CAT, H_LOADED: true, ME: { email: 'vishesh.g@example.com', tabs: ['health'] },
     parentName: (b, asin, fallback) => ({ BPARENT14: 'Floral Tablecloth', BPARENT20: 'Cotton Napkins' }[asin] || fallback),
-    baCall: async q => { reads.push(q.sku); if (q.lfix === 'get') return amazon(q.sku); return {}; },
+    baCall: async q => { reads.push(q.sku); if (q.sku === opts.failSku) throw new Error('429'); if (q.lfix === 'get') return amazon(q.sku); return {}; },
     lsGet: async (coll, id) => (opts.test ? null : store[coll + '/' + id] ? JSON.parse(JSON.stringify(store[coll + '/' + id])) : null),
     lsSave: async (coll, id, data) => {
       if (opts.test) return false;
@@ -105,6 +105,8 @@ function setup(opts) {
   return Object.assign(C, { el, store, sends, calls, reads, S, IML, HEALTH, LR_CAT, mem, body, click, tick, counts, docKeys, scrolls });
 }
 const flush = async () => { for (let i = 0; i < 6; i++) await new Promise(r => setImmediate(r)); };
+// every queued read landed (a paused background read stops the wait after a while)
+const flushAll = async C => { for (let i = 0; i < 3000 && (C.FC.reads.q.length || C.FC.reads.inflight); i++) await new Promise(r => setImmediate(r)); await flush(); };
 const rowsOf = v => v.groups.flatMap(g => g.rows);
 const probOf = (v, sku, k) => { const r = rowsOf(v).find(x => x.c.sku === sku); return r ? r.probs.find(p => p.k === k) || null : null; };
 const heads = html => (html.match(/class="fc-head"/g) || []).length;
@@ -138,25 +140,30 @@ const drawnRows = html => (html.match(/class="fc-row/g) || []).length;
     await C.fcOpen();
     const html = C.body();
     ok('on load every family is CLOSED: 2 lines, no child rows, no column header', heads(html) === 2 && drawnRows(html) === 0 && !/class="fc-colh"/.test(html) && !/<thead/.test(html), `${heads(html)} ${drawnRows(html)}`);
-    ok('a closed line: name, brand, parent SKU, ASIN, live children, problem chips', /Floral Tablecloth<\/b> <small class="muted">Ridhi · parent SKU RTC14-P · BPARENT14 · 6 live children<\/small>/.test(html) && /2 not in family/.test(html) && /2 duplicate colour\/size/.test(html), strip(html).slice(0, 400));
-    ok('no Amazon call to show the list (chips from memory)', C.reads.length === 0);
+    ok('no guessing: before Amazon\'s theme is in, a line says "theme not read" — no Duplicate / Missing value chips', /theme not read/.test(html) && !/duplicate colour\/size|missing value/.test(html) && /2 not in family/.test(html), strip(html).slice(0, 500));
+    ok('…the cards say "Checking themes… 0 of 2" and count no Duplicate / Missing value yet', /Checking themes… 0 of 2/.test(html) && C.counts() === '3,0,0,0', C.counts());
+    ok('the background reads ONE listing per family (its parent), 2 at a time', C.reads.join() === 'RTC14-P,RNP20-P', C.reads.join());
+    await flushAll(C);
+    const html2 = C.body();
+    ok('as the themes arrive, the colour / size families count (Duplicate 4, Missing value 1) and "Checking themes" goes', C.counts() === '3,4,1,0' && !/Checking themes/.test(html2) && !/theme not read/.test(html2), C.counts());
+    ok('a closed line: name, brand, parent SKU, ASIN, live children, theme, problem chips', /Floral Tablecloth<\/b> <small class="muted">Ridhi · parent SKU RTC14-P · BPARENT14 · 6 live children · theme SIZE\/COLOR<\/small>/.test(html2) && /2 not in family/.test(html2) && /2 duplicate colour\/size/.test(html2), strip(html2).slice(0, 400));
     ok('no "Read themes" button anywhere', !/Read (variation )?themes|data-fc="read/.test(html + C.el('fcPane').innerHTML));
     C.click('grp', { fcV: RTC });
     let h = C.body();
     ok('the arrow opens THAT family: its problem rows (5) and its column header', C.FC.open === RTC && drawnRows(h) === 5 && (h.match(/class="fc-colh"/g) || []).length === 1 && /aria-expanded="true"/.test(h), drawnRows(h));
     ok('…the column header is inside the open family (SKU · ASIN · Colour · Size · Stock · Problem · Suggested fix)', /<tbody class="fc-grp is-open">[^]*<tr class="fc-colh">[^]*<th>SKU<\/th><th>ASIN<\/th><th>Colour<\/th><th>Size<\/th><th class="num">Stock<\/th><th>Problem<\/th><th>Suggested fix<\/th>/.test(h));
-    ok('opening starts reading ITS theme, 2 at a time', C.reads.length === 2 && C.reads.every(s => /^RTC14-/.test(s)), C.reads.join());
+    ok('opening reads ITS children\'s themes, 2 at a time', C.reads.length === 4 && C.reads.slice(2).every(s => /^RTC14-[1-6]$/.test(s)), C.reads.join());
     ok('…the header says "Reading theme…" while they are out', /Reading theme…/.test(h));
     await flush();
     h = C.body();
     ok('…and not once they are in; the theme shows in the line', !/Reading theme…/.test(h) && /theme SIZE\/COLOR/.test(h));
-    ok('…read: its parent and its 6 live children only — no stray child, nothing of the napkins', C.reads.length === 7 && C.reads.every(s => /^RTC14-/.test(s)) && !C.reads.includes('RTC14-7') && !C.reads.includes('RTC14-11'), C.reads.join());
+    ok('…read: its 6 live children only — no stray child, no napkin child', C.reads.length === 8 && C.reads.slice(2).every(s => /^RTC14-[1-6]$/.test(s)), C.reads.join());
     ok('…open, it now shows 6 problem rows (RTC14-3: different theme)', drawnRows(h) === 6);
     C.click('grp', { fcV: RTC });
     ok('clicked again: it closes', C.FC.open === '' && drawnRows(C.body()) === 0);
     C.click('grp', { fcV: RTC });
     const before = C.reads.length;
-    ok('opened again: nothing read again (kept for the session)', C.reads.length === before && before === 7);
+    ok('opened again: nothing read again (kept for the session)', C.reads.length === before && before === 8);
     C.click('grp', { fcV: RNP });
     h = C.body();
     ok('opening another closes the first: only the napkins\' rows are drawn', C.FC.open === RNP && drawnRows(h) === 3 && !/data-fc-s="RTC14-/.test(h) && (h.match(/aria-expanded="true"/g) || []).length === 1);
@@ -190,12 +197,12 @@ const drawnRows = html => (html.match(/class="fc-row/g) || []).length;
 
   console.log('== duplicate, missing, different theme ==');
   {
-    await flush();
+    await flushAll(A);
     v = A.FC.view;
     ok('RTC14-5 and RTC14-6: same colour + size (red)', probOf(v, 'RTC14-5', 'dup') && probOf(v, 'RTC14-6', 'dup') && /RTC14-5/.test(probOf(v, 'RTC14-6', 'dup').text));
     ok('the catalogue gives RTC14-6 another colour → [Set colour/size] "Black"', probOf(v, 'RTC14-6', 'dup').fix.kind === 'set' && probOf(v, 'RTC14-6', 'dup').fix.set.color === 'Black');
     ok('RTC14-5 already holds its catalogue colour → Fix by hand', probOf(v, 'RTC14-5', 'dup').fix.kind === 'hand');
-    ok('RNP20-2 and RNP20-3 (napkins, never opened): duplicate from memory, no read', probOf(v, 'RNP20-2', 'dup') && !A.reads.some(s => /^RNP20/.test(s)));
+    ok('RNP20-2 and RNP20-3 (napkins, never opened): duplicate once their parent\'s theme is in — the children never read', probOf(v, 'RNP20-2', 'dup') && !A.reads.some(s => /^RNP20-\d/.test(s)));
     const t = probOf(v, 'RTC14-3', 'theme');
     ok('after opening: RTC14-3 "Different theme" (yellow) — COLOR, the family uses SIZE/COLOR', t && t.sev === 'y' && /COLOR; the family uses SIZE\/COLOR/.test(t.text) && t.fix.kind === 'hand', t && t.text);
     ok('the siblings written SizeName-ColorName are the same theme', !probOf(v, 'RTC14-1', 'theme') && !probOf(v, 'RTC14-2', 'theme'));
@@ -286,6 +293,30 @@ const drawnRows = html => (html.match(/class="fc-row/g) || []).length;
     ok('…and Link to family is not held back because a sibling is also Black (colour alone is not the variation)', s && s.jobs.length === 1 && !(s.opts.held || []).length && s.jobs[0].body.patches[2].value[0].name === 'COLOR/SET_NAME', JSON.stringify(s && s.opts.held));
   }
 
+  console.log('== no guessing: the themes read in the background ==');
+  {
+    const C = setup({ desk: true });
+    await C.fcOpen();
+    ok('three families, the first two parents asked at once (2 calls at most)', C.reads.join() === 'RTC14-P,RNP20-P' && C.FC.reads.q.some(j => j.bg && j.sku === 'ROD-P'));
+    C.fcToggle(RTC);
+    for (let i = 0; i < 5; i++) await flush();
+    ok('while a family is open the background reads pause (ROD-P waits; the open family\'s children are read)', !C.reads.includes('ROD-P') && C.reads.filter(s => /^RTC14-[1-6]$/.test(s)).length === 6, C.reads.join());
+    C.fcToggle(RTC);
+    await flushAll(C);
+    ok('closed: they go on (ROD-P read)', C.reads.includes('ROD-P'));
+    ok('the COLOR/SET_NAME family: grey "Waiting for Amazon theme data", not counted', !!probOf(C.FC.view, 'ROD-1', 'wait') && !probOf(C.FC.view, 'ROD-1', 'dup'));
+    const again = setup({ desk: true, mem: C.mem });
+    await again.fcOpen();
+    ok('kept in the saved copy: the next page load reads nothing and counts at once', again.reads.length === 0 && again.counts() === C.counts() && !/Checking themes|theme not read/.test(again.body()), again.reads.join() + ' ' + again.counts());
+    const F = setup({ failSku: 'RNP20-P' });
+    await F.fcOpen();
+    await flushAll(F);
+    ok('a parent Amazon could not answer: "theme could not be read", nothing counted for it', /theme could not be read/.test(F.body()) && !probOf(F.FC.view, 'RNP20-2', 'dup') && !!probOf(F.FC.view, 'RTC14-5', 'dup'));
+    const F2 = setup({ mem: F.mem });
+    await F2.fcOpen();
+    ok('…the failure is not saved: the next page load asks again', F2.reads.join() === 'RNP20-P', F2.reads.join());
+  }
+
   console.log('== counts unchanged by the list ==');
   {
     const C = setup();
@@ -307,6 +338,7 @@ const drawnRows = html => (html.match(/class="fc-row/g) || []).length;
     C.S.items.push(...many);
     many.filter(m => m.lvl === 'child').forEach(m => C.HEALTH.SP.rows.push({ sku: m.sku, asin: m.asin, parent: '', title: m.t, qty: 2 }));
     await C.fcOpen();
+    await flushAll(C);
     const h = C.body();
     ok(`152 families with a problem: only ${C.FC_STEP} lines drawn, then "Show more families (92 left)"`, heads(h) === 60 && /Show more families \(92 left\)/.test(h), heads(h));
     C.click('more');
