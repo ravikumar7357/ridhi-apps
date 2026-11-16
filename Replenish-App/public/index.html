@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <!-- ================================================================================================
-     GENERATED FILE. DO NOT READ OR EDIT THE CODE HERE — it is the 177 files of src/ joined into one page.
+     GENERATED FILE. DO NOT READ OR EDIT THE CODE HERE — it is the 178 files of src/ joined into one page.
      The real, grouped source: Replenish-App/src/   (map and workflow: src/README.md)
        src/index.html   page markup        src/styles.css   stylesheet        src/app/ORDER   join order
        src/app/<group>/ the code, by group: core, replenishment, masters, production, vendors, orders, shopify, flow, dashboard, people-pay, inventory, reports, shared, meera
@@ -737,6 +737,9 @@
   /* Second frozen column (its `left` = the first frozen column's width, set in JS). */
   table.xl .frz2{position:sticky;z-index:4;background:var(--card)}
   table.xl thead th.frz2{z-index:6;background:#f8fafc}
+  /* Production flow → Demand history → By challan: a challan with a line past its days at the printer (flow-late.js, Ravi 16 Nov) */
+  table.xl tr.fl-late td,table.xl tr.fl-late td.frz{background:var(--bad-bg)}
+  table.xl tr.fl-late td.frz b{color:var(--bad)}
   /* Subtotal row, pinned right below the column headers (top set in JS). */
   table.xl thead tr.subtot th{background:#eef2ff;color:#334155;font-weight:700;cursor:default;border-bottom:2px solid #cbd5e1;text-align:center;font-size:13px}
   table.xl thead tr.subtot th.frz{background:#eef2ff}
@@ -33214,10 +33217,12 @@ function flowHistTable(q, testOnly) {
   const list = Object.values(FLOW.ch || {}).filter(c => c && !c.cancelled && (!testOnly || flowIsTest(c.orderNo)))
     .filter(c => !q || [c.no, c.orderNo, c.vendor && c.vendor.name].concat((c.lines || []).map(l => l.sku)).join(' ').toLowerCase().includes(q))
     .sort((a, b) => (['closed', 'cancelled'].includes(flowChState(a))) - (['closed', 'cancelled'].includes(flowChState(b))) || String(b.no).localeCompare(String(a.no)));
+  /* LATE AT THE PRINTER IS RED (Ravi, 16 Nov — flow-late.js): a line past its 10 days (2 for a custom order). */
+  const late = flowLateNos(dToday());
   const pill = st => st === 'cancelled' ? '<span class="jw-st" style="background:#f1f5f9;color:#64748b">cancelled</span>' : st === 'closed' ? '<span class="jw-st done">closed</span>' : st === 'part' ? '<span class="jw-st prog">part received</span>' : '<span class="jw-st pend">open</span>';
   const body = list.map(c => { const recv = flowChRecv(c), st = flowChState(c);
     const sent = flowMixTxt((c.lines || []).map(l => [flowChSent(l), flowChUnit(l)])), got = flowMixTxt((c.lines || []).map(l => [recv[l.key] || 0, flowChUnit(l)]));
-    return `<tr><td class="frz" style="text-align:left"><b>${esc(c.no)}</b>${flowIsTest(c.orderNo) ? ' <span class="navbadge" style="background:#7c3aed;position:static">TEST</span>' : ''}<div class="muted" style="font-size:10.5px">${esc(c.date || '')}</div></td>
+    return `<tr${late.has(c.no) ? ' class="fl-late" title="A line on this challan is past its days at the printer"' : ''}><td class="frz" style="text-align:left"><b>${esc(c.no)}</b>${flowIsTest(c.orderNo) ? ' <span class="navbadge" style="background:#7c3aed;position:static">TEST</span>' : ''}<div class="muted" style="font-size:10.5px">${esc(c.date || '')}</div></td>
       <td style="text-align:left;white-space:normal;min-width:150px;max-width:240px;vertical-align:top">${flowHistOrders(c)}${(c.orders || [c.orderNo]).map(o => typeof ordBuyerOf === 'function' ? ordBuyerOf(o) : '').filter(Boolean).filter((b, i, a) => a.indexOf(b) === i).map(b => `<div style="font-size:12px;font-weight:600">${esc(b)}</div>`).join('')}</td><td style="text-align:left"><b>${esc(c.vendor && c.vendor.name)}</b></td>
       <td style="text-align:left;font-size:11.5px;white-space:normal;min-width:200px;vertical-align:top">${flowHistMore((c.lines || []).map(l => `${flowChLineWhat(l)} · ${flowQtyTxt(flowChSent(l), flowChUnit(l))}${recv[l.key] ? ` <span style="color:#166534">(${flowQtyTxt(recv[l.key], flowChUnit(l))} back)</span>` : ''}`
         + (flowChMoved(c, l) ? ` <span style="color:#b45309" title="${esc((c.moved[l.key] || {}).why || '')}">· order moved to ${esc(((c.moved[l.key] || {}).to || {}).name || '')} — cloth standing</span>` : '')), 5, 'line')}</td>
@@ -33845,6 +33850,155 @@ function flowPrinterFor(r) {
   }
   return { code: '', name: '', why: color ? `no printer allocated to ${color} yet` : 'no colour on the master' };
 }
+/* ============================== FILE: src/app/flow/flow-late.js ============================== */
+/* ================= PRODUCTION FLOW · LATE AT PRINTERS — cloth with a printer past its days =================
+ * MIS meeting (Ravi, 16 Nov): "if any item has been pending with a printer for more than 10 days … build a track record for
+ * each printer". Ravi chose (16 Nov): no new page — the challans already listed in Demand history → By challan turn RED when
+ * a line on them is late, and a "Late at printers" Excel can be downloaded from there at any time (no Monday email).
+ *
+ * THE RULE. A line is with the printer from the day it went out until all of it is back. It is expected back
+ *   10 days after it went out, or
+ *    2 days after for a CUSTOM order: a custom SKU (made from a sales order, not in the master), an order line with
+ *      Customization details, or a sales order line of type "New dev". An Amazon order (AMZ-) is never custom: 10 days.
+ * Part-received lines still count from the day they went out (Ravi, 16 Nov). Days late = today − expected date.
+ *
+ * WHAT IS COUNTED.
+ *   Challans    every open challan of the Production flow (pt_flowChallans): sent − received, per line.
+ *   Old RFD     cloth the store sent from Vendors → RFD on the older printer orders (pt_rfdDecisions sends, dated). What
+ *               the printer delivered back on that order clears the oldest send first; only the sends are counted, not
+ *               what the printer said it already had. In the Excel only — they are not challans, so they have no row here.
+ *
+ * ERRORS. Display only: nothing here writes. A read that fails (vendor orders, RFD sends, sales orders) is named on the
+ * screen and the sheet is still made from what could be read — it never quietly leaves a part out. */
+const FLOW_LATE_DAYS = 10;
+const FLOW_LATE_CUSTOM_DAYS = 2;
+const flowLateNo = v => /^\s*no\s*$/i.test(String(v || '')) || !String(v || '').trim();
+/** Why an order line is a custom order ('' when it is not): the custom SKU, its Customization, or its New dev type. */
+function flowLateCustomWhy(orderNo, sku) {
+  const no = obUC(orderNo), s = obUC(sku);
+  /* AN AMAZON ORDER ALWAYS HAS ITS 10 DAYS (Ravi, 16 Nov: "dont include the amazon … they have 10 days buffer") — even a New dev
+   * line, and even on a challan it shares with custom orders. */
+  if (/^AMZ-/.test(no)) return '';
+  let m = null; try { m = typeof cutSkuOf === 'function' ? cutSkuOf(s) : null; } catch (e) { m = null; }
+  if (m && m.isCustom === true) return 'custom SKU';
+  const ob = (typeof PTG !== 'undefined' && PTG.ob) || [];
+  if (no && ob.some(r => r && obUC(r.orderNo) === no && obUC(r.sku) === s && !flowLateNo(r.customization))) return 'customization';
+  const so = no && typeof SOX !== 'undefined' && SOX.rows ? SOX.rows.find(o => o && obUC(o._id) === no) : null;
+  if (so) {
+    const ls = Array.isArray(so.lines) ? so.lines : Object.values(so.lines || {});
+    const l = ls.find(x => x && obUC(x.sku) === s);
+    if ((l && l.orderTypeKey === 'newdev') || (!l && so.orderTypeKey === 'newdev')) return 'new dev';
+  }
+  return '';
+}
+/** Day arithmetic on ISO days, at noon so no clock change can move a day. */
+const flowLateAdd = (iso, n) => { const d = new Date(String(iso).slice(0, 10) + 'T12:00:00'); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };
+const flowLateGap = (a, b) => Math.round((Date.parse(String(b).slice(0, 10) + 'T12:00:00') - Date.parse(String(a).slice(0, 10) + 'T12:00:00')) / 864e5);
+/** One line with a printer: its expected day and how late it is (0 when not late, or when its send day is not known). */
+function flowLateOf(sentIso, why, today) {
+  const days = why ? FLOW_LATE_CUSTOM_DAYS : FLOW_LATE_DAYS;
+  if (!/^\d{4}-\d{2}-\d{2}/.test(String(sentIso || ''))) return { days, expected: '', late: 0 };
+  const expected = flowLateAdd(sentIso, days);
+  return { days, expected, late: Math.max(0, flowLateGap(expected, today)) };
+}
+
+/** Every challan line still with a printer, late or not — one row each. */
+function flowLateChRows(today) {
+  const out = [];
+  Object.values(FLOW.ch || {}).forEach(c => {
+    if (!c || c.cancelled || c.closed) return;
+    const recv = flowChRecv(c), sentIso = ptIsoDate(c.date || c.at);
+    (c.lines || []).forEach(l => {
+      if (flowChMoved(c, l)) return;
+      const unit = flowChUnit(l), sent = flowR2(flowChSent(l)), back = flowR2(recv[l.key] || 0), left = flowR2(sent - back);
+      if (!(left > 0.001)) return;
+      const orderNo = l.orderNo || String(l.key || '').split('__')[0] || c.orderNo || '';
+      const why = flowLateCustomWhy(orderNo, l.sku);
+      out.push(Object.assign({ src: 'Challan', no: c.no, printer: (c.vendor && c.vendor.name) || '', orderNo, sku: obUC(l.sku),
+        unit, sent, back, left, sentIso, why, test: flowIsTest(c.orderNo) }, flowLateParts(l), flowLateOf(sentIso, why, today)));
+    });
+  });
+  return out;
+}
+/* WHAT IT IS, EACH IN ITS OWN COLUMN (Ravi, 16 Nov: "article details aren't properly shown, separate it properly"): the article,
+ * size and colour from the master (else the words saved on the challan line), the printed fabric SKU the printer prints, and the
+ * cloth. A line printed on the SKU itself has no printed fabric SKU. */
+function flowLateParts(l) {
+  let m = {}; try { m = (typeof cutSkuOf === 'function' && cutSkuOf(l.sku)) || {}; } catch (e) { m = {}; }
+  const saved = String(l.item || '').split(' · '), p = l.print || {};
+  const printed = l.ruffleOnly ? (l.extras || []).map(x => x.code).filter(Boolean).join(' + ')
+    : p.kind === 'fabric' ? (p.sides && p.sides.length ? p.sides.map(sd => sd.side + ' ' + sd.code).join(' + ') : (p.code || '')) : '';
+  const printedColour = p.kind === 'fabric' ? String(p.label || '').split(' · ')[0] : '';
+  /* running cloth with no printed fabric SKU: a challan made before challans kept it (early Oct) — said, not left blank */
+  const missing = !printed && flowChUnit(l) === 'm' ? 'not on the challan' : '';
+  return { article: String(m.subtype || m.articleType || saved[0] || '').trim() + (l.ruffleOnly ? ' (ruffle)' : ''),
+    size: String(m.size || saved[2] || '').trim(), colour: String(printedColour || m.color || saved[1] || '').trim(),
+    printed: printed || missing, fabric: String(l.fabric || m.fabric || '').trim() };
+}
+/** The challans with a line late today — the red rows of By challan. */
+const flowLateNos = today => new Set(flowLateChRows(today).filter(x => x.late > 0).map(x => x.no));
+
+/** Every old-RFD send still with a printer: the oldest sends are the ones the printer's deliveries cleared. */
+function flowLateRfdRows(today) {
+  if (typeof rfdOrderRows !== 'function' || typeof VO === 'undefined' || !VO.rows) return [];
+  const out = [];
+  rfdOrderRows().forEach(x => {
+    const lots = [];
+    (x.reqs || []).forEach(r => rfdSends(rfdDecisionOf(r.id)).forEach(s => lots.push({ iso: ptIsoDate(s.date || s.at), qty: +s.qty || 0, sku: r.sku })));
+    lots.sort((a, b) => String(a.iso).localeCompare(String(b.iso)));
+    let used = +(rfdOrderUsed(x._order).get(x.key) || 0);
+    lots.forEach(lot => {
+      const clear = Math.min(used, lot.qty); used -= clear;
+      const left = flowR2(lot.qty - clear); if (!(left > 0.001)) return;
+      const why = (x.reqs || []).map(r => flowLateCustomWhy('', r.sku)).find(Boolean) || '';
+      /* cut pieces of a size are that SKU's own article; running cloth is the cloth alone */
+      const parts = x.unit === 'pcs' ? flowLateParts({ sku: lot.sku, print: { kind: 'sku' } }) : { article: x.item || 'Running cloth', size: '', colour: '', printed: '', fabric: x.what || '' };
+      out.push(Object.assign({ src: 'Old RFD send', no: x.orderNo, printer: x.vendorName || x.vendorCode || '', orderNo: x.orderNo,
+        sku: x.unit === 'pcs' ? obUC(lot.sku) : '', unit: x.unit, sent: flowR2(lot.qty), back: flowR2(clear), left,
+        sentIso: lot.iso, why, test: false }, parts, flowLateOf(lot.iso, why, today)));
+    });
+  });
+  return out;
+}
+
+/** The sheet's rows: the late lines only, the latest first. */
+function flowLateSheet(today, testOnly) {
+  const rows = flowLateChRows(today).concat(flowLateRfdRows(today)).filter(x => x.late > 0 && (!testOnly || x.test))
+    .sort((a, b) => b.late - a.late || a.printer.localeCompare(b.printer) || String(a.no).localeCompare(String(b.no)));
+  const out = [['Challan / RFD order', 'Source', 'Printer', 'Against order', 'SKU', 'Article', 'Size', 'Colour', 'Printed fabric SKU', 'Fabric',
+    'Unit', 'Sent', 'Received back', 'Still with printer', 'Issued on', 'Days allowed', 'Custom order', 'Expected by', 'Days late']];
+  rows.forEach(x => out.push([x.no, x.src, x.printer, x.orderNo, x.sku, x.article, x.size, x.colour, x.printed, x.fabric,
+    x.unit === 'pcs' ? 'pcs' : 'metres', x.sent, x.back, x.left, x.sentIso, x.days, x.why || 'no', x.expected, x.late]));
+  return out;
+}
+/** Reads what the sheet needs that this screen does not hold already — once each; says what it could not read. */
+async function flowLateReads() {
+  const missed = [];
+  const take = async (what, fn) => { try { await fn(); } catch (e) { missed.push(what + ' (' + (e.message || e) + ')'); } };
+  if (typeof VO !== 'undefined' && VO.rows == null && typeof ensureVo === 'function') await take('the older printer orders', () => ensureVo());
+  if (typeof RFD !== 'undefined' && RFD.decisions == null) await take('the old RFD sends', async () => { RFD.decisions = (await ptGet('pt_rfdDecisions')) || {}; });
+  if (typeof SOX !== 'undefined' && SOX.rows == null) await take('the sales orders (New dev lines)', async () => { SOX.rows = ptList(await ptGet('pt_salesOrders')); });
+  return missed;
+}
+async function flowLateXl(testOnly) {
+  const missed = await flowLateReads();
+  const out = flowLateSheet(dToday(), testOnly);
+  const said = missed.length ? ' Could not read ' + missed.join(', ') + ' — the sheet is without them.' : '';
+  if (out.length < 2) return { err: 'Nothing is late at any printer today.' + said };
+  const bytes = recipeXlsx(out, { name: 'Late at printers', freeze: 1, cols: {} });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+  a.download = 'late-at-printers-' + dToday() + '.xlsx';
+  a.click(); URL.revokeObjectURL(a.href);
+  return { err: '', said: nf(out.length - 1) + ' late line(s) downloaded.' + said, warn: !!missed.length };
+}
+if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') document.addEventListener('click', async e => {
+  const t = e.target; if (!t || !t.closest || !t.closest('[data-fllatexl]')) return; e.preventDefault();
+  let r;
+  try { r = await flowLateXl(FLOW.testOnly != null ? FLOW.testOnly : flowTestOnly()); }
+  catch (er) { r = { err: 'The Late at printers sheet could not be made: ' + (er.message || er) }; }   // said, never silent
+  $('flMsg').className = r.err || r.warn ? 'err' : 'muted'; $('flMsg').textContent = r.err || r.said;
+});
 /* ============================== FILE: src/app/flow/flow-printorder.js ============================== */
 /* ================= PRODUCTION FLOW · PRINT ORDERS — what each printer prints, sent the moment PPC plans =================
  * Ravi, 10 Oct: "PPC team jab demand generate kare to uska demand 3 jagah jay — printer ko kya print karna h uska order same
@@ -35470,7 +35624,8 @@ function renderFlow() {
     + (FLOW_VIEW === 'dhist' ? `<div class="seg" style="display:inline-flex;gap:4px">${[['due', 'Orders with printers · receive'], ['remind', 'Due dates · remind'], ['challan', 'By challan'], ['day', 'Received by date']].map(([k, l]) =>
       `<button data-flang="${k}" class="${(FLOW_ANGLE.dhist || 'due') === k ? '' : 'ghost'}" style="width:auto;padding:4px 12px;font-size:12.5px">${l}${k === 'remind' ? (n => n ? ` <b style="background:#fff;color:var(--bad);border-radius:9px;padding:0 7px;margin-left:2px">${nf(n)} late</b>` : '')(flowRemLateN(only)) : ''}</button>`).join('')}</div>`
       + (FLOW_ANGLE.dhist === 'day' ? flowRecvDayBar(q, only) : '')
-      + ((FLOW_ANGLE.dhist || 'due') === 'due' ? flowDueBar(only) + ' <button type="button" class="ghost" data-fldxl="1" style="width:auto;padding:4px 12px;font-size:12.5px;margin-left:6px">Download Excel</button>' : FLOW_ANGLE.dhist === 'remind' ? '' : flowStandingHtml()) : '');
+      + ((FLOW_ANGLE.dhist || 'due') === 'due' ? flowDueBar(only) + ' <button type="button" class="ghost" data-fldxl="1" style="width:auto;padding:4px 12px;font-size:12.5px;margin-left:6px">Download Excel</button>' : FLOW_ANGLE.dhist === 'remind' ? '' : flowStandingHtml()
+        + (FLOW_ANGLE.dhist === 'challan' ? ' <button type="button" class="ghost" data-fllatexl="1" style="width:auto;padding:4px 12px;font-size:12.5px;margin-left:6px;color:#991b1b;border-color:#f3b4b4" title="Every line past its days at a printer (10 days; 2 for a custom order), old RFD sends too">Late at printers · Excel</button>' : '')) : '');
   /* RFD short? The Greige Desk shows the greige to order for it (Ravi, 13 Oct: Greige Desk joined to the PPC flow). */
   if (FLOW_VIEW === 'drfd' && typeof GD !== 'undefined' && gdAllowed()) FLOW.panel = (FLOW.panel || '') + '<button type="button" class="ghost" data-gdgo="inv" style="width:auto;padding:5px 14px;font-size:13px;margin-left:10px">Greige Desk · PPC demand</button>';
   /* RFD stock is the Greige Desk's count: not read here, the Demand figures say so instead of showing a false "short". */

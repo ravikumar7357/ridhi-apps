@@ -682,6 +682,9 @@
   /* Second frozen column (its `left` = the first frozen column's width, set in JS). */
   table.xl .frz2{position:sticky;z-index:4;background:var(--card)}
   table.xl thead th.frz2{z-index:6;background:#f8fafc}
+  /* Production flow → Demand history → By challan: a challan with a line past its days at the printer (flow-late.js, Ravi 16 Nov) */
+  table.xl tr.fl-late td,table.xl tr.fl-late td.frz{background:var(--bad-bg)}
+  table.xl tr.fl-late td.frz b{color:var(--bad)}
   /* Subtotal row, pinned right below the column headers (top set in JS). */
   table.xl thead tr.subtot th{background:#eef2ff;color:#334155;font-weight:700;cursor:default;border-bottom:2px solid #cbd5e1;text-align:center;font-size:13px}
   table.xl thead tr.subtot th.frz{background:#eef2ff}
