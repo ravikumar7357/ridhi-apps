@@ -257,7 +257,7 @@ service cloud.firestore {
       allow write: if false;
     }
     // CONTENT CREATORS (16 Nov 2026): gift orders for creators, one document per gift, id = its reference. Most are
-    // written by the creator-orders Worker (Creator Setu → ERP) with a service account, which these rules do not govern.
+    // written by the Pricing API (CreatorOrders.gs, Creator Setu → ERP) with its owner's token, which these rules do not govern.
     // Whoever holds Shopify Orders reads and updates them, and may create only the team's own kind ("+ Create order":
     // source "team", status "New", an ERP-CC- reference). The reference and the source never change. Nobody deletes.
     // Holds creators' addresses and phones: the same audience as the Shopify orders' addresses.

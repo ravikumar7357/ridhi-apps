@@ -17,6 +17,7 @@
  *   SearchTerms.gs       search terms and targeting
  *   Shopify.gs           Shopify: store tokens, REST calls, orders, daily totals
  *   Mcf.gs               MCF: shipping a Shopify order out of FBA, "in progress" mark
+ *   CreatorOrders.gs     Content Creators: Creator Setu's gift orders in (?creator=order), status back out (creator: report)
  *   OrderAudits.gs       audits of the Orders workbooks + editor checks
  *   Nightly.gs           the nightly pipeline
  *   WeeklyPpc.gs         Weekly PPC & Organic dashboard
@@ -339,6 +340,11 @@ function doPost(e) {
     var p = {};
     try { p = JSON.parse(raw); } catch (x) { return json_({ ok: false, error: 'Body was not JSON.' }); }
 
+    /* CREATOR SETU'S DOOR (16 Nov 2026, CreatorOrders.gs): ?creator=order, with ITS OWN key (CREATOR_SETU_SECRET) in the
+     * body — not the apps' write key, which Creator Setu never holds. Answered before anything is logged: the body
+     * carries a creator's address. */
+    if (((e && e.parameter) || {}).creator === 'order') return json_(coOrderIn_(p));
+
     /* WRITES HAVE THEIR OWN KEY, AND A NAME (2026-10-17).
      * WRITE_KEY, when set, is the only key a POST accepts; until it is set the old API_KEY still works, so this can
      * be deployed before the apps carry the new key. Every write also carries the signed-in person's Firebase ID
@@ -349,7 +355,7 @@ function doPost(e) {
     if (!wkey) return json_({ ok: false, error: 'WRITE_KEY / API_KEY is not set on the backend.' });
     if (String(p.key || '').trim() !== wkey) return json_({ ok: false, error: 'Unauthorized.' });
     var who = writerOf_(p.idToken);
-    var act = p.mail || p.limg || p.lfix || p.mcf || p.shopify || '?';
+    var act = p.mail || p.limg || p.lfix || p.mcf || p.shopify || (p.creator ? 'creator ' + p.creator : '') || '?';
     console.log('POST ' + act + ' by ' + (who.email || '(no signed-in person: ' + who.why + ')'));
     if (!who.email && prop_('REQUIRE_SIGNIN') === '1')
       return json_({ ok: false, error: 'Sign in again before saving — the backend could not confirm who you are (' + who.why + ').' });
@@ -362,6 +368,8 @@ function doPost(e) {
     if (p.mcf === 'preview') return json_(mcfPreview_(p.order || {}));
     if (p.mcf === 'create')  return json_(mcfCreate_(p.order || {}));
     if (p.mcf === 'status')  return json_(mcfStatus_(p.mcfId, p.brand));
+    /* Tell Creator Setu what happened to a gift (CreatorOrders.gs). Needs a confirmed sign-in whatever REQUIRE_SIGNIN says. */
+    if (p.creator === 'report') return json_(coReport_(p, who));
     if (p.shopify === 'fulfil') {
       /* The tracking has to go to the store the order is actually in. */
       setShopBrand_(p.shop);

@@ -76797,8 +76797,8 @@ if (SHUB_ON && $('secShopify') && $('paneShop')) {
  *
  * Gifts for Instagram creators. Most orders arrive from Creator Setu (creator-growth-engine.netlify.app) already filled
  * in: the creator picked the product and typed the address on Creator Setu's gift link, and the team pressed "Create
- * order in ERP" there. Creator Setu's server posts the order to the creator-orders Worker (Ridhihome/creator-orders-worker),
- * which saves it in Firestore creatorOrders/{reference}. The rest are typed here with "+ Create order".
+ * order in ERP" there. Creator Setu's server posts the order to the Pricing API (Pricing-API/CreatorOrders.gs,
+ * ?creator=order), which saves it in Firestore creatorOrders/{reference}. The rest are typed here with "+ Create order".
  *
  * The team opens a New order, checks the product (the SKU can be changed), presses "Checked ✓", then sends it to Amazon
  * MCF — the SAME backend call as Shopify Orders and Returns (Pricing-API Mcf.gs, apiPost({ mcf: 'create' })), from the
@@ -76878,8 +76878,8 @@ async function croSave(ref, patch, what) {
   const now = new Date().toISOString();
   const next = Object.assign({}, o, patch, { updAt: now, updBy: ME.email,
     log: (o.log || []).concat(what ? [{ at: now, by: ME.email, what: String(what).slice(0, 300) }] : []).slice(-60) });
-  /* MERGED, and never with "setu": that field is the Worker's record of what Creator Setu has been told, and this page's
-   * copy of it may be older than the Worker's. */
+  /* MERGED, and never with "setu": that field is the backend's record of what Creator Setu has been told, and this page's
+   * copy of it may be older than the backend's. */
   const write = Object.assign({}, next); delete write.setu;
   try { await fsSetDoc(doc(db, CRO_COL, String(ref)), write, { merge: true }); }
   catch (e) { return 'Not saved: ' + (e.message || e); }
@@ -76889,11 +76889,10 @@ async function croSave(ref, patch, what) {
 }
 
 /* ---------------- REPORT-BACK: Creator Setu is told when a gift is sent, shipped, delivered or cancelled ----------------
- * Through the creator-orders Worker, which holds the shared key (never this page). The page says only WHICH order changed,
- * with the signed-in person's Firebase sign-in; the Worker reads the order from Firestore itself, tells Creator Setu, and
- * writes what it told on the order (field "setu"), so each status is told once. Whatever could not be told is tried again
- * the next time this page is opened. Only from the real ERP: the Worker answers no other address. */
-const CRO_WORKER = 'https://creator-orders.erp-9a0.workers.dev';
+ * Through the Pricing API (Pricing-API/CreatorOrders.gs, apiPost({ creator: 'report' })), which holds the shared key —
+ * never this page. The page says only WHICH order changed, with the signed-in person's sign-in; the backend reads the order
+ * from Firestore itself, tells Creator Setu, and writes what it told on the order (field "setu"), so each status is told
+ * once. Whatever could not be told is tried again the next time this page is opened. Only from the real ERP. */
 const CRO_SETU = { 'Sent to Amazon': 'sent_to_amazon', 'Shipped': 'shipped', 'Delivered': 'delivered', 'Cancelled': 'cancelled' };
 const croReportOn = () => typeof location !== 'undefined' && /^fabricrush-replenish\.(web\.app|firebaseapp\.com)$/.test(location.hostname);
 /** Does Creator Setu still have to hear about this order's status? */
@@ -76906,21 +76905,23 @@ function croNeedsReport(o) {
   if (s.error && s.tried === want && Date.now() - Date.parse(s.at || 0) < 6 * 36e5) return false;
   return true;
 }
-/** Ask the Worker to tell Creator Setu about one order. '' or why not. */
+/** Ask the backend to tell Creator Setu about one order. '' or why not. */
 async function croReport(ref) {
   if (!croReportOn()) return 'Creator Setu is told only from the real ERP.';
   const o = croOf(ref); if (!o || !croNeedsReport(o)) return '';
-  let token = '';
-  try { token = auth.currentUser ? await auth.currentUser.getIdToken() : ''; } catch (e) { /* the Worker says so */ }
-  let d = null;
-  try {
-    const r = await fetch(CRO_WORKER + '/creator-orders/report', { method: 'POST',
-      headers: { authorization: 'Bearer ' + token, 'content-type': 'application/json' }, body: JSON.stringify({ reference: String(ref) }) });
-    d = await r.json().catch(() => null);
-  } catch (e) { return 'Creator Setu could not be reached: ' + (e.message || e); }
+  /* apiPost throws on { ok:false } and keeps only the message, so a refusal's "setu" record is read back from the reply
+   * text only on success; a refusal is shown, and the page's copy learns of it at the next Refresh. */
+  let d;
+  try { d = await apiPost({ creator: 'report', reference: String(ref) }); }
+  catch (e) {
+    /* Remembered here too (the backend keeps the same on the order), so this visit does not ask again on every open. */
+    const c = croOf(ref), err = String(e.message || e);
+    if (c) CRO.list[CRO.list.indexOf(c)] = Object.assign({}, c, { setu: { status: ((c.setu || {}).status) || '', tried: CRO_SETU[c.status], error: err, at: new Date().toISOString() } });
+    return 'Creator Setu was not told: ' + err;
+  }
   const cur = croOf(ref);
   if (d && d.setu && cur) CRO.list[CRO.list.indexOf(cur)] = Object.assign({}, cur, { setu: d.setu });
-  return d && d.ok ? '' : ((d && d.error) || 'Creator Setu was not told.');
+  return '';
 }
 function croReportSoon(ref) { croReport(ref).then(err => { if (err && croReportOn()) croMsg(ref + ': ' + err, true); croRender(); }).catch(() => {}); }
 /** Everything not yet told, one at a time, in the background — at most 25 a visit. */
@@ -77302,7 +77303,7 @@ async function croNextRef() {
   }
   return 'ERP-CC-' + Date.now().toString(36).toUpperCase();
 }
-/** The same checks as the Worker makes on a Creator Setu order. '' or what is missing. */
+/** The same checks as the backend makes on a Creator Setu order (CreatorOrders.gs). '' or what is missing. */
 function croCheckNew(v) {
   if (!v.name) return 'Type the creator\'s name.';
   if (!v.line1) return 'Street line 1 is missing.';

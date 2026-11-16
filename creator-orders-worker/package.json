@@ -1,1 +1,0 @@
-{"type":"module","private":true,"name":"creator-orders-worker","scripts":{"test":"node test/worker.test.mjs"}}
