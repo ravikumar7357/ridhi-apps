@@ -102,16 +102,16 @@ const ADSX = (() => {
   // The ten boxes: the T_ROWS key (sessions has none — it comes from the weekly sessions cache), the colour (--adx-…),
   // whether up is good (null: neither — more spend is not bad by itself), the ⓘ text, and the red line.
   const BOXES = [
-    { k: 'sales', c: 'sales', up: true, tip: 'Every sale in the Orders workbooks, over all the periods in view.' },
-    { k: 'spend', c: 'spend', up: null, tip: 'Sponsored Products ad spend, over the periods that have ad figures.' },
-    { k: 'adSales', c: 'adsales', up: true, tip: 'The sales Amazon credits to a Sponsored Products click within 30 days (Campaign Manager shows 7 days, so it reads lower there).' },
+    { k: 'sales', c: 'sales', up: true, tip: 'Ordered Product Sales from Seller Central\'s Business Reports, over all the periods in view. The newest day or two, which Amazon has not published yet, come from the Orders workbooks.' },
+    { k: 'spend', c: 'spend', up: null, tip: 'Ad spend of Sponsored Products, Brands and Display added up, as the Ads console shows it, over the periods that have ad figures. Days older than Amazon kept Brands and Display for (about 60 days before the first fill) hold Sponsored Products alone.' },
+    { k: 'adSales', c: 'adsales', up: true, tip: 'The sales Amazon credits to ads, as Campaign Manager counts them: Sponsored Products within 7 days of the click, plus Sponsored Brands and Display.' },
     { k: 'acos', c: 'acos', up: false, bad: BAND.high, tip: `Ad spend ÷ ad sales. ${BAND.low}–${BAND.high}% is the good range.` },
     { k: 'tacos', c: 'tacos', up: false, bad: TACOS_T, tip: `Ad spend ÷ ALL the sales of the same days. ${TACOS_T}% or under is the goal.` },
     { k: 'roas', c: 'roas', up: true, tip: 'Ad sales ÷ ad spend: what one dollar of ads brings back.' },
     { k: 'organicPct', c: 'org', up: true, tip: 'The sales NOT credited to ads ÷ all the sales of the same days.' },
-    { k: 'orders', c: 'orders', up: true, tip: 'Every order in the Orders workbooks, over all the periods in view.' },
+    { k: 'orders', c: 'orders', up: true, tip: 'Total Order Items from Seller Central\'s Business Reports, over all the periods in view. The newest day or two, which Amazon has not published yet, count this app\'s own orders instead.' },
     { k: 'sessions', c: 'sessions', up: true, tip: 'Visits to the product pages, ads or not, from Amazon\'s Business Reports (Sessions – Total, per day). Until those are loaded it shows weekly figures: a month or quarter adds up the weeks that start in it, and the Day view has none.' },
-    { k: 'clicks', c: 'clicks', up: true, tip: 'Clicks on Sponsored Products ads, over the periods that have ad figures.' },
+    { k: 'clicks', c: 'clicks', up: true, tip: 'Clicks on Sponsored Products, Brands and Display ads, over the periods that have ad figures.' },
   ];
   // The boxes' icons: line drawings in the box's colour (stroke only, so they follow the theme).
   const ICON = {

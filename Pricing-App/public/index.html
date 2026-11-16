@@ -23504,7 +23504,10 @@ async function ensureSales() {
     renderSales();
   }
 
-  // --- 3. behind the painted screen: a newer nightly run?, then the live top-up ---
+  // --- 3. behind the painted screen: Amazon's own totals, a newer nightly run?, then the live top-up ---
+  // Seller Central's day totals (sdDays lays them over the Amazon channels). Not awaited: the screen is already painted,
+  // and it repaints once when they arrive. At most one round trip every ten minutes, shared with the Ad Console.
+  tMatchEnsure().then(() => { if (T_MATCH.biz && SD.at) renderSales(); }).catch(() => { /* the workbook figures stay */ });
   if (SD_BUSY) return;                                  // already working from an earlier visit
   SD_BUSY = (async () => {
     try {
@@ -23615,12 +23618,34 @@ function soStamp() {
 /** Same calendar day one year earlier — used for every "LY" column. */
 const sdLastYear = iso => (Number(iso.slice(0, 4)) - 1) + iso.slice(4);
 
-/** Sum [sales, units, orders] across the chosen channel(s) between two dates, inclusive. */
+/**
+ * One channel's days as the screen shows them: { day: [sales, units, order items] }.
+ *
+ * AMAZON'S OWN TOTALS WIN (16 Nov 2026). For the two Amazon accounts, every day Seller Central's Business Report holds
+ * (the backend's matchBiz cache, shared with the Ad Console through T_MATCH — ads/account-trends.js) replaces the day
+ * added up from the Orders workbooks: Ordered Product Sales, Units Ordered and Total Order Items. That is what makes this
+ * screen say what Seller Central says. The newest day or two, which Amazon has not published, stay on the workbooks and
+ * the live top-up; Shopify is never touched. SD itself — and the copy saved in this browser — keeps the workbook figures.
+ */
+function sdDays(chan) {
+  const own = SD.d[chan] || {};
+  if (chan !== 'SP' && chan !== 'CPC') return own;
+  const amz = tMatchBizDays(chan), days = Object.keys(amz);
+  if (!days.length) return own;
+  const out = Object.assign({}, own);
+  days.forEach(day => {
+    const v = amz[day];
+    out[day] = [Number(v[0]) || 0, Number(v[1]) || 0, Number(v[2]) || 0];
+  });
+  return out;
+}
+
+/** Sum [sales, units, order items] across the chosen channel(s) between two dates, inclusive. */
 function sdSum(from, to) {
   const chans = SD_CH === 'ALL' ? ['SP', 'CPC', 'SHOP'] : [SD_CH];
   const total = [0, 0, 0];
   chans.forEach(chan => {
-    const byDay = SD.d[chan] || {};
+    const byDay = sdDays(chan);
     Object.keys(byDay).forEach(day => {
       if (day < from || day > to) return;
       const figures = byDay[day];
@@ -23637,7 +23662,7 @@ function sdSum(from, to) {
 function sdSeries(from, to) {
   const chans = SD_CH === 'ALL' ? ['SP', 'CPC', 'SHOP'] : [SD_CH];
   const by = {};
-  chans.forEach(chan => Object.entries(SD.d[chan] || {}).forEach(([day, figures]) => {
+  chans.forEach(chan => Object.entries(sdDays(chan)).forEach(([day, figures]) => {
     if (day < from || day > to) return;
     by[day] = (by[day] || 0) + (figures[0] || 0);
   }));
@@ -23762,7 +23787,7 @@ function renderSales() {
     + `<td class="num">${fmt(W[i])}</td><td class="sd-ly num">${fmt(Wl[i])}</td><td class="num">${sdDelta(W[i], Wl[i])}</td>`
     + `<td class="num">${fmt(M[i])}</td><td class="sd-ly num">${fmt(Ml[i])}</td><td class="num">${sdDelta(M[i], Ml[i])}</td>`
     + `<td class="num">${fmt(Yr[i])}</td><td class="sd-ly num">${fmt(Yrl[i])}</td><td class="num">${sdDelta(Yr[i], Yrl[i])}</td></tr>`;
-  $('sdPeriodBody').innerHTML = row('Sales', 0, sdMoney) + row('Quantity', 1, sdNum) + row('Orders', 2, sdNum);
+  $('sdPeriodBody').innerHTML = row('Sales', 0, sdMoney) + row('Quantity', 1, sdNum) + row('Order items', 2, sdNum);
 
   /* Monthly comparison — this year's months against the same months last year. */
   const yr = today.slice(0, 4);
@@ -23788,6 +23813,7 @@ function renderSales() {
   // top-up owns today. One combined "last synced" would hide which half is stale.
   const legs = Object.entries(SD_MS).map(([leg, took]) => `${leg} ${(took / 1000).toFixed(1)}s`).join(', ');
   $('sdSynced').textContent = (SD.at || '—') + (SD_LIVE ? ` · today refreshed ${SD_LIVE}` : '')
+    + (T_MATCH.biz ? ` · Amazon accounts: Seller Central's own totals as at ${T_MATCH.biz.at || '?'}` : '')
     + (legs ? ` · read: ${legs}` : ' · read from this browser');
 }
 
@@ -26054,18 +26080,40 @@ function tWidenAdWindow(days) {
  * sales, orders, …] — Sponsored Products on 7-day sales, as the console counts). Before this the screen took sales from the
  * Orders workbooks and ads from Sponsored Products alone on 30-day sales, so spend left Brands and Display out and ACOS read low.
  *
- * WHAT IT REPLACES, per day it holds: Sales and Units (matchBiz); Impressions, Clicks, Ad Spend, Ad Sales and Ad Orders
- * (matchAds, the three types added up). Orders is left alone: Amazon's column is Total Order Items, a different count from
- * this screen's distinct orders. Days neither cache holds keep the figures they had — the newest day or two (Amazon publishes
- * late) and ad days older than Amazon keeps.
+ * WHAT IT REPLACES, per day it holds: Sales, Units and Order items (matchBiz — Seller Central's Total Order Items, which is
+ * why the row is titled "Order items" and no longer "Orders"); Impressions, Clicks, Ad Spend, Ad Sales and Ad Orders
+ * (matchAds, the three types added up). Days neither cache holds keep the figures they had — the newest day or two (Amazon
+ * publishes late; there the count is still this app's distinct orders) and ad days older than Amazon keeps.
+ *
+ * ONE COPY FOR EVERY SCREEN (16 Nov): T_MATCH is the page's only copy of the two caches. The Ad Console lays it over TREND
+ * here; the Sales Dashboard reads the same days through tMatchBizDays (sales/sales-dashboard.js, sdDays). tMatchEnsure is
+ * the shared, throttled way to have them loaded.
  *
  * Applied LAST by tNightly, and again after anything else writes those slots (Refresh's Orders scan, a collected ad report),
  * so the older sources can never put their figures back over Amazon's.
  */
 // The two caches as last read this session (null until tMatchLoad has them).
 let T_MATCH = { biz: null, ads: null };
+let T_MATCH_AT = 0;                             // when tMatchLoad last ran in this session
+// Have the two caches loaded, at most one round trip every ten minutes whichever screen asks.
+async function tMatchEnsure() {
+  if ((T_MATCH.biz || T_MATCH.ads) && Date.now() - T_MATCH_AT < 600000) return;
+  await tMatchLoad();
+}
+// One brand's Business Report days that can be shown: { day: [sales, units, orderItems, sessions, pageViews, …] }. A day
+// in the last three that reads all zero is left out — that is "Amazon has not published it yet", not a day without sales.
+function tMatchBizDays(b) {
+  const d = T_MATCH.biz && T_MATCH.biz.d && T_MATCH.biz.d[b];
+  if (!d) return {};
+  const fresh = sdShift(sdToday(), -3), out = {};
+  Object.entries(d).forEach(([day, v]) => {
+    if (v && !(day >= fresh && !v[0] && !v[1])) out[day] = v;
+  });
+  return out;
+}
 // Read matchBiz and matchAds from the backend. Either may be missing (AmazonMatch not installed, or still filling).
 async function tMatchLoad() {
+  T_MATCH_AT = Date.now();
   try {
     const r = await baCall({ cache: 'matchBiz' });
     if (r && r.data && r.data.d) T_MATCH.biz = r.data;
@@ -26079,15 +26127,13 @@ async function tMatchLoad() {
 function tMatchApply() {
   const brands = tBrands();
   const r2 = x => Math.round((Number(x) || 0) * 100) / 100;
-  // A day this recent that reads all zero is "Amazon has not published it yet", not a day without sales.
-  const fresh = sdShift(sdToday(), -3);
   let n = 0;
   if (T_MATCH.biz) {
-    brands.forEach(b => Object.entries(T_MATCH.biz.d[b] || {}).forEach(([day, v]) => {
-      if (!v || (day >= fresh && !v[0] && !v[1])) return;
+    brands.forEach(b => Object.entries(tMatchBizDays(b)).forEach(([day, v]) => {
       const c = tCell(b, day);
       c[T_I.sales] = r2(v[0]);
       c[T_I.units] = Number(v[1]) || 0;
+      c[T_I.orders] = Number(v[2]) || 0;         // Total Order Items, as Seller Central counts
       n++;
     }));
   }
@@ -27515,7 +27561,7 @@ const T_ROWS = [
     get: v => (v[T_I.sales] ? Math.max(0, v[T_I.sales] - v[T_I.adSales]) / v[T_I.sales] * 100 : null) },
   { k: 'roas', t: 'ROAS', dec: 2, ad: 1, get: v => (v[T_I.spend] ? v[T_I.adSales] / v[T_I.spend] : null) },
   { k: 'cpc', t: 'CPC', money2: 1, ad: 1, get: v => (v[T_I.clicks] ? v[T_I.spend] / v[T_I.clicks] : null) },
-  { k: 'orders', t: 'Orders', get: v => v[T_I.orders] },
+  { k: 'orders', t: 'Order items', get: v => v[T_I.orders] },
   { k: 'adOrders', t: 'Ad Orders', ad: 1, get: v => v[T_I.adOrders] },
   { k: 'units', t: 'Units', get: v => v[T_I.units] },
   { k: 'clicks', t: 'Clicks', ad: 1, get: v => v[T_I.clicks] },
@@ -27921,16 +27967,16 @@ const ADSX = (() => {
   // The ten boxes: the T_ROWS key (sessions has none — it comes from the weekly sessions cache), the colour (--adx-…),
   // whether up is good (null: neither — more spend is not bad by itself), the ⓘ text, and the red line.
   const BOXES = [
-    { k: 'sales', c: 'sales', up: true, tip: 'Every sale in the Orders workbooks, over all the periods in view.' },
-    { k: 'spend', c: 'spend', up: null, tip: 'Sponsored Products ad spend, over the periods that have ad figures.' },
-    { k: 'adSales', c: 'adsales', up: true, tip: 'The sales Amazon credits to a Sponsored Products click within 30 days (Campaign Manager shows 7 days, so it reads lower there).' },
+    { k: 'sales', c: 'sales', up: true, tip: 'Ordered Product Sales from Seller Central\'s Business Reports, over all the periods in view. The newest day or two, which Amazon has not published yet, come from the Orders workbooks.' },
+    { k: 'spend', c: 'spend', up: null, tip: 'Ad spend of Sponsored Products, Brands and Display added up, as the Ads console shows it, over the periods that have ad figures. Days older than Amazon kept Brands and Display for (about 60 days before the first fill) hold Sponsored Products alone.' },
+    { k: 'adSales', c: 'adsales', up: true, tip: 'The sales Amazon credits to ads, as Campaign Manager counts them: Sponsored Products within 7 days of the click, plus Sponsored Brands and Display.' },
     { k: 'acos', c: 'acos', up: false, bad: BAND.high, tip: `Ad spend ÷ ad sales. ${BAND.low}–${BAND.high}% is the good range.` },
     { k: 'tacos', c: 'tacos', up: false, bad: TACOS_T, tip: `Ad spend ÷ ALL the sales of the same days. ${TACOS_T}% or under is the goal.` },
     { k: 'roas', c: 'roas', up: true, tip: 'Ad sales ÷ ad spend: what one dollar of ads brings back.' },
     { k: 'organicPct', c: 'org', up: true, tip: 'The sales NOT credited to ads ÷ all the sales of the same days.' },
-    { k: 'orders', c: 'orders', up: true, tip: 'Every order in the Orders workbooks, over all the periods in view.' },
+    { k: 'orders', c: 'orders', up: true, tip: 'Total Order Items from Seller Central\'s Business Reports, over all the periods in view. The newest day or two, which Amazon has not published yet, count this app\'s own orders instead.' },
     { k: 'sessions', c: 'sessions', up: true, tip: 'Visits to the product pages, ads or not, from Amazon\'s Business Reports (Sessions – Total, per day). Until those are loaded it shows weekly figures: a month or quarter adds up the weeks that start in it, and the Day view has none.' },
-    { k: 'clicks', c: 'clicks', up: true, tip: 'Clicks on Sponsored Products ads, over the periods that have ad figures.' },
+    { k: 'clicks', c: 'clicks', up: true, tip: 'Clicks on Sponsored Products, Brands and Display ads, over the periods that have ad figures.' },
   ];
   // The boxes' icons: line drawings in the box's colour (stroke only, so they follow the theme).
   const ICON = {

@@ -121,18 +121,40 @@ function tWidenAdWindow(days) {
  * sales, orders, …] — Sponsored Products on 7-day sales, as the console counts). Before this the screen took sales from the
  * Orders workbooks and ads from Sponsored Products alone on 30-day sales, so spend left Brands and Display out and ACOS read low.
  *
- * WHAT IT REPLACES, per day it holds: Sales and Units (matchBiz); Impressions, Clicks, Ad Spend, Ad Sales and Ad Orders
- * (matchAds, the three types added up). Orders is left alone: Amazon's column is Total Order Items, a different count from
- * this screen's distinct orders. Days neither cache holds keep the figures they had — the newest day or two (Amazon publishes
- * late) and ad days older than Amazon keeps.
+ * WHAT IT REPLACES, per day it holds: Sales, Units and Order items (matchBiz — Seller Central's Total Order Items, which is
+ * why the row is titled "Order items" and no longer "Orders"); Impressions, Clicks, Ad Spend, Ad Sales and Ad Orders
+ * (matchAds, the three types added up). Days neither cache holds keep the figures they had — the newest day or two (Amazon
+ * publishes late; there the count is still this app's distinct orders) and ad days older than Amazon keeps.
+ *
+ * ONE COPY FOR EVERY SCREEN (16 Nov): T_MATCH is the page's only copy of the two caches. The Ad Console lays it over TREND
+ * here; the Sales Dashboard reads the same days through tMatchBizDays (sales/sales-dashboard.js, sdDays). tMatchEnsure is
+ * the shared, throttled way to have them loaded.
  *
  * Applied LAST by tNightly, and again after anything else writes those slots (Refresh's Orders scan, a collected ad report),
  * so the older sources can never put their figures back over Amazon's.
  */
 // The two caches as last read this session (null until tMatchLoad has them).
 let T_MATCH = { biz: null, ads: null };
+let T_MATCH_AT = 0;                             // when tMatchLoad last ran in this session
+// Have the two caches loaded, at most one round trip every ten minutes whichever screen asks.
+async function tMatchEnsure() {
+  if ((T_MATCH.biz || T_MATCH.ads) && Date.now() - T_MATCH_AT < 600000) return;
+  await tMatchLoad();
+}
+// One brand's Business Report days that can be shown: { day: [sales, units, orderItems, sessions, pageViews, …] }. A day
+// in the last three that reads all zero is left out — that is "Amazon has not published it yet", not a day without sales.
+function tMatchBizDays(b) {
+  const d = T_MATCH.biz && T_MATCH.biz.d && T_MATCH.biz.d[b];
+  if (!d) return {};
+  const fresh = sdShift(sdToday(), -3), out = {};
+  Object.entries(d).forEach(([day, v]) => {
+    if (v && !(day >= fresh && !v[0] && !v[1])) out[day] = v;
+  });
+  return out;
+}
 // Read matchBiz and matchAds from the backend. Either may be missing (AmazonMatch not installed, or still filling).
 async function tMatchLoad() {
+  T_MATCH_AT = Date.now();
   try {
     const r = await baCall({ cache: 'matchBiz' });
     if (r && r.data && r.data.d) T_MATCH.biz = r.data;
@@ -146,15 +168,13 @@ async function tMatchLoad() {
 function tMatchApply() {
   const brands = tBrands();
   const r2 = x => Math.round((Number(x) || 0) * 100) / 100;
-  // A day this recent that reads all zero is "Amazon has not published it yet", not a day without sales.
-  const fresh = sdShift(sdToday(), -3);
   let n = 0;
   if (T_MATCH.biz) {
-    brands.forEach(b => Object.entries(T_MATCH.biz.d[b] || {}).forEach(([day, v]) => {
-      if (!v || (day >= fresh && !v[0] && !v[1])) return;
+    brands.forEach(b => Object.entries(tMatchBizDays(b)).forEach(([day, v]) => {
       const c = tCell(b, day);
       c[T_I.sales] = r2(v[0]);
       c[T_I.units] = Number(v[1]) || 0;
+      c[T_I.orders] = Number(v[2]) || 0;         // Total Order Items, as Seller Central counts
       n++;
     }));
   }
