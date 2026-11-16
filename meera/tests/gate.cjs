@@ -27,7 +27,7 @@ function compare(base, now) {
   const fails = [], notes = [];
   const sets = Object.keys(base.scores).concat(['typos'], Object.keys(base.extra || {}));
   const name = { eval: 'test set 1', eval2: 'test set 2', parts: 'button/column questions', typos: 'spelling-mistake questions',
-    held: 'spelling set 2 (held back, scoring only)', hindi: 'Hindi-script spelling mistakes' };
+    held: 'spelling set 2 (held back, scoring only)', hindi: 'Hindi-script spelling mistakes', everyday: 'everyday Hinglish and Hindi (held back, scoring only)' };
   const get = (o, k) => (k === 'typos' ? o.typos : o.scores[k] || (o.extra || {})[k]);
   for (const k of sets) {
     const b = get(base, k), n = get(now, k);

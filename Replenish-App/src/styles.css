@@ -2376,3 +2376,19 @@ html.mob #frMeeraMenu{right:14px;bottom:144px}
 #p1Home .p1-hist .hfoot{padding:2px 2px 0}
 #p1Home table.p1g .p1-hbtn{height:30px;padding:0 10px;margin-right:6px;font-size:12px;border-radius:8px;border:1px solid var(--line);background:#fff;color:var(--muted);font-weight:600}
 #p1Home table.p1g .p1-hbtn:hover{color:var(--ink);background:var(--soft)}
+
+#frPal kbd,#frHome kbd{font:11px ui-monospace,Consolas,monospace;background:#fff;border:1px solid var(--line,#E8EDF3);border-radius:5px;padding:1px 5px;color:var(--muted,#5A6472)}
+
+
+
+
+
+
+
+
+
+
+
+/* Search points at the part it found (14 Nov): a ring for a few seconds */
+.fr-spot{outline:3px solid #E07A1F!important;outline-offset:3px;border-radius:6px;animation:frSpot 1s ease-in-out 3}
+@keyframes frSpot{50%{outline-color:rgba(224,122,31,.25)}}

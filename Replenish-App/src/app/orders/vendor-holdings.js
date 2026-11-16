@@ -167,8 +167,10 @@ function ordWaitingAt(r) {
   const vGiven = r.printer ? r.qty : (v ? v.given : 0), vBack = r.printer ? r.printed : (v ? v.back : 0);
   if (vGiven > vBack && (r.cutReq ? r.cut < vGiven : r.received < vGiven)) return 'Vendor — ' + nf(vGiven - vBack) + ' to come back';
   if (r.pendingCut > 0) return 'Cutting — ' + nf(r.pendingCut) + ' to cut';
-  if (r.issued < r.qty) return 'Issue — ' + nf(r.qty - r.issued) + ' not given to a karigar';
-  if (r.received < r.issued) return 'Karigar — ' + nf(r.issued - r.received) + ' out';
+  /* A piece rejected at karigar receive is with nobody: it is back to Issue (net issued), not "out". */
+  const netIss = (r.issued || 0) - (r.rejected || 0);
+  if (netIss < r.qty) return 'Issue — ' + nf(r.qty - netIss) + ' not given to a karigar';
+  if (r.received < netIss) return 'Karigar — ' + nf(netIss - r.received) + ' out';
   if (r.pressed < r.received) {
     const q = ordQcOf(r.orderNo, r.sku), d = q && q.dept > 0 ? Math.min(q.dept, r.received - r.pressed) : 0;
     if (!d) return 'QC — ' + nf(r.received - r.pressed) + ' to check';
@@ -595,10 +597,34 @@ const ordFgAt = (orderNo, sku) => ordFgIndex().get(obKeyOf(orderNo, sku)) || nul
 /** Pieces of this order sitting in the India Store right now. */
 const ordFgOf = (orderNo, sku) => { const e = ordFgAt(orderNo, sku); return e ? e.store : 0; };
 
+/* NEW DEVELOPMENT (Ravi, 14 Nov: "amazon me hum new development ke order open krte h but hamare pas koi aisa filter nahi h jis par
+ * hum filter laga kar check kar sake ki ye order new development ke liye h"). The sales order already says it — Order type
+ * Regular / New development, on the order and on each line (raise-sales-order.js orderTypeKey) — but the order-book row it
+ * puts on the book does not carry it. So it is read back from the sales order: a line is new development when any line of
+ * that SKU on that sales order is (the line's own type first, else the order's). Nothing is written. */
+let ORD_ND = { src: null, n: -1, set: null };
+function ordNewDevSet() {
+  const s = (typeof SOX !== 'undefined' && Array.isArray(SOX.rows)) ? SOX.rows : [];
+  if (ORD_ND.set && ORD_ND.src === s && ORD_ND.n === s.length) return ORD_ND.set;
+  const set = new Set();
+  s.forEach(o => {
+    if (!o || !o._id) return;
+    const head = o.orderTypeKey === 'newdev' ? 'newdev' : 'regular';
+    (Array.isArray(o.lines) ? o.lines : []).forEach(l => {
+      if (!l || !l.sku) return;
+      const t = (l.orderTypeKey === 'newdev' || l.orderTypeKey === 'regular') ? l.orderTypeKey : head;
+      if (t === 'newdev') set.add(obUC(o._id) + '|' + obUC(l.sku));
+    });
+  });
+  ORD_ND = { src: s, n: s.length, set };
+  return set;
+}
+const ordIsNewDev = r => !!(r && ordNewDevSet().has(obUC(r.orderNo) + '|' + obUC(r.sku)));
+
 function ordFilters() {
   const v = id => ($(id) || {}).value || '';
   return { ord: v('odOrd'), art: v('odArt'), sub: v('odSub'), col: v('odCol'), sz: v('odSz'),
-    st: v('odStatus'), src: v('odSrc'), brand: v('odBrand'), q: v('odQ').trim().toLowerCase(),
+    st: v('odStatus'), src: v('odSrc'), brand: v('odBrand'), type: v('odType'), q: v('odQ').trim().toLowerCase(),
     d1: v('odD1'), d2: v('odD2') };
 }
 
@@ -613,6 +639,7 @@ function ordApply(rows, f, skip) {
     /* The order number says what kind of order it is: AMZ- a sales order, SHP- a Shopify one, B2B- wholesale. */
     if (skip !== 'src' && f.src && ordSrcOf(r.orderNo) !== f.src) return false;
     if (skip !== 'brand' && f.brand && ordBrandOf(r.sku) !== f.brand) return false;
+    if (skip !== 'type' && f.type && (f.type === 'newdev') !== ordIsNewDev(r)) return false;
     if (skip !== 'st' && f.st === 'open' && !r.open) return false;
     if (skip !== 'st' && f.st === 'done' && r.open) return false;
     if (skip !== 'st' && f.st === 'tocut' && r.pendingCut <= 0) return false;
@@ -621,7 +648,8 @@ function ordApply(rows, f, skip) {
      * dropdown still offers the values it would reach. The dates have no dropdown to fill — and the
      * lists they DO narrow should stay narrowed, so that picking a month leaves only the orders of
      * that month in "All orders". */
-    if (!ptInRange(r && r.orderDate, f.d1, f.d2)) return false;
+    /* f.dateOf: a screen that dates its lines another way (the SHP board: the day a line came to production, 15 Nov) */
+    if (!ptInRange(r && (f.dateOf ? f.dateOf(r) : r.orderDate), f.d1, f.d2)) return false;
     if (skip !== 'q' && f.q) {
       /* The Shopify order number and the adjustment id are searched too. Somebody chasing an order
        * has the customer's number in front of them, not ADJ-1001 — and a search box that cannot

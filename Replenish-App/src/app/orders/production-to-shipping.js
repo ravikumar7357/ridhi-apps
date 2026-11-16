@@ -182,10 +182,14 @@ function ordLines() {
       && ORD_IX.press === press && ORD_IX.pressN === press.length
       && ORD_IX.qc === qcSrc && ORD_IX.qcN === qcSrc.length
       /* The hand-overs and a quilt's old counters live on pt_shopProd — a changed record must move the line. */
-      && ORD_IX.sp === (PTG.shopProd || null)) return ORD_IX.rows;
+      && ORD_IX.sp === (PTG.shopProd || null)
+      /* …and the Custom SKUs list (15 Nov): lines built before it arrived read a custom SKU as "not known — cutting required"
+       * (CPCFP011-24, an embroidery placemat, showed Cut on the SHP board) and kept that until something else changed. */
+      && ORD_IX.cust === ((typeof MDBX !== 'undefined' && MDBX.custom) || null)) return ORD_IX.rows;
   const out = ordLinesBuild();
   ORD_IX = { ob, obN: ob.length, base, baseN: base.length, cut, cutN: cut.length,
-    press, pressN: press.length, mdb: mdbSrc, mdbN: mdbSrc.length, qc: qcSrc, qcN: qcSrc.length, sp: PTG.shopProd || null, rows: out };
+    press, pressN: press.length, mdb: mdbSrc, mdbN: mdbSrc.length, qc: qcSrc, qcN: qcSrc.length, sp: PTG.shopProd || null,
+    cust: (typeof MDBX !== 'undefined' && MDBX.custom) || null, rows: out };
   return out;
 }
 function ordLinesBuild() {
@@ -247,6 +251,7 @@ function ordLinesBuild() {
     const b = obBaseIndex().get(obKeyOf(l.orderNo, l.sku));
     const issued = Math.max(own('issued'), b ? b.issued : 0);
     const received = Math.max(own('received'), b ? b.received : 0);
+    const rejected = b ? b.rejected || 0 : 0;   // rejected at karigar receive — goes back to Issue on the board
     /* NO CUTTING OWED (Ravi, 24 Oct: "legacy order se entry ki thi kareegaro ki usme bhi koi glitch"): a legacy order is pieces
      * already made on the floor before the app had an order for them (LEG-17102026-01, 1–15 Oct) — 59 of its lines, all made,
      * read "to cut" for ever because no cutting entry was ever made for them; and a line PPC sent straight to Job Work skips the
@@ -268,7 +273,7 @@ function ordLinesBuild() {
     /* PIECES COMPLETED FROM READY STOCK count as made and pressed, and as cut — the floor owes nothing for them. */
     const stk = Math.min(l.qty, l.fromStock || 0), made = received + stk;
     return Object.assign({}, l, {
-      cut, pressed: pressed + stk, issued, received, made, cutReq, cutPct, cutDone,
+      cut, pressed: pressed + stk, issued, received, rejected, made, cutReq, cutPct, cutDone,
       pendingCut: cutReq ? Math.max(0, l.qty - cut - stk) : 0,
       pendingMake: Math.max(0, l.qty - made),
       /* MORE CAME BACK THAN WAS ORDERED. "Still to make" is floored at zero per line, because extra

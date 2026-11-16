@@ -1221,7 +1221,7 @@ if ($('odSort')) $('odSort').addEventListener('change', () => { ORD_CAP = 600; r
 ptDebounce('odQ', renderOrd);
 /* Clear means clear. Source and brand were added later and never joined this list, so Clear left two
  * of its own filters set and the screen kept hiding rows somebody had just asked to see. */
-$('odClear').onclick = () => { ['odOrd', 'odArt', 'odSub', 'odCol', 'odSz', 'odStatus', 'odSrc', 'odBrand', 'odQ', 'odD1', 'odD2'].forEach(id => { if ($(id)) $(id).value = ''; }); ORD_KPI = ''; renderOrd(); };
+$('odClear').onclick = () => { ['odOrd', 'odArt', 'odSub', 'odCol', 'odSz', 'odStatus', 'odSrc', 'odBrand', 'odType', 'odQ', 'odD1', 'odD2'].forEach(id => { if ($(id)) $(id).value = ''; }); ORD_KPI = ''; renderOrd(); };
 function ordKpiClick(e) {
   const t = e.target.closest('[data-odkpi]');
   if (!t) return;
@@ -1314,7 +1314,7 @@ $('odTable').addEventListener('click', ordQtyOpenClick);
 
 $('odKpis').addEventListener('click', ordKpiClick);
 $('odKpis').addEventListener('keydown', ordKpiClick);
-['odSrc', 'odBrand', 'odD1', 'odD2'].forEach(id => { const el = $(id); if (el) el.addEventListener('change', renderOrd); });
+['odSrc', 'odBrand', 'odType', 'odD1', 'odD2'].forEach(id => { const el = $(id); if (el) el.addEventListener('change', renderOrd); });
 $('odGo').onclick = async () => { await ptLoadGates(true); ORD.req = null; QC.checks = null; FGI.rows = null; await ensureOrd(); };
 $('odView').addEventListener('change', () => { ORD.pick = new Set(); renderOrd(); });
 /** A SKU's priority tag (P1–P4), '' when it has none. */

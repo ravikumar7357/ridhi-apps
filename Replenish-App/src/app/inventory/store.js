@@ -453,9 +453,56 @@ function renderStoreHand() {
     + `<td class="num" style="color:var(--bad)" title="${esc('PPC plans: ' + nf(b.planOut || 0) + ' · cutting: ' + nf(b.cutOut || 0) + ' · typed out: ' + nf(Math.max(0, b.outQty - (b.planOut || 0) - (b.cutOut || 0))))}">${z(b.outQty)}</td>`
     + `<td class="num" style="font-weight:700${b.qty < 0 ? ';color:var(--bad)' : ''}">${nf(Math.round(b.qty * 100) / 100)}</td>`
     + `<td style="font-size:12px">${esc(ptIsoDate(b.last) || '')}</td>`
-    + `<td class="num muted">${nf(b.n)}</td></tr>`).join('') + '</tbody>';
+    + `<td class="num"><a href="#" data-st-ent="${esc(b.key)}" title="Every entry of this item — one typed by hand can be deleted here">${nf(b.n)}</a></td></tr>`).join('') + '</tbody>';
   ptImgFill(drawn.filter(b => b.unit === 'pcs').map(b => b.sku).filter(Boolean), false, ptIfTab('fab', ptImgPatch));
 }
+
+/* DELETE A STORE ENTRY (Ravi, 15 Nov: "store entry fabric entry ko delete kar saku"). The Entries figure opens every entry of the item;
+ * one typed by hand (opening, in, out, correction — pt_storeLedger) has a Delete button, which removes it through ptDelete, so a copy
+ * goes to the recycle bin first. What the production flow moved (challans, PPC plans, cutting) is shown but is not deleted here —
+ * it follows its own entry. */
+function stEntriesOpen(key) {
+  const list = stMoves().filter(mv => stKey(mv) === key).sort((a, b) => String(b.at).localeCompare(String(a.at)));
+  if (!list.length) return;
+  const can = ptCanEdit(), q = v => nf(Math.round(v * 100) / 100);
+  const src = { typed: 'typed by hand', plan: 'PPC plan', cut: 'cutting', printer: 'challan', challan: 'challan', waste: 'cutting waste', jobwork: 'job work' };
+  ptOpenDialog({
+    title: 'Entries — ' + stName(list[0]),
+    subtitle: nf(list.length) + ' entr' + (list.length === 1 ? 'y' : 'ies') + ' · newest first' + (can ? ' · an entry typed by hand can be deleted (it goes to the recycle bin)' : ''),
+    html: '<div style="max-height:60vh;overflow:auto"><table class="xl" style="font-size:12.5px"><thead><tr><th style="text-align:left">Date</th><th style="text-align:left">What</th>'
+      + '<th class="num">Qty</th><th style="text-align:left">From</th><th style="text-align:left">By</th><th style="text-align:left">Remark</th><th></th></tr></thead><tbody>'
+      + list.map(mv => '<tr>'
+        + `<td style="white-space:nowrap">${esc(mv.date || '')}</td><td style="text-align:left">${esc(mv.what || '')}</td>`
+        + `<td class="num" style="font-weight:700;color:${mv.qty < 0 ? 'var(--bad)' : '#166534'}">${mv.qty > 0 ? '+' : ''}${q(mv.qty)}</td>`
+        + `<td style="text-align:left" class="muted">${esc(src[mv.src] || mv.src || '')}</td>`
+        + `<td style="text-align:left">${esc(String(mv.who || '').split('@')[0])}</td><td style="text-align:left">${esc(mv.remark || '')}</td>`
+        + `<td>${can && mv.src === 'typed' && mv.id ? `<button class="ghost" data-st-del="${esc(mv.id)}" data-st-key="${esc(key)}" style="padding:2px 10px;font-size:12px;color:var(--bad)">Delete</button>` : ''}</td></tr>`).join('')
+      + '</tbody></table></div>',
+  });
+}
+async function stDelete(id) {
+  if (!ptCanEdit()) return PT_NO_EDIT;
+  const r = (STORE.rows || []).find(x => x && (x.id === id || x._key === id));
+  if (!r) return 'That entry is gone already — press Refresh.';
+  try { await ptDelete('pt_storeLedger/' + (r._key || r.id)); } catch (e) { return 'Not deleted: ' + (e.message || e); }
+  STORE.rows = (STORE.rows || []).filter(x => x !== r);
+  return '';
+}
+document.addEventListener('click', async e => {
+  const d = e.target.closest('[data-st-del]');
+  if (!d) return;
+  e.preventDefault();
+  const id = d.getAttribute('data-st-del'), key = d.getAttribute('data-st-key');
+  const r = (STORE.rows || []).find(x => x && (x.id === id || x._key === id));
+  if (!r || !confirm(`Delete this store entry?\n\n${stName(r)} · ${r.kind} · ${nf(+r.qty || 0)} ${r.unit === 'm' ? 'm' : 'pcs'} · ${r.date || ''}\n\nIt goes to the recycle bin.`)) return;
+  d.disabled = true;
+  const err = await stDelete(id);
+  if (err) { d.disabled = false; alert(err); return; }
+  ptDlgClose();
+  renderFab();
+  if (stMoves().some(mv => stKey(mv) === key)) stEntriesOpen(key);
+  $('fbMsg').className = 'muted'; $('fbMsg').textContent = 'Store entry deleted — a copy is in the recycle bin.';
+});
 function renderStore(view) {
   if (STORE.rows === null && !STORE.busy) { ensureStore(); }
   if (STORE.busy) { $('fbMsg').className = 'muted'; $('fbMsg').textContent = 'Reading the store…'; ptEmpty('fbTable', 'Loading…'); $('fbKpis').innerHTML = ''; return; }
@@ -710,6 +757,8 @@ $('fbTable').addEventListener('click', async e => {
   const oj = e.target.closest('[data-ordj]');
   if (oj) { e.preventDefault(); try { ordJourney(oj.getAttribute('data-ordj')); } catch (err) { /* the order book is not readable here */ } return; }
   /* TRACK: the item's own movements, newest first — printer, order, date, karigar. */
+  const en = e.target.closest('[data-st-ent]');
+  if (en) { e.preventDefault(); stEntriesOpen(en.getAttribute('data-st-ent')); return; }
   const tr = e.target.closest('[data-st-track]');
   if (tr) { if ($('fbQ')) $('fbQ').value = tr.getAttribute('data-st-track'); $('fbView').value = 'storemov'; renderFab(); return; }
   const on = e.target.closest('[data-st-check]'), off = e.target.closest('[data-st-uncheck]');
