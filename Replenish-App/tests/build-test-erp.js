@@ -159,8 +159,31 @@ const GUARD = `<script>/* TEST ERP GUARD — added by Replenish-App/tests/build-
     SBBUSY[key] = job;
     return job;
   }
+  /* LIVE COPIES (16 Nov), as the live ERP keeps its open lists fresh through Firebase's live connection: every 5 s (while the
+   * page is in front) one tiny question — the newest save ERP data has applied (core.rt_live_upto). Only when it moved are the
+   * lists this page holds brought up to date, one at a time, so reopening a screen shows the newest data at once. */
+  var SBLIVE = { upto: null, busy: false, used: {}, tok: '', ok: true };
+  function sbLiveTick() {
+    if (SBLIVE.busy || !SBLIVE.ok || !SBLIVE.tok || document.visibilityState === 'hidden' || !Object.keys(SBLIVE.used).length) return;
+    SBLIVE.busy = true;
+    var of = window.__TEST_ERP.origFetch;
+    sbRpc('rt_live_upto', {}, SBLIVE.tok, of).then(function (u) {
+      if (SBLIVE.upto !== null && u === SBLIVE.upto) return;
+      var first = SBLIVE.upto === null; SBLIVE.upto = u;
+      if (first) return;
+      window.__TEST_ERP.sbMemo = {};                                   /* short-lived reads are asked again */
+      return Object.keys(SBLIVE.used).reduce(function (chain, key) {
+        return chain.then(function () { var m = SBMEM[key]; if (!m || m.upto == null || m.upto >= u) return;
+          return sbRefresh(key, SBLIVE.used[key], SBLIVE.tok, of); });
+      }, Promise.resolve());
+    }).catch(function (e) { if (/404|not find the function/.test(String(e && e.message))) SBLIVE.ok = false; })   /* the door is not there yet: plain behaviour */
+      .then(function () { SBLIVE.busy = false; });
+  }
+  setInterval(sbLiveTick, 5000);
+  window.__TEST_ERP.sbLive = SBLIVE;
   function sbWhole(p, tok, origFetch) {
     var key = window.__TEST_ERP.sb.url + '|' + p;
+    SBLIVE.used[key] = p; if (tok) SBLIVE.tok = tok;
     var fromMem = SBMEM[key] ? Promise.resolve(SBMEM[key]) : sbCopy(key).then(function (c) { if (c && typeof c.text === 'string' && c.upto != null) SBMEM[key] = c; return SBMEM[key] || null; });
     return fromMem.then(function (m) {
       if (!m || Date.now() - (m.at || 0) > 6 * 3600000) return sbFull(key, p, tok, origFetch).then(function (x) { return x.text; });
@@ -596,7 +619,7 @@ const __sbGetDocs = async q => { const col = q && q.__sbq ? q.col : q, cs = (q &
 ${has('getDocs') ? 'const getDocs = __sbGetDocs;' : ''}
 ${has('getDocsFromServer') ? 'const getDocsFromServer = __sbGetDocs;' : ''}
 ${has('onSnapshot') ? `const onSnapshot = (ref, next, err) => { let off = false; const run = () => getDoc(ref).then(s => { if (!off) next(s); }).catch(e => { if (!off && typeof err === 'function') err(e); });
-  run(); const t = setInterval(run, 60000); return () => { off = true; clearInterval(t); }; };   /* asked again every minute (no live channel) */` : ''}`;
+  run(); const t = setInterval(run, 15000); return () => { off = true; clearInterval(t); }; };   /* asked again every 15 s (no live channel) */` : ''}`;
 }
 
 /* The guard goes just before the page's first <title>, which is the real top of the page in both apps (the factory
