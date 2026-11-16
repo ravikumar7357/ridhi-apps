@@ -113,6 +113,72 @@ function tWidenAdWindow(days) {
 }
 
 /**
+ * AMAZON'S OWN DAY TOTALS (Pricing-API/AmazonMatch.gs, 16 Nov 2026) — laid over the snapshot so the Ad Console says what
+ * Seller Central and the Ads console say.
+ *
+ * The backend's matchBiz cache is Business Reports → By Date (per day: [Ordered Product Sales, Units Ordered, Total Order
+ * Items, Sessions, …]); matchAds is the campaign reports per type (per day: { sp, sb, sd }, each [impressions, clicks, cost,
+ * sales, orders, …] — Sponsored Products on 7-day sales, as the console counts). Before this the screen took sales from the
+ * Orders workbooks and ads from Sponsored Products alone on 30-day sales, so spend left Brands and Display out and ACOS read low.
+ *
+ * WHAT IT REPLACES, per day it holds: Sales and Units (matchBiz); Impressions, Clicks, Ad Spend, Ad Sales and Ad Orders
+ * (matchAds, the three types added up). Orders is left alone: Amazon's column is Total Order Items, a different count from
+ * this screen's distinct orders. Days neither cache holds keep the figures they had — the newest day or two (Amazon publishes
+ * late) and ad days older than Amazon keeps.
+ *
+ * Applied LAST by tNightly, and again after anything else writes those slots (Refresh's Orders scan, a collected ad report),
+ * so the older sources can never put their figures back over Amazon's.
+ */
+// The two caches as last read this session (null until tMatchLoad has them).
+let T_MATCH = { biz: null, ads: null };
+// Read matchBiz and matchAds from the backend. Either may be missing (AmazonMatch not installed, or still filling).
+async function tMatchLoad() {
+  try {
+    const r = await baCall({ cache: 'matchBiz' });
+    if (r && r.data && r.data.d) T_MATCH.biz = r.data;
+  } catch (e) { /* not there yet — the snapshot stays as it is */ }
+  try {
+    const r = await baCall({ cache: 'matchAds' });
+    if (r && r.data && r.data.d) T_MATCH.ads = r.data;
+  } catch (e) { /* not there yet */ }
+}
+// Lay the two caches over TREND for this account's brands; returns how many day-cells were written.
+function tMatchApply() {
+  const brands = tBrands();
+  const r2 = x => Math.round((Number(x) || 0) * 100) / 100;
+  // A day this recent that reads all zero is "Amazon has not published it yet", not a day without sales.
+  const fresh = sdShift(sdToday(), -3);
+  let n = 0;
+  if (T_MATCH.biz) {
+    brands.forEach(b => Object.entries(T_MATCH.biz.d[b] || {}).forEach(([day, v]) => {
+      if (!v || (day >= fresh && !v[0] && !v[1])) return;
+      const c = tCell(b, day);
+      c[T_I.sales] = r2(v[0]);
+      c[T_I.units] = Number(v[1]) || 0;
+      n++;
+    }));
+  }
+  if (T_MATCH.ads) {
+    const days = [];
+    brands.forEach(b => Object.entries(T_MATCH.ads.d[b] || {}).forEach(([day, k]) => {
+      if (!k || !k.sp) return;                    // Sponsored Products is the bulk: without it the day is not known
+      const kinds = [k.sp, k.sb, k.sd].filter(Boolean);
+      const sum = i => kinds.reduce((t, a) => t + (Number(a[i]) || 0), 0);
+      const c = tCell(b, day);
+      c[T_I.impr] = sum(0);
+      c[T_I.clicks] = sum(1);
+      c[T_I.spend] = r2(sum(2));
+      c[T_I.adSales] = r2(sum(3));
+      c[T_I.adOrders] = sum(4);
+      days.push(day);
+      n++;
+    }));
+    tWidenAdWindow(days);
+  }
+  return n;
+}
+
+/**
  * Fill this tab from last night's run, so opening it is enough.
  *
  * The nightly pipeline cannot write Firestore — Apps Script has no service account — so it leaves
@@ -186,6 +252,12 @@ async function tNightly() {
       });
     });
   } catch (e) { /* the cached days are still true; only today is missing */ }
+
+  // --- Amazon's own day totals, last, so they win on every day they hold ---
+  try {
+    await tMatchLoad();
+    if (tMatchApply()) changed = true;
+  } catch (e) { /* the figures above stay */ }
 
   // --- save and report ---
   if (changed) {

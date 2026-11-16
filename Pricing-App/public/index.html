@@ -26046,6 +26046,72 @@ function tWidenAdWindow(days) {
 }
 
 /**
+ * AMAZON'S OWN DAY TOTALS (Pricing-API/AmazonMatch.gs, 16 Nov 2026) — laid over the snapshot so the Ad Console says what
+ * Seller Central and the Ads console say.
+ *
+ * The backend's matchBiz cache is Business Reports → By Date (per day: [Ordered Product Sales, Units Ordered, Total Order
+ * Items, Sessions, …]); matchAds is the campaign reports per type (per day: { sp, sb, sd }, each [impressions, clicks, cost,
+ * sales, orders, …] — Sponsored Products on 7-day sales, as the console counts). Before this the screen took sales from the
+ * Orders workbooks and ads from Sponsored Products alone on 30-day sales, so spend left Brands and Display out and ACOS read low.
+ *
+ * WHAT IT REPLACES, per day it holds: Sales and Units (matchBiz); Impressions, Clicks, Ad Spend, Ad Sales and Ad Orders
+ * (matchAds, the three types added up). Orders is left alone: Amazon's column is Total Order Items, a different count from
+ * this screen's distinct orders. Days neither cache holds keep the figures they had — the newest day or two (Amazon publishes
+ * late) and ad days older than Amazon keeps.
+ *
+ * Applied LAST by tNightly, and again after anything else writes those slots (Refresh's Orders scan, a collected ad report),
+ * so the older sources can never put their figures back over Amazon's.
+ */
+// The two caches as last read this session (null until tMatchLoad has them).
+let T_MATCH = { biz: null, ads: null };
+// Read matchBiz and matchAds from the backend. Either may be missing (AmazonMatch not installed, or still filling).
+async function tMatchLoad() {
+  try {
+    const r = await baCall({ cache: 'matchBiz' });
+    if (r && r.data && r.data.d) T_MATCH.biz = r.data;
+  } catch (e) { /* not there yet — the snapshot stays as it is */ }
+  try {
+    const r = await baCall({ cache: 'matchAds' });
+    if (r && r.data && r.data.d) T_MATCH.ads = r.data;
+  } catch (e) { /* not there yet */ }
+}
+// Lay the two caches over TREND for this account's brands; returns how many day-cells were written.
+function tMatchApply() {
+  const brands = tBrands();
+  const r2 = x => Math.round((Number(x) || 0) * 100) / 100;
+  // A day this recent that reads all zero is "Amazon has not published it yet", not a day without sales.
+  const fresh = sdShift(sdToday(), -3);
+  let n = 0;
+  if (T_MATCH.biz) {
+    brands.forEach(b => Object.entries(T_MATCH.biz.d[b] || {}).forEach(([day, v]) => {
+      if (!v || (day >= fresh && !v[0] && !v[1])) return;
+      const c = tCell(b, day);
+      c[T_I.sales] = r2(v[0]);
+      c[T_I.units] = Number(v[1]) || 0;
+      n++;
+    }));
+  }
+  if (T_MATCH.ads) {
+    const days = [];
+    brands.forEach(b => Object.entries(T_MATCH.ads.d[b] || {}).forEach(([day, k]) => {
+      if (!k || !k.sp) return;                    // Sponsored Products is the bulk: without it the day is not known
+      const kinds = [k.sp, k.sb, k.sd].filter(Boolean);
+      const sum = i => kinds.reduce((t, a) => t + (Number(a[i]) || 0), 0);
+      const c = tCell(b, day);
+      c[T_I.impr] = sum(0);
+      c[T_I.clicks] = sum(1);
+      c[T_I.spend] = r2(sum(2));
+      c[T_I.adSales] = r2(sum(3));
+      c[T_I.adOrders] = sum(4);
+      days.push(day);
+      n++;
+    }));
+    tWidenAdWindow(days);
+  }
+  return n;
+}
+
+/**
  * Fill this tab from last night's run, so opening it is enough.
  *
  * The nightly pipeline cannot write Firestore — Apps Script has no service account — so it leaves
@@ -26119,6 +26185,12 @@ async function tNightly() {
       });
     });
   } catch (e) { /* the cached days are still true; only today is missing */ }
+
+  // --- Amazon's own day totals, last, so they win on every day they hold ---
+  try {
+    await tMatchLoad();
+    if (tMatchApply()) changed = true;
+  } catch (e) { /* the figures above stay */ }
 
   // --- save and report ---
   if (changed) {
@@ -27118,7 +27190,9 @@ async function ensureTrends() {
     let from = '';
     try { from = await tNightly(); } catch (e) { /* fall through to whatever is on screen */ }
     renderTrends();
-    tMsg(from ? `Up to date — nightly run of ${from}, plus today read live.` : '');
+    const amz = T_MATCH.biz || T_MATCH.ads;
+    tMsg(from ? `Up to date — nightly run of ${from}, plus today read live.`
+      + (amz ? ` Sales and ads are Amazon's own totals (as at ${amz.at || '?'}) wherever Amazon has published them.` : '') : '');
   }
   // --- queued ad reports ---
   // One cheap sweep for reports Amazon has finished since last time. This is what makes the
@@ -27219,6 +27293,7 @@ async function trendsRefresh() {
         tMsg(`Sales — ${BRAND_NAME[brand]} stopped: ${err.message || err}. Carrying on with the rest.`, true);
       }
     }
+    tMatchApply();                                   // Amazon's own sales back over the days it holds
     TREND.at = new Date().toISOString().slice(0, 16).replace('T', ' ');
     await saveTrends();
     renderTrends();
@@ -27276,6 +27351,7 @@ async function trendsRefresh() {
       TREND.adAt = new Date().toISOString().slice(0, 16).replace('T', ' ');
       TREND.adFrom = slices.length ? slices[slices.length - 1][0] : TREND.adFrom;
       TREND.adTo = slices.length ? slices[0][1] : TREND.adTo;
+      tMatchApply();                                 // and Amazon's own ad totals (all three types) back over these
       await saveTrends();
     }
     renderTrends();
@@ -27345,6 +27421,7 @@ async function tCollect(rounds, wait) {
           c[T_I.adOrders] += v[3] || 0;
           c[T_I.adSales] = Math.round((c[T_I.adSales] + (v[4] || 0)) * 100) / 100;
         });
+        tMatchApply();                               // this report is Sponsored Products alone: Amazon's totals go back on top
         TREND.pending = TREND.pending.filter(p => p.id !== job.id);
         // Marked collected. Whether it is ever asked for again depends on its age, not on this flag
         // alone — a window inside the attribution period is re-fetched even though it is "done".
@@ -27852,7 +27929,7 @@ const ADSX = (() => {
     { k: 'roas', c: 'roas', up: true, tip: 'Ad sales ÷ ad spend: what one dollar of ads brings back.' },
     { k: 'organicPct', c: 'org', up: true, tip: 'The sales NOT credited to ads ÷ all the sales of the same days.' },
     { k: 'orders', c: 'orders', up: true, tip: 'Every order in the Orders workbooks, over all the periods in view.' },
-    { k: 'sessions', c: 'sessions', up: true, tip: 'Visits to the product pages, ads or not, from Amazon\'s Business Reports. Weekly figures: a month or quarter adds up the weeks that start in it, and the Day view has none.' },
+    { k: 'sessions', c: 'sessions', up: true, tip: 'Visits to the product pages, ads or not, from Amazon\'s Business Reports (Sessions – Total, per day). Until those are loaded it shows weekly figures: a month or quarter adds up the weeks that start in it, and the Day view has none.' },
     { k: 'clicks', c: 'clicks', up: true, tip: 'Clicks on Sponsored Products ads, over the periods that have ad figures.' },
   ];
   // The boxes' icons: line drawings in the box's colour (stroke only, so they follow the theme).
@@ -27976,6 +28053,26 @@ const ADSX = (() => {
   // period is known (not null) only when its first week is inside the weeks the cache holds. missing = brands in view with none.
   function sessPer(keys) {
     const brands = brandsInView();
+    // Amazon's own sessions per DAY (the backend's matchBiz cache, slot 3 — Business Reports' "Sessions – Total") when the page
+    // has them: every period is the sum of its days, the Day view included. A period counts once its first day is in what Amazon gave.
+    const mb = T_MATCH.biz && T_MATCH.biz.d;
+    const haveM = mb ? brands.filter(b => mb[b] && Object.keys(mb[b]).length) : [];
+    if (haveM.length) {
+      const sum = {};
+      let oldest = '', newest = '';
+      haveM.forEach(b => Object.entries(mb[b]).forEach(([day, v]) => {
+        const k = tPeriodKey(day);
+        sum[k] = (sum[k] || 0) + (Number(v && v[3]) || 0);
+        if (!oldest || day < oldest) oldest = day;
+        if (day > newest) newest = day;
+      }));
+      const per = {};
+      keys.forEach(k => {
+        const s = periodStart(k);
+        per[k] = s >= oldest && s <= newest && sum[k] != null ? sum[k] : null;
+      });
+      return { per, missing: brands.filter(b => !haveM.includes(b)) };
+    }
     const have = brands.filter(b => SESS.wk[b] && Object.keys(SESS.wk[b]).length);
     if (!have.length) return null;
     const weeks = [...new Set(have.flatMap(b => Object.keys(SESS.wk[b])))].sort();
@@ -27998,14 +28095,18 @@ const ADSX = (() => {
       + `<div class="adx-v"><b>${v}</b>${pill}</div><div class="adx-note" title="${esc(note)}">${esc(note)}</div>${sp}</div>`;
     const blank = note => box('—', '', note, spark([]));
     if (!sessRight()) return blank('needs the Product Performance right');
-    if (T_GRAN === 'day') return blank('weekly figures: pick Week, Month or Quarter');
-    if (SESS.st === 'idle' || SESS.st === 'loading') return blank('loading the sessions…');
-    if (SESS.st === 'failed') return blank('the sessions could not be read');
+    // Amazon's daily sessions, once loaded, answer every view; without them it is the weekly cache, which has no Day view.
+    const daily = !!(T_MATCH.biz && T_MATCH.biz.d);
+    if (!daily) {
+      if (T_GRAN === 'day') return blank('weekly figures: pick Week, Month or Quarter');
+      if (SESS.st === 'idle' || SESS.st === 'loading') return blank('loading the sessions…');
+      if (SESS.st === 'failed') return blank('the sessions could not be read');
+    }
     // (the comparison may read periods outside the view — a view of the last full period compares it with the one before)
     const s = sessPer([...new Set(a.keys.concat(finished))].sort());
     if (!s) return blank('no sessions for these brands yet');
     const known = a.keys.filter(k => s.per[k] != null);
-    if (!known.length) return blank('older than the 26 weeks the sessions cover');
+    if (!known.length) return blank(daily ? 'Amazon has no sessions for these dates yet' : 'older than the 26 weeks the sessions cover');
     const pts = finished.filter(k => s.per[k] != null);
     const cmp = pts.length > 1 && pts[pts.length - 2] !== firstPartial;
     const pill = cmp ? pillOf(s.per[pts[pts.length - 1]], s.per[pts[pts.length - 2]], false, b.up, pts[pts.length - 1], pts[pts.length - 2]) : '';

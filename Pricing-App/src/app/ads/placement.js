@@ -317,7 +317,9 @@ async function ensureTrends() {
     let from = '';
     try { from = await tNightly(); } catch (e) { /* fall through to whatever is on screen */ }
     renderTrends();
-    tMsg(from ? `Up to date — nightly run of ${from}, plus today read live.` : '');
+    const amz = T_MATCH.biz || T_MATCH.ads;
+    tMsg(from ? `Up to date — nightly run of ${from}, plus today read live.`
+      + (amz ? ` Sales and ads are Amazon's own totals (as at ${amz.at || '?'}) wherever Amazon has published them.` : '') : '');
   }
   // --- queued ad reports ---
   // One cheap sweep for reports Amazon has finished since last time. This is what makes the
@@ -418,6 +420,7 @@ async function trendsRefresh() {
         tMsg(`Sales — ${BRAND_NAME[brand]} stopped: ${err.message || err}. Carrying on with the rest.`, true);
       }
     }
+    tMatchApply();                                   // Amazon's own sales back over the days it holds
     TREND.at = new Date().toISOString().slice(0, 16).replace('T', ' ');
     await saveTrends();
     renderTrends();
@@ -475,6 +478,7 @@ async function trendsRefresh() {
       TREND.adAt = new Date().toISOString().slice(0, 16).replace('T', ' ');
       TREND.adFrom = slices.length ? slices[slices.length - 1][0] : TREND.adFrom;
       TREND.adTo = slices.length ? slices[0][1] : TREND.adTo;
+      tMatchApply();                                 // and Amazon's own ad totals (all three types) back over these
       await saveTrends();
     }
     renderTrends();
@@ -544,6 +548,7 @@ async function tCollect(rounds, wait) {
           c[T_I.adOrders] += v[3] || 0;
           c[T_I.adSales] = Math.round((c[T_I.adSales] + (v[4] || 0)) * 100) / 100;
         });
+        tMatchApply();                               // this report is Sponsored Products alone: Amazon's totals go back on top
         TREND.pending = TREND.pending.filter(p => p.id !== job.id);
         // Marked collected. Whether it is ever asked for again depends on its age, not on this flag
         // alone — a window inside the attribution period is re-fetched even though it is "done".
