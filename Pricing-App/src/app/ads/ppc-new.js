@@ -535,6 +535,237 @@ function pxStats(asins, p, withPrev) {
   return o;
 }
 
+/* ---------- Seller Central's own totals for whole brands (16 Nov 2026) ----------
+ * The rows above add up the Orders workbooks per ASIN (v2_dailyAsin / WDAY), and a workbook saved before Amazon had
+ * finished a day stays short (5 Oct, Ridhi: $16,827 / 428 units against Seller Central's $16,944.03 / 432). The Sales
+ * Dashboard and the Ad Console already lay Seller Central's Business Report by date (matchBiz — T_MATCH, tMatchEnsure,
+ * tMatchBizDays in ads/account-trends.js) over their days. This does the same for every WHOLE-BRAND figure here — the
+ * All row, the tiles, the period cards and "vs prev" — for the days Amazon has published: Sales, Units, Order items
+ * (Total Order Items, as Seller Central counts), and Sessions when every day of the range is published. Nothing is
+ * laid over a searched list (it is not a whole brand), over a range with an older day missing, or over the newest
+ * day or two Amazon has not published yet (those keep the workbook figures, as on the other two screens).
+ * The ad figures of the same whole-brand totals take Campaign manager's Sponsored Products days (matchAds, 7-day sales,
+ * as the console shows them) — the products' own ad report (AdsApi.gs) asks Amazon for 30-day sales, which read
+ * 7–15% higher (5 Oct, Ridhi: $14,454 against the console's $13,404.08).
+ * The product rows still add up the workbooks and the 30-day ad report; pxAmzGapRow says so under the All row. */
+// Seller Central's days for the brands in view from lo, up to the last one in a row every brand has published:
+// { cut, s: [sales, units, order items, sessions, page views] }, or null when none is, or when an older day is missing.
+function pxAmzDays(lo, hi) {
+  if (typeof T_MATCH === 'undefined' || !T_MATCH.biz) return null;
+  const bs = PX.brand === 'ALL' ? adBrands() : [PX.brand];
+  const maps = bs.map(b => tMatchBizDays(b)), fresh = sdShift(pxToday(), -3);
+  const s = [0, 0, 0, 0, 0];
+  let cut = '';
+  for (const d of wDaysBetween(lo, hi)) {
+    const vs = maps.map(m => m[d]);
+    if (vs.some(v => !v)) {
+      if (d < fresh) return null;            // a hole in the older days: not "not published yet" — no overlay
+      break;                                 // the newest days Amazon has not published: they keep the workbooks
+    }
+    vs.forEach(v => { for (let i = 0; i < 5; i++) s[i] += Number(v[i]) || 0; });
+    cut = d;
+  }
+  return cut ? { cut, s } : null;
+}
+// Lay Amazon's own totals over a whole-brand totals object `o` (from pxStats, with o.o already the account's orders)
+// for plan p, then work the ratios out again. Returns o.amz ({ cut, dRev, dU }, cut '' when only the ads were laid over)
+// or null when nothing was.
+//  - Seller Central (matchBiz): sales and units move by the gap between Seller Central and the products over the
+//    published days, so the days after them keep what they had; Order items and, when every day is published,
+//    Sessions are Seller Central's.
+//  - Campaign manager (matchAds, Sponsored Products — the ads this page counts — on 7-day sales as the console shows
+//    them): spend, ad sales, ad orders and clicks over the days the ad report covers here (to o.adTo), and only when
+//    every one of those days is in for every brand in view. Ad units stay the products' own (Amazon's campaign report
+//    has none).
+function pxAmzOver(o, asins, p) {
+  if (!o || !o.has || !p || p.src === 'none' || PX.q.trim()) return null;
+  const amz = pxAmzDays(p.lo, p.hi);
+  const own = amz && pxStats(asins, pxPlan(p.lo, amz.cut));   // what the products add up to over the same days
+  let did = false;
+  if (amz && own.has) {
+    const dRev = amz.s[0] - own.rev, dU = amz.s[1] - own.u;
+    o.rev += dRev;
+    o.u += dU;
+    // The ad ratios set ad figures against sales over the days the ad report covers (revA / uA, see pxDerive).
+    if (!o.adTo || o.adTo >= amz.cut) {
+      o.revA += dRev;
+      o.uA += dU;
+    } else {
+      const a2 = pxAmzDays(p.lo, o.adTo), own2 = a2 && pxStats(asins, pxPlan(p.lo, a2.cut));
+      if (a2 && own2 && own2.has) {
+        o.revA += a2.s[0] - own2.rev;
+        o.uA += a2.s[1] - own2.u;
+      }
+    }
+    // Order items: Seller Central's over the published days, the products' own order items over the days after them.
+    const rest = amz.cut < p.hi ? pxStats(asins, pxPlan(sdShift(amz.cut, 1), p.hi)).o : 0;
+    o.o = amz.s[2] + (rest || 0);
+    // Sessions (and page views): Seller Central's daily Sessions - Total, only when every day is published.
+    if (amz.cut === p.hi) {
+      o.se = amz.s[3];
+      o.pv = amz.s[4];
+      o.seAmz = true;
+    }
+    o.amz = { cut: amz.cut, dRev, dU };
+    did = true;
+  }
+  // Campaign manager's figures go in whether or not the products' own ad report has come in (17 Nov 2026: when it had
+  // not, the All row showed "—" beside an Ad Console full of figures). Their days run to the last one every brand in
+  // view has in matchAds; ratios set them against the sales of those same days, Amazon's own where published.
+  const aEnd = pxTypeEnd(), hiAd = aEnd && aEnd < p.hi ? aEnd : p.hi;
+  const ad = aEnd && hiAd >= p.lo ? pxAmzAds(p.lo, hiAd) : null;
+  if (ad) {
+    o.adOwnMissing = o.spend == null;              // the product rows have no ad figures for these dates
+    o.cl = ad[1];
+    o.spend = ad[2];
+    o.adSales = ad[3];
+    o.adO = ad[4];
+    o.adAmz = true;
+    o.adTo = hiAd < p.hi ? hiAd : '';
+    if (hiAd < p.hi) {
+      const sub = pxStats(asins, pxPlan(p.lo, hiAd)), a3 = pxAmzDays(p.lo, hiAd);
+      const own3 = a3 && pxStats(asins, pxPlan(p.lo, a3.cut));
+      o.revA = sub.rev + (a3 && own3 && own3.has ? a3.s[0] - own3.rev : 0);
+      o.uA = sub.u + (a3 && own3 && own3.has ? a3.s[1] - own3.u : 0);
+    } else {
+      o.revA = o.rev;
+      o.uA = o.u;
+    }
+    // All three types over the same days — the Ad Console's figure — for the line under the All row.
+    const ts = pxTypeSums(p.lo, hiAd);
+    if (ts) o.allTypes = [0, 1, 2, 3, 4].map(i => ts.sp[i] + ts.sb[i] + ts.sd[i]);
+    if (!o.amz) o.amz = { cut: '', dRev: 0, dU: 0 };
+    did = true;
+  }
+  if (!did) return null;
+  pxDerive(o);
+  return o.amz;
+}
+// Campaign manager's Sponsored Products figures for the brands in view over lo..hi — [impressions, clicks, cost,
+// sales7d, purchases7d] added up — or null unless every day is in for every brand.
+function pxAmzAds(lo, hi) {
+  if (typeof T_MATCH === 'undefined' || !T_MATCH.ads || !T_MATCH.ads.d || !lo || !hi || lo > hi) return null;
+  const bs = PX.brand === 'ALL' ? adBrands() : [PX.brand], s = [0, 0, 0, 0, 0];
+  for (const d of wDaysBetween(lo, hi)) {
+    for (const b of bs) {
+      const k = (T_MATCH.ads.d[b] || {})[d];
+      if (!k || !k.sp) return null;
+      for (let i = 0; i < 5; i++) s[i] += Number(k.sp[i]) || 0;
+    }
+  }
+  return s;
+}
+// A whole-brand totals object for a plan — the products added up, then Amazon's own totals laid over (pxAmzOver).
+// Its order count is ORDER ITEMS either way (the products' own, or Seller Central's), never unique orders: the label
+// says "Order items" (16 Nov 2026; until then the All row counted unique orders under "Total orders").
+function pxTotStats(asins, p) {
+  const o = pxStats(asins, p);
+  pxAmzOver(o, asins, p);
+  return o;
+}
+// The line under the All row: which of its figures are Amazon's own, and how far the product rows are from them.
+function pxAmzGapRow(tot) {
+  const g = tot && tot.amz;
+  if (!g) return '';
+  const parts = [];
+  if (g.cut && (Math.abs(g.dRev) >= 1 || g.dU)) {
+    const more = g.dRev >= 0 ? 'more' : 'less', u = Math.round(Math.abs(g.dU));
+    parts.push(`Sales, units and order items are Seller Central’s own (Business Reports, to ${pxEsc(pxDM(g.cut))}):`
+      + ` <b>${pxMoney(Math.abs(g.dRev))}</b> and <b>${u.toLocaleString('en-US')}</b> unit${u === 1 ? '' : 's'} ${more}`
+      + ' than the products below add up to — orders Amazon counts that the Orders workbooks do not have yet.');
+  }
+  if (tot.adAmz) {
+    const at = tot.allTypes;
+    parts.push('SP ad spend, ad sales and ad orders are Campaign manager’s (Sponsored Products, 7-day sales, as the console'
+      + ' shows them)' + (tot.adTo ? `, to ${pxEsc(pxDM(tot.adTo))}` : '') + '; '
+      + (tot.adOwnMissing ? 'the products’ own ad figures for these dates have not come in yet, so the rows below show none.'
+        : 'the products below count ad sales over 30 days, so theirs add up to more.')
+      + (at ? ` All ad types together — the Ad Console’s figure — spend <b>${pxMoney(at[2])}</b>, ad sales <b>${pxMoney(at[3])}</b>,`
+        + ` ${pxN(at[4])} ad orders (Ads by campaign type, below).` : ''));
+  }
+  return parts.length ? `<tr class="px-amzgap"><td class="l px-dim" colspan="99"><small>${parts.join(' ')}</small></td></tr>` : '';
+}
+
+/* ---------- ads by campaign type: Sponsored Products, Brands and Display apart (16 Nov 2026) ----------
+ * The page's ad columns are Sponsored Products only, and the Ad Console shows the three types added up — nowhere said
+ * what each type did. This card reads the same matchAds days the Ad Console adds up (Campaign manager's campaign
+ * reports, per type, per day — Pricing-API/AmazonMatch.gs) and lays the three types side by side for the dates and
+ * brand(s) in view, each with its funnel (impressions → clicks → orders) and how its sales are counted:
+ *   sp: [impressions, clicks, cost, sales7d, purchases7d, sales14d, purchases14d, sales30d, purchases30d, spend]
+ *   sb / sd: [impressions, clicks, cost, sales*, orders*, salesAll, ordersAll, salesClicks, ordersClicks]
+ *     * the console's rule: vCPM campaigns count sales from views too, CPC campaigns from clicks only.
+ * Campaign reports are whole-brand: a search does not narrow this card. */
+// The last day every brand in view has campaign figures for ('' when none).
+function pxTypeEnd() {
+  if (typeof T_MATCH === 'undefined' || !T_MATCH.ads || !T_MATCH.ads.d) return '';
+  const bs = PX.brand === 'ALL' ? adBrands() : [PX.brand];
+  const ends = bs.map(b => Object.keys(T_MATCH.ads.d[b] || {}).filter(d => (T_MATCH.ads.d[b][d] || {}).sp).sort().pop() || '');
+  return ends.some(e => !e) ? '' : ends.sort()[0];
+}
+// The three types added up over lo..hi for the brands in view: { sp, sb, sd } arrays, or null when a day is missing.
+function pxTypeSums(lo, hi) {
+  if (!lo || !hi || lo > hi) return null;
+  const bs = PX.brand === 'ALL' ? adBrands() : [PX.brand];
+  const out = { sp: Array(10).fill(0), sb: Array(9).fill(0), sd: Array(9).fill(0) };
+  for (const d of wDaysBetween(lo, hi)) {
+    for (const b of bs) {
+      const k = (T_MATCH.ads.d[b] || {})[d];
+      if (!k || !k.sp) return null;                       // Sponsored Products is always there on a day that is in
+      ['sp', 'sb', 'sd'].forEach(t => (k[t] || []).forEach((v, i) => { if (i < out[t].length) out[t][i] += Number(v) || 0; }));
+    }
+  }
+  return out;
+}
+function pxTypeCard(ctx) {
+  const p = ctx.span;
+  if (!p || p.src === 'none' || typeof T_MATCH === 'undefined' || !T_MATCH.ads) return '';
+  const end = pxTypeEnd();
+  const hi = end && end < p.hi ? end : p.hi;
+  const who = PX.brand === 'ALL' ? 'Both brands' : BRAND_NAME[PX.brand] || PX.brand;
+  const head = sub => `<div class="px-sech px-types-h"><b>Ads by campaign type</b><span>${sub}</span>`
+    + pxI('types', 'Ads by campaign type', '<p>Amazon’s Campaign manager, one row per campaign type, for the dates and brand(s) in view — the figures Ads console → Campaign manager shows when you filter by type. <b>All types</b> is what the Ad Console page adds up.</p>'
+      + '<ul><li><b>Sponsored Products</b>: sales and orders within <b>7 days</b> of the click, as the console counts them. Under it, the same clicks counted over 14 and 30 days — the product rows of this page still count 30 days, which is why they add up to more.</li>'
+      + '<li><b>Sponsored Brands / Display</b>: the console counts sales from <b>clicks</b>, and for vCPM (pay-per-thousand-views) campaigns from <b>views</b> too. Under each: what came from clicks, and what came from views.</li></ul>'
+      + '<p><b>Funnel</b>: impressions → clicks (CTR = clicks ÷ impressions) → orders (CVR = orders ÷ clicks). <b>TACoS</b> sets all ad spend against Seller Central’s own sales for the same days.</p>'
+      + '<p>Campaign reports are whole-brand: searching the table does not narrow this card. The newest day comes with tonight’s run.</p>') + '</div>';
+  const sums = pxTypeSums(p.lo, hi);
+  if (!sums) {
+    const why = !end ? 'no campaign figures yet' : p.lo > end ? `the ad report reaches ${pxEsc(pxDM(end))} — these dates come with tonight’s run`
+      : 'not every day of these dates is in (Amazon keeps about 95 days of campaign reports)';
+    return `<div class="px-card px-types">${head(pxEsc(who) + ' · ' + pxEsc(pxFmtRange(p.lo, p.hi)))}<p class="px-dim px-types-none">${why}</p></div>`;
+  }
+  const { sp, sb, sd } = sums;
+  // [impressions, clicks, spend, sales (console), orders (console)] per row; All = the three added up.
+  const row = a => a.slice(0, 5);
+  const all = [0, 1, 2, 3, 4].map(i => sp[i] + sb[i] + sd[i]);
+  const biz = pxAmzDays(p.lo, hi), allSales = biz && biz.cut === hi ? biz.s[0] : null;
+  const pctOf = (a, b) => (b ? a / b * 100 : null);
+  const views = (a, i, j) => Math.max(0, a[i] - a[j]);          // all sales/orders − those from clicks
+  const tr = (cls, name, f, note) => {
+    const [im, cl, sp$, s$, o] = f;
+    return `<tr class="${cls}"><td class="l"><b>${name}</b>${note ? `<small>${note}</small>` : ''}</td>`
+      + `<td>${pxN(im)}</td><td>${pxN(cl)}</td><td>${pxPct(pctOf(cl, im))}</td><td>${pxC2(cl ? sp$ / cl : null)}</td>`
+      + `<td><b>${pxMoney(sp$)}</b></td><td>${pxPct(pctOf(sp$, all[2]))}</td>`
+      + `<td><b>${pxMoney(s$)}</b></td><td>${pxN(o)}</td><td>${pxPct(pctOf(o, cl))}</td>`
+      + `<td>${pxPct(pctOf(sp$, s$))}</td><td>${s$ && sp$ ? pxX(s$ / sp$) : '—'}</td></tr>`;
+  };
+  const spNote = `7-day, as the console · 14-day ${pxMoney(sp[5])} / ${pxN(sp[6])} · 30-day ${pxMoney(sp[7])} / ${pxN(sp[8])}`;
+  const vNote = a => `from clicks ${pxMoney(a[7])} / ${pxN(a[8])} · from views ${pxMoney(views(a, 5, 7))} / ${pxN(views(a, 6, 8))}`
+    + (a[5] - a[3] >= 0.5 ? ` · views of CPC campaigns not counted: ${pxMoney(a[5] - a[3])}` : '');
+  const allNote = allSales != null
+    ? `TACoS ${pxPct(pctOf(all[2], allSales))} of Seller Central’s ${pxMoney(allSales)} · ad sales ${pxPct(pctOf(all[3], allSales))} of all sales`
+    : 'the Ad Console page’s figure';
+  const sub = `${pxEsc(who)} · ${pxEsc(pxFmtRange(p.lo, hi))}${hi < p.hi ? ` · <span class="px-adto">ads to ${pxEsc(pxDM(hi))}</span>` : ''}${PX.q.trim() ? ' · whole brand (the search does not narrow it)' : ''}`;
+  return `<div class="px-card px-flush px-types">${head(sub)}<div class="px-tw"><table class="px-tbl px-ttbl"><thead><tr>`
+    + '<th class="l">Campaign type</th><th>Impressions</th><th>Clicks</th><th>CTR</th><th>CPC</th><th>Spend</th><th>Share of spend</th>'
+    + '<th>Ad sales</th><th>Ad orders</th><th>CVR</th><th>ACoS</th><th>ROAS</th></tr></thead><tbody>'
+    + tr('px-t-sp', 'Sponsored Products', row(sp), spNote)
+    + tr('px-t-sb', 'Sponsored Brands', row(sb), vNote(sb))
+    + tr('px-t-sd', 'Sponsored Display', row(sd), vNote(sd))
+    + tr('px-total', 'All types', all, allNote)
+    + '</tbody></table></div></div>';
+}
+
 /* ---------- products: parents, children, names, SKUs, pictures ---------- */
 let PX_LOOK = null;          // asin → { brand, sku } from the Listing Health snapshot
 // asin → { brand, sku } over both brands' Listing Health rows, built once (reset when health reloads).
@@ -758,39 +989,45 @@ function pxEntities() {
 // The quick-filter chips: key → [label, test on a row's totals].
 const PX_FILTERS = {
   all:  ['All', () => true],
-  cut:  ['ACoS 55%+', o => o.acos != null && o.acos >= 55],
-  tac:  ['TACoS 30%+', o => o.tacos != null && o.tacos >= 30],
+  cut:  ['SP ACoS 55%+', o => o.acos != null && o.acos >= 55],
+  tac:  ['SP TACoS 30%+', o => o.tacos != null && o.tacos >= 30],
   org:  ['Organic 70%+', o => o.op != null && o.op >= 70],
   fall: ['Falling 30%+', o => o.vp != null && o.vp <= -30],
   grow: ['Growing', o => o.vp != null && o.vp > 0],
 };
 // The range report's columns, in order: [key, title].
-const PX_RCOLS = [['tr', '8-week trend'], ['se', 'Sessions'], ['usp', 'Unit session %'], ['o', 'Total orders'], ['u', 'Units'], ['rev', 'Sales'],
-  ['spend', 'Ad spend'], ['adSales', 'Ad sales'], ['roas', 'ROAS'], ['adO', 'Ad orders'], ['adU', 'Ad units'],
-  ['cl', 'Clicks'], ['cpc', 'CPC'], ['cr', 'Conv. rate'],
-  ['acos', 'ACoS'], ['tacos', 'TACoS'],
+// LABELS SAY WHAT THEY COUNT (16 Nov 2026): every ad figure on this page is Sponsored Products alone (the per-product ad
+// report is SP only) — so each says "SP"; "Organic" is sales not credited to an SP click, which includes what Sponsored
+// Brands and Display sold — so its group says so; and the order count is order items (an order holding two products is
+// two), as Seller Central's Total Order Items. The other ad types are in "Ads by campaign type".
+const PX_RCOLS = [['tr', '8-week trend'], ['se', 'Sessions'], ['usp', 'Unit session %'], ['o', 'Order items'], ['u', 'Units'], ['rev', 'Sales'],
+  ['spend', 'SP ad spend'], ['adSales', 'SP ad sales'], ['roas', 'SP ROAS'], ['adO', 'SP ad orders'], ['adU', 'SP ad units'],
+  ['cl', 'SP clicks'], ['cpc', 'SP CPC'], ['cr', 'SP conv. rate'],
+  ['acos', 'SP ACoS'], ['tacos', 'SP TACoS'],
   ['ou', 'Organic units'], ['os', 'Organic sales'], ['op', 'Organic share'], ['vp', 'vs prev']];
 // What each column is, on hover over its header — the sums, so nobody has to guess which "conversion" this is.
 const PX_TIPS = {
   tr: 'Weekly sales over the last 8 finished Sunday–Saturday weeks; the last bar is red when it fell 30%+ below the 7 before it, green when 10%+ above',
   se: 'Sessions — Amazon\'s Sales & Traffic report. One report per brand per whole Sunday–Saturday week, so only whole-week ranges have them.',
   usp: 'Unit session % = units ÷ sessions (what the old PPC tab called CVR). Whole weeks only.',
-  o: 'Orders. The All row counts unique orders: an order holding two sizes is one order.',
+  o: 'Order items: orders counted per product — an order holding two products is two, as Seller Central\'s Total Order Items. The All row is Seller Central\'s own figure for the days Amazon has published.',
   u: 'Units ordered, all channels on Amazon (MCF excluded)', rev: 'Total sales',
-  spend: 'Sponsored Products spend', adSales: 'Sales Amazon attributes to an ad click',
-  roas: 'ROAS = ad sales ÷ ad spend', adO: 'Orders attributed to an ad click', adU: 'Units attributed to an ad click',
-  cl: 'Ad clicks', cpc: 'CPC = ad spend ÷ clicks',
-  cr: 'Conv. rate = ad orders ÷ clicks — the share of ad clicks that became an order (the Ad Console\'s CVR). Units ÷ sessions is Unit session %, in Columns', acos: 'ACoS = ad spend ÷ ad sales',
-  tacos: 'TACoS = ad spend ÷ total sales', ou: 'Organic units = units − ad units',
-  os: 'Organic sales = sales − ad sales (never below 0)', op: 'Organic share = organic sales ÷ sales',
+  spend: 'Sponsored Products spend only (Brands and Display: Ads by campaign type)',
+  adSales: 'Sales Amazon credits to a Sponsored Products click. All row: within 7 days of the click, as the Ads console. Product rows: within 30 days, and including other products bought after the click — so they add up to more',
+  roas: 'SP ROAS = SP ad sales ÷ SP ad spend', adO: 'Orders credited to a Sponsored Products click (All row 7-day, product rows 30-day)',
+  adU: 'Units credited to a Sponsored Products click, within 30 days (all rows)',
+  cl: 'Sponsored Products clicks', cpc: 'SP CPC = SP ad spend ÷ SP clicks',
+  cr: 'SP conv. rate = SP ad orders ÷ SP clicks — the share of ad clicks that became an order. Units ÷ sessions is Unit session %, in Columns', acos: 'SP ACoS = SP ad spend ÷ SP ad sales',
+  tacos: 'SP TACoS = Sponsored Products spend ÷ total sales (all ad types together: Ads by campaign type)', ou: 'Organic units = units − SP ad units. Includes units sold through Sponsored Brands and Display ads',
+  os: 'Organic sales = sales − SP ad sales (never below 0). Includes sales credited to Sponsored Brands and Display ads', op: 'Organic share = organic sales ÷ sales (organic here includes Sponsored Brands and Display sales)',
   vp: 'Sales against the same number of days just before',
 };
 // The header groups over those columns, as in the design (Traffic · Ads · Organic).
 const PX_GROUPS = [
   ['', ['tr']],
   ['Traffic', ['se', 'usp', 'o', 'u', 'rev']],
-  ['Ads', ['spend', 'adSales', 'roas', 'adO', 'adU', 'cl', 'cpc', 'cr', 'acos', 'tacos']],
-  ['Organic', ['ou', 'os', 'op']],
+  ['Sponsored Products ads', ['spend', 'adSales', 'roas', 'adO', 'adU', 'cl', 'cpc', 'cr', 'acos', 'tacos']],
+  ['Organic (incl. SB / SD sales)', ['ou', 'os', 'op']],
   ['', ['vp']]];
 // Ready-made column sets, as in the design. 'all' shows everything; the others are what each view is for.
 // 'all' is the PPC & Organic · New table (13 Nov): the 8-week trend, Unit session %, ROAS and CPC are extras a
@@ -818,9 +1055,9 @@ const pxSetNow = () => {
 };
 // The metrics a column can show in Columns by date, and how each kind is formatted.
 // Sessions and Unit session % fill only columns that are whole Sunday–Saturday weeks (the 13 / 26 week set-ups).
-const PX_METRICS = { rev: 'Sales', u: 'Units', o: 'Orders', se: 'Sessions', usp: 'Unit session %', adU: 'Ad units',
-  ou: 'Organic units', spend: 'Ad spend', roas: 'ROAS', cl: 'Clicks', cr: 'Conv. rate', op: 'Organic %', acos: 'ACoS',
-  tacos: 'TACoS' };
+const PX_METRICS = { rev: 'Sales', u: 'Units', o: 'Order items', se: 'Sessions', usp: 'Unit session %', adU: 'SP ad units',
+  ou: 'Organic units', spend: 'SP ad spend', roas: 'SP ROAS', cl: 'SP clicks', cr: 'SP conv. rate', op: 'Organic %', acos: 'SP ACoS',
+  tacos: 'SP TACoS' };
 const pxIsPct = m => m === 'op' || m === 'acos' || m === 'tacos' || m === 'cr' || m === 'usp';
 const pxIsCount = m => m === 'u' || m === 'o' || m === 'adO' || m === 'adU' || m === 'ou' || m === 'cl'
   || m === 'se';
@@ -947,7 +1184,7 @@ function pxChange(e, ctx) {
   let i = cs.length - 1;
   while (i >= 0 && cs[i].hi >= today) i--;
   if (i < 1) return null;
-  const val = c => (e.total && PX.metric === 'o' ? pxAcctOrders(c) : pxStats(e.asins, c)[PX.metric]);
+  const val = c => (e.total ? pxTotStats(e.asins, c) : pxStats(e.asins, c))[PX.metric];
   const a = val(cs[i]), b = val(cs[i - 1]);
   if (a == null || b == null) return null;
   return pxIsPct(PX.metric) ? { v: a - b, pt: true } : b ? { v: (a - b) / b * 100 } : null;
@@ -1109,6 +1346,15 @@ function pxAllLabel(ctx) {
   return `All ${real.toLocaleString('en-US')} ${PX.level === 'child' ? 'child ASINs' : 'parents'}`
     + (extra ? ` <small class="px-allold">+ ${extra}</small>` : '');
 }
+// The small line under a column's name: why Sessions can be empty, and over how many days after the click each
+// Sponsored Products figure counts its sales — the All row takes the console's 7 days (pxAmzOver), the product rows
+// the per-product report's 30 days, so the two are said apart rather than left to look like one figure.
+function pxColSub(k, whole, tot) {
+  if (k === 'se' || k === 'usp') return !whole && !(tot && tot.seAmz) ? 'whole weeks only' : '';
+  if (k === 'adU') return '30-day';
+  if (['adSales', 'adO', 'acos', 'roas', 'cr', 'os', 'op'].includes(k)) return tot && tot.adAmz ? 'All row 7-day · rows 30-day' : '30-day';
+  return '';
+}
 function pxRangeTable(rows, ctx, tot) {
   const sku = PX.level === 'child', vis = PX_RCOLS.filter(x => pxShown(x[0]));
   // --- build table: header ---
@@ -1116,13 +1362,14 @@ function pxRangeTable(rows, ctx, tot) {
   const grp = '<tr class="px-grp"><th class="l stick"></th>' + (sku ? '<th></th>' : '')
     + PX_GROUPS.map(([g, ks]) => {
       const n = ks.filter(pxShown).length;
-      return n ? `<th colspan="${n}" class="px-g-${(g || 'none').toLowerCase()}">${g ? `<span>${g}</span>` : ''}</th>` : '';
+      const cls = /^Sponsored/.test(g) ? 'ads' : /^Organic/.test(g) ? 'organic' : (g || 'none').toLowerCase();   // the CSS keys
+      return n ? `<th colspan="${n}" class="px-g-${cls}">${g ? `<span>${g}</span>` : ''}</th>` : '';
     }).join('') + '</tr>';
   // Sessions say WHY they are empty, under their own header, instead of a column of dashes nobody can explain.
   const whole = pxWholeWeeks(ctx.span);
   const head = grp + '<tr>' + pxTh('Product', 't', 'l stick', '', '', pxI('table', 'The table', pxTableInfo(ctx))) + (sku ? pxTh('SKU', 'sku', 'l') : '')
     + vis.map(x => (x[0] === 'tr' ? `<th class="px-th-tr" title="${pxEsc(PX_TIPS.tr)}">8-week trend</th>`
-      : pxTh(x[1], x[0], '', !whole && (x[0] === 'se' || x[0] === 'usp') ? 'whole weeks only' : '', PX_TIPS[x[0]]))).join('')
+      : pxTh(x[1], x[0], '', pxColSub(x[0], whole, tot), PX_TIPS[x[0]]))).join('')
     + '</tr>';
   // --- build table: the All row and the body ---
   const totRow = `<tr class="px-total"><td class="l stick">${pxAllLabel(ctx)}</td>${sku ? '<td></td>' : ''}${pxRangeCells(tot, true, { asins: ctx.found.flatMap(x => x.asins) })}</tr>`;
@@ -1137,7 +1384,7 @@ function pxRangeTable(rows, ctx, tot) {
     }
     return h + pxWhyRow(e, ctx);
   }).join('');
-  return `<table class="px-tbl"><thead>${head}</thead><tbody>${totRow}${body || `<tr><td class="l px-dim" colspan="99">Nothing matches.</td></tr>`}</tbody></table>`;
+  return `<table class="px-tbl"><thead>${head}</thead><tbody>${totRow}${pxAmzGapRow(tot)}${body || `<tr><td class="l px-dim" colspan="99">Nothing matches.</td></tr>`}</tbody></table>`;
 }
 // The Columns by date table: one column per date range showing the chosen metric as a figure and a bar, plus the change.
 function pxColTable(rows, ctx) {
@@ -1157,7 +1404,7 @@ function pxColTable(rows, ctx) {
   // --- one row: the figures, their bars, and the change ---
   const row = (e, cls, kid) => {
     // The total row's orders are the account's UNIQUE orders, never its products' orders added up.
-    const vals = cs.map(c => (e.total && m === 'o' ? pxAcctOrders(c) : pxStats(e.asins, c)[m]));
+    const vals = cs.map(c => (e.total ? pxTotStats(e.asins, c) : pxStats(e.asins, c))[m]);
     const mx = Math.max(0, ...vals.filter(v => v != null));
     const cells = vals.map((v, k) => {
       const w = v == null ? 0
@@ -1289,8 +1536,7 @@ function pxQuickRev(asins, p) {
 function pxCards(asins) {
   const t = pxToday();
   return '<div class="px-pcards" role="group" aria-label="Periods">' + PX_PCARDS.map((k, i) => {
-    const [lo, hi] = PX_DATES[k][1](t), p = pxPlan(lo, hi), o = pxStats(asins, p);
-    o.o = pxAcctOrders(p);
+    const [lo, hi] = PX_DATES[k][1](t), p = pxPlan(lo, hi), o = pxTotStats(asins, p);   // Amazon's own totals, as the All row
     const on = PX.mode === 'range' && PX.dkey === k;
     const line = (l, v) => `<span class="px-pc-l"><small>${l}</small><b>${v}</b></span>`;
     // Today: Amazon's day runs on Pacific time and its orders land through the day, its ads with tonight's run —
@@ -1305,11 +1551,11 @@ function pxCards(asins) {
       + `<span class="px-pc-big">${big}</span>`
       + (live && !o.has
         ? '<span class="px-pc-wait">No orders in yet — Amazon’s day runs on Pacific time, so it fills in through the day.</span>'
-        : line('Orders / Units', pxN(o.o) + ' / ' + (o.has ? pxN(o.u) : '—'))
+        : line('Order items / Units', pxN(o.o) + ' / ' + (o.has ? pxN(o.u) : '—'))
           + (adsLater
-            ? `<span class="px-pc-l px-pc-soon"><small>PPC Orders, ACoS · TACoS</small><b>${later}</b></span>`
-            : line('PPC Orders / PPC Units', pxN(o.adO) + ' / ' + pxN(o.adU))
-              + line('ACoS · TACoS', pxPct(o.acos) + ' · ' + pxPct(o.tacos))
+            ? `<span class="px-pc-l px-pc-soon"><small>SP ad orders, SP ACoS · TACoS</small><b>${later}</b></span>`
+            : line('SP ad orders / SP ad units', pxN(o.adO) + ' / ' + pxN(o.adU))
+              + line('SP ACoS · SP TACoS', pxPct(o.acos) + ' · ' + pxPct(o.tacos))
               + (o.adTo ? `<span class="px-pc-adto" title="The ad report runs a day behind. PPC figures stop at ${pxEsc(pxDM(o.adTo))}, and TACoS sets them against sales up to ${pxEsc(pxDM(o.adTo))} only — never against days with no ad figures yet.">ads to ${pxEsc(pxDM(o.adTo))}</span>` : '')))
       + '</button>';
   }).join('') + '</div>';
@@ -1572,9 +1818,9 @@ function pxChartTip(i) {
     + row('', 'Sales', pxMoney(x.rev))
     + (x.adSales != null
       ? row('px-key-org', 'Organic', pxMoney(x.os) + (x.op != null ? ' · ' + pxPct(x.op) : ''))
-        + row('px-key-ad', 'Ad sales', pxMoney(x.adSales))
+        + row('px-key-ad', 'SP ad sales', pxMoney(x.adSales))
       : '<div class="px-tip-n">Ad report not in yet — the split arrives with tonight’s run.</div>')
-    + (x.spend != null ? row('ad-key-spend', 'Ad spend', pxMoney(x.spend)) : '')
+    + (x.spend != null ? row('ad-key-spend', 'SP ad spend', pxMoney(x.spend)) : '')
     + (x.tacos != null ? row('ad-key-tacos', 'TACoS · ACoS', pxPct(x.tacos) + ' · ' + pxPct(x.acos)) : '')
     + (x.roas != null ? row('', 'ROAS', pxX(x.roas)) : '')
     + (x.adTo ? `<div class="px-tip-n">Ads to ${pxEsc(pxDM(x.adTo))}: organic and TACoS use only the days with ads.</div>` : '');
@@ -1612,9 +1858,9 @@ function pxChartCard(asins, ctx, label) {
     + `<div class="px-tb">${gseg}<button class="px-btn px-btn-q" data-px="chart" title="Hide the chart">Hide</button></div></div>`
     + (any ? `<div class="px-ch-wrap">${pxChartSvg(ch, width)}<div class="px-ch-tip" hidden></div></div>`
       : '<div class="px-empty">No figures for these dates.</div>')
-    + '<div class="px-ch-key"><span><i class="px-key px-key-org"></i>Organic sales</span><span><i class="px-key px-key-ad"></i>Ad sales</span>'
-    + '<span><i class="px-key ad-key-sales"></i>Sales, ad split not in yet</span><span><i class="px-key ad-key-spend"></i>Ad spend</span>'
-    + '<span><i class="px-key ad-key-tacos"></i>TACoS (right scale)</span></div></div>';
+    + '<div class="px-ch-key"><span><i class="px-key px-key-org"></i>Organic sales (incl. SB / SD)</span><span><i class="px-key px-key-ad"></i>SP ad sales</span>'
+    + '<span><i class="px-key ad-key-sales"></i>Sales, ad split not in yet</span><span><i class="px-key ad-key-spend"></i>SP ad spend</span>'
+    + '<span><i class="px-key ad-key-tacos"></i>SP TACoS (right scale)</span></div></div>';
 }
 
 /* ---------- what moved: the old tab's alerts, for the level, brand and search in view ----------
@@ -1711,7 +1957,7 @@ function pxAlertsCard(ctx) {
     + `<span class="px-note">The week against the one before · ${rows.length ? `<b>${rows.length}</b> ${PX.level === 'child' ? 'child ASIN' : 'product'}${rows.length === 1 ? '' : 's'} fell 30%+ or ran ACoS 60%+` : 'nothing fell 30%+ and no ACoS ran 60%+'} · click any product for Why did it move?</span></div>`
     + `<div class="px-seg px-segsm" role="group" aria-label="Week">${chips}</div></div>${movers}`
     + whyHere
-    + (rows.length ? `<div class="px-tw px-tw-s"><table class="px-tbl px-atbl"><thead><tr><th class="l stick">Product</th><th>Sales (week before → week)</th><th>Change</th><th>Ad spend</th><th>Organic</th><th>Sessions</th><th>ACoS</th><th class="l">Main cause</th><th class="l">Flags</th></tr></thead><tbody>${body}</tbody></table></div>${more}` : '')
+    + (rows.length ? `<div class="px-tw px-tw-s"><table class="px-tbl px-atbl"><thead><tr><th class="l stick">Product</th><th>Sales (week before → week)</th><th>Change</th><th>SP ad spend</th><th>Organic</th><th>Sessions</th><th>SP ACoS</th><th class="l">Main cause</th><th class="l">Flags</th></tr></thead><tbody>${body}</tbody></table></div>${more}` : '')
     + '</div>';
 }
 
@@ -1752,12 +1998,12 @@ function pxTrendNote(label, ctx) {
   const c = pxCmp(ctx), g = pxChartBuckets(ctx).g;
   const per = g === 'day' ? 'one point per day' : g === 'week' ? 'one point per Sunday–Saturday week' : g === 'cols' ? 'one point per column of the table' : 'no points for these dates';
   const what = {
-    'Sales': 'total sales', 'Orders / Units': 'units sold', 'Ad spend': 'Sponsored Products spend (ROAS = ad sales ÷ ad spend under it)',
-    'ACoS': 'ACoS = ad spend ÷ ad sales (CPC = spend ÷ clicks under it)', 'TACoS': 'TACoS = ad spend ÷ all sales',
-    'Organic share': 'organic sales ÷ all sales', 'Sessions': 'Amazon sessions (product page visits)',
+    'Sales': 'total sales', 'Order items / Units': 'order items and units sold', 'SP ad spend': 'Sponsored Products spend (SP ROAS = SP ad sales ÷ SP ad spend under it)',
+    'SP ACoS': 'SP ACoS = Sponsored Products spend ÷ SP ad sales (SP CPC = spend ÷ clicks under it)', 'SP TACoS': 'SP TACoS = Sponsored Products spend ÷ all sales',
+    'Organic share': 'sales not credited to a Sponsored Products click ÷ all sales (it includes Brands and Display sales)', 'Sessions': 'Amazon sessions (product page visits)',
   }[label] || label;
-  const low = label === 'ACoS' || label === 'TACoS';
-  const pts = label === 'ACoS' || label === 'TACoS' || label === 'Organic share';
+  const low = label === 'SP ACoS' || label === 'SP TACoS';
+  const pts = label === 'SP ACoS' || label === 'SP TACoS' || label === 'Organic share';
   if (label === 'Sessions') {
     return `<p>Sessions are visits to the product pages, from Amazon's Sales &amp; Traffic report — one report per brand per whole Sunday–Saturday week, so they exist only for whole weeks. Unit session % (under it) = units ÷ sessions.</p>`
       + '<p>The line is the last 8 finished weeks, whatever dates you picked. The figure fills in only when the dates are whole weeks — pick <b>Custom ▾ → Last week</b> or <b>Last 4 weeks</b>.</p>';
@@ -1862,11 +2108,11 @@ function pxRecs(ctx) {
   // 3. ACoS too high
   const hiAcos = live.filter(e => { const o = S.get(e); return o.spend >= 50 && o.acos != null && o.acos >= 55; })
     .sort((a, b) => (S.get(b).spend - S.get(b).adSales * 0.35) - (S.get(a).spend - S.get(a).adSales * 0.35));
-  add({ id: 'acos', sev: 'high', cat: 'Ads', title: `${hiAcos.length} product${hiAcos.length === 1 ? '' : 's'} spending too much per sale (ACoS 55%+)`,
+  add({ id: 'acos', sev: 'high', cat: 'Ads', title: `${hiAcos.length} product${hiAcos.length === 1 ? '' : 's'} spending too much per sale (SP ACoS 55%+)`,
     act: 'Lower bids on these products’ campaigns, or pause the keywords that spend without selling (Ad Console → Search Terms).',
     why: `Ad spend is 55% or more of the ad sales it brought, ${dTxt}.`,
     how: 'Ad spend of at least $50, ACoS = ad spend ÷ ad sales of 55% or more. "Over target" is the spend above a 35% ACoS.',
-    cols: ['Product', 'Ad spend', 'Ad sales', 'ACoS', 'Over target'] }, hiAcos,
+    cols: ['Product', 'SP ad spend', 'SP ad sales', 'SP ACoS', 'Over target'] }, hiAcos,
   e => { const o = S.get(e); return [prod(e), M(o.spend), M(o.adSales), `<b class="ui-neg">${P(o.acos)}</b>`, M(Math.max(0, o.spend - o.adSales * 0.35))]; },
   { v: hiAcos.reduce((s, e) => s + Math.max(0, S.get(e).spend - S.get(e).adSales * 0.35), 0), l: 'over a 35% ACoS', kind: 'loss' });
   // 4. Spend with no ad sales
@@ -1875,7 +2121,7 @@ function pxRecs(ctx) {
     act: 'Pause or rework these ads — the clicks are not turning into orders.',
     why: `Ads spent money and Amazon credits no sale to them, ${dTxt}.`,
     how: 'Ad spend of at least $25 and $0 ad sales.',
-    cols: ['Product', 'Ad spend', 'Clicks', 'Sales (all)'] }, noSale,
+    cols: ['Product', 'SP ad spend', 'SP clicks', 'Sales (all)'] }, noSale,
   e => { const o = S.get(e); return [prod(e), `<b class="ui-neg">${M(o.spend)}</b>`, pxN(o.cl), M(o.rev)]; },
   { v: noSale.reduce((s, e) => s + S.get(e).spend, 0), l: 'spent, no ad sale', kind: 'loss' });
   // 5. Falling 30%+
@@ -1907,7 +2153,7 @@ function pxRecs(ctx) {
     act: 'Look at the listing these clicks land on — main image, price against similar products, reviews, sizes in stock.',
     why: `Their Conv. rate is under ${crBar.toFixed(1)}% — less than 60% of the account's ${acct.cr != null ? acct.cr.toFixed(1) + '%' : ''}, ${dTxt}.`,
     how: `At least 300 ad clicks, and Conv. rate = ad orders ÷ clicks under 60% of the account's own rate over the same dates (${crBar.toFixed(1)}%).`,
-    cols: ['Product', 'Clicks', 'Conv. rate', 'Ad spend'] }, lowCr,
+    cols: ['Product', 'SP clicks', 'SP conv. rate', 'SP ad spend'] }, lowCr,
   e => { const o = S.get(e); return [prod(e), pxN(o.cl), `<b class="ui-neg">${P(o.cr)}</b>`, M(o.spend)]; },
   { v: lowCr.reduce((s, e) => s + S.get(e).spend, 0), l: 'ad spend on them', kind: 'info' });
   // 8. Room to grow
@@ -1917,7 +2163,7 @@ function pxRecs(ctx) {
     act: 'Raise bids 10–15% on these — they sell cheaply through ads and have stock to back it.',
     why: `ACoS of 20% or less on at least 10 ad orders, ${dTxt}, and at least 30 days of stock (or stock not tracked).`,
     how: 'ACoS ≤ 20%, 10+ ad orders, no selling size at 0, and 30+ days of FBA stock where Listing Health has it.',
-    cols: ['Product', 'Ad sales', 'ACoS', 'Ad orders'] }, grow,
+    cols: ['Product', 'SP ad sales', 'SP ACoS', 'SP ad orders'] }, grow,
   e => { const o = S.get(e); return [prod(e), M(o.adSales), `<b class="adh-pos">${P(o.acos)}</b>`, pxN(o.adO)]; },
   { v: grow.reduce((s, e) => s + S.get(e).adSales, 0), l: 'ad sales now', kind: 'gain' });
   // 9. Selling on their own
@@ -1926,7 +2172,7 @@ function pxRecs(ctx) {
     act: 'Keep them in stock and protect the listing — ads add little here; spend where it moves sales.',
     why: `80%+ of their sales came without an ad click, ${dTxt}.`,
     how: 'Sales of at least $1,000 and organic share (sales − ad sales) ÷ sales of 80% or more.',
-    cols: ['Product', 'Sales', 'Organic share', 'Ad spend'] }, organic,
+    cols: ['Product', 'Sales', 'Organic share', 'SP ad spend'] }, organic,
   e => { const o = S.get(e); return [prod(e), M(o.rev), `<b class="adh-pos">${P(o.op)}</b>`, M(o.spend)]; },
   { v: organic.reduce((s, e) => s + S.get(e).rev, 0), l: 'sales', kind: 'gain' });
   out.sort((a, b) => PX_SEV[a.sev].r - PX_SEV[b.sev].r || Math.abs(b.money.v || 0) - Math.abs(a.money.v || 0));
@@ -1990,13 +2236,11 @@ function pxRender(focusSel) {
   const sorted = pxSorted(filtered, ctx);
   const shown = sorted.slice(0, PX.show);
   const allAsins = ctx.found.flatMap(e => e.asins);
-  const tot = pxStats(allAsins, ctx.span);
-  tot.o = pxAcctOrders(ctx.span);                  // unique order ids, not the rows added up
+  const tot = pxTotStats(allAsins, ctx.span);      // the products, with Amazon's own totals over the days it has published
   // The same figures over the same number of days just before — for a finished period only, exactly as "vs prev"
   // is judged everywhere on this page — so every tile in the strip can say which way it moved.
   const pp = ctx.span.src !== 'none' && ctx.span.hi < pxToday() ? pxPrevPlan(ctx.span) : null;
-  const prv = pp && pp.src !== 'none' ? pxStats(allAsins, pp) : null;
-  if (prv) prv.o = pxAcctOrders(pp);
+  const prv = pp && pp.src !== 'none' ? pxTotStats(allAsins, pp) : null;   // the same way, so "vs prev" is like against like
   tot.vp = prv && prv.has && tot.has && prv.rev ? (tot.rev - prv.rev) / prv.rev * 100 : null;
   const P = k => (prv && prv.has ? prv[k] : null);
 
@@ -2058,35 +2302,35 @@ function pxRender(focusSel) {
   const strip = `<div class="px-card px-clip"><div class="px-strip px-strip6">`
     + tile6('Sales', tot.has ? pxMoney(tot.rev) : '—', `<em class="${vpCls}">${tot.vp == null ? (ctx.span.hi >= pxToday() ? 'so far · compared once finished' : '— vs prev') : pxSgn(tot.vp) + ' vs prev'}</em>`, '',
       `<p>Total sales ${forTxt} — every order on Amazon, paid and organic (MCF orders excluded).</p><p>The % under it is ${pxCmpTxt(c6)}${prv && prv.has ? `, when sales were <b>${pxMoney(prv.rev)}</b>` : ''}. Green means up, red means down.</p>`)
-    + tile6('Orders / Units', `${pxN(tot.o)} / ${tot.has ? pxN(tot.u) : '—'}`, `<em class="px-dim">ad units ${pxN(tot.adU)} · organic ${pxN(tot.ou)}</em>`, '',
-      `<p>Orders and units ${forTxt}. Orders are unique order numbers, so one order with two sizes is one order; units are the pieces sold.</p><p>Under it: <b>ad units</b> are units Amazon credits to an ad click, <b>organic</b> = units − ad units. Nothing is compared here.</p>`)
-    + tile6('Ad spend', pxMoney(tot.spend), `<em class="px-dim">ad sales ${pxMoney(tot.adSales)}${tot.adTo ? ` · <span class="px-adto">ads to ${pxEsc(pxDM(tot.adTo))}</span>` : ''}</em>`, '',
-      `<p>What Sponsored Products ads cost ${forTxt}.</p>${tot.adTo ? `<p><b>Ads to ${pxEsc(pxDM(tot.adTo))}</b>: the ad report runs a day behind sales; the days after it come with tonight's run.</p>` : ''}<p><b>Ad sales</b> are the sales Amazon credits to an ad click. ${tot.spend && tot.adSales ? `Every $1 of ads brought back <b>$${(tot.adSales / tot.spend).toFixed(2)}</b> (ROAS).` : ''} Today's ad figures arrive with tonight's run.</p>`)
-    + tile6('Organic share', pxPct(tot.op), `<em class="px-dim">${pxMoney(tot.os)} organic</em>`, '',
-      `<p>The part of sales that came WITHOUT an ad click: organic sales ÷ all sales, ${forTxt}.</p><p>Organic sales = sales − ad sales = <b>${pxMoney(tot.os)}</b>. Higher is better: the product sells on its own ranking.</p>${adToTxt}`)
-    + tile6('ACoS', pxPct(tot.acos), '<em class="px-dim">spend ÷ ad sales</em>', '',
-      `<p>Advertising cost of sales = ad spend ÷ ad sales, ${forTxt}: ${pxMoney(tot.spend)} ÷ ${pxMoney(tot.adSales)}.</p><p>Lower is better — how many cents of ads each dollar of ad sales cost. In the table, 30% or less is green and 55% or more red.</p>`)
-    + tile6('TACoS', pxPct(tot.tacos), '<em class="px-dim">spend ÷ all sales</em>', '',
-      `<p>Total advertising cost of sales = ad spend ÷ ALL sales (paid and organic), ${forTxt}: ${pxMoney(tot.spend)} ÷ ${tot.has ? pxMoney(tot.revA != null ? tot.revA : tot.rev) : '—'}.</p>${adToTxt}<p>Lower is better — the share of all revenue spent on ads. In the table, 15% or less is green and 30% or more red.</p>`)
+    + tile6('Order items / Units', `${pxN(tot.o)} / ${tot.has ? pxN(tot.u) : '—'}`, `<em class="px-dim">SP ad units ${pxN(tot.adU)} · organic ${pxN(tot.ou)}</em>`, '',
+      `<p>Order items and units ${forTxt}. Order items count an order holding two products as two, as Seller Central’s Total Order Items${tot.amz && tot.amz.cut ? ` — and they are Seller Central’s own figure up to ${pxEsc(pxDM(tot.amz.cut))}` : ''}; units are the pieces sold.</p><p>Under it: <b>SP ad units</b> are units Amazon credits to a Sponsored Products click within 30 days, <b>organic</b> = units − SP ad units (it includes units sold through Brands and Display ads). Nothing is compared here.</p>`)
+    + tile6('SP ad spend', pxMoney(tot.spend), `<em class="px-dim">SP ad sales ${pxMoney(tot.adSales)} (${tot.adAmz ? '7-day' : '30-day'})${tot.adTo ? ` · <span class="px-adto">ads to ${pxEsc(pxDM(tot.adTo))}</span>` : ''}</em>`, '',
+      `<p>What Sponsored Products ads cost ${forTxt} — Sponsored Products alone; Brands and Display are in <b>Ads by campaign type</b> below.</p>${tot.adTo ? `<p><b>Ads to ${pxEsc(pxDM(tot.adTo))}</b>: the ad report runs a day behind sales; the days after it come with tonight's run.</p>` : ''}<p><b>SP ad sales</b> are the sales Amazon credits to a Sponsored Products click ${tot.adAmz ? 'within <b>7 days</b>, as the Ads console counts them' : 'within <b>30 days</b> (the per-product report — the Ads console counts 7 days, so this reads higher)'}. ${tot.spend && tot.adSales ? `Every $1 of SP ads brought back <b>$${(tot.adSales / tot.spend).toFixed(2)}</b> (SP ROAS).` : ''} Today's ad figures arrive with tonight's run.</p>`)
+    + tile6('Organic share', pxPct(tot.op), `<em class="px-dim">${pxMoney(tot.os)} · incl. SB / SD sales</em>`, '',
+      `<p>The part of sales NOT credited to a Sponsored Products click: organic sales ÷ all sales, ${forTxt}.</p><p>Organic sales = sales − SP ad sales = <b>${pxMoney(tot.os)}</b>. It <b>includes</b> what Sponsored Brands and Display ads sold — the per-product figures have no Brands / Display split; for the account’s sales with no ad credit at all, see <b>Ads by campaign type</b>.</p>${adToTxt}`)
+    + tile6('SP ACoS', pxPct(tot.acos), '<em class="px-dim">SP spend ÷ SP ad sales</em>', '',
+      `<p>Sponsored Products advertising cost of sales = SP ad spend ÷ SP ad sales, ${forTxt}: ${pxMoney(tot.spend)} ÷ ${pxMoney(tot.adSales)}. All ad types together: <b>Ads by campaign type</b>.</p><p>Lower is better — how many cents of ads each dollar of ad sales cost. In the table, 30% or less is green and 55% or more red.</p>`)
+    + tile6('SP TACoS', pxPct(tot.tacos), '<em class="px-dim">SP spend ÷ all sales</em>', '',
+      `<p>Sponsored Products spend ÷ ALL sales (paid and organic), ${forTxt} — the TACoS of all ad types together is in <b>Ads by campaign type</b>: ${pxMoney(tot.spend)} ÷ ${tot.has ? pxMoney(tot.revA != null ? tot.revA : tot.rev) : '—'}.</p>${adToTxt}<p>Lower is better — the share of all revenue spent on ads. In the table, 15% or less is green and 30% or more red.</p>`)
     + '</div></div>';
   // The trend lines, at the end of the page: each figure, which way it moved, and its line over the chart's bars
   // (the last 8 finished weeks for sessions).
   const trends = `<div class="px-card px-clip"><div class="px-strip px-trends">`
     + tile('Sales', tot.has ? pxMoney(tot.rev) : '—', salesSub, pxDelta(tot.has ? tot.rev : null, P('rev'), '', 'up'), '',
       pxSpark(sv(x => x.rev), 'px-sp-brand'))
-    + tile('Orders / Units', `${pxN(tot.o)} / ${tot.has ? pxN(tot.u) : '—'}`, `ad units ${pxN(tot.adU)} · organic ${pxN(tot.ou)}`,
+    + tile('Order items / Units', `${pxN(tot.o)} / ${tot.has ? pxN(tot.u) : '—'}`, `SP ad units ${pxN(tot.adU)} · organic ${pxN(tot.ou)}`,
       pxDelta(tot.o, P('o'), '', 'up'), PX_TIPS.o, pxSpark(sv(x => x.u), 'px-sp-brand'))
-    + tile('Ad spend', pxMoney(tot.spend), `ad sales ${pxMoney(tot.adSales)} · ROAS ${pxX(tot.roas)}`,
+    + tile('SP ad spend', pxMoney(tot.spend), `SP ad sales ${pxMoney(tot.adSales)} · SP ROAS ${pxX(tot.roas)}`,
       pxDelta(tot.spend, P('spend'), '', ''), PX_TIPS.roas, pxSpark(sv(x => x.spend), 'px-sp-ads'))
-    + tile('ACoS', pxPct(tot.acos), `CPC ${pxC2(tot.cpc)}`, pxDelta(tot.acos, P('acos'), 'pt', 'down'), PX_TIPS.acos,
+    + tile('SP ACoS', pxPct(tot.acos), `SP CPC ${pxC2(tot.cpc)}`, pxDelta(tot.acos, P('acos'), 'pt', 'down'), PX_TIPS.acos,
       pxSpark(sv(x => x.acos), 'px-sp-act'))
-    + tile('TACoS', pxPct(tot.tacos), 'spend ÷ all sales', pxDelta(tot.tacos, P('tacos'), 'pt', 'down'), PX_TIPS.tacos,
+    + tile('SP TACoS', pxPct(tot.tacos), 'SP spend ÷ all sales', pxDelta(tot.tacos, P('tacos'), 'pt', 'down'), PX_TIPS.tacos,
       pxSpark(sv(x => x.tacos), 'px-sp-act'))
-    + tile('Organic share', pxPct(tot.op), `${pxMoney(tot.os)} organic`, pxDelta(tot.op, P('op'), 'pt', 'up'), PX_TIPS.op,
+    + tile('Organic share', pxPct(tot.op), `${pxMoney(tot.os)} organic · incl. SB / SD sales`, pxDelta(tot.op, P('op'), 'pt', 'up'), PX_TIPS.op,
       pxSpark(sv(x => x.op), 'px-sp-org'))
-    + tile('Sessions', whole ? pxN(tot.se) : '—',
-      whole ? `unit session % ${pxPct(tot.usp)}` : cm ? 'whole Sun–Sat weeks only' : 'Custom ▾ → Last week or Last 4 weeks',
-      whole ? pxDelta(tot.se, P('se'), '', 'up') : '', PX_TIPS.se, pxSpark(sessWk, 'px-sp-brand'))
+    + tile('Sessions', whole || tot.seAmz ? pxN(tot.se) : '—',
+      whole || tot.seAmz ? `unit session % ${pxPct(tot.usp)}` : cm ? 'whole Sun–Sat weeks only' : 'Custom ▾ → Last week or Last 4 weeks',
+      whole || tot.seAmz ? pxDelta(tot.se, P('se'), '', 'up') : '', PX_TIPS.se, pxSpark(sessWk, 'px-sp-brand'))
     + '</div></div>';
 
   // --- the bar over the table: date chips (range) or the column set-up (cols), with its pop-up ---
@@ -2186,7 +2430,7 @@ function pxRender(focusSel) {
     <div class="px-ph"><div class="px-tb">${fresh}</div><span class="px-note">Click a product’s name for <b>Why did it move?</b> · press <kbd>/</kbd> to search · <button class="px-link" data-px="old" title="The retired PPC &amp; Organic screen, kept for the change-over">old view</button></span></div>
     <div class="px-card px-toolbar"><div class="px-tb">${viewSeg}<span class="px-vsep"></span>${brandSeg}${lvl}${search}${showBtn}<button class="px-btn" data-px="csv">Download</button></div>
       <div class="px-row2">${chips}</div>${PX.pop === 'show' ? pxShowPop() : ''}</div>
-    ${bcards}${empty ? '' : pcap}${pxCards(allAsins)}${strip}${empty ? '' : pxRecsCard(ctx)}
+    ${bcards}${empty ? '' : pcap}${pxCards(allAsins)}${strip}${empty ? '' : pxTypeCard(ctx)}${empty ? '' : pxRecsCard(ctx)}
     <div class="px-card px-flush">${hbar}${warn}${hint}${table}</div>
     ${endSec}</div>`;
 
@@ -2260,9 +2504,9 @@ function pxCsv() {
     rows = list.map(e => [e.key, e.title].concat(sku ? [e.sku] : [])
       .concat(ctx.cols.map(c => num(pxStats(e.asins, c)[PX.metric], 2))));
   } else {
-    head = ['ASIN', 'Title'].concat(sku ? ['SKU'] : []).concat(['Sessions', 'Unit session %', 'Total orders', 'Units',
-      'Sales', 'Ad spend', 'Ad sales', 'ROAS', 'Ad orders', 'Ad units',
-      'Clicks', 'CPC', 'Conv. rate %', 'Organic units', 'Organic sales', 'Organic %', 'ACoS %', 'TACoS %', 'vs prev %']);
+    head = ['ASIN', 'Title'].concat(sku ? ['SKU'] : []).concat(['Sessions', 'Unit session %', 'Order items', 'Units',
+      'Sales', 'SP ad spend', 'SP ad sales (30-day)', 'SP ROAS', 'SP ad orders (30-day)', 'SP ad units (30-day)',
+      'SP clicks', 'SP CPC', 'SP conv. rate %', 'Organic units (incl. SB/SD)', 'Organic sales (incl. SB/SD)', 'Organic % (incl. SB/SD)', 'SP ACoS %', 'SP TACoS %', 'vs prev %']);
     rows = list.map(e => {
       const s = e.st;
       return [e.key, e.title].concat(sku ? [e.sku] : [])
@@ -2639,6 +2883,9 @@ async function ensurePpcn() {
   if (Date.now() - PXN.run > 600000) {
     try { await pxExtra(); } catch (e) { /* "—" until the next open */ }
   }
+  // Seller Central's own day totals for the whole-brand figures (pxAmzOver) — shared with the Sales Dashboard and
+  // the Ad Console, one read every ten minutes whichever screen asks.
+  try { await tMatchEnsure(); } catch (e) { /* the workbook figures stay */ }
   PX.loading = false;
   pxRender();
   pxImages();                                       // pictures fill in when they arrive

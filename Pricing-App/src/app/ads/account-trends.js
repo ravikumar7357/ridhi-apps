@@ -164,6 +164,21 @@ async function tMatchLoad() {
     if (r && r.data && r.data.d) T_MATCH.ads = r.data;
   } catch (e) { /* not there yet */ }
 }
+// LABELS SAY WHAT THEY COUNT (16 Nov 2026). The Ad Console's ad figures are Sponsored Products, Brands and Display added
+// up wherever matchAds holds the day, and Sponsored Products alone where it does not (before matchAds, or before the
+// first day Amazon still kept Brands / Display for). tAdTag is what the ad measures' names carry; tAllTypesFrom is the
+// first day the three types are in for every brand in view that has any Brands / Display at all.
+const tAdTag = () => (T_MATCH.ads && T_MATCH.ads.d ? ' · all types' : ' · SP only');
+function tAllTypesFrom(bs) {
+  if (!T_MATCH.ads || !T_MATCH.ads.d) return '';
+  let from = '';
+  bs.forEach(b => {
+    const d = T_MATCH.ads.d[b] || {};
+    const first = Object.keys(d).filter(k => d[k] && (d[k].sb || d[k].sd)).sort()[0];
+    if (first && first > from) from = first;
+  });
+  return from;
+}
 // Lay the two caches over TREND for this account's brands; returns how many day-cells were written.
 function tMatchApply() {
   const brands = tBrands();
