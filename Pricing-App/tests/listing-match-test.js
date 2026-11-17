@@ -19,8 +19,8 @@ function cacheOf(C, o) {
   const at = o.at || Date.now() - H;
   const tabs = {};
   const meta = { v: 2, kind: o.kind || 'full', startedAt: IST(at - 20 * 60000), finishedAt: IST(at), upTo: IST(at - 20 * 60000), nextRun: '', counts: {},
-    lastFull: { finishedAt: IST(at), brands: ['SP', 'CPC'] }, hash: 'h31', parts: { listings: {}, catalog: {} } };
-  ['SP', 'CPC'].forEach(b => {
+    lastFull: { finishedAt: IST(o.fullAt || at), brands: o.fullBrands || o.only || ['SP', 'CPC'], gaveUp: o.gaveUp || [] }, hash: 'h31', parts: { listings: {}, catalog: {} } };
+  (o.only || ['SP', 'CPC']).forEach(b => {
     const items = {}, cat = {};
     (C.HEALTH[b].rows || []).forEach(row => {
       const title = (row.content && row.content.title) || row.title;
@@ -59,6 +59,7 @@ function page(opts) {
       return { ok: true, name: q.cache, data: JSON.parse(JSON.stringify(d)) };
     }
     if (q.lfix === 'get') return opts.get ? opts.get(q) : { productType: 'NAPKIN', status: ['BUYABLE', 'DISCOVERABLE'], issues: [], attributes: {} };
+    if (q.lfix === 'schema') return { attrs: { material: {}, color: {}, size: {}, pattern: {}, theme: { missing: true } } };   // the product type's schema: these four apply
     if (q.limg === 'get') return opts.limg ? opts.limg(q) : { ok: true, sku: q.sku, listing: {}, catalog: {} };
     return {};
   } }, opts.load || {}));
@@ -85,6 +86,10 @@ const rowOf = (C, sku) => ['SP', 'CPC'].map(b => C.HEALTH[b].rows.find(r => r.sk
     const readers = files.filter(f => /lmListings_|lmCatalog_|['"]lmMeta['"]/.test(fs.readFileSync(f, 'utf8'))).map(f => path.relative(dir, f).replace(/\\/g, '/'));
     ok('only listing/listing-match.js names lmMeta / lmListings_ / lmCatalog_', readers.join() === 'listing/listing-match.js', readers.join());
     const order = fs.readFileSync(path.join(dir, 'ORDER'), 'utf8');
+    const list = (text, name) => (text.match(new RegExp(name + ' = (\\[[^\\]]*\\])')) || [])[1];
+    const gs = fs.readFileSync(path.join(__dirname, '..', '..', 'Pricing-API', 'ListingMatch.gs'), 'utf8'), ws = fs.readFileSync(path.join(dir, 'listing', 'listing-workspace.js'), 'utf8');
+    const same = JSON.stringify(eval(list(gs, 'LM_SPEC_ATTRS'))) === JSON.stringify(eval(list(ws, 'LI_WS_SPECS')));
+    ok('ListingMatch.gs keeps the same 12 spec attributes as the Workspace checks (LM_SPEC_ATTRS = LI_WS_SPECS)', same && eval(list(gs, 'LM_SPEC_ATTRS')).length === 12);
     ok('listing-match.js is in ORDER, right after listing-rules.js', /listing\/listing-rules\.js\r?\nlisting\/listing-match\.js\r?\n/.test(order));
   }
 
@@ -262,6 +267,114 @@ const rowOf = (C, sku) => ['SP', 'CPC'].map(b => C.HEALTH[b].rows.find(r => r.sk
     const without = await plan(false), withC = await plan(true);
     ok('without the cache "Check all parents" reads in the background (' + without.n + ' parents)', without.n > 0);
     ok('with the cache: nothing is read in the background', withC.n === 0 && withC.content === 0, JSON.stringify(withC));
+  }
+
+  console.log('== 1 BACKGROUND SYNC: only when the ListingMatch data is missing or older than 24 hours ==');
+  {
+    const sync = async (cache, opts) => {
+      const P = page({ load: { window: { __TEST_ERP: true } } });        // the test site: this browser syncs for itself (no lock)
+      if (cache) { P.net.tabs = cache(P.C).tabs; await P.C.lmEnsure(); await P.C.lmRefresh(); }
+      else { P.net.tabs = null; await P.C.lmEnsure(); await P.C.lmRefresh(); }
+      P.C.reset();
+      P.calls.length = 0;
+      await P.C.lyBeat();
+      await new Promise(r => setTimeout(r, 30));
+      return Object.assign(P, { reads: P.calls.filter(q => q.lfix || q.limg).length, line: P.C.lyLineHtml().replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() }, opts || {});
+    };
+    const fresh = await sync(C => cacheOf(C));
+    ok('ListingMatch fresh for both brands: the sync reads nothing (no cycle, no Amazon call)', !fresh.C.LY.run && fresh.reads === 0 && fresh.C.lyPick().length === 0, fresh.reads + ' reads');
+    ok('…the line: "Synced 16 Nov 18:30 from the Amazon auto refresh · next refresh ~13:00" [Sync now]',
+      new RegExp('^Synced \\d{1,2} [A-Z][a-z]{2} \\d\\d:\\d\\d from the Amazon auto refresh · next refresh ~\\d\\d:00 Sync now$').test(fresh.line), fresh.line);
+    fresh.calls.length = 0;
+    await fresh.C.lySyncNow();
+    ok('…Sync now looks for a newer auto refresh (one lmMeta read) and reads nothing from Amazon', fresh.calls.map(q => q.cache || q.lfix || q.limg).join() === 'lmMeta', fresh.calls.map(q => q.cache || q.lfix || q.limg).join());
+    const none = await sync(null);
+    ok('no ListingMatch data: the sync runs as before (a cycle, Amazon reads)', !!none.C.LY.run || none.reads > 0, none.reads + ' reads');
+    ok('…and its line is the usual one ("Syncing… / Synced … · next sync in …")', /Syncing|Synced|next sync/.test(none.line) && !/auto refresh/.test(none.line), none.line);
+    const old = await sync(C => cacheOf(C, { at: Date.now() - 30 * H }));
+    ok('ListingMatch older than 24 hours: the sync runs as before', !!old.C.LY.run || old.reads > 0, old.reads + ' reads');
+    const half = await sync(C => cacheOf(C, { only: ['SP'] }));
+    const picked = half.C.lyPick();
+    ok('only Ridhi in ListingMatch: the sync reads CPC only', picked.length > 0 && picked.every(x => x.brand === 'CPC'), picked.map(x => x.brand + ':' + x.sku).join());
+    ok('…and its line says Ridhi comes from the Amazon auto refresh', /Ridhi from the Amazon auto refresh/.test(half.line), half.line);
+  }
+
+  console.log('== 2 WORKSPACE SPECS: from lmListings when the cache has them ==');
+  {
+    const { C, net, calls } = page();
+    net.tabs = cacheOf(C, { edit: (b, items) => {
+      if (b !== 'SP') return;
+      ['R1', 'R2', 'R3', 'R4', 'R5', 'R6', 'R13'].forEach(sku => { items[sku].sp = ['material', 'color', 'size']; });
+      items.R5.sp = ['material', 'color', 'size', 'pattern'];
+      delete items.R6.sp;                                                      // a record from before ListingMatch kept the specs
+    } }).tabs;
+    await C.lmEnsure();
+    await C.lmRefresh();
+    C.reset();
+    C.LI_WS.schema.SP.NAPKIN = { at: Date.now(), ok: ['material', 'color', 'size', 'pattern'], hl: null };
+    const kidOf = sku => C.liWsChildKept(rowOf(C, sku), 'SP', C.hCtx(), new Map(), Date.now());
+    const r1 = kidOf('R1').c.spec, r5 = kidOf('R5').c.spec, r6 = kidOf('R6').c.spec;
+    ok('filled on open from the cache: 3 of 4 → "3/4", empty: pattern (with the Fix to Listing Errors)', r1.pass === false && r1.cell === '3/4' && r1.attrs.join() === 'pattern' && /Listings API/.test(r1.src.s) && r1.hits.length === 1, JSON.stringify(r1).slice(0, 220));
+    ok('all four filled: passes', r5.pass === true && r5.cell === '4/4');
+    ok('no attributes in the cache for that SKU: "Not read from Amazon yet"', r6.pass === null && r6.found === 'Not read from Amazon yet', JSON.stringify(r6).slice(0, 160));
+    ok('Specs still count nowhere (the listing\'s level is the same with or without them)', kidOf('R1').bucket === kidOf('R1').bucket && C.healthOf(Object.assign({}, rowOf(C, 'R1')), C.hCtx()).bucket === kidOf('R1').bucket);
+    delete C.LI_WS.schema.SP.NAPKIN;
+    C.reset();
+    const p = C.liWsParents(['SP']).find(x => x.parent === 'P1');
+    calls.length = 0;
+    C.liWsReadParent(p, false, true);
+    await new Promise(r => setTimeout(r, 30));
+    const asked = calls.map(q => q.lfix || q.limg || q.lh).join();
+    ok('opening the parent: no live read of its listings — only the product type\'s schema (once per type) and A+', !/content|get/.test(asked) && /schema/.test(asked) && calls.filter(q => q.lfix === 'schema').length === 1, asked);
+    ok('…once the schema is in, Specs shows the cache\'s answer', kidOf('R1').c.spec.cell === '3/4', JSON.stringify(kidOf('R1').c.spec).slice(0, 120));
+  }
+
+  console.log('== 3 LISTING HEALTH ROWS follow ListingMatch\'s list when it is fresh ==');
+  {
+    const addDrop = (b, items, cat) => {
+      if (b === 'SP') {
+        items.R99 = Object.assign({}, items.R1, { sku: 'R99', asin: 'B0R99', ch: 'AMAZON_NA', t: 'Ridhi Cloth Napkins 100% Cotton 18 x 18 Inch Block Print Napkins - Teal' });
+        cat.B0R99 = Object.assign({}, cat[items.R1.asin], { asin: 'B0R99' });
+        items.M1 = Object.assign({}, items.R1, { sku: 'M1', asin: 'B0M1', ch: 'DEFAULT' });       // merchant-fulfilled: not Listing Health's scope
+        items.RB7 = Object.assign({}, items.R1, { sku: 'RB7', asin: 'B0RB7', ch: 'AMAZON_NA' });   // a virtual bundle: not either
+        delete items.R14;                                                     // gone from Amazon's All Listings report
+      } else delete items.C2a;
+    };
+    const go = async o => {
+      const P = page();
+      P.C.HEALTH.SP.at = P.C.HEALTH.CPC.at = new Date(Date.now() - 5 * 24 * H);   // the snapshot: 5 days old
+      if (o.snapNow) P.C.HEALTH.SP.at = P.C.HEALTH.CPC.at = new Date(Date.now() + 60000);
+      P.net.tabs = cacheOf(P.C, Object.assign({ edit: addDrop }, o.cache || {})).tabs;
+      (o.fail || []).forEach(t => P.net.fail.add(t));
+      await P.C.lmEnsure();
+      await P.C.lmRefresh();
+      P.C.reset();
+      const skus = b => P.C.HEALTH[b].rows.map(r => r.sku);
+      return { C: P.C, sp: skus('SP'), cpc: skus('CPC') };
+    };
+    const a = await go({});
+    ok('a listing in ListingMatch but not in the snapshot is added as a row (R99)', a.sp.includes('R99') && rowOf(a.C, 'R99').lmAdded === true && rowOf(a.C, 'R99').parent === 'BPP1');
+    ok('…only within Listing Health\'s own scope: not a merchant-fulfilled one (M1), not a virtual bundle (RB7)', !a.sp.includes('M1') && !a.sp.includes('RB7'));
+    ok('a listing gone from ListingMatch (removed from Amazon\'s All Listings report) is dropped (R14, C2a)', !a.sp.includes('R14') && !a.cpc.includes('C2a'));
+    ok('…every other row kept, in its order', a.sp.filter(s => s !== 'R99').join() === base.C.HEALTH.SP.rows.map(r => r.sku).filter(s => s !== 'R14').join());
+    const h99 = a.C.healthOf(Object.assign({ brand: 'SP' }, rowOf(a.C, 'R99')), a.C.hCtx());
+    ok('the added row is judged from the cache like any other (title, bullets, pictures)', h99.fresh.contentSrc === 'live' && h99.pics && h99.pics.n === 8, h99.found.map(x => x.detector).join());
+    const b = await go({ fail: ['lmListings_CPC_1_0'] });
+    ok('a brand whose ListingMatch read failed is not touched (CPC keeps C2a); the other brand follows (R99 added, R14 dropped)', b.cpc.includes('C2a') && b.sp.includes('R99') && !b.sp.includes('R14') && !b.C.lmListOk('CPC'));
+    const c = await go({ cache: { fullBrands: ['SP'], gaveUp: ['CPC'] } });
+    ok('a brand ListingMatch gave up on in its last full pass is not touched', c.cpc.includes('C2a') && !c.C.lmListOk('CPC') && c.C.lmListOk('SP'));
+    const d = await go({ cache: { fullAt: Date.now() - 26 * H } });
+    ok('the last FULL pass older than 24 hours (only light passes since): the list is not followed', d.sp.includes('R14') && !d.sp.includes('R99') && !d.C.lmListOk('SP'));
+    const e = await go({ cache: { at: Date.now() - 30 * H } });
+    ok('a stale cache (older than 24 hours): the rows are the snapshot\'s, untouched', e.sp.join() === base.C.HEALTH.SP.rows.map(r => r.sku).join() && e.cpc.includes('C2a'));
+    const f = await go({ snapNow: true });
+    ok('a snapshot newer than the pass ("Refresh both brands" after it): the snapshot\'s list stands', f.sp.includes('R14') && !f.sp.includes('R99'));
+    const g = page({ copy: (await (async () => { const P = page(); P.C.HEALTH.SP.at = new Date(Date.now() - 5 * 24 * H); P.net.tabs = cacheOf(P.C, { edit: addDrop }).tabs; await P.C.lmEnsure(); await P.C.lmRefresh(); return P.mem.copy; })()) });
+    g.net.hang = true;
+    await g.C.lmEnsure();
+    g.C.HEALTH.SP.at = new Date(Date.now() - 5 * 24 * H);
+    g.C.lmHealthApply();
+    ok('from the saved copy (next visit, no network): the same list', g.C.HEALTH.SP.rows.some(r => r.sku === 'R99') && !g.C.HEALTH.SP.rows.some(r => r.sku === 'R14'));
   }
 
   console.log('== SPEED: ~4,400 listings from the saved copy ==');

@@ -892,8 +892,12 @@ function liWsReadParent(p, force, quiet) {
   const needG = kids.filter(kid => force || !(kid.lr && kid.lr.gAt > cut)).map(kid => kid.sku);
   const needI = kids.filter(kid => force || !(kid.lr && kid.lr.iAt > cut)).map(kid => kid.sku);
   const nA = liWsAplusJobs(p.brand, p.parent, kids, p.key, force);   // queues only: its answers land after this function has returned
-  if (!needC.length && !needG.length && !needI.length && !nA) return;   // nothing to read: the finished record, with its last error, stays
+  // the product types' schemas (which specs apply), once per type: a child whose specs come from the ListingMatch cache has no read of
+  // its own that would ask for it
+  const needS = force ? [] : [...new Set(kids.map(kid => kid.lr && kid.lr.specs && kid.lr.pt).filter(pt => pt && !LI_WS.schema[p.brand][pt]))];
+  if (!needC.length && !needG.length && !needI.length && !nA && !needS.length) return;   // nothing to read: the finished record, with its last error, stays
   LI_WS.prog[p.key] = { done: 0, total: needC.length + needG.length + needI.length + nA, err: '' };
+  needS.forEach(pt => liWsNeedSchema(p.brand, pt, p.key));   // each adds itself to the total
   // Read again: the product types' schemas are read afresh too — queued here, so a failed content/get read cannot leave a type without one.
   if (force) [...new Set(kids.map(kid => kid.lr && kid.lr.pt).filter(Boolean))].forEach(pt => {
     delete LI_WS.schema[p.brand][pt];

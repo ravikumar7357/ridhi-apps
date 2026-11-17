@@ -338,6 +338,9 @@ const tabs = T => [...T.sheets.keys()];
       issues: [{ severity: 'ERROR', code: '5665', message: 'm', attributeNames: [], enforcements: { actions: [{ action: 'SEARCH_SUPPRESSED' }] } }, { severity: 'WARNING', code: '1', message: 'w' }] }) + ')');
     ok('the saved list snapshot (?limg=page): each issue keeps e = the action names, nothing added when there are none', JSON.stringify(sh.iss[0].e) === '["SEARCH_SUPPRESSED"]' && !('e' in sh.iss[1])
       && sh.iss[0].c === '5665' && sh.ie === 1);
+    const li = T.run('lmItem_(' + JSON.stringify({ sku: 'S1', summaries: [{ asin: 'B0S1', status: ['BUYABLE'] }], issues: [], attributes: { material: [{ value: 'Cotton', marketplace_id: 'ATVPDKIKX0DER' }],
+      care_instructions: [{ value: '', marketplace_id: 'ATVPDKIKX0DER' }], theme: [{ marketplace_id: 'ATVPDKIKX0DER', language_tag: 'en_US' }], item_shape: [{ value: 'Square' }], bullet_point: [{ value: 'b' }] } }) + ', 1)');
+    ok('lmListings: sp = the Workspace\'s spec attributes that are filled (an empty value, or only the marketplace / language tags, is not filled)', JSON.stringify(li.sp) === '["material","item_shape"]', JSON.stringify(li.sp));
   }
 
   console.log('== a failed read never wipes data ==');

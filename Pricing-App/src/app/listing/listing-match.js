@@ -34,13 +34,17 @@ const LM_FULL_AT = [13, 18];            // ListingMatch's full passes, IST (the 
 const LM_IST_MS = 5.5 * 3600000;        // ListingMatch writes its times in IST ('yyyy-MM-dd HH:mm')
 const LM_SLOTS = ['MAIN', 'PT01', 'PT02', 'PT03', 'PT04', 'PT05', 'PT06', 'PT07', 'PT08'];
 const LM_PANES = ['paneHealth', 'paneImg', 'paneOpt', 'paneFam', 'paneBsr', 'paneLerr'];   // the screens with the age line
+// The spec attributes the Workspace checks (listing-workspace.js LI_WS_SPECS; ListingMatch.gs LM_SPEC_ATTRS keeps the same list)
+const LM_SPECS = () => (typeof LI_WS_SPECS !== 'undefined' ? LI_WS_SPECS : ['material', 'color', 'size', 'pattern', 'style', 'item_shape', 'number_of_items', 'theme',
+  'care_instructions', 'special_feature', 'item_type_name', 'fabric_type']);
 // Listing Health's scope (listing-health.js), read when used
 const LM_FBA_RE = () => (typeof H_FBA_RE !== 'undefined' ? H_FBA_RE : /amazon|afn/i);
 const LM_BUNDLE_RE = () => (typeof H_BUNDLE_RE !== 'undefined' ? H_BUNDLE_RE : /^RB/i);
 const LM_IDB = { name: 'selloraListingMatch', store: 'copy', key: 'v1' };
 // state: none (not started) | loading | saved (the browser copy, the backend not answered yet) | ok (the backend's copy) | empty | err
 let LM = { meta: null, list: { SP: null, CPC: null }, cat: { SP: null, CPC: null }, v: 0, state: 'none', err: '', from: '',
-  ready: null, busy: null, checkedAt: 0, over: { SP: new Map(), CPC: new Map() }, timer: 0, soonT: 0, loadMs: 0, fyp: { SP: false, CPC: false } };
+  ready: null, busy: null, checkedAt: 0, over: { SP: new Map(), CPC: new Map() }, timer: 0, soonT: 0, loadMs: 0, fyp: { SP: false, CPC: false },
+  whole: { SP: false, CPC: false } };       // every listings tab of the brand was read in the copy held (lmListOk)
 const LM_GOT = new WeakMap();           // raw record → { over, cat, m } (lmGet's merged record, made once)
 const LM_ENTRY = new WeakMap();         // merged record → its live-read shape
 const LM_LIVE = new Map();              // "brand|sku" → { sig, e } (lmLiveOf, kept until the record or the live read changes)
@@ -109,6 +113,13 @@ function lmOk(brand) {
   return !!(list && list.size && at && Date.now() - at <= LM_MAX_AGE);
 }
 const lmVersion = () => LM.v;
+/** When the cache's data was read, as '16 Nov 18:30' ('' without a cache) — the sync line's "Synced … from the Amazon auto refresh". */
+const lmPassWhen = () => (LM.meta ? lmFmt(LM.meta.finishedAt) : '');
+/** The saved copy read and, when a backend read is on its way, that read landed: what the background sync waits for before it decides. */
+async function lmSettled() {
+  await lmEnsure();
+  if (LM.busy) await LM.busy;
+}
 
 /* ----- loading: the saved copy at once, the backend in the background ----- */
 /** Start once (every Listing screen's loader calls it). Resolves as soon as this browser's saved copy is read — never waits for the
@@ -123,6 +134,7 @@ function lmEnsure() {
       const copy = await LM_STORE.get();
       if (copy && copy.meta && copy.list) {
         lmTake(copy.meta, copy.list, copy.cat || {}, 'saved');
+        LM.whole = { SP: !!(copy.whole && copy.whole.SP), CPC: !!(copy.whole && copy.whole.CPC) };
         (copy.over || []).forEach(([key, o]) => { const [b, sku] = key.split('|'); if (LM.over[b]) LM.over[b].set(sku, o); });
         LM.state = 'saved';
       }
@@ -186,7 +198,7 @@ function lmRefresh() {
         ((meta.parts.catalog || {})[b] || []).forEach(tab => jobs.push({ b, k: 'cat', tab }));
       });
       const got = await lmReadTabs(jobs.map(j => j.tab));
-      const list = {}, cat = {};
+      const list = {}, cat = {}, whole = { SP: false, CPC: false };
       let bad = 0;
       ['SP', 'CPC'].forEach(b => ['list', 'cat'].forEach(k => {
         const mine = jobs.map((j, i) => ({ j, r: got[i] })).filter(x => x.j.b === b && x.j.k === k);
@@ -194,6 +206,7 @@ function lmRefresh() {
         const old = LM[k][b];
         if (!mine.length) { if (old) into[b] = old; return; }
         const okAll = mine.every(x => x.r.ok);
+        if (k === 'list') whole[b] = okAll;
         bad += mine.filter(x => !x.r.ok).length;
         // every tab read: this brand's records are the new pass's; some failed: the old records stay, the read ones replace theirs
         const map = okAll || !old ? new Map() : new Map(old);
@@ -202,6 +215,7 @@ function lmRefresh() {
       }));
       if (!Object.keys(list).length) throw new Error('none of the cache tabs could be read');
       lmTake(meta, list, cat, 'net');
+      LM.whole = whole;
       lmOverPrune();
       LM.state = 'ok';
       LM.err = bad ? `${bad} of ${jobs.length} cache parts could not be read — their listings keep the last copy` : '';
@@ -225,7 +239,7 @@ function lmSave() {
   ['SP', 'CPC'].forEach(b => LM.over[b].forEach((o, sku) => over.push([b + '|' + sku, o])));
   try {
     const p = LM_STORE.put({ v: 1, at: Date.now(), meta: LM.meta, list: { SP: obj(LM.list.SP), CPC: obj(LM.list.CPC) },
-      cat: { SP: obj(LM.cat.SP), CPC: obj(LM.cat.CPC) }, over });
+      cat: { SP: obj(LM.cat.SP), CPC: obj(LM.cat.CPC) }, over, whole: LM.whole });
     if (p && p.catch) p.catch(() => {});
   } catch (e) { /* no storage */ }
 }
@@ -326,6 +340,8 @@ function lmEntryOf(m) {
     Object.assign(e, { gAt: m.gAt, pt: m.pt || e.pt || '', st: String(m.as || '').split(',').map(s => s.trim()).filter(Boolean),
       iss: m.iss.map(i => Object.assign({}, i, { m: lrWholeCut(i.m, i.s === 'E' ? 1000 : 220) })), slots: LM_SLOTS.filter(slot => m.img && m.img[slot]),
       color: String((m.va && m.va.color) || '').slice(0, 40), hl: (m.hl || []).map(v => String(v).slice(0, 300)), hlAt: m.gAt });
+    // the Workspace's Specs check: which spec attributes are filled (`sp`, written by ListingMatch since 17 Nov); none kept → not read
+    if (Array.isArray(m.sp)) e.specs = Object.fromEntries(LM_SPECS().map(name => [name, m.sp.includes(name)]));
   }
   const cat = m.cat;
   if (cat && m.iAt && cat.img) {
@@ -342,7 +358,7 @@ function lmEntryOf(m) {
 // The parts of a live read, each with the time it was read and the fields it fills.
 const LM_PARTS = [
   ['cAt', ['cAt', 'title', 'titleLen', 'bul', 'desc', 'kw', 'kwBytes', 'words'], 'cErr'],
-  ['gAt', ['gAt', 'st', 'iss', 'slots', 'color', 'hl', 'hlAt'], 'err'],
+  ['gAt', ['gAt', 'st', 'iss', 'slots', 'color', 'hl', 'hlAt', 'specs'], 'err'],
   ['iAt', ['iAt', 'cat', 'catMain', 'catPic'], 'iErr'],
   ['tAt', ['catTitle', 'tAt'], ''],
 ];
@@ -476,9 +492,30 @@ function lmAmzPatch(brand, sku) {
   if (m && !m.noRead) AMZ.map.set(brand + '|' + sku, lmAmzRec(m));
 }
 
-/* ----- Listing Health's rows: the report facts (status, stock, price, channel) from the cache's newer reports ----- */
-/** HEALTH[brand].rows with the cache's report facts where its All Listings report is newer than the snapshot; the snapshot rows are kept
- *  under it (lmBase) and come back when the cache is not usable. A brand with no snapshot at all gets its rows from the cache. */
+/* ----- Listing Health's rows: the report facts (status, stock, price, channel) and the listing list from the cache's newer reports ----- */
+/** May Listing Health follow the cache's LIST of listings for this brand (add the new ones, drop the removed ones)? Only when the cache is
+ *  usable, ListingMatch's last full pass read this brand (not given up) less than 24 hours ago, and every listings tab of the brand was
+ *  read here — a brand whose read failed or is stale is never added to or cut. */
+function lmListOk(brand) {
+  if (!lmOk(brand) || !LM.whole[brand]) return false;
+  const full = LM.meta && LM.meta.lastFull;
+  if (!full || !(full.brands || []).includes(brand) || (full.gaveUp || []).includes(brand)) return false;
+  const at = lmTime(full.finishedAt);
+  return !!at && Date.now() - at <= LM_MAX_AGE;
+}
+// One Listing Health row from the cache's record (a listing the snapshot does not have).
+function lmRowOf(b, sku, raw) {
+  const cat = raw.asin && LM.cat[b] ? LM.cat[b].get(raw.asin) : null;
+  return { sku, asin: raw.asin || '', parent: (cat && (cat.pa || [])[0]) || '', title: String(raw.t || '').slice(0, 200), price: raw.price == null ? null : raw.price,
+    qty: raw.fba === undefined ? null : raw.fba, status: raw.rs || '', channel: raw.ch || '', opened: '', tried: false, titleFull: true, content: null, checked: 0, aplusAt: 0,
+    lmAt: raw.rAt || 0, lmAdded: true };
+}
+// Listing Health's own scope (the snapshot's): FBA, no virtual bundles.
+const lmInScope = (sku, raw) => LM_FBA_RE().test(raw.ch || '') && !LM_BUNDLE_RE().test(sku);
+/** HEALTH[brand].rows with the cache's report facts where its All Listings report is newer than the snapshot, and — when the cache's
+ *  full pass is newer than the snapshot and lmListOk — its list of listings: a listing Amazon added is a new row, one gone from Amazon's
+ *  All Listings report is dropped. The snapshot rows are kept under it (lmBase) and come back when the cache is not usable. A brand with
+ *  no snapshot at all gets its rows from the cache. */
 function lmHealthApply() {
   if (typeof HEALTH === 'undefined') return;
   ['SP', 'CPC'].forEach(b => {
@@ -489,32 +526,43 @@ function lmHealthApply() {
       if (ours) { h.rows = h.lmBase; h.lmRows = null; }
       return;
     }
+    const list = LM.list[b];
     const snapAt = h && h.at && h.at.getTime ? h.at.getTime() : 0;
     let rows;
     if (!base || !base.length) {
       rows = [];
-      LM.list[b].forEach((raw, sku) => {
-        if (!LM_FBA_RE().test(raw.ch || '') || LM_BUNDLE_RE().test(sku)) return;   // Listing Health's own scope: FBA, no virtual bundles
-        const cat = raw.asin && LM.cat[b] ? LM.cat[b].get(raw.asin) : null;
-        rows.push({ sku, asin: raw.asin || '', parent: (cat && (cat.pa || [])[0]) || '', title: String(raw.t || '').slice(0, 200), price: raw.price == null ? null : raw.price,
-          qty: raw.fba === undefined ? null : raw.fba, status: raw.rs || '', channel: raw.ch || '', opened: '', tried: false, titleFull: true, content: null, checked: 0, aplusAt: 0, lmAt: raw.rAt || 0 });
-      });
+      list.forEach((raw, sku) => { if (lmInScope(sku, raw)) rows.push(lmRowOf(b, sku, raw)); });
       if (!rows.length) return;
       if (!HEALTH[b]) HEALTH[b] = { at: null, contentAt: null, scope: null, parentNames: {}, rows: [], parentAplus: {}, parentAplusAt: 0 };
     } else {
+      const follow = lmListOk(b) && lmTime(LM.meta.lastFull.finishedAt) > snapAt;
       let changed = 0;
-      rows = base.map(row => {
-        const raw = LM.list[b].get(row.sku);
-        if (!raw || !(raw.rAt > snapAt)) return row;
+      rows = [];
+      base.forEach(row => {
+        const raw = list.get(row.sku);
+        if (!raw) {
+          if (follow) { changed++; return; }                                  // gone from Amazon's All Listings report
+          rows.push(row);
+          return;
+        }
+        if (!(raw.rAt > snapAt)) { rows.push(row); return; }
         const patch = {};
         if (raw.rs && raw.rs !== row.status) patch.status = raw.rs;
         if (raw.fba !== undefined && raw.fba !== row.qty) patch.qty = raw.fba;
         if (raw.price != null && raw.price !== row.price) patch.price = raw.price;
         if (raw.ch && raw.ch !== row.channel) patch.channel = raw.ch;
-        if (!Object.keys(patch).length) return row;
+        if (!Object.keys(patch).length) { rows.push(row); return; }
         changed++;
-        return Object.assign({}, row, patch, { lmAt: raw.rAt });
+        rows.push(Object.assign({}, row, patch, { lmAt: raw.rAt }));
       });
+      if (follow) {
+        const have = new Set(base.map(row => row.sku));
+        list.forEach((raw, sku) => {
+          if (have.has(sku) || !lmInScope(sku, raw)) return;                   // a listing Amazon has that the snapshot does not
+          rows.push(lmRowOf(b, sku, raw));
+          changed++;
+        });
+      }
       if (!changed) { if (ours) { h.rows = base; h.lmRows = null; } return; }
     }
     HEALTH[b].lmBase = base || [];
@@ -579,6 +627,7 @@ function lmApply() {
   if (typeof AMZ !== 'undefined' && AMZ.map) lmAmzApply();
   if (typeof H_CTX !== 'undefined') H_CTX = null;
   lmAgeDraw();
+  try { if (typeof LY !== 'undefined' && LY.on && typeof lyLineDraw === 'function') lyLineDraw(); } catch (e) { /* the sync line draws on its next beat */ }
   lmRedraw();
 }
 // Debounced redraw after live reads landed (lmNoteLive).
