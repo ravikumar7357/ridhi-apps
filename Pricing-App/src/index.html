@@ -981,41 +981,56 @@
     </div>
   </div><!-- /paneWeekly -->
 
-  <!-- ============ Search Term Analysis: what people typed vs what we bid on, and what to do about it ============ -->
+  <!-- ============ Search Term Analysis: what shoppers typed, what it cost, and what to do about it ============ -->
   <div id="paneSt" class="hide">
     <div class="card" style="padding:12px 14px">
       <div class="toolbar">
-        <select id="stBrand" style="flex:0 0 160px">
-          <option value="ALL">Both brands</option><option value="SP">Ridhi</option><option value="CPC">CPC</option>
+        <select id="stBrand" style="flex:0 0 180px" aria-label="Brand">
+          <option value="ALL">Both brands</option><option value="SP">Ridhi</option><option value="CPC">Cotton Print Club</option>
         </select>
-        <input id="stFilter" style="flex:1 1 220px;min-width:0" placeholder="Filter term / campaign / ASIN">
-        <input id="stMinSpend" type="number" min="0" step="1" style="flex:0 0 130px" placeholder="Min spend $">
+        <input id="stFilter" style="flex:1 1 220px;min-width:0" placeholder="Filter term / campaign / ASIN" aria-label="Filter">
+        <input id="stMinSpend" type="number" min="0" step="1" style="flex:0 0 130px" placeholder="Min spend $" aria-label="Minimum spend">
+        <button id="stMoreBtn" class="ghost" type="button" aria-expanded="false" title="Match type, campaign type, verdict and tag">Filters<span id="stMoreN" class="sta-n hide">0</span></button>
+        <button id="stSetBtn" class="ghost" type="button" title="Brand terms, product words, blocked words, competitor brands">Lists &amp; settings</button>
         <button id="stRlBtn" class="ghost sta-rl" type="button" title="Changes picked here, waiting to be approved and downloaded as an Amazon bulk file">Review list<span id="stRlN" class="sta-n hide">0</span></button>
         <button id="stCsv" class="ghost" type="button" title="Every row of the view on screen, as a CSV">Export</button>
       </div>
+      <div id="stMore" class="toolbar sta-more-f hide">
+        <select id="stFMt" aria-label="Match type"><option value="">Every match type</option><option value="exact">Exact</option><option value="phrase">Phrase</option><option value="broad">Broad</option><option value="auto">Auto targets</option><option value="pt">Product / category targets</option></select>
+        <select id="stFCt" aria-label="Campaign type"><option value="">Every campaign type</option><option value="auto">Auto campaigns</option><option value="kw">Manual keyword</option><option value="pt">Manual product targeting</option></select>
+        <select id="stFV" aria-label="Verdict"><option value="">Every verdict</option><option value="act">To act on</option><option value="burn">Burning money</option><option value="scale">Worth scaling</option><option value="watch">Watch</option><option value="hold">On hold</option><option value="ok">Selling / winner</option><option value="check">Data check</option></select>
+        <select id="stFTag" aria-label="Tag"><option value="">Every tag</option><option value="brand">Brand term</option><option value="product">Product word</option><option value="main">Main keyword</option><option value="season">Seasonal</option><option value="own">Own product ASIN</option><option value="sister">Sister-brand ASIN</option><option value="comp">Competitor ASIN</option><option value="new">New or launch</option><option value="halo">Mostly other products' sales</option></select>
+        <button id="stFClear" class="ghost" type="button">Clear filters</button>
+      </div>
       <div id="stMsg" class="sta-msg"></div>
     </div>
+    <div id="stSum" class="sta-sum"></div>
     <div id="stBoxes" class="sta-boxes"></div>
     <div class="card sta-tcard">
       <div class="sta-thead">
         <div class="tt"><b id="stTitle">Every search term</b><small id="stSub"></small></div>
+        <button id="stLegendBtn" class="ghost sta-legend-btn" type="button" aria-haspopup="dialog">How Sellora decides</button>
+      </div>
+      <div class="sta-vbar">
+        <div class="seg" id="stViewSeg" role="tablist" aria-label="View">
+          <button class="segbtn" type="button" data-v="burn" title="Search terms that spent with no sales, sold above break-even, or convert poorly">Burning money</button>
+          <button class="segbtn" type="button" data-v="scale" title="Search terms selling under their campaign's target ACoS, with room to grow">Worth scaling</button>
+          <button class="segbtn" type="button" data-v="paths" title="The same search term reaching the same product through more than one keyword or target">Competing paths</button>
+          <button class="segbtn on" type="button" data-v="all" title="Every search term with the target that caught it, a verdict and the next step">All terms</button>
+          <button class="segbtn" type="button" data-v="cp" title="Every campaign × product: how it did over 30 days, what to do about it, and the FBA stock behind it.">Campaign × Product</button>
+        </div>
         <div class="sta-tools">
-          <div class="seg hide" id="stBurnSeg">
+          <div class="seg hide" id="stBurnSeg" aria-label="Burning money by">
             <button class="segbtn on" type="button" data-s="term" title="One row per search term">By search term</button>
-            <button class="segbtn" type="button" data-s="target" title="One row per keyword or target: the ones that lost money across many small search terms">By target</button>
+            <button class="segbtn" type="button" data-s="target" title="One row per keyword or target, with one bid line each">By target</button>
+            <button class="segbtn" type="button" data-s="word" title="Words that recur across many search terms without selling, and your blocked words and competitor brands">By word</button>
           </div>
-          <select id="stCpShow" class="hide" style="flex:0 0 150px" title="Show only one kind of verdict">
+          <select id="stCpShow" class="hide" style="flex:0 0 150px" title="Show only one kind of verdict" aria-label="Verdict">
             <option value="">Every verdict</option><option value="bad">Bad only</option><option value="good">Good only</option><option value="watch">Watch only</option><option value="running">Running ads only</option><option value="stopped">Paused / archived only</option>
           </select>
-          <input id="stCpTarget" class="hide" type="number" min="1" max="100" step="1" style="flex:0 0 120px" placeholder="Target ACoS %"
+          <input id="stCpTarget" class="hide" type="number" min="1" max="100" step="1" style="flex:0 0 120px" placeholder="Target ACoS %" aria-label="Target ACoS"
             title="The ACoS a product is judged against when its unit cost is not known. Where the cost is known, its own break-even ACoS is used instead.">
-          <div class="seg" id="stViewSeg">
-            <button class="segbtn" type="button" data-v="burn" title="Search terms that spent with no sales, or sold above break-even ACoS">Burning money</button>
-            <button class="segbtn" type="button" data-v="scale" title="Search terms selling under their campaign's target ACoS, with room to grow">Worth scaling</button>
-            <button class="segbtn" type="button" data-v="paths" title="Search terms that reach you through more than one keyword or target">Competing paths</button>
-            <button class="segbtn on" type="button" data-v="all" title="Every search term with the target that caught it, a verdict and the next step">All terms</button>
-            <button class="segbtn" type="button" data-v="cp" title="Every campaign × product: how it did over 30 days, what to do about it, and the FBA stock behind it.">Campaign × Product</button>
-          </div>
+          <label class="sta-pgsz" id="stSizeWrap">Rows <select id="stSize" aria-label="Rows per page"><option>50</option><option selected>100</option><option>250</option></select></label>
         </div>
       </div>
       <div class="sta-wrap"><table id="stTable" class="xl"></table></div>
@@ -1023,17 +1038,17 @@
     </div>
     <div id="stSelBar" class="sta-selbar hide"><span id="stSelTxt"></span><button id="stSelAdd" type="button">Add to the review list</button><button id="stSelClear" class="ghost" type="button">Clear</button></div>
 
-    <!-- One dialog for every change: Add negative, Raise / Reduce bid, Pause, Add as exact. Filled by staOpen. -->
-    <div id="stDlg" class="modal sta-modal hide"><div class="modalbox">
-      <div class="sta-mh"><div><b id="stDlgTitle"></b><small id="stDlgSub"></small></div><button id="stDlgX" class="sta-x" type="button" title="Close">✕</button></div>
+    <!-- One dialog for every change: Add negative, Raise / Reduce bid, Pause, Add as exact, Negative phrase for a word. Filled by staOpen. -->
+    <div id="stDlg" class="modal sta-modal hide" role="dialog" aria-modal="true" aria-labelledby="stDlgTitle"><div class="modalbox">
+      <div class="sta-mh"><div><b id="stDlgTitle"></b><small id="stDlgSub"></small></div><button id="stDlgX" class="sta-x" type="button" title="Close" aria-label="Close">✕</button></div>
       <div id="stDlgBody" class="sta-mb"></div>
       <div class="sta-mf"><small id="stDlgNote"></small>
         <div class="btns"><button id="stDlgCancel" class="ghost" type="button">Cancel</button><button id="stDlgOk" type="button">Add to review list</button></div></div>
     </div></div>
 
-    <!-- The review list: changes waiting, approved, downloaded. -->
-    <div id="stRl" class="modal sta-modal sta-wide hide"><div class="modalbox">
-      <div class="sta-mh"><div><b>Review list</b><small id="stRlSub"></small></div><button id="stRlX" class="sta-x" type="button" title="Close">✕</button></div>
+    <!-- The review list: changes waiting, approved, downloaded; the bulk file is previewed before it downloads. -->
+    <div id="stRl" class="modal sta-modal sta-wide hide" role="dialog" aria-modal="true" aria-label="Review list"><div class="modalbox">
+      <div class="sta-mh"><div><b id="stRlTitle">Review list</b><small id="stRlSub"></small></div><button id="stRlX" class="sta-x" type="button" title="Close" aria-label="Close">✕</button></div>
       <div class="seg sta-rlseg" id="stRlSeg">
         <button class="segbtn on" type="button" data-r="open">Open</button>
         <button class="segbtn" type="button" data-r="done">Downloaded and done</button>
@@ -1042,7 +1057,24 @@
       <div class="sta-mb sta-rlbody"><table id="stRlTable" class="xl"></table></div>
       <div id="stRlNote" class="sta-rlnote"></div>
       <div class="sta-mf"><small id="stRlSel"></small>
-        <div class="btns"><button id="stRlRemove" class="ghost" type="button">Remove</button><button id="stRlApprove" class="ghost" type="button">Approve</button><button id="stRlDl" type="button">Download bulk file</button></div></div>
+        <div class="btns"><button id="stRlBack" class="ghost hide" type="button">Back</button><button id="stRlRemove" class="ghost" type="button">Remove</button><button id="stRlApprove" class="ghost" type="button">Approve</button><button id="stRlDl" type="button">Preview bulk file</button></div></div>
+    </div></div>
+
+    <!-- Lists & settings, per brand: brand terms, product words, blocked words, competitor brands, the target ACoS without a unit cost. -->
+    <div id="stSet" class="modal sta-modal hide" role="dialog" aria-modal="true" aria-label="Lists and settings"><div class="modalbox">
+      <div class="sta-mh"><div><b>Lists &amp; settings</b><small id="stSetSub">What Sellora never negates, and what it always flags. One list per brand.</small></div><button id="stSetX" class="sta-x" type="button" title="Close" aria-label="Close">✕</button></div>
+      <div class="sta-mb">
+        <div class="seg" id="stSetSeg" style="width:max-content;margin-bottom:12px"><button class="segbtn on" type="button" data-b="SP">Ridhi</button><button class="segbtn" type="button" data-b="CPC">Cotton Print Club</button></div>
+        <div id="stSetBody"></div>
+      </div>
+      <div class="sta-mf"><small id="stSetNote"></small>
+        <div class="btns"><button id="stSetCancel" class="ghost" type="button">Cancel</button><button id="stSetOk" type="button">Save</button></div></div>
+    </div></div>
+
+    <!-- How Sellora decides: every line the verdicts are drawn with, and what each badge means. -->
+    <div id="stLegend" class="modal sta-modal sta-wide hide" role="dialog" aria-modal="true" aria-label="How Sellora decides"><div class="modalbox">
+      <div class="sta-mh"><div><b>How Sellora decides</b><small>Every rule on this page, with its numbers. Nothing here changes anything at Amazon by itself.</small></div><button id="stLegendX" class="sta-x" type="button" title="Close" aria-label="Close">✕</button></div>
+      <div id="stLegendBody" class="sta-mb sta-legend"></div>
     </div></div>
   </div><!-- /paneSt -->
 

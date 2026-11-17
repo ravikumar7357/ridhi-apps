@@ -10,12 +10,14 @@
  *
  * THE CACHE — adEntities = { v, at, err: { brand: message }, d: { SP: {…}, CPC: {…} } }, each brand:
  *   at   when it was read (script time zone)
- *   kw   [[keywordId, adGroupId, campaignId, keywordText, matchType, bid, state]]        keywords, enabled and paused
- *   tg   [[targetId, adGroupId, campaignId, expression, bid, state]]                    targets, written as the reports
+ *   kw   [[keywordId, adGroupId, campaignId, keywordText, matchType, bid, state, created]]   keywords, enabled and paused
+ *   tg   [[targetId, adGroupId, campaignId, expression, bid, state, created]]               targets, written as the reports
  *        write them: "close-match", "loose-match", "substitutes", "complements", 'asin="B0…"', 'category="…"'
  *   neg  [[level 'ag' | 'cp', id, campaignId, adGroupId, text, matchType]]             every enabled negative: keyword
  *        negatives with NEGATIVE_EXACT / NEGATIVE_PHRASE, ASIN negatives with text 'asin="B0…"' and matchType 'ASIN'
- *   cp   { campaignId: [name, state, dailyBudget, biddingStrategy, topOfSearch%, restOfSearch%, productPage%, targetingType] }
+ *   cp   { campaignId: [name, state, dailyBudget, biddingStrategy, topOfSearch%, restOfSearch%, productPage%, targetingType, started] }
+ *        created / started: ms since 1970 (Amazon's creationDateTime, or the campaign's start date), 0 when not given —
+ *        Search Term Analysis judges nothing on a keyword or campaign younger than 30 days.
  *   ag   { adGroupId: [campaignId, name, defaultBid, state] }
  *   n    counts, for entStatus
  * A brand that fails KEEPS its last good copy (marked stale: true) and its error is in err — never written as empty,
@@ -170,7 +172,7 @@ function entRun_() {
 function entList_(k, states) {
   var L = ENT_LIST[k], out = [], token = null, guard = 0;
   do {
-    var body = { maxResults: 1000, stateFilter: { include: states } };
+    var body = { maxResults: 1000, stateFilter: { include: states }, includeExtendedDataFields: true };
     if (token) body.nextToken = token;
     var r = adsCall_(L[0], 'post', body, adsProfileId_(), L[1]);
     out = out.concat(r[L[2]] || []);
@@ -198,11 +200,17 @@ function entExpr_(t) {
 function entReadBrand_() {
   var S = function (v) { return String(v == null ? '' : v); };
   var N = function (v) { var x = Number(v); return isFinite(x) && x > 0 ? Math.round(x * 100) / 100 : null; };
+  // When it was made: extendedData.creationDateTime (ISO), else a start date 'YYYY-MM-DD' / 'YYYYMMDD'; 0 when neither.
+  var made = function (x, start) {
+    var t = Date.parse(((x || {}).extendedData || {}).creationDateTime || '') || 0;
+    if (!t && start) { var s = String(start).replace(/^(\d{4})(\d{2})(\d{2})$/, '$1-$2-$3'); t = Date.parse(s + 'T00:00:00Z') || 0; }
+    return t;
+  };
   var kw = entList_('kw', ENT_LIVE).map(function (x) {
-    return [S(x.keywordId), S(x.adGroupId), S(x.campaignId), S(x.keywordText), S(x.matchType), N(x.bid), S(x.state)];
+    return [S(x.keywordId), S(x.adGroupId), S(x.campaignId), S(x.keywordText), S(x.matchType), N(x.bid), S(x.state), made(x)];
   });
   var tg = entList_('tg', ENT_LIVE).map(function (x) {
-    return [S(x.targetId), S(x.adGroupId), S(x.campaignId), entExpr_(x), N(x.bid), S(x.state)];
+    return [S(x.targetId), S(x.adGroupId), S(x.campaignId), entExpr_(x), N(x.bid), S(x.state), made(x)];
   });
   var neg = [];
   entList_('nk', ['ENABLED']).forEach(function (x) { neg.push(['ag', S(x.keywordId), S(x.campaignId), S(x.adGroupId), S(x.keywordText), S(x.matchType)]); });
@@ -214,7 +222,7 @@ function entReadBrand_() {
     var db = x.dynamicBidding || {}, pct = { PLACEMENT_TOP: 0, PLACEMENT_REST_OF_SEARCH: 0, PLACEMENT_PRODUCT_PAGE: 0 };
     (db.placementBidding || []).forEach(function (p) { if (p && p.placement in pct) pct[p.placement] = Number(p.percentage) || 0; });
     cp[S(x.campaignId)] = [S(x.name), S(x.state), N((x.budget || {}).budget), S(db.strategy),
-      pct.PLACEMENT_TOP, pct.PLACEMENT_REST_OF_SEARCH, pct.PLACEMENT_PRODUCT_PAGE, S(x.targetingType)];
+      pct.PLACEMENT_TOP, pct.PLACEMENT_REST_OF_SEARCH, pct.PLACEMENT_PRODUCT_PAGE, S(x.targetingType), made(x, x.startDate)];
   });
   var ag = {};
   entList_('ag', ENT_LIVE).forEach(function (x) { ag[S(x.adGroupId)] = [S(x.campaignId), S(x.name), N(x.defaultBid), S(x.state)]; });

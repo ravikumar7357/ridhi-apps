@@ -3705,6 +3705,61 @@
   .modal.sta-wide .sta-rlwhat{max-width:230px}
   .modal.sta-wide table.xl th:first-child,.modal.sta-wide table.xl td:first-child{padding-left:22px}
   .modal.sta-wide table.xl th:last-child,.modal.sta-wide table.xl td:last-child{padding-right:24px}
+  /* Search Term Analysis, 17 Nov: the filters row, the summary strip, the fixed view bar, the frozen term column, grouped
+     rows, sortable headings, pages, hold reasons, brand chips, the lists dialog, the legend, the bulk-file preview. */
+  .sta-more-f{margin-top:10px;padding-top:10px;border-top:1px dashed var(--line)}
+  .sta-more-f select{flex:0 0 190px}
+  .sta-sum{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:1px;margin:12px 0 0;border-radius:var(--r-row);overflow:hidden;
+    background:var(--line);border:1px solid var(--line)}
+  .sta-sum>div{background:var(--card);padding:9px 12px}
+  .sta-sum small{display:block;font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}
+  .sta-sum b{display:block;font-size:15px;font-weight:650;color:var(--ink);margin-top:2px;font-variant-numeric:tabular-nums}
+  .sta-sum>div:last-child b{color:var(--rev-ink)}
+  .sta-legend-btn{font-size:12.5px;padding:6px 12px;flex:none}
+  .sta-vbar{display:flex;justify-content:space-between;align-items:center;gap:10px 16px;flex-wrap:wrap;padding:10px 16px;border-bottom:1px solid var(--line);
+    background:var(--soft)}
+  .sta-vbar .seg .segbtn{padding:6px 12px;font-size:13px}
+  .sta-pgsz{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--muted);margin:0;text-transform:none;letter-spacing:0;font-weight:500}
+  .sta-pgsz select{height:32px;padding:0 8px}
+  #paneSt table.xl th.sta-stick,#paneSt table.xl td.sta-stick{position:sticky;left:0;z-index:2;background:var(--card);min-width:240px;max-width:320px;
+    box-shadow:1px 0 0 var(--line)}
+  #paneSt table.xl thead th.sta-stick{z-index:3;background:var(--soft)}
+  #paneSt table.xl tr.sel td.sta-stick{background:color-mix(in srgb,var(--brand) 5%,var(--card))}
+  #paneSt table.xl tr.tot td.sta-stick,#paneSt table.xl tr.grp td.sta-stick{background:var(--soft)}
+  td.sta-stick{white-space:normal}
+  td.sta-stick>.sta-cb,td.sta-stick>.sta-cbgap{float:left;margin:2px 9px 0 0}
+  .sta-cbgap{display:inline-block;width:16px;height:16px}
+  .sta-tc{overflow:hidden}
+  .sta-term{white-space:normal;word-break:break-word}
+  .sta-asin{font-family:var(--mono,ui-monospace,monospace);font-size:12.5px;letter-spacing:.02em}
+  .sta-caret{width:22px;height:22px;padding:0;margin-right:6px;border-radius:6px;background:var(--hover);color:var(--ink);font-size:12px;line-height:22px;
+    vertical-align:middle;box-shadow:none}
+  #paneSt table.xl tr.sta-grprow td{border-top:1px solid var(--line)}
+  #paneSt table.xl tr.sta-subrow td{background:color-mix(in srgb,var(--soft) 55%,var(--card))}
+  #paneSt table.xl tr.sta-subrow td.sta-stick{background:color-mix(in srgb,var(--soft) 55%,var(--card));padding-left:30px}
+  #paneSt table.xl td.sta-ev.sta-ev-s{min-width:220px;max-width:300px}
+  .sta-why{margin-top:5px;font-size:12px;color:var(--muted);line-height:1.45;white-space:normal}
+  .sta-hold{display:inline-block;font-size:12px;color:var(--muted);white-space:normal;max-width:260px;line-height:1.4}
+  .sta-next{min-width:190px}
+  .sta-next small{white-space:normal;max-width:260px}
+  th.sta-sort{cursor:pointer;user-select:none}
+  th.sta-sort:hover{color:var(--ink)}
+  th.sta-sort.on{color:var(--brand-ink)}
+  .sta-pages{display:flex;align-items:center;gap:8px}
+  .sta-pages button:disabled{opacity:.45;cursor:default}
+  .ui-badge.is-brand-SP{background:color-mix(in srgb,var(--brand) 12%,var(--card));color:var(--brand-ink)}
+  .ui-badge.is-brand-CPC{background:color-mix(in srgb,var(--violet-ink) 14%,var(--card));color:var(--violet-ink)}
+  .sta-f textarea{width:100%;box-sizing:border-box;min-height:92px;font:inherit;font-size:13px;padding:8px 10px;resize:vertical}
+  .sta-chips{display:flex;flex-wrap:wrap;gap:5px}
+  .sta-cplist{display:flex;flex-direction:column;gap:6px;max-height:220px;overflow:auto;padding:8px 10px;border:1px solid var(--line);border-radius:var(--r-row)}
+  .sta-cplist label{display:flex;gap:8px;align-items:center;font-size:13px;font-weight:500;margin:0;text-transform:none;letter-spacing:0;color:var(--ink)}
+  .sta-legend h4{margin:14px 0 6px;font-size:13.5px;color:var(--ink)}
+  .sta-legend h4:first-child{margin-top:0}
+  .sta-legend ul{margin:0;padding-left:18px;font-size:12.5px;color:var(--muted);line-height:1.6}
+  .sta-legend b{color:var(--ink)}
+  .sta-legcols{display:grid;grid-template-columns:1fr 1fr;gap:8px 32px}
+  #paneSt table.xl tr.sta-wait td{color:var(--rev-ink);background:color-mix(in srgb,var(--rev) 6%,var(--card))}
+  @media (max-width:1100px){.sta-sum{grid-template-columns:repeat(4,minmax(0,1fr))}.sta-legcols{grid-template-columns:1fr}}
   @media (max-width:1100px){.sta-boxes{grid-template-columns:repeat(2,minmax(0,1fr))}}
   @media (max-width:620px){.sta-boxes{grid-template-columns:minmax(0,1fr)}.sta-figs{grid-template-columns:repeat(3,minmax(0,1fr))}.sta-row2{grid-template-columns:1fr}}
 

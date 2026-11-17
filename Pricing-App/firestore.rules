@@ -222,6 +222,11 @@ service cloud.firestore {
       allow read, create, update: if can('st') || can('audit');
       allow delete: if false;
     }
+    // Search Term Analysis's lists, one document per brand (17 Nov 2026): brand terms, product words, blocked words,
+    // competitor brands, the target ACoS for products without a unit cost. Until deployed, kept in each browser.
+    match /adsSettings/{brand} {
+      allow read, write: if can('st') || can('audit');
+    }
     // Unit costs, per ASIN, plus the percentage model the profit figures are built on. Amazon has no
     // API for what goods cost, so this document is typed by hand and is the ONLY copy — nothing can
     // regenerate it. Gated on the Profit tab, so an account granted the ad tabs cannot read margins.

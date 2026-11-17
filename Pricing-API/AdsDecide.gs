@@ -14,8 +14,12 @@
  *   stSettled, stRecent     rows [{ t: term, ag, cid, kw: keyword or target, mt: match type, i, c, sp, o, s, kid? }],
  *                           names { id → name }, dropped, dropSpend, minClicks
  *   tgtSettled, tgtRecent   rows [{ t: keyword or target, ag, cid, mt, i, c, sp, o, s, kid? }], names
- * o and s are 7-day purchases and sales. kid is Amazon's keyword / target ID when Amazon accepts that column
- * (it is asked for, and dropped once and for all if Amazon refuses it — see DEC_NOOPT).
+ * o and s are 7-day purchases and sales; os / oo the advertised product's own 7-day sales and orders (same SKU). kid is
+ * Amazon's keyword / target ID. The optional columns (targeting, keywordId, same-SKU) are asked for, and dropped once and
+ * for all if Amazon refuses one (st.noOpt).
+ * stSettled also carries grams: the words of the terms too small to keep one by one (no order, under ST_MIN_CLICKS
+ * clicks — about $100k a month between them), as [[word or two-word phrase, terms, clicks, spend, orders, sales,
+ * [[campaignId, spend] …top 8]]], so Search Term Analysis → Burning money → By word can show which recur without selling.
  * Settled search terms are cut like srchTerm (no order and under ST_MIN_CLICKS clicks → counted, not kept); recent
  * ones keep anything with a click, since "+1 click last 7 days" is the point of them.
  * A brand whose report fails keeps its last good copy in that cache, and its error is in err.
@@ -49,12 +53,16 @@ var DEC_CFG = {
   st: { reportTypeId: 'spSearchTerm', groupBy: ['searchTerm'],
     columns: ['searchTerm', 'keyword', 'matchType', 'campaignId', 'campaignName', 'adGroupId', 'adGroupName',
       'impressions', 'clicks', 'cost', 'purchases7d', 'sales7d'],
-    optional: ['targeting', 'keywordId'] },
+    optional: ['targeting', 'keywordId', 'attributedSalesSameSku7d', 'purchasesSameSku7d'] },
   tgt: { reportTypeId: 'spTargeting', groupBy: ['targeting'],
     columns: ['keyword', 'targeting', 'matchType', 'campaignId', 'campaignName', 'adGroupId', 'adGroupName',
       'impressions', 'clicks', 'cost', 'purchases7d', 'sales7d'],
-    optional: ['keywordId'] },
+    optional: ['keywordId', 'attributedSalesSameSku7d', 'purchasesSameSku7d'] },
 };
+// Words left out of the word roll-up, and its limits.
+var DEC_STOP = { a: 1, an: 1, and: 1, the: 1, 'for': 1, of: 1, 'with': 1, 'in': 1, on: 1, to: 1, by: 1, x: 1, set: 1, inch: 1,
+  inches: 1, pack: 1, pcs: 1, piece: 1, pieces: 1, size: 1, large: 1, small: 1, big: 1, my: 1, from: 1, or: 1, at: 1, is: 1, it: 1 };
+var DEC_GRAM_MIN_TERMS = 5, DEC_GRAM_MIN_SPEND = 5, DEC_GRAM_MAX = 3000;
 
 /* ============================== editor functions ============================== */
 
@@ -264,15 +272,51 @@ function decFoldSt_(rows, settled) {
     if (x.keywordId != null && !b.kid) b.kid = wStr_(x.keywordId);
     b.i += wNum_(x.impressions); b.c += wNum_(x.clicks); b.sp += wNum_(x.cost);
     b.o += wNum_(x.purchases7d); b.s += wNum_(x.sales7d);
+    if (x.attributedSalesSameSku7d != null) { b.os = (b.os || 0) + wNum_(x.attributedSalesSameSku7d); b.oo = (b.oo || 0) + wNum_(x.purchasesSameSku7d); }
   });
-  var list = [], dropped = 0, dropSpend = 0, min = settled ? ST_MIN_CLICKS : 1;
+  var list = [], dropped = 0, dropSpend = 0, min = settled ? ST_MIN_CLICKS : 1, tail = [];
   Object.keys(out).forEach(function (k) {
     var b = out[k];
-    if (!(b.o > 0) && b.c < min) { dropped++; dropSpend += b.sp; return; }
+    if (!(b.o > 0) && b.c < min) { dropped++; dropSpend += b.sp; if (b.sp > 0) tail.push(b); return; }
     b.sp = wMoney_(b.sp); b.s = wMoney_(b.s);
+    if (b.os != null) b.os = wMoney_(b.os);
     list.push(b);
   });
-  return { rows: list, names: names, dropped: dropped, dropSpend: wMoney_(dropSpend), minClicks: min };
+  var pack = { rows: list, names: names, dropped: dropped, dropSpend: wMoney_(dropSpend), minClicks: min };
+  if (settled) pack.grams = decGrams_(tail);
+  return pack;
+}
+
+// The words of the terms too small to keep: every word and two-word phrase, summed over the terms holding it, with the
+// campaigns it spent in. Kept when it spans DEC_GRAM_MIN_TERMS terms and DEC_GRAM_MIN_SPEND dollars; the biggest first.
+function decGrams_(tail) {
+  var g = {};
+  tail.forEach(function (b) {
+    var w = String(b.t).toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim().split(' ');
+    var seen = {};
+    for (var n = 1; n <= 2; n++) {
+      for (var i = 0; i + n <= w.length; i++) {
+        var parts = w.slice(i, i + n);
+        if (n === 1 && (DEC_STOP[parts[0]] || parts[0].length < 3 || /\d/.test(parts[0]))) continue;
+        if (parts.every(function (p) { return DEC_STOP[p] || /^\d/.test(p); })) continue;
+        var k = parts.join(' ');
+        if (seen[k]) continue;
+        seen[k] = 1;
+        var x = g[k] || (g[k] = { n: 0, c: 0, sp: 0, o: 0, s: 0, cp: {} });
+        x.n++; x.c += b.c; x.sp += b.sp; x.o += b.o; x.s += b.s;
+        x.cp[b.cid] = (x.cp[b.cid] || 0) + b.sp;
+      }
+    }
+  });
+  var out = [];
+  Object.keys(g).forEach(function (k) {
+    var x = g[k];
+    if (x.n < DEC_GRAM_MIN_TERMS || x.sp < DEC_GRAM_MIN_SPEND) return;
+    var cps = Object.keys(x.cp).map(function (c) { return [c, wMoney_(x.cp[c])]; }).sort(function (a, z) { return z[1] - a[1]; }).slice(0, 8);
+    out.push([k, x.n, x.c, wMoney_(x.sp), x.o, wMoney_(x.s), cps]);
+  });
+  out.sort(function (a, z) { return z[3] - a[3]; });
+  return out.slice(0, DEC_GRAM_MAX);
 }
 
 // Targets → one row per (ad group, target, match type), kept even at zero clicks (as the targeting cache).
@@ -288,6 +332,7 @@ function decFoldTgt_(rows) {
     if (x.keywordId != null && !b.kid) b.kid = wStr_(x.keywordId);
     b.i += wNum_(x.impressions); b.c += wNum_(x.clicks); b.sp += wNum_(x.cost);
     b.o += wNum_(x.purchases7d); b.s += wNum_(x.sales7d);
+    if (x.attributedSalesSameSku7d != null) { b.os = (b.os || 0) + wNum_(x.attributedSalesSameSku7d); b.oo = (b.oo || 0) + wNum_(x.purchasesSameSku7d); }
   });
   var list = [];
   Object.keys(out).forEach(function (k) { var b = out[k]; b.sp = wMoney_(b.sp); b.s = wMoney_(b.s); list.push(b); });
