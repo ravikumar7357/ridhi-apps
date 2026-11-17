@@ -63,7 +63,15 @@ function skcDerived(brand) {
     const [article, subtype, size] = [...e.what.entries()].sort((a, b) => b[1] - a[1])[0][0].split('|');
     return { base: e.base, article, subtype, size, brand: brand, derived: true, n: e.n };
   });
-  SKC_DER = { src, brand: br, rows: skcSort(rows) };
+  /* ONE BASE PER ARTICLE + SUBTYPE + SIZE (Ravi, 17 Nov: "duplicate size ke liye sku nahi chahiye with same article same subtype — common
+   * base sku format dekho"). Old SKUs gave two bases for one product (132 Round: CPC-12R and CPC-132; 72x190: CPC-131 and CPC-14). The
+   * one most of that product's SKUs follow is kept; the others are named on it, never offered to make new SKUs with. */
+  const best = new Map();
+  rows.forEach(r => { const k = [r.article, r.subtype, r.size].map(x => String(x || '').trim().toLowerCase()).join('|'), b = best.get(k);
+    if (!b) { best.set(k, Object.assign(r, { alt: [] })); return; }
+    const win = r.n > b.n || (r.n === b.n && r.base.length < b.base.length) ? r : b, lose = win === r ? b : r;
+    win.alt = (win.alt || []).concat([lose.base], lose.alt || []); best.set(k, win); });
+  SKC_DER = { src, brand: br, rows: skcSort([...best.values()]) };
   return SKC_DER.rows;
 }
 /** The base rows for the brand typed: its own saved rows; for Ridhi the rows with no brand; for another brand with none saved, its SKUs'. */
@@ -436,7 +444,7 @@ function skcDraw() {
     + `<td style="font-family:ui-monospace,monospace;font-weight:700">${esc(full) || '<span class="muted">—</span>'}</td>`
     + `<td>${state === 'have' ? '<span class="pill pill-ok">In master</span>' : state === 'new' ? '<span class="pill pill-low">New</span>'
       : state === 'taken' ? `<span class="pill pill-out" title="That code is already a SKU of another colour">${esc(m.color || '?')}</span>` : ''}</td>`
-    + (edit ? (r.derived ? `<td class="muted" style="font-size:11px" title="Worked out from ${esc(String(r.n))} ${esc(r.brand)} SKU(s) in the master">from SKUs</td>` : `<td><button class="ghost" data-skc-edit="${esc(r._key)}" style="padding:3px 10px">Edit</button></td>`) : '')
+    + (edit ? (r.derived ? `<td class="muted" style="font-size:11px" title="Worked out from ${esc(String(r.n))} ${esc(r.brand)} SKU(s) in the master${r.alt && r.alt.length ? ' · not used: ' + esc(r.alt.join(', ')) + ' (fewer SKUs follow it)' : ''}">from SKUs${r.alt && r.alt.length ? ' · ' + esc(r.alt.length) + ' other' : ''}</td>` : `<td><button class="ghost" data-skc-edit="${esc(r._key)}" style="padding:3px 10px">Edit</button></td>`) : '')
     + '</tr>').join('') + '</tbody>';
   $('ptmMsg').className = 'muted';
   $('ptmMsg').textContent = `${nf(rows.length)} of ${nf(skcRows().length)} base code(s)`;
