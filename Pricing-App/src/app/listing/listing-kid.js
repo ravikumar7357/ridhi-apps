@@ -80,12 +80,15 @@ function lkHtml(kid, opts) {
     + (open ? `<div class="lk-passed">${passed.map(c => lrAnswerHtml(c.t, c, where, srcOf(c))).join('')}</div>` : '') : '';
   const body = group('is-c', lrLevel('critical').word, errs) + group('is-a', lrLevel('action').word, atts) + group('is-f', 'Good to fill', fills) + none + info + pass;
   // --- footer: where the answers come from, and how old each source is ---
-  const healthAt = lkMs(HEALTH[kid.brand] && HEALTH[kid.brand].at);
+  // the ListingMatch data fresh: its full refresh and last update (listing-match.js lmDataLabel, every Listing screen's label); else the snapshots'
+  const lm = typeof lmDataLabel === 'function' ? lmDataLabel([kid.brand]) : null;
+  const healthAt = lm ? lm.fullAt : lkMs(HEALTH[kid.brand] && HEALTH[kid.brand].at);
   const imlAt = lkMs(typeof IML !== 'undefined' && IML[kid.brand] && IML[kid.brand].at);
   const lr = kid.lr;
-  const foot = `<div class="ls-panel-f">Amazon: ${lr && lr.at ? 'read ' + liWsAgoWords(now - lr.at) : 'not read from Amazon yet'}`
-    + ` · Full refresh: ${healthAt ? liWsAgoWords(now - healthAt) : 'none yet'}`
-    + ` · Image Manager: ${imlAt ? liWsAgoWords(now - imlAt) : 'not loaded'}`
+  const amzAt = Math.max(lr && lr.at ? lr.at : 0, lm ? lm.updateAt : 0);
+  const foot = `<div class="ls-panel-f">Amazon: ${amzAt ? 'read ' + liWsAgoWords(Math.max(0, now - amzAt)) : 'not read from Amazon yet'}`
+    + ` · Full refresh: ${healthAt ? liWsAgoWords(Math.max(0, now - healthAt)) : 'none yet'}`
+    + (lm ? ` (${lrEsc(lm.text.replace(/^Full refresh: /, ''))})` : ` · Image Manager: ${imlAt ? liWsAgoWords(now - imlAt) : 'not loaded'}`)
     + ` · Listing Rules: ${typeof LR_SAVED_AT !== 'undefined' && LR_SAVED_AT ? 'saved ' + liWsDate(lkMs(LR_SAVED_AT)) : 'built-in defaults'}</div>`;
   return head + `<div class="ls-panel-b lk-b" role="region" aria-label="Problems of ${lrEsc(kid.sku)}">${body}</div>` + foot;
 }

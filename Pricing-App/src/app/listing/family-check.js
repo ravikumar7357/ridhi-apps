@@ -891,8 +891,11 @@ function fcDrawTools(v) {
   // when each part was saved / read: "Errors/status saved 1:42 PM · stock saved 1:42 PM · families read 12:50 PM" (yellow when older than 24 h)
   const famAt = v.families.filter(x => x.live.length && x.amz).map(x => x.amz.at);
   const when = (label, ms) => `<span class="${!ms || Date.now() - ms > 864e5 ? 'fc-old' : ''}">${fcEsc(label)} ${ms ? fcEsc(fcClock(ms)) : 'never'}</span>`;
-  const times = [when('Errors/status saved', oldest(typeof IML !== 'undefined' ? IML : null)), when('stock saved', stockAt()),
-    when('families read', famAt.length ? Math.min(...famAt) : 0)].join(' · ');
+  // the ListingMatch data fresh: its full refresh and last update instead of the snapshots' times (listing-match.js lmDataLabel,
+  // every Listing screen's label); the old labels only when it is missing or older than 24 hours
+  const lm = typeof lmDataLabel === 'function' ? lmDataLabel(['SP', 'CPC']) : null;
+  const times = (lm ? [`<span>${fcEsc(lm.text)}</span>`] : [when('Errors/status saved', oldest(typeof IML !== 'undefined' ? IML : null)), when('stock saved', stockAt())])
+    .concat(when('families read', famAt.length ? Math.min(...famAt) : 0)).join(' · ');
   const R = FC.refresh;
   const btn = $('fcRefresh');
   if (btn) {
