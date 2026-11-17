@@ -1127,6 +1127,8 @@
   .imq-chip.is-bad{background:var(--bad-bg);color:var(--bad-ink)}
   /* Image Manager top: the sticky toolbar, the thin reading bar, the number cards (the Listing .ls-box look, scoped here). */
   #paneImg .card.im-tb{position:sticky;top:var(--im-top,0px);z-index:20}
+  /* a check that could not be decided for a listing: said quietly, never as a problem */
+  #paneImg .im-nc{color:var(--muted);font-style:italic}
   /* ⬇ Download errors: its small menu under the toolbar (brand, and the filter question when a card is on) */
   #paneImg .im-dlm{position:absolute;right:14px;top:calc(100% - 6px);z-index:30;width:min(320px,calc(100vw - 32px));background:var(--card);border:1px solid var(--line);
     border-radius:var(--r-ctl);box-shadow:var(--sh-3);padding:12px 14px;font-size:12.5px}

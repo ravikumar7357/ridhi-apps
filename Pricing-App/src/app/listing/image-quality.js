@@ -23,7 +23,7 @@ const IMQ_WHITE_SHARE = 0.99;                // share of border pixels that must
 const IMQ_FILL = 0.85;                       // how much of the picture the product should fill
 const IMQ_FILL_LOW = 0.75;                   // below this: a warning
 const IMQ_TYPES = /^image\/(jpeg|png|tiff|gif)$/;
-const IMQ_STORE = 'sellora.imgdims';         // localStorage: picture id → [w, h]
+const IMQ_STORE = 'sellora.imgdims2';        // localStorage: picture id → [w, h] (2: measured on the picture's own file only, 17 Nov 2026)
 const IMQ_STORE_MAX = 20000;
 const IMQ_WORDS = { g: '2000 × 2000 or more', y: 'below 2000 — company minimum', r: 'no zoom' };
 const IMQ = { dims: null, seeded: {}, queue: [], busy: 0, seen: new Set(), obs: null, onSize: null, saveT: 0 };
@@ -178,6 +178,9 @@ function imqSeed(brand) {
     Object.values((entry && entry.catPic) || {}).forEach(p => { if (Array.isArray(p) && p[1] && p[2]) IMQ.dims.set(String(p[0]), [p[1], p[2]]); });
   });
 }
+/** The picture's OWN file: Amazon serves smaller copies of a picture under the same id ("71abc._SL1500_.jpg"); its real size is the
+ *  size of the file with no size part ("71abc.jpg"). Any other link is returned as it is. */
+const imqBase = url => String(url || '').replace(/(\/images\/I\/[^./?]+)\.[^/?]+\.(jpe?g|png|gif|webp|tiff?)(\?.*)?$/i, '$1.$2');
 /** [w, h] of a picture when known (the editor's own measure, the catalogue, or a tile measured before), else null. */
 function imqDims(url) {
   if (!url) return null;
@@ -203,7 +206,7 @@ function imqPump() {
     };
     img.onload = () => done(true);
     img.onerror = () => done(false);
-    img.src = url;
+    img.src = imqBase(url);        // the picture's own file, so the size measured is its real size
   }
 }
 // Every tile of one picture gets its dot.

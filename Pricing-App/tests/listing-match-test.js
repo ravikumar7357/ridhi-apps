@@ -548,6 +548,44 @@ const rowOf = (C, sku) => ['SP', 'CPC'].map(b => C.HEALTH[b].rows.find(r => r.sk
     ok('…one shared function, defined once (listing-match.js)', defs.join() === 'listing-match.js', defs.join());
   }
 
+  console.log('== IMAGE MANAGER over the ListingMatch data: the picture checks, "not checked", and a live re-read ==');
+  {
+    // R1: our listing has a swatch (Amazon's catalogue never returns one); R2: none anywhere; R3: its ASIN is not in the catalogue parts
+    let amazonNow = null;
+    const P = page({ load: { im: true, pc: true },
+      limg: q => amazonNow && amazonNow[q.sku] ? amazonNow[q.sku] : { ok: true, sku: q.sku, listing: {}, catalog: {} },
+      get: q => ({ productType: 'NAPKIN', status: ['BUYABLE', 'DISCOVERABLE'], issues: [], attributes: {} }) });
+    P.net.tabs = cacheOf(P.C, { edit: (b, items, cat) => {
+      if (b !== 'SP') return;
+      items.R1.img.SWCH = pic('R1', 'SWCH');
+      delete cat[items.R3.asin];
+    } }).tabs;
+    await P.C.lmEnsure(); await P.C.lmRefresh();
+    P.C.el('imBrand').value = 'SP';
+    P.C.PC.loaded = true;
+    P.C.lmImlApply('SP');
+    P.C.imqSeed('SP');
+    const it = sku => P.C.IML.SP.items.find(i => i.sku === sku);
+    ok('the list is built from the cache (lm) with our pictures, what Amazon serves and Amazon\'s issues', P.C.IML.SP.lm === true && it('R1').img.SWCH === pic('R1', 'SWCH') && it('R2').live.MAIN === pic('R2', 'MAIN') && Array.isArray(it('R2').iss));
+    ok('No swatch: R1 has one in OUR listing → not flagged; R2 has none anywhere → flagged', P.C.imCheck(it('R1'), 'noswatch', 'SP') === false && P.C.imCheck(it('R2'), 'noswatch', 'SP') === true);
+    ok('R3 (its ASIN is not in the catalogue the cache read): what Amazon serves is NOT KNOWN → No swatch / No main at all / Fewer than 7 are "not checked" or decided from ours alone, never a guess',
+      it('R3').liveErr === 'not in catalogue' && P.C.imCheck(it('R3'), 'noswatch', 'SP') === null && P.C.imCheck(it('R3'), 'nomain', 'SP') === false && P.C.imCheck(it('R3'), 'few', 'SP') === false, JSON.stringify([it('R3').liveErr, P.C.imCheck(it('R3'), 'noswatch', 'SP')]));
+    ok('Too small: the sizes are Amazon\'s own from the cache\'s catalogue (2000 × 2000 here) → R2 decided, not flagged', P.C.imCheck(it('R2'), 'small', 'SP') === false && P.C.imSizes(it('R2')).unknown === 0);
+    // Amazon NOW: R2 has a swatch in our listing, and one picture fewer is served
+    const slots = Object.fromEntries(GALLERY.map(s => [s, pic('R2', s)]));
+    amazonNow = { R2: { ok: true, sku: 'R2', asin: it('R2').asin, status: ['BUYABLE', 'DISCOVERABLE'], listing: Object.assign({}, slots, { SWCH: pic('R2', 'SWCH') }),
+      catalog: Object.fromEntries(GALLERY.slice(0, 7).map(s => [s, { link: pic('R2', s), w: 2000, h: 2000 }])), catalogError: '', issues: [] } };
+    const live = await P.C.imLiveRead('SP', 'R2', it('R2'));
+    ok('a live read (?limg=get + ?lfix=get) judged by the same check: R2 now has a swatch', P.C.imCheck(live.item, 'noswatch', 'SP') === false && live.item.liveRead === true);
+    ok('…and the screen\'s own record follows at once (the ListingMatch overlay): R2 is no longer under "No swatch"', P.C.imCheck(it('R2'), 'noswatch', 'SP') === false && it('R2').img.SWCH === pic('R2', 'SWCH') && Object.keys(it('R2').live).length === 7);
+    amazonNow = { R1: { ok: true, sku: 'R1', asin: it('R1').asin, status: ['BUYABLE', 'DISCOVERABLE'], listing: { MAIN: pic('R1', 'MAIN') }, catalog: {}, catalogError: 'Catalogue: 429 throttled', issues: [] } };
+    const before = Object.keys(it('R1').live).length;
+    const bad = await P.C.imLiveRead('SP', 'R1', it('R1'));
+    ok('a live read whose catalogue call failed: what Amazon serves is NOT KNOWN for it (liveErr) — and the screen keeps the catalogue pictures it had',
+      bad.item.liveErr === 'Catalogue: 429 throttled' && bad.item.live === undefined && P.C.imCheck(bad.item, 'nomain', 'SP') === false && P.C.imCheck(bad.item, 'few', 'SP') === null
+      && Object.keys(it('R1').live).length === before && before > 0, JSON.stringify([bad.item.liveErr, Object.keys(it('R1').live).length]));
+  }
+
   console.log('== SPEED: ~4,400 listings from the saved copy ==');
   {
     const first = page();

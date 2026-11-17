@@ -86,12 +86,13 @@ function picture(W, H, box, edge) {
     P.imListRender();
     const html = P.el('imList').innerHTML;
     const n = k => { const m = html.match(new RegExp(`data-im-card="${k}"[^>]*>.*?<b>(\\d+)</b>`)); return m ? +m[1] : null; };
-    ok('9 cards: No main at all · Using the family\'s main · Main not OK · Too small · Fewer than 7 · Amazon picture error · Search suppressed · Another SKU\'s pictures · No swatch',
-      (html.match(/data-im-card="(\w+)"/g) || []).map(s => s.slice(14, -1)).join(',') === 'nomain,noown,pcbad,small,few,amzerr,sup,other,noswatch' && /Amazon picture error/.test(html) && /No main at all/.test(html));
-    ok('numbers: No main at all 1 (K5) · family\'s main 1 (K2) · Main not OK 1 (K2) · Too small 1 (K3 PT01 1500) · Fewer than 7 1 (K3) · Amazon picture error 1 (K3 18320; K5 has only 90244: not counted) · suppressed 1 (K4) · another SKU 1 (K4) · no swatch 5',
-      n('nomain') === 1 && n('noown') === 1 && n('pcbad') === 1 && n('small') === 1 && n('few') === 1 && n('amzerr') === 1 && n('sup') === 1 && n('other') === 1 && n('noswatch') === 5,
+    ok('8 cards: No main at all · Using the family\'s main · Main not OK · Too small · Fewer than 7 · Amazon picture error · Search suppressed · No swatch — "Shows another SKU\'s pictures" is gone',
+      (html.match(/data-im-card="(\w+)"/g) || []).map(s => s.slice(14, -1)).join(',') === 'nomain,noown,pcbad,small,few,amzerr,sup,noswatch' && /Amazon picture error/.test(html) && /No main at all/.test(html)
+      && !/another SKU/i.test(html) && !/data-im-card="other"/.test(html));
+    ok('numbers: No main at all 1 (K5) · family\'s main 1 (K2) · Main not OK 1 (K2) · Too small 1 (K3 PT01 1500) · Fewer than 7 1 (K3) · Amazon picture error 1 (K3 18320; K5 has only 90244: not counted) · suppressed 1 (K4) · no swatch 5',
+      n('nomain') === 1 && n('noown') === 1 && n('pcbad') === 1 && n('small') === 1 && n('few') === 1 && n('amzerr') === 1 && n('sup') === 1 && n('other') === null && n('noswatch') === 5,
       ['nomain', 'noown', 'pcbad', 'small', 'few', 'amzerr', 'sup', 'other', 'noswatch'].map(k => k + '=' + n(k)).join(' '));
-    ok('"Too small" says how many are measured so far: "2 of 6 measured"', /under 2000 · 2 of 6 measured/.test(html));
+    ok('"Too small" says how many could not be checked yet (their pictures are not all measured): "under 2000 · 5 not checked" — never in the number', /under 2000 · 5 not checked/.test(html));
     ok('the long grey summary line is gone (no "carry another SKU\'s pictures" text)', !/carry another SKU/.test(html) && /im-meta/.test(html));
     ok('the dropdown has the same filters: Main missing / Main not OK / Too small filter the list too', ['nomain', 'noown', 'pcbad', 'small', 'amzerr'].every(k => {
       P.el('imFilter').value = k; P.imListRender(); return (P.el('imList').innerHTML.match(/class="im-kid"/g) || []).length === 1 && new RegExp(`data-im-card="${k}" aria-pressed="true"`).test(P.el('imList').innerHTML);
@@ -285,8 +286,9 @@ function picture(W, H, box, edge) {
     ok('…the filters follow: "sup" only the suppressed, "nobuy" only the live not-buyable', P.imKidMatch(co7, 'sup', '') === false && P.imKidMatch({ sku: 'NB1', st: 'DISCOVERABLE' }, 'nobuy', '') === true
       && P.imKidMatch({ sku: 'NB0', st: 'DISCOVERABLE' }, 'nobuy', '') === false);
     P.IMQ.dims = new Map([['k3MAIN', [1500, 1500]], ['k3PT01', [800, 800]]]);
-    ok('quality summary: K3 "5/9 pictures · 2 below 2000 · no swatch"; K1 "9/9 pictures"', P.imKidSummary(it('K3')).replace(/<[^>]+>/g, '') === '5/9 pictures · 2 below 2000 · no swatch'
-      && P.imKidSummary(it('K1')) === '9/9 pictures');
+    ok('quality summary: K3 "5/9 pictures · 2 below 2000 · no swatch"; K1 "9/9 pictures" — then what could not be checked, said quietly ("not checked: …")',
+      P.imKidSummary(it('K3')).replace(/<[^>]+>/g, '') === '5/9 pictures · 2 below 2000 · no swatch · not checked: Main not OK'
+      && P.imKidSummary(it('K1')).replace(/<[^>]+>/g, '') === '9/9 pictures · not checked: Main not OK, sizes, Amazon errors' && /class="im-nc"/.test(P.imKidSummary(it('K1'))), P.imKidSummary(it('K3')).replace(/<[^>]+>/g, '') + ' / ' + P.imKidSummary(it('K1')).replace(/<[^>]+>/g, ''));
     P.IM_OPEN.add('PAR'); P.IM_OPEN.add('solo:S1');   // families start closed: open them to see the rows
     P.imListRender();
     let html = P.el('imList').innerHTML;

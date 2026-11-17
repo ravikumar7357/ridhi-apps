@@ -303,7 +303,8 @@ function lmNoteLive(brand, sku, kind, reply) {
       iss: (reply.issues || []).map(issue => { const x = lmIss([issue])[0]; const acts = lrIssueActs(issue); if (acts.length) x.e = acts; else delete x.e; return x; }),
       hl: at.title_differentiation ? at.title_differentiation.map(v => String((v && v.value) || '')).filter(Boolean) : null };
   } else if (kind === 'limg') {
-    const cat = reply.catalog && typeof reply.catalog === 'object' ? reply.catalog : null;
+    // the catalogue did not answer (catalogError): what Amazon serves is not known — never an empty "serves nothing"
+    const cat = !reply.catalogError && reply.catalog && typeof reply.catalog === 'object' ? reply.catalog : null;
     o.i = { at: now, img: reply.listing && typeof reply.listing === 'object' ? Object.fromEntries(Object.entries(reply.listing).filter(([, u]) => u)) : null,
       catImg: cat ? Object.fromEntries(Object.entries(cat).filter(([, v]) => v && v.link).map(([slot, v]) => [slot, { u: v.link, w: Number(v.w) || 0, h: Number(v.h) || 0 }])) : null };
   }
