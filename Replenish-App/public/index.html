@@ -70061,7 +70061,11 @@ function fmVendorsHtml() {
           <td class="fm-nw">${a ? `<span class="fm-skc">${esc(a.code || '')}</span> <span class="muted">${esc(a.category || '')}</span>` : '<span class="muted">not in the app’s vendor list</span>'}</td></tr>`; }).join('')
         : `<tr class="fm-none-row"><td colspan="${ncol}">No ${esc(FM_VTYPES[t].toLowerCase())} yet.</td></tr>`); }).join('');
   return fmHead('Master data / Vendors', 'Vendors', 'Greige, RFD, quilt filling, cutting and runner vendors, with the details from Tally. The app’s own vendor list (Masters → Vendor) is not changed.',
-      fmGdBtn() + (fmAdmin() ? '<button type="button" class="fm-primary" data-fmadd="vendor">+ Add vendor</button>' : ''), `${nf(list.length)} vendors`)
+      /* PRINTERS (Ravi, 17 Nov: "yadi me koi naya printer add karunga to kese karunga" — "vendor orders window nahi h"). The app's own
+       * printer list and their portal logins (vmOpen: add a printer, Set up a phone login) sat behind the Vendor Orders tab, which left
+       * the menu on 15 Oct. Opened from here now. */
+      fmGdBtn() + (fmAdmin() ? '<button type="button" class="ghost fm-sm" data-fmvm="1" title="The printers PPC, challans and the printer portal use — add a printer and set up its login">Printers &amp; logins</button>' : '')
+      + (fmAdmin() ? '<button type="button" class="fm-primary" data-fmadd="vendor">+ Add vendor</button>' : ''), `${nf(list.length)} vendors`)
     + `<div class="card fm-card"><div class="fm-tools"><div class="fm-seg">${seg.map(([k, l]) => `<button type="button" data-fmseg="${k}" aria-pressed="${FM.seg === k}">${esc(l)}<span>${nf(cnt(k))}</span></button>`).join('')}</div>
       <span class="fm-grow"></span>${fmSearch('Search vendor, city, GSTIN or work')}</div>
       <div class="fm-wrapx"><table class="fm-tab fm-vt"><thead><tr><th>#</th><th>Vendor</th>${FM_VCOLS.map(([, l]) => `<th>${esc(l)}</th>`).join('')}<th>In the app</th></tr></thead><tbody>${body}</tbody></table></div>
@@ -70179,6 +70183,7 @@ if ($('panePmdb') && $('panePmdb').addEventListener) {
     const a = t.closest('[data-fmadd]'); if (a) return a.dataset.fmadd === 'vendor' ? fmAddVendor() : fmAddFabric();
     const tb = t.closest('[data-fmtab]'); if (tb) return fmToTable(tb.dataset.fmtab);
     if (t.closest('[data-fmgd]')) { showTab('gdesk'); return GD.open('inv'); }
+    if (t.closest('[data-fmvm]') && typeof vmOpen === 'function') return vmOpen();
     const ed = t.closest('[data-fmed]'); if (ed && !t.closest('input')) return fmEditStart(ed);
   });
   pane.addEventListener('keydown', e => { const ed = e.target.closest && e.target.closest('[data-fmed]');
