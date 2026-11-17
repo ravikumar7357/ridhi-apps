@@ -117,7 +117,7 @@ function setup(opts) {
   };
   const src = L('listing-match.js') + '\n' + L('family-check.js') + '\n' + L('category-check.js')
     + '\n;return { FC, CC, fcBuild, fcDrawAll, fcOpen, fcClick, fcClock, ccDraw, ccBuild, ccGroups, ccClick, ccFilter, ccCsv, ccReport, ccOkSetMany, ccOkUndo, ccInfo, ccShort, ccSame, CC_CSV_COLS,'
-    + ' lmEnsure, lmRefresh, lmStoreUse, lmStockAt, lmOk, lmGetAsin, lmFmt };';
+    + ' lmEnsure, lmRefresh, lmStoreUse, lmStockAt, lmOk, lmGetAsin, lmFmt, lmDataLabel, lmMeta: () => LM.meta };';
   const C = new Function(...Object.keys(ctx), src)(...Object.values(ctx));
   C.lmStoreUse({ get: async () => null, put: async () => true });
   const body = () => els.fcBody.innerHTML;
@@ -376,15 +376,20 @@ const card = (T, name) => { const m = T.body().match(new RegExp('<span>' + name 
     F.C.FC.tab = 'fam'; F.C.FC.built = false;
     F.C.fcDrawAll();
     const rAt = Date.now() - H - 30 * 60000;
-    ok('the cache\'s stock is in use (its report is newer than the 5-day-old snapshot): "stock saved" shows ListingMatch\'s report time, not the snapshot\'s',
-      Math.abs(F.C.lmStockAt('SP') - rAt) < 60000 && strip(F.els.fcMeta.innerHTML).includes('stock saved ' + F.C.fcClock(F.C.lmStockAt('SP'))) && !/<span class="fc-old">stock saved/.test(F.els.fcMeta.innerHTML), strip(F.els.fcMeta.innerHTML).slice(0, 160));
+    const lmLine = C => 'Full refresh: ' + C.lmFmt(C.lmMeta().finishedAt) + ' · last update ' + C.lmFmt(C.lmMeta().finishedAt).split(' ').pop();
+    ok('the cache\'s stock is in use (its report is newer than the 5-day-old snapshot): the cache\'s stock report time is known (lmStockAt)', Math.abs(F.C.lmStockAt('SP') - rAt) < 60000);
+    ok('…and the top line is ListingMatch\'s own label: "Full refresh: <time> · last update <time>" — no "Errors/status saved", no "stock saved" (lmDataLabel)',
+      strip(F.els.fcMeta.innerHTML).startsWith(lmLine(F.C) + ' · families read') && !/Errors\/status saved|stock saved/.test(F.els.fcMeta.innerHTML), strip(F.els.fcMeta.innerHTML).slice(0, 160));
     const G = await open({});
     G.C.FC.tab = 'fam'; G.C.FC.built = false;
     G.C.fcDrawAll();
-    ok('a snapshot newer than the cache\'s report: the snapshot\'s own time, as before', G.C.lmStockAt('SP') === 0 && strip(G.els.fcMeta.innerHTML).includes('stock saved ' + G.C.fcClock(G.HEALTH.SP.at.getTime())));
+    ok('a snapshot newer than the cache\'s report: lmStockAt is 0; the ListingMatch data is fresh, so its label shows (the one rule)', G.C.lmStockAt('SP') === 0 && strip(G.els.fcMeta.innerHTML).startsWith(lmLine(G.C)));
     ok('the Families tab still draws its own cards (Not in family · Duplicate · Missing value · Different theme), none of the Categories ones', /Not in family/.test(G.text()) && /Different theme/.test(G.text()) && !/Mixed category|cc-fchip/.test(G.body()));
     const N = await open({ noCache: true, healthAt: Date.now() - 5 * 24 * H });
-    ok('no cache: lmStockAt is 0 (the snapshot\'s time shows)', N.C.lmStockAt('SP') === 0);
+    N.C.FC.tab = 'fam'; N.C.FC.built = false;
+    N.C.fcDrawAll();
+    ok('no cache: lmStockAt is 0, and the old labels show: "Errors/status saved … · stock saved <the snapshot\'s time>"', N.C.lmStockAt('SP') === 0
+      && /^Errors\/status saved .* · stock saved /.test(strip(N.els.fcMeta.innerHTML)) && strip(N.els.fcMeta.innerHTML).includes('stock saved ' + N.C.fcClock(N.HEALTH.SP.at.getTime())) && !/Full refresh:/.test(N.els.fcMeta.innerHTML), strip(N.els.fcMeta.innerHTML).slice(0, 160));
   }
 
   console.log('== speed: ~4,400 live children ==');

@@ -140,8 +140,11 @@ function liWsIsLive(row) {
   return /active/i.test(status) || /amazon|afn/i.test(String(row.channel || ''));
 }
 // Where an answer came from, how old it is, and how to bring it up to date — the detail's Source · when column.
-function liWsSrc(kind, at) {
+function liWsSrc(kind, at, brand) {
   const now = Date.now();
+  // the snapshots' answers (status, stock, pictures, Amazon's issues) come from ListingMatch while its data is fresh: its label
+  const lm = brand && (kind === 'iml' || kind === 'health') && typeof lmDataLabel === 'function' ? lmDataLabel([brand]) : null;
+  if (lm) return { s: 'ListingMatch auto refresh', when: lm.text, upd: 'update: the next refresh (~' + (typeof lmNextFull === 'function' ? lmNextFull() : '13:00') + ')' };
   if (kind === 'live') return { s: 'Amazon Listings API', when: at ? 'read ' + liWsAgo(now - at) : 'not read yet', upd: 'update: “Read again from Amazon”' };
   if (kind === 'cat') return { s: "Amazon's catalogue (what shoppers see)", when: at ? 'read ' + liWsAgo(now - at) : 'not read yet', upd: 'update: “Read again from Amazon”' };
   if (kind === 'iml') return { s: 'Image Manager snapshot', when: at ? liWsAgo(now - at) : 'no snapshot', upd: 'update: Image Manager → refresh from Amazon' };
@@ -270,15 +273,15 @@ function liWsChild(row, brand, hc, imlMap, now) {
   const hasLive = fresh.contentSrc === 'live';
   const contentSrc = hasLive ? liWsSrc('live', fresh.contentAt) : liWsSrc('content', row.checked);
   const pics = h.pics;
-  const picSrc = pics ? liWsSrc(pics.src === 'live' ? 'cat' : pics.src === 'iml' ? 'iml' : 'content', pics.at) : liWsSrc('cat', lr && lr.iAt ? lr.iAt : 0);
+  const picSrc = pics ? liWsSrc(pics.src === 'live' ? 'cat' : pics.src === 'iml' ? 'iml' : 'content', pics.at, brand) : liWsSrc('cat', lr && lr.iAt ? lr.iAt : 0);
   const found = h.found.map(hit => Object.assign({}, hit));
   const idx = liWsRuleIndex(rules);
 
   // --- Status and Stock: information, never counted ---
   c.status = { info: true, pass: live ? true : null, found: why + (live ? '' : urgent ? ' — counted all the same: it has an Error to fix first' : ' — problems are not counted'),
-    need: 'Active at Amazon, with stock (FBA)', miss: '', src: liWsSrc('health', healthAt) };
+    need: 'Active at Amazon, with stock (FBA)', miss: '', src: liWsSrc('health', healthAt, brand) };
   c.stock = { info: true, pass: row.qty == null ? null : row.qty > 0, found: row.qty == null ? 'Unknown' : liWsNf(row.qty) + ' units',
-    need: 'In stock', miss: row.qty === 0 ? 'Out of stock' : '', src: liWsSrc('health', healthAt) };
+    need: 'In stock', miss: row.qty === 0 ? 'Out of stock' : '', src: liWsSrc('health', healthAt, brand) };
 
   // --- Amazon: the live read answers for itself (healthOf's Amazon rules read it through lrAmz); otherwise the rules' answer
   //     from the Amazon status map, exactly as Listing Health has it ---
@@ -298,7 +301,7 @@ function liWsChild(row, brand, hc, imlMap, now) {
       found: errs.length ? amz.im : shopWord || 'Status ' + st.split(',').join(', '),
       miss: errs.length ? (fields.length ? 'Fields Amazon names: ' + fields.join(', ') : "See Amazon's message") : sup ? 'Suppressed' : shop.k === 'nobuy' ? 'Not buyable' : '' };
   } else {
-    c.amz = liWsRuleCell(amzHits, { known: !!AMZ.map, need: amzNeed, src: liWsSrc('iml', amz ? amz.at : (AMZ.snapAt[brand] || AMZ.at)),
+    c.amz = liWsRuleCell(amzHits, { known: !!AMZ.map, need: amzNeed, src: liWsSrc('iml', amz ? amz.at : (AMZ.snapAt[brand] || AMZ.at), brand),
       value: 'Nothing reported', unknown: 'No Amazon status yet', bang: readErr });
   }
 
@@ -320,7 +323,7 @@ function liWsChild(row, brand, hc, imlMap, now) {
   if (look && c.main.pass === true) c.main.look = look.what;
   // The title rules read the title the way Listing Health does: the content read's, else the listings report's own title.
   const titleText = hTitleText(scored);
-  c.title = ruleCol('title', (content || titleText) ? { known: true, src: content ? contentSrc : liWsSrc('health', healthAt),
+  c.title = ruleCol('title', (content || titleText) ? { known: true, src: content ? contentSrc : liWsSrc('health', healthAt, brand),
     value: content ? `${content.titleLen} characters: “${liWsCut(content.title || titleText, 90)}”` : `“${liWsCut(titleText, 90)}” (the listings report's title; content not read yet)` }
     : Object.assign({ src: contentSrc }, noContent));
   c.bul = ruleCol('bul', content ? { known: true, src: contentSrc, value: `${content.bullets} bullets` } : Object.assign({ src: contentSrc }, noContent));
@@ -602,16 +605,19 @@ function liWsParents(brands, hc, now) {
       const prog = LI_WS.prog[group.key] || null;
       const pool = live.length ? live : group.kids;
       const readAts = pool.map(kid => (kid.lr && kid.lr.cAt ? kid.lr.cAt : 0)).filter(Boolean);
-      const healthAt = HEALTH[brand] && HEALTH[brand].at ? HEALTH[brand].at.getTime() : 0;
+      // the ListingMatch data fresh: both times are its own (listing-match.js lmDataLabel, every Listing screen's label) — the full
+      // refresh, and the listings current as of its last update (a read on this page that is newer wins); else the snapshot, as before
+      const lmT = typeof lmDataLabel === 'function' ? lmDataLabel([brand]) : null;
+      const healthAt = lmT ? lmT.fullAt : HEALTH[brand] && HEALTH[brand].at ? HEALTH[brand].at.getTime() : 0;
       // why a child has no content read (its own content error first), or what its last read error was
       const errs = {};
       pool.forEach(kid => {
         const why = kid.lr && (kid.lr.cAt ? kid.lr.err : (kid.lr.cErr || kid.lr.err));
         if (why) errs[why] = (errs[why] || 0) + 1;
       });
-      const d = { n: pool.length, read: readAts.length, snapAge: healthAt ? now - healthAt : -1, why: '' };
+      const d = { n: pool.length, read: readAts.length, snapAge: healthAt ? Math.max(0, now - healthAt) : -1, why: '', lm: !!lmT };
       if (prog && prog.done < prog.total) Object.assign(d, { state: 'reading', done: prog.done, total: prog.total, rank: -1 });
-      else if (readAts.length) Object.assign(d, { state: readAts.length === pool.length ? 'live' : 'part', age: now - Math.min(...readAts) });
+      else if (readAts.length) Object.assign(d, { state: readAts.length === pool.length ? 'live' : 'part', age: Math.max(0, now - Math.max(Math.min(...readAts), lmT ? lmT.updateAt : 0)) });
       else Object.assign(d, { state: 'never', rank: Number.MAX_SAFE_INTEGER });
       if (d.rank === undefined) d.rank = d.age;
       const whys = Object.entries(errs).map(([why, count]) => `${liWsNf(count)} ${/not found/.test(why) ? why : 'could not be read: ' + why}`);
@@ -1159,7 +1165,8 @@ function liWsData(p) {
         : dot('') + 'Amazon: not checked yet';
   const refresh = 'Full refresh: ' + (d.snapAge >= 0 ? liWsAgoWords(d.snapAge) : 'none yet');
   return `<div class="li-ws-when" title="When Sellora last read these listings from Amazon, on this screen">${amazon}</div>`
-    + `<div class="li-ws-when2" title="${lrEsc("Stock, A+ and Live / Not live come from the last 'Refresh both brands' on live Sellora.")}">${lrEsc(refresh)}</div>`
+    + `<div class="li-ws-when2" title="${lrEsc(d.lm ? "ListingMatch's full refresh: every listing read from Amazon (13:00 and 18:00); the updates in between read the changed ones."
+      : "Stock, A+ and Live / Not live come from the last 'Refresh both brands' on live Sellora.")}">${lrEsc(refresh)}</div>`
     + (d.why ? `<div class="li-ws-err">${lrEsc(liWsCut(d.why, 160))}</div>` : '');
 }
 
@@ -1197,7 +1204,8 @@ function liWsRender() {
   // --- the banner: the snapshot is old ---
   const ats = brands.map(b => (HEALTH[b] && HEALTH[b].at ? HEALTH[b].at.getTime() : 0)).filter(Boolean);
   const oldest = ats.length ? Math.min(...ats) : 0;
-  const banner = oldest && now - oldest > 2 * LI_WS_DAY ? `<div class="li-ws-banner">Amazon data is ${liWsAge(now - oldest)} old (snapshot ${liWsDate(oldest)}). `
+  const lmFresh = typeof lmDataLabel === 'function' && !!lmDataLabel(brands);    // the ListingMatch data fresh: the snapshot's age does not matter
+  const banner = !lmFresh && oldest && now - oldest > 2 * LI_WS_DAY ? `<div class="li-ws-banner">Amazon data is ${liWsAge(now - oldest)} old (snapshot ${liWsDate(oldest)}). `
     + 'Press “Refresh both brands” on live Sellora to bring it up to date — on the test site nothing is saved. Opening a parent here reads its status, '
     + "Amazon's issues, pictures, title, bullets, description, search terms and specs from Amazon right now.</div>" : '';
 

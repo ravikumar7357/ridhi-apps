@@ -1006,7 +1006,7 @@ function imListRender() {
   const empty = !nKids ? `<div class="card im-empty"><b>No listings match ${filter !== 'all' ? `“${imEsc(filterName || filter)}”` : ''}${filter !== 'all' && search ? ' and ' : ''}${search ? `the search “${imEsc(search)}”` : filter === 'all' ? 'this view' : ''}.</b>`
     + `<span>${filter !== 'all' || search ? '<button class="ghost im-b" id="imClearFilter">Clear filter</button>' : ''}</span></div>` : '';
   el.innerHTML = only + cards + `<div class="im-meta muted"><span>${nKids.toLocaleString('en-US')} listing(s) in ${groups.length.toLocaleString('en-US')} famil${groups.length === 1 ? 'y' : 'ies'} of ${data.items.length.toLocaleString('en-US')}
-      · snapshot ${data.at ? data.at.toLocaleString() : '—'}${IML_BUSY ? ' · refreshing…' : ''}
+      · ${(typeof lmDataLabel === 'function' && lmDataLabel([brand])) ? imEsc(lmDataLabel([brand]).text) : 'snapshot ' + (data.at ? data.at.toLocaleString() : '—')}${IML_BUSY ? ' · refreshing…' : ''}
       · tiles show <b>${IML_VIEW === 'live' ? 'what Amazon serves' : 'the pictures you submitted'}</b></span>
       ${groups.length ? '<span class="im-meta-act"><button class="ghost im-b" data-foldall="0" title="Open every family">Open all</button><button class="ghost im-b" data-foldall="1" title="Close every family">Close all</button></span>' : ''}
       <details class="im-key"><summary>Key</summary>${IM_LEGEND}</details></div>

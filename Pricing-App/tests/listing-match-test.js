@@ -479,6 +479,75 @@ const rowOf = (C, sku) => ['SP', 'CPC'].map(b => C.HEALTH[b].rows.find(r => r.sk
       early.lo.audit.src === 'cache' && posted.some(p => p.listing === 'review') && early.gets === 0, early.lo.audit.src + ' gets=' + early.gets);
   }
 
+  console.log('== THE ONE DATA-TIME LABEL (lmDataLabel): every Listing screen says ListingMatch\'s times while its data is fresh ==');
+  {
+    const P = page();
+    P.net.tabs = cacheOf(P.C).tabs;
+    await P.C.lmEnsure(); await P.C.lmRefresh();
+    const C = P.C, M = C.LM.meta;
+    // a full pass 2 h 10 min ago and a light pass 20 min ago, both brands read by both
+    const full = Date.now() - 130 * 60000, light = Date.now() - 20 * 60000;
+    const setMeta = o => { Object.assign(M, { finishedAt: IST(o.light || o.full), kind: o.light ? 'light' : 'full', lastFull: { finishedAt: IST(o.full), brands: o.fullBrands || ['SP', 'CPC'], gaveUp: o.gaveUp || [] } });
+      if (o.light) M.lastLight = { finishedAt: IST(o.light), brands: o.lightBrands || { SP: { changed: 4 }, CPC: { changed: 2 } } }; else delete M.lastLight; C.reset(); };
+    const clock = ms => C.lmFmt(IST(ms)), hm = ms => clock(ms).split(' ').pop();
+    setMeta({ full, light });
+    const L = C.lmDataLabel(['SP', 'CPC']);
+    const sameDay = new Date(full + 5.5 * H).getUTCDate() === new Date(light + 5.5 * H).getUTCDate();
+    ok('"Full refresh: 17 Nov 13:14 · last update 13:30" from lmMeta lastFull.finishedAt and lastLight.finishedAt (one line when both brands match)',
+      L && L.text === `Full refresh: ${clock(full)} · last update ${sameDay ? hm(light) : clock(light)}` && Math.abs(L.fullAt - full) < 60000 && Math.abs(L.updateAt - light) < 60000, L && L.text);
+    setMeta({ full, light, lightBrands: { SP: { changed: 4 } } });
+    const D = C.lmDataLabel(['SP', 'CPC']);
+    ok('per brand when they differ (the light pass read only Ridhi): "Full refresh: Ridhi … · last update …; CPC … · last update <the full time>"',
+      D && D.text === `Full refresh: Ridhi ${clock(full)} · last update ${sameDay ? hm(light) : clock(light)}; CPC ${clock(full)} · last update ${hm(full)}`, D && D.text);
+    ok('…one brand alone: its own times', C.lmDataLabel(['CPC']).text === `Full refresh: ${clock(full)} · last update ${hm(full)}`, C.lmDataLabel(['CPC']).text);
+    setMeta({ full: Date.now() - 30 * H });
+    ok('ListingMatch data older than 24 hours: no label (null) — the screens show their old labels', C.lmDataLabel(['SP', 'CPC']) === null && C.lmDataLabel(['SP']) === null);
+    const E = page({ load: {} });
+    await E.C.lmEnsure();
+    ok('no ListingMatch data at all: null', E.C.lmDataLabel(['SP']) === null);
+
+    // --- the Workspace's parent rows and panel footer, and the sources of each answer ---
+    setMeta({ full, light });
+    C.LI_WS.mode = 'live';
+    C.HEALTH.SP.at = C.HEALTH.CPC.at = new Date(Date.now() - 26 * H);          // the snapshot: a day old
+    const p = C.liWsParents(['SP', 'CPC']).find(x => x.key === 'SP|P1');
+    const cell = C.liWsData(p).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+    ok('a parent row: "Full refresh: 2 hours ago" from ListingMatch\'s full pass, not the day-old snapshot', p.data.lm === true && Math.abs(p.data.snapAge - (Date.now() - full)) < 60000 && /Full refresh: 2 hours ago/.test(cell), cell);
+    ok('…"Amazon: 20 min ago" — the listings are current as of the last update (the records were read at the full pass)', p.data.state === 'live' && Math.abs(p.data.age - (Date.now() - light)) < 60000 && /Amazon: 2[01] min ago/.test(cell), cell);
+    const src = C.liWsSrc('health', C.HEALTH.SP.at.getTime(), 'SP');
+    ok('the status / stock / picture answers name their source: "ListingMatch auto refresh · Full refresh: …"', src.s === 'ListingMatch auto refresh' && src.when === C.lmDataLabel(['SP']).text, JSON.stringify(src));
+    setMeta({ full: Date.now() - 30 * H });
+    const q = C.liWsParents(['SP', 'CPC']).find(x => x.key === 'SP|P1');
+    ok('ListingMatch older than 24 hours: the old labels — the snapshot\'s "Full refresh: 1 day ago", the snapshot as the source', q.data.lm === false && Math.abs(q.data.snapAge - 26 * H) < 60000
+      && /Full refresh: 1 day ago/.test(C.liWsData(q)) && C.liWsSrc('health', C.HEALTH.SP.at.getTime(), 'SP').s === 'Listing Health snapshot', C.liWsData(q).replace(/<[^>]+>/g, ' '));
+
+    // --- Listing Health's (and the Workspace's) meta line: the real hMetaRender over a stub page ---
+    const hd = fs.readFileSync(path.join(__dirname, '..', 'src', 'app', 'listing', 'listing-health-data.js'), 'utf8').replace(/\r\n/g, '\n');
+    const fnSrc = (hd.match(/\nfunction hMetaRender\([\s\S]*?\n\}\n/) || [''])[0];
+    const meta = { innerHTML: '' };
+    const hMeta = new Function('$', 'HEALTH', 'BRAND_NAME', 'lrEsc', 'liWsNewestRead', 'lmDataLabel', fnSrc + '\nreturn hMetaRender;')(
+      () => meta, C.HEALTH, { SP: 'Ridhi', CPC: 'CPC' }, s => String(s), () => 0, b => C.lmDataLabel(b));
+    setMeta({ full, light });
+    hMeta(['SP', 'CPC'], 'Workspace');
+    const line = meta.innerHTML.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+    ok('the meta line: "Workspace · Amazon read 20 min ago · Full refresh 2 h ago  Full refresh: 17 Nov 13:14 · last update 13:30" (no "1 day ago", no snapshot dates)',
+      // (ListingMatch writes whole minutes: 20 or 21 min)
+      /^Workspace · Amazon read 2[01] min ago · Full refresh 2 h ago /.test(line) && line.endsWith(' ' + C.lmDataLabel(['SP', 'CPC']).text) && !/is-old/.test(meta.innerHTML), line);
+    setMeta({ full: Date.now() - 30 * H });
+    hMeta(['SP', 'CPC'], 'Workspace');
+    const oldLine = meta.innerHTML.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+    ok('…ListingMatch older than 24 hours: the old line, from the snapshot ("Full refresh 1 day ago … Full refresh: Ridhi <date> · CPC <date>")',
+      /^Workspace · Amazon read not yet on this screen · Full refresh 1 day ago/.test(oldLine) && /Full refresh: Ridhi \d{1,2} [A-Z][a-z]{2} · CPC \d{1,2} [A-Z][a-z]{2}$/.test(oldLine), oldLine);
+
+    // --- every Listing screen with a data-time label draws it through lmDataLabel ---
+    const dir = path.join(__dirname, '..', 'src', 'app', 'listing');
+    const users = ['listing-health-data.js', 'parent-check.js', 'listing-workspace.js', 'listing-kid.js', 'image-manager.js', 'listing-errors.js', 'family-check.js']
+      .filter(f => !/lmDataLabel\(/.test(fs.readFileSync(path.join(dir, f), 'utf8')));
+    ok('Listing Health (meta line, brand cards), Workspace (rows, panel, sources, banner), child sidebar, Image Manager, Listing Errors, Family check all use lmDataLabel', !users.length, users.join());
+    const defs = fs.readdirSync(dir).filter(f => /\.js$/.test(f) && /function lmDataLabel\(/.test(fs.readFileSync(path.join(dir, f), 'utf8')));
+    ok('…one shared function, defined once (listing-match.js)', defs.join() === 'listing-match.js', defs.join());
+  }
+
   console.log('== SPEED: ~4,400 listings from the saved copy ==');
   {
     const first = page();

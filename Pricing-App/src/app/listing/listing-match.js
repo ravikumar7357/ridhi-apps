@@ -749,6 +749,42 @@ function lmAgeHtml() {
     : `Read from Amazon by ListingMatch (${LM.meta.kind === 'light' ? 'the changed listings' : 'every listing'}). A live read on this page (a send, Check now, Read again) shows until a newer pass.`;
   return `<span class="lm-age-t${old ? ' is-old' : ''}" title="${tip}">Amazon data: ${lmFmt(LM.meta.finishedAt)} · next refresh ~${lmNextFull()}</span>`;
 }
+/* ----- THE ONE "WHEN WAS THIS READ" LABEL (17 Nov 2026): every Listing screen's data-age label comes from lmDataLabel ----- */
+// ms → '17 Nov 13:14' (IST, as ListingMatch writes its times); day false → '13:14'.
+function lmClock(ms, day) {
+  const d = new Date(ms + LM_IST_MS);
+  const hm = String(d.getUTCHours()).padStart(2, '0') + ':' + String(d.getUTCMinutes()).padStart(2, '0');
+  return day === false ? hm : `${d.getUTCDate()} ${LM_MON[d.getUTCMonth()]} ${hm}`;
+}
+const lmIstDay = ms => Math.floor((ms + LM_IST_MS) / 864e5);
+/** One brand's times from lmMeta: full = the last full pass that read it (lastFull.finishedAt; 0 when that pass gave the brand up),
+ *  update = the newest pass that read it (lastLight.finishedAt when the light pass read this brand, else the full one). */
+function lmBrandTimes(brand) {
+  const m = LM.meta || {};
+  const lf = m.lastFull || (m.kind === 'full' ? { finishedAt: m.finishedAt } : {});
+  const ll = m.lastLight || (m.kind === 'light' ? { finishedAt: m.finishedAt } : {});
+  const inFull = !lf.brands || (lf.brands.includes(brand) && !(lf.gaveUp || []).includes(brand));
+  const full = inFull ? lmTime(lf.finishedAt) : 0;
+  const light = ll.brands && typeof ll.brands === 'object' && !ll.brands[brand] ? 0 : lmTime(ll.finishedAt);
+  return { full, update: Math.max(full, light) };
+}
+/** THE LABEL. When the ListingMatch data is fresh for every brand given (lmOk: its last pass at most 24 hours old):
+ *    { lm: true, fullAt, updateAt, text: 'Full refresh: 17 Nov 13:14 · last update 13:30' }
+ *  per brand when the brands' times differ ('Full refresh: Ridhi 17 Nov 13:14 · last update 13:30; CPC 16 Nov 18:20 · last update 13:30').
+ *  fullAt / updateAt: the oldest across the brands (0 when one is not known). NULL when the data is missing or older than 24 hours:
+ *  only then does a screen show its old label (the Listing Health snapshot, the Image Manager snapshot, a manual refresh). */
+function lmDataLabel(brands) {
+  brands = brands && brands.length ? brands : ['SP', 'CPC'];
+  if (!LM.meta || !brands.every(b => lmOk(b))) return null;
+  const t = brands.map(b => Object.assign({ b }, lmBrandTimes(b)));
+  const one = x => (x.full ? lmClock(x.full) : 'not in the last full pass')
+    + (x.update ? ' · last update ' + lmClock(x.update, x.full && lmIstDay(x.update) === lmIstDay(x.full) ? false : true) : '');
+  const same = t.every(x => x.full === t[0].full && x.update === t[0].update);
+  const name = b => (typeof BRAND_NAME !== 'undefined' && BRAND_NAME[b]) || b;
+  const text = 'Full refresh: ' + (same ? one(t[0]) : t.map(x => name(x.b) + ' ' + one(x)).join('; '));
+  const oldest = k => (t.every(x => x[k]) ? Math.min(...t.map(x => x[k])) : 0);
+  return { lm: true, fullAt: oldest('full'), updateAt: oldest('update'), text };
+}
 function lmAgeDraw() {
   try {
     if (typeof document === 'undefined' || !document.getElementById) return;

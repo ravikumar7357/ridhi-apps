@@ -137,6 +137,14 @@ function hMetaRender(brands, view) {
   const ago = ms => (ms < 3600000 ? Math.max(1, Math.round(ms / 60000)) + ' min ago' : ms < 86400000 ? Math.round(ms / 3600000) + ' h ago'
     : Math.round(ms / 86400000) === 1 ? '1 day ago' : Math.round(ms / 86400000) + ' days ago');
   const read = typeof liWsNewestRead === 'function' ? liWsNewestRead(brands) : 0;
+  // the ListingMatch data fresh (at most 24 h old): its full refresh and last update (listing-match.js lmDataLabel, every Listing screen's label)
+  const lm = typeof lmDataLabel === 'function' ? lmDataLabel(brands) : null;
+  if (lm) {
+    const amz = Math.max(read, lm.updateAt);
+    el.innerHTML = `<span title="Read from Amazon by ListingMatch: the full refresh reads every listing, the updates in between the changed ones. A read on this page (Check now, Read again, a send) is newer when it shows."><b>${lrEsc(view || 'Listing Health')}</b> · Amazon read ${amz ? ago(Math.max(0, now - amz)) : 'not yet'}`
+      + ` · Full refresh ${lm.fullAt ? ago(Math.max(0, now - lm.fullAt)) : 'not in the last pass'}</span><span>${lrEsc(lm.text)}</span>`;
+    return;
+  }
   const perBrand = brands.map(brand => (BRAND_NAME[brand] || brand) + ' ' + (HEALTH[brand] && HEALTH[brand].at
     ? HEALTH[brand].at.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : 'never')).join(' · ');
   const old = !oldest || days > 7;

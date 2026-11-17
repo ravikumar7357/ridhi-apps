@@ -157,7 +157,7 @@ function leRender() {
         ${LE_KINDS.map(([kind, label]) => chip(kind, label)).join('')}
         <button class="ghost im-b" data-kind="all">All</button>
       </div>
-      <div class="muted" style="font-size:11.5px;margin-top:6px">${leNf(rows.length)} listing(s) shown · snapshot ${data.at ? data.at.toLocaleString() : '—'}${IML_BUSY ? ' · refreshing…' : ''}
+      <div class="muted" style="font-size:11.5px;margin-top:6px">${leNf(rows.length)} listing(s) shown · ${(typeof lmDataLabel === 'function' && lmDataLabel([brand])) ? leEsc(lmDataLabel([brand]).text) : 'snapshot ' + (data.at ? data.at.toLocaleString() : '—')}${IML_BUSY ? ' · refreshing…' : ''}
         ${old ? ' · <b class="err">this snapshot keeps only the first error of each listing — press Refresh from Amazon for all of them</b>' : ''}</div>
     </div>
     ${pager}
