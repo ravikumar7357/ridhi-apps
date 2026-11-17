@@ -1385,6 +1385,10 @@ table.xl tbody tr.vo-near td{background:var(--warn-bg)}
 .vpb-line.vo-late,.vpb-line.vo-near{border-radius:10px;padding:8px}
 .vpb-line.vo-late{background:var(--bad-bg)}
 .vpb-line.vo-near{background:var(--warn-bg)}
+/* SHP board (Order Console): the same colours by the date planned for the stage a line is at (shpbLate). Its stage cells carry their
+   peach tint in the row's own markup, which only !important can cover — without it a late row was red in two cells of fifteen. */
+#odTable tbody tr.vo-late td{background:var(--bad-bg) !important}
+#odTable tbody tr.vo-near td{background:var(--warn-bg) !important}
 .vpb-pic,.vpb-line [data-img] img{width:44px;height:44px;object-fit:cover;border-radius:8px;border:1px solid var(--line)}
 .vpb-what{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;font-size:12.5px}
 .vpb-sku{font-family:ui-monospace,Consolas,monospace;font-size:12px;color:var(--ink)}
@@ -28782,10 +28786,9 @@ function shpbRow(r) {
   const k = shpbKey(r.orderNo, r.sku), s = shpbStages([r]), rd = shpbReadyOf(r), edit = shpbCanEdit(), late = rd.date && rd.date < dToday();
   const prn = shpbPrinterOf(r);
   const tips = { prcv: 'Owed by the printer − printed cloth received back on the challan', cut: 'Still to cut − cut so far', issue: 'Cut and not yet issued − issued to karigars', receive: 'Out with karigars − received back', qc: 'Received, not checked − passed QC', press: 'Passed QC, not pressed − pressed' };
-  const stuck = shpbStuck(r);
-  return (stuck ? '<tr style="background:#fef2f2;box-shadow:inset 4px 0 0 #dc2626">' : '<tr>') + '<td class="frz" style="' + SHPB_PAD + 'text-align:left;white-space:nowrap;font-size:12px">' + esc(shpbDmy(shpbDateOf(r)))
-    + (stuck ? `<div title="Nothing done on this line since ${esc(shpbDmy(stuck.since))} — Sundays not counted"><span class="pill" style="background:#dc2626;color:#fff;font-size:10px">Stuck ${nf(stuck.days)} day${stuck.days === 1 ? '' : 's'}</span></div>`
-      + `<div style="font-size:10.5px;color:#b91c1c;white-space:normal;max-width:110px">last step: ${esc(stuck.at)} · since ${esc(shpbDmy(stuck.since))}</div>` : '') + '</td>'
+  const dl = shpbLate(r);
+  return (dl ? '<tr class="vo-' + dl.tone + '" title="' + esc(dl.why) + '">' : '<tr>') + '<td class="frz" style="' + SHPB_PAD + 'text-align:left;white-space:nowrap;font-size:12px">' + esc(shpbDmy(shpbDateOf(r)))
+    + (dl && dl.tone === 'late' ? `<div style="font-size:10.5px;color:#b91c1c;white-space:normal;max-width:110px">last step: ${esc(dl.at)}${dl.since ? ' · since ' + esc(shpbDmy(dl.since)) : ''}</div>` : '') + '</td>'
     + '<td style="' + SHPB_PAD + 'text-align:left;white-space:nowrap;line-height:1.25"><a href="#" data-ordj="' + esc(r.orderNo) + '" style="color:inherit;text-decoration:underline dotted;font-weight:700">'
     + esc(String(r.shopOrderNo || r.orderNo).replace(/^#\s*/, '')) + '</a>'
     + '</td>'
@@ -28826,40 +28829,59 @@ function shpbStatusCell(r, k, rd, late, edit) {
 }
 
 /** What the board shows now. PENDING = lines with pieces not yet pressed; COMPLETE = lines pressed (waiting for shipping, or handed over) and closed ones. */
-/* STUCK IN ONE PLACE (Ravi, 13 Nov: "yadi koi order 1 hi jagah 24 hours se jyada pada h aage move nahi hua h wo highlight ho jay";
- * Sundays not counted). The last day anything happened to a pending line — every date its own flow shows: ordered/opened, plan,
- * printer, cloth back, cut, issued, received, QC, filler, press — and if a whole working day (Mon–Sat) has passed since with
- * nothing, the line is stuck: its row goes red with where it waits and for how long, and "Stuck > 24h" shows only those.
- * Days, not hours: the registers keep the day of a step, not its time — so a line moved on Monday is stuck from Wednesday. */
-const shpbIsoOf = d => { const m = String(d || '').match(/(\d{2})-(\d{2})-(\d{4})/); return m ? m[3] + '-' + m[2] + '-' + m[1] : ''; };
+/* LATE AT ITS STAGE (Ravi, 16 Nov — MIS meeting, printer delays; in place of "Stuck > 24h" of 13 Nov). A pending line is measured
+ * where its work waits now — the first stage holding pieces — against the date PPC planned for that stage:
+ *   printer receive, cut → the Cut date · issue, receive, QC → the QC date · press / filler, shipping → the Ready date (shpbReadyOf)
+ * red once past it, yellow on it and the day before, white otherwise. A stage with no date (a line not planned, or no date set for
+ * that stage) is red when nothing has happened on the line for 7 days, every day counted. A red row keeps "last step: … since …".
+ * Display only: a line whose flow cannot be read is never coloured. */
+const SHPB_LATE_DAYS = 7;
+const SHPB_DUE_OF = { prcv: 'cut', cut: 'cut', issue: 'qc', receive: 'qc', qc: 'qc', press: 'ready', hand: 'ready' };
+const SHPB_DUE_NAME = { cut: 'Cut', qc: 'QC', ready: 'Ready' };
+const shpbDaysBetween = (a, b) => Math.round((Date.parse(b + 'T00:00:00Z') - Date.parse(a + 'T00:00:00Z')) / 864e5);
+/** The last day anything happened to a line — every date its own flow shows (ordered, plan, printer, cloth back, cut, issued, received, QC, filler, press). */
 function shpbLastMove(r) {
   let best = '';
   try { shpbSteps(r).forEach(x => String(x.when || '').replace(/(\d{2})-(\d{2})-(\d{4})/g, (t, d, mo, y) => { const iso = y + '-' + mo + '-' + d; if (iso > best) best = iso; return t; })); }
-  catch (e) { /* a line whose flow cannot be read is never called stuck */ }
+  catch (e) { /* a line whose flow cannot be read is never coloured */ }
   return best;
 }
-/** Working days (Monday–Saturday) wholly between two ISO days. */
-function shpbWorkDaysBetween(a, b) {
-  const t0 = Date.parse(a + 'T00:00:00Z'), t1 = Date.parse(b + 'T00:00:00Z');
-  if (!(t0 < t1)) return 0;
-  let n = 0;
-  for (let t = t0 + 864e5; t < t1; t += 864e5) if (new Date(t).getUTCDay() !== 0) n++;
-  return n;
+/** The stage where the line's work waits now — the first one holding pieces — or '' when nothing waits. */
+function shpbStageNow(r) {
+  const s = shpbStages([r]), st = SHPB_STAGES.find(x => s[x[3]] > 0);
+  return st ? st[0] : '';
 }
-let SHPB_STUCKC = { sig: null, map: new Map() };
-/** { since, days, at } for a pending line stuck a working day or more, else null. */
-function shpbStuck(r) {
-  const today = shpbToday(), sig = [today, PT.base, PT.cut, (typeof QC !== 'undefined' && QC.checks) || null, SHPB.ready, SHPB.press, (typeof FLOW !== 'undefined' && FLOW && FLOW.ch) || null];
-  if (!SHPB_STUCKC.sig || SHPB_STUCKC.sig.some((x, i) => x !== sig[i])) SHPB_STUCKC = { sig, map: new Map() };
+/** The date that stage was planned to be done by: the plan's Cut or QC date, or the line's Ready date; '' when none was set. */
+function shpbStageDue(r, stage) {
+  const k = SHPB_DUE_OF[stage];
+  if (!k) return '';
+  if (k === 'ready') return shpbReadyOf(r).date || '';
+  const p = shpbPlanOf(r);
+  return String((p && p.dates && p.dates[k]) || '').slice(0, 10);
+}
+let SHPB_LATEC = { sig: null, map: new Map() };
+/** { tone: 'late' | 'near', at, since, why } for a pending line late or nearly due at its stage, else null. */
+function shpbLate(r) {
+  const today = shpbToday(), sig = [today, PT.base, PT.cut, (typeof QC !== 'undefined' && QC.checks) || null, SHPB.ready, SHPB.press,
+    (typeof FLOW !== 'undefined' && FLOW && FLOW.ch) || null, (typeof FLOW !== 'undefined' && FLOW && FLOW.ppc) || null];
+  if (!SHPB_LATEC.sig || SHPB_LATEC.sig.some((x, i) => x !== sig[i])) SHPB_LATEC = { sig, map: new Map() };
   const k = shpbKey(r.orderNo, r.sku);
-  if (SHPB_STUCKC.map.has(k)) return SHPB_STUCKC.map.get(k);
-  let out = null;
-  if (r.open) {
-    const last = shpbLastMove(r), days = last ? shpbWorkDaysBetween(last, today) : 0;
-    if (days >= 1) out = { since: last, days, at: shpbStatusInfo(r).label };
+  if (!SHPB_LATEC.map.has(k)) SHPB_LATEC.map.set(k, shpbLateNow(r, today));
+  return SHPB_LATEC.map.get(k);
+}
+function shpbLateNow(r, today) {
+  if (!r.open) return null;
+  const stage = shpbStageNow(r);
+  if (!stage) return null;
+  const due = shpbStageDue(r, stage), last = shpbLastMove(r), at = shpbStatusInfo(r).label;
+  if (due) {
+    const d = shpbDaysBetween(due, today), name = SHPB_DUE_NAME[SHPB_DUE_OF[stage]];
+    if (d > 0) return { tone: 'late', at, since: last, why: nf(d) + ' day' + (d === 1 ? '' : 's') + ' past its ' + name + ' date (' + shpbDmy(due) + ')' };
+    if (d >= -1) return { tone: 'near', at, since: last, why: (d === 0 ? 'its ' + name + ' date is today' : 'its ' + name + ' date is tomorrow') + ' (' + shpbDmy(due) + ')' };
+    return null;
   }
-  SHPB_STUCKC.map.set(k, out);
-  return out;
+  const idle = last ? shpbDaysBetween(last, today) : 0;
+  return idle >= SHPB_LATE_DAYS ? { tone: 'late', at, since: last, why: 'no ' + (stage === 'plan' ? 'plan' : 'date for this stage') + ' and nothing done for ' + nf(idle) + ' days' } : null;
 }
 function shpbView() {
   const f = Object.assign(ordFilters(), { dateOf: shpbDateOf }), all = ordLines().filter(r => shpbBelongs(r) && !(typeof flowIsBack === 'function' && flowIsBack(r))), shown = ordApply(all, f);
@@ -28868,7 +28890,7 @@ function shpbView() {
   const done = shown.filter(r => { if (!r.open) return true; return sOf(r).prsD > 0 || sOf(r).stk > 0; });
   const stg = SHPB_STAGES.find(x => x[0] === SHPB.stage);
   let list = SHPB.tab === 'done' ? (stg && stg[0] === 'hand' ? done.filter(r => sOf(r)[stg[3]] > 0) : done) : (stg && stg[0] !== 'hand' ? pend.filter(r => sOf(r)[stg[3]] > 0) : pend);
-  if (SHPB.stuck && SHPB.tab !== 'done') list = list.filter(shpbStuck);
+  if (SHPB.late && SHPB.tab !== 'done') list = list.filter(r => (shpbLate(r) || {}).tone === 'late');
   return { f, all, pend, done, list };
 }
 
@@ -28898,9 +28920,9 @@ function renderShpBoard() {
   /* ONE LINE: the stage buckets, and the two tabs at the right end (Ravi, 28 Oct: no "Waiting at:", no long note, the tabs up with the buckets). */
   $('odKpis').innerHTML = ME.shpAccOnly ? `<div style="margin:2px 0 8px;font-weight:700;font-size:15px">Shipping to accept · ${nf(done.filter(r => r.open && shpbStages([r]).handW > 0).length)} line(s)</div>`
     : `<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:2px 0 8px">${shpbStagesShown().map(bucket).join('')}`
-    + (() => { const n = pend.filter(shpbStuck).length, on = !!SHPB.stuck;
-        return `<button type="button" data-shpb-stuck="1" title="Pending lines with nothing done for a whole working day (Sundays not counted)" style="height:36px;padding:0 14px;border-radius:999px;font:inherit;font-weight:700;cursor:pointer;box-shadow:none;transform:none;`
-          + (on ? 'background:#b91c1c;color:#fff;border:1px solid #b91c1c' : 'background:#fef2f2;color:#b91c1c;border:1px solid #fecaca') + `">Stuck &gt; 24h · ${nf(n)}</button>`; })()
+    + (() => { const n = pend.filter(r => (shpbLate(r) || {}).tone === 'late').length, on = !!SHPB.late;
+        return `<button type="button" data-shpb-late="1" title="Pending lines past the date planned for the stage they are at — or, with no date, nothing done for 7 days" style="height:36px;padding:0 14px;border-radius:999px;font:inherit;font-weight:700;cursor:pointer;box-shadow:none;transform:none;`
+          + (on ? 'background:#b91c1c;color:#fff;border:1px solid #b91c1c' : 'background:#fef2f2;color:#b91c1c;border:1px solid #fecaca') + `">Late · ${nf(n)}</button>`; })()
     + `<div style="display:flex;gap:8px;margin-left:auto">${tabBtn('pending', 'Order pending · ' + nf(pend.length))}${tabBtn('done', 'Complete · ' + nf(done.length))}</div></div>`
     + (tab === 'pending' && shpbMay('plan') ? (() => {
       const can = shpbToPlan(pend).length, left = typeof FLOW_XL_IMP !== 'undefined' && FLOW_XL_IMP.length ? flowXlLeft().length : 0;
@@ -29316,7 +29338,7 @@ if ($('odKpis') && $('odKpis').addEventListener) $('odKpis').addEventListener('c
   }
   if (e.target.closest && e.target.closest('[data-shpb-xlin]')) { const f = document.querySelector('[data-shpb-xlfile]'); if (f) f.click(); return; }
   if (e.target.closest && e.target.closest('[data-shpb-xlnext]')) { flowXlOpenNext(); return; }
-  if (e.target.closest && e.target.closest('[data-shpb-stuck]')) { SHPB.stuck = !SHPB.stuck; if (SHPB.stuck) SHPB.tab = 'pending'; renderShpBoard(); return; }
+  if (e.target.closest && e.target.closest('[data-shpb-late]')) { SHPB.late = !SHPB.late; if (SHPB.late) SHPB.tab = 'pending'; renderShpBoard(); return; }
   const g = e.target.closest && e.target.closest('[data-shpb-stage]');
   if (g) { SHPB.stage = SHPB.stage === g.dataset.shpbStage ? '' : g.dataset.shpbStage; SHPB.tab = SHPB.stage === 'hand' ? 'done' : 'pending'; renderShpBoard(); }
 });
