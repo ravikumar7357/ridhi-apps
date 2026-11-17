@@ -68154,13 +68154,28 @@ function skcDraw() {
     + `<td style="font-family:ui-monospace,monospace;font-weight:700">${esc(full) || '<span class="muted">—</span>'}</td>`
     + `<td>${state === 'have' ? '<span class="pill pill-ok">In master</span>' : state === 'new' ? '<span class="pill pill-low">New</span>'
       : state === 'taken' ? `<span class="pill pill-out" title="That code is already a SKU of another colour">${esc(m.color || '?')}</span>` : ''}</td>`
-    + (edit ? (r.derived ? `<td class="muted" style="font-size:11px" title="Worked out from ${esc(String(r.n))} ${esc(r.brand)} SKU(s) in the master${r.alt && r.alt.length ? ' · not used: ' + esc(r.alt.join(', ')) + ' (fewer SKUs follow it)' : ''}">from SKUs${r.alt && r.alt.length ? ' · ' + esc(r.alt.length) + ' other' : ''}</td>` : `<td><button class="ghost" data-skc-edit="${esc(r._key)}" style="padding:3px 10px">Edit</button></td>`) : '')
+    + (edit ? (r.derived ? `<td class="muted" style="font-size:11px" title="Worked out from ${esc(String(r.n))} ${esc(r.brand)} SKU(s) in the master${r.alt && r.alt.length ? ' · not used: ' + esc(r.alt.join(', ')) + ' (fewer SKUs follow it)' : ''}">from SKUs${r.alt && r.alt.length ? ' · ' + esc(r.alt.length) + ' other' : ''}</td>` : `<td style="white-space:nowrap"><button class="ghost" data-skc-edit="${esc(r._key)}" style="padding:3px 10px">Edit</button> <button class="ghost" data-skc-del="${esc(r._key)}" style="padding:3px 10px;color:var(--bad)" title="Remove this base code — SKUs already made stay as they are">Delete</button></td>`) : '')
     + '</tr>').join('') + '</tbody>';
   $('ptmMsg').className = 'muted';
   $('ptmMsg').textContent = `${nf(rows.length)} of ${nf(skcRows().length)} base code(s)`;
 }
 
-$('ptmTable').addEventListener('click', e => {
+$('ptmTable').addEventListener('click', async e => {
+  /* REMOVE A BASE CODE (Ravi, 17 Nov: "base code remove/edit karne ka option bhi de dena"): the row only — every SKU already made with it stays. */
+  const d = e.target.closest('[data-skc-del]');
+  if (d) {
+    if (!mdbCanEdit()) { $('ptmMsg').className = 'err'; $('ptmMsg').textContent = MDB_NO_EDIT; return; }
+    const id = d.getAttribute('data-skc-del'), r = ptList((PTG.masters || {}).skuCode).find(x => x._key === id);
+    if (!r || !confirm(`Remove the base code ${r.base} (${[r.article, r.subtype, r.size].filter(Boolean).join(' · ')})?
+
+SKUs already made with it are not touched.`)) return;
+    try { await ptDelete('pt_masters/skuCode/' + id); } catch (er) { $('ptmMsg').className = 'err'; $('ptmMsg').textContent = 'Not deleted: ' + (er.message || er); return; }
+    const m = Object.assign({}, (PTG.masters || {}).skuCode || {}); delete m[id];
+    PTG.masters = Object.assign({}, PTG.masters || {}, { skuCode: m });
+    renderPmdb();
+    $('ptmMsg').className = 'muted'; $('ptmMsg').textContent = `Base code ${r.base} removed — a copy is in the recycle bin.`;
+    return;
+  }
   const b = e.target.closest('[data-skc-edit]'); if (!b) return;
   skcEditOpen(b.getAttribute('data-skc-edit'));
 });
