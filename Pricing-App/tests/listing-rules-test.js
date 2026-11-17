@@ -272,8 +272,8 @@ if (require.main === module) {
   ok('…= no problem; the Workspace cell says "Search terms: 233 of 249 bytes"', !T.hit('R10', 'keyword_bytes') && T.ids('R10') === ''
     && (() => { T.LI_WS.mode = 'live'; const p = T.liWsParents(['SP', 'CPC']).find(x => x.key === 'SP|P2'); const k = p.kids.find(x => x.sku === 'R10'); return k.c.kw.pass === true && /^Search terms: 233 of 249 bytes/.test(k.c.kw.found); })(), T.ids('R10'));
   liveEntry('SP', 'R10', { cAt: NOW, title: T.rows.find(r => r.sku === 'R10').title, titleLen: 73, bul: 5, desc: 300, kw: 'y'.repeat(260), kwBytes: 260 });
-  ok('260 bytes of words = Needs attention (never an Error), "cut 11 bytes; over the limit Amazon ignores all of them"', (T.hit('R10', 'keyword_bytes') || {}).sev === 'action' && T.lrLevel('action').word === 'Needs attention'
-    && /^260 of 249 bytes — cut 11; over the limit Amazon ignores all of them$/.test(T.hit('R10', 'keyword_bytes').detail) && /^Cut 11 bytes from the search terms/.test(T.hit('R10', 'keyword_bytes').fix) && T.hit('R10', 'keyword_bytes').tag === 'Amazon limit', JSON.stringify(T.hit('R10', 'keyword_bytes')));
+  ok('260 bytes of words = Needs attention (never an Error), "cut 11 bytes; over the limit Amazon may ignore all of them"', (T.hit('R10', 'keyword_bytes') || {}).sev === 'action' && T.lrLevel('action').word === 'Needs attention'
+    && /^260 of 249 bytes — cut 11; over the limit Amazon may ignore all of them$/.test(T.hit('R10', 'keyword_bytes').detail) && /^Cut 11 bytes from the search terms/.test(T.hit('R10', 'keyword_bytes').fix) && T.hit('R10', 'keyword_bytes').tag === 'Amazon limit', JSON.stringify(T.hit('R10', 'keyword_bytes')));
   ok('a search-term count stored the old way (with spaces) is dropped and counted again', (() => { const e = T.LI_WS.live.SP.R10; delete e.kwBytes; T.LI_WS.liveV++; T.reset(); return T.score('R10').fresh.kwBytes === 260; })());
   delete T.LI_WS.live.SP.R10; T.LI_WS.liveV++; T.reset();
 

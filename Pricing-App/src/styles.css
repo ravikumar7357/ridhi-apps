@@ -1,6 +1,9 @@
   /* Listing optimiser: what a rewrite removed and what it added, marked in place. */
   .lo-gone{text-decoration:line-through;opacity:.45}
   .lo-new{color:var(--accent-ink);font-weight:700;background:var(--accent-bg);border-radius:3px;padding:0 2px}
+  /* the search terms past Amazon's limit (lrKwCheck): what to cut, marked in place */
+  .lo-cut{background:var(--bad-bg);color:var(--bad-ink);text-decoration:underline wavy var(--bad);text-underline-offset:3px;border-radius:3px;padding:0 2px}
+  .lo-cut-tag{margin-left:6px;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--bad-ink);background:var(--bad-bg);border:1px solid color-mix(in srgb,var(--bad) 35%,transparent);border-radius:3px;padding:0 4px;white-space:nowrap}
   /* THE SIGN-IN SCREEN. Every rule is scoped under #loginView so none of it can reach a control
      inside the app. The screen fills the window and centres one lightly frosted card; its background
      layers (phase 4) sit inside it, behind the card. :not(.hide), so auth.js can still hide it. */
