@@ -131,7 +131,7 @@ function screenVsSheet(P, brands, sheet) {
     k3.Brand === 'Ridhi' && k3['Family name'] === 'Napkins, "Cotton" parent' && k3['Parent ASIN'] === 'B0PAR' && k3.ASIN === 'B0K3' && k3['Stock (units)'] === 3 && k3['Amazon link'] === 'https://www.amazon.com/dp/B0K3'
     && k3.Problems === 'Fewer than 7 pictures | Amazon picture error' && k3['What to do'].split(' | ').length === 2 && !/2000/.test(k3['What to do']), JSON.stringify(k3).slice(0, 300));
   ok('…Number of pictures 5, Smallest picture size 1500×1500 (Amazon\'s size of a served picture), Amazon\'s picture message in full (not ERROR 90244)',
-    k3['Number of pictures'] === 5 && k3['Smallest picture size'] === '1500×1500' && k3["Amazon's picture error message"] === 'ERROR 18320: The main image is missing or incorrect');
+    k3['Number of pictures'] === 5 && k3['Smallest picture size'] === '1500×1500' && k3["Amazon's picture error message"] === 'ERROR 18320 on MAIN: The main image is missing or incorrect');
   ok('…Data time: when the data was read (the snapshot here); Verified at empty until a live read', /^Snapshot 17\/11\/2026, 13:14/.test(k3['Data time']) && k3['Verified at'] === '');
   ok('which rows are CRITICAL (checked live before saving): K3 (Amazon\'s error names the main picture), K4 (Search suppressed) — not K2, K7, S1', rows.filter(r => P.imCritical(r.item, 'SP')).map(r => r.sku).join() === 'K3,K4');
 

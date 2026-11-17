@@ -85,8 +85,8 @@ function page(items, opts) {
   ok('TRUE: an ERROR naming a picture slot · TRUE: ERROR 18320 · TRUE: an ERROR naming nothing whose words are about an image',
     chk(mk('G1', { iss: [E(100581, 'Rejected', ['main_product_image_locator'])] }), 'amzerr') === true && chk(mk('G2', { iss: [E(18320, 'The main image is missing or incorrect')] }), 'amzerr') === true
     && chk(mk('G3', { iss: [E(5, 'The image could not be downloaded')] }), 'amzerr') === true);
-  ok('FALSE: an ERROR naming the colour whose words say "swatch" (it is about the colour — before this, it was flagged)',
-    chk(mk('G4', { iss: [E(99010, 'A value is missing for the colour swatch of this variation', ['color'])] }), 'amzerr') === false
+  ok('TRUE: an ERROR about the swatch, even when Amazon names another attribute on it (the swatch is a picture slot)',
+    chk(mk('G4', { iss: [E(99010, 'A value is missing for the colour swatch of this variation', ['color'])] }), 'amzerr') === true
     && P.imOldCheck(mk('G4', { iss: [E(99010, 'A value is missing for the colour swatch of this variation', ['color'])] }), 'amzerr', 'SP', new Map()) === true);
   ok('FALSE: a WARNING on a picture slot · FALSE: an ERROR about the unit count · FALSE: no issues', chk(mk('G5', { iss: [{ s: 'W', c: '1', m: 'Image is small', a: ['other_product_image_locator_2'] }] }), 'amzerr') === false
     && chk(mk('G6', { iss: [E(90244, 'The value for Ounce / Unit Count is missing', ['unit_count'])] }), 'amzerr') === false && chk(mk('G7'), 'amzerr') === false);
@@ -95,7 +95,51 @@ function page(items, opts) {
   ok('an old saved record (only the first error\'s words): about a picture → TRUE; 2 errors, the first not about pictures → NOT CHECKED; 0 errors → FALSE',
     chk(Object.assign(noIss('G9'), { ie: 1, im: 'The main image is missing or incorrect' }), 'amzerr') === true && chk(Object.assign(noIss('G10'), { ie: 2, im: 'Unit count missing' }), 'amzerr') === null
     && chk(Object.assign(noIss('G11'), { ie: 0 }), 'amzerr') === false);
-  ok('Amazon\'s message is shown with its code on the row', (() => { const Q = page([mk('G1', { iss: [E(100581, 'The image was rejected', ['main_product_image_locator'])] })]); Q.IM_OPEN.add('PAR'); Q.imListRender(); return /ERROR 100581: The image was rejected/.test(Q.el('imList').innerHTML); })());
+  ok('Amazon\'s message is shown with its code on the row', (() => { const Q = page([mk('G1', { iss: [E(100581, 'The image was rejected', ['main_product_image_locator'])] })]); Q.IM_OPEN.add('PAR'); Q.imListRender(); return /ERROR 100581 on MAIN: The image was rejected/.test(Q.el('imList').innerHTML); })());
+
+  console.log('== Amazon picture error: the real ones from the 14:50 sheet are back — every slot, any attribute Amazon names, slot + message shown ==');
+  {
+    // Amazon's own messages (the 14:50 sheet). `a`: what Amazon may name on the issue — sometimes NOT the picture slot (that is how
+    // the stricter rule lost them), sometimes nothing, sometimes the slot itself. Each must be flagged whichever it is.
+    const M100238 = slot => `Your image ${slot} violates Amazon's image standards. Review image requirements mentioned in the 'Product image requirements' help page and upload a new image.`;
+    const M100581 = slot => `The ${slot} image you submitted for US/Global has text, logo, graphic and watermark which is not permitted for this product type in US/Global store. As a result, your image(s) will not be considered for display to customers`;
+    const REAL = [['RCN72', 100238, M100238('PT08'), 'PT08'], ['RCNB327', 100238, M100238('PT08'), 'PT08'], ['RCNB353', 100238, M100238('PT08'), 'PT08'], ['RCNB41', 100238, M100238('PT08'), 'PT08'],
+      ['RCNB302', 100238, M100238('PT08'), 'PT08'], ['RCN521', 100238, M100238('PT08'), 'PT08'], ['R-CC-327', 100238, M100238('PT06'), 'PT06'], ['R-CC-508', 100238, M100238('PT06'), 'PT06'],
+      ['R-CC-72', 100238, M100238('PT06'), 'PT06'], ['R-CC-9', 100238, M100238('PT06'), 'PT06'], ['RCST72', 100581, M100581('MAIN'), 'MAIN'], ['RTCR302-110', 100581, M100581('SWCH'), 'SWCH']];
+    const NAMES = [['externally_assigned_product_identifier'], [], ['merchant_suggested_asin'], ['item_name']];
+    const items = REAL.map(([sku, c, m], i) => mk(sku, { iss: [E(c, m, NAMES[i % NAMES.length])] }));
+    const Q = page(items);
+    items.forEach(it => { Object.values(it.img).concat(Object.values(it.live)).forEach(u => Q.IMQ.dims.set(Q.imqId(u), [2000, 2000])); });
+    ok('all 12 are "Amazon picture error" again — whatever attribute Amazon names on the issue (another one, none, the slot)', items.every(it => Q.imCheck(it, 'amzerr', 'SP') === true),
+      items.filter(it => Q.imCheck(it, 'amzerr', 'SP') !== true).map(it => it.sku).join());
+    ok('…the stricter rule (aa468db) lost the 10 that name another attribute; the 14:50 rule had them all', items.filter((it, i) => NAMES[i % NAMES.length].length).every(it => Q.imOldCheck(it, 'amzerr', 'SP', new Map()) === true));
+    ok('each shows its slot and Amazon\'s message: "ERROR 100238 on PT08: Your image PT08 violates…", "ERROR 100581 on SWCH: The SWCH image…"', REAL.every(([sku, c, m, slot], i) => Q.imPicErrText(items[i].iss[0]) === `ERROR ${c} on ${slot}: ${m}`)
+      && Q.imKidChip(items[0]).t === 'Amazon picture error' && /ERROR 100238 on PT08: Your image PT08/.test(Q.imKidChip(items[0]).tip));
+    Q.IM_OPEN.add('PAR'); Q.imListRender();
+    const html = Q.el('imList').innerHTML;
+    ok('…on the row, in full', /ERROR 100238 on PT08: Your image PT08 violates Amazon&#39;s image standards|ERROR 100238 on PT08: Your image PT08 violates Amazon's image standards/.test(html) && /ERROR 100581 on MAIN: The MAIN image you submitted/.test(html));
+    const card = Q.imCardsData(Q.IML.SP.items).find(c => c.k === 'amzerr');
+    ok('the card counts all 12', card.n === 12, String(card.n));
+    const rows = Q.imDlRows(['SP'], '');
+    ok('the sheet has all 12 under "Amazon picture error", with the slot in Amazon\'s message', rows.length === 12 && rows.every(r => r.cells[P.IM_DL_COLS.indexOf('Amazon picture error')] === 'Yes')
+      && rows.find(r => r.sku === 'RCN521').cells[P.IM_DL_COLS.indexOf("Amazon's picture error message")] === `ERROR 100238 on PT08: ${M100238('PT08')}`, rows.map(r => r.sku).join());
+    ok('a picture Amazon rejected is not a real picture: RCN72\'s PT08 (100238) does not count, 9 sent → 8', Q.imPicCount(items[0]).ours === 8);
+    ok('the MAIN one (RCST72, 100581 on MAIN) is critical: checked live before the sheet is saved; the PT08 / PT06 / SWCH ones are not', Q.imCritical(items[10], 'SP') === true
+      && items.filter((it, i) => i !== 10).every(it => Q.imCritical(it, 'SP') === false));
+    ok('counted even when Amazon says "will not lead to ASIN suppression" / "No action is required"', Q.imCheck(mk('NA1', { iss: [E(100238, 'Your image PT03 violates Amazon\'s image standards. This will not lead to ASIN suppression. No action is required.', ['item_name'])] }), 'amzerr', 'SP') === true);
+    ok('picture FILE errors too: 20005 "Images couldn\'t be associated with SKU", 300403 "We can\'t access your media…"', Q.imCheck(mk('F20', { iss: [E(20005, 'Images couldn\'t be associated with SKU. To fix this: (1) resolve all other product data errors first', [])] }), 'amzerr', 'SP') === true
+      && Q.imCheck(mk('F30', { iss: [E(300403, 'We can\'t access your media at https://www.dropbox.com/x.jpeg due to receiving 403 HTTP status code.', ['other_product_image_locator_2'])] }), 'amzerr', 'SP') === true);
+    ok('NOT a picture error: a WARNING about a picture, an ERROR about the unit count or the title', Q.imCheck(mk('W1', { iss: [{ s: 'W', c: '100238', m: M100238('PT02'), a: [] }] }), 'amzerr', 'SP') === false
+      && Q.imCheck(mk('U1', { iss: [E(90244, 'The value for Ounce / Unit Count is missing', ['unit_count'])] }), 'amzerr', 'SP') === false
+      && Q.imCheck(mk('T1', { iss: [E(8541, 'The title is longer than 200 characters', ['item_name'])] }), 'amzerr', 'SP') === false);
+    ok('Search suppressed is untouched by any of them (all 12 buyable and in search → not suppressed)', items.every(it => Q.imCheck(it, 'sup', 'SP') === false));
+    // the auto refresh keeps Amazon's ERROR messages whole and up to 12 issues — the list held only 8, cut at 220 letters
+    const L = load({ lm: true, ws: true, im: true });
+    const long = 'Images couldn\'t be associated with SKU. To fix this: (1) resolve all other product data errors first; (2) ensure SKU exists in catalog; (3) verify image meets all requirements; (4) resubmit product data and images. For more information see the help page on images.';
+    const m = { sku: 'Z1', asin: 'B0Z1', iss: Array.from({ length: 10 }, (_, i) => ({ s: 'W', c: String(i), m: 'a warning', a: [] })).concat([{ s: 'E', c: '20005', m: long, a: [] }]), img: {}, va: {}, as: 'BUYABLE,DISCOVERABLE' };
+    const item = L.lmImlItem(m, null);
+    ok('the list keeps the 11th issue (the picture error after 10 warnings) and Amazon\'s whole message, not the first 220 letters', item.iss.length === 11 && item.iss[10].m === long && long.length > 220, item.iss.length + ' / ' + (item.iss[10] || {}).m);
+  }
 
   console.log('== Search suppressed / Not buyable: THE ONE RULE, unchanged ==');
   {
@@ -245,6 +289,18 @@ function page(items, opts) {
     const c = (brand, check) => counts.find(r => r.brand === brand && r.check === check) || {};
     ok('imgCounts: per brand and check, the old count → the count now and the not-checked; the removed check says "removed"',
       c('CPC', 'No main at all').now === 1 && c('Ridhi', 'No swatch').old === 3 && c('Ridhi', 'No swatch').now === 'removed' && c('Ridhi', "Shows another SKU's pictures").now === 'removed' && c('Ridhi', 'Too small (under 2000)').now === 'removed', JSON.stringify(counts.filter(r => r.brand === 'Ridhi').map(r => [r.check, r.old, r.now, r.notChecked])));
+    // one check, named listings: Amazon NOW reports a picture error on R4 that the list does not hold — Sellora missed it: DIFFERENT
+    AMZ.R4 = mk('R4', { img: Object.assign(full('R4'), { SWCH: A('R4SW') }), iss: [E(100238, "Your image PT08 violates Amazon's image standards.", ['externally_assigned_product_identifier'])] });
+    calls.length = 0;
+    console.log = () => {}; console.table = () => {};
+    let one;
+    try { one = await P2.imgAccuracyReport({ check: 'amzerr', skus: ['R4', 'R3', 'NOPE-1'] }); } finally { console.log = quiet; console.table = quietT; }
+    const r4 = one.rows.find(r => r.sku === 'R4') || {}, r3 = one.rows.find(r => r.sku === 'R3') || {};
+    ok('imgAccuracyReport({ check: \'amzerr\', skus }): only that check, only those listings, flagged or not', one.rows.length === 2 && one.rows.every(r => r.check === 'Amazon picture error')
+      && one.summary.length === 1 && one.missing.join() === 'NOPE-1' && calls.filter(c => c.limg === 'get').map(c => c.sku).sort().join() === 'R3,R4', JSON.stringify(one.rows.map(r => [r.sku, r.result])));
+    ok('…an error Sellora MISSED is DIFFERENT: R4 "NO" in Sellora, "YES — ERROR 100238 on PT08…" on Amazon now', r4.result === 'DIFFERENT' && /^NO — no picture error/.test(r4.sellora) && /^YES — ERROR 100238 on PT08: Your image PT08/.test(r4.amazonNow), JSON.stringify(r4));
+    ok('…no error on either side is a MATCH (R3, fixed since the refresh, already read)', r3.result === 'MATCH' && /^NO — /.test(r3.sellora) && /^NO — /.test(r3.amazonNow), JSON.stringify(r3));
+    ok('…and the screen follows: R4 now shows its Amazon picture error', P2.imCheck(P2.IML.SP.items.find(i => i.sku === 'R4'), 'amzerr', 'SP') === true);
   }
 
   console.log(`\n${pass} passed, ${fail} failed`);

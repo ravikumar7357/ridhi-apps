@@ -409,7 +409,7 @@ function lmImlItem(m, old) {
   const item = Object.assign({}, old || {}, { sku: m.sku, asin: m.asin || (old && old.asin) || '', st: String(m.as || ''), pt: m.pt || (old && old.pt) || '',
     t: String(m.t || (old && old.t) || '').slice(0, 160), lvl: m.lvl || '', psku: m.psku || '', c: String((m.va && m.va.color) || ''), z: String((m.va && m.va.size) || ''),
     img: Object.assign({}, m.img || {}), ie: errs.length, iw: m.iss.filter(i => i.s === 'W').length, im: errs.length ? String(errs[0].m).slice(0, 140) : '',
-    iss: m.iss.slice(0, 8).map(i => Object.assign({}, i, { m: String(i.m).slice(0, 220) })), lm: 1, lmStale: !!(m.stale && !m.live) });
+    iss: m.iss.slice(0, 12).map(i => Object.assign({}, i, { m: String(i.m).slice(0, i.s === 'E' ? 1000 : 220) })), lm: 1, lmStale: !!(m.stale && !m.live) });
   if (cat && cat.img) {
     item.live = Object.fromEntries(Object.entries(cat.img).filter(([, v]) => v && v.u).map(([slot, v]) => [slot, v.u]));
     item.pa = (cat.pa || [])[0] || '';
