@@ -39,6 +39,7 @@ const packRow = row => ({
 
 // Read both brands' snapshots from Firestore into HEALTH: the metadata doc, then its chunk docs.
 async function loadHealthCache() {
+  const lmWait = typeof lmEnsure === 'function' ? lmEnsure() : null;   // the ListingMatch cache's browser copy, read meanwhile (listing-match.js)
   for (const brand of ['SP', 'CPC']) {
     try {
       const snap = await getDoc(doc(db, 'health', brand));
@@ -68,6 +69,8 @@ async function loadHealthCache() {
       hMsg(`Could not load the saved ${BRAND_NAME[brand]} snapshot: ${e.message || e}`, true);
     }
   }
+  // the cache's newer reports: status, stock, price and channel on the rows (and rows for a brand with no snapshot)
+  if (lmWait) { try { await lmWait; lmHealthApply(); } catch (e) { /* the snapshot rows as they are */ } }
   H_LOADED = true;
 }
 
@@ -865,7 +868,7 @@ function renderHealth() {
      * then Content (A+, bullets, description), Health, the reasons, and a suggested title where one applies.
      * A coloured dot is the worst issue in that area; ✓ is judged and fine; — could not be judged. */
     defs.push({ k: 'sku', t: 'SKU / ASIN', frz: 1,
-      cell: row => `<div class="ls-prod">${hPicHtml(row.brand, [row])}<div class="ls-prod-t"><div class="ui-mono">${lrEsc(row.sku)}</div><span class="ls-asin">${lrEsc(row.asin || '')}</span></div></div>` });
+      cell: row => `<div class="ls-prod">${hPicHtml(row.brand, [row])}<div class="ls-prod-t"><div class="ui-mono">${lrEsc(row.sku)}${typeof lmOldHtml === 'function' ? lmOldHtml(row.brand, row.sku) : ''}</div><span class="ls-asin">${lrEsc(row.asin || '')}</span></div></div>` });
     if (multiBrand) defs.push({ k: 'brand', t: 'Brand', map: row => BRAND_NAME[row.brand] });
     defs.push({ k: 'lstatus', t: 'Status', noTotal: 1,
       map: row => row.qty === 0 ? 'OOS' : (/inactive/i.test(row.status || '') ? 'Inactive' : (/active/i.test(row.status || '') ? 'Active' : (row.status || '—'))) });

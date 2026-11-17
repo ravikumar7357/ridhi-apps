@@ -3494,6 +3494,10 @@
   .ly-sync .ly-line{margin:0;padding:0;border:0;background:none;box-shadow:none;color:var(--muted);font:inherit;font-size:12px;text-align:left;cursor:pointer}
   .ly-sync .ly-line:hover{background:none;color:var(--ink);text-decoration:underline}
   .ly-sync .ly-now{height:24px;margin:0;padding:0 10px;font-size:12px}
+  /* ListingMatch (listing-match.js): the "Amazon data: …" line at the top of each Listing screen, and the grey "old data" mark */
+  .lm-age{margin:0 0 6px;font-size:12px;line-height:18px;color:var(--muted)}
+  .lm-age .is-old{color:var(--warn-ink);font-weight:650}
+  .lm-old{display:inline-block;margin-left:6px;padding:0 5px;border-radius:4px;background:var(--hover);color:var(--muted);font-size:10.5px;font-weight:500;line-height:16px;font-family:inherit;vertical-align:1px;white-space:nowrap}
   .ly-list{flex-basis:100%;max-height:240px;overflow:auto;border:1px solid var(--card-line);border-radius:10px;background:var(--card)}
   .ly-item{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:10px;padding:6px 10px;border-top:1px solid var(--line)}
   .ly-item:first-child{border-top:0}

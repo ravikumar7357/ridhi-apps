@@ -19,6 +19,7 @@ sales/brand-analytics.js
 inventory/inventory-age.js
 listing/listing-health.js
 listing/listing-rules.js
+listing/listing-match.js
 listing/listing-health-data.js
 listing/parent-check.js
 listing/listing-rules-tab.js

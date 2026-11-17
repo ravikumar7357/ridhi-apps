@@ -194,14 +194,19 @@ async function sqVerifyAll(run, jobs) {
 async function sqVerify(job) {
   const b = job.body;
   let reply;
-  if (b.limg) reply = await baCall({ limg: 'get', brand: job.brand, sku: job.sku });
-  else if (typeof liWsJob === 'function' && typeof LI_WS !== 'undefined') {
+  if (b.limg) {
+    reply = await baCall({ limg: 'get', brand: job.brand, sku: job.sku });
+    if (typeof lmNoteLive === 'function') lmNoteLive(job.brand, job.sku, 'limg', reply);   // the fresh read is what every screen shows until a newer ListingMatch pass
+  } else if (typeof liWsJob === 'function' && typeof LI_WS !== 'undefined') {
     const j = { t: 'get', brand: job.brand, sku: job.sku, units: 0, pk: '' };
     await liWsJob(j);
     reply = j.reply || {};
     LI_WS.liveV++;
     if (typeof liWsStoreSave === 'function') liWsStoreSave();
-  } else reply = await baCall({ lfix: 'get', brand: job.brand, sku: job.sku });
+  } else {
+    reply = await baCall({ lfix: 'get', brand: job.brand, sku: job.sku });
+    if (typeof lmNoteLive === 'function') lmNoteLive(job.brand, job.sku, 'get', reply);
+  }
   const names = b.limg ? Object.keys(b.set || {}) : (b.patches || []).map(p => String(p.path || '').replace('/attributes/', ''));
   const err = ((reply && reply.issues) || []).find(issue => /ERROR|^E$/i.test(String(issue.severity || issue.s || ''))
     && (b.limg ? /image|media|MAIN|PT0|SWCH/i.test(String(issue.message || '') + ' ' + (issue.attrs || []).join(' ')) : (issue.attrs || []).some(a => names.includes(a))));

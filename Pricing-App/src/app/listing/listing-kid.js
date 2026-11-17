@@ -43,7 +43,7 @@ function lkHtml(kid, opts) {
   const status = String(row.status || '').trim();
   const stock = row.qty == null ? 'Stock not known' : `${liWsNf(row.qty)} unit${row.qty === 1 ? '' : 's'} in stock`;
   const head = top + `<div class="ls-panel-h lk-h">${liWsPicHtml(liWsPicUrl(kid.brand, kid.sku), true)}<div class="ls-panel-t">`
-    + `<b class="lk-sku" title="${lrEsc(kid.sku)}">${lrEsc(kid.sku)}</b>`
+    + `<b class="lk-sku" title="${lrEsc(kid.sku)}">${lrEsc(kid.sku)}</b>${typeof lmOldHtml === 'function' ? lmOldHtml(kid.brand, kid.sku) : ''}`
     + `<span><span class="ui-mono">${lrEsc(kid.asin || '—')}</span>${parent ? ` · <span title="${lrEsc(parent)}">${lrEsc(parent)}</span>` : ''}</span>`
     + `<span><span class="lk-st${kid.live ? ' is-live' : ''}">${lrEsc(kid.why)}</span>${status && status.toLowerCase() !== kid.why.toLowerCase() ? ' · ' + lrEsc(status) : ''} · ${lrEsc(stock)}</span></div>`
     + `<button type="button" class="ls-x" ${opts.close} aria-label="Close">×</button></div>`

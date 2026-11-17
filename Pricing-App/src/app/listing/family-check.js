@@ -141,7 +141,13 @@ function fcCatSave() {
     localStorage.setItem(FC_CAT_STORE, JSON.stringify({ v: 1, cat: Object.fromEntries(all) }));
   } catch (e) { /* quota: the copy in memory still works */ }
 }
-const fcCatOf = (brand, asin) => (asin ? FC.cat[fcKey(brand, asin)] || null : null);
+// The newer of this browser's ?lfix=cat answer and the ListingMatch cache's catalog record (listing-match.js lmFcCat, while it is usable).
+const fcCatOf = (brand, asin) => {
+  if (!asin) return null;
+  const own = FC.cat[fcKey(brand, asin)] || null;
+  const lm = typeof lmFcCat === 'function' ? lmFcCat(brand, asin) : null;
+  return lm && !(own && own.at >= lm.at) ? lm : own;
+};
 /** One ?lfix=cat answer into FC.cat. A parent keeps its child ASINs, theme and theme attributes; a child its Amazon parent and its values for
  *  the theme's attributes (known from a parent in the same answer or one kept before). An ASIN asked but not returned: { nf: 1 }. */
 function fcCatTake(brand, asked, items, hintPa) {
@@ -258,6 +264,7 @@ function fcReadAllCat() {
   let n = 0;
   v.families.forEach(f => {
     if (!f.live.length || fcFamRead(f, v) || FC.reading.has(f.fk)) return;
+    if (typeof lmOk === 'function' && lmOk(f.brand)) return;              // the ListingMatch cache holds this brand: read only when a family it lacks is opened
     n += fcQueueCat(fcFamAsins(f, v).map(asins => ({ brand: f.brand, asins, pa: f.pa })), f.fk, true);
   });
   return n;
@@ -920,7 +927,7 @@ function fcRowHtml(r) {
   const amz = c.asin ? `<a href="https://www.amazon.com/dp/${fcEsc(c.asin)}" target="_blank" rel="noopener">${fcEsc(c.asin)}</a>` : '—';
   const vals = c.amz && c.amz.vals && c.tattrs ? fcEsc(fcValsText(c.amz.vals, c.tattrs)) : c.amz && !c.amz.nf ? '<span class="fc-none">—</span>' : '<span class="fc-none">not read</span>';
   const sug = probs.map(p => p.sug).filter(Boolean)[0];
-  return `<tr class="fc-row${orphan ? ' is-orphan' : ''}${FC.sel.has(key) ? ' is-sel' : ''}"><td class="fc-tk">${tick}</td><td class="fc-sku"><b>${fcEsc(c.sku)}</b>${fcSkusHtml(c)}<small>${fcEsc(String(c.title || '').slice(0, 70))}</small></td><td class="ui-mono">${amz}</td>`
+  return `<tr class="fc-row${orphan ? ' is-orphan' : ''}${FC.sel.has(key) ? ' is-sel' : ''}"><td class="fc-tk">${tick}</td><td class="fc-sku"><b>${fcEsc(c.sku)}</b>${typeof lmOldHtml === 'function' ? lmOldHtml(c.brand, c.sku) : ''}${fcSkusHtml(c)}<small>${fcEsc(String(c.title || '').slice(0, 70))}</small></td><td class="ui-mono">${amz}</td>`
     + `<td class="fc-vals">${vals}</td><td class="num">${fcNf(c.stock)}</td>`
     + `<td class="fc-prob">${probs.map(p => `<div class="fc-p is-${p.sev}">${fcEsc(p.text)}</div>${fcSrcHtml(p)}`).join('')}</td>`
     + `<td class="fc-fix">${sug ? `<div><b>Suggested family:</b> ${fcEsc(sug)}</div>` : ''}${probs.map(p => (p.fix.text ? `<div>${p.fix.kind === 'hand' ? '<b>Fix by hand:</b> ' : ''}${fcEsc(p.fix.text)}</div>` : '')).join('')}${FC.note[key] ? `<div class="fc-note">${fcEsc(FC.note[key])}</div>` : ''}</td>`

@@ -128,8 +128,10 @@ async function bsrCollect(brand, say) {
   const rows = (HEALTH[brand] && HEALTH[brand].rows) || [];
   if (!rows.length) return { err: `${BRAND_NAME[brand]}: no listings loaded — run Listing health first` };
   // --- rank every child, 20 ASINs a call, H_SWEEP_PAR calls at a time ---
-  const asins = [...new Set(rows.map(row => row.asin).filter(Boolean))].slice(0, BSR_SNAP_MAX);
-  const got = {};
+  const all = [...new Set(rows.map(row => row.asin).filter(Boolean))];
+  // the ranks the ListingMatch cache read in the last 24 hours (listing-match.js); only the rest are asked from Amazon
+  const got = typeof lmRanks === 'function' ? lmRanks(brand, all) : {};
+  const asins = all.filter(asin => !got[asin]).slice(0, BSR_SNAP_MAX);
   let firstErr = '';
   for (let i = 0; i < asins.length; i += 20 * H_SWEEP_PAR) {
     const grp = [];
