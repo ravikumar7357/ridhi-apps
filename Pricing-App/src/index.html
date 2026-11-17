@@ -656,26 +656,44 @@
   </div><!-- /paneBa -->
 
   <!-- ============ PANE: FBA inventory age ============ -->
+  <!-- THE INVENTORY AGE LOOK (17 Nov 2026): the Ad Console layout (Overview / Product Performance / Search Terms) — a meta
+       line, a toolbar card (pill switch, search box with its icon, outline Export, one dark round main button), five number
+       boxes that also pick what the table shows, the stock's age mix as bars, and a flush table card whose parent rows open
+       to their SKUs. Every id the JS reads is kept; the look is the .ag-* rules (styles.css, INVENTORY AGE block). -->
   <div id="paneAge" class="hide">
-    <div class="card" style="padding:12px 14px">
-      <div class="toolbar">
-        <div class="seg">
-          <button id="ageViewParent" class="segbtn on">Parent ASINs</button>
-          <button id="ageViewChild" class="segbtn">Child ASINs</button>
+    <div class="ag-meta"><span><b>Inventory Age</b> · how long the FBA stock has sat at Amazon</span><span id="ageWhen"></span></div>
+    <div class="card ag-toolbar">
+      <div class="toolbar ag-tb">
+        <div class="seg ag-seg" role="group" aria-label="View">
+          <button id="ageViewParent" class="segbtn on" type="button">Parent ASINs</button>
+          <button id="ageViewChild" class="segbtn" type="button">Child ASINs</button>
         </div>
-        <select id="ageBrandView" style="flex:0 0 140px">
+        <select id="ageBrandView" class="ag-sel" aria-label="Brand">
           <option value="ALL">Both brands</option><option value="SP">Ridhi</option><option value="CPC">CPC</option>
         </select>
-        <input id="ageFilter" style="flex:1 1 150px;min-width:0" placeholder="Filter SKU / ASIN / Parent / product">
-        <button id="ageCsv" class="ghost">Export</button>
-        <button id="ageGo">Refresh both brands</button>
+        <label class="ag-search"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="ageFilter" placeholder="Search SKU / ASIN / Parent / product" aria-label="Search SKU, ASIN, parent or product"></label>
+        <span class="ui-spacer"></span>
+        <button id="ageCsv" class="ghost ag-btn" type="button" title="Exactly what the table shows — view, brand, search, focus and sort — as a CSV">Export</button>
+        <button id="ageGo" class="ag-btn ag-dark" type="button" title="Asks Amazon for a fresh FBA inventory age report for Ridhi, then CPC (a few minutes each)">Refresh both brands</button>
       </div>
       <div id="ageMsg" class="muted"></div>
     </div>
 
     <div id="ageResult" class="hide">
-      <div id="ageKpis" class="kpis"></div>
-      <div class="card xlwrap"><table class="xl" id="ageTable"></table></div>
+      <div id="ageKpis" class="ag-boxes"></div>
+      <div id="ageMix" class="card ag-card ag-mix"></div>
+      <div class="card ag-card ag-tcard">
+        <div class="ag-thead">
+          <div class="tt"><b id="ageTitle">Every parent ASIN</b><small id="ageSub"></small></div>
+          <div class="seg ag-seg" id="ageFocusSeg" role="group" aria-label="Show">
+            <button class="segbtn on" type="button" data-f="all">All stock</button>
+            <button class="segbtn" type="button" data-f="aged">Aged 181+</button>
+            <button class="segbtn" type="button" data-f="year">Over a year</button>
+            <button class="segbtn" type="button" data-f="healthy">Healthy only</button>
+          </div>
+        </div>
+        <div class="ag-wrap"><table class="xl ag-tbl" id="ageTable"></table></div>
+      </div>
     </div>
   </div><!-- /paneAge -->
 

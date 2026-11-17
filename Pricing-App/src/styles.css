@@ -3708,4 +3708,183 @@
   @media (max-width:1100px){.sta-boxes{grid-template-columns:repeat(2,minmax(0,1fr))}}
   @media (max-width:620px){.sta-boxes{grid-template-columns:minmax(0,1fr)}.sta-figs{grid-template-columns:repeat(3,minmax(0,1fr))}.sta-row2{grid-template-columns:1fr}}
 
-  /* ===== MODULE: INVENTORY ===== */
+  /* ===== MODULE: INVENTORY ===== */  /* ----- INVENTORY AGE (paneAge, inventory/inventory-age.js): the Ad Console look — .adx-meta's line, .ls-toolbar's bar,
+     .adx-box number boxes (a box is also a filter, like .sta-box), the stock's age mix as bars, a flush table card like
+     .sta-tcard whose parent rows open to their SKUs, like Product Performance. Scoped to #paneAge; tokens only.
+     Age colours run green → red with the days (--c, set by class, never inline): ag-b0 0–90, b1 91–180, b2 181–330,
+     b3 331–365, b4 366–455, b5 456+. ----- */
+  #paneAge{--ag-glow:.12}
+  :root[data-theme="dark"] #paneAge{--ag-glow:.2}
+  @media (prefers-color-scheme:dark){:root:not([data-theme="light"]) #paneAge{--ag-glow:.2}}
+  #paneAge .hide{display:none}
+  #paneAge .ag-b0{--c:var(--accent)}
+  #paneAge .ag-b1{--c:color-mix(in srgb,var(--accent) 50%,var(--rev))}
+  #paneAge .ag-b2{--c:var(--rev)}
+  #paneAge .ag-b3{--c:var(--act)}
+  #paneAge .ag-b4{--c:var(--bad)}
+  #paneAge .ag-b5{--c:color-mix(in srgb,var(--bad) 62%,var(--violet-ink))}
+  /* The meta line: what the page is, and how fresh each brand's snapshot is (amber past a week). */
+  #paneAge .ag-meta{display:flex;justify-content:space-between;align-items:baseline;gap:4px 16px;flex-wrap:wrap;margin:0 2px 10px;
+    font-size:12px;color:var(--muted)}
+  #paneAge .ag-meta b{color:var(--ink);font-weight:600}
+  #paneAge .ag-meta>span:last-child{color:var(--faint)}
+  #paneAge .ag-meta .is-old,#paneAge .ag-meta .is-old b{color:var(--warn-ink)}
+  /* The toolbar card. */
+  #paneAge .card.ag-toolbar{padding:12px 16px;border-radius:var(--r-card);box-shadow:var(--sh-1);border:1px solid var(--card-line);margin-bottom:12px}
+  #paneAge .ag-tb{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  #paneAge #ageMsg:empty{display:none}
+  #paneAge #ageMsg{margin-top:8px;font-size:12.5px}
+  #paneAge .ag-seg{display:inline-flex;align-items:center;gap:2px;height:auto;padding:3px;border-radius:var(--r-pill);
+    background:var(--hover);border:1px solid var(--line);flex:none}
+  #paneAge .ag-seg .segbtn{border:0;background:transparent;color:var(--muted);font:inherit;font-size:12px;font-weight:600;line-height:1;
+    padding:7px 12px;border-radius:var(--r-pill);box-shadow:none;cursor:pointer;transition:background-color .15s ease,color .15s ease,box-shadow .15s ease}
+  #paneAge .ag-seg .segbtn:hover{color:var(--ink);background:color-mix(in srgb,var(--card) 55%,transparent)}
+  #paneAge .ag-seg .segbtn.on,#paneAge .ag-seg .segbtn.on:hover{background:var(--raise);color:var(--ink);box-shadow:var(--sh-1)}
+  #paneAge .ag-seg .segbtn:focus-visible{outline:2px solid var(--accent);outline-offset:1px;box-shadow:none}
+  #paneAge .ag-sel{flex:0 0 auto;width:auto;max-width:190px;height:var(--ctl);padding:0 30px 0 12px;border:1px solid var(--line);
+    border-radius:var(--r-ctl);background-color:var(--card);font-size:13px;font-weight:600;color:var(--ink)}
+  #paneAge .ag-search{display:flex;align-items:center;gap:8px;flex:1 1 220px;min-width:180px;height:var(--ctl);padding:0 12px;margin:0;
+    border:1px solid var(--line);border-radius:var(--r-ctl);background:var(--card);color:var(--faint);text-transform:none;letter-spacing:0;font-weight:400}
+  #paneAge .ag-search svg{width:15px;height:15px;flex:none}
+  #paneAge .ag-search input{width:100%;height:100%;min-height:0;margin:0;padding:0;border:0;border-radius:0;background:transparent;
+    background-image:none;box-shadow:none;outline:none;font-size:13.5px;color:var(--ink)}
+  #paneAge .ag-search:focus-within{box-shadow:var(--ring)}
+  #paneAge .ag-btn{height:var(--ctl);padding:0 14px;border:1px solid var(--line);border-radius:var(--r-ctl);background:var(--card);
+    color:var(--ink);font-size:13px;font-weight:600;line-height:1;box-shadow:none;white-space:nowrap;display:inline-flex;align-items:center;gap:7px}
+  #paneAge .ag-btn:hover{background:var(--hover);color:var(--ink);box-shadow:none}
+  #paneAge .ag-btn:focus-visible{outline:none;box-shadow:var(--ring)}
+    #paneAge .ag-btn.ag-dark,#paneAge .ag-btn.ag-dark:hover{background:var(--ink);color:var(--card);border-color:var(--ink);border-radius:var(--r-pill);padding:0 18px}
+  #paneAge .ag-btn.ag-dark:hover{background:color-mix(in srgb,var(--ink) 86%,var(--card))}
+  #paneAge .ag-btn.ag-dark:disabled{opacity:.6;cursor:default}
+  #paneAge .ag-btn .spin{border-color:color-mix(in srgb,var(--card) 35%,transparent);border-top-color:var(--card)}
+  /* Five number boxes, like .adx-box: icon, label, big number, two small lines, the soft corner circle. A box is a button;
+     the one whose focus is on wears the ring. */
+  #paneAge .ag-boxes{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin:0 0 12px}
+  #paneAge button.ag-box,#paneAge button.ag-box:hover,#paneAge button.ag-box:active{--c:var(--brand);position:relative;overflow:hidden;min-width:0;display:flex;
+    flex-direction:column;align-items:stretch;margin:0;padding:12px 14px 10px;background:var(--card);border:1px solid var(--card-line);
+    border-radius:var(--r-card);box-shadow:var(--sh-1);color:var(--ink);font:inherit;font-weight:400;text-align:left;line-height:1.3;cursor:pointer;
+    transition:transform .15s cubic-bezier(.2,.7,.2,1),box-shadow .15s ease,border-color .15s ease}
+  #paneAge button.ag-box::after{content:"";position:absolute;right:-55px;top:-65px;width:160px;height:160px;border-radius:50%;
+    background:radial-gradient(circle,var(--c) 0,transparent 68%);opacity:var(--ag-glow);pointer-events:none}
+  #paneAge button.ag-box:hover{transform:translateY(-3px);box-shadow:var(--sh-2);border-color:color-mix(in srgb,var(--c) 40%,var(--card-line))}
+  #paneAge button.ag-box:active{transform:translateY(-1px) scale(.99)}
+  #paneAge button.ag-box:focus-visible{outline:none;box-shadow:0 0 0 3px color-mix(in srgb,var(--c) 35%,transparent)}
+  #paneAge button.ag-box.on{border-color:color-mix(in srgb,var(--c) 60%,var(--card-line));box-shadow:0 0 0 3px color-mix(in srgb,var(--c) 30%,transparent)}
+  #paneAge .ag-box.is-brand{--c:var(--brand)}
+  #paneAge .ag-box.is-act{--c:var(--act)}
+  #paneAge .ag-box.is-bad{--c:var(--bad)}
+  #paneAge .ag-box.is-vio{--c:var(--violet-ink)}
+  #paneAge .ag-box.is-ok{--c:var(--accent)}
+  #paneAge .ag-l{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:600;color:var(--muted);white-space:nowrap}
+  #paneAge .ag-ic{flex:none;display:grid;place-items:center;width:24px;height:24px;border-radius:var(--r-sm);color:var(--c);
+    background:color-mix(in srgb,var(--c) 14%,transparent);transition:transform .25s cubic-bezier(.2,.7,.2,1)}
+  #paneAge .ag-ic svg{width:13px;height:13px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+  #paneAge .ag-box:hover .ag-ic{transform:scale(1.1) rotate(-6deg)}
+  #paneAge .ag-v{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin:9px 0 3px}
+  #paneAge .ag-v>b{font-size:22px;font-weight:700;letter-spacing:-.025em;line-height:1.15;color:var(--ink);font-variant-numeric:tabular-nums}
+  #paneAge .ag-box.is-act .ag-v>b{color:var(--act-ink)}
+  #paneAge .ag-box.is-bad .ag-v>b{color:var(--bad-ink)}
+  #paneAge .ag-v>span{display:inline-flex;align-items:center;padding:1px 8px;border-radius:var(--r-pill);font-size:11.5px;font-weight:700;
+    background:color-mix(in srgb,var(--c) 14%,transparent);color:var(--ink)}
+  #paneAge .ag-note{font-size:11.5px;color:var(--faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #paneAge .ag-note b{color:var(--muted);font-weight:600}
+  #paneAge .ag-go{margin-top:8px;padding-top:7px;border-top:1px solid var(--line);font-size:11.5px;font-weight:600;color:var(--muted)}
+  #paneAge .ag-box.on .ag-go{color:var(--ink)}
+  /* The cards under the boxes. */
+  #paneAge .card.ag-card{border-radius:var(--r-card);box-shadow:var(--sh-1);border:1px solid var(--card-line);margin:0 0 12px}
+  /* Age mix: one stacked bar per brand, the buckets green → red, then the legend with units and shares. */
+  #paneAge .ag-mix{padding:14px 16px}
+  #paneAge .ag-mixhead{display:flex;justify-content:space-between;align-items:baseline;gap:6px 16px;flex-wrap:wrap;margin-bottom:10px}
+  #paneAge .ag-mixhead b{font-size:14.5px;font-weight:650;color:var(--ink);letter-spacing:-.01em}
+  #paneAge .ag-mixhead small{font-size:12px;color:var(--muted)}
+  #paneAge .ag-mixrow{display:grid;grid-template-columns:72px minmax(0,1fr) 128px;align-items:center;gap:12px;padding:5px 0}
+  #paneAge .ag-mixrow>span{font-size:12.5px;font-weight:600;color:var(--ink);white-space:nowrap}
+  #paneAge .ag-mixrow>em{font-style:normal;font-size:12px;color:var(--muted);text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+  #paneAge .ag-mixrow>em b{color:var(--ink);font-weight:600}
+  #paneAge .ag-stack{display:flex;height:14px;border-radius:var(--r-pill);overflow:hidden;background:var(--hover);gap:2px}
+  #paneAge .ag-stack i{display:block;height:100%;background:var(--c);min-width:2px;transform-origin:left;animation:ag-grow .5s cubic-bezier(.2,.7,.2,1) both}
+  @keyframes ag-grow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+  #paneAge .ag-legend{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-top:12px;padding-top:12px;border-top:1px solid var(--line)}
+  #paneAge .ag-lg{display:flex;flex-direction:column;gap:2px;padding:7px 10px;border-radius:var(--r-sm);background:color-mix(in srgb,var(--c) 8%,transparent)}
+  #paneAge .ag-lg small{display:flex;align-items:center;gap:7px;font-size:11.5px;font-weight:600;color:var(--muted);white-space:nowrap}
+  #paneAge .ag-lg small i{width:9px;height:9px;border-radius:3px;background:var(--c);flex:none}
+  #paneAge .ag-lg b{font-size:15px;font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+  #paneAge .ag-lg b span{font-size:11.5px;font-weight:600;color:var(--muted);margin-left:6px}
+  #paneAge .ag-lg.is-aged small::after{content:"aged";margin-left:auto;padding:0 6px;border-radius:var(--r-pill);font-size:10px;letter-spacing:.04em;
+    text-transform:uppercase;background:color-mix(in srgb,var(--c) 20%,transparent);color:var(--ink)}
+  /* The table card, like .sta-tcard: a title, a line on what it shows, the focus pills; then the calm table. */
+  #paneAge .ag-tcard{padding:0;overflow:hidden}
+  #paneAge .ag-thead{display:flex;justify-content:space-between;align-items:center;gap:10px 16px;flex-wrap:wrap;padding:12px 16px;border-bottom:1px solid var(--line)}
+  #paneAge .ag-thead .tt b{display:block;font-size:14.5px;font-weight:650;color:var(--ink);letter-spacing:-.01em}
+  #paneAge .ag-thead .tt small{display:block;font-size:12px;color:var(--muted);margin-top:2px}
+  #paneAge .ag-wrap{overflow:auto;max-height:70vh}
+  #paneAge table.ag-tbl{font-size:13.5px}
+  #paneAge table.ag-tbl thead th{background:var(--card);color:var(--faint);font-size:11px;font-weight:700;letter-spacing:.04em;padding:11px 11px;
+    box-shadow:inset 0 -1px 0 var(--line)}
+  #paneAge table.ag-tbl thead th[data-k]:hover{color:var(--ink)}
+  #paneAge table.ag-tbl thead th.is-sorted{color:var(--ink)}
+  #paneAge table.ag-tbl thead th .ag-arw{color:var(--brand-ink);margin-left:3px}
+  /* The group row over the age columns: Healthy · under 181 days, Aged · 181+ days. */
+  #paneAge table.ag-tbl thead tr.ag-grp th{height:28px;padding:6px 10px 0;text-align:center;box-shadow:none;cursor:default;letter-spacing:.08em;vertical-align:bottom}
+  #paneAge table.ag-tbl thead tr.ag-grp th span{display:block;padding-bottom:4px;border-bottom:2px solid var(--line)}
+  #paneAge table.ag-tbl thead tr.ag-grp th.ag-g-ok span{border-color:var(--accent);color:var(--accent-ink)}
+  #paneAge table.ag-tbl thead tr.ag-grp th.ag-g-aged span{border-color:var(--act);color:var(--act-ink)}
+  #paneAge table.ag-tbl thead tr.ag-grp+tr th{top:28px}
+  #paneAge table.ag-tbl tbody td{height:46px;padding:8px 11px;line-height:1.3;background:var(--card)}
+  #paneAge table.ag-tbl tbody tr:nth-child(even) .frz{background:var(--card)}
+  #paneAge table.ag-tbl tbody tr:hover td,#paneAge table.ag-tbl tbody tr:hover td.frz{background:var(--soft)}
+  #paneAge table.ag-tbl .frz{font-family:inherit;border-right:0;box-shadow:1px 0 0 var(--line)}
+  #paneAge table.ag-tbl tfoot td{background:var(--soft);color:var(--ink);font-weight:700}
+  #paneAge table.ag-tbl tfoot .frz{background:var(--soft)}
+  #paneAge .ag-id{font:500 12px ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted);letter-spacing:.01em}
+  #paneAge .ag-dash{color:var(--faint)}
+  #paneAge .ag-prod{display:block;max-width:250px;overflow:hidden;text-overflow:ellipsis;font-weight:550;color:var(--ink)}
+  #paneAge .ag-prod+small{display:block;font-size:11.5px;color:var(--faint);margin-top:1px}
+  #paneAge .ag-brand{display:inline-block;padding:2px 9px;border-radius:var(--r-pill);font-size:11.5px;font-weight:700;line-height:1.4}
+  #paneAge .ag-brand.is-SP{background:var(--brand-bg);color:var(--brand-ink)}
+  #paneAge .ag-brand.is-CPC{background:color-mix(in srgb,var(--violet-ink) 14%,var(--card));color:var(--violet-ink)}
+  #paneAge .ag-kids{display:inline-block;min-width:28px;padding:1px 8px;border-radius:var(--r-pill);background:var(--hover);color:var(--ink);font-size:12px;
+    font-weight:600;text-align:center;font-variant-numeric:tabular-nums}
+  /* An aged bucket's figure sits in a chip whose tint deepens with the size (h1–h4, of the column's largest). */
+  #paneAge .ag-heat{display:inline-block;min-width:44px;padding:3px 8px;border-radius:var(--r-sm);font-weight:600;font-variant-numeric:tabular-nums;color:var(--ink);
+    background:color-mix(in srgb,var(--c) 8%,transparent)}
+  #paneAge .ag-heat.ag-h2{background:color-mix(in srgb,var(--c) 16%,transparent)}
+  #paneAge .ag-heat.ag-h3{background:color-mix(in srgb,var(--c) 26%,transparent)}
+  #paneAge .ag-heat.ag-h4{background:color-mix(in srgb,var(--c) 40%,transparent);font-weight:700}
+  #paneAge td.ag-fresh{color:var(--muted)}
+  /* Total aged: the figure, its share of what is available under it. */
+  #paneAge .ag-tot b{font-weight:700;color:var(--ink)}
+  #paneAge .ag-tot small{display:block;font-size:11px;font-weight:600;color:var(--faint)}
+  #paneAge .ag-tot small.is-hi{color:var(--bad-ink)}
+  #paneAge .ag-tot small.is-mid{color:var(--act-ink)}
+  /* The row's own age mix, a thin stacked bar. */
+  #paneAge td.ag-mixc{min-width:112px}
+  #paneAge .ag-mini{display:flex;width:100px;height:8px;border-radius:var(--r-pill);overflow:hidden;background:var(--hover);gap:1px}
+  #paneAge .ag-mini i{display:block;height:100%;background:var(--c)}
+  /* A parent row opens to its SKUs, like Product Performance: the chevron turns, the SKU rows sit on the soft tint behind a brand rule. */
+  #paneAge tr.ag-prow{cursor:pointer}
+  #paneAge tr.ag-prow:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+  #paneAge .ag-chev{display:inline-grid;place-items:center;width:18px;height:18px;margin-right:6px;border-radius:5px;color:var(--faint);vertical-align:-4px;
+    transition:transform .2s ease,background-color .15s ease,color .15s ease}
+  #paneAge .ag-chev svg{width:12px;height:12px;fill:none;stroke:currentColor;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
+  #paneAge tr.ag-prow:hover .ag-chev{background:var(--hover);color:var(--ink)}
+  #paneAge tr.ag-prow.is-open .ag-chev{transform:rotate(90deg);color:var(--brand-ink)}
+  #paneAge tr.ag-prow.is-open td{background:var(--soft)}
+  #paneAge tr.ag-kid td,#paneAge tr.ag-kid td.frz{background:var(--soft);font-size:12.5px;height:38px;padding-top:5px;padding-bottom:5px}
+  #paneAge tr.ag-kid td.frz{box-shadow:inset 3px 0 0 var(--brand),1px 0 0 var(--line);padding-left:36px}
+  #paneAge tr.ag-kid .ag-heat{min-width:38px;padding:2px 7px}
+  #paneAge .ag-empty{padding:28px 16px;text-align:center;color:var(--muted)}
+  #paneAge .ag-empty b{display:block;color:var(--ink);font-size:15px;margin-bottom:4px}
+  /* The first-run card, before any snapshot exists. */
+  #paneAge .ag-boxes .ag-first{grid-column:1/-1;padding:22px 20px;border:1px dashed var(--line);border-radius:var(--r-card);background:var(--card);color:var(--muted)}
+  #paneAge .ag-first b{display:block;color:var(--ink);font-size:15px;margin-bottom:4px}
+  @media (max-width:1240px){#paneAge .ag-boxes{grid-template-columns:repeat(3,minmax(0,1fr))}}
+  @media (max-width:860px){
+    #paneAge .ag-boxes{grid-template-columns:repeat(2,minmax(0,1fr))}
+    #paneAge .ag-search{flex-basis:100%}
+    #paneAge .ui-spacer{display:none}
+    #paneAge .ag-mixrow{grid-template-columns:56px minmax(0,1fr)}
+    #paneAge .ag-mixrow>em{grid-column:2;text-align:left}
+  }
+  @media (max-width:520px){#paneAge .ag-boxes{grid-template-columns:minmax(0,1fr)}}
+  @media (prefers-reduced-motion:reduce){#paneAge .ag-stack i,#paneAge .ag-ic,#paneAge .ag-chev,#paneAge button.ag-box{animation:none;transition:none}}
