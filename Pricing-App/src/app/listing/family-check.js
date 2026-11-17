@@ -1,6 +1,6 @@
 /* ================= LISTING · FAMILY & CATEGORY CHECK: children that left their family, and families that are built wrong (roadmap #4) =================
  * Screens: Listing → 2 · Check → Family & Category Check (tab 'fam', #paneFam, drawn whole into #fcPane). Two tabs: Families (this file)
- *       and Categories (a placeholder until the automatic refresh reads browse nodes).
+ *       and Categories (category-check.js: fcDrawCat hands the tab to its ccDraw).
  * Who sees it: whoever has Listing Health (TAB_INHERIT fam: 'health' in core/nav.js); the saved marks are guarded by the listingrules rule
  *       (can('health') || can('lrules')), the same as the Listing Health data.
  * EVERY FLAG COMES FROM AMAZON'S OWN DATA — nothing is guessed:
@@ -441,7 +441,8 @@ function fcBuild() {
   // parentless listings our SKU guess puts next to a family: Amazon is asked about them with that family (the guess never decides a flag)
   const cands = [];
   loose.forEach(c => { c.sug = fcSuggest(c, families, stemFams); if (c.sug) cands.push(c); });
-  const v = { families: [...families.values()], cands, orphans: [], removed: [], live, all, notes, ratingFound, at: Date.now() };
+  // `loose`: every live listing our data gives no parent — read by the Categories tab only (a product of its own has a category too)
+  const v = { families: [...families.values()], cands, loose, orphans: [], removed: [], live, all, notes, ratingFound, at: Date.now() };
   fcProblems(v);
   FC.view = v;
   return v;
@@ -871,6 +872,7 @@ function fcDrawAll() {
 }
 function fcSchedule() { clearTimeout(FC.drawT); FC.drawT = setTimeout(fcDrawAll, 300); }
 function fcDrawCat() {
+  if (typeof ccDraw === 'function') return ccDraw();                     // the Categories tab: category-check.js
   document.querySelectorAll('#fcPane .fc-famonly').forEach(el => el.classList.add('hide'));
   if ($('fcMeta')) $('fcMeta').textContent = '';
   $('fcBody').innerHTML = '<div class="card fc-empty"><b>Categories</b><p class="muted">Coming with the automatic refresh — browse nodes.</p></div>';
@@ -881,13 +883,15 @@ function fcDrawTools(v) {
   if (!meta) return;
   const at = (store, b) => (typeof store !== 'undefined' && store && store[b] && store[b].at && store[b].at.getTime ? store[b].at.getTime() : 0);
   const oldest = store => { const t = ['SP', 'CPC'].map(b => at(store, b)).filter(Boolean); return t.length ? Math.min(...t) : 0; };
+  // the stock on the page: the ListingMatch cache's (its report time) for a brand whose newer report is in use, else the snapshot's own time
+  const stockAt = () => { const t = ['SP', 'CPC'].map(b => (typeof lmStockAt === 'function' && lmStockAt(b)) || at(typeof HEALTH !== 'undefined' ? HEALTH : null, b)).filter(Boolean); return t.length ? Math.min(...t) : 0; };
   const parts = [`Live children only (buyable and in stock): ${fcNf(v.live)} of ${fcNf(v.all)} ASINs (our SKUs on one ASIN are one child; Amazon resale SKUs left out)`,
     'flags from Amazon\'s catalog and Amazon\'s issues only',
     v.ratingFound ? `ratings found for ${fcNf(v.ratingFound)} listings: below 4 ★ counts as removed on purpose` : 'ratings: none in Sellora\'s data — the team marks children removed for a low rating'];
   // when each part was saved / read: "Errors/status saved 1:42 PM · stock saved 1:42 PM · families read 12:50 PM" (yellow when older than 24 h)
   const famAt = v.families.filter(x => x.live.length && x.amz).map(x => x.amz.at);
   const when = (label, ms) => `<span class="${!ms || Date.now() - ms > 864e5 ? 'fc-old' : ''}">${fcEsc(label)} ${ms ? fcEsc(fcClock(ms)) : 'never'}</span>`;
-  const times = [when('Errors/status saved', oldest(typeof IML !== 'undefined' ? IML : null)), when('stock saved', oldest(typeof HEALTH !== 'undefined' ? HEALTH : null)),
+  const times = [when('Errors/status saved', oldest(typeof IML !== 'undefined' ? IML : null)), when('stock saved', stockAt()),
     when('families read', famAt.length ? Math.min(...famAt) : 0)].join(' · ');
   const R = FC.refresh;
   const btn = $('fcRefresh');

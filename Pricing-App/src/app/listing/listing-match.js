@@ -574,6 +574,23 @@ function lmHealthApply() {
   lmParentNamesApply();                                                     // and the parents' own names
 }
 
+/** When the stock on the page was read, for a brand whose stock is the cache's: the time of ListingMatch's newest report for it (0 when the
+ *  Listing Health snapshot is the newer one, or the cache is not usable) — Family check's "stock saved …" label. */
+const LM_STOCK_AT = new WeakMap();
+function lmStockAt(brand) {
+  if (!lmOk(brand) || typeof HEALTH === 'undefined') return 0;
+  const list = LM.list[brand];
+  let at = LM_STOCK_AT.get(list);
+  if (at === undefined) {
+    at = 0;
+    list.forEach(raw => { if (raw.fba !== undefined && raw.rAt > at) at = raw.rAt; });
+    LM_STOCK_AT.set(list, at);
+  }
+  const h = HEALTH[brand];
+  const snapAt = h && h.at && h.at.getTime ? h.at.getTime() : 0;
+  return at > snapAt ? at : 0;
+}
+
 /* ----- the parents' own names (Listing Audit, Listing Health, every screen that names a parent) ----- */
 /** HEALTH[brand].parentNames with the names the cache's parent listings carry (their item name: the seller's own name for the parent,
  *  the same field the listings report's parent row gives "Refresh both brands"). The snapshot's names stay under it (lmNamesBase). */
