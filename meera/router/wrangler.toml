@@ -42,6 +42,11 @@ ADMIN_EMAILS = "ravi@thefabricrush.com"
 # Questions to a model per person per day, and for the whole company.
 USER_DAILY = "10"
 COMPANY_DAILY = "500"
+# The judge (17 Nov 2026, /judge): the model only points at one of her own answers. Its own count, apart from the above.
+# JUDGE_MODEL may name a smaller, faster Groq model for this (empty: GROQ_MODEL) — only after her gate shows it as good.
+JUDGE_DAILY = "40"
+JUDGE_COMPANY = "2000"
+JUDGE_MODEL = ""
 # Phase 4: learning records (missed, not sure, 👎, spellings) per person per day; kept 90 days.
 LEARN_DAILY = "30"
 # EXPORT_KEY (a secret, 24+ characters, in Cloudflare and in GitHub): the weekly build step reads what admins approved.

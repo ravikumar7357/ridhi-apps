@@ -43,4 +43,9 @@ const MEERA_CONFIG = {
    * switches "server" / "serveruse"; '' = her router, as before */
   searchUrl: 'https://asia-south1-price-research-48ff3.cloudfunctions.net/meeraSearch',
   searchWaitMs: 4000,     // a cold start is ~2 s (woken when Ask opens); longer than this: her own copy answers
+  /* ---- the judge (17 Nov 2026, switch "judge"; guide-ai.ts gaAiJudge, router /judge) ----
+   * STARTING VALUES: set judgeSure on the tuning set with her gate, never on the held-back sets */
+  judgeTop: 20,           // how many of her answers the judge is shown
+  judgeSure: 0.9,         // a sure answer at this score or more is given with no judge; below it the judge checks it
+  judgeWaitMs: 5000,      // the judge's reply, at most this long; longer: her own answer, as without it
 };
