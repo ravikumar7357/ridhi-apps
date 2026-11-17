@@ -1152,6 +1152,17 @@
   .imq-chip.is-bad{background:var(--bad-bg);color:var(--bad-ink)}
   /* Image Manager top: the sticky toolbar, the thin reading bar, the number cards (the Listing .ls-box look, scoped here). */
   #paneImg .card.im-tb{position:sticky;top:var(--im-top,0px);z-index:20}
+  /* ⬇ Download errors: its small menu under the toolbar (brand, and the filter question when a card is on) */
+  #paneImg .im-dlm{position:absolute;right:14px;top:calc(100% - 6px);z-index:30;width:min(320px,calc(100vw - 32px));background:var(--card);border:1px solid var(--line);
+    border-radius:var(--r-ctl);box-shadow:var(--sh-3);padding:12px 14px;font-size:12.5px}
+  #paneImg .im-dlm[hidden]{display:none}
+  #paneImg .im-dlm-b{display:flex;flex-direction:column;gap:8px}
+  #paneImg .im-dlm-b small{color:var(--muted);line-height:1.4}
+  #paneImg .im-dlm fieldset{border:0;margin:0;padding:0;display:flex;flex-direction:column;gap:4px}
+  #paneImg .im-dlm legend{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:2px}
+  #paneImg .im-dlm label{display:flex;gap:6px;align-items:center;cursor:pointer}
+  #paneImg .im-dlm-a{display:flex;gap:8px;justify-content:flex-end}
+  #paneImg .im-dlm-a button{width:auto}
   #paneImg .im-prog{display:flex;align-items:center;gap:10px;margin-top:8px;font-size:11.5px;color:var(--muted);font-variant-numeric:tabular-nums}
   #paneImg .im-prog[hidden]{display:none}
   #paneImg .im-prog-bar{flex:1 1 auto;height:4px;border-radius:2px;background:var(--hover);overflow:hidden}
@@ -5968,6 +5979,9 @@
         <span style="flex:1"></span>
         <button id="imGo" class="ghost" title="Open the editor for exactly the SKU or ASIN typed in the search">Open editor</button>
         <button id="imRefresh" class="ghost" title="Read every listing's pictures from Amazon again (about two minutes)">Refresh</button>
+        <!-- ⬇ Download errors: a sheet of every live listing (stock > 0) with a picture problem (image-manager.js imDlDownload). -->
+        <button id="imDl" class="ghost" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="imDlMenu" title="Download every live listing (stock > 0) with a picture problem, as a sheet for Excel">⬇ Download errors</button>
+        <div id="imDlMenu" class="im-dlm" hidden></div>
         <button type="button" class="ghost im-helpbtn" data-im-help="open" title="Keys and tips (?)" aria-label="Keys and tips">?</button>
         <!-- Messages: shown as toasts (bottom right); this line stays for screen readers. -->
         <span id="imMsg" class="im-sr" role="status" aria-live="polite"></span>
@@ -39465,6 +39479,165 @@ $('imBrand').onchange = () => {
 };
 // Refresh from Amazon: rebuild this brand's snapshot.
 $('imRefresh').onclick = () => imListBuild($('imBrand').value);
+
+/* ============================================================================================
+ * ⬇ DOWNLOAD ERRORS (17 Nov 2026): a sheet for Excel — one row per LIVE listing (stock > 0, buyable) with at least one picture problem
+ * ============================================================================================
+ * The nine checks are the number cards' own (IM_CARDS, judged by imKidMatch), so the file's "Yes" counts are the cards' numbers for the
+ * listings with stock. Stock and status are what the screen reads: lrQtyOf (Listing Health's rows, which follow ListingMatch) and imState
+ * (THE ONE RULE, lrShopOf): buyable = Buyable or Search suppressed (still sold by a direct link). Nothing is sent anywhere. */
+// The checks in the file's column order: the card key, the column (also the problem in plain words) and what to do in one short line.
+const IM_DL_CHECKS = [
+  { k: 'nomain', col: 'No main picture', todo: 'Upload a main picture (none sent, none shown)' },
+  { k: 'pcbad', col: 'Main not OK', todo: 'Replace the main picture: pure white background, no text or logo' },
+  { k: 'small', col: 'Too small (under 2000)', todo: 'Replace the pictures under 2000 × 2000 with bigger ones' },
+  { k: 'few', col: 'Fewer than 7 pictures', todo: 'Add pictures until there are at least 7' },
+  { k: 'amzerr', col: 'Amazon picture error', todo: "Fix what Amazon's picture error says, in the Image Manager editor" },
+  { k: 'sup', col: 'Search suppressed', todo: 'Open it in Listing Errors and fix why Amazon took it out of search' },
+  { k: 'other', col: "Shows another SKU's pictures", todo: "Send this listing's own main picture again" },
+  { k: 'noswatch', col: 'No swatch', todo: 'Add a swatch picture' },
+  { k: 'noown', col: "Using the family's main", todo: "Upload this listing's own main picture" },
+];
+const IM_DL_COLS = ['Brand', 'Family name', 'Parent ASIN', 'SKU', 'ASIN', 'Colour', 'Size', 'Stock (units)', 'Amazon link', 'Problems', 'What to do']
+  .concat(IM_DL_CHECKS.map(c => c.col), ['Number of pictures', 'Smallest picture size', "Amazon's picture error message", 'Data time']);
+// One check on one listing of `brand` (the cards' test; the two that read the brand get it given, not from the picker).
+function imDlHas(item, k, brand) {
+  if (k === 'pcbad') return imPcBad(brand, item);
+  if (k === 'sup') return imState(item, brand).k === 'sup';
+  return imKidMatch(item, k, '');
+}
+// Live on Amazon with stock: more than 0 units and buyable (Buyable, or Search suppressed — still sold by a direct link).
+function imDlLive(item, brand) {
+  const qty = lrQtyOf(brand, item.sku);
+  return qty != null && qty > 0 && ['ok', 'sup'].includes(imState(item, brand).k);
+}
+// The age of what the screen shows: ListingMatch's label while its data is fresh, else the snapshot's own time.
+function imDlTime(brand) {
+  const lm = typeof lmDataLabel === 'function' ? lmDataLabel([brand]) : null;
+  if (lm) return lm.text;
+  const at = IML[brand] && IML[brand].at;
+  return at && at.toLocaleString ? 'Snapshot ' + at.toLocaleString('en-GB') : '';
+}
+/** The rows: [{ brand, fam, famKey, sku, n (problems), cells }] for these brands; `only` = a card key (that filter only) or '' (every
+ *  picture problem). Sorted by family (the family's problems added up, most first; then its name), then SKU. */
+function imDlRows(brands, only) {
+  const ownerWas = IM_OWNER;
+  const out = [];
+  try {
+    brands.forEach(brand => {
+      const data = IML[brand];
+      if (!data || !data.items) return;
+      imOwnerBuild(data.items);                         // "another SKU's pictures" is judged within the brand's own list
+      if (typeof imqSeed === 'function') imqSeed(brand); // the picture sizes the cards know (the cache's catalogue reads)
+      const bySku = new Map(data.items.map(item => [item.sku, item]));
+      const when = imDlTime(brand);
+      data.items.forEach(item => {
+        if (!item || item.lvl === 'parent' || !imDlLive(item, brand)) return;
+        const has = IM_DL_CHECKS.filter(c => imDlHas(item, c.k, brand));
+        if (!has.length || (only && !has.some(c => c.k === only))) return;
+        const live = item.live || {};
+        const img = item.img || {};
+        const parent = item.psku ? bySku.get(item.psku) || null : null;
+        const fam = parent ? String(parent.t || '') || 'Parent ' + parent.sku : item.psku ? 'Parent ' + item.psku : 'No variation parent';
+        const sizes = IM_SLOTS.flatMap(slot => [img[slot], live[slot]]).filter(Boolean).map(imqDims).filter(Boolean)
+          .sort((a, b) => Math.min(a[0], a[1]) - Math.min(b[0], b[1]) || a[0] * a[1] - b[0] * b[1]);
+        const errs = imPicErrs(item).map(e => (e.c ? `ERROR ${e.c}: ` : '') + String(e.m || '')).join(' | ');
+        out.push({ brand, fam, famKey: brand + '|' + (item.psku || 'solo:' + item.sku), sku: String(item.sku), n: has.length, cells: [
+          (typeof BRAND_NAME !== 'undefined' && BRAND_NAME[brand]) || brand, fam, item.pa || (parent && parent.asin) || '', item.sku, item.asin || '', item.c || '', item.z || '',
+          lrQtyOf(brand, item.sku), item.asin ? 'https://www.amazon.com/dp/' + item.asin : '', has.map(c => c.col).join(' | '), has.map(c => c.todo).join(' | '),
+        ].concat(IM_DL_CHECKS.map(c => (has.includes(c) ? 'Yes' : '')), [IM_SLOTS.filter(slot => live[slot] || img[slot]).length,
+          sizes[0] ? `${sizes[0][0]}×${sizes[0][1]}` : '', errs, when]) });
+      });
+    });
+  } finally {
+    IM_OWNER = ownerWas;
+  }
+  const famN = new Map();
+  out.forEach(r => famN.set(r.famKey, (famN.get(r.famKey) || 0) + r.n));
+  return out.sort((a, b) => famN.get(b.famKey) - famN.get(a.famKey) || a.fam.localeCompare(b.fam) || a.famKey.localeCompare(b.famKey) || a.sku.localeCompare(b.sku));
+}
+/** The sheet: { name, text, rows } — UTF-8 with a BOM (Excel reads Hindi and ₹ right), the headers on row 1, every text quoted ("" for a
+ *  quote), numbers plain, Windows line ends. name: image-errors_<Ridhi|CPC|Both>_<YYYY-MM-DD>_<HHMM>.csv */
+function imDlCsv(rows, who, now) {
+  const q = v => (typeof v === 'number' ? String(v) : `"${String(v == null ? '' : v).replace(/"/g, '""')}"`);
+  const text = '﻿' + [IM_DL_COLS.map(q).join(',')].concat(rows.map(r => r.cells.map(q).join(','))).join('\r\n') + '\r\n';
+  const d = now || new Date();
+  const p2 = n => String(n).padStart(2, '0');
+  const name = `image-errors_${String(who).replace(/[^\w-]+/g, '')}_${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}_${p2(d.getHours())}${p2(d.getMinutes())}.csv`;
+  return { name, text, rows: rows.length };
+}
+/** Download: these brands (both, or the picker's), every picture problem or only the card's filter `only`. Reads what is missing first
+ *  (a brand's list, the stock) exactly as the screen does, then saves the file and says how many. Returns the sheet. */
+async function imDlDownload(both, only) {
+  const brands = both ? ['SP', 'CPC'] : [$('imBrand').value];
+  if (typeof H_LOADED !== 'undefined' && !H_LOADED && typeof loadHealthCache === 'function') {
+    imMsg('Reading the stock…');
+    await loadHealthCache();
+    if (typeof imListRender === 'function' && IML[$('imBrand').value]) imListRender();   // the screen follows the same stock
+  }
+  for (const brand of brands) {
+    if (!(brand in IML)) { imMsg(`Reading ${(typeof BRAND_NAME !== 'undefined' && BRAND_NAME[brand]) || brand} listings…`); await imListLoad(brand); }
+  }
+  const card = IM_DL_CHECKS.some(c => c.k === only) ? only : '';
+  const sheet = imDlCsv(imDlRows(brands, card), both ? 'Both' : (typeof BRAND_NAME !== 'undefined' && BRAND_NAME[brands[0]]) || brands[0], new Date());
+  if (typeof document !== 'undefined' && document.createElement && typeof Blob !== 'undefined') {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([sheet.text], { type: 'text/csv;charset=utf-8' }));
+    a.download = sheet.name;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  }
+  const missing = brands.filter(brand => !IML[brand]);
+  imMsg(`Downloaded ${sheet.rows.toLocaleString('en-US')} listing${sheet.rows === 1 ? '' : 's'} with picture problems (stock > 0)`
+    + (card ? ` — only “${IM_DL_CHECKS.find(c => c.k === card).col}”` : '') + (missing.length ? ` · no list yet for ${missing.map(b => BRAND_NAME[b] || b).join(', ')}` : ''));
+  return sheet;
+}
+// The button's small menu: the brand (this one / both) and — when a card's filter is on — that filter only or every picture problem.
+function imDlMenuHtml() {
+  const brand = $('imBrand').value;
+  const f = $('imFilter').value;
+  const card = IM_DL_CHECKS.find(c => c.k === f);
+  return '<div class="im-dlm-b" role="group" aria-label="Download picture errors"><b>Download picture errors</b>'
+    + '<small>Live listings only (stock &gt; 0), each with at least one picture problem — a sheet for Excel.</small>'
+    + `<fieldset><legend>Brand</legend><label><input type="radio" name="imDlB" value="one" checked> This brand (${imEsc((typeof BRAND_NAME !== 'undefined' && BRAND_NAME[brand]) || brand)})</label>`
+    + '<label><input type="radio" name="imDlB" value="both"> Both brands</label></fieldset>'
+    + (card ? `<fieldset><legend>Rows</legend><label><input type="radio" name="imDlF" value="filter" checked> Only this filter: ${imEsc(card.col)}</label>`
+      + '<label><input type="radio" name="imDlF" value="all"> All picture problems</label></fieldset>' : '')
+    + '<div class="im-dlm-a"><button type="button" class="im-b" data-imdl="go">Download</button><button type="button" class="ghost im-b" data-imdl="x">Cancel</button></div></div>';
+}
+function imDlMenu(open) {
+  const m = $('imDlMenu');
+  if (!m) return;
+  const on = open == null ? m.hidden : !!open;
+  if (on) m.innerHTML = imDlMenuHtml();
+  m.hidden = !on;
+  if ($('imDl') && $('imDl').setAttribute) $('imDl').setAttribute('aria-expanded', String(on));
+}
+// The menu's buttons: Download with what is picked, or Cancel.
+function imDlClick(act) {
+  const m = $('imDlMenu');
+  if (act === 'x') return imDlMenu(false);
+  if (act !== 'go' || !m) return null;
+  const pick = name => { const r = m.querySelector ? m.querySelector(`input[name="${name}"]:checked`) : null; return r ? r.value : ''; };
+  const both = pick('imDlB') === 'both';
+  const only = pick('imDlF') === 'filter' ? $('imFilter').value : '';
+  imDlMenu(false);
+  return imDlDownload(both, only).catch(e => imMsg('Could not make the sheet: ' + ((e && e.message) || e), true));
+}
+if ($('imDl')) $('imDl').onclick = () => imDlMenu();
+if ($('imDlMenu') && $('imDlMenu').addEventListener) $('imDlMenu').addEventListener('click', e => {
+  const btn = e.target && e.target.closest ? e.target.closest('[data-imdl]') : null;
+  if (btn) imDlClick(btn.dataset.imdl);
+});
+if (typeof document !== 'undefined' && document.addEventListener) {
+  // a click outside the menu, or Esc, closes it
+  document.addEventListener('click', e => {
+    const m = $('imDlMenu');
+    if (!m || m.hidden || !e.target || !e.target.closest) return;
+    if (!e.target.closest('#imDlMenu') && !e.target.closest('#imDl')) imDlMenu(false);
+  });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && $('imDlMenu') && !$('imDlMenu').hidden) imDlMenu(false); });
+}
 // One listener for the list: a number card (that filter; again = all), a tile (the viewer), its View / Replace, folding a family, its
 // Copy main / Select all children, Expand / Collapse all, Clear filter, the "N selected" Clear, and Shift+click on a tick (a range).
 $('imList').addEventListener('click', e => {

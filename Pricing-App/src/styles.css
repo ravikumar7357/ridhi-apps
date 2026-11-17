@@ -1127,6 +1127,17 @@
   .imq-chip.is-bad{background:var(--bad-bg);color:var(--bad-ink)}
   /* Image Manager top: the sticky toolbar, the thin reading bar, the number cards (the Listing .ls-box look, scoped here). */
   #paneImg .card.im-tb{position:sticky;top:var(--im-top,0px);z-index:20}
+  /* ⬇ Download errors: its small menu under the toolbar (brand, and the filter question when a card is on) */
+  #paneImg .im-dlm{position:absolute;right:14px;top:calc(100% - 6px);z-index:30;width:min(320px,calc(100vw - 32px));background:var(--card);border:1px solid var(--line);
+    border-radius:var(--r-ctl);box-shadow:var(--sh-3);padding:12px 14px;font-size:12.5px}
+  #paneImg .im-dlm[hidden]{display:none}
+  #paneImg .im-dlm-b{display:flex;flex-direction:column;gap:8px}
+  #paneImg .im-dlm-b small{color:var(--muted);line-height:1.4}
+  #paneImg .im-dlm fieldset{border:0;margin:0;padding:0;display:flex;flex-direction:column;gap:4px}
+  #paneImg .im-dlm legend{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:2px}
+  #paneImg .im-dlm label{display:flex;gap:6px;align-items:center;cursor:pointer}
+  #paneImg .im-dlm-a{display:flex;gap:8px;justify-content:flex-end}
+  #paneImg .im-dlm-a button{width:auto}
   #paneImg .im-prog{display:flex;align-items:center;gap:10px;margin-top:8px;font-size:11.5px;color:var(--muted);font-variant-numeric:tabular-nums}
   #paneImg .im-prog[hidden]{display:none}
   #paneImg .im-prog-bar{flex:1 1 auto;height:4px;border-radius:2px;background:var(--hover);overflow:hidden}
