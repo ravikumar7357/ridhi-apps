@@ -34,8 +34,45 @@ function skcBrands() {
   return [...seen.values()].sort((a, b) => a.localeCompare(b));
 }
 
-const skcRows = () => ptList((PTG.masters || {}).skuCode).filter(r => r && String(r.base || '').trim())
-  .sort((a, b) => String(a.base).localeCompare(String(b.base)) || String(a.size || '').localeCompare(String(b.size || '')));
+/* EACH BRAND ITS OWN BASE CODES (Ravi, 17 Nov: "cpc ke liye base code diffrent h, yaha me jese hi brand change karu auto base code change
+ * hona chahiye"). The base codes typed or uploaded so far are Ridhi's (R…, no brand on the row). A row saved with a brand belongs to that
+ * brand. A brand with no rows of its own gets them worked out of its own SKUs in the master — CPC038-60120 → CPC-60120, CPCN007 → CPCN,
+ * CPCLS-CO-002 → CPCLS-CO- — each kept only if base + its colour code gives that SKU back exactly. */
+const skcSort = list => list.sort((a, b) => String(a.base).localeCompare(String(b.base)) || String(a.size || '').localeCompare(String(b.size || '')));
+const skcStored = () => ptList((PTG.masters || {}).skuCode).filter(r => r && String(r.base || '').trim());
+const skcIsRidhi = b => !b || /^ridhi\b/i.test(String(b).trim());
+let SKC_DER = { src: null, brand: null, rows: [] };
+function skcDerived(brand) {
+  const src = PTG.mdb || [], br = String(brand || '').trim().toLowerCase();
+  if (SKC_DER.src === src && SKC_DER.brand === br) return SKC_DER.rows;
+  const by = new Map();
+  src.forEach(m => {
+    if (!m || !m.sku || m.isCustom || String(m.brand || '').trim().toLowerCase() !== br) return;
+    const sku = obUC(m.sku), x = sku.match(/^([A-Z]+(?:-[A-Z]+)*-?)(\d{1,5})(.*)$/);
+    if (!x) return;
+    const pre = x[1], rest = x[3];
+    const base = rest ? pre + rest : pre;
+    if (skcFull(base, x[2]) !== sku) return;                      // only a base that gives the SKU back exactly
+    const e = by.get(base) || { base, n: 0, what: new Map() };
+    e.n++;
+    const w = [m.articleType || '', m.subtype || '', m.size || ''].join('|');
+    e.what.set(w, (e.what.get(w) || 0) + 1);
+    by.set(base, e);
+  });
+  const rows = [...by.values()].map(e => {
+    const [article, subtype, size] = [...e.what.entries()].sort((a, b) => b[1] - a[1])[0][0].split('|');
+    return { base: e.base, article, subtype, size, brand: brand, derived: true, n: e.n };
+  });
+  SKC_DER = { src, brand: br, rows: skcSort(rows) };
+  return SKC_DER.rows;
+}
+/** The base rows for the brand typed: its own saved rows; for Ridhi the rows with no brand; for another brand with none saved, its SKUs'. */
+function skcRows() {
+  const b = String((SKC && SKC.brand) || '').trim(), all = skcStored();
+  if (skcIsRidhi(b)) return skcSort(all.filter(r => skcIsRidhi(r.brand)));
+  const own = all.filter(r => String(r.brand || '').trim().toLowerCase() === b.toLowerCase());
+  return own.length ? skcSort(own) : skcDerived(b);
+}
 
 /** A colour's SKU out of a base code. '' when either is missing. */
 function skcFull(base, code) {
@@ -204,6 +241,8 @@ async function skcSaveRow(id, v) {
   const dup = ptList((PTG.masters || {}).skuCode).find(r => r && r._key !== id && String(r.base || '').trim().toUpperCase() === rec.base);
   if (dup) return `${rec.base} is already the base code of ${[dup.article, dup.subtype, dup.size].filter(Boolean).join(' · ')}.`;
   const key = id || 'skc_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+  const brd = String((SKC && SKC.brand) || '').trim();
+  if (!skcIsRidhi(brd)) rec.brand = brd;          // a brand's own base code (17 Nov); Ridhi's rows stay without one
   rec.by = ME.email; rec.at = new Date().toISOString();
   try { await ptPut('pt_masters/skuCode/' + key, rec); } catch (e) { return 'Not saved: ' + (e.message || e); }
   PTG.masters = Object.assign({}, PTG.masters || {});
@@ -397,7 +436,7 @@ function skcDraw() {
     + `<td style="font-family:ui-monospace,monospace;font-weight:700">${esc(full) || '<span class="muted">—</span>'}</td>`
     + `<td>${state === 'have' ? '<span class="pill pill-ok">In master</span>' : state === 'new' ? '<span class="pill pill-low">New</span>'
       : state === 'taken' ? `<span class="pill pill-out" title="That code is already a SKU of another colour">${esc(m.color || '?')}</span>` : ''}</td>`
-    + (edit ? `<td><button class="ghost" data-skc-edit="${esc(r._key)}" style="padding:3px 10px">Edit</button></td>` : '')
+    + (edit ? (r.derived ? `<td class="muted" style="font-size:11px" title="Worked out from ${esc(String(r.n))} ${esc(r.brand)} SKU(s) in the master">from SKUs</td>` : `<td><button class="ghost" data-skc-edit="${esc(r._key)}" style="padding:3px 10px">Edit</button></td>`) : '')
     + '</tr>').join('') + '</tbody>';
   $('ptmMsg').className = 'muted';
   $('ptmMsg').textContent = `${nf(rows.length)} of ${nf(skcRows().length)} base code(s)`;
