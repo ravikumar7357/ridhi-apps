@@ -150,7 +150,7 @@ async function skcCreate(colour, code, brand) {
     const col = String(colour).trim(), now = new Date().toISOString();
     const taken = ptList((PTG.masters || {}).colour).some(x => x && String(x.code || '').trim().toLowerCase() === col.toLowerCase());
     colKey = typeof mstNextKey === 'function' ? mstNextKey('colour') : 'm_' + t.toString(36);
-    colRow = { code: taken ? col + ' ' + String(code).trim() : col, desc: col, active: true, createdAt: now, createdBy: ME.email,
+    colRow = { code: (taken ? col + ' ' + String(code).trim() : col).toUpperCase(), desc: col,   // the master's codes are the name in capitals active: true, createdAt: now, createdBy: ME.email,
       modifiedAt: now, modifiedBy: ME.email, addedFrom: 'SKU codes — colour code ' + String(code).trim() };
     patch['pt_masters/colour/' + colKey] = colRow;
   }
