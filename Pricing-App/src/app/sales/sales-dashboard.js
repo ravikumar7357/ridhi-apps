@@ -110,7 +110,10 @@ async function ensureSales() {
     renderSales();
   }
 
-  // --- 3. behind the painted screen: a newer nightly run?, then the live top-up ---
+  // --- 3. behind the painted screen: Amazon's own totals, a newer nightly run?, then the live top-up ---
+  // Seller Central's day totals (sdDays lays them over the Amazon channels). Not awaited: the screen is already painted,
+  // and it repaints once when they arrive. At most one round trip every ten minutes, shared with the Ad Console.
+  tMatchEnsure().then(() => { if (T_MATCH.biz && SD.at) renderSales(); }).catch(() => { /* the workbook figures stay */ });
   if (SD_BUSY) return;                                  // already working from an earlier visit
   SD_BUSY = (async () => {
     try {
@@ -221,12 +224,34 @@ function soStamp() {
 /** Same calendar day one year earlier — used for every "LY" column. */
 const sdLastYear = iso => (Number(iso.slice(0, 4)) - 1) + iso.slice(4);
 
-/** Sum [sales, units, orders] across the chosen channel(s) between two dates, inclusive. */
+/**
+ * One channel's days as the screen shows them: { day: [sales, units, order items] }.
+ *
+ * AMAZON'S OWN TOTALS WIN (16 Nov 2026). For the two Amazon accounts, every day Seller Central's Business Report holds
+ * (the backend's matchBiz cache, shared with the Ad Console through T_MATCH — ads/account-trends.js) replaces the day
+ * added up from the Orders workbooks: Ordered Product Sales, Units Ordered and Total Order Items. That is what makes this
+ * screen say what Seller Central says. The newest day or two, which Amazon has not published, stay on the workbooks and
+ * the live top-up; Shopify is never touched. SD itself — and the copy saved in this browser — keeps the workbook figures.
+ */
+function sdDays(chan) {
+  const own = SD.d[chan] || {};
+  if (chan !== 'SP' && chan !== 'CPC') return own;
+  const amz = tMatchBizDays(chan), days = Object.keys(amz);
+  if (!days.length) return own;
+  const out = Object.assign({}, own);
+  days.forEach(day => {
+    const v = amz[day];
+    out[day] = [Number(v[0]) || 0, Number(v[1]) || 0, Number(v[2]) || 0];
+  });
+  return out;
+}
+
+/** Sum [sales, units, order items] across the chosen channel(s) between two dates, inclusive. */
 function sdSum(from, to) {
   const chans = SD_CH === 'ALL' ? ['SP', 'CPC', 'SHOP'] : [SD_CH];
   const total = [0, 0, 0];
   chans.forEach(chan => {
-    const byDay = SD.d[chan] || {};
+    const byDay = sdDays(chan);
     Object.keys(byDay).forEach(day => {
       if (day < from || day > to) return;
       const figures = byDay[day];
@@ -243,7 +268,7 @@ function sdSum(from, to) {
 function sdSeries(from, to) {
   const chans = SD_CH === 'ALL' ? ['SP', 'CPC', 'SHOP'] : [SD_CH];
   const by = {};
-  chans.forEach(chan => Object.entries(SD.d[chan] || {}).forEach(([day, figures]) => {
+  chans.forEach(chan => Object.entries(sdDays(chan)).forEach(([day, figures]) => {
     if (day < from || day > to) return;
     by[day] = (by[day] || 0) + (figures[0] || 0);
   }));
@@ -368,7 +393,7 @@ function renderSales() {
     + `<td class="num">${fmt(W[i])}</td><td class="sd-ly num">${fmt(Wl[i])}</td><td class="num">${sdDelta(W[i], Wl[i])}</td>`
     + `<td class="num">${fmt(M[i])}</td><td class="sd-ly num">${fmt(Ml[i])}</td><td class="num">${sdDelta(M[i], Ml[i])}</td>`
     + `<td class="num">${fmt(Yr[i])}</td><td class="sd-ly num">${fmt(Yrl[i])}</td><td class="num">${sdDelta(Yr[i], Yrl[i])}</td></tr>`;
-  $('sdPeriodBody').innerHTML = row('Sales', 0, sdMoney) + row('Quantity', 1, sdNum) + row('Orders', 2, sdNum);
+  $('sdPeriodBody').innerHTML = row('Sales', 0, sdMoney) + row('Quantity', 1, sdNum) + row('Order items', 2, sdNum);
 
   /* Monthly comparison — this year's months against the same months last year. */
   const yr = today.slice(0, 4);
@@ -394,6 +419,7 @@ function renderSales() {
   // top-up owns today. One combined "last synced" would hide which half is stale.
   const legs = Object.entries(SD_MS).map(([leg, took]) => `${leg} ${(took / 1000).toFixed(1)}s`).join(', ');
   $('sdSynced').textContent = (SD.at || '—') + (SD_LIVE ? ` · today refreshed ${SD_LIVE}` : '')
+    + (T_MATCH.biz ? ` · Amazon accounts: Seller Central's own totals as at ${T_MATCH.biz.at || '?'}` : '')
     + (legs ? ` · read: ${legs}` : ' · read from this browser');
 }
 

@@ -697,6 +697,8 @@
         <div class="toolbar" id="vpTabs" style="margin-bottom:8px">
           <button id="vpTabBulk" class="ghost">Bulk orders</button>
           <button id="vpTabShop" class="ghost">Custom orders</button>
+          <!-- Lines the printer has said are sent in full, waiting for us to receive them (14 Nov). -->
+          <button id="vpTabVs" class="ghost hide">Vendor sent</button>
           <!-- Every line already sent in full, closed or cancelled — out of the way of the work still to do. -->
           <button id="vpTabDone" class="ghost">Completed</button>
           <!-- What they have sent, and what was kept. Built from their own branch, so it can only
@@ -721,6 +723,9 @@
             <option value="running">Running &mdash; metres</option>
           </select>
           <input id="vpQ" placeholder="Search order no, SKU, fabric…" style="flex:1 1 220px;min-width:0">
+          <!-- ORDER DATE FROM – TO (14 Nov) -->
+          <label class="muted" style="display:inline-flex;align-items:center;gap:4px;font-size:12px;flex:0 0 auto">From <input id="vpFrom" type="date" style="width:140px"></label>
+          <label class="muted" style="display:inline-flex;align-items:center;gap:4px;font-size:12px;flex:0 0 auto">To <input id="vpTo" type="date" style="width:140px"></label>
           <button id="vpPinBtn" class="ghost">Change my PIN</button>
           <button id="vpExport" class="ghost">Download Excel</button>
           <!-- VENDOR SENT FROM EXCEL (12 Nov): the printer's own sign-in only — vendors/portal/vendor-sent-excel.js -->
@@ -1368,6 +1373,12 @@
             <option value="AMZ">Amazon — sales order</option>
             <option value="SHP">Shopify</option>
             <option value="B2B">B2B</option>
+          </select>
+          <!-- NEW DEVELOPMENT (14 Nov): the Order type the sales order was raised with. -->
+          <select id="odType" style="flex:0 0 160px" title="Regular or New development, as the sales order was raised">
+            <option value="">Any order type</option>
+            <option value="newdev">New development</option>
+            <option value="regular">Regular</option>
           </select>
           <select id="odBrand" style="flex:0 0 130px" title="The brand the SKU belongs to, from the master database">
             <option value="">All brands</option>

@@ -228,10 +228,18 @@ function mdbFromCsv(row, ix) {
  * that clears ruffle metres. Read once here, so no screen has to know there are two spellings.
  */
 const MDB_YN = ['cuttingRequired', 'isZip', 'isRuffle', 'isPiping', 'fillerFabricRequired', 'isCustom'];
+/* AN EMBROIDERY ARTICLE IS NOT CUT (Ravi, 13 Nov: "jisme article embroidery ho usme cut auto required nahi hona chahiye — wo direct
+ * issue"). 1,316 of the master's 1,340 embroidery SKUs already said so; the 24 that did not (and every embroidery SKU on the Custom
+ * SKUs list, core/look-alike-skus.js ptTcCutReq) held their orders at Cut. Read here, as the master is read, so every screen agrees. */
+const mdbEmbNoCut = r => /embroid/i.test(String((r && r.articleType) || '') + ' ' + String((r && r.subtype) || ''));
 function mdbYnFix(r) {
-  if (!r || !MDB_YN.some(f => typeof r[f] === 'string')) return r;
-  const o = Object.assign({}, r);
-  MDB_YN.forEach(f => { if (typeof o[f] === 'string') o[f] = mdbYes(o[f]); });
+  if (!r) return r;
+  let o = r;
+  if (MDB_YN.some(f => typeof r[f] === 'string')) {
+    o = Object.assign({}, r);
+    MDB_YN.forEach(f => { if (typeof o[f] === 'string') o[f] = mdbYes(o[f]); });
+  }
+  if (o.cuttingRequired !== false && mdbEmbNoCut(o)) { if (o === r) o = Object.assign({}, r); o.cuttingRequired = false; }
   return o;
 }
 

@@ -59,7 +59,7 @@ try { window.ERP_MEERA = ERP_MEERA; } catch (e) { /* no window: the page itself 
  * data a screen has not read yet is "not loaded" (she asks the person to open that screen), never fetched — the quota
  * fix stands. Each answer says which screen it comes from and when that screen last read it. A screen the account
  * cannot open answers "not allowed", with no data. open() is called only from a button the person presses. */
-const MEERA_DATA_SCREENS = { ord: 'Order Console', pbase: 'Job Work Register', fgi: 'Finished Goods', qc: 'Quality Control', pmdb: 'Master Database', shop: 'Shopify Orders', vord: 'Vendor Orders' };
+const MEERA_DATA_SCREENS = { ord: 'Order Console', pbase: 'Job Work Register', fgi: 'Finished Goods', qc: 'Quality Control', pmdb: 'Master Database', shop: 'Shopify Orders', vord: 'Vendor Orders', flow: 'Production flow' };
 const mdMay = tab => (typeof mobMay === 'function' ? !!mobMay(tab) : true);
 const mdNum = v => Number(v) || 0;
 const mdLeft = r => mdNum(r.issuePieces) - mdNum(r.receivedPieces) - mdNum(r.rejectionPieces);
@@ -208,10 +208,32 @@ ERP_MEERA.data = {
     const from = mdFrom('pmdb', typeof PTG !== 'undefined' && Array.isArray(PTG.mdb), typeof PTG !== 'undefined' ? mdTime(PTG.at) : '');
     if (from.denied || from.notLoaded) return { from, rows: [] };
     const t = v => String(v == null ? '' : v).trim();
+    /* its yes/no fields as the Master Database shows them — the SKU's own, or its recipe's (Ravi, 11 Nov: "how many sku with
+     * piping as yes are in order") */
+    const yes = (r, k) => { let v = r[k]; try { if (typeof recipeValue === 'function') v = recipeValue(r, k); } catch (e) { /* the SKU's own */ }
+      return v === true || /^(y|yes|true|1)$/i.test(t(v)); };
     const rows = (PTG.mdb || []).filter(r => r && r.sku && !t(r.mergedInto))
-      .map(r => ({ sku: String(r.sku).toUpperCase(), articleType: t(r.articleType), subtype: t(r.subtype), color: t(r.color), brand: t(r.brand), size: t(r.size), fabric: t(r.fabric) }));
+      .map(r => ({ sku: String(r.sku).toUpperCase(), articleType: t(r.articleType), subtype: t(r.subtype), color: t(r.color), brand: t(r.brand), size: t(r.size), fabric: t(r.fabric),
+        piping: yes(r, 'isPiping'), ruffle: yes(r, 'isRuffle'), zip: yes(r, 'isZip'), cut: yes(r, 'cuttingRequired'), filler: yes(r, 'fillerFabricRequired'), custom: yes(r, 'isCustom') }));
     return { from, rows };
   }, { from: { tab: 'pmdb', notLoaded: true }, rows: [] }),
+  /** THE LINES WAITING IN PPC TO BE PLANNED, oldest first — the Production flow's own list (flowRows, bucket 'ppc'), read
+   * only when the page already holds it (Ravi, 11 Nov: "saare orders do jinki planning karni hai") */
+  ppcToPlan: () => meeraSafe(() => {
+    const from = mdFrom('flow', typeof FLOW !== 'undefined' && !!FLOW.ppc && typeof flowRows === 'function', typeof FLOW !== 'undefined' ? mdTime(FLOW.at) : '');
+    if (from.denied || from.notLoaded) return { from, lines: [] };
+    const day = v => { const p = String(v || '').split('/'); return p.length === 3 ? p[2] + '-' + p[1].padStart(2, '0') + '-' + p[0].padStart(2, '0') : String(v || '').slice(0, 10); };
+    const lines = flowRows().filter(x => x && x.s && x.s.bucket === 'ppc' && x.r)
+      .map(x => ({ orderNo: String(x.r.orderNo || ''), sku: String(x.r.sku || ''), qty: mdNum(x.r.qty), day: day(x.r.orderDate), started: !!x.s.startedNoPlan }))
+      .sort((a, b) => a.day.localeCompare(b.day) || a.orderNo.localeCompare(b.orderNo));
+    return { from, lines };
+  }, { from: { tab: 'flow', notLoaded: true }, lines: [] }),
+  /** THE OPEN ORDER LINES on the Order Console: SKU, order and pieces — for "how many SKUs with piping are in order" */
+  openLines: () => meeraSafe(() => {
+    const from = mdOrdFrom();
+    if (from.denied || from.notLoaded) return { from, lines: [] };
+    return { from, lines: mdOrdLines().filter(r => r && r.open && r.sku).map(r => ({ sku: String(r.sku).toUpperCase(), orderNo: String(r.orderNo || ''), qty: mdNum(r.qty) })) };
+  }, { from: { tab: 'ord', notLoaded: true }, lines: [] }),
   /** THE VENDORS' NAMES (printers, fabricators, filling houses): the vendor master, and any code on a vendor order the master no
    * longer has — for finding the one meant ("chaudhry handbooks ke paas apna kitna maal hai", Ravi 7 Nov) */
   vendors: () => meeraSafe(() => {
@@ -340,6 +362,10 @@ const MEERA_SWITCHES = {
   /* Phase 7 — answers from the ERP's own figures (where is an order, what a karigar holds, a SKU's stock, what waits at
    * a stage, today's counts, late orders), READ ONLY from this page's memory (ERP_MEERA.data). meera.js only: ?meera=lazy,data */
   data: MEERA_V2_ON,
+  /* Hinglish and Hindi words read through what she learnt from her own three-language answers (Ravi, 11 Nov: "linking of
+   * hinglish words and its meaning and formation"): a word's link, its sound, its family. meera/tools/hinglish-learn.cjs
+   * writes /guide/meera-links.json. Off until proven: ?meera=hglinks */
+  hglinks: false,
 };
 /* THE EMERGENCY OFF (Ravi, 3 Nov: "the router's setting on the admin page should turn all seven off within seconds").
  * Each page asks her router once as it opens (GET /flags: no sign-in, no data, only on/off) and keeps the answer in this
