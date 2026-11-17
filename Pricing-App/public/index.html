@@ -40137,13 +40137,31 @@ function pxAmzOver(o, asins, p) {
     o.amz = { cut: amz.cut, dRev, dU };
     did = true;
   }
-  const ad = o.spend != null ? pxAmzAds(p.lo, o.adTo && o.adTo < p.hi ? o.adTo : p.hi) : null;
+  // Campaign manager's figures go in whether or not the products' own ad report has come in (17 Nov 2026: when it had
+  // not, the All row showed "—" beside an Ad Console full of figures). Their days run to the last one every brand in
+  // view has in matchAds; ratios set them against the sales of those same days, Amazon's own where published.
+  const aEnd = pxTypeEnd(), hiAd = aEnd && aEnd < p.hi ? aEnd : p.hi;
+  const ad = aEnd && hiAd >= p.lo ? pxAmzAds(p.lo, hiAd) : null;
   if (ad) {
+    o.adOwnMissing = o.spend == null;              // the product rows have no ad figures for these dates
     o.cl = ad[1];
     o.spend = ad[2];
     o.adSales = ad[3];
     o.adO = ad[4];
     o.adAmz = true;
+    o.adTo = hiAd < p.hi ? hiAd : '';
+    if (hiAd < p.hi) {
+      const sub = pxStats(asins, pxPlan(p.lo, hiAd)), a3 = pxAmzDays(p.lo, hiAd);
+      const own3 = a3 && pxStats(asins, pxPlan(p.lo, a3.cut));
+      o.revA = sub.rev + (a3 && own3 && own3.has ? a3.s[0] - own3.rev : 0);
+      o.uA = sub.u + (a3 && own3 && own3.has ? a3.s[1] - own3.u : 0);
+    } else {
+      o.revA = o.rev;
+      o.uA = o.u;
+    }
+    // All three types over the same days — the Ad Console's figure — for the line under the All row.
+    const ts = pxTypeSums(p.lo, hiAd);
+    if (ts) o.allTypes = [0, 1, 2, 3, 4].map(i => ts.sp[i] + ts.sb[i] + ts.sd[i]);
     if (!o.amz) o.amz = { cut: '', dRev: 0, dU: 0 };
     did = true;
   }
@@ -40185,8 +40203,13 @@ function pxAmzGapRow(tot) {
       + ' than the products below add up to — orders Amazon counts that the Orders workbooks do not have yet.');
   }
   if (tot.adAmz) {
-    parts.push('Ad spend, ad sales and ad orders are Campaign manager’s (Sponsored Products, 7-day sales, as the console'
-      + ' shows them); the products below count ad sales over 30 days, so theirs add up to more.');
+    const at = tot.allTypes;
+    parts.push('SP ad spend, ad sales and ad orders are Campaign manager’s (Sponsored Products, 7-day sales, as the console'
+      + ' shows them)' + (tot.adTo ? `, to ${pxEsc(pxDM(tot.adTo))}` : '') + '; '
+      + (tot.adOwnMissing ? 'the products’ own ad figures for these dates have not come in yet, so the rows below show none.'
+        : 'the products below count ad sales over 30 days, so theirs add up to more.')
+      + (at ? ` All ad types together — the Ad Console’s figure — spend <b>${pxMoney(at[2])}</b>, ad sales <b>${pxMoney(at[3])}</b>,`
+        + ` ${pxN(at[4])} ad orders (Ads by campaign type, below).` : ''));
   }
   return parts.length ? `<tr class="px-amzgap"><td class="l px-dim" colspan="99"><small>${parts.join(' ')}</small></td></tr>` : '';
 }
