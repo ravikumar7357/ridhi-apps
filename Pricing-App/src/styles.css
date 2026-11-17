@@ -1127,6 +1127,19 @@
   .imq-chip.is-bad{background:var(--bad-bg);color:var(--bad-ink)}
   /* Image Manager top: the sticky toolbar, the thin reading bar, the number cards (the Listing .ls-box look, scoped here). */
   #paneImg .card.im-tb{position:sticky;top:var(--im-top,0px);z-index:20}
+  /* a check that could not be decided for a listing: said quietly, never as a problem */
+  #paneImg .im-nc{color:var(--muted);font-style:italic}
+  /* ⬇ Download errors: its small menu under the toolbar (brand, and the filter question when a card is on) */
+  #paneImg .im-dlm{position:absolute;right:14px;top:calc(100% - 6px);z-index:30;width:min(320px,calc(100vw - 32px));background:var(--card);border:1px solid var(--line);
+    border-radius:var(--r-ctl);box-shadow:var(--sh-3);padding:12px 14px;font-size:12.5px}
+  #paneImg .im-dlm[hidden]{display:none}
+  #paneImg .im-dlm-b{display:flex;flex-direction:column;gap:8px}
+  #paneImg .im-dlm-b small{color:var(--muted);line-height:1.4}
+  #paneImg .im-dlm fieldset{border:0;margin:0;padding:0;display:flex;flex-direction:column;gap:4px}
+  #paneImg .im-dlm legend{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:2px}
+  #paneImg .im-dlm label{display:flex;gap:6px;align-items:center;cursor:pointer}
+  #paneImg .im-dlm-a{display:flex;gap:8px;justify-content:flex-end}
+  #paneImg .im-dlm-a button{width:auto}
   #paneImg .im-prog{display:flex;align-items:center;gap:10px;margin-top:8px;font-size:11.5px;color:var(--muted);font-variant-numeric:tabular-nums}
   #paneImg .im-prog[hidden]{display:none}
   #paneImg .im-prog-bar{flex:1 1 auto;height:4px;border-radius:2px;background:var(--hover);overflow:hidden}
@@ -3440,6 +3453,29 @@
   #lsPanel .fa{padding:12px 16px 6px}
   .sp-side-b>.fa{margin:0 0 12px}
   .fa{display:flex;flex-direction:column;gap:10px}
+  /* Fix all search terms (kw-fix.js): the preview's rows — a tick, the SKU and bytes before → after, the old words with the removed ones
+     struck through, the new text to edit — and the card above Listing Errors' list */
+  .kf-pop .kf-tools{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:8px}
+  .kf-pop .kf-tools input[type=search]{flex:1 1 220px;min-width:0;font-size:12.5px;padding:5px 8px}
+  .kf-pop .kf-all{display:flex;gap:6px;align-items:center;font-size:12.5px;white-space:nowrap}
+  .kf-row{display:grid;grid-template-columns:22px minmax(0,1fr);gap:4px 8px;align-items:start}
+  .kf-row.is-held{display:block}
+  .kf-row.hide{display:none}
+  .kf-tick{padding-top:2px}
+  .kf-top{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+  .kf-top small{color:var(--muted)}
+  .kf-bytes{margin-left:auto;font-size:12px;white-space:nowrap}
+  .kf-bytes .err,.kf-bytes .ok{background:none;border:0;padding:0;margin:0;font-size:inherit;font-weight:700}
+  .kf-text{font-size:12.5px;line-height:1.5;margin:4px 0;word-break:break-word}
+  .kf-cut{color:var(--bad-ink);opacity:.75;text-decoration:line-through}
+  .kf-ed summary{font-size:12px;color:var(--accent-ink);cursor:pointer}
+  .kf-ed textarea{width:100%;box-sizing:border-box;font-size:12.5px;margin-top:4px}
+  .kf-le{padding:10px 14px;margin-bottom:10px;font-size:12.5px}
+  .kf-le-h{display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:space-between}
+  .kf-le-list summary{cursor:pointer;color:var(--accent-ink);margin-top:6px}
+  .kf-le-fam{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 10px;align-items:center;padding:6px 0;border-top:1px solid var(--line)}
+  .kf-le-fam small{grid-column:1;color:var(--muted)}
+  .kf-le-fam .fa-btn{grid-row:1/3;grid-column:2}
   .fa-cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
   .fa-card{--c:var(--faint);display:flex;flex-direction:column;gap:2px;min-width:0;padding:10px 12px;border:1px solid var(--card-line);border-radius:12px;background:var(--card);
     box-shadow:inset 0 3px 0 color-mix(in srgb,var(--c) 75%,transparent)}
