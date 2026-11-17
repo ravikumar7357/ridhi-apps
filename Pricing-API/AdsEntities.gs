@@ -4,7 +4,11 @@
  * negative or a new keyword needs only the campaign and ad-group IDs the reports already carry — but a bid change or a
  * pause changes an EXISTING keyword or target, and the bulk file must name it by its own ID. The reports do not carry
  * those IDs, nor the current bids, nor the negatives already in place. Amazon's /sp/…/list endpoints do. This file
- * reads them twice a day into one cache, `adEntities`, which the browser reads through ?cache=adEntities (no redeploy).
+ * reads them twice a day into one cache, `adEntities`, which the browser reads through ?cache=adEntities.
+ *
+ * ITS OWN SPREADSHEET (17 Nov 2026). adEntities and AdsDecide.gs's four caches live in "Sellora Ads Cache", not in the
+ * nightly cache spreadsheet, which timed out three times on 16–17 Nov. Same pattern as ListingMatch.gs: created by the
+ * first setup (entSetup or decSetup), its id in Script Property ADS_CACHE_ID, read by Code.gs's ?cache= for ADS_TABS.
  *
  * It changes nothing at Amazon: every call here is a POST to a /list endpoint, which only reads.
  *
@@ -27,11 +31,13 @@
  * record shows it (the negative there, the bid at its new value).
  *
  * RUN FROM THE EDITOR (Ravi):
- *   entSetup()    once: installs the two daily timers (07:00 and 19:00, script time zone) and reads both brands now
+ *   entSetup()    once: creates (or checks) the "Sellora Ads Cache" spreadsheet, installs the two daily timers
+ *                 (07:00 and 19:00, script time zone) and reads both brands now
  *   entTest()     reads both brands now and prints the counts and a few rows of each — check them against the Ads console
  *   entStatus()   what the cache holds, when it was read, any errors
  *   entRunNow()   read again now
- *   entStop()     removes the timers. To undo everything: entStop, delete this file, delete the adEntities tab.
+ *   entStop()     removes the timers. To undo everything: entStop, decStop, delete this file and AdsDecide.gs, delete
+ *                 the "Sellora Ads Cache" spreadsheet and Script Property ADS_CACHE_ID.
  *
  * Own file, own timers, own lease (ENT_LEASE) — like AmazonMatch.gs it touches no other file and takes no script lock,
  * so it never holds up the nightly run. Needs nothing new: the Ads login and scope Sellora already uses.
@@ -64,17 +70,75 @@ var ENT_PRED = {
   ASIN_IS_PRIME_SHIPPING_ELIGIBLE: 'prime-shipping-eligible', ASIN_AGE_RANGE_SAME_AS: 'age-range', ASIN_GENRE_SAME_AS: 'genre',
 };
 
+/* ============================== its own spreadsheet (shared with AdsDecide.gs) ============================== */
+
+var ADS_BOOK_NAME = 'Sellora Ads Cache';
+// The five caches kept there. Code.gs's ?cache= sends exactly these names to adsCacheRead_.
+var ADS_TABS = ['adEntities', 'stSettled', 'stRecent', 'tgtSettled', 'tgtRecent'];
+
+/** "Sellora Ads Cache", id in Script Property ADS_CACHE_ID. Created only when `create` (entSetup / decSetup). One that
+ *  will not open is retried once and then an error — never silently replaced by a new, empty one. */
+function adsBook_(create) {
+  var id = prop_('ADS_CACHE_ID');
+  if (id) {
+    try { return SpreadsheetApp.openById(id); }
+    catch (e1) {
+      Utilities.sleep(2000);
+      try { return SpreadsheetApp.openById(id); }
+      catch (e2) {
+        throw new Error('The "' + ADS_BOOK_NAME + '" spreadsheet ' + id + ' will not open: ' + (e2.message || e2) + '. Nothing was written. '
+          + 'To deliberately start a new one, clear Script Property ADS_CACHE_ID and run entSetup().');
+      }
+    }
+  }
+  if (!create) throw new Error('No "' + ADS_BOOK_NAME + '" yet — run entSetup() once.');
+  var ss = SpreadsheetApp.create(ADS_BOOK_NAME);
+  PropertiesService.getScriptProperties().setProperty('ADS_CACHE_ID', ss.getId());
+  return ss;
+}
+
+/** Store one cache: JSON cut into CACHE_CELL-character cells down column A, exactly as cacheWrite_ does. */
+function adsPut_(name, obj) {
+  var ss = adsBook_();
+  var sh = ss.getSheetByName(name) || ss.insertSheet(name);
+  var s = JSON.stringify(obj), rows = [];
+  for (var i = 0; i < s.length; i += CACHE_CELL) rows.push(["'" + s.substr(i, CACHE_CELL)]);
+  if (!rows.length) rows.push(["'{}"]);
+  sh.clear();
+  sh.getRange(1, 1, rows.length, 1).setValues(rows);
+  cacheTrim_(sh, rows.length);
+  return rows.length;
+}
+
+/** Read one cache back; null when it is not there yet (or before any setup has created the spreadsheet). */
+function adsCacheRead_(name) {
+  if (ADS_TABS.indexOf(String(name)) < 0 || !prop_('ADS_CACHE_ID')) return null;
+  var sh = adsBook_().getSheetByName(String(name));
+  if (!sh || sh.getLastRow() < 1) return null;
+  var vals = sh.getRange(1, 1, sh.getLastRow(), 1).getValues(), s = '';
+  for (var i = 0; i < vals.length; i++) s += String(vals[i][0] || '').replace(/^'/, '');
+  try { return JSON.parse(s); } catch (e) { return null; }
+}
+
+/** For both setups: the spreadsheet exists (created the first time) and whoever runs this can write to it — the
+ *  timers run as that person. Throws when it cannot. */
+function adsBookCheck_() {
+  var had = !!prop_('ADS_CACHE_ID');
+  var ss = adsBook_(true);
+  var probe = ss.getSheetByName('adsProbe') || ss.insertSheet('adsProbe');
+  probe.getRange(1, 1).setValue('ok ' + nowStamp_());
+  ss.deleteSheet(probe);
+  return (had ? 'Using' : 'Created') + ' the spreadsheet "' + ADS_BOOK_NAME + '": ' + ss.getUrl()
+    + ' (Script Property ADS_CACHE_ID). The nightly cache spreadsheet is not touched.';
+}
+
 /* ============================== editor functions ============================== */
 
 function entSetup() {
-  // 1. The cache sheet must be writable by whoever runs this — the timers run as that person.
-  try {
-    var ss = cacheSheet_();
-    var probe = ss.getSheetByName('entProbe') || ss.insertSheet('entProbe');
-    probe.getRange(1, 1).setValue('ok ' + nowStamp_());
-    ss.deleteSheet(probe);
-  } catch (e) {
-    Logger.log('❌ cannot edit the cache spreadsheet: ' + (e.message || e) + ' — ask Ravi to share it as Editor, then run entSetup again.');
+  // 1. Its own spreadsheet, writable by whoever runs this.
+  try { Logger.log(adsBookCheck_()); }
+  catch (e) {
+    Logger.log('❌ cannot use the "' + ADS_BOOK_NAME + '" spreadsheet: ' + (e.message || e) + ' — nothing was installed.');
     return;
   }
   // 2. The timers.
@@ -103,7 +167,7 @@ function entRunNow() {
 function entTest() {
   var r = entTick();
   Logger.log('Read ' + (r && r.at) + ' in ' + (r && r.secs) + ' s.');
-  var c = cacheRead_('adEntities') || { d: {} };
+  var c = adsCacheRead_('adEntities') || { d: {} };
   ENT_BRANDS.forEach(function (b) {
     var x = c.d[b];
     if (!x) { Logger.log(b + ': nothing — ' + ((c.err || {})[b] || 'not read')); return; }
@@ -121,7 +185,7 @@ function entTest() {
 }
 
 function entStatus() {
-  var c = cacheRead_('adEntities');
+  var c = adsCacheRead_('adEntities');
   if (!c) { Logger.log('No adEntities cache yet — run entSetup().'); return; }
   Logger.log('adEntities written ' + c.at);
   ENT_BRANDS.forEach(function (b) {
@@ -148,7 +212,7 @@ function entTick() {
 // Read both brands into adEntities. A brand that fails keeps its last good copy.
 function entRun_() {
   var t0 = Date.now();
-  var old = cacheRead_('adEntities') || {};
+  var old = adsCacheRead_('adEntities') || {};
   var out = { v: 1, at: nowStamp_(), d: old.d || {}, err: {} };
   var saved = ACTIVE_PREFIX;
   try {
@@ -162,7 +226,7 @@ function entRun_() {
       }
     });
   } finally { setBrand_(saved); }
-  cacheWrite_('adEntities', out);
+  adsPut_('adEntities', out);
   var sum = { at: out.at, secs: Math.round((Date.now() - t0) / 1000) };
   ENT_BRANDS.forEach(function (b) { sum[b] = out.err[b] ? 'FAILED: ' + out.err[b] : (out.d[b] || {}).n; });
   return sum;

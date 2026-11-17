@@ -24,13 +24,22 @@
  * ones keep anything with a click, since "+1 click last 7 days" is the point of them.
  * A brand whose report fails keeps its last good copy in that cache, and its error is in err.
  *
+ * WHERE THEY LIVE (17 Nov 2026): in "Sellora Ads Cache", the spreadsheet AdsEntities.gs creates (adsBook_, adsPut_,
+ * adsCacheRead_ are in that file — both files are needed), not in the nightly cache spreadsheet.
+ * A FAILED REPORT IS ASKED AGAIN UNDER A NEW NAME (…-r2, -r3): asked under the same name, Amazon answers 425 "duplicate
+ * of <the failed id>" and adsAsk_ would hand the failed report straight back.
+ * THE TIMER IS ON ONLY WHILE THERE IS WORK: decStart (daily, DEC_START_HOUR) switches the 10-minute decTick on; decTick
+ * switches itself off once the day's pass is done, or after DEC_PASS_MAX_H hours (what is left then gives up, and those
+ * brands keep their last good copy).
+ *
  * RUN FROM THE EDITOR (Ravi):
- *   decSetup()      once: checks the cache sheet, installs the 10-minute timer, starts today's pass
+ *   decSetup()      once: creates (or checks) the "Sellora Ads Cache" spreadsheet, installs the daily decStart,
+ *                   switches decTick on and starts today's pass
  *   decStatus()     what it is doing, what each cache holds, any errors
  *   decCheck()      one campaign's settled totals, to hold against the Ads console (7-day attribution, same dates)
  *   decRunNow()     start a fresh pass now instead of waiting for this afternoon
- *   decStop()       removes the timer. To undo everything: decStop, delete this file, delete the four tabs.
- * Sellora reads them through the existing endpoint (?cache=stSettled …). No redeploy needed.
+ *   decStop()       removes both timers (decStart and decTick).
+ * Sellora reads them through ?cache=stSettled … — Code.gs sends these names to the Ads spreadsheet.
  *
  * Same pattern as AmazonMatch.gs: own file, own timer (decTick), own state (Script Property DEC_STATE), own lease, no
  * script lock — it never holds up the nightly run, and it changes no other file. Placement decisions (plcDecide) come
@@ -40,6 +49,7 @@
 var DEC_START_HOUR = 15;        // script time zone (India): after midnight Pacific all year, and after AmazonMatch's start
 var DEC_BUDGET_MS = 4.5 * 60000;
 var DEC_TRIES = 3;
+var DEC_PASS_MAX_H = 6;         // a pass still not finished after this gives up what is left, and the timer goes off
 var DEC_BRANDS = ['SP', 'CPC'];
 var DEC_RECENT = 7;             // the last 7 days: Amazon's 7-day window is still open on them
 var DEC_SETTLED = 30;           // settled days: from 8 to 37 days ago
@@ -67,31 +77,31 @@ var DEC_GRAM_MIN_TERMS = 5, DEC_GRAM_MIN_SPEND = 5, DEC_GRAM_MAX = 3000;
 /* ============================== editor functions ============================== */
 
 function decSetup() {
-  try {
-    var ss = cacheSheet_();
-    var probe = ss.getSheetByName('decProbe') || ss.insertSheet('decProbe');
-    probe.getRange(1, 1).setValue('ok ' + nowStamp_());
-    ss.deleteSheet(probe);
-  } catch (e) {
-    Logger.log('❌ cannot edit the cache spreadsheet: ' + (e.message || e) + ' — ask Ravi to share it as Editor, then run decSetup again.');
+  try { Logger.log(adsBookCheck_()); }
+  catch (e) {
+    Logger.log('❌ cannot use the "' + ADS_BOOK_NAME + '" spreadsheet: ' + (e.message || e) + ' — nothing was installed.');
     return;
   }
   decStop();
-  ScriptApp.newTrigger('decTick').timeBased().everyMinutes(10).create();
+  ScriptApp.newTrigger('decStart').timeBased().atHour(DEC_START_HOUR).everyDays(1).create();
   var st = decState_(); st.reset = true; decSave_(st);
-  Logger.log('✓ timer installed (decTick every 10 minutes); today\'s pass starts on the next tick. decStatus() shows progress.');
+  decTimerOn_();
+  Logger.log('✓ installed: decStart daily at ' + DEC_START_HOUR + ':00 (' + Session.getScriptTimeZone() + ') switches the 10-minute decTick on;'
+    + ' decTick switches itself off when the pass is done. Today\'s pass starts on the next tick. decStatus() shows progress.');
 }
 
 function decStop() {
   var n = 0;
   ScriptApp.getProjectTriggers().forEach(function (t) {
-    if (t.getHandlerFunction() === 'decTick') { ScriptApp.deleteTrigger(t); n++; }
+    var h = t.getHandlerFunction();
+    if (h === 'decTick' || h === 'decStart') { ScriptApp.deleteTrigger(t); n++; }
   });
   Logger.log('decStop: ' + n + ' timer(s) removed.');
 }
 
 function decRunNow() {
   var st = decState_(); st.reset = true; decSave_(st);
+  decTimerOn_();                      // the later ticks collect what this one asks for
   decTick();
   decStatus();
 }
@@ -103,8 +113,11 @@ function decStatus() {
   (st.jobs || []).forEach(function (j) { Logger.log('  ' + decJobName_(j) + ': ' + j.st + (j.m ? ' — ' + j.m : '')); });
   if (st.noOpt) Logger.log('  Amazon refused the optional columns (' + st.noOpt + '); asking without them.');
   (st.errors || []).forEach(function (e) { Logger.log('  ! ' + e); });
+  var hs = ScriptApp.getProjectTriggers().map(function (t) { return t.getHandlerFunction(); });
+  Logger.log('timers: decStart ' + (hs.indexOf('decStart') >= 0 ? 'on' : 'MISSING — run decSetup()') + ' · decTick '
+    + (hs.indexOf('decTick') >= 0 ? 'on (every 10 minutes)' : 'off until decStart'));
   Object.keys(DEC_JOBS).forEach(function (name) {
-    var c = cacheRead_(name);
+    var c = adsCacheRead_(name);
     if (!c) { Logger.log(name + ': nothing yet'); return; }
     Logger.log(name + ' (' + c.from + ' – ' + c.to + ', written ' + c.at + '): ' + DEC_BRANDS.map(function (b) {
       var p = (c.d || {})[b];
@@ -116,7 +129,7 @@ function decStatus() {
 
 /** The settled totals of the biggest campaign of each brand — check them against the Ads console, 7-day attribution. */
 function decCheck() {
-  var c = cacheRead_('tgtSettled');
+  var c = adsCacheRead_('tgtSettled');
   if (!c) { Logger.log('No tgtSettled yet — run decSetup() and wait for the pass.'); return; }
   DEC_BRANDS.forEach(function (b) {
     var p = (c.d || {})[b];
@@ -145,6 +158,30 @@ function decTick() {
   var saved = ACTIVE_PREFIX;
   try { decTick_(); }
   finally { setBrand_(saved); props.deleteProperty('DEC_LEASE'); }
+  // Nothing left to collect today: stop ticking until decStart switches it on tomorrow.
+  var st = decState_();
+  if (st.phase === 'done' && !st.reset) {
+    if (decTimerOff_()) Logger.log('decTick: today\'s pass is done — the 10-minute timer is off until decStart tomorrow.');
+  }
+}
+
+// The daily starter (DEC_START_HOUR): switch the 10-minute timer on and take the first tick now.
+function decStart() {
+  decTimerOn_();
+  decTick();
+}
+
+function decTimerOn_() {
+  var on = ScriptApp.getProjectTriggers().some(function (t) { return t.getHandlerFunction() === 'decTick'; });
+  if (!on) ScriptApp.newTrigger('decTick').timeBased().everyMinutes(10).create();
+}
+
+function decTimerOff_() {
+  var n = 0;
+  ScriptApp.getProjectTriggers().forEach(function (t) {
+    if (t.getHandlerFunction() === 'decTick') { ScriptApp.deleteTrigger(t); n++; }
+  });
+  return n;
 }
 
 function decTick_() {
@@ -159,6 +196,14 @@ function decTick_() {
     Logger.log('decTick: fresh pass, ' + st.jobs.length + ' report(s) to get.');
   }
   if (!st.day || st.phase === 'done') return;
+  // A pass that has run too long (a report Amazon never finishes) gives up what is left, so the timer can go off.
+  if (st.startedMs && Date.now() - st.startedMs > DEC_PASS_MAX_H * 3600000) {
+    st.jobs.forEach(function (j) {
+      if (j.st !== 'new' && j.st !== 'asked') return;
+      j.t = DEC_TRIES;
+      decRetry_(st, j, 'not ready after ' + DEC_PASS_MAX_H + ' h — this brand keeps its last good copy');
+    });
+  }
   try {
     for (var i = 0; i < st.jobs.length && left() > 30000; i++) {
       var j = st.jobs[i];
@@ -213,7 +258,7 @@ function decPlan_(old, todayLocal) {
       jobs.push({ b: b, k: name, s: w[0], e: w[1], st: 'new' });
     });
   });
-  return { day: todayLocal, phase: 'running', jobs: jobs, windows: win, doneN: 0, startedAt: nowStamp_(),
+  return { day: todayLocal, phase: 'running', jobs: jobs, windows: win, doneN: 0, startedAt: nowStamp_(), startedMs: Date.now(),
     errors: (old.errors || []).slice(-3), noOpt: old.noOpt || '' };
 }
 
@@ -222,7 +267,9 @@ function decAsk_(st, j) {
   var cfg = DEC_CFG[DEC_JOBS[j.k].rep];
   var cols = cfg.columns.concat(st.noOpt ? [] : cfg.optional);
   var body = function (c) {
-    return { name: 'dec-' + j.k + '-' + j.b + '-' + j.s + '-to-' + j.e + (st.noOpt ? '-b' : ''), startDate: j.s, endDate: j.e,
+    // A retry gets its own name (-r2, -r3): the same name again is a 425 duplicate of the report that failed.
+    return { name: 'dec-' + j.k + '-' + j.b + '-' + j.s + '-to-' + j.e + (st.noOpt ? '-b' : '') + (j.t ? '-r' + (j.t + 1) : ''),
+      startDate: j.s, endDate: j.e,
       configuration: { adProduct: 'SPONSORED_PRODUCTS', groupBy: cfg.groupBy, columns: c, reportTypeId: cfg.reportTypeId,
         timeUnit: 'SUMMARY', format: 'GZIP_JSON' } };
   };
@@ -245,7 +292,7 @@ function decStore_(st, j, rows) {
   var pack = job.rep === 'st' ? decFoldSt_(rows, job.win === 'settled') : decFoldTgt_(rows);
   pack.from = j.s;
   pack.to = j.e;
-  var c = cacheRead_(j.k) || {};
+  var c = adsCacheRead_(j.k) || {};
   c.v = 1;
   c.d = c.d || {};
   c.err = c.err || {};
@@ -255,7 +302,7 @@ function decStore_(st, j, rows) {
   c.from = j.s;
   c.to = j.e;
   c.cols = st.noOpt ? 'without ' + st.noOpt : 'all';
-  cacheWrite_(j.k, c);
+  adsPut_(j.k, c);
 }
 
 // Search terms → one row per (ad group, term). Settled: cut like srchTerm, the cut counted. Recent: anything with a click.
@@ -348,12 +395,12 @@ function decRetry_(st, j, msg) {
     j.m = msg;
     // The brand keeps yesterday's copy; the cache says why today's is missing.
     try {
-      var c = cacheRead_(j.k);
+      var c = adsCacheRead_(j.k);
       if (c && c.d) {
         c.err = c.err || {};
         c.err[j.b] = String(msg).slice(0, 200);
         if (c.d[j.b]) c.d[j.b].stale = true;
-        cacheWrite_(j.k, c);
+        adsPut_(j.k, c);
       }
     } catch (e) { /* the state still says it */ }
   } else {
