@@ -10,12 +10,15 @@
  *   Mixed category — the child's browse path is not the one most of its family is in (the family's category = the path with the most
  *                    live children; a tie goes to the side with more stock).
  *   No category    — Amazon's catalog answered for this live ASIN and holds no browse node for it.
- *   Rank mismatch  — the category its best-seller rank is in (Amazon's classification rank) is nowhere on its browse path.
+ *   Rank mismatch  — the category its best-seller rank is in (Amazon's classification rank) is nowhere on its browse path. An amber
+ *                    "check" (like Different theme in Families), not a red error: Amazon ranks some listings in a neighbouring shelf.
  *   A child with none of them shows a small green tick and nothing else.
  *   BY ID WHEN AMAZON'S IDS ARE THERE, BY NAME WHEN THEY ARE NOT: ListingMatch keeps the category id of every step of the browse path
  *   (`bcIds`) and every category rank with its id (`rks`). Two children are in the same category when their last ids are equal; a rank is
  *   on the path when its id is one of the path's ids — and the rank is fine when ANY of Amazon's ranks is. A record from before the ids
- *   were kept (or a family where one child still has such a record) is compared by the names, as before.
+ *   were kept (or a family where one child still has such a record) is compared by the names. For a rank, by ID ONLY when the ids are
+ *   there; by name (old data) a rank is on the path when one name holds the other as whole words ("Window Curtain Panels" / "Panels",
+ *   "Bed Pillow Shams" / "Pillow Shams") or both end in the same word — only clearly different names are flagged (ccNameLike).
  * CORRECT ON PURPOSE: the team's mark on an error row (one row, or ticked rows / "Select all in family" with one button). The child leaves
  *       the errors for good; who marked it and when are saved the way "Removed on purpose" is (listingrules/catok_<brand>, kind 'catok',
  *       through lsGet / lsSave — the existing collection and rule). "N marked correct › Show", each with Undo.
@@ -29,10 +32,11 @@ const CC_STEP = 60;                                   // family lines drawn at a
 const CC_OK_DOC = brand => 'catok_' + brand;          // the "correct on purpose" marks, beside famok_<brand> in listingrules
 const CC_COLS = 8;
 const CC_KINDS = [
-  { k: 'mixed', t: 'Mixed category', tip: 'Live children in a different category from most of their family.' },
-  { k: 'none', t: 'No category', tip: 'Live ASINs Amazon has no browse node (category) for.' },
-  { k: 'rank', t: 'Rank mismatch', tip: 'The best-seller rank is in a category that is not on the listing\'s browse path.' },
+  { k: 'mixed', t: 'Mixed category', sev: 'r', tip: 'Live children in a different category from most of their family.' },
+  { k: 'none', t: 'No category', sev: 'r', tip: 'Live ASINs Amazon has no browse node (category) for.' },
+  { k: 'rank', t: 'Rank mismatch', sev: 'y', tip: 'To check, not an error: the best-seller rank is in a category that is not on the listing\'s browse path.' },
 ];
+const CC_SEV = Object.fromEntries(CC_KINDS.map(k => [k.k, k.sev]));   // r = error (red), y = check (amber)
 const CC_HINT = {
   none: 'Shoppers can\'t find it by browsing. Check the product type / item type keyword in Seller Central.',
   rank: 'Amazon may have placed it wrong. Check the item type keyword.',
@@ -52,7 +56,19 @@ const ccShort = parts => (parts.length <= 3 ? parts : [parts[0], parts[parts.len
 const ccId = c => c.asin || 'sku:' + c.sku;
 // Is this rank's category one of the steps of the browse path? By Amazon's category id when the path's ids and the rank's id are there,
 // else by the name.
-const ccOnPath = (rank, parts, ids) => (ids.length && rank.id ? ids.includes(String(rank.id)) : parts.some(name => ccSame(name, rank.c)));
+const ccOnPath = (rank, parts, ids) => (ids.length && rank.id ? ids.includes(String(rank.id)) : parts.some(name => ccNameLike(name, rank.c)));
+/** OLD DATA ONLY (no category ids): are two category NAMES the same shelf? Yes when, with case, "&" / "and" and punctuation set aside,
+ *  they are equal, one holds the other as whole words ("Window Curtain Panels" / "Panels", "Bed Pillow Shams" / "Pillow Shams"), or
+ *  both end in the same word ("Throw Pillow Covers" / "Decorative Pillow Covers"). Only clearly different names are a mismatch. */
+function ccNameLike(a, b) {
+  const words = s => ccN(s).split(' ').filter(w => w && w !== 'and');
+  const x = words(a), y = words(b);
+  if (!x.length || !y.length) return false;
+  const X = ' ' + x.join(' ') + ' ', Y = ' ' + y.join(' ') + ' ';
+  if (X.includes(Y) || Y.includes(X) || ccSame(a, b)) return true;
+  const last = x[x.length - 1];
+  return last.length >= 3 && last === y[y.length - 1];
+}
 /** { state: 'ok' | 'none' (Amazon has no browse node) | 'unread' (not in the cache), parts, full, short, leaf, ids (the path's category ids,
  *  [] when the record has none), nameKey, idKey, ranks (every category rank), rankOn (one of them is on the path), sub (the best one),
  *  bsr (the rank shown), main, pic, at }. */
@@ -174,12 +190,13 @@ function ccBuild() {
       if (mark && mark.on && r.probs.length) { r.marked = mark; r.okProbs = r.probs; r.probs = []; }
     });
     return { f: { fk: f.fk, brand: f.brand, name: f.name, psku: f.psku, pa: f.pa, solo: f.solo, n: rows.length }, rows, main,
-      catState: main ? 'ok' : rows.some(r => r.info.state === 'none') ? 'none' : 'unread', errs: rows.filter(r => r.probs.length).length };
+      catState: main ? 'ok' : rows.some(r => r.info.state === 'none') ? 'none' : 'unread',
+      errs: rows.filter(r => r.probs.some(p => CC_SEV[p.k] === 'r')).length, checks: rows.filter(r => r.probs.length && !r.probs.some(p => CC_SEV[p.k] === 'r')).length };
   });
   // most errors first, then by name — fixed while the data is the same, so marking a row never moves a family under the mouse
   const orderKey = lmV + '|' + groups.length;
   if (!CC.order || CC.orderKey !== orderKey) {
-    CC.order = new Map(groups.slice().sort((a, b) => b.errs - a.errs || String(a.f.name).localeCompare(String(b.f.name)) || a.f.fk.localeCompare(b.f.fk)).map((g, i) => [g.f.fk, i]));
+    CC.order = new Map(groups.slice().sort((a, b) => b.errs - a.errs || b.checks - a.checks || String(a.f.name).localeCompare(String(b.f.name)) || a.f.fk.localeCompare(b.f.fk)).map((g, i) => [g.f.fk, i]));
     CC.orderKey = orderKey;
   }
   groups.sort((a, b) => (CC.order.has(a.f.fk) ? CC.order.get(a.f.fk) : 1e9) - (CC.order.has(b.f.fk) ? CC.order.get(b.f.fk) : 1e9));
@@ -243,7 +260,7 @@ function ccRowHtml(r) {
   const bsr = ccBsr(i);
   let prob, acts = '';
   if (r.probs.length) {
-    prob = r.probs.map(p => `<div class="fc-p is-r">${fcEsc(p.text)}</div><small class="cc-hint"><b>What to do:</b> ${fcEsc(p.hint)}</small>`).join('');
+    prob = r.probs.map(p => `<div class="fc-p is-${CC_SEV[p.k]}">${fcEsc(p.text)}</div><small class="cc-hint"><b>What to do:</b> ${fcEsc(p.hint)}</small>`).join('');
     acts = `<button type="button" class="ghost fc-b" data-cc="ok" ${a}>Correct on purpose</button>`;
   } else if (r.marked) {
     prob = `<span class="fc-chip is-g cc-marked">Correct on purpose</span>` + (CC.f === 'ok' ? r.okProbs.map(p => `<div class="fc-p is-g">${fcEsc(p.text)}</div>`).join('')
@@ -251,7 +268,9 @@ function ccRowHtml(r) {
     if (CC.f === 'ok') acts = `<button type="button" class="ghost fc-b" data-cc="undo" ${a}>Undo</button>`;
   } else if (i.state === 'unread') prob = '<span class="fc-none">not checked</span>';
   else prob = '<span class="cc-tick" title="In the right category">✓</span>';
-  return `<tr class="fc-row${r.probs.length ? ' is-orphan' : ''}${CC.sel.has(r.key) ? ' is-sel' : ''}"><td class="fc-tk">${tick}</td><td class="cc-pc">${ccPicHtml(i)}</td>`
+  // the red bar down the side: an error row; a row with only a Rank mismatch (a check) gets the amber one
+  const bar = r.probs.some(p => CC_SEV[p.k] === 'r') ? ' is-orphan' : r.probs.length ? ' cc-chk' : '';
+  return `<tr class="fc-row${bar}${CC.sel.has(r.key) ? ' is-sel' : ''}"><td class="fc-tk">${tick}</td><td class="cc-pc">${ccPicHtml(i)}</td>`
     + `<td class="fc-sku"><b>${fcEsc(c.sku)}</b>${typeof lmOldHtml === 'function' ? lmOldHtml(c.brand, c.sku) : ''}<small>${fcEsc(String(c.title || '').slice(0, 70))}</small></td>`
     + `<td class="ui-mono">${amz}</td><td class="cc-cat">${ccCatHtml(i)}</td><td class="cc-bsr">${bsr ? fcEsc(bsr) : '<span class="fc-none">no rank</span>'}</td>`
     + `<td class="fc-prob cc-prob">${prob}</td><td class="fc-acts">${acts}</td></tr>`;
@@ -261,7 +280,7 @@ const CC_COLHEAD = '<tr class="fc-colh"><th class="fc-tk"></th><th></th><th>SKU<
 function ccGroupHtml(g) {
   const f = g.f, open = CC.open.has(f.fk);
   const n = k => g.all.filter(r => r.probs.some(p => p.k === k)).length;
-  const chips = CC_KINDS.map(k => (n(k.k) ? `<span class="fc-chip is-r">${fcNf(n(k.k))} ${fcEsc(k.t.toLowerCase())}</span>` : '')).join('');
+  const chips = CC_KINDS.map(k => (n(k.k) ? `<span class="fc-chip is-${k.sev}">${fcNf(n(k.k))} ${fcEsc(k.t.toLowerCase())}</span>` : '')).join('');
   const marked = g.all.filter(r => r.marked).length;
   const cat = g.catState === 'ok' ? `<span class="cc-path cc-fcat" title="${fcEsc(g.main.full)}">${fcEsc(g.main.short)}</span>`
     : g.catState === 'none' ? '<span class="fc-chip is-g">no category</span>' : '<span class="fc-chip is-g cc-unread">Category not read yet</span>';
@@ -300,7 +319,7 @@ function ccBodyHtml(view) {
   const errors = counts.mixed + counts.none + counts.rank;
   const box = (k, t, n, word, cls, tip) => `<button type="button" class="fc-box${cls}${CC.f === k ? ' is-on' : ''}" data-cc="f" data-cc-v="${k}" aria-pressed="${CC.f === k}" title="${fcEsc(tip)}">`
     + `<span>${fcEsc(t)}</span><b>${fcNf(n)}</b><small>${word}</small></button>`;
-  const cards = CC_KINDS.map(k => box(k.k, k.t, counts[k.k], 'error', ' is-r', k.tip)).join('')
+  const cards = CC_KINDS.map(k => box(k.k, k.t, counts[k.k], k.sev === 'r' ? 'error' : 'check', ' is-' + k.sev, k.tip)).join('')
     + box('ok', 'Correct on purpose', okN, 'hidden', ' is-g', 'Children the team marked as in the right place on purpose: they never show as errors.');
   const chip = (k, t, n) => `<button type="button" class="cc-fchip${CC.f === k ? ' is-on' : ''}" data-cc="chip" data-cc-v="${k}" aria-pressed="${CC.f === k}">${fcEsc(t)}${n == null ? '' : ` <b>${fcNf(n)}</b>`}</button>`;
   const chips = `<div class="cc-chips" role="group" aria-label="Show">${chip('', 'All')}${CC_KINDS.map(k => chip(k.k, k.t, counts[k.k])).join('')}${chip('ok', 'Correct on purpose', okN)}</div>`;

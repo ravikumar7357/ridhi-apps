@@ -152,8 +152,8 @@ const card = (T, name) => { const m = T.body().match(new RegExp('<span>' + name 
   console.log('== the tab: cards, chips, families closed, most errors first ==');
   const T = await open();
   {
-    ok('four cards in the Families style: Mixed category 2 · No category 2 · Rank mismatch 1 (each "error") · Correct on purpose 0 ("hidden")',
-      String(card(T, 'Mixed category')) === '2,error' && String(card(T, 'No category')) === '2,error' && String(card(T, 'Rank mismatch')) === '1,error' && String(card(T, 'Correct on purpose')) === '0,hidden',
+    ok('four cards in the Families style: Mixed category 2 · No category 2 · Rank mismatch 1 (an amber "check"; the other two "error") · Correct on purpose 0 ("hidden")',
+      String(card(T, 'Mixed category')) === '2,error' && String(card(T, 'No category')) === '2,error' && String(card(T, 'Rank mismatch')) === '1,check' && String(card(T, 'Correct on purpose')) === '0,hidden',
       [card(T, 'Mixed category'), card(T, 'No category'), card(T, 'Rank mismatch'), card(T, 'Correct on purpose')].join(' | '));
     ok('filter chips: All · Mixed category · No category · Rank mismatch · Correct on purpose', (T.body().match(/class="cc-fchip[^"]*"[^>]*>([^<]+)/g) || []).map(s => s.replace(/.*>/, '').trim()).join('|') === 'All|Mixed category|No category|Rank mismatch|Correct on purpose');
     ok('every family is one closed line (no child rows drawn)', (T.body().match(/class="fc-head"/g) || []).length === 5 && !/class="fc-row/.test(T.body()) && /▸/.test(T.body()) && !/▾/.test(T.body()));
@@ -184,7 +184,8 @@ const card = (T, name) => { const m = T.body().match(new RegExp('<span>' + name 
       strip(row('RTC14-4')).includes('Amazon has no category (browse node) for this live ASIN. What to do: Shoppers can\'t find it by browsing. Check the product type / item type keyword in Seller Central.'), strip(row('RTC14-4')));
     ok('3 Rank mismatch: "Ranked in Table Runners, listed in Tablecloths." + "Amazon may have placed it wrong. Check the item type keyword."',
       strip(row('RTC14-3')).includes('Ranked in Table Runners, listed in Tablecloths. What to do: Amazon may have placed it wrong. Check the item type keyword.') && /#1,234 in Table Runners/.test(row('RTC14-3')), strip(row('RTC14-3')));
-    ok('errors are red, each with a tick box and "Correct on purpose"', ['RTC14-3', 'RTC14-4', 'RTC14-5'].every(s => /fc-p is-r/.test(row(s)) && /type="checkbox"/.test(row(s)) && /data-cc="ok"[^>]*>Correct on purpose/.test(row(s))));
+    ok('Mixed and No category red, Rank mismatch amber — each with a tick box and "Correct on purpose"', ['RTC14-4', 'RTC14-5'].every(s => /fc-p is-r/.test(row(s))) && /fc-p is-y/.test(row('RTC14-3'))
+      && ['RTC14-3', 'RTC14-4', 'RTC14-5'].every(s => /type="checkbox"/.test(row(s)) && /data-cc="ok"[^>]*>Correct on purpose/.test(row(s))));
     ok('not in the cache: grey "Category not read yet" — not an error, no tick box, not counted', /Category not read yet/.test(row('RTC14-6')) && !/is-r|type="checkbox"|data-cc="ok"/.test(row('RTC14-6')) && /fc-chip is-g/.test(row('RTC14-6')));
     T.click({ cc: 'grp', ccV: CD });
     ok('more than one family can be open; a 1-against-1 family: the child on the side with less stock is the one named (CD-2 in Storage Boxes, family in Desk Organizers)',
@@ -201,7 +202,7 @@ const card = (T, name) => { const m = T.body().match(new RegExp('<span>' + name 
     ok('"Kitchen & Table Linens" = "Kitchen and Table Linens" (case, & / and, punctuation set aside)', T.C.ccSame('Kitchen & Table Linens', 'kitchen and table-linens') && !T.C.ccSame('Tablecloths', 'Table Runners'));
     ok('the short path: the department, the shelf, the product; three parts or fewer stay whole', T.C.ccShort(TC.split(' › ')) === 'Home & Kitchen › Kitchen & Table Linens › Tablecloths' && T.C.ccShort(SB.split(' › ')) === SB);
     const P = await open({ S: (() => { const s = sample(); s.kids.find(k => k.sku === 'RTC14-3').sub = 'Kitchen & Table Linens'; return s; })() });
-    ok('a rank in a category higher up the same browse path is NOT a mismatch', String(card(P, 'Rank mismatch')) === '0,error');
+    ok('a rank in a category higher up the same browse path is NOT a mismatch', String(card(P, 'Rank mismatch')) === '0,check');
   }
 
   console.log('== by Amazon\'s category ids when they are there, by name when they are not ==');
@@ -230,8 +231,50 @@ const card = (T, name) => { const m = T.body().match(new RegExp('<span>' + name 
     ok('several ranks, none on its path: Rank mismatch, naming the best one', row('ID-7').includes('#12 in Outdoor Tablecloths') && row('ID-7').includes('Ranked in Outdoor Tablecloths, listed in Tablecloths.'), row('ID-7'));
     ok('a family where one child\'s record has no ids yet: compared by name — the two in Tablecloths are fine, the one in Bed Sheets is mixed',
       /✓$/.test(row('OLD-1')) && /✓$/.test(row('OLD-2')) && row('OLD-3').includes('This child is in Bed Sheets, its family is in Tablecloths.'), row('OLD-1') + ' | ' + row('OLD-2') + ' | ' + row('OLD-3'));
-    ok('the cards: Mixed category 2 (ID-3, OLD-3) · Rank mismatch 2 (ID-4, ID-7) · No category 0', String(card(I, 'Mixed category')) === '2,error' && String(card(I, 'Rank mismatch')) === '2,error' && String(card(I, 'No category')) === '0,error',
+    ok('the cards: Mixed category 2 (ID-3, OLD-3) · Rank mismatch 2 (ID-4, ID-7) · No category 0', String(card(I, 'Mixed category')) === '2,error' && String(card(I, 'Rank mismatch')) === '2,check' && String(card(I, 'No category')) === '0,error',
       [card(I, 'Mixed category'), card(I, 'Rank mismatch'), card(I, 'No category')].join(' | '));
+  }
+
+  console.log('== Rank mismatch: by ID only when there are ids; by name only when clearly different; an amber check ==');
+  {
+    const CU = 'Home & Kitchen › Home Décor Products › Window Treatments › Curtains & Drapes › Panels';
+    const SH = 'Home & Kitchen › Bedding › Decorative Pillows, Inserts & Covers › Pillow Shams';
+    const PC2 = 'Home & Kitchen › Bedding › Decorative Pillows, Inserts & Covers › Throw Pillow Covers';
+    const R = await open({ kids: kid => [
+      // OLD DATA (names only) — the real false alarms: the same Amazon category, written another way
+      kid('SP', 'CU-1', 'CU-P', { bc: CU, sub: 'Window Curtain Panels' }),        // "Window Curtain Panels" holds "Panels"
+      kid('SP', 'SH-1', 'SH-P', { bc: SH, sub: 'Bed Pillow Shams' }),             // "Bed Pillow Shams" holds "Pillow Shams"
+      kid('SP', 'PC-1', 'PC-P', { bc: PC2, sub: 'Decorative Pillow Covers' }),    // same last word "Covers"
+      kid('SP', 'TC-1', 'TC-P', { bc: TC, sub: 'Kitchen and Table Linens' }),     // "&" written "and", one step up the path
+      // OLD DATA, clearly different: still flagged
+      kid('SP', 'TC-2', 'TC-P', { sub: 'Table Runners' }),
+      // WITH IDS: the id alone decides, whatever the names say
+      kid('CPC', 'ID-A', 'IDA-P', { ids: ['1', '2', '3', '10'], rks: [{ id: '10', c: 'Something Else Entirely', r: 300 }] }),   // id on the path, names differ → fine
+      kid('CPC', 'ID-B', 'IDB-P', { ids: ['1', '2', '3', '10'], rks: [{ id: '77', c: 'Tablecloths', r: 40 }] }),               // same name, id not on the path → mismatch
+    ] });
+    R.click({ cc: 'openall' });
+    const rows = (R.body().match(/<tr class="fc-row[\s\S]*?<\/tr>/g) || []);
+    const raw = sku => rows.find(r => r.includes(`<b>${sku}</b>`)) || '';
+    const row = sku => strip(raw(sku));
+    ok('names only: "Ranked in Window Curtain Panels, listed in Panels" is NOT flagged (one name holds the other)', /✓$/.test(row('CU-1')), row('CU-1'));
+    ok('names only: "Bed Pillow Shams" vs "Pillow Shams" is NOT flagged', /✓$/.test(row('SH-1')), row('SH-1'));
+    ok('names only: the same last word ("Decorative Pillow Covers" / "Throw Pillow Covers") is NOT flagged', /✓$/.test(row('PC-1')), row('PC-1'));
+    ok('names only: "&" / "and" set aside ("Kitchen and Table Linens" on the path) is NOT flagged', /✓$/.test(row('TC-1')), row('TC-1'));
+    ok('names only, clearly different ("Table Runners" / "Tablecloths"): still flagged', row('TC-2').includes('Ranked in Table Runners, listed in Tablecloths.'), row('TC-2'));
+    ok('with ids: the rank\'s id on the path → fine, even with a different name', /✓$/.test(row('ID-A')), row('ID-A'));
+    ok('with ids: same name but the id is not on the path → flagged (the id decides, not the name)', row('ID-B').includes('Ranked in Tablecloths, listed in Tablecloths.'), row('ID-B'));
+    ok('Rank mismatch is an amber check: the card says "check" (not "error"), its family chip and its dot are amber, the row\'s side bar amber',
+      String(card(R, 'Rank mismatch')) === '2,check' && /fc-box is-y[^>]*data-cc-v="rank"/.test(R.body()) && /fc-chip is-y">1 rank mismatch/.test(R.body())
+      && /fc-p is-y/.test(raw('TC-2')) && !/fc-p is-r/.test(raw('TC-2')) && /fc-row cc-chk/.test(raw('TC-2')) && !/is-orphan/.test(raw('TC-2')), [card(R, 'Rank mismatch'), raw('TC-2').slice(0, 60)].join(' | '));
+    ok('…it can still be ticked and marked Correct on purpose', /type="checkbox"/.test(raw('TC-2')) && /data-cc="ok"/.test(raw('TC-2')));
+    const T2 = await open();
+    T2.click({ cc: 'openall' });
+    const r2 = (T2.body().match(/<tr class="fc-row[\s\S]*?<\/tr>/g) || []);
+    const raw2 = sku => r2.find(r => r.includes(`<b>${sku}</b>`)) || '';
+    ok('Mixed category and No category stay red errors (cards "error", red dot, red side bar)', String(card(T2, 'Mixed category')) === '2,error' && String(card(T2, 'No category')) === '2,error'
+      && /fc-p is-r/.test(raw2('RTC14-5')) && /is-orphan/.test(raw2('RTC14-5')) && /fc-p is-r/.test(raw2('RTC14-4')) && /is-orphan/.test(raw2('RTC14-4')));
+    const rep = R.C.ccReport();
+    ok('ccReport() counts the two checks (Ridhi 1, CPC 1)', rep.Ridhi.rankMismatch === 1 && rep.CPC.rankMismatch === 1, JSON.stringify(rep));
   }
 
   console.log('== Correct on purpose, Undo, saved with who and when ==');
@@ -266,7 +309,7 @@ const card = (T, name) => { const m = T.body().match(new RegExp('<span>' + name 
     T.click({ cc: 'tick', ccB: 'CPC', ccS: A('CD-2') });
     await T.click({ cc: 'bok' });
     ok('one button marks all 4 ticked rows (both brands): errors 0 · 1 · 0, Correct on purpose 4, nothing left ticked',
-      String(card(T, 'Mixed category')) === '0,error' && String(card(T, 'No category')) === '1,error' && String(card(T, 'Rank mismatch')) === '0,error' && String(card(T, 'Correct on purpose')) === '4,hidden' && T.C.CC.sel.size === 0
+      String(card(T, 'Mixed category')) === '0,error' && String(card(T, 'No category')) === '1,error' && String(card(T, 'Rank mismatch')) === '0,check' && String(card(T, 'Correct on purpose')) === '4,hidden' && T.C.CC.sel.size === 0
       && Object.keys(T.store['listingrules/catok_CPC'].items).length === 1, [card(T, 'Mixed category'), card(T, 'No category'), card(T, 'Rank mismatch'), card(T, 'Correct on purpose')].join('|'));
     const order = (T.body().match(/<tr class="fc-head"[\s\S]*?<\/tr>/g) || []).map(strip);
     ok('marking does not move a family (the order stays while the data is the same)', /Floral Tablecloth/.test(order[0]));
@@ -309,7 +352,7 @@ const card = (T, name) => { const m = T.body().match(new RegExp('<span>' + name 
   console.log('== the empty state ==');
   {
     const E = await open({ allFine: true });
-    ok('no errors: "All live products are in the right category ✓", cards all 0', /All live products are in the right category ✓/.test(E.text()) && String(card(E, 'Mixed category')) === '0,error' && String(card(E, 'No category')) === '0,error' && String(card(E, 'Rank mismatch')) === '0,error');
+    ok('no errors: "All live products are in the right category ✓", cards all 0', /All live products are in the right category ✓/.test(E.text()) && String(card(E, 'Mixed category')) === '0,error' && String(card(E, 'No category')) === '0,error' && String(card(E, 'Rank mismatch')) === '0,check');
     ok('…and the families can still be opened under it (every child a green tick)', (E.body().match(/class="fc-head"/g) || []).length === 4 && (() => { E.click({ cc: 'openall' }); return (E.body().match(/cc-tick/g) || []).length === 7 && !/is-r/.test(E.body().split('fc-boxes')[1].split('cc-chips')[1]); })());
     T.click({ cc: 'chip', ccV: 'ok' });
     ok('a filter with nothing in it says so ("Nothing is marked correct on purpose.")', /Nothing is marked correct on purpose ?\./.test(T.text()));
@@ -319,7 +362,7 @@ const card = (T, name) => { const m = T.body().match(new RegExp('<span>' + name 
   console.log('== the cache missing or older than 24 hours: grey "not read yet", never an error ==');
   {
     const M = await open({ noCache: true });
-    ok('no cache: every card 0, no red anywhere, no error text', String(card(M, 'Mixed category')) === '0,error' && String(card(M, 'No category')) === '0,error' && String(card(M, 'Rank mismatch')) === '0,error'
+    ok('no cache: every card 0, no red anywhere, no error text', String(card(M, 'Mixed category')) === '0,error' && String(card(M, 'No category')) === '0,error' && String(card(M, 'Rank mismatch')) === '0,check'
       && !/fc-chip is-r|fc-p is-r|class="err"/.test(M.body()) && !/error:|could not|failed/i.test(M.text()), M.text().slice(0, 200));
     ok('…"Category not read yet" on the families, and a plain line saying why', /Category not read yet/.test(M.text()) && /Amazon's category data is not here right now/.test(strip(M.els.fcMeta.innerHTML)) && !/All live products are in the right category/.test(M.text()));
     ok('…the families and their live children are still listed (never an empty screen)', (M.body().match(/class="fc-head"/g) || []).length === 5 && (() => { M.click({ cc: 'openall' }); return (M.body().match(/class="fc-row/g) || []).length === 13; })());

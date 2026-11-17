@@ -3131,6 +3131,7 @@
   #paneFam .cc-tick{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;background:var(--accent-bg);color:var(--accent-ink);font-size:12px;font-weight:700}
   #paneFam .cc-marked,#paneFam .cc-unread{margin-left:0}
   #paneFam .fc-head .cc-unread{margin-left:8px}
+  #paneFam .fc-row.cc-chk>td:first-child{box-shadow:inset 3px 0 0 var(--rev)}
   #paneFam .cc-allok{border-color:color-mix(in srgb,var(--accent) 45%,var(--card-line));background:var(--accent-bg);color:var(--accent-ink)}
   @media (max-width:860px){#paneFam .fc-tb input[type=search]{min-width:0;flex:1 1 140px}#paneFam .fc-prob,#paneFam .fc-fix{min-width:160px}}
   .sq-chg .sq-add{color:var(--accent-ink);font-weight:600}
