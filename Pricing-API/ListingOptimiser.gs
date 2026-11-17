@@ -81,15 +81,13 @@ function listingAudit_(asin) {
 
   // Backend keywords are never on this API. Said out loud rather than left to look empty.
   out.searchTerms = null;
-  out.searchTermsWhy = 'Backend search terms are not on the Catalog API and are not public anywhere. '
-    + 'They need the Listings Items API (/listings/2021-08-01, generic_keyword), which requires the '
-    + 'Product Listing role and this brand’s merchant token.';
+  out.searchTermsWhy = LO_ST_WHY;
 
   /* IMAGES, BY SLOT. The count on its own says nothing: seven images with no dimensions shot and no
    * close-up is a different listing from seven that cover the set. Amazon names the slots (MAIN,
    * PT01..PT08, SWCH), so what is MISSING is answerable, not a matter of taste. */
   var imgs = (r.images && r.images[0] && r.images[0].images) || [];
-  var slots = {}, small = [];
+  var slots = {};
   imgs.forEach(function (im) {
     if (!im || !im.variant || !im.link) return;
     var w = Number(im.width) || 0, h = Number(im.height) || 0;
@@ -98,12 +96,28 @@ function listingAudit_(asin) {
     // zoom and the only one whose resolution is worth judging.
     if (!cur || w > cur.w) slots[im.variant] = { w: w, h: h, link: im.link };
   });
+  out.images = listingImages_(slots);
+
+  var sr = (r.salesRanks && r.salesRanks[0]) || {};
+  var ranks = (sr.classificationRanks || []).concat(sr.displayGroupRanks || []);
+  out.rank = ranks.length ? { title: ranks[0].title || '', value: Number(ranks[0].rank) || 0 } : null;
+
+  return out;
+}
+
+var LO_ST_WHY = 'Backend search terms are not on the Catalog API and are not public anywhere. '
+  + 'They need the Listings Items API (/listings/2021-08-01, generic_keyword), which requires the '
+  + 'Product Listing role and this brand’s merchant token.';
+
+/** The image summary the findings read, from { slot: { w, h, link } }. */
+function listingImages_(slots) {
+  var small = [];
   Object.keys(slots).forEach(function (k) {
     // Below 1000px on the long side Amazon does not offer zoom, and zoom is measurably worth having.
     var v = slots[k];
     if (Math.max(v.w, v.h) < 1000) small.push(k + ' (' + v.w + 'x' + v.h + ')');
   });
-  out.images = {
+  return {
     slots: slots,
     n: Object.keys(slots).length,
     hasMain: !!slots.MAIN,
@@ -112,12 +126,31 @@ function listingAudit_(asin) {
     // images" into a job somebody can actually do.
     emptySlots: ['MAIN', 'PT01', 'PT02', 'PT03', 'PT04', 'PT05', 'PT06'].filter(function (k) { return !slots[k]; }),
   };
+}
 
-  var sr = (r.salesRanks && r.salesRanks[0]) || {};
-  var ranks = (sr.classificationRanks || []).concat(sr.displayGroupRanks || []);
-  out.rank = ranks.length ? { title: ranks[0].title || '', value: Number(ranks[0].rank) || 0 } : null;
-
-  return out;
+/**
+ * The same audit from the facts Sellora already holds for this ASIN (17 Nov 2026): the ListingMatch cache, read in the browser
+ * through its one read door (listing-match.js lmReviewFacts) and posted here, so the review needs no catalog call of its own.
+ * Only plain values are taken, each cut to Amazon's own limits; anything missing stays as the live read would leave it.
+ */
+function listingAuditFrom_(asin, f) {
+  var str = function (v, n) { return String(v == null ? '' : v).slice(0, n); };
+  var slots = {};
+  Object.keys(f.images || {}).forEach(function (k) {
+    var v = f.images[k] || {};
+    var link = str(v.link, 400);
+    if (/^(MAIN|PT0[1-8]|SWCH)$/.test(k) && /^https:\/\//.test(link)) slots[k] = { w: Number(v.w) || 0, h: Number(v.h) || 0, link: link };
+  });
+  var rank = f.rank && Number(f.rank.value) > 0 ? { title: str(f.rank.title, 80), value: Number(f.rank.value) } : null;
+  return {
+    ok: true, asin: asin, src: 'cache', readAt: Number(f.readAt) || 0,
+    title: str(f.title, 300), brand: str(f.brand, 80), category: str(f.category, 120), attrKeys: [],
+    bullets: (Array.isArray(f.bullets) ? f.bullets : []).slice(0, 10).map(function (b) { return str(b, 600); }).filter(Boolean), bulletsKnown: !!f.bulletsKnown,
+    description: str(f.description, 2000), descriptionKnown: !!f.descriptionKnown,
+    itemType: str(f.itemType, 80), size: str(f.size, 120), color: str(f.color, 120), material: str(f.material, 120), listPrice: '',
+    searchTerms: null, searchTermsWhy: LO_ST_WHY,
+    images: listingImages_(slots), rank: rank,
+  };
 }
 
 /**
@@ -249,11 +282,12 @@ function lkwTermWords_(term) {
   return out;
 }
 
-function listingKeywords_(asin) {
+function listingKeywords_(asin, given) {
   var a = String(asin || '').trim().toUpperCase();
   if (!/^[A-Z0-9]{10}$/.test(a)) return { ok: false, error: 'That is not an ASIN: "' + asin + '"' };
 
-  var audit = listingAudit_(a);
+  // `given`: the audit the review already has from Sellora's cache facts (listingAuditFrom_) — no second catalog read
+  var audit = given && given.ok ? given : listingAudit_(a);
   if (!audit.ok) return audit;
 
   var stC = cacheRead_('srchTerm'), agC = cacheRead_('adGroup');
@@ -1252,17 +1286,18 @@ function titleSuggestTest(asin) {
  * in here would make every listing take as long as the slowest thing in it. The screen asks for it
  * separately, and only when somebody wants it.
  */
-function listingReview_(asin, target) {
+function listingReview_(asin, target, facts) {
   var a = String(asin || '').trim().toUpperCase();
   if (!/^[A-Z0-9]{10}$/.test(a)) return { ok: false, error: 'That is not an ASIN: "' + asin + '"' };
 
-  var audit = listingAudit_(a);
+  // `facts` (POST, from Sellora's ListingMatch cache): judged as they are; without them, the catalog is read now as before
+  var audit = facts && typeof facts === 'object' ? listingAuditFrom_(a, facts) : listingAudit_(a);
   if (!audit.ok) return audit;
 
   /* Keyword evidence is OPTIONAL and never fatal. A product with no ad history is a normal thing,
    * and the rest of the review is still worth showing for it. */
   var kw = null;
-  try { kw = listingKeywords_(a); } catch (e) { kw = { ok: false, error: String(e.message || e) }; }
+  try { kw = listingKeywords_(a, audit.src === 'cache' ? audit : null); } catch (e) { kw = { ok: false, error: String(e.message || e) }; }
   var clean = (kw && kw.ok && kw.trust === 'clean') ? (kw.words || []) : [];
 
   return {

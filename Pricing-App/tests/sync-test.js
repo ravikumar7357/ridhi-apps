@@ -199,15 +199,16 @@ const seeded = () => { const db = makeDb(); db.store['history/lsync_state'] = { 
     ok('"Synced 4 min ago · N listings changed since 9 AM · next sync in 11 min" + Sync now', /^Synced 4 min ago · \d+ listings? changed since 9 AM · next sync in 11 min Sync now$/.test(line), line);
     const changes = db.store['history/lsync_state'].changes;
     const has = (sku, w) => changes.some(c => c.s === sku && c.w === w);
-    ok('What changed: G10 suppressed, L4 now showing to shoppers (Amazon shows our fixed title)', has('G10', 'suppressed') && has('L4', 'now showing to shoppers'), JSON.stringify(changes));
+    // G10 has stock and no BUYABLE: "not buyable" (THE ONE RULE, 16 Nov) — no longer called "suppressed"
+    ok('What changed: G10 not buyable, L4 now showing to shoppers (Amazon shows our fixed title)', has('G10', 'not buyable') && !has('G10', 'suppressed') && has('L4', 'now showing to shoppers'), JSON.stringify(changes));
     const ctx = A.C.hCtx();
     const real = c => { const row = A.C.HEALTH[c.b].rows.find(r => r.sku === c.s); const kid = A.C.liWsChildKept(row, c.b, ctx, new Map(), T);
-      const shop = A.C.bfShop(A.C.lyRec ? { st: (A.C.LI_WS.live[c.b][c.s].st || []).join(','), errs: (A.C.LI_WS.live[c.b][c.s].iss || []).filter(i => i.s === 'E'), im: '' } : null);
-      return c.w === 'error fixed' ? kid.bucket !== 'critical' : c.w === 'new error' ? kid.bucket === 'critical' : c.w === 'suppressed' ? shop === 'r' : !kid.found.some(h => A.C.bfOf(kid, h, ctx, T).who === 'amazon'); };
+      const shop = A.C.bfShop(A.C.lyRec ? { st: (A.C.LI_WS.live[c.b][c.s].st || []).join(','), errs: (A.C.LI_WS.live[c.b][c.s].iss || []).filter(i => i.s === 'E'), im: '' } : null, Object.assign({}, row, { brand: c.b }));
+      return c.w === 'error fixed' ? kid.bucket !== 'critical' : c.w === 'new error' ? kid.bucket === 'critical' : c.w === 'suppressed' || c.w === 'not buyable' ? shop === 'r' : !kid.found.some(h => A.C.bfOf(kid, h, ctx, T).who === 'amazon'); };
     ok('…nothing invented: every change listed is true of the listing now', changes.length && changes.every(real), changes.map(c => c.s + ':' + c.w).join(' '));
     A.C.LY.open = true;
     const list = A.C.lyLineHtml(T);
-    ok('a click on the line opens the list: SKU · what changed · when', /<b>G10<\/b><span class="ly-w is-supp">suppressed<\/span><time>9(:\d\d)? AM<\/time>/.test(list) && /<b>L4<\/b><span class="ly-w is-shown">now showing to shoppers<\/span>/.test(list), list.slice(0, 400));
+    ok('a click on the line opens the list: SKU · what changed · when', /<b>G10<\/b><span class="ly-w is-supp">not buyable<\/span><time>9(:\d\d)? AM<\/time>/.test(list) && /<b>L4<\/b><span class="ly-w is-shown">now showing to shoppers<\/span>/.test(list), list.slice(0, 400));
     A.C.LY.open = false;
     T += 30000;
     await A.C.lyBeat();

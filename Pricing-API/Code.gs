@@ -205,7 +205,7 @@ function doGet(e) {
     if (p.shopSkuBuild) return json_(shopSkuBuild_(String(p.shop || ''), Date.now() + 300000));
     // Whatever the nightly run has already worked out. One fast read instead of the whole grind.
     if (p.cache) {
-      var c = cacheRead_(String(p.cache));
+      var c = /^lm(Meta$|Listings_|Catalog_)/.test(String(p.cache)) ? lmCacheRead_(String(p.cache)) : cacheRead_(String(p.cache));   // lm* tabs: ListingMatch.gs's own spreadsheet
       return json_(c ? { ok: true, name: p.cache, data: c } : { ok: false, error: 'nothing cached for "' + p.cache + '" yet' });
     }
     if (p.cacheState) return json_({ ok: true, state: nState_() });
@@ -223,6 +223,7 @@ function doGet(e) {
     if (p.lfix === 'schema') return json_(lfixSchema_(p));
     if (p.lfix === 'history') return json_(lfixHistory_(p.sku));
     if (p.lfix === 'content') return json_(lfixContent_(p));
+    if (p.lfix === 'cat') { setBrand_(p.brand); var r = limgSp_('/catalog/2022-04-01/items?marketplaceIds=' + marketplaceId_() + '&identifiers=' + String(p.asins || '').split(',').map(function (s) { return s.trim(); }).filter(function (s) { return /^[A-Z0-9]{10}$/.test(s); }).slice(0, 20).join(',') + '&identifiersType=ASIN&pageSize=20&includedData=relationships,attributes', 'get'); return json_(r.code >= 300 ? limgErr_(r, 'Reading catalog') : { ok: true, items: r.body.items || [] }); }
     if (p.limg === 'history') return json_(limgHistory_(p.sku));
     if (p.limg === 'page') return json_(limgPage_(p));
     if (p.listing === 'audit') { setBrand_(p.brand); return json_(listingAudit_(p.asin)); }
@@ -355,7 +356,7 @@ function doPost(e) {
     if (!wkey) return json_({ ok: false, error: 'WRITE_KEY / API_KEY is not set on the backend.' });
     if (String(p.key || '').trim() !== wkey) return json_({ ok: false, error: 'Unauthorized.' });
     var who = writerOf_(p.idToken);
-    var act = p.mail || p.limg || p.lfix || p.mcf || p.shopify || (p.creator ? 'creator ' + p.creator : '') || '?';
+    var act = p.mail || p.limg || p.lfix || p.mcf || p.shopify || p.listing || (p.creator ? 'creator ' + p.creator : '') || '?';
     console.log('POST ' + act + ' by ' + (who.email || '(no signed-in person: ' + who.why + ')'));
     if (!who.email && prop_('REQUIRE_SIGNIN') === '1')
       return json_({ ok: false, error: 'Sign in again before saving — the backend could not confirm who you are (' + who.why + ').' });
@@ -364,6 +365,9 @@ function doPost(e) {
     if (p.mail === 'po') return json_(mailPo_(p));
     if (p.limg === 'patch') return json_(limgPatch_(p));
     if (p.lfix === 'patch') return json_(lfixPatch_(p));
+    /* The Listing Optimiser's review of one ASIN, judged on the facts Sellora sends from its ListingMatch cache (a read: nothing is
+     * written). POST only because a listing's whole text does not fit in an address. */
+    if (p.listing === 'review') { setBrand_(p.brand); return json_(listingReview_(p.asin, p.target, p.facts)); }
     if (p.limg === 'upload') return json_(limgUpload_(p));
     if (p.mcf === 'preview') return json_(mcfPreview_(p.order || {}));
     if (p.mcf === 'create')  return json_(mcfCreate_(p.order || {}));

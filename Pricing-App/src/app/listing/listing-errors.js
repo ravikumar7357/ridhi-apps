@@ -166,14 +166,14 @@ function leRender() {
       + `<th>Status</th><th style="text-align:left">What Amazon says</th><th></th></tr></thead>
       <tbody>${slice.map(({ x, iss }) => {
         const pic = (x.live || {}).MAIN || (x.img || {}).MAIN;
-        const state = imState(x);
+        const state = imState(x, brand);
         const hasImg = iss.some(issue => leKind(issue) === 'image');
         const hasOther = iss.some(issue => leKind(issue) !== 'image');
         return `<tr>
           <td style="width:52px">${pic
             ? `<img src="${leEsc(imThumb(pic))}" alt="" loading="lazy" style="width:44px;height:44px;object-fit:contain;background:#fff;border:1px solid var(--line);border-radius:4px">`
             : ''}</td>
-          <td style="text-align:left;white-space:nowrap"><b style="font-family:ui-monospace,monospace">${leEsc(x.sku)}</b>`
+          <td style="text-align:left;white-space:nowrap"><b style="font-family:ui-monospace,monospace">${leEsc(x.sku)}</b>${x.lmStale && typeof lmOldHtml === 'function' ? lmOldHtml(brand, x.sku) : ''}`
             + `<div class="muted" style="font-size:11px">${leEsc(x.asin)} · ${leEsc(x.pt || '')}</div></td>
           <td style="text-align:left;font-size:12px">${leEsc([x.c, x.z].filter(Boolean).join(' · '))}</td>
           <td><span class="st" style="background:${state.fill};color:${state.ink}">${leEsc(state.label)}</span></td>

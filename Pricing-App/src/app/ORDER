@@ -19,6 +19,7 @@ sales/brand-analytics.js
 inventory/inventory-age.js
 listing/listing-health.js
 listing/listing-rules.js
+listing/listing-match.js
 listing/listing-health-data.js
 listing/parent-check.js
 listing/listing-rules-tab.js
@@ -34,6 +35,7 @@ listing/fix-all.js
 listing/listing-send-check.js
 listing/listing-history.js
 listing/bsr-audit.js
+listing/family-check.js
 research/keywords.js
 research/by-amazon-link.js
 research/new-product.js

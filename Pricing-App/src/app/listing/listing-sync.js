@@ -58,6 +58,11 @@ const lySendOpen = () => typeof sqIsOpen === 'function' && sqIsOpen();
 const lyHidden = now => !!(LY.hiddenAt && now - LY.hiddenAt > LY_HIDDEN_MS);
 const lyRows = brand => ((typeof HEALTH !== 'undefined' && HEALTH[brand] && HEALTH[brand].rows) || []);
 const lyReadAt = entry => (entry ? Math.min(entry.cAt || 0, entry.gAt || 0, entry.iAt || 0) : 0);
+// THE AMAZON AUTO REFRESH (17 Nov 2026): while the ListingMatch cache holds a brand and is at most 24 hours old (listing-match.js lmOk),
+// it reads every listing of that brand from Amazon — so the sync reads nothing for it. It syncs a brand only when that data is missing
+// or older than 24 hours.
+const lyAuto = brand => typeof lmOk === 'function' && lmOk(brand);
+const lyNeeded = () => ['SP', 'CPC'].some(brand => !lyAuto(brand));
 
 /* ----- the leader ----- */
 /** Start the sync in this browser (once, after sign-in): the first beat now, then every LY_BEAT_MS. */
@@ -111,8 +116,9 @@ async function lyBeat() {
     }
     if (LY.leader) {
       if (LY.run) await lyFlush();                   // mid-cycle: what is read so far reaches the others within a minute
+      if (typeof lmSettled === 'function') await lmSettled();   // the cache's copy first: is the auto refresh fresh?
       const last = (LY.state.last && LY.state.last.at) || 0;
-      if (!LY.run && (now - last >= LY_CYCLE_MS || (LY.state.want || 0) > last || LY.asked > last)) lyCycle();
+      if (!LY.run && lyNeeded() && (now - last >= LY_CYCLE_MS || (LY.state.want || 0) > last || LY.asked > last)) lyCycle();
     }
   } catch (e) {
     LY.err = String((e && e.message) || e);
@@ -128,16 +134,17 @@ function lyPick(now, max) {
   max = max || LY_PER_CYCLE;
   const out = [];
   const seen = new Set();
+  const auto = { SP: lyAuto('SP'), CPC: lyAuto('CPC') };   // a brand the auto refresh keeps fresh is not read here
   const add = (brand, sku, why) => {
     const key = brand + '|' + sku;
-    if (seen.has(key) || out.length >= max) return;
+    if (seen.has(key) || out.length >= max || auto[brand]) return;
     seen.add(key);
     out.push({ brand, sku, why });
   };
   if (typeof bfDue === 'function') bfDue(now).forEach(d => add(d.brand, d.sku, 'false error'));
   const ctx = hCtx();
   const all = [];
-  ['SP', 'CPC'].forEach(brand => lyRows(brand).forEach(row => all.push({ brand, row, at: lyReadAt(LI_WS.live[brand] && LI_WS.live[brand][row.sku]) })));
+  ['SP', 'CPC'].filter(brand => !auto[brand]).forEach(brand => lyRows(brand).forEach(row => all.push({ brand, row, at: lyReadAt(LI_WS.live[brand] && LI_WS.live[brand][row.sku]) })));
   all.sort((a, b) => a.at - b.at);                   // oldest read first (never read: first of all)
   all.forEach(({ brand, row }) => {
     const kid = liWsChildKept(row, brand, ctx, liWsImlIndex(brand), now);
@@ -154,20 +161,21 @@ function lyLook(brand, sku, now) {
   const kid = liWsChildKept(row, brand, ctx, liWsImlIndex(brand), now);
   if (!kid) return null;
   const facts = lrFactsOf(lrFresh(Object.assign({}, row, { brand }), ctx), ctx);
-  return { err: kid.bucket === 'critical', shop: bfShop(facts.amz), late: kid.found.some(hit => bfOf(kid, hit, ctx, now).who === 'amazon') };
+  const fresh = Object.assign({}, row, { brand });
+  return { err: kid.bucket === 'critical', shop: bfShop(facts.amz, fresh), kind: lrShopOfAmz(facts.amz, fresh).k, late: kid.found.some(hit => bfOf(kid, hit, ctx, now).who === 'amazon') };
 }
 function lyChanged(was, now) {
   if (!was || !now) return [];
   const out = [];
   if (was.err && !now.err) out.push('error fixed');
   if (!was.err && now.err) out.push('new error');
-  if (was.shop !== 'r' && now.shop === 'r') out.push('suppressed');
+  if (was.shop !== 'r' && now.shop === 'r') out.push(now.kind === 'nobuy' ? 'not buyable' : 'suppressed');
   else if ((was.shop === 'r' && now.shop === 'g') || (was.late && !now.late)) out.push('now showing to shoppers');
   return out;
 }
 /** Start a cycle now (the leader): pick, then queue each listing's reads. */
 async function lyCycle() {
-  if (LY.run || !LY.leader || lySendOpen()) return false;
+  if (LY.run || !LY.leader || lySendOpen() || !lyNeeded()) return false;
   const now = LY.now();
   LY.run = { at: now, n: 0, done: 0, left: new Map(), before: new Map() };
   try { await lyPrep(); } catch (e) { LY.err = String((e && e.message) || e); }
@@ -344,7 +352,7 @@ function lyTime(t) {
   return `${h % 12 || 12}${m ? ':' + String(m).padStart(2, '0') : ''} ${h < 12 ? 'AM' : 'PM'}`;
 }
 const lyAgo = (now, t) => { const m = Math.floor((now - t) / 60000); return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : `${Math.floor(m / 60)} h ago`; };
-const LY_WHAT_CLS = { 'error fixed': 'is-fixed', 'new error': 'is-new', 'now showing to shoppers': 'is-shown', suppressed: 'is-supp' };
+const LY_WHAT_CLS = { 'error fixed': 'is-fixed', 'new error': 'is-new', 'now showing to shoppers': 'is-shown', suppressed: 'is-supp', 'not buyable': 'is-supp' };
 /** The line and, when open, the "What changed" list. */
 function lyLineHtml(now) {
   now = now || LY.now();
@@ -352,22 +360,37 @@ function lyLineHtml(now) {
   const last = st.last || {};
   const today = st.day === lyDay(now) ? (st.changes || []) : [];
   const parts = [];
+  const auto = ['SP', 'CPC'].filter(lyAuto);
+  const n = new Set(today.map(c => c.b + '|' + c.s)).size;
+  const changed = st.dayAt && st.day === lyDay(now) ? `${faNfLy(n)} listing${n === 1 ? '' : 's'} changed since ${lyTime(st.dayAt)}` : '';
+  if (auto.length === 2 && !LY.run) {
+    // both brands from the Amazon auto refresh: nothing synced here; Sync now asks it for a newer pass
+    const when = typeof lmPassWhen === 'function' ? lmPassWhen() : '';
+    parts.push(`Synced ${when ? when + ' ' : ''}from the Amazon auto refresh`);
+    if (changed) parts.push(changed);
+    parts.push(`next refresh ~${typeof lmNextFull === 'function' ? lmNextFull(now) : '13:00'}`);
+    const line = `<button type="button" class="ly-line" data-ly-open aria-expanded="${LY.open}" title="What changed today · Amazon's data comes from the Amazon auto refresh (ListingMatch), so this browser reads nothing itself">${lrEsc(parts.join(' · '))}</button>`;
+    const btn = `<button type="button" class="ghost ly-now" data-ly-now title="Look for a newer Amazon auto refresh now">Sync now</button>`;
+    return line + btn + lyListHtml(today);
+  }
   if (LY.run) parts.push(`Syncing… ${faNfLy(LY.run.done)} of ${faNfLy(LY.run.n)}`);
   else if (last.at && !last.done && !LY.leader) parts.push('Syncing now…');
   else parts.push(last.end ? `Synced ${lyAgo(now, last.end)}` : 'Not synced yet');
-  const n = new Set(today.map(c => c.b + '|' + c.s)).size;
-  if (st.dayAt && st.day === lyDay(now)) parts.push(`${faNfLy(n)} listing${n === 1 ? '' : 's'} changed since ${lyTime(st.dayAt)}`);
+  if (changed) parts.push(changed);
   if (!LY.run) {
     const next = Math.max(0, Math.ceil(((last.at || now) + LY_CYCLE_MS - now) / 60000));
     parts.push(last.at ? `next sync in ${next} min` : 'first sync within a minute');
   }
+  // one brand from the auto refresh, the other synced here
+  if (auto.length) parts.push(`${auto.map(b => (typeof BRAND_NAME !== 'undefined' && BRAND_NAME[b]) || b).join(' and ')} from the Amazon auto refresh`);
   const asked = LY.asked && !LY.leader && LY.asked > (last.at || 0) ? ' · asked — the syncing browser starts within a minute' : '';
   const line = `<button type="button" class="ly-line" data-ly-open aria-expanded="${LY.open}" title="What changed today">${lrEsc(parts.join(' · ') + asked)}</button>`;
   const now$ = `<button type="button" class="ghost ly-now" data-ly-now${LY.run ? ' disabled' : ''}>Sync now</button>`;
-  const list = LY.open ? `<div class="ly-list">${today.length ? today.slice(0, 100).map(c => `<div class="ly-item"><b>${lrEsc(c.s)}</b><span class="ly-w ${LY_WHAT_CLS[c.w] || ''}">${lrEsc(c.w)}</span><time>${lrEsc(lyTime(c.at))}</time></div>`).join('')
-    : '<div class="ly-item"><span>No listing changed yet today.</span></div>'}</div>` : '';
-  return line + now$ + list;
+  return line + now$ + lyListHtml(today);
 }
+// "What changed", when open.
+const lyListHtml = today => (LY.open ? `<div class="ly-list">${today.length ? today.slice(0, 100).map(c => `<div class="ly-item"><b>${lrEsc(c.s)}</b><span class="ly-w ${LY_WHAT_CLS[c.w] || ''}">${lrEsc(c.w)}</span><time>${lrEsc(lyTime(c.at))}</time></div>`).join('')
+  : '<div class="ly-item"><span>No listing changed yet today.</span></div>'}</div>` : '');
 const faNfLy = n => Number(n || 0).toLocaleString('en-US');
 // Drawn at the top of Listing Health (both views and the Workspace); the element is made here, nothing in index.html changes.
 function lyLineDraw() {
@@ -398,6 +421,12 @@ async function lyClick(e) {
 /** [Sync now]: the leader starts a cycle; any other browser asks the leader (it starts at its next beat, within a minute). */
 async function lySyncNow() {
   LY.asked = LY.now();
+  // the auto refresh holds both brands: Sync now looks for a newer ListingMatch pass (nothing is read from Amazon here)
+  if (!lyNeeded()) {
+    if (typeof lmRefresh === 'function') await lmRefresh();
+    return lyLineDraw();
+  }
+  if (typeof lmRefresh === 'function') lmRefresh();
   if (LY.leader) await lyCycle();
   else if (!LY.local) await lsSave(BF_COLL, LY_STATE, { want: LY.asked }).catch(() => {});
   lyLineDraw();

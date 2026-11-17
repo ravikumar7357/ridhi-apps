@@ -258,8 +258,17 @@ async function imListEnsure() {
   if (age > 24 * 3600e3 && !IML_BUSY) imListBuild(brand);
 }
 
-// Read one brand's saved snapshot (imgsnap/{brand} + its imgrows chunks) into IML[brand], URLs unpacked.
+// One brand's list into IML[brand]: from the ListingMatch cache at once when it is usable (listing-match.js — the saved snapshot is read
+// under it in the background), else the saved snapshot as before.
 async function imListLoad(brand) {
+  if (typeof lmEnsure === 'function') {
+    await lmEnsure();                       // this browser's saved copy of the cache: never waits for the network
+    if (lmImlFast(brand, () => imListLoadSnap(brand))) return;
+  }
+  return imListLoadSnap(brand);
+}
+// Read one brand's saved snapshot (imgsnap/{brand} + its imgrows chunks) into IML[brand], URLs unpacked.
+async function imListLoadSnap(brand) {
   try {
     const meta = await getDoc(doc(db, 'imgsnap', brand));
     if (!meta.exists()) {
@@ -398,14 +407,17 @@ function imHijack(item) {
  * BUYABLE WITHOUT DISCOVERABLE IS A SUPPRESSED LISTING — it can still be bought from a direct link
  * and cannot be found in search. RTC203-6060 sat like that under a green "Buyable" chip here while
  * Seller Central said "Search suppressed", because the chip only tested /BUYABLE/. */
-// The status chip for one listing: { k: short key, label, fill, ink }.
-function imState(item) {
+// The status chip for one listing: { k: short key, label, fill, ink } — THE ONE RULE (lrShopOf, listing-rules.js) decides
+// Suppressed / Not buyable / Not checked; stock comes from the Listing Health snapshot (lrQtyOf).
+function imState(item, brand) {
+  const b = brand || (typeof $ === 'function' && $('imBrand') ? $('imBrand').value : '');
+  const shop = lrShopOf({ st: item.st, iss: item.iss, qty: lrQtyOf(b, item.sku), brand: b, sku: item.sku });
+  if (shop.k === 'sup') return { k: 'sup', label: shop.how === 'a' ? 'Search suppressed' : 'Suppressed', why: shop.why, fill: 'var(--bad-bg)', ink: 'var(--bad-ink)' };
+  if (shop.k === 'nobuy') return { k: 'nobuy', label: 'Not buyable', why: shop.why, fill: 'var(--bad-bg)', ink: 'var(--bad-ink)' };
+  if (shop.k === 'unk') return { k: 'unk', label: 'Not checked', fill: 'var(--hover)', ink: 'var(--muted)' };
+  if (shop.k === 'ok') return { k: 'ok', label: 'Buyable', fill: 'var(--accent-bg)', ink: 'var(--accent-ink)' };
   const status = String(item.st || '').toUpperCase();
-  const buy = status.includes('BUYABLE');
-  const disc = status.includes('DISCOVERABLE');
-  if (buy && !disc) return { k: 'sup', label: 'Search suppressed', fill: 'var(--bad-bg)', ink: 'var(--bad-ink)' };
-  if (buy && disc) return { k: 'ok', label: 'Buyable', fill: 'var(--accent-bg)', ink: 'var(--accent-ink)' };
-  if (disc && !buy) return { k: 'nooffer', label: 'No offer', fill: 'var(--hover)', ink: 'var(--muted)' };
+  if (status.includes('DISCOVERABLE')) return { k: 'nooffer', label: 'No offer', fill: 'var(--hover)', ink: 'var(--muted)' };
   return { k: 'none', label: item.st || 'Not buyable', fill: 'var(--hover)', ink: 'var(--muted)' };
 }
 
@@ -499,7 +511,7 @@ function imKidMatch(item, filter, search) {
   if (filter === 'sup') return imState(item).k === 'sup';
   if (filter === 'amzerr') return imPicErrs(item).length > 0;
   if (filter === 'noown') return imNoOwnMain(item);
-  if (filter === 'nobuy') return !/BUYABLE/.test(item.st || '');
+  if (filter === 'nobuy') return imState(item).k === 'nobuy';
   return true;
 }
 
@@ -566,7 +578,8 @@ function imKidChip(item) {
   const errs = imPicErrs(item);
   if (errs.length) return { t: errs.length > 1 ? errs.length + ' Amazon picture errors' : 'Amazon picture error', cls: 'is-bad', tip: errs.map(e => (e.c ? e.c + ': ' : '') + e.m).join(' · ') };
   const state = imState(item);
-  if (state.k === 'sup') return { t: 'Search suppressed', cls: 'is-bad', tip: 'Amazon still allows a direct-link sale but has taken this listing out of search results.' };
+  if (state.k === 'sup') return { t: state.label, cls: 'is-bad', tip: state.why === 'buyable by direct link, not in search' ? 'Amazon still allows a direct-link sale but has taken this listing out of search results.' : 'Suppressed — ' + state.why };
+  if (state.k === 'nobuy') return { t: 'Not buyable', cls: 'is-bad', tip: 'Not buyable — ' + state.why };
   if (imNoMain(item)) return { t: 'No main at all', cls: 'is-bad', tip: 'No main picture: none sent by us and none shown to shoppers' };
   if (imNoOwnMain(item)) return { t: 'Using the family\'s main', cls: 'is-att', tip: 'Your listing submitted no main image. What shows on Amazon comes from the family, and Amazon can suppress a listing for it.' };
   const hijack = imHijack(item);
@@ -597,7 +610,7 @@ function imKidRow(item) {
   return `<div class="im-kid${open ? ' is-open' : ''}" data-sku="${imEsc(item.sku)}">
     <label class="im-kid-sel" title="Tick to paste into this listing (Shift+click ticks a range)"><input type="checkbox" class="im-sel" data-sku="${imEsc(item.sku)}" ${IM_SEL.has(item.sku) ? 'checked' : ''} aria-label="Tick ${imEsc(item.sku)}"></label>
     <div class="im-kid-info">
-      <div class="im-kid-t"><b class="im-mono">${imEsc(item.sku)}</b><span class="muted">${imEsc(item.asin)}</span></div>
+      <div class="im-kid-t"><b class="im-mono">${imEsc(item.sku)}</b>${item.lmStale && typeof lmOldHtml === 'function' ? lmOldHtml($('imBrand') ? $('imBrand').value : '', item.sku) : ''}<span class="muted">${imEsc(item.asin)}</span></div>
       <div class="im-kid-s">${imEsc([item.c, item.z].filter(Boolean).join(' · ') || String(item.t || '').slice(0, 60))}</div>
       <div class="im-kid-q"><span class="im-chip ${chip.cls}"${chip.tip ? ` title="${imEsc(chip.tip)}"` : ''}>${imEsc(chip.t)}</span><span class="im-kid-sum">${imKidSummary(item)}</span></div>
       ${errs.length ? `<div class="im-kid-err" title="${imEsc(errs[0].m)}">${imEsc(errs[0].m)}</div>` : ''}
@@ -1065,6 +1078,8 @@ async function imLoad(skuPick) {
     else if (isAsin) params.asin = typed.toUpperCase();
     else params.sku = typed;
     const reply = await baCall(params);
+    // a live read of this listing: newer than the ListingMatch cache's record, so the list shows it until a newer pass (listing-match.js)
+    if (typeof lmNoteLive === 'function' && (reply.sku || params.sku)) lmNoteLive(params.brand, reply.sku || params.sku, 'limg', reply);
     IM = reply;
     if (skuPick && IM_SKU_CHOICES) IM.skuChoices = IM_SKU_CHOICES;
     IM_SKU_CHOICES = reply.skuChoices || IM_SKU_CHOICES;

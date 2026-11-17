@@ -94,17 +94,52 @@ const hitOf = (kid, det) => kid.found.find(hit => hit.detector === det);
     ok('…drawn as a grey hollow dot with "not read yet"', /fa-bfd is-u/.test(html) && /not read yet/.test(strip(html)), html);
   }
 
-  console.log('== suppressed / not buyable → F🔴 automatically; ○ only when not known ==');
+  console.log('== THE ONE "Suppressed" rule (lrShopOf): suppressed / not buyable → F🔴; an ERROR alone → F🟢; ○ only when not checked ==');
   {
-    const shop = (st, iss) => { const { C } = setup(); const e = C.LI_WS.live.SP.G10; e.st = st; if (iss) e.iss = iss; C.LI_WS.liveV++; C.reset();
-      const kid = kidOf(C, 'G10'); return C.bfOf(kid, hitOf(kid, 'amazon_error'), C.hCtx()); };
-    const e18320 = [{ s: 'E', c: '18320', m: 'Missing information: the listing is suppressed', a: [] }];
-    const a = shop(['BUYABLE', 'DISCOVERABLE'], e18320), b = shop(['DISCOVERABLE']), c = shop(['BUYABLE']), d = shop(['BUYABLE', 'DISCOVERABLE']), u = shop([]);
-    ok('ERROR 18320 while the status still says BUYABLE → F🔴 (B🔴 F🔴 Our team)', a.f === 'r' && a.who === 'team', JSON.stringify(a));
-    ok('status not BUYABLE → F🔴', b.f === 'r', JSON.stringify(b));
-    ok('BUYABLE but not DISCOVERABLE (not in search) → F🔴', c.f === 'r', JSON.stringify(c));
-    ok('buyable and in search, an ordinary error → F🟢 (Our team — shoppers not affected yet)', d.f === 'g' && d.who === 'scwrong' && /Our team — shoppers not affected yet/.test(load({ ws: true }).bfKidHtml(d)), JSON.stringify(d));
-    ok('no status known → grey ○', u.f === 'u', JSON.stringify(u));
+    // G10 in the Workspace, its live read changed: the F dot of its Amazon-error row, its Listing Rules findings, the Workspace's Amazon cell
+    const shop = (st, iss, qty, fyp) => {
+      const { C } = setup(); const e = C.LI_WS.live.SP.G10; e.st = st; e.iss = iss || []; C.LI_WS.liveV++;
+      if (qty != null) C.HEALTH.SP.rows.find(r => r.sku === 'G10').qty = qty;
+      if (fyp) C.LR_FYP.SP = new Map([['G10', fyp]]);
+      C.reset();
+      const kid = kidOf(C, 'G10'), ctx = C.hCtx();
+      const err = hitOf(kid, 'amazon_error'), sup = hitOf(kid, 'amazon_suppressed');
+      const bf = C.bfOf(kid, err || sup || kid.found[0] || { detector: 'amazon_error' }, ctx);
+      return { f: bf.f, b: bf.b, who: bf.who, sup: !!sup, err: !!err, crit: !!(sup && sup.sev === 'critical'), cell: C.liWsDetail ? '' : '', kid };
+    };
+    const swatch = [{ s: 'E', c: '8541', m: 'The swatch image for colour is missing or does not meet requirements, and may be suppressed', a: ['swatch_product_image_locator'] }];
+    const co7 = shop(['BUYABLE', 'DISCOVERABLE'], swatch);
+    ok('CPCLS-CO-007: BUYABLE + DISCOVERABLE and ONE ERROR (colour swatch, even with "suppressed" in its words) → NOT suppressed, F🟢',
+      !co7.sup && co7.err && co7.f === 'g' && co7.b === 'r' && co7.who === 'scwrong', JSON.stringify(co7, (k, v) => (k === 'kid' ? undefined : v)));
+    ok('…its ERROR stays an error at its own level (the "Amazon reports an error" rule), with B🔴 as before', co7.kid.found.some(hit => hit.detector === 'amazon_error') && !co7.kid.found.some(hit => hit.detector === 'amazon_suppressed'));
+    const e18320 = shop(['BUYABLE', 'DISCOVERABLE'], [{ s: 'E', c: '18320', m: 'Missing information: the listing is suppressed', a: [] }]);
+    ok('an ERROR whose code or words say "suppressed" but BUYABLE + DISCOVERABLE and no enforcement → not suppressed, F🟢', !e18320.sup && e18320.f === 'g', JSON.stringify(e18320.f));
+    const a = shop(['BUYABLE']);
+    ok('a) BUYABLE but not DISCOVERABLE (hidden from search) → Suppressed, F🔴', a.sup && a.f === 'r' && /not in search/.test(hitOf(a.kid, 'amazon_suppressed').detail || JSON.stringify(hitOf(a.kid, 'amazon_suppressed'))), JSON.stringify(a.f));
+    const b = shop(['BUYABLE', 'DISCOVERABLE'], [{ s: 'E', c: '5665', m: 'Your listing has been removed from search', a: [], e: ['SEARCH_SUPPRESSED'] }]);
+    ok('b) an issue whose enforcement action is SEARCH_SUPPRESSED → Suppressed, F🔴', b.sup && b.f === 'r', JSON.stringify(b.f));
+    const b2 = shop(['BUYABLE', 'DISCOVERABLE'], [{ s: 'W', c: '99300', m: 'Attribute hidden', a: ['color'], e: ['ATTRIBUTE_SUPPRESSED'] }]);
+    ok('…an enforcement that is not one of those two (ATTRIBUTE_SUPPRESSED) → not suppressed', !b2.sup && b2.f === 'g');
+    const c = shop(['BUYABLE', 'DISCOVERABLE'], [], null, 'Missing information');
+    ok('c) the SKU is in Amazon\'s Suppressed listings report → Suppressed, F🔴', c.sup && c.f === 'r', JSON.stringify(c.f));
+    const nb = shop(['DISCOVERABLE'], [], 5), off = shop(['DISCOVERABLE'], [], 0);
+    ok('Not buyable: no BUYABLE and live (5 in stock) → F🔴, and it is NOT "Suppressed"', nb.f === 'r' && !nb.sup, JSON.stringify(nb.f));
+    ok('…no BUYABLE but no stock → not shown as a problem to shoppers (F🟢), not suppressed', off.f === 'g' && !off.sup, JSON.stringify(off.f));
+    const u = shop([]);
+    ok('Not checked: no status (the read failed) → grey ○, never Suppressed', u.f === 'u' && !u.sup, JSON.stringify(u.f));
+    const L = load({ ws: true });
+    const k = x => L.lrShopOf(x).k;
+    // the backend's two shapes: ?lfix=get now sends acts (and still enforced), the saved snapshot sends e
+    const lfixShape = { severity: 'ERROR', code: '5665', message: 'Removed from search', attrs: [], cats: [], enforced: true, acts: ['SEARCH_SUPPRESSED'] };
+    ok('rule b from the backend: ?lfix=get\'s acts → Suppressed; an old reply with only enforced: true (no names) → not suppressed; the snapshot\'s e → Suppressed',
+      k({ st: 'BUYABLE,DISCOVERABLE', iss: [lfixShape] }) === 'sup' && k({ st: 'BUYABLE,DISCOVERABLE', iss: [{ severity: 'ERROR', code: '5665', enforced: true }] }) === 'ok'
+      && k({ st: 'BUYABLE,DISCOVERABLE', iss: [{ s: 'E', c: '5665', m: 'm', e: ['LISTING_SUPPRESSED'] }] }) === 'sup');
+    const wsSrc = require('fs').readFileSync(require('path').join(__dirname, '..', 'src', 'app', 'listing', 'listing-workspace.js'), 'utf8');
+    ok('…the Workspace\'s live read keeps them on each issue (e: lrIssueActs(issue) — the names in acts)', /lrIssueActs\(issue\)\.length \? \{ e: lrIssueActs\(issue\) \}/.test(wsSrc));
+    ok('lrShopOf by itself: CO-007 ok · a sup · b sup · c sup · not buyable (live) nobuy · no stock off · no status unk',
+      k({ st: 'BUYABLE,DISCOVERABLE', iss: swatch }) === 'ok' && k({ st: 'BUYABLE' }) === 'sup' && k({ st: ['BUYABLE', 'DISCOVERABLE'], iss: [{ c: '1', enforcements: { actions: [{ action: 'LISTING_SUPPRESSED' }] } }] }) === 'sup'
+      && k({ st: 'BUYABLE,DISCOVERABLE', fyp: 'Missing information' }) === 'sup' && k({ st: 'DISCOVERABLE', qty: 3 }) === 'nobuy' && k({ st: 'DISCOVERABLE', qty: 0 }) === 'off'
+      && k({ st: 'DISCOVERABLE', qty: 3, closed: true }) === 'off' && k({ st: null }) === 'unk' && k({ st: '', iss: [{ e: ['SEARCH_SUPPRESSED'] }] }) === 'unk');
   }
 
   console.log('== the row\'s line: the right split ==');
@@ -136,6 +171,10 @@ const hitOf = (kid, det) => kid.found.find(hit => hit.detector === det);
   {
     const files = {};
     ['fix-all.js', 'listing-kid.js', 'listing-rules.js'].forEach(f => { files[f] = git(f); });
+    // today's screens call THE ONE "Suppressed" rule (16 Nov), which the old rules file did not have: added to it, nothing else
+    const RULES_NOW = require('fs').readFileSync(require('path').join(__dirname, '..', 'src', 'app', 'listing', 'listing-rules.js'), 'utf8');
+    const from = RULES_NOW.indexOf('/* ================= SUPPRESSED · NOT BUYABLE'), to = RULES_NOW.indexOf('/** The listing with the freshest content on it');
+    if (files['listing-rules.js'] && from > 0 && to > from) files['listing-rules.js'] += '\n' + RULES_NOW.slice(from, to);
     // the names the test loader hands back (B / F and the sync came later); the old code never calls them
     files['listing-bf.js'] = 'const BF = null, bfOf = null, bfSpec = null, bfWho = null, bfCalc = null, bfShop = null, bfLineHtml = null, bfKidHtml = null, bfDue = null, bfFirstLoad = null, bfSave = null, lsGet = null, lsSave = null;';
     files['listing-sync.js'] = 'const LY = null, lyStart = null, lyBeat = null, lyCycle = null, lyPick = null, lyPull = null, lyFlush = null, lyMerge = null, lyRec = null, lyLineHtml = null, lySyncNow = null, lyEnd = null;';
