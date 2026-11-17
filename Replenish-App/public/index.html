@@ -67821,7 +67821,10 @@ function skcPlanNew(colour, code, brand) {
   if (!brd) return { out, skip, err: 'Type the brand.' };
   if (!col) return { out, skip, err: 'Pick the colour.' };
   if (!String(code || '').trim()) return { out, skip, err: 'Type the colour code.' };
-  if (!skcColours().some(c => c.toLowerCase() === col.toLowerCase())) return { out, skip, err: `"${col}" is not in the Colour master. Add it under Masters first.` };
+  /* A NEW COLOUR JOINS THE COLOUR MASTER BY ITSELF (Ravi, 17 Nov: "jab bhi m koi naya sku create krta hu to jese hi create sku kiya
+   * jay wo auto masterdata me add ho jay"). It was refused — "Add it under Masters first". Now Create adds it to the Colour master
+   * in the same write as the SKUs (skcCreate); the plan only says so. */
+  const newColour = !skcColours().some(c => c.toLowerCase() === col.toLowerCase());
   const owner = skcCodeOwner(code, col);
   if (owner) return { out, skip, err: `Code ${String(code).trim()} is already ${owner}'s — its SKUs carry it. Use another code.` };
   const seen = new Set();
@@ -67832,7 +67835,7 @@ function skcPlanNew(colour, code, brand) {
     seen.add(full);
     if (!String(r.article || '').trim() || !String(r.subtype || '').trim()) { skip.push({ full, label, why: 'the base row has no article or subtype' }); return; }
     if (!String(r.size || '').trim()) { skip.push({ full, label, why: 'the base row has no size — the master needs one' }); return; }
-    const bad = validateAgainstMasters(r.article, r.subtype, col, r.size);
+    const bad = validateAgainstMasters(r.article, r.subtype, col, r.size).filter(e => !(newColour && /^Colou?r\b/i.test(e)));
     if (bad.length) { skip.push({ full, label, why: bad[0] }); return; }
     const sib = skcSibling(r);
     const base = sib ? Object.assign({}, sib) : { brand: '', cuttingRequired: true };
@@ -67842,7 +67845,7 @@ function skcPlanNew(colour, code, brand) {
     const filled = recipeFill(rec);
     out.push({ rec: filled.rec, label, from: sib ? sib.sku : '', recipe: filled.from.length });
   });
-  return { out, skip, err: '' };
+  return { out, skip, err: '', newColour };
 }
 
 async function skcCreate(colour, code, brand) {
@@ -67851,12 +67854,23 @@ async function skcCreate(colour, code, brand) {
   if (plan.err) return plan.err;
   if (!plan.out.length) return 'Nothing to create — every SKU of this colour is already in the master.';
   const t = Date.now(), patch = {}, added = [];
+  /* the colour first, in the same write: the Colour master's own row shape (masters.js mstSave) */
+  let colKey = '', colRow = null;
+  if (plan.newColour) {
+    const col = String(colour).trim(), now = new Date().toISOString();
+    const taken = ptList((PTG.masters || {}).colour).some(x => x && String(x.code || '').trim().toLowerCase() === col.toLowerCase());
+    colKey = typeof mstNextKey === 'function' ? mstNextKey('colour') : 'm_' + t.toString(36);
+    colRow = { code: taken ? col + ' ' + String(code).trim() : col, desc: col, active: true, createdAt: now, createdBy: ME.email,
+      modifiedAt: now, modifiedBy: ME.email, addedFrom: 'SKU codes — colour code ' + String(code).trim() };
+    patch['pt_masters/colour/' + colKey] = colRow;
+  }
   plan.out.forEach((x, i) => {
     const key = 'mdb_' + t + '_' + String(i).padStart(3, '0');
     patch['pt_masterDB/' + key] = x.rec;
     added.push(Object.assign({ _key: key }, x.rec));
   });
   try { await ptPatch(patch); } catch (e) { return 'Not saved: ' + (e.message || e); }
+  if (colRow) { PTG.masters = Object.assign({}, PTG.masters || {}); PTG.masters.colour = Object.assign({}, PTG.masters.colour || {}, { [colKey]: colRow }); }
   PTG.mdb = (PTG.mdb || []).concat(added);
   PT.mdb = PTG.mdb;
   return '';
@@ -68004,7 +68018,7 @@ function renderSkuCode() {
       if (plan.err || !plan.out.length) { $('skcSays').className = 'err'; $('skcSays').textContent = plan.err || 'Nothing to create — every SKU of this colour is already in the master.'; return; }
       ptOpenDialog({
         title: `Create ${nf(plan.out.length)} SKU(s) in ${SKC.col}?`,
-        subtitle: 'Brand ' + SKC.brand + ' · code ' + SKC.code,
+        subtitle: 'Brand ' + SKC.brand + ' · code ' + SKC.code + (plan.newColour ? ` · "${SKC.col}" is new — it is added to the Colour master as well` : ''),
         note: 'Each takes the brand typed above, and copies cloth, consumption, pack, zip, ruffle and filling from the same article, subtype and size in another colour; the Recipe fills what is still blank. No picture is copied.',
         html: '<div class="xlwrap" style="max-height:50vh"><table class="xl"><thead><tr><th>SKU</th><th>Item</th><th>Copied from</th></tr></thead><tbody>'
           + plan.out.map(x => `<tr><td><b>${esc(x.rec.sku)}</b></td><td>${esc(x.label)}</td><td>${esc(x.from) || '<span class="muted">nothing — recipe only</span>'}</td></tr>`).join('')
