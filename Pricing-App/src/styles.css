@@ -3107,6 +3107,31 @@
   #paneFam .fc-link{padding:0;background:none;border:0;box-shadow:none;color:var(--faint);font-size:12px;font-weight:500;cursor:pointer}
   #paneFam .fc-link:hover{background:none;color:var(--muted);text-decoration:underline}
   #paneFam .fc-rem .fc-wrap{margin-top:8px}
+  /* the Categories tab (listing/category-check.js): the Families look, plus its filter chips, the picture, the green tick and the hint */
+  #paneFam .fc-box.is-g{--c:var(--faint)} #paneFam .fc-box.is-g b{color:var(--muted)}
+  #paneFam .cc-chips{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 10px}
+  #paneFam .cc-fchip{display:inline-flex;align-items:center;gap:6px;width:auto;height:auto;margin:0;padding:4px 12px;border:1px solid var(--card-line);border-radius:var(--r-pill);
+    background:var(--card);color:var(--muted);box-shadow:none;font-size:12px;font-weight:600;cursor:pointer}
+  #paneFam .cc-fchip:hover{background:var(--hover);color:var(--ink)}
+  #paneFam .cc-fchip b{font-variant-numeric:tabular-nums;color:var(--ink)}
+  #paneFam .cc-fchip.is-on{background:var(--brand-bg);border-color:color-mix(in srgb,var(--brand) 45%,var(--card-line));color:var(--brand-ink)}
+  #paneFam .cc-fchip.is-on b{color:inherit}
+  #paneFam .cc-pc{width:44px;padding-right:0}
+  #paneFam .cc-pic{display:block;width:36px;height:36px;border:1px solid var(--line);border-radius:var(--r-sm);background:#fff;object-fit:contain}
+  #paneFam .cc-pic.is-none{background:var(--hover);border-color:transparent}
+  #paneFam .cc-path{font-size:12.5px;line-height:1.4}
+  #paneFam .cc-fcat{margin-left:8px;color:var(--ink)}
+  #paneFam .cc-cat{min-width:240px;max-width:340px}
+  #paneFam .fc-tb input.cc-q{min-width:290px}
+  #paneFam .cc-tbl .fc-b{white-space:nowrap}
+  #paneFam .cc-bsr{min-width:170px;max-width:240px;font-size:12.5px;font-variant-numeric:tabular-nums}
+  #paneFam .cc-prob{max-width:420px}
+  #paneFam .cc-hint{display:block;margin:1px 0 6px 14px;font-size:11.5px;line-height:1.4;color:var(--muted)}
+  #paneFam .cc-hint b{color:var(--ink);font-weight:650}
+  #paneFam .cc-tick{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;background:var(--accent-bg);color:var(--accent-ink);font-size:12px;font-weight:700}
+  #paneFam .cc-marked,#paneFam .cc-unread{margin-left:0}
+  #paneFam .fc-head .cc-unread{margin-left:8px}
+  #paneFam .cc-allok{border-color:color-mix(in srgb,var(--accent) 45%,var(--card-line));background:var(--accent-bg);color:var(--accent-ink)}
   @media (max-width:860px){#paneFam .fc-tb input[type=search]{min-width:0;flex:1 1 140px}#paneFam .fc-prob,#paneFam .fc-fix{min-width:160px}}
   .sq-chg .sq-add{color:var(--accent-ink);font-weight:600}
   .sq-chg .sq-rem{color:var(--bad-ink)}
