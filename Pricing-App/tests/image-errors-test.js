@@ -11,15 +11,15 @@ const ok = (name, cond, extra) => { if (cond) { pass++; console.log('  PASS ' + 
 const A = id => 'https://m.media-amazon.com/images/I/' + id + '.jpg';
 const full = (p, n) => Object.fromEntries(['MAIN', 'PT01', 'PT02', 'PT03', 'PT04', 'PT05', 'PT06', 'PT07', 'PT08'].slice(0, n || 9).map(s => [s, A(p + s)]));
 const COLS = ['Brand', 'Family name', 'Parent ASIN', 'SKU', 'ASIN', 'Colour', 'Size', 'Stock (units)', 'Amazon link', 'Problems', 'What to do',
-  'No main picture', 'Main not OK', 'Too small (under 2000)', 'Fewer than 7 pictures', 'Amazon picture error', 'Search suppressed', "Using the family's main",
+  'No main picture', 'Main not OK', 'Fewer than 7 pictures', 'Amazon picture error', 'Search suppressed', "Using the family's main",
   'Number of pictures', 'Smallest picture size', "Amazon's picture error message", 'Data time', 'Verified at'];
-const KEYS = ['nomain', 'pcbad', 'small', 'few', 'amzerr', 'sup', 'noown'];      // the check columns' order
+const KEYS = ['nomain', 'pcbad', 'few', 'amzerr', 'sup', 'noown'];      // the check columns' order
 const HINDI = 'Rust, "Deep" रंग ₹499';
 const SP_ITEMS = () => [
   { sku: 'PAR', lvl: 'parent', asin: 'B0PAR', t: 'Napkins, "Cotton" parent', img: { MAIN: A('par') }, live: { MAIN: A('par') }, iss: [] },
   { sku: 'K1', psku: 'PAR', pa: 'B0PAR', asin: 'B0K1', c: 'Blue', z: '18x18', st: 'BUYABLE,DISCOVERABLE', iss: [], img: Object.assign(full('k1'), { SWCH: A('k1sw') }), live: full('k1') },            // no problem
   { sku: 'K2', psku: 'PAR', pa: 'B0PAR', asin: 'B0K2', c: 'Blue', z: '20x20', st: 'BUYABLE,DISCOVERABLE', iss: [], img: Object.assign(full('k2'), { MAIN: undefined }), live: full('k2') },     // family's main + Main not OK
-  { sku: 'K3', psku: 'PAR', pa: 'B0PAR', asin: 'B0K3', c: 'Red', z: '18x18', st: 'BUYABLE,DISCOVERABLE', img: full('k3', 5), live: full('k3', 5),                                              // few, small, Amazon error ON THE MAIN (critical)
+  { sku: 'K3', psku: 'PAR', pa: 'B0PAR', asin: 'B0K3', c: 'Red', z: '18x18', st: 'BUYABLE,DISCOVERABLE', img: full('k3', 5), live: full('k3', 5),                                              // few (its PT01 is 1500: no problem), Amazon error ON THE MAIN (critical)
     iss: [{ s: 'E', c: '90244', m: 'The value for Ounce / Unit Count is missing', a: ['unit_count'] }, { s: 'E', c: '18320', m: 'The main image is missing or incorrect', a: ['main_product_image_locator'] }] },
   { sku: 'K4', psku: 'PAR', pa: 'B0PAR', asin: 'B0K4', c: 'Red', z: '20x20', st: 'BUYABLE', iss: [], img: full('k4'), live: Object.assign(full('k4'), { MAIN: A('k1MAIN') }) },               // suppressed (critical)
   { sku: 'K5', psku: 'PAR', pa: 'B0PAR', asin: 'B0K5', c: 'Teal', z: '22x22', st: 'BUYABLE,DISCOVERABLE', iss: [], img: Object.assign(full('k5'), { MAIN: undefined }), live: Object.assign(full('k5'), { MAIN: undefined }) },   // no main, STOCK 0
@@ -123,13 +123,13 @@ function screenVsSheet(P, brands, sheet) {
   ok('Ridhi: K2, K3, K4, K7, S1 — not K1 (no problem), K5 (stock 0), K6 (not buyable), K8 (no swatch anywhere: no longer a problem)', sku.slice().sort().join() === 'K2,K3,K4,K7,S1', sku.join());
   const row = s => { const r = rows.find(x => x.sku === s); return r ? Object.fromEntries(COLS.map((c, i) => [c, r.cells[i]])) : null; };
   const yes = s => KEYS.filter((k, i) => row(s)[COLS[11 + i]] === 'Yes').join(',');
-  ok('each check column "Yes" where it applies: K2 Main not OK + family\'s main · K3 Too small, Fewer than 7, Amazon picture error · K4 Search suppressed · K7, S1 Fewer than 7',
-    yes('K2') === 'pcbad,noown' && yes('K3') === 'small,few,amzerr' && yes('K4') === 'sup' && yes('K7') === 'few' && yes('S1') === 'few', ['K2', 'K3', 'K4', 'K7', 'S1'].map(s => s + ':' + yes(s)).join(' '));
-  ok('no "No swatch" and no "another SKU" column; the columns are the asked ones, in order', P.IM_DL_COLS.join('|') === COLS.join('|'));
+  ok('each check column "Yes" where it applies: K2 Main not OK + family\'s main · K3 Fewer than 7, Amazon picture error (its 1500 picture: nothing) · K4 Search suppressed · K7, S1 Fewer than 7',
+    yes('K2') === 'pcbad,noown' && yes('K3') === 'few,amzerr' && yes('K4') === 'sup' && yes('K7') === 'few' && yes('S1') === 'few', ['K2', 'K3', 'K4', 'K7', 'S1'].map(s => s + ':' + yes(s)).join(' '));
+  ok('no "No swatch", no "another SKU" and no "Too small" column; the columns are the asked ones, in order', P.IM_DL_COLS.join('|') === COLS.join('|') && !P.IM_DL_COLS.some(c => /Too small/.test(c)));
   const k3 = row('K3');
   ok('K3: brand, family, parent ASIN, ASIN, colour, size, stock (a number), link, Problems with " | ", one What to do per problem',
     k3.Brand === 'Ridhi' && k3['Family name'] === 'Napkins, "Cotton" parent' && k3['Parent ASIN'] === 'B0PAR' && k3.ASIN === 'B0K3' && k3['Stock (units)'] === 3 && k3['Amazon link'] === 'https://www.amazon.com/dp/B0K3'
-    && k3.Problems === 'Too small (under 2000) | Fewer than 7 pictures | Amazon picture error' && k3['What to do'].split(' | ').length === 3, JSON.stringify(k3).slice(0, 300));
+    && k3.Problems === 'Fewer than 7 pictures | Amazon picture error' && k3['What to do'].split(' | ').length === 2 && !/2000/.test(k3['What to do']), JSON.stringify(k3).slice(0, 300));
   ok('…Number of pictures 5, Smallest picture size 1500×1500 (Amazon\'s size of a served picture), Amazon\'s picture message in full (not ERROR 90244)',
     k3['Number of pictures'] === 5 && k3['Smallest picture size'] === '1500×1500' && k3["Amazon's picture error message"] === 'ERROR 18320: The main image is missing or incorrect');
   ok('…Data time: when the data was read (the snapshot here); Verified at empty until a live read', /^Snapshot 17\/11\/2026, 13:14/.test(k3['Data time']) && k3['Verified at'] === '');
@@ -156,7 +156,7 @@ function screenVsSheet(P, brands, sheet) {
     ok('only the critical rows are read live — K3, K4 (Ridhi) and C1 (CPC); no other row; nothing sent to Amazon', read.join() === 'C1,K3,K4'
       && !V.liveCalls.some(c => c.lfix === 'patch' || c.limg === 'patch') && got.critical === 3, read.join());
     ok('K4 (back in search) is left out; K3 stays with its other problems — its Amazon error is gone from Problems, its column and the message',
-      !out.some(r => r.SKU === 'K4') && out.find(r => r.SKU === 'K3').Problems === 'Too small (under 2000) | Fewer than 7 pictures' && out.find(r => r.SKU === 'K3')["Amazon's picture error message"] === '' && got.fixed === 2, JSON.stringify(out.map(r => [r.SKU, r.Problems])));
+      !out.some(r => r.SKU === 'K4') && out.find(r => r.SKU === 'K3').Problems === 'Fewer than 7 pictures' && out.find(r => r.SKU === 'K3')["Amazon's picture error message"] === '' && got.fixed === 2, JSON.stringify(out.map(r => [r.SKU, r.Problems])));
     ok('"Verified at": the time of the live read for K3; "not confirmed: Amazon could not be read" for C1 (kept: the screen still shows it); empty for the rows from the auto refresh',
       /^\d{1,2} [A-Z][a-z]{2} \d\d:\d\d$/.test(out.find(r => r.SKU === 'K3')['Verified at']) && out.find(r => r.SKU === 'C1')['Verified at'] === 'not confirmed: Amazon could not be read'
       && ['K2', 'K7', 'S1'].every(s => out.find(r => r.SKU === s)['Verified at'] === ''), out.map(r => r.SKU + '=' + r['Verified at']).join(' '));
@@ -186,15 +186,15 @@ function screenVsSheet(P, brands, sheet) {
   console.log('== both brands, the filter option, the menu ==');
   const both = P.imDlRows(['SP', 'CPC'], '');
   ok('Both brands: CPC\'s C1 (no main, stock 3) is in, C2 (stock 0) is not', both.some(r => r.sku === 'C1' && r.cells[0] === 'CPC' && r.cells[11] === 'Yes') && !both.some(r => r.sku === 'C2') && both.length === 6, both.map(r => r.sku).join());
-  ok('Only this filter ("Too small"): only K3', P.imDlRows(['SP'], 'small').map(r => r.sku).join() === 'K3');
-  P.el('imFilter').value = 'small';
+  ok('Only this filter ("Fewer than 7"): K3, K7, S1', P.imDlRows(['SP'], 'few').map(r => r.sku).sort().join() === 'K3,K7,S1');
+  P.el('imFilter').value = 'few';
   const menu = P.imDlMenuHtml();
-  ok('the menu with a card\'s filter on: This brand / Both brands, and "Only this filter: Too small (under 2000)" / "All picture problems"', /This brand \(Ridhi\)/.test(menu) && /Both brands/.test(menu)
-    && /value="filter" checked> Only this filter: Too small \(under 2000\)/.test(menu) && /value="all"> All picture problems/.test(menu));
+  ok('the menu with a card\'s filter on: This brand / Both brands, and "Only this filter: Fewer than 7 pictures" / "All picture problems"', /This brand \(Ridhi\)/.test(menu) && /Both brands/.test(menu)
+    && /value="filter" checked> Only this filter: Fewer than 7 pictures/.test(menu) && /value="all"> All picture problems/.test(menu));
   P.el('imFilter').value = 'all';
   ok('…no filter on, or a picker filter that is not a card: no Rows question', !/Only this filter/.test(P.imDlMenuHtml()) && (() => { P.el('imFilter').value = 'diff'; const m = P.imDlMenuHtml(); P.el('imFilter').value = 'all'; return !/Only this filter/.test(m); })());
-  const one = await P.imDlDownload(true, 'small');
-  ok('Download (both brands, only "Too small"): Both in the name, 1 listing (K3, read live: critical)', /^image-errors_Both_\d{4}-\d{2}-\d{2}_\d{4}\.csv$/.test(one.name) && one.rows === 1 && one.critical === 1, one.name);
+  const one = await P.imDlDownload(true, 'few');
+  ok('Download (both brands, only "Fewer than 7"): Both in the name, 3 listings (K3 read live: critical)', /^image-errors_Both_\d{4}-\d{2}-\d{2}_\d{4}\.csv$/.test(one.name) && one.rows === 3 && one.critical === 1, one.name);
 
   console.log('== FULL SIZE: both brands, ~4,400 listings — seconds, and screen = sheet ==');
   {
@@ -220,7 +220,7 @@ function screenVsSheet(P, brands, sheet) {
     const ms = Math.round(performance.now() - t0);
     const liveReads = new Set(V.liveCalls.filter(c => c.limg === 'get').map(c => c.sku)).size;
     console.log(`    both brands: ${got.rows} rows of ${V.IML.SP.items.length + V.IML.CPC.items.length} listings · ${got.critical} critical read live (30 ms each, 4 at a time): ${got.liveMs} ms · the sheet itself ${got.ms - got.liveMs} ms · ${ms} ms in all`);
-    ok('the sheet for ~4,400 listings is built in under 2 seconds, without any live read but the critical rows', got.ms - got.liveMs < 2000 && liveReads === got.critical && got.critical < got.rows / 4, `${got.ms - got.liveMs} ms, ${liveReads} live of ${got.rows}`);
+    ok('the sheet for ~4,400 listings is built in under 2 seconds, without any live read but the critical rows', got.ms - got.liveMs < 2000 && liveReads === got.critical && got.critical < got.rows, `${got.ms - got.liveMs} ms, ${liveReads} live of ${got.rows}`);
     const same = screenVsSheet(V, ['SP', 'CPC'], got);
     ok('SCREEN = SHEET at full size: every card (both brands) = its column', Object.values(same.cards).every(([a, b]) => a === b), JSON.stringify(same.cards));
     ok('…and every row\'s problems = its chips', same.rowsOk, same.bad.slice(0, 5).join(' · '));

@@ -24,8 +24,8 @@ function picture(W, H, box, edge) {
     ok('size: 2000 × 2000 = green, 1500 × 1500 = yellow, 800 × 900 = red, unknown = ""', C.imqSize(2000, 2000) === 'g' && C.imqSize(3000, 2400) === 'g'
       && C.imqSize(1500, 1500) === 'y' && C.imqSize(2500, 1999) === 'y' && C.imqSize(800, 900) === 'r' && C.imqSize(0, 0) === '');
     const y = C.imqCheck({ slot: 'PT01', w: 1500, h: 1500 });
-    ok('1500 × 1500: "below 2000 — company minimum", a warning (not refused when it is already on Amazon)', y.size === 'y' && y.level === 'warn' && !y.block
-      && y.chips.some(c => /below 2000 — company minimum/.test(c.t)));
+    ok('1500 × 1500: only its size, as information — no "below 2000" warning (the company\'s 1500 pictures are fine for Amazon)', y.size === 'y' && y.level === 'ok' && !y.block
+      && y.chips.length === 1 && y.chips[0].lv === 'ok' && y.chips[0].t === '1500 × 1500' && !y.chips.some(c => /below 2000/.test(c.t)));
     ok('800 × 800: red "no zoom"', C.imqCheck({ slot: 'PT02', w: 800, h: 800 }).chips.some(c => c.lv === 'bad' && /no zoom/.test(c.t)));
     const up = C.imqCheck({ slot: 'PT01', upload: true, w: 1800, h: 2400, bytes: 3 * MB, type: 'image/jpeg' });
     ok('UPLOAD under 2000 on the shortest side is refused: "Company rule: at least 2000 × 2000"', /^Company rule: at least 2000 × 2000/.test(up.block) && up.level === 'bad', up.block);
@@ -86,15 +86,14 @@ function picture(W, H, box, edge) {
     P.imListRender();
     const html = P.el('imList').innerHTML;
     const n = k => { const m = html.match(new RegExp(`data-im-card="${k}"[^>]*>.*?<b>(\\d+)</b>`)); return m ? +m[1] : null; };
-    ok('7 cards: No main at all · Using the family\'s main · Main not OK · Too small · Fewer than 7 · Amazon picture error · Search suppressed — "Shows another SKU\'s pictures" and "No swatch" are gone',
-      (html.match(/data-im-card="(\w+)"/g) || []).map(s => s.slice(14, -1)).join(',') === 'nomain,noown,pcbad,small,few,amzerr,sup' && /Amazon picture error/.test(html) && /No main at all/.test(html)
-      && !/another SKU/i.test(html) && !/data-im-card="other"/.test(html) && !/No swatch|noswatch/i.test(html));
-    ok('numbers: No main at all 1 (K5) · family\'s main 1 (K2) · Main not OK 1 (K2) · Too small 1 (K3 PT01 1500) · Fewer than 7 1 (K3) · Amazon picture error 1 (K3 18320; K5 has only 90244: not counted) · suppressed 1 (K4)',
-      n('nomain') === 1 && n('noown') === 1 && n('pcbad') === 1 && n('small') === 1 && n('few') === 1 && n('amzerr') === 1 && n('sup') === 1 && n('other') === null && n('noswatch') === null,
+    ok('6 cards: No main at all · Using the family\'s main · Main not OK · Fewer than 7 · Amazon picture error · Search suppressed — "Shows another SKU\'s pictures", "No swatch" and "Too small" are gone',
+      (html.match(/data-im-card="(\w+)"/g) || []).map(s => s.slice(14, -1)).join(',') === 'nomain,noown,pcbad,few,amzerr,sup' && /Amazon picture error/.test(html) && /No main at all/.test(html)
+      && !/another SKU/i.test(html) && !/data-im-card="other"/.test(html) && !/No swatch|noswatch/i.test(html) && !/Too small|under 2000|below 2000/i.test(html));
+    ok('numbers: No main at all 1 (K5) · family\'s main 1 (K2) · Main not OK 1 (K2) · Fewer than 7 1 (K3) · Amazon picture error 1 (K3 18320; K5 has only 90244: not counted) · suppressed 1 (K4) — K3\'s 1500 picture counts nowhere',
+      n('nomain') === 1 && n('noown') === 1 && n('pcbad') === 1 && n('small') === null && n('few') === 1 && n('amzerr') === 1 && n('sup') === 1 && n('other') === null && n('noswatch') === null,
       ['nomain', 'noown', 'pcbad', 'small', 'few', 'amzerr', 'sup', 'other', 'noswatch'].map(k => k + '=' + n(k)).join(' '));
-    ok('"Too small" says how many could not be checked yet (their pictures are not all measured): "under 2000 · 5 not checked" — never in the number', /under 2000 · 5 not checked/.test(html));
     ok('the long grey summary line is gone (no "carry another SKU\'s pictures" text)', !/carry another SKU/.test(html) && /im-meta/.test(html));
-    ok('the dropdown has the same filters: Main missing / Main not OK / Too small filter the list too', ['nomain', 'noown', 'pcbad', 'small', 'amzerr'].every(k => {
+    ok('the dropdown has the same filters: Main missing / family\'s main / Main not OK / Amazon picture error filter the list too', ['nomain', 'noown', 'pcbad', 'amzerr'].every(k => {
       P.el('imFilter').value = k; P.imListRender(); return (P.el('imList').innerHTML.match(/class="im-kid"/g) || []).length === 1 && new RegExp(`data-im-card="${k}" aria-pressed="true"`).test(P.el('imList').innerHTML);
     }));
     P.el('imFilter').value = 'all';
@@ -130,12 +129,12 @@ function picture(W, H, box, edge) {
     P.IMQ.dims = new Map([['a', [2400, 2400]], ['b', [1200, 1200]]]);
     const same = P.imTile('PT01', A('a'), A('a'), false, 'K1');
     const diff = P.imTile('MAIN', A('b'), A('a'), false, 'K1');
-    ok('same picture: B / F only on hover (no is-diff), green dot "2400 × 2400"', /class="im-bf"/.test(same) && /imq-dot is-g/.test(same) && /2400 × 2400/.test(same));
+    ok('same picture: B / F only on hover (no is-diff); no size dot on the tile — a size is information, shown in the editor', /class="im-bf"/.test(same) && !/imq-dot/.test(same) && !/2400 × 2400/.test(same));
     ok('shoppers see another: "B● F●" always shown (is-diff), the old .im-diff class still there underneath', /class="im-bf is-diff"/.test(diff) && /im-th im-diff/.test(diff)
       && /fa-bfd is-g.*fa-bfd is-r/.test(diff));
     P.IMQ.dims = new Map();
     const unknown = P.imTile('PT02', A('c'), A('c'), false, 'K1');
-    ok('size not known: the dot waits to be measured when on screen (data-imq-url, the full picture)', new RegExp(`data-imq-url="${A('c').replace(/[.?]/g, '\\$&')}"`).test(unknown));
+    ok('a tile never carries a size badge (none for a small one, none for one not measured)', !/imq-dot|data-imq/.test(unknown) && !/imq-dot/.test(P.imTile('PT02', A('b'), A('b'), false, 'K1')));
     ok('the swatch has no B / F and no size dot (Amazon\'s catalogue never returns a swatch)', !/im-bf|imq-dot/.test(P.imTile('SWCH', '', A('sw'), true, 'K1')));
     ok('every tile with a picture carries "Copy" for that one picture', /data-copy1="K1" data-slot="PT01"/.test(same) && !/data-copy1/.test(P.imTile('PT03', '', '', false, 'K1')));
     P.setClip(null);
@@ -190,13 +189,13 @@ function picture(W, H, box, edge) {
       && /Preview · paste into 1 ticked listing\(s\)/.test(P.el('imList').innerHTML));
 
     // --- the preview ---
-    P.IMQ.dims = new Map([[P.imqId(k1.img.PT01), [1500, 1500]], [P.imqId(k1.img.MAIN), [2400, 2400]]]);
+    P.IMQ.dims = new Map([[P.imqId(k1.img.PT01), [800, 800]], [P.imqId(k1.img.MAIN), [2400, 2400]]]);
     P.imPastePreview(['K2', 'S1', 'NOPE']);
     const h = modal.html;
     ok('PREVIEW before sending: per listing the slots that change, old → new picture', /im-pv-l/.test(h) && (h.match(/class="im-pv-l"/g) || []).length === 2 && /K2.*S1/s.test(h)
       && (h.match(/im-pv-arrow/g) || []).length === 16 && sent.length === 0);
-    ok('…a picture failing the rules (PT01 1500 × 1500) is marked, left out, and needs its own "Include anyway" tick', (h.match(/data-pv-inc=/g) || []).length === 2
-      && /1500 × 1500 · below 2000 — company minimum/.test(h) && /2 left out/.test(h) && /14 picture\(s\) go in/.test(h));
+    ok('…a picture failing the rules (PT01 800 × 800: no zoom) is marked, left out, and needs its own "Include anyway" tick — a 1500 picture would not be', (h.match(/data-pv-inc=/g) || []).length === 2
+      && /800 × 800 · no zoom/.test(h) && !/below 2000/.test(h) && /2 left out/.test(h) && /14 picture\(s\) go in/.test(h));
     ok('…a picture that passes says so (2400 × 2400), one not measured says "Size not known"', /imq-chip is-ok"[^>]*>2400 × 2400/.test(h) && /Size not known/.test(h));
     ok('…listings that will not change are named (NOPE — not in this snapshot)', /NOPE<\/span> — not in this snapshot/.test(h));
     P.getPV().inc.add('K2|PT01');
@@ -286,9 +285,9 @@ function picture(W, H, box, edge) {
     ok('…the filters follow: "sup" only the suppressed, "nobuy" only the live not-buyable', P.imKidMatch(co7, 'sup', '') === false && P.imKidMatch({ sku: 'NB1', st: 'DISCOVERABLE' }, 'nobuy', '') === true
       && P.imKidMatch({ sku: 'NB0', st: 'DISCOVERABLE' }, 'nobuy', '') === false);
     P.IMQ.dims = new Map([['k3MAIN', [1500, 1500]], ['k3PT01', [800, 800]]]);
-    ok('quality summary: K3 "5/9 pictures · 2 below 2000" (no swatch word any more); K1 "9/9 pictures" — then what could not be checked, said quietly ("not checked: …")',
-      P.imKidSummary(it('K3')).replace(/<[^>]+>/g, '') === '5/9 pictures · 2 below 2000 · not checked: Main not OK'
-      && P.imKidSummary(it('K1')).replace(/<[^>]+>/g, '') === '9/9 pictures · not checked: Main not OK, sizes, Amazon errors' && /class="im-nc"/.test(P.imKidSummary(it('K1'))), P.imKidSummary(it('K3')).replace(/<[^>]+>/g, '') + ' / ' + P.imKidSummary(it('K1')).replace(/<[^>]+>/g, ''));
+    ok('quality summary: K3 "5/9 pictures" (no "below 2000", no swatch word any more); K1 "9/9 pictures" — then what could not be checked, said quietly ("not checked: …")',
+      P.imKidSummary(it('K3')).replace(/<[^>]+>/g, '') === '5/9 pictures · not checked: Main not OK'
+      && P.imKidSummary(it('K1')).replace(/<[^>]+>/g, '') === '9/9 pictures · not checked: Main not OK, Amazon errors' && /class="im-nc"/.test(P.imKidSummary(it('K1'))), P.imKidSummary(it('K3')).replace(/<[^>]+>/g, '') + ' / ' + P.imKidSummary(it('K1')).replace(/<[^>]+>/g, ''));
     P.IM_OPEN.add('PAR'); P.IM_OPEN.add('solo:S1');   // families start closed: open them to see the rows
     P.imListRender();
     let html = P.el('imList').innerHTML;

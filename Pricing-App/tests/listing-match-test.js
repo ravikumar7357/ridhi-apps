@@ -569,17 +569,18 @@ const rowOf = (C, sku) => ['SP', 'CPC'].map(b => C.HEALTH[b].rows.find(r => r.sk
     ok('the list is built from the cache (lm) with our pictures, what Amazon serves and Amazon\'s issues', P.C.IML.SP.lm === true && it('R1').img.SWCH === pic('R1', 'SWCH') && it('R2').live.MAIN === pic('R2', 'MAIN') && Array.isArray(it('R2').iss));
     ok('the swatch is no check: R1 (a swatch in our listing) and R2 (none anywhere) have the very same problems (none)', P.C.imCheck(it('R1'), 'noswatch', 'SP') === null
       && P.C.imProblems(it('R1'), 'SP').join() === P.C.imProblems(it('R2'), 'SP').join() && P.C.imProblems(it('R2'), 'SP').length === 0, P.C.imProblems(it('R2'), 'SP').join());
-    ok('R3 (its ASIN is not in the catalogue the cache read): what Amazon serves is NOT KNOWN → Too small / Family\'s main are "not checked"; No main at all and Fewer than 7 decided from ours alone',
-      it('R3').liveErr === 'not in catalogue' && P.C.imCheck(it('R3'), 'small', 'SP') === null && P.C.imCheck(it('R3'), 'nomain', 'SP') === false && P.C.imCheck(it('R3'), 'few', 'SP') === false, JSON.stringify([it('R3').liveErr, P.C.imCheck(it('R3'), 'small', 'SP')]));
-    ok('Too small: the sizes are Amazon\'s own from the cache\'s catalogue (2000 × 2000 here) → R2 decided, not flagged', P.C.imCheck(it('R2'), 'small', 'SP') === false && P.C.imSizes(it('R2')).unknown === 0);
-    // Amazon NOW: R2 has a swatch in our listing, and one picture fewer is served, one of them 1500 × 1500
+    ok('R3 (its ASIN is not in the catalogue the cache read): what Amazon serves is NOT KNOWN → Main not OK is "not checked"; No main at all and Fewer than 7 decided from ours alone',
+      it('R3').liveErr === 'not in catalogue' && P.C.imCheck(it('R3'), 'pcbad', 'SP') === null && P.C.imCheck(it('R3'), 'nomain', 'SP') === false && P.C.imCheck(it('R3'), 'few', 'SP') === false, JSON.stringify([it('R3').liveErr, P.C.imCheck(it('R3'), 'pcbad', 'SP')]));
+    ok('the sizes are Amazon\'s own, from the cache\'s catalogue (2000 × 2000 here) — information for the editor, no check', P.C.imqDims(it('R2').live.MAIN).join() === '2000,2000' && P.C.imCheck(it('R2'), 'small', 'SP') === null);
+    // Amazon NOW: R2 has a swatch in our listing, and only 6 pictures in both (ours and served), one of them 1500 × 1500
     const slots = Object.fromEntries(GALLERY.map(s => [s, pic('R2', s)]));
-    amazonNow = { R2: { ok: true, sku: 'R2', asin: it('R2').asin, status: ['BUYABLE', 'DISCOVERABLE'], listing: Object.assign({}, slots, { SWCH: pic('R2', 'SWCH') }),
-      catalog: Object.fromEntries(GALLERY.slice(0, 7).map(s => [s, { link: pic('R2', s), w: s === 'PT03' ? 1500 : 2000, h: s === 'PT03' ? 1500 : 2000 }])), catalogError: '', issues: [] } };
+    amazonNow = { R2: { ok: true, sku: 'R2', asin: it('R2').asin, status: ['BUYABLE', 'DISCOVERABLE'], listing: Object.assign(Object.fromEntries(GALLERY.slice(0, 6).map(sl => [sl, slots[sl]])), { SWCH: pic('R2', 'SWCH') }),
+      catalog: Object.fromEntries(GALLERY.slice(0, 6).map(s => [s, { link: pic('R2', s), w: s === 'PT03' ? 1500 : 2000, h: s === 'PT03' ? 1500 : 2000 }])), catalogError: '', issues: [] } };
     const live = await P.C.imLiveRead('SP', 'R2', it('R2'));
-    ok('a live read (?limg=get + ?lfix=get) judged by the same check, with Amazon\'s own sizes: R2 now "Too small" (PT03 1500 × 1500)', P.C.imCheck(live.item, 'small', 'SP') === true && live.item.liveRead === true);
-    ok('…and the screen\'s own record follows at once (the ListingMatch overlay): R2 is under "Too small" there too, with 7 served pictures and our swatch', P.C.imProblems(it('R2'), 'SP').join() === 'small'
-      && it('R2').img.SWCH === pic('R2', 'SWCH') && Object.keys(it('R2').live).length === 7, P.C.imProblems(it('R2'), 'SP').join());
+    ok('a live read (?limg=get + ?lfix=get) judged by the same check: R2 now "Fewer than 7" (6 pictures, the swatch not counted); its 1500 picture is no problem', P.C.imProblems(live.item, 'SP').join() === 'few' && live.item.liveRead === true
+      && P.C.imqDims(pic('R2', 'PT03')).join() === '1500,1500', P.C.imProblems(live.item, 'SP').join());
+    ok('…and the screen\'s own record follows at once (the ListingMatch overlay): R2 is under "Fewer than 7" there too, with 6 served pictures and our swatch', P.C.imProblems(it('R2'), 'SP').join() === 'few'
+      && it('R2').img.SWCH === pic('R2', 'SWCH') && Object.keys(it('R2').live).length === 6, P.C.imProblems(it('R2'), 'SP').join());
     amazonNow = { R1: { ok: true, sku: 'R1', asin: it('R1').asin, status: ['BUYABLE', 'DISCOVERABLE'], listing: { MAIN: pic('R1', 'MAIN') }, catalog: {}, catalogError: 'Catalogue: 429 throttled', issues: [] } };
     const before = Object.keys(it('R1').live).length;
     const bad = await P.C.imLiveRead('SP', 'R1', it('R1'));

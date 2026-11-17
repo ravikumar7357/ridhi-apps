@@ -57,21 +57,17 @@ function page(items, opts) {
   ok('NOT CHECKED: the catalogue did not answer (which picture shoppers see is not known)', chk(mk('C1', { live: {}, liveErr: 'catalogue 500' }), 'pcbad') === null);
   { const Q = page([]); Q.PC.loaded = false; Q.PC.marks.SP = {}; ok('NOT CHECKED: the marks are not read yet', Q.imCheck(mk('C9'), 'pcbad', 'SP') === null); }
 
-  console.log('== Too small (under 2000): the pictures Amazon SERVES, with their sizes; a size not known = not checked ==');
-  const d1 = mk('D1'); measure(d1, 2400, 2400); P.IMQ.dims.set(P.imqId(A('D1PT03')), [1500, 1500]);
-  ok('TRUE: one picture measured at 1500 × 1500', chk(d1, 'small') === true && /PT03 1500×1500/.test(P.imCheckWhy(d1, 'small', 'SP')));
-  const d2 = mk('D2'); measure(d2, 2000, 2000);
-  ok('FALSE: every picture measured, all 2000 × 2000 or more', chk(d2, 'small') === false);
-  const d3 = mk('D3'); P.IMQ.dims.set(P.imqId(A('D3MAIN')), [2400, 2400]);
-  ok('NOT CHECKED: one measured (fine), eight not measured yet — never flagged', chk(d3, 'small') === null);
-  ok('NOT CHECKED: nothing measured at all', chk(mk('D4'), 'small') === null);
-  const d5 = mk('D5', { img: Object.assign(full('D5'), { SWCH: A('D5SW') }) }); measure(d5, 2000, 2000); P.IMQ.dims.set(P.imqId(A('D5SW')), [60, 40]);
-  ok('FALSE: a tiny swatch is not a picture of the stack', chk(d5, 'small') === false);
-  const d6 = mk('D6', { live: {}, liveErr: 'catalogue 429' }); measure(d6, 2000, 2000);
-  ok('NOT CHECKED: ours all fine, but what Amazon serves is not known', chk(d6, 'small') === null);
-  const d7 = mk('D7', { img: Object.assign(full('D7'), { PT05: A('ourSmallOne') }) }); measure(d7, 2000, 2000); P.IMQ.dims.set(P.imqId(A('ourSmallOne')), [1500, 1500]);
-  ok('FALSE: a small picture of OURS that Amazon does not serve (Amazon serves its own 2000 one in that slot) — Amazon gives no size for it, shoppers never see it',
-    chk(d7, 'small') === false && P.imOldCheck(d7, 'small', 'SP', new Map()) === true);
+  console.log('== Too small (under 2000): REMOVED — the company\'s 1500 pictures are fine for Amazon; a size is information only ==');
+  {
+    const d1 = mk('D1'); measure(d1, 1500, 1500);
+    ok('a listing whose every picture is 1500 × 1500: no problem at all — no check, no chip, not in "need pictures", not in the sheet',
+      !('small' in P.IM_CHECKS) && chk(d1, 'small') === null && P.imProblems(d1, 'SP').length === 0 && P.imKidChip(d1).t === 'Buyable' && P.imNeeds(d1) === false);
+    ok('…before, it was flagged (the old count imgCounts shows)', P.imOldCheck(d1, 'small', 'SP', new Map()) === true);
+    ok('no card, no filter option, no download column, no row words, no "below 2000" anywhere', !P.IM_CARDS.some(c => c.k === 'small') && !/value="small"|Too small/.test(SRC('index.html'))
+      && !P.IM_DL_COLS.some(c => /Too small|2000/.test(c)) && !P.IM_DL_CHECKS.some(c => c.k === 'small') && !/2000/.test(P.imKidSummary(d1)) && !/below 2000/.test(P.imTile('PT01', A('D1PT01'), A('D1PT01'), false, 'D1')));
+    ok('the picture rules give the size as information (an OK chip "1500 × 1500"), never a warning', P.imqCheck({ slot: 'PT01', w: 1500, h: 1500 }).level === 'ok' && P.imqCheck({ slot: 'PT01', w: 1500, h: 1500 }).chips.every(c => c.lv === 'ok'));
+    ok('…but an UPLOAD under 2000 × 2000 is still refused (the company rule, unchanged)', /^Company rule: at least 2000 × 2000/.test(P.imqCheck({ slot: 'PT01', upload: true, w: 1500, h: 1500, bytes: 3e6, type: 'image/jpeg' }).block));
+  }
 
   console.log('== Fewer than 7: real pictures = MAIN + PT01–PT08, ours or Amazon\'s, whichever is more ==');
   ok('TRUE: 5 of ours, 5 served', chk(mk('F1', { img: full('F1', 5), live: full('F1', 5) }), 'few') === true);
@@ -159,19 +155,19 @@ function page(items, opts) {
     const Q = page(items);
     items.forEach(i => SLOTS.forEach(s => { if (i.img[s]) Q.IMQ.dims.set(Q.imqId(i.img[s]), [2400, 2400]); }));
     const cards = Object.fromEntries(Q.imCardsData(Q.IML.SP.items).map(c => [c.k, c]));
-    ok('N1 (no MAIN of ours, the catalogue did not answer): in NO card\'s number — "1 not checked" in No main at all, Family\'s main, Main not OK, Too small',
-      ['nomain', 'noown', 'pcbad', 'small'].every(k => cards[k].n === 0 && cards[k].u === 1 && /1 not checked/.test(cards[k].note)) && Object.values(cards).every(c => c.n === 0), JSON.stringify(Object.values(cards).map(c => [c.k, c.n, c.u])));
+    ok('N1 (no MAIN of ours, the catalogue did not answer): in NO card\'s number — "1 not checked" in No main at all, Family\'s main, Main not OK',
+      ['nomain', 'noown', 'pcbad'].every(k => cards[k].n === 0 && cards[k].u === 1 && /1 not checked/.test(cards[k].note)) && Object.values(cards).every(c => c.n === 0), JSON.stringify(Object.values(cards).map(c => [c.k, c.n, c.u])));
     ok('…what CAN be decided is: its 8 pictures of ours are enough for "Fewer than 7" (not flagged, not "not checked"); Amazon reports no picture error', cards.few.u === 0 && cards.amzerr.u === 0 && cards.sup.u === 0);
     ok('…before the accuracy pass the same listing was counted under "No main at all" (and "No swatch")', Q.imOldCheck(items[0], 'nomain', 'SP', new Map()) && Q.imOldCheck(items[0], 'noswatch', 'SP', new Map()));
     Q.IM_OPEN.add('PAR'); Q.imListRender();
     const html = Q.el('imList').innerHTML;
-    ok('its row says it quietly: "not checked: main, family\'s main, Main not OK, sizes"', /class="im-nc"[^>]*>not checked: main, family's main, Main not OK, sizes</.test(html), (html.match(/not checked:[^<]*/) || [''])[0]);
+    ok('its row says it quietly: "not checked: main, family\'s main, Main not OK"', /class="im-nc"[^>]*>not checked: main, family's main, Main not OK</.test(html), (html.match(/not checked:[^<]*/) || [''])[0]);
     ok('…the chip of N1 is its Amazon status ("Buyable"), not "No main at all"', Q.imKidChip(items[0]).t === 'Buyable');
     ok('a filter shows only the listings it is really true for: "No main at all" shows nothing here', (() => { Q.el('imFilter').value = 'nomain'; Q.imListRender(); const n = (Q.el('imList').innerHTML.match(/class="im-kid"/g) || []).length; Q.el('imFilter').value = 'all'; return n === 0; })());
     ok('"N need pictures" on the family counts real problems only: N1 is not one', Q.imNeeds(items[0]) === false);
   }
 
-  console.log('== "Shows another SKU\'s pictures" and "No swatch" are gone everywhere ==');
+  console.log('== "Shows another SKU\'s pictures", "No swatch" and "Too small" are gone everywhere ==');
   {
     const im = SRC('app/listing/image-manager.js');
     const code = im.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
@@ -179,16 +175,17 @@ function page(items, opts) {
     ok('IM_CARDS, the picker (index.html) and the download columns do not name it', !P.IM_CARDS.some(c => c.k === 'other' || /another/i.test(c.t)) && !/value="other"|another/i.test((SRC('index.html').match(/<select id="imFilter"[\s\S]*?<\/select>/) || ['x another'])[0]) && !/another SKU/i.test(SRC('index.html'))
       && !P.IM_DL_COLS.some(c => /another/i.test(c)) && !P.IM_DL_CHECKS.some(c => c.k === 'other'));
     ok('the only place their words remain is the console report\'s "old count → removed" lines', (code.match(/another SKU/gi) || []).length === 1 && /check: "Shows another SKU's pictures"[^\n]*now: 'removed'/.test(code)
-      && (code.match(/'No swatch'/g) || []).length === 1 && /check: 'No swatch'[^\n]*now: 'removed'/.test(code));
+      && (code.match(/'No swatch'/g) || []).length === 1 && /check: 'No swatch'[^\n]*now: 'removed'/.test(code)
+      && (code.match(/Too small/g) || []).length === 1 && /check: 'Too small \(under 2000\)'[^\n]*now: 'removed'/.test(code));
     const k4 = mk('K4', { live: Object.assign(full('K4'), { MAIN: A('K1MAIN') }) });
     const Q = page([mk('K1'), k4]);
     Q.IM_OPEN.add('PAR'); Q.imListRender();
     ok('a listing Amazon shows another of our pictures on: its chip is its status ("Buyable"), the list and cards never say "another SKU"', Q.imKidChip(k4).t === 'Buyable' && !/another SKU|Shows K1/i.test(Q.el('imList').innerHTML));
-    ok('every other check is still there, by its name', ['No main at all', "Using the family's main", 'Main not OK', 'Too small (under 2000)', 'Fewer than 7 pictures', 'Amazon picture error', 'Search suppressed', 'Not buyable', 'Live image differs from yours']
-      .every(name => Object.values(P.IM_CHECKS).includes(name)) && Object.keys(P.IM_CHECKS).length === 9
-      && ['nomain', 'pcbad', 'small', 'diff', 'sup', 'amzerr', 'noown', 'few', 'nobuy'].every(k => new RegExp(`<option value="${k}">`).test((SRC('index.html').match(/<select id="imFilter"[\s\S]*?<\/select>/) || [''])[0])));
+    ok('every other check is still there, by its name', ['No main at all', "Using the family's main", 'Main not OK', 'Fewer than 7 pictures', 'Amazon picture error', 'Search suppressed', 'Not buyable', 'Live image differs from yours']
+      .every(name => Object.values(P.IM_CHECKS).includes(name)) && Object.keys(P.IM_CHECKS).length === 8
+      && ['nomain', 'pcbad', 'diff', 'sup', 'amzerr', 'noown', 'few', 'nobuy'].every(k => new RegExp(`<option value="${k}">`).test((SRC('index.html').match(/<select id="imFilter"[\s\S]*?<\/select>/) || [''])[0])));
     ok('the cards keep their names and colours', JSON.stringify(P.IM_CARDS.map(c => [c.k, c.t, c.cls])) === JSON.stringify([['nomain', 'No main at all', 'is-err'], ['noown', "Using the family's main", 'is-att'],
-      ['pcbad', 'Main not OK', 'is-err'], ['small', 'Too small', 'is-att'], ['few', 'Fewer than 7', 'is-att'], ['amzerr', 'Amazon picture error', 'is-err'], ['sup', 'Search suppressed', 'is-err']]));
+      ['pcbad', 'Main not OK', 'is-err'], ['few', 'Fewer than 7', 'is-att'], ['amzerr', 'Amazon picture error', 'is-err'], ['sup', 'Search suppressed', 'is-err']]));
   }
 
   console.log('== sizes are measured on the picture\'s own file; a failed catalogue read is never "Amazon serves nothing" ==');
@@ -247,7 +244,7 @@ function page(items, opts) {
       P2.imCheck(P2.IML.SP.items.find(i => i.sku === 'R2'), 'sup', 'SP') === false && P2.imCheck(P2.IML.SP.items.find(i => i.sku === 'R3'), 'amzerr', 'SP') === false);
     const c = (brand, check) => counts.find(r => r.brand === brand && r.check === check) || {};
     ok('imgCounts: per brand and check, the old count → the count now and the not-checked; the removed check says "removed"',
-      c('CPC', 'No main at all').now === 1 && c('Ridhi', 'No swatch').old === 3 && c('Ridhi', 'No swatch').now === 'removed' && c('Ridhi', "Shows another SKU's pictures").now === 'removed' && c('Ridhi', 'Too small (under 2000)').notChecked === 4, JSON.stringify(counts.filter(r => r.brand === 'Ridhi').map(r => [r.check, r.old, r.now, r.notChecked])));
+      c('CPC', 'No main at all').now === 1 && c('Ridhi', 'No swatch').old === 3 && c('Ridhi', 'No swatch').now === 'removed' && c('Ridhi', "Shows another SKU's pictures").now === 'removed' && c('Ridhi', 'Too small (under 2000)').now === 'removed', JSON.stringify(counts.filter(r => r.brand === 'Ridhi').map(r => [r.check, r.old, r.now, r.notChecked])));
   }
 
   console.log(`\n${pass} passed, ${fail} failed`);

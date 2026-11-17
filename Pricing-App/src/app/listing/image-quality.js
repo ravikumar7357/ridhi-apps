@@ -2,7 +2,8 @@
  * Used on the list's tiles (a small size dot), in the editor (chips under each picture), on upload (a picture can be refused)
  * and in the paste preview (a picture that fails needs an extra tick). One function, imqCheck, says what is right and wrong.
  * Rules (company and Amazon):
- *   size   — 2000 × 2000 or more = green; 1000–1999 = yellow "below 2000 — company minimum"; under 1000 on the long side = red "no zoom".
+ *   size   — information (17 Nov 2026: the company's 1500 pictures are fine for Amazon — no "below 2000" warning); under 1000 on the
+ *            long side = red "no zoom" (Amazon cannot zoom).
  *   upload — under 2000 px on the shortest side is refused (company rule); over 10 MB is refused (Amazon); under 2 MB is a warning only;
  *            JPEG / PNG / TIFF / GIF only. The swatch is a small colour sample: the size, shape and 2000 rules do not apply to it.
  *   shape  — a warning when width / height is outside 0.9–1.1.
@@ -25,7 +26,7 @@ const IMQ_FILL_LOW = 0.75;                   // below this: a warning
 const IMQ_TYPES = /^image\/(jpeg|png|tiff|gif)$/;
 const IMQ_STORE = 'sellora.imgdims2';        // localStorage: picture id → [w, h] (2: measured on the picture's own file only, 17 Nov 2026)
 const IMQ_STORE_MAX = 20000;
-const IMQ_WORDS = { g: '2000 × 2000 or more', y: 'below 2000 — company minimum', r: 'no zoom' };
+const IMQ_WORDS = { g: '2000 × 2000 or more', y: '', r: 'no zoom' };   // y: no words — a 1500 picture is fine (17 Nov 2026)
 const IMQ = { dims: null, seeded: {}, queue: [], busy: 0, seen: new Set(), obs: null, onSize: null, saveT: 0 };
 
 /* ----- the rules ----- */
@@ -54,8 +55,8 @@ function imqCheck(info) {
     else if (q.bytes > IMQ_MAX_BYTES) block = `Over 10 MB (${imqMb(q.bytes)}) — Amazon refuses it.`;
     else if (!sw && w && Math.min(w, h) < IMQ_MIN) block = `Company rule: at least 2000 × 2000 (this one is ${w} × ${h}).`;
   }
-  if (size === 'g') chips.push({ lv: 'ok', t: `${w} × ${h}`, tip: IMQ_WORDS.g });
-  else if (size === 'y') chips.push({ lv: 'warn', t: `${w} × ${h} · ${IMQ_WORDS.y}`, tip: 'The company minimum is 2000 × 2000' });
+  // the size as information: 1500 × 1500 is as fine as 2000 × 2000 (only an UPLOAD under 2000 is refused — the company rule above)
+  if (size === 'g' || size === 'y') chips.push({ lv: 'ok', t: `${w} × ${h}`, tip: 'The picture\'s size' });
   else if (size === 'r') chips.push({ lv: 'bad', t: `${w} × ${h} · ${IMQ_WORDS.r}`, tip: 'Under 1000 px on the long side: shoppers cannot zoom in' });
   if (!sw && w && h && (w / h < IMQ_SQUARE[0] || w / h > IMQ_SQUARE[1])) chips.push({ lv: 'warn', t: 'Not square', tip: `${w} × ${h} — a square picture fills Amazon's frame` });
   if (q.upload && q.bytes && q.bytes < IMQ_SMALL_BYTES && q.bytes <= IMQ_MAX_BYTES) chips.push({ lv: 'warn', t: 'Small file — check it is sharp', tip: imqMb(q.bytes) });

@@ -409,14 +409,15 @@ function imState(item, brand) {
  *   live — what Amazon serves to shoppers (the catalogue). KNOWN only when the catalogue was asked about this ASIN and answered
  *          (it has an ASIN and no liveErr): an empty map after a failed read is no answer, never "Amazon serves no picture".
  *   iss  — Amazon's own current issues on the listing (severity, code, message, the attributes it names); st — Amazon's status.
- * The checks (IM_CHECKS): nomain, noown, pcbad, small, few, amzerr, sup (the cards) and nobuy, diff (the picker only). Each reads only
+ * The checks (IM_CHECKS): nomain, noown, pcbad, few, amzerr, sup (the cards) and nobuy, diff (the picker only). Each reads only
  * what Amazon really gives — our submitted pictures, the catalogue's pictures with their sizes, Amazon's issues, status and enforcement
  * actions — and the Picture check's marks (a person's judgement). imProblems(item) is the listing's problems: the cards, the filters,
  * the row's chips and the Download errors sheet all read it, so the screen and the sheet always agree.
- * REMOVED (17 Nov 2026): "Shows another SKU's pictures" (the company uses one picture on many SKUs on purpose) and "No swatch"
- * (Amazon's catalogue returns no swatch, so "Amazon serves none" can never be known).
+ * REMOVED (17 Nov 2026): "Shows another SKU's pictures" (the company uses one picture on many SKUs on purpose), "No swatch"
+ * (Amazon's catalogue returns no swatch, so "Amazon serves none" can never be known) and "Too small (under 2000)" (the company's
+ * 1500 pictures are fine for Amazon). A picture's size is information only — the editor shows it, nothing counts it.
  * ============================================================================================ */
-const IM_CHECKS = { nomain: 'No main at all', noown: "Using the family's main", pcbad: 'Main not OK', small: 'Too small (under 2000)', few: 'Fewer than 7 pictures',
+const IM_CHECKS = { nomain: 'No main at all', noown: "Using the family's main", pcbad: 'Main not OK', few: 'Fewer than 7 pictures',
   amzerr: 'Amazon picture error', sup: 'Search suppressed', nobuy: 'Not buyable', diff: 'Live image differs from yours' };
 // Our listing's own pictures were read / Amazon's catalogue answered for this ASIN.
 const imMineKnown = item => !!(item && item.img && typeof item.img === 'object');
@@ -487,17 +488,6 @@ function imServedPics(item) {
   });
   return out;
 }
-// The served pictures by size: { small: [{ slot, w, h }] (under 2000 on the shortest side), ok (2000+), unknown (size not known) }.
-function imSizes(item) {
-  const out = { small: [], ok: 0, unknown: 0 };
-  imServedPics(item).forEach(pic => {
-    const wh = imqDims(pic.url);
-    if (!wh) out.unknown++;
-    else if (imqSize(wh[0], wh[1]) === 'g') out.ok++;
-    else out.small.push({ slot: pic.slot, w: wh[0], h: wh[1] });
-  });
-  return out;
-}
 const imAmzPic = url => /\/images\/I\/[^./?]+/.test(String(url || ''));
 /** Is the picture Amazon serves in a slot the one we sent? true | false | null. The same picture has the same id in its link whatever
  *  size Amazon serves it at; a picture of ours that is not on Amazon's servers (our own link, still being taken in) cannot be compared. */
@@ -533,13 +523,6 @@ function imCheck(item, k, brand) {
     // the marks not read yet (and none held): not checked
     if (!marks || (!PC.loaded && !Object.keys(marks).length) || !liveOk) return null;
     return !!live.MAIN && (marks[imqId(live.MAIN)] || {}).v === 'bad';
-  }
-  if (k === 'small') {
-    // a picture Amazon serves whose size (Amazon's) is under 2000; a size not known is never flagged
-    if (!liveOk) return null;
-    const sizes = imSizes(item);
-    if (sizes.small.length) return true;
-    return sizes.unknown ? null : false;
   }
   if (k === 'few') {
     const count = imPicCount(item);
@@ -577,7 +560,6 @@ function imCheckWhy(item, k, brand) {
   const amz = v => (liveOk ? yn(v) : 'not known' + (item.liveErr ? ' (' + item.liveErr + ')' : ''));
   if (k === 'nomain' || k === 'noown') return `our main: ${yn(img.MAIN)} · Amazon serves a main: ${amz(live.MAIN)}`;
   if (k === 'pcbad') return liveOk && live.MAIN ? `main picture ${imqId(live.MAIN)}: ${((((typeof PC !== 'undefined' && PC.marks[brand]) || {})[imqId(live.MAIN)]) || {}).v || 'no mark'}` : 'Amazon serves a main: ' + amz(live.MAIN);
-  if (k === 'small') { if (!liveOk) return 'what Amazon serves: ' + amz(true); const s = imSizes(item); return (s.small.length ? 'under 2000: ' + s.small.map(p => `${p.slot} ${p.w}×${p.h}`).join(', ') : 'none under 2000') + ` · ${s.ok} at 2000+ · ${s.unknown} size not known`; }
   if (k === 'few') { const c = imPicCount(item); return `pictures: ours ${c.ours == null ? 'not known' : c.ours}, Amazon serves ${c.live == null ? 'not known' : c.live}`; }
   if (k === 'amzerr') return Array.isArray(item.iss) ? (imPicErrs(item).map(e => `ERROR ${e.c || ''}: ${String(e.m || '').slice(0, 120)}`).join(' | ') || 'no picture error') : 'issues not read';
   if (k === 'sup' || k === 'nobuy') { const s = imState(item, brand); return `status ${item.st || 'not read'} → ${s.label}${s.why ? ' (' + s.why + ')' : ''}`; }
@@ -585,15 +567,12 @@ function imCheckWhy(item, k, brand) {
   return '';
 }
 // The card checks that could not be decided for this listing (their short names) — shown as "not checked", never as a problem.
-const IM_CHECK_SHORT = { nomain: 'main', noown: "family's main", pcbad: 'Main not OK', small: 'sizes', few: 'picture count', amzerr: 'Amazon errors', sup: 'status' };
+const IM_CHECK_SHORT = { nomain: 'main', noown: "family's main", pcbad: 'Main not OK', few: 'picture count', amzerr: 'Amazon errors', sup: 'status' };
 const imUnchecked = (item, brand) => IM_CARDS.map(card => card.k).filter(k => imCheck(item, k, brand) === null).map(k => IM_CHECK_SHORT[k] || k)
   .filter((name, i, all) => all.indexOf(name) === i);
 
 /** The main picture shoppers see was marked Not OK in the Picture check (picture-check.js keeps the marks per picture id). */
 const imPcBad = (brand, item) => imCheck(item, 'pcbad', brand) === true;
-/** A picture Amazon serves (not the swatch) whose size is known and under 2000 on its shortest side. */
-const imSmall = item => imCheck(item, 'small') === true;
-const imMeasured = item => IM_SLOTS.some(slot => !!imqDims((item.img || {})[slot] || (item.live || {})[slot]));
 
 /* THE NUMBER CARDS at the top of the list. Each is one of the filter picker's own filters (the picker stays and follows the card):
  * a click shows only those listings, a second click shows all again. Counted over every child listing of the brand; a listing a check
@@ -602,7 +581,6 @@ const IM_CARDS = [
   { k: 'nomain', t: 'No main at all', cls: 'is-err', tip: 'No main picture: none sent by us and none shown to shoppers' },
   { k: 'noown', t: 'Using the family\'s main', cls: 'is-att', tip: 'Your listing sent no main picture of its own; shoppers see the family\'s, and Amazon can suppress it' },
   { k: 'pcbad', t: 'Main not OK', note: 'Picture check', cls: 'is-err', tip: 'Main pictures a person marked Not OK in the Picture check' },
-  { k: 'small', t: 'Too small', note: 'under 2000', cls: 'is-att', tip: 'A picture Amazon serves whose size (Amazon\'s own) is under 2000 × 2000 (company minimum). A size not known is not checked, never flagged' },
   { k: 'few', t: 'Fewer than 7', note: 'pictures', cls: 'is-att', tip: 'Fewer than 7 real pictures (MAIN + PT01–PT08): the ones we sent or the ones Amazon serves, whichever is more; the swatch is not counted' },
   { k: 'amzerr', t: 'Amazon picture error', cls: 'is-err', tip: 'Amazon reports an error about the pictures (other errors are in Listing Errors)' },
   { k: 'sup', t: 'Search suppressed', cls: 'is-err', tip: 'Buyable from a direct link, but taken out of search results' },
@@ -668,8 +646,7 @@ function imKidMatch(item, filter, search) {
 
 // The key under the cards.
 const IM_LEGEND = '<span class="im-bf-key">B<i class="fa-bfd is-g"></i> F<i class="fa-bfd is-r"></i></span> on a picture: B = the picture we sent,'
-  + ' F = what shoppers see (green = that picture, red = shoppers see another, ○ = not live yet, – = none) · dot = size: '
-  + '<i class="imq-dot is-g"></i> 2000+ <i class="imq-dot is-y"></i> under 2000 <i class="imq-dot is-r"></i> no zoom';
+  + ' F = what shoppers see (green = that picture, red = shoppers see another, ○ = not live yet, – = none) · picture sizes: in the editor';
 
 /** B / F of one slot, the same meaning as the Workspace's: B = what our listing sent (Seller Central), F = what shoppers see.
  *  { b, f } with g (that picture) / r (shoppers see another) / u (not live yet) / n (none); `differs` when F is not B's picture. */
@@ -685,7 +662,8 @@ const IM_BF_TIP = { gg: 'Shoppers see the picture we sent', gr: 'We sent a pictu
 const imBfDot = s => (s === 'n' ? '<span class="fa-bfn" aria-hidden="true">–</span>' : `<i class="fa-bfd is-${s}" aria-hidden="true"></i>`);
 
 // One thumbnail in a listing's strip; `sw` marks the swatch tile. B / F shows when what shoppers see is not the picture we sent (the
-// .im-diff class — the old orange ring — is still set underneath); a dot gives the size; hover offers "Copy this picture".
+// .im-diff class — the old orange ring — is still set underneath); hover offers "Copy this picture". No size dot: a picture's size is
+// information only, shown in the editor.
 function imTile(slot, liveUrl, mineUrl, sw, sku) {
   const tile = imTileA(slot, liveUrl, mineUrl, sw);
   const url = IML_VIEW === 'live' ? (liveUrl || mineUrl) : (mineUrl || liveUrl);
@@ -693,19 +671,12 @@ function imTile(slot, liveUrl, mineUrl, sw, sku) {
   const bf = imBfOf(liveUrl, mineUrl);
   // The swatch has no B / F: Amazon's catalogue never returns a swatch, so F would read 'not live' on every one.
   const tag = sw ? '' : `<span class="im-bf${bf.differs ? ' is-diff' : ''}" title="${imEsc((IM_BF_TIP[bf.b + bf.f] || '') + ' · B = the picture we sent, F = what shoppers see')}">B${imBfDot(bf.b)}F${imBfDot(bf.f)}</span>`;
-  let dot = '';
-  if (!sw) {
-    const wh = imqDims(url);
-    const size = wh ? imqSize(wh[0], wh[1]) : '';
-    dot = size ? `<i class="imq-dot is-${size}" data-imq="${imEsc(imqId(url))}" title="${wh[0]} × ${wh[1]} — ${imEsc(IMQ_WORDS[size])}"></i>`
-      : `<i class="imq-dot" data-imq="${imEsc(imqId(url))}" data-imq-url="${imEsc(url)}" title="Size not known yet"></i>`;
-  }
   const name = slot === 'SWCH' ? 'the swatch' : slot;
   const copy = sku ? `<button type="button" class="im-tcopy" data-copy1="${imEsc(sku)}" data-slot="${slot}" data-url="${imEsc(url)}" title="Copy this picture (${name}) to the clipboard">Copy</button>` : '';
   // Hover: View (the large viewer) · Copy · Replace (choose a file; the editor opens and uploads it into this slot, same picture rules).
   const acts = sku ? `<span class="im-tact"><button type="button" class="im-tview" data-view="${imEsc(sku)}" data-slot="${slot}" title="See ${name} large">View</button>${copy}`
     + `<button type="button" class="im-trepl" data-repl="${imEsc(sku)}" data-slot="${slot}" title="Replace ${name}: choose a file — the editor opens and uploads it here">Replace</button></span>` : '';
-  return `<span class="im-tw${sw ? ' im-tw-sw' : ''}"${sku ? ` data-sku="${imEsc(sku)}" data-slot="${slot}"` : ''}>${tile}${tag}${dot}${acts}</span>`;
+  return `<span class="im-tw${sw ? ' im-tw-sw' : ''}"${sku ? ` data-sku="${imEsc(sku)}" data-slot="${slot}"` : ''}>${tile}${tag}${acts}</span>`;
 }
 function imTileA(slot, liveUrl, mineUrl, sw) {
   /* THE TILE SHOWS YOUR OWN PICTURE BY DEFAULT. Amazon's catalogue often serves another child's
@@ -724,7 +695,7 @@ function imTileA(slot, liveUrl, mineUrl, sw) {
 
 /** THE ROW'S CHIPS: one per problem (imProblems — the very list the cards count and the sheet writes), the worst first, and "Not buyable"
  *  when it is; a listing with none shows its Amazon status ("Buyable"). [{ k, t, cls, tip }] */
-const IM_CHIP_ORDER = ['amzerr', 'sup', 'nobuy', 'nomain', 'noown', 'pcbad', 'small', 'few'];
+const IM_CHIP_ORDER = ['amzerr', 'sup', 'nobuy', 'nomain', 'noown', 'pcbad', 'few'];
 function imKidChips(item, brand) {
   const state = imState(item, brand);
   const probs = imProblems(item, brand);
@@ -736,7 +707,6 @@ function imKidChips(item, brand) {
     if (k === 'nomain') return { t: 'No main at all', cls: 'is-bad', tip: 'No main picture: none sent by us and none shown to shoppers' };
     if (k === 'noown') return { t: 'Using the family\'s main', cls: 'is-att', tip: 'Your listing submitted no main image. What shows on Amazon comes from the family, and Amazon can suppress a listing for it.' };
     if (k === 'pcbad') return { t: 'Main not OK', cls: 'is-bad', tip: 'A person marked the main picture Not OK in the Picture check' };
-    if (k === 'small') return { t: 'Too small', cls: 'is-att', tip: 'Under 2000 × 2000: ' + imSizes(item).small.map(p => `${p.slot} ${p.w}×${p.h}`).join(', ') };
     return { t: 'Fewer than 7', cls: 'is-att', tip: `${imPicCount(item).n} pictures (MAIN + PT01–PT08)` };
   };
   const out = IM_CHIP_ORDER.filter(has).map(k => Object.assign({ k }, chip(k)));
@@ -744,19 +714,18 @@ function imKidChips(item, brand) {
 }
 /** The row's first chip (the worst thing about it, else its Amazon status): { k, t, cls, tip }. */
 const imKidChip = item => imKidChips(item)[0];
-/** "9/9 pictures · 2 below 2000 · not checked: sizes" — the pictures the tiles show (the view picker's choice; the swatch is not a
- *  picture), how many Amazon serves under 2000 (the Too small check's own count), and the checks that cannot be decided for it. */
+/** "9/9 pictures · not checked: picture count" — the pictures the tiles show (the view picker's choice; the swatch is not a picture),
+ *  and the checks that cannot be decided for it. */
 function imKidSummary(item) {
   const live = item.live || {};
   const img = item.img || {};
   const urls = IM_SLOTS.map(slot => (IML_VIEW === 'live' ? (live[slot] || img[slot]) : (img[slot] || live[slot]))).filter(Boolean);
-  const below = imSizes(item).small.length;
   const nc = imUnchecked(item);
-  return `${urls.length}/9 pictures${below ? ` · <b class="is-warn">${below} below 2000</b>` : ''}`
+  return `${urls.length}/9 pictures`
     + (nc.length ? ` · <span class="im-nc" title="These could not be decided from the data held, so they are not counted as a problem">not checked: ${imEsc(nc.join(', '))}</span>` : '');
 }
 /** Does this listing need picture work? (any card's problem but suppression, which is not a picture problem by itself) */
-const IM_NEEDS = ['amzerr', 'nomain', 'noown', 'pcbad', 'small', 'few'];
+const IM_NEEDS = ['amzerr', 'nomain', 'noown', 'pcbad', 'few'];
 const imNeeds = item => imProblems(item).some(k => IM_NEEDS.includes(k));
 
 // One child listing's row: tick · SKU · colour · size · one status chip · quality summary · actions, then the strip of tiles.
@@ -1317,12 +1286,11 @@ function imCard(slot, url, opts) {
 }
 
 // The picture rules (image-quality.js) under one card: size words, shape, the same picture twice, and for a file uploaded here its
-// white border and fill. The size line above already gives "2400×2400" and "no zoom", so the size chip keeps only "below 2000 — company minimum".
+// white border and fill. The size line above already gives "2400×2400" (and "no zoom" under 1000), so no chip repeats the size.
 function imCardChips(slot, url, w, h, dup) {
   const q = imqCheck(Object.assign({ slot, w, h, dup }, IM_QFILE[url] ? { white: IM_QFILE[url].white, fill: IM_QFILE[url].fill } : {}));
   const sized = `${w} × ${h}`;
-  const chips = q.chips.filter(chip => !chip.t.startsWith(sized) || q.size === 'y')
-    .map(chip => (chip.t.startsWith(sized) ? Object.assign({}, chip, { t: IMQ_WORDS.y }) : chip));
+  const chips = q.chips.filter(chip => !chip.t.startsWith(sized));
   return chips.length ? `<div class="imq-chips">${imqChipsHtml(chips)}</div>` : '';
 }
 
@@ -1848,7 +1816,7 @@ function imPicks() {
 // Paste the copied stack into every ticked SKU: one send each, applied straight away (the backend previews first), reported line by line.
 /** What a paste would do, per listing, without sending: { jobs, held, careful, qual }. Only the clipboard's ticked slots (the swatch with
  *  `withSw`); mode 'gaps' leaves a slot that already holds a picture (ours or live) alone. `qual`: sku → slot → { q (imqCheck), wh, fail }:
- *  a picture fails when the rules say anything but OK (under 2000, no zoom, not square, the same picture twice in the stack it lands in). */
+ *  a picture fails when the rules say anything but OK (no zoom, not square, the same picture twice in the stack it lands in). */
 function imPastePlan(skus, opts) {
   const o = opts || {};
   const brandKey = $('imBrand').value;
@@ -2043,7 +2011,6 @@ $('imRefresh').onclick = () => imListBuild($('imBrand').value);
 const IM_DL_CHECKS = [
   { k: 'nomain', col: 'No main picture', todo: 'Upload a main picture (none sent, none shown)' },
   { k: 'pcbad', col: 'Main not OK', todo: 'Replace the main picture: pure white background, no text or logo' },
-  { k: 'small', col: 'Too small (under 2000)', todo: 'Replace the pictures under 2000 × 2000 with bigger ones' },
   { k: 'few', col: 'Fewer than 7 pictures', todo: 'Add pictures until there are at least 7' },
   { k: 'amzerr', col: 'Amazon picture error', todo: "Fix what Amazon's picture error says, in the Image Manager editor" },
   { k: 'sup', col: 'Search suppressed', todo: 'Open it in Listing Errors and fix why Amazon took it out of search' },
@@ -2314,6 +2281,7 @@ async function imgCounts() {
     });
     rows.push({ brand: (typeof BRAND_NAME !== 'undefined' && BRAND_NAME[brand]) || brand, check: "Shows another SKU's pictures", listings: kids.length, old: kids.filter(kid => imOldCheck(kid, 'other', brand, owner)).length, now: 'removed', notChecked: '' });
     rows.push({ brand: (typeof BRAND_NAME !== 'undefined' && BRAND_NAME[brand]) || brand, check: 'No swatch', listings: kids.length, old: kids.filter(kid => imOldCheck(kid, 'noswatch', brand, owner)).length, now: 'removed', notChecked: '' });
+    rows.push({ brand: (typeof BRAND_NAME !== 'undefined' && BRAND_NAME[brand]) || brand, check: 'Too small (under 2000)', listings: kids.length, old: kids.filter(kid => imOldCheck(kid, 'small', brand, owner)).length, now: 'removed', notChecked: '' });
   });
   if (typeof console !== 'undefined' && console.table) console.table(rows);
   return rows;
