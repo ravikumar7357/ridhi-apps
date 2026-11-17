@@ -115,6 +115,9 @@ function skcPlanNew(colour, code, brand) {
    * jay wo auto masterdata me add ho jay"). It was refused — "Add it under Masters first". Now Create adds it to the Colour master
    * in the same write as the SKUs (skcCreate); the plan only says so. */
   const newColour = !skcColours().some(c => c.toLowerCase() === col.toLowerCase());
+  /* THE MASTER'S OWN FORMAT (17 Nov: "jo formatting hamare masterdata me bahi rakhni h"): a new colour is written Title Case, as every
+   * colour in the master database is (Sage Leaf Green), whatever case it was typed in. A colour already on the list keeps its spelling. */
+  const colT = newColour ? col.toLowerCase().replace(/\s+/g, ' ').replace(/(^|[\s\-\/(])([a-z])/g, (m, a, b) => a + b.toUpperCase()) : (skcColours().find(c => c.toLowerCase() === col.toLowerCase()) || col);
   const owner = skcCodeOwner(code, col);
   if (owner) return { out, skip, err: `Code ${String(code).trim()} is already ${owner}'s — its SKUs carry it. Use another code.` };
   const seen = new Set();
@@ -131,11 +134,11 @@ function skcPlanNew(colour, code, brand) {
     const base = sib ? Object.assign({}, sib) : { brand: '', cuttingRequired: true };
     delete base._key; delete base.asin; delete base.parentAsin;     // the sibling's listing is not this SKU's
     const rec = Object.assign(base, { sku: full, articleType: String(r.article).trim(), subtype: String(r.subtype).trim(),
-      color: col, size: String(r.size).trim(), brand: brd, imageUrl: '', isCustom: false });
+      color: colT, size: String(r.size).trim(), brand: brd, imageUrl: '', isCustom: false });
     const filled = recipeFill(rec);
     out.push({ rec: filled.rec, label, from: sib ? sib.sku : '', recipe: filled.from.length });
   });
-  return { out, skip, err: '', newColour };
+  return { out, skip, err: '', newColour, colour: colT };
 }
 
 async function skcCreate(colour, code, brand) {
@@ -147,7 +150,7 @@ async function skcCreate(colour, code, brand) {
   /* the colour first, in the same write: the Colour master's own row shape (masters.js mstSave) */
   let colKey = '', colRow = null;
   if (plan.newColour) {
-    const col = String(colour).trim(), now = new Date().toISOString();
+    const col = plan.colour || String(colour).trim(), now = new Date().toISOString();
     const taken = ptList((PTG.masters || {}).colour).some(x => x && String(x.code || '').trim().toLowerCase() === col.toLowerCase());
     colKey = typeof mstNextKey === 'function' ? mstNextKey('colour') : 'm_' + t.toString(36);
     colRow = { code: (taken ? col + ' ' + String(code).trim() : col).toUpperCase(), desc: col,   // the master's codes are the name in capitals active: true, createdAt: now, createdBy: ME.email,
