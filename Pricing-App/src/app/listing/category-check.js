@@ -12,6 +12,10 @@
  *   No category    — Amazon's catalog answered for this live ASIN and holds no browse node for it.
  *   Rank mismatch  — the category its best-seller rank is in (Amazon's classification rank) is nowhere on its browse path.
  *   A child with none of them shows a small green tick and nothing else.
+ *   BY ID WHEN AMAZON'S IDS ARE THERE, BY NAME WHEN THEY ARE NOT: ListingMatch keeps the category id of every step of the browse path
+ *   (`bcIds`) and every category rank with its id (`rks`). Two children are in the same category when their last ids are equal; a rank is
+ *   on the path when its id is one of the path's ids — and the rank is fine when ANY of Amazon's ranks is. A record from before the ids
+ *   were kept (or a family where one child still has such a record) is compared by the names, as before.
  * CORRECT ON PURPOSE: the team's mark on an error row (one row, or ticked rows / "Select all in family" with one button). The child leaves
  *       the errors for good; who marked it and when are saved the way "Removed on purpose" is (listingrules/catok_<brand>, kind 'catok',
  *       through lsGet / lsSave — the existing collection and rule). "N marked correct › Show", each with Undo.
@@ -46,17 +50,28 @@ const ccSame = (a, b) => { const x = ccN(a), y = ccN(b); return !!x && !!y && (x
 const ccShort = parts => (parts.length <= 3 ? parts : [parts[0], parts[parts.length - 2], parts[parts.length - 1]]).join(' › ');
 // The mark's / tick's id of a child: its ASIN (our SKUs on one ASIN are one child), else its SKU.
 const ccId = c => c.asin || 'sku:' + c.sku;
-/** { state: 'ok' | 'none' (Amazon has no browse node) | 'unread' (not in the cache), parts, full, short, leaf, key, sub, main, pic, at }. */
+// Is this rank's category one of the steps of the browse path? By Amazon's category id when the path's ids and the rank's id are there,
+// else by the name.
+const ccOnPath = (rank, parts, ids) => (ids.length && rank.id ? ids.includes(String(rank.id)) : parts.some(name => ccSame(name, rank.c)));
+/** { state: 'ok' | 'none' (Amazon has no browse node) | 'unread' (not in the cache), parts, full, short, leaf, ids (the path's category ids,
+ *  [] when the record has none), nameKey, idKey, ranks (every category rank), rankOn (one of them is on the path), sub (the best one),
+ *  bsr (the rank shown), main, pic, at }. */
 function ccInfo(c) {
   const rec = c.asin && typeof lmGetAsin === 'function' ? lmGetAsin(c.asin, c.brand) : null;
-  if (!rec) return { state: 'unread', parts: [], full: '', short: '', leaf: '', key: '', sub: null, main: null, pic: '', at: 0 };
+  if (!rec) return { state: 'unread', parts: [], full: '', short: '', leaf: '', ids: [], nameKey: '', idKey: '', ranks: [], rankOn: false, sub: null, bsr: null, main: null, pic: '', at: 0 };
   const parts = String(rec.bc || '').split('›').map(s => s.trim()).filter(Boolean);
   const rk = rec.rk || {};
-  return { state: parts.length ? 'ok' : 'none', parts, full: parts.join(' › '), short: ccShort(parts), leaf: parts[parts.length - 1] || '', key: parts.map(ccN).join('>'),
-    sub: rk.sub && rk.sub.r > 0 ? rk.sub : null, main: rk.main && rk.main.r > 0 ? rk.main : null, pic: rec.img && rec.img.MAIN && rec.img.MAIN.u ? String(rec.img.MAIN.u) : '', at: rec.readAt || 0 };
+  // the ids count only when Amazon gave one for every step of the path (a record from before 17 Nov has none: the names decide)
+  const ids = Array.isArray(rec.bcIds) && rec.bcIds.length === parts.length && rec.bcIds.every(Boolean) ? rec.bcIds.map(String) : [];
+  const sub = rk.sub && rk.sub.r > 0 ? rk.sub : null;
+  const ranks = Array.isArray(rec.rks) && rec.rks.length ? rec.rks.filter(x => x && x.r > 0).slice().sort((a, b) => a.r - b.r) : sub ? [sub] : [];
+  const on = ranks.filter(x => ccOnPath(x, parts, ids));
+  return { state: parts.length ? 'ok' : 'none', parts, full: parts.join(' › '), short: ccShort(parts), leaf: parts[parts.length - 1] || '', ids,
+    nameKey: parts.map(ccN).join('>'), idKey: ids.length ? ids[ids.length - 1] : '', ranks, rankOn: on.length > 0, sub: ranks[0] || null, bsr: on[0] || ranks[0] || null,
+    main: rk.main && rk.main.r > 0 ? rk.main : null, pic: rec.img && rec.img.MAIN && rec.img.MAIN.u ? String(rec.img.MAIN.u) : '', at: rec.readAt || 0 };
 }
-// "#1,234 in Tablecloths": the category rank when Amazon gives one, else the department rank; '' when it gives none.
-const ccBsr = info => (info.sub ? `#${fcNf(info.sub.r)} in ${info.sub.c}` : info.main ? `#${fcNf(info.main.r)} in ${info.main.c}` : '');
+// "#1,234 in Tablecloths": the category rank (the one on its browse path when Amazon gives several), else the department rank; '' when none.
+const ccBsr = info => (info.bsr ? `#${fcNf(info.bsr.r)} in ${info.bsr.c}` : info.main ? `#${fcNf(info.main.r)} in ${info.main.c}` : '');
 
 /* ----- the marks (listingrules/catok_<brand>) ----- */
 function ccOkLoad() {
@@ -125,7 +140,10 @@ function ccBuild() {
   let live = 0, unread = 0;
   const groups = fams.map(f => {
     const rows = f.kids.map(c => ({ c, key: fcKey(c.brand, ccId(c)), info: ccInfo(c), probs: [], marked: null, okProbs: [] }));
-    // the family's category: the browse path most of its live children are in (a tie: the side with more stock, then the first by name)
+    // the family's category: the browse path most of its live children are in (a tie: the side with more stock, then the first by name).
+    // Same category = the same category id when every child of the family has Amazon's ids, else the same path by name.
+    const byId = rows.every(r => r.info.state !== 'ok' || r.info.idKey);
+    rows.forEach(r => { r.info.key = byId ? r.info.idKey : r.info.nameKey; });
     const tally = new Map();
     rows.forEach(r => {
       if (r.info.state !== 'ok') return;
@@ -144,9 +162,13 @@ function ccBuild() {
       if (i.state === 'ok' && main && i.key !== main.key) {
         // the product names when they differ; two categories with the same last name: the short paths
         const x = ccSame(i.leaf, main.leaf) ? i.short : i.leaf, y = ccSame(i.leaf, main.leaf) ? main.short : main.leaf;
-        r.probs.push({ k: 'mixed', text: `This child is in ${x}, its family is in ${y}.`, hint: `Shoppers browsing ${y} won't see it. Ask Amazon to move it, or mark it 'Correct on purpose'.` });
+        // two different Amazon categories (by id) that are written the very same way: said so, with the two ids
+        const text = x === y ? `This child is in another Amazon category with the same name as its family's: ${x} (category ${i.idKey}, its family is in ${main.idKey}).`
+          : `This child is in ${x}, its family is in ${y}.`;
+        r.probs.push({ k: 'mixed', text, hint: `Shoppers browsing ${y} won't see it. Ask Amazon to move it, or mark it 'Correct on purpose'.` });
       }
-      if (i.state === 'ok' && i.sub && i.sub.c && !i.parts.some(name => ccSame(name, i.sub.c)))
+      // a mismatch only when Amazon ranks it and NONE of its category ranks is on its browse path
+      if (i.state === 'ok' && i.ranks.length && !i.rankOn)
         r.probs.push({ k: 'rank', text: `Ranked in ${i.sub.c}, listed in ${i.leaf}.`, hint: CC_HINT.rank });
       const mark = (CC.ok[r.c.brand] || {})[ccId(r.c)];
       if (mark && mark.on && r.probs.length) { r.marked = mark; r.okProbs = r.probs; r.probs = []; }

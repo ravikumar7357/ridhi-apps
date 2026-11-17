@@ -98,6 +98,7 @@ var LM_SCR_MAX = 1200000;              // characters per scratch tab: then it is
 var LM_LIGHT_MAX = 200;                // listings a light pass reads at most per brand
 var LM_LIGHT_OVERLAP_MS = 5 * 60000;   // a light pass asks from a little before the last one, so nothing slips between
 var LM_TEXT_MAX = 2000;                // Amazon's own limit for a description; bullets are cut at 500
+var LM_RANKS_MAX = 8;                  // category ranks kept per ASIN (Amazon gives one to three)
 var LM_REPORT_WAIT_MS = 50 * 60000;    // a report Amazon has not finished after this is asked for again
 var LM_REPORTS = { L: 'GET_MERCHANT_LISTINGS_ALL_DATA', F: 'GET_MERCHANTS_LISTINGS_FYP_REPORT', S: 'GET_FBA_INVENTORY_PLANNING_DATA' };
 var LM_REPORT_NAME = { L: 'All Listings report', F: 'Suppressed listings report', S: 'FBA stock report' };
@@ -1006,28 +1007,38 @@ function lmCat_(it, now) {
   var vals = {};
   LM_VAR_ATTRS.concat(tattrs).forEach(function (k) { var v = attrVal_(a, k); if (v !== '' && v != null) vals[k] = String(v).slice(0, 120); });
   var best = function (list) {
-    var r = 0, c = '';
-    (list || []).forEach(function (x) { var n = Number(x.rank) || 0; if (n > 0 && (!r || n < r)) { r = n; c = x.title || x.classificationId || ''; } });
-    return r ? { r: r, c: String(c).slice(0, 80) } : null;
+    var r = 0, c = '', id = '';
+    (list || []).forEach(function (x) { var n = Number(x.rank) || 0; if (n > 0 && (!r || n < r)) { r = n; c = x.title || x.classificationId || ''; id = String(x.classificationId || ''); } });
+    if (!r) return null;
+    var o = { r: r, c: String(c).slice(0, 80) };
+    if (id) o.id = id;                                   // the category's id (classification ranks only; a department rank has none)
+    return o;
   };
   var ranks = (it.salesRanks && it.salesRanks[0]) || {};
+  var path = lmPathOf_(it);
+  // EVERY category rank Amazon gives (not only the best), each with its category id — Sellora's Categories tab matches them to the path by id
+  var rks = (ranks.classificationRanks || []).filter(function (x) { return x && Number(x.rank) > 0; }).slice(0, LM_RANKS_MAX).map(function (x) {
+    return { id: String(x.classificationId || ''), c: String(x.title || x.classificationId || '').slice(0, 80), r: Number(x.rank) };
+  });
   return {
     asin: it.asin, t: String(s.itemName || attrVal_(a, 'item_name') || '').slice(0, 300), brand: s.brand || s.brandName || '',
     img: img, pa: pa, kids: kids, theme: theme, tattrs: tattrs, vals: vals,
-    bc: lmPath_(it), bcId: (s.browseClassification && s.browseClassification.classificationId) || '',
-    rk: { main: best(ranks.displayGroupRanks), sub: best(ranks.classificationRanks) },
+    bc: path.names.join(' › '), bcIds: path.ids, bcId: (s.browseClassification && s.browseClassification.classificationId) || '',
+    rk: { main: best(ranks.displayGroupRanks), sub: best(ranks.classificationRanks) }, rks: rks,
     aplus: null, readAt: now,
   };
 }
 
-/** "Home & Kitchen › Kitchen & Dining › Kitchen & Table Linens › Tablecloths" from the classification's parent chain. */
-function lmPath_(it) {
+/** The browse path from the classification's parent chain: { names: ['Home & Kitchen', …, 'Tablecloths'], ids: the category id of each
+ *  name, in the same order ('' where Amazon gives none) }. `bc` is the names joined with " › "; `bcIds` the ids. */
+function lmPathOf_(it) {
   var cls = (it.classifications && it.classifications[0] && it.classifications[0].classifications) || [];
   var c = cls[0];
-  var names = [];
-  for (var g = 0; c && g < 12; g++) { if (c.displayName) names.unshift(c.displayName); c = c.parent; }
-  if (!names.length && it.summaries && it.summaries[0] && it.summaries[0].browseClassification) names.push(it.summaries[0].browseClassification.displayName || '');
-  return names.join(' › ');
+  var names = [], ids = [];
+  for (var g = 0; c && g < 12; g++) { if (c.displayName) { names.unshift(c.displayName); ids.unshift(String(c.classificationId || '')); } c = c.parent; }
+  var bcl = it.summaries && it.summaries[0] && it.summaries[0].browseClassification;
+  if (!names.length && bcl && bcl.displayName) { names.push(bcl.displayName); ids.push(String(bcl.classificationId || '')); }
+  return { names: names, ids: ids };
 }
 
 /* ============================== lmCheck: the proof ============================== */

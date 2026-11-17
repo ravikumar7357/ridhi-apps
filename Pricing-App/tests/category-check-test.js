@@ -38,6 +38,7 @@ function sample(o) {
     kid('CPC', 'CD-1', 'CD-P', { bc: DO, qty: 9 }), kid('CPC', 'CD-2', 'CD-P', { bc: SB, qty: 2 }),   // 1 against 1: the side with more stock is the family's
   ];
   if (o.allFine) kids = kids.filter(k => !['RTC14-3', 'RTC14-4', 'RTC14-5', 'RTC14-6', 'ZZ-200', 'CD-2'].includes(k.sku));
+  if (o.kids) kids = o.kids(kid);
   if (o.big) {
     kids = [];
     for (let i = 0; i < o.big; i++) { const b = i % 5 < 3 ? 'SP' : 'CPC'; kids.push(kid(b, `${b}K-${i}`, `${b}P-${i % 400}`, { bc: i % 97 === 0 ? BS : TC })); }
@@ -59,7 +60,7 @@ function cacheOf(S, o) {
       if (k.bc === undefined) return;
       const sub = k.sub || leaf(k.bc);
       cat[k.asin] = { asin: k.asin, t: 'Title of ' + k.sku, brand: '', img: { MAIN: { u: `https://m.media-amazon.com/images/I/${k.sku.replace(/\W/g, '')}.jpg`, w: 2000, h: 2000 } }, pa: k.psku ? [A(k.psku)] : [], kids: [], theme: '', tattrs: [],
-        vals: {}, bc: k.bc, bcId: '', rk: k.bc ? { main: { r: 50000 + k.rank, c: k.bc.split(' › ')[0] }, sub: { r: k.rank, c: sub } } : { main: null, sub: null }, aplus: null, readAt: at };
+        vals: {}, bc: k.bc, bcId: '', bcIds: k.ids, rks: k.rks, rk: k.bc ? { main: { r: 50000 + k.rank, c: k.bc.split(' › ')[0] }, sub: { r: k.rank, c: sub } } : { main: null, sub: null }, aplus: null, readAt: at };
     });
     tabs[`lmListings_${b}_1_0`] = { b, items };
     tabs[`lmCatalog_${b}_1_0`] = { b, items: cat };
@@ -201,6 +202,36 @@ const card = (T, name) => { const m = T.body().match(new RegExp('<span>' + name 
     ok('the short path: the department, the shelf, the product; three parts or fewer stay whole', T.C.ccShort(TC.split(' › ')) === 'Home & Kitchen › Kitchen & Table Linens › Tablecloths' && T.C.ccShort(SB.split(' › ')) === SB);
     const P = await open({ S: (() => { const s = sample(); s.kids.find(k => k.sku === 'RTC14-3').sub = 'Kitchen & Table Linens'; return s; })() });
     ok('a rank in a category higher up the same browse path is NOT a mismatch', String(card(P, 'Rank mismatch')) === '0,error');
+  }
+
+  console.log('== by Amazon\'s category ids when they are there, by name when they are not ==');
+  {
+    const IDS = ['1', '2', '3', '10'];                                                  // Home & Kitchen › Kitchen & Dining › Kitchen & Table Linens › Tablecloths
+    const I = await open({ kids: kid => [
+      kid('SP', 'ID-1', 'ID-P', { ids: IDS, rks: [{ id: '10', c: 'Tablecloths', r: 500 }] }),
+      kid('SP', 'ID-2', 'ID-P', { ids: IDS, bc: 'Home & Kitchen › Kitchen & Dining › Kitchen and Table Linens › Table Cloths', rks: [{ id: '10', c: 'Tablecloths', r: 600 }] }),   // written another way, the same ids
+      kid('SP', 'ID-3', 'ID-P', { ids: ['1', '2', '3', '99'], rks: [{ id: '99', c: 'Tablecloths', r: 700 }] }),   // the same words, another category id
+      kid('SP', 'ID-4', 'ID-P', { ids: IDS, rks: [{ id: '77', c: 'Tablecloths', r: 40 }] }),                       // ranked in a category NAMED like its own, with another id
+      kid('SP', 'ID-5', 'ID-P', { ids: IDS, rks: [{ id: '55', c: 'Outdoor Tablecloths', r: 12 }, { id: '10', c: 'Table Covers', r: 900 }] }),   // its best rank elsewhere, another rank on its path
+      kid('SP', 'ID-6', 'ID-P', { ids: IDS, rks: [{ id: '3', c: 'Linens', r: 5000 }] }),                           // ranked one step up its own path
+      kid('SP', 'ID-7', 'ID-P', { ids: IDS, rks: [{ id: '55', c: 'Outdoor Tablecloths', r: 12 }, { id: '56', c: 'Picnic Blankets', r: 30 }] }),   // none of its ranks on its path
+      kid('SP', 'OLD-1', 'OLD-P', { ids: IDS }), kid('SP', 'OLD-2', 'OLD-P'),                                      // one record with ids, one from before them
+      kid('SP', 'OLD-3', 'OLD-P', { bc: BS }),
+    ] });
+    I.click({ cc: 'openall' });
+    const rows = (I.body().match(/<tr class="fc-row[\s\S]*?<\/tr>/g) || []);
+    const row = sku => strip(rows.find(r => r.includes(`<b>${sku}</b>`)) || '');
+    ok('same category id, written another way ("Table Cloths", "and"): NOT mixed', /✓$/.test(row('ID-2')), row('ID-2'));
+    ok('another category id with the very same words: Mixed category, said plainly with the two ids',
+      row('ID-3').includes('This child is in another Amazon category with the same name as its family\'s: Home & Kitchen › Kitchen & Table Linens › Tablecloths (category 99, its family is in 10).'), row('ID-3'));
+    ok('ranked in a category with its own leaf\'s NAME but another id: Rank mismatch (by id)', row('ID-4').includes('Ranked in Tablecloths, listed in Tablecloths.') && /Amazon may have placed it wrong/.test(row('ID-4')), row('ID-4'));
+    ok('several ranks, one of them on its path (by id, under another name): fine — and that is the rank shown', /#900 in Table Covers ✓$/.test(row('ID-5')), row('ID-5'));
+    ok('a rank one step up its own path (by id): fine', /#5,000 in Linens ✓$/.test(row('ID-6')), row('ID-6'));
+    ok('several ranks, none on its path: Rank mismatch, naming the best one', row('ID-7').includes('#12 in Outdoor Tablecloths') && row('ID-7').includes('Ranked in Outdoor Tablecloths, listed in Tablecloths.'), row('ID-7'));
+    ok('a family where one child\'s record has no ids yet: compared by name — the two in Tablecloths are fine, the one in Bed Sheets is mixed',
+      /✓$/.test(row('OLD-1')) && /✓$/.test(row('OLD-2')) && row('OLD-3').includes('This child is in Bed Sheets, its family is in Tablecloths.'), row('OLD-1') + ' | ' + row('OLD-2') + ' | ' + row('OLD-3'));
+    ok('the cards: Mixed category 2 (ID-3, OLD-3) · Rank mismatch 2 (ID-4, ID-7) · No category 0', String(card(I, 'Mixed category')) === '2,error' && String(card(I, 'Rank mismatch')) === '2,error' && String(card(I, 'No category')) === '0,error',
+      [card(I, 'Mixed category'), card(I, 'Rank mismatch'), card(I, 'No category')].join(' | '));
   }
 
   console.log('== Correct on purpose, Undo, saved with who and when ==');
