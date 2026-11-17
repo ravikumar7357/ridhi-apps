@@ -86,6 +86,30 @@ function skcCodeOwner(code, colour) {
   return '';
 }
 
+/* IS THE CODE FREE (Ravi, 17 Nov: "ye bhi show kare ki ye 632 color code available h ya nahi ya fir same sku duplicate to nahi ho").
+ * Every SKU in the master database and on the Custom SKUs list whose colour code (the first number in it) is this code, by colour:
+ * { free, mine, others: [{ colour, n, eg }], have } — "have" is how many of this colour's SKUs under the code are already made. */
+function skcCodeCheck(code, colour, brand) {
+  /* Within the brand typed (17 Nov): Ridhi's 632 and CPC's 632 are two brands' own numbering, not a clash. A SKU with no brand counts. */
+  const c = String(code || '').trim(), col = String(colour || '').trim().toLowerCase(), br = String(brand || '').trim().toLowerCase();
+  if (!c) return null;
+  const num = n => String(Number(n));
+  const by = new Map(); let have = 0;
+  const custom = (typeof MDBX !== 'undefined' && MDBX.custom) || [];
+  (PTG.mdb || []).concat(custom).forEach(m => {
+    if (!m || !m.sku) return;
+    if (br && String(m.brand || '').trim() && String(m.brand).trim().toLowerCase() !== br) return;
+    const d = (String(m.sku).toUpperCase().match(/^[A-Z]+(?:-[A-Z]+)*-?(\d{1,5})/) || [])[1];
+    if (!d || (d !== c && num(d) !== num(c))) return;
+    const mc = String(m.color || '').trim();
+    if (mc.toLowerCase() === col) { have++; return; }
+    const k = mc.toLowerCase() || '(no colour)', e = by.get(k) || { colour: mc || '(no colour)', n: 0, eg: obUC(m.sku) };
+    e.n++; by.set(k, e);
+  });
+  const others = [...by.values()].sort((a, b) => b.n - a.n);
+  return { free: !others.length && !have, mine: have > 0, others, have };
+}
+
 /** The table: every base row, with its full code for this colour and whether the master has it. */
 function skcTable(colour, code) {
   const col = String(colour || '').trim().toLowerCase();
@@ -290,7 +314,8 @@ function renderSkuCode() {
           <datalist id="skcBrandList">${skcBrands().map(b => `<option value="${esc(b)}">`).join('')}</datalist></label>
         <label style="flex:1 1 220px">Colour <input id="skcCol" list="skcColList" placeholder="Pick or type the colour" value="${esc(SKC.col)}">
           <datalist id="skcColList">${skcColours().map(c => `<option value="${esc(c)}">`).join('')}</datalist></label>
-        <label style="flex:0 0 140px">Colour code <input id="skcCode" placeholder="e.g. 327" value="${esc(SKC.code)}"></label>
+        <label style="flex:0 0 140px">Colour code <input id="skcCode" placeholder="e.g. 327" value="${esc(SKC.code)}">
+          <div id="skcCodeSays" style="font-size:11.5px;font-weight:600;margin-top:3px;min-height:14px"></div></label>
         ${edit ? '<button id="skcMake" type="button">Create the new SKUs</button><button id="skcAdd" type="button" class="ghost">+ Base code</button>' : ''}
       </div>
       <div id="skcSays" class="muted" style="margin-top:8px;font-size:12.5px"></div></div>`;
@@ -348,6 +373,18 @@ function skcDraw() {
       : !SKC.code ? 'Pick a colour — an existing one brings its code — or type a new code.'
         : owner ? `Code ${SKC.code} is already ${owner}'s. Two colours under one code would be two products under one SKU.`
           : `${nf(n('have'))} already in the master · ${nf(n('new'))} new` + (n('new') ? (SKC.brand ? ' — "Create the new SKUs" adds them under ' + SKC.brand : ' — type the brand, then "Create the new SKUs"') : '');
+  }
+  /* the code, checked as it is typed */
+  const cs = $('skcCodeSays'), ck = SKC.code ? skcCodeCheck(SKC.code, SKC.col, SKC.brand) : null;
+  if (cs) {
+    if (!ck) { cs.textContent = ''; }
+    else if (ck.others.length) {
+      cs.style.color = 'var(--bad)';
+      cs.textContent = `✗ ${SKC.code} is taken — ${ck.others.slice(0, 2).map(o => o.colour + ' (' + nf(o.n) + ' SKU' + (o.n === 1 ? '' : 's') + ', e.g. ' + o.eg + ')').join(', ')}${ck.others.length > 2 ? ' +' + (ck.others.length - 2) + ' more' : ''}`;
+    } else if (ck.mine) {
+      cs.style.color = '#b45309';
+      cs.textContent = `${SKC.col || 'This colour'}'s own code — ${nf(ck.have)} SKU(s) already made, only the missing ones are created`;
+    } else { cs.style.color = '#15803d'; cs.textContent = `✓ ${SKC.code} is free — no SKU uses it yet`; }
   }
   const edit = mdbCanEdit();
   const head = '<thead><tr>' + ['Brand', 'Color Code', 'Color', 'Article', 'Subtype', 'Size', 'Base Code', 'Full Code', 'In master'].concat(edit ? [''] : [])
