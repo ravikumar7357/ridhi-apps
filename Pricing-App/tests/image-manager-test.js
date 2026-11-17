@@ -86,11 +86,11 @@ function picture(W, H, box, edge) {
     P.imListRender();
     const html = P.el('imList').innerHTML;
     const n = k => { const m = html.match(new RegExp(`data-im-card="${k}"[^>]*>.*?<b>(\\d+)</b>`)); return m ? +m[1] : null; };
-    ok('8 cards: No main at all · Using the family\'s main · Main not OK · Too small · Fewer than 7 · Amazon picture error · Search suppressed · No swatch — "Shows another SKU\'s pictures" is gone',
-      (html.match(/data-im-card="(\w+)"/g) || []).map(s => s.slice(14, -1)).join(',') === 'nomain,noown,pcbad,small,few,amzerr,sup,noswatch' && /Amazon picture error/.test(html) && /No main at all/.test(html)
-      && !/another SKU/i.test(html) && !/data-im-card="other"/.test(html));
-    ok('numbers: No main at all 1 (K5) · family\'s main 1 (K2) · Main not OK 1 (K2) · Too small 1 (K3 PT01 1500) · Fewer than 7 1 (K3) · Amazon picture error 1 (K3 18320; K5 has only 90244: not counted) · suppressed 1 (K4) · no swatch 5',
-      n('nomain') === 1 && n('noown') === 1 && n('pcbad') === 1 && n('small') === 1 && n('few') === 1 && n('amzerr') === 1 && n('sup') === 1 && n('other') === null && n('noswatch') === 5,
+    ok('7 cards: No main at all · Using the family\'s main · Main not OK · Too small · Fewer than 7 · Amazon picture error · Search suppressed — "Shows another SKU\'s pictures" and "No swatch" are gone',
+      (html.match(/data-im-card="(\w+)"/g) || []).map(s => s.slice(14, -1)).join(',') === 'nomain,noown,pcbad,small,few,amzerr,sup' && /Amazon picture error/.test(html) && /No main at all/.test(html)
+      && !/another SKU/i.test(html) && !/data-im-card="other"/.test(html) && !/No swatch|noswatch/i.test(html));
+    ok('numbers: No main at all 1 (K5) · family\'s main 1 (K2) · Main not OK 1 (K2) · Too small 1 (K3 PT01 1500) · Fewer than 7 1 (K3) · Amazon picture error 1 (K3 18320; K5 has only 90244: not counted) · suppressed 1 (K4)',
+      n('nomain') === 1 && n('noown') === 1 && n('pcbad') === 1 && n('small') === 1 && n('few') === 1 && n('amzerr') === 1 && n('sup') === 1 && n('other') === null && n('noswatch') === null,
       ['nomain', 'noown', 'pcbad', 'small', 'few', 'amzerr', 'sup', 'other', 'noswatch'].map(k => k + '=' + n(k)).join(' '));
     ok('"Too small" says how many could not be checked yet (their pictures are not all measured): "under 2000 · 5 not checked" — never in the number', /under 2000 · 5 not checked/.test(html));
     ok('the long grey summary line is gone (no "carry another SKU\'s pictures" text)', !/carry another SKU/.test(html) && /im-meta/.test(html));
@@ -286,13 +286,13 @@ function picture(W, H, box, edge) {
     ok('…the filters follow: "sup" only the suppressed, "nobuy" only the live not-buyable', P.imKidMatch(co7, 'sup', '') === false && P.imKidMatch({ sku: 'NB1', st: 'DISCOVERABLE' }, 'nobuy', '') === true
       && P.imKidMatch({ sku: 'NB0', st: 'DISCOVERABLE' }, 'nobuy', '') === false);
     P.IMQ.dims = new Map([['k3MAIN', [1500, 1500]], ['k3PT01', [800, 800]]]);
-    ok('quality summary: K3 "5/9 pictures · 2 below 2000 · no swatch"; K1 "9/9 pictures" — then what could not be checked, said quietly ("not checked: …")',
-      P.imKidSummary(it('K3')).replace(/<[^>]+>/g, '') === '5/9 pictures · 2 below 2000 · no swatch · not checked: Main not OK'
+    ok('quality summary: K3 "5/9 pictures · 2 below 2000" (no swatch word any more); K1 "9/9 pictures" — then what could not be checked, said quietly ("not checked: …")',
+      P.imKidSummary(it('K3')).replace(/<[^>]+>/g, '') === '5/9 pictures · 2 below 2000 · not checked: Main not OK'
       && P.imKidSummary(it('K1')).replace(/<[^>]+>/g, '') === '9/9 pictures · not checked: Main not OK, sizes, Amazon errors' && /class="im-nc"/.test(P.imKidSummary(it('K1'))), P.imKidSummary(it('K3')).replace(/<[^>]+>/g, '') + ' / ' + P.imKidSummary(it('K1')).replace(/<[^>]+>/g, ''));
     P.IM_OPEN.add('PAR'); P.IM_OPEN.add('solo:S1');   // families start closed: open them to see the rows
     P.imListRender();
     let html = P.el('imList').innerHTML;
-    ok('family card: "4 children · 4 need pictures", Copy main of this family, Select all children, Open all / Close all', /5 children · <b class="is-need">4 need pictures<\/b>/.test(html)
+    ok('family card: "5 children · 3 need pictures" (K2, K3, K5 — a missing swatch no longer counts), Copy main of this family, Select all children, Open all / Close all', /5 children · <b class="is-need">3 need pictures<\/b>/.test(html)
       && /data-fammain="PAR"/.test(html) && /data-famsel="PAR"/.test(html) && /data-foldall="1"/.test(html), (html.match(/\d+ children[^<]*<b[^>]*>[^<]*/) || [''])[0]);
     ok('tiles: 160 px thumbnails for Amazon pictures (_SL160_), hover View · Copy · Replace', /_SL160_\.jpg/.test(html) && /data-view="K1" data-slot="PT01"/.test(html) && /data-repl="K1" data-slot="PT01"/.test(html) && /data-copy1="K1"/.test(html));
     P.IM_OPEN.delete('PAR');
