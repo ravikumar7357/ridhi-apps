@@ -237,7 +237,9 @@ function croRender() {
       + `<td><input type="checkbox" class="croPick" data-ref="${esc(o.reference)}"${CRO.picked.has(o.reference) ? ' checked' : ''}></td>`
       + `<td class="frz tl" style="font-weight:600">${esc(o.reference)}${sub(esc(croDay(o.createdAt)) + (done ? '' : ` <span class="so-age${age >= 7 ? ' old' : ''}" title="${nf(age)} day(s) since it came in">${nf(age)}d</span>`))}</td>`
       + `<td class="tl"><b>${esc(c.name || s.name || '—')}</b>${sub(esc([croHandle(c.instagram), [s.state, s.country].filter(Boolean).join(', '), n + ' unit' + (n === 1 ? '' : 's')].filter(Boolean).join(' · ')))}</td>`
-      + `<td class="tl wrap">${(o.lines || []).map(l => `<span style="white-space:nowrap;font-family:ui-monospace,monospace">${esc(l.sku || '—')}</span>${sub(esc([l.title, l.color, l.size].filter(Boolean).join(' · ')) + ' × ' + nf(l.quantity))}`).join('')}</td>`
+      + `<td class="tl wrap">${(o.lines || []).map(l => { const d = croLineDesc(l);
+          return `<div><span style="white-space:nowrap;font-family:ui-monospace,monospace;font-weight:600">${esc(l.sku || '—')}</span>`
+            + ` <span>${d ? esc(d) + ' ' : ''}× ${nf(l.quantity)}</span></div>`; }).join('')}</td>`
       + `<td class="num">${croMoney(croValue(o))}</td>`
       + `<td class="tl">${croShipFrom(o)}</td>`
       + `<td class="tl"><span class="st ${CRO_PILL[o.status] || 'st-draft'}">${esc(o.status || 'New')}</span>${sub(trk)}</td>`
@@ -257,16 +259,29 @@ let CRO_SKUS = null;
 function croSkuList() {
   if (CRO_SKUS && CRO_SKUS.length) return CRO_SKUS;
   const seen = new Set(), out = [];
-  (PTG.mdb || []).forEach(r => { const k = obUC(r && r.sku); if (k && !seen.has(k)) { seen.add(k); out.push([k, [r.subtype || r.articleType, r.color, r.size].filter(Boolean).join(' · ')]); } });
+  (PTG.mdb || []).forEach(r => { const k = obUC(r && r.sku); if (k && !seen.has(k)) { seen.add(k); out.push([k, croLineDesc(croFactsOf(r))]); } });
   Object.keys(SHOP_STOCK || {}).forEach(k => { if (!seen.has(k)) { seen.add(k); out.push([SHOP_STOCK_CASE[k] || k, 'in FBA']); } });
   CRO_SKUS = out.sort((a, b) => a[0].localeCompare(b[0]));
   return CRO_SKUS;
 }
 const croSkuDatalist = id => `<datalist id="${id}">${croSkuList().slice(0, 6000).map(([k, d]) => `<option value="${esc(k)}">${esc(d)}</option>`).join('')}</datalist>`;
-/** What the master says a SKU is, for the line's name. */
-function croSkuFacts(sku) {
-  const m = typeof mdbOf === 'function' ? mdbOf(sku) : null;
-  return m ? { title: String(m.subtype || m.articleType || ''), color: String(m.color || ''), size: String(m.size || '') } : null;
+/** A part of a line's name, or '' — an empty size (some products have none) shows nothing, never a dash. */
+function croPart(v) {
+  const s = String(v == null ? '' : v).trim();
+  return /^(-+|—|–|null|undefined|n\/?a)$/i.test(s) ? '' : s;
+}
+/** "Tablecloth · Ruby Red · 60" x 60"" — title, colour and size, whichever of them there are (Khushi, 17 Nov). */
+const croLineDesc = l => [l && l.title, l && l.color, l && l.size].map(croPart).filter(Boolean).join(' · ');
+/** What the master says a SKU is: the article as the title (Creator Setu sends "Tablecloth", the article), colour, size. */
+function croFactsOf(m) {
+  return m ? { title: croPart(m.articleType || m.subtype), color: croPart(m.color), size: croPart(m.size) } : null;
+}
+function croSkuFacts(sku) { return croFactsOf(typeof mdbOf === 'function' ? mdbOf(sku) : null); }
+/** The same, asking the database for that one SKU when this page's copy of the master does not have it (yet). */
+async function croSkuFactsNow(sku) {
+  const f = croSkuFacts(sku);
+  if (f || !String(sku || '').trim() || typeof mdbFetchSku !== 'function') return f;
+  try { return croFactsOf(await mdbFetchSku(sku)); } catch (e) { return null; }
 }
 
 function croOpen(ref) {
@@ -281,7 +296,7 @@ function croOpen(ref) {
     const st = croLineStock(o, l), ordered = l.ordered != null ? l.ordered : l.quantity;
     return `<tr>
       <td>${edit ? `<input data-cro-sku="${i}" list="croSkuDl" value="${esc(l.sku || '')}" style="font-family:ui-monospace,monospace;min-width:150px" autocomplete="off">` : `<span style="font-family:ui-monospace,monospace">${esc(l.sku || '—')}</span>`}</td>
-      <td style="text-align:left" data-cro-name="${i}">${esc([l.title, l.color, l.size].filter(Boolean).join(' · ') || '—')}</td>
+      <td style="text-align:left" data-cro-name="${i}">${esc(croLineDesc(l))}</td>
       <td class="num">${nf(ordered)}</td>
       <td class="num">${edit ? `<input type="number" min="1" max="20" step="1" data-cro-qty="${i}" value="${esc(l.quantity)}" style="width:64px">` : nf(l.quantity)}</td>
       <td class="num">${!SHOP_STOCK_LOADED ? '<span class="muted">?</span>' : st.have == null ? '<span class="muted">not in FBA</span>' : `<b style="color:${st.ok ? 'var(--accent)' : 'var(--bad)'}">${nf(st.have)}</b>`}</td>
@@ -332,10 +347,20 @@ function croOpen(ref) {
       return err;
     },
   });
-  /* The product name follows the SKU typed. */
-  document.querySelectorAll('[data-cro-sku]').forEach(inp => { inp.onchange = () => {
-    const f = croSkuFacts(inp.value), cell = document.querySelector('[data-cro-name="' + inp.getAttribute('data-cro-sku') + '"]');
-    if (cell) cell.textContent = f ? [f.title, f.color, f.size].filter(Boolean).join(' · ') || '—' : 'not in the master database';
+  /* THE NAME, COLOUR AND SIZE FOLLOW THE SKU TYPED (Khushi, 17 Nov: "so they recheck the right piece"), from the product
+   * list — asked of the database for that one SKU when this page's copy does not have it. A SKU typed back to the
+   * order's own shows the order's own words again. */
+  document.querySelectorAll('[data-cro-sku]').forEach(inp => { inp.onchange = async () => {
+    const i = +inp.getAttribute('data-cro-sku'), cell = document.querySelector('[data-cro-name="' + i + '"]');
+    const line = (o.lines || [])[i] || {}, typed = String(inp.value || '').trim();
+    if (!cell) return;
+    if (obUC(typed) === obUC(line.sku)) { cell.textContent = croLineDesc(line); return; }
+    cell.textContent = 'Looking it up…';
+    const f = await croSkuFactsNow(typed);
+    if (String(inp.value || '').trim() !== typed) return;            // typed again meanwhile: that answer is the one shown
+    cell.textContent = f ? (croLineDesc(f) || '(no name, colour or size in the product list)')
+      : (obUC(typed) in (SHOP_STOCK || {}) ? 'in FBA, not in the product list — colour and size unknown' : 'not in the product list');
+    cell.style.color = f ? '' : 'var(--bad)';
   }; });
   if ($('croChecked')) $('croChecked').onclick = async () => {
     $('croChecked').disabled = true;
@@ -356,18 +381,23 @@ async function croSaveDrawer(ref, checked) {
   const o = croOf(ref); if (!o) return 'That order is gone — press Refresh.';
   const patch = {}, said = [];
   if (CRO_EDITABLE(o.status)) {
-    const lines = (o.lines || []).map((l, i) => {
+    const lines = [];
+    for (let i = 0; i < (o.lines || []).length; i++) {
+      const l = o.lines[i];
       const skuIn = document.querySelector('[data-cro-sku="' + i + '"]'), qtyIn = document.querySelector('[data-cro-qty="' + i + '"]');
       const sku = skuIn ? String(skuIn.value || '').trim() : l.sku, qty = qtyIn ? parseInt(qtyIn.value, 10) || 0 : l.quantity;
       const out = Object.assign({}, l);
       if (sku && obUC(sku) !== obUC(l.sku)) {
-        const f = croSkuFacts(sku) || {};
-        said.push(`SKU ${l.sku || '—'} → ${sku}`);
-        Object.assign(out, { sku, title: f.title || '', color: f.color || '', size: f.size || '', asin: '', skuWas: l.skuWas || l.sku });
+        /* A changed SKU takes the product list's name, colour and size — never the old piece's. A SKU the list does not
+         * know is refused unless Amazon stocks it (then its colour and size are simply unknown). */
+        const f = await croSkuFactsNow(sku);
+        if (!f && !(obUC(sku) in (SHOP_STOCK || {}))) return sku + ' is not in the product list — pick it from the list.';
+        said.push(`SKU ${l.sku || '—'} → ${sku}${f && croLineDesc(f) ? ' (' + croLineDesc(f) + ')' : ''}`);
+        Object.assign(out, { sku, title: (f && f.title) || '', color: (f && f.color) || '', size: (f && f.size) || '', asin: '', skuWas: l.skuWas || l.sku });
       }
       if (qty !== (parseInt(l.quantity, 10) || 0)) { said.push(`${sku}: qty ${l.quantity} → ${qty}`); if (out.ordered == null) out.ordered = l.quantity; out.quantity = qty; }
-      return out;
-    });
+      lines.push(out);
+    }
     if (lines.some(l => !String(l.sku || '').trim())) return 'Every line needs a SKU.';
     if (lines.some(l => !(l.quantity >= 1 && l.quantity <= 20))) return 'Send qty is 1 to 20 on every line.';
     if (said.length) patch.lines = lines;
@@ -553,7 +583,7 @@ function croNewOpen() {
         line1: t('line1'), line2: t('line2'), city: t('city'), state: t('state').toUpperCase(), zip: t('zip'), country: (t('country') || 'US').toUpperCase(),
         phone: t('phone'), email: t('email'), sku: t('sku'), qty: parseInt(t('qty'), 10) || 0 };
       const bad = croCheckNew(v); if (bad) return bad;
-      const f = croSkuFacts(v.sku);
+      const f = await croSkuFactsNow(v.sku);
       if (!f && !(obUC(v.sku) in (SHOP_STOCK || {}))) return v.sku + ' is not in the master database or in FBA — pick it from the list.';
       const ref = await croNextRef(), now = new Date().toISOString();
       const rec = { reference: ref, brand: v.brand, campaign: v.campaign,
