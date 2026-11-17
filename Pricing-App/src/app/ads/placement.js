@@ -632,23 +632,24 @@ function tSeries(o) {
 // was spent", and for months outside Amazon's retention only the first is true.
 // The table's rows: key, title, format (money / money2 / pct / dec), whether ad-dependent, and the value from a period's array.
 const T_ROWS = [
+  // An ad row's name is a getter: it carries tAdTag() — "· all types" or "· SP only", whichever the figures are.
   { k: 'sales', t: 'Sales', money: 1, get: v => v[T_I.sales] },
-  { k: 'spend', t: 'Ad Spend', money: 1, ad: 1, get: v => v[T_I.spend] },
-  { k: 'tacos', t: 'TACOS', pct: 1, ad: 1, get: v => (v[T_I.sales] ? v[T_I.spend] / v[T_I.sales] * 100 : null) },
-  { k: 'adSales', t: 'Ad Sales', money: 1, ad: 1, get: v => v[T_I.adSales] },
-  { k: 'acos', t: 'ACOS', pct: 1, ad: 1, get: v => (v[T_I.adSales] ? v[T_I.spend] / v[T_I.adSales] * 100 : null) },
-  { k: 'organic', t: 'Organic Sales', money: 1, ad: 1, get: v => Math.max(0, v[T_I.sales] - v[T_I.adSales]) },
-  { k: 'organicPct', t: 'Organic %', pct: 1, ad: 1,
+  { k: 'spend', get t() { return 'Ad Spend' + tAdTag(); }, money: 1, ad: 1, get: v => v[T_I.spend] },
+  { k: 'tacos', get t() { return 'TACOS' + tAdTag(); }, pct: 1, ad: 1, get: v => (v[T_I.sales] ? v[T_I.spend] / v[T_I.sales] * 100 : null) },
+  { k: 'adSales', get t() { return 'Ad Sales' + tAdTag(); }, money: 1, ad: 1, get: v => v[T_I.adSales] },
+  { k: 'acos', get t() { return 'ACOS' + tAdTag(); }, pct: 1, ad: 1, get: v => (v[T_I.adSales] ? v[T_I.spend] / v[T_I.adSales] * 100 : null) },
+  { k: 'organic', get t() { return tAdTag() === ' · all types' ? 'Organic Sales (no ad credit)' : 'Organic Sales (not SP-credited)'; }, money: 1, ad: 1, get: v => Math.max(0, v[T_I.sales] - v[T_I.adSales]) },
+  { k: 'organicPct', get t() { return tAdTag() === ' · all types' ? 'Organic % (no ad credit)' : 'Organic % (not SP-credited)'; }, pct: 1, ad: 1,
     get: v => (v[T_I.sales] ? Math.max(0, v[T_I.sales] - v[T_I.adSales]) / v[T_I.sales] * 100 : null) },
-  { k: 'roas', t: 'ROAS', dec: 2, ad: 1, get: v => (v[T_I.spend] ? v[T_I.adSales] / v[T_I.spend] : null) },
-  { k: 'cpc', t: 'CPC', money2: 1, ad: 1, get: v => (v[T_I.clicks] ? v[T_I.spend] / v[T_I.clicks] : null) },
+  { k: 'roas', get t() { return 'ROAS' + tAdTag(); }, dec: 2, ad: 1, get: v => (v[T_I.spend] ? v[T_I.adSales] / v[T_I.spend] : null) },
+  { k: 'cpc', get t() { return 'CPC' + tAdTag(); }, money2: 1, ad: 1, get: v => (v[T_I.clicks] ? v[T_I.spend] / v[T_I.clicks] : null) },
   { k: 'orders', t: 'Order items', get: v => v[T_I.orders] },
-  { k: 'adOrders', t: 'Ad Orders', ad: 1, get: v => v[T_I.adOrders] },
+  { k: 'adOrders', get t() { return 'Ad Orders' + tAdTag(); }, ad: 1, get: v => v[T_I.adOrders] },
   { k: 'units', t: 'Units', get: v => v[T_I.units] },
-  { k: 'clicks', t: 'Clicks', ad: 1, get: v => v[T_I.clicks] },
-  { k: 'impr', t: 'Impressions', ad: 1, get: v => v[T_I.impr] },
-  { k: 'ctr', t: 'CTR', pct: 1, ad: 1, get: v => (v[T_I.impr] ? v[T_I.clicks] / v[T_I.impr] * 100 : null) },
-  { k: 'cvr', t: 'CVR', pct: 1, ad: 1, get: v => (v[T_I.clicks] ? v[T_I.adOrders] / v[T_I.clicks] * 100 : null) },
+  { k: 'clicks', get t() { return 'Clicks' + tAdTag(); }, ad: 1, get: v => v[T_I.clicks] },
+  { k: 'impr', get t() { return 'Impressions' + tAdTag(); }, ad: 1, get: v => v[T_I.impr] },
+  { k: 'ctr', get t() { return 'CTR' + tAdTag(); }, pct: 1, ad: 1, get: v => (v[T_I.impr] ? v[T_I.clicks] / v[T_I.impr] * 100 : null) },
+  { k: 'cvr', get t() { return 'CVR' + tAdTag(); }, pct: 1, ad: 1, get: v => (v[T_I.clicks] ? v[T_I.adOrders] / v[T_I.clicks] * 100 : null) },
 ];
 
 // Format one table value by its row's kind; null is a muted dash.
@@ -703,10 +704,14 @@ function renderTrends() {
     : adAll ? ` · ads cover ${esc(TREND.adFrom)} → ${esc(TREND.adTo)}`
     : adAny ? ` · ad figures over ${covered.length} of ${keys.length} ${T_GRAN}s (to ${esc(TREND.adTo)})`
     : ` · no ad figures in this span (ads cover ${esc(TREND.adFrom)} → ${esc(TREND.adTo)})`;
-  const adLbl = l => (adAll || !adAny) ? l : `${l} · ${covered.length}${T_GRAN[0]}`;
+  // Where the span reaches back past the first day the three types are in, say so: those days hold Sponsored Products alone.
+  const allFrom = tAllTypesFrom($('tBrand').value === 'ALL' ? tBrands() : [$('tBrand').value]);
+  const spOnly = allFrom && TREND.adFrom && TREND.adFrom < allFrom && keys.length && keys[0] < allFrom
+    ? ` · before ${esc(allFrom)} the ad figures are Sponsored Products only` : '';
+  const adLbl = l => ((adAll || !adAny) ? l : `${l} · ${covered.length}${T_GRAN[0]}`).replace(/^(Ad Spend|TACOS|Ad Sales|ACOS|CTR)$/, '$1' + tAdTag());
   $('tKpis').innerHTML = `<div class="kpi" style="flex-basis:100%">
     <div class="kpihead"><span class="kpiname">${esc(BRAND_NAME[$('tBrand').value] || 'Both brands')} — ${tSpanName(keys.length)}</span>
-      <span class="kpiwhen">${TREND.at ? 'sales as at ' + esc(TREND.at) : 'not pulled yet'}${adNote}</span></div>
+      <span class="kpiwhen">${TREND.at ? 'sales as at ' + esc(TREND.at) : 'not pulled yet'}${adNote}${spOnly}</span></div>
     <div class="metrics">
       ${kpi('Sales', money(total[T_I.sales]))}
       ${kpi(adLbl('Ad Spend'), money(adAny ? adTot[T_I.spend] : null))}
