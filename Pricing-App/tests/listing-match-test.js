@@ -61,6 +61,7 @@ function page(opts) {
     if (q.lfix === 'get') return opts.get ? opts.get(q) : { productType: 'NAPKIN', status: ['BUYABLE', 'DISCOVERABLE'], issues: [], attributes: {} };
     if (q.lfix === 'schema') return { attrs: { material: {}, color: {}, size: {}, pattern: {}, theme: { missing: true } } };   // the product type's schema: these four apply
     if (q.limg === 'get') return opts.limg ? opts.limg(q) : { ok: true, sku: q.sku, listing: {}, catalog: {} };
+    if (q.listing === 'review' && opts.live) return opts.live(q);        // the Optimiser's live read
     return {};
   } }, opts.load || {}));
   const mem = { copy: opts.copy || null };
@@ -383,19 +384,23 @@ const rowOf = (C, sku) => ['SP', 'CPC'].map(b => C.HEALTH[b].rows.find(r => r.sk
     const reply = facts => ({ ok: true, asin: 'B0R1', audit: Object.assign({ ok: true, asin: 'B0R1', src: 'cache', attrKeys: [], images: { slots: {}, n: 0, hasMain: false, noZoom: [], emptySlots: [] }, rank: null },
       { title: facts.title, brand: facts.brand, category: facts.category, bullets: facts.bullets, description: facts.description }),
       findings: { title: [], bullets: [], description: [], images: [] }, suggestion: { ok: false, why: [] }, keywords: { trust: 'none', note: '', words: [], wordsShared: [], missing: [] } });
+    // the live read's answer (the backend reading the catalog itself)
+    const live = () => { const r = reply({ title: 'Live title', brand: 'Ridhi', category: 'Napkins', bullets: [], description: '' }); r.audit.src = 'live'; return r; };
     const opt = async (o = {}) => {
-      const P = page({ load: { lo: true, post: body => { posted.push(body); return o.post ? o.post(body) : reply(body.facts); } } });
+      const P = page({ live, load: { lo: true, post: body => { posted.push(body); return o.post ? o.post(body) : reply(body.facts); } } });
       P.net.tabs = o.tabs === null ? null : cacheOf(P.C, Object.assign({ edit: (b, items, cat) => {
         if (b !== 'SP') return;
         items.R1.itk = 'cloth-napkins';
+        if (o.kw != null) items.R1.kw = o.kw;
         cat.B0RIDHI001 = Object.assign({}, cat[items.R1.asin], { asin: 'B0RIDHI001', t: 'Shown title of R1' });   // a real-shaped ASIN (the sample's are short)
         items.R1.asin = 'B0RIDHI001';
         items['PS-P1'] = Object.assign({}, items.R1, { sku: 'PS-P1', asin: 'BPP1', lvl: 'parent', psku: '', t: 'Ridhi Napkins Parent (our own name)', ch: '', fba: null });
       } }, o.cache || {})).tabs;
-      await P.C.lmEnsure(); await P.C.lmRefresh();
+      await P.C.lmEnsure();
+      if (!o.noWait) await P.C.lmRefresh();          // noWait: Go pressed while the backend's copy is still on its way
       posted.length = 0; P.calls.length = 0;
       P.C.el('loAsin').value = o.asin || 'B0RIDHI001';
-      P.C.el('loBrand').value = 'SP';
+      P.C.el('loBrand').value = o.brand || 'SP';
       await P.C.loGo();
       return Object.assign(P, { gets: P.calls.filter(q => q.listing === 'review').length, lo: P.C.getLO(), body: P.C.el('loBody').innerHTML });
     };
@@ -416,6 +421,47 @@ const rowOf = (C, sku) => ['SP', 'CPC'].map(b => C.HEALTH[b].rows.find(r => r.sk
     ok('Listing Audit / every parent name: the parent listing\'s own name from the cache (the same field the listings report gives "Refresh both brands")',
       a.C.HEALTH.SP.parentNames.BPP1 === 'Ridhi Napkins Parent (our own name)' && !a.C.HEALTH.SP.rows.some(r => r.sku === 'PS-P1'));
     ok('…a stale cache leaves the snapshot\'s names as they were', !(d.C.HEALTH.SP.parentNames || {}).BPP1);
+    console.log('== 4b the Optimiser: our own search terms, and why a review read Amazon live ==');
+    const src = r => (r.body.match(/id="loSrc">([^<]*)</) || [])[1] || '';
+    ok('ours: our search terms from the cache are shown (not "Backend keywords cannot be read")', /OUR SEARCH TERMS · R1/.test(a.body) && a.body.includes('cotton napkins') && !a.body.includes('Backend keywords cannot be read'), a.body.slice(0, 100));
+    ok('…13 / 250 bytes, green (spaces do not count)', /<span class="ok" id="loKwBytes">13 \/ 250 bytes<\/span>/.test(a.body) && a.body.includes('within Amazon'));
+    ok('…no word of the title in them: "No word here is already in the title"', a.body.includes('No word here is already in the title'));
+    const w = await opt({ kw: 'Shown napkins, title; cotton OF' });
+    ok('words the title already has are listed as wasted (shown, title, of), with their bytes', /Already in the title \(wasted\):<\/span> shown, title, of/.test(w.body) && /— 12 byte\(s\)/.test(w.body), (w.body.match(/Already[^\n]*/) || [''])[0]);
+    const long = Array.from({ length: 40 }, (_, i) => 'word' + String(i).padStart(3, '0')).join(' ');     // 40 × 7 = 280 bytes
+    const big = await opt({ kw: long });
+    ok('over 250 bytes: red, "30 over. Amazon ignores everything after byte 250", the part after byte 250 struck through',
+      /<span class="err" id="loKwBytes">280 \/ 250 bytes<\/span>/.test(big.body) && big.body.includes('30 over. Amazon ignores everything after byte 250.')
+      && /<span class="lo-gone">35 word036 word037 word038 word039<\/span>/.test(big.body), (big.body.match(/lo-gone">[^<]*/) || [''])[0]);
+    ok('exactly 250 bytes: still green', /class="ok" id="loKwBytes">250 \/ 250/.test((await opt({ kw: 'x'.repeat(250) })).body));
+    const none = await opt({ kw: '' });
+    ok('ours with no search terms set: "No search terms on this listing (R1)"', none.body.includes('No search terms on this listing (R1).') && !none.body.includes('Backend keywords cannot be read'));
+    ok('a competitor\'s ASIN keeps the old message, and says why it read live', c.body.includes('Backend keywords cannot be read') && !c.body.includes('OUR SEARCH TERMS')
+      && src(c) === 'read live from Amazon now — this ASIN is not one of our listings in the auto refresh data', src(c));
+    ok('a backend that did not take the facts: the header says so, with its answer', src(b) === 'read live from Amazon now — the backend did not take the auto refresh data (Unknown POST)', src(b));
+    ok('…our search terms are still shown (the cache holds them)', b.body.includes('OUR SEARCH TERMS'));
+    ok('a stale cache: "the auto refresh data here is from …, more than 24 hours ago"', /^read live from Amazon now — the auto refresh data here is from \d{1,2} [A-Z][a-z]{2} \d\d:\d\d, more than 24 hours ago$/.test(src(d)), src(d));
+    ok('the review from the cache says nothing about a live read', src(a).startsWith('Amazon data from the auto refresh') && !src(a).includes('live'), src(a));
+    // nothing remembered: a review after a failed POST asks again, and uses the cache once the backend takes it
+    {
+      let backendOld = true;
+      const P = page({ live, load: { lo: true, post: body => { posted.push(body); return backendOld ? { ok: false, error: 'Unknown POST' } : reply(body.facts); } } });
+      P.net.tabs = cacheOf(P.C, { edit: (b, items, cat) => { if (b !== 'SP') return; cat.B0RIDHI001 = Object.assign({}, cat[items.R1.asin], { asin: 'B0RIDHI001' }); items.R1.asin = 'B0RIDHI001'; } }).tabs;
+      await P.C.lmEnsure(); await P.C.lmRefresh();
+      posted.length = 0;
+      P.C.el('loAsin').value = 'B0RIDHI001'; P.C.el('loBrand').value = 'SP';
+      await P.C.loGo();
+      const first = P.C.getLO().audit.src;
+      backendOld = false;                                   // the backend deployed (17 Nov 12:40) between two reviews
+      await P.C.loGo();
+      ok('each review asks the backend again: the first (old backend) read live, the next one (deployed) uses the cache', first !== 'cache' && P.C.getLO().audit.src === 'cache' && posted.length === 2, first + ' → ' + P.C.getLO().audit.src);
+    }
+    const other = await opt({ brand: 'CPC' });
+    ok('ours under the other brand (CPC chosen, the ASIN is Ridhi\'s): reviewed from the cache as Ridhi, the brand box follows, and it says so',
+      posted.length === 1 && posted[0].brand === 'SP' && other.lo.audit.src === 'cache' && other.C.el('loBrand').value === 'SP' && other.body.includes('B0RIDHI001 is a Ridhi listing — reviewed as that brand.'), other.C.el('loBrand').value);
+    const early = await opt({ noWait: true });
+    ok('Go pressed before the backend\'s copy landed (no saved copy here yet): the review waits for it and uses the cache, no live read',
+      early.lo.audit.src === 'cache' && posted.some(p => p.listing === 'review') && early.gets === 0, early.lo.audit.src + ' gets=' + early.gets);
   }
 
   console.log('== SPEED: ~4,400 listings from the saved copy ==');
