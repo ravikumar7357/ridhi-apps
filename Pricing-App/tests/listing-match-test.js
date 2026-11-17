@@ -424,16 +424,31 @@ const rowOf = (C, sku) => ['SP', 'CPC'].map(b => C.HEALTH[b].rows.find(r => r.sk
     console.log('== 4b the Optimiser: our own search terms, and why a review read Amazon live ==');
     const src = r => (r.body.match(/id="loSrc">([^<]*)</) || [])[1] || '';
     ok('ours: our search terms from the cache are shown (not "Backend keywords cannot be read")', /OUR SEARCH TERMS · R1/.test(a.body) && a.body.includes('cotton napkins') && !a.body.includes('Backend keywords cannot be read'), a.body.slice(0, 100));
-    ok('…13 / 250 bytes, green (spaces do not count)', /<span class="ok" id="loKwBytes">13 \/ 250 bytes<\/span>/.test(a.body) && a.body.includes('within Amazon'));
+    ok('…13 / 249 bytes, green (spaces do not count)', /<span class="ok" id="loKwBytes">13 \/ 249 bytes<\/span>/.test(a.body) && a.body.includes('within Amazon'));
     ok('…no word of the title in them: "No word here is already in the title"', a.body.includes('No word here is already in the title'));
     const w = await opt({ kw: 'Shown napkins, title; cotton OF' });
     ok('words the title already has are listed as wasted (shown, title, of), with their bytes', /Already in the title \(wasted\):<\/span> shown, title, of/.test(w.body) && /— 12 byte\(s\)/.test(w.body), (w.body.match(/Already[^\n]*/) || [''])[0]);
     const long = Array.from({ length: 40 }, (_, i) => 'word' + String(i).padStart(3, '0')).join(' ');     // 40 × 7 = 280 bytes
     const big = await opt({ kw: long });
-    ok('over 250 bytes: red, "30 over. Amazon ignores everything after byte 250", the part after byte 250 struck through',
-      /<span class="err" id="loKwBytes">280 \/ 250 bytes<\/span>/.test(big.body) && big.body.includes('30 over. Amazon ignores everything after byte 250.')
-      && /<span class="lo-gone">35 word036 word037 word038 word039<\/span>/.test(big.body), (big.body.match(/lo-gone">[^<]*/) || [''])[0]);
-    ok('exactly 250 bytes: still green', /class="ok" id="loKwBytes">250 \/ 250/.test((await opt({ kw: 'x'.repeat(250) })).body));
+    ok('over the limit: red "280 / 249 bytes", "Over Amazon\'s limit — Amazon may ignore all of these search terms. Cut to 249 bytes."',
+      /<span class="err" id="loKwBytes">280 \/ 249 bytes<\/span>/.test(big.body) && big.body.includes('Over Amazon\'s limit — Amazon may ignore all of these search terms. Cut to 249 bytes.')
+      && !/ignores everything after/.test(big.body), (big.body.match(/loKwBytes[^\n]*/) || [''])[0]);
+    ok('…the part past byte 249 is marked "cut this" (byte 250 is the "0" of word035)',
+      /word034 word<span class="lo-cut" title="Past byte 249: cut this">035 word036 word037 word038 word039<\/span><span class="lo-cut-tag">cut this<\/span>/.test(big.body), (big.body.match(/lo-cut[^\n]*/) || [''])[0]);
+    const k249 = await opt({ kw: 'x'.repeat(249) }), k250 = await opt({ kw: 'x'.repeat(250) });
+    ok('249 bytes: green, nothing to cut', /class="ok" id="loKwBytes">249 \/ 249/.test(k249.body) && !k249.body.includes('lo-cut'));
+    ok('250 bytes: red (Amazon\'s "less than 250"), the last byte marked "cut this"', /class="err" id="loKwBytes">250 \/ 249/.test(k250.body) && /<span class="lo-cut"[^>]*>x<\/span><span class="lo-cut-tag">cut this/.test(k250.body));
+    // ONE RULE: Listing Health judges the same listing the same way, at the same byte
+    k249.C.reset(); k250.C.reset();
+    ok('Listing Health agrees at the edge: 249 bytes no problem, 250 bytes "Search terms over the limit" (the same listing, the same cache)',
+      !k249.C.hit('R1', 'keyword_bytes') && /^250 of 249 bytes — cut 1; over the limit Amazon may ignore all of them$/.test((k250.C.hit('R1', 'keyword_bytes') || {}).detail || ''), JSON.stringify(k250.C.hit('R1', 'keyword_bytes')));
+    {
+      const lo = fs.readFileSync(path.join(__dirname, '..', 'src', 'app', 'listing', 'listing-optimiser.js'), 'utf8');
+      const lr = fs.readFileSync(path.join(__dirname, '..', 'src', 'app', 'listing', 'listing-rules.js'), 'utf8');
+      const det = (lr.match(/\n  keyword_bytes: \(row, ctx, params\) => \{[\s\S]*?\n  \},/) || [''])[0];
+      ok('one shared function: the Optimiser and Listing Health\'s keyword_bytes both call lrKwCheck; neither counts the limit itself',
+        /lrKwCheck\(ours\.kw, max\)/.test(lo) && /lrKwCheck\(row\.kw, params\.max, row\.kwBytes\)/.test(det) && !/250|249/.test(lo.replace(/^\s*(\/\/|\*|\/\*).*$/gm, '')) && !/bytes > max/.test(det), det.slice(0, 120));
+    }
     const none = await opt({ kw: '' });
     ok('ours with no search terms set: "No search terms on this listing (R1)"', none.body.includes('No search terms on this listing (R1).') && !none.body.includes('Backend keywords cannot be read'));
     ok('a competitor\'s ASIN keeps the old message, and says why it read live', c.body.includes('Backend keywords cannot be read') && !c.body.includes('OUR SEARCH TERMS')

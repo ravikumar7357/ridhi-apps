@@ -2,7 +2,7 @@
  * Screens: Listing Optimiser (tab 'opt').
  * Does: reads one listing's review from the backend (baCall listing=review) and draws it: the title now and the suggested
  *       rearrangement with the differences marked, shoppers' search words the listing never says, bullets, description and
- *       the images themselves; for an ASIN of ours, its own search terms from the ListingMatch cache (bytes against Amazon's 250,
+ *       the images themselves; for an ASIN of ours, its own search terms from the ListingMatch cache (bytes against the limit, 249,
  *       the words the title already has); on request asks Amazon for the Search Query Performance report and the Market Basket report,
  *       polls until built, and shows them. loEsc, the escape helper, is also used by Bought Together.
  * Main functions: loMsg, ensureOpt, the loGo handler (loCacheFacts, loNoCacheWhy, loOurTerms), loOurTermsHtml, loFindings, renderOpt, loWordTable, loSqpRun, loFillPeriods,
@@ -38,7 +38,6 @@ function ensureOpt() {
 }
 let LO_LAST = '';       // the last ASIN reviewed (declared after ensureOpt, which only runs later)
 let LO_WAIT_MS = 20000; // how long a review waits for the backend's copy of the auto refresh data before it reads Amazon live
-const LO_KW_MAX = 250;  // Amazon's limit on the search terms (backend keywords), in bytes
 
 /* ----- the review's facts from the ListingMatch cache (listing-match.js) ----- */
 // { brand, facts } for an ASIN of ours — the brand chosen first, then the other — or null (not ours, or no usable cache).
@@ -64,34 +63,26 @@ function loOurTerms(sku, brand) {
   const m = sku && typeof lmGet === 'function' ? lmGet(sku, brand) : null;
   return m ? { sku, kw: String(m.kw || '').replace(/\s+/g, ' ').trim() } : null;
 }
-// The search terms' bytes as Amazon counts them (the words only: spaces and ; , . do not count — the Listing Rules' count).
-const loKwBytes = text => (typeof lrKwBytes === 'function' ? lrKwBytes(text)
-  : new TextEncoder().encode(String(text || '').replace(/[\s;,.]+/g, '')).length);
-/** Our search terms drawn: the text (what comes after byte 250 struck through), the byte count against the limit, and the words the
- *  title already has (wasted: Amazon indexes the title anyway). */
+/** Our search terms drawn, judged by THE ONE SEARCH-TERMS RULE (listing-rules.js lrKwCheck, the same as Listing Health's
+ *  keyword_bytes): the text with the part past the limit marked "cut this", the byte count against the limit (249: Amazon's "less
+ *  than 250"), and the words the title already has (wasted: Amazon indexes the title anyway). */
 function loOurTermsHtml(ours, title) {
+  const max = lrKwMax();
   if (!ours.kw) return `<div style="font-size:12.5px"><span class="err">No search terms on this listing (${loEsc(ours.sku)}).</span>
-    <span class="muted">Up to ${LO_KW_MAX} bytes of words shoppers search that the title does not say.</span></div>`;
-  const bytes = loKwBytes(ours.kw), over = bytes > LO_KW_MAX;
-  // where the limit falls: byte by byte, counting as loKwBytes does
-  let used = 0, cut = ours.kw.length;
-  for (let i = 0; i < ours.kw.length; i++) {
-    const ch = ours.kw[i];
-    if (/[\s;,.]/.test(ch)) continue;
-    used += loKwBytes(ch);
-    if (used > LO_KW_MAX) { cut = i; break; }
-  }
-  const text = loEsc(ours.kw.slice(0, cut)) + (cut < ours.kw.length ? `<span class="lo-gone">${loEsc(ours.kw.slice(cut))}</span>` : '');
+    <span class="muted">Up to ${max} bytes of words shoppers search that the title does not say.</span></div>`;
+  const k = lrKwCheck(ours.kw, max);
+  const text = loEsc(ours.kw.slice(0, k.cutAt))
+    + (k.over ? `<span class="lo-cut" title="Past byte ${k.max}: cut this">${loEsc(ours.kw.slice(k.cutAt))}</span><span class="lo-cut-tag">cut this</span>` : '');
   const norm = w => w.toLowerCase().replace(/[^a-z0-9]/g, '');
   const inTitle = new Set(String(title || '').split(/[\s,;/|()\-]+/).map(norm).filter(Boolean));
   const wasted = [...new Set(ours.kw.split(/[\s,;]+/).map(norm).filter(w => w && inTitle.has(w)))];
   return `<div class="muted" style="font-size:11px">OUR SEARCH TERMS · ${loEsc(ours.sku)} · from the auto refresh</div>
     <div style="font-size:12.5px;margin:2px 0 4px;word-break:break-word">${text}</div>
-    <div style="font-size:12.5px"><span class="${over ? 'err' : 'ok'}" id="loKwBytes">${bytes.toLocaleString('en-US')} / ${LO_KW_MAX} bytes</span>
-      ${over ? `<span class="err">— ${(bytes - LO_KW_MAX).toLocaleString('en-US')} over. Amazon ignores everything after byte ${LO_KW_MAX}.</span>` : '<span class="muted">— within Amazon\'s limit.</span>'}
+    <div style="font-size:12.5px"><span class="${k.over ? 'err' : 'ok'}" id="loKwBytes">${k.bytes.toLocaleString('en-US')} / ${k.max} bytes</span>
+      ${k.over ? `<span class="err">— ${loEsc(LR_KW_OVER)} Cut to ${k.max} bytes.</span>` : '<span class="muted">— within Amazon\'s limit.</span>'}
       <span class="muted">(Spaces and ; , . do not count.)</span></div>
     ${wasted.length ? `<div style="font-size:12.5px;margin-top:4px"><span class="err">Already in the title (wasted):</span> ${wasted.map(loEsc).join(', ')}
-      <span class="muted">— ${loKwBytes(wasted.join(''))} byte(s). Amazon reads the title anyway; these bytes do nothing here.</span></div>`
+      <span class="muted">— ${lrKwBytes(wasted.join(''))} byte(s). Amazon reads the title anyway; these bytes do nothing here.</span></div>`
       : '<div class="muted" style="font-size:12px;margin-top:4px">No word here is already in the title.</div>'}`;
 }
 
