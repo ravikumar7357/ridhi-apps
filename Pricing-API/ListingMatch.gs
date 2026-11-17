@@ -17,7 +17,8 @@
  *                                 column ("Available" in Seller Central).
  *   4. Listings Items API          searchListingsItems by SKU, 20 a call, includedData=summaries,attributes,issues:
  *                                 status, product type, issues, title, bullets, description, Item Highlights
- *                                 (title_differentiation), search terms (generic_keyword), variation attributes and
+ *                                 (title_differentiation), search terms (generic_keyword), variation attributes,
+ *                                 which of the Workspace's spec attributes are filled (LM_SPEC_ATTRS → `sp`) and
  *                                 our picture slots MAIN, PT01–PT08, SWCH.
  *   5. Catalog Items 2022-04-01    20 ASINs a call (summaries,images,relationships,attributes,classifications,
  *                                 salesRanks): the title shoppers see, live pictures with width/height, parent ↔
@@ -105,6 +106,9 @@ var LM_BOOK_NAME = 'Sellora Listing Cache';
 var LM_TICK_GAP_MIN = 25;              // no tick for this long while the timer is on: Apps Script is skipping it
 var LM_VAR_ATTRS = ['color', 'size', 'set_name', 'style', 'pattern', 'pattern_name', 'material', 'item_shape', 'scent',
   'flavor', 'number_of_items', 'item_package_quantity', 'unit_count', 'size_name', 'color_name', 'style_name', 'team_name'];
+// The spec attributes Sellora's Workspace checks (listing-workspace.js LI_WS_SPECS — keep the two lists the same): `sp` names the filled ones.
+var LM_SPEC_ATTRS = ['material', 'color', 'size', 'pattern', 'style', 'item_shape', 'number_of_items', 'theme', 'care_instructions',
+  'special_feature', 'item_type_name', 'fabric_type'];
 
 /* ============================== its own spreadsheet ============================== */
 
@@ -963,12 +967,16 @@ function lmItem_(it, now) {
   var va = {};
   LM_VAR_ATTRS.forEach(function (k) { var v = one(k); if (v) va[k] = v.slice(0, 120); });
   var rel = at.child_parent_sku_relationship && at.child_parent_sku_relationship[0];
+  // filled = any value besides the marketplace / language tags (the same test as the Workspace's live ?lfix=get read)
+  var filled = function (k) { return (at[k] || []).some(function (e) { return e && Object.keys(e).some(function (f) { return f !== 'marketplace_id' && f !== 'language_tag' && e[f] != null && e[f] !== ''; }); }); };
   return {
     sku: it.sku, asin: s.asin || '', as: (s.status || []).join(','), pt: s.productType || '',
+    sp: LM_SPEC_ATTRS.filter(filled),
     t: String(s.itemName || one('item_name')).slice(0, 300),
     bl: vals('bullet_point', 500), d: vals('product_description', LM_TEXT_MAX).join('\n').slice(0, LM_TEXT_MAX),
     hl: vals('title_differentiation', 200), kw: vals('generic_keyword', 500).join(' '),
     lvl: one('parentage_level'), psku: rel ? String(rel.parent_sku || '') : '', theme: one('variation_theme', 'name'), va: va, img: img,
+    itk: one('item_type_keyword').slice(0, 80),            // Amazon's word for what the product is (the Listing Optimiser's title rules)
     // e = Amazon's enforcement action names (SEARCH_SUPPRESSED, LISTING_SUPPRESSED, …), only when it names some
     iss: (it.issues || []).slice(0, 12).map(function (i) {
       var o = { c: String(i.code || ''), s: String(i.severity || ''), m: String(i.message || '').slice(0, 300), a: (i.attributeNames || []).slice(0, 4) };

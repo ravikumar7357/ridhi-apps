@@ -236,6 +236,12 @@ function liWsStoreSave() {
   }, 1000);
 }
 const liWsEntry = (brand, sku) => LI_WS.live[brand][sku] || (LI_WS.live[brand][sku] = { at: 0 });
+// One listing's freshest read for the checks: this browser's live read, with the ListingMatch cache's record under it (listing-match.js
+// lmLiveOf — the newer of the two, part by part) while that cache is usable; the live read alone otherwise.
+const liWsLr = (brand, sku) => {
+  const ws = LI_WS.live[brand][sku] || null;
+  return typeof lmLiveOf === 'function' ? lmLiveOf(brand, sku, ws) : ws;
+};
 
 /* ----- one listing: the sources merged, newest first, into the checks ----- */
 /**
@@ -243,7 +249,7 @@ const liWsEntry = (brand, sku) => LI_WS.live[brand][sku] || (LI_WS.live[brand][s
  * is the word in the ✗ pill, `bang` the read error when the only source for the cell failed — plus live, why, fails, red, unknown.
  */
 function liWsChild(row, brand, hc, imlMap, now) {
-  const lr = LI_WS.live[brand][row.sku] || null;
+  const lr = liWsLr(brand, row.sku);
   const live = liWsIsLive(row);
   const why = live ? 'Live' : (row.qty === 0 ? 'No stock' : 'Inactive');
   const rules = LR || LR_DEFAULT;
@@ -804,6 +810,7 @@ async function liWsJob(job) {
         // a few short facts Amazon holds for the listing, for an Item Highlights line built only from what is verified
         facts: { material: first('material').slice(0, 60), care: first('care_instructions').slice(0, 60), items: first('number_of_items').slice(0, 6) } });
       if (typeof faOnGet === 'function') faOnGet(brand, job.sku, at);   // the spec values, for Fix all's copy from the siblings (fix-all.js)
+      if (typeof lmNoteLive === 'function') lmNoteLive(brand, job.sku, 'get', reply);   // newer than the ListingMatch cache's record: shown until a newer pass
       if (typeof svNote === 'function') svNote(brand, job.sku);         // Item Highlights into the shared saved copy
       if (entry.pt) liWsNeedSchema(brand, entry.pt, job.pk);
     } else if (job.t === 'limg') {
@@ -820,6 +827,7 @@ async function liWsJob(job) {
         // each picture's id and size, for the picture rules (too small to zoom, main not square, the same picture twice)
         catPic: Object.fromEntries(slots.map(slot => [slot, [lrPicId(cat[slot].link), Number(cat[slot].w) || 0, Number(cat[slot].h) || 0]])) });
       else Object.assign(entry, { at: now, iErr: String(reply.catalogError || 'no catalogue answer').slice(0, 160) });   // an answer without the catalogue leaves the pictures unknown, never "none"
+      if (typeof lmNoteLive === 'function') lmNoteLive(brand, job.sku, 'limg', reply);
     } else if (job.t === 'aplus') {
       const reply = await baCall({ lh: 'aplusasin', brand, asins: job.asins.join(',') });
       if (reply.ok === false) throw new Error(reply.error || 'no answer');
@@ -884,8 +892,12 @@ function liWsReadParent(p, force, quiet) {
   const needG = kids.filter(kid => force || !(kid.lr && kid.lr.gAt > cut)).map(kid => kid.sku);
   const needI = kids.filter(kid => force || !(kid.lr && kid.lr.iAt > cut)).map(kid => kid.sku);
   const nA = liWsAplusJobs(p.brand, p.parent, kids, p.key, force);   // queues only: its answers land after this function has returned
-  if (!needC.length && !needG.length && !needI.length && !nA) return;   // nothing to read: the finished record, with its last error, stays
+  // the product types' schemas (which specs apply), once per type: a child whose specs come from the ListingMatch cache has no read of
+  // its own that would ask for it
+  const needS = force ? [] : [...new Set(kids.map(kid => kid.lr && kid.lr.specs && kid.lr.pt).filter(pt => pt && !LI_WS.schema[p.brand][pt]))];
+  if (!needC.length && !needG.length && !needI.length && !nA && !needS.length) return;   // nothing to read: the finished record, with its last error, stays
   LI_WS.prog[p.key] = { done: 0, total: needC.length + needG.length + needI.length + nA, err: '' };
+  needS.forEach(pt => liWsNeedSchema(p.brand, pt, p.key));   // each adds itself to the total
   // Read again: the product types' schemas are read afresh too — queued here, so a failed content/get read cannot leave a type without one.
   if (force) [...new Set(kids.map(kid => kid.lr && kid.lr.pt).filter(Boolean))].forEach(pt => {
     delete LI_WS.schema[p.brand][pt];
@@ -1068,7 +1080,7 @@ function liWsKidTableInner(p, bare) {
     const open = LI_WS.openSku.has(key);
     const mark = cardK ? (inCard(kid) ? ` is-match is-m-${cardK}` : ' is-other') : '';
     const other = i === firstOther && i > 0 ? `<tr class="li-ws-otherhead"><td colspan="${LI_WS_CHECKS.length + 3}">Other listings</td></tr>` : '';
-    return `${other}<tr class="li-ws-kid${kid.counted ? '' : ' is-off'}${mark}"><td><button type="button" class="li-ws-sku" data-li-ws-sku="${lrEsc(key)}" aria-expanded="${open}">${open ? '▾' : '▸'} ${lrEsc(kid.sku)}</button>`
+    return `${other}<tr class="li-ws-kid${kid.counted ? '' : ' is-off'}${mark}"><td><button type="button" class="li-ws-sku" data-li-ws-sku="${lrEsc(key)}" aria-expanded="${open}">${open ? '▾' : '▸'} ${lrEsc(kid.sku)}</button>${kid.lr && kid.lr.lmStale && typeof lmOldHtml === 'function' ? lmOldHtml(kid.brand, kid.sku) : ''}`
       + `<div class="li-ws-asin">${lrEsc(kid.asin)}</div></td><td>${lrEsc(kid.why)}</td><td class="num">${kid.row.qty == null ? '<span class="li-ws-na">—</span>' : liWsNf(kid.row.qty)}</td>`
       + LI_WS_CHECKS.map(check => `<td>${liWsCell(kid, check, reading)}</td>`).join('') + '</tr>' + (open ? liWsDetail(kid, LI_WS_CHECKS.length + 3) : '');
   }).join('') || `<tr><td colspan="${LI_WS_CHECKS.length + 3}" class="li-ws-na">${step ? 'No listing fails this step now.' : `No ${LI_WS.mode === 'live' ? 'live' : LI_WS.mode === 'off' ? 'not-live' : ''} children.`}</td></tr>`;
@@ -1483,7 +1495,7 @@ function liWsSkeleton() {
 // A listing's picture: the catalogue's MAIN from its live read first, else the Image Manager snapshot's live MAIN, else the one we
 // submitted; '' when none. Thumbnail-sized when the Image Manager's helper is there.
 function liWsPicUrl(brand, sku) {
-  const lr = LI_WS.live[brand] && LI_WS.live[brand][sku];
+  const lr = LI_WS.live[brand] ? liWsLr(brand, sku) : null;
   let url = lr && lr.catMain ? lr.catMain : '';
   if (!url) {
     const item = liWsImlIndex(brand).get(sku);

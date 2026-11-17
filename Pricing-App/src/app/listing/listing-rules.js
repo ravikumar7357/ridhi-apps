@@ -671,7 +671,10 @@ async function amzEnsure() {
   AMZ.busy = true;
   const map = new Map();
   try {
+    // the ListingMatch cache answers for the brands it holds (listing-match.js, read from this browser's copy — no wait for the network)
+    const lmB = typeof lmEnsure === 'function' ? (await lmEnsure(), lmAmzBrands()) : [];
     for (const brand of ['SP', 'CPC']) {
+      if (lmB.includes(brand)) continue;
       const head = await getDoc(doc(db, 'imgsnap', brand));
       if (!head.exists()) continue;
       const nChunks = head.data().chunks || 0;
@@ -686,6 +689,7 @@ async function amzEnsure() {
         });
       });
     }
+    if (lmB.length) lmAmzApply(map);
     AMZ.map = map.size ? map : null;
     AMZ.at = Date.now();
     H_CTX = null;
@@ -700,8 +704,12 @@ async function amzEnsure() {
 // hands them to every screen, so Parent ASINs,
 // Child listings and the Workspace judge the same freshest data.
 const lrWsLive = () => (typeof liWsLiveMap === 'function' ? liWsLiveMap() : null);
-// The live read of one listing, or null.
-const lrLiveOf = (row, ctx) => ((ctx.wsLive && ctx.wsLive[row.brand]) || {})[row.sku] || null;
+// The live read of one listing, or null — with the ListingMatch cache's record under it (listing-match.js lmLiveOf: the newer of the two,
+// part by part) while that cache is usable.
+const lrLiveOf = (row, ctx) => {
+  const ws = ((ctx.wsLive && ctx.wsLive[row.brand]) || {})[row.sku] || null;
+  return ctx.lm ? lmLiveOf(row.brand, row.sku, ws) : ws;
+};
 // The Image Manager snapshot's item for one listing, or null.
 const lrImlOf = (row, ctx) => (ctx.iml && ctx.iml[row.brand] ? ctx.iml[row.brand].get(row.sku) : null) || null;
 // The gallery slots of a slot → url map or a slot list: MAIN + PT01–PT08, in order; the swatch (SWCH) is not a picture.
@@ -949,7 +957,8 @@ function hCtx(rowsAll) {
   // --- reuse the last context while nothing it depends on has changed ---
   const withContent = rows.reduce((count, row) => count + (row.content ? 1 : 0), 0);
   const pcV = typeof PC !== 'undefined' ? PC.v : 0;          // the Picture check marks (picture-check.js): a new mark judges again
-  const key = [rows.length, withContent, LR_CAT.SP ? 1 : 0, LR_CAT.CPC ? 1 : 0, AMZ.at, ws ? 1 : 0, pcV,
+  const lmV = typeof lmVersion === 'function' ? lmVersion() + ':' + (lmOk('SP') ? 1 : 0) + (lmOk('CPC') ? 1 : 0) : '';   // the ListingMatch cache (listing-match.js)
+  const key = [rows.length, withContent, LR_CAT.SP ? 1 : 0, LR_CAT.CPC ? 1 : 0, AMZ.at, ws ? 1 : 0, pcV, lmV,
     ['SP', 'CPC'].map(b => (HEALTH[b] && HEALTH[b].parentAplusAt) || 0).join(',')].join('|');
   if (H_CTX && H_CTX.cfg === cfg && H_CTX.sp === HEALTH.SP && H_CTX.cpc === HEALTH.CPC && H_CTX.key === key
       && H_CTX.imlSP === imlOf('SP') && H_CTX.imlCPC === imlOf('CPC') && H_CTX.day === new Date().toDateString()) return H_CTX;
@@ -990,7 +999,7 @@ function hCtx(rowsAll) {
     iml[b] = map;
   });
   H_CTX = { cfg, today: new Date(), parents, amz: AMZ.map, amzAt: AMZ.snapAt, sp: HEALTH.SP, cpc: HEALTH.CPC, key, day: new Date().toDateString(),
-    wsLive: ws ? ws.live : null, wsAplus: ws ? ws.aplus : null, healthAt, parentAplus, imlAt, iml, imlSP: imlOf('SP'), imlCPC: imlOf('CPC'),
+    wsLive: ws ? ws.live : null, wsAplus: ws ? ws.aplus : null, lm: typeof lmLiveOf === 'function' && lmOk(), healthAt, parentAplus, imlAt, iml, imlSP: imlOf('SP'), imlCPC: imlOf('CPC'),
     pc: typeof PC !== 'undefined' ? PC.marks : null };
   return H_CTX;
 }

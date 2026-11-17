@@ -258,8 +258,17 @@ async function imListEnsure() {
   if (age > 24 * 3600e3 && !IML_BUSY) imListBuild(brand);
 }
 
-// Read one brand's saved snapshot (imgsnap/{brand} + its imgrows chunks) into IML[brand], URLs unpacked.
+// One brand's list into IML[brand]: from the ListingMatch cache at once when it is usable (listing-match.js — the saved snapshot is read
+// under it in the background), else the saved snapshot as before.
 async function imListLoad(brand) {
+  if (typeof lmEnsure === 'function') {
+    await lmEnsure();                       // this browser's saved copy of the cache: never waits for the network
+    if (lmImlFast(brand, () => imListLoadSnap(brand))) return;
+  }
+  return imListLoadSnap(brand);
+}
+// Read one brand's saved snapshot (imgsnap/{brand} + its imgrows chunks) into IML[brand], URLs unpacked.
+async function imListLoadSnap(brand) {
   try {
     const meta = await getDoc(doc(db, 'imgsnap', brand));
     if (!meta.exists()) {
@@ -601,7 +610,7 @@ function imKidRow(item) {
   return `<div class="im-kid${open ? ' is-open' : ''}" data-sku="${imEsc(item.sku)}">
     <label class="im-kid-sel" title="Tick to paste into this listing (Shift+click ticks a range)"><input type="checkbox" class="im-sel" data-sku="${imEsc(item.sku)}" ${IM_SEL.has(item.sku) ? 'checked' : ''} aria-label="Tick ${imEsc(item.sku)}"></label>
     <div class="im-kid-info">
-      <div class="im-kid-t"><b class="im-mono">${imEsc(item.sku)}</b><span class="muted">${imEsc(item.asin)}</span></div>
+      <div class="im-kid-t"><b class="im-mono">${imEsc(item.sku)}</b>${item.lmStale && typeof lmOldHtml === 'function' ? lmOldHtml($('imBrand') ? $('imBrand').value : '', item.sku) : ''}<span class="muted">${imEsc(item.asin)}</span></div>
       <div class="im-kid-s">${imEsc([item.c, item.z].filter(Boolean).join(' · ') || String(item.t || '').slice(0, 60))}</div>
       <div class="im-kid-q"><span class="im-chip ${chip.cls}"${chip.tip ? ` title="${imEsc(chip.tip)}"` : ''}>${imEsc(chip.t)}</span><span class="im-kid-sum">${imKidSummary(item)}</span></div>
       ${errs.length ? `<div class="im-kid-err" title="${imEsc(errs[0].m)}">${imEsc(errs[0].m)}</div>` : ''}
@@ -1069,6 +1078,8 @@ async function imLoad(skuPick) {
     else if (isAsin) params.asin = typed.toUpperCase();
     else params.sku = typed;
     const reply = await baCall(params);
+    // a live read of this listing: newer than the ListingMatch cache's record, so the list shows it until a newer pass (listing-match.js)
+    if (typeof lmNoteLive === 'function' && (reply.sku || params.sku)) lmNoteLive(params.brand, reply.sku || params.sku, 'limg', reply);
     IM = reply;
     if (skuPick && IM_SKU_CHOICES) IM.skuChoices = IM_SKU_CHOICES;
     IM_SKU_CHOICES = reply.skuChoices || IM_SKU_CHOICES;

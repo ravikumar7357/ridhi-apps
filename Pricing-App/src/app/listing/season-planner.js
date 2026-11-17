@@ -787,7 +787,9 @@ function spCheckAll() {
   const retry = typeof SV_RETRY_MS !== 'undefined' ? SV_RETRY_MS : 3600000;
   const failed = item => !!(item.live && item.live.cErr && Date.now() - (item.live.cErrAt || item.live.at || 0) < retry);   // failed within the hour: skipped for now
   const age = item => (item.live && item.live.cAt) || 0;
-  const items = spCompute().filter(item => item.kind !== 'none' && !item.liveFresh && !failed(item) && !SP.reading.has(item.key)).sort((a, b) => age(a) - age(b));   // oldest first
+  // a brand the ListingMatch cache holds is never read in the background (listing-match.js): only a parent opened, for a listing it lacks
+  const cached = item => typeof lmOk === 'function' && lmOk(item.brand);
+  const items = spCompute().filter(item => item.kind !== 'none' && !item.liveFresh && !failed(item) && !SP.reading.has(item.key) && !cached(item)).sort((a, b) => age(a) - age(b));   // oldest first
   const byParent = new Map();
   items.forEach(item => { const pk = item.brand + '|' + spParentOf(item); if (!byParent.has(pk)) byParent.set(pk, []); byParent.get(pk).push(item); });
   const check = { total: byParent.size, done: 0, left: new Map(), at: Date.now() };
@@ -1351,7 +1353,7 @@ function spRowHtml(item) {
     : item.status === 'reading' ? '<button type="button" class="sp-btn sp-row-b" disabled>Wait</button>'
       : `<button type="button" class="sp-btn sp-row-b" data-sp-act="open-kid" data-sp-key="${lrEsc(item.key)}">Check</button>`;
   return `<div class="sp-row ${st.cls}${open ? ' is-open' : ''}" role="button" tabindex="0" data-sp-act="open-kid" data-sp-key="${lrEsc(item.key)}" aria-label="Open ${lrEsc(spFacts(item))}">`
-    + `${spPic(item.brand, item.sku, false)}<div class="sp-row-t"><b>${lrEsc(spFacts(item))}</b><span>${spDoLine(item)}${spWhereShort(item) ? ' · ' + spWhereShort(item) : ''}</span><small>${lrEsc(item.sku)}</small></div>`
+    + `${spPic(item.brand, item.sku, false)}<div class="sp-row-t"><b>${lrEsc(spFacts(item))}</b><span>${spDoLine(item)}${spWhereShort(item) ? ' · ' + spWhereShort(item) : ''}</span><small>${lrEsc(item.sku)}${typeof lmOldHtml === 'function' ? lmOldHtml(item.brand, item.sku) : ''}</small></div>`
     + `<span class="sp-chip-s ${st.cls}"><i aria-hidden="true">${st.i}</i>${st.s}</span>${btn}</div>`;
 }
 // The parent side panel: header card, then the body.

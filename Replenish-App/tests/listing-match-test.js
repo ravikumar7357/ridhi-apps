@@ -338,6 +338,9 @@ const tabs = T => [...T.sheets.keys()];
       issues: [{ severity: 'ERROR', code: '5665', message: 'm', attributeNames: [], enforcements: { actions: [{ action: 'SEARCH_SUPPRESSED' }] } }, { severity: 'WARNING', code: '1', message: 'w' }] }) + ')');
     ok('the saved list snapshot (?limg=page): each issue keeps e = the action names, nothing added when there are none', JSON.stringify(sh.iss[0].e) === '["SEARCH_SUPPRESSED"]' && !('e' in sh.iss[1])
       && sh.iss[0].c === '5665' && sh.ie === 1);
+    const li = T.run('lmItem_(' + JSON.stringify({ sku: 'S1', summaries: [{ asin: 'B0S1', status: ['BUYABLE'] }], issues: [], attributes: { material: [{ value: 'Cotton', marketplace_id: 'ATVPDKIKX0DER' }],
+      care_instructions: [{ value: '', marketplace_id: 'ATVPDKIKX0DER' }], theme: [{ marketplace_id: 'ATVPDKIKX0DER', language_tag: 'en_US' }], item_shape: [{ value: 'Square' }], bullet_point: [{ value: 'b' }] } }) + ', 1)');
+    ok('lmListings: sp = the Workspace\'s spec attributes that are filled (an empty value, or only the marketplace / language tags, is not filled)', JSON.stringify(li.sp) === '["material","item_shape"]', JSON.stringify(li.sp));
   }
 
   console.log('== a failed read never wipes data ==');
@@ -604,6 +607,37 @@ const tabs = T => [...T.sheets.keys()];
     const y = JSON.parse(T.props.LM_USAGE); y.day = '2000-01-01'; T.props.LM_USAGE = JSON.stringify(y);
     T.log.length = 0; T.run('lmStatus()');
     ok('a new day starts the count again', /ListingMatch  0 min in 0 run\(s\)/.test(T.log.join('\n')));
+  }
+
+  console.log('== the Listing Optimiser review judged on the facts Sellora posts from its cache (ListingOptimiser.gs) ==');
+  {
+    const vm = require('vm');
+    const asked = [];
+    const link = s => `https://m.media-amazon.com/images/I/${s}.jpg`;
+    const live = { summaries: [{ itemName: 'Ridhi Cloth Napkins 100% Cotton 18 x 18 Inch Block Print Dinner Napkins Set of 6 - Blue', brandName: 'Ridhi', browseClassification: { displayName: 'Cloth Napkins' } }],
+      attributes: { bullet_point: ['Soft cotton', 'Block print by hand', 'Set of 6', 'Machine wash', 'Gift ready'].map(v => ({ value: v })), product_description: [{ value: 'x'.repeat(400) }],
+        item_type_keyword: [{ value: 'cloth-napkins' }], size: [{ value: '18 x 18 Inch' }], color: [{ value: 'Blue' }], material: [{ value: 'Cotton' }] },
+      images: [{ images: [{ variant: 'MAIN', link: link('M'), width: 2000, height: 2000 }, { variant: 'PT01', link: link('P1'), width: 800, height: 800 }, { variant: 'PT02', link: link('P2'), width: 2000, height: 2000 }] }],
+      salesRanks: [{ classificationRanks: [{ title: 'Cloth Napkins', rank: 52 }], displayGroupRanks: [{ title: 'Home & Kitchen', rank: 10234 }] }] };
+    const ctx = { Logger: { log() {} }, console, marketplaceId_: () => 'ATVPDKIKX0DER', prop_: () => '',
+      spRetry_: p => { asked.push(p); return JSON.parse(JSON.stringify(live)); } };
+    vm.createContext(ctx);
+    vm.runInContext(fs.readFileSync(P + 'ListingOptimiser.gs', 'utf8'), ctx);
+    const facts = { title: live.summaries[0].itemName, brand: 'Ridhi', category: 'Cloth Napkins', bullets: live.attributes.bullet_point.map(b => b.value), bulletsKnown: true,
+      description: 'x'.repeat(400), descriptionKnown: true, itemType: 'cloth-napkins', size: '18 x 18 Inch', color: 'Blue', material: 'Cotton',
+      images: { MAIN: { link: link('M'), w: 2000, h: 2000 }, PT01: { link: link('P1'), w: 800, h: 800 }, PT02: { link: link('P2'), w: 2000, h: 2000 }, BAD: { link: link('X'), w: 1, h: 1 }, PT03: { link: 'javascript:x', w: 1, h: 1 } },
+      rank: { title: 'Cloth Napkins', value: 52 }, readAt: 1 };
+    const fromLive = vm.runInContext('listingReview_("B0TEST0001", "")', ctx);
+    const n = asked.length;
+    const fromCache = vm.runInContext('listingReview_("B0TEST0001", "", ' + JSON.stringify(facts) + ')', ctx);
+    ok('with posted facts: no catalog call (the keyword step uses the same facts); without: the catalog is read as before (the audit and the keyword step)',
+      n === 2 && asked.length === 2 && asked.every(p => /\/catalog\/2022-04-01\/items\/B0TEST0001/.test(p)), asked.join(' | '));
+    ok('…the audit says where it came from (src cache), and keeps only real picture slots with https links', fromCache.audit.src === 'cache' && Object.keys(fromCache.audit.images.slots).sort().join() === 'MAIN,PT01,PT02' && !fromLive.audit.src);
+    const strip = r => JSON.parse(JSON.stringify({ findings: r.findings, suggestion: r.suggestion, images: r.audit.images, rank: r.audit.rank, title: r.audit.title, bullets: r.audit.bullets }));
+    ok('the same listing judged the same both ways: findings, suggested title, pictures (PT01 no zoom), rank', JSON.stringify(strip(fromCache)) === JSON.stringify(strip(fromLive)) && fromCache.audit.images.noZoom.join() === 'PT01 (800x800)',
+      JSON.stringify(strip(fromCache)).slice(0, 200) + ' vs ' + JSON.stringify(strip(fromLive)).slice(0, 200));
+    const codeGs = fs.readFileSync(P + 'Code.gs', 'utf8');
+    ok('Code.gs doPost: listing=review takes the facts (a read through the signed-in POST, as the sends)', /if \(p\.listing === 'review'\) \{ setBrand_\(p\.brand\); return json_\(listingReview_\(p\.asin, p\.target, p\.facts\)\); \}/.test(codeGs));
   }
 
   console.log('== this file changes nothing else ==');

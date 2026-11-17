@@ -169,9 +169,11 @@ function imqSeed(brand) {
   if (typeof liWsLiveMap !== 'function') return;
   let map;
   try { map = liWsLiveMap(); } catch (e) { return; }
-  const key = brand + '|' + (map && map.v);
+  const key = brand + '|' + (map && map.v) + '|' + (typeof lmVersion === 'function' ? lmVersion() : '');
   if (IMQ.seeded[brand] === key) return;
   IMQ.seeded[brand] = key;
+  // the ListingMatch cache's catalog sizes first (listing-match.js), then this browser's live reads over them
+  if (typeof lmPicSizes === 'function') lmPicSizes(brand).forEach(([id, w, h]) => IMQ.dims.set(String(id), [w, h]));
   Object.values((map && map.live && map.live[brand]) || {}).forEach(entry => {
     Object.values((entry && entry.catPic) || {}).forEach(p => { if (Array.isArray(p) && p[1] && p[2]) IMQ.dims.set(String(p[0]), [p[1], p[2]]); });
   });

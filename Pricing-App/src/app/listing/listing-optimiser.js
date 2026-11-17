@@ -33,6 +33,7 @@ function loMsg(text, bad) {
 // First visit to the tab: put back the last ASIN looked at.
 function ensureOpt() {
   if (!$('loAsin').value && LO_LAST) $('loAsin').value = LO_LAST;
+  if (typeof lmEnsure === 'function') lmEnsure();     // the ListingMatch cache's browser copy (listing-match.js), for the review and the age line
 }
 let LO_LAST = '';       // the last ASIN reviewed (declared after ensureOpt, which only runs later)
 
@@ -49,8 +50,20 @@ $('loGo').onclick = async () => {
   $('loGo').disabled = true;
   loMsg('Reading the listing…');
   try {
-    const reply = await baCall({ listing: 'review', asin: asinCode, brand: $('loBrand').value,
-      target: $('loTarget').value || '' });
+    // The listing's facts from the ListingMatch cache (listing-match.js, the one read door) when it holds this ASIN as one of ours and
+    // is at most 24 hours old: the backend judges those, with no catalog call. Otherwise — or when the backend does not take them
+    // (not updated yet, the test site) — it reads Amazon live, as before.
+    const brand = $('loBrand').value, target = $('loTarget').value || '';
+    if (typeof lmEnsure === 'function') await lmEnsure();
+    const facts = typeof lmReviewFacts === 'function' ? lmReviewFacts(asinCode, brand) : null;
+    let reply = null;
+    if (facts && typeof imPost === 'function') {
+      try {
+        const got = await imPost({ listing: 'review', asin: asinCode, brand, target, facts });
+        if (got && got.ok && got.audit && got.audit.src === 'cache') reply = got;
+      } catch (e) { /* the live read below */ }
+    }
+    if (!reply) reply = await baCall({ listing: 'review', asin: asinCode, brand, target });
     LO_DATA = reply;
     renderOpt();
     loMsg('');
@@ -165,6 +178,7 @@ function renderOpt() {
         <b style="font-size:15px">${loEsc(audit.asin)}</b>
         <span class="muted" style="font-size:12px">${loEsc(audit.brand)} · ${loEsc(audit.category)}</span>
         ${audit.rank ? `<span class="muted" style="font-size:12px">rank ${audit.rank.value.toLocaleString('en-US')} in ${loEsc(audit.rank.title)}</span>` : ''}
+        <span class="muted" style="font-size:12px">${audit.src === 'cache' ? 'Amazon data from the auto refresh' + (typeof lmPassWhen === 'function' && lmPassWhen() ? ' (' + loEsc(lmPassWhen()) + ')' : '') : 'read live from Amazon now'}</span>
       </div>
     </div>
 
