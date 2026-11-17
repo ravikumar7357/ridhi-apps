@@ -386,11 +386,14 @@ function flowVsPending(key, ruffle, unit, poNo) {
   return { vs, pending: flowR2(Math.max(0, vs - got)), blocked: false };
 }
 /** The Received cell for one line under the rule above: a tick that fills the printer's figure, and the box (at most that much). */
+/* NOT MANDATORY ANY MORE (Ravi, 16 Nov: "jab tak vendor nahi bhej raha h me receive nahi kar pa rha hu — isko mandatory mat karo"). What
+ * the printer said it sent is still offered as a tick that fills the box; but a line it said nothing about, or more than it said, can be
+ * typed — up to what is still to come on the line, which every save checks. */
 function flowVsRecvCell(attr, id, pv, unit, value, extra) {
-  if (pv.blocked) return `<span style="font-size:11.5px;color:#b45309" title="Ask the printer to enter what it sent on its portal (Vendor Sent)">printer has not said it sent</span>`;
-  if (!(pv.pending > 0)) return `<span class="muted" style="font-size:11.5px" title="${esc(flowQtyTxt(pv.vs, unit))} said sent — all of it is in">all sent is in</span>`;
+  const box = `<input ${attr}="${esc(id)}" type="number" min="0" step="${unit === 'pcs' ? 1 : 0.01}" value="${esc(String(value || ''))}" placeholder="0" onfocus="this.select()" style="width:72px;padding:3px 6px;font-size:12px;text-align:right"${extra || ''}>`;
+  if (pv.blocked || !(pv.pending > 0)) return box + `<div style="font-size:10.5px;color:#b45309;white-space:normal">${pv.blocked ? 'printer has not said it sent' : 'all the printer said is in'}</div>`;
   return `<label style="display:inline-flex;gap:4px;align-items:center;margin:0 6px 0 0;font-size:12px;white-space:nowrap" title="Take in what the printer says it sent"><input type="checkbox" data-flfill="${esc(String(pv.pending))}" style="width:auto;margin:0"${+value >= pv.pending ? ' checked' : ''}>${esc(flowQtyTxt(pv.pending, unit))}</label>`
-    + `<input ${attr}="${esc(id)}" type="number" min="0" max="${esc(String(pv.pending))}" step="${unit === 'pcs' ? 1 : 0.01}" value="${esc(String(value || ''))}" placeholder="0" onfocus="this.select()" style="width:72px;padding:3px 6px;font-size:12px;text-align:right"${extra || ''}>`;
+    + box;
 }
 if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
   /* the tick fills the box with the printer's figure (or clears it); a figure typed over it comes back down to it */
@@ -403,6 +406,8 @@ if (typeof document !== 'undefined' && typeof document.addEventListener === 'fun
 }
 /** The save-side check of the same rule: '' when fine, else what is wrong with this line. */
 function flowVsCheck(key, ruffle, unit, poNo, q, what) {
+  const must = false;   // 16 Nov: not mandatory — the line's own "still to come" is the only limit
+  if (!must) return '';
   const pv = flowVsPending(key, ruffle, unit, poNo);
   if (pv.blocked) return `${what}: the printer has not said it sent this — ask them to enter it on their portal`;
   if (q > pv.pending + 1e-9) return `${what}: ${flowQtyTxt(q, unit)} is more than the ${flowQtyTxt(pv.pending, unit)} the printer says it sent and we have not taken in`;
@@ -448,23 +453,27 @@ function flowDueTable(q, testOnly) {
 }
 /* ONE BUTTON ON THE ORDER LINE (Ravi, 16 Nov: "on receiving page the receive button should be at the place where the order number line
  * lies"). Each line offers what the printer entered as sent and we have not taken in: "Receive 3 pcs" takes it in at once, dated today,
- * through the same save as every receive screen (flowDueRecvSave). "fewer came?" opens a box filled with that figure that can only go
- * down. A line the printer has entered nothing for has no button. Errors: a failed save is said in red under the toolbar and nothing is
- * taken in. A TEST line, or the automated flow tests (recvFree), keep the old typed figure and Save received. */
+ * through the same save as every receive screen (flowDueRecvSave). "other amount?" opens a box filled with that figure.
+ * NOT MANDATORY (Ravi, 16 Nov 5 pm: "jab tak vendor nahi bhej raha h me receive nahi kar pa rha hu — isko mandatory mat karo"; 17 Nov:
+ * "receive anyway"): a line the printer entered nothing for — or all of whose figure is in — gets the box straight away, with a note; the
+ * only limit anywhere is what is still to come on the line, which every save checks. Errors: a failed save is said in red under the
+ * toolbar and nothing is taken in. A TEST line, or the automated flow tests (recvFree), keep the old typed figure and Save received. */
 const flowDueTyped = x => !!(x.test || !flowVsRuleOn());
 function flowDueRecvCell(x, id) {
-  const pv = flowVsPending(x.l.key, false, x.unit, x.po), n = flowR2(Math.min(pv.pending, x.unit === 'pcs' ? x.left : x.left * 1.1));
+  const most = flowR2(x.unit === 'pcs' ? x.left : x.left * 1.1), pv = flowVsPending(x.l.key, false, x.unit, x.po), n = flowR2(Math.min(pv.pending, most));
   const wait = typeof vpVsWait === 'function' ? flowR2(flowVsOfKey(x.l.key, false, x.unit, x.po, vpVsWait) || 0) : 0;
-  const waitTxt = wait > 0 ? `<div style="font-size:11px;color:#b45309;margin-top:3px">+${esc(flowQtyTxt(wait, x.unit))} waiting approval</div>` : '';
-  if (pv.blocked) return `<span class="pill pill-out" title="Ask the printer to enter what it sent on its portal">Printer has not entered pieces</span>${waitTxt}`;
-  if (!(n > 0)) return `<span class="muted" style="font-size:12px">All sent is in</span>${waitTxt}`;
-  if (FLOW_DUE.less === id) return `<span style="display:inline-flex;gap:4px;align-items:center"><input data-fldless="${esc(id)}" type="number" min="${x.unit === 'pcs' ? 1 : 0.01}" max="${esc(String(n))}" step="${x.unit === 'pcs' ? 1 : 0.01}" value="${esc(String(n))}" style="width:70px;padding:3px 6px;font-size:12px;text-align:right" aria-label="What came">`
-    + `<button type="button" data-fldgo="${esc(id)}" style="width:auto;padding:4px 10px;font-size:12px">Receive</button><button type="button" class="ghost" data-fldlessx="1" style="width:auto;padding:4px 8px;font-size:12px">Cancel</button></span>`
-    + `<div class="muted" style="font-size:11px;margin-top:3px">At most ${esc(flowQtyTxt(n, x.unit))} — what the printer entered</div>`;
+  const note = (t, c) => `<div style="font-size:11px;color:${c || '#b45309'};margin-top:3px;white-space:normal">${t}</div>`;
+  const waitTxt = wait > 0 ? note(`+${esc(flowQtyTxt(wait, x.unit))} waiting approval`) : '';
+  const box = (val, why) => `<span style="display:inline-flex;gap:4px;align-items:center"><input data-fldless="${esc(id)}" type="number" min="${x.unit === 'pcs' ? 1 : 0.01}" max="${esc(String(most))}" step="${x.unit === 'pcs' ? 1 : 0.01}" value="${esc(String(val || ''))}" placeholder="0" style="width:70px;padding:3px 6px;font-size:12px;text-align:right" aria-label="What came">`
+    + `<button type="button" data-fldgo="${esc(id)}" style="width:auto;padding:4px 10px;font-size:12px">Receive</button>${FLOW_DUE.less === id ? '<button type="button" class="ghost" data-fldlessx="1" style="width:auto;padding:4px 8px;font-size:12px">Cancel</button>' : ''}</span>`
+    + note(`${why}At most ${esc(flowQtyTxt(most, x.unit))} — still to come`, 'var(--muted,#6b7686)') + waitTxt;
+  if (pv.blocked) return box('', '<span style="color:#b45309">Printer has not entered pieces.</span> ');
+  if (!(n > 0)) return box('', '<span style="color:#b45309">All the printer entered is in.</span> ');
+  if (FLOW_DUE.less === id) return box(n, '');
   return `<button type="button" data-fldgo="${esc(id)}" data-q="${esc(String(n))}" style="width:auto;padding:5px 12px;font-size:12.5px;background:#166534;border-color:#166534">Receive ${esc(flowQtyTxt(n, x.unit))}</button>`
-    + `<div style="margin-top:3px"><a href="#" data-fldless="${esc(id)}" style="font-size:11.5px">fewer came?</a></div>${waitTxt}`;
+    + `<div style="margin-top:3px"><a href="#" data-fldless="${esc(id)}" style="font-size:11.5px">other amount?</a></div>${waitTxt}`;
 }
-/** Take one line in from the sheet: the printer's figure, or what was typed in "fewer came?" — never more than the printer entered. */
+/** Take one line in from the sheet: the printer's figure, or what was typed — up to what is still to come (flowDueRecvSave checks it). */
 async function flowDueRecvOne(id, q) {
   const [pk, lk] = String(id).split('|'), x = flowDueRows('', false).find(y => (y.code || y.printer) === pk && y.l.key === lk);
   if (!x) return 'That line is not owed any more — press Refresh.';
@@ -635,8 +644,17 @@ async function flowDueRecvSave(key, got, o) {
   flowDueRecvSave.said = `Received from ${rows[0].printer}${per.size ? ` on ${[...per.keys()].join(', ')}` : ''}${made.length ? `${per.size ? '; ' : ' — '}no RFD challan for some of it, recorded on ${made.join(', ')}` : ''}.`;
   return '';
 }
-function flowDueRecvOpen(key) {
-  const rows = flowDueOf(key); if (!rows.length) return;
+function flowDueRecvOpen(key, only) {
+  /* ONE ORDER ONLY (Ravi, 16 Nov: "SHP board me yadi kisi printer se receive kare to only bahi order receive ho n ki sabhi orders show ho"):
+   * opened from a board row, the dialog holds that order's lines from this printer — its own SKU first, else every line of the order. */
+  let rows = flowDueOf(key);
+  if (only && only.orderNo) {
+    const U = s => String(s || '').trim().toUpperCase(), ord = rows.filter(x => U(x.orderNo) === U(only.orderNo));
+    const mine = ord.filter(x => U(x.sku) === U(only.sku));
+    rows = mine.length ? mine : ord;
+    if (!rows.length) { if (typeof only.none === 'function') only.none(); return; }
+  }
+  if (!rows.length) return;
   const pic = sku => (typeof ptImgSpan === 'function' ? ptImgSpan(sku, 40) : '');
   ptOpenDialog({
     title: `Receive from ${rows[0].printer}`,
@@ -661,7 +679,9 @@ function flowDueRecvOpen(key) {
       const got = {}; rows.forEach((x, i) => { const v = +((document.querySelector(`[data-fldq="${i}"]`) || {}).value || 0); if (v > 0) got[x.l.key] = v; });
       const er = await flowDueRecvSave(key, got, { date: $('fldrDate').value, note: ($('fldrNote').value || '').trim(), deduct: !!$('fldrDed').checked });
       if (er) return er;
-      renderFlow(); $('flMsg').className = 'muted'; $('flMsg').textContent = flowDueRecvSave.said; return '';
+      renderFlow(); $('flMsg').className = 'muted'; $('flMsg').textContent = flowDueRecvSave.said;
+      if (only && typeof only.after === 'function') only.after(flowDueRecvSave.said);
+      return '';
     },
   });
   const qb = typeof document !== 'undefined' && document.getElementById && document.getElementById('fldrQ');

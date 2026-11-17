@@ -945,6 +945,24 @@
   #paneShop .so-fig:last-child{padding-right:0}
   #paneShop .so-fig b{font-size:21px;font-weight:800;line-height:1.15}
   #paneShop .so-fig span{font-size:12px;opacity:.88;white-space:nowrap}
+  /* CONTENT CREATORS (shopify/creator-orders.js) wears the same title band and toolbar (Khushi, 16 Nov: "reuse the
+   * Shopify Orders header styling"). Its own copy of the rules rather than a wider selector above, so Shopify's stay untouched. */
+  #paneCreators .so-find{gap:8px}
+  #paneCreators .so-band{display:flex;align-items:center;gap:22px;flex-wrap:wrap;margin:-12px -14px 10px;padding:14px 20px;
+    background:var(--brand,#4A6A92);color:#fff;border-radius:var(--r-card) var(--r-card) 0 0}
+  #paneCreators .so-title{display:flex;flex-direction:column;line-height:1.1}
+  #paneCreators .so-title span{font-size:11px;font-weight:700;letter-spacing:.1em;opacity:.8}
+  #paneCreators .so-title b{font-size:22px;font-weight:800}
+  #paneCreators .so-band .seg{background:rgba(255,255,255,.14)}
+  #paneCreators .so-band .segbtn{color:#fff;opacity:.9}
+  #paneCreators .so-band .segbtn.on{background:#fff;color:var(--brand-ink,#3A5573);opacity:1}
+  #paneCreators .so-figs{margin-left:auto;display:flex;align-items:stretch;flex-wrap:wrap;row-gap:8px;font-variant-numeric:tabular-nums}
+  #paneCreators .so-fig{display:flex;flex-direction:column;justify-content:center;padding:0 20px;border-left:1px solid rgba(255,255,255,.25)}
+  #paneCreators .so-fig:first-child{border-left:0}
+  #paneCreators .so-fig:last-child{padding-right:0}
+  #paneCreators .so-fig b{font-size:21px;font-weight:800;line-height:1.15}
+  #paneCreators .so-fig span{font-size:12px;opacity:.88;white-space:nowrap}
+  #paneCreators .so-find #croNew{margin-left:auto}
   /* The bucket, a labelled amber button with its count (design B). */
   #paneShop .so-bucket{width:auto;flex:0 0 auto;display:inline-flex;align-items:center;gap:6px;padding:8px 12px;border-radius:10px;
     border:1px solid var(--warn-line,#F3D9A4);background:var(--warn-bg,#FDF3DC);color:var(--warn-ink,#8A5A12);font-size:13.5px;font-weight:700}
@@ -1324,6 +1342,16 @@
 .vpvs-td summary{cursor:pointer;color:var(--brand)}.vpvs-td .vpvs-add{display:flex;margin-top:3px;justify-content:flex-end}
 .vpvs-td input{width:70px;text-align:right;padding:3px 6px}.vpvs-td button{width:auto;padding:3px 8px;font-size:12px}
 .vpb-line{display:flex;gap:10px;align-items:center;border-top:1px solid var(--line);padding-top:8px}
+/* Vendor Portal: a line past its due date is red, due today or tomorrow yellow (voDueTone — Ravi, 16 Nov) */
+table.xl tbody tr.vo-late td{background:var(--bad-bg)}
+table.xl tbody tr.vo-near td{background:var(--warn-bg)}
+.vpb-line.vo-late,.vpb-line.vo-near{border-radius:10px;padding:8px}
+.vpb-line.vo-late{background:var(--bad-bg)}
+.vpb-line.vo-near{background:var(--warn-bg)}
+/* SHP board (Order Console): the same colours by the date planned for the stage a line is at (shpbLate). Its stage cells carry their
+   peach tint in the row's own markup, which only !important can cover — without it a late row was red in two cells of fifteen. */
+#odTable tbody tr.vo-late td{background:var(--bad-bg) !important}
+#odTable tbody tr.vo-near td{background:var(--warn-bg) !important}
 .vpb-pic,.vpb-line [data-img] img{width:44px;height:44px;object-fit:cover;border-radius:8px;border:1px solid var(--line)}
 .vpb-what{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;font-size:12.5px}
 .vpb-sku{font-family:ui-monospace,Consolas,monospace;font-size:12px;color:var(--ink)}
@@ -1404,6 +1432,10 @@ html.mob #paneShop .so-figs{margin-left:0;width:100%;display:grid;grid-template-
 html.mob #paneShop .so-find>label{flex:1 1 100%!important}
 html.mob #paneShop .so-fig{padding:0 10px 0 0;border-left:0}
 html.mob #paneShop .so-fig span{white-space:normal}
+html.mob #paneCreators .so-band{margin:0 0 8px;padding:12px 14px;gap:10px;border-radius:14px}
+html.mob #paneCreators .so-figs{margin-left:0;width:100%;display:grid;grid-template-columns:1fr 1fr;gap:8px 0}
+html.mob #paneCreators .so-fig{padding:0 10px 0 0;border-left:0}
+html.mob #paneCreators .so-fig span{white-space:normal}
 html.mob input[type=checkbox],html.mob input[type=radio]{width:auto;flex:none}
 /* The cards scroll with the page, not inside a box of their own. */
 html.mob #paneShop .card:has(> #soTable){max-height:none!important;overflow:visible!important;background:none;box-shadow:none;padding:0!important}

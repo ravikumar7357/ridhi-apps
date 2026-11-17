@@ -6,8 +6,8 @@
  *  - the printer may send up to what is ordered; anything more is its own batch that waits for approval and does not count;
  *  - an approved extra counts and grows the order; a rejected one never counts;
  *  - a line is History once received in full, recorded in full and nothing waits; a bulk order never goes there;
- *  - the receiving sheet has one Receive button per line with the printer's figure, "fewer came?" can only go down, a line the
- *    printer entered nothing for has no button;
+ *  - the receiving sheet has one Receive button per line with the printer's figure and "other amount?"; a line the printer entered
+ *    nothing for can still be received (Ravi, 16 Nov 5 pm / 17 Nov: not mandatory) — a box, up to what is still to come;
  *  - only an admin approves, and the answer is written on the batch itself. */
 const fs = require('fs'), path = require('path');
 const rd = f => fs.readFileSync(f, 'utf8').replace(/\r\n/g, '\n');
@@ -105,14 +105,14 @@ const L = { lineId: 'a', sku: 'X', qty: 4 };
   {
     const x = { l: { key: 'O1__X' }, unit: 'pcs', po: 'PO1', left: 4, orderNo: 'SHP-1', sku: 'X', code: 'P1', printer: 'RBP-Bagru' };
     const blocked = load().flowDueRecvCell(x, 'P1|O1__X');
-    ok('printer entered nothing: no button, says why', !/data-fldgo/.test(blocked) && /Printer has not entered pieces/.test(blocked));
+    ok('printer entered nothing: still receivable — a box up to the 4 still to come, with a note', /data-fldless="P1\|O1__X"[^>]*max="4"/.test(blocked) && /data-fldgo/.test(blocked) && !/data-q=/.test(blocked) && /Printer has not entered pieces/.test(blocked), blocked);
     const A = load({ pending: () => ({ vs: 3, pending: 3, blocked: false }) });
     const cell = A.flowDueRecvCell(x, 'P1|O1__X');
-    ok('printer entered 3: one button "Receive 3 pcs" on the line, and "fewer came?"', /data-fldgo="P1\|O1__X" data-q="3"/.test(cell) && /Receive 3 pcs/.test(cell) && /fewer came\?/.test(cell), cell);
+    ok('printer entered 3: one button "Receive 3 pcs" on the line, and "other amount?"', /data-fldgo="P1\|O1__X" data-q="3"/.test(cell) && /Receive 3 pcs/.test(cell) && /other amount\?/.test(cell), cell);
     const less = load({ pending: () => ({ vs: 3, pending: 3, blocked: false }), less: 'P1|O1__X' }).flowDueRecvCell(x, 'P1|O1__X');
-    ok('"fewer came?" opens a box that can go no higher than 3', /data-fldless="P1\|O1__X"[^>]*max="3"/.test(less) && /At most 3 pcs/.test(less), less);
+    ok('"other amount?" opens a box filled with 3, up to the 4 still to come', /data-fldless="P1\|O1__X"[^>]*max="4"[^>]*value="3"/.test(less) && /At most 4 pcs — still to come/.test(less), less);
     const allIn = load({ pending: () => ({ vs: 3, pending: 0, blocked: false }) }).flowDueRecvCell(x, 'P1|O1__X');
-    ok('all the printer sent is in: no button', !/data-fldgo/.test(allIn) && /All sent is in/.test(allIn));
+    ok('all the printer entered is in: still receivable up to what is still to come, with a note', /data-fldless/.test(allIn) && /All the printer entered is in/.test(allIn), allIn);
     const R = load({ due: [x] });
     const er = await R.flowDueRecvOne('P1|O1__X', 3);
     ok('pressing Receive saves that one line, today, through the usual receive save', !er && R.saves.length === 1 && R.saves[0].pk === 'P1' && R.saves[0].got.O1__X === 3 && R.saves[0].opt.date === '2026-11-16', JSON.stringify(R.saves));

@@ -17,6 +17,7 @@
  *   SearchTerms.gs       search terms and targeting
  *   Shopify.gs           Shopify: store tokens, REST calls, orders, daily totals
  *   Mcf.gs               MCF: shipping a Shopify order out of FBA, "in progress" mark
+ *   CreatorOrders.gs     Content Creators: Creator Setu's gift orders in (?creator=order), status back out (creator: report)
  *   OrderAudits.gs       audits of the Orders workbooks + editor checks
  *   Nightly.gs           the nightly pipeline
  *   WeeklyPpc.gs         Weekly PPC & Organic dashboard
@@ -337,6 +338,10 @@ function doPost(e) {
     var p = {};
     try { p = JSON.parse(raw); } catch (x) { return json_({ ok: false, error: 'Body was not JSON.' }); }
 
+    /* CREATOR SETU'S DOOR (16 Nov 2026, CreatorOrders.gs): ?creator=order, with ITS OWN key (CREATOR_SETU_SECRET) in the
+     * body — not the apps' key, which Creator Setu never holds. Answered before anything else. */
+    if (((e && e.parameter) || {}).creator === 'order') return json_(coOrderIn_(p));
+
     var key = prop_('API_KEY');
     if (!key) return json_({ ok: false, error: 'API_KEY is not set on the backend.' });
     if (String(p.key || '').trim() !== key) return json_({ ok: false, error: 'Unauthorized.' });
@@ -348,6 +353,8 @@ function doPost(e) {
     if (p.mcf === 'preview') return json_(mcfPreview_(p.order || {}));
     if (p.mcf === 'create')  return json_(mcfCreate_(p.order || {}));
     if (p.mcf === 'status')  return json_(mcfStatus_(p.mcfId, p.brand));
+    /* Tell Creator Setu what happened to a gift (CreatorOrders.gs). "who" exists only where this backend checks sign-ins. */
+    if (p.creator === 'report') return json_(coReport_(p, typeof who === 'undefined' ? null : who));
     if (p.shopify === 'fulfil') {
       /* The tracking has to go to the store the order is actually in. */
       setShopBrand_(p.shop);

@@ -196,6 +196,16 @@ function voDueHtml(x, fallbackIso) {
   if (st === 'wait') return `<span>${d}</span><div style="font-size:10.5px;color:#92400e">waiting for cloth from us</div>`;
   return `<span>${d}</span>`;
 }
+/* THE ROW'S COLOUR ON THE VENDOR PORTAL (Ravi, 16 Nov — MIS meeting, printer delays): red once a line is past its due date,
+ * yellow on the due day and the day before, white otherwise. A line waiting for cloth from us stays white: the delay is ours,
+ * not the printer's. Display only — a line with no date or nothing owed is white. */
+function voDueTone(x) {
+  if (!x) return '';
+  if (x.st === 'late') return 'late';
+  if (x.st === 'today') return 'near';
+  if (x.st === 'soon' && voDays(dToday(), x.due) === 1) return 'near';
+  return '';
+}
 /** A date as Ravi reads it: day first, two-digit year. */
 const dShow = iso => {
   const m = String(iso || '').trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);

@@ -154,6 +154,7 @@ shopify/bucket-excel.js
 shopify/returns.js
 shopify/delivery-days.js
 shopify/returns-team.js
+shopify/creator-orders.js
 replenishment/india-usa-express.js
 @shared/adjustments.js
 @shared/courier-templates.js
