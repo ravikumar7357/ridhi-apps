@@ -377,6 +377,47 @@ const rowOf = (C, sku) => ['SP', 'CPC'].map(b => C.HEALTH[b].rows.find(r => r.sk
     ok('from the saved copy (next visit, no network): the same list', g.C.HEALTH.SP.rows.some(r => r.sku === 'R99') && !g.C.HEALTH.SP.rows.some(r => r.sku === 'R14'));
   }
 
+  console.log('== 4 LISTING OPTIMISER (review one ASIN) and LISTING AUDIT (parent names) ==');
+  {
+    const posted = [];
+    const reply = facts => ({ ok: true, asin: 'B0R1', audit: Object.assign({ ok: true, asin: 'B0R1', src: 'cache', attrKeys: [], images: { slots: {}, n: 0, hasMain: false, noZoom: [], emptySlots: [] }, rank: null },
+      { title: facts.title, brand: facts.brand, category: facts.category, bullets: facts.bullets, description: facts.description }),
+      findings: { title: [], bullets: [], description: [], images: [] }, suggestion: { ok: false, why: [] }, keywords: { trust: 'none', note: '', words: [], wordsShared: [], missing: [] } });
+    const opt = async (o = {}) => {
+      const P = page({ load: { lo: true, post: body => { posted.push(body); return o.post ? o.post(body) : reply(body.facts); } } });
+      P.net.tabs = o.tabs === null ? null : cacheOf(P.C, Object.assign({ edit: (b, items, cat) => {
+        if (b !== 'SP') return;
+        items.R1.itk = 'cloth-napkins';
+        cat.B0RIDHI001 = Object.assign({}, cat[items.R1.asin], { asin: 'B0RIDHI001', t: 'Shown title of R1' });   // a real-shaped ASIN (the sample's are short)
+        items.R1.asin = 'B0RIDHI001';
+        items['PS-P1'] = Object.assign({}, items.R1, { sku: 'PS-P1', asin: 'BPP1', lvl: 'parent', psku: '', t: 'Ridhi Napkins Parent (our own name)', ch: '', fba: null });
+      } }, o.cache || {})).tabs;
+      await P.C.lmEnsure(); await P.C.lmRefresh();
+      posted.length = 0; P.calls.length = 0;
+      P.C.el('loAsin').value = o.asin || 'B0RIDHI001';
+      P.C.el('loBrand').value = 'SP';
+      await P.C.loGo();
+      return Object.assign(P, { gets: P.calls.filter(q => q.listing === 'review').length, lo: P.C.getLO(), body: P.C.el('loBody').innerHTML });
+    };
+    const a = await opt();
+    const f = posted[0] && posted[0].facts;
+    ok('ours and in the cache: the review is asked with the cache\'s facts (one POST), no live read', posted.length === 1 && posted[0].listing === 'review' && a.gets === 0 && a.lo.audit.src === 'cache');
+    ok('…the facts: the title shoppers see, our 5 bullets and description, the product word, pictures with their sizes, the rank',
+      f.title === 'Shown title of R1' && f.bullets.length === 5 && f.description.length === 300 && f.itemType === 'cloth-napkins' && f.images.MAIN.w === 2000 && /MAIN\.jpg$/.test(f.images.MAIN.link) && f.rank.value === 50 && f.rank.title === 'Cloth Napkins', JSON.stringify(f).slice(0, 200));
+    ok('…the review says where its data is from: "Amazon data from the auto refresh (16 Nov 18:30)"', /Amazon data from the auto refresh \(\d{1,2} [A-Z][a-z]{2} \d\d:\d\d\)/.test(a.body), a.body.slice(0, 300));
+    const b = await opt({ post: () => ({ ok: false, error: 'Unknown POST' }) });
+    ok('a backend not updated yet (or the test site): the live read, as before', b.gets === 1 && posted.length === 1);
+    const c = await opt({ asin: 'B0COMPETE1' });
+    ok('an ASIN that is not ours (a competitor): no POST, the live read', c.gets === 1 && posted.length === 0);
+    const d = await opt({ cache: { at: Date.now() - 30 * H } });
+    ok('a cache older than 24 hours: no POST, the live read', d.gets === 1 && posted.length === 0);
+    const e = await opt({ tabs: null });
+    ok('no cache at all: the live read, exactly as before', e.gets === 1 && posted.length === 0);
+    ok('Listing Audit / every parent name: the parent listing\'s own name from the cache (the same field the listings report gives "Refresh both brands")',
+      a.C.HEALTH.SP.parentNames.BPP1 === 'Ridhi Napkins Parent (our own name)' && !a.C.HEALTH.SP.rows.some(r => r.sku === 'PS-P1'));
+    ok('…a stale cache leaves the snapshot\'s names as they were', !(d.C.HEALTH.SP.parentNames || {}).BPP1);
+  }
+
   console.log('== SPEED: ~4,400 listings from the saved copy ==');
   {
     const first = page();

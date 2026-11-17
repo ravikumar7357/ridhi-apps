@@ -1,6 +1,6 @@
 /* ================= LISTING · LISTING MATCH: Amazon's listing data from the backend's ListingMatch cache, for every Listing screen =================
- * Screens: none of its own. Listing Health, the Workspace, the Image Manager, the Season planner, Family check, BSR Audit and Listing
- *          Errors read Amazon's data through THIS file only; the small "Amazon data: 16 Nov 18:30 · next refresh ~13:00" line at the top of
+ * Screens: none of its own. Listing Health, the Workspace, the Image Manager, the Listing Optimiser (its review of one ASIN and the
+ *          Season planner), Listing Audit, Family check, BSR Audit and Listing Errors read Amazon's data through THIS file only; the small "Amazon data: 16 Nov 18:30 · next refresh ~13:00" line at the top of
  *          each of those screens is drawn here too (lmAgeDraw).
  * Does: ListingMatch.gs (Pricing-API) reads every listing twice a day (13:00 / 18:00 IST, light passes in between) into its own
  *       spreadsheet: lmMeta, then lmListings_<brand>_<P>_<i> (one record per SKU: status, issues, title, bullets, description, Item
@@ -18,6 +18,8 @@
  *         LR_FYP       Amazon's Suppressed listings report (rule c of the one Suppressed rule, lrShopOf — the rule is unchanged)
  *         lmFcCat      Family check's catalog records (parent, children, theme, values)
  *         lmRanks      BSR Audit's sales ranks
+ *         lmParentNamesApply the parents' own names (Listing Audit and every screen that names a parent)
+ *         lmReviewFacts the Listing Optimiser's review of one ASIN (the backend judges these facts instead of reading the catalog)
  *       FALLBACK: no cache, a failed read, or a cache older than 24 hours → lmOk is false and every screen uses its own reads (the
  *       snapshots and live reads) exactly as before — never an empty screen, never an error because the cache is missing.
  *       REAL TIME: a live read (a send through sqSendWithCheck, Check now, Read again) is newer than the cache's record, so it is what the
@@ -33,7 +35,7 @@ const LM_CHECK_MS = 15 * 60000;         // while the page is open and seen: is t
 const LM_FULL_AT = [13, 18];            // ListingMatch's full passes, IST (the "next refresh" in the age line)
 const LM_IST_MS = 5.5 * 3600000;        // ListingMatch writes its times in IST ('yyyy-MM-dd HH:mm')
 const LM_SLOTS = ['MAIN', 'PT01', 'PT02', 'PT03', 'PT04', 'PT05', 'PT06', 'PT07', 'PT08'];
-const LM_PANES = ['paneHealth', 'paneImg', 'paneOpt', 'paneFam', 'paneBsr', 'paneLerr'];   // the screens with the age line
+const LM_PANES = ['paneHealth', 'paneImg', 'paneOpt', 'paneFam', 'paneBsr', 'paneLerr', 'paneAudit'];   // the screens with the age line
 // The spec attributes the Workspace checks (listing-workspace.js LI_WS_SPECS; ListingMatch.gs LM_SPEC_ATTRS keeps the same list)
 const LM_SPECS = () => (typeof LI_WS_SPECS !== 'undefined' ? LI_WS_SPECS : ['material', 'color', 'size', 'pattern', 'style', 'item_shape', 'number_of_items', 'theme',
   'care_instructions', 'special_feature', 'item_type_name', 'fabric_type']);
@@ -569,6 +571,70 @@ function lmHealthApply() {
     HEALTH[b].rows = rows;
     HEALTH[b].lmRows = rows;
   });
+  lmParentNamesApply();                                                     // and the parents' own names
+}
+
+/* ----- the parents' own names (Listing Audit, Listing Health, every screen that names a parent) ----- */
+/** HEALTH[brand].parentNames with the names the cache's parent listings carry (their item name: the seller's own name for the parent,
+ *  the same field the listings report's parent row gives "Refresh both brands"). The snapshot's names stay under it (lmNamesBase). */
+function lmParentNamesApply() {
+  if (typeof HEALTH === 'undefined') return;
+  ['SP', 'CPC'].forEach(b => {
+    const h = HEALTH[b];
+    if (!h) return;
+    const ours = !!(h.parentNames && h.parentNames === h.lmNames);
+    const base = ours ? h.lmNamesBase || {} : h.parentNames || {};
+    if (!lmOk(b)) {
+      if (ours) { h.parentNames = base; h.lmNames = null; }
+      return;
+    }
+    const names = {};
+    LM.list[b].forEach(raw => { if (raw.lvl === 'parent' && raw.asin && raw.t) names[raw.asin] = String(raw.t).slice(0, 80); });
+    if (!Object.keys(names).length) return;
+    h.lmNamesBase = base;
+    h.parentNames = Object.assign({}, base, names);
+    h.lmNames = h.parentNames;
+  });
+}
+
+/* ----- the Listing Optimiser's review of one ASIN (listing-optimiser.js): its facts from the cache ----- */
+// The SKU of ours on an ASIN (several SKUs on one ASIN: the one with the most stock), per brand, made once per copy.
+const LM_ASIN_IX = new WeakMap();
+function lmSkuOfAsin(brand, asin) {
+  const list = LM.list[brand];
+  if (!list) return '';
+  let ix = LM_ASIN_IX.get(list);
+  if (!ix) {
+    ix = new Map();
+    list.forEach((raw, sku) => {
+      if (!raw.asin || raw.noRead) return;
+      const have = ix.get(raw.asin);
+      if (!have || (Number(raw.fba) || 0) > (Number(list.get(have).fba) || 0)) ix.set(raw.asin, sku);
+    });
+    LM_ASIN_IX.set(list, ix);
+  }
+  return ix.get(asin) || '';
+}
+/** What the review judges, from the cache: the title, pictures (with sizes), browse category and rank shoppers see (the catalog), our
+ *  bullets, description and product word (the listing). Null when the cache is not usable or does not hold this ASIN as one of ours
+ *  — the review then reads Amazon live, as before. */
+function lmReviewFacts(asin, brand) {
+  if (!lmOk(brand)) return null;
+  const cat = lmGetAsin(asin, brand);
+  const sku = cat ? lmSkuOfAsin(brand, asin) : '';
+  const m = sku ? lmGet(sku, brand) : null;
+  if (!cat || !m) return null;
+  const c = m.cat || cat;
+  const vals = c.vals || {}, va = m.va || {};
+  const rk = (c.rk && (c.rk.sub || c.rk.main)) || null;
+  return {
+    title: c.t || m.t || '', brand: c.brand || '', category: String(c.bc || '').split(' › ').pop(),
+    bullets: (m.bl || []).slice(), bulletsKnown: true, description: m.d || '', descriptionKnown: true,
+    itemType: m.itk || '', size: vals.size || va.size || '', color: vals.color || va.color || '', material: vals.material || va.material || '',
+    images: Object.fromEntries(Object.entries(c.img || {}).filter(([, v]) => v && v.u).map(([slot, v]) => [slot, { link: v.u, w: Number(v.w) || 0, h: Number(v.h) || 0 }])),
+    rank: rk && rk.r > 0 ? { title: rk.c || '', value: rk.r } : null,
+    readAt: Math.max(m.cAt || 0, m.iAt || 0), sku,
+  };
 }
 
 /* ----- Family check's catalog records (family-check.js fcCatOf) ----- */
@@ -649,6 +715,7 @@ function lmRedraw() {
     if (shown('paneFam') && typeof FC !== 'undefined' && typeof fcSchedule === 'function') { FC.view = null; fcSchedule(); }
     if (shown('paneBsr') && typeof BSR_MODE !== 'undefined' && BSR_MODE === 'compare' && typeof renderBsr === 'function' && typeof BSR_LOADED !== 'undefined' && BSR_LOADED) renderBsr();
     if (shown('paneLerr') && typeof leRender === 'function') leRender();
+    if (shown('paneAudit') && typeof AUDIT_LOADED !== 'undefined' && AUDIT_LOADED && typeof renderAudit === 'function') renderAudit();
   } catch (e) { /* a screen draws itself again on its next draw */ }
 }
 

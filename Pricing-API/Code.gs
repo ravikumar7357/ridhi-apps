@@ -350,7 +350,7 @@ function doPost(e) {
     if (!wkey) return json_({ ok: false, error: 'WRITE_KEY / API_KEY is not set on the backend.' });
     if (String(p.key || '').trim() !== wkey) return json_({ ok: false, error: 'Unauthorized.' });
     var who = writerOf_(p.idToken);
-    var act = p.mail || p.limg || p.lfix || p.mcf || p.shopify || '?';
+    var act = p.mail || p.limg || p.lfix || p.mcf || p.shopify || p.listing || '?';
     console.log('POST ' + act + ' by ' + (who.email || '(no signed-in person: ' + who.why + ')'));
     if (!who.email && prop_('REQUIRE_SIGNIN') === '1')
       return json_({ ok: false, error: 'Sign in again before saving — the backend could not confirm who you are (' + who.why + ').' });
@@ -359,6 +359,9 @@ function doPost(e) {
     if (p.mail === 'po') return json_(mailPo_(p));
     if (p.limg === 'patch') return json_(limgPatch_(p));
     if (p.lfix === 'patch') return json_(lfixPatch_(p));
+    /* The Listing Optimiser's review of one ASIN, judged on the facts Sellora sends from its ListingMatch cache (a read: nothing is
+     * written). POST only because a listing's whole text does not fit in an address. */
+    if (p.listing === 'review') { setBrand_(p.brand); return json_(listingReview_(p.asin, p.target, p.facts)); }
     if (p.limg === 'upload') return json_(limgUpload_(p));
     if (p.mcf === 'preview') return json_(mcfPreview_(p.order || {}));
     if (p.mcf === 'create')  return json_(mcfCreate_(p.order || {}));

@@ -976,6 +976,7 @@ function lmItem_(it, now) {
     bl: vals('bullet_point', 500), d: vals('product_description', LM_TEXT_MAX).join('\n').slice(0, LM_TEXT_MAX),
     hl: vals('title_differentiation', 200), kw: vals('generic_keyword', 500).join(' '),
     lvl: one('parentage_level'), psku: rel ? String(rel.parent_sku || '') : '', theme: one('variation_theme', 'name'), va: va, img: img,
+    itk: one('item_type_keyword').slice(0, 80),            // Amazon's word for what the product is (the Listing Optimiser's title rules)
     // e = Amazon's enforcement action names (SEARCH_SUPPRESSED, LISTING_SUPPRESSED, …), only when it names some
     iss: (it.issues || []).slice(0, 12).map(function (i) {
       var o = { c: String(i.code || ''), s: String(i.severity || ''), m: String(i.message || '').slice(0, 300), a: (i.attributeNames || []).slice(0, 4) };
