@@ -357,6 +357,13 @@ const GUARD = `<script>/* TEST ERP GUARD — added by Replenish-App/tests/build-
         if (b && (b.mcf === 'preview' || b.mcf === 'status') && only(/^(mcf|order|mcfId|brand|key|idToken)$/)) write = false;
       } catch (e) { /* not that request: stays stopped */ }
     }
+    /* NO LIVE SHOPIFY on the test link (17 Nov, QA review: "too many 429s", 20+ errors every ~45 s). The Pricing API's Shopify
+     * reads (?shopify=…) use the SAME store rate limit as the live ERP, so every test-link call takes from the live ERP's share.
+     * They get a quiet answer instead; the Shopify screens show the shared copy (shopify_cache, from ERP data) as it is. */
+    if (!write && method === 'GET' && /script\\.google(usercontent)?\\.com/.test(url) && /[?&]shopify=/.test(url)) {
+      if (!window.__TEST_ERP.shopOffSaid) { window.__TEST_ERP.shopOffSaid = true; try { console.info('[TEST ERP] live Shopify calls are off on the test link (they share the live ERP\\'s Shopify limit)'); } catch (e) {} }
+      return Promise.resolve(new Response(JSON.stringify({ ok: false, error: 'Live Shopify is off on the test link' }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+    }
     if (write && window.__TEST_ERP.sbOn && what.indexOf('database ') === 0) return sbWrite(url, method, init, origFetch);   // the factory ERP saves to ERP data only
     if (write) return window.__testErpBlock(what + ' ' + url.replace(/[?#].*$/, '').slice(0, 120));
     if (window.__TEST_ERP.sbOn && /firebasedatabase\\.app|firebaseio\\.com/.test(url) && method === 'GET') {   // the factory ERP loads from ERP data
