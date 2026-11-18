@@ -73,8 +73,8 @@ var ENT_PRED = {
 /* ============================== its own spreadsheet (shared with AdsDecide.gs) ============================== */
 
 var ADS_BOOK_NAME = 'Sellora Ads Cache';
-// The five caches kept there. Code.gs's ?cache= sends exactly these names to adsCacheRead_.
-var ADS_TABS = ['adEntities', 'stSettled', 'stRecent', 'tgtSettled', 'tgtRecent'];
+// The caches kept there. Code.gs's ?cache= sends every name in this list to adsCacheRead_, so a new one needs no Code.gs change.
+var ADS_TABS = ['adEntities', 'stSettled', 'stRecent', 'tgtSettled', 'tgtRecent', 'plcSettled', 'plcRecent'];
 
 /** "Sellora Ads Cache", id in Script Property ADS_CACHE_ID. Created only when `create` (entSetup / decSetup). One that
  *  will not open is retried once and then an error — never silently replaced by a new, empty one. */

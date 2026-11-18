@@ -9,7 +9,7 @@ const ok = (c, m) => { if (c) { pass++; console.log('  PASS ' + m); } else { fai
 
 const SECRET = 'k'.repeat(48);
 const PROPS = { CREATOR_SETU_SECRET: SECRET };
-const DOCS = new Map(), SETU = [], LOG = [];
+const DOCS = new Map(), SETU = [], LOG = [], SLEPT = [], SETU_Q = [];
 let setuCode = 200, fsDown = false;
 const FS = 'https://firestore.googleapis.com/v1/projects/price-research-48ff3/databases/(default)/documents/';
 const resp = (code, body) => ({ getResponseCode: () => code, getContentText: () => (typeof body === 'string' ? body : JSON.stringify(body || {})) });
@@ -18,9 +18,17 @@ const ctx = {
   Logger: { log: () => {} },
   PropertiesService: { getScriptProperties: () => ({ getProperty: k => (k in PROPS ? PROPS[k] : null) }) },
   ScriptApp: { getOAuthToken: () => 'owner-token', getService: () => ({ getUrl: () => 'https://script.google.com/x/exec' }) },
+  Utilities: { sleep: ms => SLEPT.push(ms) },
   UrlFetchApp: { fetch(url, opt = {}) {
     if (url.startsWith('https://creator-growth-engine.netlify.app/api/erp/orders/')) {
-      SETU.push({ url, auth: opt.headers.Authorization, body: JSON.parse(opt.payload) }); return resp(setuCode, { ok: setuCode === 200 });
+      /* Creator Setu's receiver as Khushi describes it (18 Nov): 401 wrong key, 404 unknown reference, else what the
+       * test queued (a code, or 'none' for no answer at all), else setuCode. */
+      SETU.push({ url, auth: opt.headers.Authorization, body: JSON.parse(opt.payload) });
+      if (opt.headers.Authorization !== 'Bearer ' + SECRET) return resp(401, { ok: false, error: 'Unauthorized' });
+      if (url.endsWith('/CGE-0000000000')) return resp(404, { ok: false, error: 'No gift order with that reference' });
+      const next = SETU_Q.length ? SETU_Q.shift() : setuCode;
+      if (next === 'none') throw new Error('DNS error: creator-growth-engine.netlify.app');
+      return resp(next, next === 200 ? { ok: true } : { ok: false, error: next === 409 ? 'This gift is not approved yet' : next === 400 ? 'Invalid status' : 'Server error' });
     }
     if (!url.startsWith(FS)) return resp(599, 'not faked');
     if (fsDown) return resp(500, {});
@@ -35,8 +43,9 @@ const ctx = {
     const [p, q] = rest.split('?'), key = decodeURIComponent(p);
     if (opt.method === 'patch') {
       if (!DOCS.has(key)) return resp(404, {});
-      const field = decodeURIComponent(/updateMask\.fieldPaths=([^&]+)/.exec(q)[1]);
-      DOCS.get(key)[field] = JSON.parse(opt.payload).fields[field]; return resp(200, {});
+      const fields = JSON.parse(opt.payload).fields;
+      [...q.matchAll(/updateMask\.fieldPaths=([^&]+)/g)].map(m => decodeURIComponent(m[1])).forEach(f => { DOCS.get(key)[f] = fields[f]; });
+      return resp(200, {});
     }
     return DOCS.has(key) ? resp(200, { fields: DOCS.get(key) }) : resp(404, {});
   } },
@@ -130,17 +139,69 @@ ok(ns.ok && ns.already, 'with no person known (older backend) the ask is served 
 ok(SETU.length === 2, 'none of the refused asks reached Creator Setu');
 setDoc('creatorOrders/ERP-CC-0001', { reference: 'ERP-CC-0001', source: 'team', status: 'Delivered' });
 d = run('coReport_', { reference: 'ERP-CC-0001' }, { email: 'team@x.com' });
-ok(d.ok && /typed in the ERP/.test(d.skipped) && SETU.length === 2, 'a team order is never reported');
+ok(d.ok && /not a Creator Setu gift/.test(d.skipped) && SETU.length === 2, 'a team order is never reported');
+setDoc('creatorOrders/XYZ-0001', { reference: 'XYZ-0001', source: 'creator-setu', status: 'Shipped' });
+d = run('coReport_', { reference: 'XYZ-0001' }, { email: 'team@x.com' });
+ok(d.ok && /not a Creator Setu gift/.test(d.skipped) && SETU.length === 2, 'only CGE- references are reported, whatever the source says');
 ok(/not found/.test(run('coReport_', { reference: 'CGE-NOPE001' }, { email: 'team@x.com' }).error), 'an order that is not there');
-setuCode = 404;
+
+console.log('== what is stored on the order (reportedStatus, reportedAt, lastReportError) ==');
+let o2 = plain('CGE-12AB34CD');
+ok(o2.reportedStatus === 'shipped' && !!o2.reportedAt && o2.lastReportError === '', 'after a good report: reportedStatus, reportedAt, an empty lastReportError');
+
+console.log('== a refusal is shown and NOT tried again by itself ==');
+const s0 = SETU.length;
+SETU_Q.push(409);
 setDoc('creatorOrders/CGE-12AB34CD', Object.assign(plain('CGE-12AB34CD'), { status: 'Delivered' }));
 d = run('coReport_', { reference: 'CGE-12AB34CD' }, { email: 'ravi@thefabricrush.com' });
-ok(!d.ok && /does not know/.test(d.error), 'Creator Setu 404 → said plainly (the owner needs no perms record)');
-ok(plain('CGE-12AB34CD').setu.error && plain('CGE-12AB34CD').setu.status === 'shipped', '…the refusal is kept; what Creator Setu knows stays "shipped"');
-setuCode = 200;
+ok(!d.ok && /Creator Setu refused \(409\): This gift is not approved yet/.test(d.error), '409 → Creator Setu\'s own "error" text is shown');
+ok(SETU.length === s0 + 1 && SLEPT.length === 0, '…asked once, no second try for a refusal');
+o2 = plain('CGE-12AB34CD');
+ok(o2.lastReportError === d.error && !!o2.reportFailedAt && o2.reportedStatus === 'shipped', '…lastReportError and its time stored; reportedStatus stays "shipped"');
+ok(o2.setu.error && o2.setu.tried === 'delivered' && o2.setu.status === 'shipped', '…and the setu record says what was tried');
+SETU_Q.push(400);
 d = run('coReport_', { reference: 'CGE-12AB34CD' }, { email: 'ravi@thefabricrush.com' });
-ok(d.ok && d.reported === 'delivered' && !plain('CGE-12AB34CD').setu.error, 'asked again once Creator Setu knows it → delivered, error cleared');
-ok(run('coSetuReport_', { status: 'Problem' }) === null && run('coSetuReport_', { status: 'Cancelled', updAt: '2026-11-18T00:00:00Z' }).status === 'cancelled', 'Problem is not reported; Cancelled is');
+ok(!d.ok && /\(400\): Invalid status/.test(d.error), '400 → "the status or the date is not valid", with Creator Setu\'s text');
+ok(SLEPT.length === 0, '…no second try for a 400 either');
+
+console.log('== no answer or a 5xx: one more try after a few seconds ==');
+let s1 = SETU.length;
+SETU_Q.push(503, 200);
+d = run('coReport_', { reference: 'CGE-12AB34CD' }, { email: 'ravi@thefabricrush.com' });
+ok(d.ok && d.reported === 'delivered' && SETU.length === s1 + 2 && SLEPT.length === 1 && SLEPT[0] >= 2000, '503 then OK → told on the second try, after a pause of a few seconds');
+o2 = plain('CGE-12AB34CD');
+ok(o2.reportedStatus === 'delivered' && o2.lastReportError === '' && !o2.setu.error, '…lastReportError cleared, reportedStatus delivered');
+setDoc('creatorOrders/CGE-12AB34CD', Object.assign(plain('CGE-12AB34CD'), { status: 'Cancelled' }));
+s1 = SETU.length; SLEPT.length = 0;
+SETU_Q.push('none', 'none');
+d = run('coReport_', { reference: 'CGE-12AB34CD' }, { email: 'ravi@thefabricrush.com' });
+ok(!d.ok && /Report-back failed — Creator Setu did not answer \(tried twice\)/.test(d.error) && SETU.length === s1 + 2 && SLEPT.length === 1, 'no answer twice → "Report-back failed", tried exactly twice');
+ok(plain('CGE-12AB34CD').lastReportError === d.error && !!plain('CGE-12AB34CD').reportFailedAt, '…marked on the order with its time');
+s1 = SETU.length; SLEPT.length = 0;
+SETU_Q.push(502, 500);
+d = run('coReport_', { reference: 'CGE-12AB34CD' }, { email: 'ravi@thefabricrush.com' });
+ok(!d.ok && /answered 500/.test(d.error) && SETU.length === s1 + 2, 'two 5xx → failed, tried exactly twice');
+SETU_Q.push(200);
+d = run('coReport_', { reference: 'CGE-12AB34CD' }, { email: 'ravi@thefabricrush.com' });
+ok(d.ok && d.reported === 'cancelled' && plain('CGE-12AB34CD').lastReportError === '', 'Retry report-back once Creator Setu answers → cancelled, error cleared');
+
+console.log('== the body: Creator Setu\'s limits, nothing personal ==');
+const rep = run('coSetuReport_', { status: 'Shipped', amazon: { orderId: 'SHOP-X', carrier: 'C'.repeat(60), tracking: 'T'.repeat(120), shippedAt: '2026-11-18T09:00:00Z' },
+  shipTo: { name: 'Jane', line1: '12 Pine St', phone: '555' }, creator: { name: 'Jane', email: 'j@x.com' } });
+ok(rep.carrier.length === 40 && rep.tracking.length === 80, 'carrier cut to 40 characters, tracking to 80');
+ok(rep.at === '2026-11-18T09:00:00.000Z', '"at" is an ISO date-time');
+ok(JSON.stringify(Object.keys(rep).sort()) === JSON.stringify(['amazonOrderId', 'at', 'carrier', 'status', 'tracking']), 'only status, amazonOrderId, carrier, tracking and at — no name, address, phone or email');
+ok(run('coSetuReport_', { status: 'Problem' }) === null && run('coSetuReport_', { status: 'New' }) === null && run('coSetuReport_', { status: 'Checked' }) === null, 'New, Checked and Problem are not reported');
+ok(run('coSetuReport_', { status: 'Cancelled', updAt: '2026-11-18T00:00:00Z' }).status === 'cancelled', 'Cancelled is');
+
+console.log('== Khushi\'s tests 1 and 2, as run from the editor ==');
+const logs = []; ctx.Logger.log = (f, ...a) => logs.push(String(f).replace(/%s/g, () => String(a.shift())));
+const s2 = SETU.length;
+run('creatorReportSelfTest');
+ok(/^Test 1 \(wrong key\): 401 Unauthorized — PASS$/.test(logs[0] || ''), 'test 1: a wrong key → 401');
+ok(/^Test 2 \(right key, CGE-0000000000\): 404 No gift order with that reference — PASS$/.test(logs[1] || ''), 'test 2: the right key, CGE-0000000000 → 404 "No gift order with that reference"');
+ok(SETU.length === s2 + 2 && SETU[s2 + 1].auth === 'Bearer ' + SECRET && SETU[s2].auth !== 'Bearer ' + SECRET, 'exactly two calls, the second with the real key');
+ok(!logs.join('\n').includes(SECRET), 'the key itself is never logged');
 
 console.log('== Code.gs routes ==');
 /* Either Code.gs: dev's (WRITE_KEY + sign-in, and a log line) or main's (API_KEY only). */

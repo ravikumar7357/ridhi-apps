@@ -203,8 +203,8 @@ function doGet(e) {
     }
     /* One store's per-SKU sales + stock built now, rather than waiting for the night. */
     if (p.shopSkuBuild) return json_(shopSkuBuild_(String(p.shop || ''), Date.now() + 300000));
-    // The five Ads caches (AdsEntities.gs / AdsDecide.gs) live in their own spreadsheet, "Sellora Ads Cache" (17 Nov 2026).
-    if (p.cache && /^(adEntities|stSettled|stRecent|tgtSettled|tgtRecent)$/.test(String(p.cache))) {
+    // The Ads caches (AdsEntities.gs / AdsDecide.gs, listed in ADS_TABS) live in their own spreadsheet, "Sellora Ads Cache".
+    if (p.cache && typeof ADS_TABS !== 'undefined' && ADS_TABS.indexOf(String(p.cache)) >= 0) {
       var ac = adsCacheRead_(String(p.cache));
       return json_(ac ? { ok: true, name: p.cache, data: ac } : { ok: false, error: 'nothing cached for "' + p.cache + '" yet' });
     }

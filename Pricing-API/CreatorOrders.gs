@@ -28,6 +28,7 @@ var CO = {
   erpUrl: 'https://fabricrush-replenish.web.app/#creators?ref=',
   setuUrl: 'https://creator-growth-engine.netlify.app/api/erp/orders/',
   setuStatus: { 'Sent to Amazon': 'sent_to_amazon', 'Shipped': 'shipped', 'Delivered': 'delivered', 'Cancelled': 'cancelled' },
+  retryMs: 4000,   // no answer or a 5xx: one more try after this long
 };
 
 /* ---------- small pieces ---------- */
@@ -174,7 +175,36 @@ function coSetuReport_(o) {
   var at = (status === 'sent_to_amazon' && a.sentAt) || (status === 'shipped' && (a.shippedAt || a.checkedAt))
     || (status === 'delivered' && a.deliveredAt) || o.updAt || '';
   var iso = at && !isNaN(Date.parse(at)) ? new Date(Date.parse(at)).toISOString() : new Date().toISOString();
-  return { status: status, amazonOrderId: a.orderId || '', carrier: a.carrier || '', tracking: a.tracking || '', at: iso };
+  /* Creator Setu's limits (Khushi, 18 Nov): carrier up to 40 characters, tracking up to 80. Never a name, address or phone. */
+  return { status: status, amazonOrderId: coStr_(a.orderId, 60), carrier: coStr_(a.carrier, 40), tracking: coStr_(a.tracking, 80), at: iso };
+}
+/** Write several fields of a document that exists, leaving every other field as it is. */
+function coWriteFields_(path, obj) {
+  var keys = Object.keys(obj), f = {};
+  keys.forEach(function (k) { f[k] = coValue_(obj[k]); });
+  var mask = keys.map(function (k) { return 'updateMask.fieldPaths=' + encodeURIComponent(k); }).join('&');
+  var r = UrlFetchApp.fetch(coUrl_(path) + '?' + mask + '&currentDocument.exists=true', {
+    method: 'patch', muteHttpExceptions: true, contentType: 'application/json', headers: coAuth_(), payload: JSON.stringify({ fields: f }) });
+  if (r.getResponseCode() >= 300) throw new Error('Firestore ' + r.getResponseCode() + ' writing');
+}
+/** One POST to Creator Setu's receiver: { code, error } — code 0 when nothing answered at all. */
+function coSetuPost_(ref, body, secret) {
+  try {
+    var r = UrlFetchApp.fetch(CO.setuUrl + encodeURIComponent(ref), { method: 'post', muteHttpExceptions: true,
+      contentType: 'application/json', headers: { Authorization: 'Bearer ' + secret }, payload: JSON.stringify(body) });
+    var said = '';
+    try { said = String((JSON.parse(r.getContentText() || '{}') || {}).error || ''); } catch (e) { /* not JSON */ }
+    return { code: r.getResponseCode(), error: said.slice(0, 200) };
+  } catch (e) { return { code: 0, error: '' }; }   // no answer: DNS, timeout, connection refused
+}
+/** Creator Setu's answer in plain words (Khushi's list, 18 Nov). */
+function coSetuWhy_(code, said, ref) {
+  if (code === 401) return 'Creator Setu refused the key (401) — the two keys differ. Tell Khushi.';
+  if (code === 404) return 'Creator Setu has no gift with reference ' + ref + ' (404) — it is not a Creator Setu order.';
+  if (code === 400) return 'Creator Setu says the status or the date is not valid (400)' + (said ? ': ' + said : '') + '.';
+  if (code === 409) return 'Creator Setu refused (409)' + (said ? ': ' + said : '') + '.';
+  if (!code) return 'Report-back failed — Creator Setu did not answer (tried twice).';
+  return 'Report-back failed — Creator Setu answered ' + code + (said ? ': ' + said : '') + ' (tried twice).';
 }
 /** May this ERP person ask for a report? The same right the Firestore rule gives: an admin, or Shopify Orders. */
 function coMayReport_(email) {
@@ -204,27 +234,45 @@ function coReport_(p, who, nowMs) {
   var path = CO.col + '/' + encodeURIComponent(ref);
   var o = coRead_(path);
   if (!o) return { ok: false, error: 'Order ' + ref + ' not found.' };
-  if (o.source !== 'creator-setu') return { ok: true, skipped: 'typed in the ERP — Creator Setu does not know it' };
+  /* Only Creator Setu's own gifts: source creator-setu AND a CGE- reference (Khushi, 18 Nov). */
+  if (o.source !== 'creator-setu' || !/^CGE-/i.test(ref)) return { ok: true, skipped: 'not a Creator Setu gift — Creator Setu does not know it' };
   var rep = coSetuReport_(o);
   if (!rep) return { ok: true, skipped: 'nothing to report for ' + (o.status || 'New') };
   if (o.setu && o.setu.status === rep.status && !o.setu.error) return { ok: true, already: true, setu: o.setu };
   var secret = coSecret_();
   if (secret.length < 24) return { ok: false, error: 'CREATOR_SETU_SECRET is not set on the backend.' };
-  var r = UrlFetchApp.fetch(CO.setuUrl + encodeURIComponent(ref), { method: 'post', muteHttpExceptions: true,
-    contentType: 'application/json', headers: { Authorization: 'Bearer ' + secret }, payload: JSON.stringify(rep) });
-  var code = r.getResponseCode(), at = new Date(nowMs || Date.now()).toISOString();
-  if (code >= 300) {
-    var why = code === 401 ? 'Creator Setu refused the key (401) — the two keys differ'
-      : code === 404 ? 'Creator Setu does not know ' + ref + ' (404)' : 'Creator Setu answered ' + code;
-    var bad = { status: (o.setu && o.setu.status) || '', tried: rep.status, error: why, at: at, by: email };
-    try { coWriteField_(path, 'setu', bad); } catch (e) { /* the answer still says it */ }
-    console.log('creator-orders: report refused ' + ref + ' ' + code);
+  /* ONE TRY, AND ONE MORE after a few seconds only when nothing answered or Creator Setu had a 5xx. A refusal (401, 404,
+   * 400, 409) is an answer: it is not asked again by itself — a person reads it and presses "Retry report-back". */
+  var res = coSetuPost_(ref, rep, secret);
+  if (!res.code || res.code >= 500) { Utilities.sleep(CO.retryMs); res = coSetuPost_(ref, rep, secret); }
+  var at = new Date(nowMs || Date.now()).toISOString();
+  if (res.code < 200 || res.code >= 300) {
+    var why = coSetuWhy_(res.code, res.error, ref);
+    var bad = { status: (o.setu && o.setu.status) || '', tried: rep.status, error: why, code: res.code, at: at, by: email };
+    try { coWriteFields_(path, { setu: bad, lastReportError: why, reportFailedAt: at }); } catch (e) { /* the answer still says it */ }
+    console.log('creator-orders: report refused ' + ref + ' ' + res.code);
     return { ok: false, error: why, setu: bad };
   }
   var setu = { status: rep.status, at: at, by: email };
-  coWriteField_(path, 'setu', setu);
+  coWriteFields_(path, { setu: setu, reportedStatus: rep.status, reportedAt: at, lastReportError: '' });
   console.log('creator-orders: reported ' + ref + ' ' + rep.status);
-  return { ok: true, reported: rep.status, setu: setu };
+  return { ok: true, reported: rep.status, setu: setu, reportedStatus: rep.status, reportedAt: at };
+}
+
+/**
+ * KHUSHI'S TESTS 1 AND 2 (18 Nov), run from the editor: pick creatorReportSelfTest, press Run, read the log.
+ *   1. a wrong key                      → expect 401
+ *   2. the real key, CGE-0000000000     → expect 404 "No gift order with that reference" — proves the key, changes nothing
+ * Nothing is written anywhere and no real gift is touched. The key itself is never logged.
+ */
+function creatorReportSelfTest() {
+  var body = { status: 'shipped', at: new Date().toISOString() };
+  var wrong = new Array(49).join('x');
+  var t1 = coSetuPost_('CGE-0000000000', body, wrong);
+  Logger.log('Test 1 (wrong key): %s %s — %s', t1.code, t1.error, t1.code === 401 ? 'PASS' : 'expected 401');
+  if (coSecret_().length < 24) { Logger.log('Test 2: CREATOR_SETU_SECRET is not set in Script Properties.'); return; }
+  var t2 = coSetuPost_('CGE-0000000000', body, coSecret_());
+  Logger.log('Test 2 (right key, CGE-0000000000): %s %s — %s', t2.code, t2.error, t2.code === 404 ? 'PASS' : 'expected 404');
 }
 
 /** Editor check: is the door set up? Prints whether the key is set and whether Firestore answers. Changes nothing. */

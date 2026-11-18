@@ -191,8 +191,9 @@ const GUARD = `<script>/* TEST ERP GUARD — added by Replenish-App/tests/build-
         delete SBSTALE[key];
         return (SBBUSY[key] || Promise.resolve()).then(function () { return sbRefresh(key, p, tok, origFetch); }).then(function (x) { return (x || SBMEM[key]).text; });
       }
-      sbRefresh(key, p, tok, origFetch);                 /* in the background: the next open has the changes */
-      return m.text;
+      /* 18 Nov (UAT): the copy is brought up to date BEFORE it is shown — showing it first and refreshing in the background
+       * put old numbers on screen (Sales Orders 3,642 while ERP data had 3,833). One small question; the copy if it fails. */
+      return sbRefresh(key, p, tok, origFetch).then(function (x) { return (x || SBMEM[key] || m).text; }, function () { return m.text; });
     });
   }
   /* a part of a list from the page's parsed copy (parsed once per version of the copy) */
