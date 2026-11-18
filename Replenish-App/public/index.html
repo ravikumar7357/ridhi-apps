@@ -58925,47 +58925,50 @@ function mtsNote(wk, key, label, rows) {
   const n = (((MTG.meet || {})[wk] || {}).notes || {})[key] || '', can = mtgCanWrite();
   return `<label class="mts-note"><span>${esc(label)}</span><textarea data-mtsnote="${esc(key)}" rows="${rows || 3}" ${can ? '' : 'disabled'} placeholder="${can ? 'Type here — saved for this week' : ''}">${esc(n)}</textarea></label>`;
 }
-function mtsSlides(wk, brand) {
-  const S = (MTG.last && MTG.last.wk === wk) ? MTG.last.S : mtgBuild(wk, brand);
-  const range = repWkRange(wk), out = [];
-  /* 0 · cover */
-  let Q = { ok: 0 }, Qp = { ok: 0 }; try { const f = mtgMs(wk); Q = repQcByWindow(brand, f, f + 7 * 864e5); Qp = repQcByWindow(brand, f - 7 * 864e5, f); } catch (e) { /* */ }
-  const tgt = repTarget(), d = Q.ok - Qp.ok;
-  out.push({ t: 'Production meeting', html: `<div class="mts-cover"><div class="mts-kick">RIDHI HOME &amp; LIVING</div><h1>Production meeting</h1><div class="mts-range">${esc(range)}</div>
-    <div class="mts-row">${mtsNum(nf(Q.ok), 'QC passed this week', '#166534')}${mtsNum((tgt ? Math.round(Q.ok / tgt * 100) : 0) + '%', 'of the ' + nf(tgt) + ' target', Q.ok >= tgt ? '#166534' : 'var(--bad)')}
-      ${mtsNum((d >= 0 ? '▲ ' : '▼ ') + nf(Math.abs(d)), 'vs last week (' + nf(Qp.ok) + ')', d >= 0 ? '#166534' : 'var(--bad)')}${mtsNum(nf(Q.rej || 0), 'rejected', 'var(--bad)')}</div>
-    <ol class="mts-agenda"><li>Production report card — FBA · B2B · Shopify</li><li>People discussion</li><li>Machines and tools</li><li>IT team — feedback, projects</li><li>Action points</li></ol></div>` });
-  /* 1–3 · one slide per channel */
-  MTS_CH.forEach(ch => {
-    let c; try { c = mtsChannel(ch, wk); } catch (e) { c = null; }
-    if (!c) { out.push({ t: ch.name, html: '<div class="err">Could not be worked out.</div>' }); return; }
-    const dd = c.qc - c.qcPrev, mx = Math.max(1, ...c.stages.map(s => s[1]));
-    out.push({ t: 'Production report card — ' + ch.name, html: `<div class="mts-bar" style="background:${ch.color}"></div>
-      <div class="mts-row">${mtsNum(nf(c.qc), 'overall production (QC passed)', '#166534')}${mtsNum((dd >= 0 ? '▲ ' : '▼ ') + nf(Math.abs(dd)), 'vs last week (' + nf(c.qcPrev) + ')', dd >= 0 ? '#166534' : 'var(--bad)')}
-        ${mtsNum(nf(c.late), 'orders delayed · ' + nf(c.latePcs) + ' pcs', c.late ? 'var(--bad)' : '#166534')}${mtsNum(nf(c.orders), 'pending orders · ' + nf(c.pend) + ' pcs to make', '')}</div>
-      <div class="mts-two"><div><div class="mts-h">Status — where the open pieces are</div>
-        ${c.stages.map(([l, v]) => `<div class="mts-st"><span>${esc(l)}</span><i><em style="width:${Math.round(v / mx * 100)}%;background:${ch.color}"></em></i><b>${nf(Math.round(v))}</b></div>`).join('')}</div>
-        <div>${mtsNote(wk, 'ch_' + ch.k, 'Challenges — printing, fabric, people', 4)}${mtsNote(wk, 'in_' + ch.k, 'Initiative', 4)}</div></div>` });
+/* AS THE SHEET HAS IT (Ravi, 18 Nov: "mujhe production meeting me ye nahi chahiye — mujhe chahiye jo excel me mene point bheje the as it
+ * as"). No cover, no agenda, no action points: the four parts of his sheet, each laid out as the sheet lays it out —
+ *   Production Report Card: a row each for FBA, B2B, Shopify · overall production, orders delayed, pending orders · Status (printing,
+ *     fabric, stitching, QC, press, touching, spotting) · Challenges (printing issue, fabric issue, people issue) · Initiative
+ *   People Discussion: top 3 performers to recognise (average up / down) · bottom 3 to highlight · critical vacant positions with HR —
+ *     status · people requirement not yet with HR — status (discuss with Srikant ji, Mukul sir first)
+ *   Machine and Tools discussion: stitching machine · pillow machine · embroidery machine · cutting
+ *   IT Team: feedback · projects */
+function mtsSlides(wk) {
+  const out = [];
+  /* 1 · Production Report Card — one table, a row per channel */
+  const head = ['', 'Overall production · orders delayed · pending orders', 'Status (printing, fabric, stitching, Q.C., press, touching, spotting)', 'Challenges', 'Initiative'];
+  const rows = MTS_CH.map(ch => {
+    let c = null; try { c = mtsChannel(ch, wk); } catch (e) { c = null; }
+    if (!c) return `<tr><th style="color:${ch.color}">${esc(ch.k === 'SHOP' ? 'Shopify' : ch.k)}</th><td colspan="4" class="err">Could not be worked out.</td></tr>`;
+    const v = l => { const x = c.stages.find(s => s[0] === l); return x ? x[1] : 0; };
+    const status = [['Printing', v('To plan') + v('At printer')], ['Fabric', v('Printed, to cut') + v('Cut, to issue')], ['Stitching', v('Stitching (with karigars)')],
+      ['Q.C.', v('Waiting for QC')], ['Press', v('Press (QC passed, not pressed)')], ['Touching', v('Touching')], ['Spotting', v('Spotting')]];
+    const dd = c.qc - c.qcPrev;
+    return `<tr><th style="color:${ch.color}">${esc(ch.k === 'SHOP' ? 'Shopify' : ch.k)}</th>
+      <td><div class="mts-kv"><span>Overall production</span><b style="color:#166534">${nf(c.qc)}</b><em style="color:${dd >= 0 ? '#166534' : 'var(--bad)'}">${dd >= 0 ? '▲' : '▼'} ${nf(Math.abs(dd))} vs last week</em></div>
+        <div class="mts-kv"><span>Orders delayed</span><b style="color:${c.late ? 'var(--bad)' : '#166534'}">${nf(c.late)}</b><em>${nf(c.latePcs)} pcs</em></div>
+        <div class="mts-kv"><span>Pending orders</span><b>${nf(c.orders)}</b><em>${nf(c.pend)} pcs to make</em></div></td>
+      <td>${status.map(([l, n]) => `<div class="mts-kv"><span>${l}</span><b>${nf(Math.round(n))}</b></div>`).join('')}</td>
+      <td>${mtsNote(wk, 'ch_' + ch.k, ch.k === 'FBA' ? 'printing issue, fabric issue, people issue' : '', 6)}</td>
+      <td>${mtsNote(wk, 'in_' + ch.k, '', 6)}</td></tr>`;
   });
-  /* 4 · people */
+  out.push({ t: 'Production Report Card', html: `<table class="mts-sheet"><thead><tr>${head.map(h => `<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table>
+    <div class="muted" style="font-size:12px;margin-top:6px">${esc(repWkRange(wk))} · production = QC passed in the week · status = pieces of the open orders, each at the one step it waits at</div>` });
+  /* 2 · People Discussion */
   const P = mtsPeople(wk), arrow = r => r.avg ? (r.v >= r.avg ? `<span style="color:#166534">▲ ${nf(r.v - r.avg)}</span>` : `<span style="color:var(--bad)">▼ ${nf(r.avg - r.v)}</span>`) : '<span class="muted">new</span>';
-  const plist = (list, col) => list.length ? list.map((r, i) => `<div class="mts-p"><b style="background:${col}">${i + 1}</b><span>${esc(r.k)}</span><strong>${nf(r.v)} pcs</strong><em>avg ${nf(r.avg)} · ${arrow(r)}</em></div>`).join('') : '<div class="muted">No QC passed with a karigar name this week.</div>';
-  let ppl = null; try { ppl = S.people; } catch (e) { ppl = null; }
-  out.push({ t: 'People discussion', html: `<div class="mts-two"><div><div class="mts-h">Top 3 — to recognise</div>${plist(P.top, '#15803D')}
-      <div class="mts-h" style="margin-top:18px">Bottom 3 — to highlight</div>${plist(P.bottom, '#B91C1C')}
-      <div class="muted" style="font-size:12px;margin-top:6px">QC-passed pieces this week · average = the four weeks before · the contractor's team is left out</div></div>
-    <div>${mtsNote(wk, 'hr_vacant', 'Critical vacant positions with HR — status', 4)}${mtsNote(wk, 'hr_need', 'People requirement not yet with HR — status', 4)}
-      ${ppl && ppl.text ? `<div class="muted" style="font-size:12.5px;margin-top:8px">${esc(ppl.text.replace(/^2\) People: /, 'From the registers: '))}</div>` : ''}</div></div>` });
-  /* 5 · machines and tools */
-  out.push({ t: 'Machines and tools', html: `<div class="mts-grid4">${[['m_stitch', 'Stitching machine'], ['m_pillow', 'Pillow machine'], ['m_emb', 'Embroidery machine'], ['m_cut', 'Cutting']]
-    .map(([k, l]) => mtsNote(wk, k, l, 5)).join('')}</div>` });
-  /* 6 · IT team */
-  out.push({ t: 'IT team', html: `<div class="mts-two">${mtsNote(wk, 'it_feedback', 'Feedback', 9)}${mtsNote(wk, 'it_projects', 'Projects', 9)}</div>` });
-  /* 7 · action points */
-  const acts = mtgActions(wk);
-  out.push({ t: 'Action points', html: acts.length ? `<table class="mts-tbl"><thead><tr><th>What</th><th>Who</th><th>By</th><th>Status</th></tr></thead><tbody>${acts.map(a =>
-      `<tr><td>${esc(a.what)}</td><td>${esc(a.who || '')}</td><td>${esc(a.by ? a.by.split('-').reverse().join('/') : '')}</td><td>${a.status === 'done' ? '<span style="color:#166534">done</span>' : 'open'}</td></tr>`).join('')}</tbody></table>`
-    : '<div class="muted">No action points yet — add them on the meeting report.</div>' });
+  const plist = list => list.length ? list.map((r, i) => `<div class="mts-kv"><span>${i + 1}. ${esc(r.k)}</span><b>${nf(r.v)}</b><em>avg ${nf(r.avg)} · ${arrow(r)}</em></div>`).join('') : '<span class="muted">No QC passed with a karigar name.</span>';
+  out.push({ t: 'People Discussion', html: `<table class="mts-sheet"><tbody>
+      <tr><th style="background:#E5F4E4">Top 3 performer for last week that I want to recognize</th><td>${plist(P.top)}<div class="muted" style="font-size:12px">ave. to up and down — QC-passed pcs vs the four weeks before</div></td></tr>
+      <tr><th>Bottom 3 performers that I want to highlight</th><td>${plist(P.bottom)}</td></tr>
+      <tr><th>Critical vacant position with HR</th><td>${mtsNote(wk, 'hr_vacant', 'Status', 3)}</td></tr>
+      <tr><th>People Requirement not yet with HR</th><td>${mtsNote(wk, 'hr_need', 'Status (discuss with Srikant ji, Mukul sir first)', 3)}</td></tr>
+    </tbody></table>` });
+  /* 3 · Machine and Tools discussion */
+  out.push({ t: 'Machine and Tools discussion', html: `<table class="mts-sheet"><tbody>${[['m_stitch', 'Stitching machine'], ['m_pillow', 'Pillow machine'], ['m_emb', 'Embroidery machine'], ['m_cut', 'Cutting']]
+    .map(([k, l]) => `<tr><th>${l}</th><td>${mtsNote(wk, k, '', 2)}</td></tr>`).join('')}</tbody></table>` });
+  /* 4 · IT Team */
+  out.push({ t: 'IT Team', html: `<table class="mts-sheet"><thead><tr><th>Feedback</th><th>Projects</th></tr></thead><tbody><tr>
+      <td>${mtsNote(wk, 'it_feedback', '', 10)}</td><td>${mtsNote(wk, 'it_projects', '', 10)}</td></tr></tbody></table>` });
   return out;
 }
 
@@ -59003,6 +59006,11 @@ function mtsOpen() {
       #mtsBox .mts-agenda{font-size:17px;color:#17202B;line-height:1.8;margin:6px 0 0}
       #mtsBox .mts-bar{height:6px;border-radius:3px;margin:-8px 0 16px;width:120px}
       #mtsBox .mts-tbl{width:100%;border-collapse:collapse;font-size:16px}#mtsBox .mts-tbl th{text-align:left;color:#5B6475;font-size:13px;border-bottom:2px solid #E4E7EC;padding:8px}#mtsBox .mts-tbl td{padding:9px 8px;border-bottom:1px solid #F1F3F6}
+      #mtsBox .mts-sheet{width:100%;border-collapse:collapse;font-size:15px;table-layout:fixed}
+      #mtsBox .mts-sheet th,#mtsBox .mts-sheet td{border:1.5px solid #17202B;padding:10px 12px;vertical-align:top;text-align:left}
+      #mtsBox .mts-sheet thead th{background:#F1F3F6;font-size:14px}#mtsBox .mts-sheet tbody th{font-size:17px;width:22%}
+      #mtsBox .mts-sheet .mts-note{margin:0}#mtsBox .mts-sheet .mts-note span:empty{display:none}
+      #mtsBox .mts-kv{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;padding:2px 0}#mtsBox .mts-kv span{flex:1;min-width:90px}#mtsBox .mts-kv b{font-size:18px;font-variant-numeric:tabular-nums}#mtsBox .mts-kv em{font-style:normal;font-size:12px;color:#5B6475;flex-basis:100%}
       #mtsBox .mts-nav{display:flex;gap:10px;align-items:center;margin-top:12px}#mtsBox .mts-nav>button{width:auto;padding:6px 16px}
       #mtsBox .mts-dots{display:flex;gap:6px}#mtsBox .mts-dots button{width:10px;height:10px;padding:0;border-radius:50%;border:0;background:#C7CED8;box-shadow:none}#mtsBox .mts-dots button.on{background:#17202B}
       @media (max-width:800px){#mtsBox .mts-row{grid-template-columns:repeat(2,1fr)}#mtsBox .mts-two,#mtsBox .mts-grid4{grid-template-columns:1fr}#mtsBox .mts-slide{aspect-ratio:auto;padding:18px}}
