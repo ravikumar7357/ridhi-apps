@@ -41,9 +41,13 @@
  *   decStop()       removes both timers (decStart and decTick).
  * Sellora reads them through ?cache=stSettled … — Code.gs sends these names to the Ads spreadsheet.
  *
+ * PLACEMENTS (18 Nov 2026): plcSettled / plcRecent — the campaign report by placement, with 7-day sales, for Placement's
+ * decisions (raise / lower each campaign's Top of Search, Rest of Search and Product Page adjustment):
+ *   rows [{ cid, cn, p: Amazon's placementClassification, i, c, sp, o, s }] — one row per campaign × placement.
+ * The nightly 'placement' cache (30-day sales, campaign × placement rolled away) is not touched.
+ *
  * Same pattern as AmazonMatch.gs: own file, own timer (decTick), own state (Script Property DEC_STATE), own lease, no
- * script lock — it never holds up the nightly run, and it changes no other file. Placement decisions (plcDecide) come
- * later, with the placement screen.
+ * script lock — it never holds up the nightly run, and it changes no other file.
  */
 
 var DEC_START_HOUR = 15;        // script time zone (India): after midnight Pacific all year, and after AmazonMatch's start
@@ -53,10 +57,11 @@ var DEC_PASS_MAX_H = 6;         // a pass still not finished after this gives up
 var DEC_BRANDS = ['SP', 'CPC'];
 var DEC_RECENT = 7;             // the last 7 days: Amazon's 7-day window is still open on them
 var DEC_SETTLED = 30;           // settled days: from 8 to 37 days ago
-// The four caches: which report, which window.
+// The six caches: which report, which window.
 var DEC_JOBS = {
   stSettled: { rep: 'st', win: 'settled' }, stRecent: { rep: 'st', win: 'recent' },
   tgtSettled: { rep: 'tgt', win: 'settled' }, tgtRecent: { rep: 'tgt', win: 'recent' },
+  plcSettled: { rep: 'plc', win: 'settled' }, plcRecent: { rep: 'plc', win: 'recent' },
 };
 // The two reports. `optional` columns are asked for and dropped for good if Amazon refuses them.
 var DEC_CFG = {
@@ -68,6 +73,10 @@ var DEC_CFG = {
     columns: ['keyword', 'targeting', 'matchType', 'campaignId', 'campaignName', 'adGroupId', 'adGroupName',
       'impressions', 'clicks', 'cost', 'purchases7d', 'sales7d'],
     optional: ['keywordId', 'attributedSalesSameSku7d', 'purchasesSameSku7d'] },
+  // Placement is the CAMPAIGN report with campaignPlacement in groupBy (there is no placement report type).
+  plc: { reportTypeId: 'spCampaigns', groupBy: ['campaign', 'campaignPlacement'],
+    columns: ['campaignId', 'campaignName', 'placementClassification', 'impressions', 'clicks', 'cost', 'purchases7d', 'sales7d'],
+    optional: [] },
 };
 // Words left out of the word roll-up, and its limits.
 var DEC_STOP = { a: 1, an: 1, and: 1, the: 1, 'for': 1, of: 1, 'with': 1, 'in': 1, on: 1, to: 1, by: 1, x: 1, set: 1, inch: 1,
@@ -243,7 +252,7 @@ function decTick_() {
   }
 }
 
-// Today's eight reports: four caches × two brands, with today's two windows (Pacific dates).
+// Today's twelve reports: six caches × two brands, with today's two windows (Pacific dates).
 function decPlan_(old, todayLocal) {
   var today = Utilities.formatDate(new Date(), ORDERS_PT, 'yyyy-MM-dd');
   var add = function (iso, n) { return Utilities.formatDate(new Date(Date.parse(iso + 'T12:00:00Z') + n * 86400000), 'UTC', 'yyyy-MM-dd'); };
@@ -277,7 +286,7 @@ function decAsk_(st, j) {
     return adsAsk_(body(cols), { brand: j.b, kind: j.k, start: j.s, end: j.e }).reportId;
   } catch (e) {
     var m = String(e.message || e);
-    if (!st.noOpt && /^Ads API 400\b/.test(m) && /column|invalid|not supported|unknown/i.test(m)) {
+    if (!st.noOpt && cfg.optional.length && /^Ads API 400\b/.test(m) && /column|invalid|not supported|unknown/i.test(m)) {
       st.noOpt = cfg.optional.join(', ');
       decErr_(st, 'Amazon refused an optional column, asking without ' + st.noOpt + ': ' + m.slice(0, 160));
       return adsAsk_(body(cfg.columns), { brand: j.b, kind: j.k, start: j.s, end: j.e }).reportId;
@@ -289,7 +298,7 @@ function decAsk_(st, j) {
 // Fold one finished report into its cache, replacing this brand only.
 function decStore_(st, j, rows) {
   var job = DEC_JOBS[j.k];
-  var pack = job.rep === 'st' ? decFoldSt_(rows, job.win === 'settled') : decFoldTgt_(rows);
+  var pack = job.rep === 'st' ? decFoldSt_(rows, job.win === 'settled') : job.rep === 'plc' ? decFoldPlc_(rows) : decFoldTgt_(rows);
   pack.from = j.s;
   pack.to = j.e;
   var c = adsCacheRead_(j.k) || {};
@@ -380,6 +389,23 @@ function decFoldTgt_(rows) {
     b.i += wNum_(x.impressions); b.c += wNum_(x.clicks); b.sp += wNum_(x.cost);
     b.o += wNum_(x.purchases7d); b.s += wNum_(x.sales7d);
     if (x.attributedSalesSameSku7d != null) { b.os = (b.os || 0) + wNum_(x.attributedSalesSameSku7d); b.oo = (b.oo || 0) + wNum_(x.purchasesSameSku7d); }
+  });
+  var list = [];
+  Object.keys(out).forEach(function (k) { var b = out[k]; b.sp = wMoney_(b.sp); b.s = wMoney_(b.s); list.push(b); });
+  return { rows: list, names: names };
+}
+
+// Placements → one row per (campaign, placement). Amazon's own placement names are kept; Sellora maps them.
+function decFoldPlc_(rows) {
+  var out = {}, names = {};
+  rows.forEach(function (x) {
+    var cid = wStr_(x.campaignId), p = wStr_(x.placementClassification) || 'Unknown';
+    if (!cid) return;
+    if (!names[cid]) names[cid] = wStr_(x.campaignName);
+    var k = cid + '|' + p;
+    var b = out[k] || (out[k] = { cid: cid, cn: wStr_(x.campaignName), p: p, i: 0, c: 0, sp: 0, o: 0, s: 0 });
+    b.i += wNum_(x.impressions); b.c += wNum_(x.clicks); b.sp += wNum_(x.cost);
+    b.o += wNum_(x.purchases7d); b.s += wNum_(x.sales7d);
   });
   var list = [];
   Object.keys(out).forEach(function (k) { var b = out[k]; b.sp = wMoney_(b.sp); b.s = wMoney_(b.s); list.push(b); });
