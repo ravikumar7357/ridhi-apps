@@ -58907,18 +58907,55 @@ function mtsStages(lines) {
 }
 
 /** Karigars by QC-passed pieces this week, with their average of the four weeks before (up / down). */
+/* WHO IS TOP, WHO IS BOTTOM — FAIRLY (Ravi, 18 Nov: "top 3 performer kis base par … kya isne sabhi article banay h, quality product banay h,
+ * kanhi 2 logo ne milkar kam to nahi kya … bottom 3 ke liye check karna ki kanhi wo last week me off par to nahi the"; rule picked: 5%).
+ *   · only piece-rate karigars (empType "Company Contractor"): the contractor's team, embroidery vendors and salaried staff are not ranked
+ *   · work = QC-passed pieces × that article's job work rate (₹) — a quilt is not one napkin
+ *   · quality = (rejected + for alteration) ÷ checked
+ *   · active days = days with a Job Work issue or receipt in the week (attendance is not kept, so this stands in for "was he in")
+ *   Top 3: 3+ active days, quality 5% or better, most work. Bottom 3: 3+ active days, least work a day. Average = the four weeks before. */
+const MTS_BAD_MAX = 5, MTS_MIN_DAYS = 3;
+let MTS_RATES = null;
+async function mtsRatesLoad() {
+  if (MTS_RATES) return;
+  try { MTS_RATES = ptList(await ptGet('pt_rateList')).map(r => (Array.isArray(r) ? r : (r && Array.isArray(r.value) ? r.value : []))).filter(x => x.length && x[1]); }
+  catch (e) { MTS_RATES = []; }
+}
+function mtsRate(at, sub, size) {
+  const N = x => String(x == null ? '' : x).trim().toLowerCase(), L = MTS_RATES || [], ap = 'company contractor';
+  const r = L.find(x => N(x[0]) === N(at) && N(x[1]) === N(sub) && N(x[2]) === N(size) && N(x[3]) === ap)
+    || L.find(x => N(x[1]) === N(sub) && N(x[2]) === N(size) && N(x[3]) === ap) || L.find(x => N(x[1]) === N(sub) && N(x[3]) === ap);
+  return r ? (parseFloat(r[4]) || 0) : 0;
+}
 function mtsPeople(wk) {
-  const from = mtgMs(wk), now = new Map(), before = new Map();
+  const from = mtgMs(wk), to = from + 7 * 864e5, b4 = from - 28 * 864e5;
+  const type = new Map(), days = new Map();
+  (PT.base || []).forEach(r => {
+    if (!r || !r.empName) return;
+    type.set(r.empName, r.empType || '');
+    const add = ms => { if (ms >= from && ms < to) { const d = new Date(ms).toDateString(); (days.get(r.empName) || days.set(r.empName, new Set()).get(r.empName)).add(d); } };
+    add(ptDtMs(r.issueDate));
+    (typeof repRecvParts === 'function' ? repRecvParts(r) : []).forEach(x => add(x.ms));
+  });
+  const now = new Map(), before = new Map();
   repQcRows().forEach(r => {
     if (!r || !r.karigar || qaApart(r)) return;
-    const ms = ptDtMs(r.date); if (!ms) return;
-    if (ms >= from && ms < from + 7 * 864e5) now.set(r.karigar, (now.get(r.karigar) || 0) + ptNum(r.ok));
-    else if (ms >= from - 28 * 864e5 && ms < from) before.set(r.karigar, (before.get(r.karigar) || 0) + ptNum(r.ok));
+    const ms = ptDtMs(r.date); if (!ms || ms < b4 || ms >= to) return;
+    const ok = ptNum(r.ok), val = ok * mtsRate(r.articleType, r.subtype, r.size);
+    if (ms < from) { before.set(r.karigar, (before.get(r.karigar) || 0) + val); return; }
+    const e = now.get(r.karigar) || { k: r.karigar, pcs: 0, val: 0, bad: 0, chk: 0, arts: new Set() };
+    e.pcs += ok; e.val += val; e.bad += ptNum(r.rejected) + ptNum(r.forAlteration);
+    e.chk += ptNum(r.checked) || (ok + ptNum(r.rejected) + ptNum(r.forAlteration)); e.arts.add(r.subtype || r.articleType || '');
+    now.set(r.karigar, e);
   });
-  /* the contractor's team is one name for many people — it is not a person to recognise or highlight */
-  const rows = [...now.entries()].filter(([k]) => !/contractor/i.test(k)).map(([k, v]) => ({ k, v, avg: Math.round((before.get(k) || 0) / 4) }));
-  rows.sort((a, b) => b.v - a.v);
-  return { top: rows.slice(0, 3), bottom: rows.filter(r => r.v > 0).slice(-3).reverse(), n: rows.length };
+  const rows = [...now.values()].filter(e => /company contractor/i.test(type.get(e.k) || '')).map(e => {
+    const d = (days.get(e.k) || new Set()).size;
+    return Object.assign(e, { days: d, perDay: d ? e.val / d : 0, badPct: e.chk ? Math.round(e.bad / e.chk * 1000) / 10 : 0, avg: Math.round((before.get(e.k) || 0) / 4), arts: e.arts.size });
+  });
+  const active = rows.filter(r => r.days >= MTS_MIN_DAYS);
+  const top = active.filter(r => r.badPct <= MTS_BAD_MAX).sort((a, b) => b.val - a.val).slice(0, 3);
+  const bottom = active.filter(r => !top.includes(r)).sort((a, b) => a.perDay - b.perDay).slice(0, 3);
+  return { top, bottom, n: rows.length, left: rows.filter(r => r.days < MTS_MIN_DAYS).length, noRate: !(MTS_RATES || []).length };
 }
 
 /* ---------- drawing ---------- */
@@ -58957,11 +58994,14 @@ function mtsSlides(wk) {
   out.push({ t: 'Production Report Card', html: `<table class="mts-sheet"><thead><tr>${head.map(h => `<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table>
     <div class="muted" style="font-size:12px;margin-top:6px">open orders = a line not yet handed over · pending = pieces still to make · status = those pieces, each at the one step it waits at</div>` });
   /* 2 · People Discussion */
-  const P = mtsPeople(wk), arrow = r => r.avg ? (r.v >= r.avg ? `<span style="color:#166534">▲ ${nf(r.v - r.avg)}</span>` : `<span style="color:var(--bad)">▼ ${nf(r.avg - r.v)}</span>`) : '<span class="muted">new</span>';
-  const plist = list => list.length ? list.map((r, i) => `<div class="mts-kv"><span>${i + 1}. ${esc(r.k)}</span><b>${nf(r.v)}</b><em>avg ${nf(r.avg)} · ${arrow(r)}</em></div>`).join('') : '<span class="muted">No QC passed with a karigar name.</span>';
+  const P = mtsPeople(wk), rs = v => '₹' + nf(Math.round(v));
+  const arrow = r => r.avg ? (r.val >= r.avg ? `<span style="color:#166534">▲ ${rs(r.val - r.avg)}</span>` : `<span style="color:var(--bad)">▼ ${rs(r.avg - r.val)}</span>`) : '<span class="muted">new</span>';
+  const plist = (list, perDay) => list.length ? list.map((r, i) => `<div class="mts-kv"><span>${i + 1}. ${esc(r.k)}</span><b>${rs(perDay ? r.perDay : r.val)}${perDay ? ' / day' : ''}</b>`
+      + `<em>${nf(r.pcs)} pcs · ${nf(r.arts)} article(s) · quality ${r.badPct}% rejected/alteration · ${nf(r.days)} day(s) active · avg ${rs(r.avg)} ${arrow(r)}</em></div>`).join('')
+    : '<span class="muted">Nobody meets the rule this week.</span>';
   out.push({ t: 'People Discussion', html: `<table class="mts-sheet"><tbody>
-      <tr><th style="background:#E5F4E4">Top 3 performer for last week that I want to recognize</th><td>${plist(P.top)}<div class="muted" style="font-size:12px">ave. to up and down — QC-passed pcs vs the four weeks before</div></td></tr>
-      <tr><th>Bottom 3 performers that I want to highlight</th><td>${plist(P.bottom)}</td></tr>
+      <tr><th style="background:#E5F4E4">Top 3 performer for last week that I want to recognize</th><td>${plist(P.top)}<div class="muted" style="font-size:12px">ave. to up and down — work (QC-passed pcs × job work rate) vs the average of the four weeks before</div></td></tr>
+      <tr><th>Bottom 3 performers that I want to highlight</th><td>${plist(P.bottom, true)}<div class="muted" style="font-size:11.5px;margin-top:4px">How chosen: piece-rate karigars only (not the contractor's team, embroidery vendors or salaried staff) · work = QC-passed pcs × job work rate · top needs ${MTS_MIN_DAYS}+ days active and quality ${MTS_BAD_MAX}% or better · bottom = ${MTS_MIN_DAYS}+ days active, least work a day · active = a Job Work issue or receipt that day (attendance is not kept) · two people sharing one entry cannot be seen${P.left ? ' · ' + nf(P.left) + ' karigar(s) under ' + MTS_MIN_DAYS + ' days left out' : ''}${P.noRate ? ' · <b style="color:var(--bad)">job work rates could not be read</b>' : ''}</div></td></tr>
       <tr><th>Critical vacant position with HR</th><td>${mtsNote(wk, 'hr_vacant', 'Status', 3)}</td></tr>
       <tr><th>People Requirement not yet with HR</th><td>${mtsNote(wk, 'hr_need', 'Status (discuss with Srikant ji, Mukul sir first)', 3)}</td></tr>
     </tbody></table>` });
@@ -58980,7 +59020,8 @@ function mtsDraw() {
   box.querySelector('.mts-slide').innerHTML = `<div class="mts-title"><span>${esc(s.t)}</span><em>${esc(repWkRange(MTS.wk))} · ${MTS.i + 1} / ${n}</em></div><div class="mts-body">${s.html}</div>`;
   box.querySelector('.mts-dots').innerHTML = MTS.slides.map((x, i) => `<button type="button" data-mtsgo="${i}" class="${i === MTS.i ? 'on' : ''}" title="${esc(x.t)}"></button>`).join('');
 }
-function mtsOpen() {
+async function mtsOpen() {
+  await mtsRatesLoad();
   const wk = $('repWk').value, brand = $('repBrand').value;
   MTS = { i: 0, slides: mtsSlides(wk, brand), wk };
   let box = document.getElementById('mtsBox');
