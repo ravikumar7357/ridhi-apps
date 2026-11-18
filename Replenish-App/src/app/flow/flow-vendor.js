@@ -86,10 +86,23 @@ async function flowVpBar() {
   const sel = $('flVpAs'); if (!sel) return;
   sel.innerHTML += Object.entries(map).filter(([, v]) => v).sort((a, b) => String(a[1].name || a[0]).localeCompare(String(b[1].name || b[0])))
     .map(([code, v]) => `<option value="${esc(code)}">${esc(v.name || code)} (${esc(code)})</option>`).join('');
+  if (FLOW_VP_AS) { sel.value = FLOW_VP_AS.code; if (map[FLOW_VP_AS.code] && map[FLOW_VP_AS.code].name) FLOW_VP_AS.name = map[FLOW_VP_AS.code].name; }   // opened from a link
   sel.onchange = async () => {
     const code = sel.value; FLOW_VP_AS = code ? { code, name: (map[code] && map[code].name) || code } : null;
     VP.rows = null; if (typeof ensureVp === 'function') await ensureVp();
   };
+}
+
+/**
+ * A link asking for one printer's portal (core/nav.js navHashPrinter — the printer delay mail, Ravi 18 Nov): look as that
+ * printer, late lines only if asked. Only sets what the portal reads; showTab('vend') then loads it. Looking as a printer
+ * stays for those allowed it (flowVpAfterLoad: admin or the view-only box).
+ */
+function flowVpLinkPrepare(link) {
+  FLOW_VP_AS = { code: link.code, name: link.code };
+  VP.lateOnly = !!link.late;
+  VP.rows = null;
+  const sel = $('flVpAs'); if (sel) sel.value = link.code;
 }
 
 /* History never changes a receipt made on a flow challan: it is changed on the challan itself (Demand history). */
