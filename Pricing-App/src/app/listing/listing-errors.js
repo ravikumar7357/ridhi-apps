@@ -150,7 +150,9 @@ function leRender() {
   const only = LE_ONLY ? `<div class="card" style="padding:8px 14px;margin-bottom:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:12.5px">`
     + `<span>Showing the <b>${leNf(LE_ONLY.skus.size)}</b> listing(s) picked in Listing Health${LE_ONLY.label ? ': ' + leEsc(LE_ONLY.label) : ''}.</span>`
     + '<button class="ghost im-b" data-leonly="off">Show every listing</button></div>' : '';
-  el.innerHTML = only + `
+  // Search terms over the limit (a Listing Rules problem, not one of Amazon's issues): its own card, Fix all per family and for all (kw-fix.js)
+  const kwCard = typeof kfLeCardHtml === 'function' ? kfLeCardHtml(brand, LE_ONLY ? LE_ONLY.skus : null) : '';
+  el.innerHTML = only + kwCard + `
     <div class="card" style="padding:10px 14px;margin-bottom:10px">
       <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
         <span class="muted" style="font-size:12px">Listings with an error, by kind:</span>

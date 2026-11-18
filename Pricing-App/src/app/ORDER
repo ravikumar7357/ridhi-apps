@@ -33,6 +33,7 @@ listing/listing-sync.js
 listing/season-planner.js
 listing/fix-all.js
 listing/listing-send-check.js
+listing/kw-fix.js
 listing/listing-history.js
 listing/bsr-audit.js
 listing/family-check.js

@@ -1825,14 +1825,11 @@
           <option value="all">All listings</option>
           <option value="nomain">No main at all</option>
           <option value="pcbad">Main not OK (Picture check)</option>
-          <option value="small">Too small (under 2000)</option>
           <option value="diff">Live image differs from yours</option>
-          <option value="other">Amazon shows another SKU's pictures</option>
           <option value="sup">Search suppressed</option>
           <option value="amzerr">Amazon picture error</option>
           <option value="noown">Using the family's main (none of your own)</option>
           <option value="few">Fewer than 7 images</option>
-          <option value="noswatch">No swatch</option>
           <option value="nobuy">Not buyable</option>
         </select>
         <select id="imView" title="Which picture each tile shows first" aria-label="Which picture each tile shows">
@@ -1845,6 +1842,9 @@
         <span style="flex:1"></span>
         <button id="imGo" class="ghost" title="Open the editor for exactly the SKU or ASIN typed in the search">Open editor</button>
         <button id="imRefresh" class="ghost" title="Read every listing's pictures from Amazon again (about two minutes)">Refresh</button>
+        <!-- ⬇ Download errors: a sheet of every live listing (stock > 0) with a picture problem (image-manager.js imDlDownload). -->
+        <button id="imDl" class="ghost" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="imDlMenu" title="Download every live listing (stock > 0) with a picture problem, as a sheet for Excel">⬇ Download errors</button>
+        <div id="imDlMenu" class="im-dlm" hidden></div>
         <button type="button" class="ghost im-helpbtn" data-im-help="open" title="Keys and tips (?)" aria-label="Keys and tips">?</button>
         <!-- Messages: shown as toasts (bottom right); this line stays for screen readers. -->
         <span id="imMsg" class="im-sr" role="status" aria-live="polite"></span>

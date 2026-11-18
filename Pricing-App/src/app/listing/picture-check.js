@@ -66,6 +66,10 @@ function pcChanged() {
   if (typeof H_CTX !== 'undefined') H_CTX = null;
   pcChip();
   if (PC.on) pcRender();
+  // Image Manager's list reads the marks too (its "Main not OK" card and rows — image-manager.js imCheck): it follows when it is showing
+  const imgPane = $('paneImg');
+  if (!PC.on && imgPane && imgPane.classList && !imgPane.classList.contains('hide') && typeof imListRender === 'function' && typeof IML !== 'undefined'
+    && $('imBrand') && IML[$('imBrand').value] && !(typeof IML_LOADING !== 'undefined' && IML_LOADING)) imListRender();
   const health = $('paneHealth');
   if (health && health.classList && !health.classList.contains('hide')) {
     if (typeof LI_WS !== 'undefined' && LI_WS.on && typeof liWsSchedule === 'function') liWsSchedule();
