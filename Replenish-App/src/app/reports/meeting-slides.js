@@ -36,12 +36,36 @@ function mtsChannel(ch, wk) {
     const due = l.mto ? l.mtoDue : (dueIx.get(l.orderNo + '|' + l.sku) || '');
     if (due && due < today && (l.pendingMake || 0) > 0) { lateOrders.add(l.orderNo); latePcs += l.pendingMake; }
   });
-  let st = null; try { st = shpbStages(open); } catch (e) { st = null; }
+  let st = null; try { st = mtsStages(open); } catch (e) { st = null; }
   let spot = 0, touch = 0;
   try { qcDeptRows().forEach(x => { if (!x.left || !ofCh(x.c.orderNo || x.c.order || '')) return; if (/spot/i.test(x.dept)) spot += x.left; else if (/touch/i.test(x.dept)) touch += x.left; }); } catch (e) { /* QC not read */ }
-  const stages = st ? [['To plan', st.planW], ['At printer', st.prcW], ['Fabric / to cut', st.cutW], ['Stitching (with karigars)', st.issW + st.recW],
-    ['QC', st.qcW], ['Spotting', spot], ['Touching', touch], ['Press', st.prsW]] : [];
+  const stages = st ? [['To plan', st.plan], ['At printer', st.printer], ['Printed, to cut', st.toCut], ['Cut, to issue', st.toIssue], ['Stitching (with karigars)', st.karigar],
+    ['Waiting for QC', st.qc], ['Spotting', spot], ['Touching', touch], ['Press (QC passed, not pressed)', st.press]] : [];
   return { qc, qcPrev, orders: orders.size, pend, late: lateOrders.size, latePcs, stages };
+}
+
+/* WHERE EACH PIECE IS — ONE PLACE ONLY (18 Nov, first look at the slides: the board's own counts overlap — a piece counted at the
+ * printer was counted again at QC — so FBA's stages added up to 2.2 lakh against 1.18 lakh pending). Each line's pieces not yet made
+ * are put at the furthest step they have NOT passed: to plan · at the printer · printed but not cut · cut but not issued · with
+ * karigars · back but not QC-checked. Press counts only on a line where pressing is recorded at all (Amazon lines are not pressed). */
+function mtsStages(lines) {
+  const s = { plan: 0, printer: 0, toCut: 0, toIssue: 0, karigar: 0, qc: 0, press: 0 };
+  lines.forEach(r => {
+    const q = Math.max(0, (+r.qty || 0) - (typeof shpbStockOf === 'function' ? shpbStockOf(r) : 0)), cap = n => Math.max(0, Math.min(q, +n || 0));
+    const iss = cap((+r.issued || 0) - (+r.rejected || 0)), rec = cap(r.received), qc = cap(r.pressed), cut = r.cutReq ? cap(r.cut) : null;
+    const fl = typeof shpbFlowOf === 'function' ? shpbFlowOf(r) : null, past = Math.max(cut || 0, iss, rec, qc);
+    const back = fl ? Math.min(q, Math.max(+fl.back || 0, past)) : q;
+    if (typeof shpbGated === 'function' && shpbGated(r)) { s.plan += Math.max(0, q - qc); return; }
+    s.printer += Math.max(0, q - back);
+    const cutDone = cut == null ? back : Math.max(cut, iss);
+    s.toCut += Math.max(0, back - cutDone);
+    s.toIssue += Math.max(0, cutDone - Math.max(iss, rec, qc));
+    s.karigar += Math.max(0, iss - Math.max(rec, qc));
+    s.qc += Math.max(0, rec - qc);
+    const prsBy = ((typeof SHPB !== 'undefined' && SHPB.pressBy) || {})[typeof shpbKey === 'function' ? shpbKey(r.orderNo, r.sku) : ''] || {};
+    if (+prsBy.pcs > 0) s.press += Math.max(0, qc - Math.min(qc, +prsBy.pcs));
+  });
+  return s;
 }
 
 /** Karigars by QC-passed pieces this week, with their average of the four weeks before (up / down). */
