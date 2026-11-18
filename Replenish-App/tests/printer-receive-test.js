@@ -22,7 +22,9 @@ const PARTS = [line(VO, 'const voLines ='), line(VO, 'const voParts ='), line(VP
   line(VP, 'const vpRecvAll ='), (s => { const i = s.indexOf('const vpLineIsHist ='); return s.slice(i, s.indexOf('\n', i) + 1); })(VP),
   cut(VP, 'vpVsAdd'), line(VP, 'const vpVsSplit ='), cut(VP, 'vpCustStatus'), cut(VP, 'vpCustKpis'),
   line(FR, 'const flowQtyTxt ='), line(FR, 'let FLOW_VOIX ='), cut(FR, 'flowVoIndex'), cut(FR, 'flowVsOfKey'), line(FR, 'const flowDueTyped ='),
-  cut(FR, 'flowDueRecvCell'), cut(FR, 'flowDueRecvOne'), cut(FR, 'flowExtraAsks'), cut(FR, 'flowExtraAnswer')].join('\n');
+  cut(FR, 'flowDueRecvCell'), cut(FR, 'flowDueRecvOne'), cut(FR, 'flowExtraAsks'), cut(FR, 'flowExtraAnswer'),
+  line(FR, 'const flowDueDay ='), line(FR, 'const flowRemDays ='), line(FR, 'const FLOW_REM_SOON ='), cut(FR, 'flowRemOf'), cut(FR, 'flowDueTone'),
+  cut(FR, 'flowDuePrinters'), cut(FR, 'flowDueBar')].join('\n');
 let pass = 0, fail = 0;
 const ok = (n, c, d) => { if (c) { pass++; console.log('  PASS ' + n); } else { fail++; console.log('  FAIL ' + n + (d ? ' — ' + d : '')); } };
 
@@ -31,7 +33,7 @@ function load(o) {
   const puts = [], saves = [], said = [];
   const ctx = {
     ME: Object.assign({ email: 'rbp@x', admin: false }, o.me || {}), VP: Object.assign({ code: 'P1', rows: o.rows || [] }, o.vp || {}),
-    VO: { rows: o.vo || [] }, FLOW: { po: o.po || {}, said: '' }, FLOW_DUE: { less: o.less || '' }, FLOW_RUF: '~ruffle',
+    VO: { rows: o.vo || [] }, FLOW: { po: o.po || {}, said: '' }, FLOW_DUE: { less: o.less || '', typed: {}, printer: '', lateOnly: !!o.lateOnly }, FLOW_RUF: '~ruffle',
     esc: s => String(s == null ? '' : s), nf: n => String(n), obUC: s => String(s || '').toUpperCase(), fabKey: s => String(s || '').toLowerCase(),
     flowR2: n => Math.round((+n || 0) * 100) / 100, vpVsWhen: () => 'today', vpIsCustom: x => !!(x && x.custom),
     vpRecvOf: (l, x) => ({ qty: +((x && x.recv && x.recv[l.lineId]) || 0) }), renderVp() {}, vpSay: (id, m, bad) => said.push({ m, bad }),
@@ -43,7 +45,7 @@ function load(o) {
   };
   function flowDueRecvSaveSaid() { ctx.flowDueRecvSave.said = 'Received from RBP-Bagru on RFD-1.'; }
   const names = Object.keys(ctx);
-  const A = new Function(...names, PARTS + '\nreturn { vpVsSum, vpVsWait, vpVsApproved, vpOrdOf, vpVsSplit, vpVsAdd, vpLineIsHist, vpCustStatus, vpCustKpis, flowDueRecvCell, flowDueRecvOne, flowExtraAsks, flowExtraAnswer };')(...names.map(k => ctx[k]));
+  const A = new Function(...names, PARTS + '\nreturn { vpVsSum, vpVsWait, vpVsApproved, vpOrdOf, vpVsSplit, vpVsAdd, vpLineIsHist, vpCustStatus, vpCustKpis, flowDueRecvCell, flowDueRecvOne, flowExtraAsks, flowExtraAnswer, flowDueTone, flowDueBar };')(...names.map(k => ctx[k]));
   return Object.assign(A, { puts, saves, said, ctx });
 }
 
@@ -118,6 +120,23 @@ const L = { lineId: 'a', sku: 'X', qty: 4 };
     ok('pressing Receive saves that one line, today, through the usual receive save', !er && R.saves.length === 1 && R.saves[0].pk === 'P1' && R.saves[0].got.O1__X === 3 && R.saves[0].opt.date === '2026-11-16', JSON.stringify(R.saves));
     ok('…and says the printer\'s portal shows it', /printer's portal shows it/.test(R.ctx.FLOW.said));
     ok('a line no longer owed is refused', /not owed any more/.test(await load({ due: [] }).flowDueRecvOne('P1|O1__X', 3)));
+  }
+
+  /* ---- late lines on the receiving sheet (18 Nov) — today is 16 Nov in these tests ---- */
+  {
+    const A = load();
+    const line = (due, withPrinter) => ({ due, withPrinter: withPrinter == null ? 3 : withPrinter, code: 'P1', printer: 'RBP-Bagru', l: { key: 'K' + due }, unit: 'pcs' });
+    ok('past its due date, cloth with the printer: red', A.flowDueTone(line('2026-11-13'), '2026-11-16') === 'late');
+    ok('due today: yellow', A.flowDueTone(line('2026-11-16'), '2026-11-16') === 'near');
+    ok('due tomorrow: yellow', A.flowDueTone(line('2026-11-17'), '2026-11-16') === 'near');
+    ok('due in two days: white', A.flowDueTone(line('2026-11-18'), '2026-11-16') === '');
+    ok('past due but our RFD cloth has not gone: white — the delay is ours', A.flowDueTone(line('2026-11-10', 0), '2026-11-16') === '');
+    ok('no due date: white', A.flowDueTone(line(''), '2026-11-16') === '');
+    const due = [line('2026-11-10'), line('2026-11-12'), line('2026-11-20'), line('2026-11-01', 0)];
+    const bar = load({ due }).flowDueBar(false);
+    ok('the toolbar offers "Late only (2)" — the two late lines with cloth at the printer', /data-fldlate="1"[^>]*>Late only \(2\)/.test(bar), bar.slice(0, 900));
+    ok('…with "Late only" on, the button brings every line back', /Show all lines/.test(load({ due, lateOnly: true }).flowDueBar(false)));
+    ok('nothing late: no button', !/data-fldlate/.test(load({ due: [line('2026-11-20')] }).flowDueBar(false)));
   }
 
   /* ---- approvals ---- */

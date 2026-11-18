@@ -33380,7 +33380,7 @@ function flowDueRows(q, testOnly) {
  * when order received"): one row per line a printer still owes, eight columns and nothing else — Date, Order Number, Image, Article, Size, Ordered,
  * Vendor Sent, Received. Vendor Sent is the printer's own word from its portal (vSent); Received is typed here, and Save received takes it in on the open
  * challans exactly as the Receive dialog does, dated TODAY by itself. Date shows the day the line was last received. A printer is picked above. */
-const FLOW_DUE = { printer: '', typed: {}, less: '' };   // less: the line whose "fewer came?" box is open (16 Nov)
+const FLOW_DUE = { printer: '', typed: {}, less: '', lateOnly: false };   // less: the line whose "other amount?" box is open (16 Nov); lateOnly: "Late only" (18 Nov)
 /** What the printer said it sent for this line (its portal's batches), shared over the vendor-order lines that stand for it; null when not known. */
 function flowVendorSentOf(x) { return flowVsOfKey(x.l.key, false, x.unit, x.po); }
 /** What the printer says it sent for one flow line — its key, the ruffle cloth or not, in the unit it was given — from the batches
@@ -33464,17 +33464,30 @@ function flowDuePrinters(testOnly) {
   const m = new Map(); flowDueRows('', testOnly).forEach(x => m.set(x.code || x.printer, x.printer));
   return [...m.entries()].sort((a, b) => a[1].localeCompare(b[1]));
 }
+/* LATE LINES ON THE RECEIVING SHEET (Ravi, 18 Nov: "can we show the late lines here too"): the printer portal's colours (voDueTone,
+ * 16 Nov) by the reminder's own reading of a line (flowRemOf) — red once past its due date, yellow on the due day and the day before. A line
+ * still waiting for our RFD cloth stays white: the delay is ours, not the printer's. Each printer's band counts its late lines and "Late only"
+ * hides the rest. Display only; nothing is saved. */
+function flowDueTone(x, todayIso) {
+  const st = flowRemOf(x, todayIso);
+  if (st === 'late') return 'late';
+  if (st === 'today' || (st === 'soon' && flowRemDays(todayIso, x.due) === 1)) return 'near';
+  return '';
+}
 function flowDueTable(q, testOnly) {
-  const all = flowDueRows(q, testOnly), rows = FLOW_DUE.printer ? all.filter(x => (x.code || x.printer) === FLOW_DUE.printer) : all;
-  const today = flowDueDay(dToday());
+  const todayIso = dToday(), shown = FLOW_DUE.printer ? flowDueRows(q, testOnly).filter(x => (x.code || x.printer) === FLOW_DUE.printer) : flowDueRows(q, testOnly);
+  shown.forEach(x => { x.tone = flowDueTone(x, todayIso); });
+  const rows = FLOW_DUE.lateOnly ? shown.filter(x => x.tone === 'late') : shown;
+  const today = flowDueDay(todayIso);
   /* THE SHP BOARD'S LOOK (Ravi, 31 Oct, "ok deploy krdo"): Date, Order ID, Item (picture, article, colour · SKU), Size, Ordered, Vendor sent, Received — a peach band
    * over each printer with what it holds. A line with a figure typed shows TODAY in Date: the day it is received on, filled in by itself. */
   const by = new Map(); rows.forEach(x => { const e = by.get(x.printer) || by.set(x.printer, { rows: [], w: [], n: [] }).get(x.printer); e.rows.push(x); if (x.withPrinter) e.w.push([x.withPrinter, x.unit]); if (x.notSent) e.n.push([x.notSent, x.unit]); });
   const body = [...by.entries()].map(([nm, g]) => `<tr><td colspan="8" style="text-align:left;background:#fdf0e8;font-weight:700;font-size:13px;padding:7px 12px">${esc(nm)} — ${nf(g.rows.length)} line(s)`
-    + ` <span style="font-weight:500;color:#6b7686;font-size:12px;margin-left:10px">${g.w.length ? flowMixTxt(g.w) + ' of cloth with them' : ''}${g.w.length && g.n.length ? ' · ' : ''}${g.n.length ? `<span style="color:#b45309">${flowMixTxt(g.n)} RFD not sent yet</span>` : ''}</span></td></tr>`
+    + ` <span style="font-weight:500;color:#6b7686;font-size:12px;margin-left:10px">${g.w.length ? flowMixTxt(g.w) + ' of cloth with them' : ''}${g.w.length && g.n.length ? ' · ' : ''}${g.n.length ? `<span style="color:#b45309">${flowMixTxt(g.n)} RFD not sent yet</span>` : ''}</span>`
+    + ((n => n ? ` <span style="color:var(--bad);font-size:12.5px;margin-left:8px">${nf(n)} late</span>` : '')(g.rows.filter(x => x.tone === 'late').length)) + '</td></tr>'
     + g.rows.map(x => { const pk = x.code || x.printer, id = pk + '|' + x.l.key, vs = flowVendorSentOf(x), day = flowDueLastRecv(x.l.key), m = (typeof mdbOf === 'function' && mdbOf(x.sku)) || {};
       const typed = +FLOW_DUE.typed[id] > 0, colour = x.r.color || m.color || '';
-      return `<tr><td style="text-align:left;white-space:nowrap;font-size:12px;vertical-align:middle">${typed ? `<b>${esc(today)}</b>` : day ? esc(flowDueDay(day)) : '<span class="muted">—</span>'}</td>
+      return `<tr${x.tone ? ` class="vo-${x.tone}" title="${x.tone === 'late' ? 'Past its due date' : 'Due today or tomorrow'} (${esc(flowDueDay(x.due))})"` : ''}><td style="text-align:left;white-space:nowrap;font-size:12px;vertical-align:middle">${typed ? `<b>${esc(today)}</b>` : day ? esc(flowDueDay(day)) : '<span class="muted">—</span>'}</td>
       <td style="text-align:left;vertical-align:middle"><b style="font-size:13.5px;text-decoration:underline dotted">${esc(x.orderNo)}</b>${x.test ? ' <span class="navbadge" style="background:#7c3aed;position:static">TEST</span>' : ''}</td>
       <td style="text-align:left;vertical-align:middle"><div style="display:flex;gap:8px;align-items:center">${typeof ptImgSpan === 'function' ? ptImgSpan(x.sku, 36) : ''}<div style="line-height:1.3"><div style="font-weight:600;font-size:12.5px">${esc(x.r.articleSubtype || m.subtype || x.r.articleType || m.articleType || '—')}</div>
         <div style="font-size:11px;color:#6b7686">${colour ? esc(colour) + ' · ' : ''}<span style="font-family:ui-monospace,monospace">${esc(x.sku)}</span></div></div></div></td>
@@ -33488,7 +33501,7 @@ function flowDueTable(q, testOnly) {
   if (typeof ptImgFill === 'function' && typeof setTimeout === 'function') setTimeout(() => { try { ptImgFill(rows.map(x => x.sku), false, typeof ptImgPatch === 'function' ? ptImgPatch : null); } catch (e) { /* the pictures follow */ } }, 0);
   return '<colgroup><col style="width:8%"><col style="width:11%"><col style="width:31%"><col style="width:9%"><col style="width:9%"><col style="width:9%"><col style="width:9%"><col style="width:14%"></colgroup>'
     + `<thead><tr><th style="text-align:left">Date</th><th style="text-align:left">Order ID</th><th style="text-align:left">Item</th><th>Size</th><th>Ordered</th><th>Printer sent</th><th>Received</th><th>Receive</th></tr></thead><tbody>`
-    + (body || `<tr><td colspan="8" class="muted" style="padding:16px">Nothing is owed by ${FLOW_DUE.printer ? 'that printer' : 'a printer'}${q ? ` for “${esc(q)}”` : ''}.</td></tr>`) + '</tbody>';
+    + (body || `<tr><td colspan="8" class="muted" style="padding:16px">${FLOW_DUE.lateOnly ? 'Nothing is late' : 'Nothing is owed'} by ${FLOW_DUE.printer ? 'that printer' : 'a printer'}${q ? ` for “${esc(q)}”` : ''}.</td></tr>`) + '</tbody>';
 }
 /* ONE BUTTON ON THE ORDER LINE (Ravi, 16 Nov: "on receiving page the receive button should be at the place where the order number line
  * lies"). Each line offers what the printer entered as sent and we have not taken in: "Receive 3 pcs" takes it in at once, dated today,
@@ -33578,9 +33591,12 @@ if (typeof document !== 'undefined' && typeof document.addEventListener === 'fun
 function flowDueBar(testOnly) {
   const n = Object.values(FLOW_DUE.typed).filter(v => +v > 0).length, cnt = new Map(), due = flowDueRows('', testOnly);
   due.forEach(x => { const k = x.code || x.printer; cnt.set(k, (cnt.get(k) || 0) + 1); });
-  const asks = ME.admin ? flowExtraAsks().length : 0;
+  const asks = ME.admin ? flowExtraAsks().length : 0, todayIso = dToday();
+  const late = due.filter(x => (!FLOW_DUE.printer || (x.code || x.printer) === FLOW_DUE.printer) && flowDueTone(x, todayIso) === 'late').length;
+  const lateBtn = late || FLOW_DUE.lateOnly ? ` <button type="button" data-fldlate="1" class="${FLOW_DUE.lateOnly ? '' : 'ghost'}" style="width:auto;padding:8px 14px;font-size:13px;border-radius:12px;margin-left:6px${FLOW_DUE.lateOnly ? '' : ';color:var(--bad);border-color:var(--bad)'}">${FLOW_DUE.lateOnly ? 'Show all lines' : `Late only (${nf(late)})`}</button>` : '';
   return `<select data-fldprn style="width:auto;min-width:250px;margin-left:8px;padding:8px 12px;font-size:13.5px;font-weight:700;border-radius:12px;background:#fdf0e8;border:1px solid #f0cdb5" title="Pick a printer to see only its goods"><option value="">All printers · ${nf([...cnt.values()].reduce((a, v) => a + v, 0))} lines</option>`
     + flowDuePrinters(testOnly).map(([k, nm]) => `<option value="${esc(k)}"${k === FLOW_DUE.printer ? ' selected' : ''}>${esc(nm)} · ${nf(cnt.get(k) || 0)} lines</option>`).join('') + '</select>'
+    + lateBtn
     + ` <span style="font-size:12.5px;color:#6b7686;margin-left:10px">Received on <b style="color:#17202b">${esc(flowDueDay(dToday()))}</b> — today, by itself</span>`
     + (due.some(flowDueTyped) ? ` <button type="button" data-fldsave="1" style="width:auto;padding:8px 18px;font-size:13px;border-radius:12px;margin-left:6px"${n ? '' : ' disabled'}>Save received${n ? ' (' + nf(n) + ')' : ''}</button>` : '')
     + (asks ? ` <button type="button" data-flxopen="1" style="width:auto;padding:8px 14px;font-size:13px;border-radius:12px;margin-left:6px;background:#b45309;border-color:#b45309">Extra pieces to approve <span class="navbadge" style="position:static;background:#fff;color:#b45309">${nf(asks)}</span></button>` : '');
@@ -33589,6 +33605,7 @@ if (typeof document !== 'undefined' && typeof document.addEventListener === 'fun
   const t = e.target; if (!t || !t.closest) return;
   const less = t.closest('a[data-fldless]'); if (less) { e.preventDefault(); FLOW_DUE.less = less.getAttribute('data-fldless'); renderFlow(); return; }
   if (t.closest('[data-fldlessx]')) { e.preventDefault(); FLOW_DUE.less = ''; renderFlow(); return; }
+  if (t.closest('[data-fldlate]')) { e.preventDefault(); FLOW_DUE.lateOnly = !FLOW_DUE.lateOnly; renderFlow(); return; }
   const go = t.closest('[data-fldgo]'); if (!go || go.disabled) return;
   e.preventDefault(); go.disabled = true;
   const id = go.getAttribute('data-fldgo'), box = document.querySelector(`input[data-fldless="${CSS.escape(id)}"]`);
