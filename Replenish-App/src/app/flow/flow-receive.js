@@ -177,6 +177,7 @@ async function flowStandUse(no, key, toKey, qty, note) {
   for (let k = 0, taken = []; ; k++) {
     let er = ''; try { er = await flowClaim('pt_flowChallans/' + cno, ch); } catch (e) { return 'Could not save: ' + (e.message || e); }
     if (!er) break;
+    if (k === 0) await flowChSeenFresh();   // the number was taken: read the numbers the server holds (18 Nov)
     if (k >= 15) return 'Could not get a free challan number — press Refresh and try again.';
     taken.push(cno); cno = flowChallanNo(date, false, taken); ch.no = cno;
   }
@@ -650,6 +651,7 @@ async function flowDueRecvSave(key, got, o) {
     for (let k = 0, taken = []; ; k++) {
       let er = ''; try { er = await flowClaim('pt_flowChallans/' + no, ch); } catch (e) { return 'Could not save: ' + (e.message || e); }
       if (!er) break;
+      if (k === 0) await flowChSeenFresh();   // the number was taken: read the numbers the server holds (18 Nov)
       if (k >= 15) return 'Could not get a free challan number — press Refresh and try again.';
       taken.push(no); no = flowChallanNo(date, test, taken); ch.no = no;
     }
