@@ -306,6 +306,10 @@ onAuthStateChanged(auth, async user => {
   if (linkPrinter && typeof flowVpLinkPrepare === 'function') flowVpLinkPrepare(linkPrinter);
   showTab(navHashTab() || ME.tabs[0]);
   if (linkOrder) ordOpenOrder(linkOrder);
+  /* A REPORT LINK OPENS ITS SCREEN, NOT MY WORK TODAY (18 Nov: the printer delay mail's link "still the same"): My work
+   * today opens on top at sign-in unless the person already went somewhere (core/friendly.js FR.touched) — a link that
+   * names an order or a printer has. */
+  if ((linkOrder || linkPrinter) && typeof FR !== 'undefined') FR.touched = true;
   /* Somebody who approves requests is told how many are waiting without having to open the tab. */
   /* With the pending-badges switch on (core/pending-badges.js) the four request counts below come from asking the database
    * for the pending rows only; the screens' own lists are not filled here and load in full when each screen is opened.
