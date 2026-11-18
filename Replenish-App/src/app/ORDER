@@ -115,6 +115,7 @@ reports/last-week.js
 reports/charts.js
 reports/shopify-dispatch.js
 reports/meeting.js
+reports/meeting-slides.js
 inventory/fg-other-movements.js
 inventory/fg-receive-excel.js
 inventory/fg-change-remove.js

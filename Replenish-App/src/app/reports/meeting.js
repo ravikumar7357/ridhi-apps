@@ -395,6 +395,7 @@ function renderMtg() {
       <span class="kpiname" style="font-size:15px">Production meeting — ${esc(repWkRange(wk))}</span>
       <span class="muted" style="font-size:12px">read ${esc(MTG.at)}${MTG.err.length ? ' · <span style="color:var(--bad)">not read: ' + esc(MTG.err.join(' · ')) + '</span>' : ''}</span>
       <span style="flex:1"></span>
+      <button type="button" data-mtg="present" title="The meeting as slides — FBA, B2B, Shopify, people, machines, IT, action points (18 Nov)">Present</button>
       <button type="button" class="ghost" data-mtg="wa">Share on WhatsApp</button>
       <button type="button" class="ghost" data-mtg="copy">Copy summary</button>
       ${can ? `<button type="button" class="ghost" data-mtg="ftpl">Freight template</button><button type="button" class="ghost" data-mtg="fup">Upload freight sheet</button>
@@ -471,6 +472,7 @@ $('repKpis').addEventListener('click', async e => {
   const act = b.getAttribute('data-mtgact');
   if (act) { const [w, id] = act.split('|'); const err = await mtgToggleAction(w, id).catch(er => 'Not saved: ' + (er.message || er)); renderMtg(); return say(err || 'Saved.', !!err); }
   const k = b.getAttribute('data-mtg'), text = MTG.last ? mtgSummary(wk, MTG.last.S) : '';
+  if (k === 'present') { if (typeof mtsOpen === 'function') mtsOpen(); return; }
   if (k === 'wa') { window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank'); return; }
   if (k === 'copy') { try { await navigator.clipboard.writeText(text); say('Summary copied — paste it anywhere.'); } catch (er) { say('Could not copy — use Share on WhatsApp instead.', true); } return; }
   if (k === 'ftpl') return ptDownload('freight-sheet', [MTG_FREIGHT_COLS.map(csvCell).join(','), ['06-10-2026', 'FBA15XXXXXXX', 'Air', 'DHL', 4, 62, 180, 31500, 'INR', 'example — delete this row'].map(csvCell).join(',')]);
