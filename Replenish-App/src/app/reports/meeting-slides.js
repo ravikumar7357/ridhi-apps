@@ -40,7 +40,7 @@ function mtsChannel(ch, wk) {
   let spot = 0, touch = 0;
   try { qcDeptRows().forEach(x => { if (!x.left || !ofCh(x.c.orderNo || x.c.order || '')) return; if (/spot/i.test(x.dept)) spot += x.left; else if (/touch/i.test(x.dept)) touch += x.left; }); } catch (e) { /* QC not read */ }
   const stages = st ? [['To plan', st.plan], ['At printer', st.printer], ['Printed, to cut', st.toCut], ['Cut, to issue', st.toIssue], ['Stitching (with karigars)', st.karigar],
-    ['Waiting for QC', st.qc], ['Spotting', spot], ['Touching', touch], ['Press (QC passed, not pressed)', st.press]] : [];
+    ['Waiting for QC', st.qc], ['Spotting', spot], ['Touching', touch], ['Press (QC passed, not pressed)', st.press]].concat(st.other ? [['On no step yet', st.other]] : []) : [];
   return { qc, qcPrev, orders: orders.size, pend, late: lateOrders.size, latePcs, stages };
 }
 
@@ -49,19 +49,25 @@ function mtsChannel(ch, wk) {
  * are put at the furthest step they have NOT passed: to plan · at the printer · printed but not cut · cut but not issued · with
  * karigars · back but not QC-checked. Press counts only on a line where pressing is recorded at all (Amazon lines are not pressed). */
 function mtsStages(lines) {
-  const s = { plan: 0, printer: 0, toCut: 0, toIssue: 0, karigar: 0, qc: 0, press: 0 };
+  const s = { plan: 0, printer: 0, toCut: 0, toIssue: 0, karigar: 0, qc: 0, press: 0, other: 0 };
   lines.forEach(r => {
     const q = Math.max(0, (+r.qty || 0) - (typeof shpbStockOf === 'function' ? shpbStockOf(r) : 0)), cap = n => Math.max(0, Math.min(q, +n || 0));
     const iss = cap((+r.issued || 0) - (+r.rejected || 0)), rec = cap(r.received), qc = cap(r.pressed), cut = r.cutReq ? cap(r.cut) : null;
     const fl = typeof shpbFlowOf === 'function' ? shpbFlowOf(r) : null, past = Math.max(cut || 0, iss, rec, qc);
     const back = fl ? Math.min(q, Math.max(+fl.back || 0, past)) : q;
-    if (typeof shpbGated === 'function' && shpbGated(r)) { s.plan += Math.max(0, q - qc); return; }
-    s.printer += Math.max(0, q - back);
+    /* THE LINE'S OWN "STILL TO MAKE" IS THE TOTAL (second look, 18 Nov: FBA still summed to 1.5 lakh against 1.18 lakh pending — old
+     * lines carry receipts and printer figures from before the flow). The pieces still to make are placed from the furthest step back:
+     * waiting for QC first, then with karigars, cut to issue, printed to cut, at the printer, to plan — each taking no more than is left. */
+    let left = Math.max(0, +r.pendingMake || 0);
+    const take = (k, v) => { const t = Math.min(left, Math.max(0, v)); s[k] += t; left -= t; };
+    if (typeof shpbGated === 'function' && shpbGated(r)) { take('plan', q - qc); return; }
     const cutDone = cut == null ? back : Math.max(cut, iss);
-    s.toCut += Math.max(0, back - cutDone);
-    s.toIssue += Math.max(0, cutDone - Math.max(iss, rec, qc));
-    s.karigar += Math.max(0, iss - Math.max(rec, qc));
-    s.qc += Math.max(0, rec - qc);
+    take('qc', rec - qc);
+    take('karigar', iss - Math.max(rec, qc));
+    take('toIssue', cutDone - Math.max(iss, rec, qc));
+    take('toCut', back - cutDone);
+    take('printer', q - back);
+    s.other += left;                                  // still to make, but on no step the registers show
     const prsBy = ((typeof SHPB !== 'undefined' && SHPB.pressBy) || {})[typeof shpbKey === 'function' ? shpbKey(r.orderNo, r.sku) : ''] || {};
     if (+prsBy.pcs > 0) s.press += Math.max(0, qc - Math.min(qc, +prsBy.pcs));
   });
