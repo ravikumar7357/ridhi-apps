@@ -58843,7 +58843,7 @@ function mtgExport() {
 
 const MTS_CH = [
   { k: 'FBA', name: 'FBA — Amazon', test: c => c === 'AMZ', color: '#B45309' },
-  { k: 'B2B', name: 'B2B', test: c => c === 'B', color: '#2F6FE0' },
+  { k: 'B2B', name: 'B2B', test: c => c === 'B' || c === 'B2B', color: '#2F6FE0' },   // B2B-… order numbers (mtgChan keeps 'B2B')
   { k: 'SHOP', name: 'Shopify', test: c => c === 'SHP' || c === 'ONL' || c === 'SPY', color: '#15803D' },
 ];
 let MTS = { i: 0, slides: [], wk: '' };
