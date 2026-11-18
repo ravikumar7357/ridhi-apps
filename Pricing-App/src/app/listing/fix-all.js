@@ -37,7 +37,9 @@ let FA = {
   reading: new Set(),        // "brand|sku" whose values are being read for a spec copy
   hist: new Set(),           // "brand|parent" whose History is unfolded
 };
-const faNf = n => Number(n || 0).toLocaleString('en-US');
+// SMOOTH (18 Nov 2026): one number format made once — the same text as toLocaleString('en-US'), which makes a new one per number
+const FA_NUM = new Intl.NumberFormat('en-US');
+const faNf = n => FA_NUM.format(Number(n || 0));
 const faPl = (n, word) => `${faNf(n)} ${word}${n === 1 ? '' : 's'}`;
 const faCut = (text, n) => { const t = String(text == null ? '' : text); return t.length > n ? t.slice(0, n - 1).replace(/\s+\S*$/, '') + '…' : t; };
 const faKidKey = kid => kid.brand + '|' + kid.sku;
@@ -165,7 +167,7 @@ function faShortTitle(kid, ctx) {
   const before = hTitleText(row);
   const tpl = lrTemplateFor(row, ctx.cfg);
   if (!tpl) return { before, why: 'no title template for this product in Listing Rules' };
-  const parts = lrParts(row, tpl, ctx.cfg, ctx.today);
+  const parts = lrParts(row, tpl, ctx.cfg, ctx.today, typeof lrCtxOcc === 'function' ? lrCtxOcc(ctx) : undefined);
   const need = lrWords(tpl.required || 'brand,product,size,color');
   const lack = ['brand', 'product', 'size', 'color'].concat(need).filter((key, i, all) => all.indexOf(key) === i && !parts[key]);
   if (lack.length) return { before, why: `the catalogue has no ${lack.map(key => (key === 'color' ? 'colour' : key)).join(' or ')} for it` };
@@ -295,16 +297,50 @@ function faNeedVals(brand, skus) {
 // Every child's plan for one row (the rows' "Fix all N" count, the "Show all" list): kept per child until what it reads changes.
 const FA_PLAN_KEEP = new WeakMap();
 function faPlans(g, ctx) {
-  return g.kids.map(kid => {
-    const sig = [ctx, g.key, FA.valsV, g.attr || g.kind === 'kw' ? LI_WS.liveV : 0, g.attr ? g.all.length : 0, g.kind === 'kw' && typeof KF !== 'undefined' ? KF.full.size : 0];
-    let keep = FA_PLAN_KEEP.get(kid);
-    if (!keep) FA_PLAN_KEEP.set(kid, keep = new Map());
-    const was = keep.get(g.key);
-    if (was && was.sig.every((part, i) => part === sig[i])) return was.plan;
-    const plan = faPlan(g, kid, ctx);
-    keep.set(g.key, { sig, plan });
-    return plan;
-  });
+  return g.kids.map(kid => faPlanOf(g, kid, ctx));
+}
+// What one child's kept plan rests on; its plan kept while that is the same, else worked out now and kept.
+const faPlanSig = (g, ctx) => [ctx, g.key, FA.valsV, g.attr || g.kind === 'kw' ? LI_WS.liveV : 0, g.attr ? g.all.length : 0, g.kind === 'kw' && typeof KF !== 'undefined' ? KF.full.size : 0];
+function faPlanKept(g, kid, sig) {
+  const was = (FA_PLAN_KEEP.get(kid) || new Map()).get(g.key);
+  return was && was.sig.every((part, i) => part === sig[i]) ? was : null;
+}
+function faPlanOf(g, kid, ctx) {
+  const sig = faPlanSig(g, ctx);
+  const was = faPlanKept(g, kid, sig);
+  if (was) return was.plan;
+  let keep = FA_PLAN_KEEP.get(kid);
+  if (!keep) FA_PLAN_KEEP.set(kid, keep = new Map());
+  const plan = faPlan(g, kid, ctx);
+  keep.set(g.key, { sig, plan });
+  return plan;
+}
+/* SMOOTH (18 Nov 2026): the first open of a big parent works out every child's fix (a title fix runs every send check and the rules
+ * twice: ~0.1–0.2 s for ~490 children). In a browser that is done a slice at a time (≤ 30 ms) while the block says "Working out the
+ * fixes…", then the block is drawn (faRedraw) — the same faPlanOf, so the same plans; only that block waits, nothing else. */
+const FA_WARM_MIN = 40;          // fewer plans than this to work out: just draw
+let FA_WARM = null;
+const faCanWarm = () => typeof requestAnimationFrame === 'function' && typeof document !== 'undefined' && !!document.body && typeof performance !== 'undefined';
+function faColdN(groups, ctx) {
+  let n = 0;
+  groups.forEach(g => { const sig = faPlanSig(g, ctx); g.kids.forEach(kid => { if (!faPlanKept(g, kid, sig)) n++; }); });
+  return n;
+}
+function faWarm(groups, ctx) {
+  if (FA_WARM) return FA_WARM;
+  FA_WARM = (async () => {
+    try {
+      const jobs = groups.flatMap(g => g.kids.map(kid => [g, kid]));
+      let i = 0;
+      while (i < jobs.length) {
+        const t0 = performance.now();
+        while (i < jobs.length && performance.now() - t0 < 30) { const [g, kid] = jobs[i++]; faPlanOf(g, kid, ctx); }
+        if (i < jobs.length) await new Promise(resolve => setTimeout(resolve, 0));
+      }
+    } finally { FA_WARM = null; }
+    faRedraw();
+  })();
+  return FA_WARM;
 }
 
 /* ----- the block ----- */
@@ -376,6 +412,14 @@ function faBlockInner(brand, parent, kids) {
   const pk = brand + '|' + parent;
   const card = (cls, num, words) => `<div class="fa-card ${cls}${num ? '' : ' is-zero'}"><b>${faNf(num)}</b><span>${words}</span></div>`;
   const cards = `<div class="fa-cards">${card('is-err', n.err, 'problems to fix first')}${card('is-att', n.att, 'need attention')}${card('is-ok', n.ok, n.ok === 1 ? 'child with no problem' : 'children with no problem')}</div>`;
+  // SMOOTH (18 Nov 2026): many fixes not worked out yet (the first open of a big parent) — a slice at a time first (faWarm), this block says so
+  if (faCanWarm()) {
+    const cold = FA_WARM ? FA_WARM_MIN : faColdN(groups, ctx);
+    if (cold >= FA_WARM_MIN) {
+      faWarm(groups, ctx);
+      return `<section class="fa" aria-label="This parent's problems">${cards}<div class="fa-waitl" role="status">⏳ Working out the fixes for ${faKidsN(groups.reduce((s, g) => s + g.kids.length, 0))}…</div></section>`;
+    }
+  }
   const row = g => {
     const gk = pk + '|' + g.key;
     const plans = faPlans(g, ctx);

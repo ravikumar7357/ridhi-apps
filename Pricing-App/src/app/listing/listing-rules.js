@@ -283,7 +283,20 @@ const lrWords = str => String(str || '').split(',').map(word => word.trim()).fil
  *  Inches = Inch; Grey = Gray; Colour = Color; Table Cloth / Table-Cloth = Tablecloth; Cushion Cover = Pillow Cover;
  *  Block-Print / Blockprint / Block Printed / Hand Block Printed = Block Print; and a plural reads as its singular
  *  (Covers = Cover, Napkins = Napkin). Both sides of every comparison go through it, so what is compared is the meaning. */
+// SMOOTH (17 Nov 2026): the same text is read the same way thousands of times a draw (every rule, every listing): the answer is kept
+// per text (a pure function — the same text always gives the same answer), at most LR_NORM_MAX texts, then the store starts again.
+const LR_NORM_KEEP = new Map();
+const LR_NORM_MAX = 50000;
 function lrNorm(text) {
+  const key = String(text || '');
+  const kept = LR_NORM_KEEP.get(key);
+  if (kept !== undefined) return kept;
+  if (LR_NORM_KEEP.size >= LR_NORM_MAX) LR_NORM_KEEP.clear();
+  const out = lrNormNow(key);
+  LR_NORM_KEEP.set(key, out);
+  return out;
+}
+function lrNormNow(text) {
   return String(text || '').toLowerCase()
     .replace(/[-,|]+/g, ' ')
     .replace(/&/g, ' and ')
@@ -407,8 +420,10 @@ function lrSameTitle(a, b) {
 }
 /** Search-term bytes the way Amazon counts them (Part A4): the UTF-8 bytes of the words only — spaces and the punctuation
  *  ; , . do not count toward the limit. */
+const LR_ASCII = /^[\x00-\x7f]*$/;
 function lrKwBytes(text) {
   const words = String(text || '').replace(/[\s;,.]+/g, '');
+  if (LR_ASCII.test(words)) return words.length;          // plain letters and digits: one byte each (the same count, without encoding)
   return typeof TextEncoder === 'function' ? new TextEncoder().encode(words).length : Buffer.byteLength(words, 'utf8');
 }
 /* THE ONE SEARCH-TERMS RULE — Listing Health's keyword_bytes check and the Listing Optimiser's review both judge with lrKwCheck.
@@ -461,18 +476,39 @@ const lrSizeText = (size, example) => {
   return nums.join(' x ') + ' ' + (String(example || '14 x 36 Inch').replace(/^[\d.\sx]+/i, '') || 'Inch');
 };
 /** Occasions to ADD today (lrSeasonState active), in the order they fall. */
+// SMOOTH (17 Nov 2026): the same for every listing on one day — kept per day and calendar (the calendar's own words are the key, so an
+// edit in Listing Rules is seen at once); a fresh copy each time.
+const LR_OCC_KEEP = new Map();
 function lrOccasionsNow(cfg, today) {
+  const key = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()) + '|' + JSON.stringify(cfg.events || []);
+  let kept = LR_OCC_KEEP.get(key);
+  if (!kept) {
+    if (LR_OCC_KEEP.size > 40) LR_OCC_KEEP.clear();
+    kept = lrOccasionsNowCalc(cfg, today);
+    LR_OCC_KEEP.set(key, kept);
+  }
+  return kept.slice();
+}
+function lrOccasionsNowCalc(cfg, today) {
   return (cfg.events || []).map(e => ({ e, s: lrSeason(e, today, cfg.events), st: lrSeasonState(e, today, cfg.events) })).filter(each => each.st.active)
     .sort((a, b) => a.s.next - b.s.next).map(each => each.e.name.replace(/'s$/, "'s"));
 }
 /** The parts a template asks for, filled from what this SKU is. */
-function lrParts(row, tpl, cfg, today) {
+// SMOOTH (17 Nov 2026): one judging pass (one hCtx — rebuilt after every Listing Rules edit) asks for today's occasions once, not once
+// per listing: kept on the context with the rules and the day it was worked out for.
+function lrCtxOcc(ctx) {
+  const k = ctx._occ;
+  if (k && k.cfg === ctx.cfg && k.today === ctx.today) return k.list;
+  ctx._occ = { cfg: ctx.cfg, today: ctx.today, list: lrOccasionsNow(ctx.cfg, ctx.today) };
+  return ctx._occ.list;
+}
+function lrParts(row, tpl, cfg, today, occ) {
   const cat = lrCatOf(row) || {};
   const example = ((cfg.issues || []).find(issue => issue.detector === 'size_format') || {}).params;   // the size_format rule's settings
   return {
     brand: lrBrandName(row, cfg), product: tpl.product || '', shape: lrShape(cat.subcat),
     material: tpl.material || '', size: lrSizeText(cat.size, example && example.example), pattern: tpl.pattern || '',
-    uses: tpl.uses || '', occasions: lrOccasionsNow(cfg, today).join(' '), color: cat.color || '',
+    uses: tpl.uses || '', occasions: (occ || lrOccasionsNow(cfg, today)).join(' '), color: cat.color || '',
   };
 }
 /** The title the template would write for this listing. */
@@ -628,7 +664,7 @@ const LR_DET = {
     const tpl = lrTemplateFor(row, ctx.cfg);
     if (!title || !tpl) return '';
     const low = lrNorm(title);                      // the title and every part read the same way (Part A2)
-    const parts = lrParts(row, tpl, ctx.cfg, ctx.today);
+    const parts = lrParts(row, tpl, ctx.cfg, ctx.today, lrCtxOcc(ctx));
     const need = lrWords(tpl.required || 'brand,product,size,color');
     // --- where each required part sits in the title: -2 nothing to look for, -1 missing, else its position ---
     const where = key => {
@@ -1203,7 +1239,7 @@ const LR_FIX_TEXT = {
   title_template: (hit, row, ctx) => {
     const tpl = lrTemplateFor(row, ctx.cfg);
     if (!tpl) return 'Write the title the way its template says.';
-    const parts = lrParts(row, tpl, ctx.cfg, ctx.today);
+    const parts = lrParts(row, tpl, ctx.cfg, ctx.today, lrCtxOcc(ctx));
     const need = lrWords(tpl.required || 'brand,product,size,color');
     const order = String(tpl.template).match(/\{(\w+)\}/g).map(token => token.slice(1, -1)).filter(key => need.includes(key));
     const orderWords = order.map(key => lrPartWords(key, {}).replace(/^the /, '')).join(', ');

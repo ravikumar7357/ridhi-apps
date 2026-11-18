@@ -30,7 +30,9 @@ let SQ = { run: null };             // the popup's run: { jobs, opts, step: chec
 
 /* ----- small helpers ----- */
 const sqEsc = s => String(s == null ? '' : s).replace(/[<>&"]/g, ch => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[ch]));
-const sqNf = n => Number(n || 0).toLocaleString('en-US');
+// SMOOTH (18 Nov 2026): one number format made once — the same text as toLocaleString('en-US'), which makes a new one per number
+const SQ_NUM = new Intl.NumberFormat('en-US');
+const sqNf = n => SQ_NUM.format(Number(n || 0));
 const sqIsTest = () => typeof window !== 'undefined' && !!window.__TEST_ERP;
 const sqBy = () => (typeof ME !== 'undefined' && ME && ME.email) || '';
 // The name a person is known by, from the signed-in e-mail: "vishesh.g@…" → "Vishesh G".

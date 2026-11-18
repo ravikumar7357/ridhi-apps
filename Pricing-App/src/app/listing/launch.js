@@ -655,7 +655,7 @@ function renderAudit() {
     `<th data-k="${esc(def.k)}" class="${def.frz ? 'frz ' : ''}${def.num ? 'num' : ''}"${
       def.tip ? ` title="${esc(def.tip)}"` : ''}>${esc(def.t)}${arrow(def)}</th>`).join('') + '</tr></thead>';
 
-  const body = shown.map(row => '<tr>' + defs.map(def => {
+  const rowHtml = row => '<tr>' + defs.map(def => {
     const cls = (def.frz ? 'frz ' : '') + (def.num ? 'num' : '');
     if (def.cell) return `<td class="${cls}">${def.cell(row)}</td>`;
     if (def.docCol) {
@@ -689,7 +689,10 @@ function renderAudit() {
     if (def.num) return `<td class="${cls}">${fmtNum(value)}</td>`;
     if (def.trunc) return `<td class="${cls}" title="${esc(value)}">${esc(String(value || '').slice(0, def.trunc))}</td>`;
     return `<td class="${cls}" style="${def.mono ? 'font-family:ui-monospace,monospace' : ''}">${esc(value) || '<span class="muted">—</span>'}</td>`;
-  }).join('') + '</tr>').join('');
+  }).join('') + '</tr>';
+  // SMOOTH (18 Nov 2026): a screenful of rows now, the rest of the H_PAGE rows in the next frames (lsLaterRows, listing-health-data.js)
+  const first = typeof lsFirstRows === 'function' ? lsFirstRows('aTable', shown.length) : shown.length;
+  const body = shown.slice(0, first).map(rowHtml).join('');
 
   // Only counts and money are added up; the rest of the footer stays blank.
   const foot = rows.length ? '<tfoot><tr>' + defs.map((def, i) => {
@@ -706,6 +709,7 @@ function renderAudit() {
     + '</tbody>' + foot;
   const _tDom = performance.now();
 
+  if (typeof lsLaterRows === 'function') lsLaterRows('aTable', shown.slice(first), rowHtml);
   renderAuditKpis(rows);
   wireAuditTable();
   // Broken down on purpose: "slow" has four different cures depending on WHICH of these is big.

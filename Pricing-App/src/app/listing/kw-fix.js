@@ -24,7 +24,9 @@ let KF = { run: null, full: new Map(), last: new Map(), memo: null, hLoading: fa
 
 /* ----- the words ----- */
 const kfEsc = s => String(s == null ? '' : s).replace(/[<>&"]/g, ch => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[ch]));
-const kfNf = n => Number(n || 0).toLocaleString('en-US');
+// SMOOTH (18 Nov 2026): one number format made once — the same text as toLocaleString('en-US'), which makes a new one per number
+const KF_NUM = new Intl.NumberFormat('en-US');
+const kfNf = n => KF_NUM.format(Number(n || 0));
 // A word as compared: lower case, its letters and digits only.
 const kfNorm = w => String(w || '').toLowerCase().normalize('NFKD').replace(/[^\p{L}\p{N}]+/gu, '');
 // The text in words, as written: [{ raw, w (the punctuation round it gone), k (compared) }].
@@ -149,8 +151,11 @@ function kfOverRows(brand) {
   if (KF.memo && KF.memo.sig.every((x, i) => x === sig[i])) return KF.memo.rows;
   const sent = typeof faSentMap === 'function' ? faSentMap(brand) : new Map();
   const rows = [];
+  const now = Date.now();
   HEALTH[brand].rows.forEach(row => {
-    const h = healthOf(Object.assign({}, row, { brand }), ctx);
+    // SMOOTH (18 Nov 2026): Listing Health's kept checks for this row (the same healthOf behind the same signature), not a second judging
+    const scored = Object.assign({}, row, { brand });
+    const h = typeof hHealthKept === 'function' ? hHealthKept(row, scored, ctx, now) : healthOf(scored, ctx);
     const hit = h.found.find(x => x.detector === 'keyword_bytes');
     if (hit && !sent.has(brand + '|' + row.sku + '|rule:' + (hit.id || hit.detector))) rows.push({ row, hit });
   });

@@ -58,7 +58,9 @@ function leKind(issue) {
 // HTML-escape for everything this screen prints.
 const leEsc = str => String(str == null ? '' : str).replace(/[<>&"]/g, ch => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[ch]));
 // Whole number with thousands separators.
-const leNf = value => Math.round(value || 0).toLocaleString('en-US');
+// SMOOTH (18 Nov 2026): one number format made once — the same text as toLocaleString('en-US'), which makes a new one per number
+const LE_NUM = new Intl.NumberFormat('en-US');
+const leNf = value => LE_NUM.format(Math.round(value || 0));
 // Status line under the toolbar: red for an error, grey otherwise. Does nothing if the pane is not on the page.
 const leMsg = (text, bad) => {
   const el = $('leMsg');
