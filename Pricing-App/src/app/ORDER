@@ -38,6 +38,7 @@ listing/listing-history.js
 listing/bsr-audit.js
 listing/family-check.js
 listing/category-check.js
+listing/aplus-audit.js
 research/keywords.js
 research/by-amazon-link.js
 research/new-product.js

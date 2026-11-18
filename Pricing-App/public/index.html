@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <!-- ================================================================================================
-     GENERATED FILE. DO NOT READ OR EDIT THE CODE HERE — it is the 65 files of src/ joined into one page.
+     GENERATED FILE. DO NOT READ OR EDIT THE CODE HERE — it is the 66 files of src/ joined into one page.
      The real, grouped source: Pricing-App/src/   (map and workflow: src/README.md)
        src/index.html   page markup        src/styles.css   stylesheet        src/app/ORDER   join order
        src/app/<group>/ the code, by group: core, research, sales, inventory, listing, ads
@@ -3067,124 +3067,191 @@
   #paneLhist .lh-row.is-child>td:first-child{box-shadow:inset 3px 0 0 var(--line)}
   #paneLhist .lh-pager{display:flex;justify-content:flex-end;align-items:center;gap:8px;margin:10px 0}
   #paneLhist .lh-empty{margin-top:12px;padding:16px}
-  /* ----- Family & Category Check (listing/family-check.js): number cards as filters, rows grouped by family. Scoped to #paneFam. ----- */
-  #paneFam .fc-tb{padding:12px 14px}
-  #paneFam .fc-tb select,#paneFam .fc-tb input[type=search]{width:auto;min-width:0}
-  #paneFam .fc-tb input[type=search]{min-width:220px}
-  #paneFam .fc-meta{margin-top:8px;font-size:12px;line-height:1.5}
-  #paneFam .fc-oknote{color:var(--rev-ink)}
-  #paneFam .fc-boxes{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin:12px 0 10px}
-  #paneFam .fc-box{--c:var(--bad);position:relative;min-width:0;display:flex;flex-direction:column;align-items:stretch;gap:2px;width:auto;height:auto;padding:10px 12px;
+  /* ----- Family & Category Check (listing/family-check.js): number cards as filters, rows grouped by family. Scoped to #paneFam — and #paneAplus (listing/aplus-audit.js), which wears the same look. ----- */
+  :is(#paneFam,#paneAplus) .fc-tb{padding:12px 14px}
+  :is(#paneFam,#paneAplus) .fc-tb select,:is(#paneFam,#paneAplus) .fc-tb input[type=search]{width:auto;min-width:0}
+  :is(#paneFam,#paneAplus) .fc-tb input[type=search]{min-width:220px}
+  :is(#paneFam,#paneAplus) .fc-meta{margin-top:8px;font-size:12px;line-height:1.5}
+  :is(#paneFam,#paneAplus) .fc-oknote{color:var(--rev-ink)}
+  :is(#paneFam,#paneAplus) .fc-boxes{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin:12px 0 10px}
+  :is(#paneFam,#paneAplus) .fc-box{--c:var(--bad);position:relative;min-width:0;display:flex;flex-direction:column;align-items:stretch;gap:2px;width:auto;height:auto;padding:10px 12px;
     text-align:left;background:var(--card);color:var(--ink);border:1px solid var(--card-line);border-radius:12px;box-shadow:none;cursor:pointer;transition:transform .12s ease,box-shadow .12s ease}
-  #paneFam .fc-box:hover{transform:translateY(-2px);background:var(--card);color:var(--ink);box-shadow:var(--sh-2);border-color:color-mix(in srgb,var(--c) 40%,var(--card-line))}
-  #paneFam .fc-box:focus-visible{outline:none;box-shadow:0 0 0 3px color-mix(in srgb,var(--c) 35%,transparent)}
-  #paneFam .fc-box.is-on{border-color:color-mix(in srgb,var(--c) 55%,var(--card-line));box-shadow:0 0 0 3px color-mix(in srgb,var(--c) 35%,transparent)}
-  #paneFam .fc-box span{font-size:11.5px;font-weight:600;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  #paneFam .fc-box b{font-size:20px;font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums;color:var(--bad-ink)}
-  #paneFam .fc-box small{font-size:11px;color:var(--faint)}
-  #paneFam .fc-box.is-y{--c:var(--rev)} #paneFam .fc-box.is-y b{color:var(--rev-ink)}
-  #paneFam .fc-wrap{margin-top:0;max-height:none}
-  #paneFam .fc-tbl td,#paneFam .fc-tbl th{text-align:left;vertical-align:top;white-space:normal}
-  #paneFam .fc-tbl td.num,#paneFam .fc-tbl th.num{text-align:right;font-variant-numeric:tabular-nums}
-  #paneFam .fc-head{cursor:pointer;background:var(--soft)}
-  #paneFam .fc-head:hover,#paneFam .fc-head:focus-visible{background:var(--hover);outline:none}
-  #paneFam .fc-head small{margin-left:4px}
-  #paneFam .fc-chip{display:inline-block;margin:2px 0 0 6px;padding:0 7px;border-radius:var(--r-pill);font-size:11px;font-weight:650;white-space:nowrap}
-  #paneFam .fc-chip.is-r{background:var(--bad-bg);color:var(--bad-ink)}
-  #paneFam .fc-chip.is-y{background:var(--rev-bg);color:var(--rev-ink)}
-  #paneFam .fc-chip.is-g{background:var(--hover);color:var(--muted);font-weight:600}
-  #paneFam .fc-p.is-g{color:var(--muted)}
-  #paneFam .fc-p.is-g::before{background:var(--faint)}
-  #paneFam .fc-src{display:block;margin:1px 0 4px 14px;font-size:11px;color:var(--faint)}
-  #paneFam .fc-also{display:block;font-size:11.5px;color:var(--muted)}
-  #paneFam .fc-also .fc-chip{margin-left:4px}
-  #paneFam .fc-times{margin-bottom:2px;color:var(--ink)}
-  #paneFam .fc-old{color:var(--rev-ink);font-weight:650}
-  #paneFam .fc-newer{display:flex;align-items:center;gap:8px;margin:4px 0;padding:6px 10px;border-radius:8px;background:var(--brand-bg);color:var(--brand-ink);font-weight:600}
-  #paneFam .fc-newer .fc-b{margin:0}
-  #paneFam .fc-chip.is-ok{background:var(--accent-bg);color:var(--accent-ink)}
-  #paneFam .fc-mapr>td{background:var(--card);border-bottom:1px solid var(--line)}
-  #paneFam .fc-map{display:flex;flex-direction:column;align-items:center;gap:0;padding:6px 0 4px}
-  #paneFam .fc-par{display:flex;flex-direction:column;align-items:center;min-width:180px;padding:6px 14px;border:1px solid var(--card-line);border-radius:10px;background:var(--soft);text-align:center}
-  #paneFam .fc-par span{font-size:10.5px;font-weight:650;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
-  #paneFam .fc-par b{font-family:ui-monospace,monospace;font-size:12.5px}
-  #paneFam .fc-par small,#paneFam .fc-kid small{font-size:11px;color:var(--faint)}
-  #paneFam .fc-par::after{content:"";display:block;width:1px;height:10px;margin:6px auto -16px;background:var(--line)}
-  #paneFam .fc-kids{display:flex;flex-wrap:wrap;justify-content:center;gap:6px;width:100%;margin-top:10px;padding-top:10px;border-top:1px solid var(--line)}
-  #paneFam .fc-kid{display:flex;flex-direction:column;align-items:center;gap:1px;min-width:96px;max-width:170px;padding:5px 8px;border:1px solid var(--card-line);border-radius:8px;background:var(--card);text-align:center}
-  #paneFam .fc-kid b{font-size:12px;font-weight:650;line-height:1.3;overflow-wrap:anywhere}
-  #paneFam .fc-kid small{font-family:ui-monospace,monospace}
-  #paneFam .fc-kid .fc-chip{margin:3px 0 0}
-  #paneFam .fc-kid.is-r{border-color:color-mix(in srgb,var(--bad) 45%,var(--card-line))}
-  #paneFam .fc-kid.is-ok{border-color:color-mix(in srgb,var(--accent) 55%,var(--card-line))}
-  #paneFam .fc-kid.is-g{border-style:dashed}
-  #paneFam .fc-nums{display:flex;flex-wrap:wrap;justify-content:center;gap:4px 16px;margin-top:8px;font-size:12px;color:var(--muted)}
-  #paneFam .fc-nums b{color:var(--ink);font-variant-numeric:tabular-nums}
-  #paneFam .fc-revs{color:var(--faint)}
-  #paneFam .fc-vals{min-width:150px;max-width:260px;font-size:12px;line-height:1.4;white-space:normal}
-  #paneFam .fc-row>td:first-child{box-shadow:inset 3px 0 0 var(--line)}
-  #paneFam .fc-row.is-orphan>td:first-child{box-shadow:inset 3px 0 0 var(--bad)}
-  #paneFam .fc-sku b{display:block;font-family:ui-monospace,monospace;font-size:12.5px;font-weight:650}
-  #paneFam .fc-sku small{display:block;max-width:260px;font-size:11.5px;color:var(--faint)}
-  #paneFam .fc-none{color:var(--faint);font-style:italic}
-  #paneFam .fc-prob{min-width:200px;max-width:320px}
-  #paneFam .fc-p{display:flex;gap:6px;font-size:12.5px;line-height:1.4}
-  #paneFam .fc-p::before{content:"";flex:none;width:8px;height:8px;margin-top:5px;border-radius:50%;background:var(--bad)}
-  #paneFam .fc-p.is-y::before{background:var(--rev)}
-  #paneFam .fc-fix{min-width:180px;max-width:300px;font-size:12px;line-height:1.4;color:var(--muted)}
-  #paneFam .fc-fix b{color:var(--ink);font-weight:650}
-  #paneFam .fc-note{margin-top:4px;color:var(--rev-ink)}
-  #paneFam .fc-acts{white-space:nowrap}
-  #paneFam .fc-b{padding:4px 10px;font-size:12px;margin:0 4px 4px 0}
-  #paneFam .fc-arrow{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;margin:0 6px 0 0;padding:0;background:none;border:0;border-radius:6px;box-shadow:none;color:var(--muted);font-size:13px;cursor:pointer}
-  #paneFam .fc-arrow:hover{background:var(--hover);color:var(--ink)}
-  #paneFam .fc-grp.is-open .fc-head{background:color-mix(in srgb,var(--brand) 9%,var(--card))}
-  #paneFam .fc-colh th{font-size:11px;font-weight:650;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);background:var(--card);border-bottom:1px solid var(--line)}
-  #paneFam .fc-tk{width:28px;padding-right:0}
-  #paneFam .fc-tick{width:16px;height:16px;margin:2px 0 0;accent-color:var(--brand);cursor:pointer}
-  #paneFam .fc-row.is-sel>td{background:color-mix(in srgb,var(--brand) 7%,var(--card))}
-  #paneFam .fc-reading{margin-left:8px;font-size:11.5px;color:var(--muted)}
-  #paneFam .fc-selall{margin:0 0 0 8px;padding:2px 8px}
-  #paneFam .fc-bar{position:sticky;bottom:8px;z-index:5;display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:10px 0;padding:10px 14px;
+  :is(#paneFam,#paneAplus) .fc-box:hover{transform:translateY(-2px);background:var(--card);color:var(--ink);box-shadow:var(--sh-2);border-color:color-mix(in srgb,var(--c) 40%,var(--card-line))}
+  :is(#paneFam,#paneAplus) .fc-box:focus-visible{outline:none;box-shadow:0 0 0 3px color-mix(in srgb,var(--c) 35%,transparent)}
+  :is(#paneFam,#paneAplus) .fc-box.is-on{border-color:color-mix(in srgb,var(--c) 55%,var(--card-line));box-shadow:0 0 0 3px color-mix(in srgb,var(--c) 35%,transparent)}
+  :is(#paneFam,#paneAplus) .fc-box span{font-size:11.5px;font-weight:600;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  :is(#paneFam,#paneAplus) .fc-box b{font-size:20px;font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums;color:var(--bad-ink)}
+  :is(#paneFam,#paneAplus) .fc-box small{font-size:11px;color:var(--faint)}
+  :is(#paneFam,#paneAplus) .fc-box.is-y{--c:var(--rev)} :is(#paneFam,#paneAplus) .fc-box.is-y b{color:var(--rev-ink)}
+  :is(#paneFam,#paneAplus) .fc-wrap{margin-top:0;max-height:none}
+  :is(#paneFam,#paneAplus) .fc-tbl td,:is(#paneFam,#paneAplus) .fc-tbl th{text-align:left;vertical-align:top;white-space:normal}
+  :is(#paneFam,#paneAplus) .fc-tbl td.num,:is(#paneFam,#paneAplus) .fc-tbl th.num{text-align:right;font-variant-numeric:tabular-nums}
+  :is(#paneFam,#paneAplus) .fc-head{cursor:pointer;background:var(--soft)}
+  :is(#paneFam,#paneAplus) .fc-head:hover,:is(#paneFam,#paneAplus) .fc-head:focus-visible{background:var(--hover);outline:none}
+  :is(#paneFam,#paneAplus) .fc-head small{margin-left:4px}
+  :is(#paneFam,#paneAplus) .fc-chip{display:inline-block;margin:2px 0 0 6px;padding:0 7px;border-radius:var(--r-pill);font-size:11px;font-weight:650;white-space:nowrap}
+  :is(#paneFam,#paneAplus) .fc-chip.is-r{background:var(--bad-bg);color:var(--bad-ink)}
+  :is(#paneFam,#paneAplus) .fc-chip.is-y{background:var(--rev-bg);color:var(--rev-ink)}
+  :is(#paneFam,#paneAplus) .fc-chip.is-g{background:var(--hover);color:var(--muted);font-weight:600}
+  :is(#paneFam,#paneAplus) .fc-p.is-g{color:var(--muted)}
+  :is(#paneFam,#paneAplus) .fc-p.is-g::before{background:var(--faint)}
+  :is(#paneFam,#paneAplus) .fc-src{display:block;margin:1px 0 4px 14px;font-size:11px;color:var(--faint)}
+  :is(#paneFam,#paneAplus) .fc-also{display:block;font-size:11.5px;color:var(--muted)}
+  :is(#paneFam,#paneAplus) .fc-also .fc-chip{margin-left:4px}
+  :is(#paneFam,#paneAplus) .fc-times{margin-bottom:2px;color:var(--ink)}
+  :is(#paneFam,#paneAplus) .fc-old{color:var(--rev-ink);font-weight:650}
+  :is(#paneFam,#paneAplus) .fc-newer{display:flex;align-items:center;gap:8px;margin:4px 0;padding:6px 10px;border-radius:8px;background:var(--brand-bg);color:var(--brand-ink);font-weight:600}
+  :is(#paneFam,#paneAplus) .fc-newer .fc-b{margin:0}
+  :is(#paneFam,#paneAplus) .fc-chip.is-ok{background:var(--accent-bg);color:var(--accent-ink)}
+  :is(#paneFam,#paneAplus) .fc-mapr>td{background:var(--card);border-bottom:1px solid var(--line)}
+  :is(#paneFam,#paneAplus) .fc-map{display:flex;flex-direction:column;align-items:center;gap:0;padding:6px 0 4px}
+  :is(#paneFam,#paneAplus) .fc-par{display:flex;flex-direction:column;align-items:center;min-width:180px;padding:6px 14px;border:1px solid var(--card-line);border-radius:10px;background:var(--soft);text-align:center}
+  :is(#paneFam,#paneAplus) .fc-par span{font-size:10.5px;font-weight:650;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+  :is(#paneFam,#paneAplus) .fc-par b{font-family:ui-monospace,monospace;font-size:12.5px}
+  :is(#paneFam,#paneAplus) .fc-par small,:is(#paneFam,#paneAplus) .fc-kid small{font-size:11px;color:var(--faint)}
+  :is(#paneFam,#paneAplus) .fc-par::after{content:"";display:block;width:1px;height:10px;margin:6px auto -16px;background:var(--line)}
+  :is(#paneFam,#paneAplus) .fc-kids{display:flex;flex-wrap:wrap;justify-content:center;gap:6px;width:100%;margin-top:10px;padding-top:10px;border-top:1px solid var(--line)}
+  :is(#paneFam,#paneAplus) .fc-kid{display:flex;flex-direction:column;align-items:center;gap:1px;min-width:96px;max-width:170px;padding:5px 8px;border:1px solid var(--card-line);border-radius:8px;background:var(--card);text-align:center}
+  :is(#paneFam,#paneAplus) .fc-kid b{font-size:12px;font-weight:650;line-height:1.3;overflow-wrap:anywhere}
+  :is(#paneFam,#paneAplus) .fc-kid small{font-family:ui-monospace,monospace}
+  :is(#paneFam,#paneAplus) .fc-kid .fc-chip{margin:3px 0 0}
+  :is(#paneFam,#paneAplus) .fc-kid.is-r{border-color:color-mix(in srgb,var(--bad) 45%,var(--card-line))}
+  :is(#paneFam,#paneAplus) .fc-kid.is-ok{border-color:color-mix(in srgb,var(--accent) 55%,var(--card-line))}
+  :is(#paneFam,#paneAplus) .fc-kid.is-g{border-style:dashed}
+  :is(#paneFam,#paneAplus) .fc-nums{display:flex;flex-wrap:wrap;justify-content:center;gap:4px 16px;margin-top:8px;font-size:12px;color:var(--muted)}
+  :is(#paneFam,#paneAplus) .fc-nums b{color:var(--ink);font-variant-numeric:tabular-nums}
+  :is(#paneFam,#paneAplus) .fc-revs{color:var(--faint)}
+  :is(#paneFam,#paneAplus) .fc-vals{min-width:150px;max-width:260px;font-size:12px;line-height:1.4;white-space:normal}
+  :is(#paneFam,#paneAplus) .fc-row>td:first-child{box-shadow:inset 3px 0 0 var(--line)}
+  :is(#paneFam,#paneAplus) .fc-row.is-orphan>td:first-child{box-shadow:inset 3px 0 0 var(--bad)}
+  :is(#paneFam,#paneAplus) .fc-sku b{display:block;font-family:ui-monospace,monospace;font-size:12.5px;font-weight:650}
+  :is(#paneFam,#paneAplus) .fc-sku small{display:block;max-width:260px;font-size:11.5px;color:var(--faint)}
+  :is(#paneFam,#paneAplus) .fc-none{color:var(--faint);font-style:italic}
+  :is(#paneFam,#paneAplus) .fc-prob{min-width:200px;max-width:320px}
+  :is(#paneFam,#paneAplus) .fc-p{display:flex;gap:6px;font-size:12.5px;line-height:1.4}
+  :is(#paneFam,#paneAplus) .fc-p::before{content:"";flex:none;width:8px;height:8px;margin-top:5px;border-radius:50%;background:var(--bad)}
+  :is(#paneFam,#paneAplus) .fc-p.is-y::before{background:var(--rev)}
+  :is(#paneFam,#paneAplus) .fc-fix{min-width:180px;max-width:300px;font-size:12px;line-height:1.4;color:var(--muted)}
+  :is(#paneFam,#paneAplus) .fc-fix b{color:var(--ink);font-weight:650}
+  :is(#paneFam,#paneAplus) .fc-note{margin-top:4px;color:var(--rev-ink)}
+  :is(#paneFam,#paneAplus) .fc-acts{white-space:nowrap}
+  :is(#paneFam,#paneAplus) .fc-b{padding:4px 10px;font-size:12px;margin:0 4px 4px 0}
+  :is(#paneFam,#paneAplus) .fc-arrow{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;margin:0 6px 0 0;padding:0;background:none;border:0;border-radius:6px;box-shadow:none;color:var(--muted);font-size:13px;cursor:pointer}
+  :is(#paneFam,#paneAplus) .fc-arrow:hover{background:var(--hover);color:var(--ink)}
+  :is(#paneFam,#paneAplus) .fc-grp.is-open .fc-head{background:color-mix(in srgb,var(--brand) 9%,var(--card))}
+  :is(#paneFam,#paneAplus) .fc-colh th{font-size:11px;font-weight:650;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);background:var(--card);border-bottom:1px solid var(--line)}
+  :is(#paneFam,#paneAplus) .fc-tk{width:28px;padding-right:0}
+  :is(#paneFam,#paneAplus) .fc-tick{width:16px;height:16px;margin:2px 0 0;accent-color:var(--brand);cursor:pointer}
+  :is(#paneFam,#paneAplus) .fc-row.is-sel>td{background:color-mix(in srgb,var(--brand) 7%,var(--card))}
+  :is(#paneFam,#paneAplus) .fc-reading{margin-left:8px;font-size:11.5px;color:var(--muted)}
+  :is(#paneFam,#paneAplus) .fc-selall{margin:0 0 0 8px;padding:2px 8px}
+  :is(#paneFam,#paneAplus) .fc-bar{position:sticky;bottom:8px;z-index:5;display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:10px 0;padding:10px 14px;
     background:var(--card);border:1px solid var(--card-line);border-radius:12px;box-shadow:var(--sh-2);font-size:13px}
-  #paneFam .fc-bar .fc-b,#paneFam .fc-bar .fc-ask{margin:0}
-  #paneFam .fc-why{flex-basis:100%;font-size:12px;color:var(--rev-ink)}
-  #paneFam .fc-more{display:flex;justify-content:center;margin:10px 0}
-  #paneFam .fc-ask{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:4px;font-size:12px;white-space:normal}
-  #paneFam .fc-ask input{width:160px;padding:4px 8px;font-size:12px}
-  #paneFam .fc-pager{display:flex;justify-content:flex-end;align-items:center;gap:8px;margin:10px 0}
-  #paneFam .fc-empty{margin-top:12px;padding:16px}
-  #paneFam .fc-rem{margin:14px 0 4px}
-  #paneFam .fc-link{padding:0;background:none;border:0;box-shadow:none;color:var(--faint);font-size:12px;font-weight:500;cursor:pointer}
-  #paneFam .fc-link:hover{background:none;color:var(--muted);text-decoration:underline}
-  #paneFam .fc-rem .fc-wrap{margin-top:8px}
+  :is(#paneFam,#paneAplus) .fc-bar .fc-b,:is(#paneFam,#paneAplus) .fc-bar .fc-ask{margin:0}
+  :is(#paneFam,#paneAplus) .fc-why{flex-basis:100%;font-size:12px;color:var(--rev-ink)}
+  :is(#paneFam,#paneAplus) .fc-more{display:flex;justify-content:center;margin:10px 0}
+  :is(#paneFam,#paneAplus) .fc-ask{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:4px;font-size:12px;white-space:normal}
+  :is(#paneFam,#paneAplus) .fc-ask input{width:160px;padding:4px 8px;font-size:12px}
+  :is(#paneFam,#paneAplus) .fc-pager{display:flex;justify-content:flex-end;align-items:center;gap:8px;margin:10px 0}
+  :is(#paneFam,#paneAplus) .fc-empty{margin-top:12px;padding:16px}
+  :is(#paneFam,#paneAplus) .fc-rem{margin:14px 0 4px}
+  :is(#paneFam,#paneAplus) .fc-link{padding:0;background:none;border:0;box-shadow:none;color:var(--faint);font-size:12px;font-weight:500;cursor:pointer}
+  :is(#paneFam,#paneAplus) .fc-link:hover{background:none;color:var(--muted);text-decoration:underline}
+  :is(#paneFam,#paneAplus) .fc-rem .fc-wrap{margin-top:8px}
   /* the Categories tab (listing/category-check.js): the Families look, plus its filter chips, the picture, the green tick and the hint */
-  #paneFam .fc-box.is-g{--c:var(--faint)} #paneFam .fc-box.is-g b{color:var(--muted)}
-  #paneFam .cc-chips{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 10px}
-  #paneFam .cc-fchip{display:inline-flex;align-items:center;gap:6px;width:auto;height:auto;margin:0;padding:4px 12px;border:1px solid var(--card-line);border-radius:var(--r-pill);
+  :is(#paneFam,#paneAplus) .fc-box.is-g{--c:var(--faint)} :is(#paneFam,#paneAplus) .fc-box.is-g b{color:var(--muted)}
+  :is(#paneFam,#paneAplus) .cc-chips{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 10px}
+  :is(#paneFam,#paneAplus) .cc-fchip{display:inline-flex;align-items:center;gap:6px;width:auto;height:auto;margin:0;padding:4px 12px;border:1px solid var(--card-line);border-radius:var(--r-pill);
     background:var(--card);color:var(--muted);box-shadow:none;font-size:12px;font-weight:600;cursor:pointer}
-  #paneFam .cc-fchip:hover{background:var(--hover);color:var(--ink)}
-  #paneFam .cc-fchip b{font-variant-numeric:tabular-nums;color:var(--ink)}
-  #paneFam .cc-fchip.is-on{background:var(--brand-bg);border-color:color-mix(in srgb,var(--brand) 45%,var(--card-line));color:var(--brand-ink)}
-  #paneFam .cc-fchip.is-on b{color:inherit}
-  #paneFam .cc-pc{width:44px;padding-right:0}
-  #paneFam .cc-pic{display:block;width:36px;height:36px;border:1px solid var(--line);border-radius:var(--r-sm);background:#fff;object-fit:contain}
-  #paneFam .cc-pic.is-none{background:var(--hover);border-color:transparent}
-  #paneFam .cc-path{font-size:12.5px;line-height:1.4}
-  #paneFam .cc-fcat{margin-left:8px;color:var(--ink)}
-  #paneFam .cc-cat{min-width:240px;max-width:340px}
-  #paneFam .fc-tb input.cc-q{min-width:290px}
-  #paneFam .cc-tbl .fc-b{white-space:nowrap}
-  #paneFam .cc-bsr{min-width:170px;max-width:240px;font-size:12.5px;font-variant-numeric:tabular-nums}
-  #paneFam .cc-prob{max-width:420px}
-  #paneFam .cc-hint{display:block;margin:1px 0 6px 14px;font-size:11.5px;line-height:1.4;color:var(--muted)}
-  #paneFam .cc-hint b{color:var(--ink);font-weight:650}
-  #paneFam .cc-tick{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;background:var(--accent-bg);color:var(--accent-ink);font-size:12px;font-weight:700}
-  #paneFam .cc-marked,#paneFam .cc-unread{margin-left:0}
-  #paneFam .fc-head .cc-unread{margin-left:8px}
-  #paneFam .fc-row.cc-chk>td:first-child{box-shadow:inset 3px 0 0 var(--rev)}
-  #paneFam .cc-allok{border-color:color-mix(in srgb,var(--accent) 45%,var(--card-line));background:var(--accent-bg);color:var(--accent-ink)}
-  @media (max-width:860px){#paneFam .fc-tb input[type=search]{min-width:0;flex:1 1 140px}#paneFam .fc-prob,#paneFam .fc-fix{min-width:160px}}
+  :is(#paneFam,#paneAplus) .cc-fchip:hover{background:var(--hover);color:var(--ink)}
+  :is(#paneFam,#paneAplus) .cc-fchip b{font-variant-numeric:tabular-nums;color:var(--ink)}
+  :is(#paneFam,#paneAplus) .cc-fchip.is-on{background:var(--brand-bg);border-color:color-mix(in srgb,var(--brand) 45%,var(--card-line));color:var(--brand-ink)}
+  :is(#paneFam,#paneAplus) .cc-fchip.is-on b{color:inherit}
+  :is(#paneFam,#paneAplus) .cc-pc{width:44px;padding-right:0}
+  :is(#paneFam,#paneAplus) .cc-pic{display:block;width:36px;height:36px;border:1px solid var(--line);border-radius:var(--r-sm);background:#fff;object-fit:contain}
+  :is(#paneFam,#paneAplus) .cc-pic.is-none{background:var(--hover);border-color:transparent}
+  :is(#paneFam,#paneAplus) .cc-path{font-size:12.5px;line-height:1.4}
+  :is(#paneFam,#paneAplus) .cc-fcat{margin-left:8px;color:var(--ink)}
+  :is(#paneFam,#paneAplus) .cc-cat{min-width:240px;max-width:340px}
+  :is(#paneFam,#paneAplus) .fc-tb input.cc-q{min-width:290px}
+  :is(#paneFam,#paneAplus) .cc-tbl .fc-b{white-space:nowrap}
+  :is(#paneFam,#paneAplus) .cc-bsr{min-width:170px;max-width:240px;font-size:12.5px;font-variant-numeric:tabular-nums}
+  :is(#paneFam,#paneAplus) .cc-prob{max-width:420px}
+  :is(#paneFam,#paneAplus) .cc-hint{display:block;margin:1px 0 6px 14px;font-size:11.5px;line-height:1.4;color:var(--muted)}
+  :is(#paneFam,#paneAplus) .cc-hint b{color:var(--ink);font-weight:650}
+  :is(#paneFam,#paneAplus) .cc-tick{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;background:var(--accent-bg);color:var(--accent-ink);font-size:12px;font-weight:700}
+  :is(#paneFam,#paneAplus) .cc-marked,:is(#paneFam,#paneAplus) .cc-unread{margin-left:0}
+  :is(#paneFam,#paneAplus) .fc-head .cc-unread{margin-left:8px}
+  :is(#paneFam,#paneAplus) .fc-row.cc-chk>td:first-child{box-shadow:inset 3px 0 0 var(--rev)}
+  :is(#paneFam,#paneAplus) .cc-allok{border-color:color-mix(in srgb,var(--accent) 45%,var(--card-line));background:var(--accent-bg);color:var(--accent-ink)}
+  @media (max-width:860px){:is(#paneFam,#paneAplus) .fc-tb input[type=search]{min-width:0;flex:1 1 140px}:is(#paneFam,#paneAplus) .fc-prob,:is(#paneFam,#paneAplus) .fc-fix{min-width:160px}}
+  /* ----- A+ Content (listing/aplus-audit.js): the Family check look above, plus its summary, coverage bars, blue / green chips, document cards ----- */
+  #paneAplus .apc-tb{position:sticky;top:var(--apc-top,0px);z-index:6;box-shadow:var(--sh-1)}
+  #paneAplus .apc-meta{margin:8px 2px 0}
+  #paneAplus .apc-tbl .fc-sku{min-width:200px}
+  #paneAplus .apc-tog{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;color:var(--muted);white-space:nowrap;cursor:pointer}
+  #paneAplus .apc-tog input{width:16px;height:16px;margin:0;accent-color:var(--brand)}
+  #paneAplus .apc-link{display:inline-flex;align-items:center;text-decoration:none;font-size:12.5px;white-space:nowrap}
+  #paneAplus .apc-sum{display:flex;flex-wrap:wrap;align-items:stretch;gap:12px 24px;margin:12px 0 0;padding:14px 16px}
+  #paneAplus .apc-cov{flex:3 1 360px;min-width:0}
+  #paneAplus .apc-cov>b{display:block;font-size:15px;font-weight:700;letter-spacing:-.01em;margin-bottom:8px}
+  #paneAplus .apc-bar{display:flex;height:12px;border-radius:var(--r-pill);overflow:hidden;background:var(--hover)}
+  #paneAplus .apc-bar i{display:block;min-width:3px}
+  #paneAplus .apc-bar i+i{margin-left:2px}
+  #paneAplus .apc-bar i.is-ok,#paneAplus .apc-key i.is-ok{background:var(--accent)}
+  #paneAplus .apc-bar i.is-b,#paneAplus .apc-key i.is-b{background:var(--brand)}
+  #paneAplus .apc-bar i.is-y,#paneAplus .apc-key i.is-y{background:var(--rev)}
+  #paneAplus .apc-bar i.is-r,#paneAplus .apc-key i.is-r{background:var(--bad)}
+  #paneAplus .apc-bar i.is-g,#paneAplus .apc-key i.is-g{background:var(--faint)}
+  #paneAplus .apc-bar i.k-missing,#paneAplus .apc-key i.k-missing{background:color-mix(in srgb,var(--bad) 55%,var(--card))}   /* Missing: a lighter red than Rejected */
+  #paneAplus .apc-key{display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:8px;font-size:12px;color:var(--muted)}
+  #paneAplus .apc-key span{display:inline-flex;align-items:center;gap:5px;font-variant-numeric:tabular-nums}
+  #paneAplus .apc-key i{display:inline-block;width:9px;height:9px;border-radius:50%}
+  #paneAplus .apc-risk{flex:1 1 200px;display:flex;flex-direction:column;justify-content:center;gap:2px;padding-left:20px;border-left:1px solid var(--line)}
+  #paneAplus .apc-risk span{font-size:11.5px;font-weight:600;color:var(--muted)}
+  #paneAplus .apc-risk b{font-size:24px;font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums;color:var(--bad-ink)}
+  #paneAplus .apc-risk small{font-size:11px;color:var(--faint)}
+  #paneAplus .apc-convs{flex-basis:100%;display:flex;flex-wrap:wrap;gap:4px 20px;padding-top:10px;border-top:1px solid var(--line);font-size:12.5px;color:var(--muted)}
+  #paneAplus .apc-conv b{color:var(--ink);font-variant-numeric:tabular-nums}
+  #paneAplus .fc-box.is-ok{--c:var(--accent)} #paneAplus .fc-box.is-ok b{color:var(--accent-ink)}
+  #paneAplus .fc-box.is-b{--c:var(--brand)} #paneAplus .fc-box.is-b b{color:var(--brand-ink)}
+  #paneAplus .fc-chip.is-b{background:var(--brand-bg);color:var(--brand-ink)}
+  #paneAplus .fc-chip.apc-c{margin-left:0}
+  #paneAplus .apc-mini{display:inline-flex;align-items:center;gap:6px;margin-left:10px;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+  #paneAplus .apc-minib{display:inline-block;width:64px;height:6px;border-radius:var(--r-pill);background:var(--hover);overflow:hidden}
+  #paneAplus .apc-minib i{display:block;height:100%;background:var(--accent)}
+  #paneAplus .apc-riskc{margin-left:10px;font-size:12px;font-weight:650;color:var(--bad-ink);font-variant-numeric:tabular-nums;white-space:nowrap}
+  #paneAplus .apc-st{min-width:110px}
+  #paneAplus .apc-doc{min-width:140px;max-width:240px;font-size:12.5px}
+  #paneAplus .apc-tbl td.apc-upd{white-space:nowrap;font-size:12.5px}
+  #paneAplus .apc-what{min-width:240px;max-width:400px}
+  #paneAplus .apc-do{font-size:12.5px;line-height:1.4;font-weight:600}
+  #paneAplus .apc-do.is-ok,#paneAplus .apc-do.is-g,#paneAplus .apc-do.is-b{font-weight:500;color:var(--muted)}
+  #paneAplus .apc-rank{display:block;font-variant-numeric:tabular-nums}
+  #paneAplus .apc-gapr>td,#paneAplus .apc-prevr>td{background:var(--card)}
+  #paneAplus .apc-gap{margin:4px 0;padding:8px 12px;border:1px solid color-mix(in srgb,var(--bad) 35%,var(--card-line));border-radius:10px;background:var(--bad-bg);font-size:12.5px;line-height:1.5;white-space:normal}
+  #paneAplus .apc-gap .fc-b{margin:0 0 0 6px}
+  #paneAplus .apc-docs{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:10px;margin-top:4px}
+  #paneAplus .apc-dcard{display:flex;flex-direction:column;gap:6px;margin:0;padding:12px 14px;min-width:0}
+  #paneAplus .apc-dh{display:flex;flex-wrap:wrap;align-items:center;gap:4px 6px}
+  #paneAplus .apc-dh b{font-size:14px;font-weight:650;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  #paneAplus .apc-dh .fc-chip{margin:0}
+  #paneAplus .apc-dm{font-size:12px}
+  #paneAplus .apc-dn{font-size:12.5px;color:var(--rev-ink)}
+  #paneAplus .apc-da{display:flex;flex-wrap:wrap;gap:4px;margin-top:auto;padding-top:4px}
+  #paneAplus .apc-da .fc-b{margin:0}
+  #paneAplus .apc-prev{margin:6px 0;padding:10px 12px;border:1px solid var(--card-line);border-radius:10px;background:var(--soft);white-space:normal}
+  #paneAplus .apc-prevh{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-bottom:8px}
+  #paneAplus .apc-prevh .fc-b{margin:0 0 0 auto}
+  #paneAplus .apc-mods{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px}
+  #paneAplus .apc-mod{padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--card);min-width:0}
+  #paneAplus .apc-modt{display:block;font-size:10.5px;font-weight:650;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+  #paneAplus .apc-modi{display:flex;flex-wrap:wrap;gap:4px;margin:4px 0}
+  #paneAplus .apc-pimg{width:96px;height:60px;border:1px solid var(--line);border-radius:6px;background:#fff;object-fit:cover}
+  #paneAplus .apc-mod p{margin:2px 0 0;font-size:12px;line-height:1.4;color:var(--ink);overflow-wrap:anywhere}
+  #paneAplus .apc-skel{display:flex;align-items:center;gap:12px;padding:12px 14px;border-top:1px solid var(--line)}
+  #paneAplus .apc-skel:first-child{border-top:0}
+  @media (max-width:860px){#paneAplus .apc-tb{position:static}#paneAplus .apc-risk{padding-left:0;border-left:0}#paneAplus .apc-docs{grid-template-columns:1fr}}
   .sq-chg .sq-add{color:var(--accent-ink);font-weight:600}
   .sq-chg .sq-rem{color:var(--bad-ink)}
   .sq-chg .sq-size{color:var(--faint)}
@@ -4227,7 +4294,7 @@
       <button id="tabBa" class="nav">Analytics</button>
     </div></div>
 
-    <div class="navwrap"><button class="navgrp" id="grpListing" type="button" aria-controls="secListing" data-grp="listing" data-tabs="opt,img,lerr,basket,health,lrules,audit,bsr,fam,lhist">
+    <div class="navwrap"><button class="navgrp" id="grpListing" type="button" aria-controls="secListing" data-grp="listing" data-tabs="opt,img,lerr,basket,health,lrules,audit,bsr,fam,aplus,lhist">
       <span class="caret">&#9656;</span> Listing</button>
     <div class="navsec" id="secListing">
       <div class="navcol"><div class="navcol-h">1 · Fix &amp; improve</div>
@@ -4238,7 +4305,8 @@
       <button id="tabHealth" class="nav">Listing Health</button>
       <button id="tabAudit" class="nav">Listing Audit</button>
       <button id="tabBsr" class="nav">BSR Audit</button>
-      <button id="tabFam" class="nav">Family &amp; Category Check</button></div>
+      <button id="tabFam" class="nav">Family &amp; Category Check</button>
+      <button id="tabAplus" class="nav">A+ Content</button></div>
       <div class="navcol"><div class="navcol-h">3 · Rules &amp; ideas</div>
       <button id="tabLrules" class="nav">Listing Rules</button>
       <button id="tabBasket" class="nav">Bought Together</button></div>
@@ -5025,6 +5093,8 @@
 
   <!-- Family & Category Check: children out of their family, duplicate / missing colour-size, theme (listing/family-check.js draws it) -->
   <div id="paneFam" class="hide"><div id="fcPane"></div></div>
+  <!-- A+ Content (listing/aplus-audit.js draws it whole): which products have A+, which do not, what to do -->
+  <div id="paneAplus" class="hide"><div id="apcPane"></div></div>
 
   <!-- ============ Product Performance (was PPC & Organic · New): drawn whole by app/ads/ppc-new.js ============ -->
   <div id="panePpcn" class="hide"></div>
@@ -8927,7 +8997,7 @@ $('search').addEventListener('input', () => {
 // for which tab opens first: the first one the account is allowed.
 const TABS = ['link', 'new', 'pr', 'sales', 'profit', 'sa', 'plaudit', 'shop', 'adj', 'kw', 'ba', 'age', 'health',
   'lrules', 'audit', 'bsr', 'weekly', 'ppcn', 'trends', 'st', 'plc', 'deals', 'tiktok', 'carousel', 'opt', 'img',
-  'lerr', 'basket', 'lhist', 'fam'];
+  'lerr', 'basket', 'lhist', 'fam', 'aplus'];
 // 'health' → 'Health': a tab key as it appears inside element ids.
 const capId = t => t[0].toUpperCase() + t.slice(1);
 // The title shown at the top of the page for each tab.
@@ -8938,7 +9008,7 @@ const TAB_TITLE = { link: 'By Amazon Link', new: 'New Product', pr: 'Product Res
   profit: 'Profit & Margin', sa: 'Sales Analysis', plaudit: 'Parent Listing Review', shop: 'Shopify Orders',
   adj: 'Adjustments', tiktok: 'TikTok Toolkit', carousel: 'Carousel Builder', opt: 'Listing Optimiser',
   img: 'Image Manager', lerr: 'Listing Errors', basket: 'Bought Together', lhist: 'Listing History',
-  fam: 'Family & Category Check' };
+  fam: 'Family & Category Check', aplus: 'A+ Content' };
 
 // Tabs hidden from the sidebar. Everything (panes, JS, backend) stays wired up — take a name out of
 // this list and that tab is back, no other change needed.
@@ -8952,7 +9022,7 @@ HIDDEN_TABS.forEach(t => $('tab' + capId(t)).classList.add('hide'));
 // Tabs nobody is granted on their own: they come with another tab. Product Performance reads exactly
 // the documents PPC & Organic reads, and the Firestore rules gate those on `weekly` — so granting the
 // new tab by itself would only ever open an empty screen. Kept out of the Access form for that reason.
-const TAB_INHERIT = { ppcn: 'weekly', lhist: 'health', fam: 'health' };   // Listing History: with Listing Health (Image Manager, Listing Errors, Listing Rules: listing/listing-history.js); Family & Category Check: with Listing Health (listing/family-check.js)
+const TAB_INHERIT = { ppcn: 'weekly', lhist: 'health', fam: 'health', aplus: 'health' };   // Listing History: with Listing Health (Image Manager, Listing Errors, Listing Rules: listing/listing-history.js); Family & Category Check: with Listing Health (listing/family-check.js); A+ Content: with Listing Health (listing/aplus-audit.js)
 
 /* ---------- sidebar: collapsible groups + the 3-line menu button ---------- */
 // Read straight off the markup, so adding a group is an HTML edit and nothing here changes.
@@ -11173,6 +11243,20 @@ function lrPictures(row, ctx) {
  *  publish record (the Workspace's answers first, then the Health snapshot's: the row's own and HEALTH[brand].parentAplus). Never
  *  asked, or the parent not asked yet: not judged. A "missing" answer older than LR_APLUS_DAYS is `stale` and asked again first. */
 function lrAplus(row, ctx) {
+  const pub = lrAplusPub(row, ctx);
+  /* THE A+ DOCUMENTS FIRST (18 Nov 2026): ListingMatch reads every A+ document and its ASINs once a day (listing-match.js lmAplusOf).
+   * While that read is fresh and can say for this ASIN, it is the answer — an approved document on the listing or its parent = A+,
+   * none approved = no A+ — and nothing is read one by one. Missing, old (over 30 h) or unsure: the publish records below, as before.
+   * One guard: the documents say "none live" but a publish record read in the last LR_APLUS_DAYS days says A+ is on the page — the page
+   * wins until that record is old (`until`: the moment the answer changes; the kept checks are judged again then). */
+  const doc = typeof lmAplusOf === 'function' ? lmAplusOf(row.brand, row.asin, row.parent) : null;
+  if (!doc) return pub;
+  if (doc.v === true) return doc;
+  if (pub.v === true && pub.at > 0 && Date.now() - pub.at <= LR_APLUS_DAYS * LR_DAY) return Object.assign({}, pub, { until: pub.at + LR_APLUS_DAYS * LR_DAY + 1 });
+  return doc;
+}
+// A+ from the publish records Sellora read one ASIN at a time (?lh=aplusasin): the answer before the daily A+ read, and its fallback.
+function lrAplusPub(row, ctx) {
   const ws = (ctx.wsAplus && ctx.wsAplus[row.brand]) || {};
   const saved = (ctx.parentAplus && ctx.parentAplus[row.brand]) || {};
   const newer = (a, b) => (a && b ? ((a.at || 0) >= (b.at || 0) ? a : b) : a || b || null);
@@ -11374,7 +11458,8 @@ function hCtx(rowsAll) {
   // --- reuse the last context while nothing it depends on has changed ---
   const withContent = rows.reduce((count, row) => count + (row.content ? 1 : 0), 0);
   const pcV = typeof PC !== 'undefined' ? PC.v : 0;          // the Picture check marks (picture-check.js): a new mark judges again
-  const lmV = typeof lmVersion === 'function' ? lmVersion() + ':' + (lmOk('SP') ? 1 : 0) + (lmOk('CPC') ? 1 : 0) : '';   // the ListingMatch cache (listing-match.js)
+  const lmV = typeof lmVersion === 'function' ? lmVersion() + ':' + (lmOk('SP') ? 1 : 0) + (lmOk('CPC') ? 1 : 0)
+    + (typeof lmAplusFresh === 'function' ? ':' + (lmAplusFresh('SP') ? 1 : 0) + (lmAplusFresh('CPC') ? 1 : 0) : '') : '';   // the ListingMatch cache (listing-match.js), and its daily A+ read
   const key = [rows.length, withContent, LR_CAT.SP ? 1 : 0, LR_CAT.CPC ? 1 : 0, AMZ.at, ws ? 1 : 0, pcV, lmV,
     ['SP', 'CPC'].map(b => (HEALTH[b] && HEALTH[b].parentAplusAt) || 0).join(',')].join('|');
   if (H_CTX && H_CTX.cfg === cfg && H_CTX.sp === HEALTH.SP && H_CTX.cpc === HEALTH.CPC && H_CTX.key === key
@@ -11819,7 +11904,11 @@ async function lrLoadCatalog(force) {
  *       STALE: a record ListingMatch could not read again in its last pass keeps its old read (stale: 1) — shown as usual, with a small
  *       grey "old data" mark (lmOldHtml).
  * Main functions: lmEnsure, lmRefresh, lmGet, lmGetAsin, lmOk, lmLiveOf, lmImlApply, lmAmzApply, lmHealthApply, lmFcCat, lmRanks,
- *                 lmNoteLive, lmAgeHtml / lmAgeDraw, lmOldHtml, lmStatus (console). Every name starts with lm / LM. */
+ *                 lmNoteLive, lmAgeHtml / lmAgeDraw, lmOldHtml, lmStatus (console). Every name starts with lm / LM.
+ * A+ CONTENT (18 Nov 2026): ListingMatch.gs reads every A+ document and the ASINs it is attached to once a day (after the 13:00 pass)
+ *       into lmAplus_<brand>; lmMeta.aplus names the tabs. They are read here with the rest (only they, when only they are newer), kept in
+ *       the same saved copy, and read through lmGetAplus(asin, brand) / lmAplusDocs(brand) / lmAplusState(brand) — the A+ Content screen
+ *       (aplus-audit.js) and Listing Health's A+ answer (lmAplusOf → lrAplus) use nothing else. */
 
 const LM_MAX_AGE = 24 * 3600000;        // a cache older than this is not used (the age line turns amber)
 const LM_PAR = 6;                       // cache tabs read at once
@@ -11827,7 +11916,7 @@ const LM_CHECK_MS = 15 * 60000;         // while the page is open and seen: is t
 const LM_FULL_AT = [13, 18];            // ListingMatch's full passes, IST (the "next refresh" in the age line)
 const LM_IST_MS = 5.5 * 3600000;        // ListingMatch writes its times in IST ('yyyy-MM-dd HH:mm')
 const LM_SLOTS = ['MAIN', 'PT01', 'PT02', 'PT03', 'PT04', 'PT05', 'PT06', 'PT07', 'PT08'];
-const LM_PANES = ['paneHealth', 'paneImg', 'paneOpt', 'paneFam', 'paneBsr', 'paneLerr', 'paneAudit'];   // the screens with the age line
+const LM_PANES = ['paneHealth', 'paneImg', 'paneOpt', 'paneFam', 'paneBsr', 'paneLerr', 'paneAudit', 'paneAplus'];   // the screens with the age line
 // The spec attributes the Workspace checks (listing-workspace.js LI_WS_SPECS; ListingMatch.gs LM_SPEC_ATTRS keeps the same list)
 const LM_SPECS = () => (typeof LI_WS_SPECS !== 'undefined' ? LI_WS_SPECS : ['material', 'color', 'size', 'pattern', 'style', 'item_shape', 'number_of_items', 'theme',
   'care_instructions', 'special_feature', 'item_type_name', 'fabric_type']);
@@ -11835,10 +11924,12 @@ const LM_SPECS = () => (typeof LI_WS_SPECS !== 'undefined' ? LI_WS_SPECS : ['mat
 const LM_FBA_RE = () => (typeof H_FBA_RE !== 'undefined' ? H_FBA_RE : /amazon|afn/i);
 const LM_BUNDLE_RE = () => (typeof H_BUNDLE_RE !== 'undefined' ? H_BUNDLE_RE : /^RB/i);
 const LM_IDB = { name: 'selloraListingMatch', store: 'copy', key: 'v1' };
+const LM_APLUS_MAX_AGE = 30 * 3600000;  // A+ is read once a day: a read older than this is "old data" (shown, marked, not used by Listing Health)
 // state: none (not started) | loading | saved (the browser copy, the backend not answered yet) | ok (the backend's copy) | empty | err
 let LM = { meta: null, list: { SP: null, CPC: null }, cat: { SP: null, CPC: null }, v: 0, state: 'none', err: '', from: '',
   ready: null, busy: null, checkedAt: 0, over: { SP: new Map(), CPC: new Map() }, timer: 0, soonT: 0, loadMs: 0, fyp: { SP: false, CPC: false },
-  whole: { SP: false, CPC: false } };       // every listings tab of the brand was read in the copy held (lmListOk)
+  whole: { SP: false, CPC: false },         // every listings tab of the brand was read in the copy held (lmListOk)
+  aplus: { SP: null, CPC: null } };         // brand → the A+ read held: { raw, key, at, docs: Map key → document, byAsin: Map ASIN → [documents] }
 const LM_GOT = new WeakMap();           // raw record → { over, cat, m } (lmGet's merged record, made once)
 const LM_ENTRY = new WeakMap();         // merged record → its live-read shape
 const LM_LIVE = new Map();              // "brand|sku" → { sig, e } (lmLiveOf, kept until the record or the live read changes)
@@ -11929,6 +12020,7 @@ function lmEnsure() {
       if (copy && copy.meta && copy.list) {
         lmTake(copy.meta, copy.list, copy.cat || {}, 'saved');
         LM.whole = { SP: !!(copy.whole && copy.whole.SP), CPC: !!(copy.whole && copy.whole.CPC) };
+        ['SP', 'CPC'].forEach(b => { if (copy.aplus && copy.aplus[b]) lmAplusTake(b, copy.aplus[b].raw, copy.aplus[b].key); });
         (copy.over || []).forEach(([key, o]) => { const [b, sku] = key.split('|'); if (LM.over[b]) LM.over[b].set(sku, o); });
         LM.state = 'saved';
       }
@@ -11985,7 +12077,21 @@ function lmRefresh() {
       const meta = reply && reply.data;
       if (!meta || !meta.parts) throw Object.assign(new Error('the listing cache is empty'), { empty: true });
       LM.checkedAt = Date.now();
-      if (LM.meta && LM.from && lmSameMeta(LM.meta, meta)) { LM.state = 'ok'; LM.err = ''; lmAgeDraw(); return false; }
+      const apNew = lmAplusNewer(meta);                 // the brands whose A+ read is not the one held
+      if (LM.meta && LM.from && lmSameMeta(LM.meta, meta)) {
+        if (!apNew.length) { LM.state = 'ok'; LM.err = ''; lmAgeDraw(); return false; }
+        // the listings are the ones held; only the daily A+ read is newer: its tabs alone
+        const took = await lmAplusRead(meta, apNew);
+        LM.meta = meta;
+        LM.state = 'ok';
+        LM.err = '';
+        if (!took) { lmAgeDraw(); return false; }
+        LM.v++;
+        lmSave();
+        lmApply();
+        return true;
+      }
+      const apRead = apNew.length ? lmAplusRead(meta, apNew) : null;
       const jobs = [];
       ['SP', 'CPC'].forEach(b => {
         ((meta.parts.listings || {})[b] || []).forEach(tab => jobs.push({ b, k: 'list', tab }));
@@ -12009,6 +12115,7 @@ function lmRefresh() {
       }));
       if (!Object.keys(list).length) throw new Error('none of the cache tabs could be read');
       lmTake(meta, list, cat, 'net');
+      if (apRead) await apRead;
       LM.whole = whole;
       lmOverPrune();
       LM.state = 'ok';
@@ -12033,7 +12140,8 @@ function lmSave() {
   ['SP', 'CPC'].forEach(b => LM.over[b].forEach((o, sku) => over.push([b + '|' + sku, o])));
   try {
     const p = LM_STORE.put({ v: 1, at: Date.now(), meta: LM.meta, list: { SP: obj(LM.list.SP), CPC: obj(LM.list.CPC) },
-      cat: { SP: obj(LM.cat.SP), CPC: obj(LM.cat.CPC) }, over, whole: LM.whole });
+      cat: { SP: obj(LM.cat.SP), CPC: obj(LM.cat.CPC) }, over, whole: LM.whole,
+      aplus: { SP: LM.aplus.SP ? { raw: LM.aplus.SP.raw, key: LM.aplus.SP.key } : null, CPC: LM.aplus.CPC ? { raw: LM.aplus.CPC.raw, key: LM.aplus.CPC.key } : null } });
     if (p && p.catch) p.catch(() => {});
   } catch (e) { /* no storage */ }
 }
@@ -12062,6 +12170,96 @@ function lmGetAsin(asin, brand) {
   }
   return null;
 }
+/* ----- A+ CONTENT: the documents and what they are attached to (lmAplus_<brand>, read once a day by ListingMatch.gs) ----- */
+// Which read lmMeta names for a brand: its tab and read time ('' = none).
+const lmAplusKey = (meta, b) => { const a = meta && meta.aplus && meta.aplus[b]; return a && a.tab && a.at ? a.tab + '@' + a.at : ''; };
+// The brands whose A+ read in `meta` is not the one held in memory.
+// A tab that could not be read (the backend's route not deployed yet, a failed call) is asked again at most once an hour — never on every check.
+const LM_APLUS_RETRY_MS = 3600000;
+const LM_APLUS_FAIL = { SP: null, CPC: null };          // brand → { key, at } of the last read that failed
+const lmAplusNewer = meta => ['SP', 'CPC'].filter(b => {
+  const k = lmAplusKey(meta, b), f = LM_APLUS_FAIL[b];
+  return !!k && !(LM.aplus[b] && LM.aplus[b].key === k) && !(f && f.key === k && Date.now() - f.at < LM_APLUS_RETRY_MS);
+});
+// One brand's tab into memory: the documents, and the ASIN index worked out from them (the documents are the one truth).
+function lmAplusTake(b, raw, key) {
+  if (!raw || !raw.docs || raw.ok === false) return false;
+  const docs = new Map(), byAsin = new Map();
+  Object.keys(raw.docs).forEach(k => {
+    const d = raw.docs[k];
+    const doc = { k: String(d.k || k), brand: b, n: String(d.n || ''), s: String(d.s || '').toUpperCase(), t: String(d.t || ''), u: Date.parse(d.u) || 0, rr: (d.rr || []).map(String),
+      a: Array.isArray(d.a) ? d.a.map(String) : null, as: !!d.as };
+    docs.set(doc.k, doc);
+    (doc.a || []).forEach(asin => { if (!byAsin.has(asin)) byAsin.set(asin, []); byAsin.get(asin).push(doc); });
+  });
+  LM.aplus[b] = { raw, key, at: Number(raw.atMs) || lmTime(raw.at), atText: String(raw.at || ''), docs, byAsin, partial: [...docs.values()].filter(d => d.a === null).length, calls: Number(raw.calls) || 0 };
+  return true;
+}
+// Read the A+ tabs of these brands (?cache=lmAplus_<brand>); a tab that cannot be read keeps what is held. True when something landed.
+async function lmAplusRead(meta, brands) {
+  const got = await Promise.all(brands.map(async b => {
+    let took = false;
+    try {
+      const r = await baCall({ cache: meta.aplus[b].tab });
+      took = lmAplusTake(b, r && r.data, lmAplusKey(meta, b));
+    } catch (e) { took = false; }
+    LM_APLUS_FAIL[b] = took ? null : { key: lmAplusKey(meta, b), at: Date.now() };
+    return took;
+  }));
+  return got.some(Boolean);
+}
+/** What Sellora holds of a brand's A+ read: { has, at, atText ('18 Nov 13:25'), old (older than 30 h), stale (the backend's last try
+ *  failed — this is the read before it), err, why (plain words when it cannot be used as it is), docs, asins, partial, calls }. */
+function lmAplusState(brand) {
+  const held = LM.aplus[brand], m = (LM.meta && LM.meta.aplus && LM.meta.aplus[brand]) || null;
+  const at = held ? held.at : 0;
+  const old = !!held && (!at || Date.now() - at > LM_APLUS_MAX_AGE);
+  const stale = !!(m && m.stale);
+  let why = '';
+  if (!held) why = m && m.err ? 'Amazon\'s A+ data could not be read (' + m.err + ')' : m && m.tab ? 'the A+ data has not reached this browser yet' : 'A+ has not been read yet — it is read once a day after the 13:00 refresh';
+  else if (!held.docs.size) why = 'Amazon listed no A+ documents for this brand';
+  return { has: !!held && held.docs.size > 0, at, atText: held ? lmFmt(held.atText) : '', old, stale, err: m ? String(m.err || '') : '', why, docs: held ? held.docs.size : 0,
+    asins: held ? held.byAsin.size : 0, partial: held ? held.partial : 0, calls: held ? held.calls : m ? Number(m.calls) || 0 : 0, triedAt: m ? lmFmt(m.triedAt) : '' };
+}
+/** Every A+ document Sellora holds (one brand, or both): [{ k, brand, n (name), s (APPROVED | SUBMITTED | DRAFT | REJECTED), t ('Premium' |
+ *  'Basic' | ''), u (last update, ms), rr (Amazon's reasons), a (attached ASINs; null = that list could not be read), as (list from an older read) }]. */
+function lmAplusDocs(brand) {
+  return (brand ? [brand] : ['SP', 'CPC']).flatMap(b => (LM.aplus[b] ? [...LM.aplus[b].docs.values()] : []));
+}
+const LM_APLUS_RANK = { APPROVED: 4, SUBMITTED: 3, REJECTED: 2, DRAFT: 1 };
+/** One ASIN's A+ as Amazon's documents say: null when no A+ read is held for the brand (not checked). Else { docs (every document on the
+ *  ASIN — or, when it has none of its own, on its parent ASIN), via ('asin' | 'parent' | ''), main (the one that counts: approved before
+ *  waiting before rejected before draft; the newest of equals), status ('APPROVED' | 'SUBMITTED' | 'REJECTED' | 'DRAFT' | 'NONE' | 'UNKNOWN'),
+ *  at, old }. UNKNOWN = on no document, but some document's ASIN list could not be read — it cannot be called missing. */
+function lmGetAplus(asin, brand, parent) {
+  for (const b of brand ? [brand] : ['SP', 'CPC']) {
+    const held = LM.aplus[b];
+    if (!held || !held.docs.size) continue;
+    let docs = held.byAsin.get(asin) || [], via = docs.length ? 'asin' : '';
+    if (!docs.length) {
+      const pa = parent || ((LM.cat[b] && LM.cat[b].get(asin) && (LM.cat[b].get(asin).pa || [])[0]) || '');
+      if (pa && held.byAsin.get(pa)) { docs = held.byAsin.get(pa); via = 'parent'; }
+    }
+    if (!docs.length && brand === undefined && !(LM.cat[b] && LM.cat[b].has(asin))) continue;      // not this brand's ASIN
+    const main = docs.length > 1 ? docs.slice().sort((x, y) => (LM_APLUS_RANK[y.s] || 0) - (LM_APLUS_RANK[x.s] || 0) || y.u - x.u)[0] : docs[0] || null;
+    return { brand: b, docs, via, main, status: main ? (LM_APLUS_RANK[main.s] ? main.s : 'UNKNOWN') : held.partial ? 'UNKNOWN' : 'NONE', at: held.at,
+      old: !held.at || Date.now() - held.at > LM_APLUS_MAX_AGE };
+  }
+  return null;
+}
+/** Listing Health's A+ answer from the documents (lrAplus asks here first): { v: true, at, src } when an approved document is on the ASIN
+ *  or its parent, { v: false, at, stale: false, src } when Amazon's documents show none live — or null when the A+ read is missing, old
+ *  (over 30 h) or cannot say for this ASIN: then Listing Health answers from its own publish records, exactly as before. */
+function lmAplusOf(brand, asin, parent) {
+  if (!asin || !LM.aplus[brand]) return null;
+  const a = lmGetAplus(asin, brand, parent);
+  if (!a || a.old || a.status === 'UNKNOWN') return null;
+  // `src` in Listing Health's own words ('listing' | 'parent' — its screens say "A+ published on the <src>"); `lm`: from the daily A+ read
+  if (a.status === 'APPROVED') return { v: true, at: a.at, src: a.via === 'parent' ? 'parent' : 'listing', lm: true, doc: a.main.n };
+  return { v: false, at: a.at, stale: false, src: parent ? 'listing and parent' : 'listing', why: '', lm: true, status: a.status };
+}
+// Is the brand's A+ read usable for Listing Health now? (Its one-by-one publish-record reads are then not queued.)
+const lmAplusFresh = brand => { const st = lmAplusState(brand); return st.has && !st.old; };
 function lmMerged(b, raw) {
   const over = LM.over[b].get(raw.sku) || null;
   const cat0 = raw.asin && LM.cat[b] ? LM.cat[b].get(raw.asin) || null : null;
@@ -12523,6 +12721,7 @@ function lmRedraw() {
     if (shown('paneImg') && typeof imListRender === 'function') imListRender();
     if (shown('paneOpt') && typeof SP !== 'undefined' && SP.on && typeof spAfterRead === 'function') spAfterRead();
     if (shown('paneFam') && typeof FC !== 'undefined' && typeof fcSchedule === 'function') { FC.view = null; fcSchedule(); }
+    if (shown('paneAplus') && typeof apcDrawKeep === 'function' && typeof APC !== 'undefined' && APC.loaded) apcDrawKeep();
     if (shown('paneBsr') && typeof BSR_MODE !== 'undefined' && BSR_MODE === 'compare' && typeof renderBsr === 'function' && typeof BSR_LOADED !== 'undefined' && BSR_LOADED) renderBsr();
     if (shown('paneLerr') && typeof leRender === 'function') leRender();
     if (shown('paneAudit') && typeof AUDIT_LOADED !== 'undefined' && AUDIT_LOADED && typeof renderAudit === 'function') renderAudit();
@@ -13187,6 +13386,12 @@ $('hGo').onclick = async () => {
     try {
       for (const brand of ['SP', 'CPC']) {
         if (!HEALTH[brand]?.rows?.length) continue;
+        /* NOT ONE BY ONE WHEN THE DAILY A+ READ HAS IT (18 Nov 2026): ListingMatch reads every A+ document and its ASINs once a day;
+         * while that read is fresh, Listing Health's A+ answer comes from it (lrAplus → lmAplusOf) and this sweep is not needed. */
+        if (typeof lmAplusFresh === 'function' && lmAplusFresh(brand)) {
+          notes.push(`${BRAND_NAME[brand]}: A+ from the daily A+ read (${lmAplusState(brand).atText}) — not asked one by one.`);
+          continue;
+        }
         /* A+ IS ASKED AGAIN (2026-10-03, Ravi: "A+ wala bhi theek kar do"). An answer used to be final: once a listing
          * read "A+ missing" it stayed missing after the A+ went live. Now: never asked first, then the ones that read
          * MISSING (oldest answer first — those are the ones on a fix-it list), then the ones that have it, oldest first.
@@ -13387,6 +13592,7 @@ function hHealthUntil(h, now) {
   let until = Infinity;
   h.found.forEach(hit => { if (hit.sev === 'critical' && hit.at > 0 && now <= hit.at + LR_STALE_DAYS * LR_DAY) until = Math.min(until, hit.at + LR_STALE_DAYS * LR_DAY + 1); });
   const ap = h.aplus;
+  if (ap && ap.until) until = Math.min(until, ap.until);       // a publish record that stops counting on a known day (lrAplus)
   if (ap && ap.v === false && ap.at > 0) {
     const staleAt = ap.at + LR_APLUS_DAYS * LR_DAY;
     if (now <= staleAt) until = Math.min(until, staleAt + 1);
@@ -17141,6 +17347,8 @@ async function liWsJob(job) {
 // The A+ reads a set of listings needs: the parent ASIN and every child's ASIN whose answer is missing, older than a day, or a
 // "no A+" older than LR_APLUS_DAYS (asked again before it counts) — unless `force`. Ten ASINs a call. Returns the jobs' units.
 function liWsAplusJobs(brand, parent, kids, pk, force, extra) {
+  // The daily A+ read answers (lrAplus → lmAplusOf): nothing is asked one by one — unless a person pressed Read again (force)
+  if (!force && typeof lmAplusFresh === 'function' && lmAplusFresh(brand)) return 0;
   const cut = Date.now() - LI_WS_DAY;
   const apCut = Date.now() - LR_APLUS_DAYS * LI_WS_DAY;
   const map = LI_WS.aplus[brand];
@@ -26369,6 +26577,892 @@ if (typeof document !== 'undefined' && document.addEventListener && $('fcPane'))
   $('fcPane').addEventListener('change', e => { if (e.target && e.target.dataset && e.target.dataset.ccF) ccFilter(e.target); });
   $('fcPane').addEventListener('input', e => { if (e.target && e.target.dataset && e.target.dataset.ccF === 'q') ccFilter(e.target); });
 }
+/* ============================== FILE: src/app/listing/aplus-audit.js ============================== */
+/* ================= LISTING · A+ CONTENT — which products have A+, which do not, and what to do about each =================
+ * Screens: Listing → 2 · Check → A+ Content (#paneAplus / #apcPane, drawn whole here). Same look as Family & Category Check: the same
+ *       cards, chips, arrows, rows and buttons (fc-* / cc-* classes; styles.css gives them to both panes).
+ * DATA — AMAZON'S A+ DOCUMENTS ONLY, NOTHING GUESSED: ListingMatch.gs reads every A+ document (name, status, type, last update, the
+ *       ASINs it is attached to) once a day after the 13:00 refresh; this screen reads it through listing-match.js only (lmGetAplus,
+ *       lmAplusDocs, lmAplusState) — the browser's saved copy first, so it opens with no network wait. THE SCREEN MAKES NO AMAZON CALL
+ *       BY ITSELF. Only a click does: "Preview A+" reads that one document (?lh=aplusdoc), and aplusAccuracyReport() in the console.
+ *       Which products exist, which are live (buyable AND stock > 0) and how they group into families is Family check's own answer
+ *       (fcBuild: one row per ASIN). 30-day sales are Listing Audit's (audit/sales30), sessions the weekly store's — both read-only.
+ * STATUSES (one per product = per ASIN):
+ *   Live      an APPROVED document is attached to the ASIN (or, when it has none of its own, to its parent ASIN)        green
+ *   Waiting   the best document on it is SUBMITTED — Amazon is reviewing; "Stuck" when unchanged for more than 7 days    blue / amber
+ *   Draft     the best document on it is a DRAFT; "Forgotten draft" when not touched for 30 days                         amber
+ *   Rejected  the best document on it is REJECTED (with Amazon's reason when Amazon sends one)                            red
+ *   Missing   the A+ read is there and no document lists the ASIN or its parent                                           red
+ *   Not checked  no A+ read for the brand, a document's ASIN list could not be read, or a publish record of the last 14 days says
+ *             A+ IS on the page although no document lists the ASIN — grey, never an error, never in "Fix first"
+ *   No A+ needed  the team's mark on a product that is not Live (one row, ticked rows, or a whole family): out of every error and
+ *             count for good, with who and when (listingrules/aplusok_<brand>, kind 'aplusok', through lsGet / lsSave — the way
+ *             "Removed on purpose" is kept). Undo puts it back.
+ * WHAT TO DO — one plain line per product, from the family's own data (apcWhat).
+ * TWO VIEWS: By product (families, closed, the most sales without A+ first; the chip "Fix first" is one ranked list) and By A+ document
+ *       (each document: where it is, what is still to add, "Not on any live product").
+ * SCREEN = DOWNLOAD: the table and the CSV are made from the same rows (apcRowView / apcDocView) for the view, toggle, brand, chip and
+ *       search in use.
+ * Console: aplusCounts() — per brand, each status and the sales without A+; aplusAccuracyReport() — 10 products per status per brand
+ *       against Amazon's A+ API now (publish records + the document's own status): MATCH / DIFFERENT.
+ * Main functions: apcBuild, apcGroups, apcDraw, apcWhat, apcOkSetMany, apcOkUndo, apcCsv, apcDocsCsv, apcPreview, aplusCounts,
+ *       aplusAccuracyReport. Every name starts with apc / APC (and the two console names). */
+
+const APC_STEP = 60;                 // family lines drawn at a time; more as the list scrolls
+const APC_STEP_OPEN = 15;            // …when families are open (their rows are drawn too)
+const APC_FLAT_STEP = 100;           // "Fix first": rows drawn at a time
+const APC_DOC_STEP = 30;             // document cards drawn at a time
+const APC_ROWS_FIRST = 40;           // rows of an open family drawn at once; the rest follow in the next frames (a family can hold ~490)
+const APC_ROWS_STEP = 80;            // …this many a frame
+const APC_DAY = 86400000;
+const APC_STUCK_DAYS = 7;            // Waiting for longer than this = Stuck
+const APC_OLD_DRAFT_DAYS = 30;       // a Draft not touched for this long = Forgotten draft
+const APC_PUB_DAYS = 14;             // a publish record this fresh that says "A+ is on the page" stops a product being called Missing
+const APC_MIN_SESS = 300;            // sessions a side needs before a conversion rate is shown
+const APC_OK_DOC = brand => 'aplusok_' + brand;
+const APC_MANAGER = 'https://sellercentral.amazon.com/enhanced-content/content-manager';
+const APC_PIC = 'https://m.media-amazon.com/images/S/';
+// cls: the colour — ok green, b blue, y amber, r red, g grey
+const APC_ST = {
+  live: { t: 'Live', one: 'approved', cls: 'ok', tip: 'An approved A+ document is on the product (or on its parent ASIN): shoppers see it.' },
+  waiting: { t: 'Waiting', one: 'reviewing', cls: 'b', tip: 'Submitted to Amazon and in review. Nothing to do — unless it has waited more than 7 days (Stuck).' },
+  draft: { t: 'Draft', one: 'unsubmitted', cls: 'y', tip: 'An A+ document is on the product but was never submitted for approval.' },
+  rejected: { t: 'Rejected', one: 'fix', cls: 'r', tip: 'Amazon rejected the A+ document on the product. Fix it and submit it again.' },
+  missing: { t: 'Missing', one: 'none', cls: 'r', tip: 'No A+ document lists this product or its parent ASIN.' },
+  none: { t: 'No A+ needed', one: 'hidden', cls: 'g', tip: 'Products the team marked as not needing A+: they never show as missing.' },
+  unchecked: { t: 'Not checked', one: 'unknown', cls: 'g', tip: 'Amazon\'s A+ data could not be read for these: not an error, not counted.' },
+};
+const APC_CARDS = ['live', 'waiting', 'draft', 'rejected', 'missing', 'none'];
+const APC_FIX = ['missing', 'rejected', 'draft'];                         // "Fix first" and the sales at risk
+const APC_BAR = ['live', 'waiting', 'draft', 'rejected', 'missing', 'unchecked'];
+const APC_DOC_CHIPS = [['', 'All'], ['add', 'Has ASINs to add'], ['live', 'Live'], ['waiting', 'Waiting'], ['stuck', 'Stuck'], ['draft', 'Draft'], ['rejected', 'Rejected'], ['unused', 'Not on any live product']];
+const APC_COLS = 11;
+let APC = { view: 'prod', brand: 'ALL', stock: true, f: '', q: '', open: new Set(), sel: new Set(), limit: APC_STEP, flat: APC_FLAT_STEP, docs: APC_DOC_STEP,
+  ok: { SP: {}, CPC: {} }, okLoaded: false, okLoading: null, okV: 0, okNote: '',
+  built: false, loaded: false, loading: false, err: '', model: null, order: null, orderKey: '',
+  prev: new Map(), prevOpen: '', copied: '', io: null, qT: 0, sideV: 0, fam: null, stickT: 0, later: new Map(), laterV: 0, need: '' };
+
+/* ----- small words ----- */
+const apcId = c => c.asin || 'sku:' + c.sku;                                // a product's id for marks and ticks: its ASIN (one row per ASIN)
+const APC_DATE = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });   // made once (a new one per date is slow)
+const apcDate = ms => (ms ? APC_DATE.format(new Date(ms)) : '');
+const apcMoney = v => (v == null ? '—' : '$' + fcNf(Math.round(v)));
+const apcDays = (ms, now) => Math.floor(((now || Date.now()) - ms) / APC_DAY);
+const apcStatusOf = s => ({ APPROVED: 'live', SUBMITTED: 'waiting', DRAFT: 'draft', REJECTED: 'rejected' }[s] || 'unchecked');
+const apcChip = (k, text) => `<span class="fc-chip apc-c is-${APC_ST[k].cls}">${fcEsc(text || APC_ST[k].t)}</span>`;
+
+/* ----- the marks (listingrules/aplusok_<brand>) ----- */
+function apcOkLoad() {
+  if (APC.okLoaded || APC.okLoading) return APC.okLoading;
+  APC.okLoading = (async () => {
+    for (const b of ['SP', 'CPC']) {
+      try {
+        const data = typeof lsGet === 'function' ? await lsGet(FC_OK_COLL, APC_OK_DOC(b)) : null;
+        if (data && data.items) APC.ok[b] = Object.assign({}, data.items, APC.ok[b]);
+      } catch (e) { APC.okNote = 'Could not read the "No A+ needed" marks: ' + ((e && e.message) || e); }
+    }
+    APC.okLoaded = true;
+    APC.okLoading = null;
+    APC.okV++;
+    apcDraw();
+  })();
+  return APC.okLoading;
+}
+// Save marks for one brand (several at once, one write): the page shows them at once; the save follows.
+async function apcOkWrite(brand, entries) {
+  Object.assign(APC.ok[brand], entries);
+  APC.okV++;
+  APC.okNote = '';
+  apcDrawKeep();
+  try {
+    const saved = typeof lsSave === 'function' ? await lsSave(FC_OK_COLL, APC_OK_DOC(brand), { kind: 'aplusok', items: entries }) : false;
+    if (!saved) APC.okNote = fcIsTest() ? 'Test site — the mark is kept on this page only, not saved.' : 'Not saved — the mark is kept on this page only.';
+  } catch (e) {
+    APC.okNote = 'Could not save the mark (' + ((e && e.message) || e) + ') — it is kept on this page only and will show again after a reload.';
+  }
+  if (APC.okNote) apcDrawKeep();
+  return entries;
+}
+/** No A+ needed, for one or many products (keys "brand|id"): they leave Missing / Rejected / Draft / Waiting at once and for good. */
+async function apcOkSetMany(keys) {
+  const model = apcBuild();
+  const by = fcWho(), at = Date.now();
+  const per = {};
+  model.rows.forEach(p => {
+    if (!keys.includes(p.key) || p.st === 'live' || p.bucket === 'none') return;
+    (per[p.c.brand] = per[p.c.brand] || {})[apcId(p.c)] = { on: true, by, name: fcName(by), at, sku: p.c.sku, asin: p.c.asin || '', st: p.st, fam: String(p.g.f.name || '').slice(0, 80) };
+    APC.sel.delete(p.key);
+  });
+  await Promise.all(Object.entries(per).map(([brand, entries]) => apcOkWrite(brand, entries)));
+  return Object.values(per).reduce((n, e) => n + Object.keys(e).length, 0);
+}
+/** Undo: the product counts again; who undid it is kept beside the first mark. */
+function apcOkUndo(brand, id) {
+  const old = (APC.ok[brand] || {})[id] || {};
+  const by = fcWho();
+  return apcOkWrite(brand, { [id]: Object.assign({}, old, { on: false, undoneBy: by, undoneName: fcName(by), undoneAt: Date.now() }) });
+}
+
+/* ----- sales (30 days) and sessions: what Sellora already holds ----- */
+// 30-day sales of one ASIN: Listing Audit's figure (audit/sales30 — [units, $]); null when no sales were ever pulled.
+function apcSales(asin) {
+  if (typeof SALES30 === 'undefined' || !SALES30 || !SALES30.at || !asin) return null;
+  const s = SALES30.asins[String(asin).toUpperCase()];
+  return s ? Number(s[1]) || 0 : 0;
+}
+const apcSalesAt = () => (typeof SALES30 !== 'undefined' && SALES30 && SALES30.at ? String(SALES30.at) : '');
+// The weekly store's last 4 weeks of one ASIN: { u (units), s (sessions) } — null when the store is not loaded or has no sessions for it.
+function apcTraffic(asin) {
+  if (typeof WEEKLY === 'undefined' || !WEEKLY || !WEEKLY.rows || !asin) return null;
+  const row = WEEKLY.rows[String(asin).toUpperCase()] || WEEKLY.rows[asin];
+  if (!row || !row.weeks) return null;
+  const weeks = Object.keys(row.weeks).sort().slice(-4);
+  let u = 0, s = 0, any = false;
+  weeks.forEach(w => { const c = row.weeks[w]; if (c && c.sessions != null) { any = true; s += Number(c.sessions) || 0; u += Number(c.u) || 0; } });
+  return any ? { u, s } : null;
+}
+/** "Products with A+ convert X% vs Y% without", per brand, from the weekly store's sessions and units (the last 4 weeks) — only when
+ *  both sides have at least APC_MIN_SESS sessions; else null (never invented). */
+function apcConv(rows, brand) {
+  const side = { yes: { u: 0, s: 0, n: 0 }, no: { u: 0, s: 0, n: 0 } };
+  rows.forEach(p => {
+    if (p.c.brand !== brand || (p.bucket !== 'live' && !APC_FIX.includes(p.bucket))) return;
+    const t = apcTraffic(p.c.asin);
+    if (!t) return;
+    const into = p.bucket === 'live' ? side.yes : side.no;
+    into.u += t.u; into.s += t.s; into.n++;
+  });
+  if (side.yes.s < APC_MIN_SESS || side.no.s < APC_MIN_SESS) return null;
+  return { brand, yes: side.yes.u / side.yes.s, no: side.no.u / side.no.s, nYes: side.yes.n, nNo: side.no.n };
+}
+
+/* ----- one product's A+ ----- */
+// A publish record Sellora read lately (Listing Health's own A+ reads) that says A+ IS on this product's page: its time, else 0.
+function apcPubLive(c, pa, rowsOf, now) {
+  const fresh = at => at > 0 && now - at <= APC_PUB_DAYS * APC_DAY;
+  let best = 0;
+  const take = e => { if (e && e.v === true && fresh(e.at || 0)) best = Math.max(best, e.at); };
+  const ws = typeof LI_WS !== 'undefined' && LI_WS.aplus && LI_WS.aplus[c.brand] ? LI_WS.aplus[c.brand] : {};
+  take(ws[c.asin]);
+  if (pa) take(ws[pa]);
+  (rowsOf.get(c.asin) || []).forEach(r => take({ v: r.aplus, at: r.aplusAt || 0 }));
+  const saved = typeof HEALTH !== 'undefined' && HEALTH[c.brand] && HEALTH[c.brand].parentAplus ? HEALTH[c.brand].parentAplus : {};
+  if (pa) take(saved[pa]);
+  return best;
+}
+/** One product (a child of fcBuild) as this screen shows it: { c, key, g, st (Amazon's answer), bucket (st, or 'none' when marked), doc,
+ *  docs, via, stuck, oldDraft, reasons, why (for Not checked), sales, mark, what }. */
+function apcProduct(c, g, ctx) {
+  const a = c.asin && typeof lmGetAplus === 'function' ? lmGetAplus(c.asin, c.brand, g.f.pa || '') : null;
+  const p = { c, key: fcKey(c.brand, apcId(c)), g, st: 'unchecked', bucket: 'unchecked', doc: null, docs: [], via: '', stuck: false, oldDraft: false, reasons: [], why: '',
+    sales: apcSales(c.asin), mark: null, what: '', at: a ? a.at : 0 };
+  if (!a) p.why = ctx.state[c.brand].why || 'A+ has not been read for this brand';
+  else if (a.status === 'UNKNOWN') p.why = a.main ? `Amazon gave a status Sellora does not know (${a.main.s || 'none'})` : `${ctx.state[c.brand].partial} A+ document(s) could not say which products they are on`;
+  else if (a.status === 'NONE') {
+    const pub = apcPubLive(c, g.f.pa || '', ctx.rowsOf[c.brand], ctx.now);
+    if (pub) p.why = `Amazon's publish record of ${apcDate(pub)} says A+ is on the page, but no A+ document lists this ASIN — check it in A+ Content Manager`;
+    else p.st = 'missing';
+  } else {
+    p.st = apcStatusOf(a.status);
+    p.doc = a.main; p.docs = a.docs; p.via = a.via;
+    p.reasons = a.main.rr || [];
+    p.stuck = p.st === 'waiting' && a.main.u > 0 && ctx.now - a.main.u > APC_STUCK_DAYS * APC_DAY;
+    p.oldDraft = p.st === 'draft' && a.main.u > 0 && ctx.now - a.main.u > APC_OLD_DRAFT_DAYS * APC_DAY;
+  }
+  const mark = (APC.ok[c.brand] || {})[apcId(c)];
+  p.mark = mark && mark.on ? mark : null;
+  p.bucket = p.mark && p.st !== 'live' ? 'none' : p.st;
+  return p;
+}
+// A product's place inside its family: to fix first, then stuck, waiting, not checked, live, no A+ needed.
+const apcRank = p => (APC_FIX.includes(p.bucket) ? 0 : p.bucket === 'waiting' ? (p.stuck ? 1 : 2) : p.bucket === 'unchecked' ? 3 : p.bucket === 'live' ? 4 : 5);
+// A long list of ASINs on the screen: the first few and how many more (Copy ASIN list always takes them all).
+const apcAsinsHtml = list => list.slice(0, 12).map(fcEsc).join(' ') + (list.length > 12 ? ` <span class="muted">… +${fcNf(list.length - 12)} more (Copy takes all ${fcNf(list.length)})</span>` : '');
+/** THE ONE "WHAT TO DO" LINE, in plain words, from the family's real data. */
+function apcWhat(p) {
+  const g = p.g, d = p.doc, name = d ? `“${d.n || 'unnamed document'}”` : '';
+  if (p.bucket === 'none') return `No A+ needed — marked by ${p.mark.name || fcName(p.mark.by)}${p.mark.at ? ' on ' + apcDate(p.mark.at) : ''}`;
+  if (p.st === 'live') return 'Nothing to do — A+ is live';
+  if (p.st === 'unchecked') return 'Not checked — ' + p.why;
+  if (p.st === 'waiting') return p.stuck ? `Stuck in review since ${apcDate(d.u)} — contact Seller Support` : 'Nothing to do — Amazon reviewing';
+  if (p.st === 'draft') return p.oldDraft ? `Forgotten draft (not touched since ${apcDate(d.u)}) — submit ${name} for approval, or delete it` : `Submit ${name} for approval`;
+  if (p.st === 'rejected') return p.reasons.length ? `Fix: ${p.reasons.join('; ')}, then resubmit` : `Fix what Amazon rejected, then resubmit ${name} (Amazon's reason is in A+ Content Manager and in its e-mail)`;
+  // Missing: a sibling's live document first, then a sibling's document on its way, else a new one for the family
+  if (g.liveDoc) return `Add this ASIN to “${g.liveDoc.n || 'unnamed document'}” in A+ Content Manager (2 minutes)`;
+  if (g.nextDoc) return `Add this ASIN to “${g.nextDoc.n || 'unnamed document'}” (${g.nextDoc.s === 'SUBMITTED' ? 'in review' : g.nextDoc.s === 'DRAFT' ? 'a draft' : 'rejected'}) so it goes live with its family`;
+  return g.f.solo ? 'Create A+ for this product' : `Create A+ for this family (one document can cover all ${fcNf(g.rows.length)} products)`;
+}
+
+/* ----- building the picture ----- */
+/** { groups: [{ f, rows, risk, n: { bucket: count }, liveDoc, nextDoc, gap }], rows (every product), all (ASIN → { c, live }, toggle or
+ *  not), state: { brand: lmAplusState }, salesAt }. Families: Family check's (fcBuild); a product with no family is a line of its own. */
+function apcBuild() {
+  const lmV = typeof lmVersion === 'function' ? lmVersion() : 0;
+  const src = [typeof HEALTH !== 'undefined' ? HEALTH.SP : null, typeof HEALTH !== 'undefined' ? HEALTH.CPC : null, typeof IML !== 'undefined' ? IML.SP : null, typeof IML !== 'undefined' ? IML.CPC : null,
+    typeof SALES30 !== 'undefined' ? SALES30 : null, typeof LI_WS !== 'undefined' ? LI_WS.liveV : 0];
+  const key = [lmV, APC.okV, APC.stock, APC.sideV].join('|');
+  const m = APC.model;
+  if (m && m.key === key && m.src.length === src.length && m.src.every((x, i) => x === src[i])) return m;
+  // Family check's picture of the families (fcBuild: one row per ASIN, who is live) — worked out once while the data is the same
+  if (!APC.fam || APC.fam.lmV !== lmV || APC.fam.src.length !== src.length || !APC.fam.src.every((x, i) => x === src[i])) APC.fam = { lmV, src, v: fcBuild() };
+  const v = APC.fam.v;
+  const now = Date.now();
+  const ctx = { now, state: { SP: lmAplusState('SP'), CPC: lmAplusState('CPC') }, rowsOf: { SP: new Map(), CPC: new Map() } };
+  ['SP', 'CPC'].forEach(b => ((typeof HEALTH !== 'undefined' && HEALTH[b] && HEALTH[b].rows) || []).forEach(r => {
+    if (!r.asin) return;
+    if (!ctx.rowsOf[b].has(r.asin)) ctx.rowsOf[b].set(r.asin, []);
+    ctx.rowsOf[b].get(r.asin).push(r);
+  }));
+  const all = new Map();                               // "brand|ASIN" → every product of ours, in stock or not (the document view's "live")
+  const fams = v.families.map(f => ({ f: { fk: f.fk, brand: f.brand, name: f.name, psku: f.psku, pa: f.pa, solo: false }, kids: APC.stock ? f.live : f.kids, every: f.kids }))
+    .concat((v.loose || []).map(c => ({ f: { fk: c.brand + '|L:' + apcId(c), brand: c.brand, name: c.title || c.sku, psku: '', pa: '', solo: true }, kids: [c], every: [c] })));
+  fams.forEach(x => x.every.forEach(c => { if (c.asin) all.set(fcKey(c.brand, c.asin), { c, fk: x.f.fk, pa: x.f.pa || '' }); }));
+  const rows = [];
+  const groups = fams.filter(x => x.kids.length).map(x => {
+    const g = { f: x.f, rows: [], risk: 0, n: {}, liveDoc: null, nextDoc: null, gap: null };
+    g.rows = x.kids.map(c => apcProduct(c, g, ctx));
+    g.f.n = g.rows.length;
+    // the family's live document: the approved one most of its products are on (then the newest); else the document on its way
+    const tally = new Map();
+    x.every.forEach(c => {
+      const a = c.asin ? lmGetAplus(c.asin, c.brand, x.f.pa || '') : null;
+      if (a && a.main) { const t = tally.get(a.main.k) || { d: a.main, n: 0 }; t.n++; tally.set(a.main.k, t); }
+    });
+    const best = s => [...tally.values()].filter(t => t.d.s === s).sort((p, q) => q.n - p.n || q.d.u - p.d.u || String(p.d.n).localeCompare(String(q.d.n)))[0];
+    g.liveDoc = (best('APPROVED') || {}).d || null;
+    g.nextDoc = g.liveDoc ? null : ((best('SUBMITTED') || best('DRAFT') || best('REJECTED') || {}).d || null);
+    g.rows.sort((a, b) => apcRank(a) - apcRank(b) || (b.sales || 0) - (a.sales || 0) || String(a.c.sku).localeCompare(String(b.c.sku), undefined, { numeric: true }));
+    g.rows.forEach(p => {
+      p.what = apcWhat(p);
+      g.n[p.bucket] = (g.n[p.bucket] || 0) + 1;
+      if (APC_FIX.includes(p.bucket)) g.risk += p.sales || 0;
+      rows.push(p);
+    });
+    // a family gap: some of its products have A+, others have none — the exact ASINs to add to the family's live document
+    const miss = g.rows.filter(p => p.bucket === 'missing' && p.c.asin);
+    if (g.liveDoc && miss.length && !x.f.solo) g.gap = { doc: g.liveDoc, asins: miss.map(p => p.c.asin), risk: miss.reduce((s, p) => s + (p.sales || 0), 0) };
+    return g;
+  });
+  // the most sales without A+ first, then the most to fix, then by name — kept while the data is the same, so a mark never moves a line
+  const fixN = g => APC_FIX.reduce((s, k) => s + (g.n[k] || 0), 0);
+  const orderKey = [lmV, APC.stock, groups.length, apcSalesAt()].join('|');
+  if (!APC.order || APC.orderKey !== orderKey) {
+    APC.order = new Map(groups.slice().sort((a, b) => b.risk - a.risk || fixN(b) - fixN(a) || String(a.f.name).localeCompare(String(b.f.name)) || a.f.fk.localeCompare(b.f.fk)).map((g, i) => [g.f.fk, i]));
+    APC.orderKey = orderKey;
+  }
+  groups.sort((a, b) => (APC.order.has(a.f.fk) ? APC.order.get(a.f.fk) : 1e9) - (APC.order.has(b.f.fk) ? APC.order.get(b.f.fk) : 1e9));
+  APC.model = { key, src, groups, rows, all, state: ctx.state, salesAt: apcSalesAt(), notes: v.notes || [], now };
+  return APC.model;
+}
+// Does this product belong under the chip? '' = every product; 'fix' = Missing / Rejected / Draft; 'stuck'; else its own status.
+const apcRowIn = (p, f) => (!f ? true : f === 'fix' ? APC_FIX.includes(p.bucket) : f === 'stuck' ? p.stuck && p.bucket === 'waiting' : p.bucket === f);
+const apcHit = (p, q) => (p.c.skus || [p.c.sku]).some(x => fcNorm(x).includes(q)) || fcNorm(p.c.asin).includes(q) || (p.doc && fcNorm(p.doc.n).includes(q)) || fcNorm(p.c.title).includes(q);
+/** The families the brand, the search and the chip keep, each with the rows they keep ('all' = every row of the family in view). */
+function apcGroups(model, f) {
+  const q = fcNorm(APC.q);
+  const filter = f === undefined ? APC.f : f;
+  return model.groups.filter(g => APC.brand === 'ALL' || g.f.brand === APC.brand).map(g => {
+    const famHit = q && (fcNorm(g.f.name).includes(q) || fcNorm(g.f.psku).includes(q) || fcNorm(g.f.pa).includes(q));
+    const rows = g.rows.filter(p => apcRowIn(p, filter) && (!q || famHit || apcHit(p, q)));
+    return rows.length ? { f: g.f, g, all: g.rows, rows } : null;
+  }).filter(Boolean);
+}
+const apcCount = (model, k) => apcGroups(model, k).reduce((sum, x) => sum + x.rows.length, 0);
+/** "Fix first": Missing / Rejected / Draft as ONE list, the biggest 30-day sales first. */
+function apcFixList(model) {
+  const idx = new Map(model.groups.map((g, i) => [g.f.fk, i]));
+  return apcGroups(model, 'fix').flatMap(x => x.rows).sort((a, b) => (b.sales || 0) - (a.sales || 0) || idx.get(a.g.f.fk) - idx.get(b.g.f.fk) || String(a.c.sku).localeCompare(String(b.c.sku)));
+}
+/** The rows the By-product screen shows now, in its order — the download's rows too. */
+function apcShownRows(model) {
+  return APC.f === 'fix' ? apcFixList(model) : apcGroups(model).flatMap(x => x.rows);
+}
+/** The numbers of the top summary, for the brand, the toggle and the search in use. */
+function apcSummary(model) {
+  const rows = apcGroups(model, '').flatMap(x => x.rows);
+  const n = {};
+  rows.forEach(p => { n[p.bucket] = (n[p.bucket] || 0) + 1; });
+  const counted = rows.length - (n.none || 0);
+  const risk = rows.filter(p => APC_FIX.includes(p.bucket)).reduce((s, p) => s + (p.sales || 0), 0);
+  const stuck = rows.filter(p => p.stuck && p.bucket === 'waiting').length;
+  const brands = APC.brand === 'ALL' ? ['SP', 'CPC'] : [APC.brand];
+  return { rows, n, total: rows.length, counted, live: n.live || 0, pct: counted ? Math.round((n.live || 0) / counted * 100) : 0, risk, stuck, salesKnown: !!model.salesAt,
+    conv: brands.map(b => apcConv(rows, b)).filter(Boolean), brands };
+}
+
+/* ----- the documents (By A+ document) ----- */
+/** Every A+ document of the brand in view: { d, st, stuck, oldDraft, on (attached ASINs; null = unknown), ours (our products on it), liveN,
+ *  unused (on no live product of ours), add (ASINs of its families still without A+), addRisk, fams }. */
+function apcDocs(model) {
+  const now = model.now;
+  const byDoc = new Map();
+  model.all.forEach(x => {
+    const a = lmGetAplus(x.c.asin, x.c.brand, x.pa);
+    if (!a) return;
+    a.docs.forEach(d => { if (!byDoc.has(d.k)) byDoc.set(d.k, []); byDoc.get(d.k).push(x.c); });
+  });
+  const gapOf = new Map();
+  model.groups.forEach(g => { if (g.gap) { const k = g.gap.doc.brand + '|' + g.gap.doc.k; if (!gapOf.has(k)) gapOf.set(k, []); gapOf.get(k).push(g); } });
+  const q = fcNorm(APC.q);
+  return lmAplusDocs(APC.brand === 'ALL' ? undefined : APC.brand).map(d => {
+    const st = apcStatusOf(d.s), ours = byDoc.get(d.k) || [], gaps = gapOf.get(d.brand + '|' + d.k) || [];
+    const add = gaps.flatMap(g => g.gap.asins);
+    return { d, st, stuck: st === 'waiting' && d.u > 0 && now - d.u > APC_STUCK_DAYS * APC_DAY, oldDraft: st === 'draft' && d.u > 0 && now - d.u > APC_OLD_DRAFT_DAYS * APC_DAY,
+      on: d.a, ours, liveN: ours.filter(c => c.live).length, unused: !ours.some(c => c.live), add, addRisk: gaps.reduce((s, g) => s + g.gap.risk, 0), fams: gaps.map(g => g.f.name) };
+  }).filter(x => !q || fcNorm(x.d.n).includes(q) || (x.d.a || []).some(a => fcNorm(a).includes(q)) || x.ours.some(c => fcNorm(c.sku).includes(q)))
+    .sort((a, b) => b.addRisk - a.addRisk || b.add.length - a.add.length || b.liveN - a.liveN || String(a.d.n).localeCompare(String(b.d.n)) || a.d.k.localeCompare(b.d.k));
+}
+const apcDocIn = (x, f) => (!f ? true : f === 'add' ? x.add.length > 0 : f === 'unused' ? x.unused : f === 'stuck' ? x.stuck : x.st === f);
+const apcDocNote = x => [x.unused ? 'Not on any live product' : '', x.stuck ? `Stuck in review since ${apcDate(x.d.u)} — contact Seller Support` : '', x.oldDraft ? `Forgotten draft (not touched since ${apcDate(x.d.u)})` : '',
+  x.on === null ? 'Its product list could not be read' : x.d.as ? 'Its product list is from an older read' : ''].filter(Boolean).join(' · ');
+
+/* ----- SCREEN = DOWNLOAD: one row's words, used by the table and by the CSV ----- */
+const apcTime = brand => { const st = lmAplusState(brand); return st.atText ? st.atText + (st.old || st.stale ? ' (old)' : '') : 'not read'; };
+/** One product row in words: what the screen shows and the sheet holds. */
+function apcRowView(p) {
+  const c = p.c, d = p.doc;
+  const status = p.bucket === 'waiting' && p.stuck ? 'Stuck' : APC_ST[p.bucket].t;
+  return { brand: fcBrandName(c.brand), family: p.g.f.solo ? '' : String(p.g.f.name || ''), sku: (c.skus || [c.sku]).join(' / '), asin: c.asin || '', stock: c.stock == null ? '' : c.stock,
+    sales: p.sales, status, doc: d ? d.n || 'unnamed document' : '', type: d ? d.t || '' : '', updated: d && d.u ? apcDate(d.u) : '', reason: p.reasons.join('; '),
+    what: p.what, link: c.asin ? 'https://www.amazon.com/dp/' + c.asin : '', time: apcTime(c.brand) };
+}
+const APC_CSV_COLS = ['Brand', 'Family', 'SKU', 'ASIN', 'Stock', '30-day sales', 'A+ status', 'Document name', 'Type', 'Last updated', "Amazon's reason", 'What to do', 'Amazon link', 'Data time'];
+const apcCsvQ = val => { const s = String(val == null ? '' : val); return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+/** The products' sheet: the rows on the screen (view, toggle, brand, chip, search), Excel-ready (UTF-8 BOM, CRLF). */
+function apcCsv(model) {
+  const rows = apcShownRows(model || apcBuild()).map(apcRowView);
+  const lines = rows.map(r => [r.brand, r.family, r.sku, r.asin, r.stock, r.sales == null ? '' : (Math.round(r.sales * 100) / 100).toFixed(2), r.status, r.doc, r.type, r.updated, r.reason, r.what, r.link, r.time].map(apcCsvQ).join(','));
+  return { n: lines.length, rows, text: '﻿' + [APC_CSV_COLS.join(',')].concat(lines).join('\r\n') + '\r\n' };
+}
+/** One document card in words. */
+function apcDocView(x) {
+  const d = x.d;
+  return { brand: fcBrandName(d.brand), name: d.n || 'unnamed document', status: x.stuck ? 'Stuck' : APC_ST[x.st].t + (x.st === 'unchecked' && d.s ? ' (' + d.s + ')' : ''), type: d.t || '', updated: d.u ? apcDate(d.u) : '',
+    on: x.on === null ? '' : x.on.length, liveN: x.liveN, add: x.add.join(' '), note: apcDocNote(x), reason: (d.rr || []).join('; '), time: apcTime(d.brand) };
+}
+const APC_DOC_COLS = ['Brand', 'Document', 'Status', 'Type', 'Last updated', 'Products on it', 'Live products on it', 'ASINs to add', 'Note', "Amazon's reason", 'Data time'];
+const apcDocsShown = model => apcDocs(model).filter(x => apcDocIn(x, APC.f));
+function apcDocsCsv(model) {
+  const rows = apcDocsShown(model || apcBuild()).map(apcDocView);
+  const lines = rows.map(r => [r.brand, r.name, r.status, r.type, r.updated, r.on, r.liveN, r.add, r.note, r.reason, r.time].map(apcCsvQ).join(','));
+  return { n: lines.length, rows, text: '﻿' + [APC_DOC_COLS.join(',')].concat(lines).join('\r\n') + '\r\n' };
+}
+function apcDownload(docs) {
+  const out = docs ? apcDocsCsv() : apcCsv();
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([out.text], { type: 'text/csv;charset=utf-8' }));
+  a.download = `Sellora-aplus-${docs ? 'documents' : 'products'}-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  return out;
+}
+
+/* ----- drawing ----- */
+function apcShell() {
+  const box = $('apcPane');
+  if (!box || APC.built) return;
+  const seg = [['prod', 'By product'], ['doc', 'By A+ document']].map(([k, t]) => `<button type="button" class="segbtn${APC.view === k ? ' on' : ''}" data-apc="view" data-apc-v="${k}" aria-pressed="${APC.view === k}">${t}</button>`).join('');
+  box.innerHTML = `<div class="card fc-tb apc-tb" id="apcTb"><div class="toolbar"><div class="seg" role="group" aria-label="Which view">${seg}</div>`
+    + `<select data-apc-f="brand" aria-label="Brand"><option value="ALL">Both brands</option><option value="SP">${fcEsc(fcBrandName('SP'))}</option><option value="CPC">${fcEsc(fcBrandName('CPC'))}</option></select>`
+    + `<label class="apc-tog" title="On: only products that are buyable and have stock. Off: every product of the families, in stock or not."><input type="checkbox" data-apc-f="stock"${APC.stock ? ' checked' : ''}> Stock &gt; 0 only</label>`
+    + `<input type="search" class="cc-q" data-apc-f="q" placeholder="Search SKU, ASIN, family or document" aria-label="Search" value="${fcEsc(APC.q)}">`
+    + `<span style="flex:1"></span><span id="apcTools"></span>`
+    + `<a class="ghost apc-link" href="${APC_MANAGER}" target="_blank" rel="noopener" title="Seller Central's A+ Content Manager, in a new tab">Open A+ Content Manager ↗</a></div>`
+    + `</div><div class="fc-meta muted apc-meta" id="apcMeta"></div><div id="apcBody"></div>`;
+  const sel = box.querySelector ? box.querySelector('[data-apc-f="brand"]') : null;
+  if (sel) sel.value = APC.brand;
+  APC.built = true;
+}
+// The buttons that belong to the view: Open all / Close all and the download.
+function apcToolsHtml() {
+  return APC.view === 'doc' ? '<button type="button" class="ghost" data-apc="csvdocs" title="The document cards in view, as a sheet">⬇ Download documents</button>'
+    : (APC.f === 'fix' ? '' : '<button type="button" class="ghost" data-apc="openall">Open all</button><button type="button" class="ghost" data-apc="closeall">Close all</button>')
+      + '<button type="button" class="ghost" data-apc="csv" title="The rows in view (toggle, brand, chip and search), as a sheet">⬇ Download</button>';
+}
+function apcMetaHtml(model) {
+  const label = typeof lmDataLabel === 'function' ? lmDataLabel(APC.brand === 'ALL' ? ['SP', 'CPC'] : [APC.brand]) : null;
+  const brands = APC.brand === 'ALL' ? ['SP', 'CPC'] : [APC.brand];
+  const ap = brands.map(b => {
+    const st = model.state[b];
+    if (!st.has) return `<span class="fc-old">${fcEsc(fcBrandName(b))}: A+ not checked — ${fcEsc(st.why)}</span>`;
+    const old = st.old || st.stale;
+    return `<span${old ? ' class="fc-old"' : ''}>${fcEsc(fcBrandName(b))}: A+ read ${fcEsc(st.atText)} (${fcNf(st.docs)} documents)`
+      + (old ? ` — old data${st.err ? ': the last read failed (' + fcEsc(st.err) + ')' : ''}; the last good read is shown` : '') + (st.partial ? ` · ${fcNf(st.partial)} document(s) without a product list` : '') + '</span>';
+  }).join(' · ');
+  return `<div>Amazon data: ${label ? fcEsc(label.text) : 'this screen reads the saved copy only'} · ${ap} · A+ is read once a day after the 13:00 refresh</div>`
+    + (model.salesAt ? `<div>30-day sales as at ${fcEsc(model.salesAt)} (Listing Audit → Pull sales)</div>` : '<div class="fc-old">30-day sales not pulled yet — Listing Audit → Pull sales. Products are still listed; the money columns stay empty.</div>')
+    + model.notes.map(n => `<div>${fcEsc(n)}</div>`).join('') + (APC.okNote ? `<div class="fc-oknote">${fcEsc(APC.okNote)}</div>` : '') + (APC.err ? `<div class="fc-oknote">${fcEsc(APC.err)}</div>` : '');
+}
+/** The one-glance summary: the coverage bar, the sales without A+, and (when the data has it) how A+ converts. */
+function apcSummaryHtml(s) {
+  const seg = APC_BAR.map(k => { const n = s.n[k] || 0; return n ? `<i class="is-${APC_ST[k].cls} k-${k}" style="flex:${n} 1 0" title="${fcEsc(APC_ST[k].t)}: ${fcNf(n)}"></i>` : ''; }).join('');
+  const key = APC_BAR.filter(k => s.n[k]).map(k => `<span><i class="is-${APC_ST[k].cls} k-${k}"></i>${fcEsc(APC_ST[k].t)} ${fcNf(s.n[k])}</span>`).join('');
+  const cover = `<div class="apc-cov"><b>Live on ${fcNf(s.live)} of ${fcNf(s.counted)} products (${s.pct}%)</b>`
+    + `<div class="apc-bar" role="img" aria-label="A+ coverage: ${APC_BAR.map(k => APC_ST[k].t + ' ' + (s.n[k] || 0)).join(', ')}">${seg || '<i class="is-g" style="flex:1"></i>'}</div><div class="apc-key">${key}`
+    + `${s.n.none ? `<span class="muted">${fcNf(s.n.none)} marked “No A+ needed” (not counted)</span>` : ''}</div></div>`;
+  const risk = `<div class="apc-risk" title="The 30-day sales of the products that are Missing, Rejected or Draft — the money that sells without A+."><span>Sales without A+ (30 days)</span>`
+    + `<b>${s.salesKnown ? apcMoney(s.risk) : '—'}</b><small>${s.salesKnown ? `${fcNf(APC_FIX.reduce((n, k) => n + (s.n[k] || 0), 0))} products: Missing + Rejected + Draft` : 'sales not pulled yet'}</small></div>`;
+  const conv = s.conv.map(c => `<div class="apc-conv" title="Units ÷ sessions over the last 4 weeks of the weekly store, for ${fcNf(c.nYes)} products with A+ and ${fcNf(c.nNo)} without.">${fcEsc(fcBrandName(c.brand))}: products with A+ convert <b>${(c.yes * 100).toFixed(1)}%</b> vs <b>${(c.no * 100).toFixed(1)}%</b> without</div>`).join('');
+  return `<div class="card apc-sum">${cover}${risk}${conv ? `<div class="apc-convs">${conv}</div>` : ''}</div>`;
+}
+function apcCardsHtml(model, s) {
+  const box = k => { const st = APC_ST[k]; const n = apcCount(model, k); return `<button type="button" class="fc-box apc-box is-${st.cls}${APC.f === k ? ' is-on' : ''}" data-apc="f" data-apc-v="${k}" aria-pressed="${APC.f === k}" title="${fcEsc(st.tip)}">`
+    + `<span>${fcEsc(st.t)}</span><b>${fcNf(n)}</b><small>${fcEsc(st.one)}</small></button>`; };
+  const chip = (k, t, n) => `<button type="button" class="cc-fchip${APC.f === k ? ' is-on' : ''}" data-apc="chip" data-apc-v="${k}" aria-pressed="${APC.f === k}">${fcEsc(t)}${n == null ? '' : ` <b>${fcNf(n)}</b>`}</button>`;
+  const chips = [chip('', 'All'), chip('fix', 'Fix first', apcCount(model, 'fix'))].concat(['missing', 'rejected', 'draft', 'waiting'].map(k => chip(k, APC_ST[k].t, apcCount(model, k))),
+    [chip('stuck', 'Stuck', apcCount(model, 'stuck')), chip('live', 'Live', apcCount(model, 'live')), chip('none', 'No A+ needed', apcCount(model, 'none'))],
+    s.n.unchecked || APC.f === 'unchecked' ? [chip('unchecked', 'Not checked', apcCount(model, 'unchecked'))] : []).join('');
+  return `<div class="fc-boxes">${APC_CARDS.map(box).join('')}</div><div class="cc-chips" role="group" aria-label="Show">${chips}</div>`;
+}
+function apcPicHtml(c) {
+  const rec = c.asin && typeof lmGetAsin === 'function' ? lmGetAsin(c.asin, c.brand) : null;
+  const u = rec && rec.img && rec.img.MAIN && rec.img.MAIN.u ? String(rec.img.MAIN.u) : '';
+  const url = u ? (typeof imThumb === 'function' ? imThumb(u) : u) : '';
+  return url ? `<img class="cc-pic" src="${fcEsc(url)}" alt="" loading="lazy" decoding="async" width="36" height="36">` : '<span class="cc-pic is-none" aria-hidden="true"></span>';
+}
+// The status chip of a row (with "Stuck" / "Forgotten draft" beside it when they apply).
+function apcStatusHtml(p) {
+  if (p.bucket === 'none') return apcChip('none') + (p.st !== 'unchecked' ? ` <small class="muted">was ${fcEsc(APC_ST[p.st].t)}</small>` : '');
+  return apcChip(p.bucket, p.bucket === 'live' ? '✓ Live' : undefined) + (p.stuck ? ' <span class="fc-chip is-y">Stuck</span>' : '') + (p.oldDraft ? ' <span class="fc-chip is-y">Forgotten draft</span>' : '')
+    + (p.via === 'parent' ? ' <small class="muted" title="The document is attached to the parent ASIN, which covers its children">via parent</small>' : '');
+}
+/** One product row. `flat`: the "Fix first" list (rank and family shown, no tick column difference). */
+function apcRowHtml(p, flat, rank) {
+  const c = p.c, r = apcRowView(p);
+  const a = `data-apc-b="${fcEsc(c.brand)}" data-apc-s="${fcEsc(apcId(c))}"`;
+  const canMark = p.bucket !== 'live' && p.bucket !== 'none';
+  const tick = canMark ? `<input type="checkbox" class="fc-tick" data-apc="tick" ${a}${APC.sel.has(p.key) ? ' checked' : ''} aria-label="Tick ${fcEsc(c.sku)}">` : '';
+  const amz = c.asin ? `<a href="${fcEsc(r.link)}" target="_blank" rel="noopener" title="Open on Amazon in a new tab">${fcEsc(c.asin)}</a>` : '—';
+  const pk = p.doc ? fcKey(c.brand, p.doc.k) : '';
+  const acts = (canMark ? `<button type="button" class="ghost fc-b" data-apc="ok" ${a} title="This product does not need A+: it leaves the errors for good (Undo brings it back)">No A+ needed</button>` : '')
+    + (p.bucket === 'none' ? `<button type="button" class="ghost fc-b" data-apc="undo" ${a}>Undo</button>` : '')
+    + (p.doc ? `<button type="button" class="ghost fc-b" data-apc="prev" data-apc-v="${fcEsc(pk)}" data-apc-at="${fcEsc(p.key)}" title="Reads this one document from Amazon now and shows what is in it">Preview A+</button>` : '');
+  const side = APC_ST[p.bucket].cls === 'r' ? ' is-orphan' : APC_ST[p.bucket].cls === 'y' || p.stuck ? ' cc-chk' : '';
+  const more = p.docs.length > 1 ? ` <small class="muted" title="${fcEsc(p.docs.map(d => (d.n || 'unnamed') + ' — ' + d.s).join('\n'))}">+${p.docs.length - 1} more</small>` : '';
+  const row = `<tr class="fc-row apc-row${side}${APC.sel.has(p.key) ? ' is-sel' : ''}" data-apc-row="${fcEsc(p.key)}"><td class="fc-tk">${flat ? `<small class="muted apc-rank">${rank}</small>` : ''}${tick}</td><td class="cc-pc">${apcPicHtml(c)}</td>`
+    + `<td class="fc-sku"><b>${fcEsc(r.sku)}</b>${typeof lmOldHtml === 'function' ? lmOldHtml(c.brand, c.sku) : ''}<small>${fcEsc(flat ? (r.family || String(c.title || '')).slice(0, 70) : String(c.title || '').slice(0, 70))}</small></td>`
+    + `<td class="ui-mono">${amz}</td><td class="apc-st">${apcStatusHtml(p)}</td>`
+    + `<td class="apc-doc">${p.doc ? fcEsc(r.doc) + more : '<span class="fc-none">—</span>'}</td><td>${r.type ? fcEsc(r.type) : '<span class="fc-none">—</span>'}</td><td class="apc-upd">${r.updated ? fcEsc(r.updated) : '<span class="fc-none">—</span>'}</td>`
+    + `<td class="num">${p.sales == null ? '<span class="fc-none">—</span>' : apcMoney(p.sales)}</td>`
+    + `<td class="fc-prob apc-what"><div class="apc-do is-${APC_ST[p.bucket].cls}">${fcEsc(r.what)}</div></td>`
+    + `<td class="fc-acts">${acts}</td></tr>`;
+  return row + (APC.prevOpen === p.key && p.doc ? `<tr class="apc-prevr"><td colspan="${APC_COLS}">${apcPrevHtml(pk)}</td></tr>` : '');
+}
+const APC_COLHEAD = '<tr class="fc-colh"><th class="fc-tk"></th><th></th><th>SKU</th><th>ASIN</th><th>A+ status</th><th>Document</th><th>Type</th><th>Last updated</th><th class="num">30-day sales</th><th>What to do</th><th></th></tr>';
+/** One family: a single line while closed (its coverage and its badges); open, the column header and its products. */
+function apcGroupHtml(x) {
+  const g = x.g, f = g.f, open = APC.open.has(f.fk);
+  const live = g.n.live || 0, counted = g.rows.length - (g.n.none || 0);
+  const badge = (k, word) => (g.n[k] ? `<span class="fc-chip is-${APC_ST[k].cls}">${fcNf(g.n[k])} ${word}</span>` : '');
+  const stuck = g.rows.filter(p => p.stuck && p.bucket === 'waiting').length;
+  const badges = badge('missing', 'missing') + badge('rejected', 'rejected') + badge('draft', 'draft') + badge('waiting', 'waiting') + (stuck ? `<span class="fc-chip is-y">${fcNf(stuck)} stuck</span>` : '')
+    + badge('unchecked', 'not checked') + (g.n.none ? `<span class="fc-chip is-g">${fcNf(g.n.none)} no A+ needed</span>` : '') + (g.gap ? '<span class="fc-chip is-r apc-gapc" title="Some products of this family have A+ and others have none">Family gap</span>' : '');
+  const mini = `<span class="apc-mini" title="${fcNf(live)} of ${fcNf(counted)} have A+ live"><span class="apc-minib"><i style="width:${counted ? Math.round(live / counted * 100) : 0}%"></i></span>${fcNf(live)} of ${fcNf(counted)} have A+</span>`;
+  const markable = x.rows.filter(p => p.bucket !== 'live' && p.bucket !== 'none').map(p => p.key);
+  const allOn = markable.length && markable.every(k => APC.sel.has(k));
+  const selAll = open && markable.length ? ` <button type="button" class="ghost fc-b fc-selall" data-apc="selfam" data-apc-v="${fcEsc(f.fk)}">${allOn ? 'Clear this family' : 'Select all in family'}</button>` : '';
+  const gap = open && g.gap ? `<tr class="apc-gapr"><td colspan="${APC_COLS}"><div class="apc-gap"><b>Family gap:</b> ${fcNf(g.gap.asins.length)} product${g.gap.asins.length === 1 ? '' : 's'} of this family ${g.gap.asins.length === 1 ? 'has' : 'have'} no A+ while the others are on “${fcEsc(g.gap.doc.n || 'unnamed document')}”. `
+    + `Add ${g.gap.asins.length === 1 ? 'this ASIN' : 'these ASINs'} to that document: <span class="ui-mono">${apcAsinsHtml(g.gap.asins)}</span> `
+    + `<button type="button" class="ghost fc-b" data-apc="copy" data-apc-v="${fcEsc(g.gap.asins.join(' '))}" data-apc-id="gap:${fcEsc(f.fk)}">${APC.copied === 'gap:' + f.fk ? 'Copied ✓' : 'Copy ASIN list'}</button></div></td></tr>` : '';
+  return `<tbody class="fc-grp${open ? ' is-open' : ''}"><tr class="fc-head" data-apc="grp" data-apc-v="${fcEsc(f.fk)}" data-apc-k="${fcEsc(f.fk)}" tabindex="0" aria-expanded="${open}"><td colspan="${APC_COLS}">`
+    + `<button type="button" class="fc-arrow" data-apc="grp" data-apc-v="${fcEsc(f.fk)}" aria-label="${open ? 'Close' : 'Open'} ${fcEsc(f.name)}">${open ? '▾' : '▸'}</button>`
+    + `<b>${fcEsc(f.name)}</b> <small class="muted">${fcEsc(fcBrandName(f.brand))} · ${f.solo ? '1 product, no family' : fcNf(g.rows.length) + (APC.stock ? ' live child' : ' child') + (g.rows.length === 1 ? '' : 'ren')}</small> ${mini}${badges}`
+    + (g.risk > 0 ? `<span class="apc-riskc" title="30-day sales of its Missing, Rejected and Draft products">${apcMoney(g.risk)} without A+</span>` : '') + selAll + '</td></tr>'
+    + (open ? gap + APC_COLHEAD + apcFamRowsHtml(f.fk, x.rows) : '') + '</tbody>';
+}
+/* A BIG FAMILY IS DRAWN A SCREENFUL FIRST: its first APC_ROWS_FIRST rows at once (and as far as the row the person is at — APC.need),
+ * the others APC_ROWS_STEP a frame after the draw (apcLaterRows) — the same rows in the same order; the click never waits for ~490
+ * rows to be laid out. Without a browser (the tests, the download) every row is drawn at once. */
+const apcProgressive = () => typeof requestAnimationFrame === 'function' && typeof document !== 'undefined' && !!document.body;
+function apcFamRowsHtml(fk, rows) {
+  let first = rows.length;
+  if (apcProgressive() && rows.length > APC_ROWS_FIRST + 10) {
+    const at = APC.need ? rows.findIndex(p => p.key === APC.need) : -1;
+    first = Math.min(rows.length, Math.max(APC_ROWS_FIRST, at + 20));
+  }
+  if (first < rows.length) APC.later.set(fk, rows.slice(first));
+  return rows.slice(0, first).map(p => apcRowHtml(p)).join('')
+    + (first < rows.length ? `<tr class="apc-laterr" data-apc-later="${fcEsc(fk)}"><td colspan="${APC_COLS}" class="muted">… ${fcNf(rows.length - first)} more rows</td></tr>` : '');
+}
+function apcLaterRows() {
+  const mine = ++APC.laterV;
+  if (!APC.later.size || !apcProgressive()) return;
+  const step = () => {
+    if (mine !== APC.laterV) return;                               // the page was drawn again since
+    const next = APC.later.entries().next().value;
+    if (!next) return;
+    const [fk, rest] = next;
+    const mark = [...$('apcBody').querySelectorAll('tr.apc-laterr')].find(tr => tr.dataset.apcLater === fk);
+    if (!mark) { APC.later.delete(fk); }
+    else {
+      mark.insertAdjacentHTML('beforebegin', rest.splice(0, APC_ROWS_STEP).map(p => apcRowHtml(p)).join(''));
+      if (!rest.length) { mark.remove(); APC.later.delete(fk); }
+      else mark.firstChild.textContent = '… ' + fcNf(rest.length) + ' more rows';
+    }
+    if (APC.later.size) requestAnimationFrame(() => setTimeout(step, 0));
+  };
+  requestAnimationFrame(() => setTimeout(step, 0));
+}
+/** What one "Preview A+" shows: the document as Amazon holds it now — its modules, their texts cut short, their pictures small. */
+function apcPrevHtml(pk) {
+  const pv = APC.prev.get(pk);
+  if (!pv || pv.state === 'loading') return '<div class="apc-prev muted"><span class="spin"></span> Reading this document from Amazon…</div>';
+  if (pv.state === 'err') return `<div class="apc-prev"><span class="fc-oknote">Could not read this document: ${fcEsc(pv.err)}</span> <button type="button" class="ghost fc-b" data-apc="prevagain" data-apc-v="${fcEsc(pk)}">Try again</button></div>`;
+  const d = pv.data;
+  const mods = (d.modules || []).map(m => `<div class="apc-mod"><span class="apc-modt">${fcEsc(String(m.type || 'module').replace(/_/g, ' ').toLowerCase())}</span>`
+    + `<div class="apc-modi">${(m.imgs || []).map(i => `<img class="apc-pimg" src="${fcEsc(APC_PIC + i.id)}" alt="${fcEsc(i.alt || '')}" loading="lazy" decoding="async" width="96" height="60">`).join('')}</div>`
+    + (m.texts || []).map(t => `<p>${fcEsc(t)}</p>`).join('') + '</div>').join('');
+  return `<div class="apc-prev"><div class="apc-prevh"><b>${fcEsc(d.name || 'A+ document')}</b> ${apcChip(apcStatusOf(d.status), d.status === 'APPROVED' ? '✓ Live' : undefined)} <small class="muted">${fcEsc([d.type, d.updated ? 'updated ' + apcDate(Date.parse(d.updated)) : '',
+    (d.modules || []).length + ' module' + ((d.modules || []).length === 1 ? '' : 's'), 'read from Amazon just now'].filter(Boolean).join(' · '))}</small>`
+    + `<button type="button" class="ghost fc-b" data-apc="prevclose">Close</button></div>`
+    + ((d.reasons || []).length ? `<div class="fc-oknote"><b>Amazon's reason:</b> ${fcEsc(d.reasons.join('; '))}</div>` : '')
+    + (mods ? `<div class="apc-mods">${mods}</div>` : '<div class="muted">Amazon sent no modules for this document.</div>') + '</div>';
+}
+function apcDocCardHtml(x) {
+  const d = x.d, r = apcDocView(x), pk = fcKey(d.brand, d.k);
+  const st = x.st === 'unchecked' ? `<span class="fc-chip is-g">${fcEsc(d.s || 'status not given')}</span>` : apcChip(x.st, x.st === 'live' ? '✓ Live' : undefined);
+  const flags = (x.stuck ? ' <span class="fc-chip is-y">Stuck</span>' : '') + (x.oldDraft ? ' <span class="fc-chip is-y">Forgotten draft</span>' : '') + (x.unused ? ' <span class="fc-chip is-g">Not on any live product</span>' : '');
+  const on = x.on === null ? 'its product list could not be read' : `on ${fcNf(x.on.length)} product${x.on.length === 1 ? '' : 's'} at Amazon · ${fcNf(x.liveN)} live in Sellora`;
+  const add = x.add.length ? `<div class="apc-gap"><b>Add ${x.add.length === 1 ? 'this ASIN' : 'these ' + fcNf(x.add.length) + ' ASINs'} to this document</b>${x.addRisk > 0 ? ` (${apcMoney(x.addRisk)} of 30-day sales without A+)` : ''} — `
+    + `live family members that have no A+ yet${x.fams.length ? ' (' + x.fams.slice(0, 3).map(fcEsc).join(', ') + (x.fams.length > 3 ? '…' : '') + ')' : ''}: <span class="ui-mono">${apcAsinsHtml(x.add)}</span> `
+    + `<button type="button" class="ghost fc-b" data-apc="copy" data-apc-v="${fcEsc(x.add.join(' '))}" data-apc-id="add:${fcEsc(pk)}">${APC.copied === 'add:' + pk ? 'Copied ✓' : 'Copy ASIN list'}</button></div>` : '';
+  const notes = [x.stuck ? `Stuck in review since ${apcDate(d.u)} — contact Seller Support.` : '', x.oldDraft ? `Not touched since ${apcDate(d.u)} — submit it for approval, or delete it.` : '',
+    x.st === 'rejected' ? ((d.rr || []).length ? `Amazon's reason: ${d.rr.join('; ')}` : 'Rejected — Amazon\'s reason is in A+ Content Manager and in its e-mail.') : '',
+    x.unused ? 'It is attached to no product that is buyable and in stock.' : '', d.as ? 'Its product list is from an older read (today\'s read of it failed).' : ''].filter(Boolean);
+  return `<div class="card apc-dcard" data-apc-k="${fcEsc(pk)}"><div class="apc-dh"><b title="${fcEsc(r.name)}">${fcEsc(r.name)}</b> ${st}${flags}</div>`
+    + `<div class="apc-dm muted">${fcEsc([fcBrandName(d.brand), r.type || 'type not given', r.updated ? 'updated ' + r.updated : 'no update date', on].join(' · '))}</div>`
+    + notes.map(n => `<div class="apc-dn">${fcEsc(n)}</div>`).join('') + add
+    + `<div class="apc-da"><button type="button" class="ghost fc-b" data-apc="prev" data-apc-v="${fcEsc(pk)}" data-apc-at="doc:${fcEsc(pk)}" title="Reads this one document from Amazon now and shows what is in it">Preview A+</button>`
+    + (x.on && x.on.length ? `<button type="button" class="ghost fc-b" data-apc="copy" data-apc-v="${fcEsc(x.on.join(' '))}" data-apc-id="all:${fcEsc(pk)}" title="Every ASIN this document is attached to">${APC.copied === 'all:' + pk ? 'Copied ✓' : 'Copy its ' + fcNf(x.on.length) + ' ASINs'}</button>` : '')
+    + `<a class="ghost fc-b apc-link" href="${APC_MANAGER}" target="_blank" rel="noopener">Open A+ Content Manager ↗</a></div>`
+    + (APC.prevOpen === 'doc:' + pk ? apcPrevHtml(pk) : '') + '</div>';
+}
+// The bar while something is ticked: "N selected · [No A+ needed (N)] [Clear]".
+function apcBarHtml(model) {
+  const can = new Set(model.rows.filter(p => p.bucket !== 'live' && p.bucket !== 'none').map(p => p.key));
+  [...APC.sel].forEach(k => { if (!can.has(k)) APC.sel.delete(k); });
+  if (!APC.sel.size) return '';
+  return `<div class="fc-bar" role="region" aria-label="Ticked products"><b>${fcNf(APC.sel.size)} selected</b>`
+    + `<button type="button" class="fc-b" data-apc="bok">No A+ needed (${fcNf(APC.sel.size)})</button><button type="button" class="fc-b ghost" data-apc="bclear">Clear</button></div>`;
+}
+function apcSkeleton() {
+  const line = '<div class="apc-skel"><span class="sp-skel is-w"></span><span class="sp-skel is-s"></span></div>';
+  return `<div class="card apc-sum"><div class="apc-cov"><span class="sp-skel is-w"></span><div class="apc-bar"><i class="is-g" style="flex:1"></i></div></div></div><div class="card fc-wrap">${line.repeat(7)}</div>`;
+}
+function apcBodyHtml(model) {
+  const s = apcSummary(model);
+  const top = apcSummaryHtml(s) + apcCardsHtml(model, s);
+  const noData = s.brands.every(b => !model.state[b].has);
+  if (APC.view === 'doc') {
+    const all = apcDocs(model);
+    const chips = `<div class="cc-chips" role="group" aria-label="Show">${APC_DOC_CHIPS.map(([k, t]) => `<button type="button" class="cc-fchip${APC.f === k ? ' is-on' : ''}" data-apc="chip" data-apc-v="${k}" aria-pressed="${APC.f === k}">${fcEsc(t)}${k ? ` <b>${fcNf(all.filter(x => apcDocIn(x, k)).length)}</b>` : ` <b>${fcNf(all.length)}</b>`}</button>`).join('')}</div>`;
+    const list = all.filter(x => apcDocIn(x, APC.f));
+    const shown = list.slice(0, APC.docs);
+    const note = !all.length ? `<div class="card fc-empty"><b>${noData ? 'A+ not checked yet' : 'No A+ document matches'}</b><p class="muted">${noData ? fcEsc(s.brands.map(b => fcBrandName(b) + ': ' + model.state[b].why).join(' · ')) : 'Clear the search to see every document.'}</p></div>`
+      : !list.length ? '<div class="card fc-empty"><b>No document under this chip</b></div>' : '';
+    return apcSummaryHtml(s) + chips + note + `<div class="apc-docs">${shown.map(apcDocCardHtml).join('')}</div>`
+      + (list.length > shown.length ? `<div class="fc-more" id="apcMore"><button type="button" class="ghost" data-apc="more">Show more documents (${fcNf(list.length - shown.length)} left)</button></div>` : '');
+  }
+  let note = '';
+  if (!s.total) note = `<div class="card fc-empty"><b>${APC.q ? 'Nothing matches the search' : 'No products to check'}</b>${APC.q ? '' : ' — the snapshots are empty, or nothing is buyable and in stock. Switch “Stock &gt; 0 only” off to see every product.'}</div>`;
+  else if (noData) note = `<div class="card fc-empty"><b>A+ not checked yet</b><p class="muted">${fcEsc(s.brands.map(b => fcBrandName(b) + ': ' + model.state[b].why).join(' · '))}. Nothing is flagged; the list below shows the products.</p></div>`;
+  else if (s.counted && s.live === s.counted && !APC.f && !APC.q) note = '<div class="card fc-empty cc-allok"><b>Every live product has A+ ✓</b></div>';
+  let table = '', more = '';
+  if (APC.f === 'fix') {
+    const list = apcFixList(model), shown = list.slice(0, APC.flat);
+    if (!list.length && s.total && !noData) note += '<div class="card fc-empty cc-allok"><b>Nothing to fix first ✓</b> — no product is Missing, Rejected or Draft.</div>';
+    table = list.length ? `<div class="card xlwrap fc-wrap"><table class="xl fc-tbl cc-tbl apc-tbl"><tbody class="fc-grp is-open">${APC_COLHEAD}${shown.map((p, i) => apcRowHtml(p, true, i + 1)).join('')}</tbody></table></div>` : '';
+    more = list.length > shown.length ? `<div class="fc-more" id="apcMore"><button type="button" class="ghost" data-apc="more">Show more (${fcNf(list.length - shown.length)} left)</button></div>` : '';
+  } else {
+    const groups = apcGroups(model);
+    const shown = groups.slice(0, APC.limit);
+    if (!groups.length && s.total) note += `<div class="card fc-empty"><b>${APC.f ? 'No product is ' + fcEsc(APC.f === 'stuck' ? 'Stuck' : (APC_ST[APC.f] || {}).t || APC.f) : 'Nothing matches'}</b></div>`;
+    table = groups.length ? `<div class="card xlwrap fc-wrap"><table class="xl fc-tbl cc-tbl apc-tbl">${shown.map(apcGroupHtml).join('')}</table></div>` : '';
+    more = groups.length > shown.length ? `<div class="fc-more" id="apcMore"><button type="button" class="ghost" data-apc="more">Show more families (${fcNf(groups.length - shown.length)} left)</button></div>` : '';
+  }
+  return top + note + table + more + apcBarHtml(model);
+}
+/** Draw the screen. Everything comes from memory: no network wait, no Amazon call. */
+function apcDraw() {
+  if (!$('apcPane')) return;
+  apcShell();
+  const body = $('apcBody');
+  if (!body) return;
+  if (APC.loading && !APC.loaded) { body.innerHTML = apcSkeleton(); if ($('apcMeta')) $('apcMeta').textContent = 'Reading the saved listings…'; return; }
+  const model = apcBuild();
+  if ($('apcTools')) $('apcTools').innerHTML = apcToolsHtml();
+  if ($('apcMeta')) $('apcMeta').innerHTML = apcMetaHtml(model);
+  APC.later.clear();
+  body.innerHTML = apcBodyHtml(model);
+  apcLaterRows();
+  apcWatchMore();
+  apcStick();
+}
+/** Draw again and keep the person's place: the line (family, product or document) at the top of the screen stays where it was. */
+function apcDrawKeep() {
+  const body = $('apcBody');
+  const find = () => (body && body.querySelectorAll ? [...body.querySelectorAll('[data-apc-k],[data-apc-row]')] : []);
+  const idOf = el => el.dataset.apcK || el.dataset.apcRow;
+  let key = '', top = 0;
+  if (typeof window !== 'undefined' && body && body.querySelectorAll) {
+    const edge = ($('apcTb') && $('apcTb').getBoundingClientRect ? $('apcTb').getBoundingClientRect().bottom : 0) + 1;
+    const el = find().find(x => x.getBoundingClientRect().bottom > edge);
+    if (el) { key = idOf(el); top = el.getBoundingClientRect().top; }
+  }
+  APC.need = key;
+  try { apcDraw(); } finally { APC.need = ''; }
+  if (!key || typeof window === 'undefined' || !window.scrollBy) return;
+  const again = find().find(x => idOf(x) === key);
+  if (again) window.scrollBy(0, again.getBoundingClientRect().top - top);
+}
+// Family lines drawn at a time: fewer while many families are open (their rows are drawn too).
+const apcStep = () => (APC.open.size > 3 ? APC_STEP_OPEN : APC_STEP);
+// "Show more" comes in by itself when it scrolls near the screen.
+function apcWatchMore() {
+  if (typeof IntersectionObserver !== 'function') return;
+  if (!APC.io) APC.io = new IntersectionObserver(seen => { if (apcPaneOn() && seen.some(e => e.isIntersecting)) apcMore(); }, { rootMargin: '400px' });
+  APC.io.disconnect();
+  const more = $('apcMore');
+  if (more) APC.io.observe(more);
+}
+function apcMore() {
+  if (APC.view === 'doc') APC.docs += APC_DOC_STEP;
+  else if (APC.f === 'fix') APC.flat += APC_FLAT_STEP;
+  else APC.limit += apcStep();
+  apcDraw();
+}
+// The toolbar sticks under Sellora's menu bar (the bar's height is measured, like Listing Health's).
+function apcStick() {
+  if (typeof requestAnimationFrame !== 'function' || typeof document === 'undefined' || !document.body) return apcStickNow();
+  if (!APC.stickT) APC.stickT = requestAnimationFrame(() => { APC.stickT = 0; apcStickNow(); });
+}
+function apcStickNow() {
+  try {
+    const pane = $('paneAplus');
+    if (!pane || !pane.style || !pane.style.setProperty || typeof getComputedStyle !== 'function' || typeof document === 'undefined' || !document.querySelector) return;
+    const side = document.querySelector('.side');
+    pane.style.setProperty('--apc-top', (side && getComputedStyle(side).position === 'sticky' ? Math.round(side.getBoundingClientRect().height) : 0) + 'px');
+  } catch (e) { /* no layout to measure (a test page) */ }
+}
+/** A tick changes only what a tick changes: the boxes, their rows' look, the family buttons and the bar (not the whole table). */
+function apcSelPaint() {
+  const body = $('apcBody');
+  if (!body || !body.querySelectorAll || !body.querySelector('.apc-tbl')) return apcDraw();
+  const model = apcBuild();
+  body.querySelectorAll('input.fc-tick[data-apc="tick"]').forEach(box => {
+    const on = APC.sel.has(fcKey(box.dataset.apcB, box.dataset.apcS));
+    box.checked = on;
+    const tr = box.closest ? box.closest('tr') : null;
+    if (tr) tr.classList.toggle('is-sel', on);
+  });
+  const groups = apcGroups(model);
+  body.querySelectorAll('[data-apc="selfam"]').forEach(btn => {
+    const x = groups.find(y => y.f.fk === btn.dataset.apcV);
+    const keys = x ? x.rows.filter(p => p.bucket !== 'live' && p.bucket !== 'none').map(p => p.key) : [];
+    btn.textContent = keys.length && keys.every(k => APC.sel.has(k)) ? 'Clear this family' : 'Select all in family';
+  });
+  const old = body.querySelector('.fc-bar');
+  const html = apcBarHtml(model);
+  if (old) old.outerHTML = html;
+  else if (html) body.insertAdjacentHTML('beforeend', html);
+}
+/** Open or close one family; the clicked line stays where it was on the screen. */
+function apcToggle(fk, el) {
+  const line = el && el.closest ? el.closest('.fc-head') || el : null;
+  const top0 = line && line.getBoundingClientRect ? line.getBoundingClientRect().top : null;
+  if (APC.open.has(fk)) APC.open.delete(fk);
+  else APC.open.add(fk);
+  apcDraw();
+  if (top0 == null || typeof document === 'undefined' || !document.querySelector) return;
+  const again = document.querySelector(`#apcBody .fc-head[data-apc-v="${typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(fk) : fk}"]`);
+  if (again && again.getBoundingClientRect && typeof window !== 'undefined' && window.scrollBy) window.scrollBy(0, again.getBoundingClientRect().top - top0);
+}
+
+/* ----- on a click only: one document read from Amazon ----- */
+/** "Preview A+": reads that one document (?lh=aplusdoc → getContentDocument) and shows its modules small. `at`: where it opens. */
+async function apcPreview(pk, at, again) {
+  if (APC.prevOpen === at && !again) { APC.prevOpen = ''; return apcDrawKeep(); }
+  APC.prevOpen = at;
+  const have = APC.prev.get(pk);
+  if (have && have.state !== 'err' && !again) return apcDrawKeep();
+  APC.prev.set(pk, { state: 'loading' });
+  apcDrawKeep();
+  const cut = pk.indexOf('|');
+  try {
+    const r = await baCall({ lh: 'aplusdoc', brand: pk.slice(0, cut), doc: pk.slice(cut + 1) });
+    if (!r || r.ok === false) throw new Error((r && r.error) || 'no answer');
+    APC.prev.set(pk, { state: 'ok', data: r });
+  } catch (e) {
+    APC.prev.set(pk, { state: 'err', err: String((e && e.message) || e).slice(0, 240) });
+  }
+  apcDrawKeep();
+}
+async function apcCopy(text, id) {
+  try {
+    if (typeof navigator !== 'undefined' && navigator.clipboard && navigator.clipboard.writeText) await navigator.clipboard.writeText(text);
+    else throw new Error('no clipboard');
+    APC.copied = id;
+  } catch (e) {
+    APC.copied = '';
+    if (typeof window !== 'undefined' && window.prompt) window.prompt('Copy these ASINs (Ctrl+C):', text);
+  }
+  apcDrawKeep();
+  setTimeout(() => { if (APC.copied === id) { APC.copied = ''; apcDrawKeep(); } }, 2500);
+}
+
+/* ----- events ----- */
+function apcClick(el) {
+  const act = el.dataset.apc, v = el.dataset.apcV, brand = el.dataset.apcB, id = el.dataset.apcS;
+  if (act === 'view') { if (APC.view === v) return null; APC.view = v; APC.f = ''; APC.prevOpen = ''; APC.built = false; return apcDraw(); }
+  if (act === 'f') { APC.f = APC.f === v ? '' : v; APC.limit = APC_STEP; APC.flat = APC_FLAT_STEP; return apcDraw(); }      // a card: press again to clear it
+  if (act === 'chip') { APC.f = v || ''; APC.limit = APC_STEP; APC.flat = APC_FLAT_STEP; APC.docs = APC_DOC_STEP; return apcDraw(); }
+  if (act === 'grp') return apcToggle(v, el);
+  if (act === 'openall') { apcGroups(apcBuild()).forEach(x => APC.open.add(x.f.fk)); APC.limit = APC_STEP_OPEN; return apcDraw(); }
+  if (act === 'closeall') { APC.open.clear(); APC.limit = APC_STEP; return apcDraw(); }
+  if (act === 'more') return apcMore();
+  if (act === 'csv') return apcDownload(false);
+  if (act === 'csvdocs') return apcDownload(true);
+  if (act === 'ok') return apcOkSetMany([fcKey(brand, id)]);
+  if (act === 'undo') return apcOkUndo(brand, id);
+  if (act === 'tick') { const k = fcKey(brand, id); if (APC.sel.has(k)) APC.sel.delete(k); else APC.sel.add(k); return apcSelPaint(); }
+  if (act === 'selfam') {
+    const x = apcGroups(apcBuild()).find(y => y.f.fk === v);
+    const keys = x ? x.rows.filter(p => p.bucket !== 'live' && p.bucket !== 'none').map(p => p.key) : [];
+    const allOn = keys.length && keys.every(k => APC.sel.has(k));
+    keys.forEach(k => (allOn ? APC.sel.delete(k) : APC.sel.add(k)));
+    return apcSelPaint();
+  }
+  if (act === 'bclear') { APC.sel.clear(); return apcSelPaint(); }
+  if (act === 'bok') return apcOkSetMany([...APC.sel]);
+  if (act === 'prev') return apcPreview(v, el.dataset.apcAt);
+  if (act === 'prevagain') return apcPreview(v, APC.prevOpen, true);
+  if (act === 'prevclose') { APC.prevOpen = ''; return apcDrawKeep(); }
+  if (act === 'copy') return apcCopy(v, el.dataset.apcId);
+  return null;
+}
+function apcFilter(el) {
+  const k = el.dataset.apcF;
+  if (k === 'stock') { APC.stock = !!el.checked; APC.sel.clear(); }
+  else APC[k] = el.value;
+  APC.limit = apcStep();
+  APC.flat = APC_FLAT_STEP;
+  APC.docs = APC_DOC_STEP;
+  clearTimeout(APC.qT);
+  if (k === 'q') APC.qT = setTimeout(apcDraw, 200);
+  else apcDraw();
+}
+/** Opening the page: the saved snapshots (read once), the marks, then draw. Nothing is asked of Amazon. */
+async function apcOpen() {
+  apcShell();
+  apcDraw();
+  if (APC.loaded || APC.loading) return;
+  APC.loading = true;
+  apcDraw();
+  try {
+    if (typeof lmEnsure === 'function') await lmEnsure();
+    if (typeof loadParentNames === 'function') await loadParentNames();
+    if (typeof H_LOADED !== 'undefined' && !H_LOADED && typeof loadHealthCache === 'function') await loadHealthCache();
+    for (const b of ['SP', 'CPC']) if (typeof IML !== 'undefined' && !(b in IML) && typeof imListLoad === 'function') await imListLoad(b);
+    apcOkLoad();
+    // sales and sessions Sellora already keeps (saved documents, never Amazon): they land when read and the page draws again
+    const side = () => { APC.sideV++; if (apcPaneOn()) apcDrawKeep(); };
+    if (typeof SALES30 !== 'undefined' && !SALES30.at && typeof loadSales30 === 'function') loadSales30().then(side).catch(() => {});
+    if (typeof WEEKLY !== 'undefined' && !Object.keys(WEEKLY.rows || {}).length && typeof loadWeekly === 'function') loadWeekly().then(side).catch(() => {});
+  } catch (e) {
+    APC.err = 'Could not read the snapshots: ' + ((e && e.message) || e);
+  }
+  APC.loading = false;
+  APC.loaded = true;
+  apcDraw();
+}
+const apcPaneOn = () => { const pane = $('paneAplus'); return !!(pane && !pane.classList.contains('hide')); };
+if (typeof document !== 'undefined' && document.addEventListener && $('apcPane')) {
+  $('apcPane').addEventListener('click', e => {
+    const el = e.target && e.target.closest ? e.target.closest('[data-apc]') : null;
+    if (el && !el.disabled && !(el.tagName === 'TR' && e.target.closest('a,button,input'))) apcClick(el);
+  });
+  $('apcPane').addEventListener('keydown', e => {
+    const t = e.target && e.target.dataset ? e.target : null;
+    if (t && (e.key === 'Enter' || e.key === ' ') && t.dataset.apc === 'grp' && t.tagName !== 'BUTTON') { e.preventDefault(); apcClick(t); }
+  });
+  $('apcPane').addEventListener('change', e => { if (e.target && e.target.dataset && e.target.dataset.apcF && e.target.dataset.apcF !== 'q') apcFilter(e.target); });
+  $('apcPane').addEventListener('input', e => { if (e.target && e.target.dataset && e.target.dataset.apcF === 'q') apcFilter(e.target); });
+  // a preview picture Amazon does not serve under that address is simply not shown
+  $('apcPane').addEventListener('error', e => { if (e.target && e.target.classList && e.target.classList.contains('apc-pimg')) e.target.style.display = 'none'; }, true);
+  if (typeof window !== 'undefined' && window.addEventListener) window.addEventListener('resize', () => { if (apcPaneOn()) apcStick(); });
+  const pane = $('paneAplus');
+  if (pane && typeof MutationObserver === 'function') new MutationObserver(() => { if (!pane.classList.contains('hide')) apcOpen(); }).observe(pane, { attributes: true, attributeFilter: ['class'] });
+}
+
+/* ----- the numbers, and THE PROOF (the browser console) ----- */
+/** aplusCounts(): per brand — products, each status, stuck, the sales without A+, the documents, when A+ was read and with how many
+ *  calls — on the data this page holds, with "Stock > 0 only" as it is set. Open A+ Content once first (it reads the snapshots). */
+function aplusCounts() {
+  const model = apcBuild();
+  const out = {};
+  ['SP', 'CPC'].forEach(b => {
+    const rows = model.rows.filter(p => p.c.brand === b);
+    const n = k => rows.filter(p => p.bucket === k).length;
+    const st = model.state[b];
+    out[fcBrandName(b)] = { products: rows.length, live: n('live'), waiting: n('waiting'), stuck: rows.filter(p => p.stuck && p.bucket === 'waiting').length, draft: n('draft'), rejected: n('rejected'), missing: n('missing'),
+      noAplusNeeded: n('none'), notChecked: n('unchecked'), salesWithoutAplus30d: model.salesAt ? Math.round(rows.filter(p => APC_FIX.includes(p.bucket)).reduce((s, p) => s + (p.sales || 0), 0)) : 'sales not pulled',
+      documents: st.docs, aplusRead: st.atText || 'not read', oldData: st.old || st.stale, callsOfThatRead: st.calls, stockOnly: APC.stock };
+  });
+  if (typeof console !== 'undefined' && console.table) console.table(out);
+  return out;
+}
+/** aplusAccuracyReport({ n: 10 }): up to n products per status per brand, the biggest sellers first, checked against Amazon's A+ API NOW —
+ *  the publish record of the ASIN (and of its parent) and, for a product with a document, that document's own status and ASIN list.
+ *  Prints SKU · Sellora says · Amazon says · MATCH / DIFFERENT and returns { rows, match, different, unread }. It reads Amazon (a person
+ *  starts it): about n ASINs + their documents per status per brand. */
+async function aplusAccuracyReport(opts) {
+  opts = opts || {};
+  const per = Number(opts.n) || 10;
+  const model = apcBuild();
+  const out = [];
+  for (const b of ['SP', 'CPC']) {
+    if (opts.brand && opts.brand !== b) continue;
+    const picks = [];
+    ['live', 'waiting', 'draft', 'rejected', 'missing'].forEach(st => {
+      model.rows.filter(p => p.c.brand === b && p.st === st && p.c.asin).sort((x, y) => (y.sales || 0) - (x.sales || 0)).slice(0, per).forEach(p => picks.push(p));
+    });
+    // the publish records: 10 ASINs a call, each product's own ASIN and its parent's
+    const pub = {};
+    const asins = [...new Set(picks.flatMap(p => [p.c.asin, p.g.f.pa].filter(a => /^[A-Z0-9]{10}$/.test(String(a || '')))))];
+    for (let i = 0; i < asins.length; i += 10) {
+      try { const r = await baCall({ lh: 'aplusasin', brand: b, asins: asins.slice(i, i + 10).join(',') }); Object.assign(pub, (r && r.map) || {}); } catch (e) { /* those stay unread */ }
+    }
+    const docs = new Map();
+    for (const p of picks) {
+      let d = null;
+      if (p.doc) {
+        if (!docs.has(p.doc.k)) { try { docs.set(p.doc.k, await baCall({ lh: 'aplusdoc', brand: b, doc: p.doc.k, asins: 1 })); } catch (e) { docs.set(p.doc.k, { ok: false, error: String((e && e.message) || e) }); } }
+        d = docs.get(p.doc.k);
+      }
+      const own = pub[p.c.asin], par = p.g.f.pa ? pub[p.g.f.pa] : undefined;
+      const page = own === true || par === true ? true : own === false && (par === false || !p.g.f.pa) ? false : null;      // A+ on the page: yes / no / could not tell
+      const dSt = d && d.ok !== false ? apcStatusOf(d.status) : '';
+      const on = d && d.ok !== false && Array.isArray(d.asins) ? d.asins.includes(p.c.asin) || (!!p.g.f.pa && d.asins.includes(p.g.f.pa)) : null;
+      let verdict, amazon;
+      if (p.st === 'missing') { amazon = page === null ? 'publish record could not be read' : page ? 'A+ published on the page' : 'no A+ published'; verdict = page === null ? 'NOT READ' : page ? 'DIFFERENT' : 'MATCH'; }
+      else {
+        amazon = (d && d.ok !== false ? `document ${d.status}${on === null ? '' : on ? ', this ASIN on it' : ', this ASIN NOT on it'}` : 'document could not be read') + (page === null ? '' : page ? ' · A+ published on the page' : ' · no A+ published');
+        if (!d || d.ok === false) verdict = 'NOT READ';
+        else if (dSt !== p.st || on === false) verdict = 'DIFFERENT';
+        else if (p.st === 'live' && page === false) verdict = 'DIFFERENT';
+        else verdict = 'MATCH';
+      }
+      out.push({ brand: fcBrandName(b), SKU: p.c.sku, ASIN: p.c.asin, 'Sellora says': APC_ST[p.st].t + (p.doc ? ` — “${p.doc.n}”` : ''), 'Amazon says': amazon, result: verdict });
+    }
+  }
+  const sum = { rows: out, match: out.filter(r => r.result === 'MATCH').length, different: out.filter(r => r.result === 'DIFFERENT').length, unread: out.filter(r => r.result === 'NOT READ').length };
+  if (typeof console !== 'undefined') {
+    if (console.table) console.table(out);
+    console.log(`A+ accuracy: ${sum.match} MATCH · ${sum.different} DIFFERENT · ${sum.unread} not read — of ${out.length} products (A+ read ${['SP', 'CPC'].map(b => fcBrandName(b) + ' ' + (model.state[b].atText || 'never')).join(', ')})`);
+  }
+  return sum;
+}
+if (typeof window !== 'undefined') { window.aplusCounts = aplusCounts; window.aplusAccuracyReport = aplusAccuracyReport; }
 
 /* ####################################################################################################
  * GROUP: src/app/research/

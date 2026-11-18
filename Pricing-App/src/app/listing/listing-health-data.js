@@ -563,6 +563,12 @@ $('hGo').onclick = async () => {
     try {
       for (const brand of ['SP', 'CPC']) {
         if (!HEALTH[brand]?.rows?.length) continue;
+        /* NOT ONE BY ONE WHEN THE DAILY A+ READ HAS IT (18 Nov 2026): ListingMatch reads every A+ document and its ASINs once a day;
+         * while that read is fresh, Listing Health's A+ answer comes from it (lrAplus → lmAplusOf) and this sweep is not needed. */
+        if (typeof lmAplusFresh === 'function' && lmAplusFresh(brand)) {
+          notes.push(`${BRAND_NAME[brand]}: A+ from the daily A+ read (${lmAplusState(brand).atText}) — not asked one by one.`);
+          continue;
+        }
         /* A+ IS ASKED AGAIN (2026-10-03, Ravi: "A+ wala bhi theek kar do"). An answer used to be final: once a listing
          * read "A+ missing" it stayed missing after the A+ went live. Now: never asked first, then the ones that read
          * MISSING (oldest answer first — those are the ones on a fix-it list), then the ones that have it, oldest first.
@@ -763,6 +769,7 @@ function hHealthUntil(h, now) {
   let until = Infinity;
   h.found.forEach(hit => { if (hit.sev === 'critical' && hit.at > 0 && now <= hit.at + LR_STALE_DAYS * LR_DAY) until = Math.min(until, hit.at + LR_STALE_DAYS * LR_DAY + 1); });
   const ap = h.aplus;
+  if (ap && ap.until) until = Math.min(until, ap.until);       // a publish record that stops counting on a known day (lrAplus)
   if (ap && ap.v === false && ap.at > 0) {
     const staleAt = ap.at + LR_APLUS_DAYS * LR_DAY;
     if (now <= staleAt) until = Math.min(until, staleAt + 1);

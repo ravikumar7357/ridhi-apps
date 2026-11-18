@@ -865,6 +865,8 @@ async function liWsJob(job) {
 // The A+ reads a set of listings needs: the parent ASIN and every child's ASIN whose answer is missing, older than a day, or a
 // "no A+" older than LR_APLUS_DAYS (asked again before it counts) — unless `force`. Ten ASINs a call. Returns the jobs' units.
 function liWsAplusJobs(brand, parent, kids, pk, force, extra) {
+  // The daily A+ read answers (lrAplus → lmAplusOf): nothing is asked one by one — unless a person pressed Read again (force)
+  if (!force && typeof lmAplusFresh === 'function' && lmAplusFresh(brand)) return 0;
   const cut = Date.now() - LI_WS_DAY;
   const apCut = Date.now() - LR_APLUS_DAYS * LI_WS_DAY;
   const map = LI_WS.aplus[brand];

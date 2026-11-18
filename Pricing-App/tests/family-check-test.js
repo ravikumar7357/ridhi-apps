@@ -501,7 +501,7 @@ const ready = async opts => { const C = setup(opts); await C.fcOpen(); await flu
     ok('a family Amazon could not be read for: grey "not read" boxes, none counted as visible', /is-g">not read</.test(hu) && /<b>0 of \d+<\/b> sizes visible/.test(hu) && !/>Linked</.test(hu), strip(hu.slice(hu.indexOf('fc-map'), hu.indexOf('fc-map') + 400)));
     await flushAll(U);
     const css = fs.readFileSync(path.join(__dirname, '..', 'src', 'styles.css'), 'utf8');
-    const mine = css.split(/\r?\n/).filter(l => /#paneFam \.fc-(map|par|kids?|nums|revs|chip\.is-ok)/.test(l));
+    const mine = css.split(/\r?\n/).filter(l => /:is\(#paneFam,#paneAplus\) \.fc-(map|par|kids?|nums|revs|chip\.is-ok)/.test(l));   // (18 Nov 2026: the same rules dress the A+ Content pane too)
     ok('the picture uses the theme colours only (light + dark): no fixed colours', mine.length >= 10 && mine.every(l => !/#[0-9a-f]{3,6}\b|rgb\(/i.test(l)));
   }
 
@@ -517,7 +517,7 @@ const ready = async opts => { const C = setup(opts); await C.fcOpen(); await flu
     const allowed = ['Pricing-App/src/styles.css', 'Pricing-App/src/app/listing/family-check.js'];
     ok('only this screen\'s file and its CSS changed — no backend, no rules, no other screen', changed.every(f => allowed.includes(f)), changed.join(', '));
     const html = fs.readFileSync(path.join(__dirname, '..', 'src', 'index.html'), 'utf8');
-    ok('menu: column 2 · Check, right after BSR Audit', /<button id="tabBsr" class="nav">BSR Audit<\/button>\r\n      <button id="tabFam" class="nav">Family &amp; Category Check<\/button><\/div>/.test(html));
+    ok('menu: column 2 · Check, right after BSR Audit (A+ Content follows it since 18 Nov 2026)', /<button id="tabBsr" class="nav">BSR Audit<\/button>\r\n      <button id="tabFam" class="nav">Family &amp; Category Check<\/button>\r\n      <button id="tabAplus" class="nav">A\+ Content<\/button><\/div>/.test(html));
     ok('the file is CRLF', !/(^|[^\r])\n/.test(SRC));
   }
 

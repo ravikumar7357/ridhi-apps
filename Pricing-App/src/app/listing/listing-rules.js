@@ -821,6 +821,20 @@ function lrPictures(row, ctx) {
  *  publish record (the Workspace's answers first, then the Health snapshot's: the row's own and HEALTH[brand].parentAplus). Never
  *  asked, or the parent not asked yet: not judged. A "missing" answer older than LR_APLUS_DAYS is `stale` and asked again first. */
 function lrAplus(row, ctx) {
+  const pub = lrAplusPub(row, ctx);
+  /* THE A+ DOCUMENTS FIRST (18 Nov 2026): ListingMatch reads every A+ document and its ASINs once a day (listing-match.js lmAplusOf).
+   * While that read is fresh and can say for this ASIN, it is the answer — an approved document on the listing or its parent = A+,
+   * none approved = no A+ — and nothing is read one by one. Missing, old (over 30 h) or unsure: the publish records below, as before.
+   * One guard: the documents say "none live" but a publish record read in the last LR_APLUS_DAYS days says A+ is on the page — the page
+   * wins until that record is old (`until`: the moment the answer changes; the kept checks are judged again then). */
+  const doc = typeof lmAplusOf === 'function' ? lmAplusOf(row.brand, row.asin, row.parent) : null;
+  if (!doc) return pub;
+  if (doc.v === true) return doc;
+  if (pub.v === true && pub.at > 0 && Date.now() - pub.at <= LR_APLUS_DAYS * LR_DAY) return Object.assign({}, pub, { until: pub.at + LR_APLUS_DAYS * LR_DAY + 1 });
+  return doc;
+}
+// A+ from the publish records Sellora read one ASIN at a time (?lh=aplusasin): the answer before the daily A+ read, and its fallback.
+function lrAplusPub(row, ctx) {
   const ws = (ctx.wsAplus && ctx.wsAplus[row.brand]) || {};
   const saved = (ctx.parentAplus && ctx.parentAplus[row.brand]) || {};
   const newer = (a, b) => (a && b ? ((a.at || 0) >= (b.at || 0) ? a : b) : a || b || null);
@@ -1022,7 +1036,8 @@ function hCtx(rowsAll) {
   // --- reuse the last context while nothing it depends on has changed ---
   const withContent = rows.reduce((count, row) => count + (row.content ? 1 : 0), 0);
   const pcV = typeof PC !== 'undefined' ? PC.v : 0;          // the Picture check marks (picture-check.js): a new mark judges again
-  const lmV = typeof lmVersion === 'function' ? lmVersion() + ':' + (lmOk('SP') ? 1 : 0) + (lmOk('CPC') ? 1 : 0) : '';   // the ListingMatch cache (listing-match.js)
+  const lmV = typeof lmVersion === 'function' ? lmVersion() + ':' + (lmOk('SP') ? 1 : 0) + (lmOk('CPC') ? 1 : 0)
+    + (typeof lmAplusFresh === 'function' ? ':' + (lmAplusFresh('SP') ? 1 : 0) + (lmAplusFresh('CPC') ? 1 : 0) : '') : '';   // the ListingMatch cache (listing-match.js), and its daily A+ read
   const key = [rows.length, withContent, LR_CAT.SP ? 1 : 0, LR_CAT.CPC ? 1 : 0, AMZ.at, ws ? 1 : 0, pcV, lmV,
     ['SP', 'CPC'].map(b => (HEALTH[b] && HEALTH[b].parentAplusAt) || 0).join(',')].join('|');
   if (H_CTX && H_CTX.cfg === cfg && H_CTX.sp === HEALTH.SP && H_CTX.cpc === HEALTH.CPC && H_CTX.key === key
