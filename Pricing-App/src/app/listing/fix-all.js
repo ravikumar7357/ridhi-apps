@@ -321,32 +321,79 @@ function faPlanOf(g, kid, ctx) {
   keep.set(g.key, { sig, plan });
   return plan;
 }
-/* SMOOTH (18 Nov 2026): the first open of a big parent works out every child's fix (a title fix runs every send check and the rules
- * twice: ~0.1–0.2 s for ~490 children). In a browser that is done a slice at a time (≤ 30 ms) while the block says "Working out the
- * fixes…", then the block is drawn (faRedraw) — the same faPlanOf, so the same plans; only that block waits, nothing else. */
+/* THE OPEN PARENT FIRST, THEN THE REST OF THE BRAND (18 Nov 2026). The first open of a big parent works out every child's fix (a title
+ * fix builds the title and runs every rule twice: ~0.1–0.2 s for ~490 children). In a browser that is done a slice at a time (≤ 30 ms)
+ * while the block says "Working out the fixes for 469 children of Tablecloth Main…" — that parent's children only — and the block is drawn
+ * with its Fix all buttons the moment they are ready (faRedraw). THEN the rest of the brand is worked out in the background, in small
+ * slices with a pause between (the biggest parents first, the brand's title list for Listing Errors before them), so the next parent
+ * opens at once. A parent opened meanwhile goes first again: one worker (faWork), the open parent's job before any background job. The
+ * same faPlanOf / ttFamilyStep as a draw without slices, so the same plans; nothing is sent or read from Amazon. */
 const FA_WARM_MIN = 40;          // fewer plans than this to work out: just draw
-let FA_WARM = null;
+const FA_SLICE_MS = 30;          // the open parent: slices of this long, one after another
+const FA_BG_SLICE_MS = 12;       // the rest of the brand: smaller slices…
+const FA_BG_GAP_MS = 40;         // …with this pause between them (the page stays quick to use)
+const FA_W = { pri: null, bg: [], running: false, bgFor: null, slices: 0 };   // pri: { key, it, done } — the open parent's job; bg: the others
 const faCanWarm = () => typeof requestAnimationFrame === 'function' && typeof document !== 'undefined' && !!document.body && typeof performance !== 'undefined';
 function faColdN(groups, ctx) {
   let n = 0;
   groups.forEach(g => { const sig = faPlanSig(g, ctx); g.kids.forEach(kid => { if (!faPlanKept(g, kid, sig)) n++; }); });
   return n;
 }
-function faWarm(groups, ctx) {
-  if (FA_WARM) return FA_WARM;
-  FA_WARM = (async () => {
+// One parent's fixes as steps: its children, its rows, its family's titles (title-fix.js, a listing a step), each child's plan.
+function* faParentSteps(brand, parent, groups) {
+  if (!groups) {
+    const kids = faKids(brand, parent);
+    yield;
+    groups = faGroups(brand, parent, kids);
+    yield;
+  }
+  if (typeof ttFamilyStep === 'function' && groups.some(g => g.kind === 'ttl')) while (!ttFamilyStep(brand, parent)) yield;
+  const ctx = hCtx();
+  for (const g of groups) for (const kid of g.kids) { faPlanOf(g, kid, ctx); yield; }
+}
+// The one worker: a slice of the open parent's job if there is one, else of the next background job; then it lets the page breathe.
+function faWork() {
+  if (FA_W.running) return;
+  FA_W.running = true;
+  (async () => {
     try {
-      const jobs = groups.flatMap(g => g.kids.map(kid => [g, kid]));
-      let i = 0;
-      while (i < jobs.length) {
+      for (;;) {
+        const job = FA_W.pri || FA_W.bg[0];
+        if (!job) break;
+        const pri = job === FA_W.pri;
         const t0 = performance.now();
-        while (i < jobs.length && performance.now() - t0 < 30) { const [g, kid] = jobs[i++]; faPlanOf(g, kid, ctx); }
-        if (i < jobs.length) await new Promise(resolve => setTimeout(resolve, 0));
+        let end = false;
+        try {
+          while (performance.now() - t0 < (pri ? FA_SLICE_MS : FA_BG_SLICE_MS)) if (job.it.next().done) { end = true; break; }
+        } catch (e) { end = true; }     // a step that fails ends its job: the block then draws (and says) what it can
+        FA_W.slices++;
+        if (end) {
+          if (pri) { FA_W.pri = null; job.done(); } else FA_W.bg.shift();
+        }
+        await new Promise(resolve => setTimeout(resolve, FA_W.pri ? 0 : FA_BG_GAP_MS));
       }
-    } finally { FA_WARM = null; }
-    faRedraw();
+    } finally { FA_W.running = false; }
   })();
-  return FA_WARM;
+}
+// The open parent's fixes, first: drawn the moment they are ready, then the rest of its brand in the background.
+function faWarmParent(brand, parent, groups) {
+  const key = brand + '|' + parent;
+  if (FA_W.pri && FA_W.pri.key === key) return;
+  FA_W.pri = { key, it: faParentSteps(brand, parent, groups), done: () => { faRedraw(); faBgStart(brand, parent); } };
+  faWork();
+}
+// The rest of the brand, in the background — once per rules and data (hCtx): the brand's title list (Listing Errors' card, the panels'
+// rows), then every other parent, the biggest first (the slowest to open).
+function faBgStart(brand, parent) {
+  if (!faCanWarm() || typeof HEALTH === 'undefined' || !HEALTH[brand]) return;
+  const ctx = hCtx();
+  if (FA_W.bgFor && FA_W.bgFor.brand === brand && FA_W.bgFor.ctx === ctx) return;
+  FA_W.bgFor = { brand, ctx };
+  const n = new Map();
+  (HEALTH[brand].rows || []).forEach(row => { const p = row.parent || row.asin || row.sku || '—'; n.set(p, (n.get(p) || 0) + 1); });
+  FA_W.bg = [...n.entries()].filter(([p]) => p !== parent).sort((a, b) => b[1] - a[1]).map(([p]) => ({ key: brand + '|' + p, it: faParentSteps(brand, p) }));
+  if (typeof ttRowsStep === 'function') FA_W.bg.unshift({ key: brand + '|titles', it: (function* () { while (!ttRowsStep(brand)) yield; })() });
+  faWork();
 }
 
 /* ----- the block ----- */
@@ -422,13 +469,17 @@ function faBlockInner(brand, parent, kids) {
   const pk = brand + '|' + parent;
   const card = (cls, num, words) => `<div class="fa-card ${cls}${num ? '' : ' is-zero'}"><b>${faNf(num)}</b><span>${words}</span></div>`;
   const cards = `<div class="fa-cards">${card('is-err', n.err, 'problems to fix first')}${card('is-att', n.att, 'need attention')}${card('is-ok', n.ok, n.ok === 1 ? 'child with no problem' : 'children with no problem')}</div>`;
-  // SMOOTH (18 Nov 2026): many fixes not worked out yet (the first open of a big parent) — a slice at a time first (faWarm), this block says so
+  // many fixes not worked out yet (the first open of a big parent): THIS parent's first, a slice at a time (faWarmParent), and the block
+  // says so — "Working out the fixes for 469 children of Tablecloth Main…" (each child once, however many rows it is in); once they are
+  // ready (or already were), the rest of the brand in the background (faBgStart)
   if (faCanWarm()) {
-    const cold = FA_WARM ? FA_WARM_MIN : faColdN(groups, ctx);
+    const cold = FA_W.pri && FA_W.pri.key === pk ? FA_WARM_MIN : faColdN(groups, ctx);
     if (cold >= FA_WARM_MIN) {
-      faWarm(groups, ctx);
-      return `<section class="fa" aria-label="This parent's problems">${cards}<div class="fa-waitl" role="status">⏳ Working out the fixes for ${faKidsN(groups.reduce((s, g) => s + g.kids.length, 0))}…</div></section>`;
+      faWarmParent(brand, parent, groups);
+      const n = new Set(groups.flatMap(g => g.kids.map(faKidKey))).size;
+      return `<section class="fa" aria-label="This parent's problems">${cards}<div class="fa-waitl" role="status">⏳ Working out the fixes for ${faKidsN(n)} of ${lrEsc(faCut(faWhoName(brand, parent), 60))}…</div></section>`;
     }
+    faBgStart(brand, parent);
   }
   const row = g => {
     const gk = pk + '|' + g.key;
