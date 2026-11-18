@@ -196,7 +196,7 @@ const seeded = () => { const db = makeDb(); db.store['history/lsync_state'] = { 
   {
     T += 4 * MIN;
     const line = strip(A.C.lyLineHtml(T));
-    ok('"Synced 4 min ago · N listings changed since 9 AM · next sync in 11 min" + Sync now', /^Synced 4 min ago · \d+ listings? changed since 9 AM · next sync in 11 min Sync now$/.test(line), line);
+    ok('"Synced 4 min ago · N listings changed since 9 AM · next sync ~11 AM" + Sync now', /^Synced 4 min ago · \d+ listings? changed since 9 AM · next sync ~11(:0\d)? AM Sync now$/.test(line), line);
     const changes = db.store['history/lsync_state'].changes;
     const has = (sku, w) => changes.some(c => c.s === sku && c.w === w);
     // G10 has stock and no BUYABLE: "not buyable" (THE ONE RULE, 16 Nov) — no longer called "suppressed"
@@ -214,7 +214,7 @@ const seeded = () => { const db = makeDb(); db.store['history/lsync_state'] = { 
     await A.C.lyBeat();
     await B.C.lyBeat();
     const lineB = strip(B.C.lyLineHtml(T));
-    ok('the other browser shows the same line (from the database)', lineB === strip(A.C.lyLineHtml(T)) && /^Synced 5 min ago · \d+ listings? changed since 9 AM · next sync in 10 min Sync now$/.test(lineB), lineB + ' ‖ A: ' + strip(A.C.lyLineHtml(T)));
+    ok('the other browser shows the same line (from the database)', lineB === strip(A.C.lyLineHtml(T)) && /^Synced 5 min ago · \d+ listings? changed since 9 AM · next sync ~11(:0\d)? AM Sync now$/.test(lineB), lineB + ' ‖ A: ' + strip(A.C.lyLineHtml(T)));
     await B.C.lySyncNow();
     ok('Sync now in a follower asks the leader (want in the database) and says so', db.store['history/lsync_state'].want === T && /asked — the syncing browser starts within a minute/.test(strip(B.C.lyLineHtml(T))));
     A.calls.list.length = 0;
@@ -222,6 +222,36 @@ const seeded = () => { const db = makeDb(); db.store['history/lsync_state'] = { 
     ok('…the leader starts a cycle at its next beat', !!A.C.LY.run || A.calls.list.length > 0);
     await idle(A.C);
     ok('…which reads B🟢 F🔴 first: L5 (L4 is now shown fixed)', /^(get|limg):L5$/.test(A.calls.list.find(c => !c.startsWith('content:')) || ''), A.calls.list.slice(0, 6).join(' '));
+  }
+
+  console.log('== every 2 hours, only 9 AM – 7 PM (17 Nov 2026) ==');
+  {
+    const keepT = T;
+    const at = (d, h, m) => new Date(2026, 10, d, h, m || 0).getTime();
+    const db2 = makeDb();
+    db2.store['history/lsync_state'] = { kind: 'lsync', last: { at: at(15, 10), n: 0, done: true, end: at(15, 10) }, day: '2026-11-15', dayAt: at(15, 9), changes: [] };
+    const X = browser(db2, {});
+    T = at(15, 11, 59); await X.C.lyBeat(); await idle(X.C);
+    ok('1 h 59 min after the last sync: no automatic sync', X.calls.n === 0, String(X.calls.n));
+    T = at(15, 12, 1); await X.C.lyBeat(); await idle(X.C);
+    ok('2 hours after: an automatic sync runs', X.calls.n > 0, String(X.calls.n));
+    const db3 = makeDb();
+    db3.store['history/lsync_state'] = { kind: 'lsync', last: { at: at(15, 16), n: 0, done: true, end: at(15, 16) }, day: '2026-11-15', dayAt: at(15, 9), changes: [] };
+    const Y = browser(db3, {});
+    T = at(15, 19, 30); await Y.C.lyBeat(); await idle(Y.C);
+    ok('7:30 PM, 3 h after the last: no sync after 7 PM', Y.calls.n === 0, String(Y.calls.n));
+    ok('…and the line says the next one is tomorrow at 9 AM', /next sync tomorrow ~9 AM/.test(strip(Y.C.lyLineHtml(T))), strip(Y.C.lyLineHtml(T)));
+    T = at(16, 3); await Y.C.lyBeat(); await idle(Y.C);
+    ok('3 AM: no sync at night', Y.calls.n === 0, String(Y.calls.n));
+    T = at(16, 9, 1); await Y.C.lyBeat(); await idle(Y.C);
+    ok('9:01 AM next day: the first sync of the day runs', Y.calls.n > 0, String(Y.calls.n));
+    const db4 = makeDb();
+    db4.store['history/lsync_state'] = { kind: 'lsync', last: { at: at(15, 16), n: 0, done: true, end: at(15, 16) }, day: '2026-11-15', dayAt: at(15, 9), changes: [] };
+    const Z = browser(db4, {});
+    T = at(15, 21); await Z.C.lyBeat();
+    await Z.C.lySyncNow(); await Z.C.lyBeat(); await idle(Z.C);
+    ok('Sync now still works outside the hours (9 PM)', Z.calls.n > 0, String(Z.calls.n));
+    T = keepT;
   }
 
   console.log('== the test site (saving off): this browser syncs for itself only ==');
