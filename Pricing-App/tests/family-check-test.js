@@ -510,7 +510,7 @@ const ready = async opts => { const C = setup(opts); await C.fcOpen(); await flu
     const assigns = SRC.match(/\b(HEALTH|IML|LR_CAT|LI_WS|AMZ|H_CTX|H_LOADED|LR|SP|LH|SQ)\s*(\[[^\]]*\])*\s*(\.\w+)*\s*=(?!=)/g) || [];
     ok('family-check.js never writes Listing Health / Image Manager / catalogue / Workspace / planner state', !assigns.length, assigns.join(' | '));
     ok('the only backend calls: ?lfix=cat and ?lfix=get (reads); sends only through sqSendWithCheck', (SRC.match(/baCall\(\{ lfix: '(\w+)'/g) || []).every(m => /'cat'|'get'/.test(m)) && !/imPost|lfix: 'patch'[^]{0,40}baCall/.test(SRC));
-    ok('the search waits 250 ms after typing', /FC_T = setTimeout\(fcDrawAll, 250\)/.test(SRC));
+    ok('the search waits 200 ms after typing (18 Nov 2026: every Listing search box, results within 300 ms)', /FC_T = setTimeout\(fcDrawAll, 200\)/.test(SRC));
     const root = path.join(__dirname, '..', '..');
     let changed = [];
     try { changed = cp.execSync('git diff --name-only HEAD -- Pricing-App/src Pricing-App/firestore.rules Pricing-API', { cwd: root, encoding: 'utf8' }).split(/\r?\n/).filter(Boolean); } catch (e) { changed = ['(git not available)']; }

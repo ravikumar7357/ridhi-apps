@@ -1145,6 +1145,7 @@ function imListRender() {
   /* NO PAGES: every family's header is drawn (one small picture each); an open family draws its rows in blocks as they come near the
    * screen (imRowsHtml / imChunksWatch). One Ridhi parent holds 455 children: never cut at a page edge. */
   IM_ROWS.clear();
+  const firstN = imFirstGroups(el, groups.length);   // SMOOTH: the families that fill the screen now, the rest in the next frames (imLaterGroups)
   // --- the number cards (they replace the old grey summary line), the clipboard bar, the groups ---
   imqSeed(brand);
   const cards = `<div id="imCards" class="im-boxes" role="group" aria-label="Filter the listings">${imCardsHtml(imCardsData(data.items), filter)}</div>`;
@@ -1161,7 +1162,7 @@ function imListRender() {
       <details class="im-key"><summary>Key</summary>${IM_LEGEND}</details></div>
     ${IM_CLIP ? '<div id="imBulk" class="muted" style="font-size:12px;margin-bottom:8px"></div>' : ''}
     ${empty}
-    ${groups.map(group => imGroupHtml(group)).join('')}
+    ${groups.slice(0, firstN).map(group => imGroupHtml(group)).join('')}
     <div id="imSelBar" class="im-selbar" role="status"${IM_SEL.size && !IM_CLIP ? '' : ' hidden'}>${imSelBarHtml()}</div>
     ${imClipBar('list')}`;
   // --- the buttons in what was just drawn (rows drawn later, in blocks, are wired when drawn) ---
@@ -1174,6 +1175,39 @@ function imListRender() {
   // --- tiles whose size is not known yet are measured when they come on screen (image-quality.js); rows drawn as they come near ---
   imqWatch(el);
   imChunksWatch(el);
+  imLaterGroups(el, groups.slice(firstN));
+}
+/* SMOOTH (18 Nov 2026): A LONG LIST OF FAMILIES IS DRAWN A SCREENFUL FIRST. Every family card is still drawn — the ones that fill the
+ * screen (and a margin; as far down as the person has scrolled) at once, the others IM_LATER_STEP at a time in the next frames, each
+ * part wired like the first (imRowsWire / imClipWire / imqWatch / imChunksWatch). A new draw of the list cancels the parts still to come.
+ * Without a browser (the tests) every family is drawn at once, as before. */
+const IM_FIRST = 25;             // families drawn at once at least
+const IM_LATER_STEP = 30;        // families per later frame
+let IM_LATER = 0;                // the draw the parts still to come belong to
+const imProgressive = el => typeof requestAnimationFrame === 'function' && typeof document !== 'undefined' && !!document.body && !!el && typeof el.insertAdjacentHTML === 'function';
+function imFirstGroups(el, n) {
+  if (!imProgressive(el) || !el.querySelectorAll) return n;
+  const bottom = (window.innerHeight || 900) + 1200;
+  let shown = 0;
+  for (const card of el.querySelectorAll('.im-grp')) { if (card.getBoundingClientRect().top < bottom) shown++; else break; }
+  return Math.min(n, Math.max(IM_FIRST, shown + 5));
+}
+function imLaterGroups(el, rest) {
+  const mine = ++IM_LATER;
+  if (!rest.length || !imProgressive(el)) return;
+  const step = () => {
+    if (mine !== IM_LATER) return;                                 // the list was drawn again since
+    const drawn = el.querySelectorAll(':scope > .im-grp');          // after the last family drawn, exactly where the whole list puts them
+    const last = drawn[drawn.length - 1];
+    if (!last) return;
+    last.insertAdjacentHTML('afterend', rest.splice(0, IM_LATER_STEP).map(group => imGroupHtml(group)).join(''));
+    imRowsWire(el);
+    imClipWire(el);
+    imqWatch(el);
+    imChunksWatch(el);
+    if (rest.length) requestAnimationFrame(() => setTimeout(step, 0));
+  };
+  requestAnimationFrame(() => setTimeout(step, 0));
 }
 // The buttons of the rows in `root` (the list, a family card, a block of rows): Copy all / live, a tile's Copy, Paste here, ticks, Edit.
 function imRowsWire(root) {
@@ -1997,7 +2031,7 @@ const imListAgain = () => {
 };
 $('imQ').addEventListener('input', () => {
   clearTimeout(IML_T);
-  IML_T = setTimeout(imListAgain, 250);
+  IML_T = setTimeout(imListAgain, 200);
 });
 $('imQ').addEventListener('keydown', e => {
   if (e.key === 'Enter') {

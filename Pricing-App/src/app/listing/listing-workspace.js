@@ -158,7 +158,7 @@ function liWsSrc(kind, at, brand) {
 // First time on: the health snapshot and the rules, then both brands' Image Manager snapshots — through their own loaders.
 async function liWsLoad() {
   if (LI_WS.loading) return;
-  if (H_LOADED && LR && ('SP' in IML) && ('CPC' in IML)) return liWsDraw();
+  if (H_LOADED && LR && ('SP' in IML) && ('CPC' in IML)) return typeof hColdMany === 'function' && hColdMany() ? void hWarm().then(liWsDraw) : liWsDraw();
   LI_WS.loading = true;
   liWsDraw();
   try {
@@ -264,7 +264,9 @@ function liWsChild(row, brand, hc, imlMap, now) {
   //     itself — lrFresh / lrFacts in listing-rules.js — so a listing not read here gets exactly the Parent ASINs answer and a
   //     read one gets it on fresher data: the catalogue's pictures, A+ on the parent, the live content) ---
   const scored = Object.assign({}, row, { brand });
-  const h = healthOf(scored, hc);
+  // SMOOTH (18 Nov 2026): the checks Listing Health already kept for this very row (hHealthKept, the same healthOf behind the same
+  // signature) — switching Parent ASINs → Workspace no longer judges every listing a second time.
+  const h = typeof hHealthKept === 'function' ? hHealthKept(row, scored, hc, now) : healthOf(scored, hc);
   const fresh = h.fresh;
   // Not live, but stock and Inactive, suppressed or an Amazon error (an Error in Listing Rules): counted — it is the first thing to fix.
   const urgent = !live && h.bucket === 'critical' && h.found.some(hit => hit.sev === 'critical' && LI_WS_URGENT.includes(hit.detector));
@@ -1875,6 +1877,8 @@ function liWsSchedule() {
 // The timer fired: draw, unless the person scrolled since it was set — then wait for the scrolling to stop.
 function liWsTick() {
   if (Date.now() - LI_WS.scrollAt < LI_WS_SCROLL_MS) return liWsSchedule();
+  // SMOOTH (18 Nov 2026): many listings to judge again (a refresh, a newer ListingMatch copy) — Listing Health's slices first, then the draw
+  if (typeof hColdMany === 'function' && hColdMany()) return void hWarm().then(liWsSchedule);
   liWsDraw();
 }
 // Workspace on: mark the pane and the button, show the box, load, draw. Listing Health's own table stays drawn underneath,
@@ -1922,7 +1926,7 @@ $('hFilter').addEventListener('input', () => {
   LI_WS.filterT = setTimeout(() => {
     liWsReset();
     liWsSchedule();
-  }, 250);
+  }, 200);
 });
 // Listing Health rewrote its table — a refresh finished, the catalogue or Amazon's status arrived — so the listings may have changed.
 new MutationObserver(liWsSchedule).observe($('hTable'), { childList: true });

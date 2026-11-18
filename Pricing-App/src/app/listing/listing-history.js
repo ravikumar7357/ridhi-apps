@@ -22,7 +22,9 @@ const LH_RESULT = { accepted: '✅ Accepted', rejected: '❌ Rejected', working:
 let LH = { rows: null, loading: false, err: '', built: false, page: 0, open: new Set(), busy: new Set(),
   f: { range: 'week', from: '', to: '', user: '', what: '', screen: '', result: '', q: '' } };
 const lhEsc = s => String(s == null ? '' : s).replace(/[<>&"]/g, ch => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[ch]));
-const lhNf = n => Number(n || 0).toLocaleString('en-US');
+// SMOOTH (18 Nov 2026): one number format made once — the same text as toLocaleString('en-US'), which makes a new one per number
+const LH_NUM = new Intl.NumberFormat('en-US');
+const lhNf = n => LH_NUM.format(Number(n || 0));
 
 /* ----- reading the log ----- */
 // Every listing log row, newest first: the documents whose day field is set (the log's own), newest day first; each row knows its document.

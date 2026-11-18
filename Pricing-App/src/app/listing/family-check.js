@@ -63,7 +63,9 @@ let FC = { tab: 'fam', brand: 'ALL', q: '', card: '', built: false, loading: fal
   newer: false, newT: 0,        // a newer saved snapshot exists ("New data available — Refresh"); the 5-minute check
   reading: new Map(), reads: { q: [], inflight: 0, bgIn: 0, fails: 0 }, view: null, drawT: 0 };   // reading: fk → catalog calls still out
 const fcEsc = s => String(s == null ? '' : s).replace(/[<>&"]/g, ch => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[ch]));
-const fcNf = n => Number(n || 0).toLocaleString('en-US');
+// SMOOTH (18 Nov 2026): one number format made once — the same text as toLocaleString('en-US'), which makes a new one per number
+const FC_NUM = new Intl.NumberFormat('en-US');
+const fcNf = n => FC_NUM.format(Number(n || 0));
 const fcKey = (brand, sku) => brand + '|' + sku;
 const fcNorm = v => String(v == null ? '' : v).trim().toLowerCase().replace(/\s+/g, ' ');
 const fcBrandName = b => (typeof BRAND_NAME !== 'undefined' && BRAND_NAME[b]) || b;
@@ -1152,7 +1154,7 @@ function fcFilter(el) {
   FC[k] = el.value;
   FC.limit = FC_STEP;
   clearTimeout(FC_T);
-  if (k === 'q') FC_T = setTimeout(fcDrawAll, 250);
+  if (k === 'q') FC_T = setTimeout(fcDrawAll, 200);
   else fcDrawAll();
 }
 /** Opening the page: the snapshots Sellora already holds (read once), the saved marks, then draw — every family closed — and Amazon's catalog

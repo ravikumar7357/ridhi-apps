@@ -1296,8 +1296,7 @@
   /* families */
   #paneImg .card.im-grp{padding:0;overflow:hidden;border-radius:var(--r-card);border:1px solid var(--card-line);box-shadow:var(--sh-1)}
   #paneImg .im-grp-h{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0;padding:12px 16px;background:var(--soft,var(--card));border-bottom:1px solid var(--line)}
-  #paneImg .im-grp.is-folded .im-grp-h{border-bottom:0}
-  #paneImg .im-fold{flex:none;display:grid;place-items:center;width:28px;height:28px;min-height:0;margin:0;padding:0;border:1px solid var(--line);border-radius:8px;
+  #paneImg .im-grp.is-folded .im-grp-h{border-bottom:0}  #paneImg .im-fold{flex:none;display:grid;place-items:center;width:28px;height:28px;min-height:0;margin:0;padding:0;border:1px solid var(--line);border-radius:8px;
     background:var(--card);color:var(--muted);font-size:13px;cursor:pointer;box-shadow:none}
   #paneImg .im-fold:hover{color:var(--ink);background:var(--hover)}
   #paneImg .im-grp-t{flex:1 1 260px;min-width:0;display:flex;flex-direction:column;gap:2px}
@@ -2820,6 +2819,8 @@
   /* One child in the Listings tab: picture, SKU, status, its problems as tags; the open one shows its own problems under it. */
   #paneHealth .ls-kid{display:grid;grid-template-columns:36px minmax(0,1fr) auto;align-items:center;gap:4px 10px;width:100%;margin:0;padding:9px 16px;border:0;
     border-top:1px solid var(--line);border-radius:0;background:transparent;color:var(--ink);font:inherit;text-align:left;box-shadow:none;cursor:pointer;transition:background .15s ease}
+  /* SMOOTH (18 Nov 2026): a parent of ~490 children — the browser lays out only the rows on screen (the others keep their place) */
+  #paneHealth .ls-kids>.ls-kid{content-visibility:auto;contain-intrinsic-size:auto 52px}
   #paneHealth .ls-kid:first-child{border-top:0}
   #paneHealth .ls-kid:hover,#paneHealth .ls-kid[aria-expanded="true"]{background:var(--hover);color:var(--ink)}
   #paneHealth .ls-kid:focus-visible{outline:none;box-shadow:inset 0 0 0 2px var(--ring-line)}
@@ -3325,6 +3326,7 @@
   /* The children as compact card-rows, no gaps: picture · Colour · Size · Pack (what we'll do, SKU small grey) · state chip · one button. */
   .sp-rows{border:1px solid var(--card-line);border-radius:12px;overflow:hidden;background:var(--card)}
   .sp-row{display:grid;grid-template-columns:36px minmax(0,1fr) auto auto;align-items:center;gap:4px 10px;min-height:56px;padding:8px 12px;border-top:1px solid var(--line);cursor:pointer}
+  .sp-row{content-visibility:auto;contain-intrinsic-size:auto 56px}   /* SMOOTH: only the rows on screen are laid out */
   .sp-row:first-child{border-top:0}
   .sp-row:hover{background:var(--hover)}
   .sp-row:focus-visible{outline:none;box-shadow:inset 0 0 0 2px var(--ring-line)}
@@ -10633,7 +10635,20 @@ const lrWords = str => String(str || '').split(',').map(word => word.trim()).fil
  *  Inches = Inch; Grey = Gray; Colour = Color; Table Cloth / Table-Cloth = Tablecloth; Cushion Cover = Pillow Cover;
  *  Block-Print / Blockprint / Block Printed / Hand Block Printed = Block Print; and a plural reads as its singular
  *  (Covers = Cover, Napkins = Napkin). Both sides of every comparison go through it, so what is compared is the meaning. */
+// SMOOTH (17 Nov 2026): the same text is read the same way thousands of times a draw (every rule, every listing): the answer is kept
+// per text (a pure function — the same text always gives the same answer), at most LR_NORM_MAX texts, then the store starts again.
+const LR_NORM_KEEP = new Map();
+const LR_NORM_MAX = 50000;
 function lrNorm(text) {
+  const key = String(text || '');
+  const kept = LR_NORM_KEEP.get(key);
+  if (kept !== undefined) return kept;
+  if (LR_NORM_KEEP.size >= LR_NORM_MAX) LR_NORM_KEEP.clear();
+  const out = lrNormNow(key);
+  LR_NORM_KEEP.set(key, out);
+  return out;
+}
+function lrNormNow(text) {
   return String(text || '').toLowerCase()
     .replace(/[-,|]+/g, ' ')
     .replace(/&/g, ' and ')
@@ -10757,8 +10772,10 @@ function lrSameTitle(a, b) {
 }
 /** Search-term bytes the way Amazon counts them (Part A4): the UTF-8 bytes of the words only — spaces and the punctuation
  *  ; , . do not count toward the limit. */
+const LR_ASCII = /^[\x00-\x7f]*$/;
 function lrKwBytes(text) {
   const words = String(text || '').replace(/[\s;,.]+/g, '');
+  if (LR_ASCII.test(words)) return words.length;          // plain letters and digits: one byte each (the same count, without encoding)
   return typeof TextEncoder === 'function' ? new TextEncoder().encode(words).length : Buffer.byteLength(words, 'utf8');
 }
 /* THE ONE SEARCH-TERMS RULE — Listing Health's keyword_bytes check and the Listing Optimiser's review both judge with lrKwCheck.
@@ -10811,18 +10828,39 @@ const lrSizeText = (size, example) => {
   return nums.join(' x ') + ' ' + (String(example || '14 x 36 Inch').replace(/^[\d.\sx]+/i, '') || 'Inch');
 };
 /** Occasions to ADD today (lrSeasonState active), in the order they fall. */
+// SMOOTH (17 Nov 2026): the same for every listing on one day — kept per day and calendar (the calendar's own words are the key, so an
+// edit in Listing Rules is seen at once); a fresh copy each time.
+const LR_OCC_KEEP = new Map();
 function lrOccasionsNow(cfg, today) {
+  const key = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()) + '|' + JSON.stringify(cfg.events || []);
+  let kept = LR_OCC_KEEP.get(key);
+  if (!kept) {
+    if (LR_OCC_KEEP.size > 40) LR_OCC_KEEP.clear();
+    kept = lrOccasionsNowCalc(cfg, today);
+    LR_OCC_KEEP.set(key, kept);
+  }
+  return kept.slice();
+}
+function lrOccasionsNowCalc(cfg, today) {
   return (cfg.events || []).map(e => ({ e, s: lrSeason(e, today, cfg.events), st: lrSeasonState(e, today, cfg.events) })).filter(each => each.st.active)
     .sort((a, b) => a.s.next - b.s.next).map(each => each.e.name.replace(/'s$/, "'s"));
 }
 /** The parts a template asks for, filled from what this SKU is. */
-function lrParts(row, tpl, cfg, today) {
+// SMOOTH (17 Nov 2026): one judging pass (one hCtx — rebuilt after every Listing Rules edit) asks for today's occasions once, not once
+// per listing: kept on the context with the rules and the day it was worked out for.
+function lrCtxOcc(ctx) {
+  const k = ctx._occ;
+  if (k && k.cfg === ctx.cfg && k.today === ctx.today) return k.list;
+  ctx._occ = { cfg: ctx.cfg, today: ctx.today, list: lrOccasionsNow(ctx.cfg, ctx.today) };
+  return ctx._occ.list;
+}
+function lrParts(row, tpl, cfg, today, occ) {
   const cat = lrCatOf(row) || {};
   const example = ((cfg.issues || []).find(issue => issue.detector === 'size_format') || {}).params;   // the size_format rule's settings
   return {
     brand: lrBrandName(row, cfg), product: tpl.product || '', shape: lrShape(cat.subcat),
     material: tpl.material || '', size: lrSizeText(cat.size, example && example.example), pattern: tpl.pattern || '',
-    uses: tpl.uses || '', occasions: lrOccasionsNow(cfg, today).join(' '), color: cat.color || '',
+    uses: tpl.uses || '', occasions: (occ || lrOccasionsNow(cfg, today)).join(' '), color: cat.color || '',
   };
 }
 /** The title the template would write for this listing. */
@@ -10978,7 +11016,7 @@ const LR_DET = {
     const tpl = lrTemplateFor(row, ctx.cfg);
     if (!title || !tpl) return '';
     const low = lrNorm(title);                      // the title and every part read the same way (Part A2)
-    const parts = lrParts(row, tpl, ctx.cfg, ctx.today);
+    const parts = lrParts(row, tpl, ctx.cfg, ctx.today, lrCtxOcc(ctx));
     const need = lrWords(tpl.required || 'brand,product,size,color');
     // --- where each required part sits in the title: -2 nothing to look for, -1 missing, else its position ---
     const where = key => {
@@ -11553,7 +11591,7 @@ const LR_FIX_TEXT = {
   title_template: (hit, row, ctx) => {
     const tpl = lrTemplateFor(row, ctx.cfg);
     if (!tpl) return 'Write the title the way its template says.';
-    const parts = lrParts(row, tpl, ctx.cfg, ctx.today);
+    const parts = lrParts(row, tpl, ctx.cfg, ctx.today, lrCtxOcc(ctx));
     const need = lrWords(tpl.required || 'brand,product,size,color');
     const order = String(tpl.template).match(/\{(\w+)\}/g).map(token => token.slice(1, -1)).filter(key => need.includes(key));
     const orderWords = order.map(key => lrPartWords(key, {}).replace(/^the /, '')).join(', ');
@@ -12702,10 +12740,12 @@ async function ensureHealth() {
       if (!$('paneHealth').classList.contains('hide')) hRedraw();
     });
   });
-  if (H_LOADED) return renderHealth();
+  // SMOOTH (18 Nov 2026): the first draw judges every listing — in slices first (hWarm), behind the skeleton rows
+  if (H_LOADED) { if (hColdMany()) { hSkeleton(); await hWarm(); } return renderHealth(); }
   hMsg('Loading the last snapshot…');
   hSkeleton();
   await loadHealthCache();
+  if (hColdMany()) await hWarm();
   hMsg('');
   renderHealth();
 }
@@ -12740,7 +12780,14 @@ function hMetaRender(brands, view) {
 /* The toolbar sticks under Sellora's menu bar, like PPC & Organic · New's. The bar's height is measured, not assumed: it wraps onto
  * a second line on narrower screens, and on phones it is a drawer (not sticky), so the offset goes to 0. The card is marked while
  * it is stuck (flat top corners, a deeper shadow). */
+// SMOOTH (18 Nov 2026): measured in the next frame, just before the browser lays the page out anyway — not straight after a draw,
+// where reading the toolbar's place forced a second layout of the whole page (30–45 ms a draw). Several calls in one frame are one.
+let H_STICK_RAF = 0;
 function hStick() {
+  if (typeof requestAnimationFrame !== 'function' || typeof document === 'undefined' || !document.body) return hStickNow();
+  if (!H_STICK_RAF) H_STICK_RAF = requestAnimationFrame(() => { H_STICK_RAF = 0; hStickNow(); });
+}
+function hStickNow() {
   try {
     const pane = $('paneHealth');
     const bar = $('hToolbar');
@@ -12765,6 +12812,7 @@ function hRedraw() {
   clearTimeout(H_REDRAW_T);
   H_REDRAW_T = setTimeout(() => {
     if (Date.now() - H_SCROLL_AT < H_SCROLL_MS) return hRedraw();
+    if (hColdMany()) return void hWarm().then(hRedraw);       // SMOOTH: many listings to judge again — in slices first, then the draw
     H_KEEP = true;
     try {
       renderHealth();
@@ -12826,7 +12874,9 @@ function hHealthBar(score) {
     + `<rect class="ls-hbar-t" x="0" y="0" width="100" height="6" rx="3"/><rect class="ls-hbar-f" x="0" y="0" width="${n}" height="6" rx="3"/></svg><b>${n}</b></span>`;
 }
 // A count as a pill in its level's colour (is-c / is-a / is-r / is-g), a zero faint.
-const hPill = (n, cls) => (n ? `<span class="ls-pill ${cls}">${Number(n).toLocaleString('en-US')}</span>` : '<span class="ls-zero">0</span>');
+// SMOOTH (18 Nov 2026): one number format made once — the same text as toLocaleString('en-US'), which makes a new one per number
+const H_NUM = new Intl.NumberFormat('en-US');
+const hPill = (n, cls) => (n ? `<span class="ls-pill ${cls}">${H_NUM.format(Number(n))}</span>` : '<span class="ls-zero">0</span>');
 // Why: up to 3 problems in words on one line — a dot in the level's colour and the problem's name — then "+n more", which opens the
 // child's sidebar (listing-kid.js) with every problem, how to fix it and Fix. The row stays one even 44px line.
 function hWhyCell(row) {
@@ -13247,11 +13297,14 @@ $('hGo').onclick = async () => {
 // Typing must not rebuild the table on every keystroke — at catalogue size each rebuild is a quarter
 // of a second, so an 8-letter SKU used to cost eight of them back to back and the box felt frozen.
 let H_FILTER_T = 0;
+// SMOOTH (18 Nov 2026): while the Workspace shows, this table is hidden and the Workspace's own listener on the same box redraws the
+// Workspace (listing-workspace.js) — typing or a brand pick no longer also builds the hidden table. Parent / Child draw it when it shows.
+const hDrawShown = () => { if (typeof LI_WS !== 'undefined' && LI_WS.on) return; renderHealth(); };
 $('hFilter').addEventListener('input', () => {
   clearTimeout(H_FILTER_T);
-  H_FILTER_T = setTimeout(renderHealth, 250);
+  H_FILTER_T = setTimeout(hDrawShown, 200);
 });
-$('hBrandView').addEventListener('change', renderHealth);
+$('hBrandView').addEventListener('change', hDrawShown);
 $('hIssueView').addEventListener('change', renderHealth);
 // Each view gets its own sensible default sort; carrying the other view's sort key over would land
 // on a column that doesn't exist there.
@@ -13289,11 +13342,12 @@ function hFocusBar(brands) {
     bar.innerHTML = '';
     return;
   }
-  const kids = ((HEALTH[H_FOCUS.brand] && HEALTH[H_FOCUS.brand].rows) || [])
-    .filter(row => (row.parent || row.asin || row.sku) === H_FOCUS.parent).map(row => Object.assign({}, row, { brand: H_FOCUS.brand }));
+  const srcs = ((HEALTH[H_FOCUS.brand] && HEALTH[H_FOCUS.brand].rows) || []).filter(row => (row.parent || row.asin || row.sku) === H_FOCUS.parent);
+  const kids = srcs.map(row => Object.assign({}, row, { brand: H_FOCUS.brand }));
   const hc = hCtx();
+  const now = Date.now();
   const counts = { critical: 0, action: 0, review: 0, healthy: 0, monitor: 0, unchecked: 0 };
-  kids.forEach(row => { counts[healthOf(row, hc).bucket]++; });
+  kids.forEach((row, i) => { counts[hHealthKept(srcs[i], row, hc, now).bucket]++; });
   const name = parentName(H_FOCUS.brand, H_FOCUS.parent, kids[0] && kids[0].title);
   bar.classList.remove('hide');
   // The header card of the open parent (the look, 6 Nov 2026): back, picture, name, ASIN · brand · children, Ravi's four counts as pills.
@@ -13314,6 +13368,87 @@ function hFocusBar(brands) {
 }
 
 // Draw the Listing Health table in the current view (parent or child) with the brand, issue and search filters, then the KPI cards.
+/* SMOOTH (18 Nov 2026): A LISTING IS JUDGED ONCE, NOT ON EVERY CLICK. Every sort, filter, view switch and open parent drew the table
+ * again and ran every rule over all ~4,400 listings (0.3–1.5 s of frozen page). Now a listing's checks are kept with the snapshot row
+ * they came from, beside everything they read — the Workspace's own list (liWsChildSig: the rules context, the Image Manager item, the
+ * catalogue, the live read and its dates, the schema, A+, the row's stock / status / content, the minute) plus the row's other fields —
+ * and judged again the moment any of it changes. The same answer healthOf gives; only the repeat work is gone. */
+const H_KEPT = new WeakMap();   // snapshot row → { sig, health, until }
+// The data the checks read (the clock is not in it: liWsChildSig is asked with time 0, and `until` below stands for the clock).
+function hHealthSig(src, row, hc) {
+  const brand = row.brand;
+  const base = typeof liWsChildSig === 'function' && LI_WS.live[brand] ? liWsChildSig(src, brand, hc, (hc.iml && hc.iml[brand]) || new Map(), 0) : null;
+  return base && base.concat([brand, src.sku, src.asin, src.parent, src.title, src.titleFull, src.price, src.opened, src.tried]);
+}
+/* The moment a listing's checks could next read differently with nothing else changed — healthOf reads the clock in two places only:
+ * an Error turns "Error? Check again" when its data is older than LR_STALE_DAYS, and a "no A+" answer is stale once older than
+ * LR_APLUS_DAYS (and then says how many days old it is, rounded). Until that moment the kept checks are exactly what healthOf gives. */
+function hHealthUntil(h, now) {
+  let until = Infinity;
+  h.found.forEach(hit => { if (hit.sev === 'critical' && hit.at > 0 && now <= hit.at + LR_STALE_DAYS * LR_DAY) until = Math.min(until, hit.at + LR_STALE_DAYS * LR_DAY + 1); });
+  const ap = h.aplus;
+  if (ap && ap.v === false && ap.at > 0) {
+    const staleAt = ap.at + LR_APLUS_DAYS * LR_DAY;
+    if (now <= staleAt) until = Math.min(until, staleAt + 1);
+    else until = Math.min(until, ap.at + (Math.floor((now - ap.at) / LR_DAY + 0.5) + 0.5) * LR_DAY);   // the rounded day count ticks over
+  }
+  return until;
+}
+/* SMOOTH (18 Nov 2026): THE BIG JUDGING IN SLICES. The first open, a refresh or a newer ListingMatch copy leaves most listings to judge
+ * again (~4,400: 0.3–1 s in one go). In a browser it is done first, ≤ 30 ms at a time with the page free in between, and the draw that
+ * follows finds every answer kept — the same hHealthKept, so the same answers; nothing else waits on it. */
+const H_WARM_MIN = 150;          // fewer listings than this to judge: just draw
+let H_WARM = null;               // the slices running now (one at a time)
+let H_WARM_DRAW = false;         // a draw of the table waits for them
+function hWarmList() {
+  return ['SP', 'CPC'].flatMap(brand => ((HEALTH[brand] && HEALTH[brand].rows) || []).map(src => [src, brand]));
+}
+// Are there many listings whose checks are not kept (or kept answers past their moment)?
+function hColdMany() {
+  if (!hProgressive() || H_WARM) return !!H_WARM;
+  const hc = hCtx();
+  const now = Date.now();
+  let cold = 0;
+  for (const [src, brand] of hWarmList()) {
+    const sig = hHealthSig(src, { brand }, hc);
+    if (!sig) continue;                                  // a listing that cannot be kept is judged by the draw itself, as before
+    const kept = H_KEPT.get(src);
+    if (kept && now < kept.until && kept.sig.length === sig.length && kept.sig.every((part, i) => part === sig[i])) continue;
+    if (++cold >= H_WARM_MIN) return true;
+  }
+  return false;
+}
+function hWarm() {
+  if (H_WARM) return H_WARM;
+  if (!hProgressive()) return Promise.resolve();
+  H_WARM = (async () => {
+    try {
+      const hc = hCtx();
+      const all = hWarmList();
+      let i = 0;
+      while (i < all.length) {
+        const t0 = performance.now();
+        while (i < all.length && performance.now() - t0 < 30) {
+          const [src, brand] = all[i++];
+          hHealthKept(src, Object.assign({}, src, { brand }), hc, Date.now());
+        }
+        if (i < all.length) await new Promise(resolve => setTimeout(resolve, 0));
+      }
+    } finally {
+      H_WARM = null;
+    }
+  })();
+  return H_WARM;
+}
+function hHealthKept(src, row, hc, now) {
+  const sig = src ? hHealthSig(src, row, hc) : null;
+  if (!sig) return healthOf(row, hc);
+  const kept = H_KEPT.get(src);
+  if (kept && now < kept.until && kept.sig.length === sig.length && kept.sig.every((part, i) => part === sig[i])) return kept.health;
+  const health = healthOf(row, hc);
+  H_KEPT.set(src, { sig, health, until: hHealthUntil(health, Date.now()) });
+  return health;
+}
 function renderHealth() {
   $('hViewParent').classList.toggle('on', H_VIEW === 'parent');
   $('hViewChild').classList.toggle('on', H_VIEW === 'child');
@@ -13326,13 +13461,22 @@ function renderHealth() {
     $('hTable').innerHTML = '';
     return;
   }
+  // SMOOTH (18 Nov 2026): many listings still to judge (the first open, new data): they are judged in slices first (hWarm) while the
+  // skeleton rows show, then this very draw — never one long freeze. Every draw asked for meanwhile is that one draw.
+  if (hColdMany()) {
+    if (!H_WARM_DRAW) { H_WARM_DRAW = true; hSkeleton(); hWarm().then(() => { H_WARM_DRAW = false; renderHealth(); }); }
+    return;
+  }
   const multiBrand = brands.length > 1;
+  const firstN = hFirstRows(H_PAGE);   // SMOOTH: how many rows fill the screen, read before anything on the page is written (no forced layout)
   hFocusBar(brands);
   // --- score every listing ---
-  let rows = brands.flatMap(brandKey => HEALTH[brandKey].rows.map(row => ({ ...row, brand: brandKey })));
+  const srcOf = new Map();   // each row's copy → the snapshot row it was copied from (what its kept checks are keyed on)
+  let rows = brands.flatMap(brandKey => HEALTH[brandKey].rows.map(row => { const copy = { ...row, brand: brandKey }; srcOf.set(copy, row); return copy; }));
   const hc = hCtx();
+  const now = Date.now();
   rows.forEach(row => {
-    const health = healthOf(row, hc);
+    const health = hHealthKept(srcOf.get(row), row, hc, now);
     row._h = health;
     row.score = health.score;
     row.grade = health.grade;
@@ -13493,9 +13637,12 @@ function renderHealth() {
   // Parent view leads with the parents that need the most work; child view with the worst listings.
   const sortDef = defs.find(def => def.k === H_SORT.k)
     || defs.find(def => def.k === (H_VIEW === 'parent' ? 'critical' : 'score'));
+  // SMOOTH (18 Nov 2026): each row's sort value worked out once, not twice per comparison (a parent's area column walks all its
+  // children) — the same values, the same stable sort, so the same order.
+  const sortVal = new Map(rows.map(row => [row, val(row, sortDef)]));
   rows.sort((a, b) => {
-    const x = val(a, sortDef);
-    const y = val(b, sortDef);
+    const x = sortVal.get(a);
+    const y = sortVal.get(b);
     const cmp = (typeof x === 'number' && typeof y === 'number') ? x - y : String(x || '').localeCompare(String(y || ''));
     return cmp * H_SORT.dir;
   });
@@ -13521,7 +13668,7 @@ function renderHealth() {
   // TOTAL row, the KPI cards and the CSV export are all computed over every filtered row.
   const shown = rows.slice(0, H_PAGE);
 
-  const fmtNum = value => (value == null || value === '' ? '<span class="muted">—</span>' : Number(value).toLocaleString('en-US'));
+  const fmtNum = value => (value == null || value === '' ? '<span class="muted">—</span>' : H_NUM.format(Number(value)));
   const money = value => (value ? '$' + Number(value).toFixed(2) : '<span class="muted">—</span>');
   const esc = str => String(str == null ? '' : str).replace(/[<>&"]/g, ch => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[ch]));
   const arrow = def => def.k === H_SORT.k ? (H_SORT.dir < 0 ? ' ↓' : ' ↑') : '';
@@ -13538,7 +13685,7 @@ function renderHealth() {
     const key = row.brand + '|' + row.sku;
     return `<tr class="ls-row${key === selKey ? ' is-open' : ''}" data-lk-row="${esc(key)}" tabindex="0" aria-selected="${key === selKey}" aria-label="${esc(row.sku)}: open its details">`;
   };
-  const body = shown.map(row => rowOpen(row) + defs.map(def => {
+  const rowHtml = row => rowOpen(row) + defs.map(def => {
     const value = val(row, def);
     const cls = (def.frz ? 'frz ' : '') + (def.num ? 'num' : '');
     if (def.cell) return `<td class="${cls}">${def.cell(row)}</td>`;
@@ -13549,7 +13696,7 @@ function renderHealth() {
     if (def.num) return `<td class="${cls}">${fmtNum(value)}</td>`;
     if (def.trunc) return `<td class="${cls}" title="${esc(value)}">${esc(String(value || '').slice(0, def.trunc))}</td>`;
     return `<td class="${cls}" style="${def.mono ? 'font-family:ui-monospace,monospace' : ''}">${esc(value) || '<span class="muted">—</span>'}</td>`;
-  }).join('') + '</tr>').join('');
+  }).join('') + '</tr>';
 
   // Only quantities are meaningful to add up — a summed score or price would be nonsense, so those
   // columns are marked noTotal and left blank in the footer.
@@ -13565,6 +13712,10 @@ function renderHealth() {
   const focusRow = active && active.closest && $('hTable').contains && $('hTable').contains(active) && active.closest('tr[data-lk-row]')
     ? active.closest('tr[data-lk-row]').dataset.lkRow : '';
   if ($('hTable').classList) $('hTable').classList.toggle('is-kids', H_VIEW === 'child');
+  // SMOOTH (18 Nov 2026): the rows on screen (and a margin) are drawn now; the rest of the H_PAGE rows follow in the next frames
+  // (hRestRows) — the same rows in the same order, the click no longer waits for 300 rows to be built and laid out.
+  const first = Math.min(shown.length, firstN);
+  const body = shown.slice(0, first).map(rowHtml).join('');
   $('hTable').innerHTML = head + '<tbody>' + (body ||
     `<tr><td colspan="${defs.length}" class="muted">No rows.</td></tr>`) + '</tbody>' + foot;
   if (focusRow) {
@@ -13601,27 +13752,79 @@ function renderHealth() {
       renderHealth();
     };
   });
-  if (H_VIEW === 'parent') {
-    wireParentNameCells('hTable', renderHealth);
-  }
-  $('hTable').querySelectorAll('[data-hsug]').forEach(el => {
-    el.onclick = () => {
-      const pair = el.dataset.hsug;                 // "brand|sku"
-      const sep = pair.indexOf('|');
-      hSugOpen(pair.slice(0, sep), pair.slice(sep + 1));
-    };
-  });
-  if (H_VIEW === 'parent') {
-    $('hTable').querySelectorAll('[data-hkid]').forEach(el => {
+  const shownView = H_VIEW;
+  const wireRows = () => {                         // the rows' own buttons — again for each part of the rows drawn later
+    if (shownView === 'parent') {
+      wireParentNameCells('hTable', renderHealth);
+    }
+    $('hTable').querySelectorAll('[data-hsug]').forEach(el => {
       el.onclick = () => {
-        const pair = el.dataset.hkid;               // "brand|parent"
+        const pair = el.dataset.hsug;                 // "brand|sku"
         const sep = pair.indexOf('|');
-        hFocusOpen(pair.slice(0, sep), pair.slice(sep + 1));
+        hSugOpen(pair.slice(0, sep), pair.slice(sep + 1));
       };
     });
-  }
+    if (shownView === 'parent') {
+      $('hTable').querySelectorAll('[data-hkid]').forEach(el => {
+        el.onclick = () => {
+          const pair = el.dataset.hkid;               // "brand|parent"
+          const sep = pair.indexOf('|');
+          hFocusOpen(pair.slice(0, sep), pair.slice(sep + 1));
+        };
+      });
+    }
+  };
+  wireRows();
+  hRestRows(shown.slice(first), rowHtml, wireRows, focusRow);
   // The child sidebar follows what was just drawn (closes in Parent ASINs; draws again when its listing's data changed).
   if (typeof lkSync === 'function') lkSync();
+}
+/* SMOOTH (18 Nov 2026): A LONG TABLE IS DRAWN A SCREENFUL FIRST. The rows on screen (and a margin) are drawn at once; the rest of the
+ * H_PAGE rows follow LS_REST_STEP at a time, one part per frame — so a click, a sort or a filter shows its first rows at once and the
+ * page never freezes for the whole table. The same rows in the same order in the end. Every new draw of a table cancels its parts still
+ * to come. Without a browser (the tests) every row is drawn at once, as before. Listing Health, BSR Audit and Listing Audit use it. */
+const LS_FIRST = 60;             // rows drawn at once at least (more when the table is scrolled down, so the place is kept)
+const LS_REST_STEP = 80;         // rows per later frame
+const LS_REST = new Map();       // table id → the draw its parts still to come belong to
+const lsProgressive = id => typeof requestAnimationFrame === 'function' && typeof document !== 'undefined' && !!document.body
+  && !!$(id) && typeof $(id).insertAdjacentHTML === 'function';
+const hProgressive = () => lsProgressive('hTable');
+// How many of the n rows to draw at once: a screenful of the card (desktop) or of the page (phone), from where it is scrolled to.
+function lsFirstRows(id, n) {
+  if (!lsProgressive(id)) return n;
+  const table = $(id);
+  const tr = table.querySelector('tbody tr');
+  const rowH = tr && tr.getBoundingClientRect && tr.getBoundingClientRect().height > 20 ? tr.getBoundingClientRect().height : 44;
+  const wrap = table.closest ? table.closest('.xlwrap') : null;
+  const inWrap = wrap ? wrap.scrollTop + wrap.clientHeight : 0;                                     // the card scrolls (desktop)
+  const inWin = (window.innerHeight || 900) - (table.getBoundingClientRect ? table.getBoundingClientRect().top : 0);   // the page scrolls (phone)
+  return Math.min(n, Math.max(LS_FIRST, Math.ceil(Math.max(inWrap, inWin) / rowH) + 20));
+}
+// The rows after the first ones, a part per frame: `after` runs after each part (the rows' own buttons), `done` after the last.
+function lsLaterRows(id, rest, rowHtml, after, done) {
+  const mine = (LS_REST.get(id) || 0) + 1;
+  LS_REST.set(id, mine);
+  if (!rest.length) return;
+  const step = () => {
+    if (LS_REST.get(id) !== mine) return;                          // the table was drawn again since
+    const tbody = $(id).querySelector('tbody');
+    if (!tbody) return;
+    tbody.insertAdjacentHTML('beforeend', rest.splice(0, LS_REST_STEP).map(rowHtml).join(''));
+    if (after) after();
+    if (rest.length) requestAnimationFrame(() => setTimeout(step, 0));
+    else if (done) done();
+  };
+  requestAnimationFrame(() => setTimeout(step, 0));
+}
+const hFirstRows = n => lsFirstRows('hTable', n);
+function hRestRows(rest, rowHtml, wireRows, focusRow) {
+  lsLaterRows('hTable', rest, rowHtml, () => {
+    wireRows();
+    if (focusRow && !$('hTable').contains(document.activeElement)) {
+      const again = $('hTable').querySelector(`tr[data-lk-row="${CSS.escape(focusRow)}"]`);
+      if (again) again.focus({ preventScroll: true });
+    }
+  }, () => { if (typeof lkRowMark === 'function' && typeof LK !== 'undefined' && LK.key) lkRowMark(); });   // a child opened meanwhile is marked on every row
 }
 
 /* ============================== FILE: src/app/listing/parent-check.js ============================== */
@@ -15367,7 +15570,7 @@ function renderAudit() {
     `<th data-k="${esc(def.k)}" class="${def.frz ? 'frz ' : ''}${def.num ? 'num' : ''}"${
       def.tip ? ` title="${esc(def.tip)}"` : ''}>${esc(def.t)}${arrow(def)}</th>`).join('') + '</tr></thead>';
 
-  const body = shown.map(row => '<tr>' + defs.map(def => {
+  const rowHtml = row => '<tr>' + defs.map(def => {
     const cls = (def.frz ? 'frz ' : '') + (def.num ? 'num' : '');
     if (def.cell) return `<td class="${cls}">${def.cell(row)}</td>`;
     if (def.docCol) {
@@ -15401,7 +15604,10 @@ function renderAudit() {
     if (def.num) return `<td class="${cls}">${fmtNum(value)}</td>`;
     if (def.trunc) return `<td class="${cls}" title="${esc(value)}">${esc(String(value || '').slice(0, def.trunc))}</td>`;
     return `<td class="${cls}" style="${def.mono ? 'font-family:ui-monospace,monospace' : ''}">${esc(value) || '<span class="muted">—</span>'}</td>`;
-  }).join('') + '</tr>').join('');
+  }).join('') + '</tr>';
+  // SMOOTH (18 Nov 2026): a screenful of rows now, the rest of the H_PAGE rows in the next frames (lsLaterRows, listing-health-data.js)
+  const first = typeof lsFirstRows === 'function' ? lsFirstRows('aTable', shown.length) : shown.length;
+  const body = shown.slice(0, first).map(rowHtml).join('');
 
   // Only counts and money are added up; the rest of the footer stays blank.
   const foot = rows.length ? '<tfoot><tr>' + defs.map((def, i) => {
@@ -15418,6 +15624,7 @@ function renderAudit() {
     + '</tbody>' + foot;
   const _tDom = performance.now();
 
+  if (typeof lsLaterRows === 'function') lsLaterRows('aTable', shown.slice(first), rowHtml);
   renderAuditKpis(rows);
   wireAuditTable();
   // Broken down on purpose: "slow" has four different cures depending on WHICH of these is big.
@@ -16057,10 +16264,10 @@ $('aFile').onchange = async e => {
 };
 
 /* ----- the filter box and the two view pickers redraw the grid ----- */
-// Typing is debounced: one redraw 250 ms after the last keystroke.
+// Typing is debounced: one redraw 200 ms after the last keystroke.
 $('aFilter').addEventListener('input', () => {
   clearTimeout(AUDIT_T);
-  AUDIT_T = setTimeout(renderAudit, 250);
+  AUDIT_T = setTimeout(renderAudit, 200);
 });
 let AUDIT_T = 0;                      // the pending redraw timer
 $('aBrandView').addEventListener('change', renderAudit);
@@ -16227,7 +16434,7 @@ function liWsSrc(kind, at, brand) {
 // First time on: the health snapshot and the rules, then both brands' Image Manager snapshots — through their own loaders.
 async function liWsLoad() {
   if (LI_WS.loading) return;
-  if (H_LOADED && LR && ('SP' in IML) && ('CPC' in IML)) return liWsDraw();
+  if (H_LOADED && LR && ('SP' in IML) && ('CPC' in IML)) return typeof hColdMany === 'function' && hColdMany() ? void hWarm().then(liWsDraw) : liWsDraw();
   LI_WS.loading = true;
   liWsDraw();
   try {
@@ -16333,7 +16540,9 @@ function liWsChild(row, brand, hc, imlMap, now) {
   //     itself — lrFresh / lrFacts in listing-rules.js — so a listing not read here gets exactly the Parent ASINs answer and a
   //     read one gets it on fresher data: the catalogue's pictures, A+ on the parent, the live content) ---
   const scored = Object.assign({}, row, { brand });
-  const h = healthOf(scored, hc);
+  // SMOOTH (18 Nov 2026): the checks Listing Health already kept for this very row (hHealthKept, the same healthOf behind the same
+  // signature) — switching Parent ASINs → Workspace no longer judges every listing a second time.
+  const h = typeof hHealthKept === 'function' ? hHealthKept(row, scored, hc, now) : healthOf(scored, hc);
   const fresh = h.fresh;
   // Not live, but stock and Inactive, suppressed or an Amazon error (an Error in Listing Rules): counted — it is the first thing to fix.
   const urgent = !live && h.bucket === 'critical' && h.found.some(hit => hit.sev === 'critical' && LI_WS_URGENT.includes(hit.detector));
@@ -17944,6 +18153,8 @@ function liWsSchedule() {
 // The timer fired: draw, unless the person scrolled since it was set — then wait for the scrolling to stop.
 function liWsTick() {
   if (Date.now() - LI_WS.scrollAt < LI_WS_SCROLL_MS) return liWsSchedule();
+  // SMOOTH (18 Nov 2026): many listings to judge again (a refresh, a newer ListingMatch copy) — Listing Health's slices first, then the draw
+  if (typeof hColdMany === 'function' && hColdMany()) return void hWarm().then(liWsSchedule);
   liWsDraw();
 }
 // Workspace on: mark the pane and the button, show the box, load, draw. Listing Health's own table stays drawn underneath,
@@ -17991,7 +18202,7 @@ $('hFilter').addEventListener('input', () => {
   LI_WS.filterT = setTimeout(() => {
     liWsReset();
     liWsSchedule();
-  }, 250);
+  }, 200);
 });
 // Listing Health rewrote its table — a refresh finished, the catalogue or Amazon's status arrived — so the listings may have changed.
 new MutationObserver(liWsSchedule).observe($('hTable'), { childList: true });
@@ -19429,7 +19640,9 @@ let SP = {
 };
 
 /* ----- small helpers ----- */
-const spNf = n => Number(n || 0).toLocaleString('en-US');
+// SMOOTH (18 Nov 2026): one number format made once — the same text as toLocaleString('en-US'), which makes a new one per number
+const SP_NUM = new Intl.NumberFormat('en-US');
+const spNf = n => SP_NUM.format(Number(n || 0));
 const spKey = (brand, sku) => brand + '|' + sku;
 const spToday = () => SP.today || new Date();   // SP.today: a fixed day for the tests
 const spCfg = () => LR || LR_DEFAULT;
@@ -20031,7 +20244,13 @@ function spCompute(today) {
   // change records): a read landing re-plans that one listing, not all of them.
   if (!SP.planKeep) SP.planKeep = new WeakMap();
   const hour = Math.floor(Date.now() / 3600000);
-  SP.items = ['SP', 'CPC'].flatMap(b => ((HEALTH[b] && HEALTH[b].rows) || []).map(raw => {
+  SP.items = ['SP', 'CPC'].flatMap(b => ((HEALTH[b] && HEALTH[b].rows) || []).map(raw => spPlanKept(raw, b, ctx, today, hour)));
+  SP.itemsKey = key;
+  return SP.items;
+}
+// One listing's plan: the one kept while nothing it reads has changed, else planned now and kept (spCompute, and spWarm before it).
+function spPlanKept(raw, b, ctx, today, hour) {
+  {
     const row = raw.brand ? raw : Object.assign({ brand: b }, raw);
     const live = typeof LI_WS !== 'undefined' && LI_WS.live[b] ? LI_WS.live[b][raw.sku] || null : null;
     const sch = live && live.pt && LI_WS.schema[b] ? LI_WS.schema[b][live.pt] || null : null;
@@ -20043,9 +20262,27 @@ function spCompute(today) {
     const item = spPlan(row, ctx, today, SP.log || []);
     SP.planKeep.set(raw, { sig, item });
     return item;
-  }));
-  SP.itemsKey = key;
-  return SP.items;
+  }
+}
+/* SMOOTH (18 Nov 2026): the first open plans every listing (~4,400: about a second). In a browser that is done here first, a slice at
+ * a time (≤ 40 ms, then the page breathes), while the planner shows "Reading your listings…"; spCompute then finds every plan kept.
+ * The same spPlanKept, so the same plans — only the one long freeze is gone. */
+const spCanWarm = () => typeof requestAnimationFrame === 'function' && typeof document !== 'undefined' && !!document.body && typeof performance !== 'undefined';
+async function spWarm() {
+  if (!spCanWarm()) return 0;
+  const today = spToday();
+  const ctx = hCtx();
+  const hour = Math.floor(Date.now() / 3600000);
+  if (!SP.planKeep) SP.planKeep = new WeakMap();
+  const all = ['SP', 'CPC'].flatMap(b => ((HEALTH[b] && HEALTH[b].rows) || []).map(raw => [raw, b]));
+  let i = 0;
+  let slices = 0;
+  while (i < all.length) {
+    const t0 = performance.now();
+    while (i < all.length && performance.now() - t0 < 40) { const [raw, b] = all[i++]; spPlanKept(raw, b, ctx, today, hour); }
+    if (i < all.length) { slices++; await new Promise(resolve => setTimeout(resolve, 0)); }
+  }
+  return slices;
 }
 // A listing to do: a season missing somewhere, an old one still shown, search words too long, or not read yet.
 const spToDo = item => item.kind === 'add' || item.kind === 'check';
@@ -21064,6 +21301,12 @@ async function spOn() {
     SP.loading = false;
     SP.itemsKey = '';
   }
+  // SMOOTH (18 Nov 2026): the first open plans every listing a slice at a time (spWarm) behind the same "Reading your listings…" cards
+  if (!SP.items && !SP.loadErr && H_LOADED && spCanWarm()) {
+    SP.loading = true;
+    spRender();
+    try { await spWarm(); } finally { SP.loading = false; }
+  }
   spRender();
   if (spCheckDue() && !SP.loadErr && H_LOADED) spCheckAll();   // the background refresh: only what is older than 24 h
 }
@@ -21224,14 +21467,14 @@ if (typeof document !== 'undefined' && document.addEventListener && $('spSwitch'
       spKidMove(e.key === 'ArrowDown' ? 1 : -1);
     }
   }, true);
-  // The search box (a quarter second after typing stops), and the Edit box (checks again as you type).
+  // The search box (200 ms after typing stops), and the Edit box (checks again as you type).
   let spQT = 0;
   document.addEventListener('input', e => {
     const t = e.target;
     if (!t) return;
     if (t.id === 'spQ') {
       clearTimeout(spQT);
-      spQT = setTimeout(() => { SP.q = t.value; SP.shown = SP_PAGE; spRender(); const again = $('spQ'); if (again) { again.focus(); again.setSelectionRange(again.value.length, again.value.length); } }, 250);
+      spQT = setTimeout(() => { SP.q = t.value; SP.shown = SP_PAGE; spRender(); const again = $('spQ'); if (again) { again.focus(); again.setSelectionRange(again.value.length, again.value.length); } }, 200);
       return;
     }
   });
@@ -21277,7 +21520,9 @@ let FA = {
   reading: new Set(),        // "brand|sku" whose values are being read for a spec copy
   hist: new Set(),           // "brand|parent" whose History is unfolded
 };
-const faNf = n => Number(n || 0).toLocaleString('en-US');
+// SMOOTH (18 Nov 2026): one number format made once — the same text as toLocaleString('en-US'), which makes a new one per number
+const FA_NUM = new Intl.NumberFormat('en-US');
+const faNf = n => FA_NUM.format(Number(n || 0));
 const faPl = (n, word) => `${faNf(n)} ${word}${n === 1 ? '' : 's'}`;
 const faCut = (text, n) => { const t = String(text == null ? '' : text); return t.length > n ? t.slice(0, n - 1).replace(/\s+\S*$/, '') + '…' : t; };
 const faKidKey = kid => kid.brand + '|' + kid.sku;
@@ -21405,7 +21650,7 @@ function faShortTitle(kid, ctx) {
   const before = hTitleText(row);
   const tpl = lrTemplateFor(row, ctx.cfg);
   if (!tpl) return { before, why: 'no title template for this product in Listing Rules' };
-  const parts = lrParts(row, tpl, ctx.cfg, ctx.today);
+  const parts = lrParts(row, tpl, ctx.cfg, ctx.today, typeof lrCtxOcc === 'function' ? lrCtxOcc(ctx) : undefined);
   const need = lrWords(tpl.required || 'brand,product,size,color');
   const lack = ['brand', 'product', 'size', 'color'].concat(need).filter((key, i, all) => all.indexOf(key) === i && !parts[key]);
   if (lack.length) return { before, why: `the catalogue has no ${lack.map(key => (key === 'color' ? 'colour' : key)).join(' or ')} for it` };
@@ -21535,16 +21780,50 @@ function faNeedVals(brand, skus) {
 // Every child's plan for one row (the rows' "Fix all N" count, the "Show all" list): kept per child until what it reads changes.
 const FA_PLAN_KEEP = new WeakMap();
 function faPlans(g, ctx) {
-  return g.kids.map(kid => {
-    const sig = [ctx, g.key, FA.valsV, g.attr || g.kind === 'kw' ? LI_WS.liveV : 0, g.attr ? g.all.length : 0, g.kind === 'kw' && typeof KF !== 'undefined' ? KF.full.size : 0];
-    let keep = FA_PLAN_KEEP.get(kid);
-    if (!keep) FA_PLAN_KEEP.set(kid, keep = new Map());
-    const was = keep.get(g.key);
-    if (was && was.sig.every((part, i) => part === sig[i])) return was.plan;
-    const plan = faPlan(g, kid, ctx);
-    keep.set(g.key, { sig, plan });
-    return plan;
-  });
+  return g.kids.map(kid => faPlanOf(g, kid, ctx));
+}
+// What one child's kept plan rests on; its plan kept while that is the same, else worked out now and kept.
+const faPlanSig = (g, ctx) => [ctx, g.key, FA.valsV, g.attr || g.kind === 'kw' ? LI_WS.liveV : 0, g.attr ? g.all.length : 0, g.kind === 'kw' && typeof KF !== 'undefined' ? KF.full.size : 0];
+function faPlanKept(g, kid, sig) {
+  const was = (FA_PLAN_KEEP.get(kid) || new Map()).get(g.key);
+  return was && was.sig.every((part, i) => part === sig[i]) ? was : null;
+}
+function faPlanOf(g, kid, ctx) {
+  const sig = faPlanSig(g, ctx);
+  const was = faPlanKept(g, kid, sig);
+  if (was) return was.plan;
+  let keep = FA_PLAN_KEEP.get(kid);
+  if (!keep) FA_PLAN_KEEP.set(kid, keep = new Map());
+  const plan = faPlan(g, kid, ctx);
+  keep.set(g.key, { sig, plan });
+  return plan;
+}
+/* SMOOTH (18 Nov 2026): the first open of a big parent works out every child's fix (a title fix runs every send check and the rules
+ * twice: ~0.1–0.2 s for ~490 children). In a browser that is done a slice at a time (≤ 30 ms) while the block says "Working out the
+ * fixes…", then the block is drawn (faRedraw) — the same faPlanOf, so the same plans; only that block waits, nothing else. */
+const FA_WARM_MIN = 40;          // fewer plans than this to work out: just draw
+let FA_WARM = null;
+const faCanWarm = () => typeof requestAnimationFrame === 'function' && typeof document !== 'undefined' && !!document.body && typeof performance !== 'undefined';
+function faColdN(groups, ctx) {
+  let n = 0;
+  groups.forEach(g => { const sig = faPlanSig(g, ctx); g.kids.forEach(kid => { if (!faPlanKept(g, kid, sig)) n++; }); });
+  return n;
+}
+function faWarm(groups, ctx) {
+  if (FA_WARM) return FA_WARM;
+  FA_WARM = (async () => {
+    try {
+      const jobs = groups.flatMap(g => g.kids.map(kid => [g, kid]));
+      let i = 0;
+      while (i < jobs.length) {
+        const t0 = performance.now();
+        while (i < jobs.length && performance.now() - t0 < 30) { const [g, kid] = jobs[i++]; faPlanOf(g, kid, ctx); }
+        if (i < jobs.length) await new Promise(resolve => setTimeout(resolve, 0));
+      }
+    } finally { FA_WARM = null; }
+    faRedraw();
+  })();
+  return FA_WARM;
 }
 
 /* ----- the block ----- */
@@ -21616,6 +21895,14 @@ function faBlockInner(brand, parent, kids) {
   const pk = brand + '|' + parent;
   const card = (cls, num, words) => `<div class="fa-card ${cls}${num ? '' : ' is-zero'}"><b>${faNf(num)}</b><span>${words}</span></div>`;
   const cards = `<div class="fa-cards">${card('is-err', n.err, 'problems to fix first')}${card('is-att', n.att, 'need attention')}${card('is-ok', n.ok, n.ok === 1 ? 'child with no problem' : 'children with no problem')}</div>`;
+  // SMOOTH (18 Nov 2026): many fixes not worked out yet (the first open of a big parent) — a slice at a time first (faWarm), this block says so
+  if (faCanWarm()) {
+    const cold = FA_WARM ? FA_WARM_MIN : faColdN(groups, ctx);
+    if (cold >= FA_WARM_MIN) {
+      faWarm(groups, ctx);
+      return `<section class="fa" aria-label="This parent's problems">${cards}<div class="fa-waitl" role="status">⏳ Working out the fixes for ${faKidsN(groups.reduce((s, g) => s + g.kids.length, 0))}…</div></section>`;
+    }
+  }
   const row = g => {
     const gk = pk + '|' + g.key;
     const plans = faPlans(g, ctx);
@@ -21868,7 +22155,9 @@ let SQ = { run: null };             // the popup's run: { jobs, opts, step: chec
 
 /* ----- small helpers ----- */
 const sqEsc = s => String(s == null ? '' : s).replace(/[<>&"]/g, ch => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[ch]));
-const sqNf = n => Number(n || 0).toLocaleString('en-US');
+// SMOOTH (18 Nov 2026): one number format made once — the same text as toLocaleString('en-US'), which makes a new one per number
+const SQ_NUM = new Intl.NumberFormat('en-US');
+const sqNf = n => SQ_NUM.format(Number(n || 0));
 const sqIsTest = () => typeof window !== 'undefined' && !!window.__TEST_ERP;
 const sqBy = () => (typeof ME !== 'undefined' && ME && ME.email) || '';
 // The name a person is known by, from the signed-in e-mail: "vishesh.g@…" → "Vishesh G".
@@ -22358,7 +22647,9 @@ let KF = { run: null, full: new Map(), last: new Map(), memo: null, hLoading: fa
 
 /* ----- the words ----- */
 const kfEsc = s => String(s == null ? '' : s).replace(/[<>&"]/g, ch => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[ch]));
-const kfNf = n => Number(n || 0).toLocaleString('en-US');
+// SMOOTH (18 Nov 2026): one number format made once — the same text as toLocaleString('en-US'), which makes a new one per number
+const KF_NUM = new Intl.NumberFormat('en-US');
+const kfNf = n => KF_NUM.format(Number(n || 0));
 // A word as compared: lower case, its letters and digits only.
 const kfNorm = w => String(w || '').toLowerCase().normalize('NFKD').replace(/[^\p{L}\p{N}]+/gu, '');
 // The text in words, as written: [{ raw, w (the punctuation round it gone), k (compared) }].
@@ -22483,8 +22774,11 @@ function kfOverRows(brand) {
   if (KF.memo && KF.memo.sig.every((x, i) => x === sig[i])) return KF.memo.rows;
   const sent = typeof faSentMap === 'function' ? faSentMap(brand) : new Map();
   const rows = [];
+  const now = Date.now();
   HEALTH[brand].rows.forEach(row => {
-    const h = healthOf(Object.assign({}, row, { brand }), ctx);
+    // SMOOTH (18 Nov 2026): Listing Health's kept checks for this row (the same healthOf behind the same signature), not a second judging
+    const scored = Object.assign({}, row, { brand });
+    const h = typeof hHealthKept === 'function' ? hHealthKept(row, scored, ctx, now) : healthOf(scored, ctx);
     const hit = h.found.find(x => x.detector === 'keyword_bytes');
     if (hit && !sent.has(brand + '|' + row.sku + '|rule:' + (hit.id || hit.detector))) rows.push({ row, hit });
   });
@@ -22769,7 +23063,9 @@ const LH_RESULT = { accepted: '✅ Accepted', rejected: '❌ Rejected', working:
 let LH = { rows: null, loading: false, err: '', built: false, page: 0, open: new Set(), busy: new Set(),
   f: { range: 'week', from: '', to: '', user: '', what: '', screen: '', result: '', q: '' } };
 const lhEsc = s => String(s == null ? '' : s).replace(/[<>&"]/g, ch => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[ch]));
-const lhNf = n => Number(n || 0).toLocaleString('en-US');
+// SMOOTH (18 Nov 2026): one number format made once — the same text as toLocaleString('en-US'), which makes a new one per number
+const LH_NUM = new Intl.NumberFormat('en-US');
+const lhNf = n => LH_NUM.format(Number(n || 0));
 
 /* ----- reading the log ----- */
 // Every listing log row, newest first: the documents whose day field is set (the log's own), newest day first; each row knows its document.
@@ -23787,10 +24083,10 @@ function bsrFollow(list, wA, a, kind) {
 
 let BSR_MODE = 'compare';                   // 'compare' = A vs B · 'history' = many weeks in columns
 let BSR_T = 0;                              // debounce timer for the search box
-// The toolbar: search (a quarter second after typing stops), brand and movement filters, the week pickers, the mode buttons.
+// The toolbar: search (200 ms after typing stops), brand and movement filters, the week pickers, the mode buttons.
 $('bFilter').addEventListener('input', () => {
   clearTimeout(BSR_T);
-  BSR_T = setTimeout(renderBsr, 250);
+  BSR_T = setTimeout(renderBsr, 200);
 });
 $('bBrandView').addEventListener('change', renderBsr);
 $('bMoveView').addEventListener('change', renderBsr);
@@ -23893,6 +24189,7 @@ function renderBsr() {
     $('bKpis').innerHTML = '<div class="kpi"><div class="kpiname">No snapshots yet</div>'
       + '<div class="muted" style="margin-top:6px">Hit “Take this week’s snapshot”. Run it every weekend — each week is stored separately and nothing is ever overwritten.</div></div>';
     $('bTable').innerHTML = '';
+    if (typeof lsLaterRows === 'function') lsLaterRows('bTable', []);
     $('bRules').innerHTML = '';
     return;
   }
@@ -24013,8 +24310,11 @@ function renderBsr() {
   const arrow = def => (def.k === BSR_SORT.k ? (BSR_SORT.dir < 0 ? ' ↓' : ' ↑') : '');
   const head = '<thead><tr>' + defs.map(def => `<th data-k="${esc(def.k)}" class="${def.frz ? 'frz ' : ''}${def.num ? 'num' : ''}"${def.tip ? ` title="${esc(def.tip)}"` : ''}>${esc(def.t)}${arrow(def)}</th>`).join('') + '</tr></thead>';
   const open = BSR_PANEL ? BSR_PANEL.brand + '|' + BSR_PANEL.parent : '';
-  const body = shown.map(row => `<tr class="bs-row${open === row.brand + '|' + row.parent ? ' is-open' : ''}" data-bs-key="${esc(row.brand + '|' + row.parent)}" title="Open: the children, the chart and why">`
-    + defs.map(def => `<td class="${def.frz ? 'frz ' : ''}${def.num ? 'num ' : ''}${def.wrap ? 'bs-wrap' : ''}">${def.cell ? def.cell(row) : esc(def.text(row)) || dash}</td>`).join('') + '</tr>').join('');
+  const rowHtml = row => `<tr class="bs-row${open === row.brand + '|' + row.parent ? ' is-open' : ''}" data-bs-key="${esc(row.brand + '|' + row.parent)}" title="Open: the children, the chart and why">`
+    + defs.map(def => `<td class="${def.frz ? 'frz ' : ''}${def.num ? 'num ' : ''}${def.wrap ? 'bs-wrap' : ''}">${def.cell ? def.cell(row) : esc(def.text(row)) || dash}</td>`).join('') + '</tr>';
+  // SMOOTH (18 Nov 2026): a screenful of rows now, the rest of the H_PAGE rows in the next frames (lsLaterRows, listing-health-data.js)
+  const first = typeof lsFirstRows === 'function' ? lsFirstRows('bTable', shown.length) : shown.length;
+  const body = shown.slice(0, first).map(rowHtml).join('');
   $('bTable').innerHTML = head + '<tbody>' + (body || `<tr><td colspan="${defs.length}" class="muted">No parents match.</td></tr>`) + '</tbody>'
     + (rows.length ? `<tfoot><tr><td class="frz">TOTAL · ${rows.length}</td>${defs.slice(1).map(() => '<td></td>').join('')}</tr></tfoot>` : '');
   // --- a heading click sorts by that column (again: the other way); "Priority" first click = money at stake ---
@@ -24026,6 +24326,7 @@ function renderBsr() {
     };
   });
   wireParentNameCells('bTable', renderBsr);
+  if (typeof lsLaterRows === 'function') lsLaterRows('bTable', shown.slice(first), rowHtml, () => wireParentNameCells('bTable', renderBsr));
   renderBsrKpis(all, wA, wB, avgDays);
   if (BSR_PANEL) bsrPanelDraw();
   $('bRules').innerHTML = `
@@ -24048,7 +24349,7 @@ function bsrSrcLine() {
 }
 // The number cards above the Compare table: each a filter (again = all); the line under them names the weeks and what they rest on.
 function renderBsrKpis(rows, wA, wB, avgDays) {
-  const nf = value => Number(value || 0).toLocaleString('en-US');
+  const nf = value => BSR_NUM.format(Number(value || 0));
   // A week that was filed rather than captured in that week must say so wherever it is compared —
   // otherwise a backdated baseline silently reads as a genuine reading from that week.
   const mark = week => {
@@ -24073,7 +24374,9 @@ function renderBsrKpis(rows, wA, wB, avgDays) {
  * rank is at the TOP of the chart), and links to the Workspace, Image Manager, Listing Errors and Listing History. */
 let BSR_PANEL = null;         // { brand, parent } while the panel is open
 const bsrEsc = str => String(str == null ? '' : str).replace(/[<>&"]/g, ch => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[ch]));
-const bsrNf = v => Number(v || 0).toLocaleString('en-US');
+// SMOOTH (18 Nov 2026): one number format made once — the same text as toLocaleString('en-US'), which makes a new one per number
+const BSR_NUM = new Intl.NumberFormat('en-US');
+const bsrNf = v => BSR_NUM.format(Number(v || 0));
 
 /** A line chart of one parent's rank by week (SVG). points: [{ w, v }] oldest first; null v = no snapshot that week (a gap).
  *  Lower is better, so the axis runs from the best rank at the TOP to the worst at the bottom. */
@@ -24246,6 +24549,7 @@ async function renderBsrHistory() {
     $('bKpis').innerHTML = '<div class="kpi"><div class="kpiname">No snapshots yet</div>'
       + '<div class="muted" style="margin-top:6px">Take a snapshot each weekend — the history builds up here, one column per week.</div></div>';
     $('bTable').innerHTML = '';
+    if (typeof lsLaterRows === 'function') lsLaterRows('bTable', []);
     return;
   }
 
@@ -24354,6 +24658,7 @@ async function renderBsrHistory() {
     return `<td class="${cls}" style="${def.mono ? 'font-family:ui-monospace,monospace' : ''}">${esc(value) || dash}</td>`;
   }).join('') + '</tr>').join('');
 
+  if (typeof lsLaterRows === 'function') lsLaterRows('bTable', []);   // the compare table's rows still to come are cancelled
   $('bTable').innerHTML = head + '<tbody>' + (body ||
     `<tr><td colspan="${defs.length}" class="muted">No parents match.</td></tr>`)
     + '</tbody>' + (rows.length ? `<tfoot><tr><td class="frz">TOTAL · ${rows.length}</td>${
@@ -24456,7 +24761,9 @@ let FC = { tab: 'fam', brand: 'ALL', q: '', card: '', built: false, loading: fal
   newer: false, newT: 0,        // a newer saved snapshot exists ("New data available — Refresh"); the 5-minute check
   reading: new Map(), reads: { q: [], inflight: 0, bgIn: 0, fails: 0 }, view: null, drawT: 0 };   // reading: fk → catalog calls still out
 const fcEsc = s => String(s == null ? '' : s).replace(/[<>&"]/g, ch => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[ch]));
-const fcNf = n => Number(n || 0).toLocaleString('en-US');
+// SMOOTH (18 Nov 2026): one number format made once — the same text as toLocaleString('en-US'), which makes a new one per number
+const FC_NUM = new Intl.NumberFormat('en-US');
+const fcNf = n => FC_NUM.format(Number(n || 0));
 const fcKey = (brand, sku) => brand + '|' + sku;
 const fcNorm = v => String(v == null ? '' : v).trim().toLowerCase().replace(/\s+/g, ' ');
 const fcBrandName = b => (typeof BRAND_NAME !== 'undefined' && BRAND_NAME[b]) || b;
@@ -25545,7 +25852,7 @@ function fcFilter(el) {
   FC[k] = el.value;
   FC.limit = FC_STEP;
   clearTimeout(FC_T);
-  if (k === 'q') FC_T = setTimeout(fcDrawAll, 250);
+  if (k === 'q') FC_T = setTimeout(fcDrawAll, 200);
   else fcDrawAll();
 }
 /** Opening the page: the snapshots Sellora already holds (read once), the saved marks, then draw — every family closed — and Amazon's catalog
@@ -25957,6 +26264,34 @@ function ccWatchMore() {
   const more = $('ccMore');
   if (more) CC.io.observe(more);
 }
+/* SMOOTH (18 Nov 2026): a tick, or "Select all in family", changes only what a tick changes — the boxes and their rows' "selected"
+ * look, each open family's Select all / Clear button and the bar under the table — not every open family's table drawn again
+ * (0.6–0.7 s with families open). The same words and states the whole draw gives (ccRowHtml, ccGroupHtml, ccBarHtml). */
+function ccSelPaint() {
+  const body = $('fcBody');
+  if (!body || !body.querySelectorAll || !body.querySelector('.cc-tbl')) return ccDraw();
+  const view = ccBuild();
+  body.querySelectorAll('input.fc-tick[data-cc="tick"]').forEach(box => {
+    const on = CC.sel.has(fcKey(box.dataset.ccB, box.dataset.ccS));
+    box.checked = on;
+    const tr = box.closest ? box.closest('tr') : null;
+    if (tr) tr.classList.toggle('is-sel', on);
+  });
+  const groups = ccGroups(view);
+  body.querySelectorAll('[data-cc="selfam"]').forEach(btn => {
+    const g = groups.find(x => x.f.fk === btn.dataset.ccV);
+    const keys = g ? g.rows.filter(r => r.probs.length).map(r => r.key) : [];
+    btn.textContent = keys.length && keys.every(k => CC.sel.has(k)) ? 'Clear this family' : 'Select all in family';
+  });
+  const old = body.querySelector('.fc-bar');
+  const html = ccBarHtml(view);
+  if (old) old.outerHTML = html;
+  else if (html) {
+    const rem = body.querySelector('.fc-rem');
+    if (rem) rem.insertAdjacentHTML('beforebegin', html);
+    else body.insertAdjacentHTML('beforeend', html);
+  }
+}
 /** Open or close one family; the clicked line stays where it was on the screen. Its children come from memory. */
 function ccToggle(fk, el) {
   const line = el && el.closest ? el.closest('.fc-head') || el : null;
@@ -26022,13 +26357,13 @@ function ccClick(el) {
   if (act === 'ok') return ccOkSetMany([fcKey(brand, id)]);
   if (act === 'undo') return ccOkUndo(brand, id);
   if (act === 'showok') { CC.showOk = !CC.showOk; return ccDraw(); }
-  if (act === 'tick') { const k = fcKey(brand, id); if (CC.sel.has(k)) CC.sel.delete(k); else CC.sel.add(k); return ccDraw(); }
+  if (act === 'tick') { const k = fcKey(brand, id); if (CC.sel.has(k)) CC.sel.delete(k); else CC.sel.add(k); return ccSelPaint(); }
   if (act === 'selfam') {
     const g = ccGroups(ccBuild()).find(x => x.f.fk === v);
     const keys = g ? g.rows.filter(r => r.probs.length).map(r => r.key) : [];
     const allOn = keys.length && keys.every(k => CC.sel.has(k));
     keys.forEach(k => (allOn ? CC.sel.delete(k) : CC.sel.add(k)));
-    return ccDraw();
+    return ccSelPaint();
   }
   if (act === 'bclear') { CC.sel.clear(); return ccDraw(); }
   if (act === 'bok') return ccOkSetMany([...CC.sel]);
@@ -26038,7 +26373,7 @@ function ccFilter(el) {
   CC[k] = el.value;
   CC.limit = CC_STEP;
   clearTimeout(CC.qT);
-  if (k === 'q') CC.qT = setTimeout(ccDraw, 250);
+  if (k === 'q') CC.qT = setTimeout(ccDraw, 200);
   else ccDraw();
 }
 if (typeof document !== 'undefined' && document.addEventListener && $('fcPane')) {
@@ -38775,6 +39110,7 @@ function imListRender() {
   /* NO PAGES: every family's header is drawn (one small picture each); an open family draws its rows in blocks as they come near the
    * screen (imRowsHtml / imChunksWatch). One Ridhi parent holds 455 children: never cut at a page edge. */
   IM_ROWS.clear();
+  const firstN = imFirstGroups(el, groups.length);   // SMOOTH: the families that fill the screen now, the rest in the next frames (imLaterGroups)
   // --- the number cards (they replace the old grey summary line), the clipboard bar, the groups ---
   imqSeed(brand);
   const cards = `<div id="imCards" class="im-boxes" role="group" aria-label="Filter the listings">${imCardsHtml(imCardsData(data.items), filter)}</div>`;
@@ -38791,7 +39127,7 @@ function imListRender() {
       <details class="im-key"><summary>Key</summary>${IM_LEGEND}</details></div>
     ${IM_CLIP ? '<div id="imBulk" class="muted" style="font-size:12px;margin-bottom:8px"></div>' : ''}
     ${empty}
-    ${groups.map(group => imGroupHtml(group)).join('')}
+    ${groups.slice(0, firstN).map(group => imGroupHtml(group)).join('')}
     <div id="imSelBar" class="im-selbar" role="status"${IM_SEL.size && !IM_CLIP ? '' : ' hidden'}>${imSelBarHtml()}</div>
     ${imClipBar('list')}`;
   // --- the buttons in what was just drawn (rows drawn later, in blocks, are wired when drawn) ---
@@ -38804,6 +39140,39 @@ function imListRender() {
   // --- tiles whose size is not known yet are measured when they come on screen (image-quality.js); rows drawn as they come near ---
   imqWatch(el);
   imChunksWatch(el);
+  imLaterGroups(el, groups.slice(firstN));
+}
+/* SMOOTH (18 Nov 2026): A LONG LIST OF FAMILIES IS DRAWN A SCREENFUL FIRST. Every family card is still drawn — the ones that fill the
+ * screen (and a margin; as far down as the person has scrolled) at once, the others IM_LATER_STEP at a time in the next frames, each
+ * part wired like the first (imRowsWire / imClipWire / imqWatch / imChunksWatch). A new draw of the list cancels the parts still to come.
+ * Without a browser (the tests) every family is drawn at once, as before. */
+const IM_FIRST = 25;             // families drawn at once at least
+const IM_LATER_STEP = 30;        // families per later frame
+let IM_LATER = 0;                // the draw the parts still to come belong to
+const imProgressive = el => typeof requestAnimationFrame === 'function' && typeof document !== 'undefined' && !!document.body && !!el && typeof el.insertAdjacentHTML === 'function';
+function imFirstGroups(el, n) {
+  if (!imProgressive(el) || !el.querySelectorAll) return n;
+  const bottom = (window.innerHeight || 900) + 1200;
+  let shown = 0;
+  for (const card of el.querySelectorAll('.im-grp')) { if (card.getBoundingClientRect().top < bottom) shown++; else break; }
+  return Math.min(n, Math.max(IM_FIRST, shown + 5));
+}
+function imLaterGroups(el, rest) {
+  const mine = ++IM_LATER;
+  if (!rest.length || !imProgressive(el)) return;
+  const step = () => {
+    if (mine !== IM_LATER) return;                                 // the list was drawn again since
+    const drawn = el.querySelectorAll(':scope > .im-grp');          // after the last family drawn, exactly where the whole list puts them
+    const last = drawn[drawn.length - 1];
+    if (!last) return;
+    last.insertAdjacentHTML('afterend', rest.splice(0, IM_LATER_STEP).map(group => imGroupHtml(group)).join(''));
+    imRowsWire(el);
+    imClipWire(el);
+    imqWatch(el);
+    imChunksWatch(el);
+    if (rest.length) requestAnimationFrame(() => setTimeout(step, 0));
+  };
+  requestAnimationFrame(() => setTimeout(step, 0));
 }
 // The buttons of the rows in `root` (the list, a family card, a block of rows): Copy all / live, a tile's Copy, Paste here, ticks, Edit.
 function imRowsWire(root) {
@@ -39627,7 +39996,7 @@ const imListAgain = () => {
 };
 $('imQ').addEventListener('input', () => {
   clearTimeout(IML_T);
-  IML_T = setTimeout(imListAgain, 250);
+  IML_T = setTimeout(imListAgain, 200);
 });
 $('imQ').addEventListener('keydown', e => {
   if (e.key === 'Enter') {
@@ -40533,7 +40902,9 @@ function leKind(issue) {
 // HTML-escape for everything this screen prints.
 const leEsc = str => String(str == null ? '' : str).replace(/[<>&"]/g, ch => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[ch]));
 // Whole number with thousands separators.
-const leNf = value => Math.round(value || 0).toLocaleString('en-US');
+// SMOOTH (18 Nov 2026): one number format made once — the same text as toLocaleString('en-US'), which makes a new one per number
+const LE_NUM = new Intl.NumberFormat('en-US');
+const leNf = value => LE_NUM.format(Math.round(value || 0));
 // Status line under the toolbar: red for an error, grey otherwise. Does nothing if the pane is not on the page.
 const leMsg = (text, bad) => {
   const el = $('leMsg');
@@ -41019,14 +41390,14 @@ $('leKind').onchange = $('leSev').onchange = () => {
   leShow(false);
   leRender();
 };
-// Search box: redraw a quarter of a second after typing stops.
+// Search box: redraw 200 ms after typing stops.
 $('leQ').addEventListener('input', () => {
   clearTimeout(LE_T);
   LE_T = setTimeout(() => {
     LE_PAGE = 0;
     leShow(false);
     leRender();
-  }, 250);
+  }, 200);
 });
 // Refresh from Amazon: rebuild this brand's snapshot, then redraw.
 $('leRefresh').onclick = async () => {

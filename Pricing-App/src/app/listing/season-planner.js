@@ -112,7 +112,9 @@ let SP = {
 };
 
 /* ----- small helpers ----- */
-const spNf = n => Number(n || 0).toLocaleString('en-US');
+// SMOOTH (18 Nov 2026): one number format made once — the same text as toLocaleString('en-US'), which makes a new one per number
+const SP_NUM = new Intl.NumberFormat('en-US');
+const spNf = n => SP_NUM.format(Number(n || 0));
 const spKey = (brand, sku) => brand + '|' + sku;
 const spToday = () => SP.today || new Date();   // SP.today: a fixed day for the tests
 const spCfg = () => LR || LR_DEFAULT;
@@ -714,7 +716,13 @@ function spCompute(today) {
   // change records): a read landing re-plans that one listing, not all of them.
   if (!SP.planKeep) SP.planKeep = new WeakMap();
   const hour = Math.floor(Date.now() / 3600000);
-  SP.items = ['SP', 'CPC'].flatMap(b => ((HEALTH[b] && HEALTH[b].rows) || []).map(raw => {
+  SP.items = ['SP', 'CPC'].flatMap(b => ((HEALTH[b] && HEALTH[b].rows) || []).map(raw => spPlanKept(raw, b, ctx, today, hour)));
+  SP.itemsKey = key;
+  return SP.items;
+}
+// One listing's plan: the one kept while nothing it reads has changed, else planned now and kept (spCompute, and spWarm before it).
+function spPlanKept(raw, b, ctx, today, hour) {
+  {
     const row = raw.brand ? raw : Object.assign({ brand: b }, raw);
     const live = typeof LI_WS !== 'undefined' && LI_WS.live[b] ? LI_WS.live[b][raw.sku] || null : null;
     const sch = live && live.pt && LI_WS.schema[b] ? LI_WS.schema[b][live.pt] || null : null;
@@ -726,9 +734,27 @@ function spCompute(today) {
     const item = spPlan(row, ctx, today, SP.log || []);
     SP.planKeep.set(raw, { sig, item });
     return item;
-  }));
-  SP.itemsKey = key;
-  return SP.items;
+  }
+}
+/* SMOOTH (18 Nov 2026): the first open plans every listing (~4,400: about a second). In a browser that is done here first, a slice at
+ * a time (≤ 40 ms, then the page breathes), while the planner shows "Reading your listings…"; spCompute then finds every plan kept.
+ * The same spPlanKept, so the same plans — only the one long freeze is gone. */
+const spCanWarm = () => typeof requestAnimationFrame === 'function' && typeof document !== 'undefined' && !!document.body && typeof performance !== 'undefined';
+async function spWarm() {
+  if (!spCanWarm()) return 0;
+  const today = spToday();
+  const ctx = hCtx();
+  const hour = Math.floor(Date.now() / 3600000);
+  if (!SP.planKeep) SP.planKeep = new WeakMap();
+  const all = ['SP', 'CPC'].flatMap(b => ((HEALTH[b] && HEALTH[b].rows) || []).map(raw => [raw, b]));
+  let i = 0;
+  let slices = 0;
+  while (i < all.length) {
+    const t0 = performance.now();
+    while (i < all.length && performance.now() - t0 < 40) { const [raw, b] = all[i++]; spPlanKept(raw, b, ctx, today, hour); }
+    if (i < all.length) { slices++; await new Promise(resolve => setTimeout(resolve, 0)); }
+  }
+  return slices;
 }
 // A listing to do: a season missing somewhere, an old one still shown, search words too long, or not read yet.
 const spToDo = item => item.kind === 'add' || item.kind === 'check';
@@ -1747,6 +1773,12 @@ async function spOn() {
     SP.loading = false;
     SP.itemsKey = '';
   }
+  // SMOOTH (18 Nov 2026): the first open plans every listing a slice at a time (spWarm) behind the same "Reading your listings…" cards
+  if (!SP.items && !SP.loadErr && H_LOADED && spCanWarm()) {
+    SP.loading = true;
+    spRender();
+    try { await spWarm(); } finally { SP.loading = false; }
+  }
   spRender();
   if (spCheckDue() && !SP.loadErr && H_LOADED) spCheckAll();   // the background refresh: only what is older than 24 h
 }
@@ -1907,14 +1939,14 @@ if (typeof document !== 'undefined' && document.addEventListener && $('spSwitch'
       spKidMove(e.key === 'ArrowDown' ? 1 : -1);
     }
   }, true);
-  // The search box (a quarter second after typing stops), and the Edit box (checks again as you type).
+  // The search box (200 ms after typing stops), and the Edit box (checks again as you type).
   let spQT = 0;
   document.addEventListener('input', e => {
     const t = e.target;
     if (!t) return;
     if (t.id === 'spQ') {
       clearTimeout(spQT);
-      spQT = setTimeout(() => { SP.q = t.value; SP.shown = SP_PAGE; spRender(); const again = $('spQ'); if (again) { again.focus(); again.setSelectionRange(again.value.length, again.value.length); } }, 250);
+      spQT = setTimeout(() => { SP.q = t.value; SP.shown = SP_PAGE; spRender(); const again = $('spQ'); if (again) { again.focus(); again.setSelectionRange(again.value.length, again.value.length); } }, 200);
       return;
     }
   });

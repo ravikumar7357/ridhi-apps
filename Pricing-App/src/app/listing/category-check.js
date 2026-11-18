@@ -356,6 +356,34 @@ function ccWatchMore() {
   const more = $('ccMore');
   if (more) CC.io.observe(more);
 }
+/* SMOOTH (18 Nov 2026): a tick, or "Select all in family", changes only what a tick changes — the boxes and their rows' "selected"
+ * look, each open family's Select all / Clear button and the bar under the table — not every open family's table drawn again
+ * (0.6–0.7 s with families open). The same words and states the whole draw gives (ccRowHtml, ccGroupHtml, ccBarHtml). */
+function ccSelPaint() {
+  const body = $('fcBody');
+  if (!body || !body.querySelectorAll || !body.querySelector('.cc-tbl')) return ccDraw();
+  const view = ccBuild();
+  body.querySelectorAll('input.fc-tick[data-cc="tick"]').forEach(box => {
+    const on = CC.sel.has(fcKey(box.dataset.ccB, box.dataset.ccS));
+    box.checked = on;
+    const tr = box.closest ? box.closest('tr') : null;
+    if (tr) tr.classList.toggle('is-sel', on);
+  });
+  const groups = ccGroups(view);
+  body.querySelectorAll('[data-cc="selfam"]').forEach(btn => {
+    const g = groups.find(x => x.f.fk === btn.dataset.ccV);
+    const keys = g ? g.rows.filter(r => r.probs.length).map(r => r.key) : [];
+    btn.textContent = keys.length && keys.every(k => CC.sel.has(k)) ? 'Clear this family' : 'Select all in family';
+  });
+  const old = body.querySelector('.fc-bar');
+  const html = ccBarHtml(view);
+  if (old) old.outerHTML = html;
+  else if (html) {
+    const rem = body.querySelector('.fc-rem');
+    if (rem) rem.insertAdjacentHTML('beforebegin', html);
+    else body.insertAdjacentHTML('beforeend', html);
+  }
+}
 /** Open or close one family; the clicked line stays where it was on the screen. Its children come from memory. */
 function ccToggle(fk, el) {
   const line = el && el.closest ? el.closest('.fc-head') || el : null;
@@ -421,13 +449,13 @@ function ccClick(el) {
   if (act === 'ok') return ccOkSetMany([fcKey(brand, id)]);
   if (act === 'undo') return ccOkUndo(brand, id);
   if (act === 'showok') { CC.showOk = !CC.showOk; return ccDraw(); }
-  if (act === 'tick') { const k = fcKey(brand, id); if (CC.sel.has(k)) CC.sel.delete(k); else CC.sel.add(k); return ccDraw(); }
+  if (act === 'tick') { const k = fcKey(brand, id); if (CC.sel.has(k)) CC.sel.delete(k); else CC.sel.add(k); return ccSelPaint(); }
   if (act === 'selfam') {
     const g = ccGroups(ccBuild()).find(x => x.f.fk === v);
     const keys = g ? g.rows.filter(r => r.probs.length).map(r => r.key) : [];
     const allOn = keys.length && keys.every(k => CC.sel.has(k));
     keys.forEach(k => (allOn ? CC.sel.delete(k) : CC.sel.add(k)));
-    return ccDraw();
+    return ccSelPaint();
   }
   if (act === 'bclear') { CC.sel.clear(); return ccDraw(); }
   if (act === 'bok') return ccOkSetMany([...CC.sel]);
@@ -437,7 +465,7 @@ function ccFilter(el) {
   CC[k] = el.value;
   CC.limit = CC_STEP;
   clearTimeout(CC.qT);
-  if (k === 'q') CC.qT = setTimeout(ccDraw, 250);
+  if (k === 'q') CC.qT = setTimeout(ccDraw, 200);
   else ccDraw();
 }
 if (typeof document !== 'undefined' && document.addEventListener && $('fcPane')) {
