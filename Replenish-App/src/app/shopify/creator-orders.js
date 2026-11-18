@@ -103,35 +103,41 @@ async function croSave(ref, patch, what) {
  * Through the Pricing API (Pricing-API/CreatorOrders.gs, apiPost({ creator: 'report' })), which holds the shared key —
  * never this page. The page says only WHICH order changed, with the signed-in person's sign-in; the backend reads the order
  * from Firestore itself, tells Creator Setu, and writes what it told on the order (field "setu"), so each status is told
- * once. Whatever could not be told is tried again the next time this page is opened. Only from the real ERP. */
+ * once, with reportedStatus / reportedAt / lastReportError (Khushi, 18 Nov). The backend tries once more after a few
+ * seconds when Creator Setu does not answer; a refusal (401, 404, 400, 409) or a second failure is shown on the order as
+ * "Report-back failed" with its time and a "Retry report-back" button, and is never asked again by itself. A status the
+ * page changed but could not even send (the tab closed, no network) is sent the next time this page is opened.
+ * Only from the real ERP, and only Creator Setu's own gifts (source creator-setu, a CGE- reference). */
 const CRO_SETU = { 'Sent to Amazon': 'sent_to_amazon', 'Shipped': 'shipped', 'Delivered': 'delivered', 'Cancelled': 'cancelled' };
 const croReportOn = () => typeof location !== 'undefined' && /^fabricrush-replenish\.(web\.app|firebaseapp\.com)$/.test(location.hostname);
-/** Does Creator Setu still have to hear about this order's status? */
+const croIsSetuGift = o => !!o && o.source === 'creator-setu' && /^CGE-/i.test(String(o.reference || ''));
+/** Does Creator Setu still have to hear about this order's status — and has nobody tried yet? A failed try waits for a person. */
 function croNeedsReport(o) {
-  const want = o && o.source === 'creator-setu' ? CRO_SETU[o.status] : '';
+  const want = croIsSetuGift(o) ? CRO_SETU[o.status] : '';
   if (!want) return false;
   const s = o.setu || {};
   if (s.status === want && !s.error) return false;
-  /* A refusal (unknown reference, a key that differs) is not asked again on every open: once in six hours. */
-  if (s.error && s.tried === want && Date.now() - Date.parse(s.at || 0) < 6 * 36e5) return false;
+  if (s.error && s.tried === want) return false;      // tried and refused or failed: "Retry report-back" only
   return true;
 }
-/** Ask the backend to tell Creator Setu about one order. '' or why not. */
-async function croReport(ref) {
+/** Ask the backend to tell Creator Setu about one order. retry = the person pressed "Retry report-back". '' or why not. */
+async function croReport(ref, retry) {
   if (!croReportOn()) return 'Creator Setu is told only from the real ERP.';
-  const o = croOf(ref); if (!o || !croNeedsReport(o)) return '';
-  /* apiPost throws on { ok:false } and keeps only the message, so a refusal's "setu" record is read back from the reply
-   * text only on success; a refusal is shown, and the page's copy learns of it at the next Refresh. */
+  const o = croOf(ref);
+  if (!o || !croIsSetuGift(o) || !CRO_SETU[o.status]) return '';
+  if (!retry && !croNeedsReport(o)) return '';
   let d;
   try { d = await apiPost({ creator: 'report', reference: String(ref) }); }
   catch (e) {
-    /* Remembered here too (the backend keeps the same on the order), so this visit does not ask again on every open. */
-    const c = croOf(ref), err = String(e.message || e);
-    if (c) CRO.list[CRO.list.indexOf(c)] = Object.assign({}, c, { setu: { status: ((c.setu || {}).status) || '', tried: CRO_SETU[c.status], error: err, at: new Date().toISOString() } });
-    return 'Creator Setu was not told: ' + err;
+    /* apiPost keeps only the message of a refusal; the backend has written the same on the order (lastReportError). */
+    const c = croOf(ref), err = String(e.message || e), at = new Date().toISOString();
+    if (c) CRO.list[CRO.list.indexOf(c)] = Object.assign({}, c, { lastReportError: err, reportFailedAt: at,
+      setu: { status: ((c.setu || {}).status) || '', tried: CRO_SETU[c.status], error: err, at } });
+    return 'Report-back failed: ' + err;
   }
   const cur = croOf(ref);
-  if (d && d.setu && cur) CRO.list[CRO.list.indexOf(cur)] = Object.assign({}, cur, { setu: d.setu });
+  if (d && d.setu && cur) CRO.list[CRO.list.indexOf(cur)] = Object.assign({}, cur, { setu: d.setu, lastReportError: '',
+    reportedStatus: d.reportedStatus || d.setu.status, reportedAt: d.reportedAt || d.setu.at });
   return '';
 }
 function croReportSoon(ref) { croReport(ref).then(err => { if (err && croReportOn()) croMsg(ref + ': ' + err, true); croRender(); }).catch(() => {}); }
@@ -143,12 +149,23 @@ async function croReportPending() {
   try { for (const o of CRO.list.filter(croNeedsReport).slice(0, 25)) await croReport(o.reference); }
   finally { CRO_REPORTING = false; croRender(); }
 }
-/** One line for the order window: what Creator Setu knows. */
+/** When, in the reader's own clock: "18 Nov, 14:05". */
+const croWhen = iso => { const t = Date.parse(String(iso || '')); return isNaN(t) ? '' : new Date(t).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }); };
+/** The order window's report-back line: what Creator Setu knows, or "Report-back failed" with the time and a Retry button. */
 function croSetuLine(o) {
-  if (o.source !== 'creator-setu') return '';
+  if (!croIsSetuGift(o)) return '';
   const s = o.setu || {}, words = { sent_to_amazon: 'sent to Amazon', shipped: 'shipped', delivered: 'delivered', cancelled: 'cancelled' };
-  if (s.error) return `<div class="err" style="font-size:12px;margin-top:6px">Creator Setu was not told: ${esc(s.error)}</div>`;
-  if (s.status) return `<div class="muted" style="font-size:12px;margin-top:6px">Creator Setu knows: <b>${esc(words[s.status] || s.status)}</b>${s.at ? ' · ' + esc(croDay(s.at)) : ''}</div>`;
+  const err = o.lastReportError || s.error || '';
+  const known = o.reportedStatus || (s.error ? '' : s.status) || s.status || '';
+  const knowsLine = known ? `Creator Setu knows: <b>${esc(words[known] || known)}</b>${(o.reportedAt || s.at) && !s.error ? ' · ' + esc(croWhen(o.reportedAt || s.at)) : ''}` : '';
+  if (err && CRO_SETU[o.status]) {
+    return `<div style="margin-top:8px;padding:8px 10px;border-radius:10px;background:var(--bad-bg,#fde7ea)">`
+      + `<div class="err" style="font-size:12.5px;font-weight:700">Report-back failed${o.reportFailedAt || s.at ? ' · ' + esc(croWhen(o.reportFailedAt || s.at)) : ''}</div>`
+      + `<div style="font-size:12px;margin-top:2px">${esc(err)}</div>`
+      + (knowsLine ? `<div class="muted" style="font-size:11.5px;margin-top:2px">${knowsLine}</div>` : '')
+      + `<button type="button" class="ghost" id="croRetryReport" style="margin-top:6px;padding:4px 12px;font-size:12px">Retry report-back</button></div>`;
+  }
+  if (knowsLine) return `<div class="muted" style="font-size:12px;margin-top:6px">${knowsLine}</div>`;
   return CRO_SETU[o.status] ? '<div class="muted" style="font-size:12px;margin-top:6px">Creator Setu has not been told yet.</div>' : '';
 }
 
@@ -369,6 +386,12 @@ function croOpen(ref) {
     croOpen(o.reference); croRender();
   };
   if ($('croMcfPreview')) $('croMcfPreview').onclick = () => croPreview(o.reference);
+  if ($('croRetryReport')) $('croRetryReport').onclick = async () => {
+    $('croRetryReport').disabled = true; $('croRetryReport').textContent = 'Telling Creator Setu…';
+    const err = await croReport(o.reference, true);
+    croOpen(o.reference); croRender();
+    if (err) ptDlgMsg(err, true); else ptDlgMsg('Creator Setu was told.');
+  };
   if ($('croMcfStatus')) $('croMcfStatus').onclick = async () => {
     $('croMcfStatus').disabled = true; $('croMcfStatus').textContent = 'Asking Amazon…';
     const err = await croStatusOne(o.reference);
