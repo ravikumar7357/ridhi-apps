@@ -30,9 +30,11 @@ function mtsChannel(ch, wk) {
   });
   const dueIx = (typeof SOX !== 'undefined' && SOX.rows) ? ordDueIndex() : new Map();
   const open = ordLines().filter(l => l.open && ofCh(l.orderNo));
-  const orders = new Set(), lateOrders = new Set(); let pend = 0, latePcs = 0;
+  /* open = every order with a line still open (made pieces not yet handed over too); pending = those with pieces still to make */
+  const orders = new Set(), pendOrders = new Set(), lateOrders = new Set(); let pend = 0, latePcs = 0, openPcs = 0;
   open.forEach(l => {
-    orders.add(l.orderNo); pend += l.pendingMake || 0;
+    orders.add(l.orderNo); pend += l.pendingMake || 0; openPcs += +l.qty || 0;
+    if ((l.pendingMake || 0) > 0) pendOrders.add(l.orderNo);
     const due = l.mto ? l.mtoDue : (dueIx.get(l.orderNo + '|' + l.sku) || '');
     if (due && due < today && (l.pendingMake || 0) > 0) { lateOrders.add(l.orderNo); latePcs += l.pendingMake; }
   });
@@ -41,7 +43,7 @@ function mtsChannel(ch, wk) {
   try { qcDeptRows().forEach(x => { if (!x.left || !ofCh(x.c.orderNo || x.c.order || '')) return; if (/spot/i.test(x.dept)) spot += x.left; else if (/touch/i.test(x.dept)) touch += x.left; }); } catch (e) { /* QC not read */ }
   const stages = st ? [['To plan', st.plan], ['At printer', st.printer], ['Printed, to cut', st.toCut], ['Cut, to issue', st.toIssue], ['Stitching (with karigars)', st.karigar],
     ['Waiting for QC', st.qc], ['Spotting', spot], ['Touching', touch], ['Press (QC passed, not pressed)', st.press]].concat(st.other ? [['On no step yet', st.other]] : []) : [];
-  return { qc, qcPrev, orders: orders.size, pend, late: lateOrders.size, latePcs, stages };
+  return { qc, qcPrev, orders: orders.size, openPcs, pendOrders: pendOrders.size, pend, late: lateOrders.size, latePcs, stages };
 }
 
 /* WHERE EACH PIECE IS — ONE PLACE ONLY (18 Nov, first look at the slides: the board's own counts overlap — a piece counted at the
@@ -106,24 +108,24 @@ function mtsNote(wk, key, label, rows) {
 function mtsSlides(wk) {
   const out = [];
   /* 1 · Production Report Card — one table, a row per channel */
-  const head = ['', 'Overall production · orders delayed · pending orders', 'Status (printing, fabric, stitching, Q.C., press, touching, spotting)', 'Challenges', 'Initiative'];
+  const head = ['', 'Open orders · orders delayed · pending orders', 'Status (printing, fabric, stitching, Q.C., press, touching, spotting)', 'Challenges', 'Initiative'];
   const rows = MTS_CH.map(ch => {
     let c = null; try { c = mtsChannel(ch, wk); } catch (e) { c = null; }
     if (!c) return `<tr><th style="color:${ch.color}">${esc(ch.k === 'SHOP' ? 'Shopify' : ch.k)}</th><td colspan="4" class="err">Could not be worked out.</td></tr>`;
     const v = l => { const x = c.stages.find(s => s[0] === l); return x ? x[1] : 0; };
     const status = [['Printing', v('To plan') + v('At printer')], ['Fabric', v('Printed, to cut') + v('Cut, to issue')], ['Stitching', v('Stitching (with karigars)')],
       ['Q.C.', v('Waiting for QC')], ['Press', v('Press (QC passed, not pressed)')], ['Touching', v('Touching')], ['Spotting', v('Spotting')]];
-    const dd = c.qc - c.qcPrev;
+    /* 18 Nov (Ravi): "overall production ko remove karo" — open orders, delayed, pending; no production figure here */
     return `<tr><th style="color:${ch.color}">${esc(ch.k === 'SHOP' ? 'Shopify' : ch.k)}</th>
-      <td><div class="mts-kv"><span>Overall production</span><b style="color:#166534">${nf(c.qc)}</b><em style="color:${dd >= 0 ? '#166534' : 'var(--bad)'}">${dd >= 0 ? '▲' : '▼'} ${nf(Math.abs(dd))} vs last week</em></div>
+      <td><div class="mts-kv"><span>Total open orders</span><b>${nf(c.orders)}</b><em>${nf(c.openPcs)} pcs ordered</em></div>
         <div class="mts-kv"><span>Orders delayed</span><b style="color:${c.late ? 'var(--bad)' : '#166534'}">${nf(c.late)}</b><em>${nf(c.latePcs)} pcs</em></div>
-        <div class="mts-kv"><span>Pending orders</span><b>${nf(c.orders)}</b><em>${nf(c.pend)} pcs to make</em></div></td>
+        <div class="mts-kv"><span>Pending orders</span><b>${nf(c.pendOrders)}</b><em>${nf(c.pend)} pcs to make</em></div></td>
       <td>${status.map(([l, n]) => `<div class="mts-kv"><span>${l}</span><b>${nf(Math.round(n))}</b></div>`).join('')}</td>
       <td>${mtsNote(wk, 'ch_' + ch.k, ch.k === 'FBA' ? 'printing issue, fabric issue, people issue' : '', 6)}</td>
       <td>${mtsNote(wk, 'in_' + ch.k, '', 6)}</td></tr>`;
   });
   out.push({ t: 'Production Report Card', html: `<table class="mts-sheet"><thead><tr>${head.map(h => `<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table>
-    <div class="muted" style="font-size:12px;margin-top:6px">${esc(repWkRange(wk))} · production = QC passed in the week · status = pieces of the open orders, each at the one step it waits at</div>` });
+    <div class="muted" style="font-size:12px;margin-top:6px">open orders = a line not yet handed over · pending = pieces still to make · status = those pieces, each at the one step it waits at</div>` });
   /* 2 · People Discussion */
   const P = mtsPeople(wk), arrow = r => r.avg ? (r.v >= r.avg ? `<span style="color:#166534">▲ ${nf(r.v - r.avg)}</span>` : `<span style="color:var(--bad)">▼ ${nf(r.avg - r.v)}</span>`) : '<span class="muted">new</span>';
   const plist = list => list.length ? list.map((r, i) => `<div class="mts-kv"><span>${i + 1}. ${esc(r.k)}</span><b>${nf(r.v)}</b><em>avg ${nf(r.avg)} · ${arrow(r)}</em></div>`).join('') : '<span class="muted">No QC passed with a karigar name.</span>';
