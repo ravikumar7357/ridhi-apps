@@ -20,6 +20,7 @@ const ctx = {
   mdbOf: s => MDB[String(s || '').trim().toUpperCase()],
   mdbFetchSku: async s => { asked.push(s); return FETCHED[String(s).toUpperCase()] || null; },
   SHOP_STOCK: { 'AMZ-ONLY': 3 },
+  esc: s => String(s == null ? '' : s).replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c])),
 };
 vm.createContext(ctx);
 vm.runInContext(SRC, ctx);
@@ -53,6 +54,27 @@ const run = js => vm.runInContext(js, ctx);
   ok(/is not in the product list — pick it from the list/.test(save), 'a SKU the list does not know (and FBA does not stock) is refused');
   const open = SRC.slice(SRC.indexOf('function croOpen'), SRC.indexOf('async function croSaveDrawer'));
   ok(/await croSkuFactsNow\(typed\)/.test(open), 'typing a SKU in the drawer shows its colour and size at once');
+
+  console.log('== report-back on the page (Khushi, 18 Nov) ==');
+  const G = (o) => JSON.stringify(Object.assign({ reference: 'CGE-12AB34CD', source: 'creator-setu' }, o));
+  ok(run(`croNeedsReport(${G({ status: 'Shipped' })})`) === true, 'a Shipped gift nobody has told yet → told');
+  ok(run(`croNeedsReport(${G({ status: 'Shipped', setu: { status: 'shipped' } })})`) === false, 'already told "shipped" → not again');
+  ok(run(`croNeedsReport(${G({ status: 'Shipped', setu: { status: 'sent_to_amazon', tried: 'shipped', error: 'Creator Setu refused (409)' } })})`) === false,
+    'a failed or refused try is NOT asked again by itself — only by "Retry report-back"');
+  ok(run(`croNeedsReport(${G({ status: 'Delivered', setu: { status: 'sent_to_amazon', tried: 'shipped', error: 'x' } })})`) === true, 'a NEW status after a failed one is told');
+  ['New', 'Checked', 'Problem'].forEach(s => ok(run(`croNeedsReport(${G({ status: s })})`) === false, s + ' → no call'));
+  ok(run(`croNeedsReport(${G({ status: 'Shipped', source: 'team' })})`) === false, 'a team order → no call');
+  ok(run(`croNeedsReport(${G({ status: 'Shipped', reference: 'ERP-CC-0001' })})`) === false, 'not a CGE- reference → no call');
+  const failed = run(`croSetuLine(${G({ status: 'Shipped', lastReportError: 'Creator Setu refused (409): This gift is not approved yet.', reportFailedAt: '2026-11-18T09:05:00Z', reportedStatus: 'sent_to_amazon', reportedAt: '2026-11-17T09:00:00Z' })})`);
+  ok(/Report-back failed/.test(failed) && /This gift is not approved yet/.test(failed), 'a failure shows "Report-back failed" with Creator Setu\'s words');
+  ok(/18 Nov/.test(failed), '…with its time');
+  ok(/id="croRetryReport"[^>]*>Retry report-back</.test(failed), '…and a "Retry report-back" button');
+  ok(/Creator Setu knows: <b>sent to Amazon<\/b>/.test(failed), '…and what Creator Setu already knows');
+  const good = run(`croSetuLine(${G({ status: 'Shipped', reportedStatus: 'shipped', reportedAt: '2026-11-18T09:00:00Z', lastReportError: '' })})`);
+  ok(/Creator Setu knows: <b>shipped<\/b>/.test(good) && !/Retry/.test(good), 'told → "Creator Setu knows: shipped", no Retry button');
+  ok(run(`croSetuLine(${G({ status: 'Shipped', source: 'team' })})`) === '', 'nothing about Creator Setu on a team order');
+  const open2 = SRC.slice(SRC.indexOf('function croOpen'), SRC.indexOf('async function croSaveDrawer'));
+  ok(/croRetryReport'\)\.onclick[\s\S]{0,200}croReport\(o\.reference, true\)/.test(open2), 'the Retry button asks again, past the "do not retry by itself" rule');
 
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
