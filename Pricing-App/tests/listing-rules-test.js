@@ -80,7 +80,7 @@ function load(opts) {
   if (opts.le) delete ctx.lcBytes;      // listing-content.js has its own
   if (opts.im) { delete ctx.imLoad; delete ctx.imPost; delete ctx.IM_SKU_CHOICES; delete ctx.IML; delete ctx.IM_SLOTS; }   // image-manager.js has its own   // the Rules tab file defines its own
   const src = (opts.src || L('listing-rules.js')) + (opts.lm ? '\n' + L('listing-match.js') : '') + (opts.ws ? '\n' + L('listing-workspace.js') + '\n' + L('listing-saved.js') + '\n' + L('listing-kid.js') + '\n' + L('listing-bf.js') + '\n' + L('listing-sync.js') : '') + (opts.sp ? '\n' + L('season-planner.js') : '')
-    + (opts.pc ? '\n' + L('picture-check.js') : '') + (opts.tab ? '\n' + L('listing-rules-tab.js') : '') + (opts.fa ? '\n' + L('fix-all.js') + '\n' + L('kw-fix.js') + (L('title-fix.js') ? '\n' + L('title-fix.js') : '') : '') + (opts.sp || opts.fa || opts.sq ? '\n' + L('listing-send-check.js') : '')
+    + (opts.pc ? '\n' + L('picture-check.js') : '') + (opts.tab ? '\n' + L('listing-rules-tab.js') : '') + (opts.fa ? '\n' + L('fix-all.js') + '\n' + L('kw-fix.js') + (L('title-fix.js') ? '\n' + L('title-fix.js') : '') + (L('ip-guard.js') ? '\n' + L('family-check.js') + '\n' + L('ip-guard.js') : '') : '') + (opts.sp || opts.fa || opts.sq ? '\n' + L('listing-send-check.js') : '')
     + (opts.le ? '\n' + L('listing-content.js') + '\n' + L('listing-errors.js') : '') + (opts.im ? '\n' + L('image-quality.js') + '\n' + L('image-manager.js') : '') + (opts.lh ? '\n' + L('listing-history.js') : '') + (opts.lo ? '\n' + L('listing-optimiser.js') : '');
   const tail = '\n;LR = JSON.parse(JSON.stringify(LR_DEFAULT)); LR_CAT.SP = ' + JSON.stringify(CAT.SP) + '; LR_CAT.CPC = ' + JSON.stringify(CAT.CPC) + ';'
     + '\n;return { rows: HEALTH.SP.rows.concat(HEALTH.CPC.rows), LR_DEFAULT, getLR: () => LR, healthOf, hCtx: () => hCtx(), reset: () => { H_CTX = null; }, hTitleSizes,'
@@ -103,7 +103,10 @@ function load(opts) {
     + (opts.lo ? ' loGo: () => $("loGo").onclick(), getLO: () => LO_DATA, ensureOpt, lmReviewFacts: typeof lmReviewFacts === "function" ? lmReviewFacts : null,' : '')
     + (opts.fa ? ' FA, faBlockHtml, faGroups, faCards, faPlan, faPlans, faShortTitle, faStart, faPutBack, faChangeList, faOnGet, faKids, faClick, faHistHtml, faLogLoad, faOpenImg, faOpenLerr, spParentPanelHtml, liWsPanelList, KF, kfShorten, kfItemOf, kfPlan, kfPreview, kfGo, kfInput, kfDraw, kfLeCardHtml, kfLeStart, kfOverRows, kfReport, kfStartGroup, faBackPatches, kfClick,' + ['TT', 'TT_DETS', 'TT_SCREEN', 'TT_ROW', 'ttBuild', 'ttParts', 'ttPlans', 'ttRows', 'ttFamily', 'ttFamilyN', 'ttPlanOfKid', 'ttStartFamily', 'ttStartOne', 'ttLeCardHtml', 'ttLeStart',
       'ttPreview', 'ttDraw', 'ttFamilyStep', 'ttFamilyFresh', 'faPlanOf', 'faLiveKey', 'FA_PLAN_KEEP', 'ttRowsStep', 'FA_W', 'faWork', 'faBgStart', 'faWarmParent', 'faParentSteps', 'ttRefresh', 'ttInput', 'ttGo', 'ttClick', 'ttClose', 'ttCheck', 'ttCtxWith', 'ttSafe', 'ttReport', 'ttAmazon', 'ttSizeNums', 'ttLimits', 'ttMark', 'ttChosen', 'ttRunCheck'].map(n => ` ${n}: typeof ${n} === "undefined" ? null : ${n},`).join('')
-      + ' lrRecHtml: typeof lrRecHtml === "function" ? lrRecHtml : null,' : '') + ' };';
+      + ' lrRecHtml: typeof lrRecHtml === "function" ? lrRecHtml : null,'
+      + ['IPG', 'FC', 'fcBuild', 'ipgWords', 'ipgFind', 'ipgFold', 'ipgKeyOf', 'ipgSnip', 'ipgTexts', 'ipgScan', 'ipgBuild', 'ipgGroups', 'ipgShownRows', 'ipgSummary', 'ipgWordCards', 'ipgCardsShown', 'ipgShownFinds', 'ipgFindView', 'ipgCsv',
+        'ipgDraw', 'ipgOpen', 'ipgClick', 'ipgFilter', 'ipgAllow', 'ipgAllowFam', 'ipgUndo', 'ipgOkLoad', 'ipgMarkOf', 'ipgFixKw', 'ipgFixTitle', 'ipgKwRisk', 'ipgTitleRisk', 'ipgAfterSend', 'ipReport', 'IPG_CSV_COLS', 'IPG_TYPE',
+        'ttStartList', 'kfTokens', 'lrAllow'].map(n => ` ${n}: typeof ${n} === "undefined" ? null : ${n},`).join('') : '') + ' };';
   const api = new Function(...Object.keys(ctx), src + tail)(...Object.values(ctx));
   // api.rows ARE the HEALTH rows (the same objects, brand on each): a test that changes one changes what every screen judges.
   api.score = sku => { const r = api.rows.find(x => x.sku === sku); return api.healthOf(r, api.hCtx()); };
@@ -182,7 +185,11 @@ if (require.main === module) {
   ok('Fix hands over to Listing Errors with the attributes', A.calls.some(c => c.tab === 'lerr') && A.calls.some(c => c.sku === 'R4' && c.attrs.join() === 'material'), JSON.stringify(A.calls));
 
   console.log('== the settings ==');
-  ok('defaults: 74, our brand words "Ridhi, CPC, Whimsical Corner" (one list for both accounts), White / Off White', JSON.stringify(A.lrAllow({})) === JSON.stringify({ shortFrom: 74, ourBrands: 'Ridhi, CPC, Whimsical Corner', writeAs: { SP: 'Ridhi', CPC: 'Whimsical Corner' }, embroideryColors: 'White, Off White' }), JSON.stringify(A.lrAllow({})));
+  // (18 Nov 2026) + the IP & Trademark Guard's two starting lists — read by ip-guard.js only, never by a Listing Rules rule
+  ok('defaults: 74, our brand words "Ridhi, CPC, Whimsical Corner" (one list for both accounts), White / Off White', (() => { const a = A.lrAllow({}); return JSON.stringify({ shortFrom: a.shortFrom, ourBrands: a.ourBrands, writeAs: a.writeAs, embroideryColors: a.embroideryColors })
+    === JSON.stringify({ shortFrom: 74, ourBrands: 'Ridhi, CPC, Whimsical Corner', writeAs: { SP: 'Ridhi', CPC: 'Whimsical Corner' }, embroideryColors: 'White, Off White' }) && Object.keys(a).join() === 'shortFrom,ourBrands,writeAs,embroideryColors,otherBrands,claims'; })(), JSON.stringify(A.lrAllow({})));
+  ok('…and the Guard\'s starting lists: 20 other brands\' names, 15 restricted claims; a saved empty list stays empty', A.lrAllow({}).otherBrands.split(',').length === 20 && /^Pottery Barn, Williams Sonoma,/.test(A.lrAllow({}).otherBrands) && /Amazon's Choice$/.test(A.lrAllow({}).otherBrands)
+    && A.lrAllow({}).claims.split(',').length === 15 && /^antibacterial, antimicrobial, antiviral, organic, GOTS, OEKO-TEX,/.test(A.lrAllow({}).claims) && A.lrAllow({ allow: { otherBrands: '', claims: 'vegan' } }).otherBrands === '' && A.lrAllow({ allow: { claims: 'vegan' } }).claims === 'vegan');
   ok('a config saved with the old per-account lists: their words join the shared list (nothing typed is lost)', A.lrAllow({ allow: { brandWords: { SP: 'Ridhi, Ridhi Home', CPC: 'Whimsical Corner' } } }).ourBrands === 'Ridhi, CPC, Whimsical Corner, Ridhi Home', A.lrAllow({ allow: { brandWords: { SP: 'Ridhi, Ridhi Home', CPC: 'Whimsical Corner' } } }).ourBrands);
   A.getLR().allow = { shortFrom: 70 }; A.reset();
   ok('Short forms allowed from 70: the 62-character title still fails, a 70+ one would not', !!A.hit('R2', 'size_format') && A.lrAllow(A.getLR()).shortFrom === 70);

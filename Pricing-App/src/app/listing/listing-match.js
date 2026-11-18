@@ -41,7 +41,7 @@ const LM_APLUS_AT = 13;                 // the full pass the daily A+ read follo
 const lmHour = h => String(h).padStart(2, '0') + ':00';
 const LM_IST_MS = 5.5 * 3600000;        // ListingMatch writes its times in IST ('yyyy-MM-dd HH:mm')
 const LM_SLOTS = ['MAIN', 'PT01', 'PT02', 'PT03', 'PT04', 'PT05', 'PT06', 'PT07', 'PT08'];
-const LM_PANES = ['paneHealth', 'paneImg', 'paneOpt', 'paneFam', 'paneBsr', 'paneLerr', 'paneAudit', 'paneAplus'];   // the screens with the age line
+const LM_PANES = ['paneHealth', 'paneImg', 'paneOpt', 'paneFam', 'paneBsr', 'paneLerr', 'paneAudit', 'paneAplus', 'paneIpg'];   // the screens with the age line
 // The spec attributes the Workspace checks (listing-workspace.js LI_WS_SPECS; ListingMatch.gs LM_SPEC_ATTRS keeps the same list)
 const LM_SPECS = () => (typeof LI_WS_SPECS !== 'undefined' ? LI_WS_SPECS : ['material', 'color', 'size', 'pattern', 'style', 'item_shape', 'number_of_items', 'theme',
   'care_instructions', 'special_feature', 'item_type_name', 'fabric_type']);
@@ -848,6 +848,7 @@ function lmRedraw() {
     if (shown('paneOpt') && typeof SP !== 'undefined' && SP.on && typeof spAfterRead === 'function') spAfterRead();
     if (shown('paneFam') && typeof FC !== 'undefined' && typeof fcSchedule === 'function') { FC.view = null; fcSchedule(); }
     if (shown('paneAplus') && typeof apcDrawKeep === 'function' && typeof APC !== 'undefined' && APC.loaded) apcDrawKeep();
+    if (shown('paneIpg') && typeof ipgDrawKeep === 'function' && typeof IPG !== 'undefined' && IPG.loaded) ipgDrawKeep();
     if (shown('paneBsr') && typeof BSR_MODE !== 'undefined' && BSR_MODE === 'compare' && typeof renderBsr === 'function' && typeof BSR_LOADED !== 'undefined' && BSR_LOADED) renderBsr();
     if (shown('paneLerr') && typeof leRender === 'function') leRender();
     if (shown('paneAudit') && typeof AUDIT_LOADED !== 'undefined' && AUDIT_LOADED && typeof renderAudit === 'function') renderAudit();

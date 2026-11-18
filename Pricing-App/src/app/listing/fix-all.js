@@ -335,7 +335,8 @@ function faPlanSig(g, kid, ctx) {
     return base.concat([fam ? fam.plans.get(kid.sku) || FA_FRESH : FA_FRESH]);
   }
   const own = faLiveKey(kid.brand, kid.sku);
-  if (g.kind === 'kw') return base.concat([own, typeof lmGet === 'function' ? lmGet(kid.sku, kid.brand) : null, typeof KF !== 'undefined' ? KF.full.get(faKidKey(kid)) || null : null]);
+  if (g.kind === 'kw') return base.concat([own, typeof lmGet === 'function' ? lmGet(kid.sku, kid.brand) : null, typeof KF !== 'undefined' ? KF.full.get(faKidKey(kid)) || null : null,
+    typeof IPG !== 'undefined' ? IPG.okV + ':' + IPG.wordsV : 0]);       // the risky words it takes out: the lists and the "Allowed on purpose" marks (ip-guard.js)
   if (g.kind === 'spec') return base.concat([own, faSpecSig(g)]);
   return base.concat([own]);
 }
@@ -381,6 +382,9 @@ function* faParentSteps(brand, parent, groups) {
     groups = faGroups(brand, parent, kids);
     yield;
   }
+  // the "Allowed on purpose" marks of the IP & Trademark Guard are read first (a step may hand the worker something to wait for): a
+  // search-terms fix never takes an allowed word out, and no fix is worked out twice because the marks landed half-way
+  if (typeof ipgOkLoad === 'function' && typeof IPG !== 'undefined' && !IPG.okLoaded && groups.some(g => g.kind === 'kw')) { const marks = ipgOkLoad(); if (marks) yield marks; }
   if (typeof ttFamilyStep === 'function' && groups.some(g => g.kind === 'ttl')) while (!ttFamilyStep(brand, parent)) yield;
   const ctx = hCtx();
   for (const g of groups) for (const kid of g.kids) { faPlanOf(g, kid, ctx); yield; }
@@ -396,10 +400,15 @@ function faWork() {
         if (!job) break;
         const pri = job === FA_W.pri;
         const t0 = performance.now();
-        let end = false;
+        let end = false, hold = null;
         try {
-          while (performance.now() - t0 < (pri ? FA_SLICE_MS : FA_BG_SLICE_MS)) if (job.it.next().done) { end = true; break; }
+          while (performance.now() - t0 < (pri ? FA_SLICE_MS : FA_BG_SLICE_MS)) {
+            const step = job.it.next();
+            if (step.done) { end = true; break; }
+            if (step.value && typeof step.value.then === 'function') { hold = step.value; break; }     // a saved document being read: wait for it
+          }
         } catch (e) { end = true; }     // a step that fails ends its job: the block then draws (and says) what it can
+        if (hold) { try { await hold; } catch (e) { /* not read: the fixes are worked out without it */ } }
         FA_W.slices++;
         if (end) {
           if (pri) { FA_W.pri = null; job.done(); } else FA_W.bg.shift();
@@ -617,8 +626,8 @@ function faLiveAfterSend(it, now) {
   const entry = liWsEntry(it.brand, it.sku);
   const s = it.sent;
   Object.assign(entry, { at: now, err: '', cErr: '' });
-  if (s.title != null) Object.assign(entry, { title: s.title.slice(0, 220), titleLen: s.title.length }, entry.cAt ? { cAt: now } : {});
-  if (s.kw != null) Object.assign(entry, { kw: s.kw.slice(0, 300), kwBytes: lrKwBytes(s.kw) });
+  if (s.title != null) Object.assign(entry, { title: s.title.slice(0, 220), titleLen: s.title.length, tSentAt: now }, entry.cAt ? { cAt: now } : {});
+  if (s.kw != null) Object.assign(entry, { kw: s.kw.slice(0, 300), kwBytes: lrKwBytes(s.kw), kwAt: now });      // tSentAt / kwAt: when our own change went (ip-guard.js)
   if (s.hl != null) Object.assign(entry, { hl: s.hl.slice(), hlAt: now });
   if (s.spec) entry.specs = Object.assign({}, entry.specs || {}, { [s.spec]: true });
   LI_WS.liveV++;

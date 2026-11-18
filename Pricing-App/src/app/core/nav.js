@@ -11,7 +11,7 @@
 // for which tab opens first: the first one the account is allowed.
 const TABS = ['link', 'new', 'pr', 'sales', 'profit', 'sa', 'plaudit', 'shop', 'adj', 'kw', 'ba', 'age', 'health',
   'lrules', 'audit', 'bsr', 'weekly', 'ppcn', 'trends', 'st', 'plc', 'deals', 'tiktok', 'carousel', 'opt', 'img',
-  'lerr', 'basket', 'lhist', 'fam', 'aplus'];
+  'lerr', 'basket', 'lhist', 'fam', 'aplus', 'ipg'];
 // 'health' → 'Health': a tab key as it appears inside element ids.
 const capId = t => t[0].toUpperCase() + t.slice(1);
 // The title shown at the top of the page for each tab.
@@ -22,7 +22,7 @@ const TAB_TITLE = { link: 'By Amazon Link', new: 'New Product', pr: 'Product Res
   profit: 'Profit & Margin', sa: 'Sales Analysis', plaudit: 'Parent Listing Review', shop: 'Shopify Orders',
   adj: 'Adjustments', tiktok: 'TikTok Toolkit', carousel: 'Carousel Builder', opt: 'Listing Optimiser',
   img: 'Image Manager', lerr: 'Listing Errors', basket: 'Bought Together', lhist: 'Listing History',
-  fam: 'Family & Category Check', aplus: 'A+ Content' };
+  fam: 'Family & Category Check', aplus: 'A+ Content', ipg: 'IP & Trademark Guard' };
 
 // Tabs hidden from the sidebar. Everything (panes, JS, backend) stays wired up — take a name out of
 // this list and that tab is back, no other change needed.
@@ -36,7 +36,7 @@ HIDDEN_TABS.forEach(t => $('tab' + capId(t)).classList.add('hide'));
 // Tabs nobody is granted on their own: they come with another tab. Product Performance reads exactly
 // the documents PPC & Organic reads, and the Firestore rules gate those on `weekly` — so granting the
 // new tab by itself would only ever open an empty screen. Kept out of the Access form for that reason.
-const TAB_INHERIT = { ppcn: 'weekly', lhist: 'health', fam: 'health', aplus: 'health' };   // Listing History: with Listing Health (Image Manager, Listing Errors, Listing Rules: listing/listing-history.js); Family & Category Check: with Listing Health (listing/family-check.js); A+ Content: with Listing Health (listing/aplus-audit.js)
+const TAB_INHERIT = { ppcn: 'weekly', lhist: 'health', fam: 'health', aplus: 'health', ipg: 'health' };   // Listing History: with Listing Health (Image Manager, Listing Errors, Listing Rules: listing/listing-history.js); Family & Category Check: with Listing Health (listing/family-check.js); A+ Content: with Listing Health (listing/aplus-audit.js)
 
 /* ---------- sidebar: collapsible groups + the 3-line menu button ---------- */
 // Read straight off the markup, so adding a group is an HTML edit and nothing here changes.
