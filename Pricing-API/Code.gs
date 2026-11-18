@@ -210,7 +210,7 @@ function doGet(e) {
     }
     // Whatever the nightly run has already worked out. One fast read instead of the whole grind.
     if (p.cache) {
-      var c = /^lm(Meta$|Listings_|Catalog_)/.test(String(p.cache)) ? lmCacheRead_(String(p.cache)) : cacheRead_(String(p.cache));   // lm* tabs: ListingMatch.gs's own spreadsheet
+      var c = /^lm(Meta$|Listings_|Catalog_|Aplus_)/.test(String(p.cache)) ? lmCacheRead_(String(p.cache)) : cacheRead_(String(p.cache));   // lm* tabs: ListingMatch.gs's own spreadsheet
       return json_(c ? { ok: true, name: p.cache, data: c } : { ok: false, error: 'nothing cached for "' + p.cache + '" yet' });
     }
     if (p.cacheState) return json_({ ok: true, state: nState_() });
@@ -296,6 +296,8 @@ function doGet(e) {
     // A+ content. `aplusasin` is the authoritative one (publish records per ASIN); `aplus` is the
     // older document-first sweep, kept for diagnosis.
     if (p.lh === 'aplusasin') { setBrand_(p.brand); return json_(lhAplusAsins_(p.asins)); }
+    // One A+ document, when a person asks for it (Sellora's A+ Content screen: Preview A+, aplusAccuracyReport): ListingMatch.gs
+    if (p.lh === 'aplusdoc') { setBrand_(p.brand); return json_(lmAplusDoc_(p.doc, p.asins)); }
     // Weekly BSR snapshot: sales rank + its category for a batch of child ASINs.
     if (p.lh === 'bsr') { setBrand_(p.brand); return json_(lhBsr_(p.asins)); }
 

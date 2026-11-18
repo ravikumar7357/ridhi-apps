@@ -55,7 +55,17 @@ function world(o) {
       cat[asin] = { t: 'Shown ' + sku, img: { MAIN: { link: 'https://m.media-amazon.com/images/I/' + sku + '-live.jpg', w: 1500, h: 1500 } }, pa: [parent], vals: { color: 'Color' + i, size: '60x90' } };
       cat[parent].kids.push(asin);
     }
-    W[b] = { skus, cat, fyp: {} };
+    // A+ documents (A+ Content API): Ridhi — one approved on children 1–10, a draft on 11–12, one waiting on 13, a rejected one on 14,
+    // an approved one attached to nothing; CPC — one approved on children 1–5. Children past those have no A+.
+    const doc = (k, n, st, bd, upd, kids) => ({ k, n, s: st, bd, u: upd, a: kids.map(i => A(b, i)) });
+    const aplus = b === 'SP'
+      ? [doc('SP-DOC-1', 'Tablecloth A+ 2026', 'APPROVED', ['STANDARD'], '2026-10-01T10:00:00Z', [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]),
+        doc('SP-DOC-2', 'Napkins draft', 'DRAFT', ['STANDARD'], '2026-09-01T10:00:00Z', [11, 12]),
+        doc('SP-DOC-3', 'Runner premium', 'SUBMITTED', ['PREMIUM'], '2026-11-14T10:00:00Z', [13]),
+        doc('SP-DOC-4', 'Placemats', 'REJECTED', ['STANDARD'], '2026-11-10T10:00:00Z', [14]),
+        doc('SP-DOC-5', 'Old launch page', 'APPROVED', [], '2025-03-01T10:00:00Z', [])]
+      : [doc('CPC-DOC-1', 'Desk set A+', 'APPROVED', ['STANDARD'], '2026-08-01T10:00:00Z', [1, 2, 3, 4, 5])];
+    W[b] = { skus, cat, fyp: {}, aplus: o.aplus && o.aplus[b] ? o.aplus[b] : aplus };
   });
   return W;
 }
@@ -181,6 +191,37 @@ function setup(o) {
       const ids = (q.get('identifiers') || '').split(',');
       return resp(200, { items: ids.filter(a => w.cat[a]).map(a => catalogItem(a, w.cat[a])) });
     }
+    if (p.indexOf('/aplus/2020-11-01/') === 0) {
+      const call = calls[calls.length - 1];
+      if (o.aplusFail && o.aplusFail(call, calls.length)) return resp(o.aplusFailCode || 500, { errors: [{ code: 'InternalFailure', message: 'boom' }] });
+      const docs = w.aplus || [];
+      if (p === '/aplus/2020-11-01/contentDocuments') {                                    // searchContentDocuments
+        const size = o.aplusPage || 2, start = Number(q.get('pageToken') || 0), page = docs.slice(start, start + size);
+        return resp(200, Object.assign({ contentMetadataRecords: page.map(d => ({ contentReferenceKey: d.k,
+          contentMetadata: Object.assign({ name: d.n, marketplaceId: 'ATVPDKIKX0DER', status: d.s, badgeSet: d.bd, updateTime: d.u }, d.rr ? { rejectionReasons: d.rr } : {}) })) },
+          start + size < docs.length ? { nextPageToken: String(start + size) } : {}));
+      }
+      if (p === '/aplus/2020-11-01/contentPublishRecords') {
+        const asin = q.get('asin'), on = docs.filter(d => d.s === 'APPROVED' && d.a.includes(asin));
+        return resp(200, { publishRecordList: on.map(d => ({ marketplaceId: 'ATVPDKIKX0DER', locale: 'en-US', asin, contentType: 'EBC', contentReferenceKey: d.k })) });
+      }
+      let am;
+      if ((am = p.match(/^\/aplus\/2020-11-01\/contentDocuments\/([^/]+)\/asins$/))) {      // listContentDocumentAsinRelations
+        const d = docs.find(x => x.k === decodeURIComponent(am[1]));
+        if (!d) return resp(404, { errors: [{ code: 'NotFound', message: 'no such document' }] });
+        const size = o.aplusAsinPage || 4, start = Number(q.get('pageToken') || 0), page = d.a.slice(start, start + size);
+        return resp(200, Object.assign({ asinMetadataSet: page.map(a => ({ asin: a })) }, start + size < d.a.length ? { nextPageToken: String(start + size) } : {}));
+      }
+      if ((am = p.match(/^\/aplus\/2020-11-01\/contentDocuments\/([^/]+)$/))) {               // getContentDocument
+        const d = docs.find(x => x.k === decodeURIComponent(am[1]));
+        if (!d) return resp(404, { errors: [{ code: 'NotFound', message: 'no such document' }] });
+        return resp(200, { contentRecord: { contentReferenceKey: d.k, contentMetadata: { name: d.n, marketplaceId: 'ATVPDKIKX0DER', status: d.s, badgeSet: d.bd, updateTime: d.u },
+          contentDocument: { name: d.n, contentType: 'EBC', locale: 'en-US', contentModuleList: [
+            { contentModuleType: 'STANDARD_HEADER_IMAGE_TEXT', standardHeaderImageText: { headline: { value: 'Made by hand' }, block: { image: { uploadDestinationId: 'aplus-media/sc/abc.jpg', altText: 'A table' },
+              headline: { value: 'Block printed cotton' }, body: { textList: [{ value: 'Printed by hand in Jaipur.' }] } } } },
+            { contentModuleType: 'STANDARD_FOUR_IMAGE_TEXT', standardFourImageText: { block1: { image: { uploadDestinationId: 'aplus-media/sc/one.jpg' }, headline: { value: 'Soft' } } } }] } } });
+      }
+    }
     if (p === '/fba/inventory/v1/summaries') {
       const sku = q.get('sellerSkus');
       return resp(200, { payload: { inventorySummaries: w.skus[sku] ? [{ sellerSku: sku, inventoryDetails: { fulfillableQuantity: w.skus[sku].fbaLive != null ? w.skus[sku].fbaLive : w.skus[sku].fba } }] : [] } });
@@ -217,9 +258,13 @@ function setup(o) {
     return { items: out, dup };
   };
   // ticks until the full pass is done (a 13:00 tick starts it)
-  const fullPass = (max) => { let n = 0; do { run('lmTick()'); n++; } while (state().run && n < (max || 60)); return n; };
+  const aplusOn = () => vm.runInContext('(function () { var st = lmState_(), now = new Date(), tz = Session.getScriptTimeZone(); var today = Utilities.formatDate(now, tz, "yyyy-MM-dd");'
+    + ' var mins = Number(Utilities.formatDate(now, tz, "H")) * 60 + Number(Utilities.formatDate(now, tz, "mm")); return !!st.ap || lmAplusDue_(st, today, mins); })()', ctx);
+  let aplusTicks = 0;
+  const aplusRead = (max) => { let n = 0; while (!state().run && aplusOn() && n < (max || 30)) { run('lmTick()'); n++; } aplusTicks += n; return n; };
+  const fullPass = (max) => { let n = 0; do { run('lmTick()'); n++; } while (state().run && n < (max || 60)); if (!o.noAplusAfter) aplusRead(); return n; };
   const get = q => JSON.parse(vm.runInContext('doGet({ parameter: ' + JSON.stringify(Object.assign({ key: 'K' }, q)) + ' }).text', ctx));
-  return { W, props, get sheets() { const b = books.get(props.LM_CACHE_ID); return b ? b.sheets : new Map(); }, books, created, log, calls, triggers, reps, ctx, read, run, state, allItems, fullPass, get,
+  return { W, props, get sheets() { const b = books.get(props.LM_CACHE_ID); return b ? b.sheets : new Map(); }, books, created, log, calls, triggers, reps, ctx, read, run, state, allItems, fullPass, aplusRead, get aplusTicks() { return aplusTicks; }, get,
     setHour: h => { o.tz = null; o.hour = h; }, setTime: (h, m) => { o.tz = null; o.hour = h; o.min = m; }, opts: o };
 }
 const tabs = T => [...T.sheets.keys()];
@@ -662,11 +707,133 @@ const tabs = T => [...T.sheets.keys()];
     const code = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
     ok('ListingMatch never opens the nightly cache spreadsheet (no cacheSheet_ / cacheRead_ / cacheWrite_ call)', !/cacheSheet_\(|cacheRead_\(|cacheWrite_\(/.test(code));
     const codeGs = fs.readFileSync(P + 'Code.gs', 'utf8');
-    ok('Code.gs: one line — lm tabs from lmCacheRead_, everything else from cacheRead_ as before; CRLF kept', /var c = \/\^lm\(Meta\$\|Listings_\|Catalog_\)\/\.test\(String\(p\.cache\)\) \? lmCacheRead_\(String\(p\.cache\)\) : cacheRead_\(String\(p\.cache\)\);/.test(codeGs) && !/(^|[^\r])\n/.test(codeGs));
+    ok('Code.gs: one line — lm tabs from lmCacheRead_, everything else from cacheRead_ as before; CRLF kept', /var c = \/\^lm\(Meta\$\|Listings_\|Catalog_\|Aplus_\)\/\.test\(String\(p\.cache\)\) \? lmCacheRead_\(String\(p\.cache\)\) : cacheRead_\(String\(p\.cache\)\);/.test(codeGs) && !/(^|[^\r])\n/.test(codeGs));
     ok('no LockService, no writes to Amazon (only report requests and reads)', !/LockService\./.test(src) && !/'(put|patch|delete)'/.test(src) && !/method:\s*'(put|patch|delete)'/.test(src));
     ok('no keys in the code', !/(CLIENT_SECRET|REFRESH_TOKEN|Atzr\||amzn1\.application)/.test(src.replace(/prop_\(|getProperty\(/g, '')));
     ok('the line endings are one kind (CRLF, like most of Pricing-API)', !/(^|[^\r])\n/.test(src) && /\r\n/.test(src));
     ok('every name it adds starts with lm / LM_ (no clash with the other files)', (src.match(/^function (\w+)/gm) || []).every(f => /^function (lm|LM)/.test(f)) && (src.match(/^var (\w+)/gm) || []).every(v => /^var LM_/.test(v)));
+  }
+
+  console.log('== A+ content: once a day after the 13:00 pass (18 Nov 2026) ==');
+  {
+    const aplusCalls = T => T.calls.filter(c => c.p.indexOf('/aplus/') === 0);
+    // --- the daily read ---
+    const T = setup({ hour: 13 });
+    T.fullPass();
+    const meta = T.read('lmMeta'), sp = T.read('lmAplus_SP'), cpc = T.read('lmAplus_CPC');
+    ok('after the 13:00 full pass the A+ read runs and lmMeta names one tab per brand', !T.state().ap && meta.aplus && meta.aplus.SP.tab === 'lmAplus_SP' && meta.aplus.CPC.tab === 'lmAplus_CPC' && !meta.aplus.SP.stale && T.aplusTicks >= 1, JSON.stringify(meta.aplus));
+    ok('every document with its name, status, type and last update (Ridhi 5, CPC 1)', sp.ok && sp.nDocs === 5 && cpc.nDocs === 1
+      && sp.docs['SP-DOC-1'].n === 'Tablecloth A+ 2026' && sp.docs['SP-DOC-1'].s === 'APPROVED' && sp.docs['SP-DOC-1'].t === 'Basic' && sp.docs['SP-DOC-1'].u === '2026-10-01T10:00:00Z'
+      && sp.docs['SP-DOC-2'].s === 'DRAFT' && sp.docs['SP-DOC-3'].s === 'SUBMITTED' && sp.docs['SP-DOC-3'].t === 'Premium' && sp.docs['SP-DOC-4'].s === 'REJECTED', JSON.stringify(sp.docs['SP-DOC-3']));
+    ok('a document with no badge from Amazon has no type (never guessed)', sp.docs['SP-DOC-5'].t === '' && sp.docs['SP-DOC-5'].bd.length === 0);
+    ok('the ASINs each document is attached to — a long list read page by page (10 ASINs, 4 a page)', sp.docs['SP-DOC-1'].a.length === 10 && sp.docs['SP-DOC-1'].a[9] === A('SP', 10)
+      && sp.docs['SP-DOC-2'].a.join() === [A('SP', 11), A('SP', 12)].join() && sp.docs['SP-DOC-5'].a.length === 0);
+    ok('per ASIN: the documents it is on', sp.asins[A('SP', 3)].join() === 'SP-DOC-1' && sp.asins[A('SP', 13)].join() === 'SP-DOC-3' && sp.asins[A('SP', 20)] === undefined && sp.nAsins === 14);
+    // calls: Ridhi 3 search pages (5 documents, 2 a page) + 3 + 1 + 1 + 1 + 1 ASIN-list calls (the 10-ASIN list is 3 pages); CPC 1 + 2 (5 ASINs)
+    const nSp = aplusCalls(T).filter(c => c.b === 'SP').length, nCpc = aplusCalls(T).filter(c => c.b === 'CPC').length;
+    ok('the exact calls are counted and kept: Ridhi ' + nSp + ', CPC ' + nCpc, nSp === 10 && nCpc === 3 && sp.calls === 10 && cpc.calls === 3 && meta.aplus.SP.calls === 10, sp.calls + ' / ' + cpc.calls);
+    ok('only A+ reads: searchContentDocuments and the ASIN lists, nothing written to Amazon', aplusCalls(T).every(c => c.m === 'get' && /^\/aplus\/2020-11-01\/contentDocuments(\/[^/]+\/asins)?$/.test(c.p)));
+    ok('the scratch tab is gone; the listing parts are untouched', !T.sheets.has('lmApScr_SP') && !T.sheets.has('lmApScr_CPC') && meta.parts.listings.SP.length >= 1 && meta.kind === 'full');
+    // --- once a day ---
+    T.calls.length = 0;
+    T.run('lmTick()');
+    ok('a later tick the same day: A+ is not read again', !aplusCalls(T).length && T.state().apDay);
+    T.setHour(18);
+    T.fullPass();
+    ok('the 18:00 full pass: A+ is not read again (once a day)', !aplusCalls(T).length);
+    T.run('lmAplusNow()');
+    T.calls.length = 0;
+    T.aplusRead();
+    ok('lmAplusNow(): one extra read on the next free tick', aplusCalls(T).length === 13 && !T.state().apAsk && !T.state().ap);
+    // --- not before 13:00, not in a morning pass ---
+    const M = setup({ hour: 10 });
+    M.run('lmRunNow()');
+    M.fullPass();
+    ok('a full pass in the morning (lmRunNow at 10:00): no A+ read — it follows the 13:00 pass only', !aplusCalls(M).length && !M.read('lmMeta').aplus);
+    // --- Code.gs ---
+    const g = T.get({ cache: 'lmAplus_SP' });
+    ok('Code.gs ?cache=lmAplus_SP reads the tab from "Sellora Listing Cache"', g.ok && g.data.docs['SP-DOC-1'].a.length === 10);
+    const d = T.get({ lh: 'aplusdoc', brand: 'SP', doc: 'SP-DOC-1', asins: '1' });
+    ok('?lh=aplusdoc: one document on request — status, type, its modules\' texts and picture ids, its ASINs', d.ok && d.status === 'APPROVED' && d.type === 'Basic' && d.modules.length === 2
+      && d.modules[0].type === 'STANDARD_HEADER_IMAGE_TEXT' && d.modules[0].texts.includes('Block printed cotton') && d.modules[0].texts.includes('Printed by hand in Jaipur.')
+      && d.modules[0].imgs[0].id === 'aplus-media/sc/abc.jpg' && d.asins.length === 10, JSON.stringify(d).slice(0, 400));
+    ok('…a document that is not there: a plain error, no crash', T.get({ lh: 'aplusdoc', brand: 'SP', doc: 'NOPE' }).status === 404);
+    // --- a rejection reason, when Amazon sends one ---
+    const R = setup({ hour: 13, aplus: { SP: [{ k: 'RJ', n: 'Rejected doc', s: 'REJECTED', bd: ['STANDARD'], u: '2026-11-01T00:00:00Z', a: [A('SP', 1)], rr: ['Image contains a web link'] },
+      { k: 'OK1', n: 'Fine', s: 'APPROVED', bd: ['STANDARD'], u: '2026-11-01T00:00:00Z', a: [A('SP', 2)] }] } });
+    R.fullPass();
+    ok('Amazon\'s rejection reason is kept when Amazon sends one — and [] when it does not', R.read('lmAplus_SP').docs.RJ.rr.join() === 'Image contains a web link' && sp.docs['SP-DOC-4'].rr.length === 0);
+    // --- failures never wipe ---
+    const F = setup({ hour: 13 });
+    F.fullPass();
+    const good = JSON.stringify(F.read('lmAplus_SP').docs);
+    F.opts.aplusFail = c => c.b === 'SP' && c.p === '/aplus/2020-11-01/contentDocuments';
+    F.run('lmAplusNow()');
+    F.aplusRead();
+    const fm = F.read('lmMeta');
+    ok('the document search fails 3 times: the last good tab stays as it was, lmMeta marks it stale with the reason', JSON.stringify(F.read('lmAplus_SP').docs) === good && fm.aplus.SP.stale === 1
+      && /failed 3 times/.test(fm.aplus.SP.err) && fm.aplus.SP.at === JSON.parse(JSON.stringify(fm.aplus.SP)).at && !!fm.aplus.SP.triedAt, JSON.stringify(fm.aplus.SP));
+    ok('…the other brand is read as usual', fm.aplus.CPC.stale === 0 && F.read('lmAplus_CPC').ok);
+    ok('…and the error is said plainly', (F.state().errors || []).some(e => /Ridhi A\+ could not be read/.test(e)));
+    // one document's ASIN list fails: its last good list is kept and marked
+    const P1 = setup({ hour: 13 });
+    P1.fullPass();
+    P1.W.SP.aplus[0].a = [A('SP', 1)];                                   // would shrink — but its read fails
+    P1.opts.aplusFail = c => /SP-DOC-1\/asins$/.test(c.p);
+    P1.run('lmAplusNow()');
+    P1.aplusRead();
+    const p1 = P1.read('lmAplus_SP');
+    ok('one document\'s ASIN list fails 3 times: that document keeps the list of the last read, marked; the others are fresh', p1.docs['SP-DOC-1'].a.length === 10 && p1.docs['SP-DOC-1'].as === 1
+      && !p1.docs['SP-DOC-2'].as && p1.partial === 0 && P1.read('lmMeta').aplus.SP.stale === 0, JSON.stringify(p1.docs['SP-DOC-1']));
+    // …and with no last read to fall back on: the list is unknown (null), counted as partial
+    const P2 = setup({ hour: 13, aplusFail: c => /SP-DOC-2\/asins$/.test(c.p) });
+    P2.fullPass();
+    const p2 = P2.read('lmAplus_SP');
+    ok('…with no earlier read: that document\'s list is unknown (a: null) and the read says so (partial 1) — never "no ASINs"', p2.docs['SP-DOC-2'].a === null && p2.partial === 1 && P2.read('lmMeta').aplus.SP.partial === 1 && p2.docs['SP-DOC-1'].a.length === 10);
+    // an answer that cannot be right
+    const E1 = setup({ hour: 13 });
+    E1.fullPass();
+    E1.W.SP.aplus = [];
+    E1.run('lmAplusNow()');
+    E1.aplusRead();
+    ok('Amazon suddenly lists no documents where the last read had 5: a failed read, the tab stays, marked stale', E1.read('lmAplus_SP').nDocs === 5 && E1.read('lmMeta').aplus.SP.stale === 1 && /no A\+ documents/.test(E1.read('lmMeta').aplus.SP.err));
+    const E2 = setup({ hour: 13, aplus: { SP: [{ k: 'X1', n: 'Approved, nothing attached', s: 'APPROVED', bd: [], u: '', a: [] }, { k: 'X2', n: 'Another', s: 'APPROVED', bd: [], u: '', a: [] }] } });
+    E2.fullPass();
+    ok('documents but not one ASIN on any of them (the old "A+ missing everywhere" answer): nothing is written, lmMeta says why', !E2.sheets.has('lmAplus_SP') && E2.read('lmMeta').aplus.SP.stale === 1
+      && /no ASIN on any of them/.test(E2.read('lmMeta').aplus.SP.err) && !E2.read('lmMeta').aplus.SP.at);
+    // a 403: no retries
+    const N = setup({ hour: 13, aplusFail: () => true, aplusFailCode: 403 });
+    N.fullPass();
+    ok('a 403 (no access): given up at once (2 calls, one per brand), said plainly, nothing written', aplusCalls(N).length === 2 && /no access to the A\+ Content API \(403\)/.test(N.read('lmMeta').aplus.SP.err) && !N.sheets.has('lmAplus_SP'));
+    // the network dying every tick must not hold the light passes back for ever
+    const D = setup({ hour: 13, netFail: c => c.p.indexOf('/aplus/') === 0 });
+    D.fullPass();
+    ok('a network that fails on every A+ call: given up after 6 ticks, the light passes are free again', !D.state().ap && D.aplusTicks === 6 && D.read('lmMeta').aplus.SP.stale === 1 && !!D.state().apDay, D.aplusTicks + ' ' + JSON.stringify(D.state().ap));
+    // --- a slow Amazon: several ticks, every document once ---
+    const big = Array.from({ length: 60 }, (_, i) => ({ k: 'B' + i, n: 'Doc ' + i, s: i % 5 ? 'APPROVED' : 'DRAFT', bd: ['STANDARD'], u: '2026-11-01T00:00:00Z', a: [A('SP', i + 1)] }));
+    const S = setup({ hour: 13, n: { SP: 80 }, aplus: { SP: big }, aplusPage: 20 });
+    S.fullPass();
+    S.opts.msPerCall = 0;
+    const before = S.calls.length;
+    ok('60 documents: ' + S.read('lmAplus_SP').calls + ' calls (3 search pages + one ASIN list each)', S.read('lmAplus_SP').nDocs === 60 && S.read('lmAplus_SP').calls === 63 && S.calls.length === before);
+    const Slow = setup({ hour: 13, n: { SP: 80 }, aplus: { SP: big }, aplusPage: 20, noAplusAfter: true });
+    Slow.fullPass();
+    Slow.opts.msPerCall = 20000;                                         // 20 s a call from here on: ~11 calls fit a tick
+    Slow.ctx.__slow = 1;
+    const ticks = Slow.aplusRead(40);
+    const asked = {};
+    aplusCalls(Slow).filter(c => /\/asins$/.test(c.p) && c.b === 'SP').forEach(c => { asked[c.p] = (asked[c.p] || 0) + 1; });
+    ok('a slow Amazon: the read carries on tick after tick (' + ticks + ' ticks) and every ASIN list is asked once', ticks >= 1 && Slow.read('lmAplus_SP').nDocs === 60 && Object.keys(asked).length === 60 && Object.values(asked).every(n => n === 1), ticks + ' ' + Object.keys(asked).length);
+    // --- lmStatus and the code ---
+    T.log.length = 0;
+    T.run('lmStatus()');
+    ok('lmStatus says what A+ holds: documents, ASINs, when, the calls', T.log.some(l => /Ridhi {2}5 documents on 14 ASINs · read .* with 10 calls/.test(l)), T.log.filter(l => /A\+|documents/.test(l)).join(' | '));
+    T.log.length = 0;
+    T.run('lmAplus("' + A('SP', 13) + '")');
+    ok('lmAplus(asin): that ASIN\'s documents', T.log.some(l => /"Runner premium" · SUBMITTED · Premium/.test(l)), T.log.join(' | '));
+    T.log.length = 0;
+    T.run('lmAplusCheck()');
+    ok('lmAplusCheck(): cache against Amazon\'s publish records — every line MATCH', T.log.filter(l => /MATCH|DIFFERENT/.test(l)).length >= 6 && !T.log.some(l => /DIFFERENT/.test(l)), T.log.filter(l => /DIFFERENT/.test(l)).join(' | '));
   }
 
   console.log(`\n${pass} passed, ${fail} failed`);

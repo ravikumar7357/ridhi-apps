@@ -63,7 +63,7 @@ function lhWhat(row) {
   return 'Spec: ' + f;
 }
 // From which screen: the screen's name, "· Fix all" when it sent several listings at once.
-const lhScreen = row => (LH_SCREEN[row.screen] || row.screen || '—') + (row.runN > 1 && !/Put back|paste/.test(row.screen || '') ? ' · Fix all' : '');
+const lhScreen = row => (LH_SCREEN[row.screen] || row.screen || '—') + (row.runN > 1 && !/Put back|paste|Fix all/.test(row.screen || '') ? ' · Fix all' : '');
 // Amazon's answer, with the reason for a rejected one.
 const lhResultText = row => (LH_RESULT[row.result] || row.result || '') + (row.result === 'rejected' && row.why ? ': ' + row.why : '');
 

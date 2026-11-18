@@ -821,6 +821,20 @@ function lrPictures(row, ctx) {
  *  publish record (the Workspace's answers first, then the Health snapshot's: the row's own and HEALTH[brand].parentAplus). Never
  *  asked, or the parent not asked yet: not judged. A "missing" answer older than LR_APLUS_DAYS is `stale` and asked again first. */
 function lrAplus(row, ctx) {
+  const pub = lrAplusPub(row, ctx);
+  /* THE A+ DOCUMENTS FIRST (18 Nov 2026): ListingMatch reads every A+ document and its ASINs once a day (listing-match.js lmAplusOf).
+   * While that read is fresh and can say for this ASIN, it is the answer — an approved document on the listing or its parent = A+,
+   * none approved = no A+ — and nothing is read one by one. Missing, old (over 30 h) or unsure: the publish records below, as before.
+   * One guard: the documents say "none live" but a publish record read in the last LR_APLUS_DAYS days says A+ is on the page — the page
+   * wins until that record is old (`until`: the moment the answer changes; the kept checks are judged again then). */
+  const doc = typeof lmAplusOf === 'function' ? lmAplusOf(row.brand, row.asin, row.parent) : null;
+  if (!doc) return pub;
+  if (doc.v === true) return doc;
+  if (pub.v === true && pub.at > 0 && Date.now() - pub.at <= LR_APLUS_DAYS * LR_DAY) return Object.assign({}, pub, { until: pub.at + LR_APLUS_DAYS * LR_DAY + 1 });
+  return doc;
+}
+// A+ from the publish records Sellora read one ASIN at a time (?lh=aplusasin): the answer before the daily A+ read, and its fallback.
+function lrAplusPub(row, ctx) {
   const ws = (ctx.wsAplus && ctx.wsAplus[row.brand]) || {};
   const saved = (ctx.parentAplus && ctx.parentAplus[row.brand]) || {};
   const newer = (a, b) => (a && b ? ((a.at || 0) >= (b.at || 0) ? a : b) : a || b || null);
@@ -828,7 +842,7 @@ function lrAplus(row, ctx) {
   const parent = row.parent ? newer(ws[row.parent], saved[row.parent]) : null;
   if (child && child.v === true) return { v: true, at: child.at || 0, src: 'listing' };
   if (parent && parent.v === true) return { v: true, at: parent.at || 0, src: 'parent' };
-  if (!child || child.v !== false) return { v: undefined, at: 0, why: 'A+ not asked yet' };
+  if (!child || child.v !== false) return { v: undefined, at: 0, why: 'A+ not checked yet' };
   if (row.parent && (!parent || parent.v !== false)) return { v: undefined, at: child.at || 0, note: true, why: "the listing has none, and its parent ASIN's A+ was not asked yet" };
   const at = Math.min(child.at || 0, parent ? parent.at || 0 : child.at || 0);
   const stale = !(at > 0) || Date.now() - at > LR_APLUS_DAYS * LR_DAY;
@@ -1022,7 +1036,8 @@ function hCtx(rowsAll) {
   // --- reuse the last context while nothing it depends on has changed ---
   const withContent = rows.reduce((count, row) => count + (row.content ? 1 : 0), 0);
   const pcV = typeof PC !== 'undefined' ? PC.v : 0;          // the Picture check marks (picture-check.js): a new mark judges again
-  const lmV = typeof lmVersion === 'function' ? lmVersion() + ':' + (lmOk('SP') ? 1 : 0) + (lmOk('CPC') ? 1 : 0) : '';   // the ListingMatch cache (listing-match.js)
+  const lmV = typeof lmVersion === 'function' ? lmVersion() + ':' + (lmOk('SP') ? 1 : 0) + (lmOk('CPC') ? 1 : 0)
+    + (typeof lmAplusFresh === 'function' ? ':' + (lmAplusFresh('SP') ? 1 : 0) + (lmAplusFresh('CPC') ? 1 : 0) : '') : '';   // the ListingMatch cache (listing-match.js), and its daily A+ read
   const key = [rows.length, withContent, LR_CAT.SP ? 1 : 0, LR_CAT.CPC ? 1 : 0, AMZ.at, ws ? 1 : 0, pcV, lmV,
     ['SP', 'CPC'].map(b => (HEALTH[b] && HEALTH[b].parentAplusAt) || 0).join(',')].join('|');
   if (H_CTX && H_CTX.cfg === cfg && H_CTX.sp === HEALTH.SP && H_CTX.cpc === HEALTH.CPC && H_CTX.key === key
@@ -1275,6 +1290,11 @@ function lrFixTag(hit, row) {
 const LR_FIX_IMG = ['no_main_image', 'images_below', 'images_between', 'images_small', 'main_not_square', 'images_duplicate', 'main_photo_check'];
 const lrFixKind = detector => (LR_FIX_IMG.includes(detector) ? 'img' : detector === 'aplus_missing' ? '' : 'lerr');
 
+// A title problem's Fix (title-fix.js, 18 Nov 2026): the new-title preview for that one listing — every title problem fixed in one new
+// title; Listing Errors when there is nothing to fix there. The button says which rule it is for; its kind stays 'lerr'.
+const lrFixIsTitle = (kind, detector) => kind === 'lerr' && typeof ttIsDet === 'function' && ttIsDet(detector);
+const lrFixDet = (kind, detector) => (lrFixIsTitle(kind, detector) ? ` data-lr-det="${detector}"` : '');
+const lrFixTip = (kind, detector) => (kind === 'img' ? 'Opens the Image Manager' : lrFixIsTitle(kind, detector) ? 'Shows the new title for this listing first (Fix all titles)' : 'Opens Listing Errors');
 /* ---- one look for every problem, on every screen (Part B2): dot · level word · what is wrong · how to fix · tag · Fix ---- */
 // `where`: { brand, sku, attrs } — the listing the Fix button opens (attrs: attribute names Listing Errors should show boxes
 // for even when no Amazon issue names them); null for no button. `note`: a short grey line under it (source · when), or ''.
@@ -1287,8 +1307,8 @@ function lrProblemHtml(hit, where, note) {
   const tag = hit.tag || 'Company rule';
   const kind = hit.kind == null ? lrFixKind(hit.detector) : hit.kind;
   const fix = where && kind ? `<button type="button" class="ghost lr-fixbtn" data-lr-fix="${esc(kind)}|${esc(where.brand)}|${esc(where.sku)}"`
-    + (where.attrs && where.attrs.length ? ` data-lr-attrs="${esc(where.attrs.join(','))}"` : '')
-    + ` title="${kind === 'img' ? 'Opens the Image Manager' : 'Opens Listing Errors'}">Fix</button>` : '';
+    + (where.attrs && where.attrs.length ? ` data-lr-attrs="${esc(where.attrs.join(','))}"` : '') + lrFixDet(kind, hit.detector)
+    + ` title="${lrFixTip(kind, hit.detector)}">Fix</button>` : '';
   // Price, stock and status come from the listings report, which only "Refresh both brands" renews — so no Check now for those.
   const fromReport = hit.src === 'report';
   const check = stale && where && !fromReport ? `<button type="button" class="ghost lr-checkbtn" data-lr-check="${esc(where.brand)}|${esc(where.sku)}"`
@@ -1316,8 +1336,8 @@ function lrRecHtml(rec, where) {
   const tag = rec.fill ? 'Good to fill' : (rec.tag || 'Company rule');
   const kind = rec.kind == null ? lrFixKind(rec.detector) : rec.kind;
   const fix = where && kind ? `<button type="button" class="ghost lr-fixbtn" data-lr-fix="${esc(kind)}|${esc(where.brand)}|${esc(where.sku)}"`
-    + (rec.attrs && rec.attrs.length ? ` data-lr-attrs="${esc(rec.attrs.join(','))}"` : '')
-    + ` title="${kind === 'img' ? 'Opens the Image Manager' : 'Opens Listing Errors'}">Fix</button>` : '';
+    + (rec.attrs && rec.attrs.length ? ` data-lr-attrs="${esc(rec.attrs.join(','))}"` : '') + lrFixDet(kind, rec.detector)
+    + ` title="${lrFixTip(kind, rec.detector)}">Fix</button>` : '';
   return `<div class="ls-rec ${cls}"><span class="ls-dot" aria-hidden="true"></span><div class="ls-rec-t">`
     + `<b>${rec.bare && !stale ? '' : `<span class="lr-lvl ${rec.fill ? 'is-f' : stale ? 'is-s' : rec.sev === 'critical' ? 'is-c' : 'is-a'}">${esc(word)}</span>`}${esc(rec.name)}${rec.bfHtml || ''}</b>`
     + (rec.sub ? `<small title="${esc(rec.sub)}">${esc(rec.sub)}</small>` : '') + '</div>'
@@ -1381,6 +1401,8 @@ if (typeof document !== 'undefined' && document.addEventListener) document.addEv
   if (!btn) return;
   const first = btn.dataset.lrFix.indexOf('|');                 // "img|brand|sku" or "lerr|brand|sku"
   const last = btn.dataset.lrFix.lastIndexOf('|');
+  // a title problem: the new title for this one listing first (title-fix.js), when there is one to make
+  if (btn.dataset.lrDet && typeof ttStartOne === 'function' && ttStartOne(btn.dataset.lrFix.slice(first + 1, last), btn.dataset.lrFix.slice(last + 1))) return;
   lrFixOpen(btn.dataset.lrFix.slice(0, first), btn.dataset.lrFix.slice(first + 1, last), btn.dataset.lrFix.slice(last + 1), (btn.dataset.lrAttrs || '').split(',').filter(Boolean));
 });
 
