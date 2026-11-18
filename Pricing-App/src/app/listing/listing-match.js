@@ -36,7 +36,9 @@
 const LM_MAX_AGE = 24 * 3600000;        // a cache older than this is not used (the age line turns amber)
 const LM_PAR = 6;                       // cache tabs read at once
 const LM_CHECK_MS = 15 * 60000;         // while the page is open and seen: is there a newer pass?
-const LM_FULL_AT = [13, 18];            // ListingMatch's full passes, IST (the "next refresh" in the age line)
+const LM_FULL_AT = [13, 18];            // ListingMatch's full passes, IST (the "next refresh" in the age line) — ListingMatch.gs LM_FULL_HOURS; a test keeps the two the same
+const LM_APLUS_AT = 13;                 // the full pass the daily A+ read follows, IST — ListingMatch.gs LM_APLUS_HOUR (the same test)
+const lmHour = h => String(h).padStart(2, '0') + ':00';
 const LM_IST_MS = 5.5 * 3600000;        // ListingMatch writes its times in IST ('yyyy-MM-dd HH:mm')
 const LM_SLOTS = ['MAIN', 'PT01', 'PT02', 'PT03', 'PT04', 'PT05', 'PT06', 'PT07', 'PT08'];
 const LM_PANES = ['paneHealth', 'paneImg', 'paneOpt', 'paneFam', 'paneBsr', 'paneLerr', 'paneAudit', 'paneAplus'];   // the screens with the age line
@@ -339,7 +341,7 @@ function lmAplusState(brand) {
   const old = !!held && (!at || Date.now() - at > LM_APLUS_MAX_AGE);
   const stale = !!(m && m.stale);
   let why = '';
-  if (!held) why = m && m.err ? 'Amazon\'s A+ data could not be read (' + m.err + ')' : m && m.tab ? 'the A+ data has not reached this browser yet' : 'A+ has not been read yet — it is read once a day after the 13:00 refresh';
+  if (!held) why = m && m.err ? 'Amazon\'s A+ data could not be read (' + m.err + ')' : m && m.tab ? 'the A+ data has not reached this browser yet' : 'A+ has not been read yet — it is read once a day after the ' + lmHour(LM_APLUS_AT) + ' refresh';
   else if (!held.docs.size) why = 'Amazon listed no A+ documents for this brand';
   return { has: !!held && held.docs.size > 0, at, atText: held ? lmFmt(held.atText) : '', old, stale, err: m ? String(m.err || '') : '', why, docs: held ? held.docs.size : 0,
     asins: held ? held.byAsin.size : 0, partial: held ? held.partial : 0, calls: held ? held.calls : m ? Number(m.calls) || 0 : 0, triedAt: m ? lmFmt(m.triedAt) : '' };

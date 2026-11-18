@@ -409,7 +409,7 @@ function apcMetaHtml(model) {
     return `<span${old ? ' class="fc-old"' : ''}>${fcEsc(fcBrandName(b))}: A+ read ${fcEsc(st.atText)} (${fcNf(st.docs)} documents)`
       + (old ? ` — old data${st.err ? ': the last read failed (' + fcEsc(st.err) + ')' : ''}; the last good read is shown` : '') + (st.partial ? ` · ${fcNf(st.partial)} document(s) without a product list` : '') + '</span>';
   }).join(' · ');
-  return `<div>Amazon data: ${label ? fcEsc(label.text) : 'this screen reads the saved copy only'} · ${ap} · A+ is read once a day after the 13:00 refresh</div>`
+  return `<div>Amazon data: ${label ? fcEsc(label.text) : 'this screen reads the saved copy only'} · ${ap} · A+ is read once a day after the ${typeof lmHour === 'function' ? lmHour(LM_APLUS_AT) : '13:00'} refresh</div>`
     + (model.salesAt ? `<div>30-day sales as at ${fcEsc(model.salesAt)} (Listing Audit → Pull sales)</div>` : '<div class="fc-old">30-day sales not pulled yet — Listing Audit → Pull sales. Products are still listed; the money columns stay empty.</div>')
     + model.notes.map(n => `<div>${fcEsc(n)}</div>`).join('') + (APC.okNote ? `<div class="fc-oknote">${fcEsc(APC.okNote)}</div>` : '') + (APC.err ? `<div class="fc-oknote">${fcEsc(APC.err)}</div>` : '');
 }

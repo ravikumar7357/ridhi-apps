@@ -527,6 +527,20 @@ const csvRows = text => text.replace(/^﻿/, '').trim().split('\r\n').map(line =
     ok('an A+ read older than 30 hours is not used: Listing Health answers from its own publish records, exactly as before', Old.C2.score(Old.C2.HEALTH.SP.rows[0].sku).aplus.lm === undefined);
   }
 
+  console.log('== the labels say the backend\'s own schedule ==');
+  {
+    const gs = fs.readFileSync(path.join(__dirname, '..', '..', 'Pricing-API', 'ListingMatch.gs'), 'utf8');
+    const lmJs = L('listing-match.js'), syncJs = L('listing-sync.js');
+    const hours = JSON.parse((gs.match(/var LM_FULL_HOURS = (\[[^\]]*\]);/) || [])[1] || '[]');
+    const shown = JSON.parse((lmJs.match(/const LM_FULL_AT = (\[[^\]]*\]);/) || [])[1] || '[]');
+    ok('"next refresh ~HH:00" on every Listing screen uses the hours ListingMatch.gs runs its full passes at (' + hours.join(':00, ') + ':00)', hours.length > 0 && JSON.stringify(hours) === JSON.stringify(shown), JSON.stringify(hours) + ' vs ' + JSON.stringify(shown));
+    const apGs = Number((gs.match(/var LM_APLUS_HOUR = (\d+);/) || [])[1]), apJs = Number((lmJs.match(/const LM_APLUS_AT = (\d+);/) || [])[1]);
+    ok('"A+ is read once a day after the ' + apGs + ':00 refresh" is the pass ListingMatch.gs reads A+ after — and that pass is one of its full passes', apGs === apJs && hours.includes(apGs)
+      && new RegExp('A\\+ is read once a day after the ' + apGs + ':00 refresh').test(strip(T.els.apcMeta.innerHTML)), apGs + ' vs ' + apJs);
+    ok('the browser sync line names its own hours (every 2 hours, 9 AM – 7 PM; origin/listing-sync-2h) — the backend passes are not on that clock', /const LY_CYCLE_MS = 2 \* 60 \* 60 \* 1000;/.test(syncJs) && /const LY_FROM_HOUR = 9;/.test(syncJs) && /const LY_TO_HOUR = 19;/.test(syncJs)
+      && /next sync \$\{/.test(syncJs) && !/\bLY_/.test(gs));
+  }
+
   console.log('== the menu, the pane, the styles ==');
   {
     const html = fs.readFileSync(path.join(__dirname, '..', 'src', 'index.html'), 'utf8');
