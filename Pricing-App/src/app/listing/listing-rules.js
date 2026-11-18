@@ -1290,6 +1290,11 @@ function lrFixTag(hit, row) {
 const LR_FIX_IMG = ['no_main_image', 'images_below', 'images_between', 'images_small', 'main_not_square', 'images_duplicate', 'main_photo_check'];
 const lrFixKind = detector => (LR_FIX_IMG.includes(detector) ? 'img' : detector === 'aplus_missing' ? '' : 'lerr');
 
+// A title problem's Fix (title-fix.js, 18 Nov 2026): the new-title preview for that one listing — every title problem fixed in one new
+// title; Listing Errors when there is nothing to fix there. The button says which rule it is for; its kind stays 'lerr'.
+const lrFixIsTitle = (kind, detector) => kind === 'lerr' && typeof ttIsDet === 'function' && ttIsDet(detector);
+const lrFixDet = (kind, detector) => (lrFixIsTitle(kind, detector) ? ` data-lr-det="${detector}"` : '');
+const lrFixTip = (kind, detector) => (kind === 'img' ? 'Opens the Image Manager' : lrFixIsTitle(kind, detector) ? 'Shows the new title for this listing first (Fix all titles)' : 'Opens Listing Errors');
 /* ---- one look for every problem, on every screen (Part B2): dot · level word · what is wrong · how to fix · tag · Fix ---- */
 // `where`: { brand, sku, attrs } — the listing the Fix button opens (attrs: attribute names Listing Errors should show boxes
 // for even when no Amazon issue names them); null for no button. `note`: a short grey line under it (source · when), or ''.
@@ -1302,8 +1307,8 @@ function lrProblemHtml(hit, where, note) {
   const tag = hit.tag || 'Company rule';
   const kind = hit.kind == null ? lrFixKind(hit.detector) : hit.kind;
   const fix = where && kind ? `<button type="button" class="ghost lr-fixbtn" data-lr-fix="${esc(kind)}|${esc(where.brand)}|${esc(where.sku)}"`
-    + (where.attrs && where.attrs.length ? ` data-lr-attrs="${esc(where.attrs.join(','))}"` : '')
-    + ` title="${kind === 'img' ? 'Opens the Image Manager' : 'Opens Listing Errors'}">Fix</button>` : '';
+    + (where.attrs && where.attrs.length ? ` data-lr-attrs="${esc(where.attrs.join(','))}"` : '') + lrFixDet(kind, hit.detector)
+    + ` title="${lrFixTip(kind, hit.detector)}">Fix</button>` : '';
   // Price, stock and status come from the listings report, which only "Refresh both brands" renews — so no Check now for those.
   const fromReport = hit.src === 'report';
   const check = stale && where && !fromReport ? `<button type="button" class="ghost lr-checkbtn" data-lr-check="${esc(where.brand)}|${esc(where.sku)}"`
@@ -1331,8 +1336,8 @@ function lrRecHtml(rec, where) {
   const tag = rec.fill ? 'Good to fill' : (rec.tag || 'Company rule');
   const kind = rec.kind == null ? lrFixKind(rec.detector) : rec.kind;
   const fix = where && kind ? `<button type="button" class="ghost lr-fixbtn" data-lr-fix="${esc(kind)}|${esc(where.brand)}|${esc(where.sku)}"`
-    + (rec.attrs && rec.attrs.length ? ` data-lr-attrs="${esc(rec.attrs.join(','))}"` : '')
-    + ` title="${kind === 'img' ? 'Opens the Image Manager' : 'Opens Listing Errors'}">Fix</button>` : '';
+    + (rec.attrs && rec.attrs.length ? ` data-lr-attrs="${esc(rec.attrs.join(','))}"` : '') + lrFixDet(kind, rec.detector)
+    + ` title="${lrFixTip(kind, rec.detector)}">Fix</button>` : '';
   return `<div class="ls-rec ${cls}"><span class="ls-dot" aria-hidden="true"></span><div class="ls-rec-t">`
     + `<b>${rec.bare && !stale ? '' : `<span class="lr-lvl ${rec.fill ? 'is-f' : stale ? 'is-s' : rec.sev === 'critical' ? 'is-c' : 'is-a'}">${esc(word)}</span>`}${esc(rec.name)}${rec.bfHtml || ''}</b>`
     + (rec.sub ? `<small title="${esc(rec.sub)}">${esc(rec.sub)}</small>` : '') + '</div>'
@@ -1396,6 +1401,8 @@ if (typeof document !== 'undefined' && document.addEventListener) document.addEv
   if (!btn) return;
   const first = btn.dataset.lrFix.indexOf('|');                 // "img|brand|sku" or "lerr|brand|sku"
   const last = btn.dataset.lrFix.lastIndexOf('|');
+  // a title problem: the new title for this one listing first (title-fix.js), when there is one to make
+  if (btn.dataset.lrDet && typeof ttStartOne === 'function' && ttStartOne(btn.dataset.lrFix.slice(first + 1, last), btn.dataset.lrFix.slice(last + 1))) return;
   lrFixOpen(btn.dataset.lrFix.slice(0, first), btn.dataset.lrFix.slice(first + 1, last), btn.dataset.lrFix.slice(last + 1), (btn.dataset.lrAttrs || '').split(',').filter(Boolean));
 });
 

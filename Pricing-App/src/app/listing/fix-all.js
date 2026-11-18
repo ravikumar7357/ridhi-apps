@@ -9,7 +9,9 @@
  * FIX ALL only where the fix is safe and automatic, each child getting ITS OWN fix (its own size, colour, current title):
  *   - title too long: the title template with the brand, product, size and colour (and every part the template requires) kept, ≤ 75;
  *   - an empty spec: only when every sibling that has it uses the SAME value (copied); never a child's own colour or size;
- *   - search terms over the limit: kw-fix.js shortens each child's own (only words taken out) and shows them all in one preview first.
+ *   - search terms over the limit: kw-fix.js shortens each child's own (only words taken out) and shows them all in one preview first;
+ *   - every title problem (template, size format, dimension order, length, keyword): title-fix.js — ONE new title per child, one
+ *     "Fix all N children" for the family on each title row, the same preview popup first (18 Nov 2026).
  *   A fix must pass the same checks as a single listing's (spChecks: nothing lost, nothing made up…), must not add a Listing Rules
  *   problem and must clear the problem itself — else that child "needs your OK" with the reason. Pictures, suppressed listings and
  *   Amazon errors have no automatic fix: Open in Image Manager / Listing Errors with those children already picked.
@@ -79,6 +81,7 @@ function faLabel(kid, ctx) {
 // What kind of fix a Listing Rules finding has: title (shorten), img (Image Manager), lerr (Listing Errors).
 const FA_IMG = ['no_main_image', 'images_below', 'images_between', 'images_small', 'main_not_square', 'images_duplicate', 'main_photo_check'];
 function faKindOf(hit, kid) {
+  if (typeof ttIsDet === 'function' && ttIsDet(hit.detector)) return 'ttl';      // every title problem: ONE new title per child (title-fix.js)
   if (hit.detector === 'title_length' && (parseInt(hit.detail, 10) || 0) > FA_TITLE_MAX) return 'title';
   if (FA_IMG.includes(hit.detector)) return 'img';
   if (hit.detector === 'keyword_bytes' && typeof kfPlanOfKid === 'function') return 'kw';    // search terms over the limit: kw-fix.js shortens them
@@ -102,7 +105,7 @@ function faGroups(brand, parent, kids) {
   kids.forEach(kid => {
     kid.found.forEach(hit => {
       const kind = faKindOf(hit, kid);
-      if (kind === 'title') return add('title', { kind, name: 'Title too long', sev: hit.sev, rule: hit.id }, kid, hit);
+      if (kind === 'title' || (kind === 'ttl' && hit.detector === 'title_length' && (parseInt(hit.detail, 10) || 0) > FA_TITLE_MAX)) return add('title', { kind, name: 'Title too long', sev: hit.sev, rule: hit.id }, kid, hit);
       add('rule:' + (hit.id || hit.detector), { kind, name: hit.name, sev: hit.sev, rule: hit.id, detector: hit.detector }, kid, hit);
     });
     ((kid.c.spec && kid.c.spec.attrs) || []).forEach(attr => add('spec:' + attr, { kind: 'spec', attr, name: `Empty spec: ${attr.replace(/_/g, ' ')}`, sev: 'action' }, kid,
@@ -113,7 +116,8 @@ function faGroups(brand, parent, kids) {
   by.forEach(g => {
     const keep = [];
     g.kids.forEach(kid => {
-      const rec = sent.get(faKidKey(kid) + '|' + g.key);
+      // a title problem: also any new title sent lately by Fix all titles (one change for every title row)
+      const rec = sent.get(faKidKey(kid) + '|' + g.key) || (g.kind === 'ttl' ? sent.get(faKidKey(kid) + '|' + TT_ROW) || sent.get(faKidKey(kid) + '|title') : null);
       if (rec) g.waiting.push({ kid, rec });
       else keep.push(kid);
     });
@@ -157,6 +161,7 @@ function faPlan(g, kid, ctx) {
   if (g.kind === 'title') return Object.assign(base, faTitlePlan(g, kid, ctx));
   if (g.kind === 'spec') return Object.assign(base, faSpecPlan(g, kid));
   if (g.kind === 'kw') return Object.assign(base, kfPlanOfKid(kid, ctx), { row: g.key, kind: 'kw' });
+  if (g.kind === 'ttl') return Object.assign(base, ttPlanOfKid(kid, ctx), { row: g.key, kind: 'ttl' });
   return Object.assign(base, { why: g.kind === 'img' ? 'pictures are changed by a person in Image Manager' : 'no safe automatic fix — a person fixes it in Listing Errors' });
 }
 // The title the template writes for this child at 75 letters or less: every part it REQUIRES kept (brand, product, size, colour…),
@@ -300,7 +305,8 @@ function faPlans(g, ctx) {
   return g.kids.map(kid => faPlanOf(g, kid, ctx));
 }
 // What one child's kept plan rests on; its plan kept while that is the same, else worked out now and kept.
-const faPlanSig = (g, ctx) => [ctx, g.key, FA.valsV, g.attr || g.kind === 'kw' ? LI_WS.liveV : 0, g.attr ? g.all.length : 0, g.kind === 'kw' && typeof KF !== 'undefined' ? KF.full.size : 0];
+const faPlanSig = (g, ctx) => [ctx, g.key, FA.valsV, g.attr || g.kind === 'kw' || g.kind === 'ttl' ? LI_WS.liveV : 0, g.attr ? g.all.length : 0,
+  g.kind === 'kw' && typeof KF !== 'undefined' ? KF.full.size : g.kind === 'ttl' && typeof TT !== 'undefined' ? TT.readV + ':' + ((FA.log || []).length) : 0];
 function faPlanKept(g, kid, sig) {
   const was = (FA_PLAN_KEEP.get(kid) || new Map()).get(g.key);
   return was && was.sig.every((part, i) => part === sig[i]) ? was : null;
@@ -354,6 +360,7 @@ function faDoLine(g, plans) {
     return one ? `Copy ${one.what.replace(/^Copy /, '')}` : plans.some(p => p.wait) ? 'Reading the other children’s value from Amazon…' : 'The other children don’t agree on one value — fill it in by hand';
   }
   if (g.kind === 'img') return 'Change the pictures in Image Manager — no automatic fix';
+  if (g.kind === 'ttl') return 'One new title per child from the title template and its own Amazon facts — every title problem of the family fixed at once';
   if (g.kind === 'kw') return `Shorten to ${typeof lrKwMax === 'function' ? lrKwMax() : 249} bytes — repeats, title words, stop words, brand names and ASINs out, then words from the end; nothing added`;
   const fix = new Map();
   g.kids.forEach(kid => { const hit = g.hits.get(faKidKey(kid)); if (hit && hit.fix) fix.set(hit.fix, (fix.get(hit.fix) || 0) + 1); });
@@ -364,6 +371,8 @@ function faRowButton(gk, g, plans) {
   const safe = plans.filter(p => p.ok).length;
   const busy = typeof sqIsOpen === 'function' && sqIsOpen();
   // search terms: the ones still to be read whole are read when the preview opens, so they count
+  // every title problem: one button for the whole family — its children with any title problem (read first in the popup when needed)
+  if (g.kind === 'ttl' && g.kids.length) { const n = ttFamilyN(g.kids[0].brand, g.kids[0].row.parent || g.kids[0].row.asin || g.kids[0].row.sku || '—'); if (n) return `<button type="button" class="fa-btn fa-main" data-fa-act="fix" data-fa-row="${lrEsc(gk)}"${busy ? ' disabled title="Finish the Fix all that is open first"' : ''} title="One new title for each child — every title problem of this family">Fix all ${faKidsN(n)}</button>`; }
   if (g.kind === 'kw') { const n = plans.filter(p => p.ok || p.wait).length; if (n) return `<button type="button" class="fa-btn fa-main" data-fa-act="fix" data-fa-row="${lrEsc(gk)}"${busy ? ' disabled title="Finish the Fix all that is open first"' : ''}>Fix all ${faKidsN(n)}</button>`; }
   if (safe) return `<button type="button" class="fa-btn fa-main" data-fa-act="fix" data-fa-row="${lrEsc(gk)}"${busy ? ' disabled title="Finish the Fix all that is open first"' : ''}>Fix all ${faNf(safe)}</button>`;
   if (plans.some(p => p.wait)) return '<button type="button" class="fa-btn" disabled>Checking…</button>';
@@ -373,22 +382,23 @@ function faRowButton(gk, g, plans) {
 // "before → after" for a child under "Show all": the plan's change, or why it needs a person, or the problem itself.
 function faKidChange(g, plan, kid) {
   const hit = g.hits.get(faKidKey(kid));
+  if (g.kind === 'ttl' && plan.wait) return `<span class="fa-new">read from Amazon when you press Fix all</span>`;
   if (g.kind === 'kw' && (plan.ok || plan.wait)) return `<span class="fa-was">${faNf(plan.b0)} bytes</span> → <span class="fa-new">${plan.ok ? faNf(plan.b1) + ' bytes' : 'read whole when you press Fix all'}</span>`;
   if (plan.ok) {
     if (plan.after != null && plan.before !== plan.after) return `<span class="fa-was">${lrEsc(faCut(plan.before, 90))}</span> → <span class="fa-new">${lrEsc(faCut(plan.after, 90))}</span>`;
     return `<span class="fa-new">${lrEsc(plan.what || 'Ready')}</span>`;
   }
-  if (g.kind === 'title' || g.kind === 'spec' || g.kind === 'kw') return `<span class="fa-why">${plan.wait ? '… ' : '⚠ Needs your OK: '}${lrEsc(plan.why)}</span>`;
+  if (g.kind === 'title' || g.kind === 'spec' || g.kind === 'kw' || g.kind === 'ttl') return `<span class="fa-why">${plan.wait ? '… ' : '⚠ Needs your OK: '}${lrEsc(plan.why)}</span>`;
   return `<span class="fa-why">${lrEsc(hit ? (hit.what || hit.detail || hit.name) : '')}</span>`;
 }
 function faKidsHtml(gk, g, plans) {
   const all = FA.more.has(gk);
   const shown = all ? g.kids : g.kids.slice(0, FA_SHOW);
-  const safeKind = g.kind === 'title' || g.kind === 'spec' || g.kind === 'kw';
+  const safeKind = g.kind === 'title' || g.kind === 'spec' || g.kind === 'kw' || g.kind === 'ttl';
   const busy = typeof sqIsOpen === 'function' && sqIsOpen();
   const rows = shown.map(kid => {
     const plan = plans[g.kids.indexOf(kid)];
-    const one = safeKind && (plan.ok || (g.kind === 'kw' && plan.wait)) ? `<button type="button" class="fa-btn fa-small" data-fa-act="one" data-fa-row="${lrEsc(gk)}" data-fa-sku="${lrEsc(kid.sku)}"${busy ? ' disabled' : ''} title="Fix only this child">Fix</button>` : '';
+    const one = safeKind && (plan.ok || ((g.kind === 'kw' || g.kind === 'ttl') && plan.wait)) ? `<button type="button" class="fa-btn fa-small" data-fa-act="one" data-fa-row="${lrEsc(gk)}" data-fa-sku="${lrEsc(kid.sku)}"${busy ? ' disabled' : ''} title="Fix only this child">Fix</button>` : '';
     return `<div class="fa-kid"><button type="button" class="fa-kid-o" data-fa-act="kid" data-fa-kid="${lrEsc(faKidKey(kid))}"><b>${lrEsc(plan.label)}</b><small>${lrEsc(kid.sku)}</small>`
       + `<span class="fa-chg">${typeof bfKidHtml === 'function' ? bfKidHtml(g.bf.get(faKidKey(kid))) : ''}${faKidChange(g, plan, kid)}</span></button>${one}</div>`;
   }).join('');
@@ -449,6 +459,7 @@ function faStart(gk, onlySku) {
   const g = faGroups(brand, parent, kids).find(each => each.key === rowKey);
   if (!g) return null;
   if (g.kind === 'kw') return kfStartGroup(g, brand, parent, onlySku);        // the preview popup first (kw-fix.js), then the send path
+  if (g.kind === 'ttl') return ttStartFamily(brand, parent, onlySku);         // every title problem of the family: title-fix.js's preview, then the send path
   const ctx = hCtx();
   const plans = faPlans(g, ctx).filter(p => !onlySku || p.sku === onlySku);
   const run = { brand, parent, row: rowKey, name: g.name, attr: g.attr || '' };

@@ -154,7 +154,9 @@ function leRender() {
     + '<button class="ghost im-b" data-leonly="off">Show every listing</button></div>' : '';
   // Search terms over the limit (a Listing Rules problem, not one of Amazon's issues): its own card, Fix all per family and for all (kw-fix.js)
   const kwCard = typeof kfLeCardHtml === 'function' ? kfLeCardHtml(brand, LE_ONLY ? LE_ONLY.skus : null) : '';
-  el.innerHTML = only + kwCard + `
+  // Every title problem (a Listing Rules problem too): one new title per listing, Fix all per family and Select all (title-fix.js)
+  const ttCard = typeof ttLeCardHtml === 'function' ? ttLeCardHtml(brand, LE_ONLY ? LE_ONLY.skus : null) : '';
+  el.innerHTML = only + kwCard + ttCard + `
     <div class="card" style="padding:10px 14px;margin-bottom:10px">
       <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
         <span class="muted" style="font-size:12px">Listings with an error, by kind:</span>

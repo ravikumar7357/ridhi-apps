@@ -180,7 +180,9 @@ const hitOf = (kid, det) => kid.found.find(hit => hit.detector === det);
     files['listing-sync.js'] = 'const LY = null, lyStart = null, lyBeat = null, lyCycle = null, lyPick = null, lyPull = null, lyFlush = null, lyMerge = null, lyRec = null, lyLineHtml = null, lySyncNow = null, lyEnd = null;';
     if (Object.values(files).some(t => t === null)) ok('commit ' + BEFORE + ' readable with git', false);
     else {
-      const now = setup(), was = setup({ files });
+      // Fix all titles (title-fix.js, 18 Nov 2026) came later and changes the title rows on purpose: both drawn without it, so this
+      // still proves what B / F alone added (tests/title-fix-test.js and fix-all-test.js test the title rows)
+      const now = setup({ files: { 'title-fix.js': '' } }), was = setup({ files: Object.assign(files, { 'title-fix.js': '' }) });
       await idle(now.C); await idle(was.C);
       const draw = C => {
         C.el('hBrandView').value = 'SP';
