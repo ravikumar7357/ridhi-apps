@@ -84,6 +84,12 @@ const STA = {
 };
 // The columns of Amazon's Sponsored Products bulk sheet an upload uses (Amazon's blank template, without the
 // "Informational only" and performance columns). If Amazon rejects the headers, this is the one list to change.
+// Amazon's bidding strategies as the bulk file writes them.
+const STA_STRATEGY_BULK = { LEGACY_FOR_SALES: 'Dynamic bids - down only', AUTO_FOR_SALES: 'Dynamic bids - up and down', MANUAL: 'Fixed bid' };
+// "Apply now" — Sellora making the change at Amazon itself. Off: the Ads login is read-only and the write route
+// (AdsActions.gs, POST ?ads=act, dry-run first) is not built. Every review item already carries what that route needs
+// (IDs, from → to, and for placements the full placementBidding to send). Switch on here, behind the adsApply right.
+const ADS_APPLY = { on: false, why: 'Needs Amazon edit permission for Sellora. Until then: Send to review, then the bulk file.' };
 const STA_BULK_COLS = ['Product', 'Entity', 'Operation', 'Campaign ID', 'Ad Group ID', 'Portfolio ID', 'Ad ID', 'Keyword ID',
   'Product Targeting ID', 'Campaign Name', 'Ad Group Name', 'Start Date', 'End Date', 'Targeting Type', 'State', 'Daily Budget',
   'SKU', 'Ad Group Default Bid', 'Bid', 'Keyword Text', 'Native Language Keyword', 'Native Language Locale', 'Match Type',
@@ -275,6 +281,20 @@ async function ensureSt() {
     stMsg('Loading the search terms, targets, ad groups, the review list and the lists…');
     $('stTable').innerHTML = '';
     stFoot('');
+  }
+  await staLoad();
+  renderSt();
+}
+// Everything Search Term Analysis and Placement read, once (both pages share it): the nightly caches, the Ads backend's,
+// unit costs, the review list and the lists. Concurrent callers share one load.
+let STA_LOADING = null;
+function staLoad() {
+  if (ST.loaded && ST.extra) return Promise.resolve();
+  if (!STA_LOADING) STA_LOADING = staLoad_().finally(() => { STA_LOADING = null; });
+  return STA_LOADING;
+}
+async function staLoad_() {
+  {
     // A cache the backend has not written yet answers "nothing cached" — that is null here, not an error.
     // Each cache's answer is kept for the sources line: read (with its time), not switched on yet, or an error.
     const grab = async name => {
@@ -301,12 +321,14 @@ async function ensureSt() {
     }
     if (!ST.extra) {
       const ok = x => (x && x.d ? x : null);
-      jobs.push(Promise.all(['adEntities', 'stSettled', 'stRecent', 'tgtSettled', 'tgtRecent'].map(grab)).then(([e, s, r, ts, tr]) => {
+      jobs.push(Promise.all(['adEntities', 'stSettled', 'stRecent', 'tgtSettled', 'tgtRecent', 'plcSettled', 'plcRecent'].map(grab)).then(([e, s, r, ts, tr, ps, pr]) => {
         ST.ent = ok(e);
         ST.set = ok(s);
         ST.rec = ok(r);
         ST.tset = ok(ts);
         ST.trec = ok(tr);
+        ST.plc = ok(ps);
+        ST.plcr = ok(pr);
         ST.extra = true;
         Object.keys(STA_ENTX).forEach(k => delete STA_ENTX[k]);
       }));
@@ -321,7 +343,6 @@ async function ensureSt() {
     STM = null;
     staTitlesLater();
   }
-  renderSt();
 }
 // Listing Health's titles, once, after the first draw: product words come from them, and own ASINs are named.
 let STA_TITLES = false;
@@ -438,8 +459,8 @@ let STM = null;
 
 // Everything the views draw for the brand picked: rows (one per term and path), tg (every keyword / target), words,
 // groups (Competing paths), byKey, and per brand: have (what arrived), info (stale, data checks), protect, dest.
-function staModel() {
-  const pick = $('stBrand').value;
+function staModel(pickArg) {
+  const pick = pickArg || $('stBrand').value;
   const key = pick + '|' + ST_RL.stamp + '|' + (STS.stamp || 0);
   if (STM && STM.key === key) return STM;
   const brands = pick === 'ALL' ? ['SP', 'CPC'] : [pick];
@@ -1162,6 +1183,10 @@ function staPager(total, what, note) {
 
 // Draw the whole screen.
 function renderSt() {
+  if ($('paneSt').classList.contains('hide')) {
+    if (typeof plxAfterChange === 'function') plxAfterChange();
+    return;
+  }
   const isCp = ST_VIEW === 'cp';
   $('stViewSeg').querySelectorAll('[data-v]').forEach(x => {
     x.classList.toggle('on', x.dataset.v === ST_VIEW);
@@ -2183,6 +2208,7 @@ function staWordItems(r, picks) {
     }));
 }
 function staKindName(x) {
+  if (x.kind === 'plc') return x.plc.to > x.plc.from ? 'Raise placement' : 'Lower placement';
   if (x.kind === 'neg') return x.neg.type === 'na' ? 'Add negative ASIN target' : 'Add ' + STA.NEG[x.neg.type].t.toLowerCase();
   if (x.kind === 'bid') return x.bid.dir === 'up' ? 'Raise bid' : 'Lower bid';
   if (x.kind === 'pause') return 'Pause';
@@ -2241,6 +2267,9 @@ async function staRlSeen() {
     if (x.kind === 'neg') {
       const where = x.neg.level === 'cp' ? 'cp|' + x.cid : 'ag|' + x.ag;
       seen = staNegAtAmazon(x.brand, where, x.term, x.neg.type === 'na' ? 'na' : x.neg.type === 'negativePhrase' ? 'np' : 'nx') === true;
+    } else if (x.kind === 'plc') {
+      const c = (ST.ent && ST.ent.d && ST.ent.d[x.brand] && ST.ent.d[x.brand].cp || {})[x.cid];
+      seen = !!c && Number(c[x.plc.ix]) === Number(x.plc.to);
     } else if (x.kind === 'exact') seen = E.kw.has(x.dest.ag + '|' + staLow(x.term) + '|exact');
     else if (x.kind === 'asinT') seen = E.tg.has(x.dest.ag + '|asin="' + staLow(x.term) + '"');
     else {
@@ -2331,6 +2360,11 @@ async function staRlSet(status) {
 function staBulkRow(x) {
   const base = { 'Product': 'Sponsored Products', 'Campaign ID': x.cid };
   if (!x.cid) return { skip: 'No campaign ID on record.' };
+  if (x.kind === 'plc') {
+    // One placement's bid adjustment, as an absolute percentage (Amazon's bulk file has no "+10").
+    return { row: Object.assign(base, { 'Entity': 'Bidding Adjustment', 'Operation': 'Update', 'Placement': x.plc.bulk, 'Percentage': x.plc.to },
+      x.plc.strategy && STA_STRATEGY_BULK[x.plc.strategy] ? { 'Bidding Strategy': STA_STRATEGY_BULK[x.plc.strategy] } : {}) };
+  }
   if (x.kind === 'neg') {
     if (x.neg.type === 'na') {
       if (!x.ag) return { skip: 'No ad-group ID on record.' };
@@ -2404,9 +2438,10 @@ function staPreview() {
   const brands = [...new Set(ready.map(y => y.x.brand))];
   $('stRlSub').textContent = `${ready.length} row${ready.length === 1 ? '' : 's'} in ${brands.length} file${brands.length === 1 ? '' : 's'} (${brands.map(staBrandName).join(', ')}), sheet "Sponsored Products Campaigns".`;
   const td = v => `<td>${staEsc(v == null ? '' : v)}</td>`;
-  $('stRlTable').innerHTML = '<thead><tr><th></th><th>File</th><th>Entity</th><th>Operation</th><th>Campaign</th><th>Ad group</th><th>Keyword / target</th><th>Match type</th><th class="num">Bid</th><th>State</th></tr></thead><tbody>'
+  $('stRlTable').innerHTML = '<thead><tr><th></th><th>File</th><th>Entity</th><th>Operation</th><th>Campaign</th><th>Ad group</th><th>Keyword / target / placement</th><th>Match type</th><th class="num">Bid / %</th><th>State</th></tr></thead><tbody>'
     + ready.map(({ x, b: { row } }) => `<tr><td></td>${td(staBrandName(x.brand))}${td(row['Entity'])}${td(row['Operation'])}${td((x.dest && x.dest.cn) || x.cn)}${td(row['Ad Group ID'] ? ((x.dest && x.dest.agn) || x.agn || row['Ad Group ID']) : '— (whole campaign)')}`
-      + `${td(row['Keyword Text'] || row['Product Targeting Expression'] || row['Keyword ID'] || row['Product Targeting ID'])}${td(row['Match Type'])}<td class="num">${row['Bid'] != null ? staMoney(row['Bid']) : ''}</td>${td(row['State'])}</tr>`).join('')
+      + `${td(row['Keyword Text'] || row['Product Targeting Expression'] || row['Keyword ID'] || row['Product Targeting ID'] || row['Placement'])}${td(row['Match Type'])}`
+      + `<td class="num">${row['Bid'] != null ? staMoney(row['Bid']) : row['Percentage'] != null ? staEsc(row['Percentage'] + '%' + (x.plc && x.plc.from != null ? ' (was ' + x.plc.from + '%)' : '')) : ''}</td>${td(row['State'])}</tr>`).join('')
     + wait.map(({ x, b }) => `<tr class="sta-wait"><td></td>${td(staBrandName(x.brand))}<td colspan="5">${staEsc(staKindName(x) + ' · ' + (x.term || x.target))}</td><td colspan="3">Waits: ${staEsc(b.skip)}</td></tr>`).join('')
     + '</tbody>';
   const note = $('stRlNote');

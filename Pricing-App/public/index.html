@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <!-- ================================================================================================
-     GENERATED FILE. DO NOT READ OR EDIT THE CODE HERE — it is the 58 files of src/ joined into one page.
+     GENERATED FILE. DO NOT READ OR EDIT THE CODE HERE — it is the 59 files of src/ joined into one page.
      The real, grouped source: Pricing-App/src/   (map and workflow: src/README.md)
        src/index.html   page markup        src/styles.css   stylesheet        src/app/ORDER   join order
        src/app/<group>/ the code, by group: core, research, sales, inventory, listing, ads
@@ -3622,7 +3622,7 @@
 
   /* ----- Search Term Analysis (paneSt, ads/search-terms.js): the bar, four analysis boxes, the view card, the dialogs,
      the review list. Reuses .card / .toolbar / .seg / table.xl / .ui-badge / .adx-box / .modal; sta- adds only the layout. ----- */
-  #paneSt .hide{display:none}
+  .sta-scope .hide{display:none}
   .sta-msg{margin-top:10px;font-size:12.5px;color:var(--muted);display:flex;gap:6px 18px;flex-wrap:wrap}
   .sta-msg b{color:var(--ink);font-weight:600}
   .sta-msg .sta-ok{color:var(--accent-ink);font-weight:600}
@@ -3648,16 +3648,16 @@
   .sta-thead .seg .segbtn{padding:6px 12px;font-size:13px}
   .sta-tools{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
   .sta-wrap{overflow:auto;max-height:70vh}
-  #paneSt table.xl{font-size:13px}
-  #paneSt table.xl td{vertical-align:middle}
-  #paneSt table.xl th{white-space:nowrap}
+  .sta-scope table.xl{font-size:13px}
+  .sta-scope table.xl td{vertical-align:middle}
+  .sta-scope table.xl th{white-space:nowrap}
   .sta-term{font-weight:600;color:var(--ink);white-space:nowrap}
   .sta-under{display:flex;gap:5px;flex-wrap:wrap;margin-top:4px}
   .sta-path{min-width:230px}
   .sta-path b{display:block;font-weight:500;color:var(--ink);white-space:nowrap;max-width:320px;overflow:hidden;text-overflow:ellipsis}
   .sta-path small,.sta-s{display:block;font-size:11.5px;color:var(--faint);white-space:nowrap;margin-top:1px}
   .sta-s.up{color:var(--muted)}
-  #paneSt table.xl td.sta-ev{min-width:320px;max-width:430px;white-space:normal;font-size:12.5px;color:var(--muted);line-height:1.45}
+  .sta-scope table.xl td.sta-ev{min-width:320px;max-width:430px;white-space:normal;font-size:12.5px;color:var(--muted);line-height:1.45}
   .sta-ev b{color:var(--ink);font-weight:600}
   .sta-money{font-weight:700;color:var(--bad-ink)}
   .sta-next{white-space:nowrap}
@@ -3671,9 +3671,9 @@
   button.sta-btn.dim{color:var(--muted);box-shadow:inset 0 0 0 1px var(--line)}
   .sta-dash{color:var(--faint)}
   .sta-cb{width:16px;height:16px;accent-color:var(--brand);vertical-align:middle;margin:0}
-  #paneSt table.xl tr.sel td{background:color-mix(in srgb,var(--brand) 5%,var(--card))}
-  #paneSt table.xl tr.tot td{background:var(--soft);font-weight:700;color:var(--ink)}
-  #paneSt table.xl tr.grp td{background:var(--soft);padding-top:11px;padding-bottom:11px}
+  .sta-scope table.xl tr.sel td{background:color-mix(in srgb,var(--brand) 5%,var(--card))}
+  .sta-scope table.xl tr.tot td{background:var(--soft);font-weight:700;color:var(--ink)}
+  .sta-scope table.xl tr.grp td{background:var(--soft);padding-top:11px;padding-bottom:11px}
   .sta-grp b{font-size:13.5px;color:var(--ink)}
   .sta-grp span{color:var(--muted);font-size:12.5px;margin-left:8px}
   .sta-grp span em{font-style:normal;color:var(--bad-ink);font-weight:600}
@@ -3746,11 +3746,11 @@
   .sta-vbar .seg .segbtn{padding:6px 12px;font-size:13px}
   .sta-pgsz{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--muted);margin:0;text-transform:none;letter-spacing:0;font-weight:500}
   .sta-pgsz select{height:32px;padding:0 8px}
-  #paneSt table.xl th.sta-stick,#paneSt table.xl td.sta-stick{position:sticky;left:0;z-index:2;background:var(--card);min-width:240px;max-width:320px;
+  .sta-scope table.xl th.sta-stick,.sta-scope table.xl td.sta-stick{position:sticky;left:0;z-index:2;background:var(--card);min-width:240px;max-width:320px;
     box-shadow:1px 0 0 var(--line)}
-  #paneSt table.xl thead th.sta-stick{z-index:3;background:var(--soft)}
-  #paneSt table.xl tr.sel td.sta-stick{background:color-mix(in srgb,var(--brand) 5%,var(--card))}
-  #paneSt table.xl tr.tot td.sta-stick,#paneSt table.xl tr.grp td.sta-stick{background:var(--soft)}
+  .sta-scope table.xl thead th.sta-stick{z-index:3;background:var(--soft)}
+  .sta-scope table.xl tr.sel td.sta-stick{background:color-mix(in srgb,var(--brand) 5%,var(--card))}
+  .sta-scope table.xl tr.tot td.sta-stick,.sta-scope table.xl tr.grp td.sta-stick{background:var(--soft)}
   td.sta-stick{white-space:normal}
   td.sta-stick>.sta-cb,td.sta-stick>.sta-cbgap{float:left;margin:2px 9px 0 0}
   .sta-cbgap{display:inline-block;width:16px;height:16px}
@@ -3759,10 +3759,10 @@
   .sta-asin{font-family:var(--mono,ui-monospace,monospace);font-size:12.5px;letter-spacing:.02em}
   .sta-caret{width:22px;height:22px;padding:0;margin-right:6px;border-radius:6px;background:var(--hover);color:var(--ink);font-size:12px;line-height:22px;
     vertical-align:middle;box-shadow:none}
-  #paneSt table.xl tr.sta-grprow td{border-top:1px solid var(--line)}
-  #paneSt table.xl tr.sta-subrow td{background:color-mix(in srgb,var(--soft) 55%,var(--card))}
-  #paneSt table.xl tr.sta-subrow td.sta-stick{background:color-mix(in srgb,var(--soft) 55%,var(--card));padding-left:30px}
-  #paneSt table.xl td.sta-ev.sta-ev-s{min-width:220px;max-width:300px}
+  .sta-scope table.xl tr.sta-grprow td{border-top:1px solid var(--line)}
+  .sta-scope table.xl tr.sta-subrow td{background:color-mix(in srgb,var(--soft) 55%,var(--card))}
+  .sta-scope table.xl tr.sta-subrow td.sta-stick{background:color-mix(in srgb,var(--soft) 55%,var(--card));padding-left:30px}
+  .sta-scope table.xl td.sta-ev.sta-ev-s{min-width:220px;max-width:300px}
   .sta-why{margin-top:5px;font-size:12px;color:var(--muted);line-height:1.45;white-space:normal}
   .sta-hold{display:inline-block;font-size:12px;color:var(--muted);white-space:normal;max-width:260px;line-height:1.4}
   .sta-next{min-width:190px}
@@ -3783,7 +3783,7 @@
   .sta-legend ul{margin:0;padding-left:18px;font-size:12.5px;color:var(--muted);line-height:1.6}
   .sta-legend b{color:var(--ink)}
   .sta-legcols{display:grid;grid-template-columns:1fr 1fr;gap:8px 32px}
-  #paneSt table.xl tr.sta-wait td{color:var(--rev-ink);background:color-mix(in srgb,var(--rev) 6%,var(--card))}
+  .sta-scope table.xl tr.sta-wait td{color:var(--rev-ink);background:color-mix(in srgb,var(--rev) 6%,var(--card))}
   /* Search Term Analysis, 18 Nov: next-step chips under the tabs, copy buttons on the campaign and ad-group names, the New
      tab, short evidence lines, "Lower bid anyway" under a hold. */
   .sta-actbar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:9px 16px;border-bottom:1px solid var(--line);background:var(--card)}
@@ -3818,9 +3818,57 @@
   button.sta-copy:hover{background:var(--hover);color:var(--ink)}
   button.sta-copy.done{opacity:1;color:var(--accent-ink);background:color-mix(in srgb,var(--accent) 14%,var(--card))}
   button.sta-copy.fail{opacity:1;color:var(--bad-ink)}
-  #paneSt table.xl td.sta-ev{min-width:250px;max-width:340px}
+  .sta-scope table.xl td.sta-ev{min-width:250px;max-width:340px}
   /* Above the sticky top menu (z 60): a tall review list kept its close button under the menu. */
   .modal.sta-modal{z-index:65}
+  /* ----- Placement (18 Nov 2026): decisions per campaign × placement, Terra-style cards, the chart and two tables below.
+     Shares Search Term Analysis's layout (.sta-scope): cards, chips, sticky first column, review list. ----- */
+  .plx .sta-tcard,.plx .plx-chcard{margin-top:12px}
+  .plx .plx-chcard{padding:0;overflow:hidden}
+  .plx-kpis{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin:12px 0 0}
+  .plx-kpi{padding:14px 16px 12px}
+  .plx-kpi.plx-click{cursor:pointer}
+  .plx-kpi.plx-click:hover{box-shadow:inset 0 0 0 1.5px var(--c),var(--sh-2)}
+  .plx-kpi.plx-click:focus-visible{outline:2px solid var(--c);outline-offset:2px}
+  .plx-big{margin:8px 0 0}
+  .plx-big b{font-size:26px;font-weight:700;letter-spacing:-.025em;color:var(--ink);font-variant-numeric:tabular-nums}
+  .plx-big b.plx-good{color:var(--accent-ink)}
+  .plx-big b.plx-bad{color:var(--bad-ink)}
+  .plx-sub{font-size:12.5px;color:var(--muted);margin-top:3px}
+  .plx-tags{display:flex;gap:5px;margin-top:9px}
+  .plx-tags span{font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:2px 7px;border-radius:5px;
+    color:var(--muted);box-shadow:inset 0 0 0 1px var(--line)}
+  .plx-dot{display:inline-block;width:9px;height:9px;border-radius:3px;margin-right:7px;vertical-align:0}
+  .sta-scope table.xl tr.plx-camp td{background:var(--soft);padding-top:10px;padding-bottom:10px}
+  .sta-scope table.xl tr.plx-camp td.sta-stick{background:var(--soft)}
+  .sta-scope table.xl tr.plx-camp+tr td{border-top:0}
+  .plx-ctgt{font-size:12px;white-space:nowrap}
+  .plx-dec .ui-badge{margin-right:8px}
+  .plx-move{font-size:13px;font-variant-numeric:tabular-nums;color:var(--ink)}
+  .plx-move b{font-weight:700}
+  .plx-dec .sta-why{margin-top:4px}
+  .plx-actc{white-space:nowrap}
+  .plx-acts{display:flex;gap:6px;align-items:center}
+  button.sta-btn.plx-apply{background:var(--brand);color:var(--on-brand);box-shadow:none;display:inline-flex;align-items:center;gap:6px}
+  button.sta-btn.plx-apply:disabled{background:var(--soft);color:var(--faint);cursor:not-allowed;box-shadow:inset 0 0 0 1px var(--line);opacity:1}
+  button.sta-btn.plx-apply svg{width:12px;height:12px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+  th.plx-sort{cursor:pointer;user-select:none}
+  th.plx-sort.on{color:var(--brand-ink)}
+  button.sta-chip.a-praise::before{background:var(--accent)}
+  button.sta-chip.a-plower::before{background:var(--bad)}
+  button.sta-chip.a-pkeep::before{background:var(--muted)}
+  button.sta-chip.a-pthin::before{background:var(--faint)}
+  button.sta-chip.a-preview::before{background:var(--brand)}
+  button.sta-chip.a-phold::before{background:var(--rev)}
+  .sta-warnline{margin-top:6px;padding:8px 11px;border-radius:var(--r-sm);background:color-mix(in srgb,var(--rev) 9%,var(--card));color:var(--rev-ink);font-size:12.5px;line-height:1.45}
+  .plx-note{color:var(--accent-ink);font-weight:600;margin-right:12px}
+  .plx-legend{display:flex;gap:10px 26px;flex-wrap:wrap;padding:12px 16px 4px}
+  .plx-lg small{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--muted)}
+  .plx-lg small i{width:9px;height:9px;border-radius:3px;display:inline-block}
+  .plx-lg b{display:block;font-size:16px;font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums;margin-top:2px}
+  .plx-lg.tot{padding-left:22px;border-left:1px solid var(--line)}
+  .plx-chart{overflow-x:auto;padding:4px 16px 14px}
+  @media (max-width:1100px){.plx-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
   @media (max-width:1100px){.sta-sum{grid-template-columns:repeat(4,minmax(0,1fr))}.sta-legcols{grid-template-columns:1fr}}
   @media (max-width:1100px){.sta-boxes{grid-template-columns:repeat(2,minmax(0,1fr))}}
   @media (max-width:620px){.sta-boxes{grid-template-columns:minmax(0,1fr)}.sta-figs{grid-template-columns:repeat(3,minmax(0,1fr))}.sta-row2{grid-template-columns:1fr}}
@@ -4970,7 +5018,7 @@
   </div><!-- /paneWeekly -->
 
   <!-- ============ Search Term Analysis: what shoppers typed, what it cost, and what to do about it ============ -->
-  <div id="paneSt" class="hide">
+  <div id="paneSt" class="hide sta-scope">
     <div class="card" style="padding:12px 14px">
       <div class="toolbar">
         <select id="stBrand" style="flex:0 0 180px" aria-label="Brand">
@@ -5028,6 +5076,9 @@
     </div>
     <div id="stSelBar" class="sta-selbar hide"><span id="stSelTxt"></span><button id="stSelAdd" type="button">Add to the review list</button><button id="stSelClear" class="ghost" type="button">Clear</button></div>
 
+  </div><!-- /paneSt -->
+  <!-- Search Term Analysis's dialogs, outside its pane so Placement opens the same review list (18 Nov 2026). -->
+  <div id="staModals" class="sta-scope">
     <!-- One dialog for every change: Add negative, Raise / Reduce bid, Pause, Add as exact, Negative phrase for a word. Filled by staOpen. -->
     <div id="stDlg" class="modal sta-modal hide" role="dialog" aria-modal="true" aria-labelledby="stDlgTitle"><div class="modalbox">
       <div class="sta-mh"><div><b id="stDlgTitle"></b><small id="stDlgSub"></small></div><button id="stDlgX" class="sta-x" type="button" title="Close" aria-label="Close">✕</button></div>
@@ -5066,40 +5117,63 @@
       <div class="sta-mh"><div><b>How Sellora decides</b><small>Every rule on this page, with its numbers. Nothing here changes anything at Amazon by itself.</small></div><button id="stLegendX" class="sta-x" type="button" title="Close" aria-label="Close">✕</button></div>
       <div id="stLegendBody" class="sta-mb sta-legend"></div>
     </div></div>
-  </div><!-- /paneSt -->
+  </div><!-- /staModals -->
 
   <!-- ============ Placement: where the ad was shown, and what each spot bought ============ -->
-  <div id="panePlc" class="hide">
+  <div id="panePlc" class="hide sta-scope plx">
     <div class="card" style="padding:12px 14px">
       <div class="toolbar">
-        <select id="plcBrand" style="flex:0 0 160px">
-          <option value="ALL">Both brands</option><option value="SP">Ridhi</option><option value="CPC">CPC</option>
+        <select id="plcBrand" style="flex:0 0 180px" aria-label="Brand">
+          <option value="ALL">Both brands</option><option value="SP">Ridhi</option><option value="CPC">Cotton Print Club</option>
         </select>
-        <div class="seg" id="plcGranSeg">
-          <button class="segbtn on" data-g="day">Day</button>
-          <button class="segbtn" data-g="week">Week</button>
-          <button class="segbtn" data-g="month">Month</button>
-        </div>
-        <button id="plcCsv" class="ghost">Export</button>
+        <input id="plxFilter" style="flex:1 1 220px;min-width:0" placeholder="Filter campaign" aria-label="Filter campaigns">
+        <select id="plxPlace" style="flex:0 0 170px" aria-label="Placement">
+          <option value="">Every placement</option><option value="tos">Top of Search</option><option value="ros">Rest of Search</option><option value="pp">Product Page</option><option value="off">Off Amazon</option>
+        </select>
+        <button id="plxRlBtn" class="ghost sta-rl" type="button" title="Changes picked here and in Search Term Analysis, waiting to be approved and downloaded as an Amazon bulk file">Review list<span id="plxRlN" class="sta-n hide">0</span></button>
+        <button id="plcCsv" class="ghost" type="button" title="The decisions table, the placement totals and the wasted spend, as one CSV">Export</button>
       </div>
-      <div id="plcMsg" class="muted" style="margin-top:8px;font-size:13px"></div>
+      <div id="plcMsg" class="sta-msg"></div>
+    </div>
+    <div id="plxKpis" class="plx-kpis"></div>
+    <div class="card sta-tcard">
+      <div class="sta-thead">
+        <div class="tt"><b>Placement decisions by campaign</b><small id="plxSub"></small></div>
+        <button id="plxLegendBtn" class="ghost sta-legend-btn" type="button" aria-haspopup="dialog">How Sellora decides</button>
+      </div>
+      <div class="sta-actbar" id="plxActBar" role="group" aria-label="Show rows by decision"></div>
+      <div class="sta-wrap"><table id="plxTable" class="xl"></table></div>
+      <div id="plxFoot" class="sta-more"></div>
+    </div>
+    <div id="plxSelBar" class="sta-selbar hide"><span id="plxSelTxt"></span><button id="plxSelAdd" type="button">Send to review</button><button id="plxSelClear" class="ghost" type="button">Clear</button></div>
+
+    <div class="card plx-chcard">
+      <div class="sta-thead">
+        <div class="tt"><b>Spend by placement</b><small id="plcChSub">Every Sponsored Products campaign, day by day.</small></div>
+        <div class="seg" id="plcGranSeg">
+          <button class="segbtn on" type="button" data-g="day">Day</button>
+          <button class="segbtn" type="button" data-g="week">Week</button>
+          <button class="segbtn" type="button" data-g="month">Month</button>
+        </div>
+      </div>
+      <div id="plcKpis" class="plx-legend"></div>
+      <div id="plcChart" class="plx-chart"></div>
     </div>
 
-    <div class="card" style="margin-top:12px;padding:12px 14px">
-      <div id="plcKpis" style="display:flex;gap:26px;flex-wrap:wrap;margin-bottom:10px"></div>
-      <div id="plcChart" style="overflow-x:auto"></div>
+    <div class="card sta-tcard">
+      <div class="sta-thead"><div class="tt"><b>Every placement together</b><small>The last 30 days with 30-day sales, from the nightly run. Spend misallocation: spend on clicks that produced no order at all, per campaign and placement.</small></div></div>
+      <div class="sta-wrap"><table id="plcTable" class="xl"></table></div>
     </div>
 
-    <div class="card xlwrap" style="margin-top:12px"><table id="plcTable" class="xl"></table></div>
-
-    <div class="card" style="margin-top:12px;padding:12px 14px">
-      <div class="sec" style="margin-top:0">Where the wasted spend is</div>
-      <div class="muted" style="font-size:12px;margin-bottom:8px">Each campaign and placement that
-        took clicks and returned no order at all across the whole window. Counted over the window, not
-        per day — a click needs weeks to convert, so a daily count would call almost everything waste
-        and then quietly improve on its own.</div>
-      <div class="xlwrap" style="max-height:40vh"><table id="plcWorst" class="xl"></table></div>
+    <div class="card sta-tcard">
+      <div class="sta-thead"><div class="tt"><b>Where the wasted spend is</b><small>Each campaign and placement that took clicks and returned no order at all across the 30 days. Counted over the window, not per day: a click needs weeks to convert.</small></div></div>
+      <div class="sta-wrap" style="max-height:44vh"><table id="plcWorst" class="xl"></table></div>
     </div>
+
+    <div id="plxLegend" class="modal sta-modal sta-wide hide" role="dialog" aria-modal="true" aria-label="How Sellora decides placements"><div class="modalbox">
+      <div class="sta-mh"><div><b>How Sellora decides placements</b><small>Every rule on this page, with its numbers. Nothing here changes anything at Amazon by itself.</small></div><button id="plxLegendX" class="sta-x" type="button" title="Close" aria-label="Close">✕</button></div>
+      <div id="plxLegendBody" class="sta-mb sta-legend"></div>
+    </div></div>
   </div><!-- /panePlc -->
 
   <!-- ============ Ad Console: whole-account KPIs, chart, and metrics × periods ============ -->
@@ -25088,6 +25162,12 @@ const STA = {
 };
 // The columns of Amazon's Sponsored Products bulk sheet an upload uses (Amazon's blank template, without the
 // "Informational only" and performance columns). If Amazon rejects the headers, this is the one list to change.
+// Amazon's bidding strategies as the bulk file writes them.
+const STA_STRATEGY_BULK = { LEGACY_FOR_SALES: 'Dynamic bids - down only', AUTO_FOR_SALES: 'Dynamic bids - up and down', MANUAL: 'Fixed bid' };
+// "Apply now" — Sellora making the change at Amazon itself. Off: the Ads login is read-only and the write route
+// (AdsActions.gs, POST ?ads=act, dry-run first) is not built. Every review item already carries what that route needs
+// (IDs, from → to, and for placements the full placementBidding to send). Switch on here, behind the adsApply right.
+const ADS_APPLY = { on: false, why: 'Needs Amazon edit permission for Sellora. Until then: Send to review, then the bulk file.' };
 const STA_BULK_COLS = ['Product', 'Entity', 'Operation', 'Campaign ID', 'Ad Group ID', 'Portfolio ID', 'Ad ID', 'Keyword ID',
   'Product Targeting ID', 'Campaign Name', 'Ad Group Name', 'Start Date', 'End Date', 'Targeting Type', 'State', 'Daily Budget',
   'SKU', 'Ad Group Default Bid', 'Bid', 'Keyword Text', 'Native Language Keyword', 'Native Language Locale', 'Match Type',
@@ -25279,6 +25359,20 @@ async function ensureSt() {
     stMsg('Loading the search terms, targets, ad groups, the review list and the lists…');
     $('stTable').innerHTML = '';
     stFoot('');
+  }
+  await staLoad();
+  renderSt();
+}
+// Everything Search Term Analysis and Placement read, once (both pages share it): the nightly caches, the Ads backend's,
+// unit costs, the review list and the lists. Concurrent callers share one load.
+let STA_LOADING = null;
+function staLoad() {
+  if (ST.loaded && ST.extra) return Promise.resolve();
+  if (!STA_LOADING) STA_LOADING = staLoad_().finally(() => { STA_LOADING = null; });
+  return STA_LOADING;
+}
+async function staLoad_() {
+  {
     // A cache the backend has not written yet answers "nothing cached" — that is null here, not an error.
     // Each cache's answer is kept for the sources line: read (with its time), not switched on yet, or an error.
     const grab = async name => {
@@ -25305,12 +25399,14 @@ async function ensureSt() {
     }
     if (!ST.extra) {
       const ok = x => (x && x.d ? x : null);
-      jobs.push(Promise.all(['adEntities', 'stSettled', 'stRecent', 'tgtSettled', 'tgtRecent'].map(grab)).then(([e, s, r, ts, tr]) => {
+      jobs.push(Promise.all(['adEntities', 'stSettled', 'stRecent', 'tgtSettled', 'tgtRecent', 'plcSettled', 'plcRecent'].map(grab)).then(([e, s, r, ts, tr, ps, pr]) => {
         ST.ent = ok(e);
         ST.set = ok(s);
         ST.rec = ok(r);
         ST.tset = ok(ts);
         ST.trec = ok(tr);
+        ST.plc = ok(ps);
+        ST.plcr = ok(pr);
         ST.extra = true;
         Object.keys(STA_ENTX).forEach(k => delete STA_ENTX[k]);
       }));
@@ -25325,7 +25421,6 @@ async function ensureSt() {
     STM = null;
     staTitlesLater();
   }
-  renderSt();
 }
 // Listing Health's titles, once, after the first draw: product words come from them, and own ASINs are named.
 let STA_TITLES = false;
@@ -25442,8 +25537,8 @@ let STM = null;
 
 // Everything the views draw for the brand picked: rows (one per term and path), tg (every keyword / target), words,
 // groups (Competing paths), byKey, and per brand: have (what arrived), info (stale, data checks), protect, dest.
-function staModel() {
-  const pick = $('stBrand').value;
+function staModel(pickArg) {
+  const pick = pickArg || $('stBrand').value;
   const key = pick + '|' + ST_RL.stamp + '|' + (STS.stamp || 0);
   if (STM && STM.key === key) return STM;
   const brands = pick === 'ALL' ? ['SP', 'CPC'] : [pick];
@@ -26166,6 +26261,10 @@ function staPager(total, what, note) {
 
 // Draw the whole screen.
 function renderSt() {
+  if ($('paneSt').classList.contains('hide')) {
+    if (typeof plxAfterChange === 'function') plxAfterChange();
+    return;
+  }
   const isCp = ST_VIEW === 'cp';
   $('stViewSeg').querySelectorAll('[data-v]').forEach(x => {
     x.classList.toggle('on', x.dataset.v === ST_VIEW);
@@ -27187,6 +27286,7 @@ function staWordItems(r, picks) {
     }));
 }
 function staKindName(x) {
+  if (x.kind === 'plc') return x.plc.to > x.plc.from ? 'Raise placement' : 'Lower placement';
   if (x.kind === 'neg') return x.neg.type === 'na' ? 'Add negative ASIN target' : 'Add ' + STA.NEG[x.neg.type].t.toLowerCase();
   if (x.kind === 'bid') return x.bid.dir === 'up' ? 'Raise bid' : 'Lower bid';
   if (x.kind === 'pause') return 'Pause';
@@ -27245,6 +27345,9 @@ async function staRlSeen() {
     if (x.kind === 'neg') {
       const where = x.neg.level === 'cp' ? 'cp|' + x.cid : 'ag|' + x.ag;
       seen = staNegAtAmazon(x.brand, where, x.term, x.neg.type === 'na' ? 'na' : x.neg.type === 'negativePhrase' ? 'np' : 'nx') === true;
+    } else if (x.kind === 'plc') {
+      const c = (ST.ent && ST.ent.d && ST.ent.d[x.brand] && ST.ent.d[x.brand].cp || {})[x.cid];
+      seen = !!c && Number(c[x.plc.ix]) === Number(x.plc.to);
     } else if (x.kind === 'exact') seen = E.kw.has(x.dest.ag + '|' + staLow(x.term) + '|exact');
     else if (x.kind === 'asinT') seen = E.tg.has(x.dest.ag + '|asin="' + staLow(x.term) + '"');
     else {
@@ -27335,6 +27438,11 @@ async function staRlSet(status) {
 function staBulkRow(x) {
   const base = { 'Product': 'Sponsored Products', 'Campaign ID': x.cid };
   if (!x.cid) return { skip: 'No campaign ID on record.' };
+  if (x.kind === 'plc') {
+    // One placement's bid adjustment, as an absolute percentage (Amazon's bulk file has no "+10").
+    return { row: Object.assign(base, { 'Entity': 'Bidding Adjustment', 'Operation': 'Update', 'Placement': x.plc.bulk, 'Percentage': x.plc.to },
+      x.plc.strategy && STA_STRATEGY_BULK[x.plc.strategy] ? { 'Bidding Strategy': STA_STRATEGY_BULK[x.plc.strategy] } : {}) };
+  }
   if (x.kind === 'neg') {
     if (x.neg.type === 'na') {
       if (!x.ag) return { skip: 'No ad-group ID on record.' };
@@ -27408,9 +27516,10 @@ function staPreview() {
   const brands = [...new Set(ready.map(y => y.x.brand))];
   $('stRlSub').textContent = `${ready.length} row${ready.length === 1 ? '' : 's'} in ${brands.length} file${brands.length === 1 ? '' : 's'} (${brands.map(staBrandName).join(', ')}), sheet "Sponsored Products Campaigns".`;
   const td = v => `<td>${staEsc(v == null ? '' : v)}</td>`;
-  $('stRlTable').innerHTML = '<thead><tr><th></th><th>File</th><th>Entity</th><th>Operation</th><th>Campaign</th><th>Ad group</th><th>Keyword / target</th><th>Match type</th><th class="num">Bid</th><th>State</th></tr></thead><tbody>'
+  $('stRlTable').innerHTML = '<thead><tr><th></th><th>File</th><th>Entity</th><th>Operation</th><th>Campaign</th><th>Ad group</th><th>Keyword / target / placement</th><th>Match type</th><th class="num">Bid / %</th><th>State</th></tr></thead><tbody>'
     + ready.map(({ x, b: { row } }) => `<tr><td></td>${td(staBrandName(x.brand))}${td(row['Entity'])}${td(row['Operation'])}${td((x.dest && x.dest.cn) || x.cn)}${td(row['Ad Group ID'] ? ((x.dest && x.dest.agn) || x.agn || row['Ad Group ID']) : '— (whole campaign)')}`
-      + `${td(row['Keyword Text'] || row['Product Targeting Expression'] || row['Keyword ID'] || row['Product Targeting ID'])}${td(row['Match Type'])}<td class="num">${row['Bid'] != null ? staMoney(row['Bid']) : ''}</td>${td(row['State'])}</tr>`).join('')
+      + `${td(row['Keyword Text'] || row['Product Targeting Expression'] || row['Keyword ID'] || row['Product Targeting ID'] || row['Placement'])}${td(row['Match Type'])}`
+      + `<td class="num">${row['Bid'] != null ? staMoney(row['Bid']) : row['Percentage'] != null ? staEsc(row['Percentage'] + '%' + (x.plc && x.plc.from != null ? ' (was ' + x.plc.from + '%)' : '')) : ''}</td>${td(row['State'])}</tr>`).join('')
     + wait.map(({ x, b }) => `<tr class="sta-wait"><td></td>${td(staBrandName(x.brand))}<td colspan="5">${staEsc(staKindName(x) + ' · ' + (x.term || x.target))}</td><td colspan="3">Waits: ${staEsc(b.skip)}</td></tr>`).join('')
     + '</tbody>';
   const note = $('stRlNote');
@@ -28164,21 +28273,22 @@ function plcMsg(t, bad) {
   m.className = bad ? 'err' : 'muted';
 }
 
-// Called when the tab opens: fetch the placement cache once, then draw.
+// Called when the tab opens: the nightly placement cache (chart, totals, wasted spend) and everything the decisions read
+// (Search Term Analysis's load: the Ads backend's 7-day placement reports, Amazon's record, unit costs, the review list),
+// together, once; then draw both halves.
 async function ensurePlc() {
-  if (!PLC.loaded) {
-    plcMsg('Loading…');
-    try {
-      const r = await baCall({ cache: 'placement' });
-      PLC = { at: (r.data && r.data.at) || '', d: (r.data && r.data.d) || {}, loaded: true };
-      plcMsg('');
-    } catch (e) {
+  if (!PLC.loaded || !(ST.loaded && ST.extra)) {
+    plcMsg('Loading the placements, Amazon\'s record of your campaigns, unit costs and the review list…');
+    const one = PLC.loaded ? Promise.resolve() : baCall({ cache: 'placement' }).then(r => {
+      PLC = { at: (r.data && r.data.at) || '', d: (r.data && r.data.d) || {}, loaded: true, err: '' };
+    }).catch(e => {
       PLC.loaded = true;
-      plcMsg('The nightly run has not collected placement data yet — it asks Amazon overnight and '
-        + 'picks the report up on a later wake-up.', true);
-    }
+      PLC.err = 'The nightly run has not collected placement data yet — it asks Amazon overnight and picks the report up on a later wake-up.';
+    });
+    await Promise.all([one, staLoad().catch(() => { /* the decisions say what is missing */ })]);
   }
   renderPlc();
+  renderPlx();
 }
 
 // The brands chosen in the picker.
@@ -28238,22 +28348,19 @@ function renderPlc() {
   // --- nothing collected yet ---
   if (!Object.keys(PLC.d).length) {
     $('plcKpis').innerHTML = '';
-    $('plcChart').innerHTML = '';
+    $('plcChart').innerHTML = `<div class="muted" style="padding:14px 0">${esc(PLC.err || 'No placement data for these brands yet.')}</div>`;
     $('plcTable').innerHTML = '';
     $('plcWorst').innerHTML = '';
     return;
   }
 
-  // --- the spend strip ---
+  // --- the spend strip: one legend chip per placement, with its spend ---
   const A = plcAgg();
   const totSpend = A.names.reduce((s, p) => s + A.place[p][2], 0);
 
   $('plcKpis').innerHTML = A.names.map(p =>
-    `<div><div class="muted" style="font-size:11px"><span style="display:inline-block;width:9px;height:9px;`
-    + `border-radius:2px;background:${plcColor(p)};margin-right:5px"></span>${esc(p)}</div>`
-    + `<div style="font-weight:700;font-size:15px">${money(A.place[p][2])}</div></div>`).join('')
-    + `<div><div class="muted" style="font-size:11px">Total</div>`
-    + `<div style="font-weight:700;font-size:15px">${money(totSpend)}</div></div>`;
+    `<div class="plx-lg"><small><i style="background:${plcColor(p)}"></i>${esc(p)}</small><b>${money(A.place[p][2])}</b></div>`).join('')
+    + `<div class="plx-lg tot"><small>Total</small><b>${money(totSpend)}</b></div>`;
 
   // --- the chart ---
   plcChartSvg(A, esc, money);
@@ -28262,8 +28369,8 @@ function renderPlc() {
   const row = (label, t, misV, bold) => {
     const [i, c, sp, o, s] = t;
     const pctOf = totSpend > 0 ? Math.round(sp * 100 / totSpend) : 0;
-    return `<tr${bold ? ' style="font-weight:700;border-top:2px solid var(--line)"' : ''}>`
-      + `<td class="frz">${label}</td>`
+    return `<tr${bold ? ' class="tot"' : ''}>`
+      + `<td>${bold ? label : `<span class="plx-dot" style="background:${plcColor(label)}"></span>${label}`}</td>`
       + `<td class="num"${misV > 0 ? ' style="color:var(--bad-ink)"' : ''}>${money(misV)}`
         + `${sp > 0 && misV > 0 ? ` <span class="muted">(${Math.round(misV * 100 / sp)}%)</span>` : ''}</td>`
       + `<td class="num">${money(sp)}${bold ? '' : ` <span class="muted">(${pctOf}%)</span>`}</td>`
@@ -28274,7 +28381,7 @@ function renderPlc() {
       + `<td class="num">${c > 0 ? (o * 100 / c).toFixed(1) + '%' : '<span class="muted">—</span>'}</td>`
       + '</tr>';
   };
-  const head = '<thead><tr><th class="frz">Placement</th>'
+  const head = '<thead><tr><th>Placement</th>'
     + '<th class="num" title="Spend on clicks that produced no order at all, counted per campaign per placement across the whole window. '
       + 'Ours, not Amazon\'s.">Spend Misallocation</th>'
     + '<th class="num">Ad Spend</th><th class="num">Ad Sales</th><th class="num">ACOS</th>'
@@ -28291,22 +28398,20 @@ function renderPlc() {
 
   // --- worst offenders ---
   $('plcWorst').innerHTML = A.worst.length
-    ? '<thead><tr><th class="frz">Campaign</th><th>Placement</th><th>Brand</th>'
+    ? '<thead><tr><th>Campaign</th><th>Placement</th><th>Brand</th>'
       + '<th class="num">Clicks</th><th class="num">Spend, nothing back</th></tr></thead><tbody>'
-      + A.worst.slice(0, 200).map(w => `<tr><td class="frz">${esc(w.cn)}</td>`
-        + `<td><span style="display:inline-block;width:9px;height:9px;border-radius:2px;`
-        + `background:${plcColor(w.p)};margin-right:5px"></span>${esc(w.p)}</td>`
-        + `<td>${esc(w.brand === 'SP' ? 'Ridhi' : w.brand)}</td>`
+      + A.worst.slice(0, 200).map(w => `<tr><td><div class="sta-pl"><b>${esc(w.cn)}</b>${staCopy(w.cn, 'campaign')}</div></td>`
+        + `<td><span class="plx-dot" style="background:${plcColor(w.p)}"></span>${esc(w.p)}</td>`
+        + `<td>${staBadge(staBrandName(w.brand), 'brand-' + w.brand)}</td>`
         + `<td class="num">${nf(w.c)}</td>`
         + `<td class="num" style="color:var(--bad-ink);font-weight:600">${money(w.sp)}</td></tr>`).join('')
       + '</tbody>'
     : '<tbody><tr><td class="muted" style="padding:12px">Nothing — every campaign and placement that '
       + 'took a click also produced at least one order.</td></tr></tbody>';
 
-  // --- the message line ---
-  plcMsg(`${A.names.length} placement(s) · ${money(totSpend)} spent, ${money(T[4])} back`
-    + ` · <b style="color:var(--bad-ink)">${money(totMis)}</b> of it bought nothing`
-    + (PLC.at ? ` · built ${esc(PLC.at)}` : '') + ' · a 30-day window');
+  // --- the chart's line ---
+  $('plcChSub').innerHTML = `${money(totSpend)} spent, ${money(T[4])} back · <span style="color:var(--bad-ink);font-weight:700">${money(totMis)}</span> of it bought nothing`
+    + (PLC.at ? ` · built ${esc(PLC.at)}` : '') + ' · the last 30 days, 30-day sales';
 }
 
 /* Hand-drawn stacked bars. This app deliberately loads no charting library — one <script> from a CDN
@@ -28370,10 +28475,11 @@ $('plcGranSeg').addEventListener('click', e => {
 });
 $('plcBrand').addEventListener('change', renderPlc);
 
-// Export: the placement table, a blank line, then the worst offenders, as one CSV.
+// Export: the decisions (placement-decide.js), the placement table, then the worst offenders, as one CSV.
 $('plcCsv').onclick = () => {
   const A = plcAgg();
-  if (!A.names.length) {
+  const dec = plxCsvLines();
+  if (!A.names.length && !dec.length) {
     plcMsg('Nothing to export.', true);
     return;
   }
@@ -28382,8 +28488,8 @@ $('plcCsv').onclick = () => {
     return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
   };
   // --- the placement table ---
-  const lines = [['Placement', 'Spend Misallocation', 'Ad Spend', 'Ad Sales', 'ACOS %', 'Impressions',
-    'Clicks', 'Orders', 'CPC', 'CVR %'].map(cell).join(',')];
+  const lines = dec.concat(dec.length ? [''] : []).concat([['Placement', 'Spend Misallocation', 'Ad Spend', 'Ad Sales', 'ACOS %', 'Impressions',
+    'Clicks', 'Orders', 'CPC', 'CVR %'].map(cell).join(',')]);
   A.names.forEach(p => {
     const [i, c, sp, o, s] = A.place[p];
     lines.push([p, A.mis[p] || 0, sp, s, s > 0 ? (sp * 100 / s).toFixed(1) : '', i, c, o,
@@ -29041,6 +29147,554 @@ $('tExport').onclick = () => {
   a.click();
   URL.revokeObjectURL(a.href);
 };
+/* ============================== FILE: src/app/ads/placement-decide.js ============================== */
+/* ================= ADS · PLACEMENT DECISIONS (18 Nov 2026) =================
+ * Screen: the top half of Placement (tab 'plc', pane panePlc; ensurePlc in ads/placement.js loads, then calls renderPlx).
+ * For every campaign × placement (Top of Search, Rest of Search, Product Page; Off Amazon has no adjustment) it says
+ * Raise / Lower / Keep / Not enough data, with the adjustment now and the one proposed, and the evidence; the change goes
+ * to the shared review list (Search Term Analysis's: Firestore adsActions) and leaves as an Amazon bulk file row
+ * (Entity "Bidding Adjustment"). "Apply now" is drawn but off until Sellora has Amazon edit permission (ADS_APPLY in
+ * search-terms.js); each review item already carries the full call that route will make (api).
+ *
+ * READS (all loaded by staLoad, Search Term Analysis's loader):
+ *   ST.plc / ST.plcr  the Ads backend's 7-day campaign × placement reports (AdsDecide.gs: plcSettled = days 8–37,
+ *                     plcRecent = last 7 days). Decisions are judged on settled days only; the last 7 show under the spend.
+ *   ST.ent            Amazon's record (AdsEntities.gs): per campaign [name, state, budget, strategy, Top %, Rest %, Product %,
+ *                     targeting type, start]. Without it the direction is shown, not the new percentage.
+ *   staModel('ALL')   each ad group's target and break-even ACoS (Profit & Margin costs), age, launch name, FBA cover —
+ *                     weighted per campaign by its keywords' and targets' spend + sales.
+ *   ST_RL             open placement items (In review) and recent ones (cooldown).
+ *
+ * THE RULES (PLX):
+ *   < MIN_ORDERS orders → Not enough data ("4 of 10 orders"), except 0 orders in NOSALE_CLICKS+ clicks → Lower.
+ *   ACoS ≤ RAISE_SHARE × target → Raise +STEP points (cap MAX_PCT); not when FBA cover < STA.RAISE_COVER days.
+ *   ACoS > break-even → Lower −STEP points (floor 0); already at 0% → "lower the keyword bids instead" (Search Term Analysis).
+ *   Otherwise Keep. New campaigns (under STA.AGE_DAYS days), launch campaigns, paused campaigns, an open review item, or
+ *   a change in the last COOLDOWN days → no decision.
+ * Main functions: plxModel, plxDecide, renderPlx, plxKpis, plxDataLine, plxTable, plxItem, plxSend, plxCsvLines. */
+
+const PLX = {
+  MIN_ORDERS: 10,      // settled 7-day orders a placement needs before it is judged
+  RAISE_SHARE: 0.75,   // raise when ACoS is at or below this share of the target
+  STEP: 10,            // points per change, either way
+  MAX_PCT: 200,        // Sellora never proposes more than this (Amazon allows 900)
+  COOLDOWN: 3,         // days after a change before the next decision
+  NOSALE_CLICKS: 40,   // 0 orders in this many clicks → lower, even under MIN_ORDERS
+  PAGE: 25,            // campaigns per page
+};
+// Amazon's placement names (report) → ours; then each one's API name, bulk-file name and its slot in adEntities' cp row.
+const PLX_PK = { 'Top of Search on-Amazon': 'tos', 'Other on-Amazon': 'ros', 'Detail Page on-Amazon': 'pp', 'Off Amazon': 'off' };
+const PLX_META = {
+  tos: { name: 'Top of Search', amz: 'PLACEMENT_TOP', bulk: 'Placement Top', ix: 4 },
+  ros: { name: 'Rest of Search', amz: 'PLACEMENT_REST_OF_SEARCH', bulk: 'Placement Rest Of Search', ix: 5 },
+  pp: { name: 'Product Page', amz: 'PLACEMENT_PRODUCT_PAGE', bulk: 'Placement Product Page', ix: 6 },
+  off: { name: 'Off Amazon', amz: '', bulk: '', ix: -1 },
+};
+const PLX_ORDER = ['tos', 'ros', 'pp', 'off'];
+const PLX_STRAT = { LEGACY_FOR_SALES: 'Dynamic bids · down only', AUTO_FOR_SALES: 'Dynamic bids · up and down', MANUAL: 'Fixed bids' };
+// The decision chips, in order: key, label.
+const PLX_CHIPS = [['raise', 'Raise'], ['lower', 'Lower'], ['keep', 'Keep'], ['thin', 'Not enough data'], ['review', 'In review'], ['hold', 'Hold / can\'t adjust']];
+let PLX_ACT = '', PLX_PG = 0, PLX_SORT = { k: 'sp', d: -1 }, PLX_LAST = null;
+const PLX_SEL = new Map();
+
+const plxPct = v => v == null ? '—' : (v > 0 ? '+' : '') + Math.round(v) + '%';
+const plxColor = pk => plcColor((PLX_META[pk] || {}).name || pk);
+
+/* ---------- the model ---------- */
+function plxModel() {
+  const pick = $('plcBrand').value;
+  const brands = pick === 'ALL' ? ['SP', 'CPC'] : [pick];
+  const q = ($('plxFilter').value || '').trim().toLowerCase();
+  const only = $('plxPlace').value;
+  const now = Date.now(), DAY = 86400000;
+  let M = null;
+  try { M = staModel('ALL'); } catch (e) { M = null; }
+  // Open placement items (In review) and the last change per placement (cooldown).
+  const open = new Map(), last = new Map();
+  ST_RL.items.forEach(x => {
+    if (x.kind !== 'plc') return;
+    if (x.status === 'review' || x.status === 'approved') open.set(x.key, x);
+    else if (x.status === 'exported' || x.status === 'done' || x.status === 'applied') {
+      const t = x.appliedAt || x.exportedAt || x.doneAt || x.at;
+      if (!last.has(x.key) || t > last.get(x.key)) last.set(x.key, t);
+    }
+  });
+  // Per campaign: target and break-even weighted by its targets' spend + sales; youngest age; lowest FBA cover.
+  const info = new Map();
+  if (M) {
+    const seen = new Set();
+    (M.tgAll || []).forEach(g => {
+      const ai = g.ai;
+      if (!ai) return;
+      const k = g.brand + '|' + (g.cid || ai.cid);
+      const x = info.get(k) || info.set(k, { w: 0, tw: 0, bw: 0, w0: 0, tw0: 0, bw0: 0, known: false, fallback: false, isNew: false, launch: false, newFrom: 0, cover: null }).get(k);
+      const ln = ai.ln || {};
+      const w = (g.sp || 0) + (g.s || 0);
+      if (ln.tgt != null) {
+        x.tw += ln.tgt * w; x.bw += ln.be * w; x.w += w;
+        x.tw0 += ln.tgt; x.bw0 += ln.be; x.w0 += 1;
+        if (ln.known) x.known = true;
+        if (ln.fallback) x.fallback = true;
+      }
+      if (!seen.has(g.brand + '|' + ai.ag)) {
+        seen.add(g.brand + '|' + ai.ag);
+        if (ai.launch) x.launch = true;
+        if (ai.isNew) { x.isNew = true; x.newFrom = Math.max(x.newFrom, ai.newFrom || 0); }
+        if (ln.cover != null) x.cover = x.cover == null ? ln.cover : Math.min(x.cover, ln.cover);
+      }
+    });
+  }
+  const out = { brands, camps: [], rows: [], from: '', to: '', settled: !!ST.plc, ent: !!ST.ent, costs: ST.costs, rlOpen: open };
+  brands.forEach(b => {
+    const pack = ST.plc && ST.plc.d && ST.plc.d[b];
+    if (!pack) return;
+    if (ST.plc.from && !out.from) { out.from = pack.from || ST.plc.from; out.to = pack.to || ST.plc.to; }
+    const rec = (ST.plcr && ST.plcr.d && ST.plcr.d[b] && ST.plcr.d[b].rows) || [];
+    const recOf = new Map(rec.map(x => [x.cid + '|' + x.p, x]));
+    const E = ST.ent && ST.ent.d && ST.ent.d[b];
+    const cpRec = (E && E.cp) || {};
+    const byC = new Map();
+    (pack.rows || []).forEach(x => {
+      const c = byC.get(x.cid) || byC.set(x.cid, { key: b + '|' + x.cid, brand: b, cid: x.cid, cn: x.cn || (cpRec[x.cid] || [])[0] || 'Campaign ' + x.cid,
+        i: 0, c: 0, sp: 0, o: 0, s: 0, rows: [] }).get(x.cid);
+      const pk = PLX_PK[x.p] || 'x:' + x.p;
+      const r = { key: 'plc|' + b + '|' + x.cid + '|' + pk, type: 'plc', brand: b, cid: x.cid, pk, name: (PLX_META[pk] || {}).name || x.p,
+        i: x.i || 0, c: x.c || 0, sp: x.sp || 0, o: x.o || 0, s: x.s || 0, rec: recOf.get(x.cid + '|' + x.p) || null };
+      c.rows.push(r);
+      c.i += r.i; c.c += r.c; c.sp += r.sp; c.o += r.o; c.s += r.s;
+    });
+    byC.forEach(c => {
+      const ent = cpRec[c.cid] || null;
+      c.ent = ent;
+      c.state = ent ? ent[1] : '';
+      c.budget = ent ? Number(ent[2]) || 0 : 0;
+      c.strategy = ent ? ent[3] : '';
+      c.started = ent ? Number(ent[8]) || 0 : 0;
+      const ci = info.get(b + '|' + c.cid) || {};
+      c.tgt = ci.w > 0 ? ci.tw / ci.w : ci.w0 > 0 ? ci.tw0 / ci.w0 : null;
+      c.be = ci.w > 0 ? ci.bw / ci.w : ci.w0 > 0 ? ci.bw0 / ci.w0 : null;
+      c.fallback = !!ci.fallback && !ci.known;
+      c.launch = !!ci.launch || STA_LAUNCH.test(c.cn);
+      c.cover = ci.cover != null ? ci.cover : null;
+      c.isNew = !!ci.isNew || (c.started && now - c.started < STA.AGE_DAYS * DAY);
+      c.newFrom = Math.max(ci.newFrom || 0, c.started ? c.started + STA.AGE_DAYS * DAY : 0);
+      c.acos = c.s > 0 ? c.sp / c.s * 100 : null;
+      c.rows.sort((x, y) => (PLX_ORDER.indexOf(x.pk) + 1 || 9) - (PLX_ORDER.indexOf(y.pk) + 1 || 9));
+      c.rows.forEach(r => {
+        r.camp = c;
+        r.cn = c.cn;
+        r.share = c.c > 0 ? r.c / c.c : null;
+        r.acos = r.s > 0 ? r.sp / r.s * 100 : null;
+        r.cpc = r.c > 0 ? r.sp / r.c : null;
+        r.cvr = r.c > 0 ? r.o / r.c * 100 : null;
+        const m = PLX_META[r.pk];
+        r.cur = m && m.ix >= 0 && ent ? Number(ent[m.ix]) || 0 : null;
+        plxDecide(r, c, open, last, now);
+      });
+      c.hay = (c.cn + ' ' + c.cid).toLowerCase();
+      out.camps.push(c);
+    });
+  });
+  // Filters: text, placement; the chip filters rows (campaigns with none left drop out).
+  let camps = out.camps.filter(c => !q || c.hay.includes(q));
+  out.all = camps;
+  out.rowsAll = camps.flatMap(c => c.rows.filter(r => !only || r.pk === only));
+  out.shown = camps.map(c => Object.assign(Object.create(c), {
+    rowsShown: c.rows.filter(r => (!only || r.pk === only) && (!PLX_ACT || r.chip === PLX_ACT)) })).filter(c => c.rowsShown.length);
+  return out;
+}
+
+// One campaign × placement's decision: r.dec (raise / lower / keep / keep0 / cap / thin / review / cool / new / hold / na),
+// r.chip (the chip it counts under), r.to (the proposed %), r.why (one line), r.can (can go to the review list).
+function plxDecide(r, c, open, last, now) {
+  const set = (dec, why, to) => {
+    r.dec = dec;
+    r.why = why;
+    r.to = to == null ? null : to;
+    r.chip = dec === 'raise' || dec === 'lower' || dec === 'thin' || dec === 'review' ? dec : dec === 'keep' || dec === 'keep0' || dec === 'cap' ? 'keep' : 'hold';
+    r.can = (dec === 'raise' || dec === 'lower') && r.cur != null && r.to != null && r.to !== r.cur;
+    return r;
+  };
+  const m = PLX_META[r.pk];
+  if (!m || m.ix < 0) return set('na', r.pk === 'off' ? 'Amazon has no bid adjustment for off-Amazon placements' : 'A placement Amazon has no adjustment for');
+  if (c.state && !/enabled/i.test(c.state)) return set('na', 'Campaign ' + String(c.state).toLowerCase());
+  if (c.launch) return set('hold', 'Launch campaign (by its name): not judged on ACoS');
+  if (c.isNew && c.newFrom > now) return set('new', `New campaign: judged from ${staDay(c.newFrom)}`);
+  const op = open.get(r.key);
+  if (op) return set('review', `${staKindName(op)} ${plxPct(op.plc.from)} → ${plxPct(op.plc.to)} is in the review list`);
+  const t = last.get(r.key);
+  if (t && now - t < PLX.COOLDOWN * 86400000) return set('hold', `Changed ${staDays(t) || 'today'}${staDays(t) ? ' day' + (staDays(t) === 1 ? '' : 's') + ' ago' : ''}: next decision from ${staDay(t + PLX.COOLDOWN * 86400000)}`);
+  const tgt = c.tgt, be = c.be, step = PLX.STEP;
+  const down = r.cur == null ? null : Math.max(0, r.cur - step);
+  if (!(r.o > 0) && r.c >= PLX.NOSALE_CLICKS) {
+    if (r.cur === 0) return set('keep0', `0 orders in ${staInt(r.c)} clicks, and already at 0%: lower the keyword bids instead`);
+    return set('lower', `0 orders in ${staInt(r.c)} clicks`, down);
+  }
+  if (r.o < PLX.MIN_ORDERS) return set('thin', `${staInt(r.o)} of ${PLX.MIN_ORDERS} orders needed before it is judged`);
+  if (tgt == null) return set('hold', 'No unit cost for its products, so no target: set a fallback target in Search Term Analysis → Lists & settings');
+  const src = c.fallback ? ' (your fallback)' : '';
+  if (r.acos <= PLX.RAISE_SHARE * tgt) {
+    if (c.cover != null && c.cover < STA.RAISE_COVER) return set('hold', `Sells well, but only ${Math.round(c.cover)} days of FBA stock: no raise`);
+    if (r.cur != null && r.cur >= PLX.MAX_PCT) return set('cap', `ACoS ${staPct(r.acos)} is well under target, but it is at Sellora's ${PLX.MAX_PCT}% cap`);
+    return set('raise', `ACoS ${staPct(r.acos)} is at or below 75% of the ${staPct(tgt)} target${src}, with ${staInt(r.o)} orders`,
+      r.cur == null ? null : Math.min(PLX.MAX_PCT, r.cur + step));
+  }
+  if (be != null && r.acos > be) {
+    if (r.cur === 0) return set('keep0', `ACoS ${staPct(r.acos)} is above break-even ${staPct(be)}, and already at 0%: lower the keyword bids instead`);
+    return set('lower', `ACoS ${staPct(r.acos)} is above break-even ${staPct(be)}${src}, with ${staInt(r.o)} orders`, down);
+  }
+  return set('keep', `ACoS ${staPct(r.acos)} is between 75% of target (${staPct(PLX.RAISE_SHARE * tgt)}) and break-even (${staPct(be)})`);
+}
+
+/* ---------- drawing ---------- */
+function renderPlx() {
+  if ($('panePlc').classList.contains('hide')) return;
+  const P = plxModel();
+  PLX_LAST = P;
+  plxDataLine(P);
+  plxKpis(P);
+  plxActBar(P);
+  plxTable(P);
+  plxSelBar();
+  plxRlBadge();
+}
+// After a change in the review list (made from either page): redraw Placement if it is on screen.
+function plxAfterChange() {
+  if (!$('panePlc').classList.contains('hide')) renderPlx();
+}
+function plxRlBadge() {
+  const n = ST_RL.items.filter(x => x.status === 'review' || x.status === 'approved').length;
+  $('plxRlN').textContent = n;
+  $('plxRlN').classList.toggle('hide', !n);
+}
+
+// The message line: the window and what it is judged on, then what is missing and why it matters.
+function plxDataLine(P) {
+  const parts = [];
+  if (P.settled) parts.push(`Decisions judged on <b>settled days, ${staEsc(staShortDay(P.from))} – ${staEsc(staShortDay(P.to))}</b>, with 7-day sales as in the Ads console. The last 7 days show under the spend and are not counted.`);
+  const src = ST.src || {};
+  const one = (name, label) => {
+    const x = src[name];
+    if (!x) return '';
+    if (x.ok) return `<span class="sta-ok">✓ ${label} ${staEsc(x.at || '')}</span>`;
+    if (x.off) return `<span class="sta-dash">${label}: not switched on yet</span>`;
+    return `<span class="sta-bad" title="${staEsc(x.err || '')}">✗ ${label}: could not be read</span>`;
+  };
+  parts.push('Amazon data: ' + [one('plcSettled', '7-day placement reports'), one('adEntities', 'current adjustments'),
+    PLC.at ? `<span class="sta-ok">✓ nightly placements ${staEsc(PLC.at)}</span>` : ''].filter(Boolean).join(' · '));
+  const warn = [];
+  if (!P.settled) warn.push('<b>No decisions yet:</b> they need the Ads backend\'s 7-day placement reports (AdsDecide.gs → plcSettled), which Ravi switches on. The chart and tables below are from the nightly run.');
+  if (P.settled && !P.ent) warn.push('Amazon\'s current adjustments are not read yet (AdsEntities.gs): decisions show the direction, and cannot go into a bulk file until they are.');
+  if (P.settled && !ST.costs) warn.push(ST.costErr ? 'Unit costs could not be read for this account: ' + staEsc(ST.costErr) : 'No unit costs (Profit & Margin): no targets, so no Raise or Lower beyond "no orders".');
+  plcMsg(parts.join('<br>') + (warn.length ? '<div class="sta-warnline">' + warn.join('<br>') + '</div>' : ''));
+}
+
+// Five cards: Top of Search's share of spend, ACoS per placement, the proposals.
+function plxKpis(P) {
+  const tot = { tos: [0, 0, 0], ros: [0, 0, 0], pp: [0, 0, 0], off: [0, 0, 0] };   // spend, sales, orders
+  let all = 0, src = '';
+  if (P.settled && P.all.length) {
+    src = '7-day · settled';
+    P.all.forEach(c => c.rows.forEach(r => {
+      all += r.sp;
+      const t = tot[r.pk];
+      if (t) { t[0] += r.sp; t[1] += r.s; t[2] += r.o; }
+    }));
+  } else if (Object.keys(PLC.d).length) {
+    src = '30 days · nightly';
+    const A = plcAgg();
+    const back = { 'Top of Search': 'tos', 'Rest of Search': 'ros', 'Product Page': 'pp', 'Off Amazon': 'off' };
+    A.names.forEach(n => {
+      const v = A.place[n];
+      all += v[2];
+      const t = tot[back[n]];
+      if (t) { t[0] += v[2]; t[1] += v[4]; t[2] += v[3]; }
+    });
+  }
+  const acos = t => t[1] > 0 ? t[0] / t[1] * 100 : null;
+  const rows = P.rowsAll || [];
+  const nR = rows.filter(r => r.dec === 'raise').length, nL = rows.filter(r => r.dec === 'lower').length;
+  // The brand-level target, weighted like the campaigns, to colour the ACoS cards.
+  let tw = 0, w = 0;
+  P.all.forEach(c => { if (c.tgt != null && c.sp > 0) { tw += c.tgt * c.sp; w += c.sp; } });
+  const tgt = w > 0 ? tw / w : null;
+  const IC = {
+    share: '<circle cx="12" cy="12" r="9"/><path d="M12 3v9l6 6"/>',
+    pct: '<path d="M19 5L5 19"/><circle cx="7" cy="7" r="2.5"/><circle cx="17" cy="17" r="2.5"/>',
+    go: '<path d="M12 5v14"/><path d="M5 12l7-7 7 7"/>',
+  };
+  const card = (ic, c, label, big, sub, tag, chip) => `
+    <div class="adx-box plx-kpi${chip ? ' plx-click' : ''}" style="--c:${c};--adx-glow:.10"${chip ? ` data-chip="${chip}" role="button" tabindex="0"` : ''}>
+      <div class="adx-l"><span class="adx-ic"><svg viewBox="0 0 24 24" aria-hidden="true">${IC[ic]}</svg></span>${label}</div>
+      <div class="plx-big">${big}</div>
+      <div class="plx-sub">${sub}</div>
+      ${tag ? `<div class="plx-tags">${tag.split(' · ').map(x => `<span>${staEsc(x)}</span>`).join('')}</div>` : ''}
+    </div>`;
+  const tone = v => v == null || tgt == null ? '' : v <= PLX.RAISE_SHARE * tgt ? ' plx-good' : v > tgt * 1.4 ? ' plx-bad' : '';
+  const acosCard = (k, c) => {
+    const v = acos(tot[k]);
+    return card('pct', c, PLX_META[k].name + ' ACoS', `<b class="${tone(v)}">${v == null ? '—' : staPct(v)}</b>`,
+      `${staMoney0(tot[k][0])} ad spend · ${staInt(Math.round(tot[k][2]))} orders`, src);
+  };
+  $('plxKpis').innerHTML = !all ? '' :
+    card('share', 'var(--accent)', 'Top of Search share', `<b>${staPct(tot.tos[0] / all * 100)}</b>`, `${staMoney0(tot.tos[0])} of ${staMoney0(all)} ad spend`, src)
+    + acosCard('tos', 'var(--accent)') + acosCard('ros', 'var(--act)') + acosCard('pp', 'var(--muted)')
+    + card('go', 'var(--brand)', 'Placement proposals', `<b>${P.settled ? staInt(nR + nL) : '—'}</b>`,
+      P.settled ? `${staInt(nR)} raise · ${staInt(nL)} lower${tgt != null ? ` · target ${staPct(tgt)}` : ''}` : 'Waiting for the 7-day placement reports', P.settled ? 'Derived' : '', P.settled && nR + nL ? (nR >= nL ? 'raise' : 'lower') : '');
+  $('plxSub').textContent = P.settled
+    ? `${staInt(P.all.length)} campaigns · ${staInt(rows.length)} placements · ${staInt(nR)} to raise, ${staInt(nL)} to lower. Each row is one campaign's placement; the adjustment applies to every bid in that campaign.`
+    : 'Switches on with the Ads backend\'s 7-day placement reports.';
+}
+
+// The decision chips over the table.
+function plxActBar(P) {
+  const rows = P.rowsAll || [];
+  const n = {};
+  rows.forEach(r => { n[r.chip] = (n[r.chip] || 0) + 1; });
+  if (PLX_ACT && !n[PLX_ACT]) PLX_ACT = '';
+  const chip = (k, t, c) => `<button type="button" class="sta-chip${PLX_ACT === k ? ' on' : ''} a-${k ? 'p' + k : ''}" data-a="${k}" aria-pressed="${PLX_ACT === k}">${t}<span>${staInt(c)}</span></button>`;
+  const tick = (P.shown || []).flatMap(c => c.rowsShown).filter(r => r.can);
+  const allOn = tick.length && tick.every(r => PLX_SEL.has(r.key));
+  $('plxActBar').classList.toggle('hide', !rows.length);
+  $('plxActBar').innerHTML = '<span class="sta-actl">Decision</span>' + chip('', 'All', rows.length)
+    + PLX_CHIPS.filter(([k]) => n[k]).map(([k, t]) => chip(k, t, n[k])).join('')
+    + (tick.length ? `<button type="button" class="sta-btn dim sm sta-actall" data-tickall="1">${allOn ? 'Untick' : 'Tick'} all ${staInt(tick.length)}</button>` : '');
+}
+
+// The decision's badge and the line under it.
+function plxDecCell(r) {
+  const B = {
+    raise: ['Raise', 'ok'], lower: ['Lower', 'bad'], keep: ['Keep', ''], keep0: ['Keep at 0%', 'warn'], cap: ['Keep · at the cap', ''],
+    thin: ['Not enough data', ''], review: ['In review', 'info'], new: ['New', 'info'], hold: ['Hold', 'warn'], na: ['Can\'t adjust', ''],
+  }[r.dec] || ['—', ''];
+  const move = r.dec === 'raise' || r.dec === 'lower'
+    ? `<span class="plx-move">${r.cur == null ? (r.dec === 'raise' ? '+' : '−') + PLX.STEP + ' points' : `${plxPct(r.cur)} → <b>${plxPct(r.to)}</b>`}</span>` : '';
+  const link = r.dec === 'keep0' ? `<button type="button" class="sta-btn dim sm" data-gost="${staEsc(r.key)}">Lower keyword bids →</button>` : '';
+  return `<td class="sta-ev plx-dec">${staBadge(B[0], B[1])}${move}<div class="sta-why">${staEsc(r.why || '')}</div>${link}</td>`;
+}
+// The action cell: Apply now (off until Sellora may change Amazon), Send to review.
+function plxActCell(r) {
+  if (r.dec === 'review') return '<td class="plx-actc"><span class="sta-dash">In the review list</span></td>';
+  if (!(r.dec === 'raise' || r.dec === 'lower')) return '<td class="plx-actc"><span class="sta-dash">No change proposed</span></td>';
+  if (!r.can) return `<td class="plx-actc"><span class="sta-dash" title="Amazon's current adjustment is needed for the bulk file">Needs Amazon's current %</span></td>`;
+  return `<td class="plx-actc"><div class="plx-acts">
+      <button type="button" class="sta-btn plx-apply" data-apply="${staEsc(r.key)}"${ADS_APPLY.on ? '' : ' disabled'} title="${staEsc(ADS_APPLY.on ? 'Change it at Amazon now' : ADS_APPLY.why)}">${ADS_APPLY.on ? '' : '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>'}Apply now</button>
+      <button type="button" class="sta-btn dim" data-send="${staEsc(r.key)}">Send to review</button></div></td>`;
+}
+
+function plxTable(P) {
+  const S = PLX_SORT;
+  const val = c => S.k === 'acos' ? (c.acos == null ? Infinity : c.acos) : c[S.k] || 0;
+  const camps = P.shown.slice().sort((a, b) => (val(a) - val(b)) * S.d || b.sp - a.sp);
+  const pages = Math.max(1, Math.ceil(camps.length / PLX.PAGE));
+  if (PLX_PG >= pages) PLX_PG = pages - 1;
+  const page = camps.slice(PLX_PG * PLX.PAGE, (PLX_PG + 1) * PLX.PAGE);
+  const th = (t, k, tip) => `<th class="num plx-sort${S.k === k ? ' on' : ''}" data-sort="${k}"${tip ? ` title="${staEsc(tip)}"` : ''}>${t}${S.k === k ? (S.d < 0 ? ' ↓' : ' ↑') : ''}</th>`;
+  const head = `<thead><tr><th class="sta-stick">Campaign · placement</th><th class="num" title="The bid adjustment set at Amazon now">Now</th>
+    <th class="num" title="This placement's clicks ÷ the campaign's clicks">Click share</th>${th('Impr.', 'i')}${th('Clicks', 'c')}${th('Spend', 'sp')}
+    ${th('Sales', 's')}${th('Orders', 'o')}${th('ACoS', 'acos')}<th class="num">CPC</th><th class="num">CVR</th><th>Decision</th><th>Action</th></tr></thead>`;
+  const num = (v, f) => v == null ? staDash : f(v);
+  const recLine = r => r.rec && (r.rec.sp > 0 || r.rec.c > 0) ? `<small class="sta-s">+${staMoney0(r.rec.sp)} last 7 days</small>` : '';
+  const body = page.map(c => {
+    const strat = PLX_STRAT[c.strategy] || '';
+    const tgtTxt = c.tgt != null ? `target ${staPct(c.tgt)} · break-even ${staPct(c.be)}${c.fallback ? ' (fallback)' : ''}` : 'no unit cost: no target';
+    const nAct = c.rows.filter(r => r.dec === 'raise' || r.dec === 'lower').length;
+    const head = `<tr class="sta-grprow plx-camp">
+      <td class="sta-stick"><div class="sta-pl"><b>${staEsc(c.cn)}</b>${staCopy(c.cn, 'campaign')}</div>
+        <div class="sta-under">${staBadge(staBrandName(c.brand), 'brand-' + c.brand)}${strat ? staBadge(strat, '') : ''}${c.budget ? `<span class="sta-dash">$${staInt(c.budget)}/day</span>` : ''}${c.state && !/enabled/i.test(c.state) ? staBadge(String(c.state).toLowerCase(), 'warn') : ''}</div></td>
+      <td class="num"></td><td class="num"></td>
+      <td class="num">${staInt(c.i)}</td><td class="num">${staInt(c.c)}</td><td class="num"><b>${staMoney(c.sp)}</b></td><td class="num">${staMoney(c.s)}</td><td class="num">${staInt(c.o)}</td>
+      <td class="num"><b>${num(c.acos, staPct)}</b></td><td class="num">${c.c > 0 ? staMoney(c.sp / c.c) : staDash}</td><td class="num">${c.c > 0 ? staPct(c.o / c.c * 100) : staDash}</td>
+      <td colspan="2" class="plx-ctgt"><span class="sta-dash">${staEsc(tgtTxt)}</span>${nAct ? ` · <b>${nAct} change${nAct === 1 ? '' : 's'}</b>` : ''}</td></tr>`;
+    return head + c.rowsShown.map(r => `<tr class="sta-subrow${PLX_SEL.has(r.key) ? ' sel' : ''}">
+      <td class="sta-stick">${r.can ? `<input type="checkbox" class="sta-cb" data-tick="${staEsc(r.key)}"${PLX_SEL.has(r.key) ? ' checked' : ''} aria-label="Select ${staEsc(c.cn + ' · ' + r.name)}">` : '<span class="sta-cbgap"></span>'}
+        <span class="plx-dot" style="background:${plxColor(r.pk)}"></span>${staEsc(r.name)}</td>
+      <td class="num"><b>${r.pk === 'off' ? staDash : r.cur == null ? '<span class="sta-dash" title="Not read from Amazon yet">?</span>' : plxPct(r.cur)}</b></td>
+      <td class="num">${r.share == null ? staDash : staPct(r.share * 100)}</td>
+      <td class="num">${staInt(r.i)}</td><td class="num">${staInt(r.c)}</td><td class="num">${staMoney(r.sp)}${recLine(r)}</td>
+      <td class="num">${staMoney(r.s)}</td><td class="num">${staInt(r.o)}</td><td class="num">${num(r.acos, staPct)}</td>
+      <td class="num">${num(r.cpc, staMoney)}</td><td class="num">${num(r.cvr, staPct)}</td>
+      ${plxDecCell(r)}${plxActCell(r)}</tr>`).join('');
+  }).join('');
+  const empty = !P.settled
+    ? 'Placement decisions appear here once the Ads backend sends its 7-day placement reports. Until then, the chart and the two tables below show the nightly 30-day figures.'
+    : PLX_ACT || $('plxFilter').value || $('plxPlace').value ? 'Nothing matches these filters.' : 'No Sponsored Products placements in this window.';
+  $('plxTable').innerHTML = head + '<tbody>' + (body || `<tr><td colspan="14" class="muted" style="padding:16px 22px">${empty}</td></tr>`) + '</tbody>';
+  $('plxFoot').innerHTML = camps.length > PLX.PAGE
+    ? `<span>${PLX_PG * PLX.PAGE + 1}–${Math.min(camps.length, (PLX_PG + 1) * PLX.PAGE)} of ${staInt(camps.length)} campaigns</span>
+       <span class="sta-pages"><button type="button" class="ghost" data-pg="-1"${PLX_PG ? '' : ' disabled'}>← Previous</button><button type="button" class="ghost" data-pg="1"${PLX_PG < pages - 1 ? '' : ' disabled'}>Next →</button></span>`
+    : camps.length ? `<span>${staInt(camps.length)} campaign${camps.length === 1 ? '' : 's'}${PLX_ACT ? ' with a matching placement' : ''}</span>` : '';
+}
+
+/* ---------- actions ---------- */
+// The review item for one placement change, in the shape the later apply route reads: the bulk-file fields (plc) and the
+// Ads API call itself (api: PUT /sp/campaigns with every placement, so the other two are not reset).
+function plxItem(r) {
+  const c = r.camp, m = PLX_META[r.pk];
+  const who = String(ME.email || '').split('@')[0].split(/[._]/)[0];
+  const pb = ['tos', 'ros', 'pp'].map(k => ({ placement: PLX_META[k].amz, percentage: k === r.pk ? r.to : Number((c.ent || [])[PLX_META[k].ix]) || 0 }));
+  return {
+    id: 'a' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8), v: 2, brand: r.brand, kind: 'plc', key: r.key, pathKey: '',
+    term: '', target: m.name, kw: '', mt: '', kid: '', cid: r.cid, ag: '', cn: c.cn, agn: '',
+    ev: { c: r.c, sp: staR2(r.sp), o: r.o, s: staR2(r.s), win: 'settled' },
+    plc: { pk: r.pk, name: m.name, amz: m.amz, bulk: m.bulk, ix: m.ix, from: r.cur, to: r.to, strategy: c.strategy || '' },
+    api: { call: 'PUT /sp/campaigns', body: { campaigns: [{ campaignId: r.cid, dynamicBidding: Object.assign(c.strategy ? { strategy: c.strategy } : {}, { placementBidding: pb }) }] } },
+    what: `${m.name} ${plxPct(r.cur)} → ${plxPct(r.to)}`, why: r.why,
+    status: 'review', by: who ? who[0].toUpperCase() + who.slice(1) : '', byEmail: ME.email || '', at: Date.now(),
+  };
+}
+// Send rows to the review list. Two changes to the same placement never both wait.
+async function plxSend(rows) {
+  const open = new Set(ST_RL.items.filter(x => x.kind === 'plc' && (x.status === 'review' || x.status === 'approved')).map(x => x.key));
+  let n = 0, skip = 0;
+  for (const r of rows) {
+    if (!r.can || open.has(r.key)) { skip++; continue; }
+    try { await staRlSave(plxItem(r)); n++; open.add(r.key); } catch (e) { skip++; }
+    PLX_SEL.delete(r.key);
+  }
+  staRlBadge();
+  renderPlx();
+  $('plxFoot').insertAdjacentHTML('afterbegin', `<span class="plx-note">${n ? `${n} change${n === 1 ? '' : 's'} added to the review list` : 'Nothing added'}${skip ? ` · ${skip} skipped (already waiting, or no current % from Amazon)` : ''}${ST_RL.where === 'local' ? ' · kept in this browser until the shared list is switched on' : ''}.</span>`);
+}
+const plxRowOf = key => (PLX_LAST ? PLX_LAST.rowsAll : []).find(r => r.key === key);
+
+function plxSelBar() {
+  const sel = [...PLX_SEL.values()].filter(r => r.can);
+  $('plxSelBar').classList.toggle('hide', !sel.length);
+  if (!sel.length) return;
+  const up = sel.filter(r => r.dec === 'raise').length;
+  $('plxSelTxt').innerHTML = `<b>${sel.length} selected</b> · ${up} raise, ${sel.length - up} lower`;
+  $('plxSelAdd').textContent = `Send ${sel.length} to review`;
+}
+
+// "Lower keyword bids": Search Term Analysis → Burning money → By target, filtered to this campaign.
+function plxGoSt(r) {
+  ST_VIEW = 'burn';
+  ST_SUB = 'target';
+  ST_PG = 0;
+  ST_ACT = '';
+  $('stBrand').value = r.brand;
+  $('stFilter').value = r.cn;
+  STM = null;
+  showTab('st');
+}
+
+/* ---------- the legend ---------- */
+function plxLegend() {
+  const L = (t, items) => `<section><h4>${t}</h4><ul>${items.map(x => `<li>${x}</li>`).join('')}</ul></section>`;
+  $('plxLegendBody').innerHTML = L('What it is judged on', [
+    'Each campaign × placement over the <b>settled days</b> (8–37 days ago), with <b>7-day sales</b> as in the Ads console. The last 7 days show under the spend and are not counted.',
+    'The target and break-even ACoS of the campaign\'s products, from Profit & Margin costs, weighted by what each of its keywords and targets spent and sold — the same numbers as Search Term Analysis.',
+    'The adjustment set now, from Amazon\'s record of the campaign (read twice a day).'])
+    + L('The decision', [
+      `Under <b>${PLX.MIN_ORDERS} orders</b>: Not enough data — except <b>0 orders in ${PLX.NOSALE_CLICKS}+ clicks</b>, which lowers it.`,
+      `<b>Raise +${PLX.STEP} points</b> when ACoS is at or below ${Math.round(PLX.RAISE_SHARE * 100)}% of the target; never over ${PLX.MAX_PCT}%, and not with under ${STA.RAISE_COVER} days of FBA stock.`,
+      `<b>Lower −${PLX.STEP} points</b> when ACoS is above break-even (never below 0%). Already at 0%: the bids themselves are the lever — "Lower keyword bids" opens Search Term Analysis on that campaign.`,
+      '<b>Keep</b> in between.',
+      'Off Amazon has no adjustment at Amazon. Paused campaigns, launch campaigns (by name) and campaigns under 30 days old are not judged.',
+      `After a change, ${PLX.COOLDOWN} days before the next one, so Amazon\'s numbers can catch up.`])
+    + L('What happens to a change', [
+      '<b>Send to review</b> puts it in the shared review list (the same one as Search Term Analysis). Approved changes download as an Amazon bulk file (Entity "Bidding Adjustment", the new % as a whole number) to upload in the Ads console.',
+      `<b>Apply now</b> is off: ${staEsc(ADS_APPLY.why)} Each change already carries the exact call Sellora will make then (the campaign's three placements, so the other two are not reset).`,
+      'Bidding strategy matters: with "Dynamic bids · up and down", Amazon may raise a Top of Search bid by up to 100% on top of the adjustment.']);
+}
+
+/* ---------- export ---------- */
+// The decisions table as CSV lines (heading first); [] when there is nothing. Used by Placement's Export.
+function plxCsvLines() {
+  const P = PLX_LAST || (ST.loaded ? plxModel() : null);
+  if (!P || !P.rowsAll || !P.rowsAll.length) return [];
+  const cell = v => {
+    const s = String(v == null ? '' : v);
+    return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  };
+  const lines = [['Brand', 'Campaign', 'Campaign ID', 'Placement', 'Adjustment now %', 'Decision', 'Proposed %', 'Why', 'Impressions', 'Clicks',
+    'Click share %', 'Spend', 'Sales', 'Orders', 'ACoS %', 'CPC', 'CVR %', 'Target ACoS %', 'Break-even ACoS %', 'Spend last 7 days'].map(cell).join(',')];
+  P.rowsAll.forEach(r => lines.push([staBrandName(r.brand), r.cn, r.cid, r.name, r.cur == null ? '' : r.cur, r.dec, r.to == null ? '' : r.to, r.why,
+    r.i, r.c, r.share == null ? '' : (r.share * 100).toFixed(1), staR2(r.sp), staR2(r.s), r.o, r.acos == null ? '' : r.acos.toFixed(1),
+    r.cpc == null ? '' : r.cpc.toFixed(2), r.cvr == null ? '' : r.cvr.toFixed(1), r.camp.tgt == null ? '' : r.camp.tgt.toFixed(1),
+    r.camp.be == null ? '' : r.camp.be.toFixed(1), r.rec ? staR2(r.rec.sp) : ''].map(cell).join(',')));
+  return lines;
+}
+
+/* ---------- events ---------- */
+$('plcBrand').addEventListener('change', () => { PLX_PG = 0; PLX_SEL.clear(); renderPlx(); });
+let PLX_T = 0;
+$('plxFilter').addEventListener('input', () => { clearTimeout(PLX_T); PLX_T = setTimeout(() => { PLX_PG = 0; renderPlx(); }, 200); });
+$('plxPlace').addEventListener('change', () => { PLX_PG = 0; renderPlx(); });
+$('plxRlBtn').onclick = () => { if (ST.loaded) staRlOpen(); };
+$('plxLegendBtn').onclick = () => { plxLegend(); $('plxLegend').classList.remove('hide'); };
+$('plxLegendX').onclick = () => $('plxLegend').classList.add('hide');
+$('plxLegend').addEventListener('click', e => { if (e.target === $('plxLegend')) $('plxLegend').classList.add('hide'); });
+$('plxActBar').addEventListener('click', e => {
+  if (e.target.closest('[data-tickall]')) {
+    const tick = (PLX_LAST ? PLX_LAST.shown : []).flatMap(c => c.rowsShown).filter(r => r.can);
+    const on = tick.length && tick.every(r => PLX_SEL.has(r.key));
+    tick.forEach(r => { if (on) PLX_SEL.delete(r.key); else PLX_SEL.set(r.key, r); });
+    renderPlx();
+    return;
+  }
+  const c = e.target.closest('[data-a]');
+  if (!c) return;
+  PLX_ACT = PLX_ACT === c.dataset.a ? '' : c.dataset.a;
+  PLX_PG = 0;
+  renderPlx();
+});
+$('plxKpis').addEventListener('click', e => {
+  const c = e.target.closest('[data-chip]');
+  if (!c) return;
+  PLX_ACT = c.dataset.chip;
+  PLX_PG = 0;
+  renderPlx();
+  $('plxTable').scrollIntoView({ behavior: 'smooth', block: 'start' });
+});
+$('plxTable').addEventListener('click', async e => {
+  const cp = e.target.closest('button[data-copy]');
+  if (cp) { staCopyText(cp.dataset.copy, cp); return; }
+  const s = e.target.closest('[data-sort]');
+  if (s) {
+    const k = s.dataset.sort;
+    PLX_SORT = PLX_SORT.k === k ? { k, d: -PLX_SORT.d } : { k, d: k === 'acos' ? 1 : -1 };
+    renderPlx();
+    return;
+  }
+  const t = e.target.closest('input[data-tick]');
+  if (t) {
+    const r = plxRowOf(t.dataset.tick);
+    if (r) { if (t.checked) PLX_SEL.set(r.key, r); else PLX_SEL.delete(r.key); }
+    t.closest('tr').classList.toggle('sel', t.checked);
+    plxSelBar();
+    plxActBar(PLX_LAST);
+    return;
+  }
+  const send = e.target.closest('[data-send]');
+  if (send) {
+    const r = plxRowOf(send.dataset.send);
+    if (r) { send.disabled = true; await plxSend([r]); }
+    return;
+  }
+  const go = e.target.closest('[data-gost]');
+  if (go) {
+    const r = plxRowOf(go.dataset.gost);
+    if (r) plxGoSt(r);
+  }
+});
+$('plxFoot').addEventListener('click', e => {
+  const b = e.target.closest('[data-pg]');
+  if (!b) return;
+  PLX_PG = Math.max(0, PLX_PG + Number(b.dataset.pg));
+  renderPlx();
+  $('plxTable').scrollIntoView({ block: 'start' });
+});
+$('plxSelAdd').onclick = async () => {
+  $('plxSelAdd').disabled = true;
+  try { await plxSend([...PLX_SEL.values()]); } finally { $('plxSelAdd').disabled = false; }
+};
+$('plxSelClear').onclick = () => { PLX_SEL.clear(); renderPlx(); };
+$('plcWorst').addEventListener('click', e => {
+  const cp = e.target.closest('button[data-copy]');
+  if (cp) staCopyText(cp.dataset.copy, cp);
+});
 /* ============================== FILE: src/app/ads/ads-charts.js ============================== */
 /* ================= ADS · AD CONSOLE EXTRAS: ten boxes, two line charts and Campaign performance =================
  * Screens: Ad Console (tab 'trends', pane paneTrends). Nothing here runs by itself: renderTrends (ads/placement.js)

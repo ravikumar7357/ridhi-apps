@@ -3597,7 +3597,7 @@
 
   /* ----- Search Term Analysis (paneSt, ads/search-terms.js): the bar, four analysis boxes, the view card, the dialogs,
      the review list. Reuses .card / .toolbar / .seg / table.xl / .ui-badge / .adx-box / .modal; sta- adds only the layout. ----- */
-  #paneSt .hide{display:none}
+  .sta-scope .hide{display:none}
   .sta-msg{margin-top:10px;font-size:12.5px;color:var(--muted);display:flex;gap:6px 18px;flex-wrap:wrap}
   .sta-msg b{color:var(--ink);font-weight:600}
   .sta-msg .sta-ok{color:var(--accent-ink);font-weight:600}
@@ -3623,16 +3623,16 @@
   .sta-thead .seg .segbtn{padding:6px 12px;font-size:13px}
   .sta-tools{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
   .sta-wrap{overflow:auto;max-height:70vh}
-  #paneSt table.xl{font-size:13px}
-  #paneSt table.xl td{vertical-align:middle}
-  #paneSt table.xl th{white-space:nowrap}
+  .sta-scope table.xl{font-size:13px}
+  .sta-scope table.xl td{vertical-align:middle}
+  .sta-scope table.xl th{white-space:nowrap}
   .sta-term{font-weight:600;color:var(--ink);white-space:nowrap}
   .sta-under{display:flex;gap:5px;flex-wrap:wrap;margin-top:4px}
   .sta-path{min-width:230px}
   .sta-path b{display:block;font-weight:500;color:var(--ink);white-space:nowrap;max-width:320px;overflow:hidden;text-overflow:ellipsis}
   .sta-path small,.sta-s{display:block;font-size:11.5px;color:var(--faint);white-space:nowrap;margin-top:1px}
   .sta-s.up{color:var(--muted)}
-  #paneSt table.xl td.sta-ev{min-width:320px;max-width:430px;white-space:normal;font-size:12.5px;color:var(--muted);line-height:1.45}
+  .sta-scope table.xl td.sta-ev{min-width:320px;max-width:430px;white-space:normal;font-size:12.5px;color:var(--muted);line-height:1.45}
   .sta-ev b{color:var(--ink);font-weight:600}
   .sta-money{font-weight:700;color:var(--bad-ink)}
   .sta-next{white-space:nowrap}
@@ -3646,9 +3646,9 @@
   button.sta-btn.dim{color:var(--muted);box-shadow:inset 0 0 0 1px var(--line)}
   .sta-dash{color:var(--faint)}
   .sta-cb{width:16px;height:16px;accent-color:var(--brand);vertical-align:middle;margin:0}
-  #paneSt table.xl tr.sel td{background:color-mix(in srgb,var(--brand) 5%,var(--card))}
-  #paneSt table.xl tr.tot td{background:var(--soft);font-weight:700;color:var(--ink)}
-  #paneSt table.xl tr.grp td{background:var(--soft);padding-top:11px;padding-bottom:11px}
+  .sta-scope table.xl tr.sel td{background:color-mix(in srgb,var(--brand) 5%,var(--card))}
+  .sta-scope table.xl tr.tot td{background:var(--soft);font-weight:700;color:var(--ink)}
+  .sta-scope table.xl tr.grp td{background:var(--soft);padding-top:11px;padding-bottom:11px}
   .sta-grp b{font-size:13.5px;color:var(--ink)}
   .sta-grp span{color:var(--muted);font-size:12.5px;margin-left:8px}
   .sta-grp span em{font-style:normal;color:var(--bad-ink);font-weight:600}
@@ -3721,11 +3721,11 @@
   .sta-vbar .seg .segbtn{padding:6px 12px;font-size:13px}
   .sta-pgsz{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--muted);margin:0;text-transform:none;letter-spacing:0;font-weight:500}
   .sta-pgsz select{height:32px;padding:0 8px}
-  #paneSt table.xl th.sta-stick,#paneSt table.xl td.sta-stick{position:sticky;left:0;z-index:2;background:var(--card);min-width:240px;max-width:320px;
+  .sta-scope table.xl th.sta-stick,.sta-scope table.xl td.sta-stick{position:sticky;left:0;z-index:2;background:var(--card);min-width:240px;max-width:320px;
     box-shadow:1px 0 0 var(--line)}
-  #paneSt table.xl thead th.sta-stick{z-index:3;background:var(--soft)}
-  #paneSt table.xl tr.sel td.sta-stick{background:color-mix(in srgb,var(--brand) 5%,var(--card))}
-  #paneSt table.xl tr.tot td.sta-stick,#paneSt table.xl tr.grp td.sta-stick{background:var(--soft)}
+  .sta-scope table.xl thead th.sta-stick{z-index:3;background:var(--soft)}
+  .sta-scope table.xl tr.sel td.sta-stick{background:color-mix(in srgb,var(--brand) 5%,var(--card))}
+  .sta-scope table.xl tr.tot td.sta-stick,.sta-scope table.xl tr.grp td.sta-stick{background:var(--soft)}
   td.sta-stick{white-space:normal}
   td.sta-stick>.sta-cb,td.sta-stick>.sta-cbgap{float:left;margin:2px 9px 0 0}
   .sta-cbgap{display:inline-block;width:16px;height:16px}
@@ -3734,10 +3734,10 @@
   .sta-asin{font-family:var(--mono,ui-monospace,monospace);font-size:12.5px;letter-spacing:.02em}
   .sta-caret{width:22px;height:22px;padding:0;margin-right:6px;border-radius:6px;background:var(--hover);color:var(--ink);font-size:12px;line-height:22px;
     vertical-align:middle;box-shadow:none}
-  #paneSt table.xl tr.sta-grprow td{border-top:1px solid var(--line)}
-  #paneSt table.xl tr.sta-subrow td{background:color-mix(in srgb,var(--soft) 55%,var(--card))}
-  #paneSt table.xl tr.sta-subrow td.sta-stick{background:color-mix(in srgb,var(--soft) 55%,var(--card));padding-left:30px}
-  #paneSt table.xl td.sta-ev.sta-ev-s{min-width:220px;max-width:300px}
+  .sta-scope table.xl tr.sta-grprow td{border-top:1px solid var(--line)}
+  .sta-scope table.xl tr.sta-subrow td{background:color-mix(in srgb,var(--soft) 55%,var(--card))}
+  .sta-scope table.xl tr.sta-subrow td.sta-stick{background:color-mix(in srgb,var(--soft) 55%,var(--card));padding-left:30px}
+  .sta-scope table.xl td.sta-ev.sta-ev-s{min-width:220px;max-width:300px}
   .sta-why{margin-top:5px;font-size:12px;color:var(--muted);line-height:1.45;white-space:normal}
   .sta-hold{display:inline-block;font-size:12px;color:var(--muted);white-space:normal;max-width:260px;line-height:1.4}
   .sta-next{min-width:190px}
@@ -3758,7 +3758,7 @@
   .sta-legend ul{margin:0;padding-left:18px;font-size:12.5px;color:var(--muted);line-height:1.6}
   .sta-legend b{color:var(--ink)}
   .sta-legcols{display:grid;grid-template-columns:1fr 1fr;gap:8px 32px}
-  #paneSt table.xl tr.sta-wait td{color:var(--rev-ink);background:color-mix(in srgb,var(--rev) 6%,var(--card))}
+  .sta-scope table.xl tr.sta-wait td{color:var(--rev-ink);background:color-mix(in srgb,var(--rev) 6%,var(--card))}
   /* Search Term Analysis, 18 Nov: next-step chips under the tabs, copy buttons on the campaign and ad-group names, the New
      tab, short evidence lines, "Lower bid anyway" under a hold. */
   .sta-actbar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:9px 16px;border-bottom:1px solid var(--line);background:var(--card)}
@@ -3793,9 +3793,57 @@
   button.sta-copy:hover{background:var(--hover);color:var(--ink)}
   button.sta-copy.done{opacity:1;color:var(--accent-ink);background:color-mix(in srgb,var(--accent) 14%,var(--card))}
   button.sta-copy.fail{opacity:1;color:var(--bad-ink)}
-  #paneSt table.xl td.sta-ev{min-width:250px;max-width:340px}
+  .sta-scope table.xl td.sta-ev{min-width:250px;max-width:340px}
   /* Above the sticky top menu (z 60): a tall review list kept its close button under the menu. */
   .modal.sta-modal{z-index:65}
+  /* ----- Placement (18 Nov 2026): decisions per campaign × placement, Terra-style cards, the chart and two tables below.
+     Shares Search Term Analysis's layout (.sta-scope): cards, chips, sticky first column, review list. ----- */
+  .plx .sta-tcard,.plx .plx-chcard{margin-top:12px}
+  .plx .plx-chcard{padding:0;overflow:hidden}
+  .plx-kpis{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin:12px 0 0}
+  .plx-kpi{padding:14px 16px 12px}
+  .plx-kpi.plx-click{cursor:pointer}
+  .plx-kpi.plx-click:hover{box-shadow:inset 0 0 0 1.5px var(--c),var(--sh-2)}
+  .plx-kpi.plx-click:focus-visible{outline:2px solid var(--c);outline-offset:2px}
+  .plx-big{margin:8px 0 0}
+  .plx-big b{font-size:26px;font-weight:700;letter-spacing:-.025em;color:var(--ink);font-variant-numeric:tabular-nums}
+  .plx-big b.plx-good{color:var(--accent-ink)}
+  .plx-big b.plx-bad{color:var(--bad-ink)}
+  .plx-sub{font-size:12.5px;color:var(--muted);margin-top:3px}
+  .plx-tags{display:flex;gap:5px;margin-top:9px}
+  .plx-tags span{font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:2px 7px;border-radius:5px;
+    color:var(--muted);box-shadow:inset 0 0 0 1px var(--line)}
+  .plx-dot{display:inline-block;width:9px;height:9px;border-radius:3px;margin-right:7px;vertical-align:0}
+  .sta-scope table.xl tr.plx-camp td{background:var(--soft);padding-top:10px;padding-bottom:10px}
+  .sta-scope table.xl tr.plx-camp td.sta-stick{background:var(--soft)}
+  .sta-scope table.xl tr.plx-camp+tr td{border-top:0}
+  .plx-ctgt{font-size:12px;white-space:nowrap}
+  .plx-dec .ui-badge{margin-right:8px}
+  .plx-move{font-size:13px;font-variant-numeric:tabular-nums;color:var(--ink)}
+  .plx-move b{font-weight:700}
+  .plx-dec .sta-why{margin-top:4px}
+  .plx-actc{white-space:nowrap}
+  .plx-acts{display:flex;gap:6px;align-items:center}
+  button.sta-btn.plx-apply{background:var(--brand);color:var(--on-brand);box-shadow:none;display:inline-flex;align-items:center;gap:6px}
+  button.sta-btn.plx-apply:disabled{background:var(--soft);color:var(--faint);cursor:not-allowed;box-shadow:inset 0 0 0 1px var(--line);opacity:1}
+  button.sta-btn.plx-apply svg{width:12px;height:12px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+  th.plx-sort{cursor:pointer;user-select:none}
+  th.plx-sort.on{color:var(--brand-ink)}
+  button.sta-chip.a-praise::before{background:var(--accent)}
+  button.sta-chip.a-plower::before{background:var(--bad)}
+  button.sta-chip.a-pkeep::before{background:var(--muted)}
+  button.sta-chip.a-pthin::before{background:var(--faint)}
+  button.sta-chip.a-preview::before{background:var(--brand)}
+  button.sta-chip.a-phold::before{background:var(--rev)}
+  .sta-warnline{margin-top:6px;padding:8px 11px;border-radius:var(--r-sm);background:color-mix(in srgb,var(--rev) 9%,var(--card));color:var(--rev-ink);font-size:12.5px;line-height:1.45}
+  .plx-note{color:var(--accent-ink);font-weight:600;margin-right:12px}
+  .plx-legend{display:flex;gap:10px 26px;flex-wrap:wrap;padding:12px 16px 4px}
+  .plx-lg small{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--muted)}
+  .plx-lg small i{width:9px;height:9px;border-radius:3px;display:inline-block}
+  .plx-lg b{display:block;font-size:16px;font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums;margin-top:2px}
+  .plx-lg.tot{padding-left:22px;border-left:1px solid var(--line)}
+  .plx-chart{overflow-x:auto;padding:4px 16px 14px}
+  @media (max-width:1100px){.plx-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
   @media (max-width:1100px){.sta-sum{grid-template-columns:repeat(4,minmax(0,1fr))}.sta-legcols{grid-template-columns:1fr}}
   @media (max-width:1100px){.sta-boxes{grid-template-columns:repeat(2,minmax(0,1fr))}}
   @media (max-width:620px){.sta-boxes{grid-template-columns:minmax(0,1fr)}.sta-figs{grid-template-columns:repeat(3,minmax(0,1fr))}.sta-row2{grid-template-columns:1fr}}
