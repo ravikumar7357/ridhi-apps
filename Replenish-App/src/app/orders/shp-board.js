@@ -396,6 +396,8 @@ function renderShpBoard() {
   if (!shpbIsShp() && SHPB.stage === 'hand') SHPB.stage = '';
   /* SHIPPING TO ACCEPT ONLY: the one list this account works — pieces pressed and waiting for shipping — without the buckets, the tabs, the view
    * picker or Close lines. */
+  /* the SHP board alone (ME.shpBoardOnly, core/auth.js): no picker to the Order Console's other views, no Close lines or Export */
+  if (ME.shpBoardOnly) ['odView', 'odClose', 'odExport'].forEach(id => { const b = $(id); if (b && b.classList) b.classList.add('hide'); });
   if (ME.shpAccOnly) { SHPB.tab = 'done'; SHPB.stage = 'hand'; ['odView', 'odClose', 'odExport'].forEach(id => { const b = $(id); if (b && b.classList) b.classList.add('hide'); }); }
   if (!SHPB.readyAt && !SHPB.busy) shpbLoad(true);
   SHPB_STK = Array.isArray(FGI.rows) ? fgiStock() : null;

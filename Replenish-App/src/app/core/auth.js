@@ -140,11 +140,16 @@ onAuthStateChanged(auth, async user => {
   /* SHIPPING TO ACCEPT (Ravi, 30 Oct): its own box in Access, for the shipping team member who accepts what production pressed and does
    * nothing else in the Order Console. A grant, not a screen: on its own it opens the Order Console on the SHP board's "Shipping to
    * accept" list (ME.shpAccOnly, orders/shp-board.js); with the Order Console ticked as well it adds nothing. */
-  ME.shpAccOnly = false;
+  ME.shpAccOnly = false; ME.shpBoardOnly = false;
   if (ME.tabs.includes('shpacc')) {
     const only = !ME.admin && !ME.tabs.includes('ord');
     ME.tabs = ME.tabs.filter(t => t !== 'shpacc');
-    if (only) { ME.tabs = ME.tabs.concat('ord'); ME.shpAccOnly = true; }
+    /* THE SHP BOARD ALONE (Ravi, 18 Nov: "shp board show nhi ho rha h bas replenish show ho rha h but me replenish access dena nahi
+     * chahta"). The same box, with any of the board's buttons (Cut / Issue / Receive / QC / Press / Filler) ticked as well, opens the
+     * whole SHP board — every stage — and nothing else of the Order Console (ME.shpBoardOnly). Without a board button it stays the
+     * "Shipping to accept" list. The data it reads is what that box already reads, so no database rule changes. */
+    const bd = (typeof SHPB_BD_RIGHTS !== 'undefined' ? SHPB_BD_RIGHTS : []).some(k => ME[k]);
+    if (only) { ME.tabs = ME.tabs.concat('ord'); if (bd) ME.shpBoardOnly = true; else ME.shpAccOnly = true; }
   }
 
   /* PRINTER'S PORTAL, VIEW ONLY (Ravi, 30 Oct): its own box in Access. It adds the portal's tab so the screen can open, and ME.vpView, which
