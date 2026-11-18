@@ -58913,7 +58913,7 @@ function mtsStages(lines) {
  *   · work = QC-passed pieces × that article's job work rate (₹) — a quilt is not one napkin
  *   · quality = (rejected + for alteration) ÷ checked
  *   · active days = days with a Job Work issue or receipt in the week (attendance is not kept, so this stands in for "was he in")
- *   Top 3: 3+ active days, quality 5% or better, most work. Bottom 3: 3+ active days, least work a day. Average = the four weeks before. */
+ *   Top 3: 3+ active days, quality 5% or better, most work a day. Bottom 3: 3+ active days, least work a day. Average = the four weeks before. */
 const MTS_BAD_MAX = 5, MTS_MIN_DAYS = 3;
 let MTS_RATES = null;
 async function mtsRatesLoad() {
@@ -58953,7 +58953,8 @@ function mtsPeople(wk) {
     return Object.assign(e, { days: d, perDay: d ? e.val / d : 0, badPct: e.chk ? Math.round(e.bad / e.chk * 1000) / 10 : 0, avg: Math.round((before.get(e.k) || 0) / 4), arts: e.arts.size });
   });
   const active = rows.filter(r => r.days >= MTS_MIN_DAYS);
-  const top = active.filter(r => r.badPct <= MTS_BAD_MAX).sort((a, b) => b.val - a.val).slice(0, 3);
+  /* both ends by work A DAY (18 Nov, first look: ranked by the week's total, a 4-day karigar below the team a day sat in the top 3) */
+  const top = active.filter(r => r.badPct <= MTS_BAD_MAX).sort((a, b) => b.perDay - a.perDay).slice(0, 3);
   const bottom = active.filter(r => !top.includes(r)).sort((a, b) => a.perDay - b.perDay).slice(0, 3);
   /* THE TEAM AVERAGE BESIDE EACH NAME (Ravi, 18 Nov: "top 3 top me h to kyo h — unka data dikhana chahiye ki ave logo se inhone itne jyada
    * pcs banay h and inka quality score bhi sahi h ya galat h, same for bottom 3"): per active day, over every karigar who was active 3+ days. */
@@ -59013,7 +59014,7 @@ function mtsSlides(wk) {
     : '<span class="muted">Nobody meets the rule this week.</span>';
   out.push({ t: 'People Discussion', html: `<table class="mts-sheet"><tbody>
       <tr><th style="background:#E5F4E4">Top 3 performer for last week that I want to recognize</th><td>${ptable(P.top)}</td></tr>
-      <tr><th>Bottom 3 performers that I want to highlight</th><td>${ptable(P.bottom)}<div class="muted" style="font-size:11.5px;margin-top:4px">How chosen: piece-rate karigars only (not the contractor's team, embroidery vendors or salaried staff) · work = QC-passed pcs × job work rate · top needs ${MTS_MIN_DAYS}+ days active and quality ${MTS_BAD_MAX}% or better · bottom = ${MTS_MIN_DAYS}+ days active, least work a day · active = a Job Work issue or receipt that day (attendance is not kept) · two people sharing one entry cannot be seen${P.left ? ' · ' + nf(P.left) + ' karigar(s) under ' + MTS_MIN_DAYS + ' days left out' : ''}${P.noRate ? ' · <b style="color:var(--bad)">job work rates could not be read</b>' : ''}</div></td></tr>
+      <tr><th>Bottom 3 performers that I want to highlight</th><td>${ptable(P.bottom)}<div class="muted" style="font-size:11.5px;margin-top:4px">How chosen: piece-rate karigars only (not the contractor's team, embroidery vendors or salaried staff) · work = QC-passed pcs × job work rate · top = ${MTS_MIN_DAYS}+ days active, quality ${MTS_BAD_MAX}% or better, most work a day · bottom = ${MTS_MIN_DAYS}+ days active, least work a day · active = a Job Work issue or receipt that day (attendance is not kept) · two people sharing one entry cannot be seen${P.left ? ' · ' + nf(P.left) + ' karigar(s) under ' + MTS_MIN_DAYS + ' days left out' : ''}${P.noRate ? ' · <b style="color:var(--bad)">job work rates could not be read</b>' : ''}</div></td></tr>
       <tr><th>Critical vacant position with HR</th><td>${mtsNote(wk, 'hr_vacant', 'Status', 3)}</td></tr>
       <tr><th>People Requirement not yet with HR</th><td>${mtsNote(wk, 'hr_need', 'Status (discuss with Srikant ji, Mukul sir first)', 3)}</td></tr>
     </tbody></table>` });
