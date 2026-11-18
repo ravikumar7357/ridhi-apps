@@ -65,6 +65,7 @@ const STA = {
   SCALE_SHARE: 0.75,   // a raise needs ACoS at or under 75% of the target
   EXACT_ORDERS: 3,     // orders before "add as exact"
   LEAD_ORDERS: 3,      // a competing path's lead needs this many orders, and ACoS under break-even
+  PROV_GAP: 1.5,       // no unit cost: a provisional lead; a path is routed to it only at this many times its ACoS or worse
   MAIN_ORDERS: 10,     // a term with this many orders across the brand is a main keyword
   STEP: 0.20,          // a bid moves at most 20% a step
   MIN_BID: 0.02,       // Amazon's lowest Sponsored Products bid (USD)
@@ -712,6 +713,10 @@ function staModelBrand(b, M, rlOpen) {
     if (ai.own != null && ai.own < STA.HALO) tags.push(['halo', 'Other products\' sales', `Only ${Math.round(ai.own * 100)}% of this ad group's ad sales were the advertised product itself; the rest are other products bought after the click. Judged on all ad sales.`]);
     if (ai.isNew || ai.launch || row.kwNew) tags.push(['new', ai.launch ? 'Launch campaign' : 'New', ai.launch ? 'A launch or ranking campaign (by its name): not judged on ACoS.'
       : `Fewer than ${STA.AGE_DAYS} days of ads: judged from ${staDay(row.kwNew || ai.newFrom)}.`]);
+    // A brand term spending in a campaign that is not a brand campaign (its name has no brand term, "brand" or "defense").
+    if (tags.some(t => t[0] === 'brand') && row.sp > 0 && !staBrandCp(ai.cn, P)) {
+      tags.push(['leak', 'Brand leak', `A search for your own brand, paid for in "${ai.cn}", which is not a brand campaign. Brand searches usually cost less in a brand campaign of their own.`]);
+    }
     row.tags = tags;
     row.tagSet = new Set(tags.map(t => t[0]));
     row.noNeg = row.tagSet.has('brand') ? 'brand term' : row.tagSet.has('own') ? 'own product' : row.tagSet.has('sister') ? 'sister-brand product'
@@ -736,18 +741,22 @@ function staModelBrand(b, M, rlOpen) {
       if (paths.length < 2) return;
       // The lead: 3+ orders, under break-even (needs a unit cost or a set target), not a suspect ACoS; an own exact
       // keyword first, then the lowest ACoS.
-      const can = paths.filter(r => r.o >= STA.LEAD_ORDERS && r.ln.be != null && r.acos != null && r.acos <= r.ln.be && !r.suspect);
+      let can = paths.filter(r => r.o >= STA.LEAD_ORDERS && r.ln.be != null && r.acos != null && r.acos <= r.ln.be && !r.suspect);
+      // No unit cost and no target anywhere on these paths (18 Nov): a PROVISIONAL lead — 3+ orders and the lowest ACoS —
+      // so overlap still shows. Then only a path with no order, or at 1.5× the lead's ACoS or worse, is routed to it.
+      const provisional = !can.length && paths.every(r => r.ln.be == null);
+      if (provisional) can = paths.filter(r => r.o >= STA.LEAD_ORDERS && r.acos != null && !r.suspect);
       if (!can.length) return;
       can.sort((p, q) => (q.own - p.own) || (p.acos - q.acos) || (q.o - p.o));
       const lead = can[0];
       const la = lead.acos / 100;
-      const g = { key: 'h:' + b + '|' + lead.tk + '|' + pk, brand: b, term: lead.term, tk: lead.tk, lead, paths: [], excess: 0, campaigns: 0 };
+      const g = { key: 'h:' + b + '|' + lead.tk + '|' + pk, brand: b, term: lead.term, tk: lead.tk, lead, paths: [], excess: 0, campaigns: 0, provisional };
       paths.forEach(r => {
         r.group = g;
         r.leadAcos = lead.acos;
         if (r === lead) { r.role = 'lead'; return; }
-        // Doing as well as the lead (or better): left alone.
-        if (r.o > 0 && r.acos != null && r.acos <= lead.acos + 0.05) { r.role = 'fine'; r.excess = 0; return; }
+        // Doing as well as the lead (or better): left alone. With a provisional lead, anything within 1.5× of it too.
+        if (r.o > 0 && r.acos != null && r.acos <= (provisional ? lead.acos * STA.PROV_GAP : lead.acos + 0.05)) { r.role = 'fine'; r.excess = 0; return; }
         r.role = 'other';
         r.excess = r.negated ? 0 : Math.max(0, r.sp - r.s * la);
         r.pathLevel = r.cid === lead.cid || r.asin ? 'ag' : 'cp';
@@ -777,6 +786,9 @@ function staModelBrand(b, M, rlOpen) {
   staWords(b, M, mine, P, info, rlOpen, bAgg);
   M.dest[b] = { kwAg, ptAg, agRows };
 }
+
+// A brand campaign: its name holds a brand term, or says "brand" / "branded" / "defense" (#20, 18 Nov).
+const staBrandCp = (cn, P) => !!cn && (P.isBrand(cn) || /\bbrand(ed)?\b|\bdefen[cs]e\b/i.test(cn));
 
 // 1. A row whose figures cannot be true is set aside: why, or '' when it is fine.
 function staBadData(x) {
@@ -911,9 +923,13 @@ function staVerdict(r, info) {
     r.ev = short;
     r.next = 'neg';
   } else if (tgt == null) {
-    r.hold = 'No unit cost: profit not judged';
-    b.push([r.o >= STA.SCALE_ORDERS ? 'Selling' : 'Selling', 'ok']);
-    return finish();
+    // No unit cost: profit is not judged — except a clearly weaker path of a provisional lead, judged as a competing path.
+    if (!(r.role === 'other' && r.excess > 0.5 && r.group && r.group.provisional)) {
+      r.hold = 'No unit cost: profit not judged';
+      b.push(['Selling', 'ok']);
+      return finish();
+    }
+    r.ev = short;
   } else if (r.acos > be && r.c >= STA.MIN_CLICKS) {
     r.cat = 'burn';
     r.kind = 'be';
@@ -961,8 +977,9 @@ function staVerdict(r, info) {
     r.next = r.dupExact ? 'pause' : 'neg';
     r.routing = true;
   }
-  if (r.role === 'lead') b.push(['Lead path', 'info', 'Of this product\'s paths for this term, this one sells it best.']);
-  else if (r.role === 'other') b.push(['Competing path', 'info', `The lead path sells it at ${staPct(r.leadAcos)} ACoS.`]);
+  const prov = r.group && r.group.provisional;
+  if (r.role === 'lead') b.push([prov ? 'Lead path · provisional' : 'Lead path', 'info', prov ? 'No unit cost, so not proven profitable: of this product\'s paths for this term, this one has the lowest ACoS with 3+ orders.' : 'Of this product\'s paths for this term, this one sells it best.']);
+  else if (r.role === 'other') b.push([prov ? 'Competing path · provisional' : 'Competing path', 'info', `The lead path sells it at ${staPct(r.leadAcos)} ACoS${prov ? ' (provisional: no unit cost to prove it profitable)' : ''}.`]);
   // --- 4. what protects it: no negative on a protected term (a main keyword only on a weaker path whose lead is its own exact) ---
   if (r.next === 'neg' || r.next === 'pause') {
     const mainOk = r.main && !r.noNeg && r.routing && r.group && r.group.lead.own;
@@ -1372,7 +1389,16 @@ function staDataLine(M) {
   if (okB.length) parts.push(`<span class="sta-ok">✓ ${okB.map(staBrandName).join(' and ')}${okB.length > 1 ? ' both' : ''} complete</span>`);
   const bad = M.brands.reduce((t, b) => t + ((M.info[b] || {}).bad || 0), 0);
   if (bad) parts.push(`<span class="sta-bad">${staInt(bad)} row${bad === 1 ? '' : 's'} set aside as a data check (more orders than clicks, or sales without clicks): never used in a verdict</span>`);
-  if (!ST.costs) parts.push(`<span class="sta-bad">${ST.costErr ? 'Unit costs could not be read for your account (Profit &amp; Margin access needed)' : 'No unit costs in Profit &amp; Margin'}: no profit verdicts — only "no sales" — unless a target ACoS is set in Lists &amp; settings</span>`);
+  // #1 (18 Nov): without unit costs nothing can be "above break-even". Say so plainly, with the one setting that fixes it.
+  const noTgt = M.brands.filter(b => !(Number(staSet(b).fallbackTgt) > 0));
+  if (!ST.costs) {
+    const why = ST.costErr ? 'Unit costs could not be read for your account (Profit &amp; Margin access needed)' : 'No unit costs in Profit &amp; Margin';
+    parts.push(noTgt.length
+      ? `<div class="sta-warnline sta-costwarn"><b>${why}.</b> Without a cost or a target, Sellora can only flag search terms with no sales — nothing above break-even, no Raise or Lower on placements, and competing paths stay provisional. `
+        + `Set a target ACoS for ${noTgt.map(staBrandName).join(' and ')} to switch the rest on now; unit costs replace it product by product when they arrive. `
+        + `<button type="button" class="sta-btn sm" data-settgt="1">Set a target ACoS</button></div>`
+      : `<span class="sta-dash">${why}: judged against your target ACoS (${M.brands.map(b => staBrandName(b) + ' ' + staSet(b).fallbackTgt + '%').join(', ')}) from Lists &amp; settings</span>`);
+  }
   parts.push(staSrcLine());
   if (!ST.ent) parts.push('Until Amazon IDs and bids are read, bids are worked from the CPC and bid changes wait in the review list');
   if (ST_RL.where === 'local' || STS.where === 'local') parts.push('<span class="sta-bad">The review list and the lists are kept in this browser only until they are switched on for everyone</span>');
@@ -1412,12 +1438,30 @@ function staSummary(L) {
     tailN += (M.have[b] || {}).dropped || 0;
   });
   const act = L.all.filter(r => r.act).length + L.burnTgt.filter(g => g.next && g.next !== 'limit' && g.next !== 'lowstock').length + L.words.filter(w => w.act).length;
-  const cell = (k, v, tip) => `<div${tip ? ` title="${staEsc(tip)}"` : ''}><small>${k}</small><b>${v}</b></div>`;
-  $('stSum').innerHTML = cell('Ad spend', staMoney0(sp), 'All keywords and targets of the brands in view, this window')
+  const cell = (k, v, tip, cls) => `<div${cls ? ` class="${cls}"` : ''}${tip ? ` title="${staEsc(tip)}"` : ''}><small>${k}</small><b>${v}</b></div>`;
+  // Money at stake: what Burning money and Competing paths would save, each term counted once (the larger of the two).
+  const stake = new Map();
+  L.burn.forEach(r => stake.set(r.key, Math.max(stake.get(r.key) || 0, r.burned || 0)));
+  L.groups.forEach(g => g.shown.forEach(r => { if (r.role === 'other') stake.set(r.key, Math.max(stake.get(r.key) || 0, r.excess || 0)); }));
+  const atStake = [...stake.values()].reduce((t, v) => t + v, 0);
+  // Branded vs non-branded, on the terms listed; leaks = brand terms paid for outside brand campaigns.
+  const br = { sp: 0, s: 0 }, nb = { sp: 0, s: 0 }, lk = { n: 0, sp: 0 };
+  M.rows.forEach(r => {
+    const t = r.tagSet && r.tagSet.has('brand') ? br : nb;
+    t.sp += r.sp || 0; t.s += r.s || 0;
+    if (r.tagSet && r.tagSet.has('leak')) { lk.n++; lk.sp += r.sp || 0; }
+  });
+  const ac = t => t.s > 0 ? staPct(t.sp / t.s * 100) : '—';
+  $('stSum').innerHTML = cell('Money at stake', staMoney0(atStake), 'Spend Sellora suggests stopping or moving: no-sales and above-break-even spend (Burning money) plus overlap cost (Competing paths), each term counted once. Only what is listed under the filters.', 'sta-stake')
+    + cell('Ad spend', staMoney0(sp), 'All keywords and targets of the brands in view, this window')
     + cell('Ad sales', staMoney0(s)) + cell('ACoS', s > 0 ? staPct(sp / s * 100) : '—') + cell('Orders', staInt(o)) + cell('Clicks', staInt(c))
     + cell('Search terms', staInt(M.rows.length), 'Listed one by one')
     + cell('Suggestions', staInt(act), 'Rows with a next step, after the filters')
-    + cell('Not listed', staMoney0(tail), `${staInt(tailN)} terms with fewer than 3 clicks and no order, too small to list one by one. Their recurring words appear in Burning money → By word once the backend sends them.`);
+    + cell('Not listed', staMoney0(tail), `${staInt(tailN)} terms with fewer than 3 clicks and no order, too small to list one by one. Their recurring words appear in Burning money → By word once the backend sends them.`)
+    + `<div class="sta-bline"><span><b>Branded</b> ${staMoney0(br.sp)} spend · ACoS ${ac(br)}</span><span><b>Non-branded</b> ${staMoney0(nb.sp)} spend · ACoS ${ac(nb)}</span>`
+    + (lk.n ? `<span class="sta-bad">${staInt(lk.n)} brand term${lk.n === 1 ? '' : 's'} paid for outside brand campaigns · ${staMoney0(lk.sp)}</span><button type="button" class="sta-btn dim sm" data-leaks="1">Show them</button>`
+      : '<span class="sta-dash">No brand leaks: brand searches run only in brand campaigns</span>')
+    + `<span class="sta-dash" title="Brand terms are set per brand in Lists &amp; settings. A brand campaign has a brand term, 'brand', 'branded' or 'defense' in its name.">brand terms from Lists &amp; settings</span></div>`;
 }
 
 // The four boxes over the table.
@@ -1503,7 +1547,15 @@ function staNextCell(r) {
   const negType = r.asin ? 'Negative ASIN target' : 'Negative exact';
   const where = r.pathLevel === 'ag' || r.asin ? (r.agn || 'this ad group') : (r.cn || 'this campaign');
   const bidTxt = gg => gg && gg.sugBid ? (gg.bidBase === 'bid' ? `${staMoney(gg.ent.bid)} → <b>${staMoney(gg.sugBid)}</b>` : `CPC ${staMoney(gg.cpc)} → <b>${staMoney(gg.sugBid)}</b>`) : '';
-  if (n === 'neg') return `<td class="sta-next"><small title="${staEsc(where)}">${negType} · ${lvl} level</small>${staBtn('Add negative', 'neg', r.key, 'neg')}</td>`;
+  if (n === 'neg') {
+    // #6 (18 Nov): one click, straight to the review list, after the same checks as Tick → Add (staQuick).
+    const ph = !r.asin && staPhraseOk(r);
+    return `<td class="sta-next"><small title="${staEsc(where)}">${negType} · ${lvl} level</small><div class="sta-negq">`
+      + staBtn(r.asin ? 'Neg ASIN' : 'Neg exact', 'qx', r.key, 'neg sm', `Add a ${r.asin ? 'negative ASIN target' : 'negative exact'} at ${lvl} level (${where}) straight to the review list`)
+      + (r.asin ? '' : ph.ok ? staBtn('Neg phrase', 'qp', r.key, 'dim sm', `Add a negative phrase at ${lvl} level straight to the review list: blocks every search containing "${r.term}" there`)
+        : `<button type="button" class="sta-btn dim sm" disabled title="${staEsc('No phrase negative: ' + ph.why)}">Neg phrase</button>`)
+      + staBtn('More…', 'neg', r.key, 'dim sm', 'Open the full dialog: type, level, sales at risk') + '</div></td>';
+  }
   if (n === 'iso') return `<td class="sta-next"><small>Own exact keyword at <b>${staMoney(r.isoBid)}</b> (CPC ${staMoney(r.cpc)}) · negative exact in this ad group</small>${staBtn('Lower bid for this term', 'iso', r.key)}</td>`;
   if (n === 'reduce' && g) return `<td class="sta-next"><small>Bid on ${staEsc(staPathLabel(g.kw, g.mt))}: ${bidTxt(g)}</small>${staBtn('Lower bid', 'reduce', g.key)}</td>`;
   if (n === 'raise' && g) return `<td class="sta-next"><small>Bid on ${staEsc(staPathLabel(g.kw, g.mt))}: ${bidTxt(g)}</small>${staBtn('Raise bid', 'raise', g.key)}</td>`;
@@ -1697,10 +1749,10 @@ function staDrawPaths(L) {
     const ps = g.shown;
     const sum = ps.filter(r => r.role === 'other').reduce((t, r) => t + (r.excess || 0), 0);
     html += `<tr class="grp"><td colspan="9" class="sta-grp"><b>"${staEsc(g.term)}"</b><span>${staInt(g.paths.length)} paths · ${staInt(g.campaigns)} campaign${g.campaigns === 1 ? '' : 's'} · ${staEsc(staBrandName(g.brand))}`
-      + ` · ${staEsc((g.lead.parents[0] || g.lead.asins[0] || '').toUpperCase())} · overlap cost <em>${staMoney(sum)}</em></span></td></tr>`;
+      + ` · ${staEsc((g.lead.parents[0] || g.lead.asins[0] || '').toUpperCase())} · overlap cost <em>${staMoney(sum)}</em>${g.provisional ? ' · <b class="sta-prov" title="No unit cost for this product: the lead is the lowest ACoS with 3+ orders, not proven profitable">provisional lead</b>' : ''}</span></td></tr>`;
     ps.forEach(r => {
       const lead = r.role === 'lead', fine = r.role === 'fine';
-      const txt = lead ? `Keep: sells it best for this product (${staInt(r.o)} orders at ${staPct(r.acos)}${r.own ? ', its own exact keyword' : ''}).`
+      const txt = lead ? `Keep: sells it best for this product (${staInt(r.o)} orders at ${staPct(r.acos)}${r.own ? ', its own exact keyword' : ''})${g.provisional ? ' — provisional, no unit cost to prove it profitable' : ''}.`
         : fine ? 'Also fine: sells it as well as the lead — left alone.'
           : r.next === 'pause' ? 'A second exact keyword for the same product: pause this one so the lead takes it.'
             : r.next === 'neg' ? `${r.asin ? 'Negative ASIN target' : 'Negative exact'} at ${r.pathLevel === 'ag' ? 'ad-group' : 'campaign'} level here${r.pathLevel === 'ag' && !r.asin ? ' (the lead is in the same campaign)' : ''}, so the term goes through the lead path.`
@@ -1714,7 +1766,39 @@ function staDrawPaths(L) {
   $('stTable').innerHTML = `<thead><tr><th class="sta-stick">Role</th><th>Path</th><th class="num">Spend</th><th class="num">Orders</th><th class="num">ACoS</th><th class="num">CPC</th>
     <th class="num" title="Spend above what the lead path's ACoS would have cost for the same sales">Overlap cost</th><th>Recommendation</th><th>Next step</th></tr></thead><tbody>`
     + (html || '<tr><td colspan="9" class="muted" style="padding:14px">No search term competes with itself for the same product in this view.</td></tr>') + '</tbody>';
-  staPager(groups.length, 'terms', 'a lead needs a unit cost (or your target in Lists & settings) to show it is profitable');
+  staPager(groups.length, 'terms', 'without a unit cost or target, the lead is provisional: the lowest ACoS with 3+ orders, and only clearly worse paths are routed to it');
+}
+
+// Can this term safely be a negative PHRASE where it ran? Not when it is protected, or when a longer term containing it
+// sold in the same campaign (a phrase negative would block that too). { ok, why }.
+function staPhraseOk(r) {
+  if (r.noNeg || r.main) return { ok: false, why: r.noNeg || 'main keyword' };
+  if (r.containsProduct) return { ok: false, why: 'it contains a product word, so it would block searches that sell' };
+  if (r.term.trim().split(/\s+/).length > STA.NEG.negativePhrase.words) return { ok: false, why: `phrase negatives take at most ${STA.NEG.negativePhrase.words} words` };
+  const M = STM || staModel();
+  const pat = ' ' + staNorm(r.term) + ' ';
+  const hit = M.rows.find(x => x !== r && x.brand === r.brand && x.cid === r.cid && x.o > 0 && (' ' + staNorm(x.term) + ' ').includes(pat));
+  return hit ? { ok: false, why: `"${hit.term}" contains it and sold ${hit.o} order${hit.o === 1 ? '' : 's'} in this campaign` } : { ok: true, why: '' };
+}
+// One click from the row: negative exact (or ASIN), or phrase, after staQuick's checks.
+async function staQuickNeg(key, phrase, btn) {
+  const M = staModel();
+  const r = M.byKey.get(key);
+  if (!r) return;
+  const q = staQuick(r);
+  if (q.skip) { stFoot(`<span>Not added: "${staEsc(r.term)}" — ${staEsc(q.skip)}.</span>`, true); return; }
+  let items = q.items;
+  if (phrase) {
+    const ph = staPhraseOk(r);
+    if (!ph.ok) { stFoot(`<span>No phrase negative for "${staEsc(r.term)}": ${staEsc(ph.why)}.</span>`, true); return; }
+    const lvl = items[0] && items[0].neg ? items[0].neg.level : 'cp';
+    items = [staNegItem(r, 'negativePhrase', lvl)];
+  }
+  if (btn) btn.disabled = true;
+  try { for (const it of items) await staRlSave(it); } catch (e) { stFoot(`<span>Could not add it: ${staEsc(e.message || e)}</span>`, true); return; }
+  STM = null;
+  renderSt();
+  stFoot(`<span>Added a ${phrase ? 'negative phrase' : r.asin ? 'negative ASIN target' : 'negative exact'} for "${staEsc(r.term)}" to the review list.</span>`);
 }
 
 // The selection bar.
@@ -1760,7 +1844,12 @@ function staLegend() {
     + L('Competing paths', [
       'Only paths to the <b>same product</b> (the parent with the most ad sales in the ad group) compete.',
       `The lead has ${STA.LEAD_ORDERS}+ orders and ACoS under break-even; an own exact keyword first, then the lowest ACoS.`,
-      'A path doing as well as the lead is never negated. Overlap cost = spend − sales × the lead\'s ACoS.'])
+      'A path doing as well as the lead is never negated. Overlap cost = spend − sales × the lead\'s ACoS.',
+      `No unit cost and no target: a <b>provisional</b> lead (${STA.LEAD_ORDERS}+ orders, the lowest ACoS), and only a path with no order, or at ${STA.PROV_GAP}× the lead's ACoS or worse, is sent to it.`])
+    + L('Money at stake, brand split, one-click negatives', [
+      '<b>Money at stake</b> (first in the strip): no-sales and above-break-even spend plus overlap cost, each term counted once.',
+      '<b>Branded / non-branded</b>: spend and ACoS of the terms listed, split by the brand terms in Lists &amp; settings. A <b>brand leak</b> is a brand term paid for in a campaign whose name has no brand term, "brand" or "defense".',
+      '<b>Neg exact / Neg phrase</b> in the row add the change straight to the review list after the same checks as the dialog. Neg phrase is off when the term is protected, contains a product word, or a longer search containing it sold in the same campaign.'])
     + L('Next-step chips and New', [
       'The chips under the tabs show one kind of next step at a time — Negative, Lower bid, Pause, Add exact, Raise bid, Watch / hold, In review — with "Tick all" for every page.',
       `<b>New</b>: campaigns, ad groups and keywords launched in the last ${STA.AGE_DAYS} days, with the day they are on and the day Sellora starts judging them. Only warnings there: no order after 40 clicks, or above break-even so far.`])
@@ -2592,6 +2681,16 @@ $('stMoreBtn').addEventListener('click', () => {
   const on = $('stMore').classList.toggle('hide');
   $('stMoreBtn').setAttribute('aria-expanded', on ? 'false' : 'true');
 });
+// "Set a target ACoS" in the data line (no unit costs) opens Lists & settings.
+$('stMsg').addEventListener('click', e => { if (e.target.closest('[data-settgt]')) staSetOpen(); });
+// "Show them" under the strip: every brand leak, in All terms, through the Tag filter (so it can be cleared like any filter).
+$('stSum').addEventListener('click', e => {
+  if (!e.target.closest('[data-leaks]')) return;
+  $('stFTag').value = 'leak';
+  $('stMore').classList.remove('hide');
+  $('stMoreBtn').setAttribute('aria-expanded', 'true');
+  staSetView('all');
+});
 $('stSize').addEventListener('change', () => {
   ST_SIZE = Number($('stSize').value) || 100;
   ST_PG = 0;
@@ -2603,6 +2702,7 @@ $('stTable').addEventListener('click', e => {
   const cp = e.target.closest('button[data-copy]');
   if (cp) { staCopyText(cp.dataset.copy, cp); return; }
   const b = e.target.closest('button[data-act]');
+  if (b && (b.dataset.act === 'qx' || b.dataset.act === 'qp')) { staQuickNeg(b.dataset.k, b.dataset.act === 'qp', b); return; }
   if (b) { staOpen(b.dataset.act, b.dataset.k); return; }
   const op = e.target.closest('[data-open]');
   if (op) {

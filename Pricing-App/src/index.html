@@ -999,7 +999,7 @@
         <select id="stFMt" aria-label="Match type"><option value="">Every match type</option><option value="exact">Exact</option><option value="phrase">Phrase</option><option value="broad">Broad</option><option value="auto">Auto targets</option><option value="pt">Product / category targets</option></select>
         <select id="stFCt" aria-label="Campaign type"><option value="">Every campaign type</option><option value="auto">Auto campaigns</option><option value="kw">Manual keyword</option><option value="pt">Manual product targeting</option></select>
         <select id="stFV" aria-label="Verdict"><option value="">Every verdict</option><option value="act">To act on</option><option value="burn">Burning money</option><option value="scale">Worth scaling</option><option value="watch">Watch</option><option value="hold">On hold</option><option value="ok">Selling / winner</option><option value="check">Data check</option></select>
-        <select id="stFTag" aria-label="Tag"><option value="">Every tag</option><option value="brand">Brand term</option><option value="product">Product word</option><option value="main">Main keyword</option><option value="season">Seasonal</option><option value="own">Own product ASIN</option><option value="sister">Sister-brand ASIN</option><option value="comp">Competitor ASIN</option><option value="new">New or launch</option><option value="halo">Mostly other products' sales</option></select>
+        <select id="stFTag" aria-label="Tag"><option value="">Every tag</option><option value="brand">Brand term</option><option value="leak">Brand leak (outside brand campaigns)</option><option value="product">Product word</option><option value="main">Main keyword</option><option value="season">Seasonal</option><option value="own">Own product ASIN</option><option value="sister">Sister-brand ASIN</option><option value="comp">Competitor ASIN</option><option value="new">New or launch</option><option value="halo">Mostly other products' sales</option></select>
         <button id="stFClear" class="ghost" type="button">Clear filters</button>
       </div>
       <div id="stMsg" class="sta-msg"></div>
@@ -1172,6 +1172,8 @@
       <div id="tMsg" class="muted" style="margin-top:8px;font-size:12px"></div>
     </div>
 
+    <!-- Money at stake and Data as of (ads/ads-health.js): the waste the Recommendation names, counted once per campaign. -->
+    <div id="tStake" class="card adt-stake hide"></div>
     <div id="tKpis" class="kpis" style="margin-top:12px"></div>
     <!-- The boxes, two line charts and Campaign performance (ads/ads-charts.js). Each stays hidden until it has drawn;
          the card above is hidden only while the boxes are showing. -->

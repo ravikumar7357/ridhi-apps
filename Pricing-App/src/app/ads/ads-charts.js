@@ -423,6 +423,7 @@ const ADSX = (() => {
         const b = e.target.closest('.adx-seg button'), ctl = b && b.closest('.adx-ctl');
         const st = ctl && CH[ctl.dataset.ch];
         if (!st || st.g === b.dataset.g) return;
+        st.own = true;
         st.n = tSpanFit(st.g, st.n, b.dataset.g, 2);
         st.g = b.dataset.g;
         ctl.querySelectorAll('.adx-seg button').forEach(x => {
@@ -440,6 +441,7 @@ const ADSX = (() => {
         const box = ctl.querySelector('.adx-dates'), f = ctl.querySelector('.adx-from'), t = ctl.querySelector('.adx-to');
         if (e.target.classList.contains('adx-span')) {
           const v = e.target.value;
+          st.own = true;
           if (v === 'custom') {
             const pr = tRange(), d = pr.from ? pr : tDates('', '');
             st.from = st.from || d.from;
@@ -618,6 +620,12 @@ const ADSX = (() => {
   // n is a number, or 'custom' with from / to; off = the lines switched off in its legend.
   const CH = { money: { g: 'week', n: 26, off: {} }, pct: { g: 'week', n: 26, off: {} }, bars: { g: 'week', n: 26, off: {} } };
   const PLOT = { money: 'tChartMoney', pct: 'tChartPct', bars: 'tBarsPlot' };
+  // ONE WINDOW FOR THE PAGE (18 Nov 2026): until a chart's own period or stretch is picked by hand (own), it opens on the
+  // page's opening stretch — the weeks the ad figures cover (placement.js, tSpanAuto) — so the charts and the boxes agree.
+  function chFollow() {
+    if (typeof T_SPAN_AUTO === 'undefined' || !T_SPAN_AUTO) return;
+    Object.values(CH).forEach(st => { if (!st.own && st.g === 'week' && typeof st.n === 'number') st.n = Math.max(2, T_SPAN_AUTO.n); });
+  }
   const GRANS = [['day', 'Day'], ['week', 'Week'], ['month', 'Month'], ['quarter', 'Qtr']];
   // Run fn with the page's period swapped for g, so every helper that reads T_GRAN (period keys, labels, "finished") reads
   // g instead. Synchronous, and always put back.
@@ -673,6 +681,7 @@ const ADSX = (() => {
 
   // The two line charts' cards, then each one's plot.
   function drawCharts() {
+    chFollow();
     const el = $('tCharts');
     const pctKey = legendBtn('pct', 'acos', 'ACoS') + legendBtn('pct', 'tacos', 'TACoS')
       + `<span><i class="adx-rng"></i>ACoS ${BAND.low}–${BAND.high}% range</span><span><i class="adx-be"></i>${BAND.high}% high</span>`
@@ -877,6 +886,7 @@ const ADSX = (() => {
   // The bar chart's card: title, its own line and controls, the overall figures, the legend in the order the eye meets the
   // bars, the plot.
   function drawBars() {
+    chFollow();
     $('tBars').innerHTML = chartHead('bars', 'Sales, ad spend, ACoS &amp; TACOS', '', '<div class="adx-overall" id="tBarsOverall"></div>')
       + `<div class="adx-plot" id="${PLOT.bars}"></div>`;
     plot('bars');

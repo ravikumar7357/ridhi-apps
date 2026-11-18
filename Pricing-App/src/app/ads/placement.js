@@ -653,10 +653,31 @@ function tFmt(row, v) {
   return Math.round(v).toLocaleString('en-US');
 }
 
+/* ONE WINDOW FOR THE PAGE (the TrainAdz comparison, 18 Nov 2026: "Overview mixes 26 weeks of sales with 14 weeks of ad
+ * figures"). Until the stretch is picked by hand, the page opens on the longest "Last N weeks" whose finished weeks all have
+ * ad figures — the running week is in every "Last N" and has none until the night's reports land — so the sales, the boxes
+ * and the charts speak for the same weeks as the ad figures. T_SPAN_AUTO says what it chose (shown under "Data as of"). */
+let T_SPAN_AUTO = null, T_SPAN_TOUCHED = false;
+function tSpanAuto() {
+  if (T_SPAN_TOUCHED || T_GRAN !== 'week' || !TREND.adFrom || !TREND.adTo) return;
+  const s = $('tSpan');
+  if (!s || s.value === 'custom') return;
+  let first = wKeyOfDate(TREND.adFrom), n = 0;
+  if (first < TREND.adFrom) first = sdShift(first, 7);
+  for (let k = first; sdShift(k, 6) <= TREND.adTo; k = sdShift(k, 7)) n++;
+  if (!n) return;
+  // n finished weeks with ad figures, plus the running week; "Last full week" (1) is a finished week alone
+  const opts = T_SPANS.week.filter(v => v === 1 || v - 1 <= n);
+  const v = opts[opts.length - 1];
+  if (String(v) !== s.value) s.value = String(v);
+  T_SPAN_AUTO = { n: v, weeks: n };
+}
+
 // Draw the Ad Console: the card over the visible span, the chart, and the metrics × periods table.
 function renderTrends() {
   const esc = s => String(s == null ? '' : s)
     .replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
+  try { tSpanAuto(); } catch (e) { /* the page keeps the stretch it has */ }
   // --- the periods and their totals ---
   const { keys, agg, adKnown } = tSeries();
   const total = new Array(T_LEN).fill(0);
@@ -888,6 +909,7 @@ function tSpanName(n) {
 }
 function tSetGran(g) {
   const from = T_GRAN;
+  if (from !== g) T_SPAN_TOUCHED = true;
   T_GRAN = g;
   ['Day', 'Week', 'Month', 'Quarter'].forEach(x => $('tGran' + x).classList.toggle('on', x.toLowerCase() === g));
   // A new period keeps about the same stretch of time — 26 weeks become 6 months, not 26 months.
@@ -901,6 +923,7 @@ function tSetGran(g) {
 ['Day', 'Week', 'Month', 'Quarter'].forEach(x => { $('tGran' + x).onclick = () => tSetGran(x.toLowerCase()); });
 // "Custom dates…" shows the two days (the last 30 days to start with); either one changing redraws, like the list.
 function tSpanChange() {
+  T_SPAN_TOUCHED = true;
   const on = $('tSpan').value === 'custom', box = $('tCustom');
   if (box) {
     box.classList.toggle('hide', !on);

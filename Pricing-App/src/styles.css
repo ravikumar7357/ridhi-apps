@@ -3326,6 +3326,30 @@
   .adh-skel-w{width:55%;height:14px}
   .adh-urg.adh-wait{--sev:var(--line);background:none}
   @keyframes adh-pulse{50%{opacity:.45}}
+  /* Money at stake and Data as of (ads/ads-health.js), over the Overview */
+  .adt-stake{margin-top:12px;padding:12px 16px}
+  .adt-sk-row{display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+  .adt-sk-main{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;cursor:pointer;border-radius:var(--r-sm);padding:2px 4px;margin:-2px -4px}
+  .adt-sk-main:hover .adt-sk-v{text-decoration:underline;text-underline-offset:3px}
+  .adt-sk-main:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  .adt-sk-l{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--muted);white-space:nowrap;align-self:center}
+  .adt-sk-vw{display:inline-flex;align-items:baseline;gap:6px}
+  .adt-sk-v{font-size:24px;font-weight:700;letter-spacing:-.025em;color:var(--bad-ink);font-variant-numeric:tabular-nums;line-height:1.1}
+  .adt-sk-v.adt-sk-ok{color:var(--accent-ink)}
+  .adt-sk-v .adh-skel-w{width:110px;height:20px}
+  .adt-sk-vw small{font-size:13px;font-weight:600;color:var(--muted);font-variant-numeric:tabular-nums}
+  .adt-sk-sub{font-size:11.5px;color:var(--faint);white-space:nowrap}
+  .adt-sk-chips{display:flex;flex-wrap:wrap;gap:6px;flex:1 1 320px}
+  .adt-sk-chip{display:inline-flex;align-items:center;gap:7px;height:26px;padding:0 10px;border-radius:var(--r-pill);border:1px solid var(--line);
+    background:var(--sev-bg,var(--soft));color:var(--ink);font-size:12px;cursor:pointer;transition:transform .12s ease,box-shadow .12s ease}
+  .adt-sk-chip:hover{transform:translateY(-1px);box-shadow:var(--sh-1)}
+  .adt-sk-chip span{color:var(--muted)} .adt-sk-chip b{color:var(--sev-ink,var(--ink));font-variant-numeric:tabular-nums}
+  .adt-sk-wait{font-size:12px;color:var(--faint);align-self:center}
+  .adt-asof{display:flex;flex-wrap:wrap;align-items:center;gap:4px 14px;margin-top:10px;padding-top:9px;border-top:1px dashed var(--line);font-size:11.5px;color:var(--muted)}
+  .adt-asof>b{font-weight:600;color:var(--ink)}
+  .adt-asof-i em{font-style:normal;color:var(--faint);margin-right:2px}
+  .adt-asof-i.adt-late{color:var(--act-ink)} .adt-asof-i.adt-late::after{content:" · old";font-weight:600}
+  .adt-asof-win{color:var(--accent-ink)}
   .adh-body{border-top:1px solid var(--line);animation:adh-open .18s ease both}
   @keyframes adh-open{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
   .adh-srcs{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:11px;color:var(--faint)}
@@ -3715,6 +3739,18 @@
   .sta-sum small{display:block;font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}
   .sta-sum b{display:block;font-size:15px;font-weight:650;color:var(--ink);margin-top:2px;font-variant-numeric:tabular-nums}
   .sta-sum>div:last-child b{color:var(--rev-ink)}
+  /* 18 Nov: money at stake first, and the branded / non-branded line across the strip's full width */
+  .sta-sum{grid-template-columns:repeat(9,minmax(0,1fr))}
+  .sta-sum>div.sta-stake{background:color-mix(in srgb,var(--bad) 7%,var(--card))}
+  .sta-sum>div.sta-stake b{color:var(--bad-ink);font-size:17px}
+  .sta-sum>div.sta-bline{grid-column:1/-1;display:flex;align-items:center;gap:6px 18px;flex-wrap:wrap;font-size:12.5px;color:var(--muted);padding:8px 12px}
+  .sta-sum>div.sta-bline b{display:inline;font-size:12.5px;margin:0;color:var(--ink)}
+  .sta-sum>div.sta-bline .sta-btn{margin:0}
+  .sta-sum>div.sta-bline span:last-child{margin-left:auto}
+  .sta-negq{display:flex;gap:5px;flex-wrap:wrap;margin-top:6px}
+  .sta-negq .sta-btn{margin:0}
+  .sta-prov{color:var(--rev-ink);font-weight:700}
+  .sta-costwarn .sta-btn{margin:6px 0 0;display:inline-block}
   .sta-legend-btn{font-size:12.5px;padding:6px 12px;flex:none}
   .sta-vbar{display:flex;justify-content:space-between;align-items:center;gap:10px 16px;flex-wrap:wrap;padding:10px 16px;border-bottom:1px solid var(--line);
     background:var(--soft)}
@@ -3844,7 +3880,7 @@
   .plx-lg.tot{padding-left:22px;border-left:1px solid var(--line)}
   .plx-chart{overflow-x:auto;padding:4px 16px 14px}
   @media (max-width:1100px){.plx-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
-  @media (max-width:1100px){.sta-sum{grid-template-columns:repeat(4,minmax(0,1fr))}.sta-legcols{grid-template-columns:1fr}}
+  @media (max-width:1100px){.sta-sum{grid-template-columns:repeat(4,minmax(0,1fr))!important}.sta-legcols{grid-template-columns:1fr}}
   @media (max-width:1100px){.sta-boxes{grid-template-columns:repeat(2,minmax(0,1fr))}}
   @media (max-width:620px){.sta-boxes{grid-template-columns:minmax(0,1fr)}.sta-figs{grid-template-columns:repeat(3,minmax(0,1fr))}.sta-row2{grid-template-columns:1fr}}
 

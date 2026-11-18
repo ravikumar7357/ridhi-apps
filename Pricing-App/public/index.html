@@ -3351,6 +3351,30 @@
   .adh-skel-w{width:55%;height:14px}
   .adh-urg.adh-wait{--sev:var(--line);background:none}
   @keyframes adh-pulse{50%{opacity:.45}}
+  /* Money at stake and Data as of (ads/ads-health.js), over the Overview */
+  .adt-stake{margin-top:12px;padding:12px 16px}
+  .adt-sk-row{display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+  .adt-sk-main{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;cursor:pointer;border-radius:var(--r-sm);padding:2px 4px;margin:-2px -4px}
+  .adt-sk-main:hover .adt-sk-v{text-decoration:underline;text-underline-offset:3px}
+  .adt-sk-main:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  .adt-sk-l{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--muted);white-space:nowrap;align-self:center}
+  .adt-sk-vw{display:inline-flex;align-items:baseline;gap:6px}
+  .adt-sk-v{font-size:24px;font-weight:700;letter-spacing:-.025em;color:var(--bad-ink);font-variant-numeric:tabular-nums;line-height:1.1}
+  .adt-sk-v.adt-sk-ok{color:var(--accent-ink)}
+  .adt-sk-v .adh-skel-w{width:110px;height:20px}
+  .adt-sk-vw small{font-size:13px;font-weight:600;color:var(--muted);font-variant-numeric:tabular-nums}
+  .adt-sk-sub{font-size:11.5px;color:var(--faint);white-space:nowrap}
+  .adt-sk-chips{display:flex;flex-wrap:wrap;gap:6px;flex:1 1 320px}
+  .adt-sk-chip{display:inline-flex;align-items:center;gap:7px;height:26px;padding:0 10px;border-radius:var(--r-pill);border:1px solid var(--line);
+    background:var(--sev-bg,var(--soft));color:var(--ink);font-size:12px;cursor:pointer;transition:transform .12s ease,box-shadow .12s ease}
+  .adt-sk-chip:hover{transform:translateY(-1px);box-shadow:var(--sh-1)}
+  .adt-sk-chip span{color:var(--muted)} .adt-sk-chip b{color:var(--sev-ink,var(--ink));font-variant-numeric:tabular-nums}
+  .adt-sk-wait{font-size:12px;color:var(--faint);align-self:center}
+  .adt-asof{display:flex;flex-wrap:wrap;align-items:center;gap:4px 14px;margin-top:10px;padding-top:9px;border-top:1px dashed var(--line);font-size:11.5px;color:var(--muted)}
+  .adt-asof>b{font-weight:600;color:var(--ink)}
+  .adt-asof-i em{font-style:normal;color:var(--faint);margin-right:2px}
+  .adt-asof-i.adt-late{color:var(--act-ink)} .adt-asof-i.adt-late::after{content:" · old";font-weight:600}
+  .adt-asof-win{color:var(--accent-ink)}
   .adh-body{border-top:1px solid var(--line);animation:adh-open .18s ease both}
   @keyframes adh-open{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
   .adh-srcs{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:11px;color:var(--faint)}
@@ -3740,6 +3764,18 @@
   .sta-sum small{display:block;font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}
   .sta-sum b{display:block;font-size:15px;font-weight:650;color:var(--ink);margin-top:2px;font-variant-numeric:tabular-nums}
   .sta-sum>div:last-child b{color:var(--rev-ink)}
+  /* 18 Nov: money at stake first, and the branded / non-branded line across the strip's full width */
+  .sta-sum{grid-template-columns:repeat(9,minmax(0,1fr))}
+  .sta-sum>div.sta-stake{background:color-mix(in srgb,var(--bad) 7%,var(--card))}
+  .sta-sum>div.sta-stake b{color:var(--bad-ink);font-size:17px}
+  .sta-sum>div.sta-bline{grid-column:1/-1;display:flex;align-items:center;gap:6px 18px;flex-wrap:wrap;font-size:12.5px;color:var(--muted);padding:8px 12px}
+  .sta-sum>div.sta-bline b{display:inline;font-size:12.5px;margin:0;color:var(--ink)}
+  .sta-sum>div.sta-bline .sta-btn{margin:0}
+  .sta-sum>div.sta-bline span:last-child{margin-left:auto}
+  .sta-negq{display:flex;gap:5px;flex-wrap:wrap;margin-top:6px}
+  .sta-negq .sta-btn{margin:0}
+  .sta-prov{color:var(--rev-ink);font-weight:700}
+  .sta-costwarn .sta-btn{margin:6px 0 0;display:inline-block}
   .sta-legend-btn{font-size:12.5px;padding:6px 12px;flex:none}
   .sta-vbar{display:flex;justify-content:space-between;align-items:center;gap:10px 16px;flex-wrap:wrap;padding:10px 16px;border-bottom:1px solid var(--line);
     background:var(--soft)}
@@ -3869,7 +3905,7 @@
   .plx-lg.tot{padding-left:22px;border-left:1px solid var(--line)}
   .plx-chart{overflow-x:auto;padding:4px 16px 14px}
   @media (max-width:1100px){.plx-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
-  @media (max-width:1100px){.sta-sum{grid-template-columns:repeat(4,minmax(0,1fr))}.sta-legcols{grid-template-columns:1fr}}
+  @media (max-width:1100px){.sta-sum{grid-template-columns:repeat(4,minmax(0,1fr))!important}.sta-legcols{grid-template-columns:1fr}}
   @media (max-width:1100px){.sta-boxes{grid-template-columns:repeat(2,minmax(0,1fr))}}
   @media (max-width:620px){.sta-boxes{grid-template-columns:minmax(0,1fr)}.sta-figs{grid-template-columns:repeat(3,minmax(0,1fr))}.sta-row2{grid-template-columns:1fr}}
 
@@ -5035,7 +5071,7 @@
         <select id="stFMt" aria-label="Match type"><option value="">Every match type</option><option value="exact">Exact</option><option value="phrase">Phrase</option><option value="broad">Broad</option><option value="auto">Auto targets</option><option value="pt">Product / category targets</option></select>
         <select id="stFCt" aria-label="Campaign type"><option value="">Every campaign type</option><option value="auto">Auto campaigns</option><option value="kw">Manual keyword</option><option value="pt">Manual product targeting</option></select>
         <select id="stFV" aria-label="Verdict"><option value="">Every verdict</option><option value="act">To act on</option><option value="burn">Burning money</option><option value="scale">Worth scaling</option><option value="watch">Watch</option><option value="hold">On hold</option><option value="ok">Selling / winner</option><option value="check">Data check</option></select>
-        <select id="stFTag" aria-label="Tag"><option value="">Every tag</option><option value="brand">Brand term</option><option value="product">Product word</option><option value="main">Main keyword</option><option value="season">Seasonal</option><option value="own">Own product ASIN</option><option value="sister">Sister-brand ASIN</option><option value="comp">Competitor ASIN</option><option value="new">New or launch</option><option value="halo">Mostly other products' sales</option></select>
+        <select id="stFTag" aria-label="Tag"><option value="">Every tag</option><option value="brand">Brand term</option><option value="leak">Brand leak (outside brand campaigns)</option><option value="product">Product word</option><option value="main">Main keyword</option><option value="season">Seasonal</option><option value="own">Own product ASIN</option><option value="sister">Sister-brand ASIN</option><option value="comp">Competitor ASIN</option><option value="new">New or launch</option><option value="halo">Mostly other products' sales</option></select>
         <button id="stFClear" class="ghost" type="button">Clear filters</button>
       </div>
       <div id="stMsg" class="sta-msg"></div>
@@ -5208,6 +5244,8 @@
       <div id="tMsg" class="muted" style="margin-top:8px;font-size:12px"></div>
     </div>
 
+    <!-- Money at stake and Data as of (ads/ads-health.js): the waste the Recommendation names, counted once per campaign. -->
+    <div id="tStake" class="card adt-stake hide"></div>
     <div id="tKpis" class="kpis" style="margin-top:12px"></div>
     <!-- The boxes, two line charts and Campaign performance (ads/ads-charts.js). Each stays hidden until it has drawn;
          the card above is hidden only while the boxes are showing. -->
@@ -25143,6 +25181,7 @@ const STA = {
   SCALE_SHARE: 0.75,   // a raise needs ACoS at or under 75% of the target
   EXACT_ORDERS: 3,     // orders before "add as exact"
   LEAD_ORDERS: 3,      // a competing path's lead needs this many orders, and ACoS under break-even
+  PROV_GAP: 1.5,       // no unit cost: a provisional lead; a path is routed to it only at this many times its ACoS or worse
   MAIN_ORDERS: 10,     // a term with this many orders across the brand is a main keyword
   STEP: 0.20,          // a bid moves at most 20% a step
   MIN_BID: 0.02,       // Amazon's lowest Sponsored Products bid (USD)
@@ -25790,6 +25829,10 @@ function staModelBrand(b, M, rlOpen) {
     if (ai.own != null && ai.own < STA.HALO) tags.push(['halo', 'Other products\' sales', `Only ${Math.round(ai.own * 100)}% of this ad group's ad sales were the advertised product itself; the rest are other products bought after the click. Judged on all ad sales.`]);
     if (ai.isNew || ai.launch || row.kwNew) tags.push(['new', ai.launch ? 'Launch campaign' : 'New', ai.launch ? 'A launch or ranking campaign (by its name): not judged on ACoS.'
       : `Fewer than ${STA.AGE_DAYS} days of ads: judged from ${staDay(row.kwNew || ai.newFrom)}.`]);
+    // A brand term spending in a campaign that is not a brand campaign (its name has no brand term, "brand" or "defense").
+    if (tags.some(t => t[0] === 'brand') && row.sp > 0 && !staBrandCp(ai.cn, P)) {
+      tags.push(['leak', 'Brand leak', `A search for your own brand, paid for in "${ai.cn}", which is not a brand campaign. Brand searches usually cost less in a brand campaign of their own.`]);
+    }
     row.tags = tags;
     row.tagSet = new Set(tags.map(t => t[0]));
     row.noNeg = row.tagSet.has('brand') ? 'brand term' : row.tagSet.has('own') ? 'own product' : row.tagSet.has('sister') ? 'sister-brand product'
@@ -25814,18 +25857,22 @@ function staModelBrand(b, M, rlOpen) {
       if (paths.length < 2) return;
       // The lead: 3+ orders, under break-even (needs a unit cost or a set target), not a suspect ACoS; an own exact
       // keyword first, then the lowest ACoS.
-      const can = paths.filter(r => r.o >= STA.LEAD_ORDERS && r.ln.be != null && r.acos != null && r.acos <= r.ln.be && !r.suspect);
+      let can = paths.filter(r => r.o >= STA.LEAD_ORDERS && r.ln.be != null && r.acos != null && r.acos <= r.ln.be && !r.suspect);
+      // No unit cost and no target anywhere on these paths (18 Nov): a PROVISIONAL lead — 3+ orders and the lowest ACoS —
+      // so overlap still shows. Then only a path with no order, or at 1.5× the lead's ACoS or worse, is routed to it.
+      const provisional = !can.length && paths.every(r => r.ln.be == null);
+      if (provisional) can = paths.filter(r => r.o >= STA.LEAD_ORDERS && r.acos != null && !r.suspect);
       if (!can.length) return;
       can.sort((p, q) => (q.own - p.own) || (p.acos - q.acos) || (q.o - p.o));
       const lead = can[0];
       const la = lead.acos / 100;
-      const g = { key: 'h:' + b + '|' + lead.tk + '|' + pk, brand: b, term: lead.term, tk: lead.tk, lead, paths: [], excess: 0, campaigns: 0 };
+      const g = { key: 'h:' + b + '|' + lead.tk + '|' + pk, brand: b, term: lead.term, tk: lead.tk, lead, paths: [], excess: 0, campaigns: 0, provisional };
       paths.forEach(r => {
         r.group = g;
         r.leadAcos = lead.acos;
         if (r === lead) { r.role = 'lead'; return; }
-        // Doing as well as the lead (or better): left alone.
-        if (r.o > 0 && r.acos != null && r.acos <= lead.acos + 0.05) { r.role = 'fine'; r.excess = 0; return; }
+        // Doing as well as the lead (or better): left alone. With a provisional lead, anything within 1.5× of it too.
+        if (r.o > 0 && r.acos != null && r.acos <= (provisional ? lead.acos * STA.PROV_GAP : lead.acos + 0.05)) { r.role = 'fine'; r.excess = 0; return; }
         r.role = 'other';
         r.excess = r.negated ? 0 : Math.max(0, r.sp - r.s * la);
         r.pathLevel = r.cid === lead.cid || r.asin ? 'ag' : 'cp';
@@ -25855,6 +25902,9 @@ function staModelBrand(b, M, rlOpen) {
   staWords(b, M, mine, P, info, rlOpen, bAgg);
   M.dest[b] = { kwAg, ptAg, agRows };
 }
+
+// A brand campaign: its name holds a brand term, or says "brand" / "branded" / "defense" (#20, 18 Nov).
+const staBrandCp = (cn, P) => !!cn && (P.isBrand(cn) || /\bbrand(ed)?\b|\bdefen[cs]e\b/i.test(cn));
 
 // 1. A row whose figures cannot be true is set aside: why, or '' when it is fine.
 function staBadData(x) {
@@ -25989,9 +26039,13 @@ function staVerdict(r, info) {
     r.ev = short;
     r.next = 'neg';
   } else if (tgt == null) {
-    r.hold = 'No unit cost: profit not judged';
-    b.push([r.o >= STA.SCALE_ORDERS ? 'Selling' : 'Selling', 'ok']);
-    return finish();
+    // No unit cost: profit is not judged — except a clearly weaker path of a provisional lead, judged as a competing path.
+    if (!(r.role === 'other' && r.excess > 0.5 && r.group && r.group.provisional)) {
+      r.hold = 'No unit cost: profit not judged';
+      b.push(['Selling', 'ok']);
+      return finish();
+    }
+    r.ev = short;
   } else if (r.acos > be && r.c >= STA.MIN_CLICKS) {
     r.cat = 'burn';
     r.kind = 'be';
@@ -26039,8 +26093,9 @@ function staVerdict(r, info) {
     r.next = r.dupExact ? 'pause' : 'neg';
     r.routing = true;
   }
-  if (r.role === 'lead') b.push(['Lead path', 'info', 'Of this product\'s paths for this term, this one sells it best.']);
-  else if (r.role === 'other') b.push(['Competing path', 'info', `The lead path sells it at ${staPct(r.leadAcos)} ACoS.`]);
+  const prov = r.group && r.group.provisional;
+  if (r.role === 'lead') b.push([prov ? 'Lead path · provisional' : 'Lead path', 'info', prov ? 'No unit cost, so not proven profitable: of this product\'s paths for this term, this one has the lowest ACoS with 3+ orders.' : 'Of this product\'s paths for this term, this one sells it best.']);
+  else if (r.role === 'other') b.push([prov ? 'Competing path · provisional' : 'Competing path', 'info', `The lead path sells it at ${staPct(r.leadAcos)} ACoS${prov ? ' (provisional: no unit cost to prove it profitable)' : ''}.`]);
   // --- 4. what protects it: no negative on a protected term (a main keyword only on a weaker path whose lead is its own exact) ---
   if (r.next === 'neg' || r.next === 'pause') {
     const mainOk = r.main && !r.noNeg && r.routing && r.group && r.group.lead.own;
@@ -26450,7 +26505,16 @@ function staDataLine(M) {
   if (okB.length) parts.push(`<span class="sta-ok">✓ ${okB.map(staBrandName).join(' and ')}${okB.length > 1 ? ' both' : ''} complete</span>`);
   const bad = M.brands.reduce((t, b) => t + ((M.info[b] || {}).bad || 0), 0);
   if (bad) parts.push(`<span class="sta-bad">${staInt(bad)} row${bad === 1 ? '' : 's'} set aside as a data check (more orders than clicks, or sales without clicks): never used in a verdict</span>`);
-  if (!ST.costs) parts.push(`<span class="sta-bad">${ST.costErr ? 'Unit costs could not be read for your account (Profit &amp; Margin access needed)' : 'No unit costs in Profit &amp; Margin'}: no profit verdicts — only "no sales" — unless a target ACoS is set in Lists &amp; settings</span>`);
+  // #1 (18 Nov): without unit costs nothing can be "above break-even". Say so plainly, with the one setting that fixes it.
+  const noTgt = M.brands.filter(b => !(Number(staSet(b).fallbackTgt) > 0));
+  if (!ST.costs) {
+    const why = ST.costErr ? 'Unit costs could not be read for your account (Profit &amp; Margin access needed)' : 'No unit costs in Profit &amp; Margin';
+    parts.push(noTgt.length
+      ? `<div class="sta-warnline sta-costwarn"><b>${why}.</b> Without a cost or a target, Sellora can only flag search terms with no sales — nothing above break-even, no Raise or Lower on placements, and competing paths stay provisional. `
+        + `Set a target ACoS for ${noTgt.map(staBrandName).join(' and ')} to switch the rest on now; unit costs replace it product by product when they arrive. `
+        + `<button type="button" class="sta-btn sm" data-settgt="1">Set a target ACoS</button></div>`
+      : `<span class="sta-dash">${why}: judged against your target ACoS (${M.brands.map(b => staBrandName(b) + ' ' + staSet(b).fallbackTgt + '%').join(', ')}) from Lists &amp; settings</span>`);
+  }
   parts.push(staSrcLine());
   if (!ST.ent) parts.push('Until Amazon IDs and bids are read, bids are worked from the CPC and bid changes wait in the review list');
   if (ST_RL.where === 'local' || STS.where === 'local') parts.push('<span class="sta-bad">The review list and the lists are kept in this browser only until they are switched on for everyone</span>');
@@ -26490,12 +26554,30 @@ function staSummary(L) {
     tailN += (M.have[b] || {}).dropped || 0;
   });
   const act = L.all.filter(r => r.act).length + L.burnTgt.filter(g => g.next && g.next !== 'limit' && g.next !== 'lowstock').length + L.words.filter(w => w.act).length;
-  const cell = (k, v, tip) => `<div${tip ? ` title="${staEsc(tip)}"` : ''}><small>${k}</small><b>${v}</b></div>`;
-  $('stSum').innerHTML = cell('Ad spend', staMoney0(sp), 'All keywords and targets of the brands in view, this window')
+  const cell = (k, v, tip, cls) => `<div${cls ? ` class="${cls}"` : ''}${tip ? ` title="${staEsc(tip)}"` : ''}><small>${k}</small><b>${v}</b></div>`;
+  // Money at stake: what Burning money and Competing paths would save, each term counted once (the larger of the two).
+  const stake = new Map();
+  L.burn.forEach(r => stake.set(r.key, Math.max(stake.get(r.key) || 0, r.burned || 0)));
+  L.groups.forEach(g => g.shown.forEach(r => { if (r.role === 'other') stake.set(r.key, Math.max(stake.get(r.key) || 0, r.excess || 0)); }));
+  const atStake = [...stake.values()].reduce((t, v) => t + v, 0);
+  // Branded vs non-branded, on the terms listed; leaks = brand terms paid for outside brand campaigns.
+  const br = { sp: 0, s: 0 }, nb = { sp: 0, s: 0 }, lk = { n: 0, sp: 0 };
+  M.rows.forEach(r => {
+    const t = r.tagSet && r.tagSet.has('brand') ? br : nb;
+    t.sp += r.sp || 0; t.s += r.s || 0;
+    if (r.tagSet && r.tagSet.has('leak')) { lk.n++; lk.sp += r.sp || 0; }
+  });
+  const ac = t => t.s > 0 ? staPct(t.sp / t.s * 100) : '—';
+  $('stSum').innerHTML = cell('Money at stake', staMoney0(atStake), 'Spend Sellora suggests stopping or moving: no-sales and above-break-even spend (Burning money) plus overlap cost (Competing paths), each term counted once. Only what is listed under the filters.', 'sta-stake')
+    + cell('Ad spend', staMoney0(sp), 'All keywords and targets of the brands in view, this window')
     + cell('Ad sales', staMoney0(s)) + cell('ACoS', s > 0 ? staPct(sp / s * 100) : '—') + cell('Orders', staInt(o)) + cell('Clicks', staInt(c))
     + cell('Search terms', staInt(M.rows.length), 'Listed one by one')
     + cell('Suggestions', staInt(act), 'Rows with a next step, after the filters')
-    + cell('Not listed', staMoney0(tail), `${staInt(tailN)} terms with fewer than 3 clicks and no order, too small to list one by one. Their recurring words appear in Burning money → By word once the backend sends them.`);
+    + cell('Not listed', staMoney0(tail), `${staInt(tailN)} terms with fewer than 3 clicks and no order, too small to list one by one. Their recurring words appear in Burning money → By word once the backend sends them.`)
+    + `<div class="sta-bline"><span><b>Branded</b> ${staMoney0(br.sp)} spend · ACoS ${ac(br)}</span><span><b>Non-branded</b> ${staMoney0(nb.sp)} spend · ACoS ${ac(nb)}</span>`
+    + (lk.n ? `<span class="sta-bad">${staInt(lk.n)} brand term${lk.n === 1 ? '' : 's'} paid for outside brand campaigns · ${staMoney0(lk.sp)}</span><button type="button" class="sta-btn dim sm" data-leaks="1">Show them</button>`
+      : '<span class="sta-dash">No brand leaks: brand searches run only in brand campaigns</span>')
+    + `<span class="sta-dash" title="Brand terms are set per brand in Lists &amp; settings. A brand campaign has a brand term, 'brand', 'branded' or 'defense' in its name.">brand terms from Lists &amp; settings</span></div>`;
 }
 
 // The four boxes over the table.
@@ -26581,7 +26663,15 @@ function staNextCell(r) {
   const negType = r.asin ? 'Negative ASIN target' : 'Negative exact';
   const where = r.pathLevel === 'ag' || r.asin ? (r.agn || 'this ad group') : (r.cn || 'this campaign');
   const bidTxt = gg => gg && gg.sugBid ? (gg.bidBase === 'bid' ? `${staMoney(gg.ent.bid)} → <b>${staMoney(gg.sugBid)}</b>` : `CPC ${staMoney(gg.cpc)} → <b>${staMoney(gg.sugBid)}</b>`) : '';
-  if (n === 'neg') return `<td class="sta-next"><small title="${staEsc(where)}">${negType} · ${lvl} level</small>${staBtn('Add negative', 'neg', r.key, 'neg')}</td>`;
+  if (n === 'neg') {
+    // #6 (18 Nov): one click, straight to the review list, after the same checks as Tick → Add (staQuick).
+    const ph = !r.asin && staPhraseOk(r);
+    return `<td class="sta-next"><small title="${staEsc(where)}">${negType} · ${lvl} level</small><div class="sta-negq">`
+      + staBtn(r.asin ? 'Neg ASIN' : 'Neg exact', 'qx', r.key, 'neg sm', `Add a ${r.asin ? 'negative ASIN target' : 'negative exact'} at ${lvl} level (${where}) straight to the review list`)
+      + (r.asin ? '' : ph.ok ? staBtn('Neg phrase', 'qp', r.key, 'dim sm', `Add a negative phrase at ${lvl} level straight to the review list: blocks every search containing "${r.term}" there`)
+        : `<button type="button" class="sta-btn dim sm" disabled title="${staEsc('No phrase negative: ' + ph.why)}">Neg phrase</button>`)
+      + staBtn('More…', 'neg', r.key, 'dim sm', 'Open the full dialog: type, level, sales at risk') + '</div></td>';
+  }
   if (n === 'iso') return `<td class="sta-next"><small>Own exact keyword at <b>${staMoney(r.isoBid)}</b> (CPC ${staMoney(r.cpc)}) · negative exact in this ad group</small>${staBtn('Lower bid for this term', 'iso', r.key)}</td>`;
   if (n === 'reduce' && g) return `<td class="sta-next"><small>Bid on ${staEsc(staPathLabel(g.kw, g.mt))}: ${bidTxt(g)}</small>${staBtn('Lower bid', 'reduce', g.key)}</td>`;
   if (n === 'raise' && g) return `<td class="sta-next"><small>Bid on ${staEsc(staPathLabel(g.kw, g.mt))}: ${bidTxt(g)}</small>${staBtn('Raise bid', 'raise', g.key)}</td>`;
@@ -26775,10 +26865,10 @@ function staDrawPaths(L) {
     const ps = g.shown;
     const sum = ps.filter(r => r.role === 'other').reduce((t, r) => t + (r.excess || 0), 0);
     html += `<tr class="grp"><td colspan="9" class="sta-grp"><b>"${staEsc(g.term)}"</b><span>${staInt(g.paths.length)} paths · ${staInt(g.campaigns)} campaign${g.campaigns === 1 ? '' : 's'} · ${staEsc(staBrandName(g.brand))}`
-      + ` · ${staEsc((g.lead.parents[0] || g.lead.asins[0] || '').toUpperCase())} · overlap cost <em>${staMoney(sum)}</em></span></td></tr>`;
+      + ` · ${staEsc((g.lead.parents[0] || g.lead.asins[0] || '').toUpperCase())} · overlap cost <em>${staMoney(sum)}</em>${g.provisional ? ' · <b class="sta-prov" title="No unit cost for this product: the lead is the lowest ACoS with 3+ orders, not proven profitable">provisional lead</b>' : ''}</span></td></tr>`;
     ps.forEach(r => {
       const lead = r.role === 'lead', fine = r.role === 'fine';
-      const txt = lead ? `Keep: sells it best for this product (${staInt(r.o)} orders at ${staPct(r.acos)}${r.own ? ', its own exact keyword' : ''}).`
+      const txt = lead ? `Keep: sells it best for this product (${staInt(r.o)} orders at ${staPct(r.acos)}${r.own ? ', its own exact keyword' : ''})${g.provisional ? ' — provisional, no unit cost to prove it profitable' : ''}.`
         : fine ? 'Also fine: sells it as well as the lead — left alone.'
           : r.next === 'pause' ? 'A second exact keyword for the same product: pause this one so the lead takes it.'
             : r.next === 'neg' ? `${r.asin ? 'Negative ASIN target' : 'Negative exact'} at ${r.pathLevel === 'ag' ? 'ad-group' : 'campaign'} level here${r.pathLevel === 'ag' && !r.asin ? ' (the lead is in the same campaign)' : ''}, so the term goes through the lead path.`
@@ -26792,7 +26882,39 @@ function staDrawPaths(L) {
   $('stTable').innerHTML = `<thead><tr><th class="sta-stick">Role</th><th>Path</th><th class="num">Spend</th><th class="num">Orders</th><th class="num">ACoS</th><th class="num">CPC</th>
     <th class="num" title="Spend above what the lead path's ACoS would have cost for the same sales">Overlap cost</th><th>Recommendation</th><th>Next step</th></tr></thead><tbody>`
     + (html || '<tr><td colspan="9" class="muted" style="padding:14px">No search term competes with itself for the same product in this view.</td></tr>') + '</tbody>';
-  staPager(groups.length, 'terms', 'a lead needs a unit cost (or your target in Lists & settings) to show it is profitable');
+  staPager(groups.length, 'terms', 'without a unit cost or target, the lead is provisional: the lowest ACoS with 3+ orders, and only clearly worse paths are routed to it');
+}
+
+// Can this term safely be a negative PHRASE where it ran? Not when it is protected, or when a longer term containing it
+// sold in the same campaign (a phrase negative would block that too). { ok, why }.
+function staPhraseOk(r) {
+  if (r.noNeg || r.main) return { ok: false, why: r.noNeg || 'main keyword' };
+  if (r.containsProduct) return { ok: false, why: 'it contains a product word, so it would block searches that sell' };
+  if (r.term.trim().split(/\s+/).length > STA.NEG.negativePhrase.words) return { ok: false, why: `phrase negatives take at most ${STA.NEG.negativePhrase.words} words` };
+  const M = STM || staModel();
+  const pat = ' ' + staNorm(r.term) + ' ';
+  const hit = M.rows.find(x => x !== r && x.brand === r.brand && x.cid === r.cid && x.o > 0 && (' ' + staNorm(x.term) + ' ').includes(pat));
+  return hit ? { ok: false, why: `"${hit.term}" contains it and sold ${hit.o} order${hit.o === 1 ? '' : 's'} in this campaign` } : { ok: true, why: '' };
+}
+// One click from the row: negative exact (or ASIN), or phrase, after staQuick's checks.
+async function staQuickNeg(key, phrase, btn) {
+  const M = staModel();
+  const r = M.byKey.get(key);
+  if (!r) return;
+  const q = staQuick(r);
+  if (q.skip) { stFoot(`<span>Not added: "${staEsc(r.term)}" — ${staEsc(q.skip)}.</span>`, true); return; }
+  let items = q.items;
+  if (phrase) {
+    const ph = staPhraseOk(r);
+    if (!ph.ok) { stFoot(`<span>No phrase negative for "${staEsc(r.term)}": ${staEsc(ph.why)}.</span>`, true); return; }
+    const lvl = items[0] && items[0].neg ? items[0].neg.level : 'cp';
+    items = [staNegItem(r, 'negativePhrase', lvl)];
+  }
+  if (btn) btn.disabled = true;
+  try { for (const it of items) await staRlSave(it); } catch (e) { stFoot(`<span>Could not add it: ${staEsc(e.message || e)}</span>`, true); return; }
+  STM = null;
+  renderSt();
+  stFoot(`<span>Added a ${phrase ? 'negative phrase' : r.asin ? 'negative ASIN target' : 'negative exact'} for "${staEsc(r.term)}" to the review list.</span>`);
 }
 
 // The selection bar.
@@ -26838,7 +26960,12 @@ function staLegend() {
     + L('Competing paths', [
       'Only paths to the <b>same product</b> (the parent with the most ad sales in the ad group) compete.',
       `The lead has ${STA.LEAD_ORDERS}+ orders and ACoS under break-even; an own exact keyword first, then the lowest ACoS.`,
-      'A path doing as well as the lead is never negated. Overlap cost = spend − sales × the lead\'s ACoS.'])
+      'A path doing as well as the lead is never negated. Overlap cost = spend − sales × the lead\'s ACoS.',
+      `No unit cost and no target: a <b>provisional</b> lead (${STA.LEAD_ORDERS}+ orders, the lowest ACoS), and only a path with no order, or at ${STA.PROV_GAP}× the lead's ACoS or worse, is sent to it.`])
+    + L('Money at stake, brand split, one-click negatives', [
+      '<b>Money at stake</b> (first in the strip): no-sales and above-break-even spend plus overlap cost, each term counted once.',
+      '<b>Branded / non-branded</b>: spend and ACoS of the terms listed, split by the brand terms in Lists &amp; settings. A <b>brand leak</b> is a brand term paid for in a campaign whose name has no brand term, "brand" or "defense".',
+      '<b>Neg exact / Neg phrase</b> in the row add the change straight to the review list after the same checks as the dialog. Neg phrase is off when the term is protected, contains a product word, or a longer search containing it sold in the same campaign.'])
     + L('Next-step chips and New', [
       'The chips under the tabs show one kind of next step at a time — Negative, Lower bid, Pause, Add exact, Raise bid, Watch / hold, In review — with "Tick all" for every page.',
       `<b>New</b>: campaigns, ad groups and keywords launched in the last ${STA.AGE_DAYS} days, with the day they are on and the day Sellora starts judging them. Only warnings there: no order after 40 clicks, or above break-even so far.`])
@@ -27670,6 +27797,16 @@ $('stMoreBtn').addEventListener('click', () => {
   const on = $('stMore').classList.toggle('hide');
   $('stMoreBtn').setAttribute('aria-expanded', on ? 'false' : 'true');
 });
+// "Set a target ACoS" in the data line (no unit costs) opens Lists & settings.
+$('stMsg').addEventListener('click', e => { if (e.target.closest('[data-settgt]')) staSetOpen(); });
+// "Show them" under the strip: every brand leak, in All terms, through the Tag filter (so it can be cleared like any filter).
+$('stSum').addEventListener('click', e => {
+  if (!e.target.closest('[data-leaks]')) return;
+  $('stFTag').value = 'leak';
+  $('stMore').classList.remove('hide');
+  $('stMoreBtn').setAttribute('aria-expanded', 'true');
+  staSetView('all');
+});
 $('stSize').addEventListener('change', () => {
   ST_SIZE = Number($('stSize').value) || 100;
   ST_PG = 0;
@@ -27681,6 +27818,7 @@ $('stTable').addEventListener('click', e => {
   const cp = e.target.closest('button[data-copy]');
   if (cp) { staCopyText(cp.dataset.copy, cp); return; }
   const b = e.target.closest('button[data-act]');
+  if (b && (b.dataset.act === 'qx' || b.dataset.act === 'qp')) { staQuickNeg(b.dataset.k, b.dataset.act === 'qp', b); return; }
   if (b) { staOpen(b.dataset.act, b.dataset.k); return; }
   const op = e.target.closest('[data-open]');
   if (op) {
@@ -28865,10 +29003,31 @@ function tFmt(row, v) {
   return Math.round(v).toLocaleString('en-US');
 }
 
+/* ONE WINDOW FOR THE PAGE (the TrainAdz comparison, 18 Nov 2026: "Overview mixes 26 weeks of sales with 14 weeks of ad
+ * figures"). Until the stretch is picked by hand, the page opens on the longest "Last N weeks" whose finished weeks all have
+ * ad figures — the running week is in every "Last N" and has none until the night's reports land — so the sales, the boxes
+ * and the charts speak for the same weeks as the ad figures. T_SPAN_AUTO says what it chose (shown under "Data as of"). */
+let T_SPAN_AUTO = null, T_SPAN_TOUCHED = false;
+function tSpanAuto() {
+  if (T_SPAN_TOUCHED || T_GRAN !== 'week' || !TREND.adFrom || !TREND.adTo) return;
+  const s = $('tSpan');
+  if (!s || s.value === 'custom') return;
+  let first = wKeyOfDate(TREND.adFrom), n = 0;
+  if (first < TREND.adFrom) first = sdShift(first, 7);
+  for (let k = first; sdShift(k, 6) <= TREND.adTo; k = sdShift(k, 7)) n++;
+  if (!n) return;
+  // n finished weeks with ad figures, plus the running week; "Last full week" (1) is a finished week alone
+  const opts = T_SPANS.week.filter(v => v === 1 || v - 1 <= n);
+  const v = opts[opts.length - 1];
+  if (String(v) !== s.value) s.value = String(v);
+  T_SPAN_AUTO = { n: v, weeks: n };
+}
+
 // Draw the Ad Console: the card over the visible span, the chart, and the metrics × periods table.
 function renderTrends() {
   const esc = s => String(s == null ? '' : s)
     .replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
+  try { tSpanAuto(); } catch (e) { /* the page keeps the stretch it has */ }
   // --- the periods and their totals ---
   const { keys, agg, adKnown } = tSeries();
   const total = new Array(T_LEN).fill(0);
@@ -29100,6 +29259,7 @@ function tSpanName(n) {
 }
 function tSetGran(g) {
   const from = T_GRAN;
+  if (from !== g) T_SPAN_TOUCHED = true;
   T_GRAN = g;
   ['Day', 'Week', 'Month', 'Quarter'].forEach(x => $('tGran' + x).classList.toggle('on', x.toLowerCase() === g));
   // A new period keeps about the same stretch of time — 26 weeks become 6 months, not 26 months.
@@ -29113,6 +29273,7 @@ function tSetGran(g) {
 ['Day', 'Week', 'Month', 'Quarter'].forEach(x => { $('tGran' + x).onclick = () => tSetGran(x.toLowerCase()); });
 // "Custom dates…" shows the two days (the last 30 days to start with); either one changing redraws, like the list.
 function tSpanChange() {
+  T_SPAN_TOUCHED = true;
   const on = $('tSpan').value === 'custom', box = $('tCustom');
   if (box) {
     box.classList.toggle('hide', !on);
@@ -30121,6 +30282,7 @@ const ADSX = (() => {
         const b = e.target.closest('.adx-seg button'), ctl = b && b.closest('.adx-ctl');
         const st = ctl && CH[ctl.dataset.ch];
         if (!st || st.g === b.dataset.g) return;
+        st.own = true;
         st.n = tSpanFit(st.g, st.n, b.dataset.g, 2);
         st.g = b.dataset.g;
         ctl.querySelectorAll('.adx-seg button').forEach(x => {
@@ -30138,6 +30300,7 @@ const ADSX = (() => {
         const box = ctl.querySelector('.adx-dates'), f = ctl.querySelector('.adx-from'), t = ctl.querySelector('.adx-to');
         if (e.target.classList.contains('adx-span')) {
           const v = e.target.value;
+          st.own = true;
           if (v === 'custom') {
             const pr = tRange(), d = pr.from ? pr : tDates('', '');
             st.from = st.from || d.from;
@@ -30316,6 +30479,12 @@ const ADSX = (() => {
   // n is a number, or 'custom' with from / to; off = the lines switched off in its legend.
   const CH = { money: { g: 'week', n: 26, off: {} }, pct: { g: 'week', n: 26, off: {} }, bars: { g: 'week', n: 26, off: {} } };
   const PLOT = { money: 'tChartMoney', pct: 'tChartPct', bars: 'tBarsPlot' };
+  // ONE WINDOW FOR THE PAGE (18 Nov 2026): until a chart's own period or stretch is picked by hand (own), it opens on the
+  // page's opening stretch — the weeks the ad figures cover (placement.js, tSpanAuto) — so the charts and the boxes agree.
+  function chFollow() {
+    if (typeof T_SPAN_AUTO === 'undefined' || !T_SPAN_AUTO) return;
+    Object.values(CH).forEach(st => { if (!st.own && st.g === 'week' && typeof st.n === 'number') st.n = Math.max(2, T_SPAN_AUTO.n); });
+  }
   const GRANS = [['day', 'Day'], ['week', 'Week'], ['month', 'Month'], ['quarter', 'Qtr']];
   // Run fn with the page's period swapped for g, so every helper that reads T_GRAN (period keys, labels, "finished") reads
   // g instead. Synchronous, and always put back.
@@ -30371,6 +30540,7 @@ const ADSX = (() => {
 
   // The two line charts' cards, then each one's plot.
   function drawCharts() {
+    chFollow();
     const el = $('tCharts');
     const pctKey = legendBtn('pct', 'acos', 'ACoS') + legendBtn('pct', 'tacos', 'TACoS')
       + `<span><i class="adx-rng"></i>ACoS ${BAND.low}–${BAND.high}% range</span><span><i class="adx-be"></i>${BAND.high}% high</span>`
@@ -30575,6 +30745,7 @@ const ADSX = (() => {
   // The bar chart's card: title, its own line and controls, the overall figures, the legend in the order the eye meets the
   // bars, the plot.
   function drawBars() {
+    chFollow();
     $('tBars').innerHTML = chartHead('bars', 'Sales, ad spend, ACoS &amp; TACOS', '', '<div class="adx-overall" id="tBarsOverall"></div>')
       + `<div class="adx-plot" id="${PLOT.bars}"></div>`;
     plot('bars');
@@ -31049,9 +31220,12 @@ const ADSX = (() => {
  * Screens: Ad Console (tab 'trends', pane paneTrends), the Recommendation bar (tHealth). Nothing here runs by itself: ADSX.draw
  * (ads/ads-charts.js) calls ADSH.draw inside a try, and again once the campaign figures have arrived.
  * Does: reads what Search Terms reads — the 30-day search-term, target and ad-group caches — plus the FBA stock where the
- * account may read it and the Ad Console's own daily store, and runs seven checks over the brands in view. Each one, when it
- * finds something, makes one polite suggestion — never an order: lower bids, pause a campaign, stop a search term, restock,
- * send stock before it runs out, raise bids, turn a paused ad back on — with the money involved, the evidence, how it was
+ * account may read it, Amazon's listing status (the Image Manager snapshot) likewise, the weekly store and the Ad Console's
+ * own daily store, and runs ten checks over the brands in view. Each one, when it finds something, makes one polite
+ * suggestion — never an order: lower bids, pause a campaign, stop a search term, restock, send stock before it runs out,
+ * pause ads still spending on a product out of stock, fix a listing Amazon took out of search while its ads spend, look at
+ * products whose ad spend is above all their sales (TACoS over 100%, no costs needed), raise bids, turn a paused ad back
+ * on — with the money involved, the evidence, how it was
  * checked and where the figures came from. A check passes, or cannot run because a right or the data it needs is missing —
  * said, never guessed. Suggestions rank by priority, then by the money involved. The bar stays closed until opened and shows
  * the top suggestion in one line; open, it shows three figures (suggestions, ACoS against the range, money burned), the top
@@ -31073,8 +31247,10 @@ const ADSX = (() => {
  * what they advertise, tinted light red (out of stock), light orange (under 7 days) or light yellow (under 15 days) at each
  * product's pace over its last four finished weeks; a campaign row opens that campaign in Campaign performance, and "Show
  * these in Campaign performance" narrows it to the campaigns a suggestion names. A total row closes each table.
+ * MONEY AT STAKE (tStake, over the page): the waste the suggestions name, counted once per campaign, up to all of it added up,
+ * with a chip per suggestion and the day each source reaches ("Data as of").
  * READ-ONLY: nothing here saves anything, and nothing changes anything at Amazon.
- * Main functions: ADSH.draw — and inside it load, checks, render. */
+ * Main functions: ADSH.draw — and inside it load, checks, render, stakePaint. */
 const ADSH = (() => {
   // Priority: its words, its rank, and what it means (the ⓘ on the bar).
   const SEV = {
@@ -31087,6 +31263,8 @@ const ADSH = (() => {
   const SRC = {
     ADS: 'Amazon Ads reports — Sponsored Products only, sales credited within 30 days of a click. The nightly caches Search Term Analysis reads.',
     STOCK: 'FBA stock as Listing Health last saved it.',
+    AMZ: 'Amazon\'s listing status as the Image Manager last saved it — the snapshot Listing Health reads too.',
+    WEEKLY: 'Weekly sales and ad spend per product (the PPC & Organic store) over the last four finished weeks.',
     DERIVED: 'Worked out here from the figures above.',
   };
   const SHOW = 6;                 // suggestions listed before "Show all"
@@ -31104,6 +31282,7 @@ const ADSH = (() => {
   const RAISE_COVER = 30;         // days of stock a campaign's selling products need before a bid increase is suggested
   const COVER_MIN = 80;           // % of a brand's ad spend the campaign and search-term caches should hold
   const COVER_MIN_SPEND = 100;    // a brand that spent less than this on ads in the 30 days is not checked
+  const TACOS_MIN_SPEND = 50;     // ad spend over the four weeks below which "ad spend above sales" is not judged
   const TRI = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>';
   const CHEV = '<svg class="adh-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>';
   const BULB = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.6 10.8c.7.5 1.1 1.3 1.1 2.2h5c0-.9.4-1.7 1.1-2.2A6 6 0 0 0 12 3Z"/></svg>';
@@ -31114,7 +31293,9 @@ const ADSH = (() => {
   // spend, added up once; at = when the search-term cache was built; miss = what failed; ver = bumped as each source lands;
   // sig = what the bar last drew; all = "Show all"; open = the bar is open; seen = it has been opened once.
   // exp = the suggestions whose table is opened to every row.
-  const HS = { st: 'idle', src: { terms: 'idle', tgts: 'idle', stock: 'idle' }, terms: null, tgts: null, flat: null, stock: null, stockAt: {},
+  // amz = Amazon's listing status per "<brand>|<sku>" (the Image Manager snapshot, AMZ.map); amzAt = when each brand's was saved.
+  const HS = { st: 'idle', src: { terms: 'idle', tgts: 'idle', stock: 'idle', amz: 'idle' }, terms: null, tgts: null, flat: null, stock: null, stockAt: {},
+    amz: null, amzAt: {},
     stSum: null, at: '', miss: {}, ver: 0, sig: '', all: false, open: false, seen: false, memo: new Map(), exp: new Set() };
 
   /* ---------- small helpers ---------- */
@@ -31209,6 +31390,23 @@ const ADSH = (() => {
         restock();
       }));
     } else HS.src.stock = 'none';
+    // --- Amazon's listing status (taken out of search?): the Image Manager's snapshot, read once — the same one Listing
+    //     Health reads (amzEnsure, listing/listing-rules.js), only for an account the database lets read it ---
+    if (typeof amzEnsure === 'function' && (can('img') || can('lerr'))) {
+      HS.src.amz = 'loading';
+      jobs.push((async () => {
+        try {
+          if (!AMZ.map) {
+            await amzEnsure();
+            for (let i = 0; AMZ.busy && i < 120; i++) await new Promise(r => setTimeout(r, 250));   // another screen is reading it
+          }
+          HS.amz = AMZ.map || null;
+          HS.amzAt = { SP: AMZ.snapAt.SP || 0, CPC: AMZ.snapAt.CPC || 0 };
+        } catch (e) { HS.amz = null; }
+        HS.src.amz = HS.amz ? 'ready' : 'failed';
+        landed();
+      })());
+    } else HS.src.amz = 'none';
     await Promise.all(jobs);
     HS.st = 'ready';
     landed();
@@ -31340,6 +31538,12 @@ const ADSH = (() => {
     };
     const sum = (list, f) => list.reduce((t, r) => t + (f(r) || 0), 0);
     const stockHead = ['FBA stock', 'Days left'];
+    // [key, $] pairs → { key: $ added up }: the money of a suggestion per campaign, for Money at stake.
+    const perMap = pairs => {
+      const m = {};
+      pairs.forEach(([k, v]) => { if (v > 0) m[k] = (m[k] || 0) + v; });
+      return m;
+    };
 
     /* 1 · lower bids: running campaigns above the range */
     const NAME_LO = `Every campaign with enough orders is at or under ${BAND.high}% ACoS`;
@@ -31357,6 +31561,7 @@ const ADSH = (() => {
         why: `Above ${BAND.high}%, each ad sale costs more than your good range allows. Easing bids a little at a time (say 10–15%) and looking again after a week usually brings ACoS down without losing the sales that convert.`
           + (invHigh.length ? ` ${cnt(invHigh.length)} launch, ranking or seasonal ${plural(invHigh.length, 'campaign is', 'campaigns are')} above ${BAND.high}% too and ${invHigh.length === 1 ? 'is' : 'are'} left out here, as ${invHigh.length === 1 ? 'it may be' : 'they may be'} meant to cost more for a while.` : ''),
         money: { v: over, l: `spent above ${BAND.high}% ACoS, 30 days`, kind: 'waste' },
+        per: perMap(lower.map(r => [r.brand + '|' + r.cid, r.over])),
         kv: [['Campaigns', cnt(lower.length)], ['Their ad spend', dollars(lower.reduce((t, r) => t + r.sp, 0))], [`Spent above ${BAND.high}%`, dollars(over)]],
         ev: { head: ['Campaign', 'ACoS', 'Spend', 'Ad sales', 'Orders', `Above ${BAND.high}%`].concat(stockHead), num: [1, 2, 3, 4, 5, 6, 7], n: lower.length,
           rows: lower.slice(0, EV_CAP).map(r => campRow(r, [pct(r.acos), dollars(r.sp), dollars(r.s), cnt(Math.round(r.o)), dollars(r.over)])),
@@ -31384,6 +31589,7 @@ const ADSH = (() => {
           act: `Pausing ${quote(top.name || top.cid)} could be worth considering — ${dollars(top.sp)} on ${cnt(top.cl)} clicks over 30 days without an order.`,
           why: `At your ${(cvrC * 100).toFixed(1)}% conversion rate, ${needC} clicks would usually bring about ${PAUSE_EXPECT} orders${odds ? ` — none at all happens by chance only about 1 time in ${odds}` : ''}. A look at its targets first, or a pause, stops the spend.`,
           money: { v: sp, l: 'their spend, 30 days', kind: 'waste' },
+          per: perMap(dead.map(r => [r.brand + '|' + r.cid, r.sp])),
           kv: [['Campaigns', cnt(dead.length)], ['Their spend', dollars(sp)], ['Clicks before judging', String(needC)]],
           ev: { head: ['Campaign', 'Clicks', 'Spend', 'Orders'].concat(stockHead), num: [1, 2, 3, 4, 5], n: dead.length,
             rows: dead.slice(0, EV_CAP).map(r => campRow(r, [cnt(r.cl), dollars(r.sp), '0'])),
@@ -31411,6 +31617,7 @@ const ADSH = (() => {
           act: `Adding ${quote(top.t)} as a negative in ${esc(cname(top.brand, top.cid))} might be worth it — ${dollars(top.sp)} on ${top.c} clicks and no order.`,
           why: `At your ${(cvr * 100).toFixed(1)}% conversion rate, ${need} clicks would usually bring about ${BURN_EXPECT} orders${odds ? ` — none at all happens by chance only about 1 time in ${odds}` : ''}. A negative stops paying for that search without touching the rest.`,
           money: { v: burned, l: 'spent with no order, 30 days', kind: 'waste' },
+          per: perMap(list.map(r => [r.brand + '|' + r.cid, r.sp])),
           kv: [['Search terms', cnt(list.length)], ['Spend', dollars(burned)], ['Clicks before judging', String(need)]],
           ev: { head: ['Search term', 'Campaign', 'Clicks', 'Spend'], num: [2, 3],
             n: list.length, rows: list.slice(0, EV_CAP).map(r => ({ c: [esc(r.t), esc(cname(r.brand, r.cid)), String(r.c), dollars(r.sp)], k: r.brand + '|' + r.cid })),
@@ -31481,6 +31688,167 @@ const ADSH = (() => {
             tot: ['Total', '', cnt(sum(low, r => r.stock)), '', '', cnt(sum(low, r => r.o)), dollars(sum(low, r => r.s))] },
           how: `FBA stock ÷ units a day over the product's last four finished weeks (about the last month's pace), under ${LOW_COVER} days, on a running ad that sold in the 30 days.${stockHow}`,
           src: ['ADS', 'STOCK', 'DERIVED'] });
+      }
+    }
+
+    /* 8, 9, 10 · MONEY GOING WHERE IT CANNOT COME BACK (the TrainAdz comparison, 18 Nov 2026): running ads that still spend on
+     * a product out of FBA stock, or on a listing Amazon has taken out of search; and products whose ad spend is above all their
+     * sales (TACoS over 100%) — a loss whatever the unit cost, so it needs no costs. */
+    // The running ads (ad enabled) that spent in the 30 days, per SKU matching rule, with their campaigns and spend per campaign.
+    const spendBySku = rule => {
+      const m = {};
+      liveAds.forEach(x => {
+        if (!(x.sp > 0) || !rule(x)) return;
+        const k = x.brand + '|' + x.sku;
+        const r = m[k] || (m[k] = { brand: x.brand, sku: x.sku, a: x.a, o: 0, s: 0, sp: 0, camps: new Set(), per: {} });
+        r.o += x.o || 0;
+        r.s += x.s || 0;
+        r.sp += x.sp || 0;
+        r.camps.add(cname(x.brand, x.cid));
+        const ck = x.brand + '|' + x.cid;
+        r.per[ck] = (r.per[ck] || 0) + x.sp;
+      });
+      return Object.values(m).sort((p, q) => q.sp - p.sp);
+    };
+    const perOf = list => perMap([].concat(...list.map(r => Object.entries(r.per))));
+    // The weekly store: the last finished week any product has an ad figure for, and the four finished weeks ending on it.
+    const wRows = (typeof WEEKLY !== 'undefined' && WEEKLY.rows) || {};
+    const weeklyOk = Object.keys(wRows).length > 0;
+    let wLast = '';
+    if (weeklyOk) {
+      Object.values(wRows).forEach(r => Object.keys((r && r.weeks) || {}).forEach(k => { if (k > wLast && r.weeks[k].spend != null) wLast = k; }));
+      if (wLast && !wWeekDone(wLast)) wLast = sdShift(wLast, -7);
+    }
+    const W4 = wLast ? [sdShift(wLast, -21), sdShift(wLast, -14), sdShift(wLast, -7), wLast] : [];
+    const wkTxt = k => dayTxt(k) + '–' + dayTxt(sdShift(k, 6));
+    const w4Txt = W4.length ? dayTxt(W4[0]) + '–' + dayTxt(sdShift(wLast, 6)) : '';
+    HS.w4 = W4.length ? { end: sdShift(wLast, 6), txt: w4Txt } : null;   // for "Data as of"
+    // An ASIN's ad spend in the last finished week (null when the weekly store does not have it).
+    const lastWkSp = a => {
+      const c = wLast && a && wRows[a] && wRows[a].weeks ? wRows[a].weeks[wLast] : null;
+      return c && c.spend != null ? c.spend : (wLast && a && wRows[a] ? 0 : null);
+    };
+    const stillTxt = wk => (wk > 0 ? `, ${dollars(wk)} of the product's in the last full week (${wkTxt(wLast)})` : '');
+
+    /* 8 · pause: ads still spending on a product that is out of FBA stock */
+    const NAME_OS = 'No running ad spends on a product that is out of FBA stock';
+    if (noAg || !HS.stock) notRun('oosSpend', NAME_OS, noAg || (stockWait ? 'wait' : noStock));
+    else {
+      // Where the weekly store has the product, it must still have spent in the last finished week — otherwise it has stopped.
+      const list = spendBySku(x => stockOf(x) === 0).map(r => Object.assign(r, { wk: lastWkSp(r.a) })).filter(r => r.wk == null || r.wk > 0);
+      if (!list.length) out.push({ id: 'oosSpend', name: NAME_OS, st: 'pass' });
+      else {
+        const top = list[0], sp = sum(list, r => r.sp), wk = sum(list, r => r.wk);
+        out.push({ id: 'oosSpend', name: NAME_OS, st: 'found', sev: 'high', cat: 'Pause',
+          title: `Ads are still spending on ${cnt(list.length)} out-of-stock ${plural(list.length, 'SKU')}`,
+          act: `Pausing the ads of ${esc(top.sku)} until it is back in stock may be worth it — they spent ${dollars(top.sp)} in 30 days${stillTxt(top.wk)}, and its FBA stock is 0${stockOld(top.brand)}.`,
+          why: 'A click on a product that cannot be bought cannot turn into an order. Amazon usually stops these ads by itself, but not always — a family with other sizes in stock, or a stock figure that lags, keeps them running.',
+          money: { v: sp, l: 'their ad spend, 30 days', kind: 'waste' },
+          per: perOf(list),
+          kv: [['SKUs', cnt(list.length)], ['Their ad spend, 30 days', dollars(sp)]].concat(wLast ? [[`Last full week (${wkTxt(wLast)})`, dollars(wk)]] : []).concat([stockKv]),
+          ev: { head: ['SKU', 'ASIN', 'Campaign', 'FBA stock', 'Ad spend', 'Last full week', 'Ad orders', 'Ad sales'], num: [3, 4, 5, 6, 7],
+            n: list.length, rows: list.slice(0, EV_CAP).map(r => ({ c: [esc(r.sku), esc(r.a), esc([...r.camps].join(', ')), '0', dollars(r.sp),
+              r.wk == null ? '—' : dollars(r.wk), cnt(r.o), dollars(r.s)], t: 'adh-k0', k: Object.keys(r.per).join(',') })),
+            tot: ['Total', '', '', '0', dollars(sp), wLast ? dollars(wk) : '—', cnt(sum(list, r => r.o)), dollars(sum(list, r => r.s))] },
+          how: 'Ads that are running (ad enabled) and spent in the 30 days, on a SKU whose FBA stock is 0'
+            + (wLast ? ` — and, where the weekly figures have the product, that still spent in the last finished week (${wkTxt(wLast)}; "Last full week" is the whole product's (ASIN's) ad spend that week)` : '') + '.' + stockHow,
+          src: ['ADS', 'STOCK'].concat(wLast ? ['WEEKLY'] : []) });
+      }
+    }
+
+    /* 9 · fix the listing: ads still spending on a listing Amazon has taken out of search */
+    const NAME_SU = 'No running ad spends on a listing Amazon has taken out of search';
+    const supOf = x => {
+      const v = HS.amz && x.sku ? HS.amz.get(x.brand + '|' + x.sku) : null;
+      const s = v && v.st ? String(v.st).toUpperCase() : '';
+      return s && s.includes('BUYABLE') && !s.includes('DISCOVERABLE') ? s : '';
+    };
+    const amzWait = HS.src.amz === 'loading' || HS.src.amz === 'idle';
+    if (noAg) notRun('sup', NAME_SU, noAg);
+    else if (!HS.amz) notRun('sup', NAME_SU, amzWait ? 'wait' : HS.src.amz === 'none' ? 'needs Amazon\'s listing status (Image Manager or Listing Errors right)' : 'Amazon\'s listing status (the Image Manager snapshot) could not be read');
+    else {
+      const list = spendBySku(x => !!supOf(x)).map(r => Object.assign(r, { wk: lastWkSp(r.a), amzSt: supOf(r) }));
+      const saw = brands.filter(b => HS.amzAt[b]).map(b => (brands.length > 1 ? (BRAND_NAME[b] || b) + ' ' : '') + dayTxt(new Date(HS.amzAt[b]))).join(', ');
+      if (!list.length) out.push({ id: 'sup', name: NAME_SU, st: 'pass' });
+      else {
+        const top = list[0], sp = sum(list, r => r.sp);
+        out.push({ id: 'sup', name: NAME_SU, st: 'found', sev: 'high', cat: 'Fix listing',
+          title: `Ads are spending on ${cnt(list.length)} ${plural(list.length, 'listing')} Amazon has taken out of search`,
+          act: `Fixing ${esc(top.sku)}'s listing first may be worth it — Amazon shows it as buyable but not in search, yet its ads spent ${dollars(top.sp)} in 30 days${stillTxt(top.wk)}.`,
+          why: 'A listing out of search sells only through a direct link; its ads tend to stop serving or to convert poorly until the listing is back. Listing Errors shows what Amazon wants fixed.',
+          money: { v: sp, l: 'their ad spend, 30 days', kind: 'waste' },
+          per: perOf(list),
+          kv: [['Listings', cnt(list.length)], ['Their ad spend, 30 days', dollars(sp)], ['Status read', saw ? esc(saw) : 'not known']],
+          ev: { head: ['SKU', 'ASIN', 'Campaign', 'Amazon status', 'Ad spend', 'Last full week', 'Ad orders', 'Ad sales'], num: [4, 5, 6, 7],
+            n: list.length, rows: list.slice(0, EV_CAP).map(r => ({ c: [esc(r.sku), esc(r.a), esc([...r.camps].join(', ')), esc(r.amzSt), dollars(r.sp),
+              r.wk == null ? '—' : dollars(r.wk), cnt(r.o), dollars(r.s)], k: Object.keys(r.per).join(',') })),
+            tot: ['Total', '', '', '', dollars(sp), wLast ? dollars(sum(list, r => r.wk)) : '—', cnt(sum(list, r => r.o)), dollars(sum(list, r => r.s))] },
+          how: `Ads that are running (ad enabled) and spent in the 30 days, on a SKU whose Amazon status is buyable but not discoverable — the rule Listing Health's "Suppressed from search" uses — as the Image Manager last read it${saw ? ` (${saw})` : ''}.`,
+          src: ['ADS', 'AMZ'].concat(wLast ? ['WEEKLY'] : []), link: { tab: 'Lerr', t: 'Open Listing Errors' } });
+      }
+    }
+
+    /* 10 · ad spend above sales: products whose ads cost more than everything they sold (TACoS over 100%), four finished weeks */
+    const NAME_T = 'No advertised product spends more on ads than it sells';
+    if (!weeklyOk || !W4.length) {
+      notRun('tacos', NAME_T, !(can('weekly') || can('profit') || can('audit')) ? 'needs the weekly sales (PPC & Organic, Profit or Audit right)'
+        : weeklyOk ? 'the weekly figures have no ad spend yet' : 'the weekly sales could not be read');
+    } else {
+      // the campaigns each ASIN is advertised in over the 30 days, with its spend in each — for the names, the jump and the stake
+      const campsOf = {};
+      agRows.forEach(x => {
+        if (!x.a || !(x.sp > 0)) return;
+        const m = campsOf[x.brand + '|' + x.a] || (campsOf[x.brand + '|' + x.a] = {});
+        m[x.brand + '|' + x.cid] = (m[x.brand + '|' + x.cid] || 0) + x.sp;
+      });
+      const rowOf = {};
+      rows.forEach(r => { rowOf[r.brand + '|' + r.cid] = r; });
+      const inView = new Set(brands);
+      let inv = 0;
+      const list = [];
+      Object.entries(wRows).forEach(([a, wr]) => {
+        if (!wr || !wr.weeks || (wr.brand ? !inView.has(wr.brand) : brands.length < 2)) return;
+        let sp = 0, rev = 0;
+        W4.forEach(k => {
+          const c = wr.weeks[k];
+          if (!c) return;
+          sp += c.spend || 0;
+          rev += c.rev || 0;
+        });
+        if (!(sp >= TACOS_MIN_SPEND) || !(sp > rev)) return;
+        const b = wr.brand || '', per = campsOf[b + '|' + a] || {}, ks = Object.keys(per);
+        if (ks.length && ks.every(k => rowOf[k] && rowOf[k].invest)) {
+          inv++;
+          return;
+        }
+        list.push({ a, brand: b, sp, rev, tacos: rev > 0 ? sp / rev * 100 : null, ks, per, ex: sp - rev });
+      });
+      list.sort((p, q) => q.ex - p.ex);
+      if (!list.length) out.push({ id: 'tacos', name: NAME_T, st: 'pass' });
+      else {
+        const top = list[0], sp = sum(list, r => r.sp), rev = sum(list, r => r.rev), ex = sum(list, r => r.ex);
+        // the money above sales, shared over each product's campaigns by its 30-day spend in them
+        const pairs = [];
+        list.forEach(r => {
+          const tot = r.ks.reduce((t, k) => t + r.per[k], 0);
+          if (tot > 0) r.ks.forEach(k => pairs.push([k, r.ex * r.per[k] / tot]));
+          else pairs.push(['a|' + r.brand + '|' + r.a, r.ex]);
+        });
+        const camps = r => [...new Set(r.ks.map(k => cname(k.split('|')[0], k.split('|').slice(1).join('|'))))].join(', ') || '—';
+        out.push({ id: 'tacos', name: NAME_T, st: 'found', sev: 'high', cat: 'Lower bids',
+          title: `${cnt(list.length)} ${plural(list.length, 'product spends', 'products spend')} more on ads than ${list.length === 1 ? 'it sells' : 'they sell'}`,
+          act: `${esc(top.a)} might be worth looking at first — ${dollars(top.sp)} of ad spend on ${dollars(top.rev)} of sales (${top.tacos == null ? 'no sales' : pct(top.tacos) + ' TACoS'}) over ${w4Txt}. Lowering its bids, or pausing its weakest targets, stops the loss.`,
+          why: 'When the ads cost more than everything a product sold — organic sales included — it loses money whatever its unit cost, so this needs no costs to be sure.'
+            + (inv ? ` ${cnt(inv)} more ${plural(inv, 'product is', 'products are')} advertised only in launch, ranking or seasonal campaigns and ${inv === 1 ? 'is' : 'are'} left out, as ${inv === 1 ? 'it may be' : 'they may be'} meant to cost more for a while.` : ''),
+          money: { v: ex, l: 'ad spend beyond their sales, 4 weeks', kind: 'waste' },
+          per: perMap(pairs),
+          kv: [['Products', cnt(list.length)], ['Their ad spend', dollars(sp)], ['Their sales', dollars(rev)], ['Their TACoS', rev > 0 ? pct(sp / rev * 100) : '—']],
+          ev: { head: ['ASIN', 'Campaigns', 'Ad spend', 'Sales', 'TACoS', 'Above sales'], num: [2, 3, 4, 5], n: list.length,
+            rows: list.slice(0, EV_CAP).map(r => ({ c: [esc(r.a), esc(camps(r)), dollars(r.sp), dollars(r.rev), r.tacos == null ? 'no sales' : pct(r.tacos), dollars(r.ex)],
+              k: r.ks.join(',') || undefined })),
+            tot: ['Total', '', dollars(sp), dollars(rev), rev > 0 ? pct(sp / rev * 100) : '—', dollars(ex)] },
+          how: `Each product's (ASIN's) ad spend and all its sales — ads and organic — over the four finished weeks ${w4Txt}, from the weekly store; listed when the spend is at least ${dollars(TACOS_MIN_SPEND)} and above the sales. "Above sales" is the spend beyond them. Launch, ranking and seasonal campaigns (by their names) are left out.`,
+          src: ['WEEKLY', 'ADS', 'DERIVED'] });
       }
     }
 
@@ -31684,12 +32052,107 @@ const ADSH = (() => {
     return `<div class="adh-top"><div class="adh-stats">${tile1}${tile2}${tile3}</div>${urgent}</div>`;
   }
 
+  /* MONEY AT STAKE AND DATA AS OF (the TrainAdz comparison, 18 Nov 2026: "put the money at stake on top of every page"; "stamp
+   * data as of on every page"). One strip over the page (tStake): the money the waste suggestions name, counted once per
+   * campaign — the largest of them in each, so a campaign above the range that also burns on search terms is not added twice —
+   * up to every suggestion added up; a chip per suggestion opens it in the bar; and the day each source reaches. */
+  const STAKE_NAME = { lower: 'Above the ACoS range', pause: 'Campaigns with no sales', burn: 'No-sale search terms',
+    oosSpend: 'Out of stock, still spending', sup: 'Out of search, still spending', tacos: 'Ad spend above sales' };
+  function stakeOf(found) {
+    const waste = found.filter(f => f.money && f.money.kind === 'waste' && f.money.v > 0);
+    const best = {};
+    waste.forEach(f => Object.entries(f.per || {}).forEach(([k, v]) => { if (!(best[k] >= v)) best[k] = v; }));
+    return { lo: Object.values(best).reduce((t, v) => t + v, 0), hi: waste.reduce((t, f) => t + f.money.v, 0), waste };
+  }
+  // The days each source reaches, oldest flagged: sales and ad figures (the daily store), the 30-day caches, the weekly store,
+  // FBA stock and Amazon's listing status.
+  function asOfHtml(c) {
+    const today = sdToday();
+    const age = d => (d ? Math.round((new Date(today + 'T00:00:00Z') - new Date(String(d).slice(0, 10) + 'T00:00:00Z')) / 864e5) : null);
+    const ymd = d => (d instanceof Date ? d.toISOString().slice(0, 10) : String(d || '').slice(0, 10));
+    const item = (label, d, txt, tip, old) => {
+      const a = age(ymd(d)), late = a != null && a > (old || STALE_DAYS + 1);
+      return `<span class="adt-asof-i${late ? ' adt-late' : ''}" title="${esc(tip + (a != null ? ` — ${a} ${plural(a, 'day')} ago` : ''))}"><em>${esc(label)}</em> ${esc(txt || (d ? dayTxt(ymd(d)) : '—'))}</span>`;
+    };
+    // sales: the newest day with sales in the daily store, for the brands in view
+    let sales = '';
+    try {
+      c.brands.forEach(b => Object.entries((TREND.d || {})[b] || {}).forEach(([day, v]) => { if (day > sales && v && v[T_I.sales] > 0) sales = day; }));
+    } catch (e) { sales = ''; }
+    const parts = [item('Sales to', sales, '', 'The newest day with sales in the Overview\'s daily store (Orders workbooks; today is read live)')];
+    if (c.ad.to) parts.push(item('Ad figures', c.ad.to, `${dayTxt(c.ad.from)} – ${dayTxt(c.ad.to)}`, 'The days the daily ad figures cover (Amazon\'s report runs a day or two behind the sales)', 3));
+    const tp = c.brands.map(b => (HS.terms || {})[b] || {}).find(p => p.to);
+    const built = [String(c.at || '').slice(0, 10), String(HS.at || '').slice(0, 10)].filter(Boolean).sort()[0];
+    if (built) parts.push(item('30-day campaign & search-term figures', built, (tp && tp.from ? `${dayTxt(tp.from)} – ${dayTxt(tp.to)}, ` : '') + 'built ' + dayTxt(built),
+      'The nightly 30-day caches Campaign performance, Recommendation and Search Term Analysis read'));
+    if (HS.w4) parts.push(item('Weekly figures', HS.w4.end, HS.w4.txt, 'The four finished weeks "Ad spend above sales" reads (the PPC & Organic weekly store)', 9));
+    const st = c.brands.map(b => HS.stockAt && HS.stockAt[b]).filter(d => d instanceof Date && !isNaN(d.getTime())).sort((p, q) => p - q)[0];
+    if (st) parts.push(item('FBA stock saved', st, '', 'When Listing Health last saved the FBA stock'));
+    const am = c.brands.map(b => HS.amzAt && HS.amzAt[b]).filter(Boolean).sort((p, q) => p - q)[0];
+    if (am) parts.push(item('Listing status', new Date(am), '', 'When the Image Manager last read Amazon\'s listing status (out of search or not)', 7));
+    let win = '';
+    try {
+      if (typeof T_SPAN_AUTO !== 'undefined' && T_SPAN_AUTO && !T_SPAN_TOUCHED && T_GRAN === 'week' && $('tSpan').value === String(T_SPAN_AUTO.n)) {
+        win = `<span class="adt-asof-i adt-asof-win" title="The page opened on the weeks every figure covers, so sales and ad figures speak for the same weeks. Pick another stretch above at any time.">`
+          + `<em>Page window</em> last ${T_SPAN_AUTO.n} weeks — the weeks with ad figures</span>`;
+      }
+    } catch (e) { win = ''; }
+    return `<div class="adt-asof"><b>Data as of</b>${parts.join('')}${win}</div>`;
+  }
+  function stakePaint(c, found, wait) {
+    const el = $('tStake');
+    if (!el) return;
+    if (!c) {
+      el.classList.add('hide');
+      return;
+    }
+    el.classList.remove('hide');
+    const s = stakeOf(found || []);
+    const waiting = (wait || []).some(x => STAKE_NAME[x.id]);
+    const tip = 'Money the suggestions below name as going out with little or nothing coming back: spend above your ACoS range, campaigns and search terms with no sales, ads on products out of stock or out of search, and ad spend above a product\'s sales. The first figure counts each campaign once (the largest suggestion in it); the second adds every suggestion up, so the true figure is between the two. Last 30 days (ad spend above sales: the last four finished weeks).';
+    const big = found == null ? '<b class="adt-sk-v"><span class="adh-skel adh-skel-w"></span></b>'
+      : s.hi > 0 ? `<b class="adt-sk-v">${dollars(s.lo)}</b>${s.hi - s.lo >= 1 ? `<small>to ${dollars(s.hi)}</small>` : ''}`
+      : '<b class="adt-sk-v adt-sk-ok">$0</b><small>nothing found</small>';
+    const chips = s.waste.sort((p, q) => q.money.v - p.money.v).map(f => `<button type="button" class="adt-sk-chip adh-${f.sev}" data-f="${esc(f.id)}" title="${esc(f.title)}">`
+      + `<span>${esc(STAKE_NAME[f.id] || f.cat)}</span><b>${dollars(f.money.v)}</b></button>`).join('')
+      + (waiting ? '<span class="adt-sk-wait">still adding up…</span>' : '');
+    el.innerHTML = `<div class="adt-sk-row"><div class="adt-sk-main" role="button" tabindex="0" data-go="list">`
+      + `<span class="adt-sk-l">Money at stake<span class="adx-i" title="${esc(tip)}">i</span></span>`
+      + `<span class="adt-sk-vw">${big}</span><span class="adt-sk-sub">last 30 days · ${esc(BRAND_NAME[$('tBrand').value] || 'Both brands')}</span></div>`
+      + `<div class="adt-sk-chips">${chips}</div></div>${asOfHtml(c)}`;
+    if (!el.dataset.wired) {
+      el.dataset.wired = '1';
+      const go = id => {
+        const bar = $('tHealth'), dd = bar && bar.querySelector('details.adh-dd');
+        if (!dd) return;
+        dd.open = true;
+        HS.open = true;
+        const f = id ? bar.querySelector(`details.adh-f[data-f="${id}"]`) : null;
+        if (f) f.open = true;
+        (f || dd).scrollIntoView({ behavior: 'smooth', block: f ? 'center' : 'start' });
+      };
+      el.addEventListener('click', e => {
+        if (e.target.closest('.adx-i')) return;
+        const b = e.target.closest('.adt-sk-chip');
+        if (b) go(b.dataset.f);
+        else if (e.target.closest('.adt-sk-main')) go('');
+      });
+      el.addEventListener('keydown', e => {
+        if ((e.key === 'Enter' || e.key === ' ') && e.target.classList.contains('adt-sk-main')) {
+          e.preventDefault();
+          go('');
+        }
+      });
+    }
+  }
+
   // The whole bar, from whatever is loaded. Drawn again only when something it reads has changed.
   function render() {
     const el = $('tHealth');
     const c = ADSX.state();
     const t28 = c.t28 ? Math.round(c.t28.sales) + '/' + Math.round(c.t28.spend) : '';
-    const sig = [c.brands.join(','), c.st, c.ver, c.key, HS.ver, HS.all, t28].join('|');
+    // (the page's stretch only for the strip's "Page window" note: it is cut off again for the checks' memo below)
+    const sig = [c.brands.join(','), c.st, c.ver, c.key, HS.ver, HS.all, t28].join('|') + '|sp' + (($('tSpan') || {}).value || '');
     if (sig === HS.sig && el.innerHTML) return;
     HS.sig = sig;
     share(c);
@@ -31697,10 +32160,12 @@ const ADSH = (() => {
     const wrap = (sum, body, cls) => `<details class="adh-dd${cls ? ' ' + cls : ''}"${HS.open ? ' open' : ''}><summary class="adh-sum">${sum}</summary><div class="adh-body">${body}</div></details>`;
     // --- loading, failed, or nothing to check ---
     if (c.st === 'failed') {
+      stakePaint(null);
       el.innerHTML = wrap(barHead(`Last 30 days · ${brandTxt}`, ''), '<div class="ui-error">The checks need the campaign figures, which did not load — see Campaign performance below.</div>');
       return;
     }
     if (c.st !== 'ready') {
+      stakePaint(c, null, []);
       el.innerHTML = wrap(barHead(`Last 30 days · Sponsored Products · ${brandTxt} · running the checks…`, '<span class="adh-skel"></span><span class="adh-skel"></span>')
         + '<span class="adh-urg adh-wait"><span class="adh-skel adh-skel-w"></span></span>', '<div class="ui-loading">Running the checks…</div>');
       return;
@@ -31708,11 +32173,12 @@ const ADSH = (() => {
     // (with ad spend in the daily figures the checks still run: a brand missing from the caches is a finding of its own)
     if (!c.rows.length && HS.src.terms !== 'loading' && !(HS.terms && c.brands.some(b => ((HS.terms[b] || {}).rows || []).length))
       && !(c.t28 && c.t28.spend > 0)) {
+      stakePaint(null);
       el.innerHTML = wrap(barHead(`Last 30 days · ${brandTxt}`, ''), '<div class="ui-empty">No 30-day ad figures yet. The nightly run keeps them, so the checks run the morning after.</div>');
       return;
     }
     // --- the checks, ranked (kept for the last few brand choices, so switching back is instant) ---
-    const mkey = sig.replace(/\|(true|false)\|/, '|');
+    const mkey = sig.replace(/\|sp[^|]*$/, '').replace(/\|(true|false)\|/, '|');
     let list = HS.memo.get(mkey);
     if (!list) {
       list = checks(c);
@@ -31748,6 +32214,7 @@ const ADSH = (() => {
       + (found.length ? `<div class="adh-list">${shown.map((f, i) => findingHtml(f, openNow.has(f.id), i)).join('')}</div>` : '')
       + `<div class="adh-foot"><div class="adh-rest">${rest}</div><div class="adh-srcs adh-key"><span>Sources</span>${tags(Object.keys(SRC))}</div>${more}</div>`;
     el.innerHTML = wrap(barHead(sub, chips) + urgent, body);
+    stakePaint(c, found, wait);
   }
 
   // Draw, and hide the bar quietly if that fails.
@@ -31755,6 +32222,7 @@ const ADSH = (() => {
     try { render(); } catch (e) {
       console.warn('[ads-health]', e);
       try { $('tHealth').classList.add('hide'); } catch (x) { /* the bar itself is missing */ }
+      try { $('tStake').classList.add('hide'); } catch (x) { /* the strip is missing */ }
     }
   }
 
@@ -31854,6 +32322,7 @@ const ADSH = (() => {
     // The figures are Search Terms' to show: an account without that tab does not get them here either.
     if (!can('st')) {
       el.classList.add('hide');
+      if ($('tStake')) $('tStake').classList.add('hide');
       return;
     }
     el.classList.remove('hide');
@@ -38723,7 +39192,7 @@ $('mbFilter').addEventListener('input', () => {
  * biggest falls and gains.
  * 13 Nov 2026 (Vishesh): the top of the page is the PPC & Organic · New layout again — the five period cards and
  * the six totals, plain, only bigger and coloured, the date row Today … Last month · Custom (Last week / Last 4
- * weeks are quick picks inside Custom), 14 days by default and the original table columns (the 8-week trend,
+ * weeks are quick picks inside Custom), 14 days by default (18 Nov: the last 7 complete days) and the original table columns (the 8-week trend,
  * Unit session %, ROAS and CPC are still in Columns). New above the period cards: one card per brand with its
  * parents and child ASINs (pxBrandCards — the same count as the table's All row), how many of them sold in the
  * dates, and how many Listing Health holds. The chart, the trend lines and What moved moved to the end of the
@@ -38761,7 +39230,7 @@ const PX_PAGE = 100;
 // cgran: the trend chart's bars ('auto' / 'day' / 'week'); chart: the chart is open; alertWk: which finished week
 // the "What moved" card reads (0 = the last one); alertAll: that card shows every row, not the first few.
 let PX = {
-  mode: 'range', level: 'parent', brand: 'ALL', metric: 'rev', dkey: 'd14', lo: '', hi: '',
+  mode: 'range', level: 'parent', brand: 'ALL', metric: 'rev', dkey: 'c7', lo: '', hi: '',
   pc: { n: 4, len: 7, end: '', preset: null }, hide: ['tr', 'usp', 'roas', 'cpc'], q: '', recOpen: false, recF: new Set(), recAll: new Set(), chip: 'all', sk: 'rev', sd: -1,
   open: new Set(), kidN: {}, pop: null, draft: null, show: PX_PAGE, msg: '', loading: false, anim: false,
   cgran: 'auto', chart: true, alertWk: 0, alertAll: false,
@@ -38785,7 +39254,10 @@ try {
   // Sunday–Saturday weeks — so a remembered one becomes the 13 weeks it was trying to show (12 Nov).
   if (PX.pc.preset === 'm3') PX.pc = { n: 13, len: 7, end: '', preset: 'w13' };
   if (Array.isArray(s.known)) PX_SAVED_KNOWN = s.known;
-  if (PX.dkey === 'custom') PX.dkey = 'd14';
+  /* OPEN ON THE LAST 7 COMPLETE DAYS (the TrainAdz comparison, 18 Nov 2026: "Product Performance opens on Today, where every
+   * cell is a dash because ad data runs to the day before yesterday"). The page never opens on Today or Yesterday, and a
+   * choice saved before this (most often the old 14-day default, saved with everything else) opens once on the new one. */
+  if (PX.dkey === 'custom' || PX.dkey === 'today' || PX.dkey === 'yest' || (!s.c7 && PX.dkey === 'd14')) PX.dkey = 'c7';
 } catch (e) { /* storage off — defaults */ }
 // A remembered choice this version no longer has would break every render — fall back to the defaults.
 if (!['range', 'cols'].includes(PX.mode)) PX.mode = 'range';
@@ -38798,7 +39270,7 @@ function pxSave() {
   try {
     localStorage.setItem(PX_KEY, JSON.stringify({
       mode: PX.mode, level: PX.level, metric: PX.metric, cgran: PX.cgran, chart: PX.chart,
-      dkey: PX.dkey, hide: PX.hide, known: PX_RCOLS.map(x => x[0]),
+      dkey: PX.dkey, hide: PX.hide, known: PX_RCOLS.map(x => x[0]), c7: 1,
       pc: { n: PX.pc.n, len: PX.pc.len, preset: PX.pc.preset } }));
   } catch (e) { /* fine */ }
 }
@@ -38853,8 +39325,24 @@ function pxToday() {
   if (n - PX_TD.at > 1000 || !PX_TD.v) PX_TD = { at: n, v: sdToday() };
   return PX_TD.v;
 }
-// The date chips: key → [label, today → [lo, hi]].
+// The last day the per-day ad figures reach — Amazon's ad report runs a day or two behind the sales: the newest day any product
+// has an ad figure on, in the per-day store (worked out once per read of it); before that store is read, the day before
+// yesterday. Never after yesterday.
+let PX_ADLAST = { key: '', v: '' };
+function pxAdLast(t) {
+  const y = sdShift(t, -1), rows = WDAY.rows || {}, key = WDAY.at + '|' + Object.keys(rows).length;
+  if (PX_ADLAST.key !== key) {
+    let hi = '';
+    Object.values(rows).forEach(r => Object.keys((r && r.days) || {}).forEach(d => { if (d > hi && r.days[d].spend != null) hi = d; }));
+    PX_ADLAST = { key, v: hi };
+  }
+  const v = PX_ADLAST.v || sdShift(t, -2);
+  return v > y ? y : v;
+}
+// The date chips: key → [label, today → [lo, hi], tip]. The page opens on the first: 7 days that are over AND have ad figures.
 const PX_DATES = {
+  c7:     ['Last 7 complete days', t => { const e = pxAdLast(t); return [sdShift(e, -6), e]; },
+    'The 7 days ending on the last day the ad figures reach (Amazon\'s ad report runs a day or two behind), so every column — sales and ads — is filled in.'],
   today:  ['Today', t => [t, t]],
   yest:   ['Yesterday', t => [sdShift(t, -1), sdShift(t, -1)]],
   d7:     ['7 days', t => [sdShift(t, -7), sdShift(t, -1)]],
@@ -40467,7 +40955,8 @@ function pxDatesNote(ctx) {
   const c = pxCmp(ctx);
   return `<p>The dates drive everything between the toolbar and the end of the table: the totals, the table, the brand cards' “sold” and the chart. Now: <b>${pxEsc(c.d)}</b>${c.n ? ` (${c.days})` : ''}.</p>`
     + `<p>They are ${pxCmpTxt(c)}. That is what “vs prev”, the Sales % and Falling / Growing use.</p>`
-    + '<ul><li><b>Today</b> — so far, never compared until it is over.</li><li><b>Yesterday, 7 / 14 / 30 days</b> — ending yesterday.</li><li><b>This month</b> — the 1st to today; <b>Last month</b> — the whole of it.</li>'
+    + `<ul><li><b>Last 7 complete days</b> — the page opens here: the 7 days ending ${pxEsc(pxFmtRange(pxAdLast(pxToday()), pxAdLast(pxToday())))}, the last day with ad figures, so no column is a dash.</li><li><b>Today</b> — so far, never compared until it is over.</li>`
+    + '<li><b>Yesterday, 7 / 14 / 30 days</b> — ending yesterday.</li><li><b>This month</b> — the 1st to today; <b>Last month</b> — the whole of it.</li>'
     + `<li><b>Custom ▾</b> — any From / To, plus <b>Last week</b> and <b>Last 4 weeks</b>: whole Sunday–Saturday weeks, the only dates with Sessions and Unit session %.</li></ul>`
     + `<p>Day-by-day figures start on <b>${WDAY.from ? pxEsc(pxFmtRange(WDAY.from, WDAY.from)) : '—'}</b>; before that only whole weeks can be shown. <b>Split into columns</b> puts the same kind of dates side by side.</p>`;
 }
@@ -40484,7 +40973,7 @@ function pxWhyFit() {
  * as the Ad Console's Recommendation (ads/ads-health.js, its adh-* look): closed, it shows the most urgent suggestion;
  * open, three figures, the top suggestion, then one row per check that found something, each opening to its products.
  * Nine checks over the parents and stand-alone listings in view (never discontinued or inactive ones), on the dates in
- * view when they are 7+ finished days, else the last 14 days; stock is Listing Health's FBA stock now. Every suggestion
+ * view when they are 7+ finished days, else the last 7 complete days (18 Nov; was the last 14); stock is Listing Health's FBA stock now. Every suggestion
  * is polite — never an order — and says how it was worked out. READ-ONLY: nothing is changed anywhere. */
 const PX_SEV = {
   crit: { t: 'Critical', r: 0, tip: 'Sales have stopped.' },
@@ -40519,7 +41008,7 @@ function pxStockOf(e) {
 function pxRecs(ctx) {
   const t = pxToday();
   const sp = ctx.span, ok = sp && sp.src !== 'none' && sp.hi < t && pxLen(sp.lo, sp.hi) >= 7 && PX.mode === 'range';
-  const plan = ok ? sp : pxPlan(sdShift(t, -14), sdShift(t, -1));
+  const plan = ok ? sp : pxPlan(...PX_DATES.c7[1](t));
   const prev = pxPrevPlan(plan);
   const dTxt = pxFmtRange(plan.lo, plan.hi), pTxt = pxFmtRange(prev.lo, prev.hi);
   const live = ctx.found.filter(e => !e.old && !e.disc);
@@ -40636,7 +41125,7 @@ function pxRecsCard(ctx) {
   // Every figure is a positive amount; a loss is red, a gain green, a count plain.
   const money = m => (m.kind === 'count' ? `<b>${pxN(m.v)}</b>` : `<b class="${m.kind === 'loss' ? 'ui-neg' : m.kind === 'gain' ? 'adh-pos' : ''}">${pxMoney(Math.abs(m.v))}</b>`) + `<small>${pxEsc(m.l)}</small>`;
   const brandTxt = PX.brand === 'ALL' ? 'Both brands' : BRAND_NAME[PX.brand] || PX.brand;
-  const sub = `${pxEsc(R.dTxt)}${R.fellBack ? ' (the last 14 days — the dates in view are not 7+ finished days)' : ''} · ${pxEsc(brandTxt)} · ${R.live} products · ${R.found.length} suggestion${R.found.length === 1 ? '' : 's'} from ${R.checks} checks`;
+  const sub = `${pxEsc(R.dTxt)}${R.fellBack ? ' (the last 7 complete days — the dates in view are not 7+ finished days)' : ''} · ${pxEsc(brandTxt)} · ${R.live} products · ${R.found.length} suggestion${R.found.length === 1 ? '' : 's'} from ${R.checks} checks`;
   const chips = R.found.length ? Object.keys(PX_SEV).filter(k => n[k]).map(k => `<span class="adh-chip adh-${k}"><i class="adh-dot"></i>${n[k]} ${PX_SEV[k].t}</span>`).join('')
     : '<span class="adh-chip adh-ok"><i class="adh-dot"></i>All clear</span>';
   const urg = f0 ? `<span class="adh-urg adh-${f0.sev}"><span class="adh-urgl">Top suggestion</span><span class="adh-urga">${pxEsc(f0.title)} — ${pxEsc(f0.act)}</span></span>`
@@ -40793,7 +41282,7 @@ function pxRender(focusSel) {
     const prev = L ? pxFmtRange(sdShift(lo, -L), sdShift(lo, -1)) : '—';
     hbar = '<div class="px-hbar"><div class="px-dchips" role="group" aria-label="Dates">'
       + Object.entries(PX_DATES).filter(([k]) => !PX_WEEKPICKS.includes(k))
-        .map(([k, v]) => `<button class="px-dchip" data-pxdk="${k}" aria-pressed="${PX.dkey === k}">${v[0]}</button>`).join('')
+        .map(([k, v]) => `<button class="px-dchip" data-pxdk="${k}" aria-pressed="${PX.dkey === k}"${v[2] ? ` title="${pxEsc(v[2])}"` : ''}>${v[0]}</button>`).join('')
       + `<button class="px-dchip" data-px="pop-date" aria-pressed="${PX.dkey === 'custom' || PX_WEEKPICKS.includes(PX.dkey)}" aria-expanded="${PX.pop === 'date'}">${PX.dkey === 'custom' ? pxFmtRange(lo, hi) + ' ▾' : PX_WEEKPICKS.includes(PX.dkey) ? PX_DATES[PX.dkey][0] + ' ▾' : 'Custom ▾'}</button>${pxI('dates', 'Dates and what they are compared with', pxDatesNote(ctx))}</div>`
       + `<div class="px-tb"><span class="px-rlabel"><b>${pxFmtRange(lo, hi)}${hi >= pxToday() ? ' (today so far)' : ''}</b> · vs ${prev}${tot.adTo ? ` · <span class="px-adto" title="The ad report runs a day behind sales: ad figures, organic and TACoS stop at ${pxEsc(pxDM(tot.adTo))}.">ads to ${pxEsc(pxDM(tot.adTo))}</span>` : ''}</span>`
       + `<button class="px-colsum" data-px="split">${PX_IC_COLS}Split into columns <span class="px-ed">＋</span></button></div>`

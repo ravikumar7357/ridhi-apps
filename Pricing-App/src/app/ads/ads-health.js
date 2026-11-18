@@ -2,9 +2,12 @@
  * Screens: Ad Console (tab 'trends', pane paneTrends), the Recommendation bar (tHealth). Nothing here runs by itself: ADSX.draw
  * (ads/ads-charts.js) calls ADSH.draw inside a try, and again once the campaign figures have arrived.
  * Does: reads what Search Terms reads — the 30-day search-term, target and ad-group caches — plus the FBA stock where the
- * account may read it and the Ad Console's own daily store, and runs seven checks over the brands in view. Each one, when it
- * finds something, makes one polite suggestion — never an order: lower bids, pause a campaign, stop a search term, restock,
- * send stock before it runs out, raise bids, turn a paused ad back on — with the money involved, the evidence, how it was
+ * account may read it, Amazon's listing status (the Image Manager snapshot) likewise, the weekly store and the Ad Console's
+ * own daily store, and runs ten checks over the brands in view. Each one, when it finds something, makes one polite
+ * suggestion — never an order: lower bids, pause a campaign, stop a search term, restock, send stock before it runs out,
+ * pause ads still spending on a product out of stock, fix a listing Amazon took out of search while its ads spend, look at
+ * products whose ad spend is above all their sales (TACoS over 100%, no costs needed), raise bids, turn a paused ad back
+ * on — with the money involved, the evidence, how it was
  * checked and where the figures came from. A check passes, or cannot run because a right or the data it needs is missing —
  * said, never guessed. Suggestions rank by priority, then by the money involved. The bar stays closed until opened and shows
  * the top suggestion in one line; open, it shows three figures (suggestions, ACoS against the range, money burned), the top
@@ -26,8 +29,10 @@
  * what they advertise, tinted light red (out of stock), light orange (under 7 days) or light yellow (under 15 days) at each
  * product's pace over its last four finished weeks; a campaign row opens that campaign in Campaign performance, and "Show
  * these in Campaign performance" narrows it to the campaigns a suggestion names. A total row closes each table.
+ * MONEY AT STAKE (tStake, over the page): the waste the suggestions name, counted once per campaign, up to all of it added up,
+ * with a chip per suggestion and the day each source reaches ("Data as of").
  * READ-ONLY: nothing here saves anything, and nothing changes anything at Amazon.
- * Main functions: ADSH.draw — and inside it load, checks, render. */
+ * Main functions: ADSH.draw — and inside it load, checks, render, stakePaint. */
 const ADSH = (() => {
   // Priority: its words, its rank, and what it means (the ⓘ on the bar).
   const SEV = {
@@ -40,6 +45,8 @@ const ADSH = (() => {
   const SRC = {
     ADS: 'Amazon Ads reports — Sponsored Products only, sales credited within 30 days of a click. The nightly caches Search Term Analysis reads.',
     STOCK: 'FBA stock as Listing Health last saved it.',
+    AMZ: 'Amazon\'s listing status as the Image Manager last saved it — the snapshot Listing Health reads too.',
+    WEEKLY: 'Weekly sales and ad spend per product (the PPC & Organic store) over the last four finished weeks.',
     DERIVED: 'Worked out here from the figures above.',
   };
   const SHOW = 6;                 // suggestions listed before "Show all"
@@ -57,6 +64,7 @@ const ADSH = (() => {
   const RAISE_COVER = 30;         // days of stock a campaign's selling products need before a bid increase is suggested
   const COVER_MIN = 80;           // % of a brand's ad spend the campaign and search-term caches should hold
   const COVER_MIN_SPEND = 100;    // a brand that spent less than this on ads in the 30 days is not checked
+  const TACOS_MIN_SPEND = 50;     // ad spend over the four weeks below which "ad spend above sales" is not judged
   const TRI = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>';
   const CHEV = '<svg class="adh-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>';
   const BULB = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.6 10.8c.7.5 1.1 1.3 1.1 2.2h5c0-.9.4-1.7 1.1-2.2A6 6 0 0 0 12 3Z"/></svg>';
@@ -67,7 +75,9 @@ const ADSH = (() => {
   // spend, added up once; at = when the search-term cache was built; miss = what failed; ver = bumped as each source lands;
   // sig = what the bar last drew; all = "Show all"; open = the bar is open; seen = it has been opened once.
   // exp = the suggestions whose table is opened to every row.
-  const HS = { st: 'idle', src: { terms: 'idle', tgts: 'idle', stock: 'idle' }, terms: null, tgts: null, flat: null, stock: null, stockAt: {},
+  // amz = Amazon's listing status per "<brand>|<sku>" (the Image Manager snapshot, AMZ.map); amzAt = when each brand's was saved.
+  const HS = { st: 'idle', src: { terms: 'idle', tgts: 'idle', stock: 'idle', amz: 'idle' }, terms: null, tgts: null, flat: null, stock: null, stockAt: {},
+    amz: null, amzAt: {},
     stSum: null, at: '', miss: {}, ver: 0, sig: '', all: false, open: false, seen: false, memo: new Map(), exp: new Set() };
 
   /* ---------- small helpers ---------- */
@@ -162,6 +172,23 @@ const ADSH = (() => {
         restock();
       }));
     } else HS.src.stock = 'none';
+    // --- Amazon's listing status (taken out of search?): the Image Manager's snapshot, read once — the same one Listing
+    //     Health reads (amzEnsure, listing/listing-rules.js), only for an account the database lets read it ---
+    if (typeof amzEnsure === 'function' && (can('img') || can('lerr'))) {
+      HS.src.amz = 'loading';
+      jobs.push((async () => {
+        try {
+          if (!AMZ.map) {
+            await amzEnsure();
+            for (let i = 0; AMZ.busy && i < 120; i++) await new Promise(r => setTimeout(r, 250));   // another screen is reading it
+          }
+          HS.amz = AMZ.map || null;
+          HS.amzAt = { SP: AMZ.snapAt.SP || 0, CPC: AMZ.snapAt.CPC || 0 };
+        } catch (e) { HS.amz = null; }
+        HS.src.amz = HS.amz ? 'ready' : 'failed';
+        landed();
+      })());
+    } else HS.src.amz = 'none';
     await Promise.all(jobs);
     HS.st = 'ready';
     landed();
@@ -293,6 +320,12 @@ const ADSH = (() => {
     };
     const sum = (list, f) => list.reduce((t, r) => t + (f(r) || 0), 0);
     const stockHead = ['FBA stock', 'Days left'];
+    // [key, $] pairs → { key: $ added up }: the money of a suggestion per campaign, for Money at stake.
+    const perMap = pairs => {
+      const m = {};
+      pairs.forEach(([k, v]) => { if (v > 0) m[k] = (m[k] || 0) + v; });
+      return m;
+    };
 
     /* 1 · lower bids: running campaigns above the range */
     const NAME_LO = `Every campaign with enough orders is at or under ${BAND.high}% ACoS`;
@@ -310,6 +343,7 @@ const ADSH = (() => {
         why: `Above ${BAND.high}%, each ad sale costs more than your good range allows. Easing bids a little at a time (say 10–15%) and looking again after a week usually brings ACoS down without losing the sales that convert.`
           + (invHigh.length ? ` ${cnt(invHigh.length)} launch, ranking or seasonal ${plural(invHigh.length, 'campaign is', 'campaigns are')} above ${BAND.high}% too and ${invHigh.length === 1 ? 'is' : 'are'} left out here, as ${invHigh.length === 1 ? 'it may be' : 'they may be'} meant to cost more for a while.` : ''),
         money: { v: over, l: `spent above ${BAND.high}% ACoS, 30 days`, kind: 'waste' },
+        per: perMap(lower.map(r => [r.brand + '|' + r.cid, r.over])),
         kv: [['Campaigns', cnt(lower.length)], ['Their ad spend', dollars(lower.reduce((t, r) => t + r.sp, 0))], [`Spent above ${BAND.high}%`, dollars(over)]],
         ev: { head: ['Campaign', 'ACoS', 'Spend', 'Ad sales', 'Orders', `Above ${BAND.high}%`].concat(stockHead), num: [1, 2, 3, 4, 5, 6, 7], n: lower.length,
           rows: lower.slice(0, EV_CAP).map(r => campRow(r, [pct(r.acos), dollars(r.sp), dollars(r.s), cnt(Math.round(r.o)), dollars(r.over)])),
@@ -337,6 +371,7 @@ const ADSH = (() => {
           act: `Pausing ${quote(top.name || top.cid)} could be worth considering — ${dollars(top.sp)} on ${cnt(top.cl)} clicks over 30 days without an order.`,
           why: `At your ${(cvrC * 100).toFixed(1)}% conversion rate, ${needC} clicks would usually bring about ${PAUSE_EXPECT} orders${odds ? ` — none at all happens by chance only about 1 time in ${odds}` : ''}. A look at its targets first, or a pause, stops the spend.`,
           money: { v: sp, l: 'their spend, 30 days', kind: 'waste' },
+          per: perMap(dead.map(r => [r.brand + '|' + r.cid, r.sp])),
           kv: [['Campaigns', cnt(dead.length)], ['Their spend', dollars(sp)], ['Clicks before judging', String(needC)]],
           ev: { head: ['Campaign', 'Clicks', 'Spend', 'Orders'].concat(stockHead), num: [1, 2, 3, 4, 5], n: dead.length,
             rows: dead.slice(0, EV_CAP).map(r => campRow(r, [cnt(r.cl), dollars(r.sp), '0'])),
@@ -364,6 +399,7 @@ const ADSH = (() => {
           act: `Adding ${quote(top.t)} as a negative in ${esc(cname(top.brand, top.cid))} might be worth it — ${dollars(top.sp)} on ${top.c} clicks and no order.`,
           why: `At your ${(cvr * 100).toFixed(1)}% conversion rate, ${need} clicks would usually bring about ${BURN_EXPECT} orders${odds ? ` — none at all happens by chance only about 1 time in ${odds}` : ''}. A negative stops paying for that search without touching the rest.`,
           money: { v: burned, l: 'spent with no order, 30 days', kind: 'waste' },
+          per: perMap(list.map(r => [r.brand + '|' + r.cid, r.sp])),
           kv: [['Search terms', cnt(list.length)], ['Spend', dollars(burned)], ['Clicks before judging', String(need)]],
           ev: { head: ['Search term', 'Campaign', 'Clicks', 'Spend'], num: [2, 3],
             n: list.length, rows: list.slice(0, EV_CAP).map(r => ({ c: [esc(r.t), esc(cname(r.brand, r.cid)), String(r.c), dollars(r.sp)], k: r.brand + '|' + r.cid })),
@@ -434,6 +470,167 @@ const ADSH = (() => {
             tot: ['Total', '', cnt(sum(low, r => r.stock)), '', '', cnt(sum(low, r => r.o)), dollars(sum(low, r => r.s))] },
           how: `FBA stock ÷ units a day over the product's last four finished weeks (about the last month's pace), under ${LOW_COVER} days, on a running ad that sold in the 30 days.${stockHow}`,
           src: ['ADS', 'STOCK', 'DERIVED'] });
+      }
+    }
+
+    /* 8, 9, 10 · MONEY GOING WHERE IT CANNOT COME BACK (the TrainAdz comparison, 18 Nov 2026): running ads that still spend on
+     * a product out of FBA stock, or on a listing Amazon has taken out of search; and products whose ad spend is above all their
+     * sales (TACoS over 100%) — a loss whatever the unit cost, so it needs no costs. */
+    // The running ads (ad enabled) that spent in the 30 days, per SKU matching rule, with their campaigns and spend per campaign.
+    const spendBySku = rule => {
+      const m = {};
+      liveAds.forEach(x => {
+        if (!(x.sp > 0) || !rule(x)) return;
+        const k = x.brand + '|' + x.sku;
+        const r = m[k] || (m[k] = { brand: x.brand, sku: x.sku, a: x.a, o: 0, s: 0, sp: 0, camps: new Set(), per: {} });
+        r.o += x.o || 0;
+        r.s += x.s || 0;
+        r.sp += x.sp || 0;
+        r.camps.add(cname(x.brand, x.cid));
+        const ck = x.brand + '|' + x.cid;
+        r.per[ck] = (r.per[ck] || 0) + x.sp;
+      });
+      return Object.values(m).sort((p, q) => q.sp - p.sp);
+    };
+    const perOf = list => perMap([].concat(...list.map(r => Object.entries(r.per))));
+    // The weekly store: the last finished week any product has an ad figure for, and the four finished weeks ending on it.
+    const wRows = (typeof WEEKLY !== 'undefined' && WEEKLY.rows) || {};
+    const weeklyOk = Object.keys(wRows).length > 0;
+    let wLast = '';
+    if (weeklyOk) {
+      Object.values(wRows).forEach(r => Object.keys((r && r.weeks) || {}).forEach(k => { if (k > wLast && r.weeks[k].spend != null) wLast = k; }));
+      if (wLast && !wWeekDone(wLast)) wLast = sdShift(wLast, -7);
+    }
+    const W4 = wLast ? [sdShift(wLast, -21), sdShift(wLast, -14), sdShift(wLast, -7), wLast] : [];
+    const wkTxt = k => dayTxt(k) + '–' + dayTxt(sdShift(k, 6));
+    const w4Txt = W4.length ? dayTxt(W4[0]) + '–' + dayTxt(sdShift(wLast, 6)) : '';
+    HS.w4 = W4.length ? { end: sdShift(wLast, 6), txt: w4Txt } : null;   // for "Data as of"
+    // An ASIN's ad spend in the last finished week (null when the weekly store does not have it).
+    const lastWkSp = a => {
+      const c = wLast && a && wRows[a] && wRows[a].weeks ? wRows[a].weeks[wLast] : null;
+      return c && c.spend != null ? c.spend : (wLast && a && wRows[a] ? 0 : null);
+    };
+    const stillTxt = wk => (wk > 0 ? `, ${dollars(wk)} of the product's in the last full week (${wkTxt(wLast)})` : '');
+
+    /* 8 · pause: ads still spending on a product that is out of FBA stock */
+    const NAME_OS = 'No running ad spends on a product that is out of FBA stock';
+    if (noAg || !HS.stock) notRun('oosSpend', NAME_OS, noAg || (stockWait ? 'wait' : noStock));
+    else {
+      // Where the weekly store has the product, it must still have spent in the last finished week — otherwise it has stopped.
+      const list = spendBySku(x => stockOf(x) === 0).map(r => Object.assign(r, { wk: lastWkSp(r.a) })).filter(r => r.wk == null || r.wk > 0);
+      if (!list.length) out.push({ id: 'oosSpend', name: NAME_OS, st: 'pass' });
+      else {
+        const top = list[0], sp = sum(list, r => r.sp), wk = sum(list, r => r.wk);
+        out.push({ id: 'oosSpend', name: NAME_OS, st: 'found', sev: 'high', cat: 'Pause',
+          title: `Ads are still spending on ${cnt(list.length)} out-of-stock ${plural(list.length, 'SKU')}`,
+          act: `Pausing the ads of ${esc(top.sku)} until it is back in stock may be worth it — they spent ${dollars(top.sp)} in 30 days${stillTxt(top.wk)}, and its FBA stock is 0${stockOld(top.brand)}.`,
+          why: 'A click on a product that cannot be bought cannot turn into an order. Amazon usually stops these ads by itself, but not always — a family with other sizes in stock, or a stock figure that lags, keeps them running.',
+          money: { v: sp, l: 'their ad spend, 30 days', kind: 'waste' },
+          per: perOf(list),
+          kv: [['SKUs', cnt(list.length)], ['Their ad spend, 30 days', dollars(sp)]].concat(wLast ? [[`Last full week (${wkTxt(wLast)})`, dollars(wk)]] : []).concat([stockKv]),
+          ev: { head: ['SKU', 'ASIN', 'Campaign', 'FBA stock', 'Ad spend', 'Last full week', 'Ad orders', 'Ad sales'], num: [3, 4, 5, 6, 7],
+            n: list.length, rows: list.slice(0, EV_CAP).map(r => ({ c: [esc(r.sku), esc(r.a), esc([...r.camps].join(', ')), '0', dollars(r.sp),
+              r.wk == null ? '—' : dollars(r.wk), cnt(r.o), dollars(r.s)], t: 'adh-k0', k: Object.keys(r.per).join(',') })),
+            tot: ['Total', '', '', '0', dollars(sp), wLast ? dollars(wk) : '—', cnt(sum(list, r => r.o)), dollars(sum(list, r => r.s))] },
+          how: 'Ads that are running (ad enabled) and spent in the 30 days, on a SKU whose FBA stock is 0'
+            + (wLast ? ` — and, where the weekly figures have the product, that still spent in the last finished week (${wkTxt(wLast)}; "Last full week" is the whole product's (ASIN's) ad spend that week)` : '') + '.' + stockHow,
+          src: ['ADS', 'STOCK'].concat(wLast ? ['WEEKLY'] : []) });
+      }
+    }
+
+    /* 9 · fix the listing: ads still spending on a listing Amazon has taken out of search */
+    const NAME_SU = 'No running ad spends on a listing Amazon has taken out of search';
+    const supOf = x => {
+      const v = HS.amz && x.sku ? HS.amz.get(x.brand + '|' + x.sku) : null;
+      const s = v && v.st ? String(v.st).toUpperCase() : '';
+      return s && s.includes('BUYABLE') && !s.includes('DISCOVERABLE') ? s : '';
+    };
+    const amzWait = HS.src.amz === 'loading' || HS.src.amz === 'idle';
+    if (noAg) notRun('sup', NAME_SU, noAg);
+    else if (!HS.amz) notRun('sup', NAME_SU, amzWait ? 'wait' : HS.src.amz === 'none' ? 'needs Amazon\'s listing status (Image Manager or Listing Errors right)' : 'Amazon\'s listing status (the Image Manager snapshot) could not be read');
+    else {
+      const list = spendBySku(x => !!supOf(x)).map(r => Object.assign(r, { wk: lastWkSp(r.a), amzSt: supOf(r) }));
+      const saw = brands.filter(b => HS.amzAt[b]).map(b => (brands.length > 1 ? (BRAND_NAME[b] || b) + ' ' : '') + dayTxt(new Date(HS.amzAt[b]))).join(', ');
+      if (!list.length) out.push({ id: 'sup', name: NAME_SU, st: 'pass' });
+      else {
+        const top = list[0], sp = sum(list, r => r.sp);
+        out.push({ id: 'sup', name: NAME_SU, st: 'found', sev: 'high', cat: 'Fix listing',
+          title: `Ads are spending on ${cnt(list.length)} ${plural(list.length, 'listing')} Amazon has taken out of search`,
+          act: `Fixing ${esc(top.sku)}'s listing first may be worth it — Amazon shows it as buyable but not in search, yet its ads spent ${dollars(top.sp)} in 30 days${stillTxt(top.wk)}.`,
+          why: 'A listing out of search sells only through a direct link; its ads tend to stop serving or to convert poorly until the listing is back. Listing Errors shows what Amazon wants fixed.',
+          money: { v: sp, l: 'their ad spend, 30 days', kind: 'waste' },
+          per: perOf(list),
+          kv: [['Listings', cnt(list.length)], ['Their ad spend, 30 days', dollars(sp)], ['Status read', saw ? esc(saw) : 'not known']],
+          ev: { head: ['SKU', 'ASIN', 'Campaign', 'Amazon status', 'Ad spend', 'Last full week', 'Ad orders', 'Ad sales'], num: [4, 5, 6, 7],
+            n: list.length, rows: list.slice(0, EV_CAP).map(r => ({ c: [esc(r.sku), esc(r.a), esc([...r.camps].join(', ')), esc(r.amzSt), dollars(r.sp),
+              r.wk == null ? '—' : dollars(r.wk), cnt(r.o), dollars(r.s)], k: Object.keys(r.per).join(',') })),
+            tot: ['Total', '', '', '', dollars(sp), wLast ? dollars(sum(list, r => r.wk)) : '—', cnt(sum(list, r => r.o)), dollars(sum(list, r => r.s))] },
+          how: `Ads that are running (ad enabled) and spent in the 30 days, on a SKU whose Amazon status is buyable but not discoverable — the rule Listing Health's "Suppressed from search" uses — as the Image Manager last read it${saw ? ` (${saw})` : ''}.`,
+          src: ['ADS', 'AMZ'].concat(wLast ? ['WEEKLY'] : []), link: { tab: 'Lerr', t: 'Open Listing Errors' } });
+      }
+    }
+
+    /* 10 · ad spend above sales: products whose ads cost more than everything they sold (TACoS over 100%), four finished weeks */
+    const NAME_T = 'No advertised product spends more on ads than it sells';
+    if (!weeklyOk || !W4.length) {
+      notRun('tacos', NAME_T, !(can('weekly') || can('profit') || can('audit')) ? 'needs the weekly sales (PPC & Organic, Profit or Audit right)'
+        : weeklyOk ? 'the weekly figures have no ad spend yet' : 'the weekly sales could not be read');
+    } else {
+      // the campaigns each ASIN is advertised in over the 30 days, with its spend in each — for the names, the jump and the stake
+      const campsOf = {};
+      agRows.forEach(x => {
+        if (!x.a || !(x.sp > 0)) return;
+        const m = campsOf[x.brand + '|' + x.a] || (campsOf[x.brand + '|' + x.a] = {});
+        m[x.brand + '|' + x.cid] = (m[x.brand + '|' + x.cid] || 0) + x.sp;
+      });
+      const rowOf = {};
+      rows.forEach(r => { rowOf[r.brand + '|' + r.cid] = r; });
+      const inView = new Set(brands);
+      let inv = 0;
+      const list = [];
+      Object.entries(wRows).forEach(([a, wr]) => {
+        if (!wr || !wr.weeks || (wr.brand ? !inView.has(wr.brand) : brands.length < 2)) return;
+        let sp = 0, rev = 0;
+        W4.forEach(k => {
+          const c = wr.weeks[k];
+          if (!c) return;
+          sp += c.spend || 0;
+          rev += c.rev || 0;
+        });
+        if (!(sp >= TACOS_MIN_SPEND) || !(sp > rev)) return;
+        const b = wr.brand || '', per = campsOf[b + '|' + a] || {}, ks = Object.keys(per);
+        if (ks.length && ks.every(k => rowOf[k] && rowOf[k].invest)) {
+          inv++;
+          return;
+        }
+        list.push({ a, brand: b, sp, rev, tacos: rev > 0 ? sp / rev * 100 : null, ks, per, ex: sp - rev });
+      });
+      list.sort((p, q) => q.ex - p.ex);
+      if (!list.length) out.push({ id: 'tacos', name: NAME_T, st: 'pass' });
+      else {
+        const top = list[0], sp = sum(list, r => r.sp), rev = sum(list, r => r.rev), ex = sum(list, r => r.ex);
+        // the money above sales, shared over each product's campaigns by its 30-day spend in them
+        const pairs = [];
+        list.forEach(r => {
+          const tot = r.ks.reduce((t, k) => t + r.per[k], 0);
+          if (tot > 0) r.ks.forEach(k => pairs.push([k, r.ex * r.per[k] / tot]));
+          else pairs.push(['a|' + r.brand + '|' + r.a, r.ex]);
+        });
+        const camps = r => [...new Set(r.ks.map(k => cname(k.split('|')[0], k.split('|').slice(1).join('|'))))].join(', ') || '—';
+        out.push({ id: 'tacos', name: NAME_T, st: 'found', sev: 'high', cat: 'Lower bids',
+          title: `${cnt(list.length)} ${plural(list.length, 'product spends', 'products spend')} more on ads than ${list.length === 1 ? 'it sells' : 'they sell'}`,
+          act: `${esc(top.a)} might be worth looking at first — ${dollars(top.sp)} of ad spend on ${dollars(top.rev)} of sales (${top.tacos == null ? 'no sales' : pct(top.tacos) + ' TACoS'}) over ${w4Txt}. Lowering its bids, or pausing its weakest targets, stops the loss.`,
+          why: 'When the ads cost more than everything a product sold — organic sales included — it loses money whatever its unit cost, so this needs no costs to be sure.'
+            + (inv ? ` ${cnt(inv)} more ${plural(inv, 'product is', 'products are')} advertised only in launch, ranking or seasonal campaigns and ${inv === 1 ? 'is' : 'are'} left out, as ${inv === 1 ? 'it may be' : 'they may be'} meant to cost more for a while.` : ''),
+          money: { v: ex, l: 'ad spend beyond their sales, 4 weeks', kind: 'waste' },
+          per: perMap(pairs),
+          kv: [['Products', cnt(list.length)], ['Their ad spend', dollars(sp)], ['Their sales', dollars(rev)], ['Their TACoS', rev > 0 ? pct(sp / rev * 100) : '—']],
+          ev: { head: ['ASIN', 'Campaigns', 'Ad spend', 'Sales', 'TACoS', 'Above sales'], num: [2, 3, 4, 5], n: list.length,
+            rows: list.slice(0, EV_CAP).map(r => ({ c: [esc(r.a), esc(camps(r)), dollars(r.sp), dollars(r.rev), r.tacos == null ? 'no sales' : pct(r.tacos), dollars(r.ex)],
+              k: r.ks.join(',') || undefined })),
+            tot: ['Total', '', dollars(sp), dollars(rev), rev > 0 ? pct(sp / rev * 100) : '—', dollars(ex)] },
+          how: `Each product's (ASIN's) ad spend and all its sales — ads and organic — over the four finished weeks ${w4Txt}, from the weekly store; listed when the spend is at least ${dollars(TACOS_MIN_SPEND)} and above the sales. "Above sales" is the spend beyond them. Launch, ranking and seasonal campaigns (by their names) are left out.`,
+          src: ['WEEKLY', 'ADS', 'DERIVED'] });
       }
     }
 
@@ -637,12 +834,107 @@ const ADSH = (() => {
     return `<div class="adh-top"><div class="adh-stats">${tile1}${tile2}${tile3}</div>${urgent}</div>`;
   }
 
+  /* MONEY AT STAKE AND DATA AS OF (the TrainAdz comparison, 18 Nov 2026: "put the money at stake on top of every page"; "stamp
+   * data as of on every page"). One strip over the page (tStake): the money the waste suggestions name, counted once per
+   * campaign — the largest of them in each, so a campaign above the range that also burns on search terms is not added twice —
+   * up to every suggestion added up; a chip per suggestion opens it in the bar; and the day each source reaches. */
+  const STAKE_NAME = { lower: 'Above the ACoS range', pause: 'Campaigns with no sales', burn: 'No-sale search terms',
+    oosSpend: 'Out of stock, still spending', sup: 'Out of search, still spending', tacos: 'Ad spend above sales' };
+  function stakeOf(found) {
+    const waste = found.filter(f => f.money && f.money.kind === 'waste' && f.money.v > 0);
+    const best = {};
+    waste.forEach(f => Object.entries(f.per || {}).forEach(([k, v]) => { if (!(best[k] >= v)) best[k] = v; }));
+    return { lo: Object.values(best).reduce((t, v) => t + v, 0), hi: waste.reduce((t, f) => t + f.money.v, 0), waste };
+  }
+  // The days each source reaches, oldest flagged: sales and ad figures (the daily store), the 30-day caches, the weekly store,
+  // FBA stock and Amazon's listing status.
+  function asOfHtml(c) {
+    const today = sdToday();
+    const age = d => (d ? Math.round((new Date(today + 'T00:00:00Z') - new Date(String(d).slice(0, 10) + 'T00:00:00Z')) / 864e5) : null);
+    const ymd = d => (d instanceof Date ? d.toISOString().slice(0, 10) : String(d || '').slice(0, 10));
+    const item = (label, d, txt, tip, old) => {
+      const a = age(ymd(d)), late = a != null && a > (old || STALE_DAYS + 1);
+      return `<span class="adt-asof-i${late ? ' adt-late' : ''}" title="${esc(tip + (a != null ? ` — ${a} ${plural(a, 'day')} ago` : ''))}"><em>${esc(label)}</em> ${esc(txt || (d ? dayTxt(ymd(d)) : '—'))}</span>`;
+    };
+    // sales: the newest day with sales in the daily store, for the brands in view
+    let sales = '';
+    try {
+      c.brands.forEach(b => Object.entries((TREND.d || {})[b] || {}).forEach(([day, v]) => { if (day > sales && v && v[T_I.sales] > 0) sales = day; }));
+    } catch (e) { sales = ''; }
+    const parts = [item('Sales to', sales, '', 'The newest day with sales in the Overview\'s daily store (Orders workbooks; today is read live)')];
+    if (c.ad.to) parts.push(item('Ad figures', c.ad.to, `${dayTxt(c.ad.from)} – ${dayTxt(c.ad.to)}`, 'The days the daily ad figures cover (Amazon\'s report runs a day or two behind the sales)', 3));
+    const tp = c.brands.map(b => (HS.terms || {})[b] || {}).find(p => p.to);
+    const built = [String(c.at || '').slice(0, 10), String(HS.at || '').slice(0, 10)].filter(Boolean).sort()[0];
+    if (built) parts.push(item('30-day campaign & search-term figures', built, (tp && tp.from ? `${dayTxt(tp.from)} – ${dayTxt(tp.to)}, ` : '') + 'built ' + dayTxt(built),
+      'The nightly 30-day caches Campaign performance, Recommendation and Search Term Analysis read'));
+    if (HS.w4) parts.push(item('Weekly figures', HS.w4.end, HS.w4.txt, 'The four finished weeks "Ad spend above sales" reads (the PPC & Organic weekly store)', 9));
+    const st = c.brands.map(b => HS.stockAt && HS.stockAt[b]).filter(d => d instanceof Date && !isNaN(d.getTime())).sort((p, q) => p - q)[0];
+    if (st) parts.push(item('FBA stock saved', st, '', 'When Listing Health last saved the FBA stock'));
+    const am = c.brands.map(b => HS.amzAt && HS.amzAt[b]).filter(Boolean).sort((p, q) => p - q)[0];
+    if (am) parts.push(item('Listing status', new Date(am), '', 'When the Image Manager last read Amazon\'s listing status (out of search or not)', 7));
+    let win = '';
+    try {
+      if (typeof T_SPAN_AUTO !== 'undefined' && T_SPAN_AUTO && !T_SPAN_TOUCHED && T_GRAN === 'week' && $('tSpan').value === String(T_SPAN_AUTO.n)) {
+        win = `<span class="adt-asof-i adt-asof-win" title="The page opened on the weeks every figure covers, so sales and ad figures speak for the same weeks. Pick another stretch above at any time.">`
+          + `<em>Page window</em> last ${T_SPAN_AUTO.n} weeks — the weeks with ad figures</span>`;
+      }
+    } catch (e) { win = ''; }
+    return `<div class="adt-asof"><b>Data as of</b>${parts.join('')}${win}</div>`;
+  }
+  function stakePaint(c, found, wait) {
+    const el = $('tStake');
+    if (!el) return;
+    if (!c) {
+      el.classList.add('hide');
+      return;
+    }
+    el.classList.remove('hide');
+    const s = stakeOf(found || []);
+    const waiting = (wait || []).some(x => STAKE_NAME[x.id]);
+    const tip = 'Money the suggestions below name as going out with little or nothing coming back: spend above your ACoS range, campaigns and search terms with no sales, ads on products out of stock or out of search, and ad spend above a product\'s sales. The first figure counts each campaign once (the largest suggestion in it); the second adds every suggestion up, so the true figure is between the two. Last 30 days (ad spend above sales: the last four finished weeks).';
+    const big = found == null ? '<b class="adt-sk-v"><span class="adh-skel adh-skel-w"></span></b>'
+      : s.hi > 0 ? `<b class="adt-sk-v">${dollars(s.lo)}</b>${s.hi - s.lo >= 1 ? `<small>to ${dollars(s.hi)}</small>` : ''}`
+      : '<b class="adt-sk-v adt-sk-ok">$0</b><small>nothing found</small>';
+    const chips = s.waste.sort((p, q) => q.money.v - p.money.v).map(f => `<button type="button" class="adt-sk-chip adh-${f.sev}" data-f="${esc(f.id)}" title="${esc(f.title)}">`
+      + `<span>${esc(STAKE_NAME[f.id] || f.cat)}</span><b>${dollars(f.money.v)}</b></button>`).join('')
+      + (waiting ? '<span class="adt-sk-wait">still adding up…</span>' : '');
+    el.innerHTML = `<div class="adt-sk-row"><div class="adt-sk-main" role="button" tabindex="0" data-go="list">`
+      + `<span class="adt-sk-l">Money at stake<span class="adx-i" title="${esc(tip)}">i</span></span>`
+      + `<span class="adt-sk-vw">${big}</span><span class="adt-sk-sub">last 30 days · ${esc(BRAND_NAME[$('tBrand').value] || 'Both brands')}</span></div>`
+      + `<div class="adt-sk-chips">${chips}</div></div>${asOfHtml(c)}`;
+    if (!el.dataset.wired) {
+      el.dataset.wired = '1';
+      const go = id => {
+        const bar = $('tHealth'), dd = bar && bar.querySelector('details.adh-dd');
+        if (!dd) return;
+        dd.open = true;
+        HS.open = true;
+        const f = id ? bar.querySelector(`details.adh-f[data-f="${id}"]`) : null;
+        if (f) f.open = true;
+        (f || dd).scrollIntoView({ behavior: 'smooth', block: f ? 'center' : 'start' });
+      };
+      el.addEventListener('click', e => {
+        if (e.target.closest('.adx-i')) return;
+        const b = e.target.closest('.adt-sk-chip');
+        if (b) go(b.dataset.f);
+        else if (e.target.closest('.adt-sk-main')) go('');
+      });
+      el.addEventListener('keydown', e => {
+        if ((e.key === 'Enter' || e.key === ' ') && e.target.classList.contains('adt-sk-main')) {
+          e.preventDefault();
+          go('');
+        }
+      });
+    }
+  }
+
   // The whole bar, from whatever is loaded. Drawn again only when something it reads has changed.
   function render() {
     const el = $('tHealth');
     const c = ADSX.state();
     const t28 = c.t28 ? Math.round(c.t28.sales) + '/' + Math.round(c.t28.spend) : '';
-    const sig = [c.brands.join(','), c.st, c.ver, c.key, HS.ver, HS.all, t28].join('|');
+    // (the page's stretch only for the strip's "Page window" note: it is cut off again for the checks' memo below)
+    const sig = [c.brands.join(','), c.st, c.ver, c.key, HS.ver, HS.all, t28].join('|') + '|sp' + (($('tSpan') || {}).value || '');
     if (sig === HS.sig && el.innerHTML) return;
     HS.sig = sig;
     share(c);
@@ -650,10 +942,12 @@ const ADSH = (() => {
     const wrap = (sum, body, cls) => `<details class="adh-dd${cls ? ' ' + cls : ''}"${HS.open ? ' open' : ''}><summary class="adh-sum">${sum}</summary><div class="adh-body">${body}</div></details>`;
     // --- loading, failed, or nothing to check ---
     if (c.st === 'failed') {
+      stakePaint(null);
       el.innerHTML = wrap(barHead(`Last 30 days · ${brandTxt}`, ''), '<div class="ui-error">The checks need the campaign figures, which did not load — see Campaign performance below.</div>');
       return;
     }
     if (c.st !== 'ready') {
+      stakePaint(c, null, []);
       el.innerHTML = wrap(barHead(`Last 30 days · Sponsored Products · ${brandTxt} · running the checks…`, '<span class="adh-skel"></span><span class="adh-skel"></span>')
         + '<span class="adh-urg adh-wait"><span class="adh-skel adh-skel-w"></span></span>', '<div class="ui-loading">Running the checks…</div>');
       return;
@@ -661,11 +955,12 @@ const ADSH = (() => {
     // (with ad spend in the daily figures the checks still run: a brand missing from the caches is a finding of its own)
     if (!c.rows.length && HS.src.terms !== 'loading' && !(HS.terms && c.brands.some(b => ((HS.terms[b] || {}).rows || []).length))
       && !(c.t28 && c.t28.spend > 0)) {
+      stakePaint(null);
       el.innerHTML = wrap(barHead(`Last 30 days · ${brandTxt}`, ''), '<div class="ui-empty">No 30-day ad figures yet. The nightly run keeps them, so the checks run the morning after.</div>');
       return;
     }
     // --- the checks, ranked (kept for the last few brand choices, so switching back is instant) ---
-    const mkey = sig.replace(/\|(true|false)\|/, '|');
+    const mkey = sig.replace(/\|sp[^|]*$/, '').replace(/\|(true|false)\|/, '|');
     let list = HS.memo.get(mkey);
     if (!list) {
       list = checks(c);
@@ -701,6 +996,7 @@ const ADSH = (() => {
       + (found.length ? `<div class="adh-list">${shown.map((f, i) => findingHtml(f, openNow.has(f.id), i)).join('')}</div>` : '')
       + `<div class="adh-foot"><div class="adh-rest">${rest}</div><div class="adh-srcs adh-key"><span>Sources</span>${tags(Object.keys(SRC))}</div>${more}</div>`;
     el.innerHTML = wrap(barHead(sub, chips) + urgent, body);
+    stakePaint(c, found, wait);
   }
 
   // Draw, and hide the bar quietly if that fails.
@@ -708,6 +1004,7 @@ const ADSH = (() => {
     try { render(); } catch (e) {
       console.warn('[ads-health]', e);
       try { $('tHealth').classList.add('hide'); } catch (x) { /* the bar itself is missing */ }
+      try { $('tStake').classList.add('hide'); } catch (x) { /* the strip is missing */ }
     }
   }
 
@@ -807,6 +1104,7 @@ const ADSH = (() => {
     // The figures are Search Terms' to show: an account without that tab does not get them here either.
     if (!can('st')) {
       el.classList.add('hide');
+      if ($('tStake')) $('tStake').classList.add('hide');
       return;
     }
     el.classList.remove('hide');

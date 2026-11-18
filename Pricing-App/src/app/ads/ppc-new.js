@@ -26,7 +26,7 @@
  * biggest falls and gains.
  * 13 Nov 2026 (Vishesh): the top of the page is the PPC & Organic · New layout again — the five period cards and
  * the six totals, plain, only bigger and coloured, the date row Today … Last month · Custom (Last week / Last 4
- * weeks are quick picks inside Custom), 14 days by default and the original table columns (the 8-week trend,
+ * weeks are quick picks inside Custom), 14 days by default (18 Nov: the last 7 complete days) and the original table columns (the 8-week trend,
  * Unit session %, ROAS and CPC are still in Columns). New above the period cards: one card per brand with its
  * parents and child ASINs (pxBrandCards — the same count as the table's All row), how many of them sold in the
  * dates, and how many Listing Health holds. The chart, the trend lines and What moved moved to the end of the
@@ -64,7 +64,7 @@ const PX_PAGE = 100;
 // cgran: the trend chart's bars ('auto' / 'day' / 'week'); chart: the chart is open; alertWk: which finished week
 // the "What moved" card reads (0 = the last one); alertAll: that card shows every row, not the first few.
 let PX = {
-  mode: 'range', level: 'parent', brand: 'ALL', metric: 'rev', dkey: 'd14', lo: '', hi: '',
+  mode: 'range', level: 'parent', brand: 'ALL', metric: 'rev', dkey: 'c7', lo: '', hi: '',
   pc: { n: 4, len: 7, end: '', preset: null }, hide: ['tr', 'usp', 'roas', 'cpc'], q: '', recOpen: false, recF: new Set(), recAll: new Set(), chip: 'all', sk: 'rev', sd: -1,
   open: new Set(), kidN: {}, pop: null, draft: null, show: PX_PAGE, msg: '', loading: false, anim: false,
   cgran: 'auto', chart: true, alertWk: 0, alertAll: false,
@@ -88,7 +88,10 @@ try {
   // Sunday–Saturday weeks — so a remembered one becomes the 13 weeks it was trying to show (12 Nov).
   if (PX.pc.preset === 'm3') PX.pc = { n: 13, len: 7, end: '', preset: 'w13' };
   if (Array.isArray(s.known)) PX_SAVED_KNOWN = s.known;
-  if (PX.dkey === 'custom') PX.dkey = 'd14';
+  /* OPEN ON THE LAST 7 COMPLETE DAYS (the TrainAdz comparison, 18 Nov 2026: "Product Performance opens on Today, where every
+   * cell is a dash because ad data runs to the day before yesterday"). The page never opens on Today or Yesterday, and a
+   * choice saved before this (most often the old 14-day default, saved with everything else) opens once on the new one. */
+  if (PX.dkey === 'custom' || PX.dkey === 'today' || PX.dkey === 'yest' || (!s.c7 && PX.dkey === 'd14')) PX.dkey = 'c7';
 } catch (e) { /* storage off — defaults */ }
 // A remembered choice this version no longer has would break every render — fall back to the defaults.
 if (!['range', 'cols'].includes(PX.mode)) PX.mode = 'range';
@@ -101,7 +104,7 @@ function pxSave() {
   try {
     localStorage.setItem(PX_KEY, JSON.stringify({
       mode: PX.mode, level: PX.level, metric: PX.metric, cgran: PX.cgran, chart: PX.chart,
-      dkey: PX.dkey, hide: PX.hide, known: PX_RCOLS.map(x => x[0]),
+      dkey: PX.dkey, hide: PX.hide, known: PX_RCOLS.map(x => x[0]), c7: 1,
       pc: { n: PX.pc.n, len: PX.pc.len, preset: PX.pc.preset } }));
   } catch (e) { /* fine */ }
 }
@@ -156,8 +159,24 @@ function pxToday() {
   if (n - PX_TD.at > 1000 || !PX_TD.v) PX_TD = { at: n, v: sdToday() };
   return PX_TD.v;
 }
-// The date chips: key → [label, today → [lo, hi]].
+// The last day the per-day ad figures reach — Amazon's ad report runs a day or two behind the sales: the newest day any product
+// has an ad figure on, in the per-day store (worked out once per read of it); before that store is read, the day before
+// yesterday. Never after yesterday.
+let PX_ADLAST = { key: '', v: '' };
+function pxAdLast(t) {
+  const y = sdShift(t, -1), rows = WDAY.rows || {}, key = WDAY.at + '|' + Object.keys(rows).length;
+  if (PX_ADLAST.key !== key) {
+    let hi = '';
+    Object.values(rows).forEach(r => Object.keys((r && r.days) || {}).forEach(d => { if (d > hi && r.days[d].spend != null) hi = d; }));
+    PX_ADLAST = { key, v: hi };
+  }
+  const v = PX_ADLAST.v || sdShift(t, -2);
+  return v > y ? y : v;
+}
+// The date chips: key → [label, today → [lo, hi], tip]. The page opens on the first: 7 days that are over AND have ad figures.
 const PX_DATES = {
+  c7:     ['Last 7 complete days', t => { const e = pxAdLast(t); return [sdShift(e, -6), e]; },
+    'The 7 days ending on the last day the ad figures reach (Amazon\'s ad report runs a day or two behind), so every column — sales and ads — is filled in.'],
   today:  ['Today', t => [t, t]],
   yest:   ['Yesterday', t => [sdShift(t, -1), sdShift(t, -1)]],
   d7:     ['7 days', t => [sdShift(t, -7), sdShift(t, -1)]],
@@ -1770,7 +1789,8 @@ function pxDatesNote(ctx) {
   const c = pxCmp(ctx);
   return `<p>The dates drive everything between the toolbar and the end of the table: the totals, the table, the brand cards' “sold” and the chart. Now: <b>${pxEsc(c.d)}</b>${c.n ? ` (${c.days})` : ''}.</p>`
     + `<p>They are ${pxCmpTxt(c)}. That is what “vs prev”, the Sales % and Falling / Growing use.</p>`
-    + '<ul><li><b>Today</b> — so far, never compared until it is over.</li><li><b>Yesterday, 7 / 14 / 30 days</b> — ending yesterday.</li><li><b>This month</b> — the 1st to today; <b>Last month</b> — the whole of it.</li>'
+    + `<ul><li><b>Last 7 complete days</b> — the page opens here: the 7 days ending ${pxEsc(pxFmtRange(pxAdLast(pxToday()), pxAdLast(pxToday())))}, the last day with ad figures, so no column is a dash.</li><li><b>Today</b> — so far, never compared until it is over.</li>`
+    + '<li><b>Yesterday, 7 / 14 / 30 days</b> — ending yesterday.</li><li><b>This month</b> — the 1st to today; <b>Last month</b> — the whole of it.</li>'
     + `<li><b>Custom ▾</b> — any From / To, plus <b>Last week</b> and <b>Last 4 weeks</b>: whole Sunday–Saturday weeks, the only dates with Sessions and Unit session %.</li></ul>`
     + `<p>Day-by-day figures start on <b>${WDAY.from ? pxEsc(pxFmtRange(WDAY.from, WDAY.from)) : '—'}</b>; before that only whole weeks can be shown. <b>Split into columns</b> puts the same kind of dates side by side.</p>`;
 }
@@ -1787,7 +1807,7 @@ function pxWhyFit() {
  * as the Ad Console's Recommendation (ads/ads-health.js, its adh-* look): closed, it shows the most urgent suggestion;
  * open, three figures, the top suggestion, then one row per check that found something, each opening to its products.
  * Nine checks over the parents and stand-alone listings in view (never discontinued or inactive ones), on the dates in
- * view when they are 7+ finished days, else the last 14 days; stock is Listing Health's FBA stock now. Every suggestion
+ * view when they are 7+ finished days, else the last 7 complete days (18 Nov; was the last 14); stock is Listing Health's FBA stock now. Every suggestion
  * is polite — never an order — and says how it was worked out. READ-ONLY: nothing is changed anywhere. */
 const PX_SEV = {
   crit: { t: 'Critical', r: 0, tip: 'Sales have stopped.' },
@@ -1822,7 +1842,7 @@ function pxStockOf(e) {
 function pxRecs(ctx) {
   const t = pxToday();
   const sp = ctx.span, ok = sp && sp.src !== 'none' && sp.hi < t && pxLen(sp.lo, sp.hi) >= 7 && PX.mode === 'range';
-  const plan = ok ? sp : pxPlan(sdShift(t, -14), sdShift(t, -1));
+  const plan = ok ? sp : pxPlan(...PX_DATES.c7[1](t));
   const prev = pxPrevPlan(plan);
   const dTxt = pxFmtRange(plan.lo, plan.hi), pTxt = pxFmtRange(prev.lo, prev.hi);
   const live = ctx.found.filter(e => !e.old && !e.disc);
@@ -1939,7 +1959,7 @@ function pxRecsCard(ctx) {
   // Every figure is a positive amount; a loss is red, a gain green, a count plain.
   const money = m => (m.kind === 'count' ? `<b>${pxN(m.v)}</b>` : `<b class="${m.kind === 'loss' ? 'ui-neg' : m.kind === 'gain' ? 'adh-pos' : ''}">${pxMoney(Math.abs(m.v))}</b>`) + `<small>${pxEsc(m.l)}</small>`;
   const brandTxt = PX.brand === 'ALL' ? 'Both brands' : BRAND_NAME[PX.brand] || PX.brand;
-  const sub = `${pxEsc(R.dTxt)}${R.fellBack ? ' (the last 14 days — the dates in view are not 7+ finished days)' : ''} · ${pxEsc(brandTxt)} · ${R.live} products · ${R.found.length} suggestion${R.found.length === 1 ? '' : 's'} from ${R.checks} checks`;
+  const sub = `${pxEsc(R.dTxt)}${R.fellBack ? ' (the last 7 complete days — the dates in view are not 7+ finished days)' : ''} · ${pxEsc(brandTxt)} · ${R.live} products · ${R.found.length} suggestion${R.found.length === 1 ? '' : 's'} from ${R.checks} checks`;
   const chips = R.found.length ? Object.keys(PX_SEV).filter(k => n[k]).map(k => `<span class="adh-chip adh-${k}"><i class="adh-dot"></i>${n[k]} ${PX_SEV[k].t}</span>`).join('')
     : '<span class="adh-chip adh-ok"><i class="adh-dot"></i>All clear</span>';
   const urg = f0 ? `<span class="adh-urg adh-${f0.sev}"><span class="adh-urgl">Top suggestion</span><span class="adh-urga">${pxEsc(f0.title)} — ${pxEsc(f0.act)}</span></span>`
@@ -2096,7 +2116,7 @@ function pxRender(focusSel) {
     const prev = L ? pxFmtRange(sdShift(lo, -L), sdShift(lo, -1)) : '—';
     hbar = '<div class="px-hbar"><div class="px-dchips" role="group" aria-label="Dates">'
       + Object.entries(PX_DATES).filter(([k]) => !PX_WEEKPICKS.includes(k))
-        .map(([k, v]) => `<button class="px-dchip" data-pxdk="${k}" aria-pressed="${PX.dkey === k}">${v[0]}</button>`).join('')
+        .map(([k, v]) => `<button class="px-dchip" data-pxdk="${k}" aria-pressed="${PX.dkey === k}"${v[2] ? ` title="${pxEsc(v[2])}"` : ''}>${v[0]}</button>`).join('')
       + `<button class="px-dchip" data-px="pop-date" aria-pressed="${PX.dkey === 'custom' || PX_WEEKPICKS.includes(PX.dkey)}" aria-expanded="${PX.pop === 'date'}">${PX.dkey === 'custom' ? pxFmtRange(lo, hi) + ' ▾' : PX_WEEKPICKS.includes(PX.dkey) ? PX_DATES[PX.dkey][0] + ' ▾' : 'Custom ▾'}</button>${pxI('dates', 'Dates and what they are compared with', pxDatesNote(ctx))}</div>`
       + `<div class="px-tb"><span class="px-rlabel"><b>${pxFmtRange(lo, hi)}${hi >= pxToday() ? ' (today so far)' : ''}</b> · vs ${prev}${tot.adTo ? ` · <span class="px-adto" title="The ad report runs a day behind sales: ad figures, organic and TACoS stop at ${pxEsc(pxDM(tot.adTo))}.">ads to ${pxEsc(pxDM(tot.adTo))}</span>` : ''}</span>`
       + `<button class="px-colsum" data-px="split">${PX_IC_COLS}Split into columns <span class="px-ed">＋</span></button></div>`
