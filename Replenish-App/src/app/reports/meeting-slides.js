@@ -125,7 +125,12 @@ function mtsPeople(wk) {
   const active = rows.filter(r => r.days >= MTS_MIN_DAYS);
   const top = active.filter(r => r.badPct <= MTS_BAD_MAX).sort((a, b) => b.val - a.val).slice(0, 3);
   const bottom = active.filter(r => !top.includes(r)).sort((a, b) => a.perDay - b.perDay).slice(0, 3);
-  return { top, bottom, n: rows.length, left: rows.filter(r => r.days < MTS_MIN_DAYS).length, noRate: !(MTS_RATES || []).length };
+  /* THE TEAM AVERAGE BESIDE EACH NAME (Ravi, 18 Nov: "top 3 top me h to kyo h — unka data dikhana chahiye ki ave logo se inhone itne jyada
+   * pcs banay h and inka quality score bhi sahi h ya galat h, same for bottom 3"): per active day, over every karigar who was active 3+ days. */
+  const n = active.length || 1, sum = k => active.reduce((t, r) => t + k(r), 0);
+  const team = { n: active.length, pcsDay: sum(r => r.pcs / r.days) / n, valDay: sum(r => r.perDay) / n,
+    badPct: (() => { const c = sum(r => r.chk); return c ? Math.round(sum(r => r.bad) / c * 1000) / 10 : 0; })() };
+  return { top, bottom, team, n: rows.length, left: rows.filter(r => r.days < MTS_MIN_DAYS).length, noRate: !(MTS_RATES || []).length };
 }
 
 /* ---------- drawing ---------- */
@@ -165,13 +170,20 @@ function mtsSlides(wk) {
     <div class="muted" style="font-size:12px;margin-top:6px">open orders = a line not yet handed over · pending = pieces still to make · status = those pieces, each at the one step it waits at</div>` });
   /* 2 · People Discussion */
   const P = mtsPeople(wk), rs = v => '₹' + nf(Math.round(v));
-  const arrow = r => r.avg ? (r.val >= r.avg ? `<span style="color:#166534">▲ ${rs(r.val - r.avg)}</span>` : `<span style="color:var(--bad)">▼ ${rs(r.avg - r.val)}</span>`) : '<span class="muted">new</span>';
-  const plist = (list, perDay) => list.length ? list.map((r, i) => `<div class="mts-kv"><span>${i + 1}. ${esc(r.k)}</span><b>${rs(perDay ? r.perDay : r.val)}${perDay ? ' / day' : ''}</b>`
-      + `<em>${nf(r.pcs)} pcs · ${nf(r.arts)} article(s) · quality ${r.badPct}% rejected/alteration · ${nf(r.days)} day(s) active · avg ${rs(r.avg)} ${arrow(r)}</em></div>`).join('')
+  const T = P.team, pct = (v, avg) => avg ? Math.round((v - avg) / avg * 100) : 0;
+  const vs = (v, avg, goodHigh) => { const p = pct(v, avg), good = goodHigh ? p >= 0 : p <= 0;
+    return `<span style="color:${good ? '#166534' : 'var(--bad)'};font-weight:700">${p >= 0 ? '+' : '−'}${Math.abs(p)}%</span>`; };
+  const qVs = b => { const d = Math.round((b - T.badPct) * 10) / 10, good = b <= T.badPct;
+    return `<span style="color:${good ? '#166534' : 'var(--bad)'};font-weight:700">${good ? 'better' : 'worse'} by ${Math.abs(d)}</span>`; };
+  const ptable = list => list.length ? `<table class="mts-cmp"><thead><tr><th>Karigar</th><th>Pcs a day</th><th>vs team</th><th>Work ₹ a day</th><th>vs team</th><th>Quality (rej + alt)</th><th>vs team</th><th>Days</th><th>Articles</th><th>vs own 4-week avg</th></tr></thead><tbody>`
+      + list.map(r => { const pd = r.pcs / r.days, own = r.avg ? pct(r.val, r.avg) : null;
+        return `<tr><td><b>${esc(r.k)}</b></td><td>${nf(Math.round(pd))}</td><td>${vs(pd, T.pcsDay, true)}</td><td>${rs(r.perDay)}</td><td>${vs(r.perDay, T.valDay, true)}</td>`
+          + `<td>${r.badPct}%</td><td>${qVs(r.badPct)}</td><td>${nf(r.days)}</td><td>${nf(r.arts)}</td><td>${own == null ? '<span class="muted">new</span>' : `<span style="color:${own >= 0 ? '#166534' : 'var(--bad)'}">${own >= 0 ? '▲' : '▼'} ${Math.abs(own)}%</span>`}</td></tr>`; }).join('')
+      + `<tr class="mts-team"><td>Team average (${nf(T.n)} karigars)</td><td>${nf(Math.round(T.pcsDay))}</td><td></td><td>${rs(T.valDay)}</td><td></td><td>${T.badPct}%</td><td></td><td colspan="3"></td></tr></tbody></table>`
     : '<span class="muted">Nobody meets the rule this week.</span>';
   out.push({ t: 'People Discussion', html: `<table class="mts-sheet"><tbody>
-      <tr><th style="background:#E5F4E4">Top 3 performer for last week that I want to recognize</th><td>${plist(P.top)}<div class="muted" style="font-size:12px">ave. to up and down — work (QC-passed pcs × job work rate) vs the average of the four weeks before</div></td></tr>
-      <tr><th>Bottom 3 performers that I want to highlight</th><td>${plist(P.bottom, true)}<div class="muted" style="font-size:11.5px;margin-top:4px">How chosen: piece-rate karigars only (not the contractor's team, embroidery vendors or salaried staff) · work = QC-passed pcs × job work rate · top needs ${MTS_MIN_DAYS}+ days active and quality ${MTS_BAD_MAX}% or better · bottom = ${MTS_MIN_DAYS}+ days active, least work a day · active = a Job Work issue or receipt that day (attendance is not kept) · two people sharing one entry cannot be seen${P.left ? ' · ' + nf(P.left) + ' karigar(s) under ' + MTS_MIN_DAYS + ' days left out' : ''}${P.noRate ? ' · <b style="color:var(--bad)">job work rates could not be read</b>' : ''}</div></td></tr>
+      <tr><th style="background:#E5F4E4">Top 3 performer for last week that I want to recognize</th><td>${ptable(P.top)}</td></tr>
+      <tr><th>Bottom 3 performers that I want to highlight</th><td>${ptable(P.bottom)}<div class="muted" style="font-size:11.5px;margin-top:4px">How chosen: piece-rate karigars only (not the contractor's team, embroidery vendors or salaried staff) · work = QC-passed pcs × job work rate · top needs ${MTS_MIN_DAYS}+ days active and quality ${MTS_BAD_MAX}% or better · bottom = ${MTS_MIN_DAYS}+ days active, least work a day · active = a Job Work issue or receipt that day (attendance is not kept) · two people sharing one entry cannot be seen${P.left ? ' · ' + nf(P.left) + ' karigar(s) under ' + MTS_MIN_DAYS + ' days left out' : ''}${P.noRate ? ' · <b style="color:var(--bad)">job work rates could not be read</b>' : ''}</div></td></tr>
       <tr><th>Critical vacant position with HR</th><td>${mtsNote(wk, 'hr_vacant', 'Status', 3)}</td></tr>
       <tr><th>People Requirement not yet with HR</th><td>${mtsNote(wk, 'hr_need', 'Status (discuss with Srikant ji, Mukul sir first)', 3)}</td></tr>
     </tbody></table>` });
@@ -224,6 +236,9 @@ async function mtsOpen() {
       #mtsBox .mts-sheet thead th{background:#F1F3F6;font-size:14px}#mtsBox .mts-sheet tbody th{font-size:17px;width:22%}
       #mtsBox .mts-sheet .mts-note{margin:0}#mtsBox .mts-sheet .mts-note span:empty{display:none}
       #mtsBox .mts-kv{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;padding:2px 0}#mtsBox .mts-kv span{flex:1;min-width:90px}#mtsBox .mts-kv b{font-size:18px;font-variant-numeric:tabular-nums}#mtsBox .mts-kv em{font-style:normal;font-size:12px;color:#5B6475;flex-basis:100%}
+      #mtsBox .mts-cmp{width:100%;border-collapse:collapse;font-size:13.5px}#mtsBox .mts-cmp th{font-size:11.5px;color:#5B6475;text-align:right;padding:4px 6px;border-bottom:1px solid #E4E7EC;font-weight:700}
+      #mtsBox .mts-cmp td{padding:5px 6px;text-align:right;border-bottom:1px solid #F1F3F6;font-variant-numeric:tabular-nums}#mtsBox .mts-cmp td:first-child,#mtsBox .mts-cmp th:first-child{text-align:left}
+      #mtsBox .mts-cmp .mts-team td{background:#F7F8FA;color:#5B6475;font-weight:700}
       #mtsBox .mts-nav{display:flex;gap:10px;align-items:center;margin-top:12px}#mtsBox .mts-nav>button{width:auto;padding:6px 16px}
       #mtsBox .mts-dots{display:flex;gap:6px}#mtsBox .mts-dots button{width:10px;height:10px;padding:0;border-radius:50%;border:0;background:#C7CED8;box-shadow:none}#mtsBox .mts-dots button.on{background:#17202B}
       @media (max-width:800px){#mtsBox .mts-row{grid-template-columns:repeat(2,1fr)}#mtsBox .mts-two,#mtsBox .mts-grid4{grid-template-columns:1fr}#mtsBox .mts-slide{aspect-ratio:auto;padding:18px}}
