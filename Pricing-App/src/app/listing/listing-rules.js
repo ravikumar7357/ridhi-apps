@@ -842,7 +842,7 @@ function lrAplusPub(row, ctx) {
   const parent = row.parent ? newer(ws[row.parent], saved[row.parent]) : null;
   if (child && child.v === true) return { v: true, at: child.at || 0, src: 'listing' };
   if (parent && parent.v === true) return { v: true, at: parent.at || 0, src: 'parent' };
-  if (!child || child.v !== false) return { v: undefined, at: 0, why: 'A+ not asked yet' };
+  if (!child || child.v !== false) return { v: undefined, at: 0, why: 'A+ not checked yet' };
   if (row.parent && (!parent || parent.v !== false)) return { v: undefined, at: child.at || 0, note: true, why: "the listing has none, and its parent ASIN's A+ was not asked yet" };
   const at = Math.min(child.at || 0, parent ? parent.at || 0 : child.at || 0);
   const stale = !(at > 0) || Date.now() - at > LR_APLUS_DAYS * LR_DAY;

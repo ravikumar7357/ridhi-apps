@@ -43,7 +43,7 @@ const TT_AMZ_MAX = 200;
 // The Amazon attributes each part of a title is read from (ListingMatch keeps them per listing in `va`), first found wins.
 const TT_ATTRS = { color: ['color', 'color_name'], size: ['size', 'size_name'], material: ['material'], shape: ['item_shape'], pattern: ['pattern', 'pattern_name'] };
 const TT_PART_WORD = { brand: 'brand', product: 'product', shape: 'shape', material: 'material', size: 'size', color: 'colour', pattern: 'print', uses: 'uses' };
-let TT = { run: null, read: new Map(), readV: 0, last: new Map(), memo: null, fam: new Map(), work: new Map(), rowsWork: {} };   // read: "brand|sku" → { va, pt, at } read for this
+let TT = { run: null, read: new Map(), readV: 0, last: new Map(), memo: null, fam: new Map(), work: new Map(), rowsWork: {}, kid: new Map(), hit: new Map(), quiet: false };   // read: "brand|sku" → { va, pt, at } read for this
 
 /* ----- small words ----- */
 const ttEsc = s => String(s == null ? '' : s).replace(/[<>&"]/g, ch => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[ch]));
@@ -281,10 +281,19 @@ function ttCheck(brand, row, title, ctx, ctx2) {
 
 /* ----- the children with a title problem ----- */
 // Which of the six problems a listing has now (Listing Health's own judging): [{ id, name, detail, detector }].
+// Kept per listing while what its TITLE rules read is the same (18 Nov 2026): the rules' context (rules, snapshot, catalogue, the family's
+// picture), its row, its live read, its ListingMatch record — so working a family out again judges only the listings that changed.
 function ttProblems(brand, row, ctx, now) {
+  const fp = [ctx, row, typeof faLiveKey === 'function' ? faLiveKey(brand, row.sku) : '', typeof lmGet === 'function' ? lmGet(row.sku, brand) : null];
+  const k = brand + '|' + row.sku;
+  const kept = TT.hit.get(k);
+  if (kept && ttSameSig(kept.fp, fp)) return kept.hits;
   const scored = Object.assign({}, row, { brand });
   const h = typeof hHealthKept === 'function' ? hHealthKept(row, scored, ctx, now || Date.now()) : healthOf(scored, ctx);
-  return h.found.filter(hit => ttIsDet(hit.detector));
+  const hits = h.found.filter(hit => ttIsDet(hit.detector));
+  if (TT.hit.size > 30000) TT.hit.clear();
+  TT.hit.set(k, { fp, hits });
+  return hits;
 }
 // A change sent lately that is still waiting for Amazon (fix-all.js's log), for this listing's title: this fix's, or the older
 // "Title too long" fix's.
@@ -380,26 +389,90 @@ function ttFamily(brand, parent) {
 /* A STEP AT A TIME (18 Nov 2026): one family's plans — and the brand's list — are worked out in small steps (one listing judged, built or
  * checked per step), so the Workspace works out the open parent first, in slices, and the rest of the brand in the background
  * (fix-all.js faWork). ttFamily / ttRows run the very same steps to the end: the same plans either way. */
-// What a family's plans rest on: the rules' context, the listings, the change log, the reads — kept while it is the same.
-const ttFamSig = (brand, ctx) => ttRowsSig(brand, ctx).concat([TT.readV, typeof FA !== 'undefined' ? FA.valsV : 0]);
 const ttSameSig = (a, b) => !!a && a.length === b.length && a.every((x, i) => x === b[i]);
+/* KEPT UNTIL THE FAMILY'S OWN DATA CHANGES (18 Nov 2026). A read landing for ANY listing (the Workspace's queue, the saved copy, the
+ * sync) bumps LI_WS.liveV: a family's plans are NOT thrown away for that. Two looks: (1) nothing at all changed since they were made
+ * (ttGlobal, a handful of values) — kept; (2) something did: is it one of THIS family's listings (ttFamFp — each one's row, its live read,
+ * its Amazon facts, a change sent for its title)? No — kept. Yes — the family is worked out again, but each listing whose own inputs are
+ * the same keeps its plan (TT.kid), and its check too while its family's picture is the same: only the changed ones are redone. What
+ * changed is said in the console ("[Fix all] Tablecloth Main: 2 of 469 children changed — RTC14-1 (a live Amazon read landed) …"). */
+const ttGlobal = (brand, ctx) => [ctx, typeof LI_WS !== 'undefined' ? LI_WS.liveV : 0, TT.readV, typeof FA !== 'undefined' ? FA.valsV : 0,
+  typeof FA !== 'undefined' && FA.log ? FA.log.length : -1, HEALTH[brand].rows, HEALTH[brand].rows.length, typeof LM !== 'undefined' && LM ? LM.v + ':' + (LM.ov || 0) : 0];
+// The Amazon facts a listing's title is built from (ttAmazon's order): a read made for this fix, the ListingMatch record, the Workspace's spec values.
+const ttAmazonRef = (brand, sku) => TT.read.get(brand + '|' + sku) || (typeof lmGet === 'function' ? lmGet(sku, brand) : null)
+  || (typeof FA !== 'undefined' && FA.vals && FA.vals[brand] ? FA.vals[brand][sku] || null : null);
+const TT_FP_N = 4;      // per listing: its row, its live read, its Amazon facts, a change sent for its title
+const ttKidFp = (brand, row, sent) => [row, typeof faLiveKey === 'function' ? faLiveKey(brand, row.sku) : '', ttAmazonRef(brand, row.sku), ttWaiting(brand, row.sku, sent)];
+// One family's inputs, listing by listing: [ctx, n, …TT_FP_N per listing].
+function ttFamFp(brand, parent, ctx) {
+  const sent = typeof faSentMap === 'function' ? faSentMap(brand) : new Map();
+  const rows = HEALTH[brand].rows.filter(row => ttParentOf(row) === parent);
+  return [ctx, rows.length].concat(...rows.map(row => ttKidFp(brand, row, sent)));
+}
+// Say in the console what made a family's plans out of date (the trigger), once per change.
+const TT_WHAT = ['its Listing Health row (a refresh)', 'a live Amazon read landed', 'its Amazon facts (ListingMatch / a read)', 'a change sent for its title, or its wait ended'];
+function ttTell(brand, parent, was, now) {
+  if (TT.quiet || typeof console === 'undefined' || !console.info) return;
+  const name = typeof faWhoName === 'function' ? faWhoName(brand, parent) : parent;
+  if (was[0] !== now[0]) return console.info(`[Fix all] ${name}: the rules or the shared data changed (Listing Rules, the Listing Health snapshot or a ListingMatch pass) — every fix of the family is checked again`);
+  if (was[1] !== now[1]) return console.info(`[Fix all] ${name}: ${was[1]} → ${now[1]} listings in the family — it is worked out again (unchanged children keep their fixes)`);
+  const changed = [];
+  for (let i = 0; i < now[1]; i++) {
+    const at = 2 + i * TT_FP_N;
+    const what = TT_WHAT.filter((_, j) => was[at + j] !== now[at + j]);
+    if (what.length) changed.push((now[at] && now[at].sku) + ' (' + what.join(', ') + ')');
+  }
+  console.info(`[Fix all] ${name}: ${changed.length} of ${now[1]} children changed — ${changed.slice(0, 8).join(' · ')}${changed.length > 8 ? ' …' : ''} — only they are worked out again`);
+}
+/** A family's plans when they are still good: { plans, gs, fp } — else null (and the console says why, once). */
+function ttFamilyFresh(brand, parent, ctx) {
+  if (typeof HEALTH === 'undefined' || !HEALTH[brand]) return null;
+  const e = TT.fam.get(brand + '|' + parent);
+  if (!e) return null;
+  ctx = ctx || hCtx();
+  const gs = ttGlobal(brand, ctx);
+  if (ttSameSig(e.gs, gs)) return e;
+  if (ttSameSig(e.staleAt, gs)) return null;
+  const fp = ttFamFp(brand, parent, ctx);
+  if (ttSameSig(e.fp, fp)) { e.gs = gs; return e; }            // the change was someone else's: these plans stand
+  e.staleAt = gs;
+  if (!ttSameSig(e.told, fp)) { e.told = fp; ttTell(brand, parent, e.fp, fp); }
+  return null;
+}
+// A plan's copy (the hidden row it was made from goes with it).
+const ttClone = p => Object.defineProperty(Object.assign({}, p), 'srcRow', { value: p.srcRow, enumerable: false });
+// The family's picture the rules compare a listing with (ttGroupOf) as one text: the same text = the same check.
+const ttGroupKey = g => (g ? [g.sized, g.bp, g.common, g.commonExample, [...g.shapes.entries()].join(';')].join('|') : '');
 /** One step of one family's plans; true when they are ready (kept in TT.fam). */
 function ttFamilyStep(brand, parent) {
   if (typeof HEALTH === 'undefined' || !HEALTH[brand]) return true;
-  const ctx = hCtx();
-  const sig = ttFamSig(brand, ctx);
   const key = brand + '|' + parent;
-  if (ttSameSig((TT.fam.get(key) || {}).sig, sig)) return true;
-  let w = TT.work.get(key);
-  if (!w || !ttSameSig(w.sig, sig)) {
+  // under way and nothing changed since the last step: the next step at once (hCtx walks every listing; a step is a fraction of that).
+  // A rules change met only here is caught when the plans are next looked at (the context is the first thing they are kept under).
+  const cur = TT.work.get(key);
+  if (cur && ttSameSig(cur.gs, ttGlobal(brand, cur.ctx))) return ttFamilyStepOn(brand, parent, key, cur);
+  const ctx = hCtx();
+  if (ttFamilyFresh(brand, parent, ctx)) return true;
+  const gs = ttGlobal(brand, ctx);
+  let w = cur;
+  // under way, and something changed meanwhile: carry on when it was not this family's (else start again — unchanged children are quick)
+  if (w && !ttSameSig(w.gs, gs)) {
+    if (w.ctx === ctx && ttSameSig(w.fp, ttFamFp(brand, parent, ctx))) w.gs = gs;
+    else w = null;
+  }
+  if (!w) {
     // the brand's list when it is current (only this family's from it), else this family's listings judged one by one
     const kept = ttRowsKept(brand, ttRowsSig(brand, ctx));
-    w = { sig, ctx, ph: kept ? 'draft' : 'rows', i: 0, items: kept ? kept.filter(r => ttParentOf(r.row) === parent) : [],
-      src: kept ? null : HEALTH[brand].rows.filter(row => ttParentOf(row) === parent), sent: kept ? null : (typeof faSentMap === 'function' ? faSentMap(brand) : new Map()),
-      now: Date.now(), plans: new Map(), drafts: [], ctx2: null };
+    const sent = typeof faSentMap === 'function' ? faSentMap(brand) : new Map();
+    w = { gs, fp: ttFamFp(brand, parent, ctx), ctx, ph: kept ? 'draft' : 'rows', i: 0, items: kept ? kept.filter(r => ttParentOf(r.row) === parent) : [],
+      src: kept ? null : HEALTH[brand].rows.filter(row => ttParentOf(row) === parent), sent, now: Date.now(), list: [], drafts: [], ctx2: null };
     TT.work.set(key, w);
     return false;
   }
+  return ttFamilyStepOn(brand, parent, key, w);
+}
+// One step of a family's work under way (ttFamilyStep).
+function ttFamilyStepOn(brand, parent, key, w) {
   if (w.ph === 'rows') {
     if (w.i < w.src.length) {
       const row = w.src[w.i++];
@@ -413,29 +486,51 @@ function ttFamilyStep(brand, parent) {
   }
   if (w.ph === 'draft') {
     if (w.i < w.items.length) {
-      const p = ttDraft(brand, w.items[w.i++], w.ctx);
-      w.plans.set(p.sku, p);
-      if (p.draft) w.drafts.push(p);
+      // a listing whose own inputs (and its problems) are the same as last time keeps its draft — and its plan, below
+      const item = w.items[w.i++];
+      const k = brand + '|' + item.row.sku;
+      const fp = ttKidFp(brand, item.row, w.sent).concat([w.ctx, item.hits.map(hit => hit.id + ':' + hit.sev + ':' + hit.detail).join('|')]);
+      let c = TT.kid.get(k);
+      if (!c || !ttSameSig(c.fp, fp)) {
+        const p = ttDraft(brand, item, w.ctx);
+        c = { fp, pre: ttClone(p), p: p.draft ? null : p, gk: null };
+        if (TT.kid.size > 30000) TT.kid.clear();
+        TT.kid.set(k, c);
+      }
+      w.list.push(c);
+      if (c.pre.draft) w.drafts.push(c);
       return false;
     }
-    w.ctx2 = ttCtxWith(w.ctx, brand, new Map(w.drafts.map(p => [p.sku, p.after])));
+    w.ctx2 = ttCtxWith(w.ctx, brand, new Map(w.drafts.map(c => [c.pre.sku, c.pre.after])));
     w.ph = 'check';
     w.i = 0;
     return false;
   }
-  if (w.i < w.drafts.length) { ttJudgeDraft(brand, w.drafts[w.i++], w.ctx, w.ctx2); return false; }
+  if (w.i < w.drafts.length) {
+    // judged again only when its draft is new or its family's picture (what the family rules compare it with) changed
+    const c = w.drafts[w.i++];
+    const gk = ttGroupKey(c.pre.srcRow && c.pre.srcRow.parent ? w.ctx2.parents.get(c.pre.srcRow.parent + '|' + brand) : null);
+    if (!c.p || c.gk !== gk) {
+      const p = ttClone(c.pre);
+      ttJudgeDraft(brand, p, w.ctx, w.ctx2);
+      c.p = p;
+      c.gk = gk;
+    }
+    return false;
+  }
   TT.work.delete(key);
   if (TT.fam.size > 4000) TT.fam.clear();
-  TT.fam.set(key, { sig, plans: w.plans });
+  TT.fam.set(key, { gs: w.gs, fp: w.fp, plans: new Map(w.list.map(c => [c.pre.sku, c.p])) });
   return true;
 }
 /** One step of the brand's list of listings with a title problem (ttRows); true when it is ready. */
 function ttRowsStep(brand) {
   if (typeof HEALTH === 'undefined' || !HEALTH[brand] || !(HEALTH[brand].rows || []).length) return true;
-  const ctx = hCtx();
-  const sig = ttRowsSig(brand, ctx);
-  if (ttRowsKept(brand, sig)) return true;
   let w = TT.rowsWork[brand];
+  const fast = w && ttSameSig(w.sig, ttRowsSig(brand, w.ctx));        // under way, nothing changed: no hCtx walk per step
+  const ctx = fast ? w.ctx : hCtx();
+  const sig = fast ? w.sig : ttRowsSig(brand, ctx);
+  if (!fast && ttRowsKept(brand, sig)) return true;
   if (!w || !ttSameSig(w.sig, sig)) {
     TT.rowsWork[brand] = { sig, ctx, i: 0, rows: [], sent: typeof faSentMap === 'function' ? faSentMap(brand) : new Map(), now: Date.now() };
     return false;

@@ -425,6 +425,7 @@ function lmNoteLive(brand, sku, kind, reply) {
   }
   if (reply.title) o.t = { at: now, t: String(reply.title).slice(0, 300) };
   LM.over[brand].set(sku, o);
+  LM.ov = (LM.ov || 0) + 1;                            // a record changed (the kept fix plans look again at the families: title-fix.js ttGlobal)
   if (!lmOk(brand)) return;
   lmImlPatch(brand, sku);
   lmAmzPatch(brand, sku);

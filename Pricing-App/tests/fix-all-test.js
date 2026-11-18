@@ -234,7 +234,12 @@ async function startTitles(C, gk, sku) {
     let g = rowOf('spec:material');
     ok('one row "Empty spec: material" with G14', g && g.kids.length === 1 && g.kids[0].sku === 'G14' && g.name === 'Empty spec: material');
     let plan = C.faPlans(g, C.hCtx())[0];
-    ok('the siblings\' values not read yet → "Checking…", and they are read from Amazon', !plan.ok && plan.wait && /Checking…/.test(C.faBlockHtml('SP', 'PB')) && ['G10', 'G11', 'G12', 'G13'].every(s => C.FA.reading.has('SP|' + s) || C.FA.vals.SP[s]));
+    // (18 Nov 2026) nothing is read by drawing the parent: the row offers "Read from Amazon now", and only that reads
+    const blk = C.faBlockHtml('SP', 'PB');
+    ok('the siblings\' values not read yet → the row says so and offers "Read from Amazon now"; drawing read nothing', !plan.ok && plan.wait && /data-fa-act="vals" data-fa-row="SP\|PB\|spec:material">Read from Amazon now</.test(blk)
+      && /The other children’s value is not read yet — Read from Amazon now/.test(blk) && C.FA.reading.size === 0 && !C.LI_WS.q.length && !C.LI_WS.inflight, strip(blk).slice(0, 400));
+    C.faClick({ dataset: { faAct: 'vals', faRow: 'SP|PB|spec:material' }, closest: () => null });
+    ok('…pressed: the four siblings\' values are read from Amazon ("Checking…" meanwhile)', ['G10', 'G11', 'G12', 'G13'].every(s => C.FA.reading.has('SP|' + s) || C.FA.vals.SP[s]) && /Checking…|Reading the other children/.test(C.faBlockHtml('SP', 'PB')));
     await idle(C);   // the reads land: the Workspace's get job hands each answer to faOnGet
     g = rowOf('spec:material');
     plan = C.faPlans(g, C.hCtx())[0];

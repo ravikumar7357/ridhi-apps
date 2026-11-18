@@ -519,7 +519,8 @@ const csvRows = text => text.replace(/^﻿/, '').trim().split('\r\n').map(line =
     X.C2.reset();
     const a5 = X.C2.score(X.C2.HEALTH.SP.rows[3].sku).aplus;
     ok('…a publish record of the last 14 days that says A+ IS on the page wins until it is old (and says until when)', a5.v === true && a5.lm === undefined && a5.until > Date.now());
-    ok('no one-by-one A+ reads are queued while the daily read is fresh', X.C2.lmOk('SP') && (() => { const src = L('listing-workspace.js'); return /if \(!force && typeof lmAplusFresh === 'function' && lmAplusFresh\(brand\)\) return 0;/.test(src); })()
+    // (18 Nov 2026) never on their own: fresh or not, only a person's Read again / "Read from Amazon now" / Check now (force) asks one by one
+    ok('no one-by-one A+ reads are queued on their own (only Read again / Read from Amazon now / Check now)', X.C2.lmOk('SP') && (() => { const src = L('listing-workspace.js'); return /function liWsAplusJobs\([^)]*\) \{[^]*?if \(!force\) return 0;/.test(src); })()
       && /if \(typeof lmAplusFresh === 'function' && lmAplusFresh\(brand\)\) \{/.test(L('listing-health-data.js')));
     const Old = mk({ apAt: Date.now() - 40 * H, docs: (b, rows) => ({ D1: { k: 'D1', n: 'Live doc', s: 'APPROVED', t: 'Basic', bd: [], u: new Date().toISOString(), rr: [], a: [first(rows).asin] } }) });
     await Old.C2.lmEnsure(); await Old.C2.lmRefresh();

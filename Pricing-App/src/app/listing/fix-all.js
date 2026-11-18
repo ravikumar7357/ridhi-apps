@@ -38,6 +38,8 @@ let FA = {
   valsV: 0,
   reading: new Set(),        // "brand|sku" whose values are being read for a spec copy
   hist: new Set(),           // "brand|parent" whose History is unfolded
+  valsAt: { SP: {}, CPC: {} },  // sku → when its spec values were taken (a number that changes with each ?lfix=get)
+  lastBlock: new Map(),      // "brand|parent" → the block last drawn: kept on screen while its fixes are worked out again (no flashing)
 };
 // SMOOTH (18 Nov 2026): one number format made once — the same text as toLocaleString('en-US'), which makes a new one per number
 const FA_NUM = new Intl.NumberFormat('en-US');
@@ -268,6 +270,7 @@ function faOnGet(brand, sku, attributes) {
   });
   FA.vals[brand][sku] = keep;
   FA.valsV++;
+  FA.valsAt[brand][sku] = FA.valsV;
 }
 // One attribute entry with marketplace and language aside and its keys in order — two children "use the same value" when these match.
 function faCanon(entry) {
@@ -289,7 +292,8 @@ function faValText(entries) {
   walk(entries);
   return leaves.join(' · ');
 }
-// Read the spec values of these siblings (once each), through the Workspace's queue.
+// Read the spec values of these siblings (once each), through the Workspace's queue — only from the row's "Read from Amazon now"
+// (18 Nov 2026: nothing is read from Amazon just by opening or drawing a parent).
 function faNeedVals(brand, skus) {
   if (typeof liWsQueue !== 'function') return;
   skus.forEach(sku => {
@@ -299,26 +303,55 @@ function faNeedVals(brand, skus) {
     liWsQueue({ t: 'get', brand, sku, units: 1, pk: '', mark: [key], done: () => { FA.reading.delete(key); } });
   });
 }
-// Every child's plan for one row (the rows' "Fix all N" count, the "Show all" list): kept per child until what it reads changes.
-const FA_PLAN_KEEP = new WeakMap();
+// Every child's plan for one row (the rows' "Fix all N" count, the "Show all" list): kept per child until what IT reads changes.
+/* KEPT PER CHILD, BY ITS OWN DATA (18 Nov 2026). A plan was kept on the child's record object and redone whenever ANY listing's read
+ * landed (LI_WS.liveV) or a spec value was read anywhere — and the Workspace makes a new record for every child each minute (the ages in
+ * its text) — so a big parent's Fix all buttons went back to "Working out the fixes…" every few seconds. Now a plan is kept by
+ * "brand|sku|row" under what that child's plan really reads: the rules' context, its Listing Health row, its finding, and per kind its
+ * live read / its ListingMatch record / its full search terms / its siblings' spec values / its family's title plan (title-fix.js). */
+const FA_PLAN_KEEP = new Map();
+const FA_FRESH = {};       // a value never equal to a kept one: a title plan whose family is being worked out again
 function faPlans(g, ctx) {
   return g.kids.map(kid => faPlanOf(g, kid, ctx));
 }
+// One listing's live read as one text: its read times and the facts a plan reads (the entry is changed in place, so not the object).
+function faLiveKey(brand, sku) {
+  const lr = typeof LI_WS !== 'undefined' && LI_WS.live[brand] ? LI_WS.live[brand][sku] : null;
+  if (!lr) return '';
+  return [lr.at, lr.cAt, lr.gAt, lr.iAt, lr.tAt, lr.hlAt, lr.pt, lr.brand, lr.color, lr.title, lr.catTitle, lr.kw, lr.kwBytes, lr.err, lr.cErr,
+    lr.specs ? Object.keys(lr.specs).filter(k => lr.specs[k]).join(',') : ''].join('\u0001');
+}
+// The siblings' spec values a spec copy reads, as one text (worked out once per row object).
+function faSpecSig(g) {
+  if (g.specSig == null) g.specSig = (g.all || []).map(s => [s.sku, FA.valsAt[s.brand] ? FA.valsAt[s.brand][s.sku] || 0 : 0, faLiveKey(s.brand, s.sku)].join(':')).join(',');
+  return g.specSig;
+}
 // What one child's kept plan rests on; its plan kept while that is the same, else worked out now and kept.
-const faPlanSig = (g, ctx) => [ctx, g.key, FA.valsV, g.attr || g.kind === 'kw' || g.kind === 'ttl' ? LI_WS.liveV : 0, g.attr ? g.all.length : 0,
-  g.kind === 'kw' && typeof KF !== 'undefined' ? KF.full.size : g.kind === 'ttl' && typeof TT !== 'undefined' ? TT.readV + ':' + ((FA.log || []).length) : 0];
+function faPlanSig(g, kid, ctx) {
+  const hit = g.hits.get(faKidKey(kid));
+  const base = [ctx, g.key, kid.row, hit ? [hit.id, hit.sev, hit.detail, hit.fix, hit.stale].join('|') : ''];
+  if (g.kind === 'ttl') {
+    const fam = typeof ttFamilyFresh === 'function' ? ttFamilyFresh(kid.brand, kid.row.parent || kid.row.asin || kid.row.sku || '—', ctx) : null;
+    return base.concat([fam ? fam.plans.get(kid.sku) || FA_FRESH : FA_FRESH]);
+  }
+  const own = faLiveKey(kid.brand, kid.sku);
+  if (g.kind === 'kw') return base.concat([own, typeof lmGet === 'function' ? lmGet(kid.sku, kid.brand) : null, typeof KF !== 'undefined' ? KF.full.get(faKidKey(kid)) || null : null]);
+  if (g.kind === 'spec') return base.concat([own, faSpecSig(g)]);
+  return base.concat([own]);
+}
+const faPlanKey = (g, kid) => faKidKey(kid) + '|' + g.key;
 function faPlanKept(g, kid, sig) {
-  const was = (FA_PLAN_KEEP.get(kid) || new Map()).get(g.key);
-  return was && was.sig.every((part, i) => part === sig[i]) ? was : null;
+  const was = FA_PLAN_KEEP.get(faPlanKey(g, kid));
+  return was && was.sig.length === sig.length && was.sig.every((part, i) => part === sig[i]) ? was : null;
 }
 function faPlanOf(g, kid, ctx) {
-  const sig = faPlanSig(g, ctx);
+  const sig = faPlanSig(g, kid, ctx);
   const was = faPlanKept(g, kid, sig);
   if (was) return was.plan;
-  let keep = FA_PLAN_KEEP.get(kid);
-  if (!keep) FA_PLAN_KEEP.set(kid, keep = new Map());
   const plan = faPlan(g, kid, ctx);
-  keep.set(g.key, { sig, plan });
+  if (FA_PLAN_KEEP.size > 40000) FA_PLAN_KEEP.clear();
+  // a title plan: kept under its family's plan as it now is (worked out just now by faPlan)
+  FA_PLAN_KEEP.set(faPlanKey(g, kid), { sig: g.kind === 'ttl' ? faPlanSig(g, kid, ctx) : sig, plan });
   return plan;
 }
 /* THE OPEN PARENT FIRST, THEN THE REST OF THE BRAND (18 Nov 2026). The first open of a big parent works out every child's fix (a title
@@ -332,11 +365,12 @@ const FA_WARM_MIN = 40;          // fewer plans than this to work out: just draw
 const FA_SLICE_MS = 30;          // the open parent: slices of this long, one after another
 const FA_BG_SLICE_MS = 12;       // the rest of the brand: smaller slices…
 const FA_BG_GAP_MS = 40;         // …with this pause between them (the page stays quick to use)
+const FA_CATCHUP_MS = 20;        // a drawn parent whose few changed children are redone in the draw itself, up to this long
 const FA_W = { pri: null, bg: [], running: false, bgFor: null, slices: 0 };   // pri: { key, it, done } — the open parent's job; bg: the others
 const faCanWarm = () => typeof requestAnimationFrame === 'function' && typeof document !== 'undefined' && !!document.body && typeof performance !== 'undefined';
 function faColdN(groups, ctx) {
   let n = 0;
-  groups.forEach(g => { const sig = faPlanSig(g, ctx); g.kids.forEach(kid => { if (!faPlanKept(g, kid, sig)) n++; }); });
+  groups.forEach(g => g.kids.forEach(kid => { if (!faPlanKept(g, kid, faPlanSig(g, kid, ctx))) n++; }));
   return n;
 }
 // One parent's fixes as steps: its children, its rows, its family's titles (title-fix.js, a listing a step), each child's plan.
@@ -404,7 +438,7 @@ function faDoLine(g, plans) {
   if (g.kind === 'spec') {
     if (FA_OWN_SPECS.includes(g.attr)) return `Each child has its own ${g.attr} — fill it in by hand in Listing Errors`;
     const one = safe[0];
-    return one ? `Copy ${one.what.replace(/^Copy /, '')}` : plans.some(p => p.wait) ? 'Reading the other children’s value from Amazon…' : 'The other children don’t agree on one value — fill it in by hand';
+    return one ? `Copy ${one.what.replace(/^Copy /, '')}` : plans.some(p => p.wait) ? (plans.some(p => (p.need || []).some(sku => FA.reading.has(brandOfPlans(plans) + '|' + sku))) ? 'Reading the other children’s value from Amazon…' : 'The other children’s value is not read yet — Read from Amazon now') : 'The other children don’t agree on one value — fill it in by hand';
   }
   if (g.kind === 'img') return 'Change the pictures in Image Manager — no automatic fix';
   if (g.kind === 'ttl') return 'One new title per child from the title template and its own Amazon facts — every title problem of the family fixed at once';
@@ -422,7 +456,13 @@ function faRowButton(gk, g, plans) {
   if (g.kind === 'ttl' && g.kids.length) { const n = ttFamilyN(g.kids[0].brand, g.kids[0].row.parent || g.kids[0].row.asin || g.kids[0].row.sku || '—'); if (n) return `<button type="button" class="fa-btn fa-main" data-fa-act="fix" data-fa-row="${lrEsc(gk)}"${busy ? ' disabled title="Finish the Fix all that is open first"' : ''} title="One new title for each child — every title problem of this family">Fix all ${faKidsN(n)}</button>`; }
   if (g.kind === 'kw') { const n = plans.filter(p => p.ok || p.wait).length; if (n) return `<button type="button" class="fa-btn fa-main" data-fa-act="fix" data-fa-row="${lrEsc(gk)}"${busy ? ' disabled title="Finish the Fix all that is open first"' : ''}>Fix all ${faKidsN(n)}</button>`; }
   if (safe) return `<button type="button" class="fa-btn fa-main" data-fa-act="fix" data-fa-row="${lrEsc(gk)}"${busy ? ' disabled title="Finish the Fix all that is open first"' : ''}>Fix all ${faNf(safe)}</button>`;
-  if (plans.some(p => p.wait)) return '<button type="button" class="fa-btn" disabled>Checking…</button>';
+  if (plans.some(p => p.wait)) {
+    // a spec copy whose siblings' values are not read: read only when a person asks (nothing is read by drawing the parent)
+    const need = [...new Set(plans.flatMap(p => p.need || []))];
+    const reading = need.some(sku => FA.reading.has(brandOfPlans(plans) + '|' + sku));
+    if (g.kind === 'spec' && need.length && !reading) return `<button type="button" class="fa-btn" data-fa-act="vals" data-fa-row="${lrEsc(gk)}">Read from Amazon now</button>`;
+    return '<button type="button" class="fa-btn" disabled>Checking…</button>';
+  }
   if (g.kind === 'img') return `<button type="button" class="fa-btn" data-fa-act="img" data-fa-row="${lrEsc(gk)}">Open in Image Manager</button>`;
   return `<button type="button" class="fa-btn" data-fa-act="lerr" data-fa-row="${lrEsc(gk)}">Open in Listing Errors</button>`;
 }
@@ -437,6 +477,16 @@ function faKidChange(g, plan, kid) {
   }
   if (g.kind === 'title' || g.kind === 'spec' || g.kind === 'kw' || g.kind === 'ttl') return `<span class="fa-why">${plan.wait ? '… ' : '⚠ Needs your OK: '}${lrEsc(plan.why)}</span>`;
   return `<span class="fa-why">${lrEsc(hit ? (hit.what || hit.detail || hit.name) : '')}</span>`;
+}
+// The brand of a row's plans (every plan of a row is one brand's).
+const brandOfPlans = plans => (plans[0] && plans[0].brand) || '';
+// The row's "Read from Amazon now" (a spec copy): the siblings' values, read now.
+function faReadVals(gk) {
+  const [brand, parent, ...rest] = gk.split('|');
+  const g = faGroups(brand, parent, faKids(brand, parent)).find(each => each.key === rest.join('|'));
+  if (!g) return;
+  faNeedVals(brand, [...new Set(faPlans(g, hCtx()).flatMap(p => p.need || []))]);
+  faRedraw();
 }
 function faKidsHtml(gk, g, plans) {
   const all = FA.more.has(gk);
@@ -473,9 +523,18 @@ function faBlockInner(brand, parent, kids) {
   // says so — "Working out the fixes for 469 children of Tablecloth Main…" (each child once, however many rows it is in); once they are
   // ready (or already were), the rest of the brand in the background (faBgStart)
   if (faCanWarm()) {
+    // a few children changed (their family's title plans out of date): usually finished right here, the unchanged ones kept (≤ 20 ms)
+    if (typeof ttFamilyStep === 'function' && !(FA_W.pri && FA_W.pri.key === pk) && groups.some(g => g.kind === 'ttl')) {
+      const t0 = performance.now();
+      while (!ttFamilyStep(brand, parent) && performance.now() - t0 < FA_CATCHUP_MS) { /* one step at a time */ }
+    }
     const cold = FA_W.pri && FA_W.pri.key === pk ? FA_WARM_MIN : faColdN(groups, ctx);
     if (cold >= FA_WARM_MIN) {
       faWarmParent(brand, parent, groups);
+      // NO FLASHING (18 Nov 2026): drawn before — that block (its buttons) stays while the changed fixes are worked out again, with one
+      // quiet line at its end; "Working out the fixes for …" only the first time
+      const last = FA.lastBlock.get(pk);
+      if (last) return last.replace(/<\/section>$/, `<div class="fa-waitl fa-upd" role="status">⏳ Updating the fixes that changed…</div></section>`);
       const n = new Set(groups.flatMap(g => g.kids.map(faKidKey))).size;
       return `<section class="fa" aria-label="This parent's problems">${cards}<div class="fa-waitl" role="status">⏳ Working out the fixes for ${faKidsN(n)} of ${lrEsc(faCut(faWhoName(brand, parent), 60))}…</div></section>`;
     }
@@ -484,7 +543,6 @@ function faBlockInner(brand, parent, kids) {
   const row = g => {
     const gk = pk + '|' + g.key;
     const plans = faPlans(g, ctx);
-    if (g.kind === 'spec') { const need = [...new Set(plans.flatMap(p => p.need || []))]; if (need.length) faNeedVals(brand, need); }
     const open = FA.open.has(gk);
     const cls = g.sev === 'critical' ? (g.stale ? 'is-chk' : 'is-err') : 'is-att';
     const count = g.kids.length ? faKidsN(g.kids.length) : 'waiting';
@@ -496,7 +554,10 @@ function faBlockInner(brand, parent, kids) {
   const att = groups.filter(g => g.sev !== 'critical');
   const sec = (title, list) => (list.length ? `<div class="fa-sec"><div class="fa-sec-h">${title}</div>${list.map(row).join('')}</div>` : '');
   const okLine = `<div class="fa-okline"><span aria-hidden="true">✓</span> ${n.ok === 1 ? '1 child has' : faNf(n.ok) + ' children have'} no problem · Nothing to do${n.unk ? ` · ${faNf(n.unk)} not checked yet` : ''}</div>`;
-  return `<section class="fa" aria-label="This parent's problems">${cards}${sec('Fix first', first)}${sec('Needs attention', att)}${okLine}${faHistHtml(brand, parent)}</section>`;
+  const html = `<section class="fa" aria-label="This parent's problems">${cards}${sec('Fix first', first)}${sec('Needs attention', att)}${okLine}${faHistHtml(brand, parent)}</section>`;
+  if (FA.lastBlock.size > 50) FA.lastBlock.clear();
+  FA.lastBlock.set(pk, html);
+  return html;
 }
 
 /* ----- Fix all: THE ONE SEND PATH (#10, listing-send-check.js) — the Amazon check popup ----- */
@@ -692,6 +753,7 @@ function faClick(btn) {
   if (act === 'kid') return faOpenKid(btn, btn.dataset.faKid);
   if (act === 'img') return faOpenImg(gk);
   if (act === 'lerr') return faOpenLerr(gk);
+  if (act === 'vals') return faReadVals(gk);
   if (act === 'hist') { const pk = btn.dataset.faG; if (FA.hist.has(pk)) FA.hist.delete(pk); else FA.hist.add(pk); return faRedraw(); }
   if (act === 'putback') return faPutBack(btn.dataset.faId);
 }

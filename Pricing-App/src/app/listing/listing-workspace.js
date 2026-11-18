@@ -481,7 +481,7 @@ function liWsChildKept(row, brand, hc, imlMap, now) {
 // `need`: what a step with no answer yet is waiting for, in words.
 const LI_WS_AUDIT = [
   { k: 'spec', t: 'Spec sheet', checks: ['spec'], tip: 'Every spec Amazon asks for on the product type is filled (from the live Amazon read)',
-    need: 'the Amazon read of each listing — open the parent, or “Read again from Amazon”' },
+    need: 'the Amazon read of each listing — “Read from Amazon now” on the parent, or “Read again from Amazon”' },
   { k: 'tpl', t: 'Template', checks: ['tpl'], tip: 'The title follows the Listing Rules template; a product with no template counts as fine',
     need: 'the brand catalogue and the title — “Refresh both brands”, or open the parent' },
   { k: 'fmt', t: 'Standard format', checks: ['bul', 'desc', 'other'], tip: 'Bullets, description and the other Listing Rules pass',
@@ -865,8 +865,9 @@ async function liWsJob(job) {
 // The A+ reads a set of listings needs: the parent ASIN and every child's ASIN whose answer is missing, older than a day, or a
 // "no A+" older than LR_APLUS_DAYS (asked again before it counts) — unless `force`. Ten ASINs a call. Returns the jobs' units.
 function liWsAplusJobs(brand, parent, kids, pk, force, extra) {
-  // The daily A+ read answers (lrAplus → lmAplusOf): nothing is asked one by one — unless a person pressed Read again (force)
-  if (!force && typeof lmAplusFresh === 'function' && lmAplusFresh(brand)) return 0;
+  // NO A+ READ ONE BY ONE ON ITS OWN (18 Nov 2026): the daily A+ read answers (lrAplus → lmAplusOf); while it is missing (not deployed,
+  // old) A+ shows "not checked yet" — asked one ASIN at a time only when a person presses "Read from Amazon now" / Read again / Check now
+  if (!force) return 0;
   const cut = Date.now() - LI_WS_DAY;
   const apCut = Date.now() - LR_APLUS_DAYS * LI_WS_DAY;
   const map = LI_WS.aplus[brand];
@@ -891,7 +892,7 @@ function liWsNeedSchema(brand, pt, pk) {
 }
 // Read one parent's listed children from Amazon: content in batches, then each listing (status / issues / specs, and the
 // catalogue's pictures), A+ for the parent ASIN and its children, then the schemas. Reads from the last day are skipped unless
-// `force` (Read again). Children showing an Error from old data are among them, so opening a parent re-checks them.
+// `force` (Read again / "Read from Amazon now" — the only callers that read since 18 Nov 2026; opening a parent reads nothing).
 function liWsReadParent(p, force, quiet) {
   // A read of this parent is still on its way (▸ closed and opened again): its calls are out, so nothing is queued twice.
   const cur = LI_WS.prog[p.key];
@@ -1571,7 +1572,9 @@ function liWsPanelOpen(key) {
     panel.hidden = false;
     if (panel.setAttribute) panel.setAttribute('tabindex', '-1');
   }
-  liWsReadParent(p, false, true);
+  // NOTHING IS READ FROM AMAZON BY OPENING A PARENT (18 Nov 2026): the panel shows what Sellora holds (the ListingMatch cache, the
+  // reads kept); "Read from Amazon now" on it reads. Each read landing used to change the data under the open panel — 469 children ×
+  // 3 reads — and its Fix all buttons were worked out again and again.
   liWsPanelRender();
   if (panel && panel.focus) panel.focus({ preventScroll: true });
 }
@@ -2033,8 +2036,7 @@ function liWsClick(e) {
     const p = LI_WS.byKey.get(d.liWsTog);
     if (LI_WS.open.has(d.liWsTog)) LI_WS.open.delete(d.liWsTog);
     else {
-      LI_WS.open.add(d.liWsTog);
-      if (p) liWsReadParent(p, false);
+      LI_WS.open.add(d.liWsTog);               // shown, not read (18 Nov 2026): "Read again from Amazon" reads
     }
     liWsDraw();
     return refocus(`[data-li-ws-tog="${CSS.escape(d.liWsTog)}"]`);
