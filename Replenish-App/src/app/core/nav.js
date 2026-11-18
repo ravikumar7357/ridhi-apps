@@ -169,10 +169,38 @@ function topbarSync() {
   bar.classList.toggle('hide', !alive);
 }
 
-/** The screen named in the address ("#fab"), or '' — only a screen this app has. */
-function navHashTab() {
+/** The address after "#", split at "?": "ord?q=AMZ-1" → { tab: 'ord', query: 'q=AMZ-1' }. */
+function navHashParts() {
   const h = String((typeof location !== 'undefined' && location.hash) || '').replace(/^#\/?/, '').trim();
+  const at = h.indexOf('?');
+  return at < 0 ? { tab: h, query: '' } : { tab: h.slice(0, at), query: h.slice(at + 1) };
+}
+/** The screen named in the address ("#fab", or "#ord?q=…" from a report link), or '' — only a screen this app has. */
+function navHashTab() {
+  const h = navHashParts().tab;
   return /^[a-z]+$/.test(h) && (typeof TAB_NAV_IDS === 'undefined' || TAB_NAV_IDS.indexOf(h) >= 0 || h === 'shopprod') ? h : '';
+}
+/* AN ORDER FROM A LINK (Ravi, 17 Nov: the report mail's PDFs "actionable"): "#ord?q=AMZ-01092026-01" opens the Order
+ * Console searched to that order, as a click on the red order strip does. Only order-number characters are taken. */
+/** The order a link asks for, or ''. */
+function navHashOrder() {
+  const p = navHashParts();
+  if (p.tab !== 'ord' || !p.query) return '';
+  let no = '';
+  try { no = new URLSearchParams(p.query).get('q') || ''; } catch (e) { return ''; }
+  no = no.trim();
+  return /^[A-Za-z0-9#][A-Za-z0-9#_\-]{0,59}$/.test(no) ? no : '';
+}
+/* A PRINTER FROM A LINK (Ravi, 18 Nov: "Designs pending" in the printer delay mail): "#vend?printer=VND004&late=1" opens the
+ * printer's portal as that printer — view only, for those who may look as a printer — with "Show late only" on. */
+/** { code, late } a link asks for, or null. Only vendor-code characters are taken. */
+function navHashPrinter() {
+  const p = navHashParts();
+  if (p.tab !== 'vend' || !p.query) return null;
+  let q;
+  try { q = new URLSearchParams(p.query); } catch (e) { return null; }
+  const code = String(q.get('printer') || '').trim();
+  return /^[A-Za-z0-9_-]{1,20}$/.test(code) ? { code, late: q.get('late') === '1' } : null;
 }
 /* Every screen key with a menu link — the same list showTab keys its table on. */
 const TAB_NAV_IDS = ["repl","article","target","follow","top","india","shopify","prod","pack","att","pmdb","mst","pbase","pcut","ppress","qc","ord","so","vord","vreq","rfd","vend","vlog","cx","palloc","fgi","fba","fab","acc","rep","pa","ka","hr","shop","adj"];
@@ -186,8 +214,11 @@ document.querySelector('.side') && document.querySelector('.side').addEventListe
 /* The address changed by hand, or by Back: follow it, once. NAV_FROM_HISTORY tells showTab not to add a step of its own. */
 let NAV_FROM_HISTORY = false;
 window.addEventListener('hashchange', () => {
-  const t = navHashTab();
-  if (t && t !== TAB_NOW && ME && ME.tabs && ME.tabs.length) { NAV_FROM_HISTORY = true; try { showTab(t); } finally { NAV_FROM_HISTORY = false; } }
+  const t = navHashTab(), no = navHashOrder(), printer = navHashPrinter();
+  if (!(ME && ME.tabs && ME.tabs.length)) return;
+  if (no) { ordOpenOrder(no); return; }
+  if (printer && typeof flowVpLinkPrepare === 'function') { flowVpLinkPrepare(printer); showTab('vend'); return; }
+  if (t && t !== TAB_NOW) { NAV_FROM_HISTORY = true; try { showTab(t); } finally { NAV_FROM_HISTORY = false; } }
 });
 
 /* ---- BACK GOES TO WHERE YOU WERE (Ravi, 14 Oct: "back karta hu to app se bahar aa jata hu — back karne par me last

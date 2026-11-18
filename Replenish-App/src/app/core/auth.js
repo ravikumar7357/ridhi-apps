@@ -300,8 +300,12 @@ onAuthStateChanged(auth, async user => {
   // The cached snapshot, which every tab EXCEPT the factory ones is built on.
   if (!FACTORY_ONLY) await ensureReplSlim();
   /* The screen the address names, when this account may open it — a tab opened from a menu link, or a
-   * reload. showTab itself sends anything else to the first screen this account has. */
+   * reload. showTab itself sends anything else to the first screen this account has. A report link to one order
+   * ("#ord?q=…") is read first, because showTab rewrites the address to the bare screen. */
+  const linkOrder = navHashOrder(), linkPrinter = navHashPrinter();
+  if (linkPrinter && typeof flowVpLinkPrepare === 'function') flowVpLinkPrepare(linkPrinter);
   showTab(navHashTab() || ME.tabs[0]);
+  if (linkOrder) ordOpenOrder(linkOrder);
   /* Somebody who approves requests is told how many are waiting without having to open the tab. */
   /* With the pending-badges switch on (core/pending-badges.js) the four request counts below come from asking the database
    * for the pending rows only; the screens' own lists are not filled here and load in full when each screen is opened.

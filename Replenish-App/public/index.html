@@ -6015,8 +6015,12 @@ onAuthStateChanged(auth, async user => {
   // The cached snapshot, which every tab EXCEPT the factory ones is built on.
   if (!FACTORY_ONLY) await ensureReplSlim();
   /* The screen the address names, when this account may open it — a tab opened from a menu link, or a
-   * reload. showTab itself sends anything else to the first screen this account has. */
+   * reload. showTab itself sends anything else to the first screen this account has. A report link to one order
+   * ("#ord?q=…") is read first, because showTab rewrites the address to the bare screen. */
+  const linkOrder = navHashOrder(), linkPrinter = navHashPrinter();
+  if (linkPrinter && typeof flowVpLinkPrepare === 'function') flowVpLinkPrepare(linkPrinter);
   showTab(navHashTab() || ME.tabs[0]);
+  if (linkOrder) ordOpenOrder(linkOrder);
   /* Somebody who approves requests is told how many are waiting without having to open the tab. */
   /* With the pending-badges switch on (core/pending-badges.js) the four request counts below come from asking the database
    * for the pending rows only; the screens' own lists are not filled here and load in full when each screen is opened.
@@ -6209,10 +6213,38 @@ function topbarSync() {
   bar.classList.toggle('hide', !alive);
 }
 
-/** The screen named in the address ("#fab"), or '' — only a screen this app has. */
-function navHashTab() {
+/** The address after "#", split at "?": "ord?q=AMZ-1" → { tab: 'ord', query: 'q=AMZ-1' }. */
+function navHashParts() {
   const h = String((typeof location !== 'undefined' && location.hash) || '').replace(/^#\/?/, '').trim();
+  const at = h.indexOf('?');
+  return at < 0 ? { tab: h, query: '' } : { tab: h.slice(0, at), query: h.slice(at + 1) };
+}
+/** The screen named in the address ("#fab", or "#ord?q=…" from a report link), or '' — only a screen this app has. */
+function navHashTab() {
+  const h = navHashParts().tab;
   return /^[a-z]+$/.test(h) && (typeof TAB_NAV_IDS === 'undefined' || TAB_NAV_IDS.indexOf(h) >= 0 || h === 'shopprod') ? h : '';
+}
+/* AN ORDER FROM A LINK (Ravi, 17 Nov: the report mail's PDFs "actionable"): "#ord?q=AMZ-01092026-01" opens the Order
+ * Console searched to that order, as a click on the red order strip does. Only order-number characters are taken. */
+/** The order a link asks for, or ''. */
+function navHashOrder() {
+  const p = navHashParts();
+  if (p.tab !== 'ord' || !p.query) return '';
+  let no = '';
+  try { no = new URLSearchParams(p.query).get('q') || ''; } catch (e) { return ''; }
+  no = no.trim();
+  return /^[A-Za-z0-9#][A-Za-z0-9#_\-]{0,59}$/.test(no) ? no : '';
+}
+/* A PRINTER FROM A LINK (Ravi, 18 Nov: "Designs pending" in the printer delay mail): "#vend?printer=VND004&late=1" opens the
+ * printer's portal as that printer — view only, for those who may look as a printer — with "Show late only" on. */
+/** { code, late } a link asks for, or null. Only vendor-code characters are taken. */
+function navHashPrinter() {
+  const p = navHashParts();
+  if (p.tab !== 'vend' || !p.query) return null;
+  let q;
+  try { q = new URLSearchParams(p.query); } catch (e) { return null; }
+  const code = String(q.get('printer') || '').trim();
+  return /^[A-Za-z0-9_-]{1,20}$/.test(code) ? { code, late: q.get('late') === '1' } : null;
 }
 /* Every screen key with a menu link — the same list showTab keys its table on. */
 const TAB_NAV_IDS = ["repl","article","target","follow","top","india","shopify","prod","pack","att","pmdb","mst","pbase","pcut","ppress","qc","ord","so","vord","vreq","rfd","vend","vlog","cx","palloc","fgi","fba","fab","acc","rep","pa","ka","hr","shop","adj"];
@@ -6226,8 +6258,11 @@ document.querySelector('.side') && document.querySelector('.side').addEventListe
 /* The address changed by hand, or by Back: follow it, once. NAV_FROM_HISTORY tells showTab not to add a step of its own. */
 let NAV_FROM_HISTORY = false;
 window.addEventListener('hashchange', () => {
-  const t = navHashTab();
-  if (t && t !== TAB_NOW && ME && ME.tabs && ME.tabs.length) { NAV_FROM_HISTORY = true; try { showTab(t); } finally { NAV_FROM_HISTORY = false; } }
+  const t = navHashTab(), no = navHashOrder(), printer = navHashPrinter();
+  if (!(ME && ME.tabs && ME.tabs.length)) return;
+  if (no) { ordOpenOrder(no); return; }
+  if (printer && typeof flowVpLinkPrepare === 'function') { flowVpLinkPrepare(printer); showTab('vend'); return; }
+  if (t && t !== TAB_NOW) { NAV_FROM_HISTORY = true; try { showTab(t); } finally { NAV_FROM_HISTORY = false; } }
 });
 
 /* ---- BACK GOES TO WHERE YOU WERE (Ravi, 14 Oct: "back karta hu to app se bahar aa jata hu — back karne par me last
@@ -30411,10 +30446,13 @@ if (typeof document !== 'undefined' && typeof document.addEventListener === 'fun
     if (e.target.closest && e.target.closest('[data-otkplain]')) { showTab('ord'); return; }
     const b = e.target.closest && e.target.closest('[data-otkno]');
     if (!b) return;
-    const no = b.dataset.otkno;
-    showTab('ord');
-    setTimeout(() => { const q = $('odQ'); if (q) { q.value = no; q.dispatchEvent(new Event('input', { bubbles: true })); } }, 300);
+    ordOpenOrder(b.dataset.otkno);
   });
+}
+/** The Order Console searched to one order — a click on the strip, and a report link "#ord?q=…" (core/nav.js). */
+function ordOpenOrder(no) {
+  showTab('ord');
+  setTimeout(() => { const q = $('odQ'); if (q) { q.value = no; q.dispatchEvent(new Event('input', { bubbles: true })); } }, 300);
 }
 /* ============================== FILE: src/app/orders/order-alerts.js ============================== */
 /* ORDER ALERT LIST, STAGE 1 "SHADOW WEEK" (docs/data-reduction/ALERT-LIST-PLAN.md, section 9). Nobody sees the list yet.
@@ -34536,10 +34574,23 @@ async function flowVpBar() {
   const sel = $('flVpAs'); if (!sel) return;
   sel.innerHTML += Object.entries(map).filter(([, v]) => v).sort((a, b) => String(a[1].name || a[0]).localeCompare(String(b[1].name || b[0])))
     .map(([code, v]) => `<option value="${esc(code)}">${esc(v.name || code)} (${esc(code)})</option>`).join('');
+  if (FLOW_VP_AS) { sel.value = FLOW_VP_AS.code; if (map[FLOW_VP_AS.code] && map[FLOW_VP_AS.code].name) FLOW_VP_AS.name = map[FLOW_VP_AS.code].name; }   // opened from a link
   sel.onchange = async () => {
     const code = sel.value; FLOW_VP_AS = code ? { code, name: (map[code] && map[code].name) || code } : null;
     VP.rows = null; if (typeof ensureVp === 'function') await ensureVp();
   };
+}
+
+/**
+ * A link asking for one printer's portal (core/nav.js navHashPrinter — the printer delay mail, Ravi 18 Nov): look as that
+ * printer, late lines only if asked. Only sets what the portal reads; showTab('vend') then loads it. Looking as a printer
+ * stays for those allowed it (flowVpAfterLoad: admin or the view-only box).
+ */
+function flowVpLinkPrepare(link) {
+  FLOW_VP_AS = { code: link.code, name: link.code };
+  VP.lateOnly = !!link.late;
+  VP.rows = null;
+  const sel = $('flVpAs'); if (sel) sel.value = link.code;
 }
 
 /* History never changes a receipt made on a flow challan: it is changed on the challan itself (Demand history). */
