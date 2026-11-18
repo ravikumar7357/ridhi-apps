@@ -24,6 +24,9 @@
  *                                 salesRanks): the title shoppers see, live pictures with width/height, parent ↔
  *                                 children with the variation theme and its values, browse path, sales ranks.
  *                                 A+ is NOT in the catalog API: `aplus` stays null ("not read"), never false.
+ *   6. A+ Content API 2020-11-01   once a day, after the 13:00 full pass: every A+ document (searchContentDocuments — name,
+ *                                 status, type, last update) and the ASINs it is attached to
+ *                                 (listContentDocumentAsinRelations) → lmAplus_<brand>. See "A+ content" below.
  *
  * WHEN (script time zone, Asia/Kolkata):
  *   full pass   for 13:00 and 18:00 — the three reports are asked LM_EARLY_MIN minutes early (12:30 / 17:30) so they
@@ -56,6 +59,8 @@
  *   A SKU lives in part lmHash_(sku) % P (an ASIN likewise), so a light pass rewrites only the parts it touched and a
  *   reader never sees a SKU twice. P grows (and the tab names change) only when a part passes LM_PART_MAX characters.
  *   Scratch tabs lmScr_* exist only while a full pass runs and are deleted at its end.
+ *   lmAplus_<brand>                { b, at, ok, calls, docs: { key: document }, asins: { asin: [keys] } } — the A+ documents and
+ *                                  what they are attached to; lmMeta.aplus[brand] names the tab, its read time and `stale`.
  *
  * RUN FROM THE EDITOR
  *   lmSetup()          once: creates (or finds) "Sellora Listing Cache", checks it can be written, installs the timer,
@@ -65,6 +70,8 @@
  *   lmRunNow()         a full pass on the next tick instead of waiting for 13:00 / 18:00
  *   lmSku('RTC14-1')   one SKU from the cache: the listing, its catalog entry, its stock
  *   lmCheck()          THE PROOF: the cache against Amazon right now (counts vs fresh reports, 10 SKUs vs live reads)
+ *   lmAplusNow()       A+ read again on the next free tick (the daily one follows the 13:00 pass)
+ *   lmAplus('B0…')     one ASIN's A+ documents from the cache          lmAplusCheck()  A+ against Amazon's publish records now
  *   lmStop()           removes the timer. To undo everything: lmStop, delete this file and the lmCacheRead_ line in
  *                      Code.gs, the "Sellora Listing Cache" spreadsheet and the Script Properties LM_*.
  *
@@ -75,6 +82,8 @@
  *   light pass ≈ 2–4 calls per brand when little changed, at most ~22 per brand (200 changed listings);
  *   per day    ≈ 1,000 (two full passes) + 150–1,800 (36 light passes) ≈ 1,200–2,800 UrlFetch calls, of the
  *              20,000 (Gmail) / 100,000 (Workspace) Apps Script allows; ~45–60 minutes of trigger time.
+ *   A+ (once a day): per brand ceil(documents / Amazon's page) + one call per document — e.g. 150 documents ≈ 160 calls a
+ *              brand, ~2–3 minutes of script time. The exact count of the last read is in lmStatus ("with N calls").
  *   Rates: Listings Items 5 req/s — we leave LM_LIST_GAP_MS between calls (≤ 4/s); Catalog Items 2 req/s — we leave
  *   LM_CAT_GAP_MS (≈ 1.6/s). Sellora's own reads share those buckets; limgSp_ already waits and retries on 429, and
  *   a 429 that survives that ends the tick ("Amazon asked us to slow down"), the next tick carries on.
@@ -155,7 +164,7 @@ function lmGet_(name) {
   try { return JSON.parse(s); } catch (e) { return null; }
 }
 
-/** For Code.gs ?cache=lmMeta / lmListings_* / lmCatalog_*: null (→ "nothing cached yet") until lmSetup has run. */
+/** For Code.gs ?cache=lmMeta / lmListings_* / lmCatalog_* / lmAplus_*: null (→ "nothing cached yet") until lmSetup has run. */
 function lmCacheRead_(name) {
   if (!prop_('LM_CACHE_ID')) return null;
   return lmGet_(name);
@@ -289,6 +298,7 @@ function lmStatus() {
   });
   (meta.errors || []).forEach(function (e) { Logger.log('last pass  ' + (lmIsNote_(e) ? 'note: ' : '') + e); });
   (meta.notes || []).forEach(function (e) { Logger.log('last pass  note: ' + e); });
+  lmAplusStatus_(st, meta);
   lmUsageLog_();
 }
 
@@ -365,6 +375,19 @@ function lmTick_() {
     try { lmFullStep_(st, left); }
     finally { lmSave_(st); }
     return;
+  }
+  // A+ content: once a day, on the ticks after today's 13:00 full pass has finished (or when lmAplusNow asked)
+  if (lmAplusDue_(st, today, mins)) {
+    LM_BRANDS.forEach(function (b) { lmDropTab_(lmAplusScr_(b)); });     // nothing left from a read that was cut short
+    st.ap = lmAplusPlan_(today);
+    st.apAsk = false;
+    lmSave_(st);
+    Logger.log('lmTick: A+ read started.');
+  }
+  if (st.ap) {
+    try { lmAplusStep_(st, left); }
+    finally { lmSave_(st); }
+    return;                                    // this tick was the A+ read's; the light pass has the next one
   }
   var mins = (Date.now() - (st.lightAt || 0)) / 60000;
   if (hour >= LM_LIGHT_FROM && hour < LM_LIGHT_TO && mins >= LM_LIGHT_EVERY_MIN) {
@@ -1189,6 +1212,333 @@ function lmLogCat_(c) {
   Logger.log('   A+              not in the catalog API (not read)');
 }
 
+/* ============================== A+ content: once a day, after the 13:00 full pass ============================== */
+/* WHAT: every A+ document of the brand (A+ Content API 2020-11-01 searchContentDocuments) — its name, status (APPROVED /
+ * SUBMITTED / DRAFT / REJECTED), type (Premium / Basic, from Amazon's badges), last update, any rejection reason Amazon
+ * sends — and the ASINs each document is attached to (listContentDocumentAsinRelations, one document at a time).
+ * WHEN: once a day, on the ticks after the 13:00 full pass has finished (never during a full pass, never in the 18:00
+ * one, never in a light pass). lmAplusNow() asks for an extra read on the next tick.
+ * WHERE: one tab per brand, lmAplus_<brand>: { b, at, atMs, ok, calls, nDocs, nAsins, partial,
+ *   docs:  { key: { k, n (name), s (status), t ('Premium' | 'Basic' | ''), bd (badges), u (updated), rr (reasons),
+ *                   a (attached ASINs; null = could not be read), as (1 = the list is from an older read) } },
+ *   asins: { asin: [document keys] } }                      and lmMeta.aplus[brand] = { tab, at, atMs, calls, docs,
+ *   asins, partial, stale, err } — Sellora reads lmMeta first, then the tab it names (?cache=lmAplus_<brand>).
+ * NEVER WIPED BY A FAILURE: a search that fails LM_APLUS_TRIES times, an answer of no documents where the last read had
+ * some, or documents that all come back with no ASIN, leave the last good tab as it is and mark it stale in lmMeta
+ * (with the reason). A single document whose ASIN list cannot be read keeps the list of the last read (`as: 1`), or
+ * `a: null` when there is none — Sellora then shows "Not checked" where it cannot be sure, never "Missing".
+ * CALLS: per brand ceil(documents / Amazon's page) searches + one ASIN-list call per document (+1 per extra page of a
+ * long list). The exact number of each read is kept (`calls`) and printed by lmStatus. Rate: A+ Content allows 10
+ * requests a second; we leave LM_APLUS_GAP_MS between calls. */
+var LM_APLUS_HOUR = 13;                // the full pass the daily A+ read follows (script time zone)
+var LM_APLUS_GAP_MS = 150;
+var LM_APLUS_TRIES = 3;
+var LM_APLUS_PAGES_MAX = 500;          // a backstop against a page token that never ends
+var LM_APLUS_FAILS = 6;                // ticks an A+ read may fail before today's read is given up
+var LM_APLUS_MAX_MS = 3 * 3600000;     // …or this long after it started
+var LM_APLUS_REASON_MAX = 300;
+
+function lmAplusTab_(b) { return 'lmAplus_' + b; }
+function lmAplusScr_(b) { return 'lmApScr_' + b; }       // its own scratch name: a full pass drops every lmScr_ tab when it starts
+
+/** Is today's A+ read due? After the 13:00 full pass of today has been run and finished — or when lmAplusNow asked. */
+function lmAplusDue_(st, today, mins) {
+  if (st.run || st.ap) return false;
+  if (st.apAsk) return true;
+  if (st.apDay === today) return false;
+  if (mins < LM_APLUS_HOUR * 60) return false;
+  if (!(st.slots || {})[today + '|' + LM_APLUS_HOUR]) return false;       // today's 13:00 pass has not been started
+  var meta = lmGet_('lmMeta');
+  return !!(meta && meta.parts);                                         // nothing to attach A+ to before the first pass
+}
+function lmAplusPlan_(today) {
+  var B = {};
+  LM_BRANDS.forEach(function (b) { B[b] = { ph: 'docs', pg: 0, nd: 0, di: 0, calls: 0, t: 0, miss: 0 }; });
+  return { day: today, startedAt: lmNow_(), startMs: Date.now(), B: B };
+}
+
+/** One tick of the A+ read: every brand as far as the time allows. */
+function lmAplusStep_(st, left) {
+  var ap = st.ap;
+  try {
+    for (var k = 0; k < LM_BRANDS.length && left() > 40000; k++) {
+      var b = LM_BRANDS[k], x = ap.B[b];
+      if (x.ph === 'done' || x.ph === 'gave') continue;
+      setBrand_(b);
+      if (x.ph === 'docs') lmAplusDocs_(st, b, x, left);
+      if (x.ph === 'asins' && left() > 40000) lmAplusAsins_(st, b, x, left);
+      if (x.ph === 'write' && left() > 30000) lmAplusWrite_(st, b, x);
+      if (x.ph === 'gave') lmAplusGave_(st, b, x);
+    }
+  } catch (e) {
+    var m = String(e.message || e);
+    lmErr_(st, 'A+ read: ' + (/429|quota|throttl|too many/i.test(m) ? 'Amazon asked us to slow down — next tick' : m.slice(0, 180)));
+    // A read that keeps failing must not hold the light passes back all day: after LM_APLUS_FAILS failed ticks (or
+    // LM_APLUS_MAX_MS) today's read is given up — the last good data stays, tomorrow's read tries again.
+    ap.fails = (ap.fails || 0) + 1;
+  }
+  if ((ap.fails || 0) >= LM_APLUS_FAILS || Date.now() - ap.startMs > LM_APLUS_MAX_MS) {
+    LM_BRANDS.forEach(function (b) {
+      var x = ap.B[b];
+      if (x.ph === 'done' || x.ph === 'gave') return;
+      x.ph = 'gave'; x.err = (ap.fails || 0) >= LM_APLUS_FAILS ? 'the read failed on ' + ap.fails + ' ticks' : 'not finished after ' + Math.round(LM_APLUS_MAX_MS / 3600000) + ' hours';
+      try { setBrand_(b); lmAplusGave_(st, b, x); } catch (e2) { /* lmMeta keeps what it had */ }
+    });
+  }
+  var busy = LM_BRANDS.some(function (b) { return ap.B[b].ph !== 'done' && ap.B[b].ph !== 'gave'; });
+  if (busy) return;
+  lmNote_(st, 'A+ read ' + LM_BRANDS.map(function (b) {
+    var x = ap.B[b];
+    return LM_LABEL[b] + (x.ph === 'done' ? ' ' + lmNf_(x.nd) + ' documents, ' + lmNf_(x.na || 0) + ' ASINs, ' + lmNf_(x.calls) + ' calls' : ' NOT read (' + (x.err || 'failed') + ') — last good data kept');
+  }).join(' · '));
+  st.apDay = ap.day; st.apAsk = false; st.ap = null;
+  Logger.log('lmTick: A+ read finished.');
+}
+
+/* ----- step 1: every document (searchContentDocuments), page by page ----- */
+function lmAplusDocs_(st, b, x, left) {
+  var S = x.pg ? lmGet_(lmAplusScr_(b)) : null;
+  if (x.pg && (!S || !S.docs)) { x.pg = 0; S = null; lmErr_(st, LM_LABEL[b] + ' A+: the scratch tab is gone — reading the documents again'); }
+  S = S || { docs: [], tok: '' };
+  var seen = {}, stop = '', pages = 0, done = false;
+  S.docs.forEach(function (d) { seen[d.k] = 1; });
+  while (left() > 40000) {
+    var r = limgSp_('/aplus/2020-11-01/contentDocuments?marketplaceId=' + marketplaceId_() + (S.tok ? '&pageToken=' + encodeURIComponent(S.tok) : ''), 'get');
+    x.calls++;
+    if (r.code === 429) { stop = 'Amazon asked us to slow down (A+ documents) — next tick'; break; }
+    if (r.code >= 300) {
+      x.t = (x.t || 0) + 1;
+      var why = limgErr_(r, 'A+ documents').error.slice(0, 160);
+      if (r.code === 403 || x.t >= LM_APLUS_TRIES) { x.ph = 'gave'; x.err = (r.code === 403 ? 'no access to the A+ Content API (403)' : 'the document list failed ' + LM_APLUS_TRIES + ' times') + ': ' + why; return; }
+      stop = why + ' — trying again'; break;
+    }
+    x.t = 0;
+    (r.body.contentMetadataRecords || []).forEach(function (rec) {
+      var d = lmAplusMeta_(rec);
+      if (d.k && !seen[d.k]) { seen[d.k] = 1; S.docs.push(d); }
+    });
+    pages++; x.pg++;
+    S.tok = r.body.nextPageToken || '';
+    if (!S.tok || x.pg >= LM_APLUS_PAGES_MAX) { done = true; break; }
+    Utilities.sleep(LM_APLUS_GAP_MS);
+  }
+  if (stop) lmErr_(st, LM_LABEL[b] + ' A+: ' + stop);
+  if (!pages && !done) return;
+  try { lmPut_(lmAplusScr_(b), S); }
+  catch (we) { x.pg -= pages; lmErr_(st, LM_LABEL[b] + ' A+: could not write the cache sheet — those pages are read again: ' + String(we.message || we).slice(0, 120)); return; }
+  x.nd = S.docs.length;
+  if (done) { x.ph = 'asins'; x.di = 0; x.t = 0; }
+}
+
+/** One document of the search answer, as kept. */
+function lmAplusMeta_(rec) {
+  var m = (rec && rec.contentMetadata) || {};
+  var bd = (m.badgeSet || []).map(function (s) { return String(s).toUpperCase(); });
+  return { k: String((rec && rec.contentReferenceKey) || ''), n: lmCut_(m.name, 140), s: String(m.status || '').toUpperCase(), u: String(m.updateTime || ''),
+    bd: bd, t: bd.indexOf('PREMIUM') >= 0 ? 'Premium' : bd.indexOf('STANDARD') >= 0 ? 'Basic' : '', rr: lmAplusReasons_(rec) };
+}
+/** Any rejection reason Amazon sends with a document (a field whose name says reject / reason / violation): the texts, as written.
+ *  Amazon's API usually gives only the status; then this is [] and Sellora says where the reason is (A+ Content Manager). */
+function lmAplusReasons_(rec) {
+  var out = [];
+  var take = function (v) {
+    if (v == null) return;
+    if (typeof v === 'string') { if (v.trim() && out.indexOf(v.trim()) < 0) out.push(lmCut_(v, LM_APLUS_REASON_MAX)); return; }
+    if (Array.isArray(v)) { v.forEach(take); return; }
+    if (typeof v === 'object') { take(v.message || v.description || v.reason || v.text || v.code || null); }
+  };
+  [rec || {}, (rec && rec.contentMetadata) || {}].forEach(function (o) {
+    Object.keys(o).forEach(function (key) { if (/reject|reason|violation/i.test(key)) take(o[key]); });
+  });
+  return out.slice(0, 5);
+}
+
+/* ----- step 2: the ASINs of each document (listContentDocumentAsinRelations) ----- */
+function lmAplusAsins_(st, b, x, left) {
+  var S = lmGet_(lmAplusScr_(b));
+  if (!S || !S.docs) { x.ph = 'docs'; x.pg = 0; x.nd = 0; x.di = 0; lmErr_(st, LM_LABEL[b] + ' A+: the scratch tab is gone — reading the documents again'); return; }
+  var i = x.di, stop = '', touched = 0;
+  while (i < S.docs.length && left() > 40000) {
+    var d = S.docs[i], asins = [], have = {}, tok = '', pages = 0, bad = null;
+    do {
+      var r = limgSp_('/aplus/2020-11-01/contentDocuments/' + encodeURIComponent(d.k) + '/asins?marketplaceId=' + marketplaceId_()
+        + (tok ? '&pageToken=' + encodeURIComponent(tok) : ''), 'get');
+      x.calls++;
+      if (r.code >= 300) { bad = r; break; }
+      (r.body.asinMetadataSet || []).forEach(function (m) { var a = String((m && m.asin) || '').toUpperCase(); if (lmIsAsin_(a) && !have[a]) { have[a] = 1; asins.push(a); } });
+      tok = r.body.nextPageToken || '';
+      pages++;
+      Utilities.sleep(LM_APLUS_GAP_MS);
+    } while (tok && pages < LM_APLUS_PAGES_MAX && left() > 20000);
+    if (!bad && tok) { stop = 'out of time inside a long ASIN list — that document is read again next tick'; break; }
+    if (bad && bad.code === 429) { stop = 'Amazon asked us to slow down (A+ ASIN lists) — next tick'; break; }
+    if (bad && bad.code === 404) { d.gone = 1; x.t = 0; i++; touched++; continue; }                 // deleted since the search: it covers nothing
+    if (bad) {
+      x.t = (x.t || 0) + 1;
+      if (x.t < LM_APLUS_TRIES) { stop = 'ASIN list of "' + lmCut_(d.n || d.k, 40) + '": ' + limgErr_(bad, 'A+ ASIN list').error.slice(0, 120) + ' — trying again'; break; }
+      d.a = null; d.af = 1; x.miss = (x.miss || 0) + 1; x.t = 0; i++; touched++;
+      lmErr_(st, LM_LABEL[b] + ' A+: gave up on the ASIN list of "' + lmCut_(d.n || d.k, 40) + '" — the last good list is kept');
+      continue;
+    }
+    d.a = asins; x.t = 0; i++; touched++;
+  }
+  if (stop) lmErr_(st, LM_LABEL[b] + ' A+: ' + stop);
+  if (touched) {
+    try { lmPut_(lmAplusScr_(b), S); }
+    catch (we) { lmErr_(st, LM_LABEL[b] + ' A+: could not write the cache sheet — those ASIN lists are read again: ' + String(we.message || we).slice(0, 120)); return; }
+    x.di = i;
+  }
+  if (x.di >= S.docs.length) x.ph = 'write';
+}
+
+/* ----- step 3: the tab — this read, and the last good list where one document's could not be read ----- */
+function lmAplusWrite_(st, b, x) {
+  var S = lmGet_(lmAplusScr_(b));
+  if (!S || !S.docs) { x.ph = 'docs'; x.pg = 0; x.nd = 0; x.di = 0; return; }
+  var old = lmGet_(lmAplusTab_(b));
+  var oldDocs = (old && old.ok && old.docs) || {};
+  var docs = {}, byAsin = {}, nAsins = 0, partial = 0, approved = 0, attached = 0;
+  S.docs.forEach(function (d) {
+    if (d.gone) return;
+    var rec = { k: d.k, n: d.n, s: d.s, t: d.t, bd: d.bd, u: d.u, rr: d.rr || [], a: d.a === undefined ? null : d.a };
+    if (rec.a === null) {
+      var was = oldDocs[d.k];
+      if (was && Array.isArray(was.a)) { rec.a = was.a.slice(); rec.as = 1; } else partial++;
+    }
+    docs[d.k] = rec;
+    if (rec.s === 'APPROVED') approved++;
+    (rec.a || []).forEach(function (a) { attached++; if (!byAsin[a]) { byAsin[a] = []; nAsins++; } byAsin[a].push(d.k); });
+  });
+  var nDocs = Object.keys(docs).length;
+  // An answer that cannot be right is a failed read, not "no A+": the last good tab stays.
+  var bad = '';
+  if (!nDocs && Object.keys(oldDocs).length) bad = 'Amazon listed no A+ documents, the last read had ' + Object.keys(oldDocs).length;
+  else if (approved && !attached) bad = 'Amazon listed ' + nDocs + ' documents but no ASIN on any of them';
+  if (bad) { x.ph = 'gave'; x.err = bad; return; }
+  var out = { b: b, v: 1, at: lmNow_(), atMs: Date.now(), ok: true, calls: x.calls, nDocs: nDocs, nAsins: nAsins, partial: partial, docs: docs, asins: byAsin };
+  if (JSON.stringify(out).length > LM_PART_MAX) delete out.asins;          // Sellora works the ASIN map out from the documents
+  lmPut_(lmAplusTab_(b), out);
+  var M = lmGet_('lmMeta') || {};
+  M.aplus = M.aplus || {};
+  M.aplus[b] = { tab: lmAplusTab_(b), at: out.at, atMs: out.atMs, calls: x.calls, docs: nDocs, asins: nAsins, partial: partial, stale: 0, err: '' };
+  lmPut_('lmMeta', M);
+  lmDropTab_(lmAplusScr_(b));
+  x.na = nAsins; x.ph = 'done';
+}
+
+/** The read failed: nothing is wiped. lmMeta says the tab (when there is one) is from an older read, and why. */
+function lmAplusGave_(st, b, x) {
+  lmErr_(st, LM_LABEL[b] + ' A+ could not be read: ' + (x.err || 'failed') + ' — the last good data is kept');
+  try {
+    var M = lmGet_('lmMeta') || {};
+    M.aplus = M.aplus || {};
+    var was = M.aplus[b] || {};
+    M.aplus[b] = { tab: was.tab || '', at: was.at || '', atMs: was.atMs || 0, calls: x.calls, docs: was.docs || 0, asins: was.asins || 0, partial: was.partial || 0,
+      stale: 1, err: lmCut_(x.err || 'failed', 200), triedAt: lmNow_() };
+    lmPut_('lmMeta', M);
+  } catch (e) { lmErr_(st, 'could not write lmMeta: ' + String(e.message || e).slice(0, 120)); }
+  lmDropTab_(lmAplusScr_(b));
+}
+
+/* ----- editor ----- */
+/** An A+ read on the next tick (outside the daily one). */
+function lmAplusNow() {
+  var st = lmState_(); st.apAsk = true; lmSave_(st);
+  Logger.log('A+ is read on the next tick that no full pass is using (within 10 minutes). Watch it with lmStatus().');
+}
+/** One ASIN's A+ documents as the cache holds them. */
+function lmAplus(asin) {
+  asin = String(asin || '').trim().toUpperCase();
+  if (!asin) { Logger.log('Give an ASIN, like lmAplus("B0ABC12345").'); return; }
+  var found = false;
+  LM_BRANDS.forEach(function (b) {
+    var t = lmGet_(lmAplusTab_(b));
+    if (!t || !t.docs) return;
+    Object.keys(t.docs).forEach(function (k) {
+      var d = t.docs[k];
+      if (!d.a || d.a.indexOf(asin) < 0) return;
+      found = true;
+      Logger.log(LM_LABEL[b] + ' · ' + asin + ' · "' + d.n + '" · ' + d.s + ' · ' + (d.t || 'type not given') + ' · updated ' + (d.u || '—') + ' · on ' + d.a.length + ' ASINs · read ' + t.at
+        + (d.rr && d.rr.length ? ' · Amazon: ' + d.rr.join(' | ') : ''));
+    });
+  });
+  if (!found) Logger.log(asin + ' is on no A+ document in the cache (or A+ has not been read yet — lmStatus()).');
+}
+/** lmStatus's A+ lines. */
+function lmAplusStatus_(st, meta) {
+  Logger.log('— A+ content (read once a day after the ' + LM_APLUS_HOUR + ':00 pass) —');
+  if (st.ap) LM_BRANDS.forEach(function (b) { var x = st.ap.B[b]; Logger.log(LM_LABEL[b] + '  reading: step ' + x.ph + ' · documents ' + lmNf_(x.nd) + ' · ASIN lists ' + lmNf_(x.di) + '/' + lmNf_(x.nd) + ' · ' + lmNf_(x.calls) + ' calls so far'); });
+  LM_BRANDS.forEach(function (b) {
+    var a = ((meta || {}).aplus || {})[b];
+    if (!a || !a.at) { Logger.log(LM_LABEL[b] + '  A+ not read yet' + (a && a.err ? ' — last try ' + (a.triedAt || '') + ': ' + a.err : '')); return; }
+    Logger.log(LM_LABEL[b] + '  ' + lmNf_(a.docs) + ' documents on ' + lmNf_(a.asins) + ' ASINs · read ' + a.at + ' with ' + lmNf_(a.calls) + ' calls'
+      + (a.partial ? ' · ' + a.partial + ' document(s) with no ASIN list (shown as not checked)' : '') + (a.stale ? '  ⚠ KEPT FROM THAT READ — the last try (' + (a.triedAt || '') + ') failed: ' + a.err : ''));
+  });
+}
+/** THE PROOF from the editor: up to 5 ASINs with a live document and 5 with none, per brand, against Amazon's publish records now. */
+function lmAplusCheck() {
+  LM_BRANDS.forEach(function (b) {
+    var t = lmGet_(lmAplusTab_(b)), meta = lmGet_('lmMeta') || {};
+    if (!t || !t.docs) { Logger.log(LM_LABEL[b] + ': A+ not read yet.'); return; }
+    setBrand_(b);
+    var live = {}, any = {};
+    Object.keys(t.docs).forEach(function (k) { var d = t.docs[k]; (d.a || []).forEach(function (a) { any[a] = 1; if (d.s === 'APPROVED') live[a] = d.n; }); });
+    var none = [];
+    (((meta.parts || {}).catalog || {})[b] || []).slice(0, 2).forEach(function (tab) {
+      var p = lmGet_(tab);
+      Object.keys((p && p.items) || {}).forEach(function (a) { var c = p.items[a]; if (none.length < 5 && !any[a] && (c.pa || []).length && !(c.pa || []).some(function (pa) { return any[pa]; })) none.push(a); });
+    });
+    var rows = Object.keys(live).slice(0, 5).map(function (a) { return [a, 'Live — "' + live[a] + '"', true]; }).concat(none.map(function (a) { return [a, 'Missing', false]; }));
+    Logger.log('━━ ' + LM_LABEL[b] + ' · A+ read ' + t.at + ' ━━');
+    rows.forEach(function (row) {
+      var r = limgSp_('/aplus/2020-11-01/contentPublishRecords?marketplaceId=' + marketplaceId_() + '&asin=' + row[0], 'get');
+      var pub = r.code < 300 ? (r.body.publishRecordList || []).length > 0 : null;
+      Logger.log('   ' + row[0] + '  cache: ' + lmPad_(row[1], 46) + ' Amazon: ' + (pub === null ? 'could not be read (' + r.code + ')' : pub ? 'A+ published' : 'no A+ published') + '   '
+        + (pub === null ? '—' : pub === row[2] ? 'MATCH' : 'DIFFERENT'));
+      Utilities.sleep(LM_APLUS_GAP_MS);
+    });
+  });
+}
+
+/* ----- one document, when a person asks for it in Sellora (?lh=aplusdoc&brand=&doc=<key>[&asins=1]) ----- */
+/** getContentDocument: the document's name, status, type and what is in it (each module's type, its texts cut short, its
+ *  pictures' ids) — for "Preview A+" and for aplusAccuracyReport. `withAsins`: its attached ASINs too (one more call a page). */
+function lmAplusDoc_(key, withAsins) {
+  key = String(key || '').trim();
+  if (!key) return { ok: false, error: 'no document key' };
+  var r = limgSp_('/aplus/2020-11-01/contentDocuments/' + encodeURIComponent(key) + '?marketplaceId=' + marketplaceId_() + '&includedDataSet=CONTENTS,METADATA', 'get');
+  if (r.code >= 300) return limgErr_(r, 'A+ document');
+  var rec = r.body.contentRecord || {}, d = lmAplusMeta_({ contentReferenceKey: key, contentMetadata: rec.contentMetadata });
+  var doc = rec.contentDocument || {};
+  var modules = (doc.contentModuleList || []).slice(0, 12).map(function (m) {
+    var texts = [], imgs = [];
+    var walk = function (v, depth) {
+      if (v == null || depth > 8) return;
+      if (Array.isArray(v)) { v.forEach(function (y) { walk(y, depth + 1); }); return; }
+      if (typeof v !== 'object') return;
+      if (typeof v.uploadDestinationId === 'string' && imgs.length < 6) imgs.push({ id: v.uploadDestinationId, alt: lmCut_(v.altText || '', 80) });
+      if (typeof v.value === 'string' && v.value.trim() && texts.length < 6) texts.push(lmCut_(v.value, 200));
+      Object.keys(v).forEach(function (kk) { if (kk !== 'value' && kk !== 'decoratorSet') walk(v[kk], depth + 1); });
+    };
+    walk(m, 0);
+    return { type: String(m.contentModuleType || ''), texts: texts, imgs: imgs };
+  });
+  var out = { ok: true, key: key, name: d.n || lmCut_(doc.name, 140), status: d.s, type: d.t, badges: d.bd, updated: d.u, reasons: d.rr.concat(lmAplusReasons_(rec)).slice(0, 5),
+    contentType: String(doc.contentType || ''), subType: String(doc.contentSubType || ''), locale: String(doc.locale || ''), modules: modules, readAt: Date.now() };
+  if (withAsins) {
+    var asins = [], tok = '', pages = 0;
+    do {
+      var a = limgSp_('/aplus/2020-11-01/contentDocuments/' + encodeURIComponent(key) + '/asins?marketplaceId=' + marketplaceId_() + (tok ? '&pageToken=' + encodeURIComponent(tok) : ''), 'get');
+      if (a.code >= 300) { out.asinsError = limgErr_(a, 'A+ ASIN list').error.slice(0, 200); asins = null; break; }
+      (a.body.asinMetadataSet || []).forEach(function (m) { if (m && m.asin) asins.push(String(m.asin).toUpperCase()); });
+      tok = a.body.nextPageToken || '';
+      pages++;
+    } while (tok && pages < 20);
+    out.asins = asins;
+  }
+  return out;
+}
+
 /* ============================== small helpers ============================== */
 
 function lmState_() {
@@ -1286,4 +1636,7 @@ function lmQuota_() {
   Logger.log('full pass   ≈ ' + lmNf_(full) + ' SP-API calls');
   Logger.log('light pass  ≈ 4–' + (2 * (Math.ceil(LM_LIGHT_MAX / LM_PAGE) + Math.ceil(LM_LIGHT_MAX / LM_CAT_BATCH))) + ' calls (both brands), ' + lights + ' a day');
   Logger.log('per day     ≈ ' + lmNf_(2 * full + lights * 4) + ' – ' + lmNf_(2 * full + lights * 40) + ' UrlFetch calls');
+  var ap = 0, apKnown = false;
+  LM_BRANDS.forEach(function (b) { var a = (meta.aplus || {})[b]; if (a && a.calls) { ap += a.calls; apKnown = true; } });
+  Logger.log('A+ (daily)  ' + (apKnown ? lmNf_(ap) + ' calls in the last read (both brands)' : 'not read yet — about one call per A+ document, once a day'));
 }
