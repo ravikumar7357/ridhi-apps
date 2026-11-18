@@ -1939,14 +1939,14 @@ if (typeof document !== 'undefined' && document.addEventListener && $('spSwitch'
       spKidMove(e.key === 'ArrowDown' ? 1 : -1);
     }
   }, true);
-  // The search box (a quarter second after typing stops), and the Edit box (checks again as you type).
+  // The search box (200 ms after typing stops), and the Edit box (checks again as you type).
   let spQT = 0;
   document.addEventListener('input', e => {
     const t = e.target;
     if (!t) return;
     if (t.id === 'spQ') {
       clearTimeout(spQT);
-      spQT = setTimeout(() => { SP.q = t.value; SP.shown = SP_PAGE; spRender(); const again = $('spQ'); if (again) { again.focus(); again.setSelectionRange(again.value.length, again.value.length); } }, 250);
+      spQT = setTimeout(() => { SP.q = t.value; SP.shown = SP_PAGE; spRender(); const again = $('spQ'); if (again) { again.focus(); again.setSelectionRange(again.value.length, again.value.length); } }, 200);
       return;
     }
   });

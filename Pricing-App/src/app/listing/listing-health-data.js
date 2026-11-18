@@ -678,7 +678,7 @@ let H_FILTER_T = 0;
 const hDrawShown = () => { if (typeof LI_WS !== 'undefined' && LI_WS.on) return; renderHealth(); };
 $('hFilter').addEventListener('input', () => {
   clearTimeout(H_FILTER_T);
-  H_FILTER_T = setTimeout(hDrawShown, 250);
+  H_FILTER_T = setTimeout(hDrawShown, 200);
 });
 $('hBrandView').addEventListener('change', hDrawShown);
 $('hIssueView').addEventListener('change', renderHealth);

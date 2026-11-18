@@ -465,7 +465,7 @@ function ccFilter(el) {
   CC[k] = el.value;
   CC.limit = CC_STEP;
   clearTimeout(CC.qT);
-  if (k === 'q') CC.qT = setTimeout(ccDraw, 250);
+  if (k === 'q') CC.qT = setTimeout(ccDraw, 200);
   else ccDraw();
 }
 if (typeof document !== 'undefined' && document.addEventListener && $('fcPane')) {

@@ -13302,7 +13302,7 @@ let H_FILTER_T = 0;
 const hDrawShown = () => { if (typeof LI_WS !== 'undefined' && LI_WS.on) return; renderHealth(); };
 $('hFilter').addEventListener('input', () => {
   clearTimeout(H_FILTER_T);
-  H_FILTER_T = setTimeout(hDrawShown, 250);
+  H_FILTER_T = setTimeout(hDrawShown, 200);
 });
 $('hBrandView').addEventListener('change', hDrawShown);
 $('hIssueView').addEventListener('change', renderHealth);
@@ -16264,10 +16264,10 @@ $('aFile').onchange = async e => {
 };
 
 /* ----- the filter box and the two view pickers redraw the grid ----- */
-// Typing is debounced: one redraw 250 ms after the last keystroke.
+// Typing is debounced: one redraw 200 ms after the last keystroke.
 $('aFilter').addEventListener('input', () => {
   clearTimeout(AUDIT_T);
-  AUDIT_T = setTimeout(renderAudit, 250);
+  AUDIT_T = setTimeout(renderAudit, 200);
 });
 let AUDIT_T = 0;                      // the pending redraw timer
 $('aBrandView').addEventListener('change', renderAudit);
@@ -18202,7 +18202,7 @@ $('hFilter').addEventListener('input', () => {
   LI_WS.filterT = setTimeout(() => {
     liWsReset();
     liWsSchedule();
-  }, 250);
+  }, 200);
 });
 // Listing Health rewrote its table — a refresh finished, the catalogue or Amazon's status arrived — so the listings may have changed.
 new MutationObserver(liWsSchedule).observe($('hTable'), { childList: true });
@@ -21448,14 +21448,14 @@ if (typeof document !== 'undefined' && document.addEventListener && $('spSwitch'
       spKidMove(e.key === 'ArrowDown' ? 1 : -1);
     }
   }, true);
-  // The search box (a quarter second after typing stops), and the Edit box (checks again as you type).
+  // The search box (200 ms after typing stops), and the Edit box (checks again as you type).
   let spQT = 0;
   document.addEventListener('input', e => {
     const t = e.target;
     if (!t) return;
     if (t.id === 'spQ') {
       clearTimeout(spQT);
-      spQT = setTimeout(() => { SP.q = t.value; SP.shown = SP_PAGE; spRender(); const again = $('spQ'); if (again) { again.focus(); again.setSelectionRange(again.value.length, again.value.length); } }, 250);
+      spQT = setTimeout(() => { SP.q = t.value; SP.shown = SP_PAGE; spRender(); const again = $('spQ'); if (again) { again.focus(); again.setSelectionRange(again.value.length, again.value.length); } }, 200);
       return;
     }
   });
@@ -24064,10 +24064,10 @@ function bsrFollow(list, wA, a, kind) {
 
 let BSR_MODE = 'compare';                   // 'compare' = A vs B · 'history' = many weeks in columns
 let BSR_T = 0;                              // debounce timer for the search box
-// The toolbar: search (a quarter second after typing stops), brand and movement filters, the week pickers, the mode buttons.
+// The toolbar: search (200 ms after typing stops), brand and movement filters, the week pickers, the mode buttons.
 $('bFilter').addEventListener('input', () => {
   clearTimeout(BSR_T);
-  BSR_T = setTimeout(renderBsr, 250);
+  BSR_T = setTimeout(renderBsr, 200);
 });
 $('bBrandView').addEventListener('change', renderBsr);
 $('bMoveView').addEventListener('change', renderBsr);
@@ -25833,7 +25833,7 @@ function fcFilter(el) {
   FC[k] = el.value;
   FC.limit = FC_STEP;
   clearTimeout(FC_T);
-  if (k === 'q') FC_T = setTimeout(fcDrawAll, 250);
+  if (k === 'q') FC_T = setTimeout(fcDrawAll, 200);
   else fcDrawAll();
 }
 /** Opening the page: the snapshots Sellora already holds (read once), the saved marks, then draw — every family closed — and Amazon's catalog
@@ -26354,7 +26354,7 @@ function ccFilter(el) {
   CC[k] = el.value;
   CC.limit = CC_STEP;
   clearTimeout(CC.qT);
-  if (k === 'q') CC.qT = setTimeout(ccDraw, 250);
+  if (k === 'q') CC.qT = setTimeout(ccDraw, 200);
   else ccDraw();
 }
 if (typeof document !== 'undefined' && document.addEventListener && $('fcPane')) {
@@ -39977,7 +39977,7 @@ const imListAgain = () => {
 };
 $('imQ').addEventListener('input', () => {
   clearTimeout(IML_T);
-  IML_T = setTimeout(imListAgain, 250);
+  IML_T = setTimeout(imListAgain, 200);
 });
 $('imQ').addEventListener('keydown', e => {
   if (e.key === 'Enter') {
@@ -41371,14 +41371,14 @@ $('leKind').onchange = $('leSev').onchange = () => {
   leShow(false);
   leRender();
 };
-// Search box: redraw a quarter of a second after typing stops.
+// Search box: redraw 200 ms after typing stops.
 $('leQ').addEventListener('input', () => {
   clearTimeout(LE_T);
   LE_T = setTimeout(() => {
     LE_PAGE = 0;
     leShow(false);
     leRender();
-  }, 250);
+  }, 200);
 });
 // Refresh from Amazon: rebuild this brand's snapshot, then redraw.
 $('leRefresh').onclick = async () => {

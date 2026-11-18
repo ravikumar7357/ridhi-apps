@@ -546,14 +546,14 @@ $('leKind').onchange = $('leSev').onchange = () => {
   leShow(false);
   leRender();
 };
-// Search box: redraw a quarter of a second after typing stops.
+// Search box: redraw 200 ms after typing stops.
 $('leQ').addEventListener('input', () => {
   clearTimeout(LE_T);
   LE_T = setTimeout(() => {
     LE_PAGE = 0;
     leShow(false);
     leRender();
-  }, 250);
+  }, 200);
 });
 // Refresh from Amazon: rebuild this brand's snapshot, then redraw.
 $('leRefresh').onclick = async () => {

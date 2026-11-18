@@ -1154,7 +1154,7 @@ function fcFilter(el) {
   FC[k] = el.value;
   FC.limit = FC_STEP;
   clearTimeout(FC_T);
-  if (k === 'q') FC_T = setTimeout(fcDrawAll, 250);
+  if (k === 'q') FC_T = setTimeout(fcDrawAll, 200);
   else fcDrawAll();
 }
 /** Opening the page: the snapshots Sellora already holds (read once), the saved marks, then draw — every family closed — and Amazon's catalog

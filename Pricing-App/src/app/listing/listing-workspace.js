@@ -1926,7 +1926,7 @@ $('hFilter').addEventListener('input', () => {
   LI_WS.filterT = setTimeout(() => {
     liWsReset();
     liWsSchedule();
-  }, 250);
+  }, 200);
 });
 // Listing Health rewrote its table — a refresh finished, the catalogue or Amazon's status arrived — so the listings may have changed.
 new MutationObserver(liWsSchedule).observe($('hTable'), { childList: true });

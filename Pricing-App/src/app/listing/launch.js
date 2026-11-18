@@ -1349,10 +1349,10 @@ $('aFile').onchange = async e => {
 };
 
 /* ----- the filter box and the two view pickers redraw the grid ----- */
-// Typing is debounced: one redraw 250 ms after the last keystroke.
+// Typing is debounced: one redraw 200 ms after the last keystroke.
 $('aFilter').addEventListener('input', () => {
   clearTimeout(AUDIT_T);
-  AUDIT_T = setTimeout(renderAudit, 250);
+  AUDIT_T = setTimeout(renderAudit, 200);
 });
 let AUDIT_T = 0;                      // the pending redraw timer
 $('aBrandView').addEventListener('change', renderAudit);

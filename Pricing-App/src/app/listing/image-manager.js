@@ -2031,7 +2031,7 @@ const imListAgain = () => {
 };
 $('imQ').addEventListener('input', () => {
   clearTimeout(IML_T);
-  IML_T = setTimeout(imListAgain, 250);
+  IML_T = setTimeout(imListAgain, 200);
 });
 $('imQ').addEventListener('keydown', e => {
   if (e.key === 'Enter') {

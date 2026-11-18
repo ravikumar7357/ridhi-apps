@@ -746,10 +746,10 @@ function bsrFollow(list, wA, a, kind) {
 
 let BSR_MODE = 'compare';                   // 'compare' = A vs B · 'history' = many weeks in columns
 let BSR_T = 0;                              // debounce timer for the search box
-// The toolbar: search (a quarter second after typing stops), brand and movement filters, the week pickers, the mode buttons.
+// The toolbar: search (200 ms after typing stops), brand and movement filters, the week pickers, the mode buttons.
 $('bFilter').addEventListener('input', () => {
   clearTimeout(BSR_T);
-  BSR_T = setTimeout(renderBsr, 250);
+  BSR_T = setTimeout(renderBsr, 200);
 });
 $('bBrandView').addEventListener('change', renderBsr);
 $('bMoveView').addEventListener('change', renderBsr);
