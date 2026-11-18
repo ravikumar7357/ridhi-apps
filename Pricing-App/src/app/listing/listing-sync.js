@@ -6,7 +6,7 @@
  *   and beats it every LY_BEAT_MS; a lock not beaten for LY_STALE_MS is free, so when that browser closes another takes over within
  *   2 minutes. A browser that claims the lock reads it back before it counts itself the leader (two claiming at once: one wins). A
  *   leader whose tab is hidden for more than 30 minutes lets go. Test site / local (saving off): this browser syncs for itself only.
- * THE CYCLE, every LY_CYCLE_MS (or [Sync now]): about LY_PER_CYCLE listings, in this order — a) B🟢 F🔴 false errors (has Amazon shown
+ * THE CYCLE, every LY_CYCLE_MS (2 hours) between 9 AM and 7 PM (or [Sync now], any time): about LY_PER_CYCLE listings, in this order — a) B🟢 F🔴 false errors (has Amazon shown
  *   our fix?), b) Error / Amazon-error listings, c) the oldest reads, so the whole catalogue cycles through in a day. Each listing gets
  *   the existing backend reads (?lfix=content 20 SKUs a call, ?lfix=get, ?limg=get — no backend change), LY_INFLIGHT calls at a time,
  *   through the Workspace's queue. Never while a send popup is open; paused while the tab is hidden for more than 30 minutes.
@@ -21,7 +21,11 @@
  *   without touching the screens. /history is canAny: no rule change. No `day` field: Listing History never lists these documents.
  * Main functions: lyStart, lyBeat, lyCycle, lyPick, lyPull, lyFlush, lyLineHtml, lyLineDraw.
  * Pricing-App/tests/sync-test.js runs two (and three) browsers over one stub database. */
-const LY_CYCLE_MS = 15 * 60 * 1000;       // a sync every 15 minutes
+// EVERY 2 HOURS, 9 AM – 7 PM (17 Nov 2026). Every 15 minutes, all day and night, cost ~600 Amazon calls a cycle out of the backend's
+// one shared daily limit (it ran out at 08:25 on 17 Nov and the nightly lost its reports). Sync now still works at any time.
+const LY_CYCLE_MS = 2 * 60 * 60 * 1000;   // an automatic sync every 2 hours …
+const LY_FROM_HOUR = 9;                   // … from 9 AM
+const LY_TO_HOUR = 19;                    // … until 7 PM (this computer's clock); none at night
 const LY_BEAT_MS = 30 * 1000;             // the leader's heartbeat — and how often every other browser looks for new data
 const LY_STALE_MS = 90 * 1000;            // a lock not beaten for this long is free: a takeover within 2 minutes
 const LY_HIDDEN_MS = 30 * 60 * 1000;      // a tab hidden this long pauses (a leader lets go)
@@ -63,6 +67,19 @@ const lyReadAt = entry => (entry ? Math.min(entry.cAt || 0, entry.gAt || 0, entr
 // or older than 24 hours.
 const lyAuto = brand => typeof lmOk === 'function' && lmOk(brand);
 const lyNeeded = () => ['SP', 'CPC'].some(brand => !lyAuto(brand));
+// Inside the sync hours (9 AM – 7 PM)?
+const lyInHours = t => { const h = new Date(t).getHours(); return h >= LY_FROM_HOUR && h < LY_TO_HOUR; };
+/** When the next automatic sync is due: 2 hours after the last, moved to 9 AM when that falls outside the hours. */
+function lyNextAt(lastAt, now) {
+  let t = Math.max(now, (lastAt || 0) + LY_CYCLE_MS);
+  if (!lyInHours(t)) {
+    const d = new Date(t);
+    if (d.getHours() >= LY_TO_HOUR) d.setDate(d.getDate() + 1);
+    d.setHours(LY_FROM_HOUR, 0, 0, 0);
+    t = d.getTime();
+  }
+  return t;
+}
 
 /* ----- the leader ----- */
 /** Start the sync in this browser (once, after sign-in): the first beat now, then every LY_BEAT_MS. */
@@ -118,7 +135,8 @@ async function lyBeat() {
       if (LY.run) await lyFlush();                   // mid-cycle: what is read so far reaches the others within a minute
       if (typeof lmSettled === 'function') await lmSettled();   // the cache's copy first: is the auto refresh fresh?
       const last = (LY.state.last && LY.state.last.at) || 0;
-      if (!LY.run && lyNeeded() && (now - last >= LY_CYCLE_MS || (LY.state.want || 0) > last || LY.asked > last)) lyCycle();
+      // automatic: every 2 hours inside 9 AM – 7 PM; asked for (Sync now, here or in another browser): any time
+      if (!LY.run && lyNeeded() && ((lyInHours(now) && now - last >= LY_CYCLE_MS) || (LY.state.want || 0) > last || LY.asked > last)) lyCycle();
     }
   } catch (e) {
     LY.err = String((e && e.message) || e);
@@ -378,8 +396,9 @@ function lyLineHtml(now) {
   else parts.push(last.end ? `Synced ${lyAgo(now, last.end)}` : 'Not synced yet');
   if (changed) parts.push(changed);
   if (!LY.run) {
-    const next = Math.max(0, Math.ceil(((last.at || now) + LY_CYCLE_MS - now) / 60000));
-    parts.push(last.at ? `next sync in ${next} min` : 'first sync within a minute');
+    const nx = lyNextAt(last.at, now);
+    parts.push(!last.at && lyInHours(now) ? 'first sync within a minute'
+      : `next sync ${lyDay(nx) !== lyDay(now) ? 'tomorrow ' : ''}~${lyTime(nx)}`);
   }
   // one brand from the auto refresh, the other synced here
   if (auto.length) parts.push(`${auto.map(b => (typeof BRAND_NAME !== 'undefined' && BRAND_NAME[b]) || b).join(' and ')} from the Amazon auto refresh`);

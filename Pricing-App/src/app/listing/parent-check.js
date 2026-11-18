@@ -234,7 +234,9 @@ function renderHealthKpis(rows, brands) {
   $('hKpis').innerHTML = brands.map(brand => {
     const counts = tally(rows.filter(row => row.brand === brand));
     const saved = HEALTH[brand];
-    const when = saved && saved.at ? 'updated ' + saved.at.toLocaleString() : '';
+    // the ListingMatch data fresh: its label (listing-match.js lmDataLabel, every Listing screen's); else the snapshot's own time
+    const lm = typeof lmDataLabel === 'function' ? lmDataLabel([brand]) : null;
+    const when = lm ? lrEsc(lm.text) : saved && saved.at ? 'updated ' + saved.at.toLocaleString() : '';
     const avg = counts.checked ? Math.round(counts.score / counts.checked) : 0;
     const listSub = [counts.unchecked ? `${nf(counts.unchecked)} not checked` : '', counts.nodata ? `${nf(counts.nodata)} no catalog data` : ''].filter(Boolean).join(' · ') || 'FBA listings';
     return `<div class="lh-kpibrand"><div class="lh-kpihead"><span class="lh-kpiname">${BRAND_NAME[brand]}</span><span class="lh-kpiwhen">${when}</span></div>`

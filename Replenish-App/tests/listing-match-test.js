@@ -5,15 +5,26 @@ const fs = require('fs'), vm = require('vm'), path = require('path');
 const P = path.join(__dirname, '..', '..', 'Pricing-API') + '/';
 const FILES = ['SpApi.gs', 'Code.gs', 'MailPo.gs', 'Nightly.gs', 'ListingImages.gs', 'ListingFix.gs', 'InventoryAge.gs', 'Research.gs', 'ListingMatch.gs'];
 const SRC = FILES.map(f => fs.readFileSync(P + f, 'utf8')).join('\n;\n');
+
+/* ---------- A FIXED CLOCK (17 Nov 2026): the whole test — this file and the .gs code it runs — starts at 16 Nov 2026 10:00 IST and
+ * moves on only by the time the test itself takes. Before, it ran on the computer's clock, and one check could not pass between
+ * 11:10 and 11:32 IST: its pretend "17:40" landed on today and its pretend "18:02" on yesterday. Now the result is the same at any
+ * time of day. `new Date(x)` with a value, Date.parse and Date.UTC work as always. ---------- */
+const REAL_DATE = Date, TEST_T0 = REAL_DATE.now(), TEST_BASE = REAL_DATE.UTC(2026, 10, 16, 4, 30);
+const fakeNow = () => TEST_BASE + (REAL_DATE.now() - TEST_T0);
+class FakeDate extends REAL_DATE {
+  constructor(...args) { if (args.length) super(...args); else super(fakeNow()); }
+  static now() { return fakeNow(); }
+}
+global.Date = FakeDate;
 let pass = 0, fail = 0;
 const ok = (n, c, i) => { if (c) { pass++; console.log('  PASS ' + n); } else { fail++; console.log('  FAIL ' + n + (i !== undefined ? '  ' + i : '')); } };
 
 /* ---------- a "time zone" in which the time is H:M right now (the schedule reads the script's time zone) ---------- */
 function tzAt(H, M) {
-  const d = new Date();
-  let off = (H * 60 + (M || 0)) - (d.getUTCHours() * 60 + d.getUTCMinutes());
-  if (off >= 720) off -= 1440;
-  if (off < -720) off += 1440;
+  const d = new Date();                         // the fixed clock above
+  // always the SAME DAY as that clock (no jump to the day before or after): 17:40 and then 18:02 are 22 minutes apart, whenever the test runs
+  const off = (H * 60 + (M || 0)) - (d.getUTCHours() * 60 + d.getUTCMinutes());
   return 'OFF:' + off;                          // minutes; fmt below shifts the clock by them
 }
 function fmt(d, tz, pat) {
@@ -78,8 +89,9 @@ function catalogItem(asin, c) {
   return { asin, summaries: [{ itemName: c.t, brand: 'Ridhi', browseClassification: { displayName: 'Tablecloths', classificationId: '1' } }],
     images: [{ images: Object.keys(c.img).map(v => ({ variant: v, link: c.img[v].link, width: c.img[v].w, height: c.img[v].h })).concat(Object.keys(c.img).map(v => ({ variant: v, link: c.img[v].link + '?small', width: 75, height: 75 }))) }],
     relationships: [{ marketplaceId: 'ATVPDKIKX0DER', relationships: rel }], attributes: attrs,
-    classifications: [{ classifications: [{ displayName: 'Tablecloths', classificationId: '1', parent: { displayName: 'Kitchen & Table Linens', parent: { displayName: 'Home & Kitchen' } } }] }],
-    salesRanks: [{ displayGroupRanks: [{ rank: 13206, title: 'Home & Kitchen' }], classificationRanks: [{ rank: 109, title: 'Tablecloths' }] }] };
+    classifications: [{ classifications: [{ displayName: 'Tablecloths', classificationId: '1', parent: { displayName: 'Kitchen & Table Linens', classificationId: '20', parent: { displayName: 'Home & Kitchen', classificationId: '300' } } }] }],
+    salesRanks: [{ displayGroupRanks: [{ rank: 13206, title: 'Home & Kitchen', websiteDisplayGroup: 'home_garden_display_on_website' }],
+      classificationRanks: [{ rank: 2400, title: 'Kitchen & Table Linens', classificationId: '20' }, { rank: 109, title: 'Tablecloths', classificationId: '1' }] }] };
 }
 
 /* ---------- one Apps Script project in a vm ---------- */
@@ -191,6 +203,7 @@ function setup(o) {
     Logger: { log: s => log.push(String(s)) }, console,
   };
   ctx.__skew = () => skew;
+  ctx.Date = class extends FakeDate {};         // the .gs code reads the fixed clock too (its own class: the tick-budget skew below stays this setup's)
   vm.createContext(ctx);
   if (o.msPerCall) vm.runInContext('(function () { var real = Date.now; Date.now = function () { return real() + __skew(); }; })();', ctx);
   vm.runInContext(SRC, ctx);
@@ -242,6 +255,9 @@ const tabs = T => [...T.sheets.keys()];
     ok('lmCatalog: shown title, the largest picture with width/height, parent, values, browse path, both sales ranks, A+ not read',
       c.t === 'Shown RTC14-3' && c.img.MAIN.w === 1500 && c.img.MAIN.h === 1500 && !/small/.test(c.img.MAIN.u) && c.pa[0] === 'B0SPPARENT' && c.vals.color === 'Color3'
       && c.bc === 'Home & Kitchen › Kitchen & Table Linens › Tablecloths' && c.rk.main.r === 13206 && c.rk.sub.r === 109 && c.aplus === null, JSON.stringify(c));
+    ok('…the category id of every step of the browse path (bcIds, in the path\'s order), and EVERY category rank with its id (rks) — the best one still in rk.sub',
+      JSON.stringify(c.bcIds) === '["300","20","1"]' && JSON.stringify(c.rks) === JSON.stringify([{ id: '20', c: 'Kitchen & Table Linens', r: 2400 }, { id: '1', c: 'Tablecloths', r: 109 }])
+      && c.rk.sub.id === '1' && c.rk.sub.c === 'Tablecloths' && !('id' in c.rk.main), JSON.stringify([c.bcIds, c.rks, c.rk]));
     ok('…the parent (named by its children, read in the same pass): theme and its attributes, children', par && par.theme === 'SIZE/COLOR' && par.tattrs.join() === 'size,color' && par.kids.length === 47);
     ok('scratch tabs are gone at the end', !tabs(T).some(n => /^lmScr_/.test(n)), tabs(T).join());
     ok('lmMeta counts per brand (status, suppressed, stock)', meta.counts.SP.skus === 47 && meta.counts.SP.status.Active === 42 && meta.counts.SP.status.Inactive === 5 && meta.counts.SP.fba === 47);

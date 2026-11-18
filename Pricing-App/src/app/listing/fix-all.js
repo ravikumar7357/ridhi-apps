@@ -8,7 +8,8 @@
  *       after) and a click on one opens the panel's own child view. A green line counts the children with no problem.
  * FIX ALL only where the fix is safe and automatic, each child getting ITS OWN fix (its own size, colour, current title):
  *   - title too long: the title template with the brand, product, size and colour (and every part the template requires) kept, ≤ 75;
- *   - an empty spec: only when every sibling that has it uses the SAME value (copied); never a child's own colour or size.
+ *   - an empty spec: only when every sibling that has it uses the SAME value (copied); never a child's own colour or size;
+ *   - search terms over the limit: kw-fix.js shortens each child's own (only words taken out) and shows them all in one preview first.
  *   A fix must pass the same checks as a single listing's (spChecks: nothing lost, nothing made up…), must not add a Listing Rules
  *   problem and must clear the problem itself — else that child "needs your OK" with the reason. Pictures, suppressed listings and
  *   Amazon errors have no automatic fix: Open in Image Manager / Listing Errors with those children already picked.
@@ -78,6 +79,7 @@ const FA_IMG = ['no_main_image', 'images_below', 'images_between', 'images_small
 function faKindOf(hit, kid) {
   if (hit.detector === 'title_length' && (parseInt(hit.detail, 10) || 0) > FA_TITLE_MAX) return 'title';
   if (FA_IMG.includes(hit.detector)) return 'img';
+  if (hit.detector === 'keyword_bytes' && typeof kfPlanOfKid === 'function') return 'kw';    // search terms over the limit: kw-fix.js shortens them
   return 'lerr';
 }
 // One row per problem type over these children: { key, kind, name, sev, stale, kids, hits (key → hit), attr, waiting, why }.
@@ -152,6 +154,7 @@ function faPlan(g, kid, ctx) {
   const base = { key: faKidKey(kid), brand: kid.brand, sku: kid.sku, asin: kid.asin, label: faLabel(kid, ctx), row: g.key, kind: g.kind, attr: g.attr || '', ok: false, wait: false, why: '' };
   if (g.kind === 'title') return Object.assign(base, faTitlePlan(g, kid, ctx));
   if (g.kind === 'spec') return Object.assign(base, faSpecPlan(g, kid));
+  if (g.kind === 'kw') return Object.assign(base, kfPlanOfKid(kid, ctx), { row: g.key, kind: 'kw' });
   return Object.assign(base, { why: g.kind === 'img' ? 'pictures are changed by a person in Image Manager' : 'no safe automatic fix — a person fixes it in Listing Errors' });
 }
 // The title the template writes for this child at 75 letters or less: every part it REQUIRES kept (brand, product, size, colour…),
@@ -293,7 +296,7 @@ function faNeedVals(brand, skus) {
 const FA_PLAN_KEEP = new WeakMap();
 function faPlans(g, ctx) {
   return g.kids.map(kid => {
-    const sig = [ctx, g.key, FA.valsV, g.attr ? LI_WS.liveV : 0, g.attr ? g.all.length : 0];
+    const sig = [ctx, g.key, FA.valsV, g.attr || g.kind === 'kw' ? LI_WS.liveV : 0, g.attr ? g.all.length : 0, g.kind === 'kw' && typeof KF !== 'undefined' ? KF.full.size : 0];
     let keep = FA_PLAN_KEEP.get(kid);
     if (!keep) FA_PLAN_KEEP.set(kid, keep = new Map());
     const was = keep.get(g.key);
@@ -315,6 +318,7 @@ function faDoLine(g, plans) {
     return one ? `Copy ${one.what.replace(/^Copy /, '')}` : plans.some(p => p.wait) ? 'Reading the other children’s value from Amazon…' : 'The other children don’t agree on one value — fill it in by hand';
   }
   if (g.kind === 'img') return 'Change the pictures in Image Manager — no automatic fix';
+  if (g.kind === 'kw') return `Shorten to ${typeof lrKwMax === 'function' ? lrKwMax() : 249} bytes — repeats, title words, stop words, brand names and ASINs out, then words from the end; nothing added`;
   const fix = new Map();
   g.kids.forEach(kid => { const hit = g.hits.get(faKidKey(kid)); if (hit && hit.fix) fix.set(hit.fix, (fix.get(hit.fix) || 0) + 1); });
   return [...fix.entries()].sort((a, b) => b[1] - a[1]).map(([text]) => text)[0] || 'Fix it in Listing Errors';
@@ -323,6 +327,8 @@ function faDoLine(g, plans) {
 function faRowButton(gk, g, plans) {
   const safe = plans.filter(p => p.ok).length;
   const busy = typeof sqIsOpen === 'function' && sqIsOpen();
+  // search terms: the ones still to be read whole are read when the preview opens, so they count
+  if (g.kind === 'kw') { const n = plans.filter(p => p.ok || p.wait).length; if (n) return `<button type="button" class="fa-btn fa-main" data-fa-act="fix" data-fa-row="${lrEsc(gk)}"${busy ? ' disabled title="Finish the Fix all that is open first"' : ''}>Fix all ${faKidsN(n)}</button>`; }
   if (safe) return `<button type="button" class="fa-btn fa-main" data-fa-act="fix" data-fa-row="${lrEsc(gk)}"${busy ? ' disabled title="Finish the Fix all that is open first"' : ''}>Fix all ${faNf(safe)}</button>`;
   if (plans.some(p => p.wait)) return '<button type="button" class="fa-btn" disabled>Checking…</button>';
   if (g.kind === 'img') return `<button type="button" class="fa-btn" data-fa-act="img" data-fa-row="${lrEsc(gk)}">Open in Image Manager</button>`;
@@ -331,21 +337,22 @@ function faRowButton(gk, g, plans) {
 // "before → after" for a child under "Show all": the plan's change, or why it needs a person, or the problem itself.
 function faKidChange(g, plan, kid) {
   const hit = g.hits.get(faKidKey(kid));
+  if (g.kind === 'kw' && (plan.ok || plan.wait)) return `<span class="fa-was">${faNf(plan.b0)} bytes</span> → <span class="fa-new">${plan.ok ? faNf(plan.b1) + ' bytes' : 'read whole when you press Fix all'}</span>`;
   if (plan.ok) {
     if (plan.after != null && plan.before !== plan.after) return `<span class="fa-was">${lrEsc(faCut(plan.before, 90))}</span> → <span class="fa-new">${lrEsc(faCut(plan.after, 90))}</span>`;
     return `<span class="fa-new">${lrEsc(plan.what || 'Ready')}</span>`;
   }
-  if (g.kind === 'title' || g.kind === 'spec') return `<span class="fa-why">${plan.wait ? '… ' : '⚠ Needs your OK: '}${lrEsc(plan.why)}</span>`;
+  if (g.kind === 'title' || g.kind === 'spec' || g.kind === 'kw') return `<span class="fa-why">${plan.wait ? '… ' : '⚠ Needs your OK: '}${lrEsc(plan.why)}</span>`;
   return `<span class="fa-why">${lrEsc(hit ? (hit.what || hit.detail || hit.name) : '')}</span>`;
 }
 function faKidsHtml(gk, g, plans) {
   const all = FA.more.has(gk);
   const shown = all ? g.kids : g.kids.slice(0, FA_SHOW);
-  const safeKind = g.kind === 'title' || g.kind === 'spec';
+  const safeKind = g.kind === 'title' || g.kind === 'spec' || g.kind === 'kw';
   const busy = typeof sqIsOpen === 'function' && sqIsOpen();
   const rows = shown.map(kid => {
     const plan = plans[g.kids.indexOf(kid)];
-    const one = safeKind && plan.ok ? `<button type="button" class="fa-btn fa-small" data-fa-act="one" data-fa-row="${lrEsc(gk)}" data-fa-sku="${lrEsc(kid.sku)}"${busy ? ' disabled' : ''} title="Fix only this child">Fix</button>` : '';
+    const one = safeKind && (plan.ok || (g.kind === 'kw' && plan.wait)) ? `<button type="button" class="fa-btn fa-small" data-fa-act="one" data-fa-row="${lrEsc(gk)}" data-fa-sku="${lrEsc(kid.sku)}"${busy ? ' disabled' : ''} title="Fix only this child">Fix</button>` : '';
     return `<div class="fa-kid"><button type="button" class="fa-kid-o" data-fa-act="kid" data-fa-kid="${lrEsc(faKidKey(kid))}"><b>${lrEsc(plan.label)}</b><small>${lrEsc(kid.sku)}</small>`
       + `<span class="fa-chg">${typeof bfKidHtml === 'function' ? bfKidHtml(g.bf.get(faKidKey(kid))) : ''}${faKidChange(g, plan, kid)}</span></button>${one}</div>`;
   }).join('');
@@ -397,6 +404,7 @@ function faStart(gk, onlySku) {
   const kids = faKids(brand, parent);
   const g = faGroups(brand, parent, kids).find(each => each.key === rowKey);
   if (!g) return null;
+  if (g.kind === 'kw') return kfStartGroup(g, brand, parent, onlySku);        // the preview popup first (kw-fix.js), then the send path
   const ctx = hCtx();
   const plans = faPlans(g, ctx).filter(p => !onlySku || p.sku === onlySku);
   const run = { brand, parent, row: rowKey, name: g.name, attr: g.attr || '' };

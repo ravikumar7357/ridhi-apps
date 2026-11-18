@@ -203,6 +203,11 @@ function doGet(e) {
     }
     /* One store's per-SKU sales + stock built now, rather than waiting for the night. */
     if (p.shopSkuBuild) return json_(shopSkuBuild_(String(p.shop || ''), Date.now() + 300000));
+    // The five Ads caches (AdsEntities.gs / AdsDecide.gs) live in their own spreadsheet, "Sellora Ads Cache" (17 Nov 2026).
+    if (p.cache && /^(adEntities|stSettled|stRecent|tgtSettled|tgtRecent)$/.test(String(p.cache))) {
+      var ac = adsCacheRead_(String(p.cache));
+      return json_(ac ? { ok: true, name: p.cache, data: ac } : { ok: false, error: 'nothing cached for "' + p.cache + '" yet' });
+    }
     // Whatever the nightly run has already worked out. One fast read instead of the whole grind.
     if (p.cache) {
       var c = /^lm(Meta$|Listings_|Catalog_)/.test(String(p.cache)) ? lmCacheRead_(String(p.cache)) : cacheRead_(String(p.cache));   // lm* tabs: ListingMatch.gs's own spreadsheet

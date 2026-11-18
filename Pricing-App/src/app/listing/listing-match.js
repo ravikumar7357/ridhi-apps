@@ -303,7 +303,8 @@ function lmNoteLive(brand, sku, kind, reply) {
       iss: (reply.issues || []).map(issue => { const x = lmIss([issue])[0]; const acts = lrIssueActs(issue); if (acts.length) x.e = acts; else delete x.e; return x; }),
       hl: at.title_differentiation ? at.title_differentiation.map(v => String((v && v.value) || '')).filter(Boolean) : null };
   } else if (kind === 'limg') {
-    const cat = reply.catalog && typeof reply.catalog === 'object' ? reply.catalog : null;
+    // the catalogue did not answer (catalogError): what Amazon serves is not known — never an empty "serves nothing"
+    const cat = !reply.catalogError && reply.catalog && typeof reply.catalog === 'object' ? reply.catalog : null;
     o.i = { at: now, img: reply.listing && typeof reply.listing === 'object' ? Object.fromEntries(Object.entries(reply.listing).filter(([, u]) => u)) : null,
       catImg: cat ? Object.fromEntries(Object.entries(cat).filter(([, v]) => v && v.link).map(([slot, v]) => [slot, { u: v.link, w: Number(v.w) || 0, h: Number(v.h) || 0 }])) : null };
   }
@@ -408,7 +409,7 @@ function lmImlItem(m, old) {
   const item = Object.assign({}, old || {}, { sku: m.sku, asin: m.asin || (old && old.asin) || '', st: String(m.as || ''), pt: m.pt || (old && old.pt) || '',
     t: String(m.t || (old && old.t) || '').slice(0, 160), lvl: m.lvl || '', psku: m.psku || '', c: String((m.va && m.va.color) || ''), z: String((m.va && m.va.size) || ''),
     img: Object.assign({}, m.img || {}), ie: errs.length, iw: m.iss.filter(i => i.s === 'W').length, im: errs.length ? String(errs[0].m).slice(0, 140) : '',
-    iss: m.iss.slice(0, 8).map(i => Object.assign({}, i, { m: String(i.m).slice(0, 220) })), lm: 1, lmStale: !!(m.stale && !m.live) });
+    iss: m.iss.slice(0, 12).map(i => Object.assign({}, i, { m: String(i.m).slice(0, i.s === 'E' ? 1000 : 220) })), lm: 1, lmStale: !!(m.stale && !m.live) });
   if (cat && cat.img) {
     item.live = Object.fromEntries(Object.entries(cat.img).filter(([, v]) => v && v.u).map(([slot, v]) => [slot, v.u]));
     item.pa = (cat.pa || [])[0] || '';
@@ -574,6 +575,23 @@ function lmHealthApply() {
   lmParentNamesApply();                                                     // and the parents' own names
 }
 
+/** When the stock on the page was read, for a brand whose stock is the cache's: the time of ListingMatch's newest report for it (0 when the
+ *  Listing Health snapshot is the newer one, or the cache is not usable) — Family check's "stock saved …" label. */
+const LM_STOCK_AT = new WeakMap();
+function lmStockAt(brand) {
+  if (!lmOk(brand) || typeof HEALTH === 'undefined') return 0;
+  const list = LM.list[brand];
+  let at = LM_STOCK_AT.get(list);
+  if (at === undefined) {
+    at = 0;
+    list.forEach(raw => { if (raw.fba !== undefined && raw.rAt > at) at = raw.rAt; });
+    LM_STOCK_AT.set(list, at);
+  }
+  const h = HEALTH[brand];
+  const snapAt = h && h.at && h.at.getTime ? h.at.getTime() : 0;
+  return at > snapAt ? at : 0;
+}
+
 /* ----- the parents' own names (Listing Audit, Listing Health, every screen that names a parent) ----- */
 /** HEALTH[brand].parentNames with the names the cache's parent listings carry (their item name: the seller's own name for the parent,
  *  the same field the listings report's parent row gives "Refresh both brands"). The snapshot's names stay under it (lmNamesBase). */
@@ -731,6 +749,42 @@ function lmAgeHtml() {
   const tip = old ? 'Older than 24 hours — this screen uses its own reads until the next ListingMatch pass.'
     : `Read from Amazon by ListingMatch (${LM.meta.kind === 'light' ? 'the changed listings' : 'every listing'}). A live read on this page (a send, Check now, Read again) shows until a newer pass.`;
   return `<span class="lm-age-t${old ? ' is-old' : ''}" title="${tip}">Amazon data: ${lmFmt(LM.meta.finishedAt)} · next refresh ~${lmNextFull()}</span>`;
+}
+/* ----- THE ONE "WHEN WAS THIS READ" LABEL (17 Nov 2026): every Listing screen's data-age label comes from lmDataLabel ----- */
+// ms → '17 Nov 13:14' (IST, as ListingMatch writes its times); day false → '13:14'.
+function lmClock(ms, day) {
+  const d = new Date(ms + LM_IST_MS);
+  const hm = String(d.getUTCHours()).padStart(2, '0') + ':' + String(d.getUTCMinutes()).padStart(2, '0');
+  return day === false ? hm : `${d.getUTCDate()} ${LM_MON[d.getUTCMonth()]} ${hm}`;
+}
+const lmIstDay = ms => Math.floor((ms + LM_IST_MS) / 864e5);
+/** One brand's times from lmMeta: full = the last full pass that read it (lastFull.finishedAt; 0 when that pass gave the brand up),
+ *  update = the newest pass that read it (lastLight.finishedAt when the light pass read this brand, else the full one). */
+function lmBrandTimes(brand) {
+  const m = LM.meta || {};
+  const lf = m.lastFull || (m.kind === 'full' ? { finishedAt: m.finishedAt } : {});
+  const ll = m.lastLight || (m.kind === 'light' ? { finishedAt: m.finishedAt } : {});
+  const inFull = !lf.brands || (lf.brands.includes(brand) && !(lf.gaveUp || []).includes(brand));
+  const full = inFull ? lmTime(lf.finishedAt) : 0;
+  const light = ll.brands && typeof ll.brands === 'object' && !ll.brands[brand] ? 0 : lmTime(ll.finishedAt);
+  return { full, update: Math.max(full, light) };
+}
+/** THE LABEL. When the ListingMatch data is fresh for every brand given (lmOk: its last pass at most 24 hours old):
+ *    { lm: true, fullAt, updateAt, text: 'Full refresh: 17 Nov 13:14 · last update 13:30' }
+ *  per brand when the brands' times differ ('Full refresh: Ridhi 17 Nov 13:14 · last update 13:30; CPC 16 Nov 18:20 · last update 13:30').
+ *  fullAt / updateAt: the oldest across the brands (0 when one is not known). NULL when the data is missing or older than 24 hours:
+ *  only then does a screen show its old label (the Listing Health snapshot, the Image Manager snapshot, a manual refresh). */
+function lmDataLabel(brands) {
+  brands = brands && brands.length ? brands : ['SP', 'CPC'];
+  if (!LM.meta || !brands.every(b => lmOk(b))) return null;
+  const t = brands.map(b => Object.assign({ b }, lmBrandTimes(b)));
+  const one = x => (x.full ? lmClock(x.full) : 'not in the last full pass')
+    + (x.update ? ' · last update ' + lmClock(x.update, x.full && lmIstDay(x.update) === lmIstDay(x.full) ? false : true) : '');
+  const same = t.every(x => x.full === t[0].full && x.update === t[0].update);
+  const name = b => (typeof BRAND_NAME !== 'undefined' && BRAND_NAME[b]) || b;
+  const text = 'Full refresh: ' + (same ? one(t[0]) : t.map(x => name(x.b) + ' ' + one(x)).join('; '));
+  const oldest = k => (t.every(x => x[k]) ? Math.min(...t.map(x => x[k])) : 0);
+  return { lm: true, fullAt: oldest('full'), updateAt: oldest('update'), text };
 }
 function lmAgeDraw() {
   try {

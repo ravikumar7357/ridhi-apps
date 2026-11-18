@@ -33,9 +33,11 @@ listing/listing-sync.js
 listing/season-planner.js
 listing/fix-all.js
 listing/listing-send-check.js
+listing/kw-fix.js
 listing/listing-history.js
 listing/bsr-audit.js
 listing/family-check.js
+listing/category-check.js
 research/keywords.js
 research/by-amazon-link.js
 research/new-product.js

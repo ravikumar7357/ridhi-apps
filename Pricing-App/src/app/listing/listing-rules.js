@@ -120,7 +120,7 @@ const LR_DEFAULT = {
     { id: 'img_secondary', name: 'Secondary images missing', sev: 'critical', area: 'Images', detector: 'images_below', params: { n: 6 }, desc: 'Fewer than 6 gallery pictures in the catalogue' },
     /* Needs attention */
     { id: 'var_value', name: 'Missing required variation value', sev: 'action', area: 'Variation', detector: 'variation_value_missing', desc: 'Makes child unclear/wrong within parent' },
-    { id: 'kw_bytes', name: 'Search terms over the limit', sev: 'action', area: 'Content', detector: 'keyword_bytes', params: { max: 249 }, desc: 'Over the limit Amazon ignores all of the search terms; spaces and ; , . do not count toward it' },
+    { id: 'kw_bytes', name: 'Search terms over the limit', sev: 'action', area: 'Content', detector: 'keyword_bytes', params: { max: 249 }, desc: 'Over the limit Amazon may ignore all of the search terms; spaces and ; , . do not count toward it' },
     { id: 'img_type', name: 'Important image type missing', sev: 'action', area: 'Images', detector: 'manual', desc: 'No size infographic, lifestyle, detail image, etc.' },
     { id: 'title_template', name: "Title doesn't follow template", sev: 'action', area: 'Title', detector: 'title_template', desc: 'Information is correct but title structure is wrong' },
     { id: 'size_format', name: 'Size formatting inconsistent', sev: 'action', area: 'Size', detector: 'size_format', params: { example: '14 x 36 Inch' }, desc: '14x36, 14 x 36 inch, etc. instead of approved 14 x 36 Inch' },
@@ -411,6 +411,36 @@ function lrKwBytes(text) {
   const words = String(text || '').replace(/[\s;,.]+/g, '');
   return typeof TextEncoder === 'function' ? new TextEncoder().encode(words).length : Buffer.byteLength(words, 'utf8');
 }
+/* THE ONE SEARCH-TERMS RULE — Listing Health's keyword_bytes check and the Listing Optimiser's review both judge with lrKwCheck.
+ * Amazon's limit is "less than 250" bytes: 249 at most (the keyword_bytes rule's max), spaces and ; , . not counted. OVER IT,
+ * AMAZON MAY IGNORE ALL OF THE SEARCH TERMS, not only the part past the limit. */
+const LR_KW_MAX = 249;
+const LR_KW_OVER = 'Over Amazon\'s limit — Amazon may ignore all of these search terms.';
+/** The limit in force: the keyword_bytes rule's max in the rules given (the saved rules, else the defaults), else 249. */
+function lrKwMax(cfg) {
+  const rule = (((cfg || (typeof LR !== 'undefined' && LR) || LR_DEFAULT) || {}).issues || []).find(issue => issue.detector === 'keyword_bytes');
+  return (rule && +(rule.params || {}).max) || LR_KW_MAX;
+}
+/** { bytes, max, over, cut, cutAt }: the bytes as Amazon counts them, over = more than max, cut = bytes to remove, and cutAt = the
+ *  character where byte max+1 begins (the text's length when within) — what to cut. `bytes`, when known (a whole read whose text was
+ *  shortened for keeping), wins over counting the text. */
+function lrKwCheck(text, max, bytes) {
+  const s = String(text || '');
+  max = +max || LR_KW_MAX;
+  const n = bytes != null ? +bytes : lrKwBytes(s);
+  let used = 0, cutAt = s.length;
+  if (n > max) {
+    let i = 0;
+    for (const ch of s) {             // by character, not UTF-16 unit: an emoji is 4 bytes, not two halves
+      if (!/[\s;,.]/.test(ch)) {
+        used += lrKwBytes(ch);
+        if (used > max) { cutAt = i; break; }
+      }
+      i += ch.length;
+    }
+  }
+  return { bytes: n, max, over: n > max, cut: Math.max(0, n - max), cutAt };
+}
 
 /* ---- the template ---- */
 // The first template for this listing's brand whose `match` is in its catalogue sub-category ('' matches anything), or null.
@@ -540,9 +570,8 @@ const LR_DET = {
   // Search terms from the live Amazon read only (Part A4); "Search terms: 233 of 249 bytes" when fine, what to cut when over.
   keyword_bytes: (row, ctx, params) => {
     if (row.kw == null) return '';
-    const max = +params.max || 249;
-    const bytes = row.kwBytes != null ? row.kwBytes : lrKwBytes(row.kw);
-    return bytes > max ? `${bytes} of ${max} bytes — cut ${bytes - max}; over the limit Amazon ignores all of them` : '';
+    const k = lrKwCheck(row.kw, params.max, row.kwBytes);       // the one rule (the Optimiser's review judges with it too)
+    return k.over ? `${k.bytes} of ${k.max} bytes — cut ${k.cut}; over the limit Amazon may ignore all of them` : '';
   },
   // Our submitted title (the live read's item_name) is not the title Amazon shows: ours is not live. Both titles are named.
   title_not_live: row => (row.shownTitle && row.submittedTitle && !lrSameTitle(row.shownTitle, row.submittedTitle)
@@ -1126,9 +1155,8 @@ const LR_FIX_TEXT = {
     return `Add ${lrN(ideal - have, 'more picture')} in Image Manager to reach ${ideal} (the catalogue shows ${have}).`;
   },
   keyword_bytes: (hit, row, ctx, params) => {
-    const max = +params.max || 249;
-    const bytes = row.kwBytes != null ? row.kwBytes : lrKwBytes(row.kw);
-    return `Cut ${lrN(bytes - max, 'byte')} from the search terms in Listing Errors (${bytes} of ${max}); over the limit Amazon ignores all of them.`;
+    const k = lrKwCheck(row.kw, params.max, row.kwBytes);
+    return `Cut ${lrN(k.cut, 'byte')} from the search terms in Listing Errors (${k.bytes} of ${k.max}); over the limit Amazon may ignore all of them.`;
   },
   bullets_below: (hit, row, ctx, params) => `Add bullets until there are ${+params.n || 5} (it has ${row.content ? row.content.bullets || 0 : 0}).`,
   desc_below: (hit, row, ctx, params) => `Write a description of ${+params.n || 200}+ characters (it has ${row.content && row.content.descLen ? row.content.descLen : 'none'}).`,

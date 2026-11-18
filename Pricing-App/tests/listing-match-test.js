@@ -61,6 +61,7 @@ function page(opts) {
     if (q.lfix === 'get') return opts.get ? opts.get(q) : { productType: 'NAPKIN', status: ['BUYABLE', 'DISCOVERABLE'], issues: [], attributes: {} };
     if (q.lfix === 'schema') return { attrs: { material: {}, color: {}, size: {}, pattern: {}, theme: { missing: true } } };   // the product type's schema: these four apply
     if (q.limg === 'get') return opts.limg ? opts.limg(q) : { ok: true, sku: q.sku, listing: {}, catalog: {} };
+    if (q.listing === 'review' && opts.live) return opts.live(q);        // the Optimiser's live read
     return {};
   } }, opts.load || {}));
   const mem = { copy: opts.copy || null };
@@ -383,19 +384,23 @@ const rowOf = (C, sku) => ['SP', 'CPC'].map(b => C.HEALTH[b].rows.find(r => r.sk
     const reply = facts => ({ ok: true, asin: 'B0R1', audit: Object.assign({ ok: true, asin: 'B0R1', src: 'cache', attrKeys: [], images: { slots: {}, n: 0, hasMain: false, noZoom: [], emptySlots: [] }, rank: null },
       { title: facts.title, brand: facts.brand, category: facts.category, bullets: facts.bullets, description: facts.description }),
       findings: { title: [], bullets: [], description: [], images: [] }, suggestion: { ok: false, why: [] }, keywords: { trust: 'none', note: '', words: [], wordsShared: [], missing: [] } });
+    // the live read's answer (the backend reading the catalog itself)
+    const live = () => { const r = reply({ title: 'Live title', brand: 'Ridhi', category: 'Napkins', bullets: [], description: '' }); r.audit.src = 'live'; return r; };
     const opt = async (o = {}) => {
-      const P = page({ load: { lo: true, post: body => { posted.push(body); return o.post ? o.post(body) : reply(body.facts); } } });
+      const P = page({ live, load: { lo: true, post: body => { posted.push(body); return o.post ? o.post(body) : reply(body.facts); } } });
       P.net.tabs = o.tabs === null ? null : cacheOf(P.C, Object.assign({ edit: (b, items, cat) => {
         if (b !== 'SP') return;
         items.R1.itk = 'cloth-napkins';
+        if (o.kw != null) items.R1.kw = o.kw;
         cat.B0RIDHI001 = Object.assign({}, cat[items.R1.asin], { asin: 'B0RIDHI001', t: 'Shown title of R1' });   // a real-shaped ASIN (the sample's are short)
         items.R1.asin = 'B0RIDHI001';
         items['PS-P1'] = Object.assign({}, items.R1, { sku: 'PS-P1', asin: 'BPP1', lvl: 'parent', psku: '', t: 'Ridhi Napkins Parent (our own name)', ch: '', fba: null });
       } }, o.cache || {})).tabs;
-      await P.C.lmEnsure(); await P.C.lmRefresh();
+      await P.C.lmEnsure();
+      if (!o.noWait) await P.C.lmRefresh();          // noWait: Go pressed while the backend's copy is still on its way
       posted.length = 0; P.calls.length = 0;
       P.C.el('loAsin').value = o.asin || 'B0RIDHI001';
-      P.C.el('loBrand').value = 'SP';
+      P.C.el('loBrand').value = o.brand || 'SP';
       await P.C.loGo();
       return Object.assign(P, { gets: P.calls.filter(q => q.listing === 'review').length, lo: P.C.getLO(), body: P.C.el('loBody').innerHTML });
     };
@@ -416,6 +421,172 @@ const rowOf = (C, sku) => ['SP', 'CPC'].map(b => C.HEALTH[b].rows.find(r => r.sk
     ok('Listing Audit / every parent name: the parent listing\'s own name from the cache (the same field the listings report gives "Refresh both brands")',
       a.C.HEALTH.SP.parentNames.BPP1 === 'Ridhi Napkins Parent (our own name)' && !a.C.HEALTH.SP.rows.some(r => r.sku === 'PS-P1'));
     ok('…a stale cache leaves the snapshot\'s names as they were', !(d.C.HEALTH.SP.parentNames || {}).BPP1);
+    console.log('== 4b the Optimiser: our own search terms, and why a review read Amazon live ==');
+    const src = r => (r.body.match(/id="loSrc">([^<]*)</) || [])[1] || '';
+    ok('ours: our search terms from the cache are shown (not "Backend keywords cannot be read")', /OUR SEARCH TERMS · R1/.test(a.body) && a.body.includes('cotton napkins') && !a.body.includes('Backend keywords cannot be read'), a.body.slice(0, 100));
+    ok('…13 / 249 bytes, green (spaces do not count)', /<span class="ok" id="loKwBytes">13 \/ 249 bytes<\/span>/.test(a.body) && a.body.includes('within Amazon'));
+    ok('…no word of the title in them: "No word here is already in the title"', a.body.includes('No word here is already in the title'));
+    const w = await opt({ kw: 'Shown napkins, title; cotton OF' });
+    ok('words the title already has are listed as wasted (shown, title, of), with their bytes', /Already in the title \(wasted\):<\/span> shown, title, of/.test(w.body) && /— 12 byte\(s\)/.test(w.body), (w.body.match(/Already[^\n]*/) || [''])[0]);
+    const long = Array.from({ length: 40 }, (_, i) => 'word' + String(i).padStart(3, '0')).join(' ');     // 40 × 7 = 280 bytes
+    const big = await opt({ kw: long });
+    ok('over the limit: red "280 / 249 bytes", "Over Amazon\'s limit — Amazon may ignore all of these search terms. Cut to 249 bytes."',
+      /<span class="err" id="loKwBytes">280 \/ 249 bytes<\/span>/.test(big.body) && big.body.includes('Over Amazon\'s limit — Amazon may ignore all of these search terms. Cut to 249 bytes.')
+      && !/ignores everything after/.test(big.body), (big.body.match(/loKwBytes[^\n]*/) || [''])[0]);
+    ok('…the part past byte 249 is marked "cut this" (byte 250 is the "0" of word035)',
+      /word034 word<span class="lo-cut" title="Past byte 249: cut this">035 word036 word037 word038 word039<\/span><span class="lo-cut-tag">cut this<\/span>/.test(big.body), (big.body.match(/lo-cut[^\n]*/) || [''])[0]);
+    const k249 = await opt({ kw: 'x'.repeat(249) }), k250 = await opt({ kw: 'x'.repeat(250) });
+    ok('249 bytes: green, nothing to cut', /class="ok" id="loKwBytes">249 \/ 249/.test(k249.body) && !k249.body.includes('lo-cut'));
+    ok('250 bytes: red (Amazon\'s "less than 250"), the last byte marked "cut this"', /class="err" id="loKwBytes">250 \/ 249/.test(k250.body) && /<span class="lo-cut"[^>]*>x<\/span><span class="lo-cut-tag">cut this/.test(k250.body));
+    // ONE RULE: Listing Health judges the same listing the same way, at the same byte
+    k249.C.reset(); k250.C.reset();
+    ok('Listing Health agrees at the edge: 249 bytes no problem, 250 bytes "Search terms over the limit" (the same listing, the same cache)',
+      !k249.C.hit('R1', 'keyword_bytes') && /^250 of 249 bytes — cut 1; over the limit Amazon may ignore all of them$/.test((k250.C.hit('R1', 'keyword_bytes') || {}).detail || ''), JSON.stringify(k250.C.hit('R1', 'keyword_bytes')));
+    {
+      const lo = fs.readFileSync(path.join(__dirname, '..', 'src', 'app', 'listing', 'listing-optimiser.js'), 'utf8');
+      const lr = fs.readFileSync(path.join(__dirname, '..', 'src', 'app', 'listing', 'listing-rules.js'), 'utf8');
+      const det = (lr.match(/\n  keyword_bytes: \(row, ctx, params\) => \{[\s\S]*?\n  \},/) || [''])[0];
+      ok('one shared function: the Optimiser and Listing Health\'s keyword_bytes both call lrKwCheck; neither counts the limit itself',
+        /lrKwCheck\(ours\.kw, max\)/.test(lo) && /lrKwCheck\(row\.kw, params\.max, row\.kwBytes\)/.test(det) && !/250|249/.test(lo.replace(/^\s*(\/\/|\*|\/\*).*$/gm, '')) && !/bytes > max/.test(det), det.slice(0, 120));
+    }
+    const none = await opt({ kw: '' });
+    ok('ours with no search terms set: "No search terms on this listing (R1)"', none.body.includes('No search terms on this listing (R1).') && !none.body.includes('Backend keywords cannot be read'));
+    ok('a competitor\'s ASIN keeps the old message, and says why it read live', c.body.includes('Backend keywords cannot be read') && !c.body.includes('OUR SEARCH TERMS')
+      && src(c) === 'read live from Amazon now — this ASIN is not one of our listings in the auto refresh data', src(c));
+    ok('a backend that did not take the facts: the header says so, with its answer', src(b) === 'read live from Amazon now — the backend did not take the auto refresh data (Unknown POST)', src(b));
+    ok('…our search terms are still shown (the cache holds them)', b.body.includes('OUR SEARCH TERMS'));
+    ok('a stale cache: "the auto refresh data here is from …, more than 24 hours ago"', /^read live from Amazon now — the auto refresh data here is from \d{1,2} [A-Z][a-z]{2} \d\d:\d\d, more than 24 hours ago$/.test(src(d)), src(d));
+    ok('the review from the cache says nothing about a live read', src(a).startsWith('Amazon data from the auto refresh') && !src(a).includes('live'), src(a));
+    // nothing remembered: a review after a failed POST asks again, and uses the cache once the backend takes it
+    {
+      let backendOld = true;
+      const P = page({ live, load: { lo: true, post: body => { posted.push(body); return backendOld ? { ok: false, error: 'Unknown POST' } : reply(body.facts); } } });
+      P.net.tabs = cacheOf(P.C, { edit: (b, items, cat) => { if (b !== 'SP') return; cat.B0RIDHI001 = Object.assign({}, cat[items.R1.asin], { asin: 'B0RIDHI001' }); items.R1.asin = 'B0RIDHI001'; } }).tabs;
+      await P.C.lmEnsure(); await P.C.lmRefresh();
+      posted.length = 0;
+      P.C.el('loAsin').value = 'B0RIDHI001'; P.C.el('loBrand').value = 'SP';
+      await P.C.loGo();
+      const first = P.C.getLO().audit.src;
+      backendOld = false;                                   // the backend deployed (17 Nov 12:40) between two reviews
+      await P.C.loGo();
+      ok('each review asks the backend again: the first (old backend) read live, the next one (deployed) uses the cache', first !== 'cache' && P.C.getLO().audit.src === 'cache' && posted.length === 2, first + ' → ' + P.C.getLO().audit.src);
+    }
+    const other = await opt({ brand: 'CPC' });
+    ok('ours under the other brand (CPC chosen, the ASIN is Ridhi\'s): reviewed from the cache as Ridhi, the brand box follows, and it says so',
+      posted.length === 1 && posted[0].brand === 'SP' && other.lo.audit.src === 'cache' && other.C.el('loBrand').value === 'SP' && other.body.includes('B0RIDHI001 is a Ridhi listing — reviewed as that brand.'), other.C.el('loBrand').value);
+    const early = await opt({ noWait: true });
+    ok('Go pressed before the backend\'s copy landed (no saved copy here yet): the review waits for it and uses the cache, no live read',
+      early.lo.audit.src === 'cache' && posted.some(p => p.listing === 'review') && early.gets === 0, early.lo.audit.src + ' gets=' + early.gets);
+  }
+
+  console.log('== THE ONE DATA-TIME LABEL (lmDataLabel): every Listing screen says ListingMatch\'s times while its data is fresh ==');
+  {
+    const P = page();
+    P.net.tabs = cacheOf(P.C).tabs;
+    await P.C.lmEnsure(); await P.C.lmRefresh();
+    const C = P.C, M = C.LM.meta;
+    // a full pass 2 h 10 min ago and a light pass 20 min ago, both brands read by both
+    const full = Date.now() - 130 * 60000, light = Date.now() - 20 * 60000;
+    const setMeta = o => { Object.assign(M, { finishedAt: IST(o.light || o.full), kind: o.light ? 'light' : 'full', lastFull: { finishedAt: IST(o.full), brands: o.fullBrands || ['SP', 'CPC'], gaveUp: o.gaveUp || [] } });
+      if (o.light) M.lastLight = { finishedAt: IST(o.light), brands: o.lightBrands || { SP: { changed: 4 }, CPC: { changed: 2 } } }; else delete M.lastLight; C.reset(); };
+    const clock = ms => C.lmFmt(IST(ms)), hm = ms => clock(ms).split(' ').pop();
+    setMeta({ full, light });
+    const L = C.lmDataLabel(['SP', 'CPC']);
+    const sameDay = new Date(full + 5.5 * H).getUTCDate() === new Date(light + 5.5 * H).getUTCDate();
+    ok('"Full refresh: 17 Nov 13:14 · last update 13:30" from lmMeta lastFull.finishedAt and lastLight.finishedAt (one line when both brands match)',
+      L && L.text === `Full refresh: ${clock(full)} · last update ${sameDay ? hm(light) : clock(light)}` && Math.abs(L.fullAt - full) < 60000 && Math.abs(L.updateAt - light) < 60000, L && L.text);
+    setMeta({ full, light, lightBrands: { SP: { changed: 4 } } });
+    const D = C.lmDataLabel(['SP', 'CPC']);
+    ok('per brand when they differ (the light pass read only Ridhi): "Full refresh: Ridhi … · last update …; CPC … · last update <the full time>"',
+      D && D.text === `Full refresh: Ridhi ${clock(full)} · last update ${sameDay ? hm(light) : clock(light)}; CPC ${clock(full)} · last update ${hm(full)}`, D && D.text);
+    ok('…one brand alone: its own times', C.lmDataLabel(['CPC']).text === `Full refresh: ${clock(full)} · last update ${hm(full)}`, C.lmDataLabel(['CPC']).text);
+    setMeta({ full: Date.now() - 30 * H });
+    ok('ListingMatch data older than 24 hours: no label (null) — the screens show their old labels', C.lmDataLabel(['SP', 'CPC']) === null && C.lmDataLabel(['SP']) === null);
+    const E = page({ load: {} });
+    await E.C.lmEnsure();
+    ok('no ListingMatch data at all: null', E.C.lmDataLabel(['SP']) === null);
+
+    // --- the Workspace's parent rows and panel footer, and the sources of each answer ---
+    setMeta({ full, light });
+    C.LI_WS.mode = 'live';
+    C.HEALTH.SP.at = C.HEALTH.CPC.at = new Date(Date.now() - 26 * H);          // the snapshot: a day old
+    const p = C.liWsParents(['SP', 'CPC']).find(x => x.key === 'SP|P1');
+    const cell = C.liWsData(p).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+    ok('a parent row: "Full refresh: 2 hours ago" from ListingMatch\'s full pass, not the day-old snapshot', p.data.lm === true && Math.abs(p.data.snapAge - (Date.now() - full)) < 60000 && /Full refresh: 2 hours ago/.test(cell), cell);
+    ok('…"Amazon: 20 min ago" — the listings are current as of the last update (the records were read at the full pass)', p.data.state === 'live' && Math.abs(p.data.age - (Date.now() - light)) < 60000 && /Amazon: 2[01] min ago/.test(cell), cell);
+    const src = C.liWsSrc('health', C.HEALTH.SP.at.getTime(), 'SP');
+    ok('the status / stock / picture answers name their source: "ListingMatch auto refresh · Full refresh: …"', src.s === 'ListingMatch auto refresh' && src.when === C.lmDataLabel(['SP']).text, JSON.stringify(src));
+    setMeta({ full: Date.now() - 30 * H });
+    const q = C.liWsParents(['SP', 'CPC']).find(x => x.key === 'SP|P1');
+    ok('ListingMatch older than 24 hours: the old labels — the snapshot\'s "Full refresh: 1 day ago", the snapshot as the source', q.data.lm === false && Math.abs(q.data.snapAge - 26 * H) < 60000
+      && /Full refresh: 1 day ago/.test(C.liWsData(q)) && C.liWsSrc('health', C.HEALTH.SP.at.getTime(), 'SP').s === 'Listing Health snapshot', C.liWsData(q).replace(/<[^>]+>/g, ' '));
+
+    // --- Listing Health's (and the Workspace's) meta line: the real hMetaRender over a stub page ---
+    const hd = fs.readFileSync(path.join(__dirname, '..', 'src', 'app', 'listing', 'listing-health-data.js'), 'utf8').replace(/\r\n/g, '\n');
+    const fnSrc = (hd.match(/\nfunction hMetaRender\([\s\S]*?\n\}\n/) || [''])[0];
+    const meta = { innerHTML: '' };
+    const hMeta = new Function('$', 'HEALTH', 'BRAND_NAME', 'lrEsc', 'liWsNewestRead', 'lmDataLabel', fnSrc + '\nreturn hMetaRender;')(
+      () => meta, C.HEALTH, { SP: 'Ridhi', CPC: 'CPC' }, s => String(s), () => 0, b => C.lmDataLabel(b));
+    setMeta({ full, light });
+    hMeta(['SP', 'CPC'], 'Workspace');
+    const line = meta.innerHTML.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+    ok('the meta line: "Workspace · Amazon read 20 min ago · Full refresh 2 h ago  Full refresh: 17 Nov 13:14 · last update 13:30" (no "1 day ago", no snapshot dates)',
+      // (ListingMatch writes whole minutes: 20 or 21 min)
+      /^Workspace · Amazon read 2[01] min ago · Full refresh 2 h ago /.test(line) && line.endsWith(' ' + C.lmDataLabel(['SP', 'CPC']).text) && !/is-old/.test(meta.innerHTML), line);
+    setMeta({ full: Date.now() - 30 * H });
+    hMeta(['SP', 'CPC'], 'Workspace');
+    const oldLine = meta.innerHTML.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+    ok('…ListingMatch older than 24 hours: the old line, from the snapshot ("Full refresh 1 day ago … Full refresh: Ridhi <date> · CPC <date>")',
+      /^Workspace · Amazon read not yet on this screen · Full refresh 1 day ago/.test(oldLine) && /Full refresh: Ridhi \d{1,2} [A-Z][a-z]{2} · CPC \d{1,2} [A-Z][a-z]{2}$/.test(oldLine), oldLine);
+
+    // --- every Listing screen with a data-time label draws it through lmDataLabel ---
+    const dir = path.join(__dirname, '..', 'src', 'app', 'listing');
+    const users = ['listing-health-data.js', 'parent-check.js', 'listing-workspace.js', 'listing-kid.js', 'image-manager.js', 'listing-errors.js', 'family-check.js']
+      .filter(f => !/lmDataLabel\(/.test(fs.readFileSync(path.join(dir, f), 'utf8')));
+    ok('Listing Health (meta line, brand cards), Workspace (rows, panel, sources, banner), child sidebar, Image Manager, Listing Errors, Family check all use lmDataLabel', !users.length, users.join());
+    const defs = fs.readdirSync(dir).filter(f => /\.js$/.test(f) && /function lmDataLabel\(/.test(fs.readFileSync(path.join(dir, f), 'utf8')));
+    ok('…one shared function, defined once (listing-match.js)', defs.join() === 'listing-match.js', defs.join());
+  }
+
+  console.log('== IMAGE MANAGER over the ListingMatch data: the picture checks, "not checked", and a live re-read ==');
+  {
+    // R1: our listing has a swatch (Amazon's catalogue never returns one); R2: none anywhere; R3: its ASIN is not in the catalogue parts
+    let amazonNow = null;
+    const P = page({ load: { im: true, pc: true },
+      limg: q => amazonNow && amazonNow[q.sku] ? amazonNow[q.sku] : { ok: true, sku: q.sku, listing: {}, catalog: {} },
+      get: q => ({ productType: 'NAPKIN', status: ['BUYABLE', 'DISCOVERABLE'], issues: [], attributes: {} }) });
+    P.net.tabs = cacheOf(P.C, { edit: (b, items, cat) => {
+      if (b !== 'SP') return;
+      items.R1.img.SWCH = pic('R1', 'SWCH');
+      delete cat[items.R3.asin];
+    } }).tabs;
+    await P.C.lmEnsure(); await P.C.lmRefresh();
+    P.C.el('imBrand').value = 'SP';
+    P.C.PC.loaded = true;
+    P.C.lmImlApply('SP');
+    P.C.imqSeed('SP');
+    const it = sku => P.C.IML.SP.items.find(i => i.sku === sku);
+    ok('the list is built from the cache (lm) with our pictures, what Amazon serves and Amazon\'s issues', P.C.IML.SP.lm === true && it('R1').img.SWCH === pic('R1', 'SWCH') && it('R2').live.MAIN === pic('R2', 'MAIN') && Array.isArray(it('R2').iss));
+    ok('the swatch is no check: R1 (a swatch in our listing) and R2 (none anywhere) have the very same problems (none)', P.C.imCheck(it('R1'), 'noswatch', 'SP') === null
+      && P.C.imProblems(it('R1'), 'SP').join() === P.C.imProblems(it('R2'), 'SP').join() && P.C.imProblems(it('R2'), 'SP').length === 0, P.C.imProblems(it('R2'), 'SP').join());
+    ok('R3 (its ASIN is not in the catalogue the cache read): what Amazon serves is NOT KNOWN → Main not OK is "not checked"; No main at all and Fewer than 7 decided from ours alone',
+      it('R3').liveErr === 'not in catalogue' && P.C.imCheck(it('R3'), 'pcbad', 'SP') === null && P.C.imCheck(it('R3'), 'nomain', 'SP') === false && P.C.imCheck(it('R3'), 'few', 'SP') === false, JSON.stringify([it('R3').liveErr, P.C.imCheck(it('R3'), 'pcbad', 'SP')]));
+    ok('the sizes are Amazon\'s own, from the cache\'s catalogue (2000 × 2000 here) — information for the editor, no check', P.C.imqDims(it('R2').live.MAIN).join() === '2000,2000' && P.C.imCheck(it('R2'), 'small', 'SP') === null);
+    // Amazon NOW: R2 has a swatch in our listing, and only 6 pictures in both (ours and served), one of them 1500 × 1500
+    const slots = Object.fromEntries(GALLERY.map(s => [s, pic('R2', s)]));
+    amazonNow = { R2: { ok: true, sku: 'R2', asin: it('R2').asin, status: ['BUYABLE', 'DISCOVERABLE'], listing: Object.assign(Object.fromEntries(GALLERY.slice(0, 6).map(sl => [sl, slots[sl]])), { SWCH: pic('R2', 'SWCH') }),
+      catalog: Object.fromEntries(GALLERY.slice(0, 6).map(s => [s, { link: pic('R2', s), w: s === 'PT03' ? 1500 : 2000, h: s === 'PT03' ? 1500 : 2000 }])), catalogError: '', issues: [] } };
+    const live = await P.C.imLiveRead('SP', 'R2', it('R2'));
+    ok('a live read (?limg=get + ?lfix=get) judged by the same check: R2 now "Fewer than 7" (6 pictures, the swatch not counted); its 1500 picture is no problem', P.C.imProblems(live.item, 'SP').join() === 'few' && live.item.liveRead === true
+      && P.C.imqDims(pic('R2', 'PT03')).join() === '1500,1500', P.C.imProblems(live.item, 'SP').join());
+    ok('…and the screen\'s own record follows at once (the ListingMatch overlay): R2 is under "Fewer than 7" there too, with 6 served pictures and our swatch', P.C.imProblems(it('R2'), 'SP').join() === 'few'
+      && it('R2').img.SWCH === pic('R2', 'SWCH') && Object.keys(it('R2').live).length === 6, P.C.imProblems(it('R2'), 'SP').join());
+    amazonNow = { R1: { ok: true, sku: 'R1', asin: it('R1').asin, status: ['BUYABLE', 'DISCOVERABLE'], listing: { MAIN: pic('R1', 'MAIN') }, catalog: {}, catalogError: 'Catalogue: 429 throttled', issues: [] } };
+    const before = Object.keys(it('R1').live).length;
+    const bad = await P.C.imLiveRead('SP', 'R1', it('R1'));
+    ok('a live read whose catalogue call failed: what Amazon serves is NOT KNOWN for it (liveErr) — and the screen keeps the catalogue pictures it had',
+      bad.item.liveErr === 'Catalogue: 429 throttled' && bad.item.live === undefined && P.C.imCheck(bad.item, 'nomain', 'SP') === false && P.C.imCheck(bad.item, 'few', 'SP') === null
+      && Object.keys(it('R1').live).length === before && before > 0, JSON.stringify([bad.item.liveErr, Object.keys(it('R1').live).length]));
   }
 
   console.log('== SPEED: ~4,400 listings from the saved copy ==');
