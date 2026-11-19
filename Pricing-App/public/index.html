@@ -10514,6 +10514,7 @@ function hMsg(text, bad) {
  *       each parent's children, Amazon's own status) and healthOf turns that into { score, bucket, grade, found … }.
  * Main functions: lrEaster, lrEventDate, lrSeason, lrNorm (same meaning, one spelling), lrAllow (what people may write),
  *                 hTitleSizes, hTitleText, lrKwBytes (search-term bytes the way Amazon counts them), lrTemplateFor, lrParts,
+ *                 lrSuggestWords + lrSwFacts (THE ONE SUGGESTION-WORDS RULE: which words every suggestion keeps, removes or adds),
  *                 lrSuggest, LR_DET, amzEnsure, hCtx, lrFresh / lrFacts (the freshest data for one listing: a Workspace live
  *                 read, else the Image Manager snapshot, else the Health snapshot — lrPictures judges pictures by the catalogue,
  *                 lrAplus by the listing and its parent, lrAmz Amazon's own verdict), healthOf (each finding carries its
@@ -10972,6 +10973,282 @@ function lrKwCheck(text, max, bytes) {
   return { bytes: n, max, over: n > max, cut: Math.max(0, n - max), cutAt };
 }
 
+/* ---- THE SUGGESTION WORDS (19 Nov 2026): which words a suggestion KEEPS, REMOVES or may ADD — one rule for every screen ----
+ * Used by Fix all search terms (kw-fix.js kfShorten), Fix all titles (title-fix.js ttBuild), the title template suggestion (lrSuggest),
+ * Fix all's short title (fix-all.js faShortTitle), Listing Content's 75-character cut and search-terms suggestion (listing-content.js),
+ * the Listing Optimiser's suggested title (listing-optimiser.js, filtered here — the backend is not changed) and the Season planner's trim
+ * of Item Highlights and the search words (season-planner.js spTrim). It decides WORDS only: no error, count or chip comes from it.
+ * RULE 1 — PROTECTED, never removed the FIRST time they appear: who we are (hand, block print, hand block print, blockprint, hand printed,
+ *   handmade); the listing's product type (tablecloth / table cloth, napkin, placemat, runner…); its REAL shape (from its size: 118 x 70 =
+ *   rectangle, 54 x 54 = square — else its shape attribute: round, oval); its material (cotton, 100% cotton, linen); its OWN colour (every
+ *   word of the colour attribute: "Turquoise Moss Green", "Light Blue"); its size; use / special-feature words (kitchen, dining,
+ *   housewarming, wrinkle free, washable, reusable…). In a title (and Item Highlights) our brand too. In a TITLE (RULE 3) the use words
+ *   are not locked: a 75-character title keeps brand, product, shape, material, size, the print ("Hand" too) and colour — the uses may go.
+ * RULE 2 — what may go, in this order, stopping as soon as the text fits (`fits`): 0 always: other brands' names and restricted claims
+ *   (IP & Trademark Guard's lists, `risk`) — and in search terms our own brand names, ASINs and bare punctuation; 1 a word said again (the
+ *   2nd, 3rd… time — a protected word too; the first stays); 2 a shape that is NOT the product's, a colour that is NOT its colour; 3
+ *   low-value words (gift, Indian, colorful, light when not part of its colour, cute, neutral, decorative… and the joining words a, and,
+ *   the, for…); 4 any other word that is not protected — in search terms the ones the title already says first, then from the end.
+ *   A protected word on its first appearance never goes: when only those are left and it still does not fit, everything is kept and
+ *   `important` says so ("Only important words left — edit by hand").
+ * RULE 3 — titles: the words stay in the template's order; only which words are kept changes ("Hand" of "Hand Block Print" stays).
+ * SHORT FORMS (19 Nov 2026) — a title that still does not fit with only its important words left, before it is held: the short forms the
+ *   house rule allows in a title of shortFrom–75 characters (Listing Rules "Short forms allowed from", 74) — the size without spaces
+ *   ("54x54 Inch"), no " - " before the colour, "&" for "and", "2 Pack" for "Set of 2", "Pcs" for "Pieces", "In" or " for "Inch" — added
+ *   one at a time in that order until it fits (else the fewest that fit), and only when the title then has shortFrom–75 characters
+ *   (below that the strict style stays).
+ *   Every word is kept; the title checks run on it as on any new title. */
+const LR_SW_IMPORTANT = 'Only important words left — edit by hand';
+const LR_SW_IDENTITY = ['hand block print', 'hand block printed', 'handblockprint', 'handblockprinted', 'block print', 'block printed', 'blockprint', 'blockprinted',
+  'hand printed', 'handprinted', 'hand print', 'handmade', 'hand made', 'hand', 'block'];
+const LR_SW_PRODUCTS = ['tablecloth', 'table cloth', 'table cover', 'napkin', 'cloth napkin', 'dinner napkin', 'placemat', 'place mat', 'table mat', 'table runner', 'runner',
+  'apron', 'cushion cover', 'cushion', 'pillow cover', 'throw pillow cover', 'pillow', 'pillowcase', 'sham', 'coaster', 'tea towel', 'kitchen towel', 'dish towel', 'towel',
+  'bedspread', 'bed cover', 'quilt', 'duvet cover', 'duvet', 'comforter', 'sheet', 'curtain', 'throw', 'blanket', 'pot holder', 'oven mitt', 'tea cosy', 'bread basket',
+  'tote bag', 'bag', 'pouch', 'scarf', 'dress', 'kaftan', 'robe'];
+const LR_SW_SHAPES = { rectangle: ['rectangle', 'rectangular', 'oblong'], square: ['square'], round: ['round', 'circle', 'circular'], oval: ['oval'] };
+const LR_SW_MATERIAL_DEFAULT = ['cotton', '100%', 'linen'];
+const LR_SW_USES = ['kitchen', 'dining', 'dining table', 'dinner', 'housewarming', 'house warming', 'wrinkle free', 'wrinkle resistant', 'washable', 'machine washable',
+  'reusable', 'stain resistant', 'everyday', 'eco friendly'];
+const LR_SW_COLORS = ['red', 'blue', 'green', 'yellow', 'orange', 'purple', 'pink', 'white', 'black', 'gray', 'brown', 'beige', 'cream', 'ivory', 'navy', 'teal', 'turquoise',
+  'aqua', 'mint', 'sage', 'olive', 'mustard', 'gold', 'golden', 'silver', 'maroon', 'burgundy', 'wine', 'rust', 'coral', 'peach', 'lavender', 'lilac', 'violet', 'indigo',
+  'magenta', 'fuchsia', 'charcoal', 'tan', 'khaki', 'taupe', 'mauve', 'plum', 'crimson', 'scarlet', 'emerald', 'jade', 'lime', 'cobalt', 'sapphire', 'ochre', 'saffron',
+  'terracotta', 'copper', 'bronze', 'blush', 'offwhite', 'multicolor', 'multicolored', 'moss', 'harbor', 'denim'];
+const LR_SW_LOW = ['gift', 'gifting', 'indian', 'india', 'colorful', 'colourful', 'colorfull', 'light', 'cute', 'neutral', 'decorative', 'beautiful', 'elegant', 'stylish',
+  'perfect', 'unique', 'lovely', 'pretty', 'nice', 'best', 'great', 'amazing', 'awesome', 'fancy', 'trendy', 'attractive', 'gorgeous', 'idea', 'ideas'];
+const LR_SW_STOP = ['a', 'an', 'and', 'the', 'for', 'with', 'of', 'in', 'on', 'to', 'or', 'by', '&', '+'];
+const LR_SW_UNIT = ['x', 'inch', 'in', 'cm', 'ft', 'feet', 'mm', 'by', '"', '”', '″'];
+const LR_SW_ASIN = /^b0[a-z0-9]{8}$/;
+const LR_SW_SEP = /^[-–—|,;:·/]+$/;
+/** One word as it is compared: lower case, letters, digits and % only; Grey = Gray, Colour = Color, Inches = Inch; a plural as its singular. */
+function lrSwKey(word) {
+  let k = String(word || '').toLowerCase().normalize('NFKD').replace(/[^\p{L}\p{N}%"”″]+/gu, '');
+  if (k === 'grey') k = 'gray';
+  else if (k === 'colour') k = 'color';
+  else if (k === 'inches') k = 'inch';
+  else if (k === 'offwhite' || k === 'multicolour') k = k === 'offwhite' ? 'offwhite' : 'multicolor';
+  if (/^[a-z]{4,}s$/.test(k) && !/ss$/.test(k)) k = k.slice(0, -1);
+  return k;
+}
+// A phrase as the keys of its words, and written as one word ("table cloth" → [table, cloth] and [tablecloth]).
+function lrSwPhrases(list) {
+  const out = [];
+  (list || []).forEach(p => {
+    const keys = String(p || '').split(/[\s-]+/).map(lrSwKey).filter(Boolean);
+    if (!keys.length) return;
+    out.push(keys);
+    if (keys.length > 1) out.push([lrSwKey(keys.join(''))]);
+  });
+  return out.sort((a, b) => b.length - a.length);
+}
+const LR_SW_P = { identity: lrSwPhrases(LR_SW_IDENTITY), uses: lrSwPhrases(LR_SW_USES), products: lrSwPhrases(LR_SW_PRODUCTS) };
+const LR_SW_COLOR_SET = new Set(LR_SW_COLORS.map(lrSwKey));
+const LR_SW_LOW_SET = new Set(LR_SW_LOW.map(lrSwKey));
+const LR_SW_STOP_SET = new Set(LR_SW_STOP.map(lrSwKey).concat(['&', '+']));
+const LR_SW_SHAPE_OF = new Map(Object.entries(LR_SW_SHAPES).flatMap(([shape, words]) => words.map(w => [lrSwKey(w), shape])));
+// "Rectangular" → 'rectangle', "Round" → 'round'; '' when it names no shape.
+const lrSwShapeWord = text => { for (const w of String(text || '').split(/[^A-Za-z]+/)) { const s = LR_SW_SHAPE_OF.get(lrSwKey(w)); if (s) return s; } return ''; };
+/** The product's REAL shape: round / oval when its shape says so; else from its size (two numbers: equal = square, else rectangle); else
+ *  what its shape attribute or catalogue sub-category says; '' when nothing tells. */
+function lrSwShapeOf(size, shapeText) {
+  const named = lrSwShapeWord(shapeText);
+  if (named === 'round' || named === 'oval') return named;
+  const nums = (String(size || '').match(/\d+(?:\.\d+)?/g) || []).map(Number);
+  if (nums.length === 2) return nums[0] === nums[1] ? 'square' : 'rectangle';
+  return named;
+}
+const LR_SW_PROD_KEEP = new Map();
+/** What RULE 1 protects for one listing: { colour, shape, material, size, product (phrases), brands } — from its own facts: Amazon's
+ *  attributes (`va`: a read made for this, else the ListingMatch cache), the catalogue, the Listing Rules template, its product type. */
+function lrSwFacts(row, cfg, va, o) {
+  row = row || {};
+  o = o || {};
+  cfg = cfg || (typeof LR !== 'undefined' && LR) || LR_DEFAULT;
+  if (!va && row.sku && typeof lmGet === 'function') { const m = lmGet(row.sku, row.brand); va = m && m.va; }
+  va = va || {};
+  const one = names => {
+    for (const n of names) {
+      const v = va[n];
+      const s = Array.isArray(v) ? (v[0] && v[0].value != null ? v[0].value : '') : v;
+      if (s != null && String(s).trim()) return String(s).trim();
+    }
+    return '';
+  };
+  const cat = (row.brand && row.sku && LR_CAT[row.brand] && LR_CAT[row.brand][row.sku]) || {};
+  const tpl = row.brand && row.sku && cfg && cat.subcat != null ? lrTemplateFor(row, cfg) : null;
+  const title = o.title != null ? String(o.title) : hTitleText(row);
+  const colour = one(['color', 'color_name']) || String(row.amzColor || '') || String(cat.color || '') || lrColorOf(row);
+  let size = one(['size', 'size_name']) || String(cat.size || '');
+  if (!size) { const t = hTitleSizes(title)[0]; if (t) size = t.a + 'x' + t.b; }
+  const shape = lrSwShapeOf(size, [one(['item_shape']), lrShape(cat.subcat)].filter(Boolean).join(' '));
+  const material = one(['material']) || (tpl && tpl.material) || String(cat.material || '');
+  const pt = String(o.pt || row.pt || '').replace(/_/g, ' ');
+  const src = [tpl && tpl.product, cat.subcat, pt].filter(Boolean).join(' | ');
+  const product = [];
+  // the template's product as written, and each of its words ("Cloth Napkins": "cloth" alone is its product word too)
+  if (tpl && tpl.product) product.push(String(tpl.product), ...String(tpl.product).split(/\s+/).filter(w => w.length > 2));
+  const within = src || title;
+  // the product words its sub-category / product type name (kept per text: the same few texts for thousands of listings)
+  let found = LR_SW_PROD_KEEP.get(within);
+  if (!found) { if (LR_SW_PROD_KEEP.size > 2000) LR_SW_PROD_KEEP.clear(); found = LR_SW_PRODUCTS.filter(p => lrHas(within, p)); LR_SW_PROD_KEEP.set(within, found); }
+  product.push(...found);
+  return { colour, shape, material, size, product, brands: lrBrandWords(row, cfg) };
+}
+// The short forms, mildest first: added one at a time in this order; when that overshoots, the fewest that fit (ties: the earlier ones).
+const LR_SW_SHORT = [
+  ['size without spaces', t => t.replace(/(\d+(?:\.\d+)?)\s+[x×X]\s+(\d+(?:\.\d+)?)(?:\s+[x×X]\s+(\d+(?:\.\d+)?))?/g, (m, a, b, c) => (c ? `${a}x${b}x${c}` : `${a}x${b}`))],
+  ['no " - " before the colour', t => t.replace(/\s+[-–—]\s+/g, ' ')],
+  ['"&" for "and"', t => t.replace(/\s+and\s+/gi, ' & ')],
+  ['"N Pack" for "Set of N"', t => t.replace(/\bset of (\d+)\b/gi, '$1 Pack')],
+  ['"Pcs" for "Pieces"', t => t.replace(/\bpieces\b/gi, 'Pcs')],
+  ['"In" for "Inch"', t => t.replace(/(\d(?:x\d+)*)\s+inch(?:es)?\b/gi, '$1 In')],
+  ['" for "Inch"', t => t.replace(/(\d(?:x\d+)*)\s+in(?:ch(?:es)?)?\b/gi, '$1"')],
+];
+/** A title with only important words left that is still too long, in the short forms the house rule allows: { text, forms } — the fewest
+ *  forms that make `fits` true with a length of `from`–75 (lrNear: where the short forms are not errors), or null. */
+function lrSwShortForms(text, fits, from) {
+  const n = LR_SW_SHORT.length;
+  const okLen = t => t.length >= from && t.length <= 75 && fits(t);
+  // 1 the forms added one at a time, mildest first ("54x54 Inch", then no " - "…)
+  let cur = text;
+  const used = [];
+  for (const [name, form] of LR_SW_SHORT) {
+    const next = form(cur).replace(/\s{2,}/g, ' ').trim();
+    if (next === cur) continue;
+    cur = next;
+    used.push(name);
+    if (okLen(cur)) return { text: cur, forms: used.slice() };
+    if (fits(cur)) break;                                     // fits but shorter than shortFrom: the strict style would be broken
+  }
+  // 2 else the fewest forms that fit within shortFrom–75
+  const masks = Array.from({ length: (1 << n) - 1 }, (_, i) => i + 1)
+    .map(m => ({ m, k: m.toString(2).split('1').length - 1, order: [...Array(n).keys()].filter(i => m & (1 << i)).map(i => String.fromCharCode(97 + i)).join('') }))
+    .sort((a, b) => a.k - b.k || (a.order < b.order ? -1 : 1));
+  for (const { m } of masks) {
+    let t = text;
+    const forms = [];
+    for (let i = 0; i < n; i++) {
+      if (!(m & (1 << i))) continue;
+      const next = LR_SW_SHORT[i][1](t).replace(/\s{2,}/g, ' ').trim();
+      if (next === t) { t = null; break; }                    // a form that changes nothing here is not one of the fewest
+      t = next;
+      forms.push(LR_SW_SHORT[i][0]);
+    }
+    if (t && okLen(t)) return { text: t, forms };
+  }
+  return null;
+}
+/** THE ONE RULE. text → { before, after, removed: [{ w, why, i, risk }], toks, risky, fits, important (only protected words left and it
+ *  still does not fit), cut (rule 2 step 4 used) }. o: { mode: 'kw' (search terms) | 'title' | 'hl' (Item Highlights), facts (lrSwFacts),
+ *  fits(text) → true when it fits (none: only the "always" words go), title (search terms: the title, for step 4's order), brands (our
+ *  brand phrases: removed from search terms, protected elsewhere), risk(text) → [{ s, e, why }], riskOnly (only the risky words go),
+ *  keep: more words never to remove (the seasons on now), shortFrom (a title: where the short forms are allowed — Listing Rules' 74;
+ *  short: false = never use them), cutEnd: false — stop before "any other word from the end" (the Season planner:
+ *  it never cuts an ordinary word of the customer's own, only the ones this rule names) }. Never adds a word. */
+function lrSuggestWords(text, o) {
+  o = o || {};
+  const mode = o.mode || 'kw';
+  const f = o.facts || {};
+  const before = String(text == null ? '' : text);
+  const toks = [...before.matchAll(mode === 'kw' ? /[^\s,;|]+/g : /\S+/g)].map((m, i) => {
+    const raw = m[0];
+    const w = raw.replace(/^[^\p{L}\p{N}%]+|[^\p{L}\p{N}%"”″]+$/gu, '');
+    return { raw, w, k: lrSwKey(w), at: m.index, i, out: '', cls: '', risk: false };
+  });
+  // RULE 1: mark the protected words (each phrase matched as consecutive words)
+  const mark = (cls, phrases) => {
+    for (let i = 0; i < toks.length; i++) {
+      if (!toks[i].k) continue;
+      for (const p of phrases) {
+        if (i + p.length > toks.length || !p.every((k, j) => toks[i + j].k === k)) continue;
+        for (let j = 0; j < p.length; j++) if (!toks[i + j].cls) toks[i + j].cls = cls;
+        i += p.length - 1;
+        break;
+      }
+    }
+  };
+  const brandPhrases = lrSwPhrases(o.brands || f.brands || []);
+  if (mode !== 'kw') mark('brand', brandPhrases);
+  const colourKeys = new Set(String(f.colour || '').split(/[\s,&/+-]+/).map(lrSwKey).filter(k => k && !LR_SW_STOP_SET.has(k)));
+  if (f.colour) mark('colour', lrSwPhrases([String(f.colour)]));       // the whole colour as written ("Indigo Blue and Rust Orange" keeps its "and")
+  mark('colour', [...colourKeys].map(k => [k]));
+  mark('identity', LR_SW_P.identity);
+  mark('product', lrSwPhrases(f.product || []));
+  if (f.shape) mark('shape', LR_SW_SHAPES[f.shape].map(w => [lrSwKey(w)]));
+  const mats = f.material ? String(f.material).split(/[\s,&/+-]+/).filter(Boolean) : LR_SW_MATERIAL_DEFAULT;
+  mark('material', mats.map(w => [lrSwKey(w)]).filter(p => p[0] && !LR_SW_STOP_SET.has(p[0])));
+  if (mode !== 'title') mark('uses', LR_SW_P.uses);         // a title keeps its brand, product, shape, material, size, print and colour (RULE 3)
+  if (o.keep) mark('keep', lrSwPhrases([...o.keep]));
+  // a size: a number, "54x54", "18in", "100%" — not a word that holds a digit ("word035", an ASIN)
+  const digit = t => !!t && /^\d+(?:\.\d+)?(?:x\d+(?:\.\d+)?){0,2}(?:inch|in|cm|ft|mm|%|"|”|″)?$/.test(t.k);
+  toks.forEach((t, i) => { if (!t.cls && (digit(t) || (LR_SW_UNIT.includes(t.k) && (digit(toks[i - 1]) || digit(toks[i + 1]) || (t.k !== 'x' && t.k !== 'by' && digit(toks[i - 2])))))) t.cls = 'size'; });
+  // the text as it would be now
+  const live = () => toks.filter(t => !t.out);
+  const tidy = s => s.replace(/\s+([,;:])/g, '$1').replace(/([,;:])(?:\s*[,;:])+/g, '$1').replace(/(\s[-–—|·])(?:\s+[-–—|·])+/g, '$1')
+    .replace(/^(?:[\s,;:\-–—|·]|(?:and|&|for|with|or|of)\s)+/i, '').replace(/(?:[\s,;:\-–—|·]|\s(?:and|&|for|with|or|of))+$/i, '')
+    .replace(/\s(?:and|&|for|with|or|of)(?=\s[-–—|·]\s)/gi, '').replace(/[,;:](?=\s[-–—|·]\s)/g, '').replace(/\s{2,}/g, ' ').trim();
+  let shortText = null, shortForms = [];
+  const now = () => (shortText != null ? shortText : mode === 'kw' ? live().map(t => t.w).filter(Boolean).join(' ') : tidy(live().map(t => t.raw).join(' ')));
+  const fits = () => (typeof o.fits === 'function' ? !!o.fits(now()) : true);
+  let seq = 0;                                       // the order the words went in (removed[].n)
+  const drop = (t, why) => { t.out = why; t.n = ++seq; };
+  // 0 always: the risky words (another brand's name, a restricted claim) — quietly, nothing is said about them here
+  const spans = typeof o.risk === 'function' ? o.risk(before) || [] : [];
+  if (spans.length) toks.forEach(t => { const hit = spans.find(sp => t.at < sp.e && t.at + t.raw.length > sp.s); if (hit) { t.out = hit.why; t.risk = true; } });
+  let cut = false;
+  const done = () => ({ before, after: mode !== 'kw' && !toks.some(t => t.out) && shortText == null ? before : now(), short: shortForms, removed: toks.filter(t => t.out).map(t => ({ w: t.raw, why: t.out, i: t.i, risk: t.risk, n: t.n || 0 })), toks, risky: toks.filter(t => t.risk).length,
+    fits: fits(), important: !fits(), cut });
+  if (o.riskOnly) return done();
+  if (mode === 'kw') {
+    // …and in search terms: our own brand names (Amazon reads the brand field), ASINs and bare punctuation
+    for (let i = 0; i < toks.length; i++) {
+      const l = toks;
+      const p = brandPhrases.find(ph => i + ph.length <= l.length && ph.every((k, j) => l[i + j].k === k && !l[i + j].out));
+      if (p) { for (let j = 0; j < p.length; j++) drop(l[i + j], 'brand name'); i += p.length - 1; }
+    }
+    toks.forEach(t => { if (t.out) return; if (!t.k) drop(t, 'punctuation'); else if (LR_SW_ASIN.test(t.k)) drop(t, 'ASIN'); });
+  }
+  if (fits()) return done();
+  // the steps of RULE 2, each one word at a time from the end, stopping the moment the text fits
+  const step = (test, why) => {
+    for (let i = toks.length - 1; i >= 0; i--) {
+      const t = toks[i];
+      if (t.out || !t.k) continue;
+      const w = test(t, i);
+      if (!w) continue;
+      drop(t, typeof w === 'string' ? w : why);
+      if (fits()) return true;
+    }
+    return false;
+  };
+  const isProt = t => !!t.cls;
+  const unit = t => t.cls === 'size' && !/[a-z]/.test(t.k.replace(/x/g, ''));         // a number or a unit of a size: never a "repeat"
+  // 1 said again (the first one stays — a protected word too)
+  if (step((t, i) => !unit(t) && toks.slice(0, i).some(x => !x.out && x.k === t.k), 'repeated')) return done();
+  // 2 a shape that is not the product's, a colour that is not its colour
+  if (step(t => {
+    if (isProt(t)) return false;
+    if (f.shape && LR_SW_SHAPE_OF.has(t.k) && LR_SW_SHAPE_OF.get(t.k) !== f.shape) return 'wrong shape';
+    if (colourKeys.size && LR_SW_COLOR_SET.has(t.k) && !colourKeys.has(t.k)) return 'not its colour';
+    return false;
+  })) return done();
+  // 3 low-value words and joining words
+  if (step(t => (isProt(t) ? false : LR_SW_LOW_SET.has(t.k) ? 'low-value word' : LR_SW_STOP_SET.has(t.k) ? 'stop word' : false))) return done();
+  // 4 any other word that is not protected: in search terms what the title already says first; then from the end
+  cut = true;
+  if (mode === 'kw' && o.title) {
+    const inTitle = new Set(String(o.title).split(/[^\p{L}\p{N}%]+/u).map(lrSwKey).filter(Boolean));
+    if (step(t => !isProt(t) && inTitle.has(t.k), 'in the title')) return done();
+  }
+  if (o.cutEnd !== false) step(t => !isProt(t), 'cut to fit');
+  // a title with only important words left, still too long: the short forms the house rule allows at shortFrom–75 characters
+  if (mode === 'title' && o.short !== false && !fits()) {
+    const from = +o.shortFrom || lrAllow((typeof LR !== 'undefined' && LR) || LR_DEFAULT).shortFrom;
+    const sh = lrSwShortForms(now(), text2 => (typeof o.fits === 'function' ? !!o.fits(text2) : true), from);
+    if (sh) { shortText = sh.text; shortForms = sh.forms; }
+  }
+  return done();
+}
+
 /* ---- the template ---- */
 // The first template for this listing's brand whose `match` is in its catalogue sub-category ('' matches anything), or null.
 function lrTemplateFor(row, cfg) {
@@ -11027,7 +11304,8 @@ function lrParts(row, tpl, cfg, today, occ) {
   };
 }
 /** The title the template would write for this listing. */
-// Fills the template's tokens from lrParts, tidies the spaces and dashes, and drops occasions, then uses, to fit 200 characters.
+// Fills the template's tokens from lrParts, tidies the spaces and dashes; over Amazon's 200 the occasions go, then the words THE ONE
+// SUGGESTION-WORDS RULE (lrSuggestWords) lets go — never brand, product, shape, material, size, the print or the colour.
 function lrSuggest(row, cfg, today) {
   cfg = cfg || LR || LR_DEFAULT;
   today = today || new Date();
@@ -11037,9 +11315,9 @@ function lrSuggest(row, cfg, today) {
   const fill = drop => String(tpl.template || '').replace(/\{(\w+)\}/g, (_, key) => (drop.includes(key) ? '' : (parts[key] || '')))
     .replace(/\s+-\s+(?=-|$)/g, ' ').replace(/\s{2,}/g, ' ').replace(/\s+-\s*$/, '').replace(/^\s*-\s+/, '').trim();
   let out = fill([]);
-  // Amazon's hard limit is 200 characters: occasions go first, then the uses phrase.
+  // Amazon's hard limit is 200 characters: occasions go first, then the words the one rule lets go
   if (out.length > 200) out = fill(['occasions']);
-  if (out.length > 200) out = fill(['occasions', 'uses']);
+  if (out.length > 200) out = lrSuggestWords(out, { mode: 'title', facts: lrSwFacts(row, cfg, null, { title: hTitleText(row) }), fits: text => text.length <= 200 }).after;
   return out.slice(0, 200);
 }
 
@@ -20315,7 +20593,7 @@ function spHlAdd(item, adds, expired, start) {
   const base = removed.length ? less : now;
   if (base.length) {
     const list = text => [spHlTidy(text)].filter(Boolean).concat(base.slice(1));
-    const t = spTrim(item, base[0], text => !!tryIn(list(text)));
+    const t = spTrim(item, base[0], text => !!tryIn(list(text)), 'hl');
     if (t) {
       r = tryIn(list(t.text));
       if (r) return Object.assign({ ok: true, removed, trimmed: t.removed }, r);
@@ -20340,47 +20618,28 @@ function spKwAdd(item, adds, expired, start) {
   if (t) return { ok: true, after: join(t.text), words, removed: s.removed, trimmed: t.removed };
   return { ok: false, words, why: `search words full: ${spNf(lrKwBytes(item.kw))} of ${spNf(item.kwMax)}, nothing safe to remove` };
 }
-/* ----- SUGGESTED TRIM (the final spec, 13 Nov 2026) -----
- * When the season words do not fit, words of the CUSTOMER'S OWN text come out, one at a time from the end, in this order, until it
- * fits: a) a word said twice, or the singular and the plural of one word (one stays); b) a word the title already says; c) a filler —
- * and, the, for, with, a, an, of. Never a product, colour, size, material, brand (Ridhi, CPC, Whimsical Corner…) or season word, and
- * never any other word. A trim makes the child "Needs your OK": a person OKs every word taken out. */
-const SP_TRIM_FILL = new Set(['and', 'the', 'for', 'with', 'a', 'an', 'of']);
-const SP_MATERIAL = 'Cotton, Linen, Polyester, Jute, Silk, Wool, Velvet, Burlap, Muslin, Canvas, Bamboo, Satin, Chiffon, Lace, Voile, Flannel, Fleece, Khadi, Rayon, Viscose';
-// One word as it is compared: no punctuation around it, lower case, a plural read as its singular (lrNorm).
-const spTrimKey = word => lrNorm(String(word || '').replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}']+$/gu, ''));
-// The words never taken out of this listing: brand, colour, size, product type, material, the seasons on now.
-function spKeepWords(item) {
-  const cfg = spCfg();
-  const cat = lrCatOf(item.row) || {};
-  const tpl = typeof lrTemplateFor === 'function' ? lrTemplateFor(item.row, cfg) : null;
-  const text = [lrBrandWords(item.row, cfg).join(' '), lrAllow(cfg).ourBrands, lrColorOf(item.row), cat.color, cat.size, cat.subcat, cat.material,
-    tpl && tpl.product, tpl && tpl.material, String(item.pt || '').replace(/_/g, ' '), SP_HOME, SP_MATERIAL, 'inch inches cm ft x',
-    item.active.map(e => e.ev.name + ' ' + e.ev.words).join(' ')].filter(Boolean).join(' ');
-  return new Set(text.split(/[\s,]+/).map(spTrimKey).filter(Boolean));
-}
-// `fits(text)` → true when the text leaves room. { text, removed: [words] } once it fits, or null when nothing safe is left to take out.
-function spTrim(item, text, fits) {
+/* ----- SUGGESTED TRIM (the final spec, 13 Nov 2026; the words chosen by THE ONE SUGGESTION-WORDS RULE since 19 Nov 2026) -----
+ * When the season words do not fit, words of the CUSTOMER'S OWN text come out, one at a time, until it fits — which words is
+ * listing-rules.js lrSuggestWords, the same rule as Fix all search terms and Fix all titles: never its important words on their first
+ * appearance (hand, block print, its product, its real shape, its material, its own colour, its size, use words — and the seasons on
+ * now); first a word said again, then a shape or colour that is not the product's, low-value and joining words (gift, Indian,
+ * colorful, cute… and, the, for), then in the search words a word the title already says — never any other word of the customer's own
+ * (the planner's final spec: no ordinary word is cut from the end; then it is "Fix by hand"). In the search words our brand
+ * names go (as in Fix all search terms); in Item Highlights the brand stays. Only important words left: nothing is trimmed ("nothing
+ * safe to remove"). A trim makes the child "Needs your OK": a person OKs every word taken out. */
+// `fits(text)` → true when the text leaves room; `mode`: 'kw' (the search words, the default) or 'hl' (Item Highlights). { text, removed:
+// [words] } once it fits, or null when only important words are left.
+function spTrim(item, text, fits, mode) {
   const words = String(text || '').split(/\s+/).filter(Boolean);
   if (fits(words.join(' '))) return { text: words.join(' '), removed: [] };
-  const keep = spKeepWords(item);
-  const steps = [
-    (w, i) => words.slice(0, i).some(o => o && spTrimKey(o) === spTrimKey(w)),                        // a) said before (or its plural)
-    w => !keep.has(spTrimKey(w)) && !/\d/.test(w) && lrHas(item.title, spTrimKey(w)),                  // b) the title says it
-    w => SP_TRIM_FILL.has(spTrimKey(w)),                                                                // c) a filler
-  ];
-  const removed = [];
-  for (const step of steps) {
-    for (let i = words.length - 1; i >= 0; i--) {
-      const w = words[i];
-      if (!w || !spTrimKey(w) || !step(w, i)) continue;
-      words[i] = (w.match(/[,;]+$/) || [''])[0];   // a comma after it stays
-      removed.push(w.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}']+$/gu, ''));
-      const now = words.filter(Boolean).join(' ').replace(/\s+([,;])/g, '$1').replace(/([,;])(?:\s*[,;])+/g, '$1').replace(/^[,;\s]+|[,;\s]+$/g, '');
-      if (fits(now)) return { text: now, removed };
-    }
-  }
-  return null;
+  const cfg = spCfg();
+  const row = Object.assign({}, item.row, { brand: item.brand });
+  const r = lrSuggestWords(words.join(' '), { mode: mode || 'kw', fits, title: item.title, brands: lrBrandWords(row, cfg),
+    facts: lrSwFacts(row, cfg, null, { title: item.title, pt: item.pt }),
+    keep: item.active.flatMap(e => [e.ev.name].concat(lrWords(e.ev.words))),          // the seasons on now are never trimmed
+    cutEnd: false });                                                                   // no ordinary word of the customer's own is cut
+  if (!r.fits) return null;
+  return { text: r.after, removed: r.removed.map(x => x.w.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}']+$/gu, '')).filter(Boolean) };
 }
 /* ----- the checks: the same list for every season fix ----- */
 // [{ k, t, ok: true | false | 'warn', why, pre }] — `ok: false` stops the fix ("Fix by hand"); `pre` = already so before the change
@@ -21970,9 +22229,9 @@ function faPlan(g, kid, ctx) {
   if (g.kind === 'ttl') return Object.assign(base, ttPlanOfKid(kid, ctx), { row: g.key, kind: 'ttl' });
   return Object.assign(base, { why: g.kind === 'img' ? 'pictures are changed by a person in Image Manager' : 'no safe automatic fix — a person fixes it in Listing Errors' });
 }
-// The title the template writes for this child at 75 letters or less: every part it REQUIRES kept (brand, product, size, colour…),
-// the others left out one by one — the season names first (a shortened title never gains a season word), then the uses, the print,
-// whatever else is not required. { before, after } or { before, why }.
+// The title the template writes for this child at 75 letters or less: the season names left out (a shortened title never gains a season
+// word), then the words that go chosen by THE ONE SUGGESTION-WORDS RULE (listing-rules.js lrSuggestWords) in the template's order —
+// never brand, product, shape, material, size, the print ("Hand" too) or colour. { before, after } or { before, after, why }.
 function faShortTitle(kid, ctx) {
   const row = lrFresh(Object.assign({}, kid.row, { brand: kid.brand }), ctx);
   const before = hTitleText(row);
@@ -21987,13 +22246,12 @@ function faShortTitle(kid, ctx) {
   const fill = () => String(tpl.template || '').replace(/\{(\w+)\}/g, (_, key) => (drop.includes(key) ? '' : (parts[key] || '')))
     .replace(/\s+-\s+(?=-|$)/g, ' ').replace(/\s{2,}/g, ' ').replace(/\s+-\s*$/, '').replace(/^\s*-\s+/, '').trim();
   let after = fill();
-  const order = ['uses', 'pattern'].concat(tokens.filter(key => !['uses', 'pattern', 'occasions'].includes(key))).filter(key => !need.includes(key) && tokens.includes(key));
-  for (const key of order) {
-    if (after.length <= FA_TITLE_MAX) break;
-    drop.push(key);
-    after = fill();
+  if (after.length > FA_TITLE_MAX) {
+    const r = lrSuggestWords(after, { mode: 'title', facts: lrSwFacts(row, ctx.cfg, null, { title: before }), fits: text => text.length <= FA_TITLE_MAX,
+      risk: typeof ipgKwRisk === 'function' ? ipgKwRisk(kid.brand, row.sku, row, ctx.cfg) : null });
+    after = r.after;
+    if (!r.fits) return { before, after, why: `${LR_SW_IMPORTANT} (${after.length} letters)` };
   }
-  if (after.length > FA_TITLE_MAX) return { before, why: `even with only the parts the template requires it is ${after.length} letters` };
   return { before, after };
 }
 // The Listing Rules over a listing as it is, title-wise: rule id → name. Every detector, as healthOf runs them.
@@ -22255,7 +22513,7 @@ function faDoLine(g, plans) {
   }
   if (g.kind === 'img') return 'Change the pictures in Image Manager — no automatic fix';
   if (g.kind === 'ttl') return 'One new title per child from the title template and its own Amazon facts — every title problem of the family fixed at once';
-  if (g.kind === 'kw') return `Shorten to ${typeof lrKwMax === 'function' ? lrKwMax() : 249} bytes — repeats, title words, stop words, brand names and ASINs out, then words from the end; nothing added`;
+  if (g.kind === 'kw') return `Shorten to ${typeof lrKwMax === 'function' ? lrKwMax() : 249} bytes — brand names and ASINs out, then repeats, a wrong shape or colour, low-value words and other words until it fits; important words kept, nothing added`;
   const fix = new Map();
   g.kids.forEach(kid => { const hit = g.hits.get(faKidKey(kid)); if (hit && hit.fix) fix.set(hit.fix, (fix.get(hit.fix) || 0) + 1); });
   return [...fix.entries()].sort((a, b) => b[1] - a[1]).map(([text]) => text)[0] || 'Fix it in Listing Errors';
@@ -23086,10 +23344,12 @@ async function lhistAdd(rows, run) {
  * Screens: Listing Health → Workspace (a parent's "Search terms over the limit" row in the Fix all block, fix-all.js) and Listing Errors
  *          (a card above its list: per family, and Select all). Same look and flow as the other Fix all rows.
  * HOW THE NEW SEARCH TERMS ARE MADE — automatic, only words taken OUT, never one added (kfShorten). From each child's current search
- * terms, shortened to the limit by THE ONE SEARCH-TERMS RULE (listing-rules.js lrKwCheck: 249 bytes, spaces and ; , . not counted):
- *   1 duplicate words out; 2 words already in that child's title (Amazon reads the title anyway); 3 punctuation and stop words (a, an, and,
- *   the, for, with, of, in, on, to); 4 brand names (ours — Listing Rules' "Our brand words" and the brand Amazon shows — and others named in
- *   Listing Rules' otherBrands, if any) and ASINs; 5 only if still over: words cut from the END until it fits (the start, written first, stays).
+ * terms, shortened to the limit by THE ONE SEARCH-TERMS RULE (listing-rules.js lrKwCheck: 249 bytes, spaces and ; , . not counted), and
+ * the words chosen by THE ONE SUGGESTION-WORDS RULE (listing-rules.js lrSuggestWords, 19 Nov 2026 — the same for every screen): its
+ * important words are never taken out the first time they appear (hand, block print, its product, its real shape, its material, its
+ * own colour, its size, use words); always out: brand names (ours and others) and ASINs; then, one at a time until it fits: words said
+ * again, a shape or colour that is not the product's, low-value and joining words, then other words (the ones the title says first).
+ * Only important words left and still over: nothing is cut — "Only important words left — edit by hand".
  * RISKY WORDS ALSO GO (IP & Trademark Guard, 18 Nov 2026 — ip-guard.js ipgKwRisk): another brand's name ("Pottery Barn", also as "Pottery
  *   Barn style") and a restricted claim ("organic") are taken out of every text this popup fixes — except a word the team marked "Allowed
  *   on purpose" for that listing or its family. A text WITHIN the limit that holds a risky word can be fixed here too (the Guard screen's
@@ -23135,54 +23395,31 @@ function kfBrands(row, cfg) {
 }
 const KF_ASIN = /^b0[a-z0-9]{8}$/;
 
-/** THE SHORTENING. kw: the search terms now; o: { title, brands: ['ridhi', 'whimsical corner'], max, risk, riskOnly }. Only takes words out.
+/** THE SHORTENING. kw: the search terms now; o: { title, brands: ['ridhi', 'whimsical corner'], max, risk, riskOnly, facts }. Only takes words
+ *  out — which ones is THE ONE SUGGESTION-WORDS RULE (listing-rules.js lrSuggestWords; o.facts = lrSwFacts of the listing).
  *  o.risk(text) → [{ s, e, why }]: the risky words' places in the text (ip-guard.js) — every word there goes, first. o.riskOnly: a text
- *  within the limit loses ONLY its risky words (steps 1–5 are for fitting the limit).
- *  → { before, after, removed: [{ w, why, i, risk }], bytesBefore, bytesAfter, over (before), fits (after ≤ max), cut (step 5 used), risky }. */
+ *  within the limit loses ONLY its risky words (the rest is for fitting the limit).
+ *  → { before, after, removed: [{ w, why, i, risk }], bytesBefore, bytesAfter, over (before), fits (after ≤ max), cut (other words went),
+ *  important (only important words left and still over), risky }. */
 function kfShorten(kw, o) {
   o = o || {};
   const max = o.max || (typeof lrKwMax === 'function' ? lrKwMax() : 249);
   const before = String(kw || '');
-  const toks = kfTokens(before).map((t, i) => Object.assign(t, { i, out: '' }));
-  const title = new Set(kfTokens(o.title).map(t => t.k).filter(Boolean));
-  const brands = (o.brands || []).map(p => p.split(' ')).filter(p => p.length);
-  const live = () => toks.filter(t => !t.out);
   const over = lrKwCheck(before, max).over;
-  // 0 risky words (another brand's name, a restricted claim): every word inside one of their places in the text
-  const spans = typeof o.risk === 'function' ? o.risk(before) || [] : [];
-  if (spans.length) toks.forEach(t => { const hit = spans.find(sp => t.at < sp.e && t.at + t.raw.length > sp.s); if (hit) { t.out = hit.why; t.risk = true; } });
-  let cut = false;
   // a text within the limit that is here for its risky words only: they go, the rest is as written (not even its punctuation changes)
   const riskOnly = !!o.riskOnly && !over;
-  if (!riskOnly) {
-    // 1 duplicates (the first one stays)
-    const seen = new Set();
-    live().forEach(t => { if (t.k && seen.has(t.k)) t.out = 'repeated'; else if (t.k) seen.add(t.k); });
-    // 2 already in the title
-    live().forEach(t => { if (t.k && title.has(t.k)) t.out = 'in the title'; });
-    // 3 punctuation and stop words
-    live().forEach(t => { if (!t.k) t.out = 'punctuation'; else if (KF_STOP.includes(t.k)) t.out = 'stop word'; });
-    // 4 brand names (a phrase as consecutive words) and ASINs
-    brands.forEach(p => {
-      const l = live();
-      for (let i = 0; i + p.length <= l.length; i++) {
-        if (p.every((w, j) => l[i + j].k === w)) { for (let j = 0; j < p.length; j++) l[i + j].out = 'brand name'; i += p.length - 1; }
-      }
-    });
-    live().forEach(t => { if (KF_ASIN.test(t.k)) t.out = 'ASIN'; });
-  }
-  // 5 still over: words from the end
-  const text = () => live().map(t => t.w).join(' ');
-  while (!riskOnly && live().length && lrKwCheck(text(), max).over) { live().slice(-1)[0].out = 'cut to fit'; cut = true; }
+  const r = lrSuggestWords(before, { mode: 'kw', facts: o.facts || null, title: o.title, brands: o.brands || [], risk: o.risk, riskOnly,
+    fits: text => !lrKwCheck(text, max).over });
+  const toks = r.toks;
   // risky words only: the text as the person wrote it (their commas and semicolons too) with those words cut out of it
   const cutOut = () => {
-    let s = before;
-    toks.filter(t => t.out).sort((a, b) => b.at - a.at).forEach(t => { s = s.slice(0, t.at) + s.slice(t.at + t.raw.length); });
-    return s.replace(/\s*([,;|])(?:\s*[,;|])+/g, '$1').replace(/\s+([,;|])/g, '$1').replace(/\s{2,}/g, ' ').replace(/^[\s,;|]+|[\s,;|]+$/g, '');
+    let t = before;
+    toks.filter(x => x.out).sort((a, b) => b.at - a.at).forEach(x => { t = t.slice(0, x.at) + t.slice(x.at + x.raw.length); });
+    return t.replace(/\s*([,;|])(?:\s*[,;|])+/g, '$1').replace(/\s+([,;|])/g, '$1').replace(/\s{2,}/g, ' ').replace(/^[\s,;|]+|[\s,;|]+$/g, '');
   };
-  const after = riskOnly ? cutOut() : text();
-  return { before, after, removed: toks.filter(t => t.out).map(t => ({ w: t.raw, why: t.out, i: t.i, risk: !!t.risk })), toks, risky: toks.filter(t => t.risk).length,
-    bytesBefore: lrKwBytes(before), bytesAfter: lrKwBytes(after), over, fits: !lrKwCheck(after, max).over, cut, max };
+  const after = riskOnly ? cutOut() : r.after;
+  return { before, after, removed: r.removed, toks, risky: r.risky, bytesBefore: lrKwBytes(before), bytesAfter: lrKwBytes(after), over,
+    fits: !lrKwCheck(after, max).over, cut: r.cut, important: !riskOnly && r.important, max };
 }
 
 /* ----- one child: its search terms (whole), title, brand words, product type ----- */
@@ -23205,17 +23442,19 @@ function kfItemOf(brand, row, ctx, kid) {
   const label = kid && typeof faLabel === 'function' ? faLabel(kid, ctx) : [typeof lrColorOf === 'function' ? lrColorOf(fresh) : '', (hTitleSizes(hTitleText(fresh))[0] || {}).text || ''].filter(Boolean).join(' · ') || row.sku;
   const pt = (read && read.pt) || (kid && kid.lr && kid.lr.pt) || (m && m.pt) || '';
   return { key, brand, sku: row.sku, asin: row.asin || '', parent: row.parent || row.asin || row.sku || '—', label, title: hTitleText(fresh), kw, full, pt, brands: kfBrands(fresh, ctx.cfg),
+    // what the suggestion-words rule protects for this listing (its product, real shape, material, own colour, size)
+    facts: lrSwFacts(fresh, ctx.cfg, null, { pt }),
     // the risky words of this listing's search terms (IP & Trademark Guard), the ones allowed on purpose left out
     risk: typeof ipgKwRisk === 'function' ? ipgKwRisk(brand, row.sku, fresh, ctx.cfg) : null };
 }
 /** One child's fix: { ok, wait, why, before, after, removed, b0, b1, patches, sent, beforeKw, pt } — the same function for every screen. */
 function kfPlan(item) {
-  const s = kfShorten(item.kw, { title: item.title, brands: item.brands, risk: item.risk, riskOnly: true });
+  const s = kfShorten(item.kw, { title: item.title, brands: item.brands, risk: item.risk, riskOnly: true, facts: item.facts });
   const out = { key: item.key, brand: item.brand, sku: item.sku, asin: item.asin, label: item.label, parent: item.parent, kind: 'kw', ok: false, wait: false, why: '',
     before: s.before, after: s.after, removed: s.removed, toks: s.toks, b0: s.bytesBefore, b1: s.bytesAfter, max: s.max, cut: s.cut, beforeKw: s.before, over: s.over, risky: s.risky };
   if (!s.over && !s.risky) return Object.assign(out, { why: `already within the limit (${kfNf(s.bytesBefore)} of ${s.max} bytes)${typeof ipgKwRisk === 'function' ? ' and no risky word' : ''}` });
   if (!item.full) return Object.assign(out, { wait: true, why: 'reading the whole search terms from Amazon first' });
-  if (!s.fits) return Object.assign(out, { why: 'could not be made to fit' });
+  if (!s.fits) return Object.assign(out, { why: s.important ? LR_SW_IMPORTANT : 'could not be made to fit' });
   // nothing but risky words in it: Amazon takes no empty text — a person clears the field in Listing Errors
   if (!s.after.trim()) return Object.assign(out, { why: 'only risky words in it — clear the search terms by hand in Listing Errors' });
   if (!item.pt) return Object.assign(out, { wait: true, why: 'read it from Amazon first (its product type is not known yet)' });
@@ -23394,7 +23633,7 @@ function kfDraw() {
   const all = ok.length && ok.every(p => run.sel.has(p.key));
   spModal(`<div class="sq-pop kf-pop"><div class="sp-m-h sq-top"><b>Fix all search terms — ${kfEsc(run.o.title || '')}</b>`
     + `<p class="sq-sum" data-kf-sum>${kfEsc(kfSumText(run))}</p>`
-    + `<p>Only words are taken out — ${typeof ipgKwRisk === 'function' ? 'risky words (other brands’ names and restricted claims: struck through in red), ' : ''}repeats, words already in the title, punctuation and stop words, brand names and ASINs, then words from the end until it fits. A text within the limit loses only its risky words. Nothing is added.</p>`
+    + `<p>Only words are taken out — ${typeof ipgKwRisk === 'function' ? 'risky words (other brands’ names and restricted claims: struck through in red), ' : ''}brand names and ASINs; then, only until it fits: repeats, a shape or colour that is not the product’s, low-value and joining words, then other words (those the title already says first). Its important words — hand, block print, its product, shape, material, colour, size and use words — stay the first time they appear. A text within the limit loses only its risky words. Nothing is added.</p>`
     + `<div class="kf-tools"><input type="search" data-kf-q placeholder="Search SKU, colour, size…" value="${kfEsc(run.q)}" aria-label="Search the children">`
     + `<label class="kf-all"><input type="checkbox" data-kf-all${all ? ' checked' : ''}> Select all</label></div></div>`
     + `<div class="sp-m-list">${order.map(p => kfRowHtml(run, p)).join('') || '<div class="sp-m-row sq-none">Nothing to fix.</div>'}</div>`
@@ -23548,10 +23787,11 @@ function kfReport(sku) {
  *   - the size written the rule's way ("60 x 90 Inch", the size_format example), the smaller number first ("70 x 108");
  *   - the print ("Block Print") only when the rule asks for it (a sibling's title or the child's own bullets say it — lrBlockPrintProof),
  *     the child's title already says it, or Amazon's pattern attribute does — never on an embroidered piece;
- *   - never a season word (they are the Season planner's); within the title_length rule (75 at most, its minimum): the optional parts left
- *     out in the rule's order — uses, then the template's print written as the rule's own words ("Hand Block Print" → "Block Print"),
- *     then the print (unless the rule asks for it), then any other part the template does not require — never brand, product, size or
- *     colour (nor a part the template requires: then the child is held back, "even with only the parts the template requires…");
+ *   - never a season word (they are the Season planner's); within the title_length rule (75 at most, its minimum): the WORDS that go are
+ *     chosen by THE ONE SUGGESTION-WORDS RULE (listing-rules.js lrSuggestWords, 19 Nov 2026) in the template's order as it is: words said
+ *     again, a wrong shape or colour, low-value and joining words, then the other words from the end (the uses) — never the brand, the
+ *     product, its shape, material, size, the print ("Hand" of "Hand Block Print" stays) or its colour. Still over with only those left:
+ *     held back, "Only important words left — edit by hand";
  *   - a fact Amazon does not hold is left out and the child is marked "check: material missing"; two sources that disagree (Amazon's colour
  *     vs the catalogue's, the size in the title vs Amazon's) hold the child back — nothing is guessed;
  *   - EVERY Listing Rules rule is run again on the new title (ttJudge — the siblings' new titles counted, so "siblings write their size
@@ -23718,23 +23958,31 @@ function ttBuild(brand, row, ctx, amz) {
   const p = ttParts(brand, row, ctx, amz);
   if (p.why) return p;
   const lim = ttLimits(ctx.cfg);
-  const out = [];
-  let after = ttFill(p.tpl, p.parts, out);
-  // the steps when it is too long: the uses go; the template's print is written as the rule's own words ("Hand Block Print" →
-  // "Block Print": the keyword rule is still met); the print goes when the rule does not ask for it; then the other optional parts
-  const steps = p.drop.slice();
-  // (as written, not lrNorm: the rules read "Hand Block Print" as "Block Print" — which is why the short one still meets the rule)
-  if (p.parts.pattern && p.bp && p.bp.length < p.parts.pattern.length && lrHas(p.parts.pattern, p.bp)) steps.splice(steps[0] === 'uses' ? 1 : 0, 0, '~pattern');
-  for (const key of steps) {
-    if (after.length <= lim.max) break;
-    if (key === '~pattern') { p.shortPrint = p.parts.pattern; p.parts.pattern = p.bp; } else out.push(key);
-    after = ttFill(p.tpl, p.parts, out);
+  let after = ttFill(p.tpl, p.parts, []);
+  p.cutWords = [];
+  // too long: THE ONE SUGGESTION-WORDS RULE chooses the words that go, in the template's order as it is (never a whole part blindly)
+  if (after.length > lim.max) {
+    const r = lrSuggestWords(after, { mode: 'title', facts: ttFacts(p, ctx, amz), fits: text => text.length <= lim.max, shortFrom: lrAllow(ctx.cfg).shortFrom,
+      risk: typeof ipgKwRisk === 'function' ? ipgKwRisk(brand, row.sku, p.fresh, ctx.cfg) : null });
+    after = r.after;
+    p.cutWords = r.removed.map(x => x.w);
+    p.shortForms = r.short || [];                       // the house rule's short forms it needed to fit (74–75 characters)
+    if (!r.fits) p.why = `${LR_SW_IMPORTANT} (${after.length} characters, over ${lim.max})`;
   }
-  p.dropped = out;
+  // a part none of whose OWN words is left (the uses, mostly — "Napkins" there is the product's word too): not named as a source
+  const left = new Set(ttWords(after));
+  const own = key => { const other = new Set(Object.keys(p.parts).filter(k => k !== key).flatMap(k => ttWords(p.parts[k]))); return ttWords(p.parts[key]).filter(word => !other.has(word)); };
+  // (the size is never dropped: written short — "18x18 In" — its words read differently)
+  p.dropped = Object.keys(p.parts).filter(key => key !== 'size' && p.parts[key] && own(key).length && !own(key).some(word => left.has(word)));
   p.after = after;
   p.lim = lim;
-  if (after.length > lim.max) p.why = `even with only the parts the template requires it is ${after.length} characters (over ${lim.max})`;
   return p;
+}
+// What the suggestion-words rule keeps for this title: the listing's own facts, with the parts the template filled in (colour, material…).
+function ttFacts(p, ctx, amz) {
+  const f = lrSwFacts(p.fresh, ctx.cfg, amz && amz.va, { title: p.title, pt: amz && amz.pt });
+  return Object.assign(f, { colour: p.parts.color || f.colour, material: p.parts.material || f.material, shape: lrSwShapeOf(p.parts.size || f.size, p.parts.shape) || f.shape,
+    product: f.product.concat(p.parts.product ? [p.parts.product] : []) });
 }
 
 /* ----- the check: every Listing Rules rule on the new title, the family as it will be ----- */
@@ -23895,7 +24143,7 @@ function ttDraft(brand, { row, hits, kid, extra }, ctx) {
     Object.defineProperty(p, 'srcRow', { value: row, enumerable: false });
     if (!amz) return Object.assign(p, { wait: true, why: 'reading its attributes from Amazon first', label: row.sku });
     const b = ttBuild(brand, row, ctx, amz);
-    Object.assign(p, { parts: b.parts || {}, src: b.src || {}, notes: (b.notes || []).slice(), dropped: b.dropped || [], lim: b.lim, amzSrc: amz.src });
+    Object.assign(p, { parts: b.parts || {}, src: b.src || {}, notes: (b.notes || []).slice(), dropped: b.dropped || [], cutWords: b.cutWords || [], shortForms: b.shortForms || [], lim: b.lim, amzSrc: amz.src });
     p.label = ttLabel(p) || row.sku;
     p.after = b.after;
     if (b.why) return Object.assign(p, { why: b.why });
@@ -40565,6 +40813,29 @@ function loOurTermsHtml(ours, title) {
       : '<div class="muted" style="font-size:12px;margin-top:4px">No word here is already in the title.</div>'}`;
 }
 
+/* THE SUGGESTED TITLE FOLLOWS THE ONE SUGGESTION-WORDS RULE (listing-rules.js lrSuggestWords, 19 Nov 2026) — filtered here, the backend
+ * is not changed. The backend's suggestion is used as it is unless it leaves out one of the important words the current title has (hand,
+ * block print, the product, its real shape, its material, its own colour, its size); then the current title is shortened by the rule
+ * instead (words said again, a wrong shape or colour, low-value words, then other words — in the title's own order). Another brand's name
+ * or a restricted claim is quietly left out (they are shown only in IP & Trademark Guard). */
+function loKeepWords(reply, brand, asin, sku) {
+  const sug = reply && reply.suggestion;
+  if (!sug || !sug.ok || !sug.current || !sug.suggested || typeof lrSuggestWords !== 'function') return reply;
+  const cfg = (typeof LR !== 'undefined' && LR) || LR_DEFAULT;
+  const rows = typeof HEALTH !== 'undefined' && HEALTH[brand] && HEALTH[brand].rows ? HEALTH[brand].rows : [];
+  const row = Object.assign({ brand, asin }, rows.find(r => (sku && r.sku === sku) || r.asin === asin) || {}, sku ? { sku } : {}, { brand });
+  const facts = lrSwFacts(row, cfg, null, { title: sug.current });
+  const risk = typeof ipgKwRisk === 'function' && row.sku ? ipgKwRisk(brand, row.sku, row, cfg) : null;
+  const cap = +sug.cap || 75;
+  const important = lrSuggestWords(sug.current, { mode: 'title', facts, riskOnly: true }).toks.filter(t => t.cls && t.k).map(t => t.k);
+  const has = new Set(lrSuggestWords(sug.suggested, { mode: 'title', facts, riskOnly: true }).toks.map(t => t.k));
+  const text = important.some(k => !has.has(k))
+    ? lrSuggestWords(sug.current, { mode: 'title', facts, risk, fits: t => t.length <= cap }).after
+    : lrSuggestWords(sug.suggested, { mode: 'title', facts, risk, riskOnly: true }).after;
+  if (text !== sug.suggested) Object.assign(sug, { suggested: text, newLen: text.length });
+  return reply;
+}
+
 // Go: read this ASIN's review from the backend and draw it.
 $('loGo').onclick = async () => {
   const asinCode = ($('loAsin').value || '').trim().toUpperCase();
@@ -40611,6 +40882,7 @@ $('loGo').onclick = async () => {
       } catch (e) { liveWhy = 'the backend could not be reached with the auto refresh data (' + String((e && e.message) || e).slice(0, 120) + ')'; }
     } else if (!found) liveWhy = loNoCacheWhy();
     if (!reply) reply = await baCall({ listing: 'review', asin: asinCode, brand, target });
+    loKeepWords(reply, brand, asinCode, found ? found.facts.sku : '');
     LO_DATA = Object.assign(reply, { liveWhy: reply.audit && reply.audit.src === 'cache' ? '' : liveWhy, note, ours });
     renderOpt();
     loMsg('');
@@ -44865,10 +45137,10 @@ async function lcEnsureRules() {
     LC_RULES_AT = Date.now();
   }
 }
-/** The template filled to fit `max`, and what had to come out. Order of what goes: the occasions, the uses phrase, then
- *  the parts the template does not require — but a part carrying a word the title_keyword rule requires is cut down to
- *  that word ("Hand Block Print" → "Block Print") rather than dropped. Only then a required part, last resort, and it is
- *  NAMED in `dropped` so nobody takes a title that breaks the rules for one that follows them. */
+/** The template filled to fit `max`, and what had to come out: the occasions first, then the words THE ONE SUGGESTION-WORDS RULE
+ *  (listing-rules.js lrSuggestWords, 19 Nov 2026) lets go, in the template's order — never the brand, product, shape, material, size,
+ *  the print ("Hand Block Print" stays whole) or the colour. When only those are left it may stay over `max` (nothing important is cut);
+ *  a required part with none of its words left is NAMED in `dropped`. */
 // Returns { title, dropped }: the template filled to at most `max` characters, and the required parts that had to go.
 function lcTemplateFit(brand, sku, max) {
   const cfg = LR || LR_DEFAULT;
@@ -44877,39 +45149,24 @@ function lcTemplateFit(brand, sku, max) {
   if (!tpl) return { title: '', dropped: [] };
   const values = Object.assign({}, lrParts(row, tpl, cfg, new Date()));     // token → text, a copy so it can be trimmed
   const required = lrWords(tpl.required);
-  const kwRule = lcRule('title_keyword');
-  const keys = kwRule ? lrWords(kwRule.params.words) : [];
   // Fill the template without the tokens in `drop`, then tidy spaces and dashes.
   const fill = drop => String(tpl.template || '').replace(/\{(\w+)\}/g, (_, name) => (drop.includes(name) ? '' : (values[name] || '')))
     .replace(/\s+-\s+(?=-|$)/g, ' ').replace(/\s{2,}/g, ' ').replace(/\s+-\s*$/, '').replace(/^\s*-\s+/, '').trim();
-  const parts = (String(tpl.template || '').match(/\{(\w+)\}/g) || []).map(token => token.slice(1, -1));
-  const drop = [];
-  let out = fill(drop);
-  // --- what goes first: occasions, uses, the optional parts, then required parts other than brand / product / colour / size ---
-  const steps = ['occasions', 'uses']
-    .concat(parts.filter(name => !['occasions', 'uses', 'brand', 'product', 'color'].includes(name) && !required.includes(name)),
-      required.filter(name => !['brand', 'product', 'color', 'size'].includes(name)));
-  for (const name of steps) {
-    if (out.length <= max) break;
-    if (!values[name] || drop.includes(name)) continue;
-    const key = keys.find(word => lrHas(values[name], word));
-    if (key && values[name].trim().toLowerCase() !== key.toLowerCase()) {
-      values[name] = key;                                 // cut the part down to the required word
-      out = fill(drop);
-      if (out.length <= max) break;
-    }
-    if (key) continue;                                   // the required word stays
-    drop.push(name);
-    out = fill(drop);
-  }
-  if (out.length > max) out = out.slice(0, max).replace(/\s+\S*$/, '').replace(/[\s,\-–]+$/, '');
-  return { title: out, dropped: drop.filter(name => required.includes(name)) };
+  let out = fill([]);
+  if (out.length > max) out = fill(['occasions']);
+  if (out.length > max) out = lrSuggestWords(out, { mode: 'title', facts: lrSwFacts(row, cfg), fits: text => text.length <= max }).after;
+  // a required part none of whose words is left (the one rule never lets one go — kept for the screen's warning)
+  const left = new Set(lrNorm(out).split(/[^a-z0-9%]+/).filter(Boolean));
+  const dropped = required.filter(name => values[name] && !lrNorm(values[name]).split(/[^a-z0-9%]+/).filter(Boolean).some(word => left.has(word)));
+  return { title: out, dropped };
 }
 // Just the title of lcTemplateFit.
 const lcTemplateTitle = (brand, sku, max) => lcTemplateFit(brand, sku, max).title;
 // The search-term byte limit from Listing Rules (the "Search terms over the limit" rule), 249 when the rule is off or gone.
 const lcKwMax = () => { const rule = lcRule('keyword_bytes'); return rule ? (+(rule.params || {}).max || 249) : 249; };
-/** Search terms: the template's own words that the title does not carry, then what is there now — never past the byte limit. */
+/** Search terms: the template's own words that the title does not carry (its important words — hand, block print, its product, shape,
+ *  material, colour, use words — even when the title has them), then what is there now; never a shape or colour from the template that is
+ *  not the product's; fitted to the byte limit by THE ONE SUGGESTION-WORDS RULE (listing-rules.js lrSuggestWords), not cut off at the end. */
 function lcSuggestKeywords(brand, sku, title, current) {
   const cfg = LR || LR_DEFAULT;
   const row = { brand, sku };
@@ -44917,19 +45174,22 @@ function lcSuggestKeywords(brand, sku, title, current) {
   const parts = tpl ? lrParts(row, tpl, cfg, new Date()) : {};
   const stop = new Set(['for', 'and', 'the', 'with', 'of', 'a', 'an', 'to', 'in', 'on', '&', '-', 'x', 'inch']);
   const inTitle = new Set(String(title || '').toLowerCase().split(/[^a-z0-9']+/).filter(Boolean));
-  const words = [];
-  [parts.uses, parts.occasions, parts.material, parts.pattern, parts.product, parts.shape, current].join(' ').toLowerCase().split(/[^a-z0-9']+/)
-    .forEach(word => {
-      if (word.length > 1 && !stop.has(word) && !inTitle.has(word) && !/^b0[a-z0-9]{8}$/.test(word) && !words.includes(word)) words.push(word);
-    });
-  let out = '';
+  const facts = lrSwFacts(row, cfg, null, { title });
+  // what the one rule protects for this listing: such a word is suggested even when the title already says it
+  const keep = new Set(lrSuggestWords([parts.uses, parts.material, parts.pattern, parts.product, parts.shape, title].join(' '), { mode: 'kw', facts, riskOnly: true }).toks
+    .filter(t => t.cls).map(t => lrSwKey(t.w)));
+  // the template's shape word only when it is the product's real shape ("Square" is never suggested for a 118 x 70 cloth)
+  const wrong = word => { const k = lrSwKey(word); return !!facts.shape && LR_SW_SHAPE_OF.has(k) && LR_SW_SHAPE_OF.get(k) !== facts.shape; };
+  const words = [], seen = new Set();
+  const add = (text, fromTemplate) => String(text || '').toLowerCase().split(/[^a-z0-9'%]+/).forEach(word => {
+    const k = lrSwKey(word);
+    if (word.length > 1 && !stop.has(word) && (!inTitle.has(word) || keep.has(k)) && !/^b0[a-z0-9]{8}$/.test(word) && !seen.has(k) && !(fromTemplate && wrong(word))) { seen.add(k); words.push(word); }
+  });
+  [parts.uses, parts.occasions, parts.material, parts.pattern, parts.product].forEach(text => add(text, false));
+  add(parts.shape, true);
+  add(current, false);
   const max = lcKwMax();
-  for (const word of words) {
-    const next = out ? out + ' ' + word : word;
-    if (lrKwBytes(next) > max) break;
-    out = next;
-  }
-  return out;
+  return lrSuggestWords(words.join(' '), { mode: 'kw', facts, title, brands: lrBrandWords(row, cfg), fits: text => lrKwBytes(text) <= max }).after;
 }
 
 /* ============================================================================================

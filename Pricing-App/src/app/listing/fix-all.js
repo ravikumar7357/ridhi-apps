@@ -166,9 +166,9 @@ function faPlan(g, kid, ctx) {
   if (g.kind === 'ttl') return Object.assign(base, ttPlanOfKid(kid, ctx), { row: g.key, kind: 'ttl' });
   return Object.assign(base, { why: g.kind === 'img' ? 'pictures are changed by a person in Image Manager' : 'no safe automatic fix — a person fixes it in Listing Errors' });
 }
-// The title the template writes for this child at 75 letters or less: every part it REQUIRES kept (brand, product, size, colour…),
-// the others left out one by one — the season names first (a shortened title never gains a season word), then the uses, the print,
-// whatever else is not required. { before, after } or { before, why }.
+// The title the template writes for this child at 75 letters or less: the season names left out (a shortened title never gains a season
+// word), then the words that go chosen by THE ONE SUGGESTION-WORDS RULE (listing-rules.js lrSuggestWords) in the template's order —
+// never brand, product, shape, material, size, the print ("Hand" too) or colour. { before, after } or { before, after, why }.
 function faShortTitle(kid, ctx) {
   const row = lrFresh(Object.assign({}, kid.row, { brand: kid.brand }), ctx);
   const before = hTitleText(row);
@@ -183,13 +183,12 @@ function faShortTitle(kid, ctx) {
   const fill = () => String(tpl.template || '').replace(/\{(\w+)\}/g, (_, key) => (drop.includes(key) ? '' : (parts[key] || '')))
     .replace(/\s+-\s+(?=-|$)/g, ' ').replace(/\s{2,}/g, ' ').replace(/\s+-\s*$/, '').replace(/^\s*-\s+/, '').trim();
   let after = fill();
-  const order = ['uses', 'pattern'].concat(tokens.filter(key => !['uses', 'pattern', 'occasions'].includes(key))).filter(key => !need.includes(key) && tokens.includes(key));
-  for (const key of order) {
-    if (after.length <= FA_TITLE_MAX) break;
-    drop.push(key);
-    after = fill();
+  if (after.length > FA_TITLE_MAX) {
+    const r = lrSuggestWords(after, { mode: 'title', facts: lrSwFacts(row, ctx.cfg, null, { title: before }), fits: text => text.length <= FA_TITLE_MAX,
+      risk: typeof ipgKwRisk === 'function' ? ipgKwRisk(kid.brand, row.sku, row, ctx.cfg) : null });
+    after = r.after;
+    if (!r.fits) return { before, after, why: `${LR_SW_IMPORTANT} (${after.length} letters)` };
   }
-  if (after.length > FA_TITLE_MAX) return { before, why: `even with only the parts the template requires it is ${after.length} letters` };
   return { before, after };
 }
 // The Listing Rules over a listing as it is, title-wise: rule id → name. Every detector, as healthOf runs them.
@@ -451,7 +450,7 @@ function faDoLine(g, plans) {
   }
   if (g.kind === 'img') return 'Change the pictures in Image Manager — no automatic fix';
   if (g.kind === 'ttl') return 'One new title per child from the title template and its own Amazon facts — every title problem of the family fixed at once';
-  if (g.kind === 'kw') return `Shorten to ${typeof lrKwMax === 'function' ? lrKwMax() : 249} bytes — repeats, title words, stop words, brand names and ASINs out, then words from the end; nothing added`;
+  if (g.kind === 'kw') return `Shorten to ${typeof lrKwMax === 'function' ? lrKwMax() : 249} bytes — brand names and ASINs out, then repeats, a wrong shape or colour, low-value words and other words until it fits; important words kept, nothing added`;
   const fix = new Map();
   g.kids.forEach(kid => { const hit = g.hits.get(faKidKey(kid)); if (hit && hit.fix) fix.set(hit.fix, (fix.get(hit.fix) || 0) + 1); });
   return [...fix.entries()].sort((a, b) => b[1] - a[1]).map(([text]) => text)[0] || 'Fix it in Listing Errors';

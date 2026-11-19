@@ -406,7 +406,7 @@ const patches = (C, apply) => C.calls.filter(c => c.lfix === 'patch' && c.apply 
     const p = C.TT.run.plans[0];
     const pop = C.el('spModalBox').innerHTML;
     ok('the Guard\'s Fix title opens that popup for the listing', C.TT.run.plans.length === 1 && p.sku === 'NP-3' && /<b>Fix all titles — NP-3<\/b>/.test(pop), strip(pop).slice(0, 200));
-    ok('the new title is made by the title template from the listing\'s facts — no "Pottery Barn Style" — and it says what it fixes', p.ok && p.after === 'Ridhi Cloth Napkins 100% Cotton 18 x 18 Inch Block Print - Green' && p.fixes.includes('Risky word: Pottery Barn'), JSON.stringify([p.after, p.why, p.fixes]));
+    ok('the new title is made by the title template from the listing\'s facts — no "Pottery Barn Style" — and it says what it fixes', p.ok && p.after === 'Ridhi Cloth Napkins 100% Cotton 18 x 18 Inch Block Print Reusable - Green' && p.fixes.includes('Risky word: Pottery Barn'), JSON.stringify([p.after, p.why, p.fixes]));
     ok('nothing is sent without the person: ticked row, "Check with Amazon & send 1", Edit new title', patches(C, false).filter(c => c.sku === 'NP-3').length === 0 && /data-tt="go"[^>]*>Check with Amazon &amp; send 1</.test(pop) && /Edit new title/.test(pop));
     C.ttInput({ dataset: { ttEdit: 'SP|NP-3' }, value: 'Ridhi Cloth Napkins 100% Cotton 18 x 18 Inch Block Print Disney - Green' });
     const chk = C.ttRunCheck(C.TT.run, p);

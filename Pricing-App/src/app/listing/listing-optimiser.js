@@ -86,6 +86,29 @@ function loOurTermsHtml(ours, title) {
       : '<div class="muted" style="font-size:12px;margin-top:4px">No word here is already in the title.</div>'}`;
 }
 
+/* THE SUGGESTED TITLE FOLLOWS THE ONE SUGGESTION-WORDS RULE (listing-rules.js lrSuggestWords, 19 Nov 2026) — filtered here, the backend
+ * is not changed. The backend's suggestion is used as it is unless it leaves out one of the important words the current title has (hand,
+ * block print, the product, its real shape, its material, its own colour, its size); then the current title is shortened by the rule
+ * instead (words said again, a wrong shape or colour, low-value words, then other words — in the title's own order). Another brand's name
+ * or a restricted claim is quietly left out (they are shown only in IP & Trademark Guard). */
+function loKeepWords(reply, brand, asin, sku) {
+  const sug = reply && reply.suggestion;
+  if (!sug || !sug.ok || !sug.current || !sug.suggested || typeof lrSuggestWords !== 'function') return reply;
+  const cfg = (typeof LR !== 'undefined' && LR) || LR_DEFAULT;
+  const rows = typeof HEALTH !== 'undefined' && HEALTH[brand] && HEALTH[brand].rows ? HEALTH[brand].rows : [];
+  const row = Object.assign({ brand, asin }, rows.find(r => (sku && r.sku === sku) || r.asin === asin) || {}, sku ? { sku } : {}, { brand });
+  const facts = lrSwFacts(row, cfg, null, { title: sug.current });
+  const risk = typeof ipgKwRisk === 'function' && row.sku ? ipgKwRisk(brand, row.sku, row, cfg) : null;
+  const cap = +sug.cap || 75;
+  const important = lrSuggestWords(sug.current, { mode: 'title', facts, riskOnly: true }).toks.filter(t => t.cls && t.k).map(t => t.k);
+  const has = new Set(lrSuggestWords(sug.suggested, { mode: 'title', facts, riskOnly: true }).toks.map(t => t.k));
+  const text = important.some(k => !has.has(k))
+    ? lrSuggestWords(sug.current, { mode: 'title', facts, risk, fits: t => t.length <= cap }).after
+    : lrSuggestWords(sug.suggested, { mode: 'title', facts, risk, riskOnly: true }).after;
+  if (text !== sug.suggested) Object.assign(sug, { suggested: text, newLen: text.length });
+  return reply;
+}
+
 // Go: read this ASIN's review from the backend and draw it.
 $('loGo').onclick = async () => {
   const asinCode = ($('loAsin').value || '').trim().toUpperCase();
@@ -132,6 +155,7 @@ $('loGo').onclick = async () => {
       } catch (e) { liveWhy = 'the backend could not be reached with the auto refresh data (' + String((e && e.message) || e).slice(0, 120) + ')'; }
     } else if (!found) liveWhy = loNoCacheWhy();
     if (!reply) reply = await baCall({ listing: 'review', asin: asinCode, brand, target });
+    loKeepWords(reply, brand, asinCode, found ? found.facts.sku : '');
     LO_DATA = Object.assign(reply, { liveWhy: reply.audit && reply.audit.src === 'cache' ? '' : liveWhy, note, ours });
     renderOpt();
     loMsg('');

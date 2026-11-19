@@ -147,7 +147,10 @@ const TITLE = color => `Ridhi Cloth Napkins 100% Cotton 18 x 18 Inch Block Print
       && by.M2.trim.hl.every(w => /^(machine|washable|set|of|four)$/i.test(w)) && /machine washable, set of four/i.test(by.M2.hlAfter[0]) && by.M2.hlAfter[0].length <= 125, JSON.stringify([by.M2.status, by.M2.trim.hl, by.M2.hlAfter]));
     ok(`M3: hidden search words full (${C.lrKwBytes(by.M3.kw)}) → "spring" and "easter" out, the two names in, within 249`, by.M3.status === 'ready' && by.M3.removed.kw.length === 2 && /thanksgiving christmas$/.test(by.M3.kwAfter) && C.lrKwBytes(by.M3.kwAfter) <= 249,
       JSON.stringify([by.M3.status, by.M3.why, C.lrKwBytes(by.M3.kwAfter)]));
-    ok('M4: search words full, nothing old, no repeat, no title word, no filler → "Fix by hand": "search words full: 243 of 249, nothing safe to remove"', by.M4.status === 'fix' && /^search words full: \d+ of 249, nothing safe to remove$/.test(by.M4.why), by.M4.why);
+    // 19 Nov 2026 (the one suggestion-words rule): red and green (not this grey napkin's colour) could go, but that is not room enough and
+    // the planner never cuts an ordinary word of the customer's own → still "Fix by hand", nothing changed
+    ok('M4: search words full, nothing old; red and green are not room enough and no ordinary word is cut → "Fix by hand": "search words full: 243 of 249, nothing safe to remove"',
+      by.M4.status === 'fix' && /^search words full: \d+ of 249, nothing safe to remove$/.test(by.M4.why) && by.M4.kwAfter === by.M4.kw, by.M4.why);
     ok('M5: "Spring" describes the product (Spring Floral Tablecloth) → never taken out; the trim takes a repeat ("floral" said twice) and a title word instead', by.M5.status === 'look' && /^spring floral /.test(by.M5.kwAfter) && !by.M5.removed.kw.length
       && !by.M5.trim.kw.some(w => /spring/i.test(w)) && C.lrKwBytes(by.M5.kwAfter) <= 249, JSON.stringify([by.M5.status, by.M5.why, by.M5.trim.kw]));
   }
@@ -513,35 +516,40 @@ const TITLE = color => `Ridhi Cloth Napkins 100% Cotton 18 x 18 Inch Block Print
   {
     const { C, put, done } = setup({ only: true });
     const HL = ['Thanksgiving and Christmas table decor'];
-    // TR: the order — a) repeats, b) words the title says, c) fillers — one at a time from the end, until "thanksgiving christmas" fits
+    // TR: the one rule's order — our brand name out (search words), then a) repeats, b) colours that are not its colour (the pad's coral,
+    // ivory, olive) — one at a time, until "thanksgiving christmas" fits
     const kwTR = sized(C, 'cotton blue ridhi wedding reusable napkin for the with block print reusable napkins', 259);
     put('TR', TITLE('Blue'), { parent: 'PT1', kw: kwTR, hl: HL });
-    // PB: only brand, colour, size, product type, material words and other words — nothing safe to take out
+    // PB: our brand names (out of search words, as in Fix all search terms) — the trim stops as soon as it fits
     const kwPB = sized(C, 'ridhi whimsical corner cpc cotton linen blue 18 inch napkin tablecloth runner placemat wedding brunch', 240);
     put('PB', TITLE('Blue'), { parent: 'PT1', kw: kwPB, hl: HL });
     // OV: 263 letters with both seasons already there: "Search words too long" → trimmed to ≤ 249 (repeats), with your OK
     const kwOV = sized(C, 'thanksgiving christmas cotton napkin reusable reusable washable washable dinner dinner napkins', 263);
     put('OV', TITLE('Blue'), { parent: 'PT1', kw: kwOV, hl: HL });
-    // NS: 263 letters, both seasons there, nothing safe → Fix by hand with the reason
-    put('NS', TITLE('Blue'), { parent: 'PT1', kw: sized(C, 'thanksgiving christmas cotton napkin wedding brunch', 263), hl: HL });
+    // NS: over 249, both seasons there, ONLY important words (the seasons, hand block print, its product, material, colour, use words and
+    // its sizes) → nothing safe → Fix by hand with the reason
+    let kwNS = 'thanksgiving christmas hand block print cotton napkin blue kitchen dining dinner housewarming washable reusable everyday';
+    for (let i = 10; C.lrKwBytes(kwNS) <= 255; i++) kwNS += ` ${i}x${i}`;
+    const nsBytes = C.lrKwBytes(kwNS);
+    put('NS', TITLE('Blue'), { parent: 'PT1', kw: kwNS, hl: HL });
     done();
     const by = byId(C.spCompute(NOV));
-    ok('TR: trim → "Needs your OK", words taken out in the order a) repeats b) title words c) fillers, from the end, until it fits',
-      by.TR.status === 'look' && JSON.stringify(by.TR.trim.kw) === JSON.stringify(['napkins', 'reusable', 'print', 'block', 'with', 'the']) && C.lrKwBytes(by.TR.kwAfter) <= 249
+    ok('TR: trim → "Needs your OK": our brand name out, then the repeats (reusable, napkins), then the colours that are not its colour (coral, ivory, olive) — until it fits',
+      by.TR.status === 'look' && JSON.stringify(by.TR.trim.kw.slice().sort()) === JSON.stringify(['coral', 'ivory', 'napkins', 'olive', 'reusable', 'ridhi']) && C.lrKwBytes(by.TR.kwAfter) <= 249
         && /\bfor\b/.test(by.TR.kwAfter) && / thanksgiving christmas$/.test(by.TR.kwAfter), JSON.stringify([by.TR.status, by.TR.why, by.TR.trim.kw, C.lrKwBytes(by.TR.kwAfter)]));
-    ok('…its product, colour, brand and material words stay (cotton, blue, ridhi, napkin) and every other word too', ['cotton', 'blue', 'ridhi', 'napkin', 'wedding', 'alpha'].every(w => new RegExp('\\b' + w + '\\b').test(by.TR.kwAfter)), by.TR.kwAfter);
-    ok('PB: brand (Ridhi, Whimsical Corner, CPC), colour, size, product type and material words are never taken out → Fix by hand: "search words full: 240 of 249, nothing safe to remove"',
-      by.PB.status === 'fix' && by.PB.why === 'search words full: 240 of 249, nothing safe to remove' && by.PB.kwAfter === by.PB.kw, by.PB.status + ' ' + by.PB.why);
+    ok('…its product, colour, material and print words stay (cotton, blue, napkin, block print) and every other word too', ['cotton', 'blue', 'napkin', 'block', 'print', 'wedding', 'alpha'].every(w => new RegExp('\\b' + w + '\\b').test(by.TR.kwAfter)), by.TR.kwAfter);
+    ok('PB: our brand names (Ridhi, Whimsical Corner, CPC) go out of the search words first — then it fits: nothing else taken out, "Needs your OK"',
+      by.PB.status === 'look' && by.PB.trim.kw.join(' ') === 'ridhi whimsical corner cpc' && ['cotton', 'blue', '18', 'inch', 'napkin', 'linen', 'tablecloth'].every(w => new RegExp('\\b' + w + '\\b').test(by.PB.kwAfter)), by.PB.status + ' ' + by.PB.why + ' ' + by.PB.trim.kw);
     ok('OV: 263 of 249 → "Search words too long" → trimmed to ≤ 249, Needs your OK', by.OV.kwOver && by.OV.status === 'look' && C.lrKwBytes(by.OV.kw) === 263 && C.lrKwBytes(by.OV.kwAfter) <= 249
       && by.OV.trim.kw.every(w => /^(reusable|washable|dinner|napkins)$/.test(w)), JSON.stringify([by.OV.status, by.OV.trim.kw, C.lrKwBytes(by.OV.kwAfter)]));
-    ok('NS: 263 of 249 and nothing safe → Fix by hand: "search words full: 263 of 249, nothing safe to remove"', by.NS.status === 'fix' && by.NS.why === 'search words full: 263 of 249, nothing safe to remove', by.NS.why);
+    ok(`NS: ${nsBytes} of 249 and only important words → Fix by hand: "search words full: ${nsBytes} of 249, nothing safe to remove"`, by.NS.status === 'fix' && by.NS.why === `search words full: ${nsBytes} of 249, nothing safe to remove`, by.NS.why);
     ok('the trim never touches the title, and no patch names it', Object.values(by).every(item => item.after === item.title && C.spPatches(item).every(p => p.path !== '/attributes/item_name')));
     const ov = C.spKidHtml(by.OV, C.spGroupOf('SP|PT1'));
     ok('child panel: "Where seasons are" says "Search words too long — Amazon may ignore the extra words (263 of 249)"', /✕ Search words too long — Amazon may ignore the extra words \(263 of 249\)/.test(ov));
     ok('…pill "Needs your OK", the removed words struck in "What changes", ONE button "OK — fix" that names them', /sp-chip-s is-look"><i aria-hidden="true">⚠<\/i>Needs your OK/.test(ov) && /<del>(?:napkins|dinner|washable)<\/del>/.test(ov)
       && /data-sp-act="approve-ok"[^>]*>OK — fix</.test(ov) && /sp-reason">Takes out “[a-z]+”/.test(ov) && (ov.match(/class="sp-main"/g) || []).length === 1, strip(ov).slice(0, 600));
     const ns = C.spKidHtml(by.NS, C.spGroupOf('SP|PT1'));
-    ok('…Fix by hand: ONE button "Open in Listing Errors" with the reason', /data-sp-act="fixhand"[^>]*>Open in Listing Errors</.test(ns) && /sp-reason">search words full: 263 of 249, nothing safe to remove</.test(ns));
+    ok('…Fix by hand: ONE button "Open in Listing Errors" with the reason', /data-sp-act="fixhand"[^>]*>Open in Listing Errors</.test(ns) && new RegExp(`sp-reason">search words full: ${nsBytes} of 249, nothing safe to remove<`).test(ns));
     C.SP.on = true; C.SP.brand = 'SP';
     C.spOpenParent('SP|PT1');
     const P = C.el('spPanel').innerHTML;

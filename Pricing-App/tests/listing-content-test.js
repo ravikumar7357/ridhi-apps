@@ -49,10 +49,15 @@ const has = (list, re) => list.some(f => re.test(f.msg));
   console.log('== suggestions come only from Listing Rules ==');
   const full = A.lcTemplateTitle('SP', 'RTC1-6090', 200), short = A.lcTemplateTitle('SP', 'RTC1-6090', 75);
   ok('the template title for a tablecloth', /^Ridhi Tablecloth Rectangle 100% Cotton 60 x 90 Inch/.test(full) && /- Indigo Blue$/.test(full), full);
-  ok('the 75 version fits and keeps brand, product, size and colour', short.length <= 75 && /^Ridhi Tablecloth/.test(short) && /60 x 90 Inch/.test(short) && /Indigo Blue/.test(short), short + ' (' + short.length + ')');
+  // 19 Nov 2026 (the one suggestion-words rule): the uses go; brand, product, its real shape, material, size, "Hand Block Print" and the
+  // colour all stay — 82 with only those, so the house rule's short forms of a 74–75 title: 60x90", no " - " → 74
+  ok('the 75 version: the uses go, every important word stays ("Hand Block Print" whole, Rectangle, 100% Cotton, the colour), in the short forms allowed at 74–75', short === 'Ridhi Tablecloth Rectangle 100% Cotton 60x90" Hand Block Print Indigo Blue' && short.length === 74, short + ' (' + short.length + ')');
   ok('no template for a SKU the catalogue does not hold', A.lcTemplateTitle('SP', 'UNKNOWN', 200) === '');
   const kw = A.lcSuggestKeywords('SP', 'RTC1-6090', short, 'washable');
-  ok('search terms: template words the title lacks, never past 249 bytes', /dining/.test(kw) && !/\btablecloth\b/.test(kw) && A.lcBytes(kw) <= 249 && /washable/.test(kw), kw);
+  ok('search terms: template words the title lacks, never past 249 bytes', /dining/.test(kw) && A.lcBytes(kw) <= 249 && /washable/.test(kw), kw);
+  ok('…and its important words even though the title has them: hand, block print, tablecloth, its real shape (rectangle), cotton', ['hand', 'block', 'print', 'tablecloth', 'rectangle', 'cotton'].every(w => new RegExp('\\b' + w + '\\b').test(kw)), kw);
+  const kwSq = A.lcSuggestKeywords('SP', 'RTC1-6090', short, 'washable square table');
+  ok('…a shape that is not its shape is never added from the template; one the person wrote stays unless it must go to fit', !/\bsquare\b/.test(A.lcSuggestKeywords('SP', 'RTC1-6090', short, '')) && /\bsquare\b/.test(kwSq), kwSq);
 
   console.log('== Excel: out and back in ==');
   const head = ['SKU', 'ASIN', 'Title', 'Suggested title (Listing Rules)', 'Bullet 1', 'Bullet 2', 'Description', 'Search terms'];

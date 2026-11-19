@@ -37,7 +37,8 @@ console.log('== Listing Health and the Workspace (healthPage, full size) ==');
   const A = healthPage({ files: old });
   const B = healthPage({});
   const both = fn => [fn(A), fn(B)];
-  const html = (C, ...ids) => ids.map(id => C.el(id).innerHTML).join('\n§\n');
+  // the clock: the two pages are built a moment apart, so "updated 10:57:30" may read ":31" on the other — that time alone is set aside
+  const html = (C, ...ids) => ids.map(id => C.el(id).innerHTML).join('\n§\n').replace(/(lh-kpiwhen">updated )[^<]*/g, '$1[time]');
   // every listing's checks
   const all = C => ['SP', 'CPC'].flatMap(b => C.HEALTH[b].rows.map(r => checksText(C.healthOf(Object.assign({}, r, { brand: b }), C.hCtx())))).join('\n');
   const [ca, cb] = both(all);
@@ -94,7 +95,8 @@ console.log('== Season planner, Fix all, Listing Errors card, Listing History (b
   const A = bigPage({ files: old });
   const B = bigPage({});
   const both = fn => [fn(A), fn(B)];
-  const html = (C, ...ids) => ids.map(id => C.el(id).innerHTML).join('\n§\n');
+  // the clock: the two pages are built a moment apart, so "updated 10:57:30" may read ":31" on the other — that time alone is set aside
+  const html = (C, ...ids) => ids.map(id => C.el(id).innerHTML).join('\n§\n').replace(/(lh-kpiwhen">updated )[^<]*/g, '$1[time]');
   const plan = C => { C.SP.on = true; C.spRender(); return html(C, 'spPane'); };
   const [sa, sb] = both(plan);
   same('Season planner: the parent list', sa, sb);
@@ -108,7 +110,10 @@ console.log('== Season planner, Fix all, Listing Errors card, Listing History (b
   // 19 Nov 2026: a title row's button says its OWN count ("Fix 12 titles", was the family's "Fix all 490 children") — that button
   // alone is set aside here; everything else of the block must be the same
   const ttBtn = h => h.replace(/<button type="button" class="fa-btn fa-main" data-fa-act="fix" data-fa-row="[^"]*"[^>]*title="One new title for each[^"]*">Fix (?:all [\d,]+ child(?:ren)?|[\d,]+ titles?)<\/button>/g, '[title button]');
-  same('Fix all: the block of the biggest parent (cards, rows, Fix all counts — the title rows\' button aside)', ttBtn(ba), ttBtn(bb));
+  // 19 Nov 2026: the WORDS of a suggestion follow the one suggestion-words rule (listing-rules.js lrSuggestWords; tests/suggestion-words-
+  // test.js) — the suggested texts and the search-terms row's line saying how it shortens are set aside; cards, rows, counts and buttons stay
+  const words = h => ttBtn(h).replace(/(<b>Search terms over the limit<\/b><small>)[^<]*/g, '$1[how]').replace(/<span class="fa-(new|was|why)">[^<]*<\/span>/g, '<span class="fa-$1">[words]</span>');
+  same('Fix all: the block of the biggest parent (cards, rows, Fix all counts — the title rows\' button and the suggested words aside)', words(ba), words(bb));
   const nBtn = h => (ttBtn(h).match(/\[title button\]/g) || []).length;
   ok('…the title rows\' buttons are there in both, now with each row\'s own count', nBtn(ba) > 0 && nBtn(ba) === nBtn(bb) && (bb.match(/>Fix [\d,]+ titles?</g) || []).length === nBtn(bb), nBtn(ba) + ' vs ' + nBtn(bb));
   const [ka, kb] = both(C => (typeof C.kfLeCardHtml === 'function' ? C.kfLeCardHtml('SP', null) + C.kfLeCardHtml('CPC', null) : ''));
