@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <!-- ================================================================================================
-     GENERATED FILE. DO NOT READ OR EDIT THE CODE HERE — it is the 68 files of src/ joined into one page.
+     GENERATED FILE. DO NOT READ OR EDIT THE CODE HERE — it is the 71 files of src/ joined into one page.
      The real, grouped source: Pricing-App/src/   (map and workflow: src/README.md)
        src/index.html   page markup        src/styles.css   stylesheet        src/app/ORDER   join order
        src/app/<group>/ the code, by group: core, research, sales, inventory, listing, ads
@@ -550,6 +550,7 @@
   #tabBsr{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 3v18h18'/%3E%3Cpath d='M8 17v-3M13 17V8M18 17V5'/%3E%3C/svg%3E")}
   #tabFam{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='9' y='2' width='6' height='6' rx='1'/%3E%3Crect x='2' y='16' width='6' height='6' rx='1'/%3E%3Crect x='16' y='16' width='6' height='6' rx='1'/%3E%3Cpath d='M12 8v4M5 16v-4h14v4'/%3E%3C/svg%3E")}
   #tabAplus{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='3' width='18' height='18' rx='2'/%3E%3Crect x='7' y='7' width='10' height='5' rx='1'/%3E%3Cpath d='M7 16h10M7 19h6'/%3E%3C/svg%3E")}
+  #tabCreate{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='3' width='18' height='18' rx='2'/%3E%3Cpath d='M12 8v8M8 12h8'/%3E%3C/svg%3E")}
   #tabIpg{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z'/%3E%3Cpath d='M9 12l2 2 4-4'/%3E%3C/svg%3E")}
   #tabLrules{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6'/%3E%3C/svg%3E")}
   #tabBasket{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9 17H7A5 5 0 0 1 7 7h2M15 7h2a5 5 0 1 1 0 10h-2M8 12h8'/%3E%3C/svg%3E")}
@@ -3651,6 +3652,69 @@
   .tt-chk{font-size:12px;color:var(--ok);margin:2px 0}
   .tt-chk.is-bad{color:var(--bad-ink)}
   .tt-row.is-held .sp-btn{margin-top:4px}
+  /* ✨ AI writing (listing-ai.js, 19 Nov 2026): the buttons, the card (old beside the AI text, our checks, one action), the quiet "not set up" line */
+  .ai-btn{white-space:nowrap}
+  .ai-btn.is-off{opacity:.6}
+  .ai-rowb{margin:2px 0}
+  .ai-row{display:flex;flex-wrap:wrap;gap:6px;margin:0}
+  .ai-card{margin:6px 0;font-size:12.5px;line-height:1.45}
+  .ai-card:empty{display:none}
+  .ai-card>.ai-h,.ai-card>.ai-ba,.ai-card>[data-ai-chks],.ai-card>.ai-a,.ai-card>.ai-foot,.ai-card>.ai-exp,.ai-card>.ai-img{padding-left:10px;padding-right:10px}
+  .ai-card:has(.ai-h){border:1px solid var(--card-line,var(--line));border-left:3px solid var(--accent);border-radius:8px;background:var(--card);padding:8px 0}
+  .ai-h{display:flex;align-items:center;gap:8px;justify-content:space-between}
+  .ai-h b{font-size:12.5px;color:var(--ink)}
+  .ai-x{position:static;margin-left:auto}
+  .ai-ba{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px;margin:6px 0}
+  .ai-ba.is-one{grid-template-columns:minmax(0,1fr)}
+  .ai-col>small{display:block;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.03em}
+  .ai-txt{white-space:pre-wrap;max-height:220px;overflow:auto}
+  .ai-a{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:6px}
+  .ai-a .sp-main{width:auto}
+  .ai-hint{font-size:11.5px}
+  .ai-said{flex-basis:100%;font-size:12px;color:var(--accent-ink)}
+  .ai-note{font-size:12px;color:var(--warn-ink)}
+  .ai-foot{font-size:11px;margin-top:4px}
+  .ai-quiet{font-size:12px;color:var(--muted);padding:4px 0}
+  .ai-quiet.is-bad{color:var(--bad-ink)}
+  .ai-quiet small{margin-left:6px}
+  .ai-wait{font-size:12px;padding:4px 0}
+  .ai-exp p{margin:4px 0}
+  .ai-img{display:flex;gap:12px;align-items:flex-start;margin-top:6px}
+  .ai-img img{width:96px;height:96px;object-fit:contain;border:1px solid var(--line);border-radius:6px;background:#fff;flex:none}
+  .ai-verdict{font-weight:700}
+  .ai-verdict.is-ok{color:var(--ok)}
+  .ai-verdict.is-bad{color:var(--bad-ink)}
+  .ai-optf{margin-top:4px}
+  .ai-style{margin-top:10px;border-top:1px solid var(--line);padding-top:8px}
+  .ai-style>summary{cursor:pointer;font-size:12.5px}
+  .ai-style-h{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0;font-size:12px}
+  .ai-style-g{border-top:1px solid var(--line);padding:6px 0;font-size:12px}
+  .ai-style-gh{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .ai-style-l{margin:4px 0 0;padding-left:18px}
+  .ai-ff,.ai-l{margin:4px 0;padding-left:20px;font-size:12.5px}
+  .ai-ff li{margin:3px 0}
+  .ai-tpl-g{display:inline-flex;gap:6px;align-items:center;margin:2px 10px 2px 0;font-size:12px}
+  .ai-inline{margin-left:6px}
+  /* Create Listing (create-listing.js, roadmap #8): the same cards as the other Listing pages; Filled / Missing marks, the field groups */
+  .cl-st{display:inline-block;font-size:11px;font-weight:600;padding:0 6px;border-radius:999px;border:1px solid var(--line);white-space:nowrap}
+  .cl-st.is-ok{color:var(--ok)}
+  .cl-st.is-no{color:var(--bad-ink)}
+  .cl-g{margin:6px 0 8px}
+  .cl-gh{font-weight:600;font-size:12.5px;margin-bottom:2px}
+  .cl-f{font-size:12px;margin:3px 0;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+  .cl-c{margin-bottom:10px;font-size:12.5px}
+  .cl-c textarea{margin-top:3px;font-size:12.5px}
+  .cl-checks{list-style:none;margin:0;padding:0;font-size:12.5px}
+  .cl-checks li{margin:3px 0}
+  .cl-amz{font-size:12.5px}
+  .cl-amz.is-ok{color:var(--ok)}
+  .cl-more summary{cursor:pointer;font-size:12px;color:var(--accent-ink)}
+  /* 🔴 Critical · 🟠 Important · ⚪ Can wait (listing-priority.js): the same small pill as the screens' own chips — inside the Family / A+ / IP panes
+     their fc-chip; elsewhere this one (same size, the level colours) */
+  .pr-chip:not(.fc-chip):not(.im-chip){display:inline-block;font-size:11px;font-weight:600;line-height:1.5;padding:0 6px;border-radius:999px;white-space:nowrap;vertical-align:middle;margin-right:4px;border:1px solid var(--line);background:var(--card);color:var(--muted)}
+  .pr-chip.is-r:not(.fc-chip):not(.im-chip){color:var(--bad-ink);border-color:color-mix(in srgb,var(--bad) 40%,transparent)}
+  .pr-chip.is-y:not(.fc-chip):not(.im-chip){color:var(--warn-ink);border-color:color-mix(in srgb,var(--warn-ink) 40%,transparent)}
+  @media (max-width:640px){.ai-ba{grid-template-columns:minmax(0,1fr)}.ai-img{flex-direction:column}}
   .fa-cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
   .fa-card{--c:var(--faint);display:flex;flex-direction:column;gap:2px;min-width:0;padding:10px 12px;border:1px solid var(--card-line);border-radius:12px;background:var(--card);
     box-shadow:inset 0 3px 0 color-mix(in srgb,var(--c) 75%,transparent)}
@@ -4375,13 +4439,14 @@
       <button id="tabBa" class="nav">Analytics</button>
     </div></div>
 
-    <div class="navwrap"><button class="navgrp" id="grpListing" type="button" aria-controls="secListing" data-grp="listing" data-tabs="opt,img,lerr,basket,health,lrules,audit,bsr,fam,aplus,ipg,lhist">
+    <div class="navwrap"><button class="navgrp" id="grpListing" type="button" aria-controls="secListing" data-grp="listing" data-tabs="opt,img,lerr,create,basket,health,lrules,audit,bsr,fam,aplus,ipg,lhist">
       <span class="caret">&#9656;</span> Listing</button>
     <div class="navsec" id="secListing">
       <div class="navcol"><div class="navcol-h">1 · Fix &amp; improve</div>
       <button id="tabOpt" class="nav">Listing Optimiser</button>
       <button id="tabLerr" class="nav">Listing Errors</button>
-      <button id="tabImg" class="nav">Image Manager</button></div>
+      <button id="tabImg" class="nav">Image Manager</button>
+      <button id="tabCreate" class="nav">Create Listing</button></div>
       <div class="navcol"><div class="navcol-h">2 · Check</div>
       <button id="tabHealth" class="nav">Listing Health</button>
       <button id="tabAudit" class="nav">Listing Audit</button>
@@ -5179,6 +5244,7 @@
   <div id="paneAplus" class="hide"><div id="apcPane"></div></div>
   <!-- IP & Trademark Guard (listing/ip-guard.js draws it whole): other brands' names and restricted claims in our listings -->
   <div id="paneIpg" class="hide"><div id="ipgPane"></div></div>
+  <div id="paneCreate" class="hide"><div id="clPane"></div></div>
 
   <!-- ============ Product Performance (was PPC & Organic · New): drawn whole by app/ads/ppc-new.js ============ -->
   <div id="panePpcn" class="hide"></div>
@@ -9081,7 +9147,7 @@ $('search').addEventListener('input', () => {
 // for which tab opens first: the first one the account is allowed.
 const TABS = ['link', 'new', 'pr', 'sales', 'profit', 'sa', 'plaudit', 'shop', 'adj', 'kw', 'ba', 'age', 'health',
   'lrules', 'audit', 'bsr', 'weekly', 'ppcn', 'trends', 'st', 'plc', 'deals', 'tiktok', 'carousel', 'opt', 'img',
-  'lerr', 'basket', 'lhist', 'fam', 'aplus', 'ipg'];
+  'lerr', 'basket', 'lhist', 'fam', 'aplus', 'ipg', 'create'];
 // 'health' → 'Health': a tab key as it appears inside element ids.
 const capId = t => t[0].toUpperCase() + t.slice(1);
 // The title shown at the top of the page for each tab.
@@ -9092,7 +9158,7 @@ const TAB_TITLE = { link: 'By Amazon Link', new: 'New Product', pr: 'Product Res
   profit: 'Profit & Margin', sa: 'Sales Analysis', plaudit: 'Parent Listing Review', shop: 'Shopify Orders',
   adj: 'Adjustments', tiktok: 'TikTok Toolkit', carousel: 'Carousel Builder', opt: 'Listing Optimiser',
   img: 'Image Manager', lerr: 'Listing Errors', basket: 'Bought Together', lhist: 'Listing History',
-  fam: 'Family & Category Check', aplus: 'A+ Content', ipg: 'IP & Trademark Guard' };
+  fam: 'Family & Category Check', aplus: 'A+ Content', ipg: 'IP & Trademark Guard', create: 'Create Listing' };
 
 // Tabs hidden from the sidebar. Everything (panes, JS, backend) stays wired up — take a name out of
 // this list and that tab is back, no other change needed.
@@ -9106,7 +9172,7 @@ HIDDEN_TABS.forEach(t => $('tab' + capId(t)).classList.add('hide'));
 // Tabs nobody is granted on their own: they come with another tab. Product Performance reads exactly
 // the documents PPC & Organic reads, and the Firestore rules gate those on `weekly` — so granting the
 // new tab by itself would only ever open an empty screen. Kept out of the Access form for that reason.
-const TAB_INHERIT = { ppcn: 'weekly', lhist: 'health', fam: 'health', aplus: 'health', ipg: 'health' };   // Listing History: with Listing Health (Image Manager, Listing Errors, Listing Rules: listing/listing-history.js); Family & Category Check: with Listing Health (listing/family-check.js); A+ Content: with Listing Health (listing/aplus-audit.js)
+const TAB_INHERIT = { ppcn: 'weekly', lhist: 'health', fam: 'health', aplus: 'health', ipg: 'health', create: 'health' };   // Listing History: with Listing Health (Image Manager, Listing Errors, Listing Rules: listing/listing-history.js); Family & Category Check: with Listing Health (listing/family-check.js); A+ Content: with Listing Health (listing/aplus-audit.js)
 
 /* ---------- sidebar: collapsible groups + the 3-line menu button ---------- */
 // Read straight off the markup, so adding a group is an HTML edit and nothing here changes.
@@ -13471,7 +13537,7 @@ function hWhyCell(row) {
       + `<span class="ls-whyd" aria-hidden="true"></span><span class="ls-whyt">${lrEsc(words)}</span></span>`;
   };
   const rest = found.length - 3;
-  return `<div class="ls-whyl">${found.slice(0, 3).map(item).join('')}`
+  return `<div class="ls-whyl">${typeof prOf === 'function' ? prChipHtml(prOf(row.brand, row.sku, [], { row, stock: row.qty }).k) : ''}${found.slice(0, 3).map(item).join('')}`
     + (rest > 0 ? `<button type="button" class="ls-why-more" data-lk-more="1" aria-label="Show all ${found.length} problems">+${rest} more</button>` : '') + '</div>';
 }
 // "+n more" opens the rest of a Why cell in place; a picture that fails to load hides itself (its grey square stays).
@@ -14245,6 +14311,8 @@ function renderHealth() {
   // whichever parents survived the filter, so the cards still agree with what's on screen.
   renderHealthKpis(H_VIEW === 'parent' ? rows.flatMap(g => g.kids) : rows, brands);
   hMetaRender(brands, H_VIEW === 'parent' ? 'Parent ASINs' : 'Child listings');
+  // ✨ Fix these first (listing-ai.js): the best 10 of the top 20 Critical / Important listings — only when AI is set up, only on a click
+  if (typeof aiOn === 'function' && aiOn() && $('hMeta').firstChild && $('hMeta').firstChild.insertAdjacentHTML) $('hMeta').firstChild.insertAdjacentHTML('beforeend', ' ' + aiBtnHtml('fix_first', brands[0] || 'SP', '', { use: 'read', brands, label: 'Fix these first', place: 'after' }));
   if (H_MOVED && $('hMeta').firstChild && $('hMeta').firstChild.insertAdjacentHTML) {
     $('hMeta').firstChild.insertAdjacentHTML('beforeend', ' <button type="button" class="ls-more lh-resort" data-h-resort="1" title="New answers would put the listings in another order; the table keeps its order until you press this">Sort again</button>');
   }
@@ -14900,7 +14968,8 @@ function lrAllowRender(cfg) {
       <span class="muted">Words that need proof or a certificate (the same Guard screen, amber). A listing that holds the certificate is marked "Allowed on purpose" there.</span></div>
     <div class="lr-allow-row"><span class="muted">Always, at any length, the same meaning is never an error: upper / lower case, singular / plural, Grey / Gray, Colour / Color,
       Tablecloth / Table Cloth / Table-Cloth, Pillow Cover / Cushion Cover, Block Print / Block-Print / Blockprint / Block Printed / Hand Block Printed, hyphens, commas,
-      "|" and extra spaces. Siblings' sizes compare by meaning: "18x18" = "18 x 18" = "18×18".</span></div>`;
+      "|" and extra spaces. Siblings' sizes compare by meaning: "18x18" = "18 x 18" = "18×18".</span></div>`
+    + (typeof aiOn === 'function' && aiOn() && typeof aiStyleSectionHtml === 'function' ? aiStyleSectionHtml() : '');      // ✨ AI house style (listing-ai.js): shown only when AI is set up
 }
 
 // Draw the current view (issues / titles / season) into lrTable, with live counts from the listings snapshot.
@@ -14978,7 +15047,7 @@ function renderLrules() {
           <td class="num" style="font-weight:700">${rows.length ? off.toLocaleString('en-US') : '—'}</td>
           <td><button class="ghost lr-del" data-lrdel="templates|${i}" title="Delete this template">×</button></td>
         </tr>`;
-      }).join('') + '</tbody>';
+      }).join('') + '</tbody>' + (typeof aiOn === 'function' && aiOn() && typeof aiTplHtml === 'function' ? aiTplHtml(cfg) : '');      // ✨ Draft title template (listing-ai.js)
     lrMsg('Tokens: {brand} {product} {shape} {material} {size} {pattern} {uses} {occasions} {color}. "Must have" lists the tokens a title is checked for, in template order. '
       + '{occasions} is filled only with occasions in season today. Shape comes from the catalog sub-category, size and colour from the catalog row. Type a SKU in "Try a SKU" to see its suggestion.'
       + (LR_CAT.SP && LR_CAT.CPC ? '' : ' · the brand catalogues could not be read, so no title can be suggested yet'));
@@ -17963,7 +18032,7 @@ function liWsKidTableInner(p, bare) {
     const mark = cardK ? (inCard(kid) ? ` is-match is-m-${cardK}` : ' is-other') : '';
     const other = i === firstOther && i > 0 ? `<tr class="li-ws-otherhead"><td colspan="${LI_WS_CHECKS.length + 3}">Other listings</td></tr>` : '';
     return `${other}<tr class="li-ws-kid${kid.counted ? '' : ' is-off'}${mark}"><td><button type="button" class="li-ws-sku" data-li-ws-sku="${lrEsc(key)}" aria-expanded="${open}">${open ? '▾' : '▸'} ${lrEsc(kid.sku)}</button>${kid.lr && kid.lr.lmStale && typeof lmOldHtml === 'function' ? lmOldHtml(kid.brand, kid.sku) : ''}`
-      + `<div class="li-ws-asin">${lrEsc(kid.asin)}</div></td><td>${lrEsc(kid.why)}</td><td class="num">${kid.row.qty == null ? '<span class="li-ws-na">—</span>' : liWsNf(kid.row.qty)}</td>`
+      + `<div class="li-ws-asin">${lrEsc(kid.asin)}</div></td><td>${typeof prOf === 'function' && (kid.found || []).length ? prChipHtml(prKid(kid)) + ' ' : ''}${lrEsc(kid.why)}</td><td class="num">${kid.row.qty == null ? '<span class="li-ws-na">—</span>' : liWsNf(kid.row.qty)}</td>`
       + LI_WS_CHECKS.map(check => `<td>${liWsCell(kid, check, reading)}</td>`).join('') + '</tr>' + (open ? liWsDetail(kid, LI_WS_CHECKS.length + 3) : '');
   }).join('') || `<tr><td colspan="${LI_WS_CHECKS.length + 3}" class="li-ws-na">${step ? 'No listing fails this step now.' : `No ${LI_WS.mode === 'live' ? 'live' : LI_WS.mode === 'off' ? 'not-live' : ''} children.`}</td></tr>`;
   return `${bare ? '' : note + liWsAuditBox(p)}<div class="li-ws-kidbox"><table class="li-ws-kidtable">${head}<tbody>${body}</tbody></table></div>`;
@@ -18069,8 +18138,11 @@ function liWsRender() {
   const redK = k => k === 'amz' || (idx.by[k] || []).some(rule => rule.sev === 'critical');   // a column whose rules can be an Error
   const chipDefs = [{ k: 'all', t: 'All parents', dot: 'brand', n: scoped.length }, { k: 'problems', t: 'Has problems', dot: 'bad', n: scoped.filter(p => p.probN > 0).length }]
     .concat(LI_WS_CHECKS.map(check => ({ k: check.k, t: check.w, dot: redK(check.k) ? 'bad' : 'act', n: scoped.filter(p => p.failN[check.k] > 0).length })).filter(chip => chip.n > 0));
+  // 🔴 / 🟠 / ⚪ (listing-priority.js): the parents with a child of that level that has a problem
+  const prIn = (p, k) => (p.kids || []).some(kid => (kid.found || []).length && prKid(kid) === k);
+  if (typeof prOf === 'function') ['crit', 'imp', 'wait'].forEach(k => { const n = scoped.filter(p => prIn(p, k)).length; if (n) chipDefs.push({ k: 'pr:' + k, t: PR_LEVELS[k].i + ' ' + PR_LEVELS[k].t, dot: k === 'crit' ? 'bad' : k === 'imp' ? 'act' : 'brand', n }); });
   if (!chipDefs.some(chip => chip.k === LI_WS.chip)) LI_WS.chip = 'all';
-  const keep = LI_WS.chip === 'all' ? () => true : LI_WS.chip === 'problems' ? p => p.probN > 0 : p => p.failN[LI_WS.chip] > 0;
+  const keep = LI_WS.chip === 'all' ? () => true : LI_WS.chip === 'problems' ? p => p.probN > 0 : /^pr:/.test(LI_WS.chip) ? p => prIn(p, LI_WS.chip.slice(3)) : p => p.failN[LI_WS.chip] > 0;
   const cardOn = LI_WS.mode !== 'off' && LI_WS_CARD[LI_WS.card] ? LI_WS_CARD[LI_WS.card] : null;
   const keepCard = cardOn ? cardOn.keep : () => true;
   const rows = liWsOrder(scoped.filter(p => (LI_WS.mode !== 'off' || p.offN > 0) && keep(p) && keepCard(p)));
@@ -18309,7 +18381,7 @@ function liWsReconcile(brandsIn) {
  *       brand switch and the search — one row per Error-level problem, as a CSV that opens in Excel / Google Sheets. It only reads:
  *       nothing is saved or sent, so it works on the test site too. ----- */
 const LI_WS_DL_COLS = ['Brand', 'Parent name', 'Parent ASIN', 'SKU', 'ASIN', 'Product', 'Live?', 'Stock (units)', 'Error', 'Details', 'How to fix',
-  'Status', 'Checked on', 'Errors on this listing', 'Amazon link'];
+  'Status', 'Checked on', 'Errors on this listing', 'Amazon link', 'Priority'];
 // The problem in plain words where the rule's own name says it less plainly; every other Error keeps its Listing Rules name.
 const LI_WS_DL_WORDS = { amazon_error: 'Amazon reports an error', amazon_suppressed: 'Suppressed from search', inactive_with_stock: 'Stock but Inactive',
   no_main_image: 'Main picture missing', no_price: 'No price' };
@@ -18343,7 +18415,7 @@ function liWsErrorsCsv(parents, brandPick, now) {
       rows.push({ sort: [BRAND_NAME[kid.brand] || kid.brand, p.name || p.parent, p.parent, kid.sku], cells: [
         BRAND_NAME[kid.brand] || kid.brand, p.name || '', p.parent, kid.sku, kid.asin || '', product, liveWord, row.qty == null ? '' : +row.qty,
         LI_WS_DL_WORDS[hit.detector] || hit.name, hit.detail || '', hit.fix || '', status, at ? day(at) : '', errs.length,
-        kid.asin ? 'https://www.amazon.com/dp/' + kid.asin : ''] });
+        kid.asin ? 'https://www.amazon.com/dp/' + kid.asin : '', typeof prOf === 'function' ? prCsv(prKid(kid)) : ''] });
     });
   });
   rows.sort((a, b) => {
@@ -19238,7 +19310,7 @@ function lkHtml(kid, opts) {
   const bangs = [...new Set(checks.map(c => c.bang).filter(Boolean))];
   const none = !errs.length && !atts.length && !fills.length
     ? `<div class="ls-empty lk-none">${unknown.length || looks.length ? '<b>No problem found so far.</b><br>Some checks have no answer yet — see below.' : '<b>No problem on this listing.</b><br>Every Listing Rule passes.'}</div>` : '';
-  const info = (kid.live ? '' : kid.urgent ? '<div class="lk-info">Not live, but counted as an Error: fix this first.</div>'
+  const info = (typeof prOf === 'function' && (errs.length || atts.length) ? `<div class="lk-info">${prChipHtml(prKid(kid))}</div>` : '') + (kid.live ? '' : kid.urgent ? '<div class="lk-info">Not live, but counted as an Error: fix this first.</div>'
     : '<div class="lk-info">This listing is not live, so its problems are not counted anywhere.</div>')
     + (checking ? '<div class="lk-info">Reading this listing from Amazon now…</div>' : '')
     + (kid.notes && kid.notes.length ? `<div class="lk-info">${lrNotesHtml(kid.notes)}</div>` : '')
@@ -21522,7 +21594,11 @@ function spKidHtml(item, g) {
   else if (b === 'fix') main = `<button type="button" class="sp-main" data-sp-act="fixhand" data-sp-key="${lrEsc(item.key)}">Open in Listing Errors</button><span class="sp-reason">${lrEsc(item.why)}</span>`;
   else if (b === 'reading') main = '<button type="button" class="sp-main" disabled>Reading from Amazon…</button>';
   else main = '<button type="button" class="sp-main" data-sp-act="close-kid">Close</button>';
-  return head + `<div class="sp-side-b">${lead}${spWhereHtml(item)}${changes}</div><div class="sp-bar">${main}</div>`;
+  // ✨ AI (listing-ai.js): a season's Item Highlights for each season on now (never a title: seasons never go into titles) — checked by our rules, sent only on Approve
+  const ai = typeof aiOn === 'function' && aiOn() && item.active.length ? card('sp-ai', '✨ AI', '<p class="ai-row">' + item.active.map(e =>
+    aiBtnHtml('season', item.brand, item.sku, { use: 'send', field: 'hl', season: e.ev.name, swords: typeof lrWords === 'function' ? lrWords(e.ev.words) : [e.ev.name], hlmax: (item.hlInfo || {}).max || '',
+      screen: 'Season planner', label: `AI ${e.ev.name} Item Highlights` })).join(' ') + '</p>') : '';
+  return head + `<div class="sp-side-b">${lead}${spWhereHtml(item)}${changes}${ai}</div><div class="sp-bar">${main}</div>`;
 }
 // Where one season is on this listing now: Item Highlights ✓ / ✕ and the hidden search words ✓ / ✕ — never the title.
 // [{ k: 'hl' | 'kw', st: found | missing | na | checking, text }].
@@ -23053,7 +23129,7 @@ async function sqVerify(job) {
     reply = await baCall({ lfix: 'get', brand: job.brand, sku: job.sku });
     if (typeof lmNoteLive === 'function') lmNoteLive(job.brand, job.sku, 'get', reply);
   }
-  const names = b.limg ? Object.keys(b.set || {}) : (b.patches || []).map(p => String(p.path || '').replace('/attributes/', ''));
+  const names = b.limg ? Object.keys(b.set || {}) : b.lcreate ? Object.keys(b.attributes || {}) : (b.patches || []).map(p => String(p.path || '').replace('/attributes/', ''));
   const err = ((reply && reply.issues) || []).find(issue => /ERROR|^E$/i.test(String(issue.severity || issue.s || ''))
     && (b.limg ? /image|media|MAIN|PT0|SWCH/i.test(String(issue.message || '') + ' ' + (issue.attrs || []).join(' ')) : (issue.attrs || []).some(a => names.includes(a))));
   if (err) {
@@ -23063,6 +23139,8 @@ async function sqVerify(job) {
     job.how = sqHow(job.raw);
     return job.state;
   }
+  // Create Listing (#8): a NEW listing is there when Amazon gives it back with its title; until then Amazon is still working
+  if (b.lcreate) { const at = (reply && reply.attributes) || {}; job.state = reply && (reply.sku || reply.asin) && at.item_name && at.item_name.length ? 'accepted' : 'working'; return job.state; }
   let same;
   if (b.limg) same = names.every(slot => String(((reply && reply.listing) || {})[slot] || '') === String(b.set[slot] || ''));
   else {
@@ -23293,9 +23371,13 @@ function sqLogRows(job, run) {
   return sqChanges(job).map((c, i) => {
     let oldV = c.oldV === undefined ? null : c.oldV;
     if (oldV != null && JSON.stringify(oldV).length > SQ_OLDV_MAX) oldV = null;
-    return { id: `${at}-${job.brand}-${job.sku}-${i}`, kind: 'listing', at, by: sqBy(), name: sqName(sqBy()), approvedBy: sqName(sqBy()), brand: job.brand, sku: job.sku, asin: job.asin || '',
+    // ✨ AI (listing-ai.js): a new value the AI suggested (and the person approved) is marked "AI suggested" in Listing History
+    const ai = typeof aiWasUsed === 'function' && aiWasUsed(job.brand, job.sku, c.new);
+    const row = { id: `${at}-${job.brand}-${job.sku}-${i}`, kind: 'listing', at, by: sqBy(), name: sqName(sqBy()), approvedBy: sqName(sqBy()), brand: job.brand, sku: job.sku, asin: job.asin || '',
       label: sqCut(job.label || '', 120), field: c.field, old: sqCut(c.old, SQ_CUT), new: sqCut(c.new, SQ_CUT), pic: !!c.pic, attr: c.attr || '', api: b.limg ? 'limg' : 'lfix', pt: b.productType || '', oldV,
-      screen: run.opts.screen || '', run: run.at, runTitle: run.opts.title || '', runN: run.jobs.length, result: job.state, why: job.why || '', sub: job.sub || '' };
+      screen: (run.opts.screen || '') + (ai ? ' · AI suggested' : ''), run: run.at, runTitle: run.opts.title || '', runN: run.jobs.length, result: job.state, why: job.why || '', sub: job.sub || '' };
+    if (ai) row.ai = true;
+    return row;
   });
 }
 /** THE ONE LOG FUNCTION. rows: [{ id, kind: 'listing', at, by, name, brand, sku, asin, field, old, new, screen, result, why }]. Written to the
@@ -23569,6 +23651,7 @@ async function kfPreview(items, o) {
   // a child still not known whole after the read (Amazon did not answer): named with its reason, never sent
   run.plans.forEach(p => { if (p.wait) Object.assign(p, { wait: false, why: /whole search terms/.test(p.why) ? 'its whole search terms could not be read from Amazon — try again' : p.why }); });
   run.plans.forEach(p => { if (p.ok) run.sel.add(p.key); });
+  if (typeof aiPreset === 'function') aiPreset('kf', run);          // ✨ AI (listing-ai.js): the IP & Trademark Guard's AI rewrite, as the row's edit
   run.total = 0;
   kfDraw();
   return run.promise;
@@ -23605,7 +23688,8 @@ function kfRowHtml(run, p) {
   const hide = run.q && !find.includes(run.q) ? ' hide' : '';
   if (!p.ok) {
     return `<div class="sp-m-row sq-row kf-row is-held${hide}" data-kf-find="${find}"><b>${kfEsc(p.label || p.sku)}</b><small>${kfEsc(p.sku)}</small>`
-      + `<div class="sq-st">⚠ Not fixed here: ${kfEsc(p.why)}</div></div>`;
+      + `<div class="sq-st">⚠ Not fixed here: ${kfEsc(p.why)}</div>`
+      + (typeof aiOn === 'function' && aiOn() && !/^already within/.test(p.why) ? aiBtnHtml('kw', p.brand, p.sku, { use: 'kf', key: p.key, label: 'AI version' }) : '') + '</div>';
   }
   const text = kfText(run, p);
   const chk = lrKwCheck(text, p.max);
@@ -23615,6 +23699,7 @@ function kfRowHtml(run, p) {
     + `<div class="kf-body"><div class="kf-top"><b>${kfEsc(p.sku)}</b><small>${kfEsc(p.label && p.label !== p.sku ? p.label : '')}</small>`
     + `<span class="kf-bytes"><span class="${p.b0 > p.max ? 'err' : ''}">${kfNf(p.b0)}</span> → <span class="${chk.over ? 'err' : 'ok'}" data-kf-n="${kfEsc(p.key)}">${kfNf(chk.bytes)}</span> bytes</span></div>`
     + `<div class="kf-text">${kfDiffHtml(p)}</div>`
+    + (typeof aiOn === 'function' && aiOn() ? `<div class="ai-rowb">${aiBtnHtml('kw', p.brand, p.sku, { use: 'kf', key: p.key, label: 'AI version' })}</div>` : '')
     + `<details class="kf-ed"${run.edit.has(p.key) ? ' open' : ''}><summary>Edit the new text</summary><textarea data-kf-edit="${kfEsc(p.key)}" rows="3" spellcheck="false">${kfEsc(text)}</textarea></details></div></div>`;
 }
 function kfDraw() {
@@ -24365,7 +24450,7 @@ function ttStartList(brand, skus, o) {
     return row ? { row, hits: r ? r.hits : [], extra: (o.extra && o.extra.get(sku)) || [] } : null;
   }).filter(Boolean);
   if (!rows.length) return null;
-  return ttPreview(brand, rows, { title: o.title || skus.join(', '), parent: o.parent || '' });
+  return ttPreview(brand, rows, Object.assign({ title: o.title || skus.join(', '), parent: o.parent || '' }, o.ai ? { ai: o.ai } : {}));
 }
 
 /* ----- Listing Errors: the card above its list ----- */
@@ -24435,6 +24520,7 @@ async function ttPreview(brand, rows, o) {
   // still not known after the read (Amazon did not answer): named with its reason, never sent
   run.plans.forEach(p => { if (p.wait) Object.assign(p, { wait: false, why: p.why.replace(/^reading (.*) from Amazon first$/, 'its $1 could not be read from Amazon — try again') }); });
   run.plans.forEach(p => { if (p.ok) run.sel.add(p.key); });
+  if (typeof aiPreset === 'function') aiPreset('tt', run);          // ✨ AI (listing-ai.js): the IP & Trademark Guard's AI rewrite, as the row's edit
   run.total = 0;
   ttDraw();
   return run.promise;
@@ -24492,7 +24578,8 @@ function ttRowHtml(run, p) {
     return `<div class="sp-m-row sq-row kf-row tt-row is-held${hide}" data-kf-find="${find}"><div class="kf-top"><b>${ttEsc(p.sku)}</b><small>${ttEsc(p.label && p.label !== p.sku ? p.label : '')}</small></div>`
       + `<div class="tt-old">${ttEsc(p.before)}</div>${p.after && p.after !== p.before ? `<div class="tt-new">${ttEsc(p.after)}</div>` : ''}`
       + `<div class="sq-st">⚠ Held back: ${ttEsc(p.why)}</div>`
-      + `<button type="button" class="sp-btn sp-small" data-tt="hand" data-tt-sku="${ttEsc(p.sku)}">Edit by hand in Listing Errors</button></div>`;
+      + `<button type="button" class="sp-btn sp-small" data-tt="hand" data-tt-sku="${ttEsc(p.sku)}">Edit by hand in Listing Errors</button>`
+      + (typeof aiOn === 'function' && aiOn() ? ' ' + aiBtnHtml('title', p.brand, p.sku, { use: 'tt', key: p.key, label: 'AI version' }) : '') + '</div>';
   }
   const text = ttText(run, p);
   const chk = ttRunCheck(run, p);
@@ -24506,6 +24593,7 @@ function ttRowHtml(run, p) {
     + `<div class="tt-new"><small>New</small> <span data-tt-new="${ttEsc(p.key)}">${ttMark(text, d.added || [], 'tt-add')}</span></div>`
     + `<div class="tt-fix">Fixes: ${ttEsc(p.fixes.join(' · '))}${ttSrcLine(p) ? ` <span class="muted">· ${ttEsc(ttSrcLine(p))}</span>` : ''}${p.notes.length ? ` <span class="tt-note">· ${ttEsc(p.notes.join(' · '))}</span>` : ''}</div>`
     + `<div class="tt-chk${chk.pass ? '' : ' is-bad'}" data-tt-chk="${ttEsc(p.key)}">${chk.pass ? '✓ Passes every title rule' : '✕ ' + ttEsc(chk.fails.join(' · '))}</div>`
+    + (typeof aiOn === 'function' && aiOn() ? `<div class="ai-rowb">${aiBtnHtml('title', p.brand, p.sku, { use: 'tt', key: p.key, label: 'AI version' })}</div>` : '')
     + `<details class="kf-ed"${run.edit.has(p.key) ? ' open' : ''}><summary>Edit new title</summary><textarea data-tt-edit="${ttEsc(p.key)}" rows="2" spellcheck="false">${ttEsc(text)}</textarea></details></div></div>`;
 }
 function ttDraw() {
@@ -24858,7 +24946,9 @@ function lhRowHtml(row, child) {
   const busy = LH.busy.has(row.id);
   const canBack = row.oldV != null && row.attr && (row.api === 'limg' || row.pt) && row.result !== 'notsent';
   const acts = (row.result === 'working' || row.result === 'sent' ? `<button type="button" class="ghost lh-b" data-lh="again" data-lh-id="${lhEsc(row.id)}"${busy ? ' disabled' : ''}>${busy ? 'Reading…' : 'Check again'}</button>` : '')
-    + `<button type="button" class="ghost lh-b" data-lh="back" data-lh-id="${lhEsc(row.id)}"${canBack ? '' : ' disabled title="The old value was not kept for this change"'}>Put back</button>`;
+    + `<button type="button" class="ghost lh-b" data-lh="back" data-lh-id="${lhEsc(row.id)}"${canBack ? '' : ' disabled title="The old value was not kept for this change"'}>Put back</button>`
+    // ✨ Did this change work? (listing-ai.js): a change older than 14 days, 14 days before vs after from the weekly store
+    + (typeof aiOn === 'function' && aiOn() && row.asin && row.at && Date.now() - row.at > 14 * 86400000 && row.result === 'accepted' ? aiBtnHtml('change_result', row.brand, row.sku, { use: 'read', place: 'row', asin: row.asin, at: row.at, fieldName: row.field, label: 'Did this change work?' }) : '');
   return `<tr class="lh-row${child ? ' is-child' : ''} is-${lhEsc(row.result)}" data-lh-row="${lhEsc(row.id)}"><td class="lh-when">${lhWhen(row.at)}</td><td>${lhEsc(row.name)}</td>`
     + `<td class="lh-listing"><b>${lhEsc(row.label || row.sku)}</b><small>${lhEsc(row.sku)}${row.asin ? ' · ' + lhEsc(row.asin) : ''}</small>${asin}</td>`
     + `<td>${lhEsc(lhWhat(row))}</td><td class="lh-change">${change}</td><td>${lhEsc(lhScreen(row))}</td><td>${lhEsc(row.approvedBy || row.name)}</td>`
@@ -26134,7 +26224,12 @@ function bsrPanelDraw() {
       : '<p class="muted" style="font-size:12px;margin:4px 0">Not known: these weeks\' snapshots did not keep each child\'s rank (snapshots taken from now on do).</p>')
     + `<div class="bs-sec">${bsrEsc(label.charAt(0).toUpperCase() + label.slice(1))} — last ${points.length} weeks</div>${bsrChartSvg(points, label)}`
     + `<div class="bs-links"><button type="button" class="ghost im-b" data-bs="ws">Open in Workspace</button><button type="button" class="ghost im-b" data-bs="img">Image Manager</button>`
-    + `<button type="button" class="ghost im-b" data-bs="lerr">Listing Errors</button><button type="button" class="ghost im-b" data-bs="lhist">Listing History</button></div>`;
+    + `<button type="button" class="ghost im-b" data-bs="lerr">Listing Errors</button><button type="button" class="ghost im-b" data-bs="lhist">Listing History</button>`
+    // ✨ Why did rank change? (listing-ai.js): week A vs B, the facts above (Listing History, price, stock, ads) — only what the panel knows
+    + (typeof aiOn === 'function' && aiOn() ? aiBtnHtml('bsr_why', brand, '', { use: 'read', label: 'Why did rank change?', d: { parent, title: String(row.title || '').slice(0, 100), kind: row.kind, cat: row.cat || '',
+      weekA: { week: wA, rank: row.entryA ? (row.kind === 'sub' ? row.entryA.sub : row.entryA.rank) || null : null }, weekB: { week: wB, rank: row.entryB ? (row.kind === 'sub' ? row.entryB.sub : row.entryB.rank) || null : null },
+      changes: (row.decision.facts || []).map(fact => fact.txt).slice(0, 12), notKnown: bsrUnknown(row.facts), action: row.action || '',
+      kids: kids.slice(0, 12).map(kid => ({ sku: kid.sku || kid.asin, weekB: kid.b || null, weekA: kid.a || null })) } }) : '') + '</div>';
   box.hidden = false;
 }
 // The child SKUs of a parent (for the links that open other screens on them).
@@ -27064,7 +27159,7 @@ function fcOpenLerr(brand, skus) {
 }
 
 /* ----- the CSV: the red problems only ----- */
-const FC_CSV_COLS = ['Brand', 'Family', 'Parent SKU', 'Parent ASIN', 'SKU', 'ASIN', 'Amazon values', 'Stock', 'Problem', 'Source', 'Read at', 'Suggested fix'];
+const FC_CSV_COLS = ['Brand', 'Family', 'Parent SKU', 'Parent ASIN', 'SKU', 'ASIN', 'Amazon values', 'Stock', 'Problem', 'Source', 'Read at', 'Suggested fix', 'Priority'];
 function fcCsv(v) {
   const q = val => { const s = String(val == null ? '' : val); return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
   const two = n => String(n).padStart(2, '0');
@@ -27072,7 +27167,7 @@ function fcCsv(v) {
   const lines = [];
   fcGroups(v).forEach(g => g.rows.forEach(r => r.probs.filter(p => p.sev === 'r').forEach(p => {
     lines.push([fcBrandName(r.c.brand), g.f.name, g.f.psku, g.f.pa, (r.c.skus || [r.c.sku]).join(' / '), r.c.asin, r.c.amz && r.c.amz.vals ? fcValsText(r.c.amz.vals, r.c.tattrs) : '', r.c.stock, p.text, p.src || '', stamp(p.at),
-      (p.fix.kind === 'hand' ? 'Fix by hand: ' : '') + p.fix.text].map(q).join(','));
+      (p.fix.kind === 'hand' ? 'Fix by hand: ' : '') + p.fix.text, typeof prOf === 'function' ? prCsv(prFc(r)) : ''].map(q).join(','));
   })));
   return { n: lines.length, text: '﻿' + [FC_CSV_COLS.join(',')].concat(lines).join('\r\n') + '\r\n' };
 }
@@ -27283,7 +27378,7 @@ function fcRowHtml(r) {
   const amz = c.asin ? `<a href="https://www.amazon.com/dp/${fcEsc(c.asin)}" target="_blank" rel="noopener">${fcEsc(c.asin)}</a>` : '—';
   const vals = c.amz && c.amz.vals && c.tattrs ? fcEsc(fcValsText(c.amz.vals, c.tattrs)) : c.amz && !c.amz.nf ? '<span class="fc-none">—</span>' : '<span class="fc-none">not read</span>';
   const sug = probs.map(p => p.sug).filter(Boolean)[0];
-  return `<tr class="fc-row${orphan ? ' is-orphan' : ''}${FC.sel.has(key) ? ' is-sel' : ''}"><td class="fc-tk">${tick}</td><td class="fc-sku"><b>${fcEsc(c.sku)}</b>${typeof lmOldHtml === 'function' ? lmOldHtml(c.brand, c.sku) : ''}${fcSkusHtml(c)}<small>${fcEsc(String(c.title || '').slice(0, 70))}</small></td><td class="ui-mono">${amz}</td>`
+  return `<tr class="fc-row${orphan ? ' is-orphan' : ''}${FC.sel.has(key) ? ' is-sel' : ''}"><td class="fc-tk">${tick}</td><td class="fc-sku"><b>${fcEsc(c.sku)}</b>${typeof prOf === 'function' && probs.length ? ' ' + prChipHtml(prFc(r), 'fc-chip') : ''}${typeof lmOldHtml === 'function' ? lmOldHtml(c.brand, c.sku) : ''}${fcSkusHtml(c)}<small>${fcEsc(String(c.title || '').slice(0, 70))}</small></td><td class="ui-mono">${amz}</td>`
     + `<td class="fc-vals">${vals}</td><td class="num">${fcNf(c.stock)}</td>`
     + `<td class="fc-prob">${probs.map(p => `<div class="fc-p is-${p.sev}">${fcEsc(p.text)}</div>${fcSrcHtml(p)}`).join('')}</td>`
     + `<td class="fc-fix">${sug ? `<div><b>Suggested family:</b> ${fcEsc(sug)}</div>` : ''}${probs.map(p => (p.fix.text ? `<div>${p.fix.kind === 'hand' ? '<b>Fix by hand:</b> ' : ''}${fcEsc(p.fix.text)}</div>` : '')).join('')}${FC.note[key] ? `<div class="fc-note">${fcEsc(FC.note[key])}</div>` : ''}</td>`
@@ -27768,7 +27863,7 @@ function ccGroups(view, f) {
   const filter = f === undefined ? CC.f : f;
   return view.groups.filter(g => CC.brand === 'ALL' || g.f.brand === CC.brand).map(g => {
     const famHit = q && (fcNorm(g.f.name).includes(q) || fcNorm(g.f.psku).includes(q) || fcNorm(g.f.pa).includes(q) || (g.main && fcNorm(g.main.full).includes(q)));
-    const rows = g.rows.filter(r => ccRowIn(r, filter) && (!q || famHit || (r.c.skus || [r.c.sku]).some(x => fcNorm(x).includes(q)) || fcNorm(r.c.asin).includes(q)
+    const rows = g.rows.filter(r => ccRowIn(r, filter) && (f !== undefined || !(typeof prOf === 'function') || prKeep('cc', prCc(r))) && (!q || famHit || (r.c.skus || [r.c.sku]).some(x => fcNorm(x).includes(q)) || fcNorm(r.c.asin).includes(q)
       || fcNorm(r.info.full).includes(q) || fcNorm(ccBsr(r.info)).includes(q)));
     return rows.length ? { f: g.f, main: g.main, catState: g.catState, all: g.rows, rows } : null;
   }).filter(Boolean);
@@ -27818,7 +27913,8 @@ function ccRowHtml(r) {
   let prob, acts = '';
   if (r.probs.length) {
     prob = r.probs.map(p => `<div class="fc-p is-${CC_SEV[p.k]}">${fcEsc(p.text)}</div><small class="cc-hint"><b>What to do:</b> ${fcEsc(p.hint)}</small>`).join('');
-    acts = `<button type="button" class="ghost fc-b" data-cc="ok" ${a}>Correct on purpose</button>`;
+    acts = `<button type="button" class="ghost fc-b" data-cc="ok" ${a}>Correct on purpose</button>`
+      + (typeof aiOn === 'function' && aiOn() ? aiBtnHtml('category_suggest', c.brand, c.sku, { use: 'read', place: 'row', label: 'Suggest the right category' }) : '');      // ✨ (listing-ai.js): one of the categories Sellora reads
   } else if (r.marked) {
     prob = `<span class="fc-chip is-g cc-marked">Correct on purpose</span>` + (CC.f === 'ok' ? r.okProbs.map(p => `<div class="fc-p is-g">${fcEsc(p.text)}</div>`).join('')
       + `<small class="cc-hint">Marked by ${fcEsc(r.marked.name || fcName(r.marked.by))}${r.marked.at ? ' · ' + fcEsc(fcWhen(r.marked.at)) : ''}</small>` : '');
@@ -27828,7 +27924,7 @@ function ccRowHtml(r) {
   // the red bar down the side: an error row; a row with only a Rank mismatch (a check) gets the amber one
   const bar = r.probs.some(p => CC_SEV[p.k] === 'r') ? ' is-orphan' : r.probs.length ? ' cc-chk' : '';
   return `<tr class="fc-row${bar}${CC.sel.has(r.key) ? ' is-sel' : ''}"><td class="fc-tk">${tick}</td><td class="cc-pc">${ccPicHtml(i)}</td>`
-    + `<td class="fc-sku"><b>${fcEsc(c.sku)}</b>${typeof lmOldHtml === 'function' ? lmOldHtml(c.brand, c.sku) : ''}<small>${fcEsc(String(c.title || '').slice(0, 70))}</small></td>`
+    + `<td class="fc-sku"><b>${fcEsc(c.sku)}</b>${typeof prOf === 'function' && r.probs.length ? ' ' + prChipHtml(prCc(r), 'fc-chip') : ''}${typeof lmOldHtml === 'function' ? lmOldHtml(c.brand, c.sku) : ''}<small>${fcEsc(String(c.title || '').slice(0, 70))}</small></td>`
     + `<td class="ui-mono">${amz}</td><td class="cc-cat">${ccCatHtml(i)}</td><td class="cc-bsr">${bsr ? fcEsc(bsr) : '<span class="fc-none">no rank</span>'}</td>`
     + `<td class="fc-prob cc-prob">${prob}</td><td class="fc-acts">${acts}</td></tr>`;
 }
@@ -27879,7 +27975,7 @@ function ccBodyHtml(view) {
   const cards = CC_KINDS.map(k => box(k.k, k.t, counts[k.k], k.sev === 'r' ? 'error' : 'check', ' is-' + k.sev, k.tip)).join('')
     + box('ok', 'Correct on purpose', okN, 'hidden', ' is-g', 'Children the team marked as in the right place on purpose: they never show as errors.');
   const chip = (k, t, n) => `<button type="button" class="cc-fchip${CC.f === k ? ' is-on' : ''}" data-cc="chip" data-cc-v="${k}" aria-pressed="${CC.f === k}">${fcEsc(t)}${n == null ? '' : ` <b>${fcNf(n)}</b>`}</button>`;
-  const chips = `<div class="cc-chips" role="group" aria-label="Show">${chip('', 'All')}${CC_KINDS.map(k => chip(k.k, k.t, counts[k.k])).join('')}${chip('ok', 'Correct on purpose', okN)}</div>`;
+  const chips = `<div class="cc-chips" role="group" aria-label="Show">${chip('', 'All')}${CC_KINDS.map(k => chip(k.k, k.t, counts[k.k])).join('')}${chip('ok', 'Correct on purpose', okN)}${typeof prOf === 'function' ? prFilterHtml('cc', (k, label, on) => `<button type="button" class="cc-fchip${on ? ' is-on' : ''}" data-cc="prf" data-cc-v="${k}" aria-pressed="${on}">${label}</button>`) : ''}</div>`;
   const groups = ccGroups(view);
   const shown = groups.slice(0, CC.limit);
   const more = groups.length - shown.length;
@@ -27954,14 +28050,14 @@ function ccToggle(fk, el) {
 }
 
 /* ----- the CSV: what is in view ----- */
-const CC_CSV_COLS = ['Brand', 'Family', 'SKU', 'ASIN', 'Browse path', 'BSR', 'Error', 'What to do'];
+const CC_CSV_COLS = ['Brand', 'Family', 'SKU', 'ASIN', 'Browse path', 'BSR', 'Error', 'What to do', 'Priority'];
 function ccCsv(view) {
   const q = val => { const s = String(val == null ? '' : val); return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
   const lines = [];
   ccGroups(view || ccBuild()).forEach(g => g.rows.forEach(r => {
     const base = [fcBrandName(r.c.brand), g.f.name, (r.c.skus || [r.c.sku]).join(' / '), r.c.asin, r.info.state === 'ok' ? r.info.full : r.info.state === 'none' ? '' : 'Category not read yet', ccBsr(r.info)];
     const probs = r.probs.length ? r.probs : r.marked ? r.okProbs.map(p => ({ text: 'Correct on purpose: ' + p.text, hint: '' })) : [{ text: '', hint: '' }];
-    probs.forEach(p => lines.push(base.concat([p.text, p.hint]).map(q).join(',')));
+    probs.forEach(p => lines.push(base.concat([p.text, p.hint, typeof prOf === 'function' && r.probs.length ? prCsv(prCc(r)) : '']).map(q).join(',')));
   }));
   return { n: lines.length, text: '﻿' + [CC_CSV_COLS.join(',')].concat(lines).join('\r\n') + '\r\n' };
 }
@@ -27998,6 +28094,7 @@ function ccClick(el) {
   const act = el.dataset.cc, v = el.dataset.ccV, brand = el.dataset.ccB, id = el.dataset.ccS;
   if (act === 'f') { CC.f = CC.f === v ? '' : v; CC.limit = CC_STEP; return ccDraw(); }             // a card: press again to clear it
   if (act === 'chip') { CC.f = v || ''; CC.limit = CC_STEP; return ccDraw(); }
+  if (act === 'prf') { prToggle('cc', v); CC.limit = CC_STEP; return ccDraw(); }      // 🔴 / 🟠 / ⚪ (listing-priority.js)
   if (act === 'grp') return ccToggle(v, el);
   if (act === 'openall') { ccGroups(ccBuild()).forEach(g => CC.open.add(g.f.fk)); return ccDraw(); }
   if (act === 'closeall') { CC.open.clear(); return ccDraw(); }
@@ -28348,7 +28445,7 @@ function apcGroups(model, f) {
   const filter = f === undefined ? APC.f : f;
   return model.groups.filter(g => APC.brand === 'ALL' || g.f.brand === APC.brand).map(g => {
     const famHit = q && (fcNorm(g.f.name).includes(q) || fcNorm(g.f.psku).includes(q) || fcNorm(g.f.pa).includes(q));
-    const rows = g.rows.filter(p => apcRowIn(p, filter) && (!q || famHit || apcHit(p, q)));
+    const rows = g.rows.filter(p => apcRowIn(p, filter) && (!q || famHit || apcHit(p, q)) && (f !== undefined || !(typeof prOf === 'function') || prKeep('apc', prApc(p))));
     return rows.length ? { f: g.f, g, all: g.rows, rows } : null;
   }).filter(Boolean);
 }
@@ -28415,12 +28512,13 @@ function apcRowView(p) {
     sales: p.sales, status, doc: d ? d.n || 'unnamed document' : '', type: d ? d.t || '' : '', updated: d && d.u ? apcDate(d.u) : '', reason: p.reasons.join('; '),
     what: p.what, link: c.asin ? 'https://www.amazon.com/dp/' + c.asin : '', time: apcTime(c.brand) };
 }
-const APC_CSV_COLS = ['Brand', 'Family', 'SKU', 'ASIN', 'Stock', '30-day sales', 'A+ status', 'Document name', 'Type', 'Last updated', "Amazon's reason", 'What to do', 'Amazon link', 'Data time'];
+const APC_CSV_COLS = ['Brand', 'Family', 'SKU', 'ASIN', 'Stock', '30-day sales', 'A+ status', 'Document name', 'Type', 'Last updated', "Amazon's reason", 'What to do', 'Amazon link', 'Data time', 'Priority'];
 const apcCsvQ = val => { const s = String(val == null ? '' : val); return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
 /** The products' sheet: the rows on the screen (view, toggle, brand, chip, search), Excel-ready (UTF-8 BOM, CRLF). */
 function apcCsv(model) {
-  const rows = apcShownRows(model || apcBuild()).map(apcRowView);
-  const lines = rows.map(r => [r.brand, r.family, r.sku, r.asin, r.stock, r.sales == null ? '' : (Math.round(r.sales * 100) / 100).toFixed(2), r.status, r.doc, r.type, r.updated, r.reason, r.what, r.link, r.time].map(apcCsvQ).join(','));
+  const shown = apcShownRows(model || apcBuild());
+  const rows = shown.map(apcRowView);
+  const lines = rows.map((r, i) => [r.brand, r.family, r.sku, r.asin, r.stock, r.sales == null ? '' : (Math.round(r.sales * 100) / 100).toFixed(2), r.status, r.doc, r.type, r.updated, r.reason, r.what, r.link, r.time, typeof prOf === 'function' && PR_APC[shown[i].bucket] ? prCsv(prApc(shown[i])) : ''].map(apcCsvQ).join(','));
   return { n: lines.length, rows, text: '﻿' + [APC_CSV_COLS.join(',')].concat(lines).join('\r\n') + '\r\n' };
 }
 /** One document card in words. */
@@ -28502,7 +28600,8 @@ function apcCardsHtml(model, s) {
   const chip = (k, t, n) => `<button type="button" class="cc-fchip${APC.f === k ? ' is-on' : ''}" data-apc="chip" data-apc-v="${k}" aria-pressed="${APC.f === k}">${fcEsc(t)}${n == null ? '' : ` <b>${fcNf(n)}</b>`}</button>`;
   const chips = [chip('', 'All'), chip('fix', 'Fix first', apcCount(model, 'fix'))].concat(['missing', 'rejected', 'draft', 'waiting'].map(k => chip(k, APC_ST[k].t, apcCount(model, k))),
     [chip('stuck', 'Stuck', apcCount(model, 'stuck')), chip('live', 'Live', apcCount(model, 'live')), chip('none', 'No A+ needed', apcCount(model, 'none'))],
-    s.n.unchecked || APC.f === 'unchecked' ? [chip('unchecked', 'Not checked', apcCount(model, 'unchecked'))] : []).join('');
+    s.n.unchecked || APC.f === 'unchecked' ? [chip('unchecked', 'Not checked', apcCount(model, 'unchecked'))] : []).join('')
+    + (typeof prOf === 'function' ? prFilterHtml('apc', (k, label, on) => `<button type="button" class="cc-fchip${on ? ' is-on' : ''}" data-apc="prf" data-apc-v="${k}" aria-pressed="${on}">${label}</button>`) : '');
   return `<div class="fc-boxes">${APC_CARDS.map(box).join('')}</div><div class="cc-chips" role="group" aria-label="Show">${chips}</div>`;
 }
 function apcPicHtml(c) {
@@ -28527,12 +28626,13 @@ function apcRowHtml(p, flat, rank) {
   const pk = p.doc ? fcKey(c.brand, p.doc.k) : '';
   const acts = (canMark ? `<button type="button" class="ghost fc-b" data-apc="ok" ${a} title="This product does not need A+: it leaves the errors for good (Undo brings it back)">No A+ needed</button>` : '')
     + (p.bucket === 'none' ? `<button type="button" class="ghost fc-b" data-apc="undo" ${a}>Undo</button>` : '')
-    + (p.doc ? `<button type="button" class="ghost fc-b" data-apc="prev" data-apc-v="${fcEsc(pk)}" data-apc-at="${fcEsc(p.key)}" title="Reads this one document from Amazon now and shows what is in it">Preview A+</button>` : '');
+    + (p.doc ? `<button type="button" class="ghost fc-b" data-apc="prev" data-apc-v="${fcEsc(pk)}" data-apc-at="${fcEsc(p.key)}" title="Reads this one document from Amazon now and shows what is in it">Preview A+</button>` : '')
+    + ((p.bucket === 'missing' || p.bucket === 'draft') && typeof aiOn === 'function' && aiOn() ? aiBtnHtml('aplus_text', c.brand, c.sku, { use: 'copy', place: 'row', asin: c.asin || '', label: 'Draft A+ text' }) : '');
   const side = APC_ST[p.bucket].cls === 'r' ? ' is-orphan' : APC_ST[p.bucket].cls === 'y' || p.stuck ? ' cc-chk' : '';
   const more = p.docs.length > 1 ? ` <small class="muted" title="${fcEsc(p.docs.map(d => (d.n || 'unnamed') + ' — ' + d.s).join('\n'))}">+${p.docs.length - 1} more</small>` : '';
   const row = `<tr class="fc-row apc-row${side}${APC.sel.has(p.key) ? ' is-sel' : ''}" data-apc-row="${fcEsc(p.key)}"><td class="fc-tk">${flat ? `<small class="muted apc-rank">${rank}</small>` : ''}${tick}</td><td class="cc-pc">${apcPicHtml(c)}</td>`
     + `<td class="fc-sku"><b>${fcEsc(r.sku)}</b>${typeof lmOldHtml === 'function' ? lmOldHtml(c.brand, c.sku) : ''}<small>${fcEsc(flat ? (r.family || String(c.title || '')).slice(0, 70) : String(c.title || '').slice(0, 70))}</small></td>`
-    + `<td class="ui-mono">${amz}</td><td class="apc-st">${apcStatusHtml(p)}</td>`
+    + `<td class="ui-mono">${amz}</td><td class="apc-st">${apcStatusHtml(p)}${typeof prOf === 'function' && PR_APC[p.bucket] ? ' ' + prChipHtml(prApc(p), 'fc-chip') : ''}</td>`
     + `<td class="apc-doc">${p.doc ? fcEsc(r.doc) + more : '<span class="fc-none">—</span>'}</td><td>${r.type ? fcEsc(r.type) : '<span class="fc-none">—</span>'}</td><td class="apc-upd">${r.updated ? fcEsc(r.updated) : '<span class="fc-none">—</span>'}</td>`
     + `<td class="num">${p.sales == null ? '<span class="fc-none">—</span>' : apcMoney(p.sales)}</td>`
     + `<td class="fc-prob apc-what"><div class="apc-do is-${APC_ST[p.bucket].cls}">${fcEsc(r.what)}</div></td>`
@@ -28810,6 +28910,7 @@ function apcClick(el) {
   if (act === 'view') { if (APC.view === v) return null; APC.view = v; APC.f = ''; APC.prevOpen = ''; APC.built = false; return apcDraw(); }
   if (act === 'f') { APC.f = APC.f === v ? '' : v; APC.limit = APC_STEP; APC.flat = APC_FLAT_STEP; return apcDraw(); }      // a card: press again to clear it
   if (act === 'chip') { APC.f = v || ''; APC.limit = APC_STEP; APC.flat = APC_FLAT_STEP; APC.docs = APC_DOC_STEP; return apcDraw(); }
+  if (act === 'prf') { prToggle('apc', v); APC.limit = APC_STEP; APC.flat = APC_FLAT_STEP; return apcDraw(); }      // 🔴 / 🟠 / ⚪ (listing-priority.js)
   if (act === 'grp') return apcToggle(v, el);
   if (act === 'openall') { apcGroups(apcBuild()).forEach(x => APC.open.add(x.f.fk)); APC.limit = APC_STEP_OPEN; return apcDraw(); }
   if (act === 'closeall') { APC.open.clear(); APC.limit = APC_STEP; return apcDraw(); }
@@ -29387,7 +29488,7 @@ function ipgGroups(model, f, o) {
   return model.groups.filter(g => IPG.brand === 'ALL' || g.f.brand === IPG.brand).map(g => {
     const famHit = q && (fcNorm(g.f.name).includes(q) || fcNorm(g.f.psku).includes(q) || fcNorm(g.f.pa).includes(q));
     const inView = g.rows.filter(p => !stock || p.c.live);
-    const rows = inView.filter(p => ipgRowIn(p, filter) && (!q || famHit || ipgHit(p, q)));
+    const rows = inView.filter(p => ipgRowIn(p, filter) && (!q || famHit || ipgHit(p, q)) && (f !== undefined || !(typeof prOf === 'function') || prKeep('ipg', prIpg(p))));
     return rows.length ? { f: g.f, g, inView, rows } : null;
   }).filter(Boolean);
 }
@@ -29444,7 +29545,7 @@ const ipgMarkText = mark => (mark ? `Yes — ${mark.name || fcName(mark.by)}${ma
 function ipgFindView(p, fd) {
   const c = p.c;
   const base = { brand: fcBrandName(c.brand), family: p.g.f.solo ? '' : String(p.g.f.name || ''), sku: fd ? fd.sku : (c.skus || [c.sku]).join(' / '), asin: c.asin || '', stock: c.stock == null ? '' : c.stock,
-    link: c.asin ? 'https://www.amazon.com/dp/' + c.asin : '', time: p.at ? ipgTime(p.at) : 'not read' };
+    link: c.asin ? 'https://www.amazon.com/dp/' + c.asin : '', time: p.at ? ipgTime(p.at) : 'not read', prio: typeof prOf === 'function' && (p.tm || p.claim) ? prCsv(prIpg(p)) : '' };
   if (!fd) return Object.assign(base, { field: '', word: '', type: '', snippet: '', why: '', what: p.bucket === 'unchecked' ? 'Not checked — Sellora holds no Amazon read of this listing yet' : 'Nothing to do — no risky word', allowed: '' });
   return Object.assign(base, { field: fd.label, word: fd.word, type: IPG_TYPE[fd.type].csv, snippet: fd.snip.a + fd.snip.hit + fd.snip.b, why: IPG_TYPE[fd.type].why, what: ipgFindWhat(fd), allowed: ipgMarkText(fd.mark),
     time: fd.at ? ipgTime(fd.at) : base.time });
@@ -29455,12 +29556,12 @@ function ipgShownFinds(model) {
   if (IPG.view === 'word') return ipgCardsShown(model).flatMap(card => card.finds.map(x => ipgFindView(x.p, x.fd)));
   return ipgShownRows(model).flatMap(p => (p.finds.length ? p.finds.map(fd => ipgFindView(p, fd)) : [ipgFindView(p, null)]));
 }
-const IPG_CSV_COLS = ['Brand', 'Family', 'SKU', 'ASIN', 'Stock', 'Field', 'Risky word', 'Type', 'Snippet', 'Why', 'What to do', 'Allowed on purpose', 'Amazon link', 'Data time'];
+const IPG_CSV_COLS = ['Brand', 'Family', 'SKU', 'ASIN', 'Stock', 'Field', 'Risky word', 'Type', 'Snippet', 'Why', 'What to do', 'Allowed on purpose', 'Amazon link', 'Data time', 'Priority'];
 const ipgCsvQ = val => { const s = String(val == null ? '' : val); return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
 /** The sheet: the lines on the screen (view, toggle, brand, chip, search), Excel-ready (UTF-8 BOM, CRLF). */
 function ipgCsv(model) {
   const rows = ipgShownFinds(model || ipgBuild());
-  const lines = rows.map(r => [r.brand, r.family, r.sku, r.asin, r.stock, r.field, r.word, r.type, r.snippet, r.why, r.what, r.allowed, r.link, r.time].map(ipgCsvQ).join(','));
+  const lines = rows.map(r => [r.brand, r.family, r.sku, r.asin, r.stock, r.field, r.word, r.type, r.snippet, r.why, r.what, r.allowed, r.link, r.time, r.prio || ''].map(ipgCsvQ).join(','));
   return { n: lines.length, rows, text: '﻿' + [IPG_CSV_COLS.join(',')].concat(lines).join('\r\n') + '\r\n' };
 }
 function ipgDownload() {
@@ -29577,6 +29678,7 @@ function ipgCardsHtml(model, s) {
   const chips = [chip('', 'All risky', ipgCount(model, '')), chip('tm', 'Trademark', ipgCount(model, 'tm')), chip('claim', 'Claims', ipgCount(model, 'claim'))]
     .concat(IPG_FIELDS.map(k => chip('f:' + k, 'In ' + IPG_FIELD[k].toLowerCase().replace('item highlights', 'Item Highlights'), ipgCount(model, 'f:' + k))),
       [chip('allowed', 'Allowed on purpose', ipgCount(model, 'allowed')), chip('clean', 'Clean', ipgCount(model, 'clean'))],
+      typeof prOf === 'function' ? [prFilterHtml('ipg', (k, label, on) => `<button type="button" class="cc-fchip${on ? ' is-on' : ''}" data-ipg="prf" data-ipg-v="${k}" aria-pressed="${on}">${label}</button>`)] : [],
       s.unchecked || IPG.f === 'unchecked' ? [chip('unchecked', 'Not checked', ipgCount(model, 'unchecked'))] : []).join('');
   return `<div class="fc-boxes">${IPG_CARDS.map(box).join('')}</div><div class="cc-chips" role="group" aria-label="Show">${chips}</div>`;
 }
@@ -29605,7 +29707,9 @@ function ipgFindsHtml(p) {
     const acts = mark ? `<button type="button" class="ghost fc-b" data-ipg="undo" ${a} data-ipg-w="${fcEsc(fd.k)}" title="${mark.fam ? 'The word counts again on every listing of the family' : 'The word counts again on this listing'}">Undo${mark.fam ? ' (whole family)' : ''}</button>`
       : `<button type="button" class="ghost fc-b" data-ipg="ok" ${a} data-ipg-w="${fcEsc(fd.k)}" title="This word is fine on this listing (you hold the right or the proof): it stops counting and no Fix takes it out. Undo brings it back.">Allowed on purpose</button>`
         + (p.g.f.famId ? `<button type="button" class="ghost fc-b" data-ipg="okfam" data-ipg-v="${fcEsc(p.g.f.fk)}" data-ipg-w="${fcEsc(fd.k)}" title="Allowed on every listing of this family, now and later">Allow for the whole family</button>` : '');
-    return `<div class="ipg-w is-${mark ? 'g' : t.cls}"><div class="ipg-wh">${head}</div>${list.map(x => ipgSnipHtml(p, x)).join('')}<div class="ipg-wa">${acts}</div></div>`;
+    // ✨ AI (listing-ai.js): only the sentence with the word, rewritten — then into the existing Fix all popup (title, search terms) or the safe send
+    const ai = !mark && !fd.subClean && typeof aiOn === 'function' && aiOn() ? aiBtnHtml('ip_rewrite', p.c.brand, fd.sku, { use: 'ipg', field: fd.f, word: fd.text || fd.word, wk: fd.word, screen: 'IP & Trademark Guard', label: 'Rewrite without this word' }) : '';
+    return `<div class="ipg-w is-${mark ? 'g' : t.cls}"><div class="ipg-wh">${head}</div>${list.map(x => ipgSnipHtml(p, x)).join('')}<div class="ipg-wa">${acts}${ai}</div></div>`;
   }).join('');
 }
 // The row's own buttons: what each press opens (the existing popups / Listing Errors).
@@ -29624,7 +29728,7 @@ function ipgRowHtml(p) {
   const side = p.bucket === 'tm' ? ' is-orphan' : p.bucket === 'claim' ? ' cc-chk' : '';
   const whats = [...new Set(p.finds.length ? p.finds.map(ipgFindWhat) : [ipgFindView(p, null).what])];
   return `<tr class="fc-row ipg-row${side}" data-ipg-row="${fcEsc(p.key)}"><td class="cc-pc">${ipgPicHtml(c)}</td>`
-    + `<td class="fc-sku"><b>${fcEsc((c.skus || [c.sku]).join(' / '))}</b>${typeof lmOldHtml === 'function' ? lmOldHtml(c.brand, c.sku) : ''}<small>${fcEsc(String(c.title || '').slice(0, 70))}</small></td>`
+    + `<td class="fc-sku"><b>${fcEsc((c.skus || [c.sku]).join(' / '))}</b>${typeof prOf === 'function' && (p.tm || p.claim) ? ' ' + prChipHtml(prIpg(p), 'fc-chip') : ''}${typeof lmOldHtml === 'function' ? lmOldHtml(c.brand, c.sku) : ''}<small>${fcEsc(String(c.title || '').slice(0, 70))}</small></td>`
     + `<td class="ui-mono">${amz}</td><td class="num">${c.stock == null ? '<span class="fc-none">—</span>' : fcNf(c.stock)}</td>`
     + `<td class="ipg-finds">${ipgFindsHtml(p)}</td>`
     + `<td class="fc-prob ipg-what">${whats.map(w => `<div class="ipg-do${/^Nothing to do|^Not checked/.test(w) ? ' is-g' : ''}">${fcEsc(w)}</div>`).join('')}</td>`
@@ -29847,6 +29951,7 @@ function ipgClick(el) {
   if (act === 'view') { if (IPG.view === v) return null; IPG.view = v; IPG.f = ''; IPG.built = false; return ipgDraw(); }
   if (act === 'f') { IPG.f = IPG.f === v ? '' : v; IPG.limit = IPG_STEP; return ipgDraw(); }           // a card: press again to clear it
   if (act === 'chip') { IPG.f = v || ''; IPG.limit = IPG_STEP; IPG.words = IPG_WORD_STEP; return ipgDraw(); }
+  if (act === 'prf') { prToggle('ipg', v); IPG.limit = IPG_STEP; return ipgDraw(); }      // 🔴 / 🟠 / ⚪ (listing-priority.js)
   if (act === 'grp') return ipgToggle(v, el);
   if (act === 'openall') { ipgGroups(model()).forEach(x => IPG.open.add(x.f.fk)); IPG.limit = IPG_STEP_OPEN; return ipgDraw(); }
   if (act === 'closeall') { IPG.open.clear(); IPG.limit = IPG_STEP; return ipgDraw(); }
@@ -29947,6 +30052,1532 @@ function ipReport() {
   return { counts, topWords: top, examples };
 }
 if (typeof window !== 'undefined') window.ipReport = ipReport;
+/* ============================== FILE: src/app/listing/listing-ai.js ============================== */
+/* ================= LISTING · ✨ AI WRITING — the AI buttons and cards of the Listing module (19 Nov 2026) =================
+ * ONE door to the backend's AI: aiAsk(task, brand, sku, opts) → GET ?ai=ask (Pricing-API/ListingAI.gs). Every ✨ button of every
+ * screen uses it — there is no other copy. Tasks: title, bullets, description, kw, season, aplus_text, ip_rewrite, error_explain,
+ * image_check. The backend reads the listing itself (the ListingMatch cache, the Optimiser's search words); only rule words travel in
+ * the address (the protected words, the words to avoid, the template, the season, the risky word, Amazon's issue code).
+ *
+ * WHERE THE BUTTONS ARE (each file draws its button with aiBtnHtml; this file does the rest):
+ *   Listing Errors → Content (listing-content.js)   ✨ AI title / bullets / description / search terms → "Use AI version" fills the box
+ *   Listing Errors → What Amazon says (listing-errors.js)   ✨ Explain this error — a read-only card
+ *   Fix all titles / Fix all search terms popups (title-fix.js, kw-fix.js)   ✨ AI version per row → "Use AI version" puts it in the row
+ *   Listing Optimiser review (listing-optimiser.js)   ✨ AI rewrite of the whole listing (title, bullets, description, search terms)
+ *   Season planner child panel (season-planner.js)   ✨ AI season Item Highlights / season title
+ *   A+ Content rows Missing / Draft (aplus-audit.js)   ✨ Draft A+ text — Copy (A+ is made in Seller Central's A+ Content Manager)
+ *   IP & Trademark Guard finding (ip-guard.js)   ✨ Rewrite without this word → title / search terms into the existing Fix all popup,
+ *                                                bullets / description / Item Highlights through the safe send
+ *   Image Manager editor (image-manager.js)   ✨ Check main photo — a read-only pass / fail card
+ *
+ * THE SAFE FLOW, every change: Claude suggests → OUR rules check it (aiCheck: the protected words of the suggestion-words rule, the IP &
+ * Trademark Guard lists, the title rules — 60–75, the template, the 74–75 short forms — lrKwCheck's 249 bytes, our brand words, the
+ * Listing Content checks): a failed check is red and Approve / Use stays disabled until the text is fixed (the AI text can be edited in
+ * the card) → the person approves → THE ONE SEND PATH (listing-send-check.js sqSendWithCheck: Amazon's check → send → read again →
+ * Listing History, marked "AI suggested" → Put back). Nothing is sent by the AI, nothing runs when a page opens (a click only), and
+ * the buttons are HIDDEN until the backend says it is set up: ONE status call per page load (aiStatusCheck: GET ?ai=ask&task=status,
+ * kept for the browser session) — no key, no route deployed, or "AI not set up yet" = no ✨ button anywhere, every page exactly as before.
+ * Set up, a click that meets the month's limit says so in a calm grey line ("Monthly AI limit reached").
+ * Under each card: "AI used this month: $X of $80".
+ * PART 2 (20 Nov 2026): every writing task sends the APPROVED house style of the listing's product type (&style=, Listing Rules → ✨ AI house
+ * style: the guides the backend learnt, Approve, Learn again) and its card says "Follows: … house style (approved …)" / "No house style yet";
+ * the read-only page tasks — ✨ Fix these first (Listing Health), ✨ Draft title template (Listing Rules), ✨ Why did rank change? (BSR
+ * Audit), ✨ Suggest the right category (Categories), ✨ Did this change work? (Listing History), ✨ Bundle ideas (Bought Together) —
+ * send only the page's numbers, ids and rule names (&d=), never listing text.
+ * Main functions: aiStatusCheck, aiOn, aiAsk, aiBtnHtml, aiCheck, aiOpen, aiCardHtml, aiApprove, aiPreset, aiWasUsed, aiReport. Every name starts with ai / AI. */
+
+const AI_TASKS = ['title', 'bullets', 'description', 'kw', 'season', 'aplus_text', 'ip_rewrite', 'error_explain', 'image_check',
+  'fix_first', 'title_template', 'bsr_why', 'category_suggest', 'change_result', 'bundle_ideas'];             // PART 2: the page tasks
+const AI_STYLED = ['title', 'bullets', 'description', 'kw', 'season', 'aplus_text', 'ip_rewrite', 'title_template'];   // follow an approved house style
+const AI_LIMIT_DEF = 80;
+const AI_SCREEN = { lc: 'Listing Errors', send: 'AI suggestion', tt: 'Titles · Fix all', kf: 'Search terms · Fix all', ipg: 'IP & Trademark Guard' };
+const AI_SALE = /\b(?:black friday|cyber monday|prime day|deals?|sale|discount|offers?|clearance|free shipping)\b|\d+\s*%\s*off\b/i;
+// what a task writes, in words (the card's heading)
+const AI_WHAT = { title: 'title', bullets: 'bullet points', description: 'description', kw: 'search terms', season: 'season text', aplus_text: 'A+ text draft',
+  ip_rewrite: 'rewrite', error_explain: 'explanation', image_check: 'main photo check' };
+// the attribute each field writes, and its name in words
+const AI_ATTR = { title: 'item_name', bullets: 'bullet_point', desc: 'product_description', kw: 'generic_keyword', hl: 'title_differentiation' };
+let AI = { ready: null, status: null, off: false, why: '', month: null, limit: null, memo: new Map(), jobs: new Map(), used: new Map(), calls: 0, n: 0 };
+const AI_SESSION_KEY = 'sellora_ai_ready';     // the status answer, kept for the browser session (sessionStorage)
+const AI_WAIT_API_MS = 120000;                  // how long the status check waits for the backend address (sign-in reads it)
+
+/* ----- is AI set up? ONE cheap status call per page load (no Claude call), kept for the session ----- */
+// true only when the backend said it has the key; until then (and when it is not set up) every ✨ button is hidden.
+const aiOn = () => AI.ready === true;
+function aiSessionGet() { try { const v = JSON.parse(sessionStorage.getItem(AI_SESSION_KEY) || 'null'); return v && typeof v.ready === 'boolean' ? v : null; } catch (e) { return null; } }
+function aiSessionSet(ready) { try { sessionStorage.setItem(AI_SESSION_KEY, JSON.stringify({ ready, at: Date.now() })); } catch (e) { /* private window: asked again next load */ } }
+/** The one status check: GET ?ai=ask&task=status → { ok, ready, monthUsd, limitUsd }. A backend without the route, a failed call or
+ *  ready: false → hidden. Asked once per page load (the session's answer is used when there is one). Returns the promise of AI.ready. */
+function aiStatusCheck() {
+  if (AI.status) return AI.status;
+  const kept = aiSessionGet();
+  if (kept) { AI.ready = kept.ready; if (AI.ready) aiStyleOkLoad(); AI.status = Promise.resolve(AI.ready); return AI.status; }
+  if (typeof API === 'undefined') { AI.ready = false; AI.status = Promise.resolve(false); return AI.status; }   // a page with no backend at all
+  AI.status = (async () => {
+    const t0 = Date.now();
+    while (!(typeof API !== 'undefined' && API && API.url) && Date.now() - t0 < AI_WAIT_API_MS) await new Promise(res => setTimeout(res, 500));
+    if (!(typeof API !== 'undefined' && API && API.url)) { AI.ready = false; return false; }
+    let reply = null;
+    try { reply = await aiGet({ ai: 'ask', task: 'status' }); } catch (e) { reply = null; }
+    AI.ready = !!(reply && reply.ok && reply.ready === true);
+    if (reply && reply.monthUsd != null) AI.month = Number(reply.monthUsd) || 0;
+    if (reply && reply.limitUsd != null) AI.limit = Number(reply.limitUsd) || AI_LIMIT_DEF;
+    if (reply) aiSessionSet(AI.ready);                 // a failed call is not kept: the next page load asks again
+    if (AI.ready) aiStyleOkLoad();                     // the approved house style guides (Listing Rules' own store), once
+    return AI.ready;
+  })();
+  return AI.status;
+}
+
+/* ----- small helpers ----- */
+const aiEsc = s => String(s == null ? '' : s).replace(/[<>&"']/g, ch => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&#39;' }[ch]));
+const aiUsd = n => '$' + (Math.round((Number(n) || 0) * 100) / 100).toFixed(2);
+const aiLine = s => String(s == null ? '' : s).replace(/\s+/g, ' ').trim();
+const aiCfg = () => (typeof LR !== 'undefined' && LR) || (typeof LR_DEFAULT !== 'undefined' ? LR_DEFAULT : {});
+// "AI used this month: $3.20 of $80" — '' until an answer has said it
+const aiUsedLine = () => (AI.month == null ? '' : `AI used this month: ${aiUsd(AI.month)} of ${aiUsd(AI.limit || AI_LIMIT_DEF).replace(/\.00$/, '')}`);
+
+/* ============================================================================================
+ * 1. THE ONE DOOR: aiAsk
+ * ============================================================================================ */
+// One GET to the backend (the key goes as every Sellora GET does). The answer as JSON, whatever it is.
+async function aiGet(params) {
+  if (typeof API === 'undefined' || !API || !API.url) return { ok: false, reason: 'The backend is not configured on this page' };
+  const url = new URL(API.url);
+  url.searchParams.set('key', API.key);
+  Object.entries(params).forEach(([k, v]) => { if (v != null && v !== '') url.searchParams.set(k, v); });
+  const res = await fetch(url, { redirect: 'follow' });
+  const text = await res.text();
+  try { return JSON.parse(text); } catch (e) { return { ok: false, reason: /^\s*</.test(text) ? 'The backend answered with a web page, not data' : 'The backend sent something that is not data' }; }
+}
+/** THE ONE FUNCTION every ✨ button uses. task: one of AI_TASKS. opts: { words, avoid (lists), field, season, word, code, tpl, max, hlmax,
+ *  asin }. → { ok, task, result, why, model, costUsd, monthUsd, limitUsd, cached } or { ok: false, reason }. Never throws. A good answer is
+ *  kept for the page's life (the backend keeps it 6 hours too); a failure is asked again on the next click. */
+async function aiAsk(task, brand, sku, opts) {
+  opts = opts || {};
+  if (!AI_TASKS.includes(task)) return { ok: false, reason: 'Unknown AI task' };
+  const params = { ai: 'ask', task, brand: brand === 'CPC' ? 'CPC' : 'SP' };
+  if (sku) params.sku = String(sku);
+  else if (opts.asin) params.asin = String(opts.asin);
+  const list = v => [...new Set((Array.isArray(v) ? v : []).map(s => aiLine(String(s).replace(/\|/g, ' '))).filter(Boolean))].slice(0, 40).join('|');
+  if (opts.words && opts.words.length) params.words = list(opts.words);
+  if (opts.avoid && opts.avoid.length) params.avoid = list(opts.avoid);
+  ['field', 'season', 'word', 'code', 'tpl', 'max', 'hlmax', 'pt', 'style', 'newsku', 'colour', 'size'].forEach(k => { if (opts[k] != null && opts[k] !== '') params[k] = String(opts[k]).slice(0, 200); });
+  if (opts.d) params.d = (typeof opts.d === 'string' ? opts.d : JSON.stringify(opts.d)).slice(0, 8000);      // a page task's facts: numbers, ids, rule names
+  const key = JSON.stringify(params);
+  if (AI.memo.has(key)) return AI.memo.get(key);
+  AI.calls++;
+  let reply;
+  try { reply = await aiGet(params); } catch (e) { reply = { ok: false, reason: 'Could not reach the backend (' + String((e && e.message) || e).slice(0, 100) + ')' }; }
+  if (!reply || typeof reply !== 'object') reply = { ok: false, reason: 'The backend gave no answer' };
+  // a backend without the AI route answers like the old ASIN lookup: AI is not set up there yet
+  if (!reply.ok && !reply.reason && /No ASIN found/i.test(String(reply.error || ''))) reply.reason = 'AI not set up yet';
+  if (!reply.ok && !reply.reason) reply.reason = String(reply.error || 'The AI request failed');
+  if (reply.monthUsd != null) AI.month = Number(reply.monthUsd) || 0;
+  if (reply.limitUsd != null) AI.limit = Number(reply.limitUsd) || AI_LIMIT_DEF;
+  if (!reply.ok && /not set up yet|limit reached/i.test(reply.reason)) { AI.off = true; AI.why = reply.reason; }
+  if (!reply.ok && /not set up yet/i.test(reply.reason)) { AI.ready = false; aiSessionSet(false); }    // the buttons go away on the next draw
+  if (reply.ok) { AI.off = false; AI.why = ''; AI.memo.set(key, reply); }
+  return reply;
+}
+
+/* ============================================================================================
+ * 2. THE LISTING, AND OUR RULES ON A SUGGESTION
+ * ============================================================================================ */
+/** Everything the checks need about one listing: { brand, sku, asin, pt, ctx, cfg, row, fresh, m, now: { title, bullets, desc, kw, hl },
+ *  facts (the suggestion-words rule's facts), rows (Listing Health is loaded) }. */
+function aiCtx(brand, sku) {
+  let ctx = null;
+  try { ctx = typeof hCtx === 'function' ? hCtx() : null; } catch (e) { ctx = null; }
+  ctx = ctx || { cfg: aiCfg() };
+  const rows = (typeof HEALTH !== 'undefined' && HEALTH[brand] && HEALTH[brand].rows) || [];
+  const row = Object.assign({ brand }, rows.find(r => r.sku === sku) || { sku });
+  let fresh = row;
+  try { if (rows.length && typeof lrFresh === 'function') fresh = Object.assign({ brand }, lrFresh(row, ctx)); } catch (e) { fresh = row; }
+  const m = (typeof lmGet === 'function' && lmGet(sku, brand)) || {};
+  const title = (typeof hTitleText === 'function' ? hTitleText(fresh) : '') || m.t || '';
+  const kw = fresh.kw != null ? String(fresh.kw) : String(m.kw || '');
+  const pt = String(m.pt || fresh.pt || '');
+  let facts = {};
+  try { facts = typeof lrSwFacts === 'function' ? lrSwFacts(fresh, ctx.cfg, m.va || null, { pt, title }) : {}; } catch (e) { facts = {}; }
+  return { brand, sku, asin: row.asin || m.asin || '', pt, ctx, cfg: ctx.cfg || aiCfg(), row, fresh, m, rows: rows.length > 0, facts,
+    now: { title, bullets: (m.bl || []).slice(), desc: String(m.d || ''), kw, hl: (m.hl || []).slice() } };
+}
+/** The protected words of a text (the suggestion-words rule, RULE 1): [{ text, cls, keys }] — each phrase once, as written. */
+function aiProtected(text, mode, facts) {
+  if (!text || typeof lrSuggestWords !== 'function') return [];
+  let r;
+  try { r = lrSuggestWords(String(text), { mode, facts: facts || {} }); } catch (e) { return []; }
+  const out = [], seen = new Set();
+  let cur = null;
+  (r.toks || []).forEach(t => {
+    if (!t.cls || !t.k) { cur = null; return; }
+    if (cur && cur.cls === t.cls) { cur.words.push(t.w); cur.keys.push(t.k); return; }
+    cur = { cls: t.cls, words: [t.w], keys: [t.k] };
+    out.push(cur);
+  });
+  return out.map(p => ({ text: p.words.join(' '), cls: p.cls, keys: p.keys }))
+    .filter(p => { const k = p.keys.join(' '); if (seen.has(k)) return false; seen.add(k); return true; });
+}
+/** The protected phrases a new text leaves out: ['Hand Block Print', …]. A size counts as kept when its numbers are there
+ *  ("54 x 54 Inch" → "54x54 Inch" keeps it). */
+function aiLost(keep, after) {
+  const keys = new Set([...String(after || '').matchAll(/\S+/g)].map(m => (typeof lrSwKey === 'function' ? lrSwKey(m[0].replace(/^[^\p{L}\p{N}%]+|[^\p{L}\p{N}%]+$/gu, '')) : m[0].toLowerCase())).filter(Boolean));
+  const nums = new Set(String(after || '').match(/\d+(?:\.\d+)?/g) || []);
+  const unit = typeof LR_SW_UNIT !== 'undefined' ? LR_SW_UNIT : ['x', 'inch', 'in', 'cm'];
+  return keep.filter(p => {
+    if (p.cls === 'size') return (p.text.match(/\d+(?:\.\d+)?/g) || []).some(n => !nums.has(n));
+    return p.keys.filter(k => !unit.includes(k)).some(k => !keys.has(k));
+  }).map(p => p.text);
+}
+// The risky words (IP & Trademark Guard) in a text, the ones allowed on purpose left out: ['risky word “Pottery Barn” (…)'].
+function aiRisk(c, text) {
+  if (typeof ipgTitleRisk !== 'function' || !text) return [];
+  try { return [...new Set(ipgTitleRisk(c.brand, c.sku, c.fresh, String(text), c.cfg))]; } catch (e) { return []; }
+}
+// The words the backend must not write: every risky word the listing holds now (its title, bullets, description, search terms, Item Highlights).
+function aiAvoid(c) {
+  if (typeof ipgFind !== 'function') return [];
+  const all = [c.now.title, c.now.bullets.join('\n'), c.now.desc, c.now.kw, c.now.hl.join('\n')].join('\n');
+  try { return [...new Set(ipgFind(all, c.cfg).map(x => x.word))].slice(0, 30); } catch (e) { return []; }
+}
+// A sale word in a text ("Black Friday", "deal", "% off"), or ''.
+const aiSaleWord = text => { const m = String(text || '').match(AI_SALE); return m ? m[0] : ''; };
+// Our brand words in a text (search terms must not hold them: Amazon reads the brand field).
+function aiOurBrands(c, text) {
+  if (typeof lrBrandWords !== 'function') return [];
+  let words = [];
+  try { words = lrBrandWords(c.fresh, c.cfg) || []; } catch (e) { words = []; }
+  return words.filter(w => (typeof lrFind === 'function' ? lrFind(String(text), w) >= 0 : String(text).toLowerCase().includes(String(w).toLowerCase())));
+}
+const aiTitleLimits = c => (typeof ttLimits === 'function' ? ttLimits(c.cfg) : { min: 60, max: 75 });
+const aiKwMax = c => (typeof lrKwMax === 'function' ? lrKwMax(c.cfg) : 249);
+
+/** OUR RULES ON A SUGGESTION: { pass, fails: [red, Approve disabled], notes: [amber, to look at] }. field: title | kw | bullets | desc | hl |
+ *  aplus. o: { season (name), seasonWords, hlMax, word (the risky word that must be gone), keep (the protected phrases of the old text) }. */
+function aiCheck(c, field, value, o) {
+  o = o || {};
+  const fails = [], notes = [];
+  const add = (list, s) => { if (s && !list.includes(s)) list.push(s); };
+  const text = Array.isArray(value) ? value.join('\n') : String(value == null ? '' : value);
+  if (!aiLine(text)) return { pass: false, fails: ['the text is empty'], notes };
+  if (field === 'title') {
+    const t = aiLine(text);
+    const lim = aiTitleLimits(c);
+    if (t.length > lim.max) add(fails, `${t.length} characters, over ${lim.max}`);
+    if (lim.min && t.length < lim.min) add(fails, `${t.length} characters, under ${lim.min}`);
+    // every title rule of Fix all titles (template, size format, length, keyword, brand at the start, risky words, Amazon's limits)
+    if (typeof ttCheck === 'function' && c.rows) {
+      try { ttCheck(c.brand, c.row, t, c.ctx).fails.forEach(f => add(fails, f)); } catch (e) { add(notes, 'the title rules could not be run here'); }
+    } else if (typeof lcCheck === 'function') {
+      lcCheck('item_name', [t], { title: t, brand: c.brand, sku: c.sku }).forEach(f => add(f.bad || /Listing Rules|Size/.test(f.msg) ? fails : notes, f.msg));
+    }
+  } else if (field === 'kw') {
+    const t = aiLine(text);
+    const max = aiKwMax(c);
+    const chk = typeof lrKwCheck === 'function' ? lrKwCheck(t, max) : { over: false, bytes: t.length, max };
+    if (chk.over) add(fails, `${chk.bytes} bytes, over ${max}`);
+    const key = w => (typeof lrSwKey === 'function' ? lrSwKey(w) : w.toLowerCase());
+    const words = t.split(/[\s,;]+/).map(w => w.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}%]+$/gu, '')).filter(Boolean);
+    const inTitle = new Set(String(c.now.title).split(/[^\p{L}\p{N}%]+/u).filter(w => w.length > 2).map(key));
+    const dup = [...new Set(words.filter(w => w.length > 2 && inTitle.has(key(w))).map(w => w.toLowerCase()))];
+    if (dup.length) add(fails, `already in the title: ${dup.slice(0, 8).join(', ')}`);
+    const seen = new Map();
+    words.forEach(w => { const k = key(w); if (k && !/^\d/.test(k)) seen.set(k, (seen.get(k) || 0) + 1); });
+    const rep = [...seen.entries()].filter(([, n]) => n > 1).map(([k]) => k);
+    if (rep.length) add(fails, `said twice: ${rep.slice(0, 8).join(', ')}`);
+    if (/\bB0[A-Z0-9]{8}\b/i.test(t)) add(fails, 'holds an ASIN');
+    const ours = aiOurBrands(c, t);
+    if (ours.length) add(fails, `our brand name “${ours[0]}” — Amazon reads the brand field, not search terms`);
+  } else if (field === 'bullets') {
+    const list = (Array.isArray(value) ? value : text.split(/\n+/)).map(aiLine).filter(Boolean);
+    if (typeof lcCheck === 'function') lcCheck('bullet_point', list).forEach(f => add(f.bad || /Listing Rules/.test(f.msg) ? fails : notes, f.msg));
+    if (list.length < 5) add(fails, `${list.length} bullet${list.length === 1 ? '' : 's'} — 5 are asked for`);
+    list.forEach((b, i) => { if (b.length > 500) add(fails, `bullet ${i + 1}: ${b.length} characters — Amazon's limit is 500`); });
+  } else if (field === 'desc') {
+    if (typeof lcCheck === 'function') lcCheck('product_description', [text]).forEach(f => add(f.bad || /Listing Rules/.test(f.msg) ? fails : notes, f.msg));
+    if (text.length > 2000) add(fails, `${text.length} characters — Amazon's limit is 2,000`);
+  } else if (field === 'hl') {
+    const max = +o.hlMax || 125;
+    const t = aiLine(text);
+    if (t.length > max) add(fails, `${t.length} characters, over ${max}`);
+    const sw = (o.seasonWords && o.seasonWords.length ? o.seasonWords : [o.season]).filter(Boolean);
+    if (sw.length && !sw.some(w => (typeof lrHas === 'function' ? lrHas(t, w) : t.toLowerCase().includes(String(w).toLowerCase())))) add(fails, `does not name ${o.season || 'the season'}`);
+    // an out-of-season name (the one season-date rule): never added
+    const cfg = c.cfg || {};
+    const today = new Date();
+    (cfg.events || []).forEach(ev => {
+      try {
+        if (typeof lrSeasonState === 'function' && lrSeasonState(ev, today, cfg.events).expired && typeof lrWords === 'function'
+          && lrWords(ev.words).some(w => lrHas(t, w))) add(fails, `names ${ev.name}, which is out of season now`);
+      } catch (e) { /* the rule could not be read: the person checks */ }
+    });
+  }
+  if (o.season && field === 'title') {
+    const sw = (o.seasonWords && o.seasonWords.length ? o.seasonWords : [o.season]).filter(Boolean);
+    if (!sw.some(w => (typeof lrHas === 'function' ? lrHas(text, w) : text.toLowerCase().includes(String(w).toLowerCase())))) add(fails, `does not name ${o.season}`);
+  }
+  // every field: the protected words of the old text stay (search terms: the ones the title does not already carry)
+  if (o.keep && o.keep.length) {
+    let keep = o.keep;
+    if (field === 'kw') { const tk = new Set(aiProtected(c.now.title, 'title', c.facts).flatMap(p => p.keys)); keep = keep.filter(p => p.keys.some(k => !tk.has(k))); }
+    const lost = aiLost(keep, text);
+    if (lost.length) add(fails, `leaves out a protected word: ${lost.slice(0, 5).map(w => '“' + w + '”').join(', ')}`);
+  }
+  // every field: no other brand's name and no restricted claim (IP & Trademark Guard), no sale word
+  if (field !== 'title' || !(typeof ttCheck === 'function' && c.rows)) aiRisk(c, text).forEach(f => add(fails, f));
+  const sale = aiSaleWord(text);
+  if (sale) add(fails, `sale word “${sale}”`);
+  if (o.word && (typeof ipgKeyOf === 'function' && typeof ipgFind === 'function'
+    ? ipgFind(text, c.cfg).some(x => x.k === ipgKeyOf(o.word)) : text.toLowerCase().includes(String(o.word).toLowerCase()))) add(fails, `still holds “${o.word}”`);
+  return { pass: !fails.length, fails, notes };
+}
+
+/* ============================================================================================
+ * 3. THE BUTTONS (drawn by each screen) AND THE CARDS (drawn here)
+ * ============================================================================================ */
+/** A ✨ button. task: one of AI_TASKS. o: { label, use: lc | tt | kf | send | ipg | copy | read, field, key (a Fix all row), season,
+ *  swords (the season's words), hlmax, word, code, place: row (a table row is added under the button's row) | block (inside the closest
+ *  [data-ai-block]) | after (after the button's parent — the default), screen }. Never makes a call: a click does. */
+function aiBtnHtml(task, brand, sku, o) {
+  if (!aiOn()) return '';                   // AI not set up: no button, the page as it always was
+  o = o || {};
+  const x = {};
+  ['use', 'field', 'key', 'season', 'swords', 'hlmax', 'word', 'wk', 'code', 'place', 'screen', 'asin', 'd', 'pt', 'match', 'product', 'at', 'fieldName', 'brands', 'into'].forEach(k => { if (o[k] != null && o[k] !== '') x[k] = o[k]; });
+  const off = AI.off ? ' is-off' : '';
+  const tip = AI.off ? AI.why : (o.tip || 'Claude suggests; our rules check it; nothing is sent until you approve');
+  return `<button type="button" class="ghost im-b ai-btn${off}" data-ai="${aiEsc(task)}" data-ai-b="${aiEsc(brand)}" data-ai-s="${aiEsc(sku || '')}" data-ai-x="${aiEsc(JSON.stringify(x))}" title="${aiEsc(tip)}">✨ ${aiEsc(o.label || 'AI ' + (AI_WHAT[task] || task))}</button>`;
+}
+// The button's facts back: { task, brand, sku, x }.
+function aiBtnOf(btn) {
+  let x = {};
+  try { x = JSON.parse(btn.dataset.aiX || '{}') || {}; } catch (e) { x = {}; }
+  return { task: btn.dataset.ai, brand: btn.dataset.aiB === 'CPC' ? 'CPC' : 'SP', sku: btn.dataset.aiS || '', x };
+}
+// The field a job writes: title | bullets | desc | kw | hl | aplus | explain | image.
+function aiFieldOf(task, x) {
+  if (AI_PAGE.includes(task)) return 'page';
+  if (task === 'description') return 'desc';
+  if (task === 'season') return x.field === 'title' ? 'title' : 'hl';
+  if (task === 'aplus_text') return 'aplus';
+  if (task === 'error_explain') return 'explain';
+  if (task === 'image_check') return 'image';
+  if (task === 'ip_rewrite') return x.field || 'title';
+  return task;
+}
+// The text of a field now: Listing Content's boxes (what the person sees there), else the freshest data (live read / ListingMatch).
+function aiBefore(c, field, use) {
+  if (use === 'lc' && typeof lcNow === 'function' && typeof LE !== 'undefined' && LE) {
+    try {
+      if (field === 'title') return lcNow('item_name')[0] || '';
+      if (field === 'bullets') return lcNow('bullet_point');
+      if (field === 'desc') return lcNow('product_description').join('\n');
+      if (field === 'kw') return lcNow('generic_keyword').join(' ');
+    } catch (e) { /* the box is not drawn: the cache's text */ }
+  }
+  if (field === 'bullets') return c.now.bullets;
+  if (field === 'hl') return c.now.hl.join(' · ');
+  return field === 'title' ? c.now.title : field === 'desc' ? c.now.desc : field === 'kw' ? c.now.kw : '';
+}
+// The words aiAsk sends (rule words only): protected words, words to avoid, the template order, the limits.
+function aiOptsFor(task, field, c, x, before) {
+  const mode = field === 'kw' ? 'kw' : field === 'hl' ? 'hl' : 'title';
+  const words = aiProtected(field === 'kw' || field === 'title' || field === 'hl' ? (Array.isArray(before) ? before.join(' ') : before) : c.now.title, mode, c.facts).map(p => p.text);
+  const o = { words, avoid: aiAvoid(c), field: task === 'season' || task === 'ip_rewrite' ? x.field : '' };
+  if (field === 'title') {
+    o.max = aiTitleLimits(c).max;
+    try { const tpl = typeof lrTemplateFor === 'function' ? lrTemplateFor(c.row, c.cfg) : null; if (tpl && tpl.template) o.tpl = tpl.template; } catch (e) { /* the backend's default order */ }
+  }
+  if (field === 'kw') o.max = aiKwMax(c);
+  if (task === 'season') { o.season = x.season; o.hlmax = x.hlmax; }
+  if (task === 'ip_rewrite') o.word = x.word;
+  if (task === 'error_explain') o.code = x.code;
+  if (x.asin) o.asin = x.asin;
+  if (AI_STYLED.includes(task)) o.style = aiStyleParam(c.pt);           // the approved house style of its product type, if any
+  return o;
+}
+// Where a card goes: a row under the button's table row, inside its block, or after the button's parent.
+function aiPlace(btn, id, x) {
+  const doc = btn.ownerDocument || document;
+  let host = doc.querySelector(`[data-ai-card="${typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(id) : id}"]`);
+  if (host) return host;
+  const tr = x.place === 'row' && btn.closest ? btn.closest('tr') : null;
+  const div = doc.createElement('div');
+  div.className = 'ai-card';
+  div.dataset.aiCard = id;
+  if (tr && tr.parentNode) {
+    const row = doc.createElement('tr');
+    row.className = 'ai-tr';
+    const td = doc.createElement('td');
+    td.colSpan = tr.children ? tr.children.length : 1;
+    td.appendChild(div);
+    row.appendChild(td);
+    tr.parentNode.insertBefore(row, tr.nextSibling);
+    return div;
+  }
+  // a card at the top of a named box (Bought Together: the report under its toolbar)
+  const into = x.place === 'into' && x.into && doc.getElementById ? doc.getElementById(x.into) : null;
+  if (into) { into.insertBefore(div, into.firstChild || null); return div; }
+  const block = x.place === 'block' && btn.closest ? btn.closest('[data-ai-block]') : null;
+  if (block) { block.appendChild(div); return div; }
+  const after = btn.parentNode;
+  if (after && after.parentNode) after.parentNode.insertBefore(div, after.nextSibling);
+  else if (after) after.appendChild(div);
+  return div;
+}
+
+/** A click on a ✨ button: one aiAsk, then the card — the old text beside the AI's, our checks, the one action. */
+async function aiOpen(btn) {
+  const { task, brand, sku, x } = aiBtnOf(btn);
+  const id = [task, brand, sku, x.field || '', x.key || '', x.season || '', x.word || '', x.code || ''].join('|');
+  const host = aiPlace(btn, id, x);
+  if (AI.jobs.has(id) && AI.jobs.get(id).busy) return null;
+  // not set up yet / the month's limit reached: a calm grey line, no call
+  if (AI.off) { host.innerHTML = aiQuietHtml(AI.why); return null; }
+  const c = aiCtx(brand, sku);
+  const field = aiFieldOf(task, x);
+  const use = x.use || 'send';
+  const job = { id, task, brand, sku, x, use, field, c, busy: true, before: aiBefore(c, field, use) };
+  AI.jobs.set(id, job);
+  host.innerHTML = '<div class="ai-wait muted">✨ Asking the AI… nothing changes on Amazon.</div>';
+  if (btn.disabled !== undefined) btn.disabled = true;
+  const reply = await aiAsk(task, brand, sku, field === 'page' ? aiPageOpts(task, brand, sku, x) : aiOptsFor(task, field, c, x, job.before));
+  if (btn.disabled !== undefined) btn.disabled = false;
+  job.busy = false;
+  job.reply = reply;
+  if (!reply.ok) { host.innerHTML = /not set up|limit reached/i.test(reply.reason) ? aiQuietHtml(reply.reason) : aiFailHtml(job, reply.reason); return reply; }
+  job.text = aiTextOf(job, reply.result || {});
+  job.keep = field === 'aplus' || field === 'explain' || field === 'image' || field === 'page' ? [] : aiProtected(Array.isArray(job.before) ? job.before.join(' ') : job.before,
+    field === 'kw' ? 'kw' : field === 'hl' ? 'hl' : 'title', c.facts);
+  if (field === 'bullets' || field === 'desc') job.keep = [];      // a rewrite of the bullets / description keeps the facts, not each word
+  aiRecheck(job);
+  host.innerHTML = aiCardHtml(job);
+  return reply;
+}
+// The AI's text of a job, in the field's shape (bullets: a list; ip_rewrite of a bullet: the whole list with that bullet rewritten).
+function aiTextOf(job, r) {
+  if (job.task === 'title') return r.title || '';
+  if (job.task === 'bullets') return (r.bullets || []).slice();
+  if (job.task === 'description') return r.description || '';
+  if (job.task === 'kw') return r.kw || '';
+  if (job.task === 'season') return r.text || '';
+  if (job.task === 'aplus_text') return [r.headline].concat((r.blocks || []).map(b => (b.heading ? b.heading + '\n' : '') + b.body)).filter(Boolean).join('\n\n');
+  if (job.task === 'ip_rewrite') {
+    if (job.field === 'bullets') { const list = job.c.now.bullets.slice(); list[r.index || 0] = r.text; return list; }
+    if (job.field === 'hl') { const list = job.c.now.hl.slice(); list[r.index || 0] = r.text; return list.join(' · '); }
+    return r.text || '';
+  }
+  return '';
+}
+// The checks of a job's text as it stands (the card's box may have been edited).
+function aiRecheck(job) {
+  if (job.field === 'explain' || job.field === 'image' || job.field === 'page') { job.chk = { pass: true, fails: [], notes: [] }; return job.chk; }
+  const o = { keep: job.keep, word: job.task === 'ip_rewrite' ? job.x.wk || job.x.word : '', season: job.task === 'season' ? job.x.season : '', seasonWords: job.x.swords || [],
+    hlMax: job.x.hlmax };
+  job.chk = aiCheck(job.c, job.field === 'aplus' ? 'aplus' : job.field, job.text, o);
+  return job.chk;
+}
+const aiQuietHtml = why => `<div class="ai-quiet">✨ ${aiEsc(why || 'AI not set up yet')}${/limit/i.test(why || '') ? ' — the buttons work again next month.' : ' — the buttons start working once the backend has the key.'}${aiUsedLine() ? ` <small>${aiEsc(aiUsedLine())}</small>` : ''}</div>`;
+const aiFailHtml = (job, why) => `<div class="ai-quiet is-bad">✨ ${aiEsc(why)} <button type="button" class="ghost im-b" data-ai-act="close" data-ai-id="${aiEsc(job.id)}">Close</button></div>`;
+// A text for the card, with the words that came in marked (the same diff every suggestion shows).
+function aiMarkHtml(before, after) {
+  const b = Array.isArray(before) ? before.join('\n') : String(before || '');
+  const a = Array.isArray(after) ? after.join('\n') : String(after || '');
+  if (typeof sqWordDiff === 'function' && typeof ttMark === 'function') {
+    try { const d = sqWordDiff(b, a); return ttMark(a, d.added || [], 'tt-add'); } catch (e) { /* plain */ }
+  }
+  return aiEsc(a);
+}
+const aiLen = (field, v) => (field === 'kw' ? `${typeof lrKwBytes === 'function' ? lrKwBytes(String(v || '')) : String(v || '').length} bytes`
+  : field === 'bullets' ? `${(v || []).length} bullets` : `${String(v || '').length} characters`);
+// The action of a card, by where it came from.
+function aiActHtml(job) {
+  const dis = job.chk.pass ? '' : ' disabled';
+  const tip = job.chk.pass ? '' : ` title="${aiEsc('Fix what is red first: ' + job.chk.fails.join(' · '))}"`;
+  if (job.field === 'explain' || job.field === 'image') return '';
+  if (job.field === 'aplus') return `<button type="button" class="sp-main" data-ai-act="copy" data-ai-id="${aiEsc(job.id)}"${dis}${tip}>Copy A+ text</button><span class="muted ai-hint">A+ is made in Seller Central → A+ Content Manager; paste it there.</span>`;
+  if (job.use === 'lc') return `<button type="button" class="sp-main" data-ai-act="use" data-ai-id="${aiEsc(job.id)}"${dis}${tip}>Use AI version</button><span class="muted ai-hint">Fills the box above — Check and Apply as always.</span>`;
+  if (job.use === 'tt' || job.use === 'kf') return `<button type="button" class="sp-main" data-ai-act="use" data-ai-id="${aiEsc(job.id)}"${dis}${tip}>Use AI version</button><span class="muted ai-hint">Puts it in this row — then Check with Amazon &amp; send as always.</span>`;
+  if (job.use === 'ipg' && (job.field === 'title' || job.field === 'kw')) return `<button type="button" class="sp-main" data-ai-act="use" data-ai-id="${aiEsc(job.id)}"${dis}${tip}>Use in Fix all ${job.field === 'kw' ? 'search terms' : 'titles'}</button>`;
+  return `<button type="button" class="sp-main" data-ai-act="approve" data-ai-id="${aiEsc(job.id)}"${dis}${tip}>Approve &amp; send</button><span class="muted ai-hint">Amazon checks it first; you see before → after.</span>`;
+}
+// The checks, as the suggestions show them: ✓ passes / ✕ red reasons, and amber notes.
+const aiChkHtml = chk => `<div class="tt-chk ai-chk${chk.pass ? '' : ' is-bad'}" data-ai-chk>${chk.pass ? '✓ Passes every rule we check' : '✕ ' + aiEsc(chk.fails.join(' · '))}</div>`
+  + (chk.notes.length ? `<div class="ai-note">• ${aiEsc(chk.notes.join(' · '))}</div>` : '');
+/** One card: old and AI side by side, the checks, the action, the cost. */
+function aiCardHtml(job) {
+  const r = (job.reply && job.reply.result) || {};
+  const close = `<button type="button" class="sp-x ai-x" data-ai-act="close" data-ai-id="${aiEsc(job.id)}" aria-label="Close">×</button>`;
+  const cost = job.reply ? [job.reply.cached ? 'kept answer, no cost' : job.reply.costUsd != null ? aiUsd(job.reply.costUsd) + ' this answer' : '', aiUsedLine()].filter(Boolean).join(' · ') : '';
+  const AI_HEAD = { fix_first: 'Fix these first', title_template: 'title template draft', bsr_why: 'why the rank changed', category_suggest: 'category suggestion', change_result: 'did this change work?', bundle_ideas: 'bundle ideas' };
+  const what = AI_HEAD[job.task] || (job.task === 'season' ? (job.x.season || '') + ' ' + (job.field === 'title' ? 'title' : 'Item Highlights') : AI_WHAT[job.task] || job.task);
+  const head = `<div class="ai-h"><b>✨ AI ${aiEsc(what)}</b>${close}</div>`;
+  const styled = AI_STYLED.includes(job.task) ? aiStyleLine(job) + ' · ' : '';      // PART 2: which house style it follows
+  const foot = `<div class="ai-foot muted">${aiEsc(styled)}${job.reply && job.reply.why ? aiEsc(job.reply.why) + ' · ' : ''}${aiEsc(cost)}</div>`;
+  if (job.field === 'page') return head + `<div class="ai-exp">${aiPageCardHtml(job)}</div>` + foot;
+  if (job.field === 'explain') {
+    return head + `<div class="ai-exp"><p>${aiEsc(r.plain)}</p>${r.fix ? `<p><b>Fix:</b> ${aiEsc(r.fix)}</p>` : ''}${r.screen ? `<p class="muted">Where: ${aiEsc(r.screen)}</p>` : ''}</div>` + foot;
+  }
+  if (job.field === 'image') {
+    const line = (ok, t) => `<li class="sp-chk ${ok ? 'is-ok' : 'is-no'}"><i>${ok ? '✓' : '✕'}</i>${aiEsc(t)}</li>`;
+    return head + `<div class="ai-img">${r.image ? `<img src="${aiEsc(r.image)}" alt="Main picture" loading="lazy">` : ''}<div><div class="ai-verdict ${r.pass ? 'is-ok' : 'is-bad'}">${r.pass ? '✓ Main photo passes' : '✕ Main photo needs work'}</div>`
+      + `<ul class="sp-checks">${line(r.white_background, 'White background')}${line(!r.text_or_watermark, 'No text, logo or watermark')}${line(r.fills_frame, `Product fills the frame (about ${Math.round(r.fill_pct || 0)}% — 85% asked)`)}</ul>`
+      + `${r.notes ? `<p class="muted">${aiEsc(r.notes)}</p>` : ''}<p class="muted ai-hint">Read only — nothing changes. Replace the picture in Your stack below if it needs work.</p></div></div>` + foot;
+  }
+  const rows = job.field === 'bullets' ? 7 : job.field === 'desc' || job.field === 'aplus' ? 8 : 2;
+  const val = Array.isArray(job.text) ? job.text.join('\n') : job.text;
+  const oldTxt = Array.isArray(job.before) ? job.before.map((b, i) => `${i + 1}. ${b}`).join('\n') : job.before;
+  const oldCol = job.field === 'aplus' ? '' : `<div class="ai-col"><small>Now · ${aiEsc(aiLen(job.field, job.before))}</small><div class="tt-old ai-txt">${aiEsc(oldTxt) || '<span class="muted">(none)</span>'}</div></div>`;
+  return head + `<div class="ai-ba${job.field === 'aplus' ? ' is-one' : ''}">${oldCol}`
+    + `<div class="ai-col"><small>✨ AI · <span data-ai-n>${aiEsc(aiLen(job.field, job.text))}</span></small><div class="tt-new ai-txt" data-ai-new>${aiMarkHtml(job.before, job.text)}</div>`
+    + `<details class="kf-ed"><summary>Edit the AI text</summary><textarea data-ai-edit="${aiEsc(job.id)}" rows="${rows}" spellcheck="false">${aiEsc(val)}</textarea>${job.field === 'bullets' ? '<small class="muted">One bullet per line.</small>' : ''}</details></div></div>`
+    + `<div data-ai-chks>${aiChkHtml(job.chk)}</div><div class="ai-a">${aiActHtml(job)}</div>` + foot;
+}
+// The card follows an edit of the AI text: its length, its checks, its button (the box being typed in keeps its place).
+function aiEdited(el) {
+  const job = AI.jobs.get(el.dataset.aiEdit);
+  if (!job) return null;
+  const raw = String(el.value || '');
+  job.text = job.field === 'bullets' ? raw.split(/\n+/).map(aiLine).filter(Boolean) : job.field === 'desc' || job.field === 'aplus' ? raw.trim() : aiLine(raw);
+  aiRecheck(job);
+  const card = el.closest ? el.closest('[data-ai-card]') : null;
+  if (!card) return null;
+  const n = card.querySelector('[data-ai-n]');
+  if (n) n.textContent = aiLen(job.field, job.text);
+  const nw = card.querySelector('[data-ai-new]');
+  if (nw) nw.innerHTML = aiMarkHtml(job.before, job.text);
+  const chks = card.querySelector('[data-ai-chks]');
+  if (chks) chks.innerHTML = aiChkHtml(job.chk);
+  const act = card.querySelector('.ai-a');
+  if (act) act.innerHTML = aiActHtml(job);
+  return null;
+}
+
+/* ============================================================================================
+ * 4. THE ACTIONS — into the existing flows, never a send of its own
+ * ============================================================================================ */
+// Remember that this text came from the AI (Listing History marks the send "AI suggested"; listing-send-check.js asks aiWasUsed).
+function aiMarkUsed(brand, sku, value) {
+  const k = brand + '|' + sku;
+  if (!AI.used.has(k)) AI.used.set(k, new Set());
+  const set = AI.used.get(k);
+  (Array.isArray(value) ? [value.join(' · '), ...value] : [value]).forEach(v => { const s = aiLine(v); if (s) set.add(s); });
+}
+/** FOR listing-send-check.js: was this new value one the AI suggested for this listing (as approved, maybe edited in the card)? */
+function aiWasUsed(brand, sku, value) {
+  const set = AI.used.get(brand + '|' + sku);
+  if (!set || !set.size) return false;
+  const v = aiLine(value);
+  return !!v && (set.has(v) || [...set].some(s => s.length > 20 && v.includes(s)));
+}
+// An attribute's values for a patch: [{ value, language_tag }].
+const aiVals = (field, v) => (field === 'bullets' ? v : field === 'hl' ? String(v).split(/\s+·\s+/) : [v]).map(value => ({ value: String(value), language_tag: 'en_US' }));
+/** Approve & send: THE ONE SEND PATH (Amazon's check → send → read again → Listing History "AI suggested" → Put back). */
+function aiApprove(job) {
+  if (!job.chk || !job.chk.pass || typeof sqSendWithCheck !== 'function') return null;
+  const attr = AI_ATTR[job.field];
+  if (!attr) return null;
+  if (!job.c.pt) { aiSay(job, 'The product type of this listing is not known yet — open it in Listing Errors first.'); return null; }
+  const before = job.field === 'bullets' ? job.before : job.field === 'hl' ? job.c.now.hl : [job.before];
+  const oldV = (before || []).filter(v => v !== '').map(value => ({ value: String(value), language_tag: 'en_US' }));
+  const value = aiVals(job.field, job.text);
+  aiMarkUsed(job.brand, job.sku, job.text);
+  const screen = job.x.screen || AI_SCREEN[job.use] || AI_SCREEN.send;
+  const sqv = v => (typeof sqValText === 'function' ? sqValText(v) : v.map(x => x.value).join(' · '));
+  return sqSendWithCheck([{ brand: job.brand, sku: job.sku, asin: job.c.asin, label: job.c.now.title || job.sku,
+    body: { lfix: 'patch', brand: job.brand, sku: job.sku, productType: job.c.pt, patches: [{ op: 'replace', path: '/attributes/' + attr, value }] },
+    changes: [{ field: typeof sqField === 'function' ? sqField(attr) : attr, old: sqv(oldV), new: sqv(value), attr, oldV }] }], {
+    screen, title: `${screen} · ${job.sku}`,
+    onDone: sum => { aiSay(job, typeof sqSummaryText === 'function' ? sqSummaryText(sum) : ''); if (typeof ipgAfterSend === 'function') ipgAfterSend(); } });
+}
+// A line under a card's button.
+function aiSay(job, text) {
+  const card = typeof document !== 'undefined' && document.querySelector ? document.querySelector(`[data-ai-card="${typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(job.id) : job.id}"]`) : null;
+  const a = card && card.querySelector('.ai-a');
+  if (a && text) a.insertAdjacentHTML('beforeend', `<div class="ai-said">${aiEsc(text)}</div>`);
+}
+/** Use AI version: into the screen it came from — Listing Content's box, a Fix all row, or the Fix all popup of IP & Trademark Guard. */
+function aiUse(job) {
+  if (!job.chk || !job.chk.pass) return null;
+  aiMarkUsed(job.brand, job.sku, job.text);
+  if (job.use === 'lc') return aiUseLc(job);
+  if (job.use === 'tt' || job.use === 'kf') return aiUseRow(job.use, job.x.key, job.text);
+  if (job.use === 'ipg') {
+    const ai = new Map([[job.sku, job.text]]);
+    if (job.field === 'title' && typeof ttStartList === 'function') return ttStartList(job.brand, [job.sku], { title: job.sku, parent: '', extra: new Map([[job.sku, [`Risky word: ${job.x.word || ''}`]]]), ai });
+    if (job.field === 'kw' && typeof kfPreview === 'function' && typeof kfItemOf === 'function') {
+      const item = kfItemOf(job.brand, job.c.row, job.c.ctx, null);
+      return kfPreview([item], { title: job.sku, row: 'ipkw', name: 'Risky words in search terms', brand: job.brand, parent: '', ai });
+    }
+  }
+  return null;
+}
+// Listing Content: the AI text into its box, as if typed there (its checks and Check / Apply follow).
+function aiUseLc(job) {
+  if (typeof $ !== 'function') return null;
+  const fire = el => { if (el && typeof el.oninput === 'function') el.oninput(); };
+  if (job.field === 'title' && $('lcTitle')) { $('lcTitle').value = job.text; fire($('lcTitle')); }
+  else if (job.field === 'desc' && $('lcDesc')) { $('lcDesc').value = job.text; fire($('lcDesc')); }
+  else if (job.field === 'kw' && $('lcKw')) { $('lcKw').value = job.text; fire($('lcKw')); }
+  else if (job.field === 'bullets') {
+    const boxes = [...document.querySelectorAll('.lcBullet')];
+    if (typeof LC_EXTRA !== 'undefined' && boxes.length < job.text.length && typeof lcSetVals === 'function') {
+      lcSetVals('bullet_point', job.text);
+      if (typeof leFixRender === 'function') leFixRender();
+      return null;
+    }
+    boxes.forEach((box, i) => { box.value = job.text[i] || ''; });
+    fire(boxes[0]);
+  }
+  aiSay(job, '✓ In the box above — press Check with Amazon, then Apply.');
+  return null;
+}
+/** A Fix all popup's row takes the AI text as its edit (a held row becomes a row to send, if it can be sent). kind: tt | kf. */
+function aiUseRow(kind, key, text) {
+  const run = kind === 'tt' ? (typeof TT !== 'undefined' && TT.run) : (typeof KF !== 'undefined' && KF.run);
+  if (!run || run.closed) return null;
+  const p = run.plans.find(x => x.key === key);
+  if (!p) return null;
+  aiIntoPlan(kind, run, p, text);
+  if (kind === 'tt' && typeof ttDraw === 'function') ttDraw();
+  if (kind === 'kf' && typeof kfDraw === 'function') kfDraw();
+  return null;
+}
+// One plan of a Fix all popup with the AI text in it, ticked.
+function aiIntoPlan(kind, run, p, text) {
+  if (!p.ok) {
+    const m = (typeof lmGet === 'function' && lmGet(p.sku, p.brand)) || {};
+    const pt = p.pt || m.pt || '';
+    if (!pt) return false;
+    if (kind === 'tt') Object.assign(p, { ok: true, pt, oldTitle: p.oldTitle || p.before, fixes: p.fixes || ['AI version'], notes: p.notes || [], src: p.src || {}, dropped: p.dropped || [],
+      lim: p.lim || (typeof ttLimits === 'function' ? ttLimits(run.ctx.cfg) : { max: 75 }), after: p.after || p.before, ai: true });
+    else Object.assign(p, { ok: true, pt, removed: p.removed || [], toks: p.toks || [], ai: true });
+  }
+  run.edit.set(p.key, text);
+  if (run.chk) run.chk.delete(p.key);
+  run.sel.add(p.key);
+  return true;
+}
+/** FOR title-fix.js / kw-fix.js: a popup opened with o.ai (Map sku → AI text) starts with those texts as the rows' edits. */
+function aiPreset(kind, run) {
+  const ai = run && run.o && run.o.ai;
+  if (!ai || !ai.size) return;
+  run.plans.forEach(p => { if (ai.has(p.sku)) { aiIntoPlan(kind, run, p, ai.get(p.sku)); aiMarkUsed(p.brand, p.sku, ai.get(p.sku)); } });
+}
+// Copy the A+ text.
+function aiCopy(job, btn) {
+  if (!job.chk.pass) return null;
+  const text = Array.isArray(job.text) ? job.text.join('\n') : job.text;
+  const done = () => { btn.textContent = 'Copied'; setTimeout(() => { btn.textContent = 'Copy A+ text'; }, 1500); };
+  if (typeof navigator !== 'undefined' && navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, () => aiSay(job, 'The browser would not copy it — select the text in the box instead.'));
+  return null;
+}
+
+/* ----- Listing Optimiser: the whole listing, one click (four answers: title, bullets, description, search terms) ----- */
+/** The Optimiser review's card: one button that asks for all four, each with its own card and its own Approve. */
+function aiOptCardHtml(brand, sku) {
+  if (!sku || !aiOn()) return '';
+  return `<div class="card ai-opt" style="padding:12px 14px;margin-bottom:12px" data-ai-block><div class="sec" style="margin-top:0">✨ AI rewrite</div>`
+    + `<div class="muted" style="font-size:12px;margin-bottom:6px">Claude rewrites the title, bullets, description and search terms from this listing's own facts and the words customers bought through. Our rules check each one; nothing is sent until you approve it.</div>`
+    + `<button type="button" class="ghost im-b ai-btn${AI.off ? ' is-off' : ''}" data-ai-all="${aiEsc(brand)}|${aiEsc(sku)}" title="${aiEsc(AI.off ? AI.why : 'Four AI answers, one after another')}">✨ AI rewrite of the whole listing</button></div>`;
+}
+async function aiOptAll(btn) {
+  const [brand, sku] = String(btn.dataset.aiAll || '').split('|');
+  const tasks = [['title', 'AI title'], ['bullets', 'AI bullets'], ['description', 'AI description'], ['kw', 'AI search terms']];
+  const block = btn.closest ? btn.closest('[data-ai-block]') : null;
+  btn.disabled = true;
+  for (const [task, label] of tasks) {
+    const doc = btn.ownerDocument || document;
+    const holder = doc.createElement('div');
+    holder.className = 'ai-optf';
+    holder.innerHTML = aiBtnHtml(task, brand, sku, { use: 'send', label, place: 'after', screen: 'Listing Optimiser' });
+    if (block) block.appendChild(holder);
+    const b = holder.querySelector('[data-ai]');
+    b.style.display = 'none';
+    const reply = await aiOpen(b);
+    if (reply && !reply.ok && /not set up|limit reached/i.test(reply.reason || '')) break;
+  }
+  btn.disabled = false;
+  return null;
+}
+
+
+/* ============================================================================================
+ * 5. PART 2 (20 Nov 2026) — the house style, and the read-only answers of the Listing pages
+ * ============================================================================================ */
+const AI_PAGE = ['fix_first', 'title_template', 'bsr_why', 'category_suggest', 'change_result', 'bundle_ideas'];
+const AI_STYLE_DOC = 'aistyle';                 // listingrules/aistyle: { items: { PT: { at (the guide's date), approvedAt, by, name } } }
+const AI_DAY = 86400000;
+const AI_DATE = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short' });
+const aiDay = ms => (ms ? AI_DATE.format(new Date(ms)) : '');
+const aiPtWord = pt => String(pt || '').toLowerCase().replace(/_/g, ' ');
+
+/* ----- the house style: approvals (Listing Rules' own store), the guides (the backend's lmAiStyle tab) ----- */
+/** The approved guides, read once (listingrules/aistyle, the store Listing Rules' marks use): AI.styleOk = { PT: { at, approvedAt, name } }. */
+async function aiStyleOkLoad() {
+  if (AI.styleOkP) return AI.styleOkP;
+  AI.styleOkP = (async () => {
+    try { const d = typeof lsGet === 'function' ? await lsGet('listingrules', AI_STYLE_DOC) : null; AI.styleOk = (d && d.items) || {}; } catch (e) { AI.styleOk = {}; }
+    return AI.styleOk;
+  })();
+  return AI.styleOkP;
+}
+// &style= for a writing task: "<PT>@<the approved guide's date>", or '' (no approved guide: the task works as before).
+function aiStyleParam(pt) {
+  const k = String(pt || '').toUpperCase();
+  const ok = AI.styleOk && AI.styleOk[k];
+  return ok && ok.at ? `${k}@${ok.at}` : '';
+}
+// The card's grey line: "Follows: tablecloth house style (approved 20 Nov)" / "No house style yet".
+function aiStyleLine(job) {
+  const st = job.reply && job.reply.style;
+  if (st && st.pt) { const ok = (AI.styleOk || {})[st.pt] || {}; return `Follows: ${aiPtWord(st.pt)} house style (approved ${aiDay(ok.approvedAt || st.at)})`; }
+  return 'No house style yet';
+}
+/** Listing Rules → "AI house style" (shown only when AI is set up): opens to the guides, each with Approve; "Learn again". */
+function aiStyleSectionHtml() {
+  if (!aiOn()) return '';
+  return '<details class="lr-allow-sec ai-style" data-ai-style><summary><b>✨ AI house style</b><span class="muted"> — how our listings are written, learnt from every listing; '
+    + 'only an approved guide is used by the AI suggestions</span></summary><div class="ai-style-b" data-ai-style-b><span class="muted">Open to read the guides.</span></div></details>';
+}
+async function aiStyleLoad(box) {
+  if (!box) return null;
+  box.innerHTML = '<span class="muted">Reading the house style guides…</span>';
+  let reply;
+  try { reply = await aiGet({ ai: 'ask', task: 'style_get' }); } catch (e) { reply = { ok: false, reason: String((e && e.message) || e) }; }
+  await aiStyleOkLoad();
+  AI.styleTab = reply && reply.ok ? reply : null;
+  box.innerHTML = aiStyleBodyHtml(AI.styleTab, reply && !reply.ok ? reply.reason || reply.error : '');
+  return reply;
+}
+function aiStyleBodyHtml(r, err) {
+  if (err) return `<div class="ai-quiet">${aiEsc(err)}</div>`;
+  const tab = (r && r.style) || {};
+  const guides = Object.values(tab.guides || {}).sort((a, b) => (b.n || 0) - (a.n || 0));
+  const L = r && r.learning;
+  const state = L && !L.finished && !L.stopped ? `Learning now: ${L.done} of ${L.of} product types done` : tab.stopped ? aiEsc(tab.stopped)
+    : tab.finishedAt ? `Learnt ${aiDay(tab.finishedAt)} from ${Number(tab.read || 0).toLocaleString('en-US')} listings · ${aiUsd(tab.costUsd || 0)}` : 'Not learnt yet — Umesh runs aiLearnStyle() once in the Apps Script editor';
+  const head = `<div class="ai-style-h"><span class="muted">${state}</span> <button type="button" class="ghost im-b" data-ai-style-act="learn" title="Reads every listing again and writes new draft guides (checked against the month's AI limit first)">Learn again</button></div>`;
+  if (!guides.length) return head;
+  return head + guides.map(g => {
+    const ok = (AI.styleOk || {})[g.pt];
+    const approved = ok && String(ok.at) === String(g.at);
+    const gd = g.guide || {};
+    return `<div class="ai-style-g"><div class="ai-style-gh"><b>${aiEsc(aiPtWord(g.pt))}</b><span class="muted"> · ${Number(g.n || 0).toLocaleString('en-US')} listings read · ${Number(g.good || 0).toLocaleString('en-US')} good examples · ${aiDay(g.at)}</span>`
+      + (approved ? `<span class="fc-chip is-g">Approved ${aiDay(ok.approvedAt)}${ok.name ? ' · ' + aiEsc(ok.name) : ''}</span>`
+        : `<button type="button" class="ghost im-b" data-ai-style-act="ok" data-ai-style-pt="${aiEsc(g.pt)}" data-ai-style-at="${aiEsc(g.at)}">Approve</button>`) + '</div>'
+      + `<ul class="ai-style-l"><li><b>Title:</b> ${aiEsc(gd.title_pattern)} <span class="muted">(${aiEsc(gd.title_length)})</span></li><li><b>Size:</b> ${aiEsc(gd.size_style)}</li>`
+      + `<li><b>Colour, shape, material:</b> ${aiEsc(gd.colour_shape_material)}</li><li><b>Bullets:</b> ${aiEsc((gd.bullets || []).join(' · '))}</li><li><b>Description:</b> ${aiEsc(gd.description)}</li>`
+      + `<li><b>Always:</b> ${aiEsc((gd.always || []).join(', '))} · <b>Never:</b> ${aiEsc((gd.never || []).join(', '))}</li><li><b>Our best titles:</b> ${aiEsc((gd.examples || []).join(' | '))}</li></ul></div>`;
+  }).join('');
+}
+async function aiStyleApprove(pt, at, box) {
+  const by = (typeof ME !== 'undefined' && ME && ME.email) || '';
+  const name = typeof sqName === 'function' ? sqName(by) : by;
+  const item = { at: Number(at), approvedAt: Date.now(), by, name };
+  try { if (typeof lsSave === 'function') await lsSave('listingrules', AI_STYLE_DOC, { items: { [pt]: item } }); } catch (e) { if (box) box.insertAdjacentHTML('beforeend', `<div class="err">Not saved: ${aiEsc(e.message || e)}</div>`); return null; }
+  AI.styleOk = Object.assign({}, AI.styleOk || {}, { [pt]: item });
+  if (box) box.innerHTML = aiStyleBodyHtml(AI.styleTab, '');
+  return item;
+}
+async function aiStyleLearn(box) {
+  const by = (typeof ME !== 'undefined' && ME && ME.email) || '';
+  const r = await aiGet({ ai: 'ask', task: 'learn_style', by });
+  const line = r && r.ok ? (r.running ? 'Already learning — this list follows when it is done.' : `Learning started: ${Number(r.listings || 0).toLocaleString('en-US')} listings, ${r.productTypes} product types, about ${aiUsd(r.estimateUsd)}. It runs on the backend; open this again in a few minutes.`)
+    : (r && (r.reason || r.error)) || 'Could not start';
+  if (box) box.insertAdjacentHTML('afterbegin', `<div class="ai-said">${aiEsc(line)}</div>`);
+  return r;
+}
+
+/* ----- the facts a page task sends (numbers, ids, rule names — never listing text) ----- */
+/** ✨ Fix these first: the top 20 Critical / Important listings (listing-priority.js order) of the brands on screen. */
+function aiFixFirstData(brands) {
+  if (typeof prOf !== 'function') return { items: [] };
+  const list = [];
+  (brands || ['SP', 'CPC']).forEach(b => ((typeof HEALTH !== 'undefined' && HEALTH[b] && HEALTH[b].rows) || []).forEach(row => {
+    const p = prOf(b, row.sku, [], { row });
+    if (p.k === 'crit' || p.k === 'imp') list.push({ b, row, p });
+  }));
+  const top = prSort(list, x => ({ k: x.p.k, asin: x.row.asin, stock: x.p.stock })).slice(0, 20);
+  AI.fixFirst = new Map(top.map(x => [x.row.sku, x]));
+  const words = x => prFound(x.row).filter(h => !h.fill).map(h => h.what || h.name).slice(0, 6);
+  return { salesOld: !!prSalesOld(), items: top.map(x => ({ sku: x.row.sku, level: x.p.k, problems: words(x), stock: x.p.stock, live: x.p.live,
+    sales: typeof apcSales === 'function' && x.row.asin ? apcSales(x.row.asin) : null, sessions: (typeof apcTraffic === 'function' && x.row.asin && apcTraffic(x.row.asin) || {}).s || null })) };
+}
+/** ✨ Suggest the right category: the Amazon categories Sellora already reads for the family (each sibling's browse path and its rank
+ *  categories, with their ids) — the AI may pick only one of these. */
+function aiCatData(brand, sku) {
+  const rows = (typeof HEALTH !== 'undefined' && HEALTH[brand] && HEALTH[brand].rows) || [];
+  const row = rows.find(r => r.sku === sku) || {};
+  const fam = row.parent ? rows.filter(r => r.parent === row.parent) : [row];
+  const opts = new Map();
+  const add = (id, path) => { id = String(id || ''); if (!/^\d{3,20}$/.test(id)) return; const o = opts.get(id) || { id, path: path || '', n: 0 }; o.n++; if (!o.path && path) o.path = path; opts.set(id, o); };
+  fam.forEach(r => {
+    const a = r.asin && typeof lmGetAsin === 'function' ? lmGetAsin(r.asin, brand) : null;
+    if (!a) return;
+    add(a.bcId || (a.bcIds || []).slice(-1)[0], a.bc);
+    (a.rks || []).forEach(x => add(x.id, x.c));
+  });
+  const me = row.asin && typeof lmGetAsin === 'function' ? lmGetAsin(row.asin, brand) : null;
+  const m = (typeof lmGet === 'function' && lmGet(sku, brand)) || {};
+  return { family: row.parent || '', pt: m.pt || '', colour: (m.va || {}).color || '', size: (m.va || {}).size || '',
+    current: me ? { id: me.bcId || '', path: me.bc || '' } : null, options: [...opts.values()].sort((x, y) => y.n - x.n).slice(0, 20) };
+}
+/** ✨ Did this change work?: 14 days (two weekly rows) before the change and after it — sessions, units, conversion — from the weekly store. */
+function aiChangeData(asin, at, field) {
+  const W = typeof WEEKLY !== 'undefined' && WEEKLY && WEEKLY.rows ? WEEKLY.rows[String(asin || '').toUpperCase()] || WEEKLY.rows[asin] : null;
+  const weeks = W && W.weeks ? Object.keys(W.weeks).sort() : [];
+  const ms = w => Date.parse(w) || 0;
+  const done = w => ms(w) + 7 * AI_DAY <= Date.now();
+  const before = weeks.filter(w => ms(w) && ms(w) + 7 * AI_DAY <= at).slice(-2);
+  const after = weeks.filter(w => ms(w) >= at && done(w)).slice(0, 2);
+  const sum = list => { let s = 0, u = 0; list.forEach(w => { const c = W.weeks[w] || {}; s += Number(c.sessions) || 0; u += Number(c.u) || 0; }); return { days: list.length * 7, sessions: s, units: u, conv: s ? Math.round(u * 1000 / s) / 10 : null, weeks: list }; };
+  return { field: field || '', at: new Date(at).toISOString().slice(0, 10), before: sum(before), after: sum(after) };
+}
+/** ✨ Bundle ideas: the Market Basket report on the page — our pairs and the others' products bought with ours (ASINs, SKUs, counts). */
+function aiBundleData() {
+  const r = typeof MB !== 'undefined' ? MB : null;
+  if (!r) return {};
+  return { ours: (r.pairs || []).slice(0, 25).map(p => ({ asin: p.a + '+' + p.b, name: [p.aSku, p.bSku].filter(Boolean).join(' + '), n: p.n || null, share: p.share || null })),
+    others: (r.gaps || []).slice(0, 25).map(g => ({ asin: g.asin, name: (g.with || []).slice(0, 4).map(y => y.sku || y.asin).join(', '), n: g.n || null, share: g.best || null })) };
+}
+
+/* ----- the read-only cards of the page tasks ----- */
+function aiPageCardHtml(job) {
+  const r = (job.reply && job.reply.result) || {};
+  const list = items => (items && items.length ? `<ul class="ai-l">${items.map(x => `<li>${aiEsc(x)}</li>`).join('')}</ul>` : '');
+  if (job.task === 'fix_first') {
+    return `<ol class="ai-ff">${(r.items || []).map(x => { const f = AI.fixFirst && AI.fixFirst.get(x.sku); const k = f ? f.p.k : '';
+      return `<li>${typeof prChipHtml === 'function' && k ? prChipHtml(k) : ''}<b class="ui-mono">${aiEsc(x.sku)}</b> — ${aiEsc(x.line)} <button type="button" class="ghost im-b" data-ai-act="fixopen" data-ai-id="${aiEsc(job.id)}" data-ai-sku="${aiEsc(x.sku)}">Open the fix</button></li>`; }).join('')}</ol>`
+      + `<p class="muted ai-hint">Read only — each button opens the existing fix; nothing is sent from here.${AI.fixFirstOld ? ' Sales data old: ordered by stock.' : ''}</p>`;
+  }
+  if (job.task === 'bsr_why') return `<p>${aiEsc(r.summary)}</p>${list(r.reasons)}${r.missing && r.missing.length ? `<p class="muted"><b>Not known:</b> ${aiEsc(r.missing.join(' · '))}</p>` : ''}`;
+  if (job.task === 'change_result') return `<p class="ai-verdict ${r.verdict === 'better' ? 'is-ok' : r.verdict === 'worse' ? 'is-bad' : ''}">${aiEsc(r.verdict === 'not enough data yet' ? 'Not enough data yet' : r.verdict === 'better' ? '✓ It worked' : r.verdict === 'worse' ? '✕ It got worse' : 'No clear change')}</p><p>${aiEsc(r.line)}</p>`;
+  if (job.task === 'bundle_ideas') {
+    return `${r.pairs && r.pairs.length ? '<p><b>Sell together</b></p><ul class="ai-l">' + r.pairs.map(p => `<li>${aiEsc(p.a)} + ${aiEsc(p.b)} — ${aiEsc(p.why)}</li>`).join('') + '</ul>' : ''}`
+      + `${r.others && r.others.length ? '<p><b>Bought with ours</b></p><ul class="ai-l">' + r.others.map(o => `<li class="ui-mono">${aiEsc(o.asin)} <span>— ${aiEsc(o.why)}</span></li>`).join('') + '</ul>' : ''}<p class="muted ai-hint">Ideas only — nothing changes.</p>`;
+  }
+  if (job.task === 'category_suggest') {
+    return `<p><b>${aiEsc(r.path || r.id)}</b> <span class="muted ui-mono">${aiEsc(r.id)}</span></p><p>${aiEsc(r.reason)}</p>`
+      + `<div class="ai-a"><button type="button" class="sp-main" data-ai-act="catopen" data-ai-id="${aiEsc(job.id)}">Fix it in Listing Errors</button><span class="muted ai-hint">Opens the listing's category there (recommended browse node ${aiEsc(r.id)}); Amazon checks it before it is sent.</span></div>`;
+  }
+  if (job.task === 'title_template') {
+    return `<p class="ui-mono">${aiEsc(r.template)}</p>${r.examples && r.examples.length ? `<p class="muted">From our titles like: ${aiEsc(r.examples.join(' | '))}</p>` : ''}`
+      + `<div class="ai-a"><button type="button" class="sp-main" data-ai-act="tplUse" data-ai-id="${aiEsc(job.id)}">Add as a new template</button><span class="muted ai-hint">Adds a row to the table above — check it, then press Save as always. Nothing is saved by itself.</span></div>`;
+  }
+  return '';
+}
+// The page task's facts at the click (the button keeps only what the click cannot read again).
+function aiPageOpts(task, brand, sku, x) {
+  if (task === 'fix_first') { const d = aiFixFirstData(x.brands || [brand]); AI.fixFirstOld = d.salesOld; return { d }; }
+  if (task === 'category_suggest') return { d: aiCatData(brand, sku) };
+  if (task === 'change_result') return { d: aiChangeData(x.asin, Number(x.at) || 0, x.fieldName) };
+  if (task === 'bundle_ideas') return { d: aiBundleData() };
+  if (task === 'title_template') return { pt: x.pt, style: aiStyleParam(x.pt) };
+  return { d: x.d || {} };
+}
+// A page task's button press: fix_first → the listing's own fix; a category → Listing Errors with that attribute; a template → Listing Rules' table.
+function aiPageAct(act, job, el) {
+  const r = (job.reply && job.reply.result) || {};
+  if (act === 'fixopen') {
+    const f = AI.fixFirst && AI.fixFirst.get(el.dataset.aiSku);
+    if (!f || typeof lrFixOpen !== 'function') return null;
+    const pic = f.p.problems.some(k => /image|main|picture/.test(k));
+    return lrFixOpen(pic ? 'img' : 'lerr', f.b, f.row.sku, []);
+  }
+  if (act === 'catopen' && typeof lrFixOpen === 'function') return lrFixOpen('lerr', job.brand, job.sku, ['recommended_browse_nodes']);
+  if (act === 'tplUse' && r.template && typeof renderLrules === 'function') {
+    const cfg = LR || (LR = JSON.parse(JSON.stringify(LR_DEFAULT)));
+    const parts = (r.template.match(/\{(\w+)\}/g) || []).map(t => t.slice(1, -1)).filter(k => ['brand', 'product', 'size', 'color'].includes(k));
+    cfg.templates.push({ brand: job.brand, match: job.x.match || '', product: job.x.product || '', material: '', pattern: '', uses: '', required: parts.join(','), template: r.template, reference: (r.examples || [])[0] || '' });
+    if (typeof LR_DIRTY !== 'undefined') LR_DIRTY = true;
+    if (typeof H_CTX !== 'undefined') H_CTX = null;
+    renderLrules();
+    return null;
+  }
+  return null;
+}
+/** Bought Together: the ✨ button beside the report's search box (once), when AI is set up. */
+function aiBundleBtn() {
+  if (!aiOn() || typeof $ !== 'function' || !$('mbFilter') || ($('mbAiBtn') && $('mbAiBtn').innerHTML)) return;
+  const host = $('mbAiBtn') || null;
+  const html = aiBtnHtml('bundle_ideas', typeof $('mbBrand') !== 'undefined' && $('mbBrand') && $('mbBrand').value === 'CPC' ? 'CPC' : 'SP', '', { use: 'read', place: 'into', into: 'mbBody', label: 'Bundle ideas' });
+  if (host) host.innerHTML = html; else if ($('mbFilter').insertAdjacentHTML) $('mbFilter').insertAdjacentHTML('afterend', `<span id="mbAiBtn" class="ai-inline">${html}</span>`);
+}
+/** Listing Rules → Title templates: the sub-categories that no template matches, with how many listings, each with ✨ Draft title template. */
+function aiTplHtml(cfg) {
+  if (!aiOn() || typeof HEALTH === 'undefined' || typeof lrTemplateFor !== 'function') return '';
+  const by = new Map();
+  ['SP', 'CPC'].forEach(b => ((HEALTH[b] && HEALTH[b].rows) || []).forEach(row => {
+    const r = row.brand ? row : Object.assign({ brand: b }, row);
+    const cat = (LR_CAT[b] || {})[row.sku];
+    if (!cat || lrTemplateFor(r, cfg)) return;
+    const m = (typeof lmGet === 'function' && lmGet(row.sku, b)) || {};
+    const k = b + '|' + (cat.subcat || '');
+    const g = by.get(k) || { b, subcat: cat.subcat || '', n: 0, pts: new Map() };
+    g.n++;
+    if (m.pt) g.pts.set(m.pt, (g.pts.get(m.pt) || 0) + 1);
+    by.set(k, g);
+  }));
+  const groups = [...by.values()].sort((a, b) => b.n - a.n).slice(0, 12);
+  if (!groups.length) return '';
+  return `<tbody class="ai-tpl"><tr><td colspan="11"><b>✨ No template yet:</b> ${groups.map(g => {
+    const pt = [...g.pts.entries()].sort((a, b) => b[1] - a[1])[0];
+    return `<span class="ai-tpl-g">${aiEsc((typeof BRAND_NAME !== 'undefined' && BRAND_NAME[g.b]) || g.b)} · ${aiEsc(g.subcat || 'no sub-category')} (${g.n.toLocaleString('en-US')} titles) `
+      + (pt ? aiBtnHtml('title_template', g.b, '', { use: 'read', pt: pt[0], match: g.subcat, product: g.subcat, label: 'Draft title template', place: 'after' }) : '<span class="muted">no product type read yet</span>') + '</span>';
+  }).join(' ')}</td></tr></tbody>`;
+}
+
+/* ----- the page's clicks and edits; the one status check ----- */
+if (typeof document !== 'undefined' && document.addEventListener) {
+  aiStatusCheck();
+  document.addEventListener('click', e => {
+    // Listing Rules → ✨ AI house style: opened (its guides are read then), Approve, Learn again
+    const sum = e.target && e.target.closest ? e.target.closest('[data-ai-style] > summary') : null;
+    if (sum) { const det = sum.parentNode; setTimeout(() => { if (det.open && !det.dataset.loaded) { det.dataset.loaded = '1'; aiStyleLoad(det.querySelector('[data-ai-style-b]')); } }, 0); return; }
+    const sa = e.target && e.target.closest ? e.target.closest('[data-ai-style-act]') : null;
+    if (sa) { const box = sa.closest('[data-ai-style-b]'); if (sa.dataset.aiStyleAct === 'ok') aiStyleApprove(sa.dataset.aiStylePt, sa.dataset.aiStyleAt, box); else aiStyleLearn(box); return; }
+    const el = e.target && e.target.closest ? e.target.closest('[data-ai],[data-ai-act],[data-ai-all]') : null;
+    if (!el || el.disabled) return;
+    if (el.dataset.aiAll) { aiOptAll(el); return; }
+    if (el.dataset.ai) { e.preventDefault(); aiOpen(el); return; }
+    const job = AI.jobs.get(el.dataset.aiId);
+    const act = el.dataset.aiAct;
+    if (act === 'close') { const card = el.closest('[data-ai-card]'); const tr = card && card.closest('tr.ai-tr'); (tr || card).remove(); if (job) AI.jobs.delete(job.id); return; }
+    if (!job) return;
+    if (act === 'fixopen' || act === 'catopen' || act === 'tplUse') aiPageAct(act, job, el);
+    else if (act === 'approve') aiApprove(job);
+    else if (act === 'use') aiUse(job);
+    else if (act === 'copy') aiCopy(job, el);
+  });
+  document.addEventListener('input', e => { if (e.target && e.target.dataset && e.target.dataset.aiEdit !== undefined) aiEdited(e.target); });
+}
+
+/** CONSOLE: aiReport() — whether AI answered yet on this page, this month's spend, the calls made, the answers kept, the cards open. */
+function aiReport() {
+  const out = { ready: AI.ready, set: !AI.off, why: AI.why || '', monthUsd: AI.month, limitUsd: AI.limit, callsThisPage: AI.calls, kept: AI.memo.size, cards: AI.jobs.size };
+  if (typeof console !== 'undefined') console.log('AI', out);
+  return out;
+}
+/* ============================== FILE: src/app/listing/listing-priority.js ============================== */
+/* ================= LISTING · PRIORITY — 🔴 Critical · 🟠 Important · ⚪ Can wait (20 Nov 2026) =================
+ * ONE shared rule, no AI (works without the key), the same label on every screen and in every download:
+ *   🔴 Critical — fix today      has stock (or, stock not known, is live) AND one of: an Amazon error, suppressed / hidden from search, no
+ *                                main picture, another brand's name (trademark)
+ *   🟠 Important — this week     has stock (or live) AND one of: A+ missing / draft / rejected, search terms over 249 bytes, the title breaks a
+ *                                company rule, too few pictures, a wrong / mixed / missing category
+ *   ⚪ Can wait                   0 stock / not live, or only "Good to fill" (and every other problem)
+ * A listing's problems: what Listing Health finds for it (its detectors) plus the screen's own (A+ status, a trademark word, a category
+ * problem, the Image Manager's picture problems) — so the label is the listing's, wherever it is shown. It changes NO count and adds no
+ * problem: it only sorts what is already found.
+ * Within a level: the most 30-day sales first (Sellora's sales pull); when the sales are older than 7 days — "sales data old" — the most
+ * stock first. Used by: Listing Health (Why column, the side panel), the Workspace, Listing Errors, the Image Manager, A+ Content, IP &
+ * Trademark Guard, Family & Category Check — their chips, their filters and their downloads ("Priority" column) — and ✨ Fix these first.
+ * Main functions: prLevel, prOf, prChipHtml, prSort, prSalesOld, prFilterHtml, prKeep, prCsv. Every name starts with pr / PR. */
+
+const PR_LEVELS = {
+  crit: { i: '🔴', t: 'Critical', sub: 'fix today', cls: 'is-r', n: 0 },
+  imp: { i: '🟠', t: 'Important', sub: 'this week', cls: 'is-y', n: 1 },
+  wait: { i: '⚪', t: 'Can wait', sub: '', cls: 'is-g', n: 2 },
+};
+// The problems that make a listing with stock Critical / Important. Keys: Listing Health's detectors and each screen's own words.
+const PR_CRIT = new Set(['amazon_error', 'amazon_suppressed', 'no_main_image', 'trademark', 'amzerr', 'sup', 'nomain', 'tm']);
+const PR_IMP = new Set(['aplus_missing', 'aplus_draft', 'aplus_rejected', 'keyword_bytes', 'title_template', 'size_format', 'dimension_order', 'title_length', 'title_keyword',
+  'title_contains', 'variation_naming', 'images_below', 'few', 'wrong_category', 'cat_mixed', 'cat_none', 'cat_rank']);
+let PR = { f: {}, memo: new WeakMap(), memoCtx: null };
+
+/** THE RULE. o: { stock (number, null = not known), live (true / false), problems: [keys] } → 'crit' | 'imp' | 'wait'. */
+function prLevel(o) {
+  o = o || {};
+  const stock = o.stock == null || o.stock === '' ? null : Number(o.stock);
+  const has = stock != null && !isNaN(stock) ? stock > 0 : !!o.live;
+  if (!has) return 'wait';
+  const probs = o.problems || [];
+  if (probs.some(k => PR_CRIT.has(k))) return 'crit';
+  if (probs.some(k => PR_IMP.has(k))) return 'imp';
+  return 'wait';
+}
+// The Listing Health row of a listing, or null.
+function prRow(brand, sku) {
+  const rows = (typeof HEALTH !== 'undefined' && HEALTH[brand] && HEALTH[brand].rows) || [];
+  if (!PR.rows || PR.rows.src !== rows) PR.rows = { src: rows, map: new Map(rows.map(r => [r.sku, r])) };
+  return PR.rows.map.get(sku) || null;
+}
+// What Listing Health finds for a row (its own judging, kept per row while the rules' context is the same).
+function prFound(row) {
+  if (!row) return [];
+  if (row._h && row._h.found) return row._h.found;
+  let ctx = null;
+  try { ctx = typeof hCtx === 'function' ? hCtx() : null; } catch (e) { ctx = null; }
+  if (!ctx || typeof healthOf !== 'function') return [];
+  if (PR.memoCtx !== ctx) { PR.memo = new WeakMap(); PR.memoCtx = ctx; }
+  if (PR.memo.has(row)) return PR.memo.get(row);
+  let found = [];
+  try { found = (healthOf(row, ctx).found || []).filter(h => !h.fill); } catch (e) { found = []; }
+  PR.memo.set(row, found);
+  return found;
+}
+/** One listing's level: { k: crit | imp | wait, stock, live, problems } — its Listing Health problems plus `extra` (the screen's own keys).
+ *  stock / live: the screen's own when it has them, else Listing Health's (qty, Active) / the stock Sellora holds. */
+function prOf(brand, sku, extra, o) {
+  o = o || {};
+  const row = o.row || prRow(brand, sku);
+  const found = prFound(row).filter(h => !h.fill).map(h => h.detector);
+  let stock = o.stock !== undefined ? o.stock : row && row.qty != null ? row.qty : null;
+  if (stock == null && typeof lrQtyOf === 'function') { try { stock = lrQtyOf(brand, sku); } catch (e) { stock = null; } }
+  const live = o.live !== undefined ? !!o.live : !!(row && /active/i.test(row.status || '') && !/inactive/i.test(row.status || ''));
+  const problems = [...new Set(found.concat(extra || []))];
+  return { k: prLevel({ stock, live, problems }), stock, live, problems };
+}
+/** The chip: "🔴 Critical" (title: "fix today"). The classes of the screen's own chips are passed (cls), so it looks like them. */
+function prChipHtml(k, cls) {
+  const L = PR_LEVELS[k] || PR_LEVELS.wait;
+  const esc = s => String(s).replace(/[<>&"]/g, ch => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[ch]));
+  return `<span class="pr-chip ${cls || ''} ${L.cls}" title="${esc(L.t + (L.sub ? ' — ' + L.sub : ''))}">${L.i} ${esc(L.t)}</span>`;
+}
+// The download's words for a level ("Critical — fix today").
+const prCsv = k => { const L = PR_LEVELS[k] || PR_LEVELS.wait; return L.t + (L.sub ? ' — ' + L.sub : ''); };
+/** Sales older than 7 days (or none): the date in words, else ''. Then a level is ordered by stock instead. */
+function prSalesOld() {
+  if (typeof apcSalesAt !== 'function' || !apcSalesAt()) return 'no sales data';
+  return typeof apcSalesOld === 'function' ? apcSalesOld() : '';
+}
+/** Order: Critical, Important, Can wait; within each the most 30-day sales first (sales data old: the most stock first). items: [x];
+ *  of(x) → { k, asin, stock }. A stable sort: equal ones keep their order. */
+function prSort(items, of) {
+  const old = !!prSalesOld();
+  const key = x => { const o = of(x); const sales = !old && o.asin && typeof apcSales === 'function' ? apcSales(o.asin) : null; return { n: (PR_LEVELS[o.k] || PR_LEVELS.wait).n, v: old || sales == null ? Number(o.stock) || 0 : sales }; };
+  return items.map((x, i) => ({ x, i, k: key(x) })).sort((a, b) => a.k.n - b.k.n || b.k.v - a.k.v || a.i - b.i).map(e => e.x);
+}
+/** The filter chips of a screen, in that screen's own chip markup: make(k, label, on) → its chip's HTML. Pressed again: off. */
+function prFilterHtml(screen, make) {
+  return ['crit', 'imp', 'wait'].map(k => make(k, `${PR_LEVELS[k].i} ${PR_LEVELS[k].t}`, PR.f[screen] === k)).join('');
+}
+// Does a listing pass a screen's priority filter (none chosen: every listing)?
+const prKeep = (screen, k) => !PR.f[screen] || PR.f[screen] === k;
+// A filter chip pressed: on, or off when pressed again. Returns the new value.
+function prToggle(screen, k) { PR.f[screen] = PR.f[screen] === k ? '' : k; return PR.f[screen]; }
+
+/** CONSOLE: prReport() — per brand, how many listings with a problem are Critical / Important / Can wait (Listing Health's rows). */
+function prReport(brands) {
+  const out = {};
+  (brands || ['SP', 'CPC']).forEach(b => {
+    const rows = (typeof HEALTH !== 'undefined' && HEALTH[b] && HEALTH[b].rows) || [];
+    const n = { crit: 0, imp: 0, wait: 0, noProblem: 0 };
+    rows.forEach(r => { const p = prOf(b, r.sku); if (!p.problems.length) n.noProblem++; else n[p.k]++; });
+    out[b] = n;
+  });
+  if (typeof console !== 'undefined') console.log('Priority', out);
+  return out;
+}
+
+/* ----- each screen's listing → its level (the screen's own problems added to Listing Health's) ----- */
+const PR_APC = { missing: 'aplus_missing', draft: 'aplus_draft', rejected: 'aplus_rejected' };
+const prApc = p => prOf(p.c.brand, p.c.sku, PR_APC[p.bucket] ? [PR_APC[p.bucket]] : [], { stock: p.c.stock, live: !!p.c.live }).k;
+const prIpg = p => prOf(p.c.brand, p.c.sku, p.tm > 0 ? ['tm'] : [], { stock: p.c.stock, live: p.c.live !== false }).k;
+const prCc = r => prOf(r.c.brand, r.c.sku, (r.probs || []).map(x => 'cat_' + x.k), { stock: r.c.stock, live: r.c.live !== false }).k;
+const prFc = r => prOf(r.c.brand, r.c.sku, [], { stock: r.c.stock, live: true }).k;
+const prKid = kid => prOf(kid.brand, kid.sku, [], { stock: kid.row ? kid.row.qty : undefined, live: !!kid.live }).k;
+// Listing Errors / Image Manager: Amazon's errors, suppressed (THE one Suppressed rule, imState), the Image Manager's picture problems
+function prAmzOf(brand, x) {
+  const extra = [];
+  if ((x.iss || []).some(i => i.s === 'E') || x.ie) extra.push('amazon_error');
+  try { if (typeof imState === 'function' && imState(x, brand).k === 'sup') extra.push('amazon_suppressed'); } catch (e) { /* no state */ }
+  return extra;
+}
+const prLe = (brand, x) => prOf(brand, x.sku, prAmzOf(brand, x)).k;
+function prIm(brand, item) {
+  let own = [];
+  try { own = typeof imProblems === 'function' ? imProblems(item, brand).slice() : []; } catch (e) { own = []; }
+  return prOf(brand, item.sku, prAmzOf(brand, item).concat(own)).k;
+}/* ============================== FILE: src/app/listing/create-listing.js ============================== */
+/* ================= LISTING · CREATE LISTING & PRE-SUBMIT CHECK (roadmap #8, 20 Nov 2026) =================
+ * Screen: Listing → 1 · Fix & improve → Create Listing (#paneCreate / #clPane, drawn whole here). Same cards and buttons as the
+ *       other Listing pages. Nothing runs when the screen opens: every read, check and send is a person's click.
+ * START — two ways:
+ *   Clone an existing SKU (a new colour or size in a family): its product type, parent, variation theme and attributes from what
+ *       Sellora already holds (the ListingMatch cache, lmGet) — "Read every attribute from Amazon" (?lfix=get) copies all of them.
+ *       Pictures and the product identifier are never copied (pictures: the Image Manager after; a new listing needs its own UPC).
+ *       The person types the new SKU, its colour / size and the price.
+ *   From a Research product: Sellora keeps no saved research / costing record yet, so this is shown greyed out
+ *       ("No research records yet") — never invented.
+ * REQUIRED FIELDS — the product type's schema through the existing ?lfix=schema (its required list, then each one's shape), kept with the
+ *       draft: required first, grouped Basics · Variation · Content · Offer · Shipping, each Filled / Missing; the rest folded under
+ *       "Good to fill".
+ * CONTENT — title, 5 bullets, description, search terms, judged by the SAME shared rules as every suggestion (listing-ai.js aiCheck:
+ *       the title rules — template, 60–75, the 74–75 short forms — the protected words of the suggestion-words rule, IP & Trademark Guard,
+ *       lrKwCheck's 249 bytes, our brand words); each problem with its priority chip (listing-priority.js).
+ * ✨ AI write (hidden until AI is set up) — the shared aiAsk, with the APPROVED house style of the product type; a suggestion beside
+ *       each field, usable only when it passes our rules.
+ * PRE-SUBMIT CHECK — our checks (all must pass) + "Check with Amazon" (Amazon's VALIDATION_PREVIEW through the backend's
+ *       lcreate=put, nothing created). The test site cannot ask Amazon: "Amazon check runs on live Sellora" — never a fake pass.
+ * CREATE — only through THE ONE SEND PATH (listing-send-check.js): Amazon's check → the person approves → send → read again →
+ *       Listing History "Created". A new SKU cannot be put back: "Close this listing" (quantity 0, the same send path) instead.
+ *       Disabled on the test site and on a local copy ("Test site — not sent to Amazon"). After: "Add pictures in Image Manager".
+ * DRAFT — kept in this browser (IndexedDB), so a refresh loses nothing; "Clear draft".
+ * Backend: Pricing-API/ListingCreate.gs (lcreatePut_, one Code.gs doPost line). Main functions: clOpen, clDraw, clClone, clReadAll,
+ *       clSchemaRead, clChecks, clPreSubmit, clAmazonCheck, clCreate, clClose, clAiWrite, clDraftSave, clDraftLoad, clDraftClear.
+ *       Every name starts with cl / CL. */
+
+const CL_GROUPS = ['Basics', 'Variation', 'Content', 'Offer', 'Shipping'];
+const CL_CONTENT = ['item_name', 'bullet_point', 'product_description', 'generic_keyword'];
+const CL_VARIATION = /^(parentage_level|child_parent_sku_relationship|variation_theme|color|color_name|size|size_name|style|style_name|pattern_name)$/;
+const CL_OFFER = /^(purchasable_offer|list_price|condition_type|condition_note|fulfillment_availability|merchant_shipping_group|max_order_quantity|skip_offer|product_tax_code|offering_start_date|gift_options|item_package_quantity)$/;
+const CL_SHIP = /^(item_package_dimensions|item_package_weight|item_dimensions|item_weight|item_length_width|number_of_boxes|batteries_required|batteries_included|supplier_declared_dg_hz_regulation|country_of_origin)$/;
+const CL_NEVER_COPY = /image_locator|^externally_assigned_product_identifier$|^merchant_suggested_asin$/;   // pictures, another listing's product id
+const CL_SKU_RE = /^[A-Za-z0-9._\-\/ ]{1,40}$/;
+const CL_DB = 'sellora-create', CL_DB_STORE = 'draft', CL_DB_KEY = 'draft';
+const CL_SCREEN = 'Create Listing';
+let CL = clBlank();
+let CL_STORE = null;              // the draft store (IndexedDB; tests give their own with clStoreUse)
+let CL_SAVE_T = 0;
+
+function clBlank() {
+  return { brand: 'SP', src: '', srcTitle: '', pt: '', parentSku: '', parentAsin: '', theme: '', attrs: {}, readAll: false, srcColour: '', srcSize: '',
+    sku: '', colour: '', size: '', price: '', title: '', bullets: ['', '', '', '', ''], desc: '', kw: '', fields: {},
+    schema: null, msg: '', amz: null, sent: null, savedAt: 0, ai: {}, busy: '' };
+}
+const clEsc = s => String(s == null ? '' : s).replace(/[<>&"]/g, ch => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[ch]));
+// The test site (its guard blocks every backend POST) and a copy run on this computer: never sent to Amazon from there.
+const clTestSite = () => (typeof sqIsTest === 'function' && sqIsTest()) || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1|0\.0\.0\.0|)$/.test(location.hostname || ''));
+const clVal = v => (typeof sqValText === 'function' ? sqValText(v) : (v || []).map(x => (x && x.value != null ? x.value : '')).join(' · '));
+// An attribute holds a value (any field besides the marketplace / language tags).
+const clFilled = v => Array.isArray(v) && v.some(e => e && Object.keys(e).some(k => k !== 'marketplace_id' && k !== 'language_tag' && e[k] != null && e[k] !== '' && !(Array.isArray(e[k]) && !e[k].length)));
+const clGroupOf = name => (CL_CONTENT.includes(name) ? 'Content' : CL_VARIATION.test(name) ? 'Variation' : CL_OFFER.test(name) ? 'Offer' : CL_SHIP.test(name) ? 'Shipping' : 'Basics');
+const clOne = v => ({ value: v, language_tag: 'en_US' });
+
+/* ============================================================================================
+ * 1. THE DRAFT (IndexedDB, this browser only)
+ * ============================================================================================ */
+function clIdb() {
+  const open = () => new Promise((res, rej) => {
+    if (typeof indexedDB === 'undefined') return rej(new Error('no IndexedDB'));
+    const rq = indexedDB.open(CL_DB, 1);
+    rq.onupgradeneeded = () => rq.result.createObjectStore(CL_DB_STORE);
+    rq.onsuccess = () => res(rq.result);
+    rq.onerror = () => rej(rq.error);
+  });
+  const run = (mode, fn) => open().then(db => new Promise((res, rej) => { const tx = db.transaction(CL_DB_STORE, mode); const st = tx.objectStore(CL_DB_STORE); const rq = fn(st); rq.onsuccess = () => res(rq.result); rq.onerror = () => rej(rq.error); }));
+  return { get: () => run('readonly', st => st.get(CL_DB_KEY)), put: v => run('readwrite', st => st.put(v, CL_DB_KEY)), del: () => run('readwrite', st => st.delete(CL_DB_KEY)) };
+}
+const clStore = () => CL_STORE || (CL_STORE = clIdb());
+function clStoreUse(store) { CL_STORE = store; }
+// What a draft keeps: the form and what was read for it (not the answers of a run).
+const clDraftOf = () => { const d = JSON.parse(JSON.stringify(CL)); delete d.busy; delete d.amz; delete d.msg; d.savedAt = Date.now(); return d; };
+async function clDraftSave() {
+  try { await clStore().put(clDraftOf()); CL.savedAt = Date.now(); } catch (e) { /* private window: the form stays on screen */ }
+}
+// Saved a moment after the last keystroke.
+function clDraftSoon() { clearTimeout(CL_SAVE_T); CL_SAVE_T = setTimeout(clDraftSave, 600); }
+async function clDraftLoad() {
+  let d = null;
+  try { d = await clStore().get(); } catch (e) { d = null; }
+  if (d && typeof d === 'object') { CL = Object.assign(clBlank(), d, { busy: '', amz: null, msg: `Draft restored (saved ${new Date(d.savedAt || Date.now()).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}).` }); return true; }
+  return false;
+}
+async function clDraftClear() {
+  try { await clStore().del(); } catch (e) { /* nothing kept */ }
+  const brand = CL.brand;
+  CL = clBlank();
+  CL.brand = brand;
+  CL.msg = 'Draft cleared.';
+  clDraw();
+}
+
+/* ============================================================================================
+ * 2. START: clone a SKU (or a research record — none kept yet)
+ * ============================================================================================ */
+// The research / costing records Sellora keeps for new products (none yet: the option is greyed out, never invented).
+const clResearch = () => (typeof RESEARCH_SAVED !== 'undefined' && Array.isArray(RESEARCH_SAVED) ? RESEARCH_SAVED : []);
+/** Clone from the ListingMatch cache: product type, parent, theme, the variation and content values, the attributes it holds. */
+function clClone(srcSku) {
+  const b = CL.brand;
+  const sku = String(srcSku || '').trim();
+  const m = typeof lmGet === 'function' ? lmGet(sku, b) : null;
+  if (!m) { CL.msg = `${sku || 'That SKU'} is not in the auto refresh data of ${b === 'CPC' ? 'CPC' : 'Ridhi'} — check the brand and the SKU.`; return false; }
+  const va = m.va || {};
+  const attrs = {};
+  Object.keys(va).forEach(k => { if (va[k]) attrs[k] = [clOne(va[k])]; });
+  if (m.itk) attrs.item_type_keyword = [clOne(m.itk)];
+  Object.assign(CL, { src: sku, srcTitle: m.t || '', pt: m.pt || '', parentSku: m.psku || '', parentAsin: ((m.cat && m.cat.pa) || [])[0] || '', theme: m.theme || '', attrs, readAll: false,
+    srcColour: va.color || '', srcSize: va.size || '', title: m.t || '', bullets: (m.bl || []).concat(['', '', '', '', '']).slice(0, Math.max(5, (m.bl || []).length)), desc: m.d || '', kw: m.kw || '',
+    colour: '', size: '', sku: '', amz: null, sent: null, ai: {}, schema: CL.schema && CL.schema.pt === m.pt ? CL.schema : null,
+    msg: `Copied from ${sku}: product type ${m.pt || '—'}${m.psku ? ', parent ' + m.psku : ''}${m.theme ? ', theme ' + m.theme : ''}. Type the new SKU, its colour / size and price — or read every attribute from Amazon.` });
+  clDraftSoon();
+  return true;
+}
+/** "Read every attribute from Amazon" (a click): the source listing's whole attribute set (?lfix=get) — not its pictures, not its product id. */
+async function clReadAll() {
+  if (!CL.src || typeof baCall !== 'function') return null;
+  CL.busy = 'read';
+  clDraw();
+  try {
+    const r = await baCall({ lfix: 'get', brand: CL.brand, sku: CL.src });
+    const attrs = {};
+    Object.keys(r.attributes || {}).forEach(k => { if (!CL_NEVER_COPY.test(k)) attrs[k] = JSON.parse(JSON.stringify(r.attributes[k])); });
+    CL.attrs = attrs;
+    CL.readAll = true;
+    if (r.productType) CL.pt = r.productType;
+    CL.msg = `Read ${Object.keys(attrs).length} attributes of ${CL.src} from Amazon (pictures and the product identifier are not copied).`;
+  } catch (e) { CL.msg = 'Could not read it from Amazon: ' + String((e && e.message) || e); }
+  CL.busy = '';
+  clDraftSoon();
+  clDraw();
+  return CL.attrs;
+}
+
+/* ============================================================================================
+ * 3. THE REQUIRED FIELDS (the existing ?lfix=schema: its required list, then each one's shape)
+ * ============================================================================================ */
+async function clSchemaRead() {
+  if (!CL.pt || typeof baCall !== 'function') return null;
+  CL.busy = 'schema';
+  clDraw();
+  try {
+    // a name never asked before makes the backend read the product type's schema once — its answer carries the required list
+    const first = await baCall({ lfix: 'schema', brand: CL.brand, pt: CL.pt, attrs: 'zz_sellora_required_' + Date.now().toString(36) });
+    const required = ((first.attrs || {})._required || []).filter(n => typeof n === 'string');
+    const shapes = {};
+    for (let i = 0; i < required.length; i += 20) {
+      const r = await baCall({ lfix: 'schema', brand: CL.brand, pt: CL.pt, attrs: required.slice(i, i + 20).join(',') });
+      Object.assign(shapes, r.attrs || {});
+    }
+    delete shapes._required;
+    CL.schema = { pt: CL.pt, brand: CL.brand, required, shapes, at: Date.now() };
+    CL.msg = required.length ? `Amazon asks ${required.length} fields for ${CL.pt}.` : `Amazon named no required field for ${CL.pt}.`;
+  } catch (e) { CL.msg = 'Could not read the required fields: ' + String((e && e.message) || e); }
+  CL.busy = '';
+  clDraftSoon();
+  clDraw();
+  return CL.schema;
+}
+// A field with one simple value (text / a list of allowed values): typed here. Others keep the clone's value.
+function clSimple(shape) {
+  const f = ((shape && shape.fields) || []).filter(x => !/\./.test(x.field));
+  return f.length === 1 && f[0].field === 'value' ? f[0] : null;
+}
+/** The attributes the new listing is sent with: the clone's, then the person's own values, the content, variation and offer. */
+function clAttributes() {
+  const a = JSON.parse(JSON.stringify(CL.attrs || {}));
+  Object.keys(a).forEach(k => { if (CL_NEVER_COPY.test(k) && k !== 'externally_assigned_product_identifier') delete a[k]; });
+  Object.entries(CL.fields || {}).forEach(([k, v]) => { if (String(v).trim()) a[k] = k === 'externally_assigned_product_identifier' ? [{ type: 'upc', value: String(v).trim() }] : [clOne(String(v).trim())]; });
+  if (CL.title) a.item_name = [clOne(CL.title)];
+  const bl = (CL.bullets || []).map(s => String(s).trim()).filter(Boolean);
+  if (bl.length) a.bullet_point = bl.map(clOne);
+  if (CL.desc) a.product_description = [clOne(CL.desc)];
+  if (CL.kw) a.generic_keyword = [clOne(CL.kw)];
+  if (CL.colour) a.color = [clOne(CL.colour)];
+  if (CL.size) a.size = [clOne(CL.size)];
+  if (CL.parentSku) {
+    a.parentage_level = [{ value: 'child' }];
+    a.child_parent_sku_relationship = [{ child_relationship_type: 'variation', parent_sku: CL.parentSku }];
+    if (CL.theme) a.variation_theme = [{ name: CL.theme }];
+  }
+  const price = Number(CL.price);
+  if (price > 0) a.purchasable_offer = [{ currency: 'USD', our_price: [{ schedule: [{ value_with_tax: Math.round(price * 100) / 100 }] }] }];
+  if (!a.condition_type) a.condition_type = [{ value: 'new_new' }];
+  return a;
+}
+// The required fields and where each one stands: [{ name, title, group, filled, simple }].
+function clRequired() {
+  if (!CL.schema) return [];
+  const a = clAttributes();
+  return CL.schema.required.map(name => {
+    const shape = CL.schema.shapes[name] || {};
+    return { name, title: shape.title || name, group: clGroupOf(name), filled: clFilled(a[name]), simple: clSimple(shape), shape };
+  });
+}
+
+/* ============================================================================================
+ * 4. OUR RULES ON THE CONTENT (the shared aiCheck — one place, no copies)
+ * ============================================================================================ */
+/** The rules' view of the new listing: judged as the listing it is cloned from, with its own SKU, title, colour and size. */
+function clCtx() {
+  const b = CL.brand, sku = CL.sku || 'NEW-SKU';
+  const c = typeof aiCtx === 'function' ? aiCtx(b, CL.src || sku) : { brand: b, sku, cfg: (typeof LR !== 'undefined' && LR) || LR_DEFAULT, rows: false, facts: {}, now: {} };
+  const srcRow = ((typeof HEALTH !== 'undefined' && HEALTH[b] && HEALTH[b].rows) || []).find(r => r.sku === CL.src) || null;
+  const row = Object.assign({}, srcRow || {}, { brand: b, sku, title: CL.title, shownTitle: CL.title, submittedTitle: CL.title, qty: null,
+    content: Object.assign({}, (srcRow && srcRow.content) || {}, { title: CL.title, titleLen: CL.title.length }) });
+  delete row._h;
+  return Object.assign(c, { sku, row, fresh: row, rows: !!(c.rows && srcRow), pt: CL.pt, asin: '',
+    now: { title: CL.title, bullets: CL.bullets.slice(), desc: CL.desc, kw: CL.kw, hl: [] },
+    facts: Object.assign({}, c.facts || {}, CL.colour ? { colour: CL.colour } : {}, CL.size ? { size: CL.size } : {}) });
+}
+// The new listing in the catalogue while it is judged (the title template is matched by the catalogue's sub-category), then out again.
+function clWithCat(fn) {
+  const b = CL.brand, sku = CL.sku || 'NEW-SKU';
+  const cats = typeof LR_CAT !== 'undefined' ? LR_CAT : null;
+  const src = cats && cats[b] && cats[b][CL.src];
+  if (!cats || !src) return fn();
+  const had = Object.prototype.hasOwnProperty.call(cats[b], sku);
+  const was = cats[b][sku];
+  cats[b][sku] = Object.assign({}, src, CL.colour ? { color: CL.colour } : {}, CL.size ? { size: CL.size } : {});
+  try { return fn(); } finally { if (had) cats[b][sku] = was; else delete cats[b][sku]; }
+}
+// The protected words a new title keeps: the clone's (its brand, product, shape, material, print) with the new colour and size.
+function clKeep(c) {
+  if (typeof aiProtected !== 'function') return [];
+  const base = aiProtected(CL.srcTitle || '', 'title', c.facts).filter(p => p.cls !== 'colour' && p.cls !== 'size');
+  if (CL.colour) base.push({ text: CL.colour, cls: 'colour', keys: CL.colour.split(/\s+/).map(w => (typeof lrSwKey === 'function' ? lrSwKey(w) : w.toLowerCase())).filter(Boolean) });
+  if (CL.size) base.push({ text: CL.size, cls: 'size', keys: [] });
+  return base;
+}
+const clTidy = list => list.map(f => String(f).replace(/^(still|would add): /, ''));
+/** The four content fields judged: { title, bullets, desc, kw } — each { pass, fails, notes }. */
+function clChecks() {
+  if (typeof aiCheck !== 'function') return { title: { pass: false, fails: ['the rules are not loaded'], notes: [] }, bullets: { pass: true, fails: [], notes: [] }, desc: { pass: true, fails: [], notes: [] }, kw: { pass: true, fails: [], notes: [] } };
+  return clWithCat(() => {
+    const c = clCtx();
+    const out = {
+      title: aiCheck(c, 'title', CL.title, { keep: clKeep(c) }),
+      bullets: aiCheck(c, 'bullets', CL.bullets.map(s => String(s).trim()).filter(Boolean)),
+      desc: aiCheck(c, 'desc', CL.desc),
+      kw: aiCheck(c, 'kw', CL.kw),
+    };
+    Object.values(out).forEach(x => { x.fails = clTidy(x.fails); });
+    return out;
+  });
+}
+// A failed check's priority (listing-priority.js), as if the listing were live: a trademark is Critical, a broken rule Important.
+function clPrio(fails, field) {
+  if (typeof prLevel !== 'function' || !fails.length) return '';
+  const keys = [];
+  if (fails.some(f => /another brand|risky word/i.test(f))) keys.push('tm');
+  if (field === 'title') keys.push('title_template');
+  if (field === 'kw' && fails.some(f => /bytes/.test(f))) keys.push('keyword_bytes');
+  return typeof prChipHtml === 'function' ? prChipHtml(prLevel({ stock: null, live: true, problems: keys })) : '';
+}
+
+/* ============================================================================================
+ * 5. THE PRE-SUBMIT CHECK — ours (all must pass) and Amazon's
+ * ============================================================================================ */
+function clPreSubmit() {
+  const out = [];
+  const add = (ok, t, why) => out.push({ ok: !!ok, t, why: why || '' });
+  const all = ['SP', 'CPC'].flatMap(b => ((typeof HEALTH !== 'undefined' && HEALTH[b] && HEALTH[b].rows) || []).map(r => r.sku));
+  const taken = CL.sku && (all.includes(CL.sku) || (typeof lmGet === 'function' && !!lmGet(CL.sku)));
+  add(CL.sku && CL_SKU_RE.test(CL.sku) && !taken, 'A new SKU', !CL.sku ? 'type the new SKU' : !CL_SKU_RE.test(CL.sku) ? 'letters, numbers, . _ - / only, at most 40' : taken ? `${CL.sku} is already a listing of ours` : '');
+  add(!!CL.pt, 'The product type', CL.pt ? '' : 'clone a SKU first');
+  add(Number(CL.price) > 0, 'A price', Number(CL.price) > 0 ? '' : 'type the price in US dollars');
+  if (CL.parentSku) {
+    const sib = ['SP', 'CPC'].flatMap(b => ((typeof HEALTH !== 'undefined' && HEALTH[b] && HEALTH[b].rows) || []).filter(r => r.parent && r.parent === CL.parentAsin).map(r => lmGet && lmGet(r.sku, b)).filter(Boolean));
+    const same = sib.find(m => String((m.va || {}).color || '').toLowerCase() === CL.colour.toLowerCase() && String((m.va || {}).size || '').toLowerCase() === CL.size.toLowerCase());
+    add((CL.colour || CL.size) && !same, 'Its own colour / size in the family', !(CL.colour || CL.size) ? 'type the new colour or size' : same ? `${same.sku} already has this colour and size` : '');
+  }
+  const req = clRequired();
+  const miss = req.filter(r => !r.filled);
+  add(!!CL.schema && !miss.length, 'Every required field filled', !CL.schema ? 'read the required fields first' : miss.length ? `${miss.length} missing: ${miss.slice(0, 6).map(r => r.title).join(', ')}` : '');
+  const chk = clChecks();
+  [['title', 'The title passes our title rules'], ['bullets', 'The bullets pass'], ['desc', 'The description passes'], ['kw', 'The search terms pass']].forEach(([k, t]) => add(chk[k].pass, t, chk[k].fails.join(' · ')));
+  return { checks: out, pass: out.every(x => x.ok), chk };
+}
+/** "Check with Amazon": Amazon's VALIDATION_PREVIEW of the whole new listing (nothing is created). The test site cannot ask. */
+async function clAmazonCheck() {
+  if (clTestSite()) { CL.amz = { test: true, text: 'Amazon check runs on live Sellora' }; clDraw(); return CL.amz; }
+  if (typeof imPost !== 'function') return null;
+  CL.busy = 'amz';
+  clDraw();
+  let r;
+  try { r = await imPost({ lcreate: 'put', brand: CL.brand, sku: CL.sku, productType: CL.pt, attributes: clAttributes(), apply: false, by: (typeof ME !== 'undefined' && ME && ME.email) || '' }); } catch (e) { r = { ok: false, error: String((e && e.message) || e) }; }
+  if (r && /Unknown POST action/i.test(String(r.error || ''))) r.error = 'The backend has no Create Listing yet — ListingCreate.gs and its Code.gs line are not deployed';
+  CL.amz = r && r.ok ? { ok: true, text: '✓ Amazon will accept it' + ((r.issues || []).length ? ` (${r.issues.length} warning${r.issues.length === 1 ? '' : 's'}: ${r.issues.map(i => i.message).slice(0, 3).join(' · ')})` : '') }
+    : { ok: false, text: '✕ Amazon says no: ' + (typeof sqPlain === 'function' ? sqPlain(String((r && r.error) || 'no answer').replace(/^Amazon would reject this:\s*/i, '')) : String((r && r.error) || '')) };
+  CL.busy = '';
+  clDraw();
+  return CL.amz;
+}
+/** Create: THE ONE SEND PATH — Amazon's check → the person approves → send → read again → Listing History "Created". */
+function clCreate() {
+  const pre = clPreSubmit();
+  if (!pre.pass || clTestSite() || typeof sqSendWithCheck !== 'function') return null;
+  const job = { brand: CL.brand, sku: CL.sku, asin: '', label: CL.title || CL.sku,
+    body: { lcreate: 'put', brand: CL.brand, sku: CL.sku, productType: CL.pt, attributes: clAttributes() },
+    changes: [{ field: 'Created', old: '', new: CL.title, attr: '' }] };
+  if (typeof aiWasUsed === 'function' && CL.aiUsed && CL.aiUsed.length) CL.aiUsed.forEach(t => typeof aiMarkUsed === 'function' && aiMarkUsed(CL.brand, CL.sku, t));
+  return sqSendWithCheck([job], { screen: CL_SCREEN, title: `${CL_SCREEN} · ${CL.sku}`, onDone: sum => {
+    const j = (sum.jobs || [])[0] || {};
+    CL.sent = { state: j.state || '', why: j.why || '', at: Date.now(), sku: CL.sku };
+    clDraftSoon();
+    clDraw();
+  } });
+}
+/** A new SKU cannot be put back: "Close this listing" — quantity 0, through the same send path (Amazon's check first). */
+function clClose() {
+  if (!CL.sent || !CL.sent.sku || clTestSite() || typeof sqSendWithCheck !== 'function') return null;
+  return sqSendWithCheck([{ brand: CL.brand, sku: CL.sent.sku, asin: '', label: CL.title || CL.sent.sku,
+    body: { lfix: 'patch', brand: CL.brand, sku: CL.sent.sku, productType: CL.pt, patches: [{ op: 'replace', path: '/attributes/fulfillment_availability', value: [{ fulfillment_channel_code: 'DEFAULT', quantity: 0 }] }] },
+    changes: [{ field: 'Closed (quantity 0)', old: '', new: '0', attr: 'fulfillment_availability' }] }], { screen: CL_SCREEN, title: `Close · ${CL.sent.sku}` });
+}
+
+/* ============================================================================================
+ * 6. ✨ AI WRITE — the shared aiAsk, the approved house style (hidden until AI is set up)
+ * ============================================================================================ */
+async function clAiWrite() {
+  if (typeof aiAsk !== 'function' || typeof aiOn !== 'function' || !aiOn() || !CL.src) return null;
+  CL.busy = 'ai';
+  clDraw();
+  const c = clWithCat(() => clCtx());
+  const words = clKeep(c).map(p => p.text);
+  const avoid = typeof aiAvoid === 'function' ? aiAvoid(c) : [];
+  const style = typeof aiStyleParam === 'function' ? aiStyleParam(CL.pt) : '';
+  const base = { words, avoid, style, newsku: CL.sku || 'NEW', colour: CL.colour, size: CL.size };
+  let tpl = '';
+  try { const t = typeof lrTemplateFor === 'function' ? lrTemplateFor(Object.assign({}, c.row, { sku: CL.src }), c.cfg) : null; tpl = t && t.template ? t.template : ''; } catch (e) { tpl = ''; }
+  CL.ai = {};
+  for (const [task, field] of [['title', 'title'], ['bullets', 'bullets'], ['description', 'desc'], ['kw', 'kw']]) {
+    const extra = task === 'title' ? { max: 75, tpl } : task === 'kw' ? { max: typeof lrKwMax === 'function' ? lrKwMax(c.cfg) : 249 } : {};
+    const r = await aiAsk(task, CL.brand, CL.src, Object.assign({}, base, extra));
+    if (!r.ok) { CL.ai[field] = { err: r.reason }; if (/not set up|limit reached/i.test(r.reason || '')) break; continue; }
+    const v = r.result || {};
+    CL.ai[field] = { text: task === 'title' ? v.title : task === 'bullets' ? (v.bullets || []) : task === 'description' ? v.description : v.kw, style: r.style || null, cost: r.costUsd };
+  }
+  CL.busy = '';
+  clDraw();
+  return CL.ai;
+}
+// A suggestion judged by the same rules as the field (it can be used only when it passes).
+function clAiCheck(field) {
+  const s = CL.ai[field];
+  if (!s || s.err) return null;
+  const was = { title: CL.title, bullets: CL.bullets, desc: CL.desc, kw: CL.kw };
+  Object.assign(CL, { [field === 'title' ? 'title' : field === 'bullets' ? 'bullets' : field === 'desc' ? 'desc' : 'kw']: field === 'bullets' ? (s.text || []).concat(['', '', '', '', '']).slice(0, 5) : s.text });
+  const r = clChecks()[field];
+  Object.assign(CL, was);
+  return r;
+}
+function clAiUse(field) {
+  const s = CL.ai[field];
+  const chk = clAiCheck(field);
+  if (!s || !chk || !chk.pass) return null;
+  if (field === 'bullets') CL.bullets = (s.text || []).concat(['', '', '', '', '']).slice(0, Math.max(5, (s.text || []).length));
+  else CL[field] = s.text;
+  CL.aiUsed = (CL.aiUsed || []).concat([Array.isArray(s.text) ? s.text.join(' · ') : s.text]);
+  clDraftSoon();
+  clDraw();
+  return true;
+}
+
+/* ============================================================================================
+ * 7. THE SCREEN
+ * ============================================================================================ */
+const clChip = (ok, t) => `<span class="cl-st ${ok ? 'is-ok' : 'is-no'}">${ok ? '✓' : '✕'} ${clEsc(t)}</span>`;
+const clChkHtml = (r, field) => (r ? (r.pass ? '<div class="tt-chk">✓ Passes every rule we check</div>' : `<div class="tt-chk is-bad">${clPrio(r.fails, field)} ✕ ${clEsc(r.fails.join(' · '))}</div>`)
+  + (r.notes && r.notes.length ? `<div class="ai-note">• ${clEsc(r.notes.join(' · '))}</div>` : '') : '');
+function clAiHtml(field) {
+  const s = CL.ai[field];
+  if (!s) return '';
+  if (s.err) return `<div class="ai-quiet">✨ ${clEsc(s.err)}</div>`;
+  const chk = clAiCheck(field);
+  const text = Array.isArray(s.text) ? s.text.map((b, i) => `${i + 1}. ${b}`).join('\n') : s.text;
+  const line = typeof aiStyleLine === 'function' ? aiStyleLine({ reply: { style: s.style } }) : '';
+  return `<div class="ai-card cl-ai"><div class="ai-h"><b>✨ AI suggestion</b></div><div class="tt-new ai-txt">${clEsc(text)}</div>${clChkHtml(chk, field)}`
+    + `<div class="ai-a"><button type="button" class="sp-main" data-cl="aiuse" data-cl-f="${field}"${chk && chk.pass ? '' : ' disabled'}>Use it</button></div><div class="ai-foot muted">${clEsc(line)}</div></div>`;
+}
+function clDraw() {
+  const box = typeof $ === 'function' ? $('clPane') : null;
+  if (!box) return;
+  const test = clTestSite();
+  const pre = clPreSubmit();
+  const chk = pre.chk;
+  const req = clRequired();
+  const research = clResearch();
+  const brandSel = `<select data-cl-in="brand" aria-label="Brand">${['SP', 'CPC'].map(b => `<option value="${b}"${CL.brand === b ? ' selected' : ''}>${b === 'CPC' ? 'CPC' : 'Ridhi'}</option>`).join('')}</select>`;
+  const input = (key, val, ph, w) => `<input data-cl-in="${key}" value="${clEsc(val)}" placeholder="${clEsc(ph || '')}" style="width:${w || 180}px">`;
+  const card = (title, body, sub) => `<div class="card cl-card" style="padding:10px 14px;margin-bottom:10px"><div style="font-weight:600;font-size:13px;margin-bottom:6px">${title}${sub ? ` <span class="muted" style="font-weight:400;font-size:11.5px">${sub}</span>` : ''}</div>${body}</div>`;
+  // --- the top line ---
+  const head = `<div class="card cl-card" style="padding:10px 14px;margin-bottom:10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">`
+    + `<b style="font-size:14px">Create Listing</b><span class="muted" style="font-size:12px">A new SKU on Amazon — checked by our rules and by Amazon first; nothing is sent until you approve it.</span>`
+    + `<span style="margin-left:auto;display:flex;gap:8px;align-items:center">${brandSel}<button type="button" class="ghost im-b" data-cl="clear">Clear draft</button></span>`
+    + (CL.msg ? `<div class="muted" style="flex-basis:100%;font-size:12px">${clEsc(CL.msg)}</div>` : '') + '</div>';
+  // --- start ---
+  const start = card('1 · Start', `<div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start">`
+    + `<div><div style="font-size:12.5px;font-weight:600">Clone an existing SKU</div><div class="muted" style="font-size:11.5px;margin-bottom:4px">A new colour or size in a family: copies its product type, parent, theme and attributes.</div>`
+    + `${input('src', CL.src, 'SKU to copy, e.g. RTC14-1')} <button type="button" class="ghost im-b" data-cl="clone">Copy from this SKU</button>`
+    + (CL.src && CL.pt ? ` <button type="button" class="ghost im-b" data-cl="readall"${CL.busy === 'read' ? ' disabled' : ''}>${CL.busy === 'read' ? 'Reading…' : CL.readAll ? 'Read again from Amazon' : 'Read every attribute from Amazon'}</button>` : '') + '</div>'
+    + `<div><div style="font-size:12.5px;font-weight:600">From a Research product</div>`
+    + (research.length ? `<select data-cl-in="research">${research.map((r, i) => `<option value="${i}">${clEsc(r.name || r.title || 'Research ' + (i + 1))}</option>`).join('')}</select>`
+      : '<button type="button" class="ghost im-b" disabled title="Sellora keeps no saved research or costing record yet">No research records yet</button>') + '</div></div>');
+  // --- the new listing ---
+  const newer = card('2 · The new listing', `<div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;font-size:12.5px">`
+    + `<label>New SKU<br>${input('sku', CL.sku, 'e.g. RTC14-9')}</label><label>Colour<br>${input('colour', CL.colour, CL.srcColour ? 'was ' + CL.srcColour : 'colour', 160)}</label>`
+    + `<label>Size<br>${input('size', CL.size, CL.srcSize ? 'was ' + CL.srcSize : 'size', 120)}</label><label>Price (US $)<br>${input('price', CL.price, '0.00', 90)}</label></div>`
+    + `<div class="muted" style="font-size:11.5px;margin-top:6px">Product type <b>${clEsc(CL.pt || '—')}</b> · parent <b>${clEsc(CL.parentSku || '—')}</b>${CL.parentAsin ? ' (' + clEsc(CL.parentAsin) + ')' : ''} · theme <b>${clEsc(CL.theme || '—')}</b>${CL.src ? ' · cloned from ' + clEsc(CL.src) : ''}</div>`);
+  // --- the required fields ---
+  const groups = CL_GROUPS.map(g => {
+    const list = req.filter(r => r.group === g);
+    if (!list.length) return '';
+    return `<div class="cl-g"><div class="cl-gh">${g} <span class="muted">${list.filter(r => r.filled).length} of ${list.length} filled</span></div>`
+      + list.map(r => `<div class="cl-f">${clChip(r.filled, r.filled ? 'Filled' : 'Missing')} <b>${clEsc(r.title)}</b> <span class="muted ui-mono">${clEsc(r.name)}</span>`
+        + (r.simple && !CL_CONTENT.includes(r.name) && !['color', 'size'].includes(r.name) ? ' ' + (r.simple.enum ? `<select data-cl-field="${clEsc(r.name)}"><option value="">—</option>${r.simple.enum.slice(0, 200).map((v, i) => `<option value="${clEsc(v)}"${String(CL.fields[r.name] || clVal((CL.attrs || {})[r.name])) === String(v) ? ' selected' : ''}>${clEsc((r.simple.enumNames || [])[i] || v)}</option>`).join('')}</select>`
+          : `<input data-cl-field="${clEsc(r.name)}" value="${clEsc(CL.fields[r.name] != null ? CL.fields[r.name] : clVal((CL.attrs || {})[r.name]))}" style="width:220px">`)
+          : r.name === 'externally_assigned_product_identifier' ? ` <input data-cl-field="${clEsc(r.name)}" value="${clEsc(CL.fields[r.name] || '')}" placeholder="the new listing's own UPC" style="width:160px">`
+            : r.filled ? ` <span class="muted">${clEsc(clVal(clAttributes()[r.name]).slice(0, 80))}</span>` : ' <span class="muted">— from the clone, Amazon\'s read, or the content below</span>') + '</div>').join('') + '</div>';
+  }).join('');
+  const reqNames = new Set((CL.schema && CL.schema.required) || []);
+  const extra = Object.keys(clAttributes()).filter(n => !reqNames.has(n));
+  const reqCard = card('3 · Required fields', CL.schema
+    ? groups + (extra.length ? `<details class="cl-more"><summary>Good to fill (${extra.length})</summary><div class="muted" style="font-size:12px">${extra.map(n => clEsc(n)).join(', ')}</div></details>` : '')
+    : `<button type="button" class="ghost im-b" data-cl="schema"${CL.pt && CL.busy !== 'schema' ? '' : ' disabled'}>${CL.busy === 'schema' ? 'Reading…' : 'Read the required fields'}</button> <span class="muted" style="font-size:12px">${CL.pt ? 'From Amazon\'s schema for ' + clEsc(CL.pt) + ' (kept with the draft).' : 'Clone a SKU first.'}</span>`,
+    CL.schema ? `${req.filter(r => r.filled).length} of ${req.length} filled` : '');
+  // --- the content ---
+  const aiBtn = typeof aiOn === 'function' && aiOn() && CL.src ? ` <button type="button" class="ghost im-b ai-btn" data-cl="ai"${CL.busy === 'ai' ? ' disabled' : ''}>${CL.busy === 'ai' ? '✨ Writing…' : '✨ AI write'}</button>` : '';
+  const content = card('4 · Content' + aiBtn,
+    `<div class="cl-c"><b>Title</b> <span class="muted">${CL.title.length} characters</span><textarea data-cl-in="title" rows="2" style="width:100%">${clEsc(CL.title)}</textarea>${clChkHtml(chk.title, 'title')}${clAiHtml('title')}</div>`
+    + `<div class="cl-c"><b>Bullet points</b>${CL.bullets.map((b, i) => `<textarea data-cl-in="bullet" data-cl-i="${i}" rows="2" style="width:100%">${clEsc(b)}</textarea>`).join('')}${clChkHtml(chk.bullets, 'bullets')}${clAiHtml('bullets')}</div>`
+    + `<div class="cl-c"><b>Description</b> <span class="muted">${CL.desc.length} characters</span><textarea data-cl-in="desc" rows="4" style="width:100%">${clEsc(CL.desc)}</textarea>${clChkHtml(chk.desc, 'desc')}${clAiHtml('desc')}</div>`
+    + `<div class="cl-c"><b>Search terms</b> <span class="muted">${typeof lrKwBytes === 'function' ? lrKwBytes(CL.kw) : CL.kw.length} bytes of words</span><textarea data-cl-in="kw" rows="2" style="width:100%">${clEsc(CL.kw)}</textarea>${clChkHtml(chk.kw, 'kw')}${clAiHtml('kw')}</div>`,
+    'checked by the same rules as every suggestion');
+  // --- the pre-submit check and Create ---
+  const amz = CL.amz ? `<div class="cl-amz ${CL.amz.test ? 'muted' : CL.amz.ok ? 'is-ok' : 'err'}">${clEsc(CL.amz.text)}</div>` : '';
+  const checks = card('5 · Pre-submit check', `<ul class="cl-checks">${pre.checks.map(x => `<li>${clChip(x.ok, x.t)}${x.why ? ` <span class="muted">— ${clEsc(x.why)}</span>` : ''}</li>`).join('')}</ul>`
+    + `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px"><button type="button" class="ghost im-b" data-cl="amz"${pre.pass && CL.busy !== 'amz' ? '' : ' disabled'}>${CL.busy === 'amz' ? 'Checking…' : 'Check with Amazon'}</button>${amz}</div>`,
+    pre.pass ? 'all our checks pass' : 'every one must pass');
+  const after = CL.sent ? `<div style="margin-top:8px;font-size:12.5px">${CL.sent.state === 'accepted' ? '✅ Created on Amazon' : CL.sent.state === 'working' ? '⏳ Amazon is still working on it' : '✕ ' + clEsc(CL.sent.why || CL.sent.state)} — ${clEsc(CL.sent.sku)}</div>`
+    + (CL.sent.state === 'accepted' || CL.sent.state === 'working' ? `<div style="display:flex;gap:8px;margin-top:6px"><button type="button" class="ghost im-b" data-cl="pics">Add pictures in Image Manager</button><button type="button" class="ghost im-b" data-cl="close" title="A new SKU cannot be put back: this sets its quantity to 0, through Amazon's check">Close this listing</button></div>` : '') : '';
+  const create = card('6 · Create', `<button type="button" data-cl="create" style="width:auto;padding:6px 14px"${pre.pass && !test ? '' : ' disabled'}>Create on Amazon</button> `
+    + `<span class="muted" style="font-size:12px">${test ? 'Test site — not sent to Amazon. Creating runs on live Sellora only.' : 'Amazon checks it first; you see it and approve; then it is created and read again. Listing History keeps it ("Created").'}</span>${after}`);
+  box.innerHTML = `<div class="cl-wrap">${head}${start}${newer}${reqCard}${content}${checks}${create}</div>`;
+}
+
+/* ----- the screen's typing and clicks ----- */
+function clInput(el) {
+  const k = el.dataset.clIn;
+  if (k === 'brand') { CL.brand = el.value === 'CPC' ? 'CPC' : 'SP'; CL.schema = null; clDraftSoon(); return clDraw(); }
+  if (k === 'bullet') CL.bullets[Number(el.dataset.clI) || 0] = el.value;
+  else if (k) CL[k] = el.value;
+  if (el.dataset.clField) CL.fields[el.dataset.clField] = el.value;
+  clDraftSoon();
+  // the checks follow at once; the box being typed in keeps its place (drawn again only when typing stops)
+  clearTimeout(clInput.t);
+  clInput.t = setTimeout(() => { const a = typeof document !== 'undefined' ? document.activeElement : null; const sel = a && a.dataset ? (a.dataset.clIn ? `[data-cl-in="${a.dataset.clIn}"]${a.dataset.clI ? `[data-cl-i="${a.dataset.clI}"]` : ''}` : a.dataset.clField ? `[data-cl-field="${a.dataset.clField}"]` : '') : ''; const pos = a && a.selectionStart; clDraw(); if (sel && document.querySelector) { const n = document.querySelector(sel); if (n) { n.focus(); try { n.setSelectionRange(pos, pos); } catch (e) { /* not a text box */ } } } }, 500);
+  return null;
+}
+function clClick(el) {
+  const act = el.dataset.cl;
+  if (act === 'clone') { const v = (typeof document !== 'undefined' && document.querySelector && document.querySelector('[data-cl-in="src"]')) ? document.querySelector('[data-cl-in="src"]').value : CL.src; clClone(v); return clDraw(); }
+  if (act === 'readall') return clReadAll();
+  if (act === 'schema') return clSchemaRead();
+  if (act === 'amz') return clAmazonCheck();
+  if (act === 'create') return clCreate();
+  if (act === 'close') return clClose();
+  if (act === 'pics') return typeof lrFixOpen === 'function' && CL.sent ? lrFixOpen('img', CL.brand, CL.sent.sku, []) : null;
+  if (act === 'clear') return clDraftClear();
+  if (act === 'ai') return clAiWrite();
+  if (act === 'aiuse') return clAiUse(el.dataset.clF);
+  return null;
+}
+/** Opening the screen: the draft kept in this browser comes back; nothing is read from Amazon or asked of the AI. */
+async function clOpen() {
+  if (!clOpen.done) { clOpen.done = true; await clDraftLoad(); }
+  clDraw();
+}
+if (typeof document !== 'undefined' && document.addEventListener) {
+  document.addEventListener('click', e => { const el = e.target && e.target.closest ? e.target.closest('[data-cl]') : null; if (el && !el.disabled) clClick(el); });
+  document.addEventListener('input', e => { if (e.target && e.target.dataset && (e.target.dataset.clIn !== undefined || e.target.dataset.clField !== undefined)) clInput(e.target); });
+  document.addEventListener('change', e => { if (e.target && e.target.dataset && (e.target.dataset.clIn === 'brand' || e.target.dataset.clField !== undefined)) clInput(e.target); });
+  const pane = typeof $ === 'function' ? $('paneCreate') : null;
+  if (pane && typeof MutationObserver === 'function') new MutationObserver(() => { if (!pane.classList.contains('hide')) clOpen(); }).observe(pane, { attributes: true, attributeFilter: ['class'] });
+}
 
 /* ####################################################################################################
  * GROUP: src/app/research/
@@ -40991,7 +42622,7 @@ function renderOpt() {
   }
 
   // --- the page ---
-  $('loBody').innerHTML = `
+  $('loBody').innerHTML = `${typeof aiOptCardHtml === 'function' && typeof aiOn === 'function' && aiOn() && data.ours && data.ours.sku ? aiOptCardHtml($('loBrand').value, data.ours.sku) : ''}
     <div class="card" style="padding:12px 14px;margin-bottom:12px">
       <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:baseline">
         <b style="font-size:15px">${loEsc(audit.asin)}</b>
@@ -42310,7 +43941,7 @@ function imKidRow(item) {
     <div class="im-kid-info">
       <div class="im-kid-t"><b class="im-mono">${imEsc(item.sku)}</b>${item.lmStale && typeof lmOldHtml === 'function' ? lmOldHtml($('imBrand') ? $('imBrand').value : '', item.sku) : ''}<span class="muted">${imEsc(item.asin)}</span></div>
       <div class="im-kid-s">${imEsc([item.c, item.z].filter(Boolean).join(' · ') || String(item.t || '').slice(0, 60))}</div>
-      <div class="im-kid-q">${chips.map(chip => `<span class="im-chip ${chip.cls}"${chip.k ? ` data-im-prob="${chip.k}"` : ''}${chip.tip ? ` title="${imEsc(chip.tip)}"` : ''}>${imEsc(chip.t)}</span>`).join('')}<span class="im-kid-sum">${imKidSummary(item)}</span></div>
+      <div class="im-kid-q">${typeof prOf === 'function' && imProblems(item).length ? prChipHtml(prIm($('imBrand') ? $('imBrand').value : '', item), 'im-chip') : ''}${chips.map(chip => `<span class="im-chip ${chip.cls}"${chip.k ? ` data-im-prob="${chip.k}"` : ''}${chip.tip ? ` title="${imEsc(chip.tip)}"` : ''}>${imEsc(chip.t)}</span>`).join('')}<span class="im-kid-sum">${imKidSummary(item)}</span></div>
       ${errs.length ? `<div class="im-kid-err" title="${imEsc(errs.map(imPicErrText).join(' · '))}">${imEsc(errs.map(imPicErrText).join(' · '))}</div>` : ''}
       <div class="im-kid-act">
         <button class="ghost im-b" data-edit="${imEsc(item.sku)}" title="Open the editor beside the list (E)">Edit</button>
@@ -42940,7 +44571,7 @@ function imRender() {
     </div>
     ${issues}
     <div class="card" style="padding:10px 14px;margin-bottom:12px">
-      <div style="font-weight:600;font-size:13px">Live on Amazon now</div>
+      <div style="font-weight:600;font-size:13px">Live on Amazon now${typeof aiOn === 'function' && aiOn() ? ' ' + aiBtnHtml('image_check', $('imBrand').value, listing.sku, { use: 'read', label: 'Check main photo' }) : ''}</div>
       <div class="muted" style="font-size:11.5px;margin-bottom:6px">What shoppers see. ${listing.catalogError ? imEsc(listing.catalogError) : ''}</div>
       <div class="im-row">${live}</div>
     </div>
@@ -43619,7 +45250,7 @@ const IM_DL_CHECKS = [
   { k: 'noown', col: "Using the family's main", todo: "Upload this listing's own main picture" },
 ];
 const IM_DL_COLS = ['Brand', 'Family name', 'Parent ASIN', 'SKU', 'ASIN', 'Colour', 'Size', 'Stock (units)', 'Amazon link', 'Problems', 'What to do']
-  .concat(IM_DL_CHECKS.map(c => c.col), ['Number of pictures', 'Smallest picture size', "Amazon's picture error message", 'Data time', 'Verified at']);
+  .concat(IM_DL_CHECKS.map(c => c.col), ['Number of pictures', 'Smallest picture size', "Amazon's picture error message", 'Data time', 'Verified at', 'Priority']);
 const IM_LIVE_PAR = 4;            // listings read live from Amazon at once (each is two calls)
 let IM_DL_RUN = null;             // { stop, done, total } while the download checks its rows with Amazon
 // One problem of one listing of `brand` (the listing's problems: imProblems).
@@ -43656,7 +45287,7 @@ function imDlRow(item, brand, bySku, only, when, verified) {
   return { brand, item, fam, famKey: brand + '|' + (item.psku || 'solo:' + item.sku), sku: String(item.sku), n: has.length, cells: [
     (typeof BRAND_NAME !== 'undefined' && BRAND_NAME[brand]) || brand, fam, item.pa || (parent && parent.asin) || '', item.sku, item.asin || '', item.c || '', item.z || '',
     lrQtyOf(brand, item.sku), item.asin ? 'https://www.amazon.com/dp/' + item.asin : '', has.map(c => c.col).join(' | '), has.map(c => c.todo).join(' | '),
-  ].concat(IM_DL_CHECKS.map(c => (has.includes(c) ? 'Yes' : '')), [imPicCount(item).n, sizes[0] ? `${sizes[0][0]}×${sizes[0][1]}` : '', errs, when, verified || '']) };
+  ].concat(IM_DL_CHECKS.map(c => (has.includes(c) ? 'Yes' : '')), [imPicCount(item).n, sizes[0] ? `${sizes[0][0]}×${sizes[0][1]}` : '', errs, when, verified || '', typeof prOf === 'function' ? prCsv(prIm(brand, item)) : '']) };
 }
 // By family (the family's problems added up, most first; then its name), then SKU.
 function imDlSort(rows) {
@@ -44537,8 +46168,11 @@ function leRows() {
     if (!iss.length && sev !== 'any' && !LE_ONLY) return;          // "Every listing": its content can be edited with no issue at all
     if (kind !== 'all' && !iss.some(issue => leKind(issue) === kind)) return;
     if (search && ![x.sku, x.asin, x.c, x.z, x.t].concat(iss.map(issue => issue.m)).join(' ').toLowerCase().includes(search)) return;
+    if (typeof prOf === 'function' && PR.f.le && prLe(brand, x) !== PR.f.le) return;          // 🔴 / 🟠 / ⚪ chosen (listing-priority.js)
     out.push({ x, iss: iss.slice().sort((p, r) => (p.s === 'E' ? 0 : 1) - (r.s === 'E' ? 0 : 1)) });
   });
+  // a priority chosen: that level only, the most sales first (sales data old: the most stock)
+  if (typeof prOf === 'function' && PR.f.le) return prSort(out, r => ({ k: PR.f.le, asin: r.x.asin, stock: typeof lrQtyOf === 'function' ? lrQtyOf(brand, r.x.sku) : 0 }));
   return out;
 }
 
@@ -44589,6 +46223,7 @@ function leRender() {
         <span class="muted" style="font-size:12px">Listings with an error, by kind:</span>
         ${LE_KINDS.map(([kind, label]) => chip(kind, label)).join('')}
         <button class="ghost im-b" data-kind="all">All</button>
+        ${typeof prOf === 'function' ? prFilterHtml('le', (k, label, on) => `<button class="ghost im-b" data-le-pr="${k}" style="${on ? 'border-color:var(--accent);color:var(--accent-ink)' : ''}">${label}</button>`) : ''}
       </div>
       <div class="muted" style="font-size:11.5px;margin-top:6px">${leNf(rows.length)} listing(s) shown · ${(typeof lmDataLabel === 'function' && lmDataLabel([brand])) ? leEsc(lmDataLabel([brand]).text) : 'snapshot ' + (data.at ? data.at.toLocaleString() : '—')}${IML_BUSY ? ' · refreshing…' : ''}
         ${old ? ' · <b class="err">this snapshot keeps only the first error of each listing — press Refresh from Amazon for all of them</b>' : ''}</div>
@@ -44609,7 +46244,7 @@ function leRender() {
           <td style="text-align:left;white-space:nowrap"><b style="font-family:ui-monospace,monospace">${leEsc(x.sku)}</b>${x.lmStale && typeof lmOldHtml === 'function' ? lmOldHtml(brand, x.sku) : ''}`
             + `<div class="muted" style="font-size:11px">${leEsc(x.asin)} · ${leEsc(x.pt || '')}</div></td>
           <td style="text-align:left;font-size:12px">${leEsc([x.c, x.z].filter(Boolean).join(' · '))}</td>
-          <td><span class="st" style="background:${state.fill};color:${state.ink}">${leEsc(state.label)}</span></td>
+          <td><span class="st" style="background:${state.fill};color:${state.ink}">${leEsc(state.label)}</span>${typeof prOf === 'function' && iss.length ? ' ' + prChipHtml(prLe(brand, x)) : ''}</td>
           <td style="text-align:left;white-space:normal;font-size:12px;max-width:620px">${iss.slice(0, 4).map(issue => `<div style="margin:2px 0">
               <span class="st ${issue.s === 'E' ? 'st-rejected' : 'st-draft'}" style="font-size:10px">${
                 leEsc((LE_KINDS.find(pair => pair[0] === leKind(issue)) || [, ''])[1])}</span>
@@ -44624,6 +46259,7 @@ function leRender() {
     LE_PAGE = 0;
     leRender();
   });
+  el.querySelectorAll('[data-le-pr]').forEach(btn => btn.onclick = () => { prToggle('le', btn.dataset.lePr); LE_PAGE = 0; leRender(); });
   el.querySelectorAll('[data-lepg]').forEach(btn => btn.onclick = () => {
     LE_PAGE += Number(btn.dataset.lepg);
     leRender();
@@ -44782,7 +46418,7 @@ function leFixRender() {
     <div class="card" style="padding:10px 14px;margin-bottom:10px">
       <div style="font-weight:600;font-size:13px;margin-bottom:4px">What Amazon says now (${leNf(listing.issues.length)})</div>
       ${listing.issues.map(issue => `<div style="font-size:12px;margin:3px 0"><span class="st ${issue.severity === 'ERROR' ? 'st-rejected' : 'st-draft'}">${leEsc(issue.severity)}</span>
-        ${leEsc(issue.message)} ${(issue.attrs || []).length ? `<span class="muted">· ${leEsc(issue.attrs.join(', '))}</span>` : ''}</div>`).join('')
+        ${leEsc(issue.message)} ${(issue.attrs || []).length ? `<span class="muted">· ${leEsc(issue.attrs.join(', '))}</span>` : ''}${typeof aiOn === 'function' && aiOn() ? ' ' + aiBtnHtml('error_explain', $('leBrand').value, listing.sku, { use: 'read', code: issue.code || '', label: 'Explain this error' }) : ''}</div>`).join('')
         || '<div class="muted" style="font-size:12px">No issues — Amazon reports nothing on this listing now.</div>'}
       ${imgIssues.length ? `<div style="margin-top:6px"><button class="ghost im-b" id="leToImg">Fix the images in the Image Manager</button></div>` : ''}
     </div>
@@ -45250,7 +46886,7 @@ function lcSectionHtml() {
   const nBoxes = Math.min(10, Math.max(5, bullets.length) + LC_EXTRA);
   return `<div class="card" style="padding:10px 14px;margin-bottom:10px">
     <div style="font-weight:600;font-size:13px;margin-bottom:6px">Content <span class="muted" style="font-weight:400;font-size:11.5px">— checked against Listing Rules as you type</span></div>${hint}
-    <div style="margin-bottom:10px"><div style="font-weight:600;font-size:12.5px">Title${ch('item_name')}</div>
+    <div style="margin-bottom:10px"${typeof aiOn === 'function' && aiOn() ? ' data-ai-block' : ''}><div style="font-weight:600;font-size:12.5px">Title${ch('item_name')}${typeof aiOn === 'function' && aiOn() ? ' ' + aiBtnHtml('title', brand, sku, { use: 'lc', place: 'block', label: 'AI title' }) : ''}</div>
       <textarea id="lcTitle" rows="2" style="width:100%">${leEsc(title)}</textarea>
       <div class="muted" style="font-size:11px"><span id="lcTitleN">${title.length}</span> characters</div>
       <div id="lcTitleF">${lcFindHtml(lcCheck('item_name', [title], lcCtx()))}</div>
@@ -45260,7 +46896,7 @@ function lcSectionHtml() {
             (dropped => dropped.length ? ` <span style="color:var(--act-ink)">— leaves out what the template requires: ${leEsc(dropped.join(', '))}</span>` : '')(lcTemplateFit(brand, sku, 75).dropped)}` : ''}</div>`
         : `<div class="muted" style="font-size:11.5px;margin-top:4px">No Listing Rules template matches this SKU (its sub-category is not one the templates name, or the SKU is not in the brand catalogue).</div>`}
     </div>
-    <div style="margin-bottom:10px"><div style="font-weight:600;font-size:12.5px">Bullet points${ch('bullet_point')}</div>
+    <div style="margin-bottom:10px"${typeof aiOn === 'function' && aiOn() ? ' data-ai-block' : ''}><div style="font-weight:600;font-size:12.5px">Bullet points${ch('bullet_point')}${typeof aiOn === 'function' && aiOn() ? ' ' + aiBtnHtml('bullets', brand, sku, { use: 'lc', place: 'block', label: 'AI bullets' }) : ''}</div>
       ${Array.from({ length: nBoxes }, (_, i) => `<div style="display:flex;gap:6px;align-items:flex-start;margin:3px 0">`
         + `<span class="muted" style="font-size:11px;width:18px;padding-top:6px">${i + 1}</span>
         <textarea class="lcBullet" data-i="${i}" rows="2" style="flex:1">${leEsc(bullets[i] || '')}</textarea>
@@ -45269,12 +46905,12 @@ function lcSectionHtml() {
       <div id="lcBulletsF">${lcFindHtml(lcCheck('bullet_point', bullets))}</div>
       <div class="muted" style="font-size:11px">Listing Rules hold no bullet template, so nothing is written for you here — only checked.</div>
     </div>
-    <div style="margin-bottom:10px"><div style="font-weight:600;font-size:12.5px">Description${ch('product_description')}</div>
+    <div style="margin-bottom:10px"${typeof aiOn === 'function' && aiOn() ? ' data-ai-block' : ''}><div style="font-weight:600;font-size:12.5px">Description${ch('product_description')}${typeof aiOn === 'function' && aiOn() ? ' ' + aiBtnHtml('description', brand, sku, { use: 'lc', place: 'block', label: 'AI description' }) : ''}</div>
       <textarea id="lcDesc" rows="5" style="width:100%">${leEsc(desc)}</textarea>
       <div class="muted" style="font-size:11px"><span id="lcDescN">${desc.length}</span> characters</div>
       <div id="lcDescF">${lcFindHtml(lcCheck('product_description', [desc]))}</div>
     </div>
-    <div><div style="font-weight:600;font-size:12.5px">Search terms (backend keywords)${ch('generic_keyword')}</div>
+    <div${typeof aiOn === 'function' && aiOn() ? ' data-ai-block' : ''}><div style="font-weight:600;font-size:12.5px">Search terms (backend keywords)${ch('generic_keyword')}${typeof aiOn === 'function' && aiOn() ? ' ' + aiBtnHtml('kw', brand, sku, { use: 'lc', place: 'block', label: 'AI search terms' }) : ''}</div>
       <textarea id="lcKw" rows="2" style="width:100%">${leEsc(kw)}</textarea>
       <div class="muted" style="font-size:11px"><span id="lcKwN">${lrKwBytes(kw)}</span> / ${lcKwMax()} bytes of words (spaces and ; , . do not count)
         <button class="ghost im-b" id="lcKwSug" title="Words from the Listing Rules template this title does not carry, then what is there now">Suggest from Listing Rules</button></div>
@@ -45946,6 +47582,7 @@ function renderBasketAll() {
   const report = MB;
   if (!report) return;
   const search = ($('mbFilter').value || '').trim().toLowerCase();
+  if (typeof aiBundleBtn === 'function') aiBundleBtn();       // ✨ Bundle ideas (listing-ai.js), when AI is set up
 
   // --- nothing in the report could be read ---
   if (!report.rows) {

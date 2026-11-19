@@ -237,6 +237,7 @@ function doGet(e) {
     if (p.listing === 'keywords') { setBrand_(p.brand); return json_(listingKeywords_(p.asin)); }
     // Everything the optimiser screen needs about one listing, in one round trip.
     if (p.listing === 'review') { setBrand_(p.brand); return json_(listingReview_(p.asin, p.target)); }
+    if (p.ai === 'ask') return json_(aiAsk_(p));   // AI writing (ListingAI.gs): one suggestion for one listing, read-only
     // Search Query Performance for one ASIN: ask, then poll. Amazon builds it asynchronously.
     if (p.listing === 'sqpAsk') { setBrand_(p.brand); return json_(baCreate_('sqp', p.period || 'MONTH', p.asin, p.back)); }
     // Which windows can actually be asked for, built by the same function that builds the request.
@@ -372,6 +373,7 @@ function doPost(e) {
     if (p.mail === 'po') return json_(mailPo_(p));
     if (p.limg === 'patch') return json_(limgPatch_(p));
     if (p.lfix === 'patch') return json_(lfixPatch_(p));
+    if (p.lcreate === 'put') return json_(lcreatePut_(p));   // Create Listing (ListingCreate.gs): a NEW SKU, Amazon's check first
     /* The Listing Optimiser's review of one ASIN, judged on the facts Sellora sends from its ListingMatch cache (a read: nothing is
      * written). POST only because a listing's whole text does not fit in an address. */
     if (p.listing === 'review') { setBrand_(p.brand); return json_(listingReview_(p.asin, p.target, p.facts)); }

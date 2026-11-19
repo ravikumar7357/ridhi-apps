@@ -35,10 +35,13 @@ const checksText = h => JSON.stringify([h.bucket, h.score, h.grade, h.stale, h.c
 console.log('== Listing Health and the Workspace (healthPage, full size) ==');
 {
   const A = healthPage({ files: old });
-  const B = healthPage({});
+  const B = healthPage({ extra: ['listing-priority.js', 'listing-ai.js'] });     // AI off (no backend): no ✨ button
   const both = fn => [fn(A), fn(B)];
   // the clock: the two pages are built a moment apart, so "updated 10:57:30" may read ":31" on the other — that time alone is set aside
-  const html = (C, ...ids) => ids.map(id => C.el(id).innerHTML).join('\n§\n').replace(/(lh-kpiwhen">updated )[^<]*/g, '$1[time]');
+ // 20 Nov 2026: with AI OFF (not set up) the ✨ buttons are hidden — the pages must be exactly as before; the priority chips
+  // (🔴 Critical · 🟠 Important · ⚪ Can wait, listing-priority.js) are the one thing added, and alone are set aside here
+  const noChips = h => h.replace(/<div class="lk-info"><span class="pr-chip[^>]*>[^<]*<\/span><\/div>|<span class="pr-chip[^>]*>[^<]*<\/span> ?|<button type="button" class="li-ws-chip" data-li-ws-chip="pr:[^"]*"[^>]*>.*?<\/button>/g, '');
+  const html = (C, ...ids) => noChips(ids.map(id => C.el(id).innerHTML).join('\n§\n').replace(/(lh-kpiwhen">updated )[^<]*/g, '$1[time]'));
   // every listing's checks
   const all = C => ['SP', 'CPC'].flatMap(b => C.HEALTH[b].rows.map(r => checksText(C.healthOf(Object.assign({}, r, { brand: b }), C.hCtx())))).join('\n');
   const [ca, cb] = both(all);
@@ -63,12 +66,12 @@ console.log('== Listing Health and the Workspace (healthPage, full size) ==');
   // drawing again with nothing changed gives the same (the kept checks)
   same('drawn again with nothing changed: the same', draw(B, 'child', { k: 'sevRank', dir: -1 }, { brand: 'SP', parent: 'TM' }), fb);
   // the Workspace list, and the panel of the biggest parent
-  const ws = C => { C.LI_WS.on = true; C.LI_WS.mode = 'live'; C.liWsRender(); return C.el('liWs').innerHTML; };
+  const ws = C => { C.LI_WS.on = true; C.LI_WS.mode = 'live'; C.liWsRender(); return noChips(C.el('liWs').innerHTML); };
   const [wa, wb] = both(ws);
   same('Workspace: the list (cards, chips, parents, problems, audit)', wa, wb);
-  ['all', 'off'].forEach(mode => { const [x, y] = both(C => { C.LI_WS.mode = mode; C.liWsRender(); return C.el('liWs').innerHTML; }); same(`Workspace in "${mode}" mode`, x, y); });
+  ['all', 'off'].forEach(mode => { const [x, y] = both(C => { C.LI_WS.mode = mode; C.liWsRender(); return noChips(C.el('liWs').innerHTML); }); same(`Workspace in "${mode}" mode`, x, y); });
   both(C => { C.LI_WS.mode = 'live'; C.liWsRender(); });
-  const panel = (C, tab) => { C.LI_WS.panel = null; C.liWsPanelOpen('SP|TM'); if (tab) { C.LI_WS.panel.tab = tab; C.liWsPanelRender(); } return C.el('lsPanel').innerHTML; };
+  const panel = (C, tab) => { C.LI_WS.panel = null; C.liWsPanelOpen('SP|TM'); if (tab) { C.LI_WS.panel.tab = tab; C.liWsPanelRender(); } return noChips(C.el('lsPanel').innerHTML); };
   ['list', 'fix', 'audit'].forEach(tab => { const [x, y] = both(C => panel(C, tab)); same(`Workspace panel of the biggest parent, tab "${tab}"`, x, y); });
   // a listing changes: the kept checks follow it (stock to 0, a new title, an Amazon read landing)
   const change = C => {
@@ -93,10 +96,13 @@ console.log('== Listing Health and the Workspace (healthPage, full size) ==');
 console.log('== Season planner, Fix all, Listing Errors card, Listing History (bigPage, full size) ==');
 {
   const A = bigPage({ files: old });
-  const B = bigPage({});
+  const B = bigPage({ load: { pr: true, ai: true } });                          // AI off (no backend): no ✨ button
   const both = fn => [fn(A), fn(B)];
   // the clock: the two pages are built a moment apart, so "updated 10:57:30" may read ":31" on the other — that time alone is set aside
-  const html = (C, ...ids) => ids.map(id => C.el(id).innerHTML).join('\n§\n').replace(/(lh-kpiwhen">updated )[^<]*/g, '$1[time]');
+ // 20 Nov 2026: with AI OFF (not set up) the ✨ buttons are hidden — the pages must be exactly as before; the priority chips
+  // (🔴 Critical · 🟠 Important · ⚪ Can wait, listing-priority.js) are the one thing added, and alone are set aside here
+  const noChips = h => h.replace(/<div class="lk-info"><span class="pr-chip[^>]*>[^<]*<\/span><\/div>|<span class="pr-chip[^>]*>[^<]*<\/span> ?|<button type="button" class="li-ws-chip" data-li-ws-chip="pr:[^"]*"[^>]*>.*?<\/button>/g, '');
+  const html = (C, ...ids) => noChips(ids.map(id => C.el(id).innerHTML).join('\n§\n').replace(/(lh-kpiwhen">updated )[^<]*/g, '$1[time]'));
   const plan = C => { C.SP.on = true; C.spRender(); return html(C, 'spPane'); };
   const [sa, sb] = both(plan);
   same('Season planner: the parent list', sa, sb);
@@ -146,8 +152,16 @@ console.log('== number formats ==');
 console.log('== no new calls ==');
 {
   const calls = s => (s.match(/\b(baCall|imPost|fetch|getDoc|getDocs|setDoc|lsGet|lsSave)\(/g) || []).length;
-  const was = changed.reduce((n, f) => n + calls(old[f]), 0);
-  const now = changed.reduce((n, f) => n + calls(fs.readFileSync(path.join(__dirname, '..', 'src', 'app', 'listing', f), 'utf8')), 0);
+  // listing-ai.js (the ✨ AI file) is set aside: its calls run only on a click, or once per page load for the status — its own test
+  // (listing-ai-test.js) proves no call on page open; its only new database calls are the house style approvals (lsGet / lsSave, Listing Rules' store)
+  const mine = changed.filter(f => f !== 'listing-ai.js');
+  const was = mine.reduce((n, f) => n + calls(old[f]), 0);
+  const now = mine.reduce((n, f) => n + calls(fs.readFileSync(path.join(__dirname, '..', 'src', 'app', 'listing', f), 'utf8')), 0);
+  if (old['listing-ai.js'] !== undefined) {
+    const ai = fs.readFileSync(path.join(__dirname, '..', 'src', 'app', 'listing', 'listing-ai.js'), 'utf8');
+    const db = s => (s.match(/\b(lsGet|lsSave)\(/g) || []).length;
+    ok(`listing-ai.js: its only new database calls are the house style approvals (${db(old['listing-ai.js'])} → ${db(ai)})`, db(ai) - db(old['listing-ai.js']) <= 2 && !/\b(baCall|imPost|getDoc|setDoc)\(/.test(ai));
+  }
   ok(`the changed files hold exactly as many backend / Amazon / database calls as before (${was})`, was === now, `${was} → ${now}`);
 }
 

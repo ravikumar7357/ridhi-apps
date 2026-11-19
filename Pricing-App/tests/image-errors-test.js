@@ -12,7 +12,7 @@ const A = id => 'https://m.media-amazon.com/images/I/' + id + '.jpg';
 const full = (p, n) => Object.fromEntries(['MAIN', 'PT01', 'PT02', 'PT03', 'PT04', 'PT05', 'PT06', 'PT07', 'PT08'].slice(0, n || 9).map(s => [s, A(p + s)]));
 const COLS = ['Brand', 'Family name', 'Parent ASIN', 'SKU', 'ASIN', 'Colour', 'Size', 'Stock (units)', 'Amazon link', 'Problems', 'What to do',
   'No main picture', 'Main not OK', 'Fewer than 7 pictures', 'Amazon picture error', 'Search suppressed', "Using the family's main",
-  'Number of pictures', 'Smallest picture size', "Amazon's picture error message", 'Data time', 'Verified at'];
+  'Number of pictures', 'Smallest picture size', "Amazon's picture error message", 'Data time', 'Verified at', 'Priority'];
 const KEYS = ['nomain', 'pcbad', 'few', 'amzerr', 'sup', 'noown'];      // the check columns' order
 const HINDI = 'Rust, "Deep" रंग ₹499';
 const SP_ITEMS = () => [

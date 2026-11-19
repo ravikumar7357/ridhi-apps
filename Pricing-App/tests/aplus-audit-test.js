@@ -387,8 +387,8 @@ const csvRows = text => text.replace(/^﻿/, '').trim().split('\r\n').map(line =
       return { csv, rows };
     };
     const all = check('all products');
-    ok('the sheet\'s columns: Brand · Family · SKU · ASIN · Stock · 30-day sales · A+ status · Document name · Type · Last updated · Amazon\'s reason · What to do · Amazon link · Data time',
-      csvRows(all.csv.text)[0].join(' · ') === "Brand · Family · SKU · ASIN · Stock · 30-day sales · A+ status · Document name · Type · Last updated · Amazon's reason · What to do · Amazon link · Data time" && all.csv.text.charCodeAt(0) === 0xFEFF);
+    ok('the sheet\'s columns: Brand · Family · SKU · ASIN · Stock · 30-day sales · A+ status · Document name · Type · Last updated · Amazon\'s reason · What to do · Amazon link · Data time · Priority',
+      csvRows(all.csv.text)[0].join(' · ') === "Brand · Family · SKU · ASIN · Stock · 30-day sales · A+ status · Document name · Type · Last updated · Amazon's reason · What to do · Amazon link · Data time · Priority" && all.csv.text.charCodeAt(0) === 0xFEFF);
     const tc6 = all.rows.find(r => r[2] === 'TC-6');
     ok('a row of the sheet, whole', tc6[0] === 'Ridhi' && tc6[1] === 'Floral Tablecloth' && tc6[3] === A('TC-6') && tc6[4] === '5' && tc6[5] === '900.00' && tc6[6] === 'Rejected' && tc6[7] === 'Tablecloth winter' && tc6[8] === 'Basic'
       && /^\d{1,2} \w{3} \d{4}$/.test(tc6[9]) && tc6[10] === 'Image has a web link' && tc6[11] === 'Fix: Image has a web link, then resubmit' && tc6[12] === 'https://www.amazon.com/dp/' + A('TC-6') && /^\d{1,2} \w{3} \d{2}:\d{2}$/.test(tc6[13]), tc6.join(' | '));
@@ -591,7 +591,7 @@ const csvRows = text => text.replace(/^﻿/, '').trim().split('\r\n').map(line =
     const order = fs.readFileSync(path.join(__dirname, '..', 'src', 'app', 'ORDER'), 'utf8');
     ok('"A+ Content" in the Listing menu under "2 · Check", right after Family & Category Check', /<div class="navcol-h">2 · Check<\/div>[\s\S]*?<button id="tabFam" class="nav">Family &amp; Category Check<\/button>\s*<button id="tabAplus" class="nav">A\+ Content<\/button>\s*<button id="tabIpg" class="nav">IP &amp; Trademark Guard<\/button><\/div>/.test(html)   // (IP & Trademark Guard follows it since 18 Nov 2026)
       && /data-tabs="[^"]*fam,aplus,ipg,lhist"/.test(html) && /<div id="paneAplus" class="hide"><div id="apcPane"><\/div><\/div>/.test(html));
-    ok('the tab is known to the app: TABS, its title, and it comes with Listing Health', /'fam', 'aplus', 'ipg'\];/.test(nav) && /aplus: 'A\+ Content'/.test(nav) && /TAB_INHERIT = \{[^}]*aplus: 'health'/.test(nav));
+    ok('the tab is known to the app: TABS, its title, and it comes with Listing Health', /'fam', 'aplus', 'ipg'(, 'create')?\];/.test(nav) && /aplus: 'A\+ Content'/.test(nav) && /TAB_INHERIT = \{[^}]*aplus: 'health'/.test(nav));
     ok('the file is joined after category-check.js', /listing\/category-check\.js\r?\nlisting\/aplus-audit\.js/.test(order));
     ok('the same look as Family & Category Check: its styles cover both panes', /:is\(#paneFam,#paneAplus,#paneIpg\) \.fc-box\{/.test(css) && /:is\(#paneFam,#paneAplus,#paneIpg\) \.fc-chip\.is-r\{/.test(css) && /:is\(#paneFam,#paneAplus,#paneIpg\) \.cc-fchip\{/.test(css) && !/\n\s*#paneFam \.fc-/.test(css));
     ok('its own colours are the shared ones (var(--…)): no fixed colour but the white behind a picture', (() => { const own = css.slice(css.indexOf('/* ----- A+ Content (listing/aplus-audit.js)'), css.indexOf('@media (max-width:860px){#paneAplus')); return own.length > 500 && (own.match(/#[0-9a-fA-F]{3,6}\b/g) || []).every(c => c === '#fff'); })());

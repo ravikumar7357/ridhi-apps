@@ -122,7 +122,8 @@ function lrAllowRender(cfg) {
       <span class="muted">Words that need proof or a certificate (the same Guard screen, amber). A listing that holds the certificate is marked "Allowed on purpose" there.</span></div>
     <div class="lr-allow-row"><span class="muted">Always, at any length, the same meaning is never an error: upper / lower case, singular / plural, Grey / Gray, Colour / Color,
       Tablecloth / Table Cloth / Table-Cloth, Pillow Cover / Cushion Cover, Block Print / Block-Print / Blockprint / Block Printed / Hand Block Printed, hyphens, commas,
-      "|" and extra spaces. Siblings' sizes compare by meaning: "18x18" = "18 x 18" = "18×18".</span></div>`;
+      "|" and extra spaces. Siblings' sizes compare by meaning: "18x18" = "18 x 18" = "18×18".</span></div>`
+    + (typeof aiOn === 'function' && aiOn() && typeof aiStyleSectionHtml === 'function' ? aiStyleSectionHtml() : '');      // ✨ AI house style (listing-ai.js): shown only when AI is set up
 }
 
 // Draw the current view (issues / titles / season) into lrTable, with live counts from the listings snapshot.
@@ -200,7 +201,7 @@ function renderLrules() {
           <td class="num" style="font-weight:700">${rows.length ? off.toLocaleString('en-US') : '—'}</td>
           <td><button class="ghost lr-del" data-lrdel="templates|${i}" title="Delete this template">×</button></td>
         </tr>`;
-      }).join('') + '</tbody>';
+      }).join('') + '</tbody>' + (typeof aiOn === 'function' && aiOn() && typeof aiTplHtml === 'function' ? aiTplHtml(cfg) : '');      // ✨ Draft title template (listing-ai.js)
     lrMsg('Tokens: {brand} {product} {shape} {material} {size} {pattern} {uses} {occasions} {color}. "Must have" lists the tokens a title is checked for, in template order. '
       + '{occasions} is filled only with occasions in season today. Shape comes from the catalog sub-category, size and colour from the catalog row. Type a SKU in "Try a SKU" to see its suggestion.'
       + (LR_CAT.SP && LR_CAT.CPC ? '' : ' · the brand catalogues could not be read, so no title can be suggested yet'));

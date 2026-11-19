@@ -54,7 +54,7 @@ ok(`N = the Error card's listings + its "check again" ones (${A.cardN})`, A.btnN
 console.log('== the file ==');
 ok('name Sellora-errors-Both-YYYY-MM-DD.csv (today)', A.sheet.name === `Sellora-errors-Both-${ymd(now)}.csv`, A.sheet.name);
 ok('UTF-8 with a BOM, Windows line ends, every text cell quoted', A.sheet.text.startsWith('﻿"Brand","Parent name"') && /\r\n/.test(A.sheet.text) && !/[^\r]\n/.test(A.sheet.text));
-ok('the headers, in order', A.head.join('|') === 'Brand|Parent name|Parent ASIN|SKU|ASIN|Product|Live?|Stock (units)|Error|Details|How to fix|Status|Checked on|Errors on this listing|Amazon link', A.head.join('|'));
+ok('the headers, in order', A.head.join('|') === 'Brand|Parent name|Parent ASIN|SKU|ASIN|Product|Live?|Stock (units)|Error|Details|How to fix|Status|Checked on|Errors on this listing|Amazon link|Priority', A.head.join('|'));
 const col = name => A.head.indexOf(name);
 const skus = new Set(A.rows.map(r => r[col('Brand')] + '|' + r[col('SKU')]));
 ok('distinct SKUs in the file = N on the button', skus.size === A.btnN && A.sheet.skus === A.btnN, skus.size + ' vs ' + A.btnN);

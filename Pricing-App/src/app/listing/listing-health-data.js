@@ -266,7 +266,7 @@ function hWhyCell(row) {
       + `<span class="ls-whyd" aria-hidden="true"></span><span class="ls-whyt">${lrEsc(words)}</span></span>`;
   };
   const rest = found.length - 3;
-  return `<div class="ls-whyl">${found.slice(0, 3).map(item).join('')}`
+  return `<div class="ls-whyl">${typeof prOf === 'function' ? prChipHtml(prOf(row.brand, row.sku, [], { row, stock: row.qty }).k) : ''}${found.slice(0, 3).map(item).join('')}`
     + (rest > 0 ? `<button type="button" class="ls-why-more" data-lk-more="1" aria-label="Show all ${found.length} problems">+${rest} more</button>` : '') + '</div>';
 }
 // "+n more" opens the rest of a Why cell in place; a picture that fails to load hides itself (its grey square stays).
@@ -1040,6 +1040,8 @@ function renderHealth() {
   // whichever parents survived the filter, so the cards still agree with what's on screen.
   renderHealthKpis(H_VIEW === 'parent' ? rows.flatMap(g => g.kids) : rows, brands);
   hMetaRender(brands, H_VIEW === 'parent' ? 'Parent ASINs' : 'Child listings');
+  // ✨ Fix these first (listing-ai.js): the best 10 of the top 20 Critical / Important listings — only when AI is set up, only on a click
+  if (typeof aiOn === 'function' && aiOn() && $('hMeta').firstChild && $('hMeta').firstChild.insertAdjacentHTML) $('hMeta').firstChild.insertAdjacentHTML('beforeend', ' ' + aiBtnHtml('fix_first', brands[0] || 'SP', '', { use: 'read', brands, label: 'Fix these first', place: 'after' }));
   if (H_MOVED && $('hMeta').firstChild && $('hMeta').firstChild.insertAdjacentHTML) {
     $('hMeta').firstChild.insertAdjacentHTML('beforeend', ' <button type="button" class="ls-more lh-resort" data-h-resort="1" title="New answers would put the listings in another order; the table keeps its order until you press this">Sort again</button>');
   }

@@ -74,7 +74,7 @@ function healthPage(opts) {
     lcBytes: s => Buffer.byteLength(String(s || ''), 'utf8'),
     AUDIT_MANUAL: {}, PARENT_NAMES: {},
   };
-  const src = ['listing-health.js', 'listing-rules.js', 'listing-match.js', 'listing-health-data.js', 'parent-check.js', 'listing-rules-tab.js', 'listing-workspace.js', 'listing-saved.js', 'listing-kid.js', 'listing-bf.js', 'listing-sync.js'].map(L).join('\n')
+  const src = ['listing-health.js', 'listing-rules.js', 'listing-match.js', 'listing-health-data.js', 'parent-check.js', 'listing-rules-tab.js', 'listing-workspace.js', 'listing-saved.js', 'listing-kid.js', 'listing-bf.js', 'listing-sync.js'].concat(opts.extra || []).map(L).join('\n')
     + '\n;LR = JSON.parse(JSON.stringify(LR_DEFAULT));'
     + '\n;return { HEALTH, LI_WS, LR_CAT, renderHealth, hCtx, healthOf, reset: () => { H_CTX = null; }, setLoaded: v => { H_LOADED = v; }, setView: v => { H_VIEW = v; }, setSort: s => { H_SORT = s; },'
     + ' setFocus: f => { H_FOCUS = f; }, getRender: () => H_RENDER, lmStoreUse, setSaved: v => { LR_SAVED_AT = v; },'

@@ -100,6 +100,7 @@ function renderBasketAll() {
   const report = MB;
   if (!report) return;
   const search = ($('mbFilter').value || '').trim().toLowerCase();
+  if (typeof aiBundleBtn === 'function') aiBundleBtn();       // ✨ Bundle ideas (listing-ai.js), when AI is set up
 
   // --- nothing in the report could be read ---
   if (!report.rows) {

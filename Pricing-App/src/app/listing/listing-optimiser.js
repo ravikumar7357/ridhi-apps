@@ -264,7 +264,7 @@ function renderOpt() {
   }
 
   // --- the page ---
-  $('loBody').innerHTML = `
+  $('loBody').innerHTML = `${typeof aiOptCardHtml === 'function' && typeof aiOn === 'function' && aiOn() && data.ours && data.ours.sku ? aiOptCardHtml($('loBrand').value, data.ours.sku) : ''}
     <div class="card" style="padding:12px 14px;margin-bottom:12px">
       <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:baseline">
         <b style="font-size:15px">${loEsc(audit.asin)}</b>

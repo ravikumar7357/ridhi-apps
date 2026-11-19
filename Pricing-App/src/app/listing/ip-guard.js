@@ -422,7 +422,7 @@ function ipgGroups(model, f, o) {
   return model.groups.filter(g => IPG.brand === 'ALL' || g.f.brand === IPG.brand).map(g => {
     const famHit = q && (fcNorm(g.f.name).includes(q) || fcNorm(g.f.psku).includes(q) || fcNorm(g.f.pa).includes(q));
     const inView = g.rows.filter(p => !stock || p.c.live);
-    const rows = inView.filter(p => ipgRowIn(p, filter) && (!q || famHit || ipgHit(p, q)));
+    const rows = inView.filter(p => ipgRowIn(p, filter) && (!q || famHit || ipgHit(p, q)) && (f !== undefined || !(typeof prOf === 'function') || prKeep('ipg', prIpg(p))));
     return rows.length ? { f: g.f, g, inView, rows } : null;
   }).filter(Boolean);
 }
@@ -479,7 +479,7 @@ const ipgMarkText = mark => (mark ? `Yes — ${mark.name || fcName(mark.by)}${ma
 function ipgFindView(p, fd) {
   const c = p.c;
   const base = { brand: fcBrandName(c.brand), family: p.g.f.solo ? '' : String(p.g.f.name || ''), sku: fd ? fd.sku : (c.skus || [c.sku]).join(' / '), asin: c.asin || '', stock: c.stock == null ? '' : c.stock,
-    link: c.asin ? 'https://www.amazon.com/dp/' + c.asin : '', time: p.at ? ipgTime(p.at) : 'not read' };
+    link: c.asin ? 'https://www.amazon.com/dp/' + c.asin : '', time: p.at ? ipgTime(p.at) : 'not read', prio: typeof prOf === 'function' && (p.tm || p.claim) ? prCsv(prIpg(p)) : '' };
   if (!fd) return Object.assign(base, { field: '', word: '', type: '', snippet: '', why: '', what: p.bucket === 'unchecked' ? 'Not checked — Sellora holds no Amazon read of this listing yet' : 'Nothing to do — no risky word', allowed: '' });
   return Object.assign(base, { field: fd.label, word: fd.word, type: IPG_TYPE[fd.type].csv, snippet: fd.snip.a + fd.snip.hit + fd.snip.b, why: IPG_TYPE[fd.type].why, what: ipgFindWhat(fd), allowed: ipgMarkText(fd.mark),
     time: fd.at ? ipgTime(fd.at) : base.time });
@@ -490,12 +490,12 @@ function ipgShownFinds(model) {
   if (IPG.view === 'word') return ipgCardsShown(model).flatMap(card => card.finds.map(x => ipgFindView(x.p, x.fd)));
   return ipgShownRows(model).flatMap(p => (p.finds.length ? p.finds.map(fd => ipgFindView(p, fd)) : [ipgFindView(p, null)]));
 }
-const IPG_CSV_COLS = ['Brand', 'Family', 'SKU', 'ASIN', 'Stock', 'Field', 'Risky word', 'Type', 'Snippet', 'Why', 'What to do', 'Allowed on purpose', 'Amazon link', 'Data time'];
+const IPG_CSV_COLS = ['Brand', 'Family', 'SKU', 'ASIN', 'Stock', 'Field', 'Risky word', 'Type', 'Snippet', 'Why', 'What to do', 'Allowed on purpose', 'Amazon link', 'Data time', 'Priority'];
 const ipgCsvQ = val => { const s = String(val == null ? '' : val); return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
 /** The sheet: the lines on the screen (view, toggle, brand, chip, search), Excel-ready (UTF-8 BOM, CRLF). */
 function ipgCsv(model) {
   const rows = ipgShownFinds(model || ipgBuild());
-  const lines = rows.map(r => [r.brand, r.family, r.sku, r.asin, r.stock, r.field, r.word, r.type, r.snippet, r.why, r.what, r.allowed, r.link, r.time].map(ipgCsvQ).join(','));
+  const lines = rows.map(r => [r.brand, r.family, r.sku, r.asin, r.stock, r.field, r.word, r.type, r.snippet, r.why, r.what, r.allowed, r.link, r.time, r.prio || ''].map(ipgCsvQ).join(','));
   return { n: lines.length, rows, text: '﻿' + [IPG_CSV_COLS.join(',')].concat(lines).join('\r\n') + '\r\n' };
 }
 function ipgDownload() {
@@ -612,6 +612,7 @@ function ipgCardsHtml(model, s) {
   const chips = [chip('', 'All risky', ipgCount(model, '')), chip('tm', 'Trademark', ipgCount(model, 'tm')), chip('claim', 'Claims', ipgCount(model, 'claim'))]
     .concat(IPG_FIELDS.map(k => chip('f:' + k, 'In ' + IPG_FIELD[k].toLowerCase().replace('item highlights', 'Item Highlights'), ipgCount(model, 'f:' + k))),
       [chip('allowed', 'Allowed on purpose', ipgCount(model, 'allowed')), chip('clean', 'Clean', ipgCount(model, 'clean'))],
+      typeof prOf === 'function' ? [prFilterHtml('ipg', (k, label, on) => `<button type="button" class="cc-fchip${on ? ' is-on' : ''}" data-ipg="prf" data-ipg-v="${k}" aria-pressed="${on}">${label}</button>`)] : [],
       s.unchecked || IPG.f === 'unchecked' ? [chip('unchecked', 'Not checked', ipgCount(model, 'unchecked'))] : []).join('');
   return `<div class="fc-boxes">${IPG_CARDS.map(box).join('')}</div><div class="cc-chips" role="group" aria-label="Show">${chips}</div>`;
 }
@@ -640,7 +641,9 @@ function ipgFindsHtml(p) {
     const acts = mark ? `<button type="button" class="ghost fc-b" data-ipg="undo" ${a} data-ipg-w="${fcEsc(fd.k)}" title="${mark.fam ? 'The word counts again on every listing of the family' : 'The word counts again on this listing'}">Undo${mark.fam ? ' (whole family)' : ''}</button>`
       : `<button type="button" class="ghost fc-b" data-ipg="ok" ${a} data-ipg-w="${fcEsc(fd.k)}" title="This word is fine on this listing (you hold the right or the proof): it stops counting and no Fix takes it out. Undo brings it back.">Allowed on purpose</button>`
         + (p.g.f.famId ? `<button type="button" class="ghost fc-b" data-ipg="okfam" data-ipg-v="${fcEsc(p.g.f.fk)}" data-ipg-w="${fcEsc(fd.k)}" title="Allowed on every listing of this family, now and later">Allow for the whole family</button>` : '');
-    return `<div class="ipg-w is-${mark ? 'g' : t.cls}"><div class="ipg-wh">${head}</div>${list.map(x => ipgSnipHtml(p, x)).join('')}<div class="ipg-wa">${acts}</div></div>`;
+    // ✨ AI (listing-ai.js): only the sentence with the word, rewritten — then into the existing Fix all popup (title, search terms) or the safe send
+    const ai = !mark && !fd.subClean && typeof aiOn === 'function' && aiOn() ? aiBtnHtml('ip_rewrite', p.c.brand, fd.sku, { use: 'ipg', field: fd.f, word: fd.text || fd.word, wk: fd.word, screen: 'IP & Trademark Guard', label: 'Rewrite without this word' }) : '';
+    return `<div class="ipg-w is-${mark ? 'g' : t.cls}"><div class="ipg-wh">${head}</div>${list.map(x => ipgSnipHtml(p, x)).join('')}<div class="ipg-wa">${acts}${ai}</div></div>`;
   }).join('');
 }
 // The row's own buttons: what each press opens (the existing popups / Listing Errors).
@@ -659,7 +662,7 @@ function ipgRowHtml(p) {
   const side = p.bucket === 'tm' ? ' is-orphan' : p.bucket === 'claim' ? ' cc-chk' : '';
   const whats = [...new Set(p.finds.length ? p.finds.map(ipgFindWhat) : [ipgFindView(p, null).what])];
   return `<tr class="fc-row ipg-row${side}" data-ipg-row="${fcEsc(p.key)}"><td class="cc-pc">${ipgPicHtml(c)}</td>`
-    + `<td class="fc-sku"><b>${fcEsc((c.skus || [c.sku]).join(' / '))}</b>${typeof lmOldHtml === 'function' ? lmOldHtml(c.brand, c.sku) : ''}<small>${fcEsc(String(c.title || '').slice(0, 70))}</small></td>`
+    + `<td class="fc-sku"><b>${fcEsc((c.skus || [c.sku]).join(' / '))}</b>${typeof prOf === 'function' && (p.tm || p.claim) ? ' ' + prChipHtml(prIpg(p), 'fc-chip') : ''}${typeof lmOldHtml === 'function' ? lmOldHtml(c.brand, c.sku) : ''}<small>${fcEsc(String(c.title || '').slice(0, 70))}</small></td>`
     + `<td class="ui-mono">${amz}</td><td class="num">${c.stock == null ? '<span class="fc-none">—</span>' : fcNf(c.stock)}</td>`
     + `<td class="ipg-finds">${ipgFindsHtml(p)}</td>`
     + `<td class="fc-prob ipg-what">${whats.map(w => `<div class="ipg-do${/^Nothing to do|^Not checked/.test(w) ? ' is-g' : ''}">${fcEsc(w)}</div>`).join('')}</td>`
@@ -882,6 +885,7 @@ function ipgClick(el) {
   if (act === 'view') { if (IPG.view === v) return null; IPG.view = v; IPG.f = ''; IPG.built = false; return ipgDraw(); }
   if (act === 'f') { IPG.f = IPG.f === v ? '' : v; IPG.limit = IPG_STEP; return ipgDraw(); }           // a card: press again to clear it
   if (act === 'chip') { IPG.f = v || ''; IPG.limit = IPG_STEP; IPG.words = IPG_WORD_STEP; return ipgDraw(); }
+  if (act === 'prf') { prToggle('ipg', v); IPG.limit = IPG_STEP; return ipgDraw(); }      // 🔴 / 🟠 / ⚪ (listing-priority.js)
   if (act === 'grp') return ipgToggle(v, el);
   if (act === 'openall') { ipgGroups(model()).forEach(x => IPG.open.add(x.f.fk)); IPG.limit = IPG_STEP_OPEN; return ipgDraw(); }
   if (act === 'closeall') { IPG.open.clear(); IPG.limit = IPG_STEP; return ipgDraw(); }
