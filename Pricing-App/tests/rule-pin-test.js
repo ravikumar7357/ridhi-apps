@@ -38,8 +38,8 @@ function titleOf(i, b, p, s, c) {
   }
 }
 /** A stub page (the rules, the Workspace, the planner, Fix all) over the mixed catalogue. `files`: another revision's listing files. */
-function mixedPage(files) {
-  const C = load({ ws: true, sp: true, fa: true, files });
+function mixedPage(files, extra) {
+  const C = load(Object.assign({ ws: true, sp: true, fa: true, files }, extra || {}));
   C.setHealthLoaded(true);
   C.LI_WS.stored = true;
   C.SP.log = [];

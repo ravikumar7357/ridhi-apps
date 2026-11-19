@@ -762,7 +762,7 @@ function imKidRow(item) {
     <div class="im-kid-info">
       <div class="im-kid-t"><b class="im-mono">${imEsc(item.sku)}</b>${item.lmStale && typeof lmOldHtml === 'function' ? lmOldHtml($('imBrand') ? $('imBrand').value : '', item.sku) : ''}<span class="muted">${imEsc(item.asin)}</span></div>
       <div class="im-kid-s">${imEsc([item.c, item.z].filter(Boolean).join(' · ') || String(item.t || '').slice(0, 60))}</div>
-      <div class="im-kid-q">${chips.map(chip => `<span class="im-chip ${chip.cls}"${chip.k ? ` data-im-prob="${chip.k}"` : ''}${chip.tip ? ` title="${imEsc(chip.tip)}"` : ''}>${imEsc(chip.t)}</span>`).join('')}<span class="im-kid-sum">${imKidSummary(item)}</span></div>
+      <div class="im-kid-q">${typeof prOf === 'function' && imProblems(item).length ? prChipHtml(prIm($('imBrand') ? $('imBrand').value : '', item), 'im-chip') : ''}${chips.map(chip => `<span class="im-chip ${chip.cls}"${chip.k ? ` data-im-prob="${chip.k}"` : ''}${chip.tip ? ` title="${imEsc(chip.tip)}"` : ''}>${imEsc(chip.t)}</span>`).join('')}<span class="im-kid-sum">${imKidSummary(item)}</span></div>
       ${errs.length ? `<div class="im-kid-err" title="${imEsc(errs.map(imPicErrText).join(' · '))}">${imEsc(errs.map(imPicErrText).join(' · '))}</div>` : ''}
       <div class="im-kid-act">
         <button class="ghost im-b" data-edit="${imEsc(item.sku)}" title="Open the editor beside the list (E)">Edit</button>
@@ -2071,7 +2071,7 @@ const IM_DL_CHECKS = [
   { k: 'noown', col: "Using the family's main", todo: "Upload this listing's own main picture" },
 ];
 const IM_DL_COLS = ['Brand', 'Family name', 'Parent ASIN', 'SKU', 'ASIN', 'Colour', 'Size', 'Stock (units)', 'Amazon link', 'Problems', 'What to do']
-  .concat(IM_DL_CHECKS.map(c => c.col), ['Number of pictures', 'Smallest picture size', "Amazon's picture error message", 'Data time', 'Verified at']);
+  .concat(IM_DL_CHECKS.map(c => c.col), ['Number of pictures', 'Smallest picture size', "Amazon's picture error message", 'Data time', 'Verified at', 'Priority']);
 const IM_LIVE_PAR = 4;            // listings read live from Amazon at once (each is two calls)
 let IM_DL_RUN = null;             // { stop, done, total } while the download checks its rows with Amazon
 // One problem of one listing of `brand` (the listing's problems: imProblems).
@@ -2108,7 +2108,7 @@ function imDlRow(item, brand, bySku, only, when, verified) {
   return { brand, item, fam, famKey: brand + '|' + (item.psku || 'solo:' + item.sku), sku: String(item.sku), n: has.length, cells: [
     (typeof BRAND_NAME !== 'undefined' && BRAND_NAME[brand]) || brand, fam, item.pa || (parent && parent.asin) || '', item.sku, item.asin || '', item.c || '', item.z || '',
     lrQtyOf(brand, item.sku), item.asin ? 'https://www.amazon.com/dp/' + item.asin : '', has.map(c => c.col).join(' | '), has.map(c => c.todo).join(' | '),
-  ].concat(IM_DL_CHECKS.map(c => (has.includes(c) ? 'Yes' : '')), [imPicCount(item).n, sizes[0] ? `${sizes[0][0]}×${sizes[0][1]}` : '', errs, when, verified || '']) };
+  ].concat(IM_DL_CHECKS.map(c => (has.includes(c) ? 'Yes' : '')), [imPicCount(item).n, sizes[0] ? `${sizes[0][0]}×${sizes[0][1]}` : '', errs, when, verified || '', typeof prOf === 'function' ? prCsv(prIm(brand, item)) : '']) };
 }
 // By family (the family's problems added up, most first; then its name), then SKU.
 function imDlSort(rows) {

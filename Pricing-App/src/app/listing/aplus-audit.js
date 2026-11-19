@@ -308,7 +308,7 @@ function apcGroups(model, f) {
   const filter = f === undefined ? APC.f : f;
   return model.groups.filter(g => APC.brand === 'ALL' || g.f.brand === APC.brand).map(g => {
     const famHit = q && (fcNorm(g.f.name).includes(q) || fcNorm(g.f.psku).includes(q) || fcNorm(g.f.pa).includes(q));
-    const rows = g.rows.filter(p => apcRowIn(p, filter) && (!q || famHit || apcHit(p, q)));
+    const rows = g.rows.filter(p => apcRowIn(p, filter) && (!q || famHit || apcHit(p, q)) && (f !== undefined || !(typeof prOf === 'function') || prKeep('apc', prApc(p))));
     return rows.length ? { f: g.f, g, all: g.rows, rows } : null;
   }).filter(Boolean);
 }
@@ -375,12 +375,13 @@ function apcRowView(p) {
     sales: p.sales, status, doc: d ? d.n || 'unnamed document' : '', type: d ? d.t || '' : '', updated: d && d.u ? apcDate(d.u) : '', reason: p.reasons.join('; '),
     what: p.what, link: c.asin ? 'https://www.amazon.com/dp/' + c.asin : '', time: apcTime(c.brand) };
 }
-const APC_CSV_COLS = ['Brand', 'Family', 'SKU', 'ASIN', 'Stock', '30-day sales', 'A+ status', 'Document name', 'Type', 'Last updated', "Amazon's reason", 'What to do', 'Amazon link', 'Data time'];
+const APC_CSV_COLS = ['Brand', 'Family', 'SKU', 'ASIN', 'Stock', '30-day sales', 'A+ status', 'Document name', 'Type', 'Last updated', "Amazon's reason", 'What to do', 'Amazon link', 'Data time', 'Priority'];
 const apcCsvQ = val => { const s = String(val == null ? '' : val); return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
 /** The products' sheet: the rows on the screen (view, toggle, brand, chip, search), Excel-ready (UTF-8 BOM, CRLF). */
 function apcCsv(model) {
-  const rows = apcShownRows(model || apcBuild()).map(apcRowView);
-  const lines = rows.map(r => [r.brand, r.family, r.sku, r.asin, r.stock, r.sales == null ? '' : (Math.round(r.sales * 100) / 100).toFixed(2), r.status, r.doc, r.type, r.updated, r.reason, r.what, r.link, r.time].map(apcCsvQ).join(','));
+  const shown = apcShownRows(model || apcBuild());
+  const rows = shown.map(apcRowView);
+  const lines = rows.map((r, i) => [r.brand, r.family, r.sku, r.asin, r.stock, r.sales == null ? '' : (Math.round(r.sales * 100) / 100).toFixed(2), r.status, r.doc, r.type, r.updated, r.reason, r.what, r.link, r.time, typeof prOf === 'function' && PR_APC[shown[i].bucket] ? prCsv(prApc(shown[i])) : ''].map(apcCsvQ).join(','));
   return { n: lines.length, rows, text: '﻿' + [APC_CSV_COLS.join(',')].concat(lines).join('\r\n') + '\r\n' };
 }
 /** One document card in words. */
@@ -462,7 +463,8 @@ function apcCardsHtml(model, s) {
   const chip = (k, t, n) => `<button type="button" class="cc-fchip${APC.f === k ? ' is-on' : ''}" data-apc="chip" data-apc-v="${k}" aria-pressed="${APC.f === k}">${fcEsc(t)}${n == null ? '' : ` <b>${fcNf(n)}</b>`}</button>`;
   const chips = [chip('', 'All'), chip('fix', 'Fix first', apcCount(model, 'fix'))].concat(['missing', 'rejected', 'draft', 'waiting'].map(k => chip(k, APC_ST[k].t, apcCount(model, k))),
     [chip('stuck', 'Stuck', apcCount(model, 'stuck')), chip('live', 'Live', apcCount(model, 'live')), chip('none', 'No A+ needed', apcCount(model, 'none'))],
-    s.n.unchecked || APC.f === 'unchecked' ? [chip('unchecked', 'Not checked', apcCount(model, 'unchecked'))] : []).join('');
+    s.n.unchecked || APC.f === 'unchecked' ? [chip('unchecked', 'Not checked', apcCount(model, 'unchecked'))] : []).join('')
+    + (typeof prOf === 'function' ? prFilterHtml('apc', (k, label, on) => `<button type="button" class="cc-fchip${on ? ' is-on' : ''}" data-apc="prf" data-apc-v="${k}" aria-pressed="${on}">${label}</button>`) : '');
   return `<div class="fc-boxes">${APC_CARDS.map(box).join('')}</div><div class="cc-chips" role="group" aria-label="Show">${chips}</div>`;
 }
 function apcPicHtml(c) {
@@ -493,7 +495,7 @@ function apcRowHtml(p, flat, rank) {
   const more = p.docs.length > 1 ? ` <small class="muted" title="${fcEsc(p.docs.map(d => (d.n || 'unnamed') + ' — ' + d.s).join('\n'))}">+${p.docs.length - 1} more</small>` : '';
   const row = `<tr class="fc-row apc-row${side}${APC.sel.has(p.key) ? ' is-sel' : ''}" data-apc-row="${fcEsc(p.key)}"><td class="fc-tk">${flat ? `<small class="muted apc-rank">${rank}</small>` : ''}${tick}</td><td class="cc-pc">${apcPicHtml(c)}</td>`
     + `<td class="fc-sku"><b>${fcEsc(r.sku)}</b>${typeof lmOldHtml === 'function' ? lmOldHtml(c.brand, c.sku) : ''}<small>${fcEsc(flat ? (r.family || String(c.title || '')).slice(0, 70) : String(c.title || '').slice(0, 70))}</small></td>`
-    + `<td class="ui-mono">${amz}</td><td class="apc-st">${apcStatusHtml(p)}</td>`
+    + `<td class="ui-mono">${amz}</td><td class="apc-st">${apcStatusHtml(p)}${typeof prOf === 'function' && PR_APC[p.bucket] ? ' ' + prChipHtml(prApc(p), 'fc-chip') : ''}</td>`
     + `<td class="apc-doc">${p.doc ? fcEsc(r.doc) + more : '<span class="fc-none">—</span>'}</td><td>${r.type ? fcEsc(r.type) : '<span class="fc-none">—</span>'}</td><td class="apc-upd">${r.updated ? fcEsc(r.updated) : '<span class="fc-none">—</span>'}</td>`
     + `<td class="num">${p.sales == null ? '<span class="fc-none">—</span>' : apcMoney(p.sales)}</td>`
     + `<td class="fc-prob apc-what"><div class="apc-do is-${APC_ST[p.bucket].cls}">${fcEsc(r.what)}</div></td>`
@@ -771,6 +773,7 @@ function apcClick(el) {
   if (act === 'view') { if (APC.view === v) return null; APC.view = v; APC.f = ''; APC.prevOpen = ''; APC.built = false; return apcDraw(); }
   if (act === 'f') { APC.f = APC.f === v ? '' : v; APC.limit = APC_STEP; APC.flat = APC_FLAT_STEP; return apcDraw(); }      // a card: press again to clear it
   if (act === 'chip') { APC.f = v || ''; APC.limit = APC_STEP; APC.flat = APC_FLAT_STEP; APC.docs = APC_DOC_STEP; return apcDraw(); }
+  if (act === 'prf') { prToggle('apc', v); APC.limit = APC_STEP; APC.flat = APC_FLAT_STEP; return apcDraw(); }      // 🔴 / 🟠 / ⚪ (listing-priority.js)
   if (act === 'grp') return apcToggle(v, el);
   if (act === 'openall') { apcGroups(apcBuild()).forEach(x => APC.open.add(x.f.fk)); APC.limit = APC_STEP_OPEN; return apcDraw(); }
   if (act === 'closeall') { APC.open.clear(); APC.limit = APC_STEP; return apcDraw(); }

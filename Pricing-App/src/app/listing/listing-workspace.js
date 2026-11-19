@@ -1092,7 +1092,7 @@ function liWsKidTableInner(p, bare) {
     const mark = cardK ? (inCard(kid) ? ` is-match is-m-${cardK}` : ' is-other') : '';
     const other = i === firstOther && i > 0 ? `<tr class="li-ws-otherhead"><td colspan="${LI_WS_CHECKS.length + 3}">Other listings</td></tr>` : '';
     return `${other}<tr class="li-ws-kid${kid.counted ? '' : ' is-off'}${mark}"><td><button type="button" class="li-ws-sku" data-li-ws-sku="${lrEsc(key)}" aria-expanded="${open}">${open ? '▾' : '▸'} ${lrEsc(kid.sku)}</button>${kid.lr && kid.lr.lmStale && typeof lmOldHtml === 'function' ? lmOldHtml(kid.brand, kid.sku) : ''}`
-      + `<div class="li-ws-asin">${lrEsc(kid.asin)}</div></td><td>${lrEsc(kid.why)}</td><td class="num">${kid.row.qty == null ? '<span class="li-ws-na">—</span>' : liWsNf(kid.row.qty)}</td>`
+      + `<div class="li-ws-asin">${lrEsc(kid.asin)}</div></td><td>${typeof prOf === 'function' && (kid.found || []).length ? prChipHtml(prKid(kid)) + ' ' : ''}${lrEsc(kid.why)}</td><td class="num">${kid.row.qty == null ? '<span class="li-ws-na">—</span>' : liWsNf(kid.row.qty)}</td>`
       + LI_WS_CHECKS.map(check => `<td>${liWsCell(kid, check, reading)}</td>`).join('') + '</tr>' + (open ? liWsDetail(kid, LI_WS_CHECKS.length + 3) : '');
   }).join('') || `<tr><td colspan="${LI_WS_CHECKS.length + 3}" class="li-ws-na">${step ? 'No listing fails this step now.' : `No ${LI_WS.mode === 'live' ? 'live' : LI_WS.mode === 'off' ? 'not-live' : ''} children.`}</td></tr>`;
   return `${bare ? '' : note + liWsAuditBox(p)}<div class="li-ws-kidbox"><table class="li-ws-kidtable">${head}<tbody>${body}</tbody></table></div>`;
@@ -1198,8 +1198,11 @@ function liWsRender() {
   const redK = k => k === 'amz' || (idx.by[k] || []).some(rule => rule.sev === 'critical');   // a column whose rules can be an Error
   const chipDefs = [{ k: 'all', t: 'All parents', dot: 'brand', n: scoped.length }, { k: 'problems', t: 'Has problems', dot: 'bad', n: scoped.filter(p => p.probN > 0).length }]
     .concat(LI_WS_CHECKS.map(check => ({ k: check.k, t: check.w, dot: redK(check.k) ? 'bad' : 'act', n: scoped.filter(p => p.failN[check.k] > 0).length })).filter(chip => chip.n > 0));
+  // 🔴 / 🟠 / ⚪ (listing-priority.js): the parents with a child of that level that has a problem
+  const prIn = (p, k) => (p.kids || []).some(kid => (kid.found || []).length && prKid(kid) === k);
+  if (typeof prOf === 'function') ['crit', 'imp', 'wait'].forEach(k => { const n = scoped.filter(p => prIn(p, k)).length; if (n) chipDefs.push({ k: 'pr:' + k, t: PR_LEVELS[k].i + ' ' + PR_LEVELS[k].t, dot: k === 'crit' ? 'bad' : k === 'imp' ? 'act' : 'brand', n }); });
   if (!chipDefs.some(chip => chip.k === LI_WS.chip)) LI_WS.chip = 'all';
-  const keep = LI_WS.chip === 'all' ? () => true : LI_WS.chip === 'problems' ? p => p.probN > 0 : p => p.failN[LI_WS.chip] > 0;
+  const keep = LI_WS.chip === 'all' ? () => true : LI_WS.chip === 'problems' ? p => p.probN > 0 : /^pr:/.test(LI_WS.chip) ? p => prIn(p, LI_WS.chip.slice(3)) : p => p.failN[LI_WS.chip] > 0;
   const cardOn = LI_WS.mode !== 'off' && LI_WS_CARD[LI_WS.card] ? LI_WS_CARD[LI_WS.card] : null;
   const keepCard = cardOn ? cardOn.keep : () => true;
   const rows = liWsOrder(scoped.filter(p => (LI_WS.mode !== 'off' || p.offN > 0) && keep(p) && keepCard(p)));
@@ -1438,7 +1441,7 @@ function liWsReconcile(brandsIn) {
  *       brand switch and the search — one row per Error-level problem, as a CSV that opens in Excel / Google Sheets. It only reads:
  *       nothing is saved or sent, so it works on the test site too. ----- */
 const LI_WS_DL_COLS = ['Brand', 'Parent name', 'Parent ASIN', 'SKU', 'ASIN', 'Product', 'Live?', 'Stock (units)', 'Error', 'Details', 'How to fix',
-  'Status', 'Checked on', 'Errors on this listing', 'Amazon link'];
+  'Status', 'Checked on', 'Errors on this listing', 'Amazon link', 'Priority'];
 // The problem in plain words where the rule's own name says it less plainly; every other Error keeps its Listing Rules name.
 const LI_WS_DL_WORDS = { amazon_error: 'Amazon reports an error', amazon_suppressed: 'Suppressed from search', inactive_with_stock: 'Stock but Inactive',
   no_main_image: 'Main picture missing', no_price: 'No price' };
@@ -1472,7 +1475,7 @@ function liWsErrorsCsv(parents, brandPick, now) {
       rows.push({ sort: [BRAND_NAME[kid.brand] || kid.brand, p.name || p.parent, p.parent, kid.sku], cells: [
         BRAND_NAME[kid.brand] || kid.brand, p.name || '', p.parent, kid.sku, kid.asin || '', product, liveWord, row.qty == null ? '' : +row.qty,
         LI_WS_DL_WORDS[hit.detector] || hit.name, hit.detail || '', hit.fix || '', status, at ? day(at) : '', errs.length,
-        kid.asin ? 'https://www.amazon.com/dp/' + kid.asin : ''] });
+        kid.asin ? 'https://www.amazon.com/dp/' + kid.asin : '', typeof prOf === 'function' ? prCsv(prKid(kid)) : ''] });
     });
   });
   rows.sort((a, b) => {

@@ -57,6 +57,7 @@ function cacheOf(kids, at) {
 /* ----- THE MOCKED BACKEND: GET ?ai=ask (every other GET is the Sellora backend's usual answers) ----- */
 const AIR = { mode: 'on', calls: [], answer: {}, status: 'ready', statusCalls: [] };
 // a browser session's storage (the status answer is kept in it for the session)
+const aiFetchStyle = null;
 const sessionOf = () => { const m = {}; return { getItem: k => (k in m ? m[k] : null), setItem: (k, v) => { m[k] = String(v); }, m }; };
 const RESULT = {
   title: () => ({ title: GOOD('18 x 18', 'Blue') }),
@@ -67,6 +68,12 @@ const RESULT = {
   aplus_text: () => ({ headline: 'Printed by hand in Jaipur', blocks: [{ heading: 'The craft', body: 'Every napkin is printed by hand with carved wooden blocks.' }, { heading: 'The cotton', body: 'Soft cotton that gets softer with every wash.' }, { heading: 'Care', body: 'Machine wash cold, tumble dry low.' }] }),
   ip_rewrite: q => ({ field: q.field, index: 0, before: 'x', sentence: 'y', text: q.field === 'kw' ? 'dinner table linen serviettes' : 'Ridhi Cloth Napkins 100% Cotton 18 x 18 Inch Block Print - Green', word: q.word }),
   error_explain: q => ({ plain: 'Amazon wants a colour on this listing and it has none.', fix: 'Open the listing in Listing Errors and fill in the colour.', screen: 'Listing Errors', code: q.code }),
+  fix_first: q => ({ items: JSON.parse(q.d).items.slice(0, 2).map(x => ({ sku: x.sku, line: 'Has ' + x.stock + ' in stock and a problem customers see' })) }),
+  title_template: q => ({ template: '{brand} {product} {size} Inch {pattern} - {color}', pt: q.pt, examples: ['Ridhi Cloth Napkins 100% Cotton 18 x 18 Inch Block Print - Blue'] }),
+  bsr_why: () => ({ summary: 'Rank fell when the price went up.', reasons: ['Price up 20% in week A'], missing: ['ads spend'] }),
+  category_suggest: () => ({ id: '1063916', path: 'Tablecloths', reason: 'Its siblings are in Tablecloths.' }),
+  change_result: () => ({ verdict: 'not enough data yet', line: 'Not enough data yet — it needs 14 days before and after the change.' }),
+  bundle_ideas: () => ({ pairs: [{ a: 'NP-1', b: 'NP-2', why: 'bought together often' }], others: [] }),
   image_check: () => ({ white_background: true, text_or_watermark: true, fill_pct: 70, fills_frame: false, pass: false, notes: 'A logo in the corner; the napkin fills about 70%.', image: 'https://m.media-amazon.com/images/I/NP1.jpg' }),
 };
 const aiFetch = async url => {
@@ -85,11 +92,14 @@ const aiFetch = async url => {
   else if (AIR.mode === 'old') reply = { ok: false, error: 'No ASIN found in "".' };
   else {
     const over = AIR.answer[q.task];
-    reply = { ok: true, task: q.task, result: over ? over(q) : RESULT[q.task](q), why: 'Made from the listing\'s own facts.', model: 'claude-sonnet-5-5', costUsd: 0.0123, monthUsd: 3.2, limitUsd: 80, cached: false };
+    reply = { ok: true, task: q.task, result: over ? over(q) : RESULT[q.task](q), why: 'Made from the listing\'s own facts.', model: 'claude-sonnet-5-5', costUsd: 0.0123, monthUsd: 3.2, limitUsd: 80, cached: false,
+      style: q.style ? { pt: q.style.split('@')[0], at: Number(q.style.split('@')[1]) } : null };
   }
   return { text: async () => JSON.stringify(reply) };
 };
 
+let T0offPage = null;
+const T0off = () => T0offPage;
 async function setup(opts) {
   opts = opts || {};
   const kids = KIDS.map(k => Object.assign({}, k));
@@ -116,7 +126,7 @@ async function setup(opts) {
     }
     return {};
   };
-  C = load({ lm: true, ws: true, sp: true, fa: true, lh: true, le: true, ai: opts.ai !== false, baCall,
+  C = load({ lm: true, ws: true, sp: true, fa: true, lh: true, le: true, ai: opts.ai !== false, pr: opts.ai !== false, baCall,
     getDoc: async ref => { const d = store[ref.path]; return { exists: () => !!d, data: () => JSON.parse(JSON.stringify(d)) }; },
     setDoc: async (ref, data) => { saved.push({ path: ref.path, data: JSON.parse(JSON.stringify(data)) }); store[ref.path] = Object.assign({}, store[ref.path] || {}, data); },
     ctx: { imOnly() {}, imListRender() {}, ME: { email: 'vishesh.g@example.com' }, parentName: (b, asin, fallback) => fallback,
@@ -229,13 +239,16 @@ const patches = (C, apply) => C.calls.filter(c => c.lfix === 'patch' && c.apply 
     const n0 = AIR.statusCalls.length;
     const T0 = await setup();
     const C0 = T0.C;
+    T0offPage = C0;
     ok('one status call when the page loads (no Claude call) → not set up', AIR.statusCalls.length === n0 + 1 && C0.AI.ready === false && AIR.calls.length === 0, AIR.statusCalls.length - n0);
     ok('…aiBtnHtml and the Optimiser card draw nothing', C0.aiBtnHtml('title', 'SP', 'NP-1', { use: 'send' }) === '' && C0.aiOptCardHtml('SP', 'NP-1') === '');
     const off = await draw(C0);
     const plain = await draw((await setup({ ai: false })).C);
-    ok('IP & Trademark Guard, the Season planner child panel and the Fix all titles popup are EXACTLY what they were without the AI file',
-      off.ipg === plain.ipg && off.kid === plain.kid && off.tt === plain.tt && !/data-ai|ai-row|sp-ai/.test(off.ipg + off.kid + off.tt),
-      [off.ipg === plain.ipg, off.kid === plain.kid, off.tt === plain.tt].join());
+    // the priority chips (listing-priority.js) are the one thing added with AI off — set aside here (tests/priority-test.js has them)
+    const noPr = h => h.replace(/ ?<span class="pr-chip[^>]*>[^<]*<\/span> ?|<button type="button" class="cc-fchip[^"]*" data-ipg="prf"[^>]*>[^<]*<\/button>/g, '');
+    ok('IP & Trademark Guard, the Season planner child panel and the Fix all titles popup are EXACTLY what they were without the AI file (the priority chips aside)',
+      noPr(off.ipg) === plain.ipg && noPr(off.kid) === plain.kid && noPr(off.tt) === plain.tt && !/data-ai|ai-row|sp-ai/.test(off.ipg + off.kid + off.tt),
+      (() => { const a = noPr(off.ipg), b = plain.ipg; let i = 0; while (i < a.length && a[i] === b[i]) i++; return a.slice(Math.max(0, i - 150), i + 150) + ' ||| ' + b.slice(Math.max(0, i - 150), i + 150); })());
     C0.el('leBrand').value = 'SP';
     C0.setLE({ sku: 'NP-1', asin: A('NP-1'), productType: 'NAPKIN', title: GOOD('18 x 18', 'Blue'), issues: [], attributes: { item_name: [{ value: GOOD('18 x 18', 'Blue'), language_tag: 'en_US' }] } }, {});
     ok('…and Listing Content has no ✨ button and no AI mark at all', !/data-ai/.test(C0.lcSectionHtml()));
@@ -458,6 +471,49 @@ const patches = (C, apply) => C.calls.filter(c => c.lfix === 'patch' && c.apply 
     await C.aiOptAll(btn);
     ok('…one click asks for title, bullets, description and search terms — four cards, each with its own checks and Approve', AIR.calls.slice(n).map(q => q.task).join() === 'title,bullets,description,kw'
       && P.made.filter(e => e.dataset.aiCard).length === 4 && P.made.filter(e => e.dataset.aiCard).every(e => /data-ai-act="approve"/.test(e.innerHTML)), AIR.calls.slice(n).map(q => q.task).join());
+  }
+
+  console.log('== PART 2: the house style on every writing card; the page tasks ==');
+  {
+    C.AI.memo.clear();
+    C.AI.styleOk = {};
+    let r = await press(C, page(), C.aiBtnHtml('title', 'SP', 'NP-1', { use: 'send', key: 'st0' }));
+    ok('no approved guide: no &style= sent, the card says "No house style yet"', !('style' in AIR.calls.slice(-1)[0]) && /No house style yet/.test(strip(r.card)), strip(r.card).slice(-200));
+    C.AI.styleOk = { NAPKIN: { at: 1763600000000, approvedAt: new Date(2026, 10, 20).getTime(), name: 'Vishesh G' } };
+    C.AI.memo.clear();
+    AIR.answer.title = () => ({ title: GOOD('18 x 18', 'Blue') });
+    const answer = AIR.answer.title;
+    const orig = aiFetchStyle;
+    void orig;
+    r = await press(C, page(), C.aiBtnHtml('title', 'SP', 'NP-1', { use: 'send', key: 'st1' }));
+    const q = AIR.calls.slice(-1)[0];
+    ok('an approved guide for its product type: &style=NAPKIN@<the guide\'s date> is sent', q.style === 'NAPKIN@1763600000000', JSON.stringify(q));
+    ok('…and the card says "Follows: napkin house style (approved 20 Nov)" when the backend used it', /Follows: napkin house style \(approved 20 Nov\)/.test(strip(r.card)), strip(r.card).slice(-220));
+    void answer;
+    C.AI.memo.clear(); delete AIR.answer.title;
+    const kinds = ['bullets', 'description', 'kw'].map(t => { C.AI.memo.clear(); return t; });
+    for (const t of kinds) await press(C, page(), C.aiBtnHtml(t, 'SP', 'NP-1', { use: 'send', key: 'st-' + t }));
+    ok('every writing task sends the approved guide (bullets, description, search terms)', AIR.calls.slice(-3).every(x => x.style === 'NAPKIN@1763600000000'), AIR.calls.slice(-3).map(x => x.task + ':' + x.style).join(' '));
+    C.AI.styleOk = {};
+    ok('Listing Rules → "✨ AI house style": a section only when AI is set up', /✨ AI house style/.test(C.aiStyleSectionHtml ? C.aiStyleSectionHtml() : '') && T0off().aiStyleSectionHtml() === '');
+    // ✨ Fix these first
+    r = await press(C, page(), C.aiBtnHtml('fix_first', 'SP', '', { use: 'read', brands: ['SP'], label: 'Fix these first' }));
+    const ff = AIR.calls.slice(-1)[0], d = JSON.parse(ff.d || '{}');
+    ok('Fix these first: the top Critical / Important listings go as facts (SKU, level, problem names, stock — no listing text), the best come back with one line each and "Open the fix"',
+      ff.task === 'fix_first' && Array.isArray(d.items) && d.items.length > 0 && d.items.length <= 20 && d.items.every(x => x.sku && (x.level === 'crit' || x.level === 'imp') && !('title' in x)) && /Open the fix/.test(r.card) && /in stock and a problem/.test(strip(r.card)), JSON.stringify(d).slice(0, 300) + ' ' + strip(r.card).slice(0, 200));
+    r = await press(C, page(), C.aiBtnHtml('title_template', 'SP', '', { use: 'read', pt: 'NAPKIN', match: 'Napkin Set', product: 'Napkin Set', label: 'Draft title template' }));
+    ok('Draft title template: the product type goes; the draft and "Add as a new template" (never saved by itself)', AIR.calls.slice(-1)[0].pt === 'NAPKIN' && /\{brand\} \{product\}/.test(r.card) && /Add as a new template/.test(r.card) && /Nothing is saved by itself/.test(strip(r.card)));
+    r = await press(C, page(), C.aiBtnHtml('bsr_why', 'SP', '', { use: 'read', d: { parent: 'B0P', weekA: { week: 'W46', rank: 900 }, weekB: { week: 'W45', rank: 400 } }, label: 'Why did rank change?' }));
+    ok('Why did rank change?: week A and B go as numbers; the summary, the reasons, what is not known', JSON.parse(AIR.calls.slice(-1)[0].d).weekA.rank === 900 && /Rank fell/.test(strip(r.card)) && /Not known: ads spend/.test(strip(r.card)));
+    r = await press(C, page(), C.aiBtnHtml('category_suggest', 'SP', 'NP-1', { use: 'read', place: 'row', label: 'Suggest the right category' }));
+    const cd = JSON.parse(AIR.calls.slice(-1)[0].d);
+    ok('Suggest the right category: only category ids Sellora reads go as options; the fix opens Listing Errors (Amazon checks it)', Array.isArray(cd.options) && cd.options.every(o => /^\d+$/.test(o.id)) && /Fix it in Listing Errors/.test(r.card), JSON.stringify(cd));
+    r = await press(C, page(), C.aiBtnHtml('change_result', 'SP', 'NP-1', { use: 'read', place: 'row', asin: 'B0NP1XXXXX', at: Date.now() - 20 * 86400000, fieldName: 'Title', label: 'Did this change work?' }));
+    const cr = JSON.parse(AIR.calls.slice(-1)[0].d);
+    ok('Did this change work?: 14 days before vs after from the weekly store (none here: 0 days) → "Not enough data yet"', cr.before.days === 0 && cr.after.days === 0 && /Not enough data yet/.test(strip(r.card)), JSON.stringify(cr));
+    r = await press(C, page(), C.aiBtnHtml('bundle_ideas', 'SP', '', { use: 'read', place: 'into', into: 'mbBody', label: 'Bundle ideas' }));
+    ok('Bundle ideas: read-only ideas ("Ideas only — nothing changes")', /Sell together/.test(strip(r.card)) && /Ideas only/.test(strip(r.card)) && !/data-ai-act="(approve|use)"/.test(r.card));
+    ok('no page task can send anything: none of their cards has Approve', !/data-ai-act="approve"/.test(r.card));
   }
 
   console.log('== the rule results and counts are untouched by the AI file ==');

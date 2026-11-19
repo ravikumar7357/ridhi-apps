@@ -24,9 +24,16 @@
  * kept for the browser session) — no key, no route deployed, or "AI not set up yet" = no ✨ button anywhere, every page exactly as before.
  * Set up, a click that meets the month's limit says so in a calm grey line ("Monthly AI limit reached").
  * Under each card: "AI used this month: $X of $80".
+ * PART 2 (20 Nov 2026): every writing task sends the APPROVED house style of the listing's product type (&style=, Listing Rules → ✨ AI house
+ * style: the guides the backend learnt, Approve, Learn again) and its card says "Follows: … house style (approved …)" / "No house style yet";
+ * the read-only page tasks — ✨ Fix these first (Listing Health), ✨ Draft title template (Listing Rules), ✨ Why did rank change? (BSR
+ * Audit), ✨ Suggest the right category (Categories), ✨ Did this change work? (Listing History), ✨ Bundle ideas (Bought Together) —
+ * send only the page's numbers, ids and rule names (&d=), never listing text.
  * Main functions: aiStatusCheck, aiOn, aiAsk, aiBtnHtml, aiCheck, aiOpen, aiCardHtml, aiApprove, aiPreset, aiWasUsed, aiReport. Every name starts with ai / AI. */
 
-const AI_TASKS = ['title', 'bullets', 'description', 'kw', 'season', 'aplus_text', 'ip_rewrite', 'error_explain', 'image_check'];
+const AI_TASKS = ['title', 'bullets', 'description', 'kw', 'season', 'aplus_text', 'ip_rewrite', 'error_explain', 'image_check',
+  'fix_first', 'title_template', 'bsr_why', 'category_suggest', 'change_result', 'bundle_ideas'];             // PART 2: the page tasks
+const AI_STYLED = ['title', 'bullets', 'description', 'kw', 'season', 'aplus_text', 'ip_rewrite', 'title_template'];   // follow an approved house style
 const AI_LIMIT_DEF = 80;
 const AI_SCREEN = { lc: 'Listing Errors', send: 'AI suggestion', tt: 'Titles · Fix all', kf: 'Search terms · Fix all', ipg: 'IP & Trademark Guard' };
 const AI_SALE = /\b(?:black friday|cyber monday|prime day|deals?|sale|discount|offers?|clearance|free shipping)\b|\d+\s*%\s*off\b/i;
@@ -49,7 +56,8 @@ function aiSessionSet(ready) { try { sessionStorage.setItem(AI_SESSION_KEY, JSON
 function aiStatusCheck() {
   if (AI.status) return AI.status;
   const kept = aiSessionGet();
-  if (kept) { AI.ready = kept.ready; AI.status = Promise.resolve(AI.ready); return AI.status; }
+  if (kept) { AI.ready = kept.ready; if (AI.ready) aiStyleOkLoad(); AI.status = Promise.resolve(AI.ready); return AI.status; }
+  if (typeof API === 'undefined') { AI.ready = false; AI.status = Promise.resolve(false); return AI.status; }   // a page with no backend at all
   AI.status = (async () => {
     const t0 = Date.now();
     while (!(typeof API !== 'undefined' && API && API.url) && Date.now() - t0 < AI_WAIT_API_MS) await new Promise(res => setTimeout(res, 500));
@@ -60,6 +68,7 @@ function aiStatusCheck() {
     if (reply && reply.monthUsd != null) AI.month = Number(reply.monthUsd) || 0;
     if (reply && reply.limitUsd != null) AI.limit = Number(reply.limitUsd) || AI_LIMIT_DEF;
     if (reply) aiSessionSet(AI.ready);                 // a failed call is not kept: the next page load asks again
+    if (AI.ready) aiStyleOkLoad();                     // the approved house style guides (Listing Rules' own store), once
     return AI.ready;
   })();
   return AI.status;
@@ -98,7 +107,8 @@ async function aiAsk(task, brand, sku, opts) {
   const list = v => [...new Set((Array.isArray(v) ? v : []).map(s => aiLine(String(s).replace(/\|/g, ' '))).filter(Boolean))].slice(0, 40).join('|');
   if (opts.words && opts.words.length) params.words = list(opts.words);
   if (opts.avoid && opts.avoid.length) params.avoid = list(opts.avoid);
-  ['field', 'season', 'word', 'code', 'tpl', 'max', 'hlmax'].forEach(k => { if (opts[k] != null && opts[k] !== '') params[k] = String(opts[k]).slice(0, 200); });
+  ['field', 'season', 'word', 'code', 'tpl', 'max', 'hlmax', 'pt', 'style'].forEach(k => { if (opts[k] != null && opts[k] !== '') params[k] = String(opts[k]).slice(0, 200); });
+  if (opts.d) params.d = (typeof opts.d === 'string' ? opts.d : JSON.stringify(opts.d)).slice(0, 8000);      // a page task's facts: numbers, ids, rule names
   const key = JSON.stringify(params);
   if (AI.memo.has(key)) return AI.memo.get(key);
   AI.calls++;
@@ -278,7 +288,7 @@ function aiBtnHtml(task, brand, sku, o) {
   if (!aiOn()) return '';                   // AI not set up: no button, the page as it always was
   o = o || {};
   const x = {};
-  ['use', 'field', 'key', 'season', 'swords', 'hlmax', 'word', 'wk', 'code', 'place', 'screen', 'asin'].forEach(k => { if (o[k] != null && o[k] !== '') x[k] = o[k]; });
+  ['use', 'field', 'key', 'season', 'swords', 'hlmax', 'word', 'wk', 'code', 'place', 'screen', 'asin', 'd', 'pt', 'match', 'product', 'at', 'fieldName', 'brands', 'into'].forEach(k => { if (o[k] != null && o[k] !== '') x[k] = o[k]; });
   const off = AI.off ? ' is-off' : '';
   const tip = AI.off ? AI.why : (o.tip || 'Claude suggests; our rules check it; nothing is sent until you approve');
   return `<button type="button" class="ghost im-b ai-btn${off}" data-ai="${aiEsc(task)}" data-ai-b="${aiEsc(brand)}" data-ai-s="${aiEsc(sku || '')}" data-ai-x="${aiEsc(JSON.stringify(x))}" title="${aiEsc(tip)}">✨ ${aiEsc(o.label || 'AI ' + (AI_WHAT[task] || task))}</button>`;
@@ -291,6 +301,7 @@ function aiBtnOf(btn) {
 }
 // The field a job writes: title | bullets | desc | kw | hl | aplus | explain | image.
 function aiFieldOf(task, x) {
+  if (AI_PAGE.includes(task)) return 'page';
   if (task === 'description') return 'desc';
   if (task === 'season') return x.field === 'title' ? 'title' : 'hl';
   if (task === 'aplus_text') return 'aplus';
@@ -327,6 +338,7 @@ function aiOptsFor(task, field, c, x, before) {
   if (task === 'ip_rewrite') o.word = x.word;
   if (task === 'error_explain') o.code = x.code;
   if (x.asin) o.asin = x.asin;
+  if (AI_STYLED.includes(task)) o.style = aiStyleParam(c.pt);           // the approved house style of its product type, if any
   return o;
 }
 // Where a card goes: a row under the button's table row, inside its block, or after the button's parent.
@@ -348,6 +360,9 @@ function aiPlace(btn, id, x) {
     tr.parentNode.insertBefore(row, tr.nextSibling);
     return div;
   }
+  // a card at the top of a named box (Bought Together: the report under its toolbar)
+  const into = x.place === 'into' && x.into && doc.getElementById ? doc.getElementById(x.into) : null;
+  if (into) { into.insertBefore(div, into.firstChild || null); return div; }
   const block = x.place === 'block' && btn.closest ? btn.closest('[data-ai-block]') : null;
   if (block) { block.appendChild(div); return div; }
   const after = btn.parentNode;
@@ -371,13 +386,13 @@ async function aiOpen(btn) {
   AI.jobs.set(id, job);
   host.innerHTML = '<div class="ai-wait muted">✨ Asking the AI… nothing changes on Amazon.</div>';
   if (btn.disabled !== undefined) btn.disabled = true;
-  const reply = await aiAsk(task, brand, sku, aiOptsFor(task, field, c, x, job.before));
+  const reply = await aiAsk(task, brand, sku, field === 'page' ? aiPageOpts(task, brand, sku, x) : aiOptsFor(task, field, c, x, job.before));
   if (btn.disabled !== undefined) btn.disabled = false;
   job.busy = false;
   job.reply = reply;
   if (!reply.ok) { host.innerHTML = /not set up|limit reached/i.test(reply.reason) ? aiQuietHtml(reply.reason) : aiFailHtml(job, reply.reason); return reply; }
   job.text = aiTextOf(job, reply.result || {});
-  job.keep = field === 'aplus' || field === 'explain' || field === 'image' ? [] : aiProtected(Array.isArray(job.before) ? job.before.join(' ') : job.before,
+  job.keep = field === 'aplus' || field === 'explain' || field === 'image' || field === 'page' ? [] : aiProtected(Array.isArray(job.before) ? job.before.join(' ') : job.before,
     field === 'kw' ? 'kw' : field === 'hl' ? 'hl' : 'title', c.facts);
   if (field === 'bullets' || field === 'desc') job.keep = [];      // a rewrite of the bullets / description keeps the facts, not each word
   aiRecheck(job);
@@ -401,7 +416,7 @@ function aiTextOf(job, r) {
 }
 // The checks of a job's text as it stands (the card's box may have been edited).
 function aiRecheck(job) {
-  if (job.field === 'explain' || job.field === 'image') { job.chk = { pass: true, fails: [], notes: [] }; return job.chk; }
+  if (job.field === 'explain' || job.field === 'image' || job.field === 'page') { job.chk = { pass: true, fails: [], notes: [] }; return job.chk; }
   const o = { keep: job.keep, word: job.task === 'ip_rewrite' ? job.x.wk || job.x.word : '', season: job.task === 'season' ? job.x.season : '', seasonWords: job.x.swords || [],
     hlMax: job.x.hlmax };
   job.chk = aiCheck(job.c, job.field === 'aplus' ? 'aplus' : job.field, job.text, o);
@@ -439,8 +454,12 @@ function aiCardHtml(job) {
   const r = (job.reply && job.reply.result) || {};
   const close = `<button type="button" class="sp-x ai-x" data-ai-act="close" data-ai-id="${aiEsc(job.id)}" aria-label="Close">×</button>`;
   const cost = job.reply ? [job.reply.cached ? 'kept answer, no cost' : job.reply.costUsd != null ? aiUsd(job.reply.costUsd) + ' this answer' : '', aiUsedLine()].filter(Boolean).join(' · ') : '';
-  const head = `<div class="ai-h"><b>✨ AI ${aiEsc(job.task === 'season' ? (job.x.season || '') + ' ' + (job.field === 'title' ? 'title' : 'Item Highlights') : AI_WHAT[job.task] || job.task)}</b>${close}</div>`;
-  const foot = `<div class="ai-foot muted">${job.reply && job.reply.why ? aiEsc(job.reply.why) + ' · ' : ''}${aiEsc(cost)}</div>`;
+  const AI_HEAD = { fix_first: 'Fix these first', title_template: 'title template draft', bsr_why: 'why the rank changed', category_suggest: 'category suggestion', change_result: 'did this change work?', bundle_ideas: 'bundle ideas' };
+  const what = AI_HEAD[job.task] || (job.task === 'season' ? (job.x.season || '') + ' ' + (job.field === 'title' ? 'title' : 'Item Highlights') : AI_WHAT[job.task] || job.task);
+  const head = `<div class="ai-h"><b>✨ AI ${aiEsc(what)}</b>${close}</div>`;
+  const styled = AI_STYLED.includes(job.task) ? aiStyleLine(job) + ' · ' : '';      // PART 2: which house style it follows
+  const foot = `<div class="ai-foot muted">${aiEsc(styled)}${job.reply && job.reply.why ? aiEsc(job.reply.why) + ' · ' : ''}${aiEsc(cost)}</div>`;
+  if (job.field === 'page') return head + `<div class="ai-exp">${aiPageCardHtml(job)}</div>` + foot;
   if (job.field === 'explain') {
     return head + `<div class="ai-exp"><p>${aiEsc(r.plain)}</p>${r.fix ? `<p><b>Fix:</b> ${aiEsc(r.fix)}</p>` : ''}${r.screen ? `<p class="muted">Where: ${aiEsc(r.screen)}</p>` : ''}</div>` + foot;
   }
@@ -627,10 +646,242 @@ async function aiOptAll(btn) {
   return null;
 }
 
+
+/* ============================================================================================
+ * 5. PART 2 (20 Nov 2026) — the house style, and the read-only answers of the Listing pages
+ * ============================================================================================ */
+const AI_PAGE = ['fix_first', 'title_template', 'bsr_why', 'category_suggest', 'change_result', 'bundle_ideas'];
+const AI_STYLE_DOC = 'aistyle';                 // listingrules/aistyle: { items: { PT: { at (the guide's date), approvedAt, by, name } } }
+const AI_DAY = 86400000;
+const AI_DATE = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short' });
+const aiDay = ms => (ms ? AI_DATE.format(new Date(ms)) : '');
+const aiPtWord = pt => String(pt || '').toLowerCase().replace(/_/g, ' ');
+
+/* ----- the house style: approvals (Listing Rules' own store), the guides (the backend's lmAiStyle tab) ----- */
+/** The approved guides, read once (listingrules/aistyle, the store Listing Rules' marks use): AI.styleOk = { PT: { at, approvedAt, name } }. */
+async function aiStyleOkLoad() {
+  if (AI.styleOkP) return AI.styleOkP;
+  AI.styleOkP = (async () => {
+    try { const d = typeof lsGet === 'function' ? await lsGet('listingrules', AI_STYLE_DOC) : null; AI.styleOk = (d && d.items) || {}; } catch (e) { AI.styleOk = {}; }
+    return AI.styleOk;
+  })();
+  return AI.styleOkP;
+}
+// &style= for a writing task: "<PT>@<the approved guide's date>", or '' (no approved guide: the task works as before).
+function aiStyleParam(pt) {
+  const k = String(pt || '').toUpperCase();
+  const ok = AI.styleOk && AI.styleOk[k];
+  return ok && ok.at ? `${k}@${ok.at}` : '';
+}
+// The card's grey line: "Follows: tablecloth house style (approved 20 Nov)" / "No house style yet".
+function aiStyleLine(job) {
+  const st = job.reply && job.reply.style;
+  if (st && st.pt) { const ok = (AI.styleOk || {})[st.pt] || {}; return `Follows: ${aiPtWord(st.pt)} house style (approved ${aiDay(ok.approvedAt || st.at)})`; }
+  return 'No house style yet';
+}
+/** Listing Rules → "AI house style" (shown only when AI is set up): opens to the guides, each with Approve; "Learn again". */
+function aiStyleSectionHtml() {
+  if (!aiOn()) return '';
+  return '<details class="lr-allow-sec ai-style" data-ai-style><summary><b>✨ AI house style</b><span class="muted"> — how our listings are written, learnt from every listing; '
+    + 'only an approved guide is used by the AI suggestions</span></summary><div class="ai-style-b" data-ai-style-b><span class="muted">Open to read the guides.</span></div></details>';
+}
+async function aiStyleLoad(box) {
+  if (!box) return null;
+  box.innerHTML = '<span class="muted">Reading the house style guides…</span>';
+  let reply;
+  try { reply = await aiGet({ ai: 'ask', task: 'style_get' }); } catch (e) { reply = { ok: false, reason: String((e && e.message) || e) }; }
+  await aiStyleOkLoad();
+  AI.styleTab = reply && reply.ok ? reply : null;
+  box.innerHTML = aiStyleBodyHtml(AI.styleTab, reply && !reply.ok ? reply.reason || reply.error : '');
+  return reply;
+}
+function aiStyleBodyHtml(r, err) {
+  if (err) return `<div class="ai-quiet">${aiEsc(err)}</div>`;
+  const tab = (r && r.style) || {};
+  const guides = Object.values(tab.guides || {}).sort((a, b) => (b.n || 0) - (a.n || 0));
+  const L = r && r.learning;
+  const state = L && !L.finished && !L.stopped ? `Learning now: ${L.done} of ${L.of} product types done` : tab.stopped ? aiEsc(tab.stopped)
+    : tab.finishedAt ? `Learnt ${aiDay(tab.finishedAt)} from ${Number(tab.read || 0).toLocaleString('en-US')} listings · ${aiUsd(tab.costUsd || 0)}` : 'Not learnt yet — Umesh runs aiLearnStyle() once in the Apps Script editor';
+  const head = `<div class="ai-style-h"><span class="muted">${state}</span> <button type="button" class="ghost im-b" data-ai-style-act="learn" title="Reads every listing again and writes new draft guides (checked against the month's AI limit first)">Learn again</button></div>`;
+  if (!guides.length) return head;
+  return head + guides.map(g => {
+    const ok = (AI.styleOk || {})[g.pt];
+    const approved = ok && String(ok.at) === String(g.at);
+    const gd = g.guide || {};
+    return `<div class="ai-style-g"><div class="ai-style-gh"><b>${aiEsc(aiPtWord(g.pt))}</b><span class="muted"> · ${Number(g.n || 0).toLocaleString('en-US')} listings read · ${Number(g.good || 0).toLocaleString('en-US')} good examples · ${aiDay(g.at)}</span>`
+      + (approved ? `<span class="fc-chip is-g">Approved ${aiDay(ok.approvedAt)}${ok.name ? ' · ' + aiEsc(ok.name) : ''}</span>`
+        : `<button type="button" class="ghost im-b" data-ai-style-act="ok" data-ai-style-pt="${aiEsc(g.pt)}" data-ai-style-at="${aiEsc(g.at)}">Approve</button>`) + '</div>'
+      + `<ul class="ai-style-l"><li><b>Title:</b> ${aiEsc(gd.title_pattern)} <span class="muted">(${aiEsc(gd.title_length)})</span></li><li><b>Size:</b> ${aiEsc(gd.size_style)}</li>`
+      + `<li><b>Colour, shape, material:</b> ${aiEsc(gd.colour_shape_material)}</li><li><b>Bullets:</b> ${aiEsc((gd.bullets || []).join(' · '))}</li><li><b>Description:</b> ${aiEsc(gd.description)}</li>`
+      + `<li><b>Always:</b> ${aiEsc((gd.always || []).join(', '))} · <b>Never:</b> ${aiEsc((gd.never || []).join(', '))}</li><li><b>Our best titles:</b> ${aiEsc((gd.examples || []).join(' | '))}</li></ul></div>`;
+  }).join('');
+}
+async function aiStyleApprove(pt, at, box) {
+  const by = (typeof ME !== 'undefined' && ME && ME.email) || '';
+  const name = typeof sqName === 'function' ? sqName(by) : by;
+  const item = { at: Number(at), approvedAt: Date.now(), by, name };
+  try { if (typeof lsSave === 'function') await lsSave('listingrules', AI_STYLE_DOC, { items: { [pt]: item } }); } catch (e) { if (box) box.insertAdjacentHTML('beforeend', `<div class="err">Not saved: ${aiEsc(e.message || e)}</div>`); return null; }
+  AI.styleOk = Object.assign({}, AI.styleOk || {}, { [pt]: item });
+  if (box) box.innerHTML = aiStyleBodyHtml(AI.styleTab, '');
+  return item;
+}
+async function aiStyleLearn(box) {
+  const by = (typeof ME !== 'undefined' && ME && ME.email) || '';
+  const r = await aiGet({ ai: 'ask', task: 'learn_style', by });
+  const line = r && r.ok ? (r.running ? 'Already learning — this list follows when it is done.' : `Learning started: ${Number(r.listings || 0).toLocaleString('en-US')} listings, ${r.productTypes} product types, about ${aiUsd(r.estimateUsd)}. It runs on the backend; open this again in a few minutes.`)
+    : (r && (r.reason || r.error)) || 'Could not start';
+  if (box) box.insertAdjacentHTML('afterbegin', `<div class="ai-said">${aiEsc(line)}</div>`);
+  return r;
+}
+
+/* ----- the facts a page task sends (numbers, ids, rule names — never listing text) ----- */
+/** ✨ Fix these first: the top 20 Critical / Important listings (listing-priority.js order) of the brands on screen. */
+function aiFixFirstData(brands) {
+  if (typeof prOf !== 'function') return { items: [] };
+  const list = [];
+  (brands || ['SP', 'CPC']).forEach(b => ((typeof HEALTH !== 'undefined' && HEALTH[b] && HEALTH[b].rows) || []).forEach(row => {
+    const p = prOf(b, row.sku, [], { row });
+    if (p.k === 'crit' || p.k === 'imp') list.push({ b, row, p });
+  }));
+  const top = prSort(list, x => ({ k: x.p.k, asin: x.row.asin, stock: x.p.stock })).slice(0, 20);
+  AI.fixFirst = new Map(top.map(x => [x.row.sku, x]));
+  const words = x => prFound(x.row).filter(h => !h.fill).map(h => h.what || h.name).slice(0, 6);
+  return { salesOld: !!prSalesOld(), items: top.map(x => ({ sku: x.row.sku, level: x.p.k, problems: words(x), stock: x.p.stock, live: x.p.live,
+    sales: typeof apcSales === 'function' && x.row.asin ? apcSales(x.row.asin) : null, sessions: (typeof apcTraffic === 'function' && x.row.asin && apcTraffic(x.row.asin) || {}).s || null })) };
+}
+/** ✨ Suggest the right category: the Amazon categories Sellora already reads for the family (each sibling's browse path and its rank
+ *  categories, with their ids) — the AI may pick only one of these. */
+function aiCatData(brand, sku) {
+  const rows = (typeof HEALTH !== 'undefined' && HEALTH[brand] && HEALTH[brand].rows) || [];
+  const row = rows.find(r => r.sku === sku) || {};
+  const fam = row.parent ? rows.filter(r => r.parent === row.parent) : [row];
+  const opts = new Map();
+  const add = (id, path) => { id = String(id || ''); if (!/^\d{3,20}$/.test(id)) return; const o = opts.get(id) || { id, path: path || '', n: 0 }; o.n++; if (!o.path && path) o.path = path; opts.set(id, o); };
+  fam.forEach(r => {
+    const a = r.asin && typeof lmGetAsin === 'function' ? lmGetAsin(r.asin, brand) : null;
+    if (!a) return;
+    add(a.bcId || (a.bcIds || []).slice(-1)[0], a.bc);
+    (a.rks || []).forEach(x => add(x.id, x.c));
+  });
+  const me = row.asin && typeof lmGetAsin === 'function' ? lmGetAsin(row.asin, brand) : null;
+  const m = (typeof lmGet === 'function' && lmGet(sku, brand)) || {};
+  return { family: row.parent || '', pt: m.pt || '', colour: (m.va || {}).color || '', size: (m.va || {}).size || '',
+    current: me ? { id: me.bcId || '', path: me.bc || '' } : null, options: [...opts.values()].sort((x, y) => y.n - x.n).slice(0, 20) };
+}
+/** ✨ Did this change work?: 14 days (two weekly rows) before the change and after it — sessions, units, conversion — from the weekly store. */
+function aiChangeData(asin, at, field) {
+  const W = typeof WEEKLY !== 'undefined' && WEEKLY && WEEKLY.rows ? WEEKLY.rows[String(asin || '').toUpperCase()] || WEEKLY.rows[asin] : null;
+  const weeks = W && W.weeks ? Object.keys(W.weeks).sort() : [];
+  const ms = w => Date.parse(w) || 0;
+  const done = w => ms(w) + 7 * AI_DAY <= Date.now();
+  const before = weeks.filter(w => ms(w) && ms(w) + 7 * AI_DAY <= at).slice(-2);
+  const after = weeks.filter(w => ms(w) >= at && done(w)).slice(0, 2);
+  const sum = list => { let s = 0, u = 0; list.forEach(w => { const c = W.weeks[w] || {}; s += Number(c.sessions) || 0; u += Number(c.u) || 0; }); return { days: list.length * 7, sessions: s, units: u, conv: s ? Math.round(u * 1000 / s) / 10 : null, weeks: list }; };
+  return { field: field || '', at: new Date(at).toISOString().slice(0, 10), before: sum(before), after: sum(after) };
+}
+/** ✨ Bundle ideas: the Market Basket report on the page — our pairs and the others' products bought with ours (ASINs, SKUs, counts). */
+function aiBundleData() {
+  const r = typeof MB !== 'undefined' ? MB : null;
+  if (!r) return {};
+  return { ours: (r.pairs || []).slice(0, 25).map(p => ({ asin: p.a + '+' + p.b, name: [p.aSku, p.bSku].filter(Boolean).join(' + '), n: p.n || null, share: p.share || null })),
+    others: (r.gaps || []).slice(0, 25).map(g => ({ asin: g.asin, name: (g.with || []).slice(0, 4).map(y => y.sku || y.asin).join(', '), n: g.n || null, share: g.best || null })) };
+}
+
+/* ----- the read-only cards of the page tasks ----- */
+function aiPageCardHtml(job) {
+  const r = (job.reply && job.reply.result) || {};
+  const list = items => (items && items.length ? `<ul class="ai-l">${items.map(x => `<li>${aiEsc(x)}</li>`).join('')}</ul>` : '');
+  if (job.task === 'fix_first') {
+    return `<ol class="ai-ff">${(r.items || []).map(x => { const f = AI.fixFirst && AI.fixFirst.get(x.sku); const k = f ? f.p.k : '';
+      return `<li>${typeof prChipHtml === 'function' && k ? prChipHtml(k) : ''}<b class="ui-mono">${aiEsc(x.sku)}</b> — ${aiEsc(x.line)} <button type="button" class="ghost im-b" data-ai-act="fixopen" data-ai-id="${aiEsc(job.id)}" data-ai-sku="${aiEsc(x.sku)}">Open the fix</button></li>`; }).join('')}</ol>`
+      + `<p class="muted ai-hint">Read only — each button opens the existing fix; nothing is sent from here.${AI.fixFirstOld ? ' Sales data old: ordered by stock.' : ''}</p>`;
+  }
+  if (job.task === 'bsr_why') return `<p>${aiEsc(r.summary)}</p>${list(r.reasons)}${r.missing && r.missing.length ? `<p class="muted"><b>Not known:</b> ${aiEsc(r.missing.join(' · '))}</p>` : ''}`;
+  if (job.task === 'change_result') return `<p class="ai-verdict ${r.verdict === 'better' ? 'is-ok' : r.verdict === 'worse' ? 'is-bad' : ''}">${aiEsc(r.verdict === 'not enough data yet' ? 'Not enough data yet' : r.verdict === 'better' ? '✓ It worked' : r.verdict === 'worse' ? '✕ It got worse' : 'No clear change')}</p><p>${aiEsc(r.line)}</p>`;
+  if (job.task === 'bundle_ideas') {
+    return `${r.pairs && r.pairs.length ? '<p><b>Sell together</b></p><ul class="ai-l">' + r.pairs.map(p => `<li>${aiEsc(p.a)} + ${aiEsc(p.b)} — ${aiEsc(p.why)}</li>`).join('') + '</ul>' : ''}`
+      + `${r.others && r.others.length ? '<p><b>Bought with ours</b></p><ul class="ai-l">' + r.others.map(o => `<li class="ui-mono">${aiEsc(o.asin)} <span>— ${aiEsc(o.why)}</span></li>`).join('') + '</ul>' : ''}<p class="muted ai-hint">Ideas only — nothing changes.</p>`;
+  }
+  if (job.task === 'category_suggest') {
+    return `<p><b>${aiEsc(r.path || r.id)}</b> <span class="muted ui-mono">${aiEsc(r.id)}</span></p><p>${aiEsc(r.reason)}</p>`
+      + `<div class="ai-a"><button type="button" class="sp-main" data-ai-act="catopen" data-ai-id="${aiEsc(job.id)}">Fix it in Listing Errors</button><span class="muted ai-hint">Opens the listing's category there (recommended browse node ${aiEsc(r.id)}); Amazon checks it before it is sent.</span></div>`;
+  }
+  if (job.task === 'title_template') {
+    return `<p class="ui-mono">${aiEsc(r.template)}</p>${r.examples && r.examples.length ? `<p class="muted">From our titles like: ${aiEsc(r.examples.join(' | '))}</p>` : ''}`
+      + `<div class="ai-a"><button type="button" class="sp-main" data-ai-act="tplUse" data-ai-id="${aiEsc(job.id)}">Add as a new template</button><span class="muted ai-hint">Adds a row to the table above — check it, then press Save as always. Nothing is saved by itself.</span></div>`;
+  }
+  return '';
+}
+// The page task's facts at the click (the button keeps only what the click cannot read again).
+function aiPageOpts(task, brand, sku, x) {
+  if (task === 'fix_first') { const d = aiFixFirstData(x.brands || [brand]); AI.fixFirstOld = d.salesOld; return { d }; }
+  if (task === 'category_suggest') return { d: aiCatData(brand, sku) };
+  if (task === 'change_result') return { d: aiChangeData(x.asin, Number(x.at) || 0, x.fieldName) };
+  if (task === 'bundle_ideas') return { d: aiBundleData() };
+  if (task === 'title_template') return { pt: x.pt, style: aiStyleParam(x.pt) };
+  return { d: x.d || {} };
+}
+// A page task's button press: fix_first → the listing's own fix; a category → Listing Errors with that attribute; a template → Listing Rules' table.
+function aiPageAct(act, job, el) {
+  const r = (job.reply && job.reply.result) || {};
+  if (act === 'fixopen') {
+    const f = AI.fixFirst && AI.fixFirst.get(el.dataset.aiSku);
+    if (!f || typeof lrFixOpen !== 'function') return null;
+    const pic = f.p.problems.some(k => /image|main|picture/.test(k));
+    return lrFixOpen(pic ? 'img' : 'lerr', f.b, f.row.sku, []);
+  }
+  if (act === 'catopen' && typeof lrFixOpen === 'function') return lrFixOpen('lerr', job.brand, job.sku, ['recommended_browse_nodes']);
+  if (act === 'tplUse' && r.template && typeof renderLrules === 'function') {
+    const cfg = LR || (LR = JSON.parse(JSON.stringify(LR_DEFAULT)));
+    const parts = (r.template.match(/\{(\w+)\}/g) || []).map(t => t.slice(1, -1)).filter(k => ['brand', 'product', 'size', 'color'].includes(k));
+    cfg.templates.push({ brand: job.brand, match: job.x.match || '', product: job.x.product || '', material: '', pattern: '', uses: '', required: parts.join(','), template: r.template, reference: (r.examples || [])[0] || '' });
+    if (typeof LR_DIRTY !== 'undefined') LR_DIRTY = true;
+    if (typeof H_CTX !== 'undefined') H_CTX = null;
+    renderLrules();
+    return null;
+  }
+  return null;
+}
+/** Bought Together: the ✨ button beside the report's search box (once), when AI is set up. */
+function aiBundleBtn() {
+  if (!aiOn() || typeof $ !== 'function' || !$('mbFilter') || ($('mbAiBtn') && $('mbAiBtn').innerHTML)) return;
+  const host = $('mbAiBtn') || null;
+  const html = aiBtnHtml('bundle_ideas', typeof $('mbBrand') !== 'undefined' && $('mbBrand') && $('mbBrand').value === 'CPC' ? 'CPC' : 'SP', '', { use: 'read', place: 'into', into: 'mbBody', label: 'Bundle ideas' });
+  if (host) host.innerHTML = html; else if ($('mbFilter').insertAdjacentHTML) $('mbFilter').insertAdjacentHTML('afterend', `<span id="mbAiBtn" class="ai-inline">${html}</span>`);
+}
+/** Listing Rules → Title templates: the sub-categories that no template matches, with how many listings, each with ✨ Draft title template. */
+function aiTplHtml(cfg) {
+  if (!aiOn() || typeof HEALTH === 'undefined' || typeof lrTemplateFor !== 'function') return '';
+  const by = new Map();
+  ['SP', 'CPC'].forEach(b => ((HEALTH[b] && HEALTH[b].rows) || []).forEach(row => {
+    const r = row.brand ? row : Object.assign({ brand: b }, row);
+    const cat = (LR_CAT[b] || {})[row.sku];
+    if (!cat || lrTemplateFor(r, cfg)) return;
+    const m = (typeof lmGet === 'function' && lmGet(row.sku, b)) || {};
+    const k = b + '|' + (cat.subcat || '');
+    const g = by.get(k) || { b, subcat: cat.subcat || '', n: 0, pts: new Map() };
+    g.n++;
+    if (m.pt) g.pts.set(m.pt, (g.pts.get(m.pt) || 0) + 1);
+    by.set(k, g);
+  }));
+  const groups = [...by.values()].sort((a, b) => b.n - a.n).slice(0, 12);
+  if (!groups.length) return '';
+  return `<tbody class="ai-tpl"><tr><td colspan="11"><b>✨ No template yet:</b> ${groups.map(g => {
+    const pt = [...g.pts.entries()].sort((a, b) => b[1] - a[1])[0];
+    return `<span class="ai-tpl-g">${aiEsc((typeof BRAND_NAME !== 'undefined' && BRAND_NAME[g.b]) || g.b)} · ${aiEsc(g.subcat || 'no sub-category')} (${g.n.toLocaleString('en-US')} titles) `
+      + (pt ? aiBtnHtml('title_template', g.b, '', { use: 'read', pt: pt[0], match: g.subcat, product: g.subcat, label: 'Draft title template', place: 'after' }) : '<span class="muted">no product type read yet</span>') + '</span>';
+  }).join(' ')}</td></tr></tbody>`;
+}
+
 /* ----- the page's clicks and edits; the one status check ----- */
 if (typeof document !== 'undefined' && document.addEventListener) {
   aiStatusCheck();
   document.addEventListener('click', e => {
+    // Listing Rules → ✨ AI house style: opened (its guides are read then), Approve, Learn again
+    const sum = e.target && e.target.closest ? e.target.closest('[data-ai-style] > summary') : null;
+    if (sum) { const det = sum.parentNode; setTimeout(() => { if (det.open && !det.dataset.loaded) { det.dataset.loaded = '1'; aiStyleLoad(det.querySelector('[data-ai-style-b]')); } }, 0); return; }
+    const sa = e.target && e.target.closest ? e.target.closest('[data-ai-style-act]') : null;
+    if (sa) { const box = sa.closest('[data-ai-style-b]'); if (sa.dataset.aiStyleAct === 'ok') aiStyleApprove(sa.dataset.aiStylePt, sa.dataset.aiStyleAt, box); else aiStyleLearn(box); return; }
     const el = e.target && e.target.closest ? e.target.closest('[data-ai],[data-ai-act],[data-ai-all]') : null;
     if (!el || el.disabled) return;
     if (el.dataset.aiAll) { aiOptAll(el); return; }
@@ -639,7 +890,8 @@ if (typeof document !== 'undefined' && document.addEventListener) {
     const act = el.dataset.aiAct;
     if (act === 'close') { const card = el.closest('[data-ai-card]'); const tr = card && card.closest('tr.ai-tr'); (tr || card).remove(); if (job) AI.jobs.delete(job.id); return; }
     if (!job) return;
-    if (act === 'approve') aiApprove(job);
+    if (act === 'fixopen' || act === 'catopen' || act === 'tplUse') aiPageAct(act, job, el);
+    else if (act === 'approve') aiApprove(job);
     else if (act === 'use') aiUse(job);
     else if (act === 'copy') aiCopy(job, el);
   });

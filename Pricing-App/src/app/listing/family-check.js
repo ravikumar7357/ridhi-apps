@@ -717,7 +717,7 @@ function fcOpenLerr(brand, skus) {
 }
 
 /* ----- the CSV: the red problems only ----- */
-const FC_CSV_COLS = ['Brand', 'Family', 'Parent SKU', 'Parent ASIN', 'SKU', 'ASIN', 'Amazon values', 'Stock', 'Problem', 'Source', 'Read at', 'Suggested fix'];
+const FC_CSV_COLS = ['Brand', 'Family', 'Parent SKU', 'Parent ASIN', 'SKU', 'ASIN', 'Amazon values', 'Stock', 'Problem', 'Source', 'Read at', 'Suggested fix', 'Priority'];
 function fcCsv(v) {
   const q = val => { const s = String(val == null ? '' : val); return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
   const two = n => String(n).padStart(2, '0');
@@ -725,7 +725,7 @@ function fcCsv(v) {
   const lines = [];
   fcGroups(v).forEach(g => g.rows.forEach(r => r.probs.filter(p => p.sev === 'r').forEach(p => {
     lines.push([fcBrandName(r.c.brand), g.f.name, g.f.psku, g.f.pa, (r.c.skus || [r.c.sku]).join(' / '), r.c.asin, r.c.amz && r.c.amz.vals ? fcValsText(r.c.amz.vals, r.c.tattrs) : '', r.c.stock, p.text, p.src || '', stamp(p.at),
-      (p.fix.kind === 'hand' ? 'Fix by hand: ' : '') + p.fix.text].map(q).join(','));
+      (p.fix.kind === 'hand' ? 'Fix by hand: ' : '') + p.fix.text, typeof prOf === 'function' ? prCsv(prFc(r)) : ''].map(q).join(','));
   })));
   return { n: lines.length, text: '﻿' + [FC_CSV_COLS.join(',')].concat(lines).join('\r\n') + '\r\n' };
 }
@@ -936,7 +936,7 @@ function fcRowHtml(r) {
   const amz = c.asin ? `<a href="https://www.amazon.com/dp/${fcEsc(c.asin)}" target="_blank" rel="noopener">${fcEsc(c.asin)}</a>` : '—';
   const vals = c.amz && c.amz.vals && c.tattrs ? fcEsc(fcValsText(c.amz.vals, c.tattrs)) : c.amz && !c.amz.nf ? '<span class="fc-none">—</span>' : '<span class="fc-none">not read</span>';
   const sug = probs.map(p => p.sug).filter(Boolean)[0];
-  return `<tr class="fc-row${orphan ? ' is-orphan' : ''}${FC.sel.has(key) ? ' is-sel' : ''}"><td class="fc-tk">${tick}</td><td class="fc-sku"><b>${fcEsc(c.sku)}</b>${typeof lmOldHtml === 'function' ? lmOldHtml(c.brand, c.sku) : ''}${fcSkusHtml(c)}<small>${fcEsc(String(c.title || '').slice(0, 70))}</small></td><td class="ui-mono">${amz}</td>`
+  return `<tr class="fc-row${orphan ? ' is-orphan' : ''}${FC.sel.has(key) ? ' is-sel' : ''}"><td class="fc-tk">${tick}</td><td class="fc-sku"><b>${fcEsc(c.sku)}</b>${typeof prOf === 'function' && probs.length ? ' ' + prChipHtml(prFc(r), 'fc-chip') : ''}${typeof lmOldHtml === 'function' ? lmOldHtml(c.brand, c.sku) : ''}${fcSkusHtml(c)}<small>${fcEsc(String(c.title || '').slice(0, 70))}</small></td><td class="ui-mono">${amz}</td>`
     + `<td class="fc-vals">${vals}</td><td class="num">${fcNf(c.stock)}</td>`
     + `<td class="fc-prob">${probs.map(p => `<div class="fc-p is-${p.sev}">${fcEsc(p.text)}</div>${fcSrcHtml(p)}`).join('')}</td>`
     + `<td class="fc-fix">${sug ? `<div><b>Suggested family:</b> ${fcEsc(sug)}</div>` : ''}${probs.map(p => (p.fix.text ? `<div>${p.fix.kind === 'hand' ? '<b>Fix by hand:</b> ' : ''}${fcEsc(p.fix.text)}</div>` : '')).join('')}${FC.note[key] ? `<div class="fc-note">${fcEsc(FC.note[key])}</div>` : ''}</td>`

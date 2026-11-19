@@ -25,6 +25,19 @@
  *   error_explain                     Haiku — Amazon's issue &code= in simple English, and the fix in Sellora's screens
  *   image_check                       Sonnet — the MAIN picture only: white background? text or watermark? does the product fill ~85%?
  * Every task answers ONLY as JSON (structured outputs), parsed safely.
+ * PART 2 (20 Nov 2026) — read-only answers from the facts the page sends in &d= (JSON numbers, ids and rule names — never listing text):
+ *   fix_first                         Haiku — the best 10 of the top 20 Critical / Important listings for today, one line each
+ *   title_template                    Sonnet — a draft Listing Rules title template for &pt= (our own titles of that product type as examples)
+ *   bsr_why                           Haiku — why a parent's rank changed (week A vs B, Listing History, price, stock, ads); says what is missing
+ *   category_suggest                  Sonnet — the right category, ONLY one of the Amazon category ids Sellora sent (checked here)
+ *   change_result                     Haiku — did a change work (14 days before vs after); too little data → "not enough data yet", no call
+ *   bundle_ideas                      Haiku — which of our products to pair, which others are bought with ours (ideas only)
+ *   style_get / learn_style           no Claude call in the request: the house style guides (lmAiStyle) / start "Learn again" (budget-checked)
+ * HOUSE STYLE: aiLearnStyle() (run once from the editor) reads EVERY listing of both brands from the ListingMatch cache, groups them by
+ *   product type, Haiku notes the patterns in batches (live, in stock, no Amazon error = a good example, counted more), Sonnet writes one
+ *   short guide per product type → tab lmAiStyle of the Sellora Listing Cache, status "draft". Work goes on in 4.5-minute steps (a
+ *   one-off timer, aiLearnStyleTick) and stops at the month's limit. Sellora approves a guide; a writing task gets the guide only when
+ *   the page sends &style=<product type>@<the guide's date> (an approved guide) — else it works as before.
  *   status                            no Claude call: { ok, ready (the key is set), monthUsd, limitUsd } — Sellora asks it ONCE per page load
  *                                     and shows no ✨ button at all until ready is true.
  *
@@ -49,7 +62,7 @@
  *   aiStatus()   whether the key is set, the models, this month's spend and the limit
  *
  * To undo: delete this file and the one line in Code.gs, and the Script Properties AI_*, CLAUDE_API_KEY.
- * Main functions: aiAsk_, aiFacts_, aiPrompt_, aiClaude_, aiCost_, aiMonth_, aiTest, aiStatus. Every name starts with ai / AI. */
+ * Main functions: aiAsk_, aiFacts_, aiPageFacts_, aiClaude_, aiShape_, aiCost_, aiMonth_, aiStyleFor_, aiLearnStyle, aiLearnStyleTick, aiTest, aiStatus. Every name starts with ai / AI. */
 
 var AI_URL = 'https://api.anthropic.com/v1/messages';
 var AI_VERSION = '2023-06-01';
@@ -79,6 +92,27 @@ var AI_TASKS = {
   image_check:   { fast: false, effort: 'low',    words: false, schema: aiObj_({ white_background: { type: 'boolean' }, text_or_watermark: { type: 'boolean' },
                     fill_pct: { type: 'number' }, fills_frame: { type: 'boolean' }, pass: { type: 'boolean' }, notes: AI_STR }) },
 };
+
+// PART 2: page tasks (facts from &d=), and the two steps of learning the house style (never asked for from the page)
+AI_TASKS.fix_first = { fast: true, effort: 'low', page: true, schema: aiObj_({ items: { type: 'array', items: aiObj_({ sku: AI_STR, line: AI_STR }) }, why: AI_STR }) };
+AI_TASKS.title_template = { fast: false, effort: 'medium', page: true, style: true, schema: aiObj_({ template: AI_STR, why: AI_STR }) };
+AI_TASKS.bsr_why = { fast: true, effort: 'low', page: true, schema: aiObj_({ summary: AI_STR, reasons: { type: 'array', items: AI_STR }, missing: { type: 'array', items: AI_STR }, why: AI_STR }) };
+AI_TASKS.category_suggest = { fast: false, effort: 'low', page: true, schema: aiObj_({ id: AI_STR, reason: AI_STR, why: AI_STR }) };
+AI_TASKS.change_result = { fast: true, effort: 'low', page: true, schema: aiObj_({ verdict: { type: 'string', enum: ['better', 'worse', 'no change', 'not enough data yet'] }, line: AI_STR, why: AI_STR }) };
+AI_TASKS.bundle_ideas = { fast: true, effort: 'low', page: true, schema: aiObj_({ pairs: { type: 'array', items: aiObj_({ a: AI_STR, b: AI_STR, why: AI_STR }) }, others: { type: 'array', items: aiObj_({ asin: AI_STR, why: AI_STR }) }, why: AI_STR }) };
+// the writing tasks that follow an approved house style guide
+['title', 'bullets', 'description', 'kw', 'season', 'aplus_text', 'ip_rewrite'].forEach(function (t) { AI_TASKS[t].style = true; });
+var AI_LEARN = {
+  notes: { fast: true, effort: 'low', schema: aiObj_({ notes: { type: 'array', items: AI_STR } }) },
+  guide: { fast: false, effort: 'medium', schema: aiObj_({ title_pattern: AI_STR, title_length: AI_STR, size_style: AI_STR, colour_shape_material: AI_STR,
+    bullets: { type: 'array', items: AI_STR }, description: AI_STR, always: { type: 'array', items: AI_STR }, never: { type: 'array', items: AI_STR },
+    examples: { type: 'array', items: AI_STR } }) },
+};
+var AI_STYLE_TAB = 'lmAiStyle', AI_STYLE_WORK = 'lmAiStyleWork', AI_STYLE_STATE = 'AI_STYLE_STATE';
+var AI_STYLE_BATCH = 60;                   // listings Haiku reads per call
+var AI_STYLE_STEP_MS = 4.5 * 60000;        // one step of the learning (Apps Script stops a run at 6 minutes)
+var AI_EST_NOTES = 0.01, AI_EST_GUIDE = 0.06;   // US dollars, a safe guess per call (the budget check before each call)
+var AI_TPL_PARTS = ['brand', 'product', 'shape', 'material', 'size', 'pattern', 'color', 'uses'];
 
 /* ----- THE SYSTEM PROMPT: long, the same for every task (so it is read from the prompt cache), written for Ridhi's listings ----- */
 var AI_SYSTEM = [
@@ -123,6 +157,31 @@ var AI_SYSTEM = [
   'IMAGE CHECK (task image_check): look at the MAIN picture only. white_background = the background is pure white (RGB 255,255,255);',
   '   text_or_watermark = any text, logo, badge, watermark or graphic on it; fill_pct = about how much of the frame the product fills;',
   '   fills_frame = fill_pct is about 85 or more; pass = white_background and not text_or_watermark and fills_frame; notes = what to fix.',
+'',
+'HOUSE STYLE: when FACTS.houseStyle is given, write in our house style (pattern, order, tone, words we always use). Then improve it with',
+'   your own Amazon knowledge — stronger search words, clearer benefits, better readability — but never break our house style, our',
+'   rules or our protected words, and never invent facts.',
+'',
+'READ-ONLY ANSWERS (only from FACTS — when a fact is missing, say which one is missing; never guess a number or a cause):',
+'FIX FIRST (task fix_first): from FACTS.items pick the best 10 to fix today (Critical before Important, then the most sales or stock)',
+'   and write ONE simple line each, under 120 characters, naming the problem and why it costs sales, e.g. "Hidden from search and has',
+'   120 in stock — customers can\'t find it". Use only the SKUs in FACTS.items.',
+'TITLE TEMPLATE (task title_template): one Listing Rules title template for FACTS.productType, written with the parts in braces —',
+'   only {brand} {product} {shape} {material} {size} {pattern} {color} {uses} — in the order our own titles in FACTS.examples use, e.g.',
+'   "{brand} {product} {shape} {material} {size} Inch {pattern} - {color}". Fixed words (Inch, a " - ") may stand between the parts.',
+'BSR WHY (task bsr_why): compare FACTS.weekA and FACTS.weekB with the changes, price, stock and ads in FACTS. summary = one sentence;',
+'   reasons = the likely causes the numbers show, most likely first; missing = the facts that would be needed and are not there.',
+'CATEGORY (task category_suggest): pick the right category for the family from FACTS.options ONLY (answer its id exactly) and say why',
+'   in one sentence from the product\'s own facts.',
+'CHANGE RESULT (task change_result): FACTS.before and FACTS.after are 14 days each, before and after the change. verdict and one line',
+'   with the numbers (sessions, units, conversion). Other things change too (season, ads, stock): say so when they could explain it.',
+'BUNDLE IDEAS (task bundle_ideas): pairs = which of OUR products (FACTS.ours) to sell together or as a set, with why; others = the',
+'   other sellers\' products bought with ours (FACTS.others) that show a gap in our range. Ideas only.',
+'STYLE NOTES (task style_notes): FACTS.listings are our own listings of one product type (good = live, in stock, no Amazon error).',
+'   Note in up to 12 short lines how WE write them: title word order, length, size, colour, shape and material forms, how each bullet',
+'   starts and what it covers, the description, the words we always use and never use. Count the good ones more. Only what is there.',
+'STYLE GUIDE (task style_guide): from FACTS.notes and FACTS.bestTitles write ONE short house style guide for FACTS.productType.',
+'   examples = 2-3 of FACTS.bestTitles exactly as written. always / never = words from our own listings. Never invent claims.',
 ].join('\n');
 
 /* ============================== the route ============================== */
@@ -133,22 +192,30 @@ function aiAsk_(p) {
     p = p || {};
     var task = String(p.task || '');
     var def = AI_TASKS.hasOwnProperty(task) ? AI_TASKS[task] : null;
-    if (!def && task !== 'status') return { ok: false, reason: 'Unknown AI task "' + task.slice(0, 30) + '"' };
+    if (task === 'style_notes' || task === 'style_guide') def = null;          // the learning's own steps: never from the page
+    if (!def && task !== 'status' && task !== 'style_get' && task !== 'learn_style') return { ok: false, reason: 'Unknown AI task "' + task.slice(0, 30) + '"' };
     // the one cheap status call (no Claude call): is the key set, and this month's spend
     if (task === 'status') { var st = aiMonth_(); return { ok: true, ready: !!prop_('CLAUDE_API_KEY'), monthUsd: aiRound_(st.usd), limitUsd: st.limit }; }
+    if (task === 'style_get') return aiStyleGet_();
+    if (task === 'learn_style') return aiLearnStart_(String(p.by || '').slice(0, 80));
     var brand = String(p.brand || '').toUpperCase() === 'CPC' ? 'CPC' : 'SP';
     setBrand_(brand);                        // the route line in Code.gs does not set it: every brand read below is this brand's
     var sku = String(p.sku || '').trim();
     var asin = String(p.asin || '').trim().toUpperCase();
     if (sku && !/^[A-Za-z0-9._\-\/ ]{1,60}$/.test(sku)) return { ok: false, reason: 'That SKU is not one Sellora sends' };
     if (asin && !/^[A-Z0-9]{10}$/.test(asin)) return { ok: false, reason: 'That ASIN is not one Sellora sends' };
-    if (!sku && !asin) return { ok: false, reason: 'No SKU or ASIN given' };
+    if (!sku && !asin && !def.page) return { ok: false, reason: 'No SKU or ASIN given' };
     if (!prop_('CLAUDE_API_KEY')) return { ok: false, reason: 'AI not set up yet' };
     var month = aiMonth_();
     if (month.usd >= month.limit) return { ok: false, reason: 'Monthly AI limit reached', monthUsd: aiRound_(month.usd), limitUsd: month.limit };
 
     var facts = aiFacts_(task, brand, sku, asin, p);
     if (!facts.ok) return { ok: false, reason: facts.reason, monthUsd: aiRound_(month.usd), limitUsd: month.limit };
+    // a plain answer the facts give themselves (too little data): no Claude call, no cost
+    if (facts.direct) return { ok: true, task: task, result: facts.direct, why: '', model: '', costUsd: 0, cached: false, monthUsd: aiRound_(month.usd), limitUsd: month.limit };
+    // our house style for this product type — only an APPROVED guide (the page names it: &style=<product type>@<its date>)
+    var style = def.style ? aiStyleFor_(facts.pt, p.style) : null;
+    if (style) facts.facts.houseStyle = style.text;
     var model = def.fast ? (prop_('AI_MODEL_FAST') || 'claude-haiku-5-5') : (prop_('AI_MODEL') || 'claude-sonnet-5-5');
     var user = 'TASK: ' + task + (p.field ? ' (field ' + String(p.field).slice(0, 10) + ')' : '') + '\nFACTS: ' + JSON.stringify(facts.facts);
 
@@ -159,7 +226,7 @@ function aiAsk_(p) {
     if (hit) {
       var kept = JSON.parse(hit);
       return { ok: true, task: task, result: kept.result, why: kept.why, model: kept.model, costUsd: 0, cached: true, sku: facts.sku,
-        monthUsd: aiRound_(month.usd), limitUsd: month.limit };
+        style: style ? { pt: style.pt, at: style.at } : null, monthUsd: aiRound_(month.usd), limitUsd: month.limit };
     }
 
     var reply = aiClaude_(model, def, user, facts.image);
@@ -172,7 +239,7 @@ function aiAsk_(p) {
     var out = { result: result.result, why: String((reply.json && reply.json.why) || '').slice(0, 300), model: reply.model || model };
     try { cache.put(ck, JSON.stringify(out), AI_CACHE_S); } catch (e) { /* too big to keep: answered anyway */ }
     return { ok: true, task: task, result: out.result, why: out.why, model: out.model, costUsd: aiRound_(cost), cached: false, sku: facts.sku,
-      monthUsd: aiRound_(now.usd), limitUsd: now.limit };
+      style: style ? { pt: style.pt, at: style.at } : null, monthUsd: aiRound_(now.usd), limitUsd: now.limit };
   } catch (err) {
     return { ok: false, reason: 'The AI request failed: ' + String((err && err.message) || err).slice(0, 200) };
   }
@@ -243,6 +310,7 @@ function aiSentenceOf_(text, word) {
 
 /** Everything Claude is told about this listing for this task: { ok, facts, sku, image (a picture URL), field, spot } or { ok: false, reason }. */
 function aiFacts_(task, brand, sku, asin, p) {
+  if (AI_TASKS[task] && AI_TASKS[task].page) return aiPageFacts_(task, brand, p);
   var got = aiListing_(brand, sku, asin);
   var rec = got.rec, cat = got.cat;
   if (!rec) return { ok: false, reason: 'This listing is not in the listing cache yet (it is read at 13:00 and 18:00)' };
@@ -301,7 +369,7 @@ function aiFacts_(task, brand, sku, asin, p) {
     if (!/^https:\/\//.test(image)) return { ok: false, reason: 'No MAIN picture in the listing cache for this SKU' };
     f = { brand: base.brand, productType: base.productType, title: base.title, size: base.size, colour: base.colour };
   }
-  return { ok: true, facts: f, sku: rec.sku, image: image, spot: spot };
+  return { ok: true, facts: f, sku: rec.sku, image: image, spot: spot, pt: String(rec.pt || '') };
 }
 
 /* ============================== Claude ============================== */
@@ -377,7 +445,290 @@ function aiShape_(task, j, facts) {
     return { ok: true, result: { white_background: !!j.white_background, text_or_watermark: !!j.text_or_watermark, fill_pct: Math.max(0, Math.min(100, Number(j.fill_pct) || 0)),
       fills_frame: !!j.fills_frame, pass: !!j.white_background && !j.text_or_watermark && !!j.fills_frame, notes: s(j.notes, 400).trim(), image: facts.image } };
   }
+  return aiShapePage_(task, j, facts);
+}
+
+/* ============================== PART 2: the page tasks (facts from &d=) ============================== */
+
+// The page's facts: &d= as JSON (numbers, ids, rule names — never listing text), at most 8,000 characters. {} when none; null when unreadable.
+function aiData_(s) {
+  if (!s) return {};
+  s = String(s);
+  if (s.length > 8000) return null;
+  try { var d = JSON.parse(s); return d && typeof d === 'object' ? d : null; } catch (e) { return null; }
+}
+var aiCut_ = function (v, n) { return String(v == null ? '' : v).replace(/\s+/g, ' ').trim().slice(0, n || 120); };
+var aiNum_ = function (v) { var n = Number(v); return isFinite(n) ? n : null; };
+
+/** Our own titles of one product type (the good ones first: live, in stock, no Amazon error) — the examples of a template draft. */
+function aiExamples_(brand, pt, n) {
+  var g = aiStyleListings_([brand]);
+  return ((g.groups[pt] || []).slice().sort(function (a, b) { return b.good - a.good; }).map(function (x) { return x.t; }).filter(Boolean)).slice(0, n || 30);
+}
+
+/** The facts of a page task: { ok, facts, pt, direct (an answer with no call) } or { ok: false, reason }. */
+function aiPageFacts_(task, brand, p) {
+  var d = aiData_(p.d);
+  if (d === null) return { ok: false, reason: 'The page sent facts that could not be read' };
+  var label = brand === 'CPC' ? 'CPC' : 'Ridhi';
+  if (task === 'fix_first') {
+    var items = (d.items || []).slice(0, 20).map(function (x) {
+      return { sku: aiCut_(x.sku, 60), level: x.level === 'crit' ? 'Critical' : x.level === 'imp' ? 'Important' : 'Can wait', problems: (x.problems || []).slice(0, 6).map(function (w) { return aiCut_(w, 80); }),
+        stock: aiNum_(x.stock), sales: aiNum_(x.sales), sessions: aiNum_(x.sessions), live: !!x.live };
+    }).filter(function (x) { return x.sku; });
+    if (!items.length) return { ok: false, reason: 'Nothing Critical or Important to choose from' };
+    return { ok: true, facts: { brand: label, items: items, salesOld: !!d.salesOld }, pt: '' };
+  }
+  if (task === 'title_template') {
+    var pt = String(p.pt || d.pt || '').toUpperCase().replace(/[^A-Z0-9_]/g, '').slice(0, 60);
+    if (!pt) return { ok: false, reason: 'No product type given' };
+    var ex = aiExamples_(brand, pt, 30);
+    if (!ex.length) return { ok: false, reason: 'No listing of this product type in the listing cache yet' };
+    return { ok: true, facts: { brand: label, productType: pt, examples: ex, parts: AI_TPL_PARTS, max: 75 }, pt: pt };
+  }
+  if (task === 'bsr_why') {
+    var keep = JSON.parse(JSON.stringify({ parent: d.parent, title: aiCut_(d.title, 120), weekA: d.weekA, weekB: d.weekB, changes: (d.changes || []).slice(0, 20),
+      price: d.price, stock: d.stock, ads: d.ads, deals: d.deals }));
+    if (!d.weekA || !d.weekB) return { ok: false, reason: 'Two weeks of rank are needed (week A and week B)' };
+    return { ok: true, facts: keep, pt: '' };
+  }
+  if (task === 'category_suggest') {
+    var options = (d.options || []).filter(function (o) { return o && /^\d{3,20}$/.test(String(o.id)); }).slice(0, 20)
+      .map(function (o) { return { id: String(o.id), path: aiCut_(o.path, 200), n: aiNum_(o.n) }; });
+    if (!options.length) return { ok: false, reason: 'No Amazon category to choose from' };
+    return { ok: true, facts: { brand: label, family: aiCut_(d.family, 120), productType: aiCut_(d.pt, 60), colour: aiCut_(d.colour, 60), size: aiCut_(d.size, 40),
+      current: d.current ? { id: String(d.current.id || ''), path: aiCut_(d.current.path, 200) } : null, options: options }, pt: '' };
+  }
+  if (task === 'change_result') {
+    var b = d.before || {}, a = d.after || {};
+    var days = function (x) { return aiNum_(x.days) || 0; };
+    var sess = function (x) { return aiNum_(x.sessions) || 0; };
+    // too little to judge: said here, with no call (never a guess)
+    if (days(b) < 14 || days(a) < 14 || sess(b) + sess(a) < 30) {
+      return { ok: true, pt: '', direct: { verdict: 'not enough data yet', line: 'Not enough data yet — ' + (days(b) < 14 || days(a) < 14 ? 'it needs 14 days before and after the change' : 'too few sessions to tell') + '.' } };
+    }
+    return { ok: true, facts: { field: aiCut_(d.field, 40), at: aiCut_(d.at, 20), before: b, after: a, note: aiCut_(d.note, 200) }, pt: '' };
+  }
+  if (task === 'bundle_ideas') {
+    var row = function (x) { return { asin: aiCut_(x.asin, 12), name: aiCut_(x.name, 80), n: aiNum_(x.n), share: aiNum_(x.share) }; };
+    var ours = (d.ours || []).slice(0, 25).map(row), others = (d.others || []).slice(0, 25).map(row);
+    if (!ours.length && !others.length) return { ok: false, reason: 'No bought-together data on the page yet' };
+    return { ok: true, facts: { brand: label, asin: aiCut_(d.asin, 12), name: aiCut_(d.name, 80), ours: ours, others: others }, pt: '' };
+  }
   return { ok: false, reason: 'Unknown AI task' };
+}
+
+/** A page task's answer in Sellora's shape, checked against what was sent (a SKU, a category id or a part that was not offered is refused). */
+function aiShapePage_(task, j, facts) {
+  var line = function (v, n) { return String(v == null ? '' : v).replace(/\s+/g, ' ').trim().slice(0, n || 300); };
+  var f = facts.facts || {};
+  if (task === 'fix_first') {
+    var known = {};
+    (f.items || []).forEach(function (x) { known[x.sku] = 1; });
+    var items = (j.items || []).filter(function (x) { return x && known[x.sku]; }).slice(0, 10).map(function (x) { return { sku: x.sku, line: line(x.line, 160) }; });
+    return items.length ? { ok: true, result: { items: items } } : { ok: false, reason: 'The AI picked no listing from the list' };
+  }
+  if (task === 'title_template') {
+    var t = line(j.template, 200);
+    var parts = (t.match(/\{(\w+)\}/g) || []).map(function (x) { return x.slice(1, -1); });
+    if (!parts.length || parts.some(function (k) { return AI_TPL_PARTS.indexOf(k) < 0; })) return { ok: false, reason: 'The AI template uses parts Sellora does not have' };
+    if (parts.indexOf('brand') < 0 || parts.indexOf('product') < 0) return { ok: false, reason: 'The AI template has no {brand} or no {product}' };
+    return { ok: true, result: { template: t, pt: f.productType, examples: (f.examples || []).slice(0, 3) } };
+  }
+  if (task === 'bsr_why') return { ok: true, result: { summary: line(j.summary, 300), reasons: (j.reasons || []).slice(0, 6).map(function (x) { return line(x, 200); }), missing: (j.missing || []).slice(0, 6).map(function (x) { return line(x, 160); }) } };
+  if (task === 'category_suggest') {
+    var pick = (f.options || []).filter(function (o) { return o.id === String(j.id || ''); })[0];
+    return pick ? { ok: true, result: { id: pick.id, path: pick.path, reason: line(j.reason, 300) } } : { ok: false, reason: 'The AI picked a category that is not one of the options' };
+  }
+  if (task === 'change_result') return { ok: true, result: { verdict: j.verdict || 'no change', line: line(j.line, 300) } };
+  if (task === 'bundle_ideas') {
+    return { ok: true, result: { pairs: (j.pairs || []).slice(0, 8).map(function (x) { return { a: line(x.a, 80), b: line(x.b, 80), why: line(x.why, 200) }; }),
+      others: (j.others || []).slice(0, 8).map(function (x) { return { asin: line(x.asin, 12), why: line(x.why, 200) }; }) } };
+  }
+  return { ok: false, reason: 'Unknown AI task' };
+}
+
+/* ============================== PART 2: the house style ============================== */
+
+/** Every listing of these brands from the ListingMatch cache, in short, grouped by product type: { n, groups: { PT: [listing] } }.
+ *  A listing: { b, sku, t, bl, d, kw, hl, colour, size, shape, material, good } — good = live (BUYABLE), in stock, no Amazon ERROR. */
+function aiStyleListings_(brands) {
+  var meta = lmGet_('lmMeta');
+  var out = { n: 0, groups: {} };
+  if (!meta || !meta.parts) return out;
+  (brands || LM_BRANDS).forEach(function (b) {
+    ((meta.parts.listings || {})[b] || []).forEach(function (tab) {
+      var part = lmGet_(tab), items = (part && part.items) || {};
+      Object.keys(items).forEach(function (k) {
+        var r = items[k];
+        if (!r || !r.t || r.lvl === 'parent') return;
+        var va = r.va || {};
+        var stock = Number(r.fba != null ? r.fba : r.qty) || 0;
+        var good = /BUYABLE/.test(String(r.as || '')) && stock > 0 && !(r.iss || []).some(function (i) { return String(i.s || '').toUpperCase().charAt(0) === 'E'; });
+        var pt = String(r.pt || 'OTHER').toUpperCase();
+        (out.groups[pt] = out.groups[pt] || []).push({ b: b, sku: r.sku, t: String(r.t).slice(0, 200), bl: (r.bl || []).slice(0, 5).map(function (x) { return String(x).slice(0, 220); }),
+          d: String(r.d || '').slice(0, 300), kw: String(r.kw || '').slice(0, 200), hl: (r.hl || []).slice(0, 2), colour: va.color || '', size: va.size || '',
+          shape: va.item_shape || '', material: va.material || '', good: good ? 1 : 0 });
+        out.n++;
+      });
+    });
+  });
+  return out;
+}
+
+// The guide in words, for a writing prompt.
+function aiGuideText_(g, pt) {
+  g = g || {};
+  var list = function (a) { return (a || []).filter(Boolean).join('; '); };
+  return ['House style for ' + pt + ':', 'Title: ' + (g.title_pattern || '') + ' (' + (g.title_length || '') + ').', 'Size: ' + (g.size_style || '') + '.',
+    'Colour, shape, material: ' + (g.colour_shape_material || '') + '.', 'Bullets: ' + list(g.bullets) + '.', 'Description: ' + (g.description || '') + '.',
+    'Always use: ' + list(g.always) + '.', 'Never use: ' + list(g.never) + '.', 'Our best titles: ' + list(g.examples) + '.'].join('\n').slice(0, 3000);
+}
+
+/** For style_get: the guides and the learning's state (no Claude call). */
+function aiStyleGet_() {
+  var tab = lmGet_(AI_STYLE_TAB) || { guides: {} };
+  var st = aiStyleState_();
+  return { ok: true, style: tab, learning: st ? { run: st.run, at: st.at, done: st.i, of: (st.queue || []).length, finished: !!st.finished, stopped: st.stopped || '', costUsd: aiRound_(st.cost) } : null };
+}
+
+/** The APPROVED guide for this product type: `given` = "<PT>@<the guide's date>" from the page (Sellora sends it only for an approved
+ *  guide). The guide is used only when that date is the guide's own (a guide learnt again must be approved again). { pt, at, text } or null. */
+function aiStyleFor_(pt, given) {
+  given = String(given || '');
+  var m = given.match(/^([A-Z0-9_]+)@(\d{10,15})$/);
+  if (!m || !pt || m[1] !== String(pt).toUpperCase()) return null;
+  var tab = lmGet_(AI_STYLE_TAB);
+  var g = tab && tab.guides && tab.guides[m[1]];
+  if (!g || String(g.at) !== m[2]) return null;
+  return { pt: m[1], at: g.at, text: g.text || aiGuideText_(g.guide, m[1]) };
+}
+
+function aiStyleState_() { try { return JSON.parse(PropertiesService.getScriptProperties().getProperty(AI_STYLE_STATE) || 'null'); } catch (e) { return null; } }
+function aiStyleSaveState_(st) { PropertiesService.getScriptProperties().setProperty(AI_STYLE_STATE, JSON.stringify(st)); }
+// The next step in a minute (a one-off timer; the old ones of this function removed first).
+function aiStyleTrigger_(on) {
+  try {
+    ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === 'aiLearnStyleTick') ScriptApp.deleteTrigger(t); });
+    if (on) ScriptApp.newTrigger('aiLearnStyleTick').timeBased().after(60 * 1000).create();
+  } catch (e) { Logger.log('aiLearnStyle: the timer could not be set (' + e + ') — run aiLearnStyle again to go on.'); }
+}
+// What the whole learning would cost, about: one Haiku call per 60 listings, one Sonnet call per product type.
+function aiStyleEstimate_(g) {
+  var calls = 0;
+  Object.keys(g.groups).forEach(function (pt) { calls += Math.ceil(g.groups[pt].length / AI_STYLE_BATCH); });
+  return calls * AI_EST_NOTES + Object.keys(g.groups).length * AI_EST_GUIDE;
+}
+// A new learning: every product type queued, the biggest first. The guides learnt before stay until their product type is learnt again.
+function aiStyleNew_(g, by) {
+  var pts = Object.keys(g.groups).sort(function (a, b) { return g.groups[b].length - g.groups[a].length || (a < b ? -1 : 1); });
+  var st = { run: Date.now(), at: Date.now(), by: by || '', queue: pts, i: 0, batch: 0, read: g.n, cost: 0, finished: false, stopped: '' };
+  aiStyleSaveState_(st);
+  lmPut_(AI_STYLE_WORK, { run: st.run, notes: {} });
+  var tab = lmGet_(AI_STYLE_TAB) || { guides: {} };
+  tab.v = 1; tab.run = st.run; tab.startedAt = st.run; tab.status = 'learning'; tab.read = g.n; tab.costUsd = 0; tab.stopped = '';
+  lmPut_(AI_STYLE_TAB, tab);
+  return st;
+}
+
+/** "Learn again" from the Listing Rules page: budget-checked, then the learning starts on a timer (the request does not wait for it). */
+function aiLearnStart_(by) {
+  if (!prop_('CLAUDE_API_KEY')) return { ok: false, reason: 'AI not set up yet' };
+  var cur = aiStyleState_();
+  if (cur && !cur.finished && !cur.stopped && Date.now() - (cur.at || 0) < 30 * 60000) return { ok: true, running: true, learning: { done: cur.i, of: (cur.queue || []).length } };
+  var g = aiStyleListings_();
+  if (!g.n) return { ok: false, reason: 'The listing cache is empty — nothing to learn from yet' };
+  var est = aiStyleEstimate_(g), month = aiMonth_();
+  if (month.usd + est > month.limit) return { ok: false, reason: 'Monthly AI limit reached — learning would cost about $' + aiRound_(est).toFixed(2) + ', $' + aiRound_(month.limit - month.usd).toFixed(2) + ' is left', monthUsd: aiRound_(month.usd), limitUsd: month.limit };
+  aiStyleNew_(g, by);
+  aiStyleTrigger_(true);
+  return { ok: true, started: true, estimateUsd: aiRound_(est), listings: g.n, productTypes: Object.keys(g.groups).length, monthUsd: aiRound_(month.usd), limitUsd: month.limit };
+}
+
+/** RUN ONCE FROM THE EDITOR: learns the house style of every product type from every listing of both brands. It works in steps of
+ *  ~4.5 minutes and sets a one-off timer for the next step itself; run it again any time to see where it is (it carries on). */
+function aiLearnStyle() {
+  if (!prop_('CLAUDE_API_KEY')) { Logger.log('aiLearnStyle: CLAUDE_API_KEY is not set — nothing learnt.'); return null; }
+  var st = aiStyleState_();
+  var g = aiStyleListings_();
+  if (!g.n) { Logger.log('aiLearnStyle: the listing cache is empty — run lmSetup and wait for the first pass.'); return null; }
+  if (!st || st.finished || st.stopped) {
+    var est = aiStyleEstimate_(g), month = aiMonth_();
+    if (month.usd + est > month.limit) { Logger.log('aiLearnStyle: about $' + aiRound_(est) + ' needed, $' + aiRound_(month.limit - month.usd) + ' left this month — not started.'); return null; }
+    st = aiStyleNew_(g, 'editor');
+    Logger.log('aiLearnStyle: ' + g.n + ' listings, ' + st.queue.length + ' product types, about $' + aiRound_(est) + '.');
+  }
+  return aiStyleWork_(st, g);
+}
+/** The timer's step (set by aiLearnStyle / Learn again): carries the learning on. */
+function aiLearnStyleTick() {
+  var st = aiStyleState_();
+  if (!st || st.finished || st.stopped) { aiStyleTrigger_(false); return null; }
+  return aiStyleWork_(st, aiStyleListings_());
+}
+// Words of a guide that are really in our listings of that type (in 2 or more) — the guide never names a word we do not write.
+function aiStyleReal_(words, list, min) {
+  var text = list.map(function (x) { return [x.t, x.bl.join(' '), x.d].join(' ').toLowerCase(); });
+  return (words || []).map(function (w) { return String(w || '').trim(); }).filter(function (w) {
+    var k = w.toLowerCase();
+    return k && text.filter(function (t) { return t.indexOf(k) >= 0; }).length >= (min || 2);
+  });
+}
+/** One step: Haiku batches of one product type, then its Sonnet guide; the next type; until the time is up, the money is out or all done. */
+function aiStyleWork_(st, g) {
+  var t0 = Date.now();
+  var work = lmGet_(AI_STYLE_WORK) || { run: st.run, notes: {} };
+  if (work.run !== st.run) work = { run: st.run, notes: {} };
+  var tab = lmGet_(AI_STYLE_TAB) || { guides: {} };
+  tab.guides = tab.guides || {};
+  var fast = prop_('AI_MODEL_FAST') || 'claude-haiku-5-5', big = prop_('AI_MODEL') || 'claude-sonnet-5-5';
+  var pay = function (reply, model) { var c = reply.usage ? aiCost_(reply.model || model, reply.usage) : 0; if (reply.usage) aiSpend_(c, reply.usage); st.cost += c; return c; };
+  var afford = function (est) { var m = aiMonth_(); return m.usd + est <= m.limit; };
+  var save = function () { st.at = Date.now(); aiStyleSaveState_(st); lmPut_(AI_STYLE_WORK, work); tab.costUsd = aiRound_(st.cost); lmPut_(AI_STYLE_TAB, tab); };
+  var stop = function (why) { st.stopped = why; tab.status = 'stopped'; tab.stopped = why; save(); aiStyleTrigger_(false); Logger.log('aiLearnStyle stopped: ' + why); return st; };
+  while (st.i < st.queue.length) {
+    if (Date.now() - t0 > AI_STYLE_STEP_MS) { save(); aiStyleTrigger_(true); Logger.log('aiLearnStyle: ' + st.i + ' of ' + st.queue.length + ' product types — goes on in a minute.'); return st; }
+    var pt = st.queue[st.i];
+    var list = (g.groups[pt] || []).slice().sort(function (a, b) { return b.good - a.good || (a.sku < b.sku ? -1 : 1); });
+    var batches = Math.ceil(list.length / AI_STYLE_BATCH);
+    if (st.batch < batches) {
+      if (!afford(AI_EST_NOTES)) return stop('Monthly AI limit reached — learning stopped at ' + pt);
+      var slice = list.slice(st.batch * AI_STYLE_BATCH, (st.batch + 1) * AI_STYLE_BATCH);
+      var r = aiClaude_(fast, AI_LEARN.notes, 'TASK: style_notes\nFACTS: ' + JSON.stringify({ productType: pt, listings: slice }));
+      pay(r, fast);
+      if (r.ok) work.notes[pt] = (work.notes[pt] || []).concat((r.json.notes || []).slice(0, 12).map(function (x) { return String(x).slice(0, 300); }));
+      st.batch++;
+      save();
+      continue;
+    }
+    if (!afford(AI_EST_GUIDE)) return stop('Monthly AI limit reached — learning stopped at ' + pt);
+    var best = list.filter(function (x) { return x.good; }).concat(list.filter(function (x) { return !x.good; })).slice(0, 10).map(function (x) { return x.t; });
+    var rg = aiClaude_(big, AI_LEARN.guide, 'TASK: style_guide\nFACTS: ' + JSON.stringify({ productType: pt, n: list.length, good: list.filter(function (x) { return x.good; }).length,
+      notes: (work.notes[pt] || []).slice(0, 150), bestTitles: best }));
+    var cost = pay(rg, big);
+    if (rg.ok) {
+      var gd = rg.json;
+      var titles = {};
+      list.forEach(function (x) { titles[x.t] = 1; });
+      // facts only from our own listings: examples that are our real titles, words we really write
+      gd.examples = (gd.examples || []).filter(function (t) { return titles[t]; }).slice(0, 3);
+      if (!gd.examples.length) gd.examples = best.slice(0, 2);
+      gd.always = aiStyleReal_(gd.always, list, 2).slice(0, 15);
+      gd.never = (gd.never || []).map(function (w) { return String(w).slice(0, 40); }).slice(0, 15);
+      var at = Date.now();
+      tab.guides[pt] = { pt: pt, n: list.length, good: list.filter(function (x) { return x.good; }).length, at: at, run: st.run, status: 'draft', costUsd: aiRound_(cost), guide: gd, text: aiGuideText_(gd, pt) };
+    }
+    st.i++;
+    st.batch = 0;
+    save();
+  }
+  st.finished = true;
+  tab.status = 'draft';
+  tab.finishedAt = Date.now();
+  save();
+  aiStyleTrigger_(false);
+  Logger.log('aiLearnStyle done: ' + st.read + ' listings, ' + Object.keys(tab.guides).length + ' guides (draft — approve them in Listing Rules), $' + aiRound_(st.cost) + '.');
+  return st;
 }
 
 /* ============================== the money ============================== */

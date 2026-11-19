@@ -254,8 +254,8 @@ const patches = (C, apply) => C.calls.filter(c => c.lfix === 'patch' && c.apply 
     const h = C.el('ipgBody').innerHTML;
     const csv = C.ipgCsv();
     const lines = csv.text.replace(/^﻿/, '').trim().split('\r\n');
-    ok('Excel-ready: UTF-8 BOM, CRLF, the 14 columns', csv.text.charCodeAt(0) === 0xFEFF && lines[0] === 'Brand,Family,SKU,ASIN,Stock,Field,Risky word,Type,Snippet,Why,What to do,Allowed on purpose,Amazon link,Data time'
-      && C.IPG_CSV_COLS.join() === 'Brand,Family,SKU,ASIN,Stock,Field,Risky word,Type,Snippet,Why,What to do,Allowed on purpose,Amazon link,Data time');
+    ok('Excel-ready: UTF-8 BOM, CRLF, the 14 columns (and Priority)', csv.text.charCodeAt(0) === 0xFEFF && lines[0] === 'Brand,Family,SKU,ASIN,Stock,Field,Risky word,Type,Snippet,Why,What to do,Allowed on purpose,Amazon link,Data time,Priority'
+      && C.IPG_CSV_COLS.join() === 'Brand,Family,SKU,ASIN,Stock,Field,Risky word,Type,Snippet,Why,What to do,Allowed on purpose,Amazon link,Data time,Priority');
     const snips = [...h.matchAll(/<div class="ipg-snip[^"]*" data-ipg-fd="([^"]+)"><span class="ipg-fld">([^<]*)<\/span><span class="ipg-tx">([^]*?)<\/span>/g)].map(m => ({ id: text(m[1]), field: text(m[2]), snip: text(m[3]) }));
     ok(`one sheet row per finding line on the screen (${snips.length})`, csv.n === snips.length && csv.n === 11 && lines.length === 12, `${csv.n} vs ${snips.length}`);
     ok('…the same lines in the same order: SKU, field, word, snippet', csv.rows.every((r, i) => snips[i].id.startsWith(r.sku + '|' + r.field + '|') && snips[i].field === r.field && snips[i].snip === r.snippet),

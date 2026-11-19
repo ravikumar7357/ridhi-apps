@@ -211,7 +211,7 @@ function ccGroups(view, f) {
   const filter = f === undefined ? CC.f : f;
   return view.groups.filter(g => CC.brand === 'ALL' || g.f.brand === CC.brand).map(g => {
     const famHit = q && (fcNorm(g.f.name).includes(q) || fcNorm(g.f.psku).includes(q) || fcNorm(g.f.pa).includes(q) || (g.main && fcNorm(g.main.full).includes(q)));
-    const rows = g.rows.filter(r => ccRowIn(r, filter) && (!q || famHit || (r.c.skus || [r.c.sku]).some(x => fcNorm(x).includes(q)) || fcNorm(r.c.asin).includes(q)
+    const rows = g.rows.filter(r => ccRowIn(r, filter) && (f !== undefined || !(typeof prOf === 'function') || prKeep('cc', prCc(r))) && (!q || famHit || (r.c.skus || [r.c.sku]).some(x => fcNorm(x).includes(q)) || fcNorm(r.c.asin).includes(q)
       || fcNorm(r.info.full).includes(q) || fcNorm(ccBsr(r.info)).includes(q)));
     return rows.length ? { f: g.f, main: g.main, catState: g.catState, all: g.rows, rows } : null;
   }).filter(Boolean);
@@ -261,7 +261,8 @@ function ccRowHtml(r) {
   let prob, acts = '';
   if (r.probs.length) {
     prob = r.probs.map(p => `<div class="fc-p is-${CC_SEV[p.k]}">${fcEsc(p.text)}</div><small class="cc-hint"><b>What to do:</b> ${fcEsc(p.hint)}</small>`).join('');
-    acts = `<button type="button" class="ghost fc-b" data-cc="ok" ${a}>Correct on purpose</button>`;
+    acts = `<button type="button" class="ghost fc-b" data-cc="ok" ${a}>Correct on purpose</button>`
+      + (typeof aiOn === 'function' && aiOn() ? aiBtnHtml('category_suggest', c.brand, c.sku, { use: 'read', place: 'row', label: 'Suggest the right category' }) : '');      // ✨ (listing-ai.js): one of the categories Sellora reads
   } else if (r.marked) {
     prob = `<span class="fc-chip is-g cc-marked">Correct on purpose</span>` + (CC.f === 'ok' ? r.okProbs.map(p => `<div class="fc-p is-g">${fcEsc(p.text)}</div>`).join('')
       + `<small class="cc-hint">Marked by ${fcEsc(r.marked.name || fcName(r.marked.by))}${r.marked.at ? ' · ' + fcEsc(fcWhen(r.marked.at)) : ''}</small>` : '');
@@ -271,7 +272,7 @@ function ccRowHtml(r) {
   // the red bar down the side: an error row; a row with only a Rank mismatch (a check) gets the amber one
   const bar = r.probs.some(p => CC_SEV[p.k] === 'r') ? ' is-orphan' : r.probs.length ? ' cc-chk' : '';
   return `<tr class="fc-row${bar}${CC.sel.has(r.key) ? ' is-sel' : ''}"><td class="fc-tk">${tick}</td><td class="cc-pc">${ccPicHtml(i)}</td>`
-    + `<td class="fc-sku"><b>${fcEsc(c.sku)}</b>${typeof lmOldHtml === 'function' ? lmOldHtml(c.brand, c.sku) : ''}<small>${fcEsc(String(c.title || '').slice(0, 70))}</small></td>`
+    + `<td class="fc-sku"><b>${fcEsc(c.sku)}</b>${typeof prOf === 'function' && r.probs.length ? ' ' + prChipHtml(prCc(r), 'fc-chip') : ''}${typeof lmOldHtml === 'function' ? lmOldHtml(c.brand, c.sku) : ''}<small>${fcEsc(String(c.title || '').slice(0, 70))}</small></td>`
     + `<td class="ui-mono">${amz}</td><td class="cc-cat">${ccCatHtml(i)}</td><td class="cc-bsr">${bsr ? fcEsc(bsr) : '<span class="fc-none">no rank</span>'}</td>`
     + `<td class="fc-prob cc-prob">${prob}</td><td class="fc-acts">${acts}</td></tr>`;
 }
@@ -322,7 +323,7 @@ function ccBodyHtml(view) {
   const cards = CC_KINDS.map(k => box(k.k, k.t, counts[k.k], k.sev === 'r' ? 'error' : 'check', ' is-' + k.sev, k.tip)).join('')
     + box('ok', 'Correct on purpose', okN, 'hidden', ' is-g', 'Children the team marked as in the right place on purpose: they never show as errors.');
   const chip = (k, t, n) => `<button type="button" class="cc-fchip${CC.f === k ? ' is-on' : ''}" data-cc="chip" data-cc-v="${k}" aria-pressed="${CC.f === k}">${fcEsc(t)}${n == null ? '' : ` <b>${fcNf(n)}</b>`}</button>`;
-  const chips = `<div class="cc-chips" role="group" aria-label="Show">${chip('', 'All')}${CC_KINDS.map(k => chip(k.k, k.t, counts[k.k])).join('')}${chip('ok', 'Correct on purpose', okN)}</div>`;
+  const chips = `<div class="cc-chips" role="group" aria-label="Show">${chip('', 'All')}${CC_KINDS.map(k => chip(k.k, k.t, counts[k.k])).join('')}${chip('ok', 'Correct on purpose', okN)}${typeof prOf === 'function' ? prFilterHtml('cc', (k, label, on) => `<button type="button" class="cc-fchip${on ? ' is-on' : ''}" data-cc="prf" data-cc-v="${k}" aria-pressed="${on}">${label}</button>`) : ''}</div>`;
   const groups = ccGroups(view);
   const shown = groups.slice(0, CC.limit);
   const more = groups.length - shown.length;
@@ -397,14 +398,14 @@ function ccToggle(fk, el) {
 }
 
 /* ----- the CSV: what is in view ----- */
-const CC_CSV_COLS = ['Brand', 'Family', 'SKU', 'ASIN', 'Browse path', 'BSR', 'Error', 'What to do'];
+const CC_CSV_COLS = ['Brand', 'Family', 'SKU', 'ASIN', 'Browse path', 'BSR', 'Error', 'What to do', 'Priority'];
 function ccCsv(view) {
   const q = val => { const s = String(val == null ? '' : val); return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
   const lines = [];
   ccGroups(view || ccBuild()).forEach(g => g.rows.forEach(r => {
     const base = [fcBrandName(r.c.brand), g.f.name, (r.c.skus || [r.c.sku]).join(' / '), r.c.asin, r.info.state === 'ok' ? r.info.full : r.info.state === 'none' ? '' : 'Category not read yet', ccBsr(r.info)];
     const probs = r.probs.length ? r.probs : r.marked ? r.okProbs.map(p => ({ text: 'Correct on purpose: ' + p.text, hint: '' })) : [{ text: '', hint: '' }];
-    probs.forEach(p => lines.push(base.concat([p.text, p.hint]).map(q).join(',')));
+    probs.forEach(p => lines.push(base.concat([p.text, p.hint, typeof prOf === 'function' && r.probs.length ? prCsv(prCc(r)) : '']).map(q).join(',')));
   }));
   return { n: lines.length, text: '﻿' + [CC_CSV_COLS.join(',')].concat(lines).join('\r\n') + '\r\n' };
 }
@@ -441,6 +442,7 @@ function ccClick(el) {
   const act = el.dataset.cc, v = el.dataset.ccV, brand = el.dataset.ccB, id = el.dataset.ccS;
   if (act === 'f') { CC.f = CC.f === v ? '' : v; CC.limit = CC_STEP; return ccDraw(); }             // a card: press again to clear it
   if (act === 'chip') { CC.f = v || ''; CC.limit = CC_STEP; return ccDraw(); }
+  if (act === 'prf') { prToggle('cc', v); CC.limit = CC_STEP; return ccDraw(); }      // 🔴 / 🟠 / ⚪ (listing-priority.js)
   if (act === 'grp') return ccToggle(v, el);
   if (act === 'openall') { ccGroups(ccBuild()).forEach(g => CC.open.add(g.f.fk)); return ccDraw(); }
   if (act === 'closeall') { CC.open.clear(); return ccDraw(); }

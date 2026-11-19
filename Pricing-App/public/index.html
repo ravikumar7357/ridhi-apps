@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <!-- ================================================================================================
-     GENERATED FILE. DO NOT READ OR EDIT THE CODE HERE — it is the 69 files of src/ joined into one page.
+     GENERATED FILE. DO NOT READ OR EDIT THE CODE HERE — it is the 70 files of src/ joined into one page.
      The real, grouped source: Pricing-App/src/   (map and workflow: src/README.md)
        src/index.html   page markup        src/styles.css   stylesheet        src/app/ORDER   join order
        src/app/<group>/ the code, by group: core, research, sales, inventory, listing, ads
@@ -3684,6 +3684,21 @@
   .ai-verdict.is-ok{color:var(--ok)}
   .ai-verdict.is-bad{color:var(--bad-ink)}
   .ai-optf{margin-top:4px}
+  .ai-style{margin-top:10px;border-top:1px solid var(--line);padding-top:8px}
+  .ai-style>summary{cursor:pointer;font-size:12.5px}
+  .ai-style-h{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0;font-size:12px}
+  .ai-style-g{border-top:1px solid var(--line);padding:6px 0;font-size:12px}
+  .ai-style-gh{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .ai-style-l{margin:4px 0 0;padding-left:18px}
+  .ai-ff,.ai-l{margin:4px 0;padding-left:20px;font-size:12.5px}
+  .ai-ff li{margin:3px 0}
+  .ai-tpl-g{display:inline-flex;gap:6px;align-items:center;margin:2px 10px 2px 0;font-size:12px}
+  .ai-inline{margin-left:6px}
+  /* 🔴 Critical · 🟠 Important · ⚪ Can wait (listing-priority.js): the same small pill as the screens' own chips — inside the Family / A+ / IP panes
+     their fc-chip; elsewhere this one (same size, the level colours) */
+  .pr-chip:not(.fc-chip):not(.im-chip){display:inline-block;font-size:11px;font-weight:600;line-height:1.5;padding:0 6px;border-radius:999px;white-space:nowrap;vertical-align:middle;margin-right:4px;border:1px solid var(--line);background:var(--card);color:var(--muted)}
+  .pr-chip.is-r:not(.fc-chip):not(.im-chip){color:var(--bad-ink);border-color:color-mix(in srgb,var(--bad) 40%,transparent)}
+  .pr-chip.is-y:not(.fc-chip):not(.im-chip){color:var(--warn-ink);border-color:color-mix(in srgb,var(--warn-ink) 40%,transparent)}
   @media (max-width:640px){.ai-ba{grid-template-columns:minmax(0,1fr)}.ai-img{flex-direction:column}}
   .fa-cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
   .fa-card{--c:var(--faint);display:flex;flex-direction:column;gap:2px;min-width:0;padding:10px 12px;border:1px solid var(--card-line);border-radius:12px;background:var(--card);
@@ -13505,7 +13520,7 @@ function hWhyCell(row) {
       + `<span class="ls-whyd" aria-hidden="true"></span><span class="ls-whyt">${lrEsc(words)}</span></span>`;
   };
   const rest = found.length - 3;
-  return `<div class="ls-whyl">${found.slice(0, 3).map(item).join('')}`
+  return `<div class="ls-whyl">${typeof prOf === 'function' ? prChipHtml(prOf(row.brand, row.sku, [], { row, stock: row.qty }).k) : ''}${found.slice(0, 3).map(item).join('')}`
     + (rest > 0 ? `<button type="button" class="ls-why-more" data-lk-more="1" aria-label="Show all ${found.length} problems">+${rest} more</button>` : '') + '</div>';
 }
 // "+n more" opens the rest of a Why cell in place; a picture that fails to load hides itself (its grey square stays).
@@ -14279,6 +14294,8 @@ function renderHealth() {
   // whichever parents survived the filter, so the cards still agree with what's on screen.
   renderHealthKpis(H_VIEW === 'parent' ? rows.flatMap(g => g.kids) : rows, brands);
   hMetaRender(brands, H_VIEW === 'parent' ? 'Parent ASINs' : 'Child listings');
+  // ✨ Fix these first (listing-ai.js): the best 10 of the top 20 Critical / Important listings — only when AI is set up, only on a click
+  if (typeof aiOn === 'function' && aiOn() && $('hMeta').firstChild && $('hMeta').firstChild.insertAdjacentHTML) $('hMeta').firstChild.insertAdjacentHTML('beforeend', ' ' + aiBtnHtml('fix_first', brands[0] || 'SP', '', { use: 'read', brands, label: 'Fix these first', place: 'after' }));
   if (H_MOVED && $('hMeta').firstChild && $('hMeta').firstChild.insertAdjacentHTML) {
     $('hMeta').firstChild.insertAdjacentHTML('beforeend', ' <button type="button" class="ls-more lh-resort" data-h-resort="1" title="New answers would put the listings in another order; the table keeps its order until you press this">Sort again</button>');
   }
@@ -14934,7 +14951,8 @@ function lrAllowRender(cfg) {
       <span class="muted">Words that need proof or a certificate (the same Guard screen, amber). A listing that holds the certificate is marked "Allowed on purpose" there.</span></div>
     <div class="lr-allow-row"><span class="muted">Always, at any length, the same meaning is never an error: upper / lower case, singular / plural, Grey / Gray, Colour / Color,
       Tablecloth / Table Cloth / Table-Cloth, Pillow Cover / Cushion Cover, Block Print / Block-Print / Blockprint / Block Printed / Hand Block Printed, hyphens, commas,
-      "|" and extra spaces. Siblings' sizes compare by meaning: "18x18" = "18 x 18" = "18×18".</span></div>`;
+      "|" and extra spaces. Siblings' sizes compare by meaning: "18x18" = "18 x 18" = "18×18".</span></div>`
+    + (typeof aiOn === 'function' && aiOn() && typeof aiStyleSectionHtml === 'function' ? aiStyleSectionHtml() : '');      // ✨ AI house style (listing-ai.js): shown only when AI is set up
 }
 
 // Draw the current view (issues / titles / season) into lrTable, with live counts from the listings snapshot.
@@ -15012,7 +15030,7 @@ function renderLrules() {
           <td class="num" style="font-weight:700">${rows.length ? off.toLocaleString('en-US') : '—'}</td>
           <td><button class="ghost lr-del" data-lrdel="templates|${i}" title="Delete this template">×</button></td>
         </tr>`;
-      }).join('') + '</tbody>';
+      }).join('') + '</tbody>' + (typeof aiOn === 'function' && aiOn() && typeof aiTplHtml === 'function' ? aiTplHtml(cfg) : '');      // ✨ Draft title template (listing-ai.js)
     lrMsg('Tokens: {brand} {product} {shape} {material} {size} {pattern} {uses} {occasions} {color}. "Must have" lists the tokens a title is checked for, in template order. '
       + '{occasions} is filled only with occasions in season today. Shape comes from the catalog sub-category, size and colour from the catalog row. Type a SKU in "Try a SKU" to see its suggestion.'
       + (LR_CAT.SP && LR_CAT.CPC ? '' : ' · the brand catalogues could not be read, so no title can be suggested yet'));
@@ -17997,7 +18015,7 @@ function liWsKidTableInner(p, bare) {
     const mark = cardK ? (inCard(kid) ? ` is-match is-m-${cardK}` : ' is-other') : '';
     const other = i === firstOther && i > 0 ? `<tr class="li-ws-otherhead"><td colspan="${LI_WS_CHECKS.length + 3}">Other listings</td></tr>` : '';
     return `${other}<tr class="li-ws-kid${kid.counted ? '' : ' is-off'}${mark}"><td><button type="button" class="li-ws-sku" data-li-ws-sku="${lrEsc(key)}" aria-expanded="${open}">${open ? '▾' : '▸'} ${lrEsc(kid.sku)}</button>${kid.lr && kid.lr.lmStale && typeof lmOldHtml === 'function' ? lmOldHtml(kid.brand, kid.sku) : ''}`
-      + `<div class="li-ws-asin">${lrEsc(kid.asin)}</div></td><td>${lrEsc(kid.why)}</td><td class="num">${kid.row.qty == null ? '<span class="li-ws-na">—</span>' : liWsNf(kid.row.qty)}</td>`
+      + `<div class="li-ws-asin">${lrEsc(kid.asin)}</div></td><td>${typeof prOf === 'function' && (kid.found || []).length ? prChipHtml(prKid(kid)) + ' ' : ''}${lrEsc(kid.why)}</td><td class="num">${kid.row.qty == null ? '<span class="li-ws-na">—</span>' : liWsNf(kid.row.qty)}</td>`
       + LI_WS_CHECKS.map(check => `<td>${liWsCell(kid, check, reading)}</td>`).join('') + '</tr>' + (open ? liWsDetail(kid, LI_WS_CHECKS.length + 3) : '');
   }).join('') || `<tr><td colspan="${LI_WS_CHECKS.length + 3}" class="li-ws-na">${step ? 'No listing fails this step now.' : `No ${LI_WS.mode === 'live' ? 'live' : LI_WS.mode === 'off' ? 'not-live' : ''} children.`}</td></tr>`;
   return `${bare ? '' : note + liWsAuditBox(p)}<div class="li-ws-kidbox"><table class="li-ws-kidtable">${head}<tbody>${body}</tbody></table></div>`;
@@ -18103,8 +18121,11 @@ function liWsRender() {
   const redK = k => k === 'amz' || (idx.by[k] || []).some(rule => rule.sev === 'critical');   // a column whose rules can be an Error
   const chipDefs = [{ k: 'all', t: 'All parents', dot: 'brand', n: scoped.length }, { k: 'problems', t: 'Has problems', dot: 'bad', n: scoped.filter(p => p.probN > 0).length }]
     .concat(LI_WS_CHECKS.map(check => ({ k: check.k, t: check.w, dot: redK(check.k) ? 'bad' : 'act', n: scoped.filter(p => p.failN[check.k] > 0).length })).filter(chip => chip.n > 0));
+  // 🔴 / 🟠 / ⚪ (listing-priority.js): the parents with a child of that level that has a problem
+  const prIn = (p, k) => (p.kids || []).some(kid => (kid.found || []).length && prKid(kid) === k);
+  if (typeof prOf === 'function') ['crit', 'imp', 'wait'].forEach(k => { const n = scoped.filter(p => prIn(p, k)).length; if (n) chipDefs.push({ k: 'pr:' + k, t: PR_LEVELS[k].i + ' ' + PR_LEVELS[k].t, dot: k === 'crit' ? 'bad' : k === 'imp' ? 'act' : 'brand', n }); });
   if (!chipDefs.some(chip => chip.k === LI_WS.chip)) LI_WS.chip = 'all';
-  const keep = LI_WS.chip === 'all' ? () => true : LI_WS.chip === 'problems' ? p => p.probN > 0 : p => p.failN[LI_WS.chip] > 0;
+  const keep = LI_WS.chip === 'all' ? () => true : LI_WS.chip === 'problems' ? p => p.probN > 0 : /^pr:/.test(LI_WS.chip) ? p => prIn(p, LI_WS.chip.slice(3)) : p => p.failN[LI_WS.chip] > 0;
   const cardOn = LI_WS.mode !== 'off' && LI_WS_CARD[LI_WS.card] ? LI_WS_CARD[LI_WS.card] : null;
   const keepCard = cardOn ? cardOn.keep : () => true;
   const rows = liWsOrder(scoped.filter(p => (LI_WS.mode !== 'off' || p.offN > 0) && keep(p) && keepCard(p)));
@@ -18343,7 +18364,7 @@ function liWsReconcile(brandsIn) {
  *       brand switch and the search — one row per Error-level problem, as a CSV that opens in Excel / Google Sheets. It only reads:
  *       nothing is saved or sent, so it works on the test site too. ----- */
 const LI_WS_DL_COLS = ['Brand', 'Parent name', 'Parent ASIN', 'SKU', 'ASIN', 'Product', 'Live?', 'Stock (units)', 'Error', 'Details', 'How to fix',
-  'Status', 'Checked on', 'Errors on this listing', 'Amazon link'];
+  'Status', 'Checked on', 'Errors on this listing', 'Amazon link', 'Priority'];
 // The problem in plain words where the rule's own name says it less plainly; every other Error keeps its Listing Rules name.
 const LI_WS_DL_WORDS = { amazon_error: 'Amazon reports an error', amazon_suppressed: 'Suppressed from search', inactive_with_stock: 'Stock but Inactive',
   no_main_image: 'Main picture missing', no_price: 'No price' };
@@ -18377,7 +18398,7 @@ function liWsErrorsCsv(parents, brandPick, now) {
       rows.push({ sort: [BRAND_NAME[kid.brand] || kid.brand, p.name || p.parent, p.parent, kid.sku], cells: [
         BRAND_NAME[kid.brand] || kid.brand, p.name || '', p.parent, kid.sku, kid.asin || '', product, liveWord, row.qty == null ? '' : +row.qty,
         LI_WS_DL_WORDS[hit.detector] || hit.name, hit.detail || '', hit.fix || '', status, at ? day(at) : '', errs.length,
-        kid.asin ? 'https://www.amazon.com/dp/' + kid.asin : ''] });
+        kid.asin ? 'https://www.amazon.com/dp/' + kid.asin : '', typeof prOf === 'function' ? prCsv(prKid(kid)) : ''] });
     });
   });
   rows.sort((a, b) => {
@@ -19272,7 +19293,7 @@ function lkHtml(kid, opts) {
   const bangs = [...new Set(checks.map(c => c.bang).filter(Boolean))];
   const none = !errs.length && !atts.length && !fills.length
     ? `<div class="ls-empty lk-none">${unknown.length || looks.length ? '<b>No problem found so far.</b><br>Some checks have no answer yet — see below.' : '<b>No problem on this listing.</b><br>Every Listing Rule passes.'}</div>` : '';
-  const info = (kid.live ? '' : kid.urgent ? '<div class="lk-info">Not live, but counted as an Error: fix this first.</div>'
+  const info = (typeof prOf === 'function' && (errs.length || atts.length) ? `<div class="lk-info">${prChipHtml(prKid(kid))}</div>` : '') + (kid.live ? '' : kid.urgent ? '<div class="lk-info">Not live, but counted as an Error: fix this first.</div>'
     : '<div class="lk-info">This listing is not live, so its problems are not counted anywhere.</div>')
     + (checking ? '<div class="lk-info">Reading this listing from Amazon now…</div>' : '')
     + (kid.notes && kid.notes.length ? `<div class="lk-info">${lrNotesHtml(kid.notes)}</div>` : '')
@@ -24906,7 +24927,9 @@ function lhRowHtml(row, child) {
   const busy = LH.busy.has(row.id);
   const canBack = row.oldV != null && row.attr && (row.api === 'limg' || row.pt) && row.result !== 'notsent';
   const acts = (row.result === 'working' || row.result === 'sent' ? `<button type="button" class="ghost lh-b" data-lh="again" data-lh-id="${lhEsc(row.id)}"${busy ? ' disabled' : ''}>${busy ? 'Reading…' : 'Check again'}</button>` : '')
-    + `<button type="button" class="ghost lh-b" data-lh="back" data-lh-id="${lhEsc(row.id)}"${canBack ? '' : ' disabled title="The old value was not kept for this change"'}>Put back</button>`;
+    + `<button type="button" class="ghost lh-b" data-lh="back" data-lh-id="${lhEsc(row.id)}"${canBack ? '' : ' disabled title="The old value was not kept for this change"'}>Put back</button>`
+    // ✨ Did this change work? (listing-ai.js): a change older than 14 days, 14 days before vs after from the weekly store
+    + (typeof aiOn === 'function' && aiOn() && row.asin && row.at && Date.now() - row.at > 14 * 86400000 && row.result === 'accepted' ? aiBtnHtml('change_result', row.brand, row.sku, { use: 'read', place: 'row', asin: row.asin, at: row.at, fieldName: row.field, label: 'Did this change work?' }) : '');
   return `<tr class="lh-row${child ? ' is-child' : ''} is-${lhEsc(row.result)}" data-lh-row="${lhEsc(row.id)}"><td class="lh-when">${lhWhen(row.at)}</td><td>${lhEsc(row.name)}</td>`
     + `<td class="lh-listing"><b>${lhEsc(row.label || row.sku)}</b><small>${lhEsc(row.sku)}${row.asin ? ' · ' + lhEsc(row.asin) : ''}</small>${asin}</td>`
     + `<td>${lhEsc(lhWhat(row))}</td><td class="lh-change">${change}</td><td>${lhEsc(lhScreen(row))}</td><td>${lhEsc(row.approvedBy || row.name)}</td>`
@@ -26182,7 +26205,12 @@ function bsrPanelDraw() {
       : '<p class="muted" style="font-size:12px;margin:4px 0">Not known: these weeks\' snapshots did not keep each child\'s rank (snapshots taken from now on do).</p>')
     + `<div class="bs-sec">${bsrEsc(label.charAt(0).toUpperCase() + label.slice(1))} — last ${points.length} weeks</div>${bsrChartSvg(points, label)}`
     + `<div class="bs-links"><button type="button" class="ghost im-b" data-bs="ws">Open in Workspace</button><button type="button" class="ghost im-b" data-bs="img">Image Manager</button>`
-    + `<button type="button" class="ghost im-b" data-bs="lerr">Listing Errors</button><button type="button" class="ghost im-b" data-bs="lhist">Listing History</button></div>`;
+    + `<button type="button" class="ghost im-b" data-bs="lerr">Listing Errors</button><button type="button" class="ghost im-b" data-bs="lhist">Listing History</button>`
+    // ✨ Why did rank change? (listing-ai.js): week A vs B, the facts above (Listing History, price, stock, ads) — only what the panel knows
+    + (typeof aiOn === 'function' && aiOn() ? aiBtnHtml('bsr_why', brand, '', { use: 'read', label: 'Why did rank change?', d: { parent, title: String(row.title || '').slice(0, 100), kind: row.kind, cat: row.cat || '',
+      weekA: { week: wA, rank: row.entryA ? (row.kind === 'sub' ? row.entryA.sub : row.entryA.rank) || null : null }, weekB: { week: wB, rank: row.entryB ? (row.kind === 'sub' ? row.entryB.sub : row.entryB.rank) || null : null },
+      changes: (row.decision.facts || []).map(fact => fact.txt).slice(0, 12), notKnown: bsrUnknown(row.facts), action: row.action || '',
+      kids: kids.slice(0, 12).map(kid => ({ sku: kid.sku || kid.asin, weekB: kid.b || null, weekA: kid.a || null })) } }) : '') + '</div>';
   box.hidden = false;
 }
 // The child SKUs of a parent (for the links that open other screens on them).
@@ -27112,7 +27140,7 @@ function fcOpenLerr(brand, skus) {
 }
 
 /* ----- the CSV: the red problems only ----- */
-const FC_CSV_COLS = ['Brand', 'Family', 'Parent SKU', 'Parent ASIN', 'SKU', 'ASIN', 'Amazon values', 'Stock', 'Problem', 'Source', 'Read at', 'Suggested fix'];
+const FC_CSV_COLS = ['Brand', 'Family', 'Parent SKU', 'Parent ASIN', 'SKU', 'ASIN', 'Amazon values', 'Stock', 'Problem', 'Source', 'Read at', 'Suggested fix', 'Priority'];
 function fcCsv(v) {
   const q = val => { const s = String(val == null ? '' : val); return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
   const two = n => String(n).padStart(2, '0');
@@ -27120,7 +27148,7 @@ function fcCsv(v) {
   const lines = [];
   fcGroups(v).forEach(g => g.rows.forEach(r => r.probs.filter(p => p.sev === 'r').forEach(p => {
     lines.push([fcBrandName(r.c.brand), g.f.name, g.f.psku, g.f.pa, (r.c.skus || [r.c.sku]).join(' / '), r.c.asin, r.c.amz && r.c.amz.vals ? fcValsText(r.c.amz.vals, r.c.tattrs) : '', r.c.stock, p.text, p.src || '', stamp(p.at),
-      (p.fix.kind === 'hand' ? 'Fix by hand: ' : '') + p.fix.text].map(q).join(','));
+      (p.fix.kind === 'hand' ? 'Fix by hand: ' : '') + p.fix.text, typeof prOf === 'function' ? prCsv(prFc(r)) : ''].map(q).join(','));
   })));
   return { n: lines.length, text: '﻿' + [FC_CSV_COLS.join(',')].concat(lines).join('\r\n') + '\r\n' };
 }
@@ -27331,7 +27359,7 @@ function fcRowHtml(r) {
   const amz = c.asin ? `<a href="https://www.amazon.com/dp/${fcEsc(c.asin)}" target="_blank" rel="noopener">${fcEsc(c.asin)}</a>` : '—';
   const vals = c.amz && c.amz.vals && c.tattrs ? fcEsc(fcValsText(c.amz.vals, c.tattrs)) : c.amz && !c.amz.nf ? '<span class="fc-none">—</span>' : '<span class="fc-none">not read</span>';
   const sug = probs.map(p => p.sug).filter(Boolean)[0];
-  return `<tr class="fc-row${orphan ? ' is-orphan' : ''}${FC.sel.has(key) ? ' is-sel' : ''}"><td class="fc-tk">${tick}</td><td class="fc-sku"><b>${fcEsc(c.sku)}</b>${typeof lmOldHtml === 'function' ? lmOldHtml(c.brand, c.sku) : ''}${fcSkusHtml(c)}<small>${fcEsc(String(c.title || '').slice(0, 70))}</small></td><td class="ui-mono">${amz}</td>`
+  return `<tr class="fc-row${orphan ? ' is-orphan' : ''}${FC.sel.has(key) ? ' is-sel' : ''}"><td class="fc-tk">${tick}</td><td class="fc-sku"><b>${fcEsc(c.sku)}</b>${typeof prOf === 'function' && probs.length ? ' ' + prChipHtml(prFc(r), 'fc-chip') : ''}${typeof lmOldHtml === 'function' ? lmOldHtml(c.brand, c.sku) : ''}${fcSkusHtml(c)}<small>${fcEsc(String(c.title || '').slice(0, 70))}</small></td><td class="ui-mono">${amz}</td>`
     + `<td class="fc-vals">${vals}</td><td class="num">${fcNf(c.stock)}</td>`
     + `<td class="fc-prob">${probs.map(p => `<div class="fc-p is-${p.sev}">${fcEsc(p.text)}</div>${fcSrcHtml(p)}`).join('')}</td>`
     + `<td class="fc-fix">${sug ? `<div><b>Suggested family:</b> ${fcEsc(sug)}</div>` : ''}${probs.map(p => (p.fix.text ? `<div>${p.fix.kind === 'hand' ? '<b>Fix by hand:</b> ' : ''}${fcEsc(p.fix.text)}</div>` : '')).join('')}${FC.note[key] ? `<div class="fc-note">${fcEsc(FC.note[key])}</div>` : ''}</td>`
@@ -27816,7 +27844,7 @@ function ccGroups(view, f) {
   const filter = f === undefined ? CC.f : f;
   return view.groups.filter(g => CC.brand === 'ALL' || g.f.brand === CC.brand).map(g => {
     const famHit = q && (fcNorm(g.f.name).includes(q) || fcNorm(g.f.psku).includes(q) || fcNorm(g.f.pa).includes(q) || (g.main && fcNorm(g.main.full).includes(q)));
-    const rows = g.rows.filter(r => ccRowIn(r, filter) && (!q || famHit || (r.c.skus || [r.c.sku]).some(x => fcNorm(x).includes(q)) || fcNorm(r.c.asin).includes(q)
+    const rows = g.rows.filter(r => ccRowIn(r, filter) && (f !== undefined || !(typeof prOf === 'function') || prKeep('cc', prCc(r))) && (!q || famHit || (r.c.skus || [r.c.sku]).some(x => fcNorm(x).includes(q)) || fcNorm(r.c.asin).includes(q)
       || fcNorm(r.info.full).includes(q) || fcNorm(ccBsr(r.info)).includes(q)));
     return rows.length ? { f: g.f, main: g.main, catState: g.catState, all: g.rows, rows } : null;
   }).filter(Boolean);
@@ -27866,7 +27894,8 @@ function ccRowHtml(r) {
   let prob, acts = '';
   if (r.probs.length) {
     prob = r.probs.map(p => `<div class="fc-p is-${CC_SEV[p.k]}">${fcEsc(p.text)}</div><small class="cc-hint"><b>What to do:</b> ${fcEsc(p.hint)}</small>`).join('');
-    acts = `<button type="button" class="ghost fc-b" data-cc="ok" ${a}>Correct on purpose</button>`;
+    acts = `<button type="button" class="ghost fc-b" data-cc="ok" ${a}>Correct on purpose</button>`
+      + (typeof aiOn === 'function' && aiOn() ? aiBtnHtml('category_suggest', c.brand, c.sku, { use: 'read', place: 'row', label: 'Suggest the right category' }) : '');      // ✨ (listing-ai.js): one of the categories Sellora reads
   } else if (r.marked) {
     prob = `<span class="fc-chip is-g cc-marked">Correct on purpose</span>` + (CC.f === 'ok' ? r.okProbs.map(p => `<div class="fc-p is-g">${fcEsc(p.text)}</div>`).join('')
       + `<small class="cc-hint">Marked by ${fcEsc(r.marked.name || fcName(r.marked.by))}${r.marked.at ? ' · ' + fcEsc(fcWhen(r.marked.at)) : ''}</small>` : '');
@@ -27876,7 +27905,7 @@ function ccRowHtml(r) {
   // the red bar down the side: an error row; a row with only a Rank mismatch (a check) gets the amber one
   const bar = r.probs.some(p => CC_SEV[p.k] === 'r') ? ' is-orphan' : r.probs.length ? ' cc-chk' : '';
   return `<tr class="fc-row${bar}${CC.sel.has(r.key) ? ' is-sel' : ''}"><td class="fc-tk">${tick}</td><td class="cc-pc">${ccPicHtml(i)}</td>`
-    + `<td class="fc-sku"><b>${fcEsc(c.sku)}</b>${typeof lmOldHtml === 'function' ? lmOldHtml(c.brand, c.sku) : ''}<small>${fcEsc(String(c.title || '').slice(0, 70))}</small></td>`
+    + `<td class="fc-sku"><b>${fcEsc(c.sku)}</b>${typeof prOf === 'function' && r.probs.length ? ' ' + prChipHtml(prCc(r), 'fc-chip') : ''}${typeof lmOldHtml === 'function' ? lmOldHtml(c.brand, c.sku) : ''}<small>${fcEsc(String(c.title || '').slice(0, 70))}</small></td>`
     + `<td class="ui-mono">${amz}</td><td class="cc-cat">${ccCatHtml(i)}</td><td class="cc-bsr">${bsr ? fcEsc(bsr) : '<span class="fc-none">no rank</span>'}</td>`
     + `<td class="fc-prob cc-prob">${prob}</td><td class="fc-acts">${acts}</td></tr>`;
 }
@@ -27927,7 +27956,7 @@ function ccBodyHtml(view) {
   const cards = CC_KINDS.map(k => box(k.k, k.t, counts[k.k], k.sev === 'r' ? 'error' : 'check', ' is-' + k.sev, k.tip)).join('')
     + box('ok', 'Correct on purpose', okN, 'hidden', ' is-g', 'Children the team marked as in the right place on purpose: they never show as errors.');
   const chip = (k, t, n) => `<button type="button" class="cc-fchip${CC.f === k ? ' is-on' : ''}" data-cc="chip" data-cc-v="${k}" aria-pressed="${CC.f === k}">${fcEsc(t)}${n == null ? '' : ` <b>${fcNf(n)}</b>`}</button>`;
-  const chips = `<div class="cc-chips" role="group" aria-label="Show">${chip('', 'All')}${CC_KINDS.map(k => chip(k.k, k.t, counts[k.k])).join('')}${chip('ok', 'Correct on purpose', okN)}</div>`;
+  const chips = `<div class="cc-chips" role="group" aria-label="Show">${chip('', 'All')}${CC_KINDS.map(k => chip(k.k, k.t, counts[k.k])).join('')}${chip('ok', 'Correct on purpose', okN)}${typeof prOf === 'function' ? prFilterHtml('cc', (k, label, on) => `<button type="button" class="cc-fchip${on ? ' is-on' : ''}" data-cc="prf" data-cc-v="${k}" aria-pressed="${on}">${label}</button>`) : ''}</div>`;
   const groups = ccGroups(view);
   const shown = groups.slice(0, CC.limit);
   const more = groups.length - shown.length;
@@ -28002,14 +28031,14 @@ function ccToggle(fk, el) {
 }
 
 /* ----- the CSV: what is in view ----- */
-const CC_CSV_COLS = ['Brand', 'Family', 'SKU', 'ASIN', 'Browse path', 'BSR', 'Error', 'What to do'];
+const CC_CSV_COLS = ['Brand', 'Family', 'SKU', 'ASIN', 'Browse path', 'BSR', 'Error', 'What to do', 'Priority'];
 function ccCsv(view) {
   const q = val => { const s = String(val == null ? '' : val); return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
   const lines = [];
   ccGroups(view || ccBuild()).forEach(g => g.rows.forEach(r => {
     const base = [fcBrandName(r.c.brand), g.f.name, (r.c.skus || [r.c.sku]).join(' / '), r.c.asin, r.info.state === 'ok' ? r.info.full : r.info.state === 'none' ? '' : 'Category not read yet', ccBsr(r.info)];
     const probs = r.probs.length ? r.probs : r.marked ? r.okProbs.map(p => ({ text: 'Correct on purpose: ' + p.text, hint: '' })) : [{ text: '', hint: '' }];
-    probs.forEach(p => lines.push(base.concat([p.text, p.hint]).map(q).join(',')));
+    probs.forEach(p => lines.push(base.concat([p.text, p.hint, typeof prOf === 'function' && r.probs.length ? prCsv(prCc(r)) : '']).map(q).join(',')));
   }));
   return { n: lines.length, text: '﻿' + [CC_CSV_COLS.join(',')].concat(lines).join('\r\n') + '\r\n' };
 }
@@ -28046,6 +28075,7 @@ function ccClick(el) {
   const act = el.dataset.cc, v = el.dataset.ccV, brand = el.dataset.ccB, id = el.dataset.ccS;
   if (act === 'f') { CC.f = CC.f === v ? '' : v; CC.limit = CC_STEP; return ccDraw(); }             // a card: press again to clear it
   if (act === 'chip') { CC.f = v || ''; CC.limit = CC_STEP; return ccDraw(); }
+  if (act === 'prf') { prToggle('cc', v); CC.limit = CC_STEP; return ccDraw(); }      // 🔴 / 🟠 / ⚪ (listing-priority.js)
   if (act === 'grp') return ccToggle(v, el);
   if (act === 'openall') { ccGroups(ccBuild()).forEach(g => CC.open.add(g.f.fk)); return ccDraw(); }
   if (act === 'closeall') { CC.open.clear(); return ccDraw(); }
@@ -28396,7 +28426,7 @@ function apcGroups(model, f) {
   const filter = f === undefined ? APC.f : f;
   return model.groups.filter(g => APC.brand === 'ALL' || g.f.brand === APC.brand).map(g => {
     const famHit = q && (fcNorm(g.f.name).includes(q) || fcNorm(g.f.psku).includes(q) || fcNorm(g.f.pa).includes(q));
-    const rows = g.rows.filter(p => apcRowIn(p, filter) && (!q || famHit || apcHit(p, q)));
+    const rows = g.rows.filter(p => apcRowIn(p, filter) && (!q || famHit || apcHit(p, q)) && (f !== undefined || !(typeof prOf === 'function') || prKeep('apc', prApc(p))));
     return rows.length ? { f: g.f, g, all: g.rows, rows } : null;
   }).filter(Boolean);
 }
@@ -28463,12 +28493,13 @@ function apcRowView(p) {
     sales: p.sales, status, doc: d ? d.n || 'unnamed document' : '', type: d ? d.t || '' : '', updated: d && d.u ? apcDate(d.u) : '', reason: p.reasons.join('; '),
     what: p.what, link: c.asin ? 'https://www.amazon.com/dp/' + c.asin : '', time: apcTime(c.brand) };
 }
-const APC_CSV_COLS = ['Brand', 'Family', 'SKU', 'ASIN', 'Stock', '30-day sales', 'A+ status', 'Document name', 'Type', 'Last updated', "Amazon's reason", 'What to do', 'Amazon link', 'Data time'];
+const APC_CSV_COLS = ['Brand', 'Family', 'SKU', 'ASIN', 'Stock', '30-day sales', 'A+ status', 'Document name', 'Type', 'Last updated', "Amazon's reason", 'What to do', 'Amazon link', 'Data time', 'Priority'];
 const apcCsvQ = val => { const s = String(val == null ? '' : val); return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
 /** The products' sheet: the rows on the screen (view, toggle, brand, chip, search), Excel-ready (UTF-8 BOM, CRLF). */
 function apcCsv(model) {
-  const rows = apcShownRows(model || apcBuild()).map(apcRowView);
-  const lines = rows.map(r => [r.brand, r.family, r.sku, r.asin, r.stock, r.sales == null ? '' : (Math.round(r.sales * 100) / 100).toFixed(2), r.status, r.doc, r.type, r.updated, r.reason, r.what, r.link, r.time].map(apcCsvQ).join(','));
+  const shown = apcShownRows(model || apcBuild());
+  const rows = shown.map(apcRowView);
+  const lines = rows.map((r, i) => [r.brand, r.family, r.sku, r.asin, r.stock, r.sales == null ? '' : (Math.round(r.sales * 100) / 100).toFixed(2), r.status, r.doc, r.type, r.updated, r.reason, r.what, r.link, r.time, typeof prOf === 'function' && PR_APC[shown[i].bucket] ? prCsv(prApc(shown[i])) : ''].map(apcCsvQ).join(','));
   return { n: lines.length, rows, text: '﻿' + [APC_CSV_COLS.join(',')].concat(lines).join('\r\n') + '\r\n' };
 }
 /** One document card in words. */
@@ -28550,7 +28581,8 @@ function apcCardsHtml(model, s) {
   const chip = (k, t, n) => `<button type="button" class="cc-fchip${APC.f === k ? ' is-on' : ''}" data-apc="chip" data-apc-v="${k}" aria-pressed="${APC.f === k}">${fcEsc(t)}${n == null ? '' : ` <b>${fcNf(n)}</b>`}</button>`;
   const chips = [chip('', 'All'), chip('fix', 'Fix first', apcCount(model, 'fix'))].concat(['missing', 'rejected', 'draft', 'waiting'].map(k => chip(k, APC_ST[k].t, apcCount(model, k))),
     [chip('stuck', 'Stuck', apcCount(model, 'stuck')), chip('live', 'Live', apcCount(model, 'live')), chip('none', 'No A+ needed', apcCount(model, 'none'))],
-    s.n.unchecked || APC.f === 'unchecked' ? [chip('unchecked', 'Not checked', apcCount(model, 'unchecked'))] : []).join('');
+    s.n.unchecked || APC.f === 'unchecked' ? [chip('unchecked', 'Not checked', apcCount(model, 'unchecked'))] : []).join('')
+    + (typeof prOf === 'function' ? prFilterHtml('apc', (k, label, on) => `<button type="button" class="cc-fchip${on ? ' is-on' : ''}" data-apc="prf" data-apc-v="${k}" aria-pressed="${on}">${label}</button>`) : '');
   return `<div class="fc-boxes">${APC_CARDS.map(box).join('')}</div><div class="cc-chips" role="group" aria-label="Show">${chips}</div>`;
 }
 function apcPicHtml(c) {
@@ -28581,7 +28613,7 @@ function apcRowHtml(p, flat, rank) {
   const more = p.docs.length > 1 ? ` <small class="muted" title="${fcEsc(p.docs.map(d => (d.n || 'unnamed') + ' — ' + d.s).join('\n'))}">+${p.docs.length - 1} more</small>` : '';
   const row = `<tr class="fc-row apc-row${side}${APC.sel.has(p.key) ? ' is-sel' : ''}" data-apc-row="${fcEsc(p.key)}"><td class="fc-tk">${flat ? `<small class="muted apc-rank">${rank}</small>` : ''}${tick}</td><td class="cc-pc">${apcPicHtml(c)}</td>`
     + `<td class="fc-sku"><b>${fcEsc(r.sku)}</b>${typeof lmOldHtml === 'function' ? lmOldHtml(c.brand, c.sku) : ''}<small>${fcEsc(flat ? (r.family || String(c.title || '')).slice(0, 70) : String(c.title || '').slice(0, 70))}</small></td>`
-    + `<td class="ui-mono">${amz}</td><td class="apc-st">${apcStatusHtml(p)}</td>`
+    + `<td class="ui-mono">${amz}</td><td class="apc-st">${apcStatusHtml(p)}${typeof prOf === 'function' && PR_APC[p.bucket] ? ' ' + prChipHtml(prApc(p), 'fc-chip') : ''}</td>`
     + `<td class="apc-doc">${p.doc ? fcEsc(r.doc) + more : '<span class="fc-none">—</span>'}</td><td>${r.type ? fcEsc(r.type) : '<span class="fc-none">—</span>'}</td><td class="apc-upd">${r.updated ? fcEsc(r.updated) : '<span class="fc-none">—</span>'}</td>`
     + `<td class="num">${p.sales == null ? '<span class="fc-none">—</span>' : apcMoney(p.sales)}</td>`
     + `<td class="fc-prob apc-what"><div class="apc-do is-${APC_ST[p.bucket].cls}">${fcEsc(r.what)}</div></td>`
@@ -28859,6 +28891,7 @@ function apcClick(el) {
   if (act === 'view') { if (APC.view === v) return null; APC.view = v; APC.f = ''; APC.prevOpen = ''; APC.built = false; return apcDraw(); }
   if (act === 'f') { APC.f = APC.f === v ? '' : v; APC.limit = APC_STEP; APC.flat = APC_FLAT_STEP; return apcDraw(); }      // a card: press again to clear it
   if (act === 'chip') { APC.f = v || ''; APC.limit = APC_STEP; APC.flat = APC_FLAT_STEP; APC.docs = APC_DOC_STEP; return apcDraw(); }
+  if (act === 'prf') { prToggle('apc', v); APC.limit = APC_STEP; APC.flat = APC_FLAT_STEP; return apcDraw(); }      // 🔴 / 🟠 / ⚪ (listing-priority.js)
   if (act === 'grp') return apcToggle(v, el);
   if (act === 'openall') { apcGroups(apcBuild()).forEach(x => APC.open.add(x.f.fk)); APC.limit = APC_STEP_OPEN; return apcDraw(); }
   if (act === 'closeall') { APC.open.clear(); APC.limit = APC_STEP; return apcDraw(); }
@@ -29436,7 +29469,7 @@ function ipgGroups(model, f, o) {
   return model.groups.filter(g => IPG.brand === 'ALL' || g.f.brand === IPG.brand).map(g => {
     const famHit = q && (fcNorm(g.f.name).includes(q) || fcNorm(g.f.psku).includes(q) || fcNorm(g.f.pa).includes(q));
     const inView = g.rows.filter(p => !stock || p.c.live);
-    const rows = inView.filter(p => ipgRowIn(p, filter) && (!q || famHit || ipgHit(p, q)));
+    const rows = inView.filter(p => ipgRowIn(p, filter) && (!q || famHit || ipgHit(p, q)) && (f !== undefined || !(typeof prOf === 'function') || prKeep('ipg', prIpg(p))));
     return rows.length ? { f: g.f, g, inView, rows } : null;
   }).filter(Boolean);
 }
@@ -29493,7 +29526,7 @@ const ipgMarkText = mark => (mark ? `Yes — ${mark.name || fcName(mark.by)}${ma
 function ipgFindView(p, fd) {
   const c = p.c;
   const base = { brand: fcBrandName(c.brand), family: p.g.f.solo ? '' : String(p.g.f.name || ''), sku: fd ? fd.sku : (c.skus || [c.sku]).join(' / '), asin: c.asin || '', stock: c.stock == null ? '' : c.stock,
-    link: c.asin ? 'https://www.amazon.com/dp/' + c.asin : '', time: p.at ? ipgTime(p.at) : 'not read' };
+    link: c.asin ? 'https://www.amazon.com/dp/' + c.asin : '', time: p.at ? ipgTime(p.at) : 'not read', prio: typeof prOf === 'function' && (p.tm || p.claim) ? prCsv(prIpg(p)) : '' };
   if (!fd) return Object.assign(base, { field: '', word: '', type: '', snippet: '', why: '', what: p.bucket === 'unchecked' ? 'Not checked — Sellora holds no Amazon read of this listing yet' : 'Nothing to do — no risky word', allowed: '' });
   return Object.assign(base, { field: fd.label, word: fd.word, type: IPG_TYPE[fd.type].csv, snippet: fd.snip.a + fd.snip.hit + fd.snip.b, why: IPG_TYPE[fd.type].why, what: ipgFindWhat(fd), allowed: ipgMarkText(fd.mark),
     time: fd.at ? ipgTime(fd.at) : base.time });
@@ -29504,12 +29537,12 @@ function ipgShownFinds(model) {
   if (IPG.view === 'word') return ipgCardsShown(model).flatMap(card => card.finds.map(x => ipgFindView(x.p, x.fd)));
   return ipgShownRows(model).flatMap(p => (p.finds.length ? p.finds.map(fd => ipgFindView(p, fd)) : [ipgFindView(p, null)]));
 }
-const IPG_CSV_COLS = ['Brand', 'Family', 'SKU', 'ASIN', 'Stock', 'Field', 'Risky word', 'Type', 'Snippet', 'Why', 'What to do', 'Allowed on purpose', 'Amazon link', 'Data time'];
+const IPG_CSV_COLS = ['Brand', 'Family', 'SKU', 'ASIN', 'Stock', 'Field', 'Risky word', 'Type', 'Snippet', 'Why', 'What to do', 'Allowed on purpose', 'Amazon link', 'Data time', 'Priority'];
 const ipgCsvQ = val => { const s = String(val == null ? '' : val); return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
 /** The sheet: the lines on the screen (view, toggle, brand, chip, search), Excel-ready (UTF-8 BOM, CRLF). */
 function ipgCsv(model) {
   const rows = ipgShownFinds(model || ipgBuild());
-  const lines = rows.map(r => [r.brand, r.family, r.sku, r.asin, r.stock, r.field, r.word, r.type, r.snippet, r.why, r.what, r.allowed, r.link, r.time].map(ipgCsvQ).join(','));
+  const lines = rows.map(r => [r.brand, r.family, r.sku, r.asin, r.stock, r.field, r.word, r.type, r.snippet, r.why, r.what, r.allowed, r.link, r.time, r.prio || ''].map(ipgCsvQ).join(','));
   return { n: lines.length, rows, text: '﻿' + [IPG_CSV_COLS.join(',')].concat(lines).join('\r\n') + '\r\n' };
 }
 function ipgDownload() {
@@ -29626,6 +29659,7 @@ function ipgCardsHtml(model, s) {
   const chips = [chip('', 'All risky', ipgCount(model, '')), chip('tm', 'Trademark', ipgCount(model, 'tm')), chip('claim', 'Claims', ipgCount(model, 'claim'))]
     .concat(IPG_FIELDS.map(k => chip('f:' + k, 'In ' + IPG_FIELD[k].toLowerCase().replace('item highlights', 'Item Highlights'), ipgCount(model, 'f:' + k))),
       [chip('allowed', 'Allowed on purpose', ipgCount(model, 'allowed')), chip('clean', 'Clean', ipgCount(model, 'clean'))],
+      typeof prOf === 'function' ? [prFilterHtml('ipg', (k, label, on) => `<button type="button" class="cc-fchip${on ? ' is-on' : ''}" data-ipg="prf" data-ipg-v="${k}" aria-pressed="${on}">${label}</button>`)] : [],
       s.unchecked || IPG.f === 'unchecked' ? [chip('unchecked', 'Not checked', ipgCount(model, 'unchecked'))] : []).join('');
   return `<div class="fc-boxes">${IPG_CARDS.map(box).join('')}</div><div class="cc-chips" role="group" aria-label="Show">${chips}</div>`;
 }
@@ -29675,7 +29709,7 @@ function ipgRowHtml(p) {
   const side = p.bucket === 'tm' ? ' is-orphan' : p.bucket === 'claim' ? ' cc-chk' : '';
   const whats = [...new Set(p.finds.length ? p.finds.map(ipgFindWhat) : [ipgFindView(p, null).what])];
   return `<tr class="fc-row ipg-row${side}" data-ipg-row="${fcEsc(p.key)}"><td class="cc-pc">${ipgPicHtml(c)}</td>`
-    + `<td class="fc-sku"><b>${fcEsc((c.skus || [c.sku]).join(' / '))}</b>${typeof lmOldHtml === 'function' ? lmOldHtml(c.brand, c.sku) : ''}<small>${fcEsc(String(c.title || '').slice(0, 70))}</small></td>`
+    + `<td class="fc-sku"><b>${fcEsc((c.skus || [c.sku]).join(' / '))}</b>${typeof prOf === 'function' && (p.tm || p.claim) ? ' ' + prChipHtml(prIpg(p), 'fc-chip') : ''}${typeof lmOldHtml === 'function' ? lmOldHtml(c.brand, c.sku) : ''}<small>${fcEsc(String(c.title || '').slice(0, 70))}</small></td>`
     + `<td class="ui-mono">${amz}</td><td class="num">${c.stock == null ? '<span class="fc-none">—</span>' : fcNf(c.stock)}</td>`
     + `<td class="ipg-finds">${ipgFindsHtml(p)}</td>`
     + `<td class="fc-prob ipg-what">${whats.map(w => `<div class="ipg-do${/^Nothing to do|^Not checked/.test(w) ? ' is-g' : ''}">${fcEsc(w)}</div>`).join('')}</td>`
@@ -29898,6 +29932,7 @@ function ipgClick(el) {
   if (act === 'view') { if (IPG.view === v) return null; IPG.view = v; IPG.f = ''; IPG.built = false; return ipgDraw(); }
   if (act === 'f') { IPG.f = IPG.f === v ? '' : v; IPG.limit = IPG_STEP; return ipgDraw(); }           // a card: press again to clear it
   if (act === 'chip') { IPG.f = v || ''; IPG.limit = IPG_STEP; IPG.words = IPG_WORD_STEP; return ipgDraw(); }
+  if (act === 'prf') { prToggle('ipg', v); IPG.limit = IPG_STEP; return ipgDraw(); }      // 🔴 / 🟠 / ⚪ (listing-priority.js)
   if (act === 'grp') return ipgToggle(v, el);
   if (act === 'openall') { ipgGroups(model()).forEach(x => IPG.open.add(x.f.fk)); IPG.limit = IPG_STEP_OPEN; return ipgDraw(); }
   if (act === 'closeall') { IPG.open.clear(); IPG.limit = IPG_STEP; return ipgDraw(); }
@@ -30025,9 +30060,16 @@ if (typeof window !== 'undefined') window.ipReport = ipReport;
  * kept for the browser session) — no key, no route deployed, or "AI not set up yet" = no ✨ button anywhere, every page exactly as before.
  * Set up, a click that meets the month's limit says so in a calm grey line ("Monthly AI limit reached").
  * Under each card: "AI used this month: $X of $80".
+ * PART 2 (20 Nov 2026): every writing task sends the APPROVED house style of the listing's product type (&style=, Listing Rules → ✨ AI house
+ * style: the guides the backend learnt, Approve, Learn again) and its card says "Follows: … house style (approved …)" / "No house style yet";
+ * the read-only page tasks — ✨ Fix these first (Listing Health), ✨ Draft title template (Listing Rules), ✨ Why did rank change? (BSR
+ * Audit), ✨ Suggest the right category (Categories), ✨ Did this change work? (Listing History), ✨ Bundle ideas (Bought Together) —
+ * send only the page's numbers, ids and rule names (&d=), never listing text.
  * Main functions: aiStatusCheck, aiOn, aiAsk, aiBtnHtml, aiCheck, aiOpen, aiCardHtml, aiApprove, aiPreset, aiWasUsed, aiReport. Every name starts with ai / AI. */
 
-const AI_TASKS = ['title', 'bullets', 'description', 'kw', 'season', 'aplus_text', 'ip_rewrite', 'error_explain', 'image_check'];
+const AI_TASKS = ['title', 'bullets', 'description', 'kw', 'season', 'aplus_text', 'ip_rewrite', 'error_explain', 'image_check',
+  'fix_first', 'title_template', 'bsr_why', 'category_suggest', 'change_result', 'bundle_ideas'];             // PART 2: the page tasks
+const AI_STYLED = ['title', 'bullets', 'description', 'kw', 'season', 'aplus_text', 'ip_rewrite', 'title_template'];   // follow an approved house style
 const AI_LIMIT_DEF = 80;
 const AI_SCREEN = { lc: 'Listing Errors', send: 'AI suggestion', tt: 'Titles · Fix all', kf: 'Search terms · Fix all', ipg: 'IP & Trademark Guard' };
 const AI_SALE = /\b(?:black friday|cyber monday|prime day|deals?|sale|discount|offers?|clearance|free shipping)\b|\d+\s*%\s*off\b/i;
@@ -30050,7 +30092,8 @@ function aiSessionSet(ready) { try { sessionStorage.setItem(AI_SESSION_KEY, JSON
 function aiStatusCheck() {
   if (AI.status) return AI.status;
   const kept = aiSessionGet();
-  if (kept) { AI.ready = kept.ready; AI.status = Promise.resolve(AI.ready); return AI.status; }
+  if (kept) { AI.ready = kept.ready; if (AI.ready) aiStyleOkLoad(); AI.status = Promise.resolve(AI.ready); return AI.status; }
+  if (typeof API === 'undefined') { AI.ready = false; AI.status = Promise.resolve(false); return AI.status; }   // a page with no backend at all
   AI.status = (async () => {
     const t0 = Date.now();
     while (!(typeof API !== 'undefined' && API && API.url) && Date.now() - t0 < AI_WAIT_API_MS) await new Promise(res => setTimeout(res, 500));
@@ -30061,6 +30104,7 @@ function aiStatusCheck() {
     if (reply && reply.monthUsd != null) AI.month = Number(reply.monthUsd) || 0;
     if (reply && reply.limitUsd != null) AI.limit = Number(reply.limitUsd) || AI_LIMIT_DEF;
     if (reply) aiSessionSet(AI.ready);                 // a failed call is not kept: the next page load asks again
+    if (AI.ready) aiStyleOkLoad();                     // the approved house style guides (Listing Rules' own store), once
     return AI.ready;
   })();
   return AI.status;
@@ -30099,7 +30143,8 @@ async function aiAsk(task, brand, sku, opts) {
   const list = v => [...new Set((Array.isArray(v) ? v : []).map(s => aiLine(String(s).replace(/\|/g, ' '))).filter(Boolean))].slice(0, 40).join('|');
   if (opts.words && opts.words.length) params.words = list(opts.words);
   if (opts.avoid && opts.avoid.length) params.avoid = list(opts.avoid);
-  ['field', 'season', 'word', 'code', 'tpl', 'max', 'hlmax'].forEach(k => { if (opts[k] != null && opts[k] !== '') params[k] = String(opts[k]).slice(0, 200); });
+  ['field', 'season', 'word', 'code', 'tpl', 'max', 'hlmax', 'pt', 'style'].forEach(k => { if (opts[k] != null && opts[k] !== '') params[k] = String(opts[k]).slice(0, 200); });
+  if (opts.d) params.d = (typeof opts.d === 'string' ? opts.d : JSON.stringify(opts.d)).slice(0, 8000);      // a page task's facts: numbers, ids, rule names
   const key = JSON.stringify(params);
   if (AI.memo.has(key)) return AI.memo.get(key);
   AI.calls++;
@@ -30279,7 +30324,7 @@ function aiBtnHtml(task, brand, sku, o) {
   if (!aiOn()) return '';                   // AI not set up: no button, the page as it always was
   o = o || {};
   const x = {};
-  ['use', 'field', 'key', 'season', 'swords', 'hlmax', 'word', 'wk', 'code', 'place', 'screen', 'asin'].forEach(k => { if (o[k] != null && o[k] !== '') x[k] = o[k]; });
+  ['use', 'field', 'key', 'season', 'swords', 'hlmax', 'word', 'wk', 'code', 'place', 'screen', 'asin', 'd', 'pt', 'match', 'product', 'at', 'fieldName', 'brands', 'into'].forEach(k => { if (o[k] != null && o[k] !== '') x[k] = o[k]; });
   const off = AI.off ? ' is-off' : '';
   const tip = AI.off ? AI.why : (o.tip || 'Claude suggests; our rules check it; nothing is sent until you approve');
   return `<button type="button" class="ghost im-b ai-btn${off}" data-ai="${aiEsc(task)}" data-ai-b="${aiEsc(brand)}" data-ai-s="${aiEsc(sku || '')}" data-ai-x="${aiEsc(JSON.stringify(x))}" title="${aiEsc(tip)}">✨ ${aiEsc(o.label || 'AI ' + (AI_WHAT[task] || task))}</button>`;
@@ -30292,6 +30337,7 @@ function aiBtnOf(btn) {
 }
 // The field a job writes: title | bullets | desc | kw | hl | aplus | explain | image.
 function aiFieldOf(task, x) {
+  if (AI_PAGE.includes(task)) return 'page';
   if (task === 'description') return 'desc';
   if (task === 'season') return x.field === 'title' ? 'title' : 'hl';
   if (task === 'aplus_text') return 'aplus';
@@ -30328,6 +30374,7 @@ function aiOptsFor(task, field, c, x, before) {
   if (task === 'ip_rewrite') o.word = x.word;
   if (task === 'error_explain') o.code = x.code;
   if (x.asin) o.asin = x.asin;
+  if (AI_STYLED.includes(task)) o.style = aiStyleParam(c.pt);           // the approved house style of its product type, if any
   return o;
 }
 // Where a card goes: a row under the button's table row, inside its block, or after the button's parent.
@@ -30349,6 +30396,9 @@ function aiPlace(btn, id, x) {
     tr.parentNode.insertBefore(row, tr.nextSibling);
     return div;
   }
+  // a card at the top of a named box (Bought Together: the report under its toolbar)
+  const into = x.place === 'into' && x.into && doc.getElementById ? doc.getElementById(x.into) : null;
+  if (into) { into.insertBefore(div, into.firstChild || null); return div; }
   const block = x.place === 'block' && btn.closest ? btn.closest('[data-ai-block]') : null;
   if (block) { block.appendChild(div); return div; }
   const after = btn.parentNode;
@@ -30372,13 +30422,13 @@ async function aiOpen(btn) {
   AI.jobs.set(id, job);
   host.innerHTML = '<div class="ai-wait muted">✨ Asking the AI… nothing changes on Amazon.</div>';
   if (btn.disabled !== undefined) btn.disabled = true;
-  const reply = await aiAsk(task, brand, sku, aiOptsFor(task, field, c, x, job.before));
+  const reply = await aiAsk(task, brand, sku, field === 'page' ? aiPageOpts(task, brand, sku, x) : aiOptsFor(task, field, c, x, job.before));
   if (btn.disabled !== undefined) btn.disabled = false;
   job.busy = false;
   job.reply = reply;
   if (!reply.ok) { host.innerHTML = /not set up|limit reached/i.test(reply.reason) ? aiQuietHtml(reply.reason) : aiFailHtml(job, reply.reason); return reply; }
   job.text = aiTextOf(job, reply.result || {});
-  job.keep = field === 'aplus' || field === 'explain' || field === 'image' ? [] : aiProtected(Array.isArray(job.before) ? job.before.join(' ') : job.before,
+  job.keep = field === 'aplus' || field === 'explain' || field === 'image' || field === 'page' ? [] : aiProtected(Array.isArray(job.before) ? job.before.join(' ') : job.before,
     field === 'kw' ? 'kw' : field === 'hl' ? 'hl' : 'title', c.facts);
   if (field === 'bullets' || field === 'desc') job.keep = [];      // a rewrite of the bullets / description keeps the facts, not each word
   aiRecheck(job);
@@ -30402,7 +30452,7 @@ function aiTextOf(job, r) {
 }
 // The checks of a job's text as it stands (the card's box may have been edited).
 function aiRecheck(job) {
-  if (job.field === 'explain' || job.field === 'image') { job.chk = { pass: true, fails: [], notes: [] }; return job.chk; }
+  if (job.field === 'explain' || job.field === 'image' || job.field === 'page') { job.chk = { pass: true, fails: [], notes: [] }; return job.chk; }
   const o = { keep: job.keep, word: job.task === 'ip_rewrite' ? job.x.wk || job.x.word : '', season: job.task === 'season' ? job.x.season : '', seasonWords: job.x.swords || [],
     hlMax: job.x.hlmax };
   job.chk = aiCheck(job.c, job.field === 'aplus' ? 'aplus' : job.field, job.text, o);
@@ -30440,8 +30490,12 @@ function aiCardHtml(job) {
   const r = (job.reply && job.reply.result) || {};
   const close = `<button type="button" class="sp-x ai-x" data-ai-act="close" data-ai-id="${aiEsc(job.id)}" aria-label="Close">×</button>`;
   const cost = job.reply ? [job.reply.cached ? 'kept answer, no cost' : job.reply.costUsd != null ? aiUsd(job.reply.costUsd) + ' this answer' : '', aiUsedLine()].filter(Boolean).join(' · ') : '';
-  const head = `<div class="ai-h"><b>✨ AI ${aiEsc(job.task === 'season' ? (job.x.season || '') + ' ' + (job.field === 'title' ? 'title' : 'Item Highlights') : AI_WHAT[job.task] || job.task)}</b>${close}</div>`;
-  const foot = `<div class="ai-foot muted">${job.reply && job.reply.why ? aiEsc(job.reply.why) + ' · ' : ''}${aiEsc(cost)}</div>`;
+  const AI_HEAD = { fix_first: 'Fix these first', title_template: 'title template draft', bsr_why: 'why the rank changed', category_suggest: 'category suggestion', change_result: 'did this change work?', bundle_ideas: 'bundle ideas' };
+  const what = AI_HEAD[job.task] || (job.task === 'season' ? (job.x.season || '') + ' ' + (job.field === 'title' ? 'title' : 'Item Highlights') : AI_WHAT[job.task] || job.task);
+  const head = `<div class="ai-h"><b>✨ AI ${aiEsc(what)}</b>${close}</div>`;
+  const styled = AI_STYLED.includes(job.task) ? aiStyleLine(job) + ' · ' : '';      // PART 2: which house style it follows
+  const foot = `<div class="ai-foot muted">${aiEsc(styled)}${job.reply && job.reply.why ? aiEsc(job.reply.why) + ' · ' : ''}${aiEsc(cost)}</div>`;
+  if (job.field === 'page') return head + `<div class="ai-exp">${aiPageCardHtml(job)}</div>` + foot;
   if (job.field === 'explain') {
     return head + `<div class="ai-exp"><p>${aiEsc(r.plain)}</p>${r.fix ? `<p><b>Fix:</b> ${aiEsc(r.fix)}</p>` : ''}${r.screen ? `<p class="muted">Where: ${aiEsc(r.screen)}</p>` : ''}</div>` + foot;
   }
@@ -30628,10 +30682,242 @@ async function aiOptAll(btn) {
   return null;
 }
 
+
+/* ============================================================================================
+ * 5. PART 2 (20 Nov 2026) — the house style, and the read-only answers of the Listing pages
+ * ============================================================================================ */
+const AI_PAGE = ['fix_first', 'title_template', 'bsr_why', 'category_suggest', 'change_result', 'bundle_ideas'];
+const AI_STYLE_DOC = 'aistyle';                 // listingrules/aistyle: { items: { PT: { at (the guide's date), approvedAt, by, name } } }
+const AI_DAY = 86400000;
+const AI_DATE = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short' });
+const aiDay = ms => (ms ? AI_DATE.format(new Date(ms)) : '');
+const aiPtWord = pt => String(pt || '').toLowerCase().replace(/_/g, ' ');
+
+/* ----- the house style: approvals (Listing Rules' own store), the guides (the backend's lmAiStyle tab) ----- */
+/** The approved guides, read once (listingrules/aistyle, the store Listing Rules' marks use): AI.styleOk = { PT: { at, approvedAt, name } }. */
+async function aiStyleOkLoad() {
+  if (AI.styleOkP) return AI.styleOkP;
+  AI.styleOkP = (async () => {
+    try { const d = typeof lsGet === 'function' ? await lsGet('listingrules', AI_STYLE_DOC) : null; AI.styleOk = (d && d.items) || {}; } catch (e) { AI.styleOk = {}; }
+    return AI.styleOk;
+  })();
+  return AI.styleOkP;
+}
+// &style= for a writing task: "<PT>@<the approved guide's date>", or '' (no approved guide: the task works as before).
+function aiStyleParam(pt) {
+  const k = String(pt || '').toUpperCase();
+  const ok = AI.styleOk && AI.styleOk[k];
+  return ok && ok.at ? `${k}@${ok.at}` : '';
+}
+// The card's grey line: "Follows: tablecloth house style (approved 20 Nov)" / "No house style yet".
+function aiStyleLine(job) {
+  const st = job.reply && job.reply.style;
+  if (st && st.pt) { const ok = (AI.styleOk || {})[st.pt] || {}; return `Follows: ${aiPtWord(st.pt)} house style (approved ${aiDay(ok.approvedAt || st.at)})`; }
+  return 'No house style yet';
+}
+/** Listing Rules → "AI house style" (shown only when AI is set up): opens to the guides, each with Approve; "Learn again". */
+function aiStyleSectionHtml() {
+  if (!aiOn()) return '';
+  return '<details class="lr-allow-sec ai-style" data-ai-style><summary><b>✨ AI house style</b><span class="muted"> — how our listings are written, learnt from every listing; '
+    + 'only an approved guide is used by the AI suggestions</span></summary><div class="ai-style-b" data-ai-style-b><span class="muted">Open to read the guides.</span></div></details>';
+}
+async function aiStyleLoad(box) {
+  if (!box) return null;
+  box.innerHTML = '<span class="muted">Reading the house style guides…</span>';
+  let reply;
+  try { reply = await aiGet({ ai: 'ask', task: 'style_get' }); } catch (e) { reply = { ok: false, reason: String((e && e.message) || e) }; }
+  await aiStyleOkLoad();
+  AI.styleTab = reply && reply.ok ? reply : null;
+  box.innerHTML = aiStyleBodyHtml(AI.styleTab, reply && !reply.ok ? reply.reason || reply.error : '');
+  return reply;
+}
+function aiStyleBodyHtml(r, err) {
+  if (err) return `<div class="ai-quiet">${aiEsc(err)}</div>`;
+  const tab = (r && r.style) || {};
+  const guides = Object.values(tab.guides || {}).sort((a, b) => (b.n || 0) - (a.n || 0));
+  const L = r && r.learning;
+  const state = L && !L.finished && !L.stopped ? `Learning now: ${L.done} of ${L.of} product types done` : tab.stopped ? aiEsc(tab.stopped)
+    : tab.finishedAt ? `Learnt ${aiDay(tab.finishedAt)} from ${Number(tab.read || 0).toLocaleString('en-US')} listings · ${aiUsd(tab.costUsd || 0)}` : 'Not learnt yet — Umesh runs aiLearnStyle() once in the Apps Script editor';
+  const head = `<div class="ai-style-h"><span class="muted">${state}</span> <button type="button" class="ghost im-b" data-ai-style-act="learn" title="Reads every listing again and writes new draft guides (checked against the month's AI limit first)">Learn again</button></div>`;
+  if (!guides.length) return head;
+  return head + guides.map(g => {
+    const ok = (AI.styleOk || {})[g.pt];
+    const approved = ok && String(ok.at) === String(g.at);
+    const gd = g.guide || {};
+    return `<div class="ai-style-g"><div class="ai-style-gh"><b>${aiEsc(aiPtWord(g.pt))}</b><span class="muted"> · ${Number(g.n || 0).toLocaleString('en-US')} listings read · ${Number(g.good || 0).toLocaleString('en-US')} good examples · ${aiDay(g.at)}</span>`
+      + (approved ? `<span class="fc-chip is-g">Approved ${aiDay(ok.approvedAt)}${ok.name ? ' · ' + aiEsc(ok.name) : ''}</span>`
+        : `<button type="button" class="ghost im-b" data-ai-style-act="ok" data-ai-style-pt="${aiEsc(g.pt)}" data-ai-style-at="${aiEsc(g.at)}">Approve</button>`) + '</div>'
+      + `<ul class="ai-style-l"><li><b>Title:</b> ${aiEsc(gd.title_pattern)} <span class="muted">(${aiEsc(gd.title_length)})</span></li><li><b>Size:</b> ${aiEsc(gd.size_style)}</li>`
+      + `<li><b>Colour, shape, material:</b> ${aiEsc(gd.colour_shape_material)}</li><li><b>Bullets:</b> ${aiEsc((gd.bullets || []).join(' · '))}</li><li><b>Description:</b> ${aiEsc(gd.description)}</li>`
+      + `<li><b>Always:</b> ${aiEsc((gd.always || []).join(', '))} · <b>Never:</b> ${aiEsc((gd.never || []).join(', '))}</li><li><b>Our best titles:</b> ${aiEsc((gd.examples || []).join(' | '))}</li></ul></div>`;
+  }).join('');
+}
+async function aiStyleApprove(pt, at, box) {
+  const by = (typeof ME !== 'undefined' && ME && ME.email) || '';
+  const name = typeof sqName === 'function' ? sqName(by) : by;
+  const item = { at: Number(at), approvedAt: Date.now(), by, name };
+  try { if (typeof lsSave === 'function') await lsSave('listingrules', AI_STYLE_DOC, { items: { [pt]: item } }); } catch (e) { if (box) box.insertAdjacentHTML('beforeend', `<div class="err">Not saved: ${aiEsc(e.message || e)}</div>`); return null; }
+  AI.styleOk = Object.assign({}, AI.styleOk || {}, { [pt]: item });
+  if (box) box.innerHTML = aiStyleBodyHtml(AI.styleTab, '');
+  return item;
+}
+async function aiStyleLearn(box) {
+  const by = (typeof ME !== 'undefined' && ME && ME.email) || '';
+  const r = await aiGet({ ai: 'ask', task: 'learn_style', by });
+  const line = r && r.ok ? (r.running ? 'Already learning — this list follows when it is done.' : `Learning started: ${Number(r.listings || 0).toLocaleString('en-US')} listings, ${r.productTypes} product types, about ${aiUsd(r.estimateUsd)}. It runs on the backend; open this again in a few minutes.`)
+    : (r && (r.reason || r.error)) || 'Could not start';
+  if (box) box.insertAdjacentHTML('afterbegin', `<div class="ai-said">${aiEsc(line)}</div>`);
+  return r;
+}
+
+/* ----- the facts a page task sends (numbers, ids, rule names — never listing text) ----- */
+/** ✨ Fix these first: the top 20 Critical / Important listings (listing-priority.js order) of the brands on screen. */
+function aiFixFirstData(brands) {
+  if (typeof prOf !== 'function') return { items: [] };
+  const list = [];
+  (brands || ['SP', 'CPC']).forEach(b => ((typeof HEALTH !== 'undefined' && HEALTH[b] && HEALTH[b].rows) || []).forEach(row => {
+    const p = prOf(b, row.sku, [], { row });
+    if (p.k === 'crit' || p.k === 'imp') list.push({ b, row, p });
+  }));
+  const top = prSort(list, x => ({ k: x.p.k, asin: x.row.asin, stock: x.p.stock })).slice(0, 20);
+  AI.fixFirst = new Map(top.map(x => [x.row.sku, x]));
+  const words = x => prFound(x.row).filter(h => !h.fill).map(h => h.what || h.name).slice(0, 6);
+  return { salesOld: !!prSalesOld(), items: top.map(x => ({ sku: x.row.sku, level: x.p.k, problems: words(x), stock: x.p.stock, live: x.p.live,
+    sales: typeof apcSales === 'function' && x.row.asin ? apcSales(x.row.asin) : null, sessions: (typeof apcTraffic === 'function' && x.row.asin && apcTraffic(x.row.asin) || {}).s || null })) };
+}
+/** ✨ Suggest the right category: the Amazon categories Sellora already reads for the family (each sibling's browse path and its rank
+ *  categories, with their ids) — the AI may pick only one of these. */
+function aiCatData(brand, sku) {
+  const rows = (typeof HEALTH !== 'undefined' && HEALTH[brand] && HEALTH[brand].rows) || [];
+  const row = rows.find(r => r.sku === sku) || {};
+  const fam = row.parent ? rows.filter(r => r.parent === row.parent) : [row];
+  const opts = new Map();
+  const add = (id, path) => { id = String(id || ''); if (!/^\d{3,20}$/.test(id)) return; const o = opts.get(id) || { id, path: path || '', n: 0 }; o.n++; if (!o.path && path) o.path = path; opts.set(id, o); };
+  fam.forEach(r => {
+    const a = r.asin && typeof lmGetAsin === 'function' ? lmGetAsin(r.asin, brand) : null;
+    if (!a) return;
+    add(a.bcId || (a.bcIds || []).slice(-1)[0], a.bc);
+    (a.rks || []).forEach(x => add(x.id, x.c));
+  });
+  const me = row.asin && typeof lmGetAsin === 'function' ? lmGetAsin(row.asin, brand) : null;
+  const m = (typeof lmGet === 'function' && lmGet(sku, brand)) || {};
+  return { family: row.parent || '', pt: m.pt || '', colour: (m.va || {}).color || '', size: (m.va || {}).size || '',
+    current: me ? { id: me.bcId || '', path: me.bc || '' } : null, options: [...opts.values()].sort((x, y) => y.n - x.n).slice(0, 20) };
+}
+/** ✨ Did this change work?: 14 days (two weekly rows) before the change and after it — sessions, units, conversion — from the weekly store. */
+function aiChangeData(asin, at, field) {
+  const W = typeof WEEKLY !== 'undefined' && WEEKLY && WEEKLY.rows ? WEEKLY.rows[String(asin || '').toUpperCase()] || WEEKLY.rows[asin] : null;
+  const weeks = W && W.weeks ? Object.keys(W.weeks).sort() : [];
+  const ms = w => Date.parse(w) || 0;
+  const done = w => ms(w) + 7 * AI_DAY <= Date.now();
+  const before = weeks.filter(w => ms(w) && ms(w) + 7 * AI_DAY <= at).slice(-2);
+  const after = weeks.filter(w => ms(w) >= at && done(w)).slice(0, 2);
+  const sum = list => { let s = 0, u = 0; list.forEach(w => { const c = W.weeks[w] || {}; s += Number(c.sessions) || 0; u += Number(c.u) || 0; }); return { days: list.length * 7, sessions: s, units: u, conv: s ? Math.round(u * 1000 / s) / 10 : null, weeks: list }; };
+  return { field: field || '', at: new Date(at).toISOString().slice(0, 10), before: sum(before), after: sum(after) };
+}
+/** ✨ Bundle ideas: the Market Basket report on the page — our pairs and the others' products bought with ours (ASINs, SKUs, counts). */
+function aiBundleData() {
+  const r = typeof MB !== 'undefined' ? MB : null;
+  if (!r) return {};
+  return { ours: (r.pairs || []).slice(0, 25).map(p => ({ asin: p.a + '+' + p.b, name: [p.aSku, p.bSku].filter(Boolean).join(' + '), n: p.n || null, share: p.share || null })),
+    others: (r.gaps || []).slice(0, 25).map(g => ({ asin: g.asin, name: (g.with || []).slice(0, 4).map(y => y.sku || y.asin).join(', '), n: g.n || null, share: g.best || null })) };
+}
+
+/* ----- the read-only cards of the page tasks ----- */
+function aiPageCardHtml(job) {
+  const r = (job.reply && job.reply.result) || {};
+  const list = items => (items && items.length ? `<ul class="ai-l">${items.map(x => `<li>${aiEsc(x)}</li>`).join('')}</ul>` : '');
+  if (job.task === 'fix_first') {
+    return `<ol class="ai-ff">${(r.items || []).map(x => { const f = AI.fixFirst && AI.fixFirst.get(x.sku); const k = f ? f.p.k : '';
+      return `<li>${typeof prChipHtml === 'function' && k ? prChipHtml(k) : ''}<b class="ui-mono">${aiEsc(x.sku)}</b> — ${aiEsc(x.line)} <button type="button" class="ghost im-b" data-ai-act="fixopen" data-ai-id="${aiEsc(job.id)}" data-ai-sku="${aiEsc(x.sku)}">Open the fix</button></li>`; }).join('')}</ol>`
+      + `<p class="muted ai-hint">Read only — each button opens the existing fix; nothing is sent from here.${AI.fixFirstOld ? ' Sales data old: ordered by stock.' : ''}</p>`;
+  }
+  if (job.task === 'bsr_why') return `<p>${aiEsc(r.summary)}</p>${list(r.reasons)}${r.missing && r.missing.length ? `<p class="muted"><b>Not known:</b> ${aiEsc(r.missing.join(' · '))}</p>` : ''}`;
+  if (job.task === 'change_result') return `<p class="ai-verdict ${r.verdict === 'better' ? 'is-ok' : r.verdict === 'worse' ? 'is-bad' : ''}">${aiEsc(r.verdict === 'not enough data yet' ? 'Not enough data yet' : r.verdict === 'better' ? '✓ It worked' : r.verdict === 'worse' ? '✕ It got worse' : 'No clear change')}</p><p>${aiEsc(r.line)}</p>`;
+  if (job.task === 'bundle_ideas') {
+    return `${r.pairs && r.pairs.length ? '<p><b>Sell together</b></p><ul class="ai-l">' + r.pairs.map(p => `<li>${aiEsc(p.a)} + ${aiEsc(p.b)} — ${aiEsc(p.why)}</li>`).join('') + '</ul>' : ''}`
+      + `${r.others && r.others.length ? '<p><b>Bought with ours</b></p><ul class="ai-l">' + r.others.map(o => `<li class="ui-mono">${aiEsc(o.asin)} <span>— ${aiEsc(o.why)}</span></li>`).join('') + '</ul>' : ''}<p class="muted ai-hint">Ideas only — nothing changes.</p>`;
+  }
+  if (job.task === 'category_suggest') {
+    return `<p><b>${aiEsc(r.path || r.id)}</b> <span class="muted ui-mono">${aiEsc(r.id)}</span></p><p>${aiEsc(r.reason)}</p>`
+      + `<div class="ai-a"><button type="button" class="sp-main" data-ai-act="catopen" data-ai-id="${aiEsc(job.id)}">Fix it in Listing Errors</button><span class="muted ai-hint">Opens the listing's category there (recommended browse node ${aiEsc(r.id)}); Amazon checks it before it is sent.</span></div>`;
+  }
+  if (job.task === 'title_template') {
+    return `<p class="ui-mono">${aiEsc(r.template)}</p>${r.examples && r.examples.length ? `<p class="muted">From our titles like: ${aiEsc(r.examples.join(' | '))}</p>` : ''}`
+      + `<div class="ai-a"><button type="button" class="sp-main" data-ai-act="tplUse" data-ai-id="${aiEsc(job.id)}">Add as a new template</button><span class="muted ai-hint">Adds a row to the table above — check it, then press Save as always. Nothing is saved by itself.</span></div>`;
+  }
+  return '';
+}
+// The page task's facts at the click (the button keeps only what the click cannot read again).
+function aiPageOpts(task, brand, sku, x) {
+  if (task === 'fix_first') { const d = aiFixFirstData(x.brands || [brand]); AI.fixFirstOld = d.salesOld; return { d }; }
+  if (task === 'category_suggest') return { d: aiCatData(brand, sku) };
+  if (task === 'change_result') return { d: aiChangeData(x.asin, Number(x.at) || 0, x.fieldName) };
+  if (task === 'bundle_ideas') return { d: aiBundleData() };
+  if (task === 'title_template') return { pt: x.pt, style: aiStyleParam(x.pt) };
+  return { d: x.d || {} };
+}
+// A page task's button press: fix_first → the listing's own fix; a category → Listing Errors with that attribute; a template → Listing Rules' table.
+function aiPageAct(act, job, el) {
+  const r = (job.reply && job.reply.result) || {};
+  if (act === 'fixopen') {
+    const f = AI.fixFirst && AI.fixFirst.get(el.dataset.aiSku);
+    if (!f || typeof lrFixOpen !== 'function') return null;
+    const pic = f.p.problems.some(k => /image|main|picture/.test(k));
+    return lrFixOpen(pic ? 'img' : 'lerr', f.b, f.row.sku, []);
+  }
+  if (act === 'catopen' && typeof lrFixOpen === 'function') return lrFixOpen('lerr', job.brand, job.sku, ['recommended_browse_nodes']);
+  if (act === 'tplUse' && r.template && typeof renderLrules === 'function') {
+    const cfg = LR || (LR = JSON.parse(JSON.stringify(LR_DEFAULT)));
+    const parts = (r.template.match(/\{(\w+)\}/g) || []).map(t => t.slice(1, -1)).filter(k => ['brand', 'product', 'size', 'color'].includes(k));
+    cfg.templates.push({ brand: job.brand, match: job.x.match || '', product: job.x.product || '', material: '', pattern: '', uses: '', required: parts.join(','), template: r.template, reference: (r.examples || [])[0] || '' });
+    if (typeof LR_DIRTY !== 'undefined') LR_DIRTY = true;
+    if (typeof H_CTX !== 'undefined') H_CTX = null;
+    renderLrules();
+    return null;
+  }
+  return null;
+}
+/** Bought Together: the ✨ button beside the report's search box (once), when AI is set up. */
+function aiBundleBtn() {
+  if (!aiOn() || typeof $ !== 'function' || !$('mbFilter') || ($('mbAiBtn') && $('mbAiBtn').innerHTML)) return;
+  const host = $('mbAiBtn') || null;
+  const html = aiBtnHtml('bundle_ideas', typeof $('mbBrand') !== 'undefined' && $('mbBrand') && $('mbBrand').value === 'CPC' ? 'CPC' : 'SP', '', { use: 'read', place: 'into', into: 'mbBody', label: 'Bundle ideas' });
+  if (host) host.innerHTML = html; else if ($('mbFilter').insertAdjacentHTML) $('mbFilter').insertAdjacentHTML('afterend', `<span id="mbAiBtn" class="ai-inline">${html}</span>`);
+}
+/** Listing Rules → Title templates: the sub-categories that no template matches, with how many listings, each with ✨ Draft title template. */
+function aiTplHtml(cfg) {
+  if (!aiOn() || typeof HEALTH === 'undefined' || typeof lrTemplateFor !== 'function') return '';
+  const by = new Map();
+  ['SP', 'CPC'].forEach(b => ((HEALTH[b] && HEALTH[b].rows) || []).forEach(row => {
+    const r = row.brand ? row : Object.assign({ brand: b }, row);
+    const cat = (LR_CAT[b] || {})[row.sku];
+    if (!cat || lrTemplateFor(r, cfg)) return;
+    const m = (typeof lmGet === 'function' && lmGet(row.sku, b)) || {};
+    const k = b + '|' + (cat.subcat || '');
+    const g = by.get(k) || { b, subcat: cat.subcat || '', n: 0, pts: new Map() };
+    g.n++;
+    if (m.pt) g.pts.set(m.pt, (g.pts.get(m.pt) || 0) + 1);
+    by.set(k, g);
+  }));
+  const groups = [...by.values()].sort((a, b) => b.n - a.n).slice(0, 12);
+  if (!groups.length) return '';
+  return `<tbody class="ai-tpl"><tr><td colspan="11"><b>✨ No template yet:</b> ${groups.map(g => {
+    const pt = [...g.pts.entries()].sort((a, b) => b[1] - a[1])[0];
+    return `<span class="ai-tpl-g">${aiEsc((typeof BRAND_NAME !== 'undefined' && BRAND_NAME[g.b]) || g.b)} · ${aiEsc(g.subcat || 'no sub-category')} (${g.n.toLocaleString('en-US')} titles) `
+      + (pt ? aiBtnHtml('title_template', g.b, '', { use: 'read', pt: pt[0], match: g.subcat, product: g.subcat, label: 'Draft title template', place: 'after' }) : '<span class="muted">no product type read yet</span>') + '</span>';
+  }).join(' ')}</td></tr></tbody>`;
+}
+
 /* ----- the page's clicks and edits; the one status check ----- */
 if (typeof document !== 'undefined' && document.addEventListener) {
   aiStatusCheck();
   document.addEventListener('click', e => {
+    // Listing Rules → ✨ AI house style: opened (its guides are read then), Approve, Learn again
+    const sum = e.target && e.target.closest ? e.target.closest('[data-ai-style] > summary') : null;
+    if (sum) { const det = sum.parentNode; setTimeout(() => { if (det.open && !det.dataset.loaded) { det.dataset.loaded = '1'; aiStyleLoad(det.querySelector('[data-ai-style-b]')); } }, 0); return; }
+    const sa = e.target && e.target.closest ? e.target.closest('[data-ai-style-act]') : null;
+    if (sa) { const box = sa.closest('[data-ai-style-b]'); if (sa.dataset.aiStyleAct === 'ok') aiStyleApprove(sa.dataset.aiStylePt, sa.dataset.aiStyleAt, box); else aiStyleLearn(box); return; }
     const el = e.target && e.target.closest ? e.target.closest('[data-ai],[data-ai-act],[data-ai-all]') : null;
     if (!el || el.disabled) return;
     if (el.dataset.aiAll) { aiOptAll(el); return; }
@@ -30640,7 +30926,8 @@ if (typeof document !== 'undefined' && document.addEventListener) {
     const act = el.dataset.aiAct;
     if (act === 'close') { const card = el.closest('[data-ai-card]'); const tr = card && card.closest('tr.ai-tr'); (tr || card).remove(); if (job) AI.jobs.delete(job.id); return; }
     if (!job) return;
-    if (act === 'approve') aiApprove(job);
+    if (act === 'fixopen' || act === 'catopen' || act === 'tplUse') aiPageAct(act, job, el);
+    else if (act === 'approve') aiApprove(job);
     else if (act === 'use') aiUse(job);
     else if (act === 'copy') aiCopy(job, el);
   });
@@ -30653,7 +30940,138 @@ function aiReport() {
   if (typeof console !== 'undefined') console.log('AI', out);
   return out;
 }
+/* ============================== FILE: src/app/listing/listing-priority.js ============================== */
+/* ================= LISTING · PRIORITY — 🔴 Critical · 🟠 Important · ⚪ Can wait (20 Nov 2026) =================
+ * ONE shared rule, no AI (works without the key), the same label on every screen and in every download:
+ *   🔴 Critical — fix today      has stock (or, stock not known, is live) AND one of: an Amazon error, suppressed / hidden from search, no
+ *                                main picture, another brand's name (trademark)
+ *   🟠 Important — this week     has stock (or live) AND one of: A+ missing / draft / rejected, search terms over 249 bytes, the title breaks a
+ *                                company rule, too few pictures, a wrong / mixed / missing category
+ *   ⚪ Can wait                   0 stock / not live, or only "Good to fill" (and every other problem)
+ * A listing's problems: what Listing Health finds for it (its detectors) plus the screen's own (A+ status, a trademark word, a category
+ * problem, the Image Manager's picture problems) — so the label is the listing's, wherever it is shown. It changes NO count and adds no
+ * problem: it only sorts what is already found.
+ * Within a level: the most 30-day sales first (Sellora's sales pull); when the sales are older than 7 days — "sales data old" — the most
+ * stock first. Used by: Listing Health (Why column, the side panel), the Workspace, Listing Errors, the Image Manager, A+ Content, IP &
+ * Trademark Guard, Family & Category Check — their chips, their filters and their downloads ("Priority" column) — and ✨ Fix these first.
+ * Main functions: prLevel, prOf, prChipHtml, prSort, prSalesOld, prFilterHtml, prKeep, prCsv. Every name starts with pr / PR. */
 
+const PR_LEVELS = {
+  crit: { i: '🔴', t: 'Critical', sub: 'fix today', cls: 'is-r', n: 0 },
+  imp: { i: '🟠', t: 'Important', sub: 'this week', cls: 'is-y', n: 1 },
+  wait: { i: '⚪', t: 'Can wait', sub: '', cls: 'is-g', n: 2 },
+};
+// The problems that make a listing with stock Critical / Important. Keys: Listing Health's detectors and each screen's own words.
+const PR_CRIT = new Set(['amazon_error', 'amazon_suppressed', 'no_main_image', 'trademark', 'amzerr', 'sup', 'nomain', 'tm']);
+const PR_IMP = new Set(['aplus_missing', 'aplus_draft', 'aplus_rejected', 'keyword_bytes', 'title_template', 'size_format', 'dimension_order', 'title_length', 'title_keyword',
+  'title_contains', 'variation_naming', 'images_below', 'few', 'wrong_category', 'cat_mixed', 'cat_none', 'cat_rank']);
+let PR = { f: {}, memo: new WeakMap(), memoCtx: null };
+
+/** THE RULE. o: { stock (number, null = not known), live (true / false), problems: [keys] } → 'crit' | 'imp' | 'wait'. */
+function prLevel(o) {
+  o = o || {};
+  const stock = o.stock == null || o.stock === '' ? null : Number(o.stock);
+  const has = stock != null && !isNaN(stock) ? stock > 0 : !!o.live;
+  if (!has) return 'wait';
+  const probs = o.problems || [];
+  if (probs.some(k => PR_CRIT.has(k))) return 'crit';
+  if (probs.some(k => PR_IMP.has(k))) return 'imp';
+  return 'wait';
+}
+// The Listing Health row of a listing, or null.
+function prRow(brand, sku) {
+  const rows = (typeof HEALTH !== 'undefined' && HEALTH[brand] && HEALTH[brand].rows) || [];
+  if (!PR.rows || PR.rows.src !== rows) PR.rows = { src: rows, map: new Map(rows.map(r => [r.sku, r])) };
+  return PR.rows.map.get(sku) || null;
+}
+// What Listing Health finds for a row (its own judging, kept per row while the rules' context is the same).
+function prFound(row) {
+  if (!row) return [];
+  if (row._h && row._h.found) return row._h.found;
+  let ctx = null;
+  try { ctx = typeof hCtx === 'function' ? hCtx() : null; } catch (e) { ctx = null; }
+  if (!ctx || typeof healthOf !== 'function') return [];
+  if (PR.memoCtx !== ctx) { PR.memo = new WeakMap(); PR.memoCtx = ctx; }
+  if (PR.memo.has(row)) return PR.memo.get(row);
+  let found = [];
+  try { found = (healthOf(row, ctx).found || []).filter(h => !h.fill); } catch (e) { found = []; }
+  PR.memo.set(row, found);
+  return found;
+}
+/** One listing's level: { k: crit | imp | wait, stock, live, problems } — its Listing Health problems plus `extra` (the screen's own keys).
+ *  stock / live: the screen's own when it has them, else Listing Health's (qty, Active) / the stock Sellora holds. */
+function prOf(brand, sku, extra, o) {
+  o = o || {};
+  const row = o.row || prRow(brand, sku);
+  const found = prFound(row).filter(h => !h.fill).map(h => h.detector);
+  let stock = o.stock !== undefined ? o.stock : row && row.qty != null ? row.qty : null;
+  if (stock == null && typeof lrQtyOf === 'function') { try { stock = lrQtyOf(brand, sku); } catch (e) { stock = null; } }
+  const live = o.live !== undefined ? !!o.live : !!(row && /active/i.test(row.status || '') && !/inactive/i.test(row.status || ''));
+  const problems = [...new Set(found.concat(extra || []))];
+  return { k: prLevel({ stock, live, problems }), stock, live, problems };
+}
+/** The chip: "🔴 Critical" (title: "fix today"). The classes of the screen's own chips are passed (cls), so it looks like them. */
+function prChipHtml(k, cls) {
+  const L = PR_LEVELS[k] || PR_LEVELS.wait;
+  const esc = s => String(s).replace(/[<>&"]/g, ch => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[ch]));
+  return `<span class="pr-chip ${cls || ''} ${L.cls}" title="${esc(L.t + (L.sub ? ' — ' + L.sub : ''))}">${L.i} ${esc(L.t)}</span>`;
+}
+// The download's words for a level ("Critical — fix today").
+const prCsv = k => { const L = PR_LEVELS[k] || PR_LEVELS.wait; return L.t + (L.sub ? ' — ' + L.sub : ''); };
+/** Sales older than 7 days (or none): the date in words, else ''. Then a level is ordered by stock instead. */
+function prSalesOld() {
+  if (typeof apcSalesAt !== 'function' || !apcSalesAt()) return 'no sales data';
+  return typeof apcSalesOld === 'function' ? apcSalesOld() : '';
+}
+/** Order: Critical, Important, Can wait; within each the most 30-day sales first (sales data old: the most stock first). items: [x];
+ *  of(x) → { k, asin, stock }. A stable sort: equal ones keep their order. */
+function prSort(items, of) {
+  const old = !!prSalesOld();
+  const key = x => { const o = of(x); const sales = !old && o.asin && typeof apcSales === 'function' ? apcSales(o.asin) : null; return { n: (PR_LEVELS[o.k] || PR_LEVELS.wait).n, v: old || sales == null ? Number(o.stock) || 0 : sales }; };
+  return items.map((x, i) => ({ x, i, k: key(x) })).sort((a, b) => a.k.n - b.k.n || b.k.v - a.k.v || a.i - b.i).map(e => e.x);
+}
+/** The filter chips of a screen, in that screen's own chip markup: make(k, label, on) → its chip's HTML. Pressed again: off. */
+function prFilterHtml(screen, make) {
+  return ['crit', 'imp', 'wait'].map(k => make(k, `${PR_LEVELS[k].i} ${PR_LEVELS[k].t}`, PR.f[screen] === k)).join('');
+}
+// Does a listing pass a screen's priority filter (none chosen: every listing)?
+const prKeep = (screen, k) => !PR.f[screen] || PR.f[screen] === k;
+// A filter chip pressed: on, or off when pressed again. Returns the new value.
+function prToggle(screen, k) { PR.f[screen] = PR.f[screen] === k ? '' : k; return PR.f[screen]; }
+
+/** CONSOLE: prReport() — per brand, how many listings with a problem are Critical / Important / Can wait (Listing Health's rows). */
+function prReport(brands) {
+  const out = {};
+  (brands || ['SP', 'CPC']).forEach(b => {
+    const rows = (typeof HEALTH !== 'undefined' && HEALTH[b] && HEALTH[b].rows) || [];
+    const n = { crit: 0, imp: 0, wait: 0, noProblem: 0 };
+    rows.forEach(r => { const p = prOf(b, r.sku); if (!p.problems.length) n.noProblem++; else n[p.k]++; });
+    out[b] = n;
+  });
+  if (typeof console !== 'undefined') console.log('Priority', out);
+  return out;
+}
+
+/* ----- each screen's listing → its level (the screen's own problems added to Listing Health's) ----- */
+const PR_APC = { missing: 'aplus_missing', draft: 'aplus_draft', rejected: 'aplus_rejected' };
+const prApc = p => prOf(p.c.brand, p.c.sku, PR_APC[p.bucket] ? [PR_APC[p.bucket]] : [], { stock: p.c.stock, live: !!p.c.live }).k;
+const prIpg = p => prOf(p.c.brand, p.c.sku, p.tm > 0 ? ['tm'] : [], { stock: p.c.stock, live: p.c.live !== false }).k;
+const prCc = r => prOf(r.c.brand, r.c.sku, (r.probs || []).map(x => 'cat_' + x.k), { stock: r.c.stock, live: r.c.live !== false }).k;
+const prFc = r => prOf(r.c.brand, r.c.sku, [], { stock: r.c.stock, live: true }).k;
+const prKid = kid => prOf(kid.brand, kid.sku, [], { stock: kid.row ? kid.row.qty : undefined, live: !!kid.live }).k;
+// Listing Errors / Image Manager: Amazon's errors, suppressed (THE one Suppressed rule, imState), the Image Manager's picture problems
+function prAmzOf(brand, x) {
+  const extra = [];
+  if ((x.iss || []).some(i => i.s === 'E') || x.ie) extra.push('amazon_error');
+  try { if (typeof imState === 'function' && imState(x, brand).k === 'sup') extra.push('amazon_suppressed'); } catch (e) { /* no state */ }
+  return extra;
+}
+const prLe = (brand, x) => prOf(brand, x.sku, prAmzOf(brand, x)).k;
+function prIm(brand, item) {
+  let own = [];
+  try { own = typeof imProblems === 'function' ? imProblems(item, brand).slice() : []; } catch (e) { own = []; }
+  return prOf(brand, item.sku, prAmzOf(brand, item).concat(own)).k;
+}
 /* ####################################################################################################
  * GROUP: src/app/research/
  * #################################################################################################### */
@@ -43016,7 +43434,7 @@ function imKidRow(item) {
     <div class="im-kid-info">
       <div class="im-kid-t"><b class="im-mono">${imEsc(item.sku)}</b>${item.lmStale && typeof lmOldHtml === 'function' ? lmOldHtml($('imBrand') ? $('imBrand').value : '', item.sku) : ''}<span class="muted">${imEsc(item.asin)}</span></div>
       <div class="im-kid-s">${imEsc([item.c, item.z].filter(Boolean).join(' · ') || String(item.t || '').slice(0, 60))}</div>
-      <div class="im-kid-q">${chips.map(chip => `<span class="im-chip ${chip.cls}"${chip.k ? ` data-im-prob="${chip.k}"` : ''}${chip.tip ? ` title="${imEsc(chip.tip)}"` : ''}>${imEsc(chip.t)}</span>`).join('')}<span class="im-kid-sum">${imKidSummary(item)}</span></div>
+      <div class="im-kid-q">${typeof prOf === 'function' && imProblems(item).length ? prChipHtml(prIm($('imBrand') ? $('imBrand').value : '', item), 'im-chip') : ''}${chips.map(chip => `<span class="im-chip ${chip.cls}"${chip.k ? ` data-im-prob="${chip.k}"` : ''}${chip.tip ? ` title="${imEsc(chip.tip)}"` : ''}>${imEsc(chip.t)}</span>`).join('')}<span class="im-kid-sum">${imKidSummary(item)}</span></div>
       ${errs.length ? `<div class="im-kid-err" title="${imEsc(errs.map(imPicErrText).join(' · '))}">${imEsc(errs.map(imPicErrText).join(' · '))}</div>` : ''}
       <div class="im-kid-act">
         <button class="ghost im-b" data-edit="${imEsc(item.sku)}" title="Open the editor beside the list (E)">Edit</button>
@@ -44325,7 +44743,7 @@ const IM_DL_CHECKS = [
   { k: 'noown', col: "Using the family's main", todo: "Upload this listing's own main picture" },
 ];
 const IM_DL_COLS = ['Brand', 'Family name', 'Parent ASIN', 'SKU', 'ASIN', 'Colour', 'Size', 'Stock (units)', 'Amazon link', 'Problems', 'What to do']
-  .concat(IM_DL_CHECKS.map(c => c.col), ['Number of pictures', 'Smallest picture size', "Amazon's picture error message", 'Data time', 'Verified at']);
+  .concat(IM_DL_CHECKS.map(c => c.col), ['Number of pictures', 'Smallest picture size', "Amazon's picture error message", 'Data time', 'Verified at', 'Priority']);
 const IM_LIVE_PAR = 4;            // listings read live from Amazon at once (each is two calls)
 let IM_DL_RUN = null;             // { stop, done, total } while the download checks its rows with Amazon
 // One problem of one listing of `brand` (the listing's problems: imProblems).
@@ -44362,7 +44780,7 @@ function imDlRow(item, brand, bySku, only, when, verified) {
   return { brand, item, fam, famKey: brand + '|' + (item.psku || 'solo:' + item.sku), sku: String(item.sku), n: has.length, cells: [
     (typeof BRAND_NAME !== 'undefined' && BRAND_NAME[brand]) || brand, fam, item.pa || (parent && parent.asin) || '', item.sku, item.asin || '', item.c || '', item.z || '',
     lrQtyOf(brand, item.sku), item.asin ? 'https://www.amazon.com/dp/' + item.asin : '', has.map(c => c.col).join(' | '), has.map(c => c.todo).join(' | '),
-  ].concat(IM_DL_CHECKS.map(c => (has.includes(c) ? 'Yes' : '')), [imPicCount(item).n, sizes[0] ? `${sizes[0][0]}×${sizes[0][1]}` : '', errs, when, verified || '']) };
+  ].concat(IM_DL_CHECKS.map(c => (has.includes(c) ? 'Yes' : '')), [imPicCount(item).n, sizes[0] ? `${sizes[0][0]}×${sizes[0][1]}` : '', errs, when, verified || '', typeof prOf === 'function' ? prCsv(prIm(brand, item)) : '']) };
 }
 // By family (the family's problems added up, most first; then its name), then SKU.
 function imDlSort(rows) {
@@ -45243,8 +45661,11 @@ function leRows() {
     if (!iss.length && sev !== 'any' && !LE_ONLY) return;          // "Every listing": its content can be edited with no issue at all
     if (kind !== 'all' && !iss.some(issue => leKind(issue) === kind)) return;
     if (search && ![x.sku, x.asin, x.c, x.z, x.t].concat(iss.map(issue => issue.m)).join(' ').toLowerCase().includes(search)) return;
+    if (typeof prOf === 'function' && PR.f.le && prLe(brand, x) !== PR.f.le) return;          // 🔴 / 🟠 / ⚪ chosen (listing-priority.js)
     out.push({ x, iss: iss.slice().sort((p, r) => (p.s === 'E' ? 0 : 1) - (r.s === 'E' ? 0 : 1)) });
   });
+  // a priority chosen: that level only, the most sales first (sales data old: the most stock)
+  if (typeof prOf === 'function' && PR.f.le) return prSort(out, r => ({ k: PR.f.le, asin: r.x.asin, stock: typeof lrQtyOf === 'function' ? lrQtyOf(brand, r.x.sku) : 0 }));
   return out;
 }
 
@@ -45295,6 +45716,7 @@ function leRender() {
         <span class="muted" style="font-size:12px">Listings with an error, by kind:</span>
         ${LE_KINDS.map(([kind, label]) => chip(kind, label)).join('')}
         <button class="ghost im-b" data-kind="all">All</button>
+        ${typeof prOf === 'function' ? prFilterHtml('le', (k, label, on) => `<button class="ghost im-b" data-le-pr="${k}" style="${on ? 'border-color:var(--accent);color:var(--accent-ink)' : ''}">${label}</button>`) : ''}
       </div>
       <div class="muted" style="font-size:11.5px;margin-top:6px">${leNf(rows.length)} listing(s) shown · ${(typeof lmDataLabel === 'function' && lmDataLabel([brand])) ? leEsc(lmDataLabel([brand]).text) : 'snapshot ' + (data.at ? data.at.toLocaleString() : '—')}${IML_BUSY ? ' · refreshing…' : ''}
         ${old ? ' · <b class="err">this snapshot keeps only the first error of each listing — press Refresh from Amazon for all of them</b>' : ''}</div>
@@ -45315,7 +45737,7 @@ function leRender() {
           <td style="text-align:left;white-space:nowrap"><b style="font-family:ui-monospace,monospace">${leEsc(x.sku)}</b>${x.lmStale && typeof lmOldHtml === 'function' ? lmOldHtml(brand, x.sku) : ''}`
             + `<div class="muted" style="font-size:11px">${leEsc(x.asin)} · ${leEsc(x.pt || '')}</div></td>
           <td style="text-align:left;font-size:12px">${leEsc([x.c, x.z].filter(Boolean).join(' · '))}</td>
-          <td><span class="st" style="background:${state.fill};color:${state.ink}">${leEsc(state.label)}</span></td>
+          <td><span class="st" style="background:${state.fill};color:${state.ink}">${leEsc(state.label)}</span>${typeof prOf === 'function' && iss.length ? ' ' + prChipHtml(prLe(brand, x)) : ''}</td>
           <td style="text-align:left;white-space:normal;font-size:12px;max-width:620px">${iss.slice(0, 4).map(issue => `<div style="margin:2px 0">
               <span class="st ${issue.s === 'E' ? 'st-rejected' : 'st-draft'}" style="font-size:10px">${
                 leEsc((LE_KINDS.find(pair => pair[0] === leKind(issue)) || [, ''])[1])}</span>
@@ -45330,6 +45752,7 @@ function leRender() {
     LE_PAGE = 0;
     leRender();
   });
+  el.querySelectorAll('[data-le-pr]').forEach(btn => btn.onclick = () => { prToggle('le', btn.dataset.lePr); LE_PAGE = 0; leRender(); });
   el.querySelectorAll('[data-lepg]').forEach(btn => btn.onclick = () => {
     LE_PAGE += Number(btn.dataset.lepg);
     leRender();
@@ -46652,6 +47075,7 @@ function renderBasketAll() {
   const report = MB;
   if (!report) return;
   const search = ($('mbFilter').value || '').trim().toLowerCase();
+  if (typeof aiBundleBtn === 'function') aiBundleBtn();       // ✨ Bundle ideas (listing-ai.js), when AI is set up
 
   // --- nothing in the report could be read ---
   if (!report.rows) {

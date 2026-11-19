@@ -168,7 +168,9 @@ function lhRowHtml(row, child) {
   const busy = LH.busy.has(row.id);
   const canBack = row.oldV != null && row.attr && (row.api === 'limg' || row.pt) && row.result !== 'notsent';
   const acts = (row.result === 'working' || row.result === 'sent' ? `<button type="button" class="ghost lh-b" data-lh="again" data-lh-id="${lhEsc(row.id)}"${busy ? ' disabled' : ''}>${busy ? 'Reading…' : 'Check again'}</button>` : '')
-    + `<button type="button" class="ghost lh-b" data-lh="back" data-lh-id="${lhEsc(row.id)}"${canBack ? '' : ' disabled title="The old value was not kept for this change"'}>Put back</button>`;
+    + `<button type="button" class="ghost lh-b" data-lh="back" data-lh-id="${lhEsc(row.id)}"${canBack ? '' : ' disabled title="The old value was not kept for this change"'}>Put back</button>`
+    // ✨ Did this change work? (listing-ai.js): a change older than 14 days, 14 days before vs after from the weekly store
+    + (typeof aiOn === 'function' && aiOn() && row.asin && row.at && Date.now() - row.at > 14 * 86400000 && row.result === 'accepted' ? aiBtnHtml('change_result', row.brand, row.sku, { use: 'read', place: 'row', asin: row.asin, at: row.at, fieldName: row.field, label: 'Did this change work?' }) : '');
   return `<tr class="lh-row${child ? ' is-child' : ''} is-${lhEsc(row.result)}" data-lh-row="${lhEsc(row.id)}"><td class="lh-when">${lhWhen(row.at)}</td><td>${lhEsc(row.name)}</td>`
     + `<td class="lh-listing"><b>${lhEsc(row.label || row.sku)}</b><small>${lhEsc(row.sku)}${row.asin ? ' · ' + lhEsc(row.asin) : ''}</small>${asin}</td>`
     + `<td>${lhEsc(lhWhat(row))}</td><td class="lh-change">${change}</td><td>${lhEsc(lhScreen(row))}</td><td>${lhEsc(row.approvedBy || row.name)}</td>`

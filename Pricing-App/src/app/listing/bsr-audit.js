@@ -1148,7 +1148,12 @@ function bsrPanelDraw() {
       : '<p class="muted" style="font-size:12px;margin:4px 0">Not known: these weeks\' snapshots did not keep each child\'s rank (snapshots taken from now on do).</p>')
     + `<div class="bs-sec">${bsrEsc(label.charAt(0).toUpperCase() + label.slice(1))} — last ${points.length} weeks</div>${bsrChartSvg(points, label)}`
     + `<div class="bs-links"><button type="button" class="ghost im-b" data-bs="ws">Open in Workspace</button><button type="button" class="ghost im-b" data-bs="img">Image Manager</button>`
-    + `<button type="button" class="ghost im-b" data-bs="lerr">Listing Errors</button><button type="button" class="ghost im-b" data-bs="lhist">Listing History</button></div>`;
+    + `<button type="button" class="ghost im-b" data-bs="lerr">Listing Errors</button><button type="button" class="ghost im-b" data-bs="lhist">Listing History</button>`
+    // ✨ Why did rank change? (listing-ai.js): week A vs B, the facts above (Listing History, price, stock, ads) — only what the panel knows
+    + (typeof aiOn === 'function' && aiOn() ? aiBtnHtml('bsr_why', brand, '', { use: 'read', label: 'Why did rank change?', d: { parent, title: String(row.title || '').slice(0, 100), kind: row.kind, cat: row.cat || '',
+      weekA: { week: wA, rank: row.entryA ? (row.kind === 'sub' ? row.entryA.sub : row.entryA.rank) || null : null }, weekB: { week: wB, rank: row.entryB ? (row.kind === 'sub' ? row.entryB.sub : row.entryB.rank) || null : null },
+      changes: (row.decision.facts || []).map(fact => fact.txt).slice(0, 12), notKnown: bsrUnknown(row.facts), action: row.action || '',
+      kids: kids.slice(0, 12).map(kid => ({ sku: kid.sku || kid.asin, weekB: kid.b || null, weekA: kid.a || null })) } }) : '') + '</div>';
   box.hidden = false;
 }
 // The child SKUs of a parent (for the links that open other screens on them).
