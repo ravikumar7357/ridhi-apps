@@ -57,7 +57,13 @@ let ST_FT = null;
 /* THE LINES EVERY VERDICT IS DRAWN WITH. One place, so the dialog, the tables and the legend cannot disagree. */
 const STA = {
   MIN_CLICKS: 10,      // clicks before "no order" is evidence at all
-  CHANCE: 0.05,        // under this chance of the result by bad luck: "unlikely to be chance"
+  CHANCE: 0.05,        // under this chance of the result by bad luck: "unlikely to be chance" — enough for a lower bid
+  NEG_CHANCE: 0.01,    // a negative or a pause (hard to undo) needs under 1%: with ~19,000 terms tested, 5% alone would
+                       // flag about 1 in 20 normal terms by bad luck (19 Nov audit); between 1% and 5% → a lower bid
+  NOSALE_MIN_SP: 10,   // "no sales" needs at least this much spend ($) before anything is suggested
+  LOSS_ACOS: 100,      // over this ACoS the ad costs more than the sale whatever the unit cost: acted on without costs
+  LOSS_MIN_SP: 20,     // … once at least this much was spent
+  BE_ORDERS: 3,        // "above break-even" needs this many orders; fewer → Watch (one order is not a pattern)
   RATE_ORDERS: 3,      // orders a target or campaign needs before its own conversion rate is the yardstick
   POOR_CLICKS: 30,     // "converts poorly": at least this many clicks …
   POOR_SHARE: 0.5,     // … and under half the yardstick's conversion rate
@@ -157,7 +163,7 @@ const staShortDay = iso => {
   return t ? new Date(t).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' }) : String(iso || '');
 };
 // Clicks still needed before 0 orders would be unlikely to be chance at conversion rate p; 0 when already enough.
-const staNeed = (p, c) => p > 0 && p < 1 ? Math.max(0, Math.ceil(Math.log(STA.CHANCE) / Math.log(1 - p)) - c) : 0;
+const staNeed = (p, c, lv) => p > 0 && p < 1 ? Math.max(0, Math.ceil(Math.log(lv || STA.CHANCE) / Math.log(1 - p)) - c) : 0;
 // The chance of o orders or fewer in n clicks at rate p (binomial), worked in logs so large n stays exact enough.
 function staBinomLe(o, n, p) {
   if (!(p > 0)) return 1;
@@ -182,6 +188,30 @@ function stFoot(t, bad) {
   m.innerHTML = t || '';
   m.classList.toggle('err', !!bad);
 }
+// "Added … · Undo": for 30 seconds the footer can take back what was just added (each only while still waiting).
+let STA_JUST = { ids: [], t: 0 };
+function staAddedFoot(items, text) {
+  STA_JUST = { ids: items.map(x => x.id), t: Date.now() };
+  stFoot(`<span class="sta-added">${text} <button type="button" class="sta-linkbtn" data-undoadd="1">Undo</button> · <button type="button" class="sta-linkbtn" data-openrl="1">Open the list</button></span>`);
+  setTimeout(() => { const b = $('stFoot').querySelector('[data-undoadd]'); if (b && Date.now() - STA_JUST.t >= 29000) b.remove(); }, 30000);
+}
+async function staUndoAdd() {
+  const ids = STA_JUST.ids;
+  STA_JUST = { ids: [], t: 0 };
+  let n = 0;
+  for (const id of ids) {
+    const x = ST_RL.items.find(y => y.id === id);
+    if (x && !(await staRlMove(x, ['review'], { status: 'removed', removedBy: String(ME.email || ''), removedAt: Date.now(), note: 'Taken back right after adding' }))) n++;
+  }
+  STM = null;
+  renderSt();
+  staRlBadge();
+  stFoot(`<span>${n ? `Taken back: ${n} change${n === 1 ? '' : 's'}.` : 'Nothing taken back — it was already approved or changed.'}</span>`, !n);
+}
+$('stFoot').addEventListener('click', e => {
+  if (e.target.closest('[data-undoadd]')) staUndoAdd();
+  else if (e.target.closest('[data-openrl]')) staRlOpen();
+});
 // The words a target is shown with: "tablecloth (broad)", "Auto · close-match", 'asin="B0…"'.
 function staPathLabel(kw, mt) {
   const M = String(mt || '').toUpperCase();
@@ -244,8 +274,8 @@ function staSeasonOf(term) {
 
 /* ---------- the lists (Lists & settings), per brand ---------- */
 const STA_SET_DEF = {
-  SP: { brandTerms: ['ridhi'], productWords: [], blocked: ['cheap', 'free', 'used', 'diy'], competitors: [], fallbackTgt: null },
-  CPC: { brandTerms: ['cotton print club', 'cottonprintclub'], productWords: [], blocked: ['cheap', 'free', 'used', 'diy'], competitors: [], fallbackTgt: null },
+  SP: { brandTerms: ['ridhi'], productWords: [], blocked: ['cheap', 'free', 'used', 'diy'], competitors: [], fallbackTgt: null, fallbackBe: null },
+  CPC: { brandTerms: ['cotton print club', 'cottonprintclub'], productWords: [], blocked: ['cheap', 'free', 'used', 'diy'], competitors: [], fallbackTgt: null, fallbackBe: null },
 };
 let STS = { SP: null, CPC: null, where: '', err: '' };
 const STA_SET_LOCAL = 'staSettings';
@@ -270,15 +300,14 @@ async function staSetLoad() {
 // Save one brand's lists.
 async function staSetSave(b, data) {
   const clean = JSON.parse(JSON.stringify(Object.assign({}, data, { up: Date.now(), by: String(ME.email || '') })));
-  if (STS.where === 'fs') {
-    try { await setDoc(doc(db, 'adsSettings', b), clean); } catch (e) { STS.where = 'local'; STS.err = String((e && (e.code || e.message)) || e); }
-  }
+  // A refused save is an error the person sees, not a quiet switch to this browser (19 Nov audit).
+  if (STS.where === 'fs') await setDoc(doc(db, 'adsSettings', b), clean);
   STS[b] = Object.assign({}, STA_SET_DEF[b], clean);
   if (STS.where === 'local') {
     let loc = {};
     try { loc = JSON.parse(localStorage.getItem(STA_SET_LOCAL) || '{}'); } catch (x) { loc = {}; }
     loc[b] = clean;
-    localStorage.setItem(STA_SET_LOCAL, JSON.stringify(loc));
+    try { localStorage.setItem(STA_SET_LOCAL, JSON.stringify(loc)); } catch (e) { throw new Error('this browser would not store it'); }
   }
 }
 
@@ -345,6 +374,7 @@ async function staLoad_() {
       jobs.push(cpLoadBasics().catch(() => { /* break-even and stock stay unknown */ }));
       jobs.push(staRlLoad());
       jobs.push(staSetLoad());
+      jobs.push(staApplyCfg().catch(() => { /* Apply stays off */ }));
     }
     await Promise.all(jobs);
     await staRlSeen();
@@ -427,16 +457,17 @@ function staEnt(b) {
   if (b in STA_ENTX) return STA_ENTX[b];
   const E = ST.ent && ST.ent.d && ST.ent.d[b];
   if (!E || !E.kw) return (STA_ENTX[b] = null);
-  const kw = new Map(), tg = new Map(), neg = new Set(), negPh = [];
+  const kw = new Map(), tg = new Map(), neg = new Set(), negPh = [], negId = new Map();
   (E.kw || []).forEach(k => kw.set(k[1] + '|' + staLow(k[3]) + '|' + staLow(k[4]), { id: String(k[0]), ag: k[1], cid: k[2], bid: k[5], st: k[6], made: k[7] || 0, kind: 'kw' }));
   (E.tg || []).forEach(t => tg.set(t[1] + '|' + staLow(t[3]), { id: String(t[0]), ag: t[1], cid: t[2], bid: t[4], st: t[5], made: t[6] || 0, kind: 'tg' }));
   (E.neg || []).forEach(n => {
     const kind = /PHRASE/i.test(n[5]) ? 'np' : /EXACT/i.test(n[5]) ? 'nx' : 'na';
     const where = n[0] === 'cp' ? 'cp|' + n[2] : 'ag|' + n[3];
     neg.add(where + '|' + staLow(n[4]) + '|' + kind);
+    if (n[1]) negId.set(where + '|' + staLow(n[4]) + '|' + kind, String(n[1]));
     if (kind === 'np') negPh.push({ where, text: staLow(n[4]) });
   });
-  return (STA_ENTX[b] = { kw, tg, neg, negPh, cp: E.cp || {}, ag: E.ag || {}, at: E.at || (ST.ent && ST.ent.at) || '' });
+  return (STA_ENTX[b] = { kw, tg, neg, negPh, negId, cp: E.cp || {}, ag: E.ag || {}, at: E.at || (ST.ent && ST.ent.at) || '' });
 }
 // The keyword or target behind a path at Amazon: { id, bid, st, made, kind } (the ad group's default bid when the keyword
 // has none of its own); null when adEntities does not know it.
@@ -494,7 +525,8 @@ function staModelBrand(b, M, rlOpen) {
   // 2. A brand with no search terms, or ones older than 36 hours, gets no suggestions.
   const at = (ST.set && ST.set.d && ST.set.d[b]) ? ST.set.at : ST.at;
   const old = at && Date.now() - staStamp(at) > STA.STALE_H * 3600000;
-  const info = M.info[b] = { stale: !terms.length ? 'No search terms for this brand in the last run' : old ? `Search terms from ${at}: not refreshed since` : '', bad: 0, badSp: 0 };
+  const info = M.info[b] = { stale: !terms.length ? 'No search terms for this brand in the last run' : old ? `Search terms from ${at}: not refreshed since` : '', bad: 0, badSp: 0,
+    settled: !!src.settled };
   if (!terms.length && !tgts.length) return;
   const rec = staRecentOf(b, false), trec = staRecentOf(b, true);
   const E = staEnt(b);
@@ -537,10 +569,11 @@ function staModelBrand(b, M, rlOpen) {
         cover = cover == null ? cv : Math.min(cover, cv);
       }
     });
-    const fb = Number(S.fallbackTgt) > 0 ? Number(S.fallbackTgt) : null;
-    const ohSal = (PF_MODEL.oh || 0) + (PF_MODEL.sal || 0);
+    // Products without a unit cost: the brand's own break-even and/or target from Lists & settings (19 Nov audit: not
+    // "target + overhead" alone — a brand's real break-even is often known even when unit costs are not loaded).
+    const fbt = staFb(b);
     const lines = w > 0 ? { tgt: tw / w, be: bw / w, known: true, cover }
-      : fb ? { tgt: fb, be: fb + ohSal, known: false, fallback: true, cover } : { tgt: null, be: null, known: false, cover };
+      : fbt ? { tgt: fbt.tgt, be: fbt.be, known: false, fallback: true, cover } : { tgt: null, be: null, known: false, cover };
     // Product words: the product types named in the titles, the campaign and the ad group, plus the brand's own list.
     const cn = staName(b, cid), agn = staName(b, ag);
     const hay = staKey([cn, agn].concat(p.asins.map(staTitle)).join(' '));
@@ -882,10 +915,21 @@ function staTgtVerdict(g, info, P) {
   const last = staLastChange(g.pathKey);
   const cool = last && Date.now() - last < STA.COOLDOWN * 86400000;
   if (!(g.o > 0)) return staTgtNoSale(g, cool, last);
-  if (tgt == null) { g.hold = 'No unit cost: profit not judged'; return; }
+  if (tgt == null) {
+    // No unit cost and no target: an ACoS over 100% still loses money on every sale (19 Nov audit).
+    if (g.acos > STA.LOSS_ACOS && g.sp >= STA.LOSS_MIN_SP) {
+      g.cat = 'burn'; g.kind = 'loss'; g.burned = g.sp - g.s; g.next = 'reduce'; g.tgtUse = STA.LOSS_ACOS;
+      if (cool) { g.hold = `Bid changed by Sellora ${staDay(last)}: judged again after ${STA.COOLDOWN} days`; g.next = null; }
+      if (g.rl) g.next = null;
+      staTgtBid(g);
+      return;
+    }
+    g.hold = 'No unit cost: profit not judged'; return;
+  }
   const poor = g.c >= STA.POOR_CLICKS && g.rate && g.o / g.c < g.rate.p * STA.POOR_SHARE && staBinomLe(g.o, g.c, g.rate.p) < STA.CHANCE;
   g.beBrand = g.brandTerm;   // a brand term is held to the brand-term limit, not a break-even (18 Nov audit)
-  if (g.acos > be) { g.cat = 'burn'; g.kind = 'be'; g.burned = g.sp - g.s * be / 100; g.next = 'reduce'; }
+  if (g.acos > be && g.o < STA.BE_ORDERS) { g.cat = 'watch'; g.hold = `Above break-even on ${g.o} order${g.o === 1 ? '' : 's'}: watched until ${STA.BE_ORDERS}`; }
+  else if (g.acos > be) { g.cat = 'burn'; g.kind = 'be'; g.burned = g.sp - g.s * be / 100; g.next = 'reduce'; }
   else if (poor && g.acos > tgt) { g.cat = 'burn'; g.kind = 'poor'; g.burned = g.sp - g.s * tgt / 100; g.next = 'reduce'; }
   else if (g.acos > tgt) g.hold = `Between target ${staPct(tgt)} and break-even ${staPct(be)}: covers its costs`;
   else if (g.o >= STA.SCALE_ORDERS && g.acos <= tgt * STA.SCALE_SHARE) {
@@ -905,22 +949,37 @@ function staTgtNoSale(g, cool, last) {
   g.chance = p ? Math.pow(1 - p, g.c) : null;
   if (g.chance == null) { g.hold = 'Nothing in this brand has sold yet to compare with'; return; }
   if (g.chance >= STA.CHANCE) { g.cat = 'watch'; g.hold = `Could be chance: about ${staNeed(p, g.c)} more clicks to tell`; return; }
+  if (g.sp < STA.NOSALE_MIN_SP) { g.cat = 'watch'; g.hold = `No order yet on ${staMoney(g.sp)}: judged from ${staMoney(STA.NOSALE_MIN_SP)} of spend`; return; }
   g.cat = 'burn';
   g.kind = 'none';
   g.burned = g.sp;
-  g.next = g.noPause ? 'reduce' : 'pause';
+  // A pause is hard to take back: it needs under 1% chance; between 1% and 5%, a lower bid while more clicks come in.
+  g.next = g.noPause || g.chance >= STA.NEG_CHANCE ? 'reduce' : 'pause';
+  if (!g.noPause && g.chance >= STA.NEG_CHANCE) g.softNote = `Not yet sure enough to pause (about ${staNeed(p, g.c, STA.NEG_CHANCE)} more clicks): a lower bid meanwhile`;
   if (cool) { g.hold = `Bid changed by Sellora ${staDay(last)}: judged again after ${STA.COOLDOWN} days`; g.next = null; }
   if (g.rl) g.next = null;
   staTgtBid(g);
 }
 // The suggested bid of a target: the current bid (or, until it is read, the CPC) × target ÷ ACoS, within ±20% a step.
 function staTgtBid(g) {
-  const base = g.ent && g.ent.bid > 0 ? g.ent.bid : g.cpc;
+  const bid = g.ent && g.ent.bid > 0 ? g.ent.bid : 0;
+  const base = bid || g.cpc;
   if (!(base > 0)) return;
   const f = !(g.o > 0) || g.acos == null ? 1 - STA.STEP
     : Math.min(1 + STA.STEP, Math.max(1 - STA.STEP, (g.tgtUse || 0) / g.acos));
-  g.sugBid = Math.max(STA.MIN_BID, staR2(base * f));
-  g.bidBase = g.ent && g.ent.bid > 0 ? 'bid' : 'cpc';
+  // A cut from a bid far above what is paid per click changes nothing (19 Nov audit: bid $1.04, CPC $0.38 → $0.84):
+  // a cut is worked out from the lower of the two, so it bites; the 20% step is then measured from that same figure.
+  const down = f < 1;
+  const from = down && bid > 0 && g.cpc > 0 && g.cpc < bid ? g.cpc : base;
+  g.sugBid = staBidRound(from * f, from);
+  g.bidFrom = from;
+  g.bidBase = from === g.cpc && (!bid || g.cpc < bid) ? 'cpc' : 'bid';
+}
+// A bid to the cent, rounded TOWARD the figure it moves from, so a full 20% step never rounds past the limit (19 Nov
+// audit: $1.04 × 0.8 = $0.832 → $0.83 = −20.2%, and the dialog then refused its own default). Never under Amazon's minimum.
+function staBidRound(v, from) {
+  const c = v * 100, r = v < from ? Math.ceil(c - 1e-9) : v > from ? Math.floor(c + 1e-9) : Math.round(c);
+  return Math.max(STA.MIN_BID, r / 100);
 }
 
 /* THE VERDICT of one search term on one path: its badges, money burned, evidence, and the one next step or the reason
@@ -965,20 +1024,49 @@ function staVerdict(r, info) {
       b.push(['Watch', 'warn', `0 orders in ${r.c} clicks happens ${chancePct} of the time if it converted like ${r.rate.w}.`]);
       return finish();
     }
+    if (r.sp < STA.NOSALE_MIN_SP) {
+      r.cat = 'watch';
+      r.hold = `No order yet on ${staMoney(r.sp)}: judged from ${staMoney(STA.NOSALE_MIN_SP)} of spend`;
+      b.push(['Watch', 'warn', `0 orders in ${r.c} clicks, but only ${staMoney(r.sp)} spent.`]);
+      return finish();
+    }
     r.cat = 'burn';
     r.kind = 'none';
     r.burned = r.sp;
     b.push(['No sales', 'bad', `0 orders in ${r.c} clicks happens only ${chancePct} of the time if it converted like ${r.rate.w} (${(r.rate.p * 100).toFixed(1)}%): unlikely to be chance.`]);
     r.ev = short;
-    r.next = 'neg';
+    // A negative is hard to take back (19 Nov audit): it needs under 1% chance AND the settled window — the 30-day
+    // fallback counts the last 7 days, before all their sales are in. Short of that: a lower bid on its keyword meanwhile.
+    if (r.chance < STA.NEG_CHANCE && info.settled) r.next = 'neg';
+    else {
+      r.soft = true;
+      r.softNote = !info.settled ? 'From the 30-day report (the settled one is missing): its last 7 days\' sales are not all in, so no negative yet'
+        : `Not yet sure enough for a negative (about ${staNeed(r.rate.p, r.c, STA.NEG_CHANCE)} more clicks)`;
+      r.next = g && r.kw ? 'reduce' : null;
+      if (r.next) r.protectNote = r.softNote + ' — a lower bid on its keyword meanwhile';
+      else r.hold = r.softNote;
+    }
   } else if (tgt == null) {
-    // No unit cost: profit is not judged — except a clearly weaker path of a provisional lead, judged as a competing path.
-    if (!(r.role === 'other' && r.excess > 0.5 && r.group && r.group.provisional)) {
+    // No unit cost: profit is not judged — except an ACoS over 100%, where every sale costs more in ads than it brings
+    // whatever the cost (19 Nov audit: 190% and 110% sat on Hold), and a clearly weaker path of a provisional lead.
+    if (r.acos > STA.LOSS_ACOS && r.sp >= STA.LOSS_MIN_SP && r.c >= STA.MIN_CLICKS) {
+      r.cat = 'burn';
+      r.kind = 'loss';
+      r.burned = Math.max(0, r.sp - r.s);
+      r.tgtUse = r.beUse = STA.LOSS_ACOS;
+      r.next = g && g.acos != null && g.acos > STA.LOSS_ACOS ? 'reduce' : 'neg';
+      b.push(['Above 100% ACoS', 'bad', `${staMoney(r.sp)} of ads for ${staMoney(r.s)} of sales: every sale costs more in ads than it brings, whatever the unit cost.`]);
+      r.ev = short;
+    } else if (!(r.role === 'other' && r.excess > 0.5 && r.group && r.group.provisional)) {
       r.hold = 'No unit cost: profit not judged';
       b.push(['Selling', 'ok']);
       return finish();
-    }
-    r.ev = short;
+    } else r.ev = short;
+  } else if (r.acos > be && r.c >= STA.MIN_CLICKS && r.o < STA.BE_ORDERS) {
+    // One or two orders are not a pattern (19 Nov audit): watched until there are enough.
+    r.cat = 'watch';
+    r.hold = `Above ${brandTerm ? 'the brand limit' : 'break-even'} on ${r.o} order${r.o === 1 ? '' : 's'}: watched until ${STA.BE_ORDERS}`;
+    b.push(['Watch', 'warn', `ACoS ${staPct(r.acos)} on ${r.o} order${r.o === 1 ? '' : 's'}.`]);
   } else if (r.acos > be && r.c >= STA.MIN_CLICKS) {
     r.cat = 'burn';
     r.kind = 'be';
@@ -1059,8 +1147,13 @@ function staVerdict(r, info) {
   }
   // Seasonal out of season: no bid cut on old figures either.
   if (r.tagSet.has('season') && !r.season.inSeason && (r.next === 'reduce' || r.next === 'iso')) { r.next = null; r.hold = 'Seasonal, out of season: held until it comes round'; }
+  // No negative of any kind from the 30-day fallback window (its last 7 days' sales are not all in yet).
+  if (!info.settled && (r.next === 'neg' || r.next === 'pause' || r.next === 'iso')) {
+    r.next = null;
+    r.hold = 'Negatives wait for the settled report (this is the 30-day one: its last 7 days\' sales are not all in)';
+  }
   if (r.next === 'reduce' || r.next === 'raise') {
-    if (!g) { r.next = r.next === 'reduce' && !r.noNeg && !r.main ? 'neg' : null; if (!r.next) r.hold = "Amazon didn't report which target caught this term"; }
+    if (!g) { r.next = r.next === 'reduce' && !r.noNeg && !r.main && !r.soft ? 'neg' : null; if (!r.next) r.hold = r.softNote || "Amazon didn't report which target caught this term"; }
     else if (g.rl) { r.status = 'In review'; }
     else if (g.hold && /changed by Sellora/.test(g.hold)) { r.hold = g.hold; r.next = null; }
   }
@@ -1472,15 +1565,15 @@ function staDataLine(M) {
   if (multi) parts.push(`<span class="sta-dash">${staInt(multi)} row${multi === 1 ? ' has' : 's have'} more orders than clicks — normal with 7-day attribution (a shopper orders again, or several products, after one click): kept and judged</span>`);
   // #1 (18 Nov): without unit costs nothing can be "above break-even". Say per brand exactly what is still judged — the
   // brand-term limit works without costs, so the cards may show brand terms (18 Nov audit: "10 above break-even").
-  const noTgt = M.brands.filter(b => !(Number(staSet(b).fallbackTgt) > 0)), withTgt = M.brands.filter(b => Number(staSet(b).fallbackTgt) > 0);
+  const noTgt = M.brands.filter(b => !staFb(b)), withTgt = M.brands.filter(b => !!staFb(b));
   if (!ST.costs) {
     const why = ST.costErr ? 'Unit costs could not be read for your account (Profit &amp; Margin access needed)' : 'No unit costs in Profit &amp; Margin';
     parts.push(noTgt.length
       ? `<div class="sta-warnline sta-costwarn"><b>${why}, and no target ACoS for ${noTgt.map(staBrandName).join(' or ')}.</b> For ${noTgt.length > 1 ? 'them' : 'it'} Sellora judges only search terms with no sales, and brand terms against the ${STA.BRAND_TGT}% brand-term limit — nothing else is called above break-even or worth scaling, placements get no Raise or Lower, and competing paths stay provisional. `
-        + (withTgt.length ? `${withTgt.map(b => staBrandName(b) + ' is judged against your ' + staSet(b).fallbackTgt + '% target').join('; ')}. ` : '')
+        + (withTgt.length ? `${withTgt.map(b => staBrandName(b) + ' is judged against your ' + staFbTxt(b)).join('; ')}. ` : '')
         + `Set a target ACoS to switch the rest on now; unit costs replace it product by product when they arrive. `
         + `<button type="button" class="sta-btn sm" data-settgt="1">Set a target ACoS</button></div>`
-      : `<span class="sta-dash">${why}: judged against your target ACoS (${M.brands.map(b => staBrandName(b) + ' ' + staSet(b).fallbackTgt + '%').join(', ')}) from Lists &amp; settings</span>`);
+      : `<span class="sta-dash">${why}: judged against your settings (${M.brands.map(b => staBrandName(b) + ' ' + staFbTxt(b)).join(', ')}) from Lists &amp; settings</span>`);
   }
   parts.push(staSrcLine());
   if (!ST.ent) parts.push('Until Amazon IDs and bids are read, bids are worked from the CPC and bid changes wait in the review list');
@@ -1569,8 +1662,18 @@ function staSummary(L) {
 // Is any brand in view without unit costs AND without a target ACoS (only no-sales and brand terms are judged)?
 function staNoTarget() {
   const pick = ($('stBrand') || {}).value || 'ALL';
-  return !ST.costs && (pick === 'ALL' ? ['SP', 'CPC'] : [pick]).some(b => !(Number(staSet(b).fallbackTgt) > 0));
+  return !ST.costs && (pick === 'ALL' ? ['SP', 'CPC'] : [pick]).some(b => !staFb(b));
 }
+// A brand's own target and break-even for products without a unit cost (Lists & settings), or null. Either one is enough:
+// target only → break-even = target + overhead + salary; break-even only → target = break-even − those (at least 1%).
+function staFb(b) {
+  const S = staSet(b), ohSal = (PF_MODEL.oh || 0) + (PF_MODEL.sal || 0);
+  const t = Number(S.fallbackTgt) > 0 ? Number(S.fallbackTgt) : null, e = Number(S.fallbackBe) > 0 ? Number(S.fallbackBe) : null;
+  if (!t && !e) return null;
+  const tgt = t || Math.max(1, e - ohSal), be = Math.max(e || t + ohSal, tgt);
+  return { tgt, be, setBe: !!e };
+}
+const staFbTxt = b => { const f = staFb(b); return f ? `${Math.round(f.tgt)}% target · ${Math.round(f.be)}% break-even` : 'no target'; };
 // The four boxes over the table.
 function staBoxes(L) {
   const IC = {
@@ -1593,7 +1696,8 @@ function staBoxes(L) {
   const scB = L.scale.filter(r => r.scaleBrand).length, scN = L.scale.length - scB;
   const excess = L.groups.reduce((t, g) => t + g.shown.filter(r => r.role === 'other').reduce((u, r) => u + (r.excess || 0), 0), 0);
   const provEx = L.groups.filter(g => g.provisional).reduce((t, g) => t + g.shown.filter(r => r.role === 'other').reduce((u, r) => u + (r.excess || 0), 0), 0);
-  const burnQ = [`${staInt(none)} with no sales`].concat(be ? [`${staInt(be)} above break-even`] : [])
+  const loss = L.burn.filter(r => r.kind === 'loss').length;
+  const burnQ = [`${staInt(none)} with no sales`].concat(loss ? [`${staInt(loss)} over 100% ACoS`] : []).concat(be ? [`${staInt(be)} above break-even`] : [])
     .concat(beB ? [`${staInt(beB)} brand term${beB === 1 ? '' : 's'} over the ${STA.BRAND_TGT}% brand limit`] : []).concat(poor ? [`${staInt(poor)} converting poorly`] : []).join(', ') + '.';
   const scaleQ = !L.scale.length ? (staNoTarget() ? 'Needs a unit cost or a target ACoS to judge what sells under target.' : 'Nothing selling well enough under target yet.')
     : (scN ? `${staInt(scN)} selling under target with room to grow` : '') + (scN && scB ? ', ' : '')
@@ -1763,7 +1867,8 @@ function staDrawBurn(L) {
   const tot = rows.reduce((t, r) => t + r.burned, 0);
   const none = rows.filter(r => r.kind === 'none').length, poor = rows.filter(r => r.kind === 'poor').length;
   const beB = rows.filter(r => r.kind === 'be' && r.beBrand).length, be = rows.filter(r => r.kind === 'be' && !r.beBrand).length;
-  staHead('Which search terms are burning money?', `${staInt(rows.length)} terms: ${staInt(none)} with no sales${be ? `, ${staInt(be)} above break-even` : ''}${beB ? `, ${staInt(beB)} brand term${beB === 1 ? '' : 's'} over the ${STA.BRAND_TGT}% brand-term limit` : ''}${poor ? `, ${staInt(poor)} converting at under half the normal rate` : ''}.`
+  const loss = rows.filter(r => r.kind === 'loss').length;
+  staHead('Which search terms are burning money?', `${staInt(rows.length)} terms: ${staInt(none)} with no sales${loss ? `, ${staInt(loss)} over 100% ACoS` : ''}${be ? `, ${staInt(be)} above break-even` : ''}${beB ? `, ${staInt(beB)} brand term${beB === 1 ? '' : 's'} over the ${STA.BRAND_TGT}% brand-term limit` : ''}${poor ? `, ${staInt(poor)} converting at under half the normal rate` : ''}.`
     + ` Protected terms (brand, product words, main keywords, seasonal, own ASINs) get a lower bid or a hold — never a negative.`);
   const body = page.map(r => `<tr${ST_SEL.has(r.key) ? ' class="sel"' : ''}>
       ${staTermCell(r)}${staVerdictCell(r, true)}${staNextCell(r)}
@@ -1791,11 +1896,13 @@ function staDrawBurnTgt(L) {
     const ev = `${staInt(g.o)} order${g.o === 1 ? '' : 's'} in <b>${staInt(g.c)} clicks</b> · ROAS <b>${g.sp > 0 ? (g.s / g.sp).toFixed(2) : '—'}</b>`
       + (g.beUse ? ` · break-even ${staRoas(g.beUse)}` : '') + (g.kind === 'poor' ? ' · converts at under half the usual rate' : '');
     const tip = g.kind === 'none' && g.chance != null && p ? `0 orders in ${g.c} clicks happens only ${(g.chance * 100).toFixed(1)}% of the time at ${(p * 100).toFixed(1)}% (${g.rate.w}).`
+      : g.kind === 'loss' ? `${staMoney(g.sp)} of ads for ${staMoney(g.s)} of sales: every sale costs more in ads than it brings, whatever the unit cost.`
       : g.kind === 'be' ? `ACoS ${staPct(g.acos)} vs break-even ${staPct(g.beUse)}: ${staMoney(g.burned)} over.`
         : g.kind === 'poor' ? `Under half ${g.rate.w}'s rate; ACoS ${staPct(g.acos)} over target ${staPct(g.tgtUse)}.` : (g.hold || '');
-    const v = Object.assign({}, g, { badges: [[g.cat === 'watch' ? 'Watch' : g.kind === 'none' ? 'No sales' : g.kind === 'be' ? 'Above break-even' : 'Converts poorly', g.cat === 'watch' ? 'warn' : 'bad', tip]], ev: g.cat === 'watch' ? (g.hold || ev) : ev,
+    const v = Object.assign({}, g, { badges: [[g.cat === 'watch' ? 'Watch' : g.kind === 'none' ? 'No sales' : g.kind === 'loss' ? 'Above 100% ACoS' : g.kind === 'be' ? (g.beBrand ? 'Above brand limit' : 'Above break-even') : 'Converts poorly', g.cat === 'watch' ? 'warn' : 'bad', tip]], ev: g.cat === 'watch' ? (g.hold || ev) : ev,
       status: g.rl ? 'In review' : 'Active', act: !!(g.next && !/limit|lowstock/.test(g.next) && !g.rl), tags: [] });
     if (g.noPause && g.next === 'reduce' && g.kind === 'none') v.protectNote = `A ${g.noPause}: lowered, never paused`;
+    else if (g.softNote && g.next === 'reduce') v.protectNote = g.softNote;
     return `<tr${ST_SEL.has(g.key) ? ' class="sel"' : ''}>
       <td class="sta-stick">${staTick(v)}<div class="sta-tc"><div class="sta-term">${staEsc(staPathLabel(g.kw, g.mt))}</div><div class="sta-under">${staBadge(staBrandName(g.brand), 'brand-' + g.brand)}</div></div></td>
       ${staVerdictCell(v, true)}${staNextCell(v)}
@@ -1916,7 +2023,7 @@ async function staQuickNeg(key, phrase, btn) {
   try { for (const it of items) await staRlSave(it); } catch (e) { stFoot(`<span>Could not add it: ${staEsc(e.message || e)}</span>`, true); return; }
   STM = null;
   renderSt();
-  stFoot(`<span>Added a ${phrase ? 'negative phrase' : r.asin ? 'negative ASIN target' : 'negative exact'} for "${staEsc(r.term)}" to the review list.</span>`);
+  staAddedFoot(items, `Added a ${phrase ? 'negative phrase' : r.asin ? 'negative ASIN target' : 'negative exact'} for "${staEsc(r.term)}" to the review list.`);
 }
 
 // The selection bar.
@@ -2031,11 +2138,15 @@ function staOpen(kind, key) {
     const cur = r.ent && r.ent.bid > 0 ? r.ent.bid : null;
     STD.cur = cur;
     const base0 = cur != null ? cur : r.cpc;
-    const sug = !up && base0 > 0 && !(r.sugBid > 0 && r.sugBid < base0) ? Math.max(STA.MIN_BID, staR2(base0 * (1 - STA.STEP))) : r.sugBid;
+    // A cut is worked from what is actually paid when the bid is far above it (19 Nov audit); rounded toward the bid.
+    const ref0 = !up && cur != null && r.cpc > 0 && r.cpc < cur ? r.cpc : base0;
+    STD.ref = ref0;
+    const sug = !up && base0 > 0 && !(r.sugBid > 0 && r.sugBid < base0) ? staBidRound(ref0 * (1 - STA.STEP), ref0) : r.sugBid;
     by.innerHTML = staFigs(r) + `<div class="sta-row2">
       <div class="sta-f"><label for="stBidNew">New bid (USD)</label><input id="stBidNew" type="number" min="0.02" step="0.01" value="${sug ? sug.toFixed(2) : ''}"></div>
       <div class="sta-f"><label for="stBidCur">Current bid</label><input id="stBidCur" type="number" min="0.02" step="0.01" value="${cur != null ? cur.toFixed(2) : ''}"${cur != null ? ' disabled' : ' placeholder="From the Ads console"'}>
-        ${cur == null ? `<small>Not read from Amazon yet. The suggestion is worked from the CPC (${staMoney(r.cpc)}); type the bid from the console to work it from that.</small>` : ''}</div></div>
+        ${cur == null ? `<small>Not read from Amazon yet: type it from the Ads console. A change can't be sent without it — worked from the CPC alone, a "lower" bid could end up above the real one.</small>`
+          : r.cpc > 0 ? `<small>You pay ${staMoney(r.cpc)} a click on average${r.cpc < cur * (1 - STA.STEP) ? ' — far under the bid, so a cut is worked from that' : ''}.</small>` : ''}</div></div>
       <div id="stBidCalc" class="sta-calc"></div><div id="stDlgChecks" class="sta-checks"></div>`;
   } else if (kind === 'pause') {
     const isTgt = r.type === 'target';
@@ -2173,16 +2284,18 @@ function staDlgCheck() {
     const curIn = Number($('stBidCur').value);
     const cur = STD.cur || (curIn > 0 ? curIn : null);
     const tgt = r.tgtUse;
+    // The figure a cut is measured from: what is actually paid when the bid is far above it (19 Nov audit).
+    const ref = !up && cur && r.cpc > 0 && r.cpc < cur ? r.cpc : cur;
     if (!STD.cur && cur && !$('stBidNew').dataset.touched && r.acos > 0 && tgt) {
       const f = up ? Math.min(1 + STA.STEP, Math.max(1 - STA.STEP, tgt / r.acos)) : Math.max(1 - STA.STEP, Math.min(0.95, tgt / r.acos));
-      $('stBidNew').value = Math.max(STA.MIN_BID, staR2(cur * f)).toFixed(2);
-    } else if (!STD.cur && cur && !$('stBidNew').dataset.touched && !(r.o > 0)) $('stBidNew').value = Math.max(STA.MIN_BID, staR2(cur * (1 - STA.STEP))).toFixed(2);
+      $('stBidNew').value = staBidRound(ref * f, ref).toFixed(2);
+    } else if (!STD.cur && cur && !$('stBidNew').dataset.touched && !(r.o > 0)) $('stBidNew').value = staBidRound(ref * (1 - STA.STEP), ref).toFixed(2);
     const nbv = Number($('stBidNew').value);
     STD.from = cur;
     STD.to = nbv;
-    const base = cur || r.cpc;
+    const base = ref || r.cpc;
     const byFormula = r.o > 0 && r.acos > 0 && tgt != null && (up ? tgt / r.acos > 1 : tgt / r.acos < 1);
-    $('stBidCalc').innerHTML = `${cur ? 'The bid' : 'The CPC'} ${staMoney(base)} × ${byFormula ? `target ${staPct(tgt)} ÷ ACoS ${staPct(r.acos)}`
+    $('stBidCalc').innerHTML = `${cur && ref === cur ? 'The bid' : cur ? 'What you pay a click' : 'The CPC'} ${staMoney(base)} × ${byFormula ? `target ${staPct(tgt)} ÷ ACoS ${staPct(r.acos)}`
       : !(r.o > 0) ? `${Math.round((1 - STA.STEP) * 100)}% (no sales)` : `${Math.round((1 - STA.STEP) * 100)}% (a lower bid you asked for)`}, within ±${Math.round(STA.STEP * 100)}% a step.`
       + (tgt != null ? ` Target ${staPct(tgt)} · break-even ${staPct(r.beUse)}${r.brandTerm ? ' (brand term)' : r.ln.known ? '' : r.ln.fallback ? ' (your setting)' : ''}.` : '');
     if (!(nbv >= STA.MIN_BID)) bad(`The new bid must be at least ${staMoney(STA.MIN_BID)}.`);
@@ -2196,11 +2309,13 @@ function staDlgCheck() {
     if (last && Date.now() - last < STA.COOLDOWN * 86400000) bad(`Sellora changed this bid ${staDay(last)}: wait ${STA.COOLDOWN} days so the change can show.`);
     else out.push(staCheck('ok', last ? `Last change from Sellora: ${staDays(last)} days ago` : 'No change to this bid recorded by Sellora'));
     if (cur && nbv > 0) {
-      const step = nbv / cur - 1;
-      if ((up && step <= 0) || (!up && step >= 0)) bad(`The new bid is not ${up ? 'above' : 'below'} the current ${staMoney(cur)}.`);
-      else if (Math.abs(step) > STA.STEP + 0.0001) bad(`${(step * 100).toFixed(1)}% is past the safety limit of ${Math.round(STA.STEP * 100)}% a step.`);
-      else out.push(staCheck('ok', `Within the safety limit (${step > 0 ? '+' : ''}${(step * 100).toFixed(1)}%)`));
-    } else out.push(staCheck('warn', `Current bid not known: worked from the CPC. Check the console's bid before uploading.`));
+      // The 20% step is measured from what is paid when a cut starts from a bid far above it; the new bid must still be
+      // below (or for a raise, above) the current bid itself.
+      const step = nbv / (ref || cur) - 1, real = nbv / cur - 1;
+      if ((up && real <= 0) || (!up && real >= 0)) bad(`The new bid is not ${up ? 'above' : 'below'} the current ${staMoney(cur)}.`);
+      else if (Math.abs(step) > STA.STEP + 0.0001) bad(`${(step * 100).toFixed(1)}% ${ref !== cur ? `from what you pay (${staMoney(ref)}) ` : ''}is past the safety limit of ${Math.round(STA.STEP * 100)}% a step.`);
+      else out.push(staCheck('ok', `Within the safety limit (${step > 0 ? '+' : ''}${(step * 100).toFixed(1)}%${ref !== cur ? ` from ${staMoney(ref)} a click; ${(real * 100).toFixed(0)}% off the bid` : ''})`));
+    } else bad('Current bid not known: type it from the Ads console first.');
     if (!r.ent && !r.kid) idNote();
   } else if (kind === 'pause') {
     if (r.type === 'target' && r.noPause) bad(`A ${staEsc(r.noPause)}: lowered, never paused.`);
@@ -2279,13 +2394,20 @@ function staDlgCheck() {
 }
 
 // When Sellora last sent a bid or state change for this path (exported or done), in ms; 0 when never.
+// The last change Sellora made to a keyword or target: from when Amazon's record showed it (doneAt) — a download is not an
+// upload (19 Nov audit) — or, while it is still out in a file and not seen yet, from the download.
 function staLastChange(pathKey) {
   let t = 0;
   ST_RL.items.forEach(x => {
-    if ((x.kind === 'bid' || x.kind === 'pause') && (x.status === 'exported' || x.status === 'done') && x.pathKey === pathKey) t = Math.max(t, x.exportedAt || 0);
+    if (!((x.kind === 'bid' || x.kind === 'pause') && x.pathKey === pathKey)) return;
+    if (x.status === 'done' || x.status === 'applied') t = Math.max(t, x.doneAt || x.appliedAt || x.exportedAt || 0);
+    else if (x.status === 'exported') t = Math.max(t, x.exportedAt || 0);
   });
   return t;
 }
+// Is an item matching f still open (waiting, approved, or out in a file and not seen at Amazon yet)?
+const STA_OPEN_ST = ['review', 'approved', 'exported', 'applying'];
+const staRlOpenFor = f => ST_RL.items.some(x => STA_OPEN_ST.includes(x.status) && f(x));
 function staClose() {
   $('stDlg').classList.add('hide');
   STD = null;
@@ -2308,7 +2430,7 @@ async function staDlgOk() {
     staClose();
     STM = null;
     renderSt();
-    stFoot(`<span>Added ${items.length === 1 ? staEsc(staKindName(items[0])) + ' · ' + staEsc(items[0].term || items[0].target) : items.length + ' changes'} to the review list.</span>`);
+    staAddedFoot(items, `Added ${items.length === 1 ? staEsc(staKindName(items[0])) + ' · ' + staEsc(items[0].term || items[0].target) : items.length + ' changes'} to the review list.`);
   } catch (e) {
     $('stDlgOk').disabled = false;
     $('stDlgChecks').insertAdjacentHTML('beforeend', staCheck('bad', 'Could not save: ' + staEsc(e.message || e)));
@@ -2325,10 +2447,18 @@ let ST_RL = { items: [], where: '', stamp: 0, err: '', tab: 'open', sel: new Set
 const STA_LOCAL = 'staReview';
 
 async function staRlLoad() {
+  // Every open item (waiting, approved, out in a file, being applied) plus 60 days of finished ones — not just the newest
+  // 500 (19 Nov audit) — and kept live, so two people never approve or download the same change twice.
   try {
-    const snap = await getDocs(query(collection(db, 'adsActions'), orderBy('at', 'desc'), limit(500)));
-    ST_RL.items = snap.docs.map(d => Object.assign({}, d.data(), { id: d.id }));
+    const col = collection(db, 'adsActions'), since = Date.now() - 60 * 86400000;
+    const [a, b] = await Promise.all([getDocs(query(col, where('status', 'in', STA_OPEN_ST))),
+      getDocs(query(col, where('at', '>=', since), orderBy('at', 'desc')))]);
+    const m = new Map();
+    [a, b].forEach(s => s.docs.forEach(d => m.set(d.id, Object.assign({}, d.data(), { id: d.id }))));
+    ST_RL.items = [...m.values()].sort((p, q) => (q.at || 0) - (p.at || 0));
     ST_RL.where = 'fs';
+    ST_RL.err = '';
+    staRlListen();
   } catch (e) {
     ST_RL.where = 'local';
     ST_RL.err = String((e && (e.code || e.message)) || e);
@@ -2336,20 +2466,75 @@ async function staRlLoad() {
   }
   ST_RL.stamp++;
 }
+// Live: what anyone else adds, approves, downloads or removes shows here within seconds.
+let STA_RL_LIVE = null, STA_RL_LIVE_T = 0;
+function staRlListen() {
+  if (STA_RL_LIVE || typeof onSnapshot !== 'function') return;
+  try {
+    const col = collection(db, 'adsActions'), since = Date.now() - 60 * 86400000;
+    const on = s => {
+      let changed = false;
+      (s.docs || []).forEach(d => {
+        const v = Object.assign({}, d.data(), { id: d.id });
+        const i = ST_RL.items.findIndex(x => x.id === v.id);
+        if (i < 0) { ST_RL.items.unshift(v); changed = true; }
+        else if ((ST_RL.items[i].up || 0) < (v.up || 0) || ST_RL.items[i].status !== v.status) { ST_RL.items[i] = v; changed = true; }
+      });
+      if (!changed) return;
+      ST_RL.stamp++;
+      staRlBadge();
+      clearTimeout(STA_RL_LIVE_T);
+      STA_RL_LIVE_T = setTimeout(() => {
+        if (!$('stRl').classList.contains('hide') && !ST_RL.preview) staRlDraw();
+        STM = null;
+        if ($('paneSt') && !$('paneSt').classList.contains('hide') && $('stDlg').classList.contains('hide')) renderSt();
+      }, 700);
+    };
+    STA_RL_LIVE = [query(col, where('status', 'in', STA_OPEN_ST)), query(col, where('at', '>=', since), orderBy('at', 'desc'))]
+      .map(q => onSnapshot(q, on, () => { /* the list stays as last read */ }));
+  } catch (e) { STA_RL_LIVE = null; }
+}
+// Save one item. A failed save is an error the person sees — never a quiet switch to "this browser only" for the rest of
+// the session (19 Nov audit). This browser is used only when the shared list could not be read at all.
 async function staRlSave(it) {
   it.up = Date.now();
   const clean = JSON.parse(JSON.stringify(it));
   delete clean.id;
-  if (ST_RL.where === 'fs') {
-    try { await setDoc(doc(db, 'adsActions', it.id), clean); } catch (e) { ST_RL.where = 'local'; ST_RL.err = String((e && (e.code || e.message)) || e); }
-  }
+  if (ST_RL.where === 'fs') await setDoc(doc(db, 'adsActions', it.id), clean);
   const i = ST_RL.items.findIndex(x => x.id === it.id);
   if (i >= 0) ST_RL.items[i] = it; else ST_RL.items.unshift(it);
   if (ST_RL.where === 'local') {
-    try { localStorage.setItem(STA_LOCAL, JSON.stringify(ST_RL.items.slice(0, 500))); } catch (e) { throw new Error('this browser would not store it'); }
+    try { localStorage.setItem(STA_LOCAL, JSON.stringify(ST_RL.items.slice(0, 1500))); } catch (e) { throw new Error('this browser would not store it'); }
   }
   ST_RL.stamp++;
 }
+// Move one item to a new status only if it is still in one of `from` — inside a transaction at the shared list, so a
+// change someone else made meanwhile wins and is reported. Returns '' when done, else why not.
+async function staRlMove(x, from, patch) {
+  const fromTxt = s => ({ review: 'waiting', approved: 'approved', exported: 'downloaded', done: 'done', removed: 'removed', applied: 'applied' }[s] || s);
+  if (ST_RL.where !== 'fs') {
+    if (!from.includes(x.status)) return `it is ${fromTxt(x.status)} now`;
+    Object.assign(x, patch);
+    try { await staRlSave(x); return ''; } catch (e) { return 'could not save: ' + (e.message || e); }
+  }
+  try {
+    const ref = doc(db, 'adsActions', x.id);
+    const res = await runTransaction(db, async tx => {
+      const s = await tx.get(ref);
+      const cur = s.exists() ? s.data() : null;
+      if (!cur) return 'it is no longer in the list';
+      if (!from.includes(cur.status)) { Object.assign(x, cur); return `someone made it ${fromTxt(cur.status)} meanwhile`; }
+      const next = Object.assign({}, cur, patch, { up: Date.now() });
+      tx.set(ref, next);
+      return '';
+    });
+    if (!res) Object.assign(x, patch, { up: Date.now() });
+    ST_RL.stamp++;
+    return res;
+  } catch (e) { return 'could not save: ' + String((e && (e.code || e.message)) || e); }
+}
+// The name of the person behind an email: the part before @ (it@ is the shared office login).
+const staWho = e => { const s = String(e || '').split('@')[0]; return s ? s[0].toUpperCase() + s.slice(1) : ''; };
 // Open items by row key, path key and word key; done negatives by 'done:' + key.
 function staRlIndex() {
   const m = new Map();
@@ -2380,8 +2565,9 @@ function staItem(r, kind, extra) {
   }, extra);
 }
 function staNegItem(r, type, level) {
-  const why = r.kind === 'none' ? `0 orders in ${staInt(r.c)} clicks${r.chance != null ? ' · ' + (r.chance * 100).toFixed(1) + '% chance' : ''}`
-    : r.kind === 'be' ? `ACoS ${staPct(r.acos)} vs break-even ${staPct(r.beUse)}` : r.kind === 'poor' ? `${staInt(r.o)} orders in ${staInt(r.c)} clicks, under half the normal rate`
+  const why = r.kind === 'none' ? `0 orders in ${staInt(r.c)} clicks · ${staMoney(r.sp)} spent`
+    : r.kind === 'loss' ? `ACoS ${staPct(r.acos)}: ads cost more than the sales`
+    : r.kind === 'be' ? `ACoS ${staPct(r.acos)} vs ${r.beBrand ? 'the brand limit' : 'break-even'} ${staPct(r.beUse)}` : r.kind === 'poor' ? `${staInt(r.o)} orders in ${staInt(r.c)} clicks, under half the normal rate`
       : r.role === 'other' ? `Competing path · ${staMoney(r.excess)} overlap cost; lead at ${staPct(r.leadAcos)}` : `ACoS ${staPct(r.acos)}`;
   return staItem(r, 'neg', { neg: { type, level }, what: (type === 'na' ? 'Negative ASIN target' : STA.NEG[type].t) + ' · ' + (level === 'cp' ? 'campaign level' : 'ad-group level'), why });
 }
@@ -2389,7 +2575,8 @@ function staBidItem(g, dir, from, to) {
   return staItem(g, 'bid', {
     bid: { from: from || null, to: staR2(to), dir, base: from ? 'bid' : 'cpc', cpc: g.cpc ? staR2(g.cpc) : null },
     what: from ? `${staMoney(from)} → ${staMoney(to)}` : `New bid ${staMoney(to)} (CPC ${staMoney(g.cpc)})`,
-    why: g.kind === 'none' ? `0 orders in ${staInt(g.c)} clicks` : `ACoS ${staPct(g.acos)} vs ${dir === 'up' ? 'target ' + staPct(g.tgtUse) : 'break-even ' + staPct(g.beUse)}`,
+    why: g.kind === 'none' ? `0 orders in ${staInt(g.c)} clicks · ${staMoney(g.sp)} spent` : g.kind === 'loss' ? `ACoS ${staPct(g.acos)}: ads cost more than the sales`
+      : `ACoS ${staPct(g.acos)} vs ${dir === 'up' ? 'target ' + staPct(g.tgtUse) : 'break-even ' + staPct(g.beUse)}`,
   });
 }
 function staExactItem(r, kind, c, bid) {
@@ -2442,17 +2629,29 @@ function staQuick(r) {
     if (!r.asin && (r.term.trim().split(/\s+/).length > 10 || r.term.length > 80)) return { skip: 'too long' };
     if (staNegAtAmazon(r.brand, level === 'cp' ? 'cp|' + r.cid : 'ag|' + r.ag, r.term, r.asin ? 'na' : 'nx')) return { skip: 'already negated' };
     if (staDayCount(r.brand) >= STA.DAY_MAX) return { skip: 'day\'s limit reached' };
+    if (staRlOpenFor(x => x.kind === 'neg' && x.key === r.key)) return { skip: 'already in the review list' };
     return { items: [staNegItem(r, type, level)] };
   }
+  // The same checks as the dialogs (19 Nov audit: tick-all skipped them): duplicates, the wait after a change, a known bid.
   const g = r.type === 'target' ? r : r.tr;
   if ((n === 'reduce' || n === 'raise') && g && g.sugBid) {
-    if (ST_RL.items.some(x => x.pathKey === g.pathKey && (x.status === 'review' || x.status === 'approved' || x.status === 'exported'))) return { skip: 'already in the review list' };
-    return { items: [staBidItem(g, n === 'raise' ? 'up' : 'down', g.ent && g.ent.bid > 0 ? g.ent.bid : null, g.sugBid)] };
+    if (staRlOpenFor(x => x.pathKey === g.pathKey && (x.kind === 'bid' || x.kind === 'pause'))) return { skip: 'already in the review list' };
+    if (!(g.ent && g.ent.bid > 0)) return { skip: 'current bid not read from Amazon yet (open it to type the bid)' };
+    const last = staLastChange(g.pathKey);
+    if (last && Date.now() - last < STA.COOLDOWN * 86400000) return { skip: `bid changed ${staDay(last)}, wait ${STA.COOLDOWN} days` };
+    return { items: [staBidItem(g, n === 'raise' ? 'up' : 'down', g.ent.bid, g.sugBid)] };
   }
-  if (n === 'pause') return r.noPause ? { skip: r.noPause } : { items: [staItem(r, 'pause', { what: 'Pause', why: r.type === 'target' ? `0 orders in ${staInt(r.c)} clicks` : 'Duplicate exact keyword' })] };
+  if (n === 'pause') {
+    if (r.noPause) return { skip: r.noPause };
+    if (staRlOpenFor(x => x.pathKey === r.pathKey && (x.kind === 'bid' || x.kind === 'pause'))) return { skip: 'already in the review list' };
+    return { items: [staItem(r, 'pause', { what: 'Pause', why: r.type === 'target' ? `0 orders in ${staInt(r.c)} clicks · ${staMoney(r.sp)} spent` : 'Duplicate exact keyword' })] };
+  }
   if (n === 'exact' || n === 'asinT') {
     const c = staDestinations(r, n === 'asinT')[0];
-    return c ? { items: [staExactItem(r, n, c, r.sugBid)] } : { skip: 'no ad group to add it to' };
+    if (!c) return { skip: 'no ad group to add it to' };
+    if (staRlOpenFor(x => (x.kind === 'exact' || x.kind === 'asinT') && x.key === r.key)) return { skip: 'already in the review list' };
+    if (!r.asin && (r.term.trim().split(/\s+/).length > STA.KW.words || r.term.length > STA.KW.chars)) return { skip: 'too long for a keyword' };
+    return { items: [staExactItem(r, n, c, r.sugBid)] };
   }
   if (n === 'iso') {
     const c = staDestinations(r, false).filter(x => x.ag !== r.ag)[0];
@@ -2485,11 +2684,7 @@ async function staRlSeen() {
       const hit = staEntOf(x.brand, x.ag, x.kw, x.mt);
       seen = !!hit && (x.kind === 'pause' ? /PAUSED/i.test(hit.st || '') : Math.abs((hit.bid || 0) - x.bid.to) < 0.005);
     }
-    if (seen) {
-      x.status = 'done';
-      x.doneAt = Date.now();
-      jobs.push(staRlSave(x).catch(() => { /* written next time */ }));
-    }
+    if (seen) jobs.push(staRlMove(x, ['exported'], { status: 'done', doneAt: Date.now() }));
   });
   await Promise.all(jobs);
 }
@@ -2501,66 +2696,133 @@ function staRlOpen() {
   staRlDraw();
 }
 // Draw the review list (open / done / removed), or the bulk-file preview.
+// Open: waiting and approved (and any apply that failed). Downloaded and done: by bulk file, each with Download again and
+// Undo this file; a file not seen at Amazon after 3 days says so. Removed: Restore. (19 Nov audit.)
 function staRlDraw() {
   if (ST_RL.preview) return staPreview();
   const tab = ST_RL.tab;
   $('stRlTitle').textContent = 'Review list';
   $('stRlSeg').classList.remove('hide');
   $('stRlBack').classList.add('hide');
-  $('stRlRemove').classList.remove('hide');
-  $('stRlApprove').classList.remove('hide');
+  const showB = (id, on) => { if ($(id)) $(id).classList.toggle('hide', !on); };
+  showB('stRlRemove', tab === 'open'); showB('stRlApprove', tab === 'open'); showB('stRlUnapprove', tab === 'open');
+  showB('stRlRestore', tab === 'removed'); showB('stRlCancel', tab === 'done'); showB('stRlDl', tab === 'open'); showB('stRlApply', tab === 'open');
   $('stRlSeg').querySelectorAll('[data-r]').forEach(x => x.classList.toggle('on', x.dataset.r === tab));
-  const list = ST_RL.items.filter(x => tab === 'open' ? (x.status === 'review' || x.status === 'approved')
-    : tab === 'done' ? (x.status === 'exported' || x.status === 'done') : x.status === 'removed');
+  const inTab = x => tab === 'open' ? ['review', 'approved', 'failed'].includes(x.status)
+    : tab === 'done' ? ['exported', 'done', 'applied', 'applying', 'undone'].includes(x.status) : x.status === 'removed';
+  const list = ST_RL.items.filter(inTab);
   const open = ST_RL.items.filter(x => x.status === 'review' || x.status === 'approved');
   const appr = open.filter(x => x.status === 'approved').length;
-  $('stRlSub').textContent = `${open.length} change${open.length === 1 ? '' : 's'} waiting${appr ? `, ${appr} approved` : ''}. Each keeps the figures it was based on.`;
+  const unseen = ST_RL.items.filter(staNotSeen).length;
+  $('stRlSub').textContent = `${open.length} change${open.length === 1 ? '' : 's'} waiting${appr ? `, ${appr} approved` : ''}`
+    + (unseen ? ` · ${unseen} downloaded but not seen at Amazon` : '') + '. Each keeps the figures it was based on.';
+  const age = x => Math.floor((Date.now() - (x.exportedAt || 0)) / 86400000);
   const chip = x => x.status === 'review' ? staBadge('Waiting') : x.status === 'approved' ? staBadge('Approved', 'ok')
-    : x.status === 'exported' ? staBadge('In bulk file · ' + staDay(x.exportedAt), 'info') : x.status === 'done' ? staBadge('Done · seen at Amazon', 'ok') : staBadge('Removed', 'warn');
-  const when = x => `${staEsc(x.by || '')}<br>${new Date(x.at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}`;
-  const body = list.map(x => {
+    : x.status === 'failed' ? staBadge('Apply failed', 'bad', x.err || '')
+    : x.status === 'exported' ? (staNotSeen(x) ? staBadge(`Not seen at Amazon · ${age(x)} days`, 'warn', 'Downloaded, but Amazon\'s record does not show it yet. Was the file uploaded? Download again, or cancel it.')
+      : staBadge('In bulk file · ' + staDay(x.exportedAt), 'info'))
+    : x.status === 'done' ? staBadge('Done · seen at Amazon', 'ok') : x.status === 'applied' ? staBadge('Applied · ' + staDay(x.appliedAt), 'ok')
+    : x.status === 'undone' ? staBadge('Undone', 'warn') : staBadge('Removed', 'warn');
+  const when = x => `${staEsc(x.by || staWho(x.byEmail))}<br>${new Date(x.at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}`;
+  const tickable = x => tab === 'open' || tab === 'removed' || (tab === 'done' && x.status === 'exported');
+  const row = x => {
     const blocked = staBulkRow(x).skip;
-    return `<tr>
-      <td>${tab === 'open' ? `<input type="checkbox" class="sta-cb" data-rl="${staEsc(x.id)}"${ST_RL.sel.has(x.id) ? ' checked' : ''} aria-label="Select">` : ''}</td>
+    const clash = tab === 'open' && x.status === 'approved' ? staClashOf(x) : '';
+    return `<tr${clash ? ' class="sta-clash"' : ''}>
+      <td>${tickable(x) ? `<input type="checkbox" class="sta-cb" data-rl="${staEsc(x.id)}"${ST_RL.sel.has(x.id) ? ' checked' : ''} aria-label="Select">` : ''}</td>
       <td><b>${staEsc(staKindName(x))}</b><small class="sta-s">${staEsc(staBrandName(x.brand))}</small></td>
       <td class="sta-term">${staEsc(x.neg && x.neg.type === 'na' ? String(x.term).toUpperCase() : x.term || x.target)}${x.term && x.kind !== 'neg' ? `<small class="sta-s">${staEsc(x.target)}</small>` : ''}</td>
       <td class="sta-rlcp" title="${staEsc(x.cn + ' · ' + x.agn)}">${staEsc(x.cn)}<small class="sta-s">${staEsc(x.agn)}</small></td>
-      <td class="sta-rlwhat">${staEsc(x.what || '')}${blocked && tab === 'open' ? `<small class="sta-s" style="color:var(--rev-ink);white-space:normal">${staEsc(blocked)}</small>` : ''}</td>
+      <td class="sta-rlwhat">${staEsc(x.what || '')}${blocked && tab === 'open' ? `<small class="sta-s" style="color:var(--rev-ink);white-space:normal">${staEsc(blocked)}</small>` : ''}${clash ? `<small class="sta-s sta-clashtxt">Clash: ${staEsc(clash)}</small>` : ''}</td>
       <td class="sta-ev">${staEsc(x.why || '')}<br><span class="sta-dash">${staInt(x.ev.c)} clicks · ${staMoney(x.ev.sp)} · ${staInt(x.ev.o)} orders</span></td>
-      <td style="color:var(--muted)">${when(x)}${x.approvedBy ? `<small class="sta-s">approved by ${staEsc(String(x.approvedBy).split('@')[0])}</small>` : ''}</td>
+      <td style="color:var(--muted)">${when(x)}${x.approvedBy ? `<small class="sta-s">approved by ${staEsc(staWho(x.approvedBy))}</small>` : ''}</td>
       <td>${chip(x)}</td></tr>`;
-  }).join('');
-  $('stRlTable').innerHTML = `<thead><tr><th style="width:28px">${tab === 'open' ? '<input type="checkbox" class="sta-cb" data-rlall="1" aria-label="Select all">' : ''}</th><th>Change</th><th>Search term / target</th>
+  };
+  let body = '';
+  if (tab === 'done') {
+    // One group per bulk file (items downloaded before batches existed: one group of their own).
+    const groups = new Map();
+    list.forEach(x => { const k = x.batch || (x.status === 'applied' || x.status === 'applying' ? 'applied' : 'old'); (groups.get(k) || groups.set(k, []).get(k)).push(x); });
+    body = [...groups.entries()].sort((p, q) => (q[1][0].batchAt || q[1][0].exportedAt || 0) - (p[1][0].batchAt || p[1][0].exportedAt || 0)).map(([k, xs]) => {
+      const f = xs[0], seen = xs.filter(x => x.status === 'done').length, und = xs.filter(x => x.status === 'undone').length;
+      const head = k === 'old' ? 'Downloaded earlier (before files were kept)' : k === 'applied' ? 'Applied at Amazon from Sellora'
+        : `Bulk file · ${new Date(f.batchAt || f.exportedAt).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} · by ${staEsc(staWho(f.batchBy || f.exportedBy))}`;
+      return `<tr class="sta-batch"><td></td><td colspan="5"><b>${head}</b> <span class="sta-dash">${xs.length} change${xs.length === 1 ? '' : 's'} · ${seen} seen at Amazon${und ? ` · ${und} undone` : ''}</span></td>
+        <td colspan="2" class="sta-batchbtns">${k !== 'old' && k !== 'applied' ? `<button type="button" class="sta-btn sm" data-rlredl="${staEsc(k)}">Download again</button>` : ''}
+        <button type="button" class="sta-btn sm" data-rlundo="${staEsc(k)}" title="A bulk file that puts these changes back as they were">Undo this file</button></td></tr>` + xs.map(row).join('');
+    }).join('');
+  } else body = list.map(row).join('');
+  $('stRlTable').innerHTML = `<thead><tr><th style="width:28px">${tab !== 'done' ? '<input type="checkbox" class="sta-cb" data-rlall="1" aria-label="Select all">' : ''}</th><th>Change</th><th>Search term / target</th>
     <th>Campaign</th><th>What changes</th><th>Why</th><th>Added</th><th>Status</th></tr></thead><tbody>`
     + (body || `<tr><td colspan="8" class="muted" style="padding:14px 22px">${tab === 'open' ? 'Nothing waiting. Pick a change from any view.' : 'Nothing here yet.'}</td></tr>`) + '</tbody>';
   const note = $('stRlNote');
   note.classList.toggle('warn', ST_RL.where === 'local');
   note.innerHTML = (ST_RL.where === 'local'
     ? '<b>Kept in this browser only.</b> The shared review list needs its database rule (Ravi: adsActions in firestore.rules). Until then nobody else sees these, and clearing the browser loses them. '
-    : '') + 'Sellora changes nothing at Amazon. Approved changes download as an Amazon bulk file, one per brand, to upload in the Ads console (Campaign manager → Bulk operations). You see every row before it downloads.';
+    : '') + (tab === 'done' ? 'A change counts as done when Amazon\'s own record shows it (read twice a day) — a download alone is not an upload. "Undo this file" builds a bulk file that puts every change in it back.'
+    : 'Sellora changes nothing at Amazon until Apply is switched on. Approved changes download as an Amazon bulk file, one per brand, to upload in the Ads console (Campaign manager → Bulk operations). You see every row before it downloads.');
   staRlSelTxt();
+}
+// Downloaded more than 3 days ago and still not seen in Amazon's record.
+const staNotSeen = x => x.status === 'exported' && Date.now() - (x.exportedAt || 0) > 3 * 86400000;
+// Two approved changes that fight each other (19 Nov audit): a bid change and a pause on the same keyword or target; a
+// negative and a new exact keyword for the same term in the same ad group. '' when none.
+function staClashOf(x) {
+  const appr = ST_RL.items.filter(y => y !== x && (y.status === 'approved' || y.status === 'exported') && y.brand === x.brand);
+  if ((x.kind === 'bid' || x.kind === 'pause') && x.pathKey) {
+    const o = appr.find(y => (y.kind === 'bid' || y.kind === 'pause') && y.pathKey === x.pathKey);
+    if (o) return `${staKindName(o)} on the same ${x.kw ? 'keyword' : 'target'} too — keep one`;
+  }
+  if (x.kind === 'neg' || x.kind === 'exact' || x.kind === 'asinT') {
+    const t = staLow(x.term), ag = x.kind === 'neg' ? x.ag : x.dest && x.dest.ag;
+    const o = appr.find(y => staLow(y.term) === t && ((x.kind === 'neg') !== (y.kind === 'neg')) && (y.kind === 'neg' || y.kind === 'exact' || y.kind === 'asinT')
+      && (y.kind === 'neg' ? (y.neg.level === 'cp' ? y.cid === (x.dest || x).cid : y.ag === ag) : (y.dest && (x.neg && x.neg.level === 'cp' ? y.dest.cid === x.cid : y.dest.ag === ag))));
+    if (o) return `a ${o.kind === 'neg' ? 'negative' : 'new keyword'} for the same term where this ${x.kind === 'neg' ? 'negative' : 'keyword'} goes — keep one`;
+  }
+  return '';
 }
 function staRlSelTxt() {
   const sel = [...ST_RL.sel].map(id => ST_RL.items.find(x => x.id === id)).filter(Boolean);
   const ready = ST_RL.items.filter(x => x.status === 'approved' && !staBulkRow(x).skip).length;
-  $('stRlSel').textContent = ST_RL.tab !== 'open' ? '' : sel.length ? `${sel.length} selected` : 'Tick changes to approve or remove them.';
-  $('stRlApprove').textContent = sel.length ? `Approve ${sel.filter(x => x.status === 'review').length}` : 'Approve';
-  $('stRlApprove').disabled = ST_RL.tab !== 'open' || !sel.some(x => x.status === 'review');
-  $('stRlRemove').disabled = ST_RL.tab !== 'open' || !sel.length;
+  const tab = ST_RL.tab, nRev = sel.filter(x => x.status === 'review').length, nAp = sel.filter(x => x.status === 'approved').length;
+  $('stRlSel').textContent = tab === 'done' ? (sel.length ? `${sel.length} selected` : 'Tick downloads that were never uploaded to cancel them.')
+    : tab === 'removed' ? (sel.length ? `${sel.length} selected` : 'Tick changes to put them back on the list.')
+    : sel.length ? `${sel.length} selected` : 'Tick changes to approve or remove them.';
+  $('stRlApprove').textContent = nRev ? `Approve ${nRev}` : 'Approve';
+  $('stRlApprove').disabled = tab !== 'open' || !nRev;
+  if ($('stRlUnapprove')) { $('stRlUnapprove').textContent = nAp ? `Un-approve ${nAp}` : 'Un-approve'; $('stRlUnapprove').disabled = !nAp; }
+  if (!$('stRlRemove').dataset.arm) $('stRlRemove').textContent = sel.length ? `Remove ${sel.length}` : 'Remove';
+  $('stRlRemove').disabled = tab !== 'open' || !sel.length;
+  if ($('stRlRestore')) $('stRlRestore').disabled = !sel.some(x => x.status === 'removed');
+  if ($('stRlCancel')) $('stRlCancel').disabled = !sel.some(x => x.status === 'exported');
   $('stRlDl').textContent = `Preview bulk file · ${ready} approved`;
   $('stRlDl').disabled = !ready;
+  if ($('stRlApply')) {
+    const can = staApplyOn();
+    $('stRlApply').disabled = !ready || !can;
+    $('stRlApply').title = can ? 'Change the approved items at Amazon now' : staApplyWhy();
+  }
 }
+// Approve / un-approve / remove / restore / cancel the ticked items — each a checked move, so a change someone else made
+// meanwhile is reported, never overwritten; a failed save is shown (19 Nov audit).
 async function staRlSet(status) {
-  for (const id of [...ST_RL.sel]) {
-    const x = ST_RL.items.find(y => y.id === id);
-    if (!x || (status === 'approved' && x.status !== 'review')) continue;
-    x.status = status;
-    if (status === 'approved') { x.approvedBy = String(ME.email || ''); x.approvedAt = Date.now(); }
-    try { await staRlSave(x); } catch (e) { /* the next save writes it */ }
+  const me = String(ME.email || '');
+  const moves = { approved: [['review'], { status: 'approved', approvedBy: me, approvedAt: Date.now() }],
+    review: [['approved', 'removed'], { status: 'review', approvedBy: '', approvedAt: 0, restoredBy: me }],
+    removed: [['review', 'approved'], { status: 'removed', removedBy: me, removedAt: Date.now() }],
+    cancel: [['exported'], { status: 'removed', removedBy: me, removedAt: Date.now(), note: 'Downloaded, never seen at Amazon: cancelled' }] };
+  const [from, patch] = moves[status];
+  const sel = [...ST_RL.sel].map(id => ST_RL.items.find(y => y.id === id)).filter(x => x && from.includes(x.status)
+    && (status !== 'review' || ST_RL.tab !== 'open' || x.status === 'approved'));
+  const fails = [];
+  for (const x of sel) {
+    const why = await staRlMove(x, from, Object.assign({}, patch));
+    if (why) fails.push(`${x.term || x.target}: ${why}`);
   }
   ST_RL.sel = new Set();
   STM = null;
   staRlDraw();
+  if (fails.length) $('stRlSel').innerHTML = `<span style="color:var(--rev-ink)">${fails.length} not changed — ${staEsc(fails.slice(0, 3).join('; '))}${fails.length > 3 ? '…' : ''}</span>`;
   renderSt();
 }
 
@@ -2635,61 +2897,389 @@ function staXlsx(sheet, rows) {
   ]);
 }
 
-// The bulk-file preview: every row that will download, per brand, and what waits and why.
+// The bulk-file preview: every row that will download, per brand, and what waits and why. Clashes hold the download
+// until one side is removed or un-approved.
 function staPreview() {
-  const appr = ST_RL.items.filter(x => x.status === 'approved').map(x => ({ x, b: staBulkRow(x) }));
-  const ready = appr.filter(y => !y.b.skip), wait = appr.filter(y => y.b.skip);
+  const appr = ST_RL.items.filter(x => x.status === 'approved').map(x => ({ x, b: staBulkRow(x), c: staClashOf(x) }));
+  const ready = appr.filter(y => !y.b.skip), wait = appr.filter(y => y.b.skip), clash = ready.filter(y => y.c);
   $('stRlTitle').textContent = 'Bulk file preview';
   $('stRlSeg').classList.add('hide');
   $('stRlBack').classList.remove('hide');
-  $('stRlRemove').classList.add('hide');
-  $('stRlApprove').classList.add('hide');
+  ['stRlRemove', 'stRlApprove', 'stRlUnapprove', 'stRlRestore', 'stRlCancel', 'stRlApply'].forEach(id => { if ($(id)) $(id).classList.add('hide'); });
+  $('stRlDl').classList.remove('hide');
   const brands = [...new Set(ready.map(y => y.x.brand))];
   $('stRlSub').textContent = `${ready.length} row${ready.length === 1 ? '' : 's'} in ${brands.length} file${brands.length === 1 ? '' : 's'} (${brands.map(staBrandName).join(', ')}), sheet "Sponsored Products Campaigns".`;
   const td = v => `<td>${staEsc(v == null ? '' : v)}</td>`;
   $('stRlTable').innerHTML = '<thead><tr><th></th><th>File</th><th>Entity</th><th>Operation</th><th>Campaign</th><th>Ad group</th><th>Keyword / target / placement</th><th>Match type</th><th class="num">Bid / %</th><th>State</th></tr></thead><tbody>'
-    + ready.map(({ x, b: { row } }) => `<tr><td></td>${td(staBrandName(x.brand))}${td(row['Entity'])}${td(row['Operation'])}${td((x.dest && x.dest.cn) || x.cn)}${td(row['Ad Group ID'] ? ((x.dest && x.dest.agn) || x.agn || row['Ad Group ID']) : '— (whole campaign)')}`
-      + `${td(row['Keyword Text'] || row['Product Targeting Expression'] || row['Keyword ID'] || row['Product Targeting ID'] || row['Placement'])}${td(row['Match Type'])}`
-      + `<td class="num">${row['Bid'] != null ? staMoney(row['Bid']) : row['Percentage'] != null ? staEsc(row['Percentage'] + '%' + (x.plc && x.plc.from != null ? ' (was ' + x.plc.from + '%)' : '')) : ''}</td>${td(row['State'])}</tr>`).join('')
+    + ready.map(({ x, b: { row }, c }) => `<tr${c ? ' class="sta-clash"' : ''}><td></td>${td(staBrandName(x.brand))}${td(row['Entity'])}${td(row['Operation'])}${td((x.dest && x.dest.cn) || x.cn)}${td(row['Ad Group ID'] ? ((x.dest && x.dest.agn) || x.agn || row['Ad Group ID']) : '— (whole campaign)')}`
+      + `<td>${staEsc(row['Keyword Text'] || row['Product Targeting Expression'] || row['Keyword ID'] || row['Product Targeting ID'] || row['Placement'])}${c ? `<small class="sta-s sta-clashtxt">Clash: ${staEsc(c)}</small>` : ''}</td>${td(row['Match Type'])}`
+      + `<td class="num">${row['Bid'] != null ? staMoney(row['Bid']) + (x.bid && x.bid.from ? ` <small class="sta-s">was ${staMoney(x.bid.from)}</small>` : '') : row['Percentage'] != null ? staEsc(row['Percentage'] + '%' + (x.plc && x.plc.from != null ? ' (was ' + x.plc.from + '%)' : '')) : ''}</td>${td(row['State'])}</tr>`).join('')
     + wait.map(({ x, b }) => `<tr class="sta-wait"><td></td>${td(staBrandName(x.brand))}<td colspan="5">${staEsc(staKindName(x) + ' · ' + (x.term || x.target))}</td><td colspan="3">Waits: ${staEsc(b.skip)}</td></tr>`).join('')
     + '</tbody>';
   const note = $('stRlNote');
-  note.classList.toggle('warn', ST_RL.where === 'local');
-  note.innerHTML = (ST_RL.where === 'local' ? '<b>This list is kept in this browser only</b> — nobody else has approved or seen it. ' : '')
-    + 'Upload each file in its own brand\'s Ads console (Campaign manager → Bulk operations → Upload). Start with a small file and check its upload report; if Amazon rejects the headers, tell the team before uploading more.';
+  note.classList.toggle('warn', ST_RL.where === 'local' || !!clash.length);
+  note.innerHTML = (clash.length ? `<b>${clash.length} clashing change${clash.length === 1 ? '' : 's'}.</b> Go back and un-approve or remove one side of each before downloading. ` : '')
+    + (ST_RL.where === 'local' ? '<b>This list is kept in this browser only</b> — nobody else has approved or seen it. ' : '')
+    + 'Upload each file in its own brand\'s Ads console (Campaign manager → Bulk operations → Upload). Start with a small file and check its upload report; if Amazon rejects the headers, tell the team before uploading more. The file is kept: you can download it again or undo it from "Downloaded and done".';
   $('stRlSel').textContent = wait.length ? `${wait.length} approved change${wait.length === 1 ? '' : 's'} wait and stay approved.` : '';
   $('stRlDl').textContent = `Download ${brands.length > 1 ? brands.length + ' files' : 'file'} · ${ready.length} row${ready.length === 1 ? '' : 's'}`;
-  $('stRlDl').disabled = !ready.length;
+  $('stRlDl').disabled = !ready.length || !!clash.length;
 }
-
-// Download every approved item that can go into a file, one file per brand, and mark them "in bulk file".
-async function staDownload() {
-  const ready = ST_RL.items.filter(x => x.status === 'approved').map(x => ({ x, b: staBulkRow(x) })).filter(y => !y.b.skip);
-  if (!ready.length) return;
+// One .xlsx per brand from [{ x, row }], named for the day (and "UNDO" for a reverse file).
+async function staBulkFiles(pairs, tag) {
   const day = new Date().toISOString().slice(0, 10);
-  const brands = [...new Set(ready.map(y => y.x.brand))];
+  const brands = [...new Set(pairs.map(y => y.x.brand))];
   for (const b of brands) {
-    const mine = ready.filter(y => y.x.brand === b);
-    const rows = [STA_BULK_COLS].concat(mine.map(y => STA_BULK_COLS.map(c => y.b.row[c] == null ? '' : y.b.row[c])));
+    const mine = pairs.filter(y => y.x.brand === b);
+    const rows = [STA_BULK_COLS].concat(mine.map(y => STA_BULK_COLS.map(c => y.row[c] == null ? '' : y.row[c])));
     const blob = new Blob([staXlsx('Sponsored Products Campaigns', rows)], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `sellora-bulk-${staBrandName(b).replace(/\s+/g, '-')}-${day}.xlsx`;
+    a.download = `sellora-bulk-${tag ? tag + '-' : ''}${staBrandName(b).replace(/\s+/g, '-')}-${day}.xlsx`;
     a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 4000);
     if (brands.length > 1) await new Promise(res => setTimeout(res, 700));
   }
+  return brands.length;
+}
+// Download every approved item that can go into a file, one file per brand, kept as one batch (who, when, which items) so
+// it can be downloaded again or undone; each item moves to "in bulk file" only if nobody else downloaded it meanwhile.
+async function staDownload() {
+  const ready = ST_RL.items.filter(x => x.status === 'approved').map(x => ({ x, b: staBulkRow(x) })).filter(y => !y.b.skip && !staClashOf(y.x));
+  if (!ready.length) return;
+  const me = String(ME.email || ''), batch = 'f' + Date.now().toString(36), at = Date.now();
+  const mine = [], fails = [];
   for (const y of ready) {
-    y.x.status = 'exported';
-    y.x.exportedAt = Date.now();
-    y.x.exportedBy = String(ME.email || '');
-    try { await staRlSave(y.x); } catch (e) { /* the next save writes it */ }
+    const why = await staRlMove(y.x, ['approved'], { status: 'exported', exportedAt: at, exportedBy: me, batch, batchAt: at, batchBy: me,
+      bulk: STA_BULK_COLS.reduce((o, c) => { if (y.b.row[c] != null && y.b.row[c] !== '') o[c] = y.b.row[c]; return o; }, {}) });
+    if (why) fails.push(`${y.x.term || y.x.target}: ${why}`); else mine.push({ x: y.x, row: y.b.row });
   }
+  if (mine.length) await staBulkFiles(mine, '');
   ST_RL.preview = false;
   ST_RL.tab = 'done';
   STM = null;
   staRlDraw();
+  if (fails.length) $('stRlSel').innerHTML = `<span style="color:var(--rev-ink)">${fails.length} left out — ${staEsc(fails.slice(0, 3).join('; '))}</span>`;
   renderSt();
+}
+// The same file again, from the rows kept with each item when it was downloaded.
+async function staRedownload(batch) {
+  const xs = ST_RL.items.filter(x => x.batch === batch);
+  const pairs = xs.map(x => ({ x, row: x.bulk || (staBulkRow(x).row || null) })).filter(y => y.row);
+  if (!pairs.length) return;
+  await staBulkFiles(pairs, 'again');
+}
+// The reverse of one change as a bulk row, or { skip }: bid → the old bid; pause → enabled; placement → the old %; a
+// negative → archived (by the ID Amazon's record shows for it); a new keyword or ASIN target → paused.
+function staUndoRow(x) {
+  const base = { 'Product': 'Sponsored Products', 'Campaign ID': x.cid };
+  const E = staEnt(x.brand);
+  if (x.kind === 'plc') {
+    if (x.plc.from == null) return { skip: 'the old % is not on record' };
+    return { row: Object.assign(base, { 'Entity': 'Bidding Adjustment', 'Operation': 'Update', 'Placement': x.plc.bulk, 'Percentage': x.plc.from },
+      x.plc.strategy && STA_STRATEGY_BULK[x.plc.strategy] ? { 'Bidding Strategy': STA_STRATEGY_BULK[x.plc.strategy] } : {}) };
+  }
+  if (x.kind === 'bid' || x.kind === 'pause') {
+    const hit = staEntOf(x.brand, x.ag, x.kw, x.mt) || (x.kid ? { id: x.kid, kind: staKwMt(x.mt) ? 'kw' : 'tg' } : null);
+    if (!hit) return { skip: 'its ID is not in Amazon\'s record' };
+    if (x.kind === 'bid' && !(x.bid && x.bid.from > 0)) return { skip: 'the old bid is not on record' };
+    const kwRow = hit.kind === 'kw';
+    return { row: Object.assign(base, { 'Entity': kwRow ? 'Keyword' : 'Product Targeting', 'Operation': 'Update', 'Ad Group ID': x.ag,
+      [kwRow ? 'Keyword ID' : 'Product Targeting ID']: hit.id }, x.kind === 'pause' ? { 'State': 'enabled' } : { 'Bid': x.bid.from }) };
+  }
+  if (x.kind === 'neg') {
+    const id = E && E.negId && E.negId.get((x.neg.level === 'cp' ? 'cp|' + x.cid : 'ag|' + x.ag) + '|' + staLow(x.neg.type === 'na' ? 'asin="' + x.term + '"' : x.term)
+      + '|' + (x.neg.type === 'na' ? 'na' : x.neg.type === 'negativePhrase' ? 'np' : 'nx'));
+    if (!id) return { skip: 'not in Amazon\'s record yet (its ID shows after the next read, twice a day)' };
+    const cp = x.neg.level === 'cp';
+    return { row: Object.assign(base, x.neg.type === 'na'
+      ? { 'Entity': cp ? 'Campaign Negative Product Targeting' : 'Negative Product Targeting', 'Operation': 'Archive', 'Ad Group ID': cp ? '' : x.ag, 'Product Targeting ID': id }
+      : { 'Entity': cp ? 'Campaign Negative Keyword' : 'Negative Keyword', 'Operation': 'Archive', 'Ad Group ID': cp ? '' : x.ag, 'Keyword ID': id }) };
+  }
+  if (x.kind === 'exact' || x.kind === 'asinT') {
+    const d = x.dest || {};
+    const hit = E && (x.kind === 'exact' ? E.kw.get(d.ag + '|' + staLow(x.term) + '|exact') : E.tg.get(d.ag + '|asin="' + staLow(x.term) + '"'));
+    if (!hit) return { skip: 'not in Amazon\'s record yet (its ID shows after the next read)' };
+    return { row: Object.assign(base, { 'Campaign ID': d.cid, 'Ad Group ID': d.ag, 'Operation': 'Update', 'State': 'paused' },
+      x.kind === 'exact' ? { 'Entity': 'Keyword', 'Keyword ID': hit.id } : { 'Entity': 'Product Targeting', 'Product Targeting ID': hit.id }) };
+  }
+  return { skip: 'no undo for this kind' };
+}
+// "Undo this file": a bulk file that puts every change of one batch back; the items say so once downloaded. Changes not yet
+// in Amazon's record (never uploaded) need no undo and are left out.
+async function staUndoBatch(batch) {
+  const xs = ST_RL.items.filter(x => (batch === 'old' ? !x.batch && x.status !== 'applied' : batch === 'applied' ? x.status === 'applied' : x.batch === batch)
+    && (x.status === 'done' || x.status === 'exported' || x.status === 'applied'));
+  const pairs = [], skip = [];
+  xs.forEach(x => {
+    if (x.status === 'exported') { skip.push(`${x.term || x.target}: not seen at Amazon, nothing to undo`); return; }
+    const u = staUndoRow(x);
+    if (u.skip) skip.push(`${x.term || x.target}: ${u.skip}`); else pairs.push({ x, row: u.row });
+  });
+  if (!pairs.length) { $('stRlSel').innerHTML = `<span style="color:var(--rev-ink)">Nothing to undo — ${staEsc(skip.slice(0, 3).join('; ') || 'no change in this file is at Amazon')}</span>`; return; }
+  await staBulkFiles(pairs, 'UNDO');
+  const me = String(ME.email || '');
+  for (const p of pairs) await staRlMove(p.x, ['done', 'applied'], { status: 'undone', undoneAt: Date.now(), undoneBy: me });
+  STM = null;
+  staRlDraw();
+  $('stRlSel').innerHTML = `Undo file downloaded: ${pairs.length} change${pairs.length === 1 ? '' : 's'}${skip.length ? ` · ${skip.length} left out (${staEsc(skip.slice(0, 2).join('; '))})` : ''}. Upload it in the Ads console like any bulk file.`;
+  renderSt();
+}
+
+/* ================= APPLY AT AMAZON (ready, switched off) =================
+ * One function for every "Apply": staApply(items). Each item's Amazon call is built at apply time from what is on record
+ * then (staApiCall), with its reverse (staApiUndo) and the value Amazon must still have (expect), so the backend route
+ * can refuse a change that is out of date. The switch is a Firestore document (config/adsApply { on, dryRun }) AND the
+ * person's adsApply right — no new release to turn it on. Until the backend route exists every call answers
+ * "not available yet". The backend contract (POST, ads: 'apply'): docs claude/backend-requests-19-nov.md. */
+const ADS_CFG = { read: false, on: false, dryRun: true, at: 0 };
+async function staApplyCfg() {
+  if (ADS_CFG.read && Date.now() - ADS_CFG.at < 5 * 60000) return ADS_CFG;
+  try {
+    const s = await getDoc(doc(db, 'config', 'adsApply'));
+    const v = s.exists() ? s.data() : {};
+    ADS_CFG.on = v.on === true;
+    ADS_CFG.dryRun = v.dryRun !== false;
+  } catch (e) { ADS_CFG.on = false; }
+  ADS_CFG.read = true;
+  ADS_CFG.at = Date.now();
+  ADS_APPLY.on = staApplyOn();
+  return ADS_CFG;
+}
+const staApplyOn = () => ADS_CFG.on && (ME.admin || ME.adsApply === true);
+const staApplyWhy = () => !ADS_CFG.on ? ADS_APPLY.why : 'Your account does not have the Apply right (perms adsApply: an admin grants it).';
+// The Amazon Ads API call for one item (Sponsored Products v3), or null when an ID it needs is not on record.
+function staApiCall(x) {
+  const hit = x.kind === 'bid' || x.kind === 'pause' ? (staEntOf(x.brand, x.ag, x.kw, x.mt) || (x.kid ? { id: x.kid, kind: staKwMt(x.mt) ? 'kw' : 'tg' } : null)) : null;
+  const kw = ct => 'application/vnd.' + ct + '.v3+json';
+  if (x.kind === 'bid' || x.kind === 'pause') {
+    if (!hit) return null;
+    const isKw = hit.kind === 'kw', set = x.kind === 'pause' ? { state: 'PAUSED' } : { bid: x.bid.to };
+    const was = x.kind === 'pause' ? { state: 'ENABLED' } : { bid: x.bid.from };
+    const body = v => isKw ? { keywords: [Object.assign({ keywordId: hit.id }, v)] } : { targetingClauses: [Object.assign({ targetId: hit.id }, v)] };
+    const c = { method: 'PUT', path: isKw ? '/sp/keywords' : '/sp/targets', ct: kw(isKw ? 'spKeyword' : 'spTargetingClause') };
+    return Object.assign({}, c, { body: body(set), expect: { id: hit.id, kind: hit.kind, was }, undo: Object.assign({}, c, { body: body(was) }) });
+  }
+  if (x.kind === 'neg') {
+    const cp = x.neg.level === 'cp';
+    if (x.neg.type === 'na') return { method: 'POST', path: '/sp/negativeTargets', ct: kw('spNegativeTargetingClause'),
+      body: { negativeTargetingClauses: [{ campaignId: x.cid, adGroupId: x.ag, expression: [{ type: 'ASIN_SAME_AS', value: String(x.term).toUpperCase() }], state: 'ENABLED' }] },
+      undo: { method: 'POST', path: '/sp/negativeTargets/delete', ct: kw('spNegativeTargetingClause'), idFrom: 'negativeTargetingClauses' } };
+    const mt = x.neg.type === 'negativePhrase' ? 'NEGATIVE_PHRASE' : 'NEGATIVE_EXACT';
+    return cp ? { method: 'POST', path: '/sp/campaignNegativeKeywords', ct: kw('spCampaignNegativeKeyword'),
+      body: { campaignNegativeKeywords: [{ campaignId: x.cid, keywordText: x.term, matchType: mt, state: 'ENABLED' }] },
+      undo: { method: 'POST', path: '/sp/campaignNegativeKeywords/delete', ct: kw('spCampaignNegativeKeyword'), idFrom: 'campaignNegativeKeywords' } }
+      : { method: 'POST', path: '/sp/negativeKeywords', ct: kw('spNegativeKeyword'),
+        body: { negativeKeywords: [{ campaignId: x.cid, adGroupId: x.ag, keywordText: x.term, matchType: mt, state: 'ENABLED' }] },
+        undo: { method: 'POST', path: '/sp/negativeKeywords/delete', ct: kw('spNegativeKeyword'), idFrom: 'negativeKeywords' } };
+  }
+  if (x.kind === 'exact' || x.kind === 'asinT') {
+    const d = x.dest || {};
+    if (!d.cid || !d.ag) return null;
+    return x.kind === 'exact'
+      ? { method: 'POST', path: '/sp/keywords', ct: kw('spKeyword'), body: { keywords: [{ campaignId: d.cid, adGroupId: d.ag, keywordText: x.term, matchType: 'EXACT', bid: x.newBid, state: 'ENABLED' }] },
+        undo: { method: 'PUT', path: '/sp/keywords', ct: kw('spKeyword'), idFrom: 'keywords', set: { state: 'PAUSED' } } }
+      : { method: 'POST', path: '/sp/targets', ct: kw('spTargetingClause'), body: { targetingClauses: [{ campaignId: d.cid, adGroupId: d.ag, expression: [{ type: 'ASIN_SAME_AS', value: String(x.term).toUpperCase() }], expressionType: 'MANUAL', bid: x.newBid, state: 'ENABLED' }] },
+        undo: { method: 'PUT', path: '/sp/targets', ct: kw('spTargetingClause'), idFrom: 'targetingClauses', set: { state: 'PAUSED' } } };
+  }
+  return null;   // placements: staApiPlcFold, one call per campaign
+}
+// Placement changes for one campaign go out as ONE call with all three placements, re-read from Amazon's record now and
+// with every approved change for that campaign folded in — so a second change can't put the first one back (19 Nov audit).
+function staApiPlcFold(items) {
+  const byCp = new Map();
+  items.filter(x => x.kind === 'plc').forEach(x => { const k = x.brand + '|' + x.cid; (byCp.get(k) || byCp.set(k, []).get(k)).push(x); });
+  const out = [];
+  byCp.forEach(xs => {
+    const f = xs[0], c = (ST.ent && ST.ent.d && ST.ent.d[f.brand] && ST.ent.d[f.brand].cp || {})[f.cid];
+    if (!c) return;
+    const now = { PLACEMENT_TOP: Number(c[4]) || 0, PLACEMENT_REST_OF_SEARCH: Number(c[5]) || 0, PLACEMENT_PRODUCT_PAGE: Number(c[6]) || 0 };
+    const was = Object.assign({}, now);
+    xs.forEach(x => { if (x.plc && x.plc.amz) now[x.plc.amz] = Number(x.plc.to); });
+    const pb = o => Object.keys(o).map(k => ({ placement: k, percentage: o[k] }));
+    const call = { method: 'PUT', path: '/sp/campaigns', ct: 'application/vnd.spCampaign.v3+json' };
+    const st = c[3] ? { strategy: c[3] } : {};
+    out.push({ ids: xs.map(x => x.id), brand: f.brand, call: Object.assign({}, call, { body: { campaigns: [{ campaignId: f.cid, dynamicBidding: Object.assign({}, st, { placementBidding: pb(now) }) }] },
+      expect: { placements: was }, undo: Object.assign({}, call, { body: { campaigns: [{ campaignId: f.cid, dynamicBidding: Object.assign({}, st, { placementBidding: pb(was) }) }] } }) }) });
+  });
+  return out;
+}
+// One POST to the backend with the signed-in person's token (the same path image and fix writes use).
+async function adsPost(body) {
+  if (!API || !API.url) throw new Error('Backend not configured — ' + (API_ERR || 'config/api was not read'));
+  let idToken = '';
+  try { if (auth.currentUser) idToken = await auth.currentUser.getIdToken(); } catch (e) { /* the backend says so */ }
+  const res = await fetch(API.url, { method: 'POST', headers: { 'Content-Type': 'text/plain' },
+    body: JSON.stringify(Object.assign({ key: API.writeKey || API.key, idToken }, body)), redirect: 'follow' });
+  const text = await res.text();
+  try { return JSON.parse(text); } catch (e) { throw new Error('The backend did not answer with data: ' + text.slice(0, 120)); }
+}
+// Apply approved items at Amazon: a dry run first when the switch says so; each item becomes applying → applied (or
+// failed with Amazon's answer), keeping its reverse call for Undo. Returns a one-line summary.
+async function staApply(items) {
+  await staApplyCfg();
+  if (!staApplyOn()) return 'Apply is not switched on yet — ' + staApplyWhy();
+  const calls = [];
+  const plc = staApiPlcFold(items);
+  items.filter(x => x.kind !== 'plc').forEach(x => { const c = staApiCall(x); if (c) calls.push({ ids: [x.id], brand: x.brand, call: c }); });
+  plc.forEach(p => calls.push(p));
+  if (!calls.length) return 'Nothing to apply: the IDs these changes need are not in Amazon\'s record yet.';
+  const me = String(ME.email || '');
+  for (const c of calls) for (const id of c.ids) { const x = ST_RL.items.find(y => y.id === id); if (x) await staRlMove(x, ['approved'], { status: 'applying', applyBy: me, applyAt: Date.now() }); }
+  let ans;
+  try { ans = await adsPost({ ads: 'apply', dryRun: ADS_CFG.dryRun, calls: calls.map(c => ({ ids: c.ids, brand: c.brand, call: c.call })) }); }
+  catch (e) { ans = { ok: false, error: e.message || String(e) }; }
+  const res = (ans && ans.results) || [];
+  let okN = 0, badN = 0;
+  for (const c of calls) {
+    const r = res.find(y => y.ids && y.ids[0] === c.ids[0]) || { ok: false, error: (ans && ans.error) || 'no answer for it' };
+    for (const id of c.ids) {
+      const x = ST_RL.items.find(y => y.id === id);
+      if (!x) continue;
+      if (r.ok && !ADS_CFG.dryRun) { okN++; await staRlMove(x, ['applying'], { status: 'applied', appliedAt: Date.now(), amz: r.amz || null, undoCall: c.call.undo || null }); }
+      else if (r.ok) { okN++; await staRlMove(x, ['applying'], { status: 'approved', dryRunAt: Date.now(), dryRun: r.would || 'ok' }); }
+      else { badN++; await staRlMove(x, ['applying'], { status: 'failed', err: String(r.error || 'failed').slice(0, 300) }); }
+    }
+  }
+  STM = null;
+  return `${ADS_CFG.dryRun ? 'Dry run: ' : ''}${okN} ${ADS_CFG.dryRun ? 'would apply' : 'applied'}${badN ? `, ${badN} failed (see Open)` : ''}.`;
+}
+// Undo an applied change at Amazon (the reverse call kept when it was applied; the backend refuses when Amazon's value is
+// no longer what Sellora set).
+async function staUnapply(x) {
+  await staApplyCfg();
+  if (!staApplyOn()) return 'Apply is not switched on yet — ' + staApplyWhy();
+  if (!x.undoCall) return 'No undo on record for this change.';
+  let ans;
+  try { ans = await adsPost({ ads: 'undo', dryRun: ADS_CFG.dryRun, calls: [{ ids: [x.id], brand: x.brand, call: x.undoCall, amz: x.amz || null }] }); }
+  catch (e) { return 'Could not undo: ' + (e.message || e); }
+  const r = (ans && ans.results && ans.results[0]) || ans || {};
+  if (!r.ok) return 'Could not undo: ' + (r.error || 'no answer');
+  if (!ADS_CFG.dryRun) await staRlMove(x, ['applied'], { status: 'undone', undoneAt: Date.now(), undoneBy: String(ME.email || '') });
+  return ADS_CFG.dryRun ? 'Dry run: the undo would go through.' : 'Undone at Amazon.';
+}
+
+/* ================= PLAN MY MOVES =================
+ * One button: the 5–7 moves worth making first, each naming the rows it covers, and one click ticks those rows (the
+ * selection bar then adds them to the review list with the usual checks). Sellora sends its own top ~50 suggestions —
+ * never the whole table — and Claude (through the backend: POST ai: 'plan') groups and orders them, saying why in a line;
+ * Claude can only point at rows Sellora already suggested, so it cannot invent a change. When Claude is not reachable
+ * (no backend route yet, the month's limit, an error) the same plan comes from rules: the biggest money first. A plan is
+ * kept for the day per brand (Plan again makes a new one). */
+const STA_PLAN_LOCAL = 'staPlan';
+let STA_PLAN = null;
+// The candidate moves from rules, biggest money first. Each: { id, title, why, money, keys, kind }.
+function staPlanRules(L) {
+  const M = L.M, out = [];
+  const ready = r => { try { return !!staQuick(r).items; } catch (e) { return false; } };
+  const pick = (rows, f, sort) => rows.filter(r => f(r) && ready(r)).sort(sort || ((a, z) => (z.stake || z.burned || 0) - (a.stake || a.burned || 0))).slice(0, 40);
+  const sum = rs => rs.reduce((t, r) => t + (r.stake || r.burned || 0), 0);
+  const add = (id, rows, title, why, kind) => { if (rows.length) out.push({ id, kind, title: title(rows), why: why(rows), money: sum(rows), keys: rows.map(r => r.key) }); };
+  const top = rs => rs.slice(0, 3).map(r => `"${r.term || r.target || r.gram}"`).join(', ');
+  add('neg0', pick(L.burn, r => r.next === 'neg' && r.kind === 'none'),
+    rs => `Stop paying for ${rs.length} search term${rs.length === 1 ? '' : 's'} with no orders`,
+    rs => `${staMoney(sum(rs))} spent with no order, each past the evidence test — biggest: ${top(rs)}.`, 'neg');
+  add('negL', pick(L.burn, r => r.next === 'neg' && r.kind !== 'none'),
+    rs => `Negate ${rs.length} search term${rs.length === 1 ? '' : 's'} that sell at a loss`,
+    rs => `Above break-even with ${STA.BE_ORDERS}+ orders and its keyword is fine without them — ${staMoney(sum(rs))} over break-even. Biggest: ${top(rs)}.`, 'neg');
+  add('words', pick(L.words, r => r.act),
+    rs => `Block ${rs.length} word${rs.length === 1 ? '' : 's'} that keep${rs.length === 1 ? 's' : ''} spending without selling`,
+    rs => `Negative phrases across the campaigns they spend in — ${staMoney(sum(rs))} at stake: ${top(rs)}.`, 'word');
+  add('cut', pick(L.burnTgt, g => g.next === 'reduce'),
+    rs => `Lower the bid on ${rs.length} keyword${rs.length === 1 ? '' : 's'} / target${rs.length === 1 ? '' : 's'} losing money`,
+    rs => `Each from its CPC or bid, rounded toward the current bid — ${staMoney(sum(rs))} over target or with no orders. Biggest: ${top(rs)}.`, 'bid');
+  add('pause', pick(L.burnTgt, g => g.next === 'pause'),
+    rs => `Pause ${rs.length} target${rs.length === 1 ? '' : 's'} with no orders`,
+    rs => `Under 1% chance their 0 orders are bad luck — ${staMoney(sum(rs))} spent. ${top(rs)}.`, 'pause');
+  add('exact', pick(L.scale, r => r.next === 'exact' || r.next === 'asinT', (a, z) => (z.s || 0) - (a.s || 0)),
+    rs => `Give ${rs.length} selling search term${rs.length === 1 ? '' : 's'} ${rs.length === 1 ? 'its' : 'their'} own exact keyword`,
+    rs => `${staMoney(rs.reduce((t, r) => t + (r.s || 0), 0))} in sales under target ACoS, still reached only through broad, phrase or auto: ${top(rs)}.`, 'exact');
+  add('raise', pick((M.tgRows || []).concat(L.scale), g => g.next === 'raise', (a, z) => (z.s || 0) - (a.s || 0)),
+    rs => `Raise the bid on ${rs.length} winner${rs.length === 1 ? '' : 's'}`,
+    rs => `Well under target with enough orders and stock to sell more: ${top(rs)}.`, 'bid');
+  add('iso', pick(L.all, r => r.next === 'iso'),
+    rs => `Move ${rs.length} costly search term${rs.length === 1 ? '' : 's'} to ${rs.length === 1 ? 'its' : 'their'} own exact keyword at a lower bid`,
+    rs => `The keyword sells; only this term loses — it keeps showing, for less: ${top(rs)}.`, 'iso');
+  out.sort((a, z) => z.money - a.money);
+  return out.slice(0, 7);
+}
+// The rows sent to Claude: the top ~50 suggestions with just the figures it needs (no names of people, no money totals
+// beyond each row's own).
+function staPlanRows(L) {
+  const cand = [].concat(L.burn, L.burnTgt, L.words, L.scale).filter(r => r && r.next && r.act !== false);
+  const uniq = new Map();
+  cand.forEach(r => { if (!uniq.has(r.key)) uniq.set(r.key, r); });
+  return [...uniq.values()].sort((a, z) => (z.stake || z.burned || z.s || 0) - (a.stake || a.burned || a.s || 0)).slice(0, 50).map(r => ({
+    k: r.key, brand: r.brand, what: r.term || r.target || r.gram || '', type: r.type || 'term', next: r.next, kind: r.kind || '',
+    c: r.c, sp: staR2(r.sp), o: r.o, s: staR2(r.s), acos: r.acos == null ? null : Math.round(r.acos), tgt: r.tgtUse == null ? null : Math.round(r.tgtUse),
+    cp: r.cn || '', season: r.tagSet && r.tagSet.has('season') ? 1 : 0, brandTerm: r.brandTerm ? 1 : 0,
+  }));
+}
+// Ask Claude through the backend; null when it can't answer (the rules plan is used then).
+async function staPlanAi(L, rules) {
+  const pick = $('stBrand').value;
+  const rows = staPlanRows(L);
+  if (rows.length < 3) return null;
+  const ask = adsPost({ ai: 'plan', brand: pick, day: new Date().toISOString().slice(0, 10), rows,
+    rules: rules.map(m => ({ id: m.id, title: m.title, keys: m.keys.slice(0, 40) })),
+    want: 'Up to 7 moves, most money first. Each: title (under 12 words), why (one sentence, plain words, the numbers), keys (only from rows). Group by pattern (same word, same campaign, same season).' });
+  const timeout = new Promise(res => setTimeout(() => res({ ok: false, error: 'took too long' }), 25000));
+  let ans;
+  try { ans = await Promise.race([ask, timeout]); } catch (e) { return { err: e.message || String(e) }; }
+  if (!ans || !ans.ok || !Array.isArray(ans.moves)) return { err: (ans && ans.error) || 'no plan in the answer' };
+  const known = new Set(rows.map(r => r.k));
+  const moves = ans.moves.slice(0, 7).map((m, i) => {
+    const keys = (m.keys || []).map(String).filter(k => known.has(k));
+    const rs = keys.map(k => L.M.byKey.get(k)).filter(Boolean);
+    return { id: 'ai' + i, kind: 'ai', title: String(m.title || '').slice(0, 90), why: String(m.why || '').slice(0, 300), keys,
+      money: rs.reduce((t, r) => t + (r.stake || r.burned || 0), 0) };
+  }).filter(m => m.title && m.keys.length);
+  return moves.length ? { moves, model: ans.model || 'Claude' } : { err: 'the plan named no row Sellora suggested' };
+}
+async function staPlanMake(force) {
+  const pick = $('stBrand').value, day = new Date().toISOString().slice(0, 10), ck = pick + '|' + day;
+  if (!force) {
+    try {
+      const c = JSON.parse(localStorage.getItem(STA_PLAN_LOCAL) || '{}')[ck];
+      if (c && c.moves) { STA_PLAN = c; return; }
+    } catch (e) { /* make a new one */ }
+  }
+  const L = staLists();
+  const rules = staPlanRules(L);
+  STA_PLAN = { at: Date.now(), src: 'rules', moves: rules, brand: pick, note: '' };
+  staPlanDraw(true);
+  const ai = await staPlanAi(L, rules);
+  if (ai && ai.moves) STA_PLAN = { at: Date.now(), src: 'ai', model: ai.model, moves: ai.moves, brand: pick, note: '' };
+  else STA_PLAN.note = ai && ai.err ? `Claude could not plan this time (${ai.err}), so these come from Sellora's rules.` : 'Too few suggestions for Claude to plan: from Sellora\'s rules.';
+  try {
+    const all = JSON.parse(localStorage.getItem(STA_PLAN_LOCAL) || '{}');
+    Object.keys(all).forEach(k => { if (!k.endsWith(day)) delete all[k]; });
+    all[ck] = STA_PLAN;
+    localStorage.setItem(STA_PLAN_LOCAL, JSON.stringify(all));
+  } catch (e) { /* kept for this visit */ }
+}
+// Draw the plan. Each move: what, why, the money, how many rows are still ready (others are in the review list already,
+// or wait), and "Tick these" (the selection bar adds them, with the usual checks).
+function staPlanDraw(busy) {
+  const P = STA_PLAN;
+  const M = staModel();
+  $('stPlanSub').textContent = !P ? '' : `${P.src === 'ai' ? 'Planned by ' + (P.model || 'Claude') + ' from Sellora\'s top suggestions' : 'From Sellora\'s rules'} · ${new Date(P.at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}`;
+  const live = m => m.keys.map(k => M.byKey.get(k)).filter(r => { if (!r) return false; try { return !!staQuick(r).items; } catch (e) { return false; } });
+  $('stPlanBody').innerHTML = (busy ? '<div class="sta-planbusy"><span class="sta-spin" aria-hidden="true"></span>Asking Claude to plan from Sellora\'s top suggestions… the rules plan below is ready now.</div>' : '')
+    + (P && P.note ? `<div class="sta-plannote">${staEsc(P.note)}</div>` : '')
+    + (!P || !P.moves.length ? '<p class="muted" style="padding:6px 2px">Nothing worth planning: no suggestion passes its checks right now.</p>'
+      : '<ol class="sta-plan">' + P.moves.map((m, i) => {
+        const rs = live(m);
+        return `<li class="sta-move${rs.length ? '' : ' done'}"><span class="sta-moven">${i + 1}</span><div class="sta-movet"><b>${staEsc(m.title)}</b>
+          <p>${staEsc(m.why)}</p><small class="sta-dash">${m.money > 0 ? staMoney0(m.money) + ' at stake · ' : ''}${rs.length ? `${rs.length} ready` : 'all already in the review list or waiting'}${rs.length < m.keys.length && rs.length ? ` · ${m.keys.length - rs.length} already handled` : ''}</small></div>
+          ${rs.length ? `<button type="button" class="sta-btn sm" data-plantick="${i}">Tick ${rs.length}</button>` : staBadge('Done', 'ok')}</li>`;
+      }).join('') + '</ol>');
+  $('stPlanAgain').disabled = !!busy;
+}
+async function staPlanOpen() {
+  $('stPlan').classList.remove('hide');
+  if (!STA_PLAN || STA_PLAN.brand !== $('stBrand').value || new Date(STA_PLAN.at).toDateString() !== new Date().toDateString()) await staPlanMake(false);
+  staPlanDraw(false);
 }
 
 /* ================= LISTS & SETTINGS ================= */
@@ -2714,15 +3304,25 @@ function staSetDraw() {
   </div>
   <div class="sta-f" style="margin-top:12px"><label>Product words found in titles and campaign names</label><div class="sta-chips">${[...auto].sort().map(t => staBadge(t, 'info')).join('') || '<span class="sta-dash">None yet — they appear once the product titles have loaded.</span>'}</div></div>
   <div class="sta-row2" style="margin-top:12px"><div class="sta-f"><label for="stSetTgt">Target ACoS when a product has no unit cost (%)</label>
-    <input id="stSetTgt" type="number" min="1" max="100" step="1" value="${S.fallbackTgt || ''}" placeholder="Blank: no profit verdicts">
-    <small>Blank keeps profit verdicts off for products without a unit cost. Break-even is this plus overhead and salary (${(PF_MODEL.oh || 0) + (PF_MODEL.sal || 0)} points).</small></div></div>`;
+    <input id="stSetTgt" type="number" min="1" max="100" step="1" value="${S.fallbackTgt || ''}" placeholder="Blank: from break-even">
+    <small>What Sellora aims for. Blank with a break-even below: break-even minus overhead and salary (${(PF_MODEL.oh || 0) + (PF_MODEL.sal || 0)} points).</small></div>
+    <div class="sta-f"><label for="stSetBe">Break-even ACoS for ${staEsc(staBrandName(b))} (%)</label>
+    <input id="stSetBe" type="number" min="1" max="150" step="1" value="${S.fallbackBe || ''}" placeholder="Blank: target + ${(PF_MODEL.oh || 0) + (PF_MODEL.sal || 0)}">
+    <small>Above this a sale loses money. "Above break-even" and placement Lower use it. Both blank: profit verdicts stay off for products without a unit cost.</small>
+    <small id="stSetBeErr" class="sta-bad hide">Break-even must be above the target.</small></div></div>`;
   $('stSetNote').textContent = STS.where === 'local' ? 'Kept in this browser until the lists are switched on for everyone (adsSettings in firestore.rules).' : 'Shared with everyone who has this tab.';
 }
 async function staSetOk() {
   const lines = id => $(id).value.split(/\n|,/).map(s => s.trim()).filter(Boolean);
-  const tgt = Number($('stSetTgt').value);
-  await staSetSave(STS_B, { brandTerms: lines('stSetBrand'), productWords: lines('stSetProd'), blocked: lines('stSetBlock'),
-    competitors: lines('stSetComp'), fallbackTgt: tgt > 0 ? tgt : null });
+  const tgt = Number($('stSetTgt').value), be = Number($('stSetBe').value);
+  if (tgt > 0 && be > 0 && be <= tgt) { $('stSetBeErr').classList.remove('hide'); $('stSetBe').focus(); return; }
+  try {
+    await staSetSave(STS_B, { brandTerms: lines('stSetBrand'), productWords: lines('stSetProd'), blocked: lines('stSetBlock'),
+    competitors: lines('stSetComp'), fallbackTgt: tgt > 0 ? tgt : null, fallbackBe: be > 0 ? be : null });
+  } catch (e) {
+    $('stSetNote').innerHTML = `<span class="sta-bad">Not saved: ${staEsc(String((e && (e.code || e.message)) || e))}. Nothing changed; try again, or tell Ravi if it keeps failing.</span>`;
+    return;
+  }
   STS.stamp = (STS.stamp || 0) + 1;
   STM = null;
   $('stSet').classList.add('hide');
@@ -2878,19 +3478,23 @@ async function staCopyText(text, btn) {
 }
 // The selection bar: each ticked row's default change, after the same checks the dialog runs.
 $('stSelAdd').addEventListener('click', async () => {
-  let added = 0;
+  const added = [];
   const skipped = [];
+  $('stSelAdd').disabled = true;
   for (const r of [...ST_SEL.values()]) {
     const q = staQuick(r);
     if (q.skip) { skipped.push(`"${r.term}" (${q.skip})`); continue; }
     try {
-      for (const it of q.items) { await staRlSave(it); added++; }
-    } catch (e) { skipped.push(`"${r.term}" (${e.message || e})`); }
+      for (const it of q.items) { await staRlSave(it); added.push(it); }
+    } catch (e) { skipped.push(`"${r.term}" (could not save: ${e.message || e})`); }
   }
   ST_SEL.clear();
   STM = null;
+  $('stSelAdd').disabled = false;
   renderSt();
-  stFoot(`<span>Added ${added} change${added === 1 ? '' : 's'} to the review list${skipped.length ? ` · left out ${skipped.length}: ${staEsc(skipped.slice(0, 4).join(', '))}${skipped.length > 4 ? '…' : ''}` : ''}.</span>`);
+  const tail = skipped.length ? ` · left out ${skipped.length}: ${staEsc(skipped.slice(0, 4).join(', '))}${skipped.length > 4 ? '…' : ''}` : '';
+  if (added.length) staAddedFoot(added, `Added ${added.length} change${added.length === 1 ? '' : 's'} to the review list${tail}.`);
+  else stFoot(`<span>Nothing added${tail}.</span>`, true);
 });
 $('stSelClear').addEventListener('click', () => { ST_SEL.clear(); renderSt(); });
 // The dialog.
@@ -2926,7 +3530,36 @@ $('stRlTable').addEventListener('change', e => {
   staRlSelTxt();
 });
 $('stRlApprove').addEventListener('click', () => staRlSet('approved'));
-$('stRlRemove').addEventListener('click', () => staRlSet('removed'));
+// Remove asks once more on the button itself (no pop-up): "Confirm remove 3" for 4 seconds.
+$('stRlRemove').addEventListener('click', () => {
+  const b = $('stRlRemove');
+  if (!b.dataset.arm) {
+    b.dataset.arm = '1';
+    b.textContent = `Confirm remove ${ST_RL.sel.size}`;
+    b.classList.add('sta-armed');
+    setTimeout(() => { delete b.dataset.arm; b.classList.remove('sta-armed'); staRlSelTxt(); }, 4000);
+    return;
+  }
+  delete b.dataset.arm;
+  b.classList.remove('sta-armed');
+  staRlSet('removed');
+});
+if ($('stRlUnapprove')) $('stRlUnapprove').addEventListener('click', () => staRlSet('review'));
+if ($('stRlRestore')) $('stRlRestore').addEventListener('click', () => staRlSet('review'));
+if ($('stRlCancel')) $('stRlCancel').addEventListener('click', () => staRlSet('cancel'));
+if ($('stRlApply')) $('stRlApply').addEventListener('click', async () => {
+  const xs = ST_RL.items.filter(x => x.status === 'approved' && !staClashOf(x));
+  $('stRlApply').disabled = true;
+  const msg = await staApply(xs);
+  staRlDraw();
+  $('stRlSel').textContent = msg;
+  renderSt();
+});
+$('stRlTable').addEventListener('click', e => {
+  const r = e.target.closest('[data-rlredl]'), u = e.target.closest('[data-rlundo]');
+  if (r) staRedownload(r.dataset.rlredl);
+  else if (u) staUndoBatch(u.dataset.rlundo);
+});
 $('stRlDl').addEventListener('click', () => {
   if (!ST_RL.preview) { ST_RL.preview = true; staRlDraw(); } else staDownload();
 });
@@ -2948,7 +3581,28 @@ $('stLegend').addEventListener('click', e => { if (e.target === $('stLegend')) $
 document.addEventListener('keydown', e => {
   if (e.key !== 'Escape') return;
   if (!$('stDlg').classList.contains('hide')) staClose();
-  else ['stRl', 'stSet', 'stLegend'].forEach(id => $(id).classList.add('hide'));
+  else ['stRl', 'stSet', 'stLegend', 'stPlan'].forEach(id => $(id).classList.add('hide'));
+});
+// Plan my moves.
+$('stPlanBtn').addEventListener('click', () => { if (ST.loaded) staPlanOpen(); });
+$('stPlanX').addEventListener('click', () => $('stPlan').classList.add('hide'));
+$('stPlan').addEventListener('click', e => { if (e.target === $('stPlan')) $('stPlan').classList.add('hide'); });
+$('stPlanAgain').addEventListener('click', async () => { await staPlanMake(true); staPlanDraw(false); });
+$('stPlanBody').addEventListener('click', e => {
+  const b = e.target.closest('[data-plantick]');
+  if (!b || !STA_PLAN) return;
+  const m = STA_PLAN.moves[Number(b.dataset.plantick)];
+  const M = staModel();
+  let n = 0;
+  m.keys.forEach(k => {
+    const r = M.byKey.get(k);
+    if (!r) return;
+    try { if (staQuick(r).items) { ST_SEL.set(k, r); n++; } } catch (x) { /* skipped */ }
+  });
+  $('stPlan').classList.add('hide');
+  renderSt();
+  stFoot(`<span>Ticked ${n} row${n === 1 ? '' : 's'} for "${staEsc(m.title)}". Check them in the bar below, then Add to the review list.</span>`);
+  $('stSelBar').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 });
 
 // Export: every row of the current view (not just this page) as a CSV; the cp view has its own (cpCsv).
@@ -2970,7 +3624,7 @@ $('stCsv').onclick = () => {
   const rows = ST_VIEW === 'paths' ? ST_LAST.flatMap(g => g.shown) : ST_LAST;
   rows.forEach(r => lines.push([staBrandName(r.brand), ST_VIEW + (ST_VIEW === 'burn' ? ' by ' + ST_SUB : ''), r.term, r.type === 'word' ? '' : r.kw || '', r.mt || '',
     r.type === 'word' ? r.cps.map(c => c.cn).join(' | ') : r.cn, r.agn || '', (r.asins || []).join(' '), r.i || '', r.c, staR2(r.sp), r.o, staR2(r.s), pct(r.acos),
-    pct(r.tgtUse), pct(r.beUse), (r.badges || []).map(x => x[0]).join('; ') || (r.kind === 'none' ? 'No sales' : r.kind === 'be' ? 'Above break-even' : r.kind === 'poor' ? 'Converts poorly' : ''),
+    pct(r.tgtUse), pct(r.beUse), (r.badges || []).map(x => x[0]).join('; ') || (r.kind === 'none' ? 'No sales' : r.kind === 'loss' ? 'Above 100% ACoS' : r.kind === 'be' ? 'Above break-even' : r.kind === 'poor' ? 'Converts poorly' : ''),
     (r.tags || []).map(t => t[1]).join('; '), r.stake || r.burned ? staR2(r.stake || r.burned) : '', NEXT[r.next] || '',
     (r.type === 'target' ? r.sugBid : r.next === 'iso' ? r.isoBid : r.tr && /reduce|raise/.test(r.next || '') ? r.tr.sugBid : r.sugBid) || '', strip(r.hold), r.status || '', strip(r.ev)].map(cell).join(',')));
   const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });

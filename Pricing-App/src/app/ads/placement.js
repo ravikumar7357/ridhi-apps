@@ -293,7 +293,7 @@ $('plcCsv').onclick = () => {
   a.href = URL.createObjectURL(blob);
   a.download = 'placement-' + new Date().toISOString().slice(0, 10) + '.csv';
   a.click();
-  URL.revokeObjectURL(a.href);
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
 };
 
 // Called when the Ad Console opens: load the cached snapshot, draw, fold in last night's run (at most every
@@ -956,5 +956,5 @@ $('tExport').onclick = () => {
   a.href = URL.createObjectURL(blob);
   a.download = `account-trends-${T_GRAN}-${new Date().toISOString().slice(0, 10)}.csv`;
   a.click();
-  URL.revokeObjectURL(a.href);
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
 };

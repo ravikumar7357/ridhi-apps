@@ -75,6 +75,9 @@ async function loadMyPerms(user) {
       ME.brands = Array.isArray(data.brands) ? data.brands : [];
       /* ACCESS VIEWER (3 Nov): may open the Access page and see everyone's access, change nothing */
       ME.accessView = data.accessView === true;
+      /* APPLY AT AMAZON (19 Nov): may change ads at Amazon from Sellora once config/adsApply is on. Never implied by a
+         tab; an admin has it. The backend checks the same field before any change (perms/<email>.adsApply). */
+      ME.adsApply = data.adsApply === true;
     }
   } catch (e) { /* unreadable perms = no perms; the notice below explains it */ }
   // The owner is always an admin so the account can never lock itself out. Keep this in step with
@@ -84,6 +87,7 @@ async function loadMyPerms(user) {
   if (ME.admin) {
     ME.tabs = TABS.slice();
     ME.approve = true;
+    ME.adsApply = true;
   }
 }
 

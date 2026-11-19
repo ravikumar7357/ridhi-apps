@@ -991,7 +991,8 @@
         <input id="stFilter" style="flex:1 1 220px;min-width:0" placeholder="Filter term / campaign / ASIN" aria-label="Filter">
         <input id="stMinSpend" type="number" min="0" step="1" style="flex:0 0 130px" placeholder="Min spend $" aria-label="Minimum spend">
         <button id="stMoreBtn" class="ghost" type="button" aria-expanded="false" title="Match type, campaign type, verdict and tag">Filters<span id="stMoreN" class="sta-n hide">0</span></button>
-        <button id="stSetBtn" class="ghost" type="button" title="Brand terms, product words, blocked words, competitor brands">Lists &amp; settings</button>
+        <button id="stPlanBtn" class="ghost sta-planbtn" type="button" title="The 5–7 moves worth making first, from Sellora's top suggestions; one click ticks each move's rows"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg>Plan my moves</button>
+        <button id="stSetBtn" class="ghost" type="button" title="Brand terms, product words, blocked words, competitor brands, break-even">Lists &amp; settings</button>
         <button id="stRlBtn" class="ghost sta-rl" type="button" title="Changes picked here, waiting to be approved and downloaded as an Amazon bulk file">Review list<span id="stRlN" class="sta-n hide">0</span></button>
         <button id="stCsv" class="ghost" type="button" title="Every row of the view on screen, as a CSV">Export</button>
       </div>
@@ -1062,7 +1063,15 @@
       <div class="sta-mb sta-rlbody"><table id="stRlTable" class="xl"></table></div>
       <div id="stRlNote" class="sta-rlnote"></div>
       <div class="sta-mf"><small id="stRlSel"></small>
-        <div class="btns"><button id="stRlBack" class="ghost hide" type="button">Back</button><button id="stRlRemove" class="ghost" type="button">Remove</button><button id="stRlApprove" class="ghost" type="button">Approve</button><button id="stRlDl" type="button">Preview bulk file</button></div></div>
+        <div class="btns"><button id="stRlBack" class="ghost hide" type="button">Back</button><button id="stRlRemove" class="ghost" type="button">Remove</button><button id="stRlUnapprove" class="ghost" type="button">Un-approve</button><button id="stRlApprove" class="ghost" type="button">Approve</button><button id="stRlRestore" class="ghost hide" type="button">Put back</button><button id="stRlCancel" class="ghost hide" type="button" title="For a download that was never uploaded">Cancel download</button><button id="stRlApply" class="ghost" type="button" disabled><svg class="sta-lock" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>Apply approved</button><button id="stRlDl" type="button">Preview bulk file</button></div></div>
+    </div></div>
+
+    <!-- Plan my moves: the 5–7 moves worth making first; each ticks its rows (search-terms.js, PLAN MY MOVES). -->
+    <div id="stPlan" class="modal sta-modal hide" role="dialog" aria-modal="true" aria-label="Plan my moves"><div class="modalbox">
+      <div class="sta-mh"><div><b>Plan my moves</b><small id="stPlanSub"></small></div><button id="stPlanX" class="sta-x" type="button" title="Close" aria-label="Close">✕</button></div>
+      <div id="stPlanBody" class="sta-mb"></div>
+      <div class="sta-mf"><small>Claude can only point at changes Sellora already suggested; each still passes the usual checks when added.</small>
+        <div class="btns"><button id="stPlanAgain" class="ghost" type="button">Plan again</button></div></div>
     </div></div>
 
     <!-- Lists & settings, per brand: brand terms, product words, blocked words, competitor brands, the target ACoS without a unit cost. -->
