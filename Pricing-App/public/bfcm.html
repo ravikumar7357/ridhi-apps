@@ -1,0 +1,300 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>BFCM Sale Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800&family=Source+Sans+3:wght@400;600&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+/* Layout: a sale-day control sheet — headline pace strip, then day-wise and hour-wise charts, data tables under each. */
+:root {
+  --bg: #F6F7F9; --panel: #FFFFFF; --ink: #15191F; --ink2: #4A5260; --muted: #6B7280; --rule: #E2E5EA;
+  --y26: #2563C9; --y25: #C8661A; --base: #9AA3AF; --good: #1E7A44; --warn: #9A5B00;
+  --f-display: 'Archivo', 'Segoe UI', system-ui, sans-serif;
+  --f-body: 'Source Sans 3', 'Segoe UI', system-ui, sans-serif;
+  --f-mono: 'JetBrains Mono', ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #111418; --panel: #1A1E24; --ink: #EEF1F5; --ink2: #B6BDC8; --muted: #8E97A4; --rule: #2C323B;
+  --y26: #5B8FE0; --y25: #D0702A; --base: #6B7480; --good: #4CC27F; --warn: #E0A64A; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #111418; --panel: #1A1E24; --ink: #EEF1F5; --ink2: #B6BDC8; --muted: #8E97A4; --rule: #2C323B;
+  --y26: #5B8FE0; --y25: #D0702A; --base: #6B7480; --good: #4CC27F; --warn: #E0A64A; color-scheme: dark }
+*{box-sizing:border-box} body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 var(--f-body); }
+.wrap { max-width: 1120px; margin: 0 auto; padding-inline: 16px; padding-block: 24px 48px; display: flex; flex-direction: column; gap: 20px; }
+header { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 24px; }
+h1 { font: 800 28px/1.15 var(--f-display); margin: 0; letter-spacing: -0.01em; text-wrap: balance; }
+.eyebrow { font: 700 11px/1 var(--f-display); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.brand { margin-left: auto; font-size: 13px; color: var(--ink2); display: flex; gap: 8px; align-items: center; }
+.brand select { font: 600 14px var(--f-body); color: var(--ink); background: var(--panel); border: 1px solid var(--rule); border-radius: 8px; padding: 6px 10px; }
+.refresh { font: 700 13px var(--f-display); letter-spacing: .02em; color: var(--panel); background: var(--y26); border: 0; border-radius: 999px; padding: 8px 16px; cursor: pointer; min-height: 36px; }
+.refresh:hover { filter: brightness(1.08); } .refresh:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; } .refresh[disabled] { opacity: .6; cursor: progress; }
+.asof { font: 500 12px var(--f-mono); color: var(--ink2); background: var(--panel); border: 1px solid var(--rule); border-radius: 999px; padding: 6px 12px; }
+.strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
+.tile { background: var(--panel); border: 1px solid var(--rule); border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.tile .k { font: 700 11px var(--f-display); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.tile .v { font: 800 26px/1.1 var(--f-display); font-variant-numeric: tabular-nums; }
+.tile .s { font-size: 13px; color: var(--ink2); }
+.tile.hl { border-color: var(--y26); box-shadow: inset 0 3px 0 var(--y26); }
+.up { color: var(--good); font-weight: 600; } .dn { color: var(--warn); font-weight: 600; }
+section.card { background: var(--panel); border: 1px solid var(--rule); border-radius: 14px; padding: 18px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+h2 { font: 700 18px/1.2 var(--f-display); margin: 0; }
+.sub { color: var(--ink2); font-size: 14px; margin: 0; max-width: 72ch; }
+.legend { display: flex; flex-wrap: wrap; gap: 8px 18px; font-size: 13px; color: var(--ink2); }
+.legend i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -1px; margin-right: 6px; }
+.legend i.dash { height: 0; border-top: 2px dashed var(--base); width: 16px; border-radius: 0; vertical-align: 3px; }
+.chart { width: 100%; overflow-x: auto; }
+.chart svg { display: block; width: 100%; min-width: 640px; height: auto; }
+.chart text { fill: var(--muted); font: 500 11px var(--f-mono); }
+.chart .lbl { fill: var(--ink); font: 700 11px var(--f-mono); }
+.grid line { stroke: var(--rule); }
+.tbl { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; font-variant-numeric: tabular-nums; }
+th, td { padding: 6px 10px; border-bottom: 1px solid var(--rule); text-align: right; white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; }
+th { font: 700 11px var(--f-display); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+details summary { cursor: pointer; color: var(--ink2); font-size: 13px; }
+details summary:focus-visible { outline: 2px solid var(--y26); outline-offset: 2px; }
+.pending { border: 1px dashed var(--rule); border-radius: 10px; padding: 12px 14px; font-size: 14px; color: var(--ink2); }
+.pending b { color: var(--ink); }
+.foot { font-size: 12.5px; color: var(--muted); }
+.tip { position: fixed; pointer-events: none; background: var(--ink); color: var(--bg); font: 500 12px/1.4 var(--f-mono); padding: 6px 9px; border-radius: 6px; z-index: 5; }
+@media (max-width: 760px) { .strip { grid-template-columns: repeat(2, minmax(0, 1fr)); } .brand { margin-left: 0; } }
+</style></head><body>
+
+<div class="wrap">
+  <header>
+    <div>
+      <div class="eyebrow">Amazon.com · Pacific time · updates every 15 minutes</div>
+      <h1>Black Friday – Cyber Monday — 2026 vs 2025</h1>
+    </div>
+    <label class="brand" for="brand">Brand <select id="brand"><option value="ALL">Ridhi + CPC</option><option value="SP">Ridhi</option><option value="CPC">CPC</option></select></label>
+    <div class="asof" id="asof"></div>
+    <button type="button" class="refresh" id="refresh" title="Load the latest hourly numbers">Refresh</button>
+  </header>
+
+  <div class="strip" id="strip"></div>
+
+  <section class="card" aria-labelledby="h-day">
+    <h2 id="h-day">Day by day — sales around the sale</h2>
+    <p class="sub" id="daySub">Each 2026 day stands beside the same weekday of 2025 (364 days earlier), so Black Friday meets Black Friday and Cyber Monday meets Cyber Monday. Today's bar is the day so far.</p>
+    <div class="legend"><span><i style="background:var(--y26)"></i>2026</span><span><i style="background:var(--y25)"></i>2025</span></div>
+    <div class="chart" id="dayChart"></div>
+    <details><summary>Show the numbers</summary><div class="tbl" id="dayTable"></div></details>
+  </section>
+
+  <section class="card" aria-labelledby="h-hour">
+    <h2 id="h-hour">Hour by hour — today against the same weekday last year</h2>
+    <p class="sub">Sales in each Pacific-time hour today, beside the same hour of the same weekday last year. The grey line is an ordinary 2026 day (average of Mon 9 – Fri 13 Nov). The last blue bar is a part hour.</p>
+    <div class="legend"><span><i style="background:var(--y26)"></i>2026</span><span><i style="background:var(--y25)"></i>2025, same weekday</span><span><i class="dash"></i>Normal day 2026</span></div>
+    <div class="chart" id="hourChart"></div>
+    <div class="legend"><span><i style="background:var(--y26)"></i>Today, running total</span><span><i class="dash"></i>Normal day, running total</span><span><i style="background:var(--y25)"></i>2025 same weekday, running total</span></div>
+    <div class="chart" id="cumChart"></div>
+    <details><summary>Show the numbers</summary><div class="tbl" id="hourTable"></div></details>
+  </section>
+
+  <p class="foot">Source: Amazon Sales API (order metrics) per brand — every order placed on Amazon.com, including pending ones, by Pacific hour. Sales are what buyers were charged for the items. The numbers refresh every 15 minutes during the sale (19 Nov – 30 Nov 2026).</p>
+</div>
+<div class="tip" id="tip" hidden></div>
+
+<script>
+let DATA = {"asOf":"","ev":null,"brands":{"SP":{},"CPC":{}}};
+/* BFCM 2026 (Ravi, 19 Nov: "is link ko BFCM sale ke comparasion ke liye banana h").
+ * DATA.brands[SP|CPC] = { now:[today's hour rows so far], ly:[24 hour rows, the same weekday a year back], base:[120 hour rows, Mon 9 – Fri 13 Nov 2026],
+ *   d25:[day rows from DATA.ev.from25], d26:[day rows from DATA.ev.from26] }; DATA.ev = the sale window; DATA.asOf = ISO UTC */
+const EV = () => DATA.ev || { from26: '2026-11-12', from25: '2025-11-13', saleFrom: '2026-11-19', saleTo: '2026-11-30', to26: '2026-12-02', today: '2026-11-19', lyDay: '2025-11-20',
+  marks: { '2026-11-26': 'Thanksgiving', '2026-11-27': 'Black Friday', '2026-11-30': 'Cyber Monday' } };
+const dPlus = (day, n) => new Date(Date.parse(day + 'T12:00:00Z') + n * 864e5).toISOString().slice(0, 10);
+const dNice = day => new Date(day + 'T12:00:00Z').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
+const dShort = day => new Date(day + 'T12:00:00Z').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+const dGap = (a, b) => Math.round((Date.parse(b + 'T12:00:00Z') - Date.parse(a + 'T12:00:00Z')) / 864e5);
+/** What a day is called on the chart: its holiday, its place in the sale (Day 1…), or how far before/after. */
+function dayName(day) {
+  const E = EV();
+  if (E.marks && E.marks[day]) return E.marks[day];
+  if (day < E.saleFrom) return 'D-' + dGap(day, E.saleFrom);
+  if (day > E.saleTo) return 'D+' + dGap(E.saleTo, day);
+  return 'Day ' + (dGap(E.saleFrom, day) + 1);
+}
+const H = [...Array(24).keys()];
+const usd = v => '$' + Math.round(v).toLocaleString('en-US');
+const usdk = v => v >= 1000 ? '$' + (v / 1000).toFixed(v >= 10000 ? 0 : 1) + 'k' : '$' + Math.round(v);
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const NS = 'http://www.w3.org/2000/svg';
+const el = (tag, attrs, parent) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (parent) parent.appendChild(e); return e; };
+const tip = document.getElementById('tip');
+const hover = (node, text) => {
+  node.addEventListener('mousemove', e => { tip.hidden = false; tip.textContent = text; tip.style.left = Math.min(e.clientX + 12, innerWidth - 240) + 'px'; tip.style.top = (e.clientY - 34) + 'px'; });
+  node.addEventListener('mouseleave', () => { tip.hidden = true; });
+};
+const niceMax = v => { if (!(v > 0)) return 1; const p = Math.pow(10, Math.floor(Math.log10(v))); for (const m of [1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10]) if (m * p >= v) return m * p; return 10 * p; };
+const ptHM = iso => new Date(iso).toLocaleTimeString('en-US', { timeZone: 'America/Los_Angeles', hour: 'numeric', minute: '2-digit' });
+const zero = () => ({ orders: 0, units: 0, sales: 0 });
+const add = (a, b) => ({ orders: a.orders + (b ? b.orders : 0), units: a.units + (b ? b.units : 0), sales: a.sales + (b ? b.sales : 0) });
+
+function view(key) {
+  const keys = key === 'ALL' ? Object.keys(DATA.brands) : [key];
+  const pick = f => keys.map(k => DATA.brands[k][f] || []);
+  const merge = lists => { const n = Math.max(0, ...lists.map(l => l.length)); return [...Array(n).keys()].map(i => { const parts = lists.map(l => l[i]).filter(Boolean); return parts.length ? Object.assign(parts.reduce((t, r) => add(t, r), zero()), { t: parts[0].t }) : null; }); };
+  const now = merge(pick('now')), ly = merge(pick('ly')), base = merge(pick('base')), d25 = merge(pick('d25')), d26 = merge(pick('d26'));
+  const normal = H.map(h => { let t = zero(), n = 0; for (let d = 0; d * 24 + h < base.length; d++) { if (base[d * 24 + h]) { t = add(t, base[d * 24 + h]); n++; } } return n ? { orders: t.orders / n, units: t.units / n, sales: t.sales / n } : zero(); });
+  /* TODAY AGAINST THE SAME WEEKDAY A YEAR BACK (364 days): the cloud job sends that day's hours as ly. */
+  const E = EV();
+  return { now, ly1: ly.slice(0, 24), normal, d25, d26, dayTxt: dayName(E.today), lyDate: dNice(E.lyDay) + ' 2025', nowDate: dNice(E.today) };
+}
+
+/* TACoS TODAY: Sponsored Products spend ÷ all sales today (Amazon Ads report; Amazon's ad numbers run a few hours behind the
+ * orders, so the spend is as of its own time). SB and SD spend are not in the report. */
+function tacosTile(key, today) {
+  /* only today's ad report counts — an old one (Prime Day's) would give a wrong TACoS */
+  const A = DATA.ads && DATA.ads.day === EV().today ? DATA.ads : null;
+  const keys = key === 'ALL' ? ['SP', 'CPC'] : [key];
+  const parts = A && A.brands ? keys.map(k => A.brands[k]).filter(x => x && x.spend != null) : [];
+  if (!parts.length) return ['TACoS today', '—', 'ad spend not read yet'];
+  const spend = parts.reduce((t, x) => t + x.spend, 0), adSales = parts.reduce((t, x) => t + (x.adSales || 0), 0);
+  const tacos = today.sales ? spend / today.sales * 100 : 0, acos = adSales ? spend / adSales * 100 : 0;
+  return ['TACoS today', tacos.toFixed(1) + '%', 'SP ad spend ' + usd(spend) + ' · ACoS ' + acos.toFixed(1) + '% · ad report ' + (A.at ? ptHM(A.at) + ' PT' : '—') + ' (Amazon ad figures run a few hours behind)'];
+}
+
+function render() {
+  const key = document.getElementById('brand').value;
+  /* nothing read yet: the page carries no numbers of its own (the repo is public); they come from the sheet */
+  if (!DATA.asOf || !DATA.ev) { document.getElementById('asof').textContent = 'Waiting for the first numbers…'; document.getElementById('strip').innerHTML = '<div class="tile"><span class="k">Loading</span><span class="v">—</span><span class="s">The sale numbers come in from Amazon every 15 minutes.</span></div>'; return; }
+  const V = view(key);
+  const asOf = new Date(DATA.asOf);
+  const ptHour = Number(asOf.toLocaleString('en-US', { timeZone: 'America/Los_Angeles', hour: 'numeric', hour12: false })) % 24;
+  const frac = Number(asOf.toLocaleString('en-US', { timeZone: 'America/Los_Angeles', minute: 'numeric' })) / 60;
+  const partHour = V.now.length - 1;
+  /* Hours before the part hour in full, and that hour pro-rated by the minutes gone — a like-for-like 'same time' figure. */
+  const sumTo = (rows, h, f) => { const t = rows.slice(0, h).reduce((a, r) => add(a, r), zero()); return { sales: t.sales + (rows[h] ? rows[h].sales * f : 0), orders: t.orders + (rows[h] ? rows[h].orders * f : 0) }; };
+  const today = V.now.reduce((t, r) => add(t, r), zero());
+  const lySame = sumTo(V.ly1, partHour, frac), normSame = sumTo(V.normal, partHour, frac);
+  const lyDay = V.ly1.reduce((t, r) => add(t, r), zero());
+  const pct = (a, b) => b ? Math.round((a / b - 1) * 100) : 0;
+  const tone = p => p >= 0 ? 'up' : 'dn';
+  document.getElementById('asof').textContent = 'Data to ' + ptHM(DATA.asOf) + ' PT · ' + DATA.asOf.slice(11, 16) + ' UTC';
+  document.getElementById('strip').innerHTML = [
+    [V.dayTxt + ' so far', usd(today.sales), today.orders.toLocaleString() + ' orders · ' + today.units.toLocaleString() + ' units', true],
+    ['Vs last year, same time', `<span class="${tone(pct(today.sales, lySame.sales))}">${pct(today.sales, lySame.sales) >= 0 ? '+' : ''}${pct(today.sales, lySame.sales)}%</span>`, V.lyDate + ' by ' + ptHM(DATA.asOf) + ': ' + usd(lySame.sales) + ' · ' + Math.round(lySame.orders) + ' orders'],
+    ['Vs a normal day', (today.sales / normSame.sales).toFixed(1) + '×', 'an ordinary 2026 day by this hour: ' + usd(normSame.sales)],
+    [V.lyDate + ', whole day', usd(lyDay.sales), Math.round(today.sales / lyDay.sales * 100) + '% of it reached · ' + lyDay.orders.toLocaleString() + ' orders'],
+    tacosTile(key, today),
+    /* a brand Amazon would not answer for is said plainly, not shown as $0 */
+    ...(key === 'ALL' ? ['SP', 'CPC'] : [key]).filter(b => DATA.brands[b] && DATA.brands[b].err).map(b => [(b === 'CPC' ? 'CPC' : 'Ridhi') + ' not read', '—', 'Amazon refused the login for this brand, so it is not in these numbers']),
+  ].map(([k, v, s, hl]) => `<div class="tile${hl ? ' hl' : ''}"><span class="k">${k}</span><span class="v">${v}</span><span class="s">${s}</span></div>`).join('');
+
+  /* ---- day by day ---- */
+  /* every day from a week before the sale to two days after it; the 2025 bar is the same weekday, 364 days earlier */
+  const E = EV(), n = dGap(E.from26, E.to26) + 1;
+  const at = (rows, day) => (rows || []).find(r => r && String(r.t || '').slice(0, 10) === day);
+  const days = [...Array(n).keys()].map(i => { const d26 = dPlus(E.from26, i), d25 = dPlus(d26, -364), l = dayName(d26);
+    return { l, key: !/^D[-+]/.test(l), a: at(V.d25, d25), aD: dShort(d25), b: d26 > E.today ? null : at(V.d26, d26), bD: dShort(d26), part: d26 === E.today }; });
+  drawDays(days);
+  /* ---- hours ---- */
+  drawHours(V, partHour);
+  drawCum(V, partHour);
+}
+
+function axisY(svg, L, R, W, y, max) {
+  const g = el('g', { class: 'grid' }, svg);
+  for (let i = 0; i <= 4; i++) { const v = max * i / 4; el('line', { x1: L, x2: W - R, y1: y(v), y2: y(v) }, g); const t = el('text', { x: L - 8, y: y(v) + 4, 'text-anchor': 'end' }, svg); t.textContent = usdk(v); }
+}
+function bar(svg, x, y0, yv, bw, fill, txt) {
+  const h = Math.max(1.5, y0 - yv), r = Math.min(4, bw / 2, h);
+  const p = el('path', { d: `M${x},${y0} v${-(h - r)} q0,-${r} ${r},-${r} h${bw - 2 * r} q${r},0 ${r},${r} v${h - r} z`, fill }, svg);
+  if (txt) hover(p, txt);
+}
+function drawDays(days) {
+  const box = document.getElementById('dayChart'); box.innerHTML = '';
+  const W = 1000, Hh = 320, L = 56, R = 16, T = 26, B = 44;
+  const svg = el('svg', { viewBox: `0 0 ${W} ${Hh}`, role: 'img', 'aria-label': 'Daily sales, 2026 against 2025, lined up by sale day' });
+  const max = niceMax(Math.max(...days.map(d => Math.max(d.a ? d.a.sales : 0, d.b ? d.b.sales : 0))));
+  const y = v => T + (Hh - T - B) * (1 - v / max);
+  axisY(svg, L, R, W, y, max);
+  const band = (W - L - R) / days.length, bw = Math.min(30, band * 0.34);
+  days.forEach((d, i) => {
+    const cx = L + band * i + band / 2;
+    if (d.a) bar(svg, cx - bw - 1, y(0), y(d.a.sales), bw, css('--y25'), '2025 · ' + d.aD + ': ' + usd(d.a.sales) + ', ' + d.a.orders + ' orders');
+    if (d.b) bar(svg, cx + 1, y(0), y(d.b.sales), bw, css('--y26'), '2026 · ' + d.bD + ': ' + usd(d.b.sales) + ', ' + d.b.orders + ' orders' + (d.part ? ' (so far)' : ''));
+    if (d.key && d.a && /Friday|Monday/.test(d.l)) { const t = el('text', { x: cx - bw / 2 - 1, y: y(d.a.sales) - 6, 'text-anchor': 'middle', class: 'lbl' }, svg); t.textContent = usdk(d.a.sales); }
+    if (d.part && d.b) { const t = el('text', { x: cx + bw / 2 + 1, y: y(d.b.sales) - 6, 'text-anchor': 'start', class: 'lbl' }, svg); t.textContent = ' ' + usdk(d.b.sales) + ' so far'; }
+    const short = d.l.replace('Black Friday', 'Black Fri').replace('Cyber Monday', 'Cyber Mon').replace('Thanksgiving', 'Thanksg.');
+    const t1 = el('text', { x: cx, y: Hh - B + 18, 'text-anchor': 'middle', class: d.key ? 'lbl' : '', 'font-size': 10 }, svg); t1.textContent = short;
+    const t2 = el('text', { x: cx, y: Hh - B + 33, 'text-anchor': 'middle', 'font-size': 10 }, svg); t2.textContent = d.bD;
+  });
+  el('line', { x1: L, x2: W - R, y1: y(0), y2: y(0), stroke: css('--ink2') }, svg);
+  box.appendChild(svg);
+  document.getElementById('dayTable').innerHTML = '<table><thead><tr><th>Day</th><th>2026 date</th><th>2026 sales</th><th>2026 orders</th><th>2025 date</th><th>2025 sales</th><th>2025 orders</th><th>Change</th></tr></thead><tbody>'
+    + days.map(d => `<tr><td>${d.l}</td><td>${d.bD}</td><td>${d.b ? usd(d.b.sales) + (d.part ? ' so far' : '') : '—'}</td><td>${d.b ? d.b.orders.toLocaleString() : '—'}</td><td>${d.aD}</td><td>${d.a ? usd(d.a.sales) : '—'}</td><td>${d.a ? d.a.orders.toLocaleString() : '—'}</td><td>${d.a && d.b && !d.part ? '<span class="' + (d.b.sales >= d.a.sales ? 'up' : 'dn') + '">' + (d.b.sales >= d.a.sales ? '+' : '') + Math.round((d.b.sales / d.a.sales - 1) * 100) + '%</span>' : '—'}</td></tr>`).join('')
+    + '</tbody></table>';
+}
+function hourLabel(h) { return (h % 12 || 12) + (h < 12 ? 'a' : 'p'); }
+function drawHours(V, partHour) {
+  const box = document.getElementById('hourChart'); box.innerHTML = '';
+  const W = 1000, Hh = 290, L = 56, R = 16, T = 20, B = 36;
+  const svg = el('svg', { viewBox: `0 0 ${W} ${Hh}`, role: 'img', 'aria-label': 'Sales per Pacific hour: today, last year same sale day, and a normal day' });
+  const max = niceMax(Math.max(...H.map(h => Math.max(V.now[h] ? V.now[h].sales : 0, V.ly1[h] ? V.ly1[h].sales : 0, V.normal[h].sales))));
+  const y = v => T + (Hh - T - B) * (1 - v / max);
+  axisY(svg, L, R, W, y, max);
+  const band = (W - L - R) / 24, bw = Math.max(5, band * 0.34);
+  H.forEach(h => {
+    const cx = L + band * h + band / 2;
+    if (V.ly1[h]) bar(svg, cx - bw - 1, y(0), y(V.ly1[h].sales), bw, css('--y25'), V.lyDate + ', ' + hourLabel(h) + ': ' + usd(V.ly1[h].sales) + ', ' + V.ly1[h].orders + ' orders');
+    if (V.now[h]) bar(svg, cx + 1, y(0), y(V.now[h].sales), bw, css('--y26'), V.nowDate + ', ' + hourLabel(h) + ': ' + usd(V.now[h].sales) + ', ' + V.now[h].orders + ' orders' + (h === partHour ? ' (part hour)' : ''));
+    if (h % 2 === 0) { const t = el('text', { x: cx, y: Hh - B + 18, 'text-anchor': 'middle' }, svg); t.textContent = hourLabel(h); }
+  });
+  el('path', { d: H.map((h, i) => (i ? 'L' : 'M') + (L + band * h + band / 2) + ',' + y(V.normal[h].sales)).join(' '), fill: 'none', stroke: css('--base'), 'stroke-width': 2, 'stroke-dasharray': '6 5' }, svg);
+  el('line', { x1: L, x2: W - R, y1: y(0), y2: y(0), stroke: css('--ink2') }, svg);
+  box.appendChild(svg);
+  document.getElementById('hourTable').innerHTML = '<table><thead><tr><th>Hour (PT)</th><th>2026 sales</th><th>2026 orders</th><th>2025 sales</th><th>2025 orders</th><th>Change</th><th>Normal day</th></tr></thead><tbody>'
+    + H.map(h => `<tr><td>${h}:00${h === partHour ? ' (part)' : ''}</td><td>${V.now[h] ? usd(V.now[h].sales) : '—'}</td><td>${V.now[h] ? V.now[h].orders : '—'}</td><td>${V.ly1[h] ? usd(V.ly1[h].sales) : '—'}</td><td>${V.ly1[h] ? V.ly1[h].orders : '—'}</td><td>${V.now[h] && V.ly1[h] && V.ly1[h].sales && h !== partHour ? '<span class="' + (V.now[h].sales >= V.ly1[h].sales ? 'up' : 'dn') + '">' + (V.now[h].sales >= V.ly1[h].sales ? '+' : '') + Math.round((V.now[h].sales / V.ly1[h].sales - 1) * 100) + '%</span>' : '—'}</td><td>${usd(V.normal[h].sales)}</td></tr>`).join('')
+    + '</tbody></table>';
+}
+function drawCum(V, partHour) {
+  const box = document.getElementById('cumChart'); box.innerHTML = '';
+  const W = 1000, Hh = 290, L = 56, R = 120, T = 20, B = 36;
+  const svg = el('svg', { viewBox: `0 0 ${W} ${Hh}`, role: 'img', 'aria-label': 'Running total of sales through the day' });
+  const run = rows => { let a = 0; return rows.map(r => (a += r.sales)); };
+  const cN = run(V.normal), cL = run(V.ly1), cT = run(V.now);
+  const max = niceMax(Math.max(cN[23] || 0, cL[cL.length - 1] || 0, cT[cT.length - 1] || 0));
+  const x = h => L + (W - L - R) * (h + 1) / 24, y = v => T + (Hh - T - B) * (1 - v / max);
+  axisY(svg, L, R, W, y, max);
+  for (let h = 0; h < 24; h += 3) { const t = el('text', { x: x(h - 1), y: Hh - B + 18, 'text-anchor': 'middle' }, svg); t.textContent = hourLabel(h); }
+  const path = pts => 'M' + L + ',' + y(0) + ' ' + pts.map((v, i) => 'L' + x(i) + ',' + y(v)).join(' ');
+  el('path', { d: path(cN), fill: 'none', stroke: css('--base'), 'stroke-width': 2, 'stroke-dasharray': '6 5' }, svg);
+  el('path', { d: path(cL), fill: 'none', stroke: css('--y25'), 'stroke-width': 2 }, svg);
+  el('path', { d: path(cT), fill: 'none', stroke: css('--y26'), 'stroke-width': 2.5 }, svg);
+  const endLbl = (v, txt, cls) => { const t = el('text', { x: W - R + 6, y: y(v) + 4, class: cls || '' }, svg); t.textContent = txt; };
+  endLbl(cL[23] || 0, '2025 ' + usdk(cL[23] || 0), 'lbl');
+  endLbl(cN[23] || 0, 'normal ' + usdk(cN[23] || 0));
+  const last = cT.length - 1;
+  if (last >= 0) {
+    const dot = el('circle', { cx: x(last), cy: y(cT[last]), r: 5, fill: css('--y26'), stroke: css('--panel'), 'stroke-width': 2 }, svg);
+    hover(dot, 'Today to ' + ptHM(DATA.asOf) + ': ' + usd(cT[last]) + ' · last year by then ' + usd(cL[last] || 0));
+    const t = el('text', { x: x(last) + 10, y: y(cT[last]) - 8, class: 'lbl' }, svg); t.textContent = usd(cT[last]) + ' so far';
+  }
+  el('line', { x1: L, x2: W - R, y1: y(0), y2: y(0), stroke: css('--ink2') }, svg);
+  box.appendChild(svg);
+}
+try { const s = localStorage.getItem('bfcm-brand'); if (s) document.getElementById('brand').value = s; } catch (e) { /* no storage */ }
+document.getElementById('brand').addEventListener('change', e => { try { localStorage.setItem('bfcm-brand', e.target.value); } catch (x) { /* no storage */ } render(); });
+render();
+
+/* ---- LIVE: the cloud job rewrites the Google Sheet every 15 minutes; this page reads its published CSV on open, on Refresh and
+ * every 5 minutes. Only data that carries the BFCM window is taken (the sheet held Prime Day's before). ---- */
+(function () {
+  const CSV = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vT4har6PLAsd-XcNyTGHLRfwKlHq27i1RC7L2qdcJ4hELHFHy6J1guPUJlsS0vTdk-pPWQuYa__OTw-/pub?gid=0&single=true&output=csv';
+  const btn = document.getElementById('refresh');
+  async function load(manual) {
+    if (manual) { btn.disabled = true; btn.textContent = 'Refreshing…'; }
+    try {
+      const r = await fetch(CSV + '&t=' + Date.now(), { cache: 'no-store' });
+      const rows = (await r.text()).split(/\r?\n/).slice(1).filter(Boolean);
+      const next = JSON.parse(rows.map(l => l.replace(/^"|"$/g, '').replace(/""/g, '"')).join(''));
+      if (next && next.ev && next.asOf && next.brands && next.asOf >= DATA.asOf) { if (!next.ads && DATA.ads) next.ads = DATA.ads; DATA = next; render(); }
+    } catch (e) { /* the numbers on screen stay */ }
+    if (manual) { btn.disabled = false; btn.textContent = 'Refresh'; }
+  }
+  btn.addEventListener('click', () => load(true));
+  load(false);
+  setInterval(() => { if (document.visibilityState === 'visible') load(false); }, 5 * 60 * 1000);
+})();
+
+</script>
+</body></html>
