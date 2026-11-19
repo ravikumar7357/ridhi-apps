@@ -85,7 +85,7 @@ const LR_DETECTORS = {
   size_format: { label: 'A size in the title not written like the approved example', params: ['example'] },
   dimension_order: { label: 'Larger dimension written first', params: [] },
   variation_naming: { label: 'Siblings write their size differently', params: [] },
-  title_template: { label: 'Title missing parts of its template, or in another order', params: [] },
+  title_template: { label: 'A real mistake in the title: spelling, the shape against the size, a missing part (brand, colour, product, size, Inch), a repeated word — never its word order', params: [] },
   title_keyword: { label: 'Title missing a required word (comma-separated: any one is enough)', params: ['words'] },
   title_contains: { label: 'Title contains a word (comma-separated)', params: ['words'] },
   amazon_suppressed: { label: 'Amazon has taken the listing out of search (buyable but not discoverable)', params: [] },
@@ -123,8 +123,8 @@ const LR_DEFAULT = {
     { id: 'var_value', name: 'Missing required variation value', sev: 'action', area: 'Variation', detector: 'variation_value_missing', desc: 'Makes child unclear/wrong within parent' },
     { id: 'kw_bytes', name: 'Search terms over the limit', sev: 'action', area: 'Content', detector: 'keyword_bytes', params: { max: 249 }, desc: 'Over the limit Amazon may ignore all of the search terms; spaces and ; , . do not count toward it' },
     { id: 'img_type', name: 'Important image type missing', sev: 'action', area: 'Images', detector: 'manual', desc: 'No size infographic, lifestyle, detail image, etc.' },
-    { id: 'title_template', name: "Title doesn't follow template", sev: 'action', area: 'Title', detector: 'title_template', desc: 'Information is correct but title structure is wrong' },
-    { id: 'size_format', name: 'Size formatting inconsistent', sev: 'action', area: 'Size', detector: 'size_format', params: { example: '14 x 36 Inch' }, desc: '14x36, 14 x 36 inch, etc. instead of approved 14 x 36 Inch' },
+    { id: 'title_template', name: 'Title mistake', sev: 'action', area: 'Title', detector: 'title_template', desc: 'A spelling mistake, a shape the size contradicts, a missing part (brand, colour, product, size, "Inch") or a word said twice — the title keeps its own format and word order' },
+    { id: 'size_format', name: 'Size formatting inconsistent', sev: 'action', area: 'Size', detector: 'size_format', params: { example: '54x54 Inch' }, desc: '54×54, 60X90 Inches, etc. instead of our 54x54 Inch (or the family\'s 54 x 54 Inch)' },
     { id: 'dim_order', name: 'Dimension order inconsistent', sev: 'action', area: 'Size', detector: 'dimension_order', desc: '36 x 14 instead of CPC-approved 14 x 36, where both describe same item' },
     { id: 'title_keyword', name: 'Important title keyword missing', sev: 'action', area: 'Title', detector: 'title_keyword', params: { words: 'Block Print' }, desc: 'e.g. Hand Block Print omitted when required by template' },
     { id: 'bullet_missing', name: 'Missing bullet', sev: 'action', area: 'Content', detector: 'bullets_below', params: { n: 5 }, desc: 'Fewer than required number' },
@@ -158,18 +158,18 @@ const LR_DEFAULT = {
    * title is kept for the person reading the template. */
   templates: [
     { brand: 'ALL', match: 'Tablecloth', product: 'Tablecloth', material: '100% Cotton', pattern: 'Hand Block Print',
-      uses: 'Decorative Table Cover for Dining Kitchen Farmhouse Party Home', required: 'brand,product,shape,material,size,color',
-      pattern_: '', template: '{brand} {product} {shape} {material} {size} {pattern} {uses} {occasions} - {color}',
+      uses: 'Decorative Table Cover for Dining Kitchen Farmhouse Party Home', required: 'brand,color,product,size',
+      pattern_: '', template: '{brand} {color} {pattern} {shape} {product} {size}',
       reference: 'Maison d\' Hermine Table Cloth Rectangle Table Reusable 100% Cotton 60"x90" Decorative for Dining Kitchen Room Farmhouse Party Home Hotel Washable Table Cover Thanksgiving Christmas - Equinoxe - Beige' },
     { brand: 'ALL', match: 'Runner', product: 'Table Runner', material: '100% Cotton', pattern: 'Hand Block Print',
-      uses: 'for Dining Table Kitchen Farmhouse Party Home', required: 'brand,product,material,size,color',
-      template: '{brand} {product} {material} {size} {pattern} {uses} {occasions} - {color}', reference: '' },
+      uses: 'for Dining Table Kitchen Farmhouse Party Home', required: 'brand,color,product,size',
+      template: '{brand} {color} {pattern} {product} {size}', reference: '' },
     { brand: 'ALL', match: 'Pillow', product: 'Throw Pillow Cover', material: 'Cotton', pattern: 'Block Print',
-      uses: 'for Couch Sofa Bed Living Room', required: 'brand,product,size,color',
-      template: '{brand} {color} {pattern} {product} {size} {uses} {occasions}', reference: '' },
+      uses: 'for Couch Sofa Bed Living Room', required: 'brand,color,product,size',
+      template: '{brand} {color} {pattern} {product} {size}', reference: '' },
     { brand: 'ALL', match: 'Napkin', product: 'Cloth Napkins', material: '100% Cotton', pattern: 'Block Print',
-      uses: 'Reusable Dinner Napkins', required: 'brand,product,material,size,color',
-      template: '{brand} {product} {material} {size} {pattern} {uses} {occasions} - {color}', reference: '' },
+      uses: 'Reusable Dinner Napkins', required: 'brand,color,product,size',
+      template: '{brand} {color} {pattern} {product} {size}', reference: '' },
   ],
   /* THE SEASON CALENDAR. A title may name an occasion from `lead` days before it to `lag` days after it.
    * when: fixed {m,d} · nth weekday {m, wd (0=Sun), n (−1 = last)} · easter {off} · after {event, days}.
@@ -901,11 +901,13 @@ const LR_DET = {
     ? `Amazon shows: "${row.shownTitle}" · Yours: "${row.submittedTitle}"` : ''),
   title_length: (row, ctx, params) => (row.content && (row.content.titleLen < (+params.min || 0) || row.content.titleLen > (+params.max || 999)))
     ? `${row.content.titleLen} characters` : '',
+  // OUR TITLE FORMAT (20 Nov 2026): "54x54 Inch" or "54 x 54 Inch" (the family's way), the rule's example, the 74–75 short forms; a size
+  // with no unit at all is title_template's "Missing Inch" (never two findings for one mistake)
   size_format: (row, ctx, params) => {
     const title = hTitleText(row);
-    const near = lrNear(title, ctx.cfg);          // 74–75 characters: shortened on purpose to fit, so the short forms are fine (Part A1)
-    const bad = hTitleSizes(title).find(size => !lrSizeOk(size.text, params.example) && !(near && lrSizeLoose(size.text)));
-    return bad ? `"${bad.text}"` : '';               // the heading reads: Size not in house style: "60×60 Inches" (LR_WHAT_TEXT)
+    const bad = hTitleSizes(title).find(size => LR_UNIT_RE.test(size.text) && (!lrSizeOurs(size.text, ctx.cfg, title, params.example) || lrSizeOffFamily(size, row, ctx, title)));
+    if (bad && lrSizeOurs(bad.text, ctx.cfg, title, params.example)) return `"${bad.text}" — the family writes "${lrSizeWant(bad, row, ctx, title)}"`;
+    return bad ? `"${bad.text}"` : '';               // the heading reads: Size not in our format: "60×60 Inches" (LR_WHAT_TEXT)
   },
   dimension_order: row => {
     const wrong = hTitleSizes(hTitleText(row)).find(size => size.c === null && size.a > size.b);
@@ -946,52 +948,8 @@ const LR_DET = {
     const hit = title ? lrWords(params.words).find(word => lrHas(title, word)) : null;
     return hit ? `says "${hit}"` : '';
   },
-  title_template: (row, ctx) => {
-    const title = hTitleText(row);
-    const tpl = lrTemplateFor(row, ctx.cfg);
-    if (!title || !tpl) return '';
-    const low = lrNorm(title);                      // the title and every part read the same way (Part A2)
-    const parts = lrParts(row, tpl, ctx.cfg, ctx.today, lrCtxOcc(ctx));
-    const need = lrWords(tpl.required || 'brand,product,size,color');
-    // --- where each required part sits in the title: -2 nothing to look for, -1 missing, else its position ---
-    const where = key => {
-      if (key === 'brand') {                          // any of the brand's words is the brand (Part A3); none known: not judged
-        const words = lrBrandWords(row, ctx.cfg);
-        if (!words.length) return -2;
-        const at = words.map(word => lrFind(low, word)).filter(idx => idx >= 0);
-        return at.length ? Math.min(...at) : -1;
-      }
-      const value = parts[key];
-      if (!value) return -2;                          // nothing to look for: not judged
-      if (key === 'size') {                           // how it is written is size_format's job
-        const size = hTitleSizes(title)[0];
-        if (!size) return -1;
-        const at = low.indexOf(lrNorm(size.text));
-        return at >= 0 ? at : title.indexOf(size.text);
-      }
-      if (key === 'material') return low.search(/cotton|linen|polyester|jute|velvet/);
-      if (key === 'product') {
-        const words = lrNorm(value).split(/\s+/).filter(word => word.length > 3);
-        const at = words.map(word => low.indexOf(word)).filter(idx => idx >= 0);
-        return at.length ? Math.min(...at) : -1;
-      }
-      if (key === 'color') {
-        /* A colour is found when any real word of it is in the title — the catalog says Neutral Ivory Grey, the title says Grey. */
-        const at = lrNorm(value).split(/[^a-z]+/).filter(word => word.length > 2)
-          .map(word => lrFind(low, word)).filter(idx => idx >= 0);
-        return at.length ? Math.min(...at) : -1;
-      }
-      return low.indexOf(lrNorm(value));
-    };
-    // --- the required parts in template order: which are missing, and are the found ones in that order ---
-    const order = String(tpl.template).match(/\{(\w+)\}/g).map(token => token.slice(1, -1)).filter(key => need.includes(key));
-    const pos = order.map(key => [key, where(key)]).filter(([, idx]) => idx !== -2);
-    const missing = pos.filter(([, idx]) => idx < 0).map(([key]) => key);
-    const found = pos.filter(([, idx]) => idx >= 0).map(([, idx]) => idx);
-    const outOfOrder = found.some((position, idx) => idx && position < found[idx - 1]);
-    if (!missing.length && !outOfOrder) return '';
-    return [missing.length ? 'missing ' + missing.join(', ') : '', outOfOrder ? 'parts in a different order' : ''].filter(Boolean).join(' · ');
-  },
+  // OUR TITLE FORMAT (20 Nov 2026): only real mistakes — never the word order (lrTitleProblems); no template needed (CPC as Ridhi)
+  title_template: (row, ctx) => lrTitleProblems(row, ctx).map(p => p.what).join(' · '),
 };
 
 /** Why a listing should say "Block Print" (Part A4), in words — or null when it should not be asked: its colour is an embroidery
@@ -1007,6 +965,275 @@ function lrBlockPrintProof(row, ctx) {
   if (sib) parts.push(`${sib} of its siblings`);
   if (words.bp) parts.push('its bullets');
   return parts.join(' and ') + (sib === 1 && !words.bp ? ' says it' : ' say it');
+}
+
+/* ---- OUR TITLE FORMAT (20 Nov 2026, the manager's decision) ----
+ * Our real titles: "Ridhi Amber Marigold Hand Block Print Square Tablecloth 54x54 Inch" = Brand · Colour · Hand Block Print · Shape ·
+ * Product · Size · Inch. A listing KEEPS ITS OWN format and word order: nothing is ever put in another order, and a title in our format
+ * is never an error. Only real mistakes are errors, each fixed with the smallest change, every other word kept word-for-word
+ * (lrTitleFix — the one function every title suggestion uses: Fix all titles, Listing Errors' content, the Listing Optimiser, Create
+ * Listing; the AI is told the same):
+ *   spelling   a word 1–2 letters from a word many of our titles use, itself in very few ("Rectange" → "Rectangle") — never a colour
+ *              name (the listing's colour attribute, any catalogue colour) and never our brand words
+ *   shape      the size contradicts it ("Square" on 60x90 → "Rectangle", "Rectangle" on 54x54 → "Square")
+ *   missing    no brand · no colour · no product · no size · no "Inch" after the size → only that part, in its place in our order
+ *   repeated   a word said twice ("Tablecloth … Tablecloth") → the second goes
+ *   size       written another way than ours ("54×54", "60X90 Inches") → the family's own way ("54x54 Inch" or "54 x 54 Inch"); "Inch"
+ *              is never removed
+ *   and the existing title rules: the smaller number first, "Block Print", the length limit (the 74–75 short forms), another brand's name.
+ * Main functions: lrTitleProblems (what is wrong — the title_template finding), lrTitleFix (the smallest change), lrSizeOurs, lrSpellDict. */
+const LR_TITLE_FORMAT = '{brand} {color} {pattern} {shape} {product} {size}';
+const LR_SPELL_MANY = 10;              // a word this many of our titles use is one we write
+const LR_SPELL_FEW = 2;                // …and a word in this few, 1–2 letters from one of those, is a likely mistake
+const LR_SHAPE_RE = /\b(square|rectangle|rectangular|round|oval)\b/i;
+const LR_UNIT_RE = /(inch(?:es)?|inc\.?|\bin\.?|"|”|″|\bcm)\s*$/i;
+const lrRx = s => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+// Words every listing may write that are not mistakes of another word (the suggestion-words rule's own vocabulary).
+let LR_SPELL_KNOWN = null;
+function lrSpellKnown(k) {
+  if (!LR_SPELL_KNOWN) {
+    LR_SPELL_KNOWN = new Set();
+    [LR_SW_PRODUCTS, LR_SW_USES, LR_SW_COLORS, LR_SW_LOW, LR_SW_STOP, Object.values(LR_SW_SHAPES).flat()].forEach(list => list.forEach(p => String(p).toLowerCase().split(/[^a-z]+/).forEach(w => w && LR_SPELL_KNOWN.add(w))));
+  }
+  return LR_SPELL_KNOWN.has(k);
+}
+// The words of our own titles — how many titles use each; colours (catalogue, listings) — kept with the rules' context.
+function lrSpellDict(ctx) {
+  if (ctx && ctx._spell) return ctx._spell;
+  const n = new Map(), cased = new Map(), colours = new Set();
+  const rows = (ctx && ctx.rows) || [];
+  rows.forEach(row => {
+    const words = hTitleText(row).match(/[A-Za-z]{4,}/g) || [];
+    new Set(words.map(w => w.toLowerCase())).forEach(w => n.set(w, (n.get(w) || 0) + 1));
+    words.forEach(w => { const k = w.toLowerCase(); if (!cased.has(k)) cased.set(k, w); });
+    String(lrColorOf(row) || '').toLowerCase().split(/[^a-z]+/).forEach(w => w && colours.add(w));
+  });
+  ['SP', 'CPC'].forEach(b => Object.values((typeof LR_CAT !== 'undefined' && LR_CAT[b]) || {}).forEach(c => String((c && c.color) || '').toLowerCase().split(/[^a-z]+/).forEach(w => w && colours.add(w))));
+  const d = { n, cased, colours, many: [...n.entries()].filter(([, c]) => c >= LR_SPELL_MANY).map(([w]) => w) };
+  if (ctx) ctx._spell = d;
+  return d;
+}
+// Letters apart (adjacent letters swapped count as one), stopping past `max`.
+function lrEdit(a, b, max) {
+  if (Math.abs(a.length - b.length) > max) return max + 1;
+  const d = [];
+  for (let i = 0; i <= a.length; i++) d.push([i]);
+  for (let j = 1; j <= b.length; j++) d[0][j] = j;
+  for (let i = 1; i <= a.length; i++) {
+    let low = Infinity;
+    for (let j = 1; j <= b.length; j++) {
+      d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) d[i][j] = Math.min(d[i][j], d[i - 2][j - 2] + 1);
+      low = Math.min(low, d[i][j]);
+    }
+    if (low > max) return max + 1;
+  }
+  return d[a.length][b.length];
+}
+/** A likely spelling mistake: the word our titles mean, or null. Never a colour, our brand words, a word our vocabulary knows, a word
+ *  many of our titles use, or a plural / singular of a word we use. */
+function lrSpellOf(word, ctx, protect) {
+  const d = lrSpellDict(ctx);
+  const k = String(word).toLowerCase();
+  if (k.length < 4 || (d.n.get(k) || 0) > LR_SPELL_FEW || d.colours.has(k) || (protect && protect.has(k)) || lrSpellKnown(k)) return null;
+  const max = k.length >= 7 ? 2 : 1;
+  let best = null;
+  d.many.forEach(v => {
+    if (v === k || v[0] !== k[0] || Math.abs(v.length - k.length) > max) return;
+    if (v === k + 's' || k === v + 's' || v === k + 'es' || k === v + 'es') return;
+    const e = lrEdit(k, v, max);
+    if (e <= max && (!best || e < best.e || (e === best.e && d.n.get(v) > d.n.get(best.v)))) best = { v, e };
+  });
+  if (!best) return null;
+  const to = d.cased.get(best.v) || best.v;
+  return word[0] === word[0].toUpperCase() ? to.charAt(0).toUpperCase() + to.slice(1) : to.toLowerCase();
+}
+/** A size written our way: "54x54 Inch" or "54 x 54 Inch" (and W x H x D), the rule's own example, or — at 74–75 characters — a short form. */
+const LR_SIZE_OURS_RE = /^\d+(?:\.\d+)?(?: x |x)\d+(?:\.\d+)?(?:(?: x |x)\d+(?:\.\d+)?)? Inch$/;
+function lrSizeOurs(text, cfg, title, example) {
+  const t = String(text);
+  if (LR_SIZE_OURS_RE.test(t)) return true;
+  if (example && lrSizeOk(t, example)) return true;
+  return lrNear(title, cfg) && lrSizeLoose(t);
+}
+// The family's sizes in our format ("54x54 Inch" / "54 x 54 Inch" — a size written wrong does not vote): how many write 'x' and how
+// many ' x ', counted once per family (ctx._sep).
+function lrSizeFam(row, ctx) {
+  if (!row.parent || !ctx || !ctx.rows) return { tight: 0, spaced: 0 };
+  const key = row.brand + '|' + row.parent;
+  ctx._sep = ctx._sep || new Map();
+  if (ctx._sep.has(key)) return ctx._sep.get(key);
+  const fam = { tight: 0, spaced: 0 };
+  ctx.rows.forEach(r => {
+    if (r.parent !== row.parent || (r.brand || row.brand) !== row.brand) return;
+    hTitleSizes(hTitleText(r)).forEach(s => { if (!LR_SIZE_OURS_RE.test(s.text)) return; if (/\d x \d/.test(s.text)) fam.spaced++; else fam.tight++; });
+  });
+  ctx._sep.set(key, fam);
+  return fam;
+}
+// The family's own way to write a size: what most of its children write; a tie or no family: the listing's own way (own), else "54x54".
+function lrSizeSep(row, ctx, own) {
+  const fam = lrSizeFam(row, ctx);
+  if (fam.spaced > fam.tight) return ' x ';
+  if (fam.tight > fam.spaced) return 'x';
+  return own && /\d x \d/.test(own) ? ' x ' : 'x';
+}
+// A size in our format ("54x54 Inch" / "54 x 54 Inch") written the other way from most of its family → the family's way (rule e).
+// Not at 74–75 when the family's way is longer (the short form was chosen to fit).
+function lrSizeOffFamily(size, row, ctx, title) {
+  const t = String(size.text);
+  if (!LR_SIZE_OURS_RE.test(t)) return false;
+  const fam = lrSizeFam(row, ctx), spaced = /\d x \d/.test(t);
+  if (spaced) return fam.tight > fam.spaced;
+  return fam.spaced > fam.tight && !lrNear(title, ctx.cfg);
+}
+// A size in our format, the family's way, the smaller number first; a short unit ("In", ") kept at 74–75, else "Inch".
+function lrSizeWant(size, row, ctx, title) {
+  const nums = size.c === null ? [Math.min(size.a, size.b), Math.max(size.a, size.b)] : [size.a, size.b, size.c];
+  const unit = (String(size.text).match(LR_UNIT_RE) || [])[1] || '';
+  const keep = /^(in\.?|"|”|″)$/i.test(unit) && lrNear(title, ctx.cfg) ? (unit === 'in' || unit === 'in.' ? 'In' : unit) : 'Inch';
+  return nums.join(lrSizeSep(row, ctx, size.text)) + (/^["”″]$/.test(keep) ? keep : ' ' + keep);
+}
+/** What is wrong with a title (never its word order): [{ k: spell | shape | missing | repeat, what (the heading), from, to, part }]. */
+function lrTitleProblems(row, ctx) {
+  const title = hTitleText(row);
+  if (!title) return [];
+  const cfg = ctx.cfg;
+  const f = lrSwFacts(row, cfg, null, { title });
+  const out = [];
+  const brands = lrBrandWords(row, cfg);
+  const protect = new Set(brands.flatMap(w => lrNorm(w).split(/[^a-z]+/)).concat(String(f.colour || '').toLowerCase().split(/[^a-z]+/)).filter(Boolean));
+  // spelling
+  const said = new Set();
+  (title.match(/[A-Za-z]{4,}/g) || []).forEach(w => {
+    if (said.has(w)) return;
+    const to = lrSpellOf(w, ctx, protect);
+    if (to) { said.add(w); out.push({ k: 'spell', what: `Spelling: ${w} → ${to}`, from: w, to }); }
+  });
+  // the shape the size says
+  const size = hTitleSizes(title)[0];
+  const sm = title.match(LR_SHAPE_RE);
+  if (sm && size && size.c === null) {
+    const s = sm[1].toLowerCase();
+    if ((s === 'square' && size.a !== size.b) || ((s === 'rectangle' || s === 'rectangular') && size.a === size.b)) {
+      const to = size.a === size.b ? 'Square' : 'Rectangle';
+      out.push({ k: 'shape', what: `Shape doesn't match size: ${sm[1]} → ${to}`, from: sm[1], to });
+    }
+  }
+  // a missing part — judged on the title with its misspellings corrected ("Tablcloth" is a spelling, not a missing product)
+  const fixedT = out.reduce((t, p) => t.replace(new RegExp(`\\b${lrRx(p.from)}\\b`), p.to), title);
+  if (brands.length && !brands.some(w => lrFind(lrNorm(fixedT), w) >= 0)) out.push({ k: 'missing', part: 'brand', what: 'Missing brand' });
+  const cw = String(f.colour || '').split(/[^A-Za-z]+/).filter(w => w.length > 2 && !LR_SW_STOP_SET.has(w.toLowerCase()));
+  if (cw.length && !cw.some(w => lrHas(fixedT, w))) out.push({ k: 'missing', part: 'color', what: 'Missing colour', value: f.colour });
+  const prods = (f.product || []).filter(Boolean);
+  if (prods.length && !prods.some(p => lrHas(fixedT, p))) out.push({ k: 'missing', part: 'product', what: 'Missing product', value: prods[0] });
+  if (!size) {
+    const group = row.parent ? ctx.parents.get(row.parent + '|' + row.brand) : null;
+    if (f.size && !(group && group.sized > 0)) out.push({ k: 'missing', part: 'size', what: 'Missing size', value: f.size });   // a family that names sizes: its own rule
+  } else if (!LR_UNIT_RE.test(size.text)) out.push({ k: 'missing', part: 'inch', what: 'Missing "Inch" after the size' });
+  // a word that is pure waste: right after itself ("Tablecloth Tablecloth"), or the product / shape / colour word three times — not
+  // ordinary English ("Table Runner for Dining Table") and not the old template's "Cloth Napkins … Dinner Napkins" (said twice)
+  const toks = fixedT.match(/[A-Za-z]{3,}/g) || [];
+  const own = new Set((f.product || []).filter(p => /\s/.test(String(p).trim()) || LR_SW_PRODUCTS.includes(String(p).toLowerCase())).map(p => String(p).trim().split(/\s+/).pop()).concat(LR_SW_PRODUCTS.filter(p => !/\s/.test(p)), String(f.colour || '').split(/[^A-Za-z]+/))
+    .map(lrSwKey).filter(k => k && k.length > 2 && !LR_SW_STOP_SET.has(k)));
+  const cnt = new Map();
+  toks.forEach((w, i) => { const k = lrSwKey(w); if (!cnt.has(k)) cnt.set(k, { n: 0, w, next: false }); const c = cnt.get(k); c.n++; if (i && lrSwKey(toks[i - 1]) === k) c.next = true; });
+  cnt.forEach((v, k) => { if (k !== 'inch' && (v.next || (v.n >= 3 && (own.has(k) || LR_SW_SHAPE_OF.has(k))))) out.push({ k: 'repeat', what: `Repeated word: ${v.w}`, key: k }); });
+  return out;
+}
+/** THE SMALLEST FIX of a title: { before, after, fixes: [what], held } — the listing's own words, in its own order, with only its real
+ *  mistakes corrected (lrTitleProblems), the size our way, "Block Print" where the rule asks for it, another brand's name out (o.risk),
+ *  and over the length limit the suggestion-words rule (the 74–75 short forms). o: { title, va (Amazon's facts), risk, max }. */
+function lrTitleFix(row, ctx, o) {
+  o = o || {};
+  const before = o.title != null ? String(o.title) : hTitleText(row);
+  const fixes = [];
+  if (!before) return { before, after: before, fixes, held: 'no title' };
+  const cfg = ctx.cfg;
+  const r = Object.assign({}, row, { shownTitle: before });
+  const f = lrSwFacts(r, cfg, o.va || null, { title: before });
+  let t = before;
+  const probs = lrTitleProblems(r, ctx);
+  // 1 a misspelt word, a shape the size contradicts: that word only
+  probs.filter(p => p.k === 'spell' || p.k === 'shape').forEach(p => { t = t.replace(new RegExp(`\\b${lrRx(p.from)}\\b`), p.to); fixes.push(p.what); });
+  // 2 the size: our format, the family's way, the smaller number first, "Inch" after it
+  const size = hTitleSizes(t)[0];
+  if (size) {
+    const ex = ((cfg.issues || []).find(i => i.detector === 'size_format') || {}).params || {};
+    const wrong = !lrSizeOurs(size.text, cfg, t, ex.example) || lrSizeOffFamily(size, r, ctx, t) || (size.c === null && size.a > size.b) || !LR_UNIT_RE.test(size.text);
+    if (wrong) {
+      const want = lrSizeWant(size, r, ctx, t);
+      if (want !== size.text) { t = t.replace(size.text, want); fixes.push(LR_UNIT_RE.test(size.text) ? `Size: ${size.text} → ${want}` : 'Missing "Inch" after the size'); }
+    }
+  }
+  // 3 a missing part, only that part, in its place in our order (Brand · Colour · Print · Shape · Product · Size)
+  const has = w => lrHas(t, w);
+  probs.filter(p => p.k === 'missing').forEach(p => {
+    if (p.part === 'brand') { const b = lrBrandName(r, cfg); if (b) { t = b + ' ' + t; fixes.push('Missing brand'); } }
+    else if (p.part === 'color' && p.value && !String(p.value).split(/\s+/).some(has)) {
+      const b = lrBrandWords(r, cfg).map(w => { const m = t.match(new RegExp(`\\b${lrRx(w)}\\b`, 'i')); return m ? m.index + m[0].length : -1; }).filter(i => i >= 0)[0];
+      t = b != null ? t.slice(0, b) + ' ' + lrCaps(p.value) + t.slice(b) : lrCaps(p.value) + ' ' + t;
+      fixes.push('Missing colour');
+    } else if (p.part === 'product' && p.value) {
+      const s = hTitleSizes(t)[0];
+      const at = s ? t.indexOf(s.text) : -1;
+      t = at >= 0 ? t.slice(0, at) + lrCaps(p.value) + ' ' + t.slice(at) : t + ' ' + lrCaps(p.value);
+      fixes.push('Missing product');
+    } else if (p.part === 'size' && p.value) {
+      const nums = String(p.value).match(/\d+(?:\.\d+)?/g) || [];
+      if (nums.length >= 2) {
+        const sz = nums.slice(0, 3).map(Number);
+        const txt = (sz.length === 2 ? [Math.min(sz[0], sz[1]), Math.max(sz[0], sz[1])] : sz).join(lrSizeSep(r, ctx)) + ' Inch';
+        const prod = (f.product || []).map(pw => { const m = t.match(new RegExp(`\\b${lrRx(pw)}\\b`, 'i')); return m ? m.index + m[0].length : -1; }).filter(i => i >= 0).sort((a, b) => b - a)[0];
+        t = prod != null ? t.slice(0, prod) + ' ' + txt + t.slice(prod) : t + ' ' + txt;
+        fixes.push('Missing size');
+      }
+    }
+  });
+  // 4 "Block Print" where the rule asks for it (a sibling's title or its own bullets say it): before the shape / the product
+  const kw = (cfg.issues || []).find(i => i.detector === 'title_keyword' && i.on !== false);
+  const kwWords = kw ? lrWords((kw.params || {}).words) : [];
+  if (kwWords.length && !kwWords.some(has) && kwWords.some(w => lrNorm(w) === 'block print') && lrBlockPrintProof(Object.assign({}, r, { shownTitle: t }), ctx)) {
+    const print = lrSiblingsSay(r, ctx, 'hand block print') ? 'Hand Block Print' : 'Block Print';
+    const sm = t.match(LR_SHAPE_RE);
+    const pm = sm ? null : (f.product || []).map(pw => t.match(new RegExp(`\\b${lrRx(pw)}\\b`, 'i'))).filter(Boolean)[0];
+    const bEnd = lrBrandWords(r, cfg).map(w => { const m = t.match(new RegExp(`\\b${lrRx(w)}\\b`, 'i')); return m ? m.index + m[0].length + 1 : -1; }).filter(i => i >= 0)[0] || 0;
+    const at = Math.max(sm ? sm.index : pm ? pm.index : -1, bEnd);
+    t = at > 0 ? t.slice(0, at) + print + ' ' + t.slice(at) : at === 0 && !bEnd ? print + ' ' + t : t + ' ' + print;
+    fixes.push(`Missing "${print}"`);
+  }
+  // 5 a word said twice: the second goes
+  probs.filter(p => p.k === 'repeat').forEach(p => {
+    let n = 0;
+    t = t.replace(/\s*\b[A-Za-z]{3,}\b/g, m => (lrSwKey(m.trim()) === p.key && ++n === 2 ? '' : m));
+    if (n > 1) fixes.push(p.what);
+  });
+  // 6 another brand's name or a restricted claim (IP & Trademark Guard): out
+  const spans = typeof o.risk === 'function' ? o.risk(t) || [] : [];
+  if (spans.length) { spans.slice().sort((a, b) => b.s - a.s).forEach(sp => { t = t.slice(0, sp.s) + t.slice(sp.e); }); fixes.push('Another brand\'s name taken out'); }
+  t = t.replace(/\s{2,}/g, ' ').replace(/\s+([,.;:])/g, '$1').trim();
+  // 7 over the length limit: the suggestion-words rule (its order kept; the 74–75 short forms; "Inch" never goes)
+  const lenRule = (cfg.issues || []).find(i => i.detector === 'title_length' && i.on !== false);
+  const max = Math.min(+o.max || 75, lenRule && +(lenRule.params || {}).max ? +lenRule.params.max : 75);
+  let held = '';
+  if (t.length > max) {
+    const own = lrSwFacts(r, cfg, null, { title: t }).colour;
+    const fl = Object.assign({}, f, { colour: [f.colour, own].find(c => c && String(c).split(/\s+/).some(w => w.length > 2 && lrHas(t, w))) || f.colour });
+    let s = lrSuggestWords(t, { mode: 'title', facts: fl, fits: x => x.length <= max, shortFrom: lrAllow(cfg).shortFrom });
+    if (/\bInch\b/.test(t) && !/\bInch\b/.test(s.after)) s = lrSuggestWords(t, { mode: 'title', facts: fl, fits: x => x.length <= max, short: false });   // "Inch" never goes
+    if (s.after !== t) fixes.push(`Shortened to ${s.after.length} characters`);
+    t = s.after;
+    if (!s.fits) held = `${LR_SW_IMPORTANT} (${t.length} characters, over ${max})`;
+  }
+  return { before, after: t, fixes, held, probs };
+}
+// "amber marigold" → "Amber Marigold" (a value from an attribute put into a title).
+const lrCaps = v => String(v || '').replace(/\s+/g, ' ').trim().replace(/\b[a-z]/g, ch => ch.toUpperCase());
+// Do most of this listing's siblings say these words in their titles?
+function lrSiblingsSay(row, ctx, words) {
+  if (!row.parent || !ctx.rows) return false;
+  const sib = ctx.rows.filter(r => r.parent === row.parent && r.sku !== row.sku && (r.brand || row.brand) === row.brand);
+  return sib.length > 0 && sib.filter(r => hTitleText(r).toLowerCase().replace(/[s-]+/g, ' ').includes(words)).length * 2 >= sib.length;   // as written (lrNorm reads Hand Block Print as Block Print)
 }
 
 /** What every listing is judged against at once: the rules, today, and what each parent's children look like. */
@@ -1365,7 +1592,7 @@ function hCtx(rowsAll) {
     ((snap && snap.items) || []).forEach(item => { if (item && item.sku && item.lvl !== 'parent') map.set(item.sku, item); });
     iml[b] = map;
   });
-  H_CTX = { cfg, today: new Date(), parents, amz: AMZ.map, amzAt: AMZ.snapAt, sp: HEALTH.SP, cpc: HEALTH.CPC, key, day: new Date().toDateString(),
+  H_CTX = { cfg, today: new Date(), parents, rows, amz: AMZ.map, amzAt: AMZ.snapAt, sp: HEALTH.SP, cpc: HEALTH.CPC, key, day: new Date().toDateString(),
     wsLive: ws ? ws.live : null, wsAplus: ws ? ws.aplus : null, lm: typeof lmLiveOf === 'function' && lmOk(), healthAt, parentAplus, imlAt, iml, imlSP: imlOf('SP'), imlCPC: imlOf('CPC'),
     pc: typeof PC !== 'undefined' ? PC.marks : null };
   return H_CTX;
@@ -1471,7 +1698,8 @@ function lrPartWords(key, parts) {
 }
 /** The heading a problem shows when "rule name — detail" would read badly. (hit) → text. */
 const LR_WHAT_TEXT = {
-  size_format: hit => 'Size not in house style: ' + hit.detail,
+  size_format: hit => (/ — the family writes /.test(hit.detail) ? 'Size written differently from the family: ' : 'Size not in our format: ') + hit.detail,
+  title_template: hit => hit.detail,                // "Spelling: Rectange → Rectangle", "Shape doesn't match size: …", "Missing size"
 };
 /** One sentence per detector: what to do, with the listing's own values. (hit, row, ctx, params) → text. Plain words for a
  *  seller — never a detector id, a field code or a list of rules. */
@@ -1506,15 +1734,8 @@ const LR_FIX_TEXT = {
   main_photo_check: () => 'Replace the main picture in Image Manager: pure white background, no text or logo on it.',
   size_format: (hit, row, ctx, params) => {
     const title = hTitleText(row);
-    const near = lrNear(title, ctx.cfg);
-    const bad = hTitleSizes(title).find(size => !lrSizeOk(size.text, params.example) && !(near && lrSizeLoose(size.text)));
-    const example = params.example || '14 x 36 Inch';
-    if (!bad) return `Write the size as "${example}".`;
-    const want = lrSizeText([bad.a, bad.b].concat(bad.c === null ? [] : [bad.c]).join('x'), example) || example;
-    const from = lrAllow(ctx.cfg).shortFrom;
-    const why = title.length < from ? ` and the title is only ${title.length} characters (short forms are allowed from ${from})`
-      : title.length > 75 ? ` and the title is ${title.length} characters, over 75, so a short form does not help` : '';
-    return `Write the size as "${want}". It says "${bad.text}"${why}.`;
+    const bad = hTitleSizes(title).find(size => LR_UNIT_RE.test(size.text) && (!lrSizeOurs(size.text, ctx.cfg, title, params.example) || lrSizeOffFamily(size, row, ctx, title)));
+    return bad ? `Write the size as "${lrSizeWant(bad, row, ctx, title)}" (the family's own way). It says "${bad.text}".` : 'Write the size like "54x54 Inch".';
   },
   dimension_order: (hit, row) => {
     const wrong = hTitleSizes(hTitleText(row)).find(size => size.c === null && size.a > size.b);
@@ -1539,17 +1760,8 @@ const LR_FIX_TEXT = {
     return word ? `Take "${word}" out of the title.` : 'Take the word out of the title.';
   },
   title_template: (hit, row, ctx) => {
-    const tpl = lrTemplateFor(row, ctx.cfg);
-    if (!tpl) return 'Write the title the way its template says.';
-    const parts = lrParts(row, tpl, ctx.cfg, ctx.today, lrCtxOcc(ctx));
-    const need = lrWords(tpl.required || 'brand,product,size,color');
-    const order = String(tpl.template).match(/\{(\w+)\}/g).map(token => token.slice(1, -1)).filter(key => need.includes(key));
-    const orderWords = order.map(key => lrPartWords(key, {}).replace(/^the /, '')).join(', ');
-    const missing = ((String(hit.detail).match(/missing ([^·]+)/) || [])[1] || '').split(',').map(part => part.trim()).filter(Boolean);
-    const wrongOrder = /different order/.test(hit.detail);
-    if (missing.length === 1 && missing[0] === 'brand') return `Put the brand in the title: "${parts.brand} …".${wrongOrder ? ` Keep the template's order: ${orderWords}.` : ''}`;
-    if (!missing.length) return `Put the title's parts in the template's order: ${orderWords}.`;
-    return `Add ${missing.map(key => lrPartWords(key, parts)).join(', ')} to the title${wrongOrder ? `, in the template's order: ${orderWords}` : ''}.`;
+    const fx = lrTitleFix(row, ctx);
+    return fx.after && fx.after !== fx.before ? `Change only that — the title keeps its own words and order: "${fx.after}".` : 'Correct it in the title; every other word stays as it is.';
   },
 };
 // The fix sentence of one finding; a detector without one, or one that fails, falls back to naming the rule.

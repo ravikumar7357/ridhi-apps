@@ -182,27 +182,18 @@ const ttFill = (tpl, parts, out) => String(tpl.template || '').replace(/\{(\w+)\
 /** The new title for one listing: { after, parts…, notes, clash, why } — the template filled, the optional parts left out one by one until
  *  it is within the rule's length. `why` when it cannot be made (no template, held facts, too long even when cut to the required parts). */
 function ttBuild(brand, row, ctx, amz) {
-  const p = ttParts(brand, row, ctx, amz);
-  if (p.why) return p;
+  /* OUR TITLE FORMAT (20 Nov 2026, the manager's decision): the new title IS the listing's own title with only its real mistakes corrected,
+   * the smallest change, every other word word-for-word and in its own order (listing-rules.js lrTitleFix — the one rule every title
+   * suggestion uses). No template is needed, so a CPC title is fixed the same way as a Ridhi one. */
+  const fresh = lrFresh(Object.assign({}, row, { brand }), ctx);
+  const title = hTitleText(fresh);
   const lim = ttLimits(ctx.cfg);
-  let after = ttFill(p.tpl, p.parts, []);
-  p.cutWords = [];
-  // too long: THE ONE SUGGESTION-WORDS RULE chooses the words that go, in the template's order as it is (never a whole part blindly)
-  if (after.length > lim.max) {
-    const r = lrSuggestWords(after, { mode: 'title', facts: ttFacts(p, ctx, amz), fits: text => text.length <= lim.max, shortFrom: lrAllow(ctx.cfg).shortFrom,
-      risk: typeof ipgKwRisk === 'function' ? ipgKwRisk(brand, row.sku, p.fresh, ctx.cfg) : null });
-    after = r.after;
-    p.cutWords = r.removed.map(x => x.w);
-    p.shortForms = r.short || [];                       // the house rule's short forms it needed to fit (74–75 characters)
-    if (!r.fits) p.why = `${LR_SW_IMPORTANT} (${after.length} characters, over ${lim.max})`;
-  }
-  // a part none of whose OWN words is left (the uses, mostly — "Napkins" there is the product's word too): not named as a source
-  const left = new Set(ttWords(after));
-  const own = key => { const other = new Set(Object.keys(p.parts).filter(k => k !== key).flatMap(k => ttWords(p.parts[k]))); return ttWords(p.parts[key]).filter(word => !other.has(word)); };
-  // (the size is never dropped: written short — "18x18 In" — its words read differently)
-  p.dropped = Object.keys(p.parts).filter(key => key !== 'size' && p.parts[key] && own(key).length && !own(key).some(word => left.has(word)));
-  p.after = after;
-  p.lim = lim;
+  const fx = lrTitleFix(fresh, ctx, { va: amz && amz.va, max: lim.max, risk: typeof ipgKwRisk === 'function' ? ipgKwRisk(brand, row.sku, fresh, ctx.cfg) : null });
+  const f = lrSwFacts(fresh, ctx.cfg, amz && amz.va, { title, pt: amz && amz.pt });
+  const p = { tokens: [], parts: { color: ttCase(f.colour || ''), size: (hTitleSizes(fx.after)[0] || {}).text || f.size || '' }, src: {}, need: [], drop: [], notes: [], clash: [], fresh, title, after: fx.after, lim,
+    fixWhat: fx.fixes, cutWords: [], shortForms: [], dropped: [] };
+  if (fx.held) p.why = fx.held;
+  else if (fx.after === title) p.why = title.length < lim.min ? `${title.length} characters, under ${lim.min} — add words by hand in Listing Errors` : 'no mistake Sellora can correct in its own words — edit it by hand in Listing Errors';
   return p;
 }
 // What the suggestion-words rule keeps for this title: the listing's own facts, with the parts the template filled in (colour, material…).
@@ -371,6 +362,7 @@ function ttDraft(brand, { row, hits, kid, extra }, ctx) {
     if (!amz) return Object.assign(p, { wait: true, why: 'reading its attributes from Amazon first', label: row.sku });
     const b = ttBuild(brand, row, ctx, amz);
     Object.assign(p, { parts: b.parts || {}, src: b.src || {}, notes: (b.notes || []).slice(), dropped: b.dropped || [], cutWords: b.cutWords || [], shortForms: b.shortForms || [], lim: b.lim, amzSrc: amz.src });
+    if ((b.fixWhat || []).length) p.fixes = [...new Set(b.fixWhat.concat(extra || []))];      // what is corrected, in words ("Spelling: Rectange → Rectangle")
     p.label = ttLabel(p) || row.sku;
     p.after = b.after;
     if (b.why) return Object.assign(p, { why: b.why });
@@ -383,10 +375,18 @@ function ttDraft(brand, { row, hits, kid, extra }, ctx) {
 function ttJudgeDraft(brand, p, ctx, ctx2) {
   delete p.draft;
   const chk = ttCheck(brand, p.srcRow, p.after, ctx, ctx2);
+  // OUR TITLE FORMAT: a title already under the length (it cannot be lengthened without inventing words) may still go with its real
+  // mistakes corrected — as long as it is not made shorter; the length stays a problem of its own for a person
+  const lenRule = ttRulesOf(ctx.cfg).find(rule => rule.detector === 'title_length');
+  const lim = ttLimits(ctx.cfg);
+  if (lenRule && p.before.length < lim.min && p.after.length >= p.before.length) {
+    chk.fails = chk.fails.filter(f => !f.startsWith(`still: ${lenRule.name} — `));
+    chk.pass = !chk.fails.length && !ttSafe(p.after).length;
+  }
   p.ctx2 = ctx2;
   p.fails = chk.fails;
   if (!chk.pass) return Object.assign(p, { why: p.notes.concat(chk.fails).join('; ') });
-  if (p.after === p.before) return Object.assign(p, { why: 'the template already gives this very title' });
+  if (p.after === p.before) return Object.assign(p, { why: 'no mistake Sellora can correct in its own words' });
   if (!p.pt) return Object.assign(p, { wait: true, why: 'reading its product type from Amazon first' });
   return Object.assign(p, { ok: true, what: `New title, ${p.after.length} characters`, patches: ttPatches(p.after), sent: { title: p.after } });
 }
@@ -754,7 +754,7 @@ function ttDraw() {
   const all = ok.length && ok.every(p => run.sel.has(p.key));
   spModal(`<div class="sq-pop kf-pop tt-pop"><div class="sp-m-h sq-top"><b>Fix all titles — ${ttEsc(run.o.title || '')}</b>`
     + `<p class="sq-sum" data-tt-sum>${ttEsc(ttSumText(run))}</p>`
-    + `<p>One new title per child, made with the Listing Rules title template from the child's own Amazon facts — the size the rule's way, the smaller number first, within ${ttNf(ttLimits(run.ctx.cfg).max)} characters. Every title rule is checked again on it.</p>`
+    + `<p>Each child keeps its own title, in its own word order — only its real mistakes are corrected (a spelling, a shape the size contradicts, a missing part, the size our way, a repeated word), every other word as it is, within ${ttNf(ttLimits(run.ctx.cfg).max)} characters. Every title rule is checked again on it.</p>`
     + `<div class="kf-tools"><input type="search" data-tt-q placeholder="Search SKU, colour, size…" value="${ttEsc(run.q)}" aria-label="Search the children">`
     + `<label class="kf-all"><input type="checkbox" data-tt-all${all ? ' checked' : ''}> Select all</label></div></div>`
     + `<div class="sp-m-list">${order.map(p => ttRowHtml(run, p)).join('') || '<div class="sp-m-row sq-none">Nothing to fix.</div>'}</div>`

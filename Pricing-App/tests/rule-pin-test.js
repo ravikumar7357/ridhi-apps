@@ -72,9 +72,12 @@ function mixedPage(files, extra) {
   C.reset();
   return C;
 }
+// OUR TITLE FORMAT (20 Nov 2026, the manager's decision): the only checks it changes — their counts are re-pinned below, nothing else
+const TITLE_FORMAT_DETS = ['title_template', 'size_format'];
+const TITLE_FORMAT_KEYS = ['Title mistake', 'Title doesn\'t follow template', 'Size formatting inconsistent', 'tpl'];
 /** Every count the screens show: per rule (Listing Health's findings), per level, the Workspace's failing columns, Fix all's rows. */
 function ruleCounts(C) {
-  const out = { rules: {}, levels: {}, workspace: {}, fixAllRows: {}, perListing: [] };
+  const out = { rules: {}, levels: {}, workspace: {}, fixAllRows: {}, perListing: [], perLevel: [] };
   const hc = C.hCtx();
   ['SP', 'CPC'].forEach(brand => {
     const rows = C.HEALTH[brand].rows;
@@ -82,7 +85,10 @@ function ruleCounts(C) {
       const h = C.healthOf(Object.assign({}, row, { brand }), hc);
       out.levels[h.bucket] = (out.levels[h.bucket] || 0) + 1;
       h.found.forEach(hit => { out.rules[hit.name] = (out.rules[hit.name] || 0) + 1; });
-      out.perListing.push(brand + '|' + row.sku + ': ' + h.bucket + ' · ' + h.found.map(hit => `${hit.id}/${hit.sev}/${hit.detail}`).join(' | '));
+      // the title-format checks (title_template, size_format) apart: perListing = every other finding, perLevel = the level and theirs
+      const tf = h.found.filter(hit => TITLE_FORMAT_DETS.includes(hit.detector));
+      out.perListing.push(brand + '|' + row.sku + ': ' + h.found.filter(hit => !TITLE_FORMAT_DETS.includes(hit.detector)).map(hit => `${hit.id}/${hit.sev}/${hit.detail}`).join(' | '));
+      out.perLevel.push({ k: brand + '|' + row.sku, bucket: h.bucket, title: tf.map(hit => hit.sev).sort().join() });
       const kid = C.liWsChildKept(row, brand, hc, new Map(), Date.now());
       Object.entries(kid.c || {}).forEach(([k, c]) => { if (c && c.pass === false) out.workspace[k] = (out.workspace[k] || 0) + 1; });
     });
@@ -96,12 +102,20 @@ function ruleCounts(C) {
 
 /* ---- the pins: worked out with the code of origin/dev (before Fix all titles), 18 Nov 2026 ---- */
 const PINNED = {"rules":{"Secondary images missing":60,"Search terms over the limit":112,"Title slightly under-optimized":497,"Size formatting inconsistent":203,"Variation naming inconsistent":138,"Important title keyword missing":127,"Title doesn't follow template":119,"Dimension order inconsistent":48,"Amazon shows a different title from yours — yours is not live":78},"levels":{"action":476,"healthy":227,"review":220,"monitor":22,"critical":55},"workspace":{"stock":78,"img":60,"kw":112,"title":578,"other":251,"tpl":119},"fixAllRows":{"Search terms over the limit":112,"Size formatting inconsistent":203,"Title too long":276,"Important title keyword missing":127,"Secondary images missing":60,"Title slightly under-optimized":221,"Variation naming inconsistent":138,"Dimension order inconsistent":48,"Title doesn't follow template":119,"Amazon shows a different title from yours — yours is not live":78}};
+/* OUR TITLE FORMAT (20 Nov 2026): only the title-format checks re-pinned — "Title doesn't follow template" (119) is now "Title mistake"
+ * (211: real mistakes only — spelling, a shape the size contradicts, a missing part incl. "Inch", a repeat), "Size formatting
+ * inconsistent" 203 → 65 ("Missing Inch" moved to Title mistake; "54x54 Inch" is our format); the levels move with them. Every other
+ * number stays the pin above. */
+Object.assign(PINNED.rules, { 'Title mistake': 211, "Title doesn't follow template": 0, 'Size formatting inconsistent': 65 });
+Object.assign(PINNED.fixAllRows, { 'Title mistake': 211, "Title doesn't follow template": 0, 'Size formatting inconsistent': 65 });
+Object.assign(PINNED.workspace, { tpl: 211 });
+Object.assign(PINNED.levels, { action: 483, healthy: 225, review: 217, monitor: 20 });   // was 476 / 227 / 220 / 22 (critical 55 the same)
 
 if (require.main === module) {
   const C = mixedPage();
   const now = ruleCounts(C);
   if (process.argv.includes('--print')) {
-    const { perListing, ...counts } = now;
+    const { perListing, perLevel, ...counts } = now;
     console.log(JSON.stringify(counts));
     process.exit(0);
   }
@@ -127,9 +141,16 @@ if (require.main === module) {
   if (!old) ok('(git cannot show commit ' + BEFORE + ' here — the pinned numbers above stand alone)', true);
   else {
     const was = ruleCounts(mixedPage(old));
+    // OUR TITLE FORMAT (20 Nov 2026): the two title checks it changed (title_template, size_format) are set aside; every OTHER finding of
+    // every listing must be the same, and the level too wherever its title findings' levels are the same
     const bad = now.perListing.filter((line, i) => line !== was.perListing[i]);
-    ok(`all ${now.perListing.length} listings: the same level and the same findings (rule, level, detail)`, !bad.length && now.perListing.length === was.perListing.length, bad.slice(0, 3).join(' ‖ ') + ' ‖ was: ' + was.perListing.find(l => bad[0] && l.startsWith(bad[0].split(':')[0])));
-    ok('…and the same counts everywhere (rules, levels, Workspace columns, Fix all rows)', JSON.stringify([now.rules, now.levels, now.workspace, now.fixAllRows]) === JSON.stringify([was.rules, was.levels, was.workspace, was.fixAllRows]));
+    ok(`all ${now.perListing.length} listings: the same findings (rule, level, detail) — the title-format checks set aside`, !bad.length && now.perListing.length === was.perListing.length, bad.slice(0, 3).join(' ‖ ') + ' ‖ was: ' + was.perListing.find(l => bad[0] && l.startsWith(bad[0].split(':')[0])));
+    const lvl = now.perLevel.filter((x, i) => x.title === was.perLevel[i].title && x.bucket !== was.perLevel[i].bucket);
+    ok('…and the same level wherever its title-format findings are the same', !lvl.length, lvl.slice(0, 3).map(x => x.k + ': ' + x.bucket).join(' ‖ '));
+    const notTitle = o => Object.fromEntries(Object.entries(o).filter(([k]) => !TITLE_FORMAT_KEYS.includes(k)));
+    ok('…and the same counts everywhere else (rules, Workspace columns, Fix all rows — the title-format ones set aside)', JSON.stringify([now.rules, now.workspace, now.fixAllRows].map(notTitle)) === JSON.stringify([was.rules, was.workspace, was.fixAllRows].map(notTitle)));
+    console.log('  (title-format counts, before → after: ' + TITLE_FORMAT_KEYS.map(k => [now.rules, now.workspace].map(o => o[k]).some(v => v !== undefined) || was.rules[k] !== undefined || was.workspace[k] !== undefined
+      ? `${k} ${(was.rules[k] || was.workspace[k] || 0)} → ${(now.rules[k] || now.workspace[k] || 0)}` : '').filter(Boolean).join(' · ') + ' · levels ' + JSON.stringify(was.levels) + ' → ' + JSON.stringify(now.levels) + ')');
   }
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exitCode = fail ? 1 : 0;

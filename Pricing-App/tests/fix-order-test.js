@@ -55,13 +55,15 @@ const plansText = (C, brand, parent) => JSON.stringify([...C.ttFamily(brand, par
     && (() => { const n = new Map(); C.HEALTH.SP.rows.forEach(r => n.set(r.parent, (n.get(r.parent) || 0) + 1)); const sizes = atDone.bg.slice(1).map(k => n.get(k.slice(3))); return sizes.every((s, i) => !i || s <= sizes[i - 1]); })(), atDone.bg.slice(0, 4).join());
 
   console.log('== a parent opened meanwhile goes first ==');
-  await until(() => C.FA_W.bg.length < atDone.bg.length - 3);
-  // the biggest parent still waiting in the background (20+ children, each in a few rows: well over the 40 plans that need slices)
+  await until(() => C.FA_W.bg.length < atDone.bg.length);      // looked at early: the biggest families are worked out first
+  // a parent still waiting in the background whose block needs its fixes worked out in slices (OUR TITLE FORMAT, 20 Nov 2026: fewer title
+  // problems per child, so the biggest waiting families are tried, biggest first, until one needs slices)
   const size = p => C.HEALTH.SP.rows.filter(r => r.parent === p).length;
-  const other = C.FA_W.bg.slice(1).map(j => j.key.slice(3)).find(p => !C.TT.fam.has('SP|' + p) && size(p) >= 20);
-  ok(`(a parent the background has not reached yet: ${other}, ${other && size(other)} children)`, !!other);
+  const waiting = C.FA_W.bg.slice(1).map(j => j.key.slice(3)).filter(p => !C.TT.fam.has('SP|' + p)).sort((x, y) => size(y) - size(x));
   const bgLeft = C.FA_W.bg.length;
-  const h2 = C.faBlockHtml('SP', other);
+  let other = null, h2 = '';
+  for (const p of waiting) { const h = C.faBlockHtml('SP', p); if (/Working out the fixes/.test(strip(h))) { other = p; h2 = h; break; } }
+  ok(`(a parent the background has not reached yet, big enough to need slices: ${other}, ${other && size(other)} children)`, !!other, waiting.slice(0, 5).map(p => p + ':' + size(p)).join(' '));
   let other2 = null;
   if (C.FA_W.pri) { const d = C.FA_W.pri.done; C.FA_W.pri.done = () => { other2 = { bg: C.FA_W.bg.length }; d(); }; }
   ok(`opening it: "Working out the fixes for … of Parent ${other}…", its job first`, /Working out the fixes for \d+ children of Parent /.test(strip(h2)) && C.FA_W.pri && C.FA_W.pri.key === 'SP|' + other, strip(h2).slice(-100));

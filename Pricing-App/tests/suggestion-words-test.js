@@ -94,10 +94,11 @@ function oldFiles() {
 
   console.log('== RTC-627-5454 (Harbor Blue, 54 x 54) — Fix all titles and the Season planner ==');
   const rtc = C.ttBuild('SP', rowOf(C, 'RTC-627-5454'), C.hCtx(), { va: REAL['RTC-627-5454'].va, pt: 'TABLECLOTH', src: 'Amazon (read now)' });
-  ok('the suggested title keeps "Hand Block Print", "Square", "Harbor Blue", "Tablecloth" (and brand, cotton, the size)', ['Hand Block Print', 'Square', 'Harbor Blue', 'Tablecloth', 'Ridhi', '100% Cotton', '54x54 Inch'].every(w => rtc.after.includes(w)), rtc.after);
-  ok('…in the template\'s order, the uses words gone; 79 with only important words, so the house rule\'s short forms of a 74–75 title: "54x54 Inch" and no " - " → 75, not held',
-    rtc.after === 'Ridhi Tablecloth Square 100% Cotton 54x54 Inch Hand Block Print Harbor Blue' && rtc.after.length === 75 && !rtc.why
-    && rtc.shortForms.join(' · ') === 'size without spaces · no " - " before the colour', rtc.after + ' · ' + rtc.after.length + ' · ' + rtc.why + ' · ' + rtc.shortForms);
+  // OUR TITLE FORMAT (20 Nov 2026): its title IS our format (Brand · Colour · Hand Block Print · Shape · Product · Size · Inch) — only the
+  // size's "×" is not our way, so only that changes; every other word stays, in its own order
+  ok('the suggested title keeps "Hand Block Print", "Square", "Harbor Blue", "Tablecloth", the brand and the size with "Inch"', ['Hand Block Print', 'Square', 'Harbor Blue', 'Tablecloth', 'Ridhi', '54x54 Inch'].every(w => rtc.after.includes(w)), rtc.after);
+  ok('…its own words in its own order, only "54×54 Inch" → "54x54 Inch"; not held',
+    rtc.after === 'Ridhi Harbor Blue Hand Block Print Square Tablecloth 54x54 Inch' && !rtc.why && rtc.fixWhat.join() === 'Size: 54×54 Inch → 54x54 Inch', rtc.after + ' · ' + rtc.after.length + ' · ' + rtc.why + ' · ' + rtc.fixWhat);
   // the whole Fix all titles path: every existing title rule judged again on it — no new error, its title problems gone
   C.TT.read.set('SP|RTC-627-5454', { va: REAL['RTC-627-5454'].va, pt: 'TABLECLOTH', at: Date.now() });
   const rtcPlan = C.ttPlans('SP', C.ttRows('SP').filter(r => r.row.sku === 'RTC-627-5454'), C.hCtx()).get('RTC-627-5454');
@@ -106,7 +107,7 @@ function oldFiles() {
   ok('…Listing Health on that title: no title error at all (size format, template, length, keyword)', !judged.found.some(h => ['size_format', 'title_template', 'title_length', 'title_keyword', 'dimension_order', 'variation_naming'].includes(h.detector)), judged.found.map(h => h.name + ': ' + h.detail).join(' | '));
   const strict = 'Ridhi Tablecloth Square 100% Cotton 54x54 Inch Hand Block Print Blue';
   const strictH = C.healthOf(Object.assign({}, rowOf(C, 'RTC-627-5454'), { title: strict, content: Object.assign({}, rowOf(C, 'RTC-627-5454').content, { title: strict, titleLen: strict.length }) }), C.hCtx());
-  ok(`…the company rule is unchanged: "54x54 Inch" in a title of ${strict.length} characters (below 74) is still "Size not in house style"`, strict.length < 74 && strictH.found.some(h => h.detector === 'size_format'), strictH.found.map(h => h.detector).join());
+  ok(`…"54x54 Inch" is our format: in a title of ${strict.length} characters (below 74) it is not a size error`, strict.length < 74 && !strictH.found.some(h => h.detector === 'size_format'), strictH.found.map(h => h.detector + ': ' + h.detail).join(' | '));
   console.log('== the short forms: only to fit, only at 74–75, every word kept ==');
   {
     const fit75 = t => t.length <= 75;
@@ -151,7 +152,9 @@ function oldFiles() {
   console.log('== every place uses the ONE rule ==');
   const L = f => fs.readFileSync(path.join(__dirname, '..', 'src', 'app', 'listing', f), 'utf8');
   const users = { 'kw-fix.js': 'Fix all search terms', 'title-fix.js': 'Fix all titles', 'fix-all.js': 'Fix all short title', 'listing-content.js': 'Listing Content (75 cut, search terms)', 'listing-optimiser.js': 'Listing Optimiser', 'season-planner.js': 'Season planner' };
-  Object.entries(users).forEach(([f, what]) => ok(`${what} (${f}) calls lrSuggestWords`, /lrSuggestWords\(/.test(L(f))));
+  // Fix all titles / Fix all's short title go through lrTitleFix (our title format), which calls lrSuggestWords to fit the length
+  Object.entries(users).forEach(([f, what]) => ok(`${what} (${f}) calls lrSuggestWords`, /lrSuggestWords\(|lrTitleFix\(/.test(L(f))));
+  ok('…and lrTitleFix (listing-rules.js) fits the length with lrSuggestWords', /function lrTitleFix\([\s\S]{0,9000}lrSuggestWords\(/.test(L('listing-rules.js')));
   ok('the title template suggestion (lrSuggest, listing-rules.js) too, and the rule is defined once, in listing-rules.js', /function lrSuggest\(row, cfg, today\)[\s\S]{0,900}lrSuggestWords\(/.test(L('listing-rules.js'))
     && fs.readdirSync(path.join(__dirname, '..', 'src', 'app', 'listing')).filter(f => /function lrSuggestWords\(/.test(L(f))).join() === 'listing-rules.js');
   ok('no screen keeps its own word list any more (kfShorten\'s steps, spTrim\'s keep words, the Hand → Block Print cut)', !/step 5 still over|SP_TRIM_FILL|spKeepWords|'~pattern'/.test(L('kw-fix.js') + L('season-planner.js') + L('title-fix.js')));
@@ -162,7 +165,10 @@ function oldFiles() {
   ok('Listing Optimiser: a backend suggestion that drops "Hand", "Square" or the colour is replaced by the one rule\'s (the current title, shortened)', ['Hand Block Print', 'Square', 'Harbor Blue', 'Tablecloth'].every(w => dropHand.suggested.includes(w))
     && dropHand.suggested.length <= 75 && dropHand.newLen === dropHand.suggested.length && !/Cute|Gift|Indian|Decorative/.test(dropHand.suggested), dropHand.suggested);
   const good = 'Ridhi Harbor Blue Hand Block Print Square Tablecloth 54×54 Inch Kitchen Dining';
-  ok('…a backend suggestion that keeps every important word is shown as it is', lo(good, cur).suggested === good);
+  // OUR TITLE FORMAT: for our own listing the Optimiser shows the one title rule's fix — its own words, its own order — whatever the backend says
+  const own = lo(good, cur);
+  ok('…for our own listing: the one title rule\'s fix (its own words and order, "54x54 Inch", the low-value words out), whatever the backend suggested', own.suggested === dropHand.suggested
+    && own.suggested.startsWith('Ridhi Harbor Blue Hand Block Print Square Tablecloth 54x54 Inch') && own.suggested.length <= 75, own.suggested);
 
   // before / after with the code before this change (printed for the record)
   const old = oldFiles();

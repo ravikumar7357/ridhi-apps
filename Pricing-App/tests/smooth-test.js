@@ -27,6 +27,14 @@ FILES.forEach(f => { try { old[f] = cp.execSync(`git show ${REV}:${DIR}${f}`, { 
 const changed = FILES.filter(f => old[f] !== undefined && old[f] !== fs.readFileSync(path.join(__dirname, '..', 'src', 'app', 'listing', f), 'utf8'));
 console.log(`== ${REV} → now: ${changed.length} listing file(s) differ: ${changed.join(', ') || '(none)'}`);
 
+// OUR TITLE FORMAT (20 Nov 2026, the manager's decision): the two title checks it changes (title_template "Title mistake", size_format)
+// are pinned in tests/rule-pin-test.js and tests/title-format-test.js. Here they are first compared ON — every OTHER finding of every
+// listing must be the same — then switched off on BOTH pages, so every screen must be the very same text.
+const TF_OFF = ['title_template', 'size_format'];
+const tfOff = C => { C.getLR().issues.forEach(i => { if (TF_OFF.includes(i.id)) i.on = false; }); C.reset(); return C; };
+const otherChecks = C => ['SP', 'CPC'].flatMap(b => C.HEALTH[b].rows.map(r => JSON.stringify(C.healthOf(Object.assign({}, r, { brand: b }), C.hCtx()).found
+  .filter(x => !TF_OFF.includes(x.id)).map(x => [x.id, x.sev, x.detail, x.what, x.fix, x.tag, x.kind, x.src, x.stale])))).join('\n');
+
 // Every listing's checks, as text: what each screen counts and shows.
 const checksText = h => JSON.stringify([h.bucket, h.score, h.grade, h.stale, h.critical, h.action, h.review, h.notes, h.looks,
   h.found.map(x => [x.id, x.sev, x.detail, x.what, x.fix, x.tag, x.kind, x.src, x.stale])]);
@@ -37,6 +45,8 @@ console.log('== Listing Health and the Workspace (healthPage, full size) ==');
   const A = healthPage({ files: old });
   const B = healthPage({ extra: ['listing-priority.js', 'listing-ai.js'] });     // AI off (no backend): no ✨ button
   const both = fn => [fn(A), fn(B)];
+  same('the title-format checks ON: every OTHER finding of every listing is the same (rule, level, detail, fix, tag)', otherChecks(A), otherChecks(B));
+  [A, B].forEach(tfOff);
   // the clock: the two pages are built a moment apart, so "updated 10:57:30" may read ":31" on the other — that time alone is set aside
  // 20 Nov 2026: with AI OFF (not set up) the ✨ buttons are hidden — the pages must be exactly as before; the priority chips
   // (🔴 Critical · 🟠 Important · ⚪ Can wait, listing-priority.js) are the one thing added, and alone are set aside here
@@ -97,6 +107,7 @@ console.log('== Season planner, Fix all, Listing Errors card, Listing History (b
 {
   const A = bigPage({ files: old });
   const B = bigPage({ load: { pr: true, ai: true } });                          // AI off (no backend): no ✨ button
+  [A, B].forEach(tfOff);
   const both = fn => [fn(A), fn(B)];
   // the clock: the two pages are built a moment apart, so "updated 10:57:30" may read ":31" on the other — that time alone is set aside
  // 20 Nov 2026: with AI OFF (not set up) the ✨ buttons are hidden — the pages must be exactly as before; the priority chips
@@ -118,7 +129,9 @@ console.log('== Season planner, Fix all, Listing Errors card, Listing History (b
   const ttBtn = h => h.replace(/<button type="button" class="fa-btn fa-main" data-fa-act="fix" data-fa-row="[^"]*"[^>]*title="One new title for each[^"]*">Fix (?:all [\d,]+ child(?:ren)?|[\d,]+ titles?)<\/button>/g, '[title button]');
   // 19 Nov 2026: the WORDS of a suggestion follow the one suggestion-words rule (listing-rules.js lrSuggestWords; tests/suggestion-words-
   // test.js) — the suggested texts and the search-terms row's line saying how it shortens are set aside; cards, rows, counts and buttons stay
-  const words = h => ttBtn(h).replace(/(<b>Search terms over the limit<\/b><small>)[^<]*/g, '$1[how]').replace(/<span class="fa-(new|was|why)">[^<]*<\/span>/g, '<span class="fa-$1">[words]</span>');
+  // 20 Nov 2026 (OUR TITLE FORMAT): the title rows' line says how a title is fixed now ("Each child keeps its own title — …") — set aside
+  const ttHow = h => h.replace(/(One new title per child from the title template and its own Amazon facts|Each child keeps its own title — only its real mistakes corrected, every other word as it is)( — every title problem of the family fixed at once)/g, '[how]$2');
+  const words = h => ttHow(ttBtn(h)).replace(/(<b>Search terms over the limit<\/b><small>)[^<]*/g, '$1[how]').replace(/<span class="fa-(new|was|why)">[^<]*<\/span>/g, '<span class="fa-$1">[words]</span>');
   same('Fix all: the block of the biggest parent (cards, rows, Fix all counts — the title rows\' button and the suggested words aside)', words(ba), words(bb));
   const nBtn = h => (ttBtn(h).match(/\[title button\]/g) || []).length;
   ok('…the title rows\' buttons are there in both, now with each row\'s own count', nBtn(ba) > 0 && nBtn(ba) === nBtn(bb) && (bb.match(/>Fix [\d,]+ titles?</g) || []).length === nBtn(bb), nBtn(ba) + ' vs ' + nBtn(bb));

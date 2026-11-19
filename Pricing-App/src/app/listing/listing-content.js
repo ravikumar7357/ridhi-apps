@@ -74,10 +74,13 @@ function lcCheck(field, vals, ctx) {
     });
     const sizeRule = lcRule('size_format');
     if (sizeRule) {
-      const near = lrNear(title, LR || LR_DEFAULT);   // 74–75 characters: the short forms are allowed (Listing Rules, "What people may write")
-      hTitleSizes(title).filter(size => !lrSizeOk(size.text, sizeRule.params.example) && !(near && lrSizeLoose(size.text)))
-        .forEach(size => push(false, `Size "${size.text}" — Listing Rules write it like "${sizeRule.params.example}".`));
+      // OUR TITLE FORMAT (20 Nov 2026): "54x54 Inch" or the family's "54 x 54 Inch"; the 74–75 short forms; no unit = "Missing Inch" below
+      hTitleSizes(title).filter(size => LR_UNIT_RE.test(size.text) && !lrSizeOurs(size.text, LR || LR_DEFAULT, title, sizeRule.params.example))
+        .forEach(size => push(false, `Size "${size.text}" — write it our way, like "54x54 Inch".`));
     }
+    // the real mistakes of OUR TITLE FORMAT (listing-rules.js lrTitleProblems — the same rule as Listing Health): spelling, shape, a missing part
+    const fx = lcTitleFix(ctx.brand, ctx.sku, title);
+    if (fx) fx.probs.forEach(p => push(false, p.what + '.'));
   } else if (field === 'bullet_point') {
     // --- bullets: how many, how long, repeated ---
     const bullets = vals.filter(bullet => bullet.trim());
@@ -152,6 +155,17 @@ function lcTemplateFit(brand, sku, max) {
   const left = new Set(lrNorm(out).split(/[^a-z0-9%]+/).filter(Boolean));
   const dropped = required.filter(name => values[name] && !lrNorm(values[name]).split(/[^a-z0-9%]+/).filter(Boolean).some(word => left.has(word)));
   return { title: out, dropped };
+}
+/** OUR TITLE FORMAT (20 Nov 2026): the smallest fix of this title (listing-rules.js lrTitleFix — the one rule every title suggestion uses):
+ *  its own words in its own order, only its real mistakes corrected. null when the rules are not loaded. */
+function lcTitleFix(brand, sku, title) {
+  if (typeof lrTitleFix !== 'function' || !title || !brand || typeof hCtx !== 'function') return null;
+  const hr = ((typeof HEALTH !== 'undefined' && HEALTH[brand] && HEALTH[brand].rows) || []).find(r => r.sku === sku) || { sku };
+  const row = Object.assign({}, hr, { brand, sku, shownTitle: title });
+  let ctx;
+  // the rules alone when Listing Health has not loaded (no family, no Amazon read): still the same title rule
+  try { ctx = hCtx(); } catch (e) { ctx = { cfg: LR || LR_DEFAULT, today: new Date(), parents: new Map(), rows: [], iml: {}, healthAt: {}, parentAplus: {}, imlAt: {} }; }
+  return lrTitleFix(row, ctx, { title, risk: typeof ipgKwRisk === 'function' && sku ? ipgKwRisk(brand, sku, row, ctx.cfg) : null });
 }
 // Just the title of lcTemplateFit.
 const lcTemplateTitle = (brand, sku, max) => lcTemplateFit(brand, sku, max).title;
@@ -237,8 +251,7 @@ function lcSectionHtml() {
   const bullets = lcNow('bullet_point');
   const desc = lcNow('product_description').join('\n');
   const kw = lcNow('generic_keyword').join(' ');
-  const tFull = lcTemplateTitle(brand, sku, 200);
-  const t75 = lcTemplateTitle(brand, sku, 75);
+  const tFix = lcTitleFix(brand, sku, title);         // OUR TITLE FORMAT: the smallest fix of its own title (never another order)
   const ch = name => LE_EDIT[name] ? ' <span style="color:var(--accent-ink);font-size:11.5px">· changed</span>' : '';
   const nBoxes = Math.min(10, Math.max(5, bullets.length) + LC_EXTRA);
   return `<div class="card" style="padding:10px 14px;margin-bottom:10px">
@@ -247,11 +260,9 @@ function lcSectionHtml() {
       <textarea id="lcTitle" rows="2" style="width:100%">${leEsc(title)}</textarea>
       <div class="muted" style="font-size:11px"><span id="lcTitleN">${title.length}</span> characters</div>
       <div id="lcTitleF">${lcFindHtml(lcCheck('item_name', [title], lcCtx()))}</div>
-      ${tFull ? `<div style="font-size:11.5px;margin-top:4px" class="muted">Listing Rules template: <b>${leEsc(tFull)}</b> (${tFull.length})
-          <button class="ghost im-b" data-lcuse="full">Use it</button>
-          ${t75 && t75 !== tFull ? `<br>Cut to 75: <b>${leEsc(t75)}</b> (${t75.length}) <button class="ghost im-b" data-lcuse="75">Use it</button>${
-            (dropped => dropped.length ? ` <span style="color:var(--act-ink)">— leaves out what the template requires: ${leEsc(dropped.join(', '))}</span>` : '')(lcTemplateFit(brand, sku, 75).dropped)}` : ''}</div>`
-        : `<div class="muted" style="font-size:11.5px;margin-top:4px">No Listing Rules template matches this SKU (its sub-category is not one the templates name, or the SKU is not in the brand catalogue).</div>`}
+      ${tFix && tFix.after && tFix.after !== title ? `<div style="font-size:11.5px;margin-top:4px" class="muted">Suggested fix (our title format, its own words and order): <b>${leEsc(tFix.after)}</b> (${tFix.after.length})
+          <button class="ghost im-b" data-lcuse="fix">Use it</button> <span style="color:var(--act-ink)">— ${leEsc(tFix.fixes.join(' · '))}</span></div>`
+        : `<div class="muted" style="font-size:11.5px;margin-top:4px">${title ? 'No mistake to correct — the title keeps its own format.' : 'No title yet.'}</div>`}
     </div>
     <div style="margin-bottom:10px"${typeof aiOn === 'function' && aiOn() ? ' data-ai-block' : ''}><div style="font-weight:600;font-size:12.5px">Bullet points${ch('bullet_point')}${typeof aiOn === 'function' && aiOn() ? ' ' + aiBtnHtml('bullets', brand, sku, { use: 'lc', place: 'block', label: 'AI bullets' }) : ''}</div>
       ${Array.from({ length: nBoxes }, (_, i) => `<div style="display:flex;gap:6px;align-items:flex-start;margin:3px 0">`
@@ -328,7 +339,8 @@ function lcWire(redraw) {
   };
   // --- the suggestion buttons: Use it (full / cut to 75) and Suggest from Listing Rules ---
   document.querySelectorAll('[data-lcuse]').forEach(btn => btn.onclick = () => {
-    titleBox.value = lcTemplateTitle($('leBrand').value, LE.sku, btn.dataset.lcuse === '75' ? 75 : 200);
+    const fx = btn.dataset.lcuse === 'fix' ? lcTitleFix($('leBrand').value, LE.sku, titleBox.value) : null;
+    titleBox.value = fx ? fx.after : lcTemplateTitle($('leBrand').value, LE.sku, btn.dataset.lcuse === '75' ? 75 : 200);
     titleBox.oninput();
     redraw();
   });
@@ -393,7 +405,7 @@ async function lcDownload() {
         lcCheck('product_description', [desc]), lcCheck('generic_keyword', [kw], { title }))
         .map(finding => (finding.bad ? '✕ ' : '• ') + finding.msg).join('\n');
       out.push([item.sku, item.asin || cur.asin, cur.productType, item.c || cat.color || '', item.z || cat.size || '', title, title.length,
-        lcTemplateTitle(brand, item.sku, 200), lcTemplateTitle(brand, item.sku, 75)]
+        (lcTitleFix(brand, item.sku, title) || {}).after || title, (lcTitleFix(brand, item.sku, title) || {}).after || title]      // our title format: the smallest fix of its own title
         .concat(Array.from({ length: nBullets }, (_, i) => bullets[i] || ''),
           [desc, kw, lrKwBytes(kw), lcSuggestKeywords(brand, item.sku, title, kw), finds]));
     });

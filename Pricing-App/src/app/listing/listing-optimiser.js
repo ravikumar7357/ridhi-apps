@@ -97,6 +97,13 @@ function loKeepWords(reply, brand, asin, sku) {
   const cfg = (typeof LR !== 'undefined' && LR) || LR_DEFAULT;
   const rows = typeof HEALTH !== 'undefined' && HEALTH[brand] && HEALTH[brand].rows ? HEALTH[brand].rows : [];
   const row = Object.assign({ brand, asin }, rows.find(r => (sku && r.sku === sku) || r.asin === asin) || {}, sku ? { sku } : {}, { brand });
+  // OUR TITLE FORMAT (20 Nov 2026): our own listing's suggestion is its own title with only its real mistakes corrected (lrTitleFix), never
+  // the backend's reordering; a competitor's ASIN (no row of ours) keeps the backend's suggestion, its risky words out
+  if (row.sku && rows.some(r => r.sku === row.sku) && typeof lrTitleFix === 'function' && typeof hCtx === 'function') {
+    const fx = lrTitleFix(Object.assign({}, row, { shownTitle: sug.current }), hCtx(), { title: sug.current, max: +sug.cap || 75, risk: typeof ipgKwRisk === 'function' ? ipgKwRisk(brand, row.sku, row, cfg) : null });
+    Object.assign(sug, { suggested: fx.after, newLen: fx.after.length, why: fx.fixes.length ? fx.fixes : ['No mistake to correct — the title keeps its own format and word order.'] });
+    return reply;
+  }
   const facts = lrSwFacts(row, cfg, null, { title: sug.current });
   const risk = typeof ipgKwRisk === 'function' && row.sku ? ipgKwRisk(brand, row.sku, row, cfg) : null;
   const cap = +sug.cap || 75;
