@@ -501,7 +501,7 @@ const ready = async opts => { const C = setup(opts); await C.fcOpen(); await flu
     ok('a family Amazon could not be read for: grey "not read" boxes, none counted as visible', /is-g">not read</.test(hu) && /<b>0 of \d+<\/b> sizes visible/.test(hu) && !/>Linked</.test(hu), strip(hu.slice(hu.indexOf('fc-map'), hu.indexOf('fc-map') + 400)));
     await flushAll(U);
     const css = fs.readFileSync(path.join(__dirname, '..', 'src', 'styles.css'), 'utf8');
-    const mine = css.split(/\r?\n/).filter(l => /#paneFam \.fc-(map|par|kids?|nums|revs|chip\.is-ok)/.test(l));
+    const mine = css.split(/\r?\n/).filter(l => /:is\(#paneFam,#paneAplus,#paneIpg\) \.fc-(map|par|kids?|nums|revs|chip\.is-ok)/.test(l));   // (18 Nov 2026: the same rules dress the A+ Content and IP & Trademark Guard panes too)
     ok('the picture uses the theme colours only (light + dark): no fixed colours', mine.length >= 10 && mine.every(l => !/#[0-9a-f]{3,6}\b|rgb\(/i.test(l)));
   }
 
@@ -510,14 +510,14 @@ const ready = async opts => { const C = setup(opts); await C.fcOpen(); await flu
     const assigns = SRC.match(/\b(HEALTH|IML|LR_CAT|LI_WS|AMZ|H_CTX|H_LOADED|LR|SP|LH|SQ)\s*(\[[^\]]*\])*\s*(\.\w+)*\s*=(?!=)/g) || [];
     ok('family-check.js never writes Listing Health / Image Manager / catalogue / Workspace / planner state', !assigns.length, assigns.join(' | '));
     ok('the only backend calls: ?lfix=cat and ?lfix=get (reads); sends only through sqSendWithCheck', (SRC.match(/baCall\(\{ lfix: '(\w+)'/g) || []).every(m => /'cat'|'get'/.test(m)) && !/imPost|lfix: 'patch'[^]{0,40}baCall/.test(SRC));
-    ok('the search waits 250 ms after typing', /FC_T = setTimeout\(fcDrawAll, 250\)/.test(SRC));
+    ok('the search waits 200 ms after typing (18 Nov 2026: every Listing search box, results within 300 ms)', /FC_T = setTimeout\(fcDrawAll, 200\)/.test(SRC));
     const root = path.join(__dirname, '..', '..');
     let changed = [];
     try { changed = cp.execSync('git diff --name-only HEAD -- Pricing-App/src Pricing-App/firestore.rules Pricing-API', { cwd: root, encoding: 'utf8' }).split(/\r?\n/).filter(Boolean); } catch (e) { changed = ['(git not available)']; }
     const allowed = ['Pricing-App/src/styles.css', 'Pricing-App/src/app/listing/family-check.js'];
     ok('only this screen\'s file and its CSS changed — no backend, no rules, no other screen', changed.every(f => allowed.includes(f)), changed.join(', '));
     const html = fs.readFileSync(path.join(__dirname, '..', 'src', 'index.html'), 'utf8');
-    ok('menu: column 2 · Check, right after BSR Audit', /<button id="tabBsr" class="nav">BSR Audit<\/button>\r\n      <button id="tabFam" class="nav">Family &amp; Category Check<\/button><\/div>/.test(html));
+    ok('menu: column 2 · Check, right after BSR Audit (A+ Content and IP & Trademark Guard follow it since 18 Nov 2026)', /<button id="tabBsr" class="nav">BSR Audit<\/button>\r\n      <button id="tabFam" class="nav">Family &amp; Category Check<\/button>\r\n      <button id="tabAplus" class="nav">A\+ Content<\/button>\r\n      <button id="tabIpg" class="nav">IP &amp; Trademark Guard<\/button><\/div>/.test(html));
     ok('the file is CRLF', !/(^|[^\r])\n/.test(SRC));
   }
 

@@ -3,7 +3,9 @@
  * One parent with 100 children, 10 of them with the same problem (a title over 75) → one row "10 children" → one click → 10 changes,
  * each with its own size and colour; a child whose fix would break a rule needs your OK; one child's Fix = Fix all for that child;
  * Amazon's check → To send → send → read again → Accepted / Rejected / Amazon working; the test site sends nothing; Put back; the spec
- * copy; no season rows (the Season planner's alone); the block on top of the Workspace panel; the cards = Listing Health's numbers. */
+ * copy; no season rows (the Season planner's alone); the block on top of the Workspace panel; the cards = Listing Health's numbers.
+ * (18 Nov 2026) A title over 75 is fixed by Fix all titles (title-fix.js): the row's button opens its preview first (every title problem
+ * of the family, one new title per child from its own Amazon facts), then the same send path — tests/title-fix-test.js tests it whole. */
 const { load } = require('./listing-rules-test.js');
 let pass = 0, fail = 0;
 const ok = (name, cond, extra) => { if (cond) { pass++; console.log('  PASS ' + name); } else { fail++; console.log('  FAIL ' + name + (extra ? ' — ' + extra : '')); } };
@@ -66,11 +68,21 @@ function setup(opts) {
     put(sku, title, c, opts.mod && opts.mod[sku] && opts.mod[sku].row);
   }
   C.setCat('SP', cat);
+  if (opts.facts !== false) Object.keys(cat).forEach(sku => C.TT.read.set('SP|' + sku, { va: Object.assign({ material: 'Cotton' }, cat[sku].color ? { color: cat[sku].color } : {}, cat[sku].size ? { size: cat[sku].size } : {}), pt: 'NAPKIN', at: now }));
+  C.TT.readV++;
   C.LI_WS.liveV++;
   C.reset();
   return { C, handed, saved, put, cat };
 }
 const patchCalls = (C, apply) => C.calls.filter(c => c.lfix === 'patch' && c.apply === apply);
+// A title row's Fix all (or one child's Fix): the new-title preview (title-fix.js), then "Check with Amazon & send" → the send path's popup.
+async function startTitles(C, gk, sku) {
+  const r = C.faStart(gk, sku);
+  for (let i = 0; i < 200 && !(C.TT.run && C.TT.run.plans.length && !C.TT.run.total); i++) await new Promise(res => setTimeout(res, 1));
+  C.ttGo();
+  await C.SQ.run.checked;
+  return [r];          // in an array: the run's own promise ends only when the send is closed
+}
 
 (async () => {
   console.log('== one parent, 100 children, 10 with the same problem → one row "10 children" ==');
@@ -81,11 +93,11 @@ const patchCalls = (C, apply) => C.calls.filter(c => c.lfix === 'patch' && c.app
     const groups = C.faGroups('SP', 'PB', kids);
     const tg = groups.find(g => g.key === 'title');
     ok('100 children under the parent', kids.length === 100, kids.length);
-    ok('ONE row "Title too long" holding the 10', tg && tg.kids.length === 10 && groups.filter(g => g.kind === 'title').length === 1 && tg.kids.every(k => /^L\d$/.test(k.sku)), tg && tg.kids.map(k => k.sku).join());
+    ok('ONE row "Title too long" holding the 10', tg && tg.kids.length === 10 && groups.filter(g => g.key === 'title').length === 1 && tg.kind === 'ttl' && tg.kids.every(k => /^L\d$/.test(k.sku)), tg && tg.kids.map(k => k.sku).join());
     ok('…the 90 good titles are in no row', groups.every(g => g.kids.every(k => /^L/.test(k.sku))), groups.map(g => g.key + ':' + g.kids.length).join(' '));
     const html = C.faBlockHtml('SP', 'PB');
-    ok('the block: "Title too long" · what we will do · "10 children" · ONE button "Fix all 10" · "› Show all 10"', /<b>Title too long<\/b><small>Shorten to 75 letters with the title template — brand, product, size and colour kept<\/small>/.test(html)
-      && /class="fa-n">10 children</.test(html) && />Fix all 10</.test(html) && /› Show all 10/.test(html) && !/Could not group/.test(html), strip(html).slice(0, 600));
+    ok('the block: "Title too long" · what we will do · "10 children" · ONE button "Fix 10 titles" · "› Show all 10"', /<b>Title too long<\/b><small>Each child keeps its own title — only its real mistakes corrected, every other word as it is — every title problem of the family fixed at once<\/small>/.test(html)
+      && /class="fa-n">10 children</.test(html) && />Fix 10 titles</.test(html) && /› Show all 10/.test(html) && !/Could not group/.test(html), strip(html).slice(0, 600));
     ok('…under NEEDS ATTENTION (a review-level rule), and the green line "90 children have no problem · Nothing to do"', /fa-sec-h">Needs attention</.test(html) && !/fa-sec-h">Fix first</.test(html)
       && /90 children have no problem · Nothing to do/.test(strip(html)), strip(html).slice(-300));
     // the cards = Listing Health's numbers for this parent: healthOf over the same rows, each child once by its level
@@ -99,25 +111,24 @@ const patchCalls = (C, apply) => C.calls.filter(c => c.lfix === 'patch' && c.app
     C.FA.open.add('SP|PB|title');
     const open = C.faBlockHtml('SP', 'PB');
     ok('"› Show all 10" lists the children: name (colour · size) · SKU · before → after', (open.match(/class="fa-kid"/g) || []).length === 8 && /Show the other 2/.test(open)
-      && /<b>Blue · 18 x 18 Inch<\/b><small>L0<\/small>/.test(open) && /fa-was">Ridhi Cloth Napkins 100% Cotton 18 x 18 Inch Block Print Reusable Dinner Napkins for…<\/span> → <span class="fa-new">Ridhi Cloth Napkins 100% Cotton 18 x 18 Inch Block Print - Blue</.test(open),
+      && /<b>Blue · 18 x 18 Inch<\/b><small>L0<\/small>/.test(open) && /fa-was">Ridhi Cloth Napkins 100% Cotton 18 x 18 Inch Block Print Reusable Dinner Napkins for…<\/span> → <span class="fa-new">Ridhi Cloth Napkins 100% Cotton 18 x 18 Inch Block Print Reusable - Blue</.test(open),
       strip(open).slice(0, 900));
     C.FA.open.clear();
 
     console.log('== 1 click → the Amazon check popup: 10 items, each with its own size and colour; Amazon checks each first ==');
-    const r = C.faStart('SP|PB|title');
-    await C.SQ.run.checked;
+    const [r] = await startTitles(C, 'SP|PB|title');
     const run = C.SQ.run;
     const afterOf = sku => run.jobs.find(j => j.sku === sku).plan.after;
     ok('Amazon checks all 10 first (apply: false = VALIDATION_PREVIEW), nothing sent', patchCalls(C, false).length === 10 && patchCalls(C, true).length === 0 && run.step === 'review' && run.jobs.length === 10
-      && C.SQ.screens.slice(-1)[0] === 'Listing Health');
+      && C.SQ.screens.slice(-1)[0] === 'Titles · Fix all');
     ok('each child gets ITS OWN title: its own colour after " - ", its own size, 10 different titles', run.jobs.every(j => afterOf(j.sku).endsWith(' - ' + A.cat[j.sku].color) && afterOf(j.sku).includes(sizeText(A.cat[j.sku].size)) && afterOf(j.sku).length <= 75)
       && new Set(run.jobs.map(j => afterOf(j.sku))).size === 10, run.jobs.map(j => j.sku + ': ' + afterOf(j.sku)).join(' | '));
     ok('…and each patch names only that child: item_name with its own title', patchCalls(C, false).every(c => c.patches.length === 1 && c.patches[0].path === '/attributes/item_name' && c.patches[0].value[0].value === afterOf(c.sku)));
-    ok('…brand, product, size, colour, material and print kept; the long "uses" words go', run.jobs.every(j => /^Ridhi Cloth Napkins 100% Cotton \d+ x \d+ Inch Block Print - \w+$/.test(afterOf(j.sku))));
+    ok('…brand, product, size, colour, material and print kept; the uses lose their repeat and the words that do not fit ("Reusable" fits and stays)', run.jobs.every(j => /^Ridhi Cloth Napkins 100% Cotton \d+ x \d+ Inch Block Print Reusable - \w+$/.test(afterOf(j.sku))), run.jobs.map(j => afterOf(j.sku)).join(' | '));
     const pop = C.el('spModalBox').innerHTML;
     ok('the popup: "10 Amazon will accept · 0 Amazon says no", each title before → after, [Approve & send 10] [Cancel]', /10 changes · ✓ 10 will accept · ✗ 0 says no · ⚠ 0 not checked/.test(strip(pop))
-      && /<small>Title:<\/small> <span class="sq-rem">− Reusable Dinner Napkins for Kitchen Party Wedding<\/span> <span class="sq-size">\(63 of 75\)<\/span>/.test(pop)
-      && /› Show full text/.test(pop) && /<small>After<\/small> Ridhi Cloth Napkins 100% Cotton 18 x 18 Inch Block Print - Blue</.test(pop)
+      && /<small>Title:<\/small> <span class="sq-rem">− Dinner Napkins for Kitchen Party Wedding<\/span> <span class="sq-size">\(72 of 75\)<\/span>/.test(pop)
+      && /› Show full text/.test(pop) && /<small>After<\/small> Ridhi Cloth Napkins 100% Cotton 18 x 18 Inch Block Print Reusable - Blue</.test(pop)
       && /data-sq="approve">Approve &amp; send 10</.test(pop) && /data-sq="cancel">Cancel</.test(pop), strip(pop).slice(0, 400));
     A.review = Object.fromEntries(run.jobs.map(j => [j.sku, JSON.stringify(j.body.patches)]));
 
@@ -132,9 +143,9 @@ const patchCalls = (C, apply) => C.calls.filter(c => c.lfix === 'patch' && c.app
     C.sqClose();
     await r;
     ok('every change is kept with its OLD title in listingrules/fixlog, with Amazon\'s answer', C.FA.log.length === 10 && A.saved.some(x => x.path === 'listingrules/fixlog' && x.data.rows.length === 10)
-      && C.FA.log.every(rec => rec.before.title && rec.before.title.length > 75 && rec.after.title.length <= 75 && rec.row === 'title'), JSON.stringify(C.FA.log[0]));
+      && C.FA.log.every(rec => rec.before.title && rec.before.title.length > 75 && rec.after.title.length <= 75 && rec.row === 'ttl'), JSON.stringify(C.FA.log[0]));
     ok('…and the records follow (History)', C.FA.log.filter(x => x.state === 'accepted').length === 8 && C.FA.log.find(x => x.sku === 'L8').state === 'rejected' && C.FA.log.find(x => x.sku === 'L7').state === 'working');
-    ok('…and each send is in the send log too (lhistAdd, Listing History)', A.saved.some(x => /^history\/listing_/.test(x.path) && Object.values(x.data.rows).some(row => row.sku === 'L0' && row.field === 'Title' && row.screen === 'Listing Health')));
+    ok('…and each send is in the send log too (lhistAdd, Listing History)', A.saved.some(x => /^history\/listing_/.test(x.path) && Object.values(x.data.rows).some(row => row.sku === 'L0' && row.field === 'Title' && row.screen === 'Titles · Fix all')));
     await idle(C);
     const g2 = C.faGroups('SP', 'PB', C.faKids('SP', 'PB')).find(g => g.key === 'title');
     ok('the rows update: the 9 sent wait for Amazon to show the new title; only the rejected one is still in the row', g2 && g2.kids.length === 1 && g2.kids[0].sku === 'L8' && g2.waiting.length === 9,
@@ -160,8 +171,7 @@ const patchCalls = (C, apply) => C.calls.filter(c => c.lfix === 'patch' && c.app
   {
     const { C } = setup();
     for (const sku of ['L0', 'L3', 'L9']) {
-      C.faStart('SP|PB|title', sku);
-      await C.SQ.run.checked;
+      await startTitles(C, 'SP|PB|title', sku);
       ok(`${sku}: one child alone → the popup with one item, the same patch as in Fix all`, C.SQ.run.jobs.length === 1 && JSON.stringify(C.SQ.run.jobs[0].body.patches) === A.review[sku], C.SQ.run.jobs.map(j => j.sku).join());
       C.sqClose();
     }
@@ -169,32 +179,32 @@ const patchCalls = (C, apply) => C.calls.filter(c => c.lfix === 'patch' && c.app
 
   console.log('== a child whose fix would break a rule needs your OK ==');
   {
-    const { C } = setup({ mod: { L5: { title: LONG('20x20', 'Mustard', 'Pure Linen') }, L6: { cat: { size: '' } } } });
+    // OUR TITLE FORMAT (20 Nov 2026): a fix never changes a material or invents a size — what it holds for your OK: a title whose brand is not at
+    // the start (Sellora never reorders) and one that is still over 75 with only its important words left
+    const { C } = setup({ mod: { L5: { title: 'Napkins by Ridhi Cloth Napkins 100% Cotton 20 x 20 Inch Block Print Reusable Dinner Napkins for Kitchen - Mustard' },
+      L6: { title: LONG('18x18', 'Indigo Blue and Rust Orange Stripe With Gold Border'), cat: { color: 'Indigo Blue and Rust Orange Stripe With Gold Border' } } } });
     const g = C.faGroups('SP', 'PB', C.faKids('SP', 'PB')).find(each => each.key === 'title');
     const plans = C.faPlans(g, C.hCtx());
     const p5 = plans.find(p => p.sku === 'L5'), p6 = plans.find(p => p.sku === 'L6');
-    ok('L5 says Linen: the template would write "Cotton" — a word made up → not safe, with the reason', g.kids.length === 10 && !p5.ok && /cotton/i.test(p5.why), p5.why);
-    ok('L6 has no size in the catalogue → not safe ("the catalogue has no size")', !p6.ok && /no size/.test(p6.why), p6.why);
-    ok('the row offers "Fix all 8"', />Fix all 8</.test(C.faBlockHtml('SP', 'PB')));
-    C.faStart('SP|PB|title');
-    await C.SQ.run.checked;
+    ok('L5: its brand is not at the start → held for your OK (Sellora never puts the words in another order)', g.kids.length === 10 && !p5.ok && /the brand is not at the start/.test(p5.why), p5.why);
+    ok('L6: still over 75 with only its important words left (its long colour whole) → held, "edit by hand"', !p6.ok && /Only important words left — edit by hand/.test(p6.why), p6.why);
+    ok('the row offers "Fix 8 titles" (its own 8 that can be fixed)', />Fix 8 titles</.test(C.faBlockHtml('SP', 'PB')));
+    await startTitles(C, 'SP|PB|title');
     ok('Fix all sends only the 8 to Amazon\'s check; the 2 wait for your OK', patchCalls(C, false).length === 8 && C.SQ.run.opts.held.length === 2 && !C.SQ.run.jobs.some(j => ['L5', 'L6'].includes(j.sku)));
     ok('the popup: "8 Amazon will accept · 0 Amazon says no" and "2 need your OK — not in this send", each with its reason', /10 changes · ✓ 8 will accept · ✗ 0 says no · ⚠ 2 not checked/.test(strip(C.el('spModalBox').innerHTML))
-      && /Not checked — needs your OK: the catalogue has no size/.test(C.el('spModalBox').innerHTML), strip(C.el('spModalBox').innerHTML).slice(0, 300));
+      && /Not checked — needs your OK: the brand is not at the start/.test(C.el('spModalBox').innerHTML), strip(C.el('spModalBox').innerHTML).slice(0, 300));
     C.sqClose();
   }
 
   console.log('== Amazon says no to one in its check → only the others can be sent; Cancel sends nothing ==');
   {
     const { C } = setup({ post: body => (body.sku === 'L2' && !body.apply ? { ok: false, previewOnly: true, error: 'Amazon would reject this: The value is not a valid value for item_name' } : { ok: true, previewOnly: !body.apply, submissionId: 'sub-' + body.sku }) });
-    C.faStart('SP|PB|title');
-    await C.SQ.run.checked;
+    await startTitles(C, 'SP|PB|title');
     const h = strip(C.el('spModalBox').innerHTML);
     ok('"9 Amazon will accept · 1 Amazon says no", with the reason', /10 changes · ✓ 9 will accept · ✗ 1 says no/.test(h) && /Says no 1/.test(h) && /A value Amazon does not accept/.test(h), h.slice(0, 400));
     C.sqClose();
     ok('Cancel: nothing is sent, the popup is gone', patchCalls(C, true).length === 0 && !C.sqIsOpen());
-    C.faStart('SP|PB|title');
-    await C.SQ.run.checked;
+    await startTitles(C, 'SP|PB|title');
     await C.sqApprove();
     C.sqClose();
     ok('Approve & send 9: L2 is not sent', patchCalls(C, true).length === 9 && !patchCalls(C, true).some(c => c.sku === 'L2'));
@@ -203,8 +213,7 @@ const patchCalls = (C, apply) => C.calls.filter(c => c.lfix === 'patch' && c.app
   console.log('== the test site: "not sent to Amazon" ==');
   {
     const { C } = setup({ window: { __TEST_ERP: true } });
-    const r = C.faStart('SP|PB|title');
-    await C.SQ.run.checked;
+    const [r] = await startTitles(C, 'SP|PB|title');
     ok('no call to Amazon at all; the popup says Amazon\'s check cannot run here, with the 10 changes', patchCalls(C, false).length === 0 && C.SQ.run.jobs.length === 10 && C.SQ.run.jobs.every(j => j.state === 'test')
       && /Test site — Amazon's check cannot run here/.test(C.el('spModalBox').innerHTML));
     await C.sqApprove();
@@ -228,7 +237,12 @@ const patchCalls = (C, apply) => C.calls.filter(c => c.lfix === 'patch' && c.app
     let g = rowOf('spec:material');
     ok('one row "Empty spec: material" with G14', g && g.kids.length === 1 && g.kids[0].sku === 'G14' && g.name === 'Empty spec: material');
     let plan = C.faPlans(g, C.hCtx())[0];
-    ok('the siblings\' values not read yet → "Checking…", and they are read from Amazon', !plan.ok && plan.wait && /Checking…/.test(C.faBlockHtml('SP', 'PB')) && ['G10', 'G11', 'G12', 'G13'].every(s => C.FA.reading.has('SP|' + s) || C.FA.vals.SP[s]));
+    // (18 Nov 2026) nothing is read by drawing the parent: the row offers "Read from Amazon now", and only that reads
+    const blk = C.faBlockHtml('SP', 'PB');
+    ok('the siblings\' values not read yet → the row says so and offers "Read from Amazon now"; drawing read nothing', !plan.ok && plan.wait && /data-fa-act="vals" data-fa-row="SP\|PB\|spec:material">Read from Amazon now</.test(blk)
+      && /The other children’s value is not read yet — Read from Amazon now/.test(blk) && C.FA.reading.size === 0 && !C.LI_WS.q.length && !C.LI_WS.inflight, strip(blk).slice(0, 400));
+    C.faClick({ dataset: { faAct: 'vals', faRow: 'SP|PB|spec:material' }, closest: () => null });
+    ok('…pressed: the four siblings\' values are read from Amazon ("Checking…" meanwhile)', ['G10', 'G11', 'G12', 'G13'].every(s => C.FA.reading.has('SP|' + s) || C.FA.vals.SP[s]) && /Checking…|Reading the other children/.test(C.faBlockHtml('SP', 'PB')));
     await idle(C);   // the reads land: the Workspace's get job hands each answer to faOnGet
     g = rowOf('spec:material');
     plan = C.faPlans(g, C.hCtx())[0];

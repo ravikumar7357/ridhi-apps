@@ -22,7 +22,9 @@ const LH_RESULT = { accepted: '✅ Accepted', rejected: '❌ Rejected', working:
 let LH = { rows: null, loading: false, err: '', built: false, page: 0, open: new Set(), busy: new Set(),
   f: { range: 'week', from: '', to: '', user: '', what: '', screen: '', result: '', q: '' } };
 const lhEsc = s => String(s == null ? '' : s).replace(/[<>&"]/g, ch => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[ch]));
-const lhNf = n => Number(n || 0).toLocaleString('en-US');
+// SMOOTH (18 Nov 2026): one number format made once — the same text as toLocaleString('en-US'), which makes a new one per number
+const LH_NUM = new Intl.NumberFormat('en-US');
+const lhNf = n => LH_NUM.format(Number(n || 0));
 
 /* ----- reading the log ----- */
 // Every listing log row, newest first: the documents whose day field is set (the log's own), newest day first; each row knows its document.
@@ -61,7 +63,7 @@ function lhWhat(row) {
   return 'Spec: ' + f;
 }
 // From which screen: the screen's name, "· Fix all" when it sent several listings at once.
-const lhScreen = row => (LH_SCREEN[row.screen] || row.screen || '—') + (row.runN > 1 && !/Put back|paste/.test(row.screen || '') ? ' · Fix all' : '');
+const lhScreen = row => (LH_SCREEN[row.screen] || row.screen || '—') + (row.runN > 1 && !/Put back|paste|Fix all/.test(row.screen || '') ? ' · Fix all' : '');
 // Amazon's answer, with the reason for a rejected one.
 const lhResultText = row => (LH_RESULT[row.result] || row.result || '') + (row.result === 'rejected' && row.why ? ': ' + row.why : '');
 
@@ -166,7 +168,9 @@ function lhRowHtml(row, child) {
   const busy = LH.busy.has(row.id);
   const canBack = row.oldV != null && row.attr && (row.api === 'limg' || row.pt) && row.result !== 'notsent';
   const acts = (row.result === 'working' || row.result === 'sent' ? `<button type="button" class="ghost lh-b" data-lh="again" data-lh-id="${lhEsc(row.id)}"${busy ? ' disabled' : ''}>${busy ? 'Reading…' : 'Check again'}</button>` : '')
-    + `<button type="button" class="ghost lh-b" data-lh="back" data-lh-id="${lhEsc(row.id)}"${canBack ? '' : ' disabled title="The old value was not kept for this change"'}>Put back</button>`;
+    + `<button type="button" class="ghost lh-b" data-lh="back" data-lh-id="${lhEsc(row.id)}"${canBack ? '' : ' disabled title="The old value was not kept for this change"'}>Put back</button>`
+    // ✨ Did this change work? (listing-ai.js): a change older than 14 days, 14 days before vs after from the weekly store
+    + (typeof aiOn === 'function' && aiOn() && row.asin && row.at && Date.now() - row.at > 14 * 86400000 && row.result === 'accepted' ? aiBtnHtml('change_result', row.brand, row.sku, { use: 'read', place: 'row', asin: row.asin, at: row.at, fieldName: row.field, label: 'Did this change work?' }) : '');
   return `<tr class="lh-row${child ? ' is-child' : ''} is-${lhEsc(row.result)}" data-lh-row="${lhEsc(row.id)}"><td class="lh-when">${lhWhen(row.at)}</td><td>${lhEsc(row.name)}</td>`
     + `<td class="lh-listing"><b>${lhEsc(row.label || row.sku)}</b><small>${lhEsc(row.sku)}${row.asin ? ' · ' + lhEsc(row.asin) : ''}</small>${asin}</td>`
     + `<td>${lhEsc(lhWhat(row))}</td><td class="lh-change">${change}</td><td>${lhEsc(lhScreen(row))}</td><td>${lhEsc(row.approvedBy || row.name)}</td>`

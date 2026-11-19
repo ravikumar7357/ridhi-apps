@@ -158,7 +158,7 @@ function liWsSrc(kind, at, brand) {
 // First time on: the health snapshot and the rules, then both brands' Image Manager snapshots — through their own loaders.
 async function liWsLoad() {
   if (LI_WS.loading) return;
-  if (H_LOADED && LR && ('SP' in IML) && ('CPC' in IML)) return liWsDraw();
+  if (H_LOADED && LR && ('SP' in IML) && ('CPC' in IML)) return typeof hColdMany === 'function' && hColdMany() ? void hWarm().then(liWsDraw) : liWsDraw();
   LI_WS.loading = true;
   liWsDraw();
   try {
@@ -264,7 +264,9 @@ function liWsChild(row, brand, hc, imlMap, now) {
   //     itself — lrFresh / lrFacts in listing-rules.js — so a listing not read here gets exactly the Parent ASINs answer and a
   //     read one gets it on fresher data: the catalogue's pictures, A+ on the parent, the live content) ---
   const scored = Object.assign({}, row, { brand });
-  const h = healthOf(scored, hc);
+  // SMOOTH (18 Nov 2026): the checks Listing Health already kept for this very row (hHealthKept, the same healthOf behind the same
+  // signature) — switching Parent ASINs → Workspace no longer judges every listing a second time.
+  const h = typeof hHealthKept === 'function' ? hHealthKept(row, scored, hc, now) : healthOf(scored, hc);
   const fresh = h.fresh;
   // Not live, but stock and Inactive, suppressed or an Amazon error (an Error in Listing Rules): counted — it is the first thing to fix.
   const urgent = !live && h.bucket === 'critical' && h.found.some(hit => hit.sev === 'critical' && LI_WS_URGENT.includes(hit.detector));
@@ -479,7 +481,7 @@ function liWsChildKept(row, brand, hc, imlMap, now) {
 // `need`: what a step with no answer yet is waiting for, in words.
 const LI_WS_AUDIT = [
   { k: 'spec', t: 'Spec sheet', checks: ['spec'], tip: 'Every spec Amazon asks for on the product type is filled (from the live Amazon read)',
-    need: 'the Amazon read of each listing — open the parent, or “Read again from Amazon”' },
+    need: 'the Amazon read of each listing — “Read from Amazon now” on the parent, or “Read again from Amazon”' },
   { k: 'tpl', t: 'Template', checks: ['tpl'], tip: 'The title follows the Listing Rules template; a product with no template counts as fine',
     need: 'the brand catalogue and the title — “Refresh both brands”, or open the parent' },
   { k: 'fmt', t: 'Standard format', checks: ['bul', 'desc', 'other'], tip: 'Bullets, description and the other Listing Rules pass',
@@ -863,6 +865,9 @@ async function liWsJob(job) {
 // The A+ reads a set of listings needs: the parent ASIN and every child's ASIN whose answer is missing, older than a day, or a
 // "no A+" older than LR_APLUS_DAYS (asked again before it counts) — unless `force`. Ten ASINs a call. Returns the jobs' units.
 function liWsAplusJobs(brand, parent, kids, pk, force, extra) {
+  // NO A+ READ ONE BY ONE ON ITS OWN (18 Nov 2026): the daily A+ read answers (lrAplus → lmAplusOf); while it is missing (not deployed,
+  // old) A+ shows "not checked yet" — asked one ASIN at a time only when a person presses "Read from Amazon now" / Read again / Check now
+  if (!force) return 0;
   const cut = Date.now() - LI_WS_DAY;
   const apCut = Date.now() - LR_APLUS_DAYS * LI_WS_DAY;
   const map = LI_WS.aplus[brand];
@@ -887,7 +892,7 @@ function liWsNeedSchema(brand, pt, pk) {
 }
 // Read one parent's listed children from Amazon: content in batches, then each listing (status / issues / specs, and the
 // catalogue's pictures), A+ for the parent ASIN and its children, then the schemas. Reads from the last day are skipped unless
-// `force` (Read again). Children showing an Error from old data are among them, so opening a parent re-checks them.
+// `force` (Read again / "Read from Amazon now" — the only callers that read since 18 Nov 2026; opening a parent reads nothing).
 function liWsReadParent(p, force, quiet) {
   // A read of this parent is still on its way (▸ closed and opened again): its calls are out, so nothing is queued twice.
   const cur = LI_WS.prog[p.key];
@@ -1087,7 +1092,7 @@ function liWsKidTableInner(p, bare) {
     const mark = cardK ? (inCard(kid) ? ` is-match is-m-${cardK}` : ' is-other') : '';
     const other = i === firstOther && i > 0 ? `<tr class="li-ws-otherhead"><td colspan="${LI_WS_CHECKS.length + 3}">Other listings</td></tr>` : '';
     return `${other}<tr class="li-ws-kid${kid.counted ? '' : ' is-off'}${mark}"><td><button type="button" class="li-ws-sku" data-li-ws-sku="${lrEsc(key)}" aria-expanded="${open}">${open ? '▾' : '▸'} ${lrEsc(kid.sku)}</button>${kid.lr && kid.lr.lmStale && typeof lmOldHtml === 'function' ? lmOldHtml(kid.brand, kid.sku) : ''}`
-      + `<div class="li-ws-asin">${lrEsc(kid.asin)}</div></td><td>${lrEsc(kid.why)}</td><td class="num">${kid.row.qty == null ? '<span class="li-ws-na">—</span>' : liWsNf(kid.row.qty)}</td>`
+      + `<div class="li-ws-asin">${lrEsc(kid.asin)}</div></td><td>${typeof prOf === 'function' && (kid.found || []).length ? prChipHtml(prKid(kid)) + ' ' : ''}${lrEsc(kid.why)}</td><td class="num">${kid.row.qty == null ? '<span class="li-ws-na">—</span>' : liWsNf(kid.row.qty)}</td>`
       + LI_WS_CHECKS.map(check => `<td>${liWsCell(kid, check, reading)}</td>`).join('') + '</tr>' + (open ? liWsDetail(kid, LI_WS_CHECKS.length + 3) : '');
   }).join('') || `<tr><td colspan="${LI_WS_CHECKS.length + 3}" class="li-ws-na">${step ? 'No listing fails this step now.' : `No ${LI_WS.mode === 'live' ? 'live' : LI_WS.mode === 'off' ? 'not-live' : ''} children.`}</td></tr>`;
   return `${bare ? '' : note + liWsAuditBox(p)}<div class="li-ws-kidbox"><table class="li-ws-kidtable">${head}<tbody>${body}</tbody></table></div>`;
@@ -1193,8 +1198,11 @@ function liWsRender() {
   const redK = k => k === 'amz' || (idx.by[k] || []).some(rule => rule.sev === 'critical');   // a column whose rules can be an Error
   const chipDefs = [{ k: 'all', t: 'All parents', dot: 'brand', n: scoped.length }, { k: 'problems', t: 'Has problems', dot: 'bad', n: scoped.filter(p => p.probN > 0).length }]
     .concat(LI_WS_CHECKS.map(check => ({ k: check.k, t: check.w, dot: redK(check.k) ? 'bad' : 'act', n: scoped.filter(p => p.failN[check.k] > 0).length })).filter(chip => chip.n > 0));
+  // 🔴 / 🟠 / ⚪ (listing-priority.js): the parents with a child of that level that has a problem
+  const prIn = (p, k) => (p.kids || []).some(kid => (kid.found || []).length && prKid(kid) === k);
+  if (typeof prOf === 'function') ['crit', 'imp', 'wait'].forEach(k => { const n = scoped.filter(p => prIn(p, k)).length; if (n) chipDefs.push({ k: 'pr:' + k, t: PR_LEVELS[k].i + ' ' + PR_LEVELS[k].t, dot: k === 'crit' ? 'bad' : k === 'imp' ? 'act' : 'brand', n }); });
   if (!chipDefs.some(chip => chip.k === LI_WS.chip)) LI_WS.chip = 'all';
-  const keep = LI_WS.chip === 'all' ? () => true : LI_WS.chip === 'problems' ? p => p.probN > 0 : p => p.failN[LI_WS.chip] > 0;
+  const keep = LI_WS.chip === 'all' ? () => true : LI_WS.chip === 'problems' ? p => p.probN > 0 : /^pr:/.test(LI_WS.chip) ? p => prIn(p, LI_WS.chip.slice(3)) : p => p.failN[LI_WS.chip] > 0;
   const cardOn = LI_WS.mode !== 'off' && LI_WS_CARD[LI_WS.card] ? LI_WS_CARD[LI_WS.card] : null;
   const keepCard = cardOn ? cardOn.keep : () => true;
   const rows = liWsOrder(scoped.filter(p => (LI_WS.mode !== 'off' || p.offN > 0) && keep(p) && keepCard(p)));
@@ -1433,7 +1441,7 @@ function liWsReconcile(brandsIn) {
  *       brand switch and the search — one row per Error-level problem, as a CSV that opens in Excel / Google Sheets. It only reads:
  *       nothing is saved or sent, so it works on the test site too. ----- */
 const LI_WS_DL_COLS = ['Brand', 'Parent name', 'Parent ASIN', 'SKU', 'ASIN', 'Product', 'Live?', 'Stock (units)', 'Error', 'Details', 'How to fix',
-  'Status', 'Checked on', 'Errors on this listing', 'Amazon link'];
+  'Status', 'Checked on', 'Errors on this listing', 'Amazon link', 'Priority'];
 // The problem in plain words where the rule's own name says it less plainly; every other Error keeps its Listing Rules name.
 const LI_WS_DL_WORDS = { amazon_error: 'Amazon reports an error', amazon_suppressed: 'Suppressed from search', inactive_with_stock: 'Stock but Inactive',
   no_main_image: 'Main picture missing', no_price: 'No price' };
@@ -1467,7 +1475,7 @@ function liWsErrorsCsv(parents, brandPick, now) {
       rows.push({ sort: [BRAND_NAME[kid.brand] || kid.brand, p.name || p.parent, p.parent, kid.sku], cells: [
         BRAND_NAME[kid.brand] || kid.brand, p.name || '', p.parent, kid.sku, kid.asin || '', product, liveWord, row.qty == null ? '' : +row.qty,
         LI_WS_DL_WORDS[hit.detector] || hit.name, hit.detail || '', hit.fix || '', status, at ? day(at) : '', errs.length,
-        kid.asin ? 'https://www.amazon.com/dp/' + kid.asin : ''] });
+        kid.asin ? 'https://www.amazon.com/dp/' + kid.asin : '', typeof prOf === 'function' ? prCsv(prKid(kid)) : ''] });
     });
   });
   rows.sort((a, b) => {
@@ -1567,7 +1575,9 @@ function liWsPanelOpen(key) {
     panel.hidden = false;
     if (panel.setAttribute) panel.setAttribute('tabindex', '-1');
   }
-  liWsReadParent(p, false, true);
+  // NOTHING IS READ FROM AMAZON BY OPENING A PARENT (18 Nov 2026): the panel shows what Sellora holds (the ListingMatch cache, the
+  // reads kept); "Read from Amazon now" on it reads. Each read landing used to change the data under the open panel — 469 children ×
+  // 3 reads — and its Fix all buttons were worked out again and again.
   liWsPanelRender();
   if (panel && panel.focus) panel.focus({ preventScroll: true });
 }
@@ -1875,6 +1885,8 @@ function liWsSchedule() {
 // The timer fired: draw, unless the person scrolled since it was set — then wait for the scrolling to stop.
 function liWsTick() {
   if (Date.now() - LI_WS.scrollAt < LI_WS_SCROLL_MS) return liWsSchedule();
+  // SMOOTH (18 Nov 2026): many listings to judge again (a refresh, a newer ListingMatch copy) — Listing Health's slices first, then the draw
+  if (typeof hColdMany === 'function' && hColdMany()) return void hWarm().then(liWsSchedule);
   liWsDraw();
 }
 // Workspace on: mark the pane and the button, show the box, load, draw. Listing Health's own table stays drawn underneath,
@@ -1922,7 +1934,7 @@ $('hFilter').addEventListener('input', () => {
   LI_WS.filterT = setTimeout(() => {
     liWsReset();
     liWsSchedule();
-  }, 250);
+  }, 200);
 });
 // Listing Health rewrote its table — a refresh finished, the catalogue or Amazon's status arrived — so the listings may have changed.
 new MutationObserver(liWsSchedule).observe($('hTable'), { childList: true });
@@ -2027,8 +2039,7 @@ function liWsClick(e) {
     const p = LI_WS.byKey.get(d.liWsTog);
     if (LI_WS.open.has(d.liWsTog)) LI_WS.open.delete(d.liWsTog);
     else {
-      LI_WS.open.add(d.liWsTog);
-      if (p) liWsReadParent(p, false);
+      LI_WS.open.add(d.liWsTog);               // shown, not read (18 Nov 2026): "Read again from Amazon" reads
     }
     liWsDraw();
     return refocus(`[data-li-ws-tog="${CSS.escape(d.liWsTog)}"]`);

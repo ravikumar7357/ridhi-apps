@@ -339,8 +339,8 @@ const card = (T, name) => { const m = T.body().match(new RegExp('<span>' + name 
     T.click({ cc: 'chip', ccV: 'rank' });
     const csv = T.C.ccCsv();
     const lines = csv.text.replace(/^﻿/, '').trim().split('\r\n');
-    ok('Export CSV = what is in view: family, SKU, ASIN, browse path, BSR, error, hint', lines[0] === 'Brand,Family,SKU,ASIN,Browse path,BSR,Error,What to do' && csv.n === 1
-      && lines[1] === `Ridhi,Floral Tablecloth,RTC14-3,${A('RTC14-3')},${TC},"#1,234 in Table Runners","Ranked in Table Runners, listed in Tablecloths.",Amazon may have placed it wrong. Check the item type keyword.`, lines[1]);
+    ok('Export CSV = what is in view: family, SKU, ASIN, browse path, BSR, error, hint', lines[0] === 'Brand,Family,SKU,ASIN,Browse path,BSR,Error,What to do,Priority' && csv.n === 1
+      && lines[1] === `Ridhi,Floral Tablecloth,RTC14-3,${A('RTC14-3')},${TC},"#1,234 in Table Runners","Ranked in Table Runners, listed in Tablecloths.",Amazon may have placed it wrong. Check the item type keyword.,`, lines[1]);
     T.click({ cc: 'chip', ccV: '' });
     ok('…with All in view: every live child, a fine one with empty error columns', T.C.ccCsv().n === 13 && T.C.ccCsv().text.includes(`Ridhi,Floral Tablecloth,RTC14-1,${A('RTC14-1')},${TC},"#1,234 in Tablecloths",,`));
     T.click({ cc: 'closeall' });

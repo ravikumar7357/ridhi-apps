@@ -746,10 +746,10 @@ function bsrFollow(list, wA, a, kind) {
 
 let BSR_MODE = 'compare';                   // 'compare' = A vs B · 'history' = many weeks in columns
 let BSR_T = 0;                              // debounce timer for the search box
-// The toolbar: search (a quarter second after typing stops), brand and movement filters, the week pickers, the mode buttons.
+// The toolbar: search (200 ms after typing stops), brand and movement filters, the week pickers, the mode buttons.
 $('bFilter').addEventListener('input', () => {
   clearTimeout(BSR_T);
-  BSR_T = setTimeout(renderBsr, 250);
+  BSR_T = setTimeout(renderBsr, 200);
 });
 $('bBrandView').addEventListener('change', renderBsr);
 $('bMoveView').addEventListener('change', renderBsr);
@@ -852,6 +852,7 @@ function renderBsr() {
     $('bKpis').innerHTML = '<div class="kpi"><div class="kpiname">No snapshots yet</div>'
       + '<div class="muted" style="margin-top:6px">Hit “Take this week’s snapshot”. Run it every weekend — each week is stored separately and nothing is ever overwritten.</div></div>';
     $('bTable').innerHTML = '';
+    if (typeof lsLaterRows === 'function') lsLaterRows('bTable', []);
     $('bRules').innerHTML = '';
     return;
   }
@@ -972,8 +973,11 @@ function renderBsr() {
   const arrow = def => (def.k === BSR_SORT.k ? (BSR_SORT.dir < 0 ? ' ↓' : ' ↑') : '');
   const head = '<thead><tr>' + defs.map(def => `<th data-k="${esc(def.k)}" class="${def.frz ? 'frz ' : ''}${def.num ? 'num' : ''}"${def.tip ? ` title="${esc(def.tip)}"` : ''}>${esc(def.t)}${arrow(def)}</th>`).join('') + '</tr></thead>';
   const open = BSR_PANEL ? BSR_PANEL.brand + '|' + BSR_PANEL.parent : '';
-  const body = shown.map(row => `<tr class="bs-row${open === row.brand + '|' + row.parent ? ' is-open' : ''}" data-bs-key="${esc(row.brand + '|' + row.parent)}" title="Open: the children, the chart and why">`
-    + defs.map(def => `<td class="${def.frz ? 'frz ' : ''}${def.num ? 'num ' : ''}${def.wrap ? 'bs-wrap' : ''}">${def.cell ? def.cell(row) : esc(def.text(row)) || dash}</td>`).join('') + '</tr>').join('');
+  const rowHtml = row => `<tr class="bs-row${open === row.brand + '|' + row.parent ? ' is-open' : ''}" data-bs-key="${esc(row.brand + '|' + row.parent)}" title="Open: the children, the chart and why">`
+    + defs.map(def => `<td class="${def.frz ? 'frz ' : ''}${def.num ? 'num ' : ''}${def.wrap ? 'bs-wrap' : ''}">${def.cell ? def.cell(row) : esc(def.text(row)) || dash}</td>`).join('') + '</tr>';
+  // SMOOTH (18 Nov 2026): a screenful of rows now, the rest of the H_PAGE rows in the next frames (lsLaterRows, listing-health-data.js)
+  const first = typeof lsFirstRows === 'function' ? lsFirstRows('bTable', shown.length) : shown.length;
+  const body = shown.slice(0, first).map(rowHtml).join('');
   $('bTable').innerHTML = head + '<tbody>' + (body || `<tr><td colspan="${defs.length}" class="muted">No parents match.</td></tr>`) + '</tbody>'
     + (rows.length ? `<tfoot><tr><td class="frz">TOTAL · ${rows.length}</td>${defs.slice(1).map(() => '<td></td>').join('')}</tr></tfoot>` : '');
   // --- a heading click sorts by that column (again: the other way); "Priority" first click = money at stake ---
@@ -985,6 +989,7 @@ function renderBsr() {
     };
   });
   wireParentNameCells('bTable', renderBsr);
+  if (typeof lsLaterRows === 'function') lsLaterRows('bTable', shown.slice(first), rowHtml, () => wireParentNameCells('bTable', renderBsr));
   renderBsrKpis(all, wA, wB, avgDays);
   if (BSR_PANEL) bsrPanelDraw();
   $('bRules').innerHTML = `
@@ -1007,7 +1012,7 @@ function bsrSrcLine() {
 }
 // The number cards above the Compare table: each a filter (again = all); the line under them names the weeks and what they rest on.
 function renderBsrKpis(rows, wA, wB, avgDays) {
-  const nf = value => Number(value || 0).toLocaleString('en-US');
+  const nf = value => BSR_NUM.format(Number(value || 0));
   // A week that was filed rather than captured in that week must say so wherever it is compared —
   // otherwise a backdated baseline silently reads as a genuine reading from that week.
   const mark = week => {
@@ -1032,7 +1037,9 @@ function renderBsrKpis(rows, wA, wB, avgDays) {
  * rank is at the TOP of the chart), and links to the Workspace, Image Manager, Listing Errors and Listing History. */
 let BSR_PANEL = null;         // { brand, parent } while the panel is open
 const bsrEsc = str => String(str == null ? '' : str).replace(/[<>&"]/g, ch => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[ch]));
-const bsrNf = v => Number(v || 0).toLocaleString('en-US');
+// SMOOTH (18 Nov 2026): one number format made once — the same text as toLocaleString('en-US'), which makes a new one per number
+const BSR_NUM = new Intl.NumberFormat('en-US');
+const bsrNf = v => BSR_NUM.format(Number(v || 0));
 
 /** A line chart of one parent's rank by week (SVG). points: [{ w, v }] oldest first; null v = no snapshot that week (a gap).
  *  Lower is better, so the axis runs from the best rank at the TOP to the worst at the bottom. */
@@ -1141,7 +1148,12 @@ function bsrPanelDraw() {
       : '<p class="muted" style="font-size:12px;margin:4px 0">Not known: these weeks\' snapshots did not keep each child\'s rank (snapshots taken from now on do).</p>')
     + `<div class="bs-sec">${bsrEsc(label.charAt(0).toUpperCase() + label.slice(1))} — last ${points.length} weeks</div>${bsrChartSvg(points, label)}`
     + `<div class="bs-links"><button type="button" class="ghost im-b" data-bs="ws">Open in Workspace</button><button type="button" class="ghost im-b" data-bs="img">Image Manager</button>`
-    + `<button type="button" class="ghost im-b" data-bs="lerr">Listing Errors</button><button type="button" class="ghost im-b" data-bs="lhist">Listing History</button></div>`;
+    + `<button type="button" class="ghost im-b" data-bs="lerr">Listing Errors</button><button type="button" class="ghost im-b" data-bs="lhist">Listing History</button>`
+    // ✨ Why did rank change? (listing-ai.js): week A vs B, the facts above (Listing History, price, stock, ads) — only what the panel knows
+    + (typeof aiOn === 'function' && aiOn() ? aiBtnHtml('bsr_why', brand, '', { use: 'read', label: 'Why did rank change?', d: { parent, title: String(row.title || '').slice(0, 100), kind: row.kind, cat: row.cat || '',
+      weekA: { week: wA, rank: row.entryA ? (row.kind === 'sub' ? row.entryA.sub : row.entryA.rank) || null : null }, weekB: { week: wB, rank: row.entryB ? (row.kind === 'sub' ? row.entryB.sub : row.entryB.rank) || null : null },
+      changes: (row.decision.facts || []).map(fact => fact.txt).slice(0, 12), notKnown: bsrUnknown(row.facts), action: row.action || '',
+      kids: kids.slice(0, 12).map(kid => ({ sku: kid.sku || kid.asin, weekB: kid.b || null, weekA: kid.a || null })) } }) : '') + '</div>';
   box.hidden = false;
 }
 // The child SKUs of a parent (for the links that open other screens on them).
@@ -1205,6 +1217,7 @@ async function renderBsrHistory() {
     $('bKpis').innerHTML = '<div class="kpi"><div class="kpiname">No snapshots yet</div>'
       + '<div class="muted" style="margin-top:6px">Take a snapshot each weekend — the history builds up here, one column per week.</div></div>';
     $('bTable').innerHTML = '';
+    if (typeof lsLaterRows === 'function') lsLaterRows('bTable', []);
     return;
   }
 
@@ -1313,6 +1326,7 @@ async function renderBsrHistory() {
     return `<td class="${cls}" style="${def.mono ? 'font-family:ui-monospace,monospace' : ''}">${esc(value) || dash}</td>`;
   }).join('') + '</tr>').join('');
 
+  if (typeof lsLaterRows === 'function') lsLaterRows('bTable', []);   // the compare table's rows still to come are cancelled
   $('bTable').innerHTML = head + '<tbody>' + (body ||
     `<tr><td colspan="${defs.length}" class="muted">No parents match.</td></tr>`)
     + '</tbody>' + (rows.length ? `<tfoot><tr><td class="frz">TOTAL · ${rows.length}</td>${

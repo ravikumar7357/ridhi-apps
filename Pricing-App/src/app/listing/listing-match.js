@@ -27,15 +27,21 @@
  *       STALE: a record ListingMatch could not read again in its last pass keeps its old read (stale: 1) — shown as usual, with a small
  *       grey "old data" mark (lmOldHtml).
  * Main functions: lmEnsure, lmRefresh, lmGet, lmGetAsin, lmOk, lmLiveOf, lmImlApply, lmAmzApply, lmHealthApply, lmFcCat, lmRanks,
- *                 lmNoteLive, lmAgeHtml / lmAgeDraw, lmOldHtml, lmStatus (console). Every name starts with lm / LM. */
+ *                 lmNoteLive, lmAgeHtml / lmAgeDraw, lmOldHtml, lmStatus (console). Every name starts with lm / LM.
+ * A+ CONTENT (18 Nov 2026): ListingMatch.gs reads every A+ document and the ASINs it is attached to once a day (after the 13:00 pass)
+ *       into lmAplus_<brand>; lmMeta.aplus names the tabs. They are read here with the rest (only they, when only they are newer), kept in
+ *       the same saved copy, and read through lmGetAplus(asin, brand) / lmAplusDocs(brand) / lmAplusState(brand) — the A+ Content screen
+ *       (aplus-audit.js) and Listing Health's A+ answer (lmAplusOf → lrAplus) use nothing else. */
 
 const LM_MAX_AGE = 24 * 3600000;        // a cache older than this is not used (the age line turns amber)
 const LM_PAR = 6;                       // cache tabs read at once
 const LM_CHECK_MS = 15 * 60000;         // while the page is open and seen: is there a newer pass?
-const LM_FULL_AT = [13, 18];            // ListingMatch's full passes, IST (the "next refresh" in the age line)
+const LM_FULL_AT = [13, 18];            // ListingMatch's full passes, IST (the "next refresh" in the age line) — ListingMatch.gs LM_FULL_HOURS; a test keeps the two the same
+const LM_APLUS_AT = 13;                 // the full pass the daily A+ read follows, IST — ListingMatch.gs LM_APLUS_HOUR (the same test)
+const lmHour = h => String(h).padStart(2, '0') + ':00';
 const LM_IST_MS = 5.5 * 3600000;        // ListingMatch writes its times in IST ('yyyy-MM-dd HH:mm')
 const LM_SLOTS = ['MAIN', 'PT01', 'PT02', 'PT03', 'PT04', 'PT05', 'PT06', 'PT07', 'PT08'];
-const LM_PANES = ['paneHealth', 'paneImg', 'paneOpt', 'paneFam', 'paneBsr', 'paneLerr', 'paneAudit'];   // the screens with the age line
+const LM_PANES = ['paneHealth', 'paneImg', 'paneOpt', 'paneFam', 'paneBsr', 'paneLerr', 'paneAudit', 'paneAplus', 'paneIpg'];   // the screens with the age line
 // The spec attributes the Workspace checks (listing-workspace.js LI_WS_SPECS; ListingMatch.gs LM_SPEC_ATTRS keeps the same list)
 const LM_SPECS = () => (typeof LI_WS_SPECS !== 'undefined' ? LI_WS_SPECS : ['material', 'color', 'size', 'pattern', 'style', 'item_shape', 'number_of_items', 'theme',
   'care_instructions', 'special_feature', 'item_type_name', 'fabric_type']);
@@ -43,10 +49,12 @@ const LM_SPECS = () => (typeof LI_WS_SPECS !== 'undefined' ? LI_WS_SPECS : ['mat
 const LM_FBA_RE = () => (typeof H_FBA_RE !== 'undefined' ? H_FBA_RE : /amazon|afn/i);
 const LM_BUNDLE_RE = () => (typeof H_BUNDLE_RE !== 'undefined' ? H_BUNDLE_RE : /^RB/i);
 const LM_IDB = { name: 'selloraListingMatch', store: 'copy', key: 'v1' };
+const LM_APLUS_MAX_AGE = 30 * 3600000;  // A+ is read once a day: a read older than this is "old data" (shown, marked, not used by Listing Health)
 // state: none (not started) | loading | saved (the browser copy, the backend not answered yet) | ok (the backend's copy) | empty | err
 let LM = { meta: null, list: { SP: null, CPC: null }, cat: { SP: null, CPC: null }, v: 0, state: 'none', err: '', from: '',
   ready: null, busy: null, checkedAt: 0, over: { SP: new Map(), CPC: new Map() }, timer: 0, soonT: 0, loadMs: 0, fyp: { SP: false, CPC: false },
-  whole: { SP: false, CPC: false } };       // every listings tab of the brand was read in the copy held (lmListOk)
+  whole: { SP: false, CPC: false },         // every listings tab of the brand was read in the copy held (lmListOk)
+  aplus: { SP: null, CPC: null } };         // brand → the A+ read held: { raw, key, at, docs: Map key → document, byAsin: Map ASIN → [documents] }
 const LM_GOT = new WeakMap();           // raw record → { over, cat, m } (lmGet's merged record, made once)
 const LM_ENTRY = new WeakMap();         // merged record → its live-read shape
 const LM_LIVE = new Map();              // "brand|sku" → { sig, e } (lmLiveOf, kept until the record or the live read changes)
@@ -137,6 +145,7 @@ function lmEnsure() {
       if (copy && copy.meta && copy.list) {
         lmTake(copy.meta, copy.list, copy.cat || {}, 'saved');
         LM.whole = { SP: !!(copy.whole && copy.whole.SP), CPC: !!(copy.whole && copy.whole.CPC) };
+        ['SP', 'CPC'].forEach(b => { if (copy.aplus && copy.aplus[b]) lmAplusTake(b, copy.aplus[b].raw, copy.aplus[b].key); });
         (copy.over || []).forEach(([key, o]) => { const [b, sku] = key.split('|'); if (LM.over[b]) LM.over[b].set(sku, o); });
         LM.state = 'saved';
       }
@@ -193,7 +202,21 @@ function lmRefresh() {
       const meta = reply && reply.data;
       if (!meta || !meta.parts) throw Object.assign(new Error('the listing cache is empty'), { empty: true });
       LM.checkedAt = Date.now();
-      if (LM.meta && LM.from && lmSameMeta(LM.meta, meta)) { LM.state = 'ok'; LM.err = ''; lmAgeDraw(); return false; }
+      const apNew = lmAplusNewer(meta);                 // the brands whose A+ read is not the one held
+      if (LM.meta && LM.from && lmSameMeta(LM.meta, meta)) {
+        if (!apNew.length) { LM.state = 'ok'; LM.err = ''; lmAgeDraw(); return false; }
+        // the listings are the ones held; only the daily A+ read is newer: its tabs alone
+        const took = await lmAplusRead(meta, apNew);
+        LM.meta = meta;
+        LM.state = 'ok';
+        LM.err = '';
+        if (!took) { lmAgeDraw(); return false; }
+        LM.v++;
+        lmSave();
+        lmApply();
+        return true;
+      }
+      const apRead = apNew.length ? lmAplusRead(meta, apNew) : null;
       const jobs = [];
       ['SP', 'CPC'].forEach(b => {
         ((meta.parts.listings || {})[b] || []).forEach(tab => jobs.push({ b, k: 'list', tab }));
@@ -217,6 +240,7 @@ function lmRefresh() {
       }));
       if (!Object.keys(list).length) throw new Error('none of the cache tabs could be read');
       lmTake(meta, list, cat, 'net');
+      if (apRead) await apRead;
       LM.whole = whole;
       lmOverPrune();
       LM.state = 'ok';
@@ -241,7 +265,8 @@ function lmSave() {
   ['SP', 'CPC'].forEach(b => LM.over[b].forEach((o, sku) => over.push([b + '|' + sku, o])));
   try {
     const p = LM_STORE.put({ v: 1, at: Date.now(), meta: LM.meta, list: { SP: obj(LM.list.SP), CPC: obj(LM.list.CPC) },
-      cat: { SP: obj(LM.cat.SP), CPC: obj(LM.cat.CPC) }, over, whole: LM.whole });
+      cat: { SP: obj(LM.cat.SP), CPC: obj(LM.cat.CPC) }, over, whole: LM.whole,
+      aplus: { SP: LM.aplus.SP ? { raw: LM.aplus.SP.raw, key: LM.aplus.SP.key } : null, CPC: LM.aplus.CPC ? { raw: LM.aplus.CPC.raw, key: LM.aplus.CPC.key } : null } });
     if (p && p.catch) p.catch(() => {});
   } catch (e) { /* no storage */ }
 }
@@ -270,6 +295,96 @@ function lmGetAsin(asin, brand) {
   }
   return null;
 }
+/* ----- A+ CONTENT: the documents and what they are attached to (lmAplus_<brand>, read once a day by ListingMatch.gs) ----- */
+// Which read lmMeta names for a brand: its tab and read time ('' = none).
+const lmAplusKey = (meta, b) => { const a = meta && meta.aplus && meta.aplus[b]; return a && a.tab && a.at ? a.tab + '@' + a.at : ''; };
+// The brands whose A+ read in `meta` is not the one held in memory.
+// A tab that could not be read (the backend's route not deployed yet, a failed call) is asked again at most once an hour — never on every check.
+const LM_APLUS_RETRY_MS = 3600000;
+const LM_APLUS_FAIL = { SP: null, CPC: null };          // brand → { key, at } of the last read that failed
+const lmAplusNewer = meta => ['SP', 'CPC'].filter(b => {
+  const k = lmAplusKey(meta, b), f = LM_APLUS_FAIL[b];
+  return !!k && !(LM.aplus[b] && LM.aplus[b].key === k) && !(f && f.key === k && Date.now() - f.at < LM_APLUS_RETRY_MS);
+});
+// One brand's tab into memory: the documents, and the ASIN index worked out from them (the documents are the one truth).
+function lmAplusTake(b, raw, key) {
+  if (!raw || !raw.docs || raw.ok === false) return false;
+  const docs = new Map(), byAsin = new Map();
+  Object.keys(raw.docs).forEach(k => {
+    const d = raw.docs[k];
+    const doc = { k: String(d.k || k), brand: b, n: String(d.n || ''), s: String(d.s || '').toUpperCase(), t: String(d.t || ''), u: Date.parse(d.u) || 0, rr: (d.rr || []).map(String),
+      a: Array.isArray(d.a) ? d.a.map(String) : null, as: !!d.as };
+    docs.set(doc.k, doc);
+    (doc.a || []).forEach(asin => { if (!byAsin.has(asin)) byAsin.set(asin, []); byAsin.get(asin).push(doc); });
+  });
+  LM.aplus[b] = { raw, key, at: Number(raw.atMs) || lmTime(raw.at), atText: String(raw.at || ''), docs, byAsin, partial: [...docs.values()].filter(d => d.a === null).length, calls: Number(raw.calls) || 0 };
+  return true;
+}
+// Read the A+ tabs of these brands (?cache=lmAplus_<brand>); a tab that cannot be read keeps what is held. True when something landed.
+async function lmAplusRead(meta, brands) {
+  const got = await Promise.all(brands.map(async b => {
+    let took = false;
+    try {
+      const r = await baCall({ cache: meta.aplus[b].tab });
+      took = lmAplusTake(b, r && r.data, lmAplusKey(meta, b));
+    } catch (e) { took = false; }
+    LM_APLUS_FAIL[b] = took ? null : { key: lmAplusKey(meta, b), at: Date.now() };
+    return took;
+  }));
+  return got.some(Boolean);
+}
+/** What Sellora holds of a brand's A+ read: { has, at, atText ('18 Nov 13:25'), old (older than 30 h), stale (the backend's last try
+ *  failed — this is the read before it), err, why (plain words when it cannot be used as it is), docs, asins, partial, calls }. */
+function lmAplusState(brand) {
+  const held = LM.aplus[brand], m = (LM.meta && LM.meta.aplus && LM.meta.aplus[brand]) || null;
+  const at = held ? held.at : 0;
+  const old = !!held && (!at || Date.now() - at > LM_APLUS_MAX_AGE);
+  const stale = !!(m && m.stale);
+  let why = '';
+  if (!held) why = m && m.err ? 'Amazon\'s A+ data could not be read (' + m.err + ')' : m && m.tab ? 'the A+ data has not reached this browser yet' : 'A+ has not been read yet — it is read once a day after the ' + lmHour(LM_APLUS_AT) + ' refresh';
+  else if (!held.docs.size) why = 'Amazon listed no A+ documents for this brand';
+  return { has: !!held && held.docs.size > 0, at, atText: held ? lmFmt(held.atText) : '', old, stale, err: m ? String(m.err || '') : '', why, docs: held ? held.docs.size : 0,
+    asins: held ? held.byAsin.size : 0, partial: held ? held.partial : 0, calls: held ? held.calls : m ? Number(m.calls) || 0 : 0, triedAt: m ? lmFmt(m.triedAt) : '' };
+}
+/** Every A+ document Sellora holds (one brand, or both): [{ k, brand, n (name), s (APPROVED | SUBMITTED | DRAFT | REJECTED), t ('Premium' |
+ *  'Basic' | ''), u (last update, ms), rr (Amazon's reasons), a (attached ASINs; null = that list could not be read), as (list from an older read) }]. */
+function lmAplusDocs(brand) {
+  return (brand ? [brand] : ['SP', 'CPC']).flatMap(b => (LM.aplus[b] ? [...LM.aplus[b].docs.values()] : []));
+}
+const LM_APLUS_RANK = { APPROVED: 4, SUBMITTED: 3, REJECTED: 2, DRAFT: 1 };
+/** One ASIN's A+ as Amazon's documents say: null when no A+ read is held for the brand (not checked). Else { docs (every document on the
+ *  ASIN — or, when it has none of its own, on its parent ASIN), via ('asin' | 'parent' | ''), main (the one that counts: approved before
+ *  waiting before rejected before draft; the newest of equals), status ('APPROVED' | 'SUBMITTED' | 'REJECTED' | 'DRAFT' | 'NONE' | 'UNKNOWN'),
+ *  at, old }. UNKNOWN = on no document, but some document's ASIN list could not be read — it cannot be called missing. */
+function lmGetAplus(asin, brand, parent) {
+  for (const b of brand ? [brand] : ['SP', 'CPC']) {
+    const held = LM.aplus[b];
+    if (!held || !held.docs.size) continue;
+    let docs = held.byAsin.get(asin) || [], via = docs.length ? 'asin' : '';
+    if (!docs.length) {
+      const pa = parent || ((LM.cat[b] && LM.cat[b].get(asin) && (LM.cat[b].get(asin).pa || [])[0]) || '');
+      if (pa && held.byAsin.get(pa)) { docs = held.byAsin.get(pa); via = 'parent'; }
+    }
+    if (!docs.length && brand === undefined && !(LM.cat[b] && LM.cat[b].has(asin))) continue;      // not this brand's ASIN
+    const main = docs.length > 1 ? docs.slice().sort((x, y) => (LM_APLUS_RANK[y.s] || 0) - (LM_APLUS_RANK[x.s] || 0) || y.u - x.u)[0] : docs[0] || null;
+    return { brand: b, docs, via, main, status: main ? (LM_APLUS_RANK[main.s] ? main.s : 'UNKNOWN') : held.partial ? 'UNKNOWN' : 'NONE', at: held.at,
+      old: !held.at || Date.now() - held.at > LM_APLUS_MAX_AGE };
+  }
+  return null;
+}
+/** Listing Health's A+ answer from the documents (lrAplus asks here first): { v: true, at, src } when an approved document is on the ASIN
+ *  or its parent, { v: false, at, stale: false, src } when Amazon's documents show none live — or null when the A+ read is missing, old
+ *  (over 30 h) or cannot say for this ASIN: then Listing Health answers from its own publish records, exactly as before. */
+function lmAplusOf(brand, asin, parent) {
+  if (!asin || !LM.aplus[brand]) return null;
+  const a = lmGetAplus(asin, brand, parent);
+  if (!a || a.old || a.status === 'UNKNOWN') return null;
+  // `src` in Listing Health's own words ('listing' | 'parent' — its screens say "A+ published on the <src>"); `lm`: from the daily A+ read
+  if (a.status === 'APPROVED') return { v: true, at: a.at, src: a.via === 'parent' ? 'parent' : 'listing', lm: true, doc: a.main.n };
+  return { v: false, at: a.at, stale: false, src: parent ? 'listing and parent' : 'listing', why: '', lm: true, status: a.status };
+}
+// Is the brand's A+ read usable for Listing Health now? (Its one-by-one publish-record reads are then not queued.)
+const lmAplusFresh = brand => { const st = lmAplusState(brand); return st.has && !st.old; };
 function lmMerged(b, raw) {
   const over = LM.over[b].get(raw.sku) || null;
   const cat0 = raw.asin && LM.cat[b] ? LM.cat[b].get(raw.asin) || null : null;
@@ -310,6 +425,7 @@ function lmNoteLive(brand, sku, kind, reply) {
   }
   if (reply.title) o.t = { at: now, t: String(reply.title).slice(0, 300) };
   LM.over[brand].set(sku, o);
+  LM.ov = (LM.ov || 0) + 1;                            // a record changed (the kept fix plans look again at the families: title-fix.js ttGlobal)
   if (!lmOk(brand)) return;
   lmImlPatch(brand, sku);
   lmAmzPatch(brand, sku);
@@ -731,6 +847,8 @@ function lmRedraw() {
     if (shown('paneImg') && typeof imListRender === 'function') imListRender();
     if (shown('paneOpt') && typeof SP !== 'undefined' && SP.on && typeof spAfterRead === 'function') spAfterRead();
     if (shown('paneFam') && typeof FC !== 'undefined' && typeof fcSchedule === 'function') { FC.view = null; fcSchedule(); }
+    if (shown('paneAplus') && typeof apcDrawKeep === 'function' && typeof APC !== 'undefined' && APC.loaded) apcDrawKeep();
+    if (shown('paneIpg') && typeof ipgDrawKeep === 'function' && typeof IPG !== 'undefined' && IPG.loaded) ipgDrawKeep();
     if (shown('paneBsr') && typeof BSR_MODE !== 'undefined' && BSR_MODE === 'compare' && typeof renderBsr === 'function' && typeof BSR_LOADED !== 'undefined' && BSR_LOADED) renderBsr();
     if (shown('paneLerr') && typeof leRender === 'function') leRender();
     if (shown('paneAudit') && typeof AUDIT_LOADED !== 'undefined' && AUDIT_LOADED && typeof renderAudit === 'function') renderAudit();

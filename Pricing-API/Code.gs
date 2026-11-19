@@ -203,14 +203,14 @@ function doGet(e) {
     }
     /* One store's per-SKU sales + stock built now, rather than waiting for the night. */
     if (p.shopSkuBuild) return json_(shopSkuBuild_(String(p.shop || ''), Date.now() + 300000));
-    // The five Ads caches (AdsEntities.gs / AdsDecide.gs) live in their own spreadsheet, "Sellora Ads Cache" (17 Nov 2026).
-    if (p.cache && /^(adEntities|stSettled|stRecent|tgtSettled|tgtRecent)$/.test(String(p.cache))) {
+    // The Ads caches (AdsEntities.gs / AdsDecide.gs, listed in ADS_TABS) live in their own spreadsheet, "Sellora Ads Cache".
+    if (p.cache && typeof ADS_TABS !== 'undefined' && ADS_TABS.indexOf(String(p.cache)) >= 0) {
       var ac = adsCacheRead_(String(p.cache));
       return json_(ac ? { ok: true, name: p.cache, data: ac } : { ok: false, error: 'nothing cached for "' + p.cache + '" yet' });
     }
     // Whatever the nightly run has already worked out. One fast read instead of the whole grind.
     if (p.cache) {
-      var c = /^lm(Meta$|Listings_|Catalog_)/.test(String(p.cache)) ? lmCacheRead_(String(p.cache)) : cacheRead_(String(p.cache));   // lm* tabs: ListingMatch.gs's own spreadsheet
+      var c = /^lm(Meta$|Listings_|Catalog_|Aplus_)/.test(String(p.cache)) ? lmCacheRead_(String(p.cache)) : cacheRead_(String(p.cache));   // lm* tabs: ListingMatch.gs's own spreadsheet
       return json_(c ? { ok: true, name: p.cache, data: c } : { ok: false, error: 'nothing cached for "' + p.cache + '" yet' });
     }
     if (p.cacheState) return json_({ ok: true, state: nState_() });
@@ -237,6 +237,7 @@ function doGet(e) {
     if (p.listing === 'keywords') { setBrand_(p.brand); return json_(listingKeywords_(p.asin)); }
     // Everything the optimiser screen needs about one listing, in one round trip.
     if (p.listing === 'review') { setBrand_(p.brand); return json_(listingReview_(p.asin, p.target)); }
+    if (p.ai === 'ask') return json_(aiAsk_(p));   // AI writing (ListingAI.gs): one suggestion for one listing, read-only
     // Search Query Performance for one ASIN: ask, then poll. Amazon builds it asynchronously.
     if (p.listing === 'sqpAsk') { setBrand_(p.brand); return json_(baCreate_('sqp', p.period || 'MONTH', p.asin, p.back)); }
     // Which windows can actually be asked for, built by the same function that builds the request.
@@ -296,6 +297,8 @@ function doGet(e) {
     // A+ content. `aplusasin` is the authoritative one (publish records per ASIN); `aplus` is the
     // older document-first sweep, kept for diagnosis.
     if (p.lh === 'aplusasin') { setBrand_(p.brand); return json_(lhAplusAsins_(p.asins)); }
+    // One A+ document, when a person asks for it (Sellora's A+ Content screen: Preview A+, aplusAccuracyReport): ListingMatch.gs
+    if (p.lh === 'aplusdoc') { setBrand_(p.brand); return json_(lmAplusDoc_(p.doc, p.asins)); }
     // Weekly BSR snapshot: sales rank + its category for a batch of child ASINs.
     if (p.lh === 'bsr') { setBrand_(p.brand); return json_(lhBsr_(p.asins)); }
 
@@ -370,6 +373,7 @@ function doPost(e) {
     if (p.mail === 'po') return json_(mailPo_(p));
     if (p.limg === 'patch') return json_(limgPatch_(p));
     if (p.lfix === 'patch') return json_(lfixPatch_(p));
+    if (p.lcreate === 'put') return json_(lcreatePut_(p));   // Create Listing (ListingCreate.gs): a NEW SKU, Amazon's check first
     /* The Listing Optimiser's review of one ASIN, judged on the facts Sellora sends from its ListingMatch cache (a read: nothing is
      * written). POST only because a listing's whole text does not fit in an address. */
     if (p.listing === 'review') { setBrand_(p.brand); return json_(listingReview_(p.asin, p.target, p.facts)); }

@@ -59,11 +59,13 @@ async function flowVoExtra() {
 
 /* ---- the portal ---- */
 let FLOW_VP_AS = null;   // { code, name } while an admin looks as a printer
+/** Who may look at a printer's portal: admins, the view-only box, and (19 Nov) whoever takes printed goods in — they receive there. */
+const flowVpMayLook = () => !!(ME.admin || ME.vpView || ME.vpRecv);
 /** After the portal read its printer's branch: the view-as printer instead, and the test orders for that printer. */
 async function flowVpAfterLoad() {
   if (!FLOW_ON || typeof VP === 'undefined') return;
   VP.viewAs = false;
-  if (FLOW_VP_AS && (ME.admin || ME.vpView)) {
+  if (FLOW_VP_AS && flowVpMayLook()) {
     VP.code = FLOW_VP_AS.code; VP.name = FLOW_VP_AS.name; VP.viewAs = true;
     try { VP.rows = ptList(await ptGet('pt_vendorOrders/' + VP.code)); } catch (e) { VP.rows = []; }
   }
@@ -74,22 +76,36 @@ async function flowVpAfterLoad() {
   try { await flowLoad(); } catch (e) { return; }
   VP.rows = (VP.rows || []).filter(o => !(o && o.virtual)).concat(flowTestVos().filter(v => obUC(v.vendorCode) === obUC(VP.code)));
 }
-/** The "View as printer" picker above the portal — an admin, on the preview only. */
+/** The "View as printer" picker above the portal — admins, the view-only box, and Printed fabric in (who receive on it, printer-receive.js). */
 async function flowVpBar() {
-  if (!FLOW_ON || !(ME.admin || ME.vpView) || !$('vpBody') || $('flVpAs')) return;
+  if (!FLOW_ON || !flowVpMayLook() || !$('vpBody') || $('flVpAs')) return;
   $('vpBody').insertAdjacentHTML('beforebegin', `<div class="card" style="padding:8px 12px;margin-top:10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;border:1px dashed #7c3aed">
     <span style="color:#7c3aed;font-weight:600;font-size:12.5px">PRINTER'S VIEW</span>
     <label style="display:flex;gap:6px;align-items:center;margin:0;font-size:12.5px">See the portal as printer
-      <select id="flVpAs" style="width:auto;min-width:220px"><option value="">— my own sign-in —</option></select></label>
-    <span class="muted" style="font-size:12px">what that printer sees, view only — nothing can be changed from here</span></div>`);
+      <select id="flVpAs" style="width:auto;min-width:220px"><option value="" disabled selected>— pick a printer —</option></select></label>
+    <span class="muted" style="font-size:12px">${flowMay('flchl') ? 'what that printer sees — receive its goods on each line' : 'what that printer sees, view only — nothing can be changed from here'}</span>
+    <span style="flex:1"></span><span id="flVpX"></span></div>`);
   let map = {}; try { map = (await ptGet('pt_vendorMap')) || {}; } catch (e) { map = {}; }
   const sel = $('flVpAs'); if (!sel) return;
   sel.innerHTML += Object.entries(map).filter(([, v]) => v).sort((a, b) => String(a[1].name || a[0]).localeCompare(String(b[1].name || b[0])))
     .map(([code, v]) => `<option value="${esc(code)}">${esc(v.name || code)} (${esc(code)})</option>`).join('');
+  if (FLOW_VP_AS) { sel.value = FLOW_VP_AS.code; if (map[FLOW_VP_AS.code] && map[FLOW_VP_AS.code].name) FLOW_VP_AS.name = map[FLOW_VP_AS.code].name; }   // opened from a link
   sel.onchange = async () => {
     const code = sel.value; FLOW_VP_AS = code ? { code, name: (map[code] && map[code].name) || code } : null;
     VP.rows = null; if (typeof ensureVp === 'function') await ensureVp();
   };
+}
+
+/**
+ * A link asking for one printer's portal (core/nav.js navHashPrinter — the printer delay mail, Ravi 18 Nov): look as that
+ * printer, late lines only if asked. Only sets what the portal reads; showTab('vend') then loads it. Looking as a printer
+ * stays for those allowed it (flowVpAfterLoad: admin or the view-only box).
+ */
+function flowVpLinkPrepare(link) {
+  FLOW_VP_AS = { code: link.code, name: link.code };
+  VP.lateOnly = !!link.late;
+  VP.rows = null;
+  const sel = $('flVpAs'); if (sel) sel.value = link.code;
 }
 
 /* History never changes a receipt made on a flow challan: it is changed on the challan itself (Demand history). */

@@ -115,11 +115,24 @@ function lrAllowRender(cfg) {
       <span class="muted">Pieces in these colours are embroidery, so "Block Print" is never asked of them; nor of a listing that says Embroidered or Embroidery. Otherwise
       "Block Print" is asked for only with proof that the product is block print — a sibling's title under the same parent, or the listing's own bullets or description on
       Amazon say it. A mixed colour such as "Blue &amp; White" is not white.</span></div>
+    <div class="lr-allow-row"><label>Other brands' names (trademarks) ${field('otherBrands', allow.otherBrands, 'w-xl')}</label>
+      <span class="muted">IP &amp; Trademark Guard (Listing → 2 · Check): another brand's or a licensed name in a title, bullets, description, search terms or Item Highlights —
+      Amazon can remove the listing. Whole words, any case, also as "Pottery Barn style" / "inspired by …". Fix all search terms takes these words out. Separate them with commas.</span></div>
+    <div class="lr-allow-row"><label>Restricted claims ${field('claims', allow.claims, 'w-xl')}</label>
+      <span class="muted">Words that need proof or a certificate (the same Guard screen, amber). A listing that holds the certificate is marked "Allowed on purpose" there.</span></div>
     <div class="lr-allow-row"><span class="muted">Always, at any length, the same meaning is never an error: upper / lower case, singular / plural, Grey / Gray, Colour / Color,
       Tablecloth / Table Cloth / Table-Cloth, Pillow Cover / Cushion Cover, Block Print / Block-Print / Blockprint / Block Printed / Hand Block Printed, hyphens, commas,
-      "|" and extra spaces. Siblings' sizes compare by meaning: "18x18" = "18 x 18" = "18×18".</span></div>`;
+      "|" and extra spaces. Siblings' sizes compare by meaning: "18x18" = "18 x 18" = "18×18".</span></div>`
+    + (typeof aiOn === 'function' && aiOn() && typeof aiStyleSectionHtml === 'function' ? aiStyleSectionHtml() : '');      // ✨ AI house style (listing-ai.js): shown only when AI is set up
 }
 
+/** A saved template whose parts are in another order than OUR TITLE FORMAT (listing-rules.js LR_TITLE_FORMAT) — shown, never changed. */
+function lrTplOld(tpl) {
+  const ours = (String(typeof LR_TITLE_FORMAT !== 'undefined' ? LR_TITLE_FORMAT : '').match(/\{(\w+)\}/g) || []).map(t => t.slice(1, -1));
+  const mine = (String((tpl && tpl.template) || '').match(/\{(\w+)\}/g) || []).map(t => t.slice(1, -1)).filter(k => ours.includes(k));
+  const want = ours.filter(k => mine.includes(k));
+  return mine.join() !== want.join();
+}
 // Draw the current view (issues / titles / season) into lrTable, with live counts from the listings snapshot.
 function renderLrules() {
   ['issues', 'titles', 'season'].forEach(view => $('lrView' + view[0].toUpperCase() + view.slice(1)).classList.toggle('on', LR_VIEW === view));
@@ -190,12 +203,12 @@ function renderLrules() {
           <td><select data-lrt="${i}" data-f="brand" style="width:auto">${['ALL', 'SP', 'CPC']
             .map(brand => `<option value="${brand}"${brand === tpl.brand ? ' selected' : ''}>${brand === 'ALL' ? 'Both' : BRAND_NAME[brand]}</option>`).join('')}</select></td>
           <td>${input(i, 'match', 110)}</td><td>${input(i, 'product', 130)}</td><td>${input(i, 'material', 100)}</td><td>${input(i, 'pattern', 120)}</td>
-          <td>${input(i, 'uses', 220)}</td><td>${input(i, 'required', 180)}</td><td>${input(i, 'template', 320)}</td>
+          <td>${input(i, 'uses', 220)}</td><td>${input(i, 'required', 180)}</td><td>${input(i, 'template', 320)}${lrTplOld(tpl) ? '<div class="muted" style="font-size:11px;color:var(--warn-ink)" title="Titles are checked against our title format (Brand · Colour · Hand Block Print · Shape · Product · Size Inch), in their own word order — this template is not used for the order">Old template — differs from our title format</div>' : ''}</td>
           <td><textarea data-lrt="${i}" data-f="reference" rows="1" style="width:240px">${lrEsc(tpl.reference || '')}</textarea></td>
           <td class="num" style="font-weight:700">${rows.length ? off.toLocaleString('en-US') : '—'}</td>
           <td><button class="ghost lr-del" data-lrdel="templates|${i}" title="Delete this template">×</button></td>
         </tr>`;
-      }).join('') + '</tbody>';
+      }).join('') + '</tbody>' + (typeof aiOn === 'function' && aiOn() && typeof aiTplHtml === 'function' ? aiTplHtml(cfg) : '');      // ✨ Draft title template (listing-ai.js)
     lrMsg('Tokens: {brand} {product} {shape} {material} {size} {pattern} {uses} {occasions} {color}. "Must have" lists the tokens a title is checked for, in template order. '
       + '{occasions} is filled only with occasions in season today. Shape comes from the catalog sub-category, size and colour from the catalog row. Type a SKU in "Try a SKU" to see its suggestion.'
       + (LR_CAT.SP && LR_CAT.CPC ? '' : ' · the brand catalogues could not be read, so no title can be suggested yet'));
@@ -302,6 +315,8 @@ $('lrAllow').addEventListener('change', e => {
   if (key === 'shortFrom') allow.shortFrom = Math.min(75, Math.max(1, parseInt(value, 10) || LR_DEFAULT.allow.shortFrom));
   else if (key === 'ourBrands') allow.ourBrands = value;
   else if (key === 'embColors') allow.embroideryColors = value;
+  else if (key === 'otherBrands') allow.otherBrands = value;
+  else if (key === 'claims') allow.claims = value;
   LR_DIRTY = true;
   H_CTX = null;
   renderLrules();
@@ -426,7 +441,7 @@ function lrRulesDiff(a, b) {
   ae.forEach((o, id) => { if (!be.has(id)) out.push(`removed '${o.name}' from the season calendar`); });
   const aa = lrAllow(a);
   const ba = lrAllow(b);
-  const allowName = { shortFrom: 'Short forms allowed from', ourBrands: 'Our brand words', embroideryColors: 'Embroidery colours' };
+  const allowName = { shortFrom: 'Short forms allowed from', ourBrands: 'Our brand words', embroideryColors: 'Embroidery colours', otherBrands: "Other brands' names", claims: 'Restricted claims' };
   Object.keys(allowName).forEach(k => { if (String(aa[k]) !== String(ba[k])) out.push(`changed '${allowName[k]}' from '${aa[k]}' to '${ba[k]}'`); });
   return out;
 }

@@ -34,10 +34,16 @@ listing/season-planner.js
 listing/fix-all.js
 listing/listing-send-check.js
 listing/kw-fix.js
+listing/title-fix.js
 listing/listing-history.js
 listing/bsr-audit.js
 listing/family-check.js
 listing/category-check.js
+listing/aplus-audit.js
+listing/ip-guard.js
+listing/listing-ai.js
+listing/listing-priority.js
+listing/create-listing.js
 research/keywords.js
 research/by-amazon-link.js
 research/new-product.js

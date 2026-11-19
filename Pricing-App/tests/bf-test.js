@@ -180,7 +180,9 @@ const hitOf = (kid, det) => kid.found.find(hit => hit.detector === det);
     files['listing-sync.js'] = 'const LY = null, lyStart = null, lyBeat = null, lyCycle = null, lyPick = null, lyPull = null, lyFlush = null, lyMerge = null, lyRec = null, lyLineHtml = null, lySyncNow = null, lyEnd = null;';
     if (Object.values(files).some(t => t === null)) ok('commit ' + BEFORE + ' readable with git', false);
     else {
-      const now = setup(), was = setup({ files });
+      // Fix all titles (title-fix.js, 18 Nov 2026) came later and changes the title rows on purpose: both drawn without it, so this
+      // still proves what B / F alone added (tests/title-fix-test.js and fix-all-test.js test the title rows)
+      const now = setup({ files: { 'title-fix.js': '' } }), was = setup({ files: Object.assign(files, { 'title-fix.js': '' }) });
       await idle(now.C); await idle(was.C);
       const draw = C => {
         C.el('hBrandView').value = 'SP';
@@ -192,8 +194,11 @@ const hitOf = (kid, det) => kid.found.find(hit => hit.detector === det);
       };
       const cut = html => html.replace(/<div class="fa-bf">.*?<\/div>/g, '').replace(/<span class="fa-bfk[^"]*" title="[^"]*">.*?<\/span>(?=[^<]*<span class="fa-(was|new|why)"|<\/span><\/button>|<\/b>|[^<])/g, '')
         .replace(/<span class="fa-bfk[^"]*" title="[^"]*">B(?:<i[^>]*><\/i>|<span class="fa-bfn"[^>]*>–<\/span>) F(?:<i[^>]*><\/i>|<span class="fa-bfn"[^>]*>–<\/span>) [^<]*<\/span>/g, '');
-      const a = draw(now.C), b = draw(was.C);
-      ok('the Fix all block: the same HTML as before, once the B / F line and dots are taken out', cut(a) === b, (() => { let i = 0; const x = cut(a); while (i < x.length && x[i] === b[i]) i++; return x.slice(i - 80, i + 120) + ' ‖ ' + b.slice(i - 80, i + 120); })());
+      // 19 Nov 2026: the WORDS of a suggested title follow the one suggestion-words rule (lrSuggestWords) — set aside here on both sides
+      // (tests/suggestion-words-test.js checks them); every other byte of the block must still be the old one
+      const words = html => html.replace(/<span class="fa-new">[^<]*<\/span>/g, '<span class="fa-new">[suggested words]</span>');
+      const a = words(draw(now.C)), b = words(draw(was.C));
+      ok('the Fix all block: the same HTML as before, once the B / F line and dots (and the suggested words) are taken out', cut(a) === b, (() => { let i = 0; const x = cut(a); while (i < x.length && x[i] === b[i]) i++; return x.slice(i - 80, i + 120) + ' ‖ ' + b.slice(i - 80, i + 120); })());
       ok('…and something was added (7 rows\' worth of dots, the lines)', a.length > b.length && (a.match(/class="fa-bf"/g) || []).length >= 2 && (a.match(/class="fa-bfk/g) || []).length >= 10);
       const kidA = now.C.lkHtml(kidOf(now.C, 'L4'), { close: 'data-x' }), kidB = was.C.lkHtml(kidOf(was.C, 'L4'), { close: 'data-x' });
       ok('the child side panel: the same HTML as before, once the dots beside each error are taken out', cut(kidA) === kidB && /fa-bfk[^]*Amazon’s side/.test(kidA));
