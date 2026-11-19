@@ -22840,10 +22840,9 @@ function qcInboxActions(x, can) {
   const accept = x.received ? acceptedSign
     : `<button data-qcin-accept="${esc(x.r.id)}" class="qc-act" title="QC has received these ${nf(x.wait)} piece(s) — then QC pass to check them">QC Accept</button>`;
   if (!x.received) return accept + qcClosedBtn('QC pass', 'Press QC Accept first');
-  const pass = x.wait > 0
-    ? `<button data-qcin-check="${esc(x.r.id)}" class="ghost qc-act" title="Open the QC Check window: passed, alteration, rejected, spotting, touching">QC pass</button>`
-    : qcClosedBtn('QC pass', 'Nothing left waiting on this row');
-  return accept + pass;
+  /* Ravi, 19 Nov: "when qc is accepted the qc pass should be blue … from which the user can click qc pass" — blue and
+   * open on every accepted row; with nothing left waiting, a click says what QC already did instead of opening a window. */
+  return accept + `<button data-qcin-check="${esc(x.r.id)}" class="qc-act" title="Open the QC Check window: passed, alteration, rejected, spotting, touching">QC pass</button>`;
 }
 function qcWaitingKpis(rows) {
   const waiting = rows.filter(x => x.wait > 0), sum = f => rows.reduce((a, x) => a + f(x), 0);
@@ -22947,10 +22946,17 @@ async function qcInboxSave(baseId, entry) {
   return '';
 }
 
+/** "RQL129-K: nothing left waiting — 8 passed, 2 with a karigar." What QC already did with a row that has none waiting. */
+function qcNothingLeftText(x) {
+  const done = [[x.passed, 'passed'], [x.alteration, 'with a karigar for alteration'], [x.spotting, 'at spotting'], [x.touching, 'at touching'], [x.rejected, 'rejected']]
+    .filter(([n]) => n > 0).map(([n, t]) => nf(n) + ' ' + t).join(', ');
+  return `${x.r.sku}: nothing left waiting for QC${done ? ' — ' + done : ''}.`;
+}
 /** QC pass: the QC Check window for one waiting row — all its waiting pieces filled in as passed, to be split. */
 function qcInboxOpen(baseId) {
-  const x = qcInboxStatuses().find(e => e.r.id === baseId && e.wait > 0);
-  if (!x) { $('qcMsg').className = 'err'; $('qcMsg').textContent = 'That entry is no longer waiting — press Refresh.'; return; }
+  const x = qcInboxStatuses().find(e => e.r.id === baseId);
+  if (!x) { $('qcMsg').className = 'err'; $('qcMsg').textContent = 'That entry is no longer on the list — press Refresh.'; return; }
+  if (!(x.wait > 0)) { $('qcMsg').className = 'muted'; $('qcMsg').textContent = qcNothingLeftText(x); return; }
   if (!x.received) { $('qcMsg').className = 'err'; $('qcMsg').textContent = `Press QC Accept first on ${x.r.sku} — QC pass opens once QC has received the pieces.`; return; }
   const r = x.r, me = qcMyName();
   const num = (key, label, value) => ({ key, label, type: 'number', min: 0, step: 1, value });
