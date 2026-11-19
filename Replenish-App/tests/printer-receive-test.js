@@ -29,7 +29,7 @@ const PARTS = [line(VO, 'const voLines ='), line(VO, 'const voParts ='), line(VP
   line(PR, 'const VPR ='), line(PR, 'const VPR_RETRY_MS ='), cut(PR, 'vprEnsure'), line(PR, 'const vprOn ='), line(PR, 'const vprMay ='), line(PR, 'const vprReady ='), (src => { const i = src.indexOf('const vprKeys ='); return src.slice(i, src.indexOf('};\n', i) + 3); })(PR),
   line(PR, 'let VPR_IX ='), cut(PR, 'vprDueIndex'), cut(PR, 'vprTargets'), cut(PR, 'vprOffer'), cut(PR, 'vprKeysPending'), cut(PR, 'vprReceiveLine'), cut(PR, 'vprSplit'), cut(PR, 'vprShareOut'),
   cut(PR, 'vprWholePieces'), cut(PR, 'vprRoundMetres'), line(PR, 'const vprOnlyGiven ='), cut(PR, 'vprFabricCell'), cut(PR, 'vprRecvCell'),
-  cut(PR, 'vprSplitHint'), cut(PR, 'vprSheet'), cut(PR, 'vprReceive'), cut(PR, 'vprBarSync'), line(PR, 'const VPR_HIST ='), line(PR, 'const vprHistRows ='), cut(PR, 'vprHistTotals'), cut(PR, 'vprHistHtml')].join('\n');
+  cut(PR, 'vprSplitHint'), cut(PR, 'vprSheet'), cut(PR, 'vprReceive'), cut(PR, 'vprBarSync'), line(PR, 'const VPR_HIST ='), line(PR, 'const vprHistRows ='), cut(PR, 'vprHistTotals'), cut(PR, 'vprHistHtml'), (src => { const i = src.indexOf('const VP_DUE_ONLY ='); return src.slice(i, src.indexOf('\n};', i) + 3); })(VP), cut(VP, 'vpDueOnlyOk'), cut(VP, 'vpDueChip'), cut(VP, 'vpRejNote'), line(PR, 'const VPR_REJ_REASONS ='), line(PR, 'const VPR_REJ ='), cut(PR, 'vprReject'), line(PR, 'const vprRejLink ='), cut(PR, 'vprFabricOf'), cut(PR, 'vprHistRejects'), (src => { const i = src.indexOf('const vprHistAll ='); return src.slice(i, src.indexOf('\nfunction', i) + 1); })(PR), cut(PR, 'vprRejSeen'), line(PR, 'const vprRejPending ='), (src => { const i = src.indexOf('const flowMixTxt ='); return src.slice(i, src.indexOf("'0'; };", i) + 7); })(FR)].join('\n');
 let pass = 0, fail = 0;
 const ok = (n, c, d) => { if (c) { pass++; console.log('  PASS ' + n); } else { fail++; console.log('  FAIL ' + n + (d ? ' — ' + d : '')); } };
 
@@ -48,14 +48,14 @@ function load(o) {
     flowMay: tab => !!(ctx.ME.admin || (ctx.ME.tabs || []).includes(tab)), cutSkuOf: sku => (o.master || {})[sku] || null,
     vpPartOk: () => true, vpQOk: () => true, vpLineOn: () => false, voLineMatches: () => true, voDueOf: (x, l) => l.dueX || null, voWant: () => '',
     vpDueClass: x => (x && x.st === 'late' ? 'vo-late' : ''), voDueHtml: x => (x ? x.due : '—'), vpIsShop: () => false,
-    ptImgCellSrc: () => '<td></td>', ptImgCell: () => '<td></td>', vpRunPic: () => '<td></td>', flowVoProgSync: () => syncs.push(1), $: id => els[id], reads: [], flowChIndex: () => o.chIx || {}, flowRecvRows: () => o.recvRows || [], flowDueDay: d => d,
+    ptImgCellSrc: () => '<td></td>', ptImgCell: () => '<td></td>', vpRunPic: () => '<td></td>', flowVoProgSync: () => syncs.push(1), $: id => els[id], reads: [], flowChIndex: () => o.chIx || {}, flowRecvRows: () => o.recvRows || [], patches: [], ptPatch: async p => { if (o.patchFails) throw new Error('offline'); ctx.patches.push(p); }, voProm: l => l.prom || '', VO_SOON: 3, flowDueDay: d => d,
     flowEnsureData: () => { ctx.reads.push(1); return Promise.resolve(); },
     flowDueRecvSave: async (pk, got, opt) => { saves.push({ pk, got, opt }); flowDueRecvSaveSaid(); return o.saveErr || ''; },
   };
   function flowDueRecvSaveSaid() { ctx.flowDueRecvSave.said = 'Received from RBP-Bagru on RFD-1.'; }
   const names = Object.keys(ctx);
-  const A = new Function(...names, PARTS + '\nreturn { vpVsSum, vpVsWait, vpVsApproved, vpOrdOf, vpVsSplit, vpVsAdd, vpLineIsHist, vpCustStatus, vpCustKpis, flowExtraAsks, flowExtraAnswer, vprSplit, vprOffer, vprRecvCell, vprSheet, vprReceive, vprBarSync, vprEnsure, VPR, VPR_HIST, vprHistRows, vprHistTotals, vprHistHtml };')(...names.map(k => ctx[k]));
-  return Object.assign(A, { puts, saves, said, syncs, els, ctx });
+  const A = new Function(...names, PARTS + '\nreturn { vpVsSum, vpVsWait, vpVsApproved, vpOrdOf, vpVsSplit, vpVsAdd, vpLineIsHist, vpCustStatus, vpCustKpis, flowExtraAsks, flowExtraAnswer, vprSplit, vprOffer, vprRecvCell, vprSheet, vprReceive, vprBarSync, vprEnsure, VPR, VPR_HIST, vprHistRows, vprHistTotals, vprHistHtml, vpDueOnlyOk, vpDueChip, vpSentKept, vprReject, vpRejNote, vprRejSeen, vprRejPending, VPR_REJ };')(...names.map(k => ctx[k]));
+  return Object.assign(A, { patches: ctx.patches, puts, saves, said, syncs, els, ctx });
 }
 
 const b = (lineId, qty, more) => Object.assign({ lineId, sku: 'X', qty, unit: 'pcs', at: '2026-11-16T10:00:00Z' }, more || {});
@@ -206,6 +206,84 @@ const L = { lineId: 'a', sku: 'X', qty: 4 };
     ok('…the challan person (not an admin) sees no approve button, only History', !/data-vprxopen/.test(N.els.flVpX.innerHTML) && /data-vprhist/.test(N.els.flVpX.innerHTML));
     const Vw = load({ vo: [], me: { tabs: ['vpview'] }, vp: { viewAs: true } }); Vw.vprBarSync();
     ok('…the view-only box sees neither', Vw.els.flVpX.innerHTML === '');
+  }
+
+  /* ---- the strip's figures are buttons (19 Nov) ---- */
+  {
+    const ln = (st, prom) => ({ dueX: st ? { st, due: '2026-11-10' } : null, prom });
+    const F = load({ vp: { dueOnly: 'late' } });
+    ok('"past the due date" pressed: only late lines', F.vpDueOnlyOk({}, ln('late')) && !F.vpDueOnlyOk({}, ln('soon')) && !F.vpDueOnlyOk({}, ln(null)));
+    F.ctx.VP.dueOnly = 'soon';
+    ok('"due in the next days": due today and soon, not late', F.vpDueOnlyOk({}, ln('today')) && F.vpDueOnlyOk({}, ln('soon')) && !F.vpDueOnlyOk({}, ln('late')));
+    F.ctx.VP.dueOnly = 'wait';
+    ok('"waiting for cloth from us": only those', F.vpDueOnlyOk({}, ln('wait')) && !F.vpDueOnlyOk({}, ln('late')));
+    F.ctx.VP.dueOnly = 'nodate';
+    ok('"with no date from you": lines with cloth and no date, not waiting ones', F.vpDueOnlyOk({}, ln('late')) && !F.vpDueOnlyOk({}, ln('late', '2026-11-30')) && !F.vpDueOnlyOk({}, ln('wait')));
+    F.ctx.VP.dueOnly = '';
+    ok('nothing pressed: every line', F.vpDueOnlyOk({}, ln(null)) && F.vpDueOnlyOk({}, ln('late')));
+    const chip = F.vpDueChip('late', 56, '56 past the due date', 'red');
+    ok('each figure is a button that filters', /data-vpdue="late"/.test(chip) && /Show only these lines/.test(chip));
+    F.ctx.VP.dueOnly = 'late';
+    ok('…pressed, it shows ✕ and brings every line back', /56 past the due date ✕/.test(F.vpDueChip('late', 56, '56 past the due date', 'red')) && /Show every line/.test(F.vpDueChip('late', 56, '56 past the due date', 'red')));
+    F.ctx.VP.dueOnly = '';
+    ok('a figure of 0 is not shown', F.vpDueChip('wait', 0, '0 waiting', 'red') === '');
+  }
+
+  /* ---- Reject: bad goods turned away on receive (19 Nov) ---- */
+  {
+    const due = (key, need, left, more) => Object.assign({ l: { key, fabric: 'Cambric 60' }, unit: 'pcs', need, left, code: 'P1', printer: 'RBP-Bagru', sku: 'C1', r: {} }, more || {});
+    const cutO = (vs, rej, recvd) => ({ id: 'o2', vendorCode: 'P1', orderNo: 'VPO-3', orderType: 'cut', vSent: vs || {}, vRej: rej || {}, recv: recvd || {},
+      lines: [{ lineId: 'c', sku: 'C1', qty: 4, articleSubtype: 'Tablecloth', flowPart: 'SHP-7__C1|sku' }] });
+    const at = (o, more) => load(Object.assign({ rows: [o], due: [due('SHP-7__C1', 4, 4)], me: { tabs: ['flchl'] }, vp: { viewAs: true, name: 'RBP-Bagru' } }, more || {}));
+    const rj = (qty, more) => Object.assign({ lineId: 'c', sku: 'C1', qty, unit: 'pcs', reason: 'Print fault', at: '2026-11-19T10:00:00Z', by: 'challan@x' }, more || {});
+
+    const o4 = cutO({ k: b('c', 4) });
+    const A = at(o4);
+    ok('sent 4, rejected 0: still counts 4 as sent', A.vpSentKept(o4, o4.lines[0]) === 4);
+    const cell = A.vprRecvCell(o4, o4.lines[0], 'o2|0');
+    ok('a line with goods the printer entered offers Reject beside Receive', /data-vprrej="o2\|0"/.test(cell) && /Receive 4 pcs/.test(cell), cell);
+    const oAllIn = cutO({ k: b('c', 4) }, {}, { c: 4 });
+    ok('…nothing left to take in: no Reject', !/data-vprrej/.test(at(oAllIn).vprRecvCell(oAllIn, oAllIn.lines[0], 'o2|0')));
+
+    const R = at(o4);
+    const er = await R.vprReject('o2|0', 2, 'Print fault', '');
+    const paths = Object.keys((R.patches[0] || {}));
+    ok('Reject 2 pcs writes one save: the reject on the printer\'s order and a notice for the bell', !er && R.patches.length === 1 && paths.length === 2
+      && /^pt_vendorOrders\/P1\/o2\/vRej\/rj_/.test(paths[0]) && /^pt_recvRejects\/rj_/.test(paths[1]), er + JSON.stringify(paths));
+    const recW = R.patches[0][paths[0]], note = R.patches[0][paths[1]];
+    ok('…with the amount, reason, who and when; the notice waits (pending) and names the printer, order and fabric', recW.qty === 2 && recW.reason === 'Print fault' && recW.by === 'rbp@x' && recW.lineId === 'c'
+      && note.status === 'pending' && note.printer === 'RBP-Bagru' && note.orderNo === 'VPO-3' && note.fabric === 'Cambric 60', JSON.stringify(note));
+    const o2 = R.ctx.VP.rows[0];
+    ok('…the order on screen is a new copy with the reject; the old one is untouched', o2 !== o4 && Object.keys(o2.vRej).length === 1 && !Object.keys(o4.vRej).length);
+    ok('…only 2 now count as sent, so Receive offers 2', R.vpSentKept(o2, o2.lines[0]) === 2 && /Receive 2 pcs/.test(R.vprRecvCell(o2, o2.lines[0], 'o2|0')));
+    ok('…and the bell gets it at once', R.VPR_REJ.rows === null || R.VPR_REJ.rows.length === 1);
+    const st = R.vpCustStatus(o2, o2.lines[0]);
+    ok('the printer\'s status says "2 pcs rejected by Ridhi — send again"', /2 pcs rejected by Ridhi — send again/.test(st), st);
+    ok('…and under what it sent: the reason', /2 pcs rejected by Ridhi — Print fault · send again/.test(R.vpRejNote(o2, o2.lines[0], 'pcs')));
+
+    ok('more than the printer entered and we have not taken in: refused', /more than the 4 pcs/.test(await at(o4).vprReject('o2|0', 5, 'Print fault', '')));
+    ok('no reason: refused', /Pick a reason/.test(await at(o4).vprReject('o2|0', 1, '', '')));
+    ok('"Other" with no note: refused', /Write what is wrong/.test(await at(o4).vprReject('o2|0', 1, 'Other', '')));
+    ok('half a piece: refused', /pieces are whole/.test(await at(o4).vprReject('o2|0', 1.5, 'Print fault', '')));
+    const F = at(o4, { patchFails: true });
+    ok('a failed save says so and changes nothing', /Could not save/.test(await F.vprReject('o2|0', 1, 'Print fault', '')) && F.ctx.VP.rows[0] === o4);
+
+    /* the printer sends again */
+    const oR = cutO({ k: b('c', 4) }, { r1: rj(2) });
+    const P = load({ rows: [oR], box: { value: '2' } });
+    await P.vpVsAdd('o2', 0);
+    ok('the printer can send the 2 rejected again: they count at once, no approval asked', P.puts.length === 1 && P.puts[0][1].qty === 2 && !P.puts[0][1].ask, JSON.stringify(P.puts));
+
+    /* History */
+    const H = at(oR);
+    Object.assign(H.VPR_HIST, { from: '2026-11-01', to: '2026-11-19' });
+    const hh = H.vprHistHtml();
+    ok('History lists the reject in red with its reason, and keeps it out of what came', /REJECTED/.test(hh) && /Print fault/.test(hh) && /class="vo-late"/.test(hh) && /Rejected 2 pcs/.test(hh) && !/Cambric 60 <b[^>]*>2 pcs/.test(hh), hh.slice(0, 900));
+
+    /* the bell */
+    const B = load({ me: { admin: true, email: 'ravi@x' } });
+    B.VPR_REJ.rows = [{ id: 'rj1', status: 'pending', qty: 2 }];
+    ok('"Seen" marks the notice seen (who and when) and takes it off the bell', !(await B.vprRejSeen('rj1')) && B.patches[0]['pt_recvRejects/rj1/status'] === 'seen' && B.patches[0]['pt_recvRejects/rj1/seenBy'] === 'ravi@x' && B.vprRejPending().length === 0);
   }
 
   /* ---- History: what came from the printer on screen ---- */
