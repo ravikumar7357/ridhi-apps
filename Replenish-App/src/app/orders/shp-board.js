@@ -277,13 +277,16 @@ function shpbFlowSpans(r, s) {
 const shpbFlow = (r, s) => '<td style="' + SHPB_PAD + 'text-align:left;white-space:nowrap">' + shpbFlowSpans(r, s) + '</td>';
 
 /** One order line: date, order, ready date, item, flow, pieces, printer, then the stages. */
+/** The red "Stuck N days" pill under a line's date (Ravi, 19 Nov — as it was on 13 Nov). */
+const shpbStuckPill = x => `<div title="Nothing done on this line since ${esc(shpbDmy(x.since))} — Sundays not counted"><span class="pill" style="background:#dc2626;color:#fff;font-size:10px">Stuck ${nf(x.days)} day${x.days === 1 ? '' : 's'}</span></div>`;
 function shpbRow(r) {
   const k = shpbKey(r.orderNo, r.sku), s = shpbStages([r]), rd = shpbReadyOf(r), edit = shpbCanEdit(), late = rd.date && rd.date < dToday();
   const prn = shpbPrinterOf(r);
   const tips = { prcv: 'Owed by the printer − printed cloth received back on the challan', cut: 'Still to cut − cut so far', issue: 'Cut and not yet issued − issued to karigars', receive: 'Out with karigars − received back', qc: 'Received, not checked − passed QC', press: 'Passed QC, not pressed − pressed' };
-  const dl = shpbLate(r);
+  const dl = shpbLate(r), stuck = shpbStuck(r), waits = stuck || (dl && dl.tone === 'late' ? dl : null);
   return (dl ? '<tr class="vo-' + dl.tone + '" title="' + esc(dl.why) + '">' : '<tr>') + '<td class="frz" style="' + SHPB_PAD + 'text-align:left;white-space:nowrap;font-size:12px">' + esc(shpbDmy(shpbDateOf(r)))
-    + (dl && dl.tone === 'late' ? `<div style="font-size:10.5px;color:#b91c1c;white-space:normal;max-width:110px">last step: ${esc(dl.at)}${dl.since ? ' · since ' + esc(shpbDmy(dl.since)) : ''}</div>` : '') + '</td>'
+    + (stuck ? shpbStuckPill(stuck) : '')
+    + (waits ? `<div style="font-size:10.5px;color:#b91c1c;white-space:normal;max-width:110px">last step: ${esc(waits.at)}${waits.since ? ' · since ' + esc(shpbDmy(waits.since)) : ''}</div>` : '') + '</td>'
     + '<td style="' + SHPB_PAD + 'text-align:left;white-space:nowrap;line-height:1.25"><a href="#" data-ordj="' + esc(r.orderNo) + '" style="color:inherit;text-decoration:underline dotted;font-weight:700">'
     + esc(String(r.shopOrderNo || r.orderNo).replace(/^#\s*/, '')) + '</a>'
     + '</td>'
@@ -354,16 +357,38 @@ function shpbStageDue(r, stage) {
   const p = shpbPlanOf(r);
   return String((p && p.dates && p.dates[k]) || '').slice(0, 10);
 }
+/* THE STUCK PILL, BACK (Ravi, 19 Nov: "add the stuck pill on each order back"). Beside the row colour, which says late against the
+ * plan, a red "Stuck N days" under the date says how long a pending line has sat: nothing done on it for a whole working day,
+ * Monday to Saturday, Sundays not counted (the 13 Nov rule), with "last step: … since …" under it. Display only. */
+const SHPB_STUCK_DAYS = 1;
+/** Working days (Monday–Saturday) wholly between two ISO days. */
+function shpbWorkDaysBetween(a, b) {
+  const t0 = Date.parse(a + 'T00:00:00Z'), t1 = Date.parse(b + 'T00:00:00Z');
+  if (!(t0 < t1)) return 0;
+  let n = 0;
+  for (let t = t0 + 864e5; t < t1; t += 864e5) if (new Date(t).getUTCDay() !== 0) n++;
+  return n;
+}
+/** { days, since, at } for a pending line nothing has happened to for a whole working day, else null. */
+function shpbStuckNow(r, today) {
+  if (!r.open) return null;
+  const last = shpbLastMove(r), days = last ? shpbWorkDaysBetween(last, today) : 0;
+  return days >= SHPB_STUCK_DAYS ? { days, since: last, at: shpbStatusInfo(r).label } : null;
+}
 let SHPB_LATEC = { sig: null, map: new Map() };
-/** { tone: 'late' | 'near', at, since, why } for a pending line late or nearly due at its stage, else null. */
-function shpbLate(r) {
+/** A line's two marks on the board, worked out once until its records change: late against its stage date, and stuck. */
+function shpbMarks(r) {
   const today = shpbToday(), sig = [today, PT.base, PT.cut, (typeof QC !== 'undefined' && QC.checks) || null, SHPB.ready, SHPB.press,
     (typeof FLOW !== 'undefined' && FLOW && FLOW.ch) || null, (typeof FLOW !== 'undefined' && FLOW && FLOW.ppc) || null];
   if (!SHPB_LATEC.sig || SHPB_LATEC.sig.some((x, i) => x !== sig[i])) SHPB_LATEC = { sig, map: new Map() };
   const k = shpbKey(r.orderNo, r.sku);
-  if (!SHPB_LATEC.map.has(k)) SHPB_LATEC.map.set(k, shpbLateNow(r, today));
+  if (!SHPB_LATEC.map.has(k)) SHPB_LATEC.map.set(k, { late: shpbLateNow(r, today), stuck: shpbStuckNow(r, today) });
   return SHPB_LATEC.map.get(k);
 }
+/** { tone: 'late' | 'near', at, since, why } for a pending line late or nearly due at its stage, else null. */
+const shpbLate = r => shpbMarks(r).late;
+/** { days, since, at } for a pending line stuck a working day or more, else null. */
+const shpbStuck = r => shpbMarks(r).stuck;
 function shpbLateNow(r, today) {
   if (!r.open) return null;
   const stage = shpbStageNow(r);
