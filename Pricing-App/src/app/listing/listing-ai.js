@@ -107,7 +107,7 @@ async function aiAsk(task, brand, sku, opts) {
   const list = v => [...new Set((Array.isArray(v) ? v : []).map(s => aiLine(String(s).replace(/\|/g, ' '))).filter(Boolean))].slice(0, 40).join('|');
   if (opts.words && opts.words.length) params.words = list(opts.words);
   if (opts.avoid && opts.avoid.length) params.avoid = list(opts.avoid);
-  ['field', 'season', 'word', 'code', 'tpl', 'max', 'hlmax', 'pt', 'style'].forEach(k => { if (opts[k] != null && opts[k] !== '') params[k] = String(opts[k]).slice(0, 200); });
+  ['field', 'season', 'word', 'code', 'tpl', 'max', 'hlmax', 'pt', 'style', 'newsku', 'colour', 'size'].forEach(k => { if (opts[k] != null && opts[k] !== '') params[k] = String(opts[k]).slice(0, 200); });
   if (opts.d) params.d = (typeof opts.d === 'string' ? opts.d : JSON.stringify(opts.d)).slice(0, 8000);      // a page task's facts: numbers, ids, rule names
   const key = JSON.stringify(params);
   if (AI.memo.has(key)) return AI.memo.get(key);

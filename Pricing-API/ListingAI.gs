@@ -33,6 +33,7 @@
  *   change_result                     Haiku — did a change work (14 days before vs after); too little data → "not enough data yet", no call
  *   bundle_ideas                      Haiku — which of our products to pair, which others are bought with ours (ideas only)
  *   style_get / learn_style           no Claude call in the request: the house style guides (lmAiStyle) / start "Learn again" (budget-checked)
+ * PART 3 (Create Listing): a writing task with &newsku=&colour=&size= writes for a NEW listing cloned from &sku= (its own colour / size).
  * HOUSE STYLE: aiLearnStyle() (run once from the editor) reads EVERY listing of both brands from the ListingMatch cache, groups them by
  *   product type, Haiku notes the patterns in batches (live, in stock, no Amazon error = a good example, counted more), Sonnet writes one
  *   short guide per product type → tab lmAiStyle of the Sellora Listing Cache, status "draft". Work goes on in 4.5-minute steps (a
@@ -161,6 +162,9 @@ var AI_SYSTEM = [
 'HOUSE STYLE: when FACTS.houseStyle is given, write in our house style (pattern, order, tone, words we always use). Then improve it with',
 '   your own Amazon knowledge — stronger search words, clearer benefits, better readability — but never break our house style, our',
 '   rules or our protected words, and never invent facts.',
+'',
+'NEW LISTING: when FACTS.newListing is given, write for a NEW listing made from this one (the same product in its own colour or',
+'   size): use FACTS.colour and FACTS.size — never the old listing\'s colour or size — and every other fact as it is.',
 '',
 'READ-ONLY ANSWERS (only from FACTS — when a fact is missing, say which one is missing; never guess a number or a cause):',
 'FIX FIRST (task fix_first): from FACTS.items pick the best 10 to fix today (Critical before Important, then the most sales or stock)',
@@ -334,6 +338,12 @@ function aiFacts_(task, brand, sku, asin, p) {
     f.words = words;
     f.avoid = avoid;
     f.searchWords = aiSearchWords_(rec.asin, rec, cat);
+    // PART 3 (Create Listing): a NEW listing cloned from this one — its own colour and size (typed by the person; short rule words)
+    if (p.newsku) {
+      f.newListing = { sku: aiCut_(p.newsku, 40), clonedFrom: rec.sku };
+      if (p.colour) f.colour = aiCut_(p.colour, 60);
+      if (p.size) f.size = aiCut_(p.size, 40);
+    }
     if (task === 'title' || task === 'season') {
       f.max = Math.min(200, Math.max(60, Number(p.max) || 75));
       f.template = String(p.tpl || '{brand} {product} {shape} {material} {size} {pattern} - {color}').slice(0, 200);

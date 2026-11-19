@@ -373,6 +373,7 @@ function doPost(e) {
     if (p.mail === 'po') return json_(mailPo_(p));
     if (p.limg === 'patch') return json_(limgPatch_(p));
     if (p.lfix === 'patch') return json_(lfixPatch_(p));
+    if (p.lcreate === 'put') return json_(lcreatePut_(p));   // Create Listing (ListingCreate.gs): a NEW SKU, Amazon's check first
     /* The Listing Optimiser's review of one ASIN, judged on the facts Sellora sends from its ListingMatch cache (a read: nothing is
      * written). POST only because a listing's whole text does not fit in an address. */
     if (p.listing === 'review') { setBrand_(p.brand); return json_(listingReview_(p.asin, p.target, p.facts)); }

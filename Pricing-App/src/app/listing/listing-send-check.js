@@ -209,7 +209,7 @@ async function sqVerify(job) {
     reply = await baCall({ lfix: 'get', brand: job.brand, sku: job.sku });
     if (typeof lmNoteLive === 'function') lmNoteLive(job.brand, job.sku, 'get', reply);
   }
-  const names = b.limg ? Object.keys(b.set || {}) : (b.patches || []).map(p => String(p.path || '').replace('/attributes/', ''));
+  const names = b.limg ? Object.keys(b.set || {}) : b.lcreate ? Object.keys(b.attributes || {}) : (b.patches || []).map(p => String(p.path || '').replace('/attributes/', ''));
   const err = ((reply && reply.issues) || []).find(issue => /ERROR|^E$/i.test(String(issue.severity || issue.s || ''))
     && (b.limg ? /image|media|MAIN|PT0|SWCH/i.test(String(issue.message || '') + ' ' + (issue.attrs || []).join(' ')) : (issue.attrs || []).some(a => names.includes(a))));
   if (err) {
@@ -219,6 +219,8 @@ async function sqVerify(job) {
     job.how = sqHow(job.raw);
     return job.state;
   }
+  // Create Listing (#8): a NEW listing is there when Amazon gives it back with its title; until then Amazon is still working
+  if (b.lcreate) { const at = (reply && reply.attributes) || {}; job.state = reply && (reply.sku || reply.asin) && at.item_name && at.item_name.length ? 'accepted' : 'working'; return job.state; }
   let same;
   if (b.limg) same = names.every(slot => String(((reply && reply.listing) || {})[slot] || '') === String(b.set[slot] || ''));
   else {

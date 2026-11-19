@@ -528,7 +528,7 @@ const patches = (C, apply) => C.calls.filter(c => c.lfix === 'patch' && c.apply 
     const html = src('index.html'), nav = src('app/core/nav.js'), css = src('styles.css'), order = src('app/ORDER'), tab = src('app/listing/listing-rules-tab.js');
     ok('"IP & Trademark Guard" in the Listing menu under "2 · Check", after A+ Content', /<button id="tabAplus" class="nav">A\+ Content<\/button>\s*<button id="tabIpg" class="nav">IP &amp; Trademark Guard<\/button><\/div>/.test(html)
       && /data-tabs="[^"]*fam,aplus,ipg,lhist"/.test(html) && /<div id="paneIpg" class="hide"><div id="ipgPane"><\/div><\/div>/.test(html));
-    ok('the tab is known to the app: TABS, its title, and it comes with Listing Health', /'aplus', 'ipg'\];/.test(nav) && /ipg: 'IP & Trademark Guard'/.test(nav) && /TAB_INHERIT = \{[^}]*ipg: 'health'/.test(nav));
+    ok('the tab is known to the app: TABS, its title, and it comes with Listing Health', /'aplus', 'ipg'(, 'create')?\];/.test(nav) && /ipg: 'IP & Trademark Guard'/.test(nav) && /TAB_INHERIT = \{[^}]*ipg: 'health'/.test(nav));
     ok('ip-guard.js joined after aplus-audit.js', /listing\/aplus-audit\.js\r?\nlisting\/ip-guard\.js\r?\n/.test(order));
     ok('the same look as Family & Category Check and A+ Content: their styles cover the three panes', /:is\(#paneFam,#paneAplus,#paneIpg\) \.fc-box\{/.test(css) && /:is\(#paneFam,#paneAplus,#paneIpg\) \.cc-fchip\{/.test(css));
     const own = css.slice(css.indexOf('/* ----- IP & Trademark Guard'), css.indexOf('@media (max-width:860px){#paneIpg'));

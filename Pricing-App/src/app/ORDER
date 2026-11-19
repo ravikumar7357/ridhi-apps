@@ -43,6 +43,7 @@ listing/aplus-audit.js
 listing/ip-guard.js
 listing/listing-ai.js
 listing/listing-priority.js
+listing/create-listing.js
 research/keywords.js
 research/by-amazon-link.js
 research/new-product.js
