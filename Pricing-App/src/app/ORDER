@@ -30,6 +30,7 @@ research/by-amazon-link.js
 research/new-product.js
 research/product-research.js
 sales/sales-dashboard.js
+sales/live-yoy.js
 ads/deal-calendar.js
 ads/planner.js
 ads/completed-deals.js

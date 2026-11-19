@@ -968,6 +968,28 @@
   .row{display:flex;gap:10px;flex-wrap:wrap}
   .row>*{flex:1;min-width:140px}
   .muted{color:var(--muted);font-size:13px}
+  /* LIVE VS LAST YEAR (sales/live-yoy.js): this year in the brand blue, last year in amber, last week a dashed grey line. */
+  #paneYoy{--yoy-now:var(--brand);--yoy-ly:#F08A24;--yoy-lw:var(--muted)}
+  .yoy-ctl{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .yoy-ctl input,.yoy-ctl select{width:auto}
+  .yoy-legend{display:flex;gap:16px;flex-wrap:wrap;font-size:12.5px;color:var(--muted);margin:0 0 8px}
+  .yoy-legend b{font-weight:500}
+  .yoy-legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+  .yoy-legend i.yoy-dash{width:16px;height:0;border-top:2px dashed var(--yoy-lw);border-radius:0;vertical-align:3px}
+  .yoy-chart svg{width:100%;height:auto;display:block;overflow:visible}
+  .yoy-chart text{fill:var(--muted);font-size:11px;font-family:inherit}
+  .yoy-chart .yoy-grid{stroke:var(--line)}
+  .yoy-chart .yoy-lbl{fill:var(--ink);font-weight:600}
+  .yoy-up{color:var(--accent-ink)} .yoy-down{color:var(--bad-ink)}
+  .yoy-note{font-size:12.5px;color:var(--muted);margin-top:8px}
+  .yoy-tbl{width:100%;border-collapse:collapse;font-size:13px;font-variant-numeric:tabular-nums;margin-top:10px}
+  .yoy-tbl th,.yoy-tbl td{padding:5px 10px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}
+  .yoy-tbl th{color:var(--muted);font-weight:500}
+  .yoy-tbl th:first-child,.yoy-tbl td:first-child{text-align:left}
+  #paneYoy .sd-panel{margin-bottom:16px}
+  .yoy-legend i.yoy-ev{background:color-mix(in srgb,var(--yoy-ly) 14%,transparent);border:1px dashed var(--yoy-ly)}
+  .yoy-chart .yoy-evband{fill:color-mix(in srgb,var(--yoy-ly) 10%,transparent)}
+  .yoy-chart .yoy-evtxt{fill:var(--yoy-ly);font-weight:600;font-size:10.5px}
   table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
   td{padding:10px 0;border-bottom:1px solid var(--line)}
   /* The calculator's figure column. Kept out of the grids, where it made every last column semi-bold. */
