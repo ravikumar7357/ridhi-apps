@@ -113,7 +113,8 @@ function rmShareFolder_(folderId, problems) {
  * Tuesday and Friday around 10 am India time (Ravi, 19 Nov: first "only on tuesday and thursday", then "the printer mail should go
  * on tuesday and friday", the days the company report does not go out; it was daily before): one mail
  * listing every printer whose lines are 5 or more days late, to the people on
- * PRINTER_ALERT_TO (Script properties, comma separated) and to the account that runs the script. With PRINTER_ALERT_TO
+ * PRINTER_ALERT_TO (Script properties, comma separated) only — not also to the account that runs the script (Ravi, 19 Nov:
+ * "remove the mails from me and natanikeshav1603 and send the printer one to these people only"). With PRINTER_ALERT_TO
  * blank it goes to that account only. A day with no such line sends nothing. If the vendor orders cannot be read, the
  * account owner is told (rmMailFailure_) and nothing else is sent. */
 const PL_SEND_HOUR = 10;
@@ -123,9 +124,7 @@ function sendPrinterAlerts() {
   let vo, vendors, map;
   try { [vo, vendors, map] = rmReadNodes_(['pt_vendorOrders', 'pt_masters/vendor', 'pt_vendorMap']); }
   catch (e) { rmMailFailure_('Printer late alert: the vendor orders could not be read: ' + (e.message || e)); return; }
-  const today = rmIstDay(Date.now()), me = Session.getEffectiveUser().getEmail();
-  const extra = String(PropertiesService.getScriptProperties().getProperty('PRINTER_ALERT_TO') || '').trim();
-  const to = [extra, me].filter(Boolean).join(',');
+  const today = rmIstDay(Date.now()), to = rmRecipients_('PRINTER_ALERT_TO');
   const groups = plByPrinter(plLateLines(vo, today), plNames(vendors, map), plPhones(vendors, map));
   if (!groups.length) { console.log('Printer late alert: no printer is more than ' + PL_LATE_AFTER_DAYS + ' days late; nothing sent.'); return; }
   MailApp.sendEmail({ to, subject: plMailSubject(groups, today), htmlBody: plMailHtml(groups, today), name: 'Fabricrush ERP' });
@@ -147,8 +146,9 @@ function installReportTimers() {
   console.log('Timers set: Monday and Thursday, 9 am India time.');
 }
 
-function rmRecipients_() {
-  const list = String(PropertiesService.getScriptProperties().getProperty('REPORT_TO') || '').trim();
+/** Who gets a mail: the addresses in that Script property (comma separated), else only the account that runs the script. */
+function rmRecipients_(property) {
+  const list = String(PropertiesService.getScriptProperties().getProperty(property || 'REPORT_TO') || '').trim();
   return list || Session.getEffectiveUser().getEmail();
 }
 function rmMailFailure_(why) {

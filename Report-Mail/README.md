@@ -42,7 +42,7 @@ The rules are written at the top of `Rules.gs`. Ravi agreed them on 17 Nov 2026.
 
 Every **Tuesday and Friday** at about **10 am India time**, the script sends **one mail** for all printers holding cloth **5 or more days** past its due date (red on the Vendor Portal). On top, a summary per delay group (5–7, 8–14, 15–21, 22+ days): printers, designs and cloth. Below, one row per printer with its designs in each delay group; the printer's name opens its late orders in the ERP. A day with no such line sends nothing. The rule is in `Printers.gs`.
 
-- **Who gets it:** the people in `PRINTER_ALERT_TO` (Script properties, comma separated: your purchase / vendor person), plus the account that runs the script. While it is blank, only that account gets it.
+- **Who gets it:** the people in `PRINTER_ALERT_TO` (Script properties, comma separated) — only them, not also the account that runs the script. While it is blank, only that account gets it.
 - **To try it:** pick `sendPrinterAlerts` → **Run**.
 - **To switch it on:** pick `installPrinterAlertTimer` → **Run** once. It also removes any older (daily) timer.
 - **To stop it:** **Triggers** → delete the `sendPrinterAlerts` trigger.

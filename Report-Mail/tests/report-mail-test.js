@@ -562,6 +562,16 @@ test('each printer shows its total — oldest delay and all its late cloth — a
   assert.ok(h.indexOf('Beta') < h.indexOf('Alpha'));
 });
 
+test('each mail goes only to its own list; the script owner only when the list is blank', () => {
+  const props = { REPORT_TO: 'a@ridhihome.com,b@ridhihome.com', PRINTER_ALERT_TO: 'c@ridhihome.com' };
+  const fakes = props => ({ PropertiesService: { getScriptProperties: () => ({ getProperty: k => props[k] || null }) },
+    Session: { getEffectiveUser: () => ({ getEmail: () => 'owner@x.com' }) } });
+  const m = loadReportMail(null, fakes(props));
+  eq([m.rmRecipients_(), m.rmRecipients_('PRINTER_ALERT_TO')], ['a@ridhihome.com,b@ridhihome.com', 'c@ridhihome.com']);
+  eq(loadReportMail(null, fakes({})).rmRecipients_('PRINTER_ALERT_TO'), 'owner@x.com');
+  const src = require('fs').readFileSync(require('path').join(__dirname, '..', 'Main.gs'), 'utf8');
+  assert.ok(/to = rmRecipients_\('PRINTER_ALERT_TO'\)/.test(src), 'the printer mail uses its list and nothing more');
+});
 test('the printer notice timer is Tuesday and Friday at 10 am only, and the old daily timer goes', () => {
   const made = [], removed = [];
   const builder = { handler: '', days: [], timeBased() { return this; }, onWeekDay(d) { this.days.push(d); return this; },
