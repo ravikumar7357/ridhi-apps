@@ -485,7 +485,13 @@ function lrKwCheck(text, max, bytes) {
  *   the, for…); 4 any other word that is not protected — in search terms the ones the title already says first, then from the end.
  *   A protected word on its first appearance never goes: when only those are left and it still does not fit, everything is kept and
  *   `important` says so ("Only important words left — edit by hand").
- * RULE 3 — titles: the words stay in the template's order; only which words are kept changes ("Hand" of "Hand Block Print" stays). */
+ * RULE 3 — titles: the words stay in the template's order; only which words are kept changes ("Hand" of "Hand Block Print" stays).
+ * SHORT FORMS (19 Nov 2026) — a title that still does not fit with only its important words left, before it is held: the short forms the
+ *   house rule allows in a title of shortFrom–75 characters (Listing Rules "Short forms allowed from", 74) — the size without spaces
+ *   ("54x54 Inch"), no " - " before the colour, "&" for "and", "2 Pack" for "Set of 2", "Pcs" for "Pieces", "In" or " for "Inch" — added
+ *   one at a time in that order until it fits (else the fewest that fit), and only when the title then has shortFrom–75 characters
+ *   (below that the strict style stays).
+ *   Every word is kept; the title checks run on it as on any new title. */
 const LR_SW_IMPORTANT = 'Only important words left — edit by hand';
 const LR_SW_IDENTITY = ['hand block print', 'hand block printed', 'handblockprint', 'handblockprinted', 'block print', 'block printed', 'blockprint', 'blockprinted',
   'hand printed', 'handprinted', 'hand print', 'handmade', 'hand made', 'hand', 'block'];
@@ -581,11 +587,56 @@ function lrSwFacts(row, cfg, va, o) {
   product.push(...found);
   return { colour, shape, material, size, product, brands: lrBrandWords(row, cfg) };
 }
+// The short forms, mildest first: added one at a time in this order; when that overshoots, the fewest that fit (ties: the earlier ones).
+const LR_SW_SHORT = [
+  ['size without spaces', t => t.replace(/(\d+(?:\.\d+)?)\s+[x×X]\s+(\d+(?:\.\d+)?)(?:\s+[x×X]\s+(\d+(?:\.\d+)?))?/g, (m, a, b, c) => (c ? `${a}x${b}x${c}` : `${a}x${b}`))],
+  ['no " - " before the colour', t => t.replace(/\s+[-–—]\s+/g, ' ')],
+  ['"&" for "and"', t => t.replace(/\s+and\s+/gi, ' & ')],
+  ['"N Pack" for "Set of N"', t => t.replace(/\bset of (\d+)\b/gi, '$1 Pack')],
+  ['"Pcs" for "Pieces"', t => t.replace(/\bpieces\b/gi, 'Pcs')],
+  ['"In" for "Inch"', t => t.replace(/(\d(?:x\d+)*)\s+inch(?:es)?\b/gi, '$1 In')],
+  ['" for "Inch"', t => t.replace(/(\d(?:x\d+)*)\s+in(?:ch(?:es)?)?\b/gi, '$1"')],
+];
+/** A title with only important words left that is still too long, in the short forms the house rule allows: { text, forms } — the fewest
+ *  forms that make `fits` true with a length of `from`–75 (lrNear: where the short forms are not errors), or null. */
+function lrSwShortForms(text, fits, from) {
+  const n = LR_SW_SHORT.length;
+  const okLen = t => t.length >= from && t.length <= 75 && fits(t);
+  // 1 the forms added one at a time, mildest first ("54x54 Inch", then no " - "…)
+  let cur = text;
+  const used = [];
+  for (const [name, form] of LR_SW_SHORT) {
+    const next = form(cur).replace(/\s{2,}/g, ' ').trim();
+    if (next === cur) continue;
+    cur = next;
+    used.push(name);
+    if (okLen(cur)) return { text: cur, forms: used.slice() };
+    if (fits(cur)) break;                                     // fits but shorter than shortFrom: the strict style would be broken
+  }
+  // 2 else the fewest forms that fit within shortFrom–75
+  const masks = Array.from({ length: (1 << n) - 1 }, (_, i) => i + 1)
+    .map(m => ({ m, k: m.toString(2).split('1').length - 1, order: [...Array(n).keys()].filter(i => m & (1 << i)).map(i => String.fromCharCode(97 + i)).join('') }))
+    .sort((a, b) => a.k - b.k || (a.order < b.order ? -1 : 1));
+  for (const { m } of masks) {
+    let t = text;
+    const forms = [];
+    for (let i = 0; i < n; i++) {
+      if (!(m & (1 << i))) continue;
+      const next = LR_SW_SHORT[i][1](t).replace(/\s{2,}/g, ' ').trim();
+      if (next === t) { t = null; break; }                    // a form that changes nothing here is not one of the fewest
+      t = next;
+      forms.push(LR_SW_SHORT[i][0]);
+    }
+    if (t && okLen(t)) return { text: t, forms };
+  }
+  return null;
+}
 /** THE ONE RULE. text → { before, after, removed: [{ w, why, i, risk }], toks, risky, fits, important (only protected words left and it
  *  still does not fit), cut (rule 2 step 4 used) }. o: { mode: 'kw' (search terms) | 'title' | 'hl' (Item Highlights), facts (lrSwFacts),
  *  fits(text) → true when it fits (none: only the "always" words go), title (search terms: the title, for step 4's order), brands (our
  *  brand phrases: removed from search terms, protected elsewhere), risk(text) → [{ s, e, why }], riskOnly (only the risky words go),
- *  keep: more words never to remove (the seasons on now), cutEnd: false — stop before "any other word from the end" (the Season planner:
+ *  keep: more words never to remove (the seasons on now), shortFrom (a title: where the short forms are allowed — Listing Rules' 74;
+ *  short: false = never use them), cutEnd: false — stop before "any other word from the end" (the Season planner:
  *  it never cuts an ordinary word of the customer's own, only the ones this rule names) }. Never adds a word. */
 function lrSuggestWords(text, o) {
   o = o || {};
@@ -629,7 +680,8 @@ function lrSuggestWords(text, o) {
   const tidy = s => s.replace(/\s+([,;:])/g, '$1').replace(/([,;:])(?:\s*[,;:])+/g, '$1').replace(/(\s[-–—|·])(?:\s+[-–—|·])+/g, '$1')
     .replace(/^(?:[\s,;:\-–—|·]|(?:and|&|for|with|or|of)\s)+/i, '').replace(/(?:[\s,;:\-–—|·]|\s(?:and|&|for|with|or|of))+$/i, '')
     .replace(/\s(?:and|&|for|with|or|of)(?=\s[-–—|·]\s)/gi, '').replace(/[,;:](?=\s[-–—|·]\s)/g, '').replace(/\s{2,}/g, ' ').trim();
-  const now = () => (mode === 'kw' ? live().map(t => t.w).filter(Boolean).join(' ') : tidy(live().map(t => t.raw).join(' ')));
+  let shortText = null, shortForms = [];
+  const now = () => (shortText != null ? shortText : mode === 'kw' ? live().map(t => t.w).filter(Boolean).join(' ') : tidy(live().map(t => t.raw).join(' ')));
   const fits = () => (typeof o.fits === 'function' ? !!o.fits(now()) : true);
   let seq = 0;                                       // the order the words went in (removed[].n)
   const drop = (t, why) => { t.out = why; t.n = ++seq; };
@@ -637,7 +689,7 @@ function lrSuggestWords(text, o) {
   const spans = typeof o.risk === 'function' ? o.risk(before) || [] : [];
   if (spans.length) toks.forEach(t => { const hit = spans.find(sp => t.at < sp.e && t.at + t.raw.length > sp.s); if (hit) { t.out = hit.why; t.risk = true; } });
   let cut = false;
-  const done = () => ({ before, after: mode !== 'kw' && !toks.some(t => t.out) ? before : now(), removed: toks.filter(t => t.out).map(t => ({ w: t.raw, why: t.out, i: t.i, risk: t.risk, n: t.n || 0 })), toks, risky: toks.filter(t => t.risk).length,
+  const done = () => ({ before, after: mode !== 'kw' && !toks.some(t => t.out) && shortText == null ? before : now(), short: shortForms, removed: toks.filter(t => t.out).map(t => ({ w: t.raw, why: t.out, i: t.i, risk: t.risk, n: t.n || 0 })), toks, risky: toks.filter(t => t.risk).length,
     fits: fits(), important: !fits(), cut });
   if (o.riskOnly) return done();
   if (mode === 'kw') {
@@ -682,6 +734,12 @@ function lrSuggestWords(text, o) {
     if (step(t => !isProt(t) && inTitle.has(t.k), 'in the title')) return done();
   }
   if (o.cutEnd !== false) step(t => !isProt(t), 'cut to fit');
+  // a title with only important words left, still too long: the short forms the house rule allows at shortFrom–75 characters
+  if (mode === 'title' && o.short !== false && !fits()) {
+    const from = +o.shortFrom || lrAllow((typeof LR !== 'undefined' && LR) || LR_DEFAULT).shortFrom;
+    const sh = lrSwShortForms(now(), text2 => (typeof o.fits === 'function' ? !!o.fits(text2) : true), from);
+    if (sh) { shortText = sh.text; shortForms = sh.forms; }
+  }
   return done();
 }
 

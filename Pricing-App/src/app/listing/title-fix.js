@@ -189,16 +189,18 @@ function ttBuild(brand, row, ctx, amz) {
   p.cutWords = [];
   // too long: THE ONE SUGGESTION-WORDS RULE chooses the words that go, in the template's order as it is (never a whole part blindly)
   if (after.length > lim.max) {
-    const r = lrSuggestWords(after, { mode: 'title', facts: ttFacts(p, ctx, amz), fits: text => text.length <= lim.max,
+    const r = lrSuggestWords(after, { mode: 'title', facts: ttFacts(p, ctx, amz), fits: text => text.length <= lim.max, shortFrom: lrAllow(ctx.cfg).shortFrom,
       risk: typeof ipgKwRisk === 'function' ? ipgKwRisk(brand, row.sku, p.fresh, ctx.cfg) : null });
     after = r.after;
     p.cutWords = r.removed.map(x => x.w);
+    p.shortForms = r.short || [];                       // the house rule's short forms it needed to fit (74–75 characters)
     if (!r.fits) p.why = `${LR_SW_IMPORTANT} (${after.length} characters, over ${lim.max})`;
   }
   // a part none of whose OWN words is left (the uses, mostly — "Napkins" there is the product's word too): not named as a source
   const left = new Set(ttWords(after));
   const own = key => { const other = new Set(Object.keys(p.parts).filter(k => k !== key).flatMap(k => ttWords(p.parts[k]))); return ttWords(p.parts[key]).filter(word => !other.has(word)); };
-  p.dropped = Object.keys(p.parts).filter(key => p.parts[key] && own(key).length && !own(key).some(word => left.has(word)));
+  // (the size is never dropped: written short — "18x18 In" — its words read differently)
+  p.dropped = Object.keys(p.parts).filter(key => key !== 'size' && p.parts[key] && own(key).length && !own(key).some(word => left.has(word)));
   p.after = after;
   p.lim = lim;
   return p;
@@ -368,7 +370,7 @@ function ttDraft(brand, { row, hits, kid, extra }, ctx) {
     Object.defineProperty(p, 'srcRow', { value: row, enumerable: false });
     if (!amz) return Object.assign(p, { wait: true, why: 'reading its attributes from Amazon first', label: row.sku });
     const b = ttBuild(brand, row, ctx, amz);
-    Object.assign(p, { parts: b.parts || {}, src: b.src || {}, notes: (b.notes || []).slice(), dropped: b.dropped || [], cutWords: b.cutWords || [], lim: b.lim, amzSrc: amz.src });
+    Object.assign(p, { parts: b.parts || {}, src: b.src || {}, notes: (b.notes || []).slice(), dropped: b.dropped || [], cutWords: b.cutWords || [], shortForms: b.shortForms || [], lim: b.lim, amzSrc: amz.src });
     p.label = ttLabel(p) || row.sku;
     p.after = b.after;
     if (b.why) return Object.assign(p, { why: b.why });

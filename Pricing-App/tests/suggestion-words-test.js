@@ -5,7 +5,7 @@
  *   node tests/suggestion-words-test.js
  * RULE 1 protected words never go the first time they appear; RULE 2 what may go, in order, stopping once it fits; RULE 3 titles keep
  * "Hand Block Print", product, shape, material and colour in the template's order. The two real cases (RTC-627-5454, RT146-70118) and
- * the small rules one by one. With git, the code of HEAD's parent is run on the same cases too and its answers printed (before / after). */
+ * the small rules one by one; the house rule's short forms a 74–75 title may use (19 Nov 2026, later). With git, the code of HEAD's parent is run on the same cases too and its answers printed (before / after). */
 const cp = require('child_process'), fs = require('fs'), path = require('path');
 const { load } = require('./listing-rules-test.js');
 let pass = 0, fail = 0;
@@ -87,15 +87,41 @@ function oldFiles() {
     ok('other brands\' names and restricted claims always go (quietly — the IP & Trademark Guard says so on its own page)', r9.after === 'napkin cotton kitchen' && r9.risky === 4, JSON.stringify([r9.after, r9.removed]));
     const t1 = C.lrSuggestWords('Ridhi Tablecloth Rectangle 100% Cotton 60 x 90 Inch Hand Block Print Decorative Table Cover for Dining Kitchen Farmhouse Party Home - Mustard',
       { mode: 'title', facts: { colour: 'Mustard', shape: 'rectangle', material: '100% Cotton', size: '60x90', product: ['Tablecloth'], brands: ['ridhi'] }, fits: t => t.length <= 75 });
-    ok('a title: the template order stays, "Hand Block Print" stays whole, brand, product, shape, material, size and colour stay; fillers and uses go', t1.after === 'Ridhi Tablecloth Rectangle 100% Cotton 60 x 90 Inch Hand Block Print - Mustard' && t1.important, JSON.stringify([t1.after, t1.removed.map(x => x.w + ':' + x.why)]));
+    ok('a title: the template order stays, "Hand Block Print" stays whole, brand, product, shape, material, size and colour stay; fillers and uses go — then the short forms ("60x90 Inch", no " - ") make it fit',
+      t1.after === 'Ridhi Tablecloth Rectangle 100% Cotton 60x90 Inch Hand Block Print Mustard' && t1.fits && !t1.important && t1.short.length === 2, JSON.stringify([t1.after, t1.after.length, t1.short, t1.removed.map(x => x.w + ':' + x.why)]));
     ok('the shape is worked out from the size: 118 x 70 = rectangle, 54 x 54 = square; a round one says so', C.lrSwShapeOf('118x70', 'Square') === 'rectangle' && C.lrSwShapeOf('54 x 54 Inch', '') === 'square' && C.lrSwShapeOf('70', 'Round') === 'round' && C.lrSwShapeOf('70x70', 'Round Tablecloth') === 'round');
   }
 
   console.log('== RTC-627-5454 (Harbor Blue, 54 x 54) — Fix all titles and the Season planner ==');
   const rtc = C.ttBuild('SP', rowOf(C, 'RTC-627-5454'), C.hCtx(), { va: REAL['RTC-627-5454'].va, pt: 'TABLECLOTH', src: 'Amazon (read now)' });
-  ok('the suggested title keeps "Hand Block Print", "Square", "Harbor Blue", "Tablecloth" (and brand, cotton, the size)', ['Hand Block Print', 'Square', 'Harbor Blue', 'Tablecloth', 'Ridhi', '100% Cotton', '54 x 54 Inch'].every(w => rtc.after.includes(w)), rtc.after);
-  ok('…in the template\'s order, the uses words gone to fit; still over 75 with only important words → held back, "Only important words left — edit by hand"',
-    rtc.after === 'Ridhi Tablecloth Square 100% Cotton 54 x 54 Inch Hand Block Print - Harbor Blue' && /^Only important words left — edit by hand \(79 characters, over 75\)$/.test(rtc.why || ''), rtc.after + ' · ' + rtc.why);
+  ok('the suggested title keeps "Hand Block Print", "Square", "Harbor Blue", "Tablecloth" (and brand, cotton, the size)', ['Hand Block Print', 'Square', 'Harbor Blue', 'Tablecloth', 'Ridhi', '100% Cotton', '54x54 Inch'].every(w => rtc.after.includes(w)), rtc.after);
+  ok('…in the template\'s order, the uses words gone; 79 with only important words, so the house rule\'s short forms of a 74–75 title: "54x54 Inch" and no " - " → 75, not held',
+    rtc.after === 'Ridhi Tablecloth Square 100% Cotton 54x54 Inch Hand Block Print Harbor Blue' && rtc.after.length === 75 && !rtc.why
+    && rtc.shortForms.join(' · ') === 'size without spaces · no " - " before the colour', rtc.after + ' · ' + rtc.after.length + ' · ' + rtc.why + ' · ' + rtc.shortForms);
+  // the whole Fix all titles path: every existing title rule judged again on it — no new error, its title problems gone
+  C.TT.read.set('SP|RTC-627-5454', { va: REAL['RTC-627-5454'].va, pt: 'TABLECLOTH', at: Date.now() });
+  const rtcPlan = C.ttPlans('SP', C.ttRows('SP').filter(r => r.row.sku === 'RTC-627-5454'), C.hCtx()).get('RTC-627-5454');
+  ok('…and it passes every title check (Fix all titles would send it): the short forms are not errors at 74–75 characters', !!rtcPlan && rtcPlan.ok && rtcPlan.after === rtc.after, rtcPlan && (rtcPlan.why || rtcPlan.after));
+  const judged = C.healthOf(Object.assign({}, rowOf(C, 'RTC-627-5454'), { title: rtc.after, content: Object.assign({}, rowOf(C, 'RTC-627-5454').content, { title: rtc.after, titleLen: rtc.after.length }) }), C.hCtx());
+  ok('…Listing Health on that title: no title error at all (size format, template, length, keyword)', !judged.found.some(h => ['size_format', 'title_template', 'title_length', 'title_keyword', 'dimension_order', 'variation_naming'].includes(h.detector)), judged.found.map(h => h.name + ': ' + h.detail).join(' | '));
+  const strict = 'Ridhi Tablecloth Square 100% Cotton 54x54 Inch Hand Block Print Blue';
+  const strictH = C.healthOf(Object.assign({}, rowOf(C, 'RTC-627-5454'), { title: strict, content: Object.assign({}, rowOf(C, 'RTC-627-5454').content, { title: strict, titleLen: strict.length }) }), C.hCtx());
+  ok(`…the company rule is unchanged: "54x54 Inch" in a title of ${strict.length} characters (below 74) is still "Size not in house style"`, strict.length < 74 && strictH.found.some(h => h.detector === 'size_format'), strictH.found.map(h => h.detector).join());
+  console.log('== the short forms: only to fit, only at 74–75, every word kept ==');
+  {
+    const fit75 = t => t.length <= 75;
+    const t70 = 'Ridhi Cloth Napkins 100% Cotton 18 x 18 Inch Block Print - Harbor Blue';
+    const n70 = C.lrSuggestWords(t70, { mode: 'title', facts: { colour: 'Harbor Blue', shape: 'square', material: '100% Cotton', size: '18x18', product: ['Cloth Napkins'], brands: ['ridhi'] }, fits: fit75 });
+    ok('a title that fits keeps the strict style (no short form)', n70.after === t70 && !n70.short.length, n70.after);
+    const p76 = 'Ridhi Cloth Napkin Pieces 100% Cotton 18x18 Inch Block Print Harbor Blue Ivy';      // 76: "Pcs" → 73, "In" → 74
+    const sp = C.lrSwShortForms(p76, fit75, 74);
+    ok(`never below 74 (the strict style there): from ${p76.length}, "Pcs" would give 73 — "In" for "Inch" gives 74, "Pieces" kept`, p76.length === 76 && !!sp && sp.text === p76.replace('Inch', 'In') && sp.text.length === 74, JSON.stringify(sp));
+    const none = 'Ridhi Cloth Napkin Pieces 100% Cotton 18x18 Block Print Harbor Blue Ivy Rose';      // 76: only "Pcs" → 73
+    ok('…and nothing (the title is held) when every way out is under 74 or over 75', none.length === 76 && C.lrSwShortForms(none, fit75, 74) === null);
+    const run = 'Ridhi Table Runner 100% Cotton 14 x 72 Inch Hand Block Print - Blue and Rust';       // 76: "14x72 Inch" → 74
+    const sr = C.lrSwShortForms(run, fit75, 74);
+    ok('every word kept, only the written form changes, the mildest first: "14 x 72 Inch" → "14x72 Inch" (the " - " and "and" stay)', !!sr && sr.text === 'Ridhi Table Runner 100% Cotton 14x72 Inch Hand Block Print - Blue and Rust' && sr.forms.join() === 'size without spaces', JSON.stringify(sr));
+  }
   // the Season planner's trim (Item Highlights — the season words go in front; the customer's own words make room)
   const item = { brand: 'SP', sku: 'RTC-627-5454', row: rowOf(C, 'RTC-627-5454'), title: REAL['RTC-627-5454'].title, pt: 'TABLECLOTH', active: [{ ev: { id: 'xmas', name: 'Christmas', words: 'Christmas, Xmas' } }] };
   const HL146 = 'Hand Block Print Harbor Blue Square Tablecloth 54x54 Inch, Cotton Table Cover, Colorful Indian Gift for Kitchen Dining, Cute Decorative Square Table Cloth';

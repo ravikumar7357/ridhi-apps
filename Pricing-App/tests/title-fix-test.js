@@ -298,8 +298,9 @@ const ready = C => wait(() => C.TT.run && C.TT.run.plans.length && !C.TT.run.tot
     C.ttStartFamily('SP', 'PC');
     await ready(C);
     const p2 = planOf(C, 'P2');
-    ok('P2 (a long colour): the uses go, but "Block Print" (who we are) and the whole colour stay — over 75 → held back, "Only important words left — edit by hand"', !p2.ok && p2.after === 'Ridhi Cloth Napkins 100% Cotton 18 x 18 Inch Block Print - Dusty Rose Pink Stripe' && p2.dropped.join() === 'uses'
-      && /^Only important words left — edit by hand \(81 characters, over 75\)/.test(p2.why), p2.after + ' · ' + p2.dropped + ' · ' + p2.why);
+    ok('P2 (a long colour): the uses go, "Block Print" and the whole colour stay; still over 75, so the house rule\'s short forms (19 Nov 2026): "18x18 In", no " - " — 75, every rule passes',
+      p2.ok && p2.after === 'Ridhi Cloth Napkins 100% Cotton 18x18 In Block Print Dusty Rose Pink Stripe' && p2.after.length === 75 && p2.dropped.join() === 'uses'
+      && p2.shortForms.join(' · ') === 'size without spaces · no " - " before the colour · "In" for "Inch"', p2.after + ' · ' + p2.after.length + ' · ' + p2.dropped + ' · ' + p2.shortForms + ' · ' + p2.why);
     C.ttClick({ dataset: { tt: 'cancel' } });
     const l1 = C.ttPlans('SP', C.ttRows('SP').filter(r => r.row.sku === 'L1'), C.hCtx()).get('L1');
     ok('L1: the repeated "Napkins" and then "Dinner" go, "Reusable" fits and stays, the print stays', l1.ok && !l1.dropped.length && /Block Print Reusable - Ivory$/.test(l1.after) && l1.after.length <= 75, l1.dropped + ' · ' + l1.after);
@@ -318,13 +319,13 @@ const ready = C => wait(() => C.TT.run && C.TT.run.plans.length && !C.TT.run.tot
     C.reset();
     const tc = (sku, color, size) => C.ttBuild('SP', C.HEALTH.SP.rows.find(r => r.sku === sku), C.hCtx(), { va: { color, size, material: 'Cotton', item_shape: 'Rectangle' } });
     const b1 = tc('TC1', 'Mustard', '60x102');
-    ok('TC1: the uses go, "Hand Block Print", "Rectangle", "100% Cotton" and the colour stay — 79 characters → held back, "Only important words left — edit by hand"',
-      b1.after === 'Ridhi Tablecloth Rectangle 100% Cotton 60 x 102 Inch Hand Block Print - Mustard' && !b1.shortPrint && b1.dropped.join() === 'uses' && /^Only important words left — edit by hand \(79 characters, over 75\)/.test(b1.why), b1.after + ' · ' + b1.after.length + ' · ' + b1.why);
+    ok('TC1: the uses go, "Hand Block Print", "Rectangle", "100% Cotton" and the colour stay — 79 with only those, so the short forms: "60x102 Inch", no " - " → 75',
+      b1.after === 'Ridhi Tablecloth Rectangle 100% Cotton 60x102 Inch Hand Block Print Mustard' && !b1.shortPrint && b1.dropped.join() === 'uses' && !b1.why && b1.shortForms.length === 2, b1.after + ' · ' + b1.after.length + ' · ' + b1.why);
     const b2 = tc('TC2', 'Red', '60x90');
     ok('…a title that fits keeps the template\'s own words ("Hand Block Print")', b2.after === 'Ridhi Tablecloth Rectangle 100% Cotton 60 x 90 Inch Hand Block Print - Red' && !b2.shortPrint, b2.after);
     C.TT.read.set('SP|TC1', { va: { color: 'Mustard', size: '60x102', material: 'Cotton', item_shape: 'Rectangle' }, pt: 'TABLECLOTH', at: now });
     const p1 = C.ttPlans('SP', C.ttRows('SP').filter(r => r.row.parent === 'TCP'), C.hCtx()).get('TC1');
-    ok('…and its plan says so (held back, nothing sent)', p1 && !p1.ok && /^Only important words left — edit by hand/.test(p1.why), p1 && p1.why);
+    ok('…and it passes every title rule (74–75 characters: the short forms are not errors) — ready to send', p1 && p1.ok && p1.after === 'Ridhi Tablecloth Rectangle 100% Cotton 60x102 Inch Hand Block Print Mustard', p1 && (p1.why || p1.after));
   }
 
   console.log('== the rules re-check holds a new title back ==');
@@ -379,8 +380,8 @@ const ready = C => wait(() => C.TT.run && C.TT.run.plans.length && !C.TT.run.tot
     console.log = () => {}; console.table = () => {};
     let r;
     try { r = C.ttReport(); } finally { console.log = log; console.table = table; }
-    ok('ttReport(): children and families it would fix, held back by reason, 3 examples before → after', r.counts.Ridhi.childrenWithATitleProblem === C.ttRows('SP').length && r.counts.Ridhi.fixedNow === 7 && r.counts.Ridhi.familiesFixed === 1
-      && r.counts.Ridhi.heldBack === 4 && r.examples.length === 3 && r.examples.every(x => x.before && x.after && x.before !== x.after) && r.examples.some(x => x.sku === 'A1') && Object.keys(r.heldBackBy).length === 3, JSON.stringify(r));
+    ok('ttReport(): children and families it would fix, held back by reason, 3 examples before → after', r.counts.Ridhi.childrenWithATitleProblem === C.ttRows('SP').length && r.counts.Ridhi.fixedNow === 8 && r.counts.Ridhi.familiesFixed === 2
+      && r.counts.Ridhi.heldBack === 3 && r.examples.length === 3 && r.examples.every(x => x.before && x.after && x.before !== x.after) && r.examples.some(x => x.sku === 'A1') && Object.keys(r.heldBackBy).length === 3, JSON.stringify(r));
   }
 
   console.log('== wired in: ORDER, the styles ==');

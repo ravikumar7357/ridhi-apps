@@ -50,8 +50,8 @@ const has = (list, re) => list.some(f => re.test(f.msg));
   const full = A.lcTemplateTitle('SP', 'RTC1-6090', 200), short = A.lcTemplateTitle('SP', 'RTC1-6090', 75);
   ok('the template title for a tablecloth', /^Ridhi Tablecloth Rectangle 100% Cotton 60 x 90 Inch/.test(full) && /- Indigo Blue$/.test(full), full);
   // 19 Nov 2026 (the one suggestion-words rule): the uses go; brand, product, its real shape, material, size, "Hand Block Print" and the
-  // colour all stay — even when that is over 75 (nothing important is cut; the screen shows its length)
-  ok('the 75 version: the uses go, every important word stays ("Hand Block Print" whole, Rectangle, 100% Cotton, the colour)', short === 'Ridhi Tablecloth Rectangle 100% Cotton 60 x 90 Inch Hand Block Print - Indigo Blue', short + ' (' + short.length + ')');
+  // colour all stay — 82 with only those, so the house rule's short forms of a 74–75 title: 60x90", no " - " → 74
+  ok('the 75 version: the uses go, every important word stays ("Hand Block Print" whole, Rectangle, 100% Cotton, the colour), in the short forms allowed at 74–75', short === 'Ridhi Tablecloth Rectangle 100% Cotton 60x90" Hand Block Print Indigo Blue' && short.length === 74, short + ' (' + short.length + ')');
   ok('no template for a SKU the catalogue does not hold', A.lcTemplateTitle('SP', 'UNKNOWN', 200) === '');
   const kw = A.lcSuggestKeywords('SP', 'RTC1-6090', short, 'washable');
   ok('search terms: template words the title lacks, never past 249 bytes', /dining/.test(kw) && A.lcBytes(kw) <= 249 && /washable/.test(kw), kw);
