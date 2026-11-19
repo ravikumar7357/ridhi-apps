@@ -72,11 +72,10 @@
       <button id="tabKw" class="nav">Keywords</button>
     </div></div>
 
-    <div class="navwrap"><button class="navgrp" id="grpSales" type="button" aria-controls="secSales" data-grp="sales" data-tabs="sales,yoy,profit,sa,plaudit,shop,adj,ba">
+    <div class="navwrap"><button class="navgrp" id="grpSales" type="button" aria-controls="secSales" data-grp="sales" data-tabs="sales,profit,sa,plaudit,shop,adj,ba">
       <span class="caret">&#9656;</span> Sales</button>
     <div class="navsec" id="secSales">
       <button id="tabSales" class="nav">Sales Dashboard</button>
-      <button id="tabYoy" class="nav">Live vs Last Year</button>
       <button id="tabProfit" class="nav">Profit &amp; Margin</button>
       <button id="tabSa" class="nav">Sales Analysis</button>
       <button id="tabPlaudit" class="nav">Parent Listing Review</button>
@@ -101,12 +100,13 @@
       <button id="tabBsr" class="nav">BSR Audit</button>
     </div></div>
 
-    <div class="navwrap"><button class="navgrp" id="grpAds" type="button" aria-controls="secAds" data-grp="ads" data-tabs="trends,weekly,ppcn,st,plc,deals">
+    <div class="navwrap"><button class="navgrp" id="grpAds" type="button" aria-controls="secAds" data-grp="ads" data-tabs="trends,weekly,ppcn,yoy,st,plc,deals">
       <span class="caret">&#9656;</span> Advertising</button>
     <div class="navsec" id="secAds">
       <button id="tabTrends" class="nav">Ad Console</button>
       <button id="tabWeekly" class="nav">PPC &amp; Organic</button>
       <button id="tabPpcn" class="nav">PPC &amp; Organic · New <span class="navtag">TEST</span></button>
+      <button id="tabYoy" class="nav">Live vs Last Year</button>
       <button id="tabSt" class="nav">Search Terms</button>
       <button id="tabPlc" class="nav">Placement</button>
       <button id="tabDeals" class="nav">Deal Calendar</button>
@@ -1037,7 +1037,7 @@
 
   <!-- ============ Live vs Last Year (sales/live-yoy.js) ============
        The Prime Day tracker made general: any day, by the hour, against the matching day last year — live from
-       Amazon's Sales API through the backend (Pricing-API/SalesLive.gs). Comes with Sales Dashboard (TAB_INHERIT). -->
+       Amazon's Sales API through the backend (Pricing-API/SalesLive.gs). In the Advertising menu; comes with PPC & Organic or Sales Dashboard (TAB_INHERIT). -->
   <div id="paneYoy" class="hide">
     <div class="toolbar sa-gap-12 sa-sd-head">
       <span id="yoyMsg" class="muted"></span>

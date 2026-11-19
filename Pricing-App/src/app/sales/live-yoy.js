@@ -1,5 +1,5 @@
 /* ================= SALES · LIVE VS LAST YEAR: a day by the hour against the matching day last year, live from Amazon =================
- * Screens: Live vs Last Year (ensureYoy runs when the tab opens — core/nav.js). Comes with Sales Dashboard (TAB_INHERIT).
+ * Screens: Live vs Last Year (ensureYoy runs when the tab opens — core/nav.js). In the Advertising menu; comes with PPC & Organic or Sales Dashboard (TAB_INHERIT).
  * Does: the Prime Day tracker (public/prime.html) made general — for any day, not only the sale. Asks the backend
  * (?live=yoy → Pricing-API/SalesLive.gs → Amazon's Sales API getOrderMetrics) for each brand: the day by hour so far, the
  * matching day last year by hour (same weekday = 364 days back, or the same date) and the same day last week by hour; and

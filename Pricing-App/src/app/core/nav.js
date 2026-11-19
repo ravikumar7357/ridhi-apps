@@ -31,7 +31,9 @@ HIDDEN_TABS.forEach(t => $('tab' + capId(t)).classList.add('hide'));
 // Tabs nobody is granted on their own: they come with another tab. PPC & Organic · New reads exactly
 // the documents PPC & Organic reads, and the Firestore rules gate those on `weekly` — so granting the
 // new tab by itself would only ever open an empty screen. Kept out of the Access form for that reason.
-const TAB_INHERIT = { ppcn: 'weekly', yoy: 'sales' };   // Live vs Last Year comes with Sales Dashboard
+// A list means any one of those tabs brings it. Live vs Last Year (Ravi, 19 Nov: "everyone with PPC access gets it"):
+// with PPC & Organic, and still with Sales Dashboard, so nobody who had it loses it.
+const TAB_INHERIT = { ppcn: 'weekly', yoy: ['weekly', 'sales'] };
 
 /* ---------- sidebar: collapsible groups + the 3-line menu button ---------- */
 // Read straight off the markup, so adding a group is an HTML edit and nothing here changes.

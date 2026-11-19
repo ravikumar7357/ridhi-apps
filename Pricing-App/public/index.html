@@ -1629,11 +1629,10 @@
       <button id="tabKw" class="nav">Keywords</button>
     </div></div>
 
-    <div class="navwrap"><button class="navgrp" id="grpSales" type="button" aria-controls="secSales" data-grp="sales" data-tabs="sales,yoy,profit,sa,plaudit,shop,adj,ba">
+    <div class="navwrap"><button class="navgrp" id="grpSales" type="button" aria-controls="secSales" data-grp="sales" data-tabs="sales,profit,sa,plaudit,shop,adj,ba">
       <span class="caret">&#9656;</span> Sales</button>
     <div class="navsec" id="secSales">
       <button id="tabSales" class="nav">Sales Dashboard</button>
-      <button id="tabYoy" class="nav">Live vs Last Year</button>
       <button id="tabProfit" class="nav">Profit &amp; Margin</button>
       <button id="tabSa" class="nav">Sales Analysis</button>
       <button id="tabPlaudit" class="nav">Parent Listing Review</button>
@@ -1658,12 +1657,13 @@
       <button id="tabBsr" class="nav">BSR Audit</button>
     </div></div>
 
-    <div class="navwrap"><button class="navgrp" id="grpAds" type="button" aria-controls="secAds" data-grp="ads" data-tabs="trends,weekly,ppcn,st,plc,deals">
+    <div class="navwrap"><button class="navgrp" id="grpAds" type="button" aria-controls="secAds" data-grp="ads" data-tabs="trends,weekly,ppcn,yoy,st,plc,deals">
       <span class="caret">&#9656;</span> Advertising</button>
     <div class="navsec" id="secAds">
       <button id="tabTrends" class="nav">Ad Console</button>
       <button id="tabWeekly" class="nav">PPC &amp; Organic</button>
       <button id="tabPpcn" class="nav">PPC &amp; Organic · New <span class="navtag">TEST</span></button>
+      <button id="tabYoy" class="nav">Live vs Last Year</button>
       <button id="tabSt" class="nav">Search Terms</button>
       <button id="tabPlc" class="nav">Placement</button>
       <button id="tabDeals" class="nav">Deal Calendar</button>
@@ -2594,7 +2594,7 @@
 
   <!-- ============ Live vs Last Year (sales/live-yoy.js) ============
        The Prime Day tracker made general: any day, by the hour, against the matching day last year — live from
-       Amazon's Sales API through the backend (Pricing-API/SalesLive.gs). Comes with Sales Dashboard (TAB_INHERIT). -->
+       Amazon's Sales API through the backend (Pricing-API/SalesLive.gs). In the Advertising menu; comes with PPC & Organic or Sales Dashboard (TAB_INHERIT). -->
   <div id="paneYoy" class="hide">
     <div class="toolbar sa-gap-12 sa-sd-head">
       <span id="yoyMsg" class="muted"></span>
@@ -4204,8 +4204,9 @@ async function loadMyPerms(user) {
 // Build the menu from ME: show the granted tab buttons, trim the ad brand pickers, drop menu groups with
 // nothing left in them, and open the first tab allowed — or the "no access" notice when there is none.
 function applyPerms() {
-  // May this account open tab t? An admin may; so may anyone granted it, or granted the tab it comes with.
-  const allowed = t => ME.admin || ME.tabs.includes(t) || (!!TAB_INHERIT[t] && ME.tabs.includes(TAB_INHERIT[t]));
+  // May this account open tab t? An admin may; so may anyone granted it, or granted the tab it comes with
+  // (TAB_INHERIT names one tab, or a list of tabs any one of which brings it).
+  const allowed = t => ME.admin || ME.tabs.includes(t) || [].concat(TAB_INHERIT[t] || []).some(p => ME.tabs.includes(p));
   // --- tab buttons ---
   TABS.forEach(t => {
     const hide = HIDDEN_TABS.includes(t) || !allowed(t);
@@ -6320,7 +6321,9 @@ HIDDEN_TABS.forEach(t => $('tab' + capId(t)).classList.add('hide'));
 // Tabs nobody is granted on their own: they come with another tab. PPC & Organic · New reads exactly
 // the documents PPC & Organic reads, and the Firestore rules gate those on `weekly` — so granting the
 // new tab by itself would only ever open an empty screen. Kept out of the Access form for that reason.
-const TAB_INHERIT = { ppcn: 'weekly', yoy: 'sales' };   // Live vs Last Year comes with Sales Dashboard
+// A list means any one of those tabs brings it. Live vs Last Year (Ravi, 19 Nov: "everyone with PPC access gets it"):
+// with PPC & Organic, and still with Sales Dashboard, so nobody who had it loses it.
+const TAB_INHERIT = { ppcn: 'weekly', yoy: ['weekly', 'sales'] };
 
 /* ---------- sidebar: collapsible groups + the 3-line menu button ---------- */
 // Read straight off the markup, so adding a group is an HTML edit and nothing here changes.
@@ -13157,7 +13160,7 @@ function ensureCarousel() {
 
 /* ============================== FILE: src/app/sales/live-yoy.js ============================== */
 /* ================= SALES · LIVE VS LAST YEAR: a day by the hour against the matching day last year, live from Amazon =================
- * Screens: Live vs Last Year (ensureYoy runs when the tab opens — core/nav.js). Comes with Sales Dashboard (TAB_INHERIT).
+ * Screens: Live vs Last Year (ensureYoy runs when the tab opens — core/nav.js). In the Advertising menu; comes with PPC & Organic or Sales Dashboard (TAB_INHERIT).
  * Does: the Prime Day tracker (public/prime.html) made general — for any day, not only the sale. Asks the backend
  * (?live=yoy → Pricing-API/SalesLive.gs → Amazon's Sales API getOrderMetrics) for each brand: the day by hour so far, the
  * matching day last year by hour (same weekday = 364 days back, or the same date) and the same day last week by hour; and
