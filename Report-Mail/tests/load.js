@@ -4,7 +4,7 @@ const path = require('path');
 const vm = require('vm');
 
 /** Every script file, in the order Apps Script would join them. */
-const RM_FILES = ['Rules.gs', 'Mail.gs', 'Pdf.gs', 'Printers.gs', 'Main.gs'];
+const RM_FILES = ['Rules.gs', 'Mail.gs', 'Pdf.gs', 'Printers.gs', 'Rejects.gs', 'Main.gs'];
 /** fakes: stand-ins for Apps Script services (UrlFetchApp, Utilities …) so the reading code runs without Google. */
 function loadReportMail(files, fakes) {
   const ctx = vm.createContext(Object.assign({ console }, fakes || {}));

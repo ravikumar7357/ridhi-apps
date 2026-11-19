@@ -17,6 +17,7 @@ The rules are written at the top of `Rules.gs`. Ravi agreed them on 17 Nov 2026.
 | `Mail.gs` | the mail: plain lines, one count per heading, notes, links to the PDFs |
 | `Pdf.gs` | the PDF layout (Ravi's order-sheet columns) |
 | `Printers.gs` | the printer late alert: which lines are red for more than 2 days, and its mail |
+| `Rejects.gs` | the goods-rejected-on-receive mail: which rejects are new, its mail, the "mailed" stamp |
 | `Main.gs` | reads the ERP and Shopify, saves the PDFs, sends the mail, sets the timers |
 | `appsscript.json` | India time zone and the Google permissions it asks for |
 | `tests/report-mail-test.js` | the tests: `node Report-Mail/tests/report-mail-test.js` |
@@ -26,7 +27,7 @@ The rules are written at the top of `Rules.gs`. Ravi agreed them on 17 Nov 2026.
 
 1. Go to <https://script.google.com> → **New project**. Name it `Fabricrush report mail`.
 2. **Project Settings** (gear icon) → tick **Show "appsscript.json"**.
-3. In the editor, paste each file's contents: `appsscript.json`, then **+ → Script** for `Rules`, `Mail`, `Pdf`, `Printers` and `Main`. Delete the empty `Code.gs`.
+3. In the editor, paste each file's contents: `appsscript.json`, then **+ → Script** for `Rules`, `Mail`, `Pdf`, `Printers`, `Rejects` and `Main`. Delete the empty `Code.gs`.
 4. **Project Settings → Script properties**: nothing to add for Shopify. The script reads the Pricing script's address and key from Firestore `config/api`, where the ERP's Reports tab reads them, so nobody types a key.
    - `REPORT_TO`: leave it **blank** for now, so only you get it. Later: addresses separated by commas.
 5. Pick `sendErpReport` in the top bar → **Run**. Allow the permissions it asks for:
@@ -47,9 +48,18 @@ Every **Tuesday and Friday** at about **10 am India time**, the script sends **o
 - **To switch it on:** pick `installPrinterAlertTimer` → **Run** once. It also removes any older (daily) timer.
 - **To stop it:** **Triggers** → delete the `sendPrinterAlerts` trigger.
 
+## Goods rejected on receive (every 15 minutes)
+
+When the challan person rejects printed goods on the Printer's view, the ERP puts the reject on the admins' bell and in `pt_recvRejects`. Every **15 minutes** the script sends **one mail** listing the rejects that are still pending and were never mailed: printer, order, SKU, item, fabric, how much, reason, note, who rejected and when. Then it stamps each one `mailedAt`, so no reject is mailed twice. Nothing new = no mail. A reject already marked seen on the bell is not mailed.
+
+- **Who gets it:** the people in `REJECT_ALERT_TO` (Script properties, comma separated). While it is blank, only the account that runs the script (Ravi) gets it.
+- **To try it:** pick `sendRejectAlerts` → **Run**.
+- **To switch it on:** pick `installRejectAlertTimer` → **Run** once.
+- **To stop it:** **Triggers** → delete the `sendRejectAlerts` trigger. The `mailedAt` stamps already written stay; the ERP does not read them.
+
 ## How to stop it
 
-Open the script → **Triggers** (clock icon) → delete the two `sendErpReport` triggers. Nothing else changes, because the script only reads the ERP. The PDFs already made stay in the Drive folder until you delete them.
+Open the script → **Triggers** (clock icon) → delete the two `sendErpReport` triggers. Nothing else changes, because the report only reads the ERP (the one write in this script is the reject mail's `mailedAt` stamp). The PDFs already made stay in the Drive folder until you delete them.
 
 ## Known limits
 

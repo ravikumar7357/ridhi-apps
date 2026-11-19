@@ -12,7 +12,8 @@
  *
  * Error strategy: the database is the report — if it cannot be read, nothing half-made is sent; instead a short mail
  * to the account owner says the report failed and why. Shopify, Drive and the photos are extras: if they fail the
- * report still goes, and the mail says in red what is missing. Nothing here writes to the database.
+ * report still goes, and the mail says in red what is missing. The report writes nothing to the database (the only
+ * write in this script is the reject mail's "mailed" stamp, Rejects.gs).
  */
 const RM_DB_URL = 'https://price-research-48ff3-default-rtdb.asia-southeast1.firebasedatabase.app';
 const RM_FIRESTORE = 'https://firestore.googleapis.com/v1/projects/price-research-48ff3/databases/(default)/documents/';
@@ -163,6 +164,13 @@ function rmReadDatabase_() {
   const keys = Object.keys(RM_NODES), vals = rmReadNodes_(keys.map(k => RM_NODES[k])), out = {};
   keys.forEach((k, i) => { out[k] = vals[i]; });
   return out;
+}
+/** One update of several fields under a database path, in one write (all or nothing). Throws, naming the path, when refused. */
+function rmPatchNode_(path, updates) {
+  const req = { url: RM_DB_URL + '/' + path + '.json', method: 'patch', contentType: 'application/json', payload: JSON.stringify(updates),
+    headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }, muteHttpExceptions: true };
+  const res = rmFetchAllWithRetry_([req])[0];
+  if (res.getResponseCode() !== 200) throw new Error(path + ' refused the update, answered ' + res.getResponseCode() + ': ' + res.getContentText().slice(0, 200));
 }
 /** Database paths read in one go, in the order asked ({} for an empty one). Throws, naming the path, when one fails. */
 function rmReadNodes_(paths) {

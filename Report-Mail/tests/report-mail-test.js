@@ -586,5 +586,109 @@ test('the printer notice timer is Tuesday and Friday at 10 am only, and the old 
   assert.ok(removed.length === 1 && removed[0] === oldDaily, 'only the printer timer is removed, not the report timer');
 });
 
+console.log('goods rejected on receive');
+/* A reject as the Printer's view writes it (vendors/portal/printer-receive.js vprReject). */
+const reject = extra => Object.assign({ status: 'pending', code: 'V07', printer: 'Shree Prints', orderNo: 'PO-101', voId: 'vo1', lineId: 'l1', sku: 'TC-AZURE-60',
+  item: 'Tablecloth', fabric: 'Cotton 60x60', qty: 12, unit: 'pcs', reason: 'Colour wrong', note: '', at: '2026-11-19T08:35:00.000Z', by: 'challan@ridhihome.com' }, extra || {});
+/* The script with a fake database, mail box and lock; the stamp changes the fake database the way Firebase applies it. */
+const rejectRun = (dbRejects, opts) => {
+  const o = opts || {}, sent = [], patches = [], data = { rejects: JSON.parse(JSON.stringify(dbRejects)) };
+  const svc = loadReportMail(undefined, {
+    console: { log() {}, warn() {}, error() {} },
+    UrlFetchApp: { fetchAll: reqs => reqs.map(r => {
+      if (r.method !== 'patch') return o.readRefused ? reply(401, 'Permission denied') : reply(200, data.rejects);
+      patches.push({ url: r.url, body: JSON.parse(r.payload) });
+      if (o.stampRefused) return reply(401, 'Permission denied');
+      Object.entries(JSON.parse(r.payload)).forEach(([k, v]) => { const [id, f] = k.split('/'); data.rejects[id][f] = v; });
+      return reply(200, {});
+    }) },
+    Utilities: { sleep: () => {} },
+    ScriptApp: { getOAuthToken: () => 'token' },
+    MailApp: { sendEmail: m => sent.push(m) },
+    LockService: { getScriptLock: () => ({ tryLock: () => !o.busy, releaseLock() {} }) },
+    PropertiesService: { getScriptProperties: () => ({ getProperty: k => (o.props || {})[k] || null }) },
+    Session: { getEffectiveUser: () => ({ getEmail: () => 'ravi@x.com' }) },
+  });
+  return { svc, sent, patches, data };
+};
+test('only rejects still pending and never mailed go out, oldest first', () => {
+  const list = rm.rjToMail({ a: reject({ at: '2026-11-19T09:00:00Z' }), b: reject({ status: 'seen' }), c: reject({ mailedAt: '2026-11-19T08:40:00Z' }),
+    d: reject({ at: '2026-11-19T07:00:00Z' }), e: null });
+  eq(list.map(r => r.id), ['d', 'a']);
+  eq(rm.rjToMail(null), []);
+});
+test('one mail per run for all new rejects, to Ravi when REJECT_ALERT_TO is blank, then each is stamped mailed in one write', () => {
+  const run = rejectRun({ a: reject(), b: reject({ code: 'V09', printer: 'Om Textiles', orderNo: 'PO-202', qty: 30.5, unit: 'm' }), c: reject({ status: 'seen' }) });
+  run.svc.sendRejectAlerts();
+  eq(run.sent.length, 1);
+  eq(run.sent[0].to, 'ravi@x.com');
+  assert.ok(/2 rejects · 2 printers/.test(run.sent[0].subject), run.sent[0].subject);
+  eq(run.patches.length, 1, 'the stamp is one update');
+  assert.ok(/\/pt_recvRejects\.json$/.test(run.patches[0].url), run.patches[0].url);
+  eq(Object.keys(run.patches[0].body).sort(), ['a/mailedAt', 'b/mailedAt'], 'the seen reject is not stamped');
+  assert.ok(!isNaN(Date.parse(run.patches[0].body['a/mailedAt'])), 'the stamp is a time');
+  eq(run.data.rejects.c.mailedAt, undefined);
+});
+test('nothing is mailed twice: the next run after the stamp sends nothing', () => {
+  const run = rejectRun({ a: reject() });
+  run.svc.sendRejectAlerts();
+  run.svc.sendRejectAlerts();
+  eq([run.sent.length, run.patches.length], [1, 1]);
+});
+test('nothing new sends no mail and writes nothing', () => {
+  [{}, { a: reject({ status: 'seen' }) }, { a: reject({ mailedAt: '2026-11-19T08:40:00Z' }) }].forEach(db => {
+    const run = rejectRun(db);
+    run.svc.sendRejectAlerts();
+    eq([run.sent.length, run.patches.length], [0, 0], JSON.stringify(db));
+  });
+});
+test('the people on REJECT_ALERT_TO get it when it is filled', () => {
+  const run = rejectRun({ a: reject() }, { props: { REJECT_ALERT_TO: 'a@ridhihome.com,b@ridhihome.com', REPORT_TO: 'everyone@ridhihome.com' } });
+  run.svc.sendRejectAlerts();
+  eq(run.sent[0].to, 'a@ridhihome.com,b@ridhihome.com');
+});
+test('a refused read sends nothing and fails loudly, naming the node', () => {
+  const run = rejectRun({ a: reject() }, { readRefused: true });
+  assert.throws(() => run.svc.sendRejectAlerts(), /pt_recvRejects answered 401/);
+  eq(run.sent.length, 0);
+});
+test('a refused stamp fails loudly after the mail, so the next run mails it again rather than lose it', () => {
+  const run = rejectRun({ a: reject() }, { stampRefused: true });
+  assert.throws(() => run.svc.sendRejectAlerts(), /pt_recvRejects refused the update, answered 401/);
+  eq(run.sent.length, 1);
+  eq(rm.rjToMail(run.data.rejects).length, 1, 'still unmailed');
+});
+test('while the previous run still holds the lock, this run reads and sends nothing', () => {
+  const run = rejectRun({ a: reject() }, { busy: true });
+  run.svc.sendRejectAlerts();
+  eq([run.sent.length, run.patches.length], [0, 0]);
+});
+test('the mail names printer, order, SKU, item, fabric, how much, reason, note, who and when (India time)', () => {
+  const h = rm.rjMailHtml(rm.rjToMail({ a: reject({ note: 'Smudged <border>', at: '2026-11-19T08:35:00.000Z' }) }));
+  ['Shree Prints', 'V07', 'PO-101', 'TC-AZURE-60', 'Tablecloth', 'Cotton 60x60', '12 pcs', 'Colour wrong', 'Smudged &lt;border&gt;', 'challan@ridhihome.com', '19/11/2026 2:05 pm']
+    .forEach(t => assert.ok(h.includes(t), 'missing ' + t));
+  assert.ok(!h.includes('<border>'), 'a typed note never becomes page code');
+  assert.ok(h.includes('#vend?printer=V07'), "the printer's name opens its view in the ERP");
+});
+test('pieces and metres are totalled apart, never added', () => {
+  eq(rm.rjTotals([reject({ qty: 12 }), reject({ qty: 3 }), reject({ qty: 10.25, unit: 'm' }), reject({ qty: '2.5', unit: 'm' })]), { pcs: 15, m: 12.75 });
+  assert.ok(rm.rjMailHtml(rm.rjToMail({ a: reject({ qty: 4 }), b: reject({ qty: 2, unit: 'm' }) })).includes('4 pcs + 2 m'));
+});
+test('times just after midnight and at noon India time read right; no date shows nothing', () => {
+  eq(rm.rjWhen('2026-11-18T18:40:00Z'), '19/11/2026 12:10 am');
+  eq(rm.rjWhen('2026-11-19T06:30:00Z'), '19/11/2026 12:00 pm');
+  eq(rm.rjWhen(''), '');
+});
+test('the reject timer runs every 15 minutes, replacing only its own old timer', () => {
+  const made = [], removed = [];
+  const builder = { timeBased() { return this; }, everyMinutes(n) { this.n = n; return this; }, create() { made.push(this.n); } };
+  const old = { getHandlerFunction: () => 'sendRejectAlerts' }, report = { getHandlerFunction: () => 'sendErpReport' };
+  const ScriptApp = { getProjectTriggers: () => [old, report], deleteTrigger: t => removed.push(t), newTrigger: h => { builder.h = h; return builder; } };
+  const m = loadReportMail(null, { ScriptApp, console: { log() {} } });
+  m.installRejectAlertTimer();
+  eq([made, builder.h], [[15], 'sendRejectAlerts']);
+  assert.ok(removed.length === 1 && removed[0] === old, 'the report timer stays');
+});
+
 console.log(failed ? `\n${failed} FAILED` : '\nall passed');
 process.exit(failed ? 1 : 0);
