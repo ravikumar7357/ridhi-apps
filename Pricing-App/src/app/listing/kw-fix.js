@@ -265,7 +265,7 @@ function kfRowHtml(run, p) {
   if (!p.ok) {
     return `<div class="sp-m-row sq-row kf-row is-held${hide}" data-kf-find="${find}"><b>${kfEsc(p.label || p.sku)}</b><small>${kfEsc(p.sku)}</small>`
       + `<div class="sq-st">⚠ Not fixed here: ${kfEsc(p.why)}</div>`
-      + (typeof aiBtnHtml === 'function' && !/^already within/.test(p.why) ? aiBtnHtml('kw', p.brand, p.sku, { use: 'kf', key: p.key, label: 'AI version' }) : '') + '</div>';
+      + (typeof aiOn === 'function' && aiOn() && !/^already within/.test(p.why) ? aiBtnHtml('kw', p.brand, p.sku, { use: 'kf', key: p.key, label: 'AI version' }) : '') + '</div>';
   }
   const text = kfText(run, p);
   const chk = lrKwCheck(text, p.max);
@@ -275,7 +275,7 @@ function kfRowHtml(run, p) {
     + `<div class="kf-body"><div class="kf-top"><b>${kfEsc(p.sku)}</b><small>${kfEsc(p.label && p.label !== p.sku ? p.label : '')}</small>`
     + `<span class="kf-bytes"><span class="${p.b0 > p.max ? 'err' : ''}">${kfNf(p.b0)}</span> → <span class="${chk.over ? 'err' : 'ok'}" data-kf-n="${kfEsc(p.key)}">${kfNf(chk.bytes)}</span> bytes</span></div>`
     + `<div class="kf-text">${kfDiffHtml(p)}</div>`
-    + (typeof aiBtnHtml === 'function' ? `<div class="ai-rowb">${aiBtnHtml('kw', p.brand, p.sku, { use: 'kf', key: p.key, label: 'AI version' })}</div>` : '')
+    + (typeof aiOn === 'function' && aiOn() ? `<div class="ai-rowb">${aiBtnHtml('kw', p.brand, p.sku, { use: 'kf', key: p.key, label: 'AI version' })}</div>` : '')
     + `<details class="kf-ed"${run.edit.has(p.key) ? ' open' : ''}><summary>Edit the new text</summary><textarea data-kf-edit="${kfEsc(p.key)}" rows="3" spellcheck="false">${kfEsc(text)}</textarea></details></div></div>`;
 }
 function kfDraw() {

@@ -55,7 +55,9 @@ function cacheOf(kids, at) {
 }
 
 /* ----- THE MOCKED BACKEND: GET ?ai=ask (every other GET is the Sellora backend's usual answers) ----- */
-const AIR = { mode: 'on', calls: [], answer: {} };
+const AIR = { mode: 'on', calls: [], answer: {}, status: 'ready', statusCalls: [] };
+// a browser session's storage (the status answer is kept in it for the session)
+const sessionOf = () => { const m = {}; return { getItem: k => (k in m ? m[k] : null), setItem: (k, v) => { m[k] = String(v); }, m }; };
 const RESULT = {
   title: () => ({ title: GOOD('18 x 18', 'Blue') }),
   bullets: () => ({ bullets: B5.slice() }),
@@ -70,6 +72,12 @@ const RESULT = {
 const aiFetch = async url => {
   const q = Object.fromEntries(new URL(String(url)).searchParams.entries());
   if (q.ai !== 'ask') return { text: async () => JSON.stringify({ ok: false, error: 'not mocked' }) };
+  // the one status call (no Claude): set up or not, as AIR.status says ('ready' | 'nokey' | 'old' = a backend without the route)
+  if (q.task === 'status') {
+    AIR.statusCalls.push(q);
+    const st = AIR.status === 'old' ? { ok: false, error: 'No ASIN found in "".' } : { ok: true, ready: AIR.status === 'ready', monthUsd: 3.2, limitUsd: 80 };
+    return { text: async () => JSON.stringify(st) };
+  }
   AIR.calls.push(q);
   let reply;
   if (AIR.mode === 'off') reply = { ok: false, reason: 'AI not set up yet' };
@@ -82,7 +90,8 @@ const aiFetch = async url => {
   return { text: async () => JSON.stringify(reply) };
 };
 
-async function setup() {
+async function setup(opts) {
+  opts = opts || {};
   const kids = KIDS.map(k => Object.assign({}, k));
   const store = {};
   const saved = [];
@@ -107,11 +116,12 @@ async function setup() {
     }
     return {};
   };
-  C = load({ lm: true, ws: true, sp: true, fa: true, lh: true, le: true, ai: true, baCall,
+  C = load({ lm: true, ws: true, sp: true, fa: true, lh: true, le: true, ai: opts.ai !== false, baCall,
     getDoc: async ref => { const d = store[ref.path]; return { exists: () => !!d, data: () => JSON.parse(JSON.stringify(d)) }; },
     setDoc: async (ref, data) => { saved.push({ path: ref.path, data: JSON.parse(JSON.stringify(data)) }); store[ref.path] = Object.assign({}, store[ref.path] || {}, data); },
     ctx: { imOnly() {}, imListRender() {}, ME: { email: 'vishesh.g@example.com' }, parentName: (b, asin, fallback) => fallback,
-      fetch: aiFetch, API: { url: 'https://backend.test/exec', key: 'read-key' } } });
+      fetch: aiFetch, API: { url: 'https://backend.test/exec', key: 'read-key' }, sessionStorage: opts.session || sessionOf() } });
+  if (C.aiStatusCheck) await C.aiStatusCheck();
   C.asked = [];
   C.setHealthLoaded(true);
   C.LI_WS.stored = true;
@@ -186,44 +196,81 @@ const patches = (C, apply) => C.calls.filter(c => c.lfix === 'patch' && c.apply 
     ok('the backend: ListingAI.gs answers ?ai=ask with a whitelist of the 9 tasks; Code.gs has the one route line', /function aiAsk_\(p\)/.test(gs) && ['title', 'bullets', 'description', 'kw', 'season', 'aplus_text', 'ip_rewrite', 'error_explain', 'image_check'].every(t => new RegExp(`\\b${t}:\\s+\\{ fast:`).test(gs))
       && (code.match(/aiAsk_\(/g) || []).length === 1 && /if \(p\.ai === 'ask'\) return json_\(aiAsk_\(p\)\);/.test(code));
     ok('…the key is read from Script Properties, sent only as x-api-key, never returned or logged', /'x-api-key': prop_\('CLAUDE_API_KEY'\)/.test(gs) && !/Logger\.log\([^)]*prop_\('CLAUDE_API_KEY'\)\)/.test(gs) && !/key:\s*prop_\('CLAUDE_API_KEY'\)/.test(gs));
+    ok('…a status call that never reaches Claude; the brand set by aiAsk_ itself (setBrand_) before any brand read; the fallback OFF unless AI_FALLBACK = 1',
+      /if \(task === 'status'\) \{[^\n]*ready: !!prop_\('CLAUDE_API_KEY'\)/.test(gs) && gs.indexOf('setBrand_(brand);') > 0 && gs.indexOf('setBrand_(brand);') < gs.indexOf('aiFacts_(task, brand') && /prop_\('AI_FALLBACK'\) === '1'/.test(gs));
+    const G = new Function(gs + '\n;return { aiCost_ };')();
+    const u = { input_tokens: 1e6, output_tokens: 1e6 };
+    ok('…cost at the price of the model Anthropic RETURNED: Sonnet 5.5 $12, Haiku 5.5 $0.60, Opus 5.5 $24, an unknown model at the dearest $30',
+      Math.round(G.aiCost_('claude-sonnet-5-5', u)) === 12 && Math.abs(G.aiCost_('claude-haiku-5-5', u) - 0.6) < 1e-9 && Math.round(G.aiCost_('claude-opus-5-5', u)) === 24 && Math.round(G.aiCost_('claude-x', u)) === 30);
+    ok('…a fallback\'s steps each at their own model\'s price (Sonnet 5.5 step + Opus 4.8 step = $12 + $30)',
+      Math.round(G.aiCost_('claude-sonnet-5-5', { input_tokens: 2e6, output_tokens: 2e6, iterations: [{ model: 'claude-sonnet-5-5', input_tokens: 1e6, output_tokens: 1e6 }, { model: 'claude-opus-4-8', input_tokens: 1e6, output_tokens: 1e6 }] })) === 42);
     ok('…listing text never comes from the address (only rule words: words, avoid, tpl, season, word, code, field, max, hlmax)', !/(^|[^\w.])p\.(title|bullets|description|kw|text|desc)\b/.test(gs), (gs.match(/(^|[^\w.])p\.(title|bullets|description|kw|text|desc)\b/g) || []).join());
+  }
+
+  // the pages a person sees: IP & Trademark Guard (families open), a Season planner child panel, the Fix all titles popup
+  const draw = async X => {
+    await X.ipgOpen();
+    await wait(() => X.IPG.loaded && X.IPG.okLoaded);
+    X.IPG.open = new Set(X.ipgGroups(X.ipgBuild()).map(x => x.f.fk));
+    X.ipgDraw();
+    const ipg = X.el('ipgBody').innerHTML;
+    const item = X.spCompute(new Date(2026, 11, 10)).find(i => i.sku === 'NP-1' && i.active && i.active.length);
+    const kid = item ? X.spKidHtml(item, null) : 'no season on';
+    X.ttStartList('SP', ['NP-1', 'NP-3'], { title: 'test' });
+    await wait(() => X.TT.run && X.TT.run.plans.length && !X.TT.run.total);
+    const tt = X.el('spModalBox').innerHTML;
+    X.ttClose();
+    return { ipg, kid, tt };
+  };
+
+  console.log('== AI not set up: no ✨ button anywhere — every page exactly as before ==');
+  {
+    AIR.status = 'nokey';
+    const n0 = AIR.statusCalls.length;
+    const T0 = await setup();
+    const C0 = T0.C;
+    ok('one status call when the page loads (no Claude call) → not set up', AIR.statusCalls.length === n0 + 1 && C0.AI.ready === false && AIR.calls.length === 0, AIR.statusCalls.length - n0);
+    ok('…aiBtnHtml and the Optimiser card draw nothing', C0.aiBtnHtml('title', 'SP', 'NP-1', { use: 'send' }) === '' && C0.aiOptCardHtml('SP', 'NP-1') === '');
+    const off = await draw(C0);
+    const plain = await draw((await setup({ ai: false })).C);
+    ok('IP & Trademark Guard, the Season planner child panel and the Fix all titles popup are EXACTLY what they were without the AI file',
+      off.ipg === plain.ipg && off.kid === plain.kid && off.tt === plain.tt && !/data-ai|ai-row|sp-ai/.test(off.ipg + off.kid + off.tt),
+      [off.ipg === plain.ipg, off.kid === plain.kid, off.tt === plain.tt].join());
+    C0.el('leBrand').value = 'SP';
+    C0.setLE({ sku: 'NP-1', asin: A('NP-1'), productType: 'NAPKIN', title: GOOD('18 x 18', 'Blue'), issues: [], attributes: { item_name: [{ value: GOOD('18 x 18', 'Blue'), language_tag: 'en_US' }] } }, {});
+    ok('…and Listing Content has no ✨ button and no AI mark at all', !/data-ai/.test(C0.lcSectionHtml()));
+    AIR.status = 'old';
+    const T1 = await setup();
+    ok('a backend without the route (the old answer "No ASIN found") → not set up, no buttons', T1.C.AI.ready === false && T1.C.aiBtnHtml('kw', 'SP', 'NP-1', {}) === '');
+    AIR.status = 'ready';
+    const ses = sessionOf();
+    const n1 = AIR.statusCalls.length;
+    const T2 = await setup({ session: ses });
+    const T3 = await setup({ session: ses });
+    ok('set up → the buttons are drawn; the answer is kept for the session: a second page load makes no status call', T2.C.AI.ready === true && T3.C.AI.ready === true && AIR.statusCalls.length === n1 + 1
+      && /data-ai="title"/.test(T3.C.aiBtnHtml('title', 'SP', 'NP-1', {})), AIR.statusCalls.length - n1);
   }
 
   const T = await setup();
   const C = T.C;
 
-  console.log('== nothing runs when a page opens ==');
+  console.log('== nothing runs when a page opens (set up) ==');
   {
-    await C.ipgOpen();
-    await wait(() => C.IPG.loaded && C.IPG.okLoaded);
-    const ipg = C.ipgFindsHtml(C.ipgBuild().rows.find(p => (p.c.skus || [p.c.sku]).includes('NP-3')));
-    const items = C.spCompute(new Date(2026, 11, 10));
-    const item = items.find(i => i.sku === 'NP-1' && i.active && i.active.length);
-    const kid = item ? C.spKidHtml(item, null) : 'no season on: ' + items.map(i => i.sku + ':' + (i.active || []).length).join(' ');
-    C.ttStartList('SP', ['NP-1', 'NP-3'], { title: 'test' });
-    await wait(() => C.TT.run && C.TT.run.plans.length && !C.TT.run.total);
-    const tt = C.el('spModalBox').innerHTML;
-    ok('the pages draw their ✨ buttons (IP & Trademark Guard, Season planner child panel, Fix all titles rows)', /data-ai="ip_rewrite"/.test(ipg) && /data-ai="season"/.test(kid) && /data-ai="title"/.test(tt), [/data-ai="ip_rewrite"/.test(ipg), /data-ai="season"/.test(kid), /data-ai="title"/.test(tt)].join());
+    const on = await draw(C);
+    ok('the pages draw their ✨ buttons (IP & Trademark Guard, Season planner child panel, Fix all titles rows)', /data-ai="ip_rewrite"/.test(on.ipg) && /data-ai="season"/.test(on.kid) && /data-ai="title"/.test(on.tt), [/data-ai="ip_rewrite"/.test(on.ipg), /data-ai="season"/.test(on.kid), /data-ai="title"/.test(on.tt)].join());
+    ok('…the Season planner offers ONLY Item Highlights (seasons never go into titles)', /AI [^<]+ Item Highlights/.test(on.kid) && !/ title<\/button>|&quot;field&quot;:&quot;title&quot;/.test(on.kid), strip(on.kid).slice(0, 300));
     ok('…and no AI call was made by opening or drawing them', AIR.calls.length === 0 && C.AI.calls === 0, AIR.calls.length);
-    C.ttClose();
   }
 
-  console.log('== not set up yet / the monthly limit: a calm grey line, then no more calls ==');
+  console.log('== a click that finds AI gone / the monthly limit: a calm grey line ==');
   {
     AIR.mode = 'old';
-    let P = page();
-    let r = await press(C, P, C.aiBtnHtml('title', 'SP', 'NP-1', { use: 'send' }));
-    ok('a backend without the route ("No ASIN found") → "AI not set up yet", grey', !r.reply.ok && /AI not set up yet/.test(r.card) && /ai-quiet"/.test(r.card) && !/is-bad/.test(r.card), r.card);
-    AIR.mode = 'off';
+    let r = await press(C, page(), C.aiBtnHtml('title', 'SP', 'NP-1', { use: 'send' }));
+    ok('the route gone after the page loaded ("No ASIN found") → "AI not set up yet", grey — and the buttons go away', !r.reply.ok && /AI not set up yet/.test(r.card) && /ai-quiet"/.test(r.card) && !/is-bad/.test(r.card)
+      && C.AI.ready === false && C.aiBtnHtml('kw', 'SP', 'NP-1', {}) === '', r.card);
+    C.AI.ready = true;
     C.AI.off = false;
-    P = page();
-    r = await press(C, P, C.aiBtnHtml('title', 'SP', 'NP-1', { use: 'send' }));
-    const n = AIR.calls.length;
-    ok('no key on the backend → "AI not set up yet" in grey, nothing else', /AI not set up yet — the buttons start working once the backend has the key/.test(strip(r.card)) && C.AI.off, r.card);
-    r = await press(C, page(), C.aiBtnHtml('bullets', 'SP', 'NP-1', { use: 'send' }));
-    ok('…the next press makes no call (the same grey line), and the buttons are drawn dimmed', AIR.calls.length === n && /AI not set up yet/.test(r.card) && /ai-btn is-off/.test(C.aiBtnHtml('kw', 'SP', 'NP-1', {})));
     AIR.mode = 'limit';
-    C.AI.off = false;
     r = await press(C, page(), C.aiBtnHtml('title', 'SP', 'NP-1', { use: 'send' }));
     ok('the month\'s limit → "Monthly AI limit reached", grey, and "AI used this month: $80.02 of $80"', /Monthly AI limit reached — the buttons work again next month/.test(strip(r.card)) && /AI used this month: \$80\.02 of \$80/.test(strip(r.card)), strip(r.card));
     AIR.mode = 'on';

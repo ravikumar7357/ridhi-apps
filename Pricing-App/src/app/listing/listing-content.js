@@ -243,7 +243,7 @@ function lcSectionHtml() {
   const nBoxes = Math.min(10, Math.max(5, bullets.length) + LC_EXTRA);
   return `<div class="card" style="padding:10px 14px;margin-bottom:10px">
     <div style="font-weight:600;font-size:13px;margin-bottom:6px">Content <span class="muted" style="font-weight:400;font-size:11.5px">— checked against Listing Rules as you type</span></div>${hint}
-    <div style="margin-bottom:10px" data-ai-block><div style="font-weight:600;font-size:12.5px">Title${ch('item_name')}${typeof aiBtnHtml === 'function' ? ' ' + aiBtnHtml('title', brand, sku, { use: 'lc', place: 'block', label: 'AI title' }) : ''}</div>
+    <div style="margin-bottom:10px"${typeof aiOn === 'function' && aiOn() ? ' data-ai-block' : ''}><div style="font-weight:600;font-size:12.5px">Title${ch('item_name')}${typeof aiOn === 'function' && aiOn() ? ' ' + aiBtnHtml('title', brand, sku, { use: 'lc', place: 'block', label: 'AI title' }) : ''}</div>
       <textarea id="lcTitle" rows="2" style="width:100%">${leEsc(title)}</textarea>
       <div class="muted" style="font-size:11px"><span id="lcTitleN">${title.length}</span> characters</div>
       <div id="lcTitleF">${lcFindHtml(lcCheck('item_name', [title], lcCtx()))}</div>
@@ -253,7 +253,7 @@ function lcSectionHtml() {
             (dropped => dropped.length ? ` <span style="color:var(--act-ink)">— leaves out what the template requires: ${leEsc(dropped.join(', '))}</span>` : '')(lcTemplateFit(brand, sku, 75).dropped)}` : ''}</div>`
         : `<div class="muted" style="font-size:11.5px;margin-top:4px">No Listing Rules template matches this SKU (its sub-category is not one the templates name, or the SKU is not in the brand catalogue).</div>`}
     </div>
-    <div style="margin-bottom:10px" data-ai-block><div style="font-weight:600;font-size:12.5px">Bullet points${ch('bullet_point')}${typeof aiBtnHtml === 'function' ? ' ' + aiBtnHtml('bullets', brand, sku, { use: 'lc', place: 'block', label: 'AI bullets' }) : ''}</div>
+    <div style="margin-bottom:10px"${typeof aiOn === 'function' && aiOn() ? ' data-ai-block' : ''}><div style="font-weight:600;font-size:12.5px">Bullet points${ch('bullet_point')}${typeof aiOn === 'function' && aiOn() ? ' ' + aiBtnHtml('bullets', brand, sku, { use: 'lc', place: 'block', label: 'AI bullets' }) : ''}</div>
       ${Array.from({ length: nBoxes }, (_, i) => `<div style="display:flex;gap:6px;align-items:flex-start;margin:3px 0">`
         + `<span class="muted" style="font-size:11px;width:18px;padding-top:6px">${i + 1}</span>
         <textarea class="lcBullet" data-i="${i}" rows="2" style="flex:1">${leEsc(bullets[i] || '')}</textarea>
@@ -262,12 +262,12 @@ function lcSectionHtml() {
       <div id="lcBulletsF">${lcFindHtml(lcCheck('bullet_point', bullets))}</div>
       <div class="muted" style="font-size:11px">Listing Rules hold no bullet template, so nothing is written for you here — only checked.</div>
     </div>
-    <div style="margin-bottom:10px" data-ai-block><div style="font-weight:600;font-size:12.5px">Description${ch('product_description')}${typeof aiBtnHtml === 'function' ? ' ' + aiBtnHtml('description', brand, sku, { use: 'lc', place: 'block', label: 'AI description' }) : ''}</div>
+    <div style="margin-bottom:10px"${typeof aiOn === 'function' && aiOn() ? ' data-ai-block' : ''}><div style="font-weight:600;font-size:12.5px">Description${ch('product_description')}${typeof aiOn === 'function' && aiOn() ? ' ' + aiBtnHtml('description', brand, sku, { use: 'lc', place: 'block', label: 'AI description' }) : ''}</div>
       <textarea id="lcDesc" rows="5" style="width:100%">${leEsc(desc)}</textarea>
       <div class="muted" style="font-size:11px"><span id="lcDescN">${desc.length}</span> characters</div>
       <div id="lcDescF">${lcFindHtml(lcCheck('product_description', [desc]))}</div>
     </div>
-    <div data-ai-block><div style="font-weight:600;font-size:12.5px">Search terms (backend keywords)${ch('generic_keyword')}${typeof aiBtnHtml === 'function' ? ' ' + aiBtnHtml('kw', brand, sku, { use: 'lc', place: 'block', label: 'AI search terms' }) : ''}</div>
+    <div${typeof aiOn === 'function' && aiOn() ? ' data-ai-block' : ''}><div style="font-weight:600;font-size:12.5px">Search terms (backend keywords)${ch('generic_keyword')}${typeof aiOn === 'function' && aiOn() ? ' ' + aiBtnHtml('kw', brand, sku, { use: 'lc', place: 'block', label: 'AI search terms' }) : ''}</div>
       <textarea id="lcKw" rows="2" style="width:100%">${leEsc(kw)}</textarea>
       <div class="muted" style="font-size:11px"><span id="lcKwN">${lrKwBytes(kw)}</span> / ${lcKwMax()} bytes of words (spaces and ; , . do not count)
         <button class="ghost im-b" id="lcKwSug" title="Words from the Listing Rules template this title does not carry, then what is there now">Suggest from Listing Rules</button></div>

@@ -21556,10 +21556,10 @@ function spKidHtml(item, g) {
   else if (b === 'fix') main = `<button type="button" class="sp-main" data-sp-act="fixhand" data-sp-key="${lrEsc(item.key)}">Open in Listing Errors</button><span class="sp-reason">${lrEsc(item.why)}</span>`;
   else if (b === 'reading') main = '<button type="button" class="sp-main" disabled>Reading from Amazon…</button>';
   else main = '<button type="button" class="sp-main" data-sp-act="close-kid">Close</button>';
-  // ✨ AI (listing-ai.js): a season's Item Highlights or a season title for each season on now — checked by our rules, sent only on Approve
-  const ai = typeof aiBtnHtml === 'function' && item.active.length ? card('sp-ai', '✨ AI', '<p class="ai-row">' + item.active.map(e => [['hl', 'Item Highlights'], ['title', 'title']].map(([field, what]) =>
-    aiBtnHtml('season', item.brand, item.sku, { use: 'send', field, season: e.ev.name, swords: typeof lrWords === 'function' ? lrWords(e.ev.words) : [e.ev.name], hlmax: (item.hlInfo || {}).max || '',
-      screen: 'Season planner', label: `AI ${e.ev.name} ${what}` })).join(' ')).join(' ') + '</p>') : '';
+  // ✨ AI (listing-ai.js): a season's Item Highlights for each season on now (never a title: seasons never go into titles) — checked by our rules, sent only on Approve
+  const ai = typeof aiOn === 'function' && aiOn() && item.active.length ? card('sp-ai', '✨ AI', '<p class="ai-row">' + item.active.map(e =>
+    aiBtnHtml('season', item.brand, item.sku, { use: 'send', field: 'hl', season: e.ev.name, swords: typeof lrWords === 'function' ? lrWords(e.ev.words) : [e.ev.name], hlmax: (item.hlInfo || {}).max || '',
+      screen: 'Season planner', label: `AI ${e.ev.name} Item Highlights` })).join(' ') + '</p>') : '';
   return head + `<div class="sp-side-b">${lead}${spWhereHtml(item)}${changes}${ai}</div><div class="sp-bar">${main}</div>`;
 }
 // Where one season is on this listing now: Item Highlights ✓ / ✕ and the hidden search words ✓ / ✕ — never the title.
@@ -23649,7 +23649,7 @@ function kfRowHtml(run, p) {
   if (!p.ok) {
     return `<div class="sp-m-row sq-row kf-row is-held${hide}" data-kf-find="${find}"><b>${kfEsc(p.label || p.sku)}</b><small>${kfEsc(p.sku)}</small>`
       + `<div class="sq-st">⚠ Not fixed here: ${kfEsc(p.why)}</div>`
-      + (typeof aiBtnHtml === 'function' && !/^already within/.test(p.why) ? aiBtnHtml('kw', p.brand, p.sku, { use: 'kf', key: p.key, label: 'AI version' }) : '') + '</div>';
+      + (typeof aiOn === 'function' && aiOn() && !/^already within/.test(p.why) ? aiBtnHtml('kw', p.brand, p.sku, { use: 'kf', key: p.key, label: 'AI version' }) : '') + '</div>';
   }
   const text = kfText(run, p);
   const chk = lrKwCheck(text, p.max);
@@ -23659,7 +23659,7 @@ function kfRowHtml(run, p) {
     + `<div class="kf-body"><div class="kf-top"><b>${kfEsc(p.sku)}</b><small>${kfEsc(p.label && p.label !== p.sku ? p.label : '')}</small>`
     + `<span class="kf-bytes"><span class="${p.b0 > p.max ? 'err' : ''}">${kfNf(p.b0)}</span> → <span class="${chk.over ? 'err' : 'ok'}" data-kf-n="${kfEsc(p.key)}">${kfNf(chk.bytes)}</span> bytes</span></div>`
     + `<div class="kf-text">${kfDiffHtml(p)}</div>`
-    + (typeof aiBtnHtml === 'function' ? `<div class="ai-rowb">${aiBtnHtml('kw', p.brand, p.sku, { use: 'kf', key: p.key, label: 'AI version' })}</div>` : '')
+    + (typeof aiOn === 'function' && aiOn() ? `<div class="ai-rowb">${aiBtnHtml('kw', p.brand, p.sku, { use: 'kf', key: p.key, label: 'AI version' })}</div>` : '')
     + `<details class="kf-ed"${run.edit.has(p.key) ? ' open' : ''}><summary>Edit the new text</summary><textarea data-kf-edit="${kfEsc(p.key)}" rows="3" spellcheck="false">${kfEsc(text)}</textarea></details></div></div>`;
 }
 function kfDraw() {
@@ -24539,7 +24539,7 @@ function ttRowHtml(run, p) {
       + `<div class="tt-old">${ttEsc(p.before)}</div>${p.after && p.after !== p.before ? `<div class="tt-new">${ttEsc(p.after)}</div>` : ''}`
       + `<div class="sq-st">⚠ Held back: ${ttEsc(p.why)}</div>`
       + `<button type="button" class="sp-btn sp-small" data-tt="hand" data-tt-sku="${ttEsc(p.sku)}">Edit by hand in Listing Errors</button>`
-      + (typeof aiBtnHtml === 'function' ? ' ' + aiBtnHtml('title', p.brand, p.sku, { use: 'tt', key: p.key, label: 'AI version' }) : '') + '</div>';
+      + (typeof aiOn === 'function' && aiOn() ? ' ' + aiBtnHtml('title', p.brand, p.sku, { use: 'tt', key: p.key, label: 'AI version' }) : '') + '</div>';
   }
   const text = ttText(run, p);
   const chk = ttRunCheck(run, p);
@@ -24553,7 +24553,7 @@ function ttRowHtml(run, p) {
     + `<div class="tt-new"><small>New</small> <span data-tt-new="${ttEsc(p.key)}">${ttMark(text, d.added || [], 'tt-add')}</span></div>`
     + `<div class="tt-fix">Fixes: ${ttEsc(p.fixes.join(' · '))}${ttSrcLine(p) ? ` <span class="muted">· ${ttEsc(ttSrcLine(p))}</span>` : ''}${p.notes.length ? ` <span class="tt-note">· ${ttEsc(p.notes.join(' · '))}</span>` : ''}</div>`
     + `<div class="tt-chk${chk.pass ? '' : ' is-bad'}" data-tt-chk="${ttEsc(p.key)}">${chk.pass ? '✓ Passes every title rule' : '✕ ' + ttEsc(chk.fails.join(' · '))}</div>`
-    + (typeof aiBtnHtml === 'function' ? `<div class="ai-rowb">${aiBtnHtml('title', p.brand, p.sku, { use: 'tt', key: p.key, label: 'AI version' })}</div>` : '')
+    + (typeof aiOn === 'function' && aiOn() ? `<div class="ai-rowb">${aiBtnHtml('title', p.brand, p.sku, { use: 'tt', key: p.key, label: 'AI version' })}</div>` : '')
     + `<details class="kf-ed"${run.edit.has(p.key) ? ' open' : ''}><summary>Edit new title</summary><textarea data-tt-edit="${ttEsc(p.key)}" rows="2" spellcheck="false">${ttEsc(text)}</textarea></details></div></div>`;
 }
 function ttDraw() {
@@ -28576,7 +28576,7 @@ function apcRowHtml(p, flat, rank) {
   const acts = (canMark ? `<button type="button" class="ghost fc-b" data-apc="ok" ${a} title="This product does not need A+: it leaves the errors for good (Undo brings it back)">No A+ needed</button>` : '')
     + (p.bucket === 'none' ? `<button type="button" class="ghost fc-b" data-apc="undo" ${a}>Undo</button>` : '')
     + (p.doc ? `<button type="button" class="ghost fc-b" data-apc="prev" data-apc-v="${fcEsc(pk)}" data-apc-at="${fcEsc(p.key)}" title="Reads this one document from Amazon now and shows what is in it">Preview A+</button>` : '')
-    + ((p.bucket === 'missing' || p.bucket === 'draft') && typeof aiBtnHtml === 'function' ? aiBtnHtml('aplus_text', c.brand, c.sku, { use: 'copy', place: 'row', asin: c.asin || '', label: 'Draft A+ text' }) : '');
+    + ((p.bucket === 'missing' || p.bucket === 'draft') && typeof aiOn === 'function' && aiOn() ? aiBtnHtml('aplus_text', c.brand, c.sku, { use: 'copy', place: 'row', asin: c.asin || '', label: 'Draft A+ text' }) : '');
   const side = APC_ST[p.bucket].cls === 'r' ? ' is-orphan' : APC_ST[p.bucket].cls === 'y' || p.stuck ? ' cc-chk' : '';
   const more = p.docs.length > 1 ? ` <small class="muted" title="${fcEsc(p.docs.map(d => (d.n || 'unnamed') + ' — ' + d.s).join('\n'))}">+${p.docs.length - 1} more</small>` : '';
   const row = `<tr class="fc-row apc-row${side}${APC.sel.has(p.key) ? ' is-sel' : ''}" data-apc-row="${fcEsc(p.key)}"><td class="fc-tk">${flat ? `<small class="muted apc-rank">${rank}</small>` : ''}${tick}</td><td class="cc-pc">${apcPicHtml(c)}</td>`
@@ -29655,7 +29655,7 @@ function ipgFindsHtml(p) {
       : `<button type="button" class="ghost fc-b" data-ipg="ok" ${a} data-ipg-w="${fcEsc(fd.k)}" title="This word is fine on this listing (you hold the right or the proof): it stops counting and no Fix takes it out. Undo brings it back.">Allowed on purpose</button>`
         + (p.g.f.famId ? `<button type="button" class="ghost fc-b" data-ipg="okfam" data-ipg-v="${fcEsc(p.g.f.fk)}" data-ipg-w="${fcEsc(fd.k)}" title="Allowed on every listing of this family, now and later">Allow for the whole family</button>` : '');
     // ✨ AI (listing-ai.js): only the sentence with the word, rewritten — then into the existing Fix all popup (title, search terms) or the safe send
-    const ai = !mark && !fd.subClean && typeof aiBtnHtml === 'function' ? aiBtnHtml('ip_rewrite', p.c.brand, fd.sku, { use: 'ipg', field: fd.f, word: fd.text || fd.word, wk: fd.word, screen: 'IP & Trademark Guard', label: 'Rewrite without this word' }) : '';
+    const ai = !mark && !fd.subClean && typeof aiOn === 'function' && aiOn() ? aiBtnHtml('ip_rewrite', p.c.brand, fd.sku, { use: 'ipg', field: fd.f, word: fd.text || fd.word, wk: fd.word, screen: 'IP & Trademark Guard', label: 'Rewrite without this word' }) : '';
     return `<div class="ipg-w is-${mark ? 'g' : t.cls}"><div class="ipg-wh">${head}</div>${list.map(x => ipgSnipHtml(p, x)).join('')}<div class="ipg-wa">${acts}${ai}</div></div>`;
   }).join('');
 }
@@ -30021,9 +30021,11 @@ if (typeof window !== 'undefined') window.ipReport = ipReport;
  * Listing Content checks): a failed check is red and Approve / Use stays disabled until the text is fixed (the AI text can be edited in
  * the card) → the person approves → THE ONE SEND PATH (listing-send-check.js sqSendWithCheck: Amazon's check → send → read again →
  * Listing History, marked "AI suggested" → Put back). Nothing is sent by the AI, nothing runs when a page opens (a click only), and
- * the buttons stay quiet (a calm grey line) until the backend has the key: "AI not set up yet" / "Monthly AI limit reached".
+ * the buttons are HIDDEN until the backend says it is set up: ONE status call per page load (aiStatusCheck: GET ?ai=ask&task=status,
+ * kept for the browser session) — no key, no route deployed, or "AI not set up yet" = no ✨ button anywhere, every page exactly as before.
+ * Set up, a click that meets the month's limit says so in a calm grey line ("Monthly AI limit reached").
  * Under each card: "AI used this month: $X of $80".
- * Main functions: aiAsk, aiBtnHtml, aiCheck, aiOpen, aiCardHtml, aiApprove, aiPreset, aiWasUsed, aiReport. Every name starts with ai / AI. */
+ * Main functions: aiStatusCheck, aiOn, aiAsk, aiBtnHtml, aiCheck, aiOpen, aiCardHtml, aiApprove, aiPreset, aiWasUsed, aiReport. Every name starts with ai / AI. */
 
 const AI_TASKS = ['title', 'bullets', 'description', 'kw', 'season', 'aplus_text', 'ip_rewrite', 'error_explain', 'image_check'];
 const AI_LIMIT_DEF = 80;
@@ -30034,7 +30036,35 @@ const AI_WHAT = { title: 'title', bullets: 'bullet points', description: 'descri
   ip_rewrite: 'rewrite', error_explain: 'explanation', image_check: 'main photo check' };
 // the attribute each field writes, and its name in words
 const AI_ATTR = { title: 'item_name', bullets: 'bullet_point', desc: 'product_description', kw: 'generic_keyword', hl: 'title_differentiation' };
-let AI = { off: false, why: '', month: null, limit: null, memo: new Map(), jobs: new Map(), used: new Map(), calls: 0, n: 0 };
+let AI = { ready: null, status: null, off: false, why: '', month: null, limit: null, memo: new Map(), jobs: new Map(), used: new Map(), calls: 0, n: 0 };
+const AI_SESSION_KEY = 'sellora_ai_ready';     // the status answer, kept for the browser session (sessionStorage)
+const AI_WAIT_API_MS = 120000;                  // how long the status check waits for the backend address (sign-in reads it)
+
+/* ----- is AI set up? ONE cheap status call per page load (no Claude call), kept for the session ----- */
+// true only when the backend said it has the key; until then (and when it is not set up) every ✨ button is hidden.
+const aiOn = () => AI.ready === true;
+function aiSessionGet() { try { const v = JSON.parse(sessionStorage.getItem(AI_SESSION_KEY) || 'null'); return v && typeof v.ready === 'boolean' ? v : null; } catch (e) { return null; } }
+function aiSessionSet(ready) { try { sessionStorage.setItem(AI_SESSION_KEY, JSON.stringify({ ready, at: Date.now() })); } catch (e) { /* private window: asked again next load */ } }
+/** The one status check: GET ?ai=ask&task=status → { ok, ready, monthUsd, limitUsd }. A backend without the route, a failed call or
+ *  ready: false → hidden. Asked once per page load (the session's answer is used when there is one). Returns the promise of AI.ready. */
+function aiStatusCheck() {
+  if (AI.status) return AI.status;
+  const kept = aiSessionGet();
+  if (kept) { AI.ready = kept.ready; AI.status = Promise.resolve(AI.ready); return AI.status; }
+  AI.status = (async () => {
+    const t0 = Date.now();
+    while (!(typeof API !== 'undefined' && API && API.url) && Date.now() - t0 < AI_WAIT_API_MS) await new Promise(res => setTimeout(res, 500));
+    if (!(typeof API !== 'undefined' && API && API.url)) { AI.ready = false; return false; }
+    let reply = null;
+    try { reply = await aiGet({ ai: 'ask', task: 'status' }); } catch (e) { reply = null; }
+    AI.ready = !!(reply && reply.ok && reply.ready === true);
+    if (reply && reply.monthUsd != null) AI.month = Number(reply.monthUsd) || 0;
+    if (reply && reply.limitUsd != null) AI.limit = Number(reply.limitUsd) || AI_LIMIT_DEF;
+    if (reply) aiSessionSet(AI.ready);                 // a failed call is not kept: the next page load asks again
+    return AI.ready;
+  })();
+  return AI.status;
+}
 
 /* ----- small helpers ----- */
 const aiEsc = s => String(s == null ? '' : s).replace(/[<>&"']/g, ch => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&#39;' }[ch]));
@@ -30082,6 +30112,7 @@ async function aiAsk(task, brand, sku, opts) {
   if (reply.monthUsd != null) AI.month = Number(reply.monthUsd) || 0;
   if (reply.limitUsd != null) AI.limit = Number(reply.limitUsd) || AI_LIMIT_DEF;
   if (!reply.ok && /not set up yet|limit reached/i.test(reply.reason)) { AI.off = true; AI.why = reply.reason; }
+  if (!reply.ok && /not set up yet/i.test(reply.reason)) { AI.ready = false; aiSessionSet(false); }    // the buttons go away on the next draw
   if (reply.ok) { AI.off = false; AI.why = ''; AI.memo.set(key, reply); }
   return reply;
 }
@@ -30245,6 +30276,7 @@ function aiCheck(c, field, value, o) {
  *  swords (the season's words), hlmax, word, code, place: row (a table row is added under the button's row) | block (inside the closest
  *  [data-ai-block]) | after (after the button's parent — the default), screen }. Never makes a call: a click does. */
 function aiBtnHtml(task, brand, sku, o) {
+  if (!aiOn()) return '';                   // AI not set up: no button, the page as it always was
   o = o || {};
   const x = {};
   ['use', 'field', 'key', 'season', 'swords', 'hlmax', 'word', 'wk', 'code', 'place', 'screen', 'asin'].forEach(k => { if (o[k] != null && o[k] !== '') x[k] = o[k]; });
@@ -30571,7 +30603,7 @@ function aiCopy(job, btn) {
 /* ----- Listing Optimiser: the whole listing, one click (four answers: title, bullets, description, search terms) ----- */
 /** The Optimiser review's card: one button that asks for all four, each with its own card and its own Approve. */
 function aiOptCardHtml(brand, sku) {
-  if (!sku) return '';
+  if (!sku || !aiOn()) return '';
   return `<div class="card ai-opt" style="padding:12px 14px;margin-bottom:12px" data-ai-block><div class="sec" style="margin-top:0">✨ AI rewrite</div>`
     + `<div class="muted" style="font-size:12px;margin-bottom:6px">Claude rewrites the title, bullets, description and search terms from this listing's own facts and the words customers bought through. Our rules check each one; nothing is sent until you approve it.</div>`
     + `<button type="button" class="ghost im-b ai-btn${AI.off ? ' is-off' : ''}" data-ai-all="${aiEsc(brand)}|${aiEsc(sku)}" title="${aiEsc(AI.off ? AI.why : 'Four AI answers, one after another')}">✨ AI rewrite of the whole listing</button></div>`;
@@ -30596,8 +30628,9 @@ async function aiOptAll(btn) {
   return null;
 }
 
-/* ----- the page's clicks and edits ----- */
+/* ----- the page's clicks and edits; the one status check ----- */
 if (typeof document !== 'undefined' && document.addEventListener) {
+  aiStatusCheck();
   document.addEventListener('click', e => {
     const el = e.target && e.target.closest ? e.target.closest('[data-ai],[data-ai-act],[data-ai-all]') : null;
     if (!el || el.disabled) return;
@@ -30616,7 +30649,7 @@ if (typeof document !== 'undefined' && document.addEventListener) {
 
 /** CONSOLE: aiReport() — whether AI answered yet on this page, this month's spend, the calls made, the answers kept, the cards open. */
 function aiReport() {
-  const out = { set: !AI.off, why: AI.why || '', monthUsd: AI.month, limitUsd: AI.limit, callsThisPage: AI.calls, kept: AI.memo.size, cards: AI.jobs.size };
+  const out = { ready: AI.ready, set: !AI.off, why: AI.why || '', monthUsd: AI.month, limitUsd: AI.limit, callsThisPage: AI.calls, kept: AI.memo.size, cards: AI.jobs.size };
   if (typeof console !== 'undefined') console.log('AI', out);
   return out;
 }
@@ -41664,7 +41697,7 @@ function renderOpt() {
   }
 
   // --- the page ---
-  $('loBody').innerHTML = `${typeof aiOptCardHtml === 'function' && data.ours && data.ours.sku ? aiOptCardHtml($('loBrand').value, data.ours.sku) : ''}
+  $('loBody').innerHTML = `${typeof aiOptCardHtml === 'function' && typeof aiOn === 'function' && aiOn() && data.ours && data.ours.sku ? aiOptCardHtml($('loBrand').value, data.ours.sku) : ''}
     <div class="card" style="padding:12px 14px;margin-bottom:12px">
       <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:baseline">
         <b style="font-size:15px">${loEsc(audit.asin)}</b>
@@ -43613,7 +43646,7 @@ function imRender() {
     </div>
     ${issues}
     <div class="card" style="padding:10px 14px;margin-bottom:12px">
-      <div style="font-weight:600;font-size:13px">Live on Amazon now${typeof aiBtnHtml === 'function' ? ' ' + aiBtnHtml('image_check', $('imBrand').value, listing.sku, { use: 'read', label: 'Check main photo' }) : ''}</div>
+      <div style="font-weight:600;font-size:13px">Live on Amazon now${typeof aiOn === 'function' && aiOn() ? ' ' + aiBtnHtml('image_check', $('imBrand').value, listing.sku, { use: 'read', label: 'Check main photo' }) : ''}</div>
       <div class="muted" style="font-size:11.5px;margin-bottom:6px">What shoppers see. ${listing.catalogError ? imEsc(listing.catalogError) : ''}</div>
       <div class="im-row">${live}</div>
     </div>
@@ -45455,7 +45488,7 @@ function leFixRender() {
     <div class="card" style="padding:10px 14px;margin-bottom:10px">
       <div style="font-weight:600;font-size:13px;margin-bottom:4px">What Amazon says now (${leNf(listing.issues.length)})</div>
       ${listing.issues.map(issue => `<div style="font-size:12px;margin:3px 0"><span class="st ${issue.severity === 'ERROR' ? 'st-rejected' : 'st-draft'}">${leEsc(issue.severity)}</span>
-        ${leEsc(issue.message)} ${(issue.attrs || []).length ? `<span class="muted">· ${leEsc(issue.attrs.join(', '))}</span>` : ''}${typeof aiBtnHtml === 'function' ? ' ' + aiBtnHtml('error_explain', $('leBrand').value, listing.sku, { use: 'read', code: issue.code || '', label: 'Explain this error' }) : ''}</div>`).join('')
+        ${leEsc(issue.message)} ${(issue.attrs || []).length ? `<span class="muted">· ${leEsc(issue.attrs.join(', '))}</span>` : ''}${typeof aiOn === 'function' && aiOn() ? ' ' + aiBtnHtml('error_explain', $('leBrand').value, listing.sku, { use: 'read', code: issue.code || '', label: 'Explain this error' }) : ''}</div>`).join('')
         || '<div class="muted" style="font-size:12px">No issues — Amazon reports nothing on this listing now.</div>'}
       ${imgIssues.length ? `<div style="margin-top:6px"><button class="ghost im-b" id="leToImg">Fix the images in the Image Manager</button></div>` : ''}
     </div>
@@ -45923,7 +45956,7 @@ function lcSectionHtml() {
   const nBoxes = Math.min(10, Math.max(5, bullets.length) + LC_EXTRA);
   return `<div class="card" style="padding:10px 14px;margin-bottom:10px">
     <div style="font-weight:600;font-size:13px;margin-bottom:6px">Content <span class="muted" style="font-weight:400;font-size:11.5px">— checked against Listing Rules as you type</span></div>${hint}
-    <div style="margin-bottom:10px" data-ai-block><div style="font-weight:600;font-size:12.5px">Title${ch('item_name')}${typeof aiBtnHtml === 'function' ? ' ' + aiBtnHtml('title', brand, sku, { use: 'lc', place: 'block', label: 'AI title' }) : ''}</div>
+    <div style="margin-bottom:10px"${typeof aiOn === 'function' && aiOn() ? ' data-ai-block' : ''}><div style="font-weight:600;font-size:12.5px">Title${ch('item_name')}${typeof aiOn === 'function' && aiOn() ? ' ' + aiBtnHtml('title', brand, sku, { use: 'lc', place: 'block', label: 'AI title' }) : ''}</div>
       <textarea id="lcTitle" rows="2" style="width:100%">${leEsc(title)}</textarea>
       <div class="muted" style="font-size:11px"><span id="lcTitleN">${title.length}</span> characters</div>
       <div id="lcTitleF">${lcFindHtml(lcCheck('item_name', [title], lcCtx()))}</div>
@@ -45933,7 +45966,7 @@ function lcSectionHtml() {
             (dropped => dropped.length ? ` <span style="color:var(--act-ink)">— leaves out what the template requires: ${leEsc(dropped.join(', '))}</span>` : '')(lcTemplateFit(brand, sku, 75).dropped)}` : ''}</div>`
         : `<div class="muted" style="font-size:11.5px;margin-top:4px">No Listing Rules template matches this SKU (its sub-category is not one the templates name, or the SKU is not in the brand catalogue).</div>`}
     </div>
-    <div style="margin-bottom:10px" data-ai-block><div style="font-weight:600;font-size:12.5px">Bullet points${ch('bullet_point')}${typeof aiBtnHtml === 'function' ? ' ' + aiBtnHtml('bullets', brand, sku, { use: 'lc', place: 'block', label: 'AI bullets' }) : ''}</div>
+    <div style="margin-bottom:10px"${typeof aiOn === 'function' && aiOn() ? ' data-ai-block' : ''}><div style="font-weight:600;font-size:12.5px">Bullet points${ch('bullet_point')}${typeof aiOn === 'function' && aiOn() ? ' ' + aiBtnHtml('bullets', brand, sku, { use: 'lc', place: 'block', label: 'AI bullets' }) : ''}</div>
       ${Array.from({ length: nBoxes }, (_, i) => `<div style="display:flex;gap:6px;align-items:flex-start;margin:3px 0">`
         + `<span class="muted" style="font-size:11px;width:18px;padding-top:6px">${i + 1}</span>
         <textarea class="lcBullet" data-i="${i}" rows="2" style="flex:1">${leEsc(bullets[i] || '')}</textarea>
@@ -45942,12 +45975,12 @@ function lcSectionHtml() {
       <div id="lcBulletsF">${lcFindHtml(lcCheck('bullet_point', bullets))}</div>
       <div class="muted" style="font-size:11px">Listing Rules hold no bullet template, so nothing is written for you here — only checked.</div>
     </div>
-    <div style="margin-bottom:10px" data-ai-block><div style="font-weight:600;font-size:12.5px">Description${ch('product_description')}${typeof aiBtnHtml === 'function' ? ' ' + aiBtnHtml('description', brand, sku, { use: 'lc', place: 'block', label: 'AI description' }) : ''}</div>
+    <div style="margin-bottom:10px"${typeof aiOn === 'function' && aiOn() ? ' data-ai-block' : ''}><div style="font-weight:600;font-size:12.5px">Description${ch('product_description')}${typeof aiOn === 'function' && aiOn() ? ' ' + aiBtnHtml('description', brand, sku, { use: 'lc', place: 'block', label: 'AI description' }) : ''}</div>
       <textarea id="lcDesc" rows="5" style="width:100%">${leEsc(desc)}</textarea>
       <div class="muted" style="font-size:11px"><span id="lcDescN">${desc.length}</span> characters</div>
       <div id="lcDescF">${lcFindHtml(lcCheck('product_description', [desc]))}</div>
     </div>
-    <div data-ai-block><div style="font-weight:600;font-size:12.5px">Search terms (backend keywords)${ch('generic_keyword')}${typeof aiBtnHtml === 'function' ? ' ' + aiBtnHtml('kw', brand, sku, { use: 'lc', place: 'block', label: 'AI search terms' }) : ''}</div>
+    <div${typeof aiOn === 'function' && aiOn() ? ' data-ai-block' : ''}><div style="font-weight:600;font-size:12.5px">Search terms (backend keywords)${ch('generic_keyword')}${typeof aiOn === 'function' && aiOn() ? ' ' + aiBtnHtml('kw', brand, sku, { use: 'lc', place: 'block', label: 'AI search terms' }) : ''}</div>
       <textarea id="lcKw" rows="2" style="width:100%">${leEsc(kw)}</textarea>
       <div class="muted" style="font-size:11px"><span id="lcKwN">${lrKwBytes(kw)}</span> / ${lcKwMax()} bytes of words (spaces and ; , . do not count)
         <button class="ghost im-b" id="lcKwSug" title="Words from the Listing Rules template this title does not carry, then what is there now">Suggest from Listing Rules</button></div>

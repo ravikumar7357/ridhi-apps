@@ -20,9 +20,11 @@
  * Listing Content checks): a failed check is red and Approve / Use stays disabled until the text is fixed (the AI text can be edited in
  * the card) → the person approves → THE ONE SEND PATH (listing-send-check.js sqSendWithCheck: Amazon's check → send → read again →
  * Listing History, marked "AI suggested" → Put back). Nothing is sent by the AI, nothing runs when a page opens (a click only), and
- * the buttons stay quiet (a calm grey line) until the backend has the key: "AI not set up yet" / "Monthly AI limit reached".
+ * the buttons are HIDDEN until the backend says it is set up: ONE status call per page load (aiStatusCheck: GET ?ai=ask&task=status,
+ * kept for the browser session) — no key, no route deployed, or "AI not set up yet" = no ✨ button anywhere, every page exactly as before.
+ * Set up, a click that meets the month's limit says so in a calm grey line ("Monthly AI limit reached").
  * Under each card: "AI used this month: $X of $80".
- * Main functions: aiAsk, aiBtnHtml, aiCheck, aiOpen, aiCardHtml, aiApprove, aiPreset, aiWasUsed, aiReport. Every name starts with ai / AI. */
+ * Main functions: aiStatusCheck, aiOn, aiAsk, aiBtnHtml, aiCheck, aiOpen, aiCardHtml, aiApprove, aiPreset, aiWasUsed, aiReport. Every name starts with ai / AI. */
 
 const AI_TASKS = ['title', 'bullets', 'description', 'kw', 'season', 'aplus_text', 'ip_rewrite', 'error_explain', 'image_check'];
 const AI_LIMIT_DEF = 80;
@@ -33,7 +35,35 @@ const AI_WHAT = { title: 'title', bullets: 'bullet points', description: 'descri
   ip_rewrite: 'rewrite', error_explain: 'explanation', image_check: 'main photo check' };
 // the attribute each field writes, and its name in words
 const AI_ATTR = { title: 'item_name', bullets: 'bullet_point', desc: 'product_description', kw: 'generic_keyword', hl: 'title_differentiation' };
-let AI = { off: false, why: '', month: null, limit: null, memo: new Map(), jobs: new Map(), used: new Map(), calls: 0, n: 0 };
+let AI = { ready: null, status: null, off: false, why: '', month: null, limit: null, memo: new Map(), jobs: new Map(), used: new Map(), calls: 0, n: 0 };
+const AI_SESSION_KEY = 'sellora_ai_ready';     // the status answer, kept for the browser session (sessionStorage)
+const AI_WAIT_API_MS = 120000;                  // how long the status check waits for the backend address (sign-in reads it)
+
+/* ----- is AI set up? ONE cheap status call per page load (no Claude call), kept for the session ----- */
+// true only when the backend said it has the key; until then (and when it is not set up) every ✨ button is hidden.
+const aiOn = () => AI.ready === true;
+function aiSessionGet() { try { const v = JSON.parse(sessionStorage.getItem(AI_SESSION_KEY) || 'null'); return v && typeof v.ready === 'boolean' ? v : null; } catch (e) { return null; } }
+function aiSessionSet(ready) { try { sessionStorage.setItem(AI_SESSION_KEY, JSON.stringify({ ready, at: Date.now() })); } catch (e) { /* private window: asked again next load */ } }
+/** The one status check: GET ?ai=ask&task=status → { ok, ready, monthUsd, limitUsd }. A backend without the route, a failed call or
+ *  ready: false → hidden. Asked once per page load (the session's answer is used when there is one). Returns the promise of AI.ready. */
+function aiStatusCheck() {
+  if (AI.status) return AI.status;
+  const kept = aiSessionGet();
+  if (kept) { AI.ready = kept.ready; AI.status = Promise.resolve(AI.ready); return AI.status; }
+  AI.status = (async () => {
+    const t0 = Date.now();
+    while (!(typeof API !== 'undefined' && API && API.url) && Date.now() - t0 < AI_WAIT_API_MS) await new Promise(res => setTimeout(res, 500));
+    if (!(typeof API !== 'undefined' && API && API.url)) { AI.ready = false; return false; }
+    let reply = null;
+    try { reply = await aiGet({ ai: 'ask', task: 'status' }); } catch (e) { reply = null; }
+    AI.ready = !!(reply && reply.ok && reply.ready === true);
+    if (reply && reply.monthUsd != null) AI.month = Number(reply.monthUsd) || 0;
+    if (reply && reply.limitUsd != null) AI.limit = Number(reply.limitUsd) || AI_LIMIT_DEF;
+    if (reply) aiSessionSet(AI.ready);                 // a failed call is not kept: the next page load asks again
+    return AI.ready;
+  })();
+  return AI.status;
+}
 
 /* ----- small helpers ----- */
 const aiEsc = s => String(s == null ? '' : s).replace(/[<>&"']/g, ch => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&#39;' }[ch]));
@@ -81,6 +111,7 @@ async function aiAsk(task, brand, sku, opts) {
   if (reply.monthUsd != null) AI.month = Number(reply.monthUsd) || 0;
   if (reply.limitUsd != null) AI.limit = Number(reply.limitUsd) || AI_LIMIT_DEF;
   if (!reply.ok && /not set up yet|limit reached/i.test(reply.reason)) { AI.off = true; AI.why = reply.reason; }
+  if (!reply.ok && /not set up yet/i.test(reply.reason)) { AI.ready = false; aiSessionSet(false); }    // the buttons go away on the next draw
   if (reply.ok) { AI.off = false; AI.why = ''; AI.memo.set(key, reply); }
   return reply;
 }
@@ -244,6 +275,7 @@ function aiCheck(c, field, value, o) {
  *  swords (the season's words), hlmax, word, code, place: row (a table row is added under the button's row) | block (inside the closest
  *  [data-ai-block]) | after (after the button's parent — the default), screen }. Never makes a call: a click does. */
 function aiBtnHtml(task, brand, sku, o) {
+  if (!aiOn()) return '';                   // AI not set up: no button, the page as it always was
   o = o || {};
   const x = {};
   ['use', 'field', 'key', 'season', 'swords', 'hlmax', 'word', 'wk', 'code', 'place', 'screen', 'asin'].forEach(k => { if (o[k] != null && o[k] !== '') x[k] = o[k]; });
@@ -570,7 +602,7 @@ function aiCopy(job, btn) {
 /* ----- Listing Optimiser: the whole listing, one click (four answers: title, bullets, description, search terms) ----- */
 /** The Optimiser review's card: one button that asks for all four, each with its own card and its own Approve. */
 function aiOptCardHtml(brand, sku) {
-  if (!sku) return '';
+  if (!sku || !aiOn()) return '';
   return `<div class="card ai-opt" style="padding:12px 14px;margin-bottom:12px" data-ai-block><div class="sec" style="margin-top:0">✨ AI rewrite</div>`
     + `<div class="muted" style="font-size:12px;margin-bottom:6px">Claude rewrites the title, bullets, description and search terms from this listing's own facts and the words customers bought through. Our rules check each one; nothing is sent until you approve it.</div>`
     + `<button type="button" class="ghost im-b ai-btn${AI.off ? ' is-off' : ''}" data-ai-all="${aiEsc(brand)}|${aiEsc(sku)}" title="${aiEsc(AI.off ? AI.why : 'Four AI answers, one after another')}">✨ AI rewrite of the whole listing</button></div>`;
@@ -595,8 +627,9 @@ async function aiOptAll(btn) {
   return null;
 }
 
-/* ----- the page's clicks and edits ----- */
+/* ----- the page's clicks and edits; the one status check ----- */
 if (typeof document !== 'undefined' && document.addEventListener) {
+  aiStatusCheck();
   document.addEventListener('click', e => {
     const el = e.target && e.target.closest ? e.target.closest('[data-ai],[data-ai-act],[data-ai-all]') : null;
     if (!el || el.disabled) return;
@@ -615,7 +648,7 @@ if (typeof document !== 'undefined' && document.addEventListener) {
 
 /** CONSOLE: aiReport() — whether AI answered yet on this page, this month's spend, the calls made, the answers kept, the cards open. */
 function aiReport() {
-  const out = { set: !AI.off, why: AI.why || '', monthUsd: AI.month, limitUsd: AI.limit, callsThisPage: AI.calls, kept: AI.memo.size, cards: AI.jobs.size };
+  const out = { ready: AI.ready, set: !AI.off, why: AI.why || '', monthUsd: AI.month, limitUsd: AI.limit, callsThisPage: AI.calls, kept: AI.memo.size, cards: AI.jobs.size };
   if (typeof console !== 'undefined') console.log('AI', out);
   return out;
 }

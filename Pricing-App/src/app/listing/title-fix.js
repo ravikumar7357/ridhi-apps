@@ -721,7 +721,7 @@ function ttRowHtml(run, p) {
       + `<div class="tt-old">${ttEsc(p.before)}</div>${p.after && p.after !== p.before ? `<div class="tt-new">${ttEsc(p.after)}</div>` : ''}`
       + `<div class="sq-st">⚠ Held back: ${ttEsc(p.why)}</div>`
       + `<button type="button" class="sp-btn sp-small" data-tt="hand" data-tt-sku="${ttEsc(p.sku)}">Edit by hand in Listing Errors</button>`
-      + (typeof aiBtnHtml === 'function' ? ' ' + aiBtnHtml('title', p.brand, p.sku, { use: 'tt', key: p.key, label: 'AI version' }) : '') + '</div>';
+      + (typeof aiOn === 'function' && aiOn() ? ' ' + aiBtnHtml('title', p.brand, p.sku, { use: 'tt', key: p.key, label: 'AI version' }) : '') + '</div>';
   }
   const text = ttText(run, p);
   const chk = ttRunCheck(run, p);
@@ -735,7 +735,7 @@ function ttRowHtml(run, p) {
     + `<div class="tt-new"><small>New</small> <span data-tt-new="${ttEsc(p.key)}">${ttMark(text, d.added || [], 'tt-add')}</span></div>`
     + `<div class="tt-fix">Fixes: ${ttEsc(p.fixes.join(' · '))}${ttSrcLine(p) ? ` <span class="muted">· ${ttEsc(ttSrcLine(p))}</span>` : ''}${p.notes.length ? ` <span class="tt-note">· ${ttEsc(p.notes.join(' · '))}</span>` : ''}</div>`
     + `<div class="tt-chk${chk.pass ? '' : ' is-bad'}" data-tt-chk="${ttEsc(p.key)}">${chk.pass ? '✓ Passes every title rule' : '✕ ' + ttEsc(chk.fails.join(' · '))}</div>`
-    + (typeof aiBtnHtml === 'function' ? `<div class="ai-rowb">${aiBtnHtml('title', p.brand, p.sku, { use: 'tt', key: p.key, label: 'AI version' })}</div>` : '')
+    + (typeof aiOn === 'function' && aiOn() ? `<div class="ai-rowb">${aiBtnHtml('title', p.brand, p.sku, { use: 'tt', key: p.key, label: 'AI version' })}</div>` : '')
     + `<details class="kf-ed"${run.edit.has(p.key) ? ' open' : ''}><summary>Edit new title</summary><textarea data-tt-edit="${ttEsc(p.key)}" rows="2" spellcheck="false">${ttEsc(text)}</textarea></details></div></div>`;
 }
 function ttDraw() {

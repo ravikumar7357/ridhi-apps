@@ -25,6 +25,8 @@
  *   error_explain                     Haiku — Amazon's issue &code= in simple English, and the fix in Sellora's screens
  *   image_check                       Sonnet — the MAIN picture only: white background? text or watermark? does the product fill ~85%?
  * Every task answers ONLY as JSON (structured outputs), parsed safely.
+ *   status                            no Claude call: { ok, ready (the key is set), monthUsd, limitUsd } — Sellora asks it ONCE per page load
+ *                                     and shows no ✨ button at all until ready is true.
  *
  * THE ANSWER: { ok, task, result, why, model, costUsd, monthUsd, limitUsd, cached } — or { ok: false, reason } in plain words:
  *   'AI not set up yet' (no CLAUDE_API_KEY), 'Monthly AI limit reached', 'This listing is not in the listing cache yet', …
@@ -34,9 +36,10 @@
  *   AI_MODEL             default 'claude-sonnet-5-5'            AI_MODEL_FAST   default 'claude-haiku-5-5'
  *   AI_MONTH_LIMIT_USD   default 80 — no call is made once this month's spend reaches it
  *   AI_USAGE_YYYYMM      written here: { usd, inTok, outTok, calls } for the month (script time zone)
- *   AI_FALLBACK          '0' turns off the server-side refusal fallback on Sonnet (on by default)
+ *   AI_FALLBACK          '1' turns on the server-side refusal fallback on Sonnet (OFF by default, so the model and its price are known)
  *
- * COSTS: each answer is kept 6 hours (CacheService), by task + brand + SKU + a hash of everything sent to Claude — the same question
+ * COSTS: counted at the price of the model Anthropic says ANSWERED (the response's `model`, per fallback step when it gives them).
+ * Each answer is kept 6 hours (CacheService), by task + brand + SKU + a hash of everything sent to Claude — the same question
  * twice costs once. Prices per million tokens (input / output): Opus 5.5 $4 / $20, Sonnet 5.5 $2 / $10, Haiku 5.5 $0.10 / $0.50; a cache
  * write is 1.25× the input price, a cache read 0.05× (Sonnet / Opus) or 0.1× (Haiku). The long system prompt carries cache_control, so
  * repeated calls read it from Anthropic's prompt cache.
@@ -130,8 +133,11 @@ function aiAsk_(p) {
     p = p || {};
     var task = String(p.task || '');
     var def = AI_TASKS.hasOwnProperty(task) ? AI_TASKS[task] : null;
-    if (!def) return { ok: false, reason: 'Unknown AI task "' + task.slice(0, 30) + '"' };
+    if (!def && task !== 'status') return { ok: false, reason: 'Unknown AI task "' + task.slice(0, 30) + '"' };
+    // the one cheap status call (no Claude call): is the key set, and this month's spend
+    if (task === 'status') { var st = aiMonth_(); return { ok: true, ready: !!prop_('CLAUDE_API_KEY'), monthUsd: aiRound_(st.usd), limitUsd: st.limit }; }
     var brand = String(p.brand || '').toUpperCase() === 'CPC' ? 'CPC' : 'SP';
+    setBrand_(brand);                        // the route line in Code.gs does not set it: every brand read below is this brand's
     var sku = String(p.sku || '').trim();
     var asin = String(p.asin || '').trim().toUpperCase();
     if (sku && !/^[A-Za-z0-9._\-\/ ]{1,60}$/.test(sku)) return { ok: false, reason: 'That SKU is not one Sellora sends' };
@@ -157,9 +163,10 @@ function aiAsk_(p) {
     }
 
     var reply = aiClaude_(model, def, user, facts.image);
-    if (!reply.ok) return { ok: false, reason: reply.reason, monthUsd: aiRound_(aiMonth_().usd), limitUsd: month.limit };
-    var cost = aiCost_(reply.model || model, reply.usage);
-    var now = aiSpend_(cost, reply.usage);
+    // what Claude used is paid even when the answer is refused, cut off or not usable — counted at the model that answered
+    var cost = reply.usage ? aiCost_(reply.model || model, reply.usage) : 0;
+    var now = reply.usage ? aiSpend_(cost, reply.usage) : aiMonth_();
+    if (!reply.ok) return { ok: false, reason: reply.reason, model: reply.model || '', costUsd: aiRound_(cost), monthUsd: aiRound_(now.usd), limitUsd: now.limit };
     var result = aiShape_(task, reply.json, facts);
     if (!result.ok) return { ok: false, reason: result.reason, model: reply.model, costUsd: aiRound_(cost), monthUsd: aiRound_(now.usd), limitUsd: now.limit };
     var out = { result: result.result, why: String((reply.json && reply.json.why) || '').slice(0, 300), model: reply.model || model };
@@ -308,7 +315,7 @@ function aiClaude_(model, def, user, image) {
     messages: [{ role: 'user', content: content }],
     output_config: { effort: def.effort, format: { type: 'json_schema', schema: def.schema } },
   };
-  var fallback = !def.fast && /sonnet|opus/.test(model) && prop_('AI_FALLBACK') !== '0';
+  var fallback = !def.fast && /sonnet|opus/.test(model) && prop_('AI_FALLBACK') === '1';      // off unless asked for: a fallback answers on another model
   var send = function (withFallback) {
     var headers = { 'x-api-key': prop_('CLAUDE_API_KEY'), 'anthropic-version': AI_VERSION };
     var b = JSON.parse(JSON.stringify(body));
@@ -331,7 +338,7 @@ function aiClaude_(model, def, user, image) {
   var text = (data.content || []).filter(function (c) { return c && c.type === 'text'; }).map(function (c) { return c.text; }).join('');
   var json = aiParse_(text);
   if (!json) return { ok: false, reason: 'The AI did not answer in the expected form — try again', usage: usage, model: data.model };
-  return { ok: true, json: json, model: data.model || model, usage: usage };
+  return { ok: true, json: json, model: data.model || model, usage: usage };       // data.model: the model that actually answered
 }
 
 // JSON from the answer, safely: the whole text, else the first {…} in it; null when neither parses.
@@ -375,8 +382,15 @@ function aiShape_(task, j, facts) {
 
 /* ============================== the money ============================== */
 
-/** What one call cost in US dollars, from its usage and the model that answered. */
+/** What one call cost in US dollars, at the price of the model Anthropic says answered (the response's `model`). With a fallback the
+ *  usage may list each step (usage.iterations, each with its own model and tokens): then each step at its own model's price. */
 function aiCost_(model, u) {
+  u = u || {};
+  var steps = Array.isArray(u.iterations) ? u.iterations.filter(function (x) { return x && (x.input_tokens != null || x.output_tokens != null); }) : [];
+  if (steps.length) return steps.reduce(function (sum, x) { return sum + aiCostOne_(x.model || model, x); }, 0);
+  return aiCostOne_(model, u);
+}
+function aiCostOne_(model, u) {
   u = u || {};
   var m = String(model || '');
   var price = AI_PRICE[m] || AI_PRICE[m.replace(/-\d{8}$/, '')] || AI_PRICE_UNKNOWN;
