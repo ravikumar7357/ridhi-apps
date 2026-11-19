@@ -22708,7 +22708,8 @@ function qcInboxEntries() {
     if (!(pcs > 0)) return;
     out.push({ r: { id, sku: c.sku, orderNo: c.orderNo, articleType: c.articleType || '', articleSubtype: c.articleSubtype || '', color: c.color || '', size: c.size || '',
       empName: 'Cut after embroidery', empType: 'no karigar — straight to QC', receivedPieces: pcs, fromCut: true,
-      qcReceivedAt: c.qcReceivedAt || '', qcReceivedBy: c.qcReceivedBy || '' }, since: pcs, accepted, wait, last: ms || Date.now() });
+      qcReceivedAt: c.qcReceivedAt || '', qcReceivedBy: c.qcReceivedBy || '', qcReceivedOn: c.qcReceivedOn || '', qcReceivedPcs: c.qcReceivedPcs || 0 },
+      since: pcs, accepted, wait, last: ms || Date.now() });
   });
   out.sort((a, b) => a.last - b.last);
   /* CHECKED ON THE OLD FORM: a check that names the order and SKU but no Job Work entry (the Checks form) has already
@@ -22760,8 +22761,39 @@ function qcPiecesOf(x) {
     spotting: outAt('spotting'), touching: outAt('touching'),
     by: last ? last.checkedBy || '' : '', ms: last ? ptDtMs(last.date) : 0,
     received: !!receipt || x.accepted > 0, receivedBy: receipt ? receipt.checkedBy || '' : '', receivedMs: receipt ? ptDtMs(receipt.date) : 0,
+    passOpensAt: qcPassOpensAt(x.r),
   };
 }
+/*
+ * QC PASS WAITS A MINUTE FOR EVERY PIECE RECEIVED (Ravi, 19 Nov: "for each piece there must be at least a 1 min count down …
+ * they can only click on qc passed after 1 × N pieces, where N is the number of pieces the qc has accepted"), so nobody
+ * passes pieces they had no time to look at. Counted from the QC Accept press; rows accepted before this rule have no wait.
+ */
+const QC_PASS_MS_PER_PIECE = 60 * 1000;
+function qcPassOpensAt(row) {
+  const on = Date.parse((row && row.qcReceivedOn) || '');
+  return isFinite(on) ? on + ptNum(row.qcReceivedPcs) * QC_PASS_MS_PER_PIECE : 0;
+}
+/** "4:05" or "1:02:30" — time left, rounded up to the second. */
+function qcTimeLeft(ms) {
+  const s = Math.max(0, Math.ceil(ms / 1000)), h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), p = n => String(n).padStart(2, '0');
+  return h ? `${h}:${p(m)}:${p(s % 60)}` : `${m}:${p(s % 60)}`;
+}
+/** The locked QC pass button, counting down; qcPassTick wakes it when its time is up. */
+function qcPassLockedBtn(x) {
+  return `<button class="qc-closed" disabled data-qc-unlock="${x.passOpensAt}" title="QC pass opens a minute for every piece received — ${nf(ptNum(x.r.qcReceivedPcs))} piece(s)">`
+    + `QC pass · ${qcTimeLeft(x.passOpensAt - Date.now())}</button>`;
+}
+/* One timer for the whole list, every second: it rewrites the countdowns and, when one runs out, redraws the list so that
+ * QC pass turns blue. It stops itself when no countdown is left on the page (another view, or all open). */
+let QC_PASS_TIMER = null;
+function qcPassTick() {
+  const locked = [...document.querySelectorAll('[data-qc-unlock]')];
+  if (!locked.length) { clearInterval(QC_PASS_TIMER); QC_PASS_TIMER = null; return; }
+  if (locked.some(b => Number(b.getAttribute('data-qc-unlock')) <= Date.now())) return renderQc();
+  locked.forEach(b => { b.textContent = 'QC pass · ' + qcTimeLeft(Number(b.getAttribute('data-qc-unlock')) - Date.now()); });
+}
+function qcPassTimerStart() { if (!QC_PASS_TIMER) QC_PASS_TIMER = setInterval(qcPassTick, 1000); }
 /** Pieces of each SKU back from alteration: mended and still wrong. A return booked without the split counts as mended. */
 function qcAltBackBySku() {
   const back = new Map();
@@ -22824,6 +22856,7 @@ function renderQcInbox(view) {
     + num(x.rejected, 'var(--bad)') + `<td class="num" style="font-weight:700;color:#b45309">${x.wait > 0 ? nf(x.wait) : '<span class="muted">—</span>'}</td>`
     + `<td style="white-space:nowrap;text-align:left">${view === 'passed' ? qcClosedBtn(qcStamp('QC passed', x.ms, x.by)) : qcInboxActions(x, can)}</td>`
     + '</tr>').join('') || `<tr><td colspan="${QC_INBOX_COLS.length}" class="muted" style="padding:14px">${QC_LISTS[view].empty}</td></tr>`) + '</tbody>';
+  if (rows.some(x => x.passOpensAt > Date.now())) qcPassTimerStart();
   $('qcMsg').className = 'muted';
   $('qcMsg').textContent = (view === 'passed'
     ? `${nf(rows.length)} entr${rows.length === 1 ? 'y' : 'ies'} finished QC, newest first · every piece passed or rejected, nothing left at spotting, touching or with a karigar`
@@ -22840,6 +22873,7 @@ function qcInboxActions(x, can) {
   const accept = x.received ? acceptedSign
     : `<button data-qcin-accept="${esc(x.r.id)}" class="qc-act" title="QC has received these ${nf(x.wait)} piece(s) — then QC pass to check them">QC Accept</button>`;
   if (!x.received) return accept + qcClosedBtn('QC pass', 'Press QC Accept first');
+  if (x.passOpensAt > Date.now()) return accept + qcPassLockedBtn(x);
   /* Ravi, 19 Nov: "when qc is accepted the qc pass should be blue … from which the user can click qc pass" — blue and
    * open on every accepted row; with nothing left waiting, a click says what QC already did instead of opening a window. */
   return accept + `<button data-qcin-check="${esc(x.r.id)}" class="qc-act" title="Open the QC Check window: passed, alteration, rejected, spotting, touching">QC pass</button>`;
@@ -22899,8 +22933,10 @@ async function qcInboxReceive(baseId) {
   const x = qcInboxStatuses().find(e => e.r.id === baseId && e.wait > 0);
   if (!x) return 'That entry is no longer waiting — press Refresh.';
   if (x.received) return '';
-  const node = x.r.fromCut ? 'pt_cuttingData' : 'pt_baseData', stamp = { qcReceivedAt: ptNow(), qcReceivedBy: qcMyName() };
-  await ptPatch({ [`${node}/${baseId}/qcReceivedAt`]: stamp.qcReceivedAt, [`${node}/${baseId}/qcReceivedBy`]: stamp.qcReceivedBy });
+  const node = x.r.fromCut ? 'pt_cuttingData' : 'pt_baseData';
+  /* qcReceivedOn (world time, to the second) and qcReceivedPcs start QC pass's wait: a minute for every piece received. */
+  const stamp = { qcReceivedAt: ptNow(), qcReceivedBy: qcMyName(), qcReceivedOn: new Date().toISOString(), qcReceivedPcs: x.wait };
+  await ptPatch(Object.fromEntries(Object.entries(stamp).map(([k, v]) => [`${node}/${baseId}/${k}`, v])));
   const withStamp = list => (list || []).map(r => (r && (r.id || r._key) === baseId ? Object.assign({}, r, stamp) : r));
   PT = Object.assign({}, PT, x.r.fromCut ? { cut: withStamp(PT.cut) } : { base: withStamp(PT.base) });
   return '';
@@ -22958,6 +22994,11 @@ function qcInboxOpen(baseId) {
   if (!x) { $('qcMsg').className = 'err'; $('qcMsg').textContent = 'That entry is no longer on the list — press Refresh.'; return; }
   if (!(x.wait > 0)) { $('qcMsg').className = 'muted'; $('qcMsg').textContent = qcNothingLeftText(x); return; }
   if (!x.received) { $('qcMsg').className = 'err'; $('qcMsg').textContent = `Press QC Accept first on ${x.r.sku} — QC pass opens once QC has received the pieces.`; return; }
+  if (x.passOpensAt > Date.now()) {
+    $('qcMsg').className = 'err';
+    $('qcMsg').textContent = `QC pass on ${x.r.sku} opens in ${qcTimeLeft(x.passOpensAt - Date.now())} — a minute for each of the ${nf(ptNum(x.r.qcReceivedPcs))} piece(s) received.`;
+    return;
+  }
   const r = x.r, me = qcMyName();
   const num = (key, label, value) => ({ key, label, type: 'number', min: 0, step: 1, value });
   ptOpenDialog({
