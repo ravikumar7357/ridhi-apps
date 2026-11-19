@@ -15,7 +15,7 @@ const cut = (src, name) => { const i = src.indexOf('function ' + name + '('); if
 const vsBlock = s => { const i = s.indexOf('const vpVsRound ='); return s.slice(i, s.indexOf(String.fromCharCode(10) + '/** Only the printer', i) + 1); };
 const line = (src, head) => { const i = src.indexOf(head); if (i < 0) throw new Error(head + ' not found'); return src.slice(i, src.indexOf('\n', i)) + '\n'; };
 const PARTS = [line(VO, 'const voLines ='), line(VO, 'const voParts ='), line(VP, 'const vpQty ='), vsBlock(VP), line(VP, 'const VP_RECV_CNT ='), line(VP, 'const vpRecvKey ='),
-  cut(VP, 'vpRecvCnt'), cut(VP, 'vpRecvOf'), line(VP, 'const vpRecvAll ='), cut(VP, 'vpVsHtml'),
+  cut(VP, 'vpRecvCnt'), cut(VP, 'vpRecvOf'), line(VP, 'const vpRecvAll ='), cut(VP, 'vpVsHtml'), cut(VP, 'vpRejNote'),
   line(FR, 'const flowChUnit ='), line(FR, 'const flowChSent ='), line(FR, 'let FLOW_CHX ='), line(FR, 'const flowChMoved ='), cut(FR, 'flowChIndex'), cut(FR, 'flowChRecv')].join('\n');
 let pass = 0, fail = 0;
 const ok = (n, c, d) => { if (c) { pass++; console.log('  PASS ' + n); } else { fail++; console.log('  FAIL ' + n + (d ? ' — ' + d : '')); } };
