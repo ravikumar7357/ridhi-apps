@@ -3747,6 +3747,8 @@
   .sta-sum>div.sta-bline b{display:inline;font-size:12.5px;margin:0;color:var(--ink)}
   .sta-sum>div.sta-bline .sta-btn{margin:0}
   .sta-sum>div.sta-bline span:last-child{margin-left:auto}
+  .sta-sum em.sta-sumsub{display:block;font-style:normal;font-size:11px;font-weight:500;color:var(--muted);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .sta-sum>div.sta-stake em.sta-sumsub{color:var(--act-ink)}
   .sta-negq{display:flex;gap:5px;flex-wrap:wrap;margin-top:6px}
   .sta-negq .sta-btn{margin:0}
   .sta-prov{color:var(--rev-ink);font-weight:700}

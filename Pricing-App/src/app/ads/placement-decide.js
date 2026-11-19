@@ -88,7 +88,7 @@ function plxModel() {
       }
       if (!seen.has(g.brand + '|' + ai.ag)) {
         seen.add(g.brand + '|' + ai.ag);
-        if (ai.launch) x.launch = true;
+        if (ai.launch) { x.launch = true; x.launchTo = Math.max(x.launchTo || 0, ai.launchTo || 0); }
         if (ai.isNew) { x.isNew = true; x.newFrom = Math.max(x.newFrom, ai.newFrom || 0); }
         if (ln.cover != null) x.cover = x.cover == null ? ln.cover : Math.min(x.cover, ln.cover);
       }
@@ -124,10 +124,14 @@ function plxModel() {
       c.tgt = ci.w > 0 ? ci.tw / ci.w : ci.w0 > 0 ? ci.tw0 / ci.w0 : null;
       c.be = ci.w > 0 ? ci.bw / ci.w : ci.w0 > 0 ? ci.bw0 / ci.w0 : null;
       c.fallback = !!ci.fallback && !ci.known;
-      c.launch = !!ci.launch || STA_LAUNCH.test(c.cn);
+      // Launch / ranking campaigns (by name) are left alone for STA.LAUNCH_DAYS from their start, as in Search Term Analysis
+      // (18 Nov audit: the name alone used to exempt them for good). The name test here only covers a campaign whose ad
+      // groups Search Term Analysis has not seen.
+      c.launch = !!ci.launch || (!info.has(b + '|' + c.cid) && STA_LAUNCH.test(c.cn) && (!c.started || !staStarted(c.started, STA.LAUNCH_DAYS)));
+      c.launchTo = ci.launchTo || (c.started ? staAddDays(c.started, STA.LAUNCH_DAYS) : 0);
       c.cover = ci.cover != null ? ci.cover : null;
-      c.isNew = !!ci.isNew || (c.started && now - c.started < STA.AGE_DAYS * DAY);
-      c.newFrom = Math.max(ci.newFrom || 0, c.started ? c.started + STA.AGE_DAYS * DAY : 0);
+      c.isNew = !!ci.isNew || (!!c.started && !staStarted(c.started, STA.AGE_DAYS));
+      c.newFrom = Math.max(ci.newFrom || 0, c.started ? staAddDays(c.started, STA.AGE_DAYS) : 0);
       c.acos = c.s > 0 ? c.sp / c.s * 100 : null;
       c.rows.sort((x, y) => (PLX_ORDER.indexOf(x.pk) + 1 || 9) - (PLX_ORDER.indexOf(y.pk) + 1 || 9));
       c.rows.forEach(r => {
@@ -168,7 +172,7 @@ function plxDecide(r, c, open, last, now) {
   const m = PLX_META[r.pk];
   if (!m || m.ix < 0) return set('na', r.pk === 'off' ? 'Amazon has no bid adjustment for off-Amazon placements' : 'A placement Amazon has no adjustment for');
   if (c.state && !/enabled/i.test(c.state)) return set('na', 'Campaign ' + String(c.state).toLowerCase());
-  if (c.launch) return set('hold', 'Launch campaign (by its name): not judged on ACoS');
+  if (c.launch) return set('hold', `Launch campaign (by its name): not judged on ACoS${c.launchTo ? ' until ' + staDay(c.launchTo) : ''}`);
   if (c.isNew && c.newFrom > now) return set('new', `New campaign: judged from ${staDay(c.newFrom)}`);
   const op = open.get(r.key);
   if (op) return set('review', `${staKindName(op)} ${plxPct(op.plc.from)} → ${plxPct(op.plc.to)} is in the review list`);
@@ -441,7 +445,7 @@ function plxLegend() {
       `<b>Raise +${PLX.STEP} points</b> when ACoS is at or below ${Math.round(PLX.RAISE_SHARE * 100)}% of the target; never over ${PLX.MAX_PCT}%, and not with under ${STA.RAISE_COVER} days of FBA stock.`,
       `<b>Lower −${PLX.STEP} points</b> when ACoS is above break-even (never below 0%). Already at 0%: the bids themselves are the lever — "Lower keyword bids" opens Search Term Analysis on that campaign.`,
       '<b>Keep</b> in between.',
-      'Off Amazon has no adjustment at Amazon. Paused campaigns, launch campaigns (by name) and campaigns under 30 days old are not judged.',
+      `Off Amazon has no adjustment at Amazon. Paused campaigns, campaigns in their first ${STA.AGE_DAYS} days and launch campaigns (by name) in their first ${STA.LAUNCH_DAYS} are not judged.`,
       `After a change, ${PLX.COOLDOWN} days before the next one, so Amazon\'s numbers can catch up.`])
     + L('What happens to a change', [
       '<b>Send to review</b> puts it in the shared review list (the same one as Search Term Analysis). Approved changes download as an Amazon bulk file (Entity "Bidding Adjustment", the new % as a whole number) to upload in the Ads console.',

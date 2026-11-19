@@ -3772,6 +3772,8 @@
   .sta-sum>div.sta-bline b{display:inline;font-size:12.5px;margin:0;color:var(--ink)}
   .sta-sum>div.sta-bline .sta-btn{margin:0}
   .sta-sum>div.sta-bline span:last-child{margin-left:auto}
+  .sta-sum em.sta-sumsub{display:block;font-style:normal;font-size:11px;font-weight:500;color:var(--muted);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .sta-sum>div.sta-stake em.sta-sumsub{color:var(--act-ink)}
   .sta-negq{display:flex;gap:5px;flex-wrap:wrap;margin-top:6px}
   .sta-negq .sta-btn{margin:0}
   .sta-prov{color:var(--rev-ink);font-weight:700}
@@ -25188,10 +25190,11 @@ const STA = {
   NOT_LIMIT: 3,        // a bid this many times the CPC is not what holds a term back
   COOLDOWN: 14,        // days after a bid change from Sellora before that bid is judged again
   RAISE_COVER: 30,     // days of FBA stock a raise needs
-  AGE_DAYS: 30,        // days of ads before anything is judged
-  LOW_ACOS: 3,         // ACoS under this with 3+ orders: probably a data error, never scaled or used as a lead
+  AGE_DAYS: 30,        // days of ads before anything is judged: judged from the start date + 30 (Day 31)
+  LAUNCH_DAYS: 60,     // launch and ranking campaigns (by name) are left alone this long from their start, then judged
+  LOW_ACOS: 3,         // ACoS under this with 3+ orders: flagged "very low ACoS" to look at — judged like any other
   STALE_H: 36,         // hours before a brand's search terms count as old
-  BRAND_TGT: 50,       // brand terms are judged against this ACoS, never negated
+  BRAND_TGT: 50,       // brand terms are judged against this ACoS (the brand-term limit), never negated — costs or not
   HALO: 0.3,           // an ad group whose own product brings under 30% of its ad sales is flagged
   DAY_MAX: 60,         // negatives a brand can take into the review list per day
   WORD_TERMS: 5, WORD_SPEND: 20, WORD_CLICKS: 20,   // a word is listed when it spans this many terms, spend and clicks with no order
@@ -25253,6 +25256,14 @@ const staBrandName = b => STA_BRANDS[b] || b;
 const staR2 = v => Math.round(v * 100) / 100;
 const staDay = ms => ms ? new Date(ms).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '';
 const staDays = ms => Math.floor((Date.now() - ms) / 86400000);
+// Calendar days in this browser's time zone — the dates staDay prints — so one start date always gives one day number,
+// whatever the hour Amazon stamped (18 Nov audit: rows with the same start showed Day 26 and Day 27). staDate0: local
+// midnight of a moment; staAddDays: n calendar days on; staDayNo: Day 1 = the start date; staStarted: is the n-day wait
+// from that start over today (judged from start + n, i.e. Day n + 1)?
+const staDate0 = ms => { const d = new Date(ms); return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime(); };
+const staAddDays = (ms, n) => { const d = new Date(staDate0(ms)); d.setDate(d.getDate() + n); return d.getTime(); };
+const staDayNo = ms => Math.round((staDate0(Date.now()) - staDate0(ms)) / 86400000) + 1;
+const staStarted = (ms, n) => staDate0(Date.now()) >= staAddDays(ms, n);
 // "yyyy-MM-dd HH:mm" as the backend writes it (India time) → ms; 0 when it cannot be read.
 const staStamp = s => {
   const m = /^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2})/.exec(String(s || ''));
@@ -25675,12 +25686,24 @@ function staModelBrand(b, M, rlOpen) {
       });
     });
     const cpMade = E && E.cp[cid] && E.cp[cid][8] ? Number(E.cp[cid][8]) || 0 : 0;
-    const ageFrom = Math.max(firstAd || 0, cpMade || 0);
-    const isNew = (knownAge && firstAd == null) || (ageFrom && now - ageFrom < (STA.AGE_DAYS + 6) * 86400000);
+    // The start Sellora counts from — one rule for everything (18 Nov audit): judged from the start + 30 days. The start is
+    // the campaign's own start at Amazon when the product's ads began with it or before; otherwise the last day of the
+    // product's first week with ad spend (the weekly figures say only which week, so its last day — never judged early).
+    let start = 0, startEst = false;
+    if (cpMade && (!firstAd || cpMade >= firstAd)) start = cpMade;
+    else if (firstAd) { start = Math.max(staAddDays(firstAd, 6), cpMade || 0); startEst = true; }
+    else if (knownAge) { start = cpMade || now; startEst = !cpMade; }   // a known product with no week of ads yet: starts now
+    const isNew = !!start && !staStarted(start, STA.AGE_DAYS);
+    // Launch and ranking campaigns (by name) get STA.LAUNCH_DAYS from their start, then are judged like any other campaign
+    // (18 Nov audit: the name alone kept them out of every verdict for good). No start known at all: still left alone.
     const ctype = autoCp.has(cid) ? 'auto' : ptAg.has(ag) && !kwAg.has(ag) ? 'pt' : kwAg.has(ag) ? 'kw' : '';
     const out = { ag, cid, cn, agn, asins: p.asins, parents: p.parents, pk, ln: lines, types, ctype,
-      own: s >= 50 ? os / s : null, isNew: !!isNew, newFrom: isNew ? (ageFrom || now) + (STA.AGE_DAYS + 7) * 86400000 : 0,
-      launch: STA_LAUNCH.test(cn), since: ageFrom || 0, cpMade, firstAd: firstAd || 0 };
+      own: s >= 50 ? os / s : null, isNew, newFrom: isNew ? staAddDays(start, STA.AGE_DAYS) : 0,
+      launchName: STA_LAUNCH.test(cn), launch: false, launchTo: 0, since: start, startEst, cpMade, firstAd: firstAd || 0 };
+    if (out.launchName) {
+      out.launch = !start || !staStarted(start, STA.LAUNCH_DAYS);
+      out.launchTo = start ? staAddDays(start, STA.LAUNCH_DAYS) : 0;
+    }
     infoOf.set(ag, out);
     return out;
   };
@@ -25796,10 +25819,14 @@ function staModelBrand(b, M, rlOpen) {
     row.acos = row.s > 0 ? row.sp / row.s * 100 : null;
     row.cpc = row.c > 0 ? row.sp / row.c : null;
     row.cvr = row.c > 0 ? row.o / row.c * 100 : null;
-    row.suspect = !row.bad && row.o >= 3 && row.acos != null && row.acos < STA.LOW_ACOS;
+    // Very low ACoS (18 Nov audit): no longer "a likely data error" — cheap sales are often real (brand and own-product
+    // searches). Flagged to look at, judged like any other, and may lead or be scaled.
+    row.lowAcos = !row.bad && row.o >= 3 && row.acos != null && row.acos < STA.LOW_ACOS;
+    row.suspect = false;
+    row.os = x.os != null ? x.os : null;
     row.own = (/^EXACT$/i.test(mt) && staKey(kw) === row.tk) || (row.asin && /^asin=/i.test(staLow(kw)) && staLow(kw).includes(tl));
     row.ent = staEntOf(b, x.ag, kw, mt);
-    if (row.ent && row.ent.made && now - row.ent.made < STA.AGE_DAYS * 86400000) row.kwNew = row.ent.made + STA.AGE_DAYS * 86400000;
+    if (row.ent && row.ent.made && !staStarted(row.ent.made, STA.AGE_DAYS)) row.kwNew = staAddDays(row.ent.made, STA.AGE_DAYS);
     row.pathKey = 'p:' + b + '|' + x.ag + '|' + staLow(kw) + '|' + staLow(mt);
     row.rate = rateFor(tr, x.cid);
     row.chance = row.rate ? Math.pow(1 - row.rate.p, row.c) : null;
@@ -25827,7 +25854,21 @@ function staModelBrand(b, M, rlOpen) {
       tags.push(['season', 'Seasonal', `${season.t}${season.peak ? ', peak ' + staDay(season.peak) : ''}. Never negated — a negative would still be there next season. ${season.inSeason ? 'In season now: a lower bid at most.' : 'Out of season: held.'}`]);
     }
     if (ai.own != null && ai.own < STA.HALO) tags.push(['halo', 'Other products\' sales', `Only ${Math.round(ai.own * 100)}% of this ad group's ad sales were the advertised product itself; the rest are other products bought after the click. Judged on all ad sales.`]);
-    if (ai.isNew || ai.launch || row.kwNew) tags.push(['new', ai.launch ? 'Launch campaign' : 'New', ai.launch ? 'A launch or ranking campaign (by its name): not judged on ACoS.'
+    // Other products' sales on THIS term (18 Nov audit: "1 order worth $316" showed no badge): the same-SKU sales Amazon
+    // reports for the term when it sends them, else an order worth over 3× the advertised product's price.
+    if (!tags.some(t => t[0] === 'halo') && row.s > 0) {
+      let why = '';
+      if (row.os != null && row.s >= 20 && row.os / row.s < STA.HALO) why = `Only ${staMoney(row.os)} of its ${staMoney(row.s)} ad sales were the advertised product; the rest are other products bought after the click.`;
+      else if (row.os == null && row.o > 0) {
+        let price = 0;
+        try { (ai.asins || []).forEach(a => { const p = ADSX.lines(a).price; if (p > price) price = p; }); } catch (e) { price = 0; }
+        if (price > 0 && row.s / row.o > price * 3) why = `${staMoney(row.s / row.o)} per order, against about ${staMoney(price)} for the advertised product: most of it is likely other products bought after the click.`;
+      }
+      if (why) tags.push(['halot', 'Other products\' sales', why + ' Judged on all ad sales.']);
+    }
+    if (row.o > row.c) tags.push(['multi', 'More orders than clicks', `${staInt(row.o)} orders from ${staInt(row.c)} click${row.c === 1 ? '' : 's'}: normal with 7-day attribution — a shopper can order again, or several products, after one click. Kept and judged on its real sales.`]);
+    if (row.lowAcos) tags.push(['lowacos', 'Very low ACoS', `ACoS ${staPct(row.acos)} with ${staInt(row.o)} orders: very cheap sales, often a brand or own-product search. Worth a look before raising — judged like any other.`]);
+    if (ai.isNew || ai.launch || row.kwNew) tags.push(['new', ai.launch ? 'Launch campaign' : 'New', ai.launch ? staLaunchHold(ai) + '.'
       : `Fewer than ${STA.AGE_DAYS} days of ads: judged from ${staDay(row.kwNew || ai.newFrom)}.`]);
     // A brand term spending in a campaign that is not a brand campaign (its name has no brand term, "brand" or "defense").
     if (tags.some(t => t[0] === 'brand') && row.sp > 0 && !staBrandCp(ai.cn, P)) {
@@ -25907,12 +25948,21 @@ function staModelBrand(b, M, rlOpen) {
 const staBrandCp = (cn, P) => !!cn && (P.isBrand(cn) || /\bbrand(ed)?\b|\bdefen[cs]e\b/i.test(cn));
 
 // 1. A row whose figures cannot be true is set aside: why, or '' when it is fine.
+// More orders than clicks is NOT one (18 Nov audit): with 7-day attribution a shopper can order again, or order several
+// products, after one click — those rows are kept, judged on their real sales, and carry a "More orders than clicks" tag.
 function staBadData(x) {
-  if ((x.o || 0) > (x.c || 0)) return `${staInt(x.o)} orders from ${staInt(x.c)} click${x.c === 1 ? '' : 's'}: more orders than clicks`;
   if ((x.o || 0) > 0 && !((x.s || 0) > 0)) return 'Orders without sales';
   if ((x.s || 0) > 0 && !((x.c || 0) > 0)) return 'Sales without a click';
   return '';
 }
+
+// "Launch campaign" hold: left alone until its LAUNCH_DAYS are over (or for now, when its start is not known).
+function staLaunchHold(ai) {
+  return ai.launchTo ? `Launch campaign (by its name): not judged on ACoS until ${staDay(ai.launchTo)}`
+    : 'Launch campaign (by its name): not judged on ACoS — its start date is not known yet';
+}
+// A product-targeting expression (asin="…", category="…") rather than a keyword.
+const staIsTgtExpr = kw => /^\s*(asin|asin-expanded|category|keyword-group)\s*[=-]/i.test(String(kw || '')) || /=\s*"/.test(String(kw || ''));
 
 // Is this term already negated where it ran — at Amazon (adEntities) or by a review item that has been done?
 function staTermNegated(b, r, rlOpen) {
@@ -25939,9 +25989,9 @@ function staTgtVerdict(g, info, P) {
   g.brandTerm = !!P.isBrand(g.kw);
   if (g.bad) { g.hold = 'Data check: ' + g.bad; return; }
   if (info.stale) { g.hold = info.stale; return; }
-  if (g.ai.launch) { g.hold = 'Launch campaign: not judged on ACoS'; return; }
+  if (g.ai.launch) { g.hold = staLaunchHold(g.ai); return; }
   if (g.ai.isNew) { g.hold = `New: judged from ${staDay(g.ai.newFrom)}`; return; }
-  if (g.ent && g.ent.made && Date.now() - g.ent.made < STA.AGE_DAYS * 86400000) { g.hold = `New keyword: judged from ${staDay(g.ent.made + STA.AGE_DAYS * 86400000)}`; return; }
+  if (g.ent && g.ent.made && !staStarted(g.ent.made, STA.AGE_DAYS)) { g.hold = `New ${staIsTgtExpr(g.kw) ? 'target' : 'keyword'}: judged from ${staDay(staAddDays(g.ent.made, STA.AGE_DAYS))}`; return; }
   if (g.paused) { g.hold = 'Paused at Amazon'; return; }
   if (g.c < STA.MIN_CLICKS || !(g.sp > 0)) return;
   const tgt = g.brandTerm ? STA.BRAND_TGT : ln.tgt, be = g.brandTerm ? STA.BRAND_TGT : ln.be;
@@ -25952,10 +26002,11 @@ function staTgtVerdict(g, info, P) {
   if (!(g.o > 0)) return staTgtNoSale(g, cool, last);
   if (tgt == null) { g.hold = 'No unit cost: profit not judged'; return; }
   const poor = g.c >= STA.POOR_CLICKS && g.rate && g.o / g.c < g.rate.p * STA.POOR_SHARE && staBinomLe(g.o, g.c, g.rate.p) < STA.CHANCE;
+  g.beBrand = g.brandTerm;   // a brand term is held to the brand-term limit, not a break-even (18 Nov audit)
   if (g.acos > be) { g.cat = 'burn'; g.kind = 'be'; g.burned = g.sp - g.s * be / 100; g.next = 'reduce'; }
   else if (poor && g.acos > tgt) { g.cat = 'burn'; g.kind = 'poor'; g.burned = g.sp - g.s * tgt / 100; g.next = 'reduce'; }
   else if (g.acos > tgt) g.hold = `Between target ${staPct(tgt)} and break-even ${staPct(be)}: covers its costs`;
-  else if (g.o >= STA.SCALE_ORDERS && g.acos <= tgt * STA.SCALE_SHARE && !(g.acos < STA.LOW_ACOS)) {
+  else if (g.o >= STA.SCALE_ORDERS && g.acos <= tgt * STA.SCALE_SHARE) {
     g.cat = 'scale';
     const bid = g.ent && g.ent.bid;
     if (bid > 0 && g.cpc > 0 && bid >= g.cpc * STA.NOT_LIMIT) g.next = 'limit';
@@ -26011,7 +26062,7 @@ function staVerdict(r, info) {
   const finish = () => staFinish(r);
   if (r.bad) { r.cat = 'check'; r.hold = 'Data check: ' + r.bad + ' — set aside, never used'; b.push(['Data check', 'bad', r.bad]); return finish(); }
   if (info.stale) { r.hold = info.stale + ': no suggestions'; b.push(['Data incomplete', 'warn']); return finish(); }
-  if (r.ai.launch) { r.hold = 'Launch campaign: not judged on ACoS'; b.push(['Launch', 'info']); return finish(); }
+  if (r.ai.launch) { r.hold = staLaunchHold(r.ai); b.push(['Launch', 'info']); return finish(); }
   if (r.ai.isNew || r.kwNew) { r.hold = `Fewer than ${STA.AGE_DAYS} days of ads: judged from ${staDay(r.kwNew || r.ai.newFrom)}`; b.push(['New', 'info']); return finish(); }
   const chancePct = r.chance != null ? (r.chance * 100).toFixed(1) + '%' : '';
   // The short evidence line: orders in clicks, ROAS against break-even. The statistics stay on the badge's hover.
@@ -26049,11 +26100,13 @@ function staVerdict(r, info) {
   } else if (r.acos > be && r.c >= STA.MIN_CLICKS) {
     r.cat = 'burn';
     r.kind = 'be';
+    r.beBrand = brandTerm;
     r.burned = Math.max(0, r.sp - r.s * be / 100);
     // The bid belongs to the target: lower it when the target as a whole is over target; otherwise this one term is the
     // problem, and a negative stops it without touching the terms that sell.
     r.next = g && g.acos != null && g.acos > tgt ? 'reduce' : 'neg';
-    b.push(['Above break-even', 'bad', `ACoS ${staPct(r.acos)} vs break-even ${staPct(be)} (target ${staPct(tgt)}${brandTerm ? ', brand term' : ln.fallback ? ', from your setting' : ''}): ${staMoney(r.burned)} more than break-even allows.`
+    b.push(brandTerm ? ['Above brand limit', 'bad', `ACoS ${staPct(r.acos)} vs the ${STA.BRAND_TGT}% limit for brand terms (Lists & settings): ${staMoney(r.burned)} more than that limit allows. Not a break-even — brand terms are held to this limit with or without unit costs.`]
+      : ['Above break-even', 'bad', `ACoS ${staPct(r.acos)} vs break-even ${staPct(be)} (target ${staPct(tgt)}${ln.fallback ? ', from your setting' : ''}): ${staMoney(r.burned)} more than break-even allows.`
       + (r.next === 'neg' && g ? ` Its keyword sells at ${staPct(g.acos)} overall, so the fix is for this term alone.` : '')]);
     r.ev = short;
   } else if (r.c >= STA.POOR_CLICKS && r.rate && r.o / r.c < r.rate.p * STA.POOR_SHARE && staBinomLe(r.o, r.c, r.rate.p) < STA.CHANCE && r.acos > tgt) {
@@ -26068,17 +26121,18 @@ function staVerdict(r, info) {
     b.push(['Over target', 'warn']);
   } else {
     b.push([r.o >= STA.SCALE_ORDERS ? 'Winner' : 'Selling', 'ok']);
-    if (r.suspect) { r.hold = `ACoS under ${STA.LOW_ACOS}%: check the data before scaling`; }
-    else if (r.tagSet.has('own') || r.tagSet.has('sister')) r.hold = 'Own or sister-brand ASIN: not scaled here';
+    if (r.tagSet.has('own') || r.tagSet.has('sister')) r.hold = 'Own or sister-brand ASIN: not scaled here';
     else if (r.own && r.o >= STA.SCALE_ORDERS && r.acos <= tgt * STA.SCALE_SHARE) {
       r.cat = 'scale';
       r.scaleKind = 'raise';
-      b.push(['Room to grow', 'ok', `ACoS ${staPct(r.acos)} is at or under ${Math.round(STA.SCALE_SHARE * 100)}% of the target ${staPct(tgt)}.`]);
+      r.scaleBrand = brandTerm;
+      b.push(['Room to grow', 'ok', `ACoS ${staPct(r.acos)} is at or under ${Math.round(STA.SCALE_SHARE * 100)}% of ${brandTerm ? `the ${STA.BRAND_TGT}% brand-term limit` : `the target ${staPct(tgt)}`}.`]);
       r.ceil = Math.min(r.cpc * tgt / r.acos, r.cpc * 2);
       r.next = g && g.next === 'limit' ? 'limit' : r.ln.cover != null && r.ln.cover < STA.RAISE_COVER ? 'lowstock' : 'raise';
     } else if (!r.own && r.o >= STA.EXACT_ORDERS && !r.exactElsewhere.length && !r.ptElsewhere.length) {
       r.cat = 'scale';
       r.scaleKind = r.asin ? 'asinT' : 'exact';
+      r.scaleBrand = brandTerm;
       b.push([r.asin ? 'Not its own target' : 'Not its own keyword', 'info']);
       r.ceil = Math.min(r.cpc * tgt / r.acos, r.cpc * 2);
       r.sugBid = Math.max(STA.MIN_BID, staR2(Math.min(r.cpc * (1 + STA.STEP), r.ceil)));
@@ -26413,9 +26467,11 @@ function staActBar(rows) {
 }
 let STA_ACTSHOWN = [];
 
-/* ---------- New: launched in the last 30 days — watched, not judged ---------- */
+/* ---------- New: in their first 30 days (launch campaigns: their first 60) — watched, not judged ---------- */
+// A name that says little on its own ("SP-PAT", "AUTO", "Ad group 1"): shown with its campaign in front.
+const staGenericName = n => { const s = String(n || '').trim(); return !s || s.length <= 10 || !/[a-z]{3}/.test(s) || /^(ad ?group|untitled)\b/i.test(s); };
 function staNewRows(L) {
-  const M = L.M, now = Date.now(), DAY = 86400000;
+  const M = L.M;
   const q = $('stFilter').value.trim().toLowerCase();
   const byAg = new Map(), out = [], seenCp = new Set();
   M.tgAll.forEach(g => {
@@ -26425,38 +26481,47 @@ function staNewRows(L) {
     if (ai.isNew || ai.launch) {
       const k = g.brand + '|' + g.ag;
       const x = byAg.get(k) || byAg.set(k, { key: 'n:' + k, type: 'new', brand: g.brand, ag: g.ag, cid: g.cid, cn: g.cn || ai.cn, agn: g.agn || ai.agn, ai,
-        what: ai.launch ? 'Launch campaign' : ai.cpMade && ai.cpMade === ai.since ? 'New campaign' : 'New product', since: ai.since,
+        what: ai.launch ? 'Launch campaign' : ai.cpMade && ai.cpMade === ai.since ? 'New campaign' : 'New product', since: ai.since, est: ai.startEst,
         sp: 0, s: 0, o: 0, c: 0, i: 0, n: 0 }).get(k);
       x.sp += g.sp || 0; x.s += g.s || 0; x.o += g.o || 0; x.c += g.c || 0; x.i += g.i || 0; x.n++;
-    } else if (g.ent && g.ent.made && now - g.ent.made < STA.AGE_DAYS * DAY) {
+    } else if (g.ent && g.ent.made && !staStarted(g.ent.made, STA.AGE_DAYS)) {
+      // (18 Nov audit: product targets were labelled "New keyword")
       out.push({ key: 'nk:' + g.key, type: 'new', brand: g.brand, ag: g.ag, cid: g.cid, cn: g.cn, agn: g.agn, ai, kw: g.kw, mt: g.mt,
-        what: 'New keyword', label: staPathLabel(g.kw, g.mt), since: g.ent.made, sp: g.sp || 0, s: g.s || 0, o: g.o || 0, c: g.c || 0, i: g.i || 0 });
+        what: staIsTgtExpr(g.kw) ? 'New target' : 'New keyword', label: staPathLabel(g.kw, g.mt), since: g.ent.made, sp: g.sp || 0, s: g.s || 0, o: g.o || 0, c: g.c || 0, i: g.i || 0 });
     }
   });
   byAg.forEach(x => out.push(x));
-  // Campaigns Amazon started in the last 30 days that have no clicks yet.
+  // Campaigns Amazon started recently that have no clicks yet (launch campaigns: within their LAUNCH_DAYS).
   M.brands.forEach(b => {
     const E = staEnt(b);
     if (!E) return;
     Object.keys(E.cp || {}).forEach(cid => {
       const c = E.cp[cid] || [];
-      const t = Number(c[8]) || 0;
-      if (!t || now - t > STA.AGE_DAYS * DAY || seenCp.has(b + '|' + cid)) return;
-      out.push({ key: 'nc:' + b + '|' + cid, type: 'new', brand: b, cid, cn: c[0] || staName(b, cid), agn: '', ai: null, what: 'New campaign',
+      const t = Number(c[8]) || 0, cn = c[0] || staName(b, cid), launch = STA_LAUNCH.test(cn);
+      if (!t || staStarted(t, launch ? STA.LAUNCH_DAYS : STA.AGE_DAYS) || seenCp.has(b + '|' + cid)) return;
+      out.push({ key: 'nc:' + b + '|' + cid, type: 'new', brand: b, cid, cn, agn: '', ai: null, what: launch ? 'Launch campaign' : 'New campaign',
         state: c[1], since: t, sp: 0, s: 0, o: 0, c: 0, i: 0 });
     });
   });
   out.forEach(r => {
-    r.term = r.label || r.agn || r.cn;
+    const launch = r.what === 'Launch campaign';
+    // The name: a keyword or target's own text; an ad group's name, with its campaign in front when the name says little.
+    r.term = r.label || (r.agn ? (staGenericName(r.agn) && r.cn ? r.cn + ' › ' + r.agn : r.agn) : r.cn);
     r.acos = r.s > 0 ? r.sp / r.s * 100 : null;
-    r.day = r.since ? Math.max(1, Math.floor((now - r.since) / DAY) + 1) : null;
-    // The day Sellora starts judging: as the verdicts work it out (a product's ads by whole weeks), else 30 days from the start.
-    r.from = r.ai && r.ai.launch ? 0 : r.what !== 'New keyword' && r.ai && r.ai.isNew && r.ai.newFrom ? r.ai.newFrom : r.since ? r.since + STA.AGE_DAYS * DAY : 0;
+    // One rule (18 Nov audit): Day 1 is the start date, by calendar date; judged from start + 30 days (launch: + 60).
+    r.days = launch ? STA.LAUNCH_DAYS : STA.AGE_DAYS;
+    r.day = r.since ? staDayNo(r.since) : null;
+    r.from = launch ? ((r.ai && r.ai.launchTo) || (r.since ? staAddDays(r.since, STA.LAUNCH_DAYS) : 0))
+      : r.since ? staAddDays(r.since, STA.AGE_DAYS) : 0;
     const be = r.ai && r.ai.ln ? r.ai.ln.be : null;
-    if (r.ai && r.ai.launch) { r.note = 'Launch campaign (by its name): not judged on ACoS'; r.lvl = ''; }
-    else if (!(r.sp > 0)) { r.note = r.state && !/enabled/i.test(r.state) ? 'No spend yet · ' + String(r.state).toLowerCase() : 'No spend yet'; r.lvl = 'warn'; }
+    // Warnings first, for launch campaigns too (18 Nov audit: 137 clicks and no order went unflagged under "Launch").
+    if (!(r.sp > 0)) { r.note = r.state && !/enabled/i.test(r.state) ? 'No spend yet · ' + String(r.state).toLowerCase() : 'No spend yet'; r.lvl = 'warn'; }
     else if (!(r.o > 0) && r.c >= 40) { r.note = `No order in ${staInt(r.c)} clicks yet: check the listing and the targeting`; r.lvl = 'bad'; }
-    else if (r.o > 0 && be != null && r.acos > be) { r.note = `Above break-even so far (ROAS ${staRoas(r.acos)} vs ${staRoas(be)})`; r.lvl = 'warn'; }
+    else if (launch) {
+      r.note = (r.from ? `Launch campaign (by its name): ACoS not judged until ${staDay(r.from)}` : 'Launch campaign (by its name): start date not known yet')
+        + (r.o > 0 ? ` · ${staInt(r.o)} order${r.o === 1 ? '' : 's'} at ROAS ${(r.s / r.sp).toFixed(2)}` : '');
+      r.lvl = r.o > 0 ? 'ok' : '';
+    } else if (r.o > 0 && be != null && r.acos > be) { r.note = `Above break-even so far (ROAS ${staRoas(r.acos)} vs ${staRoas(be)})`; r.lvl = 'warn'; }
     else if (r.o > 0) { r.note = `${staInt(r.o)} order${r.o === 1 ? '' : 's'} at ROAS ${(r.s / r.sp).toFixed(2)}${be != null ? ` (break-even ${staRoas(be)})` : ''}`; r.lvl = 'ok'; }
     else { r.note = 'Too early to tell'; r.lvl = ''; }
     r.hold = r.note;
@@ -26468,21 +26533,23 @@ function staDrawNew(L) {
   const rows = staSorted(staNewRows(L), 'sp');
   ST_LAST = rows;
   const page = staPage(rows);
-  const nBad = rows.filter(r => r.lvl === 'bad').length;
-  staHead('What was launched in the last 30 days?', `${staInt(rows.length)} new campaigns, ad groups and keywords. Sellora gives them ${STA.AGE_DAYS} days before any negative or lower bid; until then it only warns`
+  const nBad = rows.filter(r => r.lvl === 'bad').length, nL = rows.filter(r => r.what === 'Launch campaign').length;
+  staHead('What is new, or still launching?', `${staInt(rows.length - nL)} new campaigns, products, keywords and targets in their first ${STA.AGE_DAYS} days`
+    + (nL ? `, and ${staInt(nL)} launch-campaign ad group${nL === 1 ? '' : 's'} in their first ${STA.LAUNCH_DAYS}` : '')
+    + `. Sellora makes no negative or lower bid on them until then; it only warns`
     + (nBad ? ` — ${staInt(nBad)} need${nBad === 1 ? 's' : ''} a look now.` : '.'));
   const body = page.map(r => `<tr>
-      <td class="sta-stick"><span class="sta-cbgap"></span><div class="sta-tc"><div class="sta-term">${staEsc(r.label || r.agn || r.cn)}</div>
+      <td class="sta-stick"><span class="sta-cbgap"></span><div class="sta-tc"><div class="sta-term">${staEsc(r.term)}</div>
         <div class="sta-under">${staBadge(staBrandName(r.brand), 'brand-' + r.brand)}${staBadge(r.what, r.what === 'Launch campaign' ? 'warn' : 'info')}</div></div></td>
       <td class="sta-ev sta-ev-s">${staBadge(r.lvl === 'bad' ? 'Look now' : r.lvl === 'warn' ? 'Watch' : r.lvl === 'ok' ? 'Selling' : 'Learning', r.lvl || '')}<div class="sta-why">${staEsc(r.note)}</div></td>
-      <td class="num">${r.day != null ? `<b>Day ${staInt(r.day)}</b><small class="sta-s">of ${STA.AGE_DAYS} · since ${staDay(r.since)}</small>` : staDash}</td>
+      <td class="num"${r.est ? ' title="Estimated: the last day of the product\'s first week with ad spend (the weekly figures give only the week)"' : ''}>${r.day != null ? `<b>Day ${staInt(r.day)}</b><small class="sta-s">of ${r.days} · since ${r.est ? '~' : ''}${staDay(r.since)}</small>` : staDash}</td>
       <td class="num">${r.from ? staDay(r.from) : staDash}</td>
       <td class="num">${staMoney(r.sp)}</td><td class="num">${staMoney(r.s)}</td><td class="num">${staInt(r.o)}</td><td class="num">${staInt(r.c)}</td>
       <td class="num">${r.acos != null ? staPct(r.acos) : staDash}</td><td class="num">${r.sp > 0 ? (r.s / r.sp).toFixed(2) : staDash}</td>
       ${staPathCell(r, true)}</tr>`).join('');
   $('stTable').innerHTML = `<thead><tr><th class="sta-stick">New</th><th>Status so far</th><th class="num">Age</th><th class="num" title="The first day Sellora suggests a negative or a lower bid">Judged from</th>
     ${staTh('Spend', 'sp', 1)}${staTh('Sales', 's', 1)}${staTh('Orders', 'o', 1)}${staTh('Clicks', 'c', 1)}${staTh('ACoS', 'acos', 1)}<th class="num">ROAS</th><th>Campaign · ad group</th></tr></thead><tbody>`
-    + (body || `<tr><td colspan="11" class="muted" style="padding:14px">Nothing launched in the last ${STA.AGE_DAYS} days${ST.ent ? '' : ' that Sellora can see yet — campaign start dates come from Amazon once the Ads backend is switched on'}.</td></tr>`) + '</tbody>';
+    + (body || `<tr><td colspan="11" class="muted" style="padding:14px">Nothing in its first ${STA.AGE_DAYS} days, and no launch campaign in its first ${STA.LAUNCH_DAYS}${ST.ent ? '' : ' that Sellora can see yet — campaign start dates come from Amazon once the Ads backend is switched on'}.</td></tr>`) + '</tbody>';
   staPager(rows.length, 'new items', ST.ent ? 'start dates from Amazon\'s record' : 'ages from the first week with ad spend; Amazon\'s start dates once the Ads backend is on');
 }
 
@@ -26492,8 +26559,22 @@ function staDataLine(M) {
   const h = M.have;
   if (M.settled) {
     const x = M.brands.map(b => h[b]).find(y => y && y.from) || {};
+    const rw = ST.rec ? M.brands.map(b => ST.rec.d && ST.rec.d[b]).find(y => y && y.from) || ST.rec : null;
     parts.push(`Judged on <b>settled clicks${x.from ? ', ' + staEsc(staShortDay(x.from)) + ' – ' + staEsc(staShortDay(x.to)) : ''}</b>, with 7-day sales as in the Ads console.`
-      + (ST.rec ? ' The last 7 days show under the figures in Burning money and are not counted.' : ''));
+      + (rw ? ` The last 7 days${rw.from ? ' (' + staEsc(staShortDay(rw.from)) + ' – ' + staEsc(staShortDay(rw.to)) + ')' : ''} show under the figures in Burning money and are not counted.` : ''));
+    // The two windows should meet (settled ends the day before the last 7 days begin). When one report is from an older
+    // run they don't, and the days between are in neither (18 Nov audit): say which, and why.
+    if (rw && rw.from && x.to) {
+      const d0 = Date.parse(String(x.to).slice(0, 10) + 'T12:00:00Z'), d1 = Date.parse(String(rw.from).slice(0, 10) + 'T12:00:00Z');
+      const gap = d0 && d1 ? Math.round((d1 - d0) / 86400000) - 1 : 0;
+      if (gap > 0) {
+        const days = [];
+        for (let i = 1; i <= Math.min(gap, 3); i++) days.push(staShortDay(new Date(d0 + i * 86400000).toISOString()));
+        parts.push(`<span class="sta-bad">${staEsc(days.join(', '))}${gap > 3 ? ` and ${gap - 3} more` : ''} ${gap === 1 ? 'is' : 'are'} in neither window: the settled report is from an earlier day's run than the last 7 days, so it ends before they begin. They meet again once the next settled report lands.</span>`);
+      } else if (gap < 0) {
+        parts.push(`<span class="sta-dash">The last 7 days overlap the settled window by ${-gap} day${gap === -1 ? '' : 's'} (reports from different runs); only the settled days are judged.</span>`);
+      }
+    }
   } else {
     parts.push(`Judged on <b>the last 30 days</b>${ST.at ? ' (nightly run ' + staEsc(ST.at) + ')' : ''}, with Amazon's 30-day sales — the Ads console shows 7-day, so figures run a little higher here. The newest days can still gain orders.`);
   }
@@ -26504,14 +26585,18 @@ function staDataLine(M) {
   const okB = M.brands.filter(b => !(M.info[b] || {}).stale);
   if (okB.length) parts.push(`<span class="sta-ok">✓ ${okB.map(staBrandName).join(' and ')}${okB.length > 1 ? ' both' : ''} complete</span>`);
   const bad = M.brands.reduce((t, b) => t + ((M.info[b] || {}).bad || 0), 0);
-  if (bad) parts.push(`<span class="sta-bad">${staInt(bad)} row${bad === 1 ? '' : 's'} set aside as a data check (more orders than clicks, or sales without clicks): never used in a verdict</span>`);
-  // #1 (18 Nov): without unit costs nothing can be "above break-even". Say so plainly, with the one setting that fixes it.
-  const noTgt = M.brands.filter(b => !(Number(staSet(b).fallbackTgt) > 0));
+  if (bad) parts.push(`<span class="sta-bad">${staInt(bad)} row${bad === 1 ? '' : 's'} set aside as a data check (orders without sales, or sales without a click): left out of every verdict, still counted in the totals above</span>`);
+  const multi = M.rows.filter(r => r.tagSet && r.tagSet.has('multi')).length;
+  if (multi) parts.push(`<span class="sta-dash">${staInt(multi)} row${multi === 1 ? ' has' : 's have'} more orders than clicks — normal with 7-day attribution (a shopper orders again, or several products, after one click): kept and judged</span>`);
+  // #1 (18 Nov): without unit costs nothing can be "above break-even". Say per brand exactly what is still judged — the
+  // brand-term limit works without costs, so the cards may show brand terms (18 Nov audit: "10 above break-even").
+  const noTgt = M.brands.filter(b => !(Number(staSet(b).fallbackTgt) > 0)), withTgt = M.brands.filter(b => Number(staSet(b).fallbackTgt) > 0);
   if (!ST.costs) {
     const why = ST.costErr ? 'Unit costs could not be read for your account (Profit &amp; Margin access needed)' : 'No unit costs in Profit &amp; Margin';
     parts.push(noTgt.length
-      ? `<div class="sta-warnline sta-costwarn"><b>${why}.</b> Without a cost or a target, Sellora can only flag search terms with no sales — nothing above break-even, no Raise or Lower on placements, and competing paths stay provisional. `
-        + `Set a target ACoS for ${noTgt.map(staBrandName).join(' and ')} to switch the rest on now; unit costs replace it product by product when they arrive. `
+      ? `<div class="sta-warnline sta-costwarn"><b>${why}, and no target ACoS for ${noTgt.map(staBrandName).join(' or ')}.</b> For ${noTgt.length > 1 ? 'them' : 'it'} Sellora judges only search terms with no sales, and brand terms against the ${STA.BRAND_TGT}% brand-term limit — nothing else is called above break-even or worth scaling, placements get no Raise or Lower, and competing paths stay provisional. `
+        + (withTgt.length ? `${withTgt.map(b => staBrandName(b) + ' is judged against your ' + staSet(b).fallbackTgt + '% target').join('; ')}. ` : '')
+        + `Set a target ACoS to switch the rest on now; unit costs replace it product by product when they arrive. `
         + `<button type="button" class="sta-btn sm" data-settgt="1">Set a target ACoS</button></div>`
       : `<span class="sta-dash">${why}: judged against your target ACoS (${M.brands.map(b => staBrandName(b) + ' ' + staSet(b).fallbackTgt + '%').join(', ')}) from Lists &amp; settings</span>`);
   }
@@ -26554,32 +26639,56 @@ function staSummary(L) {
     tailN += (M.have[b] || {}).dropped || 0;
   });
   const act = L.all.filter(r => r.act).length + L.burnTgt.filter(g => g.next && g.next !== 'limit' && g.next !== 'lowstock').length + L.words.filter(w => w.act).length;
-  const cell = (k, v, tip, cls) => `<div${cls ? ` class="${cls}"` : ''}${tip ? ` title="${staEsc(tip)}"` : ''}><small>${k}</small><b>${v}</b></div>`;
+  const cell = (k, v, tip, cls, sub) => `<div${cls ? ` class="${cls}"` : ''}${tip ? ` title="${staEsc(tip)}"` : ''}><small>${k}</small><b>${v}</b>${sub ? `<em class="sta-sumsub">${sub}</em>` : ''}</div>`;
   // Money at stake: what Burning money and Competing paths would save, each term counted once (the larger of the two).
-  const stake = new Map();
-  L.burn.forEach(r => stake.set(r.key, Math.max(stake.get(r.key) || 0, r.burned || 0)));
-  L.groups.forEach(g => g.shown.forEach(r => { if (r.role === 'other') stake.set(r.key, Math.max(stake.get(r.key) || 0, r.excess || 0)); }));
-  const atStake = [...stake.values()].reduce((t, v) => t + v, 0);
-  // Branded vs non-branded, on the terms listed; leaks = brand terms paid for outside brand campaigns.
+  // Overlap cost of a PROVISIONAL lead (no unit cost to prove it profitable) is kept apart (18 Nov audit: it was 94% of the
+  // figure, shown as if final): the big figure is what is sure; the provisional part shows under it.
+  const firm = new Map(), prov = new Map();
+  L.burn.forEach(r => firm.set(r.key, Math.max(firm.get(r.key) || 0, r.burned || 0)));
+  L.groups.forEach(g => g.shown.forEach(r => {
+    if (r.role !== 'other') return;
+    const m = g.provisional ? prov : firm;
+    m.set(r.key, Math.max(m.get(r.key) || 0, r.excess || 0));
+  }));
+  const atStake = [...firm.values()].reduce((t, v) => t + v, 0);
+  let provStake = 0;
+  prov.forEach((v, k) => { provStake += Math.max(0, v - (firm.get(k) || 0)); });
+  const cards = L.burn.reduce((t, r) => t + (r.burned || 0), 0) + L.groups.reduce((t, g) => t + g.shown.filter(r => r.role === 'other').reduce((u, r) => u + (r.excess || 0), 0), 0);
+  // Branded / non-branded / small terms not listed / other: four parts that add up to the ad spend and the ad sales
+  // (18 Nov audit: the two shares left out the small terms, so their ACoS looked far better than the whole). The small
+  // terms have no order by definition; "other" is what the keyword report counts and the search-term report does not.
   const br = { sp: 0, s: 0 }, nb = { sp: 0, s: 0 }, lk = { n: 0, sp: 0 };
   M.rows.forEach(r => {
     const t = r.tagSet && r.tagSet.has('brand') ? br : nb;
     t.sp += r.sp || 0; t.s += r.s || 0;
     if (r.tagSet && r.tagSet.has('leak')) { lk.n++; lk.sp += r.sp || 0; }
   });
+  const ot = { sp: sp - br.sp - nb.sp - tail, s: s - br.s - nb.s };
   const ac = t => t.s > 0 ? staPct(t.sp / t.s * 100) : '—';
-  $('stSum').innerHTML = cell('Money at stake', staMoney0(atStake), 'Spend Sellora suggests stopping or moving: no-sales and above-break-even spend (Burning money) plus overlap cost (Competing paths), each term counted once. Only what is listed under the filters.', 'sta-stake')
+  const stakeTip = 'Spend Sellora suggests stopping or moving, each search term counted once — the larger of its Burning money and its Competing-paths overlap cost, so the boxes below add up to more. '
+    + (provStake >= 1 ? `The ${staMoney0(provStake)} under it is overlap cost against a provisional lead (no unit cost or target to prove the lead profitable): it firms up once costs or a target are set. ` : '')
+    + 'Only what is listed under the filters.';
+  $('stSum').innerHTML = cell('Money at stake', staMoney0(atStake), stakeTip, 'sta-stake', provStake >= 1 ? `+ ${staMoney0(provStake)} provisional` : 'each term counted once')
     + cell('Ad spend', staMoney0(sp), 'All keywords and targets of the brands in view, this window')
     + cell('Ad sales', staMoney0(s)) + cell('ACoS', s > 0 ? staPct(sp / s * 100) : '—') + cell('Orders', staInt(o)) + cell('Clicks', staInt(c))
     + cell('Search terms', staInt(M.rows.length), 'Listed one by one')
-    + cell('Suggestions', staInt(act), 'Rows with a next step, after the filters')
-    + cell('Not listed', staMoney0(tail), `${staInt(tailN)} terms with fewer than 3 clicks and no order, too small to list one by one. Their recurring words appear in Burning money → By word once the backend sends them.`)
-    + `<div class="sta-bline"><span><b>Branded</b> ${staMoney0(br.sp)} spend · ACoS ${ac(br)}</span><span><b>Non-branded</b> ${staMoney0(nb.sp)} spend · ACoS ${ac(nb)}</span>`
+    + cell('Suggestions', staInt(act), `Rows with a next step, after the filters — one per row. The boxes below count search terms and competing-path groups instead (a group holds several paths, and a term can be in more than one box), so they add up differently. Boxes together: ${staMoney0(cards)} before each term is counted once.`, '', 'one per row')
+    + cell('Not listed', staMoney0(tail), `${staInt(tailN)} terms with fewer than 3 clicks and no order, too small to list one by one. Their recurring words appear in Burning money → By word.`, '', `${staInt(tailN)} small terms`)
+    + `<div class="sta-bline"><span title="Search terms holding a brand term from Lists &amp; settings"><b>Branded</b> ${staMoney0(br.sp)} spend · ACoS ${ac(br)}</span>`
+    + `<span title="Listed search terms without a brand term"><b>Non-branded</b> ${staMoney0(nb.sp)} spend · ACoS ${ac(nb)}${tail > 0 && nb.s > 0 ? ` <span class="sta-dash">(${staPct((nb.sp + tail) / nb.s * 100)} with the small terms)</span>` : ''}</span>`
+    + (tail > 0 ? `<span title="Fewer than 3 clicks and no order: no sales by definition, nearly all non-branded"><b>Small terms, not listed</b> ${staMoney0(tail)} spend · no orders</span>` : '')
+    + (Math.abs(ot.sp) >= 1 || Math.abs(ot.s) >= 1 ? `<span class="sta-dash" title="Amazon's keyword-and-target report and its search-term report never match to the cent; this is the difference, so the parts add up to the ad spend">Report difference ${ot.sp < 0 ? '−' : ''}${staMoney0(Math.abs(ot.sp))} spend · ${ot.s < 0 ? '−' : ''}${staMoney0(Math.abs(ot.s))} sales</span>` : '')
+    + `<span class="sta-dash">= ${staMoney0(sp)} ad spend</span>`
     + (lk.n ? `<span class="sta-bad">${staInt(lk.n)} brand term${lk.n === 1 ? '' : 's'} paid for outside brand campaigns · ${staMoney0(lk.sp)}</span><button type="button" class="sta-btn dim sm" data-leaks="1">Show them</button>`
       : '<span class="sta-dash">No brand leaks: brand searches run only in brand campaigns</span>')
     + `<span class="sta-dash" title="Brand terms are set per brand in Lists &amp; settings. A brand campaign has a brand term, 'brand', 'branded' or 'defense' in its name.">brand terms from Lists &amp; settings</span></div>`;
 }
 
+// Is any brand in view without unit costs AND without a target ACoS (only no-sales and brand terms are judged)?
+function staNoTarget() {
+  const pick = ($('stBrand') || {}).value || 'ALL';
+  return !ST.costs && (pick === 'ALL' ? ['SP', 'CPC'] : [pick]).some(b => !(Number(staSet(b).fallbackTgt) > 0));
+}
 // The four boxes over the table.
 function staBoxes(L) {
   const IC = {
@@ -26596,18 +26705,26 @@ function staBoxes(L) {
       <div class="sta-go"><span>${go} →</span></div>
     </button>`;
   const burned = L.burn.reduce((t, r) => t + r.burned, 0);
-  const none = L.burn.filter(r => r.kind === 'none').length, be = L.burn.filter(r => r.kind === 'be').length, poor = L.burn.filter(r => r.kind === 'poor').length;
+  const none = L.burn.filter(r => r.kind === 'none').length, poor = L.burn.filter(r => r.kind === 'poor').length;
+  const beB = L.burn.filter(r => r.kind === 'be' && r.beBrand).length, be = L.burn.filter(r => r.kind === 'be' && !r.beBrand).length;
   const exact = L.scale.filter(r => r.scaleKind !== 'raise').length;
+  const scB = L.scale.filter(r => r.scaleBrand).length, scN = L.scale.length - scB;
   const excess = L.groups.reduce((t, g) => t + g.shown.filter(r => r.role === 'other').reduce((u, r) => u + (r.excess || 0), 0), 0);
+  const provEx = L.groups.filter(g => g.provisional).reduce((t, g) => t + g.shown.filter(r => r.role === 'other').reduce((u, r) => u + (r.excess || 0), 0), 0);
+  const burnQ = [`${staInt(none)} with no sales`].concat(be ? [`${staInt(be)} above break-even`] : [])
+    .concat(beB ? [`${staInt(beB)} brand term${beB === 1 ? '' : 's'} over the ${STA.BRAND_TGT}% brand limit`] : []).concat(poor ? [`${staInt(poor)} converting poorly`] : []).join(', ') + '.';
+  const scaleQ = !L.scale.length ? (staNoTarget() ? 'Needs a unit cost or a target ACoS to judge what sells under target.' : 'Nothing selling well enough under target yet.')
+    : (scN ? `${staInt(scN)} selling under target with room to grow` : '') + (scN && scB ? ', ' : '')
+      + (scB ? `${staInt(scB)} brand term${scB === 1 ? '' : 's'} well under the ${STA.BRAND_TGT}% brand limit` : '') + (exact ? ` · ${staInt(exact)} not their own keyword yet` : '') + '.';
+  const pathsQ = `One product reached through several targets · ${staMoney0(excess)} of overlap cost`
+    + (provEx >= 1 ? (provEx >= excess - 0.5 ? ', all provisional (no unit cost or target)' : `, ${staMoney0(provEx)} of it provisional`) : '') + '.';
   const open = ST_RL.items.filter(x => x.status === 'review' || x.status === 'approved');
   const appr = open.filter(x => x.status === 'approved').length;
   $('stBoxes').innerHTML =
     box('burn', 'var(--bad)', 'Burning money', staMoney0(burned), `on ${staInt(L.burn.length)} search term${L.burn.length === 1 ? '' : 's'}`,
-      `${staInt(none)} with no sales, ${staInt(be)} above break-even${poor ? `, ${staInt(poor)} converting poorly` : ''}.`, 'Negatives and lower bids')
-    + box('scale', 'var(--accent)', 'Worth scaling', staInt(L.scale.length), 'search terms',
-      `Selling under target with room to grow${exact ? ` · ${staInt(exact)} not their own keyword yet` : ''}.`, 'Raise bids, add as exact')
-    + box('paths', 'var(--brand)', 'Competing paths', staInt(L.groups.length), 'search terms',
-      `One product reached through several targets · ${staMoney0(excess)} of overlap cost.`, 'Keep the lead path')
+      burnQ, 'Negatives and lower bids')
+    + box('scale', 'var(--accent)', 'Worth scaling', staInt(L.scale.length), 'search terms', scaleQ, 'Raise bids, add as exact')
+    + box('paths', 'var(--brand)', 'Competing paths', staInt(L.groups.length), 'search terms', pathsQ, provEx >= 1 ? 'Keep the lead path (provisional)' : 'Keep the lead path')
     + box('rl', 'var(--violet-ink)', 'Review list', staInt(open.length), 'waiting',
       appr ? `${staInt(appr)} approved, ready for the bulk file.` : 'Approve, then download as an Amazon bulk file.', 'Open the review list');
 }
@@ -26763,7 +26880,8 @@ function staDrawBurn(L) {
   const page = staPage(rows);
   const tot = rows.reduce((t, r) => t + r.burned, 0);
   const none = rows.filter(r => r.kind === 'none').length, poor = rows.filter(r => r.kind === 'poor').length;
-  staHead('Which search terms are burning money?', `${staInt(rows.length)} terms earned no profit: ${staInt(none)} with no sales, ${staInt(rows.length - none - poor)} above break-even, ${staInt(poor)} converting at under half the normal rate.`
+  const beB = rows.filter(r => r.kind === 'be' && r.beBrand).length, be = rows.filter(r => r.kind === 'be' && !r.beBrand).length;
+  staHead('Which search terms are burning money?', `${staInt(rows.length)} terms: ${staInt(none)} with no sales${be ? `, ${staInt(be)} above break-even` : ''}${beB ? `, ${staInt(beB)} brand term${beB === 1 ? '' : 's'} over the ${STA.BRAND_TGT}% brand-term limit` : ''}${poor ? `, ${staInt(poor)} converting at under half the normal rate` : ''}.`
     + ` Protected terms (brand, product words, main keywords, seasonal, own ASINs) get a lower bid or a hold — never a negative.`);
   const body = page.map(r => `<tr${ST_SEL.has(r.key) ? ' class="sel"' : ''}>
       ${staTermCell(r)}${staVerdictCell(r, true)}${staNextCell(r)}
@@ -26839,11 +26957,13 @@ function staDrawScale(L) {
   const rows = staSorted(L.scale, 's');
   ST_LAST = rows;
   const page = staPage(rows);
+  const scB = rows.filter(r => r.scaleBrand).length;
   staHead('Which search terms are worth scaling?', `${staInt(rows.length)} terms sell under their target ACoS with enough orders: ${STA.SCALE_ORDERS}+ to raise a bid, ${STA.EXACT_ORDERS}+ to add as exact.`
+    + (scB ? ` ${scB === rows.length ? 'All' : staInt(scB)} of them ${scB === 1 ? 'is a brand term' : 'are brand terms'}, judged against the ${STA.BRAND_TGT}% brand-term limit${staNoTarget() ? ' — the only target that works without unit costs' : ''}.` : '')
     + ' The ceiling is the CPC that would land on target, capped at twice today\'s CPC.');
   const body = page.map(r => {
     const under = r.tgtUse - r.acos;
-    const v = Object.assign({}, r, { ev: `<b>${staPct(r.acos)}</b> ACoS, ${under.toFixed(1)} pts under ${staPct(r.tgtUse)}${r.ln.fallback ? ' (your setting)' : ''} · CPC ${staMoney(r.cpc)} → ceiling ${staMoney(r.ceil)}` });
+    const v = Object.assign({}, r, { ev: `<b>${staPct(r.acos)}</b> ACoS, ${under.toFixed(1)} pts under ${staPct(r.tgtUse)}${r.scaleBrand ? ' (brand-term limit)' : r.ln.fallback ? ' (your setting)' : ''} · CPC ${staMoney(r.cpc)} → ceiling ${staMoney(r.ceil)}` });
     return `<tr${ST_SEL.has(r.key) ? ' class="sel"' : ''}>${staTermCell(r)}${staVerdictCell(v, true)}${staNextCell(r)}
       <td class="num">${staInt(r.o)}</td><td class="num">${staMoney(r.s)}</td><td class="num">${staMoney(r.sp)}</td><td class="num"><b>${staPct(r.acos)}</b></td>${staPathCell(r)}</tr>`;
   }).join('');
@@ -26932,12 +27052,13 @@ function staLegend() {
   const L = (h, items) => `<h4>${h}</h4><ul>${items.map(i => `<li>${i}</li>`).join('')}</ul>`;
   $('stLegendBody').innerHTML = '<div class="sta-legcols"><div>'
     + L('Before anything is judged', [
-      '<b>Data check</b>: a row with more orders than clicks, orders without sales or sales without clicks is set aside and never used.',
+      '<b>Data check</b>: a row with orders but no sales, or sales without a click, is left out of every verdict (still counted in the totals). More orders than clicks is normal with 7-day attribution: kept, judged, tagged.',
       `<b>Incomplete data</b>: a brand with no search terms, or ones older than ${STA.STALE_H} hours, gets no suggestions.`,
-      `<b>30 days first</b>: a product with fewer than ${STA.AGE_DAYS} days of ads (from the weekly ad spend), a new campaign or keyword (Amazon's record), or a launch / ranking campaign (by its name) is not judged.`,
-      '<b>No unit cost</b>: no profit verdict, only "no sales" — unless a target ACoS is set for the brand in Lists & settings.'])
+      `<b>30 days first</b>: judged from the start date + ${STA.AGE_DAYS} days (Day ${STA.AGE_DAYS + 1}), the same rule for a new campaign, keyword or target (Amazon's start date) and a new product (the last day of its first week with ad spend — the weekly figures give only the week).`,
+      `<b>Launch / ranking campaigns</b> (by their name): left alone for ${STA.LAUNCH_DAYS} days from their start, then judged like any other.`,
+      `<b>No unit cost</b>: no profit verdict — only "no sales", and brand terms against the ${STA.BRAND_TGT}% brand-term limit — unless a target ACoS is set for the brand in Lists & settings.`])
     + L('Never a negative on', [
-      '<b>Brand terms</b> (Lists & settings, and keywords in campaigns named "brand"): judged against ' + STA.BRAND_TGT + '% ACoS.',
+      '<b>Brand terms</b> (Lists & settings, and keywords in campaigns named "brand"): held to the ' + STA.BRAND_TGT + '% brand-term limit, with or without unit costs — over it they show as "Above brand limit", well under it as worth scaling.',
       '<b>Own and sister-brand ASINs</b>: defence placements, never negated or scaled.',
       '<b>Product words</b>: what the ad group sells — found in the titles and the campaign and ad-group names, plus your list.',
       `<b>Main keywords</b>: your own keywords for that product, or terms with ${STA.MAIN_ORDERS}+ orders. Only negated on a weaker path when its own exact keyword keeps the term.`,
@@ -26956,21 +27077,22 @@ function staLegend() {
       `${STA.COOLDOWN} days after a bid change from Sellora before that bid is judged again.`,
       `<b>Raise</b>: ${STA.SCALE_ORDERS}+ orders, ACoS at or under ${Math.round(STA.SCALE_SHARE * 100)}% of target, ${STA.RAISE_COVER}+ days of FBA stock, and the bid under ${STA.NOT_LIMIT}× the CPC.`,
       `<b>Add as exact</b>: ${STA.EXACT_ORDERS}+ orders under target and no exact keyword for it on that product yet.`,
-      `ACoS under ${STA.LOW_ACOS}% with ${STA.LOW_ACOS}+ orders is treated as a likely data error: never scaled, never a lead.`])
+      `ACoS under ${STA.LOW_ACOS}% with 3+ orders is tagged "Very low ACoS" to look at, and judged like any other.`])
     + L('Competing paths', [
       'Only paths to the <b>same product</b> (the parent with the most ad sales in the ad group) compete.',
       `The lead has ${STA.LEAD_ORDERS}+ orders and ACoS under break-even; an own exact keyword first, then the lowest ACoS.`,
       'A path doing as well as the lead is never negated. Overlap cost = spend − sales × the lead\'s ACoS.',
       `No unit cost and no target: a <b>provisional</b> lead (${STA.LEAD_ORDERS}+ orders, the lowest ACoS), and only a path with no order, or at ${STA.PROV_GAP}× the lead's ACoS or worse, is sent to it.`])
     + L('Money at stake, brand split, one-click negatives', [
-      '<b>Money at stake</b> (first in the strip): no-sales and above-break-even spend plus overlap cost, each term counted once.',
-      '<b>Branded / non-branded</b>: spend and ACoS of the terms listed, split by the brand terms in Lists &amp; settings. A <b>brand leak</b> is a brand term paid for in a campaign whose name has no brand term, "brand" or "defense".',
+      '<b>Money at stake</b> (first in the strip): no-sales and above-limit spend plus overlap cost, each term counted once (the larger of the two), so the boxes add up to more. Overlap cost against a provisional lead shows apart, as "provisional".',
+      '<b>Branded / non-branded / small terms / other</b>: four parts that add up to the ad spend. Small terms (under 3 clicks, no order) are not listed one by one; "other" is what the keyword report has and the search-term report does not. A <b>brand leak</b> is a brand term paid for in a campaign whose name has no brand term, "brand" or "defense".',
       '<b>Neg exact / Neg phrase</b> in the row add the change straight to the review list after the same checks as the dialog. Neg phrase is off when the term is protected, contains a product word, or a longer search containing it sold in the same campaign.'])
     + L('Next-step chips and New', [
       'The chips under the tabs show one kind of next step at a time — Negative, Lower bid, Pause, Add exact, Raise bid, Watch / hold, In review — with "Tick all" for every page.',
-      `<b>New</b>: campaigns, ad groups and keywords launched in the last ${STA.AGE_DAYS} days, with the day they are on and the day Sellora starts judging them. Only warnings there: no order after 40 clicks, or above break-even so far.`])
+      `<b>New</b>: campaigns, products, keywords and targets in their first ${STA.AGE_DAYS} days, and launch campaigns in their first ${STA.LAUNCH_DAYS}, with the day they are on and the day Sellora starts judging them. Only warnings there: no order after 40 clicks (launch campaigns too), or above break-even so far.`])
     + L('Badges', ['<b>Promoted</b>: the term has its own exact keyword for this product elsewhere.', '<b>In review</b>: a change for it is in the review list.',
-      '<b>Negated</b>: a negative is already in place.', '<b>Other products\' sales</b>: most of the ad group\'s ad sales were other products bought after the click.'])
+      '<b>Negated</b>: a negative is already in place.', '<b>Other products\' sales</b>: most of the ad sales were other products bought after the click — for the ad group, or for this one term (Amazon\'s same-product sales, else an order worth over 3× the product\'s price).',
+      '<b>More orders than clicks</b>, <b>Very low ACoS</b>: worth a look, judged like any other.'])
     + '</div></div>';
 }
 
@@ -29399,7 +29521,7 @@ function plxModel() {
       }
       if (!seen.has(g.brand + '|' + ai.ag)) {
         seen.add(g.brand + '|' + ai.ag);
-        if (ai.launch) x.launch = true;
+        if (ai.launch) { x.launch = true; x.launchTo = Math.max(x.launchTo || 0, ai.launchTo || 0); }
         if (ai.isNew) { x.isNew = true; x.newFrom = Math.max(x.newFrom, ai.newFrom || 0); }
         if (ln.cover != null) x.cover = x.cover == null ? ln.cover : Math.min(x.cover, ln.cover);
       }
@@ -29435,10 +29557,14 @@ function plxModel() {
       c.tgt = ci.w > 0 ? ci.tw / ci.w : ci.w0 > 0 ? ci.tw0 / ci.w0 : null;
       c.be = ci.w > 0 ? ci.bw / ci.w : ci.w0 > 0 ? ci.bw0 / ci.w0 : null;
       c.fallback = !!ci.fallback && !ci.known;
-      c.launch = !!ci.launch || STA_LAUNCH.test(c.cn);
+      // Launch / ranking campaigns (by name) are left alone for STA.LAUNCH_DAYS from their start, as in Search Term Analysis
+      // (18 Nov audit: the name alone used to exempt them for good). The name test here only covers a campaign whose ad
+      // groups Search Term Analysis has not seen.
+      c.launch = !!ci.launch || (!info.has(b + '|' + c.cid) && STA_LAUNCH.test(c.cn) && (!c.started || !staStarted(c.started, STA.LAUNCH_DAYS)));
+      c.launchTo = ci.launchTo || (c.started ? staAddDays(c.started, STA.LAUNCH_DAYS) : 0);
       c.cover = ci.cover != null ? ci.cover : null;
-      c.isNew = !!ci.isNew || (c.started && now - c.started < STA.AGE_DAYS * DAY);
-      c.newFrom = Math.max(ci.newFrom || 0, c.started ? c.started + STA.AGE_DAYS * DAY : 0);
+      c.isNew = !!ci.isNew || (!!c.started && !staStarted(c.started, STA.AGE_DAYS));
+      c.newFrom = Math.max(ci.newFrom || 0, c.started ? staAddDays(c.started, STA.AGE_DAYS) : 0);
       c.acos = c.s > 0 ? c.sp / c.s * 100 : null;
       c.rows.sort((x, y) => (PLX_ORDER.indexOf(x.pk) + 1 || 9) - (PLX_ORDER.indexOf(y.pk) + 1 || 9));
       c.rows.forEach(r => {
@@ -29479,7 +29605,7 @@ function plxDecide(r, c, open, last, now) {
   const m = PLX_META[r.pk];
   if (!m || m.ix < 0) return set('na', r.pk === 'off' ? 'Amazon has no bid adjustment for off-Amazon placements' : 'A placement Amazon has no adjustment for');
   if (c.state && !/enabled/i.test(c.state)) return set('na', 'Campaign ' + String(c.state).toLowerCase());
-  if (c.launch) return set('hold', 'Launch campaign (by its name): not judged on ACoS');
+  if (c.launch) return set('hold', `Launch campaign (by its name): not judged on ACoS${c.launchTo ? ' until ' + staDay(c.launchTo) : ''}`);
   if (c.isNew && c.newFrom > now) return set('new', `New campaign: judged from ${staDay(c.newFrom)}`);
   const op = open.get(r.key);
   if (op) return set('review', `${staKindName(op)} ${plxPct(op.plc.from)} → ${plxPct(op.plc.to)} is in the review list`);
@@ -29752,7 +29878,7 @@ function plxLegend() {
       `<b>Raise +${PLX.STEP} points</b> when ACoS is at or below ${Math.round(PLX.RAISE_SHARE * 100)}% of the target; never over ${PLX.MAX_PCT}%, and not with under ${STA.RAISE_COVER} days of FBA stock.`,
       `<b>Lower −${PLX.STEP} points</b> when ACoS is above break-even (never below 0%). Already at 0%: the bids themselves are the lever — "Lower keyword bids" opens Search Term Analysis on that campaign.`,
       '<b>Keep</b> in between.',
-      'Off Amazon has no adjustment at Amazon. Paused campaigns, launch campaigns (by name) and campaigns under 30 days old are not judged.',
+      `Off Amazon has no adjustment at Amazon. Paused campaigns, campaigns in their first ${STA.AGE_DAYS} days and launch campaigns (by name) in their first ${STA.LAUNCH_DAYS} are not judged.`,
       `After a change, ${PLX.COOLDOWN} days before the next one, so Amazon\'s numbers can catch up.`])
     + L('What happens to a change', [
       '<b>Send to review</b> puts it in the shared review list (the same one as Search Term Analysis). Approved changes download as an Amazon bulk file (Entity "Bidding Adjustment", the new % as a whole number) to upload in the Ads console.',
