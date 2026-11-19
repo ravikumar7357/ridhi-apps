@@ -422,7 +422,12 @@ function renderShpBoard() {
   /* SHIPPING TO ACCEPT ONLY: the one list this account works — pieces pressed and waiting for shipping — without the buckets, the tabs, the view
    * picker or Close lines. */
   /* the SHP board alone (ME.shpBoardOnly, core/auth.js): no picker to the Order Console's other views, no Close lines or Export */
-  if (ME.shpBoardOnly) ['odView', 'odClose', 'odExport'].forEach(id => { const b = $(id); if (b && b.classList) b.classList.add('hide'); });
+  if (ME.shpBoardOnly) {
+    ['odClose', 'odExport'].forEach(id => { const b = $(id); if (b && b.classList) b.classList.add('hide'); });
+    /* the picker stays, offering the four boards only (19 Nov: Laxmi could not reach the AMZ board) */
+    const vw = $('odView');
+    if (vw && vw.options) [...vw.options].forEach(o => { const ok = shpbIsBoard(o.value); o.hidden = !ok; o.disabled = !ok; });
+  }
   if (ME.shpAccOnly) { SHPB.tab = 'done'; SHPB.stage = 'hand'; ['odView', 'odClose', 'odExport'].forEach(id => { const b = $(id); if (b && b.classList) b.classList.add('hide'); }); }
   if (!SHPB.readyAt && !SHPB.busy) shpbLoad(true);
   SHPB_STK = Array.isArray(FGI.rows) ? fgiStock() : null;
