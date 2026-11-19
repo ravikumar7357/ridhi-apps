@@ -149,16 +149,16 @@ const ready = C => wait(() => C.TT.run && C.TT.run.plans.length && !C.TT.run.tot
     ok('ONE popup for every title problem of the family (not only this row\'s)', run.plans.length === n && ['T1', 'S1', 'D1', 'O1', 'L1', 'K1', 'A1'].every(s => planOf(C, s)));
     const p = s => planOf(C, s);
     const expect = {
-      T1: 'Ridhi Cloth Napkins 100% Cotton 18 x 18 Inch Block Print - Rust',
-      S1: 'Ridhi Cloth Napkins 100% Cotton 20 x 20 Inch Block Print - Navy',
-      D1: 'Ridhi Cloth Napkins 100% Cotton 14 x 20 Inch Block Print - Teal',
-      O1: 'Ridhi Cloth Napkins 100% Cotton 18 x 18 Inch Block Print - Pink',
-      L1: 'Ridhi Cloth Napkins 100% Cotton 18 x 18 Inch Block Print - Ivory',
-      K1: 'Ridhi Cloth Napkins 100% Cotton 20 x 20 Inch Block Print - Mustard',
-      A1: 'Ridhi Cloth Napkins 100% Cotton 14 x 20 Inch Block Print - Plum',
+      T1: 'Ridhi Cloth Napkins 100% Cotton 18 x 18 Inch Block Print Reusable - Rust',
+      S1: 'Ridhi Cloth Napkins 100% Cotton 20 x 20 Inch Block Print Reusable - Navy',
+      D1: 'Ridhi Cloth Napkins 100% Cotton 14 x 20 Inch Block Print Reusable - Teal',
+      O1: 'Ridhi Cloth Napkins 100% Cotton 18 x 18 Inch Block Print Reusable - Pink',
+      L1: 'Ridhi Cloth Napkins 100% Cotton 18 x 18 Inch Block Print Reusable - Ivory',
+      K1: 'Ridhi Cloth Napkins 100% Cotton 20 x 20 Inch Block Print Reusable - Mustard',
+      A1: 'Ridhi Cloth Napkins 100% Cotton 14 x 20 Inch Block Print Reusable - Plum',
     };
     Object.entries(expect).forEach(([sku, t]) => ok(`${sku} → "${t}"`, p(sku).ok && p(sku).after === t, p(sku).after + ' · ' + p(sku).why));
-    ok('template order: brand, product, material, size, print, colour', Object.keys(expect).every(s => /^Ridhi Cloth Napkins 100% Cotton \d+ x \d+ Inch Block Print - \w+$/.test(p(s).after)));
+    ok('template order: brand, product, material, size, print, uses, colour — the words that go chosen by the one rule (the repeated "Napkins", then "Dinner")', Object.keys(expect).every(s => /^Ridhi Cloth Napkins 100% Cotton \d+ x \d+ Inch Block Print Reusable - \w+$/.test(p(s).after) && p(s).cutWords.slice().sort().join() === 'Dinner,Napkins'), p('T1').cutWords.join());
     ok('the size the rule\'s way ("20 x 20 Inch", not "20x20 Inches"), the smaller number first ("14 x 20", not "20 x 14")', p('S1').after.includes('20 x 20 Inch ') && p('D1').after.includes('14 x 20 Inch') && p('A1').after.includes('14 x 20 Inch'));
     ok('"Block Print" added where the family says it (K1, A1)', /Block Print/.test(p('K1').after) && /Block Print/.test(p('A1').after));
     ok('"Cotton" (Amazon\'s material) written the template\'s way: "100% Cotton" (O1, A1)', p('O1').after.includes('100% Cotton') && p('A1').after.includes('100% Cotton'));
@@ -177,15 +177,15 @@ const ready = C => wait(() => C.TT.run && C.TT.run.plans.length && !C.TT.run.tot
     console.log('== held back, with the reason — nothing guessed ==');
     ok('M1: Amazon has no material → left out, held back: "check: material missing"', !p('M1').ok && /^check: material missing/.test(p('M1').why) && !/Cotton/.test(p('M1').after), p('M1').why + ' · ' + p('M1').after);
     ok('C1: Amazon says Red, the catalogue Black → held back with both', !p('C1').ok && /check: colour — Amazon says “Red”, the catalogue says “Black”/.test(p('C1').why), p('C1').why);
-    ok('X1: even with only the required parts (brand, product, material, size, print the family asks for, colour) it is over 75 → held back, nothing required dropped',
-      !p('X1').ok && /even with only the parts the template requires it is \d+ characters \(over 75\)/.test(p('X1').why) && p('X1').after.startsWith('Ridhi Cloth Napkins 100% Cotton 18 x 18 Inch Block Print - Indigo Blue and Rust Orange Stripe'), p('X1').why);
+    ok('X1: with only its important words left (brand, product, material, size, print, its whole colour) it is over 75 → held back: "Only important words left — edit by hand", nothing important dropped',
+      !p('X1').ok && /^Only important words left — edit by hand \(\d+ characters, over 75\)/.test(p('X1').why) && p('X1').after === 'Ridhi Cloth Napkins 100% Cotton 18 x 18 Inch Block Print - Indigo Blue and Rust Orange Stripe', p('X1').why + ' · ' + p('X1').after);
 
     console.log('== the popup ==');
     const pop = C.el('spModalBox').innerHTML;
     const t = strip(pop);
     ok('title, sum line: "N children · every new title passes every title rule · 3 held back"', /Fix all titles — Parent PB/.test(t) && new RegExp(`${n - 3} children · every new title passes every title rule · 3 held back`).test(t), t.slice(0, 300));
     ok('per child: SKU, colour · size, current → new title, characters before → after, what it fixes', /<b>A1<\/b><small>Plum · 14 x 20 Inch<\/small>/.test(pop) && /<small>Now<\/small> /.test(pop) && /<small>New<\/small> /.test(pop)
-      && /<span class="">33<\/span> → <span class="ok" data-tt-n="SP\|A1">63<\/span> characters/.test(pop) && /Fixes: Title doesn't follow template · /.test(t.replace(/&#39;/g, "'")), t.slice(0, 900));
+      && /<span class="">33<\/span> → <span class="ok" data-tt-n="SP\|A1">72<\/span> characters/.test(pop) && /Fixes: Title doesn't follow template · /.test(t.replace(/&#39;/g, "'")), t.slice(0, 900));
     ok('the changes marked: words that go struck through, words that come in highlighted', /<span class="kf-cut">20x14<\/span>/.test(pop) && /<span class="tt-add">100%<\/span>/.test(pop) && /<span class="tt-add">Block<\/span>/.test(pop));
     ok('each one: "✓ Passes every title rule", a tick (ticked), "Edit new title"', (pop.match(/✓ Passes every title rule/g) || []).length === n - 3 && (pop.match(/data-tt-tick="[^"]+" checked/g) || []).length === n - 3 && (pop.match(/Edit new title/g) || []).length === n - 3);
     ok('held-back children listed with the reason (and Edit by hand)', (pop.match(/⚠ Held back: /g) || []).length === 3 && /⚠ Held back: check: material missing/.test(pop) && (pop.match(/data-tt="hand"/g) || []).length === 3);
@@ -275,7 +275,7 @@ const ready = C => wait(() => C.TT.run && C.TT.run.plans.length && !C.TT.run.tot
     ok('the Workspace child view\'s rows too (lrRecHtml)', /data-lr-det="dimension_order"/.test(rec));
     C.ttStartOne('SP', 'A1');
     await ready(C);
-    ok('ttStartOne → the popup with only A1, the same new title as in Fix all', C.TT.run.plans.length === 1 && planOf(C, 'A1').after === 'Ridhi Cloth Napkins 100% Cotton 14 x 20 Inch Block Print - Plum');
+    ok('ttStartOne → the popup with only A1, the same new title as in Fix all', C.TT.run.plans.length === 1 && planOf(C, 'A1').after === 'Ridhi Cloth Napkins 100% Cotton 14 x 20 Inch Block Print Reusable - Plum');
     C.ttClick({ dataset: { tt: 'cancel' } });
     ok('Cancel: closed, nothing sent', C.TT.run.closed && patchCalls(C, false).length === 0);
     ok('a listing with no title problem: no popup (the button goes to Listing Errors as before)', C.ttStartOne('SP', 'G0') === null);
@@ -292,20 +292,20 @@ const ready = C => wait(() => C.TT.run && C.TT.run.plans.length && !C.TT.run.tot
     C.ttClick({ dataset: { tt: 'cancel' } });
   }
 
-  console.log('== the 75-character cap: the optional parts go in the rule\'s order ==');
+  console.log('== the 75-character cap: the one suggestion-words rule chooses the words; important words never go ==');
   {
     const { C } = setup({ facts: true });
     C.ttStartFamily('SP', 'PC');
     await ready(C);
     const p2 = planOf(C, 'P2');
-    ok('P2 (no sibling says Block Print): the uses go, then the print — never brand, product, size or colour', p2.ok && p2.after === 'Ridhi Cloth Napkins 100% Cotton 18 x 18 Inch - Dusty Rose Pink Stripe' && p2.dropped.join() === 'uses,pattern', p2.after + ' · ' + p2.dropped);
-    ok('…within 75', p2.after.length <= 75, String(p2.after.length));
+    ok('P2 (a long colour): the uses go, but "Block Print" (who we are) and the whole colour stay — over 75 → held back, "Only important words left — edit by hand"', !p2.ok && p2.after === 'Ridhi Cloth Napkins 100% Cotton 18 x 18 Inch Block Print - Dusty Rose Pink Stripe' && p2.dropped.join() === 'uses'
+      && /^Only important words left — edit by hand \(81 characters, over 75\)/.test(p2.why), p2.after + ' · ' + p2.dropped + ' · ' + p2.why);
     C.ttClick({ dataset: { tt: 'cancel' } });
     const l1 = C.ttPlans('SP', C.ttRows('SP').filter(r => r.row.sku === 'L1'), C.hCtx()).get('L1');
-    ok('L1 (the family says Block Print): only the uses go, the print stays', l1.ok && l1.dropped.join() === 'uses' && /Block Print - Ivory$/.test(l1.after), l1.dropped + ' · ' + l1.after);
+    ok('L1: the repeated "Napkins" and then "Dinner" go, "Reusable" fits and stays, the print stays', l1.ok && !l1.dropped.length && /Block Print Reusable - Ivory$/.test(l1.after) && l1.after.length <= 75, l1.dropped + ' · ' + l1.after);
   }
 
-  console.log('== a long print in the template ("Hand Block Print"): written as the rule\'s own words ("Block Print") to fit 75 ==');
+  console.log('== a long print in the template ("Hand Block Print"): "Hand" is never dropped (19 Nov 2026) ==');
   {
     const { C } = setup({ facts: true });
     const now = Date.now();
@@ -318,23 +318,23 @@ const ready = C => wait(() => C.TT.run && C.TT.run.plans.length && !C.TT.run.tot
     C.reset();
     const tc = (sku, color, size) => C.ttBuild('SP', C.HEALTH.SP.rows.find(r => r.sku === sku), C.hCtx(), { va: { color, size, material: 'Cotton', item_shape: 'Rectangle' } });
     const b1 = tc('TC1', 'Mustard', '60x102');
-    ok('TC1 (its sibling says it): the uses go, then "Hand Block Print" is written "Block Print" — 74 characters, every required part kept',
-      b1.after === 'Ridhi Tablecloth Rectangle 100% Cotton 60 x 102 Inch Block Print - Mustard' && b1.shortPrint === 'Hand Block Print' && b1.dropped.join() === 'uses' && !b1.why, b1.after + ' · ' + b1.after.length + ' · ' + b1.why);
+    ok('TC1: the uses go, "Hand Block Print", "Rectangle", "100% Cotton" and the colour stay — 79 characters → held back, "Only important words left — edit by hand"',
+      b1.after === 'Ridhi Tablecloth Rectangle 100% Cotton 60 x 102 Inch Hand Block Print - Mustard' && !b1.shortPrint && b1.dropped.join() === 'uses' && /^Only important words left — edit by hand \(79 characters, over 75\)/.test(b1.why), b1.after + ' · ' + b1.after.length + ' · ' + b1.why);
     const b2 = tc('TC2', 'Red', '60x90');
     ok('…a title that fits keeps the template\'s own words ("Hand Block Print")', b2.after === 'Ridhi Tablecloth Rectangle 100% Cotton 60 x 90 Inch Hand Block Print - Red' && !b2.shortPrint, b2.after);
     C.TT.read.set('SP|TC1', { va: { color: 'Mustard', size: '60x102', material: 'Cotton', item_shape: 'Rectangle' }, pt: 'TABLECLOTH', at: now });
     const p1 = C.ttPlans('SP', C.ttRows('SP').filter(r => r.row.parent === 'TCP'), C.hCtx()).get('TC1');
-    ok('…and it passes every rule (the keyword rule reads both as Block Print)', p1 && p1.ok, p1 && p1.why);
+    ok('…and its plan says so (held back, nothing sent)', p1 && !p1.ok && /^Only important words left — edit by hand/.test(p1.why), p1 && p1.why);
   }
 
   console.log('== the rules re-check holds a new title back ==');
   {
-    const { C } = setup({ facts: true, rules: LR => { LR.issues.find(i => i.id === 'title_opt').params = { min: 70, max: 75 }; } });
+    const { C } = setup({ facts: true, rules: LR => { LR.issues.find(i => i.id === 'title_opt').params = { min: 73, max: 75 }; } });
     const plans = C.ttPlans('SP', C.ttRows('SP'), C.hCtx());
     const a1 = plans.get('A1');
-    ok('a title-length rule of 70–75: the 63-character new title still fails it → held back, the rule named', !a1.ok && /still: Title slightly under-optimized — 63 characters/.test(a1.why), a1.why);
+    ok('a title-length rule of 73–75: the 72-character new title still fails it → held back, the rule named', !a1.ok && /still: Title slightly under-optimized — 72 characters/.test(a1.why), a1.why);
     const sizes = C.ttPlans('SP', C.ttRows('SP'), C.hCtx());
-    ok('nothing is sent that fails a rule', [...sizes.values()].filter(p => p.ok).every(p => p.after.length >= 70), [...sizes.values()].filter(p => p.ok).map(p => p.sku + ':' + p.after.length).join());
+    ok('nothing is sent that fails a rule', [...sizes.values()].filter(p => p.ok).every(p => p.after.length >= 73), [...sizes.values()].filter(p => p.ok).map(p => p.sku + ':' + p.after.length).join());
   }
 
   console.log('== the test site: "not sent to Amazon" ==');
@@ -379,8 +379,8 @@ const ready = C => wait(() => C.TT.run && C.TT.run.plans.length && !C.TT.run.tot
     console.log = () => {}; console.table = () => {};
     let r;
     try { r = C.ttReport(); } finally { console.log = log; console.table = table; }
-    ok('ttReport(): children and families it would fix, held back by reason, 3 examples before → after', r.counts.Ridhi.childrenWithATitleProblem === C.ttRows('SP').length && r.counts.Ridhi.fixedNow === 8 && r.counts.Ridhi.familiesFixed === 2
-      && r.counts.Ridhi.heldBack === 3 && r.examples.length === 3 && r.examples.every(x => x.before && x.after && x.before !== x.after) && r.examples.some(x => x.sku === 'A1') && Object.keys(r.heldBackBy).length === 3, JSON.stringify(r));
+    ok('ttReport(): children and families it would fix, held back by reason, 3 examples before → after', r.counts.Ridhi.childrenWithATitleProblem === C.ttRows('SP').length && r.counts.Ridhi.fixedNow === 7 && r.counts.Ridhi.familiesFixed === 1
+      && r.counts.Ridhi.heldBack === 4 && r.examples.length === 3 && r.examples.every(x => x.before && x.after && x.before !== x.after) && r.examples.some(x => x.sku === 'A1') && Object.keys(r.heldBackBy).length === 3, JSON.stringify(r));
   }
 
   console.log('== wired in: ORDER, the styles ==');

@@ -1,7 +1,8 @@
 /* Fix all search terms (src/app/listing/kw-fix.js) over the real Listing Rules, Workspace, Fix all block and send path, in a stub page.
  *   node tests/kw-fix-test.js
- * One parent PK of 6 napkins: K1 over the limit with repeats, title words, stop words, punctuation, brand names and an ASIN (fits once
- * those are out); K2 over by unique words (cut from the end); K3 short; K4 exactly 249 bytes; K5 250 bytes; K6 whose kept text is cut
+ * One parent PK of 6 napkins: K1 over the limit with repeats, its important words (product, material, colour — kept though the title says
+ * them), stop words, punctuation, brand names and an ASIN (19 Nov 2026: the one suggestion-words rule, lrSuggestWords — then one word
+ * from the end); K2 over by unique words (cut from the end); K3 short; K4 exactly 249 bytes; K5 250 bytes; K6 whose kept text is cut
  * (read whole from Amazon when the preview opens). The row, the preview (bytes, struck words, ticks, search, edits), the send through the
  * Amazon check popup, Listing History and the change log (Put back), the test site, a rejection, and the Listing Errors card. */
 const { load } = require('./listing-rules-test.js');
@@ -12,7 +13,8 @@ const bytes = s => Buffer.byteLength(String(s).replace(/[\s;,.]+/g, ''), 'utf8')
 const COLORS = ['Blue', 'Red', 'Green', 'Grey', 'Navy', 'Teal'];
 const TITLE = c => `Ridhi Cloth Napkins 100% Cotton 18 x 18 Inch Block Print - ${c}`;
 const words = (pre, n, w) => Array.from({ length: n }, (_, i) => pre + String(i).padStart(w, '0'));
-// K1: 22 unique 9-byte words (198) + "dinner party wedding table linen kitchen" (35) kept = 233; plus what goes: repeats, title words, stop
+// K1: 22 unique 9-byte words (198) + "napkins cotton dinner party wedding table linen kitchen Blue" (52) = 250 once brands, ASIN, "&", the
+// repeat and the stop words are out — still one over, so the last other word goes (alpha0021): 241. Before 19 Nov the title words went
 // words, "&", the brands (ours, two words), an ASIN
 const K1 = 'napkins cotton dinner, dinner party; the wedding & table for linen kitchen CPC Whimsical Corner B0ABCDEFGH Blue '
   + words('alpha', 22, 4).join(' ');
@@ -75,13 +77,16 @@ const settle = async () => { for (let i = 0; i < 5; i++) await new Promise(r => 
   {
     const { C } = setup();
     const brands = ['ridhi', 'cpc', 'whimsical corner'];
-    const s = C.kfShorten(K1, { title: TITLE('Blue'), brands });
+    const facts = C.lrSwFacts({ brand: 'SP', sku: 'K1' }, null, null, { title: TITLE('Blue'), pt: 'NAPKIN' });
+    const s = C.kfShorten(K1, { title: TITLE('Blue'), brands, facts });
     const why = w => (s.removed.find(r => r.w.replace(/[^\w]/g, '').toLowerCase() === w.toLowerCase()) || {}).why;
     ok('1 repeats out (the first one stays): the second "dinner"', why('dinner') === 'repeated' && s.after.split(' ').filter(w => w === 'dinner').length === 1, s.after);
-    ok('2 words already in the title out: napkins, cotton, Blue', why('napkins') === 'in the title' && why('cotton') === 'in the title' && why('Blue') === 'in the title');
+    ok('2 its important words stay the first time though the title says them: napkins (its product), cotton (its material), Blue (its colour)', !why('napkins') && !why('cotton') && !why('Blue')
+      && /^napkins cotton dinner party/.test(s.after) && / Blue /.test(s.after), s.after);
     ok('3 punctuation and stop words out: "&", the, for — and "party;" kept as "party"', why('the') === 'stop word' && why('for') === 'stop word' && s.removed.some(r => r.w === '&' && r.why === 'punctuation') && / party /.test(' ' + s.after + ' '));
     ok('4 brand names (ours: CPC, "Whimsical Corner" as two words) and ASINs out', why('CPC') === 'brand name' && why('Whimsical') === 'brand name' && why('Corner') === 'brand name' && why('B0ABCDEFGH') === 'ASIN');
-    ok('…already within 249 after steps 1–4: step 5 not used, every other word kept', !s.cut && s.fits && s.bytesAfter === 233 && s.after === 'dinner party wedding table linen kitchen ' + words('alpha', 22, 4).join(' '), s.bytesAfter + ' ' + s.after);
+    ok('…250 bytes after those: the last other word goes ("cut to fit": alpha0021) → 241, every important word kept', s.cut && s.fits && s.bytesAfter === 241 && why('alpha0021') === 'cut to fit'
+      && s.after === 'napkins cotton dinner party wedding table linen kitchen Blue ' + words('alpha', 21, 4).join(' '), s.bytesAfter + ' ' + s.after);
     const s2 = C.kfShorten(K2, { title: TITLE('Blue'), brands });
     ok('5 still over: words cut from the END until it fits (the start stays): 280 → 245, word035…word039 out', s2.cut && s2.bytesAfter === 245 && s2.after === words('word', 35, 3).join(' ')
       && s2.removed.map(r => r.w).join() === 'word035,word036,word037,word038,word039' && s2.removed.every(r => r.why === 'cut to fit'));
@@ -98,7 +103,7 @@ const settle = async () => { for (let i = 0; i < 5; i++) await new Promise(r => 
     const g = C.faGroups('SP', 'PK', C.faKids('SP', 'PK')).find(x => x.kind === 'kw');
     ok('one row, kind kw: K1, K2, K5, K6 (not K3 short, not K4 at exactly 249)', g && g.kids.map(k => k.sku).sort().join() === 'K1,K2,K5,K6', g && g.kids.map(k => k.sku).join());
     const html = C.faBlockHtml('SP', 'PK');
-    ok('the block: what we will do, and ONE button "Fix all 4 children" (K6 counts: read whole when the preview opens)', /Shorten to 249 bytes — repeats, title words, stop words, brand names and ASINs out, then words from the end; nothing added/.test(html)
+    ok('the block: what we will do, and ONE button "Fix all 4 children" (K6 counts: read whole when the preview opens)', /Shorten to 249 bytes — brand names and ASINs out, then repeats, a wrong shape or colour, low-value words and other words until it fits; important words kept, nothing added/.test(html)
       && />Fix all 4 children</.test(html), strip(html).slice(0, 500));
     C.FA.open.add('SP|PK|' + g.key);
     const open = C.faBlockHtml('SP', 'PK');
@@ -117,8 +122,8 @@ const settle = async () => { for (let i = 0; i < 5; i++) await new Promise(r => 
     const run = C.KF.run;
     const html = pop(C);
     ok('the total on top: "4 children · all will be ≤ 249 bytes"', /4 children · all will be ≤ 249 bytes/.test(strip(html)), strip(html).slice(0, 200));
-    ok('a row per child: SKU, colour · size, bytes before → after (K1 291 → 233, K6 360 → 243)', /<b>K1<\/b><small>Blue · 18 x 18 Inch<\/small>/.test(html)
-      && /data-kf-key="SP\|K1"[\s\S]*?<span class="err">291<\/span> → <span class="ok" data-kf-n="SP\|K1">233<\/span> bytes/.test(html) && /<span class="err">360<\/span> → <span class="ok" data-kf-n="SP\|K6">243<\/span>/.test(html), strip(html).slice(0, 600));
+    ok('a row per child: SKU, colour · size, bytes before → after (K1 291 → 241, K6 360 → 243)', /<b>K1<\/b><small>Blue · 18 x 18 Inch<\/small>/.test(html)
+      && /data-kf-key="SP\|K1"[\s\S]*?<span class="err">291<\/span> → <span class="ok" data-kf-n="SP\|K1">241<\/span> bytes/.test(html) && /<span class="err">360<\/span> → <span class="ok" data-kf-n="SP\|K6">243<\/span>/.test(html), strip(html).slice(0, 600));
     ok('the removed words struck through, with why on hover', /<s class="kf-cut" title="repeated">dinner<\/s>/.test(html) && /<s class="kf-cut" title="brand name">CPC<\/s>/.test(html) && /<s class="kf-cut" title="cut to fit">word035<\/s>/.test(html));
     ok('a search box, Select all (on), a tick per child (on), the new text to edit', /data-kf-q/.test(html) && /data-kf-all checked/.test(html) && (html.match(/data-kf-tick="[^"]+" checked/g) || []).length === 4 && (html.match(/<textarea data-kf-edit=/g) || []).length === 4);
     ok('…and nothing sent yet: no patch at all', !C.calls.some(c => c.lfix === 'patch'));

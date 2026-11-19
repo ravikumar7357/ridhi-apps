@@ -466,7 +466,7 @@ function spHlAdd(item, adds, expired, start) {
   const base = removed.length ? less : now;
   if (base.length) {
     const list = text => [spHlTidy(text)].filter(Boolean).concat(base.slice(1));
-    const t = spTrim(item, base[0], text => !!tryIn(list(text)));
+    const t = spTrim(item, base[0], text => !!tryIn(list(text)), 'hl');
     if (t) {
       r = tryIn(list(t.text));
       if (r) return Object.assign({ ok: true, removed, trimmed: t.removed }, r);
@@ -491,47 +491,28 @@ function spKwAdd(item, adds, expired, start) {
   if (t) return { ok: true, after: join(t.text), words, removed: s.removed, trimmed: t.removed };
   return { ok: false, words, why: `search words full: ${spNf(lrKwBytes(item.kw))} of ${spNf(item.kwMax)}, nothing safe to remove` };
 }
-/* ----- SUGGESTED TRIM (the final spec, 13 Nov 2026) -----
- * When the season words do not fit, words of the CUSTOMER'S OWN text come out, one at a time from the end, in this order, until it
- * fits: a) a word said twice, or the singular and the plural of one word (one stays); b) a word the title already says; c) a filler —
- * and, the, for, with, a, an, of. Never a product, colour, size, material, brand (Ridhi, CPC, Whimsical Corner…) or season word, and
- * never any other word. A trim makes the child "Needs your OK": a person OKs every word taken out. */
-const SP_TRIM_FILL = new Set(['and', 'the', 'for', 'with', 'a', 'an', 'of']);
-const SP_MATERIAL = 'Cotton, Linen, Polyester, Jute, Silk, Wool, Velvet, Burlap, Muslin, Canvas, Bamboo, Satin, Chiffon, Lace, Voile, Flannel, Fleece, Khadi, Rayon, Viscose';
-// One word as it is compared: no punctuation around it, lower case, a plural read as its singular (lrNorm).
-const spTrimKey = word => lrNorm(String(word || '').replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}']+$/gu, ''));
-// The words never taken out of this listing: brand, colour, size, product type, material, the seasons on now.
-function spKeepWords(item) {
-  const cfg = spCfg();
-  const cat = lrCatOf(item.row) || {};
-  const tpl = typeof lrTemplateFor === 'function' ? lrTemplateFor(item.row, cfg) : null;
-  const text = [lrBrandWords(item.row, cfg).join(' '), lrAllow(cfg).ourBrands, lrColorOf(item.row), cat.color, cat.size, cat.subcat, cat.material,
-    tpl && tpl.product, tpl && tpl.material, String(item.pt || '').replace(/_/g, ' '), SP_HOME, SP_MATERIAL, 'inch inches cm ft x',
-    item.active.map(e => e.ev.name + ' ' + e.ev.words).join(' ')].filter(Boolean).join(' ');
-  return new Set(text.split(/[\s,]+/).map(spTrimKey).filter(Boolean));
-}
-// `fits(text)` → true when the text leaves room. { text, removed: [words] } once it fits, or null when nothing safe is left to take out.
-function spTrim(item, text, fits) {
+/* ----- SUGGESTED TRIM (the final spec, 13 Nov 2026; the words chosen by THE ONE SUGGESTION-WORDS RULE since 19 Nov 2026) -----
+ * When the season words do not fit, words of the CUSTOMER'S OWN text come out, one at a time, until it fits — which words is
+ * listing-rules.js lrSuggestWords, the same rule as Fix all search terms and Fix all titles: never its important words on their first
+ * appearance (hand, block print, its product, its real shape, its material, its own colour, its size, use words — and the seasons on
+ * now); first a word said again, then a shape or colour that is not the product's, low-value and joining words (gift, Indian,
+ * colorful, cute… and, the, for), then in the search words a word the title already says — never any other word of the customer's own
+ * (the planner's final spec: no ordinary word is cut from the end; then it is "Fix by hand"). In the search words our brand
+ * names go (as in Fix all search terms); in Item Highlights the brand stays. Only important words left: nothing is trimmed ("nothing
+ * safe to remove"). A trim makes the child "Needs your OK": a person OKs every word taken out. */
+// `fits(text)` → true when the text leaves room; `mode`: 'kw' (the search words, the default) or 'hl' (Item Highlights). { text, removed:
+// [words] } once it fits, or null when only important words are left.
+function spTrim(item, text, fits, mode) {
   const words = String(text || '').split(/\s+/).filter(Boolean);
   if (fits(words.join(' '))) return { text: words.join(' '), removed: [] };
-  const keep = spKeepWords(item);
-  const steps = [
-    (w, i) => words.slice(0, i).some(o => o && spTrimKey(o) === spTrimKey(w)),                        // a) said before (or its plural)
-    w => !keep.has(spTrimKey(w)) && !/\d/.test(w) && lrHas(item.title, spTrimKey(w)),                  // b) the title says it
-    w => SP_TRIM_FILL.has(spTrimKey(w)),                                                                // c) a filler
-  ];
-  const removed = [];
-  for (const step of steps) {
-    for (let i = words.length - 1; i >= 0; i--) {
-      const w = words[i];
-      if (!w || !spTrimKey(w) || !step(w, i)) continue;
-      words[i] = (w.match(/[,;]+$/) || [''])[0];   // a comma after it stays
-      removed.push(w.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}']+$/gu, ''));
-      const now = words.filter(Boolean).join(' ').replace(/\s+([,;])/g, '$1').replace(/([,;])(?:\s*[,;])+/g, '$1').replace(/^[,;\s]+|[,;\s]+$/g, '');
-      if (fits(now)) return { text: now, removed };
-    }
-  }
-  return null;
+  const cfg = spCfg();
+  const row = Object.assign({}, item.row, { brand: item.brand });
+  const r = lrSuggestWords(words.join(' '), { mode: mode || 'kw', fits, title: item.title, brands: lrBrandWords(row, cfg),
+    facts: lrSwFacts(row, cfg, null, { title: item.title, pt: item.pt }),
+    keep: item.active.flatMap(e => [e.ev.name].concat(lrWords(e.ev.words))),          // the seasons on now are never trimmed
+    cutEnd: false });                                                                   // no ordinary word of the customer's own is cut
+  if (!r.fits) return null;
+  return { text: r.after, removed: r.removed.map(x => x.w.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}']+$/gu, '')).filter(Boolean) };
 }
 /* ----- the checks: the same list for every season fix ----- */
 // [{ k, t, ok: true | false | 'warn', why, pre }] — `ok: false` stops the fix ("Fix by hand"); `pre` = already so before the change

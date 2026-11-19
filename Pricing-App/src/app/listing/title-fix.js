@@ -14,10 +14,11 @@
  *   - the size written the rule's way ("60 x 90 Inch", the size_format example), the smaller number first ("70 x 108");
  *   - the print ("Block Print") only when the rule asks for it (a sibling's title or the child's own bullets say it — lrBlockPrintProof),
  *     the child's title already says it, or Amazon's pattern attribute does — never on an embroidered piece;
- *   - never a season word (they are the Season planner's); within the title_length rule (75 at most, its minimum): the optional parts left
- *     out in the rule's order — uses, then the template's print written as the rule's own words ("Hand Block Print" → "Block Print"),
- *     then the print (unless the rule asks for it), then any other part the template does not require — never brand, product, size or
- *     colour (nor a part the template requires: then the child is held back, "even with only the parts the template requires…");
+ *   - never a season word (they are the Season planner's); within the title_length rule (75 at most, its minimum): the WORDS that go are
+ *     chosen by THE ONE SUGGESTION-WORDS RULE (listing-rules.js lrSuggestWords, 19 Nov 2026) in the template's order as it is: words said
+ *     again, a wrong shape or colour, low-value and joining words, then the other words from the end (the uses) — never the brand, the
+ *     product, its shape, material, size, the print ("Hand" of "Hand Block Print" stays) or its colour. Still over with only those left:
+ *     held back, "Only important words left — edit by hand";
  *   - a fact Amazon does not hold is left out and the child is marked "check: material missing"; two sources that disagree (Amazon's colour
  *     vs the catalogue's, the size in the title vs Amazon's) hold the child back — nothing is guessed;
  *   - EVERY Listing Rules rule is run again on the new title (ttJudge — the siblings' new titles counted, so "siblings write their size
@@ -184,23 +185,29 @@ function ttBuild(brand, row, ctx, amz) {
   const p = ttParts(brand, row, ctx, amz);
   if (p.why) return p;
   const lim = ttLimits(ctx.cfg);
-  const out = [];
-  let after = ttFill(p.tpl, p.parts, out);
-  // the steps when it is too long: the uses go; the template's print is written as the rule's own words ("Hand Block Print" →
-  // "Block Print": the keyword rule is still met); the print goes when the rule does not ask for it; then the other optional parts
-  const steps = p.drop.slice();
-  // (as written, not lrNorm: the rules read "Hand Block Print" as "Block Print" — which is why the short one still meets the rule)
-  if (p.parts.pattern && p.bp && p.bp.length < p.parts.pattern.length && lrHas(p.parts.pattern, p.bp)) steps.splice(steps[0] === 'uses' ? 1 : 0, 0, '~pattern');
-  for (const key of steps) {
-    if (after.length <= lim.max) break;
-    if (key === '~pattern') { p.shortPrint = p.parts.pattern; p.parts.pattern = p.bp; } else out.push(key);
-    after = ttFill(p.tpl, p.parts, out);
+  let after = ttFill(p.tpl, p.parts, []);
+  p.cutWords = [];
+  // too long: THE ONE SUGGESTION-WORDS RULE chooses the words that go, in the template's order as it is (never a whole part blindly)
+  if (after.length > lim.max) {
+    const r = lrSuggestWords(after, { mode: 'title', facts: ttFacts(p, ctx, amz), fits: text => text.length <= lim.max,
+      risk: typeof ipgKwRisk === 'function' ? ipgKwRisk(brand, row.sku, p.fresh, ctx.cfg) : null });
+    after = r.after;
+    p.cutWords = r.removed.map(x => x.w);
+    if (!r.fits) p.why = `${LR_SW_IMPORTANT} (${after.length} characters, over ${lim.max})`;
   }
-  p.dropped = out;
+  // a part none of whose OWN words is left (the uses, mostly — "Napkins" there is the product's word too): not named as a source
+  const left = new Set(ttWords(after));
+  const own = key => { const other = new Set(Object.keys(p.parts).filter(k => k !== key).flatMap(k => ttWords(p.parts[k]))); return ttWords(p.parts[key]).filter(word => !other.has(word)); };
+  p.dropped = Object.keys(p.parts).filter(key => p.parts[key] && own(key).length && !own(key).some(word => left.has(word)));
   p.after = after;
   p.lim = lim;
-  if (after.length > lim.max) p.why = `even with only the parts the template requires it is ${after.length} characters (over ${lim.max})`;
   return p;
+}
+// What the suggestion-words rule keeps for this title: the listing's own facts, with the parts the template filled in (colour, material…).
+function ttFacts(p, ctx, amz) {
+  const f = lrSwFacts(p.fresh, ctx.cfg, amz && amz.va, { title: p.title, pt: amz && amz.pt });
+  return Object.assign(f, { colour: p.parts.color || f.colour, material: p.parts.material || f.material, shape: lrSwShapeOf(p.parts.size || f.size, p.parts.shape) || f.shape,
+    product: f.product.concat(p.parts.product ? [p.parts.product] : []) });
 }
 
 /* ----- the check: every Listing Rules rule on the new title, the family as it will be ----- */
@@ -361,7 +368,7 @@ function ttDraft(brand, { row, hits, kid, extra }, ctx) {
     Object.defineProperty(p, 'srcRow', { value: row, enumerable: false });
     if (!amz) return Object.assign(p, { wait: true, why: 'reading its attributes from Amazon first', label: row.sku });
     const b = ttBuild(brand, row, ctx, amz);
-    Object.assign(p, { parts: b.parts || {}, src: b.src || {}, notes: (b.notes || []).slice(), dropped: b.dropped || [], lim: b.lim, amzSrc: amz.src });
+    Object.assign(p, { parts: b.parts || {}, src: b.src || {}, notes: (b.notes || []).slice(), dropped: b.dropped || [], cutWords: b.cutWords || [], lim: b.lim, amzSrc: amz.src });
     p.label = ttLabel(p) || row.sku;
     p.after = b.after;
     if (b.why) return Object.assign(p, { why: b.why });

@@ -130,10 +130,10 @@ async function lcEnsureRules() {
     LC_RULES_AT = Date.now();
   }
 }
-/** The template filled to fit `max`, and what had to come out. Order of what goes: the occasions, the uses phrase, then
- *  the parts the template does not require — but a part carrying a word the title_keyword rule requires is cut down to
- *  that word ("Hand Block Print" → "Block Print") rather than dropped. Only then a required part, last resort, and it is
- *  NAMED in `dropped` so nobody takes a title that breaks the rules for one that follows them. */
+/** The template filled to fit `max`, and what had to come out: the occasions first, then the words THE ONE SUGGESTION-WORDS RULE
+ *  (listing-rules.js lrSuggestWords, 19 Nov 2026) lets go, in the template's order — never the brand, product, shape, material, size,
+ *  the print ("Hand Block Print" stays whole) or the colour. When only those are left it may stay over `max` (nothing important is cut);
+ *  a required part with none of its words left is NAMED in `dropped`. */
 // Returns { title, dropped }: the template filled to at most `max` characters, and the required parts that had to go.
 function lcTemplateFit(brand, sku, max) {
   const cfg = LR || LR_DEFAULT;
@@ -142,39 +142,24 @@ function lcTemplateFit(brand, sku, max) {
   if (!tpl) return { title: '', dropped: [] };
   const values = Object.assign({}, lrParts(row, tpl, cfg, new Date()));     // token → text, a copy so it can be trimmed
   const required = lrWords(tpl.required);
-  const kwRule = lcRule('title_keyword');
-  const keys = kwRule ? lrWords(kwRule.params.words) : [];
   // Fill the template without the tokens in `drop`, then tidy spaces and dashes.
   const fill = drop => String(tpl.template || '').replace(/\{(\w+)\}/g, (_, name) => (drop.includes(name) ? '' : (values[name] || '')))
     .replace(/\s+-\s+(?=-|$)/g, ' ').replace(/\s{2,}/g, ' ').replace(/\s+-\s*$/, '').replace(/^\s*-\s+/, '').trim();
-  const parts = (String(tpl.template || '').match(/\{(\w+)\}/g) || []).map(token => token.slice(1, -1));
-  const drop = [];
-  let out = fill(drop);
-  // --- what goes first: occasions, uses, the optional parts, then required parts other than brand / product / colour / size ---
-  const steps = ['occasions', 'uses']
-    .concat(parts.filter(name => !['occasions', 'uses', 'brand', 'product', 'color'].includes(name) && !required.includes(name)),
-      required.filter(name => !['brand', 'product', 'color', 'size'].includes(name)));
-  for (const name of steps) {
-    if (out.length <= max) break;
-    if (!values[name] || drop.includes(name)) continue;
-    const key = keys.find(word => lrHas(values[name], word));
-    if (key && values[name].trim().toLowerCase() !== key.toLowerCase()) {
-      values[name] = key;                                 // cut the part down to the required word
-      out = fill(drop);
-      if (out.length <= max) break;
-    }
-    if (key) continue;                                   // the required word stays
-    drop.push(name);
-    out = fill(drop);
-  }
-  if (out.length > max) out = out.slice(0, max).replace(/\s+\S*$/, '').replace(/[\s,\-–]+$/, '');
-  return { title: out, dropped: drop.filter(name => required.includes(name)) };
+  let out = fill([]);
+  if (out.length > max) out = fill(['occasions']);
+  if (out.length > max) out = lrSuggestWords(out, { mode: 'title', facts: lrSwFacts(row, cfg), fits: text => text.length <= max }).after;
+  // a required part none of whose words is left (the one rule never lets one go — kept for the screen's warning)
+  const left = new Set(lrNorm(out).split(/[^a-z0-9%]+/).filter(Boolean));
+  const dropped = required.filter(name => values[name] && !lrNorm(values[name]).split(/[^a-z0-9%]+/).filter(Boolean).some(word => left.has(word)));
+  return { title: out, dropped };
 }
 // Just the title of lcTemplateFit.
 const lcTemplateTitle = (brand, sku, max) => lcTemplateFit(brand, sku, max).title;
 // The search-term byte limit from Listing Rules (the "Search terms over the limit" rule), 249 when the rule is off or gone.
 const lcKwMax = () => { const rule = lcRule('keyword_bytes'); return rule ? (+(rule.params || {}).max || 249) : 249; };
-/** Search terms: the template's own words that the title does not carry, then what is there now — never past the byte limit. */
+/** Search terms: the template's own words that the title does not carry (its important words — hand, block print, its product, shape,
+ *  material, colour, use words — even when the title has them), then what is there now; never a shape or colour from the template that is
+ *  not the product's; fitted to the byte limit by THE ONE SUGGESTION-WORDS RULE (listing-rules.js lrSuggestWords), not cut off at the end. */
 function lcSuggestKeywords(brand, sku, title, current) {
   const cfg = LR || LR_DEFAULT;
   const row = { brand, sku };
@@ -182,19 +167,22 @@ function lcSuggestKeywords(brand, sku, title, current) {
   const parts = tpl ? lrParts(row, tpl, cfg, new Date()) : {};
   const stop = new Set(['for', 'and', 'the', 'with', 'of', 'a', 'an', 'to', 'in', 'on', '&', '-', 'x', 'inch']);
   const inTitle = new Set(String(title || '').toLowerCase().split(/[^a-z0-9']+/).filter(Boolean));
-  const words = [];
-  [parts.uses, parts.occasions, parts.material, parts.pattern, parts.product, parts.shape, current].join(' ').toLowerCase().split(/[^a-z0-9']+/)
-    .forEach(word => {
-      if (word.length > 1 && !stop.has(word) && !inTitle.has(word) && !/^b0[a-z0-9]{8}$/.test(word) && !words.includes(word)) words.push(word);
-    });
-  let out = '';
+  const facts = lrSwFacts(row, cfg, null, { title });
+  // what the one rule protects for this listing: such a word is suggested even when the title already says it
+  const keep = new Set(lrSuggestWords([parts.uses, parts.material, parts.pattern, parts.product, parts.shape, title].join(' '), { mode: 'kw', facts, riskOnly: true }).toks
+    .filter(t => t.cls).map(t => lrSwKey(t.w)));
+  // the template's shape word only when it is the product's real shape ("Square" is never suggested for a 118 x 70 cloth)
+  const wrong = word => { const k = lrSwKey(word); return !!facts.shape && LR_SW_SHAPE_OF.has(k) && LR_SW_SHAPE_OF.get(k) !== facts.shape; };
+  const words = [], seen = new Set();
+  const add = (text, fromTemplate) => String(text || '').toLowerCase().split(/[^a-z0-9'%]+/).forEach(word => {
+    const k = lrSwKey(word);
+    if (word.length > 1 && !stop.has(word) && (!inTitle.has(word) || keep.has(k)) && !/^b0[a-z0-9]{8}$/.test(word) && !seen.has(k) && !(fromTemplate && wrong(word))) { seen.add(k); words.push(word); }
+  });
+  [parts.uses, parts.occasions, parts.material, parts.pattern, parts.product].forEach(text => add(text, false));
+  add(parts.shape, true);
+  add(current, false);
   const max = lcKwMax();
-  for (const word of words) {
-    const next = out ? out + ' ' + word : word;
-    if (lrKwBytes(next) > max) break;
-    out = next;
-  }
-  return out;
+  return lrSuggestWords(words.join(' '), { mode: 'kw', facts, title, brands: lrBrandWords(row, cfg), fits: text => lrKwBytes(text) <= max }).after;
 }
 
 /* ============================================================================================
