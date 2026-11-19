@@ -23027,17 +23027,27 @@ async function qcInboxSave(baseId, entry) {
   return '';
 }
 
-/** "RQL129-K: nothing left waiting — 8 passed, 2 with a karigar." What QC already did with a row that has none waiting. */
-function qcNothingLeftText(x) {
-  const done = [[x.passed, 'passed'], [x.alteration, 'with a karigar for alteration'], [x.spotting, 'at spotting'], [x.touching, 'at touching'], [x.rejected, 'rejected']]
-    .filter(([n]) => n > 0).map(([n, t]) => nf(n) + ' ' + t).join(', ');
-  return `${x.r.sku}: nothing left waiting for QC${done ? ' — ' + done : ''}.`;
+/*
+ * QC pass on a row with nothing left waiting still opens the QC Check window (Ravi, 19 Nov: "the pop up screen which we
+ * decided to open when clicked on qc pass is not opening" — a line of text at the top of the page was missed). The window
+ * shows what QC did with the row's pieces and only closes; there is nothing left in it to save.
+ */
+function qcInboxDoneWindow(x) {
+  const r = x.r, line = (label, n) => `<tr><td style="text-align:left;padding:4px 12px 4px 0">${label}</td><td class="num" style="font-weight:700">${n ? nf(n) : '—'}</td></tr>`;
+  ptOpenDialog({
+    title: 'QC Check',
+    subtitle: `SKU: ${r.sku || '—'}  ·  ${r.empName || '—'}  ·  ${r.orderNo || 'no order'}`,
+    note: 'Nothing is left waiting on this entry — every piece received has been through QC. This is what QC did with them.',
+    msg: [r.articleSubtype || r.articleType, r.color, r.size].filter(Boolean).join(' · '),
+    html: `<table style="margin:4px 0 8px">${line('Received', x.since)}${line('Passed', x.passed)}${line('Given to karigar (alteration)', x.alteration)}`
+      + `${line('At spotting', x.spotting)}${line('At touching', x.touching)}${line('Rejected', x.rejected)}</table>`,
+  });
 }
 /** QC pass: the QC Check window for one waiting row — all its waiting pieces filled in as passed, to be split. */
 function qcInboxOpen(baseId) {
   const x = qcInboxStatuses().find(e => e.r.id === baseId);
   if (!x) { $('qcMsg').className = 'err'; $('qcMsg').textContent = 'That entry is no longer on the list — press Refresh.'; return; }
-  if (!(x.wait > 0)) { $('qcMsg').className = 'muted'; $('qcMsg').textContent = qcNothingLeftText(x); return; }
+  if (!(x.wait > 0)) return qcInboxDoneWindow(x);
   if (!x.received) { $('qcMsg').className = 'err'; $('qcMsg').textContent = `Press QC Accept first on ${x.r.sku} — QC pass opens once QC has received the pieces.`; return; }
   if (x.passOpensAt > Date.now()) {
     $('qcMsg').className = 'err';
