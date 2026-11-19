@@ -339,8 +339,9 @@ function renderSlip() {
 
   /* Collapsed by ARTICLE TYPE only, and with no rate column — the rate varies by subtype and size,
    * and a blended rate across a mixed article would be a number nobody could check. */
-  const merged = {};
+  const merged = {}, adjNotes = [];
   [1, 2].forEach(p => payRows(PAY_TYPES.cc, p, yr, mo).filter(r => r.empName === name).forEach(r => {
+    if (r.adj && r.note) adjNotes.push(r.note);
     const k = r.articleType || '(unknown)';
     if (!merged[k]) merged[k] = { articleType: k, recvPcs: 0, amount: 0 };
     merged[k].recvPcs += r.recvPcs; merged[k].amount += r.amount;
@@ -381,6 +382,7 @@ function renderSlip() {
         <div><span>Advance deducted</span><b style="color:#C55A11">${adv ? '− ' + rs(adv) : rs(0)}</b></div>
         <div class="net"><span>Net payable</span><b>${rs(net)}</b></div>
       </div>
+      ${adjNotes.length ? `<div class="slipnote" style="color:#9A3412">${adjNotes.map(esc).join('<br>')}</div>` : ''}
       <!-- Extra hours are shown but NOT added: they are authorised separately and are not part of
            the piece-rate payout. Leaving them off the slip entirely would hide work that was done. -->
       <div class="slipnote">Extra hours this month: ${nf(hAuth)} authorised${hPend ? `, ${nf(hPend)} still awaiting authorisation` : ''}.

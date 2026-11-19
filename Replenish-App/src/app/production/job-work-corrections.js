@@ -78,22 +78,27 @@ function jwCorrDiff(r, change) {
   return out;
 }
 
-async function jwCorrAsk(rowId, change, why) {
+async function jwCorrAsk(rowId, change, why, kind) {
   if (!(ME.tabs || []).includes('pbase')) return 'This screen is not open to your account.';
   const r = (PT.base || []).find(x => x && x.id === rowId);
   if (!r) return 'That entry is gone — press Refresh.';
   if (!String(why || '').trim()) return 'Say what is wrong — the person approving it has to know.';
   if (jwCorrOfRow(rowId)) return 'A change to this entry is already waiting for approval.';
-  const diff = jwCorrDiff(r, change);
-  if (!diff.length) return 'Nothing is different from what the entry already says.';
-  const clean = {}; diff.forEach(([k, , to]) => { clean[k] = to; });
-  const plan = jwCorrPlan(r, clean);
-  if (plan.err) return plan.err;
+  /* DELETE AS A CORRECTION (Ravi, 19 Nov: "correction me entry delete correction bhi jodo"): the whole entry goes, approved by an admin. */
+  const del = kind === 'delete';
+  const clean = {};
+  if (!del) {
+    const diff = jwCorrDiff(r, change);
+    if (!diff.length) return 'Nothing is different from what the entry already says.';
+    diff.forEach(([k, , to]) => { clean[k] = to; });
+    const plan = jwCorrPlan(r, clean);
+    if (plan.err) return plan.err;
+  }
   const now = new Date().toISOString();
   const id = 'jwc_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
   const rec = { id, rowId, sku: r.sku || '', empName: r.empName || '', orderNo: r.orderNo || '',
     snapshot: Object.assign({}, r, { _key: undefined }), change: clean, why: String(why).trim(),
-    by: ME.email, at: now, status: 'pending' };
+    by: ME.email, at: now, status: 'pending', ...(del ? { kind: 'delete' } : {}) };
   delete rec.snapshot._key;
   try { await ptPut('pt_jwCorrReqs/' + id, rec); }
   catch (e) { return 'Not saved: ' + (e.message || e); }
@@ -113,6 +118,20 @@ async function jwCorrApprove(id) {
     return 'It changes the SKU or a date, which only an admin may change — an admin has to approve it.';
   const r = (PT.base || []).find(x => x && x.id === q.rowId);
   if (!r) return 'The entry it is about has been deleted — reject the request.';
+  if (q.kind === 'delete') {
+    if (!ME.admin) return 'Deleting an entry is an admin\'s to approve.';
+    if (qcTookOf(r.id) > 0) return `QC has already taken ${nf(qcTookOf(r.id))} piece(s) of this entry — it cannot be deleted. Use Close (debit) instead.`;
+    const at = new Date().toISOString();
+    try {
+      await ptDelete('pt_baseData/' + r.id);          // the same delete as the entry's own Delete button (finds a completed entry where it lives)
+      await ptUnconsumeZippers(r.id); await ptUnconsumeRuffle(r.id);
+      await ptPut('pt_jwCorrReqs/' + id, Object.assign({}, q, { status: 'approved', answeredBy: ME.email, answeredAt: at }));
+    } catch (e) { return 'Not deleted: ' + (e.message || e); }
+    PT.base = (PT.base || []).filter(x => x && x.id !== r.id);
+    JWC.rows = Object.assign({}, JWC.rows, { [id]: Object.assign({}, q, { status: 'approved', answeredBy: ME.email, answeredAt: at }) });
+    jwCorrBadge();
+    return '';
+  }
   const plan = jwCorrPlan(r, q.change);
   if (plan.err) return 'Cannot be applied as it stands now: ' + plan.err;
   if (ptNum(plan.next.receivedPieces) < qcTookOf(r.id))
@@ -141,6 +160,53 @@ async function jwCorrReject(id, note) {
   return '';
 }
 
+/* CLOSE, AND SETTLE THE MONEY (Ravi, 19 Nov: "inka aage process ho chuka h is bajah se entry edit nahi ho rhi h and kisi ka payment bhi
+ * ho chuka h … pending correction entry close ho jay … jiska payment ho chuka h usko next bill me se debit ho jay but bill me likha aay ki
+ * iska payment jyada ho chuka tha"). A request that can no longer be applied — QC has already checked the pieces, the order moved on — is
+ * CLOSED: the entry stays as it is, and the pay it got wrong is put right on the karigar's next bill. The difference is
+ * (received asked − received on the entry) × that work's job work rate, dated the day it is closed, so it lands in the open fortnight:
+ * paid already → it comes off the next bill; not paid yet → it cancels out in the same month. Only the request is written; a later
+ * correction of the same entry is asked and answered as usual. */
+let JWC_RATES = null;
+async function jwCorrRates() {
+  if (typeof HR !== 'undefined' && Array.isArray(HR.rate) && HR.rate.length) return HR.rate;
+  if (!JWC_RATES) JWC_RATES = ptList(await ptGet('pt_rateList')).map(r => (Array.isArray(r) ? r : (r && Array.isArray(r.value) ? r.value : []))).filter(x => x.length && x[1]);
+  return JWC_RATES;
+}
+function jwCorrRateOf(L, r) {
+  const N = x => String(x == null ? '' : x).trim().toLowerCase(), ap = N(r.empType);
+  const x = L.find(x => N(x[0]) === N(r.articleType) && N(x[1]) === N(r.articleSubtype) && N(x[2]) === N(r.size) && N(x[3]) === ap)
+    || L.find(x => N(x[1]) === N(r.articleSubtype) && N(x[2]) === N(r.size) && N(x[3]) === ap) || L.find(x => N(x[1]) === N(r.articleSubtype) && N(x[3]) === ap);
+  return x ? (parseFloat(x[4]) || 0) : 0;
+}
+/** What closing would put on the bill: { pcs, rate, amount, oldRecv, newRecv } (amount below 0 is a debit). */
+function jwCorrMoney(q, r, L) {
+  const oldRecv = ptNum(r.receivedPieces);
+  const newRecv = q.kind === 'delete' ? 0 : (q.change && q.change.receivedPieces !== undefined && String(q.change.receivedPieces).trim() !== '' ? ptNum(q.change.receivedPieces) : oldRecv);
+  const rate = jwCorrRateOf(L, r), pcs = newRecv - oldRecv;
+  return { pcs, rate, amount: pcs * rate, oldRecv, newRecv };
+}
+async function jwCorrClose(id) {
+  if (!ptCanEdit()) return PT_NO_EDIT;
+  const q = (JWC.rows || {})[id];
+  if (!q || q.status !== 'pending') return 'That request has already been answered.';
+  if (q.by === ME.email && !ME.admin) return 'You asked for this change — somebody else has to close it.';
+  const r = (PT.base || []).find(x => x && x.id === q.rowId);
+  let L; try { L = await jwCorrRates(); } catch (e) { return 'The job work rates could not be read, so the debit cannot be worked out: ' + (e.message || e); }
+  const now = new Date().toISOString();
+  const m = r ? jwCorrMoney(q, r, L) : null;
+  const debit = m && m.pcs ? { empName: r.empName || q.empName, empType: r.empType || '', sku: r.sku || q.sku, articleType: r.articleType || '',
+    subtype: r.articleSubtype || '', size: r.size || '', pcs: m.pcs, rate: m.rate, amount: m.amount, oldRecv: m.oldRecv, newRecv: m.newRecv,
+    rowRecvDate: r.receivingDate || '' } : null;
+  const done = Object.assign({}, q, { status: 'closed', answeredBy: ME.email, answeredAt: now, closedAt: now,
+    answerNote: 'Closed — the entry had moved on (QC / later steps), so it was left as it is' + (debit ? '; the pay difference goes on the next bill' : ''), ...(debit ? { debit } : {}) });
+  try { await ptPut('pt_jwCorrReqs/' + id, done); }
+  catch (e) { return 'Not saved: ' + (e.message || e); }
+  JWC.rows = Object.assign({}, JWC.rows, { [id]: done });
+  jwCorrBadge();
+  return '';
+}
+
 function jwCorrBadge() {
   /* The screen's own list wins once it is loaded; until then, the count the sign-in asked for (core/pending-badges.js). */
   const n = ptCanEdit() ? (JWC.rows === null ? pbCount('jwc') : jwCorrPending().length) : 0;
@@ -158,6 +224,7 @@ function jwCorrAskOpen(rowId) {
     note: 'Change only what is wrong and say why. Wrong size or colour? Type the SKU of the right item — the article, colour '
       + 'and size come from it. Somebody who may edit production entries approves it; a change of SKU or date needs an admin.',
     fields: [
+      { key: 'act', label: 'What to ask', type: 'select', span: true, value: 'change', options: [['change', 'Change the figures below'], ['delete', 'Delete this whole entry']] },
       { key: 'empName', label: 'Karigar', value: r.empName || '' },
       { key: 'issuePieces', label: 'Issued', type: 'number', value: ptNum(r.issuePieces) },
       { key: 'receivedPieces', label: 'Received', type: 'number', value: ptNum(r.receivedPieces) },
@@ -171,39 +238,58 @@ function jwCorrAskOpen(rowId) {
     saveLabel: 'Send for approval',
     onSave: async v => {
       const change = {}; JWC_FIELDS.forEach(([k]) => { if (v[k] !== undefined) change[k] = v[k]; });
-      const err = await jwCorrAsk(rowId, change, v.why);
+      const err = await jwCorrAsk(rowId, change, v.why, v.act === 'delete' ? 'delete' : '');
       if (!err) { renderPbase(); $('pbMsg').className = 'muted'; $('pbMsg').textContent = 'Sent for approval. The entry changes once it is approved.'; }
       return err;
     },
   });
 }
 
-function jwCorrListOpen() {
+async function jwCorrListOpen() {
   const list = jwCorrPending().sort((a, b) => String(a.at).localeCompare(String(b.at)));
+  let L = null; try { L = await jwCorrRates(); } catch (e) { L = null; }
   const label = k => (JWC_FIELDS.find(f => f[0] === k) || [k, k])[1];
   const body = list.map(q => {
     const live = (PT.base || []).find(x => x && x.id === q.rowId);
     const diff = live ? jwCorrDiff(live, q.change) : Object.entries(q.change || {}).map(([k, v]) => [k, '', v]);
-    const adminOnly = Object.keys(q.change || {}).some(k => JWC_ADMIN_ONLY.indexOf(k) >= 0);
+    const adminOnly = q.kind === 'delete' || Object.keys(q.change || {}).some(k => JWC_ADMIN_ONLY.indexOf(k) >= 0);
+    const m = live && L ? jwCorrMoney(q, live, L) : null;
+    const money = m && m.amount ? `<div style="font-size:11px;color:${m.amount < 0 ? 'var(--bad)' : '#166534'}">close = ${m.amount < 0 ? 'debit' : 'credit'} ${rs(Math.abs(m.amount))} on the next bill</div>` : '';
     return `<tr><td style="text-align:left">${esc(ptIsoDate(q.at) || '')}<div class="muted" style="font-size:11px">${esc(String(q.by || '').split('@')[0])}</div></td>`
       + `<td style="text-align:left;font-size:12px">${esc(q.empName)}<div class="muted" style="font-family:ui-monospace,monospace;font-size:11px">${esc(q.sku)}</div></td>`
-      + `<td style="text-align:left;font-size:12px;white-space:normal">${diff.length ? diff.map(([k, a, b]) => `${esc(label(k))}: ${esc(a || '—')} → <b>${esc(b || '—')}</b>`).join('<br>') : '<span class="muted">already as asked</span>'}`
+      + `<td style="text-align:left;font-size:12px;white-space:normal">${q.kind === 'delete' ? '<b style="color:var(--bad)">Delete the whole entry</b>' : diff.length ? diff.map(([k, a, b]) => `${esc(label(k))}: ${esc(a || '—')} → <b>${esc(b || '—')}</b>`).join('<br>') : '<span class="muted">already as asked</span>'}${money}`
       + (adminOnly ? '<div class="muted" style="font-size:11px">needs an admin</div>' : '') + (live ? '' : '<div class="err" style="font-size:11px">entry deleted</div>') + '</td>'
       + `<td style="text-align:left;font-size:12px;white-space:normal;max-width:220px">${esc(q.why || '')}</td>`
       + `<td style="white-space:nowrap"><button data-jwy="${esc(q.id)}" style="padding:2px 9px;font-size:12px"${(adminOnly || q.by === ME.email) && !ME.admin ? ' disabled' : ''}>Approve</button> `
-      + `<button class="ghost" data-jwn="${esc(q.id)}" style="padding:2px 9px;font-size:12px">Reject</button></td></tr>`;
+      + `<button class="ghost" data-jwn="${esc(q.id)}" style="padding:2px 9px;font-size:12px">Reject</button> `
+      + `<button class="ghost" data-jwc="${esc(q.id)}" style="padding:2px 9px;font-size:12px"${q.by === ME.email && !ME.admin ? ' disabled' : ''} title="Leave the entry as it is, close the request, and put the pay difference on the next bill">Close (debit)</button></td></tr>`;
   }).join('');
   ptOpenDialog({
     title: 'Correction requests',
     subtitle: list.length ? `${nf(list.length)} waiting` : 'Nothing waiting',
     note: 'Approving changes the entry exactly as shown — and with it the order balance, the weekly report and the karigar\'s pay.',
-    html: list.length ? `<div class="xlwrap" style="max-height:56vh;border:1px solid var(--line);border-radius:10px"><table class="xl"><thead><tr>`
+    html: list.length ? (ptCanEdit() ? `<div style="display:flex;gap:10px;align-items:center;margin-bottom:8px"><button class="ghost" id="jwcAll" style="font-size:12px">Close all ${nf(list.length)} (debit)</button>`
+      + `<span class="muted" style="font-size:12px">Each entry stays as it is; the pay difference goes on the karigar's next bill, marked as paid more earlier.</span></div>` : '')
+      + `<div class="xlwrap" style="max-height:56vh;border:1px solid var(--line);border-radius:10px"><table class="xl"><thead><tr>`
       + ['Asked', 'Karigar / SKU', 'Change', 'Why', ''].map(h => `<th>${h}</th>`).join('') + `</tr></thead><tbody>${body}</tbody></table></div>`
       : '<div class="muted" style="padding:22px;text-align:center">Nothing is waiting to be answered.</div>',
     saveLabel: '',
   });
   const again = async (fn) => { const err = await fn(); if (err) return ptDlgMsg(err, true); ptDlgClose(); renderPbase(); jwCorrListOpen(); };
   $('ptDlgBody').querySelectorAll('[data-jwy]').forEach(b => { b.onclick = () => again(() => jwCorrApprove(b.getAttribute('data-jwy'))); });
+  $('ptDlgBody').querySelectorAll('[data-jwc]').forEach(b => { b.onclick = () => {
+    if (!confirm('Close this request?\n\nThe entry stays as it is. The pay difference goes on the karigar\'s next bill.')) return;
+    again(() => jwCorrClose(b.getAttribute('data-jwc')));
+  }; });
+  if ($('jwcAll')) $('jwcAll').onclick = async () => {
+    const mine = list.filter(q => !(q.by === ME.email && !ME.admin));
+    const tot = mine.reduce((s, q) => { const live = (PT.base || []).find(x => x && x.id === q.rowId); const m = live && L ? jwCorrMoney(q, live, L) : null; return s + (m ? m.amount : 0); }, 0);
+    if (!confirm(`Close ${nf(mine.length)} request(s)?\n\nNo entry is changed. Pay difference on the next bills: ${tot < 0 ? 'debit' : 'credit'} ${rs(Math.abs(tot))}.`)) return;
+    let bad = [];
+    for (const q of mine) { const err = await jwCorrClose(q.id); if (err) bad.push(q.empName + ' ' + q.sku + ': ' + err); }
+    if (bad.length) return ptDlgMsg(bad.join(' · '), true);
+    ptDlgClose(); renderPbase(); jwCorrListOpen();
+  };
   $('ptDlgBody').querySelectorAll('[data-jwn]').forEach(b => { b.onclick = () => {
     const note = prompt('Why is it refused? The person who asked will see this.');
     if (note === null) return;
