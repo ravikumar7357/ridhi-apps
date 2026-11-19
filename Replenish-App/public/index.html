@@ -34318,7 +34318,7 @@ function flowRecvRows(q, testOnly) {
       const day = String(rc.date || String(rc.at || '').slice(0, 10)).slice(0, 10);
       let time = ''; try { time = rc.at ? new Date(rc.at).toTimeString().slice(0, 5) : ''; } catch (e) { time = ''; }
       const orderNo = l.orderNo || String(key).split('__')[0] || c.orderNo || '';
-      out.push({ day, time, at: String(rc.at || ''), rid, no: c.no, printer: (c.vendor && c.vendor.name) || '', orderNo, sku: obUC(l.sku), code, fabric: l.fabric || '',
+      out.push({ day, time, at: String(rc.at || ''), rid, no: c.no, printer: (c.vendor && c.vendor.name) || '', printerCode: String((c.vendor && c.vendor.code) || ''), orderNo, sku: obUC(l.sku), code, fabric: l.fabric || '',
         l, unit: flowChUnit(l), qty: flowR2(qty), by: String(rc.by || '').split('@')[0], note: rc.note || '', test: flowIsTest(c.orderNo) });
     }));
   });
@@ -35434,7 +35434,7 @@ async function flowVpBar() {
   $('vpBody').insertAdjacentHTML('beforebegin', `<div class="card" style="padding:8px 12px;margin-top:10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;border:1px dashed #7c3aed">
     <span style="color:#7c3aed;font-weight:600;font-size:12.5px">PRINTER'S VIEW</span>
     <label style="display:flex;gap:6px;align-items:center;margin:0;font-size:12.5px">See the portal as printer
-      <select id="flVpAs" style="width:auto;min-width:220px"><option value="">— my own sign-in —</option></select></label>
+      <select id="flVpAs" style="width:auto;min-width:220px"><option value="" disabled selected>— pick a printer —</option></select></label>
     <span class="muted" style="font-size:12px">${flowMay('flchl') ? 'what that printer sees — receive its goods on each line' : 'what that printer sees, view only — nothing can be changed from here'}</span>
     <span style="flex:1"></span><span id="flVpX"></span></div>`);
   let map = {}; try { map = (await ptGet('pt_vendorMap')) || {}; } catch (e) { map = {}; }
@@ -53193,6 +53193,13 @@ function renderVp() {
   $('vpPinBtn').classList.toggle('hide', !vpOnPin());
   if (VP.busy) { $('vpMsg').className = 'muted'; $('vpMsg').textContent = 'Reading your orders…'; body.innerHTML = ''; return; }
   if (VP.err) { $('vpMsg').className = 'err'; $('vpMsg').textContent = 'Could not read them: ' + VP.err; body.innerHTML = ''; return; }
+  /* The office picks a printer first (Ravi, 19 Nov: the "my own sign-in" choice removed — an office sign-in has no orders of its own). */
+  if (!VP.code && typeof flowVpMayLook === 'function' && flowVpMayLook() && !NAV_IS_VENDOR) {
+    $('vpMsg').className = 'muted'; $('vpMsg').textContent = '';
+    $('vpKpis').innerHTML = '';
+    body.innerHTML = '<div class="card" style="padding:34px;text-align:center;color:var(--muted)">Pick a printer above to see its orders.</div>';
+    return;
+  }
   if (!VP.code) {
     $('vpMsg').className = 'err';
     $('vpMsg').textContent = `${ME.email} is not linked to a vendor yet.`;
@@ -55273,11 +55280,12 @@ if (typeof document !== 'undefined' && typeof document.addEventListener === 'fun
 });
 
 /* ---- extra pieces to approve, for the printer on screen (admins) ---- */
-/** The button in the PRINTER'S VIEW bar, filled on every draw: how many extras this printer is waiting on. */
+/** The PRINTER'S VIEW bar's buttons, filled on every draw: History (who may receive) and how many extras this printer is waiting on (admins). */
 function vprBarSync() {
   const slot = $('flVpX'); if (!slot) return;
   const n = vprOn() && ME.admin && vprReady() ? flowExtraAsks(VP.code).length : 0;
-  slot.innerHTML = n ? `<button type="button" data-vprxopen="1" style="width:auto;padding:6px 12px;font-size:12.5px;background:#b45309;border-color:#b45309">Extra pieces to approve <span class="navbadge" style="position:static;background:#fff;color:#b45309">${nf(n)}</span></button>` : '';
+  const hist = vprMay() && vprReady() && VP.code ? '<button type="button" class="ghost" data-vprhist="1" style="width:auto;padding:6px 12px;font-size:12.5px;margin-right:6px" title="What came from this printer, with the fabric">History</button>' : '';
+  slot.innerHTML = hist + (n ? `<button type="button" data-vprxopen="1" style="width:auto;padding:6px 12px;font-size:12.5px;background:#b45309;border-color:#b45309">Extra pieces to approve <span class="navbadge" style="position:static;background:#fff;color:#b45309">${nf(n)}</span></button>` : '');
 }
 if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') document.addEventListener('click', e => {
   const t = e.target; if (!t || !t.closest || !t.closest('[data-vprxopen]')) return;
@@ -55285,6 +55293,62 @@ if (typeof document !== 'undefined' && typeof document.addEventListener === 'fun
   /* The answer is written on the printer's own branch: read it again when the window closes, so the table counts what was approved. */
   flowExtraOpen(VP.code, async () => { VP.rows = null; await ensureVp(); });
 });
+
+/* ---- History: what came from the printer on screen ----
+ * Ravi, 19 Nov: "add a history button to see what fabric we have got". Every receipt from this printer, newest first: the day, the
+ * challan, the order, the item, the fabric it was printed on, how much and who took it in — over a date range (the last 30 days to start),
+ * with the totals by fabric and an Excel. Read from the challans already on screen (flowRecvRows); nothing is saved. Those who may receive
+ * see it: the figures are theirs already. */
+const VPR_HIST_DAYS = 30;
+const VPR_HIST = { from: '', to: '' };
+const vprIsoMinus = (iso, days) => { const d = new Date(iso + 'T00:00:00'); d.setDate(d.getDate() - days); return d.toISOString().slice(0, 10); };
+/** The receipts from one printer between two days (YYYY-MM-DD, both counted), newest first. */
+const vprHistRows = (code, from, to) => flowRecvRows('', false).filter(r => obUC(r.printerCode) === obUC(code) && r.day >= from && r.day <= to);
+/** What came, added up by fabric and unit: "Sheeting 82 · 420 m". */
+function vprHistTotals(rows) {
+  const by = new Map();
+  rows.forEach(r => { const k = (r.fabric || 'fabric not named') + '|' + r.unit; by.set(k, flowR2((by.get(k) || 0) + r.qty)); });
+  return [...by.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([k, q]) => { const [fab, unit] = k.split('|'); return { fab, unit, q }; });
+}
+function vprHistHtml() {
+  const rows = vprHistRows(VP.code, VPR_HIST.from, VPR_HIST.to);
+  const range = `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px">`
+    + `<label style="margin:0;font-size:12.5px">From <input type="date" data-vprhfrom value="${esc(VPR_HIST.from)}" style="width:auto"></label>`
+    + `<label style="margin:0;font-size:12.5px">To <input type="date" data-vprhto value="${esc(VPR_HIST.to)}" style="width:auto"></label>`
+    + `<span style="flex:1"></span><button type="button" class="ghost" data-vprhxl="1" style="width:auto;padding:4px 12px;font-size:12.5px"${rows.length ? '' : ' disabled'}>Download Excel</button></div>`;
+  if (!rows.length) return range + '<div class="muted" style="padding:16px;text-align:center">Nothing was received from this printer on those days.</div>';
+  const totals = vprHistTotals(rows).map(t => `<span class="pill" style="background:var(--card,#fff);border:1px solid var(--line,#e3e6ed);color:var(--muted);font-weight:500">${esc(t.fab)} <b style="color:var(--ink,#17202b)">${esc(flowQtyTxt(t.q, t.unit))}</b></span>`).join(' ');
+  return range + `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">${totals}</div>`
+    + `<div class="xlwrap" style="max-height:60vh;overflow:auto"><table class="xl" style="width:100%"><thead><tr><th style="text-align:left">Received on</th><th style="text-align:left">Challan</th><th style="text-align:left">Order</th><th style="text-align:left">Item</th><th style="text-align:left">Fabric</th><th class="num">Qty</th><th style="text-align:left">Taken in by</th></tr></thead><tbody>`
+    + rows.map(r => `<tr><td style="text-align:left;white-space:nowrap">${esc(flowDueDay(r.day))}${r.time ? ` <span class="muted" style="font-size:11px">${esc(r.time)}</span>` : ''}</td>`
+      + `<td style="text-align:left">${esc(r.no)}</td><td style="text-align:left"><b>${esc(r.orderNo)}</b></td>`
+      + `<td style="text-align:left">${esc((r.l && r.l.item) || '')}<div class="muted" style="font-size:11px;font-family:ui-monospace,monospace">${esc(r.sku)}</div></td>`
+      + `<td style="text-align:left"><b>${esc(r.fabric) || '<span class="muted">—</span>'}</b>${r.code ? `<div class="muted" style="font-size:11px;font-family:ui-monospace,monospace">${esc(r.code)}</div>` : ''}</td>`
+      + `<td class="num"><b>${esc(flowQtyTxt(r.qty, r.unit))}</b></td><td style="text-align:left">${esc(r.by)}${r.note ? `<div class="muted" style="font-size:11px">${esc(r.note)}</div>` : ''}</td></tr>`).join('')
+    + '</tbody></table></div>';
+}
+function vprHistOpen() {
+  VPR_HIST.to = dToday(); VPR_HIST.from = vprIsoMinus(VPR_HIST.to, VPR_HIST_DAYS);
+  ptOpenDialog({ title: 'Received from ' + (VP.name || VP.code), subtitle: 'Every receipt from this printer, newest first, with the fabric it was printed on.',
+    html: '<div id="vprHistBody">' + vprHistHtml() + '</div>', saveLabel: 'Close', onSave: async () => '' });
+}
+function vprHistXl() {
+  const rows = vprHistRows(VP.code, VPR_HIST.from, VPR_HIST.to); if (!rows.length) return;
+  const out = [['Received on', 'Time', 'Challan', 'Order', 'Item', 'For SKU', 'Fabric', 'Printed fabric SKU', 'Qty', 'Unit', 'Taken in by', 'Note']];
+  rows.forEach(r => out.push([r.day, r.time, r.no, r.orderNo, (r.l && r.l.item) || '', r.sku, r.fabric, r.code, r.qty, r.unit, r.by, r.note]));
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([recipeXlsx(out, { name: 'Received', freeze: 1, cols: {} })], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+  a.download = 'received-from-' + String(VP.code).toLowerCase() + '-' + VPR_HIST.from + '-to-' + VPR_HIST.to + '.xlsx';
+  a.click(); URL.revokeObjectURL(a.href);
+}
+if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
+  document.addEventListener('click', e => { const t = e.target; if (!t || !t.closest) return;
+    if (t.closest('[data-vprhist]')) { e.preventDefault(); vprHistOpen(); return; }
+    if (t.closest('[data-vprhxl]')) { e.preventDefault(); vprHistXl(); } });
+  document.addEventListener('change', e => { const t = e.target; if (!t || !t.dataset || (t.dataset.vprhfrom == null && t.dataset.vprhto == null)) return;
+    VPR_HIST[t.dataset.vprhfrom != null ? 'from' : 'to'] = t.value || dToday();
+    const b = document.getElementById('vprHistBody'); if (b) b.innerHTML = vprHistHtml(); });
+}
 /* ============================== FILE: src/app/vendors/portal/daily-challan.js ============================== */
 /* ================= DAILY CHALLAN — the printer's own delivery challan (Ravi, 4 Nov) =================
  *

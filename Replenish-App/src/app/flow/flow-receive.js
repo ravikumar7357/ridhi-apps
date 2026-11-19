@@ -257,7 +257,7 @@ function flowRecvRows(q, testOnly) {
       const day = String(rc.date || String(rc.at || '').slice(0, 10)).slice(0, 10);
       let time = ''; try { time = rc.at ? new Date(rc.at).toTimeString().slice(0, 5) : ''; } catch (e) { time = ''; }
       const orderNo = l.orderNo || String(key).split('__')[0] || c.orderNo || '';
-      out.push({ day, time, at: String(rc.at || ''), rid, no: c.no, printer: (c.vendor && c.vendor.name) || '', orderNo, sku: obUC(l.sku), code, fabric: l.fabric || '',
+      out.push({ day, time, at: String(rc.at || ''), rid, no: c.no, printer: (c.vendor && c.vendor.name) || '', printerCode: String((c.vendor && c.vendor.code) || ''), orderNo, sku: obUC(l.sku), code, fabric: l.fabric || '',
         l, unit: flowChUnit(l), qty: flowR2(qty), by: String(rc.by || '').split('@')[0], note: rc.note || '', test: flowIsTest(c.orderNo) });
     }));
   });
