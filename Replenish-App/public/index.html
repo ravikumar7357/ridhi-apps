@@ -5856,11 +5856,16 @@ onAuthStateChanged(auth, async user => {
   /* SHIPPING TO ACCEPT (Ravi, 30 Oct): its own box in Access, for the shipping team member who accepts what production pressed and does
    * nothing else in the Order Console. A grant, not a screen: on its own it opens the Order Console on the SHP board's "Shipping to
    * accept" list (ME.shpAccOnly, orders/shp-board.js); with the Order Console ticked as well it adds nothing. */
-  ME.shpAccOnly = false;
+  ME.shpAccOnly = false; ME.shpBoardOnly = false;
   if (ME.tabs.includes('shpacc')) {
     const only = !ME.admin && !ME.tabs.includes('ord');
     ME.tabs = ME.tabs.filter(t => t !== 'shpacc');
-    if (only) { ME.tabs = ME.tabs.concat('ord'); ME.shpAccOnly = true; }
+    /* THE SHP BOARD ALONE (Ravi, 18 Nov: "shp board show nhi ho rha h bas replenish show ho rha h but me replenish access dena nahi
+     * chahta"). The same box, with any of the board's buttons (Cut / Issue / Receive / QC / Press / Filler) ticked as well, opens the
+     * whole SHP board — every stage — and nothing else of the Order Console (ME.shpBoardOnly). Without a board button it stays the
+     * "Shipping to accept" list. The data it reads is what that box already reads, so no database rule changes. */
+    const bd = (typeof SHPB_BD_RIGHTS !== 'undefined' ? SHPB_BD_RIGHTS : []).some(k => ME[k]);
+    if (only) { ME.tabs = ME.tabs.concat('ord'); if (bd) ME.shpBoardOnly = true; else ME.shpAccOnly = true; }
   }
 
   /* PRINTER'S PORTAL, VIEW ONLY (Ravi, 30 Oct): its own box in Access. It adds the portal's tab so the screen can open, and ME.vpView, which
@@ -6022,6 +6027,10 @@ onAuthStateChanged(auth, async user => {
   if (linkPrinter && typeof flowVpLinkPrepare === 'function') flowVpLinkPrepare(linkPrinter);
   showTab(navHashTab() || ME.tabs[0]);
   if (linkOrder) ordOpenOrder(linkOrder);
+  /* A REPORT LINK OPENS ITS SCREEN, NOT MY WORK TODAY (18 Nov: the printer delay mail's link "still the same"): My work
+   * today opens on top at sign-in unless the person already went somewhere (core/friendly.js FR.touched) — a link that
+   * names an order or a printer has. */
+  if ((linkOrder || linkPrinter) && typeof FR !== 'undefined') FR.touched = true;
   /* Somebody who approves requests is told how many are waiting without having to open the tab. */
   /* With the pending-badges switch on (core/pending-badges.js) the four request counts below come from asking the database
    * for the pending rows only; the screens' own lists are not filled here and load in full when each screen is opened.
@@ -24523,7 +24532,7 @@ function shpReadyLines() {
   }).filter(x => x.ready > 0).sort((a, b) => String(a.l.orderDate || '').localeCompare(String(b.l.orderDate || '')) || a.key.localeCompare(b.key));
 }
 /** The shipping team takes the goods: whoever works the Shopify tab, anybody who records production, an admin. */
-const shpCanReceive = () => !spIsVendor() && !!(ME.admin || ptCanEdit() || ME.shpAccOnly || (ME.tabs || []).indexOf('shopify') >= 0);
+const shpCanReceive = () => !spIsVendor() && !!(ME.admin || ptCanEdit() || ME.shpAccOnly || ME.shpBoardOnly || (ME.tabs || []).indexOf('shopify') >= 0);
 /** items: [{ orderNo, sku, qty }] — what arrived. Never more than the line still owes. */
 async function shpReceive(items) {
   if (!shpCanReceive()) return 'Taking goods from production needs the Shopify tab.';
@@ -27696,7 +27705,7 @@ const ordView = () => (($('odView') || {}).value || 'shopsku');
 
 function renderOrd() {
   /* SHIPPING TO ACCEPT ONLY (core/auth.js, ME.shpAccOnly): the Order Console is the SHP board, and nothing else. */
-  if (ME.shpAccOnly && $('odView') && $('odView').value !== 'shpboard') $('odView').value = 'shpboard';
+  if ((ME.shpAccOnly || ME.shpBoardOnly) && $('odView') && $('odView').value !== 'shpboard') $('odView').value = 'shpboard';
   /* The brands that appear on the book, so the filter never offers one with nothing behind it. */
   if ($('odBrand')) ptFillSelect('odBrand', [...new Set((PTG.ob || []).map(r => ordBrandOf(r && r.sku)).filter(Boolean))]
     .sort().map(b => [b, b]), 'All brands');
@@ -28886,13 +28895,16 @@ function shpbFlowSpans(r, s) {
 const shpbFlow = (r, s) => '<td style="' + SHPB_PAD + 'text-align:left;white-space:nowrap">' + shpbFlowSpans(r, s) + '</td>';
 
 /** One order line: date, order, ready date, item, flow, pieces, printer, then the stages. */
+/** The red "Stuck N days" pill under a line's date (Ravi, 19 Nov — as it was on 13 Nov). */
+const shpbStuckPill = x => `<div title="Nothing done on this line since ${esc(shpbDmy(x.since))} — Sundays not counted"><span class="pill" style="background:#dc2626;color:#fff;font-size:10px">Stuck ${nf(x.days)} day${x.days === 1 ? '' : 's'}</span></div>`;
 function shpbRow(r) {
   const k = shpbKey(r.orderNo, r.sku), s = shpbStages([r]), rd = shpbReadyOf(r), edit = shpbCanEdit(), late = rd.date && rd.date < dToday();
   const prn = shpbPrinterOf(r);
   const tips = { prcv: 'Owed by the printer − printed cloth received back on the challan', cut: 'Still to cut − cut so far', issue: 'Cut and not yet issued − issued to karigars', receive: 'Out with karigars − received back', qc: 'Received, not checked − passed QC', press: 'Passed QC, not pressed − pressed' };
-  const dl = shpbLate(r);
+  const dl = shpbLate(r), stuck = shpbStuck(r), waits = stuck || (dl && dl.tone === 'late' ? dl : null);
   return (dl ? '<tr class="vo-' + dl.tone + '" title="' + esc(dl.why) + '">' : '<tr>') + '<td class="frz" style="' + SHPB_PAD + 'text-align:left;white-space:nowrap;font-size:12px">' + esc(shpbDmy(shpbDateOf(r)))
-    + (dl && dl.tone === 'late' ? `<div style="font-size:10.5px;color:#b91c1c;white-space:normal;max-width:110px">last step: ${esc(dl.at)}${dl.since ? ' · since ' + esc(shpbDmy(dl.since)) : ''}</div>` : '') + '</td>'
+    + (stuck ? shpbStuckPill(stuck) : '')
+    + (waits ? `<div style="font-size:10.5px;color:#b91c1c;white-space:normal;max-width:110px">last step: ${esc(waits.at)}${waits.since ? ' · since ' + esc(shpbDmy(waits.since)) : ''}</div>` : '') + '</td>'
     + '<td style="' + SHPB_PAD + 'text-align:left;white-space:nowrap;line-height:1.25"><a href="#" data-ordj="' + esc(r.orderNo) + '" style="color:inherit;text-decoration:underline dotted;font-weight:700">'
     + esc(String(r.shopOrderNo || r.orderNo).replace(/^#\s*/, '')) + '</a>'
     + '</td>'
@@ -28963,16 +28975,38 @@ function shpbStageDue(r, stage) {
   const p = shpbPlanOf(r);
   return String((p && p.dates && p.dates[k]) || '').slice(0, 10);
 }
+/* THE STUCK PILL, BACK (Ravi, 19 Nov: "add the stuck pill on each order back"). Beside the row colour, which says late against the
+ * plan, a red "Stuck N days" under the date says how long a pending line has sat: nothing done on it for a whole working day,
+ * Monday to Saturday, Sundays not counted (the 13 Nov rule), with "last step: … since …" under it. Display only. */
+const SHPB_STUCK_DAYS = 1;
+/** Working days (Monday–Saturday) wholly between two ISO days. */
+function shpbWorkDaysBetween(a, b) {
+  const t0 = Date.parse(a + 'T00:00:00Z'), t1 = Date.parse(b + 'T00:00:00Z');
+  if (!(t0 < t1)) return 0;
+  let n = 0;
+  for (let t = t0 + 864e5; t < t1; t += 864e5) if (new Date(t).getUTCDay() !== 0) n++;
+  return n;
+}
+/** { days, since, at } for a pending line nothing has happened to for a whole working day, else null. */
+function shpbStuckNow(r, today) {
+  if (!r.open) return null;
+  const last = shpbLastMove(r), days = last ? shpbWorkDaysBetween(last, today) : 0;
+  return days >= SHPB_STUCK_DAYS ? { days, since: last, at: shpbStatusInfo(r).label } : null;
+}
 let SHPB_LATEC = { sig: null, map: new Map() };
-/** { tone: 'late' | 'near', at, since, why } for a pending line late or nearly due at its stage, else null. */
-function shpbLate(r) {
+/** A line's two marks on the board, worked out once until its records change: late against its stage date, and stuck. */
+function shpbMarks(r) {
   const today = shpbToday(), sig = [today, PT.base, PT.cut, (typeof QC !== 'undefined' && QC.checks) || null, SHPB.ready, SHPB.press,
     (typeof FLOW !== 'undefined' && FLOW && FLOW.ch) || null, (typeof FLOW !== 'undefined' && FLOW && FLOW.ppc) || null];
   if (!SHPB_LATEC.sig || SHPB_LATEC.sig.some((x, i) => x !== sig[i])) SHPB_LATEC = { sig, map: new Map() };
   const k = shpbKey(r.orderNo, r.sku);
-  if (!SHPB_LATEC.map.has(k)) SHPB_LATEC.map.set(k, shpbLateNow(r, today));
+  if (!SHPB_LATEC.map.has(k)) SHPB_LATEC.map.set(k, { late: shpbLateNow(r, today), stuck: shpbStuckNow(r, today) });
   return SHPB_LATEC.map.get(k);
 }
+/** { tone: 'late' | 'near', at, since, why } for a pending line late or nearly due at its stage, else null. */
+const shpbLate = r => shpbMarks(r).late;
+/** { days, since, at } for a pending line stuck a working day or more, else null. */
+const shpbStuck = r => shpbMarks(r).stuck;
 function shpbLateNow(r, today) {
   if (!r.open) return null;
   const stage = shpbStageNow(r);
@@ -29005,6 +29039,8 @@ function renderShpBoard() {
   if (!shpbIsShp() && SHPB.stage === 'hand') SHPB.stage = '';
   /* SHIPPING TO ACCEPT ONLY: the one list this account works — pieces pressed and waiting for shipping — without the buckets, the tabs, the view
    * picker or Close lines. */
+  /* the SHP board alone (ME.shpBoardOnly, core/auth.js): no picker to the Order Console's other views, no Close lines or Export */
+  if (ME.shpBoardOnly) ['odView', 'odClose', 'odExport'].forEach(id => { const b = $(id); if (b && b.classList) b.classList.add('hide'); });
   if (ME.shpAccOnly) { SHPB.tab = 'done'; SHPB.stage = 'hand'; ['odView', 'odClose', 'odExport'].forEach(id => { const b = $(id); if (b && b.classList) b.classList.add('hide'); }); }
   if (!SHPB.readyAt && !SHPB.busy) shpbLoad(true);
   SHPB_STK = Array.isArray(FGI.rows) ? fgiStock() : null;
