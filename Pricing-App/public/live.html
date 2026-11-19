@@ -1,0 +1,281 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Live vs Last Year</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800&family=Source+Sans+3:wght@400;600&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+/* Live vs Last Year — the standalone page (Ravi, 2026-11-19: "make it a working html like prime.html").
+   Same look as prime.html. Data: the backend's liveSnapshotJob (Pricing-API/SalesLive.gs) writes JSON into a Google Sheet every
+   15 minutes; this page reads the sheet's published CSV on open, on Refresh and every 5 minutes. No sign-in. */
+:root {
+  --bg: #F6F7F9; --panel: #FFFFFF; --ink: #15191F; --ink2: #4A5260; --muted: #6B7280; --rule: #E2E5EA;
+  --y26: #2563C9; --y25: #C8661A; --base: #9AA3AF; --good: #1E7A44; --warn: #9A5B00; --ev: rgba(200,102,26,.10);
+  --f-display: 'Archivo', 'Segoe UI', system-ui, sans-serif;
+  --f-body: 'Source Sans 3', 'Segoe UI', system-ui, sans-serif;
+  --f-mono: 'JetBrains Mono', ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #111418; --panel: #1A1E24; --ink: #EEF1F5; --ink2: #B6BDC8; --muted: #8E97A4; --rule: #2C323B;
+  --y26: #5B8FE0; --y25: #D0702A; --base: #6B7480; --good: #4CC27F; --warn: #E0A64A; --ev: rgba(208,112,42,.14); color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #111418; --panel: #1A1E24; --ink: #EEF1F5; --ink2: #B6BDC8; --muted: #8E97A4; --rule: #2C323B;
+  --y26: #5B8FE0; --y25: #D0702A; --base: #6B7480; --good: #4CC27F; --warn: #E0A64A; --ev: rgba(208,112,42,.14); color-scheme: dark }
+*{box-sizing:border-box} body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 var(--f-body); }
+.wrap { max-width: 1120px; margin: 0 auto; padding-inline: 16px; padding-block: 24px 48px; display: flex; flex-direction: column; gap: 20px; }
+header { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 24px; }
+h1 { font: 800 28px/1.15 var(--f-display); margin: 0; letter-spacing: -0.01em; text-wrap: balance; }
+.eyebrow { font: 700 11px/1 var(--f-display); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.brand { margin-left: auto; font-size: 13px; color: var(--ink2); display: flex; gap: 8px; align-items: center; }
+.brand select { font: 600 14px var(--f-body); color: var(--ink); background: var(--panel); border: 1px solid var(--rule); border-radius: 8px; padding: 6px 10px; }
+.refresh { font: 700 13px var(--f-display); letter-spacing: .02em; color: var(--panel); background: var(--y26); border: 0; border-radius: 999px; padding: 8px 16px; cursor: pointer; min-height: 36px; }
+.refresh:hover { filter: brightness(1.08); } .refresh:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; } .refresh[disabled] { opacity: .6; cursor: progress; }
+.asof { font: 500 12px var(--f-mono); color: var(--ink2); background: var(--panel); border: 1px solid var(--rule); border-radius: 999px; padding: 6px 12px; }
+.strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
+.tile { background: var(--panel); border: 1px solid var(--rule); border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.tile .k { font: 700 11px var(--f-display); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.tile .v { font: 800 26px/1.1 var(--f-display); font-variant-numeric: tabular-nums; }
+.tile .s { font-size: 13px; color: var(--ink2); }
+.tile.hl { border-color: var(--y26); box-shadow: inset 0 3px 0 var(--y26); }
+.up { color: var(--good); } .dn { color: var(--warn); }
+section.card { background: var(--panel); border: 1px solid var(--rule); border-radius: 14px; padding: 18px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+h2 { font: 700 18px/1.2 var(--f-display); margin: 0; }
+.sub { color: var(--ink2); font-size: 14px; margin: 0; max-width: 72ch; }
+.legend { display: flex; flex-wrap: wrap; gap: 8px 18px; font-size: 13px; color: var(--ink2); }
+.legend i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -1px; margin-right: 6px; }
+.legend i.dash { height: 0; border-top: 2px dashed var(--base); width: 16px; border-radius: 0; vertical-align: 3px; }
+.legend i.ev { background: var(--ev); border: 1px dashed var(--y25); }
+.chart { width: 100%; overflow-x: auto; }
+.chart svg { display: block; width: 100%; min-width: 640px; height: auto; }
+.chart text { fill: var(--muted); font: 500 11px var(--f-mono); }
+.chart .lbl { font: 700 11px var(--f-mono); }
+.chart .evt { fill: var(--y25); font: 700 10.5px var(--f-mono); }
+.grid line { stroke: var(--rule); }
+.tbl { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; font-variant-numeric: tabular-nums; }
+th, td { padding: 6px 10px; border-bottom: 1px solid var(--rule); text-align: right; white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; }
+th { font: 700 11px var(--f-display); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+details summary { cursor: pointer; color: var(--ink2); font-size: 13px; }
+details summary:focus-visible { outline: 2px solid var(--y26); outline-offset: 2px; }
+.pending { border: 1px dashed var(--rule); border-radius: 10px; padding: 12px 14px; font-size: 14px; color: var(--ink2); }
+.foot { font-size: 12.5px; color: var(--muted); }
+.tip { position: fixed; pointer-events: none; background: var(--ink); color: var(--bg); font: 500 12px/1.4 var(--f-mono); padding: 6px 9px; border-radius: 6px; z-index: 5; }
+@media (max-width: 760px) { .strip { grid-template-columns: repeat(2, minmax(0, 1fr)); } .brand { margin-left: 0; } }
+</style></head><body>
+
+<div class="wrap">
+  <header>
+    <div>
+      <div class="eyebrow">Amazon.com · Pacific time · updates every 15 minutes</div>
+      <h1>Live vs Last Year</h1>
+    </div>
+    <label class="brand" for="brand">Brand <select id="brand"><option value="ALL">Ridhi + CPC</option><option value="SP">Ridhi</option><option value="CPC">CPC</option></select></label>
+    <div class="asof" id="asof">Loading…</div>
+    <button type="button" class="refresh" id="refresh" title="Load the latest numbers">Refresh</button>
+  </header>
+
+  <div class="pending" id="pending" hidden></div>
+  <div class="strip" id="strip"></div>
+
+  <section class="card" aria-labelledby="h-hour">
+    <h2 id="h-hour">Hour by hour — today against the same weekday last year</h2>
+    <p class="sub">Sales in each Pacific-time hour today, beside the same hour of the same weekday last year (364 days back). The dashed line is the same day last week. The last blue bar is a part hour.</p>
+    <div class="legend"><span><i style="background:var(--y26)"></i><b id="lgNow">Today</b></span><span><i style="background:var(--y25)"></i><b id="lgLy">Last year</b></span><span><i class="dash"></i><b id="lgLw">Last week</b></span></div>
+    <div class="chart" id="hourChart"></div>
+    <div class="chart" id="cumChart"></div>
+    <details><summary>Show the numbers</summary><div class="tbl" id="hourTable"></div></details>
+  </section>
+
+  <section class="card" aria-labelledby="h-day">
+    <h2 id="h-day">Day by day — 15 Nov to 1 Dec</h2>
+    <p class="sub" id="daySub">Each day this year beside the same weekday last year. Days still to come show last year only. Totals compare finished days.</p>
+    <div class="strip" id="rangeStrip"></div>
+    <div class="legend"><span><i style="background:var(--y26)"></i>This year</span><span><i style="background:var(--y25)"></i>Last year, same weekday</span><span><i class="ev"></i>Black Friday / Cyber Monday</span></div>
+    <div class="chart" id="dayChart"></div>
+    <details><summary>Show the numbers</summary><div class="tbl" id="dayTable"></div></details>
+  </section>
+
+  <p class="foot">Source: Amazon Sales API (order metrics) per brand — every order placed on Amazon.com, including pending ones, by Pacific hour. Sales are what buyers were charged for the items. The backend reads Amazon every 15 minutes; this page re-reads every 5.</p>
+</div>
+<div class="tip" id="tip" hidden></div>
+
+<script>
+/* The published CSV of the sheet liveSnapshotJob writes (Pricing-API/SalesLive.gs → Script Property LIVE_SHEET_ID). */
+const CSV = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTAoVfl2a82IAF3yOi9yOhWTbk7EmRc2BUMtGG5QpFRQh03ccBiku-a46YL3BfM7Yoa73Bhxk-SWLmm/pub?gid=0&single=true&output=csv';
+const BRANDS = { SP: 'Ridhi', CPC: 'CPC' };
+let DATA = null;
+
+const $ = id => document.getElementById(id);
+const usd = v => '$' + Math.round(v || 0).toLocaleString('en-US');
+const usdk = v => v >= 1000 ? '$' + (v / 1000).toFixed(v >= 10000 ? 0 : 1) + 'k' : '$' + Math.round(v || 0);
+const int = v => Math.round(v || 0).toLocaleString('en-US');
+const zero = () => ({ orders: 0, units: 0, sales: 0 });
+const add = (a, b) => ({ orders: a.orders + (b ? b.orders : 0), units: a.units + (b ? b.units : 0), sales: a.sales + (b ? b.sales : 0) });
+const scale = (r, f) => ({ orders: r.orders * f, units: r.units * f, sales: r.sales * f });
+const hourLabel = h => (h % 12 || 12) + (h < 12 ? 'a' : 'p');
+const niceMax = v => { if (!(v > 0)) return 1; const p = Math.pow(10, Math.floor(Math.log10(v))); for (const m of [1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10]) if (m * p >= v) return m * p; return 10 * p; };
+const dname = (iso, yr) => new Date(iso + 'T12:00:00Z').toLocaleDateString('en-GB', { timeZone: 'UTC', weekday: 'short', day: 'numeric', month: 'short', year: yr ? 'numeric' : undefined });
+const ptHM = iso => new Date(iso).toLocaleTimeString('en-US', { timeZone: 'America/Los_Angeles', hour: 'numeric', minute: '2-digit' });
+const ptDate = ms => new Date(ms).toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' });
+const pct = (a, b) => { if (!b) return '—'; const p = Math.round((a / b - 1) * 100); return `<span class="${p >= 0 ? 'up' : 'dn'}">${p > 0 ? '+' : ''}${p}%</span>`; };
+const NS = 'http://www.w3.org/2000/svg';
+const el = (tag, attrs, parent, text) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (text != null) e.textContent = text; if (parent) parent.appendChild(e); return e; };
+const tip = $('tip');
+const hover = (node, text) => {
+  node.addEventListener('mousemove', e => { tip.hidden = false; tip.textContent = text; tip.style.left = Math.min(e.clientX + 12, innerWidth - 260) + 'px'; tip.style.top = (e.clientY - 34) + 'px'; });
+  node.addEventListener('mouseleave', () => { tip.hidden = true; });
+};
+function bfcm(year) {
+  const nov1 = new Date(Date.UTC(year, 10, 1)).getUTCDay(), thu4 = 1 + ((4 - nov1 + 7) % 7) + 21;
+  const iso = d => new Date(Date.UTC(year, 10, d)).toISOString().slice(0, 10);
+  return { bf: iso(thu4 + 1), cm: iso(thu4 + 4) };
+}
+
+/* ---------- the brands on view, merged ---------- */
+function view(key) {
+  const keys = (key === 'ALL' ? Object.keys(BRANDS) : [key]).filter(k => DATA.brands[k] && DATA.brands[k].yoy && DATA.brands[k].yoy.ok);
+  const merge = f => { const lists = keys.map(k => DATA.brands[k].yoy[f] || []); const n = Math.max(0, ...lists.map(l => l.length)); return [...Array(n).keys()].map(i => lists.reduce((t, l) => add(t, l[i]), zero())); };
+  const rkeys = (key === 'ALL' ? Object.keys(BRANDS) : [key]).filter(k => DATA.brands[k] && DATA.brands[k].range && DATA.brands[k].range.ok);
+  const R = rkeys.length ? DATA.brands[rkeys[0]].range : null;
+  const rsum = (field, d) => { let t = null; rkeys.forEach(k => { const r = (DATA.brands[k].range[field] || {})[d]; if (r) t = add(t || zero(), r); }); return t; };
+  return { keys, now: merge('now'), last: merge('last'), lastWeek: merge('lastWeek'),
+    dates: R ? R.dates : [], lyDates: R ? R.lyDates : [], rNow: R ? R.dates.map(d => rsum('now', d)) : [], rLast: R ? R.lyDates.map(d => rsum('last', d) || zero()) : [] };
+}
+
+/* ---------- charts ---------- */
+const W = 960, H = 280, L = 54, R = 14, T = 14, B = 34;
+function frame(host, max) {
+  host.innerHTML = '';
+  const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, role: 'img' }, host);
+  const y = v => T + (H - T - B) * (1 - v / max);
+  const g = el('g', { class: 'grid' }, svg);
+  for (let i = 0; i <= 4; i++) { const v = max * i / 4; el('line', { x1: L, x2: W - R, y1: y(v), y2: y(v) }, g); el('text', { x: L - 8, y: y(v) + 4, 'text-anchor': 'end' }, svg, usdk(v)); }
+  return { svg, y };
+}
+function xLabels(svg, labels, xc, every) {
+  labels.forEach((l, i) => { if (i % every) return; const t = el('text', { x: xc(i), y: H - B + 15, 'text-anchor': 'middle' }, svg); String(l).split('\n').forEach((p, j) => el('tspan', { x: xc(i), dy: j ? 12 : 0 }, t, p)); });
+}
+function bars(host, labels, groups, line, marks) {
+  const all = groups.flatMap(g => g.vals).concat(line ? line.vals : []).filter(v => v != null);
+  const max = niceMax(Math.max(0, ...all) * (marks && marks.length ? 1.08 : 1));
+  const { svg, y } = frame(host, max);
+  const slot = (W - L - R) / labels.length, bw = Math.min(26, slot * 0.8 / groups.length), xc = i => L + slot * i + slot / 2;
+  (marks || []).forEach(m => { el('rect', { x: xc(m.i) - slot / 2 + 1, y: T, width: slot - 2, height: y(0) - T, rx: 4, fill: 'var(--ev)' }, svg); el('text', { x: xc(m.i), y: T + 11, 'text-anchor': 'middle', class: 'evt' }, svg, m.text); });
+  groups.forEach((g, gi) => g.vals.forEach((v, i) => {
+    if (v == null) return;
+    const r = el('rect', { x: xc(i) - (bw * groups.length) / 2 + gi * bw + 1, y: y(v), width: Math.max(1, bw - 2), height: Math.max(0, y(0) - y(v)), rx: 2, fill: g.fill, opacity: i === g.part ? 0.55 : 1 }, svg);
+    hover(r, `${g.tip(i)}: ${usd(v)}${i === g.part ? ' (so far)' : ''}`);
+  }));
+  if (line) {
+    el('polyline', { points: line.vals.map((v, i) => `${xc(i)},${y(v || 0)}`).join(' '), fill: 'none', stroke: 'var(--base)', 'stroke-width': 1.6, 'stroke-dasharray': '4 3' }, svg);
+    line.vals.forEach((v, i) => hover(el('circle', { cx: xc(i), cy: y(v || 0), r: 6, fill: 'transparent' }, svg), `${line.tip(i)}: ${usd(v)}`));
+  }
+  xLabels(svg, labels, xc, labels.length > 16 ? 2 : 1);
+}
+function lines(host, labels, ls) {
+  const max = niceMax(Math.max(0, ...ls.flatMap(l => l.vals).filter(v => v != null)));
+  const { svg, y } = frame(host, max);
+  const step = (W - L - R - 120) / (labels.length - 1), xc = i => L + step * i, ends = [];
+  ls.forEach(l => {
+    const pts = l.vals.map((v, i) => (v == null ? null : [xc(i), y(v)])).filter(Boolean);
+    if (!pts.length) return;
+    el('polyline', { points: pts.map(p => p.join(',')).join(' '), fill: 'none', stroke: l.stroke, 'stroke-width': l.width || 2, 'stroke-linejoin': 'round', 'stroke-dasharray': l.dash ? '5 4' : '' }, svg);
+    l.vals.forEach((v, i) => { if (v != null) hover(el('circle', { cx: xc(i), cy: y(v), r: 6, fill: 'transparent' }, svg), `${l.name} by end of ${labels[i]} hour: ${usd(v)}`); });
+    const p = pts[pts.length - 1];
+    el('circle', { cx: p[0], cy: p[1], r: 3.5, fill: l.stroke }, svg);
+    ends.push({ x: p[0] + 8, y: p[1] + 4, text: l.end, fill: l.stroke });
+  });
+  ends.sort((a, b) => a.y - b.y);
+  for (let i = 1; i < ends.length; i++) if (ends[i].y - ends[i - 1].y < 14 && Math.abs(ends[i].x - ends[i - 1].x) < 130) ends[i].y = ends[i - 1].y + 14;
+  ends.forEach(e => el('text', { x: e.x, y: e.y, class: 'lbl', fill: e.fill, style: 'fill:' + e.fill }, svg, e.text));
+  xLabels(svg, labels, xc, 3);
+}
+
+/* ---------- painting ---------- */
+function tile(k, v, s, cls, hl) { return `<div class="tile${hl ? ' hl' : ''}"><div class="k">${k}</div><div class="v ${cls || ''}">${v}</div><div class="s">${s}</div></div>`; }
+function change(a, b) { if (!b) return ['—', '']; const p = Math.round((a / b - 1) * 100); return [(p > 0 ? '+' : '') + p + '%', p >= 0 ? 'up' : 'dn']; }
+
+function render() {
+  if (!DATA) return;
+  const key = $('brand').value, V = view(key);
+  const today = ptDate(Date.now()), live = DATA.day === today;
+  $('asof').textContent = 'Data to ' + ptHM(DATA.asOf) + ' PT · ' + new Date(DATA.asOf).toISOString().slice(11, 16) + ' UTC';
+  const errs = Object.keys(BRANDS).filter(k => key === 'ALL' || k === key).map(k => { const b = DATA.brands[k] || {}; return b.yoyErr || b.rangeErr || (b.yoy && !b.yoy.ok && b.yoy.error) ? BRANDS[k] + ': ' + (b.yoyErr || b.rangeErr || b.yoy.error) : ''; }).filter(Boolean);
+  $('pending').hidden = !errs.length; $('pending').textContent = errs.length ? 'Could not read ' + errs.join(' · ') : '';
+
+  // --- today ---
+  const n = V.now.length, pt = new Date(new Date(DATA.asOf).toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }));
+  const frac = live ? Math.max(0.02, (pt.getMinutes() + pt.getSeconds() / 60) / 60) : 1;
+  const sameTime = rows => { if (!live) return rows.reduce(add, zero()); let t = zero(); rows.forEach((r, i) => { if (i < n - 1) t = add(t, r); else if (i === n - 1) t = add(t, scale(r, frac)); }); return t; };
+  const tot = V.now.reduce(add, zero()), lySame = sameTime(V.last), lwSame = sameTime(V.lastWeek), lyDay = V.last.reduce(add, zero());
+  const by = live ? ' by ' + ptHM(DATA.asOf) : '';
+  const [cLy, kLy] = change(tot.sales, lySame.sales), [cLw, kLw] = change(tot.sales, lwSame.sales);
+  $('strip').innerHTML =
+    tile(live ? 'Today so far' : dname(DATA.day), usd(tot.sales), `${int(tot.orders)} orders · ${int(tot.units)} units`, '', true)
+    + tile('vs last year, same time', cLy, `${dname(DATA.ly, true)}${by}: ${usd(lySame.sales)} · ${int(lySame.orders)} orders`, kLy)
+    + tile('vs last week, same time', cLw, `${dname(DATA.lw)}${by}: ${usd(lwSame.sales)} · ${int(lwSame.orders)} orders`, kLw)
+    + tile('Last year, whole day', usd(lyDay.sales), `${lyDay.sales ? Math.round(tot.sales / lyDay.sales * 100) + '% of it reached · ' : ''}${int(lyDay.orders)} orders`)
+    + tile('Pace for the day', live && lySame.sales ? usd(tot.sales * lyDay.sales / lySame.sales) : '—', live && lySame.sales ? `if the rest of today follows ${dname(DATA.ly)}'s shape` : 'needs last year by this hour');
+  $('lgNow').textContent = live ? 'Today' : dname(DATA.day); $('lgLy').textContent = dname(DATA.ly, true) + ' (last year)'; $('lgLw').textContent = dname(DATA.lw) + ' (last week)';
+
+  const hrs = [...Array(24).keys()];
+  bars($('hourChart'), hrs.map(hourLabel), [
+    { vals: hrs.map(h => V.now[h] ? V.now[h].sales : null), fill: 'var(--y26)', part: live ? n - 1 : -1, tip: h => 'Today ' + hourLabel(h) + '–' + hourLabel((h + 1) % 24) },
+    { vals: hrs.map(h => V.last[h] ? V.last[h].sales : 0), fill: 'var(--y25)', tip: h => dname(DATA.ly, true) + ' ' + hourLabel(h) + '–' + hourLabel((h + 1) % 24) },
+  ], { vals: hrs.map(h => V.lastWeek[h] ? V.lastWeek[h].sales : 0), tip: h => dname(DATA.lw) + ' ' + hourLabel(h) + '–' + hourLabel((h + 1) % 24) });
+  const cum = rows => { let t = 0; return hrs.map(h => (rows[h] ? (t += rows[h].sales) : null)); };
+  const cLwv = cum(V.lastWeek);
+  lines($('cumChart'), hrs.map(hourLabel), [
+    { vals: cum(V.last), stroke: 'var(--y25)', name: dname(DATA.ly, true), end: usdk(lyDay.sales) + ' last year' },
+    { vals: cLwv, stroke: 'var(--base)', dash: true, name: dname(DATA.lw), end: usdk(cLwv.filter(v => v != null).pop() || 0) + ' last week' },
+    { vals: cum(V.now), stroke: 'var(--y26)', width: 3, name: 'Today', end: usdk(tot.sales) + (live ? ' so far' : '') },
+  ]);
+  let a = zero(), b = zero(), c = zero();
+  $('hourTable').innerHTML = `<table><thead><tr><th>Hour (PT)</th><th>${live ? 'Today' : dname(DATA.day)}</th><th>Orders</th><th>${dname(DATA.ly, true)}</th><th>Orders</th><th>Change</th><th>${dname(DATA.lw)}</th></tr></thead><tbody>`
+    + hrs.map(h => { const x = V.now[h], y = V.last[h] || zero(), z = V.lastWeek[h] || zero(); if (x) a = add(a, x); b = add(b, y); c = add(c, z); const part = live && h === n - 1;
+      return `<tr><td>${hourLabel(h)}–${hourLabel((h + 1) % 24)}</td><td>${x ? usd(x.sales) + (part ? ' (so far)' : '') : '—'}</td><td>${x ? x.orders : ''}</td><td>${usd(y.sales)}</td><td>${y.orders}</td><td>${x && !part ? pct(x.sales, y.sales) : ''}</td><td>${usd(z.sales)}</td></tr>`; }).join('')
+    + `</tbody><tfoot><tr><th>Day</th><th>${usd(a.sales)}</th><th>${int(a.orders)}</th><th>${usd(b.sales)}</th><th>${int(b.orders)}</th><th></th><th>${usd(c.sales)}</th></tr></tfoot></table>`;
+
+  // --- the run ---
+  if (!V.dates.length) { $('rangeStrip').innerHTML = ''; $('dayChart').innerHTML = ''; $('dayTable').innerHTML = ''; return; }
+  let done = zero(), lyDone = zero(), nd = 0;
+  V.dates.forEach((d, i) => { if (d < today && V.rNow[i]) { done = add(done, V.rNow[i]); lyDone = add(lyDone, V.rLast[i]); nd++; } });
+  const lyAll = V.rLast.reduce(add, zero()), [cR, kR] = change(done.sales, lyDone.sales);
+  $('h-day').textContent = 'Day by day — ' + dname(V.dates[0]) + ' to ' + dname(V.dates[V.dates.length - 1]);
+  $('rangeStrip').innerHTML =
+    tile(`This year, ${nd} day${nd === 1 ? '' : 's'} done`, nd ? usd(done.sales) : '—', nd ? `${int(done.orders)} orders · ${int(done.units)} units` : 'the run has not started')
+    + tile('Last year, same days', nd ? usd(lyDone.sales) : '—', nd ? `${int(lyDone.orders)} orders` : '')
+    + tile('Change', nd ? cR : '—', nd ? (done.sales >= lyDone.sales ? '+' : '−') + usd(Math.abs(done.sales - lyDone.sales)) + ' in sales' : '', kR)
+    + tile('Last year, whole run', usd(lyAll.sales), `${int(lyAll.orders)} orders · ${V.dates.length} days` + (nd && lyAll.sales ? ` · ${Math.round(done.sales / lyAll.sales * 100)}% matched so far` : ''));
+  const ev = bfcm(Number(V.dates[0].slice(0, 4)));
+  const marks = V.dates.map((d, i) => (d === ev.bf ? { i, text: 'Black Friday' } : d === ev.cm ? { i, text: 'Cyber Monday' } : null)).filter(Boolean);
+  bars($('dayChart'), V.dates.map(d => dname(d).replace(/^(\w+) /, '$1\n')), [
+    { vals: V.rNow.map(r => (r ? r.sales : null)), fill: 'var(--y26)', part: V.dates.indexOf(today), tip: i => dname(V.dates[i], true) },
+    { vals: V.rLast.map(r => r.sales), fill: 'var(--y25)', tip: i => dname(V.lyDates[i], true) },
+  ], null, marks);
+  $('dayTable').innerHTML = `<table><thead><tr><th>Day</th><th>Sales</th><th>Orders</th><th>Units</th><th>Last year</th><th>Sales</th><th>Orders</th><th>Change</th></tr></thead><tbody>`
+    + V.dates.map((d, i) => { const x = V.rNow[i], y = V.rLast[i], t = d === today;
+      return `<tr><td>${dname(d)}${d === ev.bf ? ' · BF' : d === ev.cm ? ' · CM' : ''}</td><td>${x ? usd(x.sales) + (t ? ' (so far)' : '') : '—'}</td><td>${x ? int(x.orders) : ''}</td><td>${x ? int(x.units) : ''}</td><td>${dname(V.lyDates[i], true)}</td><td>${usd(y.sales)}</td><td>${int(y.orders)}</td><td>${x && !t ? pct(x.sales, y.sales) : ''}</td></tr>`; }).join('') + '</tbody></table>';
+}
+
+try { const s = localStorage.getItem('live-brand'); if (s) $('brand').value = s; } catch (e) { /* no storage */ }
+$('brand').addEventListener('change', e => { try { localStorage.setItem('live-brand', e.target.value); } catch (x) { /* no storage */ } render(); });
+
+/* ---- LIVE: read the published CSV on open, on Refresh and every 5 minutes. ---- */
+(function () {
+  const btn = $('refresh');
+  async function load(manual) {
+    if (!CSV) { $('asof').textContent = 'Not connected yet'; $('pending').hidden = false; $('pending').textContent = 'The data sheet is not connected yet.'; return; }
+    if (manual) { btn.disabled = true; btn.textContent = 'Refreshing…'; }
+    try {
+      const r = await fetch(CSV + '&t=' + Date.now(), { cache: 'no-store' });
+      const rows = (await r.text()).split(/\r?\n/).slice(1).filter(Boolean);
+      const next = JSON.parse(rows.map(l => l.replace(/^"|"$/g, '').replace(/""/g, '"')).join(''));
+      if (next && next.asOf && next.brands && (!DATA || next.asOf >= DATA.asOf)) { DATA = next; render(); }
+    } catch (e) { if (!DATA) { $('asof').textContent = 'Could not load'; } }
+    if (manual) { btn.disabled = false; btn.textContent = 'Refresh'; }
+  }
+  btn.addEventListener('click', () => load(true));
+  load(false);
+  setInterval(() => { if (document.visibilityState === 'visible') load(false); }, 5 * 60 * 1000);
+})();
+</script>
+</body></html>

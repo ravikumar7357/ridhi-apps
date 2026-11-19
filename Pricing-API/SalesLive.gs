@@ -64,6 +64,53 @@ function liveYoy_(brand, day, ly) {
   return out;
 }
 
+/* ---- THE STANDALONE PAGE'S DATA (Ravi, 2026-11-19: "make it a working html like prime.html") ----
+ * Every 15 minutes liveSnapshotJob asks Amazon for both brands — today by hour against the same weekday last year and last
+ * week, and the 15 Nov – 1 Dec run against last year — and writes it as JSON into one Google Sheet, published as CSV.
+ * Pricing-App/public/live.html reads that CSV: no sign-in, nothing depends on anybody's computer. Same shape as prime.html.
+ * Run liveSnapshotSetup once from the editor: it makes the sheet, writes the first snapshot and installs the trigger. */
+function liveSnapshot_() {
+  var day = Utilities.formatDate(new Date(), LIVE_TZ, 'yyyy-MM-dd'), ly = liveShift_(day, -364), y = day.slice(0, 4);
+  var from = y + '-11-15', to = y + '-12-01', brands = {};
+  ['SP', 'CPC'].forEach(function (b) {
+    var x = {};
+    try { x.yoy = liveYoy_(b, day, ly); } catch (e) { x.yoyErr = String(e.message || e).slice(0, 200); }
+    try { x.range = liveRange_(b, from, to, 364); } catch (e) { x.rangeErr = String(e.message || e).slice(0, 200); }
+    brands[b] = x;
+  });
+  return { asOf: new Date().toISOString(), day: day, ly: ly, lw: liveShift_(day, -7), from: from, to: to, brands: brands };
+}
+function liveSnapshotSheet_() {
+  var id = prop_('LIVE_SHEET_ID');
+  if (id) { try { return SpreadsheetApp.openById(id); } catch (e) { /* made again below */ } }
+  var ss = SpreadsheetApp.create('Sellora Live vs Last Year (live.html data)');
+  PropertiesService.getScriptProperties().setProperty('LIVE_SHEET_ID', ss.getId());
+  return ss;
+}
+/** The JSON in column A, 40,000 characters a cell (a cell holds 50,000). Row 1 says when. */
+function liveSnapshotWrite_(data) {
+  var ss = liveSnapshotSheet_(), sh = ss.getSheets()[0];
+  var s = JSON.stringify(data), parts = [];
+  for (var i = 0; i < s.length; i += 40000) parts.push([s.slice(i, i + 40000)]);
+  sh.clear();
+  sh.getRange(1, 1).setValue('asOf ' + data.asOf + ' · parts ' + parts.length);
+  if (parts.length) sh.getRange(2, 1, parts.length, 1).setValues(parts);
+  SpreadsheetApp.flush();
+  return { id: ss.getId(), url: ss.getUrl(), parts: parts.length, chars: s.length };
+}
+/** The 15-minute trigger. */
+function liveSnapshotJob() {
+  try { liveSnapshotWrite_(liveSnapshot_()); } catch (e) { console.error('live snapshot: ' + (e.message || e)); }
+}
+/** Run once from the editor: sheet + first snapshot + the trigger (any older one removed first). */
+function liveSnapshotSetup() {
+  ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === 'liveSnapshotJob') ScriptApp.deleteTrigger(t); });
+  ScriptApp.newTrigger('liveSnapshotJob').timeBased().everyMinutes(15).create();
+  var w = liveSnapshotWrite_(liveSnapshot_());
+  Logger.log(JSON.stringify(w));
+  return w;
+}
+
 /* ?live=range&brand=SP|CPC&from=YYYY-MM-DD&to=YYYY-MM-DD&shift=364|365
  *   → { ok, brand, asOf, from, to, lyFrom, lyTo, dates:[…], lyDates:[…], now:{date: row}, last:{lyDate: row} }
  * A run of days this year (up to now — days still to come are simply absent) against the same run `shift` days earlier
