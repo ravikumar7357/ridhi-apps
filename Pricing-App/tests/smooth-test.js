@@ -105,7 +105,12 @@ console.log('== Season planner, Fix all, Listing Errors card, Listing History (b
   const [ia, ib] = both(items);
   same('Season planner: every listing\'s plan', ia, ib);
   const [ba, bb] = both(C => C.faBlockHtml('SP', 'TM'));
-  same('Fix all: the block of the biggest parent (cards, rows, Fix all counts)', ba, bb);
+  // 19 Nov 2026: a title row's button says its OWN count ("Fix 12 titles", was the family's "Fix all 490 children") — that button
+  // alone is set aside here; everything else of the block must be the same
+  const ttBtn = h => h.replace(/<button type="button" class="fa-btn fa-main" data-fa-act="fix" data-fa-row="[^"]*"[^>]*title="One new title for each[^"]*">Fix (?:all [\d,]+ child(?:ren)?|[\d,]+ titles?)<\/button>/g, '[title button]');
+  same('Fix all: the block of the biggest parent (cards, rows, Fix all counts — the title rows\' button aside)', ttBtn(ba), ttBtn(bb));
+  const nBtn = h => (ttBtn(h).match(/\[title button\]/g) || []).length;
+  ok('…the title rows\' buttons are there in both, now with each row\'s own count', nBtn(ba) > 0 && nBtn(ba) === nBtn(bb) && (bb.match(/>Fix [\d,]+ titles?</g) || []).length === nBtn(bb), nBtn(ba) + ' vs ' + nBtn(bb));
   const [ka, kb] = both(C => (typeof C.kfLeCardHtml === 'function' ? C.kfLeCardHtml('SP', null) + C.kfLeCardHtml('CPC', null) : ''));
   same('Listing Errors: the "Search terms over the limit" card, both brands', ka, kb);
   const hist = C => {

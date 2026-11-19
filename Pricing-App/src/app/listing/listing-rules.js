@@ -198,8 +198,15 @@ const LR_DEFAULT = {
    *                     punctuation ignored, so "My Whimsical Corner" counts and "Ridhima" does not). The brand Amazon shows for the
    *                     listing counts too when Sellora has read it. Empty and no Amazon brand = the brand is not judged.
    *   writeAs           per account, the brand a suggested title writes when Amazon's own is not known (not a setting).
-   *   embroideryColors  pieces in these colours are embroidery, so "Block Print" is never asked of them. */
-  allow: { shortFrom: 74, ourBrands: 'Ridhi, CPC, Whimsical Corner', writeAs: { SP: 'Ridhi', CPC: 'Whimsical Corner' }, embroideryColors: 'White, Off White' },
+   *   embroideryColors  pieces in these colours are embroidery, so "Block Print" is never asked of them.
+   *   otherBrands       OTHER BRANDS' NAMES (IP & Trademark Guard, 18 Nov 2026): trademarks and licensed names that must not be in a
+   *                     listing's title, bullets, description, search terms or Item Highlights — a starting list the team edits.
+   *                     Read by listing/ip-guard.js (the Guard screen) and by Fix all search terms (it takes them out). NOT a Listing
+   *                     Health rule: no finding, no count and no level in Listing Health or the Workspace comes from it.
+   *   claims            RESTRICTED CLAIMS (the same Guard): words that need proof or a certificate. */
+  allow: { shortFrom: 74, ourBrands: 'Ridhi, CPC, Whimsical Corner', writeAs: { SP: 'Ridhi', CPC: 'Whimsical Corner' }, embroideryColors: 'White, Off White',
+    otherBrands: 'Pottery Barn, Williams Sonoma, Anthropologie, West Elm, Crate & Barrel, Laura Ashley, Martha Stewart, Ralph Lauren, Kate Spade, Hermes, Gucci, Chanel, Disney, Marvel, Harry Potter, Hello Kitty, Star Wars, Pokemon, Amazon Basics, Amazon\'s Choice',
+    claims: 'antibacterial, antimicrobial, antiviral, organic, GOTS, OEKO-TEX, FDA approved, eco-friendly, sustainable, non-toxic, hypoallergenic, #1, best seller, top rated, guaranteed' },
 };
 
 let LR = null;             // the rules in force: saved config, or the defaults
@@ -325,7 +332,7 @@ function lrFind(text, word) {
 const lrHas = (text, word) => lrFind(text, word) >= 0;
 
 /* ---- what people may write (Part A): the settings, with the defaults behind whatever was saved ---- */
-// The allowances in force: { shortFrom, ourBrands, writeAs: { SP, CPC }, embroideryColors } — the saved values over the defaults. A
+// The allowances in force: { shortFrom, ourBrands, writeAs: { SP, CPC }, embroideryColors, otherBrands, claims } — the saved values over the defaults. A
 // config saved before 12 Nov kept one brand list per account (brandWords): its words join the shared list, so nothing typed is lost.
 function lrAllow(cfg) {
   const base = LR_DEFAULT.allow;
@@ -337,7 +344,9 @@ function lrAllow(cfg) {
       .filter(word => { const k = lrNorm(word); if (!k || seen.has(k)) return false; seen.add(k); return true; }).join(', ');
   }
   return { shortFrom: +own.shortFrom > 0 ? +own.shortFrom : base.shortFrom, ourBrands: ours, writeAs: Object.assign({}, base.writeAs),
-    embroideryColors: own.embroideryColors != null ? String(own.embroideryColors) : base.embroideryColors };
+    embroideryColors: own.embroideryColors != null ? String(own.embroideryColors) : base.embroideryColors,
+    // the IP & Trademark Guard's two lists (a rules document saved before 18 Nov 2026 has neither: the starting lists)
+    otherBrands: own.otherBrands != null ? String(own.otherBrands) : base.otherBrands, claims: own.claims != null ? String(own.claims) : base.claims };
 }
 // True when a title sits in the band where the short forms are allowed: from "Short forms allowed from" up to 75 characters.
 const lrNear = (title, cfg) => String(title || '').length >= lrAllow(cfg).shortFrom && String(title || '').length <= 75;

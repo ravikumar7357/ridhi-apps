@@ -11,7 +11,7 @@
  *   - an empty spec: only when every sibling that has it uses the SAME value (copied); never a child's own colour or size;
  *   - search terms over the limit: kw-fix.js shortens each child's own (only words taken out) and shows them all in one preview first;
  *   - every title problem (template, size format, dimension order, length, keyword): title-fix.js — ONE new title per child, one
- *     "Fix all N children" for the family on each title row, the same preview popup first (18 Nov 2026).
+ *     "Fix N titles" on each title row (that row's own children; 19 Nov 2026), the family's preview popup first (18 Nov 2026).
  *   A fix must pass the same checks as a single listing's (spChecks: nothing lost, nothing made up…), must not add a Listing Rules
  *   problem and must clear the problem itself — else that child "needs your OK" with the reason. Pictures, suppressed listings and
  *   Amazon errors have no automatic fix: Open in Image Manager / Listing Errors with those children already picked.
@@ -335,7 +335,8 @@ function faPlanSig(g, kid, ctx) {
     return base.concat([fam ? fam.plans.get(kid.sku) || FA_FRESH : FA_FRESH]);
   }
   const own = faLiveKey(kid.brand, kid.sku);
-  if (g.kind === 'kw') return base.concat([own, typeof lmGet === 'function' ? lmGet(kid.sku, kid.brand) : null, typeof KF !== 'undefined' ? KF.full.get(faKidKey(kid)) || null : null]);
+  if (g.kind === 'kw') return base.concat([own, typeof lmGet === 'function' ? lmGet(kid.sku, kid.brand) : null, typeof KF !== 'undefined' ? KF.full.get(faKidKey(kid)) || null : null,
+    typeof IPG !== 'undefined' ? IPG.okV + ':' + IPG.wordsV : 0]);       // the risky words it takes out: the lists and the "Allowed on purpose" marks (ip-guard.js)
   if (g.kind === 'spec') return base.concat([own, faSpecSig(g)]);
   return base.concat([own]);
 }
@@ -381,6 +382,9 @@ function* faParentSteps(brand, parent, groups) {
     groups = faGroups(brand, parent, kids);
     yield;
   }
+  // the "Allowed on purpose" marks of the IP & Trademark Guard are read first (a step may hand the worker something to wait for): a
+  // search-terms fix never takes an allowed word out, and no fix is worked out twice because the marks landed half-way
+  if (typeof ipgOkLoad === 'function' && typeof IPG !== 'undefined' && !IPG.okLoaded && groups.some(g => g.kind === 'kw')) { const marks = ipgOkLoad(); if (marks) yield marks; }
   if (typeof ttFamilyStep === 'function' && groups.some(g => g.kind === 'ttl')) while (!ttFamilyStep(brand, parent)) yield;
   const ctx = hCtx();
   for (const g of groups) for (const kid of g.kids) { faPlanOf(g, kid, ctx); yield; }
@@ -396,10 +400,15 @@ function faWork() {
         if (!job) break;
         const pri = job === FA_W.pri;
         const t0 = performance.now();
-        let end = false;
+        let end = false, hold = null;
         try {
-          while (performance.now() - t0 < (pri ? FA_SLICE_MS : FA_BG_SLICE_MS)) if (job.it.next().done) { end = true; break; }
+          while (performance.now() - t0 < (pri ? FA_SLICE_MS : FA_BG_SLICE_MS)) {
+            const step = job.it.next();
+            if (step.done) { end = true; break; }
+            if (step.value && typeof step.value.then === 'function') { hold = step.value; break; }     // a saved document being read: wait for it
+          }
         } catch (e) { end = true; }     // a step that fails ends its job: the block then draws (and says) what it can
+        if (hold) { try { await hold; } catch (e) { /* not read: the fixes are worked out without it */ } }
         FA_W.slices++;
         if (end) {
           if (pri) { FA_W.pri = null; job.done(); } else FA_W.bg.shift();
@@ -452,8 +461,15 @@ function faRowButton(gk, g, plans) {
   const safe = plans.filter(p => p.ok).length;
   const busy = typeof sqIsOpen === 'function' && sqIsOpen();
   // search terms: the ones still to be read whole are read when the preview opens, so they count
-  // every title problem: one button for the whole family — its children with any title problem (read first in the popup when needed)
-  if (g.kind === 'ttl' && g.kids.length) { const n = ttFamilyN(g.kids[0].brand, g.kids[0].row.parent || g.kids[0].row.asin || g.kids[0].row.sku || '—'); if (n) return `<button type="button" class="fa-btn fa-main" data-fa-act="fix" data-fa-row="${lrEsc(gk)}"${busy ? ' disabled title="Finish the Fix all that is open first"' : ''} title="One new title for each child — every title problem of this family">Fix all ${faKidsN(n)}</button>`; }
+  // every title problem: the button counts THIS row's children ("Fix 12 titles", ready now or read first in the popup); the popup it
+  // opens is the family's — every child of the family with a title problem (19 Nov 2026)
+  if (g.kind === 'ttl' && g.kids.length) {
+    const n = plans.filter(p => p.ok || p.wait).length;
+    if (n) {
+      const fam = ttFamilyN(g.kids[0].brand, g.kids[0].row.parent || g.kids[0].row.asin || g.kids[0].row.sku || '—');
+      return `<button type="button" class="fa-btn fa-main" data-fa-act="fix" data-fa-row="${lrEsc(gk)}"${busy ? ' disabled title="Finish the Fix all that is open first"' : ` title="One new title for each of these ${faNf(n)} children — the preview shows all ${faKidsN(Math.max(n, fam))} of this family with a title problem"`}>Fix ${faNf(n)} title${n === 1 ? '' : 's'}</button>`;
+    }
+  }
   if (g.kind === 'kw') { const n = plans.filter(p => p.ok || p.wait).length; if (n) return `<button type="button" class="fa-btn fa-main" data-fa-act="fix" data-fa-row="${lrEsc(gk)}"${busy ? ' disabled title="Finish the Fix all that is open first"' : ''}>Fix all ${faKidsN(n)}</button>`; }
   if (safe) return `<button type="button" class="fa-btn fa-main" data-fa-act="fix" data-fa-row="${lrEsc(gk)}"${busy ? ' disabled title="Finish the Fix all that is open first"' : ''}>Fix all ${faNf(safe)}</button>`;
   if (plans.some(p => p.wait)) {
@@ -617,8 +633,8 @@ function faLiveAfterSend(it, now) {
   const entry = liWsEntry(it.brand, it.sku);
   const s = it.sent;
   Object.assign(entry, { at: now, err: '', cErr: '' });
-  if (s.title != null) Object.assign(entry, { title: s.title.slice(0, 220), titleLen: s.title.length }, entry.cAt ? { cAt: now } : {});
-  if (s.kw != null) Object.assign(entry, { kw: s.kw.slice(0, 300), kwBytes: lrKwBytes(s.kw) });
+  if (s.title != null) Object.assign(entry, { title: s.title.slice(0, 220), titleLen: s.title.length, tSentAt: now }, entry.cAt ? { cAt: now } : {});
+  if (s.kw != null) Object.assign(entry, { kw: s.kw.slice(0, 300), kwBytes: lrKwBytes(s.kw), kwAt: now });      // tSentAt / kwAt: when our own change went (ip-guard.js)
   if (s.hl != null) Object.assign(entry, { hl: s.hl.slice(), hlAt: now });
   if (s.spec) entry.specs = Object.assign({}, entry.specs || {}, { [s.spec]: true });
   LI_WS.liveV++;

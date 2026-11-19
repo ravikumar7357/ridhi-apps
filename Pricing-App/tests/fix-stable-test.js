@@ -48,7 +48,7 @@ const busy = html => /Working out the fixes/.test(html);
   await until(() => !C.FA_W.pri);
   const B1 = C.faBlockHtml('SP', 'TM');
   const P1 = plansOf(C);
-  ok('its Fix all buttons are there', !busy(B1) && /Fix all 490 children/.test(B1), strip(B1).slice(0, 200));
+  ok('its Fix all buttons are there (each title row: "Fix N titles", its own children)', !busy(B1) && />Fix \d+ titles?</.test(B1), strip(B1).slice(0, 200));
   await until(() => !C.FA_W.running && !C.FA_W.bg.length, 120000);      // the background done too: nothing else is moving
 
   console.log('== unrelated changes: nothing is thrown away ==');
@@ -83,7 +83,7 @@ const busy = html => /Working out the fixes/.test(html);
       html = C.faBlockHtml('SP', 'TM');
     });
     const P3 = plansOf(C);
-    ok('the block is drawn at once (redone in the draw itself): no "Working out", no "Updating", its buttons there', !busy(html) && !/Updating the fixes/.test(html) && /Fix all 490 children/.test(html) && !C.FA_W.pri);
+    ok('the block is drawn at once (redone in the draw itself): no "Working out", no "Updating", its buttons there', !busy(html) && !/Updating the fixes/.test(html) && />Fix \d+ titles?</.test(html) && !C.FA_W.pri);
     ok(`${kid} has a new plan; the other 489 are the very same objects`, P3.get(kid) !== before && [...P1].filter(([sku]) => sku !== kid).every(([sku, p]) => P3.get(sku) === p),
       [...P1].filter(([sku, p]) => sku !== kid && P3.get(sku) !== p).length + ' others changed');
     ok('…its new plan follows its new title (the current title in the plan)', /Holiday$/.test(P3.get(kid).before), P3.get(kid).before);
@@ -106,10 +106,10 @@ const busy = html => /Working out the fixes/.test(html);
       while (C.FA_W.pri) { draws.push(C.faBlockHtml('SP', 'TM')); await sleep(5); }
       draws.push(C.faBlockHtml('SP', 'TM'));
     });
-    ok(`every draw while it works (${draws.length}) shows the Fix all buttons; none says "Working out the fixes…" (no flashing)`, draws.every(h => /Fix all \d+ children/.test(h) && !busy(h)));
+    ok(`every draw while it works (${draws.length}) shows the Fix all buttons; none says "Working out the fixes…" (no flashing)`, draws.every(h => />Fix \d+ titles?</.test(h) && !busy(h)));
     ok('…the ones while it works are the last block with one quiet line at its end', draws.length >= 2 && draws.slice(0, -1).every(h => /Updating the fixes that changed…/.test(h) && h.startsWith(B2.slice(0, -'</section>'.length))),
       strip(draws[0]).slice(-120));
-    ok('…and the last is the full block again, without that line', !/Updating the fixes/.test(draws[draws.length - 1]) && /Fix all 490 children/.test(draws[draws.length - 1]));
+    ok('…and the last is the full block again, without that line', !/Updating the fixes/.test(draws[draws.length - 1]) && />Fix \d+ titles?</.test(draws[draws.length - 1]));
     const P5 = plansOf(C);
     const kept = [...P4].filter(([sku, p]) => !kids.includes(sku) && P5.get(sku) === p).length;
     ok(`the 120 changed children redone; the other ${490 - 120} kept as they were`, kept === 490 - 120 && kids.every(sku => P5.get(sku) !== P4.get(sku)), `${kept} kept`);

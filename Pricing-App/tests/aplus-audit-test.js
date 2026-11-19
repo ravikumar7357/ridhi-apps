@@ -28,6 +28,7 @@ function sample(o) {
     kid('CPC', 'CD-1', 'CD-P'), kid('CPC', 'CD-2', 'CD-P'),
     kid('SP', 'LS-1', ''),
   ];
+  if (o.kids) o.kids(kids, kid);
   const doc = (k, n, s, t, daysAgo, skus, rr) => ({ k, n, s, t, bd: t === 'Premium' ? ['PREMIUM'] : t === 'Basic' ? ['STANDARD'] : [], u: new Date(now - daysAgo * DAY).toISOString(), rr: rr || [], a: skus === null ? null : skus.map(x => (/^B0/.test(x) ? x : A(x))) });
   const docs = {
     SP: [doc('D-LIVE', 'Tablecloth A+', 'APPROVED', 'Premium', 20, ['TC-1', 'TC-2', 'TC-3']),
@@ -100,7 +101,7 @@ function setup(opts) {
     URL: { createObjectURL: () => 'blob:x', revokeObjectURL() {} }, Blob: class { constructor(p) { this.p = p; } }, CSS: { escape: s => s }, console: { table() {}, log() {} },
     navigator: { clipboard: { writeText: async t => { copied.push(t); } } },
     BRAND_NAME: { SP: 'Ridhi', CPC: 'CPC' }, IML, HEALTH, LR_CAT: { SP: {}, CPC: {} }, H_LOADED: true, ME: { email: 'vishesh.g@example.com', tabs: ['health'] },
-    SALES30: opts.noSales ? { asins: {}, at: '' } : { asins: S.sales, at: '2026-11-17 09:00' },
+    SALES30: opts.noSales ? { asins: {}, at: '' } : { asins: S.sales, at: opts.salesAt || new Date(Date.now() - 2 * DAY).toISOString().slice(0, 10) + ' 09:00' },
     WEEKLY: { rows: opts.weekly || {} }, LI_WS: { aplus: { SP: {}, CPC: {} }, liveV: 0 },
     parentName: (b, asin, fallback) => fallback,
     baCall: async q => {
@@ -219,8 +220,29 @@ const csvRows = text => text.replace(/^﻿/, '').trim().split('\r\n').map(line =
   ok('the shared "Amazon data" label and when A+ was read', /Amazon data: Full refresh: .* · Ridhi: A\+ read .* \(8 documents\) · CPC: A\+ read .* \(1 documents\) · A\+ is read once a day after the 13:00 refresh/.test(strip(T.els.apcMeta.innerHTML)), strip(T.els.apcMeta.innerHTML));
   {
     const W = await open({ weekly: { [A('TC-1')]: { brand: 'SP', weeks: { '2026-11-01': { u: 60, sessions: 600 }, '2026-11-08': { u: 40, sessions: 400 } } }, [A('TC-4')]: { brand: 'SP', weeks: { '2026-11-08': { u: 20, sessions: 500 } } } } });
-    ok('with sessions in the weekly store: "products with A+ convert 10.0% vs 4.0% without" for the brand', /Ridhi: products with A\+ convert 10\.0% vs 4\.0% without/.test(W.text()), W.text().slice(0, 400));
+    ok('enough sessions (1,000 vs 500) but only 1 product a side: the conversion line is NOT shown (nothing in its place)', !/convert/.test(W.text()) && !/apc-convs/.test(W.body()), W.text().slice(0, 400));
+    // 30 products with A+ (family AA on an approved document) and 30 without (family BB, no document), 20 sessions each = 600 a side
+    const big = (nA, nB, sess) => {
+      const weekly = {};
+      const add = (sku, u) => { weekly[A(sku)] = { brand: 'SP', weeks: { '2026-11-08': { u, sessions: sess } } }; };
+      for (let i = 1; i <= nA; i++) add('AA-' + i, sess / 10);
+      for (let i = 1; i <= nB; i++) add('BB-' + i, sess / 20);
+      return open({ weekly, kids: (kids, kid) => { for (let i = 1; i <= nA; i++) kids.push(kid('SP', 'AA-' + i, 'AA-P')); for (let i = 1; i <= nB; i++) kids.push(kid('SP', 'BB-' + i, 'BB-P')); },
+        docs: (docs, doc) => { docs.SP.push(doc('D-AA', 'Bags A+', 'APPROVED', 'Basic', 9, Array.from({ length: nA }, (_, i) => 'AA-' + (i + 1)))); } });
+    };
+    const B30 = await big(30, 30, 20);
+    ok('30 products and 600 sessions a side: "products with A+ convert 10.0% vs 5.0% without"', /Ridhi: products with A\+ convert 10\.0% vs 5\.0% without/.test(B30.text()), B30.text().slice(0, 500));
+    const B29 = await big(30, 29, 20);
+    ok('29 products on one side (580 sessions): the line is hidden', !/convert/.test(B29.text()) && !/apc-convs/.test(B29.body()));
+    const B5 = await big(30, 30, 5);
+    ok('30 products a side but only 150 sessions: the line is hidden', !/convert/.test(B5.text()) && !/apc-convs/.test(B5.body()));
     ok('without enough sessions on both sides the line is not shown (nothing invented)', !/convert/.test(T.text()));
+    ok('sales pulled 2 days ago: no "old" warning', !/Sales from .* old/.test(T.text()) && !/apc-sold/.test(T.body()));
+    const OS = await open({ salesAt: '2026-08-06 10:00' });
+    ok('sales from 2026-08-06 (older than 7 days): amber warning beside "Sales without A+", the number kept', /Sales without A\+ \(30 days\) Sales from 6 Aug 2026 — old\. Press Listing Audit → Pull sales \$1,855 8 products/.test(OS.text())
+      && /<em class="apc-sold">Sales from 6 Aug 2026 — old\. Press Listing Audit → Pull sales<\/em>/.test(OS.body()), OS.text().slice(0, 400));
+    const css = fs.readFileSync(path.join(__dirname, '..', 'src', 'styles.css'), 'utf8');
+    ok('…in the amber of the app (var(--rev-ink) on var(--rev-bg))', /#paneAplus \.apc-sold\{[^}]*color:var\(--rev-ink\);background:var\(--rev-bg\)/.test(css));
     const NS = await open({ noSales: true });
     ok('no 30-day sales pulled: the money shows "—" and says why; products are still listed', /Sales without A\+ \(30 days\) — sales not pulled yet/.test(NS.text()) && /30-day sales not pulled yet/.test(strip(NS.els.apcMeta.innerHTML)) && NS.C.apcBuild().rows.length === 16);
   }
@@ -315,6 +337,24 @@ const csvRows = text => text.replace(/^﻿/, '').trim().split('\r\n').map(line =
     && new RegExp(`Add this ASIN to this document \\(\\$400 of 30-day sales without A\\+\\) — live family members that have no A\\+ yet \\(Floral Tablecloth\\): ${A('TC-4')} Copy ASIN list`).test(T.text()), JSON.stringify(D('D-LIVE').add));
   ok('an unused document: "Not on any live product"', D('D-UNUSED').unused && D('D-UNUSED').liveN === 0 && /Old launch page ✓ Live Not on any live product/.test(T.text()));
   ok('a document on the parent ASIN counts the children it covers (not unused)', !D('D-PAR').unused && D('D-PAR').liveN === 2);
+  ok('"on N products" counts only OUR listings: the parent document is on our 2 children, its parent ASIN is an "other" ASIN', D('D-PAR').onOurs.length === 2 && D('D-PAR').extra.length === 1 && D('D-PAR').extra[0].asin === A('CS-P') && D('D-PAR').extra[0].parent
+    && /Coasters \(on the parent\) ✓ Live Ridhi · type not given · updated \d{1,2} \w+ \d{4} · on 2 products at Amazon · 2 live in Sellora \+ 1 other ASIN \(parents \/ closed \/ not in our listings\) /.test(T.text()), D('D-PAR').onOurs.length + ' ' + (T.text().match(/Coasters \(on the parent\).{0,260}/) || [''])[0]);
+  ok('…an ASIN not in our listing cache is not counted: "on 0 products" + 1 other ASIN, the list opens to it', D('D-UNUSED').onOurs.length === 0 && D('D-UNUSED').extra.length === 1 && !D('D-UNUSED').extra[0].parent
+    && /Old launch page ✓ Live Not on any live product Ridhi · Basic · updated \d{1,2} \w+ \d{4} · on 0 products at Amazon · 0 live in Sellora \+ 1 other ASIN \(parents \/ closed \/ not in our listings\) B0NOTOURS1/.test(T.text())
+    && /<details class="apc-dx muted"><summary>\+ 1 other ASIN \(parents \/ closed \/ not in our listings\)<\/summary><span class="ui-mono">[^<]*<small>\(parent\)<\/small><\/span><\/details>/.test(T.body()));
+  ok('…a document with only our ASINs has no "other" line', D('D-LIVE').onOurs.length === 3 && !D('D-LIVE').extra.length && (T.body().match(/class="apc-dx muted"/g) || []).length === 2);
+  {
+    // the Ridhi case: one document lists our children AND their parent, a closed listing and ASINs not in our cache
+    const X = await open({ docs: docs => { docs.SP.find(d => d.k === 'D-LIVE').a.push(A('RN-P'), 'B0CLOSED01', 'B0NOTOURS2'); } });
+    X.click({ apc: 'view', apcV: 'doc' });
+    const xl = X.C.apcDocs(X.C.apcBuild()).find(x => x.d.k === 'D-LIVE');
+    ok('a document with 6 ASINs, 3 of them ours: "on 3 products" + "3 other ASINs", the parent marked', xl.on.length === 6 && xl.onOurs.length === 3 && xl.extra.length === 3 && xl.extra.filter(e => e.parent).length === 1
+      && /Tablecloth A\+ ✓ Live Ridhi · Premium · updated \d{1,2} \w+ \d{4} · on 3 products at Amazon · 3 live in Sellora \+ 3 other ASINs \(parents \/ closed \/ not in our listings\) B0RNPXXXXX \(parent\) B0CLOSED01 B0NOTOURS2/.test(X.text()), X.text().slice(300, 900));
+    const xc = X.C.apcDocsCsv(), xr = csvRows(xc.text).find(r => r[1] === 'Tablecloth A+');
+    ok('…the sheet: Products on it 3, Other ASINs on it 3', xr[5] === '3' && xr[6] === '3' && X.C.APC_DOC_COLS[6] === 'Other ASINs on it (parents / closed / not in our listings)', xr.join('|'));
+    const xn = X.C.aplusCounts();
+    ok('…aplusCounts(): the documents\' ASINs, ours and others apart (8 ours + 5 others), and how many listings we have', xn.Ridhi.docAsinsOurs === 8 && xn.Ridhi.docAsinsOther === 5 && xn.Ridhi.ourListings === 15 && xn.CPC.docAsinsOurs === 1 && xn.CPC.docAsinsOther === 0, JSON.stringify(xn.Ridhi));
+  }
   ok('stuck and forgotten documents say so', D('D-WAIT').stuck && D('D-DRAFT').oldDraft && /Placemats A\+ Waiting Stuck/.test(T.text()) && /Runner story Draft Forgotten draft/.test(T.text()));
   ok('a rejected document shows Amazon\'s reason', /Tablecloth winter Rejected[\s\S]*Amazon's reason: Image has a web link/.test(T.text()));
   T.click({ apc: 'chip', apcV: 'unused' });
@@ -329,7 +369,7 @@ const csvRows = text => text.replace(/^﻿/, '').trim().split('\r\n').map(line =
     const cells = csvRows(csvD.text);
     ok('Download documents: the cards in view, Excel-ready (UTF-8 BOM, CRLF), the stated columns', csvD.text.charCodeAt(0) === 0xFEFF && cells[0].join('|') === C.APC_DOC_COLS.join('|') && cells.length === 10 && !/[^\r]\n/.test(csvD.text));
     const cards = [...T.body().matchAll(/<div class="card apc-dcard"[^>]*>([\s\S]*?)<div class="apc-da">/g)].map(m => strip(m[1]));
-    ok('…the same documents in the same order as the screen, the same status / type / date / ASINs to add', cards.length === 9 && cells.slice(1).every((r, i) => cards[i].startsWith(r[1]) && cards[i].includes(r[2].replace('Live', '✓ Live')) && (!r[3] || cards[i].includes(r[3])) && (!r[4] || cards[i].includes(r[4])) && (!r[7] || cards[i].includes(r[7]))),
+    ok('…the same documents in the same order as the screen, the same status / type / date / ASINs to add', cards.length === 9 && cells.slice(1).every((r, i) => cards[i].startsWith(r[1]) && cards[i].includes(r[2].replace('Live', '✓ Live')) && (!r[3] || cards[i].includes(r[3])) && (!r[4] || cards[i].includes(r[4])) && cards[i].includes('on ' + r[5] + ' product') && (r[6] === '0' ? !/other ASIN/.test(cards[i]) : cards[i].includes('+ ' + r[6] + ' other ASIN')) && (!r[8] || cards[i].includes(r[8]))),
       cells.slice(1).map((r, i) => r[1] + ' / ' + cards[i].slice(0, 40)).join(' || '));
     T.click({ apc: 'view', apcV: 'prod' });
     const check = (label) => {
@@ -446,6 +486,7 @@ const csvRows = text => text.replace(/^﻿/, '').trim().split('\r\n').map(line =
     const counts = C.aplusCounts();
     ok('aplusCounts(): per brand, each status and the sales without A+', counts.Ridhi.products === 14 && counts.Ridhi.live === 5 && counts.Ridhi.waiting === 2 && counts.Ridhi.stuck === 1 && counts.Ridhi.draft === 2 && counts.Ridhi.rejected === 1 && counts.Ridhi.missing === 4
       && counts.Ridhi.salesWithoutAplus30d === 1735 && counts.CPC.live === 1 && counts.CPC.missing === 1 && counts.CPC.salesWithoutAplus30d === 120 && counts.Ridhi.documents === 8 && counts.Ridhi.callsOfThatRead === 10, JSON.stringify(counts));
+    ok('aplusCounts(): the documents\' ASINs — ours (8) and others (2: a parent, one not in our listings) printed apart', counts.Ridhi.docAsinsOurs === 8 && counts.Ridhi.docAsinsOther === 2 && counts.Ridhi.ourListings === 15 && counts.CPC.docAsinsOurs === 1 && counts.CPC.docAsinsOther === 0, JSON.stringify(counts.Ridhi));
     // Amazon agrees with everything except: TC-4 (Sellora: Missing) has A+ published, and D-WAIT was approved since the read
     const pub = {};
     T.S.kids.forEach(k => { pub[k.asin] = ['TC-1', 'TC-2', 'TC-3', 'CD-1', 'TC-4'].includes(k.sku); });
@@ -548,11 +589,11 @@ const csvRows = text => text.replace(/^﻿/, '').trim().split('\r\n').map(line =
     const nav = fs.readFileSync(path.join(__dirname, '..', 'src', 'app', 'core', 'nav.js'), 'utf8');
     const css = fs.readFileSync(path.join(__dirname, '..', 'src', 'styles.css'), 'utf8');
     const order = fs.readFileSync(path.join(__dirname, '..', 'src', 'app', 'ORDER'), 'utf8');
-    ok('"A+ Content" in the Listing menu under "2 · Check", right after Family & Category Check', /<div class="navcol-h">2 · Check<\/div>[\s\S]*?<button id="tabFam" class="nav">Family &amp; Category Check<\/button>\s*<button id="tabAplus" class="nav">A\+ Content<\/button><\/div>/.test(html)
-      && /data-tabs="[^"]*fam,aplus,lhist"/.test(html) && /<div id="paneAplus" class="hide"><div id="apcPane"><\/div><\/div>/.test(html));
-    ok('the tab is known to the app: TABS, its title, and it comes with Listing Health', /'fam', 'aplus'\];/.test(nav) && /aplus: 'A\+ Content'/.test(nav) && /TAB_INHERIT = \{[^}]*aplus: 'health'/.test(nav));
+    ok('"A+ Content" in the Listing menu under "2 · Check", right after Family & Category Check', /<div class="navcol-h">2 · Check<\/div>[\s\S]*?<button id="tabFam" class="nav">Family &amp; Category Check<\/button>\s*<button id="tabAplus" class="nav">A\+ Content<\/button>\s*<button id="tabIpg" class="nav">IP &amp; Trademark Guard<\/button><\/div>/.test(html)   // (IP & Trademark Guard follows it since 18 Nov 2026)
+      && /data-tabs="[^"]*fam,aplus,ipg,lhist"/.test(html) && /<div id="paneAplus" class="hide"><div id="apcPane"><\/div><\/div>/.test(html));
+    ok('the tab is known to the app: TABS, its title, and it comes with Listing Health', /'fam', 'aplus', 'ipg'\];/.test(nav) && /aplus: 'A\+ Content'/.test(nav) && /TAB_INHERIT = \{[^}]*aplus: 'health'/.test(nav));
     ok('the file is joined after category-check.js', /listing\/category-check\.js\r?\nlisting\/aplus-audit\.js/.test(order));
-    ok('the same look as Family & Category Check: its styles cover both panes', /:is\(#paneFam,#paneAplus\) \.fc-box\{/.test(css) && /:is\(#paneFam,#paneAplus\) \.fc-chip\.is-r\{/.test(css) && /:is\(#paneFam,#paneAplus\) \.cc-fchip\{/.test(css) && !/\n\s*#paneFam \.fc-/.test(css));
+    ok('the same look as Family & Category Check: its styles cover both panes', /:is\(#paneFam,#paneAplus,#paneIpg\) \.fc-box\{/.test(css) && /:is\(#paneFam,#paneAplus,#paneIpg\) \.fc-chip\.is-r\{/.test(css) && /:is\(#paneFam,#paneAplus,#paneIpg\) \.cc-fchip\{/.test(css) && !/\n\s*#paneFam \.fc-/.test(css));
     ok('its own colours are the shared ones (var(--…)): no fixed colour but the white behind a picture', (() => { const own = css.slice(css.indexOf('/* ----- A+ Content (listing/aplus-audit.js)'), css.indexOf('@media (max-width:860px){#paneAplus')); return own.length > 500 && (own.match(/#[0-9a-fA-F]{3,6}\b/g) || []).every(c => c === '#fff'); })());
     ok('a sticky header', /#paneAplus \.apc-tb\{position:sticky;top:var\(--apc-top,0px\)/.test(css));
   }

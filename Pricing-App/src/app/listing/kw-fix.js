@@ -6,6 +6,10 @@
  *   1 duplicate words out; 2 words already in that child's title (Amazon reads the title anyway); 3 punctuation and stop words (a, an, and,
  *   the, for, with, of, in, on, to); 4 brand names (ours — Listing Rules' "Our brand words" and the brand Amazon shows — and others named in
  *   Listing Rules' otherBrands, if any) and ASINs; 5 only if still over: words cut from the END until it fits (the start, written first, stays).
+ * RISKY WORDS ALSO GO (IP & Trademark Guard, 18 Nov 2026 — ip-guard.js ipgKwRisk): another brand's name ("Pottery Barn", also as "Pottery
+ *   Barn style") and a restricted claim ("organic") are taken out of every text this popup fixes — except a word the team marked "Allowed
+ *   on purpose" for that listing or its family. A text WITHIN the limit that holds a risky word can be fixed here too (the Guard screen's
+ *   Fix opens this same popup): then ONLY the risky words go — nothing else is touched.
  * PREVIEW (kfPreview, one popup for the whole family, the existing #spModal): every child — SKU, colour · size, bytes before → after, the
  *   removed words struck through, its new text editable — a search box, Select all and a tick per child; the total on top ("38 children ·
  *   all will be ≤ 249 bytes"). Check with Amazon & send → THE ONE SEND PATH (listing-send-check.js sqSendWithCheck: Amazon's check →
@@ -31,22 +35,26 @@ const kfNf = n => KF_NUM.format(Number(n || 0));
 const kfNorm = w => String(w || '').toLowerCase().normalize('NFKD').replace(/[^\p{L}\p{N}]+/gu, '');
 // The text in words, as written: [{ raw, w (the punctuation round it gone), k (compared) }].
 function kfTokens(text) {
-  return String(text || '').split(/[\s,;|]+/).filter(Boolean).map(raw => {
+  return [...String(text || '').matchAll(/[^\s,;|]+/g)].map(m => {
+    const raw = m[0];
     const w = raw.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '');
-    return { raw, w, k: kfNorm(w) };
+    return { raw, w, k: kfNorm(w), at: m.index };                 // at: where the word starts in the text
   });
 }
 // Brand names to take out: ours (Listing Rules' "Our brand words" + the brand Amazon shows for the listing) and others named in Listing
 // Rules (allow.otherBrands, a comma list, when set) — each as its words in order ("whimsical corner").
 function kfBrands(row, cfg) {
   const ours = typeof lrBrandWords === 'function' ? lrBrandWords(row || {}, cfg) : [];
-  const other = String(((cfg && cfg.allow) || {}).otherBrands || '').split(',').map(s => s.trim()).filter(Boolean);
+  // other brands' names: the IP & Trademark Guard's step takes them out when it is there (it knows "Allowed on purpose"); else this list
+  const other = typeof ipgKwRisk === 'function' ? [] : String(((cfg && cfg.allow) || {}).otherBrands || '').split(',').map(s => s.trim()).filter(Boolean);
   return [...new Set(ours.concat(other).map(p => kfTokens(p).map(t => t.k).filter(Boolean).join(' ')).filter(Boolean))];
 }
 const KF_ASIN = /^b0[a-z0-9]{8}$/;
 
-/** THE SHORTENING. kw: the search terms now; o: { title, brands: ['ridhi', 'whimsical corner'], max }. Only takes words out.
- *  → { before, after, removed: [{ w, why, i }], bytesBefore, bytesAfter, over (before), fits (after ≤ max), cut (step 5 used) }. */
+/** THE SHORTENING. kw: the search terms now; o: { title, brands: ['ridhi', 'whimsical corner'], max, risk, riskOnly }. Only takes words out.
+ *  o.risk(text) → [{ s, e, why }]: the risky words' places in the text (ip-guard.js) — every word there goes, first. o.riskOnly: a text
+ *  within the limit loses ONLY its risky words (steps 1–5 are for fitting the limit).
+ *  → { before, after, removed: [{ w, why, i, risk }], bytesBefore, bytesAfter, over (before), fits (after ≤ max), cut (step 5 used), risky }. */
 function kfShorten(kw, o) {
   o = o || {};
   const max = o.max || (typeof lrKwMax === 'function' ? lrKwMax() : 249);
@@ -55,28 +63,42 @@ function kfShorten(kw, o) {
   const title = new Set(kfTokens(o.title).map(t => t.k).filter(Boolean));
   const brands = (o.brands || []).map(p => p.split(' ')).filter(p => p.length);
   const live = () => toks.filter(t => !t.out);
-  // 1 duplicates (the first one stays)
-  const seen = new Set();
-  live().forEach(t => { if (t.k && seen.has(t.k)) t.out = 'repeated'; else if (t.k) seen.add(t.k); });
-  // 2 already in the title
-  live().forEach(t => { if (t.k && title.has(t.k)) t.out = 'in the title'; });
-  // 3 punctuation and stop words
-  live().forEach(t => { if (!t.k) t.out = 'punctuation'; else if (KF_STOP.includes(t.k)) t.out = 'stop word'; });
-  // 4 brand names (a phrase as consecutive words) and ASINs
-  brands.forEach(p => {
-    const l = live();
-    for (let i = 0; i + p.length <= l.length; i++) {
-      if (p.every((w, j) => l[i + j].k === w)) { for (let j = 0; j < p.length; j++) l[i + j].out = 'brand name'; i += p.length - 1; }
-    }
-  });
-  live().forEach(t => { if (KF_ASIN.test(t.k)) t.out = 'ASIN'; });
+  const over = lrKwCheck(before, max).over;
+  // 0 risky words (another brand's name, a restricted claim): every word inside one of their places in the text
+  const spans = typeof o.risk === 'function' ? o.risk(before) || [] : [];
+  if (spans.length) toks.forEach(t => { const hit = spans.find(sp => t.at < sp.e && t.at + t.raw.length > sp.s); if (hit) { t.out = hit.why; t.risk = true; } });
+  let cut = false;
+  // a text within the limit that is here for its risky words only: they go, the rest is as written (not even its punctuation changes)
+  const riskOnly = !!o.riskOnly && !over;
+  if (!riskOnly) {
+    // 1 duplicates (the first one stays)
+    const seen = new Set();
+    live().forEach(t => { if (t.k && seen.has(t.k)) t.out = 'repeated'; else if (t.k) seen.add(t.k); });
+    // 2 already in the title
+    live().forEach(t => { if (t.k && title.has(t.k)) t.out = 'in the title'; });
+    // 3 punctuation and stop words
+    live().forEach(t => { if (!t.k) t.out = 'punctuation'; else if (KF_STOP.includes(t.k)) t.out = 'stop word'; });
+    // 4 brand names (a phrase as consecutive words) and ASINs
+    brands.forEach(p => {
+      const l = live();
+      for (let i = 0; i + p.length <= l.length; i++) {
+        if (p.every((w, j) => l[i + j].k === w)) { for (let j = 0; j < p.length; j++) l[i + j].out = 'brand name'; i += p.length - 1; }
+      }
+    });
+    live().forEach(t => { if (KF_ASIN.test(t.k)) t.out = 'ASIN'; });
+  }
   // 5 still over: words from the end
   const text = () => live().map(t => t.w).join(' ');
-  let cut = false;
-  while (live().length && lrKwCheck(text(), max).over) { live().slice(-1)[0].out = 'cut to fit'; cut = true; }
-  const after = text();
-  return { before, after, removed: toks.filter(t => t.out).map(t => ({ w: t.raw, why: t.out, i: t.i })), toks,
-    bytesBefore: lrKwBytes(before), bytesAfter: lrKwBytes(after), over: lrKwCheck(before, max).over, fits: !lrKwCheck(after, max).over, cut, max };
+  while (!riskOnly && live().length && lrKwCheck(text(), max).over) { live().slice(-1)[0].out = 'cut to fit'; cut = true; }
+  // risky words only: the text as the person wrote it (their commas and semicolons too) with those words cut out of it
+  const cutOut = () => {
+    let s = before;
+    toks.filter(t => t.out).sort((a, b) => b.at - a.at).forEach(t => { s = s.slice(0, t.at) + s.slice(t.at + t.raw.length); });
+    return s.replace(/\s*([,;|])(?:\s*[,;|])+/g, '$1').replace(/\s+([,;|])/g, '$1').replace(/\s{2,}/g, ' ').replace(/^[\s,;|]+|[\s,;|]+$/g, '');
+  };
+  const after = riskOnly ? cutOut() : text();
+  return { before, after, removed: toks.filter(t => t.out).map(t => ({ w: t.raw, why: t.out, i: t.i, risk: !!t.risk })), toks, risky: toks.filter(t => t.risk).length,
+    bytesBefore: lrKwBytes(before), bytesAfter: lrKwBytes(after), over, fits: !lrKwCheck(after, max).over, cut, max };
 }
 
 /* ----- one child: its search terms (whole), title, brand words, product type ----- */
@@ -98,18 +120,23 @@ function kfItemOf(brand, row, ctx, kid) {
   if (read) { kw = read.kw; full = true; }                                 // read whole for this, from Amazon
   const label = kid && typeof faLabel === 'function' ? faLabel(kid, ctx) : [typeof lrColorOf === 'function' ? lrColorOf(fresh) : '', (hTitleSizes(hTitleText(fresh))[0] || {}).text || ''].filter(Boolean).join(' · ') || row.sku;
   const pt = (read && read.pt) || (kid && kid.lr && kid.lr.pt) || (m && m.pt) || '';
-  return { key, brand, sku: row.sku, asin: row.asin || '', parent: row.parent || row.asin || row.sku || '—', label, title: hTitleText(fresh), kw, full, pt, brands: kfBrands(fresh, ctx.cfg) };
+  return { key, brand, sku: row.sku, asin: row.asin || '', parent: row.parent || row.asin || row.sku || '—', label, title: hTitleText(fresh), kw, full, pt, brands: kfBrands(fresh, ctx.cfg),
+    // the risky words of this listing's search terms (IP & Trademark Guard), the ones allowed on purpose left out
+    risk: typeof ipgKwRisk === 'function' ? ipgKwRisk(brand, row.sku, fresh, ctx.cfg) : null };
 }
 /** One child's fix: { ok, wait, why, before, after, removed, b0, b1, patches, sent, beforeKw, pt } — the same function for every screen. */
 function kfPlan(item) {
-  const s = kfShorten(item.kw, { title: item.title, brands: item.brands });
+  const s = kfShorten(item.kw, { title: item.title, brands: item.brands, risk: item.risk, riskOnly: true });
   const out = { key: item.key, brand: item.brand, sku: item.sku, asin: item.asin, label: item.label, parent: item.parent, kind: 'kw', ok: false, wait: false, why: '',
-    before: s.before, after: s.after, removed: s.removed, toks: s.toks, b0: s.bytesBefore, b1: s.bytesAfter, max: s.max, cut: s.cut, beforeKw: s.before };
-  if (!s.over) return Object.assign(out, { why: `already within the limit (${kfNf(s.bytesBefore)} of ${s.max} bytes)` });
+    before: s.before, after: s.after, removed: s.removed, toks: s.toks, b0: s.bytesBefore, b1: s.bytesAfter, max: s.max, cut: s.cut, beforeKw: s.before, over: s.over, risky: s.risky };
+  if (!s.over && !s.risky) return Object.assign(out, { why: `already within the limit (${kfNf(s.bytesBefore)} of ${s.max} bytes)${typeof ipgKwRisk === 'function' ? ' and no risky word' : ''}` });
   if (!item.full) return Object.assign(out, { wait: true, why: 'reading the whole search terms from Amazon first' });
   if (!s.fits) return Object.assign(out, { why: 'could not be made to fit' });
+  // nothing but risky words in it: Amazon takes no empty text — a person clears the field in Listing Errors
+  if (!s.after.trim()) return Object.assign(out, { why: 'only risky words in it — clear the search terms by hand in Listing Errors' });
   if (!item.pt) return Object.assign(out, { wait: true, why: 'read it from Amazon first (its product type is not known yet)' });
-  return Object.assign(out, { ok: true, pt: item.pt, what: `Shorten to ${kfNf(s.bytesAfter)} bytes`, sent: { kw: s.after },
+  const riskyWords = s.removed.filter(r => r.risk).length;
+  return Object.assign(out, { ok: true, pt: item.pt, what: s.over ? `Shorten to ${kfNf(s.bytesAfter)} bytes` : `Take out ${riskyWords === 1 ? '1 risky word' : kfNf(riskyWords) + ' risky words'}`, sent: { kw: s.after },
     patches: kfPatches(s.after) });
 }
 const kfPatches = text => [{ op: 'replace', path: '/attributes/generic_keyword', value: [{ value: text, language_tag: 'en_US' }] }];
@@ -204,6 +231,8 @@ async function kfPreview(items, o) {
   const run = { items, o: o || {}, plans: [], sel: new Set(), edit: new Map(), q: '', reading: 0, total: 0, closed: false };
   KF.run = run;
   run.promise = new Promise(resolve => { run.resolve = resolve; });
+  // the "Allowed on purpose" marks (IP & Trademark Guard) are read before the plans are made: an allowed word is never taken out
+  if (typeof ipgOkLoad === 'function' && typeof IPG !== 'undefined' && !IPG.okLoaded) { try { await ipgOkLoad(); } catch (e) { /* the popup shows every word it takes out */ } if (run.closed) return run.promise; }
   const need = items.filter(it => !it.full || !it.pt);
   if (need.length) {
     run.total = need.length;
@@ -228,7 +257,7 @@ const kfText = (run, p) => (run.edit.has(p.key) ? run.edit.get(p.key) : p.after)
 // The words of the old text with the removed ones struck through (why on hover).
 function kfDiffHtml(p) {
   const why = new Map(p.removed.map(r => [r.i, r.why]));
-  return (p.toks || []).map(t => (why.has(t.i) ? `<s class="kf-cut" title="${kfEsc(why.get(t.i))}">${kfEsc(t.raw)}</s>` : kfEsc(t.w || t.raw))).join(' ');
+  return (p.toks || []).map(t => (why.has(t.i) ? `<s class="kf-cut${t.risk ? ' is-risk' : ''}" title="${kfEsc(why.get(t.i))}">${kfEsc(t.raw)}</s>` : kfEsc(t.w || t.raw))).join(' ');
 }
 // What the ticked ones would send: [{ p, text, chk }] (chk: lrKwCheck of the text).
 function kfChosen(run) {
@@ -239,7 +268,9 @@ function kfSumText(run) {
   const chosen = kfChosen(run);
   const bad = chosen.filter(c => c.chk.over || !c.text.trim()).length;
   const kids = n => (n === 1 ? '1 child' : kfNf(n) + ' children');
+  const risky = ok.reduce((n, p) => n + (p.removed || []).filter(r => r.risk).length, 0);
   return `${kids(ok.length)} · ${bad ? `${kfNf(chosen.length - bad)} will be ≤ ${ok[0] ? ok[0].max : 249} bytes · ${kfNf(bad)} edited over the limit` : `all will be ≤ ${ok[0] ? ok[0].max : 249} bytes`}`
+    + (risky ? ` · ${risky === 1 ? '1 risky word' : kfNf(risky) + ' risky words'} taken out` : '')
     + (chosen.length !== ok.length ? ` · ${kfNf(chosen.length)} ticked` : '') + (run.plans.length > ok.length ? ` · ${kfNf(run.plans.length - ok.length)} not fixed here` : '');
 }
 function kfGoText(run) {
@@ -259,7 +290,7 @@ function kfRowHtml(run, p) {
   return `<div class="sp-m-row sq-row kf-row${hide}" data-kf-find="${find}" data-kf-key="${kfEsc(p.key)}">`
     + `<label class="kf-tick"><input type="checkbox" data-kf-tick="${kfEsc(p.key)}"${on ? ' checked' : ''} aria-label="Send ${kfEsc(p.sku)}"></label>`
     + `<div class="kf-body"><div class="kf-top"><b>${kfEsc(p.sku)}</b><small>${kfEsc(p.label && p.label !== p.sku ? p.label : '')}</small>`
-    + `<span class="kf-bytes"><span class="err">${kfNf(p.b0)}</span> → <span class="${chk.over ? 'err' : 'ok'}" data-kf-n="${kfEsc(p.key)}">${kfNf(chk.bytes)}</span> bytes</span></div>`
+    + `<span class="kf-bytes"><span class="${p.b0 > p.max ? 'err' : ''}">${kfNf(p.b0)}</span> → <span class="${chk.over ? 'err' : 'ok'}" data-kf-n="${kfEsc(p.key)}">${kfNf(chk.bytes)}</span> bytes</span></div>`
     + `<div class="kf-text">${kfDiffHtml(p)}</div>`
     + `<details class="kf-ed"${run.edit.has(p.key) ? ' open' : ''}><summary>Edit the new text</summary><textarea data-kf-edit="${kfEsc(p.key)}" rows="3" spellcheck="false">${kfEsc(text)}</textarea></details></div></div>`;
 }
@@ -279,7 +310,7 @@ function kfDraw() {
   const all = ok.length && ok.every(p => run.sel.has(p.key));
   spModal(`<div class="sq-pop kf-pop"><div class="sp-m-h sq-top"><b>Fix all search terms — ${kfEsc(run.o.title || '')}</b>`
     + `<p class="sq-sum" data-kf-sum>${kfEsc(kfSumText(run))}</p>`
-    + '<p>Only words are taken out — repeats, words already in the title, punctuation and stop words, brand names and ASINs, then words from the end until it fits. Nothing is added.</p>'
+    + `<p>Only words are taken out — ${typeof ipgKwRisk === 'function' ? 'risky words (other brands’ names and restricted claims: struck through in red), ' : ''}repeats, words already in the title, punctuation and stop words, brand names and ASINs, then words from the end until it fits. A text within the limit loses only its risky words. Nothing is added.</p>`
     + `<div class="kf-tools"><input type="search" data-kf-q placeholder="Search SKU, colour, size…" value="${kfEsc(run.q)}" aria-label="Search the children">`
     + `<label class="kf-all"><input type="checkbox" data-kf-all${all ? ' checked' : ''}> Select all</label></div></div>`
     + `<div class="sp-m-list">${order.map(p => kfRowHtml(run, p)).join('') || '<div class="sp-m-row sq-none">Nothing to fix.</div>'}</div>`
@@ -340,6 +371,7 @@ function kfGo() {
       KF.last.set(o.brand, typeof sqSummaryText === 'function' ? sqSummaryText(sum) : '');
       KF.memo = null;
       if (typeof faRedraw === 'function') faRedraw();
+      if (typeof ipgAfterSend === 'function') ipgAfterSend();          // the IP & Trademark Guard follows what was sent
       if (typeof leRender === 'function' && typeof $ === 'function' && $('leList')) { try { leRender(); } catch (e) { /* not on the page */ } }
     } });
   Promise.resolve(sent).then(sum => run.resolve(sum));

@@ -1,5 +1,6 @@
 /* ================= LISTING · FIX ALL TITLES: one new title per child that fixes every title problem at once =================
- * Screens: Listing Health → Workspace (a parent's title rows in the Fix all block, fix-all.js: "Fix all N children"; each child's own
+ * Screens: Listing Health → Workspace (a parent's title rows in the Fix all block, fix-all.js: "Fix N titles" — the row's own children,
+ *          the popup over the family; each child's own
  *          Fix), Listing Errors (a card above its list: per family, and Select all), and the Fix button of a title problem anywhere
  *          (Listing Health's Why column, the Workspace's child view: that one child). Same look and flow as Fix all search terms (kw-fix.js).
  * THE PROBLEMS, all fixed together in ONE new title per child (TT_DETS): Title doesn't follow template (title_template) · Size formatting
@@ -276,6 +277,8 @@ function ttCheck(brand, row, title, ctx, ctx2) {
   });
   const brands = lrBrandWords(was, ctx.cfg);
   if (brands.length && !brands.some(word => lrFind(title, word) === 0)) fails.push('the brand is not at the start');
+  // no other brand's name and no restricted claim in a new title (IP & Trademark Guard; a word allowed on purpose for the listing is fine)
+  if (typeof ipgTitleRisk === 'function') ipgTitleRisk(brand, row.sku, was, title, ctx.cfg).forEach(why => fails.push(why));
   return { pass: !fails.length && !ttSafe(title).length, fails: fails.concat(ttSafe(title)) };
 }
 
@@ -348,13 +351,13 @@ function ttPlans(brand, items, ctx) {
   return plans;
 }
 // One listing's plan before the family check: the new title built from its facts; `draft` true when it goes on to the check.
-function ttDraft(brand, { row, hits, kid }, ctx) {
+function ttDraft(brand, { row, hits, kid, extra }, ctx) {
   {
     const amz = ttAmazon(brand, row.sku);
     const fresh = lrFresh(Object.assign({}, row, { brand }), ctx);
     const before = hTitleText(fresh);
     const p = { key: brand + '|' + row.sku, brand, sku: row.sku, asin: row.asin || '', parent: ttParentOf(row), kind: 'ttl', row: TT_ROW, ok: false, wait: false, why: '',
-      before, oldTitle: fresh.submittedTitle || before, fixes: [...new Set((hits || []).map(hit => hit.name))], notes: [], src: {}, pt: ttPt(brand, row.sku, amz, kid) };
+      before, oldTitle: fresh.submittedTitle || before, fixes: [...new Set((hits || []).map(hit => hit.name).concat(extra || []))], notes: [], src: {}, pt: ttPt(brand, row.sku, amz, kid) };
     Object.defineProperty(p, 'srcRow', { value: row, enumerable: false });
     if (!amz) return Object.assign(p, { wait: true, why: 'reading its attributes from Amazon first', label: row.sku });
     const b = ttBuild(brand, row, ctx, amz);
@@ -566,6 +569,21 @@ function ttStartOne(brand, sku) {
   const rows = ttRows(brand).filter(r => r.row.sku === sku);
   if (!rows.length) return null;
   return ttPreview(brand, rows, { title: sku, parent: ttParentOf(rows[0].row) });
+}
+
+/** The same popup over these listings whatever their title problems (the IP & Trademark Guard's "Fix title": a title can pass every
+ *  Listing Rules rule and still hold another brand's name). o.extra: sku → what else the new title fixes (['Risky word: Pottery Barn']). */
+function ttStartList(brand, skus, o) {
+  o = o || {};
+  const have = new Map(ttRows(brand).map(r => [r.row.sku, r]));
+  const all = (typeof HEALTH !== 'undefined' && HEALTH[brand] && HEALTH[brand].rows) || [];
+  const rows = skus.map(sku => {
+    const r = have.get(sku);
+    const row = r ? r.row : all.find(x => x.sku === sku);
+    return row ? { row, hits: r ? r.hits : [], extra: (o.extra && o.extra.get(sku)) || [] } : null;
+  }).filter(Boolean);
+  if (!rows.length) return null;
+  return ttPreview(brand, rows, { title: o.title || skus.join(', '), parent: o.parent || '' });
 }
 
 /* ----- Listing Errors: the card above its list ----- */
@@ -799,6 +817,7 @@ function ttGo() {
       TT.memo = null;
       TT.fam.clear();
       if (typeof faRedraw === 'function') faRedraw();
+      if (typeof ipgAfterSend === 'function') ipgAfterSend();          // the IP & Trademark Guard follows what was sent
       if (typeof leRender === 'function' && typeof $ === 'function' && $('leList')) { try { leRender(); } catch (e) { /* not on the page */ } }
     } });
   Promise.resolve(sent).then(sum => run.resolve(sum));

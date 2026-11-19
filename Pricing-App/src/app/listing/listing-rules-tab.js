@@ -115,6 +115,11 @@ function lrAllowRender(cfg) {
       <span class="muted">Pieces in these colours are embroidery, so "Block Print" is never asked of them; nor of a listing that says Embroidered or Embroidery. Otherwise
       "Block Print" is asked for only with proof that the product is block print — a sibling's title under the same parent, or the listing's own bullets or description on
       Amazon say it. A mixed colour such as "Blue &amp; White" is not white.</span></div>
+    <div class="lr-allow-row"><label>Other brands' names (trademarks) ${field('otherBrands', allow.otherBrands, 'w-xl')}</label>
+      <span class="muted">IP &amp; Trademark Guard (Listing → 2 · Check): another brand's or a licensed name in a title, bullets, description, search terms or Item Highlights —
+      Amazon can remove the listing. Whole words, any case, also as "Pottery Barn style" / "inspired by …". Fix all search terms takes these words out. Separate them with commas.</span></div>
+    <div class="lr-allow-row"><label>Restricted claims ${field('claims', allow.claims, 'w-xl')}</label>
+      <span class="muted">Words that need proof or a certificate (the same Guard screen, amber). A listing that holds the certificate is marked "Allowed on purpose" there.</span></div>
     <div class="lr-allow-row"><span class="muted">Always, at any length, the same meaning is never an error: upper / lower case, singular / plural, Grey / Gray, Colour / Color,
       Tablecloth / Table Cloth / Table-Cloth, Pillow Cover / Cushion Cover, Block Print / Block-Print / Blockprint / Block Printed / Hand Block Printed, hyphens, commas,
       "|" and extra spaces. Siblings' sizes compare by meaning: "18x18" = "18 x 18" = "18×18".</span></div>`;
@@ -302,6 +307,8 @@ $('lrAllow').addEventListener('change', e => {
   if (key === 'shortFrom') allow.shortFrom = Math.min(75, Math.max(1, parseInt(value, 10) || LR_DEFAULT.allow.shortFrom));
   else if (key === 'ourBrands') allow.ourBrands = value;
   else if (key === 'embColors') allow.embroideryColors = value;
+  else if (key === 'otherBrands') allow.otherBrands = value;
+  else if (key === 'claims') allow.claims = value;
   LR_DIRTY = true;
   H_CTX = null;
   renderLrules();
@@ -426,7 +433,7 @@ function lrRulesDiff(a, b) {
   ae.forEach((o, id) => { if (!be.has(id)) out.push(`removed '${o.name}' from the season calendar`); });
   const aa = lrAllow(a);
   const ba = lrAllow(b);
-  const allowName = { shortFrom: 'Short forms allowed from', ourBrands: 'Our brand words', embroideryColors: 'Embroidery colours' };
+  const allowName = { shortFrom: 'Short forms allowed from', ourBrands: 'Our brand words', embroideryColors: 'Embroidery colours', otherBrands: "Other brands' names", claims: 'Restricted claims' };
   Object.keys(allowName).forEach(k => { if (String(aa[k]) !== String(ba[k])) out.push(`changed '${allowName[k]}' from '${aa[k]}' to '${ba[k]}'`); });
   return out;
 }

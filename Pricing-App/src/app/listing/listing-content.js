@@ -111,6 +111,10 @@ function lcCheck(field, vals, ctx) {
     const repeated = [...new Set(text.toLowerCase().split(/[^a-z0-9]+/).filter(word => titleWords.has(word)))];
     if (repeated.length) push(false, `Already in the title (Amazon indexes them once, so these bytes are wasted): ${repeated.slice(0, 8).join(', ')}.`);
   }
+  // IP & Trademark Guard (listing/ip-guard.js): another brand's name or a restricted claim in this field — a note for the person editing
+  // (never a refusal). A word marked "Allowed on purpose" for the listing is not named.
+  if (typeof ipgTitleRisk === 'function') [...new Set(ipgTitleRisk(ctx.brand || '', ctx.sku || '', null, vals.join('\n'), LR || LR_DEFAULT))]
+    .forEach(why => push(false, `IP & Trademark Guard: ${why} — take it out, or mark it “Allowed on purpose” on that screen.`));
   return out;
 }
 
@@ -217,7 +221,7 @@ const lcFindHtml = list => list.length
 // The ctx lcCheck wants for the listing on screen: its title now and its catalogue sub-category and colour.
 function lcCtx() {
   const cat = (LR_CAT[$('leBrand').value] || {})[LE.sku] || {};
-  return { title: lcNow('item_name')[0] || '', subcat: cat.subcat, color: cat.color };
+  return { title: lcNow('item_name')[0] || '', subcat: cat.subcat, color: cat.color, brand: $('leBrand').value, sku: LE.sku };
 }
 
 let LC_FOR = '';        // the SKU the bullet boxes below were counted for
