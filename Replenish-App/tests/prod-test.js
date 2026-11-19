@@ -20989,8 +20989,10 @@ console.log('\n== Waiting for QC and QC passed: where each row\'s pieces are now
   ok('the last 5 passed: nothing waiting, but pieces still out keep the row here', (await A.qcInboxAccept('k1', 5)) === '' && rowsInOrder().join() === 'k1,k2');
   ok('…QC pass stays blue on it', /data-qcin-check="k1" class="qc-act"[^>]*>QC pass</.test(rowHtml('k1')), rowHtml('k1').slice(0, 900));
   await pressRowButton('data-qcin-check', 'k1');
-  ok('…and clicking it says what QC already did, with no window', /W-k1: nothing left waiting for QC — 10 passed, 2 with a karigar for alteration, 3 at spotting, 4 at touching, 1 rejected\./.test(els.qcMsg.textContent),
-    els.qcMsg.textContent);
+  /* Ravi, 19 Nov: "the pop up screen which we decided to open when clicked on qc pass is not opening". */
+  ok('…and clicking it still opens the QC Check window, showing what QC did, with nothing to save', A.PTD_().title === 'QC Check' && !A.PTD_().onSave
+    && /Nothing is left waiting/.test(A.PTD_().note) && ['Received', 'Passed', 'Given to karigar', 'At spotting', 'At touching', 'Rejected'].every(t => A.PTD_().html.includes(t))
+    && /Passed<\/td><td class="num" style="font-weight:700">10</.test(A.PTD_().html), String(A.PTD_().html));
   const sp = (A.QC().checks || []).find(c => c.baseId === 'k1' && c.dept === 'spotting'), tc = (A.QC().checks || []).find(c => c.baseId === 'k1' && c.dept === 'touching');
   ok('spotting back (3 passed) and touching back (3 passed, 1 rejected)', (await A.qcDeptBack(sp.id, 3)) === '' && (await A.qcDeptBack(tc.id, 3)) === '' && (await A.qcDeptBack(tc.id, 1, true)) === '');
   show('inbox');
