@@ -119,6 +119,19 @@ async function ptLoad(which, node, after) {
   after();
 }
 
+/** A REFRESH BUTTON THAT SHOWS IT IS WORKING (18 Nov 2026). Staff pressed F5 15-20 times a day on the busy screens:
+ *  a Refresh looked as if nothing happened, or missed what another PC had saved, and every F5 downloads the whole
+ *  page again (30-40 MB). Now the button says "Refreshing…" and stays off until the screen has its fresh data (read
+ *  from the live copies, so nothing is downloaded again). Errors: the screen's own work shows what it could not read;
+ *  anything else goes to the console, and the button always comes back, so the screen is never left stuck. */
+async function ptRefreshButton(btn, work) {
+  const label = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Refreshing…';
+  try { await work(); }
+  catch (e) { console.warn('[refresh] ' + (btn.id || 'button') + ':', e); }
+  finally { btn.disabled = false; btn.textContent = label; }
+}
+
 function ptEmpty(tableId, msg) {
   $(tableId).innerHTML = `<tbody><tr><td class="muted" style="padding:14px;text-align:left">${msg}</td></tr></tbody>`;
 }

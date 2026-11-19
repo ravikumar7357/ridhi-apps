@@ -18,10 +18,12 @@
 let QC = { checks: null, issue: null, ret: null, err: '', busy: false, at: '' };
 
 async function ensureQc() {
-  if (QC.checks === null || ptLack(PTG_ALL, 'mdb')) {
+  /* All three lists, not only the checks (18 Nov 2026): Order Console and the flow view fill the checks for their own
+   * use, and "Received back" / "Issued for alteration" then stayed empty here until F5. */
+  if (QC.checks === null || QC.issue === null || QC.ret === null || ptLack(PTG_ALL, 'mdb')) {
     QC.busy = true; renderQc();
     await ptNeed(PTG_ALL, { why: 'quality-control', has: 'mdb' });
-    if (!PTE.emp) await ptLoadEmp();
+    if (!PTE.emp) await ptLoadEmpOrSkip('quality-control');
     try {
       const [c, i, t] = await Promise.all([ptGet('pt_qcChecks'), ptGet('pt_qcIssuance'), ptGet('pt_qcReturns')]);
       QC.checks = ptList(c); QC.issue = ptList(i); QC.ret = ptList(t); QC.err = '';
@@ -980,7 +982,15 @@ $('qcView').addEventListener('change', renderQc);
 ['qcD1', 'qcD2'].forEach(id => $(id).addEventListener('change', renderQc));
 $('qcClear').onclick = () => { ['qcQ', 'qcD1', 'qcD2'].forEach(id => $(id).value = ''); renderQc(); };
 ptDebounce('qcQ', renderQc);
-$('qcGo').onclick = async () => { QC.checks = null; await ensureQc(); renderQcCheckForm(); renderQcIssueForm(); };
+/** Refresh: the QC lists, and Job Work again, because "Waiting for QC" is built from it. Before 18 Nov 2026 pieces
+ *  received on another PC reached that list only after F5. Job Work comes from its live copy (nothing downloaded);
+ *  if it cannot be read, the QC lists still refresh. */
+async function qcRefresh() {
+  QC.checks = null;
+  try { await ptReadReg('base'); } catch (e) { console.warn('[quality-control] Job Work not read again:', e); }
+  await ensureQc(); renderQcCheckForm(); renderQcIssueForm();
+}
+$('qcGo').onclick = () => ptRefreshButton($('qcGo'), qcRefresh);
 $('qcwToggle').onclick = () => {
   const open = $('qcwBox').classList.contains('hide');
   $('qcwBox').classList.toggle('hide', !open);

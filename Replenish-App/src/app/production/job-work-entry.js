@@ -36,6 +36,13 @@ async function ptLoadEmp(force) {
   PTE.accLedger = ptList(ledger);
   PTE.acc = ptList((PTG.masters || {}).accessories);
 }
+/** The staff list for a screen that only shows names from it (Order Console, QC). A failed read used to stop the
+ *  screen on "Loading…" for good, and staff pressed F5 (18 Nov 2026); now the names are blank and the next open
+ *  tries again. */
+async function ptLoadEmpOrSkip(screen) {
+  try { await ptLoadEmp(); }
+  catch (e) { console.warn('[' + screen + '] staff list not read, names may be blank:', e); }
+}
 
 const ptEmpTypes = () => [...new Set((PTE.emp || []).map(e => String(e[0] || '').trim()).filter(Boolean))].sort();
 const ptEmpsOfType = t => (PTE.emp || []).filter(e => !t || String(e[0] || '').trim() === t);
