@@ -152,6 +152,11 @@ onAuthStateChanged(auth, async user => {
    * stays view only: nothing is typed there while a printer is picked. 'vpview' stays in the list so the Production heading is shown. */
   ME.vpView = false;
   if (ME.tabs.includes('vpview') && !ME.admin) { ME.vpView = true; ME.tabs = ME.tabs.filter(t => t !== 'vpview' && t !== 'vend').concat('vend', 'vpview'); }   // both last, so the first tab is always a screen
+  /* PRINTED GOODS ARE TAKEN IN ON THE PRINTER'S VIEW (Ravi, 19 Nov: "the user which was seeing from his access at the printer fabric in page
+   * will work on this page and receive from this page"). The "Printed fabric in" right opens the printer's portal the way the view-only box
+   * does, and may receive there (vendors/portal/printer-receive.js). */
+  ME.vpRecv = false;
+  if (ME.tabs.includes('flchl') && !ME.admin) { ME.vpRecv = true; if (!ME.tabs.includes('vend')) ME.tabs = ME.tabs.concat('vend'); }
 
   /* THE SHOPIFY VIEW OF REPLENISHMENT (Ravi, 2026-10-14). An account that works the Shopify screens and holds no planning
    * screen — and is not an admin — gets Replenishment too, but only as the Shopify view: what a SKU is and what Amazon

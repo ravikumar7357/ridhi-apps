@@ -97,7 +97,7 @@ const VP_FLOW = { Placed: 'Acknowledged', Acknowledged: 'In Production' };
  */
 function vendTabRule(isVendor) {
   if (isVendor) return 'yes';
-  const asked = !!(ME.tabsExplicit && !ME.admin && !ME.vpView && (ME.tabs || []).indexOf('vend') >= 0);   // the view-only box opens the portal by its own link, not the Vendors heading
+  const asked = !!(ME.tabsExplicit && !ME.admin && !ME.vpView && !ME.vpRecv && (ME.tabs || []).indexOf('vend') >= 0);   // the view-only box and Printed fabric in open the portal by its own link, not the Vendors heading
   return asked ? 'ask' : 'no';
 }
 
@@ -458,7 +458,10 @@ function renderVp() {
   if ($('vpTabRfd')) $('vpTabRfd').classList.toggle('hide', vpViewAll());
   const rfdTab = VP.tab === 'rfd', dchTab = VP.tab === 'dch';
   ['vpBar2', 'vpBar3'].forEach(id => { if ($(id)) $(id).classList.toggle('hide', rfdTab || dchTab || (id === 'vpBar3' && vpViewAll())); });
-  ['vpView', 'vpStatus', 'vpType', 'vpQ', 'vpExport'].forEach(id => { if ($(id)) $(id).classList.toggle('hide', rfdTab || dchTab || (VP.tab === 'shop' && (id === 'vpView' || id === 'vpType'))); });
+  /* The office's one table on every tab (printer-receive.js): no choice of view there. */
+  const office = vprOn() && VPR_TABS.includes(VP.tab);
+  ['vpView', 'vpStatus', 'vpType', 'vpQ', 'vpExport'].forEach(id => { if ($(id)) $(id).classList.toggle('hide', rfdTab || dchTab || ((VP.tab === 'shop' || office) && (id === 'vpView' || id === 'vpType'))); });
+  vprBarSync();
   if (typeof vsxSync === 'function') vsxSync();   // Sent sheet / Upload sent sheet (vendor-sent-excel.js)
   if (rfdTab) { vpRfdRender(matched, nag); return; }
   /* DAILY CHALLAN (4 Nov, daily-challan.js): the printer's own delivery challan, and theirs by date */
@@ -501,8 +504,10 @@ function renderVp() {
     : ($('vpView') || {}).value === 'board' ? vpBoard(rs, f) : vpTable(rs, f));
   const empty = `<div class="card" style="padding:34px;text-align:center;color:var(--muted)">${
     all.length ? 'No order matches those filters.' : 'No orders yet.'}</div>`;
+  if (office) vprEnsure();
   body.innerHTML = nag + (rows.length
-    ? doneTab ? (rows.some(o => !vpIsShop(o)) ? vpTable(rows.filter(o => !vpIsShop(o)), f) : '') + (rows.some(vpIsShop) ? vpShopTable(rows.filter(vpIsShop), f) : '')
+    ? office ? vprSheet(rows, f)
+    : doneTab ? (rows.some(o => !vpIsShop(o)) ? vpTable(rows.filter(o => !vpIsShop(o)), f) : '') + (rows.some(vpIsShop) ? vpShopTable(rows.filter(vpIsShop), f) : '')
     : (VP.tab === 'shop' ? vpCustomSheet(rows, f)
       : vpViewOf(rows, f))
     : empty);
@@ -900,7 +905,7 @@ function vpVsOf(o, l) {
 }
 /* EXTRA PIECES WAIT FOR APPROVAL (Ravi, 16 Nov: "the vendor puts the pieces — less than or equal to what we asked; if it's more, don't
  * count them until approved by Ravi"). What a printer enters beyond what is ordered is a batch of its own marked ask. It does not count
- * as sent — so it cannot be received — until an admin approves it on Printed fabric in (approved: {at, by}); then it counts and the line's
+ * as sent — so it cannot be received — until an admin approves it on the printer's view (approved: {at, by}); then it counts and the line's
  * order grows by it. A rejected one (rejected: {at, by}) never counts. Every batch stays on the order, so the download still shows it. */
 const vpVsRound = n => Math.round(n * 100) / 100;
 const vpVsCounts = b => !b.removed && !b.rejected && (!b.ask || !!b.approved);
@@ -1527,7 +1532,7 @@ if ($('vpTabVs')) $('vpTabVs').onclick = () => { VP.tab = 'vsent'; renderVp(); }
 ['vpFrom', 'vpTo'].forEach(id => { if ($(id)) $(id).onchange = renderVp; });
 $('vpTabHist').onclick = () => { VP.tab = 'hist'; renderVp(); };
 $('vpTabRfd').onclick = () => { VP.tab = 'rfd'; renderVp(); };
-$('vpGo').onclick = async () => { VP.rows = null; await ensureVp(); };
+$('vpGo').onclick = async () => { VP.rows = null; vprRefresh(); await ensureVp(); };
 // Only an account that signs in with a PIN has one to change.
 $('vpPinBtn').onclick = pinOpenChange;
 /**
