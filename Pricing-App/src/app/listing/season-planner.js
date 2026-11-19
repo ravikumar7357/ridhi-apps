@@ -1395,7 +1395,11 @@ function spKidHtml(item, g) {
   else if (b === 'fix') main = `<button type="button" class="sp-main" data-sp-act="fixhand" data-sp-key="${lrEsc(item.key)}">Open in Listing Errors</button><span class="sp-reason">${lrEsc(item.why)}</span>`;
   else if (b === 'reading') main = '<button type="button" class="sp-main" disabled>Reading from Amazon…</button>';
   else main = '<button type="button" class="sp-main" data-sp-act="close-kid">Close</button>';
-  return head + `<div class="sp-side-b">${lead}${spWhereHtml(item)}${changes}</div><div class="sp-bar">${main}</div>`;
+  // ✨ AI (listing-ai.js): a season's Item Highlights or a season title for each season on now — checked by our rules, sent only on Approve
+  const ai = typeof aiBtnHtml === 'function' && item.active.length ? card('sp-ai', '✨ AI', '<p class="ai-row">' + item.active.map(e => [['hl', 'Item Highlights'], ['title', 'title']].map(([field, what]) =>
+    aiBtnHtml('season', item.brand, item.sku, { use: 'send', field, season: e.ev.name, swords: typeof lrWords === 'function' ? lrWords(e.ev.words) : [e.ev.name], hlmax: (item.hlInfo || {}).max || '',
+      screen: 'Season planner', label: `AI ${e.ev.name} ${what}` })).join(' ')).join(' ') + '</p>') : '';
+  return head + `<div class="sp-side-b">${lead}${spWhereHtml(item)}${changes}${ai}</div><div class="sp-bar">${main}</div>`;
 }
 // Where one season is on this listing now: Item Highlights ✓ / ✕ and the hidden search words ✓ / ✕ — never the title.
 // [{ k: 'hl' | 'kw', st: found | missing | na | checking, text }].

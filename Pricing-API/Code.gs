@@ -237,6 +237,7 @@ function doGet(e) {
     if (p.listing === 'keywords') { setBrand_(p.brand); return json_(listingKeywords_(p.asin)); }
     // Everything the optimiser screen needs about one listing, in one round trip.
     if (p.listing === 'review') { setBrand_(p.brand); return json_(listingReview_(p.asin, p.target)); }
+    if (p.ai === 'ask') return json_(aiAsk_(p));   // AI writing (ListingAI.gs): one suggestion for one listing, read-only
     // Search Query Performance for one ASIN: ask, then poll. Amazon builds it asynchronously.
     if (p.listing === 'sqpAsk') { setBrand_(p.brand); return json_(baCreate_('sqp', p.period || 'MONTH', p.asin, p.back)); }
     // Which windows can actually be asked for, built by the same function that builds the request.

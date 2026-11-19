@@ -3626,6 +3626,40 @@
   .tt-chk{font-size:12px;color:var(--ok);margin:2px 0}
   .tt-chk.is-bad{color:var(--bad-ink)}
   .tt-row.is-held .sp-btn{margin-top:4px}
+  /* ✨ AI writing (listing-ai.js, 19 Nov 2026): the buttons, the card (old beside the AI text, our checks, one action), the quiet "not set up" line */
+  .ai-btn{white-space:nowrap}
+  .ai-btn.is-off{opacity:.6}
+  .ai-rowb{margin:2px 0}
+  .ai-row{display:flex;flex-wrap:wrap;gap:6px;margin:0}
+  .ai-card{margin:6px 0;font-size:12.5px;line-height:1.45}
+  .ai-card:empty{display:none}
+  .ai-card>.ai-h,.ai-card>.ai-ba,.ai-card>[data-ai-chks],.ai-card>.ai-a,.ai-card>.ai-foot,.ai-card>.ai-exp,.ai-card>.ai-img{padding-left:10px;padding-right:10px}
+  .ai-card:has(.ai-h){border:1px solid var(--card-line,var(--line));border-left:3px solid var(--accent);border-radius:8px;background:var(--card);padding:8px 0}
+  .ai-h{display:flex;align-items:center;gap:8px;justify-content:space-between}
+  .ai-h b{font-size:12.5px;color:var(--ink)}
+  .ai-x{position:static;margin-left:auto}
+  .ai-ba{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px;margin:6px 0}
+  .ai-ba.is-one{grid-template-columns:minmax(0,1fr)}
+  .ai-col>small{display:block;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.03em}
+  .ai-txt{white-space:pre-wrap;max-height:220px;overflow:auto}
+  .ai-a{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:6px}
+  .ai-a .sp-main{width:auto}
+  .ai-hint{font-size:11.5px}
+  .ai-said{flex-basis:100%;font-size:12px;color:var(--accent-ink)}
+  .ai-note{font-size:12px;color:var(--warn-ink)}
+  .ai-foot{font-size:11px;margin-top:4px}
+  .ai-quiet{font-size:12px;color:var(--muted);padding:4px 0}
+  .ai-quiet.is-bad{color:var(--bad-ink)}
+  .ai-quiet small{margin-left:6px}
+  .ai-wait{font-size:12px;padding:4px 0}
+  .ai-exp p{margin:4px 0}
+  .ai-img{display:flex;gap:12px;align-items:flex-start;margin-top:6px}
+  .ai-img img{width:96px;height:96px;object-fit:contain;border:1px solid var(--line);border-radius:6px;background:#fff;flex:none}
+  .ai-verdict{font-weight:700}
+  .ai-verdict.is-ok{color:var(--ok)}
+  .ai-verdict.is-bad{color:var(--bad-ink)}
+  .ai-optf{margin-top:4px}
+  @media (max-width:640px){.ai-ba{grid-template-columns:minmax(0,1fr)}.ai-img{flex-direction:column}}
   .fa-cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
   .fa-card{--c:var(--faint);display:flex;flex-direction:column;gap:2px;min-width:0;padding:10px 12px;border:1px solid var(--card-line);border-radius:12px;background:var(--card);
     box-shadow:inset 0 3px 0 color-mix(in srgb,var(--c) 75%,transparent)}

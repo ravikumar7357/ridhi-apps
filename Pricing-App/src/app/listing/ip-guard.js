@@ -640,7 +640,9 @@ function ipgFindsHtml(p) {
     const acts = mark ? `<button type="button" class="ghost fc-b" data-ipg="undo" ${a} data-ipg-w="${fcEsc(fd.k)}" title="${mark.fam ? 'The word counts again on every listing of the family' : 'The word counts again on this listing'}">Undo${mark.fam ? ' (whole family)' : ''}</button>`
       : `<button type="button" class="ghost fc-b" data-ipg="ok" ${a} data-ipg-w="${fcEsc(fd.k)}" title="This word is fine on this listing (you hold the right or the proof): it stops counting and no Fix takes it out. Undo brings it back.">Allowed on purpose</button>`
         + (p.g.f.famId ? `<button type="button" class="ghost fc-b" data-ipg="okfam" data-ipg-v="${fcEsc(p.g.f.fk)}" data-ipg-w="${fcEsc(fd.k)}" title="Allowed on every listing of this family, now and later">Allow for the whole family</button>` : '');
-    return `<div class="ipg-w is-${mark ? 'g' : t.cls}"><div class="ipg-wh">${head}</div>${list.map(x => ipgSnipHtml(p, x)).join('')}<div class="ipg-wa">${acts}</div></div>`;
+    // ✨ AI (listing-ai.js): only the sentence with the word, rewritten — then into the existing Fix all popup (title, search terms) or the safe send
+    const ai = !mark && !fd.subClean && typeof aiBtnHtml === 'function' ? aiBtnHtml('ip_rewrite', p.c.brand, fd.sku, { use: 'ipg', field: fd.f, word: fd.text || fd.word, wk: fd.word, screen: 'IP & Trademark Guard', label: 'Rewrite without this word' }) : '';
+    return `<div class="ipg-w is-${mark ? 'g' : t.cls}"><div class="ipg-wh">${head}</div>${list.map(x => ipgSnipHtml(p, x)).join('')}<div class="ipg-wa">${acts}${ai}</div></div>`;
   }).join('');
 }
 // The row's own buttons: what each press opens (the existing popups / Listing Errors).

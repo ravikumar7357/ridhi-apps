@@ -355,7 +355,7 @@ function leFixRender() {
     <div class="card" style="padding:10px 14px;margin-bottom:10px">
       <div style="font-weight:600;font-size:13px;margin-bottom:4px">What Amazon says now (${leNf(listing.issues.length)})</div>
       ${listing.issues.map(issue => `<div style="font-size:12px;margin:3px 0"><span class="st ${issue.severity === 'ERROR' ? 'st-rejected' : 'st-draft'}">${leEsc(issue.severity)}</span>
-        ${leEsc(issue.message)} ${(issue.attrs || []).length ? `<span class="muted">· ${leEsc(issue.attrs.join(', '))}</span>` : ''}</div>`).join('')
+        ${leEsc(issue.message)} ${(issue.attrs || []).length ? `<span class="muted">· ${leEsc(issue.attrs.join(', '))}</span>` : ''}${typeof aiBtnHtml === 'function' ? ' ' + aiBtnHtml('error_explain', $('leBrand').value, listing.sku, { use: 'read', code: issue.code || '', label: 'Explain this error' }) : ''}</div>`).join('')
         || '<div class="muted" style="font-size:12px">No issues — Amazon reports nothing on this listing now.</div>'}
       ${imgIssues.length ? `<div style="margin-top:6px"><button class="ghost im-b" id="leToImg">Fix the images in the Image Manager</button></div>` : ''}
     </div>

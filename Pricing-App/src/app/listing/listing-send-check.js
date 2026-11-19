@@ -449,9 +449,13 @@ function sqLogRows(job, run) {
   return sqChanges(job).map((c, i) => {
     let oldV = c.oldV === undefined ? null : c.oldV;
     if (oldV != null && JSON.stringify(oldV).length > SQ_OLDV_MAX) oldV = null;
-    return { id: `${at}-${job.brand}-${job.sku}-${i}`, kind: 'listing', at, by: sqBy(), name: sqName(sqBy()), approvedBy: sqName(sqBy()), brand: job.brand, sku: job.sku, asin: job.asin || '',
+    // ✨ AI (listing-ai.js): a new value the AI suggested (and the person approved) is marked "AI suggested" in Listing History
+    const ai = typeof aiWasUsed === 'function' && aiWasUsed(job.brand, job.sku, c.new);
+    const row = { id: `${at}-${job.brand}-${job.sku}-${i}`, kind: 'listing', at, by: sqBy(), name: sqName(sqBy()), approvedBy: sqName(sqBy()), brand: job.brand, sku: job.sku, asin: job.asin || '',
       label: sqCut(job.label || '', 120), field: c.field, old: sqCut(c.old, SQ_CUT), new: sqCut(c.new, SQ_CUT), pic: !!c.pic, attr: c.attr || '', api: b.limg ? 'limg' : 'lfix', pt: b.productType || '', oldV,
-      screen: run.opts.screen || '', run: run.at, runTitle: run.opts.title || '', runN: run.jobs.length, result: job.state, why: job.why || '', sub: job.sub || '' };
+      screen: (run.opts.screen || '') + (ai ? ' · AI suggested' : ''), run: run.at, runTitle: run.opts.title || '', runN: run.jobs.length, result: job.state, why: job.why || '', sub: job.sub || '' };
+    if (ai) row.ai = true;
+    return row;
   });
 }
 /** THE ONE LOG FUNCTION. rows: [{ id, kind: 'listing', at, by, name, brand, sku, asin, field, old, new, screen, result, why }]. Written to the

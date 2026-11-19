@@ -1392,7 +1392,7 @@ function imRender() {
     </div>
     ${issues}
     <div class="card" style="padding:10px 14px;margin-bottom:12px">
-      <div style="font-weight:600;font-size:13px">Live on Amazon now</div>
+      <div style="font-weight:600;font-size:13px">Live on Amazon now${typeof aiBtnHtml === 'function' ? ' ' + aiBtnHtml('image_check', $('imBrand').value, listing.sku, { use: 'read', label: 'Check main photo' }) : ''}</div>
       <div class="muted" style="font-size:11.5px;margin-bottom:6px">What shoppers see. ${listing.catalogError ? imEsc(listing.catalogError) : ''}</div>
       <div class="im-row">${live}</div>
     </div>

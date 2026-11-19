@@ -592,7 +592,7 @@ function ttStartList(brand, skus, o) {
     return row ? { row, hits: r ? r.hits : [], extra: (o.extra && o.extra.get(sku)) || [] } : null;
   }).filter(Boolean);
   if (!rows.length) return null;
-  return ttPreview(brand, rows, { title: o.title || skus.join(', '), parent: o.parent || '' });
+  return ttPreview(brand, rows, Object.assign({ title: o.title || skus.join(', '), parent: o.parent || '' }, o.ai ? { ai: o.ai } : {}));
 }
 
 /* ----- Listing Errors: the card above its list ----- */
@@ -662,6 +662,7 @@ async function ttPreview(brand, rows, o) {
   // still not known after the read (Amazon did not answer): named with its reason, never sent
   run.plans.forEach(p => { if (p.wait) Object.assign(p, { wait: false, why: p.why.replace(/^reading (.*) from Amazon first$/, 'its $1 could not be read from Amazon — try again') }); });
   run.plans.forEach(p => { if (p.ok) run.sel.add(p.key); });
+  if (typeof aiPreset === 'function') aiPreset('tt', run);          // ✨ AI (listing-ai.js): the IP & Trademark Guard's AI rewrite, as the row's edit
   run.total = 0;
   ttDraw();
   return run.promise;
@@ -719,7 +720,8 @@ function ttRowHtml(run, p) {
     return `<div class="sp-m-row sq-row kf-row tt-row is-held${hide}" data-kf-find="${find}"><div class="kf-top"><b>${ttEsc(p.sku)}</b><small>${ttEsc(p.label && p.label !== p.sku ? p.label : '')}</small></div>`
       + `<div class="tt-old">${ttEsc(p.before)}</div>${p.after && p.after !== p.before ? `<div class="tt-new">${ttEsc(p.after)}</div>` : ''}`
       + `<div class="sq-st">⚠ Held back: ${ttEsc(p.why)}</div>`
-      + `<button type="button" class="sp-btn sp-small" data-tt="hand" data-tt-sku="${ttEsc(p.sku)}">Edit by hand in Listing Errors</button></div>`;
+      + `<button type="button" class="sp-btn sp-small" data-tt="hand" data-tt-sku="${ttEsc(p.sku)}">Edit by hand in Listing Errors</button>`
+      + (typeof aiBtnHtml === 'function' ? ' ' + aiBtnHtml('title', p.brand, p.sku, { use: 'tt', key: p.key, label: 'AI version' }) : '') + '</div>';
   }
   const text = ttText(run, p);
   const chk = ttRunCheck(run, p);
@@ -733,6 +735,7 @@ function ttRowHtml(run, p) {
     + `<div class="tt-new"><small>New</small> <span data-tt-new="${ttEsc(p.key)}">${ttMark(text, d.added || [], 'tt-add')}</span></div>`
     + `<div class="tt-fix">Fixes: ${ttEsc(p.fixes.join(' · '))}${ttSrcLine(p) ? ` <span class="muted">· ${ttEsc(ttSrcLine(p))}</span>` : ''}${p.notes.length ? ` <span class="tt-note">· ${ttEsc(p.notes.join(' · '))}</span>` : ''}</div>`
     + `<div class="tt-chk${chk.pass ? '' : ' is-bad'}" data-tt-chk="${ttEsc(p.key)}">${chk.pass ? '✓ Passes every title rule' : '✕ ' + ttEsc(chk.fails.join(' · '))}</div>`
+    + (typeof aiBtnHtml === 'function' ? `<div class="ai-rowb">${aiBtnHtml('title', p.brand, p.sku, { use: 'tt', key: p.key, label: 'AI version' })}</div>` : '')
     + `<details class="kf-ed"${run.edit.has(p.key) ? ' open' : ''}><summary>Edit new title</summary><textarea data-tt-edit="${ttEsc(p.key)}" rows="2" spellcheck="false">${ttEsc(text)}</textarea></details></div></div>`;
 }
 function ttDraw() {
