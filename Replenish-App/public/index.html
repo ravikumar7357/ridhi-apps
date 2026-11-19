@@ -30569,7 +30569,7 @@ const OAL_RETRY_CAP = 300;                // lines kept for another try
 const OAL_CHUNK = 400;                    // lines per update when a check has many to fix
 const OAL_LOG_CAP = 120;                  // log lines one page writes in a day
 const OAL = { dirty: new Set(), timer: 0, retry: {}, retryTimer: 0, retryWait: 30000, last: new Map(), busy: false, skipped: 0, noRead: false,   // noRead: this login may not read the list (before Stage 2's rule), so it never checks
-  me: 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), logDay: '', logN: 0, okAt: 0 };
+  me: 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), logDay: '', logN: 0, okAt: 0, clockSaid: false };
 /* The registers whose saves can move an order line, and the sales orders (their delivery date). */
 const OAL_WATCH = new Set(['pt_orderBook', 'pt_pressInventory', 'pt_qcChecks', 'pt_shopProd', 'pt_baseData', 'pt_baseDone', 'pt_salesOrders']);
 
@@ -30594,6 +30594,19 @@ function oalWanted() {
 const OAL_SAID = {};
 function oalSkip(why) {
   try { if (OAL_SAID[why] || !oalWanted()) return; OAL_SAID[why] = 1; if (typeof console !== 'undefined' && console.info) console.info('[order alert list] check skipped: ' + why); } catch (e) { /* only a note */ }
+}
+/* INDIA TIME ONLY (19 Nov 2026). A due date counts from the day a line opened, and a computer whose clock is set to
+ * another country's time works that day out one day early: a factory PC on US time did so from 13 to 18 Nov and spoilt
+ * the shadow check. Such a page neither writes lines nor checks the list; it says so once in the log, naming its time
+ * zone, so the computer can be found and set right. The strip itself is not affected. */
+const OAL_INDIA_OFFSET_MIN = -330;
+const oalOnIndiaTime = () => new Date().getTimezoneOffset() === OAL_INDIA_OFFSET_MIN;
+function oalClockZone() { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch (e) { return ''; } }
+function oalSkipClock() {
+  oalSkip('this computer is not on India time');
+  if (OAL.clockSaid) return;
+  OAL.clockSaid = true;
+  oalLog({ kind: 'skip', why: 'clock not on India time', tz: oalClockZone(), offset: new Date().getTimezoneOffset() });
 }
 /** Keep the flag's last answer for the next page load. */
 function oalSaveFlag(on) {
@@ -30695,6 +30708,12 @@ async function oalWrite(updates) {
  *  The check uses w to tell a late line (a save on a page without the hook) from a wrong one (the hook disagreed with the registers). */
 const oalPutEntry = (e, who) => (e ? Object.assign({}, e, { at: Date.now(), w: who || 'h' }) : null);
 const OAL_FIELDS = ['no', 'sku', 'ch', 'what', 'qty', 'pr', 'fs', 'due', 'dh', 'st', 'tab', 'id'];
+/* LAG, NOT WRONG (19 Nov 2026). Pieces made, pieces from stock and the stage move with QC, cutting and pressing saves that
+ * the hook cannot always place on an order line; the 15-minute check catches them, which is the delay Ravi agreed for
+ * everything but the saving page and sales-order dates (6 Nov). A hook-written line that differs only there is LAG.
+ * Any other difference (due date, order, SKU, quantity, name, screen) is WRONG: that is the count that must stay 0. */
+const OAL_LAG_FIELDS = new Set(['pr', 'fs', 'st']);
+const oalOnlyLag = (s, e) => OAL_FIELDS.every(f => s[f] === e[f] || OAL_LAG_FIELDS.has(f));
 /** A compact before/after of the fields that differ, for the log. */
 function oalDiffText(s, e) {
   const d = OAL_FIELDS.filter(f => !s || !e || s[f] !== e[f]).map(f => f + ':' + (s ? s[f] : '-') + '>' + (e ? e[f] : '-'));
@@ -30726,6 +30745,7 @@ async function oalFlush() {
   OAL.timer = 0;
   const keys = [...OAL.dirty]; OAL.dirty.clear();
   if (!oalOn()) return;
+  if (!oalOnIndiaTime()) { OAL.skipped += keys.length; oalSkipClock(); return; }   // the check on an India-time page sets these lines
   const up = {};
   try {
     if (keys.length) {
@@ -30786,6 +30806,7 @@ async function oalRebuild(mine) {
 async function oalCheck() {
   if (!oalOn()) { oalSkip('the switch is off for this login or device (vendor, test harness, or the device setting)'); return; }
   if (OAL.busy) return;
+  if (!oalOnIndiaTime()) { oalSkipClock(); return; }
   if (OAL.noRead) { oalSkip('this login may not read the list yet'); return; }
   const why = oalNotReady();
   if (why) { oalSkip(why); return; }
@@ -30801,14 +30822,21 @@ async function oalCheck() {
       return;
     }
     const stored = (await ptGetFresh(OAL_NODE + '/l')) || {};
-    let missing = 0, extra = 0, changed = 0, late = 0, wrong = 0;
-    const up = {}, sample = [], wrongBits = [];
-    /* Late: a save on a page without the hook since the last check. Wrong: the hook wrote an entry the registers disagree with. */
+    let missing = 0, extra = 0, changed = 0, late = 0, wrong = 0, lag = 0;
+    const up = {}, sample = [], wrongBits = [], lagBits = [];
+    /* Late: a save on a page without the hook since the last check. Lag: a hook-written line behind only in pieces or stage
+     * (see OAL_LAG_FIELDS). Wrong: the hook wrote an entry the registers disagree with in anything else. */
     const bad = (k, s, e) => { wrong++; if (wrongBits.length < 5) wrongBits.push(k + ' ' + oalDiffText(s, e)); };
+    const behind = (k, s, e) => { lag++; if (lagBits.length < 5) lagBits.push(k + ' ' + oalDiffText(s, e)); };
     mine.forEach((e, k) => {
       const s = stored[k];
       if (!s) { missing++; late++; if (sample.length < 5) sample.push('+' + k); up[OAL_NODE + '/l/' + k] = oalPutEntry(e, 'c'); }
-      else if (oalFp(s) !== oalFp(e)) { changed++; if (s.w === 'h') bad(k, s, e); else late++; if (sample.length < 5) sample.push('~' + k); up[OAL_NODE + '/l/' + k] = oalPutEntry(e, 'c'); }
+      else if (oalFp(s) !== oalFp(e)) {
+        changed++;
+        if (s.w !== 'h') late++; else if (oalOnlyLag(s, e)) behind(k, s, e); else bad(k, s, e);
+        if (sample.length < 5) sample.push('~' + k);
+        up[OAL_NODE + '/l/' + k] = oalPutEntry(e, 'c');
+      }
     });
     Object.keys(stored).forEach(k => { if (!mine.has(k)) { extra++; if (stored[k] && stored[k].w === 'h') bad(k, stored[k], null); else late++; if (sample.length < 5) sample.push('-' + k); up[OAL_NODE + '/l/' + k] = null; } });
     /* The shadow comparison: the strip worked out from the list as it stood, against today's strip from the registers. */
@@ -30823,8 +30851,9 @@ async function oalCheck() {
     /* Quiet when all is well: a line at most once an hour. A difference is always logged. */
     if (diff || !same || Date.now() - OAL.okAt > 60 * 60 * 1000) {
       OAL.okAt = Date.now();
-      const rec = { kind: 'check', lines: mine.size, missing, extra, changed, late, wrong, same, sample, skipped: OAL.skipped, ms: Date.now() - t0 };
+      const rec = { kind: 'check', lines: mine.size, missing, extra, changed, late, lag, wrong, same, sample, skipped: OAL.skipped, ms: Date.now() - t0 };
       if (wrong) rec.wrongSample = wrongBits.join(' | ').slice(0, 400);
+      if (lag) rec.lagSample = lagBits.join(' | ').slice(0, 400);
       oalLog(rec);
     }
   } catch (e) {
