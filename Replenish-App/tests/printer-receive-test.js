@@ -29,7 +29,7 @@ const PARTS = [line(VO, 'const voLines ='), line(VO, 'const voParts ='), line(VP
   line(PR, 'const VPR ='), line(PR, 'const VPR_RETRY_MS ='), cut(PR, 'vprEnsure'), line(PR, 'const vprOn ='), line(PR, 'const vprMay ='), line(PR, 'const vprReady ='), (src => { const i = src.indexOf('const vprKeys ='); return src.slice(i, src.indexOf('};\n', i) + 3); })(PR),
   line(PR, 'let VPR_IX ='), cut(PR, 'vprDueIndex'), cut(PR, 'vprTargets'), cut(PR, 'vprOffer'), cut(PR, 'vprKeysPending'), cut(PR, 'vprReceiveLine'), cut(PR, 'vprSplit'), cut(PR, 'vprShareOut'),
   cut(PR, 'vprWholePieces'), cut(PR, 'vprRoundMetres'), line(PR, 'const vprOnlyGiven ='), cut(PR, 'vprFabricCell'), cut(PR, 'vprRecvCell'),
-  cut(PR, 'vprSplitHint'), cut(PR, 'vprSheet'), cut(PR, 'vprReceive'), cut(PR, 'vprBarSync')].join('\n');
+  cut(PR, 'vprSplitHint'), cut(PR, 'vprSheet'), cut(PR, 'vprReceive'), cut(PR, 'vprBarSync'), line(PR, 'const VPR_HIST ='), line(PR, 'const vprHistRows ='), cut(PR, 'vprHistTotals'), cut(PR, 'vprHistHtml')].join('\n');
 let pass = 0, fail = 0;
 const ok = (n, c, d) => { if (c) { pass++; console.log('  PASS ' + n); } else { fail++; console.log('  FAIL ' + n + (d ? ' — ' + d : '')); } };
 
@@ -48,13 +48,13 @@ function load(o) {
     flowMay: tab => !!(ctx.ME.admin || (ctx.ME.tabs || []).includes(tab)), cutSkuOf: sku => (o.master || {})[sku] || null,
     vpPartOk: () => true, vpQOk: () => true, vpLineOn: () => false, voLineMatches: () => true, voDueOf: (x, l) => l.dueX || null, voWant: () => '',
     vpDueClass: x => (x && x.st === 'late' ? 'vo-late' : ''), voDueHtml: x => (x ? x.due : '—'), vpIsShop: () => false,
-    ptImgCellSrc: () => '<td></td>', ptImgCell: () => '<td></td>', vpRunPic: () => '<td></td>', flowVoProgSync: () => syncs.push(1), $: id => els[id], reads: [], flowChIndex: () => o.chIx || {},
+    ptImgCellSrc: () => '<td></td>', ptImgCell: () => '<td></td>', vpRunPic: () => '<td></td>', flowVoProgSync: () => syncs.push(1), $: id => els[id], reads: [], flowChIndex: () => o.chIx || {}, flowRecvRows: () => o.recvRows || [], flowDueDay: d => d,
     flowEnsureData: () => { ctx.reads.push(1); return Promise.resolve(); },
     flowDueRecvSave: async (pk, got, opt) => { saves.push({ pk, got, opt }); flowDueRecvSaveSaid(); return o.saveErr || ''; },
   };
   function flowDueRecvSaveSaid() { ctx.flowDueRecvSave.said = 'Received from RBP-Bagru on RFD-1.'; }
   const names = Object.keys(ctx);
-  const A = new Function(...names, PARTS + '\nreturn { vpVsSum, vpVsWait, vpVsApproved, vpOrdOf, vpVsSplit, vpVsAdd, vpLineIsHist, vpCustStatus, vpCustKpis, flowExtraAsks, flowExtraAnswer, vprSplit, vprOffer, vprRecvCell, vprSheet, vprReceive, vprBarSync, vprEnsure, VPR };')(...names.map(k => ctx[k]));
+  const A = new Function(...names, PARTS + '\nreturn { vpVsSum, vpVsWait, vpVsApproved, vpOrdOf, vpVsSplit, vpVsAdd, vpLineIsHist, vpCustStatus, vpCustKpis, flowExtraAsks, flowExtraAnswer, vprSplit, vprOffer, vprRecvCell, vprSheet, vprReceive, vprBarSync, vprEnsure, VPR, VPR_HIST, vprHistRows, vprHistTotals, vprHistHtml };')(...names.map(k => ctx[k]));
   return Object.assign(A, { puts, saves, said, syncs, els, ctx });
 }
 
@@ -203,7 +203,24 @@ const L = { lineId: 'a', sku: 'X', qty: 4 };
     ok('an admin on the printer’s view sees "Extra pieces to approve (1)" for that printer', /data-vprxopen/.test(A.els.flVpX.innerHTML) && /navbadge[^>]*>1</.test(A.els.flVpX.innerHTML), A.els.flVpX.innerHTML);
     const N = load({ vo: [ask('P1', 'o1')], me: { admin: false, tabs: ['flchl'] }, vp: { viewAs: true } });
     N.vprBarSync();
-    ok('…the challan person (not an admin) sees no approve button', N.els.flVpX.innerHTML === '');
+    ok('…the challan person (not an admin) sees no approve button, only History', !/data-vprxopen/.test(N.els.flVpX.innerHTML) && /data-vprhist/.test(N.els.flVpX.innerHTML));
+    const Vw = load({ vo: [], me: { tabs: ['vpview'] }, vp: { viewAs: true } }); Vw.vprBarSync();
+    ok('…the view-only box sees neither', Vw.els.flVpX.innerHTML === '');
+  }
+
+  /* ---- History: what came from the printer on screen ---- */
+  {
+    const rr = (day, code, fabric, qty, unit, no) => ({ day, time: '10:00', no: no || 'RFD-1', printerCode: code, orderNo: 'SHP-1', sku: 'S', code: 'PF-1', fabric, qty, unit, by: 'challan', note: '', l: { item: 'Pillow' } });
+    const rows = [rr('2026-11-18', 'P1', 'Sheeting 82', 5, 'm'), rr('2026-11-10', 'P1', 'Sheeting 82', 2.5, 'm'), rr('2026-11-12', 'P1', 'Cambric 60', 4, 'pcs'), rr('2026-11-15', 'P2', 'Sheeting 82', 9, 'm'), rr('2026-09-01', 'P1', 'Sheeting 82', 7, 'm')];
+    const H = load({ recvRows: rows, me: { tabs: ['flchl'] }, vp: { viewAs: true } });
+    const got = H.vprHistRows('P1', '2026-10-20', '2026-11-19');
+    ok('History: only the printer on screen, only the days asked for', got.length === 3 && got.every(r => r.printerCode === 'P1'), JSON.stringify(got.map(r => [r.day, r.printerCode])));
+    ok('…with what came added up by fabric: Cambric 60 4 pcs · Sheeting 82 7.5 m', JSON.stringify(H.vprHistTotals(got)) === '[{"fab":"Cambric 60","unit":"pcs","q":4},{"fab":"Sheeting 82","unit":"m","q":7.5}]', JSON.stringify(H.vprHistTotals(got)));
+    Object.assign(H.VPR_HIST, { from: '2026-10-20', to: '2026-11-19' });
+    const html = H.vprHistHtml();
+    ok('…the window lists each receipt with challan, order, item, fabric, qty and who took it in, and offers Excel', /RFD-1/.test(html) && /SHP-1/.test(html) && /Pillow/.test(html) && /<b>Sheeting 82<\/b>/.test(html) && /<b>5 m<\/b>/.test(html) && /challan/.test(html) && /data-vprhxl="1"(?![^>]*disabled)/.test(html), html.slice(0, 800));
+    Object.assign(H.VPR_HIST, { from: '2026-01-01', to: '2026-01-31' });
+    ok('…no receipt on those days: it says so, and Excel is off', /Nothing was received/.test(H.vprHistHtml()) && /data-vprhxl="1" [^>]*disabled/.test(H.vprHistHtml()));
   }
 
   /* ---- approvals ---- */
