@@ -6747,7 +6747,7 @@ console.log('\n== Order Console: what the vendors hold, order by order ==');
   }
 
   /* ================= SHP BOARD (test window, 28 Oct): a row per SKU, each stage "reached − (moved on)" ================= */
-  console.log('\n== boards: embroidery vendor, and lines stuck a working day ==');
+  console.log('\n== boards: embroidery vendor, and days a line has waited ==');
 {
   ok('an embroidery line is known by its article', A.shpbIsEmb({ articleSubtype: 'Embroidery Napkin' }) && A.shpbIsEmb({ articleType: 'Rectangle Embroidery Placemat' })
     && !A.shpbIsEmb({ articleSubtype: 'Ruffle Pillow Cover', orderNo: 'X', sku: 'Y' }));
@@ -6755,9 +6755,9 @@ console.log('\n== Order Console: what the vendors hold, order by order ==');
   ok('an embroidery SKU reads as not cut; any other keeps what the master says',
     A.mdbYnFix({ sku: 'CPCNE043-8', subtype: 'Embroidery Napkin', cuttingRequired: true }).cuttingRequired === false
     && A.mdbYnFix({ sku: 'RTC1-6060', subtype: 'Square Tablecloth', cuttingRequired: true }).cuttingRequired === true);
-  /* Sundays are not counted (Ravi, 13 Nov): Saturday → Tuesday has only Monday wholly between */
-  ok('working days between two days leave Sunday out', A.shpbWorkDaysBetween('2026-11-07', '2026-11-10') === 1
-    && A.shpbWorkDaysBetween('2026-11-09', '2026-11-10') === 0 && A.shpbWorkDaysBetween('2026-11-09', '2026-11-11') === 1);
+  /* every day counted (Ravi, 16 Nov — the 7-day rule of the SHP board's Late colour; the Stuck rule's Sunday skip is gone) */
+  ok('days between two days count every day, Sunday too', A.shpbDaysBetween('2026-11-07', '2026-11-10') === 3
+    && A.shpbDaysBetween('2026-11-09', '2026-11-09') === 0 && A.shpbDaysBetween('2026-11-16', '2026-11-15') === -1);
 }
 
 console.log('\n== SHP board: stage cells and the ready date ==');
@@ -20337,7 +20337,8 @@ console.log('\n== SKU codes: a new colour\'s SKUs ==');
   const t = A.skcTable('Light Steel Blue', '327');
   ok('the table says which are in the master and which are new', t.filter(x => x.state === 'have').length === 2 && t.filter(x => x.state === 'new').length === 88);
   ok('creating under a taken code is refused', /already Light Steel Blue's/.test(A.skcPlanNew('New Mint', '327', 'Ridhi').err));
-  ok('…and a colour not in the Colour master', /not in the Colour master/.test(A.skcPlanNew('Nope', '999', 'Ridhi').err));
+  /* 17 Nov: a colour not in the Colour master is no longer refused — Create adds it there in the same write */
+  ok('…a colour not in the Colour master is not refused, the plan says it is new', !A.skcPlanNew('Nope', '999', 'Ridhi').err && A.skcPlanNew('Nope', '999', 'Ridhi').newColour === true);
   ok('the brand has to be typed', /Type the brand/.test(A.skcPlanNew('New Mint', '777', '').err));
   const p2 = A.skcPlanNew('New Mint', '777', 'Ridhi Home');
   const t6060 = p2.out.find(x => x.rec.sku === 'RTC777-6060');

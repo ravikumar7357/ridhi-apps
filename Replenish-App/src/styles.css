@@ -1346,6 +1346,16 @@
 .vpvs-td summary{cursor:pointer;color:var(--brand)}.vpvs-td .vpvs-add{display:flex;margin-top:3px;justify-content:flex-end}
 .vpvs-td input{width:70px;text-align:right;padding:3px 6px}.vpvs-td button{width:auto;padding:3px 8px;font-size:12px}
 .vpb-line{display:flex;gap:10px;align-items:center;border-top:1px solid var(--line);padding-top:8px}
+/* Vendor Portal: a line past its due date is red, due today or tomorrow yellow (voDueTone — Ravi, 16 Nov) */
+table.xl tbody tr.vo-late td{background:var(--bad-bg)}
+table.xl tbody tr.vo-near td{background:var(--warn-bg)}
+.vpb-line.vo-late,.vpb-line.vo-near{border-radius:10px;padding:8px}
+.vpb-line.vo-late{background:var(--bad-bg)}
+.vpb-line.vo-near{background:var(--warn-bg)}
+/* SHP board (Order Console): the same colours by the date planned for the stage a line is at (shpbLate). Its stage cells carry their
+   peach tint in the row's own markup, which only !important can cover — without it a late row was red in two cells of fifteen. */
+#odTable tbody tr.vo-late td{background:var(--bad-bg) !important}
+#odTable tbody tr.vo-near td{background:var(--warn-bg) !important}
 .vpb-pic,.vpb-line [data-img] img{width:44px;height:44px;object-fit:cover;border-radius:8px;border:1px solid var(--line)}
 .vpb-what{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;font-size:12.5px}
 .vpb-sku{font-family:ui-monospace,Consolas,monospace;font-size:12px;color:var(--ink)}
@@ -1516,11 +1526,6 @@ html.mob table.mob-tcards.mob-tgrid tbody tr:not(.mob-tmsg):not(.mob-tnest):has(
 /* DEMAND · RFD OUT TO PRINTERS looks like the SHP board (Ravi, 31 Oct): small type, tight rows, quiet headings. */
 #flTable.fl-e td { font-size: 12.5px; padding: 5px 9px; }
 #flTable.fl-e th { font-size: 12px; padding: 7px 9px; color: #8a94a3; font-weight: 700; }
-/* Full width, the columns in fixed shares (31 Oct: "all printers looking very odd", "one printer: space on the right"): one long size or name wraps in
- * its own column instead of stretching the table. */
-#flTable.fl-due { width: 100%; table-layout: fixed; }
-#flTable.fl-due td { font-size: 12.5px; padding: 5px 14px; white-space: normal; overflow-wrap: break-word; }
-#flTable.fl-due th { font-size: 12px; padding: 7px 14px; color: #8a94a3; font-weight: 700; }
 
 /* PPC, REDESIGNED (Ravi, 31 Oct): clear hierarchy in Product details, centred cells, one button style, subtle row hover. */
 #flTable.fl-ppc { width: 100%; table-layout: fixed; }

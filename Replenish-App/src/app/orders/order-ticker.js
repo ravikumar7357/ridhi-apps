@@ -200,8 +200,11 @@ if (typeof document !== 'undefined' && typeof document.addEventListener === 'fun
     if (e.target.closest && e.target.closest('[data-otkplain]')) { showTab('ord'); return; }
     const b = e.target.closest && e.target.closest('[data-otkno]');
     if (!b) return;
-    const no = b.dataset.otkno;
-    showTab('ord');
-    setTimeout(() => { const q = $('odQ'); if (q) { q.value = no; q.dispatchEvent(new Event('input', { bubbles: true })); } }, 300);
+    ordOpenOrder(b.dataset.otkno);
   });
+}
+/** The Order Console searched to one order — a click on the strip, and a report link "#ord?q=…" (core/nav.js). */
+function ordOpenOrder(no) {
+  showTab('ord');
+  setTimeout(() => { const q = $('odQ'); if (q) { q.value = no; q.dispatchEvent(new Event('input', { bubbles: true })); } }, 300);
 }
