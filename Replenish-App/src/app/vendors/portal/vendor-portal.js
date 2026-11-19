@@ -336,6 +336,13 @@ function renderVp() {
   $('vpPinBtn').classList.toggle('hide', !vpOnPin());
   if (VP.busy) { $('vpMsg').className = 'muted'; $('vpMsg').textContent = 'Reading your orders…'; body.innerHTML = ''; return; }
   if (VP.err) { $('vpMsg').className = 'err'; $('vpMsg').textContent = 'Could not read them: ' + VP.err; body.innerHTML = ''; return; }
+  /* The office picks a printer first (Ravi, 19 Nov: the "my own sign-in" choice removed — an office sign-in has no orders of its own). */
+  if (!VP.code && typeof flowVpMayLook === 'function' && flowVpMayLook() && !NAV_IS_VENDOR) {
+    $('vpMsg').className = 'muted'; $('vpMsg').textContent = '';
+    $('vpKpis').innerHTML = '';
+    body.innerHTML = '<div class="card" style="padding:34px;text-align:center;color:var(--muted)">Pick a printer above to see its orders.</div>';
+    return;
+  }
   if (!VP.code) {
     $('vpMsg').className = 'err';
     $('vpMsg').textContent = `${ME.email} is not linked to a vendor yet.`;
