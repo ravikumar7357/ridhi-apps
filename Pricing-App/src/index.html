@@ -22,7 +22,9 @@
 <body>
 
 <!-- ============ LOGIN ============ -->
-<div id="loginView" class="wrap login">
+<!-- Shown until Firebase says whether this browser is signed in (core/auth.js): no sign-in flash on a refresh. -->
+<div id="bootView" class="wrap" role="status" style="max-width:340px;margin:30vh auto;text-align:center;color:var(--muted);font-size:14px">Loading Sellora…</div>
+<div id="loginView" class="wrap login hide">
   <!-- The moving background, behind the card: soft drifting light (styles.css) and faint drifting dots
        joined by lines (app/core/fx.js draws them). Inside this screen, so it goes when the screen does. -->
   <div class="fx-aurora" aria-hidden="true"><i></i><i></i><i></i></div>
@@ -88,17 +90,26 @@
       <button id="tabBa" class="nav">Analytics</button>
     </div></div>
 
-    <div class="navwrap"><button class="navgrp" id="grpListing" type="button" aria-controls="secListing" data-grp="listing" data-tabs="opt,img,lerr,basket,health,lrules,audit,bsr">
+    <div class="navwrap"><button class="navgrp" id="grpListing" type="button" aria-controls="secListing" data-grp="listing" data-tabs="opt,img,lerr,create,basket,health,lrules,audit,bsr,fam,aplus,ipg,lhist">
       <span class="caret">&#9656;</span> Listing</button>
     <div class="navsec" id="secListing">
+      <div class="navcol"><div class="navcol-h">1 · Fix &amp; improve</div>
       <button id="tabOpt" class="nav">Listing Optimiser</button>
-      <button id="tabImg" class="nav">Image Manager</button>
       <button id="tabLerr" class="nav">Listing Errors</button>
-      <button id="tabBasket" class="nav">Bought Together</button>
+      <button id="tabImg" class="nav">Image Manager</button>
+      <button id="tabCreate" class="nav">Create Listing</button></div>
+      <div class="navcol"><div class="navcol-h">2 · Check</div>
       <button id="tabHealth" class="nav">Listing Health</button>
-      <button id="tabLrules" class="nav">Listing Rules</button>
       <button id="tabAudit" class="nav">Listing Audit</button>
       <button id="tabBsr" class="nav">BSR Audit</button>
+      <button id="tabFam" class="nav">Family &amp; Category Check</button>
+      <button id="tabAplus" class="nav">A+ Content</button>
+      <button id="tabIpg" class="nav">IP &amp; Trademark Guard</button></div>
+      <div class="navcol"><div class="navcol-h">3 · Rules &amp; ideas</div>
+      <button id="tabLrules" class="nav">Listing Rules</button>
+      <button id="tabBasket" class="nav">Bought Together</button></div>
+      <div class="navcol"><div class="navcol-h">4 · Records</div>
+      <button id="tabLhist" class="nav">Listing History</button></div>
     </div></div>
 
     <div class="navwrap"><button class="navgrp" id="grpAds" type="button" aria-controls="secAds" data-grp="ads" data-tabs="trends,weekly,ppcn,st,plc,deals">
@@ -106,7 +117,7 @@
     <div class="navsec" id="secAds">
       <button id="tabTrends" class="nav">Ad Console</button>
       <button id="tabWeekly" class="nav">PPC &amp; Organic</button>
-      <button id="tabPpcn" class="nav">PPC &amp; Organic · New <span class="navtag">TEST</span></button>
+      <button id="tabPpcn" class="nav">Product Performance</button>
       <button id="tabSt" class="nav">Search Terms</button>
       <button id="tabPlc" class="nav">Placement</button>
       <button id="tabDeals" class="nav">Deal Calendar</button>
@@ -402,8 +413,8 @@
             <label><input type="checkbox" class="accbrand" data-br="SP"> Ridhi</label>
             <label><input type="checkbox" class="accbrand" data-br="CPC"> CPC</label>
             <span class="muted">(none ticked = both)</span></div>
-          <div class="accg-note">Hides the other brand in PPC &amp; Organic, Ad Console, Search Terms and Placement only — every other screen shows both. A display limit, not isolation: fine for colleagues, not for a separate party.</div>
-          <button id="accessAdOnly" class="ghost accg-preset" type="button" title="Ticks PPC & Organic, Ad Console, Search Terms and Placement and unticks everything else in both apps">Ad data only — untick everything else</button>
+          <div class="accg-note">Hides the other brand in Product Performance, Ad Console, Search Terms and Placement only — every other screen shows both. A display limit, not isolation: fine for colleagues, not for a separate party.</div>
+          <button id="accessAdOnly" class="ghost accg-preset" type="button" title="Ticks Product Performance, Ad Console, Search Terms and Placement and unticks everything else in both apps">Ad data only — untick everything else</button>
         </div></section>
 
       <section class="accg" data-accg="research"><header><h4>Research</h4><span class="accg-n"></span><span class="accg-app">Sellora</span><button type="button" class="ghost accg-all">All</button><button type="button" class="ghost accg-none">None</button></header>
@@ -848,6 +859,10 @@
           <option value="20">Last 20 weeks</option>
           <option value="999">All weeks</option>
         </select>
+        <div id="bHistKind" class="seg histOnly hide" role="group" aria-label="Which rank Full history shows">
+          <button type="button" class="segbtn on" data-kind="sub" aria-pressed="true">Sub category</button>
+          <button type="button" class="segbtn" data-kind="main" aria-pressed="false">Main category</button>
+        </div>
         <input id="bFilter" style="flex:1 1 140px;min-width:0" placeholder="Filter parent / name">
         <button id="bCsv" class="ghost">Export</button>
         <select id="bSaveAs" style="flex:0 0 150px" title="Which week to file this snapshot under">
@@ -867,12 +882,25 @@
         <div id="bRules" class="muted" style="font-size:12px"></div>
       </div>
     </div>
+    <!-- One parent: its children, its rank by week, the facts behind the action (listing/bsr-audit.js bsrPanelOpen). -->
+    <aside id="bPanel" class="bs-panel" role="dialog" aria-label="Parent details" hidden></aside>
   </div><!-- /paneBsr -->
 
-  <!-- ============ PPC & Organic · New (test): drawn whole by app/ads/ppc-new.js ============ -->
+  <!-- Listing History: every change sent to Amazon (listing/listing-history.js draws it) -->
+  <div id="paneLhist" class="hide"><div id="lhPane"></div></div>
+
+  <!-- Family & Category Check: children out of their family, duplicate / missing colour-size, theme (listing/family-check.js draws it) -->
+  <div id="paneFam" class="hide"><div id="fcPane"></div></div>
+  <!-- A+ Content (listing/aplus-audit.js draws it whole): which products have A+, which do not, what to do -->
+  <div id="paneAplus" class="hide"><div id="apcPane"></div></div>
+  <!-- IP & Trademark Guard (listing/ip-guard.js draws it whole): other brands' names and restricted claims in our listings -->
+  <div id="paneIpg" class="hide"><div id="ipgPane"></div></div>
+  <div id="paneCreate" class="hide"><div id="clPane"></div></div>
+
+  <!-- ============ Product Performance (was PPC & Organic · New): drawn whole by app/ads/ppc-new.js ============ -->
   <div id="panePpcn" class="hide"></div>
 
-  <!-- ============ PPC & Organic: one row per ASIN, one column per week ============ -->
+  <!-- ============ PPC & Organic (old view, off the menu since 12 Nov): one row per ASIN, one column per week ============ -->
   <div id="paneWeekly" class="hide">
     <!-- Sales that failed the nightly cross-check. Held back rather than shown, and said so here. -->
     <div id="wCheckBanner" class="card hide"
@@ -1862,41 +1890,54 @@
   </div>
 
   <div id="paneImg" class="hide">
-    <div class="card" style="padding:12px 14px;margin-bottom:12px">
-      <div class="toolbar">
-        <select id="imBrand" style="flex:0 0 110px">
+    <!-- The toolbar sticks under the menu bar (--im-top, measured by imStick in image-manager.js). -->
+    <div id="imTb" class="card im-tb" style="padding:12px 14px;margin-bottom:12px">
+      <div class="toolbar im-tbar">
+        <select id="imBrand" aria-label="Brand">
           <option value="SP">Ridhi</option><option value="CPC">CPC</option>
         </select>
-        <input id="imQ" placeholder="Search SKU, ASIN, title, colour" style="flex:0 0 260px">
-        <select id="imFilter" style="flex:0 0 220px">
+        <label class="im-search"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="imQ" placeholder="Search SKU, ASIN, title, colour" aria-label="Search SKU, ASIN, title or colour"><kbd title="Press / to search">/</kbd></label>
+        <select id="imFilter" aria-label="Filter">
           <option value="all">All listings</option>
+          <option value="nomain">No main at all</option>
+          <option value="pcbad">Main not OK (Picture check)</option>
           <option value="diff">Live image differs from yours</option>
-          <option value="other">Amazon shows another SKU's pictures</option>
           <option value="sup">Search suppressed</option>
-          <option value="amzerr">Amazon reports an error</option>
-          <option value="noown">No main image of your own</option>
+          <option value="amzerr">Amazon picture error</option>
+          <option value="noown">Using the family's main (none of your own)</option>
           <option value="few">Fewer than 7 images</option>
-          <option value="noswatch">No swatch</option>
           <option value="nobuy">Not buyable</option>
         </select>
-        <select id="imView" style="flex:0 0 210px" title="Which picture each tile shows first">
+        <select id="imView" title="Which picture each tile shows first" aria-label="Which picture each tile shows">
           <option value="mine">Show the pictures you sent</option>
           <option value="live">Show what Amazon serves</option>
         </select>
+        <span class="im-dense" role="group" aria-label="Row size"><button type="button" data-im-dense="comfortable" title="Big pictures">Comfortable</button><button type="button" data-im-dense="compact" title="More rows on screen">Compact</button></span>
         <!-- Picture check: the main pictures a person must judge (listing/picture-check.js). -->
         <button id="imPcChip" type="button" class="sp-chip" aria-pressed="false">◐ Picture check</button>
-        <button id="imGo" class="ghost" style="flex:0 0 120px" title="Open the editor for exactly this SKU or ASIN">Open editor</button>
-        <button id="imRefresh" class="ghost" style="flex:0 0 190px">Refresh from Amazon</button>
         <span style="flex:1"></span>
-        <span id="imMsg" class="muted" style="align-self:center;font-size:12px"></span>
+        <button id="imGo" class="ghost" title="Open the editor for exactly the SKU or ASIN typed in the search">Open editor</button>
+        <button id="imRefresh" class="ghost" title="Read every listing's pictures from Amazon again (about two minutes)">Refresh</button>
+        <!-- ⬇ Download errors: a sheet of every live listing (stock > 0) with a picture problem (image-manager.js imDlDownload). -->
+        <button id="imDl" class="ghost" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="imDlMenu" title="Download every live listing (stock > 0) with a picture problem, as a sheet for Excel">⬇ Download errors</button>
+        <div id="imDlMenu" class="im-dlm" hidden></div>
+        <button type="button" class="ghost im-helpbtn" data-im-help="open" title="Keys and tips (?)" aria-label="Keys and tips">?</button>
+        <!-- Messages: shown as toasts (bottom right); this line stays for screen readers. -->
+        <span id="imMsg" class="im-sr" role="status" aria-live="polite"></span>
       </div>
+      <div id="imProg" class="im-prog" role="progressbar" aria-label="Reading listings from Amazon" hidden></div>
     </div>
-    <div id="imEditWrap" class="hide">
-      <div style="margin-bottom:8px"><button id="imBack" class="ghost" style="width:auto;padding:5px 14px">&larr; All listings</button></div>
+    <!-- The editor opens as a panel on the right; the list stays where it was (image-manager.js imShowEditor). -->
+    <aside id="imEditWrap" class="im-side hide" role="dialog" aria-label="Edit pictures">
+      <div class="im-side-h"><b>Edit pictures</b><span style="flex:1"></span><button id="imBack" class="ghost" type="button" style="width:auto;padding:5px 14px" title="Close (Esc)">&#10005; Close</button></div>
       <div id="imBody"></div>
-    </div>
+    </aside>
     <div id="imListWrap"><div id="imList"></div></div>
     <div id="imPcWrap" class="hide"></div>
+    <!-- The picture viewer (image-manager.js imViewOpen), the file chooser behind a tile's Replace, the toasts. -->
+    <div id="imViewer" class="im-vw" hidden></div>
+    <input type="file" id="imFile2" accept="image/jpeg,image/png,image/tiff,image/gif" class="hide">
+    <div id="imToasts" class="im-toasts" aria-live="polite"></div>
   </div>
 
   <div id="paneLerr" class="hide">

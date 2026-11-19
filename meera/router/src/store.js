@@ -99,7 +99,7 @@ export function store(db) {
           SUM(kind = 'unsure') AS unsure FROM learn WHERE kind IN ('missed', 'unsure') AND status = 'new' AND created >= ?1
           GROUP BY qkey ORDER BY n DESC, last DESC LIMIT 60`).bind(week).all();
       const spellings = await db.prepare(`SELECT MIN(question) AS question, answer, lang, COUNT(*) AS n, MAX(created) AS last, GROUP_CONCAT(id) AS ids
-          FROM learn WHERE kind = 'spelling' AND status = 'new' GROUP BY qkey, answer ORDER BY n DESC, last DESC LIMIT 60`).all();
+          FROM learn WHERE kind IN ('spelling', 'judged') AND status = 'new' GROUP BY qkey, answer ORDER BY n DESC, last DESC LIMIT 60`).all();
       const down = await db.prepare(`SELECT id, created, question, screen, lang, answer, note, role FROM learn WHERE kind = 'down' AND status = 'new'
           ORDER BY id DESC LIMIT 100`).all();
       const ids = r => (r.results || []).map(x => ({ ...x, ids: String(x.ids || '').split(',').map(Number).filter(Boolean) }));
@@ -110,13 +110,14 @@ export function store(db) {
       const list = (ids || []).map(Number).filter(Boolean).slice(0, 200);
       if (!list.length) return 0;
       await db.batch(list.map(id => (status === 'approved'
-        ? db.prepare("UPDATE learn SET status = 'approved' WHERE id = ?1 AND kind = 'spelling'").bind(id)
+        ? db.prepare("UPDATE learn SET status = 'approved' WHERE id = ?1 AND kind IN ('spelling', 'judged')").bind(id)
         : db.prepare('UPDATE learn SET status = ?2 WHERE id = ?1').bind(id, status))));
       return list.length;
     },
     /** Approved spellings: a new way of asking for one of her answers. */
     async spellings(limit = 2000) {
-      const r = await db.prepare("SELECT question, answer, lang FROM learn WHERE kind = 'spelling' AND status = 'approved' GROUP BY qkey, answer ORDER BY MAX(id) DESC LIMIT ?1").bind(limit).all();
+      /* with the judge's confirmed picks (17 Nov): the same thing — a new way of asking for one of her answers */
+      const r = await db.prepare("SELECT question, answer, lang FROM learn WHERE kind IN ('spelling', 'judged') AND status = 'approved' GROUP BY qkey, answer ORDER BY MAX(id) DESC LIMIT ?1").bind(limit).all();
       return r.results || [];
     },
     /* ---- search on the server (Phase 5) ---- */

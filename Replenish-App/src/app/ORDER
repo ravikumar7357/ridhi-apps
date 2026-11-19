@@ -157,6 +157,7 @@ shopify/delivery-days.js
 shopify/returns-team.js
 shopify/bucket-team.js
 shopify/shopify-hub-local.js
+shopify/creator-orders.js
 core/access-shadow.js
 replenishment/india-usa-express.js
 @shared/adjustments.js
@@ -173,6 +174,7 @@ core/meera-bridge.js
 core/access-host.js
 core/access-design.js
 @meera/config.ts
+@meera/intent.ts
 @meera/legacy/guide-art.ts
 @meera/legacy/guide-tours.ts
 @meera/legacy/guide.ts

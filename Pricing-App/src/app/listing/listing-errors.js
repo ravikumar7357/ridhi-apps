@@ -30,6 +30,14 @@ let LE_SCHEMA = {};     // attribute name → what Amazon allows for it (the ?lf
 let LE_EDIT = {};       // attribute name → { vals } edited so far, or { del: true }
 let LE_RESULT = '';     // HTML of the last Check / Apply result, kept across redraws
 let LE_EXTRA = [];      // attribute names the caller asked to edit as well (the Workspace's empty specs), beside the ones Amazon names
+let LE_ONLY = null;     // { skus: Set, label } — only these listings, picked in Listing Health's Fix all (fix-all.js), until "Show every listing"
+// Show only these listings — with or without an issue in the snapshot — every kind, no search, page 1; empty → every listing again.
+function leOnly(skus, label) {
+  LE_ONLY = skus && skus.length ? { skus: new Set(skus), label: label || '' } : null;
+  LE_PAGE = 0;
+  $('leKind').value = 'all';
+  $('leQ').value = '';
+}
 const LE_PER = 50;      // listings per page
 const LE_KINDS = [
   ['image', 'Image'], ['title', 'Title too long'], ['value', 'Wrong / old value'],
@@ -50,7 +58,9 @@ function leKind(issue) {
 // HTML-escape for everything this screen prints.
 const leEsc = str => String(str == null ? '' : str).replace(/[<>&"]/g, ch => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[ch]));
 // Whole number with thousands separators.
-const leNf = value => Math.round(value || 0).toLocaleString('en-US');
+// SMOOTH (18 Nov 2026): one number format made once — the same text as toLocaleString('en-US'), which makes a new one per number
+const LE_NUM = new Intl.NumberFormat('en-US');
+const leNf = value => LE_NUM.format(Math.round(value || 0));
 // Status line under the toolbar: red for an error, grey otherwise. Does nothing if the pane is not on the page.
 const leMsg = (text, bad) => {
   const el = $('leMsg');
@@ -94,13 +104,17 @@ function leRows() {
   const out = [];
   data.items.forEach(x => {
     if (x.lvl === 'parent') return;
+    if (LE_ONLY && !LE_ONLY.skus.has(x.sku)) return;
     let iss = (x.iss || []).filter(issue => issue.s === 'E' || (warn && issue.s === 'W'));
     if (!iss.length && x.ie && !x.iss) iss = [{ s: 'E', m: x.im || '', a: [] }];       // a snapshot from before `iss`
-    if (!iss.length && sev !== 'any') return;          // "Every listing": its content can be edited with no issue at all
+    if (!iss.length && sev !== 'any' && !LE_ONLY) return;          // "Every listing": its content can be edited with no issue at all
     if (kind !== 'all' && !iss.some(issue => leKind(issue) === kind)) return;
     if (search && ![x.sku, x.asin, x.c, x.z, x.t].concat(iss.map(issue => issue.m)).join(' ').toLowerCase().includes(search)) return;
+    if (typeof prOf === 'function' && PR.f.le && prLe(brand, x) !== PR.f.le) return;          // 🔴 / 🟠 / ⚪ chosen (listing-priority.js)
     out.push({ x, iss: iss.slice().sort((p, r) => (p.s === 'E' ? 0 : 1) - (r.s === 'E' ? 0 : 1)) });
   });
+  // a priority chosen: that level only, the most sales first (sales data old: the most stock)
+  if (typeof prOf === 'function' && PR.f.le) return prSort(out, r => ({ k: PR.f.le, asin: r.x.asin, stock: typeof lrQtyOf === 'function' ? lrQtyOf(brand, r.x.sku) : 0 }));
   return out;
 }
 
@@ -138,14 +152,22 @@ function leRender() {
       <button class="ghost im-b" data-lepg="-1" ${LE_PAGE ? '' : 'disabled'}>◀ Prev</button>
       <span class="muted" style="font-size:12px">Page ${LE_PAGE + 1} of ${pages}</span>
       <button class="ghost im-b" data-lepg="1" ${LE_PAGE < pages - 1 ? '' : 'disabled'}>Next ▶</button></div>` : '';
-  el.innerHTML = `
+  const only = LE_ONLY ? `<div class="card" style="padding:8px 14px;margin-bottom:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:12.5px">`
+    + `<span>Showing the <b>${leNf(LE_ONLY.skus.size)}</b> listing(s) picked in Listing Health${LE_ONLY.label ? ': ' + leEsc(LE_ONLY.label) : ''}.</span>`
+    + '<button class="ghost im-b" data-leonly="off">Show every listing</button></div>' : '';
+  // Search terms over the limit (a Listing Rules problem, not one of Amazon's issues): its own card, Fix all per family and for all (kw-fix.js)
+  const kwCard = typeof kfLeCardHtml === 'function' ? kfLeCardHtml(brand, LE_ONLY ? LE_ONLY.skus : null) : '';
+  // Every title problem (a Listing Rules problem too): one new title per listing, Fix all per family and Select all (title-fix.js)
+  const ttCard = typeof ttLeCardHtml === 'function' ? ttLeCardHtml(brand, LE_ONLY ? LE_ONLY.skus : null) : '';
+  el.innerHTML = only + kwCard + ttCard + `
     <div class="card" style="padding:10px 14px;margin-bottom:10px">
       <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
         <span class="muted" style="font-size:12px">Listings with an error, by kind:</span>
         ${LE_KINDS.map(([kind, label]) => chip(kind, label)).join('')}
         <button class="ghost im-b" data-kind="all">All</button>
+        ${typeof prOf === 'function' ? prFilterHtml('le', (k, label, on) => `<button class="ghost im-b" data-le-pr="${k}" style="${on ? 'border-color:var(--accent);color:var(--accent-ink)' : ''}">${label}</button>`) : ''}
       </div>
-      <div class="muted" style="font-size:11.5px;margin-top:6px">${leNf(rows.length)} listing(s) shown · snapshot ${data.at ? data.at.toLocaleString() : '—'}${IML_BUSY ? ' · refreshing…' : ''}
+      <div class="muted" style="font-size:11.5px;margin-top:6px">${leNf(rows.length)} listing(s) shown · ${(typeof lmDataLabel === 'function' && lmDataLabel([brand])) ? leEsc(lmDataLabel([brand]).text) : 'snapshot ' + (data.at ? data.at.toLocaleString() : '—')}${IML_BUSY ? ' · refreshing…' : ''}
         ${old ? ' · <b class="err">this snapshot keeps only the first error of each listing — press Refresh from Amazon for all of them</b>' : ''}</div>
     </div>
     ${pager}
@@ -154,17 +176,17 @@ function leRender() {
       + `<th>Status</th><th style="text-align:left">What Amazon says</th><th></th></tr></thead>
       <tbody>${slice.map(({ x, iss }) => {
         const pic = (x.live || {}).MAIN || (x.img || {}).MAIN;
-        const state = imState(x);
+        const state = imState(x, brand);
         const hasImg = iss.some(issue => leKind(issue) === 'image');
         const hasOther = iss.some(issue => leKind(issue) !== 'image');
         return `<tr>
           <td style="width:52px">${pic
             ? `<img src="${leEsc(imThumb(pic))}" alt="" loading="lazy" style="width:44px;height:44px;object-fit:contain;background:#fff;border:1px solid var(--line);border-radius:4px">`
             : ''}</td>
-          <td style="text-align:left;white-space:nowrap"><b style="font-family:ui-monospace,monospace">${leEsc(x.sku)}</b>`
+          <td style="text-align:left;white-space:nowrap"><b style="font-family:ui-monospace,monospace">${leEsc(x.sku)}</b>${x.lmStale && typeof lmOldHtml === 'function' ? lmOldHtml(brand, x.sku) : ''}`
             + `<div class="muted" style="font-size:11px">${leEsc(x.asin)} · ${leEsc(x.pt || '')}</div></td>
           <td style="text-align:left;font-size:12px">${leEsc([x.c, x.z].filter(Boolean).join(' · '))}</td>
-          <td><span class="st" style="background:${state.fill};color:${state.ink}">${leEsc(state.label)}</span></td>
+          <td><span class="st" style="background:${state.fill};color:${state.ink}">${leEsc(state.label)}</span>${typeof prOf === 'function' && iss.length ? ' ' + prChipHtml(prLe(brand, x)) : ''}</td>
           <td style="text-align:left;white-space:normal;font-size:12px;max-width:620px">${iss.slice(0, 4).map(issue => `<div style="margin:2px 0">
               <span class="st ${issue.s === 'E' ? 'st-rejected' : 'st-draft'}" style="font-size:10px">${
                 leEsc((LE_KINDS.find(pair => pair[0] === leKind(issue)) || [, ''])[1])}</span>
@@ -179,12 +201,17 @@ function leRender() {
     LE_PAGE = 0;
     leRender();
   });
+  el.querySelectorAll('[data-le-pr]').forEach(btn => btn.onclick = () => { prToggle('le', btn.dataset.lePr); LE_PAGE = 0; leRender(); });
   el.querySelectorAll('[data-lepg]').forEach(btn => btn.onclick = () => {
     LE_PAGE += Number(btn.dataset.lepg);
     leRender();
     window.scrollTo(0, 0);
   });
   el.querySelectorAll('[data-fix]').forEach(btn => btn.onclick = () => leOpen(btn.dataset.fix));
+  el.querySelectorAll('[data-leonly]').forEach(btn => btn.onclick = () => {
+    leOnly(null);
+    leRender();
+  });
   el.querySelectorAll('[data-img]').forEach(btn => btn.onclick = () => {
     showTab('img');
     $('imBrand').value = $('leBrand').value;
@@ -333,7 +360,7 @@ function leFixRender() {
     <div class="card" style="padding:10px 14px;margin-bottom:10px">
       <div style="font-weight:600;font-size:13px;margin-bottom:4px">What Amazon says now (${leNf(listing.issues.length)})</div>
       ${listing.issues.map(issue => `<div style="font-size:12px;margin:3px 0"><span class="st ${issue.severity === 'ERROR' ? 'st-rejected' : 'st-draft'}">${leEsc(issue.severity)}</span>
-        ${leEsc(issue.message)} ${(issue.attrs || []).length ? `<span class="muted">· ${leEsc(issue.attrs.join(', '))}</span>` : ''}</div>`).join('')
+        ${leEsc(issue.message)} ${(issue.attrs || []).length ? `<span class="muted">· ${leEsc(issue.attrs.join(', '))}</span>` : ''}${typeof aiOn === 'function' && aiOn() ? ' ' + aiBtnHtml('error_explain', $('leBrand').value, listing.sku, { use: 'read', code: issue.code || '', label: 'Explain this error' }) : ''}</div>`).join('')
         || '<div class="muted" style="font-size:12px">No issues — Amazon reports nothing on this listing now.</div>'}
       ${imgIssues.length ? `<div style="margin-top:6px"><button class="ghost im-b" id="leToImg">Fix the images in the Image Manager</button></div>` : ''}
     </div>
@@ -453,13 +480,29 @@ function leFixWire() {
   if ($('leApply')) $('leApply').onclick = () => leSend(true);
 }
 
-// Check (apply = false) or Apply (apply = true): send the patches through imPost and show what Amazon answered.
+// Check (apply = false): ask Amazon and show its answer here. Apply (apply = true): THE ONE SEND PATH (#10, listing-send-check.js) — the
+// Amazon check popup: Amazon checks the change, the person approves, it is sent and the listing read again; the answer shows here after.
 async function leSend(apply) {
   const patches = lePatches();
   if (!patches.length) return;
-  if (apply && !confirm('Send ' + patches.length + ' change(s) for ' + LE.sku + ' to Amazon?\n\n'
-      + patches.map(patch => (patch.op === 'delete' ? 'remove ' : 'set ') + patch.path.replace('/attributes/', '')).join('\n')
-      + '\n\nAmazon checks it first; if it reports a problem nothing is sent.')) return;
+  if (apply) {
+    const brand = $('leBrand').value;
+    const listing = LE;
+    const edits = JSON.parse(JSON.stringify(LE_EDIT));
+    return sqSendWithCheck([{ brand, sku: listing.sku, asin: listing.asin, label: listing.title, body: { lfix: 'patch', brand, sku: listing.sku, productType: listing.productType, patches },
+      changes: Object.keys(edits).map(name => ({ field: sqField(name), old: sqValText((listing.attributes || {})[name]), new: edits[name].del ? '(removed)' : sqValText(edits[name].vals),
+        attr: name, oldV: JSON.parse(JSON.stringify((listing.attributes || {})[name] || [])) })) }], {
+      screen: 'Listing Errors', title: 'Listing Errors · ' + listing.sku,
+      // sent: what was sent is now what the listing holds, as far as this screen knows
+      onSent: () => { Object.entries(edits).forEach(([name, edit]) => { if (edit.del) delete listing.attributes[name]; else listing.attributes[name] = edit.vals; }); if (LE === listing) LE_EDIT = {}; },
+      onEdit: () => {},                                   // the editor is right here: the boxes stay as they were
+      onDone: sum => {
+        if (LE !== listing) return;
+        const text = sqSummaryText(sum);
+        if (text) LE_RESULT = `<div style="margin-top:8px;font-size:12.5px" class="${/rejected|says no/i.test(text) && !/✅/.test(text) ? 'err' : ''}">${leEsc(text)}</div>`;
+        leFixRender();
+      } });
+  }
   $('leCheck').disabled = $('leApply').disabled = true;
   $('leSendMsg').textContent = apply ? 'Sending to Amazon…' : 'Asking Amazon…';
   // --- send ---
@@ -500,6 +543,7 @@ let LE_T = 0;     // debounce timer for the search box
 // Brand changed: back to the list, page 1, and that brand's snapshot.
 $('leBrand').onchange = () => {
   LE_PAGE = 0;
+  LE_ONLY = null;
   leShow(false);
   leListEnsure();
 };
@@ -509,14 +553,14 @@ $('leKind').onchange = $('leSev').onchange = () => {
   leShow(false);
   leRender();
 };
-// Search box: redraw a quarter of a second after typing stops.
+// Search box: redraw 200 ms after typing stops.
 $('leQ').addEventListener('input', () => {
   clearTimeout(LE_T);
   LE_T = setTimeout(() => {
     LE_PAGE = 0;
     leShow(false);
     leRender();
-  }, 250);
+  }, 200);
 });
 // Refresh from Amazon: rebuild this brand's snapshot, then redraw.
 $('leRefresh').onclick = async () => {

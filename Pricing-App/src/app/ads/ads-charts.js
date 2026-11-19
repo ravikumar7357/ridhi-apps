@@ -102,16 +102,16 @@ const ADSX = (() => {
   // The ten boxes: the T_ROWS key (sessions has none — it comes from the weekly sessions cache), the colour (--adx-…),
   // whether up is good (null: neither — more spend is not bad by itself), the ⓘ text, and the red line.
   const BOXES = [
-    { k: 'sales', c: 'sales', up: true, tip: 'Every sale in the Orders workbooks, over all the periods in view.' },
-    { k: 'spend', c: 'spend', up: null, tip: 'Sponsored Products ad spend, over the periods that have ad figures.' },
-    { k: 'adSales', c: 'adsales', up: true, tip: 'The sales Amazon credits to a Sponsored Products click within 30 days (Campaign Manager shows 7 days, so it reads lower there).' },
+    { k: 'sales', c: 'sales', up: true, tip: 'Ordered Product Sales from Seller Central\'s Business Reports, over all the periods in view. The newest day or two, which Amazon has not published yet, come from the Orders workbooks.' },
+    { k: 'spend', c: 'spend', up: null, tip: 'Ad spend of Sponsored Products, Brands and Display added up, as the Ads console shows it, over the periods that have ad figures. Days older than Amazon kept Brands and Display for (about 60 days before the first fill) hold Sponsored Products alone.' },
+    { k: 'adSales', c: 'adsales', up: true, tip: 'The sales Amazon credits to ads, as Campaign Manager counts them: Sponsored Products within 7 days of the click, plus Sponsored Brands and Display.' },
     { k: 'acos', c: 'acos', up: false, bad: BAND.high, tip: `Ad spend ÷ ad sales. ${BAND.low}–${BAND.high}% is the good range.` },
     { k: 'tacos', c: 'tacos', up: false, bad: TACOS_T, tip: `Ad spend ÷ ALL the sales of the same days. ${TACOS_T}% or under is the goal.` },
     { k: 'roas', c: 'roas', up: true, tip: 'Ad sales ÷ ad spend: what one dollar of ads brings back.' },
     { k: 'organicPct', c: 'org', up: true, tip: 'The sales NOT credited to ads ÷ all the sales of the same days.' },
-    { k: 'orders', c: 'orders', up: true, tip: 'Every order in the Orders workbooks, over all the periods in view.' },
-    { k: 'sessions', c: 'sessions', up: true, tip: 'Visits to the product pages, ads or not, from Amazon\'s Business Reports. Weekly figures: a month or quarter adds up the weeks that start in it, and the Day view has none.' },
-    { k: 'clicks', c: 'clicks', up: true, tip: 'Clicks on Sponsored Products ads, over the periods that have ad figures.' },
+    { k: 'orders', c: 'orders', up: true, tip: 'Total Order Items from Seller Central\'s Business Reports, over all the periods in view. The newest day or two, which Amazon has not published yet, count this app\'s own orders instead.' },
+    { k: 'sessions', c: 'sessions', up: true, tip: 'Visits to the product pages, ads or not, from Amazon\'s Business Reports (Sessions – Total, per day). Until those are loaded it shows weekly figures: a month or quarter adds up the weeks that start in it, and the Day view has none.' },
+    { k: 'clicks', c: 'clicks', up: true, tip: 'Clicks on Sponsored Products, Brands and Display ads, over the periods that have ad figures.' },
   ];
   // The boxes' icons: line drawings in the box's colour (stroke only, so they follow the theme).
   const ICON = {
@@ -234,6 +234,26 @@ const ADSX = (() => {
   // period is known (not null) only when its first week is inside the weeks the cache holds. missing = brands in view with none.
   function sessPer(keys) {
     const brands = brandsInView();
+    // Amazon's own sessions per DAY (the backend's matchBiz cache, slot 3 — Business Reports' "Sessions – Total") when the page
+    // has them: every period is the sum of its days, the Day view included. A period counts once its first day is in what Amazon gave.
+    const mb = T_MATCH.biz && T_MATCH.biz.d;
+    const haveM = mb ? brands.filter(b => mb[b] && Object.keys(mb[b]).length) : [];
+    if (haveM.length) {
+      const sum = {};
+      let oldest = '', newest = '';
+      haveM.forEach(b => Object.entries(mb[b]).forEach(([day, v]) => {
+        const k = tPeriodKey(day);
+        sum[k] = (sum[k] || 0) + (Number(v && v[3]) || 0);
+        if (!oldest || day < oldest) oldest = day;
+        if (day > newest) newest = day;
+      }));
+      const per = {};
+      keys.forEach(k => {
+        const s = periodStart(k);
+        per[k] = s >= oldest && s <= newest && sum[k] != null ? sum[k] : null;
+      });
+      return { per, missing: brands.filter(b => !haveM.includes(b)) };
+    }
     const have = brands.filter(b => SESS.wk[b] && Object.keys(SESS.wk[b]).length);
     if (!have.length) return null;
     const weeks = [...new Set(have.flatMap(b => Object.keys(SESS.wk[b])))].sort();
@@ -255,15 +275,19 @@ const ADSX = (() => {
       + `<div class="adx-l"><span class="adx-ic"><svg viewBox="0 0 24 24" aria-hidden="true">${ICON.sessions}</svg></span>Sessions<span class="adx-i" title="${esc(b.tip)}">i</span></div>`
       + `<div class="adx-v"><b>${v}</b>${pill}</div><div class="adx-note" title="${esc(note)}">${esc(note)}</div>${sp}</div>`;
     const blank = note => box('—', '', note, spark([]));
-    if (!sessRight()) return blank('needs the PPC & Organic right');
-    if (T_GRAN === 'day') return blank('weekly figures: pick Week, Month or Quarter');
-    if (SESS.st === 'idle' || SESS.st === 'loading') return blank('loading the sessions…');
-    if (SESS.st === 'failed') return blank('the sessions could not be read');
+    if (!sessRight()) return blank('needs the Product Performance right');
+    // Amazon's daily sessions, once loaded, answer every view; without them it is the weekly cache, which has no Day view.
+    const daily = !!(T_MATCH.biz && T_MATCH.biz.d);
+    if (!daily) {
+      if (T_GRAN === 'day') return blank('weekly figures: pick Week, Month or Quarter');
+      if (SESS.st === 'idle' || SESS.st === 'loading') return blank('loading the sessions…');
+      if (SESS.st === 'failed') return blank('the sessions could not be read');
+    }
     // (the comparison may read periods outside the view — a view of the last full period compares it with the one before)
     const s = sessPer([...new Set(a.keys.concat(finished))].sort());
     if (!s) return blank('no sessions for these brands yet');
     const known = a.keys.filter(k => s.per[k] != null);
-    if (!known.length) return blank('older than the 26 weeks the sessions cover');
+    if (!known.length) return blank(daily ? 'Amazon has no sessions for these dates yet' : 'older than the 26 weeks the sessions cover');
     const pts = finished.filter(k => s.per[k] != null);
     const cmp = pts.length > 1 && pts[pts.length - 2] !== firstPartial;
     const pill = cmp ? pillOf(s.per[pts[pts.length - 1]], s.per[pts[pts.length - 2]], false, b.up, pts[pts.length - 1], pts[pts.length - 2]) : '';

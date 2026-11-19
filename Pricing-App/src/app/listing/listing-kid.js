@@ -43,7 +43,7 @@ function lkHtml(kid, opts) {
   const status = String(row.status || '').trim();
   const stock = row.qty == null ? 'Stock not known' : `${liWsNf(row.qty)} unit${row.qty === 1 ? '' : 's'} in stock`;
   const head = top + `<div class="ls-panel-h lk-h">${liWsPicHtml(liWsPicUrl(kid.brand, kid.sku), true)}<div class="ls-panel-t">`
-    + `<b class="lk-sku" title="${lrEsc(kid.sku)}">${lrEsc(kid.sku)}</b>`
+    + `<b class="lk-sku" title="${lrEsc(kid.sku)}">${lrEsc(kid.sku)}</b>${typeof lmOldHtml === 'function' ? lmOldHtml(kid.brand, kid.sku) : ''}`
     + `<span><span class="ui-mono">${lrEsc(kid.asin || '—')}</span>${parent ? ` · <span title="${lrEsc(parent)}">${lrEsc(parent)}</span>` : ''}</span>`
     + `<span><span class="lk-st${kid.live ? ' is-live' : ''}">${lrEsc(kid.why)}</span>${status && status.toLowerCase() !== kid.why.toLowerCase() ? ' · ' + lrEsc(status) : ''} · ${lrEsc(stock)}</span></div>`
     + `<button type="button" class="ls-x" ${opts.close} aria-label="Close">×</button></div>`
@@ -54,6 +54,7 @@ function lkHtml(kid, opts) {
   const rec = (hit, fill) => lrRecHtml({ sev: hit.sev, stale: hit.stale, fill, bare: true, name: hit.what || hit.name,
     sub: [hit.what ? '' : hit.detail, hit.sev === 'critical' && hit.stale ? `from data ${ageOf(hit)} — Check now reads it again` : ''].filter(Boolean).join(' · '),
     fix: hit.fix, tag: hit.tag, kind: hit.kind, detector: hit.detector,
+    bfHtml: typeof bfKidHtml === 'function' ? bfKidHtml(fill ? bfSpec(kid, '') : bfOf(kid, hit, hCtx())) : '',   // B / F dots (listing-bf.js)
     attrs: fill ? ((kid.c.spec && kid.c.spec.attrs) || []) : ((kid.c[liWsColOf(hit)] || {}).attrs || []) }, { brand: kid.brand, sku: kid.sku });
   const group = (cls, title, items) => (items.length ? `<div class="ls-kidhead lk-gh ${cls}">${lrEsc(title)}<span class="ls-n">${liWsNf(items.length)}</span></div><div class="ls-recs">${items.join('')}</div>` : '');
   const errs = found.filter(hit => hit.sev === 'critical').map(hit => rec(hit, false));
@@ -66,7 +67,7 @@ function lkHtml(kid, opts) {
   const bangs = [...new Set(checks.map(c => c.bang).filter(Boolean))];
   const none = !errs.length && !atts.length && !fills.length
     ? `<div class="ls-empty lk-none">${unknown.length || looks.length ? '<b>No problem found so far.</b><br>Some checks have no answer yet — see below.' : '<b>No problem on this listing.</b><br>Every Listing Rule passes.'}</div>` : '';
-  const info = (kid.live ? '' : kid.urgent ? '<div class="lk-info">Not live, but counted as an Error: fix this first.</div>'
+  const info = (typeof prOf === 'function' && (errs.length || atts.length) ? `<div class="lk-info">${prChipHtml(prKid(kid))}</div>` : '') + (kid.live ? '' : kid.urgent ? '<div class="lk-info">Not live, but counted as an Error: fix this first.</div>'
     : '<div class="lk-info">This listing is not live, so its problems are not counted anywhere.</div>')
     + (checking ? '<div class="lk-info">Reading this listing from Amazon now…</div>' : '')
     + (kid.notes && kid.notes.length ? `<div class="lk-info">${lrNotesHtml(kid.notes)}</div>` : '')
@@ -79,12 +80,15 @@ function lkHtml(kid, opts) {
     + (open ? `<div class="lk-passed">${passed.map(c => lrAnswerHtml(c.t, c, where, srcOf(c))).join('')}</div>` : '') : '';
   const body = group('is-c', lrLevel('critical').word, errs) + group('is-a', lrLevel('action').word, atts) + group('is-f', 'Good to fill', fills) + none + info + pass;
   // --- footer: where the answers come from, and how old each source is ---
-  const healthAt = lkMs(HEALTH[kid.brand] && HEALTH[kid.brand].at);
+  // the ListingMatch data fresh: its full refresh and last update (listing-match.js lmDataLabel, every Listing screen's label); else the snapshots'
+  const lm = typeof lmDataLabel === 'function' ? lmDataLabel([kid.brand]) : null;
+  const healthAt = lm ? lm.fullAt : lkMs(HEALTH[kid.brand] && HEALTH[kid.brand].at);
   const imlAt = lkMs(typeof IML !== 'undefined' && IML[kid.brand] && IML[kid.brand].at);
   const lr = kid.lr;
-  const foot = `<div class="ls-panel-f">Amazon: ${lr && lr.at ? 'read ' + liWsAgoWords(now - lr.at) : 'not read from Amazon yet'}`
-    + ` · Full refresh: ${healthAt ? liWsAgoWords(now - healthAt) : 'none yet'}`
-    + ` · Image Manager: ${imlAt ? liWsAgoWords(now - imlAt) : 'not loaded'}`
+  const amzAt = Math.max(lr && lr.at ? lr.at : 0, lm ? lm.updateAt : 0);
+  const foot = `<div class="ls-panel-f">Amazon: ${amzAt ? 'read ' + liWsAgoWords(Math.max(0, now - amzAt)) : 'not read from Amazon yet'}`
+    + ` · Full refresh: ${healthAt ? liWsAgoWords(Math.max(0, now - healthAt)) : 'none yet'}`
+    + (lm ? ` (${lrEsc(lm.text.replace(/^Full refresh: /, ''))})` : ` · Image Manager: ${imlAt ? liWsAgoWords(now - imlAt) : 'not loaded'}`)
     + ` · Listing Rules: ${typeof LR_SAVED_AT !== 'undefined' && LR_SAVED_AT ? 'saved ' + liWsDate(lkMs(LR_SAVED_AT)) : 'built-in defaults'}</div>`;
   return head + `<div class="ls-panel-b lk-b" role="region" aria-label="Problems of ${lrEsc(kid.sku)}">${body}</div>` + foot;
 }

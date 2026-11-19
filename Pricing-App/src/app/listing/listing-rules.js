@@ -8,6 +8,7 @@
  *       each parent's children, Amazon's own status) and healthOf turns that into { score, bucket, grade, found … }.
  * Main functions: lrEaster, lrEventDate, lrSeason, lrNorm (same meaning, one spelling), lrAllow (what people may write),
  *                 hTitleSizes, hTitleText, lrKwBytes (search-term bytes the way Amazon counts them), lrTemplateFor, lrParts,
+ *                 lrSuggestWords + lrSwFacts (THE ONE SUGGESTION-WORDS RULE: which words every suggestion keeps, removes or adds),
  *                 lrSuggest, LR_DET, amzEnsure, hCtx, lrFresh / lrFacts (the freshest data for one listing: a Workspace live
  *                 read, else the Image Manager snapshot, else the Health snapshot — lrPictures judges pictures by the catalogue,
  *                 lrAplus by the listing and its parent, lrAmz Amazon's own verdict), healthOf (each finding carries its
@@ -87,7 +88,6 @@ const LR_DETECTORS = {
   title_template: { label: 'Title missing parts of its template, or in another order', params: [] },
   title_keyword: { label: 'Title missing a required word (comma-separated: any one is enough)', params: ['words'] },
   title_contains: { label: 'Title contains a word (comma-separated)', params: ['words'] },
-  seasonal_keyword: { label: 'Title names an occasion that is out of season (see the calendar)', params: [] },
   amazon_suppressed: { label: 'Amazon has taken the listing out of search (buyable but not discoverable)', params: [] },
   amazon_error: { label: 'Amazon itself reports an error on the listing', params: [] },
 };
@@ -121,7 +121,7 @@ const LR_DEFAULT = {
     { id: 'img_secondary', name: 'Secondary images missing', sev: 'critical', area: 'Images', detector: 'images_below', params: { n: 6 }, desc: 'Fewer than 6 gallery pictures in the catalogue' },
     /* Needs attention */
     { id: 'var_value', name: 'Missing required variation value', sev: 'action', area: 'Variation', detector: 'variation_value_missing', desc: 'Makes child unclear/wrong within parent' },
-    { id: 'kw_bytes', name: 'Search terms over the limit', sev: 'action', area: 'Content', detector: 'keyword_bytes', params: { max: 249 }, desc: 'Over the limit Amazon ignores all of the search terms; spaces and ; , . do not count toward it' },
+    { id: 'kw_bytes', name: 'Search terms over the limit', sev: 'action', area: 'Content', detector: 'keyword_bytes', params: { max: 249 }, desc: 'Over the limit Amazon may ignore all of the search terms; spaces and ; , . do not count toward it' },
     { id: 'img_type', name: 'Important image type missing', sev: 'action', area: 'Images', detector: 'manual', desc: 'No size infographic, lifestyle, detail image, etc.' },
     { id: 'title_template', name: "Title doesn't follow template", sev: 'action', area: 'Title', detector: 'title_template', desc: 'Information is correct but title structure is wrong' },
     { id: 'size_format', name: 'Size formatting inconsistent', sev: 'action', area: 'Size', detector: 'size_format', params: { example: '14 x 36 Inch' }, desc: '14x36, 14 x 36 inch, etc. instead of approved 14 x 36 Inch' },
@@ -136,7 +136,6 @@ const LR_DEFAULT = {
     { id: 'img_text', name: 'Image text inconsistent with listing', sev: 'action', area: 'Images', detector: 'manual', desc: "Same product but formatting/naming doesn't match" },
     { id: 'aplus_old', name: 'A+ incorrect/outdated', sev: 'action', area: 'Content', detector: 'manual', desc: 'A+ exists but wrong/old content assigned' },
     { id: 'backend_field', name: 'Backend/catalog field incomplete', sev: 'action', area: 'Content', detector: 'manual', desc: "Important searchable attribute isn't populated" },
-    { id: 'season', name: 'Out-of-season occasion in title', sev: 'action', area: 'Title', detector: 'seasonal_keyword', desc: 'e.g. the title still says Thanksgiving when Thanksgiving is months away' },
     /* Needs review */
     { id: 'style_attr', name: 'Style attribute questionable', sev: 'review', area: 'Title', detector: 'title_contains', params: { words: 'Rustic' }, desc: '“Rustic” when CPC primarily calls it Cottagecore' },
     { id: 'img_low', name: 'Low image count but minimum met', sev: 'review', area: 'Images', detector: 'images_between', params: { min: 6, max: 7 }, desc: '6 images when ideal is 8' },
@@ -200,8 +199,15 @@ const LR_DEFAULT = {
    *                     punctuation ignored, so "My Whimsical Corner" counts and "Ridhima" does not). The brand Amazon shows for the
    *                     listing counts too when Sellora has read it. Empty and no Amazon brand = the brand is not judged.
    *   writeAs           per account, the brand a suggested title writes when Amazon's own is not known (not a setting).
-   *   embroideryColors  pieces in these colours are embroidery, so "Block Print" is never asked of them. */
-  allow: { shortFrom: 74, ourBrands: 'Ridhi, CPC, Whimsical Corner', writeAs: { SP: 'Ridhi', CPC: 'Whimsical Corner' }, embroideryColors: 'White, Off White' },
+   *   embroideryColors  pieces in these colours are embroidery, so "Block Print" is never asked of them.
+   *   otherBrands       OTHER BRANDS' NAMES (IP & Trademark Guard, 18 Nov 2026): trademarks and licensed names that must not be in a
+   *                     listing's title, bullets, description, search terms or Item Highlights — a starting list the team edits.
+   *                     Read by listing/ip-guard.js (the Guard screen) and by Fix all search terms (it takes them out). NOT a Listing
+   *                     Health rule: no finding, no count and no level in Listing Health or the Workspace comes from it.
+   *   claims            RESTRICTED CLAIMS (the same Guard): words that need proof or a certificate. */
+  allow: { shortFrom: 74, ourBrands: 'Ridhi, CPC, Whimsical Corner', writeAs: { SP: 'Ridhi', CPC: 'Whimsical Corner' }, embroideryColors: 'White, Off White',
+    otherBrands: 'Pottery Barn, Williams Sonoma, Anthropologie, West Elm, Crate & Barrel, Laura Ashley, Martha Stewart, Ralph Lauren, Kate Spade, Hermes, Gucci, Chanel, Disney, Marvel, Harry Potter, Hello Kitty, Star Wars, Pokemon, Amazon Basics, Amazon\'s Choice',
+    claims: 'antibacterial, antimicrobial, antiviral, organic, GOTS, OEKO-TEX, FDA approved, eco-friendly, sustainable, non-toxic, hypoallergenic, #1, best seller, top rated, guaranteed' },
 };
 
 let LR = null;             // the rules in force: saved config, or the defaults
@@ -218,8 +224,11 @@ function lrEaster(year) {
   const month = Math.floor((h + l - 7 * m + 114) / 31), day = ((h + l - 7 * m + 114) % 31) + 1;
   return new Date(Date.UTC(year, month - 1, day));
 }
-/** The date of an occasion in a given year (UTC midnight), or null when the rule cannot be read. */
+/** The date of an occasion in a given year (UTC midnight), or null when the rule cannot be read. Worked out every year by itself (fixed
+ *  days, the n-th weekday, Easter by the computus); a date someone typed in the calendar for that year (ev.on["2027"] = "2027-03-28") wins. */
 function lrEventDate(ev, year, events) {
+  const typed = ev.on && ev.on[String(year)];
+  if (typed && /^\d{4}-\d{2}-\d{2}$/.test(typed)) return new Date(Date.UTC(+typed.slice(0, 4), +typed.slice(5, 7) - 1, +typed.slice(8, 10)));
   const when = ev.when || {};
   if (when.type === 'fixed') return new Date(Date.UTC(year, when.m - 1, when.d));
   if (when.type === 'easter') {
@@ -248,21 +257,31 @@ function lrEventDate(ev, year, events) {
   return null;
 }
 const LR_DAY = 86400000;   // one day in milliseconds
-/** Where today stands against an occasion: { inSeason, next (the date to talk about), from, to }. */
-// Looks at last year's, this year's and next year's date; the first window that holds today wins, else the nearest coming one.
-function lrSeason(ev, today, events) {
-  const todayMs = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
-  const year = today.getFullYear();
-  let best = null;
-  for (const eachYear of [year - 1, year, year + 1]) {
-    const date = lrEventDate(ev, eachYear, events);
+/** THE SEASON-DATE RULE every screen uses (13 Nov 2026) — the Season planner, the Listing Rules check of titles, Listing Content and the
+ *  calendar, so they all agree. For one occasion on one day:
+ *    active  = time to ADD it: from its lead days before the occasion up to the day itself;
+ *    keep    = just past: the day after up to its "days after" (lag) — not added any more, not removed or flagged yet;
+ *    expired = after its "days after" (until its next lead window opens): OK to remove, and a title naming it is flagged.
+ *  { active, keep, expired, date (this occurrence while active / keep, else the next one), from (add from), until (flagged after) }.
+ *  Looks at last year's, this year's and next year's date (a date typed in the calendar wins — lrEventDate). */
+function lrSeasonState(ev, today, events) {
+  const t = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
+  let next = null;
+  for (const year of [today.getFullYear() - 1, today.getFullYear(), today.getFullYear() + 1]) {
+    const date = lrEventDate(ev, year, events);
     if (!date) continue;
-    const from = date.getTime() - (ev.lead || 0) * LR_DAY;
-    const to = date.getTime() + (ev.lag || 0) * LR_DAY;
-    if (todayMs >= from && todayMs <= to) return { inSeason: true, next: date, from: new Date(from), to: new Date(to) };
-    if (to >= todayMs && (!best || date < best.next)) best = { inSeason: false, next: date, from: new Date(from), to: new Date(to) };
+    const from = new Date(date.getTime() - (ev.lead || 0) * LR_DAY);
+    const until = new Date(date.getTime() + (ev.lag || 0) * LR_DAY);
+    if (t >= from.getTime() && t <= date.getTime()) return { active: true, keep: false, expired: false, date, from, until };
+    if (t > date.getTime() && t <= until.getTime()) return { active: false, keep: true, expired: false, date, from, until };
+    if (from.getTime() > t && (!next || from < next.from)) next = { date, from, until };
   }
-  return best || { inSeason: false, next: null, from: null, to: null };
+  return Object.assign({ active: false, keep: false, expired: true, date: null, from: null, until: null }, next || {});
+}
+/** Where today stands against an occasion, in the older shape: { inSeason (active or keep: a title may name it), next, from, to }. */
+function lrSeason(ev, today, events) {
+  const st = lrSeasonState(ev, today, events);
+  return { inSeason: st.active || st.keep, next: st.date, from: st.from, to: st.until };
 }
 // "a, b, c" → ['a', 'b', 'c'].
 const lrWords = str => String(str || '').split(',').map(word => word.trim()).filter(Boolean);
@@ -272,7 +291,20 @@ const lrWords = str => String(str || '').split(',').map(word => word.trim()).fil
  *  Inches = Inch; Grey = Gray; Colour = Color; Table Cloth / Table-Cloth = Tablecloth; Cushion Cover = Pillow Cover;
  *  Block-Print / Blockprint / Block Printed / Hand Block Printed = Block Print; and a plural reads as its singular
  *  (Covers = Cover, Napkins = Napkin). Both sides of every comparison go through it, so what is compared is the meaning. */
+// SMOOTH (17 Nov 2026): the same text is read the same way thousands of times a draw (every rule, every listing): the answer is kept
+// per text (a pure function — the same text always gives the same answer), at most LR_NORM_MAX texts, then the store starts again.
+const LR_NORM_KEEP = new Map();
+const LR_NORM_MAX = 50000;
 function lrNorm(text) {
+  const key = String(text || '');
+  const kept = LR_NORM_KEEP.get(key);
+  if (kept !== undefined) return kept;
+  if (LR_NORM_KEEP.size >= LR_NORM_MAX) LR_NORM_KEEP.clear();
+  const out = lrNormNow(key);
+  LR_NORM_KEEP.set(key, out);
+  return out;
+}
+function lrNormNow(text) {
   return String(text || '').toLowerCase()
     .replace(/[-,|]+/g, ' ')
     .replace(/&/g, ' and ')
@@ -301,7 +333,7 @@ function lrFind(text, word) {
 const lrHas = (text, word) => lrFind(text, word) >= 0;
 
 /* ---- what people may write (Part A): the settings, with the defaults behind whatever was saved ---- */
-// The allowances in force: { shortFrom, ourBrands, writeAs: { SP, CPC }, embroideryColors } — the saved values over the defaults. A
+// The allowances in force: { shortFrom, ourBrands, writeAs: { SP, CPC }, embroideryColors, otherBrands, claims } — the saved values over the defaults. A
 // config saved before 12 Nov kept one brand list per account (brandWords): its words join the shared list, so nothing typed is lost.
 function lrAllow(cfg) {
   const base = LR_DEFAULT.allow;
@@ -313,7 +345,9 @@ function lrAllow(cfg) {
       .filter(word => { const k = lrNorm(word); if (!k || seen.has(k)) return false; seen.add(k); return true; }).join(', ');
   }
   return { shortFrom: +own.shortFrom > 0 ? +own.shortFrom : base.shortFrom, ourBrands: ours, writeAs: Object.assign({}, base.writeAs),
-    embroideryColors: own.embroideryColors != null ? String(own.embroideryColors) : base.embroideryColors };
+    embroideryColors: own.embroideryColors != null ? String(own.embroideryColors) : base.embroideryColors,
+    // the IP & Trademark Guard's two lists (a rules document saved before 18 Nov 2026 has neither: the starting lists)
+    otherBrands: own.otherBrands != null ? String(own.otherBrands) : base.otherBrands, claims: own.claims != null ? String(own.claims) : base.claims };
 }
 // True when a title sits in the band where the short forms are allowed: from "Short forms allowed from" up to 75 characters.
 const lrNear = (title, cfg) => String(title || '').length >= lrAllow(cfg).shortFrom && String(title || '').length <= 75;
@@ -396,9 +430,317 @@ function lrSameTitle(a, b) {
 }
 /** Search-term bytes the way Amazon counts them (Part A4): the UTF-8 bytes of the words only — spaces and the punctuation
  *  ; , . do not count toward the limit. */
+const LR_ASCII = /^[\x00-\x7f]*$/;
 function lrKwBytes(text) {
   const words = String(text || '').replace(/[\s;,.]+/g, '');
+  if (LR_ASCII.test(words)) return words.length;          // plain letters and digits: one byte each (the same count, without encoding)
   return typeof TextEncoder === 'function' ? new TextEncoder().encode(words).length : Buffer.byteLength(words, 'utf8');
+}
+/* THE ONE SEARCH-TERMS RULE — Listing Health's keyword_bytes check and the Listing Optimiser's review both judge with lrKwCheck.
+ * Amazon's limit is "less than 250" bytes: 249 at most (the keyword_bytes rule's max), spaces and ; , . not counted. OVER IT,
+ * AMAZON MAY IGNORE ALL OF THE SEARCH TERMS, not only the part past the limit. */
+const LR_KW_MAX = 249;
+const LR_KW_OVER = 'Over Amazon\'s limit — Amazon may ignore all of these search terms.';
+/** The limit in force: the keyword_bytes rule's max in the rules given (the saved rules, else the defaults), else 249. */
+function lrKwMax(cfg) {
+  const rule = (((cfg || (typeof LR !== 'undefined' && LR) || LR_DEFAULT) || {}).issues || []).find(issue => issue.detector === 'keyword_bytes');
+  return (rule && +(rule.params || {}).max) || LR_KW_MAX;
+}
+/** { bytes, max, over, cut, cutAt }: the bytes as Amazon counts them, over = more than max, cut = bytes to remove, and cutAt = the
+ *  character where byte max+1 begins (the text's length when within) — what to cut. `bytes`, when known (a whole read whose text was
+ *  shortened for keeping), wins over counting the text. */
+function lrKwCheck(text, max, bytes) {
+  const s = String(text || '');
+  max = +max || LR_KW_MAX;
+  const n = bytes != null ? +bytes : lrKwBytes(s);
+  let used = 0, cutAt = s.length;
+  if (n > max) {
+    let i = 0;
+    for (const ch of s) {             // by character, not UTF-16 unit: an emoji is 4 bytes, not two halves
+      if (!/[\s;,.]/.test(ch)) {
+        used += lrKwBytes(ch);
+        if (used > max) { cutAt = i; break; }
+      }
+      i += ch.length;
+    }
+  }
+  return { bytes: n, max, over: n > max, cut: Math.max(0, n - max), cutAt };
+}
+
+/* ---- THE SUGGESTION WORDS (19 Nov 2026): which words a suggestion KEEPS, REMOVES or may ADD — one rule for every screen ----
+ * Used by Fix all search terms (kw-fix.js kfShorten), Fix all titles (title-fix.js ttBuild), the title template suggestion (lrSuggest),
+ * Fix all's short title (fix-all.js faShortTitle), Listing Content's 75-character cut and search-terms suggestion (listing-content.js),
+ * the Listing Optimiser's suggested title (listing-optimiser.js, filtered here — the backend is not changed) and the Season planner's trim
+ * of Item Highlights and the search words (season-planner.js spTrim). It decides WORDS only: no error, count or chip comes from it.
+ * RULE 1 — PROTECTED, never removed the FIRST time they appear: who we are (hand, block print, hand block print, blockprint, hand printed,
+ *   handmade); the listing's product type (tablecloth / table cloth, napkin, placemat, runner…); its REAL shape (from its size: 118 x 70 =
+ *   rectangle, 54 x 54 = square — else its shape attribute: round, oval); its material (cotton, 100% cotton, linen); its OWN colour (every
+ *   word of the colour attribute: "Turquoise Moss Green", "Light Blue"); its size; use / special-feature words (kitchen, dining,
+ *   housewarming, wrinkle free, washable, reusable…). In a title (and Item Highlights) our brand too. In a TITLE (RULE 3) the use words
+ *   are not locked: a 75-character title keeps brand, product, shape, material, size, the print ("Hand" too) and colour — the uses may go.
+ * RULE 2 — what may go, in this order, stopping as soon as the text fits (`fits`): 0 always: other brands' names and restricted claims
+ *   (IP & Trademark Guard's lists, `risk`) — and in search terms our own brand names, ASINs and bare punctuation; 1 a word said again (the
+ *   2nd, 3rd… time — a protected word too; the first stays); 2 a shape that is NOT the product's, a colour that is NOT its colour; 3
+ *   low-value words (gift, Indian, colorful, light when not part of its colour, cute, neutral, decorative… and the joining words a, and,
+ *   the, for…); 4 any other word that is not protected — in search terms the ones the title already says first, then from the end.
+ *   A protected word on its first appearance never goes: when only those are left and it still does not fit, everything is kept and
+ *   `important` says so ("Only important words left — edit by hand").
+ * RULE 3 — titles: the words stay in the template's order; only which words are kept changes ("Hand" of "Hand Block Print" stays).
+ * SHORT FORMS (19 Nov 2026) — a title that still does not fit with only its important words left, before it is held: the short forms the
+ *   house rule allows in a title of shortFrom–75 characters (Listing Rules "Short forms allowed from", 74) — the size without spaces
+ *   ("54x54 Inch"), no " - " before the colour, "&" for "and", "2 Pack" for "Set of 2", "Pcs" for "Pieces", "In" or " for "Inch" — added
+ *   one at a time in that order until it fits (else the fewest that fit), and only when the title then has shortFrom–75 characters
+ *   (below that the strict style stays).
+ *   Every word is kept; the title checks run on it as on any new title. */
+const LR_SW_IMPORTANT = 'Only important words left — edit by hand';
+const LR_SW_IDENTITY = ['hand block print', 'hand block printed', 'handblockprint', 'handblockprinted', 'block print', 'block printed', 'blockprint', 'blockprinted',
+  'hand printed', 'handprinted', 'hand print', 'handmade', 'hand made', 'hand', 'block'];
+const LR_SW_PRODUCTS = ['tablecloth', 'table cloth', 'table cover', 'napkin', 'cloth napkin', 'dinner napkin', 'placemat', 'place mat', 'table mat', 'table runner', 'runner',
+  'apron', 'cushion cover', 'cushion', 'pillow cover', 'throw pillow cover', 'pillow', 'pillowcase', 'sham', 'coaster', 'tea towel', 'kitchen towel', 'dish towel', 'towel',
+  'bedspread', 'bed cover', 'quilt', 'duvet cover', 'duvet', 'comforter', 'sheet', 'curtain', 'throw', 'blanket', 'pot holder', 'oven mitt', 'tea cosy', 'bread basket',
+  'tote bag', 'bag', 'pouch', 'scarf', 'dress', 'kaftan', 'robe'];
+const LR_SW_SHAPES = { rectangle: ['rectangle', 'rectangular', 'oblong'], square: ['square'], round: ['round', 'circle', 'circular'], oval: ['oval'] };
+const LR_SW_MATERIAL_DEFAULT = ['cotton', '100%', 'linen'];
+const LR_SW_USES = ['kitchen', 'dining', 'dining table', 'dinner', 'housewarming', 'house warming', 'wrinkle free', 'wrinkle resistant', 'washable', 'machine washable',
+  'reusable', 'stain resistant', 'everyday', 'eco friendly'];
+const LR_SW_COLORS = ['red', 'blue', 'green', 'yellow', 'orange', 'purple', 'pink', 'white', 'black', 'gray', 'brown', 'beige', 'cream', 'ivory', 'navy', 'teal', 'turquoise',
+  'aqua', 'mint', 'sage', 'olive', 'mustard', 'gold', 'golden', 'silver', 'maroon', 'burgundy', 'wine', 'rust', 'coral', 'peach', 'lavender', 'lilac', 'violet', 'indigo',
+  'magenta', 'fuchsia', 'charcoal', 'tan', 'khaki', 'taupe', 'mauve', 'plum', 'crimson', 'scarlet', 'emerald', 'jade', 'lime', 'cobalt', 'sapphire', 'ochre', 'saffron',
+  'terracotta', 'copper', 'bronze', 'blush', 'offwhite', 'multicolor', 'multicolored', 'moss', 'harbor', 'denim'];
+const LR_SW_LOW = ['gift', 'gifting', 'indian', 'india', 'colorful', 'colourful', 'colorfull', 'light', 'cute', 'neutral', 'decorative', 'beautiful', 'elegant', 'stylish',
+  'perfect', 'unique', 'lovely', 'pretty', 'nice', 'best', 'great', 'amazing', 'awesome', 'fancy', 'trendy', 'attractive', 'gorgeous', 'idea', 'ideas'];
+const LR_SW_STOP = ['a', 'an', 'and', 'the', 'for', 'with', 'of', 'in', 'on', 'to', 'or', 'by', '&', '+'];
+const LR_SW_UNIT = ['x', 'inch', 'in', 'cm', 'ft', 'feet', 'mm', 'by', '"', '”', '″'];
+const LR_SW_ASIN = /^b0[a-z0-9]{8}$/;
+const LR_SW_SEP = /^[-–—|,;:·/]+$/;
+/** One word as it is compared: lower case, letters, digits and % only; Grey = Gray, Colour = Color, Inches = Inch; a plural as its singular. */
+function lrSwKey(word) {
+  let k = String(word || '').toLowerCase().normalize('NFKD').replace(/[^\p{L}\p{N}%"”″]+/gu, '');
+  if (k === 'grey') k = 'gray';
+  else if (k === 'colour') k = 'color';
+  else if (k === 'inches') k = 'inch';
+  else if (k === 'offwhite' || k === 'multicolour') k = k === 'offwhite' ? 'offwhite' : 'multicolor';
+  if (/^[a-z]{4,}s$/.test(k) && !/ss$/.test(k)) k = k.slice(0, -1);
+  return k;
+}
+// A phrase as the keys of its words, and written as one word ("table cloth" → [table, cloth] and [tablecloth]).
+function lrSwPhrases(list) {
+  const out = [];
+  (list || []).forEach(p => {
+    const keys = String(p || '').split(/[\s-]+/).map(lrSwKey).filter(Boolean);
+    if (!keys.length) return;
+    out.push(keys);
+    if (keys.length > 1) out.push([lrSwKey(keys.join(''))]);
+  });
+  return out.sort((a, b) => b.length - a.length);
+}
+const LR_SW_P = { identity: lrSwPhrases(LR_SW_IDENTITY), uses: lrSwPhrases(LR_SW_USES), products: lrSwPhrases(LR_SW_PRODUCTS) };
+const LR_SW_COLOR_SET = new Set(LR_SW_COLORS.map(lrSwKey));
+const LR_SW_LOW_SET = new Set(LR_SW_LOW.map(lrSwKey));
+const LR_SW_STOP_SET = new Set(LR_SW_STOP.map(lrSwKey).concat(['&', '+']));
+const LR_SW_SHAPE_OF = new Map(Object.entries(LR_SW_SHAPES).flatMap(([shape, words]) => words.map(w => [lrSwKey(w), shape])));
+// "Rectangular" → 'rectangle', "Round" → 'round'; '' when it names no shape.
+const lrSwShapeWord = text => { for (const w of String(text || '').split(/[^A-Za-z]+/)) { const s = LR_SW_SHAPE_OF.get(lrSwKey(w)); if (s) return s; } return ''; };
+/** The product's REAL shape: round / oval when its shape says so; else from its size (two numbers: equal = square, else rectangle); else
+ *  what its shape attribute or catalogue sub-category says; '' when nothing tells. */
+function lrSwShapeOf(size, shapeText) {
+  const named = lrSwShapeWord(shapeText);
+  if (named === 'round' || named === 'oval') return named;
+  const nums = (String(size || '').match(/\d+(?:\.\d+)?/g) || []).map(Number);
+  if (nums.length === 2) return nums[0] === nums[1] ? 'square' : 'rectangle';
+  return named;
+}
+const LR_SW_PROD_KEEP = new Map();
+/** What RULE 1 protects for one listing: { colour, shape, material, size, product (phrases), brands } — from its own facts: Amazon's
+ *  attributes (`va`: a read made for this, else the ListingMatch cache), the catalogue, the Listing Rules template, its product type. */
+function lrSwFacts(row, cfg, va, o) {
+  row = row || {};
+  o = o || {};
+  cfg = cfg || (typeof LR !== 'undefined' && LR) || LR_DEFAULT;
+  if (!va && row.sku && typeof lmGet === 'function') { const m = lmGet(row.sku, row.brand); va = m && m.va; }
+  va = va || {};
+  const one = names => {
+    for (const n of names) {
+      const v = va[n];
+      const s = Array.isArray(v) ? (v[0] && v[0].value != null ? v[0].value : '') : v;
+      if (s != null && String(s).trim()) return String(s).trim();
+    }
+    return '';
+  };
+  const cat = (row.brand && row.sku && LR_CAT[row.brand] && LR_CAT[row.brand][row.sku]) || {};
+  const tpl = row.brand && row.sku && cfg && cat.subcat != null ? lrTemplateFor(row, cfg) : null;
+  const title = o.title != null ? String(o.title) : hTitleText(row);
+  const colour = one(['color', 'color_name']) || String(row.amzColor || '') || String(cat.color || '') || lrColorOf(row);
+  let size = one(['size', 'size_name']) || String(cat.size || '');
+  if (!size) { const t = hTitleSizes(title)[0]; if (t) size = t.a + 'x' + t.b; }
+  const shape = lrSwShapeOf(size, [one(['item_shape']), lrShape(cat.subcat)].filter(Boolean).join(' '));
+  const material = one(['material']) || (tpl && tpl.material) || String(cat.material || '');
+  const pt = String(o.pt || row.pt || '').replace(/_/g, ' ');
+  const src = [tpl && tpl.product, cat.subcat, pt].filter(Boolean).join(' | ');
+  const product = [];
+  // the template's product as written, and each of its words ("Cloth Napkins": "cloth" alone is its product word too)
+  if (tpl && tpl.product) product.push(String(tpl.product), ...String(tpl.product).split(/\s+/).filter(w => w.length > 2));
+  const within = src || title;
+  // the product words its sub-category / product type name (kept per text: the same few texts for thousands of listings)
+  let found = LR_SW_PROD_KEEP.get(within);
+  if (!found) { if (LR_SW_PROD_KEEP.size > 2000) LR_SW_PROD_KEEP.clear(); found = LR_SW_PRODUCTS.filter(p => lrHas(within, p)); LR_SW_PROD_KEEP.set(within, found); }
+  product.push(...found);
+  return { colour, shape, material, size, product, brands: lrBrandWords(row, cfg) };
+}
+// The short forms, mildest first: added one at a time in this order; when that overshoots, the fewest that fit (ties: the earlier ones).
+const LR_SW_SHORT = [
+  ['size without spaces', t => t.replace(/(\d+(?:\.\d+)?)\s+[x×X]\s+(\d+(?:\.\d+)?)(?:\s+[x×X]\s+(\d+(?:\.\d+)?))?/g, (m, a, b, c) => (c ? `${a}x${b}x${c}` : `${a}x${b}`))],
+  ['no " - " before the colour', t => t.replace(/\s+[-–—]\s+/g, ' ')],
+  ['"&" for "and"', t => t.replace(/\s+and\s+/gi, ' & ')],
+  ['"N Pack" for "Set of N"', t => t.replace(/\bset of (\d+)\b/gi, '$1 Pack')],
+  ['"Pcs" for "Pieces"', t => t.replace(/\bpieces\b/gi, 'Pcs')],
+  ['"In" for "Inch"', t => t.replace(/(\d(?:x\d+)*)\s+inch(?:es)?\b/gi, '$1 In')],
+  ['" for "Inch"', t => t.replace(/(\d(?:x\d+)*)\s+in(?:ch(?:es)?)?\b/gi, '$1"')],
+];
+/** A title with only important words left that is still too long, in the short forms the house rule allows: { text, forms } — the fewest
+ *  forms that make `fits` true with a length of `from`–75 (lrNear: where the short forms are not errors), or null. */
+function lrSwShortForms(text, fits, from) {
+  const n = LR_SW_SHORT.length;
+  const okLen = t => t.length >= from && t.length <= 75 && fits(t);
+  // 1 the forms added one at a time, mildest first ("54x54 Inch", then no " - "…)
+  let cur = text;
+  const used = [];
+  for (const [name, form] of LR_SW_SHORT) {
+    const next = form(cur).replace(/\s{2,}/g, ' ').trim();
+    if (next === cur) continue;
+    cur = next;
+    used.push(name);
+    if (okLen(cur)) return { text: cur, forms: used.slice() };
+    if (fits(cur)) break;                                     // fits but shorter than shortFrom: the strict style would be broken
+  }
+  // 2 else the fewest forms that fit within shortFrom–75
+  const masks = Array.from({ length: (1 << n) - 1 }, (_, i) => i + 1)
+    .map(m => ({ m, k: m.toString(2).split('1').length - 1, order: [...Array(n).keys()].filter(i => m & (1 << i)).map(i => String.fromCharCode(97 + i)).join('') }))
+    .sort((a, b) => a.k - b.k || (a.order < b.order ? -1 : 1));
+  for (const { m } of masks) {
+    let t = text;
+    const forms = [];
+    for (let i = 0; i < n; i++) {
+      if (!(m & (1 << i))) continue;
+      const next = LR_SW_SHORT[i][1](t).replace(/\s{2,}/g, ' ').trim();
+      if (next === t) { t = null; break; }                    // a form that changes nothing here is not one of the fewest
+      t = next;
+      forms.push(LR_SW_SHORT[i][0]);
+    }
+    if (t && okLen(t)) return { text: t, forms };
+  }
+  return null;
+}
+/** THE ONE RULE. text → { before, after, removed: [{ w, why, i, risk }], toks, risky, fits, important (only protected words left and it
+ *  still does not fit), cut (rule 2 step 4 used) }. o: { mode: 'kw' (search terms) | 'title' | 'hl' (Item Highlights), facts (lrSwFacts),
+ *  fits(text) → true when it fits (none: only the "always" words go), title (search terms: the title, for step 4's order), brands (our
+ *  brand phrases: removed from search terms, protected elsewhere), risk(text) → [{ s, e, why }], riskOnly (only the risky words go),
+ *  keep: more words never to remove (the seasons on now), shortFrom (a title: where the short forms are allowed — Listing Rules' 74;
+ *  short: false = never use them), cutEnd: false — stop before "any other word from the end" (the Season planner:
+ *  it never cuts an ordinary word of the customer's own, only the ones this rule names) }. Never adds a word. */
+function lrSuggestWords(text, o) {
+  o = o || {};
+  const mode = o.mode || 'kw';
+  const f = o.facts || {};
+  const before = String(text == null ? '' : text);
+  const toks = [...before.matchAll(mode === 'kw' ? /[^\s,;|]+/g : /\S+/g)].map((m, i) => {
+    const raw = m[0];
+    const w = raw.replace(/^[^\p{L}\p{N}%]+|[^\p{L}\p{N}%"”″]+$/gu, '');
+    return { raw, w, k: lrSwKey(w), at: m.index, i, out: '', cls: '', risk: false };
+  });
+  // RULE 1: mark the protected words (each phrase matched as consecutive words)
+  const mark = (cls, phrases) => {
+    for (let i = 0; i < toks.length; i++) {
+      if (!toks[i].k) continue;
+      for (const p of phrases) {
+        if (i + p.length > toks.length || !p.every((k, j) => toks[i + j].k === k)) continue;
+        for (let j = 0; j < p.length; j++) if (!toks[i + j].cls) toks[i + j].cls = cls;
+        i += p.length - 1;
+        break;
+      }
+    }
+  };
+  const brandPhrases = lrSwPhrases(o.brands || f.brands || []);
+  if (mode !== 'kw') mark('brand', brandPhrases);
+  const colourKeys = new Set(String(f.colour || '').split(/[\s,&/+-]+/).map(lrSwKey).filter(k => k && !LR_SW_STOP_SET.has(k)));
+  if (f.colour) mark('colour', lrSwPhrases([String(f.colour)]));       // the whole colour as written ("Indigo Blue and Rust Orange" keeps its "and")
+  mark('colour', [...colourKeys].map(k => [k]));
+  mark('identity', LR_SW_P.identity);
+  mark('product', lrSwPhrases(f.product || []));
+  if (f.shape) mark('shape', LR_SW_SHAPES[f.shape].map(w => [lrSwKey(w)]));
+  const mats = f.material ? String(f.material).split(/[\s,&/+-]+/).filter(Boolean) : LR_SW_MATERIAL_DEFAULT;
+  mark('material', mats.map(w => [lrSwKey(w)]).filter(p => p[0] && !LR_SW_STOP_SET.has(p[0])));
+  if (mode !== 'title') mark('uses', LR_SW_P.uses);         // a title keeps its brand, product, shape, material, size, print and colour (RULE 3)
+  if (o.keep) mark('keep', lrSwPhrases([...o.keep]));
+  // a size: a number, "54x54", "18in", "100%" — not a word that holds a digit ("word035", an ASIN)
+  const digit = t => !!t && /^\d+(?:\.\d+)?(?:x\d+(?:\.\d+)?){0,2}(?:inch|in|cm|ft|mm|%|"|”|″)?$/.test(t.k);
+  toks.forEach((t, i) => { if (!t.cls && (digit(t) || (LR_SW_UNIT.includes(t.k) && (digit(toks[i - 1]) || digit(toks[i + 1]) || (t.k !== 'x' && t.k !== 'by' && digit(toks[i - 2])))))) t.cls = 'size'; });
+  // the text as it would be now
+  const live = () => toks.filter(t => !t.out);
+  const tidy = s => s.replace(/\s+([,;:])/g, '$1').replace(/([,;:])(?:\s*[,;:])+/g, '$1').replace(/(\s[-–—|·])(?:\s+[-–—|·])+/g, '$1')
+    .replace(/^(?:[\s,;:\-–—|·]|(?:and|&|for|with|or|of)\s)+/i, '').replace(/(?:[\s,;:\-–—|·]|\s(?:and|&|for|with|or|of))+$/i, '')
+    .replace(/\s(?:and|&|for|with|or|of)(?=\s[-–—|·]\s)/gi, '').replace(/[,;:](?=\s[-–—|·]\s)/g, '').replace(/\s{2,}/g, ' ').trim();
+  let shortText = null, shortForms = [];
+  const now = () => (shortText != null ? shortText : mode === 'kw' ? live().map(t => t.w).filter(Boolean).join(' ') : tidy(live().map(t => t.raw).join(' ')));
+  const fits = () => (typeof o.fits === 'function' ? !!o.fits(now()) : true);
+  let seq = 0;                                       // the order the words went in (removed[].n)
+  const drop = (t, why) => { t.out = why; t.n = ++seq; };
+  // 0 always: the risky words (another brand's name, a restricted claim) — quietly, nothing is said about them here
+  const spans = typeof o.risk === 'function' ? o.risk(before) || [] : [];
+  if (spans.length) toks.forEach(t => { const hit = spans.find(sp => t.at < sp.e && t.at + t.raw.length > sp.s); if (hit) { t.out = hit.why; t.risk = true; } });
+  let cut = false;
+  const done = () => ({ before, after: mode !== 'kw' && !toks.some(t => t.out) && shortText == null ? before : now(), short: shortForms, removed: toks.filter(t => t.out).map(t => ({ w: t.raw, why: t.out, i: t.i, risk: t.risk, n: t.n || 0 })), toks, risky: toks.filter(t => t.risk).length,
+    fits: fits(), important: !fits(), cut });
+  if (o.riskOnly) return done();
+  if (mode === 'kw') {
+    // …and in search terms: our own brand names (Amazon reads the brand field), ASINs and bare punctuation
+    for (let i = 0; i < toks.length; i++) {
+      const l = toks;
+      const p = brandPhrases.find(ph => i + ph.length <= l.length && ph.every((k, j) => l[i + j].k === k && !l[i + j].out));
+      if (p) { for (let j = 0; j < p.length; j++) drop(l[i + j], 'brand name'); i += p.length - 1; }
+    }
+    toks.forEach(t => { if (t.out) return; if (!t.k) drop(t, 'punctuation'); else if (LR_SW_ASIN.test(t.k)) drop(t, 'ASIN'); });
+  }
+  if (fits()) return done();
+  // the steps of RULE 2, each one word at a time from the end, stopping the moment the text fits
+  const step = (test, why) => {
+    for (let i = toks.length - 1; i >= 0; i--) {
+      const t = toks[i];
+      if (t.out || !t.k) continue;
+      const w = test(t, i);
+      if (!w) continue;
+      drop(t, typeof w === 'string' ? w : why);
+      if (fits()) return true;
+    }
+    return false;
+  };
+  const isProt = t => !!t.cls;
+  const unit = t => t.cls === 'size' && !/[a-z]/.test(t.k.replace(/x/g, ''));         // a number or a unit of a size: never a "repeat"
+  // 1 said again (the first one stays — a protected word too)
+  if (step((t, i) => !unit(t) && toks.slice(0, i).some(x => !x.out && x.k === t.k), 'repeated')) return done();
+  // 2 a shape that is not the product's, a colour that is not its colour
+  if (step(t => {
+    if (isProt(t)) return false;
+    if (f.shape && LR_SW_SHAPE_OF.has(t.k) && LR_SW_SHAPE_OF.get(t.k) !== f.shape) return 'wrong shape';
+    if (colourKeys.size && LR_SW_COLOR_SET.has(t.k) && !colourKeys.has(t.k)) return 'not its colour';
+    return false;
+  })) return done();
+  // 3 low-value words and joining words
+  if (step(t => (isProt(t) ? false : LR_SW_LOW_SET.has(t.k) ? 'low-value word' : LR_SW_STOP_SET.has(t.k) ? 'stop word' : false))) return done();
+  // 4 any other word that is not protected: in search terms what the title already says first; then from the end
+  cut = true;
+  if (mode === 'kw' && o.title) {
+    const inTitle = new Set(String(o.title).split(/[^\p{L}\p{N}%]+/u).map(lrSwKey).filter(Boolean));
+    if (step(t => !isProt(t) && inTitle.has(t.k), 'in the title')) return done();
+  }
+  if (o.cutEnd !== false) step(t => !isProt(t), 'cut to fit');
+  // a title with only important words left, still too long: the short forms the house rule allows at shortFrom–75 characters
+  if (mode === 'title' && o.short !== false && !fits()) {
+    const from = +o.shortFrom || lrAllow((typeof LR !== 'undefined' && LR) || LR_DEFAULT).shortFrom;
+    const sh = lrSwShortForms(now(), text2 => (typeof o.fits === 'function' ? !!o.fits(text2) : true), from);
+    if (sh) { shortText = sh.text; shortForms = sh.forms; }
+  }
+  return done();
 }
 
 /* ---- the template ---- */
@@ -419,23 +761,45 @@ const lrSizeText = (size, example) => {
   if (!nums || nums.length < 2 || nums.length > 3) return '';
   return nums.join(' x ') + ' ' + (String(example || '14 x 36 Inch').replace(/^[\d.\sx]+/i, '') || 'Inch');
 };
-/** Occasions in season today, in the order they fall. */
+/** Occasions to ADD today (lrSeasonState active), in the order they fall. */
+// SMOOTH (17 Nov 2026): the same for every listing on one day — kept per day and calendar (the calendar's own words are the key, so an
+// edit in Listing Rules is seen at once); a fresh copy each time.
+const LR_OCC_KEEP = new Map();
 function lrOccasionsNow(cfg, today) {
-  return (cfg.events || []).map(e => ({ e, s: lrSeason(e, today, cfg.events) })).filter(each => each.s.inSeason)
+  const key = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()) + '|' + JSON.stringify(cfg.events || []);
+  let kept = LR_OCC_KEEP.get(key);
+  if (!kept) {
+    if (LR_OCC_KEEP.size > 40) LR_OCC_KEEP.clear();
+    kept = lrOccasionsNowCalc(cfg, today);
+    LR_OCC_KEEP.set(key, kept);
+  }
+  return kept.slice();
+}
+function lrOccasionsNowCalc(cfg, today) {
+  return (cfg.events || []).map(e => ({ e, s: lrSeason(e, today, cfg.events), st: lrSeasonState(e, today, cfg.events) })).filter(each => each.st.active)
     .sort((a, b) => a.s.next - b.s.next).map(each => each.e.name.replace(/'s$/, "'s"));
 }
 /** The parts a template asks for, filled from what this SKU is. */
-function lrParts(row, tpl, cfg, today) {
+// SMOOTH (17 Nov 2026): one judging pass (one hCtx — rebuilt after every Listing Rules edit) asks for today's occasions once, not once
+// per listing: kept on the context with the rules and the day it was worked out for.
+function lrCtxOcc(ctx) {
+  const k = ctx._occ;
+  if (k && k.cfg === ctx.cfg && k.today === ctx.today) return k.list;
+  ctx._occ = { cfg: ctx.cfg, today: ctx.today, list: lrOccasionsNow(ctx.cfg, ctx.today) };
+  return ctx._occ.list;
+}
+function lrParts(row, tpl, cfg, today, occ) {
   const cat = lrCatOf(row) || {};
   const example = ((cfg.issues || []).find(issue => issue.detector === 'size_format') || {}).params;   // the size_format rule's settings
   return {
     brand: lrBrandName(row, cfg), product: tpl.product || '', shape: lrShape(cat.subcat),
     material: tpl.material || '', size: lrSizeText(cat.size, example && example.example), pattern: tpl.pattern || '',
-    uses: tpl.uses || '', occasions: lrOccasionsNow(cfg, today).join(' '), color: cat.color || '',
+    uses: tpl.uses || '', occasions: (occ || lrOccasionsNow(cfg, today)).join(' '), color: cat.color || '',
   };
 }
 /** The title the template would write for this listing. */
-// Fills the template's tokens from lrParts, tidies the spaces and dashes, and drops occasions, then uses, to fit 200 characters.
+// Fills the template's tokens from lrParts, tidies the spaces and dashes; over Amazon's 200 the occasions go, then the words THE ONE
+// SUGGESTION-WORDS RULE (lrSuggestWords) lets go — never brand, product, shape, material, size, the print or the colour.
 function lrSuggest(row, cfg, today) {
   cfg = cfg || LR || LR_DEFAULT;
   today = today || new Date();
@@ -445,9 +809,9 @@ function lrSuggest(row, cfg, today) {
   const fill = drop => String(tpl.template || '').replace(/\{(\w+)\}/g, (_, key) => (drop.includes(key) ? '' : (parts[key] || '')))
     .replace(/\s+-\s+(?=-|$)/g, ' ').replace(/\s{2,}/g, ' ').replace(/\s+-\s*$/, '').replace(/^\s*-\s+/, '').trim();
   let out = fill([]);
-  // Amazon's hard limit is 200 characters: occasions go first, then the uses phrase.
+  // Amazon's hard limit is 200 characters: occasions go first, then the words the one rule lets go
   if (out.length > 200) out = fill(['occasions']);
-  if (out.length > 200) out = fill(['occasions', 'uses']);
+  if (out.length > 200) out = lrSuggestWords(out, { mode: 'title', facts: lrSwFacts(row, cfg, null, { title: hTitleText(row) }), fits: text => text.length <= 200 }).after;
   return out.slice(0, 200);
 }
 
@@ -457,11 +821,12 @@ const LR_DET = {
   inactive_with_stock: row => (/inactive/i.test(row.status || '') && row.qty > 0) ? `${row.qty} in stock but the listing is Inactive` : '',
   no_price: row => row.price === 0 ? 'no price' : '',
   // Amazon's own verdict: the Workspace's live read of the listing first, else the Image Manager snapshot (lrAmz).
+  // Suppressed only by THE ONE RULE (lrShopOf): an ERROR issue alone is never a suppression.
   amazon_suppressed: (row, ctx) => {
     const amz = lrFactsOf(row, ctx).amz;
-    if (!amz || !amz.st) return '';
-    const status = String(amz.st).toUpperCase();
-    return status.includes('BUYABLE') && !status.includes('DISCOVERABLE') ? 'buyable by direct link, not in search' : '';
+    if (!amz) return '';
+    const shop = lrShopOfAmz(amz, row);
+    return shop.k === 'sup' ? shop.why : '';
   },
   amazon_error: (row, ctx) => {
     const amz = lrFactsOf(row, ctx).amz;
@@ -528,9 +893,8 @@ const LR_DET = {
   // Search terms from the live Amazon read only (Part A4); "Search terms: 233 of 249 bytes" when fine, what to cut when over.
   keyword_bytes: (row, ctx, params) => {
     if (row.kw == null) return '';
-    const max = +params.max || 249;
-    const bytes = row.kwBytes != null ? row.kwBytes : lrKwBytes(row.kw);
-    return bytes > max ? `${bytes} of ${max} bytes — cut ${bytes - max}; over the limit Amazon ignores all of them` : '';
+    const k = lrKwCheck(row.kw, params.max, row.kwBytes);       // the one rule (the Optimiser's review judges with it too)
+    return k.over ? `${k.bytes} of ${k.max} bytes — cut ${k.cut}; over the limit Amazon may ignore all of them` : '';
   },
   // Our submitted title (the live read's item_name) is not the title Amazon shows: ours is not live. Both titles are named.
   title_not_live: row => (row.shownTitle && row.submittedTitle && !lrSameTitle(row.shownTitle, row.submittedTitle)
@@ -587,7 +951,7 @@ const LR_DET = {
     const tpl = lrTemplateFor(row, ctx.cfg);
     if (!title || !tpl) return '';
     const low = lrNorm(title);                      // the title and every part read the same way (Part A2)
-    const parts = lrParts(row, tpl, ctx.cfg, ctx.today);
+    const parts = lrParts(row, tpl, ctx.cfg, ctx.today, lrCtxOcc(ctx));
     const need = lrWords(tpl.required || 'brand,product,size,color');
     // --- where each required part sits in the title: -2 nothing to look for, -1 missing, else its position ---
     const where = key => {
@@ -628,20 +992,6 @@ const LR_DET = {
     if (!missing.length && !outOfOrder) return '';
     return [missing.length ? 'missing ' + missing.join(', ') : '', outOfOrder ? 'parts in a different order' : ''].filter(Boolean).join(' · ');
   },
-  seasonal_keyword: (row, ctx) => {
-    const title = hTitleText(row);
-    if (!title) return '';
-    const cat = lrCatOf(row) || {};
-    for (const ev of (ctx.cfg.events || [])) {
-      const word = lrWords(ev.words).find(each => lrHas(title, each));
-      if (!word) continue;
-      if (lrWords(ev.except).some(each => lrHas(String(cat.subcat || '') + ' ' + String(cat.color || ''), each))) continue;
-      const season = lrSeason(ev, ctx.today, ctx.cfg.events);
-      if (season.inSeason) continue;
-      return `"${word}" — ${ev.name} is ${season.next ? lrFmtDate(season.next) : 'not dated'}; it belongs in the title from ${season.from ? lrFmtDate(season.from) : '—'}`;
-    }
-    return '';
-  },
 };
 
 /** Why a listing should say "Block Print" (Part A4), in words — or null when it should not be asked: its colour is an embroidery
@@ -673,7 +1023,10 @@ async function amzEnsure() {
   AMZ.busy = true;
   const map = new Map();
   try {
+    // the ListingMatch cache answers for the brands it holds (listing-match.js, read from this browser's copy — no wait for the network)
+    const lmB = typeof lmEnsure === 'function' ? (await lmEnsure(), lmAmzBrands()) : [];
     for (const brand of ['SP', 'CPC']) {
+      if (lmB.includes(brand)) continue;
       const head = await getDoc(doc(db, 'imgsnap', brand));
       if (!head.exists()) continue;
       const nChunks = head.data().chunks || 0;
@@ -683,11 +1036,12 @@ async function amzEnsure() {
         if (!chunk.exists()) return;
         (chunk.data().r || []).forEach(item => {
           // `im` is Amazon's first error cut at 140 characters; the issue list (`iss`) keeps each message to 220, so the errors come from there.
-          if (item && item.sku) map.set(brand + '|' + item.sku, { st: item.st || '', ie: item.ie || 0, iw: item.iw || 0, im: item.im || '',
+          if (item && item.sku) map.set(brand + '|' + item.sku, { st: item.st || '', ie: item.ie || 0, iw: item.iw || 0, im: item.im || '', iss: item.iss || [],
             em: (item.iss || []).filter(issue => issue && issue.s === 'E').map(issue => (issue.c ? `ERROR ${issue.c}: ` : '') + lrWholeCut(String(issue.m || ''), 220)) });
         });
       });
     }
+    if (lmB.length) lmAmzApply(map);
     AMZ.map = map.size ? map : null;
     AMZ.at = Date.now();
     H_CTX = null;
@@ -702,8 +1056,12 @@ async function amzEnsure() {
 // hands them to every screen, so Parent ASINs,
 // Child listings and the Workspace judge the same freshest data.
 const lrWsLive = () => (typeof liWsLiveMap === 'function' ? liWsLiveMap() : null);
-// The live read of one listing, or null.
-const lrLiveOf = (row, ctx) => ((ctx.wsLive && ctx.wsLive[row.brand]) || {})[row.sku] || null;
+// The live read of one listing, or null — with the ListingMatch cache's record under it (listing-match.js lmLiveOf: the newer of the two,
+// part by part) while that cache is usable.
+const lrLiveOf = (row, ctx) => {
+  const ws = ((ctx.wsLive && ctx.wsLive[row.brand]) || {})[row.sku] || null;
+  return ctx.lm ? lmLiveOf(row.brand, row.sku, ws) : ws;
+};
 // The Image Manager snapshot's item for one listing, or null.
 const lrImlOf = (row, ctx) => (ctx.iml && ctx.iml[row.brand] ? ctx.iml[row.brand].get(row.sku) : null) || null;
 // The gallery slots of a slot → url map or a slot list: MAIN + PT01–PT08, in order; the swatch (SWCH) is not a picture.
@@ -750,6 +1108,20 @@ function lrPictures(row, ctx) {
  *  publish record (the Workspace's answers first, then the Health snapshot's: the row's own and HEALTH[brand].parentAplus). Never
  *  asked, or the parent not asked yet: not judged. A "missing" answer older than LR_APLUS_DAYS is `stale` and asked again first. */
 function lrAplus(row, ctx) {
+  const pub = lrAplusPub(row, ctx);
+  /* THE A+ DOCUMENTS FIRST (18 Nov 2026): ListingMatch reads every A+ document and its ASINs once a day (listing-match.js lmAplusOf).
+   * While that read is fresh and can say for this ASIN, it is the answer — an approved document on the listing or its parent = A+,
+   * none approved = no A+ — and nothing is read one by one. Missing, old (over 30 h) or unsure: the publish records below, as before.
+   * One guard: the documents say "none live" but a publish record read in the last LR_APLUS_DAYS days says A+ is on the page — the page
+   * wins until that record is old (`until`: the moment the answer changes; the kept checks are judged again then). */
+  const doc = typeof lmAplusOf === 'function' ? lmAplusOf(row.brand, row.asin, row.parent) : null;
+  if (!doc) return pub;
+  if (doc.v === true) return doc;
+  if (pub.v === true && pub.at > 0 && Date.now() - pub.at <= LR_APLUS_DAYS * LR_DAY) return Object.assign({}, pub, { until: pub.at + LR_APLUS_DAYS * LR_DAY + 1 });
+  return doc;
+}
+// A+ from the publish records Sellora read one ASIN at a time (?lh=aplusasin): the answer before the daily A+ read, and its fallback.
+function lrAplusPub(row, ctx) {
   const ws = (ctx.wsAplus && ctx.wsAplus[row.brand]) || {};
   const saved = (ctx.parentAplus && ctx.parentAplus[row.brand]) || {};
   const newer = (a, b) => (a && b ? ((a.at || 0) >= (b.at || 0) ? a : b) : a || b || null);
@@ -757,7 +1129,7 @@ function lrAplus(row, ctx) {
   const parent = row.parent ? newer(ws[row.parent], saved[row.parent]) : null;
   if (child && child.v === true) return { v: true, at: child.at || 0, src: 'listing' };
   if (parent && parent.v === true) return { v: true, at: parent.at || 0, src: 'parent' };
-  if (!child || child.v !== false) return { v: undefined, at: 0, why: 'A+ not asked yet' };
+  if (!child || child.v !== false) return { v: undefined, at: 0, why: 'A+ not checked yet' };
   if (row.parent && (!parent || parent.v !== false)) return { v: undefined, at: child.at || 0, note: true, why: "the listing has none, and its parent ASIN's A+ was not asked yet" };
   const at = Math.min(child.at || 0, parent ? parent.at || 0 : child.at || 0);
   const stale = !(at > 0) || Date.now() - at > LR_APLUS_DAYS * LR_DAY;
@@ -777,10 +1149,113 @@ function lrAmz(row, ctx) {
   const live = lrLiveOf(row, ctx);
   if (live && live.gAt) {
     const errs = (live.iss || []).filter(issue => issue.s === 'E');
-    return { st: (live.st || []).join(','), ie: errs.length, im: errs.map(issue => `ERROR ${issue.c}: ${issue.m}`).join(' · '), errs, at: live.gAt, src: 'live' };
+    return { st: (live.st || []).join(','), ie: errs.length, im: errs.map(issue => `ERROR ${issue.c}: ${issue.m}`).join(' · '), errs, iss: live.iss || [], at: live.gAt, src: 'live' };
   }
   const amz = ctx.amz && ctx.amz.get(row.brand + '|' + row.sku);
-  return amz ? { st: amz.st, ie: amz.ie, im: amz.em && amz.em.length ? amz.em.join(' · ') : lrWholeCut(amz.im, 140), errs: null, at: (ctx.amzAt && ctx.amzAt[row.brand]) || 0, src: 'iml' } : null;
+  return amz ? { st: amz.st, ie: amz.ie, im: amz.em && amz.em.length ? amz.em.join(' · ') : lrWholeCut(amz.im, 140), errs: null, iss: amz.iss || [], at: (ctx.amzAt && ctx.amzAt[row.brand]) || 0, src: 'iml' } : null;
+}
+
+/* ================= SUPPRESSED · NOT BUYABLE · NOT CHECKED — THE ONE RULE (16 Nov 2026) =================
+ * CPCLS-CO-007 (BUYABLE + DISCOVERABLE, one ERROR about its colour swatch) showed "Suppressed": an ERROR was read as a suppression
+ * (a list of codes, and the word "suppress" in Amazon's message). Every screen now asks lrShopOf, and nothing else decides it:
+ *   'unk'   no status from Amazon (the read failed, or it was never read) → "Not checked" — never Suppressed
+ *   'sup'   a) the status has BUYABLE but not DISCOVERABLE (hidden from search), or
+ *           b) an Amazon issue's enforcement action is SEARCH_SUPPRESSED or LISTING_SUPPRESSED, or
+ *           c) the SKU is in Amazon's Suppressed listings report (LR_FYP — when Sellora has that report)
+ *   'nobuy' no BUYABLE, and live: stock > 0 and not closed on purpose → "Not buyable", apart from Suppressed
+ *   'off'   no BUYABLE, and not live (no stock, stock not known, or closed) — nothing shoppers miss
+ *   'ok'    buyable and in search. An ERROR issue alone stays 'ok' here: it is an error at its own severity (the Listing Rules
+ *           rule "Amazon reports an error"), never a suppression.
+ * Shoppers are affected — the F dot red — only for 'sup' and 'nobuy' (lrShopF). */
+const LR_SUPPRESS_ACTS = ['SEARCH_SUPPRESSED', 'LISTING_SUPPRESSED'];
+const LR_SHOP_WORD = { sup: 'Suppressed', nobuy: 'Not buyable', ok: 'Buyable', off: 'Not buyable (no stock)', unk: 'Not checked' };
+// Amazon's Suppressed listings report, per brand: Map sku → Amazon's reason. Empty until Sellora reads that report.
+const LR_FYP = { SP: null, CPC: null };
+// An issue's enforcement actions, as Amazon names them (['SEARCH_SUPPRESSED', …]) — from whichever shape the read kept.
+function lrIssueActs(issue) {
+  if (!issue) return [];
+  const list = issue.acts || issue.e || (issue.enforcements && issue.enforcements.actions) || [];
+  return (Array.isArray(list) ? list : []).map(act => String((act && act.action) || act || '').toUpperCase()).filter(Boolean);
+}
+/** THE ONE RULE. x = { st: Amazon's status ('BUYABLE,DISCOVERABLE' or an array; null / '' = not read), iss: Amazon's issues,
+ *  qty: stock (null = not known), closed: closed on purpose, brand, sku, fyp: the Suppressed report's reason (else LR_FYP) }
+ *  → { k: 'sup' | 'nobuy' | 'ok' | 'off' | 'unk', why, how: 'a' | 'b' | 'c' | '' }. */
+function lrShopOf(x) {
+  x = x || {};
+  const raw = x.st == null ? '' : Array.isArray(x.st) ? x.st.join(',') : String(x.st);
+  const st = raw.toUpperCase().split(/[\s,]+/).filter(Boolean);
+  if (!st.length) return { k: 'unk', why: "Not checked — Amazon's status was not read", how: '' };
+  const buy = st.includes('BUYABLE'), disc = st.includes('DISCOVERABLE');
+  if (buy && !disc) return { k: 'sup', why: 'buyable by direct link, not in search', how: 'a' };
+  const hit = (x.iss || []).find(issue => lrIssueActs(issue).some(act => LR_SUPPRESS_ACTS.includes(act)));
+  if (hit) {
+    const act = lrIssueActs(hit).find(a => LR_SUPPRESS_ACTS.includes(a));
+    return { k: 'sup', why: `Amazon: ${act}${hit.c || hit.code ? ' (' + (hit.c || hit.code) + ')' : ''}${hit.m || hit.message ? ' — ' + lrWholeCut(String(hit.m || hit.message), 140) : ''}`, how: 'b' };
+  }
+  const fyp = x.fyp != null ? x.fyp : (x.brand && x.sku && LR_FYP[x.brand] ? LR_FYP[x.brand].get(x.sku) : null);
+  if (fyp) return { k: 'sup', why: "in Amazon's Suppressed listings report" + (typeof fyp === 'string' ? ': ' + fyp : ''), how: 'c' };
+  if (!buy) {
+    const live = x.qty != null && Number(x.qty) > 0 && !x.closed;
+    return live ? { k: 'nobuy', why: `not buyable on Amazon (status ${st.join(', ')}) with ${Number(x.qty)} in stock`, how: '' }
+      : { k: 'off', why: `not buyable on Amazon (status ${st.join(', ')})${x.qty == null ? ', stock not known' : x.closed ? ', closed' : ', no stock'}`, how: '' };
+  }
+  return { k: 'ok', why: 'buyable and in search', how: '' };
+}
+// The same, for one listing's Amazon facts (lrAmz) and its row (stock, the report's status).
+const lrShopOfAmz = (amz, row) => lrShopOf({ st: amz ? amz.st : null, iss: amz ? amz.iss || amz.errs || [] : [], qty: row ? row.qty : null,
+  closed: !!(row && /closed/i.test(row.status || '')), brand: row && row.brand, sku: row && row.sku });
+// What shoppers get (the F dot): 'r' suppressed or not buyable, 'u' not checked, 'g' otherwise (an ERROR alone keeps it green).
+const lrShopF = shop => (shop.k === 'sup' || shop.k === 'nobuy' ? 'r' : shop.k === 'unk' ? 'u' : 'g');
+/** CONSOLE ONLY (16 Nov 2026): what THE ONE RULE changes, over the saved snapshots — the Image Manager snapshot (status, issues) and
+ *  Listing Health's (stock). `await lrShopReport()` in a signed-in Sellora tab. The old checks are copied here only to compare. */
+async function lrShopReport() {
+  const oldF = it => {                                   // the F dot before 16 Nov (bfShop with its code list and "suppress" words)
+    const st = String(it.st || '').toUpperCase().split(/[\s,]+/).filter(Boolean);
+    if (!st.length) return 'u';
+    if (!st.includes('BUYABLE') || !st.includes('DISCOVERABLE')) return 'r';
+    const said = (it.iss || []).filter(i => i.s === 'E').map(i => i.c + ' ' + i.m).join(' ') + ' ' + (it.im || '');
+    return /18320/.test(said) || /suppress/i.test(said) ? 'r' : 'g';
+  };
+  // the saved snapshots: loaded only when this page does not hold them yet
+  if (typeof loadHealthCache === 'function' && typeof HEALTH !== 'undefined' && !(HEALTH.SP && HEALTH.SP.rows) && !(HEALTH.CPC && HEALTH.CPC.rows)) await loadHealthCache();
+  const out = {};
+  for (const brand of ['SP', 'CPC']) {
+    if (typeof imListLoad === 'function' && !(typeof IML !== 'undefined' && IML[brand] && (IML[brand].items || []).length)) await imListLoad(brand);
+    const items = ((typeof IML !== 'undefined' && IML[brand] && IML[brand].items) || []).filter(it => it.lvl !== 'parent');
+    const r = { listings: items.length, supBefore: 0, supNow: 0, fRedBefore: 0, fRedNow: 0, errorOnlyNowGreen: [], noStockNowGreen: 0, notBuyableNow: 0,
+      notCheckedNow: 0, nobuyFilterBefore: 0, nobuyFilterNow: 0 };
+    items.forEach(it => {
+      const shop = lrShopOf({ st: it.st || null, iss: it.iss, qty: lrQtyOf(brand, it.sku), brand, sku: it.sku });
+      const st = String(it.st || '').toUpperCase();
+      const was = oldF(it), now = lrShopF(shop);
+      if (st.includes('BUYABLE') && !st.includes('DISCOVERABLE')) r.supBefore++;
+      if (shop.k === 'sup') r.supNow++;
+      if (was === 'r') r.fRedBefore++;
+      if (now === 'r') r.fRedNow++;
+      if (was === 'r' && now === 'g' && shop.k === 'ok') r.errorOnlyNowGreen.push(it.sku);
+      if (was === 'r' && now !== 'r' && shop.k === 'off') r.noStockNowGreen++;
+      if (shop.k === 'nobuy') r.notBuyableNow++;
+      if (shop.k === 'unk') r.notCheckedNow++;
+      if (!/BUYABLE/.test(it.st || '')) r.nobuyFilterBefore++;
+      if (shop.k === 'nobuy') r.nobuyFilterNow++;
+    });
+    out[brand] = r;
+    console.log(`${brand}: ${r.listings} listings · Suppressed ${r.supBefore} → ${r.supNow} · shoppers-affected (F red) ${r.fRedBefore} → ${r.fRedNow}`
+      + ` · an ERROR alone, now F green: ${r.errorOnlyNowGreen.length}${r.errorOnlyNowGreen.length ? ' (' + r.errorOnlyNowGreen.slice(0, 15).join(', ') + (r.errorOnlyNowGreen.length > 15 ? ', …' : '') + ')' : ''}`
+      + ` · not buyable with no stock, now F green: ${r.noStockNowGreen} · Not buyable (live) ${r.notBuyableNow} · Not checked ${r.notCheckedNow}`
+      + ` · Image Manager "Not buyable" filter ${r.nobuyFilterBefore} → ${r.nobuyFilterNow}`);
+  }
+  return out;
+}
+if (typeof window !== 'undefined') window.lrShopReport = lrShopReport;
+// One listing's stock from the Listing Health snapshot (null = not known) — for screens that hold no stock of their own.
+const LR_QTY_IX = new WeakMap();
+function lrQtyOf(brand, sku) {
+  const rows = typeof HEALTH !== 'undefined' && HEALTH[brand] && HEALTH[brand].rows;
+  if (!rows) return null;
+  let ix = LR_QTY_IX.get(rows);
+  if (!ix) { ix = new Map(rows.map(row => [row.sku, row.qty == null ? null : Number(row.qty)])); LR_QTY_IX.set(rows, ix); }
+  return ix.has(sku) ? ix.get(sku) : null;
 }
 /** The listing with the freshest content on it: the live read's title / bullets / description / search terms, brand, colour and
  *  rule words (lrFresh), else exactly the Health row. `contentAt` says when that content was read; `kw` is only ever live. */
@@ -848,7 +1323,9 @@ function hCtx(rowsAll) {
   // --- reuse the last context while nothing it depends on has changed ---
   const withContent = rows.reduce((count, row) => count + (row.content ? 1 : 0), 0);
   const pcV = typeof PC !== 'undefined' ? PC.v : 0;          // the Picture check marks (picture-check.js): a new mark judges again
-  const key = [rows.length, withContent, LR_CAT.SP ? 1 : 0, LR_CAT.CPC ? 1 : 0, AMZ.at, ws ? 1 : 0, pcV,
+  const lmV = typeof lmVersion === 'function' ? lmVersion() + ':' + (lmOk('SP') ? 1 : 0) + (lmOk('CPC') ? 1 : 0)
+    + (typeof lmAplusFresh === 'function' ? ':' + (lmAplusFresh('SP') ? 1 : 0) + (lmAplusFresh('CPC') ? 1 : 0) : '') : '';   // the ListingMatch cache (listing-match.js), and its daily A+ read
+  const key = [rows.length, withContent, LR_CAT.SP ? 1 : 0, LR_CAT.CPC ? 1 : 0, AMZ.at, ws ? 1 : 0, pcV, lmV,
     ['SP', 'CPC'].map(b => (HEALTH[b] && HEALTH[b].parentAplusAt) || 0).join(',')].join('|');
   if (H_CTX && H_CTX.cfg === cfg && H_CTX.sp === HEALTH.SP && H_CTX.cpc === HEALTH.CPC && H_CTX.key === key
       && H_CTX.imlSP === imlOf('SP') && H_CTX.imlCPC === imlOf('CPC') && H_CTX.day === new Date().toDateString()) return H_CTX;
@@ -889,7 +1366,7 @@ function hCtx(rowsAll) {
     iml[b] = map;
   });
   H_CTX = { cfg, today: new Date(), parents, amz: AMZ.map, amzAt: AMZ.snapAt, sp: HEALTH.SP, cpc: HEALTH.CPC, key, day: new Date().toDateString(),
-    wsLive: ws ? ws.live : null, wsAplus: ws ? ws.aplus : null, healthAt, parentAplus, imlAt, iml, imlSP: imlOf('SP'), imlCPC: imlOf('CPC'),
+    wsLive: ws ? ws.live : null, wsAplus: ws ? ws.aplus : null, lm: typeof lmLiveOf === 'function' && lmOk(), healthAt, parentAplus, imlAt, iml, imlSP: imlOf('SP'), imlCPC: imlOf('CPC'),
     pc: typeof PC !== 'undefined' ? PC.marks : null };
   return H_CTX;
 }
@@ -1016,9 +1493,8 @@ const LR_FIX_TEXT = {
     return `Add ${lrN(ideal - have, 'more picture')} in Image Manager to reach ${ideal} (the catalogue shows ${have}).`;
   },
   keyword_bytes: (hit, row, ctx, params) => {
-    const max = +params.max || 249;
-    const bytes = row.kwBytes != null ? row.kwBytes : lrKwBytes(row.kw);
-    return `Cut ${lrN(bytes - max, 'byte')} from the search terms in Listing Errors (${bytes} of ${max}); over the limit Amazon ignores all of them.`;
+    const k = lrKwCheck(row.kw, params.max, row.kwBytes);
+    return `Cut ${lrN(k.cut, 'byte')} from the search terms in Listing Errors (${k.bytes} of ${k.max}); over the limit Amazon may ignore all of them.`;
   },
   bullets_below: (hit, row, ctx, params) => `Add bullets until there are ${+params.n || 5} (it has ${row.content ? row.content.bullets || 0 : 0}).`,
   desc_below: (hit, row, ctx, params) => `Write a description of ${+params.n || 200}+ characters (it has ${row.content && row.content.descLen ? row.content.descLen : 'none'}).`,
@@ -1065,7 +1541,7 @@ const LR_FIX_TEXT = {
   title_template: (hit, row, ctx) => {
     const tpl = lrTemplateFor(row, ctx.cfg);
     if (!tpl) return 'Write the title the way its template says.';
-    const parts = lrParts(row, tpl, ctx.cfg, ctx.today);
+    const parts = lrParts(row, tpl, ctx.cfg, ctx.today, lrCtxOcc(ctx));
     const need = lrWords(tpl.required || 'brand,product,size,color');
     const order = String(tpl.template).match(/\{(\w+)\}/g).map(token => token.slice(1, -1)).filter(key => need.includes(key));
     const orderWords = order.map(key => lrPartWords(key, {}).replace(/^the /, '')).join(', ');
@@ -1074,10 +1550,6 @@ const LR_FIX_TEXT = {
     if (missing.length === 1 && missing[0] === 'brand') return `Put the brand in the title: "${parts.brand} …".${wrongOrder ? ` Keep the template's order: ${orderWords}.` : ''}`;
     if (!missing.length) return `Put the title's parts in the template's order: ${orderWords}.`;
     return `Add ${missing.map(key => lrPartWords(key, parts)).join(', ')} to the title${wrongOrder ? `, in the template's order: ${orderWords}` : ''}.`;
-  },
-  seasonal_keyword: hit => {
-    const m = String(hit.detail).match(/^"([^"]+)" — .+; it belongs in the title from (.+)$/);
-    return m ? `Remove "${m[1]}" from the title until its season (from ${m[2]}).` : 'Remove the occasion from the title until its season.';
   },
 };
 // The fix sentence of one finding; a detector without one, or one that fails, falls back to naming the rule.
@@ -1105,6 +1577,11 @@ function lrFixTag(hit, row) {
 const LR_FIX_IMG = ['no_main_image', 'images_below', 'images_between', 'images_small', 'main_not_square', 'images_duplicate', 'main_photo_check'];
 const lrFixKind = detector => (LR_FIX_IMG.includes(detector) ? 'img' : detector === 'aplus_missing' ? '' : 'lerr');
 
+// A title problem's Fix (title-fix.js, 18 Nov 2026): the new-title preview for that one listing — every title problem fixed in one new
+// title; Listing Errors when there is nothing to fix there. The button says which rule it is for; its kind stays 'lerr'.
+const lrFixIsTitle = (kind, detector) => kind === 'lerr' && typeof ttIsDet === 'function' && ttIsDet(detector);
+const lrFixDet = (kind, detector) => (lrFixIsTitle(kind, detector) ? ` data-lr-det="${detector}"` : '');
+const lrFixTip = (kind, detector) => (kind === 'img' ? 'Opens the Image Manager' : lrFixIsTitle(kind, detector) ? 'Shows the new title for this listing first (Fix all titles)' : 'Opens Listing Errors');
 /* ---- one look for every problem, on every screen (Part B2): dot · level word · what is wrong · how to fix · tag · Fix ---- */
 // `where`: { brand, sku, attrs } — the listing the Fix button opens (attrs: attribute names Listing Errors should show boxes
 // for even when no Amazon issue names them); null for no button. `note`: a short grey line under it (source · when), or ''.
@@ -1117,8 +1594,8 @@ function lrProblemHtml(hit, where, note) {
   const tag = hit.tag || 'Company rule';
   const kind = hit.kind == null ? lrFixKind(hit.detector) : hit.kind;
   const fix = where && kind ? `<button type="button" class="ghost lr-fixbtn" data-lr-fix="${esc(kind)}|${esc(where.brand)}|${esc(where.sku)}"`
-    + (where.attrs && where.attrs.length ? ` data-lr-attrs="${esc(where.attrs.join(','))}"` : '')
-    + ` title="${kind === 'img' ? 'Opens the Image Manager' : 'Opens Listing Errors'}">Fix</button>` : '';
+    + (where.attrs && where.attrs.length ? ` data-lr-attrs="${esc(where.attrs.join(','))}"` : '') + lrFixDet(kind, hit.detector)
+    + ` title="${lrFixTip(kind, hit.detector)}">Fix</button>` : '';
   // Price, stock and status come from the listings report, which only "Refresh both brands" renews — so no Check now for those.
   const fromReport = hit.src === 'report';
   const check = stale && where && !fromReport ? `<button type="button" class="ghost lr-checkbtn" data-lr-check="${esc(where.brand)}|${esc(where.sku)}"`
@@ -1146,10 +1623,10 @@ function lrRecHtml(rec, where) {
   const tag = rec.fill ? 'Good to fill' : (rec.tag || 'Company rule');
   const kind = rec.kind == null ? lrFixKind(rec.detector) : rec.kind;
   const fix = where && kind ? `<button type="button" class="ghost lr-fixbtn" data-lr-fix="${esc(kind)}|${esc(where.brand)}|${esc(where.sku)}"`
-    + (rec.attrs && rec.attrs.length ? ` data-lr-attrs="${esc(rec.attrs.join(','))}"` : '')
-    + ` title="${kind === 'img' ? 'Opens the Image Manager' : 'Opens Listing Errors'}">Fix</button>` : '';
+    + (rec.attrs && rec.attrs.length ? ` data-lr-attrs="${esc(rec.attrs.join(','))}"` : '') + lrFixDet(kind, rec.detector)
+    + ` title="${lrFixTip(kind, rec.detector)}">Fix</button>` : '';
   return `<div class="ls-rec ${cls}"><span class="ls-dot" aria-hidden="true"></span><div class="ls-rec-t">`
-    + `<b>${rec.bare && !stale ? '' : `<span class="lr-lvl ${rec.fill ? 'is-f' : stale ? 'is-s' : rec.sev === 'critical' ? 'is-c' : 'is-a'}">${esc(word)}</span>`}${esc(rec.name)}</b>`
+    + `<b>${rec.bare && !stale ? '' : `<span class="lr-lvl ${rec.fill ? 'is-f' : stale ? 'is-s' : rec.sev === 'critical' ? 'is-c' : 'is-a'}">${esc(word)}</span>`}${esc(rec.name)}${rec.bfHtml || ''}</b>`
     + (rec.sub ? `<small title="${esc(rec.sub)}">${esc(rec.sub)}</small>` : '') + '</div>'
     + `<div class="ls-rec-a"><span class="lr-tag${tag === 'Company rule' ? ' is-own' : ''}${rec.fill ? ' is-fill' : ''}" title="${esc(LR_TAG_TIP[tag] || (rec.fill ? 'Not an error: a gap worth filling.' : ''))}">${esc(tag)}</span>${fix}</div>`
     + (rec.fix ? `<div class="ls-rec-how">${esc(rec.fix)}</div>` : '') + '</div>';
@@ -1211,6 +1688,8 @@ if (typeof document !== 'undefined' && document.addEventListener) document.addEv
   if (!btn) return;
   const first = btn.dataset.lrFix.indexOf('|');                 // "img|brand|sku" or "lerr|brand|sku"
   const last = btn.dataset.lrFix.lastIndexOf('|');
+  // a title problem: the new title for this one listing first (title-fix.js), when there is one to make
+  if (btn.dataset.lrDet && typeof ttStartOne === 'function' && ttStartOne(btn.dataset.lrFix.slice(first + 1, last), btn.dataset.lrFix.slice(last + 1))) return;
   lrFixOpen(btn.dataset.lrFix.slice(0, first), btn.dataset.lrFix.slice(first + 1, last), btn.dataset.lrFix.slice(last + 1), (btn.dataset.lrAttrs || '').split(',').filter(Boolean));
 });
 
@@ -1222,7 +1701,9 @@ async function lrLoad() {
       const data = snap.data();
       /* A RULE ADDED AFTER THE LAST SAVE MUST STILL RUN. The saved document holds the whole list, so a
        * new default would otherwise stay invisible until somebody pressed Save in the Rules tab. */
-      const saved = data.issues || LR_DEFAULT.issues;
+      /* NO SEASON RULE (14 Nov 2026): season words are the Season planner's alone (Listing Optimiser), never a Listing Health /
+       * Workspace problem. The retired out-of-season rule is dropped from a saved list, so it can neither run nor be saved back. */
+      const saved = (data.issues || LR_DEFAULT.issues).filter(issue => issue.detector !== 'seasonal_keyword');
       const have = new Set(saved.map(issue => issue.id));
       const added = LR_DEFAULT.issues.filter(issue => !have.has(issue.id));
       LR = { issues: added.concat(saved), templates: data.templates || LR_DEFAULT.templates, events: data.events || LR_DEFAULT.events,

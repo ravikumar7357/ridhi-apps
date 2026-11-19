@@ -62,6 +62,37 @@ export function readReply(text) {
   return out;
 }
 
+/** THE JUDGE's reply (17 Nov 2026): {pick, ask, why}, every id one of the candidates; null when it is not that shape.
+ * pick: the one candidate that answers; ask: two or three that fit equally (she asks which); neither: none fits. */
+export function readPick(text, ids) {
+  if (!text) return null;
+  const s = String(text), i = s.indexOf('{'), j = s.lastIndexOf('}');
+  if (i < 0 || j <= i) return null;
+  let o;
+  try { o = JSON.parse(s.slice(i, j + 1)); } catch (e) { return null; }
+  if (!o || typeof o !== 'object') return null;
+  const known = new Set(ids);
+  const pick = typeof o.pick === 'string' && known.has(o.pick) ? o.pick : null;
+  const ask = [...new Set(Array.isArray(o.ask) ? o.ask.filter(x => typeof x === 'string' && known.has(x)) : [])].slice(0, 3);
+  return { pick, ask: pick ? [] : (ask.length >= 2 ? ask : []), why: typeof o.why === 'string' ? o.why.trim().slice(0, 80) : '' };
+}
+
+/** The judge: the same models in the same order, each asked only to point at one of Meera's own answers. JUDGE_MODEL
+ * (wrangler.toml) may name a smaller, faster Groq model for this; empty: GROQ_MODEL. Returns { reply, source, tried }. */
+export async function judgeModels(env, sys, user, cleanedQ, ids, fetcher = fetch) {
+  const tried = [];
+  const jenv = env.JUDGE_MODEL ? Object.assign(Object.create(env), { GROQ_MODEL: env.JUDGE_MODEL }) : env;
+  for (const p of PROVIDERS) {
+    if (!p.ready(jenv, cleanedQ)) continue;
+    try {
+      const reply = readPick(await p.ask(jenv, sys, user, fetcher), ids);
+      tried.push(p.name + (reply ? ':ok' : ':bad'));
+      if (reply) return { reply, source: p.name, tried };
+    } catch (e) { tried.push(p.name + ':' + String(e && e.message || e).slice(0, 40)); }
+  }
+  return { reply: null, source: '', tried };
+}
+
 /** Ask the models in order; the first good answer wins. Returns { reply, source, tried }. */
 export async function askModels(env, sys, user, cleanedQ, fetcher = fetch) {
   const tried = [];

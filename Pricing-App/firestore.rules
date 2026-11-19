@@ -214,6 +214,19 @@ service cloud.firestore {
     match /audit/trends {
       allow read, write: if can('trends') || can('audit');
     }
+    // Search Term Analysis: the review list of ad changes (14 Nov 2026). One document per change — picked, approved,
+    // downloaded as an Amazon bulk file, seen at Amazon. Anybody with the tab may add, approve and remove one; nobody may
+    // delete one, so the list is also the record of what was sent to Amazon ("removed" is a status, not a deletion).
+    // Until this block is deployed the screen keeps the list in each person's own browser and says so.
+    match /adsActions/{id} {
+      allow read, create, update: if can('st') || can('audit');
+      allow delete: if false;
+    }
+    // Search Term Analysis's lists, one document per brand (17 Nov 2026): brand terms, product words, blocked words,
+    // competitor brands, the target ACoS for products without a unit cost. Until deployed, kept in each browser.
+    match /adsSettings/{brand} {
+      allow read, write: if can('st') || can('audit');
+    }
     // Unit costs, per ASIN, plus the percentage model the profit figures are built on. Amazon has no
     // API for what goods cost, so this document is typed by hand and is the ONLY copy — nothing can
     // regenerate it. Gated on the Profit tab, so an account granted the ad tabs cannot read margins.
@@ -255,6 +268,22 @@ service cloud.firestore {
     match /shopify_cache_days/{doc} {
       allow read: if can('shop') || can('adj') || can('audit') || canReplShop();
       allow write: if false;
+    }
+    // CONTENT CREATORS (16 Nov 2026): gift orders for creators, one document per gift, id = its reference. Most are
+    // written by the Pricing API (CreatorOrders.gs, Creator Setu → ERP) with its owner's token, which these rules do not govern.
+    // Whoever holds Shopify Orders reads and updates them, and may create only the team's own kind ("+ Create order":
+    // source "team", status "New", an ERP-CC- reference). The reference and the source never change. Nobody deletes.
+    // Holds creators' addresses and phones: the same audience as the Shopify orders' addresses.
+    function canCreators() { return can('shop') || canReplTab('shop'); }
+    match /creatorOrders/{ref} {
+      allow read: if canCreators();
+      allow create: if canCreators()
+        && request.resource.data.reference == ref && ref.matches('^ERP-CC-[A-Z0-9]+$')
+        && request.resource.data.source == 'team' && request.resource.data.status == 'New';
+      allow update: if canCreators()
+        && request.resource.data.reference == resource.data.reference
+        && request.resource.data.source == resource.data.source;
+      allow delete: if false;
     }
     // Per-SKU master: shelf bin, HS code, GST rate, invoice rate. Facts about the PRODUCT, written
     // by whoever is picking or preparing the invoice.

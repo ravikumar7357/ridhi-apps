@@ -107,3 +107,29 @@ choices, 3 now answered right. The gate checks against this record while MEERA_V
   - before: - · I'm not fully sure what you mean. Is it one of these? amazon order full process from start
   - after: - · I'm not fully sure what you mean. Is it one of these? what is problems on my work today am
 
+
+## 2026-11-10 12:28 — Language told right: "me" and "par" alone no longer make an English question Hinglish ("tell me the total…"), and rha, likha, aa, laal, rang, h and the like now mark Hinglish; brand product counts ("how many products are there of cpc"); Ravi, 11 Nov
+
+- 10 recorded answers now in the language they were asked in (English questions in English, Hinglish in Hinglish), each the same answer or the same choices; every score the same
+
+
+## 2026-11-13 08:38 — Everyday Hinglish and Hindi questions (531, written the way staff type them, never tuned on) added as a scored set — its score can only go up from here; Ravi, 11 Nov
+
+- a new scored set; no answer changed
+
+## 2026-11-14 09:57 — My work today, the bell, pop-ups, red counts, keys and Search come to the live ERP from R-one with 36 answers, and the karigar WhatsApp answers now say it opens by itself in Hindi with the label; loose wordings removed so they take no other screen's questions; the two near-ties left (karigar matlab darzi, Refresh on cx) are word-count shifts, accepted by Ravi, 14 Nov
+
+- score: test set 2: right 56→56, offered 64→64, wrong 6→7, not sure 34→33
+- score: everyday Hinglish and Hindi (held back, scoring only): right 135→134, offered 71→71, wrong 184→184, not sure 141→142
+- answer `eval|shop|whatsapp didnt open after issue, says no number`
+  - before: pr-jw-wa-auto · This is on Job Work Register , not on this screen. WhatsApp does not open by itself after 
+  - after: pr-jw-wa-auto · This is on Job Work Register , not on this screen. WhatsApp opens by itself on the karigar
+- answer `eval|shop|पुराना रंग अब नहीं बनता, मास्टर लिस्ट से निकालना है`
+  - before: - · मैं पक्का नहीं समझ पाई। क्या आप इनमें से कुछ पूछ रहे हैं? नया रंग कैसे जोड़ें मास्टर से रं
+  - after: - · मैं पक्का नहीं समझ पाई। क्या आप इनमें से कुछ पूछ रहे हैं? नया रंग कैसे जोड़ें मास्टर से रं
+  - before: - · Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? fba kya hai qc mein o
+  - after: - · Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? fba kya hai fba dispa
+- answer `eval2|shop|amazon ka order shuru se FBA bhejne tak kaun kaun si screen se guzarta h`
+  - before: - · Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? cutting entry save ka
+  - after: - · Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? cutting entry save ka
+

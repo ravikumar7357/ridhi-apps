@@ -263,7 +263,7 @@ function limgShape_(it) {
     c: one('color'), z: one('size'), img: img,
     ie: ie, iw: iw, im: im,
     /* Every issue (up to 8), for the Listing Errors screen: severity, code, Amazon's words, the attributes it names. */
-    iss: iss.slice(0, 8).map(function (i) { return { s: String(i.severity || '').charAt(0), c: String(i.code || ''), m: String(i.message || '').slice(0, 220), a: (i.attributeNames || []).slice(0, 4) }; }),
+    iss: iss.slice(0, 8).map(function (i) { var o = { s: String(i.severity || '').charAt(0), c: String(i.code || ''), m: String(i.message || '').slice(0, 220), a: (i.attributeNames || []).slice(0, 4) }, e = ((i.enforcements && i.enforcements.actions) || []).map(function (x) { return String((x && x.action) || ''); }).filter(Boolean); if (e.length) o.e = e; return o; }),
   };
 }
 

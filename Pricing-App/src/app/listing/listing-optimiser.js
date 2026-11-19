@@ -2,9 +2,10 @@
  * Screens: Listing Optimiser (tab 'opt').
  * Does: reads one listing's review from the backend (baCall listing=review) and draws it: the title now and the suggested
  *       rearrangement with the differences marked, shoppers' search words the listing never says, bullets, description and
- *       the images themselves; on request asks Amazon for the Search Query Performance report and the Market Basket report,
+ *       the images themselves; for an ASIN of ours, its own search terms from the ListingMatch cache (bytes against the limit, 249,
+ *       the words the title already has); on request asks Amazon for the Search Query Performance report and the Market Basket report,
  *       polls until built, and shows them. loEsc, the escape helper, is also used by Bought Together.
- * Main functions: loMsg, ensureOpt, the loGo handler, loFindings, renderOpt, loWordTable, loSqpRun, loFillPeriods,
+ * Main functions: loMsg, ensureOpt, the loGo handler (loCacheFacts, loNoCacheWhy, loOurTerms), loOurTermsHtml, loFindings, renderOpt, loWordTable, loSqpRun, loFillPeriods,
  *                 loBasketRun, loRenderBasket, loRenderSqp. */
 /* ================= LISTING OPTIMISER =================
  *
@@ -33,8 +34,80 @@ function loMsg(text, bad) {
 // First visit to the tab: put back the last ASIN looked at.
 function ensureOpt() {
   if (!$('loAsin').value && LO_LAST) $('loAsin').value = LO_LAST;
+  if (typeof lmEnsure === 'function') lmEnsure();     // the ListingMatch cache's browser copy (listing-match.js), for the review and the age line
 }
 let LO_LAST = '';       // the last ASIN reviewed (declared after ensureOpt, which only runs later)
+let LO_WAIT_MS = 20000; // how long a review waits for the backend's copy of the auto refresh data before it reads Amazon live
+
+/* ----- the review's facts from the ListingMatch cache (listing-match.js) ----- */
+// { brand, facts } for an ASIN of ours — the brand chosen first, then the other — or null (not ours, or no usable cache).
+function loCacheFacts(asin, brand) {
+  if (typeof lmReviewFacts !== 'function') return null;
+  for (const b of [brand, brand === 'CPC' ? 'SP' : 'CPC']) {
+    const facts = lmReviewFacts(asin, b);
+    if (facts) return { brand: b, facts };
+  }
+  return null;
+}
+// Why the cache could not be used for the review, in a few words (shown beside "read live from Amazon now").
+function loNoCacheWhy() {
+  if (typeof lmOk !== 'function') return 'no auto refresh data on this page';
+  if (!lmOk()) {
+    const when = typeof lmPassWhen === 'function' ? lmPassWhen() : '';
+    return when ? `the auto refresh data here is from ${when}, more than 24 hours ago` : 'the auto refresh data has not loaded';
+  }
+  return 'this ASIN is not one of our listings in the auto refresh data';
+}
+// Our own search terms for the SKU on screen, from the cache: { sku, kw } (kw '' = none set), or null when the cache has no record.
+function loOurTerms(sku, brand) {
+  const m = sku && typeof lmGet === 'function' ? lmGet(sku, brand) : null;
+  return m ? { sku, kw: String(m.kw || '').replace(/\s+/g, ' ').trim() } : null;
+}
+/** Our search terms drawn, judged by THE ONE SEARCH-TERMS RULE (listing-rules.js lrKwCheck, the same as Listing Health's
+ *  keyword_bytes): the text with the part past the limit marked "cut this", the byte count against the limit (249: Amazon's "less
+ *  than 250"), and the words the title already has (wasted: Amazon indexes the title anyway). */
+function loOurTermsHtml(ours, title) {
+  const max = lrKwMax();
+  if (!ours.kw) return `<div style="font-size:12.5px"><span class="err">No search terms on this listing (${loEsc(ours.sku)}).</span>
+    <span class="muted">Up to ${max} bytes of words shoppers search that the title does not say.</span></div>`;
+  const k = lrKwCheck(ours.kw, max);
+  const text = loEsc(ours.kw.slice(0, k.cutAt))
+    + (k.over ? `<span class="lo-cut" title="Past byte ${k.max}: cut this">${loEsc(ours.kw.slice(k.cutAt))}</span><span class="lo-cut-tag">cut this</span>` : '');
+  const norm = w => w.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const inTitle = new Set(String(title || '').split(/[\s,;/|()\-]+/).map(norm).filter(Boolean));
+  const wasted = [...new Set(ours.kw.split(/[\s,;]+/).map(norm).filter(w => w && inTitle.has(w)))];
+  return `<div class="muted" style="font-size:11px">OUR SEARCH TERMS · ${loEsc(ours.sku)} · from the auto refresh</div>
+    <div style="font-size:12.5px;margin:2px 0 4px;word-break:break-word">${text}</div>
+    <div style="font-size:12.5px"><span class="${k.over ? 'err' : 'ok'}" id="loKwBytes">${k.bytes.toLocaleString('en-US')} / ${k.max} bytes</span>
+      ${k.over ? `<span class="err">— ${loEsc(LR_KW_OVER)} Cut to ${k.max} bytes.</span>` : '<span class="muted">— within Amazon\'s limit.</span>'}
+      <span class="muted">(Spaces and ; , . do not count.)</span></div>
+    ${wasted.length ? `<div style="font-size:12.5px;margin-top:4px"><span class="err">Already in the title (wasted):</span> ${wasted.map(loEsc).join(', ')}
+      <span class="muted">— ${lrKwBytes(wasted.join(''))} byte(s). Amazon reads the title anyway; these bytes do nothing here.</span></div>`
+      : '<div class="muted" style="font-size:12px;margin-top:4px">No word here is already in the title.</div>'}`;
+}
+
+/* THE SUGGESTED TITLE FOLLOWS THE ONE SUGGESTION-WORDS RULE (listing-rules.js lrSuggestWords, 19 Nov 2026) — filtered here, the backend
+ * is not changed. The backend's suggestion is used as it is unless it leaves out one of the important words the current title has (hand,
+ * block print, the product, its real shape, its material, its own colour, its size); then the current title is shortened by the rule
+ * instead (words said again, a wrong shape or colour, low-value words, then other words — in the title's own order). Another brand's name
+ * or a restricted claim is quietly left out (they are shown only in IP & Trademark Guard). */
+function loKeepWords(reply, brand, asin, sku) {
+  const sug = reply && reply.suggestion;
+  if (!sug || !sug.ok || !sug.current || !sug.suggested || typeof lrSuggestWords !== 'function') return reply;
+  const cfg = (typeof LR !== 'undefined' && LR) || LR_DEFAULT;
+  const rows = typeof HEALTH !== 'undefined' && HEALTH[brand] && HEALTH[brand].rows ? HEALTH[brand].rows : [];
+  const row = Object.assign({ brand, asin }, rows.find(r => (sku && r.sku === sku) || r.asin === asin) || {}, sku ? { sku } : {}, { brand });
+  const facts = lrSwFacts(row, cfg, null, { title: sug.current });
+  const risk = typeof ipgKwRisk === 'function' && row.sku ? ipgKwRisk(brand, row.sku, row, cfg) : null;
+  const cap = +sug.cap || 75;
+  const important = lrSuggestWords(sug.current, { mode: 'title', facts, riskOnly: true }).toks.filter(t => t.cls && t.k).map(t => t.k);
+  const has = new Set(lrSuggestWords(sug.suggested, { mode: 'title', facts, riskOnly: true }).toks.map(t => t.k));
+  const text = important.some(k => !has.has(k))
+    ? lrSuggestWords(sug.current, { mode: 'title', facts, risk, fits: t => t.length <= cap }).after
+    : lrSuggestWords(sug.suggested, { mode: 'title', facts, risk, riskOnly: true }).after;
+  if (text !== sug.suggested) Object.assign(sug, { suggested: text, newLen: text.length });
+  return reply;
+}
 
 // Go: read this ASIN's review from the backend and draw it.
 $('loGo').onclick = async () => {
@@ -49,9 +122,41 @@ $('loGo').onclick = async () => {
   $('loGo').disabled = true;
   loMsg('Reading the listing…');
   try {
-    const reply = await baCall({ listing: 'review', asin: asinCode, brand: $('loBrand').value,
-      target: $('loTarget').value || '' });
-    LO_DATA = reply;
+    // The listing's facts from the ListingMatch cache (listing-match.js, the one read door) when it holds this ASIN as one of ours and
+    // is at most 24 hours old: the backend judges those, with no catalog call. Otherwise — or when the backend does not take them
+    // (not updated yet, the test site) — it reads Amazon live, as before.
+    /* NOTHING IS REMEMBERED between reviews: each one asks the backend with the cache's facts again, so a backend deployed since the
+     * last review (17 Nov 12:40) is used at once. When the live read is used, the header says why (LO_DATA.liveWhy). */
+    let brand = $('loBrand').value;
+    const target = $('loTarget').value || '';
+    if (typeof lmEnsure === 'function') await lmEnsure();
+    let found = loCacheFacts(asinCode, brand);
+    // the browser's saved copy is old or missing and the backend's copy is on its way (first visit, a copy from >24 h ago): wait for it
+    if (!found && typeof lmSettled === 'function') {
+      loMsg('Reading the Amazon data from the auto refresh…');
+      await Promise.race([lmSettled(), new Promise(res => setTimeout(res, LO_WAIT_MS))]);
+      found = loCacheFacts(asinCode, brand);
+    }
+    let reply = null, liveWhy = '', note = '', ours = null;
+    if (found) {
+      // ours under the other brand: reviewed as that brand (its ads, its account), and the brand box follows
+      if (found.brand !== brand) {
+        note = `${asinCode} is a ${typeof BRAND_NAME !== 'undefined' && BRAND_NAME[found.brand] || found.brand} listing — reviewed as that brand.`;
+        brand = found.brand;
+        $('loBrand').value = brand;
+      }
+      ours = loOurTerms(found.facts.sku, brand);
+    }
+    if (found && typeof imPost === 'function') {
+      try {
+        const got = await imPost({ listing: 'review', asin: asinCode, brand, target, facts: found.facts });
+        if (got && got.ok && got.audit && got.audit.src === 'cache') reply = got;
+        else liveWhy = 'the backend did not take the auto refresh data' + (got && got.error ? ' (' + String(got.error).slice(0, 120) + ')' : '');
+      } catch (e) { liveWhy = 'the backend could not be reached with the auto refresh data (' + String((e && e.message) || e).slice(0, 120) + ')'; }
+    } else if (!found) liveWhy = loNoCacheWhy();
+    if (!reply) reply = await baCall({ listing: 'review', asin: asinCode, brand, target });
+    loKeepWords(reply, brand, asinCode, found ? found.facts.sku : '');
+    LO_DATA = Object.assign(reply, { liveWhy: reply.audit && reply.audit.src === 'cache' ? '' : liveWhy, note, ours });
     renderOpt();
     loMsg('');
   } catch (e) {
@@ -159,13 +264,16 @@ function renderOpt() {
   }
 
   // --- the page ---
-  $('loBody').innerHTML = `
+  $('loBody').innerHTML = `${typeof aiOptCardHtml === 'function' && typeof aiOn === 'function' && aiOn() && data.ours && data.ours.sku ? aiOptCardHtml($('loBrand').value, data.ours.sku) : ''}
     <div class="card" style="padding:12px 14px;margin-bottom:12px">
       <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:baseline">
         <b style="font-size:15px">${loEsc(audit.asin)}</b>
         <span class="muted" style="font-size:12px">${loEsc(audit.brand)} · ${loEsc(audit.category)}</span>
         ${audit.rank ? `<span class="muted" style="font-size:12px">rank ${audit.rank.value.toLocaleString('en-US')} in ${loEsc(audit.rank.title)}</span>` : ''}
+        <span class="muted" style="font-size:12px" id="loSrc">${audit.src === 'cache' ? 'Amazon data from the auto refresh' + (typeof lmPassWhen === 'function' && lmPassWhen() ? ' (' + loEsc(lmPassWhen()) + ')' : '')
+          : 'read live from Amazon now' + (data.liveWhy ? ' — ' + loEsc(data.liveWhy) : '')}</span>
       </div>
+      ${data.note ? `<div class="muted" style="font-size:12px;margin-top:4px">${loEsc(data.note)}</div>` : ''}
     </div>
 
     <div class="card" style="padding:12px 14px;margin-bottom:12px">
@@ -179,11 +287,14 @@ function renderOpt() {
       ${keywords.checked ? `<div class="muted" style="font-size:11.5px;margin-bottom:6px">
         "Never says" was checked against the title (${keywords.checked.title} chars), ${keywords.checked.bullets}
         bullet(s) and the description (${keywords.checked.description} chars) — all three, not the title alone.</div>` : ''}
-      <div class="muted" style="font-size:12px;margin-bottom:8px">
+      ${data.ours ? `<div style="margin-bottom:10px">${loOurTermsHtml(data.ours, audit.title)}</div>
+      <div class="muted" style="font-size:12px;margin-bottom:8px">Below: what shoppers actually searched.</div>`
+      // a competitor's ASIN (or no auto refresh data for ours): its backend keywords are not ours to read
+      : `<div class="muted" style="font-size:12px;margin-bottom:8px">
         <b>Backend keywords cannot be read.</b> They are seller-private: not on the Catalog API and
         nowhere public. Reading them needs the Listings Items API, which needs the Product Listing
         role and this brand's merchant token. Shown below is what shoppers actually searched.
-      </div>
+      </div>`}
       ${kwBlock}
       ${(keywords.altSizes && keywords.altSizes.length) ? `
         <div class="sec" style="margin:14px 0 4px;font-size:11px">Sizes written another way</div>

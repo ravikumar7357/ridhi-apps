@@ -250,7 +250,7 @@ function renderProfit() {
   if (!WEEKLY.at && !Object.keys(WEEKLY.rows).length) {
     $('pfKpis').innerHTML = '';
     $('pfTable').innerHTML = '<tbody><tr><td class="ui-empty">'
-      + 'No weekly sales data is cached yet. Open <b>PPC &amp; Organic</b> once and let it load — '
+      + 'No weekly sales data is cached yet. Open <b>Product Performance</b> once and let it load — '
       + 'this tab costs the same figures.'
       + '</td></tr></tbody>';
     return;

@@ -626,7 +626,26 @@ function nMergeAdsAsinDay_() {
   return out;
 }
 
-/** Fold every appended session slice into { brand: { asin: { week: [sessions, pageViews] } } }. */
+/**
+ * Editor, once, after the Buy Box change (12 Nov 2026): forget the last `weeks` finished weeks of sessions so the
+ * nightly asks Amazon for them again — this time keeping the Buy Box page views. One report per wake-up, two brands,
+ * so 8 weeks is about 16 wake-ups (under three hours of the night). Older weeks simply show Buy Box as "not known".
+ */
+function sessionsRecollect(weeks) {
+  var n = Math.max(1, Math.min(26, Number(weeks) || 8));
+  var st = nState_(), keys = weeklyKeys_(26), dropped = 0;
+  st.sessHave = st.sessHave || {};
+  keys.slice(-(n + 1), -1).forEach(function (w) {
+    ['SP', 'CPC'].forEach(function (b) {
+      if (st.sessHave[b + '|' + w]) { delete st.sessHave[b + '|' + w]; dropped++; }
+    });
+  });
+  if (st.phase === 'done') st.phase = 'sess';
+  nSaveState_(st);
+  Logger.log('Sessions: ' + dropped + ' brand-week(s) will be asked for again, newest first, keeping Buy Box.');
+}
+
+/** Fold every appended session slice into { brand: { asin: { week: [sessions, pageViews, buyBoxPageViews] } } }. */
 function nMergeSessions_() {
   /* ON TOP OF WHAT THE CACHE ALREADY HOLDS (3 Nov 2026). The scratch tab is emptied at the start of every pass, and a week already
    * collected is not asked for again — so a merge of the scratch tab alone threw every earlier week away each morning, and the cache
@@ -994,7 +1013,8 @@ function nPhaseSessions_(st, left) {
     }
     if (got == null) return false;
     var slice = {};
-    Object.keys(got).forEach(function (a) { slice[a] = [got[a][0], got[a][1]]; });
+    // [sessions, page views, page views with the Buy Box] — the third since 12 Nov 2026 (see trafficFetch_).
+    Object.keys(got).forEach(function (a) { slice[a] = [got[a][0], got[a][1], got[a][4] || 0]; });
     accStart_(st, 'sessions');
     accAppend_('sessions', { k: 'sess|' + job.brand + '|' + job.week, brand: job.brand, week: job.week, d: slice });
     if (job.week === current) st.sessCur[job.brand] = 1;

@@ -339,7 +339,9 @@ function trafficStatus_(id) {
   };
 }
 
-/** Shape: { ASIN: [sessions, pageViews, unitsOrdered, orderedProductSales] } */
+/** Shape: { ASIN: [sessions, pageViews, unitsOrdered, orderedProductSales, buyBoxPageViews] }
+ *  buyBoxPageViews (12 Nov 2026): Amazon's buyBoxPercentage × pageViews — the page views that HAD the Buy Box. A count
+ *  rather than a %, so sizes and weeks add up; Product Performance's "Why did it move?" works the % out of the totals. */
 function trafficFetch_(docId) {
   if (!docId) return { ok: false, error: 'No document id given.' };
   var d = sp_('/reports/2021-06-30/documents/' + encodeURIComponent(docId));
@@ -359,13 +361,17 @@ function trafficFetch_(docId) {
     var x = rows[i];
     var asin = String(x.childAsin || x.parentAsin || '').trim().toUpperCase(); if (!asin) continue;
     var t = x.trafficByAsin || {}, s = x.salesByAsin || {};
-    var b = out[asin] || (out[asin] = [0, 0, 0, 0]);
+    var b = out[asin] || (out[asin] = [0, 0, 0, 0, 0]);
     b[0] += Number(t.sessions) || 0;
     b[1] += Number(t.pageViews) || 0;
     b[2] += Number(s.unitsOrdered) || 0;
     b[3] += Number((s.orderedProductSales || {}).amount) || 0;
+    b[4] += (Number(t.buyBoxPercentage) || 0) * (Number(t.pageViews) || 0) / 100;
   }
-  Object.keys(out).forEach(function (a) { out[a][3] = Math.round(out[a][3] * 100) / 100; });
+  Object.keys(out).forEach(function (a) {
+    out[a][3] = Math.round(out[a][3] * 100) / 100;
+    out[a][4] = Math.round(out[a][4]);
+  });
   return { ok: true, n: Object.keys(out).length, asins: out };
 }
 

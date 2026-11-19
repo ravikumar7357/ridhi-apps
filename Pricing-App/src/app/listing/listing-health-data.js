@@ -39,6 +39,7 @@ const packRow = row => ({
 
 // Read both brands' snapshots from Firestore into HEALTH: the metadata doc, then its chunk docs.
 async function loadHealthCache() {
+  const lmWait = typeof lmEnsure === 'function' ? lmEnsure() : null;   // the ListingMatch cache's browser copy, read meanwhile (listing-match.js)
   for (const brand of ['SP', 'CPC']) {
     try {
       const snap = await getDoc(doc(db, 'health', brand));
@@ -68,6 +69,8 @@ async function loadHealthCache() {
       hMsg(`Could not load the saved ${BRAND_NAME[brand]} snapshot: ${e.message || e}`, true);
     }
   }
+  // the cache's newer reports: status, stock, price and channel on the rows (and rows for a brand with no snapshot)
+  if (lmWait) { try { await lmWait; lmHealthApply(); } catch (e) { /* the snapshot rows as they are */ } }
   H_LOADED = true;
 }
 
@@ -113,10 +116,12 @@ async function ensureHealth() {
       if (!$('paneHealth').classList.contains('hide')) hRedraw();
     });
   });
-  if (H_LOADED) return renderHealth();
+  // SMOOTH (18 Nov 2026): the first draw judges every listing — in slices first (hWarm), behind the skeleton rows
+  if (H_LOADED) { if (hColdMany()) { hSkeleton(); await hWarm(); } return renderHealth(); }
   hMsg('Loading the last snapshot…');
   hSkeleton();
   await loadHealthCache();
+  if (hColdMany()) await hWarm();
   hMsg('');
   renderHealth();
 }
@@ -134,6 +139,14 @@ function hMetaRender(brands, view) {
   const ago = ms => (ms < 3600000 ? Math.max(1, Math.round(ms / 60000)) + ' min ago' : ms < 86400000 ? Math.round(ms / 3600000) + ' h ago'
     : Math.round(ms / 86400000) === 1 ? '1 day ago' : Math.round(ms / 86400000) + ' days ago');
   const read = typeof liWsNewestRead === 'function' ? liWsNewestRead(brands) : 0;
+  // the ListingMatch data fresh (at most 24 h old): its full refresh and last update (listing-match.js lmDataLabel, every Listing screen's label)
+  const lm = typeof lmDataLabel === 'function' ? lmDataLabel(brands) : null;
+  if (lm) {
+    const amz = Math.max(read, lm.updateAt);
+    el.innerHTML = `<span title="Read from Amazon by ListingMatch: the full refresh reads every listing, the updates in between the changed ones. A read on this page (Check now, Read again, a send) is newer when it shows."><b>${lrEsc(view || 'Listing Health')}</b> · Amazon read ${amz ? ago(Math.max(0, now - amz)) : 'not yet'}`
+      + ` · Full refresh ${lm.fullAt ? ago(Math.max(0, now - lm.fullAt)) : 'not in the last pass'}</span><span>${lrEsc(lm.text)}</span>`;
+    return;
+  }
   const perBrand = brands.map(brand => (BRAND_NAME[brand] || brand) + ' ' + (HEALTH[brand] && HEALTH[brand].at
     ? HEALTH[brand].at.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : 'never')).join(' · ');
   const old = !oldest || days > 7;
@@ -143,7 +156,14 @@ function hMetaRender(brands, view) {
 /* The toolbar sticks under Sellora's menu bar, like PPC & Organic · New's. The bar's height is measured, not assumed: it wraps onto
  * a second line on narrower screens, and on phones it is a drawer (not sticky), so the offset goes to 0. The card is marked while
  * it is stuck (flat top corners, a deeper shadow). */
+// SMOOTH (18 Nov 2026): measured in the next frame, just before the browser lays the page out anyway — not straight after a draw,
+// where reading the toolbar's place forced a second layout of the whole page (30–45 ms a draw). Several calls in one frame are one.
+let H_STICK_RAF = 0;
 function hStick() {
+  if (typeof requestAnimationFrame !== 'function' || typeof document === 'undefined' || !document.body) return hStickNow();
+  if (!H_STICK_RAF) H_STICK_RAF = requestAnimationFrame(() => { H_STICK_RAF = 0; hStickNow(); });
+}
+function hStickNow() {
   try {
     const pane = $('paneHealth');
     const bar = $('hToolbar');
@@ -168,6 +188,7 @@ function hRedraw() {
   clearTimeout(H_REDRAW_T);
   H_REDRAW_T = setTimeout(() => {
     if (Date.now() - H_SCROLL_AT < H_SCROLL_MS) return hRedraw();
+    if (hColdMany()) return void hWarm().then(hRedraw);       // SMOOTH: many listings to judge again — in slices first, then the draw
     H_KEEP = true;
     try {
       renderHealth();
@@ -229,7 +250,9 @@ function hHealthBar(score) {
     + `<rect class="ls-hbar-t" x="0" y="0" width="100" height="6" rx="3"/><rect class="ls-hbar-f" x="0" y="0" width="${n}" height="6" rx="3"/></svg><b>${n}</b></span>`;
 }
 // A count as a pill in its level's colour (is-c / is-a / is-r / is-g), a zero faint.
-const hPill = (n, cls) => (n ? `<span class="ls-pill ${cls}">${Number(n).toLocaleString('en-US')}</span>` : '<span class="ls-zero">0</span>');
+// SMOOTH (18 Nov 2026): one number format made once — the same text as toLocaleString('en-US'), which makes a new one per number
+const H_NUM = new Intl.NumberFormat('en-US');
+const hPill = (n, cls) => (n ? `<span class="ls-pill ${cls}">${H_NUM.format(Number(n))}</span>` : '<span class="ls-zero">0</span>');
 // Why: up to 3 problems in words on one line — a dot in the level's colour and the problem's name — then "+n more", which opens the
 // child's sidebar (listing-kid.js) with every problem, how to fix it and Fix. The row stays one even 44px line.
 function hWhyCell(row) {
@@ -243,7 +266,7 @@ function hWhyCell(row) {
       + `<span class="ls-whyd" aria-hidden="true"></span><span class="ls-whyt">${lrEsc(words)}</span></span>`;
   };
   const rest = found.length - 3;
-  return `<div class="ls-whyl">${found.slice(0, 3).map(item).join('')}`
+  return `<div class="ls-whyl">${typeof prOf === 'function' ? prChipHtml(prOf(row.brand, row.sku, [], { row, stock: row.qty }).k) : ''}${found.slice(0, 3).map(item).join('')}`
     + (rest > 0 ? `<button type="button" class="ls-why-more" data-lk-more="1" aria-label="Show all ${found.length} problems">+${rest} more</button>` : '') + '</div>';
 }
 // "+n more" opens the rest of a Why cell in place; a picture that fails to load hides itself (its grey square stays).
@@ -540,6 +563,12 @@ $('hGo').onclick = async () => {
     try {
       for (const brand of ['SP', 'CPC']) {
         if (!HEALTH[brand]?.rows?.length) continue;
+        /* NOT ONE BY ONE WHEN THE DAILY A+ READ HAS IT (18 Nov 2026): ListingMatch reads every A+ document and its ASINs once a day;
+         * while that read is fresh, Listing Health's A+ answer comes from it (lrAplus → lmAplusOf) and this sweep is not needed. */
+        if (typeof lmAplusFresh === 'function' && lmAplusFresh(brand)) {
+          notes.push(`${BRAND_NAME[brand]}: A+ from the daily A+ read (${lmAplusState(brand).atText}) — not asked one by one.`);
+          continue;
+        }
         /* A+ IS ASKED AGAIN (2026-10-03, Ravi: "A+ wala bhi theek kar do"). An answer used to be final: once a listing
          * read "A+ missing" it stayed missing after the A+ went live. Now: never asked first, then the ones that read
          * MISSING (oldest answer first — those are the ones on a fix-it list), then the ones that have it, oldest first.
@@ -650,11 +679,14 @@ $('hGo').onclick = async () => {
 // Typing must not rebuild the table on every keystroke — at catalogue size each rebuild is a quarter
 // of a second, so an 8-letter SKU used to cost eight of them back to back and the box felt frozen.
 let H_FILTER_T = 0;
+// SMOOTH (18 Nov 2026): while the Workspace shows, this table is hidden and the Workspace's own listener on the same box redraws the
+// Workspace (listing-workspace.js) — typing or a brand pick no longer also builds the hidden table. Parent / Child draw it when it shows.
+const hDrawShown = () => { if (typeof LI_WS !== 'undefined' && LI_WS.on) return; renderHealth(); };
 $('hFilter').addEventListener('input', () => {
   clearTimeout(H_FILTER_T);
-  H_FILTER_T = setTimeout(renderHealth, 250);
+  H_FILTER_T = setTimeout(hDrawShown, 200);
 });
-$('hBrandView').addEventListener('change', renderHealth);
+$('hBrandView').addEventListener('change', hDrawShown);
 $('hIssueView').addEventListener('change', renderHealth);
 // Each view gets its own sensible default sort; carrying the other view's sort key over would land
 // on a column that doesn't exist there.
@@ -692,11 +724,12 @@ function hFocusBar(brands) {
     bar.innerHTML = '';
     return;
   }
-  const kids = ((HEALTH[H_FOCUS.brand] && HEALTH[H_FOCUS.brand].rows) || [])
-    .filter(row => (row.parent || row.asin || row.sku) === H_FOCUS.parent).map(row => Object.assign({}, row, { brand: H_FOCUS.brand }));
+  const srcs = ((HEALTH[H_FOCUS.brand] && HEALTH[H_FOCUS.brand].rows) || []).filter(row => (row.parent || row.asin || row.sku) === H_FOCUS.parent);
+  const kids = srcs.map(row => Object.assign({}, row, { brand: H_FOCUS.brand }));
   const hc = hCtx();
+  const now = Date.now();
   const counts = { critical: 0, action: 0, review: 0, healthy: 0, monitor: 0, unchecked: 0 };
-  kids.forEach(row => { counts[healthOf(row, hc).bucket]++; });
+  kids.forEach((row, i) => { counts[hHealthKept(srcs[i], row, hc, now).bucket]++; });
   const name = parentName(H_FOCUS.brand, H_FOCUS.parent, kids[0] && kids[0].title);
   bar.classList.remove('hide');
   // The header card of the open parent (the look, 6 Nov 2026): back, picture, name, ASIN · brand · children, Ravi's four counts as pills.
@@ -717,6 +750,88 @@ function hFocusBar(brands) {
 }
 
 // Draw the Listing Health table in the current view (parent or child) with the brand, issue and search filters, then the KPI cards.
+/* SMOOTH (18 Nov 2026): A LISTING IS JUDGED ONCE, NOT ON EVERY CLICK. Every sort, filter, view switch and open parent drew the table
+ * again and ran every rule over all ~4,400 listings (0.3–1.5 s of frozen page). Now a listing's checks are kept with the snapshot row
+ * they came from, beside everything they read — the Workspace's own list (liWsChildSig: the rules context, the Image Manager item, the
+ * catalogue, the live read and its dates, the schema, A+, the row's stock / status / content, the minute) plus the row's other fields —
+ * and judged again the moment any of it changes. The same answer healthOf gives; only the repeat work is gone. */
+const H_KEPT = new WeakMap();   // snapshot row → { sig, health, until }
+// The data the checks read (the clock is not in it: liWsChildSig is asked with time 0, and `until` below stands for the clock).
+function hHealthSig(src, row, hc) {
+  const brand = row.brand;
+  const base = typeof liWsChildSig === 'function' && LI_WS.live[brand] ? liWsChildSig(src, brand, hc, (hc.iml && hc.iml[brand]) || new Map(), 0) : null;
+  return base && base.concat([brand, src.sku, src.asin, src.parent, src.title, src.titleFull, src.price, src.opened, src.tried]);
+}
+/* The moment a listing's checks could next read differently with nothing else changed — healthOf reads the clock in two places only:
+ * an Error turns "Error? Check again" when its data is older than LR_STALE_DAYS, and a "no A+" answer is stale once older than
+ * LR_APLUS_DAYS (and then says how many days old it is, rounded). Until that moment the kept checks are exactly what healthOf gives. */
+function hHealthUntil(h, now) {
+  let until = Infinity;
+  h.found.forEach(hit => { if (hit.sev === 'critical' && hit.at > 0 && now <= hit.at + LR_STALE_DAYS * LR_DAY) until = Math.min(until, hit.at + LR_STALE_DAYS * LR_DAY + 1); });
+  const ap = h.aplus;
+  if (ap && ap.until) until = Math.min(until, ap.until);       // a publish record that stops counting on a known day (lrAplus)
+  if (ap && ap.v === false && ap.at > 0) {
+    const staleAt = ap.at + LR_APLUS_DAYS * LR_DAY;
+    if (now <= staleAt) until = Math.min(until, staleAt + 1);
+    else until = Math.min(until, ap.at + (Math.floor((now - ap.at) / LR_DAY + 0.5) + 0.5) * LR_DAY);   // the rounded day count ticks over
+  }
+  return until;
+}
+/* SMOOTH (18 Nov 2026): THE BIG JUDGING IN SLICES. The first open, a refresh or a newer ListingMatch copy leaves most listings to judge
+ * again (~4,400: 0.3–1 s in one go). In a browser it is done first, ≤ 30 ms at a time with the page free in between, and the draw that
+ * follows finds every answer kept — the same hHealthKept, so the same answers; nothing else waits on it. */
+const H_WARM_MIN = 150;          // fewer listings than this to judge: just draw
+let H_WARM = null;               // the slices running now (one at a time)
+let H_WARM_DRAW = false;         // a draw of the table waits for them
+function hWarmList() {
+  return ['SP', 'CPC'].flatMap(brand => ((HEALTH[brand] && HEALTH[brand].rows) || []).map(src => [src, brand]));
+}
+// Are there many listings whose checks are not kept (or kept answers past their moment)?
+function hColdMany() {
+  if (!hProgressive() || H_WARM) return !!H_WARM;
+  const hc = hCtx();
+  const now = Date.now();
+  let cold = 0;
+  for (const [src, brand] of hWarmList()) {
+    const sig = hHealthSig(src, { brand }, hc);
+    if (!sig) continue;                                  // a listing that cannot be kept is judged by the draw itself, as before
+    const kept = H_KEPT.get(src);
+    if (kept && now < kept.until && kept.sig.length === sig.length && kept.sig.every((part, i) => part === sig[i])) continue;
+    if (++cold >= H_WARM_MIN) return true;
+  }
+  return false;
+}
+function hWarm() {
+  if (H_WARM) return H_WARM;
+  if (!hProgressive()) return Promise.resolve();
+  H_WARM = (async () => {
+    try {
+      const hc = hCtx();
+      const all = hWarmList();
+      let i = 0;
+      while (i < all.length) {
+        const t0 = performance.now();
+        while (i < all.length && performance.now() - t0 < 30) {
+          const [src, brand] = all[i++];
+          hHealthKept(src, Object.assign({}, src, { brand }), hc, Date.now());
+        }
+        if (i < all.length) await new Promise(resolve => setTimeout(resolve, 0));
+      }
+    } finally {
+      H_WARM = null;
+    }
+  })();
+  return H_WARM;
+}
+function hHealthKept(src, row, hc, now) {
+  const sig = src ? hHealthSig(src, row, hc) : null;
+  if (!sig) return healthOf(row, hc);
+  const kept = H_KEPT.get(src);
+  if (kept && now < kept.until && kept.sig.length === sig.length && kept.sig.every((part, i) => part === sig[i])) return kept.health;
+  const health = healthOf(row, hc);
+  H_KEPT.set(src, { sig, health, until: hHealthUntil(health, Date.now()) });
+  return health;
+}
 function renderHealth() {
   $('hViewParent').classList.toggle('on', H_VIEW === 'parent');
   $('hViewChild').classList.toggle('on', H_VIEW === 'child');
@@ -729,13 +844,22 @@ function renderHealth() {
     $('hTable').innerHTML = '';
     return;
   }
+  // SMOOTH (18 Nov 2026): many listings still to judge (the first open, new data): they are judged in slices first (hWarm) while the
+  // skeleton rows show, then this very draw — never one long freeze. Every draw asked for meanwhile is that one draw.
+  if (hColdMany()) {
+    if (!H_WARM_DRAW) { H_WARM_DRAW = true; hSkeleton(); hWarm().then(() => { H_WARM_DRAW = false; renderHealth(); }); }
+    return;
+  }
   const multiBrand = brands.length > 1;
+  const firstN = hFirstRows(H_PAGE);   // SMOOTH: how many rows fill the screen, read before anything on the page is written (no forced layout)
   hFocusBar(brands);
   // --- score every listing ---
-  let rows = brands.flatMap(brandKey => HEALTH[brandKey].rows.map(row => ({ ...row, brand: brandKey })));
+  const srcOf = new Map();   // each row's copy → the snapshot row it was copied from (what its kept checks are keyed on)
+  let rows = brands.flatMap(brandKey => HEALTH[brandKey].rows.map(row => { const copy = { ...row, brand: brandKey }; srcOf.set(copy, row); return copy; }));
   const hc = hCtx();
+  const now = Date.now();
   rows.forEach(row => {
-    const health = healthOf(row, hc);
+    const health = hHealthKept(srcOf.get(row), row, hc, now);
     row._h = health;
     row.score = health.score;
     row.grade = health.grade;
@@ -865,7 +989,7 @@ function renderHealth() {
      * then Content (A+, bullets, description), Health, the reasons, and a suggested title where one applies.
      * A coloured dot is the worst issue in that area; ✓ is judged and fine; — could not be judged. */
     defs.push({ k: 'sku', t: 'SKU / ASIN', frz: 1,
-      cell: row => `<div class="ls-prod">${hPicHtml(row.brand, [row])}<div class="ls-prod-t"><div class="ui-mono">${lrEsc(row.sku)}</div><span class="ls-asin">${lrEsc(row.asin || '')}</span></div></div>` });
+      cell: row => `<div class="ls-prod">${hPicHtml(row.brand, [row])}<div class="ls-prod-t"><div class="ui-mono">${lrEsc(row.sku)}${typeof lmOldHtml === 'function' ? lmOldHtml(row.brand, row.sku) : ''}</div><span class="ls-asin">${lrEsc(row.asin || '')}</span></div></div>` });
     if (multiBrand) defs.push({ k: 'brand', t: 'Brand', map: row => BRAND_NAME[row.brand] });
     defs.push({ k: 'lstatus', t: 'Status', noTotal: 1,
       map: row => row.qty === 0 ? 'OOS' : (/inactive/i.test(row.status || '') ? 'Inactive' : (/active/i.test(row.status || '') ? 'Active' : (row.status || '—'))) });
@@ -896,9 +1020,12 @@ function renderHealth() {
   // Parent view leads with the parents that need the most work; child view with the worst listings.
   const sortDef = defs.find(def => def.k === H_SORT.k)
     || defs.find(def => def.k === (H_VIEW === 'parent' ? 'critical' : 'score'));
+  // SMOOTH (18 Nov 2026): each row's sort value worked out once, not twice per comparison (a parent's area column walks all its
+  // children) — the same values, the same stable sort, so the same order.
+  const sortVal = new Map(rows.map(row => [row, val(row, sortDef)]));
   rows.sort((a, b) => {
-    const x = val(a, sortDef);
-    const y = val(b, sortDef);
+    const x = sortVal.get(a);
+    const y = sortVal.get(b);
     const cmp = (typeof x === 'number' && typeof y === 'number') ? x - y : String(x || '').localeCompare(String(y || ''));
     return cmp * H_SORT.dir;
   });
@@ -913,6 +1040,8 @@ function renderHealth() {
   // whichever parents survived the filter, so the cards still agree with what's on screen.
   renderHealthKpis(H_VIEW === 'parent' ? rows.flatMap(g => g.kids) : rows, brands);
   hMetaRender(brands, H_VIEW === 'parent' ? 'Parent ASINs' : 'Child listings');
+  // ✨ Fix these first (listing-ai.js): the best 10 of the top 20 Critical / Important listings — only when AI is set up, only on a click
+  if (typeof aiOn === 'function' && aiOn() && $('hMeta').firstChild && $('hMeta').firstChild.insertAdjacentHTML) $('hMeta').firstChild.insertAdjacentHTML('beforeend', ' ' + aiBtnHtml('fix_first', brands[0] || 'SP', '', { use: 'read', brands, label: 'Fix these first', place: 'after' }));
   if (H_MOVED && $('hMeta').firstChild && $('hMeta').firstChild.insertAdjacentHTML) {
     $('hMeta').firstChild.insertAdjacentHTML('beforeend', ' <button type="button" class="ls-more lh-resort" data-h-resort="1" title="New answers would put the listings in another order; the table keeps its order until you press this">Sort again</button>');
   }
@@ -924,7 +1053,7 @@ function renderHealth() {
   // TOTAL row, the KPI cards and the CSV export are all computed over every filtered row.
   const shown = rows.slice(0, H_PAGE);
 
-  const fmtNum = value => (value == null || value === '' ? '<span class="muted">—</span>' : Number(value).toLocaleString('en-US'));
+  const fmtNum = value => (value == null || value === '' ? '<span class="muted">—</span>' : H_NUM.format(Number(value)));
   const money = value => (value ? '$' + Number(value).toFixed(2) : '<span class="muted">—</span>');
   const esc = str => String(str == null ? '' : str).replace(/[<>&"]/g, ch => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[ch]));
   const arrow = def => def.k === H_SORT.k ? (H_SORT.dir < 0 ? ' ↓' : ' ↑') : '';
@@ -941,7 +1070,7 @@ function renderHealth() {
     const key = row.brand + '|' + row.sku;
     return `<tr class="ls-row${key === selKey ? ' is-open' : ''}" data-lk-row="${esc(key)}" tabindex="0" aria-selected="${key === selKey}" aria-label="${esc(row.sku)}: open its details">`;
   };
-  const body = shown.map(row => rowOpen(row) + defs.map(def => {
+  const rowHtml = row => rowOpen(row) + defs.map(def => {
     const value = val(row, def);
     const cls = (def.frz ? 'frz ' : '') + (def.num ? 'num' : '');
     if (def.cell) return `<td class="${cls}">${def.cell(row)}</td>`;
@@ -952,7 +1081,7 @@ function renderHealth() {
     if (def.num) return `<td class="${cls}">${fmtNum(value)}</td>`;
     if (def.trunc) return `<td class="${cls}" title="${esc(value)}">${esc(String(value || '').slice(0, def.trunc))}</td>`;
     return `<td class="${cls}" style="${def.mono ? 'font-family:ui-monospace,monospace' : ''}">${esc(value) || '<span class="muted">—</span>'}</td>`;
-  }).join('') + '</tr>').join('');
+  }).join('') + '</tr>';
 
   // Only quantities are meaningful to add up — a summed score or price would be nonsense, so those
   // columns are marked noTotal and left blank in the footer.
@@ -968,6 +1097,10 @@ function renderHealth() {
   const focusRow = active && active.closest && $('hTable').contains && $('hTable').contains(active) && active.closest('tr[data-lk-row]')
     ? active.closest('tr[data-lk-row]').dataset.lkRow : '';
   if ($('hTable').classList) $('hTable').classList.toggle('is-kids', H_VIEW === 'child');
+  // SMOOTH (18 Nov 2026): the rows on screen (and a margin) are drawn now; the rest of the H_PAGE rows follow in the next frames
+  // (hRestRows) — the same rows in the same order, the click no longer waits for 300 rows to be built and laid out.
+  const first = Math.min(shown.length, firstN);
+  const body = shown.slice(0, first).map(rowHtml).join('');
   $('hTable').innerHTML = head + '<tbody>' + (body ||
     `<tr><td colspan="${defs.length}" class="muted">No rows.</td></tr>`) + '</tbody>' + foot;
   if (focusRow) {
@@ -1004,26 +1137,78 @@ function renderHealth() {
       renderHealth();
     };
   });
-  if (H_VIEW === 'parent') {
-    wireParentNameCells('hTable', renderHealth);
-  }
-  $('hTable').querySelectorAll('[data-hsug]').forEach(el => {
-    el.onclick = () => {
-      const pair = el.dataset.hsug;                 // "brand|sku"
-      const sep = pair.indexOf('|');
-      hSugOpen(pair.slice(0, sep), pair.slice(sep + 1));
-    };
-  });
-  if (H_VIEW === 'parent') {
-    $('hTable').querySelectorAll('[data-hkid]').forEach(el => {
+  const shownView = H_VIEW;
+  const wireRows = () => {                         // the rows' own buttons — again for each part of the rows drawn later
+    if (shownView === 'parent') {
+      wireParentNameCells('hTable', renderHealth);
+    }
+    $('hTable').querySelectorAll('[data-hsug]').forEach(el => {
       el.onclick = () => {
-        const pair = el.dataset.hkid;               // "brand|parent"
+        const pair = el.dataset.hsug;                 // "brand|sku"
         const sep = pair.indexOf('|');
-        hFocusOpen(pair.slice(0, sep), pair.slice(sep + 1));
+        hSugOpen(pair.slice(0, sep), pair.slice(sep + 1));
       };
     });
-  }
+    if (shownView === 'parent') {
+      $('hTable').querySelectorAll('[data-hkid]').forEach(el => {
+        el.onclick = () => {
+          const pair = el.dataset.hkid;               // "brand|parent"
+          const sep = pair.indexOf('|');
+          hFocusOpen(pair.slice(0, sep), pair.slice(sep + 1));
+        };
+      });
+    }
+  };
+  wireRows();
+  hRestRows(shown.slice(first), rowHtml, wireRows, focusRow);
   // The child sidebar follows what was just drawn (closes in Parent ASINs; draws again when its listing's data changed).
   if (typeof lkSync === 'function') lkSync();
+}
+/* SMOOTH (18 Nov 2026): A LONG TABLE IS DRAWN A SCREENFUL FIRST. The rows on screen (and a margin) are drawn at once; the rest of the
+ * H_PAGE rows follow LS_REST_STEP at a time, one part per frame — so a click, a sort or a filter shows its first rows at once and the
+ * page never freezes for the whole table. The same rows in the same order in the end. Every new draw of a table cancels its parts still
+ * to come. Without a browser (the tests) every row is drawn at once, as before. Listing Health, BSR Audit and Listing Audit use it. */
+const LS_FIRST = 60;             // rows drawn at once at least (more when the table is scrolled down, so the place is kept)
+const LS_REST_STEP = 80;         // rows per later frame
+const LS_REST = new Map();       // table id → the draw its parts still to come belong to
+const lsProgressive = id => typeof requestAnimationFrame === 'function' && typeof document !== 'undefined' && !!document.body
+  && !!$(id) && typeof $(id).insertAdjacentHTML === 'function';
+const hProgressive = () => lsProgressive('hTable');
+// How many of the n rows to draw at once: a screenful of the card (desktop) or of the page (phone), from where it is scrolled to.
+function lsFirstRows(id, n) {
+  if (!lsProgressive(id)) return n;
+  const table = $(id);
+  const tr = table.querySelector('tbody tr');
+  const rowH = tr && tr.getBoundingClientRect && tr.getBoundingClientRect().height > 20 ? tr.getBoundingClientRect().height : 44;
+  const wrap = table.closest ? table.closest('.xlwrap') : null;
+  const inWrap = wrap ? wrap.scrollTop + wrap.clientHeight : 0;                                     // the card scrolls (desktop)
+  const inWin = (window.innerHeight || 900) - (table.getBoundingClientRect ? table.getBoundingClientRect().top : 0);   // the page scrolls (phone)
+  return Math.min(n, Math.max(LS_FIRST, Math.ceil(Math.max(inWrap, inWin) / rowH) + 20));
+}
+// The rows after the first ones, a part per frame: `after` runs after each part (the rows' own buttons), `done` after the last.
+function lsLaterRows(id, rest, rowHtml, after, done) {
+  const mine = (LS_REST.get(id) || 0) + 1;
+  LS_REST.set(id, mine);
+  if (!rest.length) return;
+  const step = () => {
+    if (LS_REST.get(id) !== mine) return;                          // the table was drawn again since
+    const tbody = $(id).querySelector('tbody');
+    if (!tbody) return;
+    tbody.insertAdjacentHTML('beforeend', rest.splice(0, LS_REST_STEP).map(rowHtml).join(''));
+    if (after) after();
+    if (rest.length) requestAnimationFrame(() => setTimeout(step, 0));
+    else if (done) done();
+  };
+  requestAnimationFrame(() => setTimeout(step, 0));
+}
+const hFirstRows = n => lsFirstRows('hTable', n);
+function hRestRows(rest, rowHtml, wireRows, focusRow) {
+  lsLaterRows('hTable', rest, rowHtml, () => {
+    wireRows();
+    if (focusRow && !$('hTable').contains(document.activeElement)) {
+      const again = $('hTable').querySelector(`tr[data-lk-row="${CSS.escape(focusRow)}"]`);
+      if (again) again.focus({ preventScroll: true });
+    }
+  }, () => { if (typeof lkRowMark === 'function' && typeof LK !== 'undefined' && LK.key) lkRowMark(); });   // a child opened meanwhile is marked on every row
 }
 

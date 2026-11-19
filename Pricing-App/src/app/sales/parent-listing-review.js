@@ -467,7 +467,7 @@ function renderPlaudit() {
 
   if (!lastWeek) {
     $('plTable').innerHTML = '<tbody><tr><td class="ui-empty">'
-      + 'No completed week stored yet — open PPC &amp; Organic and Refresh once.</td></tr></tbody>';
+      + 'No completed week stored yet — open Product Performance once and let it load (or its old view, and Refresh).</td></tr></tbody>';
     plMsg('');
     return;
   }

@@ -92,6 +92,8 @@ vfWire();
 // view or the app view, and on sign-in starts the session — permissions, menu, email check, backend
 // address and key, settings.
 onAuthStateChanged(auth, async user => {
+  $('bootView').classList.add('hide');            // the first answer has come: no more "Loading Sellora…"
+  if (!user) TAB_HASH = 'off';                    // signed out: the address keeps its #tab for after the sign-in (core/nav.js)
   $('loginView').classList.toggle('hide', !!user);
   $('appView').classList.toggle('hide', !user);
   if (!user) return;
@@ -148,5 +150,7 @@ onAuthStateChanged(auth, async user => {
   }
   // --- settings (core/settings.js): the costing numbers, category fees and size tiers, New Product defaults ---
   await loadSettings();
+  // --- the Sellora sync (listing/listing-sync.js): one open browser keeps Seller Central, the shop page and Sellora in step ---
+  if (typeof lyStart === 'function' && (ME.admin || ['health', 'lrules', 'img', 'lerr', 'opt'].some(tab => ME.tabs.includes(tab)))) lyStart();
 });
 

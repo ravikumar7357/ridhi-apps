@@ -115,9 +115,15 @@ function lrAllowRender(cfg) {
       <span class="muted">Pieces in these colours are embroidery, so "Block Print" is never asked of them; nor of a listing that says Embroidered or Embroidery. Otherwise
       "Block Print" is asked for only with proof that the product is block print — a sibling's title under the same parent, or the listing's own bullets or description on
       Amazon say it. A mixed colour such as "Blue &amp; White" is not white.</span></div>
+    <div class="lr-allow-row"><label>Other brands' names (trademarks) ${field('otherBrands', allow.otherBrands, 'w-xl')}</label>
+      <span class="muted">IP &amp; Trademark Guard (Listing → 2 · Check): another brand's or a licensed name in a title, bullets, description, search terms or Item Highlights —
+      Amazon can remove the listing. Whole words, any case, also as "Pottery Barn style" / "inspired by …". Fix all search terms takes these words out. Separate them with commas.</span></div>
+    <div class="lr-allow-row"><label>Restricted claims ${field('claims', allow.claims, 'w-xl')}</label>
+      <span class="muted">Words that need proof or a certificate (the same Guard screen, amber). A listing that holds the certificate is marked "Allowed on purpose" there.</span></div>
     <div class="lr-allow-row"><span class="muted">Always, at any length, the same meaning is never an error: upper / lower case, singular / plural, Grey / Gray, Colour / Color,
       Tablecloth / Table Cloth / Table-Cloth, Pillow Cover / Cushion Cover, Block Print / Block-Print / Blockprint / Block Printed / Hand Block Printed, hyphens, commas,
-      "|" and extra spaces. Siblings' sizes compare by meaning: "18x18" = "18 x 18" = "18×18".</span></div>`;
+      "|" and extra spaces. Siblings' sizes compare by meaning: "18x18" = "18 x 18" = "18×18".</span></div>`
+    + (typeof aiOn === 'function' && aiOn() && typeof aiStyleSectionHtml === 'function' ? aiStyleSectionHtml() : '');      // ✨ AI house style (listing-ai.js): shown only when AI is set up
 }
 
 // Draw the current view (issues / titles / season) into lrTable, with live counts from the listings snapshot.
@@ -195,7 +201,7 @@ function renderLrules() {
           <td class="num" style="font-weight:700">${rows.length ? off.toLocaleString('en-US') : '—'}</td>
           <td><button class="ghost lr-del" data-lrdel="templates|${i}" title="Delete this template">×</button></td>
         </tr>`;
-      }).join('') + '</tbody>';
+      }).join('') + '</tbody>' + (typeof aiOn === 'function' && aiOn() && typeof aiTplHtml === 'function' ? aiTplHtml(cfg) : '');      // ✨ Draft title template (listing-ai.js)
     lrMsg('Tokens: {brand} {product} {shape} {material} {size} {pattern} {uses} {occasions} {color}. "Must have" lists the tokens a title is checked for, in template order. '
       + '{occasions} is filled only with occasions in season today. Shape comes from the catalog sub-category, size and colour from the catalog row. Type a SKU in "Try a SKU" to see its suggestion.'
       + (LR_CAT.SP && LR_CAT.CPC ? '' : ' · the brand catalogues could not be read, so no title can be suggested yet'));
@@ -233,13 +239,19 @@ function renderLrules() {
     + '<th class="num" title="Titles in the listings snapshot that name it">Titles</th><th></th></tr></thead><tbody>'
     + cfg.events.map((occasion, i) => {
       const season = lrSeason(occasion, today, cfg.events);
+      // this year's and next year's date, worked out by themselves (or typed: a typed date wins) — "Easter 2027: 28 Mar"
+      const y = today.getFullYear();
+      const typedOf = year => !!(occasion.on && occasion.on[String(year)]);
+      const dates = [y, y + 1].map(year => ({ year, date: lrEventDate(occasion, year, cfg.events), typed: typedOf(year) }));
+      const typedVal = (occasion.on && (occasion.on[String(y)] || occasion.on[String(y + 1)])) || '';
       return `<tr>
         <td><input class="w-s" data-lre="${i}" data-f="name" value="${lrEsc(occasion.name)}"></td>
         <td><input class="w-m" data-lre="${i}" data-f="words" value="${lrEsc(occasion.words)}" title="${lrEsc(occasion.words)}"></td>
-        <td>${lrEsc(whenText(occasion))}</td>
+        <td>${lrEsc(whenText(occasion))}<div class="muted lr-dates" title="${lrEsc(dates.map(d => `${occasion.name} ${d.year}: ${short(d.date)}`).join(' · '))}">${dates.map(d => `${d.year}: ${short(d.date)}${d.typed ? ' (typed)' : ''}`).join(' · ')}</div>`
+          + `<input type="date" class="lr-on" data-lre="${i}" data-f="on" value="${lrEsc(typedVal)}" title="Type a date only to use it instead of the worked-out one (for that year); clear it to go back"></td>
         <td>${season.next ? short(season.next) + " '" + String(season.next.getUTCFullYear()).slice(2) : '—'}</td>
         <td>${season.from ? short(season.from) + ' → ' + short(season.to) : '—'}</td>
-        <td><span class="lr-pill ${season.inSeason ? 'lr-in' : 'lr-out'}">${season.inSeason ? 'in season' : 'out'}</span></td>
+        <td>${(st => `<span class="lr-pill ${st.expired ? 'lr-out' : 'lr-in'}" title="${st.active ? 'Time to add it (from its days before up to the day)' : st.keep ? 'Just past: not added any more, not removed or flagged yet' : 'Over: OK to remove, and a title naming it is flagged'}">${st.active ? 'in season' : st.keep ? 'just past' : 'out'}</span>`)(lrSeasonState(occasion, today, cfg.events))}</td>
         <td class="num" style="white-space:nowrap"><input class="w-xs" data-lre="${i}" data-f="lead" type="number" min="0" value="${occasion.lead || 0}" title="days before">
           <span class="muted">·</span> <input class="w-xs" data-lre="${i}" data-f="lag" type="number" min="0" value="${occasion.lag || 0}" title="days after"></td>
         <td><input class="w-s" data-lre="${i}" data-f="except" value="${lrEsc(occasion.except || '')}" placeholder="e.g. Tree Skirt" title="${lrEsc(occasion.except || '')}"></td>
@@ -273,7 +285,14 @@ $('lrTable').addEventListener('change', e => {
   } else if (el.hasAttribute('data-lre')) {
     const occasion = cfg.events[+el.getAttribute('data-lre')];
     if (!occasion) return;
-    occasion[field] = (field === 'lead' || field === 'lag') ? Math.max(0, parseInt(val, 10) || 0) : val;
+    if (field === 'on') {
+      // a typed date for its own year wins over the worked-out one; an empty box goes back to the worked-out dates
+      const y = new Date().getFullYear();
+      occasion.on = Object.assign({}, occasion.on || {});
+      if (/^\d{4}-\d{2}-\d{2}$/.test(val)) occasion.on[val.slice(0, 4)] = val;
+      else { delete occasion.on[String(y)]; delete occasion.on[String(y + 1)]; }
+      if (!Object.keys(occasion.on).length) delete occasion.on;
+    } else occasion[field] = (field === 'lead' || field === 'lag') ? Math.max(0, parseInt(val, 10) || 0) : val;
   } else return;
   LR_DIRTY = true;
   H_CTX = null;
@@ -289,6 +308,8 @@ $('lrAllow').addEventListener('change', e => {
   if (key === 'shortFrom') allow.shortFrom = Math.min(75, Math.max(1, parseInt(value, 10) || LR_DEFAULT.allow.shortFrom));
   else if (key === 'ourBrands') allow.ourBrands = value;
   else if (key === 'embColors') allow.embroideryColors = value;
+  else if (key === 'otherBrands') allow.otherBrands = value;
+  else if (key === 'claims') allow.claims = value;
   LR_DIRTY = true;
   H_CTX = null;
   renderLrules();
@@ -413,7 +434,7 @@ function lrRulesDiff(a, b) {
   ae.forEach((o, id) => { if (!be.has(id)) out.push(`removed '${o.name}' from the season calendar`); });
   const aa = lrAllow(a);
   const ba = lrAllow(b);
-  const allowName = { shortFrom: 'Short forms allowed from', ourBrands: 'Our brand words', embroideryColors: 'Embroidery colours' };
+  const allowName = { shortFrom: 'Short forms allowed from', ourBrands: 'Our brand words', embroideryColors: 'Embroidery colours', otherBrands: "Other brands' names", claims: 'Restricted claims' };
   Object.keys(allowName).forEach(k => { if (String(aa[k]) !== String(ba[k])) out.push(`changed '${allowName[k]}' from '${aa[k]}' to '${ba[k]}'`); });
   return out;
 }

@@ -67,7 +67,7 @@ function lcCheck(field, vals, ctx) {
     const cfg = LR || LR_DEFAULT;
     (cfg.events || []).forEach(ev => {
       const season = lrSeason(ev, today, cfg.events);
-      if (!season.inSeason && lrWords(ev.words).some(word => lrHas(title, word))
+      if (lrSeasonState(ev, today, cfg.events).expired && lrWords(ev.words).some(word => lrHas(title, word))   // the one season-date rule
           && !lrWords(ev.except).some(word => lrHas(ctx.subcat || '', word) || lrHas(ctx.color || '', word))) {
         push(false, `Names ${ev.name}, which is out of season now (in season ${lrFmtDate(season.from)} – ${lrFmtDate(season.to)}).`);
       }
@@ -111,6 +111,10 @@ function lcCheck(field, vals, ctx) {
     const repeated = [...new Set(text.toLowerCase().split(/[^a-z0-9]+/).filter(word => titleWords.has(word)))];
     if (repeated.length) push(false, `Already in the title (Amazon indexes them once, so these bytes are wasted): ${repeated.slice(0, 8).join(', ')}.`);
   }
+  // IP & Trademark Guard (listing/ip-guard.js): another brand's name or a restricted claim in this field — a note for the person editing
+  // (never a refusal). A word marked "Allowed on purpose" for the listing is not named.
+  if (typeof ipgTitleRisk === 'function') [...new Set(ipgTitleRisk(ctx.brand || '', ctx.sku || '', null, vals.join('\n'), LR || LR_DEFAULT))]
+    .forEach(why => push(false, `IP & Trademark Guard: ${why} — take it out, or mark it “Allowed on purpose” on that screen.`));
   return out;
 }
 
@@ -126,10 +130,10 @@ async function lcEnsureRules() {
     LC_RULES_AT = Date.now();
   }
 }
-/** The template filled to fit `max`, and what had to come out. Order of what goes: the occasions, the uses phrase, then
- *  the parts the template does not require — but a part carrying a word the title_keyword rule requires is cut down to
- *  that word ("Hand Block Print" → "Block Print") rather than dropped. Only then a required part, last resort, and it is
- *  NAMED in `dropped` so nobody takes a title that breaks the rules for one that follows them. */
+/** The template filled to fit `max`, and what had to come out: the occasions first, then the words THE ONE SUGGESTION-WORDS RULE
+ *  (listing-rules.js lrSuggestWords, 19 Nov 2026) lets go, in the template's order — never the brand, product, shape, material, size,
+ *  the print ("Hand Block Print" stays whole) or the colour. When only those are left it may stay over `max` (nothing important is cut);
+ *  a required part with none of its words left is NAMED in `dropped`. */
 // Returns { title, dropped }: the template filled to at most `max` characters, and the required parts that had to go.
 function lcTemplateFit(brand, sku, max) {
   const cfg = LR || LR_DEFAULT;
@@ -138,39 +142,24 @@ function lcTemplateFit(brand, sku, max) {
   if (!tpl) return { title: '', dropped: [] };
   const values = Object.assign({}, lrParts(row, tpl, cfg, new Date()));     // token → text, a copy so it can be trimmed
   const required = lrWords(tpl.required);
-  const kwRule = lcRule('title_keyword');
-  const keys = kwRule ? lrWords(kwRule.params.words) : [];
   // Fill the template without the tokens in `drop`, then tidy spaces and dashes.
   const fill = drop => String(tpl.template || '').replace(/\{(\w+)\}/g, (_, name) => (drop.includes(name) ? '' : (values[name] || '')))
     .replace(/\s+-\s+(?=-|$)/g, ' ').replace(/\s{2,}/g, ' ').replace(/\s+-\s*$/, '').replace(/^\s*-\s+/, '').trim();
-  const parts = (String(tpl.template || '').match(/\{(\w+)\}/g) || []).map(token => token.slice(1, -1));
-  const drop = [];
-  let out = fill(drop);
-  // --- what goes first: occasions, uses, the optional parts, then required parts other than brand / product / colour / size ---
-  const steps = ['occasions', 'uses']
-    .concat(parts.filter(name => !['occasions', 'uses', 'brand', 'product', 'color'].includes(name) && !required.includes(name)),
-      required.filter(name => !['brand', 'product', 'color', 'size'].includes(name)));
-  for (const name of steps) {
-    if (out.length <= max) break;
-    if (!values[name] || drop.includes(name)) continue;
-    const key = keys.find(word => lrHas(values[name], word));
-    if (key && values[name].trim().toLowerCase() !== key.toLowerCase()) {
-      values[name] = key;                                 // cut the part down to the required word
-      out = fill(drop);
-      if (out.length <= max) break;
-    }
-    if (key) continue;                                   // the required word stays
-    drop.push(name);
-    out = fill(drop);
-  }
-  if (out.length > max) out = out.slice(0, max).replace(/\s+\S*$/, '').replace(/[\s,\-–]+$/, '');
-  return { title: out, dropped: drop.filter(name => required.includes(name)) };
+  let out = fill([]);
+  if (out.length > max) out = fill(['occasions']);
+  if (out.length > max) out = lrSuggestWords(out, { mode: 'title', facts: lrSwFacts(row, cfg), fits: text => text.length <= max }).after;
+  // a required part none of whose words is left (the one rule never lets one go — kept for the screen's warning)
+  const left = new Set(lrNorm(out).split(/[^a-z0-9%]+/).filter(Boolean));
+  const dropped = required.filter(name => values[name] && !lrNorm(values[name]).split(/[^a-z0-9%]+/).filter(Boolean).some(word => left.has(word)));
+  return { title: out, dropped };
 }
 // Just the title of lcTemplateFit.
 const lcTemplateTitle = (brand, sku, max) => lcTemplateFit(brand, sku, max).title;
 // The search-term byte limit from Listing Rules (the "Search terms over the limit" rule), 249 when the rule is off or gone.
 const lcKwMax = () => { const rule = lcRule('keyword_bytes'); return rule ? (+(rule.params || {}).max || 249) : 249; };
-/** Search terms: the template's own words that the title does not carry, then what is there now — never past the byte limit. */
+/** Search terms: the template's own words that the title does not carry (its important words — hand, block print, its product, shape,
+ *  material, colour, use words — even when the title has them), then what is there now; never a shape or colour from the template that is
+ *  not the product's; fitted to the byte limit by THE ONE SUGGESTION-WORDS RULE (listing-rules.js lrSuggestWords), not cut off at the end. */
 function lcSuggestKeywords(brand, sku, title, current) {
   const cfg = LR || LR_DEFAULT;
   const row = { brand, sku };
@@ -178,19 +167,22 @@ function lcSuggestKeywords(brand, sku, title, current) {
   const parts = tpl ? lrParts(row, tpl, cfg, new Date()) : {};
   const stop = new Set(['for', 'and', 'the', 'with', 'of', 'a', 'an', 'to', 'in', 'on', '&', '-', 'x', 'inch']);
   const inTitle = new Set(String(title || '').toLowerCase().split(/[^a-z0-9']+/).filter(Boolean));
-  const words = [];
-  [parts.uses, parts.occasions, parts.material, parts.pattern, parts.product, parts.shape, current].join(' ').toLowerCase().split(/[^a-z0-9']+/)
-    .forEach(word => {
-      if (word.length > 1 && !stop.has(word) && !inTitle.has(word) && !/^b0[a-z0-9]{8}$/.test(word) && !words.includes(word)) words.push(word);
-    });
-  let out = '';
+  const facts = lrSwFacts(row, cfg, null, { title });
+  // what the one rule protects for this listing: such a word is suggested even when the title already says it
+  const keep = new Set(lrSuggestWords([parts.uses, parts.material, parts.pattern, parts.product, parts.shape, title].join(' '), { mode: 'kw', facts, riskOnly: true }).toks
+    .filter(t => t.cls).map(t => lrSwKey(t.w)));
+  // the template's shape word only when it is the product's real shape ("Square" is never suggested for a 118 x 70 cloth)
+  const wrong = word => { const k = lrSwKey(word); return !!facts.shape && LR_SW_SHAPE_OF.has(k) && LR_SW_SHAPE_OF.get(k) !== facts.shape; };
+  const words = [], seen = new Set();
+  const add = (text, fromTemplate) => String(text || '').toLowerCase().split(/[^a-z0-9'%]+/).forEach(word => {
+    const k = lrSwKey(word);
+    if (word.length > 1 && !stop.has(word) && (!inTitle.has(word) || keep.has(k)) && !/^b0[a-z0-9]{8}$/.test(word) && !seen.has(k) && !(fromTemplate && wrong(word))) { seen.add(k); words.push(word); }
+  });
+  [parts.uses, parts.occasions, parts.material, parts.pattern, parts.product].forEach(text => add(text, false));
+  add(parts.shape, true);
+  add(current, false);
   const max = lcKwMax();
-  for (const word of words) {
-    const next = out ? out + ' ' + word : word;
-    if (lrKwBytes(next) > max) break;
-    out = next;
-  }
-  return out;
+  return lrSuggestWords(words.join(' '), { mode: 'kw', facts, title, brands: lrBrandWords(row, cfg), fits: text => lrKwBytes(text) <= max }).after;
 }
 
 /* ============================================================================================
@@ -217,7 +209,7 @@ const lcFindHtml = list => list.length
 // The ctx lcCheck wants for the listing on screen: its title now and its catalogue sub-category and colour.
 function lcCtx() {
   const cat = (LR_CAT[$('leBrand').value] || {})[LE.sku] || {};
-  return { title: lcNow('item_name')[0] || '', subcat: cat.subcat, color: cat.color };
+  return { title: lcNow('item_name')[0] || '', subcat: cat.subcat, color: cat.color, brand: $('leBrand').value, sku: LE.sku };
 }
 
 let LC_FOR = '';        // the SKU the bullet boxes below were counted for
@@ -251,7 +243,7 @@ function lcSectionHtml() {
   const nBoxes = Math.min(10, Math.max(5, bullets.length) + LC_EXTRA);
   return `<div class="card" style="padding:10px 14px;margin-bottom:10px">
     <div style="font-weight:600;font-size:13px;margin-bottom:6px">Content <span class="muted" style="font-weight:400;font-size:11.5px">— checked against Listing Rules as you type</span></div>${hint}
-    <div style="margin-bottom:10px"><div style="font-weight:600;font-size:12.5px">Title${ch('item_name')}</div>
+    <div style="margin-bottom:10px"${typeof aiOn === 'function' && aiOn() ? ' data-ai-block' : ''}><div style="font-weight:600;font-size:12.5px">Title${ch('item_name')}${typeof aiOn === 'function' && aiOn() ? ' ' + aiBtnHtml('title', brand, sku, { use: 'lc', place: 'block', label: 'AI title' }) : ''}</div>
       <textarea id="lcTitle" rows="2" style="width:100%">${leEsc(title)}</textarea>
       <div class="muted" style="font-size:11px"><span id="lcTitleN">${title.length}</span> characters</div>
       <div id="lcTitleF">${lcFindHtml(lcCheck('item_name', [title], lcCtx()))}</div>
@@ -261,7 +253,7 @@ function lcSectionHtml() {
             (dropped => dropped.length ? ` <span style="color:var(--act-ink)">— leaves out what the template requires: ${leEsc(dropped.join(', '))}</span>` : '')(lcTemplateFit(brand, sku, 75).dropped)}` : ''}</div>`
         : `<div class="muted" style="font-size:11.5px;margin-top:4px">No Listing Rules template matches this SKU (its sub-category is not one the templates name, or the SKU is not in the brand catalogue).</div>`}
     </div>
-    <div style="margin-bottom:10px"><div style="font-weight:600;font-size:12.5px">Bullet points${ch('bullet_point')}</div>
+    <div style="margin-bottom:10px"${typeof aiOn === 'function' && aiOn() ? ' data-ai-block' : ''}><div style="font-weight:600;font-size:12.5px">Bullet points${ch('bullet_point')}${typeof aiOn === 'function' && aiOn() ? ' ' + aiBtnHtml('bullets', brand, sku, { use: 'lc', place: 'block', label: 'AI bullets' }) : ''}</div>
       ${Array.from({ length: nBoxes }, (_, i) => `<div style="display:flex;gap:6px;align-items:flex-start;margin:3px 0">`
         + `<span class="muted" style="font-size:11px;width:18px;padding-top:6px">${i + 1}</span>
         <textarea class="lcBullet" data-i="${i}" rows="2" style="flex:1">${leEsc(bullets[i] || '')}</textarea>
@@ -270,12 +262,12 @@ function lcSectionHtml() {
       <div id="lcBulletsF">${lcFindHtml(lcCheck('bullet_point', bullets))}</div>
       <div class="muted" style="font-size:11px">Listing Rules hold no bullet template, so nothing is written for you here — only checked.</div>
     </div>
-    <div style="margin-bottom:10px"><div style="font-weight:600;font-size:12.5px">Description${ch('product_description')}</div>
+    <div style="margin-bottom:10px"${typeof aiOn === 'function' && aiOn() ? ' data-ai-block' : ''}><div style="font-weight:600;font-size:12.5px">Description${ch('product_description')}${typeof aiOn === 'function' && aiOn() ? ' ' + aiBtnHtml('description', brand, sku, { use: 'lc', place: 'block', label: 'AI description' }) : ''}</div>
       <textarea id="lcDesc" rows="5" style="width:100%">${leEsc(desc)}</textarea>
       <div class="muted" style="font-size:11px"><span id="lcDescN">${desc.length}</span> characters</div>
       <div id="lcDescF">${lcFindHtml(lcCheck('product_description', [desc]))}</div>
     </div>
-    <div><div style="font-weight:600;font-size:12.5px">Search terms (backend keywords)${ch('generic_keyword')}</div>
+    <div${typeof aiOn === 'function' && aiOn() ? ' data-ai-block' : ''}><div style="font-weight:600;font-size:12.5px">Search terms (backend keywords)${ch('generic_keyword')}${typeof aiOn === 'function' && aiOn() ? ' ' + aiBtnHtml('kw', brand, sku, { use: 'lc', place: 'block', label: 'AI search terms' }) : ''}</div>
       <textarea id="lcKw" rows="2" style="width:100%">${leEsc(kw)}</textarea>
       <div class="muted" style="font-size:11px"><span id="lcKwN">${lrKwBytes(kw)}</span> / ${lcKwMax()} bytes of words (spaces and ; , . do not count)
         <button class="ghost im-b" id="lcKwSug" title="Words from the Listing Rules template this title does not carry, then what is there now">Suggest from Listing Rules</button></div>
@@ -562,11 +554,24 @@ const lcStateHtml = row => ({
 
 /** One SKU at a time, each previewed by Amazon (the backend sends for real only when the preview is clean). Stops after
  *  three refusals in a row: the fourth would fail the same way. */
-// Check all (apply = false) or Apply all (apply = true) for the rows that are ready, updating each row's state as it goes.
+// Check all (apply = false): ask Amazon about each ready row, here. Apply all (apply = true): THE ONE SEND PATH (#10, listing-send-check.js)
+// — the Amazon check popup for every ready row; each row's state follows what Amazon did.
 async function lcUpSend(apply) {
   const todo = LC_UP.rows.filter(row => ['ready', 'checked'].includes(row.state));
   if (!todo.length) return;
-  if (apply && !confirm(`Send the changes for ${todo.length} listing(s) to Amazon?\n\nEach is checked by Amazon first; one Amazon objects to is not sent and is named.`)) return;
+  if (apply) {
+    const up = LC_UP;
+    return sqSendWithCheck(todo.map(row => ({ brand: up.brand, sku: row.sku, asin: '', label: row.sku, row, body: { lfix: 'patch', brand: up.brand, sku: row.sku, productType: row.productType, patches: row.patches },
+      changes: row.fields.map(change => Object.assign({ field: LC_LABEL[change.name] || change.name, old: change.old.join(' | '), new: change.new.join(' | '),
+        attr: change.name, oldV: change.old.map(value => ({ value, language_tag: 'en_US' })) },
+        change.name === 'generic_keyword' ? { max: 249, unit: 'bytes' } : {})) })), {
+      screen: 'Listing Content upload', title: 'Upload: ' + up.file,
+      onSent: (job, reply) => { job.row.state = 'sent'; job.row.msg = reply.submissionId ? '(' + reply.submissionId.slice(0, 8) + '…)' : ''; },
+      onDone: sum => {
+        sum.jobs.forEach(job => { if (job.state === 'no' || job.state === 'rejected') { job.row.state = 'fail'; job.row.msg = (job.state === 'no' ? 'Amazon says no: ' : 'Amazon rejected: ') + job.why; } });
+        if (LC_UP === up) lcUpRender();
+      } });
+  }
   $('lcUpCheck').disabled = $('lcUpApply').disabled = true;
   let refusals = 0;     // refusals in a row
   let i = 0;
