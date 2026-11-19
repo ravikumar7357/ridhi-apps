@@ -49,7 +49,7 @@ const IDS = ('ptmBrand ptmArt ptmSub ptmCol ptmSz ptmCut ptmMaker ptmQ ptmBrandF
   + 'pwToggle pwBox pwOrd pwAt pwSub pwCol pwSz pwSku pwPcs pwDate pwRemarks pwSave pwLeft pwMsg '
   + 'spCutPcs spCutDate spCutFab spCutGo spIssType spIssEmp spIssEmpList spIssPcs spIssDate spIssGo spRecPcs spRecDate spRecGo spPrsPcs spPrsDate spPrsGo '
   + 'ptDlg ptDlgTitle ptDlgClose ptDlgWho ptDlgNote ptDlgBody ptDlgMsg ptDlgDelete ptDlgCancel ptDlgSave ptDlgBox ptDlgTitleX ptDlgFootL sof_tot '
-  + 'qcView qcQ qcD1 qcD2 qcClear qcExport qcGo qcMsg qcKpis qcTable qcCheckBox qcwToggle qcwBox qcwSrc qcwSku qcwType qcwBy qcwOrd qcwOrdList qcwChecked qcwAlt qcwRej qcwOk qcwRemarks tabAtt paneAtt attDay attToday attDept attType attState attQ attExport attGo attView attMonth attMsg attKpis attTable qcRetBox qcrToggle qcrBox qcrPick qcrBy qcrPcs qcrOk qcrRej qcrRemarks qcrSave qcrInfo qcrMsg qcwSave qcwInfo qcwMsg '
+  + 'qcView qcShow qcShowWrap qcQ qcD1 qcD2 qcClear qcExport qcGo qcMsg qcKpis qcTable qcCheckBox qcwToggle qcwBox qcwSrc qcwSku qcwType qcwBy qcwOrd qcwOrdList qcwChecked qcwAlt qcwRej qcwOk qcwRemarks tabAtt paneAtt attDay attToday attDept attType attState attQ attExport attGo attView attMonth attMsg attKpis attTable qcRetBox qcrToggle qcrBox qcrPick qcrBy qcrPcs qcrOk qcrRej qcrRemarks qcrSave qcrInfo qcrMsg qcwSave qcwInfo qcwMsg '
   + 'qcIssueBox qciToggle qciBox qciSku qciType qciEmp qciEmpList qciPcs qciRemarks qciSave qciInfo qciMsg '
   + 'ptmView ptmConsApply ptmRecSeed ptmRecApply ptmNew ptmLookalike ptmImgs ptmTemplate ptmTplShort ptmImport ptmFile ptmRecFile ptmRename ptmImpMsg ptmImpBox ptmImpGo ptmImpCancel ptmAsin ptmAsinBox ptmAsinSum ptmAsinFixWrap ptmAsinFix ptmAsinFixTxt ptmAsinGo ptmAsinNot ptmAsinCancel '
   + 'odOrd odArt odSub odCol odSz odStatus odSort odSrc odBrand odQ odD1 odD2 odClear odExport odGo odDone odMsg odKpis odPickBar odTable spBulkBar spBulkOpen spBulkSheet spBulkUp spBulkFile spBulkNote spPrnSheet spPrnUp spPrnFile spBulkWhoList spBulkBox spBulkMsg spBulkDate spPickAll spHandAll spPickClear spAssignAll '
@@ -20961,6 +20961,30 @@ console.log('\n== Waiting for QC: QC Accept, and QC pass opens the QC Check wind
     && /1 late/.test(els.qcMsg.textContent), els.qcMsg.textContent);
   els.qcView.value = 'inbox';
   ok('the Order Console batch still passes straight, without a window', (await A.qcInboxAccept('k3', 1)) === '' && waitingOf('k3') === 0);
+
+  /* Ravi, 19 Nov: "when the qc is accepted it should show me that the pc is accepted on that same list". By now k1 is part
+   * accepted (18 of 20), k2 and k3 all accepted. */
+  const rowHtml = id => (els.qcTable.innerHTML.split('<tr').find(t => t.includes(`>W-${id}<`)) || '');
+  els.qcShow.value = 'waiting'; A.renderQc();
+  ok('Show Waiting lists only what still waits: k1, not k2 or k3', /W-k1/.test(els.qcTable.innerHTML) && !/W-k2|W-k3/.test(els.qcTable.innerHTML));
+  ok('…the part-accepted row keeps its buttons, with a green line of what was done', /QC Accept/.test(rowHtml('k1')) && /✓ Accepted 18/.test(rowHtml('k1')), rowHtml('k1').slice(0, 600));
+  ok('…the line says what QC did: 8 passed, 2 for alteration, 1 rejected, the two sends with their days, and who',
+    /8 passed, 2 for alteration, 1 rejected/.test(rowHtml('k1')) && /3 to spotting, back by 20\/11\/2026, 4 to touching, back by 21\/11\/2026/.test(rowHtml('k1')) && /by Sunita/.test(rowHtml('k1')),
+    rowHtml('k1').slice(0, 800));
+  els.qcShow.value = 'accepted'; A.renderQc();
+  ok('Show Accepted lists every row QC has taken pieces from: k1, k2 and k3', ['k1', 'k2', 'k3'].every(id => rowHtml(id)), els.qcMsg.textContent);
+  ok('…an all-accepted row is green, has no buttons or pieces box, and says what was done', /class="qc-accepted"/.test(rowHtml('k3'))
+    && !/QC Accept|data-qcin-qty/.test(rowHtml('k3')) && /✓ Accepted 4 · 4 passed/.test(rowHtml('k3')), rowHtml('k3').slice(0, 600));
+  ok('…a row sent all to spotting says so', /6 to spotting, back by 19\/11\/2026/.test(rowHtml('k2')), rowHtml('k2').slice(0, 600));
+  ok('…and the top figures still count only what waits: 2 pieces, 1 entry', /2<\/div><div class="l">Pieces waiting/.test(els.qcKpis.innerHTML) && /1<\/div><div class="l">Job Work entries/.test(els.qcKpis.innerHTML));
+  els.qcShow.value = 'all'; A.renderQc();
+  ok('Show All lists waiting and accepted together', ['k1', 'k2', 'k3'].every(id => rowHtml(id)));
+  ok('Waiting for QC itself (used by the Order Console) still lists only what waits', A.qcInboxRows().map(x => x.r.id).join() === 'k1');
+  els.qcShow.value = 'waiting'; A.renderQc();
+  ok('the Show drop-down is on Waiting for QC only', els.qcShowWrap.classList.contains('hide') === false);
+  els.qcView.value = 'dept'; A.renderQc();
+  ok('…and hidden on the other QC lists', els.qcShowWrap.classList.contains('hide') === true);
+  els.qcView.value = 'inbox'; els.qcShow.value = '';
   A.setPT(wasPT); A.setQC(wasQC); NET.on = wasNet; ME.admin = wasAdmin;
 }
 console.log('\n== India stock = Finished Goods (2026-10-06) ==');
