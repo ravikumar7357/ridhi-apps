@@ -77152,6 +77152,11 @@ function croOpen(ref) {
       </div>
       ${(o.log || []).length ? `<details style="margin-top:10px;font-size:12px"><summary class="muted">History (${nf(o.log.length)})</summary>${o.log.slice().reverse().map(x => `<div class="muted">${esc(croDay(x.at))} · ${esc(x.by || '')} — ${esc(x.what || '')}</div>`).join('')}</details>` : ''}`,
     saveLabel: 'Save',
+    /* DELETE (Ravi, 19 Nov: "a delete button for every order") — the dialog's own Delete button and its confirm box,
+     * for every order that has not gone to Amazon. One that has is a real parcel: it is not deleted, it is set Cancelled. */
+    ...(a.orderId ? {} : { onDelete: () => croDelete(o.reference), deleteAllowed: true,
+      deleteWhat: `Order ${o.reference} · ${(o.creator || {}).name || s.name || ''} · ${(o.lines || []).map(l => (l.sku || '') + ' × ' + l.quantity).join(', ')}`
+        + (croIsSetuGift(o) ? '\n\nCreator Setu is NOT told. To tell them, set the status to Cancelled instead.' : '') }),
     onCancel: () => { try { history.replaceState(null, '', '#creators'); } catch (e) { /* only the address */ } croRender(); },
     onSave: async () => {
       const err = await croSaveDrawer(o.reference, false);
@@ -77193,6 +77198,24 @@ function croOpen(ref) {
     if (err) { ptDlgMsg(err, true); $('croMcfStatus').disabled = false; $('croMcfStatus').textContent = 'Check status with Amazon'; return; }
     croOpen(o.reference); croRender();
   };
+}
+/** Delete one order for good (the dialog has already asked). Never one Amazon has: that is a real parcel. '' or why not. */
+async function croDelete(ref) {
+  const o = croOf(ref); if (!o) return 'That order is gone — press Refresh.';
+  if (o.amazon && o.amazon.orderId) return ref + ' is with Amazon as ' + o.amazon.orderId + ' — it cannot be deleted. Set it to Cancelled instead.';
+  const f = typeof fsDeleteDoc === 'function' ? fsDeleteDoc : deleteDoc;    // the live mirror's where this ERP has one
+  try { await f(doc(db, CRO_COL, String(ref))); }
+  catch (e) {
+    return /permission|insufficient/i.test(String(e && (e.code || e.message)))
+      ? 'Not deleted: the database does not allow it yet — the Firestore rule for creator orders needs its delete line.'
+      : 'Not deleted: ' + (e.message || e);
+  }
+  CRO.list = CRO.list.filter(x => x !== o);
+  CRO.picked.delete(ref);
+  try { history.replaceState(null, '', '#creators'); } catch (e) { /* only the address */ }
+  croMsg(ref + ' deleted.');
+  setTimeout(croRender, 0);
+  return '';
 }
 /** The drawer's lines, status and notes, saved. checked = the Checked ✓ button (New → Checked). Returns '' or why not. */
 async function croSaveDrawer(ref, checked) {
