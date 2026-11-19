@@ -1,5 +1,6 @@
 /* ================= LISTING · FIX ALL TITLES: one new title per child that fixes every title problem at once =================
- * Screens: Listing Health → Workspace (a parent's title rows in the Fix all block, fix-all.js: "Fix all N children"; each child's own
+ * Screens: Listing Health → Workspace (a parent's title rows in the Fix all block, fix-all.js: "Fix N titles" — the row's own children,
+ *          the popup over the family; each child's own
  *          Fix), Listing Errors (a card above its list: per family, and Select all), and the Fix button of a title problem anywhere
  *          (Listing Health's Why column, the Workspace's child view: that one child). Same look and flow as Fix all search terms (kw-fix.js).
  * THE PROBLEMS, all fixed together in ONE new title per child (TT_DETS): Title doesn't follow template (title_template) · Size formatting

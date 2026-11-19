@@ -119,7 +119,7 @@ const ready = C => wait(() => C.TT.run && C.TT.run.plans.length && !C.TT.run.tot
     ok('the six problems are the ones fixed (TT_DETS)', JSON.stringify(C.TT_DETS) === JSON.stringify(['title_template', 'size_format', 'dimension_order', 'title_length', 'title_keyword']));
   }
 
-  console.log('== the Workspace: each title row gets ONE "Fix all N children" for the family ==');
+  console.log('== the Workspace: each title row gets ONE "Fix N titles" — its own count; the popup is the family\'s ==');
   {
     const { C, gets, saved } = setup();
     const kids = C.faKids('SP', 'PB');
@@ -130,8 +130,11 @@ const ready = C => wait(() => C.TT.run && C.TT.run.plans.length && !C.TT.run.tot
       groups.map(g => g.key + ':' + g.kind + ':' + g.kids.length).join(' '));
     const html = C.faBlockHtml('SP', 'PB');
     const n = C.ttRows('SP').filter(r => r.row.parent === 'PB').length;
-    const btns = html.match(/>Fix all (\d+) children</g) || [];
-    ok(`each title row's button covers the whole family: "Fix all ${n} children" on all ${tt.length}`, btns.length === tt.length && btns.every(b => b === `>Fix all ${n} children<`), btns.join(' '));
+    const btns = html.match(/>Fix (\d+) titles?</g) || [];
+    const own = tt.map(g => C.faPlans(g, C.hCtx()).filter(p => p.ok || p.wait).length);
+    const want = own.map(k => `>Fix ${k} title${k === 1 ? '' : 's'}<`);
+    ok(`each title row's button shows ITS OWN count ("Fix ${own.join(' / ')} titles"), not the family's ${n}`, btns.length === tt.length && JSON.stringify(btns) === JSON.stringify(want) && own.some(k => k !== n) && !/>Fix all \d+ children</.test(html), btns.join(' ') + ' | want ' + want.join(' '));
+    ok('…its tooltip names the family total the popup shows', tt.every(g => new RegExp(`data-fa-row="SP\\|PB\\|${g.key.replace(/[|:]/g, m => '\\' + m)}"[^>]*title="[^"]*the preview shows all ${n} children of this family`).test(html)), html.match(/data-fa-act="fix"[^>]*>/g));
     ok('…what we will do, in plain words', /One new title per child from the title template and its own Amazon facts — every title problem of the family fixed at once/.test(html));
     C.FA.open.add('SP|PB|rule:size_format');
     ok('"› Show all": a child whose facts are not read yet says "read from Amazon when you press Fix all", with its own Fix', /S1[^]*read from Amazon when you press Fix all[^]*data-fa-act="one"[^>]*data-fa-sku="S1"/.test(C.faBlockHtml('SP', 'PB')));

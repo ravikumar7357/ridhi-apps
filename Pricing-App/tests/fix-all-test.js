@@ -96,8 +96,8 @@ async function startTitles(C, gk, sku) {
     ok('ONE row "Title too long" holding the 10', tg && tg.kids.length === 10 && groups.filter(g => g.key === 'title').length === 1 && tg.kind === 'ttl' && tg.kids.every(k => /^L\d$/.test(k.sku)), tg && tg.kids.map(k => k.sku).join());
     ok('…the 90 good titles are in no row', groups.every(g => g.kids.every(k => /^L/.test(k.sku))), groups.map(g => g.key + ':' + g.kids.length).join(' '));
     const html = C.faBlockHtml('SP', 'PB');
-    ok('the block: "Title too long" · what we will do · "10 children" · ONE button "Fix all 10" · "› Show all 10"', /<b>Title too long<\/b><small>One new title per child from the title template and its own Amazon facts — every title problem of the family fixed at once<\/small>/.test(html)
-      && /class="fa-n">10 children</.test(html) && />Fix all 10 children</.test(html) && /› Show all 10/.test(html) && !/Could not group/.test(html), strip(html).slice(0, 600));
+    ok('the block: "Title too long" · what we will do · "10 children" · ONE button "Fix 10 titles" · "› Show all 10"', /<b>Title too long<\/b><small>One new title per child from the title template and its own Amazon facts — every title problem of the family fixed at once<\/small>/.test(html)
+      && /class="fa-n">10 children</.test(html) && />Fix 10 titles</.test(html) && /› Show all 10/.test(html) && !/Could not group/.test(html), strip(html).slice(0, 600));
     ok('…under NEEDS ATTENTION (a review-level rule), and the green line "90 children have no problem · Nothing to do"', /fa-sec-h">Needs attention</.test(html) && !/fa-sec-h">Fix first</.test(html)
       && /90 children have no problem · Nothing to do/.test(strip(html)), strip(html).slice(-300));
     // the cards = Listing Health's numbers for this parent: healthOf over the same rows, each child once by its level
@@ -185,7 +185,7 @@ async function startTitles(C, gk, sku) {
     const p5 = plans.find(p => p.sku === 'L5'), p6 = plans.find(p => p.sku === 'L6');
     ok('L5 says Linen while Amazon says Cotton → not safe, with the reason', g.kids.length === 10 && !p5.ok && /the title says “Linen”, Amazon says “Cotton”/.test(p5.why), p5.why);
     ok('L6 has no size (Amazon nor the catalogue) → not safe ("check: size missing")', !p6.ok && /check: size missing/.test(p6.why), p6.why);
-    ok('the row offers "Fix all 8 children"', />Fix all 8 children</.test(C.faBlockHtml('SP', 'PB')));
+    ok('the row offers "Fix 8 titles" (its own 8 that can be fixed)', />Fix 8 titles</.test(C.faBlockHtml('SP', 'PB')));
     await startTitles(C, 'SP|PB|title');
     ok('Fix all sends only the 8 to Amazon\'s check; the 2 wait for your OK', patchCalls(C, false).length === 8 && C.SQ.run.opts.held.length === 2 && !C.SQ.run.jobs.some(j => ['L5', 'L6'].includes(j.sku)));
     ok('the popup: "8 Amazon will accept · 0 Amazon says no" and "2 need your OK — not in this send", each with its reason', /10 changes · ✓ 8 will accept · ✗ 0 says no · ⚠ 2 not checked/.test(strip(C.el('spModalBox').innerHTML))

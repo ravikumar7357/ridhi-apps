@@ -11,7 +11,7 @@
  *   - an empty spec: only when every sibling that has it uses the SAME value (copied); never a child's own colour or size;
  *   - search terms over the limit: kw-fix.js shortens each child's own (only words taken out) and shows them all in one preview first;
  *   - every title problem (template, size format, dimension order, length, keyword): title-fix.js — ONE new title per child, one
- *     "Fix all N children" for the family on each title row, the same preview popup first (18 Nov 2026).
+ *     "Fix N titles" on each title row (that row's own children; 19 Nov 2026), the family's preview popup first (18 Nov 2026).
  *   A fix must pass the same checks as a single listing's (spChecks: nothing lost, nothing made up…), must not add a Listing Rules
  *   problem and must clear the problem itself — else that child "needs your OK" with the reason. Pictures, suppressed listings and
  *   Amazon errors have no automatic fix: Open in Image Manager / Listing Errors with those children already picked.
@@ -461,8 +461,15 @@ function faRowButton(gk, g, plans) {
   const safe = plans.filter(p => p.ok).length;
   const busy = typeof sqIsOpen === 'function' && sqIsOpen();
   // search terms: the ones still to be read whole are read when the preview opens, so they count
-  // every title problem: one button for the whole family — its children with any title problem (read first in the popup when needed)
-  if (g.kind === 'ttl' && g.kids.length) { const n = ttFamilyN(g.kids[0].brand, g.kids[0].row.parent || g.kids[0].row.asin || g.kids[0].row.sku || '—'); if (n) return `<button type="button" class="fa-btn fa-main" data-fa-act="fix" data-fa-row="${lrEsc(gk)}"${busy ? ' disabled title="Finish the Fix all that is open first"' : ''} title="One new title for each child — every title problem of this family">Fix all ${faKidsN(n)}</button>`; }
+  // every title problem: the button counts THIS row's children ("Fix 12 titles", ready now or read first in the popup); the popup it
+  // opens is the family's — every child of the family with a title problem (19 Nov 2026)
+  if (g.kind === 'ttl' && g.kids.length) {
+    const n = plans.filter(p => p.ok || p.wait).length;
+    if (n) {
+      const fam = ttFamilyN(g.kids[0].brand, g.kids[0].row.parent || g.kids[0].row.asin || g.kids[0].row.sku || '—');
+      return `<button type="button" class="fa-btn fa-main" data-fa-act="fix" data-fa-row="${lrEsc(gk)}"${busy ? ' disabled title="Finish the Fix all that is open first"' : ` title="One new title for each of these ${faNf(n)} children — the preview shows all ${faKidsN(Math.max(n, fam))} of this family with a title problem"`}>Fix ${faNf(n)} title${n === 1 ? '' : 's'}</button>`;
+    }
+  }
   if (g.kind === 'kw') { const n = plans.filter(p => p.ok || p.wait).length; if (n) return `<button type="button" class="fa-btn fa-main" data-fa-act="fix" data-fa-row="${lrEsc(gk)}"${busy ? ' disabled title="Finish the Fix all that is open first"' : ''}>Fix all ${faKidsN(n)}</button>`; }
   if (safe) return `<button type="button" class="fa-btn fa-main" data-fa-act="fix" data-fa-row="${lrEsc(gk)}"${busy ? ' disabled title="Finish the Fix all that is open first"' : ''}>Fix all ${faNf(safe)}</button>`;
   if (plans.some(p => p.wait)) {

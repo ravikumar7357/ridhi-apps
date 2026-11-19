@@ -50,7 +50,7 @@ const plansText = (C, brand, parent) => JSON.stringify([...C.ttFamily(brand, par
   await until(() => atDone);
   ok(`its fixes ready in ${atDone.ms} ms, worked out before any other parent's (only its family's titles kept)`, atDone.fams.length === 1 && atDone.fams[0] === 'SP|TM' && !atDone.memo, atDone.fams.join());
   const ready = C.faBlockHtml('SP', 'TM');
-  ok('…then the block with its Fix all buttons', !/Working out the fixes/.test(ready) && (ready.match(/>Fix all \d+ children</g) || []).length >= 1, strip(ready).slice(0, 300));
+  ok('…then the block with its Fix all buttons', !/Working out the fixes/.test(ready) && (ready.match(/>Fix (?:all \d+ children|\d+ titles?)</g) || []).length >= 1, strip(ready).slice(0, 300));
   ok('then the background: the brand\'s title list first, then the other parents, the biggest first, the open one not again', atDone.bg[0] === 'SP|titles' && atDone.bg.length > 100 && !atDone.bg.includes('SP|TM')
     && (() => { const n = new Map(); C.HEALTH.SP.rows.forEach(r => n.set(r.parent, (n.get(r.parent) || 0) + 1)); const sizes = atDone.bg.slice(1).map(k => n.get(k.slice(3))); return sizes.every((s, i) => !i || s <= sizes[i - 1]); })(), atDone.bg.slice(0, 4).join());
 

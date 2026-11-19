@@ -23,7 +23,11 @@
  *       (each document: where it is, what is still to add, "Not on any live product").
  * SCREEN = DOWNLOAD: the table and the CSV are made from the same rows (apcRowView / apcDocView) for the view, toggle, brand, chip and
  *       search in use.
- * Console: aplusCounts() — per brand, each status and the sales without A+; aplusAccuracyReport() — 10 products per status per brand
+ * OUR LISTINGS ONLY (19 Nov 2026): a document's "on N products" counts only our listings (the listing cache's products of that brand,
+ *       and ours it covers through their parent); the other ASINs it lists (parents, closed listings, ASINs not in our cache) are a muted
+ *       line of their own, "+ X other ASINs (…)", opened to the list. Conversion is shown only with 30+ products AND 300+ sessions a side;
+ *       sales pulled more than 7 days ago get an amber "old" warning.
+ * Console: aplusCounts() — per brand, each status, the sales without A+, and the documents' ASINs: ours and others apart; aplusAccuracyReport() — 10 products per status per brand
  *       against Amazon's A+ API now (publish records + the document's own status): MATCH / DIFFERENT.
  * Main functions: apcBuild, apcGroups, apcDraw, apcWhat, apcOkSetMany, apcOkUndo, apcCsv, apcDocsCsv, apcPreview, aplusCounts,
  *       aplusAccuracyReport. Every name starts with apc / APC (and the two console names). */
@@ -39,6 +43,8 @@ const APC_STUCK_DAYS = 7;            // Waiting for longer than this = Stuck
 const APC_OLD_DRAFT_DAYS = 30;       // a Draft not touched for this long = Forgotten draft
 const APC_PUB_DAYS = 14;             // a publish record this fresh that says "A+ is on the page" stops a product being called Missing
 const APC_MIN_SESS = 300;            // sessions a side needs before a conversion rate is shown
+const APC_MIN_CONV_N = 30;           // …and products a side (fewer = a rate that means nothing: the line is not shown at all)
+const APC_SALES_OLD_DAYS = 7;        // 30-day sales pulled longer ago than this get an amber "old" warning beside them
 const APC_OK_DOC = brand => 'aplusok_' + brand;
 const APC_MANAGER = 'https://sellercentral.amazon.com/enhanced-content/content-manager';
 const APC_PIC = 'https://m.media-amazon.com/images/S/';
@@ -131,6 +137,15 @@ function apcSales(asin) {
   return s ? Number(s[1]) || 0 : 0;
 }
 const apcSalesAt = () => (typeof SALES30 !== 'undefined' && SALES30 && SALES30.at ? String(SALES30.at) : '');
+/** When the 30-day sales were pulled longer ago than APC_SALES_OLD_DAYS: that day in words ('6 Aug 2026'); else '' (fresh, or none). */
+function apcSalesOld(now) {
+  const at = apcSalesAt();
+  if (!at) return '';
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(at);
+  const ms = m ? new Date(+m[1], +m[2] - 1, +m[3]).getTime() : Date.parse(at);
+  if (!ms || isNaN(ms)) return '';
+  return (now || Date.now()) - ms > APC_SALES_OLD_DAYS * APC_DAY ? apcDate(ms) : '';
+}
 // The weekly store's last 4 weeks of one ASIN: { u (units), s (sessions) } — null when the store is not loaded or has no sessions for it.
 function apcTraffic(asin) {
   if (typeof WEEKLY === 'undefined' || !WEEKLY || !WEEKLY.rows || !asin) return null;
@@ -142,7 +157,7 @@ function apcTraffic(asin) {
   return any ? { u, s } : null;
 }
 /** "Products with A+ convert X% vs Y% without", per brand, from the weekly store's sessions and units (the last 4 weeks) — only when
- *  both sides have at least APC_MIN_SESS sessions; else null (never invented). */
+ *  both sides have at least APC_MIN_CONV_N products AND at least APC_MIN_SESS sessions; else null (never invented, nothing shown). */
 function apcConv(rows, brand) {
   const side = { yes: { u: 0, s: 0, n: 0 }, no: { u: 0, s: 0, n: 0 } };
   rows.forEach(p => {
@@ -152,7 +167,7 @@ function apcConv(rows, brand) {
     const into = p.bucket === 'live' ? side.yes : side.no;
     into.u += t.u; into.s += t.s; into.n++;
   });
-  if (side.yes.s < APC_MIN_SESS || side.no.s < APC_MIN_SESS) return null;
+  if (side.yes.n < APC_MIN_CONV_N || side.no.n < APC_MIN_CONV_N || side.yes.s < APC_MIN_SESS || side.no.s < APC_MIN_SESS) return null;
   return { brand, yes: side.yes.u / side.yes.s, no: side.no.u / side.no.s, nYes: side.yes.n, nNo: side.no.n };
 }
 
@@ -237,6 +252,16 @@ function apcBuild() {
   const fams = v.families.map(f => ({ f: { fk: f.fk, brand: f.brand, name: f.name, psku: f.psku, pa: f.pa, solo: false }, kids: APC.stock ? f.live : f.kids, every: f.kids }))
     .concat((v.loose || []).map(c => ({ f: { fk: c.brand + '|L:' + apcId(c), brand: c.brand, name: c.title || c.sku, psku: '', pa: '', solo: true }, kids: [c], every: [c] })));
   fams.forEach(x => x.every.forEach(c => { if (c.asin) all.set(fcKey(c.brand, c.asin), { c, fk: x.f.fk, pa: x.f.pa || '' }); }));
+  // OUR listings per brand — the listing cache's products (never a parent ASIN): the only ASINs a document's "on N products" counts.
+  // Everything else a document lists (parents, closed listings, ASINs not in our cache) is shown apart as "other ASINs".
+  const ours = { SP: new Set(), CPC: new Set() }, parentAsins = { SP: new Set(), CPC: new Set() };
+  ['SP', 'CPC'].forEach(b => {
+    const list = typeof LM !== 'undefined' && LM.list ? LM.list[b] : null;
+    if (list && list.forEach) list.forEach(raw => { if (raw && raw.asin) (raw.lvl === 'parent' ? parentAsins[b] : ours[b]).add(String(raw.asin)); });
+  });
+  all.forEach(x => { if (ours[x.c.brand]) ours[x.c.brand].add(x.c.asin); });
+  fams.forEach(x => { if (x.f.pa && parentAsins[x.f.brand]) parentAsins[x.f.brand].add(x.f.pa); });
+  ['SP', 'CPC'].forEach(b => parentAsins[b].forEach(a => ours[b].delete(a)));
   const rows = [];
   const groups = fams.filter(x => x.kids.length).map(x => {
     const g = { f: x.f, rows: [], risk: 0, n: {}, liveDoc: null, nextDoc: null, gap: null };
@@ -271,7 +296,7 @@ function apcBuild() {
     APC.orderKey = orderKey;
   }
   groups.sort((a, b) => (APC.order.has(a.f.fk) ? APC.order.get(a.f.fk) : 1e9) - (APC.order.has(b.f.fk) ? APC.order.get(b.f.fk) : 1e9));
-  APC.model = { key, src, groups, rows, all, state: ctx.state, salesAt: apcSalesAt(), notes: v.notes || [], now };
+  APC.model = { key, src, groups, rows, all, ours, parentAsins, state: ctx.state, salesAt: apcSalesAt(), notes: v.notes || [], now };
   return APC.model;
 }
 // Does this product belong under the chip? '' = every product; 'fix' = Missing / Rejected / Draft; 'stuck'; else its own status.
@@ -327,8 +352,12 @@ function apcDocs(model) {
   return lmAplusDocs(APC.brand === 'ALL' ? undefined : APC.brand).map(d => {
     const st = apcStatusOf(d.s), ours = byDoc.get(d.k) || [], gaps = gapOf.get(d.brand + '|' + d.k) || [];
     const add = gaps.flatMap(g => g.gap.asins);
+    // "on N products": our listings only — the ASINs on it that are ours, and our products it covers through their parent ASIN
+    const mine = model.ours[d.brand] || new Set(), pas = model.parentAsins[d.brand] || new Set();
+    const onOurs = d.a === null ? null : [...new Set(d.a.filter(a => mine.has(a)).concat(ours.map(c => c.asin)))];
+    const extra = d.a === null ? [] : [...new Set(d.a.filter(a => !mine.has(a)))].map(a => ({ asin: a, parent: pas.has(a) }));
     return { d, st, stuck: st === 'waiting' && d.u > 0 && now - d.u > APC_STUCK_DAYS * APC_DAY, oldDraft: st === 'draft' && d.u > 0 && now - d.u > APC_OLD_DRAFT_DAYS * APC_DAY,
-      on: d.a, ours, liveN: ours.filter(c => c.live).length, unused: !ours.some(c => c.live), add, addRisk: gaps.reduce((s, g) => s + g.gap.risk, 0), fams: gaps.map(g => g.f.name) };
+      on: d.a, onOurs, extra, ours, liveN: ours.filter(c => c.live).length, unused: !ours.some(c => c.live), add, addRisk: gaps.reduce((s, g) => s + g.gap.risk, 0), fams: gaps.map(g => g.f.name) };
   }).filter(x => !q || fcNorm(x.d.n).includes(q) || (x.d.a || []).some(a => fcNorm(a).includes(q)) || x.ours.some(c => fcNorm(c.sku).includes(q)))
     .sort((a, b) => b.addRisk - a.addRisk || b.add.length - a.add.length || b.liveN - a.liveN || String(a.d.n).localeCompare(String(b.d.n)) || a.d.k.localeCompare(b.d.k));
 }
@@ -358,13 +387,13 @@ function apcCsv(model) {
 function apcDocView(x) {
   const d = x.d;
   return { brand: fcBrandName(d.brand), name: d.n || 'unnamed document', status: x.stuck ? 'Stuck' : APC_ST[x.st].t + (x.st === 'unchecked' && d.s ? ' (' + d.s + ')' : ''), type: d.t || '', updated: d.u ? apcDate(d.u) : '',
-    on: x.on === null ? '' : x.on.length, liveN: x.liveN, add: x.add.join(' '), note: apcDocNote(x), reason: (d.rr || []).join('; '), time: apcTime(d.brand) };
+    on: x.onOurs === null ? '' : x.onOurs.length, extra: x.on === null ? '' : x.extra.length, liveN: x.liveN, add: x.add.join(' '), note: apcDocNote(x), reason: (d.rr || []).join('; '), time: apcTime(d.brand) };
 }
-const APC_DOC_COLS = ['Brand', 'Document', 'Status', 'Type', 'Last updated', 'Products on it', 'Live products on it', 'ASINs to add', 'Note', "Amazon's reason", 'Data time'];
+const APC_DOC_COLS = ['Brand', 'Document', 'Status', 'Type', 'Last updated', 'Products on it', 'Other ASINs on it (parents / closed / not in our listings)', 'Live products on it', 'ASINs to add', 'Note', "Amazon's reason", 'Data time'];
 const apcDocsShown = model => apcDocs(model).filter(x => apcDocIn(x, APC.f));
 function apcDocsCsv(model) {
   const rows = apcDocsShown(model || apcBuild()).map(apcDocView);
-  const lines = rows.map(r => [r.brand, r.name, r.status, r.type, r.updated, r.on, r.liveN, r.add, r.note, r.reason, r.time].map(apcCsvQ).join(','));
+  const lines = rows.map(r => [r.brand, r.name, r.status, r.type, r.updated, r.on, r.extra, r.liveN, r.add, r.note, r.reason, r.time].map(apcCsvQ).join(','));
   return { n: lines.length, rows, text: '﻿' + [APC_DOC_COLS.join(',')].concat(lines).join('\r\n') + '\r\n' };
 }
 function apcDownload(docs) {
@@ -420,7 +449,9 @@ function apcSummaryHtml(s) {
   const cover = `<div class="apc-cov"><b>Live on ${fcNf(s.live)} of ${fcNf(s.counted)} products (${s.pct}%)</b>`
     + `<div class="apc-bar" role="img" aria-label="A+ coverage: ${APC_BAR.map(k => APC_ST[k].t + ' ' + (s.n[k] || 0)).join(', ')}">${seg || '<i class="is-g" style="flex:1"></i>'}</div><div class="apc-key">${key}`
     + `${s.n.none ? `<span class="muted">${fcNf(s.n.none)} marked “No A+ needed” (not counted)</span>` : ''}</div></div>`;
+  const old = s.salesKnown ? apcSalesOld() : '';
   const risk = `<div class="apc-risk" title="The 30-day sales of the products that are Missing, Rejected or Draft — the money that sells without A+."><span>Sales without A+ (30 days)</span>`
+    + (old ? `<em class="apc-sold">Sales from ${fcEsc(old)} — old. Press Listing Audit → Pull sales</em>` : '')
     + `<b>${s.salesKnown ? apcMoney(s.risk) : '—'}</b><small>${s.salesKnown ? `${fcNf(APC_FIX.reduce((n, k) => n + (s.n[k] || 0), 0))} products: Missing + Rejected + Draft` : 'sales not pulled yet'}</small></div>`;
   const conv = s.conv.map(c => `<div class="apc-conv" title="Units ÷ sessions over the last 4 weeks of the weekly store, for ${fcNf(c.nYes)} products with A+ and ${fcNf(c.nNo)} without.">${fcEsc(fcBrandName(c.brand))}: products with A+ convert <b>${(c.yes * 100).toFixed(1)}%</b> vs <b>${(c.no * 100).toFixed(1)}%</b> without</div>`).join('');
   return `<div class="card apc-sum">${cover}${risk}${conv ? `<div class="apc-convs">${conv}</div>` : ''}</div>`;
@@ -542,7 +573,10 @@ function apcDocCardHtml(x) {
   const d = x.d, r = apcDocView(x), pk = fcKey(d.brand, d.k);
   const st = x.st === 'unchecked' ? `<span class="fc-chip is-g">${fcEsc(d.s || 'status not given')}</span>` : apcChip(x.st, x.st === 'live' ? '✓ Live' : undefined);
   const flags = (x.stuck ? ' <span class="fc-chip is-y">Stuck</span>' : '') + (x.oldDraft ? ' <span class="fc-chip is-y">Forgotten draft</span>' : '') + (x.unused ? ' <span class="fc-chip is-g">Not on any live product</span>' : '');
-  const on = x.on === null ? 'its product list could not be read' : `on ${fcNf(x.on.length)} product${x.on.length === 1 ? '' : 's'} at Amazon · ${fcNf(x.liveN)} live in Sellora`;
+  const on = x.on === null ? 'its product list could not be read' : `on ${fcNf(x.onOurs.length)} product${x.onOurs.length === 1 ? '' : 's'} at Amazon · ${fcNf(x.liveN)} live in Sellora`;
+  // the ASINs on it that are not our listings: one small muted line, the list when it is opened
+  const extra = x.extra.length ? `<details class="apc-dx muted"><summary>+ ${fcNf(x.extra.length)} other ASIN${x.extra.length === 1 ? '' : 's'} (parents / closed / not in our listings)</summary>`
+    + `<span class="ui-mono">${x.extra.map(e => fcEsc(e.asin) + (e.parent ? ' <small>(parent)</small>' : '')).join(' ')}</span></details>` : '';
   const add = x.add.length ? `<div class="apc-gap"><b>Add ${x.add.length === 1 ? 'this ASIN' : 'these ' + fcNf(x.add.length) + ' ASINs'} to this document</b>${x.addRisk > 0 ? ` (${apcMoney(x.addRisk)} of 30-day sales without A+)` : ''} — `
     + `live family members that have no A+ yet${x.fams.length ? ' (' + x.fams.slice(0, 3).map(fcEsc).join(', ') + (x.fams.length > 3 ? '…' : '') + ')' : ''}: <span class="ui-mono">${apcAsinsHtml(x.add)}</span> `
     + `<button type="button" class="ghost fc-b" data-apc="copy" data-apc-v="${fcEsc(x.add.join(' '))}" data-apc-id="add:${fcEsc(pk)}">${APC.copied === 'add:' + pk ? 'Copied ✓' : 'Copy ASIN list'}</button></div>` : '';
@@ -550,7 +584,7 @@ function apcDocCardHtml(x) {
     x.st === 'rejected' ? ((d.rr || []).length ? `Amazon's reason: ${d.rr.join('; ')}` : 'Rejected — Amazon\'s reason is in A+ Content Manager and in its e-mail.') : '',
     x.unused ? 'It is attached to no product that is buyable and in stock.' : '', d.as ? 'Its product list is from an older read (today\'s read of it failed).' : ''].filter(Boolean);
   return `<div class="card apc-dcard" data-apc-k="${fcEsc(pk)}"><div class="apc-dh"><b title="${fcEsc(r.name)}">${fcEsc(r.name)}</b> ${st}${flags}</div>`
-    + `<div class="apc-dm muted">${fcEsc([fcBrandName(d.brand), r.type || 'type not given', r.updated ? 'updated ' + r.updated : 'no update date', on].join(' · '))}</div>`
+    + `<div class="apc-dm muted">${fcEsc([fcBrandName(d.brand), r.type || 'type not given', r.updated ? 'updated ' + r.updated : 'no update date', on].join(' · '))}</div>` + extra
     + notes.map(n => `<div class="apc-dn">${fcEsc(n)}</div>`).join('') + add
     + `<div class="apc-da"><button type="button" class="ghost fc-b" data-apc="prev" data-apc-v="${fcEsc(pk)}" data-apc-at="doc:${fcEsc(pk)}" title="Reads this one document from Amazon now and shows what is in it">Preview A+</button>`
     + (x.on && x.on.length ? `<button type="button" class="ghost fc-b" data-apc="copy" data-apc-v="${fcEsc(x.on.join(' '))}" data-apc-id="all:${fcEsc(pk)}" title="Every ASIN this document is attached to">${APC.copied === 'all:' + pk ? 'Copied ✓' : 'Copy its ' + fcNf(x.on.length) + ' ASINs'}</button>` : '')
@@ -824,9 +858,14 @@ function aplusCounts() {
     const rows = model.rows.filter(p => p.c.brand === b);
     const n = k => rows.filter(p => p.bucket === k).length;
     const st = model.state[b];
+    // the documents' ASINs, each once: ours (our listings) and the others (parents / closed / not in our listings) — never added together
+    const onDocs = new Set();
+    lmAplusDocs(b).forEach(d => (d.a || []).forEach(a => onDocs.add(a)));
+    const mine = model.ours[b];
+    const docAsinsOurs = [...onDocs].filter(a => mine.has(a)).length;
     out[fcBrandName(b)] = { products: rows.length, live: n('live'), waiting: n('waiting'), stuck: rows.filter(p => p.stuck && p.bucket === 'waiting').length, draft: n('draft'), rejected: n('rejected'), missing: n('missing'),
       noAplusNeeded: n('none'), notChecked: n('unchecked'), salesWithoutAplus30d: model.salesAt ? Math.round(rows.filter(p => APC_FIX.includes(p.bucket)).reduce((s, p) => s + (p.sales || 0), 0)) : 'sales not pulled',
-      documents: st.docs, aplusRead: st.atText || 'not read', oldData: st.old || st.stale, callsOfThatRead: st.calls, stockOnly: APC.stock };
+      documents: st.docs, docAsinsOurs, docAsinsOther: onDocs.size - docAsinsOurs, ourListings: mine.size, aplusRead: st.atText || 'not read', oldData: st.old || st.stale, callsOfThatRead: st.calls, stockOnly: APC.stock };
   });
   if (typeof console !== 'undefined' && console.table) console.table(out);
   return out;
