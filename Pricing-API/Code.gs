@@ -163,6 +163,9 @@ function doGet(e) {
     if (p.daily === 'sales')   return json_(dailySalesChunk_(p.book, p.start, p.n, p.days));
     // The live top-up: today and the few days around it, read from the tail of each sheet.
     if (p.daily === 'recent')  return json_(dailyRecent_(p.days));
+    // Live vs Last Year: one brand's day by hour against the matching day last year, live from Amazon (SalesLive.gs).
+    if (p.live === 'yoy')      return json_(liveYoy_(p.brand, p.day, p.ly));
+    if (p.live === 'range')    return json_(liveRange_(p.brand, p.from, p.to, p.shift));
     // Product photos for the deal planner, 20 ASINs a call.
     if (p.imgs)                { setBrand_(p.brand); return json_(lhImages_(p.imgs)); }
     // Parent ASIN per child ASIN, 20 a call — the Master Database fills its Parent ASIN column from this.

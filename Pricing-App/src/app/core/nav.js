@@ -9,7 +9,7 @@
 /* ---------- tabs ---------- */
 // Every tab by key. Button id = 'tab' + capId(key), pane id = 'pane' + capId(key). The order matters only
 // for which tab opens first: the first one the account is allowed.
-const TABS = ['link', 'new', 'pr', 'sales', 'profit', 'sa', 'plaudit', 'shop', 'adj', 'kw', 'ba', 'age', 'health',
+const TABS = ['link', 'new', 'pr', 'sales', 'yoy', 'profit', 'sa', 'plaudit', 'shop', 'adj', 'kw', 'ba', 'age', 'health',
   'lrules', 'audit', 'bsr', 'weekly', 'ppcn', 'trends', 'st', 'plc', 'deals', 'tiktok', 'carousel', 'opt', 'img',
   'lerr', 'basket'];
 // 'health' → 'Health': a tab key as it appears inside element ids.
@@ -18,7 +18,7 @@ const capId = t => t[0].toUpperCase() + t.slice(1);
 const TAB_TITLE = { link: 'By Amazon Link', new: 'New Product', pr: 'Product Research', kw: 'Keywords', ba: 'Analytics',
   age: 'Inventory Age', health: 'Listing Health', lrules: 'Listing Rules', audit: 'Listing Audit', bsr: 'BSR Audit',
   weekly: 'PPC & Organic', ppcn: 'PPC & Organic · New',
-  trends: 'Ad Console', st: 'Search Terms', plc: 'Placement', deals: 'Deal Calendar', sales: 'Sales Dashboard',
+  trends: 'Ad Console', st: 'Search Terms', plc: 'Placement', deals: 'Deal Calendar', sales: 'Sales Dashboard', yoy: 'Live vs Last Year',
   profit: 'Profit & Margin', sa: 'Sales Analysis', plaudit: 'Parent Listing Review', shop: 'Shopify Orders',
   adj: 'Adjustments', tiktok: 'TikTok Toolkit', carousel: 'Carousel Builder', opt: 'Listing Optimiser',
   img: 'Image Manager', lerr: 'Listing Errors', basket: 'Bought Together' };
@@ -31,7 +31,7 @@ HIDDEN_TABS.forEach(t => $('tab' + capId(t)).classList.add('hide'));
 // Tabs nobody is granted on their own: they come with another tab. PPC & Organic · New reads exactly
 // the documents PPC & Organic reads, and the Firestore rules gate those on `weekly` — so granting the
 // new tab by itself would only ever open an empty screen. Kept out of the Access form for that reason.
-const TAB_INHERIT = { ppcn: 'weekly' };
+const TAB_INHERIT = { ppcn: 'weekly', yoy: 'sales' };   // Live vs Last Year comes with Sales Dashboard
 
 /* ---------- sidebar: collapsible groups + the 3-line menu button ---------- */
 // Read straight off the markup, so adding a group is an HTML edit and nothing here changes.
@@ -160,6 +160,7 @@ function showTab(which) {
   if (which === 'plc') ensurePlc();
   if (which === 'deals') ensureDeals();
   if (which === 'sales') ensureSales();
+  if (which === 'yoy') ensureYoy();
   if (which === 'profit') ensureProfit();
   if (which === 'sa') ensureSa();
   if (which === 'plaudit') ensurePlaudit();
