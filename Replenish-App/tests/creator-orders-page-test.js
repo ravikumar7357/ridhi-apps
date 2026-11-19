@@ -76,6 +76,28 @@ const run = js => vm.runInContext(js, ctx);
   const open2 = SRC.slice(SRC.indexOf('function croOpen'), SRC.indexOf('async function croSaveDrawer'));
   ok(/croRetryReport'\)\.onclick[\s\S]{0,200}croReport\(o\.reference, true\)/.test(open2), 'the Retry button asks again, past the "do not retry by itself" rule');
 
+  console.log('== delete (19 Nov) ==');
+  const gone = [];
+  ctx.db = {}; ctx.doc = (d, col, id) => ({ path: col + '/' + id });
+  ctx.deleteDoc = async ref => { gone.push(ref.path); };
+  ctx.croMsg = () => {}; ctx.croRender = () => {}; ctx.history = { replaceState() {} }; ctx.setTimeout = () => 0;
+  run(`CRO.list = [{ reference: 'CGE-NEW1', status: 'New', source: 'creator-setu' },
+    { reference: 'CGE-SENT1', status: 'Sent to Amazon', source: 'creator-setu', amazon: { orderId: 'SHOP-CGESENT1' } }];
+    CRO.picked.add('CGE-NEW1');`);
+  ok((await run(`croDelete('CGE-NEW1')`)) === '' && gone.join() === 'creatorOrders/CGE-NEW1', 'an order not sent to Amazon is deleted from creatorOrders/<reference>');
+  ok(run(`CRO.list.length === 1 && !croOf('CGE-NEW1') && !CRO.picked.has('CGE-NEW1')`), '…and leaves the list and the ticks');
+  const no = await run(`croDelete('CGE-SENT1')`);
+  ok(/with Amazon as SHOP-CGESENT1 — it cannot be deleted\. Set it to Cancelled instead/.test(no) && gone.length === 1, 'an order with an Amazon order id is NOT deleted — Cancelled instead');
+  ctx.deleteDoc = async () => { throw Object.assign(new Error('Missing or insufficient permissions.'), { code: 'permission-denied' }); };
+  run(`CRO.list.push({ reference: 'CGE-NEW2', status: 'Checked', source: 'creator-setu' })`);
+  ok(/rule for creator orders needs its delete line/.test(await run(`croDelete('CGE-NEW2')`)) && run(`!!croOf('CGE-NEW2')`), 'refused by the rules → says the rule needs its delete line, keeps the order');
+  const openSrc = SRC.slice(SRC.indexOf('function croOpen'), SRC.indexOf('async function croDelete'));
+  ok(/\.\.\.\(a\.orderId \? \{\} : \{ onDelete: \(\) => croDelete\(o\.reference\), deleteAllowed: true/.test(openSrc), 'the order window offers Delete only when there is no Amazon order id');
+  ok(/Creator Setu is NOT told\. To tell them, set the status to Cancelled instead\./.test(openSrc), 'a Creator Setu gift warns that Creator Setu is not told');
+  const rules = fs.readFileSync(path.join(__dirname, '..', '..', 'Pricing-App', 'firestore.rules'), 'utf8');
+  const block = rules.slice(rules.indexOf('match /creatorOrders/{ref}'), rules.indexOf('match /creatorOrders/{ref}') + 900);
+  ok(/allow delete: if canCreators\(\) && !\(\('amazon' in resource\.data\) && \('orderId' in resource\.data\.amazon\)\s+&& resource\.data\.amazon\.orderId != ''\);/.test(block), 'the Firestore rule allows delete only without an Amazon order id');
+
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
 })();
