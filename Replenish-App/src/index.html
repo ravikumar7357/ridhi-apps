@@ -1481,6 +1481,13 @@
               <option value="ret">Received back from alteration</option>
             </select>
           </div>
+          <label class="muted" style="font-size:12.5px;flex:0 0 auto;display:flex;align-items:center;gap:6px" id="qcShowWrap">Show
+            <select id="qcShow" style="flex:0 0 130px" title="Waiting = still to check · Accepted = what QC has taken, with what it did">
+              <option value="waiting">Waiting</option>
+              <option value="accepted">Accepted</option>
+              <option value="all">All</option>
+            </select>
+          </label>
           <input id="qcQ" placeholder="Search SKU / article / person" style="flex:1 1 200px;min-width:0">
           <span class="muted" style="font-size:12.5px;flex:0 0 auto">Dated</span>
           <input id="qcD1" type="date" style="flex:0 0 150px" title="From this date">
