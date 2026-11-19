@@ -117,8 +117,9 @@ var AI_TPL_PARTS = ['brand', 'product', 'shape', 'material', 'size', 'pattern', 
 
 /* ----- THE SYSTEM PROMPT: long, the same for every task (so it is read from the prompt cache), written for Ridhi's listings ----- */
 var AI_SYSTEM = [
-  'You write and check Amazon.com listing text for a home-textiles seller (brands: Ridhi and CPC — hand block printed cotton tablecloths,',
-  'napkins, placemats, table runners, cushion covers, quilts and similar). A person reviews every suggestion before anything is sent,',
+  'You write and check Amazon.com listing text for a seller of hand block print home textiles and clothing (brands: Ridhi, CPC and',
+  'their labels — e.g. tablecloths, napkins, placemats, table runners, cushion covers, quilts; women\'s dresses and other clothing).',
+  'A person reviews every suggestion before anything is sent,',
   'and the seller\'s own rule checks run on it, so a suggestion that breaks a rule is simply thrown away. Write what will pass.',
   '',
   'ABSOLUTE RULES (every task):',
@@ -134,6 +135,11 @@ var AI_SYSTEM = [
   '   characters, "54x54 Inch".',
   '6. No emojis, no HTML, no ALL-CAPS words (except sizes and units), no exclamation marks, no repeated word three times.',
   '7. Answer ONLY with the JSON object the task asks for. "why" is one short plain-English sentence for the person reviewing.',
+  '8. FACTS.productType (and FACTS.itemType, FACTS.category) say what the product IS — write for that kind of product, in the words its',
+  '   shoppers use: clothing (DRESS, SHIRT, KURTA, TOP, SKIRT…) by its style, fit, sleeve and neck, size range, fabric and care; home',
+  '   textiles (TABLECLOTH, NAPKIN, PLACEMAT, TABLE_RUNNER, PILLOW…) by shape, size, material and use. Use only what FACTS give for',
+  '   that listing — never invent a fit, size, fabric, measurement or feature. The TITLE rules below describe our home-textile template;',
+  '   for clothing keep the same order idea (brand, product, key style words, fabric, size, colour) and the length limit.',
   '',
   'TITLE (task title, and season with field title): 60 to FACTS.max characters (FACTS.max is 75 unless told otherwise). Start with the brand.',
   '   Follow FACTS.template — the parts in that order: brand, product, shape, material, size, print, colour (a part with no fact is left out).',
@@ -798,8 +804,27 @@ function aiTest() {
   }
   if (!sku) { Logger.log('No SKU to test with — the listing cache is empty. Set Script Property AI_TEST_SKU, or run lmSetup first.'); return; }
   Logger.log('aiTest · task=title · Ridhi · ' + sku + ' · key ' + (prop_('CLAUDE_API_KEY') ? 'set' : 'NOT SET'));
-  var r = aiAsk_({ task: 'title', brand: 'SP', sku: sku });
+  var words = aiTestWords_('SP', sku);
+  Logger.log('protected words sent (as the page sends them): ' + (words.join(' | ') || '(none found in its title)'));
+  var r = aiAsk_({ task: 'title', brand: 'SP', sku: sku, words: words.join('|'), max: 75 });
   Logger.log(JSON.stringify(r, null, 2));
+}
+
+/** The protected words of a listing's title, as Sellora's page sends them (its brand, the print — Hand Block Print and the like —, its own
+ *  colour, material, shape and size): only the ones its current title really holds, from the listing's own facts. For aiTest. */
+function aiTestWords_(brand, sku) {
+  var rec = aiListing_(brand, sku).rec;
+  if (!rec || !rec.t) return [];
+  var t = String(rec.t), low = t.toLowerCase(), va = rec.va || {};
+  var out = [];
+  var add = function (w) { w = String(w || '').trim(); if (w && low.indexOf(w.toLowerCase()) >= 0 && out.indexOf(w) < 0) out.push(w); };
+  add(brand === 'CPC' ? 'CPC' : 'Ridhi');
+  ['Hand Block Print', 'Hand Block Printed', 'Block Print', 'Block Printed', 'Hand Printed', 'Handmade'].some(function (w) { if (low.indexOf(w.toLowerCase()) >= 0) { add(w); return true; } return false; });
+  [va.color, va.material, va.item_shape, va.style, va.pattern].forEach(add);
+  if (/100% cotton/.test(low)) add('100% Cotton');
+  var size = t.match(/\d+(?:\.\d+)?\s*[x×]\s*\d+(?:\.\d+)?(?:\s*(?:Inch(?:es)?|In|cm|"))?/i) || t.match(/\b(?:XXS|XS|S|M|L|XL|XXL|XXXL|\d{1,2}X)\b(?=[^a-z]|$)/);
+  if (size) add(size[0]);
+  return out;
 }
 
 /** Whether AI is set up, the models, and this month's spend against the limit. */

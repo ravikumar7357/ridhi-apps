@@ -84,7 +84,7 @@ function sandbox(opts) {
       newTrigger: fn => ({ timeBased: () => ({ after: ms => ({ create: () => { triggers.push({ fn, ms, getHandlerFunction: () => fn }); } }) }) }) },
     Logger: { log: s => logs.push(String(s)) },
   };
-  const names = ['aiAsk_', 'aiLearnStyle', 'aiLearnStyleTick', 'aiStyleListings_', 'aiStyleFor_', 'aiMonth_', 'aiMonthKey_', 'AI_SYSTEM', 'AI_STYLE_BATCH'];
+  const names = ['aiTest', 'aiAsk_', 'aiLearnStyle', 'aiLearnStyleTick', 'aiStyleListings_', 'aiStyleFor_', 'aiMonth_', 'aiMonthKey_', 'AI_SYSTEM', 'AI_STYLE_BATCH'];
   const api = new Function(...Object.keys(env), GS + '\n;return {' + names.join(',') + '};')(...Object.values(env));
   return Object.assign(api, { props, tabs, calls, logs, triggers, L });
 }
@@ -153,6 +153,18 @@ console.log('== a guide is used ONLY when approved; then in every writing task =
   ok('the system prompt carries the house style sentence exactly', sys.includes('write in our house style (pattern, order, tone, words we always use). Then improve it with your own Amazon knowledge — stronger search words, clearer benefits, better readability — but never break our house style, our rules or our protected words, and never invent facts.'), sys.slice(sys.indexOf('HOUSE STYLE'), sys.indexOf('HOUSE STYLE') + 300));
   const ro = ask('error_explain', { style: 'TABLECLOTH@' + at });
   ok('a read-only task (explain an error) never gets it', !/houseStyle/.test(ro.user));
+}
+
+console.log('== who we are, the product type, aiTest ==');
+{
+  const S = sandbox({ props: { AI_TEST_SKU: 'TC-1' } });
+  const sys = S.AI_SYSTEM.replace(/\s+/g, ' ');
+  ok("the system prompt: hand block print home textiles AND clothing; the listing's own product type decides the style and words (dresses: style, fit, size, fabric; tablecloths: shape, size, material); never invent",
+    sys.includes('hand block print home textiles and clothing') && sys.includes('FACTS.productType') && sys.includes('clothing (DRESS') && sys.includes('style, fit') && sys.includes('shape, size, material') && sys.includes('never invent a fit, size, fabric'));
+  S.aiTest();
+  const q = S.calls.find(c => c.task === 'title');
+  const f = q ? JSON.parse(q.user.replace(/^TASK: title\nFACTS: /, '')) : {};
+  ok("aiTest() sends the protected words of its listing's title, as the page does (Ridhi, Hand Block Print, Blue, Cotton, 100% Cotton, 60 x 90 Inch)", ['Ridhi', 'Hand Block Print', 'Blue', '100% Cotton', '60 x 90 Inch'].every(w => (f.words || []).includes(w)) && S.logs.some(l => /protected words sent/.test(l)), JSON.stringify(f.words));
 }
 
 console.log('== the page tasks check what the AI answers ==');
