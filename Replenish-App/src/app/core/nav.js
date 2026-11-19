@@ -287,7 +287,7 @@ function syncNavGroups() {
     g.head.classList.toggle('hide', dead);
     g.sec.classList.toggle('hide', dead);
   });
-  if ($('tabVpAs')) $('tabVpAs').style.display = ME && (ME.admin || ME.vpView) && !NAV_IS_VENDOR ? '' : 'none';   // the printer's view: admins, and the 'vpview' box
+  if ($('tabVpAs')) $('tabVpAs').style.display = ME && (ME.admin || ME.vpView || ME.vpRecv) && !NAV_IS_VENDOR ? '' : 'none';   // the printer's view: admins, the 'vpview' box, and Printed fabric in (receives there)
 }
 
 /* The hamburger hides the sidebar outright on a wide screen and slides it over the page on a narrow
