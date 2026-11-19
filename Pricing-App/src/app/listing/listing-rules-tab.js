@@ -126,6 +126,13 @@ function lrAllowRender(cfg) {
     + (typeof aiOn === 'function' && aiOn() && typeof aiStyleSectionHtml === 'function' ? aiStyleSectionHtml() : '');      // ✨ AI house style (listing-ai.js): shown only when AI is set up
 }
 
+/** A saved template whose parts are in another order than OUR TITLE FORMAT (listing-rules.js LR_TITLE_FORMAT) — shown, never changed. */
+function lrTplOld(tpl) {
+  const ours = (String(typeof LR_TITLE_FORMAT !== 'undefined' ? LR_TITLE_FORMAT : '').match(/\{(\w+)\}/g) || []).map(t => t.slice(1, -1));
+  const mine = (String((tpl && tpl.template) || '').match(/\{(\w+)\}/g) || []).map(t => t.slice(1, -1)).filter(k => ours.includes(k));
+  const want = ours.filter(k => mine.includes(k));
+  return mine.join() !== want.join();
+}
 // Draw the current view (issues / titles / season) into lrTable, with live counts from the listings snapshot.
 function renderLrules() {
   ['issues', 'titles', 'season'].forEach(view => $('lrView' + view[0].toUpperCase() + view.slice(1)).classList.toggle('on', LR_VIEW === view));
@@ -196,7 +203,7 @@ function renderLrules() {
           <td><select data-lrt="${i}" data-f="brand" style="width:auto">${['ALL', 'SP', 'CPC']
             .map(brand => `<option value="${brand}"${brand === tpl.brand ? ' selected' : ''}>${brand === 'ALL' ? 'Both' : BRAND_NAME[brand]}</option>`).join('')}</select></td>
           <td>${input(i, 'match', 110)}</td><td>${input(i, 'product', 130)}</td><td>${input(i, 'material', 100)}</td><td>${input(i, 'pattern', 120)}</td>
-          <td>${input(i, 'uses', 220)}</td><td>${input(i, 'required', 180)}</td><td>${input(i, 'template', 320)}</td>
+          <td>${input(i, 'uses', 220)}</td><td>${input(i, 'required', 180)}</td><td>${input(i, 'template', 320)}${lrTplOld(tpl) ? '<div class="muted" style="font-size:11px;color:var(--warn-ink)" title="Titles are checked against our title format (Brand · Colour · Hand Block Print · Shape · Product · Size Inch), in their own word order — this template is not used for the order">Old template — differs from our title format</div>' : ''}</td>
           <td><textarea data-lrt="${i}" data-f="reference" rows="1" style="width:240px">${lrEsc(tpl.reference || '')}</textarea></td>
           <td class="num" style="font-weight:700">${rows.length ? off.toLocaleString('en-US') : '—'}</td>
           <td><button class="ghost lr-del" data-lrdel="templates|${i}" title="Delete this template">×</button></td>

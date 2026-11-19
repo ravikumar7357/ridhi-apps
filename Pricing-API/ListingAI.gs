@@ -33,6 +33,8 @@
  *   change_result                     Haiku — did a change work (14 days before vs after); too little data → "not enough data yet", no call
  *   bundle_ideas                      Haiku — which of our products to pair, which others are bought with ours (ideas only)
  *   style_get / learn_style           no Claude call in the request: the house style guides (lmAiStyle) / start "Learn again" (budget-checked)
+ * TITLE FORMAT (20 Nov 2026): every title task and the house style guide keep the listing's own title format and word order, correct only
+ *   real mistakes (the smallest change) and never remove "Inch" — the same rule as Sellora's lrTitleFix.
  * PART 3 (Create Listing): a writing task with &newsku=&colour=&size= writes for a NEW listing cloned from &sku= (its own colour / size).
  * HOUSE STYLE: aiLearnStyle() (run once from the editor) reads EVERY listing of both brands from the ListingMatch cache, groups them by
  *   product type, Haiku notes the patterns in batches (live, in stock, no Amazon error = a good example, counted more), Sonnet writes one
@@ -141,10 +143,13 @@ var AI_SYSTEM = [
   '   that listing — never invent a fit, size, fabric, measurement or feature. The TITLE rules below describe our home-textile template;',
   '   for clothing keep the same order idea (brand, product, key style words, fabric, size, colour) and the length limit.',
   '',
-  'TITLE (task title, and season with field title): 60 to FACTS.max characters (FACTS.max is 75 unless told otherwise). Start with the brand.',
-  '   Follow FACTS.template — the parts in that order: brand, product, shape, material, size, print, colour (a part with no fact is left out).',
-  '   Size the house way: the smaller number first, "60 x 90 Inch" (spaces round the x, "Inch" in full) — "60x90 Inch" only at 74–75',
-  '   characters. A " - " may stand before the colour. Use words from FACTS.searchWords only if they are true of this product and fit.',
+  'TITLE (task title, and season with field title): KEEP THIS LISTING\'S OWN TITLE FORMAT AND WORD ORDER (FACTS.title); only correct real',
+  '   mistakes, with the smallest change, every other word kept word-for-word: a spelling mistake, a shape the size contradicts (Square on',
+  '   60x90 → Rectangle), a missing part (colour, size, product, "Inch" after the size — added in its place), a word said twice, another',
+  '   brand\'s name, over FACTS.max characters (75 unless told otherwise). NEVER remove "Inch". NEVER put the words in another order. Our',
+  '   format is Brand · Colour · Hand Block Print · Shape · Product · Size Inch, e.g. "Ridhi Amber Marigold Hand Block Print Square',
+  '   Tablecloth 54x54 Inch" — a title already like that needs no change. FACTS.template only names the parts; it is not an order to',
+  '   follow. Write the size the way the title (or its family) already does ("54x54 Inch" or "54 x 54 Inch"), the smaller number first.',
   'BULLETS (task bullets): exactly 5 bullets, each 150–250 characters, each a different point (size and what is included; material and',
   '   feel; the hand block print; care as FACTS states it; uses and occasions). Start each with a short capitalised lead phrase and a colon.',
   'DESCRIPTION (task description): 600–1500 characters of plain sentences in 2–4 short paragraphs separated by a blank line; no bullet marks.',
@@ -191,7 +196,8 @@ var AI_SYSTEM = [
 '   Note in up to 12 short lines how WE write them: title word order, length, size, colour, shape and material forms, how each bullet',
 '   starts and what it covers, the description, the words we always use and never use. Count the good ones more. Only what is there.',
 'STYLE GUIDE (task style_guide): from FACTS.notes and FACTS.bestTitles write ONE short house style guide for FACTS.productType.',
-'   examples = 2-3 of FACTS.bestTitles exactly as written. always / never = words from our own listings. Never invent claims.',
+'   examples = 2-3 of FACTS.bestTitles exactly as written. always / never = words from our own listings. Never invent claims. The title',
+'   part must say: keep each listing\'s own title format and word order; only correct real mistakes; never remove Inch.',
 ].join('\n');
 
 /* ============================== the route ============================== */

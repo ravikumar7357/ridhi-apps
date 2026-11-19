@@ -33,7 +33,11 @@ const has = (list, re) => list.some(f => re.test(f.msg));
   console.log('== the rules on each field ==');
   ok('a 210-character title is refused', A.lcCheck('item_name', ['x'.repeat(210)]).some(f => f.bad && /200/.test(f.msg)));
   ok('a 120-character title is flagged for the 75 rule, not refused', (r => !r.some(f => f.bad) && has(r, /75 or less/))(A.lcCheck('item_name', ['Ridhi Block Print '.repeat(7)])));
-  ok('a size written another way is flagged', has(A.lcCheck('item_name', ['Ridhi Tablecloth 60x90 Block Print']), /Size "60x90"/));
+  // OUR TITLE FORMAT (20 Nov 2026): "60x90 Inches" is not our way; a size with no unit is "Missing Inch" (the one title rule, lrTitleProblems)
+  ok('a size written another way is flagged', has(A.lcCheck('item_name', ['Ridhi Tablecloth 60x90 Inches Block Print']), /Size "60x90 Inches"/));
+  ok('…a size with no unit: "Missing Inch" (never removed, always added)', has(A.lcCheck('item_name', ['Ridhi Indigo Blue Hand Block Print Rectangle Tablecloth 60x90'], { brand: 'SP', sku: 'RTC1-6090' }), /Missing "Inch" after the size|Missing Inch/),
+    JSON.stringify(A.lcCheck('item_name', ['Ridhi Indigo Blue Hand Block Print Rectangle Tablecloth 60x90'], { brand: 'SP', sku: 'RTC1-6090' })));
+  ok('…our format itself is not flagged ("54x54 Inch" / "60 x 90 Inch")', !A.lcCheck('item_name', ['Ridhi Indigo Blue Hand Block Print Rectangle Tablecloth 60x90 Inch'], { brand: 'SP', sku: 'RTC1-6090' }).some(x => /Size|Missing|Spelling/.test(x.msg)));
   ok('a title missing the required words is flagged', has(A.lcCheck('item_name', ['Ridhi Cotton Tablecloth']), /needs one of "Block Print"/));
   const easterOut = A.lcCheck('item_name', ['Ridhi Block Print Napkins for Easter']);
   ok('an occasion out of season is flagged (Easter, in October)', has(easterOut, /Easter, which is out of season/), JSON.stringify(easterOut));
@@ -48,10 +52,11 @@ const has = (list, re) => list.some(f => re.test(f.msg));
 
   console.log('== suggestions come only from Listing Rules ==');
   const full = A.lcTemplateTitle('SP', 'RTC1-6090', 200), short = A.lcTemplateTitle('SP', 'RTC1-6090', 75);
-  ok('the template title for a tablecloth', /^Ridhi Tablecloth Rectangle 100% Cotton 60 x 90 Inch/.test(full) && /- Indigo Blue$/.test(full), full);
+  // the default template is now OUR TITLE FORMAT: Brand · Colour · Hand Block Print · Shape · Product · Size · Inch
+  ok('the template title for a tablecloth — in our title format', full === 'Ridhi Indigo Blue Hand Block Print Rectangle Tablecloth 60 x 90 Inch', full);
   // 19 Nov 2026 (the one suggestion-words rule): the uses go; brand, product, its real shape, material, size, "Hand Block Print" and the
   // colour all stay — 82 with only those, so the house rule's short forms of a 74–75 title: 60x90", no " - " → 74
-  ok('the 75 version: the uses go, every important word stays ("Hand Block Print" whole, Rectangle, 100% Cotton, the colour), in the short forms allowed at 74–75', short === 'Ridhi Tablecloth Rectangle 100% Cotton 60x90" Hand Block Print Indigo Blue' && short.length === 74, short + ' (' + short.length + ')');
+  ok('the 75 version: already within 75, so the same title, every important word whole ("Hand Block Print", Rectangle, the colour, Inch)', short === full && short.length <= 75, short + ' (' + short.length + ')');
   ok('no template for a SKU the catalogue does not hold', A.lcTemplateTitle('SP', 'UNKNOWN', 200) === '');
   const kw = A.lcSuggestKeywords('SP', 'RTC1-6090', short, 'washable');
   ok('search terms: template words the title lacks, never past 249 bytes', /dining/.test(kw) && A.lcBytes(kw) <= 249 && /washable/.test(kw), kw);
