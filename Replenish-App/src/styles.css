@@ -321,10 +321,11 @@
   .kpis{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:10px}
   /* Sundays in the day-by-day study: shaded, not hidden — work done on one still counts. */
   table.xl th.ka-sun,table.xl td.ka-sun{background:#f3f4f6}
-  /* Waiting for QC: a row QC has taken all of stays on the list, light green (Ravi, 19 Nov). */
-  table.xl tbody tr.qc-accepted td{background:#f0fdf4}
-  table.xl tbody tr.qc-accepted:nth-child(even) td{background:#f0fdf4}   /* the striped rows would otherwise win */
-  table.xl td .qc-accepted-line{color:#166534;font-size:12px;margin-top:4px;white-space:normal;text-align:left}
+  /* Waiting for QC (Ravi, 19 Nov): an accepted row keeps its place; QC Accept becomes a grey closed button with the date.
+   * Item and Order wrap so the buttons show without scrolling sideways. */
+  table.xl td.qc-wrap{white-space:normal;max-width:220px;min-width:120px}
+  table.xl td .qc-act{padding:3px 10px;font-size:12px;margin-right:4px}
+  table.xl td .qc-closed{padding:3px 10px;font-size:12px;margin-right:4px;background:#eef0f3;color:#6b7280;border:1px solid #e2e5ea;box-shadow:none;cursor:default}
   /* TWO PANELS SIDE BY SIDE, and one above the other when there is no room for two. The chart is the
      only loud thing in the panel: the heading is small, there is no frame around the plot and no
      fill behind it. */

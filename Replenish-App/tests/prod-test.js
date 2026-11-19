@@ -20918,8 +20918,9 @@ console.log('\n== Waiting for QC: QC Accept takes the row, QC pass splits it, ac
   ok('QC Accept passes every piece waiting on the row, with no window', waitingOf('k3') === 0
     && ((A.QC().checks || []).find(c => c.baseId === 'k3') || {}).ok === 4 && !(A.PTD_() && A.PTD_().title === 'QC Check'));
   ok('…the row stays where it was on the list', rowsInOrder().join() === order, rowsInOrder().join());
-  ok('…green, its buttons gone, saying when it was accepted and by whom', /class="qc-accepted"/.test(rowHtml('k3')) && !/QC Accept|QC pass/.test(rowHtml('k3'))
-    && /✓ Accepted \d\d\/\d\d\/\d{4} \d\d:\d\d · /.test(rowHtml('k3')), rowHtml('k3').slice(0, 600));
+  ok('…QC Accept is now a grey closed button saying when it was accepted and by whom; QC pass is grey too, nothing being left',
+    /class="qc-closed" disabled[^>]*>✓ Accepted \d\d\/\d\d \d\d:\d\d · [^<]+<\/button>/.test(rowHtml('k3')) && /class="qc-closed" disabled[^>]*>QC pass</.test(rowHtml('k3'))
+    && !/data-qcin-accept|data-qcin-check/.test(rowHtml('k3')), rowHtml('k3').slice(0, 800));
   ok('…what QC did shows on hover: 4 passed', /title="4 passed"/.test(rowHtml('k3')), rowHtml('k3').slice(0, 600));
 
   await pressRowButton('data-qcin-check', 'k1');
@@ -20946,13 +20947,15 @@ console.log('\n== Waiting for QC: QC Accept takes the row, QC pass splits it, ac
   ok('…the other 5 stay waiting', waitingOf('k1') === 5, String(waitingOf('k1')));
   ok('…only the 5 passed are made for the order', A.obPressQty('WO-K1', 'W-k1') === 5, String(A.obPressQty('WO-K1', 'W-k1')));
   ok('…and the 2 can be issued for alteration', A.qcAvailToIssue('W-K1') === 2, String(A.qcAvailToIssue('W-K1')));
-  ok('…the part-accepted row keeps its buttons, with the accepted line under them', /QC Accept/.test(rowHtml('k1')) && /✓ Accepted 15 \d\d\/\d\d\/\d{4}/.test(rowHtml('k1'))
-    && /title="5 passed, 2 for alteration, 1 rejected, 3 to spotting, 4 to touching"/.test(rowHtml('k1')), rowHtml('k1').slice(0, 800));
+  ok('…the part-accepted row: QC Accept grey with what was taken, QC pass still open for the 5 left',
+    /class="qc-closed" disabled title="5 passed, 2 for alteration, 1 rejected, 3 to spotting, 4 to touching">✓ Accepted 15 \d\d\/\d\d/.test(rowHtml('k1'))
+    && /data-qcin-check="k1"[^>]*>QC pass</.test(rowHtml('k1')) && !/data-qcin-accept/.test(rowHtml('k1')), rowHtml('k1').slice(0, 800));
 
   await pressRowButton('data-qcin-check', 'k2');
   ok('everything sent to spotting writes only the send', (await A.PTD_().onSave({ passed: '0', spotting: '6' })) === ''
     && (A.QC().checks || []).filter(c => c.baseId === 'k2').length === 1 && waitingOf('k2') === 0);
-  ok('…and its row stays in place, green, with "6 to spotting" on hover', rowsInOrder().join() === order && /class="qc-accepted"/.test(rowHtml('k2')) && /title="6 to spotting"/.test(rowHtml('k2')));
+  ok('…and its row stays in place, its button grey with "6 to spotting" on hover', rowsInOrder().join() === order && /class="qc-closed" disabled title="6 to spotting"/.test(rowHtml('k2')));
+  ok('the Item and Order columns wrap so the buttons show without scrolling sideways', (rowHtml('k2').match(/class="qc-wrap"/g) || []).length === 2);
 
   els.qcShow.value = 'waiting'; A.renderQc();
   ok('Show Still waiting lists only k1', rowsInOrder().join() === 'k1', rowsInOrder().join());
