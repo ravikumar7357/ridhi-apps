@@ -82,7 +82,7 @@ async function flowVpBar() {
   $('vpBody').insertAdjacentHTML('beforebegin', `<div class="card" style="padding:8px 12px;margin-top:10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;border:1px dashed #7c3aed">
     <span style="color:#7c3aed;font-weight:600;font-size:12.5px">PRINTER'S VIEW</span>
     <label style="display:flex;gap:6px;align-items:center;margin:0;font-size:12.5px">See the portal as printer
-      <select id="flVpAs" style="width:auto;min-width:220px"><option value="">— my own sign-in —</option></select></label>
+      <select id="flVpAs" style="width:auto;min-width:220px"><option value="" disabled selected>— pick a printer —</option></select></label>
     <span class="muted" style="font-size:12px">${flowMay('flchl') ? 'what that printer sees — receive its goods on each line' : 'what that printer sees, view only — nothing can be changed from here'}</span>
     <span style="flex:1"></span><span id="flVpX"></span></div>`);
   let map = {}; try { map = (await ptGet('pt_vendorMap')) || {}; } catch (e) { map = {}; }
