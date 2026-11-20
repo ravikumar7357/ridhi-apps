@@ -112,7 +112,11 @@ const GUARD = `<script>/* TEST ERP GUARD — added by Replenish-App/tests/build-
   function sbFull(key, p, tok, origFetch) {
     return sbManifest(tok, origFetch).then(function (man) {
       var e = man && man[p];
-      if (!e || e.upto == null) return sbFullDb(key, p, tok, origFetch);
+      /* 20 Nov (UAT check 25): a list with no file comes from the database's ready copy, which can be a few seconds behind a
+       * save just made — so the saves since are added BEFORE it is shown, exactly as for a file */
+      if (!e || e.upto == null) return sbFullDb(key, p, tok, origFetch).then(function (m) {
+        return sbRefresh(key, p, tok, origFetch, true).then(function (x) { var n = x || SBMEM[key] || m; if (!n.from) n.from = 'database'; return n; });
+      });
       return sbStorageGet(p + '.json?v=' + e.upto, tok, origFetch).then(function (t) {
         if (!t) return sbFullDb(key, p, tok, origFetch);
         var m = { text: t, upto: e.upto, at: Date.now(), from: 'file' }; sbStore(key, m);
