@@ -65,6 +65,9 @@
     <!-- Each heading names the tabs it owns in data-tabs. That one attribute is what lets a group
          hide itself when every tab under it is hidden or not permitted, so there is no second list
          to keep in step when a tab moves between groups. -->
+    <!-- THE DASHBOARD (20 Nov 2026, app/core/dashboard.js): the first screen after sign-in, one button with no menu under it.
+         Not a .navgrp (nav.js reads every .navgrp as a menu group); TABS in nav.js wires its click like every tab's. -->
+    <div class="navwrap"><button id="tabDash" class="navdash" type="button">Dashboard</button></div>
     <div class="navwrap"><button class="navgrp" id="grpResearch" type="button" aria-controls="secResearch" data-grp="research" data-tabs="link,new,pr,kw">
       <span class="caret">&#9656;</span> Research</button>
     <div class="navsec" id="secResearch">
@@ -144,6 +147,10 @@
         <svg class="ic-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
         </svg>
+      </button>
+      <!-- The Dashboard's animation on / off (app/core/dashboard.js keeps aria-pressed = on). Touches the Dashboard only. -->
+      <button id="fxBtn" class="themesw dashfx" type="button" aria-label="Dashboard animation" aria-pressed="true" title="Dashboard animation: on">
+        <span aria-hidden="true">&#10024;</span>
       </button>
       <!-- THE GUIDE, on every screen: opens /guide/ at the part about the screen you are on. -->
       <button id="guideBtn" class="ghost" type="button"
@@ -437,6 +444,10 @@
   </div>
 
   <!-- ============ PANE: by link (variation explorer) ============ -->
+  <!-- ============ DASHBOARD ============ -->
+  <!-- Drawn by app/core/dashboard.js from what the other screens already hold: no Amazon call, no AI, no write. -->
+  <div id="paneDash" class="hide"><div id="dashRoot" class="dash"></div></div>
+
   <div id="paneLink">
   <div class="card">
     <label>Reference product — link or ASIN</label>

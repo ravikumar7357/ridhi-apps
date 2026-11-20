@@ -4343,3 +4343,189 @@
   @media (max-width:520px){.adx-boxes{grid-template-columns:minmax(0,1fr)}}
 
   /* ===== MODULE: INVENTORY ===== */
+
+  /* ===== DASHBOARD (20 Nov 2026, app/core/dashboard.js) =====
+     The first screen after sign-in. Scoped to #paneDash and the two new top-bar buttons (#tabDash, #fxBtn): no other screen
+     changes. Motion runs only while #paneDash has .dash-fx (the ✨ switch on, and the computer not asking for less motion).
+     Each intro animation gives only its FROM state with fill backwards, so a card that is not animated is simply shown as it is.
+     Only transform, opacity and stroke-dashoffset move. Tokens only: light and dark follow the theme. ===== */
+  /* THE MENU BUTTON: looks like a menu group heading, with no chevron and no menu under it. */
+  .navdash{display:inline-flex;align-items:center;gap:7px;width:auto;height:36px;padding:0 12px;
+    text-align:left;background:transparent;border:0;border-radius:var(--r-pill);box-shadow:none;min-height:0;
+    cursor:pointer;font:inherit;font-size:13.5px;font-weight:500;letter-spacing:0;text-transform:none;
+    color:var(--muted);white-space:nowrap;transition:background-color .15s ease,color .15s ease;
+    --ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='3' width='7' height='9' rx='1.5'/%3E%3Crect x='14' y='3' width='7' height='5' rx='1.5'/%3E%3Crect x='14' y='12' width='7' height='9' rx='1.5'/%3E%3Crect x='3' y='16' width='7' height='5' rx='1.5'/%3E%3C/svg%3E")}
+  .navdash::before{content:"";flex:none;width:16px;height:16px;background:currentColor;mask:var(--ic) center/contain no-repeat;-webkit-mask:var(--ic) center/contain no-repeat}
+  .navdash:hover{background:var(--hover);color:var(--ink)}
+  .navdash.on,.navdash.on:hover{background:var(--brand-bg);color:var(--brand-ink);font-weight:600}
+  @media (min-width:861px) and (max-width:1199px){ .navdash{padding:0 10px} .navdash::before{display:none} }
+  @media (max-width:860px){ .navdash{width:100%;height:40px;border-radius:var(--r-ctl)} }
+  /* The logo opens the Dashboard (dashboard.js). */
+  .side .brandtile,.side .brandname{cursor:pointer}
+  /* ✨ — the Dashboard's animation switch, beside the theme switch: dimmed when off. */
+  .dashfx span{font-size:16px;line-height:1;transition:opacity .15s ease}
+  .dashfx[aria-pressed="false"] span{opacity:.35;filter:grayscale(1)}
+  @media (prefers-reduced-motion:reduce){ .navdash,.dashfx span{transition:none} }
+
+  /* --- the page --- */
+  #paneDash .dash{position:relative;isolation:isolate;display:flex;flex-direction:column;gap:16px;min-width:0}
+  #paneDash .dash-glow{position:absolute;inset:-12px;z-index:-1;overflow:hidden;pointer-events:none;border-radius:var(--r-card)}
+  #paneDash .dash-glow i{position:absolute;width:60%;height:60%;border-radius:50%;opacity:.7;
+    background:radial-gradient(closest-side,var(--brand-bg),transparent)}
+  #paneDash .dash-glow i:nth-child(1){left:-12%;top:-10%}
+  #paneDash .dash-glow i:nth-child(2){right:-14%;top:28%;background:radial-gradient(closest-side,var(--accent-bg),transparent)}
+  #paneDash .dash-glow i:nth-child(3){left:26%;bottom:-18%;background:radial-gradient(closest-side,var(--act-bg),transparent);opacity:.5}
+  #paneDash .dash-hero{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap}
+  #paneDash .dash-hi{margin:0;font-size:24px;font-weight:700;letter-spacing:-.02em;line-height:1.2}
+  #paneDash .dash-date{margin-top:2px;font-size:13px;color:var(--muted)}
+  #paneDash .dash-brands{display:inline-flex;gap:2px;padding:3px;background:var(--card);border:1px solid var(--card-line);
+    border-radius:var(--r-pill);box-shadow:var(--sh-1)}
+  #paneDash .dash-brands button{height:30px;min-height:0;width:auto;padding:0 14px;border:0;border-radius:var(--r-pill);
+    background:transparent;color:var(--muted);box-shadow:none;font:inherit;font-size:13px;font-weight:500;transition:none}
+  #paneDash .dash-brands button:hover{background:var(--hover);color:var(--ink)}
+  #paneDash .dash-brands button[aria-pressed="true"],#paneDash .dash-brands button[aria-pressed="true"]:hover{background:var(--brand);color:var(--on-brand);font-weight:600}
+  #paneDash .dash-grid{display:grid;gap:16px;min-width:0}
+  #paneDash .dash-kpis,#paneDash .dash-tiles{grid-template-columns:repeat(4,minmax(0,1fr))}
+  #paneDash .dash-row3{grid-template-columns:minmax(0,1.15fr) minmax(0,1fr) minmax(0,1fr)}
+  #paneDash .dash-slot{display:flex;min-width:0}
+  #paneDash .dash-slot>*{flex:1 1 auto;min-width:0}
+  @media (max-width:1100px){
+    #paneDash .dash-kpis,#paneDash .dash-tiles{grid-template-columns:repeat(2,minmax(0,1fr))}
+    #paneDash .dash-row3{grid-template-columns:minmax(0,1fr)}
+  }
+  @media (max-width:520px){
+    #paneDash .dash-kpis,#paneDash .dash-tiles{grid-template-columns:minmax(0,1fr)}
+    #paneDash .dash-hi{font-size:20px}
+  }
+
+  /* --- a card --- */
+  #paneDash .dash-card{position:relative;display:flex;flex-direction:column;gap:6px;width:100%;min-width:0;height:auto;min-height:0;
+    margin:0;padding:16px 18px;text-align:left;font:inherit;font-weight:400;color:var(--ink);background:var(--card);
+    border:1px solid var(--card-line);border-radius:var(--r-card);box-shadow:var(--sh-1);transition:none}
+  #paneDash button.dash-card:hover{background:var(--card);color:var(--ink)}
+  #paneDash button.dash-card:disabled{opacity:1;cursor:default}
+  #paneDash .dash-h{display:flex;align-items:center;justify-content:space-between;gap:8px;min-width:0}
+  #paneDash .dash-t{display:inline-flex;align-items:center;gap:7px;min-width:0;font-size:12.5px;font-weight:600;color:var(--muted)}
+  #paneDash .dash-ic{flex:none;font-size:16px;line-height:1}
+  #paneDash .dash-open{flex:none;width:auto;height:26px;min-height:0;padding:0 10px;border:0;border-radius:var(--r-pill);
+    background:transparent;color:var(--brand-ink);box-shadow:none;font:inherit;font-size:12px;font-weight:600;white-space:nowrap;transition:none}
+  #paneDash .dash-open:hover{background:var(--brand-bg);color:var(--brand-ink)}
+  #paneDash .dash-v{font-size:30px;font-weight:700;letter-spacing:-.02em;line-height:1.15;font-variant-numeric:tabular-nums;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  #paneDash .dash-v.is-none{color:var(--faint)}
+  #paneDash .dash-s{display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px;font-size:12.5px;color:var(--muted)}
+  #paneDash .dash-up{color:var(--accent-ink);font-weight:600}
+  #paneDash .dash-dn{color:var(--bad-ink);font-weight:600}
+  #paneDash .dash-bad{color:var(--bad-ink);font-weight:600}
+  #paneDash .dash-w{margin-top:auto;padding-top:4px;font-size:11.5px;color:var(--faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  #paneDash .dash-w.is-old{color:var(--act-ink)}
+  #paneDash .dash-go{display:inline;width:auto;height:auto;min-height:0;padding:0;border:0;background:none;box-shadow:none;
+    color:var(--brand-ink);font:inherit;font-weight:600;cursor:pointer;transition:none}
+  #paneDash .dash-go:hover{background:none;color:var(--brand-ink);text-decoration:underline}
+
+  /* --- ROW B: the listing flow --- */
+  #paneDash .dash-flowrow{position:relative;display:grid;align-items:center;margin:8px 0 2px;
+    grid-template-columns:minmax(0,1fr) 44px minmax(0,1fr) 44px minmax(0,1fr) 44px minmax(0,1fr) 44px minmax(0,1fr)}
+  #paneDash .dash-step{position:relative;z-index:1;display:flex;flex-direction:column;align-items:flex-start;gap:1px;width:100%;min-width:0;
+    height:auto;min-height:0;margin:0;padding:12px 14px;text-align:left;font:inherit;font-weight:400;color:var(--ink);
+    background:var(--soft);border:1px solid var(--card-line);border-radius:var(--r-row);box-shadow:none;transition:none}
+  #paneDash .dash-step:hover{background:var(--hover);color:var(--ink)}
+  #paneDash .dash-step:disabled{opacity:1;cursor:default}
+  #paneDash .dash-step:disabled:hover{background:var(--soft)}
+  #paneDash .dash-step-l{font-size:12px;font-weight:600;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+  #paneDash .dash-step b{font-size:24px;font-weight:700;letter-spacing:-.02em;line-height:1.2;font-variant-numeric:tabular-nums}
+  #paneDash .dash-step small{font-size:11px;color:var(--faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+  #paneDash .dash-step.is-act{background:var(--act-bg);border-color:var(--act-bg)}
+  #paneDash .dash-step.is-act b{color:var(--act-ink)}
+  #paneDash .dash-step.is-bad{background:var(--bad-bg);border-color:var(--bad-bg)}
+  #paneDash .dash-step.is-bad b{color:var(--bad-ink)}
+  #paneDash .dash-step.is-brand{background:var(--brand-bg);border-color:var(--brand-bg)}
+  #paneDash .dash-step.is-brand b{color:var(--brand-ink)}
+  #paneDash .dash-step.is-ok{background:var(--accent-bg);border-color:var(--accent-bg)}
+  #paneDash .dash-step.is-ok b{color:var(--accent-ink)}
+  #paneDash .dash-arrow{display:flex;align-items:center;justify-content:center;min-width:0;color:var(--faint)}
+  #paneDash .dash-arrow svg{width:100%;height:12px;overflow:visible}
+  #paneDash .dash-arrow path{fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:1}
+  /* the dot's lane: clipped, so the runner (which travels its own width) never widens the page */
+  #paneDash .dash-track{position:absolute;left:0;right:0;top:50%;height:16px;margin-top:-8px;z-index:0;pointer-events:none;overflow:hidden}
+  #paneDash .dash-runner{display:none;position:absolute;left:0;top:8px;width:100%;height:0}
+  #paneDash .dash-runner i{position:absolute;left:0;top:-4px;width:8px;height:8px;margin-left:-4px;border-radius:50%;
+    background:var(--brand);box-shadow:0 0 0 4px var(--brand-bg)}
+  @media (max-width:700px){
+    #paneDash .dash-flowrow{grid-template-columns:minmax(0,1fr)}
+    #paneDash .dash-arrow{height:28px}
+    #paneDash .dash-arrow svg{width:28px;transform:rotate(90deg)}
+    #paneDash .dash-track{left:50%;right:auto;top:0;bottom:0;width:16px;height:auto;margin:0 0 0 -8px}
+    #paneDash .dash-runner{left:8px;top:0;width:0;height:100%}
+    #paneDash .dash-runner i{left:-4px;top:0;margin:-4px 0 0}
+  }
+
+  /* --- ROW C: donut, line, bars --- */
+  #paneDash .dash-donuts{display:flex;flex-wrap:wrap;justify-content:space-around;gap:10px;margin-top:4px}
+  #paneDash .dash-donut{margin:0;display:flex;flex-direction:column;align-items:center;gap:4px;min-width:0}
+  #paneDash .dash-donut svg{width:132px;height:132px;overflow:visible}
+  #paneDash .dash-donut figcaption{font-size:12.5px;font-weight:600;color:var(--muted)}
+  #paneDash .dash-seg{fill:none;stroke-width:16}
+  #paneDash .dash-seg.is-c{stroke:var(--bad)}
+  #paneDash .dash-seg.is-a{stroke:var(--act)}
+  #paneDash .dash-seg.is-r{stroke:var(--rev)}
+  #paneDash .dash-seg.is-h{stroke:var(--accent)}
+  #paneDash .dash-seg.is-u{stroke:var(--line)}
+  #paneDash .dash-dm{fill:none;stroke-width:24;stroke-dasharray:1}
+  #paneDash .dash-mid{font-size:20px;font-weight:700;fill:var(--ink);font-variant-numeric:tabular-nums}
+  #paneDash .dash-midl{font-size:10px;fill:var(--faint)}
+  #paneDash .dash-mini{display:flex;flex-wrap:wrap;justify-content:center;gap:2px 8px;font-size:11.5px;font-variant-numeric:tabular-nums}
+  #paneDash .dash-key{display:flex;flex-wrap:wrap;justify-content:center;gap:4px 12px;font-size:11.5px;color:var(--muted)}
+  #paneDash .dash-dot{display:inline-block;width:8px;height:8px;margin-right:4px;border-radius:50%;vertical-align:0}
+  #paneDash .dash-dot.is-c{background:var(--bad)}
+  #paneDash .dash-dot.is-a{background:var(--act)}
+  #paneDash .dash-dot.is-r{background:var(--rev)}
+  #paneDash .dash-dot.is-h{background:var(--accent)}
+  #paneDash .dash-dot.is-u{background:var(--line)}
+  #paneDash .dash-dot.is-sales{background:var(--brand)}
+  #paneDash .dash-dot.is-spend{background:var(--act)}
+  #paneDash .dash-chart{display:block;width:100%;height:auto;overflow:visible}
+  #paneDash .dash-line{fill:none;stroke:var(--brand);stroke-width:2;stroke-linejoin:round;stroke-linecap:round;stroke-dasharray:1}
+  #paneDash .dash-area{fill:var(--brand);opacity:.12}
+  #paneDash .dash-base{stroke:var(--line);stroke-width:1}
+  #paneDash .dash-axis{font-size:9.5px;fill:var(--faint)}
+  #paneDash .dash-bar{transform-box:fill-box;transform-origin:50% 100%}
+  #paneDash .dash-bar.is-sales{fill:var(--brand)}
+  #paneDash .dash-bar.is-spend{fill:var(--act)}
+  #paneDash .dash-bar.is-run{opacity:.5}
+
+  /* --- ROW D: needs attention --- */
+  #paneDash .dash-tile{cursor:pointer}
+  #paneDash .dash-tile b{font-size:26px;font-weight:700;letter-spacing:-.02em;line-height:1.15;font-variant-numeric:tabular-nums}
+  #paneDash .dash-tile.is-hot b{color:var(--act-ink)}
+  #paneDash .dash-tile .dash-more{font-size:12.5px;color:var(--muted)}
+  #paneDash .dash-tile .dash-open{align-self:flex-start;margin-top:2px;padding:0}
+  #paneDash .dash-tile:hover .dash-open{text-decoration:underline;background:transparent}
+  #paneDash .dash-tile.is-hot::after{content:"";position:absolute;inset:-1px;border-radius:inherit;border:2px solid var(--act);opacity:0;pointer-events:none}
+
+  /* --- MOTION: only with .dash-fx --- */
+  @keyframes dashUp{from{opacity:0;transform:translateY(14px)}}
+  @keyframes dashFade{from{opacity:0}}
+  @keyframes dashDraw{from{stroke-dashoffset:1}}
+  @keyframes dashRise{from{transform:scaleY(0)}}
+  @keyframes dashRun{0%{transform:translateX(0);opacity:0}6%{opacity:1}94%{opacity:1}100%{transform:translateX(100%);opacity:0}}
+  @keyframes dashRunY{0%{transform:translateY(0);opacity:0}6%{opacity:1}94%{opacity:1}100%{transform:translateY(100%);opacity:0}}
+  @keyframes dashDrift{from{transform:translate(0,0) scale(1)}to{transform:translate(7%,9%) scale(1.15)}}
+  @keyframes dashPulse{0%{opacity:.6;transform:scale(1)}70%,100%{opacity:0;transform:scale(1.035)}}
+  #paneDash.dash-fx .dash-hero{animation:dashUp .5s cubic-bezier(.2,.7,.2,1) backwards}
+  #paneDash.dash-fx .dash-card{animation:dashUp .55s cubic-bezier(.2,.7,.2,1) backwards;animation-delay:calc(var(--i,0) * 80ms + 60ms);
+    transition:transform .2s ease}
+  #paneDash.dash-fx .dash-card:hover{transform:translateY(-3px)}
+  #paneDash.dash-fx .dash-step{animation:dashUp .45s ease-out backwards;animation-delay:calc(var(--i,0) * 80ms + var(--s,0) * 170ms + 160ms)}
+  #paneDash.dash-fx .dash-arrow path{animation:dashDraw .4s ease-out backwards;animation-delay:calc(var(--i,0) * 80ms + var(--s,0) * 170ms + 250ms)}
+  #paneDash.dash-fx .dash-runner{display:block;animation:dashRun 5s linear 1.6s infinite}
+  #paneDash.dash-fx .dash-dm{animation:dashDraw 1.1s cubic-bezier(.3,.6,.2,1) backwards;animation-delay:calc(var(--i,0) * 80ms + 220ms)}
+  #paneDash.dash-fx .dash-line{animation:dashDraw 1.2s ease-out backwards;animation-delay:calc(var(--i,0) * 80ms + 220ms)}
+  #paneDash.dash-fx .dash-area{animation:dashFade .9s ease-out backwards;animation-delay:calc(var(--i,0) * 80ms + 700ms)}
+  #paneDash.dash-fx .dash-bar{animation:dashRise .6s cubic-bezier(.2,.7,.2,1) backwards;animation-delay:calc(var(--i,0) * 80ms + var(--b,0) * 45ms + 220ms)}
+  #paneDash.dash-fx .dash-glow i{animation:dashDrift 18s ease-in-out infinite alternate}
+  #paneDash.dash-fx .dash-glow i:nth-child(2){animation-duration:23s;animation-delay:-7s}
+  #paneDash.dash-fx .dash-glow i:nth-child(3){animation-duration:27s;animation-delay:-13s}
+  #paneDash.dash-fx .dash-tile.is-hot::after{animation:dashPulse 2.6s ease-out 1.4s infinite}
+  @media (max-width:700px){ #paneDash.dash-fx .dash-runner{animation-name:dashRunY} }
+  @media (prefers-reduced-motion:reduce){ #paneDash *,#paneDash *::after{animation:none;transition:none} }

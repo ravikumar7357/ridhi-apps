@@ -204,7 +204,7 @@ const ACCESS_GROUPS = [
 // names for it, anything left over lands in "Other", and each card's items become one checkbox each.
 // An item is [kind, key, label]: kind 's' = a Sellora tab, 'r' = a Replenishment section.
 function accessTabBoxes() {
-  const usable = TABS.filter(t => !HIDDEN_TABS.includes(t) && !TAB_INHERIT[t]);
+  const usable = TABS.filter(t => !HIDDEN_TABS.includes(t) && !TAB_INHERIT[t] && t !== 'dash');   // the Dashboard is never granted: it comes with any screen (core/access.js)
   const replKeys = REPL_SECTIONS.map(([k]) => k);
   const replLabel = k => (REPL_SECTIONS.find(([x]) => x === k) || [k, k])[1];
   // --- place each tab and section on its card (the first card that names it wins) ---
