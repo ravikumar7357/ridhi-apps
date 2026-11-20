@@ -292,12 +292,15 @@ function renderShop(live, frac, amz, amzLw, amzAds) {
   const [cLw, kLw] = change(sh.sales, shLw.sales);
   const C = ['#06b6d4', '#14b8a6', '#ec4899', '#6366f1', '#ef4444', '#8b5cf6'];
   $('shopNote').textContent = '· Shopify Admin API, Pacific day' + (M ? ' · Meta Marketing API (ad account’s own day)' : '') + (errs.length ? ' · ' + errs.join(' · ') : '');
+  // The same weekday four weeks back (the store's first sale was 28 Dec 2025, so last year has nothing in it yet).
+  const m4 = merge('fourWk'), sh4 = sameTime(m4), m4Day = shops.map(s => s.fourWkDay).filter(Boolean)[0], [c4, k4] = change(sh.sales, sh4.sales);
+  const pace = live && shLw.sales ? ' · pace ' + usd(sh.sales * lwDay.sales / shLw.sales) : '';
   $('shopStrip').innerHTML = shops.length
-    ? tile('Today so far', usd(sh.sales), `${int(sh.orders)} orders · ${int(sh.units)} units` + (live ? ' · to ' + ptHM(DATA.asOf) + ' PT' : ''), '', false, C[0], 'The brand’s Shopify store today, Pacific day. Line-item sales, no shipping or tax.')
+    ? tile('Today so far', usd(sh.sales), `${int(sh.orders)} orders · ${int(sh.units)} units` + pace, '', false, C[0], 'The brand’s Shopify store today, Pacific day. Line-item sales, no shipping or tax. Pace = today scaled by last week’s shape.')
       + tile('vs last week, same time', cLw, `${dname(DATA.lw)}${by}: ${usd(shLw.sales)} · ${int(shLw.orders)} orders`, kLw, false, C[1])
+      + tile('vs 4 weeks ago, same time', m4Day ? c4 : '—', m4Day ? `${dname(m4Day)}${by}: ${usd(sh4.sales)} · ${int(sh4.orders)} orders` : 'waiting for the backend update', m4Day ? k4 : '', false, '#a855f7', 'The same weekday four weeks ago, by the same time.')
       + tile('Average order', sh.orders ? '$' + (sh.sales / sh.orders).toFixed(2) : '—', (sh.orders ? (sh.units / sh.orders).toFixed(2) + ' units an order' : '') + (shLw.orders ? ' · last week $' + (shLw.sales / shLw.orders).toFixed(2) : ''), '', false, C[2])
-      + tile('Pace for the day', live && shLw.sales ? usd(sh.sales * lwDay.sales / shLw.sales) : (live ? '—' : usd(sh.sales)), live && shLw.sales ? `if the rest of today follows ${dname(DATA.lw)}'s shape · that day: ${usd(lwDay.sales)}` : (live ? 'needs last week by this hour' : 'the day is closed'), '', false, C[3])
-    : ['Today so far', 'vs last week, same time', 'Average order', 'Pace for the day'].map((k, i) => tile(k, '—', i ? '' : (errs[0] ? 'could not read Shopify' : 'waiting for the backend update'), '', false, C[i])).join('');
+    : ['Today so far', 'vs last week, same time', 'vs 4 weeks ago, same time', 'Average order'].map((k, i) => tile(k, '—', i ? '' : (errs[0] ? 'could not read Shopify' : 'waiting for the backend update'), '', false, C[i])).join('');
   $('shopStrip').innerHTML +=
     tile('Meta ad spend', M ? usd(M.spend) : '—', M ? `${int(M.clicks)} clicks · CPC ${M.clicks ? '$' + (M.spend / M.clicks).toFixed(2) : '—'}` : metaWhy, '', false, C[4], 'Meta (Facebook + Instagram) ad spend today, about 15 minutes behind, in the ad account’s own timezone.')
     + tile('Meta ROAS', M && M.spend ? (on.filter(k => { const m = DATA.brands[k].yoy.meta; return m && m.configured && m.days; }).reduce((t, k) => t + ((DATA.brands[k].yoy.shop || {}).now || []).reduce((s, r) => s + (r.sales || 0), 0), 0) / M.spend).toFixed(2) : '—', M ? `Shopify sales ÷ Meta spend · Meta counts ${int(M.purchases)} purchases, ${usd(M.value)}` : '', '', false, C[5]);

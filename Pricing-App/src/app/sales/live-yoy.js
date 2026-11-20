@@ -323,13 +323,16 @@ function yoyRenderShop(V, live, frac, amzToday, amzLwSame, amzAds) {
   // This year only (Ravi, 2026-11-20): Shopify gives the app 60 days of orders, so it is compared with last week, not last year.
   const sh = now.reduce(yoyAdd, yoyZero()), shLw = sameTime(lw), lwDay = lw.reduce(yoyAdd, yoyZero());
   const upTo = live ? ' by ' + yoyTime(V.asOf) : '';
+  const m4 = merge('fourWk'), sh4 = sameTime(m4), m4Day = shops.map(s => s.fourWkDay).filter(Boolean)[0];
   if (shops.length) {
-    set('yoyShToday', yoyMoney(sh.sales), yoyInt(sh.orders) + ' orders · ' + yoyInt(sh.units) + ' units' + (live ? ' · to ' + yoyTime(V.asOf) + ' PT' : ''));
+    // The pace (today scaled by last week's shape) sits under today's figure, to keep the row at six cards.
+    const pace = live && shLw.sales > 0 ? ' · pace ' + yoyMoney(sh.sales * lwDay.sales / shLw.sales) : '';
+    set('yoyShToday', yoyMoney(sh.sales), yoyInt(sh.orders) + ' orders · ' + yoyInt(sh.units) + ' units' + pace);
     const [b, bc] = chg(sh.sales, shLw.sales); set('yoyShVsLw', b, yoyDate(V.lw, false) + upTo + ': ' + yoyMoney(shLw.sales) + ' · ' + yoyInt(shLw.orders) + ' orders', bc);
+    if (m4Day) { const [d, dc] = chg(sh.sales, sh4.sales); set('yoySh4w', d, yoyDate(m4Day, false) + upTo + ': ' + yoyMoney(sh4.sales) + ' · ' + yoyInt(sh4.orders) + ' orders', dc); }
+    else set('yoySh4w', '—', 'waiting for the backend update');
     set('yoyShAov', sh.orders ? '$' + (sh.sales / sh.orders).toFixed(2) : '—', (sh.orders ? (sh.units / sh.orders).toFixed(2) + ' units an order' : '') + (shLw.orders ? ' · last week $' + (shLw.sales / shLw.orders).toFixed(2) : ''));
-    if (live && shLw.sales > 0) set('yoyShPace', yoyMoney(sh.sales * lwDay.sales / shLw.sales), 'if the rest of today follows ' + yoyDate(V.lw, false) + '’s shape · that day: ' + yoyMoney(lwDay.sales));
-    else set('yoyShPace', live ? '—' : yoyMoney(sh.sales), live ? 'needs last week’s sales by this hour' : 'the day is closed');
-  } else ['yoyShToday', 'yoyShVsLw', 'yoyShAov', 'yoyShPace'].forEach(id => set(id, '—', errs[0] ? 'could not read Shopify' : 'waiting for the backend update'));
+  } else ['yoyShToday', 'yoyShVsLw', 'yoySh4w', 'yoyShAov'].forEach(id => set(id, '—', errs[0] ? 'could not read Shopify' : 'waiting for the backend update'));
   // --- Meta ---
   const metas = V.keys.map(k => YOY[k].meta).filter(Boolean);
   const metaOn = metas.filter(m => m.configured && m.days);

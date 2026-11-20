@@ -7,7 +7,7 @@
  *     → { ok, brand, asOf, day, ly, lw,
  *         now:[hour rows of `day` so far], last:[hour rows of `ly`], lastWeek:[hour rows of day-7],
  *         week:[day rows, day-6 … day], ads:{ at, types, days:{date: {impressions, clicks, spend, orders, sales}}, err },
- *         shop:{ now, last, lastWeek: [Pacific hour rows of the brand's Shopify store] } | { err },
+ *         shop:{ now, last, lastWeek, fourWk: [Pacific hour rows of the brand's Shopify store], fourWkDay } | { err },
  *         meta:{ configured, at, days:{date: {spend, clicks, impressions, purchases, value}} } | { configured:false } }
  *   ?live=range — a run of days against last year's run, by day (liveRange_ below).
  *   A row is { t, orders, units, items, sales } — t is the start of the hour / day, Pacific.
@@ -107,7 +107,10 @@ function liveShop_(b, day, ly, lw, dayEnd, past) {
   setShopBrand_(b);
   if (!prop_(SHOP_PREFIX + 'SHOPIFY_TOKEN')) return { err: 'no Shopify store set up for ' + b };
   var whole = function (d) { return liveCached_('live_shop_v1_' + b + '_' + d, function () { return liveShopHours_(d, 0); }); };
-  return { now: past ? whole(day) : liveShopHours_(day, dayEnd), last: whole(ly), lastWeek: whole(lw) };
+  // fourWk: the same weekday four weeks back (Ravi, 2026-11-20) — the store's first sale was 28 Dec 2025, so until then
+  // last year has nothing in it and this is the closest same-day comparison that does.
+  var m4 = liveShift_(day, -28);
+  return { now: past ? whole(day) : liveShopHours_(day, dayEnd), last: whole(ly), lastWeek: whole(lw), fourWk: whole(m4), fourWkDay: m4 };
 }
 
 /* ---- META ADS ON THE LIVE PAGE (ready before the token is: it switches itself on) ----
