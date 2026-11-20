@@ -34,7 +34,7 @@ function boot(hash, tabs) {
     // Listing History's own menu rule, read from the real file (listing/listing-history.js)
     LH_LISTING_TABS: JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'src', 'app', 'listing', 'listing-history.js'), 'utf8').match(/const LH_LISTING_TABS = (\[[^\]]*\])/)[1].replace(/'/g, '"')),
   };
-  ['loadNiches', 'ensureAge', 'ensureHealth', 'ensureLrules', 'ensureAudit', 'ensureBsr', 'ensureWeekly', 'ensurePpcn', 'ensureTrends', 'ensureSt', 'ensurePlc',
+  ['ensureDash', 'loadNiches', 'ensureAge', 'ensureHealth', 'ensureLrules', 'ensureAudit', 'ensureBsr', 'ensureWeekly', 'ensurePpcn', 'ensureTrends', 'ensureSt', 'ensurePlc',
     'ensureDeals', 'ensureSales', 'ensureProfit', 'ensureSa', 'ensurePlaudit', 'ensureOpt', 'ensureImg', 'ensureLerr', 'ensureBasket', 'ensureTiktok', 'ensureCarousel']
     .forEach(n => { stub[n] = () => opened.push(n); });
   const src = CORE('auth.js') + '\n' + CORE('access.js') + '\n' + CORE('nav.js')
@@ -74,12 +74,12 @@ const LISTING = ['new', 'health', 'img', 'lerr', 'lrules'];
   {
     const B = boot('#sales', LISTING);
     await B.signIn(user);
-    ok('#sales, which this account may not see → the first allowed tab (New Product), and the address follows (#new)', B.tabNow() === 'new' && B.hash() === '#new' && B.entries.length === 1);
+    ok('#sales, which this account may not see → the first allowed tab (the Dashboard, 20 Nov 2026), and the address follows (#dash)', B.tabNow() === 'dash' && B.hash() === '#dash' && B.entries.length === 1 && B.opened.includes('ensureDash'));
   }
   {
     const B = boot('#weekly', ['weekly', 'new']);
     await B.signIn(user);
-    ok('a hidden tab (#weekly, off the menu) is not opened from the address → the first allowed tab', B.tabNow() === 'new');
+    ok('a hidden tab (#weekly, off the menu) is not opened from the address → the first allowed tab', B.tabNow() === 'dash');
   }
   {
     const B = boot('#lhist', ['health']);
@@ -89,7 +89,17 @@ const LISTING = ['new', 'health', 'img', 'lerr', 'lrules'];
   {
     const B = boot('', LISTING);
     await B.signIn(user);
-    ok('no #tab → the first allowed tab, as before', B.tabNow() === 'new' && B.hash() === '#new');
+    ok('no #tab → the first allowed tab: the Dashboard', B.tabNow() === 'dash' && B.hash() === '#dash' && B.on('paneDash') && !B.on('paneNew'));
+  }
+  {
+    const B = boot('', []);
+    await B.signIn(user);
+    ok('an account granted nothing: no Dashboard either — the "no access" notice', B.on('noAccess') && !B.on('paneDash') && B.$('tabDash').classList.contains('hide'));
+  }
+  {
+    const B = boot('#new', LISTING);
+    await B.signIn(user);
+    ok('a deep link to another screen still opens it (#new), not the Dashboard', B.tabNow() === 'new' && B.hash() === '#new');
   }
 
   {
@@ -105,12 +115,12 @@ const LISTING = ['new', 'health', 'img', 'lerr', 'lrules'];
   {
     const B = boot('#lhist', ['new', 'sales']);
     await B.signIn(user);
-    ok('no Listing access: #lhist → the first allowed tab', B.tabNow() === 'new' && B.hash() === '#new');
+    ok('no Listing access: #lhist → the first allowed tab', B.tabNow() === 'dash' && B.hash() === '#dash');
   }
   {
     const B = boot('#sales', ['img']);
     await B.signIn(user);
-    ok('…only #lhist got the extra rule: #sales for an img-only user → Image Manager (its first tab)', B.tabNow() === 'img');
+    ok('…only #lhist got the extra rule: #sales for an img-only user → the first allowed tab (the Dashboard)', B.tabNow() === 'dash');
   }
 
   console.log('== signed out → sign in → the same page; a deep link ==');

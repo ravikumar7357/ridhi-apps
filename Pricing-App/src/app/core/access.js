@@ -75,6 +75,9 @@ async function loadMyPerms(user) {
       ME.brands = Array.isArray(data.brands) ? data.brands : [];
       /* ACCESS VIEWER (3 Nov): may open the Access page and see everyone's access, change nothing */
       ME.accessView = data.accessView === true;
+      /* APPLY AT AMAZON (19 Nov): may change ads at Amazon from Sellora once config/adsApply is on. Never implied by a
+         tab; an admin has it. The backend checks the same field before any change (perms/<email>.adsApply). */
+      ME.adsApply = data.adsApply === true;
     }
   } catch (e) { /* unreadable perms = no perms; the notice below explains it */ }
   // The owner is always an admin so the account can never lock itself out. Keep this in step with
@@ -84,6 +87,7 @@ async function loadMyPerms(user) {
   if (ME.admin) {
     ME.tabs = TABS.slice();
     ME.approve = true;
+    ME.adsApply = true;
   }
 }
 
@@ -91,7 +95,9 @@ async function loadMyPerms(user) {
 // nothing left in them, and open the first tab allowed — or the "no access" notice when there is none.
 function applyPerms() {
   // May this account open tab t? An admin may; so may anyone granted it, or granted the tab it comes with.
-  const allowed = t => ME.admin || ME.tabs.includes(t) || (!!TAB_INHERIT[t] && ME.tabs.includes(TAB_INHERIT[t]));
+  const allowedOwn = t => ME.admin || ME.tabs.includes(t) || (!!TAB_INHERIT[t] && ME.tabs.includes(TAB_INHERIT[t]));
+  // The Dashboard (core/dashboard.js, 20 Nov 2026) comes with any screen: each of its cards shows only what that screen may show.
+  const allowed = t => (t === 'dash' ? TABS.some(x => x !== 'dash' && !HIDDEN_TABS.includes(x) && allowedOwn(x)) : allowedOwn(t));
   // --- tab buttons ---
   TABS.forEach(t => {
     const hide = HIDDEN_TABS.includes(t) || !allowed(t);
