@@ -377,6 +377,9 @@ function doPost(e) {
     /* The Listing Optimiser's review of one ASIN, judged on the facts Sellora sends from its ListingMatch cache (a read: nothing is
      * written). POST only because a listing's whole text does not fit in an address. */
     if (p.listing === 'review') { setBrand_(p.brand); return json_(listingReview_(p.asin, p.target, p.facts)); }
+    /* Plan my moves (ListingAI.gs aiPlan_, 20 Nov 2026): it spends the Claude budget, so ONLY for a signed-in person with rights on record
+     * (who, from writerOf_ above) — never through the key alone, even before REQUIRE_SIGNIN is switched on. */
+    if (p.ai === 'plan') return json_(who.email ? aiPlan_(p, who) : { ok: false, error: 'Sign in again — the backend could not confirm who you are (' + who.why + ').' });
     if (p.limg === 'upload') return json_(limgUpload_(p));
     if (p.mcf === 'preview') return json_(mcfPreview_(p.order || {}));
     if (p.mcf === 'create')  return json_(mcfCreate_(p.order || {}));

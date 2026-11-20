@@ -50,7 +50,7 @@
  * SCRIPT PROPERTIES
  *   CLAUDE_API_KEY       the Anthropic API key. Read here only, sent only to api.anthropic.com, never returned, never logged.
  *   AI_MODEL             default 'claude-sonnet-5-5'            AI_MODEL_FAST   default 'claude-haiku-5-5'
- *   AI_MONTH_LIMIT_USD   default 80 — no call is made once this month's spend reaches it
+ *   AI_MONTH_LIMIT_USD   default 50 (AI_LIMIT_DEF, set here in code: the editor allows only 50 properties) — no call once it is reached
  *   AI_USAGE_YYYYMM      written here: { usd, inTok, outTok, calls } for the month (script time zone)
  *   AI_FALLBACK          '1' turns on the server-side refusal fallback on Sonnet (OFF by default, so the model and its price are known)
  *
@@ -64,6 +64,13 @@
  *   aiTest()     task=title for one SKU (Script Property AI_TEST_SKU, else the first SKU in the Ridhi cache) — logs the answer, never the key
  *   aiStatus()   whether the key is set, the models, this month's spend and the limit
  *
+ * PLAN MY MOVES (20 Nov 2026): aiPlan_(p, who) — Code.gs doPost { ai: 'plan' }, ONLY for a signed-in person (writerOf_), never the open
+ *   GET key. Haiku orders Search Term Analysis' to-do list (at most 50 rows Sellora sends) into at most 7 moves; a move may only name
+ *   keys that were in the rows. The same rows the same day are answered from the 6-hour cache; at most AI_PLAN_MAX_DAY calls per brand
+ *   a day (one is expected). Its own short system prompt (AI_PLAN_SYSTEM), not the listing-writing one.
+ * THE LOG (20 Nov 2026): every Claude call — the ✨ buttons, Plan my moves, the house-style learning — is one row in the tab "AI log" of
+ *   the Sellora Listing Cache: time, route, model, tokens, US$, who, result. The newest AI_LOG_MAX rows are kept. The key is never in it.
+ *
  * To undo: delete this file and the one line in Code.gs, and the Script Properties AI_*, CLAUDE_API_KEY.
  * Main functions: aiAsk_, aiFacts_, aiPageFacts_, aiClaude_, aiShape_, aiCost_, aiMonth_, aiStyleFor_, aiLearnStyle, aiLearnStyleTick, aiTest, aiStatus. Every name starts with ai / AI. */
 
@@ -71,7 +78,9 @@ var AI_URL = 'https://api.anthropic.com/v1/messages';
 var AI_VERSION = '2023-06-01';
 var AI_BETA_FALLBACK = 'server-side-fallback-2026-07-01';
 var AI_CACHE_S = 6 * 3600;                 // an answer is kept this long (CacheService's maximum)
-var AI_LIMIT_DEF = 80;                     // US dollars a month, when AI_MONTH_LIMIT_USD is not set
+var AI_LIMIT_DEF = 50;                     // US dollars a month, when AI_MONTH_LIMIT_USD is not set (agreed 19 Nov 2026)
+var AI_PLAN_MAX_DAY = 6;                   // Plan my moves: Claude calls per brand per day (one is expected; a cached answer is free)
+var AI_LOG_TAB = 'AI log', AI_LOG_MAX = 5000;
 var AI_MAX_TOKENS = 8000;                  // room for adaptive thinking and the answer (non-streaming)
 var AI_PRICE = {                           // US dollars per million tokens: [input, output, cache read]
   'claude-opus-5-5': [4, 20, 0.20], 'claude-sonnet-5-5': [2, 10, 0.10], 'claude-haiku-5-5': [0.10, 0.50, 0.01],
@@ -249,6 +258,7 @@ function aiAsk_(p) {
     // what Claude used is paid even when the answer is refused, cut off or not usable — counted at the model that answered
     var cost = reply.usage ? aiCost_(reply.model || model, reply.usage) : 0;
     var now = reply.usage ? aiSpend_(cost, reply.usage) : aiMonth_();
+    aiLog_('ask ' + task, reply.model || model, reply.usage, cost, 'page (' + brand + ' ' + (facts.sku || '') + ')', reply.ok ? 'ok' : reply.reason);
     if (!reply.ok) return { ok: false, reason: reply.reason, model: reply.model || '', costUsd: aiRound_(cost), monthUsd: aiRound_(now.usd), limitUsd: now.limit };
     var result = aiShape_(task, reply.json, facts);
     if (!result.ok) return { ok: false, reason: result.reason, model: reply.model, costUsd: aiRound_(cost), monthUsd: aiRound_(now.usd), limitUsd: now.limit };
@@ -397,11 +407,11 @@ function aiFacts_(task, brand, sku, asin, p) {
 /* ============================== Claude ============================== */
 
 /** One Messages call: { ok, json, model, usage } or { ok: false, reason }. The key goes only into the x-api-key header. */
-function aiClaude_(model, def, user, image) {
+function aiClaude_(model, def, user, image, system) {
   var content = image ? [{ type: 'image', source: { type: 'url', url: image } }, { type: 'text', text: user }] : user;
   var body = {
     model: model, max_tokens: AI_MAX_TOKENS,
-    system: [{ type: 'text', text: AI_SYSTEM, cache_control: { type: 'ephemeral' } }],
+    system: [{ type: 'text', text: system || AI_SYSTEM, cache_control: { type: 'ephemeral' } }],   // system: Plan my moves' own prompt
     messages: [{ role: 'user', content: content }],
     output_config: { effort: def.effort, format: { type: 'json_schema', schema: def.schema } },
   };
@@ -704,7 +714,13 @@ function aiStyleWork_(st, g) {
   var tab = lmGet_(AI_STYLE_TAB) || { guides: {} };
   tab.guides = tab.guides || {};
   var fast = prop_('AI_MODEL_FAST') || 'claude-haiku-5-5', big = prop_('AI_MODEL') || 'claude-sonnet-5-5';
-  var pay = function (reply, model) { var c = reply.usage ? aiCost_(reply.model || model, reply.usage) : 0; if (reply.usage) aiSpend_(c, reply.usage); st.cost += c; return c; };
+  var pay = function (reply, model) {
+    var c = reply.usage ? aiCost_(reply.model || model, reply.usage) : 0;
+    if (reply.usage) aiSpend_(c, reply.usage);
+    st.cost += c;
+    aiLog_('learn style', reply.model || model, reply.usage, c, st.by || 'editor', reply.ok ? 'ok' : reply.reason);
+    return c;
+  };
   var afford = function (est) { var m = aiMonth_(); return m.usd + est <= m.limit; };
   var save = function () { st.at = Date.now(); aiStyleSaveState_(st); lmPut_(AI_STYLE_WORK, work); tab.costUsd = aiRound_(st.cost); lmPut_(AI_STYLE_TAB, tab); };
   var stop = function (why) { st.stopped = why; tab.status = 'stopped'; tab.stopped = why; save(); aiStyleTrigger_(false); Logger.log('aiLearnStyle stopped: ' + why); return st; };
@@ -839,4 +855,114 @@ function aiStatus() {
   Logger.log('CLAUDE_API_KEY: ' + (prop_('CLAUDE_API_KEY') ? 'set' : 'NOT SET — every ✨ AI button says "AI not set up yet"'));
   Logger.log('AI_MODEL: ' + (prop_('AI_MODEL') || 'claude-sonnet-5-5 (default)') + ' · AI_MODEL_FAST: ' + (prop_('AI_MODEL_FAST') || 'claude-haiku-5-5 (default)'));
   Logger.log(m.key + ': $' + aiRound_(m.usd) + ' of $' + m.limit + ' · ' + m.calls + ' calls · ' + m.inTok + ' input / ' + m.outTok + ' output tokens');
+  var pd = aiPlanDay_();
+  Logger.log('Plan my moves today (' + (pd.day || '—') + '): ' + Object.keys(pd.n || {}).map(function (b) { return b + ' ' + pd.n[b]; }).join(' · ')
+    + (Object.keys(pd.n || {}).length ? '' : 'none') + ' — at most ' + AI_PLAN_MAX_DAY + ' Claude calls per brand a day');
+  Logger.log('Every call is logged in the tab "' + AI_LOG_TAB + '" of the Sellora Listing Cache (the newest ' + AI_LOG_MAX + ').');
+}
+
+/* ============================== Plan my moves (20 Nov 2026) ============================== */
+
+var AI_PLAN = { fast: true, effort: 'low', schema: aiObj_({ moves: { type: 'array', items: aiObj_({ title: AI_STR, why: AI_STR, keys: { type: 'array', items: AI_STR } }) } }) };
+var AI_PLAN_SYSTEM = [
+  'You order an Amazon Sponsored Products to-do list for a seller of hand block print home textiles and clothing (brands Ridhi and CPC).',
+  'FACTS.rows are the changes the seller\'s own rules already suggest (k = the row\'s key; what/type/next/kind = the change; c clicks,',
+  'sp spend $, o orders, s sales $, acos %, tgt the target ACoS %, cp the campaign, season, brandTerm = a search for our own brand).',
+  'FACTS.rules is the seller\'s own plan, a hint. FACTS.want is what the person asked for, if anything.',
+  'Answer with at most 7 moves, the most money first. Group rows by pattern (the same word, the same campaign, the season). Each move:',
+  'title = a short plain name for it; why = ONE sentence in plain words with the numbers that matter; keys = the k of every row it covers.',
+  'Use ONLY keys from FACTS.rows, never invent one, never a number that is not in FACTS. Never suggest pausing or negating our own brand',
+  'terms (brandTerm). Answer ONLY with the JSON object.',
+].join('\n');
+
+/** Today's count of Plan my moves calls per brand (Script Property AI_PLAN_DAY: { day, n: { SP, CPC, ALL } }). add > 0 adds to it. */
+function aiPlanDay_(brand, day, add) {
+  var props = PropertiesService.getScriptProperties(), st;
+  try { st = JSON.parse(props.getProperty('AI_PLAN_DAY') || '{}') || {}; } catch (e) { st = {}; }
+  if (day && st.day !== day) st = { day: day, n: {} };
+  st.n = st.n || {};
+  if (brand && add) { st.n[brand] = (st.n[brand] || 0) + add; props.setProperty('AI_PLAN_DAY', JSON.stringify(st)); }
+  return st;
+}
+
+/**
+ * POST { ai: 'plan', brand, day, rows, rules, want } — Code.gs doPost sends it here only for a signed-in person (who.email).
+ * Answers { ok: true, model, moves: [{ title, why, keys }], cached, costUsd, monthUsd, limitUsd } or { ok: false, error }.
+ * Never throws. A move only ever names keys Sellora sent in rows; a move with none is dropped.
+ */
+function aiPlan_(p, who) {
+  try {
+    p = p || {};
+    if (!who || !who.email) return { ok: false, error: 'Sign in again — the backend could not confirm who you are' };
+    if (!prop_('CLAUDE_API_KEY')) return { ok: false, error: 'AI not set up yet' };
+    var brand = String(p.brand || '').toUpperCase();
+    if (brand !== 'SP' && brand !== 'CPC' && brand !== 'ALL') return { ok: false, error: 'brand must be SP, CPC or ALL' };
+    var today = Utilities.formatDate(new Date(), Session.getScriptTimeZone() || 'Asia/Kolkata', 'yyyy-MM-dd');
+    var day = /^\d{4}-\d{2}-\d{2}$/.test(String(p.day || '')) ? String(p.day) : today;
+    // the rows, cleaned: only the fields the prompt names, numbers as numbers, keys kept EXACTLY as Sellora sent them
+    var keys = {}, rows = [];
+    (Array.isArray(p.rows) ? p.rows : []).slice(0, 50).forEach(function (r) {
+      if (!r || typeof r !== 'object') return;
+      var k = r.k == null ? '' : String(r.k);
+      if (!k || k.length > 200 || keys[k]) return;
+      keys[k] = 1;
+      rows.push({ k: k, brand: aiCut_(r.brand, 4), what: aiCut_(r.what, 160), type: aiCut_(r.type, 40), next: aiCut_(r.next, 80), kind: aiCut_(r.kind, 40),
+        c: aiNum_(r.c), sp: aiNum_(r.sp), o: aiNum_(r.o), s: aiNum_(r.s), acos: aiNum_(r.acos), tgt: aiNum_(r.tgt),
+        cp: aiCut_(r.cp, 120), season: aiCut_(r.season, 40), brandTerm: !!r.brandTerm });
+    });
+    if (!rows.length) return { ok: false, error: 'No rows to plan' };
+    var rules = (Array.isArray(p.rules) ? p.rules : []).slice(0, 20).map(function (x) {
+      x = x || {};
+      return { id: aiCut_(x.id, 40), title: aiCut_(x.title, 160),
+        keys: (Array.isArray(x.keys) ? x.keys : []).map(function (k) { return String(k); }).filter(function (k) { return keys[k]; }).slice(0, 50) };
+    });
+    var month = aiMonth_();
+    if (month.usd >= month.limit) return { ok: false, error: 'Monthly AI limit reached', monthUsd: aiRound_(month.usd), limitUsd: month.limit };
+    var model = prop_('AI_MODEL_FAST') || 'claude-haiku-5-5';
+    var user = 'TASK: plan\nFACTS: ' + JSON.stringify({ brand: brand, day: day, rows: rows, rules: rules, want: aiCut_(p.want, 300) });
+    // the same rows the same day: the kept plan, free
+    var cache = CacheService.getScriptCache();
+    var ck = 'aiplan1_' + aiHash_([brand, day, model, user].join('\u0001'));
+    var hit = cache.get(ck);
+    if (hit) { var kept = JSON.parse(hit); return { ok: true, model: kept.model, moves: kept.moves, cached: true, costUsd: 0, monthUsd: aiRound_(month.usd), limitUsd: month.limit }; }
+    var done = (aiPlanDay_(brand, today).n || {})[brand] || 0;
+    if (done >= AI_PLAN_MAX_DAY) return { ok: false, error: 'Plan my moves was already planned ' + done + ' times today for this brand — Sellora\'s own plan is shown instead', monthUsd: aiRound_(month.usd), limitUsd: month.limit };
+    aiPlanDay_(brand, today, 1);                                   // counted before the call: a call that fails still counts
+    var reply = aiClaude_(model, AI_PLAN, user, '', AI_PLAN_SYSTEM);
+    var cost = reply.usage ? aiCost_(reply.model || model, reply.usage) : 0;
+    var now = reply.usage ? aiSpend_(cost, reply.usage) : aiMonth_();
+    aiLog_('plan ' + brand, reply.model || model, reply.usage, cost, who.email, reply.ok ? 'ok' : reply.reason);
+    if (!reply.ok) return { ok: false, error: reply.reason, costUsd: aiRound_(cost), monthUsd: aiRound_(now.usd), limitUsd: now.limit };
+    var moves = ((reply.json && reply.json.moves) || []).map(function (m) {
+      m = m || {};
+      var seen = {};
+      var ks = (Array.isArray(m.keys) ? m.keys : []).map(function (k) { return String(k); })
+        .filter(function (k) { if (!keys[k] || seen[k]) return false; seen[k] = 1; return true; });
+      return { title: aiCut_(m.title, 120), why: aiCut_(m.why, 300), keys: ks };
+    }).filter(function (m) { return m.title && m.keys.length; }).slice(0, 7);
+    if (!moves.length) return { ok: false, error: 'The AI gave no usable moves — Sellora\'s own plan is shown instead', costUsd: aiRound_(cost), monthUsd: aiRound_(now.usd), limitUsd: now.limit };
+    var used = reply.model || model;
+    try { cache.put(ck, JSON.stringify({ model: used, moves: moves }), AI_CACHE_S); } catch (e) { /* answered anyway */ }
+    return { ok: true, model: used, moves: moves, cached: false, costUsd: aiRound_(cost), monthUsd: aiRound_(now.usd), limitUsd: now.limit };
+  } catch (err) {
+    return { ok: false, error: 'The AI plan failed: ' + String((err && err.message) || err).slice(0, 200) };
+  }
+}
+
+/* ============================== the log (20 Nov 2026) ============================== */
+
+/** One row per Claude call in the tab "AI log" of the Sellora Listing Cache. Never throws, never holds up an answer, never the key. */
+function aiLog_(route, model, usage, usd, user, result) {
+  try {
+    var u = usage || {};
+    var safe = function (v, n) { var s = String(v == null ? '' : v).replace(/\s+/g, ' ').slice(0, n); return /^[=+\-@]/.test(s) ? "'" + s : s; };   // never read as a formula
+    var ss = lmBook_();
+    var sh = ss.getSheetByName(AI_LOG_TAB);
+    if (!sh) { sh = ss.insertSheet(AI_LOG_TAB); sh.appendRow(['time', 'route', 'model', 'input tokens', 'output tokens', 'cache read', 'cache write', 'US$', 'who', 'result']); }
+    sh.appendRow([Utilities.formatDate(new Date(), Session.getScriptTimeZone() || 'Asia/Kolkata', 'yyyy-MM-dd HH:mm:ss'), safe(route, 60), safe(model, 60),
+      Number(u.input_tokens) || 0, Number(u.output_tokens) || 0, Number(u.cache_read_input_tokens) || 0, Number(u.cache_creation_input_tokens) || 0,
+      aiRound_(usd), safe(user, 80), safe(result, 120)]);
+    var n = sh.getLastRow();
+    if (n > AI_LOG_MAX + 1) sh.deleteRows(2, n - AI_LOG_MAX - 1);
+  } catch (e) { /* the log never stops an answer */ }
 }
