@@ -991,8 +991,24 @@
   .yoy-chart .yoy-evband{fill:color-mix(in srgb,var(--yoy-ly) 10%,transparent)}
   .yoy-chart .yoy-evtxt{fill:var(--yoy-ly);font-weight:600;font-size:10.5px}
   /* Live vs Last Year cards (2026-11-20): two rows of six, full width, bigger figures, room between them. */
-  .yoy-sec-h{display:flex;align-items:center;gap:10px;margin:18px 2px 14px;padding-bottom:10px;border-bottom:1px solid var(--line);
-    font-size:20px;font-weight:800;letter-spacing:-.01em;color:var(--ink)}
+  /* Framed sections (2026-11-20): a coloured top edge, a faint wash of the same colour and a solid name tag — Amazon's
+     orange and navy, Shopify's green, the app's own blue for the Overview. Cards inside keep their look. */
+  #paneYoy .yoy-sec{--sec:var(--brand);--sec-ink:#fff;position:relative;border:1px solid var(--card-line);border-top:4px solid var(--sec);
+    border-radius:16px;padding:16px 18px 2px;margin:0 0 22px;
+    background:linear-gradient(180deg,color-mix(in srgb,var(--sec) 7%,var(--card)) 0,var(--card) 120px)}
+  #paneYoy .yoy-sec[data-chan="amz"]{--sec:#FF9900;--sec-tag:#232F3E}
+  #paneYoy .yoy-sec[data-chan="shop"]{--sec:#95BF47;--sec-tag:#5E8E3E}
+  #paneYoy .yoy-sec[data-chan="shop"] .sd-card{--glow:#95BF47}
+  .yoy-sec-h{display:flex;align-items:center;flex-wrap:wrap;gap:10px 14px;margin:0 0 14px}
+  .yoy-sec-tag{display:inline-flex;align-items:center;padding:5px 14px;border-radius:8px;font-size:15px;font-weight:800;letter-spacing:.01em;
+    color:var(--sec-ink);background:var(--sec-tag,var(--sec))}
+  .yoy-sec-sub{font-size:13px;color:var(--muted)}
+  #paneYoy .yoy-kpis-3{grid-template-columns:repeat(3,minmax(0,1fr))}
+  @media (max-width:760px){ #paneYoy .yoy-kpis-3{grid-template-columns:1fr} }
+  /* Channel split: a two-colour bar, Amazon orange and Shopify green. */
+  .yoy-split{display:flex;height:8px;border-radius:999px;overflow:hidden;margin-top:12px;background:var(--line)}
+  .yoy-split i{display:block;height:100%}
+  .yoy-split i:first-child{background:#FF9900} .yoy-split i:last-child{background:#95BF47}
   /* The channel toggle (yoyChan): Amazon only, Shopify only, or both with the all-channels totals. */
   #paneYoy[data-view="amz"] [data-chan="shop"],#paneYoy[data-view="amz"] [data-chan="all"],
   #paneYoy[data-view="shop"] [data-chan="amz"],#paneYoy[data-view="shop"] [data-chan="all"]{display:none}

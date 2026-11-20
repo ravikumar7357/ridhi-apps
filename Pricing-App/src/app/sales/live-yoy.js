@@ -236,7 +236,7 @@ function yoyRender() {
   $('yoySalesNote').textContent = live ? '· Amazon Sales API, to ' + yoyTime(V.asOf) + ' PT' : '· Amazon Sales API, ' + yoyDate(V.day);
 
   const amzAds = yoyRenderAds(V, today);
-  yoyRenderShop(V, live, frac, today, lwSame, amzAds);
+  yoyRenderShop(V, live, frac, today, lySame, lwSame, amzAds);
 
   // --- legends ---
   $('yoyLgNow').textContent = live ? 'Today' : yoyDate(V.day);
@@ -311,7 +311,7 @@ function yoyRenderAds(V, today) {
  * compared "by the same time" exactly as Amazon is. YOY[brand].meta = { configured, days:{date:{spend, clicks, impressions,
  * purchases, value}} } — { configured:false } until META_TOKEN and the ad account are in Script Properties.
  * amzAds = the Amazon ad totals for the day (yoyRenderAds), or null while that report is pending. */
-function yoyRenderShop(V, live, frac, amzToday, amzLwSame, amzAds) {
+function yoyRenderShop(V, live, frac, amzToday, amzLySame, amzLwSame, amzAds) {
   const pc = (a, b) => (b > 0 ? (a / b * 100).toFixed(1) + '%' : '—');
   const set = (id, v, sub, cls) => { $(id).textContent = v; $(id).className = 'val' + (cls ? ' ' + cls : ''); $(id + 'Sub').textContent = sub || ''; };
   const chg = (a, b) => { if (!b) return ['—', '']; const p = Math.round((a / b - 1) * 100); return [(p > 0 ? '+' : '') + p + '%', p >= 0 ? 'yoy-up' : 'yoy-down']; };
@@ -320,19 +320,23 @@ function yoyRenderShop(V, live, frac, amzToday, amzLwSame, amzAds) {
   const merge = f => { const lists = shops.map(s => s[f] || []); const n = Math.max(0, ...lists.map(l => l.length)); return [...Array(n).keys()].map(i => lists.reduce((t, l) => yoyAdd(t, l[i]), yoyZero())); };
   const now = merge('now'), last = merge('last'), lw = merge('lastWeek'), n = now.length;
   const sameTime = rows => { if (!live) return rows.reduce(yoyAdd, yoyZero()); let t = yoyZero(); rows.forEach((r, i) => { if (i < n - 1) t = yoyAdd(t, r); else if (i === n - 1) t = yoyAdd(t, yoyScale(r, frac)); }); return t; };
-  // This year only (Ravi, 2026-11-20): Shopify gives the app 60 days of orders, so it is compared with last week, not last year.
-  const sh = now.reduce(yoyAdd, yoyZero()), shLw = sameTime(lw), lwDay = lw.reduce(yoyAdd, yoyZero());
+  // Shopify's store opened in January 2026 (first sale 28 Dec 2025): last year IS $0, and is shown as $0 — the change is
+  // then given in dollars, since a percentage of nothing means nothing (Ravi, 2026-11-20: "compare last year by 0").
+  const sh = now.reduce(yoyAdd, yoyZero()), shLy = sameTime(last), shLw = sameTime(lw), lwDay = lw.reduce(yoyAdd, yoyZero());
   const upTo = live ? ' by ' + yoyTime(V.asOf) : '';
   const m4 = merge('fourWk'), sh4 = sameTime(m4), m4Day = shops.map(s => s.fourWkDay).filter(Boolean)[0];
+  const vsZero = (a, b) => (b > 0 ? chg(a, b) : [(a >= 0 ? '+' : '−') + yoyMoney(Math.abs(a - b)), a > b ? 'yoy-up' : '']);
   if (shops.length) {
-    // The pace (today scaled by last week's shape) sits under today's figure, to keep the row at six cards.
-    const pace = live && shLw.sales > 0 ? ' · pace ' + yoyMoney(sh.sales * lwDay.sales / shLw.sales) : '';
-    set('yoyShToday', yoyMoney(sh.sales), yoyInt(sh.orders) + ' orders · ' + yoyInt(sh.units) + ' units' + pace);
+    set('yoyShToday', yoyMoney(sh.sales), yoyInt(sh.orders) + ' orders · ' + yoyInt(sh.units) + ' units');
+    const [a, ac] = vsZero(sh.sales, shLy.sales);
+    set('yoyShVsLy', a, yoyDate(V.ly) + upTo + ': ' + yoyMoney(shLy.sales) + (shLy.sales ? ' · ' + yoyInt(shLy.orders) + ' orders' : ' · the store opened in January 2026'), ac);
     const [b, bc] = chg(sh.sales, shLw.sales); set('yoyShVsLw', b, yoyDate(V.lw, false) + upTo + ': ' + yoyMoney(shLw.sales) + ' · ' + yoyInt(shLw.orders) + ' orders', bc);
     if (m4Day) { const [d, dc] = chg(sh.sales, sh4.sales); set('yoySh4w', d, yoyDate(m4Day, false) + upTo + ': ' + yoyMoney(sh4.sales) + ' · ' + yoyInt(sh4.orders) + ' orders', dc); }
     else set('yoySh4w', '—', 'waiting for the backend update');
+    if (live && shLw.sales > 0) set('yoyShPace', yoyMoney(sh.sales * lwDay.sales / shLw.sales), 'if the rest of today follows ' + yoyDate(V.lw, false) + '’s shape · that day ' + yoyMoney(lwDay.sales));
+    else set('yoyShPace', live ? '—' : yoyMoney(sh.sales), live ? 'needs last week’s sales by this hour' : 'the day is closed');
     set('yoyShAov', sh.orders ? '$' + (sh.sales / sh.orders).toFixed(2) : '—', (sh.orders ? (sh.units / sh.orders).toFixed(2) + ' units an order' : '') + (shLw.orders ? ' · last week $' + (shLw.sales / shLw.orders).toFixed(2) : ''));
-  } else ['yoyShToday', 'yoyShVsLw', 'yoySh4w', 'yoyShAov'].forEach(id => set(id, '—', errs[0] ? 'could not read Shopify' : 'waiting for the backend update'));
+  } else ['yoyShToday', 'yoyShVsLy', 'yoyShVsLw', 'yoySh4w', 'yoyShPace', 'yoyShAov'].forEach(id => set(id, '—', errs[0] ? 'could not read Shopify' : 'waiting for the backend update'));
   // --- Meta ---
   const metas = V.keys.map(k => YOY[k].meta).filter(Boolean);
   const metaOn = metas.filter(m => m.configured && m.days);
@@ -345,21 +349,25 @@ function yoyRenderShop(V, live, frac, amzToday, amzLwSame, amzAds) {
     const shMeta = V.keys.filter(k => YOY[k].meta && YOY[k].meta.configured && YOY[k].meta.days)
       .reduce((t, k) => t + ((YOY[k].shop || {}).now || []).reduce((s, r) => s + (r.sales || 0), 0), 0);
     set('yoyMetaRoas', M.spend ? (shMeta / M.spend).toFixed(2) : '—', 'Shopify sales ÷ Meta spend · Meta counts ' + yoyInt(M.purchases) + ' purchases, ' + yoyMoney(M.value));
+    set('yoyShTacos', pc(M.spend, shMeta), 'Meta spend ÷ Shopify sales');
   } else {
-    const why = metaErr ? 'Meta: ' + metaErr : metas.length && metas.every(m => m.configured === false) ? 'add META_TOKEN + META_AD_ACCOUNT in Script Properties' : 'waiting for Meta';
-    set('yoyMetaSpend', '—', why); set('yoyMetaRoas', '—', '');
+    const why = metaErr ? 'Meta: ' + metaErr : metas.length && metas.every(m => m.configured === false) ? 'Not connected yet: add META_TOKEN and META_AD_ACCOUNT in the backend’s Script Properties' : 'waiting for Meta';
+    set('yoyMetaSpend', '—', why); set('yoyMetaRoas', '—', ''); set('yoyShTacos', '—', '');
   }
-  $('yoyShopNote').textContent = '· Shopify Admin API, Pacific day' + (M ? ' · Meta Marketing API (ad account’s own day)' : '') + (errs.length ? ' · ' + errs.join(' · ') : '');
-  // --- all channels ---
-  const allSales = amzToday.sales + sh.sales, allLw = amzLwSame.sales + shLw.sales;
+  $('yoyShopNote').textContent = 'Shopify Admin API · Pacific day' + (M ? ' · Meta Marketing API (ad account’s own day)' : '') + (errs.length ? ' · ' + errs.join(' · ') : '');
+  // --- the overview: both channels ---
+  const allSales = amzToday.sales + sh.sales, allLw = amzLwSame.sales + shLw.sales, allLy = amzLySame.sales + shLy.sales;
   set('yoyAllSales', yoyMoney(allSales), 'Amazon ' + yoyMoney(amzToday.sales) + ' · Shopify ' + yoyMoney(sh.sales));
+  const [e, ec] = chg(allSales, allLy);
+  set('yoyAllVsLy', e, yoyDate(V.ly) + upTo + ': ' + yoyMoney(allLy) + (shLy.sales ? '' : ' (Shopify $0)'), ec);
   const [c, cc] = chg(allSales, allLw); set('yoyAllVsLw', c, yoyDate(V.lw, false) + upTo + ': ' + yoyMoney(allLw), cc);
   const spend = (amzAds ? amzAds.spend : 0) + (M ? M.spend : 0);
   const parts = [amzAds ? 'Amazon ' + yoyMoney(amzAds.spend) : 'Amazon pending', M ? 'Meta ' + yoyMoney(M.spend) : 'Meta not connected'];
   set('yoyAllSpend', amzAds || M ? yoyMoney(spend) : '—', parts.join(' · '));
   set('yoyAllTacos', amzAds || M ? pc(spend, allSales) : '—', amzAds && M ? 'all ads ÷ all sales' : 'so far without ' + (amzAds ? 'Meta' : 'Amazon ads'));
-  set('yoyAllAmz', pc(amzToday.sales, allSales), yoyInt(amzToday.orders) + ' orders');
-  set('yoyAllShop', pc(sh.sales, allSales), yoyInt(sh.orders) + ' orders');
+  const amzPct = allSales > 0 ? amzToday.sales / allSales * 100 : 0;
+  set('yoyAllAmz', allSales > 0 ? Math.round(amzPct) + ' / ' + Math.round(100 - amzPct) : '—', 'Amazon ' + pc(amzToday.sales, allSales) + ' · Shopify ' + pc(sh.sales, allSales));
+  $('yoySplitAmz').style.width = amzPct + '%'; $('yoySplitShop').style.width = (allSales > 0 ? 100 - amzPct : 0) + '%';
 }
 
 /* ---------- SVG helpers ---------- */
