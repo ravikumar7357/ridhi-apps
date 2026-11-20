@@ -559,7 +559,7 @@ function yoyRenderEvents(V, tot, lySame, lyDay, H) {
       if (m <= 14 && i < n) svg += `<text x="${x}" y="${H2 + 12}" text-anchor="middle">${yoyDate(all[i], false).split(' ')[1]}</text>`;
     }
     svg += '</svg>';
-    return { state, a, html: `<article class="yoy-ev ${state}">
+    return { state, a, html: `<article class="yoy-evcard ${state}">
       <div class="yoy-ev-h"><h3>${ev.name}</h3><span class="yoy-ev-pill">${pill}</span></div>
       <p class="yoy-ev-what">${yoyDate(a, false)} – ${yoyDate(b)} · ${ev.what}</p>
       <div class="yoy-ev-nums">${nums}</div>
