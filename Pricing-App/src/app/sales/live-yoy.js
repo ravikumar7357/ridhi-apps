@@ -237,6 +237,7 @@ function yoyRender() {
 
   const amzAds = yoyRenderAds(V, today);
   yoyRenderShop(V, live, frac, today, lySame, lwSame, amzAds);
+  yoyRenderPeriod(V, today, lySame, lyDay);
 
   // --- legends ---
   $('yoyLgNow').textContent = live ? 'Today' : yoyDate(V.day);
@@ -370,6 +371,101 @@ function yoyRenderShop(V, live, frac, amzToday, amzLySame, amzLwSame, amzAds) {
   $('yoySplitAmz').style.width = amzPct + '%'; $('yoySplitShop').style.width = (allSales > 0 ? 100 - amzPct : 0) + '%';
 }
 
+/* ---------- WEEK / MONTH / QUARTER / YEAR to date (Ravi, 2026-11-20) — the same as live.html's renderPeriod ----------
+ * YOY_H = ?live=hist → { through, d: { SP, CPC, SHOP: { date: [sales, units, orders] } }, ads: { SP, CPC: { date: [impr,
+ * clicks, spend, orders, sales] } } } — the nightly history (Pricing-API/SalesLive.gs liveHist_), read once and again every
+ * ten minutes while a period is on view. A period to date = its finished days from that history (Amazon days it has not
+ * reached yet come from the live week) + today's live figures. Last year: week = the same weekdays 364 days back; month,
+ * quarter and year = the same calendar dates; last year's "today" is scaled to the same moment by last year's Amazon shape.
+ * Shopify history is Ridhi's store (first sale 28 Dec 2025, so last year is $0). Ad spend: the live report (Products + Brands
+ * + Display) where it reaches, the nightly Sponsored Products figure before; TACoS only over the days that have ad figures. */
+let YOY_PERIOD = 'day';
+let YOY_H = null, YOY_H_AT = 0, YOY_H_BUSY = false, YOY_H_ERR = '';
+// At most one read per ten minutes, failed or not — a failing read must not be retried on every redraw.
+async function yoyLoadHist(force) {
+  if (YOY_H_BUSY || (!force && YOY_H_AT && Date.now() - YOY_H_AT < 10 * 60 * 1000)) return;
+  YOY_H_BUSY = true; YOY_H_AT = Date.now();
+  try { YOY_H = await baCall({ live: 'hist', day: $('yoyDay').value || sdToday() }); YOY_H_ERR = ''; }
+  catch (e) { YOY_H_ERR = String(e.message || e); }
+  finally { YOY_H_BUSY = false; }
+  yoyRender();
+}
+function yoyCard(cls, k, v, sub, vcls, title) {
+  return `<div class="sd-card ${cls}"${title ? ` title="${title}"` : ''}><div class="lbl">${k}</div><div class="val${vcls ? ' ' + vcls : ''}">${v}</div><div class="sub">${sub || ''}</div></div>`;
+}
+function yoyRenderPeriod(V, tot, lySame, lyDay) {
+  $('paneYoy').dataset.period = YOY_PERIOD;
+  if (YOY_PERIOD === 'day') return;
+  const H = YOY_H, amzK = V.keys, T = V.day;
+  yoyLoadHist();                                     // a no-op unless ten minutes have passed
+  if (!H || !H.d) { $('yoyPnote').textContent = YOY_H_ERR ? 'Could not read the history for the period: ' + YOY_H_ERR : 'Reading the history…'; ['yoyPAll', 'yoyPAmz', 'yoyPShop'].forEach(id => { $(id).innerHTML = ''; }); return; }
+  const sh = (d, n) => sdShift(d, n);
+  const lyDate = d => { const y = Number(d.slice(0, 4)) - 1, md = d.slice(5) === '02-29' ? '02-28' : d.slice(5); return y + '-' + md; };
+  const dow = (new Date(T + 'T12:00:00Z').getUTCDay() + 6) % 7, mo = Number(T.slice(5, 7));
+  const start = { week: sh(T, -dow), month: T.slice(0, 8) + '01', quarter: T.slice(0, 5) + String(Math.floor((mo - 1) / 3) * 3 + 1).padStart(2, '0') + '-01', year: T.slice(0, 4) + '-01-01' }[YOY_PERIOD];
+  const lyOf = d => (YOY_PERIOD === 'week' ? sh(d, -364) : lyDate(d));
+  const days = []; for (let d = start; d < T; d = sh(d, 1)) days.push(d);
+  const lyFrac = V.day === sdToday() && lyDay.sales > 0 ? lySame.sales / lyDay.sales : 1;
+  const Z = () => ({ sales: 0, units: 0, orders: 0 });
+  const addRow = (t, r, f) => { if (r) { t.sales += (r[0] || 0) * (f || 1); t.units += (r[1] || 0) * (f || 1); t.orders += (r[2] || 0) * (f || 1); } return t; };
+  const weekRow = (k, d) => { const r = (YOY[k].week || []).find(x => String(x.t).slice(0, 10) === d); return r ? [r.sales, r.units, r.orders] : null; };
+  const best = { amz: null, shop: null }, byDay = {};
+  const amz = Z(), amzLy = Z();
+  days.forEach(d => { const t = Z(); amzK.forEach(k => addRow(t, (H.d[k] || {})[d] || weekRow(k, d))); addRow(amz, [t.sales, t.units, t.orders]); byDay[d] = { a: t.sales, s: 0 }; if (!best.amz || t.sales > best.amz[1]) best.amz = [d, t.sales]; });
+  amz.sales += tot.sales; amz.units += tot.units; amz.orders += tot.orders; byDay[T] = { a: tot.sales, s: 0 };
+  days.forEach(d => amzK.forEach(k => addRow(amzLy, (H.d[k] || {})[lyOf(d)])));
+  amzK.forEach(k => addRow(amzLy, (H.d[k] || {})[lyOf(T)], lyFrac));
+  const shopOn = amzK.includes('SP'), shp = Z(), shpLy = Z();
+  if (shopOn) {
+    days.forEach(d => { const r = (H.d.SHOP || {})[d]; addRow(shp, r); if (r) byDay[d].s = r[0]; if (r && (!best.shop || r[0] > best.shop[1])) best.shop = [d, r[0]]; });
+    ((YOY.SP.shop || {}).now || []).forEach(r => { shp.sales += r.sales || 0; shp.units += r.units || 0; shp.orders += r.orders || 0; byDay[T].s += r.sales || 0; });
+    days.forEach(d => addRow(shpLy, (H.d.SHOP || {})[lyOf(d)]));
+    addRow(shpLy, (H.d.SHOP || {})[lyOf(T)], lyFrac);
+  }
+  let spend = 0, adFrom = '';
+  days.concat([T]).forEach(d => amzK.forEach(k => {
+    const live = (((YOY[k].ads || {}).days) || {})[d], old = ((H.ads || {})[k] || {})[d];
+    const s = live ? live.spend : old ? old[2] : null;
+    if (s != null) { spend += Number(s) || 0; if (!adFrom || d < adFrom) adFrom = d; }
+  }));
+  let adA = 0, adS = 0; Object.keys(byDay).forEach(d => { if (adFrom && d >= adFrom) { adA += byDay[d].a; adS += byDay[d].s; } });
+  const all = amz.sales + shp.sales, allLy = amzLy.sales + shpLy.sales, aPct = all > 0 ? amz.sales / all * 100 : 0;
+  const NAME = { week: 'Week', month: 'Month', quarter: 'Quarter', year: 'Year' }[YOY_PERIOD];
+  const range = (a, b) => yoyDate(a, false) + ' – ' + yoyDate(b);
+  $('yoyPnote').innerHTML = `<b>${NAME} to date</b> · ${range(start, T)} against ${range(lyOf(start), lyOf(T))}`
+    + (V.day === sdToday() ? ` · today to ${yoyTime(V.asOf)} PT, last year to the same time` : '')
+    + ` · history to ${H.through ? yoyDate(H.through, false) : '—'}` + (shopOn ? '' : ' · Shopify history is kept for Ridhi’s store only');
+  const pc = (a, b) => (b > 0 ? (a / b * 100).toFixed(1) + '%' : '—');
+  const chg = (a, b) => { if (!b) return ['—', '']; const p = Math.round((a / b - 1) * 100); return [(p > 0 ? '+' : '') + p + '%', p >= 0 ? 'yoy-up' : 'yoy-down']; };
+  const vsZero = (a, b) => (b > 0 ? chg(a, b) : ['+' + yoyMoney(a), a > 0 ? 'yoy-up' : '']);
+  const aov = r => (r.orders ? '$' + (r.sales / r.orders).toFixed(2) : '—');
+  const adNote = adFrom && adFrom > start ? ' · ads from ' + yoyDate(adFrom, false) : '';
+  const [cA, kA] = chg(all, allLy), [cZ, kZ] = chg(amz.sales, amzLy.sales), [cS, kS] = vsZero(shp.sales, shpLy.sales);
+  $('yoyPAll').innerHTML =
+    yoyCard('sd-b-indigo', NAME + ' sales', yoyMoney(all), 'Amazon ' + yoyMoney(amz.sales) + ' · Shopify ' + yoyMoney(shp.sales))
+    + yoyCard('sd-b-orange', 'vs last year', cA, 'last year ' + yoyMoney(allLy) + (shpLy.sales ? '' : ' (Shopify $0)'), kA)
+    + yoyCard('sd-b-teal', 'Orders', yoyInt(amz.orders + shp.orders), yoyInt(amz.units + shp.units) + ' units')
+    + yoyCard('yoy-b-spend', 'Amazon ad spend', spend ? yoyMoney(spend) : '—', 'Meta not connected' + adNote)
+    + yoyCard('yoy-b-tacos', 'TACoS', spend ? pc(spend, adA + adS) : '—', 'Amazon ads ÷ all sales' + adNote)
+    + yoyCard('yoy-b-adsales', 'Channel split', all > 0 ? Math.round(aPct) + ' / ' + Math.round(100 - aPct) : '—',
+      `<span class="yoy-split" style="display:flex;margin:4px 0 8px"><i style="width:${aPct}%"></i><i style="width:${all > 0 ? 100 - aPct : 0}%"></i></span>Amazon ${pc(amz.sales, all)} · Shopify ${pc(shp.sales, all)}`);
+  $('yoyPAmz').innerHTML =
+    yoyCard('sd-b-cyan', NAME + ' sales', yoyMoney(amz.sales), yoyInt(amz.orders) + ' orders · ' + yoyInt(amz.units) + ' units')
+    + yoyCard('sd-b-orange', 'vs last year', cZ, 'last year ' + yoyMoney(amzLy.sales) + ' · ' + yoyInt(amzLy.orders) + ' orders', kZ)
+    + yoyCard('sd-b-pink', 'Average order', aov(amz), amzLy.orders ? 'last year ' + aov(amzLy) : '')
+    + yoyCard('yoy-b-spend', 'Ad spend', spend ? yoyMoney(spend) : '—', adNote ? adNote.slice(3) : 'Products + Brands + Display')
+    + yoyCard('yoy-b-tacos', 'TACoS', spend ? pc(spend, adA) : '—', 'ad spend ÷ Amazon sales' + adNote)
+    + yoyCard('sd-b-indigo', 'Best day', best.amz ? yoyMoney(best.amz[1]) : '—', best.amz ? yoyDate(best.amz[0], false) : 'today is the first day');
+  $('yoyPShop').innerHTML = shopOn
+    ? yoyCard('sd-b-cyan', NAME + ' sales', yoyMoney(shp.sales), yoyInt(shp.orders) + ' orders · ' + yoyInt(shp.units) + ' units')
+      + yoyCard('sd-b-orange', 'vs last year', cS, 'last year ' + yoyMoney(shpLy.sales) + (shpLy.sales ? '' : ' · the store opened in January 2026'), kS)
+      + yoyCard('sd-b-pink', 'Average order', aov(shp), '')
+      + yoyCard('yoy-b-organic', 'Share of all sales', pc(shp.sales, all), 'Shopify ÷ (Amazon + Shopify)')
+      + yoyCard('sd-b-teal', 'Orders a day', (shp.orders / (days.length + 1)).toFixed(1), 'over ' + (days.length + 1) + ' day' + (days.length ? 's' : '') + ', today included')
+      + yoyCard('sd-b-indigo', 'Best day', best.shop ? yoyMoney(best.shop[1]) : '—', best.shop ? yoyDate(best.shop[0], false) : 'today is the first day')
+    : yoyCard('sd-b-cyan', 'Shopify', '—', 'Shopify history is kept for Ridhi’s store only — pick Ridhi or Ridhi + CPC');
+}
+
 /* ---------- SVG helpers ---------- */
 const YOY_NS = 'http://www.w3.org/2000/svg';
 function yoyEl(tag, attrs, parent, text) {
@@ -480,7 +576,7 @@ function yoyTable(V, live, n) {
 
 /* ---------- controls ---------- */
 $('yoyRefresh').onclick = () => yoyLoad();
-$('yoyDay').onchange = () => yoyLoad();
+$('yoyDay').onchange = () => { YOY_H = null; YOY_H_AT = 0; yoyLoad(); };   // the history is cut at the day on view
 $('yoyMode').onchange = () => yoyLoad();
 $('yoyFrom').onchange = () => yoyLoadRange(false);
 $('yoyTo').onchange = () => yoyLoadRange(false);
@@ -501,6 +597,17 @@ $('yoyChan').querySelectorAll('button').forEach(b => b.onclick = () => {
   try { localStorage.setItem('yoy.chan', b.dataset.v); } catch (e) { /* no storage */ }
 });
 try { const c = localStorage.getItem('yoy.chan'); yoySetChan(['both', 'amz', 'shop'].includes(c) ? c : 'both'); } catch (e) { yoySetChan('both'); }
+// The period picker: Day = today by the hour; the others read the history (once, then every ten minutes) and redraw.
+function yoySetPeriod(p) {
+  YOY_PERIOD = p; $('paneYoy').dataset.period = p;
+  $('yoyPeriod').querySelectorAll('button').forEach(x => x.classList.toggle('on', x.dataset.p === p));
+  if (YOY_KEY) yoyRender();                          // draws, and reads the history when a period needs it
+}
+$('yoyPeriod').querySelectorAll('button').forEach(b => b.onclick = () => {
+  yoySetPeriod(b.dataset.p);
+  try { localStorage.setItem('yoy.period', b.dataset.p); } catch (e) { /* no storage */ }
+});
+try { const p = localStorage.getItem('yoy.period'); yoySetPeriod(['day', 'week', 'month', 'quarter', 'year'].includes(p) ? p : 'day'); } catch (e) { yoySetPeriod('day'); }
 try {
   const saved = localStorage.getItem('yoy.brand');
   if (saved && $('yoyBrand').querySelector(`[data-ch="${saved}"]`)) {

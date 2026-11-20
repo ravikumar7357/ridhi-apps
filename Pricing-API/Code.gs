@@ -165,6 +165,8 @@ function doGet(e) {
     // Live vs Last Year: one brand's day by hour against the matching day last year, live from Amazon (SalesLive.gs).
     if (p.live === 'yoy')      return json_(liveYoy_(p.brand, p.day, p.ly));
     if (p.live === 'range')    return json_(liveRange_(p.brand, p.from, p.to, p.shift));
+    // Week / Month / Quarter / Year on that screen: the nightly history slice (SalesLive.gs liveHist_).
+    if (p.live === 'hist')     return json_(liveHist_(String(p.day || '')));
     // Product photos for the deal planner, 20 ASINs a call.
     if (p.imgs)                { setBrand_(p.brand); return json_(lhImages_(p.imgs)); }
     // Parent ASIN per child ASIN, 20 a call — the Master Database fills its Parent ASIN column from this.

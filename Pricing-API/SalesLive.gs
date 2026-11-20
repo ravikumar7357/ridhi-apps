@@ -253,6 +253,7 @@ function liveSnapshot_() {
  * so a period to date is that history plus today's live figures. Nothing extra is asked of Amazon or Shopify.
  * SHOP is Ridhi's Shopify store (the only one the nightly walks). Its first sale was 28 Dec 2025. */
 function liveHist_(day) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(day || ''))) day = Utilities.formatDate(new Date(), LIVE_TZ, 'yyyy-MM-dd');
   var fromLy = (Number(day.slice(0, 4)) - 1) + '-01-01';
   var cut = function (o) { var r = {}; Object.keys(o || {}).forEach(function (d) { if (d >= fromLy && d <= day) r[d] = o[d]; }); return r; };
   var daily = cacheRead_('daily') || {}, dd = daily.d || {}, ads = cacheRead_('ads') || {}, ad = ads.d || {};

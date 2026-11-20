@@ -1049,6 +1049,15 @@
         </select>
         <button id="yoyRefresh" class="ghost sa-btn-sm" title="Ask Amazon again now. It also re-reads every 5 minutes while this screen is open on today.">Refresh</button>
       </div>
+      <!-- The period (Ravi, 2026-11-20: "day, week, month, quarterly and year"): Day = today by the hour, as before; the
+           others = that period to date against the same period last year, from the nightly history (?live=hist) plus today. -->
+      <div class="sd-toggle" id="yoyPeriod" title="Today by the hour, or a period to date against the same period last year">
+        <button data-p="day" class="on">Day</button>
+        <button data-p="week">Week</button>
+        <button data-p="month">Month</button>
+        <button data-p="quarter">Quarter</button>
+        <button data-p="year">Year</button>
+      </div>
       <!-- Which channel to show (Ravi, 2026-11-20: "a toggle at top which shows Shopify and Amazon"). Remembered per browser. -->
       <div class="sd-toggle" id="yoyChan" title="Show Amazon, Shopify, or both with the all-channels totals">
         <button data-v="both" class="on">Amazon + Shopify</button>
@@ -1065,8 +1074,10 @@
     <!-- Three framed sections (Ravi, 2026-11-20: "Shopify highlighted in Shopify colours and Amazon in Amazon's … formal and
          simple"): the Overview of both channels first, then Amazon (its cards and charts, unchanged inside), then Shopify.
          Shopify's store opened in January 2026, so its "last year" is $0 and is shown as such. -->
+    <p class="yoy-pnote" id="yoyPnote"></p>
     <div data-chan="all" class="yoy-sec">
     <div class="yoy-sec-h"><span class="yoy-sec-tag">Overview</span><span class="yoy-sec-sub" id="yoyAllNote">Amazon + Shopify sales · Amazon ads + Meta spend</span></div>
+    <div class="sd-kpis yoy-kpis yoy-ponly" id="yoyPAll"></div>
     <div class="sd-kpis yoy-kpis">
       <div class="sd-card sd-b-indigo"><div class="lbl">Total sales today</div><div class="val" id="yoyAllSales">—</div><div class="sub" id="yoyAllSalesSub">—</div></div>
       <div class="sd-card sd-b-orange" title="Both channels against the same weekday last year, by the same time. Shopify counts as $0 last year: the store opened in January 2026.">
@@ -1082,6 +1093,7 @@
 
     <div data-chan="amz" class="yoy-sec">
     <div class="yoy-sec-h"><span class="yoy-sec-tag">Amazon</span><span class="yoy-sec-sub">Amazon.com · Sales API and Ads API · Pacific time</span></div>
+    <div class="sd-kpis yoy-kpis yoy-ponly" id="yoyPAmz"></div>
     <div class="yoy-row-h">Sales <span class="muted" id="yoySalesNote"></span></div>
     <div class="sd-kpis yoy-kpis">
       <div class="sd-card sd-b-cyan"><div class="lbl" id="yoyTodayLbl">Today so far</div><div class="val" id="yoyToday">—</div><div class="sub" id="yoyTodaySub">—</div></div>
@@ -1151,6 +1163,7 @@
          Meta switches on when its token is set. -->
     <div data-chan="shop" class="yoy-sec">
     <div class="yoy-sec-h"><span class="yoy-sec-tag">Shopify</span><span class="yoy-sec-sub" id="yoyShopNote">Shopify Admin API · Pacific day</span></div>
+    <div class="sd-kpis yoy-kpis yoy-ponly" id="yoyPShop"></div>
     <div class="yoy-row-h">Store</div>
     <div class="sd-kpis yoy-kpis">
       <div class="sd-card sd-b-cyan" title="The brand's Shopify store today, Pacific day (the same day as the Amazon figures). Line-item sales, no shipping or tax.">
