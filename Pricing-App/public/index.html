@@ -1018,7 +1018,9 @@
   /* Live vs Last Year cards (2026-11-20): two rows of six, full width, bigger figures, room between them. */
   .yoy-sec-h{display:flex;align-items:center;gap:10px;margin:18px 2px 14px;padding-bottom:10px;border-bottom:1px solid var(--line);
     font-size:20px;font-weight:800;letter-spacing:-.01em;color:var(--ink)}
-  .yoy-sec-h:first-of-type{margin-top:4px}
+  /* The channel toggle (yoyChan): Amazon only, Shopify only, or both with the all-channels totals. */
+  #paneYoy[data-view="amz"] [data-chan="shop"],#paneYoy[data-view="amz"] [data-chan="all"],
+  #paneYoy[data-view="shop"] [data-chan="amz"],#paneYoy[data-view="shop"] [data-chan="all"]{display:none}
   .yoy-sec-dot{width:12px;height:12px;border-radius:4px;background:var(--c)}
   .yoy-row-h{display:flex;align-items:baseline;gap:10px;margin:4px 2px 10px;font-size:13px;font-weight:700;
     text-transform:uppercase;letter-spacing:.08em;color:var(--ink)}
@@ -2634,6 +2636,12 @@
         </select>
         <button id="yoyRefresh" class="ghost sa-btn-sm" title="Ask Amazon again now. It also re-reads every 5 minutes while this screen is open on today.">Refresh</button>
       </div>
+      <!-- Which channel to show (Ravi, 2026-11-20: "a toggle at top which shows Shopify and Amazon"). Remembered per browser. -->
+      <div class="sd-toggle" id="yoyChan" title="Show Amazon, Shopify, or both with the all-channels totals">
+        <button data-v="both" class="on">Amazon + Shopify</button>
+        <button data-v="amz">Amazon</button>
+        <button data-v="shop">Shopify</button>
+      </div>
       <div class="sd-toggle" id="yoyBrand">
         <button data-ch="ALL" class="on">Ridhi + CPC</button>
         <button data-ch="SP">Ridhi</button>
@@ -2646,6 +2654,7 @@
     <!-- Three sections (Ravi, 2026-11-20: "make a Shopify section … and an Amazon section"): Amazon (sales + ads, against
          last year and last week), Shopify (this year only: Shopify gives the app 60 days of orders without read_all_orders),
          then all channels together, also this year only. -->
+    <div data-chan="amz">
     <h2 class="yoy-sec-h"><span class="yoy-sec-dot" style="--c:#FF9900"></span>Amazon</h2>
     <div class="yoy-row-h">Sales <span class="muted" id="yoySalesNote"></span></div>
     <div class="sd-kpis yoy-kpis">
@@ -2673,8 +2682,10 @@
       <div class="sd-card yoy-b-clicks" title="Clicks on the ads today, cost per click and click-through rate.">
         <div class="lbl">Clicks · CPC</div><div class="val" id="yoyClicks">—</div><div class="sub" id="yoyClicksSub">—</div></div>
     </div>
+    </div>
     <!-- Shopify + Meta, then every channel together (Ravi, 2026-11-20: "add Shopify sales and ad spend … and Meta ads").
          Shopify is the brand's own store by PACIFIC hour, so it lines up with Amazon; Meta switches on when its token is set. -->
+    <div data-chan="shop">
     <h2 class="yoy-sec-h"><span class="yoy-sec-dot" style="--c:#5E8E3E"></span>Shopify</h2>
     <div class="yoy-row-h">Store &amp; Meta ads <span class="muted" id="yoyShopNote"></span></div>
     <div class="sd-kpis yoy-kpis">
@@ -2689,6 +2700,8 @@
       <div class="sd-card yoy-b-acos" title="Shopify sales ÷ Meta spend (how many dollars of store sales each Meta dollar comes with), and what Meta itself counts as purchases.">
         <div class="lbl">Meta ROAS</div><div class="val" id="yoyMetaRoas">—</div><div class="sub" id="yoyMetaRoasSub">—</div></div>
     </div>
+    </div>
+    <div data-chan="all">
     <h2 class="yoy-sec-h"><span class="yoy-sec-dot" style="--c:var(--brand)"></span>All channels</h2>
     <div class="yoy-row-h">Amazon + Shopify <span class="muted" id="yoyAllNote">· sales from both, ad spend from Amazon ads + Meta</span></div>
     <div class="sd-kpis yoy-kpis">
@@ -2700,7 +2713,9 @@
       <div class="sd-card yoy-b-adsales"><div class="lbl">Amazon share</div><div class="val" id="yoyAllAmz">—</div><div class="sub" id="yoyAllAmzSub">—</div></div>
       <div class="sd-card yoy-b-organic"><div class="lbl">Shopify share</div><div class="val" id="yoyAllShop">—</div><div class="sub" id="yoyAllShopSub">—</div></div>
     </div>
+    </div>
 
+    <div data-chan="amz">
     <div class="sd-panel">
       <h2 class="sd-h2">Amazon · hour by hour</h2>
       <div class="yoy-legend"><span><i style="background:var(--yoy-now)"></i><b id="yoyLgNow">Today</b></span><span><i style="background:var(--yoy-ly)"></i><b id="yoyLgLy">Last year</b></span><span><i class="yoy-dash"></i><b id="yoyLgLw">Last week</b></span></div>
@@ -2735,6 +2750,7 @@
       <details><summary class="sd-h2" style="cursor:pointer">Show the numbers</summary><div id="yoyTable" class="sa-scroll-x"></div></details>
       <div class="yoy-note">Source: Amazon Sales API (order metrics) per brand — every order placed on Amazon.com, pending ones included,
         by Pacific hour. Sales are what buyers were charged for the items. Last year's figures are kept for six hours; today is asked fresh.</div>
+    </div>
     </div>
   </div>
 
@@ -13720,6 +13736,16 @@ $('yoyBrand').querySelectorAll('button').forEach(b => b.onclick = () => {
   yoyRender();
   yoyRenderRange();
 });
+// The channel toggle (Ravi, 2026-11-20): only shows or hides sections — every figure is still worked out, so switching is instant.
+function yoySetChan(v) {
+  $('paneYoy').dataset.view = v;
+  $('yoyChan').querySelectorAll('button').forEach(x => x.classList.toggle('on', x.dataset.v === v));
+}
+$('yoyChan').querySelectorAll('button').forEach(b => b.onclick = () => {
+  yoySetChan(b.dataset.v);
+  try { localStorage.setItem('yoy.chan', b.dataset.v); } catch (e) { /* no storage */ }
+});
+try { const c = localStorage.getItem('yoy.chan'); yoySetChan(['both', 'amz', 'shop'].includes(c) ? c : 'both'); } catch (e) { yoySetChan('both'); }
 try {
   const saved = localStorage.getItem('yoy.brand');
   if (saved && $('yoyBrand').querySelector(`[data-ch="${saved}"]`)) {

@@ -23,7 +23,7 @@
 header { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 24px; }
 h1 { font: 800 28px/1.15 var(--f-display); margin: 0; letter-spacing: -0.01em; text-wrap: balance; }
 .eyebrow { font: 700 11px/1 var(--f-display); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
-.brand { margin-left: auto; font-size: 13px; color: var(--ink2); display: flex; gap: 8px; align-items: center; }
+.brand { font-size: 13px; color: var(--ink2); display: flex; gap: 8px; align-items: center; }
 .brand select { font: 600 14px var(--f-body); color: var(--ink); background: var(--panel); border: 1px solid var(--rule); border-radius: 8px; padding: 6px 10px; }
 .refresh { font: 700 13px var(--f-display); letter-spacing: .02em; color: var(--panel); background: var(--y26); border: 0; border-radius: 999px; padding: 8px 16px; cursor: pointer; min-height: 36px; }
 .refresh:hover { filter: brightness(1.08); } .refresh:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; } .refresh[disabled] { opacity: .6; cursor: progress; }
@@ -35,6 +35,14 @@ h1 { font: 800 28px/1.15 var(--f-display); margin: 0; letter-spacing: -0.01em; t
 .tile .s { font-size: 13px; color: var(--ink2); }
 .tile.hl { border-color: var(--y26); box-shadow: inset 0 3px 0 var(--y26); }
 /* The two top rows (2026-11-20): six big cards each, full width — sales, then advertising. */
+/* The channel toggle (Ravi, 2026-11-20). The wrappers take no space of their own, so the page keeps its 20px rhythm. */
+[data-chan] { display: contents; }
+body[data-view="amz"] [data-chan="shop"], body[data-view="amz"] [data-chan="all"],
+body[data-view="shop"] [data-chan="amz"], body[data-view="shop"] [data-chan="all"] { display: none; }
+.seg { display: inline-flex; background: var(--panel); border: 1px solid var(--rule); border-radius: 999px; padding: 3px; margin-left: auto; }
+.seg button { font: 700 13px var(--f-display); color: var(--ink2); background: none; border: 0; border-radius: 999px; padding: 7px 14px; cursor: pointer; min-height: 32px; }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--panel); }
+.seg button:focus-visible { outline: 2px solid var(--y26); outline-offset: 2px; }
 h2.sec { display: flex; align-items: center; gap: 10px; margin: 14px 2px 0; padding-bottom: 10px; border-bottom: 1px solid var(--rule); font: 800 22px/1.1 var(--f-display); letter-spacing: -.01em; }
 h2.sec i { width: 12px; height: 12px; border-radius: 4px; background: var(--c); }
 .rowh { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin: 4px 2px -8px; font: 700 13px var(--f-display); letter-spacing: .1em; text-transform: uppercase; }
@@ -78,6 +86,9 @@ details summary:focus-visible { outline: 2px solid var(--y26); outline-offset: 2
       <div class="eyebrow">Amazon.com · Pacific time · updates every 15 minutes</div>
       <h1>Live vs Last Year</h1>
     </div>
+    <div class="seg" id="chan" role="group" aria-label="Which channel to show">
+      <button type="button" data-v="both" aria-pressed="true">Amazon + Shopify</button><button type="button" data-v="amz" aria-pressed="false">Amazon</button><button type="button" data-v="shop" aria-pressed="false">Shopify</button>
+    </div>
     <label class="brand" for="brand">Brand <select id="brand"><option value="ALL">Ridhi + CPC</option><option value="SP">Ridhi</option><option value="CPC">CPC</option></select></label>
     <div class="asof" id="asof">Loading…</div>
     <button type="button" class="refresh" id="refresh" title="Load the latest numbers">Refresh</button>
@@ -86,18 +97,25 @@ details summary:focus-visible { outline: 2px solid var(--y26); outline-offset: 2
   <div class="pending" id="pending" hidden></div>
   <!-- Three sections (Ravi, 2026-11-20): Amazon (against last year and last week), Shopify (this year only — the app reads
        60 days of Shopify orders), then all channels together, also this year only. -->
+  <div data-chan="amz">
   <h2 class="sec"><i style="--c:#FF9900"></i>Amazon</h2>
   <div class="rowh">Sales <span id="salesNote"></span></div>
   <div class="strip big" id="strip"></div>
   <div class="rowh">Advertising <span id="adsNote"></span></div>
   <div class="strip big" id="adStrip"></div>
+  </div>
+  <div data-chan="shop">
   <h2 class="sec"><i style="--c:#5E8E3E"></i>Shopify</h2>
   <div class="rowh">Store &amp; Meta ads <span id="shopNote"></span></div>
   <div class="strip big" id="shopStrip"></div>
+  </div>
+  <div data-chan="all">
   <h2 class="sec"><i style="--c:var(--y26)"></i>All channels</h2>
   <div class="rowh">Amazon + Shopify <span>· sales from both, ad spend from Amazon ads + Meta</span></div>
   <div class="strip big" id="allStrip"></div>
+  </div>
 
+  <div data-chan="amz">
   <section class="card" aria-labelledby="h-hour">
     <h2 id="h-hour">Amazon · hour by hour — today against the same weekday last year</h2>
     <p class="sub">Sales in each Pacific-time hour today, beside the same hour of the same weekday last year (364 days back). The dashed line is the same day last week. The last blue bar is a part hour.</p>
@@ -115,6 +133,7 @@ details summary:focus-visible { outline: 2px solid var(--y26); outline-offset: 2
     <div class="chart" id="dayChart"></div>
     <details><summary>Show the numbers</summary><div class="tbl" id="dayTable"></div></details>
   </section>
+  </div>
 
   <p class="foot">Source: Amazon Sales API (order metrics) per brand — every order placed on Amazon.com, including pending ones, by Pacific hour. Sales are what buyers were charged for the items. The backend reads Amazon every 15 minutes; this page re-reads every 5.</p>
 </div>
@@ -363,6 +382,13 @@ function render() {
 }
 
 try { const s = localStorage.getItem('live-brand'); if (s) $('brand').value = s; } catch (e) { /* no storage */ }
+// The channel toggle: only shows or hides sections, so switching is instant. Remembered per browser.
+function setChan(v) {
+  document.body.dataset.view = v;
+  $('chan').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === v)));
+}
+$('chan').querySelectorAll('button').forEach(b => b.addEventListener('click', () => { setChan(b.dataset.v); try { localStorage.setItem('live-chan', b.dataset.v); } catch (e) { /* no storage */ } }));
+try { const c = localStorage.getItem('live-chan'); setChan(['both', 'amz', 'shop'].includes(c) ? c : 'both'); } catch (e) { setChan('both'); }
 $('brand').addEventListener('change', e => { try { localStorage.setItem('live-brand', e.target.value); } catch (x) { /* no storage */ } render(); });
 
 /* ---- LIVE: read the published CSV on open, on Refresh and every 5 minutes. ---- */

@@ -480,6 +480,16 @@ $('yoyBrand').querySelectorAll('button').forEach(b => b.onclick = () => {
   yoyRender();
   yoyRenderRange();
 });
+// The channel toggle (Ravi, 2026-11-20): only shows or hides sections — every figure is still worked out, so switching is instant.
+function yoySetChan(v) {
+  $('paneYoy').dataset.view = v;
+  $('yoyChan').querySelectorAll('button').forEach(x => x.classList.toggle('on', x.dataset.v === v));
+}
+$('yoyChan').querySelectorAll('button').forEach(b => b.onclick = () => {
+  yoySetChan(b.dataset.v);
+  try { localStorage.setItem('yoy.chan', b.dataset.v); } catch (e) { /* no storage */ }
+});
+try { const c = localStorage.getItem('yoy.chan'); yoySetChan(['both', 'amz', 'shop'].includes(c) ? c : 'both'); } catch (e) { yoySetChan('both'); }
 try {
   const saved = localStorage.getItem('yoy.brand');
   if (saved && $('yoyBrand').querySelector(`[data-ch="${saved}"]`)) {
