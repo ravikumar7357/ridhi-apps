@@ -236,7 +236,7 @@ function yoyRender() {
   $('yoySalesNote').textContent = live ? '· Amazon Sales API, to ' + yoyTime(V.asOf) + ' PT' : '· Amazon Sales API, ' + yoyDate(V.day);
 
   const amzAds = yoyRenderAds(V, today);
-  yoyRenderShop(V, live, frac, today, lySame, amzAds);
+  yoyRenderShop(V, live, frac, today, lwSame, amzAds);
 
   // --- legends ---
   $('yoyLgNow').textContent = live ? 'Today' : yoyDate(V.day);
@@ -311,7 +311,7 @@ function yoyRenderAds(V, today) {
  * compared "by the same time" exactly as Amazon is. YOY[brand].meta = { configured, days:{date:{spend, clicks, impressions,
  * purchases, value}} } — { configured:false } until META_TOKEN and the ad account are in Script Properties.
  * amzAds = the Amazon ad totals for the day (yoyRenderAds), or null while that report is pending. */
-function yoyRenderShop(V, live, frac, amzToday, amzLySame, amzAds) {
+function yoyRenderShop(V, live, frac, amzToday, amzLwSame, amzAds) {
   const pc = (a, b) => (b > 0 ? (a / b * 100).toFixed(1) + '%' : '—');
   const set = (id, v, sub, cls) => { $(id).textContent = v; $(id).className = 'val' + (cls ? ' ' + cls : ''); $(id + 'Sub').textContent = sub || ''; };
   const chg = (a, b) => { if (!b) return ['—', '']; const p = Math.round((a / b - 1) * 100); return [(p > 0 ? '+' : '') + p + '%', p >= 0 ? 'yoy-up' : 'yoy-down']; };
@@ -320,14 +320,16 @@ function yoyRenderShop(V, live, frac, amzToday, amzLySame, amzAds) {
   const merge = f => { const lists = shops.map(s => s[f] || []); const n = Math.max(0, ...lists.map(l => l.length)); return [...Array(n).keys()].map(i => lists.reduce((t, l) => yoyAdd(t, l[i]), yoyZero())); };
   const now = merge('now'), last = merge('last'), lw = merge('lastWeek'), n = now.length;
   const sameTime = rows => { if (!live) return rows.reduce(yoyAdd, yoyZero()); let t = yoyZero(); rows.forEach((r, i) => { if (i < n - 1) t = yoyAdd(t, r); else if (i === n - 1) t = yoyAdd(t, yoyScale(r, frac)); }); return t; };
-  const sh = now.reduce(yoyAdd, yoyZero()), shLy = sameTime(last), shLw = sameTime(lw);
+  // This year only (Ravi, 2026-11-20): Shopify gives the app 60 days of orders, so it is compared with last week, not last year.
+  const sh = now.reduce(yoyAdd, yoyZero()), shLw = sameTime(lw), lwDay = lw.reduce(yoyAdd, yoyZero());
   const upTo = live ? ' by ' + yoyTime(V.asOf) : '';
   if (shops.length) {
-    set('yoyShToday', yoyMoney(sh.sales), yoyInt(sh.orders) + ' orders · ' + yoyInt(sh.units) + ' units');
-    const [a, ac] = chg(sh.sales, shLy.sales); set('yoyShVsLy', a, yoyDate(V.ly) + upTo + ': ' + yoyMoney(shLy.sales) + ' · ' + yoyInt(shLy.orders) + ' orders', ac);
+    set('yoyShToday', yoyMoney(sh.sales), yoyInt(sh.orders) + ' orders · ' + yoyInt(sh.units) + ' units' + (live ? ' · to ' + yoyTime(V.asOf) + ' PT' : ''));
     const [b, bc] = chg(sh.sales, shLw.sales); set('yoyShVsLw', b, yoyDate(V.lw, false) + upTo + ': ' + yoyMoney(shLw.sales) + ' · ' + yoyInt(shLw.orders) + ' orders', bc);
-    set('yoyShAov', sh.orders ? '$' + (sh.sales / sh.orders).toFixed(2) : '—', (sh.orders ? (sh.units / sh.orders).toFixed(2) + ' units an order' : '') + (shLy.orders ? ' · last year $' + (shLy.sales / shLy.orders).toFixed(2) : ''));
-  } else ['yoyShToday', 'yoyShVsLy', 'yoyShVsLw', 'yoyShAov'].forEach(id => set(id, '—', errs[0] ? 'could not read Shopify' : 'waiting for the backend update'));
+    set('yoyShAov', sh.orders ? '$' + (sh.sales / sh.orders).toFixed(2) : '—', (sh.orders ? (sh.units / sh.orders).toFixed(2) + ' units an order' : '') + (shLw.orders ? ' · last week $' + (shLw.sales / shLw.orders).toFixed(2) : ''));
+    if (live && shLw.sales > 0) set('yoyShPace', yoyMoney(sh.sales * lwDay.sales / shLw.sales), 'if the rest of today follows ' + yoyDate(V.lw, false) + '’s shape · that day: ' + yoyMoney(lwDay.sales));
+    else set('yoyShPace', live ? '—' : yoyMoney(sh.sales), live ? 'needs last week’s sales by this hour' : 'the day is closed');
+  } else ['yoyShToday', 'yoyShVsLw', 'yoyShAov', 'yoyShPace'].forEach(id => set(id, '—', errs[0] ? 'could not read Shopify' : 'waiting for the backend update'));
   // --- Meta ---
   const metas = V.keys.map(k => YOY[k].meta).filter(Boolean);
   const metaOn = metas.filter(m => m.configured && m.days);
@@ -346,15 +348,9 @@ function yoyRenderShop(V, live, frac, amzToday, amzLySame, amzAds) {
   }
   $('yoyShopNote').textContent = '· Shopify Admin API, Pacific day' + (M ? ' · Meta Marketing API (ad account’s own day)' : '') + (errs.length ? ' · ' + errs.join(' · ') : '');
   // --- all channels ---
-  const allSales = amzToday.sales + sh.sales, allLy = amzLySame.sales + shLy.sales;
+  const allSales = amzToday.sales + sh.sales, allLw = amzLwSame.sales + shLw.sales;
   set('yoyAllSales', yoyMoney(allSales), 'Amazon ' + yoyMoney(amzToday.sales) + ' · Shopify ' + yoyMoney(sh.sales));
-  // Shopify hands an app only the last 60 days of orders unless it holds read_all_orders: last year then reads as nothing,
-  // and adding today's Shopify to a last year without it would flatter the change. Then the change is Amazon's alone.
-  const shLyMissing = sh.orders > 0 && !last.some(r => r.orders > 0);
-  if (shLyMissing) {
-    $('yoyShVsLySub').textContent = 'Shopify did not give last year’s orders (the app can read 60 days back without read_all_orders)';
-    const [c, cc] = chg(amzToday.sales, amzLySame.sales); set('yoyAllVsLy', c, 'Amazon only: Shopify last year not readable yet', cc);
-  } else { const [c, cc] = chg(allSales, allLy); set('yoyAllVsLy', c, yoyDate(V.ly) + upTo + ': ' + yoyMoney(allLy), cc); }
+  const [c, cc] = chg(allSales, allLw); set('yoyAllVsLw', c, yoyDate(V.lw, false) + upTo + ': ' + yoyMoney(allLw), cc);
   const spend = (amzAds ? amzAds.spend : 0) + (M ? M.spend : 0);
   const parts = [amzAds ? 'Amazon ' + yoyMoney(amzAds.spend) : 'Amazon pending', M ? 'Meta ' + yoyMoney(M.spend) : 'Meta not connected'];
   set('yoyAllSpend', amzAds || M ? yoyMoney(spend) : '—', parts.join(' · '));

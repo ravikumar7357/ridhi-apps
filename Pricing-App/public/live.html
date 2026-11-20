@@ -35,6 +35,8 @@ h1 { font: 800 28px/1.15 var(--f-display); margin: 0; letter-spacing: -0.01em; t
 .tile .s { font-size: 13px; color: var(--ink2); }
 .tile.hl { border-color: var(--y26); box-shadow: inset 0 3px 0 var(--y26); }
 /* The two top rows (2026-11-20): six big cards each, full width — sales, then advertising. */
+h2.sec { display: flex; align-items: center; gap: 10px; margin: 14px 2px 0; padding-bottom: 10px; border-bottom: 1px solid var(--rule); font: 800 22px/1.1 var(--f-display); letter-spacing: -.01em; }
+h2.sec i { width: 12px; height: 12px; border-radius: 4px; background: var(--c); }
 .rowh { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin: 4px 2px -8px; font: 700 13px var(--f-display); letter-spacing: .1em; text-transform: uppercase; }
 .rowh span { font: 400 13px var(--f-body); letter-spacing: 0; text-transform: none; color: var(--muted); }
 .big { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 16px; }
@@ -82,17 +84,22 @@ details summary:focus-visible { outline: 2px solid var(--y26); outline-offset: 2
   </header>
 
   <div class="pending" id="pending" hidden></div>
+  <!-- Three sections (Ravi, 2026-11-20): Amazon (against last year and last week), Shopify (this year only — the app reads
+       60 days of Shopify orders), then all channels together, also this year only. -->
+  <h2 class="sec"><i style="--c:#FF9900"></i>Amazon</h2>
   <div class="rowh">Sales <span id="salesNote"></span></div>
   <div class="strip big" id="strip"></div>
   <div class="rowh">Advertising <span id="adsNote"></span></div>
   <div class="strip big" id="adStrip"></div>
-  <div class="rowh">Shopify &amp; Meta <span id="shopNote"></span></div>
+  <h2 class="sec"><i style="--c:#5E8E3E"></i>Shopify</h2>
+  <div class="rowh">Store &amp; Meta ads <span id="shopNote"></span></div>
   <div class="strip big" id="shopStrip"></div>
-  <div class="rowh">All channels <span>· Amazon + Shopify sales, Amazon ads + Meta spend</span></div>
+  <h2 class="sec"><i style="--c:var(--y26)"></i>All channels</h2>
+  <div class="rowh">Amazon + Shopify <span>· sales from both, ad spend from Amazon ads + Meta</span></div>
   <div class="strip big" id="allStrip"></div>
 
   <section class="card" aria-labelledby="h-hour">
-    <h2 id="h-hour">Hour by hour — today against the same weekday last year</h2>
+    <h2 id="h-hour">Amazon · hour by hour — today against the same weekday last year</h2>
     <p class="sub">Sales in each Pacific-time hour today, beside the same hour of the same weekday last year (364 days back). The dashed line is the same day last week. The last blue bar is a part hour.</p>
     <div class="legend"><span><i style="background:var(--y26)"></i><b id="lgNow">Today</b></span><span><i style="background:var(--y25)"></i><b id="lgLy">Last year</b></span><span><i class="dash"></i><b id="lgLw">Last week</b></span></div>
     <div class="chart" id="hourChart"></div>
@@ -250,39 +257,36 @@ function renderAds(V, tot) {
 /* Shopify & Meta, then all channels (Ravi, 2026-11-20). brands[k].yoy.shop = { now, last, lastWeek } — the brand's Shopify
    store by PACIFIC hour (Pricing-API/SalesLive.gs liveShop_), compared "by the same time" exactly as Amazon is.
    brands[k].yoy.meta = { configured, days } — { configured:false } until META_TOKEN and the ad account are set. */
-function renderShop(live, frac, amz, amzLy, amzAds) {
+function renderShop(live, frac, amz, amzLw, amzAds) {
   const key = $('brand').value, on = (key === 'ALL' ? Object.keys(BRANDS) : [key]).filter(k => DATA.brands[k] && DATA.brands[k].yoy);
   const shops = on.map(k => DATA.brands[k].yoy.shop).filter(s => s && s.now);
   const errs = on.map(k => DATA.brands[k].yoy.shop && DATA.brands[k].yoy.shop.err).filter(Boolean);
   const merge = f => { const lists = shops.map(s => s[f] || []); const n = Math.max(0, ...lists.map(l => l.length)); return [...Array(n).keys()].map(i => lists.reduce((t, l) => add(t, l[i]), zero())); };
-  const now = merge('now'), last = merge('last'), lwr = merge('lastWeek'), n = now.length;
+  // This year only (Ravi, 2026-11-20): Shopify gives the app 60 days of orders, so Shopify is compared with last week.
+  const now = merge('now'), lwr = merge('lastWeek'), n = now.length;
   const sameTime = rows => { if (!live) return rows.reduce(add, zero()); let t = zero(); rows.forEach((r, i) => { if (i < n - 1) t = add(t, r); else if (i === n - 1) t = add(t, scale(r, frac)); }); return t; };
-  const sh = now.reduce(add, zero()), shLy = sameTime(last), shLw = sameTime(lwr), by = live ? ' by ' + ptHM(DATA.asOf) : '';
+  const sh = now.reduce(add, zero()), shLw = sameTime(lwr), lwDay = lwr.reduce(add, zero()), by = live ? ' by ' + ptHM(DATA.asOf) : '';
   const metas = on.map(k => DATA.brands[k].yoy.meta).filter(Boolean), metaErr = metas.map(m => m.err).filter(Boolean)[0];
   let M = null;
   metas.filter(m => m.configured && m.days).forEach(m => { const r = m.days[DATA.day]; if (r) { M = M || { spend: 0, clicks: 0, impressions: 0, purchases: 0, value: 0 }; for (const f in M) M[f] += Number(r[f]) || 0; } });
   const metaWhy = metaErr ? 'Meta: ' + metaErr : metas.length && metas.every(m => m.configured === false) ? 'add META_TOKEN + META_AD_ACCOUNT in Script Properties' : 'waiting for Meta';
-  const [cLy, kLy] = change(sh.sales, shLy.sales), [cLw, kLw] = change(sh.sales, shLw.sales);
-  const C = ['#14b8a6', 'var(--y25)', '#06b6d4', '#ec4899', '#ef4444', '#8b5cf6'];
+  const [cLw, kLw] = change(sh.sales, shLw.sales);
+  const C = ['#06b6d4', '#14b8a6', '#ec4899', '#6366f1', '#ef4444', '#8b5cf6'];
   $('shopNote').textContent = '· Shopify Admin API, Pacific day' + (M ? ' · Meta Marketing API (ad account’s own day)' : '') + (errs.length ? ' · ' + errs.join(' · ') : '');
   $('shopStrip').innerHTML = shops.length
-    ? tile('Shopify today', usd(sh.sales), `${int(sh.orders)} orders · ${int(sh.units)} units`, '', false, C[0], 'The brand’s Shopify store today, Pacific day. Line-item sales, no shipping or tax.')
-      + tile('Shopify vs last year', cLy, `${dname(DATA.ly, true)}${by}: ${usd(shLy.sales)} · ${int(shLy.orders)} orders`, kLy, false, C[1])
-      + tile('Shopify vs last week', cLw, `${dname(DATA.lw)}${by}: ${usd(shLw.sales)} · ${int(shLw.orders)} orders`, kLw, false, C[2])
-      + tile('Shopify average order', sh.orders ? '$' + (sh.sales / sh.orders).toFixed(2) : '—', (sh.orders ? (sh.units / sh.orders).toFixed(2) + ' units an order' : '') + (shLy.orders ? ' · last year $' + (shLy.sales / shLy.orders).toFixed(2) : ''), '', false, C[3])
-    : ['Shopify today', 'Shopify vs last year', 'Shopify vs last week', 'Shopify average order'].map((k, i) => tile(k, '—', i ? '' : (errs[0] ? 'could not read Shopify' : 'waiting for the backend update'), '', false, C[i])).join('');
+    ? tile('Today so far', usd(sh.sales), `${int(sh.orders)} orders · ${int(sh.units)} units` + (live ? ' · to ' + ptHM(DATA.asOf) + ' PT' : ''), '', false, C[0], 'The brand’s Shopify store today, Pacific day. Line-item sales, no shipping or tax.')
+      + tile('vs last week, same time', cLw, `${dname(DATA.lw)}${by}: ${usd(shLw.sales)} · ${int(shLw.orders)} orders`, kLw, false, C[1])
+      + tile('Average order', sh.orders ? '$' + (sh.sales / sh.orders).toFixed(2) : '—', (sh.orders ? (sh.units / sh.orders).toFixed(2) + ' units an order' : '') + (shLw.orders ? ' · last week $' + (shLw.sales / shLw.orders).toFixed(2) : ''), '', false, C[2])
+      + tile('Pace for the day', live && shLw.sales ? usd(sh.sales * lwDay.sales / shLw.sales) : (live ? '—' : usd(sh.sales)), live && shLw.sales ? `if the rest of today follows ${dname(DATA.lw)}'s shape · that day: ${usd(lwDay.sales)}` : (live ? 'needs last week by this hour' : 'the day is closed'), '', false, C[3])
+    : ['Today so far', 'vs last week, same time', 'Average order', 'Pace for the day'].map((k, i) => tile(k, '—', i ? '' : (errs[0] ? 'could not read Shopify' : 'waiting for the backend update'), '', false, C[i])).join('');
   $('shopStrip').innerHTML +=
     tile('Meta ad spend', M ? usd(M.spend) : '—', M ? `${int(M.clicks)} clicks · CPC ${M.clicks ? '$' + (M.spend / M.clicks).toFixed(2) : '—'}` : metaWhy, '', false, C[4], 'Meta (Facebook + Instagram) ad spend today, about 15 minutes behind, in the ad account’s own timezone.')
     + tile('Meta ROAS', M && M.spend ? (on.filter(k => { const m = DATA.brands[k].yoy.meta; return m && m.configured && m.days; }).reduce((t, k) => t + ((DATA.brands[k].yoy.shop || {}).now || []).reduce((s, r) => s + (r.sales || 0), 0), 0) / M.spend).toFixed(2) : '—', M ? `Shopify sales ÷ Meta spend · Meta counts ${int(M.purchases)} purchases, ${usd(M.value)}` : '', '', false, C[5]);
-  // Shopify hands an app only the last 60 days of orders unless it holds read_all_orders: last year then reads as nothing,
-  // and adding today's Shopify to a last year without it would flatter the change. Then the change is Amazon's alone.
-  const shLyMissing = sh.orders > 0 && !last.some(r => r.orders > 0);
-  if (shLyMissing) $('shopStrip').children[1].querySelector('.s').textContent = 'Shopify did not give last year’s orders (the app can read 60 days back without read_all_orders)';
-  const all = amz.sales + sh.sales, allLy = shLyMissing ? amzLy.sales : amzLy.sales + shLy.sales, [cA, kA] = change(shLyMissing ? amz.sales : all, allLy);
+  const all = amz.sales + sh.sales, allLw = amzLw.sales + shLw.sales, [cA, kA] = change(all, allLw);
   const spend = (amzAds ? amzAds.spend : 0) + (M ? M.spend : 0);
   $('allStrip').innerHTML =
     tile('Total sales today', usd(all), `Amazon ${usd(amz.sales)} · Shopify ${usd(sh.sales)}`, '', false, '#6366f1')
-    + tile('Total vs last year', cA, shLyMissing ? 'Amazon only: Shopify last year not readable yet' : `${dname(DATA.ly, true)}${by}: ${usd(allLy)}`, kA, false, 'var(--y25)')
+    + tile('Total vs last week', cA, `${dname(DATA.lw)}${by}: ${usd(allLw)}`, kA, false, '#14b8a6')
     + tile('Total ad spend', amzAds || M ? usd(spend) : '—', [amzAds ? 'Amazon ' + usd(amzAds.spend) : 'Amazon pending', M ? 'Meta ' + usd(M.spend) : 'Meta not connected'].join(' · '), '', false, '#ef4444')
     + tile('Overall TACoS', amzAds || M ? pc(spend, all) : '—', amzAds && M ? 'all ads ÷ all sales' : 'so far without ' + (amzAds ? 'Meta' : 'Amazon ads'), '', false, '#f59e0b', 'All ad spend (Amazon + Meta) ÷ all sales (Amazon + Shopify). Lower is better.')
     + tile('Amazon share', pc(amz.sales, all), `${int(amz.orders)} orders`, '', false, '#3b82f6')
@@ -315,7 +319,7 @@ function render() {
     + tile('Last year, whole day', usd(lyDay.sales), `${lyDay.sales ? Math.round(tot.sales / lyDay.sales * 100) + '% of it reached · ' : ''}${int(lyDay.orders)} orders`, '', false, '#a855f7')
     + tile('Pace for the day', live && lySame.sales ? usd(tot.sales * lyDay.sales / lySame.sales) : '—', live && lySame.sales ? `if the rest of today follows ${dname(DATA.ly)}'s shape` : 'needs last year by this hour', '', false, '#6366f1')
     + tile('Average order', aov(tot), (tot.orders ? (tot.units / tot.orders).toFixed(2) + ' units an order' : '') + (lySame.orders ? ' · last year ' + aov(lySame) : ''), '', false, '#ec4899');
-  renderShop(live, frac, tot, lySame, renderAds(V, tot));
+  renderShop(live, frac, tot, lwSame, renderAds(V, tot));
   $('lgNow').textContent = live ? 'Today' : dname(DATA.day); $('lgLy').textContent = dname(DATA.ly, true) + ' (last year)'; $('lgLw').textContent = dname(DATA.lw) + ' (last week)';
 
   const hrs = [...Array(24).keys()];
@@ -341,7 +345,7 @@ function render() {
   let done = zero(), lyDone = zero(), nd = 0;
   V.dates.forEach((d, i) => { if (d < today && V.rNow[i]) { done = add(done, V.rNow[i]); lyDone = add(lyDone, V.rLast[i]); nd++; } });
   const lyAll = V.rLast.reduce(add, zero()), [cR, kR] = change(done.sales, lyDone.sales);
-  $('h-day').textContent = 'Day by day — ' + dname(V.dates[0]) + ' to ' + dname(V.dates[V.dates.length - 1]);
+  $('h-day').textContent = 'Amazon · day by day — ' + dname(V.dates[0]) + ' to ' + dname(V.dates[V.dates.length - 1]);
   $('rangeStrip').innerHTML =
     tile(`This year, ${nd} day${nd === 1 ? '' : 's'} done`, nd ? usd(done.sales) : '—', nd ? `${int(done.orders)} orders · ${int(done.units)} units` : 'the run has not started')
     + tile('Last year, same days', nd ? usd(lyDone.sales) : '—', nd ? `${int(lyDone.orders)} orders` : '')

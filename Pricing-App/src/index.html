@@ -1058,6 +1058,10 @@
 
     <!-- Two full-width rows of six big cards (Ravi, 2026-11-20: "make this big … add TACoS and Ad Spend … stretch the
          container"): sales from the Sales API, then advertising from the Ads API (Sponsored Products, stored every 15 min). -->
+    <!-- Three sections (Ravi, 2026-11-20: "make a Shopify section … and an Amazon section"): Amazon (sales + ads, against
+         last year and last week), Shopify (this year only: Shopify gives the app 60 days of orders without read_all_orders),
+         then all channels together, also this year only. -->
+    <h2 class="yoy-sec-h"><span class="yoy-sec-dot" style="--c:#FF9900"></span>Amazon</h2>
     <div class="yoy-row-h">Sales <span class="muted" id="yoySalesNote"></span></div>
     <div class="sd-kpis yoy-kpis">
       <div class="sd-card sd-b-cyan"><div class="lbl" id="yoyTodayLbl">Today so far</div><div class="val" id="yoyToday">—</div><div class="sub" id="yoyTodaySub">—</div></div>
@@ -1086,22 +1090,25 @@
     </div>
     <!-- Shopify + Meta, then every channel together (Ravi, 2026-11-20: "add Shopify sales and ad spend … and Meta ads").
          Shopify is the brand's own store by PACIFIC hour, so it lines up with Amazon; Meta switches on when its token is set. -->
-    <div class="yoy-row-h">Shopify &amp; Meta <span class="muted" id="yoyShopNote"></span></div>
+    <h2 class="yoy-sec-h"><span class="yoy-sec-dot" style="--c:#5E8E3E"></span>Shopify</h2>
+    <div class="yoy-row-h">Store &amp; Meta ads <span class="muted" id="yoyShopNote"></span></div>
     <div class="sd-kpis yoy-kpis">
-      <div class="sd-card sd-b-teal" title="The brand's Shopify store today, Pacific day (the same day as the Amazon figures). Line-item sales, no shipping or tax.">
-        <div class="lbl">Shopify today</div><div class="val" id="yoyShToday">—</div><div class="sub" id="yoyShTodaySub">—</div></div>
-      <div class="sd-card sd-b-orange"><div class="lbl">Shopify vs last year</div><div class="val" id="yoyShVsLy">—</div><div class="sub" id="yoyShVsLySub">—</div></div>
-      <div class="sd-card sd-b-cyan"><div class="lbl">Shopify vs last week</div><div class="val" id="yoyShVsLw">—</div><div class="sub" id="yoyShVsLwSub">—</div></div>
-      <div class="sd-card sd-b-pink"><div class="lbl">Shopify average order</div><div class="val" id="yoyShAov">—</div><div class="sub" id="yoyShAovSub">—</div></div>
+      <div class="sd-card sd-b-cyan" title="The brand's Shopify store today, Pacific day (the same day as the Amazon figures). Line-item sales, no shipping or tax.">
+        <div class="lbl">Today so far</div><div class="val" id="yoyShToday">—</div><div class="sub" id="yoyShTodaySub">—</div></div>
+      <div class="sd-card sd-b-teal"><div class="lbl">vs last week, same time</div><div class="val" id="yoyShVsLw">—</div><div class="sub" id="yoyShVsLwSub">—</div></div>
+      <div class="sd-card sd-b-pink"><div class="lbl">Average order</div><div class="val" id="yoyShAov">—</div><div class="sub" id="yoyShAovSub">—</div></div>
+      <div class="sd-card sd-b-indigo" title="Today so far, scaled by how much of last week's same day was still to come at this hour.">
+        <div class="lbl">Pace for the day</div><div class="val" id="yoyShPace">—</div><div class="sub" id="yoyShPaceSub">—</div></div>
       <div class="sd-card yoy-b-spend" title="Meta (Facebook + Instagram) ad spend today, from the Meta Marketing API. About 15 minutes behind, in the ad account's own timezone.">
         <div class="lbl">Meta ad spend</div><div class="val" id="yoyMetaSpend">—</div><div class="sub" id="yoyMetaSpendSub">—</div></div>
       <div class="sd-card yoy-b-acos" title="Shopify sales ÷ Meta spend (how many dollars of store sales each Meta dollar comes with), and what Meta itself counts as purchases.">
         <div class="lbl">Meta ROAS</div><div class="val" id="yoyMetaRoas">—</div><div class="sub" id="yoyMetaRoasSub">—</div></div>
     </div>
-    <div class="yoy-row-h">All channels <span class="muted" id="yoyAllNote">· Amazon + Shopify sales, Amazon ads + Meta spend</span></div>
+    <h2 class="yoy-sec-h"><span class="yoy-sec-dot" style="--c:var(--brand)"></span>All channels</h2>
+    <div class="yoy-row-h">Amazon + Shopify <span class="muted" id="yoyAllNote">· sales from both, ad spend from Amazon ads + Meta</span></div>
     <div class="sd-kpis yoy-kpis">
       <div class="sd-card sd-b-indigo"><div class="lbl">Total sales today</div><div class="val" id="yoyAllSales">—</div><div class="sub" id="yoyAllSalesSub">—</div></div>
-      <div class="sd-card sd-b-orange"><div class="lbl">Total vs last year</div><div class="val" id="yoyAllVsLy">—</div><div class="sub" id="yoyAllVsLySub">—</div></div>
+      <div class="sd-card sd-b-teal"><div class="lbl">Total vs last week</div><div class="val" id="yoyAllVsLw">—</div><div class="sub" id="yoyAllVsLwSub">—</div></div>
       <div class="sd-card yoy-b-spend"><div class="lbl">Total ad spend</div><div class="val" id="yoyAllSpend">—</div><div class="sub" id="yoyAllSpendSub">—</div></div>
       <div class="sd-card yoy-b-tacos" title="All ad spend (Amazon + Meta) ÷ all sales (Amazon + Shopify). Lower is better.">
         <div class="lbl">Overall TACoS</div><div class="val" id="yoyAllTacos">—</div><div class="sub" id="yoyAllTacosSub">—</div></div>
@@ -1110,20 +1117,20 @@
     </div>
 
     <div class="sd-panel">
-      <h2 class="sd-h2">Hour by hour</h2>
+      <h2 class="sd-h2">Amazon · hour by hour</h2>
       <div class="yoy-legend"><span><i style="background:var(--yoy-now)"></i><b id="yoyLgNow">Today</b></span><span><i style="background:var(--yoy-ly)"></i><b id="yoyLgLy">Last year</b></span><span><i class="yoy-dash"></i><b id="yoyLgLw">Last week</b></span></div>
       <div class="yoy-chart" id="yoyHours"></div>
       <div class="yoy-note">Sales in each Pacific-time hour. When the day is live, the last blue bar is a part hour.</div>
     </div>
 
     <div class="sd-panel">
-      <h2 class="sd-h2">Running total</h2>
+      <h2 class="sd-h2">Amazon · running total</h2>
       <div class="yoy-chart" id="yoyCum"></div>
     </div>
 
     <div class="sd-panel">
       <div class="toolbar sa-gap-12 mb-12">
-        <h2 class="sd-h2 sa-flush">Day by day</h2>
+        <h2 class="sd-h2 sa-flush">Amazon · day by day</h2>
         <input id="yoyFrom" type="date" class="sa-date-sm" title="First day of the run (Pacific)">
         <span class="muted sa-fs-14">to</span>
         <input id="yoyTo" type="date" class="sa-date-sm" title="Last day of the run (Pacific). Days still to come show last year only.">
