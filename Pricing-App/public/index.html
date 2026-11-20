@@ -28592,7 +28592,8 @@ async function staPlanAi(L, rules) {
   const ask = adsPost({ ai: 'plan', brand: pick, day: new Date().toISOString().slice(0, 10), rows,
     rules: rules.map(m => ({ id: m.id, title: m.title, keys: m.keys.slice(0, 40) })),
     want: 'Up to 7 moves, most money first. Each: title (under 12 words), why (one sentence, plain words, the numbers), keys (only from rows). Group by pattern (same word, same campaign, same season).' });
-  const timeout = new Promise(res => setTimeout(() => res({ ok: false, error: 'took too long' }), 25000));
+  // Sonnet (20 Nov: Plan my moves runs on Claude Sonnet 5.5) can take 20–40 s; Sellora's own plan shows meanwhile.
+  const timeout = new Promise(res => setTimeout(() => res({ ok: false, error: 'took over a minute' }), 60000));
   let ans;
   try { ans = await Promise.race([ask, timeout]); } catch (e) { return { err: e.message || String(e) }; }
   if (!ans || !ans.ok || !Array.isArray(ans.moves)) return { err: (ans && ans.error) || 'no plan in the answer' };
@@ -28634,7 +28635,7 @@ function staPlanDraw(busy) {
   const M = staModel();
   $('stPlanSub').textContent = !P ? '' : `${P.src === 'ai' ? 'Planned by ' + (P.model || 'Claude') + ' from Sellora\'s top suggestions' : 'From Sellora\'s rules'} · ${new Date(P.at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}`;
   const live = m => m.keys.map(k => M.byKey.get(k)).filter(r => { if (!r) return false; try { return !!staQuick(r).items; } catch (e) { return false; } });
-  $('stPlanBody').innerHTML = (busy ? '<div class="sta-planbusy"><span class="sta-spin" aria-hidden="true"></span>Asking Claude to plan from Sellora\'s top suggestions… the rules plan below is ready now.</div>' : '')
+  $('stPlanBody').innerHTML = (busy ? '<div class="sta-planbusy"><span class="sta-spin" aria-hidden="true"></span>Asking Claude to plan from Sellora\'s top suggestions (up to a minute)… Sellora\'s own plan below is ready now.</div>' : '')
     + (P && P.note ? `<div class="sta-plannote">${staEsc(P.note)}</div>` : '')
     + (!P || !P.moves.length ? '<p class="muted" style="padding:6px 2px">Nothing worth planning: no suggestion passes its checks right now.</p>'
       : '<ol class="sta-plan">' + P.moves.map((m, i) => {
