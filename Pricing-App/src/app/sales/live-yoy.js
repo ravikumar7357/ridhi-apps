@@ -212,18 +212,21 @@ function yoyRender() {
     el.textContent = (p > 0 ? '+' : '') + p + '%';
     el.className = 'val ' + (p >= 0 ? 'yoy-up' : 'yoy-down');
   };
-  $('yoyTodayLbl').textContent = live ? 'Today so far' : yoyDate(V.day, false);
+  // Layout A (2026-11-20): short card lines ("was $X"); the dates once, in the comparison line above the sections.
+  $('yoyTodayLbl').textContent = live ? 'Sales today' : 'Sales';
   $('yoyToday').textContent = yoyMoney(today.sales);
-  $('yoyTodaySub').textContent = yoyInt(today.orders) + ' orders · ' + yoyInt(today.units) + ' units' + (live ? ' · data to ' + yoyTime(V.asOf) + ' PT' : ' · whole day');
+  $('yoyTodaySub').textContent = yoyInt(today.orders) + ' orders';
   delta('yoyVsLy', today.sales, lySame.sales);
-  $('yoyVsLySub').textContent = yoyDate(V.ly) + upTo + ': ' + yoyMoney(lySame.sales) + ' · ' + yoyInt(lySame.orders) + ' orders';
+  $('yoyVsLySub').textContent = 'was ' + yoyMoney(lySame.sales);
   delta('yoyVsLw', today.sales, lwSame.sales);
-  $('yoyVsLwSub').textContent = yoyDate(V.lw, false) + upTo + ': ' + yoyMoney(lwSame.sales) + ' · ' + yoyInt(lwSame.orders) + ' orders';
+  $('yoyVsLwSub').textContent = 'was ' + yoyMoney(lwSame.sales);
+  $('yoyCmp').textContent = (live ? 'Today, ' + yoyDate(V.day, false) + ', to ' + yoyTime(V.asOf) + ' PT' : yoyDate(V.day))
+    + ' · compared with ' + yoyDate(V.ly) + ' (same weekday last year) and ' + yoyDate(V.lw, false) + ' (last week)' + (live ? ', both to the same time' : '');
   $('yoyLyDay').textContent = yoyMoney(lyDay.sales);
   $('yoyLyDaySub').textContent = (lyDay.sales ? Math.round(today.sales / lyDay.sales * 100) + '% of it reached · ' : '') + yoyInt(lyDay.orders) + ' orders';
   if (live && lySame.sales > 0) {
     $('yoyPace').textContent = yoyMoney(today.sales * lyDay.sales / lySame.sales);
-    $('yoyPaceSub').textContent = 'if the rest of today follows ' + yoyDate(V.ly, false) + '’s shape';
+    $('yoyPaceSub').textContent = 'last year’s whole day ' + yoyMoney(lyDay.sales);
   } else {
     $('yoyPace').textContent = live ? '—' : yoyMoney(today.sales);
     $('yoyPaceSub').textContent = live ? 'needs last year’s sales by this hour' : 'the day is closed';
@@ -233,9 +236,22 @@ function yoyRender() {
   $('yoyAov').textContent = today.orders ? '$' + aov(today).toFixed(2) : '—';
   $('yoyAovSub').textContent = (today.orders ? (today.units / today.orders).toFixed(2) + ' units an order' : '')
     + (lySame.orders ? ' · last year $' + aov(lySame).toFixed(2) : '');
-  $('yoySalesNote').textContent = live ? '· Amazon Sales API, to ' + yoyTime(V.asOf) + ' PT' : '· Amazon Sales API, ' + yoyDate(V.day);
+  $('yoySalesNote').textContent = live ? 'to ' + yoyTime(V.asOf) + ' PT' : yoyDate(V.day);
 
   const amzAds = yoyRenderAds(V, today);
+  // The table beside the hourly chart: every measure for the day on view, last year and last week.
+  const pace = live && lySame.sales > 0 ? today.sales * lyDay.sales / lySame.sales : null;
+  const lwDayA = V.lastWeek.reduce(yoyAdd, yoyZero()), money2 = r => (r.orders ? '$' + aov(r).toFixed(2) : '—');
+  yoyTableCard('yoyAmzTbl', 'Today against', [live ? 'Today' : yoyDate(V.day, false), 'Last year', 'Last week'], [
+    ['Sales', [yoyMoney(today.sales), yoyMoney(lySame.sales), yoyMoney(lwSame.sales)]],
+    ['Orders', [yoyInt(today.orders), yoyInt(lySame.orders), yoyInt(lwSame.orders)]],
+    ['Units', [yoyInt(today.units), yoyInt(lySame.units), yoyInt(lwSame.units)]],
+    ['Average order', [money2(today), money2(lySame), money2(lwSame)]],
+    ['Whole day', [pace ? 'pace ' + yoyMoney(pace) : yoyMoney(today.sales), yoyMoney(lyDay.sales), yoyMoney(lwDayA.sales)]],
+    ['Ad spend', [amzAds ? yoyMoney(amzAds.spend) : '—', '—', amzAds && amzAds.lwSpend != null ? yoyMoney(amzAds.lwSpend) + ' (day)' : '—']],
+    ['Organic sales', [amzAds ? yoyMoney(Math.max(0, today.sales - amzAds.sales)) : '—', '—', '—']],
+    ['Clicks · CPC', [amzAds ? yoyInt(amzAds.clicks) + (amzAds.clicks ? ' · $' + (amzAds.spend / amzAds.clicks).toFixed(2) : '') : '—', '—', '—']],
+  ]);
   yoyRenderShop(V, live, frac, today, lySame, lwSame, amzAds);
   yoyRenderPeriod(V, today, lySame, lyDay);
 
@@ -262,6 +278,12 @@ function yoyRender() {
   yoyTable(V, live, n);
 }
 
+/* Layout A's table beside each hourly chart: rows = measures, columns = the day on view and its comparisons (first bold). */
+function yoyTableCard(id, title, cols, rows) {
+  $(id).innerHTML = `<h2 class="sd-h2">${title}</h2><table><thead><tr><th></th>${cols.map(c => `<th>${c}</th>`).join('')}</tr></thead><tbody>`
+    + rows.map(r => `<tr><td>${r[0]}</td>${r[1].map((v, i) => `<td>${i === 0 ? '<b>' + v + '</b>' : v}</td>`).join('')}</tr>`).join('') + '</tbody></table>';
+}
+
 /* ---------- the advertising row: Sponsored Products + Brands + Display from the Ads API, stored by the backend ----------
  * YOY[brand].ads = { at, types, days: { 'YYYY-MM-DD': { impressions, clicks, spend, orders, sales } }, err } and
  * YOY[brand].week = the 7 days to the day on view, by day, from the Sales API (Pricing-API/SalesLive.gs).
@@ -283,27 +305,28 @@ function yoyRenderAds(V, today) {
   if (!A) {
     ids.forEach(id => { $(id).textContent = '—'; $(id + 'Sub').textContent = ''; });
     const err = V.keys.map(k => YOY[k].ads && YOY[k].ads.err).filter(Boolean)[0];
-    $('yoyAdsNote').textContent = err ? '· could not read the ad report (' + err + ')' : '· waiting for Amazon’s ad report (it can take up to an hour)';
+    $('yoyAdsNote').textContent = err ? 'Could not read the ad report (' + err + ')' : 'Waiting for Amazon’s ad report (it can take up to an hour)';
     $('yoyAdSpendSub').textContent = 'waiting for Amazon’s ad report';
     return null;
   }
   const at = ads.map(a => a.at).filter(Boolean).sort()[0];
   const types = [...new Set(ads.flatMap(a => a.types || ['Products']))];
-  $('yoyAdsNote').textContent = '· Sponsored ' + types.join(' + ') + ', Amazon Ads API' + (at ? ' · report asked at ' + yoyTime(at) + ' PT' : '');
+  $('yoyAdsNote').textContent = 'Ads: Sponsored ' + types.join(' + ') + (at ? ' · report asked at ' + yoyTime(at) + ' PT, so it runs behind the sales' : '');
   const sub = (y, w) => [Y ? 'Yesterday ' + y : '', haveWk || w !== null ? '7 days ' + w : ''].filter(Boolean).join(' · ');
   $('yoyAdSpend').textContent = yoyMoney(A.spend);
   $('yoyAdSpendSub').textContent = sub(Y && yoyMoney(Y.spend), yoyMoney(Wk.spend));
   $('yoyTacos').textContent = pc(A.spend, today.sales);
   $('yoyTacosSub').textContent = sub(Y && pc(Y.spend, salesOn[yd]), haveWk ? pc(Wk.spend, wkSales) : null) || 'ad spend ÷ all sales';
   $('yoyAcos').textContent = pc(A.spend, A.sales);
-  $('yoyAcosSub').textContent = (A.spend ? 'ROAS ' + (A.sales / A.spend).toFixed(2) + ' · ' : '') + sub(Y && pc(Y.spend, Y.sales), pc(Wk.spend, Wk.sales));
+  $('yoyAcosSub').textContent = (A.spend ? 'ROAS ' + (A.sales / A.spend).toFixed(2) : '') + (Y && Y.sales ? ' · yesterday ' + pc(Y.spend, Y.sales) : '');
   $('yoyAdSales').textContent = yoyMoney(A.sales);
-  $('yoyAdSalesSub').textContent = yoyInt(A.orders) + ' ad orders · ' + pc(A.sales, today.sales) + ' of all sales · 7 days ' + yoyMoney(Wk.sales);
+  $('yoyAdSalesSub').textContent = yoyInt(A.orders) + ' ad orders · ' + pc(A.sales, today.sales) + ' of all sales';
   const org = Math.max(0, today.sales - A.sales);
   $('yoyOrganic').textContent = yoyMoney(org);
   $('yoyOrganicSub').textContent = pc(org, today.sales) + ' of all sales' + (haveWk ? ' · 7 days ' + pc(Math.max(0, wkSales - Wk.sales), wkSales) : '');
   $('yoyClicks').textContent = yoyInt(A.clicks);
   $('yoyClicksSub').textContent = (A.clicks ? 'CPC $' + (A.spend / A.clicks).toFixed(2) : 'CPC —') + ' · CTR ' + pc(A.clicks, A.impressions) + ' · 7 days CPC ' + (Wk.clicks ? '$' + (Wk.spend / Wk.clicks).toFixed(2) : '—');
+  A.lwSpend = (sum(V.lw) || {}).spend;            // last week's same day, for the table beside the chart
   return A;
 }
 
@@ -328,16 +351,25 @@ function yoyRenderShop(V, live, frac, amzToday, amzLySame, amzLwSame, amzAds) {
   const m4 = merge('fourWk'), sh4 = sameTime(m4), m4Day = shops.map(s => s.fourWkDay).filter(Boolean)[0];
   const vsZero = (a, b) => (b > 0 ? chg(a, b) : [(a >= 0 ? '+' : '−') + yoyMoney(Math.abs(a - b)), a > b ? 'yoy-up' : '']);
   if (shops.length) {
-    set('yoyShToday', yoyMoney(sh.sales), yoyInt(sh.orders) + ' orders · ' + yoyInt(sh.units) + ' units');
+    // Layout A: short card lines ("was $X"); the full comparison is in the table beside the chart.
+    const paceS = live && shLw.sales > 0 ? sh.sales * lwDay.sales / shLw.sales : null, money2 = r => (r.orders ? '$' + (r.sales / r.orders).toFixed(2) : '—');
+    set('yoyShToday', yoyMoney(sh.sales), yoyInt(sh.orders) + ' orders' + (paceS ? ' · pace ' + yoyMoney(paceS) : ''));
     const [a, ac] = vsZero(sh.sales, shLy.sales);
-    set('yoyShVsLy', a, yoyDate(V.ly) + upTo + ': ' + yoyMoney(shLy.sales) + (shLy.sales ? ' · ' + yoyInt(shLy.orders) + ' orders' : ' · the store opened in January 2026'), ac);
-    const [b, bc] = chg(sh.sales, shLw.sales); set('yoyShVsLw', b, yoyDate(V.lw, false) + upTo + ': ' + yoyMoney(shLw.sales) + ' · ' + yoyInt(shLw.orders) + ' orders', bc);
-    if (m4Day) { const [d, dc] = chg(sh.sales, sh4.sales); set('yoySh4w', d, yoyDate(m4Day, false) + upTo + ': ' + yoyMoney(sh4.sales) + ' · ' + yoyInt(sh4.orders) + ' orders', dc); }
+    set('yoyShVsLy', a, shLy.sales ? 'was ' + yoyMoney(shLy.sales) : 'store not open last year', ac);
+    const [b, bc] = chg(sh.sales, shLw.sales); set('yoyShVsLw', b, 'was ' + yoyMoney(shLw.sales), bc);
+    if (m4Day) { const [d, dc] = chg(sh.sales, sh4.sales); set('yoySh4w', d, 'was ' + yoyMoney(sh4.sales), dc); }
     else set('yoySh4w', '—', 'waiting for the backend update');
+    yoyTableCard('yoyShTbl', 'Today against', [live ? 'Today' : yoyDate(V.day, false), 'Last week', '4 weeks ago'], [
+      ['Sales', [yoyMoney(sh.sales), yoyMoney(shLw.sales), m4Day ? yoyMoney(sh4.sales) : '—']],
+      ['Orders', [yoyInt(sh.orders), yoyInt(shLw.orders), m4Day ? yoyInt(sh4.orders) : '—']],
+      ['Units', [yoyInt(sh.units), yoyInt(shLw.units), m4Day ? yoyInt(sh4.units) : '—']],
+      ['Average order', [money2(sh), money2(shLw), m4Day ? money2(sh4) : '—']],
+      ['Whole day', [paceS ? 'pace ' + yoyMoney(paceS) : yoyMoney(sh.sales), yoyMoney(lwDay.sales), m4Day ? yoyMoney(m4.reduce(yoyAdd, yoyZero()).sales) : '—']],
+    ]);
     if (live && shLw.sales > 0) set('yoyShPace', yoyMoney(sh.sales * lwDay.sales / shLw.sales), 'if the rest of today follows ' + yoyDate(V.lw, false) + '’s shape · that day ' + yoyMoney(lwDay.sales));
     else set('yoyShPace', live ? '—' : yoyMoney(sh.sales), live ? 'needs last week’s sales by this hour' : 'the day is closed');
     set('yoyShAov', sh.orders ? '$' + (sh.sales / sh.orders).toFixed(2) : '—', (sh.orders ? (sh.units / sh.orders).toFixed(2) + ' units an order' : '') + (shLw.orders ? ' · last week $' + (shLw.sales / shLw.orders).toFixed(2) : ''));
-  } else ['yoyShToday', 'yoyShVsLy', 'yoyShVsLw', 'yoySh4w', 'yoyShPace', 'yoyShAov'].forEach(id => set(id, '—', errs[0] ? 'could not read Shopify' : 'waiting for the backend update'));
+  } else { ['yoyShToday', 'yoyShVsLy', 'yoyShVsLw', 'yoySh4w', 'yoyShPace', 'yoyShAov'].forEach(id => set(id, '—', errs[0] ? 'could not read Shopify' : 'waiting for the backend update')); $('yoyShTbl').innerHTML = ''; }
   // --- Shopify charts (2026-11-20): today by the hour in Shopify green beside last week, four weeks ago dashed; and the
   // running totals. Same helpers as Amazon's charts. ---
   if (shops.length && $('yoyShHours')) {
@@ -371,21 +403,21 @@ function yoyRenderShop(V, live, frac, amzToday, amzLySame, amzLwSame, amzAds) {
     set('yoyShTacos', pc(M.spend, shMeta), 'Meta spend ÷ Shopify sales');
   } else {
     const why = metaErr ? 'Meta: ' + metaErr : metas.length && metas.every(m => m.configured === false) ? 'Not connected yet: add META_TOKEN and META_AD_ACCOUNT in the backend’s Script Properties' : 'waiting for Meta';
-    set('yoyMetaSpend', '—', why); set('yoyMetaRoas', '—', ''); set('yoyShTacos', '—', '');
+    set('yoyMetaSpend', '—', 'not connected'); set('yoyMetaRoas', '—', 'needs Meta'); set('yoyShTacos', '—', 'needs Meta');
+    $('yoyMetaSpend').closest('.sd-card').title = why;
   }
   $('yoyShopNote').textContent = 'Shopify Admin API · Pacific day' + (M ? ' · Meta Marketing API (ad account’s own day)' : '') + (errs.length ? ' · ' + errs.join(' · ') : '');
   // --- the overview: both channels ---
   const allSales = amzToday.sales + sh.sales, allLw = amzLwSame.sales + shLw.sales, allLy = amzLySame.sales + shLy.sales;
-  set('yoyAllSales', yoyMoney(allSales), 'Amazon ' + yoyMoney(amzToday.sales) + ' · Shopify ' + yoyMoney(sh.sales));
+  set('yoyAllSales', yoyMoney(allSales), yoyInt(amzToday.orders + sh.orders) + ' orders');
   const [e, ec] = chg(allSales, allLy);
-  set('yoyAllVsLy', e, yoyDate(V.ly) + upTo + ': ' + yoyMoney(allLy) + (shLy.sales ? '' : ' (Shopify $0)'), ec);
-  const [c, cc] = chg(allSales, allLw); set('yoyAllVsLw', c, yoyDate(V.lw, false) + upTo + ': ' + yoyMoney(allLw), cc);
+  set('yoyAllVsLy', e, 'was ' + yoyMoney(allLy) + (shLy.sales ? '' : ' (Shopify $0)'), ec);
+  const [c, cc] = chg(allSales, allLw); set('yoyAllVsLw', c, 'was ' + yoyMoney(allLw), cc);
   const spend = (amzAds ? amzAds.spend : 0) + (M ? M.spend : 0);
-  const parts = [amzAds ? 'Amazon ' + yoyMoney(amzAds.spend) : 'Amazon pending', M ? 'Meta ' + yoyMoney(M.spend) : 'Meta not connected'];
-  set('yoyAllSpend', amzAds || M ? yoyMoney(spend) : '—', parts.join(' · '));
+  set('yoyAllSpend', amzAds || M ? yoyMoney(spend) : '—', amzAds || M ? pc(spend, allSales) + ' of sales' + (M ? '' : ' · Meta not connected') : 'Amazon report pending');
   set('yoyAllTacos', amzAds || M ? pc(spend, allSales) : '—', amzAds && M ? 'all ads ÷ all sales' : 'so far without ' + (amzAds ? 'Meta' : 'Amazon ads'));
   const amzPct = allSales > 0 ? amzToday.sales / allSales * 100 : 0;
-  set('yoyAllAmz', allSales > 0 ? Math.round(amzPct) + ' / ' + Math.round(100 - amzPct) : '—', 'Amazon ' + pc(amzToday.sales, allSales) + ' · Shopify ' + pc(sh.sales, allSales));
+  $('yoyAllAmzSub').textContent = allSales > 0 ? 'Amazon ' + pc(amzToday.sales, allSales) + ' · Shopify ' + pc(sh.sales, allSales) : '—';
   $('yoySplitAmz').style.width = amzPct + '%'; $('yoySplitShop').style.width = (allSales > 0 ? 100 - amzPct : 0) + '%';
 }
 

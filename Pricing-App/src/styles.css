@@ -1034,6 +1034,24 @@
   #paneYoy:not([data-period="day"]) .yoy-pnote{display:block;margin:0 2px 12px;font-size:13px;color:var(--muted)}
   #paneYoy .yoy-pnote b{color:var(--ink)}
   #paneYoy:not([data-period="day"]) .yoy-sec > :not(.yoy-sec-h):not(.yoy-ponly){display:none}
+  /* Layout A (2026-11-20): four numbers a row, the hourly chart beside its table, the channel split bar, "Show more". */
+  #paneYoy .yoy-k4{grid-template-columns:repeat(4,minmax(0,1fr))}
+  @media (max-width:760px){ #paneYoy .yoy-k4{grid-template-columns:repeat(2,minmax(0,1fr))} }
+  #paneYoy .yoy-two{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:12px;align-items:start}
+  @media (max-width:1100px){ #paneYoy .yoy-two{grid-template-columns:1fr} }
+  #paneYoy .yoy-tcard table{width:100%;border-collapse:collapse;font-size:13px;font-variant-numeric:tabular-nums}
+  #paneYoy .yoy-tcard th,#paneYoy .yoy-tcard td{padding:6px 6px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}
+  #paneYoy .yoy-tcard th{font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+  #paneYoy .yoy-tcard td:first-child,#paneYoy .yoy-tcard th:first-child{text-align:left;color:var(--muted)}
+  #paneYoy .yoy-tcard td b{color:var(--ink);font-weight:700}
+  #paneYoy .yoy-splitrow{display:flex;align-items:center;gap:12px;font-size:13px;color:var(--muted);margin:0 2px 14px}
+  #paneYoy .yoy-splitrow .yoy-split{flex:1;height:10px;margin:0;display:flex;border-radius:999px;overflow:hidden;background:var(--line)}
+  #paneYoy .yoy-cmp{margin:0 2px 12px;font-size:13px;color:var(--muted)}
+  #paneYoy .yoy-rownote{margin:-4px 2px 10px;font-size:12.5px;color:var(--muted)}
+  #paneYoy details.yoy-more{margin:0 0 12px}
+  #paneYoy details.yoy-more > summary{cursor:pointer;font-size:13px;font-weight:700;color:var(--brand);padding:4px 2px 10px;list-style:none}
+  #paneYoy details.yoy-more > summary::before{content:'▸ '} #paneYoy details.yoy-more[open] > summary::before{content:'▾ '}
+  #paneYoy:not([data-period="day"]) .yoy-dayonly{display:none}
   /* Events (2026-11-20): the channel sections step aside and the event cards take the screen. */
   #paneYoy .yoy-events{display:none}
   #paneYoy[data-period="events"] .yoy-events{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-bottom:16px}

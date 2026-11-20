@@ -48,6 +48,23 @@ body[data-view="shop"] [data-chan="amz"], body[data-view="shop"] [data-chan="all
 .boxh { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 14px; font-size: 13px; color: var(--muted); }
 .boxh .tag { font: 800 14px/1 var(--f-display); color: #fff; background: var(--tag); padding: 6px 12px; border-radius: 8px; letter-spacing: .01em; }
 .big.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+/* Layout A (2026-11-20): four numbers a row, the chart beside its table, the split bar, "Show more". */
+.big.four { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.two { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 12px; align-items: start; }
+.tcard { background: var(--panel); border: 1px solid var(--rule); border-radius: 12px; padding: 12px 14px; }
+.tcard h2 { margin-bottom: 8px; }
+.tcard table { font-size: 13.5px; }
+.tcard td b { font-weight: 700; color: var(--ink); }
+.tcard td.lab { color: var(--ink2); }
+.splitrow { display: flex; align-items: center; gap: 12px; font-size: 13px; color: var(--ink2); }
+.splitrow .split { flex: 1; margin: 0; height: 10px; }
+.cmp { margin: -6px 2px 0; font-size: 13px; color: var(--ink2); }
+.rownote { margin: -6px 2px 0; font-size: 12.5px; color: var(--muted); }
+details.more > summary { font: 700 13px var(--f-display); color: var(--y26); padding: 4px 2px; list-style: none; }
+details.more > summary::before { content: '▸ '; } details.more[open] > summary::before { content: '▾ '; }
+details.more[open] { display: flex; flex-direction: column; gap: 12px; }
+@media (max-width: 1100px) { .two { grid-template-columns: 1fr; } }
+@media (max-width: 760px) { .big.four { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 /* Day shows today by the hour; any other period swaps in its own row of cards (2026-11-20). */
 .ponly { display: none !important; }
 body:not([data-period="day"]) .ponly { display: grid !important; }
@@ -177,57 +194,67 @@ body.anim .chart .draw { stroke-dasharray: 1000; animation: drawl .9s ease-out b
   <!-- Three framed sections (Ravi, 2026-11-20: "Shopify in Shopify colours, Amazon in Amazon's … formal and simple"):
        the Overview of both channels, then Amazon (cards and charts), then Shopify. Shopify opened in January 2026, so its
        last year is $0 and is shown as such. -->
+  <!-- LAYOUT A (Ravi, 2026-11-20: "every section has everything, easy to read"): Total, Amazon and Shopify each have the same
+       parts in the same order — four sales numbers, four ad numbers, the hour-by-hour chart beside a Today / comparison table —
+       and the bigger charts under "Show more". -->
+  <p class="cmp dayonly" id="cmpLine"></p>
   <div data-chan="all" class="box">
-    <div class="boxh"><span class="tag">Overview</span><span>Amazon + Shopify sales · Amazon ads + Meta spend</span></div>
-    <div class="strip big dayonly" id="allStrip"></div>
+    <div class="boxh"><span class="tag">Total</span><span>Amazon + Shopify</span></div>
+    <div class="strip big four dayonly" id="allStrip"></div>
+    <div class="splitrow dayonly" id="allSplit"></div>
     <div class="strip big ponly" id="pAll"></div>
   </div>
 
   <div data-chan="amz" class="box">
-    <div class="boxh"><span class="tag">Amazon</span><span>Amazon.com · Sales API and Ads API · Pacific time</span></div>
+    <div class="boxh"><span class="tag">Amazon</span><span>Sales API and Ads API · <span id="salesNote"></span></span></div>
     <div class="strip big ponly" id="pAmz"></div>
-    <div class="rowh dayonly">Sales <span id="salesNote"></span></div>
-    <div class="strip big dayonly" id="strip"></div>
-    <div class="rowh dayonly">Advertising <span id="adsNote"></span></div>
-    <div class="strip big dayonly" id="adStrip"></div>
-  <section class="card dayonly" aria-labelledby="h-hour">
-    <h2 id="h-hour">Amazon · hour by hour — today against the same weekday last year</h2>
-    <p class="sub">Sales in each Pacific-time hour today, beside the same hour of the same weekday last year (364 days back). The dashed line is the same day last week. The last blue bar is a part hour.</p>
-    <div class="legend"><span><i style="background:var(--y26)"></i><b id="lgNow">Today</b></span><span><i style="background:var(--y25)"></i><b id="lgLy">Last year</b></span><span><i class="dash"></i><b id="lgLw">Last week</b></span></div>
-    <div class="chart" id="hourChart"></div>
-    <div class="chart" id="cumChart"></div>
-    <details><summary>Show the numbers</summary><div class="tbl" id="hourTable"></div></details>
-  </section>
-
-  <section class="card dayonly" aria-labelledby="h-day">
-    <h2 id="h-day">Day by day — 15 Nov to 1 Dec</h2>
-    <p class="sub" id="daySub">Each day this year beside the same weekday last year. Days still to come show last year only. Totals compare finished days.</p>
-    <div class="strip" id="rangeStrip"></div>
-    <div class="legend"><span><i style="background:var(--y26)"></i>This year</span><span><i style="background:var(--y25)"></i>Last year, same weekday</span><span><i class="ev"></i>Black Friday / Cyber Monday</span></div>
-    <div class="chart" id="dayChart"></div>
-    <details><summary>Show the numbers</summary><div class="tbl" id="dayTable"></div></details>
-  </section>
+    <div class="strip big four dayonly" id="strip"></div>
+    <div class="strip big four dayonly" id="adStrip"></div>
+    <p class="rownote dayonly" id="adsNote"></p>
+    <div class="two dayonly">
+      <section class="card" aria-labelledby="h-hour">
+        <h2 id="h-hour">Hour by hour</h2>
+        <div class="legend"><span><i style="background:var(--y26)"></i><b id="lgNow">Today</b></span><span><i style="background:var(--y25)"></i><b id="lgLy">Last year</b></span><span><i class="dash"></i><b id="lgLw">Last week</b></span></div>
+        <div class="chart" id="hourChart"></div>
+      </section>
+      <div class="card tcard" id="amzTbl"></div>
+    </div>
+    <details class="more dayonly"><summary>Show more · running total, day by day, every hour</summary>
+      <section class="card">
+        <h2>Running total</h2>
+        <div class="chart" id="cumChart"></div>
+        <details><summary>Show the numbers</summary><div class="tbl" id="hourTable"></div></details>
+      </section>
+      <section class="card" aria-labelledby="h-day">
+        <h2 id="h-day">Day by day — 15 Nov to 1 Dec</h2>
+        <p class="sub" id="daySub">Each day this year beside the same weekday last year. Days still to come show last year only. Totals compare finished days.</p>
+        <div class="strip" id="rangeStrip"></div>
+        <div class="legend"><span><i style="background:var(--y26)"></i>This year</span><span><i style="background:var(--y25)"></i>Last year, same weekday</span><span><i class="ev"></i>Black Friday / Cyber Monday</span></div>
+        <div class="chart" id="dayChart"></div>
+        <details><summary>Show the numbers</summary><div class="tbl" id="dayTable"></div></details>
+      </section>
+    </details>
   </div>
 
   <div data-chan="shop" class="box">
     <div class="boxh"><span class="tag">Shopify</span><span id="shopNote">Shopify Admin API · Pacific day</span></div>
     <div class="strip big ponly" id="pShop"></div>
-    <div class="rowh dayonly">Store</div>
-    <div class="strip big dayonly" id="shopStrip"></div>
-    <div class="rowh dayonly">Meta ads</div>
-    <div class="strip big three dayonly" id="metaStrip"></div>
-    <!-- Shopify charts (2026-11-20): the store by the hour and its running total, side by side. -->
-    <div class="pair dayonly">
+    <div class="strip big four dayonly" id="shopStrip"></div>
+    <div class="strip big four dayonly" id="metaStrip"></div>
+    <div class="two dayonly">
       <section class="card">
-        <h2>Shopify · hour by hour</h2>
+        <h2>Hour by hour</h2>
         <div class="legend"><span><i style="background:#5E8E3E"></i><b id="shLgNow">Today</b></span><span><i style="background:#C3DE96"></i><b id="shLgLw">Last week</b></span><span><i class="dash" style="border-color:#8A94A3"></i><b id="shLg4w">4 weeks ago</b></span></div>
         <div class="chart" id="shHourChart"></div>
       </section>
+      <div class="card tcard" id="shTbl"></div>
+    </div>
+    <details class="more dayonly"><summary>Show more · running total</summary>
       <section class="card">
-        <h2>Shopify · running total</h2>
+        <h2>Running total</h2>
         <div class="chart" id="shCumChart"></div>
       </section>
-    </div>
+    </details>
   </div>
 
   <p class="foot">Source: Amazon Sales API (order metrics) per brand — every order placed on Amazon.com, including pending ones, by Pacific hour. Sales are what buyers were charged for the items. The backend reads Amazon every 15 minutes; this page re-reads every 5.</p>
@@ -357,23 +384,29 @@ function renderAds(V, tot) {
   const wkSales = week.reduce((t, d) => t + (salesOn[d] || 0), 0), haveWk = week.every(d => salesOn[d] != null);
   if (!A) {
     const err = ads.map(a => a.err).concat(on.map(k => (DATA.brands[k].yoy.ads || {}).err)).filter(Boolean)[0];
-    $('adsNote').textContent = err ? '· could not read the ad report (' + err + ')' : '· waiting for Amazon’s ad report (it can take up to an hour)';
-    $('adStrip').innerHTML = ['Ad spend', 'TACoS', 'ACoS', 'Ad sales', 'Organic sales', 'Clicks · CPC'].map((k, i) => tile(k, '—', i ? '' : 'waiting for Amazon’s ad report', '', false, AD_C[i])).join('');
+    $('adsNote').textContent = err ? 'Could not read the ad report (' + err + ')' : 'Waiting for Amazon’s ad report (it can take up to an hour)';
+    $('adStrip').innerHTML = ['Ad spend', 'TACoS', 'ACoS · ROAS', 'Ad sales'].map((k, i) => tile(k, '—', i ? '' : 'waiting for Amazon’s ad report', '', false, AD_C[i])).join('');
     return null;
   }
   const at = ads.map(a => a.at).filter(Boolean).sort()[0];
   const types = [...new Set(ads.flatMap(a => a.types || ['Products']))];
-  $('adsNote').textContent = '· Sponsored ' + types.join(' + ') + ', Amazon Ads API' + (at ? ' · report asked at ' + ptHM(at) + ' PT' : '');
+  $('adsNote').textContent = 'Ads: Sponsored ' + types.join(' + ') + (at ? ' · report asked at ' + ptHM(at) + ' PT, so it runs behind the sales' : '');
   const sub = (y, w) => [Y ? 'Yesterday ' + y : '', w != null ? '7 days ' + w : ''].filter(Boolean).join(' · ');
-  const org = Math.max(0, tot.sales - A.sales);
+  // Layout A: four ad numbers; organic sales and clicks sit in the Amazon table below (A.org, A.week for that table).
   $('adStrip').innerHTML =
     tile('Ad spend', usd(A.spend), sub(Y && usd(Y.spend), usd(Wk.spend)), '', false, AD_C[0], 'Spend on Sponsored Products, Brands and Display today. It runs behind the sales figures.')
     + tile('TACoS', pc(A.spend, tot.sales), sub(Y && pc(Y.spend, salesOn[yd]), haveWk ? pc(Wk.spend, wkSales) : null) || 'ad spend ÷ all sales', '', false, AD_C[1], 'Ad spend ÷ ALL Amazon sales. Lower is better.')
-    + tile('ACoS', pc(A.spend, A.sales), (A.spend ? 'ROAS ' + (A.sales / A.spend).toFixed(2) + ' · ' : '') + sub(Y && pc(Y.spend, Y.sales), pc(Wk.spend, Wk.sales)), '', false, AD_C[2], 'Ad spend ÷ the sales Amazon credits to the ads (7-day for Products, 14-day for Brands and Display, as in the Ads console).')
-    + tile('Ad sales', usd(A.sales), `${int(A.orders)} ad orders · ${pc(A.sales, tot.sales)} of all sales · 7 days ${usd(Wk.sales)}`, '', false, AD_C[3])
-    + tile('Organic sales', usd(org), `${pc(org, tot.sales)} of all sales` + (haveWk ? ` · 7 days ${pc(Math.max(0, wkSales - Wk.sales), wkSales)}` : ''), '', false, AD_C[4], 'All sales minus ad sales.')
-    + tile('Clicks · CPC', int(A.clicks), `${A.clicks ? 'CPC $' + (A.spend / A.clicks).toFixed(2) : 'CPC —'} · CTR ${pc(A.clicks, A.impressions)} · 7 days CPC ${Wk.clicks ? '$' + (Wk.spend / Wk.clicks).toFixed(2) : '—'}`, '', false, AD_C[5]);
+    + tile('ACoS · ROAS', pc(A.spend, A.sales), (A.spend ? 'ROAS ' + (A.sales / A.spend).toFixed(2) : '') + (Y && Y.sales ? ' · yesterday ' + pc(Y.spend, Y.sales) : ''), '', false, AD_C[2], 'Ad spend ÷ the sales Amazon credits to the ads (7-day for Products, 14-day for Brands and Display, as in the Ads console).')
+    + tile('Ad sales', usd(A.sales), `${int(A.orders)} ad orders · ${pc(A.sales, tot.sales)} of all sales`, '', false, AD_C[3]);
+  A.lwSpend = (sum(DATA.lw) || {}).spend;
   return A;
+}
+
+/* Layout A's table beside each hourly chart: rows = measures, columns = the day on view and its comparisons. cols: names;
+   rows: [label, [values…], bold first?]. */
+function tableCard(id, title, cols, rows) {
+  $(id).innerHTML = `<h2>${title}</h2><table><thead><tr><th></th>${cols.map(c => `<th>${c}</th>`).join('')}</tr></thead><tbody>`
+    + rows.map(r => `<tr><td class="lab">${r[0]}</td>${r[1].map((v, i) => `<td>${i === 0 ? '<b>' + v + '</b>' : v}</td>`).join('')}</tr>`).join('') + '</tbody></table>';
 }
 
 /* Shopify & Meta, then all channels (Ravi, 2026-11-20). brands[k].yoy.shop = { now, last, lastWeek } — the brand's Shopify
@@ -399,15 +432,24 @@ function renderShop(live, frac, amz, amzLy, amzLw, amzAds) {
   const G = '#95BF47';
   $('shopNote').textContent = 'Shopify Admin API · Pacific day' + (M ? ' · Meta Marketing API (ad account’s own day)' : '') + (errs.length ? ' · ' + errs.join(' · ') : '');
   const m4 = merge('fourWk'), sh4 = sameTime(m4), m4Day = shops.map(s => s.fourWkDay).filter(Boolean)[0], [c4, k4] = change(sh.sales, sh4.sales);
-  const names = ['Today so far', 'vs last year, same time', 'vs last week, same time', 'vs 4 weeks ago, same time', 'Pace for the day', 'Average order'];
+  // Layout A: four sales numbers; pace and the rest in the table beside the chart.
+  const names = ['Sales today', 'vs last year', 'vs last week', 'vs 4 weeks ago'];
+  const aov = r => (r.orders ? '$' + (r.sales / r.orders).toFixed(2) : '—');
+  const pace = live && shLw.sales ? usd(sh.sales * lwDay.sales / shLw.sales) : null;
   $('shopStrip').innerHTML = shops.length
-    ? tile(names[0], usd(sh.sales), `${int(sh.orders)} orders · ${int(sh.units)} units`, '', false, G, 'The brand’s Shopify store today, Pacific day. Line-item sales, no shipping or tax.')
-      + tile(names[1], cLy, `${dname(DATA.ly, true)}${by}: ${usd(shLy.sales)}` + (shLy.sales ? ` · ${int(shLy.orders)} orders` : ' · the store opened in January 2026'), kLy, false, G)
-      + tile(names[2], cLw, `${dname(DATA.lw)}${by}: ${usd(shLw.sales)} · ${int(shLw.orders)} orders`, kLw, false, G)
-      + tile(names[3], m4Day ? c4 : '—', m4Day ? `${dname(m4Day)}${by}: ${usd(sh4.sales)} · ${int(sh4.orders)} orders` : 'waiting for the backend update', m4Day ? k4 : '', false, G)
-      + tile(names[4], live && shLw.sales ? usd(sh.sales * lwDay.sales / shLw.sales) : (live ? '—' : usd(sh.sales)), live && shLw.sales ? `if the rest of today follows ${dname(DATA.lw)}'s shape · that day ${usd(lwDay.sales)}` : (live ? 'needs last week by this hour' : 'the day is closed'), '', false, G)
-      + tile(names[5], sh.orders ? '$' + (sh.sales / sh.orders).toFixed(2) : '—', (sh.orders ? (sh.units / sh.orders).toFixed(2) + ' units an order' : '') + (shLw.orders ? ' · last week $' + (shLw.sales / shLw.orders).toFixed(2) : ''), '', false, G)
+    ? tile(names[0], usd(sh.sales), `${int(sh.orders)} orders` + (pace ? ` · pace ${pace}` : ''), '', false, G, 'The brand’s Shopify store today, Pacific day. Line-item sales, no shipping or tax. Pace = today scaled by last week’s shape.')
+      + tile(names[1], cLy, shLy.sales ? `was ${usd(shLy.sales)}` : 'store not open last year', kLy, false, G, 'The store opened in January 2026, so last year is $0.')
+      + tile(names[2], cLw, `was ${usd(shLw.sales)}`, kLw, false, G)
+      + tile(names[3], m4Day ? c4 : '—', m4Day ? `was ${usd(sh4.sales)}` : 'waiting for the backend update', m4Day ? k4 : '', false, G)
     : names.map((k, i) => tile(k, '—', i ? '' : (errs[0] ? 'could not read Shopify' : 'waiting for the backend update'), '', false, G)).join('');
+  if (shops.length) tableCard('shTbl', 'Today against', [live ? 'Today' : dname(DATA.day), 'Last week', '4 weeks ago'], [
+    ['Sales', [usd(sh.sales), usd(shLw.sales), m4Day ? usd(sh4.sales) : '—']],
+    ['Orders', [int(sh.orders), int(shLw.orders), m4Day ? int(sh4.orders) : '—']],
+    ['Units', [int(sh.units), int(shLw.units), m4Day ? int(sh4.units) : '—']],
+    ['Average order', [aov(sh), aov(shLw), m4Day ? aov(sh4) : '—']],
+    ['Whole day', [pace ? 'pace ' + pace : usd(sh.sales), usd(lwDay.sales), m4Day ? usd(m4.reduce(add, zero()).sales) : '—']],
+  ]);
+  else $('shTbl').innerHTML = '';
   // --- Shopify charts: today by the hour in Shopify green beside last week, four weeks ago dashed; and the running totals ---
   if (shops.length) {
     const hrs = [...Array(24).keys()], hl = h => hourLabel(h) + '–' + hourLabel((h + 1) % 24), lwN = dname(DATA.lw), m4N = m4Day ? dname(m4Day) : '4 weeks ago';
@@ -424,21 +466,22 @@ function renderShop(live, frac, amz, amzLy, amzLw, amzAds) {
       { vals: cum(now), stroke: '#5E8E3E', width: 3, name: 'Today', end: usdk(sh.sales) + (live ? ' so far' : '') },
     ]);
   }
+  // Layout A: four ad / store numbers for Shopify, like Amazon's ad row.
   $('metaStrip').innerHTML =
-    tile('Meta ad spend', M ? usd(M.spend) : '—', M ? `${int(M.clicks)} clicks · CPC ${M.clicks ? '$' + (M.spend / M.clicks).toFixed(2) : '—'}` : metaWhy, '', false, G, 'Meta (Facebook + Instagram) ad spend today, about 15 minutes behind, in the ad account’s own timezone.')
-    + tile('Meta ROAS', M && M.spend ? (shMeta / M.spend).toFixed(2) : '—', M ? `Shopify sales ÷ Meta spend · Meta counts ${int(M.purchases)} purchases, ${usd(M.value)}` : '', '', false, G)
-    + tile('Shopify TACoS', M ? pc(M.spend, shMeta) : '—', M ? 'Meta spend ÷ Shopify sales' : '', '', false, G, 'Meta spend ÷ Shopify sales: the store’s own TACoS. Lower is better.');
-  // The overview: both channels. Last year counts Shopify as the $0 it was.
+    tile('Meta spend', M ? usd(M.spend) : '—', M ? `${int(M.clicks)} clicks · CPC ${M.clicks ? '$' + (M.spend / M.clicks).toFixed(2) : '—'}` : 'not connected', '', false, G, M ? 'Meta (Facebook + Instagram) ad spend today, about 15 minutes behind, in the ad account’s own timezone.' : metaWhy)
+    + tile('Shopify TACoS', M ? pc(M.spend, shMeta) : '—', M ? 'Meta spend ÷ Shopify sales' : 'needs Meta', '', false, G, 'Meta spend ÷ Shopify sales: the store’s own TACoS. Lower is better.')
+    + tile('Meta ROAS', M && M.spend ? (shMeta / M.spend).toFixed(2) : '—', M ? `Meta counts ${int(M.purchases)} purchases, ${usd(M.value)}` : 'needs Meta', '', false, G)
+    + tile('Average order', aov(sh), sh.orders ? (sh.units / sh.orders).toFixed(2) + ' units an order' : '', '', false, G);
+  // The total: both channels. Last year counts Shopify as the $0 it was.
   const all = amz.sales + sh.sales, allLy = amzLy.sales + shLy.sales, allLw = amzLw.sales + shLw.sales;
   const [cA, kA] = change(all, allLy), [cW, kW] = change(all, allLw);
   const spend = (amzAds ? amzAds.spend : 0) + (M ? M.spend : 0), aPct = all > 0 ? amz.sales / all * 100 : 0;
   $('allStrip').innerHTML =
-    tile('Total sales today', usd(all), `Amazon ${usd(amz.sales)} · Shopify ${usd(sh.sales)}`, '', false, '#6366f1')
-    + tile('vs last year, same time', cA, `${dname(DATA.ly, true)}${by}: ${usd(allLy)}` + (shLy.sales ? '' : ' (Shopify $0)'), kA, false, 'var(--y25)', 'Both channels against the same weekday last year. Shopify counts as $0 last year: the store opened in January 2026.')
-    + tile('vs last week, same time', cW, `${dname(DATA.lw)}${by}: ${usd(allLw)}`, kW, false, '#14b8a6')
-    + tile('Total ad spend', amzAds || M ? usd(spend) : '—', [amzAds ? 'Amazon ' + usd(amzAds.spend) : 'Amazon pending', M ? 'Meta ' + usd(M.spend) : 'Meta not connected'].join(' · '), '', false, '#ef4444')
-    + tile('Overall TACoS', amzAds || M ? pc(spend, all) : '—', amzAds && M ? 'all ads ÷ all sales' : 'so far without ' + (amzAds ? 'Meta' : 'Amazon ads'), '', false, '#f59e0b', 'All ad spend (Amazon + Meta) ÷ all sales (Amazon + Shopify). Lower is better.')
-    + tile('Channel split', all > 0 ? Math.round(aPct) + ' / ' + Math.round(100 - aPct) : '—', `<span class="split"><i class="a" style="width:${aPct}%"></i><i class="s" style="width:${all > 0 ? 100 - aPct : 0}%"></i></span>Amazon ${pc(amz.sales, all)} · Shopify ${pc(sh.sales, all)}`, '', false, '#3b82f6');
+    tile('Sales today', usd(all), `${int(amz.orders + sh.orders)} orders`, '', false, '#6366f1')
+    + tile('vs last year', cA, `was ${usd(allLy)}` + (shLy.sales ? '' : ' (Shopify $0)'), kA, false, 'var(--y25)', 'Both channels against the same weekday last year, by the same time. Shopify counts as $0 last year: the store opened in January 2026.')
+    + tile('vs last week', cW, `was ${usd(allLw)}`, kW, false, '#14b8a6')
+    + tile('Ad spend · TACoS', amzAds || M ? usd(spend) : '—', amzAds || M ? pc(spend, all) + ' of sales' + (M ? '' : ' · Meta not connected') : 'Amazon report pending', '', false, '#ef4444', 'All ad spend (Amazon + Meta) ÷ all sales (Amazon + Shopify). Lower is better.');
+  $('allSplit').innerHTML = all > 0 ? `<span>Channel split</span><span class="split"><i class="a" style="width:${aPct}%"></i><i class="s" style="width:${100 - aPct}%"></i></span><span>Amazon ${pc(amz.sales, all)} · Shopify ${pc(sh.sales, all)}</span>` : '';
 }
 const AD_C = ['#ef4444', '#f59e0b', '#8b5cf6', '#3b82f6', '#22c55e', '#64748b'];
 
@@ -648,15 +691,30 @@ function render() {
   const by = live ? ' by ' + ptHM(DATA.asOf) : '';
   const [cLy, kLy] = change(tot.sales, lySame.sales), [cLw, kLw] = change(tot.sales, lwSame.sales);
   const aov = r => (r.orders ? '$' + (r.sales / r.orders).toFixed(2) : '—');
-  $('salesNote').textContent = '· Amazon Sales API' + (live ? ', to ' + ptHM(DATA.asOf) + ' PT' : '');
+  $('salesNote').textContent = live ? 'to ' + ptHM(DATA.asOf) + ' PT' : dname(DATA.day, true);
+  // One line saying exactly what every "vs" on the page is measured against.
+  $('cmpLine').textContent = (live ? 'Today, ' + dname(DATA.day) + ', to ' + ptHM(DATA.asOf) + ' PT' : dname(DATA.day, true))
+    + ' · compared with ' + dname(DATA.ly, true) + ' (same weekday last year) and ' + dname(DATA.lw) + ' (last week)' + (live ? ', both to the same time' : '');
+  // Layout A: four sales numbers; the rest in the table beside the hourly chart.
+  const pace = live && lySame.sales ? tot.sales * lyDay.sales / lySame.sales : null;
   $('strip').innerHTML =
-    tile(live ? 'Today so far' : dname(DATA.day), usd(tot.sales), `${int(tot.orders)} orders · ${int(tot.units)} units`, '', false, 'var(--y26)')
-    + tile('vs last year, same time', cLy, `${dname(DATA.ly, true)}${by}: ${usd(lySame.sales)} · ${int(lySame.orders)} orders`, kLy, false, 'var(--y25)')
-    + tile('vs last week, same time', cLw, `${dname(DATA.lw)}${by}: ${usd(lwSame.sales)} · ${int(lwSame.orders)} orders`, kLw, false, '#14b8a6')
-    + tile('Last year, whole day', usd(lyDay.sales), `${lyDay.sales ? Math.round(tot.sales / lyDay.sales * 100) + '% of it reached · ' : ''}${int(lyDay.orders)} orders`, '', false, '#a855f7')
-    + tile('Pace for the day', live && lySame.sales ? usd(tot.sales * lyDay.sales / lySame.sales) : '—', live && lySame.sales ? `if the rest of today follows ${dname(DATA.ly)}'s shape` : 'needs last year by this hour', '', false, '#6366f1')
-    + tile('Average order', aov(tot), (tot.orders ? (tot.units / tot.orders).toFixed(2) + ' units an order' : '') + (lySame.orders ? ' · last year ' + aov(lySame) : ''), '', false, '#ec4899');
-  renderShop(live, frac, tot, lySame, lwSame, renderAds(V, tot));
+    tile(live ? 'Sales today' : 'Sales', usd(tot.sales), `${int(tot.orders)} orders`, '', false, '#FF9900')
+    + tile('vs last year', cLy, `was ${usd(lySame.sales)}`, kLy, false, 'var(--y25)', `${dname(DATA.ly, true)}${by}`)
+    + tile('vs last week', cLw, `was ${usd(lwSame.sales)}`, kLw, false, '#14b8a6', `${dname(DATA.lw)}${by}`)
+    + tile('Pace for the day', pace ? usd(pace) : (live ? '—' : usd(tot.sales)), pace ? `last year’s whole day ${usd(lyDay.sales)}` : (live ? 'needs last year by this hour' : 'the day is closed'), '', false, '#6366f1', 'Today so far, scaled by how much of last year’s day was still to come at this hour.');
+  const amzAds = renderAds(V, tot);
+  const lwDayA = V.lastWeek.reduce(add, zero());
+  tableCard('amzTbl', 'Today against', [live ? 'Today' : dname(DATA.day), 'Last year', 'Last week'], [
+    ['Sales', [usd(tot.sales), usd(lySame.sales), usd(lwSame.sales)]],
+    ['Orders', [int(tot.orders), int(lySame.orders), int(lwSame.orders)]],
+    ['Units', [int(tot.units), int(lySame.units), int(lwSame.units)]],
+    ['Average order', [aov(tot), aov(lySame), aov(lwSame)]],
+    ['Whole day', [pace ? 'pace ' + usd(pace) : usd(tot.sales), usd(lyDay.sales), usd(lwDayA.sales)]],
+    ['Ad spend', [amzAds ? usd(amzAds.spend) : '—', '—', amzAds && amzAds.lwSpend != null ? usd(amzAds.lwSpend) + ' (day)' : '—']],
+    ['Organic sales', [amzAds ? usd(Math.max(0, tot.sales - amzAds.sales)) : '—', '—', '—']],
+    ['Clicks · CPC', [amzAds ? int(amzAds.clicks) + (amzAds.clicks ? ' · $' + (amzAds.spend / amzAds.clicks).toFixed(2) : '') : '—', '—', '—']],
+  ]);
+  renderShop(live, frac, tot, lySame, lwSame, amzAds);
   renderPeriod(tot, lySame, lyDay);
   glowChanged();
   $('lgNow').textContent = live ? 'Today' : dname(DATA.day); $('lgLy').textContent = dname(DATA.ly, true) + ' (last year)'; $('lgLw').textContent = dname(DATA.lw) + ' (last week)';
