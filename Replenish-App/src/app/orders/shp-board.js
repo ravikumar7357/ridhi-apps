@@ -471,8 +471,11 @@ function renderShpBoard() {
   const head = '<thead><tr><th class="frz" style="' + SHPB_PAD + 'text-align:left">Date</th><th style="' + SHPB_PAD + 'text-align:left">Order ID</th><th style="' + SHPB_PAD + 'text-align:left">Item</th>'
     + '<th class="num" style="' + SHPB_PAD + '">Pcs</th><th style="' + SHPB_PAD + 'text-align:left">Printer</th>'
     + ['Printer receive', 'Cut', 'Issued', 'Received', 'QC passed'].concat(SHPB_FILLCOL ? ['Filler', 'Qty', 'Rec'] : [], ['Press']).map(h => th(h, 'num')).join('') + '<th style="' + SHPB_PAD + 'text-align:left">Status · ready by</th></tr></thead>';
-  $('odTable').innerHTML = head + '<tbody>' + rows.slice(0, 300).map(shpbRow).join('') + '</tbody>'
-    + (rows.length > 300 ? '<tfoot><tr><td colspan="' + (SHPB_FILLCOL ? 14 : 11) + '" class="muted" style="padding:10px;text-align:left">Showing the first 300 of ' + nf(rows.length) + ' lines — search or filter to narrow them. Export has all of them.</td></tr></tfoot>' : '');
+  /* 100 AT A TIME (20 Nov, "order console bahut hang"): 300 rows were ~1.1 MB of table on every redraw. Show more adds 100. */
+  const cap = Math.max(SHPB_SHOW_STEP, SHPB.show || 0);
+  $('odTable').innerHTML = head + '<tbody>' + rows.slice(0, cap).map(shpbRow).join('') + '</tbody>'
+    + (rows.length > cap ? '<tfoot><tr><td colspan="' + (SHPB_FILLCOL ? 14 : 11) + '" class="muted" style="padding:10px;text-align:left">Showing the first ' + nf(cap) + ' of ' + nf(rows.length) + ' lines '
+      + '<button type="button" class="ghost" data-shpb-more="1" style="margin:0 8px;padding:3px 12px">Show ' + nf(Math.min(SHPB_SHOW_STEP, rows.length - cap)) + ' more</button> or search / filter to narrow them. Export has all of them.</td></tr></tfoot>' : '');
 }
 
 /** COMPLETE: pressed lines waiting for shipping (Accept / Not received), then handed-over lines, newest day first. */
@@ -779,6 +782,22 @@ function shpbNotRecvOpen(key) {
  * it every step with what was done, by whom, and when — printer, printed cloth back, cut, issued to which karigar, received, QC, press,
  * shipping — and where the line is waiting now. Read from the same registers the cells read. */
 const shpbDay = v => { const m = String(v || '').match(/^(\d{4}-\d{2}-\d{2})/) || String(v || '').match(/^(\d{2})\/(\d{2})\/(\d{4})/); return !m ? '' : (m.length === 2 ? shpbDmy(m[1]) : m[1] + '-' + m[2] + '-' + m[3]); };
+/* ONE PASS OVER EACH REGISTER, NOT ONE PER LINE (Ravi, 20 Nov: "order console bahut hang ho rha h"). shpbSteps runs for every line
+ * of the board (the late colour reads its last move), and each run filtered the whole cutting, Job Work and QC registers and every
+ * challan: switching to the AMZ board took 4.7 s, 3.4 s of it here. The records are now grouped once by order + SKU. The groups live
+ * for ONE draw (cleared at the next microtask, like rfdMemo): saves change these registers in place, so nothing older is trusted.
+ * Same records, same order as the filters gave. */
+let SHPB_IX = {}, SHPB_IX_ON = false;
+function shpbIxOf(name, src, keyOf) {
+  if (!SHPB_IX_ON) { SHPB_IX_ON = true; Promise.resolve().then(() => { SHPB_IX = {}; SHPB_IX_ON = false; }); }
+  const c = SHPB_IX[name];
+  if (c && c.src === src) return c.map;
+  const map = new Map();
+  (src || []).forEach(x => { if (!x) return; const ks = keyOf(x); (Array.isArray(ks) ? ks : [ks]).forEach(k => { if (k == null) return; const a = map.get(k); if (a) a.push(x); else map.set(k, [x]); }); });
+  SHPB_IX[name] = { src, map };
+  return map;
+}
+const SHPB_NOTHING = Object.freeze([]);
 function shpbSteps(r) {
   const s = shpbStages([r]), qf = +r.qty || 0, q = qf - s.stk, key = shpbKey(r.orderNo, r.sku), plan = shpbPlanOf(r), fl = shpbFlowOf(r), out = [], rdy = shpbReadyOf(r), stt = shpbStatusOf(r);
   const st = (a, w, d, qq) => (!a && !d) ? 'future' : (w === 0 && d >= (qq == null ? q : qq) ? 'done' : (d > 0 ? 'part' : 'active'));
@@ -787,21 +806,27 @@ function shpbSteps(r) {
   if (s.stk) add('From stock', 'done', nf(s.stk) + ' of ' + nf(qf) + ' completed from ready stock in the India store, handed to shipping', shpbDay((SHPB.ready[key] || {}).at));
   add('PPC plan', plan ? 'done' : 'na', plan ? 'route ' + (plan.route || '') + (shpbPrinterOf(r) ? ' · printer ' + shpbPrinterOf(r) : '') + (plan.dates && plan.dates.ready ? ' · ready ' + shpbDmy(plan.dates.ready) : '') : 'no plan (an older order)', plan ? shpbDay(plan.at) + (plan.by ? ' · ' + String(plan.by).split('@')[0] : '') : '');
   if (fl) {
-    const chs = Object.values((typeof FLOW !== 'undefined' && FLOW && FLOW.ch) || {}).filter(c => c && !c.cancelled && (c.lines || []).some(l => l.key === key));
+    const chSrc = (typeof FLOW !== 'undefined' && FLOW && FLOW.ch) || null;
+    const chIx = chSrc ? (SHPB_IX.ch && SHPB_IX.ch.raw === chSrc ? SHPB_IX.ch.map
+      : (shpbIxOf('ch', Object.values(chSrc), c => (c.cancelled ? null : [...new Set((c.lines || []).map(l => l && l.key).filter(Boolean))])), SHPB_IX.ch.raw = chSrc, SHPB_IX.ch.map)) : null;
+    const chs = (chIx && chIx.get(key)) || SHPB_NOTHING;
     add('Printer receive', st(s.prcA, s.prcW, s.prcD), nf(s.prcD) + ' of ' + nf(q) + ' back from the printer' + (chs.length ? ' · ' + chs.map(c => c.no).join(', ') : ' · no challan yet'),
       chs.map(c => { const rc = Object.values(c.receipts || {}).filter(x => x && x.items && x.items[key]); return rc.length ? shpbDay(rc[rc.length - 1].date) : ''; }).filter(Boolean).join(', '));
   }
   if (r.cutReq) {
-    const cs = (PT.cut || []).filter(c => c && obUC(c.orderNo) === r.orderNo && obUC(c.sku) === r.sku);
+    const cs = shpbIxOf('cut', PT.cut, c => obUC(c.orderNo) + '|' + obUC(c.sku)).get(r.orderNo + '|' + r.sku) || SHPB_NOTHING;
     add('Cut', st(s.cutA, s.cutW, s.cutD), nf(s.cutD) + ' of ' + nf(q) + ' cut' + (cs.length ? ' · ' + cs.map(c => nf(ptNum(c.pieces))).join(' + ') : ''), cs.length ? shpbDay(cs[cs.length - 1].cutDate) : '');
   }
-  const bs = (PT.base || []).filter(b => b && obUC(b.orderNo) === r.orderNo && obUC(b.sku) === r.sku);
+  const bs = shpbIxOf('base', PT.base, b => obUC(b.orderNo) + '|' + obUC(b.sku)).get(r.orderNo + '|' + r.sku) || SHPB_NOTHING;
   add('Issued', st(s.issA, s.issW, s.issD), nf(s.issD) + ' of ' + nf(q) + ' issued' + (bs.length ? ' · ' + bs.map(b => b.empName + ' ' + nf(ptNum(b.issuePieces))).join(', ') : ''), bs.length ? shpbDay(bs[bs.length - 1].issueDate) : '');
   add('Received', st(s.recA, s.recW, s.recD), nf(s.recD) + ' of ' + nf(q) + ' back from karigars' + (bs.some(b => ptNum(b.receivedPieces)) ? ' · ' + bs.filter(b => ptNum(b.receivedPieces)).map(b => b.empName + ' ' + nf(ptNum(b.receivedPieces))).join(', ') : ''),
     bs.filter(b => b.receivingDate).length ? shpbDay(bs.filter(b => b.receivingDate).pop().receivingDate) : '');
-  const qcs = ((typeof QC !== 'undefined' && QC.checks) || []).filter(c => c && obUC(c.orderNo) === r.orderNo && qcNorm(c.sku) === r.sku && ptNum(c.ok) > 0);
+  const qcs = (typeof QC !== 'undefined' && QC.checks ? shpbIxOf('qc', QC.checks, c => (ptNum(c.ok) > 0 ? obUC(c.orderNo) + '|' + qcNorm(c.sku) : null)).get(r.orderNo + '|' + r.sku) : null) || SHPB_NOTHING;
   add('QC passed', s.qcW ? (s.qcD ? 'part' : (s.qcA ? 'active' : 'future')) : (s.qcA ? 'done' : 'future'), nf(s.qcD) + ' of ' + nf(q) + ' passed' + (qcs.length ? ' · by ' + [...new Set(qcs.map(c => c.checkedBy || String(c.addedBy || '').split('@')[0]))].join(', ') : ''), qcs.length ? shpbDay(qcs[qcs.length - 1].date) : '');
-  const px = (SHPB.pressBy || {})[key] || {}, pe = Object.values(SHPB.press || {}).filter(e => e && shpbKey(e.orderNo, e.sku) === key);
+  const pxSrc = SHPB.press || null;
+  const pxIx = pxSrc ? (SHPB_IX.press && SHPB_IX.press.raw === pxSrc ? SHPB_IX.press.map
+    : (shpbIxOf('press', Object.values(pxSrc), e => shpbKey(e.orderNo, e.sku)), SHPB_IX.press.raw = pxSrc, SHPB_IX.press.map)) : null;
+  const px = (SHPB.pressBy || {})[key] || {}, pe = (pxIx && pxIx.get(key)) || SHPB_NOTHING;
   if (shpbIsQuilt(r)) { const fz = shpbFillOf(r) || {}, fi = Object.values(fz.iss || {}), fr = Object.values(fz.rec || {}), lastF = fr.concat(fi).map(x => x.date).sort().pop();
     add('Filling', st(s.prsA, s.prsW, s.prsD), nf(s.prsD) + ' of ' + nf(q) + ' back filled' + (fz.name ? ' · ' + fz.name : '') + ' · ' + nf(shpbFillSum(fz, 'iss')) + ' issued', lastF ? shpbDmy(lastF) : ''); }
   else add('Press', st(s.prsA, s.prsW, s.prsD), nf(s.prsD) + ' of ' + nf(q) + ' pressed' + (pe.length ? ' · ' + pe.map(e => e.pressman + ' ' + nf(e.pieces)).join(', ') : ''), px.last ? shpbDmy(px.last) : '');
@@ -829,7 +854,12 @@ function shpbJourneyOpen(orderNo) {
 }
 
 if (SHPB_ON && $('odView') && $('odView').insertAdjacentHTML) $('odView').insertAdjacentHTML('beforeend', Object.entries(SHPB_KINDS).map(([v, k]) => `<option value="${v}">${k[1]}</option>`).join(''));
+const SHPB_SHOW_STEP = 100;
 if ($('odTable') && $('odTable').addEventListener) {
+  $('odTable').addEventListener('click', e => {
+    const b = e.target.closest && e.target.closest('[data-shpb-more]'); if (!b) return;
+    SHPB.show = Math.max(SHPB_SHOW_STEP, SHPB.show || 0) + SHPB_SHOW_STEP; renderShpBoard();
+  });
   $('odTable').addEventListener('click', e => {
     if (typeof ordView !== 'function' || !shpbIsBoard(ordView())) return;
     const oj = e.target.closest && e.target.closest('[data-ordj]'); if (oj) { e.preventDefault(); e.stopPropagation(); shpbJourneyOpen(oj.getAttribute('data-ordj')); }
