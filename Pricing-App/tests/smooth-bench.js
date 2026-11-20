@@ -76,7 +76,7 @@ function healthPage(opts) {
   };
   const src = ['listing-health.js', 'listing-rules.js', 'listing-match.js', 'listing-health-data.js', 'parent-check.js', 'listing-rules-tab.js', 'listing-workspace.js', 'listing-saved.js', 'listing-kid.js', 'listing-bf.js', 'listing-sync.js'].concat(opts.extra || []).map(L).join('\n')
     + '\n;LR = JSON.parse(JSON.stringify(LR_DEFAULT));'
-    + '\n;return { HEALTH, LI_WS, LR_CAT, renderHealth, hCtx, healthOf, reset: () => { H_CTX = null; }, setLoaded: v => { H_LOADED = v; }, setView: v => { H_VIEW = v; }, setSort: s => { H_SORT = s; },'
+    + '\n;return { HEALTH, LI_WS, LR_CAT, getLR: () => LR, renderHealth, hCtx, healthOf, reset: () => { H_CTX = null; }, setLoaded: v => { H_LOADED = v; }, setView: v => { H_VIEW = v; }, setSort: s => { H_SORT = s; },'
     + ' setFocus: f => { H_FOCUS = f; }, getRender: () => H_RENDER, lmStoreUse, setSaved: v => { LR_SAVED_AT = v; },'
     + ' liWsRender, liWsPanelOpen, liWsPanelRender, liWsParents, hFocusBar, LR_STALE_DAYS, LR_DAY,'
     + ' hHealthKept: typeof hHealthKept === "function" ? hHealthKept : null, hHealthUntil: typeof hHealthUntil === "function" ? hHealthUntil : null };';

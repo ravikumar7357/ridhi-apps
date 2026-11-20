@@ -406,17 +406,18 @@ const patches = (C, apply) => C.calls.filter(c => c.lfix === 'patch' && c.apply 
     const p = C.TT.run.plans[0];
     const pop = C.el('spModalBox').innerHTML;
     ok('the Guard\'s Fix title opens that popup for the listing', C.TT.run.plans.length === 1 && p.sku === 'NP-3' && /<b>Fix all titles — NP-3<\/b>/.test(pop), strip(pop).slice(0, 200));
-    ok('the new title is made by the title template from the listing\'s facts — no "Pottery Barn Style" — and it says what it fixes', p.ok && p.after === 'Ridhi Cloth Napkins 100% Cotton 18 x 18 Inch Block Print Reusable - Green' && p.fixes.includes('Risky word: Pottery Barn'), JSON.stringify([p.after, p.why, p.fixes]));
+    // OUR TITLE FORMAT (20 Nov 2026): the listing's own title, its own words and order, with only the risky words taken out
+    ok('the new title is the listing\'s own title with "Pottery Barn Style" taken out — nothing else changed — and it says what it fixes', p.ok && p.after === 'Ridhi Cloth Napkins 100% Cotton 18 x 18 Inch Block Print - Green' &&p.fixes.includes('Risky word: Pottery Barn'), JSON.stringify([p.after, p.why, p.fixes]));
     ok('nothing is sent without the person: ticked row, "Check with Amazon & send 1", Edit new title', patches(C, false).filter(c => c.sku === 'NP-3').length === 0 && /data-tt="go"[^>]*>Check with Amazon &amp; send 1</.test(pop) && /Edit new title/.test(pop));
     C.ttInput({ dataset: { ttEdit: 'SP|NP-3' }, value: 'Ridhi Cloth Napkins 100% Cotton 18 x 18 Inch Block Print Disney - Green' });
     const chk = C.ttRunCheck(C.TT.run, p);
     ok('a title edited to hold another brand\'s name is refused: ✕ risky word “Disney”', !chk.pass && chk.fails.some(f => /risky word “Disney” \(another brand's name\)/.test(f)), chk.fails.join(' | '));
     C.ttClick({ dataset: { tt: 'cancel' } });
     ok('Cancel: nothing sent', patches(C, true).filter(c => c.sku === 'NP-3').length === 0);
-    // TC-3: the claim is in the title and the template's own material is "100% Cotton"
+    // TC-3: the claim is in the title — only the claim word goes, the title keeps its own words and order
     click(C, { ipg: 'fixtitle', ipgS: 'SP|' + A('TC-3'), ipgB: 'SP' });
     await wait(() => C.TT.run && C.TT.run.plans.length && C.TT.run.plans[0].sku === 'TC-3' && !C.TT.run.total);
-    ok('TC-3 ("Organic Cotton" in the title, Amazon\'s material is Cotton): the new title says "100% Cotton"', C.TT.run.plans[0].ok && /^Ridhi Tablecloth Rectangle 100% Cotton 60 x 90 Inch (Hand )?Block Print - Pink$/.test(C.TT.run.plans[0].after), C.TT.run.plans[0].after + ' · ' + C.TT.run.plans[0].why);
+    ok('TC-3 ("Organic Cotton" in the title, Amazon\'s material is Cotton): "Organic" taken out, everything else word-for-word', C.TT.run.plans[0].ok && C.TT.run.plans[0].after === 'Ridhi Tablecloth Rectangle Cotton 60 x 90 Inch Block Print - Pink', C.TT.run.plans[0].after + ' · ' + C.TT.run.plans[0].why);
     C.ttClick({ dataset: { tt: 'cancel' } });
   }
 

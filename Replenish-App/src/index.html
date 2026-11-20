@@ -1474,6 +1474,7 @@
           <div class="seg">
             <select id="qcView" style="flex:0 0 190px">
               <option value="inbox">Waiting for QC</option>
+              <option value="passed">QC passed</option>
               <option value="dept">Spotting &amp; touching</option>
               <option value="ledger">QC ledger (day-wise)</option>
               <option value="checks">Checks</option>
@@ -1481,13 +1482,6 @@
               <option value="ret">Received back from alteration</option>
             </select>
           </div>
-          <label class="muted" style="font-size:12.5px;flex:0 0 auto;display:flex;align-items:center;gap:6px" id="qcShowWrap">Show
-            <select id="qcShow" style="flex:0 0 140px" title="All = the list with accepted rows in their place · Still waiting = only what is left to check · Accepted = what QC has taken">
-              <option value="all">All</option>
-              <option value="waiting">Still waiting</option>
-              <option value="accepted">Accepted</option>
-            </select>
-          </label>
           <input id="qcQ" placeholder="Search SKU / article / person" style="flex:1 1 200px;min-width:0">
           <span class="muted" style="font-size:12.5px;flex:0 0 auto">Dated</span>
           <input id="qcD1" type="date" style="flex:0 0 150px" title="From this date">
