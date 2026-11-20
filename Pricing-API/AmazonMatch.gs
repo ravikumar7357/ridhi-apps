@@ -22,7 +22,9 @@
  *                 has, whatever the cost type. matchDay prints both, so the first check settles which one the console uses.
  *
  * EVERY NIGHT (a pass starts after MATCH_START_HOUR in the script's time zone, when the Pacific day has ended):
- *   - Business Reports: the last MATCH_BIZ_REFRESH days, one report per brand. First time: two years, in slices.
+ *   - Business Reports: the last MATCH_BIZ_REFRESH days up to yesterday, one report per brand. First time: two years,
+ *     in slices cut from the newest day back. Amazon publishes a day or two late, so the newest days fill in over the
+ *     next nights; an empty answer for the last MATCH_FRESH_DAYS days is "not published yet", not a failure.
  *   - Ads: the last MATCH_ADS_REFRESH days for SP, SB and SD, in 31-day reports (Amazon's maximum). First time: as far
  *     back as Amazon still keeps each type — the start is read off Amazon's own refusal message rather than guessed.
  *   - A report that fails is asked for again, up to MATCH_TRIES times. A day is only ever REPLACED by a report that
@@ -50,6 +52,7 @@ var MATCH_BIZ_SLICE = 182;      // days per Business Reports request during the 
 var MATCH_ADS_BACK = 95;        // first ask; Amazon's refusal message moves the start to what it really keeps
 var MATCH_ADS_SLICE = 31;       // Ads API v3 maximum per report
 var MATCH_TRIES = 3;
+var MATCH_FRESH_DAYS = 3;       // Amazon publishes Business Reports a day or two late: an empty answer this recent is "not yet", not a failure
 var MATCH_BIZ_ASKS_PER_TICK = 3;   // SP-API createReport allows about one a minute after a burst; nightly needs some too
 var MATCH_BRANDS = ['SP', 'CPC'];
 var MATCH_BRAND_LABEL = { SP: 'Ridhi', CPC: 'CPC' };
@@ -241,7 +244,10 @@ function ammTick_() {
         // asked: see whether it is ready
         if (j.k === 'biz') {
           var s = ammBizStatus_(j.id);
-          if (s.dead) { ammRetry_(st, j, 'Amazon could not build it (' + s.status + ')'); continue; }
+          if (s.dead) {
+            if (ammRecent_(j.s)) { j.st = 'skip'; j.m = 'not published by Amazon yet'; ammSave_(st); continue; }
+            ammRetry_(st, j, 'Amazon could not build it (' + s.status + ')'); continue;
+          }
           if (!s.ready) continue;
           if (left() < 45000) break;
           var fetched = ammBizFetch_(s.doc);
@@ -252,7 +258,10 @@ function ammTick_() {
             into[day] = fetched.days[day]; n++;
           });
           if (fetched.cur) B.cur[j.b] = fetched.cur;
-          if (!n) { ammRetry_(st, j, 'report came back without the days asked for'); continue; }
+          if (!n) {
+            if (ammRecent_(j.s)) { j.st = 'skip'; j.m = 'not published by Amazon yet'; ammSave_(st); continue; }
+            ammRetry_(st, j, 'report came back without the days asked for'); continue;
+          }
           dirtyBiz = true;
         } else {
           var r = ammAdsStatus_(j.id);
@@ -300,25 +309,44 @@ function ammTick_() {
 /** Build tonight's list of reports. */
 function ammPlan_(old, todayLocal) {
   var today = ammToday_(), yest = ammAdd_(today, -1);
-  var filled = old.filled || {};
+  var filled = ammFilledFromCache_(old.filled || {}, yest);
   var jobs = [];
   MATCH_BRANDS.forEach(function (b) {
-    // Business Reports: up to today (today and the last 2-3 days are estimates; the screen will say so).
-    var bizFrom = filled[b + '|biz'] ? ammAdd_(today, -(MATCH_BIZ_REFRESH - 1)) : ammAdd_(today, -MATCH_BIZ_BACK);
+    // Business Reports: up to yesterday (Pacific). Today is never published yet; the last 2-3 days arrive over the next
+    // nights, because every pass re-reads the last MATCH_BIZ_REFRESH days.
+    var bizBack = filled[b + '|biz'] ? MATCH_BIZ_REFRESH : MATCH_BIZ_BACK;
     var bizSlice = filled[b + '|biz'] ? MATCH_BIZ_REFRESH : MATCH_BIZ_SLICE;
-    ammSlices_(bizFrom, today, bizSlice).forEach(function (r) {
+    ammSlices_(ammAdd_(yest, -(bizBack - 1)), yest, bizSlice).forEach(function (r) {
       jobs.push({ k: 'biz', b: b, s: r[0], e: r[1], st: 'new', fill: filled[b + '|biz'] ? 0 : 1 });
     });
-    // Ads: up to yesterday, newest slice first so the recent days arrive soonest.
+    // Ads: up to yesterday.
     ['sp', 'sb', 'sd'].forEach(function (k) {
       var back = filled[b + '|' + k] ? MATCH_ADS_REFRESH : MATCH_ADS_BACK;
-      ammSlices_(ammAdd_(yest, -(back - 1)), yest, MATCH_ADS_SLICE).reverse().forEach(function (r) {
+      ammSlices_(ammAdd_(yest, -(back - 1)), yest, MATCH_ADS_SLICE).forEach(function (r) {
         jobs.push({ k: k, b: b, s: r[0], e: r[1], st: 'new', fill: filled[b + '|' + k] ? 0 : 1 });
       });
     });
   });
   return { day: todayLocal, phase: 'run', startedAt: ammNow_(), jobs: jobs, doneN: 0,
            filled: filled, errors: [], plannedFill: jobs.some(function (j) { return j.fill; }) };
+}
+
+/** A first fill whose days are already in the cache counts as done, even if the state lost track of it. */
+function ammFilledFromCache_(filled, yest) {
+  var out = {}; Object.keys(filled).forEach(function (k) { out[k] = filled[k]; });
+  var biz = null, ads = null;
+  try { biz = cacheRead_('matchBiz'); ads = cacheRead_('matchAds'); } catch (e) { return out; }
+  MATCH_BRANDS.forEach(function (b) {
+    var bd = Object.keys((biz && biz.d && biz.d[b]) || {}).sort();
+    if (!out[b + '|biz'] && bd.length && bd[0] <= ammAdd_(yest, -(MATCH_BIZ_BACK - 45))) out[b + '|biz'] = 1;
+    var ad = (ads && ads.d && ads.d[b]) || {};
+    ['sp', 'sb', 'sd'].forEach(function (k) {
+      if (out[b + '|' + k]) return;
+      var days = Object.keys(ad).filter(function (d) { return ad[d] && ad[d][k]; }).sort();
+      if (days.length && days[0] <= ammAdd_(yest, -50)) out[b + '|' + k] = 1;
+    });
+  });
+  return out;
 }
 
 function ammFinish_(st) {
@@ -559,15 +587,17 @@ function ammToday_() { return Utilities.formatDate(new Date(), ORDERS_PT, 'yyyy-
 function ammAdd_(iso, n) { return Utilities.formatDate(new Date(Date.parse(iso + 'T12:00:00Z') + n * 86400000), 'UTC', 'yyyy-MM-dd'); }
 function ammMin_(a, b) { return a < b ? a : b; }
 function ammWeekday_(iso) { return Utilities.formatDate(new Date(Date.parse(iso + 'T12:00:00Z')), 'UTC', 'EEE'); }
-/** [from, to] inclusive, cut into slices of at most `size` days, oldest first. */
+/** [from, to] inclusive, cut into slices of at most `size` days, NEWEST first. Cut from the newest day back, so a
+ *  short leftover piece is always the oldest one — never a lone recent day Amazon has not published yet. */
 function ammSlices_(from, to, size) {
   var out = [];
-  for (var s = from; s <= to; s = ammAdd_(s, size)) {
-    var e = ammAdd_(s, size - 1);
-    out.push([s, e > to ? to : e]);
+  for (var e = to; e >= from; e = ammAdd_(e, -size)) {
+    var s = ammAdd_(e, -(size - 1));
+    out.push([s < from ? from : s, e]);
   }
   return out;
 }
+function ammRecent_(iso) { return iso >= ammAdd_(ammToday_(), -MATCH_FRESH_DAYS); }
 function ammR2_(v) { return Math.round(v * 100) / 100; }
 function ammMoney_(v) { return (Number(v) || 0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
 function ammPad_(s, n) { s = String(s); while (s.length < n) s += ' '; return s; }

@@ -53,6 +53,7 @@ jobs:
       - name: Tests (no internet, no accounts)
         run: |
           node test/router.test.mjs
+          node test/judge.test.mjs
           node test/same-cleaning.test.mjs
 
       - name: The D1 database ID is filled in

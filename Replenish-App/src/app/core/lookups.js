@@ -114,9 +114,12 @@ function obBaseIndex() {
   rows.forEach(r => {
     if (!r) return;
     const k = obKeyOf(r.orderNo, r.sku);
-    let e = m.get(k); if (!e) { e = { issued: 0, received: 0 }; m.set(k, e); }
+    let e = m.get(k); if (!e) { e = { issued: 0, received: 0, rejected: 0 }; m.set(k, e); }
     e.issued += ptNum(r.issuePieces);
     e.received += ptNum(r.receivedPieces);
+    /* Rejected when it came back from the karigar: the entry closes on it, so it is no longer out with anybody. Issued stays
+     * gross (reports show what went out); the board and the issue allowance take this off themselves. */
+    e.rejected += ptNum(r.rejectionPieces);
   });
   BASE_IX = { src: rows, n: rows.length, map: m };
   return m;
@@ -178,13 +181,18 @@ function obPackFamily(sku) {
 function obPcsPerPack(sku, articleType, articleSubtype) {
   const s = obUC(sku);
   const m = mdbOf(s);
-  const p = m ? parseInt(String(m.packOf || '').replace(/[^0-9]/g, ''), 10) : 0;
+  /* NOT IN THE MASTER: the Custom SKUs list says what it is (Ravi, 15 Nov: CPCFP014-12, an embroidery placemat set of 12, read as 1 —
+   * the order line carried no article and CPCFP is not one of the set prefixes below). */
+  const cu = !m && typeof ptCustomOf === 'function' ? ptCustomOf(s) : null;
+  const p = (m || cu) ? parseInt(String((m || cu).packOf || '').replace(/[^0-9]/g, ''), 10) : 0;
   if (p > 0) return p;
-  const hay = [articleType, articleSubtype].join(' ');
+  const hay = [articleType || (cu && cu.articleType), articleSubtype || (cu && cu.subtype)].join(' ');
   /* A SET WRITES ITS SIZE INTO THE SKU. RCNB374-12 is twelve napkins; RTME-147-8 eight mats. */
   if (/napkin|placemat|place mat|table ?mat/i.test(hay) || /^(RCN|RCCN|CPCN|RTME)/.test(s)) {
-    const n = s.match(/-(\d{1,2})$/);
-    if (n && +n[1] >= 1 && +n[1] <= 48) return +n[1];
+    /* …and -100 is a set of a hundred (Ravi, 15 Nov: "SKU ke end me 100 h meaning 100 pcs" — RCNE502-100; 226 such SKUs, the
+     * master's pack box empty on them). Other numbers past 48 are design or size codes (RTME-502, RCNB33-2020), not a count. */
+    const n = s.match(/-(\d{1,3})$/);
+    if (n && ((+n[1] >= 1 && +n[1] <= 48) || +n[1] === 100)) return +n[1];
     /* A CPC NAPKIN CODE WITH NO SIZE AFTER IT IS A SET OF FOUR (Ravi, 29 Oct: CPCN007 = 4 pcs, CPCN005-12 = 12 pcs). */
     if (/^CPCN/.test(s) && !/-\d+$/.test(s)) return 4;
   }

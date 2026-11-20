@@ -62,6 +62,11 @@ function shpAssignNo(o, taken) {
   const id = String((o && o.id) || '');
   const owner = taken.get(base);
   if (owner === undefined || owner === '' || owner === id) { taken.set(base, id); return base; }
+  /* AN IMPORTED ROW IS THE SAME ORDER (16 Nov: 8 orders opened twice — SHP-DDBC8XMK4Q and SHP-DDBC8XMK4Q-MK4Q, SHP-4202467007 and
+   * -7007 …). An order brought in from a sheet has no Shopify id, so its id is its own number; the same order fetched from Shopify
+   * carries the real id. They are one order, not two shops sharing a number: whichever came first keeps the number for both. */
+  const plain = String((o && o.no) || '').replace(/[^A-Za-z0-9]+/g, '').toUpperCase();
+  if (plain && (id.replace(/[^A-Za-z0-9]+/g, '').toUpperCase() === plain || String(owner).replace(/[^A-Za-z0-9]+/g, '').toUpperCase() === plain)) return base;
   const tail = ((id.replace(/[^A-Za-z0-9]+/g, '').slice(-4)) || 'X').toUpperCase();
   let alt = base + '-' + tail, n = 2;
   while (taken.has(alt) && taken.get(alt) !== id) { alt = base + '-' + tail + n; n++; }

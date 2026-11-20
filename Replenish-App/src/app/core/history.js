@@ -248,24 +248,29 @@ async function ptPut(path, value) {
     if (baseRoutePath(path)) return ptPatch({ [path]: value });
   }
   ptLiveWrote([path]);
+  /* Live mirror (core/mirror.js): sent NOW, at the same moment as this save to Firebase — not after it. If Firebase then
+   * says no, the mirror is put right with what Firebase really holds (ptMirrorFix). Never waits, never throws. */
+  const early = typeof ptMirrorEarly === 'function' ? ptMirrorEarly('put', { [path]: value }) : null;
   let r = null, merged = false;
-  const nl = value === undefined ? null : saNoteLines([path], true, null);
-  if (nl) {
-    r = await saSend(Object.assign({ [saRawPath(path)]: value }, nl));
-    if (r.status === 403) { saRefused([path], 403); r = null; } else merged = true;
-  }
-  if (!r) r = await fetch(`${PT_URL}/${ptPath(path)}.json` + await ptAuthQuery(), {
-    method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(value),
-  });
-  ptLiveWrote([path]);
-  if (!r.ok) ptSaveFailed('put', [path], r.status);
-  if (r.status === 401 || r.status === 403)
-    throw new Error('The production database refused the write (permission denied). Sign out and '
-      + 'sign in again; if it keeps happening, this account is not allowed to change production data.');
-  if (!r.ok) throw new Error(`The production database answered ${r.status} ${r.statusText || ''}`.trim());
+  try {
+    const nl = value === undefined ? null : saNoteLines([path], true, null);
+    if (nl) {
+      r = await saSend(Object.assign({ [saRawPath(path)]: value }, nl));
+      if (r.status === 403) { saRefused([path], 403); r = null; } else merged = true;
+    }
+    if (!r) r = await fetch(`${PT_URL}/${ptPath(path)}.json` + await ptAuthQuery(), {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(value),
+    });
+    ptLiveWrote([path]);
+    if (!r.ok) ptSaveFailed('put', [path], r.status);
+    if (r.status === 401 || r.status === 403)
+      throw new Error('The production database refused the write (permission denied). Sign out and '
+        + 'sign in again; if it keeps happening, this account is not allowed to change production data.');
+    if (!r.ok) throw new Error(`The production database answered ${r.status} ${r.statusText || ''}`.trim());
+  } catch (e) { if (early) ptMirrorFix(early); throw e; }
   const out = merged ? value : await r.json();
   auditLog('put', { [path]: value });
-  if (typeof ptMirror === 'function') ptMirror('put', { [path]: value });   // live mirror (core/mirror.js): never waits, never throws
+  if (!early && typeof ptMirror === 'function') ptMirror('put', { [path]: value });   // live mirror, the old way (after the save): never waits, never throws
   if (!merged) ptSyncNote([path], true);
   if (typeof oalAfterSave === 'function') oalAfterSave(path, value, 'put');
   return out;
@@ -285,15 +290,19 @@ async function ptCas(path, expect, next) {
   const cur = await (typeof dmJson === 'function' ? dmJson(g, path, 'plain') : g.json()), tag = g.headers.get('ETag');
   if (JSON.stringify(cur == null ? null : cur) !== JSON.stringify(expect == null ? null : expect)) return 'changed';
   ptLiveWrote([path]);
-  const r = await fetch(url, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'if-match': tag }, body: JSON.stringify(next) });
-  ptLiveWrote([path]);
-  if (r.status === 412) return 'changed';
-  if (!r.ok) ptSaveFailed('put', [path], r.status);
-  if (r.status === 401 || r.status === 403)
-    throw new Error('The production database refused the change — this account does not hold the right it needs.');
-  if (!r.ok) throw new Error(`The production database answered ${r.status} ${r.statusText || ''}`.trim());
+  const early = typeof ptMirrorEarly === 'function' ? ptMirrorEarly('put', { [path]: next }) : null;   // sent with the write itself
+  let r;
+  try {
+    r = await fetch(url, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'if-match': tag }, body: JSON.stringify(next) });
+    ptLiveWrote([path]);
+    if (r.status === 412) { if (early) ptMirrorFix(early); return 'changed'; }      // somebody else was first: the mirror gets theirs
+    if (!r.ok) ptSaveFailed('put', [path], r.status);
+    if (r.status === 401 || r.status === 403)
+      throw new Error('The production database refused the change — this account does not hold the right it needs.');
+    if (!r.ok) throw new Error(`The production database answered ${r.status} ${r.statusText || ''}`.trim());
+  } catch (e) { if (early) ptMirrorFix(early); throw e; }
   auditLog('put', { [path]: next });
-  if (typeof ptMirror === 'function') ptMirror('put', { [path]: next });
+  if (!early && typeof ptMirror === 'function') ptMirror('put', { [path]: next });
   ptSyncNote([path], true);
   if (typeof oalAfterSave === 'function') oalAfterSave(path, next, 'put');
   return '';
@@ -316,24 +325,27 @@ async function ptPatch(updates, opts) {
     && (k.split('/').filter(Boolean).length <= 2 || /^pt_baseDone\/\d{4}-\d{2}-\d{2}\/[^/]+$/.test(k)));
   if (gone.length) await auditTrash(gone, 'patch');
   ptLiveWrote(Object.keys(updates || {}));
+  const early = typeof ptMirrorEarly === 'function' ? ptMirrorEarly('patch', updates || {}) : null;   // sent with the save itself
   let r = null, merged = false;
-  const nl = saNoteLines(Object.keys(updates || {}), false, updates);
-  if (nl) {
-    r = await saSend(Object.assign({}, updates, nl));
-    if (r.status === 403) { saRefused(Object.keys(updates || {}), 403); r = null; } else merged = true;
-  }
-  if (!r) r = await fetch(`${PT_URL}/.json` + await ptAuthQuery(), {
-    method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updates),
-  });
-  ptLiveWrote(Object.keys(updates || {}));
-  if (!r.ok) ptSaveFailed('patch', Object.keys(updates || {}), r.status);
-  if (r.status === 401 || r.status === 403)
-    throw new Error('The production database refused the change — this account does not hold the right '
-      + 'it needs. If the right was only just given, sign out and in again; otherwise ask an admin.');
-  if (!r.ok) throw new Error(`The production database answered ${r.status} ${r.statusText || ''}`.trim());
+  try {
+    const nl = saNoteLines(Object.keys(updates || {}), false, updates);
+    if (nl) {
+      r = await saSend(Object.assign({}, updates, nl));
+      if (r.status === 403) { saRefused(Object.keys(updates || {}), 403); r = null; } else merged = true;
+    }
+    if (!r) r = await fetch(`${PT_URL}/.json` + await ptAuthQuery(), {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updates),
+    });
+    ptLiveWrote(Object.keys(updates || {}));
+    if (!r.ok) ptSaveFailed('patch', Object.keys(updates || {}), r.status);
+    if (r.status === 401 || r.status === 403)
+      throw new Error('The production database refused the change — this account does not hold the right '
+        + 'it needs. If the right was only just given, sign out and in again; otherwise ask an admin.');
+    if (!r.ok) throw new Error(`The production database answered ${r.status} ${r.statusText || ''}`.trim());
+  } catch (e) { if (early) ptMirrorFix(early); throw e; }
   const out = await r.json();
   auditLog('patch', updates || {});
-  if (typeof ptMirror === 'function') ptMirror('patch', updates || {});
+  if (!early && typeof ptMirror === 'function') ptMirror('patch', updates || {});
   if (!merged) ptSyncNote(Object.keys(updates || {}), false);
   if (typeof oalAfterSave === 'function') oalAfterSave('', updates, 'patch');
   if (baseMonths.length) await baseForget(baseMonths);
@@ -349,18 +361,21 @@ async function ptDelete(path) {
   }
   await auditTrash([path], 'delete');
   ptLiveWrote([path]);
+  const early = typeof ptMirrorEarly === 'function' ? ptMirrorEarly('delete', { [path]: null }) : null;   // sent with the delete itself
   let r = null, merged = false;
-  const nl = saNoteLines([path], true, null);
-  if (nl) {
-    r = await saSend(Object.assign({ [saRawPath(path)]: null }, nl));
-    if (r.status === 403) { saRefused([path], 403); r = null; } else merged = true;
-  }
-  if (!r) r = await fetch(`${PT_URL}/${ptPath(path)}.json` + await ptAuthQuery(), { method: 'DELETE' });
-  ptLiveWrote([path]);
-  if (!r.ok) ptSaveFailed('delete', [path], r.status);
-  if (!r.ok) throw new Error(`The production database answered ${r.status} ${r.statusText || ''}`.trim());
+  try {
+    const nl = saNoteLines([path], true, null);
+    if (nl) {
+      r = await saSend(Object.assign({ [saRawPath(path)]: null }, nl));
+      if (r.status === 403) { saRefused([path], 403); r = null; } else merged = true;
+    }
+    if (!r) r = await fetch(`${PT_URL}/${ptPath(path)}.json` + await ptAuthQuery(), { method: 'DELETE' });
+    ptLiveWrote([path]);
+    if (!r.ok) ptSaveFailed('delete', [path], r.status);
+    if (!r.ok) throw new Error(`The production database answered ${r.status} ${r.statusText || ''}`.trim());
+  } catch (e) { if (early) ptMirrorFix(early); throw e; }
   auditLog('delete', { [path]: null });
-  if (typeof ptMirror === 'function') ptMirror('delete', { [path]: null });
+  if (!early && typeof ptMirror === 'function') ptMirror('delete', { [path]: null });
   if (!merged) ptSyncNote([path], true);
   if (typeof oalAfterSave === 'function') oalAfterSave(path, null, 'delete');
   return true;

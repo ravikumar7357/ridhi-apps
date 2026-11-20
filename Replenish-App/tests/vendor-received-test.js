@@ -11,9 +11,11 @@ const rd = f => fs.readFileSync(f, 'utf8').replace(/\r\n/g, '\n');
 const APP = path.join(__dirname, '..', 'src', 'app');
 const VP = rd(path.join(APP, 'vendors/portal/vendor-portal.js')), VO = rd(path.join(APP, 'vendors/orders/vendor-orders.js')), FR = rd(path.join(APP, 'flow/flow-receive.js'));
 const cut = (src, name) => { const i = src.indexOf('function ' + name + '('); if (i < 0) throw new Error(name + ' not found'); return src.slice(i, src.indexOf('\n}', i) + 2); };
+/* the sent / waiting / approved helpers of vendor-portal.js (16 Nov), as one block */
+const vsBlock = s => { const i = s.indexOf('const vpVsRound ='); return s.slice(i, s.indexOf(String.fromCharCode(10) + '/** Only the printer', i) + 1); };
 const line = (src, head) => { const i = src.indexOf(head); if (i < 0) throw new Error(head + ' not found'); return src.slice(i, src.indexOf('\n', i)) + '\n'; };
-const PARTS = [line(VO, 'const voLines ='), line(VO, 'const voParts ='), line(VP, 'const vpQty ='), line(VP, 'const VP_RECV_CNT ='), line(VP, 'const vpRecvKey ='),
-  cut(VP, 'vpRecvCnt'), cut(VP, 'vpRecvOf'), line(VP, 'const vpRecvAll ='), cut(VP, 'vpVsHtml'),
+const PARTS = [line(VO, 'const voLines ='), line(VO, 'const voParts ='), line(VP, 'const vpQty ='), vsBlock(VP), line(VP, 'const VP_RECV_CNT ='), line(VP, 'const vpRecvKey ='),
+  cut(VP, 'vpRecvCnt'), cut(VP, 'vpRecvOf'), line(VP, 'const vpRecvAll ='), cut(VP, 'vpVsHtml'), cut(VP, 'vpRejNote'),
   line(FR, 'const flowChUnit ='), line(FR, 'const flowChSent ='), line(FR, 'let FLOW_CHX ='), line(FR, 'const flowChMoved ='), cut(FR, 'flowChIndex'), cut(FR, 'flowChRecv')].join('\n');
 let pass = 0, fail = 0;
 const ok = (n, c, d) => { if (c) { pass++; console.log('  PASS ' + n); } else { fail++; console.log('  FAIL ' + n + (d ? ' — ' + d : '')); } };
@@ -22,7 +24,7 @@ function load(flowCh) {
   const ctx = {
     FLOW: { ch: flowCh }, FLOW_RUF: '~ruffle', flowR2: n => Math.round((+n || 0) * 100) / 100,
     voDone: l => +(l && l.dispatchedQty) || 0, esc: s => String(s == null ? '' : s), nf: n => String(n), ME: { email: 'p@x' },
-    vpVsOf: () => [], vpVsSum: () => 0, vpVsCan: () => true, vpVsWhen: () => '',
+    vpVsOf: () => [], vpVsCan: () => true, vpVsWhen: () => '',
   };
   const names = Object.keys(ctx);
   return new Function(...names, PARTS + '\nreturn { vpRecvOf, vpRecvAll, vpVsHtml };')(...names.map(k => ctx[k]));
@@ -44,7 +46,7 @@ const ruf = { orderType: 'running', flowProg: { items: { 'SHP-2__R': { back: 9 }
   lines: [{ flowKey: 'SHP-2__R', flowPart: 'SHP-2__R|body', meters: 9 }, { flowKey: 'SHP-2__R', flowPart: 'SHP-2__R|ruffle', meters: 2 }] };
 ok('…the ruffle cloth counts on its own line', P.vpRecvOf(ruf.lines[0], ruf).qty === 9 && P.vpRecvOf(ruf.lines[1], ruf).qty === 2);
 ok('…received in full is "all in"; part-received is not', P.vpRecvAll(one, one.lines[0]) && !P.vpRecvAll(comb, comb.lines[0]));
-ok('…no box on a line received in full', !/data-vsadd/.test(P.vpVsHtml(one, one.lines[0], 0, 1, 'pcs', 'td')));
+ok('…the printer can still record what it sent on a line we received in full (14 Nov)', /data-vsadd/.test(P.vpVsHtml(one, one.lines[0], 0, 1, 'pcs', 'td')));
 ok('…the box stays on a part-received line', /data-vsadd/.test(P.vpVsHtml(comb, comb.lines[0], 0, 10, 'm', 'td')));
 
 /* ---- the office: the challans themselves ---- */

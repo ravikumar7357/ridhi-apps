@@ -30,7 +30,9 @@ let SQ = { run: null };             // the popup's run: { jobs, opts, step: chec
 
 /* ----- small helpers ----- */
 const sqEsc = s => String(s == null ? '' : s).replace(/[<>&"]/g, ch => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[ch]));
-const sqNf = n => Number(n || 0).toLocaleString('en-US');
+// SMOOTH (18 Nov 2026): one number format made once — the same text as toLocaleString('en-US'), which makes a new one per number
+const SQ_NUM = new Intl.NumberFormat('en-US');
+const sqNf = n => SQ_NUM.format(Number(n || 0));
 const sqIsTest = () => typeof window !== 'undefined' && !!window.__TEST_ERP;
 const sqBy = () => (typeof ME !== 'undefined' && ME && ME.email) || '';
 // The name a person is known by, from the signed-in e-mail: "vishesh.g@…" → "Vishesh G".
@@ -194,15 +196,20 @@ async function sqVerifyAll(run, jobs) {
 async function sqVerify(job) {
   const b = job.body;
   let reply;
-  if (b.limg) reply = await baCall({ limg: 'get', brand: job.brand, sku: job.sku });
-  else if (typeof liWsJob === 'function' && typeof LI_WS !== 'undefined') {
+  if (b.limg) {
+    reply = await baCall({ limg: 'get', brand: job.brand, sku: job.sku });
+    if (typeof lmNoteLive === 'function') lmNoteLive(job.brand, job.sku, 'limg', reply);   // the fresh read is what every screen shows until a newer ListingMatch pass
+  } else if (typeof liWsJob === 'function' && typeof LI_WS !== 'undefined') {
     const j = { t: 'get', brand: job.brand, sku: job.sku, units: 0, pk: '' };
     await liWsJob(j);
     reply = j.reply || {};
     LI_WS.liveV++;
     if (typeof liWsStoreSave === 'function') liWsStoreSave();
-  } else reply = await baCall({ lfix: 'get', brand: job.brand, sku: job.sku });
-  const names = b.limg ? Object.keys(b.set || {}) : (b.patches || []).map(p => String(p.path || '').replace('/attributes/', ''));
+  } else {
+    reply = await baCall({ lfix: 'get', brand: job.brand, sku: job.sku });
+    if (typeof lmNoteLive === 'function') lmNoteLive(job.brand, job.sku, 'get', reply);
+  }
+  const names = b.limg ? Object.keys(b.set || {}) : b.lcreate ? Object.keys(b.attributes || {}) : (b.patches || []).map(p => String(p.path || '').replace('/attributes/', ''));
   const err = ((reply && reply.issues) || []).find(issue => /ERROR|^E$/i.test(String(issue.severity || issue.s || ''))
     && (b.limg ? /image|media|MAIN|PT0|SWCH/i.test(String(issue.message || '') + ' ' + (issue.attrs || []).join(' ')) : (issue.attrs || []).some(a => names.includes(a))));
   if (err) {
@@ -212,6 +219,8 @@ async function sqVerify(job) {
     job.how = sqHow(job.raw);
     return job.state;
   }
+  // Create Listing (#8): a NEW listing is there when Amazon gives it back with its title; until then Amazon is still working
+  if (b.lcreate) { const at = (reply && reply.attributes) || {}; job.state = reply && (reply.sku || reply.asin) && at.item_name && at.item_name.length ? 'accepted' : 'working'; return job.state; }
   let same;
   if (b.limg) same = names.every(slot => String(((reply && reply.listing) || {})[slot] || '') === String(b.set[slot] || ''));
   else {
@@ -442,9 +451,13 @@ function sqLogRows(job, run) {
   return sqChanges(job).map((c, i) => {
     let oldV = c.oldV === undefined ? null : c.oldV;
     if (oldV != null && JSON.stringify(oldV).length > SQ_OLDV_MAX) oldV = null;
-    return { id: `${at}-${job.brand}-${job.sku}-${i}`, kind: 'listing', at, by: sqBy(), name: sqName(sqBy()), approvedBy: sqName(sqBy()), brand: job.brand, sku: job.sku, asin: job.asin || '',
+    // ✨ AI (listing-ai.js): a new value the AI suggested (and the person approved) is marked "AI suggested" in Listing History
+    const ai = typeof aiWasUsed === 'function' && aiWasUsed(job.brand, job.sku, c.new);
+    const row = { id: `${at}-${job.brand}-${job.sku}-${i}`, kind: 'listing', at, by: sqBy(), name: sqName(sqBy()), approvedBy: sqName(sqBy()), brand: job.brand, sku: job.sku, asin: job.asin || '',
       label: sqCut(job.label || '', 120), field: c.field, old: sqCut(c.old, SQ_CUT), new: sqCut(c.new, SQ_CUT), pic: !!c.pic, attr: c.attr || '', api: b.limg ? 'limg' : 'lfix', pt: b.productType || '', oldV,
-      screen: run.opts.screen || '', run: run.at, runTitle: run.opts.title || '', runN: run.jobs.length, result: job.state, why: job.why || '', sub: job.sub || '' };
+      screen: (run.opts.screen || '') + (ai ? ' · AI suggested' : ''), run: run.at, runTitle: run.opts.title || '', runN: run.jobs.length, result: job.state, why: job.why || '', sub: job.sub || '' };
+    if (ai) row.ai = true;
+    return row;
   });
 }
 /** THE ONE LOG FUNCTION. rows: [{ id, kind: 'listing', at, by, name, brand, sku, asin, field, old, new, screen, result, why }]. Written to the

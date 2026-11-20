@@ -1404,3 +1404,54 @@ Each entry: when, why, and what it changed. Made by `node meera/tests/gate.cjs -
   - before: - · I'm not fully sure what you mean. Is it one of these? amazon order full process from start
   - after: - · I'm not fully sure what you mean. Is it one of these? what is problems on my work today am
 
+## 2026-11-10 12:27 — Language told right: "me" and "par" alone no longer make an English question Hinglish ("tell me the total…"), and rha, likha, aa, laal, rang, h and the like now mark Hinglish; brand product counts ("how many products are there of cpc"); Ravi, 11 Nov
+
+- answer `eval|shop|it says too many tries and wont let me log in`
+  - before: - · Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? too many attempts aa 
+  - after: - · I'm not fully sure what you mean. Is it one of these? too many attempts wrong email or pas
+- answer `eval|shop|admin just gave me the cutting screen but i still dont see it`
+  - before: gn-right-just-given · Kripya Sign out karke dobara login kijiye — nayi permission ya nayi screen agli baar login
+  - after: gn-right-just-given · Please Sign out and sign in again — a new right or a new screen takes effect from your nex
+- answer `eval|shop|zip yes kiya to chain length maang rha`
+  - before: vm-pmdb-zip-ruffle · When Zip, Ruffle, Piping dori or Filler fabric is Yes, fill its figure: zip size (chain le
+  - after: vm-pmdb-zip-ruffle · Jab Zip, Ruffle, Piping dori ya Filler fabric Yes ho, to uska figure bhariye: zip size (ch
+- answer `eval|shop|tell me a joke meera`
+  - before: - · Tablecloth kabhi khota kyun nahi? Kyunki us par hamesha uska SKU laga rehta hai. 😄 Ab bat
+  - after: - · Why did the tablecloth never get lost? Because it always had its SKU on it. 😄 Now — what 
+- answer `eval2|shop|reject wale piece kise bolte h`
+  - before: - · I'm not fully sure what you mean. Is it one of these? what is reject how to receive pieces
+  - after: - · Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? reject ka matlab kari
+  - after: - · Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? fba kya hai qc mein o
+- answer `eval2|shop|printer gave me a paper slip with the goods, is that a challan? what do i do with it`
+  - before: - · Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? challan kya hai print
+  - after: - · I'm not fully sure what you mean. Is it one of these? what is challan print the print orde
+- answer `eval2|shop|the column just says cover, what does that number tell me`
+  - before: dl-repl-cannotcover · Cannot cover un mahino ki kul kam units hai jahan na sea na air time par pahunch sakta (LA
+  - after: dl-repl-cannotcover · Cannot cover is the total of units short in months that neither sea nor air can reach in t
+- answer `eval2|shop|custom order wala tick kab lagate h`
+  - before: - · Your question fits more than one answer. Which one do you mean? what is custom order tick 
+  - after: - · Aapka sawaal ek se zyada jawaabon se milta hai. Aap kaunsa poochh rahe hain? custom order 
+- answer `eval2|shop|it won't let me type 10.5 pieces`
+  - before: - · Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? box me akshar nahi ja
+  - after: - · I'm not fully sure what you mean. Is it one of these? box not accepting letters Pieces · Q
+
+## 2026-11-13 08:36 — Everyday Hinglish and Hindi questions (531, written the way staff type them, never tuned on) added as a scored set — its score can only go up from here; Ravi, 11 Nov
+
+- no score or answer changed (only the record refreshed)
+
+## 2026-11-14 09:56 — My work today, the bell, pop-ups, red counts, keys and Search come to the live ERP from R-one with 36 answers, and the karigar WhatsApp answers now say it opens by itself in Hindi with the label; loose wordings removed so they take no other screen's questions; the two near-ties left (karigar matlab darzi, Refresh on cx) are word-count shifts, accepted by Ravi, 14 Nov
+
+- score: test set 2: right 54→54, offered 66→66, wrong 6→7, not sure 34→33
+- score: everyday Hinglish and Hindi (held back, scoring only): right 135→135, offered 70→69, wrong 183→183, not sure 143→144
+- answer `eval|shop|whatsapp didnt open after issue, says no number`
+  - before: pr-jw-wa-auto · WhatsApp does not open by itself after Issue or Receive. Press ⋯ on the row and choose Wha
+  - after: pr-jw-wa-auto · WhatsApp opens by itself on the karigar's number as soon as you save an Issue , and after 
+- answer `eval|shop|पुराना रंग अब नहीं बनता, मास्टर लिस्ट से निकालना है`
+  - before: - · मैं पक्का नहीं समझ पाई। क्या आप इनमें से कुछ पूछ रहे हैं? नया रंग कैसे जोड़ें मास्टर से रं
+  - after: - · मैं पक्का नहीं समझ पाई। क्या आप इनमें से कुछ पूछ रहे हैं? नया रंग कैसे जोड़ें मास्टर से रं
+  - before: - · Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? fba kya hai qc mein o
+  - after: - · Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? fba kya hai fba dispa
+- answer `eval2|shop|amazon ka order shuru se FBA bhejne tak kaun kaun si screen se guzarta h`
+  - before: - · Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? cutting entry save ka
+  - after: - · Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? cutting entry save ka
+

@@ -16,6 +16,7 @@
     "Shopify.gs",
     "ShopifyCache.gs",
     "Mcf.gs",
+    "CreatorOrders.gs",
     "OrderAudits.gs",
     "Nightly.gs",
     "WeeklyPpc.gs",

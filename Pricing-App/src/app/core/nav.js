@@ -11,7 +11,7 @@
 // for which tab opens first: the first one the account is allowed.
 const TABS = ['link', 'new', 'pr', 'sales', 'profit', 'sa', 'plaudit', 'shop', 'adj', 'kw', 'ba', 'age', 'health',
   'lrules', 'audit', 'bsr', 'weekly', 'ppcn', 'trends', 'st', 'plc', 'deals', 'tiktok', 'carousel', 'opt', 'img',
-  'lerr', 'basket', 'lhist'];
+  'lerr', 'basket', 'lhist', 'fam', 'aplus', 'ipg', 'create'];
 // 'health' → 'Health': a tab key as it appears inside element ids.
 const capId = t => t[0].toUpperCase() + t.slice(1);
 // The title shown at the top of the page for each tab.
@@ -21,7 +21,8 @@ const TAB_TITLE = { link: 'By Amazon Link', new: 'New Product', pr: 'Product Res
   trends: 'Overview', st: 'Search Term Analysis', plc: 'Placement', deals: 'Deal Calendar', sales: 'Sales Dashboard',
   profit: 'Profit & Margin', sa: 'Sales Analysis', plaudit: 'Parent Listing Review', shop: 'Shopify Orders',
   adj: 'Adjustments', tiktok: 'TikTok Toolkit', carousel: 'Carousel Builder', opt: 'Listing Optimiser',
-  img: 'Image Manager', lerr: 'Listing Errors', basket: 'Bought Together', lhist: 'Listing History' };
+  img: 'Image Manager', lerr: 'Listing Errors', basket: 'Bought Together', lhist: 'Listing History',
+  fam: 'Family & Category Check', aplus: 'A+ Content', ipg: 'IP & Trademark Guard', create: 'Create Listing' };
 
 // Tabs hidden from the sidebar. Everything (panes, JS, backend) stays wired up — take a name out of
 // this list and that tab is back, no other change needed.
@@ -35,7 +36,7 @@ HIDDEN_TABS.forEach(t => $('tab' + capId(t)).classList.add('hide'));
 // Tabs nobody is granted on their own: they come with another tab. Product Performance reads exactly
 // the documents PPC & Organic reads, and the Firestore rules gate those on `weekly` — so granting the
 // new tab by itself would only ever open an empty screen. Kept out of the Access form for that reason.
-const TAB_INHERIT = { ppcn: 'weekly', lhist: 'health' };   // Listing History: with Listing Health (Image Manager, Listing Errors, Listing Rules: listing/listing-history.js)
+const TAB_INHERIT = { ppcn: 'weekly', lhist: 'health', fam: 'health', aplus: 'health', ipg: 'health', create: 'health' };   // Listing History: with Listing Health (Image Manager, Listing Errors, Listing Rules: listing/listing-history.js); Family & Category Check: with Listing Health (listing/family-check.js); A+ Content: with Listing Health (listing/aplus-audit.js)
 
 /* ---------- sidebar: collapsible groups + the 3-line menu button ---------- */
 // Read straight off the markup, so adding a group is an HTML edit and nothing here changes.
@@ -124,10 +125,23 @@ showTab(FIRST_TAB);                       // open on the first tab that's actual
 // overlaps when it opens.
 /* var, not let: showTab runs while the page is still being set up, before a let would exist. */
 var TAB_NOW = '';
+/* THE ADDRESS KEEPS THE SCREEN (#img). 'off' until the account's tabs are known (core/access.js applyPerms), so the load-time showTab
+ * above and the sign-in screen never overwrite a deep link; 'replace' while applyPerms opens the first screen; then 'push' — every
+ * screen opened is one Back / Forward step. TAB_OK(t): may this account open t from the address (set by applyPerms). */
+var TAB_HASH = 'off';
+var TAB_OK = () => false;
+const tabFromHash = () => { try { return decodeURIComponent(String(location.hash || '').slice(1)); } catch (e) { return ''; } };
+// Back / Forward (or a typed #tab): open that screen when this account may see it.
+window.addEventListener('hashchange', () => {
+  const t = tabFromHash();
+  if (TAB_HASH === 'push' && t !== TAB_NOW && TAB_OK(t)) showTab(t);
+});
 // Open one tab: mark its button, show its pane and hide every other pane and panel, set the page title,
 // mark the menu group it sits in, and call its ensure… loader (each screen's own file) so it fills itself.
 function showTab(which) {
   TAB_NOW = which;
+  // (TAB_HASH is still undefined during the load-time showTab above: only 'replace' / 'push' write the address)
+  if ((TAB_HASH === 'replace' || TAB_HASH === 'push') && location.hash !== '#' + which) history[TAB_HASH === 'push' ? 'pushState' : 'replaceState'](null, '', '#' + which);
   // --- buttons and panes ---
   TABS.forEach(t => {
     $('tab' + capId(t)).classList.toggle('on', which === t);

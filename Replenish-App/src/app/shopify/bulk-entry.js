@@ -1221,7 +1221,7 @@ if ($('odSort')) $('odSort').addEventListener('change', () => { ORD_CAP = 600; r
 ptDebounce('odQ', renderOrd);
 /* Clear means clear. Source and brand were added later and never joined this list, so Clear left two
  * of its own filters set and the screen kept hiding rows somebody had just asked to see. */
-$('odClear').onclick = () => { ['odOrd', 'odArt', 'odSub', 'odCol', 'odSz', 'odStatus', 'odSrc', 'odBrand', 'odQ', 'odD1', 'odD2'].forEach(id => { if ($(id)) $(id).value = ''; }); ORD_KPI = ''; renderOrd(); };
+$('odClear').onclick = () => { ['odOrd', 'odArt', 'odSub', 'odCol', 'odSz', 'odStatus', 'odSrc', 'odBrand', 'odType', 'odQ', 'odD1', 'odD2'].forEach(id => { if ($(id)) $(id).value = ''; }); ORD_KPI = ''; renderOrd(); };
 function ordKpiClick(e) {
   const t = e.target.closest('[data-odkpi]');
   if (!t) return;
@@ -1314,8 +1314,17 @@ $('odTable').addEventListener('click', ordQtyOpenClick);
 
 $('odKpis').addEventListener('click', ordKpiClick);
 $('odKpis').addEventListener('keydown', ordKpiClick);
-['odSrc', 'odBrand', 'odD1', 'odD2'].forEach(id => { const el = $(id); if (el) el.addEventListener('change', renderOrd); });
-$('odGo').onclick = async () => { await ptLoadGates(true); ORD.req = null; QC.checks = null; FGI.rows = null; await ensureOrd(); };
+['odSrc', 'odBrand', 'odType', 'odD1', 'odD2'].forEach(id => { const el = $(id); if (el) el.addEventListener('change', renderOrd); });
+/** Order Console Refresh: everything the screen shows, read again from the live copies. Vendor orders, the
+ *  quantity changes on sales orders and the delete requests were left out before 18 Nov 2026, so only F5 showed
+ *  another PC's changes to them. */
+async function odRefresh() {
+  await ptLoadGates(true);
+  ORD.req = null; QC.checks = null; FGI.rows = null;
+  VO.rows = null; SOX.rows = null; ODR.rows = null;
+  await ensureOrd();
+}
+$('odGo').onclick = () => ptRefreshButton($('odGo'), odRefresh);
 $('odView').addEventListener('change', () => { ORD.pick = new Set(); renderOrd(); });
 /** A SKU's priority tag (P1–P4), '' when it has none. */
 const ordPri = sku => { const v = (PTE.priority || {})[obUC(sku)];

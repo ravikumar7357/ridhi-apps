@@ -272,7 +272,7 @@ service cloud.firestore {
     // CONTENT CREATORS (16 Nov 2026): gift orders for creators, one document per gift, id = its reference. Most are
     // written by the Pricing API (CreatorOrders.gs, Creator Setu → ERP) with its owner's token, which these rules do not govern.
     // Whoever holds Shopify Orders reads and updates them, and may create only the team's own kind ("+ Create order":
-    // source "team", status "New", an ERP-CC- reference). The reference and the source never change. Nobody deletes.
+    // source "team", status "New", an ERP-CC- reference). The reference and the source never change. Delete: below.
     // Holds creators' addresses and phones: the same audience as the Shopify orders' addresses.
     function canCreators() { return can('shop') || canReplTab('shop'); }
     match /creatorOrders/{ref} {
@@ -283,7 +283,10 @@ service cloud.firestore {
       allow update: if canCreators()
         && request.resource.data.reference == resource.data.reference
         && request.resource.data.source == resource.data.source;
-      allow delete: if false;
+      // DELETE (19 Nov): any order not yet sent to Amazon. One with an Amazon order id is a real parcel: never deleted,
+      // set Cancelled instead.
+      allow delete: if canCreators() && !(('amazon' in resource.data) && ('orderId' in resource.data.amazon)
+        && resource.data.amazon.orderId != '');
     }
     // Per-SKU master: shelf bin, HS code, GST rate, invoice rate. Facts about the PRODUCT, written
     // by whoever is picking or preparing the invoice.

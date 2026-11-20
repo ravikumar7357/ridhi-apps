@@ -140,8 +140,11 @@ function liWsIsLive(row) {
   return /active/i.test(status) || /amazon|afn/i.test(String(row.channel || ''));
 }
 // Where an answer came from, how old it is, and how to bring it up to date — the detail's Source · when column.
-function liWsSrc(kind, at) {
+function liWsSrc(kind, at, brand) {
   const now = Date.now();
+  // the snapshots' answers (status, stock, pictures, Amazon's issues) come from ListingMatch while its data is fresh: its label
+  const lm = brand && (kind === 'iml' || kind === 'health') && typeof lmDataLabel === 'function' ? lmDataLabel([brand]) : null;
+  if (lm) return { s: 'ListingMatch auto refresh', when: lm.text, upd: 'update: the next refresh (~' + (typeof lmNextFull === 'function' ? lmNextFull() : '13:00') + ')' };
   if (kind === 'live') return { s: 'Amazon Listings API', when: at ? 'read ' + liWsAgo(now - at) : 'not read yet', upd: 'update: “Read again from Amazon”' };
   if (kind === 'cat') return { s: "Amazon's catalogue (what shoppers see)", when: at ? 'read ' + liWsAgo(now - at) : 'not read yet', upd: 'update: “Read again from Amazon”' };
   if (kind === 'iml') return { s: 'Image Manager snapshot', when: at ? liWsAgo(now - at) : 'no snapshot', upd: 'update: Image Manager → refresh from Amazon' };
@@ -155,7 +158,7 @@ function liWsSrc(kind, at) {
 // First time on: the health snapshot and the rules, then both brands' Image Manager snapshots — through their own loaders.
 async function liWsLoad() {
   if (LI_WS.loading) return;
-  if (H_LOADED && LR && ('SP' in IML) && ('CPC' in IML)) return liWsDraw();
+  if (H_LOADED && LR && ('SP' in IML) && ('CPC' in IML)) return typeof hColdMany === 'function' && hColdMany() ? void hWarm().then(liWsDraw) : liWsDraw();
   LI_WS.loading = true;
   liWsDraw();
   try {
@@ -236,6 +239,12 @@ function liWsStoreSave() {
   }, 1000);
 }
 const liWsEntry = (brand, sku) => LI_WS.live[brand][sku] || (LI_WS.live[brand][sku] = { at: 0 });
+// One listing's freshest read for the checks: this browser's live read, with the ListingMatch cache's record under it (listing-match.js
+// lmLiveOf — the newer of the two, part by part) while that cache is usable; the live read alone otherwise.
+const liWsLr = (brand, sku) => {
+  const ws = LI_WS.live[brand][sku] || null;
+  return typeof lmLiveOf === 'function' ? lmLiveOf(brand, sku, ws) : ws;
+};
 
 /* ----- one listing: the sources merged, newest first, into the checks ----- */
 /**
@@ -243,7 +252,7 @@ const liWsEntry = (brand, sku) => LI_WS.live[brand][sku] || (LI_WS.live[brand][s
  * is the word in the ✗ pill, `bang` the read error when the only source for the cell failed — plus live, why, fails, red, unknown.
  */
 function liWsChild(row, brand, hc, imlMap, now) {
-  const lr = LI_WS.live[brand][row.sku] || null;
+  const lr = liWsLr(brand, row.sku);
   const live = liWsIsLive(row);
   const why = live ? 'Live' : (row.qty === 0 ? 'No stock' : 'Inactive');
   const rules = LR || LR_DEFAULT;
@@ -255,7 +264,9 @@ function liWsChild(row, brand, hc, imlMap, now) {
   //     itself — lrFresh / lrFacts in listing-rules.js — so a listing not read here gets exactly the Parent ASINs answer and a
   //     read one gets it on fresher data: the catalogue's pictures, A+ on the parent, the live content) ---
   const scored = Object.assign({}, row, { brand });
-  const h = healthOf(scored, hc);
+  // SMOOTH (18 Nov 2026): the checks Listing Health already kept for this very row (hHealthKept, the same healthOf behind the same
+  // signature) — switching Parent ASINs → Workspace no longer judges every listing a second time.
+  const h = typeof hHealthKept === 'function' ? hHealthKept(row, scored, hc, now) : healthOf(scored, hc);
   const fresh = h.fresh;
   // Not live, but stock and Inactive, suppressed or an Amazon error (an Error in Listing Rules): counted — it is the first thing to fix.
   const urgent = !live && h.bucket === 'critical' && h.found.some(hit => hit.sev === 'critical' && LI_WS_URGENT.includes(hit.detector));
@@ -264,15 +275,15 @@ function liWsChild(row, brand, hc, imlMap, now) {
   const hasLive = fresh.contentSrc === 'live';
   const contentSrc = hasLive ? liWsSrc('live', fresh.contentAt) : liWsSrc('content', row.checked);
   const pics = h.pics;
-  const picSrc = pics ? liWsSrc(pics.src === 'live' ? 'cat' : pics.src === 'iml' ? 'iml' : 'content', pics.at) : liWsSrc('cat', lr && lr.iAt ? lr.iAt : 0);
+  const picSrc = pics ? liWsSrc(pics.src === 'live' ? 'cat' : pics.src === 'iml' ? 'iml' : 'content', pics.at, brand) : liWsSrc('cat', lr && lr.iAt ? lr.iAt : 0);
   const found = h.found.map(hit => Object.assign({}, hit));
   const idx = liWsRuleIndex(rules);
 
   // --- Status and Stock: information, never counted ---
   c.status = { info: true, pass: live ? true : null, found: why + (live ? '' : urgent ? ' — counted all the same: it has an Error to fix first' : ' — problems are not counted'),
-    need: 'Active at Amazon, with stock (FBA)', miss: '', src: liWsSrc('health', healthAt) };
+    need: 'Active at Amazon, with stock (FBA)', miss: '', src: liWsSrc('health', healthAt, brand) };
   c.stock = { info: true, pass: row.qty == null ? null : row.qty > 0, found: row.qty == null ? 'Unknown' : liWsNf(row.qty) + ' units',
-    need: 'In stock', miss: row.qty === 0 ? 'Out of stock' : '', src: liWsSrc('health', healthAt) };
+    need: 'In stock', miss: row.qty === 0 ? 'Out of stock' : '', src: liWsSrc('health', healthAt, brand) };
 
   // --- Amazon: the live read answers for itself (healthOf's Amazon rules read it through lrAmz); otherwise the rules' answer
   //     from the Amazon status map, exactly as Listing Health has it ---
@@ -282,15 +293,17 @@ function liWsChild(row, brand, hc, imlMap, now) {
   if (amz && amz.src === 'live') {
     const st = String(amz.st || '').toUpperCase();
     const errs = amz.errs || [];
-    const sup = st.includes('BUYABLE') && !st.includes('DISCOVERABLE');
+    const shop = lrShopOfAmz(amz, scored);                 // THE ONE RULE (listing-rules.js)
+    const sup = shop.k === 'sup';
+    const shopWord = sup ? 'Suppressed — ' + shop.why : shop.k === 'nobuy' ? 'Not buyable — ' + shop.why : shop.k === 'unk' ? 'Not checked — no status from Amazon' : '';
     const fields = [...new Set(errs.flatMap(issue => issue.a || []))];
     const worst = amzHits.slice().sort((a, b) => LR_SEV[b.sev].rank - LR_SEV[a.sev].rank)[0];
     c.amz = { pass: !amzHits.length, hits: amzHits, sev: worst ? worst.sev : '',
-      cell: errs.length ? 'Error' : 'Suppressed', need: amzNeed, src: liWsSrc('live', amz.at),
-      found: errs.length ? amz.im : sup ? 'Suppressed from search (BUYABLE, not DISCOVERABLE)' : (st ? 'Status ' + st.split(',').join(', ') : 'No status from Amazon'),
-      miss: errs.length ? (fields.length ? 'Fields Amazon names: ' + fields.join(', ') : "See Amazon's message") : sup ? 'Suppressed from search' : '' };
+      cell: errs.length ? 'Error' : LR_SHOP_WORD[shop.k === 'ok' || shop.k === 'off' ? 'sup' : shop.k], need: amzNeed, src: liWsSrc('live', amz.at),
+      found: errs.length ? amz.im : shopWord || 'Status ' + st.split(',').join(', '),
+      miss: errs.length ? (fields.length ? 'Fields Amazon names: ' + fields.join(', ') : "See Amazon's message") : sup ? 'Suppressed' : shop.k === 'nobuy' ? 'Not buyable' : '' };
   } else {
-    c.amz = liWsRuleCell(amzHits, { known: !!AMZ.map, need: amzNeed, src: liWsSrc('iml', amz ? amz.at : (AMZ.snapAt[brand] || AMZ.at)),
+    c.amz = liWsRuleCell(amzHits, { known: !!AMZ.map, need: amzNeed, src: liWsSrc('iml', amz ? amz.at : (AMZ.snapAt[brand] || AMZ.at), brand),
       value: 'Nothing reported', unknown: 'No Amazon status yet', bang: readErr });
   }
 
@@ -312,7 +325,7 @@ function liWsChild(row, brand, hc, imlMap, now) {
   if (look && c.main.pass === true) c.main.look = look.what;
   // The title rules read the title the way Listing Health does: the content read's, else the listings report's own title.
   const titleText = hTitleText(scored);
-  c.title = ruleCol('title', (content || titleText) ? { known: true, src: content ? contentSrc : liWsSrc('health', healthAt),
+  c.title = ruleCol('title', (content || titleText) ? { known: true, src: content ? contentSrc : liWsSrc('health', healthAt, brand),
     value: content ? `${content.titleLen} characters: “${liWsCut(content.title || titleText, 90)}”` : `“${liWsCut(titleText, 90)}” (the listings report's title; content not read yet)` }
     : Object.assign({ src: contentSrc }, noContent));
   c.bul = ruleCol('bul', content ? { known: true, src: contentSrc, value: `${content.bullets} bullets` } : Object.assign({ src: contentSrc }, noContent));
@@ -468,7 +481,7 @@ function liWsChildKept(row, brand, hc, imlMap, now) {
 // `need`: what a step with no answer yet is waiting for, in words.
 const LI_WS_AUDIT = [
   { k: 'spec', t: 'Spec sheet', checks: ['spec'], tip: 'Every spec Amazon asks for on the product type is filled (from the live Amazon read)',
-    need: 'the Amazon read of each listing — open the parent, or “Read again from Amazon”' },
+    need: 'the Amazon read of each listing — “Read from Amazon now” on the parent, or “Read again from Amazon”' },
   { k: 'tpl', t: 'Template', checks: ['tpl'], tip: 'The title follows the Listing Rules template; a product with no template counts as fine',
     need: 'the brand catalogue and the title — “Refresh both brands”, or open the parent' },
   { k: 'fmt', t: 'Standard format', checks: ['bul', 'desc', 'other'], tip: 'Bullets, description and the other Listing Rules pass',
@@ -594,16 +607,19 @@ function liWsParents(brands, hc, now) {
       const prog = LI_WS.prog[group.key] || null;
       const pool = live.length ? live : group.kids;
       const readAts = pool.map(kid => (kid.lr && kid.lr.cAt ? kid.lr.cAt : 0)).filter(Boolean);
-      const healthAt = HEALTH[brand] && HEALTH[brand].at ? HEALTH[brand].at.getTime() : 0;
+      // the ListingMatch data fresh: both times are its own (listing-match.js lmDataLabel, every Listing screen's label) — the full
+      // refresh, and the listings current as of its last update (a read on this page that is newer wins); else the snapshot, as before
+      const lmT = typeof lmDataLabel === 'function' ? lmDataLabel([brand]) : null;
+      const healthAt = lmT ? lmT.fullAt : HEALTH[brand] && HEALTH[brand].at ? HEALTH[brand].at.getTime() : 0;
       // why a child has no content read (its own content error first), or what its last read error was
       const errs = {};
       pool.forEach(kid => {
         const why = kid.lr && (kid.lr.cAt ? kid.lr.err : (kid.lr.cErr || kid.lr.err));
         if (why) errs[why] = (errs[why] || 0) + 1;
       });
-      const d = { n: pool.length, read: readAts.length, snapAge: healthAt ? now - healthAt : -1, why: '' };
+      const d = { n: pool.length, read: readAts.length, snapAge: healthAt ? Math.max(0, now - healthAt) : -1, why: '', lm: !!lmT };
       if (prog && prog.done < prog.total) Object.assign(d, { state: 'reading', done: prog.done, total: prog.total, rank: -1 });
-      else if (readAts.length) Object.assign(d, { state: readAts.length === pool.length ? 'live' : 'part', age: now - Math.min(...readAts) });
+      else if (readAts.length) Object.assign(d, { state: readAts.length === pool.length ? 'live' : 'part', age: Math.max(0, now - Math.max(Math.min(...readAts), lmT ? lmT.updateAt : 0)) });
       else Object.assign(d, { state: 'never', rank: Number.MAX_SAFE_INTEGER });
       if (d.rank === undefined) d.rank = d.age;
       const whys = Object.entries(errs).map(([why, count]) => `${liWsNf(count)} ${/not found/.test(why) ? why : 'could not be read: ' + why}`);
@@ -794,13 +810,15 @@ async function liWsJob(job) {
       if (reply.title) Object.assign(entry, { catTitle: String(reply.title).slice(0, 250), tAt: now });
       Object.assign(entry, { at: now, gAt: now, pt: reply.productType || entry.pt || '', st: reply.status || [], brand: first('brand').slice(0, 60) || entry.brand || '',
         color: first('color').slice(0, 40) || entry.color || '',
-        iss: (reply.issues || []).slice(0, 8).map(issue => ({ s: String(issue.severity || '').charAt(0), c: String(issue.code || ''), m: lrWholeCut(String(issue.message || ''), issue.severity === 'ERROR' ? 1000 : 220), a: (issue.attrs || []).slice(0, 4) })),
+        iss: (reply.issues || []).slice(0, 8).map(issue => Object.assign({ s: String(issue.severity || '').charAt(0), c: String(issue.code || ''), m: lrWholeCut(String(issue.message || ''), issue.severity === 'ERROR' ? 1000 : 220), a: (issue.attrs || []).slice(0, 4) },
+          lrIssueActs(issue).length ? { e: lrIssueActs(issue) } : {})),
         slots: IM_SLOTS.filter(slot => (at[LI_WS_SLOT_ATTR[slot]] || []).some(e => e && e.media_location)),
         specs: Object.fromEntries(LI_WS_SPECS.map(name => [name, filled(name)])), err: '',
         hl: (at[LI_WS_HL] || []).map(e => (e && e.value != null ? String(e.value) : '')).filter(Boolean).map(v => v.slice(0, 300)), hlAt: now,
         // a few short facts Amazon holds for the listing, for an Item Highlights line built only from what is verified
         facts: { material: first('material').slice(0, 60), care: first('care_instructions').slice(0, 60), items: first('number_of_items').slice(0, 6) } });
       if (typeof faOnGet === 'function') faOnGet(brand, job.sku, at);   // the spec values, for Fix all's copy from the siblings (fix-all.js)
+      if (typeof lmNoteLive === 'function') lmNoteLive(brand, job.sku, 'get', reply);   // newer than the ListingMatch cache's record: shown until a newer pass
       if (typeof svNote === 'function') svNote(brand, job.sku);         // Item Highlights into the shared saved copy
       if (entry.pt) liWsNeedSchema(brand, entry.pt, job.pk);
     } else if (job.t === 'limg') {
@@ -817,6 +835,7 @@ async function liWsJob(job) {
         // each picture's id and size, for the picture rules (too small to zoom, main not square, the same picture twice)
         catPic: Object.fromEntries(slots.map(slot => [slot, [lrPicId(cat[slot].link), Number(cat[slot].w) || 0, Number(cat[slot].h) || 0]])) });
       else Object.assign(entry, { at: now, iErr: String(reply.catalogError || 'no catalogue answer').slice(0, 160) });   // an answer without the catalogue leaves the pictures unknown, never "none"
+      if (typeof lmNoteLive === 'function') lmNoteLive(brand, job.sku, 'limg', reply);
     } else if (job.t === 'aplus') {
       const reply = await baCall({ lh: 'aplusasin', brand, asins: job.asins.join(',') });
       if (reply.ok === false) throw new Error(reply.error || 'no answer');
@@ -846,6 +865,9 @@ async function liWsJob(job) {
 // The A+ reads a set of listings needs: the parent ASIN and every child's ASIN whose answer is missing, older than a day, or a
 // "no A+" older than LR_APLUS_DAYS (asked again before it counts) — unless `force`. Ten ASINs a call. Returns the jobs' units.
 function liWsAplusJobs(brand, parent, kids, pk, force, extra) {
+  // NO A+ READ ONE BY ONE ON ITS OWN (18 Nov 2026): the daily A+ read answers (lrAplus → lmAplusOf); while it is missing (not deployed,
+  // old) A+ shows "not checked yet" — asked one ASIN at a time only when a person presses "Read from Amazon now" / Read again / Check now
+  if (!force) return 0;
   const cut = Date.now() - LI_WS_DAY;
   const apCut = Date.now() - LR_APLUS_DAYS * LI_WS_DAY;
   const map = LI_WS.aplus[brand];
@@ -870,7 +892,7 @@ function liWsNeedSchema(brand, pt, pk) {
 }
 // Read one parent's listed children from Amazon: content in batches, then each listing (status / issues / specs, and the
 // catalogue's pictures), A+ for the parent ASIN and its children, then the schemas. Reads from the last day are skipped unless
-// `force` (Read again). Children showing an Error from old data are among them, so opening a parent re-checks them.
+// `force` (Read again / "Read from Amazon now" — the only callers that read since 18 Nov 2026; opening a parent reads nothing).
 function liWsReadParent(p, force, quiet) {
   // A read of this parent is still on its way (▸ closed and opened again): its calls are out, so nothing is queued twice.
   const cur = LI_WS.prog[p.key];
@@ -881,8 +903,12 @@ function liWsReadParent(p, force, quiet) {
   const needG = kids.filter(kid => force || !(kid.lr && kid.lr.gAt > cut)).map(kid => kid.sku);
   const needI = kids.filter(kid => force || !(kid.lr && kid.lr.iAt > cut)).map(kid => kid.sku);
   const nA = liWsAplusJobs(p.brand, p.parent, kids, p.key, force);   // queues only: its answers land after this function has returned
-  if (!needC.length && !needG.length && !needI.length && !nA) return;   // nothing to read: the finished record, with its last error, stays
+  // the product types' schemas (which specs apply), once per type: a child whose specs come from the ListingMatch cache has no read of
+  // its own that would ask for it
+  const needS = force ? [] : [...new Set(kids.map(kid => kid.lr && kid.lr.specs && kid.lr.pt).filter(pt => pt && !LI_WS.schema[p.brand][pt]))];
+  if (!needC.length && !needG.length && !needI.length && !nA && !needS.length) return;   // nothing to read: the finished record, with its last error, stays
   LI_WS.prog[p.key] = { done: 0, total: needC.length + needG.length + needI.length + nA, err: '' };
+  needS.forEach(pt => liWsNeedSchema(p.brand, pt, p.key));   // each adds itself to the total
   // Read again: the product types' schemas are read afresh too — queued here, so a failed content/get read cannot leave a type without one.
   if (force) [...new Set(kids.map(kid => kid.lr && kid.lr.pt).filter(Boolean))].forEach(pt => {
     delete LI_WS.schema[p.brand][pt];
@@ -1065,8 +1091,8 @@ function liWsKidTableInner(p, bare) {
     const open = LI_WS.openSku.has(key);
     const mark = cardK ? (inCard(kid) ? ` is-match is-m-${cardK}` : ' is-other') : '';
     const other = i === firstOther && i > 0 ? `<tr class="li-ws-otherhead"><td colspan="${LI_WS_CHECKS.length + 3}">Other listings</td></tr>` : '';
-    return `${other}<tr class="li-ws-kid${kid.counted ? '' : ' is-off'}${mark}"><td><button type="button" class="li-ws-sku" data-li-ws-sku="${lrEsc(key)}" aria-expanded="${open}">${open ? '▾' : '▸'} ${lrEsc(kid.sku)}</button>`
-      + `<div class="li-ws-asin">${lrEsc(kid.asin)}</div></td><td>${lrEsc(kid.why)}</td><td class="num">${kid.row.qty == null ? '<span class="li-ws-na">—</span>' : liWsNf(kid.row.qty)}</td>`
+    return `${other}<tr class="li-ws-kid${kid.counted ? '' : ' is-off'}${mark}"><td><button type="button" class="li-ws-sku" data-li-ws-sku="${lrEsc(key)}" aria-expanded="${open}">${open ? '▾' : '▸'} ${lrEsc(kid.sku)}</button>${kid.lr && kid.lr.lmStale && typeof lmOldHtml === 'function' ? lmOldHtml(kid.brand, kid.sku) : ''}`
+      + `<div class="li-ws-asin">${lrEsc(kid.asin)}</div></td><td>${typeof prOf === 'function' && (kid.found || []).length ? prChipHtml(prKid(kid)) + ' ' : ''}${lrEsc(kid.why)}</td><td class="num">${kid.row.qty == null ? '<span class="li-ws-na">—</span>' : liWsNf(kid.row.qty)}</td>`
       + LI_WS_CHECKS.map(check => `<td>${liWsCell(kid, check, reading)}</td>`).join('') + '</tr>' + (open ? liWsDetail(kid, LI_WS_CHECKS.length + 3) : '');
   }).join('') || `<tr><td colspan="${LI_WS_CHECKS.length + 3}" class="li-ws-na">${step ? 'No listing fails this step now.' : `No ${LI_WS.mode === 'live' ? 'live' : LI_WS.mode === 'off' ? 'not-live' : ''} children.`}</td></tr>`;
   return `${bare ? '' : note + liWsAuditBox(p)}<div class="li-ws-kidbox"><table class="li-ws-kidtable">${head}<tbody>${body}</tbody></table></div>`;
@@ -1144,7 +1170,8 @@ function liWsData(p) {
         : dot('') + 'Amazon: not checked yet';
   const refresh = 'Full refresh: ' + (d.snapAge >= 0 ? liWsAgoWords(d.snapAge) : 'none yet');
   return `<div class="li-ws-when" title="When Sellora last read these listings from Amazon, on this screen">${amazon}</div>`
-    + `<div class="li-ws-when2" title="${lrEsc("Stock, A+ and Live / Not live come from the last 'Refresh both brands' on live Sellora.")}">${lrEsc(refresh)}</div>`
+    + `<div class="li-ws-when2" title="${lrEsc(d.lm ? "ListingMatch's full refresh: every listing read from Amazon (13:00 and 18:00); the updates in between read the changed ones."
+      : "Stock, A+ and Live / Not live come from the last 'Refresh both brands' on live Sellora.")}">${lrEsc(refresh)}</div>`
     + (d.why ? `<div class="li-ws-err">${lrEsc(liWsCut(d.why, 160))}</div>` : '');
 }
 
@@ -1171,8 +1198,11 @@ function liWsRender() {
   const redK = k => k === 'amz' || (idx.by[k] || []).some(rule => rule.sev === 'critical');   // a column whose rules can be an Error
   const chipDefs = [{ k: 'all', t: 'All parents', dot: 'brand', n: scoped.length }, { k: 'problems', t: 'Has problems', dot: 'bad', n: scoped.filter(p => p.probN > 0).length }]
     .concat(LI_WS_CHECKS.map(check => ({ k: check.k, t: check.w, dot: redK(check.k) ? 'bad' : 'act', n: scoped.filter(p => p.failN[check.k] > 0).length })).filter(chip => chip.n > 0));
+  // 🔴 / 🟠 / ⚪ (listing-priority.js): the parents with a child of that level that has a problem
+  const prIn = (p, k) => (p.kids || []).some(kid => (kid.found || []).length && prKid(kid) === k);
+  if (typeof prOf === 'function') ['crit', 'imp', 'wait'].forEach(k => { const n = scoped.filter(p => prIn(p, k)).length; if (n) chipDefs.push({ k: 'pr:' + k, t: PR_LEVELS[k].i + ' ' + PR_LEVELS[k].t, dot: k === 'crit' ? 'bad' : k === 'imp' ? 'act' : 'brand', n }); });
   if (!chipDefs.some(chip => chip.k === LI_WS.chip)) LI_WS.chip = 'all';
-  const keep = LI_WS.chip === 'all' ? () => true : LI_WS.chip === 'problems' ? p => p.probN > 0 : p => p.failN[LI_WS.chip] > 0;
+  const keep = LI_WS.chip === 'all' ? () => true : LI_WS.chip === 'problems' ? p => p.probN > 0 : /^pr:/.test(LI_WS.chip) ? p => prIn(p, LI_WS.chip.slice(3)) : p => p.failN[LI_WS.chip] > 0;
   const cardOn = LI_WS.mode !== 'off' && LI_WS_CARD[LI_WS.card] ? LI_WS_CARD[LI_WS.card] : null;
   const keepCard = cardOn ? cardOn.keep : () => true;
   const rows = liWsOrder(scoped.filter(p => (LI_WS.mode !== 'off' || p.offN > 0) && keep(p) && keepCard(p)));
@@ -1182,7 +1212,8 @@ function liWsRender() {
   // --- the banner: the snapshot is old ---
   const ats = brands.map(b => (HEALTH[b] && HEALTH[b].at ? HEALTH[b].at.getTime() : 0)).filter(Boolean);
   const oldest = ats.length ? Math.min(...ats) : 0;
-  const banner = oldest && now - oldest > 2 * LI_WS_DAY ? `<div class="li-ws-banner">Amazon data is ${liWsAge(now - oldest)} old (snapshot ${liWsDate(oldest)}). `
+  const lmFresh = typeof lmDataLabel === 'function' && !!lmDataLabel(brands);    // the ListingMatch data fresh: the snapshot's age does not matter
+  const banner = !lmFresh && oldest && now - oldest > 2 * LI_WS_DAY ? `<div class="li-ws-banner">Amazon data is ${liWsAge(now - oldest)} old (snapshot ${liWsDate(oldest)}). `
     + 'Press “Refresh both brands” on live Sellora to bring it up to date — on the test site nothing is saved. Opening a parent here reads its status, '
     + "Amazon's issues, pictures, title, bullets, description, search terms and specs from Amazon right now.</div>" : '';
 
@@ -1410,7 +1441,7 @@ function liWsReconcile(brandsIn) {
  *       brand switch and the search — one row per Error-level problem, as a CSV that opens in Excel / Google Sheets. It only reads:
  *       nothing is saved or sent, so it works on the test site too. ----- */
 const LI_WS_DL_COLS = ['Brand', 'Parent name', 'Parent ASIN', 'SKU', 'ASIN', 'Product', 'Live?', 'Stock (units)', 'Error', 'Details', 'How to fix',
-  'Status', 'Checked on', 'Errors on this listing', 'Amazon link'];
+  'Status', 'Checked on', 'Errors on this listing', 'Amazon link', 'Priority'];
 // The problem in plain words where the rule's own name says it less plainly; every other Error keeps its Listing Rules name.
 const LI_WS_DL_WORDS = { amazon_error: 'Amazon reports an error', amazon_suppressed: 'Suppressed from search', inactive_with_stock: 'Stock but Inactive',
   no_main_image: 'Main picture missing', no_price: 'No price' };
@@ -1444,7 +1475,7 @@ function liWsErrorsCsv(parents, brandPick, now) {
       rows.push({ sort: [BRAND_NAME[kid.brand] || kid.brand, p.name || p.parent, p.parent, kid.sku], cells: [
         BRAND_NAME[kid.brand] || kid.brand, p.name || '', p.parent, kid.sku, kid.asin || '', product, liveWord, row.qty == null ? '' : +row.qty,
         LI_WS_DL_WORDS[hit.detector] || hit.name, hit.detail || '', hit.fix || '', status, at ? day(at) : '', errs.length,
-        kid.asin ? 'https://www.amazon.com/dp/' + kid.asin : ''] });
+        kid.asin ? 'https://www.amazon.com/dp/' + kid.asin : '', typeof prOf === 'function' ? prCsv(prKid(kid)) : ''] });
     });
   });
   rows.sort((a, b) => {
@@ -1480,7 +1511,7 @@ function liWsSkeleton() {
 // A listing's picture: the catalogue's MAIN from its live read first, else the Image Manager snapshot's live MAIN, else the one we
 // submitted; '' when none. Thumbnail-sized when the Image Manager's helper is there.
 function liWsPicUrl(brand, sku) {
-  const lr = LI_WS.live[brand] && LI_WS.live[brand][sku];
+  const lr = LI_WS.live[brand] ? liWsLr(brand, sku) : null;
   let url = lr && lr.catMain ? lr.catMain : '';
   if (!url) {
     const item = liWsImlIndex(brand).get(sku);
@@ -1544,7 +1575,9 @@ function liWsPanelOpen(key) {
     panel.hidden = false;
     if (panel.setAttribute) panel.setAttribute('tabindex', '-1');
   }
-  liWsReadParent(p, false, true);
+  // NOTHING IS READ FROM AMAZON BY OPENING A PARENT (18 Nov 2026): the panel shows what Sellora holds (the ListingMatch cache, the
+  // reads kept); "Read from Amazon now" on it reads. Each read landing used to change the data under the open panel — 469 children ×
+  // 3 reads — and its Fix all buttons were worked out again and again.
   liWsPanelRender();
   if (panel && panel.focus) panel.focus({ preventScroll: true });
 }
@@ -1852,6 +1885,8 @@ function liWsSchedule() {
 // The timer fired: draw, unless the person scrolled since it was set — then wait for the scrolling to stop.
 function liWsTick() {
   if (Date.now() - LI_WS.scrollAt < LI_WS_SCROLL_MS) return liWsSchedule();
+  // SMOOTH (18 Nov 2026): many listings to judge again (a refresh, a newer ListingMatch copy) — Listing Health's slices first, then the draw
+  if (typeof hColdMany === 'function' && hColdMany()) return void hWarm().then(liWsSchedule);
   liWsDraw();
 }
 // Workspace on: mark the pane and the button, show the box, load, draw. Listing Health's own table stays drawn underneath,
@@ -1899,7 +1934,7 @@ $('hFilter').addEventListener('input', () => {
   LI_WS.filterT = setTimeout(() => {
     liWsReset();
     liWsSchedule();
-  }, 250);
+  }, 200);
 });
 // Listing Health rewrote its table — a refresh finished, the catalogue or Amazon's status arrived — so the listings may have changed.
 new MutationObserver(liWsSchedule).observe($('hTable'), { childList: true });
@@ -2004,8 +2039,7 @@ function liWsClick(e) {
     const p = LI_WS.byKey.get(d.liWsTog);
     if (LI_WS.open.has(d.liWsTog)) LI_WS.open.delete(d.liWsTog);
     else {
-      LI_WS.open.add(d.liWsTog);
-      if (p) liWsReadParent(p, false);
+      LI_WS.open.add(d.liWsTog);               // shown, not read (18 Nov 2026): "Read again from Amazon" reads
     }
     liWsDraw();
     return refocus(`[data-li-ws-tog="${CSS.escape(d.liWsTog)}"]`);

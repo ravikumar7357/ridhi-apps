@@ -47,7 +47,7 @@ CREATE INDEX IF NOT EXISTS tickets_status ON tickets (status, created);
 CREATE TABLE IF NOT EXISTS learn (
   id       INTEGER PRIMARY KEY AUTOINCREMENT,
   created  TEXT NOT NULL,
-  kind     TEXT NOT NULL,     -- missed / unsure / down / spelling
+  kind     TEXT NOT NULL,     -- missed / unsure / down / spelling / judged (the judge's pick, confirmed with 👍, 17 Nov)
   question TEXT NOT NULL,     -- cleaned
   qkey     TEXT NOT NULL,     -- the cleaned question, normalised: the same question counted once
   screen   TEXT,

@@ -36,6 +36,13 @@ async function ptLoadEmp(force) {
   PTE.accLedger = ptList(ledger);
   PTE.acc = ptList((PTG.masters || {}).accessories);
 }
+/** The staff list for a screen that only shows names from it (Order Console, QC). A failed read used to stop the
+ *  screen on "Loading…" for good, and staff pressed F5 (18 Nov 2026); now the names are blank and the next open
+ *  tries again. */
+async function ptLoadEmpOrSkip(screen) {
+  try { await ptLoadEmp(); }
+  catch (e) { console.warn('[' + screen + '] staff list not read, names may be blank:', e); }
+}
 
 const ptEmpTypes = () => [...new Set((PTE.emp || []).map(e => String(e[0] || '').trim()).filter(Boolean))].sort();
 const ptEmpsOfType = t => (PTE.emp || []).filter(e => !t || String(e[0] || '').trim() === t);
@@ -62,14 +69,15 @@ function obIssueUsed(orderNo, sku, exclId) {
    * walk, so that rule lives in exactly one place. */
   if (!exclId) {
     const b = obBaseIndex().get(obKeyOf(orderNo, sku));
-    return Math.max(b ? b.issued : 0, obPressQty(orderNo, sku));
+    /* A piece the karigar's receive REJECTED frees its room: its replacement is a new piece, not the same one issued twice. */
+    return Math.max(b ? b.issued - (b.rejected || 0) : 0, obPressQty(orderNo, sku));
   }
   const o = obUC(orderNo), s = obUC(sku);
   let iss = 0;
   (PT.base || []).forEach(r => {
     if (!r || obUC(r.orderNo) !== o || obUC(r.sku) !== s) return;
     if (exclId && r.id === exclId) return;      // the row being edited does not count against itself
-    iss += parseInt(r.issuePieces, 10) || 0;
+    iss += (parseInt(r.issuePieces, 10) || 0) - (parseInt(r.rejectionPieces, 10) || 0);
   });
   return Math.max(iss, obPressQty(orderNo, sku));
 }
@@ -295,20 +303,22 @@ function bdCustomLists() {
   if ($('bwColList')) $('bwColList').innerHTML = of('color', r => (!at || ptNorm(r.articleType) === at) && (!sub || ptNorm(r.subtype) === sub));
   if ($('bwSzList')) $('bwSzList').innerHTML = of('size', r => (!at || ptNorm(r.articleType) === at) && (!sub || ptNorm(r.subtype) === sub));
 }
-/** A new custom SKU into the master — or, for somebody the master is closed to, onto the Custom SKUs list the forms also read. */
+/** A new custom SKU onto the Custom SKUs list the forms also read — never into the master.
+ * MASTER STAYS MASTER (Ravi, 14 Nov: "mera real masterdata master database me hi rhna chahiye — custom sku wala sirf sku padhne ke kam
+ * aay, orders me data fill krne ke kam aay"). Until 14 Nov a custom SKU minted here went into pt_masterDB whenever the person could edit
+ * the master (291 rows by then, source 'Custom Order (Job Work)'); now it always goes to pt_customSkus. */
 async function bdCustomMaster(e) {
   if (!e || !e.sku || mdbOf(e.sku) || (typeof ptCustomOf === 'function' && ptCustomOf(e.sku))) return '';
   const tc = typeof ptTcCutReq === 'function' ? ptTcCutReq(e.articleType, e.articleSubtype) : null;
   const rec = { sku: e.sku, articleType: e.articleType, subtype: e.articleSubtype, color: e.color, size: e.size, brand: '', packOf: '',
     cuttingRequired: tc == null ? true : tc, isCustom: true, customOrder: e.custOrder || '', source: 'Custom Order (Job Work)',
     addedBy: ME.email || '', addedAt: new Date().toISOString() };
-  const master = (typeof mdbCanEdit === 'function' && mdbCanEdit()) || !!ME.prodEdit;
   try {
-    if (master) { const key = 'mdb_' + Date.now(); await ptPut('pt_masterDB/' + key, rec); PTG.mdb = (PTG.mdb || []).concat(Object.assign({ _key: key }, rec)); return ` ${e.sku} added to the master database.`; }
     await ptPut('pt_customSkus/' + e.sku, rec);
     if (typeof MDBX !== 'undefined') MDBX.custom = (MDBX.custom || []).concat(Object.assign({ _key: e.sku }, rec));
-    return ` ${e.sku} added to the Custom SKUs list (the master database needs that permission).`;
-  } catch (er) { return ` ${e.sku} could NOT be added to the master: ${er.message || er}.`; }
+    if (typeof CUST_IX !== 'undefined') CUST_IX = { src: null, map: null };
+    return ` ${e.sku} added to the Custom SKUs list.`;
+  } catch (er) { return ` ${e.sku} could NOT be added to the Custom SKUs list: ${er.message || er}.`; }
 }
 
 /** The master rows in play: everything in Custom mode, otherwise only what the picked order needs. */
@@ -317,8 +327,13 @@ function bdScope() {
   if (bdIsCustom()) return all;
   const o = obUC($('bwOrd').value);
   if (!o) return all;
-  const open = new Set(obLines().filter(l => l.orderNo === o).map(l => l.sku));
-  return all.filter(r => open.has(obUC(r.sku)));
+  const open = new Set(obLines().filter(l => l.orderNo === o).map(l => obUC(l.sku)));
+  /* A SKU OF THE ORDER THAT IS ONLY ON THE CUSTOM SKUs LIST (Ravi, 14 Nov video: CPCN005-8 typed, SHP-8252 picked, and article,
+   * subtype, colour, size and SKU all went blank). The order's SKUs were looked for in the master alone, so a custom SKU left
+   * nothing to pick. Its Custom SKUs record now stands in for the master row. */
+  const inMaster = all.filter(r => open.has(obUC(r.sku))), have = new Set(inMaster.map(r => obUC(r.sku)));
+  const cust = typeof ptCustomOf === 'function' ? [...open].filter(s => !have.has(s)).map(s => ptCustomOf(s)).filter(Boolean) : [];
+  return inMaster.concat(cust);
 }
 
 function bdFill(id, values, label) {
@@ -590,8 +605,14 @@ $('bwClear').onclick = () => {
   bdFormMsg('Cleared — nothing was saved.');
 };
 ['bwCustom', 'bwOrd', 'bwType', 'bwAt', 'bwSub', 'bwCol', 'bwSz', 'bwColTxt', 'bwSzTxt', 'bwAtTxt', 'bwSubTxt'].filter(id => $(id)).forEach(id => {
-  // Changing anything above the SKU means the typed SKU no longer stands.
-  const reset = () => { if (id !== 'bwType') $('bwSku').dataset.typed = ''; renderBdForm(); };
+  // Changing anything above the SKU means the typed SKU no longer stands — except picking an order that the typed SKU is on
+  // (the order list follows the typed SKU, so the order picked is one of its own).
+  const reset = () => {
+    const keep = id === 'bwType' || (id === 'bwOrd' && $('bwSku').dataset.typed && $('bwOrd').value
+      && obLines().some(l => l.orderNo === obUC($('bwOrd').value) && obUC(l.sku) === obUC($('bwSku').value)));
+    if (!keep) $('bwSku').dataset.typed = '';
+    renderBdForm();
+  };
   $(id).addEventListener('change', reset);
   $(id).addEventListener('input', reset);
 });

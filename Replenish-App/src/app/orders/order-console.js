@@ -38,7 +38,7 @@ async function ensureOrd() {
     || !PTE.priority || MDBX.custom === null || !ODR.rows || SOX.rows === null;
   if (need) { ORD.busy = true; renderOrd(); }
   await Promise.all([
-    ptNeed(PTG_ALL, { why: 'ord', has: 'mdb' }).then(() => (PTE.emp ? null : ptLoadEmp())),
+    ptNeed(PTG_ALL, { why: 'ord', has: 'mdb' }).then(() => (PTE.emp ? null : ptLoadEmpOrSkip('ord'))),
     QC.checks === null && Promise.all([
       ptGet('pt_qcChecks').then(v => { QC.checks = ptList(v); }, () => { QC.checks = QC.checks || []; }),
       ptGet('pt_qcIssuance').then(v => { QC.issue = ptList(v); }, () => { QC.issue = QC.issue || []; }),
@@ -74,8 +74,11 @@ async function ensureOrd() {
 /** Does this SKU need cutting: the override first, then the master row, then yes. */
 function ordCutReq(sku) {
   const k = obUC(sku);
-  if (ORD.req && k in ORD.req) return ORD.req[k] !== false;
   const m = cutSkuOf(sku);
+  /* EMBROIDERY IS NEVER CUT — permanent (Ravi, 15 Nov: "embroidery ke liye cut not required hota h permanent"), whatever a record
+   * or an override says. 77 records still said "cutting required" (63 custom, 14 master) and were set to false the same day. */
+  if (m && /embroid/i.test(String(m.articleType || '') + ' ' + String(m.subtype || ''))) return false;
+  if (ORD.req && k in ORD.req) return ORD.req[k] !== false;
   return !m || m.cuttingRequired !== false;
 }
 

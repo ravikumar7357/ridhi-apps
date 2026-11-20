@@ -32,12 +32,237 @@ const WHEN = new Date().toISOString().slice(0, 16).replace('T', ' ') + ' UTC';
  * tokens have the fulfilment permissions and Ravi says to switch it on; then true, and only that one POST goes through —
  * every other write stays stopped. */
 const HUB_SHOPIFY_WRITES = false;
+/* THE FACTORY ERP LOADS FROM SUPABASE (Ravi, 14 Nov: "the test link loads from ERP data … remove these badges"). Its data
+ * comes from ERP data (Supabase project R-one MAIN), not Firebase: every read of the factory registers is answered by the
+ * door core.rt_get, every Firestore document by core.fs_get / fs_list — the same data in the same shape (proven record for
+ * record: migration/rt-proof.md, fs-proof.md). Only a Firestore config document that holds an API key is still read from
+ * Firebase (keys are never copied into Supabase). Sign-in stays the ERP login (Supabase checks it).
+ * SAVES (Ravi, 16 Nov): the factory ERP's saves go to ERP data ONLY (door core.rt_save) — never to Firebase, so point 2 below
+ * still holds for the real ERP: nothing here can change it. Sellora, logins and the backends stay refused as before. Tester
+ * data is wiped on switch day (ERP data is reloaded fresh from Firebase).
+ * The live Firebase connection (live copies, delta sync, data meter) is not opened. The check badges are off. */
+const SB_DATA = { url: 'https://xkpktnsdmpkwaingvdbd.supabase.co', key: 'sb_publishable_niq2DDjeCaqJl3_ccv0vtQ_BS8bqQ2Q' };   // ERP data — publishable key, made for browsers
 
 /* ---- what runs first on every page of the test ERP ---- */
 const GUARD = `<script>/* TEST ERP GUARD — added by Replenish-App/tests/build-test-erp.js; not in the real ERP. */
 (function () {
   var MSG = 'Saving is off in the TEST ERP \\u2014 nothing was saved.';
-  window.__TEST_ERP = { sha: ${JSON.stringify(SHA)}, branch: ${JSON.stringify(BRANCH)}, built: ${JSON.stringify(WHEN)}, blocked: 0, hubShopifyWrites: ${HUB_SHOPIFY_WRITES} };
+  window.__TEST_ERP = { sha: ${JSON.stringify(SHA)}, branch: ${JSON.stringify(BRANCH)}, built: ${JSON.stringify(WHEN)}, blocked: 0, hubShopifyWrites: ${HUB_SHOPIFY_WRITES},
+    sb: ${JSON.stringify(SB_DATA)}, sbReads: 0, sbOn: !!window.__TEST_ERP_SB_PAGE };
+  /* A read of the factory registers (Firebase Realtime Database REST: <path>.json?auth=<sign-in>&orderBy=…) answered by ERP data's
+   * door core.rt_get with the same sign-in — same data, same shape. Only pages that turn it on (the factory ERP) use it. */
+  /* one call to an ERP data door with the person's sign-in; the answer, or an error that says why */
+  function sbRpc(fn, body, tok, origFetch) {
+    var sb = window.__TEST_ERP.sb;
+    return origFetch(sb.url + '/rest/v1/rpc/' + fn, { method: 'POST', body: JSON.stringify(body),
+      headers: { apikey: sb.key, Authorization: 'Bearer ' + (tok || sb.key), 'Content-Type': 'application/json', 'Content-Profile': 'core', 'Accept-Profile': 'core' } })
+      .then(function (r) { return r.text().then(function (t) {
+        if (r.ok) return t ? JSON.parse(t) : null;
+        var why = t; try { var j = JSON.parse(t); why = [j.message, j.hint].filter(Boolean).join(' · ') || t; } catch (e) {}
+        throw new Error('ERP data ' + r.status + ': ' + why);
+      }); });
+  }
+  /* THIS BROWSER'S COPY of each whole list (IndexedDB, kept across reloads), with the inbox number it is complete up to.
+   * A list is downloaded whole only the first time (or after 6 hours); after that only the records saved since arrive —
+   * a few KB instead of 22 MB a page. If anything looks off, the whole list is fetched again. */
+  var SBDB = null;
+  function sbIdb() {
+    if (!SBDB) SBDB = new Promise(function (res) {
+      try { var r = indexedDB.open('r1-erpdata-copies-2', 1);   /* -2 (16 Nov): copies from before the job-work fix are not used */ r.onupgradeneeded = function () { r.result.createObjectStore('lists'); };
+        r.onsuccess = function () { res(r.result); }; r.onerror = function () { res(null); }; } catch (e) { res(null); }
+    });
+    return SBDB;
+  }
+  function sbCopy(k, v) {
+    return sbIdb().then(function (db) {
+      if (!db) return null;
+      return new Promise(function (res) {
+        try { var st = db.transaction('lists', v === undefined ? 'readonly' : 'readwrite').objectStore('lists');
+          var q = v === undefined ? st.get(k) : st.put(v, k); q.onsuccess = function () { res(v === undefined ? (q.result || null) : true); }; q.onerror = function () { res(null); };
+        } catch (e) { res(null); }
+      });
+    });
+  }
+  function sbSet(o, segs, val) {    /* one record into the copy (null = gone; an emptied group goes too, as in Firebase) */
+    var path = [o], cur = o;
+    for (var i = 0; i < segs.length - 1; i++) { if (!cur[segs[i]] || typeof cur[segs[i]] !== 'object') cur[segs[i]] = {}; cur = cur[segs[i]]; path.push(cur); }
+    if (val == null) delete cur[segs[segs.length - 1]]; else cur[segs[segs.length - 1]] = val;
+    for (var j = segs.length - 2; j >= 0; j--) { if (Object.keys(path[j + 1]).length === 0) delete path[j][segs[j]]; else break; }
+  }
+  /* FAST (Ravi, 14 Nov: "more fast"): the copy is kept as ready JSON TEXT (in this page's memory + IndexedDB), so it is never
+   * converted back and forth on an open; a screen gets it AT ONCE, and "what changed since" is asked in the background right
+   * after (one at a time per list) — the next open has the changes. Only a list never seen here waits for ERP data. */
+  var SBMEM = {}, SBBUSY = {};
+  function sbStore(key, m) { SBMEM[key] = m; sbCopy(key, { text: m.text, upto: m.upto, at: m.at }); }
+  /* a whole list, downloaded: first the tiny "up to which save" number, then the list itself as it is (16 Nov: packing the
+   * list and its number into one answer made ERP data rebuild 5–7 MB per read). The number first: a copy can only be newer. */
+  /* C (16 Nov): ERP data also keeps each whole list as a FILE in its file storage; manifest.json says up to which save each file
+   * is complete (only confirmed uploads are listed). A first load downloads the file — the database does no work — and the
+   * changes since come from rt_changes in the background as usual. No file yet / not allowed / any trouble: the database. */
+  var SBMAN = null;
+  function sbStorageGet(path, tok, origFetch) {
+    var sb = window.__TEST_ERP.sb;
+    return origFetch(sb.url + '/storage/v1/object/authenticated/erp-lists/' + path, { headers: { apikey: sb.key, Authorization: 'Bearer ' + (tok || sb.key) }, cache: 'no-store' })
+      .then(function (r) { return r.ok ? r.text() : null; }).catch(function () { return null; });
+  }
+  function sbManifest(tok, origFetch) {
+    if (!SBMAN) SBMAN = sbStorageGet('manifest.json?t=' + Date.now(), tok, origFetch).then(function (t) { try { return t ? JSON.parse(t) : null; } catch (e) { return null; } });
+    return SBMAN;
+  }
+  function sbFull(key, p, tok, origFetch) {
+    return sbManifest(tok, origFetch).then(function (man) {
+      var e = man && man[p];
+      /* 20 Nov (UAT check 25): a list with no file comes from the database's ready copy, which can be a few seconds behind a
+       * save just made — so the saves since are added BEFORE it is shown, exactly as for a file */
+      if (!e || e.upto == null) return sbFullDb(key, p, tok, origFetch).then(function (m) {
+        return sbRefresh(key, p, tok, origFetch, true).then(function (x) { var n = x || SBMEM[key] || m; if (!n.from) n.from = 'database'; return n; });
+      });
+      return sbStorageGet(p + '.json?v=' + e.upto, tok, origFetch).then(function (t) {
+        if (!t) return sbFullDb(key, p, tok, origFetch);
+        var m = { text: t, upto: e.upto, at: Date.now(), from: 'file' }; sbStore(key, m);
+        /* a file can be up to 30 minutes behind (16 Nov): the saves since are added BEFORE it is shown — one small answer */
+        return sbRefresh(key, p, tok, origFetch, true).then(function (x) { var n = x || SBMEM[key] || m; if (!n.from) n.from = 'file'; return n; });
+      });
+    });
+  }
+  /* B (16 Nov): from the database the list comes as plain text ("Accept: text/plain") — handed over as it is, no checking step */
+  function sbFullDb(key, p, tok, origFetch) {
+    var sb = window.__TEST_ERP.sb;
+    return sbRpc('rt_list_upto', { p_reg: p }, tok, origFetch).then(function (upto) {
+      return origFetch(sb.url + '/rest/v1/rpc/rt_get_text', { method: 'POST', body: JSON.stringify({ p_path: p }),
+        headers: { apikey: sb.key, Authorization: 'Bearer ' + (tok || sb.key), 'Content-Type': 'application/json', Accept: 'text/plain', 'Content-Profile': 'core', 'Accept-Profile': 'core' } })
+        .then(function (r) { return r.text().then(function (t) {
+          if (r.status === 406) return sbFullJson(key, p, upto, tok, origFetch);     /* plain text refused: the JSON answer instead */
+          if (!r.ok) { var why = t; try { var j = JSON.parse(t); why = [j.message, j.hint].filter(Boolean).join(' · ') || t; } catch (e) {} throw new Error('ERP data ' + r.status + ': ' + why); }
+          var m = { text: t || 'null', upto: upto, at: Date.now(), from: 'database' }; sbStore(key, m); return m;   /* the answer's own text: never parsed and written again */
+        }); });
+    });
+  }
+  function sbFullJson(key, p, upto, tok, origFetch) {
+    var sb = window.__TEST_ERP.sb;
+    return origFetch(sb.url + '/rest/v1/rpc/rt_get_json', { method: 'POST', body: JSON.stringify({ p_path: p }),
+      headers: { apikey: sb.key, Authorization: 'Bearer ' + (tok || sb.key), 'Content-Type': 'application/json', 'Content-Profile': 'core', 'Accept-Profile': 'core' } })
+      .then(function (r) { return r.text().then(function (t) {
+        if (!r.ok) { var why = t; try { var j = JSON.parse(t); why = [j.message, j.hint].filter(Boolean).join(' · ') || t; } catch (e) {} throw new Error('ERP data ' + r.status + ': ' + why); }
+        var m = { text: t || 'null', upto: upto, at: Date.now(), from: 'database' }; sbStore(key, m); return m;
+      }); });
+  }
+  function sbRefresh(key, p, tok, origFetch, afterFile) {
+    if (SBBUSY[key]) return SBBUSY[key];
+    var m = SBMEM[key];
+    var job = sbRpc('rt_changes', { p_reg: p, p_upto: m.upto }, tok, origFetch).then(function (r) {
+      if (!r || r.full) return afterFile ? sbFullDb(key, p, tok, origFetch) : sbFull(key, p, tok, origFetch);   /* never file → file again */
+      var ks = Object.keys(r.ch || {});
+      if (!ks.length) { if (r.upto !== m.upto) sbStore(key, { text: m.text, upto: r.upto, at: m.at }); return SBMEM[key]; }
+      var v = JSON.parse(m.text);
+      if (Array.isArray(v) || v == null || typeof v !== 'object') return afterFile ? sbFullDb(key, p, tok, origFetch) : sbFull(key, p, tok, origFetch);
+      ks.forEach(function (k) { sbSet(v, k.split('/'), r.ch[k]); });
+      var n = { text: JSON.stringify(v), upto: r.upto, at: m.at }; sbStore(key, n); return n;
+    }).catch(function (e) { try { console.warn('[TEST ERP] could not ask ERP data for changes of ' + p + ': ' + e.message); } catch (x) {} return SBMEM[key]; })
+      .then(function (x) { delete SBBUSY[key]; return x; });
+    SBBUSY[key] = job;
+    return job;
+  }
+  /* LIVE COPIES (16 Nov), as the live ERP keeps its open lists fresh through Firebase's live connection: every 5 s (while the
+   * page is in front) one tiny question — the newest save ERP data has applied (core.rt_live_upto). Only when it moved are the
+   * lists this page holds brought up to date, one at a time, so reopening a screen shows the newest data at once. */
+  var SBLIVE = { upto: null, busy: false, used: {}, tok: '', ok: true };
+  function sbLiveTick() {
+    if (SBLIVE.busy || !SBLIVE.ok || !SBLIVE.tok || document.visibilityState === 'hidden' || !Object.keys(SBLIVE.used).length) return;
+    SBLIVE.busy = true;
+    var of = window.__TEST_ERP.origFetch;
+    sbRpc('rt_live_upto', {}, SBLIVE.tok, of).then(function (u) {
+      if (SBLIVE.upto !== null && u === SBLIVE.upto) return;
+      var first = SBLIVE.upto === null; SBLIVE.upto = u;
+      if (first) return;
+      window.__TEST_ERP.sbMemo = {};                                   /* short-lived reads are asked again */
+      return Object.keys(SBLIVE.used).reduce(function (chain, key) {
+        return chain.then(function () { var m = SBMEM[key]; if (!m || m.upto == null || m.upto >= u) return;
+          return sbRefresh(key, SBLIVE.used[key], SBLIVE.tok, of); });
+      }, Promise.resolve());
+    }).catch(function (e) { if (/404|not find the function/.test(String(e && e.message))) SBLIVE.ok = false; })   /* the door is not there yet: plain behaviour */
+      .then(function () { SBLIVE.busy = false; });
+  }
+  setInterval(sbLiveTick, 5000);
+  window.__TEST_ERP.sbLive = SBLIVE;
+  function sbWhole(p, tok, origFetch) {
+    var key = window.__TEST_ERP.sb.url + '|' + p;
+    SBLIVE.used[key] = p; if (tok) SBLIVE.tok = tok;
+    var fromMem = SBMEM[key] ? Promise.resolve(SBMEM[key]) : sbCopy(key).then(function (c) { if (c && typeof c.text === 'string' && c.upto != null) SBMEM[key] = c; return SBMEM[key] || null; });
+    return fromMem.then(function (m) {
+      if (!m || Date.now() - (m.at || 0) > 6 * 3600000) return sbFull(key, p, tok, origFetch).then(function (x) { return x.text; });
+      if (SBSTALE[key]) {                                /* saved here since: wait for the changes (after any check already on its way) */
+        delete SBSTALE[key];
+        return (SBBUSY[key] || Promise.resolve()).then(function () { return sbRefresh(key, p, tok, origFetch); }).then(function (x) { return (x || SBMEM[key]).text; });
+      }
+      /* 18 Nov (UAT): the copy is brought up to date BEFORE it is shown — showing it first and refreshing in the background
+       * put old numbers on screen (Sales Orders 3,642 while ERP data had 3,833). One small question; the copy if it fails. */
+      return sbRefresh(key, p, tok, origFetch).then(function (x) { return (x || SBMEM[key] || m).text; }, function () { return m.text; });
+    });
+  }
+  /* a part of a list from the page's parsed copy (parsed once per version of the copy) */
+  function sbPart(key, text, segs) {
+    var m = SBMEM[key]; if (!m) return null;
+    if (m.objText !== text) { m.obj = JSON.parse(text); m.objText = text; }
+    var v = m.obj; for (var i = 0; i < segs.length; i++) { if (v == null || typeof v !== 'object') return null; v = v[segs[i]]; }
+    return v === undefined ? null : v;
+  }
+  /* THE SPEED LOG of ERP data reads (16 Nov): in the console, __TEST_ERP.sbReport() shows every read — what, how it was
+   * answered (copy = from this browser · whole = downloaded · read = asked · part of copy), how long, how big. */
+  window.__TEST_ERP.sbLog = [];
+  function sbNote(p, how, ms, chars, err) {
+    var L = window.__TEST_ERP.sbLog; L.push({ at: new Date().toTimeString().slice(0, 8), screen: String(location.hash || '').slice(1, 30), what: p.slice(0, 60), how: how, ms: ms, kb: Math.round(chars / 1024), error: err || '' });
+    if (L.length > 500) L.shift();
+  }
+  window.__TEST_ERP.sbReport = function () {
+    var L = window.__TEST_ERP.sbLog.slice().sort(function (a, b) { return b.ms - a.ms; });
+    try { console.table(L.slice(0, 60)); } catch (e) {}
+    var by = {}; window.__TEST_ERP.sbLog.forEach(function (r) { var k = r.how; by[k] = by[k] || { reads: 0, ms: 0, kb: 0 }; by[k].reads++; by[k].ms += r.ms; by[k].kb += r.kb; });
+    try { console.table(by); } catch (e) {}
+    return 'ERP data reads: ' + window.__TEST_ERP.sbLog.length + ' · slowest: ' + L.slice(0, 8).map(function (r) { return r.what + ' ' + r.how + ' ' + r.ms + 'ms ' + r.kb + 'KB' + (r.error ? ' ERR ' + r.error : ''); }).join(' | ');
+  };
+  function sbRtdb(url, origFetch) {
+    var u = new URL(url), q = u.searchParams, tok = q.get('auth') || '';
+    var p = decodeURIComponent(u.pathname.replace(/\\.json$/, '').replace(/^\\/+/, ''));
+    var body = { p_path: p, p_order_by: null, p_equal_to: null, p_limit_last: null };
+    try { if (q.get('orderBy')) body.p_order_by = JSON.parse(q.get('orderBy')); if (q.get('equalTo')) body.p_equal_to = JSON.parse(q.get('equalTo')); } catch (e) {}
+    if (q.get('limitToLast')) body.p_limit_last = Number(q.get('limitToLast'));
+    var sb = window.__TEST_ERP.sb;
+    /* What was loaded is kept 2 minutes (like the live copy the ERP keeps of Firebase), and screens asking for the same thing
+     * at the same moment share one request — so reopening a screen asks ERP data nothing. (Saving is off here: nothing this
+     * page does can make the copy wrong.) */
+    var memoKey = JSON.stringify(body) + (q.get('shallow') || '');
+    var M = window.__TEST_ERP.sbMemo || (window.__TEST_ERP.sbMemo = {});
+    var hit = M[memoKey];
+    var isWhole = p && p.indexOf('/') < 0 && !body.p_order_by && !q.get('shallow');   /* whole lists have their own copy (sbWhole) */
+    if (!isWhole && hit && Date.now() - hit.t < 20000) return hit.p.then(function (x) { return new Response(x.text, { status: x.status, statusText: x.statusText, headers: { 'Content-Type': 'application/json', ETag: 'sb' } }); });
+    window.__TEST_ERP.sbReads++;
+    /* a WHOLE list (the big reads every page makes): from this browser's own copy + only the records saved since */
+    var whole = p && p.indexOf('/') < 0 && !body.p_order_by && !q.get('shallow');
+    /* a part of completed job work (pt_baseDone/<day>, /_ver, /_auto — the job-work screens read ~70 days ONE AFTER ANOTHER):
+     * answered from this browser's one copy of the whole list, at once (16 Nov) */
+    var part = !whole && !body.p_order_by && !q.get('shallow') && /^pt_baseDone\\/[^/]+$/.test(p);
+    var t0 = Date.now(), how = whole ? (SBMEM[window.__TEST_ERP.sb.url + '|' + p] ? 'copy' : 'whole') : part ? 'part of copy' : 'read';
+    var vp = whole ? sbWhole(p, tok, origFetch)
+      : part ? sbWhole('pt_baseDone', tok, origFetch).then(function (t) { return sbPart(window.__TEST_ERP.sb.url + '|pt_baseDone', t, p.split('/').slice(1)); })
+      : sbRpc('rt_get', body, tok, origFetch);
+    vp.then(function (v) { var mm = whole ? SBMEM[window.__TEST_ERP.sb.url + '|' + p] : null;
+                           sbNote(p, how === 'whole' && mm && mm.from ? 'whole from ' + mm.from : how, Date.now() - t0, typeof v === 'string' ? v.length : JSON.stringify(v === undefined ? null : v).length, ''); },
+            function (e) { sbNote(p, how, Date.now() - t0, 0, e.message); });
+    var p0 = vp.then(function (v) {
+      if (typeof v === 'string') return new Response(v, { status: 200, headers: { 'Content-Type': 'application/json', ETag: 'sb' } });   /* a whole list: its ready text */
+      if (q.get('shallow') === 'true' && v && typeof v === 'object') { var o = {}; Object.keys(v).forEach(function (k) { o[k] = true; }); v = o; }
+      return new Response(JSON.stringify(v), { status: 200, headers: { 'Content-Type': 'application/json', ETag: 'sb' } });
+    }, function (e) {   /* the real reason goes into the message the screen shows ("…answered 503 ERP data 500: <why>") */
+      try { console.warn('[TEST ERP] ERP data refused the read of ' + p + ': ' + e.message); } catch (x) {}
+      return new Response(JSON.stringify({ error: e.message }), { status: /not an ERP sign-in|permission denied/.test(String(e.message)) ? 401 : 503, statusText: String(e.message).replace(/[^\\x20-\\x7e]/g, ' ').slice(0, 180), headers: { 'Content-Type': 'application/json' } });
+    });
+    /* kept only when it worked: a refused or failed read is asked again next time */
+    var keep = isWhole ? null : p0.then(function (r) { return r.clone().text().then(function (t) { if (!r.ok) delete M[memoKey]; return { text: t, status: r.status, statusText: r.statusText }; }); });
+    if (keep) keep.catch(function () { delete M[memoKey]; });
+    if (!isWhole) M[memoKey] = { t: Date.now(), p: keep };
+    return p0;
+  }
   function tell(what) {
     window.__TEST_ERP.blocked++;
     try { console.warn('[TEST ERP] blocked: ' + what); } catch (e) {}
@@ -49,9 +274,78 @@ const GUARD = `<script>/* TEST ERP GUARD — added by Replenish-App/tests/build-
     } catch (e) {}
   }
   window.__testErpBlock = function (what) { tell(what); return Promise.reject(new Error(MSG)); };
+  /* SAVES ON THE TEST LINK (Ravi, 16 Nov: "saves in test ERP saves on the data"). On the factory ERP a save to the registers
+   * goes to ERP data ONLY — through its door core.rt_save, applied at once — and never to Firebase, so the live ERP is never
+   * touched. The answer is shaped as Firebase's (PUT/PATCH echo what was written, DELETE null, POST { name }), and a
+   * compare-and-set (if-match) goes through core.rt_cas. The lists it touched are asked for their changes before their next
+   * open, so the screen shows the save. Tester data is wiped on switch day (ERP data is reloaded fresh from Firebase). */
+  var SBETAG = {}, SBETN = 0, SBSTALE = {};
+  window.__TEST_ERP.saves = 0;
+  function hdrGet(init, name) {
+    var h = init && init.headers; if (!h) return null;
+    if (typeof h.get === 'function') return h.get(name);
+    var ln = name.toLowerCase(); for (var k in h) if (String(k).toLowerCase() === ln) return h[k];
+    return null;
+  }
+  function told(text) {
+    try {
+      var t = document.getElementById('testErpSaved');
+      if (!t) { t = document.createElement('div'); t.id = 'testErpSaved'; document.body.appendChild(t); }
+      t.textContent = text; t.style.display = 'block';
+      clearTimeout(t._h); t._h = setTimeout(function () { t.style.display = 'none'; }, 2500);
+    } catch (e) {}
+  }
+  function sbPushId() {    /* a Firebase-style push id: time first, so new records sort last */
+    var c = '-0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz', t = Date.now(), s = '';
+    for (var i = 0; i < 8; i++) { s = c.charAt(t % 64) + s; t = Math.floor(t / 64); }
+    for (var j = 0; j < 12; j++) s += c.charAt(Math.floor(Math.random() * 64));
+    return s;
+  }
+  /* the lists a save touched: their copy is brought up to date before it is shown again; short-lived reads are forgotten */
+  function sbTouched(paths) {
+    window.__TEST_ERP.sbMemo = {};
+    paths.forEach(function (p) { var reg = String(p).split('/')[0]; if (reg) SBSTALE[window.__TEST_ERP.sb.url + '|' + (reg.indexOf('fs') === 0 ? 'fs' : reg)] = 1; });
+  }
+  window.__TEST_ERP.sbSave = function (changes, screen, tok, origFetch) {
+    return sbRpc('rt_save', { p_changes: changes, p_screen: screen || String(location.hash || '').slice(1, 40) }, tok, origFetch || window.__TEST_ERP.origFetch)
+      .then(function (n) { sbTouched(changes.map(function (c) { return c.p; })); window.__TEST_ERP.saves += changes.length; told('Saved to ERP data (test link \\u2014 not the real ERP)'); return n; });
+  };
+  function sbWrite(url, method, init, origFetch) {
+    var u = new URL(url), tok = u.searchParams.get('auth') || '';
+    var trimS = function (s) { return String(s).replace(/^\\/+|\\/+$/g, ''); };
+    var base = trimS(decodeURIComponent(u.pathname.replace(/\\.json$/, '')));
+    var join = function (a, b) { return [a, b].filter(function (x) { return x !== ''; }).join('/'); };
+    var body = null;
+    try { body = init && init.body != null && init.body !== '' ? JSON.parse(String(init.body)) : null; }
+    catch (e) { return Promise.resolve(new Response(JSON.stringify({ error: 'Invalid data; could not parse JSON' }), { status: 400, headers: { 'Content-Type': 'application/json' } })); }
+    var t = new Date().toISOString(), ch = [], answer = null;
+    if (method === 'PUT') { if (base) ch.push({ k: body === null ? 'delete' : 'put', p: base, v: body, t: t }); answer = body; }
+    else if (method === 'PATCH') { Object.keys(body || {}).forEach(function (k) { var p = join(base, trimS(k)), v = body[k]; if (p) ch.push({ k: 'patch', p: p, v: v === undefined ? null : v, t: t }); }); answer = body; }
+    else if (method === 'DELETE') { if (base) ch.push({ k: 'delete', p: base, v: null, t: t }); answer = null; }
+    else if (method === 'POST') { var id = sbPushId(); ch.push({ k: 'put', p: join(base, id), v: body, t: t }); answer = { name: id }; }
+    /* bookkeeping, not data (as the live mirror skips them): answered, not saved — ERP data keeps its own "what changed" */
+    ch = ch.filter(function (c) { return !/^pt_(sync|syncAudit|dataMeter)(\\/|$)/.test(c.p); });
+    var ok = function () { return new Response(JSON.stringify(answer === undefined ? null : answer), { status: 200, headers: { 'Content-Type': 'application/json' } }); };
+    var fail = function (e) {
+      var m = String((e && e.message) || e), st = /not an ERP sign-in|only an admin|API keys|permission denied/.test(m) ? 403 : 503;
+      try { console.warn('[TEST ERP] ERP data did not take the save of ' + base + ': ' + m); } catch (x) {}
+      return new Response(JSON.stringify({ error: m }), { status: st, statusText: m.replace(/[^\\x20-\\x7e]/g, ' ').slice(0, 180), headers: { 'Content-Type': 'application/json' } });
+    };
+    var tag = hdrGet(init, 'if-match');
+    if (tag && method === 'PUT') {   /* compare-and-set: written only if the path still holds what was read with this tag */
+      if (!(tag in SBETAG)) return Promise.resolve(new Response('{"error":"stale tag"}', { status: 412, headers: { 'Content-Type': 'application/json' } }));
+      return sbRpc('rt_cas', { p_path: base, p_expect: SBETAG[tag], p_next: body }, tok, origFetch).then(function (r) {
+        if (r === 'changed') return new Response('{"error":"ETag mismatch"}', { status: 412, headers: { 'Content-Type': 'application/json' } });
+        delete SBETAG[tag]; sbTouched([base]); window.__TEST_ERP.saves++; told('Saved to ERP data (test link \\u2014 not the real ERP)'); return ok();
+      }, fail);
+    }
+    if (!ch.length) return Promise.resolve(ok());
+    return window.__TEST_ERP.sbSave(ch, null, tok, origFetch).then(ok, fail);
+  }
   /* Backend GET requests that change something rather than read it. */
   var BACKEND_GET_WRITES = /[?&](notify|shopSkuBuild|adState)=|[?&]repl=(primeSetup|primeStop|primeLiveSetup|primeTest|histbuild)(&|$)/;
   var origFetch = window.fetch;
+  window.__TEST_ERP.origFetch = origFetch;
   window.fetch = function (input, init) {
     var url = String((input && input.url) || input || '');
     var method = String((init && init.method) || (input && input.method) || 'GET').toUpperCase();
@@ -68,7 +362,22 @@ const GUARD = `<script>/* TEST ERP GUARD — added by Replenish-App/tests/build-
         if (b && (b.mcf === 'preview' || b.mcf === 'status') && only(/^(mcf|order|mcfId|brand|key|idToken)$/)) write = false;
       } catch (e) { /* not that request: stays stopped */ }
     }
+    /* NO LIVE SHOPIFY on the test link (17 Nov, QA review: "too many 429s", 20+ errors every ~45 s). The Pricing API's Shopify
+     * reads (?shopify=…) use the SAME store rate limit as the live ERP, so every test-link call takes from the live ERP's share.
+     * They get a quiet answer instead; the Shopify screens show the shared copy (shopify_cache, from ERP data) as it is. */
+    if (!write && method === 'GET' && /script\\.google(usercontent)?\\.com/.test(url) && /[?&]shopify=/.test(url)) {
+      if (!window.__TEST_ERP.shopOffSaid) { window.__TEST_ERP.shopOffSaid = true; try { console.info('[TEST ERP] live Shopify calls are off on the test link (they share the live ERP\\'s Shopify limit)'); } catch (e) {} }
+      return Promise.resolve(new Response(JSON.stringify({ ok: false, error: 'Live Shopify is off on the test link' }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+    }
+    if (write && window.__TEST_ERP.sbOn && what.indexOf('database ') === 0) return sbWrite(url, method, init, origFetch);   // the factory ERP saves to ERP data only
     if (write) return window.__testErpBlock(what + ' ' + url.replace(/[?#].*$/, '').slice(0, 120));
+    if (window.__TEST_ERP.sbOn && /firebasedatabase\\.app|firebaseio\\.com/.test(url) && method === 'GET') {   // the factory ERP loads from ERP data
+      if (!hdrGet(init, 'X-Firebase-ETag')) return sbRtdb(url, origFetch);
+      return sbRtdb(url, origFetch).then(function (r) { return r.text().then(function (t) {   /* a read for compare-and-set: its own tag */
+        var tg = 'sb' + (++SBETN); try { SBETAG[tg] = JSON.parse(t); } catch (e) {}
+        return new Response(t, { status: r.status, statusText: r.statusText, headers: { 'Content-Type': 'application/json', ETag: tg } });
+      }); });
+    }
     if (url.indexOf('accounts:signInWithPassword') >= 0) slStart('sign-in');
     /* Firestore's listen / write channels stay open for good: not waited for, or no screen would ever be "done". */
     var held = url.indexOf('/channel') < 0;
@@ -190,6 +499,8 @@ const GUARD = `<script>/* TEST ERP GUARD — added by Replenish-App/tests/build-
     + 'font:600 12px/1.3 system-ui,sans-serif;padding:6px 10px;border-radius:8px;box-shadow:0 4px 14px rgba(0,0,0,.25);pointer-events:none}'
     + '#testErpToast{display:none;position:fixed;left:50%;top:14px;transform:translateX(-50%);z-index:2147483647;background:#7f1d1d;color:#fff;'
     + 'font:600 14px/1.4 system-ui,sans-serif;padding:10px 16px;border-radius:10px;box-shadow:0 6px 20px rgba(0,0,0,.3)}'
+    + '#testErpSaved{display:none;position:fixed;left:50%;top:14px;transform:translateX(-50%);z-index:2147483647;background:#166534;color:#fff;'
+    + 'font:600 13px/1.4 system-ui,sans-serif;padding:8px 14px;border-radius:10px;box-shadow:0 6px 20px rgba(0,0,0,.3);pointer-events:none}'
     + '#r1SpeedBtn{position:fixed;right:10px;bottom:10px;z-index:2147483647;background:#14161a;color:#fff;border:0;'
     + 'font:600 12px/1.3 system-ui,sans-serif;padding:7px 11px;border-radius:8px;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.25)}'
     + '#r1SpeedPanel{display:none;position:fixed;right:10px;bottom:48px;z-index:2147483647;width:min(560px,calc(100vw - 20px));max-height:70vh;overflow:auto;'
@@ -200,7 +511,7 @@ const GUARD = `<script>/* TEST ERP GUARD — added by Replenish-App/tests/build-
   document.addEventListener('DOMContentLoaded', function () {
     var s = document.createElement('style'); s.textContent = css; document.head.appendChild(s);
     var l = document.createElement('div'); l.id = 'testErpLabel';
-    l.textContent = 'R1 \\u00b7 test ERP \\u00b7 live data, saving off \\u00b7 ' + window.__TEST_ERP.branch + ' @ ' + window.__TEST_ERP.sha;
+    l.textContent = 'R1 \\u00b7 test ERP \\u00b7 ' + (window.__TEST_ERP.sbOn ? 'ERP data \\u00b7 saves go to ERP data only' : 'live data, saving off') + ' \\u00b7 ' + window.__TEST_ERP.branch + ' @ ' + window.__TEST_ERP.sha;
     document.body.appendChild(l);
     var pb = document.createElement('div'); pb.id = 'r1SpeedPanel'; document.body.appendChild(pb);
     var sb = document.createElement('button'); sb.id = 'r1SpeedBtn'; sb.type = 'button'; sb.textContent = '\\u23f1 Speed';
@@ -230,16 +541,97 @@ function must(text, find, repl, count, label) {
   return out;
 }
 
+/* TEST ERP (factory ERP): a Firestore save goes to ERP data only, as the live mirror sends it — fs/<collection>/<id>, a merge
+ * leaf by leaf (Firestore merges maps inside maps), server time → now. A settings document (config: API keys) is refused. */
+const SB_FS_WRITE_HELPERS = `/* TEST ERP: Firestore saves go to ERP data only (build-test-erp.js) */
+const __sbFsPlain = v => { if (v === null || v === undefined) return null; if (v instanceof Date) return v.toISOString(); if (Array.isArray(v)) return v.map(__sbFsPlain);
+  if (typeof v === 'object') { if (typeof v.toDate === 'function') { try { return v.toDate().toISOString(); } catch (e) { return null; } }
+    if (v._methodName === 'deleteField') return null;
+    const n = v.constructor && v.constructor.name; if (v._methodName || (n && n !== 'Object')) return new Date().toISOString();
+    const o = {}; for (const k of Object.keys(v)) o[k] = __sbFsPlain(v[k]); return o; }
+  return v; };
+async function __sbFsSave(path, changes) {
+  if (String(path || '').split('/')[0] === 'config') return window.__testErpBlock('Firestore settings (API keys stay in Firebase)');
+  const tok = (typeof auth !== 'undefined' && auth && auth.currentUser) ? await auth.currentUser.getIdToken() : '';
+  await window.__TEST_ERP.sbSave(changes, null, tok).catch(e => { if (/permission denied|not an ERP sign-in|only an admin/.test(String(e && e.message))) e.code = 'permission-denied'; throw e; });
+}
+const __sbFsLeaves = (o, pre, out, t) => { for (const k of Object.keys(o)) { const v = o[k], p = pre + '/' + k;
+  if (v && typeof v === 'object' && !Array.isArray(v) && !v._methodName && !(v.constructor && v.constructor.name !== 'Object') && Object.keys(v).length) __sbFsLeaves(v, p, out, t);
+  else out.push({ k: 'patch', p, v: __sbFsPlain(v), t }); } return out; };
+const __sbFsNewRef = col => { const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 12); return { id, path: String(col.path || col.id) + '/' + id, parent: col }; };`;
+function sbFirestoreWrite(n, hasDoc) {
+  const now = 'new Date().toISOString()';
+  if (n === 'setDoc') return `const setDoc = async (ref, data, opts) => { const t = ${now}, b = 'fs/' + ref.path;
+  await __sbFsSave(ref.path, opts && opts.merge ? __sbFsLeaves(data || {}, b, [], t) : [{ k: 'put', p: b, v: __sbFsPlain(data), t }]); };`;
+  if (n === 'addDoc') return `const addDoc = async (col, data) => { const ref = ${hasDoc ? 'doc(col)' : '__sbFsNewRef(col)'};
+  await __sbFsSave(ref.path, [{ k: 'put', p: 'fs/' + ref.path, v: __sbFsPlain(data), t: ${now} }]); return ref; };`;
+  if (n === 'deleteDoc') return `const deleteDoc = async ref => __sbFsSave(ref.path, [{ k: 'delete', p: 'fs/' + ref.path, v: null, t: ${now} }]);`;
+  if (n === 'updateDoc') return `const updateDoc = async (ref, data) => { const t = ${now};
+  await __sbFsSave(ref.path, Object.keys(data || {}).map(k => ({ k: 'patch', p: 'fs/' + ref.path + '/' + k.split('.').join('/'), v: __sbFsPlain(data[k]), t }))); };`;
+  throw new Error('sbFirestoreWrite: ' + n);
+}
+
 /** The Firestore import: setDoc / addDoc / deleteDoc are renamed, and the names the app uses now refuse. */
-function blockFirestoreWrites(html, label) {
+function blockFirestoreWrites(html, label, sbReads) {
   const WRITES = ['setDoc', 'addDoc', 'deleteDoc', 'updateDoc', 'writeBatch', 'runTransaction'];
+  /* query / orderBy / limit / where become plain descriptions that the ERP data getDocs below answers (Sellora reads its
+   * lists as query(collection, orderBy(…), limit(…))) */
+  const READS = sbReads ? ['getDoc', 'getDocs', 'getDocsFromServer', 'onSnapshot', 'query', 'orderBy', 'limit', 'where'] : [];
   return must(html, /import\s*\{([^}]*)\}\s*from\s*"(https:\/\/www\.gstatic\.com\/firebasejs\/[^"]+\/firebase-firestore\.js)";/g, (all, names, url) => {
     const list = names.split(',').map(s => s.trim()).filter(Boolean);
     const blocked = list.filter(n => WRITES.includes(n));
-    const kept = list.map(n => (WRITES.includes(n) ? `${n} as __real_${n}` : n));
-    const stubs = blocked.map(n => `const ${n} = (...a) => window.__testErpBlock('Firestore ${n}');`).join('\n');
-    return `import { ${kept.join(', ')} }\n  from "${url}";\n/* TEST ERP: Firestore writes are refused (build-test-erp.js). */\n${stubs}`;
+    const read = list.filter(n => READS.includes(n));
+    const kept = list.map(n => (WRITES.includes(n) || READS.includes(n) ? `${n} as __real_${n}` : n));
+    /* the factory ERP (sbReads): setDoc / addDoc / deleteDoc / updateDoc save to ERP data only (fs/<collection>/<id>, the shape the
+     * live mirror sends); a batch or transaction, and any settings document (config: API keys), stay refused */
+    const SBW = sbReads ? ['setDoc', 'addDoc', 'deleteDoc', 'updateDoc'] : [];
+    const stubs = blocked.map(n => SBW.includes(n) ? sbFirestoreWrite(n, list.includes('doc'))
+      : `const ${n} = (...a) => window.__testErpBlock('Firestore ${n}');`).join('\n')
+      + (blocked.some(n => SBW.includes(n)) ? '\n' + SB_FS_WRITE_HELPERS : '');
+    return `import { ${kept.join(', ')} }\n  from "${url}";\n/* TEST ERP: Firestore writes are refused (build-test-erp.js). */\n${stubs}` + (read.length ? '\n' + sbFirestoreReads(read) : '');
   }, 1, label + ' Firestore import');
+}
+/* TEST ERP: Firestore READS answered by ERP data (core.fs_get / fs_list) with the person's own sign-in — the same documents.
+ * A config document is read from Firebase (only it may hold an API key, and keys are never in Supabase). The time fields
+ * Firestore keeps as timestamps (at, dataAt, saved, updatedAt) come back as timestamps, so "last updated" still shows. */
+function sbFirestoreReads(names) {
+  const has = n => names.includes(n);
+  return `/* TEST ERP: Firestore reads come from ERP data (build-test-erp.js) */
+const __sbTs = s => { const d = new Date(s); return { toDate: () => new Date(d), toMillis: () => d.getTime(), seconds: Math.floor(d.getTime() / 1000), nanoseconds: 0, toJSON: () => s, toString: () => s, valueOf: () => d.getTime() }; };
+const __sbDoc = (ref, v) => { const out = v == null ? undefined : JSON.parse(JSON.stringify(v));
+  if (out && typeof out === 'object') for (const f of ['at', 'dataAt', 'saved', 'updatedAt']) if (typeof out[f] === 'string' && /^\\d{4}-\\d\\d-\\d\\dT\\d\\d:\\d\\d:\\d\\d(\\.\\d+)?Z$/.test(out[f])) out[f] = __sbTs(out[f]);
+  return { id: ref.id, ref, exists: () => v != null, data: () => out, get: f => (out || {})[f] }; };
+async function __sbRpc(fn, body) {
+  const sb = window.__TEST_ERP.sb, tok = (typeof auth !== 'undefined' && auth && auth.currentUser) ? await auth.currentUser.getIdToken() : '';
+  const r = await fetch(sb.url + '/rest/v1/rpc/' + fn, { method: 'POST', body: JSON.stringify(body),
+    headers: { apikey: sb.key, Authorization: 'Bearer ' + (tok || sb.key), 'Content-Type': 'application/json', 'Content-Profile': 'core', 'Accept-Profile': 'core' } });
+  const t = await r.text();
+  if (!r.ok) { const er = new Error('ERP data: ' + t.slice(0, 200)); if (/permission denied|not an ERP sign-in/.test(t)) er.code = 'permission-denied'; throw er; }   /* as Firestore says it */
+  window.__TEST_ERP.sbReads++; return t ? JSON.parse(t) : null;
+}
+const __sbIsKeyDoc = ref => String(ref && ref.path || '').split('/')[0] === 'config';
+${has('getDoc') ? `const getDoc = async ref => __sbIsKeyDoc(ref) ? __real_getDoc(ref) : __sbDoc(ref, await __sbRpc('fs_get', { p_coll: ref.parent.id, p_id: ref.id }));` : ''}
+${has('query') ? 'const query = (col, ...cs) => ({ __sbq: true, col, cs, type: "query" });' : ''}
+${has('orderBy') ? 'const orderBy = (f, dir) => ({ __ob: String(f), dir: dir === "desc" ? -1 : 1 });' : ''}
+${has('limit') ? 'const limit = n => ({ __lim: Number(n) });' : ''}
+${has('where') ? 'const where = (f, op, v) => ({ __wf: String(f), op, v });' : ''}
+${has('getDocs') || has('getDocsFromServer') ? `const __sbField = (o, f) => String(f).split('.').reduce((x, k) => (x == null ? undefined : x[k]), o);
+const __sbCmp = (a, b) => { const v = x => (x && typeof x.toMillis === 'function') ? x.toMillis() : x; a = v(a); b = v(b); return a === b ? 0 : a === undefined || a === null ? -1 : b === undefined || b === null ? 1 : a < b ? -1 : 1; };
+const __sbGetDocs = async q => { const col = q && q.__sbq ? q.col : q, cs = (q && q.__sbq ? q.cs : []) || [];
+  const coll = String(col.path || col.id); const list = await __sbRpc('fs_list', { p_coll: coll }) || [];
+  let docs = list.map(x => __sbDoc({ id: x.id, path: coll + '/' + x.id, parent: col }, x.data));
+  for (const c of cs) if (c && c.__wf) docs = docs.filter(d => { const a = __sbField(d.data(), c.__wf), b = c.v;
+    switch (c.op) { case '==': return __sbCmp(a, b) === 0; case '!=': return __sbCmp(a, b) !== 0; case '<': return __sbCmp(a, b) < 0; case '<=': return __sbCmp(a, b) <= 0;
+      case '>': return __sbCmp(a, b) > 0; case '>=': return __sbCmp(a, b) >= 0; case 'in': return (b || []).some(x => __sbCmp(a, x) === 0);
+      case 'array-contains': return Array.isArray(a) && a.some(x => __sbCmp(x, b) === 0); default: return true; } });
+  const obs = cs.filter(c => c && c.__ob);
+  if (obs.length) docs.sort((x, y) => { for (const o of obs) { const r = o.__ob === '__name__' ? __sbCmp(x.id, y.id) : __sbCmp(__sbField(x.data(), o.__ob), __sbField(y.data(), o.__ob)); if (r) return r * o.dir; } return 0; });
+  const lim = cs.find(c => c && c.__lim); if (lim) docs = docs.slice(0, lim.__lim);
+  return { docs, size: docs.length, empty: !docs.length, forEach: f => docs.forEach(f) }; };` : ''}
+${has('getDocs') ? 'const getDocs = __sbGetDocs;' : ''}
+${has('getDocsFromServer') ? 'const getDocsFromServer = __sbGetDocs;' : ''}
+${has('onSnapshot') ? `const onSnapshot = (ref, next, err) => { let off = false; const run = () => getDoc(ref).then(s => { if (!off) next(s); }).catch(e => { if (!off && typeof err === 'function') err(e); });
+  run(); const t = setInterval(run, 15000); return () => { off = true; clearInterval(t); }; };   /* asked again every 15 s (no live channel) */` : ''}`;
 }
 
 /* The guard goes just before the page's first <title>, which is the real top of the page in both apps (the factory
@@ -272,7 +664,18 @@ fs.writeFileSync(path.join(OUT, '.nojekyll'), '');
   copyDir(src, dst, ['index.html']);
   let html = fs.readFileSync(path.join(src, 'index.html'), 'utf8');
   html = guardPage(html, 'factory ERP');
-  html = blockFirestoreWrites(html, 'factory ERP');
+  html = blockFirestoreWrites(html, 'factory ERP', true);
+  /* LOADS FROM ERP DATA: the registers' reads go to Supabase (the guard's sbRtdb), the live Firebase connection is not
+   * opened (its library is not loaded — every screen then reads plainly, which the guard answers), the check badges are off. */
+  html = must(html, '<script>/* TEST ERP GUARD', '<script>/* TEST ERP GUARD (factory ERP: loads from ERP data) */ window.__TEST_ERP_SB_PAGE = true; </script><script>/* TEST ERP GUARD', 1, 'factory ERP loads from ERP data');
+  html = must(html, "import('https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js')", "Promise.reject(new Error('test ERP: no live Firebase connection — data comes from ERP data'))", null, 'factory ERP no live Firebase connection');
+  html = must(html, /const ASH = \{(\r?\n)(\s*)on: /, 'const ASH = {$1$2on: false && ', 1, 'factory ERP check badges off');
+  /* no read first tries the live Firebase connection that is not there (16 Nov: each read failed on it first — wasted work and
+   * "[data meter] Error" in the console); every read goes straight to the plain read, which the guard answers */
+  html = must(html, 'const ptLiveable = node => typeof app', 'const ptLiveable = node => false && typeof app', 1, 'factory ERP no live-copy attempt');
+  /* the live mirror (core/mirror.js) is OFF here: the test link's saves go to ERP data through the guard, and must never be
+   * sent to ERP TEST (whose inbox is the live ERP's — the automatic catch-up copies it into ERP data) */
+  html = must(html, /(const MIR = \{\r?\n\s*on: )/, '$1false && ', 1, 'factory ERP live mirror off');
   ['logo.png', 'manifest.webmanifest', 'apple-touch-icon.png', 'wordmark.png'].forEach(f => {
     html = must(html, new RegExp(`(href|src)="/${f.replace('.', '\\.')}"`, 'g'), `$1="${f}"`, null, 'factory ERP ' + f);
   });
@@ -316,10 +719,134 @@ fs.writeFileSync(path.join(OUT, '.nojekyll'), '');
   copyDir(src, dst, ['index.html']);
   let html = fs.readFileSync(path.join(src, 'index.html'), 'utf8');
   html = guardPage(html, 'Sellora');
-  html = blockFirestoreWrites(html, 'Sellora');
+  /* SELLORA ON ERP DATA (Ravi, 16 Nov): its Firestore reads (getDoc / getDocs with query, orderBy, limit) are answered by ERP
+   * data, its saves go to ERP data only (fs/<collection>/<id>), as the factory ERP's do; a settings document with an API key is
+   * still read from Firebase and never saved. Its few database reads/writes (the rights copy, pt_perms) go to ERP data too. */
+  html = must(html, '<script>/* TEST ERP GUARD', '<script>/* TEST ERP GUARD (Sellora: loads from ERP data) */ window.__TEST_ERP_SB_PAGE = true; </script><script>/* TEST ERP GUARD', 1, 'Sellora loads from ERP data');
+  html = blockFirestoreWrites(html, 'Sellora', true);
   html = must(html, /(href|src)="\/logo\.png"/g, '$1="logo.png"', null, 'Sellora logo');
   html = must(html, "fetch('/', { method: 'HEAD'", "fetch('./', { method: 'HEAD'", 1, 'Sellora version check');
   fs.writeFileSync(path.join(dst, 'index.html'), html);
+}
+
+/* THE FIRESTORE COPIER (Ravi, 16 Nov: "copier tab B"). Some Firestore documents are written by Apps Script (the Pricing API's
+ * ReplSnap / ShopifyCache, Sellora's backends), never by a browser, so no save of the test link carries them into ERP data.
+ * This page does what the Apps Script reader would: an ADMIN signed in to the test link opens …/copier/ and leaves it open; it
+ * reads Firestore with their own sign-in (names + update times first, then only the changed documents) and hands them to ERP
+ * data (core.fs_copy_put — admins only). The collections the scripts write: every 5 minutes; every collection the rules name:
+ * every hour. It never writes to Firebase; API keys (config/*: key / secret / token / password fields) are never sent. */
+{
+  const fsrc = fs.readFileSync(path.join(ROOT, 'Replenish-App', 'public', 'index.html'), 'utf8');
+  const key = (fsrc.match(/const FB_KEY = "([^"]+)"/) || [])[1];
+  const cfgM = fsrc.match(/const firebaseConfig = \{([\s\S]*?)\};/);
+  if (!key || !cfgM) throw new Error('copier: the Firebase web settings were not found in the factory ERP');
+  const cfg = '{' + cfgM[1].replace('apiKey: FB_KEY', 'apiKey: ' + JSON.stringify(key)) + '}';
+  const rules = fs.readFileSync(path.join(ROOT, 'Pricing-App', 'firestore.rules'), 'utf8');
+  const colls = [...new Set([...rules.matchAll(/match\s+\/([A-Za-z_]+)\//g)].map(m => m[1]).filter(c => c !== 'databases'))].sort();
+  if (colls.length < 20) throw new Error('copier: the collections were not read from firestore.rules');
+  const OFTEN = ['repl', 'replrows', 'replslim', 'replslimrows', 'replshop', 'replshoprows', 'shopify_cache', 'shopify_cache_days'].filter(c => colls.includes(c));
+  const dst = path.join(OUT, 'copier'); fs.mkdirSync(dst, { recursive: true });
+  fs.writeFileSync(path.join(dst, 'index.html'), `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex"><title>R1 · Firestore copier</title><link rel="icon" href="../replenish/r1-icon.svg" type="image/svg+xml">
+<style>body{margin:0;font:14px/1.5 system-ui,sans-serif;background:#f6f7f9;color:#15171a;padding:16px}main{max-width:820px;margin:0 auto;display:grid;gap:12px}
+h1{margin:0;font-size:22px}.tag{display:inline-block;background:#b45309;color:#fff;font-weight:700;font-size:12px;padding:2px 8px;border-radius:6px}
+.card{background:#fff;border:1px solid #e2e4e8;border-radius:12px;padding:12px 14px}table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{text-align:left;padding:4px 6px;border-bottom:1px solid #eceef1}td.n{text-align:right;font-variant-numeric:tabular-nums}.bad{color:#b91c1c}.ok{color:#166534}
+@media(prefers-color-scheme:dark){body{background:#111214;color:#e9eaec}.card{background:#18191c;border-color:#2a2c30}th,td{border-color:#2a2c30}}</style></head>
+<body><main><span class="tag">TEST ERP</span><h1>Firestore copier</h1>
+<div class="card" id="who">Checking your sign-in…</div>
+<div class="card"><b>Keep this tab open while people test.</b> It copies what the Apps Scripts write to Firestore (Sellora, the Replenishment
+snapshots, the Shopify cache) into ERP data: the scripts' collections every 5 minutes, all collections every hour. It only <b>reads</b>
+Firebase, and never copies API keys.<div id="state" style="margin-top:6px"></div></div>
+<div class="card"><table><thead><tr><th>Collection</th><th>Documents</th><th>Copied</th><th>Last looked</th><th></th></tr></thead><tbody id="rows"></tbody></table></div>
+</main>
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+const app = initializeApp(${cfg});
+const auth = getAuth(app);
+const SB = ${JSON.stringify(SB_DATA)};
+const PROJ = 'price-research-48ff3', BASE = 'https://firestore.googleapis.com/v1/projects/' + PROJ + '/databases/(default)/documents';
+const COLLS = ${JSON.stringify(colls)}, OFTEN = ${JSON.stringify(OFTEN)};
+const SECRET = /key|secret|token|pass/i, $ = id => document.getElementById(id), esc = s => String(s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+const ST = {}; let busy = false, user = null;
+const tok = () => user.getIdToken();
+const dec = v => { if (!v || typeof v !== 'object') return v; if ('stringValue' in v) return v.stringValue; if ('integerValue' in v) return Number(v.integerValue);
+  if ('doubleValue' in v) return Number(v.doubleValue); if ('booleanValue' in v) return v.booleanValue; if ('nullValue' in v) return null;
+  if ('timestampValue' in v) return v.timestampValue; if ('referenceValue' in v) return v.referenceValue; if ('geoPointValue' in v) return v.geoPointValue;
+  if ('bytesValue' in v) return v.bytesValue; if ('arrayValue' in v) return (v.arrayValue.values || []).map(dec);
+  if ('mapValue' in v) { const o = {}, f = v.mapValue.fields || {}; for (const k of Object.keys(f)) o[k] = dec(f[k]); return o; } return v; };
+const docOf = d => { const o = {}, f = d.fields || {}; for (const k of Object.keys(f)) o[k] = dec(f[k]); return o; };
+const safe = (coll, v) => { if (coll !== 'config' || !v || typeof v !== 'object') return v; const o = {}; for (const k of Object.keys(v)) if (!SECRET.test(k)) o[k] = v[k]; return o; };
+const idOf = n => String(n).split('/').pop();
+const seenGet = c => { try { return JSON.parse(localStorage.getItem('r1copier.seen.' + c) || 'null'); } catch (e) { return null; } };
+const seenSet = (c, m) => { try { localStorage.setItem('r1copier.seen.' + c, JSON.stringify(m)); } catch (e) { /* too big: sent again next round */ } };
+async function fsReq(url, opt) {
+  for (let i = 0; i < 3; i++) {
+    const r = await fetch(url, Object.assign({}, opt || {}, { headers: Object.assign({ Authorization: 'Bearer ' + await tok(), 'Content-Type': 'application/json' }, (opt || {}).headers || {}) }));
+    if (r.ok) return r.json();
+    if (r.status === 403 || r.status === 404) return null;            // not allowed / not there: skipped
+    if (r.status !== 429 && r.status < 500) throw new Error('Firestore ' + r.status + ': ' + (await r.text()).slice(0, 200));
+    await new Promise(z => setTimeout(z, 1500 * (i + 1)));
+  }
+  throw new Error('Firestore did not answer');
+}
+async function list(coll) {
+  const out = {}; let pt = '';
+  do { const j = await fsReq(BASE + '/' + encodeURIComponent(coll) + '?pageSize=300&mask.fieldPaths=__name__' + (pt ? '&pageToken=' + encodeURIComponent(pt) : ''));
+    if (j === null) return null; for (const d of j.documents || []) out[idOf(d.name)] = d.updateTime; pt = j.nextPageToken || ''; } while (pt);
+  return out;
+}
+async function getDocs(coll, ids) {
+  const arr = await fsReq(BASE + ':batchGet', { method: 'POST', body: JSON.stringify({ documents: ids.map(id => 'projects/' + PROJ + '/databases/(default)/documents/' + coll + '/' + id) }) }) || [];
+  const out = {}; for (const x of arr) if (x.found) out[idOf(x.found.name)] = { v: safe(coll, docOf(x.found)), t: x.found.updateTime }; return out;
+}
+async function send(docs) {
+  let batch = [], size = 0;
+  const flush = async () => { if (!batch.length) return;
+    const r = await fetch(SB.url + '/rest/v1/rpc/fs_copy_put', { method: 'POST', body: JSON.stringify({ p_docs: batch }),
+      headers: { apikey: SB.key, Authorization: 'Bearer ' + await tok(), 'Content-Type': 'application/json', 'Content-Profile': 'core', 'Accept-Profile': 'core' } });
+    if (!r.ok) throw new Error('ERP data ' + r.status + ': ' + (await r.text()).slice(0, 200)); batch = []; size = 0; };
+  for (const d of docs) { const s = JSON.stringify(d).length; if (batch.length && (size + s > 3000000 || batch.length >= 300)) await flush(); batch.push(d); size += s; }
+  await flush();
+}
+function draw() {
+  $('rows').innerHTML = COLLS.map(c => { const s = ST[c] || {}; return '<tr><td>' + esc(c) + (OFTEN.includes(c) ? ' <small>(scripts)</small>' : '') + '</td><td class="n">' + (s.docs == null ? '' : s.docs)
+    + '</td><td class="n">' + (s.copied || 0) + '</td><td>' + (s.at ? new Date(s.at).toLocaleTimeString() : '') + '</td><td class="' + (s.err ? 'bad' : 'ok') + '">' + esc(s.err || (s.skip ? 'not readable' : s.at ? 'ok' : '')) + '</td></tr>'; }).join('');
+}
+async function one(coll) {
+  const s = ST[coll] = ST[coll] || {};
+  try {
+    const now = await list(coll); s.at = Date.now();
+    if (now === null) { s.skip = true; s.err = ''; return; }
+    s.docs = Object.keys(now).length; s.skip = false;
+    const seen = seenGet(coll) || {};
+    const changed = Object.keys(now).filter(id => seen[id] !== now[id]), gone = Object.keys(seen).filter(id => !(id in now));
+    for (let i = 0; i < changed.length; i += 40) {
+      const ids = changed.slice(i, i + 40), got = await getDocs(coll, ids);
+      const ch = ids.filter(id => got[id]).map(id => ({ k: 'put', p: coll + '/' + id, v: got[id].v, t: got[id].t })).sort((a, b) => (a.t < b.t ? -1 : a.t > b.t ? 1 : 0));
+      await send(ch); ids.forEach(id => { if (got[id]) seen[id] = got[id].t; }); seenSet(coll, seen); s.copied = (s.copied || 0) + ch.length; draw();
+    }
+    if (gone.length) { await send(gone.map(id => ({ k: 'delete', p: coll + '/' + id, v: null, t: new Date().toISOString() }))); gone.forEach(id => delete seen[id]); seenSet(coll, seen); s.copied = (s.copied || 0) + gone.length; }
+    s.err = '';
+  } catch (e) { s.err = String(e && e.message || e).slice(0, 120); }
+}
+async function round() {
+  if (busy || !user) return; busy = true;
+  const last = Number(localStorage.getItem('r1copier.all') || 0), all = Date.now() - last > 59 * 60000;
+  $('state').textContent = 'Copying ' + (all ? 'every collection' : 'the scripts\\' collections') + '…';
+  for (const c of (all ? COLLS : OFTEN)) { await one(c); draw(); }
+  if (all) localStorage.setItem('r1copier.all', String(Date.now()));
+  $('state').textContent = 'Last round ' + new Date().toLocaleTimeString() + ' — next in 5 minutes.';
+  busy = false;
+}
+onAuthStateChanged(auth, u => {
+  user = u;
+  if (!u) { $('who').innerHTML = '<span class="bad">Not signed in.</span> Sign in on the <a href="../replenish/">factory ERP</a> first (with an admin account), then come back here.'; return; }
+  $('who').innerHTML = 'Signed in as <b>' + esc(u.email) + '</b>. Only an admin can copy.';
+  draw(); round(); setInterval(round, 5 * 60000);
+});
+</script></body></html>`);
 }
 
 /* The front page of the test ERP */
@@ -331,9 +858,10 @@ main{max-width:520px;width:100%;display:grid;gap:14px}h1{margin:0;font-size:28px
 a.card{display:block;background:#fff;border:1px solid #e2e4e8;border-radius:12px;padding:16px 18px;text-decoration:none;color:inherit}a.card:hover{border-color:#2b3a8c}
 a.card b{display:block;font-size:18px}small,p{color:#5d636b}@media(prefers-color-scheme:dark){body{background:#111214;color:#e9eaec}a.card{background:#18191c;border-color:#2a2c30}small,p{color:#a0a4ab}}</style></head>
 <body><main><img src="replenish/r1-logo.svg" alt="R1" width="200" style="justify-self:start"><span class="tag">TEST ERP</span><h1>R1 · the test ERP</h1>
-<p>The same apps as the real ERP, built from the <b>${BRANCH}</b> branch on GitHub. They show the <b>live data</b>, and <b>saving is switched off</b>, so nothing here can change the real ERP.</p>
-<a class="card" href="replenish/"><b>Factory ERP</b><small>Replenishment, production, vendors, stock</small></a>
-<a class="card" href="sellora/"><b>Sellora</b><small>Research, sales, listings, advertising</small></a>
+<p>The same apps as the real ERP, built from the <b>${BRANCH}</b> branch on GitHub. Nothing here can change the real ERP: both apps read and <b>save to ERP data (Supabase) only</b> — test saves are wiped when the real switch happens. E-mails, Shopify, Amazon and logins stay switched off.</p>
+<a class="card" href="replenish/"><b>Factory ERP</b><small>Replenishment, production, vendors, stock · loads from and saves to ERP data (Supabase)</small></a>
+<a class="card" href="sellora/"><b>Sellora</b><small>Research, sales, listings, advertising · loads from and saves to ERP data (Supabase)</small></a>
+<a class="card" href="copier/"><b>Firestore copier</b><small>Admins: keep it open while people test — copies what the Apps Scripts write into ERP data</small></a>
 <small>Built from commit ${SHA} · ${WHEN}</small></main></body></html>`);
 
 console.log(`test ERP built into _site/ from ${BRANCH} @ ${SHA}: factory ERP + Sellora, saving off.`);

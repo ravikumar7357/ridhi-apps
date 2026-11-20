@@ -157,7 +157,7 @@ function mtgOpenOrders() {
   });
   const chans = [...by.values()].sort((a, b) => b.left - a.left);
   /* The Order Console's own filters must not narrow the meeting — they are cleared for the one call and put back. */
-  const ids = ['odOrd', 'odArt', 'odSub', 'odCol', 'odSz', 'odStatus', 'odSrc', 'odBrand', 'odQ', 'odD1', 'odD2'];
+  const ids = ['odOrd', 'odArt', 'odSub', 'odCol', 'odSz', 'odStatus', 'odSrc', 'odBrand', 'odType', 'odQ', 'odD1', 'odD2'];
   const kept = ids.map(i => ($(i) || {}).value); ids.forEach(i => { if ($(i)) $(i).value = ''; });
   let dem = null; try { dem = ordDemandRows(); } catch (e) { dem = null; }
   ids.forEach((i, k) => { if ($(i)) $(i).value = kept[k]; });

@@ -10,11 +10,13 @@ const rd = f => fs.readFileSync(f, 'utf8').replace(/\r\n/g, '\n');
 const APP = path.join(__dirname, '..', 'src', 'app');
 const FR = rd(path.join(APP, 'flow/flow-receive.js')), VP = rd(path.join(APP, 'vendors/portal/vendor-portal.js')), VO = rd(path.join(APP, 'vendors/orders/vendor-orders.js'));
 const cut = (src, name) => { const i = src.indexOf('function ' + name + '('); if (i < 0) throw new Error(name + ' not found'); return src.slice(i, src.indexOf('\n}', i) + 2); };
+/* the sent / waiting / approved helpers of vendor-portal.js (16 Nov), as one block */
+const vsBlock = s => { const i = s.indexOf('const vpVsRound ='); return s.slice(i, s.indexOf(String.fromCharCode(10) + '/** Only the printer', i) + 1); };
 const line = (src, head) => { const i = src.indexOf(head); if (i < 0) throw new Error(head + ' not found'); return src.slice(i, src.indexOf('\n', i)) + '\n'; };
 const PARTS = [line(VO, 'const voLines ='), line(VP, 'const vpVsKey ='), (s => { const i = s.indexOf('const vpVsAll ='); return s.slice(i, s.indexOf(';\n', i) + 2); })(VP),
-  cut(VP, 'vpVsOf'), line(VP, 'const vpVsSum ='),
+  cut(VP, 'vpVsOf'), line(VP, 'const vpQty ='), vsBlock(VP),
   line(FR, 'const flowChUnit ='), line(FR, 'const flowChSent ='), line(FR, 'const flowQtyTxt ='), line(FR, 'let FLOW_CHX ='), line(FR, 'const flowChMoved ='), cut(FR, 'flowChIndex'), cut(FR, 'flowChRecv'),
-  cut(FR, 'flowVsOfKey'), cut(FR, 'flowVsPending'), cut(FR, 'flowVsRecvCell'), cut(FR, 'flowVsCheck')].join('\n');
+  line(FR, 'let FLOW_VOIX ='), cut(FR, 'flowVoIndex'), cut(FR, 'flowVsOfKey'), cut(FR, 'flowVsPending'), cut(FR, 'flowVsRecvCell'), cut(FR, 'flowVsCheck')].join('\n');
 let pass = 0, fail = 0;
 const ok = (n, c, d) => { if (c) { pass++; console.log('  PASS ' + n); } else { fail++; console.log('  FAIL ' + n + (d ? ' — ' + d : '')); } };
 
@@ -46,15 +48,17 @@ ok('…a quilt\'s Front and Back add up (3 + 3)', A.flowVsOfKey('O2__Q', false, 
 ok('…the ruffle cloth counts on its own (2 m), not on the body', A.flowVsOfKey('O2__A', true, 'm', null) === 2);
 ok('…found without the print order number too (the challan window)', A.flowVsOfKey('O1__X', false, 'pcs', null) === 4);
 
+/* 16 Nov (Ravi: "isko mandatory mat karo"): what the printer said is offered as a tick, but never a limit — the line's own
+ * "still to come" is the only one, checked by every save. */
 ok('save: taking all 3 is fine', A.flowVsCheck('O1__X', false, 'pcs', 'PO1', 3, 'X') === '');
-ok('save: taking less (2 of 3, short) is fine', A.flowVsCheck('O1__X', false, 'pcs', 'PO1', 2, 'X') === '');
-ok('save: taking more (4 of 3) is refused', /more than/.test(A.flowVsCheck('O1__X', false, 'pcs', 'PO1', 4, 'X')));
-ok('save: a line the printer said nothing about is refused', /has not said it sent/.test(A.flowVsCheck('O1__Z', false, 'pcs', 'PO1', 1, 'Z')));
+ok('save: taking more than the printer said (4 of 3) is allowed now', A.flowVsCheck('O1__X', false, 'pcs', 'PO1', 4, 'X') === '');
+ok('save: a line the printer said nothing about can be received now', A.flowVsCheck('O1__Z', false, 'pcs', 'PO1', 1, 'Z') === '');
 
 const cell = A.flowVsRecvCell('data-fldq', 0, x, 'pcs', '');
-ok('screen: the box can go no higher than 3, with a tick that fills 3', /max="3"/.test(cell) && /data-flfill="3"/.test(cell), cell);
-ok('screen: a blocked line has no box and says why', !/<input/.test(A.flowVsRecvCell('data-fldq', 0, { blocked: true }, 'pcs', '')) && /has not said it sent/.test(A.flowVsRecvCell('data-fldq', 0, { blocked: true }, 'pcs', '')));
-ok('screen: all the printer sent is in: no box', !/<input/.test(A.flowVsRecvCell('data-fldq', 0, { vs: 4, pending: 0, blocked: false }, 'pcs', '')));
+ok('screen: a tick fills the 3 the printer said, and the box has no ceiling of its own', /data-flfill="3"/.test(cell) && /<input data-fldq/.test(cell) && !/max="3"/.test(cell), cell);
+const bl = A.flowVsRecvCell('data-fldq', 0, { blocked: true }, 'pcs', '');
+ok('screen: a line the printer said nothing about has a box, and says so', /<input data-fldq/.test(bl) && /has not said it sent/.test(bl), bl);
+ok('screen: all the printer sent is in: the box is still there', /<input data-fldq/.test(A.flowVsRecvCell('data-fldq', 0, { vs: 4, pending: 0, blocked: false }, 'pcs', '')));
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
