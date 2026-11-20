@@ -13,7 +13,7 @@ name: Sellora — check, deploy
 on:
   push:
     branches: [main, 'preview/**']
-    paths: ['Pricing-App/**', 'shared/**', '.github/workflows/sellora-hosting.yml']
+    paths: ['Pricing-App/**', 'shared/**', '.github/workflows/sellora-hosting.yml']   # shared/erp-data/mode.json is the switch
   workflow_dispatch:
 
 concurrency:
@@ -52,6 +52,16 @@ jobs:
             if node "tests/$t-test.js" > "/tmp/$t.log" 2>&1; then echo "$t: $(tail -1 /tmp/$t.log)"
             else echo "::error::$t-test failed"; grep -E "FAIL|Error" "/tmp/$t.log" | head -40; tail -5 "/tmp/$t.log"; exit 1; fi
           done
+
+      # R-ONE ON ERP DATA: shared/erp-data/mode.json "supabase" → the deployed copy reads and saves ERP data (Supabase);
+      # "firebase" → left as it is. Only this run's copy changes; the repository's page is never edited.
+      - name: ERP data mode
+        run: |
+          node ../shared/erp-data/build.js sellora public/index.html
+          # the "page is what src/ makes" check already ran above; the deploy's own repeat of it would refuse the switched copy
+          if grep -q '"supabase"' ../shared/erp-data/mode.json; then
+            node -e "const f='firebase.json',j=JSON.parse(require('fs').readFileSync(f,'utf8'));delete j.hosting.predeploy;require('fs').writeFileSync(f,JSON.stringify(j,null,2))"
+          fi
 
       # a broken script takes the whole single-file page down: every inline module script must at least parse
       - name: The page's scripts parse
