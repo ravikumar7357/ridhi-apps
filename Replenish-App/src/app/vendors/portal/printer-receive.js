@@ -74,7 +74,7 @@ function vprOffer(o, l) {
   const unit = o.orderType === 'running' ? 'm' : 'pcs', t = vprTargets(o, l), list = vpVsOf(o, l);
   const whole = n => unit === 'pcs' ? Math.floor(n + 1e-9) : flowR2(n);
   const most = flowR2(t.reduce((a, p) => a + whole(p.cap), 0)), entered = vpVsSum(list);
-  const pending = flowR2(Math.max(0, entered - vpRecvOf(l, o).qty));
+  const pending = flowR2(Math.max(0, vpSentKept(o, l) - vpRecvOf(l, o).qty));   // what we rejected is not offered again until the printer sends it again
   return { t, unit, most, entered, pending, n: whole(Math.min(pending, most, vprKeysPending(o, t))), wait: vpVsWait(list) };
 }
 /* A FLOW LINE ON TWO PORTAL LINES (a quilt's front and back print): Received is shown half on each, so a line alone would offer again cloth
@@ -82,7 +82,7 @@ function vprOffer(o, l) {
 function vprKeysPending(o, t) {
   const ix = flowChIndex();
   return flowR2(t.reduce((sum, p) => {
-    const sent = voLines(o).filter(m => m && vprKeys(m).includes(p.key)).reduce((a, m) => a + vpVsSum(vpVsOf(o, m)) / vprKeys(m).length, 0);
+    const sent = voLines(o).filter(m => m && vprKeys(m).includes(p.key)).reduce((a, m) => a + vpSentKept(o, m) / vprKeys(m).length, 0);
     return sum + Math.max(0, sent - (+((ix[p.key] || {}).recv) || 0));
   }, 0));
 }
@@ -135,11 +135,13 @@ const vprOnlyGiven = out => Object.fromEntries(Object.entries(out).filter(([, v]
 
 /* ---- the cells ---- */
 /** Fabric: the cloth it is printed on (Sheeting 82, Cambric 60) and, small under it, the printed fabric's SKU. */
-function vprFabricCell(o, l) {
+function vprFabricOf(o, l) {
   const run = o.orderType === 'running', due = vprReady() ? vprKeys(l).map(k => vprDueIndex().get(k)).find(Boolean) : null;
   let m = {}; try { m = cutSkuOf(l.sku) || {}; } catch (e) { m = {}; }
-  const cloth = String((run ? l.fabricType : '') || (due && due.l.fabric) || m.fabric || '').trim();
-  const sub = run ? (l.sku || '') : 'printed as pieces';
+  return { cloth: String((run ? l.fabricType : '') || (due && due.l.fabric) || m.fabric || '').trim(), sub: run ? (l.sku || '') : 'printed as pieces' };
+}
+function vprFabricCell(o, l) {
+  const { cloth, sub } = vprFabricOf(o, l);
   return `<td style="text-align:left;line-height:1.3">${cloth ? `<b style="font-size:12.5px">${esc(cloth)}</b>` : '<span class="muted">—</span>'}`
     + `<div class="muted" style="font-size:11px;font-family:ui-monospace,monospace">${esc(sub)}</div></td>`;
 }
@@ -157,10 +159,12 @@ function vprRecvCell(o, l, id) {
   const cell = inner => `<td style="text-align:right;white-space:nowrap"><div style="width:230px;margin-left:auto;white-space:normal">${inner}${vprSplitHint(v)}</div></td>`;
   if (!v.entered) return cell(box('', '<span style="color:#b45309">Printer has not entered it.</span> '));
   if (!(v.n > 0)) return cell(box('', '<span style="color:#b45309">All the printer entered is in.</span> '));
-  if (VPR.less === id) return cell(box(v.n, ''));
+  if (VPR.less === id) return cell(box(v.n, '') + vprRejLink(v, id));
   return cell(`<button type="button" data-vprgo="${esc(id)}" data-q="${esc(String(v.n))}" style="width:auto;padding:5px 12px;font-size:12.5px;background:#166534;border-color:#166534">Receive ${esc(q(v.n))}</button>`
-    + ` <a href="#" data-vprless="${esc(id)}" title="Another amount" style="font-size:13px;text-decoration:none">✎</a>${waitTxt}`);
+    + ` <a href="#" data-vprless="${esc(id)}" title="Another amount" style="font-size:13px;text-decoration:none">✎</a>${vprRejLink(v, id)}${waitTxt}`);
 }
+/** Reject: only when the printer entered something we have not taken in. */
+const vprRejLink = (v, id) => (v.pending > 0 ? `<div style="margin-top:3px"><a href="#" data-vprrej="${esc(id)}" style="font-size:11.5px;color:var(--bad)">Reject</a></div>` : '');
 /** "Pillow 16x16 3 m · Pillow 18x18 2 m": where Receive N goes on a cloth line for several SKUs. */
 function vprSplitHint(v) {
   if (v.t.length < 2 || !(v.n > 0)) return '';
@@ -193,7 +197,7 @@ function vprSheet(rows, f) {
       + `<td style="text-align:left;font-size:12.5px;line-height:1.35">${esc(what) || '<span class="muted">—</span>'}${sub ? `<div class="muted" style="font-size:11px">${esc(sub)}</div>` : ''}</td>`
       + vprFabricCell(o, l)
       + `<td class="num" style="font-weight:700">${nf(ord)} <span class="muted" style="font-weight:400;font-size:10px">${unit}</span>${extra > 0 ? `<div class="muted" style="font-size:10.5px;font-weight:400">incl. +${nf(extra)} approved</div>` : ''}</td>`
-      + `<td class="num">${sent > 0 ? `<b>${nf(sent)}</b>` : '<span class="muted">—</span>'}${wait > 0 ? `<div style="font-size:10.5px;color:#b45309">+${nf(wait)} waiting approval</div>` : ''}</td>`
+      + `<td class="num">${sent > 0 ? `<b>${nf(sent)}</b>` : '<span class="muted">—</span>'}${wait > 0 ? `<div style="font-size:10.5px;color:#b45309">+${nf(wait)} waiting approval</div>` : ''}${vpRejNote(o, l, unit)}</td>`
       + `<td class="num" title="${esc(rc.how)}">${rc.qty > 0 ? `<b style="color:#166534">${nf(rc.qty)}</b>` : '<span class="muted">—</span>'}</td>`
       + `<td style="text-align:left;font-size:12px;white-space:nowrap">${voDueHtml(due, voWant(l))}</td>`
       + (may ? vprRecvCell(o, l, o.id + '|' + i) : '')
@@ -271,38 +275,70 @@ const VPR_HIST = { from: '', to: '' };
 const vprIsoMinus = (iso, days) => { const d = new Date(iso + 'T00:00:00'); d.setDate(d.getDate() - days); return d.toISOString().slice(0, 10); };
 /** The receipts from one printer between two days (YYYY-MM-DD, both counted), newest first. */
 const vprHistRows = (code, from, to) => flowRecvRows('', false).filter(r => obUC(r.printerCode) === obUC(code) && r.day >= from && r.day <= to);
-/** What came, added up by fabric and unit: "Sheeting 82 · 420 m". */
+/** What was rejected from this printer's orders on screen between two days — shown in History in red (Ravi, 19 Nov). */
+function vprHistRejects(from, to) {
+  const out = [];
+  (VP.rows || []).forEach(o => voLines(o).forEach(l => vpRejOf(o, l).forEach(r => {
+    const day = String(r.at || '').slice(0, 10); if (day < from || day > to) return;
+    let time = ''; try { time = new Date(r.at).toTimeString().slice(0, 5); } catch (e) { time = ''; }
+    out.push({ day, time, at: String(r.at || ''), no: '', orderNo: o.orderNo || o.id, sku: obUC(l.sku), code: '', fabric: (vprFabricOf(o, l) || {}).cloth || '',
+      qty: +r.qty || 0, unit: r.unit || (o.orderType === 'running' ? 'm' : 'pcs'), by: String(r.by || '').split('@')[0],
+      note: [r.reason, r.note].filter(Boolean).join(' — '), l: { item: o.orderType === 'running' ? (l.printDirection || '') : (l.articleSubtype || l.articleType || '') }, rejected: true });
+  })));
+  return out;
+}
+/** What came, added up by fabric and unit: "Sheeting 82 · 420 m". Rejects are not counted as come. */
 function vprHistTotals(rows) {
   const by = new Map();
-  rows.forEach(r => { const k = (r.fabric || 'fabric not named') + '|' + r.unit; by.set(k, flowR2((by.get(k) || 0) + r.qty)); });
+  rows.filter(r => !r.rejected && !r.notCome).forEach(r => { const k = (r.fabric || 'fabric not named') + '|' + r.unit; by.set(k, flowR2((by.get(k) || 0) + r.qty)); });
   return [...by.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([k, q]) => { const [fab, unit] = k.split('|'); return { fab, unit, q }; });
 }
+/* THE OLD "SENDING NOW" DELIVERIES (Ravi, 20 Nov: "put the record of that inside the history"): what a printer recorded the old way, on
+ * orders from before the Production flow (vpHistRows — the "What I have sent" tab, gone from the office's view). Each shows what our team
+ * accepted; one nobody has checked yet, or not accepted, is listed but not counted as come. */
+const vprIsoOfDmy = d => { const m = String(d || '').match(/^(\d{2})\/(\d{2})\/(\d{4})$/); return m ? `${m[3]}-${m[2]}-${m[1]}` : String(d || '').slice(0, 10); };
+/** The cloth a pieces SKU is printed on, from the master; '' when it is not known. */
+const vprSkuFabric = sku => { try { return String((cutSkuOf(sku) || {}).fabric || '').trim(); } catch (e) { return ''; } };
+function vprHistOld(from, to) {
+  return vpHistRows().map(r => {
+    const day = vprIsoOfDmy(r.day || r.date), notCome = r.kept === null || r.no;
+    const note = r.kept === null ? `printer said ${nf(r.sent)} ${r.unit} — not checked yet` : r.no ? `printer said ${nf(r.sent)} ${r.unit} — not accepted`
+      : r.short > 0 ? `printer said ${nf(r.sent)} ${r.unit}, ${nf(r.short)} short` : '';
+    return { day, time: '', at: r.at, no: '', orderNo: r.orderNo, sku: r.run ? '' : obUC(r.sku), code: '', fabric: r.run ? r.sku : vprSkuFabric(obUC(r.sku)),
+      qty: notCome ? r.sent : r.kept, unit: r.unit, by: 'printer (old way)', note: [note, r.note].filter(Boolean).join(' · '), l: { item: r.what },
+      old: true, notCome };
+  }).filter(r => r.day >= from && r.day <= to);
+}
+const vprHistAll = () => vprHistRows(VP.code, VPR_HIST.from, VPR_HIST.to).concat(vprHistRejects(VPR_HIST.from, VPR_HIST.to), vprHistOld(VPR_HIST.from, VPR_HIST.to))
+  .sort((a, b) => b.day.localeCompare(a.day) || String(b.at || '').localeCompare(String(a.at || '')));
 function vprHistHtml() {
-  const rows = vprHistRows(VP.code, VPR_HIST.from, VPR_HIST.to);
+  const rows = vprHistAll(), rej = rows.filter(r => r.rejected);
   const range = `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px">`
     + `<label style="margin:0;font-size:12.5px">From <input type="date" data-vprhfrom value="${esc(VPR_HIST.from)}" style="width:auto"></label>`
     + `<label style="margin:0;font-size:12.5px">To <input type="date" data-vprhto value="${esc(VPR_HIST.to)}" style="width:auto"></label>`
     + `<span style="flex:1"></span><button type="button" class="ghost" data-vprhxl="1" style="width:auto;padding:4px 12px;font-size:12.5px"${rows.length ? '' : ' disabled'}>Download Excel</button></div>`;
   if (!rows.length) return range + '<div class="muted" style="padding:16px;text-align:center">Nothing was received from this printer on those days.</div>';
   const totals = vprHistTotals(rows).map(t => `<span class="pill" style="background:var(--card,#fff);border:1px solid var(--line,#e3e6ed);color:var(--muted);font-weight:500">${esc(t.fab)} <b style="color:var(--ink,#17202b)">${esc(flowQtyTxt(t.q, t.unit))}</b></span>`).join(' ');
-  return range + `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">${totals}</div>`
-    + `<div class="xlwrap" style="max-height:60vh;overflow:auto"><table class="xl" style="width:100%"><thead><tr><th style="text-align:left">Received on</th><th style="text-align:left">Challan</th><th style="text-align:left">Order</th><th style="text-align:left">Item</th><th style="text-align:left">Fabric</th><th class="num">Qty</th><th style="text-align:left">Taken in by</th></tr></thead><tbody>`
-    + rows.map(r => `<tr><td style="text-align:left;white-space:nowrap">${esc(flowDueDay(r.day))}${r.time ? ` <span class="muted" style="font-size:11px">${esc(r.time)}</span>` : ''}</td>`
+  const rejChip = rej.length ? ` <span class="pill pill-out">Rejected ${esc(flowMixTxt(rej.map(r => [r.qty, r.unit])))}</span>` : '';
+  return range + `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">${totals}${rejChip}</div>`
+    + `<div class="xlwrap"><table class="xl" style="width:100%"><thead><tr><th style="text-align:left">Received on</th><th style="text-align:left">Challan</th><th style="text-align:left">Order</th><th style="text-align:left">Item</th><th style="text-align:left">Fabric</th><th class="num">Qty</th><th style="text-align:left">Taken in by</th></tr></thead><tbody>`
+    + rows.map(r => `<tr${r.rejected ? ' class="vo-late" title="Rejected — the printer must send it again"' : ''}><td style="text-align:left;white-space:nowrap">${esc(flowDueDay(r.day))}${r.time ? ` <span class="muted" style="font-size:11px">${esc(r.time)}</span>` : ''}</td>`
       + `<td style="text-align:left">${esc(r.no)}</td><td style="text-align:left"><b>${esc(r.orderNo)}</b></td>`
       + `<td style="text-align:left">${esc((r.l && r.l.item) || '')}<div class="muted" style="font-size:11px;font-family:ui-monospace,monospace">${esc(r.sku)}</div></td>`
       + `<td style="text-align:left"><b>${esc(r.fabric) || '<span class="muted">—</span>'}</b>${r.code ? `<div class="muted" style="font-size:11px;font-family:ui-monospace,monospace">${esc(r.code)}</div>` : ''}</td>`
-      + `<td class="num"><b>${esc(flowQtyTxt(r.qty, r.unit))}</b></td><td style="text-align:left">${esc(r.by)}${r.note ? `<div class="muted" style="font-size:11px">${esc(r.note)}</div>` : ''}</td></tr>`).join('')
+      + `<td class="num"><b${r.rejected ? ' style="color:var(--bad)"' : ''}>${esc(flowQtyTxt(r.qty, r.unit))}</b>${r.old ? '<div class="muted" style="font-size:10.5px">old way</div>' : ''}${r.rejected ? '<div style="font-size:10.5px;color:var(--bad);font-weight:700">REJECTED</div>' : ''}</td><td style="text-align:left">${esc(r.by)}${r.note ? `<div class="muted" style="font-size:11px">${esc(r.note)}</div>` : ''}</td></tr>`).join('')
     + '</tbody></table></div>';
 }
 function vprHistOpen() {
   VPR_HIST.to = dToday(); VPR_HIST.from = vprIsoMinus(VPR_HIST.to, VPR_HIST_DAYS);
-  ptOpenDialog({ title: 'Received from ' + (VP.name || VP.code), subtitle: 'Every receipt from this printer, newest first, with the fabric it was printed on.',
+  ptOpenDialog({ title: 'Received from ' + (VP.name || VP.code), subtitle: 'Every receipt from this printer, and every reject (in red), newest first, with the fabric it was printed on.',
+    wide: true,   // the whole table at once, no sideways scroll bar (Ravi, 19 Nov: "complete data instead of a slider")
     html: '<div id="vprHistBody">' + vprHistHtml() + '</div>', saveLabel: 'Close', onSave: async () => '' });
 }
 function vprHistXl() {
-  const rows = vprHistRows(VP.code, VPR_HIST.from, VPR_HIST.to); if (!rows.length) return;
-  const out = [['Received on', 'Time', 'Challan', 'Order', 'Item', 'For SKU', 'Fabric', 'Printed fabric SKU', 'Qty', 'Unit', 'Taken in by', 'Note']];
-  rows.forEach(r => out.push([r.day, r.time, r.no, r.orderNo, (r.l && r.l.item) || '', r.sku, r.fabric, r.code, r.qty, r.unit, r.by, r.note]));
+  const rows = vprHistAll(); if (!rows.length) return;
+  const out = [['Date', 'Time', 'Received / Rejected', 'Challan', 'Order', 'Item', 'For SKU', 'Fabric', 'Printed fabric SKU', 'Qty', 'Unit', 'By', 'Note / reason']];
+  rows.forEach(r => out.push([r.day, r.time, r.rejected ? 'Rejected' : r.old ? 'Delivery (old way)' : 'Received', r.no, r.orderNo, (r.l && r.l.item) || '', r.sku, r.fabric, r.code, r.qty, r.unit, r.by, r.note]));
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([recipeXlsx(out, { name: 'Received', freeze: 1, cols: {} })], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
   a.download = 'received-from-' + String(VP.code).toLowerCase() + '-' + VPR_HIST.from + '-to-' + VPR_HIST.to + '.xlsx';
@@ -316,3 +352,64 @@ if (typeof document !== 'undefined' && typeof document.addEventListener === 'fun
     VPR_HIST[t.dataset.vprhfrom != null ? 'from' : 'to'] = t.value || dToday();
     const b = document.getElementById('vprHistBody'); if (b) b.innerHTML = vprHistHtml(); });
 }
+
+/* ---- Reject: bad goods turned away on receive ----
+ * Ravi, 19 Nov: "give them a reject option" — bad goods on receive; "printer must send again … and ravi must be informed"; a reason is
+ * picked from a short list. Reject takes up to what the printer entered and we have not taken in. One save writes two records together:
+ * the reject on the printer's own order (vRej — its portal shows "N rejected by Ridhi — send again", and the line owes it again) and a
+ * notice in pt_recvRejects that puts it on every admin's bell until one of them marks it seen; the mail to Ravi is sent from that notice.
+ * Errors: a failed save is said in the window in red and nothing is written. Nothing is taken in by a reject. */
+const VPR_REJ_REASONS = ['Print fault', 'Colour wrong', 'Damaged / stain', 'Short length', 'Other'];
+const VPR_REJ = { rows: null };
+function vprRejectOpen(id) {
+  const [oid, i] = String(id).split('|'), o = (VP.rows || []).find(r => r && r.id === oid), l = o && voLines(o)[+i];
+  if (!l) return;
+  const v = vprOffer(o, l), q = n => flowQtyTxt(n, v.unit);
+  ptOpenDialog({ title: 'Reject goods — ' + (o.orderNo || o.id), subtitle: `${l.sku || ''} · the printer entered ${q(v.entered)}; ${q(v.pending)} not taken in yet. What is rejected is not taken in, and the printer must send it again.`,
+    html: `<div style="display:grid;grid-template-columns:auto 1fr;gap:10px 12px;align-items:center">`
+      + `<label for="vprRejQ" style="margin:0">How much is rejected</label><input id="vprRejQ" type="number" min="${v.unit === 'pcs' ? 1 : 0.01}" max="${esc(String(v.pending))}" step="${v.unit === 'pcs' ? 1 : 0.01}" value="${esc(String(v.pending))}" style="width:120px">`
+      + `<label for="vprRejWhy" style="margin:0">Reason</label><select id="vprRejWhy" style="width:auto"><option value="">— pick a reason —</option>${VPR_REJ_REASONS.map(r => `<option>${esc(r)}</option>`).join('')}</select>`
+      + `<label for="vprRejNote" style="margin:0">Note</label><input id="vprRejNote" type="text" maxlength="200" placeholder="What is wrong (needed for Other)"></div>`,
+    saveLabel: 'Reject', onSave: async () => vprReject(id, flowR2(+$('vprRejQ').value || 0), $('vprRejWhy').value, String($('vprRejNote').value || '').trim()) });
+}
+/** Reject q of one portal line: '' when saved, else what is wrong (nothing is written then). */
+async function vprReject(id, q, reason, note) {
+  const [oid, i] = String(id).split('|'), o = (VP.rows || []).find(r => r && r.id === oid), l = o && voLines(o)[+i];
+  if (!l) return 'That line is not on screen any more — press Refresh.';
+  const v = vprOffer(o, l), what = `${o.orderNo || o.id} ${l.sku || ''}`.trim();
+  if (!(q > 0)) return `Type how much of ${what} is rejected.`;
+  if (v.unit === 'pcs' && q !== Math.round(q)) return `${what}: pieces are whole.`;
+  if (q > v.pending + 1e-9) return `${what}: ${flowQtyTxt(q, v.unit)} is more than the ${flowQtyTxt(v.pending, v.unit)} the printer entered and we have not taken in.`;
+  if (!VPR_REJ_REASONS.includes(reason)) return 'Pick a reason.';
+  if (reason === 'Other' && !note) return 'Write what is wrong in the note.';
+  const at = new Date().toISOString(), key = 'rj_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  const rec = { lineId: l.lineId || '', sku: l.sku || '', qty: q, unit: v.unit, reason, note, at, by: ME.email || '' };
+  const fabric = (vprFabricOf(o, l) || {}).cloth || '';
+  const notice = Object.assign({ status: 'pending', code: VP.code, printer: VP.name || VP.code, orderNo: o.orderNo || o.id, voId: o.id, fabric,
+    item: o.orderType === 'running' ? [l.fabricType, l.printDirection].filter(Boolean).join(' · ') : (l.articleSubtype || l.articleType || '') }, rec);
+  try { await ptPatch({ [`pt_vendorOrders/${VP.code}/${o.id}/vRej/${key}`]: rec, [`pt_recvRejects/${key}`]: notice }); }
+  catch (e) { return 'Could not save: ' + ((e && e.message) || e); }
+  VP.rows = VP.rows.map(r => (r === o ? Object.assign({}, o, { vRej: Object.assign({}, o.vRej, { [key]: rec }) }) : r));
+  if (VPR_REJ.rows) VPR_REJ.rows = VPR_REJ.rows.concat(Object.assign({ id: key }, notice));
+  VPR.said = `Rejected ${flowQtyTxt(q, v.unit)} of ${what} — ${reason}. The printer sees it on its portal; Ravi is told.`;
+  return '';
+}
+if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') document.addEventListener('click', e => {
+  const t = e.target && e.target.closest && e.target.closest('a[data-vprrej]'); if (!t) return;
+  e.preventDefault(); vprRejectOpen(t.getAttribute('data-vprrej'));
+});
+
+/* The bell (core/friendly.js): rejects nobody has marked seen, for admins. Read whole — a small list that only grows by rejects. */
+async function vprRejLoad() {
+  try { VPR_REJ.rows = ptList(await ptGet('pt_recvRejects')).filter(r => r && r.status === 'pending').map(r => Object.assign({ id: r._key }, r)); }
+  catch (e) { console.warn('[rejects] not read:', (e && e.message) || e); }
+}
+const vprRejPending = () => (VPR_REJ.rows || []).filter(r => r.status === 'pending');
+async function vprRejSeen(id) {
+  try { await ptPatch({ [`pt_recvRejects/${id}/status`]: 'seen', [`pt_recvRejects/${id}/seenBy`]: ME.email || '', [`pt_recvRejects/${id}/seenAt`]: new Date().toISOString() }); }
+  catch (e) { return 'Could not save: ' + ((e && e.message) || e); }
+  VPR_REJ.rows = (VPR_REJ.rows || []).filter(r => r.id !== id);
+  return '';
+}
+/** Open the printer's view on one printer (from the bell). */
+function vprOpenPrinter(code) { flowVpLinkPrepare({ code }); showTab('vend'); }

@@ -103,7 +103,7 @@ async function flowVpBar() {
  */
 function flowVpLinkPrepare(link) {
   FLOW_VP_AS = { code: link.code, name: link.code };
-  VP.lateOnly = !!link.late;
+  VP.dueOnly = link.late ? 'late' : '';
   VP.rows = null;
   const sel = $('flVpAs'); if (sel) sel.value = link.code;
 }

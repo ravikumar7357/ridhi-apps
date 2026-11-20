@@ -3662,6 +3662,7 @@ html.mob #gdNudge{right:14px;left:14px;max-width:none;bottom:144px}
           <!-- Receive / Issue from Excel taken off (Ravi, 2026-09-29: "excel se remove kro bas excel me export kar pay"). -->
           <button id="fgOpening" class="ghost">Opening stock</button>
           <button id="fgExport" class="ghost">Export</button>
+          <button id="fgRefresh" class="ghost" title="Read the stock again: shows what other computers have saved">Refresh</button>
           <button id="fgLstRefresh" class="ghost hide" title="Ask Amazon for every listing of both brands — takes several minutes">Refresh Amazon listings</button>
         </div>
         <!-- WHAT NEEDS SOMEBODY, on the screen itself (Ravi, 2026-09-25: "ye listing ke andar aana chahiye").
@@ -4166,7 +4167,6 @@ html.mob #gdNudge{right:14px;left:14px;max-width:none;bottom:144px}
               <option value="passed">QC passed</option>
               <option value="dept">Spotting &amp; touching</option>
               <option value="ledger">QC ledger (day-wise)</option>
-              <option value="checks">Checks</option>
               <option value="issue">Issued for alteration</option>
               <option value="ret">Received back from alteration</option>
             </select>
@@ -15202,6 +15202,19 @@ async function ptLoad(which, node, after) {
   after();
 }
 
+/** A REFRESH BUTTON THAT SHOWS IT IS WORKING (18 Nov 2026). Staff pressed F5 15-20 times a day on the busy screens:
+ *  a Refresh looked as if nothing happened, or missed what another PC had saved, and every F5 downloads the whole
+ *  page again (30-40 MB). Now the button says "Refreshing…" and stays off until the screen has its fresh data (read
+ *  from the live copies, so nothing is downloaded again). Errors: the screen's own work shows what it could not read;
+ *  anything else goes to the console, and the button always comes back, so the screen is never left stuck. */
+async function ptRefreshButton(btn, work) {
+  const label = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Refreshing…';
+  try { await work(); }
+  catch (e) { console.warn('[refresh] ' + (btn.id || 'button') + ':', e); }
+  finally { btn.disabled = false; btn.textContent = label; }
+}
+
 function ptEmpty(tableId, msg) {
   $(tableId).innerHTML = `<tbody><tr><td class="muted" style="padding:14px;text-align:left">${msg}</td></tr></tbody>`;
 }
@@ -16743,7 +16756,14 @@ async function pmdbRefresh() {
   if (!PT.err.mdb && PT.mdb) { PT.mdb = PT.mdb.map(mdbYnFix); PTG.mdb = PT.mdb; renderPmdb(); }
 }
 $('ptmGo').onclick = () => pmdbRefresh();
-$('pbGo').onclick = () => ptLoad('base', 'pt_baseData', renderPbase);
+/** Job Work Refresh without blanking the table (18 Nov 2026): the register is read again from its live copy and the
+ *  table redrawn once it has landed, instead of going to "Loading…" first. A failed read shows on the screen. */
+async function pbRefresh() {
+  try { await ptReadReg('base'); PT.err.base = ''; }
+  catch (e) { PT.err.base = e.message || String(e); }
+  renderPbase();
+}
+$('pbGo').onclick = () => ptRefreshButton($('pbGo'), pbRefresh);
 $('pcGo').onclick = () => ptLoad('cut', 'pt_cuttingData', renderPcut);
 
 /* The KPI cards are written with innerHTML, and this file is a module — an inline onclick would be
@@ -19513,6 +19533,13 @@ async function ptLoadEmp(force) {
   PTE.accLedger = ptList(ledger);
   PTE.acc = ptList((PTG.masters || {}).accessories);
 }
+/** The staff list for a screen that only shows names from it (Order Console, QC). A failed read used to stop the
+ *  screen on "Loading…" for good, and staff pressed F5 (18 Nov 2026); now the names are blank and the next open
+ *  tries again. */
+async function ptLoadEmpOrSkip(screen) {
+  try { await ptLoadEmp(); }
+  catch (e) { console.warn('[' + screen + '] staff list not read, names may be blank:', e); }
+}
 
 const ptEmpTypes = () => [...new Set((PTE.emp || []).map(e => String(e[0] || '').trim()).filter(Boolean))].sort();
 const ptEmpsOfType = t => (PTE.emp || []).filter(e => !t || String(e[0] || '').trim() === t);
@@ -22015,14 +22042,16 @@ function cutEdit(id) {
 let QC = { checks: null, issue: null, ret: null, err: '', busy: false, at: '' };
 
 async function ensureQc() {
-  if (QC.checks === null || ptLack(PTG_ALL, 'mdb')) {
+  /* All three lists, not only the checks (18 Nov 2026): Order Console and the flow view fill the checks for their own
+   * use, and "Received back" / "Issued for alteration" then stayed empty here until F5. */
+  if (QC.checks === null || QC.issue === null || QC.ret === null || ptLack(PTG_ALL, 'mdb')) {
     QC.busy = true; renderQc();
     /* The registers with the order book, not after it. The employee list waits for the order book (its masters give
      * the accessories). A refused read of it left this screen on "Loading…" for good; now it only leaves the names of
      * who may sign a check empty. */
     try {
       const [, [c, i, t]] = await Promise.all([
-        ptNeed(PTG_ALL, { why: 'quality-control', has: 'mdb' }).then(() => (PTE.emp ? null : ptLoadEmp().catch(() => {}))),
+        ptNeed(PTG_ALL, { why: 'quality-control', has: 'mdb' }).then(() => (PTE.emp ? null : ptLoadEmpOrSkip('quality-control'))),
         Promise.all([ptGet('pt_qcChecks'), ptGet('pt_qcIssuance'), ptGet('pt_qcReturns')]),
       ]);
       QC.checks = ptList(c); QC.issue = ptList(i); QC.ret = ptList(t); QC.err = '';
@@ -22099,7 +22128,8 @@ const QC_VIEWS = [
   ['passed', 'QC passed', 'qc'],
   ['dept', 'Spotting & touching', 'qc'],
   ['ledger', 'QC ledger (day-wise)', 'qc'],
-  ['checks', 'Checks', 'qc'],
+  /* 'Checks' left the picker on 20 Nov (Ravi: "remove qc check screen") — checks are made from Waiting for QC, and who made
+   * one is changed with Edit on QC passed; an admin corrects the rest through QC pass. */
   ['issue', 'Issued for alteration', 'qcalt'],
   ['ret', 'Received back from alteration', 'qcret'],
 ];
@@ -22804,7 +22834,7 @@ function qcPiecesOf(x) {
     passed: sum(takes, c => (c.dept ? 0 : c.ok)) + sum(backs, c => c.ok) + oldForm,
     alteration: sum(takes, c => c.forAlteration), rejected: sum(takes, c => c.rejected) + sum(backs, c => c.rejected),
     spotting: outAt('spotting'), touching: outAt('touching'),
-    by: last ? last.checkedBy || '' : '', ms: last ? ptDtMs(last.date) : 0,
+    by: last ? last.checkedBy || '' : '', ms: last ? ptDtMs(last.date) : 0, remarks: last ? last.remarks || '' : '',
     received: !!receipt || x.accepted > 0, receivedBy: receipt ? receipt.checkedBy || '' : '', receivedMs: receipt ? ptDtMs(receipt.date) : 0,
     passOpensAt: qcPassOpensAt(x.r),
   };
@@ -22899,7 +22929,9 @@ function renderQcInbox(view) {
     + `<td class="qc-wrap" style="text-align:left">${esc(x.r.orderNo || '') || '<span class="muted">—</span>'}</td>`
     + num(x.since) + num(x.passed, '#166534') + num(x.alteration, '#b45309') + num(x.spotting, '#b45309') + num(x.touching, '#b45309')
     + num(x.rejected, 'var(--bad)') + `<td class="num" style="font-weight:700;color:#b45309">${x.wait > 0 ? nf(x.wait) : '<span class="muted">—</span>'}</td>`
-    + `<td style="white-space:nowrap;text-align:left">${view === 'passed' ? qcClosedBtn(qcStamp('QC passed', x.ms, x.by)) : qcInboxActions(x, can)}</td>`
+    + `<td style="white-space:nowrap;text-align:left">${view === 'passed' ? qcClosedBtn(qcStamp('QC passed', x.ms, x.by))
+      + (ptCanEdit() || ME.admin ? `<button data-qcp-edit="${esc(x.r.id)}" class="ghost qc-act" title="Change who checked these pieces">Edit</button>` : '')
+      : qcInboxActions(x, can)}</td>`
     + '</tr>').join('') || `<tr><td colspan="${QC_INBOX_COLS.length}" class="muted" style="padding:14px">${QC_LISTS[view].empty}</td></tr>`) + '</tbody>';
   if (rows.some(x => x.passOpensAt > Date.now())) qcPassTimerStart();
   $('qcMsg').className = 'muted';
@@ -23000,17 +23032,11 @@ function qcInboxRefusal(x, e) {
   return '';
 }
 
-/**
- * Write one QC check out of Waiting for QC. '' or why not.
- * `entry` = { passed, forAlteration, rejected, spotting, touching, checkedBy, remarks, date } — any may be left out.
- */
-async function qcInboxSave(baseId, entry) {
-  const x = qcInboxRows().find(e => e.r.id === baseId);
-  if (!x) return 'That entry is no longer waiting — press Refresh.';
-  const why = qcInboxRefusal(x, entry); if (why) return why;
-  const r = x.r, p = qcParts(r.sku), now = ptNow();
+/** The records one QC Check window writes for a row: the check (passed, alteration, rejected) and a send per spotting/touching. */
+function qcCheckRecords(r, entry, date) {
+  const p = qcParts(r.sku);
   const common = {
-    date: entry.date ? ptStampFrom(now, entry.date) : now, checkedBy: String(entry.checkedBy || '').trim() || qcMyName(), brand: p.brand,
+    date, checkedBy: String(entry.checkedBy || '').trim() || qcMyName(), brand: p.brand,
     articleType: p.at || r.articleType || '', subtype: p.sub || r.articleSubtype || '', color: p.col || r.color || '', size: p.size || r.size || '',
     sku: qcNorm(r.sku), ...(r.orderNo ? { orderNo: obUC(r.orderNo) } : {}),
     baseId: r.id, karigar: r.empName || '', from: 'waiting', ...(r.test ? { test: true } : {}),
@@ -23022,26 +23048,147 @@ async function qcInboxSave(baseId, entry) {
     remarks: String(entry.remarks || '').trim() || 'Accepted from Waiting for QC' }));
   Object.keys(QC_DEPTS).filter(d => qcPcs(entry[d]) > 0).forEach(d => recs.push(Object.assign({ id: qcNewCheckId() + d[0] }, common, {
     checked: qcPcs(entry[d]), ok: 0, forAlteration: 0, rejected: 0, dept: d, [d]: qcPcs(entry[d]), remarks: qcSendRemark(d) })));
+  return recs;
+}
+
+/**
+ * Write one QC check out of Waiting for QC. '' or why not.
+ * `entry` = { passed, forAlteration, rejected, spotting, touching, checkedBy, remarks, date } — any may be left out.
+ */
+async function qcInboxSave(baseId, entry) {
+  const x = qcInboxRows().find(e => e.r.id === baseId);
+  if (!x) return 'That entry is no longer waiting — press Refresh.';
+  const why = qcInboxRefusal(x, entry); if (why) return why;
+  const now = ptNow();
+  const recs = qcCheckRecords(x.r, entry, entry.date ? ptStampFrom(now, entry.date) : now);
   await ptPatch(Object.fromEntries(recs.map(c => ['pt_qcChecks/' + c.id, c])));
   QC.checks = (QC.checks || []).concat(recs.map(c => Object.assign({ _key: c.id }, c)));
   return '';
 }
 
 /*
- * QC pass on a row with nothing left waiting still opens the QC Check window (Ravi, 19 Nov: "the pop up screen which we
- * decided to open when clicked on qc pass is not opening" — a line of text at the top of the page was missed). The window
- * shows what QC did with the row's pieces and only closes; there is nothing left in it to save.
+ * The QC Check window's boxes, one design for both uses (Ravi, 19 Nov, pointing at it: "image 2 is the screen which we
+ * have decided is the design which should pop up when we click on the qc pass button"): filled in to be typed into while
+ * pieces wait, or filled with where the pieces are now and locked when none do.
  */
+function qcCheckFields(x, v, locked) {
+  const num = (key, label) => ({ key, label, type: 'number', min: 0, step: 1, value: v[key], readonly: locked });
+  return [
+    { key: 'sku', label: 'SKU', value: x.r.sku, readonly: true },
+    locked ? { key: 'checkedBy', label: 'Checked by', value: v.checkedBy, readonly: true }
+      : { key: 'checkedBy', label: 'Checked by', type: 'select', value: v.checkedBy, options: [...new Set([v.checkedBy].concat(qcDeptEmps()).filter(Boolean))] },
+    num('passed', 'Passed — pieces'), num('forAlteration', 'For alteration — pieces'),
+    num('rejected', 'Rejected — pieces'), num('spotting', 'Spotting — pieces (a stain)'),
+    num('touching', 'Touching — pieces (a missed print)'),
+    { key: 'remarks', label: 'Remarks', value: v.remarks, span: true, readonly: locked },
+    ...(locked ? [] : [{ key: 'date', label: 'Check date', type: 'date', value: ptIsoDate(v.date || ptNow()), admin: true }]),
+  ];
+}
+const qcCheckSubtitle = r => `SKU: ${r.sku || '—'}  ·  ${r.empName || '—'}  ·  ${r.orderNo || 'no order'}`;
+const qcCheckItem = r => [r.articleSubtype || r.articleType, r.color, r.size].filter(Boolean).join(' · ');
+/*
+ * QC pass on a row with nothing left waiting (Ravi, 20 Nov: "they can only enter the new entries; the already filled ones can
+ * only be accessed from the qc pass button of admin or Ravi"): the same window. An admin may correct the split and save; for
+ * everybody else it shows where the pieces are now, locked.
+ */
+/** The QC Pass window's number boxes, empty, for the user to type into. */
+const QC_EMPTY_SPLIT = { passed: '', forAlteration: '', rejected: '', spotting: '', touching: '' };
+/** "8 passed, 2 for alteration" — a split in words, for the window's note. */
+function qcRecordedText(v) {
+  return [[v.passed, 'passed'], [v.forAlteration, 'for alteration'], [v.rejected, 'rejected'], [v.spotting, 'to spotting'], [v.touching, 'to touching']]
+    .filter(([n]) => ptNum(n) > 0).map(([n, t]) => nf(ptNum(n)) + ' ' + t).join(', ') || 'nothing';
+}
 function qcInboxDoneWindow(x) {
-  const r = x.r, line = (label, n) => `<tr><td style="text-align:left;padding:4px 12px 4px 0">${label}</td><td class="num" style="font-weight:700">${n ? nf(n) : '—'}</td></tr>`;
+  const fix = qcCorrectable(x), admin = !!ME.admin;
   ptOpenDialog({
-    title: 'QC Check',
-    subtitle: `SKU: ${r.sku || '—'}  ·  ${r.empName || '—'}  ·  ${r.orderNo || 'no order'}`,
-    note: 'Nothing is left waiting on this entry — every piece received has been through QC. This is what QC did with them.',
-    msg: [r.articleSubtype || r.articleType, r.color, r.size].filter(Boolean).join(' · '),
-    html: `<table style="margin:4px 0 8px">${line('Received', x.since)}${line('Passed', x.passed)}${line('Given to karigar (alteration)', x.alteration)}`
-      + `${line('At spotting', x.spotting)}${line('At touching', x.touching)}${line('Rejected', x.rejected)}</table>`,
+    title: 'QC Pass', subtitle: qcCheckSubtitle(x.r), msg: qcCheckItem(x.r),
+    note: `Nothing is left waiting on this entry — all ${nf(x.since)} piece(s) received have been through QC. `
+      + (admin ? `QC recorded ${qcRecordedText(fix.values)}. As admin you can type the corrected numbers and Save; pieces you leave out go back to waiting.`
+        + (fix.fixed ? ` ${nf(fix.fixed)} piece(s) already back from spotting or touching, or taken on the old Checks form, stay as they are.` : '')
+        : 'This is what QC recorded. Only an admin can correct it.'),
+    /* Ravi, 20 Nov, pointing at the window with its number boxes empty: "when I click on qc pass button it should look like
+     * this" — the admin types the numbers; what QC recorded is in the note above them. */
+    fields: qcCheckFields(x, admin ? Object.assign({}, fix.values, QC_EMPTY_SPLIT) : { checkedBy: x.by || x.receivedBy || '', passed: x.passed, forAlteration: x.alteration, rejected: x.rejected,
+      spotting: x.spotting, touching: x.touching, remarks: x.remarks || '' }, !admin),
+    ...(admin ? { onSave: async v => {
+      const err = await qcInboxCorrect(x.r.id, v);
+      if (err) return err;
+      renderQc();
+      $('qcMsg').className = 'muted';
+      $('qcMsg').textContent = `Corrected the QC check on ${x.r.sku}. ` + $('qcMsg').textContent;
+      return '';
+    } } : {}),
   });
+}
+/*
+ * What an admin may correct on a row: every check of it except sends already (partly) back from spotting or touching —
+ * those have a return hanging on them. Returns the checks to replace, the pieces that stay fixed, and the window's values.
+ */
+function qcCorrectable(x) {
+  const takes = (QC.checks || []).filter(c => c && c.baseId === x.r.id && !c.refId);
+  const backFor = new Set((QC.checks || []).filter(c => c && c.refId).map(c => c.refId));
+  const replace = takes.filter(c => !backFor.has(c.id)), sum = f => replace.reduce((a, c) => a + ptNum(f(c)), 0);
+  const fixed = x.accepted - sum(c => c.checked);
+  const first = replace.reduce((a, c) => (!a || ptDtMs(c.date) < ptDtMs(a.date) ? c : a), null);
+  const main = replace.find(c => !c.dept) || first || {};
+  return { replace, fixed, room: x.since - fixed, date: first ? first.date : ptNow(), values: {
+    date: first ? first.date : '', checkedBy: main.checkedBy || x.receivedBy || qcMyName(), passed: sum(c => (c.dept ? 0 : c.ok)), forAlteration: sum(c => c.forAlteration),
+    rejected: sum(c => c.rejected), spotting: sum(c => c.spotting), touching: sum(c => c.touching), remarks: main.remarks || '' } };
+}
+/*
+ * EDIT ON QC PASSED (Ravi, 20 Nov: "the only button that can be changed in qc passed screen is the who entered the value,
+ * not anything else"): the same window, everything locked but Checked by. Saving puts that name on every check of the row.
+ */
+function qcPassedEdit(baseId) {
+  if (!(ptCanEdit() || ME.admin)) { $('qcMsg').className = 'err'; $('qcMsg').textContent = PT_NO_EDIT; return; }
+  const x = qcInboxStatuses().find(e => e.r.id === baseId);
+  if (!x) { $('qcMsg').className = 'err'; $('qcMsg').textContent = 'That entry is no longer on the list — press Refresh.'; return; }
+  const by = x.by || x.receivedBy || '';
+  const fields = qcCheckFields(x, { checkedBy: by, passed: x.passed, forAlteration: x.alteration, rejected: x.rejected,
+    spotting: x.spotting, touching: x.touching, remarks: x.remarks || '' }, true)
+    .map(f => (f.key === 'checkedBy' ? { key: 'checkedBy', label: 'Checked by', type: 'select', value: by, options: [...new Set([by].concat(qcDeptEmps()).filter(Boolean))] } : f));
+  ptOpenDialog({
+    title: 'QC Pass', subtitle: qcCheckSubtitle(x.r), msg: qcCheckItem(x.r),
+    note: 'Only Checked by — who entered this QC check — can be changed here.',
+    fields,
+    onSave: async v => {
+      const err = await qcSetCheckedBy(x.r.id, v.checkedBy);
+      if (err) return err;
+      renderQc();
+      return '';
+    },
+  });
+}
+/** Put `name` as Checked by on every QC check of one row. '' or why not. */
+async function qcSetCheckedBy(baseId, name) {
+  const who = String(name || '').trim();
+  if (!who) return 'Pick who checked these pieces.';
+  const mine = (QC.checks || []).filter(c => c && c.baseId === baseId && !c.refId);
+  if (!mine.length) return 'This entry has no QC check of its own to change.';
+  const at = new Date().toISOString();
+  await ptPatch(Object.assign({}, ...mine.map(c => ({ [`pt_qcChecks/${c.id}/checkedBy`]: who, [`pt_qcChecks/${c.id}/editedBy`]: ME.email, [`pt_qcChecks/${c.id}/editedAt`]: at }))));
+  const ids = new Set(mine.map(c => c.id));
+  QC.checks = (QC.checks || []).map(c => (c && ids.has(c.id) ? Object.assign({}, c, { checkedBy: who, editedBy: ME.email, editedAt: at }) : c));
+  return '';
+}
+/** An admin's correction of a row's QC checks: the old ones go, the new split is written, in one update. '' or why not. */
+async function qcInboxCorrect(baseId, entry) {
+  if (!ME.admin) return 'Only an admin can correct a QC check that is already filled in.';
+  const x = qcInboxStatuses().find(e => e.r.id === baseId);
+  if (!x) return 'That entry is no longer on the list — press Refresh.';
+  if (QC_SPLIT.some(k => qcPcs(entry[k]) < 0)) return 'Passed, alteration, rejected, spotting and touching cannot be negative.';
+  const fix = qcCorrectable(x), total = qcCheckedOf(entry);
+  if (total > fix.room) return `Passed + alteration + rejected + spotting + touching is ${nf(total)} — only ${nf(fix.room)} piece(s) can be set here.`;
+  /* Cutting alteration below what has already gone to the tailors would leave that issue standing on nothing. */
+  const altAfter = qcAltTotal(x.r.sku) - fix.values.forAlteration + qcPcs(entry.forAlteration), issued = qcIssuedTotal(x.r.sku);
+  if (altAfter < issued) return `${nf(issued)} piece(s) of ${x.r.sku} have already been issued for alteration — for-alteration cannot drop that far.`;
+  /* The correction keeps the day the pieces were first checked, unless the admin picked another in the date box. */
+  const recs = qcCheckRecords(x.r, entry, entry.date ? ptStampFrom(fix.date, entry.date) : fix.date).map(c => Object.assign(c, { editedBy: ME.email, editedAt: new Date().toISOString() }));
+  const gone = new Set(fix.replace.map(c => c.id));
+  await ptPatch(Object.assign(Object.fromEntries(fix.replace.map(c => ['pt_qcChecks/' + c.id, null])),
+    Object.fromEntries(recs.map(c => ['pt_qcChecks/' + c.id, c]))));
+  QC.checks = (QC.checks || []).filter(c => !gone.has(c && c.id)).concat(recs.map(c => Object.assign({ _key: c.id }, c)));
+  return '';
 }
 /** QC pass: the QC Check window for one waiting row — all its waiting pieces filled in as passed, to be split. */
 function qcInboxOpen(baseId) {
@@ -23054,23 +23201,11 @@ function qcInboxOpen(baseId) {
     $('qcMsg').textContent = `QC pass on ${x.r.sku} opens in ${qcTimeLeft(x.passOpensAt - Date.now())} — a minute for each of the ${nf(ptNum(x.r.qcReceivedPcs))} piece(s) received.`;
     return;
   }
-  const r = x.r, me = qcMyName();
-  const num = (key, label, value) => ({ key, label, type: 'number', min: 0, step: 1, value });
   ptOpenDialog({
-    title: 'QC Check',
-    subtitle: `SKU: ${r.sku || '—'}  ·  ${r.empName || '—'}  ·  ${r.orderNo || 'no order'}`,
+    title: 'QC Pass', subtitle: qcCheckSubtitle(x.r), msg: qcCheckItem(x.r),
     note: `${nf(x.wait)} piece(s) of this entry are waiting. Type how many passed, went for alteration, were rejected, or went to `
       + 'spotting or touching — what you leave out stays waiting. Nothing is saved until you press Save.',
-    msg: [r.articleSubtype || r.articleType, r.color, r.size].filter(Boolean).join(' · '),
-    fields: [
-      { key: 'sku', label: 'SKU', value: r.sku, readonly: true },
-      { key: 'checkedBy', label: 'Checked by', type: 'select', value: me, options: [...new Set([me].concat(qcDeptEmps()).filter(Boolean))] },
-      num('passed', 'Passed — pieces', x.wait), num('forAlteration', 'For alteration — pieces', 0),
-      num('rejected', 'Rejected — pieces', 0), num('spotting', 'Spotting — pieces (a stain)', 0),
-      num('touching', 'Touching — pieces (a missed print)', 0),
-      { key: 'remarks', label: 'Remarks', value: 'Accepted from Waiting for QC', span: true },
-      { key: 'date', label: 'Check date', type: 'date', value: ptIsoDate(ptNow()), admin: true },
-    ],
+    fields: qcCheckFields(x, Object.assign({ checkedBy: qcMyName(), remarks: 'Accepted from Waiting for QC' }, QC_EMPTY_SPLIT), false),
     onSave: async v => {
       const err = await qcInboxSave(baseId, v);
       if (err) return err;
@@ -23201,17 +23336,67 @@ function renderQcLedger() {
   const z = v => (v ? nf(v) : '<span class="muted">—</span>');
   const head = '<thead><tr>' + cols.map((c, i) => `<th${i === 0 ? ' class="frz"' : ' class="num"'}>${c[0]}</th>`).join('') + '</tr></thead>';
   $('qcTable').innerHTML = head + '<tbody>' + (rows.map(e => '<tr>'
-    + `<td class="frz" style="text-align:left">${esc(e.day.split('-').reverse().join('/'))}</td>`
+    + `<td class="frz" style="text-align:left"><button class="ghost qc-act" data-qcl-day="${esc(e.day)}" title="See this day SKU by SKU: opening, what moved, closing">${esc(e.day.split('-').reverse().join('/'))}</button></td>`
     + cols.slice(1).map(([, k]) => `<td class="num"${k === 'allPass' ? ' style="font-weight:700;color:#166534"' : ''}>${z(e[k])}</td>`).join('') + '</tr>').join('')
     || `<tr><td colspan="${cols.length}" class="muted" style="padding:14px">Nothing in these days.</td></tr>`) + '</tbody>'
     + (rows.length ? '<tfoot><tr><td class="frz">TOTAL</td>' + cols.slice(1).map(([, k]) => `<td class="num">${nf(t[k] || 0)}</td>`).join('') + '</tr></tfoot>' : '');
   $('qcMsg').className = 'muted';
-  $('qcMsg').textContent = `${nf(rows.length)} day(s), newest first · "All passed" = QC pass + back from spotting and touching · use the dates above for another window`;
+  $('qcMsg').textContent = `${nf(rows.length)} day(s), newest first · click a day to see it SKU by SKU · "All passed" = QC pass + back from spotting and touching · use the dates above for another window`;
+}
+
+/*
+ * ONE LEDGER DAY, SKU BY SKU (Ravi, 20 Nov: "when I click on its date it should give me a pop up card grouped by skus";
+ * "opening should show what is the QC passed previously before today's entry and closing should show the total pieces
+ * passed at the end of the day"). One line per SKU that moved that day: back from karigars, and what QC did — every QC
+ * check of the SKU that day, the old Checks form's too — then passed before the day and passed by the end of it.
+ */
+function qcLedgerDay(day) {
+  const start = new Date(day + 'T00:00:00').getTime(), end = start + 86400000, from = qcInboxFromMs(), bySku = new Map();
+  const line = sku => { if (!bySku.has(sku)) bySku.set(sku, { sku, recv: 0, pass: 0, alt: 0, rej: 0, spot: 0, touch: 0, before: 0 }); return bySku.get(sku); };
+  const inDay = ms => ms >= start && ms < end;
+  qcInboxEntries().forEach(x => {
+    const parts = x.r.fromCut ? [{ ms: x.last, pcs: x.since }] : repRecvParts(x.r).filter(p => /^LEG-/i.test(String(x.r.orderNo || '')) || p.ms >= from);
+    const recv = parts.filter(p => inDay(p.ms)).reduce((a, p) => a + p.pcs, 0);
+    if (recv) line(qcNorm(x.r.sku)).recv += recv;
+  });
+  (QC.checks || []).forEach(c => {
+    const ms = c && ptDtMs(c.date); if (!ms || !inDay(ms)) return;
+    const e = line(qcNorm(c.sku));
+    e.pass += ptNum(c.ok); e.rej += ptNum(c.rejected);
+    if (!c.refId) { e.alt += ptNum(c.forAlteration); e.spot += ptNum(c.spotting); e.touch += ptNum(c.touching); }
+  });
+  /* Passed before the day, for the SKUs that moved — the card's Opening; Closing adds the day's passes. */
+  (QC.checks || []).forEach(c => { const ms = c && ptDtMs(c.date), e = ms && ms < start && bySku.get(qcNorm(c.sku)); if (e) e.before += ptNum(c.ok); });
+  return [...bySku.values()].map(e => Object.assign(e, { after: e.before + e.pass })).sort((a, b) => a.sku.localeCompare(b.sku));
+}
+/* Opening and Closing sit side by side at the end (Ravi, 20 Nov: "put opening and closing columns back on the card instead
+ * of buttons … held adjacent at the last of all columns"). */
+const QC_LEDGER_DAY_COLS = [['SKU', 'sku'], ['Received', 'recv'], ['Passed', 'pass'], ['Alteration', 'alt'], ['Rejected', 'rej'], ['Spotting', 'spot'], ['Touching', 'touch'],
+  ['Opening', 'before'], ['Closing', 'after']];
+function qcLedgerDayCard(day) {
+  const lines = qcLedgerDay(day), dmy = day.split('-').reverse().join('/'), sum = k => lines.reduce((a, e) => a + e[k], 0);
+  const z = v => (v ? nf(v) : '<span class="muted">—</span>');
+  const strong = { pass: ' style="color:#166534;font-weight:700"', before: ' style="font-weight:700"', after: ' style="font-weight:700"' };
+  const row = e => `<tr><td style="font-family:ui-monospace,monospace;text-align:left">${esc(e.sku)}</td>`
+    + QC_LEDGER_DAY_COLS.slice(1).map(([, k]) => `<td class="num"${strong[k] || ''}>${z(e[k])}</td>`).join('') + '</tr>';
+  ptOpenDialog({
+    title: 'QC ledger — ' + dmy, wide: true,
+    note: `SKU by SKU: Received = back from karigars that day · Passed, Alteration, Rejected, Spotting, Touching = what QC did that day · `
+      + `Opening = pieces of the SKU passed before ${dmy} · Closing = passed by the end of ${dmy}.`,
+    html: `<div class="xlwrap" style="max-height:60vh;overflow:auto"><table class="xl"><thead><tr>${QC_LEDGER_DAY_COLS.map(([h], i) => `<th${i ? ' class="num"' : ''}>${h}</th>`).join('')}</tr></thead>`
+      + `<tbody>${lines.map(row).join('') || `<tr><td colspan="${QC_LEDGER_DAY_COLS.length}" class="muted" style="padding:14px">Nothing moved this day.</td></tr>`}</tbody>`
+      + (lines.length ? `<tfoot><tr><td>TOTAL · ${nf(lines.length)} SKU(s)</td>${QC_LEDGER_DAY_COLS.slice(1).map(([, k]) => `<td class="num">${nf(sum(k))}</td>`).join('')}</tr></tfoot>` : '')
+      + '</table></div>',
+  });
 }
 
 $('qcTable').addEventListener('click', async e => {
   const check = e.target.closest('[data-qcin-check]');
   if (check) return qcInboxOpen(check.getAttribute('data-qcin-check'));
+  const passedEdit = e.target.closest('[data-qcp-edit]');
+  if (passedEdit) return qcPassedEdit(passedEdit.getAttribute('data-qcp-edit'));
+  const ledgerDay = e.target.closest('[data-qcl-day]');
+  if (ledgerDay) return qcLedgerDayCard(ledgerDay.getAttribute('data-qcl-day'));
   const go = e.target.closest('[data-qcin-accept]');
   if (go) {
     const id = go.getAttribute('data-qcin-accept');
@@ -23247,7 +23432,15 @@ $('qcView').addEventListener('change', renderQc);
 ['qcD1', 'qcD2'].forEach(id => $(id).addEventListener('change', renderQc));
 $('qcClear').onclick = () => { ['qcQ', 'qcD1', 'qcD2'].forEach(id => $(id).value = ''); renderQc(); };
 ptDebounce('qcQ', renderQc);
-$('qcGo').onclick = async () => { QC.checks = null; await ensureQc(); renderQcCheckForm(); renderQcIssueForm(); };
+/** Refresh: the QC lists, and Job Work again, because "Waiting for QC" is built from it. Before 18 Nov 2026 pieces
+ *  received on another PC reached that list only after F5. Job Work comes from its live copy (nothing downloaded);
+ *  if it cannot be read, the QC lists still refresh. */
+async function qcRefresh() {
+  QC.checks = null;
+  try { await ptReadReg('base'); } catch (e) { console.warn('[quality-control] Job Work not read again:', e); }
+  await ensureQc(); renderQcCheckForm(); renderQcIssueForm();
+}
+$('qcGo').onclick = () => ptRefreshButton($('qcGo'), qcRefresh);
 $('qcwToggle').onclick = () => {
   const open = $('qcwBox').classList.contains('hide');
   $('qcwBox').classList.toggle('hide', !open);
@@ -25022,7 +25215,7 @@ async function ensureOrd() {
     || !PTE.priority || MDBX.custom === null || !ODR.rows || SOX.rows === null;
   if (need) { ORD.busy = true; renderOrd(); }
   await Promise.all([
-    ptNeed(PTG_ALL, { why: 'ord', has: 'mdb' }).then(() => (PTE.emp ? null : ptLoadEmp())),
+    ptNeed(PTG_ALL, { why: 'ord', has: 'mdb' }).then(() => (PTE.emp ? null : ptLoadEmpOrSkip('ord'))),
     QC.checks === null && Promise.all([
       ptGet('pt_qcChecks').then(v => { QC.checks = ptList(v); }, () => { QC.checks = QC.checks || []; }),
       ptGet('pt_qcIssuance').then(v => { QC.issue = ptList(v); }, () => { QC.issue = QC.issue || []; }),
@@ -28985,7 +29178,16 @@ $('odTable').addEventListener('click', ordQtyOpenClick);
 $('odKpis').addEventListener('click', ordKpiClick);
 $('odKpis').addEventListener('keydown', ordKpiClick);
 ['odSrc', 'odBrand', 'odType', 'odD1', 'odD2'].forEach(id => { const el = $(id); if (el) el.addEventListener('change', renderOrd); });
-$('odGo').onclick = async () => { await ptLoadGates(true); ORD.req = null; QC.checks = null; FGI.rows = null; await ensureOrd(); };
+/** Order Console Refresh: everything the screen shows, read again from the live copies. Vendor orders, the
+ *  quantity changes on sales orders and the delete requests were left out before 18 Nov 2026, so only F5 showed
+ *  another PC's changes to them. */
+async function odRefresh() {
+  await ptLoadGates(true);
+  ORD.req = null; QC.checks = null; FGI.rows = null;
+  VO.rows = null; SOX.rows = null; ODR.rows = null;
+  await ensureOrd();
+}
+$('odGo').onclick = () => ptRefreshButton($('odGo'), odRefresh);
 $('odView').addEventListener('change', () => { ORD.pick = new Set(); renderOrd(); });
 /** A SKU's priority tag (P1–P4), '' when it has none. */
 const ordPri = sku => { const v = (PTE.priority || {})[obUC(sku)];
@@ -35465,7 +35667,7 @@ async function flowVpBar() {
  */
 function flowVpLinkPrepare(link) {
   FLOW_VP_AS = { code: link.code, name: link.code };
-  VP.lateOnly = !!link.late;
+  VP.dueOnly = link.late ? 'late' : '';
   VP.rows = null;
   const sel = $('flVpAs'); if (sel) sel.value = link.code;
 }
@@ -38359,15 +38561,14 @@ function gpoFabrics() {
  * lost anything yet, so it counts as "at processor" and nowhere else; the percentage is struck off
  * settled lots alone, which is what makes one processor at 6% and another at 14% a figure worth
  * arguing with instead of an artefact of what happens to be out today. */
+/* A lot answers to two names -- its greige one and the RFD name it comes back as -- and the figures
+ * belong on one line, under the RFD name, because that is what the cutting table asks for. */
+function fabLineOf(r) {
+  var f = String(r.fabricType || '').trim();
+  return fabRfdOfGreige(f) || f;
+}
 function fabFlowRows(rows) {
   var by = {}, order = [];
-  /* A lot answers to two names -- its greige one and the RFD name it comes back as -- and the
-   * figures belong on one line, under the RFD name, because that is what the cutting table asks
-   * for. */
-  function line(r) {
-    var f = String(r.fabricType || '').trim();
-    return fabRfdOfGreige(f) || f;
-  }
   function bump(name) {
     var k = name.toUpperCase();
     if (!by[k]) {
@@ -38379,7 +38580,7 @@ function fabFlowRows(rows) {
   }
   (rows || []).forEach(function (r) {
     if (!fabCounts(r)) return;
-    var n = line(r); if (!n) return;
+    var n = fabLineOf(r); if (!n) return;
     var g = bump(n), q = fabQty(r);
     if (r.txnType === 'RECEIVE_GREIGE') g.greigeIn += q;
     else if (r.txnType === 'ISSUE_TO_RFD') g.toRfd += q;
@@ -38411,6 +38612,48 @@ function fabFlowRows(rows) {
   }).sort(function (a, b) {
     return (b.greigeIn + b.rfdIn + b.rfdOpen + b.rfdBuy) - (a.greigeIn + a.rfdIn + a.rfdOpen + a.rfdBuy);
   });
+}
+
+/* ---- ONE FABRIC'S SHELF, ENTRY BY ENTRY (Ravi, 20 Nov: "full history of in and out ... in the tally ledger format") ---- *
+ *
+ * Two shelves, as on the Inventory page: greige in the store and RFD on the shelf. Cloth at the processor is on
+ * neither. The rows and the rules are fabFlowRows' own (same fabric line, same approval hold, damage off the shelf it
+ * was on), so the last closing is always the figure the Inventory page shows. Reading only; nothing is saved. */
+var FAB_SHELF_MOVES = {
+  greige: { RECEIVE_GREIGE: 1, ISSUE_TO_RFD: -1 },
+  rfd: { RECEIVE_RFD: 1, OPENING_RFD: 1, PURCHASE_RFD: 1, ISSUE_TO_CUTTING: -1 },
+};
+/** +1 when the entry puts cloth on this shelf, -1 when it takes cloth off, 0 when it is not this shelf's. */
+function fabShelfSign(r, shelf) {
+  if (r.txnType === 'DAMAGE') return (fabState(r) === 'GREIGE') === (shelf === 'greige') ? -1 : 0;
+  return (FAB_SHELF_MOVES[shelf] || {})[r.txnType] || 0;
+}
+/** This fabric's entries on this shelf, oldest first; on the same day, in the order they were written. */
+function fabShelfMoves(rows, fabric, shelf) {
+  var F = String(fabric || '').trim().toUpperCase();
+  return (rows || []).map(function (r, i) { return { r: r, i: i }; }).filter(function (x) {
+    return fabCounts(x.r) && fabLineOf(x.r).toUpperCase() === F && fabShelfSign(x.r, shelf) !== 0;
+  }).sort(function (a, b) {
+    return String(a.r.date || '').localeCompare(String(b.r.date || '')) || a.i - b.i;
+  }).map(function (x) { return x.r; });
+}
+/**
+ * The ledger page, Tally's way: what the shelf held when the period opened, each entry with the balance before and
+ * after it, and the period's totals. from / to are YYYY-MM-DD, both counted in; blank means no limit. Entries before
+ * "from" make the opening; entries after "to" are left out.
+ */
+function fabShelfLedger(rows, fabric, shelf, from, to) {
+  var page = { opening: 0, lines: [], inQty: 0, outQty: 0, closing: 0 };
+  fabShelfMoves(rows, fabric, shelf).forEach(function (r) {
+    var d = String(r.date || ''), q = fabQty(r) * fabShelfSign(r, shelf);
+    if (to && d > to) return;
+    if (from && d < from) { page.opening += q; return; }
+    var before = page.opening + page.inQty - page.outQty;
+    page.lines.push({ row: r, opening: before, inQty: q > 0 ? q : 0, outQty: q < 0 ? -q : 0, closing: before + q });
+    if (q > 0) page.inQty += q; else page.outQty -= q;
+  });
+  page.closing = page.opening + page.inQty - page.outQty;
+  return page;
 }
 
 /* ---- and lot by lot, which is how the floor actually talks about it ------------------------- */
@@ -39086,6 +39329,7 @@ function wireShell() {
   document.addEventListener('keydown', function (ev) {
     if (ev.key !== 'Escape') return;
     $('lmPo').classList.add('hide'); $('lmDoc').classList.add('hide');
+    if ($('lmHist')) $('lmHist').classList.add('hide');
     if (RD) closeDrawer();
   });
   $('lmQ').addEventListener('input', function () { UI.q = this.value.trim().toLowerCase(); render(); });
@@ -40733,7 +40977,7 @@ function renderInv() {
     + th(withPpc ? ['Fabric', 'PPC demand', 'Greige order', 'Greige in store', 'At RFD processor', 'RFD on shelf', 'Total'] : ['Fabric', 'Greige order', 'Greige in store', 'At RFD processor', 'RFD on shelf', 'Total'],
       withPpc ? [1, 2, 3, 4, 5, 6] : [1, 2, 3, 4, 5])
     + '<tbody>' + (rows.map(function (r) {
-      return '<tr><td class="frz" style="text-align:left"><b>' + esc(r.fabric) + '</b>'
+      return '<tr><td class="frz" style="text-align:left">' + invFabricName(r.fabric)
         + (r.greige ? '<div class="muted" style="font-size:10.5px">bought as ' + esc(r.greige) + '</div>' : '') + '</td>'
         + (withPpc ? ppcCell(r) : '')
         + invCell(r, 'order', r.onOrder, 'color:var(--warn-ink)')
@@ -40839,16 +41083,145 @@ function invCell(r, col, v, style) {
   return '<td class="num"><button type="button" class="cellbtn' + (on ? ' on' : '') + '" data-invd="' + esc(key) + '" aria-expanded="' + on + '"'
     + (style ? ' style="' + style + '"' : '') + ' title="Show what makes this up">' + nf(v) + ' <span class="caret">' + (on ? '▴' : '▾') + '</span></button></td>';
 }
+/** A PO opens on Greige POs, expanded -- and the challan inside it too, when there is one. */
+function invOpenPo(poNo, chId) {
+  PV.openPo[poNo] = true; if (chId) PV.openCh[chId] = true;
+  PV.view = 'po'; PV.st = ''; UI.tab = 'po'; render(); window.scrollTo(0, 0);
+}
 function wireInventory() {
   document.addEventListener('click', function (ev) {
-    var d = ev.target.closest ? ev.target.closest('[data-invd],[data-openpo]') : null;
+    var d = ev.target.closest ? ev.target.closest('[data-invd],[data-openpo],[data-invh],[data-histshelf],[data-histpo],#histXlsx') : null;
     if (d && d.getAttribute('data-invd')) { var k = d.getAttribute('data-invd'); UI.invOpen = UI.invOpen === k ? '' : k; render(); return; }
-    /* A PO in a drop-down opens on Greige POs, expanded. */
-    if (d && d.getAttribute('data-openpo')) { var pn = d.getAttribute('data-openpo'); PV.openPo[pn] = true; PV.view = 'po'; PV.st = ''; UI.tab = 'po'; render(); window.scrollTo(0, 0); return; }
+    if (d && d.getAttribute('data-openpo')) { invOpenPo(d.getAttribute('data-openpo')); return; }
+    if (d && d.getAttribute('data-invh')) { invHistOpen(d.getAttribute('data-invh')); return; }
+    if (d && d.getAttribute('data-histshelf')) { INV_HIST.shelf = d.getAttribute('data-histshelf'); invHistDraw(); return; }
+    if (d && d.getAttribute('data-histpo')) { var p = d.getAttribute('data-histpo').split('|'); $('lmHist').classList.add('hide'); invOpenPo(p[0], p[1]); return; }
+    if (d && d.id === 'histXlsx') { invHistXlsx(); return; }
     var t = ev.target.closest ? ev.target.closest('[data-inv]') : null;
     if (!t) return;
     UI.inv = t.getAttribute('data-inv') || 'all'; UI.invOpen = ''; render();
   });
+  document.addEventListener('change', function (ev) {
+    if (ev.target.id !== 'histFrom' && ev.target.id !== 'histTo') return;
+    INV_HIST.from = $('histFrom').value; INV_HIST.to = $('histTo').value; invHistDraw();
+  });
+}
+
+/* ---- A FABRIC'S STOCK HISTORY (Ravi, 20 Nov: click the fabric name, see every in and out "in the tally ledger format") ---- *
+ *
+ * A pop-up over the Inventory page: one tab per shelf (RFD on the shelf first, then greige in the store), each a
+ * ledger page -- date, cause, opening, in, out, closing -- worked out by fabShelfLedger, so its last closing is the
+ * figure on the page. A row with a PO opens that PO (and its challan) on Greige POs.
+ * Errors: it only reads, so nothing here can lose data. The one thing that can fail is the Excel file; that says so in
+ * the toast and on the console, and nothing is downloaded. */
+var INV_HIST = { fabric: '', shelf: 'rfd', from: '', to: '' };
+var INV_SHELF_LABEL = { rfd: 'RFD on shelf', greige: 'Greige in store' };
+
+/** The fabric's name on the Inventory page: a button to its history for whoever may see the fabric ledger. */
+function invFabricName(fabric) {
+  if (!canLedger()) return '<b>' + esc(fabric) + '</b>';
+  return '<button type="button" class="link" style="font-size:inherit;padding:0;text-align:left" data-invh="' + esc(fabric) + '" title="See every in and out of ' + esc(fabric) + '">'
+    + esc(fabric) + '</button>';
+}
+function invHistOpen(fabric) {
+  INV_HIST.fabric = fabric; INV_HIST.shelf = 'rfd'; INV_HIST.from = ''; INV_HIST.to = '';
+  invHistMount();
+  $('histFrom').value = ''; $('histTo').value = '';
+  var m = mstOf(fabric);
+  $('histTitle').textContent = fabric + ' — stock history';
+  $('histSub').textContent = m && m.greige ? 'bought as ' + m.greige : '';
+  invHistDraw();
+  $('lmHist').classList.remove('hide');
+}
+/** The pop-up's frame, made once: the tabs and the date boxes stay put while the ledger under them is redrawn. */
+function invHistMount() {
+  if ($('lmHist')) return;
+  var box = document.createElement('div');
+  box.className = 'modal hide'; box.id = 'lmHist';
+  box.innerHTML = '<div class="modalbox" style="width:min(980px,100%)">'
+    + '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">'
+    + '<div><div class="crumb">Stock history</div><h2 style="margin:2px 0 0;font-size:19px" id="histTitle"></h2><div class="sub" id="histSub"></div></div>'
+    + '<button type="button" class="x" data-close="lmHist" aria-label="Close">×</button></div>'
+    + '<div class="toolbar" style="margin:14px 0 10px">'
+    + '<div class="seg" role="tablist" aria-label="Which stock" id="histTabs"></div>'
+    + '<div class="pair" style="margin-left:auto"><label class="inl" for="histFrom">From</label><input type="date" id="histFrom" style="width:150px;height:34px;padding-block:0"></div>'
+    + '<div class="pair"><label class="inl" for="histTo">To</label><input type="date" id="histTo" style="width:150px;height:34px;padding-block:0"></div>'
+    + '<button type="button" class="ghost" id="histXlsx" style="height:34px;padding:0 14px">Download Excel</button></div>'
+    + '<div id="histBody"></div></div>';
+  document.body.appendChild(box);
+}
+/** The PO an entry belongs to: its own, or its lot's (an issue to RFD or to cutting is written against the lot). */
+function invHistPoOf(r, lotPo) { return String(r.orderNo || lotPo[r.lot] || '').trim(); }
+/** The cause line and the details under it, as the floor says them. */
+function invHistCause(r) {
+  var party = String(r.party || '').trim();
+  return (FAB_LABEL[r.txnType] || r.txnType) + (party && party !== 'Cutting' ? ' · ' + party : '');
+}
+function invHistDetails(r, po) {
+  var bill = { RECEIVE_GREIGE: 'challan ', ISSUE_TO_RFD: 'our challan ', RECEIVE_RFD: 'their challan ' }[r.txnType] || 'bill ';
+  return [r.lot ? 'Lot ' + r.lot : '', r.bill ? bill + r.bill : '', po ? 'PO ' + po : '', r.note || r.remark || '']
+    .filter(Boolean).join(' · ');
+}
+function invHistDraw() {
+  var H = INV_HIST, page = fabShelfLedger(DB.fab || [], H.fabric, H.shelf, H.from, H.to), lotPo = {};
+  fabLots(DB.fab || []).forEach(function (L) { lotPo[L.lot] = L.poNo; });
+  $('histTabs').innerHTML = ['rfd', 'greige'].map(function (s) {
+    return '<button type="button" role="tab" aria-selected="' + (H.shelf === s) + '" class="segbtn' + (H.shelf === s ? ' on' : '') + '" data-histshelf="' + s + '">' + INV_SHELF_LABEL[s] + '</button>';
+  }).join('');
+  if (!page.lines.length) {
+    $('histBody').innerHTML = '<div class="empty">' + esc(H.from || H.to
+      ? 'No ' + INV_SHELF_LABEL[H.shelf] + ' entries for ' + H.fabric + ' in these dates. It held ' + nf(page.closing) + ' m.'
+      : 'No ' + INV_SHELF_LABEL[H.shelf] + ' entries for ' + H.fabric + ' yet.') + '</div>';
+    return;
+  }
+  var num = function (v) { return '<td class="num">' + (v ? nf(v) : '') + '</td>'; };
+  var body = page.lines.map(function (x) {
+    var r = x.row, po = invHistPoOf(r, lotPo), bad = r.txnType === 'DAMAGE' ? ' style="color:var(--bad)"' : '';
+    return '<tr' + (po ? ' class="xrow" data-histpo="' + esc(po + '|' + (r.chId || '')) + '" title="Open PO ' + esc(po) + '"' : '') + '>'
+      + '<td class="tl" style="white-space:nowrap">' + esc(fmtD(r.date)) + '</td>'
+      + '<td class="tl"><div' + bad + '>' + esc(invHistCause(r)) + '</div><div class="sub">' + esc(invHistDetails(r, po)) + '</div></td>'
+      + '<td class="num">' + nf(x.opening) + '</td>' + num(x.inQty) + num(x.outQty) + '<td class="num b">' + nf(x.closing) + '</td></tr>';
+  }).join('');
+  $('histBody').innerHTML = '<div class="box scroll" style="max-height:60vh;overflow:auto"><table class="ct li"><thead><tr>'
+    + '<th>Date</th><th style="min-width:220px">Cause</th><th class="num">Opening</th><th class="num">In</th><th class="num">Out</th><th class="num">Closing</th></tr></thead>'
+    + '<tbody>' + body + '<tr class="tot"><td></td><td class="tl">Total' + (H.from || H.to ? ' for these dates' : '') + '</td>'
+    + '<td class="num">' + nf(page.opening) + '</td><td class="num">' + nf(page.inQty) + '</td><td class="num">' + nf(page.outQty) + '</td><td class="num">' + nf(page.closing) + '</td></tr>'
+    + '</tbody></table></div><div class="lm-why">Metres. '
+    + (H.to ? 'Closing is the ' + esc(INV_SHELF_LABEL[H.shelf]) + ' figure at the end of ' + esc(fmtD(H.to)) + '.'
+      : 'Closing matches the ' + esc(INV_SHELF_LABEL[H.shelf]) + ' figure on the Inventory page.')
+    + ' Click a row with a PO to open it.</div>';
+}
+/** The same page as an Excel file, made by the app's own writer (the PPC report's). */
+function invHistXlsx() {
+  var H = INV_HIST;
+  if (typeof flowRepXlsx !== 'function') {
+    console.warn('Stock history: the Excel writer (flow-report.js) is not loaded; nothing downloaded.');
+    lmSay('err', 'The Excel file could not be made here. Nothing was downloaded.');
+    return;
+  }
+  var page = fabShelfLedger(DB.fab || [], H.fabric, H.shelf, H.from, H.to), lotPo = {};
+  fabLots(DB.fab || []).forEach(function (L) { lotPo[L.lot] = L.poNo; });
+  var m2 = function (v) { return Math.round(v * 100) / 100; };
+  var c = function (v, st) { return { v: v, st: st || {} }; }, bold = { b: 1 }, date = { fmt: 165, h: 'left' };
+  var rows = [[c(H.fabric + ' — ' + INV_SHELF_LABEL[H.shelf] + ' · ' + (H.from || H.to ? (H.from ? fmtD(H.from) : 'start') + ' to ' + (H.to ? fmtD(H.to) : 'today') : 'all history'), bold)],
+    ['Date', 'Cause', 'Details', 'Opening (m)', 'In (m)', 'Out (m)', 'Closing (m)'].map(function (h) { return c(h, { b: 1, fill: 'F1EFE8' }); })];
+  page.lines.forEach(function (x) {
+    var r = x.row, po = invHistPoOf(r, lotPo);
+    rows.push([c(flowRepSerial(r.date), date), c(invHistCause(r)), c(invHistDetails(r, po)), c(m2(x.opening)),
+      c(x.inQty ? m2(x.inQty) : ''), c(x.outQty ? m2(x.outQty) : ''), c(m2(x.closing), bold)]);
+  });
+  rows.push([c(''), c('Total', bold), c(''), c(m2(page.opening), bold), c(m2(page.inQty), bold), c(m2(page.outQty), bold), c(m2(page.closing), bold)]);
+  try {
+    var bytes = flowRepXlsx([{ name: INV_SHELF_LABEL[H.shelf], rows: rows, freeze: { x: 0, y: 2 }, widths: [12, 34, 48, 13, 11, 11, 13],
+      merges: [], filter: 'A2:G' + (rows.length - 1), heights: {} }]);
+    var a = window.document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+    a.download = 'stock-history-' + H.fabric.replace(/[^A-Za-z0-9]+/g, '-') + '-' + H.shelf + '-' + lmToday() + '.xlsx';
+    a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
+  } catch (e) {
+    console.error('Stock history Excel for ' + H.fabric + ' failed:', e);
+    lmSay('err', 'The Excel file for ' + H.fabric + ' could not be made. Nothing was downloaded.');
+  }
 }
 
 /* ui/ledger.js -- The Fabric ledger screen and its filter.
@@ -52942,7 +53315,7 @@ const vpLineIsDone = (o, l) => !!(l && (l.cancelled || ['Received', 'Cancelled']
 /* SENT BY THE PRINTER (Ravi, 14 Nov: "vendor apni qty enter vendor sent me to uske bad wo order vendor ko pending order list me show
  * nahi hona chahiye — wo vendor sent me show hona chahiye"): a line the printer has said is sent in full (Vendor sent ≥ ordered) and
  * that is not done yet leaves Bulk / Custom orders for its own tab, "Vendor sent", until it is received. Part-sent stays pending. */
-const vpLineIsVs = (o, l) => !!(l && !vpLineIsDone(o, l) && !vpLineIsHist(o, l) && vpQty(o, l) > 0 && vpVsSum(vpVsOf(o, l)) >= vpOrdOf(o, l));
+const vpLineIsVs = (o, l) => !!(l && !vpLineIsDone(o, l) && !vpLineIsHist(o, l) && vpQty(o, l) > 0 && vpSentKept(o, l) >= vpOrdOf(o, l));
 /* 'hist' (16 Nov): Custom orders → History, every line received in full (vpLineIsHist). */
 const vpPartOk = (o, l) => !VP_PART || (VP_PART === 'done' ? vpLineIsDone(o, l)
   : VP_PART === 'vsent' ? vpLineIsVs(o, l) : VP_PART === 'hist' ? vpLineIsHist(o, l)
@@ -53175,12 +53548,30 @@ let VP_QX = { q: null, map: new WeakMap() };
 function vpQOk(o, l, f, everyDue) {
   /* "Show late only" (3 Nov) narrows every view to lines past their due date with the cloth already given; the strip counts all. */
   /* Not on Custom orders: that tab has no strip, so no button to undo it there. */
-  if (!everyDue && VP.lateOnly && VP.tab !== 'shop') { const x = voDueOf(o, l); if (!x || x.st !== 'late') return false; }
+  if (!everyDue && VP.dueOnly && VP.tab !== 'shop' && !vpDueOnlyOk(o, l)) return false;
   const q = f && f.q; if (!q || !o) return true;
   if (VP_QX.q !== q) VP_QX = { q, map: new WeakMap() };
   let hits = VP_QX.map.get(o);
   if (!hits) { hits = new Set(voLines(o).filter(x => x && vpLineHay(x).includes(q))); VP_QX.map.set(o, hits); }
   return !hits.size || hits.has(l);
+}
+/* THE STRIP'S FIGURES ARE BUTTONS (Ravi, 19 Nov: "make them actionable"): past the due date, due in the next days, waiting for our cloth and
+ * no date given each show only their lines; pressed again, every line comes back. VP.dueOnly holds which ('' = all). */
+const VP_DUE_ONLY = {
+  late: x => x.st === 'late',
+  soon: x => x.st === 'today' || x.st === 'soon',
+  wait: x => x.st === 'wait',
+  nodate: (x, l) => x.st !== 'wait' && !voProm(l),
+};
+function vpDueOnlyOk(o, l) {
+  const x = voDueOf(o, l), ok = VP_DUE_ONLY[VP.dueOnly];
+  return !ok || !!(x && ok(x, l));
+}
+/** One figure of the strip as a button: it filters to its lines, and shows they are filtered. */
+function vpDueChip(kind, n, text, colour) {
+  if (!n && VP.dueOnly !== kind) return '';
+  const on = VP.dueOnly === kind;
+  return `<span class="sep"></span><button type="button" data-vpdue="${kind}" class="${on ? '' : 'ghost'}" title="${on ? 'Show every line' : 'Show only these lines'}" style="width:auto;padding:2px 10px;font-size:12.5px;font-weight:700;${on ? '' : `color:${colour};border-color:transparent;background:transparent`}">${text}${on ? ' ✕' : ''}</button>`;
 }
 /** Does this order survive the order-level filters? */
 function vpOrderMatches(o, f) {
@@ -53250,6 +53641,10 @@ function renderVp() {
     if (!doneN && VP.tab === 'done') VP.tab = 'bulk';
     if ($('vpTabVs')) $('vpTabVs').classList.toggle('hide', !vsN && VP.tab !== 'vsent');
     $('vpTabShop').classList.toggle('hide', !shopN && !histOrders.length);
+    /* WHAT I HAVE SENT (Ravi, 20 Nov): gone from the office's printer's view (History covers what came in); a printer's own sign-in keeps
+     * it only while it has old "Sending now" deliveries to show. */
+    const histN = vpHistRows().length, histShown = !vprOn() && histN > 0;
+    if (!histShown && VP.tab === 'hist') VP.tab = 'bulk';
     const paint = (id, on, label, n) => {
       const b = $(id); if (!b) return;
       b.textContent = n ? label + ' (' + nf(n) + ')' : label;
@@ -53259,7 +53654,8 @@ function renderVp() {
     paint('vpTabShop', VP.tab === 'shop', 'Custom orders', shopN);
     paint('vpTabVs', VP.tab === 'vsent', 'Vendor sent', vsN);
     paint('vpTabDone', VP.tab === 'done', 'Completed', doneN);
-    paint('vpTabHist', VP.tab === 'hist', 'What I have sent', vpHistRows().length);
+    paint('vpTabHist', VP.tab === 'hist', 'What I have sent', histN);
+    if ($('vpTabHist')) $('vpTabHist').classList.toggle('hide', !histShown);   // after paint, which sets the whole class
     /* Counted as things still to hear about, not as things ever asked — a printer wants to know what
      * is outstanding, and a number that only goes up stops being read after a fortnight. */
     paint('vpTabRfd', VP.tab === 'rfd', 'RFD fabric I need',
@@ -53305,11 +53701,10 @@ function renderVp() {
     <span class="muted">Sent</span> <span style="color:#166534;font-weight:700">${amt(tot.sentPcs, tot.sentM)}</span>
     <span class="sep"></span>
     <span class="muted">Left to send</span> <span style="color:var(--bad);font-weight:700">${amt(tot.owedPcs, tot.owedM)}</span>
-    <span class="sep"></span><span style="color:${tot.late ? 'var(--bad)' : '#166534'};font-weight:700">${tot.late ? nf(tot.late) + ' past the due date' : 'nothing past the due date'}</span>
-    ${tot.soon ? `<span class="sep"></span><span style="font-weight:600;color:#b45309">${nf(tot.soon)} due in the next ${VO_SOON} days</span>` : ''}
-    ${tot.wait ? `<span class="sep"></span><span style="color:#92400e">${nf(tot.wait)} waiting for cloth from us</span>` : ''}
-    ${vpViewAll() || !tot.noDate ? '' : `<span class="sep"></span><span style="color:#7f6000;font-weight:600">${nf(tot.noDate)} with no date from you</span>`}
-    ${tot.late || VP.lateOnly ? `<button type="button" data-vplate="1" class="${VP.lateOnly ? '' : 'ghost'}" style="width:auto;padding:3px 12px;font-size:12px;margin-left:6px">${VP.lateOnly ? 'Show all lines' : 'Show late only'}</button>` : ''}
+    ${tot.late || VP.dueOnly === 'late' ? vpDueChip('late', tot.late, nf(tot.late) + ' past the due date', 'var(--bad)') : '<span class="sep"></span><span style="color:#166534;font-weight:700">nothing past the due date</span>'}
+    ${vpDueChip('soon', tot.soon, `${nf(tot.soon)} due in the next ${VO_SOON} days`, '#b45309')}
+    ${vpDueChip('wait', tot.wait, nf(tot.wait) + ' waiting for cloth from us', '#92400e')}
+    ${vpViewAll() ? '' : vpDueChip('nodate', tot.noDate, nf(tot.noDate) + ' with no date from you', '#7f6000')}
     <span style="flex:1"></span>
     <span class="muted" style="font-size:11px">your orders only${VP.at ? ' · ' + esc(VP.at) : ''}</span>
   </div>`;
@@ -53519,12 +53914,20 @@ const vpRecvAll = (o, l) => { const ord = vpOrdOf(o, l); return ord > 0 && vpRec
 const vpLineIsHist = (o, l) => !!(l && !l.cancelled && vpIsCustom(o) && vpRecvAll(o, l) && vpVsSum(vpVsOf(o, l)) >= vpOrdOf(o, l) - 0.01 && !vpVsWait(vpVsOf(o, l)));
 /* THE CLEARER SHEET (Ravi, 16 Nov, the mockup he approved): Order, Item, Size, Ordered, Sent by you, Received by Ridhi, Status, and the
  * Send box on the line itself. Status says in words where the line stands; the due date (3 Nov) sits under it. History drops the box. */
+/** "5 m rejected by Ridhi — Print fault · send again": under what the printer sent, on every one of its screens. */
+function vpRejNote(o, l, unit) {
+  const list = vpRejOf(o, l); if (!list.length) return '';
+  const why = [...new Set(list.map(r => r.reason).filter(Boolean))].join(', ');
+  return `<div style="font-size:11px;color:var(--bad);white-space:normal">${esc(nf(vpRejSum(list)) + ' ' + unit)} rejected by Ridhi${why ? ' — ' + esc(why) : ''} · send again</div>`;
+}
 function vpCustStatus(o, l) {
-  const list = vpVsOf(o, l), ord = vpOrdOf(o, l), sent = vpVsSum(list), recv = vpRecvOf(l, o).qty, wait = vpVsWait(list), no = vpVsRejected(list);
+  const list = vpVsOf(o, l), ord = vpOrdOf(o, l), sent = vpSentKept(o, l), recv = vpRecvOf(l, o).qty, wait = vpVsWait(list), no = vpVsRejected(list);
   const unit = o.orderType === 'running' ? 'm' : 'pcs', q = n => nf(vpVsRound(n)) + ' ' + unit, out = [];
   if (recv >= ord - 0.01 && ord > 0) out.push('<span class="pill pill-ok">All received</span>');
   if (wait > 0) out.push(`<span class="pill pill-low">+${q(wait)} waiting Ridhi's approval</span>`);
   if (no > 0) out.push(`<span class="pill pill-out">${q(no)} extra not accepted</span>`);
+  const rej = vpRejSum(vpRejOf(o, l));
+  if (rej > 0) out.push(`<span class="pill pill-out">${q(rej)} rejected by Ridhi — send again</span>`);
   if (sent - recv > 0.01) out.push(`<span class="pill" style="background:var(--bg,#f1f5f9);color:var(--muted)">${q(sent - recv)} on the way</span>`);
   if (!sent && !wait && !recv) out.push('<span class="pill" style="background:var(--bg,#f1f5f9);color:var(--muted)">Not sent yet</span>');
   return out.join(' ');
@@ -53533,7 +53936,7 @@ function vpCustSentCell(o, l, unit) {
   const list = vpVsOf(o, l), vs = vpVsSum(list), q = n => nf(vpVsRound(+n || 0)), me = String(ME.email || '').toLowerCase();
   const batches = list.map(b => `<div class="vpb-vsb${b.removed ? ' off' : ''}"><span>${esc(vpVsWhen(b.at))}</span><b>${q(b.qty)} ${unit}</b>${vpVsTag(b)}`
     + (b.removed ? '<span class="muted">struck off</span>' : vpVsCan() && String(b.by || '').toLowerCase() === me && !b.approved ? `<a href="#" data-vsdel="${esc(o.id)}" data-k="${esc(b.key)}">strike off</a>` : '') + '</div>').join('');
-  return `<td class="vpvs-td"><b>${vs > 0 ? q(vs) : '<span class="muted">—</span>'}</b>${list.length ? ` <details><summary>${nf(list.filter(b => !b.removed).length)} batch(es)</summary>${batches}</details>` : ''}</td>`;
+  return `<td class="vpvs-td"><b>${vs > 0 ? q(vs) : '<span class="muted">—</span>'}</b>${list.length ? ` <details><summary>${nf(list.filter(b => !b.removed).length)} batch(es)</summary>${batches}</details>` : ''}${vpRejNote(o, l, unit)}</td>`;
 }
 function vpCustSendCell(o, l, i, unit) {
   if (!vpVsCan() || l.cancelled) return '<td><span class="muted">—</span></td>';
@@ -53790,6 +54193,15 @@ const vpVsRejected = list => vpVsRound(list.filter(b => b.ask && b.rejected && !
 const vpVsApproved = list => vpVsRound(list.filter(b => b.ask && b.approved && !b.rejected && !b.removed).reduce((a, b) => a + (+b.qty || 0), 0));
 /** What is ordered on the line, with any extra an admin has approved. */
 const vpOrdOf = (o, l) => vpVsRound(vpQty(o, l) + vpVsApproved(vpVsOf(o, l)));
+/* REJECTED ON RECEIVE (Ravi, 19 Nov: "give them a reject option" — bad goods; "printer must send again … and ravi must be informed").
+ * What the challan person turned away is a record on the printer's own order (vRej: qty, reason, note, who, when), so the printer sees it.
+ * It no longer counts as sent: the line still owes it, the printer's Send box opens for it again and the office is offered nothing for it. */
+const vpRejAll = o => Object.entries((o && o.vRej) || {}).filter(([, r]) => r && +r.qty > 0).map(([key, r]) => Object.assign({ key }, r))
+  .sort((a, b) => String(a.at).localeCompare(String(b.at)));
+const vpRejOf = (o, l) => vpRejAll(o).filter(r => (r.lineId ? r.lineId === l.lineId : obUC(r.sku) === obUC(l.sku)));
+const vpRejSum = list => vpVsRound(list.reduce((a, r) => a + (+r.qty || 0), 0));
+/** What the printer sent that still counts: its batches, less what we rejected. */
+const vpSentKept = (o, l) => vpVsRound(Math.max(0, vpVsSum(vpVsOf(o, l)) - vpRejSum(vpRejOf(o, l))));
 /** What one batch is, said the same way on every view: waiting, approved or not accepted. */
 const vpVsTag = b => b.ask ? (b.rejected ? ' <span class="pill pill-out">not accepted</span>'
   : b.approved ? ' <span class="pill pill-ok">extra, approved</span>' : ' <span class="pill pill-low">extra, waiting approval</span>') : '';
@@ -53800,7 +54212,7 @@ const vpVsWhen = (iso, year) => { const d = new Date(iso); if (isNaN(d)) return 
 /** What the printer said it sent for a line, its batches, and (their own sign-in) a box to add one. shape: '' a strip under
  * a board line · 'td' a table cell (table and cards views) · 'flat' a strip with no picture beside it (By product). */
 function vpVsHtml(o, l, i, ord, unit, shape) {
-  const list = vpVsOf(o, l), vs = vpVsSum(list), left = Math.max(0, Math.round((ord - vs) * 100) / 100), q = n => nf(Math.round((+n || 0) * 100) / 100);
+  const list = vpVsOf(o, l), vs = vpVsSum(list), left = Math.max(0, Math.round((ord - vpSentKept(o, l)) * 100) / 100), q = n => nf(Math.round((+n || 0) * 100) / 100);
   const me = String(ME.email || '').toLowerCase();
   const batches = list.map(b => `<div class="vpb-vsb${b.removed ? ' off' : ''}"><span>${esc(vpVsWhen(b.at))}</span><b>${q(b.qty)} ${unit}</b>${vpVsTag(b)}`
     + (b.removed ? '<span class="muted">struck off</span>' : vpVsCan() && String(b.by || '').toLowerCase() === me ? `<a href="#" data-vsdel="${esc(o.id)}" data-k="${esc(b.key)}">strike off</a>` : '')
@@ -53809,6 +54221,7 @@ function vpVsHtml(o, l, i, ord, unit, shape) {
   return (td ? '<td class="vpvs-td">' : `<div class="vpb-vs${shape === 'flat' ? ' flat' : ''}">`)
     + (td ? `<b>${vs > 0 ? q(vs) : '<span class="muted">—</span>'}</b>` : `<span class="muted">Vendor sent</span> <b>${vs > 0 ? q(vs) + ' ' + unit : '—'}</b>`)
     + (list.length ? ` <details><summary>${nf(live)} batch${live === 1 ? '' : 'es'}</summary>${batches}</details>` : '')
+    + vpRejNote(o, l, unit)
     /* THE BOX STAYS AFTER WE RECEIVE (Ravi, 14 Nov: "challan wale bande ne receive kar liye but vendor apni sent qty enter nahi kar pa
      * rha h — isko bhi vendor apni entry kar paye"). Was hidden once received in full (12 Nov); now the printer can still record what
      * it sent, up to what was ordered, whether or not it has reached us. */
@@ -53822,7 +54235,7 @@ async function vpVsAdd(id, i) {
   const run = o.orderType === 'running', unit = run ? 'm' : 'pcs', typed = run ? vpVsRound(parseFloat(el.value)) : Math.floor(parseFloat(el.value));
   if (!(typed > 0)) return vpSay(id, run ? 'Type how much you are sending first.' : 'Type how many pieces you are sending — 1 or more.', true);
   /* Up to what is ordered counts at once; the rest is one batch that waits for approval (16 Nov, see vpVsCounts). */
-  const list = vpVsOf(o, l), room = Math.max(0, vpVsRound(vpOrdOf(o, l) - vpVsSum(list) - vpVsWait(list)));
+  const list = vpVsOf(o, l), room = Math.max(0, vpVsRound(vpOrdOf(o, l) - vpSentKept(o, l) - vpVsWait(list)));   // what we rejected may be sent again
   const now = vpVsSplit(typed, room), at = new Date().toISOString();
   const base = { lineId: l.lineId || '', sku: l.sku || '', color: l.color || '', fabricType: l.fabricType || '', printDirection: l.printDirection || '', unit, at, by: ME.email || '' };
   const recs = [now.counts > 0 && Object.assign({ qty: now.counts }, base), now.extra > 0 && Object.assign({ qty: now.extra, ask: true }, base)].filter(Boolean);
@@ -54382,8 +54795,8 @@ $('vpBody').addEventListener('click', e => {
 if ($('vpKpis') && typeof $('vpKpis').addEventListener === 'function') $('vpKpis').addEventListener('click', e => {
   const h = e.target && e.target.closest && e.target.closest('[data-vphist]');
   if (h) { e.preventDefault(); VP.shopHist = !VP.shopHist; renderVp(); return; }
-  const b = e.target && e.target.closest && e.target.closest('[data-vplate]'); if (!b) return;
-  e.preventDefault(); VP.lateOnly = !VP.lateOnly; renderVp();
+  const b = e.target && e.target.closest && e.target.closest('[data-vpdue]'); if (!b) return;
+  e.preventDefault(); VP.dueOnly = VP.dueOnly === b.dataset.vpdue ? '' : b.dataset.vpdue; renderVp();
 });
 ['vpView', 'vpStatus', 'vpType', 'vpAt', 'vpSub', 'vpCol', 'vpSz', 'vpPri'].forEach(id => {
   const el = $(id); if (el) el.onchange = renderVp;
@@ -55117,7 +55530,7 @@ function vprOffer(o, l) {
   const unit = o.orderType === 'running' ? 'm' : 'pcs', t = vprTargets(o, l), list = vpVsOf(o, l);
   const whole = n => unit === 'pcs' ? Math.floor(n + 1e-9) : flowR2(n);
   const most = flowR2(t.reduce((a, p) => a + whole(p.cap), 0)), entered = vpVsSum(list);
-  const pending = flowR2(Math.max(0, entered - vpRecvOf(l, o).qty));
+  const pending = flowR2(Math.max(0, vpSentKept(o, l) - vpRecvOf(l, o).qty));   // what we rejected is not offered again until the printer sends it again
   return { t, unit, most, entered, pending, n: whole(Math.min(pending, most, vprKeysPending(o, t))), wait: vpVsWait(list) };
 }
 /* A FLOW LINE ON TWO PORTAL LINES (a quilt's front and back print): Received is shown half on each, so a line alone would offer again cloth
@@ -55125,7 +55538,7 @@ function vprOffer(o, l) {
 function vprKeysPending(o, t) {
   const ix = flowChIndex();
   return flowR2(t.reduce((sum, p) => {
-    const sent = voLines(o).filter(m => m && vprKeys(m).includes(p.key)).reduce((a, m) => a + vpVsSum(vpVsOf(o, m)) / vprKeys(m).length, 0);
+    const sent = voLines(o).filter(m => m && vprKeys(m).includes(p.key)).reduce((a, m) => a + vpSentKept(o, m) / vprKeys(m).length, 0);
     return sum + Math.max(0, sent - (+((ix[p.key] || {}).recv) || 0));
   }, 0));
 }
@@ -55178,11 +55591,13 @@ const vprOnlyGiven = out => Object.fromEntries(Object.entries(out).filter(([, v]
 
 /* ---- the cells ---- */
 /** Fabric: the cloth it is printed on (Sheeting 82, Cambric 60) and, small under it, the printed fabric's SKU. */
-function vprFabricCell(o, l) {
+function vprFabricOf(o, l) {
   const run = o.orderType === 'running', due = vprReady() ? vprKeys(l).map(k => vprDueIndex().get(k)).find(Boolean) : null;
   let m = {}; try { m = cutSkuOf(l.sku) || {}; } catch (e) { m = {}; }
-  const cloth = String((run ? l.fabricType : '') || (due && due.l.fabric) || m.fabric || '').trim();
-  const sub = run ? (l.sku || '') : 'printed as pieces';
+  return { cloth: String((run ? l.fabricType : '') || (due && due.l.fabric) || m.fabric || '').trim(), sub: run ? (l.sku || '') : 'printed as pieces' };
+}
+function vprFabricCell(o, l) {
+  const { cloth, sub } = vprFabricOf(o, l);
   return `<td style="text-align:left;line-height:1.3">${cloth ? `<b style="font-size:12.5px">${esc(cloth)}</b>` : '<span class="muted">—</span>'}`
     + `<div class="muted" style="font-size:11px;font-family:ui-monospace,monospace">${esc(sub)}</div></td>`;
 }
@@ -55200,10 +55615,12 @@ function vprRecvCell(o, l, id) {
   const cell = inner => `<td style="text-align:right;white-space:nowrap"><div style="width:230px;margin-left:auto;white-space:normal">${inner}${vprSplitHint(v)}</div></td>`;
   if (!v.entered) return cell(box('', '<span style="color:#b45309">Printer has not entered it.</span> '));
   if (!(v.n > 0)) return cell(box('', '<span style="color:#b45309">All the printer entered is in.</span> '));
-  if (VPR.less === id) return cell(box(v.n, ''));
+  if (VPR.less === id) return cell(box(v.n, '') + vprRejLink(v, id));
   return cell(`<button type="button" data-vprgo="${esc(id)}" data-q="${esc(String(v.n))}" style="width:auto;padding:5px 12px;font-size:12.5px;background:#166534;border-color:#166534">Receive ${esc(q(v.n))}</button>`
-    + ` <a href="#" data-vprless="${esc(id)}" title="Another amount" style="font-size:13px;text-decoration:none">✎</a>${waitTxt}`);
+    + ` <a href="#" data-vprless="${esc(id)}" title="Another amount" style="font-size:13px;text-decoration:none">✎</a>${vprRejLink(v, id)}${waitTxt}`);
 }
+/** Reject: only when the printer entered something we have not taken in. */
+const vprRejLink = (v, id) => (v.pending > 0 ? `<div style="margin-top:3px"><a href="#" data-vprrej="${esc(id)}" style="font-size:11.5px;color:var(--bad)">Reject</a></div>` : '');
 /** "Pillow 16x16 3 m · Pillow 18x18 2 m": where Receive N goes on a cloth line for several SKUs. */
 function vprSplitHint(v) {
   if (v.t.length < 2 || !(v.n > 0)) return '';
@@ -55236,7 +55653,7 @@ function vprSheet(rows, f) {
       + `<td style="text-align:left;font-size:12.5px;line-height:1.35">${esc(what) || '<span class="muted">—</span>'}${sub ? `<div class="muted" style="font-size:11px">${esc(sub)}</div>` : ''}</td>`
       + vprFabricCell(o, l)
       + `<td class="num" style="font-weight:700">${nf(ord)} <span class="muted" style="font-weight:400;font-size:10px">${unit}</span>${extra > 0 ? `<div class="muted" style="font-size:10.5px;font-weight:400">incl. +${nf(extra)} approved</div>` : ''}</td>`
-      + `<td class="num">${sent > 0 ? `<b>${nf(sent)}</b>` : '<span class="muted">—</span>'}${wait > 0 ? `<div style="font-size:10.5px;color:#b45309">+${nf(wait)} waiting approval</div>` : ''}</td>`
+      + `<td class="num">${sent > 0 ? `<b>${nf(sent)}</b>` : '<span class="muted">—</span>'}${wait > 0 ? `<div style="font-size:10.5px;color:#b45309">+${nf(wait)} waiting approval</div>` : ''}${vpRejNote(o, l, unit)}</td>`
       + `<td class="num" title="${esc(rc.how)}">${rc.qty > 0 ? `<b style="color:#166534">${nf(rc.qty)}</b>` : '<span class="muted">—</span>'}</td>`
       + `<td style="text-align:left;font-size:12px;white-space:nowrap">${voDueHtml(due, voWant(l))}</td>`
       + (may ? vprRecvCell(o, l, o.id + '|' + i) : '')
@@ -55314,38 +55731,70 @@ const VPR_HIST = { from: '', to: '' };
 const vprIsoMinus = (iso, days) => { const d = new Date(iso + 'T00:00:00'); d.setDate(d.getDate() - days); return d.toISOString().slice(0, 10); };
 /** The receipts from one printer between two days (YYYY-MM-DD, both counted), newest first. */
 const vprHistRows = (code, from, to) => flowRecvRows('', false).filter(r => obUC(r.printerCode) === obUC(code) && r.day >= from && r.day <= to);
-/** What came, added up by fabric and unit: "Sheeting 82 · 420 m". */
+/** What was rejected from this printer's orders on screen between two days — shown in History in red (Ravi, 19 Nov). */
+function vprHistRejects(from, to) {
+  const out = [];
+  (VP.rows || []).forEach(o => voLines(o).forEach(l => vpRejOf(o, l).forEach(r => {
+    const day = String(r.at || '').slice(0, 10); if (day < from || day > to) return;
+    let time = ''; try { time = new Date(r.at).toTimeString().slice(0, 5); } catch (e) { time = ''; }
+    out.push({ day, time, at: String(r.at || ''), no: '', orderNo: o.orderNo || o.id, sku: obUC(l.sku), code: '', fabric: (vprFabricOf(o, l) || {}).cloth || '',
+      qty: +r.qty || 0, unit: r.unit || (o.orderType === 'running' ? 'm' : 'pcs'), by: String(r.by || '').split('@')[0],
+      note: [r.reason, r.note].filter(Boolean).join(' — '), l: { item: o.orderType === 'running' ? (l.printDirection || '') : (l.articleSubtype || l.articleType || '') }, rejected: true });
+  })));
+  return out;
+}
+/** What came, added up by fabric and unit: "Sheeting 82 · 420 m". Rejects are not counted as come. */
 function vprHistTotals(rows) {
   const by = new Map();
-  rows.forEach(r => { const k = (r.fabric || 'fabric not named') + '|' + r.unit; by.set(k, flowR2((by.get(k) || 0) + r.qty)); });
+  rows.filter(r => !r.rejected && !r.notCome).forEach(r => { const k = (r.fabric || 'fabric not named') + '|' + r.unit; by.set(k, flowR2((by.get(k) || 0) + r.qty)); });
   return [...by.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([k, q]) => { const [fab, unit] = k.split('|'); return { fab, unit, q }; });
 }
+/* THE OLD "SENDING NOW" DELIVERIES (Ravi, 20 Nov: "put the record of that inside the history"): what a printer recorded the old way, on
+ * orders from before the Production flow (vpHistRows — the "What I have sent" tab, gone from the office's view). Each shows what our team
+ * accepted; one nobody has checked yet, or not accepted, is listed but not counted as come. */
+const vprIsoOfDmy = d => { const m = String(d || '').match(/^(\d{2})\/(\d{2})\/(\d{4})$/); return m ? `${m[3]}-${m[2]}-${m[1]}` : String(d || '').slice(0, 10); };
+/** The cloth a pieces SKU is printed on, from the master; '' when it is not known. */
+const vprSkuFabric = sku => { try { return String((cutSkuOf(sku) || {}).fabric || '').trim(); } catch (e) { return ''; } };
+function vprHistOld(from, to) {
+  return vpHistRows().map(r => {
+    const day = vprIsoOfDmy(r.day || r.date), notCome = r.kept === null || r.no;
+    const note = r.kept === null ? `printer said ${nf(r.sent)} ${r.unit} — not checked yet` : r.no ? `printer said ${nf(r.sent)} ${r.unit} — not accepted`
+      : r.short > 0 ? `printer said ${nf(r.sent)} ${r.unit}, ${nf(r.short)} short` : '';
+    return { day, time: '', at: r.at, no: '', orderNo: r.orderNo, sku: r.run ? '' : obUC(r.sku), code: '', fabric: r.run ? r.sku : vprSkuFabric(obUC(r.sku)),
+      qty: notCome ? r.sent : r.kept, unit: r.unit, by: 'printer (old way)', note: [note, r.note].filter(Boolean).join(' · '), l: { item: r.what },
+      old: true, notCome };
+  }).filter(r => r.day >= from && r.day <= to);
+}
+const vprHistAll = () => vprHistRows(VP.code, VPR_HIST.from, VPR_HIST.to).concat(vprHistRejects(VPR_HIST.from, VPR_HIST.to), vprHistOld(VPR_HIST.from, VPR_HIST.to))
+  .sort((a, b) => b.day.localeCompare(a.day) || String(b.at || '').localeCompare(String(a.at || '')));
 function vprHistHtml() {
-  const rows = vprHistRows(VP.code, VPR_HIST.from, VPR_HIST.to);
+  const rows = vprHistAll(), rej = rows.filter(r => r.rejected);
   const range = `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px">`
     + `<label style="margin:0;font-size:12.5px">From <input type="date" data-vprhfrom value="${esc(VPR_HIST.from)}" style="width:auto"></label>`
     + `<label style="margin:0;font-size:12.5px">To <input type="date" data-vprhto value="${esc(VPR_HIST.to)}" style="width:auto"></label>`
     + `<span style="flex:1"></span><button type="button" class="ghost" data-vprhxl="1" style="width:auto;padding:4px 12px;font-size:12.5px"${rows.length ? '' : ' disabled'}>Download Excel</button></div>`;
   if (!rows.length) return range + '<div class="muted" style="padding:16px;text-align:center">Nothing was received from this printer on those days.</div>';
   const totals = vprHistTotals(rows).map(t => `<span class="pill" style="background:var(--card,#fff);border:1px solid var(--line,#e3e6ed);color:var(--muted);font-weight:500">${esc(t.fab)} <b style="color:var(--ink,#17202b)">${esc(flowQtyTxt(t.q, t.unit))}</b></span>`).join(' ');
-  return range + `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">${totals}</div>`
-    + `<div class="xlwrap" style="max-height:60vh;overflow:auto"><table class="xl" style="width:100%"><thead><tr><th style="text-align:left">Received on</th><th style="text-align:left">Challan</th><th style="text-align:left">Order</th><th style="text-align:left">Item</th><th style="text-align:left">Fabric</th><th class="num">Qty</th><th style="text-align:left">Taken in by</th></tr></thead><tbody>`
-    + rows.map(r => `<tr><td style="text-align:left;white-space:nowrap">${esc(flowDueDay(r.day))}${r.time ? ` <span class="muted" style="font-size:11px">${esc(r.time)}</span>` : ''}</td>`
+  const rejChip = rej.length ? ` <span class="pill pill-out">Rejected ${esc(flowMixTxt(rej.map(r => [r.qty, r.unit])))}</span>` : '';
+  return range + `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">${totals}${rejChip}</div>`
+    + `<div class="xlwrap"><table class="xl" style="width:100%"><thead><tr><th style="text-align:left">Received on</th><th style="text-align:left">Challan</th><th style="text-align:left">Order</th><th style="text-align:left">Item</th><th style="text-align:left">Fabric</th><th class="num">Qty</th><th style="text-align:left">Taken in by</th></tr></thead><tbody>`
+    + rows.map(r => `<tr${r.rejected ? ' class="vo-late" title="Rejected — the printer must send it again"' : ''}><td style="text-align:left;white-space:nowrap">${esc(flowDueDay(r.day))}${r.time ? ` <span class="muted" style="font-size:11px">${esc(r.time)}</span>` : ''}</td>`
       + `<td style="text-align:left">${esc(r.no)}</td><td style="text-align:left"><b>${esc(r.orderNo)}</b></td>`
       + `<td style="text-align:left">${esc((r.l && r.l.item) || '')}<div class="muted" style="font-size:11px;font-family:ui-monospace,monospace">${esc(r.sku)}</div></td>`
       + `<td style="text-align:left"><b>${esc(r.fabric) || '<span class="muted">—</span>'}</b>${r.code ? `<div class="muted" style="font-size:11px;font-family:ui-monospace,monospace">${esc(r.code)}</div>` : ''}</td>`
-      + `<td class="num"><b>${esc(flowQtyTxt(r.qty, r.unit))}</b></td><td style="text-align:left">${esc(r.by)}${r.note ? `<div class="muted" style="font-size:11px">${esc(r.note)}</div>` : ''}</td></tr>`).join('')
+      + `<td class="num"><b${r.rejected ? ' style="color:var(--bad)"' : ''}>${esc(flowQtyTxt(r.qty, r.unit))}</b>${r.old ? '<div class="muted" style="font-size:10.5px">old way</div>' : ''}${r.rejected ? '<div style="font-size:10.5px;color:var(--bad);font-weight:700">REJECTED</div>' : ''}</td><td style="text-align:left">${esc(r.by)}${r.note ? `<div class="muted" style="font-size:11px">${esc(r.note)}</div>` : ''}</td></tr>`).join('')
     + '</tbody></table></div>';
 }
 function vprHistOpen() {
   VPR_HIST.to = dToday(); VPR_HIST.from = vprIsoMinus(VPR_HIST.to, VPR_HIST_DAYS);
-  ptOpenDialog({ title: 'Received from ' + (VP.name || VP.code), subtitle: 'Every receipt from this printer, newest first, with the fabric it was printed on.',
+  ptOpenDialog({ title: 'Received from ' + (VP.name || VP.code), subtitle: 'Every receipt from this printer, and every reject (in red), newest first, with the fabric it was printed on.',
+    wide: true,   // the whole table at once, no sideways scroll bar (Ravi, 19 Nov: "complete data instead of a slider")
     html: '<div id="vprHistBody">' + vprHistHtml() + '</div>', saveLabel: 'Close', onSave: async () => '' });
 }
 function vprHistXl() {
-  const rows = vprHistRows(VP.code, VPR_HIST.from, VPR_HIST.to); if (!rows.length) return;
-  const out = [['Received on', 'Time', 'Challan', 'Order', 'Item', 'For SKU', 'Fabric', 'Printed fabric SKU', 'Qty', 'Unit', 'Taken in by', 'Note']];
-  rows.forEach(r => out.push([r.day, r.time, r.no, r.orderNo, (r.l && r.l.item) || '', r.sku, r.fabric, r.code, r.qty, r.unit, r.by, r.note]));
+  const rows = vprHistAll(); if (!rows.length) return;
+  const out = [['Date', 'Time', 'Received / Rejected', 'Challan', 'Order', 'Item', 'For SKU', 'Fabric', 'Printed fabric SKU', 'Qty', 'Unit', 'By', 'Note / reason']];
+  rows.forEach(r => out.push([r.day, r.time, r.rejected ? 'Rejected' : r.old ? 'Delivery (old way)' : 'Received', r.no, r.orderNo, (r.l && r.l.item) || '', r.sku, r.fabric, r.code, r.qty, r.unit, r.by, r.note]));
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([recipeXlsx(out, { name: 'Received', freeze: 1, cols: {} })], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
   a.download = 'received-from-' + String(VP.code).toLowerCase() + '-' + VPR_HIST.from + '-to-' + VPR_HIST.to + '.xlsx';
@@ -55359,6 +55808,67 @@ if (typeof document !== 'undefined' && typeof document.addEventListener === 'fun
     VPR_HIST[t.dataset.vprhfrom != null ? 'from' : 'to'] = t.value || dToday();
     const b = document.getElementById('vprHistBody'); if (b) b.innerHTML = vprHistHtml(); });
 }
+
+/* ---- Reject: bad goods turned away on receive ----
+ * Ravi, 19 Nov: "give them a reject option" — bad goods on receive; "printer must send again … and ravi must be informed"; a reason is
+ * picked from a short list. Reject takes up to what the printer entered and we have not taken in. One save writes two records together:
+ * the reject on the printer's own order (vRej — its portal shows "N rejected by Ridhi — send again", and the line owes it again) and a
+ * notice in pt_recvRejects that puts it on every admin's bell until one of them marks it seen; the mail to Ravi is sent from that notice.
+ * Errors: a failed save is said in the window in red and nothing is written. Nothing is taken in by a reject. */
+const VPR_REJ_REASONS = ['Print fault', 'Colour wrong', 'Damaged / stain', 'Short length', 'Other'];
+const VPR_REJ = { rows: null };
+function vprRejectOpen(id) {
+  const [oid, i] = String(id).split('|'), o = (VP.rows || []).find(r => r && r.id === oid), l = o && voLines(o)[+i];
+  if (!l) return;
+  const v = vprOffer(o, l), q = n => flowQtyTxt(n, v.unit);
+  ptOpenDialog({ title: 'Reject goods — ' + (o.orderNo || o.id), subtitle: `${l.sku || ''} · the printer entered ${q(v.entered)}; ${q(v.pending)} not taken in yet. What is rejected is not taken in, and the printer must send it again.`,
+    html: `<div style="display:grid;grid-template-columns:auto 1fr;gap:10px 12px;align-items:center">`
+      + `<label for="vprRejQ" style="margin:0">How much is rejected</label><input id="vprRejQ" type="number" min="${v.unit === 'pcs' ? 1 : 0.01}" max="${esc(String(v.pending))}" step="${v.unit === 'pcs' ? 1 : 0.01}" value="${esc(String(v.pending))}" style="width:120px">`
+      + `<label for="vprRejWhy" style="margin:0">Reason</label><select id="vprRejWhy" style="width:auto"><option value="">— pick a reason —</option>${VPR_REJ_REASONS.map(r => `<option>${esc(r)}</option>`).join('')}</select>`
+      + `<label for="vprRejNote" style="margin:0">Note</label><input id="vprRejNote" type="text" maxlength="200" placeholder="What is wrong (needed for Other)"></div>`,
+    saveLabel: 'Reject', onSave: async () => vprReject(id, flowR2(+$('vprRejQ').value || 0), $('vprRejWhy').value, String($('vprRejNote').value || '').trim()) });
+}
+/** Reject q of one portal line: '' when saved, else what is wrong (nothing is written then). */
+async function vprReject(id, q, reason, note) {
+  const [oid, i] = String(id).split('|'), o = (VP.rows || []).find(r => r && r.id === oid), l = o && voLines(o)[+i];
+  if (!l) return 'That line is not on screen any more — press Refresh.';
+  const v = vprOffer(o, l), what = `${o.orderNo || o.id} ${l.sku || ''}`.trim();
+  if (!(q > 0)) return `Type how much of ${what} is rejected.`;
+  if (v.unit === 'pcs' && q !== Math.round(q)) return `${what}: pieces are whole.`;
+  if (q > v.pending + 1e-9) return `${what}: ${flowQtyTxt(q, v.unit)} is more than the ${flowQtyTxt(v.pending, v.unit)} the printer entered and we have not taken in.`;
+  if (!VPR_REJ_REASONS.includes(reason)) return 'Pick a reason.';
+  if (reason === 'Other' && !note) return 'Write what is wrong in the note.';
+  const at = new Date().toISOString(), key = 'rj_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  const rec = { lineId: l.lineId || '', sku: l.sku || '', qty: q, unit: v.unit, reason, note, at, by: ME.email || '' };
+  const fabric = (vprFabricOf(o, l) || {}).cloth || '';
+  const notice = Object.assign({ status: 'pending', code: VP.code, printer: VP.name || VP.code, orderNo: o.orderNo || o.id, voId: o.id, fabric,
+    item: o.orderType === 'running' ? [l.fabricType, l.printDirection].filter(Boolean).join(' · ') : (l.articleSubtype || l.articleType || '') }, rec);
+  try { await ptPatch({ [`pt_vendorOrders/${VP.code}/${o.id}/vRej/${key}`]: rec, [`pt_recvRejects/${key}`]: notice }); }
+  catch (e) { return 'Could not save: ' + ((e && e.message) || e); }
+  VP.rows = VP.rows.map(r => (r === o ? Object.assign({}, o, { vRej: Object.assign({}, o.vRej, { [key]: rec }) }) : r));
+  if (VPR_REJ.rows) VPR_REJ.rows = VPR_REJ.rows.concat(Object.assign({ id: key }, notice));
+  VPR.said = `Rejected ${flowQtyTxt(q, v.unit)} of ${what} — ${reason}. The printer sees it on its portal; Ravi is told.`;
+  return '';
+}
+if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') document.addEventListener('click', e => {
+  const t = e.target && e.target.closest && e.target.closest('a[data-vprrej]'); if (!t) return;
+  e.preventDefault(); vprRejectOpen(t.getAttribute('data-vprrej'));
+});
+
+/* The bell (core/friendly.js): rejects nobody has marked seen, for admins. Read whole — a small list that only grows by rejects. */
+async function vprRejLoad() {
+  try { VPR_REJ.rows = ptList(await ptGet('pt_recvRejects')).filter(r => r && r.status === 'pending').map(r => Object.assign({ id: r._key }, r)); }
+  catch (e) { console.warn('[rejects] not read:', (e && e.message) || e); }
+}
+const vprRejPending = () => (VPR_REJ.rows || []).filter(r => r.status === 'pending');
+async function vprRejSeen(id) {
+  try { await ptPatch({ [`pt_recvRejects/${id}/status`]: 'seen', [`pt_recvRejects/${id}/seenBy`]: ME.email || '', [`pt_recvRejects/${id}/seenAt`]: new Date().toISOString() }); }
+  catch (e) { return 'Could not save: ' + ((e && e.message) || e); }
+  VPR_REJ.rows = (VPR_REJ.rows || []).filter(r => r.id !== id);
+  return '';
+}
+/** Open the printer's view on one printer (from the bell). */
+function vprOpenPrinter(code) { flowVpLinkPrepare({ code }); showTab('vend'); }
 /* ============================== FILE: src/app/vendors/portal/daily-challan.js ============================== */
 /* ================= DAILY CHALLAN — the printer's own delivery challan (Ravi, 4 Nov) =================
  *
@@ -56998,6 +57508,20 @@ $('fgDelPicked').onclick = () => ($('fgView').value === 'stock' ? fgiSkuDeleteAs
  * left defined on purpose — they are the only written description of how the seeding worked, and a
  * button can be put back in one line if it is ever wanted. */
 ['fgBrand', 'fgStat', 'fgTag', 'fgAmz', 'fgD1', 'fgD2'].forEach(id => $(id).addEventListener('change', renderFgi));
+/** Finished Goods Refresh (18 Nov 2026): the screen had none, so the store reloaded the page to see another PC's
+ *  receipts. The ledger and the press-pending list are read again from their live copies (nothing downloaded) and
+ *  the screen redrawn without going blank. Ticks are cleared, as on any fresh read, since a ticked row may have
+ *  changed. A failed read shows on the screen. */
+async function fgiRefresh() {
+  try {
+    const [led] = await Promise.all([ptGet('pt_fgiLedger'), ptReadReg('press')]);
+    FGI.rows = ptList(led); FGI.err = ''; FGI.at = ptStamp();
+  } catch (e) { FGI.err = e.message || String(e); }
+  FGI_PICK = { stock: new Set(), ledger: new Set() };
+  renderFgi();
+}
+$('fgRefresh').onclick = () => ptRefreshButton($('fgRefresh'), fgiRefresh);
+
 $('fgLstRefresh').onclick = async () => {
   $('fgLstRefresh').disabled = true;
   const why = await lstRefresh(t => { $('fgMsg').className = 'muted'; $('fgMsg').textContent = t; });
@@ -90466,6 +90990,14 @@ function frCards() {
           return `Job work entry for ${q.empName || '—'} (${q.sku || ''}) changes: ${d.length ? d.map(x => `${x[0]} ${x[1]} → ${x[2]}`).join(', ') : Object.entries(q.change || {}).map(([k, v]) => `${k} → ${v}`).join(', ')}.`; },
         run: () => jwCorrApprove(q.id) });
   });
+  /* Goods rejected on receive (Ravi, 19 Nov: "ravi must be informed") — admins; "Seen" takes it off every admin's bell
+   * (vendors/portal/printer-receive.js). */
+  if (ME.admin && typeof vprRejPending === 'function') vprRejPending().forEach(r => item('vend',
+    `Rejected · ${r.printer || r.code} · ${frNum(r.qty)} ${r.unit === 'm' ? 'm' : 'pcs'} · ${r.orderNo || ''}`,
+    [r.reason, frQ(r.note), r.sku, r.fabric, r.by && 'by ' + String(r.by).split('@')[0]].filter(Boolean).join(' · '),
+    () => vprOpenPrinter(r.code),
+    { label: 'Seen', bulk: true, what: () => `Marks the reject of ${frNum(r.qty)} ${r.unit} on ${r.orderNo} (${r.printer}) as seen. It leaves every admin's bell; the printer still owes it.`,
+      run: () => vprRejSeen(r.id) }));
   /* Sales-order lines asked to be deleted — odrDeleteRun([id]) really deletes them: red warning, never in Approve all. */
   if (frMay('so') && frTry(odrCanAnswer, false) && ODR.rows) odrPending().forEach(r => item('so', `Delete ${r.sku || ''} from sales order ${r.orderNo || ''}`,
     [`${frNum(r.qty)} pcs`, frQ(r.why), r.by && 'asked by ' + r.by].filter(Boolean).join(' · '),
@@ -90568,6 +91100,7 @@ async function frLoad(force) {
     if (frMay('fgi') && frTry(fgiCanEdit, false)) jobs.push(() => fgiCorrLoad());
   }
   if (frMay('hr') && (ME.admin || frTry(prCanApprove, false)) && (force || HR.emp === null)) jobs.push(() => { if (force) HR.emp = null; return ensureHr(); });
+  if (ME.admin && typeof vprRejLoad === 'function' && (force || VPR_REJ.rows === null)) jobs.push(() => vprRejLoad());
   for (const job of jobs) {
     try { await job(); } catch (e) { console.warn('[my work]', e); }
     frDraw(); frCount();
@@ -90943,6 +91476,7 @@ async function frPoll() {
   if (frMay('pbase') && frTry(ptCanEdit, false)) jobs.push(jwCorrLoad());
   if (frMay('so') && frTry(odrCanAnswer, false)) jobs.push(odrLoad(true));
   if (frMay('fgi') && frTry(fgiCanEdit, false)) jobs.push(fgiCorrLoad());
+  if (ME.admin && typeof vprRejLoad === 'function') jobs.push(vprRejLoad());
   await Promise.all(jobs.map(p => Promise.resolve(p).catch(() => {})));
   const now = frCards().filter(c => c.grp === 'approve'), fresh = now.filter(c => !before.has(c.key));
   FR.known = new Set(now.map(c => c.key));

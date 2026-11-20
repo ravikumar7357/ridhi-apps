@@ -38,7 +38,7 @@ async function ensureOrd() {
     || !PTE.priority || MDBX.custom === null || !ODR.rows || SOX.rows === null;
   if (need) { ORD.busy = true; renderOrd(); }
   await Promise.all([
-    ptNeed(PTG_ALL, { why: 'ord', has: 'mdb' }).then(() => (PTE.emp ? null : ptLoadEmp())),
+    ptNeed(PTG_ALL, { why: 'ord', has: 'mdb' }).then(() => (PTE.emp ? null : ptLoadEmpOrSkip('ord'))),
     QC.checks === null && Promise.all([
       ptGet('pt_qcChecks').then(v => { QC.checks = ptList(v); }, () => { QC.checks = QC.checks || []; }),
       ptGet('pt_qcIssuance').then(v => { QC.issue = ptList(v); }, () => { QC.issue = QC.issue || []; }),

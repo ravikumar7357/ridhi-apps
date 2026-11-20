@@ -13,7 +13,18 @@
 // One GET to the backend: ?key=… plus every parameter given (null and blank ones left out). Throws when the
 // backend is not configured, answers with a web page, or says ok:false (unless its status is "processing").
 // Returns the parsed answer.
+//
+// SPEED (20 Nov): a call that only names a cache (`{ cache: 'srchTerm' }`, what every Ads screen reads) goes through
+// baCache: one download per visit however many screens ask, and a copy kept in this browser (IndexedDB, per signed-in
+// person) so a screen opens from it at once while the backend is asked again in the background. When the backend's
+// answer differs, the screens that read it are told (event "sellora-cache"); a screen that does not redraw itself gets a
+// "Newer data · Show it" bar. A copy older than BA_KEEP_MS is not shown; signing out deletes them all.
 async function baCall(params) {
+  const keys = Object.keys(params || {}).filter(k => params[k] != null && params[k] !== '');
+  if (keys.length === 1 && keys[0] === 'cache') return baCache(String(params.cache));
+  return baCallNet(params);
+}
+async function baCallNet(params, keepText) {
   if (!API || !API.url) throw new Error('Backend not configured — ' + (API_ERR || 'config/api was not read'));
   const url = new URL(API.url);
   url.searchParams.set('key', API.key);
@@ -41,8 +52,82 @@ async function baCall(params) {
     throw new Error('The backend sent something that is not data: ' + text.slice(0, 120));
   }
   if (!data.ok && data.status !== 'processing') throw new Error(data.error || 'Report call failed');
-  return data;
+  return keepText ? { data, text } : data;
 }
+const BA_MEM = new Map();            // cache name → { p: the answer (a promise), t: when asked }, this visit
+const BA_MEM_MS = 30 * 60000;        // asked again (kept copy first, backend behind it) after this, for a page left open all day
+const BA_KEEP_MS = 36 * 3600000;     // a kept copy older than this is not shown first: the backend writes its caches daily
+// Not kept in this browser: Sales keeps its own copy of 'daily' and checks the backend behind it itself.
+const BA_NO_KEEP = new Set(['daily']);
+let BA_IDB = null;
+function baIdb() {
+  if (!BA_IDB) BA_IDB = new Promise(res => {
+    try {
+      const rq = indexedDB.open('sellora-cache', 1);
+      rq.onupgradeneeded = () => rq.result.createObjectStore('c');
+      rq.onsuccess = () => res(rq.result);
+      rq.onerror = rq.onblocked = () => res(null);
+    } catch (e) { res(null); }
+  });
+  return BA_IDB;
+}
+async function baIdbDo(mode, fn) {
+  const db = await baIdb();
+  if (!db) return null;
+  return new Promise(res => {
+    try {
+      const tx = db.transaction('c', mode), rq = fn(tx.objectStore('c'));
+      rq.onsuccess = () => res(rq.result == null ? null : rq.result);
+      rq.onerror = () => res(null);
+    } catch (e) { res(null); }
+  });
+}
+const baKeyOf = name => ((typeof auth !== 'undefined' && auth.currentUser && auth.currentUser.uid) || 'anon') + '|' + name;
+function baCache(name) {
+  const m = BA_MEM.get(name);
+  if (m && Date.now() - m.t < BA_MEM_MS) return m.p;
+  const p = (async () => {
+    const k = baKeyOf(name);
+    const kept = BA_NO_KEEP.has(name) ? null : await baIdbDo('readonly', s => s.get(k));
+    if (kept && kept.text && Date.now() - kept.t < BA_KEEP_MS) {
+      try {
+        const data = JSON.parse(kept.text);
+        baRefresh(name, k, kept.text);
+        return data;
+      } catch (e) { /* not readable: download it */ }
+    }
+    const { data, text } = await baCallNet({ cache: name }, true);
+    if (!BA_NO_KEEP.has(name)) baIdbDo('readwrite', s => s.put({ t: Date.now(), text }, k));
+    return data;
+  })();
+  BA_MEM.set(name, { p, t: Date.now() });
+  p.catch(() => BA_MEM.delete(name));   // a failed read is tried again the next time a screen asks
+  return p;
+}
+// Ask the backend again behind a screen opened from the kept copy; keep the answer; say so when it changed.
+async function baRefresh(name, k, oldText) {
+  try {
+    const { data, text } = await baCallNet({ cache: name }, true);
+    baIdbDo('readwrite', s => s.put({ t: Date.now(), text }, k));
+    if (text === oldText) return;
+    BA_MEM.set(name, { p: Promise.resolve(data), t: Date.now() });
+    const ev = new CustomEvent('sellora-cache', { detail: { name, handled: false } });
+    window.dispatchEvent(ev);
+    if (!ev.detail.handled) baNewerBar();
+  } catch (e) { /* the kept copy stays on screen */ }
+}
+function baNewerBar() {
+  if (document.getElementById('baNewer')) return;
+  const d = document.createElement('div');
+  d.id = 'baNewer';
+  d.className = 'ba-newer';
+  d.innerHTML = '<span>Newer data has arrived from the backend.</span><button type="button">Show it</button><button type="button" class="ghost" aria-label="Close">✕</button>';
+  d.querySelectorAll('button')[0].onclick = () => location.reload();
+  d.querySelectorAll('button')[1].onclick = () => d.remove();
+  document.body.appendChild(d);
+}
+// Signing out deletes every kept copy (a shared computer keeps nothing of the account).
+$('logoutBtn').addEventListener('click', () => { BA_MEM.clear(); baIdbDo('readwrite', s => s.clear()); });
 
 /* ---- the Analytics screen ---- */
 // The ASIN box only applies to the SQP (own products) report; the filter box only to Top terms.
