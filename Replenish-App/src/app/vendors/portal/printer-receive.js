@@ -290,10 +290,26 @@ function vprHistRejects(from, to) {
 /** What came, added up by fabric and unit: "Sheeting 82 · 420 m". Rejects are not counted as come. */
 function vprHistTotals(rows) {
   const by = new Map();
-  rows.filter(r => !r.rejected).forEach(r => { const k = (r.fabric || 'fabric not named') + '|' + r.unit; by.set(k, flowR2((by.get(k) || 0) + r.qty)); });
+  rows.filter(r => !r.rejected && !r.notCome).forEach(r => { const k = (r.fabric || 'fabric not named') + '|' + r.unit; by.set(k, flowR2((by.get(k) || 0) + r.qty)); });
   return [...by.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([k, q]) => { const [fab, unit] = k.split('|'); return { fab, unit, q }; });
 }
-const vprHistAll = () => vprHistRows(VP.code, VPR_HIST.from, VPR_HIST.to).concat(vprHistRejects(VPR_HIST.from, VPR_HIST.to))
+/* THE OLD "SENDING NOW" DELIVERIES (Ravi, 20 Nov: "put the record of that inside the history"): what a printer recorded the old way, on
+ * orders from before the Production flow (vpHistRows — the "What I have sent" tab, gone from the office's view). Each shows what our team
+ * accepted; one nobody has checked yet, or not accepted, is listed but not counted as come. */
+const vprIsoOfDmy = d => { const m = String(d || '').match(/^(\d{2})\/(\d{2})\/(\d{4})$/); return m ? `${m[3]}-${m[2]}-${m[1]}` : String(d || '').slice(0, 10); };
+/** The cloth a pieces SKU is printed on, from the master; '' when it is not known. */
+const vprSkuFabric = sku => { try { return String((cutSkuOf(sku) || {}).fabric || '').trim(); } catch (e) { return ''; } };
+function vprHistOld(from, to) {
+  return vpHistRows().map(r => {
+    const day = vprIsoOfDmy(r.day || r.date), notCome = r.kept === null || r.no;
+    const note = r.kept === null ? `printer said ${nf(r.sent)} ${r.unit} — not checked yet` : r.no ? `printer said ${nf(r.sent)} ${r.unit} — not accepted`
+      : r.short > 0 ? `printer said ${nf(r.sent)} ${r.unit}, ${nf(r.short)} short` : '';
+    return { day, time: '', at: r.at, no: '', orderNo: r.orderNo, sku: r.run ? '' : obUC(r.sku), code: '', fabric: r.run ? r.sku : vprSkuFabric(obUC(r.sku)),
+      qty: notCome ? r.sent : r.kept, unit: r.unit, by: 'printer (old way)', note: [note, r.note].filter(Boolean).join(' · '), l: { item: r.what },
+      old: true, notCome };
+  }).filter(r => r.day >= from && r.day <= to);
+}
+const vprHistAll = () => vprHistRows(VP.code, VPR_HIST.from, VPR_HIST.to).concat(vprHistRejects(VPR_HIST.from, VPR_HIST.to), vprHistOld(VPR_HIST.from, VPR_HIST.to))
   .sort((a, b) => b.day.localeCompare(a.day) || String(b.at || '').localeCompare(String(a.at || '')));
 function vprHistHtml() {
   const rows = vprHistAll(), rej = rows.filter(r => r.rejected);
@@ -310,7 +326,7 @@ function vprHistHtml() {
       + `<td style="text-align:left">${esc(r.no)}</td><td style="text-align:left"><b>${esc(r.orderNo)}</b></td>`
       + `<td style="text-align:left">${esc((r.l && r.l.item) || '')}<div class="muted" style="font-size:11px;font-family:ui-monospace,monospace">${esc(r.sku)}</div></td>`
       + `<td style="text-align:left"><b>${esc(r.fabric) || '<span class="muted">—</span>'}</b>${r.code ? `<div class="muted" style="font-size:11px;font-family:ui-monospace,monospace">${esc(r.code)}</div>` : ''}</td>`
-      + `<td class="num"><b${r.rejected ? ' style="color:var(--bad)"' : ''}>${esc(flowQtyTxt(r.qty, r.unit))}</b>${r.rejected ? '<div style="font-size:10.5px;color:var(--bad);font-weight:700">REJECTED</div>' : ''}</td><td style="text-align:left">${esc(r.by)}${r.note ? `<div class="muted" style="font-size:11px">${esc(r.note)}</div>` : ''}</td></tr>`).join('')
+      + `<td class="num"><b${r.rejected ? ' style="color:var(--bad)"' : ''}>${esc(flowQtyTxt(r.qty, r.unit))}</b>${r.old ? '<div class="muted" style="font-size:10.5px">old way</div>' : ''}${r.rejected ? '<div style="font-size:10.5px;color:var(--bad);font-weight:700">REJECTED</div>' : ''}</td><td style="text-align:left">${esc(r.by)}${r.note ? `<div class="muted" style="font-size:11px">${esc(r.note)}</div>` : ''}</td></tr>`).join('')
     + '</tbody></table></div>';
 }
 function vprHistOpen() {
@@ -322,7 +338,7 @@ function vprHistOpen() {
 function vprHistXl() {
   const rows = vprHistAll(); if (!rows.length) return;
   const out = [['Date', 'Time', 'Received / Rejected', 'Challan', 'Order', 'Item', 'For SKU', 'Fabric', 'Printed fabric SKU', 'Qty', 'Unit', 'By', 'Note / reason']];
-  rows.forEach(r => out.push([r.day, r.time, r.rejected ? 'Rejected' : 'Received', r.no, r.orderNo, (r.l && r.l.item) || '', r.sku, r.fabric, r.code, r.qty, r.unit, r.by, r.note]));
+  rows.forEach(r => out.push([r.day, r.time, r.rejected ? 'Rejected' : r.old ? 'Delivery (old way)' : 'Received', r.no, r.orderNo, (r.l && r.l.item) || '', r.sku, r.fabric, r.code, r.qty, r.unit, r.by, r.note]));
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([recipeXlsx(out, { name: 'Received', freeze: 1, cols: {} })], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
   a.download = 'received-from-' + String(VP.code).toLowerCase() + '-' + VPR_HIST.from + '-to-' + VPR_HIST.to + '.xlsx';
