@@ -1015,6 +1015,30 @@
   .yoy-legend i.yoy-ev{background:color-mix(in srgb,var(--yoy-ly) 14%,transparent);border:1px dashed var(--yoy-ly)}
   .yoy-chart .yoy-evband{fill:color-mix(in srgb,var(--yoy-ly) 10%,transparent)}
   .yoy-chart .yoy-evtxt{fill:var(--yoy-ly);font-weight:600;font-size:10.5px}
+  /* Live vs Last Year cards (2026-11-20): two rows of six, full width, bigger figures, room between them. */
+  .yoy-row-h{display:flex;align-items:baseline;gap:10px;margin:4px 2px 10px;font-size:13px;font-weight:700;
+    text-transform:uppercase;letter-spacing:.08em;color:var(--ink)}
+  .yoy-row-h .muted{font-size:12.5px;font-weight:400;text-transform:none;letter-spacing:0}
+  #paneYoy .yoy-kpis{grid-template-columns:repeat(6,minmax(0,1fr));gap:18px;margin-bottom:26px}
+  @media (max-width:1400px){ #paneYoy .yoy-kpis{grid-template-columns:repeat(3,minmax(0,1fr))} }
+  @media (max-width:760px){ #paneYoy .yoy-kpis{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px} }
+  #paneYoy .sd-card{padding:20px 22px 18px;min-height:168px;display:flex;flex-direction:column}
+  #paneYoy .sd-card .lbl{font-size:12.5px}
+  #paneYoy .sd-card .val{font-size:clamp(28px,2.4vw,38px);margin-top:14px;line-height:1.1}
+  #paneYoy .sd-card .sub{font-size:13px;line-height:1.45;margin-top:8px}
+  @media (max-width:760px){ #paneYoy .sd-card{padding:16px;min-height:0} #paneYoy .sd-card .val{font-size:26px} }
+  .yoy-b-spend{--glow:#ef4444}
+  .yoy-b-spend .lbl::before{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ef4444' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6'/%3E%3C/svg%3E")}
+  .yoy-b-tacos{--glow:#f59e0b}
+  .yoy-b-tacos .lbl::before{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23f59e0b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M19 5 5 19'/%3E%3Ccircle cx='6.5' cy='6.5' r='2.5'/%3E%3Ccircle cx='17.5' cy='17.5' r='2.5'/%3E%3C/svg%3E")}
+  .yoy-b-acos{--glow:#8b5cf6}
+  .yoy-b-acos .lbl::before{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238b5cf6' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Ccircle cx='12' cy='12' r='5'/%3E%3Ccircle cx='12' cy='12' r='1'/%3E%3C/svg%3E")}
+  .yoy-b-adsales{--glow:#3b82f6}
+  .yoy-b-adsales .lbl::before{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%233b82f6' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='9' cy='20' r='1.5'/%3E%3Ccircle cx='18' cy='20' r='1.5'/%3E%3Cpath d='M2 3h3l2.7 12.4a2 2 0 0 0 2 1.6h7.7a2 2 0 0 0 2-1.6L21 7H6'/%3E%3C/svg%3E")}
+  .yoy-b-organic{--glow:#22c55e}
+  .yoy-b-organic .lbl::before{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2322c55e' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.5 19 2c1 2 2 4.2 2 8 0 5.5-4.8 10-10 10Z'/%3E%3Cpath d='M2 21c0-3 1.9-5.4 5.2-6'/%3E%3C/svg%3E")}
+  .yoy-b-clicks{--glow:#64748b}
+  .yoy-b-clicks .lbl::before{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m9 9 5 12 1.8-5.2L21 14Z'/%3E%3Cpath d='M7.2 2.2 8 5.1M5.1 8l-2.9-.8M14 4.1 12 6M6 12l-1.9 2'/%3E%3C/svg%3E")}
   table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
   td{padding:10px 0;border-bottom:1px solid var(--line)}
   /* The calculator's figure column. Kept out of the grids, where it made every last column semi-bold. */
@@ -2613,13 +2637,33 @@
       </div>
     </div>
 
-    <div class="sd-kpis">
+    <!-- Two full-width rows of six big cards (Ravi, 2026-11-20: "make this big … add TACoS and Ad Spend … stretch the
+         container"): sales from the Sales API, then advertising from the Ads API (Sponsored Products, stored every 15 min). -->
+    <div class="yoy-row-h">Sales <span class="muted" id="yoySalesNote"></span></div>
+    <div class="sd-kpis yoy-kpis">
       <div class="sd-card sd-b-cyan"><div class="lbl" id="yoyTodayLbl">Today so far</div><div class="val" id="yoyToday">—</div><div class="sub" id="yoyTodaySub">—</div></div>
       <div class="sd-card sd-b-orange"><div class="lbl">vs last year, same time</div><div class="val" id="yoyVsLy">—</div><div class="sub" id="yoyVsLySub">—</div></div>
       <div class="sd-card sd-b-teal"><div class="lbl">vs last week, same time</div><div class="val" id="yoyVsLw">—</div><div class="sub" id="yoyVsLwSub">—</div></div>
       <div class="sd-card sd-b-purple"><div class="lbl">Last year, whole day</div><div class="val" id="yoyLyDay">—</div><div class="sub" id="yoyLyDaySub">—</div></div>
       <div class="sd-card sd-b-indigo" title="Today so far, scaled by how much of last year's day was still to come at this hour.">
         <div class="lbl">Pace for the day</div><div class="val" id="yoyPace">—</div><div class="sub" id="yoyPaceSub">—</div></div>
+      <div class="sd-card sd-b-pink" title="Sales ÷ orders. Units per order from the same figures.">
+        <div class="lbl">Average order</div><div class="val" id="yoyAov">—</div><div class="sub" id="yoyAovSub">—</div></div>
+    </div>
+    <div class="yoy-row-h">Advertising <span class="muted" id="yoyAdsNote"></span></div>
+    <div class="sd-kpis yoy-kpis">
+      <div class="sd-card yoy-b-spend" title="Sponsored Products spend today, from Amazon's ad report. It runs an hour or more behind the sales figures.">
+        <div class="lbl">Ad spend</div><div class="val" id="yoyAdSpend">—</div><div class="sub" id="yoyAdSpendSub">—</div></div>
+      <div class="sd-card yoy-b-tacos" title="TACoS = ad spend ÷ ALL Amazon sales today. Lower is better.">
+        <div class="lbl">TACoS</div><div class="val" id="yoyTacos">—</div><div class="sub" id="yoyTacosSub">—</div></div>
+      <div class="sd-card yoy-b-acos" title="ACoS = ad spend ÷ the sales Amazon credits to the ads (30-day attribution). ROAS is the other way round.">
+        <div class="lbl">ACoS</div><div class="val" id="yoyAcos">—</div><div class="sub" id="yoyAcosSub">—</div></div>
+      <div class="sd-card yoy-b-adsales" title="Sales Amazon credits to Sponsored Products ads, and their share of all sales.">
+        <div class="lbl">Ad sales</div><div class="val" id="yoyAdSales">—</div><div class="sub" id="yoyAdSalesSub">—</div></div>
+      <div class="sd-card yoy-b-organic" title="All sales minus ad sales: what came without a Sponsored Products click.">
+        <div class="lbl">Organic sales</div><div class="val" id="yoyOrganic">—</div><div class="sub" id="yoyOrganicSub">—</div></div>
+      <div class="sd-card yoy-b-clicks" title="Clicks on the ads today, cost per click and click-through rate.">
+        <div class="lbl">Clicks · CPC</div><div class="val" id="yoyClicks">—</div><div class="sub" id="yoyClicksSub">—</div></div>
     </div>
 
     <div class="sd-panel">
@@ -13165,7 +13209,8 @@ function ensureCarousel() {
  * (?live=yoy → Pricing-API/SalesLive.gs → Amazon's Sales API getOrderMetrics) for each brand: the day by hour so far, the
  * matching day last year by hour (same weekday = 364 days back, or the same date) and the same day last week by hour; and
  * (?live=range) a From–To run of days — 15 Nov to 1 Dec by default, the Black Friday / Cyber Monday weeks — against the
- * same run last year. Paints five cards, an hourly chart, a running-total chart, the run's totals + day chart + day table,
+ * same run last year. Paints six sales cards and six advertising cards (yoyRenderAds — ad spend, TACoS, ACoS from the
+ * Ads API report the backend stores every 15 minutes), an hourly chart, a running-total chart, the run's totals + day chart + day table,
  * and an hourly table, for Ridhi, CPC or both. Every date is Amazon.com's day (Pacific). Re-reads every 5 minutes while open on today.
  * "Same time" on a live day = last year's completed hours plus the same fraction of the current hour.
  * Main functions: ensureYoy, yoyLoad, yoyView, yoyRender, yoyBars, yoyLines, yoyTable. */
@@ -13388,6 +13433,14 @@ function yoyRender() {
     $('yoyPace').textContent = live ? '—' : yoyMoney(today.sales);
     $('yoyPaceSub').textContent = live ? 'needs last year’s sales by this hour' : 'the day is closed';
   }
+  // Average order: sales ÷ orders, against last year by the same time.
+  const aov = r => (r.orders ? r.sales / r.orders : 0);
+  $('yoyAov').textContent = today.orders ? '$' + aov(today).toFixed(2) : '—';
+  $('yoyAovSub').textContent = (today.orders ? (today.units / today.orders).toFixed(2) + ' units an order' : '')
+    + (lySame.orders ? ' · last year $' + aov(lySame).toFixed(2) : '');
+  $('yoySalesNote').textContent = live ? '· Amazon Sales API, to ' + yoyTime(V.asOf) + ' PT' : '· Amazon Sales API, ' + yoyDate(V.day);
+
+  yoyRenderAds(V, today, V.lastWeek.reduce(yoyAdd, yoyZero()));
 
   // --- legends ---
   $('yoyLgNow').textContent = live ? 'Today' : yoyDate(V.day);
@@ -13410,6 +13463,44 @@ function yoyRender() {
   ]);
 
   yoyTable(V, live, n);
+}
+
+/* ---------- the advertising row: Sponsored Products from the Ads API, stored by the backend every 15 minutes ----------
+ * YOY[brand].ads = { at, days: { 'YYYY-MM-DD': { impressions, clicks, spend, orders, sales } }, err } (Pricing-API/SalesLive.gs).
+ * Amazon's ad figures for today run an hour or more behind the sales figures, so TACoS today reads a little low early on;
+ * last week's whole day is shown beside it, where both are complete. */
+function yoyRenderAds(V, today, lwDay) {
+  const ads = V.keys.map(k => YOY[k].ads).filter(a => a && a.days);
+  const sum = d => {
+    let t = null;
+    ads.forEach(a => { const r = a.days[d]; if (r) { t = t || { impressions: 0, clicks: 0, spend: 0, orders: 0, sales: 0 }; for (const f in t) t[f] += Number(r[f]) || 0; } });
+    return t;
+  };
+  const A = sum(V.day), W = sum(V.lw);
+  const ids = ['yoyAdSpend', 'yoyTacos', 'yoyAcos', 'yoyAdSales', 'yoyOrganic', 'yoyClicks'];
+  const pc = (a, b) => (b > 0 ? (a / b * 100).toFixed(1) + '%' : '—');
+  if (!A) {
+    ids.forEach(id => { $(id).textContent = '—'; $(id + 'Sub').textContent = ''; });
+    const err = V.keys.map(k => YOY[k].ads && YOY[k].ads.err).filter(Boolean)[0];
+    $('yoyAdsNote').textContent = err ? '· could not read the ad report (' + err + ')' : '· the ad figures arrive within about 30 minutes of the backend update';
+    $('yoyAdSpendSub').textContent = 'waiting for Amazon’s ad report';
+    return;
+  }
+  const at = ads.map(a => a.at).filter(Boolean).sort()[0];
+  $('yoyAdsNote').textContent = '· Sponsored Products, Amazon Ads API' + (at ? ' · report asked at ' + yoyTime(at) + ' PT' : '');
+  $('yoyAdSpend').textContent = yoyMoney(A.spend);
+  $('yoyAdSpendSub').textContent = W ? yoyDate(V.lw, false) + ' whole day: ' + yoyMoney(W.spend) : '';
+  $('yoyTacos').textContent = pc(A.spend, today.sales);
+  $('yoyTacosSub').textContent = W && lwDay.sales ? yoyDate(V.lw, false) + ': ' + pc(W.spend, lwDay.sales) : 'ad spend ÷ all sales';
+  $('yoyAcos').textContent = pc(A.spend, A.sales);
+  $('yoyAcosSub').textContent = (A.spend ? 'ROAS ' + (A.sales / A.spend).toFixed(2) : '') + (W && W.sales ? ' · ' + yoyDate(V.lw, false) + ': ' + pc(W.spend, W.sales) : '');
+  $('yoyAdSales').textContent = yoyMoney(A.sales);
+  $('yoyAdSalesSub').textContent = yoyInt(A.orders) + ' ad orders · ' + pc(A.sales, today.sales) + ' of all sales';
+  const org = Math.max(0, today.sales - A.sales);
+  $('yoyOrganic').textContent = yoyMoney(org);
+  $('yoyOrganicSub').textContent = pc(org, today.sales) + ' of all sales';
+  $('yoyClicks').textContent = yoyInt(A.clicks);
+  $('yoyClicksSub').textContent = (A.clicks ? 'CPC $' + (A.spend / A.clicks).toFixed(2) : 'CPC —') + ' · CTR ' + pc(A.clicks, A.impressions) + ' · ' + yoyInt(A.impressions) + ' views';
 }
 
 /* ---------- SVG helpers ---------- */

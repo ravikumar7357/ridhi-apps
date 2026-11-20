@@ -61,7 +61,62 @@ function liveYoy_(brand, day, ly) {
   out.now = past ? whole(day, 'Hour', 0) : liveMetrics_(liveIso_(day, 0), endIso, 'Hour');
   out.last = whole(ly, 'Hour', 0);
   out.lastWeek = whole(lw, 'Hour', 0);
+  out.ads = liveAdsRead_(b);                         // what the 15-minute job last stored — no Amazon call here
   return out;
+}
+
+/* ---- AD SPEND ON THE LIVE PAGE (Ravi, 2026-11-20: "add TACoS and Ad Spend … the things Amazon gives us") ----
+ * The Ads API has no live number: a report is asked for, Amazon builds it in a few minutes, and today's figures in it run
+ * an hour or more behind. So liveSnapshotJob asks for a DAILY Sponsored Products report from a week back through today on
+ * one run and collects it on the next (15 minutes later), then asks again. What it stores per brand, in a Script Property:
+ *   { at: when the report was asked (its figures are about that old, or older), days: { 'YYYY-MM-DD': {impressions, clicks,
+ *     spend, orders, sales} }, pendingId, askedMs, err }
+ * orders/sales are Amazon's 30-day-attributed ad orders and ad sales. Sponsored Products only — Brands and Display are not
+ * in it. The name carries the time so Amazon never hands back an older identical report as a "duplicate". */
+function liveAdsKey_(b) { return 'LIVE_ADS_' + b; }
+function liveAdsRead_(b) {
+  try {
+    var s = JSON.parse(prop_(liveAdsKey_(b)) || 'null');
+    return s && s.days ? { at: s.at || '', days: s.days, err: s.err || '' } : (s && s.err ? { err: s.err } : null);
+  } catch (e) { return null; }
+}
+function liveAdsTick_(b) {
+  setBrand_(b);
+  var key = liveAdsKey_(b), st = {};
+  try { st = JSON.parse(prop_(key) || '{}') || {}; } catch (e) { st = {}; }
+  var nowMs = Date.now(), day = Utilities.formatDate(new Date(nowMs), LIVE_TZ, 'yyyy-MM-dd');
+  st.err = '';
+  if (st.pendingId) {
+    try {
+      var s = ppcStatus_(st.pendingId);
+      if (s.ready) {
+        var d = ppcFetch_(st.pendingId, 'day'), days = {};
+        Object.keys(d.dates || {}).forEach(function (k) {
+          var t = d.dates[k];
+          days[k] = { impressions: t[0], clicks: t[1], spend: t[2], orders: t[3], sales: t[4] };
+        });
+        st.days = days; st.at = st.askedAt; st.pendingId = '';
+      } else if (/fail|cancel/i.test(s.status || '') || nowMs - (st.askedMs || 0) > 90 * 60000) {
+        st.pendingId = '';                           // never coming, or stuck: ask afresh below
+      } else {
+        PropertiesService.getScriptProperties().setProperty(key, JSON.stringify(st));
+        return st;                                   // still building: collect it next time
+      }
+    } catch (e) { st.err = 'ads read: ' + String(e.message || e).slice(0, 160); st.pendingId = ''; }
+  }
+  try {
+    var from = liveShift_(day, -7);
+    var r = adsCall_('/reporting/reports', 'post', {
+      name: 'live-' + b + '-' + nowMs, startDate: from, endDate: day,
+      configuration: { adProduct: 'SPONSORED_PRODUCTS', groupBy: ['advertiser'],
+        columns: ['date', 'advertisedAsin', 'impressions', 'clicks', 'cost', 'purchases30d', 'sales30d'],
+        reportTypeId: 'spAdvertisedProduct', timeUnit: 'DAILY', format: 'GZIP_JSON' },
+    }, adsProfileId_(), ADS_REPORT_MIME);
+    if (r.reportId) { st.pendingId = r.reportId; st.askedAt = new Date(nowMs).toISOString(); st.askedMs = nowMs; }
+    else st.err = 'ads ask: no report id (' + (r.status || '?') + ')';
+  } catch (e) { st.err = 'ads ask: ' + String(e.message || e).slice(0, 160); }
+  PropertiesService.getScriptProperties().setProperty(key, JSON.stringify(st));
+  return st;
 }
 
 /* ---- THE STANDALONE PAGE'S DATA (Ravi, 2026-11-19: "make it a working html like prime.html") ----
@@ -74,6 +129,7 @@ function liveSnapshot_() {
   var from = y + '-11-15', to = y + '-12-01', brands = {};
   ['SP', 'CPC'].forEach(function (b) {
     var x = {};
+    try { liveAdsTick_(b); } catch (e) { /* the sales figures still go out */ }
     try { x.yoy = liveYoy_(b, day, ly); } catch (e) { x.yoyErr = String(e.message || e).slice(0, 200); }
     try { x.range = liveRange_(b, from, to, 364); } catch (e) { x.rangeErr = String(e.message || e).slice(0, 200); }
     brands[b] = x;

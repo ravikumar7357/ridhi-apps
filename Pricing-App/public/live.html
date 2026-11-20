@@ -19,7 +19,7 @@
   --bg: #111418; --panel: #1A1E24; --ink: #EEF1F5; --ink2: #B6BDC8; --muted: #8E97A4; --rule: #2C323B;
   --y26: #5B8FE0; --y25: #D0702A; --base: #6B7480; --good: #4CC27F; --warn: #E0A64A; --ev: rgba(208,112,42,.14); color-scheme: dark }
 *{box-sizing:border-box} body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 var(--f-body); }
-.wrap { max-width: 1120px; margin: 0 auto; padding-inline: 16px; padding-block: 24px 48px; display: flex; flex-direction: column; gap: 20px; }
+.wrap { max-width: 1480px; margin: 0 auto; padding-inline: 16px; padding-block: 24px 48px; display: flex; flex-direction: column; gap: 20px; }
 header { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 24px; }
 h1 { font: 800 28px/1.15 var(--f-display); margin: 0; letter-spacing: -0.01em; text-wrap: balance; }
 .eyebrow { font: 700 11px/1 var(--f-display); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
@@ -34,6 +34,15 @@ h1 { font: 800 28px/1.15 var(--f-display); margin: 0; letter-spacing: -0.01em; t
 .tile .v { font: 800 26px/1.1 var(--f-display); font-variant-numeric: tabular-nums; }
 .tile .s { font-size: 13px; color: var(--ink2); }
 .tile.hl { border-color: var(--y26); box-shadow: inset 0 3px 0 var(--y26); }
+/* The two top rows (2026-11-20): six big cards each, full width — sales, then advertising. */
+.rowh { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin: 4px 2px -8px; font: 700 13px var(--f-display); letter-spacing: .1em; text-transform: uppercase; }
+.rowh span { font: 400 13px var(--f-body); letter-spacing: 0; text-transform: none; color: var(--muted); }
+.big { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 16px; }
+.big .tile { padding: 20px 22px 18px; gap: 8px; min-height: 160px; border-radius: 14px; box-shadow: inset 0 3px 0 var(--c, var(--rule)); }
+.big .tile .k { font-size: 12px; }
+.big .tile .v { font-size: clamp(28px, 2.4vw, 38px); margin-top: 4px; }
+.big .tile .s { font-size: 13.5px; line-height: 1.45; }
+@media (max-width: 1300px) { .big { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 .up { color: var(--good); } .dn { color: var(--warn); }
 section.card { background: var(--panel); border: 1px solid var(--rule); border-radius: 14px; padding: 18px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 h2 { font: 700 18px/1.2 var(--f-display); margin: 0; }
@@ -58,7 +67,7 @@ details summary:focus-visible { outline: 2px solid var(--y26); outline-offset: 2
 .pending { border: 1px dashed var(--rule); border-radius: 10px; padding: 12px 14px; font-size: 14px; color: var(--ink2); }
 .foot { font-size: 12.5px; color: var(--muted); }
 .tip { position: fixed; pointer-events: none; background: var(--ink); color: var(--bg); font: 500 12px/1.4 var(--f-mono); padding: 6px 9px; border-radius: 6px; z-index: 5; }
-@media (max-width: 760px) { .strip { grid-template-columns: repeat(2, minmax(0, 1fr)); } .brand { margin-left: 0; } }
+@media (max-width: 760px) { .strip, .big { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; } .big .tile { min-height: 0; padding: 14px; } .big .tile .v { font-size: 24px; } .brand { margin-left: 0; } }
 </style></head><body>
 
 <div class="wrap">
@@ -73,7 +82,10 @@ details summary:focus-visible { outline: 2px solid var(--y26); outline-offset: 2
   </header>
 
   <div class="pending" id="pending" hidden></div>
-  <div class="strip" id="strip"></div>
+  <div class="rowh">Sales <span id="salesNote"></span></div>
+  <div class="strip big" id="strip"></div>
+  <div class="rowh">Advertising <span id="adsNote"></span></div>
+  <div class="strip big" id="adStrip"></div>
 
   <section class="card" aria-labelledby="h-hour">
     <h2 id="h-hour">Hour by hour — today against the same weekday last year</h2>
@@ -190,7 +202,35 @@ function lines(host, labels, ls) {
 }
 
 /* ---------- painting ---------- */
-function tile(k, v, s, cls, hl) { return `<div class="tile${hl ? ' hl' : ''}"><div class="k">${k}</div><div class="v ${cls || ''}">${v}</div><div class="s">${s}</div></div>`; }
+function tile(k, v, s, cls, hl, c, title) { return `<div class="tile${hl ? ' hl' : ''}"${c ? ` style="--c:${c}"` : ''}${title ? ` title="${title}"` : ''}><div class="k">${k}</div><div class="v ${cls || ''}">${v}</div><div class="s">${s}</div></div>`; }
+const pc = (a, b) => (b > 0 ? (a / b * 100).toFixed(1) + '%' : '—');
+
+/* The advertising row: Sponsored Products from the Ads API, stored by the backend every 15 minutes (Pricing-API/SalesLive.gs,
+   liveAdsTick_) — brands[k].yoy.ads = { at, days: { date: { impressions, clicks, spend, orders, sales } }, err }.
+   Amazon's ad figures for today run an hour or more behind the sales, so last week's whole day is shown beside them. */
+function renderAds(V, tot, lwDay) {
+  const key = $('brand').value;
+  const ads = (key === 'ALL' ? Object.keys(BRANDS) : [key]).map(k => DATA.brands[k] && DATA.brands[k].yoy && DATA.brands[k].yoy.ads).filter(Boolean);
+  const sum = d => { let t = null; ads.forEach(a => { const r = a.days && a.days[d]; if (r) { t = t || { impressions: 0, clicks: 0, spend: 0, orders: 0, sales: 0 }; for (const f in t) t[f] += Number(r[f]) || 0; } }); return t; };
+  const A = sum(DATA.day), W = sum(DATA.lw), lw = dname(DATA.lw);
+  if (!A) {
+    const err = ads.map(a => a.err).filter(Boolean)[0];
+    $('adsNote').textContent = err ? '· could not read the ad report (' + err + ')' : '· the ad figures arrive within about 30 minutes of the backend update';
+    $('adStrip').innerHTML = ['Ad spend', 'TACoS', 'ACoS', 'Ad sales', 'Organic sales', 'Clicks · CPC'].map((k, i) => tile(k, '—', i ? '' : 'waiting for Amazon’s ad report', '', false, AD_C[i])).join('');
+    return;
+  }
+  const at = ads.map(a => a.at).filter(Boolean).sort()[0];
+  $('adsNote').textContent = '· Sponsored Products, Amazon Ads API' + (at ? ' · report asked at ' + ptHM(at) + ' PT' : '');
+  const org = Math.max(0, tot.sales - A.sales);
+  $('adStrip').innerHTML =
+    tile('Ad spend', usd(A.spend), W ? `${lw} whole day: ${usd(W.spend)}` : '', '', false, AD_C[0], 'Sponsored Products spend today. It runs an hour or more behind the sales figures.')
+    + tile('TACoS', pc(A.spend, tot.sales), W && lwDay.sales ? `${lw}: ${pc(W.spend, lwDay.sales)}` : 'ad spend ÷ all sales', '', false, AD_C[1], 'Ad spend ÷ ALL Amazon sales today. Lower is better.')
+    + tile('ACoS', pc(A.spend, A.sales), (A.spend ? 'ROAS ' + (A.sales / A.spend).toFixed(2) : '') + (W && W.sales ? ` · ${lw}: ${pc(W.spend, W.sales)}` : ''), '', false, AD_C[2], 'Ad spend ÷ the sales Amazon credits to the ads (30-day attribution).')
+    + tile('Ad sales', usd(A.sales), `${int(A.orders)} ad orders · ${pc(A.sales, tot.sales)} of all sales`, '', false, AD_C[3])
+    + tile('Organic sales', usd(org), `${pc(org, tot.sales)} of all sales`, '', false, AD_C[4], 'All sales minus ad sales.')
+    + tile('Clicks · CPC', int(A.clicks), `${A.clicks ? 'CPC $' + (A.spend / A.clicks).toFixed(2) : 'CPC —'} · CTR ${pc(A.clicks, A.impressions)} · ${int(A.impressions)} views`, '', false, AD_C[5]);
+}
+const AD_C = ['#ef4444', '#f59e0b', '#8b5cf6', '#3b82f6', '#22c55e', '#64748b'];
 function change(a, b) { if (!b) return ['—', '']; const p = Math.round((a / b - 1) * 100); return [(p > 0 ? '+' : '') + p + '%', p >= 0 ? 'up' : 'dn']; }
 
 function render() {
@@ -208,12 +248,16 @@ function render() {
   const tot = V.now.reduce(add, zero()), lySame = sameTime(V.last), lwSame = sameTime(V.lastWeek), lyDay = V.last.reduce(add, zero());
   const by = live ? ' by ' + ptHM(DATA.asOf) : '';
   const [cLy, kLy] = change(tot.sales, lySame.sales), [cLw, kLw] = change(tot.sales, lwSame.sales);
+  const aov = r => (r.orders ? '$' + (r.sales / r.orders).toFixed(2) : '—');
+  $('salesNote').textContent = '· Amazon Sales API' + (live ? ', to ' + ptHM(DATA.asOf) + ' PT' : '');
   $('strip').innerHTML =
-    tile(live ? 'Today so far' : dname(DATA.day), usd(tot.sales), `${int(tot.orders)} orders · ${int(tot.units)} units`, '', true)
-    + tile('vs last year, same time', cLy, `${dname(DATA.ly, true)}${by}: ${usd(lySame.sales)} · ${int(lySame.orders)} orders`, kLy)
-    + tile('vs last week, same time', cLw, `${dname(DATA.lw)}${by}: ${usd(lwSame.sales)} · ${int(lwSame.orders)} orders`, kLw)
-    + tile('Last year, whole day', usd(lyDay.sales), `${lyDay.sales ? Math.round(tot.sales / lyDay.sales * 100) + '% of it reached · ' : ''}${int(lyDay.orders)} orders`)
-    + tile('Pace for the day', live && lySame.sales ? usd(tot.sales * lyDay.sales / lySame.sales) : '—', live && lySame.sales ? `if the rest of today follows ${dname(DATA.ly)}'s shape` : 'needs last year by this hour');
+    tile(live ? 'Today so far' : dname(DATA.day), usd(tot.sales), `${int(tot.orders)} orders · ${int(tot.units)} units`, '', false, 'var(--y26)')
+    + tile('vs last year, same time', cLy, `${dname(DATA.ly, true)}${by}: ${usd(lySame.sales)} · ${int(lySame.orders)} orders`, kLy, false, 'var(--y25)')
+    + tile('vs last week, same time', cLw, `${dname(DATA.lw)}${by}: ${usd(lwSame.sales)} · ${int(lwSame.orders)} orders`, kLw, false, '#14b8a6')
+    + tile('Last year, whole day', usd(lyDay.sales), `${lyDay.sales ? Math.round(tot.sales / lyDay.sales * 100) + '% of it reached · ' : ''}${int(lyDay.orders)} orders`, '', false, '#a855f7')
+    + tile('Pace for the day', live && lySame.sales ? usd(tot.sales * lyDay.sales / lySame.sales) : '—', live && lySame.sales ? `if the rest of today follows ${dname(DATA.ly)}'s shape` : 'needs last year by this hour', '', false, '#6366f1')
+    + tile('Average order', aov(tot), (tot.orders ? (tot.units / tot.orders).toFixed(2) + ' units an order' : '') + (lySame.orders ? ' · last year ' + aov(lySame) : ''), '', false, '#ec4899');
+  renderAds(V, tot, V.lastWeek.reduce(add, zero()));
   $('lgNow').textContent = live ? 'Today' : dname(DATA.day); $('lgLy').textContent = dname(DATA.ly, true) + ' (last year)'; $('lgLw').textContent = dname(DATA.lw) + ' (last week)';
 
   const hrs = [...Array(24).keys()];

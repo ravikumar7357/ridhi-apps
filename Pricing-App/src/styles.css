@@ -990,6 +990,30 @@
   .yoy-legend i.yoy-ev{background:color-mix(in srgb,var(--yoy-ly) 14%,transparent);border:1px dashed var(--yoy-ly)}
   .yoy-chart .yoy-evband{fill:color-mix(in srgb,var(--yoy-ly) 10%,transparent)}
   .yoy-chart .yoy-evtxt{fill:var(--yoy-ly);font-weight:600;font-size:10.5px}
+  /* Live vs Last Year cards (2026-11-20): two rows of six, full width, bigger figures, room between them. */
+  .yoy-row-h{display:flex;align-items:baseline;gap:10px;margin:4px 2px 10px;font-size:13px;font-weight:700;
+    text-transform:uppercase;letter-spacing:.08em;color:var(--ink)}
+  .yoy-row-h .muted{font-size:12.5px;font-weight:400;text-transform:none;letter-spacing:0}
+  #paneYoy .yoy-kpis{grid-template-columns:repeat(6,minmax(0,1fr));gap:18px;margin-bottom:26px}
+  @media (max-width:1400px){ #paneYoy .yoy-kpis{grid-template-columns:repeat(3,minmax(0,1fr))} }
+  @media (max-width:760px){ #paneYoy .yoy-kpis{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px} }
+  #paneYoy .sd-card{padding:20px 22px 18px;min-height:168px;display:flex;flex-direction:column}
+  #paneYoy .sd-card .lbl{font-size:12.5px}
+  #paneYoy .sd-card .val{font-size:clamp(28px,2.4vw,38px);margin-top:14px;line-height:1.1}
+  #paneYoy .sd-card .sub{font-size:13px;line-height:1.45;margin-top:8px}
+  @media (max-width:760px){ #paneYoy .sd-card{padding:16px;min-height:0} #paneYoy .sd-card .val{font-size:26px} }
+  .yoy-b-spend{--glow:#ef4444}
+  .yoy-b-spend .lbl::before{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ef4444' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6'/%3E%3C/svg%3E")}
+  .yoy-b-tacos{--glow:#f59e0b}
+  .yoy-b-tacos .lbl::before{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23f59e0b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M19 5 5 19'/%3E%3Ccircle cx='6.5' cy='6.5' r='2.5'/%3E%3Ccircle cx='17.5' cy='17.5' r='2.5'/%3E%3C/svg%3E")}
+  .yoy-b-acos{--glow:#8b5cf6}
+  .yoy-b-acos .lbl::before{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238b5cf6' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Ccircle cx='12' cy='12' r='5'/%3E%3Ccircle cx='12' cy='12' r='1'/%3E%3C/svg%3E")}
+  .yoy-b-adsales{--glow:#3b82f6}
+  .yoy-b-adsales .lbl::before{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%233b82f6' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='9' cy='20' r='1.5'/%3E%3Ccircle cx='18' cy='20' r='1.5'/%3E%3Cpath d='M2 3h3l2.7 12.4a2 2 0 0 0 2 1.6h7.7a2 2 0 0 0 2-1.6L21 7H6'/%3E%3C/svg%3E")}
+  .yoy-b-organic{--glow:#22c55e}
+  .yoy-b-organic .lbl::before{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2322c55e' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.5 19 2c1 2 2 4.2 2 8 0 5.5-4.8 10-10 10Z'/%3E%3Cpath d='M2 21c0-3 1.9-5.4 5.2-6'/%3E%3C/svg%3E")}
+  .yoy-b-clicks{--glow:#64748b}
+  .yoy-b-clicks .lbl::before{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m9 9 5 12 1.8-5.2L21 14Z'/%3E%3Cpath d='M7.2 2.2 8 5.1M5.1 8l-2.9-.8M14 4.1 12 6M6 12l-1.9 2'/%3E%3C/svg%3E")}
   table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
   td{padding:10px 0;border-bottom:1px solid var(--line)}
   /* The calculator's figure column. Kept out of the grids, where it made every last column semi-bold. */

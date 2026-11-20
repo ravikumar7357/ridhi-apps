@@ -1056,13 +1056,33 @@
       </div>
     </div>
 
-    <div class="sd-kpis">
+    <!-- Two full-width rows of six big cards (Ravi, 2026-11-20: "make this big … add TACoS and Ad Spend … stretch the
+         container"): sales from the Sales API, then advertising from the Ads API (Sponsored Products, stored every 15 min). -->
+    <div class="yoy-row-h">Sales <span class="muted" id="yoySalesNote"></span></div>
+    <div class="sd-kpis yoy-kpis">
       <div class="sd-card sd-b-cyan"><div class="lbl" id="yoyTodayLbl">Today so far</div><div class="val" id="yoyToday">—</div><div class="sub" id="yoyTodaySub">—</div></div>
       <div class="sd-card sd-b-orange"><div class="lbl">vs last year, same time</div><div class="val" id="yoyVsLy">—</div><div class="sub" id="yoyVsLySub">—</div></div>
       <div class="sd-card sd-b-teal"><div class="lbl">vs last week, same time</div><div class="val" id="yoyVsLw">—</div><div class="sub" id="yoyVsLwSub">—</div></div>
       <div class="sd-card sd-b-purple"><div class="lbl">Last year, whole day</div><div class="val" id="yoyLyDay">—</div><div class="sub" id="yoyLyDaySub">—</div></div>
       <div class="sd-card sd-b-indigo" title="Today so far, scaled by how much of last year's day was still to come at this hour.">
         <div class="lbl">Pace for the day</div><div class="val" id="yoyPace">—</div><div class="sub" id="yoyPaceSub">—</div></div>
+      <div class="sd-card sd-b-pink" title="Sales ÷ orders. Units per order from the same figures.">
+        <div class="lbl">Average order</div><div class="val" id="yoyAov">—</div><div class="sub" id="yoyAovSub">—</div></div>
+    </div>
+    <div class="yoy-row-h">Advertising <span class="muted" id="yoyAdsNote"></span></div>
+    <div class="sd-kpis yoy-kpis">
+      <div class="sd-card yoy-b-spend" title="Sponsored Products spend today, from Amazon's ad report. It runs an hour or more behind the sales figures.">
+        <div class="lbl">Ad spend</div><div class="val" id="yoyAdSpend">—</div><div class="sub" id="yoyAdSpendSub">—</div></div>
+      <div class="sd-card yoy-b-tacos" title="TACoS = ad spend ÷ ALL Amazon sales today. Lower is better.">
+        <div class="lbl">TACoS</div><div class="val" id="yoyTacos">—</div><div class="sub" id="yoyTacosSub">—</div></div>
+      <div class="sd-card yoy-b-acos" title="ACoS = ad spend ÷ the sales Amazon credits to the ads (30-day attribution). ROAS is the other way round.">
+        <div class="lbl">ACoS</div><div class="val" id="yoyAcos">—</div><div class="sub" id="yoyAcosSub">—</div></div>
+      <div class="sd-card yoy-b-adsales" title="Sales Amazon credits to Sponsored Products ads, and their share of all sales.">
+        <div class="lbl">Ad sales</div><div class="val" id="yoyAdSales">—</div><div class="sub" id="yoyAdSalesSub">—</div></div>
+      <div class="sd-card yoy-b-organic" title="All sales minus ad sales: what came without a Sponsored Products click.">
+        <div class="lbl">Organic sales</div><div class="val" id="yoyOrganic">—</div><div class="sub" id="yoyOrganicSub">—</div></div>
+      <div class="sd-card yoy-b-clicks" title="Clicks on the ads today, cost per click and click-through rate.">
+        <div class="lbl">Clicks · CPC</div><div class="val" id="yoyClicks">—</div><div class="sub" id="yoyClicksSub">—</div></div>
     </div>
 
     <div class="sd-panel">

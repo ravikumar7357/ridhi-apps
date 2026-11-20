@@ -4,7 +4,8 @@
  * (?live=yoy → Pricing-API/SalesLive.gs → Amazon's Sales API getOrderMetrics) for each brand: the day by hour so far, the
  * matching day last year by hour (same weekday = 364 days back, or the same date) and the same day last week by hour; and
  * (?live=range) a From–To run of days — 15 Nov to 1 Dec by default, the Black Friday / Cyber Monday weeks — against the
- * same run last year. Paints five cards, an hourly chart, a running-total chart, the run's totals + day chart + day table,
+ * same run last year. Paints six sales cards and six advertising cards (yoyRenderAds — ad spend, TACoS, ACoS from the
+ * Ads API report the backend stores every 15 minutes), an hourly chart, a running-total chart, the run's totals + day chart + day table,
  * and an hourly table, for Ridhi, CPC or both. Every date is Amazon.com's day (Pacific). Re-reads every 5 minutes while open on today.
  * "Same time" on a live day = last year's completed hours plus the same fraction of the current hour.
  * Main functions: ensureYoy, yoyLoad, yoyView, yoyRender, yoyBars, yoyLines, yoyTable. */
@@ -227,6 +228,14 @@ function yoyRender() {
     $('yoyPace').textContent = live ? '—' : yoyMoney(today.sales);
     $('yoyPaceSub').textContent = live ? 'needs last year’s sales by this hour' : 'the day is closed';
   }
+  // Average order: sales ÷ orders, against last year by the same time.
+  const aov = r => (r.orders ? r.sales / r.orders : 0);
+  $('yoyAov').textContent = today.orders ? '$' + aov(today).toFixed(2) : '—';
+  $('yoyAovSub').textContent = (today.orders ? (today.units / today.orders).toFixed(2) + ' units an order' : '')
+    + (lySame.orders ? ' · last year $' + aov(lySame).toFixed(2) : '');
+  $('yoySalesNote').textContent = live ? '· Amazon Sales API, to ' + yoyTime(V.asOf) + ' PT' : '· Amazon Sales API, ' + yoyDate(V.day);
+
+  yoyRenderAds(V, today, V.lastWeek.reduce(yoyAdd, yoyZero()));
 
   // --- legends ---
   $('yoyLgNow').textContent = live ? 'Today' : yoyDate(V.day);
@@ -249,6 +258,44 @@ function yoyRender() {
   ]);
 
   yoyTable(V, live, n);
+}
+
+/* ---------- the advertising row: Sponsored Products from the Ads API, stored by the backend every 15 minutes ----------
+ * YOY[brand].ads = { at, days: { 'YYYY-MM-DD': { impressions, clicks, spend, orders, sales } }, err } (Pricing-API/SalesLive.gs).
+ * Amazon's ad figures for today run an hour or more behind the sales figures, so TACoS today reads a little low early on;
+ * last week's whole day is shown beside it, where both are complete. */
+function yoyRenderAds(V, today, lwDay) {
+  const ads = V.keys.map(k => YOY[k].ads).filter(a => a && a.days);
+  const sum = d => {
+    let t = null;
+    ads.forEach(a => { const r = a.days[d]; if (r) { t = t || { impressions: 0, clicks: 0, spend: 0, orders: 0, sales: 0 }; for (const f in t) t[f] += Number(r[f]) || 0; } });
+    return t;
+  };
+  const A = sum(V.day), W = sum(V.lw);
+  const ids = ['yoyAdSpend', 'yoyTacos', 'yoyAcos', 'yoyAdSales', 'yoyOrganic', 'yoyClicks'];
+  const pc = (a, b) => (b > 0 ? (a / b * 100).toFixed(1) + '%' : '—');
+  if (!A) {
+    ids.forEach(id => { $(id).textContent = '—'; $(id + 'Sub').textContent = ''; });
+    const err = V.keys.map(k => YOY[k].ads && YOY[k].ads.err).filter(Boolean)[0];
+    $('yoyAdsNote').textContent = err ? '· could not read the ad report (' + err + ')' : '· the ad figures arrive within about 30 minutes of the backend update';
+    $('yoyAdSpendSub').textContent = 'waiting for Amazon’s ad report';
+    return;
+  }
+  const at = ads.map(a => a.at).filter(Boolean).sort()[0];
+  $('yoyAdsNote').textContent = '· Sponsored Products, Amazon Ads API' + (at ? ' · report asked at ' + yoyTime(at) + ' PT' : '');
+  $('yoyAdSpend').textContent = yoyMoney(A.spend);
+  $('yoyAdSpendSub').textContent = W ? yoyDate(V.lw, false) + ' whole day: ' + yoyMoney(W.spend) : '';
+  $('yoyTacos').textContent = pc(A.spend, today.sales);
+  $('yoyTacosSub').textContent = W && lwDay.sales ? yoyDate(V.lw, false) + ': ' + pc(W.spend, lwDay.sales) : 'ad spend ÷ all sales';
+  $('yoyAcos').textContent = pc(A.spend, A.sales);
+  $('yoyAcosSub').textContent = (A.spend ? 'ROAS ' + (A.sales / A.spend).toFixed(2) : '') + (W && W.sales ? ' · ' + yoyDate(V.lw, false) + ': ' + pc(W.spend, W.sales) : '');
+  $('yoyAdSales').textContent = yoyMoney(A.sales);
+  $('yoyAdSalesSub').textContent = yoyInt(A.orders) + ' ad orders · ' + pc(A.sales, today.sales) + ' of all sales';
+  const org = Math.max(0, today.sales - A.sales);
+  $('yoyOrganic').textContent = yoyMoney(org);
+  $('yoyOrganicSub').textContent = pc(org, today.sales) + ' of all sales';
+  $('yoyClicks').textContent = yoyInt(A.clicks);
+  $('yoyClicksSub').textContent = (A.clicks ? 'CPC $' + (A.spend / A.clicks).toFixed(2) : 'CPC —') + ' · CTR ' + pc(A.clicks, A.impressions) + ' · ' + yoyInt(A.impressions) + ' views';
 }
 
 /* ---------- SVG helpers ---------- */
