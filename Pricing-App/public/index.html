@@ -1018,7 +1018,7 @@
   /* Live vs Last Year cards (2026-11-20): two rows of six, full width, bigger figures, room between them. */
   /* Framed sections (2026-11-20): a coloured top edge, a faint wash of the same colour and a solid name tag — Amazon's
      orange and navy, Shopify's green, the app's own blue for the Overview. Cards inside keep their look. */
-  #paneYoy .yoy-sec{--sec:var(--brand);--sec-ink:#fff;position:relative;border:1px solid var(--card-line);border-top:4px solid var(--sec);
+  #paneYoy .yoy-sec{--sec:var(--brand);--sec-ink:#fff;border:1px solid var(--card-line);border-top:4px solid var(--sec);
     border-radius:16px;padding:16px 18px 2px;margin:0 0 22px;
     background:linear-gradient(180deg,color-mix(in srgb,var(--sec) 7%,var(--card)) 0,var(--card) 120px)}
   #paneYoy .yoy-sec[data-chan="amz"]{--sec:#FF9900;--sec-tag:#232F3E}
@@ -1059,6 +1059,36 @@
   #paneYoy:not([data-period="day"]) .yoy-pnote{display:block;margin:0 2px 12px;font-size:13px;color:var(--muted)}
   #paneYoy .yoy-pnote b{color:var(--ink)}
   #paneYoy:not([data-period="day"]) .yoy-sec > :not(.yoy-sec-h):not(.yoy-ponly){display:none}
+  /* Tighter (2026-11-20, "more compact"): sections, row headings and chart panels closer together. */
+  #paneYoy .yoy-sec{padding:12px 14px 0;margin-bottom:16px;border-radius:14px}
+  #paneYoy .yoy-sec-h{margin-bottom:10px}
+  #paneYoy .yoy-row-h{margin:2px 2px 8px;font-size:12px}
+  #paneYoy .yoy-kpis{margin-bottom:12px}
+  #paneYoy .sd-panel{padding:12px 14px;margin-bottom:12px}
+  #paneYoy .sd-h2{margin-bottom:8px}
+  #paneYoy .yoy-sh-charts{gap:12px;margin-bottom:0}
+  #paneYoy .yoy-sh-charts .sd-panel{margin-bottom:12px}
+  /* Easier charts: bigger axis text, quiet grid, a "now" marker, a hover band per hour. */
+  #paneYoy .yoy-chart text{font-size:12.5px}
+  #paneYoy .yoy-chart .yoy-grid{stroke:color-mix(in srgb,var(--line) 70%,transparent);stroke-dasharray:2 4}
+  #paneYoy .yoy-chart .yoy-now{fill:var(--brand);font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase}
+  #paneYoy .yoy-chart .yoy-hit:hover{fill:color-mix(in srgb,var(--ink) 5%,transparent)}
+  .yoy-tip{position:fixed;z-index:60;pointer-events:none;white-space:pre-line;max-width:280px;padding:8px 10px;border-radius:8px;
+    font-size:12.5px;line-height:1.45;color:var(--card);background:var(--ink);box-shadow:var(--sh-2)}
+  .yoy-tip::first-line{font-weight:700}
+  /* Motion, small and quick: cards rise in, bars grow, lines draw, a changed figure glows once. Off for reduced motion. */
+  @keyframes yoyUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  @keyframes yoyGrow{from{transform:scaleY(0)}to{transform:scaleY(1)}}
+  @keyframes yoyDraw{from{stroke-dashoffset:1000}to{stroke-dashoffset:0}}
+  @keyframes yoyGlow{0%{background:color-mix(in srgb,var(--brand) 22%,transparent)}100%{background:transparent}}
+  #paneYoy .sd-card{animation:yoyUp .35s ease both}
+  #paneYoy .sd-kpis .sd-card:nth-child(2){animation-delay:.04s} #paneYoy .sd-kpis .sd-card:nth-child(3){animation-delay:.08s}
+  #paneYoy .sd-kpis .sd-card:nth-child(4){animation-delay:.12s} #paneYoy .sd-kpis .sd-card:nth-child(5){animation-delay:.16s}
+  #paneYoy .sd-kpis .sd-card:nth-child(6){animation-delay:.2s}
+  #paneYoy .yoy-chart .yoy-bar{transform-box:fill-box;transform-origin:50% 100%;animation:yoyGrow .5s cubic-bezier(.2,.7,.2,1) both}
+  #paneYoy .yoy-chart .yoy-draw{stroke-dasharray:1000;animation:yoyDraw .9s ease-out both}
+  #paneYoy .val.yoy-flash{animation:yoyGlow 1.2s ease-out;border-radius:6px}
+  @media (prefers-reduced-motion:reduce){ #paneYoy .sd-card,#paneYoy .yoy-chart .yoy-bar,#paneYoy .yoy-chart .yoy-draw,#paneYoy .val.yoy-flash{animation:none} }
   .yoy-b-spend{--glow:#ef4444}
   .yoy-b-spend .lbl::before{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ef4444' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6'/%3E%3C/svg%3E")}
   .yoy-b-tacos{--glow:#f59e0b}
@@ -2798,6 +2828,18 @@
         <div class="lbl">Meta ROAS</div><div class="val" id="yoyMetaRoas">—</div><div class="sub" id="yoyMetaRoasSub">—</div></div>
       <div class="sd-card yoy-b-tacos" title="Meta spend ÷ Shopify sales: the store's own TACoS. Lower is better.">
         <div class="lbl">Shopify TACoS</div><div class="val" id="yoyShTacos">—</div><div class="sub" id="yoyShTacosSub">—</div></div>
+    </div>
+    <!-- Shopify charts (2026-11-20): the store by the hour and its running total, side by side. -->
+    <div class="sd-charts yoy-sh-charts">
+      <div class="sd-panel">
+        <h2 class="sd-h2">Shopify · hour by hour</h2>
+        <div class="yoy-legend"><span><i style="background:#5E8E3E"></i><b id="yoyShLgNow">Today</b></span><span><i style="background:#C3DE96"></i><b id="yoyShLgLw">Last week</b></span><span><i class="yoy-dash" style="border-color:#8A94A3"></i><b id="yoyShLg4w">4 weeks ago</b></span></div>
+        <div class="yoy-chart" id="yoyShHours"></div>
+      </div>
+      <div class="sd-panel">
+        <h2 class="sd-h2">Shopify · running total</h2>
+        <div class="yoy-chart" id="yoyShCum"></div>
+      </div>
     </div>
     </div>
   </div>
@@ -13642,6 +13684,24 @@ function yoyRenderShop(V, live, frac, amzToday, amzLySame, amzLwSame, amzAds) {
     else set('yoyShPace', live ? '—' : yoyMoney(sh.sales), live ? 'needs last week’s sales by this hour' : 'the day is closed');
     set('yoyShAov', sh.orders ? '$' + (sh.sales / sh.orders).toFixed(2) : '—', (sh.orders ? (sh.units / sh.orders).toFixed(2) + ' units an order' : '') + (shLw.orders ? ' · last week $' + (shLw.sales / shLw.orders).toFixed(2) : ''));
   } else ['yoyShToday', 'yoyShVsLy', 'yoyShVsLw', 'yoySh4w', 'yoyShPace', 'yoyShAov'].forEach(id => set(id, '—', errs[0] ? 'could not read Shopify' : 'waiting for the backend update'));
+  // --- Shopify charts (2026-11-20): today by the hour in Shopify green beside last week, four weeks ago dashed; and the
+  // running totals. Same helpers as Amazon's charts. ---
+  if (shops.length && $('yoyShHours')) {
+    const hours = [...Array(24).keys()], tip = h => yoyHour(h) + '–' + yoyHour((h + 1) % 24);
+    const lwName = yoyDate(V.lw, false), m4Name = m4Day ? yoyDate(m4Day, false) : '4 weeks ago';
+    $('yoyShLgNow').textContent = live ? 'Today' : yoyDate(V.day, false); $('yoyShLgLw').textContent = lwName + ' (last week)'; $('yoyShLg4w').textContent = m4Name + ' (4 weeks ago)';
+    yoyBars($('yoyShHours'), hours.map(yoyHour), [
+      { vals: hours.map(h => (now[h] ? now[h].sales : null)), fill: '#5E8E3E', name: live ? 'Today' : yoyDate(V.day, false), part: live ? n - 1 : -1 },
+      { vals: hours.map(h => (lw[h] ? lw[h].sales : 0)), fill: '#C3DE96', name: lwName },
+    ], m4.length ? { vals: hours.map(h => (m4[h] ? m4[h].sales : 0)), name: m4Name, stroke: '#8A94A3' } : null, tip);
+    const cum = rows => { let t = 0; return hours.map(h => (rows[h] ? (t += rows[h].sales) : null)); };
+    const cLw = cum(lw), c4 = cum(m4);
+    yoyLines($('yoyShCum'), hours.map(yoyHour), [
+      { vals: cLw, stroke: '#A8CF6A', name: lwName, end: yoyK(cLw.filter(v => v != null).pop() || 0) + ' last week' },
+      ...(m4.length ? [{ vals: c4, stroke: '#8A94A3', dash: true, name: m4Name, end: yoyK(c4.filter(v => v != null).pop() || 0) + ' 4 wks ago' }] : []),
+      { vals: cum(now), stroke: '#5E8E3E', width: 3, name: live ? 'Today' : yoyDate(V.day, false), end: yoyK(sh.sales) + (live ? ' so far' : '') },
+    ]);
+  }
   // --- Meta ---
   const metas = V.keys.map(k => YOY[k].meta).filter(Boolean);
   const metaOn = metas.filter(m => m.configured && m.days);
@@ -13775,7 +13835,7 @@ function yoyRenderPeriod(V, tot, lySame, lyDay) {
 const YOY_NS = 'http://www.w3.org/2000/svg';
 function yoyEl(tag, attrs, parent, text) {
   const e = document.createElementNS(YOY_NS, tag);
-  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  for (const k in attrs) if (attrs[k] != null && attrs[k] !== '') e.setAttribute(k, attrs[k]);
   if (text != null) e.textContent = text;
   if (parent) parent.appendChild(e);
   return e;
@@ -13815,19 +13875,23 @@ function yoyBars(host, labels, groups, line, tipLabel, marks) {
   groups.forEach((g, gi) => g.vals.forEach((v, i) => {
     if (v == null) return;
     const x = xc(i) - (bw * groups.length) / 2 + gi * bw;
-    const r = yoyEl('rect', { x: x + 1, y: y(v), width: Math.max(1, bw - 2), height: Math.max(0, y(0) - y(v)), rx: 2, fill: g.fill,
-      opacity: i === g.part ? 0.55 : 1 }, svg);
-    const when = g.dates && g.dates[i] ? yoyDate(g.dates[i]) : (tipLabel ? tipLabel(i) : labels[i]);
-    yoyEl('title', {}, r, `${g.name} · ${when}: ${yoyMoney(v)}${i === g.part ? ' (so far)' : ''}`);
+    yoyEl('rect', { x: x + 1, y: y(v), width: Math.max(1, bw - 2), height: Math.max(0, y(0) - y(v)), rx: 3, fill: g.fill,
+      opacity: i === g.part ? 0.55 : 1, class: 'yoy-bar', style: `animation-delay:${Math.min(i * 14, 400)}ms` }, svg);
   }));
   if (line) {
     const pts = line.vals.map((v, i) => `${xc(i)},${y(v || 0)}`).join(' ');
-    yoyEl('polyline', { points: pts, fill: 'none', stroke: 'var(--yoy-lw)', 'stroke-width': 1.6, 'stroke-dasharray': '4 3' }, svg);
-    line.vals.forEach((v, i) => {
-      const c = yoyEl('circle', { cx: xc(i), cy: y(v || 0), r: 6, fill: 'transparent' }, svg);
-      yoyEl('title', {}, c, `${line.name} · ${tipLabel ? tipLabel(i) : labels[i]}: ${yoyMoney(v)}`);
-    });
+    yoyEl('polyline', { points: pts, fill: 'none', stroke: line.stroke || 'var(--yoy-lw)', 'stroke-width': 1.8, 'stroke-dasharray': '4 3' }, svg);
   }
+  // The hour (or day) running now: a small "now" over its slot.
+  const part = groups.map(g => g.part).find(p => p != null && p >= 0);
+  if (part != null && part >= 0) yoyEl('text', { x: xc(part), y: YOY_T + 2, 'text-anchor': 'middle', class: 'yoy-now' }, svg, 'now');
+  // One hover area per slot, telling every series at once (2026-11-20: "make charts more readable").
+  labels.forEach((l, i) => {
+    const when = groups[0].dates && groups[0].dates[i] ? yoyDate(groups[0].dates[i], false) : (tipLabel ? tipLabel(i) : String(l).replace('\n', ' '));
+    const lines = groups.map(g => (g.vals[i] == null ? null : `${g.name}${g.dates && g.dates[i] && g !== groups[0] ? ' (' + yoyDate(g.dates[i], false) + ')' : ''}: ${yoyMoney(g.vals[i])}${i === g.part ? ' so far' : ''}`)).filter(Boolean);
+    if (line && line.vals[i] != null) lines.push(`${line.name}: ${yoyMoney(line.vals[i])}`);
+    yoyEl('rect', { x: xc(i) - slot / 2, y: YOY_T, width: slot, height: y(0) - YOY_T, fill: 'transparent', class: 'yoy-hit', 'data-tip': when + '\n' + lines.join('\n') }, svg);
+  });
   yoyXLabels(svg, labels, xc, labels.length > 16 ? 2 : 1);
 }
 // Running-total lines; a null ends a line (today stops at the hour it has reached). Each line is labelled at its end.
@@ -13842,12 +13906,7 @@ function yoyLines(host, labels, lines) {
     const pts = l.vals.map((v, i) => (v == null ? null : [xc(i), y(v)])).filter(Boolean);
     if (!pts.length) return;
     yoyEl('polyline', { points: pts.map(p => p.join(',')).join(' '), fill: 'none', stroke: l.stroke, 'stroke-width': l.width || 2,
-      'stroke-linejoin': 'round', 'stroke-dasharray': l.dash ? '5 4' : '' }, svg);
-    l.vals.forEach((v, i) => {
-      if (v == null) return;
-      const c = yoyEl('circle', { cx: xc(i), cy: y(v), r: 6, fill: 'transparent' }, svg);
-      yoyEl('title', {}, c, `${l.name} · by end of ${labels[i]} hour: ${yoyMoney(v)}`);
-    });
+      'stroke-linejoin': 'round', 'stroke-linecap': 'round', 'stroke-dasharray': l.dash ? '5 4' : '', class: l.dash ? '' : 'yoy-draw', pathLength: l.dash ? null : 1000 }, svg);
     const last = pts[pts.length - 1];
     yoyEl('circle', { cx: last[0], cy: last[1], r: 3.5, fill: l.stroke }, svg);
     ends.push({ x: last[0] + 8, y: last[1] + 4, text: l.end, fill: l.stroke });
@@ -13856,6 +13915,11 @@ function yoyLines(host, labels, lines) {
   ends.sort((a, b) => a.y - b.y);
   for (let i = 1; i < ends.length; i++) if (ends[i].y - ends[i - 1].y < 14 && Math.abs(ends[i].x - ends[i - 1].x) < 120) ends[i].y = ends[i - 1].y + 14;
   ends.forEach(e => yoyEl('text', { x: e.x, y: e.y, class: 'yoy-lbl', style: 'fill:' + e.fill }, svg, e.text));
+  // One hover area per hour with every line's running total at that hour.
+  labels.forEach((l, i) => {
+    const rows = lines.filter(x => x.vals[i] != null).map(x => `${x.name}: ${yoyMoney(x.vals[i])}`);
+    if (rows.length) yoyEl('rect', { x: xc(i) - step / 2, y: YOY_T, width: step, height: YOY_H - YOY_T - YOY_B, fill: 'transparent', class: 'yoy-hit', 'data-tip': 'By the end of ' + l + '\n' + rows.join('\n') }, svg);
+  });
   yoyXLabels(svg, labels, xc, 3);
 }
 
@@ -13892,6 +13956,28 @@ $('yoyBrand').querySelectorAll('button').forEach(b => b.onclick = () => {
   yoyRender();
   yoyRenderRange();
 });
+// Chart hover box (2026-11-20): one box that follows the pointer and lists every series at that hour — the browser's own
+// title tooltip took a second to appear and showed one bar at a time.
+const YOY_TIP = document.createElement('div');
+YOY_TIP.className = 'yoy-tip'; YOY_TIP.hidden = true; document.body.appendChild(YOY_TIP);
+$('paneYoy').addEventListener('mousemove', e => {
+  const t = e.target.closest && e.target.closest('[data-tip]');
+  if (!t) { YOY_TIP.hidden = true; return; }
+  YOY_TIP.textContent = t.getAttribute('data-tip'); YOY_TIP.hidden = false;
+  YOY_TIP.style.left = Math.min(e.clientX + 14, innerWidth - YOY_TIP.offsetWidth - 8) + 'px';
+  YOY_TIP.style.top = Math.max(8, e.clientY - YOY_TIP.offsetHeight - 10) + 'px';
+});
+$('paneYoy').addEventListener('mouseleave', () => { YOY_TIP.hidden = true; });
+// A figure that changes on a refresh glows once, so the eye finds what moved. Only a real change: the same text set again is left alone.
+new MutationObserver(ms => ms.forEach(m => {
+  const el = m.target.nodeType === 3 ? m.target.parentElement : m.target;
+  if (!el || !el.classList || !el.classList.contains('val') || el.dataset.was === el.textContent) return;
+  const first = el.dataset.was == null || el.dataset.was === '—';
+  el.dataset.was = el.textContent;
+  if (first) return;
+  el.classList.remove('yoy-flash'); void el.offsetWidth; el.classList.add('yoy-flash');
+})).observe($('paneYoy'), { subtree: true, childList: true, characterData: true });
+
 // The channel toggle (Ravi, 2026-11-20): only shows or hides sections — every figure is still worked out, so switching is instant.
 function yoySetChan(v) {
   $('paneYoy').dataset.view = v;

@@ -993,7 +993,7 @@
   /* Live vs Last Year cards (2026-11-20): two rows of six, full width, bigger figures, room between them. */
   /* Framed sections (2026-11-20): a coloured top edge, a faint wash of the same colour and a solid name tag — Amazon's
      orange and navy, Shopify's green, the app's own blue for the Overview. Cards inside keep their look. */
-  #paneYoy .yoy-sec{--sec:var(--brand);--sec-ink:#fff;position:relative;border:1px solid var(--card-line);border-top:4px solid var(--sec);
+  #paneYoy .yoy-sec{--sec:var(--brand);--sec-ink:#fff;border:1px solid var(--card-line);border-top:4px solid var(--sec);
     border-radius:16px;padding:16px 18px 2px;margin:0 0 22px;
     background:linear-gradient(180deg,color-mix(in srgb,var(--sec) 7%,var(--card)) 0,var(--card) 120px)}
   #paneYoy .yoy-sec[data-chan="amz"]{--sec:#FF9900;--sec-tag:#232F3E}
@@ -1034,6 +1034,36 @@
   #paneYoy:not([data-period="day"]) .yoy-pnote{display:block;margin:0 2px 12px;font-size:13px;color:var(--muted)}
   #paneYoy .yoy-pnote b{color:var(--ink)}
   #paneYoy:not([data-period="day"]) .yoy-sec > :not(.yoy-sec-h):not(.yoy-ponly){display:none}
+  /* Tighter (2026-11-20, "more compact"): sections, row headings and chart panels closer together. */
+  #paneYoy .yoy-sec{padding:12px 14px 0;margin-bottom:16px;border-radius:14px}
+  #paneYoy .yoy-sec-h{margin-bottom:10px}
+  #paneYoy .yoy-row-h{margin:2px 2px 8px;font-size:12px}
+  #paneYoy .yoy-kpis{margin-bottom:12px}
+  #paneYoy .sd-panel{padding:12px 14px;margin-bottom:12px}
+  #paneYoy .sd-h2{margin-bottom:8px}
+  #paneYoy .yoy-sh-charts{gap:12px;margin-bottom:0}
+  #paneYoy .yoy-sh-charts .sd-panel{margin-bottom:12px}
+  /* Easier charts: bigger axis text, quiet grid, a "now" marker, a hover band per hour. */
+  #paneYoy .yoy-chart text{font-size:12.5px}
+  #paneYoy .yoy-chart .yoy-grid{stroke:color-mix(in srgb,var(--line) 70%,transparent);stroke-dasharray:2 4}
+  #paneYoy .yoy-chart .yoy-now{fill:var(--brand);font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase}
+  #paneYoy .yoy-chart .yoy-hit:hover{fill:color-mix(in srgb,var(--ink) 5%,transparent)}
+  .yoy-tip{position:fixed;z-index:60;pointer-events:none;white-space:pre-line;max-width:280px;padding:8px 10px;border-radius:8px;
+    font-size:12.5px;line-height:1.45;color:var(--card);background:var(--ink);box-shadow:var(--sh-2)}
+  .yoy-tip::first-line{font-weight:700}
+  /* Motion, small and quick: cards rise in, bars grow, lines draw, a changed figure glows once. Off for reduced motion. */
+  @keyframes yoyUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  @keyframes yoyGrow{from{transform:scaleY(0)}to{transform:scaleY(1)}}
+  @keyframes yoyDraw{from{stroke-dashoffset:1000}to{stroke-dashoffset:0}}
+  @keyframes yoyGlow{0%{background:color-mix(in srgb,var(--brand) 22%,transparent)}100%{background:transparent}}
+  #paneYoy .sd-card{animation:yoyUp .35s ease both}
+  #paneYoy .sd-kpis .sd-card:nth-child(2){animation-delay:.04s} #paneYoy .sd-kpis .sd-card:nth-child(3){animation-delay:.08s}
+  #paneYoy .sd-kpis .sd-card:nth-child(4){animation-delay:.12s} #paneYoy .sd-kpis .sd-card:nth-child(5){animation-delay:.16s}
+  #paneYoy .sd-kpis .sd-card:nth-child(6){animation-delay:.2s}
+  #paneYoy .yoy-chart .yoy-bar{transform-box:fill-box;transform-origin:50% 100%;animation:yoyGrow .5s cubic-bezier(.2,.7,.2,1) both}
+  #paneYoy .yoy-chart .yoy-draw{stroke-dasharray:1000;animation:yoyDraw .9s ease-out both}
+  #paneYoy .val.yoy-flash{animation:yoyGlow 1.2s ease-out;border-radius:6px}
+  @media (prefers-reduced-motion:reduce){ #paneYoy .sd-card,#paneYoy .yoy-chart .yoy-bar,#paneYoy .yoy-chart .yoy-draw,#paneYoy .val.yoy-flash{animation:none} }
   .yoy-b-spend{--glow:#ef4444}
   .yoy-b-spend .lbl::before{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ef4444' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6'/%3E%3C/svg%3E")}
   .yoy-b-tacos{--glow:#f59e0b}
