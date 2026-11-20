@@ -274,11 +274,15 @@ function renderShop(live, frac, amz, amzLy, amzAds) {
   $('shopStrip').innerHTML +=
     tile('Meta ad spend', M ? usd(M.spend) : '—', M ? `${int(M.clicks)} clicks · CPC ${M.clicks ? '$' + (M.spend / M.clicks).toFixed(2) : '—'}` : metaWhy, '', false, C[4], 'Meta (Facebook + Instagram) ad spend today, about 15 minutes behind, in the ad account’s own timezone.')
     + tile('Meta ROAS', M && M.spend ? (on.filter(k => { const m = DATA.brands[k].yoy.meta; return m && m.configured && m.days; }).reduce((t, k) => t + ((DATA.brands[k].yoy.shop || {}).now || []).reduce((s, r) => s + (r.sales || 0), 0), 0) / M.spend).toFixed(2) : '—', M ? `Shopify sales ÷ Meta spend · Meta counts ${int(M.purchases)} purchases, ${usd(M.value)}` : '', '', false, C[5]);
-  const all = amz.sales + sh.sales, allLy = amzLy.sales + shLy.sales, [cA, kA] = change(all, allLy);
+  // Shopify hands an app only the last 60 days of orders unless it holds read_all_orders: last year then reads as nothing,
+  // and adding today's Shopify to a last year without it would flatter the change. Then the change is Amazon's alone.
+  const shLyMissing = sh.orders > 0 && !last.some(r => r.orders > 0);
+  if (shLyMissing) $('shopStrip').children[1].querySelector('.s').textContent = 'Shopify did not give last year’s orders (the app can read 60 days back without read_all_orders)';
+  const all = amz.sales + sh.sales, allLy = shLyMissing ? amzLy.sales : amzLy.sales + shLy.sales, [cA, kA] = change(shLyMissing ? amz.sales : all, allLy);
   const spend = (amzAds ? amzAds.spend : 0) + (M ? M.spend : 0);
   $('allStrip').innerHTML =
     tile('Total sales today', usd(all), `Amazon ${usd(amz.sales)} · Shopify ${usd(sh.sales)}`, '', false, '#6366f1')
-    + tile('Total vs last year', cA, `${dname(DATA.ly, true)}${by}: ${usd(allLy)}`, kA, false, 'var(--y25)')
+    + tile('Total vs last year', cA, shLyMissing ? 'Amazon only: Shopify last year not readable yet' : `${dname(DATA.ly, true)}${by}: ${usd(allLy)}`, kA, false, 'var(--y25)')
     + tile('Total ad spend', amzAds || M ? usd(spend) : '—', [amzAds ? 'Amazon ' + usd(amzAds.spend) : 'Amazon pending', M ? 'Meta ' + usd(M.spend) : 'Meta not connected'].join(' · '), '', false, '#ef4444')
     + tile('Overall TACoS', amzAds || M ? pc(spend, all) : '—', amzAds && M ? 'all ads ÷ all sales' : 'so far without ' + (amzAds ? 'Meta' : 'Amazon ads'), '', false, '#f59e0b', 'All ad spend (Amazon + Meta) ÷ all sales (Amazon + Shopify). Lower is better.')
     + tile('Amazon share', pc(amz.sales, all), `${int(amz.orders)} orders`, '', false, '#3b82f6')

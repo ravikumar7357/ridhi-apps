@@ -13577,7 +13577,13 @@ function yoyRenderShop(V, live, frac, amzToday, amzLySame, amzAds) {
   // --- all channels ---
   const allSales = amzToday.sales + sh.sales, allLy = amzLySame.sales + shLy.sales;
   set('yoyAllSales', yoyMoney(allSales), 'Amazon ' + yoyMoney(amzToday.sales) + ' · Shopify ' + yoyMoney(sh.sales));
-  const [c, cc] = chg(allSales, allLy); set('yoyAllVsLy', c, yoyDate(V.ly) + upTo + ': ' + yoyMoney(allLy), cc);
+  // Shopify hands an app only the last 60 days of orders unless it holds read_all_orders: last year then reads as nothing,
+  // and adding today's Shopify to a last year without it would flatter the change. Then the change is Amazon's alone.
+  const shLyMissing = sh.orders > 0 && !last.some(r => r.orders > 0);
+  if (shLyMissing) {
+    $('yoyShVsLySub').textContent = 'Shopify did not give last year’s orders (the app can read 60 days back without read_all_orders)';
+    const [c, cc] = chg(amzToday.sales, amzLySame.sales); set('yoyAllVsLy', c, 'Amazon only: Shopify last year not readable yet', cc);
+  } else { const [c, cc] = chg(allSales, allLy); set('yoyAllVsLy', c, yoyDate(V.ly) + upTo + ': ' + yoyMoney(allLy), cc); }
   const spend = (amzAds ? amzAds.spend : 0) + (M ? M.spend : 0);
   const parts = [amzAds ? 'Amazon ' + yoyMoney(amzAds.spend) : 'Amazon pending', M ? 'Meta ' + yoyMoney(M.spend) : 'Meta not connected'];
   set('yoyAllSpend', amzAds || M ? yoyMoney(spend) : '—', parts.join(' · '));
