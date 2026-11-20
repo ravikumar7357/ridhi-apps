@@ -233,7 +233,9 @@
     ch = ch.filter(function (c) { return !/^pt_(sync|syncAudit|dataMeter)(\/|$)/.test(c.p); });   /* bookkeeping, not data */
     var ok = function () { return json(answer === undefined ? null : answer); };
     var fail = function (e) {
-      var m = String((e && e.message) || e), st = /not an ERP sign-in|only an admin|API keys|permission denied/.test(m) ? 403 : 503;
+      /* 403 = not allowed (as Firebase's rules), 400 = refused as data (as Firebase answers a save that fails its checks);
+       * either way the screen shows the error and nothing was saved. 503 = ERP data not reachable: try again. */
+      var m = String((e && e.message) || e), st = /not an ERP sign-in|only an admin|API keys|permission denied/.test(m) ? 403 : /not saved/.test(m) ? 400 : 503;
       try { console.warn('[R1] ERP data did not take the save of ' + base + ': ' + m); } catch (x) {}
       return json({ error: m }, st, m.replace(/[^\x20-\x7e]/g, ' ').slice(0, 180));
     };
