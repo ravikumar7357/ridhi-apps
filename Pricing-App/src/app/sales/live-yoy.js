@@ -467,12 +467,14 @@ function yoyRenderPeriod(V, tot, lySame, lyDay) {
   amz.sales += tot.sales; amz.units += tot.units; amz.orders += tot.orders; byDay[T] = { a: tot.sales, s: 0 };
   days.forEach(d => amzK.forEach(k => addRow(amzLy, (H.d[k] || {})[lyOf(d)])));
   amzK.forEach(k => addRow(amzLy, (H.d[k] || {})[lyOf(T)], lyFrac));
-  const shopOn = amzK.includes('SP'), shp = Z(), shpLy = Z();
+  // Shopify: each brand's own store — Ridhi's from the nightly history (SHOP), CPC's built by the backend (SHOP_CPC).
+  const SHOPK = { SP: 'SHOP', CPC: 'SHOP_CPC' };
+  const shopOn = amzK.some(k => H.d[SHOPK[k]] && Object.keys(H.d[SHOPK[k]]).length), shp = Z(), shpLy = Z();
   if (shopOn) {
-    days.forEach(d => { const r = (H.d.SHOP || {})[d]; addRow(shp, r); if (r) byDay[d].s = r[0]; if (r && (!best.shop || r[0] > best.shop[1])) best.shop = [d, r[0]]; });
-    ((YOY.SP.shop || {}).now || []).forEach(r => { shp.sales += r.sales || 0; shp.units += r.units || 0; shp.orders += r.orders || 0; byDay[T].s += r.sales || 0; });
-    days.forEach(d => addRow(shpLy, (H.d.SHOP || {})[lyOf(d)]));
-    addRow(shpLy, (H.d.SHOP || {})[lyOf(T)], lyFrac);
+    days.forEach(d => { let s = 0; amzK.forEach(k => { const r = (H.d[SHOPK[k]] || {})[d]; addRow(shp, r); if (r) s += r[0]; }); byDay[d].s = s; if (s && (!best.shop || s > best.shop[1])) best.shop = [d, s]; });
+    amzK.forEach(k => (((YOY[k] || {}).shop || {}).now || []).forEach(r => { shp.sales += r.sales || 0; shp.units += r.units || 0; shp.orders += r.orders || 0; byDay[T].s += r.sales || 0; }));
+    days.forEach(d => amzK.forEach(k => addRow(shpLy, (H.d[SHOPK[k]] || {})[lyOf(d)])));
+    amzK.forEach(k => addRow(shpLy, (H.d[SHOPK[k]] || {})[lyOf(T)], lyFrac));
   }
   let spend = 0, adFrom = '';
   days.concat([T]).forEach(d => amzK.forEach(k => {
@@ -486,7 +488,8 @@ function yoyRenderPeriod(V, tot, lySame, lyDay) {
   const range = (a, b) => yoyDate(a, false) + ' – ' + yoyDate(b);
   $('yoyPnote').innerHTML = `<b>${NAME} to date</b> · ${range(start, T)} against ${range(lyOf(start), lyOf(T))}`
     + (V.day === sdToday() ? ` · today to ${yoyTime(V.asOf)} PT, last year to the same time` : '')
-    + ` · history to ${H.through ? yoyDate(H.through, false) : '—'}` + (shopOn ? '' : ' · Shopify history is kept for Ridhi’s store only');
+    + ` · history to ${H.through ? yoyDate(H.through, false) : '—'}`
+    + (amzK.includes('CPC') && H.shopCpcFrom && H.shopCpcFrom > start ? ` · CPC Shopify history from ${yoyDate(H.shopCpcFrom, false)} (still filling in)` : '');
   const pc = (a, b) => (b > 0 ? (a / b * 100).toFixed(1) + '%' : '—');
   const chg = (a, b) => { if (!b) return ['—', '']; const p = Math.round((a / b - 1) * 100); return [(p > 0 ? '+' : '') + p + '%', p >= 0 ? 'yoy-up' : 'yoy-down']; };
   const vsZero = (a, b) => (b > 0 ? chg(a, b) : ['+' + yoyMoney(a), a > 0 ? 'yoy-up' : '']);
@@ -515,7 +518,7 @@ function yoyRenderPeriod(V, tot, lySame, lyDay) {
       + yoyCard('yoy-b-organic', 'Share of all sales', pc(shp.sales, all), 'Shopify ÷ (Amazon + Shopify)')
       + yoyCard('sd-b-teal', 'Orders a day', (shp.orders / (days.length + 1)).toFixed(1), 'over ' + (days.length + 1) + ' day' + (days.length ? 's' : '') + ', today included')
       + yoyCard('sd-b-indigo', 'Best day', best.shop ? yoyMoney(best.shop[1]) : '—', best.shop ? yoyDate(best.shop[0], false) : 'today is the first day')
-    : yoyCard('sd-b-cyan', 'Shopify', '—', 'Shopify history is kept for Ridhi’s store only — pick Ridhi or Ridhi + CPC');
+    : yoyCard('sd-b-cyan', 'Shopify', '—', 'This store’s history is still being read (about 60 days every 15 minutes)');
 }
 
 /* ---------- EVENTS (Ravi, 2026-11-20: "a literal Events tab — what the events are, and how we did") ----------
@@ -534,8 +537,9 @@ function yoyRenderEvents(V, tot, lySame, lyDay, H) {
   const T = V.day, Y = Number(T.slice(0, 4)), amzK = V.keys, view = $('paneYoy').dataset.view || 'both', live = T === sdToday();
   const lyFrac = live && lyDay.sales > 0 ? lySame.sales / lyDay.sales : 1;
   const span = (a, b) => { const r = []; for (let d = a; d <= b; d = sdShift(d, 1)) r.push(d); return r; };
-  const shopOn = amzK.includes('SP') && view !== 'amz', amzOn = view !== 'shop';
-  const shNow = (YOY.SP && YOY.SP.shop && YOY.SP.shop.now) || [];
+  // Shopify: each brand's own store — Ridhi's history SHOP (nightly), CPC's SHOP_CPC (built by the backend) — and today live.
+  const SHOPK = { SP: 'SHOP', CPC: 'SHOP_CPC' }, shopOn = view !== 'amz', amzOn = view !== 'shop';
+  const shNow = amzK.flatMap(k => ((YOY[k] || {}).shop || {}).now || []);
   const shopToday = shNow.reduce((t, r) => t + (r.sales || 0), 0), shopTodayO = shNow.reduce((t, r) => t + (r.orders || 0), 0);
   const pc = (a, b) => (b > 0 ? (a / b * 100).toFixed(1) + '%' : '—');
   const chg = (a, b) => { if (!b) return ['—', '']; const p = Math.round((a / b - 1) * 100); return [(p > 0 ? '+' : '') + p + '%', p >= 0 ? 'yoy-up' : 'yoy-down']; };
@@ -549,7 +553,7 @@ function yoyRenderEvents(V, tot, lySame, lyDay, H) {
         if (r) { a += r[0]; o += r[2]; }
       });
     }
-    if (shopOn) { if (d === T) { sp = shopToday; o += shopTodayO; } else { const r = (H.d.SHOP || {})[d]; if (r) { sp = r[0]; o += r[2]; } } }
+    if (shopOn) { if (d === T) { sp = shopToday; o += shopTodayO; } else amzK.forEach(k => { const r = (H.d[SHOPK[k]] || {})[d]; if (r) { sp += r[0]; o += r[2]; } }); }
     return { s: a + sp, o, a, sp };
   };
   const adOn = d => { let s = null; amzK.forEach(k => { const lv = ((YOY[k].ads || {}).days || {})[d], old = ((H.ads || {})[k] || {})[d]; const v = lv ? lv.spend : old ? old[2] : null; if (v != null) s = (s || 0) + Number(v); }); return s; };

@@ -242,8 +242,35 @@ function liveSnapshot_() {
     brands[b] = x;
   });
   var out = { asOf: new Date().toISOString(), day: day, ly: ly, lw: liveShift_(day, -7), from: from, to: to, brands: brands };
+  try { liveShopCpcTick_(day); } catch (e) { out.shopCpcErr = String(e.message || e).slice(0, 200); }
   try { out.hist = liveHist_(day); } catch (e) { out.histErr = String(e.message || e).slice(0, 200); }
   return out;
+}
+
+/* ---- CPC'S SHOPIFY HISTORY (Ravi, 2026-11-20: "add CPC data also") ----
+ * The nightly run keeps daily totals for Ridhi's Shopify store only ("daily".SHOP). CPC's store (CPC_SHOPIFY_*) is built here,
+ * a slice at a time so no run takes long: every 15-minute run reads the last 3 days again (late orders, refunds) and one more
+ * 60-day slice further back, until it reaches 1 January of last year. Same counting as the nightly (shopifyDaily_: line-item
+ * sales, store-local day, voided orders out). Kept in the cache sheet "shopCPC": { at, back: oldest day read, d: { date:
+ * [sales, units, orders] } }; liveHist_ hands it to the pages as d.SHOP_CPC. */
+function liveShopCpcTick_(day) {
+  setShopBrand_('CPC');
+  if (!prop_('CPC_SHOPIFY_TOKEN')) return;
+  var st = cacheRead_('shopCPC') || {}, d = st.d || {}, fromLy = (Number(day.slice(0, 4)) - 1) + '-01-01';
+  var yest = liveShift_(day, -1), deadline = Date.now() + 90000;
+  var put = function (r) { Object.keys(r.dates || {}).forEach(function (k) { d[k] = r.dates[k]; }); };
+  // Recent days, read again every run.
+  var top = shopifyDaily_(liveShift_(day, -3), yest, deadline);
+  if (!top.more) put(top);
+  // One slice further back, until 1 January of last year.
+  var back = st.back || day;
+  if (back > fromLy && Date.now() < deadline) {
+    var end = liveShift_(back, -1), start = liveShift_(end, -59);
+    if (start < fromLy) start = fromLy;
+    var r = shopifyDaily_(start, end, deadline);
+    if (!r.more) { put(r); back = start; }
+  }
+  cacheWrite_('shopCPC', { at: new Date().toISOString(), back: back, d: d });
 }
 
 /* ---- WEEK / MONTH / QUARTER / YEAR on live.html (Ravi, 2026-11-20: "add day, week, month, quarterly and year") ----
@@ -257,10 +284,12 @@ function liveHist_(day) {
   var fromLy = (Number(day.slice(0, 4)) - 1) + '-01-01';
   var cut = function (o) { var r = {}; Object.keys(o || {}).forEach(function (d) { if (d >= fromLy && d <= day) r[d] = o[d]; }); return r; };
   var daily = cacheRead_('daily') || {}, dd = daily.d || {}, ads = cacheRead_('ads') || {}, ad = ads.d || {};
+  var cpc = cacheRead_('shopCPC') || {};               // CPC's Shopify store, built by liveShopCpcTick_
   var last = '';
   ['SP', 'CPC', 'SHOP'].forEach(function (k) { Object.keys(dd[k] || {}).forEach(function (d) { if (d > last && d <= day) last = d; }); });
   return { ok: true, at: daily.at || '', through: last, from: fromLy,      // ok: Sellora's baCall reads any answer without it as a failure
-    d: { SP: cut(dd.SP), CPC: cut(dd.CPC), SHOP: cut(dd.SHOP) }, ads: { SP: cut(ad.SP), CPC: cut(ad.CPC) }, adsAt: ads.at || '' };
+    d: { SP: cut(dd.SP), CPC: cut(dd.CPC), SHOP: cut(dd.SHOP), SHOP_CPC: cut(cpc.d) }, shopCpcFrom: cpc.back || '',
+    ads: { SP: cut(ad.SP), CPC: cut(ad.CPC) }, adsAt: ads.at || '' };
 }
 function liveSnapshotSheet_() {
   var id = prop_('LIVE_SHEET_ID');
