@@ -119,20 +119,41 @@ const STA_STOP = new Set(['a', 'an', 'and', 'the', 'for', 'of', 'with', 'in', 'o
 /* ---------- small helpers ---------- */
 const staEsc = s => String(s == null ? '' : s)
   .replace(/[<>&"']/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&#39;' }[c]));
-const staMoney = v => '$' + (Number(v) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const staMoney0 = v => '$' + Math.round(Number(v) || 0).toLocaleString('en-US');
+// Formatters made once (20 Nov, speed): toLocaleString with options builds a new formatter on every call, and a page of
+// 20,000 terms formats ~200,000 numbers and dates — that alone was 3 of the 5 seconds spent drawing. Same output.
+const STA_NF0 = new Intl.NumberFormat('en-US'), STA_NF2 = new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const STA_DF = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short' }), STA_DFU = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+const staMoney = v => '$' + STA_NF2.format(Number(v) || 0);
+const staMoney0 = v => '$' + STA_NF0.format(Math.round(Number(v) || 0));
 const staPct = v => v == null || !isFinite(v) ? '—' : v.toFixed(1) + '%';
 // ROAS from an ACoS in % (ROAS = 100 ÷ ACoS).
 const staRoas = acos => acos > 0 && isFinite(acos) ? (100 / acos).toFixed(2) : '—';
-const staInt = v => (Number(v) || 0).toLocaleString('en-US');
+const staInt = v => STA_NF0.format(Number(v) || 0);
 const staLow = s => String(s || '').toLowerCase().trim();
 // Lower case, letters, digits and single spaces.
-const staNorm = s => staLow(s).replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
+// Remembered per text (20 Nov, speed): the same ~20,000 terms are normalised by several steps of every model build.
+const STA_NORMC = new Map();
+const staNorm = s => {
+  const k = String(s == null ? '' : s);
+  let v = STA_NORMC.get(k);
+  if (v === undefined) {
+    v = staLow(k).replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
+    if (STA_NORMC.size > 300000) STA_NORMC.clear();
+    STA_NORMC.set(k, v);
+  }
+  return v;
+};
 // One word in the singular: covers → cover, boxes → box, ruffles → ruffle; "dress", "glass" stay.
 const staSing = w => w.length > 3 && /ss$/.test(w) ? w : w.length > 4 && /ies$/.test(w) ? w.slice(0, -3) + 'y'
   : w.length > 4 && /(ches|shes|xes|sses)$/.test(w) ? w.slice(0, -2) : w.length > 3 && /s$/.test(w) ? w.slice(0, -1) : w;
 // A comparison key: singular, no spaces — "table cloths", "tablecloth" and "Table-Cloth" are one key.
-const staKey = s => staNorm(s).split(' ').map(staSing).join('');
+const STA_KEYC = new Map();
+const staKey = s => {
+  const n = staNorm(s);
+  let v = STA_KEYC.get(n);
+  if (v === undefined) { v = n.split(' ').map(staSing).join(''); if (STA_KEYC.size > 300000) STA_KEYC.clear(); STA_KEYC.set(n, v); }
+  return v;
+};
 const staIsAsin = t => /^b0[a-z0-9]{8}$/i.test(String(t || '').trim());
 const staDash = '<span class="sta-dash">—</span>';
 const staBadge = (t, k, tip) => `<span class="ui-badge${k ? ' is-' + k : ''}"${tip ? ` title="${staEsc(tip)}"` : ''}>${staEsc(t)}</span>`;
@@ -142,7 +163,7 @@ const staAutoMt = mt => /PREDEFINED/i.test(mt || '');
 const STA_BRANDS = { SP: 'Ridhi', CPC: 'Cotton Print Club' };
 const staBrandName = b => STA_BRANDS[b] || b;
 const staR2 = v => Math.round(v * 100) / 100;
-const staDay = ms => ms ? new Date(ms).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '';
+const staDay = ms => ms ? STA_DF.format(ms) : '';
 const staDays = ms => Math.floor((Date.now() - ms) / 86400000);
 // Calendar days in this browser's time zone — the dates staDay prints — so one start date always gives one day number,
 // whatever the hour Amazon stamped (18 Nov audit: rows with the same start showed Day 26 and Day 27). staDate0: local
@@ -160,7 +181,7 @@ const staStamp = s => {
 // "2026-10-08" → "8 Oct".
 const staShortDay = iso => {
   const t = Date.parse(String(iso || '').slice(0, 10) + 'T12:00:00Z');
-  return t ? new Date(t).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' }) : String(iso || '');
+  return t ? STA_DFU.format(t) : String(iso || '');
 };
 // Clicks still needed before 0 orders would be unlikely to be chance at conversion rate p; 0 when already enough.
 const staNeed = (p, c, lv) => p > 0 && p < 1 ? Math.max(0, Math.ceil(Math.log(lv || STA.CHANCE) / Math.log(1 - p)) - c) : 0;
@@ -384,6 +405,24 @@ async function staLoad_() {
     staTitlesLater();
   }
 }
+// Newer data behind a screen opened from this browser's copy (baCache): read again and redraw — not while a dialog is open
+// (the redraw waits for the next one). The caches this screen reads; Placement's decisions come from the same ones.
+const STA_CACHES = ['srchTerm', 'targeting', 'adGroup', 'adEntities', 'stSettled', 'stRecent', 'tgtSettled', 'tgtRecent', 'plcSettled', 'plcRecent'];
+let STA_NEWER_T = 0;
+window.addEventListener('sellora-cache', e => {
+  if (!e.detail || !STA_CACHES.includes(e.detail.name)) return;
+  e.detail.handled = true;
+  clearTimeout(STA_NEWER_T);
+  STA_NEWER_T = setTimeout(async () => {
+    ST.loaded = false;
+    ST.extra = false;
+    try { await staLoad(); } catch (x) { return; }
+    STM = null;
+    const open = id => $(id) && !$(id).classList.contains('hide');
+    if (open('paneSt') && !open('stDlg') && !open('stRl')) renderSt();
+    if (open('panePlc') && typeof renderPlx === 'function') renderPlx();
+  }, 900);
+});
 // Listing Health's titles, once, after the first draw: product words come from them, and own ASINs are named.
 let STA_TITLES = false;
 function staTitlesLater() {
@@ -1996,13 +2035,27 @@ function staDrawPaths(L) {
 
 // Can this term safely be a negative PHRASE where it ran? Not when it is protected, or when a longer term containing it
 // sold in the same campaign (a phrase negative would block that too). { ok, why }.
+// Selling rows, indexed once per model (20 Nov, speed): the phrase and same-campaign checks scanned all ~20,000 rows for
+// every row drawn. byCp: brand|campaign → its selling terms (normalised, padded); byTk: brand|term|campaign → ad groups.
+function staSoldIdx(M) {
+  if (M._sold) return M._sold;
+  const byCp = new Map(), byTk = new Map();
+  M.rows.forEach(x => {
+    if (!(x.o > 0)) return;
+    const k = x.brand + '|' + x.cid;
+    (byCp.get(k) || byCp.set(k, []).get(k)).push({ r: x, n: ' ' + staNorm(x.term) + ' ' });
+    const t = x.brand + '|' + x.tk + '|' + x.cid;
+    (byTk.get(t) || byTk.set(t, new Set()).get(t)).add(x.ag);
+  });
+  return (M._sold = { byCp, byTk });
+}
 function staPhraseOk(r) {
   if (r.noNeg || r.main) return { ok: false, why: r.noNeg || 'main keyword' };
   if (r.containsProduct) return { ok: false, why: 'it contains a product word, so it would block searches that sell' };
   if (r.term.trim().split(/\s+/).length > STA.NEG.negativePhrase.words) return { ok: false, why: `phrase negatives take at most ${STA.NEG.negativePhrase.words} words` };
   const M = STM || staModel();
   const pat = ' ' + staNorm(r.term) + ' ';
-  const hit = M.rows.find(x => x !== r && x.brand === r.brand && x.cid === r.cid && x.o > 0 && (' ' + staNorm(x.term) + ' ').includes(pat));
+  const hit = (staSoldIdx(M).byCp.get(r.brand + '|' + r.cid) || []).find(y => y.r !== r && y.n.includes(pat));
   return hit ? { ok: false, why: `"${hit.term}" contains it and sold ${hit.o} order${hit.o === 1 ? '' : 's'} in this campaign` } : { ok: true, why: '' };
 }
 // One click from the row: negative exact (or ASIN), or phrase, after staQuick's checks.
@@ -2676,7 +2729,8 @@ function staQuick(r) {
   if (n === 'neg') {
     const mainOk = r.main && !r.noNeg && r.routing && r.group && r.group.lead.own;
     if (r.noNeg || (r.main && !mainOk)) return { skip: r.noNeg || 'main keyword' };
-    const sameCp = M.rows.some(x => x.brand === r.brand && x.tk === r.tk && x.ag !== r.ag && x.cid === r.cid && x.o > 0);
+    const ags = staSoldIdx(M).byTk.get(r.brand + '|' + r.tk + '|' + r.cid);
+    const sameCp = !!ags && (ags.size > 1 || !ags.has(r.ag));
     const level = r.asin || sameCp || r.pathLevel === 'ag' ? 'ag' : 'cp';
     const type = r.asin ? 'na' : 'negativeExact';
     if (!r.asin && (r.term.trim().split(/\s+/).length > 10 || r.term.length > 80)) return { skip: 'too long' };
@@ -3229,7 +3283,12 @@ let STA_PLAN = null;
 function staPlanRules(L) {
   const M = L.M, out = [];
   const ready = r => { try { return !!staQuick(r).items; } catch (e) { return false; } };
-  const pick = (rows, f, sort) => rows.filter(r => f(r) && ready(r)).sort(sort || ((a, z) => (z.stake || z.burned || 0) - (a.stake || a.burned || 0))).slice(0, 40);
+  // Biggest first, checking readiness only until 40 are found (20 Nov, speed: it checked every candidate).
+  const pick = (rows, f, sort) => {
+    const out = [];
+    for (const r of rows.filter(f).sort(sort || ((a, z) => (z.stake || z.burned || 0) - (a.stake || a.burned || 0)))) { if (ready(r)) out.push(r); if (out.length >= 40) break; }
+    return out;
+  };
   const sum = rs => rs.reduce((t, r) => t + (r.stake || r.burned || 0), 0);
   const add = (id, rows, title, why, kind) => { if (rows.length) out.push({ id, kind, title: title(rows), why: why(rows), money: sum(rows), keys: rows.map(r => r.key) }); };
   const top = rs => rs.slice(0, 3).map(r => `"${r.term || r.target || r.gram}"`).join(', ');

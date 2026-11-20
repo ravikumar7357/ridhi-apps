@@ -3731,6 +3731,10 @@
   .sta-clashtxt{color:var(--bad-ink)!important;font-weight:600;white-space:normal}
   .sta-mf button.sta-armed{background:var(--bad);color:#fff;box-shadow:none}
   .sta-mf button svg.sta-lock{width:12px;height:12px;margin-right:6px;vertical-align:-1px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+  /* "Newer data has arrived" (brand-analytics.js baNewerBar): a screen opened from this browser's copy */
+  .ba-newer{position:fixed;right:20px;bottom:20px;z-index:60;display:flex;align-items:center;gap:10px;padding:10px 12px 10px 16px;border-radius:12px;background:var(--card);color:var(--ink);box-shadow:0 8px 28px rgba(0,0,0,.18),inset 0 0 0 1px var(--line);font-size:13px}
+  .ba-newer button{font-size:12.5px;padding:6px 12px}
+  .ba-newer button.ghost{padding:6px 8px}
   /* Action dialog: the Apply line runs the full width above the buttons, not squeezed beside them */
   #stDlg .sta-mf{flex-wrap:wrap;row-gap:12px}
   #stDlg .sta-mf>small{flex:1 1 100%;max-width:none;padding:8px 12px;border-radius:var(--r-row);background:var(--soft)}
