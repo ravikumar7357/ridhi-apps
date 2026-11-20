@@ -205,30 +205,41 @@ function lines(host, labels, ls) {
 function tile(k, v, s, cls, hl, c, title) { return `<div class="tile${hl ? ' hl' : ''}"${c ? ` style="--c:${c}"` : ''}${title ? ` title="${title}"` : ''}><div class="k">${k}</div><div class="v ${cls || ''}">${v}</div><div class="s">${s}</div></div>`; }
 const pc = (a, b) => (b > 0 ? (a / b * 100).toFixed(1) + '%' : '—');
 
-/* The advertising row: Sponsored Products from the Ads API, stored by the backend every 15 minutes (Pricing-API/SalesLive.gs,
-   liveAdsTick_) — brands[k].yoy.ads = { at, days: { date: { impressions, clicks, spend, orders, sales } }, err }.
-   Amazon's ad figures for today run an hour or more behind the sales, so last week's whole day is shown beside them. */
-function renderAds(V, tot, lwDay) {
-  const key = $('brand').value;
-  const ads = (key === 'ALL' ? Object.keys(BRANDS) : [key]).map(k => DATA.brands[k] && DATA.brands[k].yoy && DATA.brands[k].yoy.ads).filter(Boolean);
-  const sum = d => { let t = null; ads.forEach(a => { const r = a.days && a.days[d]; if (r) { t = t || { impressions: 0, clicks: 0, spend: 0, orders: 0, sales: 0 }; for (const f in t) t[f] += Number(r[f]) || 0; } }); return t; };
-  const A = sum(DATA.day), W = sum(DATA.lw), lw = dname(DATA.lw);
+/* The advertising row: Sponsored Products + Brands + Display from the Ads API, stored by the backend (Pricing-API/SalesLive.gs,
+   liveAdsTick_) — brands[k].yoy.ads = { at, types, days: { date: { impressions, clicks, spend, orders, sales } }, err };
+   brands[k].yoy.week = the 7 days to today by day (Sales API). The big figure is today; under it, yesterday and the 7 days
+   (Ravi, 2026-11-20: "do for this day and this week"). Amazon's ad figures for today run behind the sales. */
+function renderAds(V, tot) {
+  const key = $('brand').value, on = (key === 'ALL' ? Object.keys(BRANDS) : [key]).filter(k => DATA.brands[k] && DATA.brands[k].yoy);
+  const ads = on.map(k => DATA.brands[k].yoy.ads).filter(a => a && a.days);
+  const Z = () => ({ impressions: 0, clicks: 0, spend: 0, orders: 0, sales: 0 });
+  const sum = d => { let t = null; ads.forEach(a => { const r = a.days[d]; if (r) { t = t || Z(); for (const f in t) t[f] += Number(r[f]) || 0; } }); return t; };
+  const salesOn = {};
+  on.forEach(k => (DATA.brands[k].yoy.week || []).forEach(r => { const d = String(r.t).slice(0, 10); salesOn[d] = (salesOn[d] || 0) + (r.sales || 0); }));
+  salesOn[DATA.day] = tot.sales;
+  const sh = (d, n) => new Date(new Date(d + 'T12:00:00Z').getTime() + n * 864e5).toISOString().slice(0, 10);
+  const yd = sh(DATA.day, -1), week = [...Array(7).keys()].map(i => sh(DATA.day, i - 6));
+  const A = sum(DATA.day), Y = sum(yd);
+  const Wk = week.reduce((t, d) => { const r = sum(d); if (r) for (const f in t) t[f] += r[f]; return t; }, Z());
+  const wkSales = week.reduce((t, d) => t + (salesOn[d] || 0), 0), haveWk = week.every(d => salesOn[d] != null);
   if (!A) {
-    const err = ads.map(a => a.err).filter(Boolean)[0];
-    $('adsNote').textContent = err ? '· could not read the ad report (' + err + ')' : '· the ad figures arrive within about 30 minutes of the backend update';
+    const err = ads.map(a => a.err).concat(on.map(k => (DATA.brands[k].yoy.ads || {}).err)).filter(Boolean)[0];
+    $('adsNote').textContent = err ? '· could not read the ad report (' + err + ')' : '· waiting for Amazon’s ad report (it can take up to an hour)';
     $('adStrip').innerHTML = ['Ad spend', 'TACoS', 'ACoS', 'Ad sales', 'Organic sales', 'Clicks · CPC'].map((k, i) => tile(k, '—', i ? '' : 'waiting for Amazon’s ad report', '', false, AD_C[i])).join('');
     return;
   }
   const at = ads.map(a => a.at).filter(Boolean).sort()[0];
-  $('adsNote').textContent = '· Sponsored Products, Amazon Ads API' + (at ? ' · report asked at ' + ptHM(at) + ' PT' : '');
+  const types = [...new Set(ads.flatMap(a => a.types || ['Products']))];
+  $('adsNote').textContent = '· Sponsored ' + types.join(' + ') + ', Amazon Ads API' + (at ? ' · report asked at ' + ptHM(at) + ' PT' : '');
+  const sub = (y, w) => [Y ? 'Yesterday ' + y : '', w != null ? '7 days ' + w : ''].filter(Boolean).join(' · ');
   const org = Math.max(0, tot.sales - A.sales);
   $('adStrip').innerHTML =
-    tile('Ad spend', usd(A.spend), W ? `${lw} whole day: ${usd(W.spend)}` : '', '', false, AD_C[0], 'Sponsored Products spend today. It runs an hour or more behind the sales figures.')
-    + tile('TACoS', pc(A.spend, tot.sales), W && lwDay.sales ? `${lw}: ${pc(W.spend, lwDay.sales)}` : 'ad spend ÷ all sales', '', false, AD_C[1], 'Ad spend ÷ ALL Amazon sales today. Lower is better.')
-    + tile('ACoS', pc(A.spend, A.sales), (A.spend ? 'ROAS ' + (A.sales / A.spend).toFixed(2) : '') + (W && W.sales ? ` · ${lw}: ${pc(W.spend, W.sales)}` : ''), '', false, AD_C[2], 'Ad spend ÷ the sales Amazon credits to the ads (30-day attribution).')
-    + tile('Ad sales', usd(A.sales), `${int(A.orders)} ad orders · ${pc(A.sales, tot.sales)} of all sales`, '', false, AD_C[3])
-    + tile('Organic sales', usd(org), `${pc(org, tot.sales)} of all sales`, '', false, AD_C[4], 'All sales minus ad sales.')
-    + tile('Clicks · CPC', int(A.clicks), `${A.clicks ? 'CPC $' + (A.spend / A.clicks).toFixed(2) : 'CPC —'} · CTR ${pc(A.clicks, A.impressions)} · ${int(A.impressions)} views`, '', false, AD_C[5]);
+    tile('Ad spend', usd(A.spend), sub(Y && usd(Y.spend), usd(Wk.spend)), '', false, AD_C[0], 'Spend on Sponsored Products, Brands and Display today. It runs behind the sales figures.')
+    + tile('TACoS', pc(A.spend, tot.sales), sub(Y && pc(Y.spend, salesOn[yd]), haveWk ? pc(Wk.spend, wkSales) : null) || 'ad spend ÷ all sales', '', false, AD_C[1], 'Ad spend ÷ ALL Amazon sales. Lower is better.')
+    + tile('ACoS', pc(A.spend, A.sales), (A.spend ? 'ROAS ' + (A.sales / A.spend).toFixed(2) + ' · ' : '') + sub(Y && pc(Y.spend, Y.sales), pc(Wk.spend, Wk.sales)), '', false, AD_C[2], 'Ad spend ÷ the sales Amazon credits to the ads (7-day for Products, 14-day for Brands and Display, as in the Ads console).')
+    + tile('Ad sales', usd(A.sales), `${int(A.orders)} ad orders · ${pc(A.sales, tot.sales)} of all sales · 7 days ${usd(Wk.sales)}`, '', false, AD_C[3])
+    + tile('Organic sales', usd(org), `${pc(org, tot.sales)} of all sales` + (haveWk ? ` · 7 days ${pc(Math.max(0, wkSales - Wk.sales), wkSales)}` : ''), '', false, AD_C[4], 'All sales minus ad sales.')
+    + tile('Clicks · CPC', int(A.clicks), `${A.clicks ? 'CPC $' + (A.spend / A.clicks).toFixed(2) : 'CPC —'} · CTR ${pc(A.clicks, A.impressions)} · 7 days CPC ${Wk.clicks ? '$' + (Wk.spend / Wk.clicks).toFixed(2) : '—'}`, '', false, AD_C[5]);
 }
 const AD_C = ['#ef4444', '#f59e0b', '#8b5cf6', '#3b82f6', '#22c55e', '#64748b'];
 function change(a, b) { if (!b) return ['—', '']; const p = Math.round((a / b - 1) * 100); return [(p > 0 ? '+' : '') + p + '%', p >= 0 ? 'up' : 'dn']; }
@@ -257,7 +268,7 @@ function render() {
     + tile('Last year, whole day', usd(lyDay.sales), `${lyDay.sales ? Math.round(tot.sales / lyDay.sales * 100) + '% of it reached · ' : ''}${int(lyDay.orders)} orders`, '', false, '#a855f7')
     + tile('Pace for the day', live && lySame.sales ? usd(tot.sales * lyDay.sales / lySame.sales) : '—', live && lySame.sales ? `if the rest of today follows ${dname(DATA.ly)}'s shape` : 'needs last year by this hour', '', false, '#6366f1')
     + tile('Average order', aov(tot), (tot.orders ? (tot.units / tot.orders).toFixed(2) + ' units an order' : '') + (lySame.orders ? ' · last year ' + aov(lySame) : ''), '', false, '#ec4899');
-  renderAds(V, tot, V.lastWeek.reduce(add, zero()));
+  renderAds(V, tot);
   $('lgNow').textContent = live ? 'Today' : dname(DATA.day); $('lgLy').textContent = dname(DATA.ly, true) + ' (last year)'; $('lgLw').textContent = dname(DATA.lw) + ' (last week)';
 
   const hrs = [...Array(24).keys()];
