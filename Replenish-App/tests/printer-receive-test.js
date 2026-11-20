@@ -29,7 +29,7 @@ const PARTS = [line(VO, 'const voLines ='), line(VO, 'const voParts ='), line(VP
   line(PR, 'const VPR ='), line(PR, 'const VPR_RETRY_MS ='), cut(PR, 'vprEnsure'), line(PR, 'const vprOn ='), line(PR, 'const vprMay ='), line(PR, 'const vprReady ='), (src => { const i = src.indexOf('const vprKeys ='); return src.slice(i, src.indexOf('};\n', i) + 3); })(PR),
   line(PR, 'let VPR_IX ='), cut(PR, 'vprDueIndex'), cut(PR, 'vprTargets'), cut(PR, 'vprOffer'), cut(PR, 'vprKeysPending'), cut(PR, 'vprReceiveLine'), cut(PR, 'vprSplit'), cut(PR, 'vprShareOut'),
   cut(PR, 'vprWholePieces'), cut(PR, 'vprRoundMetres'), line(PR, 'const vprOnlyGiven ='), cut(PR, 'vprFabricCell'), cut(PR, 'vprRecvCell'),
-  cut(PR, 'vprSplitHint'), cut(PR, 'vprSheet'), cut(PR, 'vprReceive'), cut(PR, 'vprBarSync'), line(PR, 'const VPR_HIST ='), line(PR, 'const vprHistRows ='), cut(PR, 'vprHistTotals'), cut(PR, 'vprHistHtml'), (src => { const i = src.indexOf('const VP_DUE_ONLY ='); return src.slice(i, src.indexOf('\n};', i) + 3); })(VP), cut(VP, 'vpDueOnlyOk'), cut(VP, 'vpDueChip'), cut(VP, 'vpRejNote'), line(PR, 'const VPR_REJ_REASONS ='), line(PR, 'const VPR_REJ ='), cut(PR, 'vprReject'), line(PR, 'const vprRejLink ='), cut(PR, 'vprFabricOf'), cut(PR, 'vprHistRejects'), line(PR, 'const vprIsoOfDmy ='), line(PR, 'const vprSkuFabric ='), cut(PR, 'vprHistOld'), (src => { const i = src.indexOf('const vprHistAll ='); return src.slice(i, src.indexOf('\nfunction', i) + 1); })(PR), cut(PR, 'vprRejSeen'), line(PR, 'const vprRejPending ='), (src => { const i = src.indexOf('const flowMixTxt ='); return src.slice(i, src.indexOf("'0'; };", i) + 7); })(FR)].join('\n');
+  cut(PR, 'vprSplitHint'), cut(PR, 'vprSheet'), cut(PR, 'vprReceive'), cut(PR, 'vprBarSync'), cut(PR, 'vprTabSync'), line(PR, 'const VPR_HIST ='), line(PR, 'const vprHistRows ='), cut(PR, 'vprHistTotals'), cut(PR, 'vprHistHtml'), (src => { const i = src.indexOf('const VP_DUE_ONLY ='); return src.slice(i, src.indexOf('\n};', i) + 3); })(VP), cut(VP, 'vpDueOnlyOk'), cut(VP, 'vpDueChip'), cut(VP, 'vpRejNote'), line(PR, 'const VPR_REJ_REASONS ='), line(PR, 'const VPR_REJ ='), cut(PR, 'vprReject'), line(PR, 'const vprRejLink ='), cut(PR, 'vprFabricOf'), cut(PR, 'vprHistRejects'), line(PR, 'const vprIsoOfDmy ='), line(PR, 'const vprSkuFabric ='), cut(PR, 'vprHistOld'), (src => { const i = src.indexOf('const vprHistAll ='); return src.slice(i, src.indexOf('\nfunction', i) + 1); })(PR), cut(PR, 'vprRejSeen'), line(PR, 'const vprRejPending ='), (src => { const i = src.indexOf('const flowMixTxt ='); return src.slice(i, src.indexOf("'0'; };", i) + 7); })(FR)].join('\n');
 let pass = 0, fail = 0;
 const ok = (n, c, d) => { if (c) { pass++; console.log('  PASS ' + n); } else { fail++; console.log('  FAIL ' + n + (d ? ' — ' + d : '')); } };
 
@@ -54,7 +54,7 @@ function load(o) {
   };
   function flowDueRecvSaveSaid() { ctx.flowDueRecvSave.said = 'Received from RBP-Bagru on RFD-1.'; }
   const names = Object.keys(ctx);
-  const A = new Function(...names, PARTS + '\nreturn { vpVsSum, vpVsWait, vpVsApproved, vpOrdOf, vpVsSplit, vpVsAdd, vpLineIsHist, vpCustStatus, vpCustKpis, flowExtraAsks, flowExtraAnswer, vprSplit, vprOffer, vprRecvCell, vprSheet, vprReceive, vprBarSync, vprEnsure, VPR, VPR_HIST, vprHistRows, vprHistTotals, vprHistHtml, vpDueOnlyOk, vpDueChip, vpSentKept, vprHistOld, vprReject, vpRejNote, vprRejSeen, vprRejPending, VPR_REJ };')(...names.map(k => ctx[k]));
+  const A = new Function(...names, PARTS + '\nreturn { vpVsSum, vpVsWait, vpVsApproved, vpOrdOf, vpVsSplit, vpVsAdd, vpLineIsHist, vpCustStatus, vpCustKpis, flowExtraAsks, flowExtraAnswer, vprSplit, vprOffer, vprRecvCell, vprSheet, vprReceive, vprBarSync, vprTabSync, vprEnsure, VPR, VPR_HIST, vprHistRows, vprHistTotals, vprHistHtml, vpDueOnlyOk, vpDueChip, vpSentKept, vprHistOld, vprReject, vpRejNote, vprRejSeen, vprRejPending, VPR_REJ };')(...names.map(k => ctx[k]));
   return Object.assign(A, { patches: ctx.patches, puts, saves, said, syncs, els, ctx });
 }
 
@@ -203,9 +203,22 @@ const L = { lineId: 'a', sku: 'X', qty: 4 };
     ok('an admin on the printer’s view sees "Extra pieces to approve (1)" for that printer', /data-vprxopen/.test(A.els.flVpX.innerHTML) && /navbadge[^>]*>1</.test(A.els.flVpX.innerHTML), A.els.flVpX.innerHTML);
     const N = load({ vo: [ask('P1', 'o1')], me: { admin: false, tabs: ['flchl'] }, vp: { viewAs: true } });
     N.vprBarSync();
-    ok('…the challan person (not an admin) sees no approve button, only History', !/data-vprxopen/.test(N.els.flVpX.innerHTML) && /data-vprhist/.test(N.els.flVpX.innerHTML));
+    ok('…the challan person (not an admin) sees no approve button', !/data-vprxopen/.test(N.els.flVpX.innerHTML));
     const Vw = load({ vo: [], me: { tabs: ['vpview'] }, vp: { viewAs: true } }); Vw.vprBarSync();
-    ok('…the view-only box sees neither', Vw.els.flVpX.innerHTML === '');
+    ok('…the view-only box sees none', Vw.els.flVpX.innerHTML === '');
+  }
+
+  /* ---- History in place of Completed on the office's view (20 Nov) ---- */
+  {
+    const tabRow = A => { const el = { cls: new Set(), classList: { toggle: (c, on) => { if (on) el.cls.add(c); else el.cls.delete(c); } } };
+      A.els.vpTabDone = { insertAdjacentHTML: (where, html) => { el.where = where; el.html = html; A.els.vpTabRx = el; } }; return A; };
+    const C = tabRow(load({ me: { tabs: ['flchl'] }, vp: { viewAs: true } }));
+    C.vprTabSync(); C.vprTabSync();
+    ok('the challan person gets a History button right after where Completed was, once', C.els.vpTabRx && C.els.vpTabRx.where === 'afterend' && /data-vprhist="1"/.test(C.els.vpTabRx.html) && />History</.test(C.els.vpTabRx.html) && !C.els.vpTabRx.cls.has('hide'));
+    const V = tabRow(load({ me: { tabs: ['vpview'] }, vp: { viewAs: true } })); V.vprTabSync();
+    ok('…the view-only box gets none', !V.els.vpTabRx);
+    const P = tabRow(load({ me: { tabs: ['flchl'] }, vp: { viewAs: true }, vendor: true })); P.vprTabSync();
+    ok('…a printer\'s own sign-in gets none (it keeps Completed)', !P.els.vpTabRx);
   }
 
   /* ---- the strip's figures are buttons (19 Nov) ---- */

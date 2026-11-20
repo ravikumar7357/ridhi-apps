@@ -53638,7 +53638,7 @@ function renderVp() {
     tabs.classList.toggle('hide', false);
     if (!shopN && !histOrders.length && VP.tab === 'shop') VP.tab = 'bulk';
     $('vpTabDone').classList.toggle('hide', !doneN);
-    if (!doneN && VP.tab === 'done') VP.tab = 'bulk';
+    if ((!doneN || vprOn()) && VP.tab === 'done') VP.tab = 'bulk';   // the office has History in its place (printer-receive.js, 20 Nov)
     if ($('vpTabVs')) $('vpTabVs').classList.toggle('hide', !vsN && VP.tab !== 'vsent');
     $('vpTabShop').classList.toggle('hide', !shopN && !histOrders.length);
     /* WHAT I HAVE SENT (Ravi, 20 Nov): gone from the office's printer's view (History covers what came in); a printer's own sign-in keeps
@@ -53654,6 +53654,7 @@ function renderVp() {
     paint('vpTabShop', VP.tab === 'shop', 'Custom orders', shopN);
     paint('vpTabVs', VP.tab === 'vsent', 'Vendor sent', vsN);
     paint('vpTabDone', VP.tab === 'done', 'Completed', doneN);
+    if (vprOn()) $('vpTabDone').classList.add('hide');   // after paint, which sets the whole class
     paint('vpTabHist', VP.tab === 'hist', 'What I have sent', histN);
     if ($('vpTabHist')) $('vpTabHist').classList.toggle('hide', !histShown);   // after paint, which sets the whole class
     /* Counted as things still to hear about, not as things ever asked — a printer wants to know what
@@ -53730,7 +53731,7 @@ function renderVp() {
   /* The office's one table on every tab (printer-receive.js): no choice of view there. */
   const office = vprOn() && VPR_TABS.includes(VP.tab);
   ['vpView', 'vpStatus', 'vpType', 'vpQ', 'vpExport'].forEach(id => { if ($(id)) $(id).classList.toggle('hide', rfdTab || dchTab || ((VP.tab === 'shop' || office) && (id === 'vpView' || id === 'vpType'))); });
-  vprBarSync();
+  vprBarSync(); vprTabSync();
   if (typeof vsxSync === 'function') vsxSync();   // Sent sheet / Upload sent sheet (vendor-sent-excel.js)
   if (rfdTab) { vpRfdRender(matched, nag); return; }
   /* DAILY CHALLAN (4 Nov, daily-challan.js): the printer's own delivery challan, and theirs by date */
@@ -55707,12 +55708,11 @@ if (typeof document !== 'undefined' && typeof document.addEventListener === 'fun
 });
 
 /* ---- extra pieces to approve, for the printer on screen (admins) ---- */
-/** The PRINTER'S VIEW bar's buttons, filled on every draw: History (who may receive) and how many extras this printer is waiting on (admins). */
+/** The PRINTER'S VIEW bar, filled on every draw: how many extras this printer is waiting on (admins). */
 function vprBarSync() {
   const slot = $('flVpX'); if (!slot) return;
   const n = vprOn() && ME.admin && vprReady() ? flowExtraAsks(VP.code).length : 0;
-  const hist = vprMay() && vprReady() && VP.code ? '<button type="button" class="ghost" data-vprhist="1" style="width:auto;padding:6px 12px;font-size:12.5px;margin-right:6px" title="What came from this printer, with the fabric">History</button>' : '';
-  slot.innerHTML = hist + (n ? `<button type="button" data-vprxopen="1" style="width:auto;padding:6px 12px;font-size:12.5px;background:#b45309;border-color:#b45309">Extra pieces to approve <span class="navbadge" style="position:static;background:#fff;color:#b45309">${nf(n)}</span></button>` : '');
+  slot.innerHTML = (n ? `<button type="button" data-vprxopen="1" style="width:auto;padding:6px 12px;font-size:12.5px;background:#b45309;border-color:#b45309">Extra pieces to approve <span class="navbadge" style="position:static;background:#fff;color:#b45309">${nf(n)}</span></button>` : '');
 }
 if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') document.addEventListener('click', e => {
   const t = e.target; if (!t || !t.closest || !t.closest('[data-vprxopen]')) return;
@@ -55720,6 +55720,16 @@ if (typeof document !== 'undefined' && typeof document.addEventListener === 'fun
   /* The answer is written on the printer's own branch: read it again when the window closes, so the table counts what was approved. */
   flowExtraOpen(VP.code, async () => { VP.rows = null; await ensureVp(); });
 });
+
+/* HISTORY IN PLACE OF COMPLETED (Ravi, 20 Nov: "in place of complete button put history button and remove the complete tab"). On the
+ * office's printer's view the Completed tab is gone (vendor-portal.js) and History sits where it was, in the tab row, for those who may
+ * receive. A printer's own sign-in keeps its Completed tab: it cannot read our challans, which History is made from. */
+function vprTabSync() {
+  const done = $('vpTabDone'); if (!done || !done.insertAdjacentHTML) return;
+  const show = vprMay() && vprReady() && !!VP.code;
+  if (show && !$('vpTabRx')) done.insertAdjacentHTML('afterend', '<button type="button" id="vpTabRx" class="ghost" data-vprhist="1" title="What came from this printer, with the fabric — and what was rejected">History</button>');
+  if ($('vpTabRx')) $('vpTabRx').classList.toggle('hide', !show);
+}
 
 /* ---- History: what came from the printer on screen ----
  * Ravi, 19 Nov: "add a history button to see what fabric we have got". Every receipt from this printer, newest first: the day, the
