@@ -13676,7 +13676,7 @@ function yoyRenderShop(V, live, frac, amzToday, amzLySame, amzLwSame, amzAds) {
 }
 
 /* ---------- WEEK / MONTH / QUARTER / YEAR to date (Ravi, 2026-11-20) — the same as live.html's renderPeriod ----------
- * YOY_H = ?live=hist → { through, d: { SP, CPC, SHOP: { date: [sales, units, orders] } }, ads: { SP, CPC: { date: [impr,
+ * YOY_HIST = ?live=hist → { through, d: { SP, CPC, SHOP: { date: [sales, units, orders] } }, ads: { SP, CPC: { date: [impr,
  * clicks, spend, orders, sales] } } } — the nightly history (Pricing-API/SalesLive.gs liveHist_), read once and again every
  * ten minutes while a period is on view. A period to date = its finished days from that history (Amazon days it has not
  * reached yet come from the live week) + today's live figures. Last year: week = the same weekdays 364 days back; month,
@@ -13684,14 +13684,15 @@ function yoyRenderShop(V, live, frac, amzToday, amzLySame, amzLwSame, amzAds) {
  * Shopify history is Ridhi's store (first sale 28 Dec 2025, so last year is $0). Ad spend: the live report (Products + Brands
  * + Display) where it reaches, the nightly Sponsored Products figure before; TACoS only over the days that have ad figures. */
 let YOY_PERIOD = 'day';
-let YOY_H = null, YOY_H_AT = 0, YOY_H_BUSY = false, YOY_H_ERR = '';
+// Named YOY_HIST*, not YOY_H*: YOY_H is the charts' height further down this file.
+let YOY_HIST = null, YOY_HIST_AT = 0, YOY_HIST_BUSY = false, YOY_HIST_ERR = '';
 // At most one read per ten minutes, failed or not — a failing read must not be retried on every redraw.
 async function yoyLoadHist(force) {
-  if (YOY_H_BUSY || (!force && YOY_H_AT && Date.now() - YOY_H_AT < 10 * 60 * 1000)) return;
-  YOY_H_BUSY = true; YOY_H_AT = Date.now();
-  try { YOY_H = await baCall({ live: 'hist', day: $('yoyDay').value || sdToday() }); YOY_H_ERR = ''; }
-  catch (e) { YOY_H_ERR = String(e.message || e); }
-  finally { YOY_H_BUSY = false; }
+  if (YOY_HIST_BUSY || (!force && YOY_HIST_AT && Date.now() - YOY_HIST_AT < 10 * 60 * 1000)) return;
+  YOY_HIST_BUSY = true; YOY_HIST_AT = Date.now();
+  try { YOY_HIST = await baCall({ live: 'hist', day: $('yoyDay').value || sdToday() }); YOY_HIST_ERR = ''; }
+  catch (e) { YOY_HIST_ERR = String(e.message || e); }
+  finally { YOY_HIST_BUSY = false; }
   yoyRender();
 }
 function yoyCard(cls, k, v, sub, vcls, title) {
@@ -13700,9 +13701,9 @@ function yoyCard(cls, k, v, sub, vcls, title) {
 function yoyRenderPeriod(V, tot, lySame, lyDay) {
   $('paneYoy').dataset.period = YOY_PERIOD;
   if (YOY_PERIOD === 'day') return;
-  const H = YOY_H, amzK = V.keys, T = V.day;
+  const H = YOY_HIST, amzK = V.keys, T = V.day;
   yoyLoadHist();                                     // a no-op unless ten minutes have passed
-  if (!H || !H.d) { $('yoyPnote').textContent = YOY_H_ERR ? 'Could not read the history for the period: ' + YOY_H_ERR : 'Reading the history…'; ['yoyPAll', 'yoyPAmz', 'yoyPShop'].forEach(id => { $(id).innerHTML = ''; }); return; }
+  if (!H || !H.d) { $('yoyPnote').textContent = YOY_HIST_ERR ? 'Could not read the history for the period: ' + YOY_HIST_ERR : 'Reading the history…'; ['yoyPAll', 'yoyPAmz', 'yoyPShop'].forEach(id => { $(id).innerHTML = ''; }); return; }
   const sh = (d, n) => sdShift(d, n);
   const lyDate = d => { const y = Number(d.slice(0, 4)) - 1, md = d.slice(5) === '02-29' ? '02-28' : d.slice(5); return y + '-' + md; };
   const dow = (new Date(T + 'T12:00:00Z').getUTCDay() + 6) % 7, mo = Number(T.slice(5, 7));
@@ -13880,7 +13881,7 @@ function yoyTable(V, live, n) {
 
 /* ---------- controls ---------- */
 $('yoyRefresh').onclick = () => yoyLoad();
-$('yoyDay').onchange = () => { YOY_H = null; YOY_H_AT = 0; yoyLoad(); };   // the history is cut at the day on view
+$('yoyDay').onchange = () => { YOY_HIST = null; YOY_HIST_AT = 0; yoyLoad(); };   // the history is cut at the day on view
 $('yoyMode').onchange = () => yoyLoad();
 $('yoyFrom').onchange = () => yoyLoadRange(false);
 $('yoyTo').onchange = () => yoyLoadRange(false);
