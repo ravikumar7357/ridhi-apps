@@ -1001,6 +1001,11 @@
   #paneYoy .yoy-sec[data-chan="shop"] .sd-card{--glow:#95BF47}
   /* Trend (2026-11-20): indigo, and its parts stay on view in every period (the period rule hides other sections' day parts). */
   #paneYoy .yoy-sec.yoy-trend{--sec:#6366f1;--sec-tag:#4F46E5}
+  /* By product: the report takes the screen, as Events does. */
+  #paneYoy .yoy-prod{display:none}
+  #paneYoy[data-period="products"] .yoy-prod{display:block;margin-bottom:16px}
+  #paneYoy[data-period="products"] .yoy-sec{display:none}
+  #paneYoy[data-period="products"] #yoyChan,#paneYoy[data-period="products"] #yoyBrand{display:none}
   #paneYoy .yoy-sec.yoy-trend > .yoy-always{display:grid !important}
   #paneYoy .yoy-sec.yoy-trend > .yoy-always-b{display:block !important;margin-bottom:16px}
   .yoy-sec-h{display:flex;align-items:center;flex-wrap:wrap;gap:10px 14px;margin:0 0 14px}

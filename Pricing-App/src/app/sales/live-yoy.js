@@ -448,6 +448,7 @@ function yoyCard(cls, k, v, sub, vcls, title) {
 function yoyRenderPeriod(V, tot, lySame, lyDay) {
   $('paneYoy').dataset.period = YOY_PERIOD;
   if (YOY_PERIOD === 'day') return;
+  if (YOY_PERIOD === 'products') { yoyRenderProducts(); return; }
   const H = YOY_HIST, amzK = V.keys, T = V.day;
   yoyLoadHist();                                     // a no-op unless ten minutes have passed
   if (YOY_PERIOD === 'events') { if (H && H.d) yoyRenderEvents(V, tot, lySame, lyDay, H); else { $('yoyPnote').textContent = YOY_HIST_ERR ? 'Could not read the history: ' + YOY_HIST_ERR : 'Reading the history…'; $('yoyEvents').innerHTML = ''; } return; }
@@ -520,6 +521,46 @@ function yoyRenderPeriod(V, tot, lySame, lyDay) {
       + yoyCard('sd-b-teal', 'Orders a day', (shp.orders / (days.length + 1)).toFixed(1), 'over ' + (days.length + 1) + ' day' + (days.length ? 's' : '') + ', today included')
       + yoyCard('sd-b-indigo', 'Best day', best.shop ? yoyMoney(best.shop[1]) : '—', best.shop ? yoyDate(best.shop[0], false) : 'today is the first day')
     : yoyCard('sd-b-cyan', 'Shopify', '—', 'This store’s history is still being read (about 60 days every 15 minutes)');
+}
+
+/* ---------- BY PRODUCT (Ravi, 2026-11-20: "Jan'25 to May'25 Ridhi month on month, Jan'25 to Mar'26 CPC — sales, ads /
+ * organic, spend, orders, units, ASIN SKU wise") ----------
+ * ?live=months (Pricing-API/SalesLive.gs liveMonths_), drawn by public/products.js (window.ProdReport, shared with live.html).
+ * Here, unlike live.html, old Ads console reports can be uploaded (POST lads=put) and taken out again (lads=drop): Amazon's
+ * Ads API keeps about 95 days, so that is the only way ad spend and organic sales reach the older months. Read once, then
+ * every ten minutes; redrawn only when the data changed, so a search or scroll survives the five-minute refresh. */
+let YOY_PROD = null, YOY_PROD_AT = 0, YOY_PROD_BUSY = false, YOY_PROD_ERR = '', YOY_PROD_DRAWN = '';
+async function yoyPost(body) {
+  if (!API || !API.url) throw new Error('Backend not configured — ' + (API_ERR || 'config/api was not read'));
+  // text/plain keeps it a simple request: Apps Script cannot answer a CORS preflight.
+  const res = await fetch(API.url, { method: 'POST', headers: { 'Content-Type': 'text/plain' },
+    body: JSON.stringify(Object.assign({ key: API.key }, body)), redirect: 'follow' });
+  const text = await res.text();
+  try { return JSON.parse(text); } catch (e) { throw new Error('The backend did not answer with data: ' + text.slice(0, 120)); }
+}
+async function yoyLoadProducts(force) {
+  if (YOY_PROD_BUSY || (!force && YOY_PROD && Date.now() - YOY_PROD_AT < 10 * 60 * 1000)) return;
+  YOY_PROD_BUSY = true; YOY_PROD_AT = Date.now();
+  try { YOY_PROD = await baCall({ live: 'months' }); YOY_PROD_ERR = ''; }
+  catch (e) { YOY_PROD_ERR = String(e.message || e); }
+  finally { YOY_PROD_BUSY = false; }
+  if (YOY_PERIOD === 'products') yoyRenderProducts();
+}
+function yoyRenderProducts() {
+  $('yoyPnote').innerHTML = '<b>By product</b> · Amazon.com sales month by month per ASIN or SKU since January 2025 · pick the brand and months below';
+  const host = $('yoyProd');
+  if (!window.ProdReport) { host.textContent = 'The report script did not load — reload Sellora.'; return; }
+  yoyLoadProducts();
+  if (!YOY_PROD) { host.innerHTML = `<p class="muted">${YOY_PROD_ERR ? 'Could not read the report: ' + YOY_PROD_ERR : 'Reading the report…'}</p>`; return; }
+  const stamp = YOY_PROD.at + '|' + YOY_PROD.adsAt + '|' + JSON.stringify(YOY_PROD.building);
+  if (stamp === YOY_PROD_DRAWN && host.firstElementChild) return;
+  YOY_PROD_DRAWN = stamp;
+  window.ProdReport.render(host, YOY_PROD, {
+    readFile: async file => (/\.xlsx$/i.test(file.name) ? lcReadXlsx(new Uint8Array(await file.arrayBuffer())) : lcCsv(await file.text())),
+    upload: body => yoyPost(Object.assign({ lads: 'put' }, body)),
+    drop: body => yoyPost(Object.assign({ lads: 'drop' }, body)),
+    reload: () => { YOY_PROD_DRAWN = ''; yoyLoadProducts(true); },
+  });
 }
 
 /* ---------- TREND (Ravi, 2026-11-20: "add day by day and week by week") ----------
@@ -851,7 +892,7 @@ $('yoyTrendSeg').querySelectorAll('button').forEach(b => b.onclick = () => {
   try { localStorage.setItem('yoy.trend', b.dataset.t); } catch (e) { /* no storage */ }
 });
 try { yoySetTrend(localStorage.getItem('yoy.trend') === 'week' ? 'week' : 'day'); } catch (e) { yoySetTrend('day'); }
-try { const p = localStorage.getItem('yoy.period'); yoySetPeriod(['day', 'week', 'month', 'quarter', 'year', 'events'].includes(p) ? p : 'day'); } catch (e) { yoySetPeriod('day'); }
+try { const p = localStorage.getItem('yoy.period'); yoySetPeriod(['day', 'week', 'month', 'quarter', 'year', 'events', 'products'].includes(p) ? p : 'day'); } catch (e) { yoySetPeriod('day'); }
 try {
   const saved = localStorage.getItem('yoy.brand');
   if (saved && $('yoyBrand').querySelector(`[data-ch="${saved}"]`)) {

@@ -311,7 +311,9 @@ function liveSnapshotWrite_(data) {
 }
 /** The 15-minute trigger. */
 function liveSnapshotJob() {
-  try { liveSnapshotWrite_(liveSnapshot_()); } catch (e) { console.error('live snapshot: ' + (e.message || e)); }
+  try { var snap = liveSnapshot_(); snap.monthsGid = prop_('LIVE_MONTHS_GID') || ''; liveSnapshotWrite_(snap); } catch (e) { console.error('live snapshot: ' + (e.message || e)); }
+  // The month-by-product report: a slice of the Orders workbooks a run, then live.html's copy (see liveMonthsTick_).
+  try { liveMonthsTick_(); liveMonthsPublish_(); } catch (e) { console.error('live months: ' + (e.message || e)); }
 }
 /** Run once from the editor: sheet + first snapshot + the trigger (any older one removed first). */
 function liveSnapshotSetup() {
@@ -352,4 +354,119 @@ function liveRange_(brand, from, to, shift) {
       : liveMetrics_(liveIso_(from, 0), new Date(nowMs).toISOString(), 'Day'));
   }
   return out;
+}
+
+/* ---- MONTH BY MONTH, PER ASIN AND SKU (Ravi, 2026-11-20: "Jan'25 to May'25 Ridhi month on month, Jan'25 to Mar'26 CPC —
+ * all metrics: sales, ads / organic, spend, orders, units, ASIN SKU wise") ----
+ * Sales, units and orders per SKU (with its ASIN) per month come from the brands' Orders workbooks — the same rows and the
+ * same exclusions as every other sales figure in this backend (MCF, cancelled and other marketplaces out). The workbooks run
+ * to 170–190 thousand rows, so liveMonthsTick_ reads them a slice at a time from the 15-minute snapshot job (about a minute
+ * a run, the work in progress kept in cache "monthWip") and publishes a finished pass as cache "monthAsin". A new pass starts
+ * once a day. Orders are counted distinct per SKU: the lines of one order sit together in the workbook.
+ * Ad figures per ASIN/SKU for old months cannot be had from Amazon — the Ads API keeps about 95 days — so they come from Ads
+ * console reports uploaded in Sellora (liveAdsPut_, POST lads=put), kept in cache "monthAds" per brand, month and ad type.
+ * Sellora reads it all with ?live=months; live.html reads the copy liveMonthsPublish_ writes to the "months" tab. */
+var LIVE_MONTHS_FROM = '2025-01';
+function liveMonthsTick_() {
+  var today = Utilities.formatDate(new Date(), LIVE_TZ, 'yyyy-MM-dd');
+  var wip = cacheRead_('monthWip') || {};
+  if (!wip.day) {
+    if ((cacheRead_('monthAsin') || {}).day === today) return;          // today's pass is done
+    wip = { day: today, book: 0, row: 2, acc: { SP: {}, CPC: {} }, lo: {} };
+  }
+  var deadline = Date.now() + 60000, BR = ['SP', 'CPC'];
+  while (Date.now() < deadline && wip.book < ORDERS_DATA_IDS.length) {
+    var ss = bookOpen_(ORDERS_DATA_IDS[wip.book]), sh = null;
+    ['Orders', 'CPC Orders'].forEach(function (t) { if (!sh) sh = ss.getSheetByName(t); });
+    var last = sh ? sh.getLastRow() : 0;
+    if (!sh || wip.row > last) { wip.book++; wip.row = 2; wip.lo = {}; continue; }
+    var n = Math.min(15000, last - wip.row + 1), data = sh.getRange(wip.row, 1, n, 10).getValues();
+    var acc = wip.acc[BR[wip.book]], lo = wip.lo, lastMs = -1, mk = '';
+    for (var i = 0; i < data.length; i++) {
+      var r = data[i], sku = String(r[3] || '').trim();
+      if (!sku) continue;
+      if (String(r[9] || '').toUpperCase() === 'MCF') continue;
+      if (String(r[7] || '').toLowerCase() === 'cancelled') continue;
+      if (!chanOk_(r[8])) continue;
+      var dMs = toMs_(r[2]); if (!dMs) continue;
+      if (dMs !== lastMs) { lastMs = dMs; mk = Utilities.formatDate(new Date(dMs), 'UTC', 'yyyy-MM'); }
+      if (mk < LIVE_MONTHS_FROM) continue;
+      var s = acc[sku] || (acc[sku] = { a: '', m: {} });
+      var asin = String(r[4] || '').trim().toUpperCase(); if (asin) s.a = asin;
+      var b = s.m[mk] || (s.m[mk] = [0, 0, 0]);
+      b[0] = Math.round((b[0] + (Number(r[6]) || 0)) * 100) / 100;
+      b[1] += Number(r[5]) || 0;
+      var oid = String(r[0] || '');
+      if (oid && lo[sku] !== oid) { b[2] += 1; lo[sku] = oid; }
+    }
+    wip.row += n;
+  }
+  if (wip.book >= ORDERS_DATA_IDS.length) {
+    // Finished: one compact copy — the SKUs once, then per month [sku index, sales, units, orders].
+    var d = {};
+    BR.forEach(function (br) {
+      var acc = wip.acc[br] || {}, skus = Object.keys(acc).sort(), m = {};
+      skus.forEach(function (sku, ix) { Object.keys(acc[sku].m).forEach(function (k) { var v = acc[sku].m[k]; (m[k] || (m[k] = [])).push([ix, v[0], v[1], v[2]]); }); });
+      d[br] = { skus: skus.map(function (sku) { return [sku, acc[sku].a]; }), m: m };
+    });
+    cacheWrite_('monthAsin', { at: new Date().toISOString(), day: wip.day, from: LIVE_MONTHS_FROM, d: d });
+    cacheWrite_('monthWip', {});
+  } else {
+    wip.lo = {};                  // an order cut across two slices is counted once more at most — a handful a pass
+    cacheWrite_('monthWip', wip);
+  }
+}
+function liveMonths_() {
+  var c = cacheRead_('monthAsin') || {}, a = cacheRead_('monthAds') || {}, w = cacheRead_('monthWip') || {};
+  return { ok: true, at: c.at || '', from: LIVE_MONTHS_FROM, d: c.d || null, ads: a.d || {}, adsAt: a.at || '', files: a.files || [],
+    building: w.day ? { book: w.book, row: w.row, of: ORDERS_DATA_IDS.length } : null };
+}
+/* POST { key, lads:'put', brand:'SP'|'CPC', kind:'sp'|'sd'|'sb', file, months: { 'YYYY-MM': [[asin, sku, spend, adSales,
+ * adOrders, adUnits, clicks, impressions], …] } } — the browser reads the report and sums it by month. A month sent again
+ * for the same brand and ad type replaces what was there, so uploading the same report twice does not double it. */
+function liveAdsPut_(p) {
+  var b = String(p.brand || '').toUpperCase(), kind = String(p.kind || 'sp').toLowerCase();
+  if (b !== 'SP' && b !== 'CPC') return { ok: false, error: 'Pick Ridhi or CPC before uploading.' };
+  if (['sp', 'sd', 'sb'].indexOf(kind) < 0) return { ok: false, error: 'Ad type must be sp, sd or sb.' };
+  var m = p.months || {}, ks = Object.keys(m).filter(function (k) { return /^\d{4}-\d{2}$/.test(k); }).sort();
+  if (!ks.length) return { ok: false, error: 'No months in the upload.' };
+  var c = cacheRead_('monthAds') || {};
+  c.d = c.d || {}; c.d[b] = c.d[b] || {}; c.files = c.files || [];
+  var num = function (v) { return Math.round((Number(v) || 0) * 100) / 100; };
+  ks.forEach(function (k) {
+    var rows = (Array.isArray(m[k]) ? m[k] : []).filter(Array.isArray).slice(0, 6000).map(function (r) {
+      return [String(r[0] || '').trim().toUpperCase().slice(0, 12), String(r[1] || '').trim().slice(0, 80), num(r[2]), num(r[3]), num(r[4]), num(r[5]), num(r[6]), num(r[7])];
+    });
+    var mo = c.d[b][k] || (c.d[b][k] = {});
+    mo[kind] = rows;
+  });
+  c.files.unshift({ at: new Date().toISOString(), brand: b, kind: kind, name: String(p.file || '').slice(0, 120), months: ks });
+  c.files = c.files.slice(0, 60); c.at = new Date().toISOString();
+  cacheWrite_('monthAds', c);
+  return { ok: true, brand: b, kind: kind, months: ks };
+}
+/* POST { key, lads:'drop', brand, kind, month } — takes one uploaded month back out (a wrong file). */
+function liveAdsDrop_(p) {
+  var b = String(p.brand || '').toUpperCase(), kind = String(p.kind || '').toLowerCase(), k = String(p.month || '');
+  var c = cacheRead_('monthAds') || {};
+  if (!c.d || !c.d[b] || !c.d[b][k] || !c.d[b][k][kind]) return { ok: false, error: 'Nothing uploaded for that month.' };
+  delete c.d[b][k][kind]; if (!Object.keys(c.d[b][k]).length) delete c.d[b][k];
+  c.at = new Date().toISOString();
+  cacheWrite_('monthAds', c);
+  return { ok: true };
+}
+/** live.html's copy, on the "months" tab of the live sheet — written only when something in it changed. */
+function liveMonthsPublish_() {
+  var m = liveMonths_(), stamp = m.at + '|' + m.adsAt + '|' + (m.building ? m.building.book + ':' + m.building.row : '');
+  if (prop_('LIVE_MONTHS_STAMP') === stamp) return;
+  var ss = liveSnapshotSheet_(), sh = ss.getSheetByName('months') || ss.insertSheet('months');
+  var s = JSON.stringify(m), parts = [];
+  for (var i = 0; i < s.length; i += 40000) parts.push(["'" + s.slice(i, i + 40000)]);
+  sh.clear();
+  sh.getRange(1, 1).setValue('at ' + m.at + ' · parts ' + parts.length);
+  sh.getRange(2, 1, parts.length, 1).setValues(parts);
+  SpreadsheetApp.flush();
+  var props = PropertiesService.getScriptProperties();
+  props.setProperty('LIVE_MONTHS_STAMP', stamp);
+  props.setProperty('LIVE_MONTHS_GID', String(sh.getSheetId()));
 }
