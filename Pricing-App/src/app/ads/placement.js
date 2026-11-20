@@ -61,21 +61,22 @@ function plcMsg(t, bad) {
   m.className = bad ? 'err' : 'muted';
 }
 
-// Called when the tab opens: fetch the placement cache once, then draw.
+// Called when the tab opens: the nightly placement cache (chart, totals, wasted spend) and everything the decisions read
+// (Search Term Analysis's load: the Ads backend's 7-day placement reports, Amazon's record, unit costs, the review list),
+// together, once; then draw both halves.
 async function ensurePlc() {
-  if (!PLC.loaded) {
-    plcMsg('Loading…');
-    try {
-      const r = await baCall({ cache: 'placement' });
-      PLC = { at: (r.data && r.data.at) || '', d: (r.data && r.data.d) || {}, loaded: true };
-      plcMsg('');
-    } catch (e) {
+  if (!PLC.loaded || !(ST.loaded && ST.extra)) {
+    plcMsg('Loading the placements, Amazon\'s record of your campaigns, unit costs and the review list…');
+    const one = PLC.loaded ? Promise.resolve() : baCall({ cache: 'placement' }).then(r => {
+      PLC = { at: (r.data && r.data.at) || '', d: (r.data && r.data.d) || {}, loaded: true, err: '' };
+    }).catch(e => {
       PLC.loaded = true;
-      plcMsg('The nightly run has not collected placement data yet — it asks Amazon overnight and '
-        + 'picks the report up on a later wake-up.', true);
-    }
+      PLC.err = 'The nightly run has not collected placement data yet — it asks Amazon overnight and picks the report up on a later wake-up.';
+    });
+    await Promise.all([one, staLoad().catch(() => { /* the decisions say what is missing */ })]);
   }
   renderPlc();
+  renderPlx();
 }
 
 // The brands chosen in the picker.
@@ -135,22 +136,19 @@ function renderPlc() {
   // --- nothing collected yet ---
   if (!Object.keys(PLC.d).length) {
     $('plcKpis').innerHTML = '';
-    $('plcChart').innerHTML = '';
+    $('plcChart').innerHTML = `<div class="muted" style="padding:14px 0">${esc(PLC.err || 'No placement data for these brands yet.')}</div>`;
     $('plcTable').innerHTML = '';
     $('plcWorst').innerHTML = '';
     return;
   }
 
-  // --- the spend strip ---
+  // --- the spend strip: one legend chip per placement, with its spend ---
   const A = plcAgg();
   const totSpend = A.names.reduce((s, p) => s + A.place[p][2], 0);
 
   $('plcKpis').innerHTML = A.names.map(p =>
-    `<div><div class="muted" style="font-size:11px"><span style="display:inline-block;width:9px;height:9px;`
-    + `border-radius:2px;background:${plcColor(p)};margin-right:5px"></span>${esc(p)}</div>`
-    + `<div style="font-weight:700;font-size:15px">${money(A.place[p][2])}</div></div>`).join('')
-    + `<div><div class="muted" style="font-size:11px">Total</div>`
-    + `<div style="font-weight:700;font-size:15px">${money(totSpend)}</div></div>`;
+    `<div class="plx-lg"><small><i style="background:${plcColor(p)}"></i>${esc(p)}</small><b>${money(A.place[p][2])}</b></div>`).join('')
+    + `<div class="plx-lg tot"><small>Total</small><b>${money(totSpend)}</b></div>`;
 
   // --- the chart ---
   plcChartSvg(A, esc, money);
@@ -159,8 +157,8 @@ function renderPlc() {
   const row = (label, t, misV, bold) => {
     const [i, c, sp, o, s] = t;
     const pctOf = totSpend > 0 ? Math.round(sp * 100 / totSpend) : 0;
-    return `<tr${bold ? ' style="font-weight:700;border-top:2px solid var(--line)"' : ''}>`
-      + `<td class="frz">${label}</td>`
+    return `<tr${bold ? ' class="tot"' : ''}>`
+      + `<td>${bold ? label : `<span class="plx-dot" style="background:${plcColor(label)}"></span>${label}`}</td>`
       + `<td class="num"${misV > 0 ? ' style="color:var(--bad-ink)"' : ''}>${money(misV)}`
         + `${sp > 0 && misV > 0 ? ` <span class="muted">(${Math.round(misV * 100 / sp)}%)</span>` : ''}</td>`
       + `<td class="num">${money(sp)}${bold ? '' : ` <span class="muted">(${pctOf}%)</span>`}</td>`
@@ -171,7 +169,7 @@ function renderPlc() {
       + `<td class="num">${c > 0 ? (o * 100 / c).toFixed(1) + '%' : '<span class="muted">—</span>'}</td>`
       + '</tr>';
   };
-  const head = '<thead><tr><th class="frz">Placement</th>'
+  const head = '<thead><tr><th>Placement</th>'
     + '<th class="num" title="Spend on clicks that produced no order at all, counted per campaign per placement across the whole window. '
       + 'Ours, not Amazon\'s.">Spend Misallocation</th>'
     + '<th class="num">Ad Spend</th><th class="num">Ad Sales</th><th class="num">ACOS</th>'
@@ -188,22 +186,20 @@ function renderPlc() {
 
   // --- worst offenders ---
   $('plcWorst').innerHTML = A.worst.length
-    ? '<thead><tr><th class="frz">Campaign</th><th>Placement</th><th>Brand</th>'
+    ? '<thead><tr><th>Campaign</th><th>Placement</th><th>Brand</th>'
       + '<th class="num">Clicks</th><th class="num">Spend, nothing back</th></tr></thead><tbody>'
-      + A.worst.slice(0, 200).map(w => `<tr><td class="frz">${esc(w.cn)}</td>`
-        + `<td><span style="display:inline-block;width:9px;height:9px;border-radius:2px;`
-        + `background:${plcColor(w.p)};margin-right:5px"></span>${esc(w.p)}</td>`
-        + `<td>${esc(w.brand === 'SP' ? 'Ridhi' : w.brand)}</td>`
+      + A.worst.slice(0, 200).map(w => `<tr><td><div class="sta-pl"><b>${esc(w.cn)}</b>${staCopy(w.cn, 'campaign')}</div></td>`
+        + `<td><span class="plx-dot" style="background:${plcColor(w.p)}"></span>${esc(w.p)}</td>`
+        + `<td>${staBadge(staBrandName(w.brand), 'brand-' + w.brand)}</td>`
         + `<td class="num">${nf(w.c)}</td>`
         + `<td class="num" style="color:var(--bad-ink);font-weight:600">${money(w.sp)}</td></tr>`).join('')
       + '</tbody>'
     : '<tbody><tr><td class="muted" style="padding:12px">Nothing — every campaign and placement that '
       + 'took a click also produced at least one order.</td></tr></tbody>';
 
-  // --- the message line ---
-  plcMsg(`${A.names.length} placement(s) · ${money(totSpend)} spent, ${money(T[4])} back`
-    + ` · <b style="color:var(--bad-ink)">${money(totMis)}</b> of it bought nothing`
-    + (PLC.at ? ` · built ${esc(PLC.at)}` : '') + ' · a 30-day window');
+  // --- the chart's line ---
+  $('plcChSub').innerHTML = `${money(totSpend)} spent, ${money(T[4])} back · <span style="color:var(--bad-ink);font-weight:700">${money(totMis)}</span> of it bought nothing`
+    + (PLC.at ? ` · built ${esc(PLC.at)}` : '') + ' · the last 30 days, 30-day sales';
 }
 
 /* Hand-drawn stacked bars. This app deliberately loads no charting library — one <script> from a CDN
@@ -267,10 +263,11 @@ $('plcGranSeg').addEventListener('click', e => {
 });
 $('plcBrand').addEventListener('change', renderPlc);
 
-// Export: the placement table, a blank line, then the worst offenders, as one CSV.
+// Export: the decisions (placement-decide.js), the placement table, then the worst offenders, as one CSV.
 $('plcCsv').onclick = () => {
   const A = plcAgg();
-  if (!A.names.length) {
+  const dec = plxCsvLines();
+  if (!A.names.length && !dec.length) {
     plcMsg('Nothing to export.', true);
     return;
   }
@@ -279,8 +276,8 @@ $('plcCsv').onclick = () => {
     return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
   };
   // --- the placement table ---
-  const lines = [['Placement', 'Spend Misallocation', 'Ad Spend', 'Ad Sales', 'ACOS %', 'Impressions',
-    'Clicks', 'Orders', 'CPC', 'CVR %'].map(cell).join(',')];
+  const lines = dec.concat(dec.length ? [''] : []).concat([['Placement', 'Spend Misallocation', 'Ad Spend', 'Ad Sales', 'ACOS %', 'Impressions',
+    'Clicks', 'Orders', 'CPC', 'CVR %'].map(cell).join(',')]);
   A.names.forEach(p => {
     const [i, c, sp, o, s] = A.place[p];
     lines.push([p, A.mis[p] || 0, sp, s, s > 0 ? (sp * 100 / s).toFixed(1) : '', i, c, o,
@@ -296,7 +293,7 @@ $('plcCsv').onclick = () => {
   a.href = URL.createObjectURL(blob);
   a.download = 'placement-' + new Date().toISOString().slice(0, 10) + '.csv';
   a.click();
-  URL.revokeObjectURL(a.href);
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
 };
 
 // Called when the Ad Console opens: load the cached snapshot, draw, fold in last night's run (at most every
@@ -495,7 +492,7 @@ async function trendsRefresh() {
   } catch (e) {
     const m = String(e.message || e);
     tMsg('Refresh failed: ' + m
-      + (/permission/i.test(m) ? ' — your account needs the “Ad Console” permission (Settings → Access).' : ''), true);
+      + (/permission/i.test(m) ? ' — your account needs the “Overview” permission (Settings → Access).' : ''), true);
     try { await saveTrends(); } catch (x) { /* nothing more to do */ }
   }
   // --- back to normal ---
@@ -662,10 +659,31 @@ function tFmt(row, v) {
   return Math.round(v).toLocaleString('en-US');
 }
 
+/* ONE WINDOW FOR THE PAGE (the TrainAdz comparison, 18 Nov 2026: "Overview mixes 26 weeks of sales with 14 weeks of ad
+ * figures"). Until the stretch is picked by hand, the page opens on the longest "Last N weeks" whose finished weeks all have
+ * ad figures — the running week is in every "Last N" and has none until the night's reports land — so the sales, the boxes
+ * and the charts speak for the same weeks as the ad figures. T_SPAN_AUTO says what it chose (shown under "Data as of"). */
+let T_SPAN_AUTO = null, T_SPAN_TOUCHED = false;
+function tSpanAuto() {
+  if (T_SPAN_TOUCHED || T_GRAN !== 'week' || !TREND.adFrom || !TREND.adTo) return;
+  const s = $('tSpan');
+  if (!s || s.value === 'custom') return;
+  let first = wKeyOfDate(TREND.adFrom), n = 0;
+  if (first < TREND.adFrom) first = sdShift(first, 7);
+  for (let k = first; sdShift(k, 6) <= TREND.adTo; k = sdShift(k, 7)) n++;
+  if (!n) return;
+  // n finished weeks with ad figures, plus the running week; "Last full week" (1) is a finished week alone
+  const opts = T_SPANS.week.filter(v => v === 1 || v - 1 <= n);
+  const v = opts[opts.length - 1];
+  if (String(v) !== s.value) s.value = String(v);
+  T_SPAN_AUTO = { n: v, weeks: n };
+}
+
 // Draw the Ad Console: the card over the visible span, the chart, and the metrics × periods table.
 function renderTrends() {
   const esc = s => String(s == null ? '' : s)
     .replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
+  try { tSpanAuto(); } catch (e) { /* the page keeps the stretch it has */ }
   // --- the periods and their totals ---
   const { keys, agg, adKnown } = tSeries();
   const total = new Array(T_LEN).fill(0);
@@ -901,6 +919,7 @@ function tSpanName(n) {
 }
 function tSetGran(g) {
   const from = T_GRAN;
+  if (from !== g) T_SPAN_TOUCHED = true;
   T_GRAN = g;
   ['Day', 'Week', 'Month', 'Quarter'].forEach(x => $('tGran' + x).classList.toggle('on', x.toLowerCase() === g));
   // A new period keeps about the same stretch of time — 26 weeks become 6 months, not 26 months.
@@ -914,6 +933,7 @@ function tSetGran(g) {
 ['Day', 'Week', 'Month', 'Quarter'].forEach(x => { $('tGran' + x).onclick = () => tSetGran(x.toLowerCase()); });
 // "Custom dates…" shows the two days (the last 30 days to start with); either one changing redraws, like the list.
 function tSpanChange() {
+  T_SPAN_TOUCHED = true;
   const on = $('tSpan').value === 'custom', box = $('tCustom');
   if (box) {
     box.classList.toggle('hide', !on);
@@ -946,5 +966,5 @@ $('tExport').onclick = () => {
   a.href = URL.createObjectURL(blob);
   a.download = `account-trends-${T_GRAN}-${new Date().toISOString().slice(0, 10)}.csv`;
   a.click();
-  URL.revokeObjectURL(a.href);
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
 };

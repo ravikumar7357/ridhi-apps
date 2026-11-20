@@ -1,18 +1,21 @@
 /* ================= INVENTORY · INVENTORY AGE: how old the FBA stock is, per parent or per SKU =================
- * Screens: Inventory Age (tab 'age'; core/nav.js calls ensureAge when it opens). The toolbar has the Parent ASINs /
- * Child ASINs view buttons (ageViewParent, ageViewChild), the brand picker (ageBrandView: Ridhi, CPC or both), the
- * filter box (ageFilter), Export (ageCsv) and Refresh both brands (ageGo); ageMsg is its message line. Below it:
- * one KPI card per brand (ageKpis) and the table (ageTable).
+ * Screens: Inventory Age (tab 'age'; core/nav.js calls ensureAge when it opens), in the Ad Console look (.ag-* in
+ * styles.css). A meta line with each brand's snapshot time (ageWhen); the toolbar card with the Parent ASINs / Child ASINs
+ * view pills (ageViewParent, ageViewChild), the brand picker (ageBrandView: Ridhi, CPC or both), the search box
+ * (ageFilter), Export (ageCsv) and Refresh both brands (ageGo); ageMsg is its message line. Below it: five number boxes
+ * that also set the table's focus (ageKpis), the age mix bars (ageMix), and the table card — its title (ageTitle,
+ * ageSub), the focus pills (ageFocusSeg: all / aged 181+ / over a year / healthy) and the table (ageTable), whose parent
+ * rows open to their SKUs.
  * Does: keeps the last ageing snapshot per brand in Firestore (age/SP, age/CPC) so the tab opens already populated
  * (loadAgeCache, saveAgeCache). Refresh asks the backend (baCall, in sales/brand-analytics.js) to create Amazon's
  * FBA inventory age report for each brand, polls until it is ready, caches it and redraws. The report's overlapping
  * day buckets are reduced to the non-overlapping set (ageRange, totalCols); only buckets starting at AGED_FROM days
  * count as "aged". renderAge draws the table in the chosen view (children rolled up per parent, shown with the
  * hand-corrected parent names from Listing audit — PNAME, AUDIT_MANUAL — or one row per SKU), applies the filter
- * and the clicked sort, and renderAgeKpis builds the cards from the same rows; Export downloads exactly what is on
- * screen as a CSV.
- * Main functions: ageMsg, ageRange, totalCols, loadAgeCache, saveAgeCache, ensureAge, renderAge, renderAgeKpis,
- * prettyAge, and the Refresh both brands (ageGo) and Export (ageCsv) handlers. */
+ * and the clicked sort, the focus and the opened parents; renderAgeKpis and renderAgeMix build the boxes and the mix
+ * from the same rows; Export downloads exactly what is on screen as a CSV.
+ * Main functions: ageMsg, ageRange, totalCols, loadAgeCache, saveAgeCache, ensureAge, renderAge, renderAgeWhen,
+ * renderAgeKpis, renderAgeMix, ageBucketCls, prettyAge, and the Refresh both brands (ageGo) and Export (ageCsv) handlers. */
 
 /* ---------- FBA inventory age ---------- */
 // Snapshots are CACHED in Firestore (age/SP, age/CPC) so the tab opens already populated; the
@@ -125,7 +128,7 @@ async function ensureAge() {
 $('ageGo').onclick = async () => {
   // --- busy ---
   $('ageGo').disabled = true;
-  $('ageGo').innerHTML = '<span class="spin"></span>…';
+  $('ageGo').innerHTML = '<span class="spin"></span>Refreshing…';
   const failed = [];
   // --- one brand at a time: create the report, poll, cache, draw ---
   for (const brand of ['SP', 'CPC']) {
@@ -167,31 +170,83 @@ $('ageBrandView').addEventListener('change', renderAge);
 $('ageViewParent').onclick = () => { AGE_VIEW = 'parent'; renderAge(); };
 $('ageViewChild').onclick = () => { AGE_VIEW = 'child'; renderAge(); };
 
-// Draw the whole screen from AGE: the KPI cards and the table for the chosen brands, view, filter and sort.
+// AGE_FOCUS: which rows the table shows — 'all', 'aged' (some stock 181+ days), 'year' (some stock 366+ days) or 'healthy'
+// (nothing past 180 days). The number boxes and the pills over the table both set it.
+// AGE_OPEN: the parent rows opened to their SKUs, keyed parent|brand.
+let AGE_FOCUS = 'all';
+const AGE_OPEN = new Set();
+// "Over a year" = buckets STARTING at this many days (366-455, 456+); 331-365 is still under a year.
+const AGE_YEAR_FROM = 366;
+$('ageFocusSeg').addEventListener('click', e => {
+  const b = e.target.closest('[data-f]');
+  if (b) { AGE_FOCUS = b.dataset.f; renderAge(); }
+});
+
+// The colour an age bucket wears, by its first day, green → red: ag-b0 0-90 … ag-b5 456+ (styles.css, INVENTORY AGE).
+function ageBucketCls(c) {
+  const r = ageRange(c), d = r ? r[0] : 0;
+  return 'ag-b' + (d < 91 ? 0 : d < 181 ? 1 : d < 331 ? 2 : d < AGE_YEAR_FROM ? 3 : d < 456 ? 4 : 5);
+}
+// Shared formatters for this tab.
+const ageNf = v => Number(v || 0).toLocaleString('en-US');
+const ageUsd = v => '$' + Number(v || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const ageEsc = s => String(s == null ? '' : s)
+  .replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
+const agePct = (a, b) => (b ? Math.round((a / b) * 100) : 0);
+
+// The meta line's right side: when each brand on screen was last pulled; amber once older than a week.
+function renderAgeWhen(pick) {
+  const list = pick === 'ALL' ? ['SP', 'CPC'] : [pick];
+  $('ageWhen').innerHTML = list.map(b => {
+    const at = AGE[b] && AGE[b].at;
+    if (!at) return `<span>${BRAND_NAME[b]}: no snapshot yet</span>`;
+    const old = Date.now() - at.getTime() > 7 * 864e5;
+    const t = at.toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+    return `<span class="${old ? 'is-old' : ''}" title="${ageEsc(at.toLocaleString())}">${BRAND_NAME[b]} updated <b>${t}</b></span>`;
+  }).join('  ·  ');
+}
+
+// Draw the whole screen from AGE: the meta line, the number boxes, the age mix and the table for the chosen brands, view,
+// search, focus and sort.
 function renderAge() {
-  // --- view buttons ---
+  // --- view buttons and focus pills ---
   $('ageViewParent').classList.toggle('on', AGE_VIEW === 'parent');
   $('ageViewChild').classList.toggle('on', AGE_VIEW === 'child');
+  $('ageFocusSeg').querySelectorAll('[data-f]').forEach(b => b.classList.toggle('on', b.dataset.f === AGE_FOCUS));
 
-  // --- which brands; the empty state when nothing is cached yet ---
+  // --- which brands; the first-run card when nothing is cached yet ---
   const pick = $('ageBrandView').value;
+  renderAgeWhen(pick);
   const brands = (pick === 'ALL' ? ['SP', 'CPC'] : [pick]).filter(b => AGE[b]);
   if (!brands.length) {
     $('ageResult').classList.remove('hide');
-    $('ageKpis').innerHTML = '<div class="kpi"><div class="kpiname">No snapshot yet</div>'
-      + '<div class="muted" style="margin-top:6px">Hit “Refresh both brands” to pull the ageing report from Amazon.'
-      + '</div></div>';
+    $('ageKpis').innerHTML = '<div class="ag-first"><b>No snapshot yet</b>Hit “Refresh both brands” to pull the FBA '
+      + 'inventory age report from Amazon. It takes a few minutes per brand; after that the tab opens straight away.</div>';
+    $('ageMix').classList.add('hide');
+    $('ageMix').innerHTML = '';
+    $('ageTitle').textContent = '';
+    $('ageSub').textContent = '';
     $('ageTable').innerHTML = '';
     return;
   }
 
-  // --- the age columns and the "aged" total ---
+  // --- the age columns, the "aged" and "over a year" totals ---
   // Only the non-overlapping buckets are shown AND totalled — the redundant narrow ones are dropped.
   const allCols = [...new Set(brands.flatMap(b => AGE[b].cols))];
   const cols = totalCols(allCols);
-  const agedCols = cols.filter(c => { const r = ageRange(c); return r && r[0] >= AGED_FROM; });
-  const totalOf = r => agedCols.reduce((s, c) => s + (r.age[c] || 0), 0);
+  const startOf = c => { const r = ageRange(c); return r ? r[0] : 0; };
+  const agedCols = cols.filter(c => startOf(c) >= AGED_FROM);
+  const yearCols = cols.filter(c => startOf(c) >= AGE_YEAR_FROM);
+  const sumOf = (r, cs) => cs.reduce((s, c) => s + (r.age[c] || 0), 0);
+  const stamp = r => {
+    r._t = sumOf(r, agedCols);
+    r._y = sumOf(r, yearCols);
+    r._b = sumOf(r, cols);                                        // every unit in a bucket — the age mix's whole
+    r._p = r.available ? r._t / r.available : 0;                  // aged share of what is available
+    return r;
+  };
   const multiBrand = brands.length > 1;
+  const unit = AGE_VIEW === 'parent' ? 'parents' : 'SKUs';
 
   // --- rows: one per SKU, each tagged with its brand ---
   let rows = brands.flatMap(b => AGE[b].rows.map(r => ({ ...r, brand: b })));
@@ -201,17 +256,20 @@ function renderAge() {
     rows.forEach(r => {
       const key = (r.parent || r.asin || r.sku) + '|' + r.brand;
       const o = g[key] || (g[key] = {
+        key,
         parent: r.parent || r.asin || '—',
         brand: r.brand,
         product: r.product,
         children: 0,
         available: 0,
         storage: 0,
-        age: {}
+        age: {},
+        kids: [],
       });
       o.children++;
       o.available += r.available || 0;
       o.storage += r.storage || 0;
+      o.kids.push(r);
       cols.forEach(c => { o.age[c] = (o.age[c] || 0) + (r.age[c] || 0); });
     });
     // Show the hand-corrected parent name (from Listing audit) in the Product column when there is
@@ -223,14 +281,24 @@ function renderAge() {
     rows = Object.values(g);
   }
 
-  // --- filter, then the aged total per row ---
+  // --- search, then the totals per row ---
+  // The boxes and the age mix are built from these rows (search applied, focus not), so clicking a box never moves the boxes.
   const q = $('ageFilter').value.trim().toLowerCase();
   if (q) rows = rows.filter(r => ((r.sku || '') + ' ' + (r.asin || '') + ' ' + (r.parent || '') + ' '
-    + (r.product || '')).toLowerCase().includes(q));
-  rows.forEach(r => { r._t = totalOf(r); });
+    + (r.product || '') + ' ' + (r.kids || []).map(k => k.sku + ' ' + (k.asin || '')).join(' ')).toLowerCase().includes(q));
+  rows.forEach(stamp);
+
+  // --- focus: what the table shows ---
+  const FOCUS = {
+    all: () => true,
+    aged: r => r._t > 0,
+    year: r => r._y > 0,
+    healthy: r => r._t === 0 && r._b > 0,
+  };
+  const shown = rows.filter(FOCUS[AGE_FOCUS] || FOCUS.all);
 
   // --- column definitions ---
-  // Column definitions drive the header, the body, the sorting and the CSV — one source of truth.
+  // Column definitions drive the header, the body, the sorting and the CSV — one source of truth. nocsv: on screen only.
   const defs = [];
   if (AGE_VIEW === 'parent') {
     defs.push({ k: 'parent', t: 'Parent ASIN', frz: 1 });
@@ -241,139 +309,295 @@ function renderAge() {
     if (multiBrand) defs.push({ k: 'brand', t: 'Brand', map: r => BRAND_NAME[r.brand] });
     defs.push({ k: 'asin', t: 'ASIN', mono: 1 }, { k: 'parent', t: 'Parent ASIN', mono: 1 });
   }
-  defs.push({ k: 'product', t: 'Product', trunc: 38 });
+  defs.push({ k: 'product', t: 'Product' });
+  // On screen the two figures that matter most sit next to the product, before the buckets; the CSV keeps its old
+  // order (buckets, then these two — csvLast), so a sheet built on the export does not shift.
   defs.push({ k: 'available', t: 'Available', num: 1 });
-  cols.forEach(c => defs.push({ k: c, t: prettyAge(c), num: 1, age: 1 }));
-  defs.push({ k: '_t', t: `Total aged ${AGED_FROM}+`, num: 1, bold: 1 });
-  defs.push({ k: 'storage', t: 'Est. Storage $', num: 1, money: 1 });
+  defs.push({ k: '_t', t: `Total aged ${AGED_FROM}+`, num: 1, bold: 1, csvLast: 1 });
+  defs.push({ k: 'storage', t: 'Est. storage $', csvT: 'Est. Storage $', num: 1, money: 1, csvLast: 2 });
+  defs.push({ k: '_p', t: 'Age mix', mix: 1, nocsv: 1 });
+  cols.forEach(c => defs.push({ k: c, t: prettyAge(c), csvT: ageCsvTitle(c), num: 1, age: 1, aged: startOf(c) >= AGED_FROM,
+    cls: ageBucketCls(c) }));
 
   // --- sort by the clicked column (numbers numerically, text alphabetically) ---
   const val = (r, d) => d.age ? (r.age[d.k] || 0) : (d.map ? d.map(r) : r[d.k]);
   const sd = defs.find(d => d.k === AGE_SORT.k) || defs.find(d => d.k === '_t');
-  rows.sort((a, b) => {
+  const cmp = (a, b) => {
     const x = val(a, sd), y = val(b, sd);
     const c = (typeof x === 'number' && typeof y === 'number')
       ? x - y
       : String(x || '').localeCompare(String(y || ''));
-    return c * AGE_SORT.dir;
-  });
+    return c * (sd.k === AGE_SORT.k ? AGE_SORT.dir : -1);
+  };
+  shown.sort(cmp);
 
-  AGE_RENDER = { rows, defs, val };                              // remembered for the CSV export
+  AGE_RENDER = { rows: shown, defs, val };                       // remembered for the CSV export
 
-  // --- KPI cards ---
-  const aged = rows.reduce((s, r) => s + r._t, 0);
-  const avail = rows.reduce((s, r) => s + (r.available || 0), 0);
+  // --- boxes and age mix ---
   $('ageResult').classList.remove('hide');
-  renderAgeKpis(rows, brands, AGE_VIEW === 'parent' ? 'parents' : 'SKUs');
+  renderAgeKpis(rows, brands, unit, cols);
+  renderAgeMix(rows, brands, cols);
 
-  // --- build table: cell formatters ---
-  const n = v => (v ? Number(v).toLocaleString('en-US') : '<span class="muted">—</span>');
-  const money = v => (v ? '$' + Number(v).toFixed(2) : '<span class="muted">—</span>');
-  const esc = s => String(s == null ? '' : s)
-    .replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
-  const arrow = d => d.k === AGE_SORT.k ? (AGE_SORT.dir < 0 ? ' ↓' : ' ↑') : '';
+  // --- the table card's title and line ---
+  const TITLES = {
+    all: AGE_VIEW === 'parent' ? 'Every parent ASIN' : 'Every SKU',
+    aged: `${AGE_VIEW === 'parent' ? 'Parents' : 'SKUs'} holding stock aged ${AGED_FROM}+ days`,
+    year: `${AGE_VIEW === 'parent' ? 'Parents' : 'SKUs'} holding stock over a year old`,
+    healthy: `${AGE_VIEW === 'parent' ? 'Parents' : 'SKUs'} with nothing past 180 days`,
+  };
+  $('ageTitle').textContent = TITLES[AGE_FOCUS] || TITLES.all;
+  $('ageSub').textContent = `${ageNf(shown.length)} of ${ageNf(rows.length)} ${unit} · sorted by ${sd.t}`
+    + `${(sd.k === AGE_SORT.k ? AGE_SORT.dir : -1) < 0 ? ', largest first' : ', smallest first'}`
+    + (AGE_VIEW === 'parent' ? ' · click a parent to see its SKUs' : '');
 
-  // --- build table: header ---
-  const head = '<thead><tr>' + defs.map(d =>
-    `<th data-k="${esc(d.k)}" class="${d.frz ? 'frz ' : ''}${d.num ? 'num' : ''}">${esc(d.t)}${arrow(d)}</th>`
-  ).join('') + '</tr></thead>';
+  // --- build table: cell pieces ---
+  const dash = '<span class="ag-dash">—</span>';
+  const n = v => (v ? ageNf(v) : dash);
+  const money = v => (v ? ageUsd(v) : dash);
+  // Each aged column's largest figure on screen, so a chip's tint says how big it is next to the rest.
+  const colMax = {};
+  defs.filter(d => d.aged).forEach(d => { colMax[d.k] = Math.max(0, ...shown.map(r => r.age[d.k] || 0)); });
+  const heat = (v, d) => {
+    const f = colMax[d.k] ? v / colMax[d.k] : 0;
+    return `<span class="ag-heat ${d.cls} ag-h${f > .66 ? 4 : f > .33 ? 3 : f > .1 ? 2 : 1}">${ageNf(v)}</span>`;
+  };
+  // The row's own age mix: one segment per bucket, as wide as its share of the row's units.
+  const mini = r => {
+    if (!r._b) return dash;
+    const tip = cols.filter(c => r.age[c]).map(c => `${prettyAge(c)}: ${ageNf(r.age[c])} (${agePct(r.age[c], r._b)}%)`).join('\n');
+    return `<div class="ag-mini" title="${ageEsc(tip)}">` + cols.filter(c => r.age[c])
+      .map(c => `<i class="${ageBucketCls(c)}" style="flex:${r.age[c]}"></i>`).join('') + '</div>';
+  };
+  const tot = r => {
+    if (!r._t) return dash;
+    const p = Math.round(r._p * 100);
+    const lvl = p >= 50 ? 'is-hi' : p >= 20 ? 'is-mid' : '';
+    return `<span class="ag-tot"><b>${ageNf(r._t)}</b>${r.available ? `<small class="${lvl}">${p}% of available</small>` : ''}</span>`;
+  };
+  const chev = '<span class="ag-chev" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg></span>';
 
-  // --- build table: body ---
-  const body = rows.map(r => '<tr>' + defs.map(d => {
+  // One cell. kid = a SKU row under an opened parent.
+  const cell = (r, d, kid) => {
     const v = val(r, d);
-    const cls = (d.frz ? 'frz ' : '') + (d.num ? 'num' : '');
-    const style = (d.mono ? 'font-family:ui-monospace,monospace' : '') + (d.bold ? ';font-weight:700' : '');
-    if (d.money) return `<td class="${cls}">${money(v)}</td>`;
-    if (d.num) return `<td class="${cls}">${n(v)}</td>`;
-    if (d.trunc) return `<td class="${cls}" title="${esc(v)}">${esc(String(v || '').slice(0, d.trunc))}</td>`;
-    return `<td class="${cls}" style="${style}">${esc(v) || '<span class="muted">—</span>'}</td>`;
-  }).join('') + '</tr>').join('');
+    const num = d.num ? 'num' : '';
+    const frz = d.frz ? 'frz ' : '';
+    if (d.frz) {
+      if (kid) return `<td class="frz"><span class="ag-id">${ageEsc(r.sku)}</span></td>`;
+      const lead = AGE_VIEW === 'parent' ? chev : '';
+      return `<td class="frz">${lead}<span class="ag-id">${ageEsc(v)}</span></td>`;
+    }
+    if (d.k === 'brand') return kid ? '<td></td>' : `<td><span class="ag-brand is-${r.brand}">${ageEsc(v)}</span></td>`;
+    if (d.k === 'children') return kid ? '<td></td>' : `<td class="num"><span class="ag-kids">${ageNf(v)}</span></td>`;
+    if (d.mono) return `<td>${v ? `<span class="ag-id">${ageEsc(v)}</span>` : dash}</td>`;
+    if (d.k === 'product') {
+      const sub = kid ? `<small>${ageEsc(r.asin || '')}</small>` : '';
+      return `<td><span class="ag-prod" title="${ageEsc(v)}">${ageEsc(v) || dash}</span>${sub}</td>`;
+    }
+    if (d.mix) return `<td class="ag-mixc">${mini(r)}</td>`;
+    if (d.age) return d.aged
+      ? `<td class="${num}">${v ? heat(v, d) : dash}</td>`
+      : `<td class="${num} ag-fresh">${n(v)}</td>`;
+    if (d.k === '_t') return `<td class="${num}">${tot(r)}</td>`;
+    if (d.money) return `<td class="${frz}${num}">${money(v)}</td>`;
+    return `<td class="${frz}${num}">${n(v)}</td>`;
+  };
+
+  // --- build table: header (a group row over the age columns, then the titles) ---
+  const firstAge = defs.findIndex(d => d.age);
+  const nFresh = defs.filter(d => d.age && !d.aged).length, nAged = defs.filter(d => d.aged).length;
+  const grp = firstAge < 0 ? '' : '<tr class="ag-grp">'
+    + `<th colspan="${firstAge}"></th>`
+    + (nFresh ? `<th colspan="${nFresh}" class="ag-g-ok"><span>Healthy · under ${AGED_FROM} days</span></th>` : '')
+    + (nAged ? `<th colspan="${nAged}" class="ag-g-aged"><span>Aged · ${AGED_FROM}+ days</span></th>` : '')
+    + (defs.length - firstAge - nFresh - nAged > 0 ? `<th colspan="${defs.length - firstAge - nFresh - nAged}"></th>` : '')
+    + '</tr>';
+  const sortDir = sd.k === AGE_SORT.k ? AGE_SORT.dir : -1;
+  const head = '<thead>' + grp + '<tr>' + defs.map(d => {
+    const on = d.k === sd.k;
+    const arw = on ? `<span class="ag-arw">${sortDir < 0 ? '↓' : '↑'}</span>` : '';
+    return `<th data-k="${ageEsc(d.k)}" class="${d.frz ? 'frz ' : ''}${d.num ? 'num ' : ''}${on ? 'is-sorted' : ''}"`
+      + `>${ageEsc(d.t)}${arw}</th>`;
+  }).join('') + '</tr></thead>';
+
+  // --- build table: body (an opened parent is followed by its SKUs, largest aged first) ---
+  const body = shown.map(r => {
+    if (AGE_VIEW !== 'parent') return '<tr>' + defs.map(d => cell(r, d, false)).join('') + '</tr>';
+    const open = AGE_OPEN.has(r.key);
+    let h = `<tr class="ag-prow${open ? ' is-open' : ''}" data-key="${ageEsc(r.key)}" tabindex="0" aria-expanded="${open}">`
+      + defs.map(d => cell(r, d, false)).join('') + '</tr>';
+    if (open) {
+      const kids = r.kids.map(k => stamp({ ...k })).sort((a, b) => b._t - a._t || b.available - a.available);
+      h += kids.map(k => '<tr class="ag-kid">' + defs.map(d => cell(k, d, true)).join('') + '</tr>').join('');
+    }
+    return h;
+  }).join('');
 
   // --- build table: TOTAL row ---
-  const foot = rows.length ? '<tfoot><tr>' + defs.map((d, i) => {
-    if (i === 0) return `<td class="frz">TOTAL</td>`;
+  const all = { age: {}, available: 0, storage: 0, children: 0 };
+  shown.forEach(r => {
+    all.available += r.available || 0;
+    all.storage += r.storage || 0;
+    all.children += r.children || 0;
+    cols.forEach(c => { all.age[c] = (all.age[c] || 0) + (r.age[c] || 0); });
+  });
+  stamp(all);
+  const foot = shown.length ? '<tfoot><tr>' + defs.map((d, i) => {
+    if (i === 0) return '<td class="frz">TOTAL</td>';
+    if (d.mix) return `<td class="ag-mixc">${mini(all)}</td>`;
+    if (d.k === '_t') return `<td class="num">${tot(all)}</td>`;
     if (!d.num) return '<td></td>';
-    const sum = rows.reduce((s, r) => s + (Number(val(r, d)) || 0), 0);
-    return `<td class="num">${d.money ? money(sum) : n(sum)}</td>`;
+    const v = d.age ? all.age[d.k] : all[d.k];
+    return `<td class="num">${d.money ? money(v) : n(v)}</td>`;
   }).join('') + '</tr></tfoot>' : '';
 
-  $('ageTable').innerHTML = head + '<tbody>' + (body ||
-    `<tr><td colspan="${defs.length}" class="muted">No rows.</td></tr>`) + '</tbody>' + foot;
+  const empty = `<tr><td colspan="${defs.length}" class="ag-empty"><b>Nothing to show</b>`
+    + (q || AGE_FOCUS !== 'all'
+      ? `No ${unit} match${q ? ` “${ageEsc(q)}”` : ''}${AGE_FOCUS !== 'all' ? ' in this focus — pick “All stock” above' : ''}.`
+      : `No ${unit} in this snapshot.`) + '</td></tr>';
+  $('ageTable').innerHTML = head + '<tbody>' + (body || empty) + '</tbody>' + foot;
 
-  // --- events: click a header to sort by it; a second click flips the direction ---
-  $('ageTable').querySelectorAll('thead th').forEach(th => {
+  // --- events: click a header to sort by it (a second click flips it); click a parent row to open its SKUs ---
+  $('ageTable').querySelectorAll('thead th[data-k]').forEach(th => {
     th.onclick = () => {
       const k = th.dataset.k;
       AGE_SORT = { k, dir: AGE_SORT.k === k ? -AGE_SORT.dir : -1 };
       renderAge();
     };
   });
+  $('ageTable').querySelectorAll('tr.ag-prow').forEach(tr => {
+    const flip = () => {
+      const k = tr.dataset.key;
+      AGE_OPEN.has(k) ? AGE_OPEN.delete(k) : AGE_OPEN.add(k);
+      renderAge();
+    };
+    tr.onclick = flip;
+    tr.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); flip(); } };
+  });
 }
 
 /**
- * One KPI card per brand (plus a combined one when both are shown). Built from the SAME rows the
- * table is showing, so the cards always agree with what's on screen — filter included.
+ * Five number boxes, built from the SAME rows the table is drawn from (search included, focus not — so clicking a box
+ * never moves the boxes). With both brands on screen each box says how the figure splits between them. A box is a button:
+ * four of them set the focus, Est. storage sorts by storage.
  */
-// Draw the KPI cards into ageKpis: per brand, the aged units (and % of available), storage charge,
-// available units and the row count (unit = 'parents' or 'SKUs').
-function renderAgeKpis(rows, brands, unit) {
-  // --- formatters ---
-  const nf = v => Number(v || 0).toLocaleString('en-US');
-  const usd = v => '$' + Number(v || 0).toLocaleString('en-US',
-    { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  const dash = '<span class="muted">—</span>';
-
+function renderAgeKpis(rows, brands, unit, cols) {
+  const startOf = c => { const r = ageRange(c); return r ? r[0] : 0; };
   // --- add up one set of rows ---
   const tally = rs => rs.reduce((a, r) => {
     a.n++;
     a.avail += r.available || 0;
     a.aged += r._t || 0;
+    a.year += r._y || 0;
     a.storage += r.storage || 0;
+    a.units += r._b || 0;
+    a.fresh += cols.filter(c => startOf(c) < AGED_FROM).reduce((s, c) => s + (r.age[c] || 0), 0);
+    if (r._t > 0) a.agedRows++;
+    if (r._y > 0) a.yearRows++;
+    if (r._t === 0 && r._b > 0) a.okRows++;
     return a;
-  }, { n: 0, avail: 0, aged: 0, storage: 0 });
+  }, { n: 0, avail: 0, aged: 0, year: 0, storage: 0, units: 0, fresh: 0, agedRows: 0, yearRows: 0, okRows: 0 });
+  const t = tally(rows);
+  const per = brands.map(b => ({ b, t: tally(rows.filter(r => r.brand === b)) }));
+  // "Ridhi 15,941 · CPC 10,283" when both brands are on screen; otherwise the fallback line.
+  const split = (f, fmt, fallback) => brands.length > 1
+    ? per.map(p => `<b>${BRAND_NAME[p.b]}</b> ${fmt(f(p.t))}`).join(' · ')
+    : fallback;
 
-  // --- one card ---
-  const card = (name, t, when) => {
-    const pctAged = t.avail ? Math.round((t.aged / t.avail) * 100) : 0;
-    return `<div class="kpi">
-      <div class="kpihead">
-        <span class="kpiname">${name}</span>
-        <span class="kpiwhen">${when || ''}</span>
-      </div>
-      <div class="metrics">
-        <div class="metric"><div class="v">${nf(t.aged)}</div><div class="l">Aged ${AGED_FROM}+ units${t.avail ? ` · ${pctAged}%` : ''}</div></div>
-        <div class="metric"><div class="v">${t.storage ? usd(t.storage) : dash}</div><div class="l">Est. storage charge</div></div>
-        <div class="metric"><div class="v" style="font-size:15px">${nf(t.avail)}</div><div class="l">Available</div></div>
-        <div class="metric"><div class="v" style="font-size:15px">${nf(t.n)}</div><div class="l">${unit}</div></div>
-      </div>
-    </div>`;
+  const IC = {
+    box: '<path d="M21 8 12 3 3 8v8l9 5 9-5V8Z"/><path d="m3 8 9 5 9-5M12 13v8"/>',
+    clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+    alert: '<path d="M12 3 2 20h20L12 3Z"/><path d="M12 10v4M12 17.5v.01"/>',
+    coin: '<circle cx="12" cy="12" r="9"/><path d="M15 9.5c-.5-1-1.6-1.5-3-1.5-1.7 0-3 .8-3 2s1.3 1.7 3 2 3 .8 3 2-1.3 2-3 2c-1.4 0-2.5-.5-3-1.5M12 6.5v11"/>',
+    leaf: '<path d="M5 19c0-8 5-14 15-14 0 10-6 15-14 15"/><path d="M5 19 13 11"/>',
   };
+  const box = (o) => `<button type="button" class="ag-box ${o.cls}${o.on ? ' on' : ''}" ${o.attr}>
+      <div class="ag-l"><span class="ag-ic"><svg viewBox="0 0 24 24">${IC[o.ic]}</svg></span>${o.label}</div>
+      <div class="ag-v"><b>${o.v}</b>${o.chip ? `<span>${o.chip}</span>` : ''}</div>
+      <div class="ag-note">${o.note}</div>
+      <div class="ag-go">${o.go}</div>
+    </button>`;
 
-  // --- one card per brand on screen ---
-  $('ageKpis').innerHTML = brands.map(b => {
-    const when = AGE[b] && AGE[b].at ? 'updated ' + AGE[b].at.toLocaleString() : '';
-    return card(BRAND_NAME[b], tally(rows.filter(r => r.brand === b)), when);
-  }).join('');
+  const sortedByStorage = AGE_SORT.k === 'storage';
+  $('ageKpis').innerHTML = [
+    box({ cls: 'is-brand', ic: 'box', label: 'Available units', attr: 'data-f="all"', on: false,
+      v: ageNf(t.avail), note: split(x => x.avail, ageNf, `${ageNf(t.n)} ${unit}`), go: `All ${ageNf(t.n)} ${unit} →` }),
+    box({ cls: 'is-act', ic: 'clock', label: `Aged ${AGED_FROM}+ days`, attr: 'data-f="aged"', on: AGE_FOCUS === 'aged',
+      v: ageNf(t.aged), chip: `${agePct(t.aged, t.avail)}% of available`,
+      note: split(x => x.aged, ageNf, 'units past six months'), go: `${ageNf(t.agedRows)} ${unit} hold some →` }),
+    box({ cls: 'is-bad', ic: 'alert', label: 'Over a year old', attr: 'data-f="year"', on: AGE_FOCUS === 'year',
+      v: ageNf(t.year), chip: `${agePct(t.year, t.avail)}%`,
+      note: split(x => x.year, ageNf, `units ${AGE_YEAR_FROM}+ days at Amazon`), go: `${ageNf(t.yearRows)} ${unit} hold some →` }),
+    box({ cls: 'is-vio', ic: 'coin', label: 'Est. storage charge', attr: 'data-sort="storage"', on: sortedByStorage,
+      v: t.storage ? ageUsd(t.storage) : '—', note: split(x => x.storage, v => ageUsd(v).replace(/\.\d\d$/, ''), 'from Amazon’s age report'),
+      go: sortedByStorage ? 'Sorted by storage ✓' : 'Sort by storage →' }),
+    box({ cls: 'is-ok', ic: 'leaf', label: `Healthy (under ${AGED_FROM} days)`, attr: 'data-f="healthy"', on: AGE_FOCUS === 'healthy',
+      v: `${agePct(t.fresh, t.units)}%`, chip: `${ageNf(t.fresh)} units`,
+      note: split(x => agePct(x.fresh, x.units), v => v + '%', 'of the units in Amazon’s age buckets'),
+      go: `${ageNf(t.okRows)} ${unit} with nothing aged →` }),
+  ].join('');
+
+  // --- events: a box sets the focus (clicking the one already on goes back to all), or sorts by storage ---
+  $('ageKpis').querySelectorAll('.ag-box').forEach(b => {
+    b.onclick = () => {
+      if (b.dataset.sort) AGE_SORT = { k: b.dataset.sort, dir: -1 };
+      else AGE_FOCUS = (AGE_FOCUS === b.dataset.f && b.dataset.f !== 'all') ? 'all' : b.dataset.f;
+      renderAge();
+    };
+  });
 }
 
-/** "inv-age-91-to-180-days" → "91 To 180 Days" */
-// Turn a raw age column header into the column title shown on screen.
-function prettyAge(h) {
+// The age mix card: one stacked bar per brand on screen (units per bucket, green → red), then a legend with each bucket's
+// units and share across everything on screen. Built from the same rows as the boxes.
+function renderAgeMix(rows, brands, cols) {
+  const startOf = c => { const r = ageRange(c); return r ? r[0] : 0; };
+  const sum = (rs, c) => rs.reduce((s, r) => s + (r.age[c] || 0), 0);
+  const bar = (name, rs) => {
+    const per = cols.map(c => ({ c, v: sum(rs, c) })), whole = per.reduce((s, x) => s + x.v, 0);
+    const segs = per.filter(x => x.v).map(x =>
+      `<i class="${ageBucketCls(x.c)}" style="flex:${x.v}" title="${ageEsc(`${name} · ${prettyAge(x.c)}: ${ageNf(x.v)} units (${agePct(x.v, whole)}%)`)}"></i>`
+    ).join('');
+    return `<div class="ag-mixrow"><span>${name}</span><div class="ag-stack">${segs}</div><em><b>${ageNf(whole)}</b> units</em></div>`;
+  };
+  const whole = cols.reduce((s, c) => s + sum(rows, c), 0);
+  const legend = cols.map(c => {
+    const v = sum(rows, c);
+    return `<div class="ag-lg ${ageBucketCls(c)}${startOf(c) >= AGED_FROM ? ' is-aged' : ''}">`
+      + `<small><i></i>${prettyAge(c)}</small><b>${ageNf(v)}<span>${agePct(v, whole)}%</span></b></div>`;
+  }).join('');
+  $('ageMix').classList.remove('hide');
+  $('ageMix').innerHTML = `<div class="ag-mixhead"><b>Age mix</b>`
+    + `<small>Units in each of Amazon’s age buckets — the further right, the closer to long-term storage fees</small></div>`
+    + brands.map(b => bar(BRAND_NAME[b], rows.filter(r => r.brand === b))).join('')
+    + `<div class="ag-legend">${legend}</div>`;
+}
+
+// The CSV keeps the column titles it always had ("91 To 180 Days"), so a sheet built on the export still lines up.
+function ageCsvTitle(h) {
   return h.replace(/[-_]/g, ' ').replace(/^inv(entory)? age /i, '').replace(/\b\w/g, m => m.toUpperCase());
+}
+/** "inv-age-91-to-180-days" → "91–180 days", "inv-age-456-plus-days" → "456+ days" */
+// Turn a raw age column header into the column title shown on screen (and in the CSV).
+function prettyAge(h) {
+  const r = ageRange(h);
+  if (r) return r[1] === Infinity ? `${r[0]}+ days` : `${r[0]}–${r[1]} days`;
+  return ageCsvTitle(h);
 }
 
 /** Download exactly what's on screen (current view, filter and sort) as a CSV Excel opens natively. */
 // Export: build the CSV from the last rendered rows and columns (AGE_RENDER) and download it.
 $('ageCsv').onclick = () => {
   if (!AGE_RENDER.rows.length) return;
-  const { rows, defs, val } = AGE_RENDER;
+  const { rows, val } = AGE_RENDER;
+  // The Age mix bar is on screen only; Total aged and Est. storage go back to the end, where the CSV always had them.
+  const shown = AGE_RENDER.defs.filter(d => !d.nocsv);
+  const defs = [...shown.filter(d => !d.csvLast), ...shown.filter(d => d.csvLast).sort((a, b) => a.csvLast - b.csvLast)];
   // --- one CSV cell: quote it when it holds a comma, a quote or a line break ---
   const cell = v => {
     const s = String(v == null ? '' : v);
     return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
   };
   // --- header line, then one line per row ---
-  const lines = [defs.map(d => cell(d.t)).join(',')];
+  const lines = [defs.map(d => cell(d.csvT || d.t)).join(',')];   // csvT: the CSV's own, older column titles
   rows.forEach(r => lines.push(defs.map(d => cell(val(r, d))).join(',')));
   // --- download (the leading BOM makes Excel read it as UTF-8) ---
   const stamp = new Date().toISOString().slice(0, 10);
