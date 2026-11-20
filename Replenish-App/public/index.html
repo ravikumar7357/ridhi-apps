@@ -380,6 +380,7 @@
    * Item and Order wrap so the buttons show without scrolling sideways. */
   table.xl td.qc-wrap{white-space:normal;max-width:220px;min-width:120px}
   table.xl td .qc-act{padding:3px 10px;font-size:12px;margin-right:4px}
+  table.xl td .qc-change-wait{margin-top:4px;font-size:11.5px;color:#b45309;font-weight:600;white-space:normal}
   table.xl td .qc-closed{padding:3px 10px;font-size:12px;margin-right:4px;background:#eef0f3;color:#6b7280;border:1px solid #e2e5ea;box-shadow:none;cursor:default;
     white-space:normal;max-width:150px;line-height:1.25;text-align:left;vertical-align:middle}   /* the date and who wrap, so QC pass stays on screen */
   /* TWO PANELS SIDE BY SIDE, and one above the other when there is no room for two. The chart is the
@@ -22596,6 +22597,8 @@ const QC_INBOX_COLS = ['Received', 'Karigar', 'SKU', 'Image', 'Item', 'Order', '
 
 /** Waiting for QC, or QC passed: the same columns, the list's own rows. */
 function renderQcInbox(view) {
+  /* The changes waiting for an admin are read once, then the list is drawn again with them marked. */
+  if (APV === null) apvLoad().then(() => { if (APV !== null) renderQc(); });
   const rows = qcListRows(view);
   QC.rows = rows.map(x => x.r); QC.inbox = rows;
   $('qcKpis').innerHTML = view === 'passed' ? qcPassedKpis(rows) : qcWaitingKpis(rows);
@@ -22612,8 +22615,8 @@ function renderQcInbox(view) {
     + num(x.since) + num(x.passed, '#166534') + num(x.alteration, '#b45309') + num(x.spotting, '#b45309') + num(x.touching, '#b45309')
     + num(x.rejected, 'var(--bad)') + `<td class="num" style="font-weight:700;color:#b45309">${x.wait > 0 ? nf(x.wait) : '<span class="muted">—</span>'}</td>`
     + `<td style="white-space:nowrap;text-align:left">${view === 'passed' ? qcClosedBtn(qcStamp('QC passed', x.ms, x.by))
-      + (ptCanEdit() || ME.admin ? `<button data-qcp-edit="${esc(x.r.id)}" class="ghost qc-act" title="Change who checked these pieces">Edit</button>` : '')
-      : qcInboxActions(x, can)}</td>`
+      + (qcCanAskChange() ? `<button data-qcp-edit="${esc(x.r.id)}" class="ghost qc-act" title="Change this QC check — an admin approves it">Edit</button>` : '')
+      : qcInboxActions(x, can)}${qcChangeOf(x.r.id) ? `<div class="qc-change-wait" title="${esc(qcChangeText(qcChangeOf(x.r.id)))}">Change waiting for admin</div>` : ''}</td>`
     + '</tr>').join('') || `<tr><td colspan="${QC_INBOX_COLS.length}" class="muted" style="padding:14px">${QC_LISTS[view].empty}</td></tr>`) + '</tbody>';
   if (rows.some(x => x.passOpensAt > Date.now())) qcPassTimerStart();
   $('qcMsg').className = 'muted';
@@ -22773,42 +22776,56 @@ function qcCheckFields(x, v, locked) {
 const qcCheckSubtitle = r => `SKU: ${r.sku || '—'}  ·  ${r.empName || '—'}  ·  ${r.orderNo || 'no order'}`;
 const qcCheckItem = r => [r.articleSubtype || r.articleType, r.color, r.size].filter(Boolean).join(' · ');
 /*
- * QC pass on a row with nothing left waiting (Ravi, 20 Nov: "they can only enter the new entries; the already filled ones can
- * only be accessed from the qc pass button of admin or Ravi"): the same window. An admin may correct the split and save; for
- * everybody else it shows where the pieces are now, locked.
+ * CHANGES TO A FILLED QC ENTRY WAIT FOR AN ADMIN (Ravi, 20 Nov: "the person who has access can ask … and the admin will
+ * approve that edit; until then it won't be showing in the final data"; "yes, all changes"). QC pass on an entry with
+ * nothing left waiting, and Edit on QC passed, open the same QC Pass window to anybody with QC access. An admin's Save
+ * applies at once; anybody else's goes to pt_approvals (filed under the entry, so a second ask replaces the first) and
+ * shows in My work today → Need your approval. Until an admin approves, the QC figures stay as they were.
+ * Errors: a refused or failed save stays in the window with the reason; an approval re-checks everything at that moment.
  */
 /** The QC Pass window's number boxes, empty, for the user to type into. */
 const QC_EMPTY_SPLIT = { passed: '', forAlteration: '', rejected: '', spotting: '', touching: '' };
-/** "8 passed, 2 for alteration" — a split in words, for the window's note. */
+/** "8 passed, 2 for alteration" — a split in words, for notes and approval cards. */
 function qcRecordedText(v) {
   return [[v.passed, 'passed'], [v.forAlteration, 'for alteration'], [v.rejected, 'rejected'], [v.spotting, 'to spotting'], [v.touching, 'to touching']]
     .filter(([n]) => ptNum(n) > 0).map(([n, t]) => nf(ptNum(n)) + ' ' + t).join(', ') || 'nothing';
 }
-function qcInboxDoneWindow(x) {
-  const fix = qcCorrectable(x), admin = !!ME.admin;
+const qcCanAskChange = () => ptCanEdit() || ME.admin || (ME.tabs || []).includes('qc');
+/* QC pass on a row with nothing left waiting — the number boxes empty, as Ravi asked for the QC Pass window (20 Nov). */
+const qcInboxDoneWindow = x => qcChangeWindow(x, true);
+/* Edit on QC passed — the boxes filled with what QC recorded. */
+function qcPassedEdit(baseId) {
+  if (!qcCanAskChange()) { $('qcMsg').className = 'err'; $('qcMsg').textContent = PT_NO_EDIT; return; }
+  const x = qcInboxStatuses().find(e => e.r.id === baseId);
+  if (!x) { $('qcMsg').className = 'err'; $('qcMsg').textContent = 'That entry is no longer on the list — press Refresh.'; return; }
+  qcChangeWindow(x, false);
+}
+/** The QC Pass window on an entry QC has already filled: change it (admin) or ask for the change (anybody with QC access). */
+function qcChangeWindow(x, emptyBoxes) {
+  const fix = qcCorrectable(x), admin = !!ME.admin, can = qcCanAskChange(), waiting = qcChangeOf(x.r.id);
   ptOpenDialog({
     title: 'QC Pass', subtitle: qcCheckSubtitle(x.r), msg: qcCheckItem(x.r),
-    note: `Nothing is left waiting on this entry — all ${nf(x.since)} piece(s) received have been through QC. `
-      + (admin ? `QC recorded ${qcRecordedText(fix.values)}. As admin you can type the corrected numbers and Save; pieces you leave out go back to waiting.`
-        + (fix.fixed ? ` ${nf(fix.fixed)} piece(s) already back from spotting or touching, or taken on the old Checks form, stay as they are.` : '')
-        : 'This is what QC recorded. Only an admin can correct it.'),
-    /* Ravi, 20 Nov, pointing at the window with its number boxes empty: "when I click on qc pass button it should look like
-     * this" — the admin types the numbers; what QC recorded is in the note above them. */
-    fields: qcCheckFields(x, admin ? Object.assign({}, fix.values, QC_EMPTY_SPLIT) : { checkedBy: x.by || x.receivedBy || '', passed: x.passed, forAlteration: x.alteration, rejected: x.rejected,
-      spotting: x.spotting, touching: x.touching, remarks: x.remarks || '' }, !admin),
-    ...(admin ? { onSave: async v => {
-      const err = await qcInboxCorrect(x.r.id, v);
+    note: `${x.wait > 0 ? '' : `Nothing is left waiting on this entry — all ${nf(x.since)} piece(s) received have been through QC. `}`
+      + `QC recorded ${qcRecordedText(fix.values)}, checked by ${fix.values.checkedBy || '—'}. `
+      + (!can ? 'This is what QC recorded.'
+        : admin ? 'As admin, what you Save applies at once; pieces you leave out go back to waiting.'
+          : 'Type the change and Save — it goes to an admin, and the figures stay as they are until it is approved.')
+      + (fix.fixed ? ` ${nf(fix.fixed)} piece(s) already back from spotting or touching, or taken on the old Checks form, stay as they are.` : '')
+      + (waiting ? ` A change asked by ${String(waiting.by || '').split('@')[0]} is already waiting${admin ? '' : ' — a new one replaces it'}.` : ''),
+    fields: qcCheckFields(x, emptyBoxes ? Object.assign({}, fix.values, QC_EMPTY_SPLIT) : fix.values, !can),
+    ...(can ? { saveLabel: admin ? 'Save' : 'Ask admin', onSave: async v => {
+      const err = admin ? await qcApplyChange(x.r.id, v) : await qcAskChange(x.r.id, v);
       if (err) return err;
       renderQc();
       $('qcMsg').className = 'muted';
-      $('qcMsg').textContent = `Corrected the QC check on ${x.r.sku}. ` + $('qcMsg').textContent;
+      $('qcMsg').textContent = (admin ? `Changed the QC check on ${x.r.sku}. ` : `Sent to an admin: the change on ${x.r.sku} shows once it is approved. `) + $('qcMsg').textContent;
       return '';
     } } : {}),
   });
 }
 /*
- * What an admin may correct on a row: every check of it except sends already (partly) back from spotting or touching —
- * those have a return hanging on them. Returns the checks to replace, the pieces that stay fixed, and the window's values.
+ * What may be changed on a row: every check of it except sends already (partly) back from spotting or touching — those
+ * have a return hanging on them. Returns the checks to replace, the pieces that stay fixed, and what QC recorded.
  */
 function qcCorrectable(x) {
   const takes = (QC.checks || []).filter(c => c && c.baseId === x.r.id && !c.refId);
@@ -22821,28 +22838,99 @@ function qcCorrectable(x) {
     date: first ? first.date : '', checkedBy: main.checkedBy || x.receivedBy || qcMyName(), passed: sum(c => (c.dept ? 0 : c.ok)), forAlteration: sum(c => c.forAlteration),
     rejected: sum(c => c.rejected), spotting: sum(c => c.spotting), touching: sum(c => c.touching), remarks: main.remarks || '' } };
 }
-/*
- * EDIT ON QC PASSED (Ravi, 20 Nov: "the only button that can be changed in qc passed screen is the who entered the value,
- * not anything else"): the same window, everything locked but Checked by. Saving puts that name on every check of the row.
- */
-function qcPassedEdit(baseId) {
-  if (!(ptCanEdit() || ME.admin)) { $('qcMsg').className = 'err'; $('qcMsg').textContent = PT_NO_EDIT; return; }
+/** The change as typed: number boxes all left empty keep what QC recorded; otherwise an empty box is 0. */
+function qcChangeAsTyped(fix, v) {
+  const blank = QC_SPLIT.every(k => String(v[k] == null ? '' : v[k]).trim() === '');
+  const num = k => (blank ? ptNum(fix.values[k]) : qcPcs(v[k]));
+  return { passed: num('passed'), forAlteration: num('forAlteration'), rejected: num('rejected'), spotting: num('spotting'), touching: num('touching'),
+    checkedBy: String(v.checkedBy || '').trim() || fix.values.checkedBy, remarks: String(v.remarks == null ? fix.values.remarks : v.remarks).trim(),
+    /* the admin's date box starts on the day QC checked; only a different day is a change */
+    ...(v.date && v.date !== ptIsoDate(fix.values.date || '') ? { date: v.date } : {}) };
+}
+/** Only the name (or the remark) changes — nothing that moves a piece. */
+const qcNumbersSame = (a, b) => QC_SPLIT.every(k => ptNum(a[k]) === ptNum(b[k]));
+/** Why this change cannot stand, or ''. Asked when it is typed and again when an admin approves it. */
+function qcChangeRefusal(x, fix, after) {
+  if (QC_SPLIT.some(k => after[k] < 0)) return 'Passed, alteration, rejected, spotting and touching cannot be negative.';
+  if (!after.checkedBy) return 'Pick who checked these pieces.';
+  const total = qcCheckedOf(after);
+  if (total > fix.room) return `Passed + alteration + rejected + spotting + touching is ${nf(total)} — only ${nf(fix.room)} piece(s) can be set here.`;
+  /* Cutting alteration below what has already gone to the tailors would leave that issue standing on nothing. */
+  const altAfter = qcAltTotal(x.r.sku) - fix.values.forAlteration + after.forAlteration, issued = qcIssuedTotal(x.r.sku);
+  if (altAfter < issued) return `${nf(issued)} piece(s) of ${x.r.sku} have already been issued for alteration — for-alteration cannot drop that far.`;
+  if (qcNumbersSame(after, fix.values) && after.checkedBy === fix.values.checkedBy && after.remarks === fix.values.remarks && !after.date) return 'Nothing was changed.';
+  return '';
+}
+/** An admin's change, at once. '' or why not. */
+async function qcApplyChange(baseId, v) {
+  if (!ME.admin) return 'Only an admin can change a QC check that is already filled in — use Ask admin.';
   const x = qcInboxStatuses().find(e => e.r.id === baseId);
-  if (!x) { $('qcMsg').className = 'err'; $('qcMsg').textContent = 'That entry is no longer on the list — press Refresh.'; return; }
-  const by = x.by || x.receivedBy || '';
-  const fields = qcCheckFields(x, { checkedBy: by, passed: x.passed, forAlteration: x.alteration, rejected: x.rejected,
-    spotting: x.spotting, touching: x.touching, remarks: x.remarks || '' }, true)
-    .map(f => (f.key === 'checkedBy' ? { key: 'checkedBy', label: 'Checked by', type: 'select', value: by, options: [...new Set([by].concat(qcDeptEmps()).filter(Boolean))] } : f));
+  if (!x) return 'That entry is no longer on the list — press Refresh.';
+  const fix = qcCorrectable(x), after = qcChangeAsTyped(fix, v), why = qcChangeRefusal(x, fix, after);
+  if (why) return why;
+  return qcNumbersSame(after, fix.values) && !after.date ? qcSetCheckedBy(baseId, after.checkedBy) : qcInboxCorrect(baseId, after);
+}
+/** Ask an admin for a change. '' or why not. Filed under the entry: a second ask replaces the first. */
+async function qcAskChange(baseId, v) {
+  if (!qcCanAskChange()) return PT_NO_EDIT;
+  const x = qcInboxStatuses().find(e => e.r.id === baseId);
+  if (!x) return 'That entry is no longer on the list — press Refresh.';
+  const fix = qcCorrectable(x), after = qcChangeAsTyped(fix, v), why = qcChangeRefusal(x, fix, after);
+  if (why) return why;
+  const key = QC_CHANGE_PREFIX + baseId;
+  const rec = { id: key, type: 'qc_change', baseId, sku: qcNorm(x.r.sku), orderNo: x.r.orderNo || '', karigar: x.r.empName || '',
+    at: new Date().toISOString(), by: ME.email, before: fix.values, after,
+    label: `QC change — ${x.r.empName || '?'} / ${qcNorm(x.r.sku)}` };
+  await ptPut('pt_approvals/' + key, rec);
+  APV = (APV || []).filter(r => apvKey(r) !== key).concat([Object.assign({ _key: key }, rec)]);
+  return '';
+}
+const QC_CHANGE_PREFIX = 'qcchg_';
+/** QC changes waiting for an admin, oldest first. */
+const qcChangesPending = () => (APV || []).filter(r => r && r.type === 'qc_change').sort((a, b) => String(a.at).localeCompare(String(b.at)));
+const qcChangeOf = baseId => qcChangesPending().find(r => r.baseId === baseId) || null;
+/** "8 passed, 2 for alteration · Anita → 9 passed, 1 for alteration · Sunita" — a waiting change in words. */
+function qcChangeText(q) {
+  const side = v => `${qcRecordedText(v)} · ${v.checkedBy || '—'}`;
+  return `${side(q.before || {})} → ${side(q.after || {})}`;
+}
+/** An admin approves a waiting change: it is checked again against today's figures, applied, and cleared. '' or why not. */
+async function qcChangeApprove(key) {
+  if (!ME.admin) return 'Only an admin can approve a QC change.';
+  await apvLoad(true);
+  const q = (APV || []).find(r => apvKey(r) === key && r.type === 'qc_change');
+  if (!q) return 'That change is no longer waiting.';
+  if (!QC.checks) await ensureQc();
+  const x = qcInboxStatuses().find(e => e.r.id === q.baseId);
+  if (!x) return `The entry for ${q.sku} is no longer there — refuse this change.`;
+  const fix = qcCorrectable(x), why = qcChangeRefusal(x, fix, q.after);
+  if (why && why !== 'Nothing was changed.') return why;
+  const err = why ? '' : (qcNumbersSame(q.after, fix.values) && !q.after.date ? await qcSetCheckedBy(q.baseId, q.after.checkedBy) : await qcInboxCorrect(q.baseId, q.after));
+  if (err) return err;
+  await apvDrop(key);
+  if (typeof renderQc === 'function') renderQc();
+  return '';
+}
+/** An admin refuses a waiting change: it is cleared and nothing else moves. */
+async function qcChangeRefuse(key) {
+  if (!ME.admin) return 'Only an admin can refuse a QC change.';
+  await apvDrop(key);
+  return '';
+}
+/** The admin's window on one waiting change: what it was, what was asked, Approve or Refuse. */
+function qcChangeReview(key) {
+  const q = (APV || []).find(r => apvKey(r) === key && r.type === 'qc_change');
+  if (!q) return;
+  const line = (label, k) => `<tr><td style="text-align:left">${label}</td><td class="num">${esc(String(q.before[k] == null ? '—' : q.before[k]))}</td>`
+    + `<td class="num" style="font-weight:700${String(q.before[k]) !== String(q.after[k]) ? ';color:#b45309' : ''}">${esc(String(q.after[k] == null ? '—' : q.after[k]))}</td></tr>`;
   ptOpenDialog({
-    title: 'QC Pass', subtitle: qcCheckSubtitle(x.r), msg: qcCheckItem(x.r),
-    note: 'Only Checked by — who entered this QC check — can be changed here.',
-    fields,
-    onSave: async v => {
-      const err = await qcSetCheckedBy(x.r.id, v.checkedBy);
-      if (err) return err;
-      renderQc();
-      return '';
-    },
+    title: 'QC change', subtitle: `SKU: ${q.sku}  ·  ${q.karigar || '—'}  ·  ${q.orderNo || 'no order'}`,
+    note: `Asked by ${String(q.by || '').split('@')[0]} on ${new Date(q.at).toLocaleString('en-GB')}. Approve to change the QC figures; Refuse to leave them as they are.`,
+    html: `<table class="xl"><thead><tr><th></th><th class="num">Now</th><th class="num">Asked for</th></tr></thead><tbody>`
+      + [['Passed', 'passed'], ['For alteration', 'forAlteration'], ['Rejected', 'rejected'], ['Spotting', 'spotting'], ['Touching', 'touching'], ['Checked by', 'checkedBy'], ['Remarks', 'remarks']]
+        .map(([l, k]) => line(l, k)).join('') + '</tbody></table>',
+    saveLabel: 'Approve', onSave: () => qcChangeApprove(key),
+    alt: { label: 'Refuse', run: () => qcChangeRefuse(key) },
   });
 }
 /** Put `name` as Checked by on every QC check of one row. '' or why not. */
@@ -22865,7 +22953,6 @@ async function qcInboxCorrect(baseId, entry) {
   if (QC_SPLIT.some(k => qcPcs(entry[k]) < 0)) return 'Passed, alteration, rejected, spotting and touching cannot be negative.';
   const fix = qcCorrectable(x), total = qcCheckedOf(entry);
   if (total > fix.room) return `Passed + alteration + rejected + spotting + touching is ${nf(total)} — only ${nf(fix.room)} piece(s) can be set here.`;
-  /* Cutting alteration below what has already gone to the tailors would leave that issue standing on nothing. */
   const altAfter = qcAltTotal(x.r.sku) - fix.values.forAlteration + qcPcs(entry.forAlteration), issued = qcIssuedTotal(x.r.sku);
   if (altAfter < issued) return `${nf(issued)} piece(s) of ${x.r.sku} have already been issued for alteration — for-alteration cannot drop that far.`;
   /* The correction keeps the day the pieces were first checked, unless the admin picked another in the date box. */
@@ -90448,6 +90535,13 @@ function frCards() {
           return `Job work entry for ${q.empName || '—'} (${q.sku || ''}) changes: ${d.length ? d.map(x => `${x[0]} ${x[1]} → ${x[2]}`).join(', ') : Object.entries(q.change || {}).map(([k, v]) => `${k} → ${v}`).join(', ')}.`; },
         run: () => jwCorrApprove(q.id) });
   });
+  /* QC changes asked on an entry QC already filled (Ravi, 20 Nov: "the admin will approve that edit; until then it won't be
+   * showing in the final data") — admins; Review opens the change with Approve / Refuse (production/quality-control.js). */
+  if (ME.admin && typeof qcChangesPending === 'function') qcChangesPending().forEach(q => item('qc',
+    `QC change · ${q.karigar || '—'} · ${q.sku || ''}`,
+    [frTry(() => qcChangeText(q), ''), q.orderNo, q.by && 'asked by ' + String(q.by).split('@')[0]].filter(Boolean).join(' · '),
+    () => showTab('qc'),
+    { label: 'Review', own: true, run: async () => { await frGates(); if (!QC.checks) await ensureQc(); qcChangeReview(apvKey(q)); return ''; } }));
   /* Goods rejected on receive (Ravi, 19 Nov: "ravi must be informed") — admins; "Seen" takes it off every admin's bell
    * (vendors/portal/printer-receive.js). */
   if (ME.admin && typeof vprRejPending === 'function') vprRejPending().forEach(r => item('vend',
@@ -90559,6 +90653,7 @@ async function frLoad(force) {
   }
   if (frMay('hr') && (ME.admin || frTry(prCanApprove, false)) && (force || HR.emp === null)) jobs.push(() => { if (force) HR.emp = null; return ensureHr(); });
   if (ME.admin && typeof vprRejLoad === 'function' && (force || VPR_REJ.rows === null)) jobs.push(() => vprRejLoad());
+  if (ME.admin && typeof apvLoad === 'function' && (force || APV === null)) jobs.push(() => apvLoad(true));   // QC changes waiting
   for (const job of jobs) {
     try { await job(); } catch (e) { console.warn('[my work]', e); }
     frDraw(); frCount();
@@ -90612,7 +90707,7 @@ const FR_GROUPS = [['approve', 'Needs your approval', 'fr-warn', '✓'], ['wait'
  * the screen's own window have no tick box — they are never approved in a batch. */
 const FR_SUBS = [[/^Job work correction/, 'Job work corrections'], [/^Quantity change/, 'Order quantity changes'],
   [/^Extra hours/, 'Extra hours to authorise'], [/^Printer rate/, 'Printer rates'], [/^Sales order/, 'Sales orders to review'],
-  [/^Finished goods correction/, 'Finished goods corrections'], [/^Delete /, 'Lines asked to be deleted']];
+  [/^Finished goods correction/, 'Finished goods corrections'], [/^QC change/, 'QC changes'], [/^Delete /, 'Lines asked to be deleted']];
 const FR_SUB_SHOW = 4;
 const frSub = c => { const i = FR_SUBS.findIndex(s => s[0].test(c.title)); return i < 0 ? FR_SUBS.length : i; };
 const frSubName = i => (FR_SUBS[i] || [0, 'Other approvals'])[1];
@@ -90935,6 +91030,7 @@ async function frPoll() {
   if (frMay('so') && frTry(odrCanAnswer, false)) jobs.push(odrLoad(true));
   if (frMay('fgi') && frTry(fgiCanEdit, false)) jobs.push(fgiCorrLoad());
   if (ME.admin && typeof vprRejLoad === 'function') jobs.push(vprRejLoad());
+  if (ME.admin && typeof apvLoad === 'function') jobs.push(apvLoad(true));   // QC changes waiting
   await Promise.all(jobs.map(p => Promise.resolve(p).catch(() => {})));
   const now = frCards().filter(c => c.grp === 'approve'), fresh = now.filter(c => !before.has(c.key));
   FR.known = new Set(now.map(c => c.key));

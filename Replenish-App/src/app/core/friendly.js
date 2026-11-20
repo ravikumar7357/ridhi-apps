@@ -63,6 +63,13 @@ function frCards() {
           return `Job work entry for ${q.empName || '—'} (${q.sku || ''}) changes: ${d.length ? d.map(x => `${x[0]} ${x[1]} → ${x[2]}`).join(', ') : Object.entries(q.change || {}).map(([k, v]) => `${k} → ${v}`).join(', ')}.`; },
         run: () => jwCorrApprove(q.id) });
   });
+  /* QC changes asked on an entry QC already filled (Ravi, 20 Nov: "the admin will approve that edit; until then it won't be
+   * showing in the final data") — admins; Review opens the change with Approve / Refuse (production/quality-control.js). */
+  if (ME.admin && typeof qcChangesPending === 'function') qcChangesPending().forEach(q => item('qc',
+    `QC change · ${q.karigar || '—'} · ${q.sku || ''}`,
+    [frTry(() => qcChangeText(q), ''), q.orderNo, q.by && 'asked by ' + String(q.by).split('@')[0]].filter(Boolean).join(' · '),
+    () => showTab('qc'),
+    { label: 'Review', own: true, run: async () => { await frGates(); if (!QC.checks) await ensureQc(); qcChangeReview(apvKey(q)); return ''; } }));
   /* Goods rejected on receive (Ravi, 19 Nov: "ravi must be informed") — admins; "Seen" takes it off every admin's bell
    * (vendors/portal/printer-receive.js). */
   if (ME.admin && typeof vprRejPending === 'function') vprRejPending().forEach(r => item('vend',
@@ -174,6 +181,7 @@ async function frLoad(force) {
   }
   if (frMay('hr') && (ME.admin || frTry(prCanApprove, false)) && (force || HR.emp === null)) jobs.push(() => { if (force) HR.emp = null; return ensureHr(); });
   if (ME.admin && typeof vprRejLoad === 'function' && (force || VPR_REJ.rows === null)) jobs.push(() => vprRejLoad());
+  if (ME.admin && typeof apvLoad === 'function' && (force || APV === null)) jobs.push(() => apvLoad(true));   // QC changes waiting
   for (const job of jobs) {
     try { await job(); } catch (e) { console.warn('[my work]', e); }
     frDraw(); frCount();
@@ -227,7 +235,7 @@ const FR_GROUPS = [['approve', 'Needs your approval', 'fr-warn', '✓'], ['wait'
  * the screen's own window have no tick box — they are never approved in a batch. */
 const FR_SUBS = [[/^Job work correction/, 'Job work corrections'], [/^Quantity change/, 'Order quantity changes'],
   [/^Extra hours/, 'Extra hours to authorise'], [/^Printer rate/, 'Printer rates'], [/^Sales order/, 'Sales orders to review'],
-  [/^Finished goods correction/, 'Finished goods corrections'], [/^Delete /, 'Lines asked to be deleted']];
+  [/^Finished goods correction/, 'Finished goods corrections'], [/^QC change/, 'QC changes'], [/^Delete /, 'Lines asked to be deleted']];
 const FR_SUB_SHOW = 4;
 const frSub = c => { const i = FR_SUBS.findIndex(s => s[0].test(c.title)); return i < 0 ? FR_SUBS.length : i; };
 const frSubName = i => (FR_SUBS[i] || [0, 'Other approvals'])[1];
@@ -550,6 +558,7 @@ async function frPoll() {
   if (frMay('so') && frTry(odrCanAnswer, false)) jobs.push(odrLoad(true));
   if (frMay('fgi') && frTry(fgiCanEdit, false)) jobs.push(fgiCorrLoad());
   if (ME.admin && typeof vprRejLoad === 'function') jobs.push(vprRejLoad());
+  if (ME.admin && typeof apvLoad === 'function') jobs.push(apvLoad(true));   // QC changes waiting
   await Promise.all(jobs.map(p => Promise.resolve(p).catch(() => {})));
   const now = frCards().filter(c => c.grp === 'approve'), fresh = now.filter(c => !before.has(c.key));
   FR.known = new Set(now.map(c => c.key));

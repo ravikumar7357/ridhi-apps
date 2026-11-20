@@ -325,6 +325,7 @@
    * Item and Order wrap so the buttons show without scrolling sideways. */
   table.xl td.qc-wrap{white-space:normal;max-width:220px;min-width:120px}
   table.xl td .qc-act{padding:3px 10px;font-size:12px;margin-right:4px}
+  table.xl td .qc-change-wait{margin-top:4px;font-size:11.5px;color:#b45309;font-weight:600;white-space:normal}
   table.xl td .qc-closed{padding:3px 10px;font-size:12px;margin-right:4px;background:#eef0f3;color:#6b7280;border:1px solid #e2e5ea;box-shadow:none;cursor:default;
     white-space:normal;max-width:150px;line-height:1.25;text-align:left;vertical-align:middle}   /* the date and who wrap, so QC pass stays on screen */
   /* TWO PANELS SIDE BY SIDE, and one above the other when there is no room for two. The chart is the
