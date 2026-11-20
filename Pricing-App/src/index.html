@@ -1197,6 +1197,20 @@
     </details>
     </div>
 
+    <!-- Trend (Ravi, 2026-11-20: "add day by day and week by week"): the last 30 days or 26 weeks, each beside the same
+         weekday last year, for the brand and channels on view (yoyRenderTrend). Shown in every period but Events. -->
+    <div class="yoy-sec yoy-trend">
+    <div class="yoy-sec-h"><span class="yoy-sec-tag">Trend</span><span class="yoy-sec-sub" id="yoyTrendNote"></span>
+      <div class="sd-toggle" id="yoyTrendSeg" style="margin-left:auto"><button data-t="day" class="on">Day by day</button><button data-t="week">Week by week</button></div>
+    </div>
+    <div class="sd-kpis yoy-kpis yoy-k4 yoy-always" id="yoyTrendK"></div>
+    <div class="sd-panel yoy-always-b">
+      <div class="yoy-legend"><span><i style="background:var(--yoy-now)"></i>This year</span><span><i style="background:var(--yoy-ly)"></i>Last year, same weekday</span><span>paler bar = still running</span></div>
+      <div class="yoy-chart" id="yoyTrendChart"></div>
+      <details style="margin-top:8px"><summary class="muted" style="cursor:pointer">Show the numbers</summary><div id="yoyTrendTable" class="sa-scroll-x"></div></details>
+    </div>
+    </div>
+
     <!-- Figures layout A does not show as cards; the code still fills them, and the tables beside the charts carry them. -->
     <div hidden>
       <span id="yoyAllTacos"></span><span id="yoyAllTacosSub"></span><span id="yoyAllAmz"></span>

@@ -254,6 +254,7 @@ function yoyRender() {
   ]);
   yoyRenderShop(V, live, frac, today, lySame, lwSame, amzAds);
   yoyRenderPeriod(V, today, lySame, lyDay);
+  try { yoyRenderTrend(V, today, lySame, lyDay); } catch (e) { $('yoyTrendNote').textContent = 'Could not draw the trend (' + e.message + ')'; }
 
   // --- legends ---
   $('yoyLgNow').textContent = live ? 'Today' : yoyDate(V.day);
@@ -521,6 +522,67 @@ function yoyRenderPeriod(V, tot, lySame, lyDay) {
     : yoyCard('sd-b-cyan', 'Shopify', '—', 'This store’s history is still being read (about 60 days every 15 minutes)');
 }
 
+/* ---------- TREND (Ravi, 2026-11-20: "add day by day and week by week") ----------
+ * The same as live.html's renderTrend: the last 30 days, or the last 26 weeks Monday to Sunday, this year beside the same
+ * weekday last year (364 days back), for the brand and channels on view. Days before the day on view come from the history
+ * (?live=hist: Amazon SP/CPC, Shopify SHOP for Ridhi and SHOP_CPC for CPC), the day on view from the live figures; last
+ * year's match for a live day is cut to the same time of day, as everywhere else on the screen. */
+let YOY_TREND = 'day';
+function yoyRenderTrend(V, tot, lySame, lyDay) {
+  yoyLoadHist();                                     // a no-op unless ten minutes have passed
+  const H = YOY_HIST;
+  if (!H || !H.d) { $('yoyTrendNote').textContent = YOY_HIST_ERR ? 'Could not read the history: ' + YOY_HIST_ERR : 'Reading the history…'; ['yoyTrendK', 'yoyTrendChart', 'yoyTrendTable'].forEach(id => { $(id).innerHTML = ''; }); return; }
+  const amzK = V.keys, vw = $('paneYoy').dataset.view || 'both', amzOn = vw !== 'shop', shopOn = vw !== 'amz';
+  const SHOPK = { SP: 'SHOP', CPC: 'SHOP_CPC' }, T = V.day, sh = (d, n) => sdShift(d, n);
+  const lyFrac = T === sdToday() && lyDay.sales > 0 ? lySame.sales / lyDay.sales : 1;
+  const weekRow = (k, d) => { const r = ((YOY[k] || {}).week || []).find(x => String(x.t).slice(0, 10) === d); return r ? [r.sales, r.units, r.orders] : null; };
+  const shopNow = amzK.flatMap(k => (((YOY[k] || {}).shop || {}).now || []));
+  const Z = () => ({ a: 0, s: 0, o: 0, haveA: false, haveS: false, spend: 0, adDays: 0 });
+  const put = (t, r, ch, f) => { if (!r) return; f = f || 1; if (ch === 'a') { t.a += (r[0] || 0) * f; t.haveA = true; } else { t.s += (r[0] || 0) * f; t.haveS = true; } t.o += (r[2] || 0) * f; };
+  const day = (t, d) => {
+    if (d === T) {
+      if (amzOn) { t.a += tot.sales; t.o += tot.orders; t.haveA = true; }
+      if (shopOn) shopNow.forEach(r => { t.s += r.sales || 0; t.o += r.orders || 0; t.haveS = true; });
+    } else amzK.forEach(k => { if (amzOn) put(t, (H.d[k] || {})[d] || weekRow(k, d), 'a'); if (shopOn) put(t, (H.d[SHOPK[k]] || {})[d], 's'); });
+    if (amzOn) { let s = null; amzK.forEach(k => { const live = (((YOY[k] || {}).ads || {}).days || {})[d], old = ((H.ads || {})[k] || {})[d]; const v = live ? live.spend : old ? old[2] : null; if (v != null) s = (s || 0) + Number(v); }); if (s != null) { t.spend += s; t.adDays++; } }
+  };
+  const lyDayOf = (t, d) => { const L = sh(d, -364), f = d === T ? lyFrac : 1; amzK.forEach(k => { if (amzOn) put(t, (H.d[k] || {})[L], 'a', f); if (shopOn) put(t, (H.d[SHOPK[k]] || {})[L] || [0, 0, 0], 's', f); }); };
+  const dow = (new Date(T + 'T12:00:00Z').getUTCDay() + 6) % 7, B = [];
+  if (YOY_TREND === 'week') { const mon = sh(T, -dow); for (let w = 25; w >= 0; w--) { const a = sh(mon, -7 * w), ds = []; for (let i = 0; i < 7; i++) { const d = sh(a, i); if (d <= T) ds.push(d); } B.push({ a, ds }); } }
+  else for (let i = 29; i >= 0; i--) { const d = sh(T, -i); B.push({ a: d, ds: [d] }); }
+  B.forEach(b => { b.ty = Z(); b.ly = Z(); b.ds.forEach(d => { day(b.ty, d); lyDayOf(b.ly, d); }); b.part = b.ds.includes(T); b.v = (b.ty.haveA || b.ty.haveS) ? b.ty.a + b.ty.s : null; b.lv = b.ly.a + b.ly.s; });
+  const wk = YOY_TREND === 'week', unit = wk ? 'week' : 'day';
+  const dn = (d, yr) => new Date(d + 'T12:00:00Z').toLocaleDateString('en-GB', { timeZone: 'UTC', weekday: 'short', day: 'numeric', month: 'short', year: yr ? 'numeric' : undefined });
+  const lab = b => (wk ? dn(b.a, false).replace(/^\w+ /, '').replace(' ', '\n') : dn(b.a, false).replace(/^(\w+) /, '$1\n'));
+  const name = b => (wk ? 'Week of ' + dn(b.a, true) + (b.part ? ' (to today)' : '') : dn(b.a, true));
+  const partIdx = B[B.length - 1].part && T === sdToday() ? B.length - 1 : -1;
+  yoyBars($('yoyTrendChart'), B.map(lab), [
+    { vals: B.map(b => b.v), fill: 'var(--yoy-now)', name: 'This year', part: partIdx },
+    { vals: B.map(b => b.lv), fill: 'var(--yoy-ly)', name: 'Last year (' + (wk ? 'week of ' : '') + '364 days back)' },
+  ], null, i => name(B[i]));
+  const has = B.filter(b => b.v != null), done = has.filter(b => !b.part);
+  const tySum = has.reduce((t, b) => t + b.v, 0), lySum = has.reduce((t, b) => t + b.lv, 0);
+  const chg = (a, b) => { if (!b) return ['—', '']; const p = Math.round((a / b - 1) * 100); return [(p > 0 ? '+' : '') + p + '%', p >= 0 ? 'yoy-up' : 'yoy-down']; };
+  const [c, k] = chg(tySum, lySum), best = done.slice().sort((x, y) => y.v - x.v)[0];
+  const avg = done.length ? done.reduce((t, b) => t + b.v, 0) / done.length : 0, lyAvg = done.length ? done.reduce((t, b) => t + b.lv, 0) / done.length : 0;
+  const span = wk ? 'Last 26 weeks' : 'Last 30 days';
+  $('yoyTrendK').innerHTML =
+    yoyCard('sd-b-indigo', span, yoyMoney(tySum), yoyInt(has.reduce((t, b) => t + b.ty.o, 0)) + ' orders' + (amzOn && shopOn ? ' · Shopify ' + yoyMoney(has.reduce((t, b) => t + b.ty.s, 0)) : ''))
+    + yoyCard('sd-b-orange', 'vs last year', c, 'last year ' + yoyMoney(lySum) + (shopOn && !has.some(b => b.ly.s) ? ' (Shopify $0)' : ''), k)
+    + yoyCard('sd-b-teal', 'Average a ' + unit, done.length ? yoyMoney(avg) : '—', done.length ? 'last year ' + yoyMoney(lyAvg) + ' · finished ' + unit + 's' : '')
+    + yoyCard('sd-b-pink', 'Best ' + unit, best ? yoyMoney(best.v) : '—', best ? name(best) : '');
+  const missA = amzOn && B.some(b => !b.part && !b.ty.haveA), cpcNote = shopOn && amzK.includes('CPC') && H.shopCpcFrom && H.shopCpcFrom > B[0].a;
+  $('yoyTrendNote').textContent = `${span}${wk ? ', Monday to Sunday' : ''} · ${amzOn && shopOn ? 'Amazon + Shopify' : amzOn ? 'Amazon' : 'Shopify'}, ${amzK.map(x => YOY_BRANDS[x]).join(' + ')} · against the same weekday last year`
+    + (cpcNote ? ` · CPC Shopify from ${dn(H.shopCpcFrom, false)} (still filling in)` : '') + (missA ? ' · days the history has not reached yet show no bar' : '');
+  const pct = (a, b) => { if (!b) return '—'; const p = Math.round((a / b - 1) * 100); return `<span class="${p >= 0 ? 'yoy-up' : 'yoy-down'}">${p > 0 ? '+' : ''}${p}%</span>`; };
+  const pc = (a, b) => (b > 0 ? (a / b * 100).toFixed(1) + '%' : '—'), split = amzOn && shopOn;
+  $('yoyTrendTable').innerHTML = `<table class="yoy-tbl"><thead><tr><th>${wk ? 'Week of' : 'Day'}</th>${split ? '<th>Amazon</th><th>Shopify</th>' : ''}<th>Sales</th><th>Orders</th><th>Last year</th><th>Change</th>${amzOn ? '<th>Ad spend</th><th>TACoS</th>' : ''}</tr></thead><tbody>`
+    + B.slice().reverse().map(b => { const t = b.ty, so = b.part ? ' <span class="muted">(so far)</span>' : '';
+      return `<tr><td>${dn(b.a, wk)}${wk && b.part ? ' · to today' : ''}</td>${split ? `<td>${t.haveA ? yoyMoney(t.a) : '—'}</td><td>${t.haveS ? yoyMoney(t.s) : '—'}</td>` : ''}<td>${b.v != null ? yoyMoney(b.v) + so : '—'}</td><td>${b.v != null ? yoyInt(t.o) : ''}</td><td>${yoyMoney(b.lv)}</td><td>${b.v != null ? pct(b.v, b.lv) : ''}</td>`
+        + (amzOn ? `<td>${t.adDays ? yoyMoney(t.spend) + (t.adDays < b.ds.length ? ' (' + t.adDays + 'd)' : '') : '—'}</td><td>${t.adDays && b.v ? pc(t.spend, b.v) : '—'}</td>` : '') + '</tr>'; }).join('')
+    + '</tbody></table>';
+}
+
 /* ---------- EVENTS (Ravi, 2026-11-20: "a literal Events tab — what the events are, and how we did") ----------
  * The same as live.html's renderEvents. Amazon's US shopping events, this year and last; to add next year's, one more line in
  * d, by year, [first day, last day] in Pacific dates. Each card: what the event is; sales on its days (Amazon + Shopify, from
@@ -762,7 +824,7 @@ new MutationObserver(ms => ms.forEach(m => {
 function yoySetChan(v) {
   $('paneYoy').dataset.view = v;
   $('yoyChan').querySelectorAll('button').forEach(x => x.classList.toggle('on', x.dataset.v === v));
-  if (YOY_PERIOD === 'events' && YOY_KEY) yoyRender();   // the event cards follow the channel picker
+  if (YOY_KEY) yoyRender();                          // the event cards and the trend follow the channel picker
 }
 $('yoyChan').querySelectorAll('button').forEach(b => b.onclick = () => {
   yoySetChan(b.dataset.v);
@@ -779,6 +841,16 @@ $('yoyPeriod').querySelectorAll('button').forEach(b => b.onclick = () => {
   yoySetPeriod(b.dataset.p);
   try { localStorage.setItem('yoy.period', b.dataset.p); } catch (e) { /* no storage */ }
 });
+// The trend switch: day by day or week by week. Remembered per browser.
+function yoySetTrend(t) {
+  YOY_TREND = t; $('yoyTrendSeg').querySelectorAll('button').forEach(x => x.classList.toggle('on', x.dataset.t === t));
+  if (YOY_KEY) yoyRender();
+}
+$('yoyTrendSeg').querySelectorAll('button').forEach(b => b.onclick = () => {
+  yoySetTrend(b.dataset.t);
+  try { localStorage.setItem('yoy.trend', b.dataset.t); } catch (e) { /* no storage */ }
+});
+try { yoySetTrend(localStorage.getItem('yoy.trend') === 'week' ? 'week' : 'day'); } catch (e) { yoySetTrend('day'); }
 try { const p = localStorage.getItem('yoy.period'); yoySetPeriod(['day', 'week', 'month', 'quarter', 'year', 'events'].includes(p) ? p : 'day'); } catch (e) { yoySetPeriod('day'); }
 try {
   const saved = localStorage.getItem('yoy.brand');

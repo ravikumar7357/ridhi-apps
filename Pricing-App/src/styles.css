@@ -999,6 +999,10 @@
   #paneYoy .yoy-sec[data-chan="amz"]{--sec:#FF9900;--sec-tag:#232F3E}
   #paneYoy .yoy-sec[data-chan="shop"]{--sec:#95BF47;--sec-tag:#5E8E3E}
   #paneYoy .yoy-sec[data-chan="shop"] .sd-card{--glow:#95BF47}
+  /* Trend (2026-11-20): indigo, and its parts stay on view in every period (the period rule hides other sections' day parts). */
+  #paneYoy .yoy-sec.yoy-trend{--sec:#6366f1;--sec-tag:#4F46E5}
+  #paneYoy .yoy-sec.yoy-trend > .yoy-always{display:grid !important}
+  #paneYoy .yoy-sec.yoy-trend > .yoy-always-b{display:block !important;margin-bottom:16px}
   .yoy-sec-h{display:flex;align-items:center;flex-wrap:wrap;gap:10px 14px;margin:0 0 14px}
   .yoy-sec-tag{display:inline-flex;align-items:center;padding:5px 14px;border-radius:8px;font-size:15px;font-weight:800;letter-spacing:.01em;
     color:var(--sec-ink);background:var(--sec-tag,var(--sec))}
