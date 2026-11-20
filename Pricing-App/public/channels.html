@@ -253,7 +253,7 @@ function render() {
     + kpi('vs last year, same time', cLy.text, `${dname(DATA.ly, true)}${by}: ${usd(aLy.sales)}`, { cls: cLy.cls })
     + kpi('vs last week, same time', cLw.text, `${dname(DATA.lw)}${by}: ${usd(aLw.sales)}`, { cls: cLw.cls })
     + kpi('Pace for the day', aPace != null ? usd(aPace) : (live ? '—' : usd(aT.sales)), aPace != null ? `if today follows ${dname(DATA.ly)}’s shape · that day ${usd(aLyDay.sales)}` : 'last year’s whole day ' + usd(aLyDay.sales), { title: 'Today so far, scaled by how much of last year’s day was still to come at this hour.' })
-    + kpi('Average order', aT.orders ? usd2(aT.sales / aT.orders) : '—', (aT.orders ? (aT.units / aT.orders).toFixed(2) + ' units an order' : '') + (aLy.orders ? ' · last year ' + usd2(aLy.sales / aLy.orders) : ''));
+    + kpi('Average order', aT.orders ? usd2(aT.sales / aT.orders) : '—', [aT.orders ? (aT.units / aT.orders).toFixed(2) + ' units an order' : 'no orders yet today', aLy.orders ? 'last year ' + usd2(aLy.sales / aLy.orders) : ''].filter(Boolean).join(' · '));
   const ad = V.ad;
   $('amzAds').innerHTML = ad
     ? kpi('Ad spend', usd(ad.spend), 'Sponsored ' + (V.adTypes.join(' + ') || 'ads'), { lead: true, title: 'Amazon ad reports run behind the sales figures.' })
@@ -279,7 +279,7 @@ function render() {
       + kpi('vs last week, same time', vLw.text, `${dname(DATA.lw)}${by}: ${usd(sLw.sales)}`, { cls: vLw.cls })
       + kpi('vs 4 weeks ago, same time', S.m4Day ? v4.text : '—', S.m4Day ? `${dname(S.m4Day)}${by}: ${usd(s4.sales)}` : '', { cls: S.m4Day ? v4.cls : '' })
       + kpi('Pace for the day', sPace != null ? usd(sPace) : (live ? '—' : usd(sT.sales)), sPace != null ? `if today follows ${dname(DATA.lw)}’s shape` : '', { title: 'Today so far, scaled by how much of last week’s same day was still to come at this hour.' })
-      + kpi('Average order', sT.orders ? usd2(sT.sales / sT.orders) : '—', (sT.orders ? (sT.units / sT.orders).toFixed(2) + ' units an order' : '') + (sLw.orders ? ' · last week ' + usd2(sLw.sales / sLw.orders) : ''));
+      + kpi('Average order', sT.orders ? usd2(sT.sales / sT.orders) : '—', [sT.orders ? (sT.units / sT.orders).toFixed(2) + ' units an order' : 'no orders yet today', sLw.orders ? 'last week ' + usd2(sLw.sales / sLw.orders) : ''].filter(Boolean).join(' · '));
     $('shopKey').innerHTML = `<span><i style="background:var(--shop)"></i>Today</span><span><i style="background:var(--shop-lt);opacity:.55"></i>${dname(DATA.lw)} (last week)</span>`;
     hourChart($('shopChart'), [...Array(24).keys()].map(h => (S.now[h] ? S.now[h].sales : null)), [...Array(24).keys()].map(h => (S.lw[h] ? S.lw[h].sales : 0)), 'var(--shop)', 'color-mix(in srgb, var(--shop-lt) 55%, transparent)', dname(DATA.lw), live ? sn - 1 : -1);
   } else {
