@@ -1034,6 +1034,37 @@
   #paneYoy:not([data-period="day"]) .yoy-pnote{display:block;margin:0 2px 12px;font-size:13px;color:var(--muted)}
   #paneYoy .yoy-pnote b{color:var(--ink)}
   #paneYoy:not([data-period="day"]) .yoy-sec > :not(.yoy-sec-h):not(.yoy-ponly){display:none}
+  /* Events (2026-11-20): the channel sections step aside and the event cards take the screen. */
+  #paneYoy .yoy-events{display:none}
+  #paneYoy[data-period="events"] .yoy-events{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-bottom:16px}
+  #paneYoy[data-period="events"] .yoy-sec{display:none}
+  @media (max-width:1100px){ #paneYoy[data-period="events"] .yoy-events{grid-template-columns:1fr} }
+  .yoy-ev{background:var(--card);border:1px solid var(--card-line);border-top:4px solid var(--evc,var(--line));border-radius:14px;
+    padding:14px 16px;display:flex;flex-direction:column;gap:10px;box-shadow:var(--sh-1);animation:yoyUp .35s ease both}
+  .yoy-ev.live{--evc:#E11D48;box-shadow:0 0 0 1px color-mix(in srgb,#E11D48 30%,transparent),0 8px 24px -14px #E11D48}
+  .yoy-ev.done{--evc:var(--brand)} .yoy-ev.soon{--evc:var(--muted)}
+  .yoy-ev-h{display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap}
+  .yoy-ev-h h3{font-size:16px;font-weight:800;margin:0;flex:1 1 auto;color:var(--ink)}
+  .yoy-ev-pill{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:5px 9px;border-radius:999px;
+    background:var(--chip);color:var(--muted);white-space:nowrap}
+  .yoy-ev.live .yoy-ev-pill{background:#E11D48;color:#fff}
+  .yoy-ev.live .yoy-ev-pill::before{content:'● ';animation:yoyBlink 1.4s infinite}
+  @keyframes yoyBlink{50%{opacity:.3}}
+  .yoy-ev-what{font-size:13px;color:var(--muted);margin:-4px 0 0}
+  .yoy-ev-nums{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+  .yoy-ev-n{background:color-mix(in srgb,var(--ink) 3%,var(--card));border-radius:10px;padding:8px 10px;min-width:0}
+  .yoy-ev-n .k{font-size:10.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
+  .yoy-ev-n .v{font-size:20px;font-weight:800;line-height:1.15;margin-top:2px;font-variant-numeric:tabular-nums;color:var(--ink)}
+  .yoy-ev-n .s{font-size:11.5px;color:var(--muted);margin-top:2px}
+  .yoy-ev-mini svg{display:block;width:100%;height:auto}
+  .yoy-ev-mini text{fill:var(--muted);font-size:10px}
+  .yoy-ev-mini .yoy-bar{transform-box:fill-box;transform-origin:50% 100%;animation:yoyGrow .5s cubic-bezier(.2,.7,.2,1) both}
+  .yoy-ev-foot{font-size:12px;color:var(--muted)}
+  @media (max-width:760px){ .yoy-ev-nums{grid-template-columns:repeat(2,minmax(0,1fr))} }
+  @media (prefers-reduced-motion:reduce){ .yoy-ev,.yoy-ev-mini .yoy-bar,.yoy-ev.live .yoy-ev-pill::before{animation:none} }
+  /* The pickers stay in reach while the screen scrolls. */
+  #paneYoy > .toolbar{position:sticky;top:0;z-index:5;background:color-mix(in srgb,var(--bg) 90%,transparent);backdrop-filter:blur(8px);
+    padding-top:8px;padding-bottom:8px}
   /* Tighter (2026-11-20, "more compact"): sections, row headings and chart panels closer together. */
   #paneYoy .yoy-sec{padding:12px 14px 0;margin-bottom:16px;border-radius:14px}
   #paneYoy .yoy-sec-h{margin-bottom:10px}

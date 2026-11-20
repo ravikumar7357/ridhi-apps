@@ -1057,6 +1057,7 @@
         <button data-p="month">Month</button>
         <button data-p="quarter">Quarter</button>
         <button data-p="year">Year</button>
+        <button data-p="events">Events</button>
       </div>
       <!-- Which channel to show (Ravi, 2026-11-20: "a toggle at top which shows Shopify and Amazon"). Remembered per browser. -->
       <div class="sd-toggle" id="yoyChan" title="Show Amazon, Shopify, or both with the all-channels totals">
@@ -1075,6 +1076,8 @@
          simple"): the Overview of both channels first, then Amazon (its cards and charts, unchanged inside), then Shopify.
          Shopify's store opened in January 2026, so its "last year" is $0 and is shown as such. -->
     <p class="yoy-pnote" id="yoyPnote"></p>
+    <!-- Events (Ravi, 2026-11-20): one card per Amazon shopping event — what it is, and how we did (yoyRenderEvents). -->
+    <div class="yoy-events" id="yoyEvents"></div>
     <div data-chan="all" class="yoy-sec">
     <div class="yoy-sec-h"><span class="yoy-sec-tag">Overview</span><span class="yoy-sec-sub" id="yoyAllNote">Amazon + Shopify sales · Amazon ads + Meta spend</span></div>
     <div class="sd-kpis yoy-kpis yoy-ponly" id="yoyPAll"></div>
