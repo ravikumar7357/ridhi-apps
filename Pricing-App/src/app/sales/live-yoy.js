@@ -235,7 +235,7 @@ function yoyRender() {
     + (lySame.orders ? ' · last year $' + aov(lySame).toFixed(2) : '');
   $('yoySalesNote').textContent = live ? '· Amazon Sales API, to ' + yoyTime(V.asOf) + ' PT' : '· Amazon Sales API, ' + yoyDate(V.day);
 
-  yoyRenderAds(V, today, V.lastWeek.reduce(yoyAdd, yoyZero()));
+  yoyRenderAds(V, today);
 
   // --- legends ---
   $('yoyLgNow').textContent = live ? 'Today' : yoyDate(V.day);
@@ -260,42 +260,48 @@ function yoyRender() {
   yoyTable(V, live, n);
 }
 
-/* ---------- the advertising row: Sponsored Products from the Ads API, stored by the backend every 15 minutes ----------
- * YOY[brand].ads = { at, days: { 'YYYY-MM-DD': { impressions, clicks, spend, orders, sales } }, err } (Pricing-API/SalesLive.gs).
- * Amazon's ad figures for today run an hour or more behind the sales figures, so TACoS today reads a little low early on;
- * last week's whole day is shown beside it, where both are complete. */
-function yoyRenderAds(V, today, lwDay) {
+/* ---------- the advertising row: Sponsored Products + Brands + Display from the Ads API, stored by the backend ----------
+ * YOY[brand].ads = { at, types, days: { 'YYYY-MM-DD': { impressions, clicks, spend, orders, sales } }, err } and
+ * YOY[brand].week = the 7 days to the day on view, by day, from the Sales API (Pricing-API/SalesLive.gs).
+ * The big figure is the day on view; under it, yesterday and the 7 days (Ravi, 2026-11-20: "do for this day and this week").
+ * Amazon's ad figures for today run behind the sales figures, so TACoS today reads a little low early in the day. */
+function yoyRenderAds(V, today) {
   const ads = V.keys.map(k => YOY[k].ads).filter(a => a && a.days);
-  const sum = d => {
-    let t = null;
-    ads.forEach(a => { const r = a.days[d]; if (r) { t = t || { impressions: 0, clicks: 0, spend: 0, orders: 0, sales: 0 }; for (const f in t) t[f] += Number(r[f]) || 0; } });
-    return t;
-  };
-  const A = sum(V.day), W = sum(V.lw);
+  const Z = () => ({ impressions: 0, clicks: 0, spend: 0, orders: 0, sales: 0 });
+  const sum = d => { let t = null; ads.forEach(a => { const r = a.days[d]; if (r) { t = t || Z(); for (const f in t) t[f] += Number(r[f]) || 0; } }); return t; };
+  const salesOn = {};                                            // date → all Amazon sales (Sales API), brands on view
+  V.keys.forEach(k => (YOY[k].week || []).forEach(r => { const d = String(r.t).slice(0, 10); salesOn[d] = (salesOn[d] || 0) + (r.sales || 0); }));
+  salesOn[V.day] = today.sales;                                  // the hourly figure is the freshest for the day on view
+  const yd = sdShift(V.day, -1), week = [...Array(7).keys()].map(i => sdShift(V.day, i - 6));
+  const A = sum(V.day), Y = sum(yd);
+  const Wk = week.reduce((t, d) => { const r = sum(d); if (r) for (const f in t) t[f] += r[f]; return t; }, Z());
+  const wkSales = week.reduce((t, d) => t + (salesOn[d] || 0), 0), haveWk = week.every(d => salesOn[d] != null);
   const ids = ['yoyAdSpend', 'yoyTacos', 'yoyAcos', 'yoyAdSales', 'yoyOrganic', 'yoyClicks'];
   const pc = (a, b) => (b > 0 ? (a / b * 100).toFixed(1) + '%' : '—');
   if (!A) {
     ids.forEach(id => { $(id).textContent = '—'; $(id + 'Sub').textContent = ''; });
     const err = V.keys.map(k => YOY[k].ads && YOY[k].ads.err).filter(Boolean)[0];
-    $('yoyAdsNote').textContent = err ? '· could not read the ad report (' + err + ')' : '· the ad figures arrive within about 30 minutes of the backend update';
+    $('yoyAdsNote').textContent = err ? '· could not read the ad report (' + err + ')' : '· waiting for Amazon’s ad report (it can take up to an hour)';
     $('yoyAdSpendSub').textContent = 'waiting for Amazon’s ad report';
     return;
   }
   const at = ads.map(a => a.at).filter(Boolean).sort()[0];
-  $('yoyAdsNote').textContent = '· Sponsored Products, Amazon Ads API' + (at ? ' · report asked at ' + yoyTime(at) + ' PT' : '');
+  const types = [...new Set(ads.flatMap(a => a.types || ['Products']))];
+  $('yoyAdsNote').textContent = '· Sponsored ' + types.join(' + ') + ', Amazon Ads API' + (at ? ' · report asked at ' + yoyTime(at) + ' PT' : '');
+  const sub = (y, w) => [Y ? 'Yesterday ' + y : '', haveWk || w !== null ? '7 days ' + w : ''].filter(Boolean).join(' · ');
   $('yoyAdSpend').textContent = yoyMoney(A.spend);
-  $('yoyAdSpendSub').textContent = W ? yoyDate(V.lw, false) + ' whole day: ' + yoyMoney(W.spend) : '';
+  $('yoyAdSpendSub').textContent = sub(Y && yoyMoney(Y.spend), yoyMoney(Wk.spend));
   $('yoyTacos').textContent = pc(A.spend, today.sales);
-  $('yoyTacosSub').textContent = W && lwDay.sales ? yoyDate(V.lw, false) + ': ' + pc(W.spend, lwDay.sales) : 'ad spend ÷ all sales';
+  $('yoyTacosSub').textContent = sub(Y && pc(Y.spend, salesOn[yd]), haveWk ? pc(Wk.spend, wkSales) : null) || 'ad spend ÷ all sales';
   $('yoyAcos').textContent = pc(A.spend, A.sales);
-  $('yoyAcosSub').textContent = (A.spend ? 'ROAS ' + (A.sales / A.spend).toFixed(2) : '') + (W && W.sales ? ' · ' + yoyDate(V.lw, false) + ': ' + pc(W.spend, W.sales) : '');
+  $('yoyAcosSub').textContent = (A.spend ? 'ROAS ' + (A.sales / A.spend).toFixed(2) + ' · ' : '') + sub(Y && pc(Y.spend, Y.sales), pc(Wk.spend, Wk.sales));
   $('yoyAdSales').textContent = yoyMoney(A.sales);
-  $('yoyAdSalesSub').textContent = yoyInt(A.orders) + ' ad orders · ' + pc(A.sales, today.sales) + ' of all sales';
+  $('yoyAdSalesSub').textContent = yoyInt(A.orders) + ' ad orders · ' + pc(A.sales, today.sales) + ' of all sales · 7 days ' + yoyMoney(Wk.sales);
   const org = Math.max(0, today.sales - A.sales);
   $('yoyOrganic').textContent = yoyMoney(org);
-  $('yoyOrganicSub').textContent = pc(org, today.sales) + ' of all sales';
+  $('yoyOrganicSub').textContent = pc(org, today.sales) + ' of all sales' + (haveWk ? ' · 7 days ' + pc(Math.max(0, wkSales - Wk.sales), wkSales) : '');
   $('yoyClicks').textContent = yoyInt(A.clicks);
-  $('yoyClicksSub').textContent = (A.clicks ? 'CPC $' + (A.spend / A.clicks).toFixed(2) : 'CPC —') + ' · CTR ' + pc(A.clicks, A.impressions) + ' · ' + yoyInt(A.impressions) + ' views';
+  $('yoyClicksSub').textContent = (A.clicks ? 'CPC $' + (A.spend / A.clicks).toFixed(2) : 'CPC —') + ' · CTR ' + pc(A.clicks, A.impressions) + ' · 7 days CPC ' + (Wk.clicks ? '$' + (Wk.spend / Wk.clicks).toFixed(2) : '—');
 }
 
 /* ---------- SVG helpers ---------- */

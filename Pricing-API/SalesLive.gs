@@ -5,7 +5,8 @@
  *
  *   ?live=yoy&brand=SP|CPC&day=YYYY-MM-DD&ly=YYYY-MM-DD
  *     → { ok, brand, asOf, day, ly, lw,
- *         now:[hour rows of `day` so far], last:[hour rows of `ly`], lastWeek:[hour rows of day-7] }
+ *         now:[hour rows of `day` so far], last:[hour rows of `ly`], lastWeek:[hour rows of day-7],
+ *         week:[day rows, day-6 … day], ads:{ at, types, days:{date: {impressions, clicks, spend, orders, sales}}, err } }
  *   ?live=range — a run of days against last year's run, by day (liveRange_ below).
  *   A row is { t, orders, units, items, sales } — t is the start of the hour / day, Pacific.
  * Routed from Code.gs doGet. Every day boundary is Amazon.com's day: Pacific time. */
@@ -61,60 +62,86 @@ function liveYoy_(brand, day, ly) {
   out.now = past ? whole(day, 'Hour', 0) : liveMetrics_(liveIso_(day, 0), endIso, 'Hour');
   out.last = whole(ly, 'Hour', 0);
   out.lastWeek = whole(lw, 'Hour', 0);
+  // The 7 days to `day` (today so far included), by day — for TACoS yesterday and over the week (Ravi, 2026-11-20).
+  try { out.week = liveMetrics_(liveIso_(liveShift_(day, -6), 0), endIso, 'Day'); } catch (e) { out.week = []; }
   out.ads = liveAdsRead_(b);                         // what the 15-minute job last stored — no Amazon call here
   return out;
 }
 
 /* ---- AD SPEND ON THE LIVE PAGE (Ravi, 2026-11-20: "add TACoS and Ad Spend … the things Amazon gives us") ----
- * The Ads API has no live number: a report is asked for, Amazon builds it in a few minutes, and today's figures in it run
- * an hour or more behind. So liveSnapshotJob asks for a DAILY Sponsored Products report from a week back through today on
- * one run and collects it on the next (15 minutes later), then asks again. What it stores per brand, in a Script Property:
- *   { at: when the report was asked (its figures are about that old, or older), days: { 'YYYY-MM-DD': {impressions, clicks,
- *     spend, orders, sales} }, pendingId, askedMs, err }
- * orders/sales are Amazon's 30-day-attributed ad orders and ad sales. Sponsored Products only — Brands and Display are not
- * in it. The name carries the time so Amazon never hands back an older identical report as a "duplicate". */
+ * The Ads API has no live number: a report is asked for, Amazon builds it (minutes, sometimes an hour), and today's figures
+ * in it run behind. So liveSnapshotJob asks, per brand, for three DAILY campaign reports from a week back through today —
+ * Sponsored Products, Sponsored Brands, Sponsored Display — collects each when Amazon has finished it, then asks again.
+ * The figures shown are the three added up, which is what the Ads console's all-campaigns view shows (Ravi checked Ridhi's
+ * 19 Nov against it: Products alone was $650 of spend short). Attribution as the console shows it for a seller: Products
+ * 7-day (purchases7d / sales7d), Brands and Display 14-day (their plain purchases / sales).
+ * Stored per brand in a Script Property: { t: { sp|sb|sd: { days: {date: {impressions, clicks, spend, orders, sales}}, at,
+ * pendingId, askedAt, askedMs, err } } }. A report name carries the time so Amazon never hands back an older identical
+ * report as a "duplicate". A type whose report never arrives is simply left out; the page says which types are in. */
+var LIVE_ADS_TYPES = {
+  sp: { name: 'Products', adProduct: 'SPONSORED_PRODUCTS', reportTypeId: 'spCampaigns', o: 'purchases7d', s: 'sales7d' },
+  sb: { name: 'Brands', adProduct: 'SPONSORED_BRANDS', reportTypeId: 'sbCampaigns', o: 'purchases', s: 'sales' },
+  sd: { name: 'Display', adProduct: 'SPONSORED_DISPLAY', reportTypeId: 'sdCampaigns', o: 'purchases', s: 'sales' },
+};
 function liveAdsKey_(b) { return 'LIVE_ADS_' + b; }
+/** The three types added up, by day — what ?live=yoy and the snapshot hand the page. */
 function liveAdsRead_(b) {
-  try {
-    var s = JSON.parse(prop_(liveAdsKey_(b)) || 'null');
-    return s && s.days ? { at: s.at || '', days: s.days, err: s.err || '' } : (s && s.err ? { err: s.err } : null);
-  } catch (e) { return null; }
+  var s;
+  try { s = JSON.parse(prop_(liveAdsKey_(b)) || 'null'); } catch (e) { return null; }
+  if (!s || !s.t) return null;
+  var days = {}, types = [], errs = [], at = '';
+  Object.keys(LIVE_ADS_TYPES).forEach(function (k) {
+    var x = s.t[k]; if (!x) return;
+    if (x.err) errs.push(LIVE_ADS_TYPES[k].name + ': ' + x.err);
+    if (!x.days) return;
+    types.push(LIVE_ADS_TYPES[k].name);
+    if (x.at && (!at || x.at < at)) at = x.at;        // the oldest of the three is how fresh the total is
+    Object.keys(x.days).forEach(function (d) {
+      var r = x.days[d], t = days[d] || (days[d] = { impressions: 0, clicks: 0, spend: 0, orders: 0, sales: 0 });
+      for (var f in t) t[f] += Number(r[f]) || 0;
+    });
+  });
+  Object.keys(days).forEach(function (d) { days[d].spend = Math.round(days[d].spend * 100) / 100; days[d].sales = Math.round(days[d].sales * 100) / 100; });
+  return types.length ? { at: at, days: days, types: types, err: errs.join(' · ') } : (errs.length ? { err: errs.join(' · ') } : null);
+}
+/** One report's rows, folded to {date: {impressions, clicks, spend, orders, sales}}. */
+function liveAdsFold_(id, T) {
+  var rows = adsWideRows_(id), days = {};
+  rows.forEach(function (y) {
+    var d = String(y.date || '').slice(0, 10); if (!d) return;
+    var t = days[d] || (days[d] = { impressions: 0, clicks: 0, spend: 0, orders: 0, sales: 0 });
+    t.impressions += Number(y.impressions) || 0; t.clicks += Number(y.clicks) || 0; t.spend += Number(y.cost) || 0;
+    t.orders += Number(y[T.o]) || 0; t.sales += Number(y[T.s]) || 0;
+  });
+  return days;
 }
 function liveAdsTick_(b) {
   setBrand_(b);
   var key = liveAdsKey_(b), st = {};
   try { st = JSON.parse(prop_(key) || '{}') || {}; } catch (e) { st = {}; }
-  var nowMs = Date.now(), day = Utilities.formatDate(new Date(nowMs), LIVE_TZ, 'yyyy-MM-dd');
-  st.err = '';
-  if (st.pendingId) {
+  if (!st.t) st = { t: {} };                         // the Products-only shape of the first day is dropped
+  var nowMs = Date.now(), day = Utilities.formatDate(new Date(nowMs), LIVE_TZ, 'yyyy-MM-dd'), from = liveShift_(day, -7);
+  Object.keys(LIVE_ADS_TYPES).forEach(function (k) {
+    var T = LIVE_ADS_TYPES[k], x = st.t[k] || (st.t[k] = {});
+    if (x.pendingId) {
+      try {
+        var s = ppcStatus_(x.pendingId);
+        if (s.ready) { x.days = liveAdsFold_(x.pendingId, T); x.at = x.askedAt; x.pendingId = ''; x.err = ''; }
+        else if (/fail|cancel/i.test(s.status || '')) { x.err = 'report ' + s.status + (s.error ? ': ' + String(s.error).slice(0, 120) : ''); x.pendingId = ''; }
+        else if (nowMs - (x.askedMs || 0) > 90 * 60000) x.pendingId = '';     // stuck: ask afresh
+        else return;                                 // still building: collect it next time
+      } catch (e) { x.err = 'read: ' + String(e.message || e).slice(0, 140); x.pendingId = ''; }
+    }
     try {
-      var s = ppcStatus_(st.pendingId);
-      if (s.ready) {
-        var d = ppcFetch_(st.pendingId, 'day'), days = {};
-        Object.keys(d.dates || {}).forEach(function (k) {
-          var t = d.dates[k];
-          days[k] = { impressions: t[0], clicks: t[1], spend: t[2], orders: t[3], sales: t[4] };
-        });
-        st.days = days; st.at = st.askedAt; st.pendingId = '';
-      } else if (/fail|cancel/i.test(s.status || '') || nowMs - (st.askedMs || 0) > 90 * 60000) {
-        st.pendingId = '';                           // never coming, or stuck: ask afresh below
-      } else {
-        PropertiesService.getScriptProperties().setProperty(key, JSON.stringify(st));
-        return st;                                   // still building: collect it next time
-      }
-    } catch (e) { st.err = 'ads read: ' + String(e.message || e).slice(0, 160); st.pendingId = ''; }
-  }
-  try {
-    var from = liveShift_(day, -7);
-    var r = adsCall_('/reporting/reports', 'post', {
-      name: 'live-' + b + '-' + nowMs, startDate: from, endDate: day,
-      configuration: { adProduct: 'SPONSORED_PRODUCTS', groupBy: ['advertiser'],
-        columns: ['date', 'advertisedAsin', 'impressions', 'clicks', 'cost', 'purchases30d', 'sales30d'],
-        reportTypeId: 'spAdvertisedProduct', timeUnit: 'DAILY', format: 'GZIP_JSON' },
-    }, adsProfileId_(), ADS_REPORT_MIME);
-    if (r.reportId) { st.pendingId = r.reportId; st.askedAt = new Date(nowMs).toISOString(); st.askedMs = nowMs; }
-    else st.err = 'ads ask: no report id (' + (r.status || '?') + ')';
-  } catch (e) { st.err = 'ads ask: ' + String(e.message || e).slice(0, 160); }
+      var r = adsCall_('/reporting/reports', 'post', {
+        name: 'live-' + k + '-' + b + '-' + nowMs, startDate: from, endDate: day,
+        configuration: { adProduct: T.adProduct, groupBy: ['campaign'], reportTypeId: T.reportTypeId,
+          columns: ['date', 'impressions', 'clicks', 'cost', T.o, T.s], timeUnit: 'DAILY', format: 'GZIP_JSON' },
+      }, adsProfileId_(), ADS_REPORT_MIME);
+      if (r.reportId) { x.pendingId = r.reportId; x.askedAt = new Date(nowMs).toISOString(); x.askedMs = nowMs; }
+      else x.err = 'no report id (' + (r.status || '?') + ')';
+    } catch (e) { x.err = 'ask: ' + String(e.message || e).slice(0, 140); }
+  });
   PropertiesService.getScriptProperties().setProperty(key, JSON.stringify(st));
   return st;
 }
