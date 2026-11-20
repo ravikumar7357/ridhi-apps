@@ -72,4 +72,5 @@ listing/listing-content.js
 listing/bought-together.js
 ads/ppc-new.js
 ads/product-why.js
+core/dashboard.js
 core/version-check.js
