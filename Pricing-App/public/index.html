@@ -13914,7 +13914,8 @@ function yoyRenderEvents(V, tot, lySame, lyDay, H) {
     // Per day: a live event's today counts as the part of a day that has gone by (last year's shape), not as a whole day.
     const daysIn = state === 'live' && done.includes(T) ? k - 1 + lyFrac : k;
     const base = sum(span(sdShift(a, -14), sdShift(a, -1))), baseDay = base.s / 14, perDay = daysIn > 0 ? ty.s / daysIn : 0;
-    let spend = 0, adDays = 0; done.forEach(d => { const v = adOn(d); if (v != null) { spend += v; adDays++; } });
+    // Amazon's ad spend only when Amazon is on view: against Shopify alone it would be someone else's spend.
+    let spend = 0, adDays = 0; if (amzOn) done.forEach(d => { const v = adOn(d); if (v != null) { spend += v; adDays++; } });
     const best = done.map(d => [d, day(d).s]).sort((x, y) => y[1] - x[1])[0];
     const pill = state === 'live' ? `Live · day ${k} of ${n}` : state === 'done' ? 'Done' : `In ${Math.round((Date.parse(a) - Date.parse(T)) / 864e5)} days`;
     const [cL, kL] = chg(ty.s, lyT.s);
@@ -13927,7 +13928,7 @@ function yoyRenderEvents(V, tot, lySame, lyDay, H) {
       : N('Sales' + (state === 'live' ? ' so far' : ''), yoyMoney(ty.s), amzOn && shopOn ? 'Amazon ' + yoyK(ty.a) + ' · Shopify ' + yoyK(ty.sp) : yoyInt(ty.o) + ' orders')
         + N('vs last year', cL, (state === 'live' ? 'first ' + k + ' days' : 'whole event') + ': ' + yoyMoney(lyT.s) + (shopOn && !lyT.sp ? ' (Shopify $0)' : ''), kL)
         + N('Lift vs normal', baseDay > 0 && k ? (perDay / baseDay).toFixed(1) + '×' : '—', yoyMoney(perDay) + '/day vs ' + yoyMoney(baseDay) + '/day before')
-        + N('Ad spend · TACoS', adDays ? yoyK(spend) : '—', adDays ? 'TACoS ' + pc(spend, ty.a + ty.sp) + (adDays < k ? ' · ' + adDays + ' of ' + k + ' days' : '') : 'no ad figures for these days');
+        + N('Ad spend · TACoS', adDays ? yoyK(spend) : '—', adDays ? 'TACoS ' + pc(spend, ty.a + ty.sp) + (adDays < k ? ' · ' + adDays + ' of ' + k + ' days' : '') : amzOn ? 'no ad figures for these days' : 'Meta not connected yet');
     const W2 = 420, H2 = 96, m = Math.max(n, ly.length), slot = (W2 - 10) / m, bw = Math.min(26, slot / 2.4);
     const vals = all.map(d => (d <= T ? day(d).s : null)), lv = ly.map(d => day(d).s), mx = Math.max(1, ...vals.filter(v => v != null), ...lv);
     let svg = `<svg viewBox="0 0 ${W2} ${H2 + 14}" role="img" aria-label="${ev.name} day by day">`;

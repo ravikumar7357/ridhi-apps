@@ -503,7 +503,8 @@ function renderEvents(tot, lySame, lyDay) {
     // Per day: a live event's today counts as the part of a day that has gone by (last year's shape), not as a whole day.
     const daysIn = state === 'live' && done.includes(T) ? k - 1 + lyFrac : k;
     const base = sum(span(sh(a, -14), sh(a, -1))), baseDay = base.s / 14, perDay = daysIn > 0 ? ty.s / daysIn : 0;
-    let spend = 0, adDays = 0; done.forEach(d => { const v = adOn(d); if (v != null) { spend += v; adDays++; } });
+    // Amazon's ad spend only when Amazon is on view: against Shopify alone it would be someone else's spend.
+    let spend = 0, adDays = 0; if (amzOn) done.forEach(d => { const v = adOn(d); if (v != null) { spend += v; adDays++; } });
     const best = done.map(d => [d, day(d).s]).sort((x, y) => y[1] - x[1])[0];
     const pill = state === 'live' ? `Live · day ${k} of ${n}` : state === 'done' ? 'Done' : `In ${Math.round((Date.parse(a) - Date.parse(T)) / 864e5)} days`;
     const [cL, kL] = change(ty.s, lyT.s);
@@ -516,7 +517,7 @@ function renderEvents(tot, lySame, lyDay) {
       : `<div class="ev-n"><div class="k">Sales${state === 'live' ? ' so far' : ''}</div><div class="v">${usd(ty.s)}</div><div class="s">${amzOn && shopOn ? 'Amazon ' + usdk(ty.a) + ' · Shopify ' + usdk(ty.sp) : int(ty.o) + ' orders'}</div></div>
          <div class="ev-n"><div class="k">vs last year</div><div class="v ${kL}">${cL}</div><div class="s">${state === 'live' ? 'first ' + k + ' days' : 'whole event'}: ${usd(lyT.s)}${shopOn && !lyT.sp ? ' (Shopify $0)' : ''}</div></div>
          <div class="ev-n"><div class="k">Lift vs normal</div><div class="v">${lift}</div><div class="s">${usd(perDay)}/day vs ${usd(baseDay)}/day before</div></div>
-         <div class="ev-n"><div class="k">Ad spend · TACoS</div><div class="v">${adDays ? usdk(spend) : '—'}</div><div class="s">${adDays ? 'TACoS ' + pc(spend, ty.a + ty.sp) + (adDays < k ? ' · ' + adDays + ' of ' + k + ' days' : '') : 'no ad figures for these days'}</div></div>`;
+         <div class="ev-n"><div class="k">Ad spend · TACoS</div><div class="v">${adDays ? usdk(spend) : '—'}</div><div class="s">${adDays ? 'TACoS ' + pc(spend, ty.a + ty.sp) + (adDays < k ? ' · ' + adDays + ' of ' + k + ' days' : '') : amzOn ? 'no ad figures for these days' : 'Meta not connected yet'}</div></div>`;
     // The days side by side: this year's bars over last year's, day 1 to day n.
     const W2 = 420, H2 = 96, bw = Math.min(26, (W2 - 20) / Math.max(n, ly.length) / 2.4);
     const vals = all.map(d => (d <= T ? day(d).s : null)), lv = ly.map(d => day(d).s), mx = Math.max(1, ...vals.filter(v => v != null), ...lv);
