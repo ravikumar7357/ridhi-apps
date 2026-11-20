@@ -73,13 +73,15 @@
   function sbFull(key, p, tok, of) {
     return sbManifest(tok, of).then(function (man) {
       var e = man && man[p];
+      /* 20 Nov (FGI stuck on "Loading…"): the catch-up after a whole download goes straight to sbRefreshNow. Going through
+       * sbRefresh waited for the very refresh that had asked for this download — each waited for the other, for ever. */
       if (!e || e.upto == null) return sbFullDb(key, p, tok, of).then(function (m) {
-        return sbRefresh(key, p, tok, of, true).then(function (x) { return x || SBMEM[key] || m; });
+        return sbRefreshNow(key, p, tok, of, true).then(function (x) { return x || SBMEM[key] || m; });
       });
       return sbStorageGet(p + '.json?v=' + e.upto, tok, of).then(function (t) {
         if (!t) return sbFullDb(key, p, tok, of);
         var m = { text: t, upto: e.upto, at: Date.now() }; sbStore(key, m);
-        return sbRefresh(key, p, tok, of, true).then(function (x) { return x || SBMEM[key] || m; });
+        return sbRefreshNow(key, p, tok, of, true).then(function (x) { return x || SBMEM[key] || m; });
       });
     });
   }
@@ -103,10 +105,18 @@
         var m = { text: t || 'null', upto: upto, at: Date.now() }; sbStore(key, m); return m;
       }); });
   }
+  /* one catch-up at a time per list (others wait for it) */
   function sbRefresh(key, p, tok, of, afterFile) {
     if (SBBUSY[key]) return SBBUSY[key];
+    var job = sbRefreshNow(key, p, tok, of, afterFile).then(function (x) { delete SBBUSY[key]; return x; });
+    SBBUSY[key] = job;
+    return job;
+  }
+  /* the catch-up itself: the saves since this copy; too many, or an odd shape → the whole list again (never back into sbRefresh) */
+  function sbRefreshNow(key, p, tok, of, afterFile) {
     var m = SBMEM[key];
-    var job = sbRpc('rt_changes', { p_reg: p, p_upto: m.upto }, tok, of).then(function (r) {
+    if (!m) return sbFullDb(key, p, tok, of);
+    return sbRpc('rt_changes', { p_reg: p, p_upto: m.upto }, tok, of).then(function (r) {
       if (!r || r.full) return afterFile ? sbFullDb(key, p, tok, of) : sbFull(key, p, tok, of);
       var ks = Object.keys(r.ch || {});
       if (!ks.length) { if (r.upto !== m.upto) sbStore(key, { text: m.text, upto: r.upto, at: m.at }); return SBMEM[key]; }
@@ -114,10 +124,7 @@
       if (Array.isArray(v) || v == null || typeof v !== 'object') return afterFile ? sbFullDb(key, p, tok, of) : sbFull(key, p, tok, of);
       ks.forEach(function (k) { sbSet(v, k.split('/'), r.ch[k]); });
       var n = { text: JSON.stringify(v), upto: r.upto, at: m.at }; sbStore(key, n); return n;
-    }).catch(function (e) { try { console.warn('[R1] could not ask ERP data for changes of ' + p + ': ' + e.message); } catch (x) {} return SBMEM[key]; })
-      .then(function (x) { delete SBBUSY[key]; return x; });
-    SBBUSY[key] = job;
-    return job;
+    }).catch(function (e) { try { console.warn('[R1] could not ask ERP data for changes of ' + p + ': ' + e.message); } catch (x) {} return SBMEM[key]; });
   }
   /* LIVE: every 5 s (page in front) the newest save ERP data has applied; when it moved, the lists held here catch up */
   var LIVE = { upto: null, busy: false, used: {}, tok: '', ok: true };
