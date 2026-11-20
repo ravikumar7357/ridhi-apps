@@ -50,6 +50,10 @@
           const r = row(by === 'asin' ? (asin || sku) : sku, b); r.asin = asin || r.asin; r.skus.add(sku);
           const c = cell(r, mk), t = tot[mk]; c.s += s; c.u += u; c.o += o; t.s += s; t.u += u; t.o += o;
         }));
+        // Orders: an order holding two SKUs is one order. The backend counts them once per brand-month (D.o) and once per
+        // ASIN-month (D.ao); the sums of the SKUs' own counts above are replaced with those where they exist.
+        if (D.o) ms.forEach(mk => { const sk = (D.m[mk] || []).reduce((t, x) => t + x[3], 0); tot[mk].o += (D.o[mk] || 0) - sk; });
+        if (D.ao && by === 'asin') rows.forEach(r => { if (r.brand !== b || !r.asin || r.key !== r.asin) return; const ao = D.ao[r.asin] || {}; ms.forEach(mk => { if (r.m[mk] && ao[mk] != null) r.m[mk].o = ao[mk]; }); });
       }
       ms.forEach(mk => {
         const mo = A[mk];

@@ -367,21 +367,27 @@ function liveRange_(brand, from, to, shift) {
  * console reports uploaded in Sellora (liveAdsPut_, POST lads=put), kept in cache "monthAds" per brand, month and ad type.
  * Sellora reads it all with ?live=months; live.html reads the copy liveMonthsPublish_ writes to the "months" tab. */
 var LIVE_MONTHS_FROM = '2025-01';
+// v2 (same day): orders counted once per ASIN and once per brand-month as well as per SKU — summing the SKUs' orders counted
+// an order with two SKUs twice (about 10% too many). A cache of another version is rebuilt.
+var LIVE_MONTHS_V = 2;
 function liveMonthsTick_() {
   var today = Utilities.formatDate(new Date(), LIVE_TZ, 'yyyy-MM-dd');
   var wip = cacheRead_('monthWip') || {};
+  if (wip.day && wip.v !== LIVE_MONTHS_V) wip = {};
   if (!wip.day) {
-    if ((cacheRead_('monthAsin') || {}).day === today) return;          // today's pass is done
-    wip = { day: today, book: 0, row: 2, acc: { SP: {}, CPC: {} }, lo: {} };
+    var done = cacheRead_('monthAsin') || {};
+    if (done.day === today && done.v === LIVE_MONTHS_V) return;          // today's pass is done
+    wip = { v: LIVE_MONTHS_V, day: today, book: 0, row: 2, acc: { SP: {}, CPC: {} }, ord: { SP: {}, CPC: {} }, aord: { SP: {}, CPC: {} }, lo: {}, loA: {}, lob: '' };
   }
   var deadline = Date.now() + 60000, BR = ['SP', 'CPC'];
   while (Date.now() < deadline && wip.book < ORDERS_DATA_IDS.length) {
     var ss = bookOpen_(ORDERS_DATA_IDS[wip.book]), sh = null;
     ['Orders', 'CPC Orders'].forEach(function (t) { if (!sh) sh = ss.getSheetByName(t); });
     var last = sh ? sh.getLastRow() : 0;
-    if (!sh || wip.row > last) { wip.book++; wip.row = 2; wip.lo = {}; continue; }
+    if (!sh || wip.row > last) { wip.book++; wip.row = 2; wip.lo = {}; wip.loA = {}; wip.lob = ''; continue; }
     var n = Math.min(15000, last - wip.row + 1), data = sh.getRange(wip.row, 1, n, 10).getValues();
-    var acc = wip.acc[BR[wip.book]], lo = wip.lo, lastMs = -1, mk = '';
+    var acc = wip.acc[BR[wip.book]], ord = wip.ord[BR[wip.book]], aord = wip.aord[BR[wip.book]];
+    var lo = wip.lo, loA = wip.loA, lastMs = -1, mk = '';
     for (var i = 0; i < data.length; i++) {
       var r = data[i], sku = String(r[3] || '').trim();
       if (!sku) continue;
@@ -398,6 +404,8 @@ function liveMonthsTick_() {
       b[1] += Number(r[5]) || 0;
       var oid = String(r[0] || '');
       if (oid && lo[sku] !== oid) { b[2] += 1; lo[sku] = oid; }
+      if (oid && wip.lob !== oid) { ord[mk] = (ord[mk] || 0) + 1; wip.lob = oid; }
+      if (oid && asin && loA[asin] !== oid) { var ao = aord[asin] || (aord[asin] = {}); ao[mk] = (ao[mk] || 0) + 1; loA[asin] = oid; }
     }
     wip.row += n;
   }
@@ -407,12 +415,14 @@ function liveMonthsTick_() {
     BR.forEach(function (br) {
       var acc = wip.acc[br] || {}, skus = Object.keys(acc).sort(), m = {};
       skus.forEach(function (sku, ix) { Object.keys(acc[sku].m).forEach(function (k) { var v = acc[sku].m[k]; (m[k] || (m[k] = [])).push([ix, v[0], v[1], v[2]]); }); });
-      d[br] = { skus: skus.map(function (sku) { return [sku, acc[sku].a]; }), m: m };
+      // o: distinct orders per month for the brand; ao: distinct orders per ASIN per month (an order with two sizes of one
+      // ASIN is one order for that ASIN). The SKU rows' own order counts stay per SKU.
+      d[br] = { skus: skus.map(function (sku) { return [sku, acc[sku].a]; }), m: m, o: wip.ord[br] || {}, ao: wip.aord[br] || {} };
     });
-    cacheWrite_('monthAsin', { at: new Date().toISOString(), day: wip.day, from: LIVE_MONTHS_FROM, d: d });
+    cacheWrite_('monthAsin', { v: LIVE_MONTHS_V, at: new Date().toISOString(), day: wip.day, from: LIVE_MONTHS_FROM, d: d });
     cacheWrite_('monthWip', {});
   } else {
-    wip.lo = {};                  // an order cut across two slices is counted once more at most — a handful a pass
+    wip.lo = {}; wip.loA = {};    // an order cut across two slices is counted once more at most — a handful a pass
     cacheWrite_('monthWip', wip);
   }
 }
