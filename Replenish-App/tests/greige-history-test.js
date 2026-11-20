@@ -1,0 +1,106 @@
+/* A FABRIC'S STOCK HISTORY ON THE GREIGE DESK INVENTORY (Ravi, 20 Nov: click the fabric name, see every in and out
+ * "in the tally ledger format"). Pins the ledger page: each row opens on the last one's closing, the last closing is the
+ * figure the Inventory page shows, and the two shelves (RFD on the shelf, greige in the store) keep to their own cloth.
+ * Loads the real src/app/flow/greige-desk.js. Made-up fabrics and mills only.
+ *   node tests/greige-history-test.js */
+const fs = require('fs'), vm = require('vm'), path = require('path');
+const SRC = path.join(__dirname, '..', 'src', 'app', 'flow', 'greige-desk.js');
+let pass = 0, fail = 0;
+const ok = (name, cond, info) => { if (cond) { pass++; console.log('  PASS ' + name); } else { fail++; console.log('  FAIL ' + name + (info ? ' -- ' + info : '')); } };
+
+/* The desk's own closure, opened up for the test: its inner functions are handed out just before it returns. */
+function desk(me) {
+  const anchor = '  return { open: open,';
+  const code = fs.readFileSync(SRC, 'utf8');
+  if (code.split(anchor).length !== 2) throw new Error('greige-desk.js: the closing "return { open" line moved; update this test');
+  const opened = code.replace(anchor, '  globalThis.__GDT = { fabShelfLedger, fabFlowRows, invFabricName, setDB: function (v) { DB = v; } };\n' + anchor);
+  const ctx = { console, window: { document: {} }, ME: me || { admin: true } };
+  vm.createContext(ctx);
+  vm.runInContext(opened, ctx);
+  return ctx.__GDT;
+}
+
+/* ---- the business, in its own words ---- */
+const MASTER = [{ rfd: 'Cambric 44', greige: 'Greige Cambric 48', active: true }];
+let seq = 0;
+const entry = (date, txnType, qty, more) => Object.assign({ id: 'e' + (++seq), date, lot: 'LOT-1', fabricType: 'Cambric 44', txnType, qty, party: '', bill: '', orderNo: '' }, more || {});
+const greigeIn = (date, qty, more) => entry(date, 'RECEIVE_GREIGE', qty, Object.assign({ fabricType: 'Greige Cambric 48', party: 'Test Mill', bill: 'TM/1', orderNo: 'PO/1' }, more));
+const sentForRfd = (date, qty, more) => entry(date, 'ISSUE_TO_RFD', qty, Object.assign({ fabricType: 'Greige Cambric 48', party: 'Test Processor' }, more));
+const rfdBack = (date, qty, more) => entry(date, 'RECEIVE_RFD', qty, Object.assign({ party: 'Test Processor', final: true }, more));
+const openingRfd = (date, qty, more) => entry(date, 'OPENING_RFD', qty, Object.assign({ lot: 'LOT-OPEN' }, more));
+const toCutting = (date, qty, more) => entry(date, 'ISSUE_TO_CUTTING', qty, Object.assign({ party: 'Cutting' }, more));
+const damaged = (date, qty, state, more) => entry(date, 'DAMAGE', qty, Object.assign({ state, note: 'stain' }, more));
+const closings = page => page.lines.map(l => Math.round(l.closing));
+
+const G = desk();
+const ledger = (fab, shelf, from, to) => { G.setDB({ mst: MASTER, fab, gpo: [], users: [] }); return G.fabShelfLedger(fab, 'Cambric 44', shelf, from || '', to || ''); };
+const inventory = fab => { G.setDB({ mst: MASTER, fab, gpo: [], users: [] }); return G.fabFlowRows(fab).filter(e => e.fabricType === 'Cambric 44')[0]; };
+
+console.log('== RFD on the shelf, Tally\'s way ==');
+{
+  const fab = [openingRfd('2026-09-22', 400), greigeIn('2026-09-25', 1200), sentForRfd('2026-09-27', 1200),
+    rfdBack('2026-10-10', 1118), toCutting('2026-10-14', 320), damaged('2026-11-02', 28, 'RFD'), toCutting('2026-11-12', 300)];
+  const p = ledger(fab, 'rfd');
+  ok('only RFD entries are on the RFD page', p.lines.length === 5, p.lines.map(l => l.row.txnType).join());
+  ok('each row opens on the last row\'s closing', p.lines.every((l, i) => i === 0 ? l.opening === 0 : l.opening === p.lines[i - 1].closing));
+  ok('the running closings are right', closings(p).join() === '400,1518,1198,1170,870', closings(p).join());
+  ok('in and out are split as Tally does', p.inQty === 1518 && p.outQty === 648, p.inQty + ' / ' + p.outQty);
+  ok('the last closing is the RFD on shelf figure on the Inventory page', p.closing === inventory(fab).rfdLeft, p.closing + ' vs ' + inventory(fab).rfdLeft);
+}
+
+console.log('== greige in the store ==');
+{
+  const fab = [greigeIn('2026-09-25', 1200), sentForRfd('2026-09-27', 800), damaged('2026-09-28', 15, 'GREIGE'),
+    rfdBack('2026-10-10', 760), damaged('2026-10-12', 5, 'RFD')];
+  const p = ledger(fab, 'greige');
+  ok('greige page holds the receipt, the issue and the greige damage only', p.lines.map(l => l.row.txnType).join() === 'RECEIVE_GREIGE,ISSUE_TO_RFD,DAMAGE');
+  ok('entries written under the greige name count under the fabric', p.lines[0].inQty === 1200);
+  ok('the last closing is the Greige in store figure', p.closing === inventory(fab).greigeLeft && p.closing === 385, p.closing + ' vs ' + inventory(fab).greigeLeft);
+  const r = ledger(fab, 'rfd');
+  ok('RFD damage comes off the RFD page, not the greige one', r.lines.length === 2 && r.closing === 755, r.closing);
+}
+
+console.log('== the date boxes ==');
+{
+  const fab = [openingRfd('2026-09-01', 100), rfdBack('2026-10-01', 50), toCutting('2026-10-15', 30), rfdBack('2026-10-31', 20), toCutting('2026-11-05', 10)];
+  const p = ledger(fab, 'rfd', '2026-10-01', '2026-10-31');
+  ok('entries before "from" make the opening', p.opening === 100, p.opening);
+  ok('both edge days are counted in', p.lines.length === 3 && p.lines[0].row.date === '2026-10-01' && p.lines[2].row.date === '2026-10-31');
+  ok('entries after "to" are left out', p.closing === 140, p.closing);
+  const none = ledger(fab, 'rfd', '2026-12-01', '');
+  ok('a range with no entries still says what the shelf held', none.lines.length === 0 && none.opening === 130 && none.closing === 130, none.closing);
+  const onlyTo = ledger(fab, 'rfd', '', '2026-09-30');
+  ok('a "to" alone stops the page there', onlyTo.lines.length === 1 && onlyTo.closing === 100);
+}
+
+console.log('== order, holds and neighbours ==');
+{
+  const fab = [toCutting('2026-10-05', 30), rfdBack('2026-10-05', 200), openingRfd('2026-10-01', 10)];
+  const p = ledger(fab, 'rfd');
+  ok('rows come oldest first; on one day in the order they were written', p.lines.map(l => l.row.txnType).join() === 'OPENING_RFD,ISSUE_TO_CUTTING,RECEIVE_RFD');
+  ok('a cutting entered before the day\'s receipt can show a dip, as it happened', closings(p).join() === '10,-20,180', closings(p).join());
+
+  const held = [rfdBack('2026-10-01', 500), rfdBack('2026-10-02', 90, { approval: { status: 'pending' } }), rfdBack('2026-10-03', 40, { approval: { status: 'approved' } })];
+  ok('a receipt waiting for shrinkage approval is not on the shelf; an approved one is', ledger(held, 'rfd').closing === 540 && ledger(held, 'rfd').closing === inventory(held).rfdLeft);
+
+  const mixed = [rfdBack('2026-10-01', 500), rfdBack('2026-10-01', 70, { fabricType: 'Poplin 58' }), rfdBack('2026-10-02', 5, { fabricType: 'cambric 44' })];
+  ok('another fabric stays off the page; the name is matched whatever its case', ledger(mixed, 'rfd').closing === 505);
+
+  ok('a fabric with no entries gives an empty page, not an error', (() => { const e = ledger([], 'rfd'); return e.lines.length === 0 && e.opening === 0 && e.closing === 0; })());
+  ok('a shelf it does not know gives an empty page', ledger([rfdBack('2026-10-01', 5)], 'processor').lines.length === 0);
+
+  const before = JSON.stringify(fab); ledger(fab, 'rfd');
+  ok('the rows handed in are not changed or re-ordered', JSON.stringify(fab) === before);
+}
+
+console.log('== who sees the link ==');
+{
+  const admin = desk({ admin: true }); admin.setDB({ mst: [], fab: [], users: [] });
+  ok('whoever may see the fabric ledger gets the name as a button', /<button[^>]*data-invh="Cambric 44"/.test(admin.invFabricName('Cambric 44')));
+  const noLedger = desk({ email: 'staff@example.com', tabs: ['gdesk'] }); noLedger.setDB({ mst: [], fab: [], users: [] });
+  ok('without fabric-ledger access the name is plain text', noLedger.invFabricName('Cambric 44') === '<b>Cambric 44</b>');
+  ok('a name with odd characters is written as text, never as HTML', !/<img/.test(admin.invFabricName('<img src=x>')));
+}
+
+console.log(`\n${pass} passed, ${fail} failed`);
+process.exit(fail ? 1 : 0);

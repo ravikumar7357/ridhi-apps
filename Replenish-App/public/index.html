@@ -3663,6 +3663,7 @@ html.mob #gdNudge{right:14px;left:14px;max-width:none;bottom:144px}
           <!-- Receive / Issue from Excel taken off (Ravi, 2026-09-29: "excel se remove kro bas excel me export kar pay"). -->
           <button id="fgOpening" class="ghost">Opening stock</button>
           <button id="fgExport" class="ghost">Export</button>
+          <button id="fgRefresh" class="ghost" title="Read the stock again: shows what other computers have saved">Refresh</button>
           <button id="fgLstRefresh" class="ghost hide" title="Ask Amazon for every listing of both brands — takes several minutes">Refresh Amazon listings</button>
         </div>
         <!-- WHAT NEEDS SOMEBODY, on the screen itself (Ravi, 2026-09-25: "ye listing ke andar aana chahiye").
@@ -15165,6 +15166,19 @@ async function ptLoad(which, node, after) {
   after();
 }
 
+/** A REFRESH BUTTON THAT SHOWS IT IS WORKING (18 Nov 2026). Staff pressed F5 15-20 times a day on the busy screens:
+ *  a Refresh looked as if nothing happened, or missed what another PC had saved, and every F5 downloads the whole
+ *  page again (30-40 MB). Now the button says "Refreshing…" and stays off until the screen has its fresh data (read
+ *  from the live copies, so nothing is downloaded again). Errors: the screen's own work shows what it could not read;
+ *  anything else goes to the console, and the button always comes back, so the screen is never left stuck. */
+async function ptRefreshButton(btn, work) {
+  const label = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Refreshing…';
+  try { await work(); }
+  catch (e) { console.warn('[refresh] ' + (btn.id || 'button') + ':', e); }
+  finally { btn.disabled = false; btn.textContent = label; }
+}
+
 function ptEmpty(tableId, msg) {
   $(tableId).innerHTML = `<tbody><tr><td class="muted" style="padding:14px;text-align:left">${msg}</td></tr></tbody>`;
 }
@@ -16706,7 +16720,14 @@ async function pmdbRefresh() {
   if (!PT.err.mdb && PT.mdb) { PT.mdb = PT.mdb.map(mdbYnFix); PTG.mdb = PT.mdb; renderPmdb(); }
 }
 $('ptmGo').onclick = () => pmdbRefresh();
-$('pbGo').onclick = () => ptLoad('base', 'pt_baseData', renderPbase);
+/** Job Work Refresh without blanking the table (18 Nov 2026): the register is read again from its live copy and the
+ *  table redrawn once it has landed, instead of going to "Loading…" first. A failed read shows on the screen. */
+async function pbRefresh() {
+  try { await ptReadReg('base'); PT.err.base = ''; }
+  catch (e) { PT.err.base = e.message || String(e); }
+  renderPbase();
+}
+$('pbGo').onclick = () => ptRefreshButton($('pbGo'), pbRefresh);
 $('pcGo').onclick = () => ptLoad('cut', 'pt_cuttingData', renderPcut);
 
 /* The KPI cards are written with innerHTML, and this file is a module — an inline onclick would be
@@ -19476,6 +19497,13 @@ async function ptLoadEmp(force) {
   PTE.accLedger = ptList(ledger);
   PTE.acc = ptList((PTG.masters || {}).accessories);
 }
+/** The staff list for a screen that only shows names from it (Order Console, QC). A failed read used to stop the
+ *  screen on "Loading…" for good, and staff pressed F5 (18 Nov 2026); now the names are blank and the next open
+ *  tries again. */
+async function ptLoadEmpOrSkip(screen) {
+  try { await ptLoadEmp(); }
+  catch (e) { console.warn('[' + screen + '] staff list not read, names may be blank:', e); }
+}
 
 const ptEmpTypes = () => [...new Set((PTE.emp || []).map(e => String(e[0] || '').trim()).filter(Boolean))].sort();
 const ptEmpsOfType = t => (PTE.emp || []).filter(e => !t || String(e[0] || '').trim() === t);
@@ -21978,14 +22006,16 @@ function cutEdit(id) {
 let QC = { checks: null, issue: null, ret: null, err: '', busy: false, at: '' };
 
 async function ensureQc() {
-  if (QC.checks === null || ptLack(PTG_ALL, 'mdb')) {
+  /* All three lists, not only the checks (18 Nov 2026): Order Console and the flow view fill the checks for their own
+   * use, and "Received back" / "Issued for alteration" then stayed empty here until F5. */
+  if (QC.checks === null || QC.issue === null || QC.ret === null || ptLack(PTG_ALL, 'mdb')) {
     QC.busy = true; renderQc();
     /* The registers with the order book, not after it. The employee list waits for the order book (its masters give
      * the accessories). A refused read of it left this screen on "Loading…" for good; now it only leaves the names of
      * who may sign a check empty. */
     try {
       const [, [c, i, t]] = await Promise.all([
-        ptNeed(PTG_ALL, { why: 'quality-control', has: 'mdb' }).then(() => (PTE.emp ? null : ptLoadEmp().catch(() => {}))),
+        ptNeed(PTG_ALL, { why: 'quality-control', has: 'mdb' }).then(() => (PTE.emp ? null : ptLoadEmpOrSkip('quality-control'))),
         Promise.all([ptGet('pt_qcChecks'), ptGet('pt_qcIssuance'), ptGet('pt_qcReturns')]),
       ]);
       QC.checks = ptList(c); QC.issue = ptList(i); QC.ret = ptList(t); QC.err = '';
@@ -23206,7 +23236,16 @@ $('qcView').addEventListener('change', renderQc);
 ['qcD1', 'qcD2'].forEach(id => $(id).addEventListener('change', renderQc));
 $('qcClear').onclick = () => { ['qcQ', 'qcD1', 'qcD2'].forEach(id => $(id).value = ''); renderQc(); };
 ptDebounce('qcQ', renderQc);
-$('qcGo').onclick = async () => { QC.checks = null; await ensureQc(); renderQcIssueForm(); };
+/** Refresh: the QC lists, and Job Work again, because "Waiting for QC" is built from it. Before 18 Nov 2026 pieces
+ *  received on another PC reached that list only after F5. Job Work comes from its live copy (nothing downloaded);
+ *  if it cannot be read, the QC lists still refresh. The changes waiting for an admin are read again too. */
+async function qcRefresh() {
+  QC.checks = null;
+  try { await ptReadReg('base'); } catch (e) { console.warn('[quality-control] Job Work not read again:', e); }
+  try { await apvLoad(true); } catch (e) { console.warn('[quality-control] waiting changes not read again:', e); }
+  await ensureQc(); renderQcIssueForm();
+}
+$('qcGo').onclick = () => ptRefreshButton($('qcGo'), qcRefresh);
 $('qciToggle').onclick = () => {
   const open = $('qciBox').classList.contains('hide');
   $('qciBox').classList.toggle('hide', !open);
@@ -24975,7 +25014,7 @@ async function ensureOrd() {
     || !PTE.priority || MDBX.custom === null || !ODR.rows || SOX.rows === null;
   if (need) { ORD.busy = true; renderOrd(); }
   await Promise.all([
-    ptNeed(PTG_ALL, { why: 'ord', has: 'mdb' }).then(() => (PTE.emp ? null : ptLoadEmp())),
+    ptNeed(PTG_ALL, { why: 'ord', has: 'mdb' }).then(() => (PTE.emp ? null : ptLoadEmpOrSkip('ord'))),
     QC.checks === null && Promise.all([
       ptGet('pt_qcChecks').then(v => { QC.checks = ptList(v); }, () => { QC.checks = QC.checks || []; }),
       ptGet('pt_qcIssuance').then(v => { QC.issue = ptList(v); }, () => { QC.issue = QC.issue || []; }),
@@ -28938,7 +28977,16 @@ $('odTable').addEventListener('click', ordQtyOpenClick);
 $('odKpis').addEventListener('click', ordKpiClick);
 $('odKpis').addEventListener('keydown', ordKpiClick);
 ['odSrc', 'odBrand', 'odType', 'odD1', 'odD2'].forEach(id => { const el = $(id); if (el) el.addEventListener('change', renderOrd); });
-$('odGo').onclick = async () => { await ptLoadGates(true); ORD.req = null; QC.checks = null; FGI.rows = null; await ensureOrd(); };
+/** Order Console Refresh: everything the screen shows, read again from the live copies. Vendor orders, the
+ *  quantity changes on sales orders and the delete requests were left out before 18 Nov 2026, so only F5 showed
+ *  another PC's changes to them. */
+async function odRefresh() {
+  await ptLoadGates(true);
+  ORD.req = null; QC.checks = null; FGI.rows = null;
+  VO.rows = null; SOX.rows = null; ODR.rows = null;
+  await ensureOrd();
+}
+$('odGo').onclick = () => ptRefreshButton($('odGo'), odRefresh);
 $('odView').addEventListener('change', () => { ORD.pick = new Set(); renderOrd(); });
 /** A SKU's priority tag (P1–P4), '' when it has none. */
 const ordPri = sku => { const v = (PTE.priority || {})[obUC(sku)];
@@ -38312,15 +38360,14 @@ function gpoFabrics() {
  * lost anything yet, so it counts as "at processor" and nowhere else; the percentage is struck off
  * settled lots alone, which is what makes one processor at 6% and another at 14% a figure worth
  * arguing with instead of an artefact of what happens to be out today. */
+/* A lot answers to two names -- its greige one and the RFD name it comes back as -- and the figures
+ * belong on one line, under the RFD name, because that is what the cutting table asks for. */
+function fabLineOf(r) {
+  var f = String(r.fabricType || '').trim();
+  return fabRfdOfGreige(f) || f;
+}
 function fabFlowRows(rows) {
   var by = {}, order = [];
-  /* A lot answers to two names -- its greige one and the RFD name it comes back as -- and the
-   * figures belong on one line, under the RFD name, because that is what the cutting table asks
-   * for. */
-  function line(r) {
-    var f = String(r.fabricType || '').trim();
-    return fabRfdOfGreige(f) || f;
-  }
   function bump(name) {
     var k = name.toUpperCase();
     if (!by[k]) {
@@ -38332,7 +38379,7 @@ function fabFlowRows(rows) {
   }
   (rows || []).forEach(function (r) {
     if (!fabCounts(r)) return;
-    var n = line(r); if (!n) return;
+    var n = fabLineOf(r); if (!n) return;
     var g = bump(n), q = fabQty(r);
     if (r.txnType === 'RECEIVE_GREIGE') g.greigeIn += q;
     else if (r.txnType === 'ISSUE_TO_RFD') g.toRfd += q;
@@ -38364,6 +38411,48 @@ function fabFlowRows(rows) {
   }).sort(function (a, b) {
     return (b.greigeIn + b.rfdIn + b.rfdOpen + b.rfdBuy) - (a.greigeIn + a.rfdIn + a.rfdOpen + a.rfdBuy);
   });
+}
+
+/* ---- ONE FABRIC'S SHELF, ENTRY BY ENTRY (Ravi, 20 Nov: "full history of in and out ... in the tally ledger format") ---- *
+ *
+ * Two shelves, as on the Inventory page: greige in the store and RFD on the shelf. Cloth at the processor is on
+ * neither. The rows and the rules are fabFlowRows' own (same fabric line, same approval hold, damage off the shelf it
+ * was on), so the last closing is always the figure the Inventory page shows. Reading only; nothing is saved. */
+var FAB_SHELF_MOVES = {
+  greige: { RECEIVE_GREIGE: 1, ISSUE_TO_RFD: -1 },
+  rfd: { RECEIVE_RFD: 1, OPENING_RFD: 1, PURCHASE_RFD: 1, ISSUE_TO_CUTTING: -1 },
+};
+/** +1 when the entry puts cloth on this shelf, -1 when it takes cloth off, 0 when it is not this shelf's. */
+function fabShelfSign(r, shelf) {
+  if (r.txnType === 'DAMAGE') return (fabState(r) === 'GREIGE') === (shelf === 'greige') ? -1 : 0;
+  return (FAB_SHELF_MOVES[shelf] || {})[r.txnType] || 0;
+}
+/** This fabric's entries on this shelf, oldest first; on the same day, in the order they were written. */
+function fabShelfMoves(rows, fabric, shelf) {
+  var F = String(fabric || '').trim().toUpperCase();
+  return (rows || []).map(function (r, i) { return { r: r, i: i }; }).filter(function (x) {
+    return fabCounts(x.r) && fabLineOf(x.r).toUpperCase() === F && fabShelfSign(x.r, shelf) !== 0;
+  }).sort(function (a, b) {
+    return String(a.r.date || '').localeCompare(String(b.r.date || '')) || a.i - b.i;
+  }).map(function (x) { return x.r; });
+}
+/**
+ * The ledger page, Tally's way: what the shelf held when the period opened, each entry with the balance before and
+ * after it, and the period's totals. from / to are YYYY-MM-DD, both counted in; blank means no limit. Entries before
+ * "from" make the opening; entries after "to" are left out.
+ */
+function fabShelfLedger(rows, fabric, shelf, from, to) {
+  var page = { opening: 0, lines: [], inQty: 0, outQty: 0, closing: 0 };
+  fabShelfMoves(rows, fabric, shelf).forEach(function (r) {
+    var d = String(r.date || ''), q = fabQty(r) * fabShelfSign(r, shelf);
+    if (to && d > to) return;
+    if (from && d < from) { page.opening += q; return; }
+    var before = page.opening + page.inQty - page.outQty;
+    page.lines.push({ row: r, opening: before, inQty: q > 0 ? q : 0, outQty: q < 0 ? -q : 0, closing: before + q });
+    if (q > 0) page.inQty += q; else page.outQty -= q;
+  });
+  page.closing = page.opening + page.inQty - page.outQty;
+  return page;
 }
 
 /* ---- and lot by lot, which is how the floor actually talks about it ------------------------- */
@@ -39039,6 +39128,7 @@ function wireShell() {
   document.addEventListener('keydown', function (ev) {
     if (ev.key !== 'Escape') return;
     $('lmPo').classList.add('hide'); $('lmDoc').classList.add('hide');
+    if ($('lmHist')) $('lmHist').classList.add('hide');
     if (RD) closeDrawer();
   });
   $('lmQ').addEventListener('input', function () { UI.q = this.value.trim().toLowerCase(); render(); });
@@ -40686,7 +40776,7 @@ function renderInv() {
     + th(withPpc ? ['Fabric', 'PPC demand', 'Greige order', 'Greige in store', 'At RFD processor', 'RFD on shelf', 'Total'] : ['Fabric', 'Greige order', 'Greige in store', 'At RFD processor', 'RFD on shelf', 'Total'],
       withPpc ? [1, 2, 3, 4, 5, 6] : [1, 2, 3, 4, 5])
     + '<tbody>' + (rows.map(function (r) {
-      return '<tr><td class="frz" style="text-align:left"><b>' + esc(r.fabric) + '</b>'
+      return '<tr><td class="frz" style="text-align:left">' + invFabricName(r.fabric)
         + (r.greige ? '<div class="muted" style="font-size:10.5px">bought as ' + esc(r.greige) + '</div>' : '') + '</td>'
         + (withPpc ? ppcCell(r) : '')
         + invCell(r, 'order', r.onOrder, 'color:var(--warn-ink)')
@@ -40792,16 +40882,145 @@ function invCell(r, col, v, style) {
   return '<td class="num"><button type="button" class="cellbtn' + (on ? ' on' : '') + '" data-invd="' + esc(key) + '" aria-expanded="' + on + '"'
     + (style ? ' style="' + style + '"' : '') + ' title="Show what makes this up">' + nf(v) + ' <span class="caret">' + (on ? '▴' : '▾') + '</span></button></td>';
 }
+/** A PO opens on Greige POs, expanded -- and the challan inside it too, when there is one. */
+function invOpenPo(poNo, chId) {
+  PV.openPo[poNo] = true; if (chId) PV.openCh[chId] = true;
+  PV.view = 'po'; PV.st = ''; UI.tab = 'po'; render(); window.scrollTo(0, 0);
+}
 function wireInventory() {
   document.addEventListener('click', function (ev) {
-    var d = ev.target.closest ? ev.target.closest('[data-invd],[data-openpo]') : null;
+    var d = ev.target.closest ? ev.target.closest('[data-invd],[data-openpo],[data-invh],[data-histshelf],[data-histpo],#histXlsx') : null;
     if (d && d.getAttribute('data-invd')) { var k = d.getAttribute('data-invd'); UI.invOpen = UI.invOpen === k ? '' : k; render(); return; }
-    /* A PO in a drop-down opens on Greige POs, expanded. */
-    if (d && d.getAttribute('data-openpo')) { var pn = d.getAttribute('data-openpo'); PV.openPo[pn] = true; PV.view = 'po'; PV.st = ''; UI.tab = 'po'; render(); window.scrollTo(0, 0); return; }
+    if (d && d.getAttribute('data-openpo')) { invOpenPo(d.getAttribute('data-openpo')); return; }
+    if (d && d.getAttribute('data-invh')) { invHistOpen(d.getAttribute('data-invh')); return; }
+    if (d && d.getAttribute('data-histshelf')) { INV_HIST.shelf = d.getAttribute('data-histshelf'); invHistDraw(); return; }
+    if (d && d.getAttribute('data-histpo')) { var p = d.getAttribute('data-histpo').split('|'); $('lmHist').classList.add('hide'); invOpenPo(p[0], p[1]); return; }
+    if (d && d.id === 'histXlsx') { invHistXlsx(); return; }
     var t = ev.target.closest ? ev.target.closest('[data-inv]') : null;
     if (!t) return;
     UI.inv = t.getAttribute('data-inv') || 'all'; UI.invOpen = ''; render();
   });
+  document.addEventListener('change', function (ev) {
+    if (ev.target.id !== 'histFrom' && ev.target.id !== 'histTo') return;
+    INV_HIST.from = $('histFrom').value; INV_HIST.to = $('histTo').value; invHistDraw();
+  });
+}
+
+/* ---- A FABRIC'S STOCK HISTORY (Ravi, 20 Nov: click the fabric name, see every in and out "in the tally ledger format") ---- *
+ *
+ * A pop-up over the Inventory page: one tab per shelf (RFD on the shelf first, then greige in the store), each a
+ * ledger page -- date, cause, opening, in, out, closing -- worked out by fabShelfLedger, so its last closing is the
+ * figure on the page. A row with a PO opens that PO (and its challan) on Greige POs.
+ * Errors: it only reads, so nothing here can lose data. The one thing that can fail is the Excel file; that says so in
+ * the toast and on the console, and nothing is downloaded. */
+var INV_HIST = { fabric: '', shelf: 'rfd', from: '', to: '' };
+var INV_SHELF_LABEL = { rfd: 'RFD on shelf', greige: 'Greige in store' };
+
+/** The fabric's name on the Inventory page: a button to its history for whoever may see the fabric ledger. */
+function invFabricName(fabric) {
+  if (!canLedger()) return '<b>' + esc(fabric) + '</b>';
+  return '<button type="button" class="link" style="font-size:inherit;padding:0;text-align:left" data-invh="' + esc(fabric) + '" title="See every in and out of ' + esc(fabric) + '">'
+    + esc(fabric) + '</button>';
+}
+function invHistOpen(fabric) {
+  INV_HIST.fabric = fabric; INV_HIST.shelf = 'rfd'; INV_HIST.from = ''; INV_HIST.to = '';
+  invHistMount();
+  $('histFrom').value = ''; $('histTo').value = '';
+  var m = mstOf(fabric);
+  $('histTitle').textContent = fabric + ' — stock history';
+  $('histSub').textContent = m && m.greige ? 'bought as ' + m.greige : '';
+  invHistDraw();
+  $('lmHist').classList.remove('hide');
+}
+/** The pop-up's frame, made once: the tabs and the date boxes stay put while the ledger under them is redrawn. */
+function invHistMount() {
+  if ($('lmHist')) return;
+  var box = document.createElement('div');
+  box.className = 'modal hide'; box.id = 'lmHist';
+  box.innerHTML = '<div class="modalbox" style="width:min(980px,100%)">'
+    + '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">'
+    + '<div><div class="crumb">Stock history</div><h2 style="margin:2px 0 0;font-size:19px" id="histTitle"></h2><div class="sub" id="histSub"></div></div>'
+    + '<button type="button" class="x" data-close="lmHist" aria-label="Close">×</button></div>'
+    + '<div class="toolbar" style="margin:14px 0 10px">'
+    + '<div class="seg" role="tablist" aria-label="Which stock" id="histTabs"></div>'
+    + '<div class="pair" style="margin-left:auto"><label class="inl" for="histFrom">From</label><input type="date" id="histFrom" style="width:150px;height:34px;padding-block:0"></div>'
+    + '<div class="pair"><label class="inl" for="histTo">To</label><input type="date" id="histTo" style="width:150px;height:34px;padding-block:0"></div>'
+    + '<button type="button" class="ghost" id="histXlsx" style="height:34px;padding:0 14px">Download Excel</button></div>'
+    + '<div id="histBody"></div></div>';
+  document.body.appendChild(box);
+}
+/** The PO an entry belongs to: its own, or its lot's (an issue to RFD or to cutting is written against the lot). */
+function invHistPoOf(r, lotPo) { return String(r.orderNo || lotPo[r.lot] || '').trim(); }
+/** The cause line and the details under it, as the floor says them. */
+function invHistCause(r) {
+  var party = String(r.party || '').trim();
+  return (FAB_LABEL[r.txnType] || r.txnType) + (party && party !== 'Cutting' ? ' · ' + party : '');
+}
+function invHistDetails(r, po) {
+  var bill = { RECEIVE_GREIGE: 'challan ', ISSUE_TO_RFD: 'our challan ', RECEIVE_RFD: 'their challan ' }[r.txnType] || 'bill ';
+  return [r.lot ? 'Lot ' + r.lot : '', r.bill ? bill + r.bill : '', po ? 'PO ' + po : '', r.note || r.remark || '']
+    .filter(Boolean).join(' · ');
+}
+function invHistDraw() {
+  var H = INV_HIST, page = fabShelfLedger(DB.fab || [], H.fabric, H.shelf, H.from, H.to), lotPo = {};
+  fabLots(DB.fab || []).forEach(function (L) { lotPo[L.lot] = L.poNo; });
+  $('histTabs').innerHTML = ['rfd', 'greige'].map(function (s) {
+    return '<button type="button" role="tab" aria-selected="' + (H.shelf === s) + '" class="segbtn' + (H.shelf === s ? ' on' : '') + '" data-histshelf="' + s + '">' + INV_SHELF_LABEL[s] + '</button>';
+  }).join('');
+  if (!page.lines.length) {
+    $('histBody').innerHTML = '<div class="empty">' + esc(H.from || H.to
+      ? 'No ' + INV_SHELF_LABEL[H.shelf] + ' entries for ' + H.fabric + ' in these dates. It held ' + nf(page.closing) + ' m.'
+      : 'No ' + INV_SHELF_LABEL[H.shelf] + ' entries for ' + H.fabric + ' yet.') + '</div>';
+    return;
+  }
+  var num = function (v) { return '<td class="num">' + (v ? nf(v) : '') + '</td>'; };
+  var body = page.lines.map(function (x) {
+    var r = x.row, po = invHistPoOf(r, lotPo), bad = r.txnType === 'DAMAGE' ? ' style="color:var(--bad)"' : '';
+    return '<tr' + (po ? ' class="xrow" data-histpo="' + esc(po + '|' + (r.chId || '')) + '" title="Open PO ' + esc(po) + '"' : '') + '>'
+      + '<td class="tl" style="white-space:nowrap">' + esc(fmtD(r.date)) + '</td>'
+      + '<td class="tl"><div' + bad + '>' + esc(invHistCause(r)) + '</div><div class="sub">' + esc(invHistDetails(r, po)) + '</div></td>'
+      + '<td class="num">' + nf(x.opening) + '</td>' + num(x.inQty) + num(x.outQty) + '<td class="num b">' + nf(x.closing) + '</td></tr>';
+  }).join('');
+  $('histBody').innerHTML = '<div class="box scroll" style="max-height:60vh;overflow:auto"><table class="ct li"><thead><tr>'
+    + '<th>Date</th><th style="min-width:220px">Cause</th><th class="num">Opening</th><th class="num">In</th><th class="num">Out</th><th class="num">Closing</th></tr></thead>'
+    + '<tbody>' + body + '<tr class="tot"><td></td><td class="tl">Total' + (H.from || H.to ? ' for these dates' : '') + '</td>'
+    + '<td class="num">' + nf(page.opening) + '</td><td class="num">' + nf(page.inQty) + '</td><td class="num">' + nf(page.outQty) + '</td><td class="num">' + nf(page.closing) + '</td></tr>'
+    + '</tbody></table></div><div class="lm-why">Metres. '
+    + (H.to ? 'Closing is the ' + esc(INV_SHELF_LABEL[H.shelf]) + ' figure at the end of ' + esc(fmtD(H.to)) + '.'
+      : 'Closing matches the ' + esc(INV_SHELF_LABEL[H.shelf]) + ' figure on the Inventory page.')
+    + ' Click a row with a PO to open it.</div>';
+}
+/** The same page as an Excel file, made by the app's own writer (the PPC report's). */
+function invHistXlsx() {
+  var H = INV_HIST;
+  if (typeof flowRepXlsx !== 'function') {
+    console.warn('Stock history: the Excel writer (flow-report.js) is not loaded; nothing downloaded.');
+    lmSay('err', 'The Excel file could not be made here. Nothing was downloaded.');
+    return;
+  }
+  var page = fabShelfLedger(DB.fab || [], H.fabric, H.shelf, H.from, H.to), lotPo = {};
+  fabLots(DB.fab || []).forEach(function (L) { lotPo[L.lot] = L.poNo; });
+  var m2 = function (v) { return Math.round(v * 100) / 100; };
+  var c = function (v, st) { return { v: v, st: st || {} }; }, bold = { b: 1 }, date = { fmt: 165, h: 'left' };
+  var rows = [[c(H.fabric + ' — ' + INV_SHELF_LABEL[H.shelf] + ' · ' + (H.from || H.to ? (H.from ? fmtD(H.from) : 'start') + ' to ' + (H.to ? fmtD(H.to) : 'today') : 'all history'), bold)],
+    ['Date', 'Cause', 'Details', 'Opening (m)', 'In (m)', 'Out (m)', 'Closing (m)'].map(function (h) { return c(h, { b: 1, fill: 'F1EFE8' }); })];
+  page.lines.forEach(function (x) {
+    var r = x.row, po = invHistPoOf(r, lotPo);
+    rows.push([c(flowRepSerial(r.date), date), c(invHistCause(r)), c(invHistDetails(r, po)), c(m2(x.opening)),
+      c(x.inQty ? m2(x.inQty) : ''), c(x.outQty ? m2(x.outQty) : ''), c(m2(x.closing), bold)]);
+  });
+  rows.push([c(''), c('Total', bold), c(''), c(m2(page.opening), bold), c(m2(page.inQty), bold), c(m2(page.outQty), bold), c(m2(page.closing), bold)]);
+  try {
+    var bytes = flowRepXlsx([{ name: INV_SHELF_LABEL[H.shelf], rows: rows, freeze: { x: 0, y: 2 }, widths: [12, 34, 48, 13, 11, 11, 13],
+      merges: [], filter: 'A2:G' + (rows.length - 1), heights: {} }]);
+    var a = window.document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+    a.download = 'stock-history-' + H.fabric.replace(/[^A-Za-z0-9]+/g, '-') + '-' + H.shelf + '-' + lmToday() + '.xlsx';
+    a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
+  } catch (e) {
+    console.error('Stock history Excel for ' + H.fabric + ' failed:', e);
+    lmSay('err', 'The Excel file for ' + H.fabric + ' could not be made. Nothing was downloaded.');
+  }
 }
 
 /* ui/ledger.js -- The Fabric ledger screen and its filter.
@@ -53221,6 +53440,10 @@ function renderVp() {
     if (!doneN && VP.tab === 'done') VP.tab = 'bulk';
     if ($('vpTabVs')) $('vpTabVs').classList.toggle('hide', !vsN && VP.tab !== 'vsent');
     $('vpTabShop').classList.toggle('hide', !shopN && !histOrders.length);
+    /* WHAT I HAVE SENT (Ravi, 20 Nov): gone from the office's printer's view (History covers what came in); a printer's own sign-in keeps
+     * it only while it has old "Sending now" deliveries to show. */
+    const histN = vpHistRows().length, histShown = !vprOn() && histN > 0;
+    if (!histShown && VP.tab === 'hist') VP.tab = 'bulk';
     const paint = (id, on, label, n) => {
       const b = $(id); if (!b) return;
       b.textContent = n ? label + ' (' + nf(n) + ')' : label;
@@ -53230,7 +53453,8 @@ function renderVp() {
     paint('vpTabShop', VP.tab === 'shop', 'Custom orders', shopN);
     paint('vpTabVs', VP.tab === 'vsent', 'Vendor sent', vsN);
     paint('vpTabDone', VP.tab === 'done', 'Completed', doneN);
-    paint('vpTabHist', VP.tab === 'hist', 'What I have sent', vpHistRows().length);
+    paint('vpTabHist', VP.tab === 'hist', 'What I have sent', histN);
+    if ($('vpTabHist')) $('vpTabHist').classList.toggle('hide', !histShown);   // after paint, which sets the whole class
     /* Counted as things still to hear about, not as things ever asked — a printer wants to know what
      * is outstanding, and a number that only goes up stops being read after a fortnight. */
     paint('vpTabRfd', VP.tab === 'rfd', 'RFD fabric I need',
@@ -55321,10 +55545,26 @@ function vprHistRejects(from, to) {
 /** What came, added up by fabric and unit: "Sheeting 82 · 420 m". Rejects are not counted as come. */
 function vprHistTotals(rows) {
   const by = new Map();
-  rows.filter(r => !r.rejected).forEach(r => { const k = (r.fabric || 'fabric not named') + '|' + r.unit; by.set(k, flowR2((by.get(k) || 0) + r.qty)); });
+  rows.filter(r => !r.rejected && !r.notCome).forEach(r => { const k = (r.fabric || 'fabric not named') + '|' + r.unit; by.set(k, flowR2((by.get(k) || 0) + r.qty)); });
   return [...by.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([k, q]) => { const [fab, unit] = k.split('|'); return { fab, unit, q }; });
 }
-const vprHistAll = () => vprHistRows(VP.code, VPR_HIST.from, VPR_HIST.to).concat(vprHistRejects(VPR_HIST.from, VPR_HIST.to))
+/* THE OLD "SENDING NOW" DELIVERIES (Ravi, 20 Nov: "put the record of that inside the history"): what a printer recorded the old way, on
+ * orders from before the Production flow (vpHistRows — the "What I have sent" tab, gone from the office's view). Each shows what our team
+ * accepted; one nobody has checked yet, or not accepted, is listed but not counted as come. */
+const vprIsoOfDmy = d => { const m = String(d || '').match(/^(\d{2})\/(\d{2})\/(\d{4})$/); return m ? `${m[3]}-${m[2]}-${m[1]}` : String(d || '').slice(0, 10); };
+/** The cloth a pieces SKU is printed on, from the master; '' when it is not known. */
+const vprSkuFabric = sku => { try { return String((cutSkuOf(sku) || {}).fabric || '').trim(); } catch (e) { return ''; } };
+function vprHistOld(from, to) {
+  return vpHistRows().map(r => {
+    const day = vprIsoOfDmy(r.day || r.date), notCome = r.kept === null || r.no;
+    const note = r.kept === null ? `printer said ${nf(r.sent)} ${r.unit} — not checked yet` : r.no ? `printer said ${nf(r.sent)} ${r.unit} — not accepted`
+      : r.short > 0 ? `printer said ${nf(r.sent)} ${r.unit}, ${nf(r.short)} short` : '';
+    return { day, time: '', at: r.at, no: '', orderNo: r.orderNo, sku: r.run ? '' : obUC(r.sku), code: '', fabric: r.run ? r.sku : vprSkuFabric(obUC(r.sku)),
+      qty: notCome ? r.sent : r.kept, unit: r.unit, by: 'printer (old way)', note: [note, r.note].filter(Boolean).join(' · '), l: { item: r.what },
+      old: true, notCome };
+  }).filter(r => r.day >= from && r.day <= to);
+}
+const vprHistAll = () => vprHistRows(VP.code, VPR_HIST.from, VPR_HIST.to).concat(vprHistRejects(VPR_HIST.from, VPR_HIST.to), vprHistOld(VPR_HIST.from, VPR_HIST.to))
   .sort((a, b) => b.day.localeCompare(a.day) || String(b.at || '').localeCompare(String(a.at || '')));
 function vprHistHtml() {
   const rows = vprHistAll(), rej = rows.filter(r => r.rejected);
@@ -55341,7 +55581,7 @@ function vprHistHtml() {
       + `<td style="text-align:left">${esc(r.no)}</td><td style="text-align:left"><b>${esc(r.orderNo)}</b></td>`
       + `<td style="text-align:left">${esc((r.l && r.l.item) || '')}<div class="muted" style="font-size:11px;font-family:ui-monospace,monospace">${esc(r.sku)}</div></td>`
       + `<td style="text-align:left"><b>${esc(r.fabric) || '<span class="muted">—</span>'}</b>${r.code ? `<div class="muted" style="font-size:11px;font-family:ui-monospace,monospace">${esc(r.code)}</div>` : ''}</td>`
-      + `<td class="num"><b${r.rejected ? ' style="color:var(--bad)"' : ''}>${esc(flowQtyTxt(r.qty, r.unit))}</b>${r.rejected ? '<div style="font-size:10.5px;color:var(--bad);font-weight:700">REJECTED</div>' : ''}</td><td style="text-align:left">${esc(r.by)}${r.note ? `<div class="muted" style="font-size:11px">${esc(r.note)}</div>` : ''}</td></tr>`).join('')
+      + `<td class="num"><b${r.rejected ? ' style="color:var(--bad)"' : ''}>${esc(flowQtyTxt(r.qty, r.unit))}</b>${r.old ? '<div class="muted" style="font-size:10.5px">old way</div>' : ''}${r.rejected ? '<div style="font-size:10.5px;color:var(--bad);font-weight:700">REJECTED</div>' : ''}</td><td style="text-align:left">${esc(r.by)}${r.note ? `<div class="muted" style="font-size:11px">${esc(r.note)}</div>` : ''}</td></tr>`).join('')
     + '</tbody></table></div>';
 }
 function vprHistOpen() {
@@ -55353,7 +55593,7 @@ function vprHistOpen() {
 function vprHistXl() {
   const rows = vprHistAll(); if (!rows.length) return;
   const out = [['Date', 'Time', 'Received / Rejected', 'Challan', 'Order', 'Item', 'For SKU', 'Fabric', 'Printed fabric SKU', 'Qty', 'Unit', 'By', 'Note / reason']];
-  rows.forEach(r => out.push([r.day, r.time, r.rejected ? 'Rejected' : 'Received', r.no, r.orderNo, (r.l && r.l.item) || '', r.sku, r.fabric, r.code, r.qty, r.unit, r.by, r.note]));
+  rows.forEach(r => out.push([r.day, r.time, r.rejected ? 'Rejected' : r.old ? 'Delivery (old way)' : 'Received', r.no, r.orderNo, (r.l && r.l.item) || '', r.sku, r.fabric, r.code, r.qty, r.unit, r.by, r.note]));
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([recipeXlsx(out, { name: 'Received', freeze: 1, cols: {} })], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
   a.download = 'received-from-' + String(VP.code).toLowerCase() + '-' + VPR_HIST.from + '-to-' + VPR_HIST.to + '.xlsx';
@@ -57067,6 +57307,20 @@ $('fgDelPicked').onclick = () => ($('fgView').value === 'stock' ? fgiSkuDeleteAs
  * left defined on purpose — they are the only written description of how the seeding worked, and a
  * button can be put back in one line if it is ever wanted. */
 ['fgBrand', 'fgStat', 'fgTag', 'fgAmz', 'fgD1', 'fgD2'].forEach(id => $(id).addEventListener('change', renderFgi));
+/** Finished Goods Refresh (18 Nov 2026): the screen had none, so the store reloaded the page to see another PC's
+ *  receipts. The ledger and the press-pending list are read again from their live copies (nothing downloaded) and
+ *  the screen redrawn without going blank. Ticks are cleared, as on any fresh read, since a ticked row may have
+ *  changed. A failed read shows on the screen. */
+async function fgiRefresh() {
+  try {
+    const [led] = await Promise.all([ptGet('pt_fgiLedger'), ptReadReg('press')]);
+    FGI.rows = ptList(led); FGI.err = ''; FGI.at = ptStamp();
+  } catch (e) { FGI.err = e.message || String(e); }
+  FGI_PICK = { stock: new Set(), ledger: new Set() };
+  renderFgi();
+}
+$('fgRefresh').onclick = () => ptRefreshButton($('fgRefresh'), fgiRefresh);
+
 $('fgLstRefresh').onclick = async () => {
   $('fgLstRefresh').disabled = true;
   const why = await lstRefresh(t => { $('fgMsg').className = 'muted'; $('fgMsg').textContent = t; });
