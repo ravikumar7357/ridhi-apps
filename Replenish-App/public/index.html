@@ -22804,7 +22804,7 @@ function qcPiecesOf(x) {
     passed: sum(takes, c => (c.dept ? 0 : c.ok)) + sum(backs, c => c.ok) + oldForm,
     alteration: sum(takes, c => c.forAlteration), rejected: sum(takes, c => c.rejected) + sum(backs, c => c.rejected),
     spotting: outAt('spotting'), touching: outAt('touching'),
-    by: last ? last.checkedBy || '' : '', ms: last ? ptDtMs(last.date) : 0,
+    by: last ? last.checkedBy || '' : '', ms: last ? ptDtMs(last.date) : 0, remarks: last ? last.remarks || '' : '',
     received: !!receipt || x.accepted > 0, receivedBy: receipt ? receipt.checkedBy || '' : '', receivedMs: receipt ? ptDtMs(receipt.date) : 0,
     passOpensAt: qcPassOpensAt(x.r),
   };
@@ -23028,19 +23028,32 @@ async function qcInboxSave(baseId, entry) {
 }
 
 /*
- * QC pass on a row with nothing left waiting still opens the QC Check window (Ravi, 19 Nov: "the pop up screen which we
- * decided to open when clicked on qc pass is not opening" — a line of text at the top of the page was missed). The window
- * shows what QC did with the row's pieces and only closes; there is nothing left in it to save.
+ * The QC Check window's boxes, one design for both uses (Ravi, 19 Nov, pointing at it: "image 2 is the screen which we
+ * have decided is the design which should pop up when we click on the qc pass button"): filled in to be typed into while
+ * pieces wait, or filled with where the pieces are now and locked when none do.
  */
+function qcCheckFields(x, v, locked) {
+  const num = (key, label) => ({ key, label, type: 'number', min: 0, step: 1, value: v[key], readonly: locked });
+  return [
+    { key: 'sku', label: 'SKU', value: x.r.sku, readonly: true },
+    locked ? { key: 'checkedBy', label: 'Checked by', value: v.checkedBy, readonly: true }
+      : { key: 'checkedBy', label: 'Checked by', type: 'select', value: v.checkedBy, options: [...new Set([v.checkedBy].concat(qcDeptEmps()).filter(Boolean))] },
+    num('passed', 'Passed — pieces'), num('forAlteration', 'For alteration — pieces'),
+    num('rejected', 'Rejected — pieces'), num('spotting', 'Spotting — pieces (a stain)'),
+    num('touching', 'Touching — pieces (a missed print)'),
+    { key: 'remarks', label: 'Remarks', value: v.remarks, span: true, readonly: locked },
+    ...(locked ? [] : [{ key: 'date', label: 'Check date', type: 'date', value: ptIsoDate(ptNow()), admin: true }]),
+  ];
+}
+const qcCheckSubtitle = r => `SKU: ${r.sku || '—'}  ·  ${r.empName || '—'}  ·  ${r.orderNo || 'no order'}`;
+const qcCheckItem = r => [r.articleSubtype || r.articleType, r.color, r.size].filter(Boolean).join(' · ');
+/* QC pass on a row with nothing left waiting: the same window, showing where its pieces are now, view only. */
 function qcInboxDoneWindow(x) {
-  const r = x.r, line = (label, n) => `<tr><td style="text-align:left;padding:4px 12px 4px 0">${label}</td><td class="num" style="font-weight:700">${n ? nf(n) : '—'}</td></tr>`;
   ptOpenDialog({
-    title: 'QC Check',
-    subtitle: `SKU: ${r.sku || '—'}  ·  ${r.empName || '—'}  ·  ${r.orderNo || 'no order'}`,
-    note: 'Nothing is left waiting on this entry — every piece received has been through QC. This is what QC did with them.',
-    msg: [r.articleSubtype || r.articleType, r.color, r.size].filter(Boolean).join(' · '),
-    html: `<table style="margin:4px 0 8px">${line('Received', x.since)}${line('Passed', x.passed)}${line('Given to karigar (alteration)', x.alteration)}`
-      + `${line('At spotting', x.spotting)}${line('At touching', x.touching)}${line('Rejected', x.rejected)}</table>`,
+    title: 'QC Check', subtitle: qcCheckSubtitle(x.r), msg: qcCheckItem(x.r),
+    note: `Nothing is left waiting on this entry — all ${nf(x.since)} piece(s) received have been through QC. This is where they are now; to correct a check, use Edit on the Checks list.`,
+    fields: qcCheckFields(x, { checkedBy: x.by || x.receivedBy || '', passed: x.passed, forAlteration: x.alteration, rejected: x.rejected,
+      spotting: x.spotting, touching: x.touching, remarks: x.remarks || '' }, true),
   });
 }
 /** QC pass: the QC Check window for one waiting row — all its waiting pieces filled in as passed, to be split. */
@@ -23054,23 +23067,12 @@ function qcInboxOpen(baseId) {
     $('qcMsg').textContent = `QC pass on ${x.r.sku} opens in ${qcTimeLeft(x.passOpensAt - Date.now())} — a minute for each of the ${nf(ptNum(x.r.qcReceivedPcs))} piece(s) received.`;
     return;
   }
-  const r = x.r, me = qcMyName();
-  const num = (key, label, value) => ({ key, label, type: 'number', min: 0, step: 1, value });
   ptOpenDialog({
-    title: 'QC Check',
-    subtitle: `SKU: ${r.sku || '—'}  ·  ${r.empName || '—'}  ·  ${r.orderNo || 'no order'}`,
+    title: 'QC Check', subtitle: qcCheckSubtitle(x.r), msg: qcCheckItem(x.r),
     note: `${nf(x.wait)} piece(s) of this entry are waiting. Type how many passed, went for alteration, were rejected, or went to `
       + 'spotting or touching — what you leave out stays waiting. Nothing is saved until you press Save.',
-    msg: [r.articleSubtype || r.articleType, r.color, r.size].filter(Boolean).join(' · '),
-    fields: [
-      { key: 'sku', label: 'SKU', value: r.sku, readonly: true },
-      { key: 'checkedBy', label: 'Checked by', type: 'select', value: me, options: [...new Set([me].concat(qcDeptEmps()).filter(Boolean))] },
-      num('passed', 'Passed — pieces', x.wait), num('forAlteration', 'For alteration — pieces', 0),
-      num('rejected', 'Rejected — pieces', 0), num('spotting', 'Spotting — pieces (a stain)', 0),
-      num('touching', 'Touching — pieces (a missed print)', 0),
-      { key: 'remarks', label: 'Remarks', value: 'Accepted from Waiting for QC', span: true },
-      { key: 'date', label: 'Check date', type: 'date', value: ptIsoDate(ptNow()), admin: true },
-    ],
+    fields: qcCheckFields(x, { checkedBy: qcMyName(), passed: x.wait, forAlteration: 0, rejected: 0, spotting: 0, touching: 0,
+      remarks: 'Accepted from Waiting for QC' }, false),
     onSave: async v => {
       const err = await qcInboxSave(baseId, v);
       if (err) return err;

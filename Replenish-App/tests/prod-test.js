@@ -20990,9 +20990,11 @@ console.log('\n== Waiting for QC and QC passed: where each row\'s pieces are now
   ok('…QC pass stays blue on it', /data-qcin-check="k1" class="qc-act"[^>]*>QC pass</.test(rowHtml('k1')), rowHtml('k1').slice(0, 900));
   await pressRowButton('data-qcin-check', 'k1');
   /* Ravi, 19 Nov: "the pop up screen which we decided to open when clicked on qc pass is not opening". */
-  ok('…and clicking it still opens the QC Check window, showing what QC did, with nothing to save', A.PTD_().title === 'QC Check' && !A.PTD_().onSave
-    && /Nothing is left waiting/.test(A.PTD_().note) && ['Received', 'Passed', 'Given to karigar', 'At spotting', 'At touching', 'Rejected'].every(t => A.PTD_().html.includes(t))
-    && /Passed<\/td><td class="num" style="font-weight:700">10</.test(A.PTD_().html), String(A.PTD_().html));
+  ok('…and clicking it opens the same QC Check window, filled with where the pieces are now', A.PTD_().title === 'QC Check' && /Nothing is left waiting/.test(A.PTD_().note)
+    && fieldOf('passed').value === 10 && fieldOf('forAlteration').value === 2 && fieldOf('spotting').value === 3 && fieldOf('touching').value === 4 && fieldOf('rejected').value === 1,
+    JSON.stringify(A.PTD_().fields.map(f => [f.key, f.value])));
+  ok('…view only: every box locked, no Save', !A.PTD_().onSave && A.PTD_().fields.every(f => f.readonly === true));
+  ok('…the same boxes as the window that saves', A.PTD_().fields.map(f => f.key).join() === 'sku,checkedBy,passed,forAlteration,rejected,spotting,touching,remarks');
   const sp = (A.QC().checks || []).find(c => c.baseId === 'k1' && c.dept === 'spotting'), tc = (A.QC().checks || []).find(c => c.baseId === 'k1' && c.dept === 'touching');
   ok('spotting back (3 passed) and touching back (3 passed, 1 rejected)', (await A.qcDeptBack(sp.id, 3)) === '' && (await A.qcDeptBack(tc.id, 3)) === '' && (await A.qcDeptBack(tc.id, 1, true)) === '');
   show('inbox');
