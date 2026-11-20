@@ -4167,7 +4167,6 @@ html.mob #gdNudge{right:14px;left:14px;max-width:none;bottom:144px}
               <option value="passed">QC passed</option>
               <option value="dept">Spotting &amp; touching</option>
               <option value="ledger">QC ledger (day-wise)</option>
-              <option value="checks">Checks</option>
               <option value="issue">Issued for alteration</option>
               <option value="ret">Received back from alteration</option>
             </select>
@@ -22129,7 +22128,8 @@ const QC_VIEWS = [
   ['passed', 'QC passed', 'qc'],
   ['dept', 'Spotting & touching', 'qc'],
   ['ledger', 'QC ledger (day-wise)', 'qc'],
-  ['checks', 'Checks', 'qc'],
+  /* 'Checks' left the picker on 20 Nov (Ravi: "remove qc check screen") — checks are made from Waiting for QC, and who made
+   * one is changed with Edit on QC passed; an admin corrects the rest through QC pass. */
   ['issue', 'Issued for alteration', 'qcalt'],
   ['ret', 'Received back from alteration', 'qcret'],
 ];
@@ -22929,7 +22929,9 @@ function renderQcInbox(view) {
     + `<td class="qc-wrap" style="text-align:left">${esc(x.r.orderNo || '') || '<span class="muted">—</span>'}</td>`
     + num(x.since) + num(x.passed, '#166534') + num(x.alteration, '#b45309') + num(x.spotting, '#b45309') + num(x.touching, '#b45309')
     + num(x.rejected, 'var(--bad)') + `<td class="num" style="font-weight:700;color:#b45309">${x.wait > 0 ? nf(x.wait) : '<span class="muted">—</span>'}</td>`
-    + `<td style="white-space:nowrap;text-align:left">${view === 'passed' ? qcClosedBtn(qcStamp('QC passed', x.ms, x.by)) : qcInboxActions(x, can)}</td>`
+    + `<td style="white-space:nowrap;text-align:left">${view === 'passed' ? qcClosedBtn(qcStamp('QC passed', x.ms, x.by))
+      + (ptCanEdit() || ME.admin ? `<button data-qcp-edit="${esc(x.r.id)}" class="ghost qc-act" title="Change who checked these pieces">Edit</button>` : '')
+      : qcInboxActions(x, can)}</td>`
     + '</tr>').join('') || `<tr><td colspan="${QC_INBOX_COLS.length}" class="muted" style="padding:14px">${QC_LISTS[view].empty}</td></tr>`) + '</tbody>';
   if (rows.some(x => x.passOpensAt > Date.now())) qcPassTimerStart();
   $('qcMsg').className = 'muted';
@@ -23030,17 +23032,11 @@ function qcInboxRefusal(x, e) {
   return '';
 }
 
-/**
- * Write one QC check out of Waiting for QC. '' or why not.
- * `entry` = { passed, forAlteration, rejected, spotting, touching, checkedBy, remarks, date } — any may be left out.
- */
-async function qcInboxSave(baseId, entry) {
-  const x = qcInboxRows().find(e => e.r.id === baseId);
-  if (!x) return 'That entry is no longer waiting — press Refresh.';
-  const why = qcInboxRefusal(x, entry); if (why) return why;
-  const r = x.r, p = qcParts(r.sku), now = ptNow();
+/** The records one QC Check window writes for a row: the check (passed, alteration, rejected) and a send per spotting/touching. */
+function qcCheckRecords(r, entry, date) {
+  const p = qcParts(r.sku);
   const common = {
-    date: entry.date ? ptStampFrom(now, entry.date) : now, checkedBy: String(entry.checkedBy || '').trim() || qcMyName(), brand: p.brand,
+    date, checkedBy: String(entry.checkedBy || '').trim() || qcMyName(), brand: p.brand,
     articleType: p.at || r.articleType || '', subtype: p.sub || r.articleSubtype || '', color: p.col || r.color || '', size: p.size || r.size || '',
     sku: qcNorm(r.sku), ...(r.orderNo ? { orderNo: obUC(r.orderNo) } : {}),
     baseId: r.id, karigar: r.empName || '', from: 'waiting', ...(r.test ? { test: true } : {}),
@@ -23052,6 +23048,19 @@ async function qcInboxSave(baseId, entry) {
     remarks: String(entry.remarks || '').trim() || 'Accepted from Waiting for QC' }));
   Object.keys(QC_DEPTS).filter(d => qcPcs(entry[d]) > 0).forEach(d => recs.push(Object.assign({ id: qcNewCheckId() + d[0] }, common, {
     checked: qcPcs(entry[d]), ok: 0, forAlteration: 0, rejected: 0, dept: d, [d]: qcPcs(entry[d]), remarks: qcSendRemark(d) })));
+  return recs;
+}
+
+/**
+ * Write one QC check out of Waiting for QC. '' or why not.
+ * `entry` = { passed, forAlteration, rejected, spotting, touching, checkedBy, remarks, date } — any may be left out.
+ */
+async function qcInboxSave(baseId, entry) {
+  const x = qcInboxRows().find(e => e.r.id === baseId);
+  if (!x) return 'That entry is no longer waiting — press Refresh.';
+  const why = qcInboxRefusal(x, entry); if (why) return why;
+  const now = ptNow();
+  const recs = qcCheckRecords(x.r, entry, entry.date ? ptStampFrom(now, entry.date) : now);
   await ptPatch(Object.fromEntries(recs.map(c => ['pt_qcChecks/' + c.id, c])));
   QC.checks = (QC.checks || []).concat(recs.map(c => Object.assign({ _key: c.id }, c)));
   return '';
@@ -23072,19 +23081,114 @@ function qcCheckFields(x, v, locked) {
     num('rejected', 'Rejected — pieces'), num('spotting', 'Spotting — pieces (a stain)'),
     num('touching', 'Touching — pieces (a missed print)'),
     { key: 'remarks', label: 'Remarks', value: v.remarks, span: true, readonly: locked },
-    ...(locked ? [] : [{ key: 'date', label: 'Check date', type: 'date', value: ptIsoDate(ptNow()), admin: true }]),
+    ...(locked ? [] : [{ key: 'date', label: 'Check date', type: 'date', value: ptIsoDate(v.date || ptNow()), admin: true }]),
   ];
 }
 const qcCheckSubtitle = r => `SKU: ${r.sku || '—'}  ·  ${r.empName || '—'}  ·  ${r.orderNo || 'no order'}`;
 const qcCheckItem = r => [r.articleSubtype || r.articleType, r.color, r.size].filter(Boolean).join(' · ');
-/* QC pass on a row with nothing left waiting: the same window, showing where its pieces are now, view only. */
+/*
+ * QC pass on a row with nothing left waiting (Ravi, 20 Nov: "they can only enter the new entries; the already filled ones can
+ * only be accessed from the qc pass button of admin or Ravi"): the same window. An admin may correct the split and save; for
+ * everybody else it shows where the pieces are now, locked.
+ */
+/** The QC Pass window's number boxes, empty, for the user to type into. */
+const QC_EMPTY_SPLIT = { passed: '', forAlteration: '', rejected: '', spotting: '', touching: '' };
+/** "8 passed, 2 for alteration" — a split in words, for the window's note. */
+function qcRecordedText(v) {
+  return [[v.passed, 'passed'], [v.forAlteration, 'for alteration'], [v.rejected, 'rejected'], [v.spotting, 'to spotting'], [v.touching, 'to touching']]
+    .filter(([n]) => ptNum(n) > 0).map(([n, t]) => nf(ptNum(n)) + ' ' + t).join(', ') || 'nothing';
+}
 function qcInboxDoneWindow(x) {
+  const fix = qcCorrectable(x), admin = !!ME.admin;
   ptOpenDialog({
-    title: 'QC Check', subtitle: qcCheckSubtitle(x.r), msg: qcCheckItem(x.r),
-    note: `Nothing is left waiting on this entry — all ${nf(x.since)} piece(s) received have been through QC. This is where they are now; to correct a check, use Edit on the Checks list.`,
-    fields: qcCheckFields(x, { checkedBy: x.by || x.receivedBy || '', passed: x.passed, forAlteration: x.alteration, rejected: x.rejected,
-      spotting: x.spotting, touching: x.touching, remarks: x.remarks || '' }, true),
+    title: 'QC Pass', subtitle: qcCheckSubtitle(x.r), msg: qcCheckItem(x.r),
+    note: `Nothing is left waiting on this entry — all ${nf(x.since)} piece(s) received have been through QC. `
+      + (admin ? `QC recorded ${qcRecordedText(fix.values)}. As admin you can type the corrected numbers and Save; pieces you leave out go back to waiting.`
+        + (fix.fixed ? ` ${nf(fix.fixed)} piece(s) already back from spotting or touching, or taken on the old Checks form, stay as they are.` : '')
+        : 'This is what QC recorded. Only an admin can correct it.'),
+    /* Ravi, 20 Nov, pointing at the window with its number boxes empty: "when I click on qc pass button it should look like
+     * this" — the admin types the numbers; what QC recorded is in the note above them. */
+    fields: qcCheckFields(x, admin ? Object.assign({}, fix.values, QC_EMPTY_SPLIT) : { checkedBy: x.by || x.receivedBy || '', passed: x.passed, forAlteration: x.alteration, rejected: x.rejected,
+      spotting: x.spotting, touching: x.touching, remarks: x.remarks || '' }, !admin),
+    ...(admin ? { onSave: async v => {
+      const err = await qcInboxCorrect(x.r.id, v);
+      if (err) return err;
+      renderQc();
+      $('qcMsg').className = 'muted';
+      $('qcMsg').textContent = `Corrected the QC check on ${x.r.sku}. ` + $('qcMsg').textContent;
+      return '';
+    } } : {}),
   });
+}
+/*
+ * What an admin may correct on a row: every check of it except sends already (partly) back from spotting or touching —
+ * those have a return hanging on them. Returns the checks to replace, the pieces that stay fixed, and the window's values.
+ */
+function qcCorrectable(x) {
+  const takes = (QC.checks || []).filter(c => c && c.baseId === x.r.id && !c.refId);
+  const backFor = new Set((QC.checks || []).filter(c => c && c.refId).map(c => c.refId));
+  const replace = takes.filter(c => !backFor.has(c.id)), sum = f => replace.reduce((a, c) => a + ptNum(f(c)), 0);
+  const fixed = x.accepted - sum(c => c.checked);
+  const first = replace.reduce((a, c) => (!a || ptDtMs(c.date) < ptDtMs(a.date) ? c : a), null);
+  const main = replace.find(c => !c.dept) || first || {};
+  return { replace, fixed, room: x.since - fixed, date: first ? first.date : ptNow(), values: {
+    date: first ? first.date : '', checkedBy: main.checkedBy || x.receivedBy || qcMyName(), passed: sum(c => (c.dept ? 0 : c.ok)), forAlteration: sum(c => c.forAlteration),
+    rejected: sum(c => c.rejected), spotting: sum(c => c.spotting), touching: sum(c => c.touching), remarks: main.remarks || '' } };
+}
+/*
+ * EDIT ON QC PASSED (Ravi, 20 Nov: "the only button that can be changed in qc passed screen is the who entered the value,
+ * not anything else"): the same window, everything locked but Checked by. Saving puts that name on every check of the row.
+ */
+function qcPassedEdit(baseId) {
+  if (!(ptCanEdit() || ME.admin)) { $('qcMsg').className = 'err'; $('qcMsg').textContent = PT_NO_EDIT; return; }
+  const x = qcInboxStatuses().find(e => e.r.id === baseId);
+  if (!x) { $('qcMsg').className = 'err'; $('qcMsg').textContent = 'That entry is no longer on the list — press Refresh.'; return; }
+  const by = x.by || x.receivedBy || '';
+  const fields = qcCheckFields(x, { checkedBy: by, passed: x.passed, forAlteration: x.alteration, rejected: x.rejected,
+    spotting: x.spotting, touching: x.touching, remarks: x.remarks || '' }, true)
+    .map(f => (f.key === 'checkedBy' ? { key: 'checkedBy', label: 'Checked by', type: 'select', value: by, options: [...new Set([by].concat(qcDeptEmps()).filter(Boolean))] } : f));
+  ptOpenDialog({
+    title: 'QC Pass', subtitle: qcCheckSubtitle(x.r), msg: qcCheckItem(x.r),
+    note: 'Only Checked by — who entered this QC check — can be changed here.',
+    fields,
+    onSave: async v => {
+      const err = await qcSetCheckedBy(x.r.id, v.checkedBy);
+      if (err) return err;
+      renderQc();
+      return '';
+    },
+  });
+}
+/** Put `name` as Checked by on every QC check of one row. '' or why not. */
+async function qcSetCheckedBy(baseId, name) {
+  const who = String(name || '').trim();
+  if (!who) return 'Pick who checked these pieces.';
+  const mine = (QC.checks || []).filter(c => c && c.baseId === baseId && !c.refId);
+  if (!mine.length) return 'This entry has no QC check of its own to change.';
+  const at = new Date().toISOString();
+  await ptPatch(Object.assign({}, ...mine.map(c => ({ [`pt_qcChecks/${c.id}/checkedBy`]: who, [`pt_qcChecks/${c.id}/editedBy`]: ME.email, [`pt_qcChecks/${c.id}/editedAt`]: at }))));
+  const ids = new Set(mine.map(c => c.id));
+  QC.checks = (QC.checks || []).map(c => (c && ids.has(c.id) ? Object.assign({}, c, { checkedBy: who, editedBy: ME.email, editedAt: at }) : c));
+  return '';
+}
+/** An admin's correction of a row's QC checks: the old ones go, the new split is written, in one update. '' or why not. */
+async function qcInboxCorrect(baseId, entry) {
+  if (!ME.admin) return 'Only an admin can correct a QC check that is already filled in.';
+  const x = qcInboxStatuses().find(e => e.r.id === baseId);
+  if (!x) return 'That entry is no longer on the list — press Refresh.';
+  if (QC_SPLIT.some(k => qcPcs(entry[k]) < 0)) return 'Passed, alteration, rejected, spotting and touching cannot be negative.';
+  const fix = qcCorrectable(x), total = qcCheckedOf(entry);
+  if (total > fix.room) return `Passed + alteration + rejected + spotting + touching is ${nf(total)} — only ${nf(fix.room)} piece(s) can be set here.`;
+  /* Cutting alteration below what has already gone to the tailors would leave that issue standing on nothing. */
+  const altAfter = qcAltTotal(x.r.sku) - fix.values.forAlteration + qcPcs(entry.forAlteration), issued = qcIssuedTotal(x.r.sku);
+  if (altAfter < issued) return `${nf(issued)} piece(s) of ${x.r.sku} have already been issued for alteration — for-alteration cannot drop that far.`;
+  /* The correction keeps the day the pieces were first checked, unless the admin picked another in the date box. */
+  const recs = qcCheckRecords(x.r, entry, entry.date ? ptStampFrom(fix.date, entry.date) : fix.date).map(c => Object.assign(c, { editedBy: ME.email, editedAt: new Date().toISOString() }));
+  const gone = new Set(fix.replace.map(c => c.id));
+  await ptPatch(Object.assign(Object.fromEntries(fix.replace.map(c => ['pt_qcChecks/' + c.id, null])),
+    Object.fromEntries(recs.map(c => ['pt_qcChecks/' + c.id, c]))));
+  QC.checks = (QC.checks || []).filter(c => !gone.has(c && c.id)).concat(recs.map(c => Object.assign({ _key: c.id }, c)));
+  return '';
 }
 /** QC pass: the QC Check window for one waiting row — all its waiting pieces filled in as passed, to be split. */
 function qcInboxOpen(baseId) {
@@ -23098,11 +23202,10 @@ function qcInboxOpen(baseId) {
     return;
   }
   ptOpenDialog({
-    title: 'QC Check', subtitle: qcCheckSubtitle(x.r), msg: qcCheckItem(x.r),
+    title: 'QC Pass', subtitle: qcCheckSubtitle(x.r), msg: qcCheckItem(x.r),
     note: `${nf(x.wait)} piece(s) of this entry are waiting. Type how many passed, went for alteration, were rejected, or went to `
       + 'spotting or touching — what you leave out stays waiting. Nothing is saved until you press Save.',
-    fields: qcCheckFields(x, { checkedBy: qcMyName(), passed: x.wait, forAlteration: 0, rejected: 0, spotting: 0, touching: 0,
-      remarks: 'Accepted from Waiting for QC' }, false),
+    fields: qcCheckFields(x, Object.assign({ checkedBy: qcMyName(), remarks: 'Accepted from Waiting for QC' }, QC_EMPTY_SPLIT), false),
     onSave: async v => {
       const err = await qcInboxSave(baseId, v);
       if (err) return err;
@@ -23233,17 +23336,67 @@ function renderQcLedger() {
   const z = v => (v ? nf(v) : '<span class="muted">—</span>');
   const head = '<thead><tr>' + cols.map((c, i) => `<th${i === 0 ? ' class="frz"' : ' class="num"'}>${c[0]}</th>`).join('') + '</tr></thead>';
   $('qcTable').innerHTML = head + '<tbody>' + (rows.map(e => '<tr>'
-    + `<td class="frz" style="text-align:left">${esc(e.day.split('-').reverse().join('/'))}</td>`
+    + `<td class="frz" style="text-align:left"><button class="ghost qc-act" data-qcl-day="${esc(e.day)}" title="See this day SKU by SKU: opening, what moved, closing">${esc(e.day.split('-').reverse().join('/'))}</button></td>`
     + cols.slice(1).map(([, k]) => `<td class="num"${k === 'allPass' ? ' style="font-weight:700;color:#166534"' : ''}>${z(e[k])}</td>`).join('') + '</tr>').join('')
     || `<tr><td colspan="${cols.length}" class="muted" style="padding:14px">Nothing in these days.</td></tr>`) + '</tbody>'
     + (rows.length ? '<tfoot><tr><td class="frz">TOTAL</td>' + cols.slice(1).map(([, k]) => `<td class="num">${nf(t[k] || 0)}</td>`).join('') + '</tr></tfoot>' : '');
   $('qcMsg').className = 'muted';
-  $('qcMsg').textContent = `${nf(rows.length)} day(s), newest first · "All passed" = QC pass + back from spotting and touching · use the dates above for another window`;
+  $('qcMsg').textContent = `${nf(rows.length)} day(s), newest first · click a day to see it SKU by SKU · "All passed" = QC pass + back from spotting and touching · use the dates above for another window`;
+}
+
+/*
+ * ONE LEDGER DAY, SKU BY SKU (Ravi, 20 Nov: "when I click on its date it should give me a pop up card grouped by skus";
+ * "opening should show what is the QC passed previously before today's entry and closing should show the total pieces
+ * passed at the end of the day"). One line per SKU that moved that day: back from karigars, and what QC did — every QC
+ * check of the SKU that day, the old Checks form's too — then passed before the day and passed by the end of it.
+ */
+function qcLedgerDay(day) {
+  const start = new Date(day + 'T00:00:00').getTime(), end = start + 86400000, from = qcInboxFromMs(), bySku = new Map();
+  const line = sku => { if (!bySku.has(sku)) bySku.set(sku, { sku, recv: 0, pass: 0, alt: 0, rej: 0, spot: 0, touch: 0, before: 0 }); return bySku.get(sku); };
+  const inDay = ms => ms >= start && ms < end;
+  qcInboxEntries().forEach(x => {
+    const parts = x.r.fromCut ? [{ ms: x.last, pcs: x.since }] : repRecvParts(x.r).filter(p => /^LEG-/i.test(String(x.r.orderNo || '')) || p.ms >= from);
+    const recv = parts.filter(p => inDay(p.ms)).reduce((a, p) => a + p.pcs, 0);
+    if (recv) line(qcNorm(x.r.sku)).recv += recv;
+  });
+  (QC.checks || []).forEach(c => {
+    const ms = c && ptDtMs(c.date); if (!ms || !inDay(ms)) return;
+    const e = line(qcNorm(c.sku));
+    e.pass += ptNum(c.ok); e.rej += ptNum(c.rejected);
+    if (!c.refId) { e.alt += ptNum(c.forAlteration); e.spot += ptNum(c.spotting); e.touch += ptNum(c.touching); }
+  });
+  /* Passed before the day, for the SKUs that moved — the card's Opening; Closing adds the day's passes. */
+  (QC.checks || []).forEach(c => { const ms = c && ptDtMs(c.date), e = ms && ms < start && bySku.get(qcNorm(c.sku)); if (e) e.before += ptNum(c.ok); });
+  return [...bySku.values()].map(e => Object.assign(e, { after: e.before + e.pass })).sort((a, b) => a.sku.localeCompare(b.sku));
+}
+/* Opening and Closing sit side by side at the end (Ravi, 20 Nov: "put opening and closing columns back on the card instead
+ * of buttons … held adjacent at the last of all columns"). */
+const QC_LEDGER_DAY_COLS = [['SKU', 'sku'], ['Received', 'recv'], ['Passed', 'pass'], ['Alteration', 'alt'], ['Rejected', 'rej'], ['Spotting', 'spot'], ['Touching', 'touch'],
+  ['Opening', 'before'], ['Closing', 'after']];
+function qcLedgerDayCard(day) {
+  const lines = qcLedgerDay(day), dmy = day.split('-').reverse().join('/'), sum = k => lines.reduce((a, e) => a + e[k], 0);
+  const z = v => (v ? nf(v) : '<span class="muted">—</span>');
+  const strong = { pass: ' style="color:#166534;font-weight:700"', before: ' style="font-weight:700"', after: ' style="font-weight:700"' };
+  const row = e => `<tr><td style="font-family:ui-monospace,monospace;text-align:left">${esc(e.sku)}</td>`
+    + QC_LEDGER_DAY_COLS.slice(1).map(([, k]) => `<td class="num"${strong[k] || ''}>${z(e[k])}</td>`).join('') + '</tr>';
+  ptOpenDialog({
+    title: 'QC ledger — ' + dmy, wide: true,
+    note: `SKU by SKU: Received = back from karigars that day · Passed, Alteration, Rejected, Spotting, Touching = what QC did that day · `
+      + `Opening = pieces of the SKU passed before ${dmy} · Closing = passed by the end of ${dmy}.`,
+    html: `<div class="xlwrap" style="max-height:60vh;overflow:auto"><table class="xl"><thead><tr>${QC_LEDGER_DAY_COLS.map(([h], i) => `<th${i ? ' class="num"' : ''}>${h}</th>`).join('')}</tr></thead>`
+      + `<tbody>${lines.map(row).join('') || `<tr><td colspan="${QC_LEDGER_DAY_COLS.length}" class="muted" style="padding:14px">Nothing moved this day.</td></tr>`}</tbody>`
+      + (lines.length ? `<tfoot><tr><td>TOTAL · ${nf(lines.length)} SKU(s)</td>${QC_LEDGER_DAY_COLS.slice(1).map(([, k]) => `<td class="num">${nf(sum(k))}</td>`).join('')}</tr></tfoot>` : '')
+      + '</table></div>',
+  });
 }
 
 $('qcTable').addEventListener('click', async e => {
   const check = e.target.closest('[data-qcin-check]');
   if (check) return qcInboxOpen(check.getAttribute('data-qcin-check'));
+  const passedEdit = e.target.closest('[data-qcp-edit]');
+  if (passedEdit) return qcPassedEdit(passedEdit.getAttribute('data-qcp-edit'));
+  const ledgerDay = e.target.closest('[data-qcl-day]');
+  if (ledgerDay) return qcLedgerDayCard(ledgerDay.getAttribute('data-qcl-day'));
   const go = e.target.closest('[data-qcin-accept]');
   if (go) {
     const id = go.getAttribute('data-qcin-accept');
