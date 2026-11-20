@@ -21058,9 +21058,11 @@ console.log('\n== Waiting for QC and QC passed: where each row\'s pieces are now
   ok('the ledger\'s days are buttons that open the card', /data-qcl-day="\d{4}-\d\d-\d\d"/.test(els.qcTable.innerHTML));
   A.qcLedgerDayCard(todayIso);
   const card = String(A.PTD_().html);
-  ok('…the card has no Opening or Closing column', /<th>SKU<\/th><th class="num">Received<\/th>/.test(card) && !/<th[^>]*>Opening<\/th>|<th[^>]*>Closing<\/th>/.test(card) && /TOTAL · \d+ SKU/.test(card), card.slice(0, 400));
-  ok('…each SKU is a button with a hidden line: opening, passed that day, closing', /data-qcl-sku="W-K1"/.test(card)
-    && /<tr class="hide" data-qcl-sku-line="W-K1">[^]*?Opening: <b>0<\/b> passed before [^]*?Passed on [^]*?<b style="color:#166534">17<\/b>[^]*?Closing: <b>17<\/b> passed by the end/.test(card), card.slice(0, 1200));
+  /* Ravi, 20 Nov: "put opening and closing columns back on the card instead of buttons … adjacent at the last of all columns". */
+  ok('…the card\'s columns end with Opening and Closing side by side', /<th>SKU<\/th><th class="num">Received<\/th>[^]*<th class="num">Touching<\/th><th class="num">Opening<\/th><th class="num">Closing<\/th><\/tr>/.test(card)
+    && /TOTAL · \d+ SKU/.test(card), card.slice(0, 600));
+  ok('…no SKU buttons, and W-K1 reads 17 passed, opening —, closing 17', !/data-qcl-sku/.test(card)
+    && /W-K1<\/td>(<td[^>]*>[^<]*(<span[^>]*>—<\/span>)?<\/td>){7}<td class="num" style="font-weight:700"><span class="muted">—<\/span><\/td><td class="num" style="font-weight:700">17<\/td>/.test(card), card.slice(0, 1600));
   show('inbox');
 
   ok('a return booked without the split counts as mended', (() => {

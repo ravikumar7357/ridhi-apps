@@ -23316,10 +23316,9 @@ function renderQcLedger() {
 
 /*
  * ONE LEDGER DAY, SKU BY SKU (Ravi, 20 Nov: "when I click on its date it should give me a pop up card grouped by skus";
- * then "opening and closing should not be seen here, it should open when I click on that sku … opening should show what
- * is the QC passed previously before today's entry and closing should show the total pieces passed at the end of the day").
- * One line per SKU that moved that day: back from karigars, and what QC did — every QC check of the SKU that day, the old
- * Checks form's too. Clicking a SKU opens under it: passed before the day, passed that day, passed by the end of the day.
+ * "opening should show what is the QC passed previously before today's entry and closing should show the total pieces
+ * passed at the end of the day"). One line per SKU that moved that day: back from karigars, and what QC did — every QC
+ * check of the SKU that day, the old Checks form's too — then passed before the day and passed by the end of it.
  */
 function qcLedgerDay(day) {
   const start = new Date(day + 'T00:00:00').getTime(), end = start + 86400000, from = qcInboxFromMs(), bySku = new Map();
@@ -23336,37 +23335,30 @@ function qcLedgerDay(day) {
     e.pass += ptNum(c.ok); e.rej += ptNum(c.rejected);
     if (!c.refId) { e.alt += ptNum(c.forAlteration); e.spot += ptNum(c.spotting); e.touch += ptNum(c.touching); }
   });
-  /* Passed before the day, for the SKUs that moved — what opens under a SKU when it is clicked. */
+  /* Passed before the day, for the SKUs that moved — the card's Opening; Closing adds the day's passes. */
   (QC.checks || []).forEach(c => { const ms = c && ptDtMs(c.date), e = ms && ms < start && bySku.get(qcNorm(c.sku)); if (e) e.before += ptNum(c.ok); });
   return [...bySku.values()].map(e => Object.assign(e, { after: e.before + e.pass })).sort((a, b) => a.sku.localeCompare(b.sku));
 }
-const QC_LEDGER_DAY_COLS = [['SKU', 'sku'], ['Received', 'recv'], ['Passed', 'pass'], ['Alteration', 'alt'], ['Rejected', 'rej'], ['Spotting', 'spot'], ['Touching', 'touch']];
+/* Opening and Closing sit side by side at the end (Ravi, 20 Nov: "put opening and closing columns back on the card instead
+ * of buttons … held adjacent at the last of all columns"). */
+const QC_LEDGER_DAY_COLS = [['SKU', 'sku'], ['Received', 'recv'], ['Passed', 'pass'], ['Alteration', 'alt'], ['Rejected', 'rej'], ['Spotting', 'spot'], ['Touching', 'touch'],
+  ['Opening', 'before'], ['Closing', 'after']];
 function qcLedgerDayCard(day) {
   const lines = qcLedgerDay(day), dmy = day.split('-').reverse().join('/'), sum = k => lines.reduce((a, e) => a + e[k], 0);
   const z = v => (v ? nf(v) : '<span class="muted">—</span>');
-  const row = e => `<tr><td style="text-align:left"><button class="ghost qc-act" data-qcl-sku="${esc(e.sku)}" title="Passed before, on and by the end of ${esc(dmy)}" style="font-family:ui-monospace,monospace">${esc(e.sku)} ▸</button></td>`
-    + QC_LEDGER_DAY_COLS.slice(1).map(([, k]) => `<td class="num"${k === 'pass' ? ' style="color:#166534;font-weight:700"' : ''}>${z(e[k])}</td>`).join('') + '</tr>'
-    + `<tr class="hide" data-qcl-sku-line="${esc(e.sku)}"><td colspan="${QC_LEDGER_DAY_COLS.length}" style="text-align:left;background:#f8fafc;padding:8px 14px">`
-    + `<b>${esc(e.sku)}</b> — Opening: <b>${nf(e.before)}</b> passed before ${esc(dmy)} · Passed on ${esc(dmy)}: <b style="color:#166534">${nf(e.pass)}</b>`
-    + ` · Closing: <b>${nf(e.after)}</b> passed by the end of ${esc(dmy)}</td></tr>`;
+  const strong = { pass: ' style="color:#166534;font-weight:700"', before: ' style="font-weight:700"', after: ' style="font-weight:700"' };
+  const row = e => `<tr><td style="font-family:ui-monospace,monospace;text-align:left">${esc(e.sku)}</td>`
+    + QC_LEDGER_DAY_COLS.slice(1).map(([, k]) => `<td class="num"${strong[k] || ''}>${z(e[k])}</td>`).join('') + '</tr>';
   ptOpenDialog({
     title: 'QC ledger — ' + dmy, wide: true,
-    note: 'SKU by SKU: Received = back from karigars that day · Passed, Alteration, Rejected, Spotting, Touching = what QC did that day. '
-      + 'Click a SKU to see how many of it had passed QC before the day, that day, and by the end of the day.',
+    note: `SKU by SKU: Received = back from karigars that day · Passed, Alteration, Rejected, Spotting, Touching = what QC did that day · `
+      + `Opening = pieces of the SKU passed before ${dmy} · Closing = passed by the end of ${dmy}.`,
     html: `<div class="xlwrap" style="max-height:60vh;overflow:auto"><table class="xl"><thead><tr>${QC_LEDGER_DAY_COLS.map(([h], i) => `<th${i ? ' class="num"' : ''}>${h}</th>`).join('')}</tr></thead>`
       + `<tbody>${lines.map(row).join('') || `<tr><td colspan="${QC_LEDGER_DAY_COLS.length}" class="muted" style="padding:14px">Nothing moved this day.</td></tr>`}</tbody>`
       + (lines.length ? `<tfoot><tr><td>TOTAL · ${nf(lines.length)} SKU(s)</td>${QC_LEDGER_DAY_COLS.slice(1).map(([, k]) => `<td class="num">${nf(sum(k))}</td>`).join('')}</tr></tfoot>` : '')
       + '</table></div>',
   });
 }
-/* A SKU on the ledger day card opens (and closes) its line of passed before / that day / by the end of the day. */
-$('ptDlgBody').addEventListener('click', e => {
-  const b = e.target.closest('[data-qcl-sku]'); if (!b) return;
-  const sku = b.getAttribute('data-qcl-sku'), detail = [...$('ptDlgBody').querySelectorAll('[data-qcl-sku-line]')].find(r => r.getAttribute('data-qcl-sku-line') === sku);
-  if (!detail) return;
-  detail.classList.toggle('hide');
-  b.textContent = sku + (detail.classList.contains('hide') ? ' ▸' : ' ▾');
-});
 
 $('qcTable').addEventListener('click', async e => {
   const check = e.target.closest('[data-qcin-check]');
