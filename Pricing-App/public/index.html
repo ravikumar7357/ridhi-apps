@@ -2665,6 +2665,30 @@
       <div class="sd-card yoy-b-clicks" title="Clicks on the ads today, cost per click and click-through rate.">
         <div class="lbl">Clicks · CPC</div><div class="val" id="yoyClicks">—</div><div class="sub" id="yoyClicksSub">—</div></div>
     </div>
+    <!-- Shopify + Meta, then every channel together (Ravi, 2026-11-20: "add Shopify sales and ad spend … and Meta ads").
+         Shopify is the brand's own store by PACIFIC hour, so it lines up with Amazon; Meta switches on when its token is set. -->
+    <div class="yoy-row-h">Shopify &amp; Meta <span class="muted" id="yoyShopNote"></span></div>
+    <div class="sd-kpis yoy-kpis">
+      <div class="sd-card sd-b-teal" title="The brand's Shopify store today, Pacific day (the same day as the Amazon figures). Line-item sales, no shipping or tax.">
+        <div class="lbl">Shopify today</div><div class="val" id="yoyShToday">—</div><div class="sub" id="yoyShTodaySub">—</div></div>
+      <div class="sd-card sd-b-orange"><div class="lbl">Shopify vs last year</div><div class="val" id="yoyShVsLy">—</div><div class="sub" id="yoyShVsLySub">—</div></div>
+      <div class="sd-card sd-b-cyan"><div class="lbl">Shopify vs last week</div><div class="val" id="yoyShVsLw">—</div><div class="sub" id="yoyShVsLwSub">—</div></div>
+      <div class="sd-card sd-b-pink"><div class="lbl">Shopify average order</div><div class="val" id="yoyShAov">—</div><div class="sub" id="yoyShAovSub">—</div></div>
+      <div class="sd-card yoy-b-spend" title="Meta (Facebook + Instagram) ad spend today, from the Meta Marketing API. About 15 minutes behind, in the ad account's own timezone.">
+        <div class="lbl">Meta ad spend</div><div class="val" id="yoyMetaSpend">—</div><div class="sub" id="yoyMetaSpendSub">—</div></div>
+      <div class="sd-card yoy-b-acos" title="Shopify sales ÷ Meta spend (how many dollars of store sales each Meta dollar comes with), and what Meta itself counts as purchases.">
+        <div class="lbl">Meta ROAS</div><div class="val" id="yoyMetaRoas">—</div><div class="sub" id="yoyMetaRoasSub">—</div></div>
+    </div>
+    <div class="yoy-row-h">All channels <span class="muted" id="yoyAllNote">· Amazon + Shopify sales, Amazon ads + Meta spend</span></div>
+    <div class="sd-kpis yoy-kpis">
+      <div class="sd-card sd-b-indigo"><div class="lbl">Total sales today</div><div class="val" id="yoyAllSales">—</div><div class="sub" id="yoyAllSalesSub">—</div></div>
+      <div class="sd-card sd-b-orange"><div class="lbl">Total vs last year</div><div class="val" id="yoyAllVsLy">—</div><div class="sub" id="yoyAllVsLySub">—</div></div>
+      <div class="sd-card yoy-b-spend"><div class="lbl">Total ad spend</div><div class="val" id="yoyAllSpend">—</div><div class="sub" id="yoyAllSpendSub">—</div></div>
+      <div class="sd-card yoy-b-tacos" title="All ad spend (Amazon + Meta) ÷ all sales (Amazon + Shopify). Lower is better.">
+        <div class="lbl">Overall TACoS</div><div class="val" id="yoyAllTacos">—</div><div class="sub" id="yoyAllTacosSub">—</div></div>
+      <div class="sd-card yoy-b-adsales"><div class="lbl">Amazon share</div><div class="val" id="yoyAllAmz">—</div><div class="sub" id="yoyAllAmzSub">—</div></div>
+      <div class="sd-card yoy-b-organic"><div class="lbl">Shopify share</div><div class="val" id="yoyAllShop">—</div><div class="sub" id="yoyAllShopSub">—</div></div>
+    </div>
 
     <div class="sd-panel">
       <h2 class="sd-h2">Hour by hour</h2>
@@ -13440,7 +13464,8 @@ function yoyRender() {
     + (lySame.orders ? ' · last year $' + aov(lySame).toFixed(2) : '');
   $('yoySalesNote').textContent = live ? '· Amazon Sales API, to ' + yoyTime(V.asOf) + ' PT' : '· Amazon Sales API, ' + yoyDate(V.day);
 
-  yoyRenderAds(V, today);
+  const amzAds = yoyRenderAds(V, today);
+  yoyRenderShop(V, live, frac, today, lySame, amzAds);
 
   // --- legends ---
   $('yoyLgNow').textContent = live ? 'Today' : yoyDate(V.day);
@@ -13488,7 +13513,7 @@ function yoyRenderAds(V, today) {
     const err = V.keys.map(k => YOY[k].ads && YOY[k].ads.err).filter(Boolean)[0];
     $('yoyAdsNote').textContent = err ? '· could not read the ad report (' + err + ')' : '· waiting for Amazon’s ad report (it can take up to an hour)';
     $('yoyAdSpendSub').textContent = 'waiting for Amazon’s ad report';
-    return;
+    return null;
   }
   const at = ads.map(a => a.at).filter(Boolean).sort()[0];
   const types = [...new Set(ads.flatMap(a => a.types || ['Products']))];
@@ -13507,6 +13532,58 @@ function yoyRenderAds(V, today) {
   $('yoyOrganicSub').textContent = pc(org, today.sales) + ' of all sales' + (haveWk ? ' · 7 days ' + pc(Math.max(0, wkSales - Wk.sales), wkSales) : '');
   $('yoyClicks').textContent = yoyInt(A.clicks);
   $('yoyClicksSub').textContent = (A.clicks ? 'CPC $' + (A.spend / A.clicks).toFixed(2) : 'CPC —') + ' · CTR ' + pc(A.clicks, A.impressions) + ' · 7 days CPC ' + (Wk.clicks ? '$' + (Wk.spend / Wk.clicks).toFixed(2) : '—');
+  return A;
+}
+
+/* ---------- Shopify & Meta, then all channels (Ravi, 2026-11-20) ----------
+ * YOY[brand].shop = { now, last, lastWeek } — the brand's Shopify store by PACIFIC hour (Pricing-API/SalesLive.gs liveShop_),
+ * compared "by the same time" exactly as Amazon is. YOY[brand].meta = { configured, days:{date:{spend, clicks, impressions,
+ * purchases, value}} } — { configured:false } until META_TOKEN and the ad account are in Script Properties.
+ * amzAds = the Amazon ad totals for the day (yoyRenderAds), or null while that report is pending. */
+function yoyRenderShop(V, live, frac, amzToday, amzLySame, amzAds) {
+  const pc = (a, b) => (b > 0 ? (a / b * 100).toFixed(1) + '%' : '—');
+  const set = (id, v, sub, cls) => { $(id).textContent = v; $(id).className = 'val' + (cls ? ' ' + cls : ''); $(id + 'Sub').textContent = sub || ''; };
+  const chg = (a, b) => { if (!b) return ['—', '']; const p = Math.round((a / b - 1) * 100); return [(p > 0 ? '+' : '') + p + '%', p >= 0 ? 'yoy-up' : 'yoy-down']; };
+  const shops = V.keys.map(k => YOY[k].shop).filter(s => s && s.now);
+  const errs = V.keys.map(k => YOY[k].shop && YOY[k].shop.err).filter(Boolean);
+  const merge = f => { const lists = shops.map(s => s[f] || []); const n = Math.max(0, ...lists.map(l => l.length)); return [...Array(n).keys()].map(i => lists.reduce((t, l) => yoyAdd(t, l[i]), yoyZero())); };
+  const now = merge('now'), last = merge('last'), lw = merge('lastWeek'), n = now.length;
+  const sameTime = rows => { if (!live) return rows.reduce(yoyAdd, yoyZero()); let t = yoyZero(); rows.forEach((r, i) => { if (i < n - 1) t = yoyAdd(t, r); else if (i === n - 1) t = yoyAdd(t, yoyScale(r, frac)); }); return t; };
+  const sh = now.reduce(yoyAdd, yoyZero()), shLy = sameTime(last), shLw = sameTime(lw);
+  const upTo = live ? ' by ' + yoyTime(V.asOf) : '';
+  if (shops.length) {
+    set('yoyShToday', yoyMoney(sh.sales), yoyInt(sh.orders) + ' orders · ' + yoyInt(sh.units) + ' units');
+    const [a, ac] = chg(sh.sales, shLy.sales); set('yoyShVsLy', a, yoyDate(V.ly) + upTo + ': ' + yoyMoney(shLy.sales) + ' · ' + yoyInt(shLy.orders) + ' orders', ac);
+    const [b, bc] = chg(sh.sales, shLw.sales); set('yoyShVsLw', b, yoyDate(V.lw, false) + upTo + ': ' + yoyMoney(shLw.sales) + ' · ' + yoyInt(shLw.orders) + ' orders', bc);
+    set('yoyShAov', sh.orders ? '$' + (sh.sales / sh.orders).toFixed(2) : '—', (sh.orders ? (sh.units / sh.orders).toFixed(2) + ' units an order' : '') + (shLy.orders ? ' · last year $' + (shLy.sales / shLy.orders).toFixed(2) : ''));
+  } else ['yoyShToday', 'yoyShVsLy', 'yoyShVsLw', 'yoyShAov'].forEach(id => set(id, '—', errs[0] ? 'could not read Shopify' : 'waiting for the backend update'));
+  // --- Meta ---
+  const metas = V.keys.map(k => YOY[k].meta).filter(Boolean);
+  const metaOn = metas.filter(m => m.configured && m.days);
+  let M = null;
+  metaOn.forEach(m => { const r = m.days[V.day]; if (r) { M = M || { spend: 0, clicks: 0, impressions: 0, purchases: 0, value: 0 }; for (const f in M) M[f] += Number(r[f]) || 0; } });
+  const metaErr = metas.map(m => m.err).filter(Boolean)[0];
+  if (M) {
+    set('yoyMetaSpend', yoyMoney(M.spend), yoyInt(M.clicks) + ' clicks · CPC ' + (M.clicks ? '$' + (M.spend / M.clicks).toFixed(2) : '—'));
+    // Only the stores whose Meta account is connected: one brand's spend against both stores' sales would flatter it.
+    const shMeta = V.keys.filter(k => YOY[k].meta && YOY[k].meta.configured && YOY[k].meta.days)
+      .reduce((t, k) => t + ((YOY[k].shop || {}).now || []).reduce((s, r) => s + (r.sales || 0), 0), 0);
+    set('yoyMetaRoas', M.spend ? (shMeta / M.spend).toFixed(2) : '—', 'Shopify sales ÷ Meta spend · Meta counts ' + yoyInt(M.purchases) + ' purchases, ' + yoyMoney(M.value));
+  } else {
+    const why = metaErr ? 'Meta: ' + metaErr : metas.length && metas.every(m => m.configured === false) ? 'add META_TOKEN + META_AD_ACCOUNT in Script Properties' : 'waiting for Meta';
+    set('yoyMetaSpend', '—', why); set('yoyMetaRoas', '—', '');
+  }
+  $('yoyShopNote').textContent = '· Shopify Admin API, Pacific day' + (M ? ' · Meta Marketing API (ad account’s own day)' : '') + (errs.length ? ' · ' + errs.join(' · ') : '');
+  // --- all channels ---
+  const allSales = amzToday.sales + sh.sales, allLy = amzLySame.sales + shLy.sales;
+  set('yoyAllSales', yoyMoney(allSales), 'Amazon ' + yoyMoney(amzToday.sales) + ' · Shopify ' + yoyMoney(sh.sales));
+  const [c, cc] = chg(allSales, allLy); set('yoyAllVsLy', c, yoyDate(V.ly) + upTo + ': ' + yoyMoney(allLy), cc);
+  const spend = (amzAds ? amzAds.spend : 0) + (M ? M.spend : 0);
+  const parts = [amzAds ? 'Amazon ' + yoyMoney(amzAds.spend) : 'Amazon pending', M ? 'Meta ' + yoyMoney(M.spend) : 'Meta not connected'];
+  set('yoyAllSpend', amzAds || M ? yoyMoney(spend) : '—', parts.join(' · '));
+  set('yoyAllTacos', amzAds || M ? pc(spend, allSales) : '—', amzAds && M ? 'all ads ÷ all sales' : 'so far without ' + (amzAds ? 'Meta' : 'Amazon ads'));
+  set('yoyAllAmz', pc(amzToday.sales, allSales), yoyInt(amzToday.orders) + ' orders');
+  set('yoyAllShop', pc(sh.sales, allSales), yoyInt(sh.orders) + ' orders');
 }
 
 /* ---------- SVG helpers ---------- */

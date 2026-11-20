@@ -6,7 +6,9 @@
  *   ?live=yoy&brand=SP|CPC&day=YYYY-MM-DD&ly=YYYY-MM-DD
  *     → { ok, brand, asOf, day, ly, lw,
  *         now:[hour rows of `day` so far], last:[hour rows of `ly`], lastWeek:[hour rows of day-7],
- *         week:[day rows, day-6 … day], ads:{ at, types, days:{date: {impressions, clicks, spend, orders, sales}}, err } }
+ *         week:[day rows, day-6 … day], ads:{ at, types, days:{date: {impressions, clicks, spend, orders, sales}}, err },
+ *         shop:{ now, last, lastWeek: [Pacific hour rows of the brand's Shopify store] } | { err },
+ *         meta:{ configured, at, days:{date: {spend, clicks, impressions, purchases, value}} } | { configured:false } }
  *   ?live=range — a run of days against last year's run, by day (liveRange_ below).
  *   A row is { t, orders, units, items, sales } — t is the start of the hour / day, Pacific.
  * Routed from Code.gs doGet. Every day boundary is Amazon.com's day: Pacific time. */
@@ -65,6 +67,81 @@ function liveYoy_(brand, day, ly) {
   // The 7 days to `day` (today so far included), by day — for TACoS yesterday and over the week (Ravi, 2026-11-20).
   try { out.week = liveMetrics_(liveIso_(liveShift_(day, -6), 0), endIso, 'Day'); } catch (e) { out.week = []; }
   out.ads = liveAdsRead_(b);                         // what the 15-minute job last stored — no Amazon call here
+  try { out.shop = liveShop_(b, day, ly, lw, dayEnd, past); } catch (e) { out.shop = { err: String(e.message || e).slice(0, 200) }; }
+  try { out.meta = liveMeta_(b, day); } catch (e) { out.meta = { configured: true, err: String(e.message || e).slice(0, 200) }; }
+  return out;
+}
+
+/* ---- SHOPIFY ON THE LIVE PAGE (Ravi, 2026-11-20: "add Shopify sales … and Meta ads") ----
+ * The brand's own Shopify store (Ridhi → SHOPIFY_*, CPC → CPC_SHOPIFY_*; Shopify.gs) by PACIFIC hour, so it lines up hour
+ * for hour with Amazon on the same page: today so far, the same weekday last year and the same day last week. Sales =
+ * line-item price × quantity, as shopifyDaily_ counts them (not total_price: no shipping, no tax); voided orders left out.
+ * Finished days are kept in the script cache for six hours. Rows are { t, orders, units, sales }, one per hour. */
+function liveShopHours_(day, endMs) {
+  var startIso = liveIso_(day, 0), endIso = endMs ? new Date(endMs).toISOString() : liveIso_(liveShift_(day, 1), 0);
+  var hours = [], fields = 'id,created_at,financial_status,line_items';
+  var path = '/orders.json?status=any&limit=250&fields=' + fields
+    + '&created_at_min=' + encodeURIComponent(startIso) + '&created_at_max=' + encodeURIComponent(endIso);
+  var pageInfo = null, guard = 0;
+  do {
+    var r = shopifyGet_(pageInfo ? '/orders.json?limit=250&fields=' + fields + '&page_info=' + encodeURIComponent(pageInfo) : path);
+    (r.json.orders || []).forEach(function (o) {
+      if (String(o.financial_status || '').toLowerCase() === 'voided') return;
+      var at = new Date(o.created_at);
+      if (Utilities.formatDate(at, LIVE_TZ, 'yyyy-MM-dd') !== day) return;
+      var h = Number(Utilities.formatDate(at, LIVE_TZ, 'H'));
+      while (hours.length <= h) hours.push({ orders: 0, units: 0, sales: 0 });
+      var b = hours[h];
+      (o.line_items || []).forEach(function (li) { var q = Number(li.quantity) || 0; b.units += q; b.sales += (Number(li.price) || 0) * q; });
+      b.orders += 1;
+    });
+    pageInfo = shopifyNextPageInfo_(r.link);
+  } while (pageInfo && ++guard < 100);
+  // Today: an hour row up to the hour now running, even when it had no order. A finished day: all 24.
+  var n = endMs ? Number(Utilities.formatDate(new Date(endMs), LIVE_TZ, 'H')) + 1 : 24;
+  while (hours.length < n) hours.push({ orders: 0, units: 0, sales: 0 });
+  hours.forEach(function (x) { x.sales = Math.round(x.sales * 100) / 100; });
+  return hours;
+}
+function liveShop_(b, day, ly, lw, dayEnd, past) {
+  setShopBrand_(b);
+  if (!prop_(SHOP_PREFIX + 'SHOPIFY_TOKEN')) return { err: 'no Shopify store set up for ' + b };
+  var whole = function (d) { return liveCached_('live_shop_v1_' + b + '_' + d, function () { return liveShopHours_(d, 0); }); };
+  return { now: past ? whole(day) : liveShopHours_(day, dayEnd), last: whole(ly), lastWeek: whole(lw) };
+}
+
+/* ---- META ADS ON THE LIVE PAGE (ready before the token is: it switches itself on) ----
+ * Needs, in Script Properties: META_TOKEN (a system-user token with ads_read — Meta Business Settings → System users) and
+ * META_AD_ACCOUNT for Ridhi / CPC_META_AD_ACCOUNT for CPC ("act_123…" or just the number). Optional META_API_VERSION.
+ * Without them this answers { configured: false } and the page says what to add. Meta's insights run about 15 minutes
+ * behind, in the AD ACCOUNT's own timezone — which may not be Pacific, so the page says so.
+ * Answers { configured, days: { 'YYYY-MM-DD': { spend, clicks, impressions, purchases, value } } } for the 8 days to `day`. */
+function liveMeta_(b, day) {
+  var token = prop_('META_TOKEN'), acct = prop_((b === 'CPC' ? 'CPC_' : '') + 'META_AD_ACCOUNT');
+  if (!token || !acct) return { configured: false };
+  acct = String(acct).replace(/^act_/, '');
+  var ver = prop_('META_API_VERSION') || 'v23.0';
+  var tr = JSON.stringify({ since: liveShift_(day, -7), until: day });
+  var url = 'https://graph.facebook.com/' + ver + '/act_' + acct + '/insights?level=account&time_increment=1'
+    + '&fields=' + encodeURIComponent('spend,clicks,impressions,actions,action_values')
+    + '&time_range=' + encodeURIComponent(tr);
+  var ckey = 'live_meta_' + b + '_' + day;
+  var cached = CacheService.getScriptCache().get(ckey);                 // Meta's own figures move every ~15 min
+  if (cached) { try { return JSON.parse(cached); } catch (e) { /* ask again */ } }
+  var res = UrlFetchApp.fetch(url, { muteHttpExceptions: true, headers: { Authorization: 'Bearer ' + token } });
+  var body = JSON.parse(res.getContentText() || '{}');
+  if (res.getResponseCode() >= 300) throw new Error('Meta ' + res.getResponseCode() + ': ' + ((body.error && body.error.message) || '').slice(0, 160));
+  var pick = function (list) {                       // the purchase count / value Meta reports, by the usual action types
+    var v = 0; (list || []).forEach(function (a) { if (a.action_type === 'purchase' || a.action_type === 'omni_purchase') v = Math.max(v, Number(a.value) || 0); });
+    return v;
+  };
+  var days = {};
+  (body.data || []).forEach(function (r) {
+    days[r.date_start] = { spend: Number(r.spend) || 0, clicks: Number(r.clicks) || 0, impressions: Number(r.impressions) || 0,
+      purchases: pick(r.actions), value: pick(r.action_values) };
+  });
+  var out = { configured: true, at: new Date().toISOString(), days: days };
+  try { CacheService.getScriptCache().put(ckey, JSON.stringify(out), 300); } catch (e) { /* asked again next time */ }
   return out;
 }
 

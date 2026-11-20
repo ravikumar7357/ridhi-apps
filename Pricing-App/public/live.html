@@ -86,6 +86,10 @@ details summary:focus-visible { outline: 2px solid var(--y26); outline-offset: 2
   <div class="strip big" id="strip"></div>
   <div class="rowh">Advertising <span id="adsNote"></span></div>
   <div class="strip big" id="adStrip"></div>
+  <div class="rowh">Shopify &amp; Meta <span id="shopNote"></span></div>
+  <div class="strip big" id="shopStrip"></div>
+  <div class="rowh">All channels <span>· Amazon + Shopify sales, Amazon ads + Meta spend</span></div>
+  <div class="strip big" id="allStrip"></div>
 
   <section class="card" aria-labelledby="h-hour">
     <h2 id="h-hour">Hour by hour — today against the same weekday last year</h2>
@@ -226,7 +230,7 @@ function renderAds(V, tot) {
     const err = ads.map(a => a.err).concat(on.map(k => (DATA.brands[k].yoy.ads || {}).err)).filter(Boolean)[0];
     $('adsNote').textContent = err ? '· could not read the ad report (' + err + ')' : '· waiting for Amazon’s ad report (it can take up to an hour)';
     $('adStrip').innerHTML = ['Ad spend', 'TACoS', 'ACoS', 'Ad sales', 'Organic sales', 'Clicks · CPC'].map((k, i) => tile(k, '—', i ? '' : 'waiting for Amazon’s ad report', '', false, AD_C[i])).join('');
-    return;
+    return null;
   }
   const at = ads.map(a => a.at).filter(Boolean).sort()[0];
   const types = [...new Set(ads.flatMap(a => a.types || ['Products']))];
@@ -240,6 +244,45 @@ function renderAds(V, tot) {
     + tile('Ad sales', usd(A.sales), `${int(A.orders)} ad orders · ${pc(A.sales, tot.sales)} of all sales · 7 days ${usd(Wk.sales)}`, '', false, AD_C[3])
     + tile('Organic sales', usd(org), `${pc(org, tot.sales)} of all sales` + (haveWk ? ` · 7 days ${pc(Math.max(0, wkSales - Wk.sales), wkSales)}` : ''), '', false, AD_C[4], 'All sales minus ad sales.')
     + tile('Clicks · CPC', int(A.clicks), `${A.clicks ? 'CPC $' + (A.spend / A.clicks).toFixed(2) : 'CPC —'} · CTR ${pc(A.clicks, A.impressions)} · 7 days CPC ${Wk.clicks ? '$' + (Wk.spend / Wk.clicks).toFixed(2) : '—'}`, '', false, AD_C[5]);
+  return A;
+}
+
+/* Shopify & Meta, then all channels (Ravi, 2026-11-20). brands[k].yoy.shop = { now, last, lastWeek } — the brand's Shopify
+   store by PACIFIC hour (Pricing-API/SalesLive.gs liveShop_), compared "by the same time" exactly as Amazon is.
+   brands[k].yoy.meta = { configured, days } — { configured:false } until META_TOKEN and the ad account are set. */
+function renderShop(live, frac, amz, amzLy, amzAds) {
+  const key = $('brand').value, on = (key === 'ALL' ? Object.keys(BRANDS) : [key]).filter(k => DATA.brands[k] && DATA.brands[k].yoy);
+  const shops = on.map(k => DATA.brands[k].yoy.shop).filter(s => s && s.now);
+  const errs = on.map(k => DATA.brands[k].yoy.shop && DATA.brands[k].yoy.shop.err).filter(Boolean);
+  const merge = f => { const lists = shops.map(s => s[f] || []); const n = Math.max(0, ...lists.map(l => l.length)); return [...Array(n).keys()].map(i => lists.reduce((t, l) => add(t, l[i]), zero())); };
+  const now = merge('now'), last = merge('last'), lwr = merge('lastWeek'), n = now.length;
+  const sameTime = rows => { if (!live) return rows.reduce(add, zero()); let t = zero(); rows.forEach((r, i) => { if (i < n - 1) t = add(t, r); else if (i === n - 1) t = add(t, scale(r, frac)); }); return t; };
+  const sh = now.reduce(add, zero()), shLy = sameTime(last), shLw = sameTime(lwr), by = live ? ' by ' + ptHM(DATA.asOf) : '';
+  const metas = on.map(k => DATA.brands[k].yoy.meta).filter(Boolean), metaErr = metas.map(m => m.err).filter(Boolean)[0];
+  let M = null;
+  metas.filter(m => m.configured && m.days).forEach(m => { const r = m.days[DATA.day]; if (r) { M = M || { spend: 0, clicks: 0, impressions: 0, purchases: 0, value: 0 }; for (const f in M) M[f] += Number(r[f]) || 0; } });
+  const metaWhy = metaErr ? 'Meta: ' + metaErr : metas.length && metas.every(m => m.configured === false) ? 'add META_TOKEN + META_AD_ACCOUNT in Script Properties' : 'waiting for Meta';
+  const [cLy, kLy] = change(sh.sales, shLy.sales), [cLw, kLw] = change(sh.sales, shLw.sales);
+  const C = ['#14b8a6', 'var(--y25)', '#06b6d4', '#ec4899', '#ef4444', '#8b5cf6'];
+  $('shopNote').textContent = '· Shopify Admin API, Pacific day' + (M ? ' · Meta Marketing API (ad account’s own day)' : '') + (errs.length ? ' · ' + errs.join(' · ') : '');
+  $('shopStrip').innerHTML = shops.length
+    ? tile('Shopify today', usd(sh.sales), `${int(sh.orders)} orders · ${int(sh.units)} units`, '', false, C[0], 'The brand’s Shopify store today, Pacific day. Line-item sales, no shipping or tax.')
+      + tile('Shopify vs last year', cLy, `${dname(DATA.ly, true)}${by}: ${usd(shLy.sales)} · ${int(shLy.orders)} orders`, kLy, false, C[1])
+      + tile('Shopify vs last week', cLw, `${dname(DATA.lw)}${by}: ${usd(shLw.sales)} · ${int(shLw.orders)} orders`, kLw, false, C[2])
+      + tile('Shopify average order', sh.orders ? '$' + (sh.sales / sh.orders).toFixed(2) : '—', (sh.orders ? (sh.units / sh.orders).toFixed(2) + ' units an order' : '') + (shLy.orders ? ' · last year $' + (shLy.sales / shLy.orders).toFixed(2) : ''), '', false, C[3])
+    : ['Shopify today', 'Shopify vs last year', 'Shopify vs last week', 'Shopify average order'].map((k, i) => tile(k, '—', i ? '' : (errs[0] ? 'could not read Shopify' : 'waiting for the backend update'), '', false, C[i])).join('');
+  $('shopStrip').innerHTML +=
+    tile('Meta ad spend', M ? usd(M.spend) : '—', M ? `${int(M.clicks)} clicks · CPC ${M.clicks ? '$' + (M.spend / M.clicks).toFixed(2) : '—'}` : metaWhy, '', false, C[4], 'Meta (Facebook + Instagram) ad spend today, about 15 minutes behind, in the ad account’s own timezone.')
+    + tile('Meta ROAS', M && M.spend ? (on.filter(k => { const m = DATA.brands[k].yoy.meta; return m && m.configured && m.days; }).reduce((t, k) => t + ((DATA.brands[k].yoy.shop || {}).now || []).reduce((s, r) => s + (r.sales || 0), 0), 0) / M.spend).toFixed(2) : '—', M ? `Shopify sales ÷ Meta spend · Meta counts ${int(M.purchases)} purchases, ${usd(M.value)}` : '', '', false, C[5]);
+  const all = amz.sales + sh.sales, allLy = amzLy.sales + shLy.sales, [cA, kA] = change(all, allLy);
+  const spend = (amzAds ? amzAds.spend : 0) + (M ? M.spend : 0);
+  $('allStrip').innerHTML =
+    tile('Total sales today', usd(all), `Amazon ${usd(amz.sales)} · Shopify ${usd(sh.sales)}`, '', false, '#6366f1')
+    + tile('Total vs last year', cA, `${dname(DATA.ly, true)}${by}: ${usd(allLy)}`, kA, false, 'var(--y25)')
+    + tile('Total ad spend', amzAds || M ? usd(spend) : '—', [amzAds ? 'Amazon ' + usd(amzAds.spend) : 'Amazon pending', M ? 'Meta ' + usd(M.spend) : 'Meta not connected'].join(' · '), '', false, '#ef4444')
+    + tile('Overall TACoS', amzAds || M ? pc(spend, all) : '—', amzAds && M ? 'all ads ÷ all sales' : 'so far without ' + (amzAds ? 'Meta' : 'Amazon ads'), '', false, '#f59e0b', 'All ad spend (Amazon + Meta) ÷ all sales (Amazon + Shopify). Lower is better.')
+    + tile('Amazon share', pc(amz.sales, all), `${int(amz.orders)} orders`, '', false, '#3b82f6')
+    + tile('Shopify share', pc(sh.sales, all), `${int(sh.orders)} orders`, '', false, '#22c55e');
 }
 const AD_C = ['#ef4444', '#f59e0b', '#8b5cf6', '#3b82f6', '#22c55e', '#64748b'];
 function change(a, b) { if (!b) return ['—', '']; const p = Math.round((a / b - 1) * 100); return [(p > 0 ? '+' : '') + p + '%', p >= 0 ? 'up' : 'dn']; }
@@ -268,7 +311,7 @@ function render() {
     + tile('Last year, whole day', usd(lyDay.sales), `${lyDay.sales ? Math.round(tot.sales / lyDay.sales * 100) + '% of it reached · ' : ''}${int(lyDay.orders)} orders`, '', false, '#a855f7')
     + tile('Pace for the day', live && lySame.sales ? usd(tot.sales * lyDay.sales / lySame.sales) : '—', live && lySame.sales ? `if the rest of today follows ${dname(DATA.ly)}'s shape` : 'needs last year by this hour', '', false, '#6366f1')
     + tile('Average order', aov(tot), (tot.orders ? (tot.units / tot.orders).toFixed(2) + ' units an order' : '') + (lySame.orders ? ' · last year ' + aov(lySame) : ''), '', false, '#ec4899');
-  renderAds(V, tot);
+  renderShop(live, frac, tot, lySame, renderAds(V, tot));
   $('lgNow').textContent = live ? 'Today' : dname(DATA.day); $('lgLy').textContent = dname(DATA.ly, true) + ' (last year)'; $('lgLw').textContent = dname(DATA.lw) + ' (last week)';
 
   const hrs = [...Array(24).keys()];
