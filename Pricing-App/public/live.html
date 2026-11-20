@@ -500,7 +500,9 @@ function renderEvents(tot, lySame, lyDay) {
     const ty = sum(done), lyT = sum(lyCmp), lyAll = sum(ly);
     // A live event: last year's matching day is cut to the same moment of the day (by last year's Amazon shape), as today is.
     if (state === 'live' && lyCmp.length === k && k) { const last = day(lyCmp[k - 1]); lyT.s -= last.s * (1 - lyFrac); lyT.o -= last.o * (1 - lyFrac); lyT.a -= last.a * (1 - lyFrac); }
-    const base = sum(span(sh(a, -14), sh(a, -1))), baseDay = base.s / 14, perDay = k ? ty.s / k : 0;
+    // Per day: a live event's today counts as the part of a day that has gone by (last year's shape), not as a whole day.
+    const daysIn = state === 'live' && done.includes(T) ? k - 1 + lyFrac : k;
+    const base = sum(span(sh(a, -14), sh(a, -1))), baseDay = base.s / 14, perDay = daysIn > 0 ? ty.s / daysIn : 0;
     let spend = 0, adDays = 0; done.forEach(d => { const v = adOn(d); if (v != null) { spend += v; adDays++; } });
     const best = done.map(d => [d, day(d).s]).sort((x, y) => y[1] - x[1])[0];
     const pill = state === 'live' ? `Live · day ${k} of ${n}` : state === 'done' ? 'Done' : `In ${Math.round((Date.parse(a) - Date.parse(T)) / 864e5)} days`;
