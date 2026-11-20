@@ -1491,43 +1491,6 @@
         </div>
         <div id="qcMsg" class="muted" style="margin-top:8px;font-size:12.5px"></div>
 
-        <div id="qcCheckBox" style="margin-top:10px">
-          <button id="qcwToggle" class="ghost">+ Record a check</button>
-          <div id="qcwBox" class="hide" style="margin-top:10px;border:1px solid var(--line);border-radius:10px;padding:12px">
-            <div class="toolbar">
-              <select id="qcwSrc" style="flex:0 0 210px" title="Normally only pieces received back in Job Work Register may be inspected. “Any SKU” records an inspection that never went out on an issue.">
-                <option value="received">Received in Job Work</option>
-                <option value="any">Any SKU (free inspection)</option>
-              </select>
-              <!-- The Job Work Register's way in: the item from four pickers, or the SKU typed or picked —
-                   either one fills the other. -->
-              <select id="qcwAt" style="flex:0 0 150px"><option value="">-- Article type --</option></select>
-              <select id="qcwSub" style="flex:0 0 175px"><option value="">-- Subtype --</option></select>
-              <select id="qcwCol" style="flex:0 0 150px"><option value="">-- Colour --</option></select>
-              <select id="qcwSz" style="flex:0 0 120px"><option value="">-- Size --</option></select>
-              <input id="qcwSku" list="qcwSkuList" placeholder="SKU (type or pick)" autocomplete="off"
-                     style="flex:0 0 185px;font-family:ui-monospace,monospace;text-transform:uppercase"
-                     title="Type or pick the SKU — the item fields fill in. Or choose the item above and the SKU fills in.">
-              <datalist id="qcwSkuList"></datalist>
-              <select id="qcwType" style="flex:0 0 160px"><option value="">All types</option></select>
-              <select id="qcwBy" style="flex:0 0 180px"><option value="">— Checked by —</option></select>
-              <input id="qcwOrd" list="qcwOrdList" placeholder="Order No (optional)" autocomplete="off"
-                     style="flex:0 0 190px;font-family:ui-monospace,monospace;text-transform:uppercase"
-                     title="Which order was checked. Offered from the order book for this SKU — with it, the Order Console can show how much of the order passed QC.">
-              <datalist id="qcwOrdList"></datalist>
-              <input id="qcwChecked" type="number" min="1" step="1" placeholder="Checked" style="flex:0 0 110px">
-              <input id="qcwAlt" type="number" min="0" step="1" placeholder="For alteration" style="flex:0 0 135px">
-              <input id="qcwRej" type="number" min="0" step="1" placeholder="Rejected" style="flex:0 0 110px">
-              <input id="qcwOk" placeholder="OK" readonly title="Checked minus alteration and rejected"
-                     style="flex:0 0 90px;background:var(--hover,#f1f5f9);color:var(--muted)">
-              <input id="qcwRemarks" placeholder="Remarks (optional)" style="flex:1 1 140px;min-width:0">
-              <button id="qcwSave" style="flex:0 0 120px">Save check</button>
-            </div>
-            <!-- Both ceilings, while typing — a refusal at the end of a filled form is the thing the floor hates. -->
-            <div id="qcwInfo" class="muted" style="margin-top:8px;font-size:12.5px"></div>
-            <div id="qcwMsg" class="muted" style="margin-top:4px;font-size:12.5px"></div>
-          </div>
-        </div>
 
         <div id="qcIssueBox" class="hide" style="margin-top:10px">
           <button id="qciToggle" class="ghost">+ Issue for alteration</button>

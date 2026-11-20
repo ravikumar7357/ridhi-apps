@@ -132,9 +132,6 @@ const qcDeptEmps = type => [...new Set((PTE.emp || [])
     && (!type || String(e[0] || '').trim() === String(type).trim()))
   .map(e => String(e[1]).trim()))].sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
 
-/** SKUs with something still to inspect. */
-const qcCheckable = () => [...new Set((PT.base || []).filter(r => ptNum(r.receivedPieces) > 0).map(r => qcNorm(r.sku)))]
-  .filter(s => s && qcAvailToCheck(s) > 0).sort();
 /** SKUs QC has flagged for alteration and not yet handed out. */
 const qcIssuable = () => [...new Set((QC.checks || []).filter(r => ptNum(r.forAlteration) > 0).map(r => qcNorm(r.sku)))]
   .filter(s => s && qcAvailToIssue(s) > 0).sort();
@@ -159,11 +156,10 @@ function renderQc() {
     $('qcMsg').className = 'err';
     $('qcMsg').textContent = 'This account has no Quality Control access.';
     ptEmpty('qcTable', 'Nothing to show.'); $('qcKpis').innerHTML = '';
-    ['qcCheckBox', 'qcIssueBox', 'qcRetBox'].forEach(id => { if ($(id)) $(id).classList.add('hide'); });
+    ['qcIssueBox', 'qcRetBox'].forEach(id => { if ($(id)) $(id).classList.add('hide'); });
     return;
   }
   const view = qcView();
-  $('qcCheckBox').classList.toggle('hide', view !== 'checks');
   $('qcIssueBox').classList.toggle('hide', view !== 'issue');
   $('qcRetBox').classList.toggle('hide', view !== 'ret');
 
@@ -184,39 +180,7 @@ function renderQc() {
   const hit = r => (!q || [r.sku, r.articleType, r.subtype, r.color, r.size, r.checkedBy, r.employee]
     .join(' ').toLowerCase().includes(q)) && ptInRange(r && r.date, d1, d2);
 
-  if (view === 'checks') {
-    const rows = (QC.checks || []).filter(hit)
-      .sort((a, b) => (ptDtMs(b.date) - ptDtMs(a.date)) || String(b.id || '').localeCompare(String(a.id || '')));
-    QC.rows = rows;
-    const s = f => rows.reduce((a, r) => a + ptNum(r[f]), 0);
-    $('qcKpis').innerHTML = `<div class="kpi" style="flex-basis:100%">
-      <div class="kpihead"><span class="kpiname">Quality Control — checks</span>
-        <span class="kpiwhen">read live${QC.at ? ' · ' + esc(QC.at) : ''}</span></div>
-      <div class="metrics">
-        <div class="metric"><div class="v">${nf(rows.length)}</div><div class="l">Checks</div></div>
-        <div class="metric"><div class="v">${nf(s('checked'))}</div><div class="l">Pieces checked</div></div>
-        <div class="metric"><div class="v" style="color:#166534">${nf(s('ok'))}</div><div class="l">Passed</div></div>
-        <div class="metric"><div class="v" style="color:#7f6000">${nf(s('forAlteration'))}</div><div class="l">For alteration</div></div>
-        <div class="metric"><div class="v" style="color:var(--bad)">${nf(s('rejected'))}</div><div class="l">Rejected</div></div>
-      </div></div>`;
-    const head = '<thead><tr>' + ['Date', 'SKU', 'Image', 'Article', 'Subtype', 'Color', 'Size', 'Checked', 'OK', 'For alteration', 'Rejected', 'Checked by', 'Remarks', 'Edit']
-      .map((h, i) => `<th${i === 0 ? ' class="frz"' : (i >= 7 && i <= 10 ? ' class="num"' : '')}>${h}</th>`).join('') + '</tr></thead>';
-    $('qcTable').innerHTML = head + '<tbody>' + rows.slice(0, 600).map(r => '<tr>'
-      + `<td class="frz" style="text-align:left">${esc(r.date)}</td>`
-      + `<td style="font-family:ui-monospace,monospace;text-align:left">${esc(r.sku)}</td>`
-      + ptImgCell(r.sku)
-      + `<td>${esc(r.articleType)}</td><td>${esc(r.subtype)}</td><td>${esc(r.color)}</td><td>${esc(r.size)}</td>`
-      + `<td class="num" style="font-weight:700">${nf(ptNum(r.checked))}</td>`
-      + `<td class="num" style="color:#166534">${nf(ptNum(r.ok))}</td>`
-      + `<td class="num"${ptNum(r.forAlteration) ? ' style="color:#7f6000;font-weight:700"' : ''}>${ptNum(r.forAlteration) ? nf(ptNum(r.forAlteration)) : '<span class="muted">—</span>'}</td>`
-      + `<td class="num"${ptNum(r.rejected) ? ' style="color:var(--bad);font-weight:700"' : ''}>${ptNum(r.rejected) ? nf(ptNum(r.rejected)) : '<span class="muted">—</span>'}</td>`
-      + `<td style="text-align:left">${esc(r.checkedBy)}</td>`
-      + `<td style="text-align:left;white-space:normal;max-width:200px">${esc(r.remarks) || '<span class="muted">—</span>'}</td>`
-      + `<td><button class="ghost" data-qc-edit="${esc(r.id)}" style="padding:3px 10px;font-size:12px">Edit</button></td></tr>`).join('')
-      + '</tbody>';
-    $('qcMsg').className = 'muted';
-    $('qcMsg').textContent = `${nf(rows.length)} of ${nf((QC.checks || []).length)} check(s)`;
-  } else {
+  if (view === 'issue') {
     const rows = (QC.issue || []).filter(hit)
       .sort((a, b) => (ptDtMs(b.date) - ptDtMs(a.date)) || String(b.id || '').localeCompare(String(a.id || '')));
     QC.rows = rows;
@@ -375,173 +339,6 @@ $('qcrToggle').onclick = () => {
 if ($('qcrPick')) $('qcrPick').addEventListener('change', qcRetInfo);
 $('qcrSave').onclick = qcSaveReturn;
 
-/* ---- recording a check ---- */
-
-function qcCheckMsg(t, bad) { const m = $('qcwMsg'); m.textContent = t || ''; m.className = bad ? 'err' : 'muted'; }
-
-function renderQcCheckForm() {
-  if (!QC_IX) return qcWithIx(renderQcCheckForm);
-  const any = $('qcwSrc').value === 'any';
-  const pool = any ? (PTG.mdb || []).map(r => qcNorm(r.sku)).filter(Boolean).slice(0, 6000) : qcCheckable();
-  /* LIKE THE JOB WORK REGISTER. Ravi: "quality control ki entry 2 tarah se — SKU wise or article wise",
-   * and then "like job register": the article, subtype, colour and size pickers, and an SKU box that
-   * can be typed into or picked from. Choosing the item fills the SKU when exactly one matches; typing
-   * a SKU fills the item back. Each picker only offers what the ones before it leave. */
-  const parts = new Map(pool.map(s0 => [s0, qcParts(s0)]));
-  const eq = (x, y) => String(x || '').trim().toLowerCase() === String(y || '').trim().toLowerCase();
-  const pick = () => ({ at: $('qcwAt').value, sub: $('qcwSub').value, col: $('qcwCol').value, size: $('qcwSz').value });
-  const upTo = (p, keys) => pool.filter(s0 => keys.every(k => !p[k] || eq(parts.get(s0)[k], p[k])));
-  let p0 = pick();
-  bdFill('qcwAt', pool.map(s0 => parts.get(s0).at), '-- Article type --');
-  p0 = pick();
-  bdFill('qcwSub', upTo(p0, ['at']).map(s0 => parts.get(s0).sub), '-- Subtype --');
-  p0 = pick();
-  bdFill('qcwCol', upTo(p0, ['at', 'sub']).map(s0 => parts.get(s0).col), '-- Colour --');
-  p0 = pick();
-  bdFill('qcwSz', upTo(p0, ['at', 'sub', 'col']).map(s0 => parts.get(s0).size), '-- Size --');
-  p0 = pick();
-  const near = upTo(p0, ['at', 'sub', 'col', 'size']);
-  $('qcwSkuList').innerHTML = near.slice(0, 3000).map(s0 => { const q0 = parts.get(s0);
-    return `<option value="${esc(s0)}">${esc([q0.at, q0.sub, q0.col, q0.size].filter(Boolean).join(' · '))}${any ? '' : ' — ' + nf(qcAvailToCheck(s0)) + ' to check'}</option>`; }).join('');
-  let skuNote = '';
-  /* The orders this SKU is actually on, newest first — the same list the cutting form offers. */
-  if ($('qcwOrdList')) {
-    const sku0 = qcNorm(($('qcwSku') || {}).value);
-    /* What is waiting on each order first — that is the order the inspector is holding. */
-    const on = (sku0 ? qcOrdersFor(sku0) : []).map(o => Object.assign({}, o, { wait: qcOrderAvail(o.orderNo, sku0) }))
-      .sort((a, b) => (b.wait - a.wait) || (b.received - a.received) || a.orderNo.localeCompare(b.orderNo));
-    $('qcwOrdList').innerHTML = on
-      .map(o => `<option value="${esc(o.orderNo)}">${esc(o.date || '')} · ${nf(o.ordered)} ordered · ${nf(o.received)} received · ${nf(o.wait)} waiting for QC</option>`).join('');
-    /* THE BOX SAYS WHETHER IT IS NEEDED, and fills itself in when there is only one answer — asking
-     * somebody to type the one order a SKU is on is how a box comes to be left empty 245 times. */
-    const box = $('qcwOrd');
-    if (box) {
-      box.placeholder = !sku0 ? 'Order No' : (on.length ? 'Order No *' : 'Order No — this SKU is on no order');
-      const waiting = on.filter(o => o.wait > 0);
-      if (!String(box.value || '').trim() && (on.length === 1 || waiting.length === 1)) box.value = (waiting[0] || on[0]).orderNo;
-      if (on.length && String(box.value || '').trim() && !on.some(o => o.orderNo === obUC(box.value))) box.value = '';
-    }
-  }
-  if (!$('qcwSku').dataset.typed) {
-    const full = p0.at && p0.sub && p0.col && p0.size;
-    $('qcwSku').value = full && near.length === 1 ? near[0] : '';
-    if (full && near.length > 1) skuNote = `${nf(near.length)} SKUs share this description — pick the SKU in the SKU box.`;
-  }
-
-  const types = [...new Set(qcDeptEmps().map(n => (PTE.emp || []).find(e => String(e[1]).trim() === n))
-    .filter(Boolean).map(e => String(e[0]).trim()))].sort();
-  const curT = $('qcwType').value;
-  $('qcwType').innerHTML = '<option value="">All types</option>' + types.map(t => `<option value="${esc(t)}">${esc(t)}</option>`).join('');
-  $('qcwType').value = curT;
-  const curB = $('qcwBy').value;
-  $('qcwBy').innerHTML = '<option value="">— Checked by —</option>'
-    + qcDeptEmps($('qcwType').value).map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('');
-  $('qcwBy').value = curB;
-  if ($('qcwBy').value !== curB) $('qcwBy').value = '';
-
-  const sku = qcNorm($('qcwSku').value);
-  const p = sku ? qcParts(sku) : null;
-  const ch = parseInt($('qcwChecked').value, 10) || 0;
-  const al = parseInt($('qcwAlt').value, 10) || 0;
-  const rj = parseInt($('qcwRej').value, 10) || 0;
-  $('qcwOk').value = ch > 0 ? String(ch - al - rj) : '';
-  /* Both ceilings are shown while typing, so a refusal is never a surprise at the end. */
-  let note = '';
-  if (p) note = `${p.at || '—'} · ${p.sub || '—'} · ${p.col || '—'} · ${p.size || '—'}`
-    + (any ? '  ·  free inspection — not measured against Job Work Register'
-           : `  ·  received ${nf(qcReceived(sku))}, already checked ${nf(qcChecked(sku))}, ${nf(qcAvailToCheck(sku))} left to check`);
-  let warn = '';
-  if (sku && !parts.has(qcNorm(sku))) warn = any ? `${qcNorm(sku)} is not in the master database.` : `${qcNorm(sku)} has nothing received in Job Work waiting to be checked.`;
-  else if (!any && sku && ch > qcAvailToCheck(sku)) warn = `Pieces checked (${ch}) is more than the ${nf(qcAvailToCheck(sku))} available.`;
-  else if (sku && ch > 0 && obUC(($('qcwOrd') || {}).value) && qcOrdersFor(sku).length
-      && ch > qcOrderAvail(obUC($('qcwOrd').value), sku))
-    warn = `Order ${obUC($('qcwOrd').value)} has only ${nf(qcOrderAvail(obUC($('qcwOrd').value), sku))} piece(s) received and not checked yet.`;
-  else if (ch > 0 && al + rj > ch) warn = `For alteration + rejected (${al + rj}) is more than the ${ch} checked.`;
-  $('qcwInfo').textContent = warn || note || skuNote;
-  $('qcwInfo').className = warn ? 'err' : 'muted';
-}
-
-/** A SKU typed or picked: the item fields follow it, and the form catches up once typing stops. */
-let QC_FORM_T = null;
-function qcSkuTyped() {
-  const sku = qcNorm($('qcwSku').value);
-  $('qcwSku').dataset.typed = sku ? '1' : '';
-  const q0 = sku ? qcParts(sku) : null;
-  if (q0 && (q0.at || q0.sub)) { $('qcwAt').value = q0.at; $('qcwSub').value = q0.sub; $('qcwCol').value = q0.col; $('qcwSz').value = q0.size; }
-  clearTimeout(QC_FORM_T);
-  QC_FORM_T = setTimeout(renderQcCheckForm, 180);
-}
-
-['qcwSrc', 'qcwType', 'qcwBy'].forEach(id => $(id).addEventListener('change', renderQcCheckForm));
-/* Changing the item means a typed SKU no longer stands — the pickers take over again. */
-['qcwAt', 'qcwSub', 'qcwCol', 'qcwSz'].forEach(id => $(id).addEventListener('change', () => { $('qcwSku').dataset.typed = ''; renderQcCheckForm(); }));
-$('qcwSku').addEventListener('input', qcSkuTyped);
-['qcwChecked', 'qcwAlt', 'qcwRej'].forEach(id => $(id).addEventListener('input', renderQcCheckForm));
-
-$('qcwSave').onclick = async () => {
-  const any = $('qcwSrc').value === 'any';
-  const sku = qcNorm($('qcwSku').value);
-  const by = $('qcwBy').value.trim();
-  const checked = parseInt($('qcwChecked').value, 10);
-  const alt = parseInt($('qcwAlt').value, 10) || 0;
-  const rej = parseInt($('qcwRej').value, 10) || 0;
-
-  if (!sku) return qcCheckMsg('Choose the item, or type the SKU being inspected.', true);
-  if (any && !cutSkuOf(sku)) return qcCheckMsg(`${sku} is not in the master database.`, true);
-  if (!by) return qcCheckMsg('Select who performed the check.', true);
-  if (!isFinite(checked) || checked <= 0) return qcCheckMsg('Enter how many pieces were checked.', true);
-  if (alt < 0 || rej < 0) return qcCheckMsg('For alteration and rejected cannot be negative.', true);
-  if (alt + rej > checked) return qcCheckMsg(`For alteration + rejected (${alt + rej}) is more than the ${checked} checked.`, true);
-  if (!any) {
-    const avail = qcAvailToCheck(sku);
-    if (checked > avail)
-      return qcCheckMsg(`Only ${nf(avail)} piece(s) available to check for ${sku} — received ${nf(qcReceived(sku))}, `
-        + `already checked ${nf(qcChecked(sku))}.`, true);
-  }
-
-  /* AN ORDER, WHEREVER THERE IS ONE TO NAME. Every other register is keyed by order, and the Order
-   * Console shows this figure as an order's own QC — a check with no order is invisible there. */
-  /* Page registers: a QC check is never saved against a half-read order book (switch on only; never reached with it off). */
-  if (prOn() && !ptHas(PTG_ALL)) return qcCheckMsg(ptStillReading(), true);
-  const onOrders = qcOrdersFor(sku), ordTyped = obUC(($('qcwOrd') || {}).value);
-  const waitOn = onOrders.filter(o => qcOrderAvail(o.orderNo, sku) > 0);
-  /* A free inspection of pieces no order has received (the "any" source) may go on no order — it is shared out by SKU on the
-   * console, never past what an order received. Anything else names its order. */
-  if (onOrders.length && !ordTyped && !(any && !waitOn.length))
-    return qcCheckMsg(`${sku} is on ${nf(onOrders.length)} order(s) — pick which one these pieces are for.`, true);
-  if (ordTyped && onOrders.length && !onOrders.some(o => o.orderNo === ordTyped))
-    return qcCheckMsg(`Order ${ordTyped} has no line for ${sku}. It is on: ${onOrders.slice(0, 4).map(o => o.orderNo).join(', ')}${onOrders.length > 4 ? '…' : ''}.`, true);
-  if (ordTyped && onOrders.length && checked > qcOrderAvail(ordTyped, sku)) {
-    const others = waitOn.filter(o => o.orderNo !== ordTyped);
-    return qcCheckMsg(`Order ${ordTyped} has only ${nf(qcOrderAvail(ordTyped, sku))} piece(s) of ${sku} received and not checked yet `
-      + `(received ${nf(qcOrderRecv(ordTyped, sku))}, already checked ${nf(qcOrderChecked(ordTyped, sku))}). `
-      + (others.length ? `Pieces are waiting on ${others.slice(0, 4).map(o => o.orderNo + ' (' + nf(qcOrderAvail(o.orderNo, sku)) + ')').join(', ')} — pick that order.`
-        : 'Receive them in Job Work against this order first.'), true);
-  }
-
-  const p = qcParts(sku);
-  const rec = {
-    id: 'qc_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-    date: ptNow(), checkedBy: by, brand: p.brand, articleType: p.at, subtype: p.sub, color: p.col, size: p.size,
-    sku, checked, forAlteration: alt, rejected: rej, ok: checked - alt - rej,
-    /* Blank survives only for a SKU that is on no order at all — there is nothing to name, and a
-     * number somebody made up would be worse than none. */
-    ...(obUC(($('qcwOrd') || {}).value) ? { orderNo: obUC($('qcwOrd').value) } : {}),
-    remarks: $('qcwRemarks').value.trim(), addedBy: ME.email, addedAt: new Date().toISOString(),
-  };
-  $('qcwSave').disabled = true;
-  qcCheckMsg('Saving…');
-  try {
-    await ptPut('pt_qcChecks/' + rec.id, rec);
-    QC.checks = (QC.checks || []).concat(Object.assign({ _key: rec.id }, rec));
-    ['qcwChecked', 'qcwAlt', 'qcwRej', 'qcwRemarks', 'qcwOrd'].forEach(id => { $(id).value = ''; });
-    $('qcwSku').value = ''; $('qcwSz').value = ''; $('qcwSku').dataset.typed = '';
-    renderQcCheckForm(); renderQc();
-    qcCheckMsg(`Saved — ${nf(checked)} checked, ${nf(checked - alt - rej)} passed, ${nf(alt)} for alteration, ${nf(rej)} rejected.`);
-  } catch (e) { qcCheckMsg('Not saved: ' + (e.message || e), true); }
-  $('qcwSave').disabled = false;
-};
-
 /* ---- issuing for alteration ---- */
 
 function qcIssueMsg(t, bad) { const m = $('qciMsg'); m.textContent = t || ''; m.className = bad ? 'err' : 'muted'; }
@@ -603,69 +400,6 @@ $('qciSave').onclick = async () => {
 };
 
 /* ---- edits, through the shared dialog ---- */
-
-function qcEditCheck(id) {
-  /* A QC figure decides what a karigar is paid, exactly as the Job Work, Cutting and Press registers
-   * do — and changing one of those has needed perms.prodEdit all along. This was open. */
-  if (!ptCanEdit()) { $('qcMsg').className = 'err'; $('qcMsg').textContent = PT_NO_EDIT; return; }
-  const r = (QC.checks || []).find(x => x.id === id); if (!r) return;
-  /* A send to spotting / touching, or a lot back from there, is one half of a pair — editing one half alone would
-   * break the count of what is still out. */
-  if (r.dept || r.refId) { $('qcMsg').className = 'err'; $('qcMsg').textContent = 'This one belongs to Spotting & touching — it cannot be edited here.'; return; }
-  ptOpenDialog({
-    title: 'Edit QC Check',
-    subtitle: `SKU: ${r.sku || '—'}  ·  checked by ${r.checkedBy || '—'}`,
-    note: 'Checked stays within what has been received and not yet checked; for-alteration plus rejected stay within checked.',
-    msg: `${r.articleType || ''} · ${r.subtype || ''} · ${r.color || ''} · ${r.size || ''}`,
-    fields: [
-      { key: 'sku', label: 'SKU', value: r.sku, readonly: true },
-      { key: 'checkedBy', label: 'Checked by', type: 'select', value: r.checkedBy,
-        options: [...new Set([r.checkedBy].concat(qcDeptEmps()).filter(Boolean))] },
-      { key: 'checked', label: 'Pieces checked', type: 'number', min: 1, step: 1, value: ptNum(r.checked) },
-      { key: 'forAlteration', label: 'For alteration', type: 'number', min: 0, step: 1, value: ptNum(r.forAlteration) },
-      { key: 'rejected', label: 'Rejected', type: 'number', min: 0, step: 1, value: ptNum(r.rejected) },
-      { key: 'remarks', label: 'Remarks', value: r.remarks || '', span: true },
-      { key: 'date', label: 'Check date', type: 'date', value: ptIsoDate(r.date), admin: true },
-    ],
-    deleteWhat: `a QC check of ${nf(ptNum(r.checked))} piece(s) of ${r.sku} on ${r.date}`,
-    onSave: async v => {
-      const ch = parseInt(v.checked, 10), al = parseInt(v.forAlteration, 10) || 0, rj = parseInt(v.rejected, 10) || 0;
-      if (!isFinite(ch) || ch <= 0) return 'Pieces checked must be at least 1.';
-      if (al < 0 || rj < 0) return 'For alteration and rejected cannot be negative.';
-      if (al + rj > ch) return `For alteration + rejected (${al + rj}) is more than the ${ch} checked.`;
-      /* This row's own pieces must come out of the ceiling, or it refuses to save what it holds. */
-      const avail = qcAvailToCheck(r.sku) + ptNum(r.checked);
-      if (ch > avail) return `Only ${nf(avail)} piece(s) available to check for ${r.sku}.`;
-      /* Cutting a check below what has already gone out for alteration would leave issuance
-       * standing on a number that no longer exists. */
-      const issuedElsewhere = qcIssuedTotal(r.sku);
-      const altAfter = qcAltTotal(r.sku) - ptNum(r.forAlteration) + al;
-      if (altAfter < issuedElsewhere)
-        return `${nf(issuedElsewhere)} piece(s) of ${r.sku} have already been issued for alteration — `
-          + `for-alteration cannot drop to ${nf(altAfter)}.`;
-      const next = Object.assign({}, r, {
-        checkedBy: v.checkedBy || r.checkedBy, checked: ch, forAlteration: al, rejected: rj, ok: ch - al - rj,
-        remarks: String(v.remarks || '').trim(),
-        date: v.date ? ptStampFrom(r.date, v.date) : r.date,
-        editedBy: ME.email, editedAt: new Date().toISOString(),
-      });
-      delete next._key;
-      await ptPut('pt_qcChecks/' + r.id, next);
-      QC.checks = (QC.checks || []).map(x => (x.id === r.id ? Object.assign({ _key: r.id }, next) : x));
-      renderQc();
-      return '';
-    },
-    onDelete: async () => {
-      const issued = qcIssuedTotal(r.sku);
-      if (qcAltTotal(r.sku) - ptNum(r.forAlteration) < issued)
-        return `${nf(issued)} piece(s) of ${r.sku} have already been issued for alteration — deleting this check would leave that standing on nothing.`;
-      await ptDelete('pt_qcChecks/' + r.id);
-      QC.checks = (QC.checks || []).filter(x => x.id !== r.id);
-      renderQc();
-      return '';
-    },
-  });
-}
 
 function qcEditIssue(id) {
   if (!ptCanEdit()) { $('qcMsg').className = 'err'; $('qcMsg').textContent = PT_NO_EDIT; return; }
@@ -757,7 +491,8 @@ function qcInboxEntries() {
     if (!(pcs > 0)) return;
     out.push({ r: { id, sku: c.sku, orderNo: c.orderNo, articleType: c.articleType || '', articleSubtype: c.articleSubtype || '', color: c.color || '', size: c.size || '',
       empName: 'Cut after embroidery', empType: 'no karigar — straight to QC', receivedPieces: pcs, fromCut: true,
-      qcReceivedAt: c.qcReceivedAt || '', qcReceivedBy: c.qcReceivedBy || '', qcReceivedOn: c.qcReceivedOn || '', qcReceivedPcs: c.qcReceivedPcs || 0 },
+      qcReceivedAt: c.qcReceivedAt || '', qcReceivedBy: c.qcReceivedBy || '', qcReceivedOn: c.qcReceivedOn || '', qcReceivedPcs: c.qcReceivedPcs,
+      qcReceivedLastPcs: c.qcReceivedLastPcs },
       since: pcs, accepted, wait, last: ms || Date.now() });
   });
   out.sort((a, b) => a.last - b.last);
@@ -810,8 +545,20 @@ function qcPiecesOf(x) {
     spotting: outAt('spotting'), touching: outAt('touching'),
     by: last ? last.checkedBy || '' : '', ms: last ? ptDtMs(last.date) : 0, remarks: last ? last.remarks || '' : '',
     received: !!receipt || x.accepted > 0, receivedBy: receipt ? receipt.checkedBy || '' : '', receivedMs: receipt ? ptDtMs(receipt.date) : 0,
-    passOpensAt: qcPassOpensAt(x.r),
+    passOpensAt: qcPassOpensAt(x.r), ...qcAcceptedPieces(x),
   };
+}
+/*
+ * PIECES QC ACCEPT HAS COVERED (Ravi, 20 Nov, on pieces a karigar sends back later on the same entry: "do these too").
+ * QC Accept covers the pieces waiting when it is pressed; pieces that come back after it need their own QC Accept and their
+ * own countdown, and QC pass can only take covered pieces. Rows QC worked on before 19 Nov count as covered up to what QC
+ * took; a row accepted before the count was kept (test data, 19 Nov) counts as covered in full.
+ *   toAccept — received, not yet covered by QC Accept · passable — covered, not yet checked
+ */
+function qcAcceptedPieces(x) {
+  const r = x.r, stamped = !!r.qcReceivedAt;
+  const covered = Math.max(x.accepted, stamped ? (r.qcReceivedPcs != null && r.qcReceivedPcs !== '' ? ptNum(r.qcReceivedPcs) : x.since) : 0);
+  return { toAccept: Math.max(0, x.since - covered), passable: Math.max(0, Math.min(covered, x.since) - x.accepted) };
 }
 /*
  * QC PASS WAITS A MINUTE FOR EVERY PIECE RECEIVED (Ravi, 19 Nov: "for each piece there must be at least a 1 min count down …
@@ -821,8 +568,10 @@ function qcPiecesOf(x) {
 const QC_PASS_MS_PER_PIECE = 60 * 1000;
 function qcPassOpensAt(row) {
   const on = Date.parse((row && row.qcReceivedOn) || '');
-  return isFinite(on) ? on + ptNum(row.qcReceivedPcs) * QC_PASS_MS_PER_PIECE : 0;
+  return isFinite(on) ? on + qcLastAcceptPcs(row) * QC_PASS_MS_PER_PIECE : 0;
 }
+/** The pieces the latest QC Accept covered — what its countdown is counted on. */
+const qcLastAcceptPcs = row => ptNum(row.qcReceivedLastPcs != null && row.qcReceivedLastPcs !== '' ? row.qcReceivedLastPcs : row.qcReceivedPcs);
 /** "4:05" or "1:02:30" — time left, rounded up to the second. */
 function qcTimeLeft(ms) {
   const s = Math.max(0, Math.ceil(ms / 1000)), h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), p = n => String(n).padStart(2, '0');
@@ -830,7 +579,7 @@ function qcTimeLeft(ms) {
 }
 /** The locked QC pass button, counting down; qcPassTick wakes it when its time is up. */
 function qcPassLockedBtn(x) {
-  return `<button class="qc-closed" disabled data-qc-unlock="${x.passOpensAt}" title="QC pass opens a minute for every piece received — ${nf(ptNum(x.r.qcReceivedPcs))} piece(s)">`
+  return `<button class="qc-closed" disabled data-qc-unlock="${x.passOpensAt}" title="QC pass opens a minute for every piece received — ${nf(qcLastAcceptPcs(x.r))} piece(s)">`
     + `QC pass · ${qcTimeLeft(x.passOpensAt - Date.now())}</button>`;
 }
 /* One timer for the whole list, every second: it rewrites the countdowns and, when one runs out, redraws the list so that
@@ -921,12 +670,14 @@ const qcClosedBtn = (label, title) => `<button class="qc-closed" disabled${title
 function qcInboxActions(x, can) {
   const acceptedSign = qcClosedBtn(qcStamp('Accepted', x.receivedMs, x.receivedBy), 'QC has received these pieces');
   if (!can) return x.received ? acceptedSign : '<span class="muted">—</span>';
-  const accept = x.received ? acceptedSign
-    : `<button data-qcin-accept="${esc(x.r.id)}" class="qc-act" title="QC has received these ${nf(x.wait)} piece(s) — then QC pass to check them">QC Accept</button>`;
-  if (!x.received) return accept + qcClosedBtn('QC pass', 'Press QC Accept first');
+  /* Pieces back after QC Accept turn it blue again, for those pieces only ("QC Accept +5"). */
+  const accept = x.toAccept > 0
+    ? `<button data-qcin-accept="${esc(x.r.id)}" class="qc-act" title="QC has received these ${nf(x.toAccept)} piece(s) — then QC pass to check them">QC Accept${x.received ? ' +' + nf(x.toAccept) : ''}</button>`
+    : acceptedSign;
+  if (x.wait > 0 && !x.passable) return accept + qcClosedBtn('QC pass', 'Press QC Accept first');
   if (x.passOpensAt > Date.now()) return accept + qcPassLockedBtn(x);
   /* Ravi, 19 Nov: "when qc is accepted the qc pass should be blue … from which the user can click qc pass" — blue and
-   * open on every accepted row; with nothing left waiting, a click says what QC already did instead of opening a window. */
+   * open on every accepted row; with nothing left waiting it opens the window on what QC already did. */
   return accept + `<button data-qcin-check="${esc(x.r.id)}" class="qc-act" title="Open the QC Check window: passed, alteration, rejected, spotting, touching">QC pass</button>`;
 }
 function qcWaitingKpis(rows) {
@@ -983,10 +734,12 @@ async function qcInboxAccept(baseId, qty) {
 async function qcInboxReceive(baseId) {
   const x = qcInboxStatuses().find(e => e.r.id === baseId && e.wait > 0);
   if (!x) return 'That entry is no longer waiting — press Refresh.';
-  if (x.received) return '';
+  if (!(x.toAccept > 0)) return '';
   const node = x.r.fromCut ? 'pt_cuttingData' : 'pt_baseData';
-  /* qcReceivedOn (world time, to the second) and qcReceivedPcs start QC pass's wait: a minute for every piece received. */
-  const stamp = { qcReceivedAt: ptNow(), qcReceivedBy: qcMyName(), qcReceivedOn: new Date().toISOString(), qcReceivedPcs: x.wait };
+  /* qcReceivedPcs = every piece of the entry covered so far; qcReceivedLastPcs = those this press covered, whose minutes
+   * QC pass waits from qcReceivedOn (world time, to the second). */
+  const stamp = { qcReceivedAt: ptNow(), qcReceivedBy: qcMyName(), qcReceivedOn: new Date().toISOString(),
+    qcReceivedPcs: x.since, qcReceivedLastPcs: x.toAccept };
   await ptPatch(Object.fromEntries(Object.entries(stamp).map(([k, v]) => [`${node}/${baseId}/${k}`, v])));
   const withStamp = list => (list || []).map(r => (r && (r.id || r._key) === baseId ? Object.assign({}, r, stamp) : r));
   PT = Object.assign({}, PT, x.r.fromCut ? { cut: withStamp(PT.cut) } : { base: withStamp(PT.base) });
@@ -1169,18 +922,20 @@ function qcInboxOpen(baseId) {
   const x = qcInboxStatuses().find(e => e.r.id === baseId);
   if (!x) { $('qcMsg').className = 'err'; $('qcMsg').textContent = 'That entry is no longer on the list — press Refresh.'; return; }
   if (!(x.wait > 0)) return qcInboxDoneWindow(x);
-  if (!x.received) { $('qcMsg').className = 'err'; $('qcMsg').textContent = `Press QC Accept first on ${x.r.sku} — QC pass opens once QC has received the pieces.`; return; }
+  if (!x.passable) { $('qcMsg').className = 'err'; $('qcMsg').textContent = `Press QC Accept first on ${x.r.sku} — QC pass opens once QC has received the pieces.`; return; }
   if (x.passOpensAt > Date.now()) {
     $('qcMsg').className = 'err';
-    $('qcMsg').textContent = `QC pass on ${x.r.sku} opens in ${qcTimeLeft(x.passOpensAt - Date.now())} — a minute for each of the ${nf(ptNum(x.r.qcReceivedPcs))} piece(s) received.`;
+    $('qcMsg').textContent = `QC pass on ${x.r.sku} opens in ${qcTimeLeft(x.passOpensAt - Date.now())} — a minute for each of the ${nf(qcLastAcceptPcs(x.r))} piece(s) received.`;
     return;
   }
   ptOpenDialog({
     title: 'QC Pass', subtitle: qcCheckSubtitle(x.r), msg: qcCheckItem(x.r),
-    note: `${nf(x.wait)} piece(s) of this entry are waiting. Type how many passed, went for alteration, were rejected, or went to `
-      + 'spotting or touching — what you leave out stays waiting. Nothing is saved until you press Save.',
+    note: `${nf(x.passable)} piece(s) of this entry are accepted and waiting.${x.toAccept ? ` ${nf(x.toAccept)} more came back since QC Accept — press QC Accept for them first.` : ''} `
+      + 'Type how many passed, went for alteration, were rejected, or went to spotting or touching — what you leave out stays waiting. Nothing is saved until you press Save.',
     fields: qcCheckFields(x, Object.assign({ checkedBy: qcMyName(), remarks: 'Accepted from Waiting for QC' }, QC_EMPTY_SPLIT), false),
     onSave: async v => {
+      /* QC pass takes only pieces QC Accept has covered; the Order Console's batch pass is not limited here. */
+      if (qcCheckedOf(v) > x.passable) return `Passed + alteration + rejected + spotting + touching is ${nf(qcCheckedOf(v))} — only ${nf(x.passable)} accepted piece(s) are waiting. Press QC Accept for the rest first.`;
       const err = await qcInboxSave(baseId, v);
       if (err) return err;
       renderQc();
@@ -1399,20 +1154,13 @@ $('qcTable').addEventListener('click', async e => {
   }
 });
 $('qcTable').addEventListener('click', e => {
-  const a = e.target.closest('[data-qc-edit]'); if (a) return qcEditCheck(a.getAttribute('data-qc-edit'));
   const b = e.target.closest('[data-qci-edit]'); if (b) return qcEditIssue(b.getAttribute('data-qci-edit'));
 });
 $('qcView').addEventListener('change', renderQc);
 ['qcD1', 'qcD2'].forEach(id => $(id).addEventListener('change', renderQc));
 $('qcClear').onclick = () => { ['qcQ', 'qcD1', 'qcD2'].forEach(id => $(id).value = ''); renderQc(); };
 ptDebounce('qcQ', renderQc);
-$('qcGo').onclick = async () => { QC.checks = null; await ensureQc(); renderQcCheckForm(); renderQcIssueForm(); };
-$('qcwToggle').onclick = () => {
-  const open = $('qcwBox').classList.contains('hide');
-  $('qcwBox').classList.toggle('hide', !open);
-  $('qcwToggle').textContent = open ? 'Close' : '+ Record a check';
-  if (open) renderQcCheckForm();
-};
+$('qcGo').onclick = async () => { QC.checks = null; await ensureQc(); renderQcIssueForm(); };
 $('qciToggle').onclick = () => {
   const open = $('qciBox').classList.contains('hide');
   $('qciBox').classList.toggle('hide', !open);
