@@ -40,14 +40,22 @@ body[data-view="amz"] [data-chan="shop"], body[data-view="amz"] [data-chan="all"
 body[data-view="shop"] [data-chan="amz"], body[data-view="shop"] [data-chan="all"] { display: none; }
 /* Framed sections: a coloured top edge, a faint wash of it and a solid name tag — Amazon orange and navy, Shopify green,
    the page's blue for the Overview. The cards inside keep their look. */
-.box { --sec: var(--y26); --tag: var(--y26); display: flex; flex-direction: column; gap: 18px; padding: 18px 18px 20px; border: 1px solid var(--rule);
-  border-top: 4px solid var(--sec); border-radius: 18px; background: linear-gradient(180deg, color-mix(in srgb, var(--sec) 8%, var(--panel)) 0, var(--bg) 140px); }
+.box { --sec: var(--y26); --tag: var(--y26); display: flex; flex-direction: column; gap: 14px; padding: 14px 16px 16px; border: 1px solid var(--rule);
+  border-top: 4px solid var(--sec); border-radius: 16px; background: linear-gradient(180deg, color-mix(in srgb, var(--sec) 8%, var(--panel)) 0, var(--bg) 140px); }
 .box[data-chan="amz"] { --sec: #FF9900; --tag: #232F3E; }
 .box[data-chan="shop"] { --sec: #95BF47; --tag: #5E8E3E; }
 .box[data-chan="shop"] .big .tile { --c: #95BF47; }
 .boxh { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 14px; font-size: 13px; color: var(--muted); }
-.boxh .tag { font: 800 16px/1 var(--f-display); color: #fff; background: var(--tag); padding: 7px 14px; border-radius: 8px; letter-spacing: .01em; }
+.boxh .tag { font: 800 14px/1 var(--f-display); color: #fff; background: var(--tag); padding: 6px 12px; border-radius: 8px; letter-spacing: .01em; }
 .big.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+/* Day shows today by the hour; any other period swaps in its own row of cards (2026-11-20). */
+.ponly { display: none !important; }
+body:not([data-period="day"]) .ponly { display: grid !important; }
+body:not([data-period="day"]) p.ponly { display: block !important; }
+body:not([data-period="day"]) .dayonly { display: none !important; }
+.seg.period { margin-left: 0; }
+.pnote { margin: -6px 2px 0; font-size: 13.5px; color: var(--ink2); }
+.pnote b { color: var(--ink); }
 @media (max-width: 760px) { .big.three { grid-template-columns: 1fr; } .box { padding: 14px 12px 16px; } }
 .split { display: flex; height: 8px; border-radius: 999px; overflow: hidden; background: var(--rule); margin: 4px 0 10px; }
 .split i { display: block; height: 100%; } .split i.a { background: #FF9900; } .split i.s { background: #95BF47; }
@@ -59,11 +67,12 @@ h2.sec { display: flex; align-items: center; gap: 10px; margin: 14px 2px 0; padd
 h2.sec i { width: 12px; height: 12px; border-radius: 4px; background: var(--c); }
 .rowh { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin: 4px 2px -8px; font: 700 13px var(--f-display); letter-spacing: .1em; text-transform: uppercase; }
 .rowh span { font: 400 13px var(--f-body); letter-spacing: 0; text-transform: none; color: var(--muted); }
-.big { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 16px; }
-.big .tile { padding: 20px 22px 18px; gap: 8px; min-height: 160px; border-radius: 14px; box-shadow: inset 0 3px 0 var(--c, var(--rule)); }
-.big .tile .k { font-size: 12px; }
-.big .tile .v { font-size: clamp(28px, 2.4vw, 38px); margin-top: 4px; }
-.big .tile .s { font-size: 13.5px; line-height: 1.45; }
+/* Compact cards (2026-11-20: "small containers, easy to read"): less padding, one clear figure, a short line under it. */
+.big { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; }
+.big .tile { padding: 14px 16px 13px; gap: 4px; min-height: 0; border-radius: 12px; box-shadow: inset 0 3px 0 var(--c, var(--rule)); }
+.big .tile .k { font-size: 11px; letter-spacing: .07em; }
+.big .tile .v { font-size: clamp(22px, 1.8vw, 28px); margin-top: 2px; }
+.big .tile .s { font-size: 12.5px; line-height: 1.4; }
 @media (max-width: 1300px) { .big { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 .up { color: var(--good); } .dn { color: var(--warn); }
 section.card { background: var(--panel); border: 1px solid var(--rule); border-radius: 14px; padding: 18px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
@@ -98,6 +107,11 @@ details summary:focus-visible { outline: 2px solid var(--y26); outline-offset: 2
       <div class="eyebrow">Amazon.com · Pacific time · updates every 15 minutes</div>
       <h1>Live vs Last Year</h1>
     </div>
+    <!-- The period (Ravi, 2026-11-20: "day, week, month, quarterly and year"). Day = today by the hour, as before; the
+         others = that period to date against the same period last year, from the nightly history plus today. -->
+    <div class="seg period" id="period" role="group" aria-label="Which period to show">
+      <button type="button" data-p="day" aria-pressed="true">Day</button><button type="button" data-p="week" aria-pressed="false">Week</button><button type="button" data-p="month" aria-pressed="false">Month</button><button type="button" data-p="quarter" aria-pressed="false">Quarter</button><button type="button" data-p="year" aria-pressed="false">Year</button>
+    </div>
     <div class="seg" id="chan" role="group" aria-label="Which channel to show">
       <button type="button" data-v="both" aria-pressed="true">Amazon + Shopify</button><button type="button" data-v="amz" aria-pressed="false">Amazon</button><button type="button" data-v="shop" aria-pressed="false">Shopify</button>
     </div>
@@ -107,21 +121,24 @@ details summary:focus-visible { outline: 2px solid var(--y26); outline-offset: 2
   </header>
 
   <div class="pending" id="pending" hidden></div>
+  <p class="pnote ponly" id="pnote"></p>
   <!-- Three framed sections (Ravi, 2026-11-20: "Shopify in Shopify colours, Amazon in Amazon's … formal and simple"):
        the Overview of both channels, then Amazon (cards and charts), then Shopify. Shopify opened in January 2026, so its
        last year is $0 and is shown as such. -->
   <div data-chan="all" class="box">
     <div class="boxh"><span class="tag">Overview</span><span>Amazon + Shopify sales · Amazon ads + Meta spend</span></div>
-    <div class="strip big" id="allStrip"></div>
+    <div class="strip big dayonly" id="allStrip"></div>
+    <div class="strip big ponly" id="pAll"></div>
   </div>
 
   <div data-chan="amz" class="box">
     <div class="boxh"><span class="tag">Amazon</span><span>Amazon.com · Sales API and Ads API · Pacific time</span></div>
-    <div class="rowh">Sales <span id="salesNote"></span></div>
-    <div class="strip big" id="strip"></div>
-    <div class="rowh">Advertising <span id="adsNote"></span></div>
-    <div class="strip big" id="adStrip"></div>
-  <section class="card" aria-labelledby="h-hour">
+    <div class="strip big ponly" id="pAmz"></div>
+    <div class="rowh dayonly">Sales <span id="salesNote"></span></div>
+    <div class="strip big dayonly" id="strip"></div>
+    <div class="rowh dayonly">Advertising <span id="adsNote"></span></div>
+    <div class="strip big dayonly" id="adStrip"></div>
+  <section class="card dayonly" aria-labelledby="h-hour">
     <h2 id="h-hour">Amazon · hour by hour — today against the same weekday last year</h2>
     <p class="sub">Sales in each Pacific-time hour today, beside the same hour of the same weekday last year (364 days back). The dashed line is the same day last week. The last blue bar is a part hour.</p>
     <div class="legend"><span><i style="background:var(--y26)"></i><b id="lgNow">Today</b></span><span><i style="background:var(--y25)"></i><b id="lgLy">Last year</b></span><span><i class="dash"></i><b id="lgLw">Last week</b></span></div>
@@ -130,7 +147,7 @@ details summary:focus-visible { outline: 2px solid var(--y26); outline-offset: 2
     <details><summary>Show the numbers</summary><div class="tbl" id="hourTable"></div></details>
   </section>
 
-  <section class="card" aria-labelledby="h-day">
+  <section class="card dayonly" aria-labelledby="h-day">
     <h2 id="h-day">Day by day — 15 Nov to 1 Dec</h2>
     <p class="sub" id="daySub">Each day this year beside the same weekday last year. Days still to come show last year only. Totals compare finished days.</p>
     <div class="strip" id="rangeStrip"></div>
@@ -142,10 +159,11 @@ details summary:focus-visible { outline: 2px solid var(--y26); outline-offset: 2
 
   <div data-chan="shop" class="box">
     <div class="boxh"><span class="tag">Shopify</span><span id="shopNote">Shopify Admin API · Pacific day</span></div>
-    <div class="rowh">Store</div>
-    <div class="strip big" id="shopStrip"></div>
-    <div class="rowh">Meta ads</div>
-    <div class="strip big three" id="metaStrip"></div>
+    <div class="strip big ponly" id="pShop"></div>
+    <div class="rowh dayonly">Store</div>
+    <div class="strip big dayonly" id="shopStrip"></div>
+    <div class="rowh dayonly">Meta ads</div>
+    <div class="strip big three dayonly" id="metaStrip"></div>
   </div>
 
   <p class="foot">Source: Amazon Sales API (order metrics) per brand — every order placed on Amazon.com, including pending ones, by Pacific hour. Sales are what buyers were charged for the items. The backend reads Amazon every 15 minutes; this page re-reads every 5.</p>
@@ -335,6 +353,91 @@ function renderShop(live, frac, amz, amzLy, amzLw, amzAds) {
     + tile('Channel split', all > 0 ? Math.round(aPct) + ' / ' + Math.round(100 - aPct) : '—', `<span class="split"><i class="a" style="width:${aPct}%"></i><i class="s" style="width:${all > 0 ? 100 - aPct : 0}%"></i></span>Amazon ${pc(amz.sales, all)} · Shopify ${pc(sh.sales, all)}`, '', false, '#3b82f6');
 }
 const AD_C = ['#ef4444', '#f59e0b', '#8b5cf6', '#3b82f6', '#22c55e', '#64748b'];
+
+/* ---------- WEEK / MONTH / QUARTER / YEAR to date (Ravi, 2026-11-20) ----------
+ * DATA.hist = { through, d: { SP, CPC, SHOP: { date: [sales, units, orders] } }, ads: { SP, CPC: { date: [impr, clicks,
+ * spend, orders, sales] } } } — the nightly history (Pricing-API/SalesLive.gs liveHist_). A period to date is: its finished
+ * days from that history (Amazon days the history has not reached yet come from the live week), plus today's live figures.
+ * Last year: week = the same weekdays 364 days back; month, quarter and year = the same calendar dates. Last year's "today"
+ * is that day scaled by how much of last year's day had gone by this hour (the Amazon shape), so both sides stop at the
+ * same moment. Shopify's history is Ridhi's store; its first sale was 28 Dec 2025, so last year it is $0. Ad spend: the
+ * live report (Products + Brands + Display) for the days it covers, the nightly Sponsored Products figure before that. */
+let PERIOD = 'day';
+function renderPeriod(tot, lySame, lyDay) {
+  document.body.dataset.period = PERIOD;
+  if (PERIOD === 'day' || !DATA) return;
+  const H = DATA.hist, key = $('brand').value, amzK = key === 'ALL' ? ['SP', 'CPC'] : [key];
+  if (!H || !H.d) { $('pnote').textContent = 'The period figures arrive with the next backend update.'; ['pAll', 'pAmz', 'pShop'].forEach(id => { $(id).innerHTML = ''; }); return; }
+  const sh = (d, n) => new Date(Date.parse(d + 'T12:00:00Z') + n * 864e5).toISOString().slice(0, 10);
+  const lyDate = d => { const y = Number(d.slice(0, 4)) - 1, md = d.slice(5) === '02-29' ? '02-28' : d.slice(5); return y + '-' + md; };
+  const T = DATA.day, dow = (new Date(T + 'T12:00:00Z').getUTCDay() + 6) % 7, m = Number(T.slice(5, 7));
+  const start = { week: sh(T, -dow), month: T.slice(0, 8) + '01', quarter: T.slice(0, 5) + String(Math.floor((m - 1) / 3) * 3 + 1).padStart(2, '0') + '-01', year: T.slice(0, 4) + '-01-01' }[PERIOD];
+  const lyOf = d => (PERIOD === 'week' ? sh(d, -364) : lyDate(d));
+  const days = []; for (let d = start; d < T; d = sh(d, 1)) days.push(d);
+  const lyFrac = lyDay.sales > 0 ? lySame.sales / lyDay.sales : 1;             // how much of last year's day had gone by now
+  const Z = () => ({ sales: 0, units: 0, orders: 0 });
+  const addRow = (t, r, f) => { if (r) { t.sales += (r[0] || 0) * (f || 1); t.units += (r[1] || 0) * (f || 1); t.orders += (r[2] || 0) * (f || 1); } return t; };
+  const weekRow = (k, d) => { const w = ((DATA.brands[k] || {}).yoy || {}).week || []; const r = w.find(x => String(x.t).slice(0, 10) === d); return r ? [r.sales, r.units, r.orders] : null; };
+  const best = { amz: null, shop: null };
+  // --- Amazon ---
+  const amz = Z(), amzLy = Z(), byDay = {};                                     // byDay: Amazon + Shopify sales per day, for TACoS
+  days.forEach(d => { let t = Z(); amzK.forEach(k => addRow(t, (H.d[k] || {})[d] || weekRow(k, d))); addRow(amz, [t.sales, t.units, t.orders]); byDay[d] = { a: t.sales, s: 0 }; if (!best.amz || t.sales > best.amz[1]) best.amz = [d, t.sales]; });
+  byDay[T] = { a: tot.sales, s: 0 };
+  amz.sales += tot.sales; amz.units += tot.units; amz.orders += tot.orders;
+  days.forEach(d => amzK.forEach(k => addRow(amzLy, (H.d[k] || {})[lyOf(d)])));
+  amzK.forEach(k => addRow(amzLy, (H.d[k] || {})[lyOf(T)], lyFrac));
+  // --- Shopify: Ridhi's store (the nightly history's SHOP), shown when Ridhi is on view ---
+  const shopOn = amzK.includes('SP'), shp = Z(), shpLy = Z();
+  if (shopOn) {
+    days.forEach(d => { const r = (H.d.SHOP || {})[d]; addRow(shp, r); if (r) byDay[d].s = r[0]; if (r && (!best.shop || r[0] > best.shop[1])) best.shop = [d, r[0]]; });
+    const today = (((DATA.brands.SP || {}).yoy || {}).shop || {}).now || [];
+    today.forEach(r => { shp.sales += r.sales || 0; shp.units += r.units || 0; shp.orders += r.orders || 0; byDay[T].s += r.sales || 0; });
+    days.forEach(d => addRow(shpLy, (H.d.SHOP || {})[lyOf(d)]));
+    addRow(shpLy, (H.d.SHOP || {})[lyOf(T)], lyFrac);
+  }
+  // --- Amazon ad spend: the live report where it reaches, the nightly Sponsored Products figure before it ---
+  let spend = 0, adFrom = '';
+  days.concat([T]).forEach(d => amzK.forEach(k => {
+    const live = ((((DATA.brands[k] || {}).yoy || {}).ads || {}).days || {})[d], old = ((H.ads || {})[k] || {})[d];
+    const s = live ? live.spend : old ? old[2] : null;
+    if (s != null) { spend += Number(s) || 0; if (!adFrom || d < adFrom) adFrom = d; }
+  }));
+  const all = amz.sales + shp.sales, allLy = amzLy.sales + shpLy.sales;
+  // TACoS over the days the ad figures cover only — a year of sales against three months of ads would read far too low.
+  let adA = 0, adS = 0; Object.keys(byDay).forEach(d => { if (adFrom && d >= adFrom) { adA += byDay[d].a; adS += byDay[d].s; } });
+  const NAME = { week: 'Week', month: 'Month', quarter: 'Quarter', year: 'Year' }[PERIOD];
+  const range = (a, b) => dname(a, false) + ' – ' + dname(b, true);
+  $('pnote').innerHTML = `<b>${NAME} to date</b> · ${range(start, T)} against ${range(lyOf(start), lyOf(T))}`
+    + ` · today to ${ptHM(DATA.asOf)} PT, last year to the same time · history to ${H.through ? dname(H.through, false) : '—'}`
+    + (shopOn ? '' : ' · Shopify history is kept for Ridhi’s store only');
+  const aov = r => (r.orders ? '$' + (r.sales / r.orders).toFixed(2) : '—');
+  const vsZero = (a, b) => (b > 0 ? change(a, b) : ['+' + usd(a), a > 0 ? 'up' : '']);
+  const adNote = adFrom && adFrom > start ? ` · ads from ${dname(adFrom, false)}` : '';
+  const aPct = all > 0 ? amz.sales / all * 100 : 0;
+  const [cA, kA] = change(all, allLy), [cZ, kZ] = change(amz.sales, amzLy.sales), [cS, kS] = vsZero(shp.sales, shpLy.sales);
+  $('pAll').innerHTML =
+    tile(NAME + ' sales', usd(all), `Amazon ${usd(amz.sales)} · Shopify ${usd(shp.sales)}`, '', false, '#6366f1')
+    + tile('vs last year', cA, `last year ${usd(allLy)}` + (shpLy.sales ? '' : ' (Shopify $0)'), kA, false, 'var(--y25)')
+    + tile('Orders', int(amz.orders + shp.orders), `${int(amz.units + shp.units)} units`, '', false, '#14b8a6')
+    + tile('Amazon ad spend', spend ? usd(spend) : '—', 'Meta not connected' + adNote, '', false, '#ef4444')
+    + tile('TACoS', spend ? pc(spend, adA + adS) : '—', 'Amazon ads ÷ all sales' + adNote, '', false, '#f59e0b')
+    + tile('Channel split', all > 0 ? Math.round(aPct) + ' / ' + Math.round(100 - aPct) : '—', `<span class="split"><i class="a" style="width:${aPct}%"></i><i class="s" style="width:${all > 0 ? 100 - aPct : 0}%"></i></span>Amazon ${pc(amz.sales, all)} · Shopify ${pc(shp.sales, all)}`, '', false, '#3b82f6');
+  $('pAmz').innerHTML =
+    tile(NAME + ' sales', usd(amz.sales), `${int(amz.orders)} orders · ${int(amz.units)} units`, '', false, '#FF9900')
+    + tile('vs last year', cZ, `last year ${usd(amzLy.sales)} · ${int(amzLy.orders)} orders`, kZ, false, 'var(--y25)')
+    + tile('Average order', aov(amz), amzLy.orders ? 'last year ' + aov(amzLy) : '', '', false, '#ec4899')
+    + tile('Ad spend', spend ? usd(spend) : '—', adNote ? adNote.slice(3) : 'Products + Brands + Display', '', false, '#ef4444')
+    + tile('TACoS', spend ? pc(spend, adA) : '—', 'ad spend ÷ Amazon sales' + adNote, '', false, '#f59e0b')
+    + tile('Best day', best.amz ? usd(best.amz[1]) : '—', best.amz ? dname(best.amz[0], false) : 'today is the first day', '', false, '#6366f1');
+  $('pShop').innerHTML = shopOn
+    ? tile(NAME + ' sales', usd(shp.sales), `${int(shp.orders)} orders · ${int(shp.units)} units`, '', false, '#95BF47')
+      + tile('vs last year', cS, `last year ${usd(shpLy.sales)}` + (shpLy.sales ? '' : ' · the store opened in January 2026'), kS, false, '#95BF47')
+      + tile('Average order', aov(shp), '', '', false, '#95BF47')
+      + tile('Share of all sales', pc(shp.sales, all), 'Shopify ÷ (Amazon + Shopify)', '', false, '#95BF47')
+      + tile('Orders a day', days.length + 1 ? (shp.orders / (days.length + 1)).toFixed(1) : '—', `over ${days.length + 1} day${days.length ? 's' : ''}, today included`, '', false, '#95BF47')
+      + tile('Best day', best.shop ? usd(best.shop[1]) : '—', best.shop ? dname(best.shop[0], false) : 'today is the first day', '', false, '#95BF47')
+    : tile('Shopify', '—', 'Shopify history is kept for Ridhi’s store only — pick Ridhi or Ridhi + CPC', '', false, '#95BF47');
+}
 function change(a, b) { if (!b) return ['—', '']; const p = Math.round((a / b - 1) * 100); return [(p > 0 ? '+' : '') + p + '%', p >= 0 ? 'up' : 'dn']; }
 
 function render() {
@@ -362,6 +465,7 @@ function render() {
     + tile('Pace for the day', live && lySame.sales ? usd(tot.sales * lyDay.sales / lySame.sales) : '—', live && lySame.sales ? `if the rest of today follows ${dname(DATA.ly)}'s shape` : 'needs last year by this hour', '', false, '#6366f1')
     + tile('Average order', aov(tot), (tot.orders ? (tot.units / tot.orders).toFixed(2) + ' units an order' : '') + (lySame.orders ? ' · last year ' + aov(lySame) : ''), '', false, '#ec4899');
   renderShop(live, frac, tot, lySame, lwSame, renderAds(V, tot));
+  renderPeriod(tot, lySame, lyDay);
   $('lgNow').textContent = live ? 'Today' : dname(DATA.day); $('lgLy').textContent = dname(DATA.ly, true) + ' (last year)'; $('lgLw').textContent = dname(DATA.lw) + ' (last week)';
 
   const hrs = [...Array(24).keys()];
@@ -412,6 +516,14 @@ function setChan(v) {
 }
 $('chan').querySelectorAll('button').forEach(b => b.addEventListener('click', () => { setChan(b.dataset.v); try { localStorage.setItem('live-chan', b.dataset.v); } catch (e) { /* no storage */ } }));
 try { const c = localStorage.getItem('live-chan'); setChan(['both', 'amz', 'shop'].includes(c) ? c : 'both'); } catch (e) { setChan('both'); }
+// The period picker: Day redraws the hour-by-hour view, the others their period to date. Remembered per browser.
+function setPeriod(p) {
+  PERIOD = p; document.body.dataset.period = p;
+  $('period').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.p === p)));
+  if (DATA) render();
+}
+$('period').querySelectorAll('button').forEach(b => b.addEventListener('click', () => { setPeriod(b.dataset.p); try { localStorage.setItem('live-period', b.dataset.p); } catch (e) { /* no storage */ } }));
+try { const p = localStorage.getItem('live-period'); setPeriod(['day', 'week', 'month', 'quarter', 'year'].includes(p) ? p : 'day'); } catch (e) { setPeriod('day'); }
 $('brand').addEventListener('change', e => { try { localStorage.setItem('live-brand', e.target.value); } catch (x) { /* no storage */ } render(); });
 
 /* ---- LIVE: read the published CSV on open, on Refresh and every 5 minutes. ---- */

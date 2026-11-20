@@ -241,7 +241,25 @@ function liveSnapshot_() {
     try { x.range = liveRange_(b, from, to, 364); } catch (e) { x.rangeErr = String(e.message || e).slice(0, 200); }
     brands[b] = x;
   });
-  return { asOf: new Date().toISOString(), day: day, ly: ly, lw: liveShift_(day, -7), from: from, to: to, brands: brands };
+  var out = { asOf: new Date().toISOString(), day: day, ly: ly, lw: liveShift_(day, -7), from: from, to: to, brands: brands };
+  try { out.hist = liveHist_(day); } catch (e) { out.histErr = String(e.message || e).slice(0, 200); }
+  return out;
+}
+
+/* ---- WEEK / MONTH / QUARTER / YEAR on live.html (Ravi, 2026-11-20: "add day, week, month, quarterly and year") ----
+ * The nightly run already keeps every day's totals (Nightly.gs → cache sheet "daily": { SP, CPC, SHOP: { date: [sales,
+ * units, orders] } }, about 800 days back) and the last ~93 days of Sponsored Products spend per day ("ads": { brand:
+ * { date: [impr, clicks, spend, orders, sales] } }). This hands live.html the slice it needs — 1 Jan last year to today —
+ * so a period to date is that history plus today's live figures. Nothing extra is asked of Amazon or Shopify.
+ * SHOP is Ridhi's Shopify store (the only one the nightly walks). Its first sale was 28 Dec 2025. */
+function liveHist_(day) {
+  var fromLy = (Number(day.slice(0, 4)) - 1) + '-01-01';
+  var cut = function (o) { var r = {}; Object.keys(o || {}).forEach(function (d) { if (d >= fromLy && d <= day) r[d] = o[d]; }); return r; };
+  var daily = cacheRead_('daily') || {}, dd = daily.d || {}, ads = cacheRead_('ads') || {}, ad = ads.d || {};
+  var last = '';
+  ['SP', 'CPC', 'SHOP'].forEach(function (k) { Object.keys(dd[k] || {}).forEach(function (d) { if (d > last && d <= day) last = d; }); });
+  return { at: daily.at || '', through: last, from: fromLy,
+    d: { SP: cut(dd.SP), CPC: cut(dd.CPC), SHOP: cut(dd.SHOP) }, ads: { SP: cut(ad.SP), CPC: cut(ad.CPC) }, adsAt: ads.at || '' };
 }
 function liveSnapshotSheet_() {
   var id = prop_('LIVE_SHEET_ID');
