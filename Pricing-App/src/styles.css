@@ -4669,6 +4669,38 @@
   @media (max-width:1100px){.sta-sum{grid-template-columns:repeat(4,minmax(0,1fr))!important}.sta-legcols{grid-template-columns:1fr}}
   @media (max-width:1100px){.sta-boxes{grid-template-columns:repeat(2,minmax(0,1fr))}}
   @media (max-width:620px){.sta-boxes{grid-template-columns:minmax(0,1fr)}.sta-figs{grid-template-columns:repeat(3,minmax(0,1fr))}.sta-row2{grid-template-columns:1fr}}
+  /* ----- PPC History (20 Nov 2026, panePpch, ads/ppc-history.js): who changed what from Sellora's ads screens, from which
+     device, and when. Search Term Analysis's bar, data line, strip, chips, table and pager; added here only the strip's five
+     cells, the tick box in the filters row, the row buttons and the steps timeline under an opened row. ----- */
+  #panePpch .sta-tcard{margin-top:12px}
+  #panePpch .sta-sum{grid-template-columns:repeat(5,minmax(0,1fr))}
+  #panePpch .sta-sum>div:last-child b{color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  #panePpch .ppch-chk{display:inline-flex;align-items:center;gap:8px;margin:0;font-size:13px;font-weight:500;color:var(--ink);text-transform:none;
+    letter-spacing:0;white-space:nowrap;cursor:pointer}
+  #panePpch .sta-msg .sta-linkbtn{font-size:12.5px}
+  #panePpch table.xl td button.sta-btn.sm{margin-top:0;white-space:nowrap}
+  #panePpch table.xl tr.ppch-row{cursor:pointer}
+  #panePpch table.xl tr.ppch-row.on td{border-bottom-color:transparent}
+  #panePpch .ppch-when{white-space:nowrap;font-variant-numeric:tabular-nums}
+  #panePpch table.xl td.ppch-what{white-space:normal;min-width:150px;max-width:250px;font-variant-numeric:tabular-nums;color:var(--ink)}
+  #panePpch .ppch-mail{max-width:170px;overflow:hidden;text-overflow:ellipsis}
+  #panePpch .ppch-cut{max-width:190px;overflow:hidden;text-overflow:ellipsis}
+  #panePpch table.xl tr.ppch-steps td{background:var(--soft);padding:12px 16px 4px}
+  #panePpch ol.ppch-tl{list-style:none;margin:0;padding:0;position:sticky;left:16px;width:max-content;max-width:min(980px,calc(100vw - 80px))}
+  #panePpch .ppch-tl li{--c:var(--brand);position:relative;padding:0 0 10px 20px;font-size:12.5px;line-height:1.45;color:var(--muted);white-space:normal}
+  #panePpch .ppch-tl li::before{content:"";position:absolute;left:0;top:5px;width:9px;height:9px;border-radius:50%;background:var(--c);
+    box-shadow:0 0 0 3px var(--soft)}
+  #panePpch .ppch-tl li::after{content:"";position:absolute;left:4px;top:17px;bottom:-2px;width:1px;background:var(--line)}
+  #panePpch .ppch-tl li:last-child::after{display:none}
+  #panePpch .ppch-tl li.is-ok{--c:var(--accent)}
+  #panePpch .ppch-tl li.is-warn{--c:var(--rev)}
+  #panePpch .ppch-tl li.is-bad{--c:var(--bad)}
+  #panePpch .ppch-tl li.old{--c:var(--faint)}
+  #panePpch .ppch-tl b{color:var(--ink);font-weight:600}
+  #panePpch .ppch-tl .ppch-t{color:var(--ink);font-variant-numeric:tabular-nums}
+  #panePpch .ppch-tl .ppch-dev{color:var(--faint)}
+  @media (max-width:1100px){#panePpch .sta-sum{grid-template-columns:repeat(5,minmax(0,1fr))!important}}
+  @media (max-width:760px){#panePpch .sta-sum{grid-template-columns:repeat(2,minmax(0,1fr))!important}#panePpch .sta-sum>div:last-child{grid-column:1/-1}}
 
   /* ===== MODULE: INVENTORY ===== */  /* ----- INVENTORY AGE (paneAge, inventory/inventory-age.js): the Ad Console look — .adx-meta's line, .ls-toolbar's bar,
      .adx-box number boxes (a box is also a filter, like .sta-box), the stock's age mix as bars, a flush table card like

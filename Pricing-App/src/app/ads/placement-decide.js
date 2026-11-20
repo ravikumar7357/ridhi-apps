@@ -454,6 +454,7 @@ function plxItem(r) {
     api: { call: 'PUT /sp/campaigns', body: { campaigns: [{ campaignId: r.cid, dynamicBidding: Object.assign(c.strategy ? { strategy: c.strategy } : {}, { placementBidding: pb }) }] } },
     what: `${m.name} ${plxPct(r.cur)} → ${plxPct(r.to)}`, why: r.why,
     status: 'review', by: who ? who[0].toUpperCase() + who.slice(1) : '', byEmail: ME.email || '', at: Date.now(),
+    trail: [ppchEvent('added')],   // who, which device, when: one step per move from here on (ads/ppc-history.js)
   };
 }
 // Send rows to the review list. Two changes to the same placement never both wait.
@@ -606,6 +607,7 @@ $('plxTable').addEventListener('click', async e => {
     if (!r || !r.can) return;
     ap.disabled = true;
     const it = Object.assign(plxItem(r), { status: 'approved', approvedBy: String(ME.email || ''), approvedAt: Date.now(), note: 'Apply now from Placement' });
+    it.trail.push(ppchEvent('approved'));
     let msg;
     try { await staRlSave(it); msg = await staApply([it]); } catch (x) { msg = 'Could not save it: ' + (x.message || x); }
     renderPlx();

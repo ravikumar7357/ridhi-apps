@@ -114,7 +114,7 @@
       <button id="tabLhist" class="nav">Listing History</button></div>
     </div></div>
 
-    <div class="navwrap"><button class="navgrp" id="grpAds" type="button" aria-controls="secAds" data-grp="ads" data-tabs="trends,weekly,ppcn,st,plc,deals">
+    <div class="navwrap"><button class="navgrp" id="grpAds" type="button" aria-controls="secAds" data-grp="ads" data-tabs="trends,weekly,ppcn,st,plc,ppch,deals">
       <span class="caret">&#9656;</span> Advertising</button>
     <div class="navsec" id="secAds">
       <button id="tabTrends" class="nav">Overview</button>
@@ -122,6 +122,7 @@
       <button id="tabPpcn" class="nav">Product Performance</button>
       <button id="tabSt" class="nav">Search Term Analysis</button>
       <button id="tabPlc" class="nav">Placement</button>
+      <button id="tabPpch" class="nav">PPC History</button>
       <button id="tabDeals" class="nav">Deal Calendar</button>
     </div></div>
 
@@ -1121,6 +1122,13 @@
       <div class="sta-mh"><div><b>How Sellora decides</b><small>Every rule on this page, with its numbers. Nothing here changes anything at Amazon by itself.</small></div><button id="stLegendX" class="sta-x" type="button" title="Close" aria-label="Close">✕</button></div>
       <div id="stLegendBody" class="sta-mb sta-legend"></div>
     </div></div>
+    <!-- "Who is making this change?" on a shared login (once per device), and "Name this device" (ads/ppc-history.js). Last, so it sits over the review list. -->
+    <div id="ppchDlg" class="modal sta-modal hide" role="dialog" aria-modal="true" aria-labelledby="ppchDlgTitle"><div class="modalbox">
+      <div class="sta-mh"><div><b id="ppchDlgTitle">Who is making this change?</b><small id="ppchDlgSub"></small></div><button id="ppchDlgX" class="sta-x" type="button" title="Close" aria-label="Close">✕</button></div>
+      <div class="sta-mb"><div class="sta-f"><label id="ppchDlgLbl" for="ppchDlgIn">Your name</label><input id="ppchDlgIn" maxlength="40" autocomplete="off"><small id="ppchDlgHelp"></small></div></div>
+      <div class="sta-mf"><small id="ppchDlgNote"></small>
+        <div class="btns"><button id="ppchDlgCancel" class="ghost" type="button">Cancel</button><button id="ppchDlgOk" type="button">Save</button></div></div>
+    </div></div>
   </div><!-- /staModals -->
 
   <!-- ============ Placement: where the ad was shown, and what each spot bought ============ -->
@@ -1179,6 +1187,49 @@
       <div id="plxLegendBody" class="sta-mb sta-legend"></div>
     </div></div>
   </div><!-- /panePlc -->
+
+  <!-- ============ PPC History: who changed what in the ads from Sellora, from which device, and when (ads/ppc-history.js) ============ -->
+  <div id="panePpch" class="hide sta-scope">
+    <div class="card" style="padding:12px 14px">
+      <div class="toolbar">
+        <select id="ppchBrand" style="flex:0 0 180px" aria-label="Brand">
+          <option value="ALL">Both brands</option><option value="SP">Ridhi</option><option value="CPC">Cotton Print Club</option>
+        </select>
+        <input id="ppchFilter" style="flex:1 1 220px;min-width:0" placeholder="Filter term / keyword / campaign / person" aria-label="Filter">
+        <select id="ppchRange" style="flex:0 0 150px" aria-label="Time range">
+          <option value="7">Last 7 days</option><option value="30">Last 30 days</option><option value="90" selected>Last 90 days</option><option value="365">Last 365 days</option>
+        </select>
+        <button id="ppchMoreBtn" class="ghost" type="button" aria-expanded="false" aria-controls="ppchMore" title="Person, action, change type, reached Amazon">Filters<span id="ppchMoreN" class="sta-n hide">0</span></button>
+        <button id="ppchCsv" class="ghost" type="button" title="Every row of the view on screen, as a CSV">Export</button>
+      </div>
+      <div id="ppchMore" class="toolbar sta-more-f hide">
+        <select id="ppchFPerson" aria-label="Person"><option value="">Every person</option></select>
+        <select id="ppchFAct" aria-label="Action"><option value="">Every action</option></select>
+        <select id="ppchFKind" aria-label="Change type"><option value="">Every change type</option></select>
+        <label class="ppch-chk"><input id="ppchFAmz" type="checkbox" class="sta-cb">Only changes that reached Amazon</label>
+        <button id="ppchFClear" class="ghost" type="button">Clear filters</button>
+      </div>
+      <div id="ppchMsg" class="sta-msg"></div>
+    </div>
+    <div id="ppchSum" class="sta-sum"></div>
+    <div class="card sta-tcard">
+      <div class="sta-thead">
+        <div class="tt"><b id="ppchTitle">Every change made from Sellora</b><small id="ppchSub"></small></div>
+      </div>
+      <div class="sta-vbar">
+        <div class="seg" id="ppchViewSeg" role="tablist" aria-label="View">
+          <button class="segbtn on" type="button" data-v="item" aria-selected="true" title="One row per change; open a row for its steps">By change</button>
+          <button class="segbtn" type="button" data-v="step" aria-selected="false" title="Every step of every change, newest first">Every step</button>
+        </div>
+        <div class="sta-tools">
+          <label class="sta-pgsz">Rows <select id="ppchSize" aria-label="Rows per page"><option>50</option><option selected>100</option><option>250</option></select></label>
+        </div>
+      </div>
+      <div class="sta-actbar" id="ppchActBar" role="group" aria-label="Show rows by change type"></div>
+      <div class="sta-wrap"><table id="ppchTable" class="xl"></table></div>
+      <div id="ppchFoot" class="sta-more"></div>
+    </div>
+  </div><!-- /panePpch -->
 
   <!-- ============ Ad Console: whole-account KPIs, chart, and metrics × periods ============ -->
   <div id="paneTrends" class="hide">
