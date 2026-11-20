@@ -23051,7 +23051,7 @@ function qcCheckFields(x, v, locked) {
     num('rejected', 'Rejected — pieces'), num('spotting', 'Spotting — pieces (a stain)'),
     num('touching', 'Touching — pieces (a missed print)'),
     { key: 'remarks', label: 'Remarks', value: v.remarks, span: true, readonly: locked },
-    ...(locked ? [] : [{ key: 'date', label: 'Check date', type: 'date', value: ptIsoDate(ptNow()), admin: true }]),
+    ...(locked ? [] : [{ key: 'date', label: 'Check date', type: 'date', value: ptIsoDate(v.date || ptNow()), admin: true }]),
   ];
 }
 const qcCheckSubtitle = r => `SKU: ${r.sku || '—'}  ·  ${r.empName || '—'}  ·  ${r.orderNo || 'no order'}`;
@@ -23092,7 +23092,7 @@ function qcCorrectable(x) {
   const first = replace.reduce((a, c) => (!a || ptDtMs(c.date) < ptDtMs(a.date) ? c : a), null);
   const main = replace.find(c => !c.dept) || first || {};
   return { replace, fixed, room: x.since - fixed, date: first ? first.date : ptNow(), values: {
-    checkedBy: main.checkedBy || x.receivedBy || qcMyName(), passed: sum(c => (c.dept ? 0 : c.ok)), forAlteration: sum(c => c.forAlteration),
+    date: first ? first.date : '', checkedBy: main.checkedBy || x.receivedBy || qcMyName(), passed: sum(c => (c.dept ? 0 : c.ok)), forAlteration: sum(c => c.forAlteration),
     rejected: sum(c => c.rejected), spotting: sum(c => c.spotting), touching: sum(c => c.touching), remarks: main.remarks || '' } };
 }
 /*
@@ -23142,7 +23142,8 @@ async function qcInboxCorrect(baseId, entry) {
   /* Cutting alteration below what has already gone to the tailors would leave that issue standing on nothing. */
   const altAfter = qcAltTotal(x.r.sku) - fix.values.forAlteration + qcPcs(entry.forAlteration), issued = qcIssuedTotal(x.r.sku);
   if (altAfter < issued) return `${nf(issued)} piece(s) of ${x.r.sku} have already been issued for alteration — for-alteration cannot drop that far.`;
-  const recs = qcCheckRecords(x.r, entry, fix.date).map(c => Object.assign(c, { editedBy: ME.email, editedAt: new Date().toISOString() }));
+  /* The correction keeps the day the pieces were first checked, unless the admin picked another in the date box. */
+  const recs = qcCheckRecords(x.r, entry, entry.date ? ptStampFrom(fix.date, entry.date) : fix.date).map(c => Object.assign(c, { editedBy: ME.email, editedAt: new Date().toISOString() }));
   const gone = new Set(fix.replace.map(c => c.id));
   await ptPatch(Object.assign(Object.fromEntries(fix.replace.map(c => ['pt_qcChecks/' + c.id, null])),
     Object.fromEntries(recs.map(c => ['pt_qcChecks/' + c.id, c]))));
