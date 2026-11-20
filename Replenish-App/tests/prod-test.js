@@ -20926,7 +20926,7 @@ console.log('\n== Waiting for QC and QC passed: where each row\'s pieces are now
     rowHtml('k1').slice(0, 900));
   ok('QC passed is a list of its own in the Quality Control drop-down', A.qcViewsAllowed().map(v => v[0]).join(',').startsWith('inbox,passed,'));
   A.qcInboxOpen('k3');
-  ok('QC pass cannot be opened before QC Accept', /Press QC Accept first on W-k3/.test(els.qcMsg.textContent) && !(A.PTD_() && A.PTD_().title === 'QC Check'), els.qcMsg.textContent);
+  ok('QC pass cannot be opened before QC Accept', /Press QC Accept first on W-k3/.test(els.qcMsg.textContent) && !(A.PTD_() && A.PTD_().title === 'QC Pass'), els.qcMsg.textContent);
 
   /* Ravi, 19 Nov: "when I do qc Accept it should show me qc accept to get grey but qc pass to stay untouched by system and
    * only work when the user clicks on it" — QC Accept means QC has received the pieces. */
@@ -20945,7 +20945,7 @@ console.log('\n== Waiting for QC and QC passed: where each row\'s pieces are now
   ok('…QC pass stays locked, counting down from 4 minutes', /class="qc-closed" disabled data-qc-unlock="\d+"[^>]*>QC pass · (4:00|3:5\d)</.test(rowHtml('k3')) && !/data-qcin-check="k3"/.test(rowHtml('k3')),
     rowHtml('k3').slice(0, 900));
   A.qcInboxOpen('k3');
-  ok('…and cannot be opened early by any route', /QC pass on W-k3 opens in (4:00|3:5\d) — a minute for each of the 4 piece\(s\) received/.test(els.qcMsg.textContent) && !(A.PTD_() && A.PTD_().title === 'QC Check'),
+  ok('…and cannot be opened early by any route', /QC pass on W-k3 opens in (4:00|3:5\d) — a minute for each of the 4 piece\(s\) received/.test(els.qcMsg.textContent) && !(A.PTD_() && A.PTD_().title === 'QC Pass'),
     els.qcMsg.textContent);
   ok('the wait is a minute a piece: 1 piece 1 minute, 240 pieces 4 hours', A.qcPassOpensAt({ qcReceivedOn: '2026-11-19T10:00:00.000Z', qcReceivedPcs: 1 }) === Date.parse('2026-11-19T10:01:00.000Z')
     && A.qcPassOpensAt({ qcReceivedOn: '2026-11-19T10:00:00.000Z', qcReceivedPcs: 240 }) === Date.parse('2026-11-19T14:00:00.000Z'));
@@ -20957,7 +20957,7 @@ console.log('\n== Waiting for QC and QC passed: where each row\'s pieces are now
   ok('…pressing it again writes nothing more', (await A.qcInboxReceive('k3')) === '' && NET.calls.length === 0 && jobRow().qcReceivedAt === stampedAt);
   show('inbox');
   await pressRowButton('data-qcin-check', 'k3');
-  ok('QC pass then opens the window, and saving all 4 as passed finishes the row', A.PTD_().title === 'QC Check' && (await A.PTD_().onSave({ passed: '4' })) === ''
+  ok('QC pass then opens the window, and saving all 4 as passed finishes the row', A.PTD_().title === 'QC Pass' && (await A.PTD_().onSave({ passed: '4' })) === ''
     && waitingOf('k3') === 0 && statusOf('k3').passed === 4);
   ok('…nothing left anywhere, so the row leaves Waiting for QC', rowsInOrder().join() === 'k1,k2', rowsInOrder().join());
   show('passed');
@@ -20968,9 +20968,10 @@ console.log('\n== Waiting for QC and QC passed: where each row\'s pieces are now
   await pressRowButton('data-qcin-accept', 'k1');
   timeGoesBy('k1');
   await pressRowButton('data-qcin-check', 'k1');
-  ok('QC pass opens the QC Check window and saves nothing yet', A.PTD_().title === 'QC Check' && waitingOf('k1') === 20);
-  ok('…all 20 waiting filled in as passed, the rest 0, no back-by boxes', fieldOf('passed').value === 20
-    && ['forAlteration', 'rejected', 'spotting', 'touching'].every(k => fieldOf(k).value === 0) && !fieldOf('spottingBy').key);
+  ok('QC pass opens the QC Check window and saves nothing yet', A.PTD_().title === 'QC Pass' && waitingOf('k1') === 20);
+  /* Ravi, 20 Nov: the window opens with its number boxes empty, to be typed into, and is called QC Pass. */
+  ok('…its number boxes open empty, to be typed into, and no back-by boxes', ['passed', 'forAlteration', 'rejected', 'spotting', 'touching'].every(k => fieldOf(k).value === '')
+    && !fieldOf('spottingBy').key && /20 piece\(s\) of this entry are waiting/.test(A.PTD_().note), JSON.stringify(A.PTD_().fields.map(f => [f.key, f.value])));
   const form = extra => Object.assign({ passed: '5', forAlteration: '2', rejected: '1', spotting: '3', touching: '4', checkedBy: 'Sunita', remarks: 'two loose seams' }, extra);
   ok('more than waiting is refused: 11 + 2 + 1 + 3 + 4 = 21 of 20', /is 21 — only 20 piece/.test(await A.PTD_().onSave(form({ passed: '11' }))));
   ok('…nothing at all is refused, and a negative', /Type how many pieces/.test(await A.PTD_().onSave({ passed: '0' })) && /cannot be negative/.test(await A.PTD_().onSave(form({ touching: '-1' }))));
@@ -20990,7 +20991,7 @@ console.log('\n== Waiting for QC and QC passed: where each row\'s pieces are now
    * already filled ones can only be accessed from the qc pass button of admin or Ravi". */
   ME.admin = false;
   await pressRowButton('data-qcin-check', 'k1');
-  ok('…for staff, clicking it opens the same QC Check window, filled with where the pieces are now', A.PTD_().title === 'QC Check' && /Nothing is left waiting/.test(A.PTD_().note)
+  ok('…for staff, clicking it opens the same QC Check window, filled with where the pieces are now', A.PTD_().title === 'QC Pass' && /Nothing is left waiting/.test(A.PTD_().note)
     && fieldOf('passed').value === 10 && fieldOf('forAlteration').value === 2 && fieldOf('spotting').value === 3 && fieldOf('touching').value === 4 && fieldOf('rejected').value === 1,
     JSON.stringify(A.PTD_().fields.map(f => [f.key, f.value])));
   ok('…view only for staff: every box locked, no Save', !A.PTD_().onSave && A.PTD_().fields.every(f => f.readonly === true) && /Only an admin can correct it/.test(A.PTD_().note));
@@ -20998,9 +20999,10 @@ console.log('\n== Waiting for QC and QC passed: where each row\'s pieces are now
   ok('…and a staff save is refused even if forced', /Only an admin/.test(await A.qcInboxCorrect('k1', { passed: '20' })));
   ME.admin = true;
   await pressRowButton('data-qcin-check', 'k1');
-  ok('for an admin the same window opens with its boxes open and a Save', typeof A.PTD_().onSave === 'function' && fieldOf('passed').readonly === false && /As admin you can correct/.test(A.PTD_().note));
-  ok('…filled with what QC recorded: 10 passed, 2 alteration, 1 rejected, 3 spotting, 4 touching', fieldOf('passed').value === 10 && fieldOf('forAlteration').value === 2
-    && fieldOf('rejected').value === 1 && fieldOf('spotting').value === 3 && fieldOf('touching').value === 4, JSON.stringify(A.PTD_().fields.map(f => [f.key, f.value])));
+  ok('for an admin the same window opens with its boxes open and a Save', typeof A.PTD_().onSave === 'function' && fieldOf('passed').readonly === false && /As admin you can type the corrected numbers/.test(A.PTD_().note));
+  ok('…its number boxes empty, with what QC recorded in the note: 10 passed, 2 alteration, 1 rejected, 3 spotting, 4 touching',
+    ['passed', 'forAlteration', 'rejected', 'spotting', 'touching'].every(k => fieldOf(k).value === '')
+    && /QC recorded 10 passed, 2 for alteration, 1 rejected, 3 to spotting, 4 to touching/.test(A.PTD_().note), A.PTD_().note);
   ok('…more than received is refused', /only 20 piece\(s\) can be set here/.test(await A.PTD_().onSave({ passed: '15', forAlteration: '2', rejected: '1', spotting: '3', touching: '4' })));
   ok('…an admin correction: 1 rejected was really passed — 11 passed, 0 rejected', (await A.PTD_().onSave({ passed: '11', forAlteration: '2', rejected: '0', spotting: '3', touching: '4', checkedBy: 'Sunita' })) === '');
   ok('…the row now reads 11 passed, 0 rejected, nothing waiting', statusOf('k1').passed === 11 && statusOf('k1').rejected === 0 && waitingOf('k1') === 0, JSON.stringify(statusOf('k1')));
@@ -21028,27 +21030,37 @@ console.log('\n== Waiting for QC and QC passed: where each row\'s pieces are now
   /* Ravi, 20 Nov: "the only button that can be changed in qc passed screen is the who entered the value". */
   ok('QC passed rows have an Edit button', /data-qcp-edit="k1"[^>]*>Edit</.test(rowHtml('k1')), rowHtml('k1').slice(0, 900));
   await pressRowButton('data-qcp-edit', 'k1');
-  ok('…it opens the QC Check window with only Checked by open', A.PTD_().title === 'QC Check' && fieldOf('checkedBy').type === 'select'
+  ok('…it opens the QC Pass window with only Checked by open', A.PTD_().title === 'QC Pass' && fieldOf('checkedBy').type === 'select'
     && A.PTD_().fields.filter(f => f.key !== 'checkedBy').every(f => f.readonly === true) && typeof A.PTD_().onSave === 'function');
   ok('…saving puts the new name on every check of the row, and changes nothing else', (await A.PTD_().onSave({ checkedBy: 'Pooja', passed: '0' })) === ''
     && (A.QC().checks || []).filter(c => c.baseId === 'k1' && !c.refId).every(c => c.checkedBy === 'Pooja') && statusOf('k1').passed === 18);
   ok('…an empty name is refused', /Pick who checked/.test(await A.qcSetCheckedBy('k1', ' ')));
 
-  /* Ravi, 20 Nov: the ledger day "grouped by skus which shows the opening and closing … how many passed that day". Today:
-   * k1 20 received, k2 6, k3 4, all received at 00:01 and all taken today, so every SKU opens at 0 and closes at 0. */
-  const todayIso = (dd => dd.getFullYear() + '-' + String(dd.getMonth() + 1).padStart(2, '0') + '-' + String(dd.getDate()).padStart(2, '0'))(new Date());
+  /* Ravi, 20 Nov: the ledger day card "grouped by skus"; "opening and closing should not be seen here, it should open when
+   * I click on that sku … opening = QC passed previously before today's entry, closing = total pieces passed at the end of
+   * the day". Today k1 got 20 back and 17 passed (11 at QC + 6 back from spotting and touching). */
+  const isoOf = dd => dd.getFullYear() + '-' + String(dd.getMonth() + 1).padStart(2, '0') + '-' + String(dd.getDate()).padStart(2, '0');
+  const todayIso = isoOf(new Date());
   const dayLines = A.qcLedgerDay(todayIso), lineOf = sku => dayLines.find(l => l.sku === sku) || {};
   ok('the ledger day has one line per SKU', ['W-K1', 'W-K3'].every(s => lineOf(s).sku), JSON.stringify(dayLines));
-  ok('…W-K1: opening 0, 20 received, 17 passed (11 at QC + 6 back from spotting and touching), 2 alteration, 1 rejected after touching, 3 spotting, 4 touching, closing 0',
-    lineOf('W-K1').open === 0 && lineOf('W-K1').recv === 20 && lineOf('W-K1').pass === 17 && lineOf('W-K1').alt === 2 && lineOf('W-K1').rej === 1
-    && lineOf('W-K1').spot === 3 && lineOf('W-K1').touch === 4 && lineOf('W-K1').close === 0, JSON.stringify(lineOf('W-K1')));
-  const yIso = (dd => { dd.setDate(dd.getDate() - 1); return dd.getFullYear() + '-' + String(dd.getMonth() + 1).padStart(2, '0') + '-' + String(dd.getDate()).padStart(2, '0'); })(new Date());
-  ok('…a day before anything came back has no lines', A.qcLedgerDay(yIso).length === 0);
+  ok('…W-K1: 20 received, 17 passed, 2 alteration, 1 rejected after touching, 3 spotting, 4 touching',
+    lineOf('W-K1').recv === 20 && lineOf('W-K1').pass === 17 && lineOf('W-K1').alt === 2 && lineOf('W-K1').rej === 1
+    && lineOf('W-K1').spot === 3 && lineOf('W-K1').touch === 4, JSON.stringify(lineOf('W-K1')));
+  ok('…its opening is what passed before the day (0) and its closing what had passed by the end (17)', lineOf('W-K1').before === 0 && lineOf('W-K1').after === 17);
+  A.setQC(Object.assign({}, A.QC(), { checks: A.QC().checks.concat([{ id: 'old1', sku: 'W-K1', date: '01/10/2026, 10:00', checked: 30, ok: 30, rejected: 0, forAlteration: 0 }]) }));
+  ok('…a SKU passed on an earlier day opens with that: 30 before, 17 today, 47 by the end', A.qcLedgerDay(todayIso).find(l => l.sku === 'W-K1').before === 30
+    && A.qcLedgerDay(todayIso).find(l => l.sku === 'W-K1').after === 47, JSON.stringify(A.qcLedgerDay(todayIso).find(l => l.sku === 'W-K1')));
+  ok('…and that earlier day has its own line: 30 passed, nothing before, 30 by the end', (l => l && l.pass === 30 && l.before === 0 && l.after === 30)(A.qcLedgerDay('2026-10-01').find(l => l.sku === 'W-K1')));
+  A.setQC(Object.assign({}, A.QC(), { checks: A.QC().checks.filter(c => c.id !== 'old1') }));
+  const yd = new Date(); yd.setDate(yd.getDate() - 1);
+  ok('…a day before anything came back has no lines', A.qcLedgerDay(isoOf(yd)).length === 0);
   show('ledger');
   ok('the ledger\'s days are buttons that open the card', /data-qcl-day="\d{4}-\d\d-\d\d"/.test(els.qcTable.innerHTML));
   A.qcLedgerDayCard(todayIso);
-  ok('…the card lists SKUs with Opening … Closing and a total', /QC ledger — /.test(A.PTD_().title) && /<th>SKU<\/th><th class="num">Opening<\/th>/.test(A.PTD_().html)
-    && /Closing<\/th>/.test(A.PTD_().html) && /TOTAL · \d+ SKU/.test(A.PTD_().html), String(A.PTD_().html).slice(0, 400));
+  const card = String(A.PTD_().html);
+  ok('…the card has no Opening or Closing column', /<th>SKU<\/th><th class="num">Received<\/th>/.test(card) && !/<th[^>]*>Opening<\/th>|<th[^>]*>Closing<\/th>/.test(card) && /TOTAL · \d+ SKU/.test(card), card.slice(0, 400));
+  ok('…each SKU is a button with a hidden line: opening, passed that day, closing', /data-qcl-sku="W-K1"/.test(card)
+    && /<tr class="hide" data-qcl-sku-line="W-K1">[^]*?Opening: <b>0<\/b> passed before [^]*?Passed on [^]*?<b style="color:#166534">17<\/b>[^]*?Closing: <b>17<\/b> passed by the end/.test(card), card.slice(0, 1200));
   show('inbox');
 
   ok('a return booked without the split counts as mended', (() => {
