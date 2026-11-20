@@ -3756,6 +3756,11 @@
   .sta-clashtxt{color:var(--bad-ink)!important;font-weight:600;white-space:normal}
   .sta-mf button.sta-armed{background:var(--bad);color:#fff;box-shadow:none}
   .sta-mf button svg.sta-lock{width:12px;height:12px;margin-right:6px;vertical-align:-1px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+  /* Action dialog: the Apply line runs the full width above the buttons, not squeezed beside them */
+  #stDlg .sta-mf{flex-wrap:wrap;row-gap:12px}
+  #stDlg .sta-mf>small{flex:1 1 100%;max-width:none;padding:8px 12px;border-radius:var(--r-row);background:var(--soft)}
+  #stDlg .sta-mf>.btns{margin-left:auto}
+  #stDlg .sta-applybtn:not(:disabled){color:var(--brand-ink);box-shadow:inset 0 0 0 1px var(--brand)}
   .sta-modal .sta-bad,.sta-under .sta-bad{color:var(--bad-ink);font-weight:600}
   .sta-linkbtn{background:none;border:0;padding:0 2px;font:inherit;font-weight:700;color:var(--brand-ink);cursor:pointer;text-decoration:underline;text-underline-offset:2px;box-shadow:none}
   .sta-linkbtn:hover{color:var(--brand)}
@@ -5151,7 +5156,7 @@
       <div class="sta-mh"><div><b id="stDlgTitle"></b><small id="stDlgSub"></small></div><button id="stDlgX" class="sta-x" type="button" title="Close" aria-label="Close">✕</button></div>
       <div id="stDlgBody" class="sta-mb"></div>
       <div class="sta-mf"><small id="stDlgNote"></small>
-        <div class="btns"><button id="stDlgCancel" class="ghost" type="button">Cancel</button><button id="stDlgOk" type="button">Add to review list</button></div></div>
+        <div class="btns"><button id="stDlgCancel" class="ghost" type="button">Cancel</button><button id="stDlgApply" class="ghost sta-applybtn" type="button" disabled><svg class="sta-lock" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>Apply at Amazon</button><button id="stDlgOk" type="button">Add to review list</button></div></div>
     </div></div>
 
     <!-- The review list: changes waiting, approved, downloaded; the bulk file is previewed before it downloads. -->
@@ -27273,8 +27278,10 @@ function staOpen(kind, key) {
   STD = { kind, row: r };
   const by = $('stDlgBody'), sub = $('stDlgSub');
   $('stDlgOk').textContent = 'Add to review list';
-  $('stDlgNote').textContent = 'Goes to the review list. Approved items download as an Amazon bulk file; Sellora changes nothing at Amazon itself.';
+  staDlgApplyNote();
   const where = `${staEsc(r.cn || '')} · ${staEsc(staBrandName(r.brand))}`;
+  // The ad group only when its name says something the campaign's does not (often the two are the same).
+  const whereAg = `${staEsc(r.cn || '')}${r.agn && r.agn !== r.cn ? ' · ad group ' + staEsc(r.agn) : ''} · ${staEsc(staBrandName(r.brand))}`;
   if (kind === 'neg') {
     const asin = r.asin;
     $('stDlgTitle').textContent = asin ? 'Add negative ASIN target' : 'Add negative';
@@ -27293,7 +27300,7 @@ function staOpen(kind, key) {
   } else if (kind.startsWith('bid:')) {
     const up = kind === 'bid:raise';
     $('stDlgTitle').textContent = (up ? 'Raise' : 'Lower') + ' the bid on ' + staPathLabel(r.kw, r.mt);
-    sub.innerHTML = `${where} · ${staEsc(r.agn)}. Worked out from this keyword or target's own figures; the new bid moves every search term it catches.`;
+    sub.innerHTML = `${whereAg}. Worked out from this keyword or target's own figures; the new bid moves every search term it catches.`;
     const cur = r.ent && r.ent.bid > 0 ? r.ent.bid : null;
     STD.cur = cur;
     const base0 = cur != null ? cur : r.cpc;
@@ -27310,7 +27317,7 @@ function staOpen(kind, key) {
   } else if (kind === 'pause') {
     const isTgt = r.type === 'target';
     $('stDlgTitle').textContent = isTgt ? 'Pause ' + staPathLabel(r.kw, r.mt) : 'Pause the duplicate keyword';
-    sub.innerHTML = isTgt ? `${where} · ${staEsc(r.agn)}. Pausing stops every search term of this target; it can be turned back on.`
+    sub.innerHTML = isTgt ? `${whereAg}. Pausing stops every search term of this target; it can be turned back on.`
       : `"${staEsc(r.term)}" is an exact keyword here and in ${staEsc(r.group ? r.group.lead.cn : 'another campaign')} for the same product, which sells it better.`;
     by.innerHTML = staFigs(r) + '<div id="stDlgChecks" class="sta-checks"></div>';
   } else if (kind === 'exact' || kind === 'asinT') {
@@ -27550,6 +27557,7 @@ function staDlgCheck() {
   }
   $('stDlgChecks').innerHTML = out.join('');
   $('stDlgOk').disabled = block;
+  $('stDlgApply').disabled = block || !staApplyOn();
 }
 
 // When Sellora last sent a bid or state change for this path (exported or done), in ms; 0 when never.
@@ -27572,6 +27580,56 @@ function staClose() {
   STD = null;
 }
 
+// What "Apply at Amazon" still waits for, in the order it can happen (each step owned by someone outside this page).
+function staApplySteps() {
+  const c = ADS_CFG;
+  return [
+    { ok: !!(c.editor || c.on), s: 'Amazon edit permission (Editor role on the Ads login)', t: 'Amazon lets Sellora edit ads (the Ads login gets the Editor role)', who: 'Amazon Ads account admin' },
+    { ok: !!(c.route || c.on), s: 'the backend Apply route', t: 'The backend\'s Apply and Undo route', who: 'Pricing-API team' },
+    { ok: !!c.on, s: 'the Apply switch', t: 'Apply switched on (config/adsApply)', who: 'Ravi' },
+    { ok: !!(ME.admin || ME.adsApply === true), s: 'your Apply right', t: 'Your Apply right (Access screen)', who: 'an admin' },
+  ];
+}
+// The dialog's footer: the Apply button and one line on what it waits for (or what it will do).
+function staDlgApplyNote() {
+  const st = staApplySteps(), left = st.filter(s => !s.ok);
+  const b = $('stDlgApply');
+  b.disabled = !!left.length;
+  b.title = left.length ? 'Waiting for: ' + left.map(s => s.t + ' — ' + s.who).join('; ') : 'Changes this at Amazon now, and keeps an undo';
+  $('stDlgNote').innerHTML = left.length
+    ? `<b>Apply at Amazon is locked</b> — waiting for ${left.map(s => staEsc(s.s)).join(', ')}. Until then: add it to the review list, approve, and upload the bulk file.`
+    : `Apply changes it at Amazon now${ADS_CFG.dryRun ? ' — <b>dry run</b>: Amazon is only asked, nothing changes' : ''}, with an undo in the review list. Or add it to the review list to approve first.`;
+}
+// "Apply at Amazon" from the dialog: the same items as "Add to review list", approved by this person, then applied.
+async function staDlgApply() {
+  if (!STD || $('stDlgApply').disabled || $('stDlgOk').disabled) return;
+  const items = staDlgItems();
+  const me = String(ME.email || '');
+  $('stDlgApply').disabled = $('stDlgOk').disabled = true;
+  try {
+    for (const it of items) Object.assign(it, { status: 'approved', approvedBy: me, approvedAt: Date.now(), note: 'Apply now' });
+    for (const it of items) await staRlSave(it);
+    const msg = await staApply(items);
+    staClose();
+    STM = null;
+    renderSt();
+    stFoot(`<span>${staEsc(msg)} <button type="button" class="sta-linkbtn" data-openrl="1">Open the review list</button></span>`, /failed|not|Nothing/.test(msg));
+  } catch (e) {
+    $('stDlgOk').disabled = false;
+    staDlgApplyNote();
+    $('stDlgChecks').insertAdjacentHTML('beforeend', staCheck('bad', 'Could not apply: ' + staEsc(e.message || e)));
+  }
+}
+// The review items the open dialog stands for.
+function staDlgItems() {
+  const { kind, row: r } = STD;
+  if (kind === 'neg') return [staNegItem(r, STD.type, STD.lvl)];
+  if (kind.startsWith('bid:')) return [staBidItem(r, kind === 'bid:raise' ? 'up' : 'down', STD.from, STD.to)];
+  if (kind === 'pause') return [staItem(r, 'pause', { what: 'Pause', why: r.type === 'target' ? `0 orders in ${staInt(r.c)} clicks` : `Duplicate exact keyword · lead path at ${staPct(r.leadAcos)} ACoS` })];
+  if (kind === 'word') return staWordItems(r, STD.picks);
+  if (kind === 'iso') return staIsoItems(r, STD.dest, STD.bid, STD.negAt);
+  return [staExactItem(r, kind, STD.dest, STD.bid)];
+}
 // "Add to review list": turn the dialog into review items and save them.
 async function staDlgOk() {
   if (!STD || $('stDlgOk').disabled) return;
@@ -27919,7 +27977,8 @@ function staRlDraw() {
   note.innerHTML = (ST_RL.where === 'local'
     ? '<b>Kept in this browser only.</b> The shared review list needs its database rule (Ravi: adsActions in firestore.rules). Until then nobody else sees these, and clearing the browser loses them. '
     : '') + (tab === 'done' ? 'A change counts as done when Amazon\'s own record shows it (read twice a day) — a download alone is not an upload. "Undo this file" builds a bulk file that puts every change in it back.'
-    : 'Sellora changes nothing at Amazon until Apply is switched on. Approved changes download as an Amazon bulk file, one per brand, to upload in the Ads console (Campaign manager → Bulk operations). You see every row before it downloads.');
+    : (staApplyOn() ? `"Apply approved" changes them at Amazon now${ADS_CFG.dryRun ? ' (dry run: nothing changes yet)' : ''}; or download them` : '<b>Apply at Amazon is locked</b> — waiting for ' + staApplySteps().filter(s => !s.ok).map(s => staEsc(s.s) + ' (' + staEsc(s.who) + ')').join(', ') + '. Until then approved changes download')
+      + ' as an Amazon bulk file, one per brand, to upload in the Ads console (Campaign manager → Bulk operations). You see every row before it downloads.');
   staRlSelTxt();
 }
 // Downloaded more than 3 days ago and still not seen in Amazon's record.
@@ -28199,14 +28258,17 @@ async function staApplyCfg() {
     const v = s.exists() ? s.data() : {};
     ADS_CFG.on = v.on === true;
     ADS_CFG.dryRun = v.dryRun !== false;
+    ADS_CFG.editor = v.editor === true;   // set by whoever confirms the Ads login's Editor role
+    ADS_CFG.route = v.route === true;     // set by the Pricing-API team once ads:'apply' is live
   } catch (e) { ADS_CFG.on = false; }
   ADS_CFG.read = true;
   ADS_CFG.at = Date.now();
   ADS_APPLY.on = staApplyOn();
+  if (!ADS_APPLY.on) ADS_APPLY.why = staApplyWhy();
   return ADS_CFG;
 }
 const staApplyOn = () => ADS_CFG.on && (ME.admin || ME.adsApply === true);
-const staApplyWhy = () => !ADS_CFG.on ? ADS_APPLY.why : 'Your account does not have the Apply right (perms adsApply: an admin grants it).';
+const staApplyWhy = () => { const left = staApplySteps().filter(s => !s.ok); return left.length ? 'Waiting for: ' + left.map(s => s.t + ' — ' + s.who).join('; ') : ''; };
 // The Amazon Ads API call for one item (Sponsored Products v3), or null when an ID it needs is not on record.
 function staApiCall(x) {
   const hit = x.kind === 'bid' || x.kind === 'pause' ? (staEntOf(x.brand, x.ag, x.kw, x.mt) || (x.kid ? { id: x.kid, kind: staKwMt(x.mt) ? 'kw' : 'tg' } : null)) : null;
@@ -28663,6 +28725,7 @@ $('stDlgBody').addEventListener('input', e => {
 });
 $('stDlgBody').addEventListener('change', staDlgCheck);
 $('stDlgOk').addEventListener('click', staDlgOk);
+$('stDlgApply').addEventListener('click', staDlgApply);
 $('stDlgCancel').addEventListener('click', staClose);
 $('stDlgX').addEventListener('click', staClose);
 $('stDlg').addEventListener('click', e => { if (e.target === $('stDlg')) staClose(); });
