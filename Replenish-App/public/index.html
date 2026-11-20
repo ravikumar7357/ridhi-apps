@@ -3662,6 +3662,7 @@ html.mob #gdNudge{right:14px;left:14px;max-width:none;bottom:144px}
           <!-- Receive / Issue from Excel taken off (Ravi, 2026-09-29: "excel se remove kro bas excel me export kar pay"). -->
           <button id="fgOpening" class="ghost">Opening stock</button>
           <button id="fgExport" class="ghost">Export</button>
+          <button id="fgRefresh" class="ghost" title="Read the stock again: shows what other computers have saved">Refresh</button>
           <button id="fgLstRefresh" class="ghost hide" title="Ask Amazon for every listing of both brands — takes several minutes">Refresh Amazon listings</button>
         </div>
         <!-- WHAT NEEDS SOMEBODY, on the screen itself (Ravi, 2026-09-25: "ye listing ke andar aana chahiye").
@@ -15202,6 +15203,19 @@ async function ptLoad(which, node, after) {
   after();
 }
 
+/** A REFRESH BUTTON THAT SHOWS IT IS WORKING (18 Nov 2026). Staff pressed F5 15-20 times a day on the busy screens:
+ *  a Refresh looked as if nothing happened, or missed what another PC had saved, and every F5 downloads the whole
+ *  page again (30-40 MB). Now the button says "Refreshing…" and stays off until the screen has its fresh data (read
+ *  from the live copies, so nothing is downloaded again). Errors: the screen's own work shows what it could not read;
+ *  anything else goes to the console, and the button always comes back, so the screen is never left stuck. */
+async function ptRefreshButton(btn, work) {
+  const label = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Refreshing…';
+  try { await work(); }
+  catch (e) { console.warn('[refresh] ' + (btn.id || 'button') + ':', e); }
+  finally { btn.disabled = false; btn.textContent = label; }
+}
+
 function ptEmpty(tableId, msg) {
   $(tableId).innerHTML = `<tbody><tr><td class="muted" style="padding:14px;text-align:left">${msg}</td></tr></tbody>`;
 }
@@ -16743,7 +16757,14 @@ async function pmdbRefresh() {
   if (!PT.err.mdb && PT.mdb) { PT.mdb = PT.mdb.map(mdbYnFix); PTG.mdb = PT.mdb; renderPmdb(); }
 }
 $('ptmGo').onclick = () => pmdbRefresh();
-$('pbGo').onclick = () => ptLoad('base', 'pt_baseData', renderPbase);
+/** Job Work Refresh without blanking the table (18 Nov 2026): the register is read again from its live copy and the
+ *  table redrawn once it has landed, instead of going to "Loading…" first. A failed read shows on the screen. */
+async function pbRefresh() {
+  try { await ptReadReg('base'); PT.err.base = ''; }
+  catch (e) { PT.err.base = e.message || String(e); }
+  renderPbase();
+}
+$('pbGo').onclick = () => ptRefreshButton($('pbGo'), pbRefresh);
 $('pcGo').onclick = () => ptLoad('cut', 'pt_cuttingData', renderPcut);
 
 /* The KPI cards are written with innerHTML, and this file is a module — an inline onclick would be
@@ -19513,6 +19534,13 @@ async function ptLoadEmp(force) {
   PTE.accLedger = ptList(ledger);
   PTE.acc = ptList((PTG.masters || {}).accessories);
 }
+/** The staff list for a screen that only shows names from it (Order Console, QC). A failed read used to stop the
+ *  screen on "Loading…" for good, and staff pressed F5 (18 Nov 2026); now the names are blank and the next open
+ *  tries again. */
+async function ptLoadEmpOrSkip(screen) {
+  try { await ptLoadEmp(); }
+  catch (e) { console.warn('[' + screen + '] staff list not read, names may be blank:', e); }
+}
 
 const ptEmpTypes = () => [...new Set((PTE.emp || []).map(e => String(e[0] || '').trim()).filter(Boolean))].sort();
 const ptEmpsOfType = t => (PTE.emp || []).filter(e => !t || String(e[0] || '').trim() === t);
@@ -22015,14 +22043,16 @@ function cutEdit(id) {
 let QC = { checks: null, issue: null, ret: null, err: '', busy: false, at: '' };
 
 async function ensureQc() {
-  if (QC.checks === null || ptLack(PTG_ALL, 'mdb')) {
+  /* All three lists, not only the checks (18 Nov 2026): Order Console and the flow view fill the checks for their own
+   * use, and "Received back" / "Issued for alteration" then stayed empty here until F5. */
+  if (QC.checks === null || QC.issue === null || QC.ret === null || ptLack(PTG_ALL, 'mdb')) {
     QC.busy = true; renderQc();
     /* The registers with the order book, not after it. The employee list waits for the order book (its masters give
      * the accessories). A refused read of it left this screen on "Loading…" for good; now it only leaves the names of
      * who may sign a check empty. */
     try {
       const [, [c, i, t]] = await Promise.all([
-        ptNeed(PTG_ALL, { why: 'quality-control', has: 'mdb' }).then(() => (PTE.emp ? null : ptLoadEmp().catch(() => {}))),
+        ptNeed(PTG_ALL, { why: 'quality-control', has: 'mdb' }).then(() => (PTE.emp ? null : ptLoadEmpOrSkip('quality-control'))),
         Promise.all([ptGet('pt_qcChecks'), ptGet('pt_qcIssuance'), ptGet('pt_qcReturns')]),
       ]);
       QC.checks = ptList(c); QC.issue = ptList(i); QC.ret = ptList(t); QC.err = '';
@@ -23249,7 +23279,15 @@ $('qcView').addEventListener('change', renderQc);
 ['qcD1', 'qcD2'].forEach(id => $(id).addEventListener('change', renderQc));
 $('qcClear').onclick = () => { ['qcQ', 'qcD1', 'qcD2'].forEach(id => $(id).value = ''); renderQc(); };
 ptDebounce('qcQ', renderQc);
-$('qcGo').onclick = async () => { QC.checks = null; await ensureQc(); renderQcCheckForm(); renderQcIssueForm(); };
+/** Refresh: the QC lists, and Job Work again, because "Waiting for QC" is built from it. Before 18 Nov 2026 pieces
+ *  received on another PC reached that list only after F5. Job Work comes from its live copy (nothing downloaded);
+ *  if it cannot be read, the QC lists still refresh. */
+async function qcRefresh() {
+  QC.checks = null;
+  try { await ptReadReg('base'); } catch (e) { console.warn('[quality-control] Job Work not read again:', e); }
+  await ensureQc(); renderQcCheckForm(); renderQcIssueForm();
+}
+$('qcGo').onclick = () => ptRefreshButton($('qcGo'), qcRefresh);
 $('qcwToggle').onclick = () => {
   const open = $('qcwBox').classList.contains('hide');
   $('qcwBox').classList.toggle('hide', !open);
@@ -25024,7 +25062,7 @@ async function ensureOrd() {
     || !PTE.priority || MDBX.custom === null || !ODR.rows || SOX.rows === null;
   if (need) { ORD.busy = true; renderOrd(); }
   await Promise.all([
-    ptNeed(PTG_ALL, { why: 'ord', has: 'mdb' }).then(() => (PTE.emp ? null : ptLoadEmp())),
+    ptNeed(PTG_ALL, { why: 'ord', has: 'mdb' }).then(() => (PTE.emp ? null : ptLoadEmpOrSkip('ord'))),
     QC.checks === null && Promise.all([
       ptGet('pt_qcChecks').then(v => { QC.checks = ptList(v); }, () => { QC.checks = QC.checks || []; }),
       ptGet('pt_qcIssuance').then(v => { QC.issue = ptList(v); }, () => { QC.issue = QC.issue || []; }),
@@ -28987,7 +29025,16 @@ $('odTable').addEventListener('click', ordQtyOpenClick);
 $('odKpis').addEventListener('click', ordKpiClick);
 $('odKpis').addEventListener('keydown', ordKpiClick);
 ['odSrc', 'odBrand', 'odType', 'odD1', 'odD2'].forEach(id => { const el = $(id); if (el) el.addEventListener('change', renderOrd); });
-$('odGo').onclick = async () => { await ptLoadGates(true); ORD.req = null; QC.checks = null; FGI.rows = null; await ensureOrd(); };
+/** Order Console Refresh: everything the screen shows, read again from the live copies. Vendor orders, the
+ *  quantity changes on sales orders and the delete requests were left out before 18 Nov 2026, so only F5 showed
+ *  another PC's changes to them. */
+async function odRefresh() {
+  await ptLoadGates(true);
+  ORD.req = null; QC.checks = null; FGI.rows = null;
+  VO.rows = null; SOX.rows = null; ODR.rows = null;
+  await ensureOrd();
+}
+$('odGo').onclick = () => ptRefreshButton($('odGo'), odRefresh);
 $('odView').addEventListener('change', () => { ORD.pick = new Set(); renderOrd(); });
 /** A SKU's priority tag (P1–P4), '' when it has none. */
 const ordPri = sku => { const v = (PTE.priority || {})[obUC(sku)];
@@ -57116,6 +57163,20 @@ $('fgDelPicked').onclick = () => ($('fgView').value === 'stock' ? fgiSkuDeleteAs
  * left defined on purpose — they are the only written description of how the seeding worked, and a
  * button can be put back in one line if it is ever wanted. */
 ['fgBrand', 'fgStat', 'fgTag', 'fgAmz', 'fgD1', 'fgD2'].forEach(id => $(id).addEventListener('change', renderFgi));
+/** Finished Goods Refresh (18 Nov 2026): the screen had none, so the store reloaded the page to see another PC's
+ *  receipts. The ledger and the press-pending list are read again from their live copies (nothing downloaded) and
+ *  the screen redrawn without going blank. Ticks are cleared, as on any fresh read, since a ticked row may have
+ *  changed. A failed read shows on the screen. */
+async function fgiRefresh() {
+  try {
+    const [led] = await Promise.all([ptGet('pt_fgiLedger'), ptReadReg('press')]);
+    FGI.rows = ptList(led); FGI.err = ''; FGI.at = ptStamp();
+  } catch (e) { FGI.err = e.message || String(e); }
+  FGI_PICK = { stock: new Set(), ledger: new Set() };
+  renderFgi();
+}
+$('fgRefresh').onclick = () => ptRefreshButton($('fgRefresh'), fgiRefresh);
+
 $('fgLstRefresh').onclick = async () => {
   $('fgLstRefresh').disabled = true;
   const why = await lstRefresh(t => { $('fgMsg').className = 'muted'; $('fgMsg').textContent = t; });
