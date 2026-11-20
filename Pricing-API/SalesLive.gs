@@ -259,7 +259,7 @@ function liveHist_(day) {
   var daily = cacheRead_('daily') || {}, dd = daily.d || {}, ads = cacheRead_('ads') || {}, ad = ads.d || {};
   var last = '';
   ['SP', 'CPC', 'SHOP'].forEach(function (k) { Object.keys(dd[k] || {}).forEach(function (d) { if (d > last && d <= day) last = d; }); });
-  return { at: daily.at || '', through: last, from: fromLy,
+  return { ok: true, at: daily.at || '', through: last, from: fromLy,      // ok: Sellora's baCall reads any answer without it as a failure
     d: { SP: cut(dd.SP), CPC: cut(dd.CPC), SHOP: cut(dd.SHOP) }, ads: { SP: cut(ad.SP), CPC: cut(ad.CPC) }, adsAt: ads.at || '' };
 }
 function liveSnapshotSheet_() {
