@@ -71,6 +71,7 @@ body:not([data-period="day"]) .ponly { display: grid !important; }
 body:not([data-period="day"]) p.ponly { display: block !important; }
 body:not([data-period="day"]) .dayonly { display: none !important; }
 .seg.period { margin-left: 0; }
+.pick { font: 700 13px var(--f-display); color: var(--ink); background: var(--panel); border: 1px solid var(--rule); border-radius: 999px; padding: 7px 12px; min-height: 36px; }
 .box.trend { --sec: #6366f1; --tag: #4F46E5; }
 /* By product: the report takes the page, as Events does. */
 .prodwrap { display: none; }
@@ -182,8 +183,9 @@ body.anim .chart .draw { stroke-dasharray: 1000; animation: drawl .9s ease-out b
     <!-- The period (Ravi, 2026-11-20: "day, week, month, quarterly and year"). Day = today by the hour, as before; the
          others = that period to date against the same period last year, from the nightly history plus today. -->
     <div class="seg period" id="period" role="group" aria-label="Which period to show">
-      <button type="button" data-p="day" aria-pressed="true">Day</button><button type="button" data-p="week" aria-pressed="false">Week</button><button type="button" data-p="month" aria-pressed="false">Month</button><button type="button" data-p="quarter" aria-pressed="false">Quarter</button><button type="button" data-p="year" aria-pressed="false">Year</button><button type="button" data-p="events" aria-pressed="false">Events</button><button type="button" data-p="products" aria-pressed="false">By product</button>
+      <button type="button" data-p="day" aria-pressed="true">Today</button><button type="button" data-p="yesterday" aria-pressed="false">Yesterday</button><button type="button" data-p="week" aria-pressed="false">Week</button><button type="button" data-p="month" aria-pressed="false">Month</button><button type="button" data-p="quarter" aria-pressed="false">Quarter</button><button type="button" data-p="year" aria-pressed="false">Year</button><button type="button" data-p="events" aria-pressed="false">Events</button><button type="button" data-p="products" aria-pressed="false">By product</button>
     </div>
+    <select id="pick" class="pick" hidden aria-label="Which month or quarter"></select>
     <div class="seg" id="chan" role="group" aria-label="Which channel to show">
       <button type="button" data-v="both" aria-pressed="true">Amazon + Shopify</button><button type="button" data-v="amz" aria-pressed="false">Amazon</button><button type="button" data-v="shop" aria-pressed="false">Shopify</button>
     </div>
@@ -282,7 +284,7 @@ body.anim .chart .draw { stroke-dasharray: 1000; animation: drawl .9s ease-out b
   <p class="foot">Source: Amazon Sales API (order metrics) per brand — every order placed on Amazon.com, including pending ones, by Pacific hour. Sales are what buyers were charged for the items. The backend reads Amazon every 15 minutes; this page re-reads every 5.</p>
 </div>
 <div class="tip" id="tip" hidden></div>
-<script src="products.js?v=2"></script>
+<script src="products.js?v=3"></script>
 
 <script>
 /* The published CSV of the sheet liveSnapshotJob writes (Pricing-API/SalesLive.gs → Script Property LIVE_SHEET_ID). */
@@ -645,7 +647,45 @@ function glowChanged() {
   if (SEEN) now.forEach((v, k) => { if (SEEN.has(k) && SEEN.get(k) !== v.textContent && v.textContent !== '—') v.classList.add('glow'); });
   SEEN = new Map([...now].map(([k, v]) => [k, v.textContent]));
 }
+/* The periods (Ravi, 2026-11-20: "add yesterday; week Sunday to Saturday; month 1 to 30/31; a quarter we can change; our
+   year runs April to March"). Weeks are Sunday–Saturday, set against the same weekdays a year back (364 days); months,
+   quarters and years against the same dates. Quarters and years are the financial ones: Q1 Apr–Jun, Q2 Jul–Sep, Q3 Oct–Dec,
+   Q4 Jan–Mar; FY 2026-27 = 1 Apr 2026 – 31 Mar 2027. A month or quarter picked from the past is counted whole. */
+const PICK = { month: '', quarter: '' };
+function fyQ(mk) { const y = Number(mk.slice(0, 4)), m = Number(mk.slice(5, 7)), fy = m >= 4 ? y : y - 1; return { fy, q: m >= 4 ? Math.floor((m - 4) / 3) + 1 : 4, qStart: (m >= 4 ? y : y) + '-' + String(m >= 4 ? Math.floor((m - 4) / 3) * 3 + 4 : 1).padStart(2, '0') }; }
+const fyName = fy => 'FY ' + fy + '-' + String((fy + 1) % 100).padStart(2, '0');
+const monthEnd = mk => { const [y, m] = mk.split('-').map(Number); return new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10); };
+const addMonths = (mk, n) => { const [y, m] = mk.split('-').map(Number); const d = new Date(Date.UTC(y, m - 1 + n, 1)); return d.toISOString().slice(0, 7); };
+const mLabel = (mk, short) => new Date(mk + '-15T12:00:00Z').toLocaleDateString('en-GB', { timeZone: 'UTC', month: short ? 'short' : 'long', year: 'numeric' });
+function periodRange(P, T, pick) {
+  const sh = (d, n) => new Date(Date.parse(d + 'T12:00:00Z') + n * 864e5).toISOString().slice(0, 10);
+  if (P === 'yesterday') { const y = sh(T, -1); return { start: y, end: y, today: false, sameWeekday: true, name: 'Yesterday', label: 'Yesterday, ' + dname(y, true) }; }
+  if (P === 'week') { const s = sh(T, -new Date(T + 'T12:00:00Z').getUTCDay()); return { start: s, end: T, today: true, sameWeekday: true, name: 'Week', label: 'This week, Sunday to today' }; }
+  if (P === 'month') {
+    const mk = pick && pick < T.slice(0, 7) ? pick : T.slice(0, 7), cur = mk === T.slice(0, 7);
+    return { start: mk + '-01', end: cur ? T : monthEnd(mk), today: cur, name: 'Month', label: mLabel(mk) + (cur ? ' to date' : ' (whole month)') };
+  }
+  if (P === 'quarter') {
+    const qs = pick && pick < fyQ(T.slice(0, 7)).qStart ? pick : fyQ(T.slice(0, 7)).qStart, f = fyQ(qs), qe = monthEnd(addMonths(qs, 2)), cur = T <= qe;
+    return { start: qs + '-01', end: cur ? T : qe, today: cur, name: 'Q' + f.q, label: `Q${f.q} ${fyName(f.fy)} · ${mLabel(qs, true).split(' ')[0]}–${mLabel(addMonths(qs, 2), true)}${cur ? ' to date' : ' (whole quarter)'}` };
+  }
+  const f = fyQ(T.slice(0, 7));
+  return { start: f.fy + '-04-01', end: T, today: true, name: 'Year', label: fyName(f.fy) + ' to date (from 1 April)' };
+}
+/* The month / quarter picker beside the period buttons: every month (or financial quarter) the history holds, newest first. */
+function fillPick() {
+  const sel = $('pick'), P = PERIOD;
+  if (P !== 'month' && P !== 'quarter') { sel.hidden = true; return; }
+  const first = (Object.keys((DATA.hist && DATA.hist.d && DATA.hist.d.SP) || {}).sort()[0] || DATA.day).slice(0, 7), now = DATA.day.slice(0, 7), opts = [];
+  if (P === 'month') for (let mk = now; mk >= first; mk = addMonths(mk, -1)) opts.push([mk, mLabel(mk) + (mk === now ? ' (this month)' : '')]);
+  else { const seen = {}; for (let mk = now; mk >= first; mk = addMonths(mk, -1)) { const f = fyQ(mk); if (seen[f.qStart] || f.qStart < first) continue; seen[f.qStart] = 1; opts.push([f.qStart, `Q${f.q} ${fyName(f.fy)} · ${mLabel(f.qStart, true).split(' ')[0]}–${mLabel(addMonths(f.qStart, 2), true)}`]); } }
+  if (!opts.length) { sel.hidden = true; return; }
+  const want = PICK[P] || opts[0][0], html = opts.map(([v, t]) => `<option value="${v}"${v === want ? ' selected' : ''}>${t}</option>`).join('');
+  if (sel.dataset.p !== P || sel.dataset.n !== String(opts.length)) { sel.innerHTML = html; sel.dataset.p = P; sel.dataset.n = String(opts.length); }
+  sel.value = want; sel.hidden = false;
+}
 function renderPeriod(tot, lySame, lyDay) {
+  if (!['month', 'quarter'].includes(PERIOD)) $('pick').hidden = true;
   document.body.dataset.period = PERIOD;
   if (PERIOD === 'day' || !DATA) return;
   if (PERIOD === 'events') { renderEvents(tot, lySame, lyDay); return; }
@@ -654,11 +694,13 @@ function renderPeriod(tot, lySame, lyDay) {
   if (!H || !H.d) { $('pnote').textContent = 'The period figures arrive with the next backend update.'; ['pAll', 'pAmz', 'pShop'].forEach(id => { $(id).innerHTML = ''; }); return; }
   const sh = (d, n) => new Date(Date.parse(d + 'T12:00:00Z') + n * 864e5).toISOString().slice(0, 10);
   const lyDate = d => { const y = Number(d.slice(0, 4)) - 1, md = d.slice(5) === '02-29' ? '02-28' : d.slice(5); return y + '-' + md; };
-  const T = DATA.day, dow = (new Date(T + 'T12:00:00Z').getUTCDay() + 6) % 7, m = Number(T.slice(5, 7));
-  const start = { week: sh(T, -dow), month: T.slice(0, 8) + '01', quarter: T.slice(0, 5) + String(Math.floor((m - 1) / 3) * 3 + 1).padStart(2, '0') + '-01', year: T.slice(0, 4) + '-01-01' }[PERIOD];
-  const lyOf = d => (PERIOD === 'week' ? sh(d, -364) : lyDate(d));
-  const days = []; for (let d = start; d < T; d = sh(d, 1)) days.push(d);
+  const T = DATA.day, PR = periodRange(PERIOD, T, PICK[PERIOD]), start = PR.start, end = PR.end, live = PR.today;
+  const lyOf = d => (PR.sameWeekday ? sh(d, -364) : lyDate(d));
+  // The whole days of the period; today, when it is in it, is added from the live figures (to now) below.
+  const days = []; for (let d = start; d <= end; d = sh(d, 1)) if (d !== T) days.push(d);
+  if (!live) tot = { sales: 0, units: 0, orders: 0 };
   const lyFrac = lyDay.sales > 0 ? lySame.sales / lyDay.sales : 1;             // how much of last year's day had gone by now
+  fillPick();
   const Z = () => ({ sales: 0, units: 0, orders: 0 });
   const addRow = (t, r, f) => { if (r) { t.sales += (r[0] || 0) * (f || 1); t.units += (r[1] || 0) * (f || 1); t.orders += (r[2] || 0) * (f || 1); } return t; };
   const weekRow = (k, d) => { const w = ((DATA.brands[k] || {}).yoy || {}).week || []; const r = w.find(x => String(x.t).slice(0, 10) === d); return r ? [r.sales, r.units, r.orders] : null; };
@@ -666,22 +708,22 @@ function renderPeriod(tot, lySame, lyDay) {
   // --- Amazon ---
   const amz = Z(), amzLy = Z(), byDay = {};                                     // byDay: Amazon + Shopify sales per day, for TACoS
   days.forEach(d => { let t = Z(); amzK.forEach(k => addRow(t, (H.d[k] || {})[d] || weekRow(k, d))); addRow(amz, [t.sales, t.units, t.orders]); byDay[d] = { a: t.sales, s: 0 }; if (!best.amz || t.sales > best.amz[1]) best.amz = [d, t.sales]; });
-  byDay[T] = { a: tot.sales, s: 0 };
+  if (live) byDay[T] = { a: tot.sales, s: 0 };
   amz.sales += tot.sales; amz.units += tot.units; amz.orders += tot.orders;
   days.forEach(d => amzK.forEach(k => addRow(amzLy, (H.d[k] || {})[lyOf(d)])));
-  amzK.forEach(k => addRow(amzLy, (H.d[k] || {})[lyOf(T)], lyFrac));
+  if (live) amzK.forEach(k => addRow(amzLy, (H.d[k] || {})[lyOf(T)], lyFrac));
   // --- Shopify: each brand's own store — Ridhi's from the nightly history (SHOP), CPC's built by the backend (SHOP_CPC) ---
   const SHOPK = { SP: 'SHOP', CPC: 'SHOP_CPC' };
   const shopOn = amzK.some(k => H.d[SHOPK[k]] && Object.keys(H.d[SHOPK[k]]).length), shp = Z(), shpLy = Z();
   if (shopOn) {
     days.forEach(d => { let s = 0; amzK.forEach(k => { const r = (H.d[SHOPK[k]] || {})[d]; addRow(shp, r); if (r) s += r[0]; }); byDay[d].s = s; if (s && (!best.shop || s > best.shop[1])) best.shop = [d, s]; });
-    amzK.forEach(k => ((((DATA.brands[k] || {}).yoy || {}).shop || {}).now || []).forEach(r => { shp.sales += r.sales || 0; shp.units += r.units || 0; shp.orders += r.orders || 0; byDay[T].s += r.sales || 0; }));
+    if (live) amzK.forEach(k => ((((DATA.brands[k] || {}).yoy || {}).shop || {}).now || []).forEach(r => { shp.sales += r.sales || 0; shp.units += r.units || 0; shp.orders += r.orders || 0; byDay[T].s += r.sales || 0; }));
     days.forEach(d => amzK.forEach(k => addRow(shpLy, (H.d[SHOPK[k]] || {})[lyOf(d)])));
-    amzK.forEach(k => addRow(shpLy, (H.d[SHOPK[k]] || {})[lyOf(T)], lyFrac));
+    if (live) amzK.forEach(k => addRow(shpLy, (H.d[SHOPK[k]] || {})[lyOf(T)], lyFrac));
   }
-  // --- Amazon ad spend: the live report where it reaches, the nightly Sponsored Products figure before it ---
+  // --- Amazon ad spend: the live report where it reaches, then the backend's daily archive (Products + Brands + Display) ---
   let spend = 0, adFrom = '';
-  days.concat([T]).forEach(d => amzK.forEach(k => {
+  days.concat(live ? [T] : []).forEach(d => amzK.forEach(k => {
     const live = ((((DATA.brands[k] || {}).yoy || {}).ads || {}).days || {})[d], old = ((H.ads || {})[k] || {})[d];
     const s = live ? live.spend : old ? old[2] : null;
     if (s != null) { spend += Number(s) || 0; if (!adFrom || d < adFrom) adFrom = d; }
@@ -689,10 +731,12 @@ function renderPeriod(tot, lySame, lyDay) {
   const all = amz.sales + shp.sales, allLy = amzLy.sales + shpLy.sales;
   // TACoS over the days the ad figures cover only — a year of sales against three months of ads would read far too low.
   let adA = 0, adS = 0; Object.keys(byDay).forEach(d => { if (adFrom && d >= adFrom) { adA += byDay[d].a; adS += byDay[d].s; } });
-  const NAME = { week: 'Week', month: 'Month', quarter: 'Quarter', year: 'Year' }[PERIOD];
-  const range = (a, b) => dname(a, false) + ' – ' + dname(b, true);
-  $('pnote').innerHTML = `<b>${NAME} to date</b> · ${range(start, T)} against ${range(lyOf(start), lyOf(T))}`
-    + ` · today to ${ptHM(DATA.asOf)} PT, last year to the same time · history to ${H.through ? dname(H.through, false) : '—'}`
+  const NAME = PR.name;
+  const range = (a, b) => (a === b ? dname(a, true) : dname(a, false) + ' – ' + dname(b, true));
+  const first = Object.keys(H.d.SP || {}).sort()[0] || '';
+  $('pnote').innerHTML = `<b>${PR.label}</b> · ${range(start, end)} against ${range(lyOf(start), lyOf(end))}${PR.sameWeekday ? ' (same weekdays)' : ''}`
+    + (live ? ` · today to ${ptHM(DATA.asOf)} PT, last year to the same time` : ' · whole days') + ` · history to ${H.through ? dname(H.through, false) : '—'}`
+    + (first && lyOf(start) < first ? ` · <b>last year is only partly in the history</b> (it starts ${dname(first, true)})` : '')
     + (amzK.includes('CPC') && H.shopCpcFrom && H.shopCpcFrom > start ? ` · CPC Shopify history from ${dname(H.shopCpcFrom, false)} (still filling in)` : '');
   const aov = r => (r.orders ? '$' + (r.sales / r.orders).toFixed(2) : '—');
   const vsZero = (a, b) => (b > 0 ? change(a, b) : ['+' + usd(a), a > 0 ? 'up' : '']);
@@ -718,7 +762,7 @@ function renderPeriod(tot, lySame, lyDay) {
       + tile('vs last year', cS, `last year ${usd(shpLy.sales)}` + (shpLy.sales ? '' : ' · the store opened in January 2026'), kS, false, '#95BF47')
       + tile('Average order', aov(shp), '', '', false, '#95BF47')
       + tile('Share of all sales', pc(shp.sales, all), 'Shopify ÷ (Amazon + Shopify)', '', false, '#95BF47')
-      + tile('Orders a day', days.length + 1 ? (shp.orders / (days.length + 1)).toFixed(1) : '—', `over ${days.length + 1} day${days.length ? 's' : ''}, today included`, '', false, '#95BF47')
+      + tile('Orders a day', (shp.orders / Math.max(1, days.length + (live ? 1 : 0))).toFixed(1), `over ${days.length + (live ? 1 : 0)} day${days.length + (live ? 1 : 0) === 1 ? '' : 's'}${live ? ', today included' : ''}`, '', false, '#95BF47')
       + tile('Best day', best.shop ? usd(best.shop[1]) : '—', best.shop ? dname(best.shop[0], false) : 'today is the first day', '', false, '#95BF47')
     : tile('Shopify', '—', 'This store’s history is still being read (about 60 days every 15 minutes)', '', false, '#95BF47');
 }
@@ -885,7 +929,8 @@ function setPeriod(p) {
   if (DATA) render();
 }
 $('period').querySelectorAll('button').forEach(b => b.addEventListener('click', () => { setPeriod(b.dataset.p); try { localStorage.setItem('live-period', b.dataset.p); } catch (e) { /* no storage */ } }));
-try { const p = localStorage.getItem('live-period'); setPeriod(['day', 'week', 'month', 'quarter', 'year', 'events', 'products'].includes(p) ? p : 'day'); } catch (e) { setPeriod('day'); }
+try { const p = localStorage.getItem('live-period'); setPeriod(['day', 'yesterday', 'week', 'month', 'quarter', 'year', 'events', 'products'].includes(p) ? p : 'day');
+$('pick').addEventListener('change', e => { PICK[PERIOD] = e.target.value; animate(); render(); }); } catch (e) { setPeriod('day'); }
 // The trend switch: day by day or week by week. Remembered per browser.
 function setTrend(t) {
   TREND = t; $('trendSeg').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.t === t)));

@@ -226,6 +226,54 @@ function liveAdsTick_(b) {
   return st;
 }
 
+/* ---- THE DAILY AD ARCHIVE (Ravi, 2026-11-20: "the Events page should have data which is perfect") ----
+ * The live report above covers 7 days; before that the pages fell back to the nightly figure, which is Sponsored Products
+ * only — so an event a few weeks back showed too little spend and too low a TACoS. Once a day, per brand and ad type, this
+ * asks Amazon for every day it still hands out (Products about 90 days, Brands about 60, Display about 65; it refuses an
+ * older start date) and keeps them in cache "adsDay" — { SP|CPC: { date: { sp|sb|sd: [impr, clicks, spend, orders, sales],
+ * u: { sp: 1 } } } } — adding to it every day, so the archive grows beyond Amazon's window from now on. Older days come
+ * from uploaded Ads console reports (liveAdsPut_, marked in u). liveHist_ hands the pages the three types added up. */
+var LIVE_ADS_BACK = { sp: 90, sb: 59, sd: 64 };
+function liveAdsBackTick_(b) {
+  setBrand_(b);
+  var key = 'LIVE_ADSB_' + b, st = {};
+  try { st = JSON.parse(prop_(key) || '{}') || {}; } catch (e) { st = {}; }
+  var nowMs = Date.now(), day = Utilities.formatDate(new Date(nowMs), LIVE_TZ, 'yyyy-MM-dd'), arc = null;
+  Object.keys(LIVE_ADS_TYPES).forEach(function (k) {
+    var T = LIVE_ADS_TYPES[k], x = st[k] || (st[k] = {});
+    if (x.id) {
+      try {
+        var s = ppcStatus_(x.id);
+        if (s.ready) {
+          var days = liveAdsFold_(x.id, T);
+          arc = arc || cacheRead_('adsDay') || {};
+          var A = arc[b] || (arc[b] = {});
+          Object.keys(days).forEach(function (d) {
+            var r = days[d], e = A[d] || (A[d] = {});
+            e[k] = [r.impressions, r.clicks, Math.round(r.spend * 100) / 100, r.orders, Math.round(r.sales * 100) / 100];
+            if (e.u) delete e.u[k];                    // Amazon's own figure replaces an uploaded one
+          });
+          x.doneDay = x.askDay; x.id = ''; x.err = ''; x.n = Object.keys(days).length;
+        } else if (/fail|cancel/i.test(s.status || '')) { x.err = 'report ' + s.status + (s.error ? ': ' + String(s.error).slice(0, 160) : ''); x.id = ''; x.doneDay = x.askDay; }
+        else if (nowMs - (x.askedMs || 0) > 3 * 3600000) x.id = '';
+      } catch (e) { x.err = 'read: ' + String(e.message || e).slice(0, 160); x.id = ''; }
+      return;
+    }
+    if (x.doneDay === day) return;
+    try {
+      var r = adsCall_('/reporting/reports', 'post', {
+        name: 'liveback-' + k + '-' + b + '-' + nowMs, startDate: liveShift_(day, -LIVE_ADS_BACK[k]), endDate: liveShift_(day, -1),
+        configuration: { adProduct: T.adProduct, groupBy: ['campaign'], reportTypeId: T.reportTypeId,
+          columns: ['date', 'impressions', 'clicks', 'cost', T.o, T.s], timeUnit: 'DAILY', format: 'GZIP_JSON' },
+      }, adsProfileId_(), ADS_REPORT_MIME);
+      if (r.reportId) { x.id = r.reportId; x.askedMs = nowMs; x.askDay = day; }
+      else { x.err = 'no report id (' + String(r.status || r.message || '?').slice(0, 160) + ')'; x.doneDay = day; }
+    } catch (e) { x.err = 'ask: ' + String(e.message || e).slice(0, 160); x.doneDay = day; }
+  });
+  if (arc) cacheWrite_('adsDay', arc);
+  PropertiesService.getScriptProperties().setProperty(key, JSON.stringify(st));
+}
+
 /* ---- THE STANDALONE PAGE'S DATA (Ravi, 2026-11-19: "make it a working html like prime.html") ----
  * Every 15 minutes liveSnapshotJob asks Amazon for both brands — today by hour against the same weekday last year and last
  * week, and the 15 Nov – 1 Dec run against last year — and writes it as JSON into one Google Sheet, published as CSV.
@@ -237,6 +285,7 @@ function liveSnapshot_() {
   ['SP', 'CPC'].forEach(function (b) {
     var x = {};
     try { liveAdsTick_(b); } catch (e) { /* the sales figures still go out */ }
+    try { liveAdsBackTick_(b); } catch (e) { /* the archive catches up on a later run */ }
     try { x.yoy = liveYoy_(b, day, ly); } catch (e) { x.yoyErr = String(e.message || e).slice(0, 200); }
     try { x.range = liveRange_(b, from, to, 364); } catch (e) { x.rangeErr = String(e.message || e).slice(0, 200); }
     brands[b] = x;
@@ -281,15 +330,29 @@ function liveShopCpcTick_(day) {
  * SHOP is Ridhi's Shopify store (the only one the nightly walks). Its first sale was 28 Dec 2025. */
 function liveHist_(day) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(String(day || ''))) day = Utilities.formatDate(new Date(), LIVE_TZ, 'yyyy-MM-dd');
-  var fromLy = (Number(day.slice(0, 4)) - 1) + '-01-01';
+  // Everything the nightly keeps (about 800 days), not only from 1 January last year: a financial quarter or year picked from
+  // the past needs the year before it too (Ravi, 2026-11-20: "a quarter we can change; our year runs April to March").
+  var fromLy = liveShift_(day, -800);
   var cut = function (o) { var r = {}; Object.keys(o || {}).forEach(function (d) { if (d >= fromLy && d <= day) r[d] = o[d]; }); return r; };
   var daily = cacheRead_('daily') || {}, dd = daily.d || {}, ads = cacheRead_('ads') || {}, ad = ads.d || {};
   var cpc = cacheRead_('shopCPC') || {};               // CPC's Shopify store, built by liveShopCpcTick_
   var last = '';
   ['SP', 'CPC', 'SHOP'].forEach(function (k) { Object.keys(dd[k] || {}).forEach(function (d) { if (d > last && d <= day) last = d; }); });
+  // Ad spend per day: the daily archive's three types added up (liveAdsBackTick_, uploads), else the nightly Products figure.
+  var arc = cacheRead_('adsDay') || {}, adOut = {};
+  ['SP', 'CPC'].forEach(function (b) {
+    var o = cut(ad[b]), A = arc[b] || {};
+    Object.keys(A).forEach(function (d) {
+      if (d < fromLy || d > day) return;
+      var t = [0, 0, 0, 0, 0], any = false;
+      ['sp', 'sb', 'sd'].forEach(function (k) { var r = A[d][k]; if (r) { any = true; for (var i = 0; i < 5; i++) t[i] += Number(r[i]) || 0; } });
+      if (any) { t[2] = Math.round(t[2] * 100) / 100; t[4] = Math.round(t[4] * 100) / 100; o[d] = t; }
+    });
+    adOut[b] = o;
+  });
   return { ok: true, at: daily.at || '', through: last, from: fromLy,      // ok: Sellora's baCall reads any answer without it as a failure
     d: { SP: cut(dd.SP), CPC: cut(dd.CPC), SHOP: cut(dd.SHOP), SHOP_CPC: cut(cpc.d) }, shopCpcFrom: cpc.back || '',
-    ads: { SP: cut(ad.SP), CPC: cut(ad.CPC) }, adsAt: ads.at || '' };
+    ads: adOut, adsAt: ads.at || '' };
 }
 function liveSnapshotSheet_() {
   var id = prop_('LIVE_SHEET_ID');
@@ -453,7 +516,20 @@ function liveAdsPut_(p) {
   c.files.unshift({ at: new Date().toISOString(), brand: b, kind: kind, name: String(p.file || '').slice(0, 120), months: ks });
   c.files = c.files.slice(0, 60); c.at = new Date().toISOString();
   cacheWrite_('monthAds', c);
-  return { ok: true, brand: b, kind: kind, months: ks };
+  // The same report by day ({ date: [spend, adSales, adOrders, adUnits, clicks, impressions] }) goes into the daily ad archive,
+  // for Events and the periods — only for days Amazon's own figure for that type is not already there.
+  var days = p.days || {}, dk = Object.keys(days).filter(function (d) { return /^\d{4}-\d{2}-\d{2}$/.test(d); });
+  if (dk.length) {
+    var arc = cacheRead_('adsDay') || {}, A = arc[b] || (arc[b] = {});
+    dk.forEach(function (d) {
+      var r = days[d] || [], e = A[d] || (A[d] = {});
+      if (e[kind] && !(e.u && e.u[kind])) return;
+      e[kind] = [num(r[5]), num(r[4]), num(r[0]), num(r[2]), num(r[1])];
+      (e.u || (e.u = {}))[kind] = 1;
+    });
+    cacheWrite_('adsDay', arc);
+  }
+  return { ok: true, brand: b, kind: kind, months: ks, days: dk.length };
 }
 /* POST { key, lads:'drop', brand, kind, month } — takes one uploaded month back out (a wrong file). */
 function liveAdsDrop_(p) {
@@ -463,6 +539,10 @@ function liveAdsDrop_(p) {
   delete c.d[b][k][kind]; if (!Object.keys(c.d[b][k]).length) delete c.d[b][k];
   c.at = new Date().toISOString();
   cacheWrite_('monthAds', c);
+  // And the uploaded days of that month from the daily archive (Amazon's own days stay).
+  var arc = cacheRead_('adsDay') || {}, A = arc[b] || {}, hit = false;
+  Object.keys(A).forEach(function (d) { var e = A[d]; if (d.slice(0, 7) === k && e.u && e.u[kind]) { delete e[kind]; delete e.u[kind]; hit = true; } });
+  if (hit) cacheWrite_('adsDay', arc);
   return { ok: true };
 }
 /** live.html's copy, on the "months" tab of the live sheet — written only when something in it changed. */

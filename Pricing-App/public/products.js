@@ -111,7 +111,7 @@
       m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/); if (m) return m[3] + '-' + m[1].padStart(2, '0') + '-' + m[2].padStart(2, '0');
       const d = new Date(s + ' 12:00 UTC'); return isNaN(d) ? '' : d.toISOString().slice(0, 10);
     };
-    const out = {}, skipped = [];
+    const out = {}, days = {}, skipped = [];
     for (let i = h + 1; i < rows.length; i++) {
       const r = rows[i] || []; if (!r.some(c => String(c).trim())) continue;
       let d = col.date >= 0 ? day(r[col.date]) : day(r[col.start]);
@@ -120,11 +120,13 @@
       const mk = d.slice(0, 7), asin = col.asin >= 0 ? String(r[col.asin] || '').trim().toUpperCase() : '', sku = col.sku >= 0 ? String(r[col.sku] || '').trim() : '';
       const k = asin + '|' + sku, mo = out[mk] || (out[mk] = {});
       const t = mo[k] || (mo[k] = [asin, sku, 0, 0, 0, 0, 0, 0]);
-      t[2] += num(r[col.spend]); if (col.sales >= 0) t[3] += num(r[col.sales]); if (col.orders >= 0) t[4] += num(r[col.orders]);
-      if (col.units >= 0) t[5] += num(r[col.units]); if (col.clicks >= 0) t[6] += num(r[col.clicks]); if (col.impr >= 0) t[7] += num(r[col.impr]);
+      const v = [num(r[col.spend]), col.sales >= 0 ? num(r[col.sales]) : 0, col.orders >= 0 ? num(r[col.orders]) : 0, col.units >= 0 ? num(r[col.units]) : 0, col.clicks >= 0 ? num(r[col.clicks]) : 0, col.impr >= 0 ? num(r[col.impr]) : 0];
+      t[2] += v[0]; t[3] += v[1]; t[4] += v[2]; t[5] += v[3]; t[6] += v[4]; t[7] += v[5];
+      // By day as well, for Events and the periods — only when the report has a Date per row (a monthly summary cannot say).
+      if (col.date >= 0) { const dt = days[d] || (days[d] = [0, 0, 0, 0, 0, 0]); v.forEach((x, i) => { dt[i] += x; }); }
     }
     const months = {}; Object.keys(out).sort().forEach(mk => { months[mk] = Object.values(out[mk]); });
-    return { months, skipped, cols: Object.keys(col).filter(k => col[k] < 0) };
+    return { months, days, skipped, cols: Object.keys(col).filter(k => col[k] < 0) };
   }
 
   /* ---------- painting ---------- */
@@ -292,7 +294,7 @@
           const sp = ks.map(k => mName(k) + ' ' + money(got.months[k].reduce((t, r) => t + r[2], 0))).join(' · ');
           if (!confirm(`${file.name}\n${BR[brand]} · ${KIND[kind]}\n${ks.length} month(s): ${sp}\n\nSave these into the report? A month already uploaded for this brand and ad type is replaced.`)) { say('Not saved.'); continue; }
           say('Saving ' + esc(file.name) + '…');
-          const r = await opts.upload({ brand, kind, file: file.name, months: got.months });
+          const r = await opts.upload({ brand, kind, file: file.name, months: got.months, days: got.days });
           if (!r || !r.ok) throw new Error((r && r.error) || 'The backend did not take it.');
           say(`Saved ${esc(file.name)}: ${ks.length} month(s) of ${KIND[kind]} for ${BR[brand]}.` + (got.cols.length ? ' Columns not in this report: ' + got.cols.join(', ') + '.' : ''));
         } catch (e) { say(esc(e.message || e), true); f.value = ''; return; }

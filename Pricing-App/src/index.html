@@ -17,7 +17,7 @@
 <link rel="apple-touch-icon" href="/logo.png">
 <!-- The "By product" report on Live vs Last Year, shared with live.html (public/products.js). Bump ?v= when it changes:
      .js files are served with an hour's cache. -->
-<script src="/products.js?v=2" defer></script>
+<script src="/products.js?v=3" defer></script>
 <style>
 <!--@include styles.css-->
 </style>
@@ -1055,14 +1055,17 @@
       <!-- The period (Ravi, 2026-11-20: "day, week, month, quarterly and year"): Day = today by the hour, as before; the
            others = that period to date against the same period last year, from the nightly history (?live=hist) plus today. -->
       <div class="sd-toggle" id="yoyPeriod" title="Today by the hour, or a period to date against the same period last year">
-        <button data-p="day" class="on">Day</button>
-        <button data-p="week">Week</button>
+        <button data-p="day" class="on">Today</button>
+        <button data-p="yesterday">Yesterday</button>
+        <button data-p="week" title="Sunday to Saturday">Week</button>
         <button data-p="month">Month</button>
         <button data-p="quarter">Quarter</button>
         <button data-p="year">Year</button>
         <button data-p="events">Events</button>
         <button data-p="products" title="Month by month per ASIN or SKU since January 2025, with uploaded ad reports">By product</button>
       </div>
+      <!-- Which month or financial quarter (Apr–Mar year), shown for Month and Quarter (yoyFillPick). -->
+      <select id="yoyPick" hidden title="Which month or quarter"></select>
       <!-- Which channel to show (Ravi, 2026-11-20: "a toggle at top which shows Shopify and Amazon"). Remembered per browser. -->
       <div class="sd-toggle" id="yoyChan" title="Show Amazon, Shopify, or both with the all-channels totals">
         <button data-v="both" class="on">Amazon + Shopify</button>

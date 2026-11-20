@@ -445,8 +445,45 @@ async function yoyLoadHist(force) {
 function yoyCard(cls, k, v, sub, vcls, title) {
   return `<div class="sd-card ${cls}"${title ? ` title="${title}"` : ''}><div class="lbl">${k}</div><div class="val${vcls ? ' ' + vcls : ''}">${v}</div><div class="sub">${sub || ''}</div></div>`;
 }
+/* The periods (Ravi, 2026-11-20: "add yesterday; week Sunday to Saturday; month 1 to 30/31; a quarter we can change; our
+ * year runs April to March") — the same as live.html's periodRange. Weeks run Sunday–Saturday against the same weekdays a
+ * year back (364 days); months, quarters and years against the same dates. Quarters and years are the financial ones: Q1
+ * Apr–Jun, Q2 Jul–Sep, Q3 Oct–Dec, Q4 Jan–Mar; FY 2026-27 = 1 Apr 2026 – 31 Mar 2027. A past month or quarter counts whole. */
+const YOY_PICK = { month: '', quarter: '' };
+function yoyFyQ(mk) { const y = Number(mk.slice(0, 4)), m = Number(mk.slice(5, 7)); return { fy: m >= 4 ? y : y - 1, q: m >= 4 ? Math.floor((m - 4) / 3) + 1 : 4, qStart: y + '-' + String(m >= 4 ? Math.floor((m - 4) / 3) * 3 + 4 : 1).padStart(2, '0') }; }
+const yoyFyName = fy => 'FY ' + fy + '-' + String((fy + 1) % 100).padStart(2, '0');
+const yoyMonthEnd = mk => { const [y, m] = mk.split('-').map(Number); return new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10); };
+const yoyAddMonths = (mk, n) => { const [y, m] = mk.split('-').map(Number); return new Date(Date.UTC(y, m - 1 + n, 1)).toISOString().slice(0, 7); };
+const yoyMLabel = (mk, short) => new Date(mk + '-15T12:00:00Z').toLocaleDateString('en-GB', { timeZone: 'UTC', month: short ? 'short' : 'long', year: 'numeric' });
+function yoyPeriodRange(P, T, pick) {
+  const sh = (d, n) => sdShift(d, n);
+  if (P === 'yesterday') { const y = sh(T, -1); return { start: y, end: y, today: false, sameWeekday: true, name: 'Yesterday', label: 'Yesterday, ' + yoyDate(y) }; }
+  if (P === 'week') return { start: sh(T, -new Date(T + 'T12:00:00Z').getUTCDay()), end: T, today: true, sameWeekday: true, name: 'Week', label: 'This week, Sunday to today' };
+  if (P === 'month') {
+    const mk = pick && pick < T.slice(0, 7) ? pick : T.slice(0, 7), cur = mk === T.slice(0, 7);
+    return { start: mk + '-01', end: cur ? T : yoyMonthEnd(mk), today: cur, name: 'Month', label: yoyMLabel(mk) + (cur ? ' to date' : ' (whole month)') };
+  }
+  if (P === 'quarter') {
+    const now = yoyFyQ(T.slice(0, 7)).qStart, qs = pick && pick < now ? pick : now, f = yoyFyQ(qs), qe = yoyMonthEnd(yoyAddMonths(qs, 2)), cur = T <= qe;
+    return { start: qs + '-01', end: cur ? T : qe, today: cur, name: 'Q' + f.q, label: `Q${f.q} ${yoyFyName(f.fy)} · ${yoyMLabel(qs, true).split(' ')[0]}–${yoyMLabel(yoyAddMonths(qs, 2), true)}${cur ? ' to date' : ' (whole quarter)'}` };
+  }
+  const f = yoyFyQ(T.slice(0, 7));
+  return { start: f.fy + '-04-01', end: T, today: true, name: 'Year', label: yoyFyName(f.fy) + ' to date (from 1 April)' };
+}
+function yoyFillPick(H, T) {
+  const sel = $('yoyPick'), P = YOY_PERIOD;
+  if (P !== 'month' && P !== 'quarter') { sel.hidden = true; return; }
+  const first = (Object.keys((H && H.d && H.d.SP) || {}).sort()[0] || T).slice(0, 7), now = T.slice(0, 7), opts = [];
+  if (P === 'month') for (let mk = now; mk >= first; mk = yoyAddMonths(mk, -1)) opts.push([mk, yoyMLabel(mk) + (mk === now ? ' (this month)' : '')]);
+  else { const seen = {}; for (let mk = now; mk >= first; mk = yoyAddMonths(mk, -1)) { const f = yoyFyQ(mk); if (seen[f.qStart] || f.qStart < first) continue; seen[f.qStart] = 1; opts.push([f.qStart, `Q${f.q} ${yoyFyName(f.fy)} · ${yoyMLabel(f.qStart, true).split(' ')[0]}–${yoyMLabel(yoyAddMonths(f.qStart, 2), true)}`]); } }
+  if (!opts.length) { sel.hidden = true; return; }
+  const want = YOY_PICK[P] || opts[0][0];
+  if (sel.dataset.p !== P || sel.dataset.n !== String(opts.length)) { sel.innerHTML = opts.map(([v, t]) => `<option value="${v}">${t}</option>`).join(''); sel.dataset.p = P; sel.dataset.n = String(opts.length); }
+  sel.value = want; sel.hidden = false;
+}
 function yoyRenderPeriod(V, tot, lySame, lyDay) {
   $('paneYoy').dataset.period = YOY_PERIOD;
+  if (!['month', 'quarter'].includes(YOY_PERIOD)) $('yoyPick').hidden = true;
   if (YOY_PERIOD === 'day') return;
   if (YOY_PERIOD === 'products') { yoyRenderProducts(); return; }
   const H = YOY_HIST, amzK = V.keys, T = V.day;
@@ -455,42 +492,46 @@ function yoyRenderPeriod(V, tot, lySame, lyDay) {
   if (!H || !H.d) { $('yoyPnote').textContent = YOY_HIST_ERR ? 'Could not read the history for the period: ' + YOY_HIST_ERR : 'Reading the history…'; ['yoyPAll', 'yoyPAmz', 'yoyPShop'].forEach(id => { $(id).innerHTML = ''; }); return; }
   const sh = (d, n) => sdShift(d, n);
   const lyDate = d => { const y = Number(d.slice(0, 4)) - 1, md = d.slice(5) === '02-29' ? '02-28' : d.slice(5); return y + '-' + md; };
-  const dow = (new Date(T + 'T12:00:00Z').getUTCDay() + 6) % 7, mo = Number(T.slice(5, 7));
-  const start = { week: sh(T, -dow), month: T.slice(0, 8) + '01', quarter: T.slice(0, 5) + String(Math.floor((mo - 1) / 3) * 3 + 1).padStart(2, '0') + '-01', year: T.slice(0, 4) + '-01-01' }[YOY_PERIOD];
-  const lyOf = d => (YOY_PERIOD === 'week' ? sh(d, -364) : lyDate(d));
-  const days = []; for (let d = start; d < T; d = sh(d, 1)) days.push(d);
+  const PR = yoyPeriodRange(YOY_PERIOD, T, YOY_PICK[YOY_PERIOD]), start = PR.start, end = PR.end, live = PR.today;
+  const lyOf = d => (PR.sameWeekday ? sh(d, -364) : lyDate(d));
+  // The whole days of the period; the day on view, when it is in it, is added from its live figures below.
+  const days = []; for (let d = start; d <= end; d = sh(d, 1)) if (d !== T) days.push(d);
+  if (!live) tot = yoyZero();
   const lyFrac = V.day === sdToday() && lyDay.sales > 0 ? lySame.sales / lyDay.sales : 1;
+  yoyFillPick(H, T);
   const Z = () => ({ sales: 0, units: 0, orders: 0 });
   const addRow = (t, r, f) => { if (r) { t.sales += (r[0] || 0) * (f || 1); t.units += (r[1] || 0) * (f || 1); t.orders += (r[2] || 0) * (f || 1); } return t; };
   const weekRow = (k, d) => { const r = (YOY[k].week || []).find(x => String(x.t).slice(0, 10) === d); return r ? [r.sales, r.units, r.orders] : null; };
   const best = { amz: null, shop: null }, byDay = {};
   const amz = Z(), amzLy = Z();
   days.forEach(d => { const t = Z(); amzK.forEach(k => addRow(t, (H.d[k] || {})[d] || weekRow(k, d))); addRow(amz, [t.sales, t.units, t.orders]); byDay[d] = { a: t.sales, s: 0 }; if (!best.amz || t.sales > best.amz[1]) best.amz = [d, t.sales]; });
-  amz.sales += tot.sales; amz.units += tot.units; amz.orders += tot.orders; byDay[T] = { a: tot.sales, s: 0 };
+  amz.sales += tot.sales; amz.units += tot.units; amz.orders += tot.orders; if (live) byDay[T] = { a: tot.sales, s: 0 };
   days.forEach(d => amzK.forEach(k => addRow(amzLy, (H.d[k] || {})[lyOf(d)])));
-  amzK.forEach(k => addRow(amzLy, (H.d[k] || {})[lyOf(T)], lyFrac));
+  if (live) amzK.forEach(k => addRow(amzLy, (H.d[k] || {})[lyOf(T)], lyFrac));
   // Shopify: each brand's own store — Ridhi's from the nightly history (SHOP), CPC's built by the backend (SHOP_CPC).
   const SHOPK = { SP: 'SHOP', CPC: 'SHOP_CPC' };
   const shopOn = amzK.some(k => H.d[SHOPK[k]] && Object.keys(H.d[SHOPK[k]]).length), shp = Z(), shpLy = Z();
   if (shopOn) {
     days.forEach(d => { let s = 0; amzK.forEach(k => { const r = (H.d[SHOPK[k]] || {})[d]; addRow(shp, r); if (r) s += r[0]; }); byDay[d].s = s; if (s && (!best.shop || s > best.shop[1])) best.shop = [d, s]; });
-    amzK.forEach(k => (((YOY[k] || {}).shop || {}).now || []).forEach(r => { shp.sales += r.sales || 0; shp.units += r.units || 0; shp.orders += r.orders || 0; byDay[T].s += r.sales || 0; }));
+    if (live) amzK.forEach(k => (((YOY[k] || {}).shop || {}).now || []).forEach(r => { shp.sales += r.sales || 0; shp.units += r.units || 0; shp.orders += r.orders || 0; byDay[T].s += r.sales || 0; }));
     days.forEach(d => amzK.forEach(k => addRow(shpLy, (H.d[SHOPK[k]] || {})[lyOf(d)])));
-    amzK.forEach(k => addRow(shpLy, (H.d[SHOPK[k]] || {})[lyOf(T)], lyFrac));
+    if (live) amzK.forEach(k => addRow(shpLy, (H.d[SHOPK[k]] || {})[lyOf(T)], lyFrac));
   }
   let spend = 0, adFrom = '';
-  days.concat([T]).forEach(d => amzK.forEach(k => {
+  days.concat(live ? [T] : []).forEach(d => amzK.forEach(k => {
     const live = (((YOY[k].ads || {}).days) || {})[d], old = ((H.ads || {})[k] || {})[d];
     const s = live ? live.spend : old ? old[2] : null;
     if (s != null) { spend += Number(s) || 0; if (!adFrom || d < adFrom) adFrom = d; }
   }));
   let adA = 0, adS = 0; Object.keys(byDay).forEach(d => { if (adFrom && d >= adFrom) { adA += byDay[d].a; adS += byDay[d].s; } });
   const all = amz.sales + shp.sales, allLy = amzLy.sales + shpLy.sales, aPct = all > 0 ? amz.sales / all * 100 : 0;
-  const NAME = { week: 'Week', month: 'Month', quarter: 'Quarter', year: 'Year' }[YOY_PERIOD];
-  const range = (a, b) => yoyDate(a, false) + ' – ' + yoyDate(b);
-  $('yoyPnote').innerHTML = `<b>${NAME} to date</b> · ${range(start, T)} against ${range(lyOf(start), lyOf(T))}`
-    + (V.day === sdToday() ? ` · today to ${yoyTime(V.asOf)} PT, last year to the same time` : '')
+  const NAME = PR.name;
+  const range = (a, b) => (a === b ? yoyDate(a) : yoyDate(a, false) + ' – ' + yoyDate(b));
+  const first = Object.keys(H.d.SP || {}).sort()[0] || '';
+  $('yoyPnote').innerHTML = `<b>${PR.label}</b> · ${range(start, end)} against ${range(lyOf(start), lyOf(end))}${PR.sameWeekday ? ' (same weekdays)' : ''}`
+    + (live && V.day === sdToday() ? ` · today to ${yoyTime(V.asOf)} PT, last year to the same time` : live ? '' : ' · whole days')
     + ` · history to ${H.through ? yoyDate(H.through, false) : '—'}`
+    + (first && lyOf(start) < first ? ` · <b>last year is only partly in the history</b> (it starts ${yoyDate(first)})` : '')
     + (amzK.includes('CPC') && H.shopCpcFrom && H.shopCpcFrom > start ? ` · CPC Shopify history from ${yoyDate(H.shopCpcFrom, false)} (still filling in)` : '');
   const pc = (a, b) => (b > 0 ? (a / b * 100).toFixed(1) + '%' : '—');
   const chg = (a, b) => { if (!b) return ['—', '']; const p = Math.round((a / b - 1) * 100); return [(p > 0 ? '+' : '') + p + '%', p >= 0 ? 'yoy-up' : 'yoy-down']; };
@@ -518,7 +559,7 @@ function yoyRenderPeriod(V, tot, lySame, lyDay) {
       + yoyCard('sd-b-orange', 'vs last year', cS, 'last year ' + yoyMoney(shpLy.sales) + (shpLy.sales ? '' : ' · the store opened in January 2026'), kS)
       + yoyCard('sd-b-pink', 'Average order', aov(shp), '')
       + yoyCard('yoy-b-organic', 'Share of all sales', pc(shp.sales, all), 'Shopify ÷ (Amazon + Shopify)')
-      + yoyCard('sd-b-teal', 'Orders a day', (shp.orders / (days.length + 1)).toFixed(1), 'over ' + (days.length + 1) + ' day' + (days.length ? 's' : '') + ', today included')
+      + yoyCard('sd-b-teal', 'Orders a day', (shp.orders / Math.max(1, days.length + (live ? 1 : 0))).toFixed(1), 'over ' + (days.length + (live ? 1 : 0)) + ' day' + (days.length + (live ? 1 : 0) === 1 ? '' : 's') + (live ? ', today included' : ''))
       + yoyCard('sd-b-indigo', 'Best day', best.shop ? yoyMoney(best.shop[1]) : '—', best.shop ? yoyDate(best.shop[0], false) : 'today is the first day')
     : yoyCard('sd-b-cyan', 'Shopify', '—', 'This store’s history is still being read (about 60 days every 15 minutes)');
 }
@@ -892,7 +933,8 @@ $('yoyTrendSeg').querySelectorAll('button').forEach(b => b.onclick = () => {
   try { localStorage.setItem('yoy.trend', b.dataset.t); } catch (e) { /* no storage */ }
 });
 try { yoySetTrend(localStorage.getItem('yoy.trend') === 'week' ? 'week' : 'day'); } catch (e) { yoySetTrend('day'); }
-try { const p = localStorage.getItem('yoy.period'); yoySetPeriod(['day', 'week', 'month', 'quarter', 'year', 'events', 'products'].includes(p) ? p : 'day'); } catch (e) { yoySetPeriod('day'); }
+try { const p = localStorage.getItem('yoy.period'); yoySetPeriod(['day', 'yesterday', 'week', 'month', 'quarter', 'year', 'events', 'products'].includes(p) ? p : 'day'); } catch (e) { yoySetPeriod('day'); }
+$('yoyPick').onchange = e => { YOY_PICK[YOY_PERIOD] = e.target.value; if (YOY_KEY) yoyRender(); };
 try {
   const saved = localStorage.getItem('yoy.brand');
   if (saved && $('yoyBrand').querySelector(`[data-ch="${saved}"]`)) {
