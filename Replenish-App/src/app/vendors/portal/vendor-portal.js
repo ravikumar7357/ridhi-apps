@@ -401,6 +401,10 @@ function renderVp() {
     if (!doneN && VP.tab === 'done') VP.tab = 'bulk';
     if ($('vpTabVs')) $('vpTabVs').classList.toggle('hide', !vsN && VP.tab !== 'vsent');
     $('vpTabShop').classList.toggle('hide', !shopN && !histOrders.length);
+    /* WHAT I HAVE SENT (Ravi, 20 Nov): gone from the office's printer's view (History covers what came in); a printer's own sign-in keeps
+     * it only while it has old "Sending now" deliveries to show. */
+    const histN = vpHistRows().length, histShown = !vprOn() && histN > 0;
+    if (!histShown && VP.tab === 'hist') VP.tab = 'bulk';
     const paint = (id, on, label, n) => {
       const b = $(id); if (!b) return;
       b.textContent = n ? label + ' (' + nf(n) + ')' : label;
@@ -410,7 +414,8 @@ function renderVp() {
     paint('vpTabShop', VP.tab === 'shop', 'Custom orders', shopN);
     paint('vpTabVs', VP.tab === 'vsent', 'Vendor sent', vsN);
     paint('vpTabDone', VP.tab === 'done', 'Completed', doneN);
-    paint('vpTabHist', VP.tab === 'hist', 'What I have sent', vpHistRows().length);
+    paint('vpTabHist', VP.tab === 'hist', 'What I have sent', histN);
+    if ($('vpTabHist')) $('vpTabHist').classList.toggle('hide', !histShown);   // after paint, which sets the whole class
     /* Counted as things still to hear about, not as things ever asked — a printer wants to know what
      * is outstanding, and a number that only goes up stops being read after a fortnight. */
     paint('vpTabRfd', VP.tab === 'rfd', 'RFD fabric I need',
